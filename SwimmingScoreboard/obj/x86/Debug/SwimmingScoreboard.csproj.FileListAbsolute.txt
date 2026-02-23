@@ -1,0 +1,14 @@
+E:\swiming_claude\SwimmingScoreboard\bin\Debug\SwimmingScoreboard.exe
+E:\swiming_claude\SwimmingScoreboard\bin\Debug\SwimmingScoreboard.pdb
+E:\swiming_claude\SwimmingScoreboard\bin\Debug\Fleck.dll
+E:\swiming_claude\SwimmingScoreboard\bin\Debug\Newtonsoft.Json.dll
+E:\swiming_claude\SwimmingScoreboard\obj\x86\Debug\SwimmingScoreboard.csprojResolveAssemblyReference.cache
+E:\swiming_claude\SwimmingScoreboard\obj\x86\Debug\MainWindow.g.cs
+E:\swiming_claude\SwimmingScoreboard\obj\x86\Debug\App.g.cs
+E:\swiming_claude\SwimmingScoreboard\obj\x86\Debug\GeneratedInternalTypeHelper.g.cs
+E:\swiming_claude\SwimmingScoreboard\obj\x86\Debug\SwimmingScoreboard_MarkupCompile.cache
+E:\swiming_claude\SwimmingScoreboard\obj\x86\Debug\SwimmingScoreboard_MarkupCompile.lref
+E:\swiming_claude\SwimmingScoreboard\obj\x86\Debug\MainWindow.baml
+E:\swiming_claude\SwimmingScoreboard\obj\x86\Debug\SwimmingScoreboard.g.resources
+E:\swiming_claude\SwimmingScoreboard\obj\x86\Debug\SwimmingScoreboard.exe
+E:\swiming_claude\SwimmingScoreboard\obj\x86\Debug\SwimmingScoreboard.pdb
