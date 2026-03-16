@@ -70,6 +70,7 @@ namespace SwimmingScoreboard
         private TimingBridge _timingBridge;
         private DispatcherTimer _raceTimer;
         private DispatcherTimer _countdownTimer;
+        private bool _initialized = false;
 
         // ═══════════════════════════════════════════════════════════════
         // 构造函数与初始化
@@ -83,6 +84,7 @@ namespace SwimmingScoreboard
             LoadLastCompetition();
             PopulateComPorts();
             UpdateConnectionStatus();
+            _initialized = true;
             AddLog("系统启动完成");
         }
 
@@ -104,11 +106,11 @@ namespace SwimmingScoreboard
                 "4x100米混合泳接力"
             };
             foreach (string ev in _events) {
-                RegEventCombo.Items.Add(new ComboBoxItem { Content = ev });
-                FilterEventCombo.Items.Add(new ComboBoxItem { Content = ev });
-                ResultEventCombo.Items.Add(ev);
+                if (RegEventCombo != null) RegEventCombo.Items.Add(new ComboBoxItem { Content = ev });
+                if (FilterEventCombo != null) FilterEventCombo.Items.Add(new ComboBoxItem { Content = ev });
+                if (ResultEventCombo != null) ResultEventCombo.Items.Add(ev);
             }
-            if (RegEventCombo.Items.Count > 0) RegEventCombo.SelectedIndex = 0;
+            if (RegEventCombo != null && RegEventCombo.Items.Count > 0) RegEventCombo.SelectedIndex = 0;
 
             // 初始化泳道设备状态
             InitLaneDeviceStates();
@@ -417,6 +419,7 @@ namespace SwimmingScoreboard
         }
 
         private void UpdateConnectionStatus() {
+            if (DisplayConnText == null) return;
             DisplayConnText.Text = _displaySockets.Count.ToString();
             DisplayConnText.Foreground = new SolidColorBrush(_displaySockets.Count > 0 ? Colors.Green : Colors.Red);
             LeaderboardConnText.Text = _leaderboardSockets.Count.ToString();
@@ -435,6 +438,7 @@ namespace SwimmingScoreboard
         // 广播
         // ═══════════════════════════════════════════════════════════════
         private void Broadcast() {
+            if (!_initialized) return;
             try {
                 var msg = new { type = "SHOW_LIVE_RACE", data = GetStatusData() };
                 string json = JsonConvert.SerializeObject(msg);
@@ -445,6 +449,7 @@ namespace SwimmingScoreboard
         }
 
         private void BroadcastSingle(IWebSocketConnection socket) {
+            if (!_initialized) return;
             try {
                 var msg = new { type = "SHOW_LIVE_RACE", data = GetStatusData() };
                 socket.Send(JsonConvert.SerializeObject(msg));
@@ -1381,10 +1386,11 @@ namespace SwimmingScoreboard
             Broadcast();
         }
 
-        private void FilterEvent_Changed(object sender, SelectionChangedEventArgs e) { RefreshSwimmerFilter(); }
-        private void FilterGender_Changed(object sender, SelectionChangedEventArgs e) { RefreshSwimmerFilter(); }
+        private void FilterEvent_Changed(object sender, SelectionChangedEventArgs e) { if (_initialized) RefreshSwimmerFilter(); }
+        private void FilterGender_Changed(object sender, SelectionChangedEventArgs e) { if (_initialized) RefreshSwimmerFilter(); }
 
         private void RefreshSwimmerFilter() {
+            if (FilterEventCombo == null || FilterGenderCombo == null || SwimmerGrid == null) return;
             string eventFilter = FilterEventCombo.SelectedItem != null ? ((ComboBoxItem)FilterEventCombo.SelectedItem).Content.ToString() : "全部";
             string genderFilter = FilterGenderCombo.SelectedItem != null ? ((ComboBoxItem)FilterGenderCombo.SelectedItem).Content.ToString() : "全部";
 
@@ -1444,10 +1450,11 @@ namespace SwimmingScoreboard
         // ═══════════════════════════════════════════════════════════════
         // 成绩与排名
         // ═══════════════════════════════════════════════════════════════
-        private void ResultEvent_Changed(object sender, SelectionChangedEventArgs e) { RefreshResultGrid(); }
-        private void ResultStage_Changed(object sender, SelectionChangedEventArgs e) { RefreshResultGrid(); }
+        private void ResultEvent_Changed(object sender, SelectionChangedEventArgs e) { if (_initialized) RefreshResultGrid(); }
+        private void ResultStage_Changed(object sender, SelectionChangedEventArgs e) { if (_initialized) RefreshResultGrid(); }
 
         private void RefreshResultGrid() {
+            if (ResultEventCombo == null || ResultStageCombo == null || ResultGrid == null) return;
             string eventName = ResultEventCombo.SelectedItem != null ? ResultEventCombo.SelectedItem.ToString() : "";
             string stage = ResultStageCombo.SelectedItem != null ? ((ComboBoxItem)ResultStageCombo.SelectedItem).Content.ToString() : "全部";
 
@@ -1734,11 +1741,13 @@ namespace SwimmingScoreboard
         // 计时硬件连接
         // ═══════════════════════════════════════════════════════════════
         private void PopulateComPorts() {
-            ComPortCombo.Items.Clear();
-            foreach (string port in SerialPort.GetPortNames()) {
-                ComPortCombo.Items.Add(port);
-            }
-            if (ComPortCombo.Items.Count > 0) ComPortCombo.SelectedIndex = 0;
+            try {
+                ComPortCombo.Items.Clear();
+                foreach (string port in SerialPort.GetPortNames()) {
+                    ComPortCombo.Items.Add(port);
+                }
+                if (ComPortCombo.Items.Count > 0) ComPortCombo.SelectedIndex = 0;
+            } catch { }
         }
 
         private void ConnectSerial_Click(object sender, RoutedEventArgs e) {
@@ -1975,6 +1984,7 @@ tr:nth-child(even) {{ background: #fafafa; }}
         // 工具方法
         // ═══════════════════════════════════════════════════════════════
         private void AddLog(string msg) {
+            if (LogListBox == null) return;
             string entry = string.Format("[{0}] {1}", DateTime.Now.ToString("HH:mm:ss"), msg);
             LogListBox.Items.Add(entry);
             if (LogListBox.Items.Count > 500) LogListBox.Items.RemoveAt(0);
