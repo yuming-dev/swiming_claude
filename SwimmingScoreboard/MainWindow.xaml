@@ -1,0 +1,537 @@
+<Window x:Class="SwimmingScoreboard.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="游泳赛事管理系统" Width="1400" Height="820"
+        WindowState="Maximized" Background="#F1F5F9"
+        Closing="Window_Closing">
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+    </Window.Resources>
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- 顶部状态栏 -->
+        <Border Grid.Row="0" Background="#1E293B" Padding="16,10">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0" Orientation="Horizontal">
+                    <Ellipse Width="10" Height="10" Fill="#22C55E" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                    <TextBlock Text="竞赛服务运行中" Foreground="White" FontSize="14" VerticalAlignment="Center"/>
+                </StackPanel>
+                <TextBlock x:Name="ServerAddressText" Grid.Column="1" Foreground="#94A3B8" FontSize="12"
+                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                <StackPanel Grid.Column="2" Orientation="Horizontal">
+                    <TextBlock Text="控制模式: " Foreground="#94A3B8" FontSize="12" VerticalAlignment="Center"/>
+                    <TextBlock x:Name="ControlModeText" Text="本地" Foreground="#22C55E" FontSize="12" VerticalAlignment="Center"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- 标签页 -->
+        <TabControl Grid.Row="1" Margin="8" x:Name="MainTabControl">
+
+            <!-- ═══ 系统状态 ═══ -->
+            <TabItem Header="系统工作状态">
+                <Grid Margin="10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="350"/>
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- 当前比赛信息 -->
+                    <Border Grid.Column="0" Grid.Row="0" Background="White" CornerRadius="6" Padding="16" Margin="0,0,10,10">
+                        <StackPanel>
+                            <TextBlock Text="当前比赛" FontSize="16" FontWeight="Bold" Foreground="#1E293B" Margin="0,0,0,10"/>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="80"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="80"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="28"/>
+                                    <RowDefinition Height="28"/>
+                                    <RowDefinition Height="28"/>
+                                </Grid.RowDefinitions>
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="项目:" Foreground="#64748B" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="CurrentEventText" Grid.Row="0" Grid.Column="1" Text="-" FontWeight="Bold" Foreground="#1E293B" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Row="0" Grid.Column="2" Text="阶段:" Foreground="#64748B" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="CurrentStageText" Grid.Row="0" Grid.Column="3" Text="-" FontWeight="Bold" Foreground="#1E293B" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="组次:" Foreground="#64748B" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="CurrentHeatText" Grid.Row="1" Grid.Column="1" Text="-" FontWeight="Bold" Foreground="#1E293B" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Row="1" Grid.Column="2" Text="状态:" Foreground="#64748B" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="RaceStateText" Grid.Row="1" Grid.Column="3" Text="等待" FontWeight="Bold" Foreground="#F59E0B" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="模式:" Foreground="#64748B" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="CompModeText" Grid.Row="2" Grid.Column="1" Text="国内" Foreground="#1E293B" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Row="2" Grid.Column="2" Text="泳池:" Foreground="#64748B" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="PoolInfoText" Grid.Row="2" Grid.Column="3" Text="50米 10道" Foreground="#1E293B" VerticalAlignment="Center"/>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- 连接状态 -->
+                    <Border Grid.Column="1" Grid.Row="0" Background="White" CornerRadius="6" Padding="16" Margin="0,0,0,10">
+                        <StackPanel>
+                            <TextBlock Text="连接状态" FontSize="16" FontWeight="Bold" Foreground="#1E293B" Margin="0,0,0,10"/>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="24"/>
+                                    <RowDefinition Height="24"/>
+                                    <RowDefinition Height="24"/>
+                                    <RowDefinition Height="24"/>
+                                    <RowDefinition Height="24"/>
+                                    <RowDefinition Height="24"/>
+                                </Grid.RowDefinitions>
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="大屏显示" Foreground="#64748B" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="DisplayConnText" Grid.Row="0" Grid.Column="2" Text="0" Foreground="#EF4444" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="排名屏" Foreground="#64748B" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="LeaderboardConnText" Grid.Row="1" Grid.Column="2" Text="0" Foreground="#EF4444" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="注册终端" Foreground="#64748B" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="RegisterConnText" Grid.Row="2" Grid.Column="2" Text="0" Foreground="#EF4444" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Row="3" Grid.Column="0" Text="计时EXE" Foreground="#64748B" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="TimingExeConnText" Grid.Row="3" Grid.Column="2" Text="0" Foreground="#EF4444" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Row="4" Grid.Column="0" Text="计时Web" Foreground="#64748B" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="TimingWebConnText" Grid.Row="4" Grid.Column="2" Text="0" Foreground="#EF4444" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Row="5" Grid.Column="0" Text="计时硬件" Foreground="#64748B" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="TimingHwConnText" Grid.Row="5" Grid.Column="2" Text="未连接" Foreground="#EF4444" VerticalAlignment="Center"/>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- 比赛日志 -->
+                    <Border Grid.Column="0" Grid.ColumnSpan="2" Grid.Row="1" Background="White" CornerRadius="6" Padding="16">
+                        <DockPanel>
+                            <TextBlock DockPanel.Dock="Top" Text="比赛日志" FontSize="16" FontWeight="Bold" Foreground="#1E293B" Margin="0,0,0,10"/>
+                            <ListBox x:Name="LogListBox" FontFamily="Consolas" FontSize="12" BorderThickness="0"
+                                     ScrollViewer.VerticalScrollBarVisibility="Auto"/>
+                        </DockPanel>
+                    </Border>
+                </Grid>
+            </TabItem>
+
+            <!-- ═══ 赛事管理与报名 ═══ -->
+            <TabItem Header="赛事管理与报名">
+                <Grid Margin="10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="400"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- 左侧：赛事信息 + 运动员列表 -->
+                    <TabControl Grid.Column="0" Margin="0,0,10,0">
+                        <TabItem Header="赛事概览">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                <StackPanel Margin="16">
+                                    <TextBlock Text="赛事基本信息" FontSize="16" FontWeight="Bold" Margin="0,0,0,10"/>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="90"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="90"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="32"/>
+                                            <RowDefinition Height="32"/>
+                                            <RowDefinition Height="32"/>
+                                            <RowDefinition Height="32"/>
+                                            <RowDefinition Height="32"/>
+                                            <RowDefinition Height="32"/>
+                                            <RowDefinition Height="32"/>
+                                            <RowDefinition Height="32"/>
+                                            <RowDefinition Height="32"/>
+                                        </Grid.RowDefinitions>
+                                        <TextBlock Grid.Row="0" Grid.Column="0" Text="赛事名称:" VerticalAlignment="Center"/>
+                                        <TextBox x:Name="CompNameBox" Grid.Row="0" Grid.Column="1" Grid.ColumnSpan="3" Padding="4" VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Row="1" Grid.Column="0" Text="比赛模式:" VerticalAlignment="Center"/>
+                                        <ComboBox x:Name="CompModeCombo" Grid.Row="1" Grid.Column="1" VerticalAlignment="Center" SelectedIndex="0">
+                                            <ComboBoxItem Content="国内（中国游泳协会）"/>
+                                            <ComboBoxItem Content="国际（FINA）"/>
+                                        </ComboBox>
+                                        <TextBlock Grid.Row="1" Grid.Column="2" Text="泳池长度:" VerticalAlignment="Center"/>
+                                        <ComboBox x:Name="PoolLengthCombo" Grid.Row="1" Grid.Column="3" VerticalAlignment="Center" SelectedIndex="0">
+                                            <ComboBoxItem Content="50米"/>
+                                            <ComboBoxItem Content="25米"/>
+                                        </ComboBox>
+                                        <TextBlock Grid.Row="2" Grid.Column="0" Text="泳道数量:" VerticalAlignment="Center"/>
+                                        <ComboBox x:Name="LaneCountCombo" Grid.Row="2" Grid.Column="1" VerticalAlignment="Center" SelectedIndex="0">
+                                            <ComboBoxItem Content="10道"/>
+                                            <ComboBoxItem Content="8道"/>
+                                            <ComboBoxItem Content="6道"/>
+                                        </ComboBox>
+                                        <TextBlock Grid.Row="3" Grid.Column="0" Text="开始日期:" VerticalAlignment="Center"/>
+                                        <TextBox x:Name="StartDateBox" Grid.Row="3" Grid.Column="1" Padding="4" VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Row="3" Grid.Column="2" Text="结束日期:" VerticalAlignment="Center"/>
+                                        <TextBox x:Name="EndDateBox" Grid.Row="3" Grid.Column="3" Padding="4" VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Row="4" Grid.Column="0" Text="比赛地点:" VerticalAlignment="Center"/>
+                                        <TextBox x:Name="LocationBox" Grid.Row="4" Grid.Column="1" Grid.ColumnSpan="3" Padding="4" VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Row="5" Grid.Column="0" Text="主办方:" VerticalAlignment="Center"/>
+                                        <TextBox x:Name="OrganizerBox" Grid.Row="5" Grid.Column="1" Grid.ColumnSpan="3" Padding="4" VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Row="6" Grid.Column="0" Text="承办方:" VerticalAlignment="Center"/>
+                                        <TextBox x:Name="HostBox" Grid.Row="6" Grid.Column="1" Grid.ColumnSpan="3" Padding="4" VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Row="7" Grid.Column="0" Text="技术代表:" VerticalAlignment="Center"/>
+                                        <TextBox x:Name="TechDelegateBox" Grid.Row="7" Grid.Column="1" Padding="4" VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Row="7" Grid.Column="2" Text="总裁判长:" VerticalAlignment="Center"/>
+                                        <TextBox x:Name="RefereeBox" Grid.Row="7" Grid.Column="3" Padding="4" VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Row="8" Grid.Column="0" Text="发令员:" VerticalAlignment="Center"/>
+                                        <TextBox x:Name="StarterBox" Grid.Row="8" Grid.Column="1" Padding="4" VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Row="8" Grid.Column="2" Text="编排长:" VerticalAlignment="Center"/>
+                                        <TextBox x:Name="ChiefJudgeBox" Grid.Row="8" Grid.Column="3" Padding="4" VerticalAlignment="Center"/>
+                                    </Grid>
+                                    <StackPanel Orientation="Horizontal" Margin="0,16,0,0">
+                                        <Button Content="保存赛事信息" Click="SaveCompetitionInfo_Click" Padding="16,6" Background="#3B82F6" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
+                                        <Button Content="加载赛事" Click="LoadCompetition_Click" Padding="16,6" Background="#64748B" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
+                                        <Button Content="新建赛事" Click="NewCompetition_Click" Padding="16,6" Background="#22C55E" Foreground="White" BorderThickness="0"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </ScrollViewer>
+                        </TabItem>
+                        <TabItem Header="运动员管理">
+                            <DockPanel Margin="10">
+                                <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
+                                    <Button Content="添加运动员" Click="AddSwimmer_Click" Padding="12,6" Background="#3B82F6" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
+                                    <Button Content="删除选中" Click="DeleteSwimmer_Click" Padding="12,6" Background="#EF4444" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
+                                    <Button Content="导入CSV" Click="ImportCSV_Click" Padding="12,6" Background="#8B5CF6" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
+                                    <TextBlock Text="  筛选项目:" VerticalAlignment="Center"/>
+                                    <ComboBox x:Name="FilterEventCombo" Width="180" Margin="4,0" SelectionChanged="FilterEvent_Changed">
+                                        <ComboBoxItem Content="全部" IsSelected="True"/>
+                                    </ComboBox>
+                                    <TextBlock Text=" 性别:" VerticalAlignment="Center"/>
+                                    <ComboBox x:Name="FilterGenderCombo" Width="60" Margin="4,0" SelectionChanged="FilterGender_Changed">
+                                        <ComboBoxItem Content="全部" IsSelected="True"/>
+                                        <ComboBoxItem Content="男"/>
+                                        <ComboBoxItem Content="女"/>
+                                    </ComboBox>
+                                </StackPanel>
+                                <DataGrid x:Name="SwimmerGrid" AutoGenerateColumns="False" CanUserAddRows="False"
+                                          SelectionMode="Single" IsReadOnly="False" AlternatingRowBackground="#F8FAFC">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="号码" Binding="{Binding BibNumber}" Width="60"/>
+                                        <DataGridTextColumn Header="姓名" Binding="{Binding Name}" Width="80"/>
+                                        <DataGridTextColumn Header="性别" Binding="{Binding Gender}" Width="40"/>
+                                        <DataGridTextColumn Header="年龄" Binding="{Binding Age}" Width="40"/>
+                                        <DataGridTextColumn Header="年龄组" Binding="{Binding AgeCategory}" Width="60" IsReadOnly="True"/>
+                                        <DataGridTextColumn Header="代表队" Binding="{Binding Country}" Width="80"/>
+                                        <DataGridTextColumn Header="项目" Binding="{Binding EventName}" Width="120"/>
+                                        <DataGridTextColumn Header="报名成绩" Binding="{Binding EntryTime}" Width="80"/>
+                                        <DataGridTextColumn Header="阶段" Binding="{Binding CurrentStage}" Width="60"/>
+                                        <DataGridTextColumn Header="组" Binding="{Binding Heat}" Width="40"/>
+                                        <DataGridTextColumn Header="道" Binding="{Binding Lane}" Width="40"/>
+                                        <DataGridTextColumn Header="状态" Binding="{Binding Status}" Width="50"/>
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </DockPanel>
+                        </TabItem>
+                        <TabItem Header="接力队管理">
+                            <DockPanel Margin="10">
+                                <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
+                                    <Button Content="添加接力队" Click="AddRelay_Click" Padding="12,6" Background="#3B82F6" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
+                                    <Button Content="删除选中" Click="DeleteRelay_Click" Padding="12,6" Background="#EF4444" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
+                                </StackPanel>
+                                <DataGrid x:Name="RelayGrid" AutoGenerateColumns="False" CanUserAddRows="False"
+                                          SelectionMode="Single" IsReadOnly="False" AlternatingRowBackground="#F8FAFC">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="队名" Binding="{Binding TeamName}" Width="100"/>
+                                        <DataGridTextColumn Header="项目" Binding="{Binding EventName}" Width="140"/>
+                                        <DataGridTextColumn Header="性别" Binding="{Binding Gender}" Width="40"/>
+                                        <DataGridTextColumn Header="报名成绩" Binding="{Binding EntryTime}" Width="80"/>
+                                        <DataGridTextColumn Header="阶段" Binding="{Binding Stage}" Width="60"/>
+                                        <DataGridTextColumn Header="组" Binding="{Binding Heat}" Width="40"/>
+                                        <DataGridTextColumn Header="道" Binding="{Binding Lane}" Width="40"/>
+                                        <DataGridTextColumn Header="状态" Binding="{Binding Status}" Width="50"/>
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </DockPanel>
+                        </TabItem>
+                        <TabItem Header="赛程管理">
+                            <DockPanel Margin="10">
+                                <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
+                                    <Button Content="添加赛程项" Click="AddSchedule_Click" Padding="12,6" Background="#3B82F6" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
+                                    <Button Content="删除选中" Click="DeleteSchedule_Click" Padding="12,6" Background="#EF4444" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
+                                    <Button Content="自动生成分组" Click="AutoGenerateHeats_Click" Padding="12,6" Background="#22C55E" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
+                                </StackPanel>
+                                <DataGrid x:Name="ScheduleGrid" AutoGenerateColumns="False" CanUserAddRows="False"
+                                          SelectionMode="Single" IsReadOnly="False" AlternatingRowBackground="#F8FAFC">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="单元" Binding="{Binding SessionNumber}" Width="50"/>
+                                        <DataGridTextColumn Header="单元名" Binding="{Binding SessionName}" Width="140"/>
+                                        <DataGridTextColumn Header="日期" Binding="{Binding Date}" Width="90"/>
+                                        <DataGridTextColumn Header="时间" Binding="{Binding Time}" Width="60"/>
+                                        <DataGridTextColumn Header="性别" Binding="{Binding Gender}" Width="40"/>
+                                        <DataGridTextColumn Header="项目" Binding="{Binding EventName}" Width="120"/>
+                                        <DataGridTextColumn Header="阶段" Binding="{Binding Stage}" Width="60"/>
+                                        <DataGridCheckBoxColumn Header="接力" Binding="{Binding IsRelay}" Width="40"/>
+                                        <DataGridTextColumn Header="组数" Binding="{Binding HeatCount}" Width="50"/>
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </DockPanel>
+                        </TabItem>
+                    </TabControl>
+
+                    <!-- 右侧：快速注册面板 -->
+                    <Border Grid.Column="1" Background="White" CornerRadius="6" Padding="16">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <StackPanel>
+                                <TextBlock Text="快速注册" FontSize="16" FontWeight="Bold" Margin="0,0,0,10"/>
+                                <TextBlock Text="号码牌:" Margin="0,4,0,2"/>
+                                <TextBox x:Name="RegBibBox" Padding="4"/>
+                                <TextBlock Text="姓名:" Margin="0,4,0,2"/>
+                                <TextBox x:Name="RegNameBox" Padding="4"/>
+                                <TextBlock Text="性别:" Margin="0,4,0,2"/>
+                                <ComboBox x:Name="RegGenderCombo" SelectedIndex="0">
+                                    <ComboBoxItem Content="男"/>
+                                    <ComboBoxItem Content="女"/>
+                                </ComboBox>
+                                <TextBlock Text="年龄:" Margin="0,4,0,2"/>
+                                <TextBox x:Name="RegAgeBox" Padding="4"/>
+                                <TextBlock Text="代表队:" Margin="0,4,0,2"/>
+                                <TextBox x:Name="RegCountryBox" Padding="4"/>
+                                <TextBlock Text="项目:" Margin="0,4,0,2"/>
+                                <ComboBox x:Name="RegEventCombo"/>
+                                <TextBlock Text="报名成绩:" Margin="0,4,0,2"/>
+                                <TextBox x:Name="RegEntryTimeBox" Padding="4"/>
+                                <TextBlock Text="出生日期:" Margin="0,4,0,2"/>
+                                <TextBox x:Name="RegBirthDateBox" Padding="4"/>
+                                <TextBlock Text="协会注册号:" Margin="0,4,0,2"/>
+                                <TextBox x:Name="RegCSABox" Padding="4"/>
+                                <Button Content="注册运动员" Click="QuickRegister_Click" Margin="0,12,0,0"
+                                        Padding="0,8" Background="#3B82F6" Foreground="White" FontWeight="Bold" BorderThickness="0"/>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </Border>
+                </Grid>
+            </TabItem>
+
+            <!-- ═══ 比赛控制 ═══ -->
+            <TabItem Header="比赛控制">
+                <Grid Margin="10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="250"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="280"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- 左：赛程导航 -->
+                    <Border Grid.Column="0" Background="White" CornerRadius="6" Padding="10" Margin="0,0,10,0">
+                        <DockPanel>
+                            <TextBlock DockPanel.Dock="Top" Text="赛程导航" FontSize="14" FontWeight="Bold" Margin="0,0,0,8"/>
+                            <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,8,0,0">
+                                <Button Content="◀上一组" Click="PrevHeat_Click" Padding="12,4" Margin="0,0,8,0"/>
+                                <Button Content="下一组▶" Click="NextHeat_Click" Padding="12,4"/>
+                            </StackPanel>
+                            <TreeView x:Name="ScheduleTree" SelectedItemChanged="ScheduleTree_Selected"/>
+                        </DockPanel>
+                    </Border>
+
+                    <!-- 中：泳道状态 -->
+                    <Border Grid.Column="1" Background="White" CornerRadius="6" Padding="10" Margin="0,0,10,0">
+                        <DockPanel>
+                            <Grid DockPanel.Dock="Top" Margin="0,0,0,8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="泳道实时状态" FontSize="14" FontWeight="Bold"/>
+                                <TextBlock x:Name="RunningTimeText" Grid.Column="1" Text="0.0" FontSize="28" FontWeight="Bold"
+                                           Foreground="#3B82F6" HorizontalAlignment="Center" FontFamily="Consolas"/>
+                                <StackPanel Grid.Column="2" Orientation="Horizontal">
+                                    <Ellipse x:Name="RaceStateIndicator" Width="12" Height="12" Fill="#F59E0B" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                    <TextBlock x:Name="RaceStateLabel" Text="等待" Foreground="#64748B" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </Grid>
+                            <DataGrid x:Name="LaneStatusGrid" AutoGenerateColumns="False" CanUserAddRows="False"
+                                      IsReadOnly="True" SelectionMode="Single" AlternatingRowBackground="#F8FAFC"
+                                      HeadersVisibility="Column" GridLinesVisibility="Horizontal" FontSize="13">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="道" Binding="{Binding Lane}" Width="35"/>
+                                    <DataGridTextColumn Header="姓名" Binding="{Binding Name}" Width="70"/>
+                                    <DataGridTextColumn Header="代表队" Binding="{Binding Country}" Width="65"/>
+                                    <DataGridTextColumn Header="报名" Binding="{Binding EntryTime}" Width="65"/>
+                                    <DataGridTextColumn Header="方向" Binding="{Binding Direction}" Width="35"/>
+                                    <DataGridTextColumn Header="反应" Binding="{Binding ReactionTime}" Width="50"/>
+                                    <DataGridTextColumn Header="分段" Binding="{Binding SplitTime}" Width="65"/>
+                                    <DataGridTextColumn Header="成绩" Binding="{Binding FinalTime}" Width="70"/>
+                                    <DataGridTextColumn Header="名次" Binding="{Binding Rank}" Width="40"/>
+                                    <DataGridTextColumn Header="状态" Binding="{Binding Status}" Width="45"/>
+                                    <DataGridTextColumn Header="计时源" Binding="{Binding TimingSource}" Width="50"/>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </DockPanel>
+                    </Border>
+
+                    <!-- 右：比赛控制 -->
+                    <Border Grid.Column="2" Background="White" CornerRadius="6" Padding="12">
+                        <StackPanel>
+                            <TextBlock Text="比赛控制" FontSize="14" FontWeight="Bold" Margin="0,0,0,10"/>
+                            <Button Content="就  位" Click="Ready_Click" Padding="0,10" FontSize="14" FontWeight="Bold"
+                                    Background="#F59E0B" Foreground="White" BorderThickness="0" Margin="0,0,0,6"/>
+                            <Button Content="发  令" Click="StartRace_Click" Padding="0,10" FontSize="14" FontWeight="Bold"
+                                    Background="#22C55E" Foreground="White" BorderThickness="0" Margin="0,0,0,6"/>
+                            <Button Content="重新出发" Click="Restart_Click" Padding="0,10" FontSize="14" FontWeight="Bold"
+                                    Background="#EF4444" Foreground="White" BorderThickness="0" Margin="0,0,0,6"/>
+                            <Button Content="确认本组成绩" Click="ConfirmResult_Click" Padding="0,10" FontSize="14" FontWeight="Bold"
+                                    Background="#3B82F6" Foreground="White" BorderThickness="0" Margin="0,0,0,16"/>
+
+                            <TextBlock Text="泳道操作" FontSize="13" FontWeight="Bold" Margin="0,0,0,6"/>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="32"/>
+                                    <RowDefinition Height="32"/>
+                                    <RowDefinition Height="32"/>
+                                </Grid.RowDefinitions>
+                                <Button Grid.Row="0" Grid.Column="0" Content="DNS" Click="MarkDNS_Click" Margin="0,0,2,2" Background="#94A3B8" Foreground="White" BorderThickness="0"/>
+                                <Button Grid.Row="0" Grid.Column="1" Content="DNF" Click="MarkDNF_Click" Margin="2,0,0,2" Background="#94A3B8" Foreground="White" BorderThickness="0"/>
+                                <Button Grid.Row="1" Grid.Column="0" Content="DSQ" Click="MarkDSQ_Click" Margin="0,0,2,2" Background="#94A3B8" Foreground="White" BorderThickness="0"/>
+                                <Button Grid.Row="1" Grid.Column="1" Content="手动输入" Click="ManualTime_Click" Margin="2,0,0,2" Background="#94A3B8" Foreground="White" BorderThickness="0"/>
+                                <Button Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2" Content="设备状态管理" Click="DeviceStatus_Click" Margin="0,0,0,2" Background="#8B5CF6" Foreground="White" BorderThickness="0"/>
+                            </Grid>
+
+                            <TextBlock Text="显示控制" FontSize="13" FontWeight="Bold" Margin="0,12,0,6"/>
+                            <WrapPanel>
+                                <Button Content="出发表" Click="ShowStartList_Click" Padding="8,4" Margin="0,0,4,4"/>
+                                <Button Content="比赛视图" Click="ShowLiveRace_Click" Padding="8,4" Margin="0,0,4,4"/>
+                                <Button Content="组成绩" Click="ShowHeatResult_Click" Padding="8,4" Margin="0,0,4,4"/>
+                                <Button Content="总排名" Click="ShowEventRanking_Click" Padding="8,4" Margin="0,0,4,4"/>
+                                <Button Content="团体" Click="ShowTeamStandings_Click" Padding="8,4" Margin="0,0,4,4"/>
+                                <Button Content="颁奖" Click="ShowAwards_Click" Padding="8,4" Margin="0,0,4,4"/>
+                                <Button Content="纪录" Click="ShowRecords_Click" Padding="8,4" Margin="0,0,4,4"/>
+                                <Button Content="欢迎" Click="ShowWelcome_Click" Padding="8,4" Margin="0,0,4,4"/>
+                            </WrapPanel>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </TabItem>
+
+            <!-- ═══ 成绩与排名 ═══ -->
+            <TabItem Header="成绩与排名">
+                <Grid Margin="10">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8">
+                        <TextBlock Text="项目:" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                        <ComboBox x:Name="ResultEventCombo" Width="200" SelectionChanged="ResultEvent_Changed"/>
+                        <TextBlock Text=" 阶段:" VerticalAlignment="Center" Margin="8,0,4,0"/>
+                        <ComboBox x:Name="ResultStageCombo" Width="80" SelectionChanged="ResultStage_Changed">
+                            <ComboBoxItem Content="全部" IsSelected="True"/>
+                            <ComboBoxItem Content="预赛"/>
+                            <ComboBoxItem Content="复赛"/>
+                            <ComboBoxItem Content="半决赛"/>
+                            <ComboBoxItem Content="决赛"/>
+                        </ComboBox>
+                        <Button Content="晋级处理" Click="Promotion_Click" Padding="12,4" Margin="16,0,0,0"
+                                Background="#8B5CF6" Foreground="White" BorderThickness="0"/>
+                        <Button Content="团体计分" Click="CalcTeamScore_Click" Padding="12,4" Margin="8,0,0,0"
+                                Background="#22C55E" Foreground="White" BorderThickness="0"/>
+                    </StackPanel>
+                    <DataGrid x:Name="ResultGrid" Grid.Row="1" AutoGenerateColumns="False" CanUserAddRows="False"
+                              IsReadOnly="True" AlternatingRowBackground="#F8FAFC">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="名次" Binding="{Binding Rank}" Width="50"/>
+                            <DataGridTextColumn Header="道" Binding="{Binding Lane}" Width="40"/>
+                            <DataGridTextColumn Header="号码" Binding="{Binding BibNumber}" Width="60"/>
+                            <DataGridTextColumn Header="姓名" Binding="{Binding Name}" Width="80"/>
+                            <DataGridTextColumn Header="代表队" Binding="{Binding Country}" Width="80"/>
+                            <DataGridTextColumn Header="报名成绩" Binding="{Binding EntryTime}" Width="80"/>
+                            <DataGridTextColumn Header="最终成绩" Binding="{Binding FinalTime}" Width="80"/>
+                            <DataGridTextColumn Header="计时源" Binding="{Binding TimingSource}" Width="60"/>
+                            <DataGridTextColumn Header="反应时间" Binding="{Binding ReactionTime}" Width="70"/>
+                            <DataGridTextColumn Header="状态" Binding="{Binding Status}" Width="50"/>
+                            <DataGridTextColumn Header="纪录" Binding="{Binding RecordNote}" Width="80"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </TabItem>
+
+            <!-- ═══ 文档打印 ═══ -->
+            <TabItem Header="文档打印">
+                <ScrollViewer Margin="10">
+                    <WrapPanel>
+                        <Button Content="竞赛日程" Click="PrintSchedule_Click" Width="140" Height="60" Margin="8" FontSize="14"/>
+                        <Button Content="秩序册" Click="PrintManual_Click" Width="140" Height="60" Margin="8" FontSize="14"/>
+                        <Button Content="出发表" Click="PrintStartList_Click" Width="140" Height="60" Margin="8" FontSize="14"/>
+                        <Button Content="分组成绩" Click="PrintHeatResults_Click" Width="140" Height="60" Margin="8" FontSize="14"/>
+                        <Button Content="项目成绩" Click="PrintEventResults_Click" Width="140" Height="60" Margin="8" FontSize="14"/>
+                        <Button Content="成绩册" Click="PrintFullResultBook_Click" Width="140" Height="60" Margin="8" FontSize="14"/>
+                        <Button Content="团体成绩" Click="PrintTeamStandings_Click" Width="140" Height="60" Margin="8" FontSize="14"/>
+                        <Button Content="纪录报告" Click="PrintRecordReport_Click" Width="140" Height="60" Margin="8" FontSize="14"/>
+                        <Button Content="奖状" Click="PrintAwardCertificate_Click" Width="140" Height="60" Margin="8" FontSize="14"/>
+                        <Button Content="纪录证书" Click="PrintRecordCertificate_Click" Width="140" Height="60" Margin="8" FontSize="14"/>
+                        <Button Content="分段计时报告" Click="PrintSplitTimeReport_Click" Width="140" Height="60" Margin="8" FontSize="14"/>
+                    </WrapPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- ═══ 设置 ═══ -->
+            <TabItem Header="设置">
+                <ScrollViewer Margin="10">
+                    <StackPanel MaxWidth="600" HorizontalAlignment="Left">
+                        <TextBlock Text="计时硬件连接" FontSize="16" FontWeight="Bold" Margin="0,0,0,10"/>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="90"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="36"/>
+                                <RowDefinition Height="36"/>
+                                <RowDefinition Height="36"/>
+                            </Grid.RowDefinitions>
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="串口:" VerticalAlignment="Center"/>
+                            <ComboBox x:Name="ComPortCombo" Grid.Row="0" Grid.Column="1" VerticalAlignment="Center"/>
+                            <Button Grid.Row="0" Grid.Column="2" Content="连接串口" Click="ConnectSerial_Click" Padding="12,4" Margin="8,0,0,0"/>
+                            <TextBlock Grid.Row="1" Grid.Column="0" Text="TCP地址:" VerticalAlignment="Center"/>
+                            <TextBox x:Name="TcpHostBox" Grid.Row="1" Grid.Column="1" Text="127.0.0.1:5000" Padding="4" VerticalAlignment="Center"/>
+                            <Button Grid.Row="1" Grid.Column="2" Content="连接TCP" Click="ConnectTcp_Click" Padding="12,4" Margin="8,0,0,0"/>
+                            <TextBlock Grid.Row="2" Grid.Column="0" Text="状态:" VerticalAlignment="Center"/>
+                            <TextBlock x:Name="TimingStatusText" Grid.Row="2" Grid.Column="1" Text="未连接" VerticalAlignment="Center" Foreground="#EF4444"/>
+                            <Button Grid.Row="2" Grid.Column="2" Content="断开" Click="DisconnectTiming_Click" Padding="12,4" Margin="8,0,0,0"/>
+                        </Grid>
+
+                        <TextBlock Text="纪录管理" FontSize="16" FontWeight="Bold" Margin="0,24,0,10"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                            <Button Content="添加纪录" Click="AddRecord_Click" Padding="12,6" Background="#3B82F6" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
+                            <Button Content="删除选中" Click="DeleteRecord_Click" Padding="12,6" Background="#EF4444" Foreground="White" BorderThickness="0"/>
+                        </StackPanel>
+                        <DataGrid x:Name="RecordGrid" AutoGenerateColumns="False" CanUserAddRows="False"
+                                  Height="200" IsReadOnly="False" AlternatingRowBackground="#F8FAFC">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="项目" Binding="{Binding EventName}" Width="120"/>
+                                <DataGridTextColumn Header="类型" Binding="{Binding RecordType}" Width="80"/>
+                                <DataGridTextColumn Header="保持者" Binding="{Binding HolderName}" Width="80"/>
+                                <DataGridTextColumn Header="代表队" Binding="{Binding HolderCountry}" Width="80"/>
+                                <DataGridTextColumn Header="成绩" Binding="{Binding TimeDisplay}" Width="80" IsReadOnly="True"/>
+                                <DataGridTextColumn Header="日期" Binding="{Binding Date}" Width="90"/>
+                                <DataGridTextColumn Header="地点" Binding="{Binding Location}" Width="100"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+        </TabControl>
+    </Grid>
+</Window>

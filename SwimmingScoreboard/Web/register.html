@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>运动员注册</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'Microsoft YaHei', sans-serif; background: #f1f5f9; padding: 20px; }
+.container { max-width: 600px; margin: 0 auto; }
+h1 { text-align: center; color: #1e293b; margin-bottom: 20px; }
+.card { background: white; border-radius: 8px; padding: 20px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+.card h2 { font-size: 16px; color: #1e293b; margin-bottom: 12px; }
+label { display: block; font-size: 13px; color: #64748b; margin: 8px 0 4px; }
+input, select { width: 100%; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 14px; }
+.row { display: flex; gap: 12px; }
+.row > div { flex: 1; }
+.btn { display: block; width: 100%; padding: 12px; border: none; border-radius: 6px; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 12px; }
+.btn-primary { background: #3b82f6; color: white; }
+.btn-success { background: #22c55e; color: white; }
+.status { text-align: center; padding: 8px; border-radius: 4px; margin-bottom: 12px; font-size: 13px; display: none; }
+.status.ok { background: #dcfce7; color: #166534; display: block; }
+.status.err { background: #fee2e2; color: #991b1b; display: block; }
+#connStatus { text-align: center; font-size: 12px; color: #94a3b8; }
+</style>
+</head>
+<body>
+<div class="container">
+    <h1>运动员注册</h1>
+    <div id="connStatus">连接中...</div>
+    <div id="statusMsg" class="status"></div>
+
+    <div class="card">
+        <h2>个人项目报名</h2>
+        <div class="row">
+            <div><label>号码牌</label><input id="bib" placeholder="001"></div>
+            <div><label>姓名</label><input id="name" placeholder="张三"></div>
+        </div>
+        <div class="row">
+            <div><label>性别</label><select id="gender"><option>男</option><option>女</option></select></div>
+            <div><label>年龄</label><input id="age" type="number" placeholder="20"></div>
+        </div>
+        <div class="row">
+            <div><label>代表队</label><input id="country" placeholder="北京队"></div>
+            <div><label>出生日期</label><input id="birthDate" placeholder="2000-01-01"></div>
+        </div>
+        <label>项目</label>
+        <select id="event">
+            <option>50米自由泳</option><option>100米自由泳</option><option>200米自由泳</option>
+            <option>400米自由泳</option><option>800米自由泳</option><option>1500米自由泳</option>
+            <option>50米仰泳</option><option>100米仰泳</option><option>200米仰泳</option>
+            <option>50米蛙泳</option><option>100米蛙泳</option><option>200米蛙泳</option>
+            <option>50米蝶泳</option><option>100米蝶泳</option><option>200米蝶泳</option>
+            <option>200米个人混合泳</option><option>400米个人混合泳</option>
+        </select>
+        <label>报名成绩</label>
+        <input id="entryTime" placeholder="49.50 或 1:23.45">
+        <label>协会注册号</label>
+        <input id="csaNumber" placeholder="">
+        <button class="btn btn-primary" onclick="registerSwimmer()">提交注册</button>
+    </div>
+
+    <div class="card">
+        <h2>接力队报名</h2>
+        <div class="row">
+            <div><label>队名</label><input id="relayTeam" placeholder="北京队"></div>
+            <div><label>性别</label><select id="relayGender"><option>男</option><option>女</option><option>混合</option></select></div>
+        </div>
+        <label>项目</label>
+        <select id="relayEvent">
+            <option>4x100米自由泳接力</option><option>4x200米自由泳接力</option><option>4x100米混合泳接力</option>
+        </select>
+        <label>报名成绩</label>
+        <input id="relayEntryTime" placeholder="3:20.00">
+        <button class="btn btn-success" onclick="registerRelay()">提交接力报名</button>
+    </div>
+</div>
+
+<script>
+var ws;
+function connect() {
+    var host = location.hostname || 'localhost';
+    ws = new WebSocket('ws://' + host + ':3002');
+    ws.onopen = function() {
+        ws.send(JSON.stringify({type: 'REGISTER_TERMINAL_IDENTITY'}));
+        document.getElementById('connStatus').textContent = '已连接服务器';
+        document.getElementById('connStatus').style.color = '#22c55e';
+    };
+    ws.onclose = function() {
+        document.getElementById('connStatus').textContent = '连接断开，重连中...';
+        document.getElementById('connStatus').style.color = '#ef4444';
+        setTimeout(connect, 3000);
+    };
+    ws.onmessage = function() {};
+}
+
+function showStatus(msg, ok) {
+    var el = document.getElementById('statusMsg');
+    el.textContent = msg;
+    el.className = 'status ' + (ok ? 'ok' : 'err');
+    setTimeout(function() { el.style.display = 'none'; }, 3000);
+}
+
+function registerSwimmer() {
+    var name = document.getElementById('name').value.trim();
+    if (!name) { showStatus('请输入姓名', false); return; }
+    var age = parseInt(document.getElementById('age').value) || 0;
+    ws.send(JSON.stringify({
+        type: 'REGISTER_SWIMMER',
+        data: {
+            bibNumber: document.getElementById('bib').value.trim(),
+            name: name,
+            gender: document.getElementById('gender').value,
+            age: age,
+            country: document.getElementById('country').value.trim(),
+            eventName: document.getElementById('event').value,
+            entryTime: document.getElementById('entryTime').value.trim(),
+            birthDate: document.getElementById('birthDate').value.trim(),
+            csaNumber: document.getElementById('csaNumber').value.trim()
+        }
+    }));
+    showStatus('已提交: ' + name, true);
+    document.getElementById('name').value = '';
+    document.getElementById('bib').value = '';
+    document.getElementById('entryTime').value = '';
+}
+
+function registerRelay() {
+    var team = document.getElementById('relayTeam').value.trim();
+    if (!team) { showStatus('请输入队名', false); return; }
+    ws.send(JSON.stringify({
+        type: 'REGISTER_RELAY',
+        data: {
+            teamName: team,
+            eventName: document.getElementById('relayEvent').value,
+            gender: document.getElementById('relayGender').value,
+            entryTime: document.getElementById('relayEntryTime').value.trim()
+        }
+    }));
+    showStatus('已提交接力: ' + team, true);
+}
+
+connect();
+</script>
+</body>
+</html>

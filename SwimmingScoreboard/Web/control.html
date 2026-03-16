@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>显示控制</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'Microsoft YaHei', sans-serif; background: #1e293b; color: #f8fafc; padding: 20px; }
+h1 { text-align: center; margin-bottom: 20px; font-size: 20px; }
+.grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; max-width: 600px; margin: 0 auto; }
+.btn { padding: 20px; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; transition: transform 0.1s; }
+.btn:hover { transform: scale(1.02); }
+.btn:active { transform: scale(0.98); }
+.btn-live { background: #22c55e; color: white; }
+.btn-start { background: #3b82f6; color: white; }
+.btn-result { background: #8b5cf6; color: white; }
+.btn-rank { background: #f59e0b; color: #000; }
+.btn-team { background: #06b6d4; color: white; }
+.btn-award { background: #ec4899; color: white; }
+.btn-record { background: #ef4444; color: white; }
+.btn-welcome { background: #64748b; color: white; }
+.btn-pause { background: #475569; color: white; }
+.btn-list { background: #14b8a6; color: white; }
+.btn-promo { background: #a855f7; color: white; }
+.status { text-align: center; margin-top: 16px; font-size: 13px; color: #94a3b8; }
+</style>
+</head>
+<body>
+<h1>显示模式控制</h1>
+<div class="grid">
+    <button class="btn btn-live" onclick="send('SHOW_LIVE_RACE')">比赛视图</button>
+    <button class="btn btn-start" onclick="send('SHOW_START_LIST')">出发表</button>
+    <button class="btn btn-result" onclick="send('SHOW_HEAT_RESULT')">组成绩</button>
+    <button class="btn btn-rank" onclick="send('SHOW_EVENT_RANKING')">总排名</button>
+    <button class="btn btn-team" onclick="send('SHOW_TEAM_STANDINGS')">团体积分</button>
+    <button class="btn btn-award" onclick="send('SHOW_AWARDS')">颁奖典礼</button>
+    <button class="btn btn-record" onclick="send('SHOW_RECORDS')">纪录榜</button>
+    <button class="btn btn-list" onclick="send('SHOW_EVENT_LIST')">赛程表</button>
+    <button class="btn btn-promo" onclick="send('SHOW_PROMOTION_LIST')">晋级名单</button>
+    <button class="btn btn-welcome" onclick="send('SHOW_WELCOME')">欢迎画面</button>
+    <button class="btn btn-pause" onclick="send('SHOW_PAUSE')">暂停画面</button>
+</div>
+<div class="status" id="status">连接中...</div>
+
+<script>
+var ws;
+function connect() {
+    var host = location.hostname || 'localhost';
+    ws = new WebSocket('ws://' + host + ':3002');
+    ws.onopen = function() { document.getElementById('status').textContent = '已连接'; };
+    ws.onclose = function() { document.getElementById('status').textContent = '断开，重连中...'; setTimeout(connect, 3000); };
+    ws.onmessage = function() {};
+}
+function send(cmd) {
+    if (ws && ws.readyState === 1) {
+        ws.send(JSON.stringify({type: 'REMOTE_CONTROL', command: cmd}));
+        document.getElementById('status').textContent = '已发送: ' + cmd;
+    }
+}
+connect();
+</script>
+</body>
+</html>

@@ -1,0 +1,9 @@
+<Window x:Class="SwimmingScoreboard.RecordCertificateWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="纪录证书" Width="600" Height="400"
+        WindowStartupLocation="CenterOwner">
+    <Grid Margin="16">
+        <TextBlock Text="纪录证书生成窗口" FontSize="16" FontWeight="Bold"/>
+    </Grid>
+</Window>

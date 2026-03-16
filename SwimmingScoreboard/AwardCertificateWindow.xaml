@@ -1,0 +1,9 @@
+<Window x:Class="SwimmingScoreboard.AwardCertificateWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="奖状生成" Width="600" Height="400"
+        WindowStartupLocation="CenterOwner">
+    <Grid Margin="16">
+        <TextBlock Text="奖状生成窗口" FontSize="16" FontWeight="Bold"/>
+    </Grid>
+</Window>
