@@ -807,17 +807,28 @@ namespace SwimmingScoreboard
         }
 
         private void CloseLaneAfterDelay(LaneDeviceState laneState) {
-            // 延迟关闭触板/盲表
+            // 触碰发生时方向已切换，当前方向是新的前进方向
+            // 需要关闭刚触碰的那端（即新方向的出发端），然后倒计时后打开新的到达端
+            // 新方向"→"表示刚触碰了左端（现在要向右游），关闭左端
+            // 新方向"←"表示刚触碰了右端（现在要向左游），关闭右端
+            string newDir = laneState.Direction;
             var timer = new DispatcherTimer();
             timer.Interval = TimeSpan.FromSeconds(_laneCloseSettings.ResultConfirmCloseDelay);
             timer.Tick += delegate(object sender, EventArgs args) {
                 timer.Stop();
                 if (!laneState.IsFinished) {
-                    laneState.LeftTouchpadStatus = DeviceStatus.Closed;
-                    laneState.LeftBlindWatch1Status = DeviceStatus.Closed; laneState.LeftBlindWatch2Status = DeviceStatus.Closed; laneState.LeftBlindWatch3Status = DeviceStatus.Closed;
-                    laneState.RightTouchpadStatus = DeviceStatus.Closed;
-                    laneState.RightBlindWatch1Status = DeviceStatus.Closed; laneState.RightBlindWatch2Status = DeviceStatus.Closed; laneState.RightBlindWatch3Status = DeviceStatus.Closed;
-                    laneState.LaneCloseCountdown = laneState.LaneCloseTime;
+                    // 关闭刚触碰的那端
+                    if (newDir == "→") {
+                        // 刚触碰左端，关闭左端设备
+                        laneState.LeftTouchpadStatus = DeviceStatus.Closed;
+                        laneState.LeftBlindWatch1Status = DeviceStatus.Closed; laneState.LeftBlindWatch2Status = DeviceStatus.Closed; laneState.LeftBlindWatch3Status = DeviceStatus.Closed;
+                    } else {
+                        // 刚触碰右端，关闭右端设备
+                        laneState.RightTouchpadStatus = DeviceStatus.Closed;
+                        laneState.RightBlindWatch1Status = DeviceStatus.Closed; laneState.RightBlindWatch2Status = DeviceStatus.Closed; laneState.RightBlindWatch3Status = DeviceStatus.Closed;
+                    }
+                    // 开始倒计时，到时打开新到达端
+                    laneState.LaneCloseCountdown = laneState.LaneCloseTime > 0 ? laneState.LaneCloseTime : _laneCloseSettings.LaneCloseTime;
                     Broadcast();
                 }
             };
@@ -893,16 +904,21 @@ namespace SwimmingScoreboard
                     state.LaneCloseCountdown -= 0.1;
                     if (state.LaneCloseCountdown <= 0) {
                         state.LaneCloseCountdown = 0;
-                        // 打开触板和盲表
-                        if (!state.LeftTouchpadBroken) state.LeftTouchpadStatus = DeviceStatus.Open;
-                        if (!state.LeftBlindWatch1Broken) state.LeftBlindWatch1Status = DeviceStatus.Open;
-                        if (!state.LeftBlindWatch2Broken) state.LeftBlindWatch2Status = DeviceStatus.Open;
-                        if (!state.LeftBlindWatch3Broken) state.LeftBlindWatch3Status = DeviceStatus.Open;
-                        if (!state.RightTouchpadBroken) state.RightTouchpadStatus = DeviceStatus.Open;
-                        if (!state.RightBlindWatch1Broken) state.RightBlindWatch1Status = DeviceStatus.Open;
-                        if (!state.RightBlindWatch2Broken) state.RightBlindWatch2Status = DeviceStatus.Open;
-                        if (!state.RightBlindWatch3Broken) state.RightBlindWatch3Status = DeviceStatus.Open;
-                        AddLog(string.Format("泳道{0} 关闭倒计时结束，设备已打开", state.Lane));
+                        // 只打开运动员即将到达端的触板和盲表
+                        // 方向"→"表示向右游，到达端是右端；"←"表示向左游，到达端是左端
+                        bool arriveRight = state.Direction == "→";
+                        if (arriveRight) {
+                            if (!state.RightTouchpadBroken) state.RightTouchpadStatus = DeviceStatus.Open;
+                            if (!state.RightBlindWatch1Broken) state.RightBlindWatch1Status = DeviceStatus.Open;
+                            if (!state.RightBlindWatch2Broken) state.RightBlindWatch2Status = DeviceStatus.Open;
+                            if (!state.RightBlindWatch3Broken) state.RightBlindWatch3Status = DeviceStatus.Open;
+                        } else {
+                            if (!state.LeftTouchpadBroken) state.LeftTouchpadStatus = DeviceStatus.Open;
+                            if (!state.LeftBlindWatch1Broken) state.LeftBlindWatch1Status = DeviceStatus.Open;
+                            if (!state.LeftBlindWatch2Broken) state.LeftBlindWatch2Status = DeviceStatus.Open;
+                            if (!state.LeftBlindWatch3Broken) state.LeftBlindWatch3Status = DeviceStatus.Open;
+                        }
+                        AddLog(string.Format("泳道{0} 倒计时结束，{1}端设备已打开", state.Lane, arriveRight ? "右" : "左"));
                     }
                     changed = true;
                 }
@@ -939,12 +955,16 @@ namespace SwimmingScoreboard
             _countdownTimer.Start();
 
             // 泳道设备状态：发令后
+            // 所有触板和盲表关闭，出发端的出发台打开
+            bool startLeft = _laneCloseSettings.StartPosition != "right";
             foreach (var state in _laneDeviceStates) {
                 state.LeftTouchpadStatus = DeviceStatus.Closed;
                 state.LeftBlindWatch1Status = DeviceStatus.Closed; state.LeftBlindWatch2Status = DeviceStatus.Closed; state.LeftBlindWatch3Status = DeviceStatus.Closed;
                 state.RightTouchpadStatus = DeviceStatus.Closed;
                 state.RightBlindWatch1Status = DeviceStatus.Closed; state.RightBlindWatch2Status = DeviceStatus.Closed; state.RightBlindWatch3Status = DeviceStatus.Closed;
-                state.LeftStartBlockStatus = DeviceStatus.Open;
+                // 出发端的出发台打开
+                state.LeftStartBlockStatus = startLeft ? DeviceStatus.Open : DeviceStatus.Closed;
+                state.RightStartBlockStatus = startLeft ? DeviceStatus.Closed : DeviceStatus.Open;
                 state.LaneCloseCountdown = state.LaneCloseTime > 0 ? state.LaneCloseTime : _laneCloseSettings.LaneCloseTime;
             }
 
@@ -955,7 +975,8 @@ namespace SwimmingScoreboard
                 sbTimer.Stop();
                 foreach (var state in _laneDeviceStates) {
                     if (!state.IsFalseStart) {
-                        state.LeftStartBlockStatus = DeviceStatus.Closed;
+                        if (startLeft) state.LeftStartBlockStatus = DeviceStatus.Closed;
+                        else state.RightStartBlockStatus = DeviceStatus.Closed;
                     }
                 }
                 Broadcast();
