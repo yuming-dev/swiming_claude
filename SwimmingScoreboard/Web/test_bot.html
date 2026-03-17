@@ -69,7 +69,7 @@ label { color: #94a3b8; font-size: 12px; }
 </div>
 
 <script>
-var ws, autoRunning = false;
+var ws, data = {}, autoRunning = false;
 
 function connect() {
     var host = location.hostname || 'localhost';
@@ -143,15 +143,29 @@ function simTouchpad() {
         currentTime = parseFloat(parts[0]) || 0;
     }
 
-    // 为每道发送触板数据，时间为当前计时器时间（加微小随机偏差模拟不同泳道触碰先后）
-    var lanes = [0,1,2,3,4,5,6,7,8,9];
+    if (currentTime < 0.5) {
+        log('警告: 计时器时间为 ' + currentTime.toFixed(2) + 's，请确认比赛已发令且正在计时');
+    }
+
+    // 从服务器数据获取实际泳道号
+    var lanes = [];
+    if (data && data.poolConfig && data.poolConfig.laneNumbers) {
+        lanes = data.poolConfig.laneNumbers;
+    } else if (data && data.swimmers && data.swimmers.length > 0) {
+        for (var i = 0; i < data.swimmers.length; i++) lanes.push(data.swimmers[i].lane);
+    } else {
+        lanes = [0,1,2,3,4,5,6,7,8,9];
+    }
+
+    log('泳道列表: [' + lanes.join(',') + '], 计时器: ' + runTimeStr + ' (' + currentTime.toFixed(2) + 's)');
+
+    // 为每道发送触板数据
     for (var i = 0; i < lanes.length; i++) {
-        var laneTime = currentTime + (Math.random() - 0.5) * 0.5; // ±0.25秒随机偏差
+        var laneTime = currentTime + (Math.random() - 0.5) * 0.5;
         if (laneTime < 0.1) laneTime = 0.1;
         send('TIMING_DATA', {lane: lanes[i], commandType: 'Touchpad', time: laneTime});
-        log('泳道' + lanes[i] + ' 触板: ' + laneTime.toFixed(2) + 's (取自计时器)');
+        log('泳道' + lanes[i] + ' 触板: ' + laneTime.toFixed(2) + 's');
     }
-    log('已发送全部泳道触板数据，时间取自当前计时器: ' + runTimeStr);
 }
 
 function simFalseStart() {
