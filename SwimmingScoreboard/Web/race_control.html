@@ -70,9 +70,12 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 .device-dot.closed { background: #475569; border-color: #64748b; }
 .device-dot.broken { background: var(--red); border-color: var(--red); }
 .device-dot.falsestart { background: var(--gold); border-color: var(--gold); }
-.touch-btn { width: 26px; height: 26px; background: #475569; border: 1px solid #64748b; border-radius: 3px; color: white; font-size: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+.device-dot.notinstalled { background: transparent; border: 2px dashed #334155; }
+.touch-btn { width: 26px; height: 26px; background: #475569; border: 1px solid #64748b; border-radius: 3px; color: white; font-size: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .touch-btn:hover { background: var(--accent); }
 .touch-btn:active { background: var(--green); }
+.device-label { width: 18px; font-size: 9px; color: var(--dim); text-align: center; flex-shrink: 0; }
+.device-label-btn { width: 26px; font-size: 9px; color: var(--dim); text-align: center; flex-shrink: 0; }
 
 .lane-mid { flex: 1; display: flex; align-items: center; padding: 0 8px; min-width: 0; }
 .lane-num { width: 24px; font-size: 15px; font-weight: bold; color: var(--dim); text-align: center; margin-right: 6px; }
@@ -196,11 +199,25 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 
     <!-- 泳池图 -->
     <div class="pool-area">
-        <div class="pool-header">
+        <div class="pool-header" style="align-items:flex-end;padding-bottom:2px;">
             <div class="start-ind-left" id="headerStartLeft"></div>
-            <div class="left-devices">[T] 盲1 盲2 盲3 出发台 触板</div>
+            <div class="left-devices devices">
+                <span class="device-label-btn">[T]</span>
+                <span class="device-label">盲1</span>
+                <span class="device-label">盲2</span>
+                <span class="device-label">盲3</span>
+                <span class="device-label">出发</span>
+                <span class="device-label">触板</span>
+            </div>
             <div class="lane-area">泳道</div>
-            <div class="right-devices">触板 出发台 盲1 盲2 盲3 [T]</div>
+            <div class="right-devices devices">
+                <span class="device-label">触板</span>
+                <span class="device-label">出发</span>
+                <span class="device-label">盲1</span>
+                <span class="device-label">盲2</span>
+                <span class="device-label">盲3</span>
+                <span class="device-label-btn">[T]</span>
+            </div>
             <div class="start-ind-right" id="headerStartRight"></div>
             <div class="info-area"><span>反应</span><span>成绩</span><span>名次</span></div>
         </div>
@@ -475,6 +492,7 @@ function statusClass(s) {
     if (s === 'open') return 'open';
     if (s === 'broken') return 'broken';
     if (s === 'falsestart') return 'falsestart';
+    if (s === 'notinstalled') return 'notinstalled';
     return 'closed';
 }
 

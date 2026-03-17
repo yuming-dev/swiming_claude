@@ -11,10 +11,11 @@ namespace SwimmingScoreboard
     // ═══════════════════════════════════════════════════════════════
     public enum DeviceStatus
     {
-        Open,       // 绿色 - 打开（正常接收数据）
-        Closed,     // 灰色 - 关闭（不接收数据）
-        Broken,     // 红色 - 损坏
-        FalseStart  // 黄色 - 抢跳（仅出发台）
+        Open,         // 绿色 - 打开（正常接收数据）
+        Closed,       // 灰色 - 关闭（不接收数据）
+        Broken,       // 红色 - 损坏
+        FalseStart,   // 黄色 - 抢跳（仅出发台）
+        NotInstalled  // 虚线框 - 未安装
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -596,6 +597,12 @@ namespace SwimmingScoreboard
         private bool _rightBlindWatch2Broken;
         private bool _rightBlindWatch3Broken;
         private bool _rightStartBlockBroken;
+        private bool _leftBlindWatch1NotInstalled;
+        private bool _leftBlindWatch2NotInstalled;
+        private bool _leftBlindWatch3NotInstalled;
+        private bool _rightBlindWatch1NotInstalled;
+        private bool _rightBlindWatch2NotInstalled;
+        private bool _rightBlindWatch3NotInstalled;
 
         public int Lane {
             get { return _lane; }
@@ -606,15 +613,15 @@ namespace SwimmingScoreboard
             set { _leftTouchpadStatus = value; OnPropertyChanged("LeftTouchpadStatus"); }
         }
         public DeviceStatus LeftBlindWatch1Status {
-            get { return _leftBlindWatch1Broken ? DeviceStatus.Broken : _leftBlindWatch1Status; }
+            get { if (_leftBlindWatch1NotInstalled) return DeviceStatus.NotInstalled; return _leftBlindWatch1Broken ? DeviceStatus.Broken : _leftBlindWatch1Status; }
             set { _leftBlindWatch1Status = value; OnPropertyChanged("LeftBlindWatch1Status"); }
         }
         public DeviceStatus LeftBlindWatch2Status {
-            get { return _leftBlindWatch2Broken ? DeviceStatus.Broken : _leftBlindWatch2Status; }
+            get { if (_leftBlindWatch2NotInstalled) return DeviceStatus.NotInstalled; return _leftBlindWatch2Broken ? DeviceStatus.Broken : _leftBlindWatch2Status; }
             set { _leftBlindWatch2Status = value; OnPropertyChanged("LeftBlindWatch2Status"); }
         }
         public DeviceStatus LeftBlindWatch3Status {
-            get { return _leftBlindWatch3Broken ? DeviceStatus.Broken : _leftBlindWatch3Status; }
+            get { if (_leftBlindWatch3NotInstalled) return DeviceStatus.NotInstalled; return _leftBlindWatch3Broken ? DeviceStatus.Broken : _leftBlindWatch3Status; }
             set { _leftBlindWatch3Status = value; OnPropertyChanged("LeftBlindWatch3Status"); }
         }
         public DeviceStatus LeftStartBlockStatus {
@@ -630,15 +637,15 @@ namespace SwimmingScoreboard
             set { _rightTouchpadStatus = value; OnPropertyChanged("RightTouchpadStatus"); }
         }
         public DeviceStatus RightBlindWatch1Status {
-            get { return _rightBlindWatch1Broken ? DeviceStatus.Broken : _rightBlindWatch1Status; }
+            get { if (_rightBlindWatch1NotInstalled) return DeviceStatus.NotInstalled; return _rightBlindWatch1Broken ? DeviceStatus.Broken : _rightBlindWatch1Status; }
             set { _rightBlindWatch1Status = value; OnPropertyChanged("RightBlindWatch1Status"); }
         }
         public DeviceStatus RightBlindWatch2Status {
-            get { return _rightBlindWatch2Broken ? DeviceStatus.Broken : _rightBlindWatch2Status; }
+            get { if (_rightBlindWatch2NotInstalled) return DeviceStatus.NotInstalled; return _rightBlindWatch2Broken ? DeviceStatus.Broken : _rightBlindWatch2Status; }
             set { _rightBlindWatch2Status = value; OnPropertyChanged("RightBlindWatch2Status"); }
         }
         public DeviceStatus RightBlindWatch3Status {
-            get { return _rightBlindWatch3Broken ? DeviceStatus.Broken : _rightBlindWatch3Status; }
+            get { if (_rightBlindWatch3NotInstalled) return DeviceStatus.NotInstalled; return _rightBlindWatch3Broken ? DeviceStatus.Broken : _rightBlindWatch3Status; }
             set { _rightBlindWatch3Status = value; OnPropertyChanged("RightBlindWatch3Status"); }
         }
         public DeviceStatus RightStartBlockStatus {
@@ -725,6 +732,32 @@ namespace SwimmingScoreboard
         public bool RightStartBlockBroken {
             get { return _rightStartBlockBroken; }
             set { _rightStartBlockBroken = value; OnPropertyChanged("RightStartBlockBroken"); OnPropertyChanged("RightStartBlockStatus"); }
+        }
+
+        // 未安装标记（盲表）
+        public bool LeftBlindWatch1NotInstalled {
+            get { return _leftBlindWatch1NotInstalled; }
+            set { _leftBlindWatch1NotInstalled = value; OnPropertyChanged("LeftBlindWatch1NotInstalled"); OnPropertyChanged("LeftBlindWatch1Status"); }
+        }
+        public bool LeftBlindWatch2NotInstalled {
+            get { return _leftBlindWatch2NotInstalled; }
+            set { _leftBlindWatch2NotInstalled = value; OnPropertyChanged("LeftBlindWatch2NotInstalled"); OnPropertyChanged("LeftBlindWatch2Status"); }
+        }
+        public bool LeftBlindWatch3NotInstalled {
+            get { return _leftBlindWatch3NotInstalled; }
+            set { _leftBlindWatch3NotInstalled = value; OnPropertyChanged("LeftBlindWatch3NotInstalled"); OnPropertyChanged("LeftBlindWatch3Status"); }
+        }
+        public bool RightBlindWatch1NotInstalled {
+            get { return _rightBlindWatch1NotInstalled; }
+            set { _rightBlindWatch1NotInstalled = value; OnPropertyChanged("RightBlindWatch1NotInstalled"); OnPropertyChanged("RightBlindWatch1Status"); }
+        }
+        public bool RightBlindWatch2NotInstalled {
+            get { return _rightBlindWatch2NotInstalled; }
+            set { _rightBlindWatch2NotInstalled = value; OnPropertyChanged("RightBlindWatch2NotInstalled"); OnPropertyChanged("RightBlindWatch2Status"); }
+        }
+        public bool RightBlindWatch3NotInstalled {
+            get { return _rightBlindWatch3NotInstalled; }
+            set { _rightBlindWatch3NotInstalled = value; OnPropertyChanged("RightBlindWatch3NotInstalled"); OnPropertyChanged("RightBlindWatch3Status"); }
         }
 
         public string ReactionTimeDisplay {
