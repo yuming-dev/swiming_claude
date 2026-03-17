@@ -320,17 +320,17 @@ namespace SwimmingScoreboard
                 case "OPEN_ALL_LANES":
                     foreach (var s in _laneDeviceStates) {
                         s.LeftTouchpadStatus = DeviceStatus.Open;
-                        s.LeftBlindWatchStatus = DeviceStatus.Open;
+                        s.LeftBlindWatch1Status = DeviceStatus.Open; s.LeftBlindWatch2Status = DeviceStatus.Open; s.LeftBlindWatch3Status = DeviceStatus.Open;
                         s.RightTouchpadStatus = DeviceStatus.Open;
-                        s.RightBlindWatchStatus = DeviceStatus.Open;
+                        s.RightBlindWatch1Status = DeviceStatus.Open; s.RightBlindWatch2Status = DeviceStatus.Open; s.RightBlindWatch3Status = DeviceStatus.Open;
                     }
                     break;
                 case "CLOSE_ALL_LANES":
                     foreach (var s in _laneDeviceStates) {
                         s.LeftTouchpadStatus = DeviceStatus.Closed;
-                        s.LeftBlindWatchStatus = DeviceStatus.Closed;
+                        s.LeftBlindWatch1Status = DeviceStatus.Closed; s.LeftBlindWatch2Status = DeviceStatus.Closed; s.LeftBlindWatch3Status = DeviceStatus.Closed;
                         s.RightTouchpadStatus = DeviceStatus.Closed;
-                        s.RightBlindWatchStatus = DeviceStatus.Closed;
+                        s.RightBlindWatch1Status = DeviceStatus.Closed; s.RightBlindWatch2Status = DeviceStatus.Closed; s.RightBlindWatch3Status = DeviceStatus.Closed;
                     }
                     break;
                 case "MANUAL_LANE_OPEN":
@@ -338,9 +338,9 @@ namespace SwimmingScoreboard
                         var st = _laneDeviceStates.FirstOrDefault(s => s.Lane == (int)data["lane"]);
                         if (st != null) {
                             st.LeftTouchpadStatus = DeviceStatus.Open;
-                            st.LeftBlindWatchStatus = DeviceStatus.Open;
+                            st.LeftBlindWatch1Status = DeviceStatus.Open; st.LeftBlindWatch2Status = DeviceStatus.Open; st.LeftBlindWatch3Status = DeviceStatus.Open;
                             st.RightTouchpadStatus = DeviceStatus.Open;
-                            st.RightBlindWatchStatus = DeviceStatus.Open;
+                            st.RightBlindWatch1Status = DeviceStatus.Open; st.RightBlindWatch2Status = DeviceStatus.Open; st.RightBlindWatch3Status = DeviceStatus.Open;
                             st.LaneCloseCountdown = 0;
                         }
                     }
@@ -350,9 +350,9 @@ namespace SwimmingScoreboard
                         var st = _laneDeviceStates.FirstOrDefault(s => s.Lane == (int)data["lane"]);
                         if (st != null) {
                             st.LeftTouchpadStatus = DeviceStatus.Closed;
-                            st.LeftBlindWatchStatus = DeviceStatus.Closed;
+                            st.LeftBlindWatch1Status = DeviceStatus.Closed; st.LeftBlindWatch2Status = DeviceStatus.Closed; st.LeftBlindWatch3Status = DeviceStatus.Closed;
                             st.RightTouchpadStatus = DeviceStatus.Closed;
-                            st.RightBlindWatchStatus = DeviceStatus.Closed;
+                            st.RightBlindWatch1Status = DeviceStatus.Closed; st.RightBlindWatch2Status = DeviceStatus.Closed; st.RightBlindWatch3Status = DeviceStatus.Closed;
                         }
                     }
                     break;
@@ -499,10 +499,14 @@ namespace SwimmingScoreboard
                     direction = laneState != null ? laneState.Direction : "→",
                     deviceStatus = new {
                         leftTouchpad = laneState != null ? laneState.LeftTouchpadStatus.ToString().ToLower() : "closed",
-                        leftBlindWatch = laneState != null ? laneState.LeftBlindWatchStatus.ToString().ToLower() : "closed",
+                        leftBlindWatch1 = laneState != null ? laneState.LeftBlindWatch1Status.ToString().ToLower() : "closed",
+                        leftBlindWatch2 = laneState != null ? laneState.LeftBlindWatch2Status.ToString().ToLower() : "closed",
+                        leftBlindWatch3 = laneState != null ? laneState.LeftBlindWatch3Status.ToString().ToLower() : "closed",
                         leftStartBlock = laneState != null ? laneState.LeftStartBlockStatus.ToString().ToLower() : "open",
                         rightTouchpad = laneState != null ? laneState.RightTouchpadStatus.ToString().ToLower() : "closed",
-                        rightBlindWatch = laneState != null ? laneState.RightBlindWatchStatus.ToString().ToLower() : "closed",
+                        rightBlindWatch1 = laneState != null ? laneState.RightBlindWatch1Status.ToString().ToLower() : "closed",
+                        rightBlindWatch2 = laneState != null ? laneState.RightBlindWatch2Status.ToString().ToLower() : "closed",
+                        rightBlindWatch3 = laneState != null ? laneState.RightBlindWatch3Status.ToString().ToLower() : "closed",
                         rightStartBlock = laneState != null ? laneState.RightStartBlockStatus.ToString().ToLower() : "closed"
                     },
                     laneCloseCountdown = laneState != null ? laneState.LaneCloseCountdown : 0,
@@ -689,8 +693,12 @@ namespace SwimmingScoreboard
                 case "PushButton2":
                 case "PushButton3":
                     // 盲表
-                    if (laneState.LeftBlindWatchStatus == DeviceStatus.Open ||
-                        laneState.RightBlindWatchStatus == DeviceStatus.Open) {
+                    if (laneState.LeftBlindWatch1Status == DeviceStatus.Open ||
+                        laneState.LeftBlindWatch2Status == DeviceStatus.Open ||
+                        laneState.LeftBlindWatch3Status == DeviceStatus.Open ||
+                        laneState.RightBlindWatch1Status == DeviceStatus.Open ||
+                        laneState.RightBlindWatch2Status == DeviceStatus.Open ||
+                        laneState.RightBlindWatch3Status == DeviceStatus.Open) {
                         ProcessBlindWatchData(lane, cmdType, timeInSeconds);
                     }
                     break;
@@ -752,9 +760,9 @@ namespace SwimmingScoreboard
 
                 // 关闭该泳道所有设备
                 laneState.LeftTouchpadStatus = DeviceStatus.Closed;
-                laneState.LeftBlindWatchStatus = DeviceStatus.Closed;
+                laneState.LeftBlindWatch1Status = DeviceStatus.Closed; laneState.LeftBlindWatch2Status = DeviceStatus.Closed; laneState.LeftBlindWatch3Status = DeviceStatus.Closed;
                 laneState.RightTouchpadStatus = DeviceStatus.Closed;
-                laneState.RightBlindWatchStatus = DeviceStatus.Closed;
+                laneState.RightBlindWatch1Status = DeviceStatus.Closed; laneState.RightBlindWatch2Status = DeviceStatus.Closed; laneState.RightBlindWatch3Status = DeviceStatus.Closed;
                 laneState.LaneCloseCountdown = 0;
 
                 AddLog(string.Format("泳道{0} 完赛: {1} (来源:{2})", lane, TimeFormatter.Format(result.FinalTime), result.TimingSource));
@@ -806,9 +814,9 @@ namespace SwimmingScoreboard
                 timer.Stop();
                 if (!laneState.IsFinished) {
                     laneState.LeftTouchpadStatus = DeviceStatus.Closed;
-                    laneState.LeftBlindWatchStatus = DeviceStatus.Closed;
+                    laneState.LeftBlindWatch1Status = DeviceStatus.Closed; laneState.LeftBlindWatch2Status = DeviceStatus.Closed; laneState.LeftBlindWatch3Status = DeviceStatus.Closed;
                     laneState.RightTouchpadStatus = DeviceStatus.Closed;
-                    laneState.RightBlindWatchStatus = DeviceStatus.Closed;
+                    laneState.RightBlindWatch1Status = DeviceStatus.Closed; laneState.RightBlindWatch2Status = DeviceStatus.Closed; laneState.RightBlindWatch3Status = DeviceStatus.Closed;
                     laneState.LaneCloseCountdown = laneState.LaneCloseTime;
                     Broadcast();
                 }
@@ -887,9 +895,13 @@ namespace SwimmingScoreboard
                         state.LaneCloseCountdown = 0;
                         // 打开触板和盲表
                         if (!state.LeftTouchpadBroken) state.LeftTouchpadStatus = DeviceStatus.Open;
-                        if (!state.LeftBlindWatchBroken) state.LeftBlindWatchStatus = DeviceStatus.Open;
+                        if (!state.LeftBlindWatch1Broken) state.LeftBlindWatch1Status = DeviceStatus.Open;
+                        if (!state.LeftBlindWatch2Broken) state.LeftBlindWatch2Status = DeviceStatus.Open;
+                        if (!state.LeftBlindWatch3Broken) state.LeftBlindWatch3Status = DeviceStatus.Open;
                         if (!state.RightTouchpadBroken) state.RightTouchpadStatus = DeviceStatus.Open;
-                        if (!state.RightBlindWatchBroken) state.RightBlindWatchStatus = DeviceStatus.Open;
+                        if (!state.RightBlindWatch1Broken) state.RightBlindWatch1Status = DeviceStatus.Open;
+                        if (!state.RightBlindWatch2Broken) state.RightBlindWatch2Status = DeviceStatus.Open;
+                        if (!state.RightBlindWatch3Broken) state.RightBlindWatch3Status = DeviceStatus.Open;
                         AddLog(string.Format("泳道{0} 关闭倒计时结束，设备已打开", state.Lane));
                     }
                     changed = true;
@@ -929,9 +941,9 @@ namespace SwimmingScoreboard
             // 泳道设备状态：发令后
             foreach (var state in _laneDeviceStates) {
                 state.LeftTouchpadStatus = DeviceStatus.Closed;
-                state.LeftBlindWatchStatus = DeviceStatus.Closed;
+                state.LeftBlindWatch1Status = DeviceStatus.Closed; state.LeftBlindWatch2Status = DeviceStatus.Closed; state.LeftBlindWatch3Status = DeviceStatus.Closed;
                 state.RightTouchpadStatus = DeviceStatus.Closed;
-                state.RightBlindWatchStatus = DeviceStatus.Closed;
+                state.RightBlindWatch1Status = DeviceStatus.Closed; state.RightBlindWatch2Status = DeviceStatus.Closed; state.RightBlindWatch3Status = DeviceStatus.Closed;
                 state.LeftStartBlockStatus = DeviceStatus.Open;
                 state.LaneCloseCountdown = state.LaneCloseTime > 0 ? state.LaneCloseTime : _laneCloseSettings.LaneCloseTime;
             }
@@ -1239,10 +1251,14 @@ namespace SwimmingScoreboard
 
             switch (device) {
                 case "leftTouchpad": state.LeftTouchpadBroken = broken; break;
-                case "leftBlindWatch": state.LeftBlindWatchBroken = broken; break;
+                case "leftBlindWatch1": state.LeftBlindWatch1Broken = broken; break;
+                case "leftBlindWatch2": state.LeftBlindWatch2Broken = broken; break;
+                case "leftBlindWatch3": state.LeftBlindWatch3Broken = broken; break;
                 case "leftStartBlock": state.LeftStartBlockBroken = broken; break;
                 case "rightTouchpad": state.RightTouchpadBroken = broken; break;
-                case "rightBlindWatch": state.RightBlindWatchBroken = broken; break;
+                case "rightBlindWatch1": state.RightBlindWatch1Broken = broken; break;
+                case "rightBlindWatch2": state.RightBlindWatch2Broken = broken; break;
+                case "rightBlindWatch3": state.RightBlindWatch3Broken = broken; break;
                 case "rightStartBlock": state.RightStartBlockBroken = broken; break;
             }
             AddLog(string.Format("泳道{0} {1} 设为 {2}", lane, device, broken ? "损坏" : "正常"));

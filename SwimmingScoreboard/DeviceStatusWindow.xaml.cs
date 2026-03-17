@@ -17,10 +17,14 @@ namespace SwimmingScoreboard
             foreach (var s in _states) {
                 s.LeftTouchpadBroken = false;
                 s.LeftStartBlockBroken = false;
-                s.LeftBlindWatchBroken = false;
+                s.LeftBlindWatch1Broken = false;
+                s.LeftBlindWatch2Broken = false;
+                s.LeftBlindWatch3Broken = false;
                 s.RightTouchpadBroken = false;
                 s.RightStartBlockBroken = false;
-                s.RightBlindWatchBroken = false;
+                s.RightBlindWatch1Broken = false;
+                s.RightBlindWatch2Broken = false;
+                s.RightBlindWatch3Broken = false;
             }
             DeviceGrid.Items.Refresh();
         }
@@ -29,10 +33,14 @@ namespace SwimmingScoreboard
             foreach (var s in _states) {
                 s.LeftTouchpadBroken = true;
                 s.LeftStartBlockBroken = true;
-                s.LeftBlindWatchBroken = true;
+                s.LeftBlindWatch1Broken = true;
+                s.LeftBlindWatch2Broken = true;
+                s.LeftBlindWatch3Broken = true;
                 s.RightTouchpadBroken = true;
                 s.RightStartBlockBroken = true;
-                s.RightBlindWatchBroken = true;
+                s.RightBlindWatch1Broken = true;
+                s.RightBlindWatch2Broken = true;
+                s.RightBlindWatch3Broken = true;
             }
             DeviceGrid.Items.Refresh();
         }

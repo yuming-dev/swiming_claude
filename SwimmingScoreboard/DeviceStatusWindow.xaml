@@ -17,12 +17,16 @@
                       IsReadOnly="False" AlternatingRowBackground="#F8FAFC" HeadersVisibility="Column">
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="道次" Binding="{Binding Lane}" Width="50" IsReadOnly="True"/>
-                    <DataGridCheckBoxColumn Header="左触板坏" Binding="{Binding LeftTouchpadBroken}" Width="70"/>
-                    <DataGridCheckBoxColumn Header="左出发台坏" Binding="{Binding LeftStartBlockBroken}" Width="80"/>
-                    <DataGridCheckBoxColumn Header="左盲表坏" Binding="{Binding LeftBlindWatchBroken}" Width="70"/>
-                    <DataGridCheckBoxColumn Header="右触板坏" Binding="{Binding RightTouchpadBroken}" Width="70"/>
-                    <DataGridCheckBoxColumn Header="右出发台坏" Binding="{Binding RightStartBlockBroken}" Width="80"/>
-                    <DataGridCheckBoxColumn Header="右盲表坏" Binding="{Binding RightBlindWatchBroken}" Width="70"/>
+                    <DataGridCheckBoxColumn Header="左触板坏" Binding="{Binding LeftTouchpadBroken}" Width="60"/>
+                    <DataGridCheckBoxColumn Header="左出发台坏" Binding="{Binding LeftStartBlockBroken}" Width="70"/>
+                    <DataGridCheckBoxColumn Header="左盲1坏" Binding="{Binding LeftBlindWatch1Broken}" Width="55"/>
+                    <DataGridCheckBoxColumn Header="左盲2坏" Binding="{Binding LeftBlindWatch2Broken}" Width="55"/>
+                    <DataGridCheckBoxColumn Header="左盲3坏" Binding="{Binding LeftBlindWatch3Broken}" Width="55"/>
+                    <DataGridCheckBoxColumn Header="右触板坏" Binding="{Binding RightTouchpadBroken}" Width="60"/>
+                    <DataGridCheckBoxColumn Header="右出发台坏" Binding="{Binding RightStartBlockBroken}" Width="70"/>
+                    <DataGridCheckBoxColumn Header="右盲1坏" Binding="{Binding RightBlindWatch1Broken}" Width="55"/>
+                    <DataGridCheckBoxColumn Header="右盲2坏" Binding="{Binding RightBlindWatch2Broken}" Width="55"/>
+                    <DataGridCheckBoxColumn Header="右盲3坏" Binding="{Binding RightBlindWatch3Broken}" Width="55"/>
                 </DataGrid.Columns>
             </DataGrid>
         </ScrollViewer>

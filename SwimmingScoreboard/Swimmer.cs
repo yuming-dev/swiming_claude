@@ -568,10 +568,14 @@ namespace SwimmingScoreboard
     {
         private int _lane;
         private DeviceStatus _leftTouchpadStatus = DeviceStatus.Closed;
-        private DeviceStatus _leftBlindWatchStatus = DeviceStatus.Closed;
+        private DeviceStatus _leftBlindWatch1Status = DeviceStatus.Closed;
+        private DeviceStatus _leftBlindWatch2Status = DeviceStatus.Closed;
+        private DeviceStatus _leftBlindWatch3Status = DeviceStatus.Closed;
         private DeviceStatus _leftStartBlockStatus = DeviceStatus.Open;
         private DeviceStatus _rightTouchpadStatus = DeviceStatus.Closed;
-        private DeviceStatus _rightBlindWatchStatus = DeviceStatus.Closed;
+        private DeviceStatus _rightBlindWatch1Status = DeviceStatus.Closed;
+        private DeviceStatus _rightBlindWatch2Status = DeviceStatus.Closed;
+        private DeviceStatus _rightBlindWatch3Status = DeviceStatus.Closed;
         private DeviceStatus _rightStartBlockStatus = DeviceStatus.Closed;
         private double _laneCloseCountdown;
         private double _laneCloseTime = 20.0;
@@ -583,10 +587,14 @@ namespace SwimmingScoreboard
         private double _leftManualTouchTime;
         private double _rightManualTouchTime;
         private bool _leftTouchpadBroken;
-        private bool _leftBlindWatchBroken;
+        private bool _leftBlindWatch1Broken;
+        private bool _leftBlindWatch2Broken;
+        private bool _leftBlindWatch3Broken;
         private bool _leftStartBlockBroken;
         private bool _rightTouchpadBroken;
-        private bool _rightBlindWatchBroken;
+        private bool _rightBlindWatch1Broken;
+        private bool _rightBlindWatch2Broken;
+        private bool _rightBlindWatch3Broken;
         private bool _rightStartBlockBroken;
 
         public int Lane {
@@ -597,9 +605,17 @@ namespace SwimmingScoreboard
             get { return _leftTouchpadBroken ? DeviceStatus.Broken : _leftTouchpadStatus; }
             set { _leftTouchpadStatus = value; OnPropertyChanged("LeftTouchpadStatus"); }
         }
-        public DeviceStatus LeftBlindWatchStatus {
-            get { return _leftBlindWatchBroken ? DeviceStatus.Broken : _leftBlindWatchStatus; }
-            set { _leftBlindWatchStatus = value; OnPropertyChanged("LeftBlindWatchStatus"); }
+        public DeviceStatus LeftBlindWatch1Status {
+            get { return _leftBlindWatch1Broken ? DeviceStatus.Broken : _leftBlindWatch1Status; }
+            set { _leftBlindWatch1Status = value; OnPropertyChanged("LeftBlindWatch1Status"); }
+        }
+        public DeviceStatus LeftBlindWatch2Status {
+            get { return _leftBlindWatch2Broken ? DeviceStatus.Broken : _leftBlindWatch2Status; }
+            set { _leftBlindWatch2Status = value; OnPropertyChanged("LeftBlindWatch2Status"); }
+        }
+        public DeviceStatus LeftBlindWatch3Status {
+            get { return _leftBlindWatch3Broken ? DeviceStatus.Broken : _leftBlindWatch3Status; }
+            set { _leftBlindWatch3Status = value; OnPropertyChanged("LeftBlindWatch3Status"); }
         }
         public DeviceStatus LeftStartBlockStatus {
             get {
@@ -613,9 +629,17 @@ namespace SwimmingScoreboard
             get { return _rightTouchpadBroken ? DeviceStatus.Broken : _rightTouchpadStatus; }
             set { _rightTouchpadStatus = value; OnPropertyChanged("RightTouchpadStatus"); }
         }
-        public DeviceStatus RightBlindWatchStatus {
-            get { return _rightBlindWatchBroken ? DeviceStatus.Broken : _rightBlindWatchStatus; }
-            set { _rightBlindWatchStatus = value; OnPropertyChanged("RightBlindWatchStatus"); }
+        public DeviceStatus RightBlindWatch1Status {
+            get { return _rightBlindWatch1Broken ? DeviceStatus.Broken : _rightBlindWatch1Status; }
+            set { _rightBlindWatch1Status = value; OnPropertyChanged("RightBlindWatch1Status"); }
+        }
+        public DeviceStatus RightBlindWatch2Status {
+            get { return _rightBlindWatch2Broken ? DeviceStatus.Broken : _rightBlindWatch2Status; }
+            set { _rightBlindWatch2Status = value; OnPropertyChanged("RightBlindWatch2Status"); }
+        }
+        public DeviceStatus RightBlindWatch3Status {
+            get { return _rightBlindWatch3Broken ? DeviceStatus.Broken : _rightBlindWatch3Status; }
+            set { _rightBlindWatch3Status = value; OnPropertyChanged("RightBlindWatch3Status"); }
         }
         public DeviceStatus RightStartBlockStatus {
             get {
@@ -666,9 +690,17 @@ namespace SwimmingScoreboard
             get { return _leftTouchpadBroken; }
             set { _leftTouchpadBroken = value; OnPropertyChanged("LeftTouchpadBroken"); OnPropertyChanged("LeftTouchpadStatus"); }
         }
-        public bool LeftBlindWatchBroken {
-            get { return _leftBlindWatchBroken; }
-            set { _leftBlindWatchBroken = value; OnPropertyChanged("LeftBlindWatchBroken"); OnPropertyChanged("LeftBlindWatchStatus"); }
+        public bool LeftBlindWatch1Broken {
+            get { return _leftBlindWatch1Broken; }
+            set { _leftBlindWatch1Broken = value; OnPropertyChanged("LeftBlindWatch1Broken"); OnPropertyChanged("LeftBlindWatch1Status"); }
+        }
+        public bool LeftBlindWatch2Broken {
+            get { return _leftBlindWatch2Broken; }
+            set { _leftBlindWatch2Broken = value; OnPropertyChanged("LeftBlindWatch2Broken"); OnPropertyChanged("LeftBlindWatch2Status"); }
+        }
+        public bool LeftBlindWatch3Broken {
+            get { return _leftBlindWatch3Broken; }
+            set { _leftBlindWatch3Broken = value; OnPropertyChanged("LeftBlindWatch3Broken"); OnPropertyChanged("LeftBlindWatch3Status"); }
         }
         public bool LeftStartBlockBroken {
             get { return _leftStartBlockBroken; }
@@ -678,9 +710,17 @@ namespace SwimmingScoreboard
             get { return _rightTouchpadBroken; }
             set { _rightTouchpadBroken = value; OnPropertyChanged("RightTouchpadBroken"); OnPropertyChanged("RightTouchpadStatus"); }
         }
-        public bool RightBlindWatchBroken {
-            get { return _rightBlindWatchBroken; }
-            set { _rightBlindWatchBroken = value; OnPropertyChanged("RightBlindWatchBroken"); OnPropertyChanged("RightBlindWatchStatus"); }
+        public bool RightBlindWatch1Broken {
+            get { return _rightBlindWatch1Broken; }
+            set { _rightBlindWatch1Broken = value; OnPropertyChanged("RightBlindWatch1Broken"); OnPropertyChanged("RightBlindWatch1Status"); }
+        }
+        public bool RightBlindWatch2Broken {
+            get { return _rightBlindWatch2Broken; }
+            set { _rightBlindWatch2Broken = value; OnPropertyChanged("RightBlindWatch2Broken"); OnPropertyChanged("RightBlindWatch2Status"); }
+        }
+        public bool RightBlindWatch3Broken {
+            get { return _rightBlindWatch3Broken; }
+            set { _rightBlindWatch3Broken = value; OnPropertyChanged("RightBlindWatch3Broken"); OnPropertyChanged("RightBlindWatch3Status"); }
         }
         public bool RightStartBlockBroken {
             get { return _rightStartBlockBroken; }
@@ -696,10 +736,14 @@ namespace SwimmingScoreboard
 
         public void ResetForNewRace() {
             _leftTouchpadStatus = DeviceStatus.Closed;
-            _leftBlindWatchStatus = DeviceStatus.Closed;
+            _leftBlindWatch1Status = DeviceStatus.Closed;
+            _leftBlindWatch2Status = DeviceStatus.Closed;
+            _leftBlindWatch3Status = DeviceStatus.Closed;
             _leftStartBlockStatus = DeviceStatus.Open;
             _rightTouchpadStatus = DeviceStatus.Closed;
-            _rightBlindWatchStatus = DeviceStatus.Closed;
+            _rightBlindWatch1Status = DeviceStatus.Closed;
+            _rightBlindWatch2Status = DeviceStatus.Closed;
+            _rightBlindWatch3Status = DeviceStatus.Closed;
             _rightStartBlockStatus = DeviceStatus.Closed;
             _laneCloseCountdown = 0;
             _direction = "→";
@@ -713,8 +757,12 @@ namespace SwimmingScoreboard
         }
 
         private void NotifyAll() {
-            string[] props = { "LeftTouchpadStatus", "LeftBlindWatchStatus", "LeftStartBlockStatus",
-                "RightTouchpadStatus", "RightBlindWatchStatus", "RightStartBlockStatus",
+            string[] props = { "LeftTouchpadStatus",
+                "LeftBlindWatch1Status", "LeftBlindWatch2Status", "LeftBlindWatch3Status",
+                "LeftStartBlockStatus",
+                "RightTouchpadStatus",
+                "RightBlindWatch1Status", "RightBlindWatch2Status", "RightBlindWatch3Status",
+                "RightStartBlockStatus",
                 "LaneCloseCountdown", "Direction", "CurrentLap", "IsFinished",
                 "ReactionTime", "ReactionTimeDisplay", "IsFalseStart",
                 "LeftManualTouchTime", "RightManualTouchTime" };
