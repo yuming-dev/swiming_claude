@@ -117,6 +117,15 @@ namespace RemoteTimingControl
             }
             FalseStartInfo.Text = fsText;
 
+            // 当前比赛信息
+            string curInfo = string.Format("{0}子 {1} {2} 第{3}/{4}组",
+                _data["currentGender"] ?? "", _data["currentEvent"] ?? "",
+                _data["currentStage"] ?? "", _data["currentHeat"] ?? "0", _data["totalHeats"] ?? "0");
+            CurrentInfoText.Text = curInfo;
+
+            // 赛程树
+            RenderScheduleTree();
+
             // 泳道图
             RenderLanes(swimmers);
 
@@ -128,6 +137,99 @@ namespace RemoteTimingControl
                 }
             }
             StartListText.Text = startList;
+        }
+
+        // ═══════ 赛程树 ═══════
+        private string _lastScheduleHash = "";
+
+        private void RenderScheduleTree() {
+            if (_data == null || ScheduleTree == null) return;
+            var schedule = _data["schedule"] as JArray;
+            if (schedule == null) return;
+
+            // 避免频繁重建：简单用 count+当前比赛 做 hash
+            string hash = schedule.Count + "|" + (_data["currentHeat"] ?? "") + "|" + (_data["currentEvent"] ?? "");
+            if (hash == _lastScheduleHash) return;
+            _lastScheduleHash = hash;
+
+            ScheduleTree.Items.Clear();
+
+            // 按单元分组
+            var sessions = new Dictionary<int, List<JObject>>();
+            var sessionNames = new Dictionary<int, string>();
+            foreach (JObject item in schedule) {
+                int sn = item["session"] != null ? (int)item["session"] : 1;
+                if (!sessions.ContainsKey(sn)) { sessions[sn] = new List<JObject>(); }
+                sessions[sn].Add(item);
+                if (item["sessionName"] != null) sessionNames[sn] = item["sessionName"].ToString();
+            }
+
+            string curGender = _data["currentGender"] != null ? _data["currentGender"].ToString() : "";
+            string curEvent = _data["currentEvent"] != null ? _data["currentEvent"].ToString() : "";
+            string curStage = _data["currentStage"] != null ? _data["currentStage"].ToString() : "";
+            int curHeat = _data["currentHeat"] != null ? (int)_data["currentHeat"] : 0;
+
+            foreach (var kv in sessions) {
+                string sName;
+                if (!sessionNames.TryGetValue(kv.Key, out sName)) sName = string.Format("第{0}单元", kv.Key);
+                var sessionItem = new TreeViewItem {
+                    Header = sName,
+                    IsExpanded = true,
+                    Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")),
+                    FontSize = 11
+                };
+
+                foreach (JObject ev in kv.Value) {
+                    string gender = ev["gender"] != null ? ev["gender"].ToString() : "";
+                    string eventName = ev["eventName"] != null ? ev["eventName"].ToString() : "";
+                    string stage = ev["stage"] != null ? ev["stage"].ToString() : "";
+                    int heatCount = ev["heatCount"] != null ? (int)ev["heatCount"] : 1;
+                    if (heatCount < 1) heatCount = 1;
+
+                    string evHeader = string.Format("{0}子 {1} {2}", gender, eventName, stage);
+                    var eventItem = new TreeViewItem {
+                        Header = evHeader,
+                        Foreground = Brushes.White,
+                        FontSize = 11
+                    };
+
+                    for (int h = 1; h <= heatCount; h++) {
+                        string tag = string.Format("{0}|{1}|{2}|{3}", gender, eventName, stage, h);
+                        var heatItem = new TreeViewItem {
+                            Header = string.Format("第{0}组 (共{1}组)", h, heatCount),
+                            Tag = tag,
+                            FontSize = 11
+                        };
+                        // 高亮当前比赛
+                        if (gender == curGender && eventName == curEvent && stage == curStage && h == curHeat) {
+                            heatItem.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6"));
+                            heatItem.FontWeight = FontWeights.Bold;
+                        } else {
+                            heatItem.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8"));
+                        }
+                        eventItem.Items.Add(heatItem);
+                    }
+                    sessionItem.Items.Add(eventItem);
+                }
+                ScheduleTree.Items.Add(sessionItem);
+            }
+        }
+
+        private void ScheduleTree_Selected(object sender, RoutedPropertyChangedEventArgs<object> e) {
+            var item = ScheduleTree.SelectedItem as TreeViewItem;
+            if (item == null || item.Tag == null) return;
+            string tag = item.Tag.ToString();
+            string[] parts = tag.Split('|');
+            if (parts.Length >= 4) {
+                string gender = parts[0], eventName = parts[1], stage = parts[2];
+                int heat;
+                if (int.TryParse(parts[3], out heat)) {
+                    SendCmd("SET_EVENT", gender + "子" + eventName);
+                    SendCmd("SET_STAGE", stage);
+                    SendCmd("SET_HEAT", heat);
+                    AddLog(string.Format("选择: {0}子 {1} {2} 第{3}组", gender, eventName, stage, heat));
+                }
+            }
         }
 
         private void RenderLanes(JArray swimmers) {

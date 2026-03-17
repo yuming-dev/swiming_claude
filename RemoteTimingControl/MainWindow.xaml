@@ -22,7 +22,7 @@
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-                <ComboBox x:Name="SessionCombo" Grid.Column="0" Width="200" Margin="0,0,8,0" Background="#334155" Foreground="White"/>
+                <TextBlock x:Name="CurrentInfoText" Grid.Column="0" Text="未选择比赛" Foreground="White" FontWeight="Bold" FontSize="12" VerticalAlignment="Center" Margin="0,0,12,0"/>
                 <Button Content="◀上一组" Grid.Column="1" Click="PrevHeat_Click" Padding="8,2" Margin="0,0,4,0"
                         Background="#475569" Foreground="White" BorderThickness="0"/>
                 <Button Content="下一组▶" Grid.Column="2" Click="NextHeat_Click" Padding="8,2"
@@ -43,13 +43,29 @@
         <!-- 主体区域 -->
         <Grid Grid.Row="1">
             <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="200"/>
                 <ColumnDefinition Width="130"/>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="190"/>
             </Grid.ColumnDefinitions>
 
-            <!-- 区域2: 发令控制 -->
-            <Border Grid.Column="0" Background="#1E293B" Padding="8" BorderBrush="#334155" BorderThickness="0,0,1,0">
+            <!-- 赛程树（左侧） -->
+            <Border Grid.Column="0" Background="#1E293B" BorderBrush="#334155" BorderThickness="0,0,1,0">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Top" Text="赛程导航" Foreground="#64748B" FontSize="11" FontWeight="Bold" Margin="8,6,8,4"/>
+                    <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,4,0,6">
+                        <Button Content="◀上一组" Click="PrevHeat_Click" Padding="6,2" Margin="0,0,4,0" FontSize="10"
+                                Background="#475569" Foreground="White" BorderThickness="0"/>
+                        <Button Content="下一组▶" Click="NextHeat_Click" Padding="6,2" FontSize="10"
+                                Background="#475569" Foreground="White" BorderThickness="0"/>
+                    </StackPanel>
+                    <TreeView x:Name="ScheduleTree" Background="#1E293B" Foreground="White" FontSize="11"
+                              BorderThickness="0" SelectedItemChanged="ScheduleTree_Selected"/>
+                </DockPanel>
+            </Border>
+
+            <!-- 发令控制 -->
+            <Border Grid.Column="1" Background="#1E293B" Padding="8" BorderBrush="#334155" BorderThickness="0,0,1,0">
                 <StackPanel>
                     <TextBlock x:Name="RunningTime" Text="0.0" FontSize="30" FontWeight="Bold"
                                Foreground="#F59E0B" HorizontalAlignment="Center" FontFamily="Consolas" Margin="0,8,0,12"/>
@@ -65,7 +81,7 @@
             </Border>
 
             <!-- 区域3: 泳池图 -->
-            <Border Grid.Column="1" Padding="6">
+            <Border Grid.Column="2" Padding="6">
                 <DockPanel>
                     <!-- 表头 -->
                     <Grid DockPanel.Dock="Top" Margin="0,0,0,4">
@@ -93,7 +109,7 @@
             </Border>
 
             <!-- 区域4: 设置 -->
-            <Border Grid.Column="2" Background="#1E293B" Padding="8" BorderBrush="#334155" BorderThickness="1,0,0,0">
+            <Border Grid.Column="3" Background="#1E293B" Padding="8" BorderBrush="#334155" BorderThickness="1,0,0,0">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel>
                         <TextBlock Text="泳道参数" Foreground="#64748B" FontSize="11" FontWeight="Bold" Margin="0,0,0,6"/>

@@ -10,11 +10,11 @@
 body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei', sans-serif; height: 100vh; display: flex; flex-direction: column; overflow: hidden; font-size: 13px; }
 
 /* 区域1: 顶部导航 */
-.nav-bar { display: flex; align-items: center; height: 40px; background: var(--card); padding: 0 12px; border-bottom: 1px solid #334155; gap: 8px; }
-.nav-bar select { background: #334155; color: white; border: 1px solid #475569; padding: 4px 8px; border-radius: 4px; }
+.nav-bar { display: flex; align-items: center; height: 36px; background: var(--card); padding: 0 12px; border-bottom: 1px solid #334155; gap: 8px; }
+.nav-bar .current-info { font-size: 13px; font-weight: bold; flex: 1; }
 .nav-bar button { padding: 4px 12px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; }
 .nav-btn { background: #475569; color: white; }
-.state-dot { width: 10px; height: 10px; border-radius: 50%; margin-left: auto; }
+.state-dot { width: 10px; height: 10px; border-radius: 50%; }
 .state-dot.waiting { background: var(--gold); }
 .state-dot.ready { background: var(--accent); }
 .state-dot.racing { background: var(--green); }
@@ -24,8 +24,23 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 /* 主体 */
 .main-area { flex: 1; display: flex; overflow: hidden; }
 
-/* 区域2: 左侧发令控制 */
-.left-panel { width: 140px; background: var(--card); padding: 12px; display: flex; flex-direction: column; align-items: center; gap: 8px; border-right: 1px solid #334155; }
+/* 赛程树面板（左侧） */
+.schedule-tree-panel { width: 220px; background: var(--card); border-right: 1px solid #334155; display: flex; flex-direction: column; overflow: hidden; }
+.schedule-tree-panel .panel-header { padding: 8px 10px; font-size: 12px; font-weight: bold; color: var(--dim); border-bottom: 1px solid #334155; display: flex; align-items: center; justify-content: space-between; }
+.schedule-tree-panel .panel-header button { background: none; border: none; color: var(--dim); cursor: pointer; font-size: 14px; }
+.tree-scroll { flex: 1; overflow-y: auto; padding: 4px 0; }
+.tree-session { }
+.tree-session-header { padding: 4px 10px; font-size: 11px; font-weight: bold; color: var(--dim); cursor: pointer; user-select: none; }
+.tree-session-header:hover { color: var(--text); }
+.tree-session-header .arrow { display: inline-block; width: 12px; font-size: 10px; }
+.tree-event { padding: 3px 10px 3px 22px; font-size: 11px; color: var(--text); cursor: pointer; user-select: none; }
+.tree-event:hover { background: #253049; }
+.tree-heat { padding: 3px 10px 3px 38px; font-size: 11px; color: var(--dim); cursor: pointer; user-select: none; }
+.tree-heat:hover { background: #253049; }
+.tree-heat.active { background: var(--accent); color: white; border-radius: 3px; margin: 1px 4px; }
+
+/* 发令控制 */
+.start-panel { width: 140px; background: var(--card); padding: 12px; display: flex; flex-direction: column; align-items: center; gap: 8px; border-right: 1px solid #334155; }
 .running-time { font-size: 32px; font-weight: bold; color: var(--gold); font-family: Consolas, monospace; margin: 8px 0; }
 .ctrl-btn { width: 100%; padding: 10px; border: none; border-radius: 6px; font-size: 14px; font-weight: bold; cursor: pointer; }
 .btn-ready { background: var(--gold); color: #000; }
@@ -33,7 +48,7 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 .btn-restart { background: var(--red); color: #fff; }
 .false-start-info { font-size: 11px; color: var(--red); text-align: center; margin-top: 4px; }
 
-/* 区域3: 中央泳池图 */
+/* 泳池图 */
 .pool-area { flex: 1; overflow-y: auto; padding: 8px; }
 .pool-header { display: flex; font-size: 10px; color: var(--dim); padding: 0 0 4px 0; }
 .pool-header .left-devices { width: 140px; text-align: center; }
@@ -45,8 +60,8 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 .lane-row { display: flex; align-items: center; height: 42px; background: var(--card); border-radius: 4px; margin-bottom: 2px; padding: 0 4px; }
 .lane-row:hover { background: #253049; }
 .lane-row.false-start { border: 1px solid var(--gold); }
+.lane-row.selected { outline: 1px solid var(--accent); }
 
-/* 设备指示灯 */
 .devices { display: flex; align-items: center; gap: 2px; }
 .left-devices { width: 140px; }
 .right-devices { width: 140px; }
@@ -59,9 +74,6 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 .touch-btn:hover { background: var(--accent); }
 .touch-btn:active { background: var(--green); }
 
-.device-label { font-size: 9px; color: var(--dim); width: 24px; text-align: center; }
-
-/* 泳道中间区域 */
 .lane-mid { flex: 1; display: flex; align-items: center; padding: 0 6px; min-width: 0; }
 .lane-num { width: 20px; font-weight: bold; color: var(--dim); text-align: center; margin-right: 4px; }
 .swimmer-info { font-size: 12px; white-space: nowrap; overflow: hidden; width: 100px; }
@@ -73,7 +85,6 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 .progress-fill.returning { background: var(--green); }
 .close-indicator { font-size: 10px; color: var(--gold); min-width: 50px; text-align: center; }
 
-/* 成绩信息区 */
 .info-area { width: 320px; display: flex; align-items: center; font-family: Consolas, monospace; }
 .info-area .reaction { width: 50px; font-size: 11px; text-align: center; }
 .info-area .final-time { width: 70px; font-size: 13px; font-weight: bold; text-align: center; }
@@ -83,7 +94,7 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 .info-area .rank.r2 { color: #c0c0c0; }
 .info-area .rank.r3 { color: #cd7f32; }
 
-/* 区域4: 右侧设置 */
+/* 右侧设置 */
 .right-panel { width: 200px; background: var(--card); padding: 10px; border-left: 1px solid #334155; overflow-y: auto; }
 .right-panel h3 { font-size: 12px; margin-bottom: 6px; color: var(--dim); }
 .setting-row { display: flex; align-items: center; margin-bottom: 4px; font-size: 11px; }
@@ -94,7 +105,7 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 .btn-all-open { background: var(--green); color: white; }
 .btn-all-close { background: #64748b; color: white; }
 
-/* 区域5: 底部信息 */
+/* 底部信息 */
 .bottom-bar { height: 80px; background: var(--card); border-top: 1px solid #334155; display: flex; }
 .bottom-bar .start-list { flex: 1; overflow-y: auto; padding: 6px 12px; font-size: 11px; }
 .bottom-bar .log { flex: 1; overflow-y: auto; padding: 6px 12px; font-size: 11px; color: var(--dim); border-left: 1px solid #334155; }
@@ -111,9 +122,7 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 <body>
 <!-- 区域1: 导航栏 -->
 <div class="nav-bar">
-    <select id="sessionSelect" onchange="onSessionChange()"></select>
-    <select id="eventSelect" onchange="onEventChange()"></select>
-    <select id="heatSelect" onchange="onHeatChange()"></select>
+    <span class="current-info" id="currentInfo">未选择比赛</span>
     <button class="nav-btn" onclick="sendCmd('PREV_HEAT')">&#9664; 上一组</button>
     <button class="nav-btn" onclick="sendCmd('NEXT_HEAT')">下一组 &#9654;</button>
     <div id="stateDot" class="state-dot waiting"></div>
@@ -125,8 +134,16 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 
 <!-- 主体 -->
 <div class="main-area">
-    <!-- 区域2: 发令控制 -->
-    <div class="left-panel">
+    <!-- 赛程树（左侧） -->
+    <div class="schedule-tree-panel">
+        <div class="panel-header">
+            <span>赛程导航</span>
+        </div>
+        <div class="tree-scroll" id="scheduleTree"></div>
+    </div>
+
+    <!-- 发令控制 -->
+    <div class="start-panel">
         <div class="running-time" id="runTime">0.0</div>
         <button class="ctrl-btn btn-ready" onclick="sendCmd('READY')">就 位</button>
         <button class="ctrl-btn btn-start" onclick="sendCmd('START_RACE')">发 令</button>
@@ -134,7 +151,7 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
         <div class="false-start-info" id="fsInfo"></div>
     </div>
 
-    <!-- 区域3: 泳池图 -->
+    <!-- 泳池图 -->
     <div class="pool-area">
         <div class="pool-header">
             <div class="left-devices">[T] 盲表 出发台 触板</div>
@@ -145,7 +162,7 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
         <div id="poolLanes"></div>
     </div>
 
-    <!-- 区域4: 设置 -->
+    <!-- 右侧设置 -->
     <div class="right-panel">
         <h3>泳道参数</h3>
         <div class="setting-row"><label>关闭时间(s)</label><input id="setCloseTime" value="20"></div>
@@ -162,7 +179,7 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
     </div>
 </div>
 
-<!-- 区域5: 底部 -->
+<!-- 底部 -->
 <div class="bottom-bar">
     <div class="start-list" id="startList"></div>
     <div class="log" id="logArea"></div>
@@ -175,6 +192,7 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 
 <script>
 var ws, data = {}, selectedLane = -1;
+var selectedHeatKey = ''; // "gender|event|stage|heat"
 
 function connect() {
     var host = location.hostname || 'localhost';
@@ -201,34 +219,31 @@ function sendCmd(cmd, cmdData) {
 }
 
 function render() {
-    // 状态
     var state = (data.raceState || 'WAITING').toLowerCase();
-    var dot = document.getElementById('stateDot');
-    dot.className = 'state-dot ' + state;
+    document.getElementById('stateDot').className = 'state-dot ' + state;
     var labels = {waiting:'等待', ready:'就位', racing:'比赛中', finished:'已完赛'};
     document.getElementById('stateLabel').textContent = labels[state] || state;
     document.getElementById('runTime').textContent = data.runningTime || '0.0';
 
-    // 只读检查
     var ro = data.scoringControlMode === 'remote_exe';
     document.getElementById('readonlyOverlay').classList.toggle('hidden', !ro);
     document.getElementById('controlMode').textContent = '控制模式: ' + (data.scoringControlMode || '-');
 
-    // 泳道
+    // 当前比赛信息
+    var info = (data.currentGender||'') + '子 ' + (data.currentEvent||'') + ' ' + (data.currentStage||'') + ' 第' + (data.currentHeat||0) + '/' + (data.totalHeats||0) + '组';
+    document.getElementById('currentInfo').textContent = info;
+
+    renderScheduleTree();
     renderLanes();
     renderStartListBar();
 
-    // 抢跳信息
     var fsInfo = '';
     var swimmers = data.swimmers || [];
     for (var i = 0; i < swimmers.length; i++) {
-        if (swimmers[i].isFalseStart) {
-            fsInfo += '道' + swimmers[i].lane + ' FS! ';
-        }
+        if (swimmers[i].isFalseStart) fsInfo += '道' + swimmers[i].lane + ' FS! ';
     }
     document.getElementById('fsInfo').textContent = fsInfo;
 
-    // 设置
     if (data.laneCloseSettings) {
         document.getElementById('setCloseTime').value = data.laneCloseSettings.laneCloseTime;
         document.getElementById('setSBDelay').value = data.laneCloseSettings.startBlockCloseDelay;
@@ -238,6 +253,74 @@ function render() {
     }
 }
 
+// ═══════ 赛程树 ═══════
+var treeCollapsed = {}; // session number -> collapsed state
+
+function renderScheduleTree() {
+    var container = document.getElementById('scheduleTree');
+    var schedule = data.schedule || [];
+    if (schedule.length === 0) { container.innerHTML = '<div style="padding:10px;color:var(--dim);font-size:11px;">暂无赛程</div>'; return; }
+
+    // 按单元分组
+    var sessions = {};
+    for (var i = 0; i < schedule.length; i++) {
+        var s = schedule[i];
+        var sn = s.session || 1;
+        if (!sessions[sn]) sessions[sn] = { name: s.sessionName || ('第'+sn+'单元'), events: [] };
+        sessions[sn].events.push(s);
+    }
+
+    var html = '';
+    for (var sn in sessions) {
+        var sess = sessions[sn];
+        var collapsed = treeCollapsed[sn] === true;
+        html += '<div class="tree-session">';
+        html += '<div class="tree-session-header" onclick="toggleSession('+sn+')">';
+        html += '<span class="arrow">' + (collapsed ? '▶' : '▼') + '</span> ' + sess.name;
+        html += '</div>';
+        if (!collapsed) {
+            for (var j = 0; j < sess.events.length; j++) {
+                var ev = sess.events[j];
+                var evLabel = (ev.gender||'') + '子 ' + (ev.eventName||'') + ' ' + (ev.stage||'');
+                html += '<div class="tree-event">' + evLabel + '</div>';
+                var hc = ev.heatCount || 1;
+                for (var h = 1; h <= hc; h++) {
+                    var key = (ev.gender||'') + '|' + (ev.eventName||'') + '|' + (ev.stage||'') + '|' + h;
+                    var active = (key === selectedHeatKey) ? ' active' : '';
+                    // 高亮当前比赛
+                    if (!selectedHeatKey && data.currentGender === ev.gender && data.currentEvent === ev.eventName && data.currentStage === ev.stage && data.currentHeat === h) {
+                        active = ' active';
+                    }
+                    html += '<div class="tree-heat' + active + '" onclick="selectHeat(\'' + key.replace(/'/g,"\\'") + '\')">';
+                    html += '第' + h + '组 (共' + hc + '组)';
+                    html += '</div>';
+                }
+            }
+        }
+        html += '</div>';
+    }
+    container.innerHTML = html;
+}
+
+function toggleSession(sn) {
+    treeCollapsed[sn] = !treeCollapsed[sn];
+    renderScheduleTree();
+}
+
+function selectHeat(key) {
+    selectedHeatKey = key;
+    var parts = key.split('|');
+    if (parts.length >= 4) {
+        var gender = parts[0], eventName = parts[1], stage = parts[2], heat = parseInt(parts[3]);
+        sendCmd('SET_EVENT', gender + '子' + eventName);
+        sendCmd('SET_STAGE', stage);
+        sendCmd('SET_HEAT', heat);
+        addLog('选择: ' + gender + '子 ' + eventName + ' ' + stage + ' 第' + heat + '组');
+    }
+    renderScheduleTree();
+}
+
+// ═══════ 泳道渲染 ═══════
 function renderLanes() {
     var container = document.getElementById('poolLanes');
     container.innerHTML = '';
@@ -247,10 +330,9 @@ function renderLanes() {
         var sw = swimmers[i];
         var ds = sw.deviceStatus || {};
         var row = document.createElement('div');
-        row.className = 'lane-row' + (sw.isFalseStart ? ' false-start' : '');
+        row.className = 'lane-row' + (sw.isFalseStart ? ' false-start' : '') + (sw.lane === selectedLane ? ' selected' : '');
         row.onclick = (function(lane) { return function() { selectLane(lane); }; })(sw.lane);
 
-        // 进度
         var totalLaps = 1;
         var ev = data.currentEvent || '';
         var m = ev.match(/(\d+)/);
@@ -268,28 +350,24 @@ function renderLanes() {
         var closeText = sw.laneCloseCountdown > 0 ? '(' + sw.laneCloseCountdown.toFixed(1) + 's)' : '';
 
         row.innerHTML =
-            // 左端设备
             '<div class="left-devices devices">' +
-                '<button class="touch-btn" onclick="manualTouch('+sw.lane+',\'left\')" title="左端手动触板">T</button>' +
+                '<button class="touch-btn" onclick="event.stopPropagation();manualTouch('+sw.lane+',\'left\')" title="左端手动触板">T</button>' +
                 '<div class="device-dot ' + statusClass(ds.leftBlindWatch) + '" title="盲表"></div>' +
                 '<div class="device-dot ' + statusClass(ds.leftStartBlock) + '" title="出发台"></div>' +
                 '<div class="device-dot ' + statusClass(ds.leftTouchpad) + '" title="触板"></div>' +
             '</div>' +
-            // 泳道中间
             '<div class="lane-mid">' +
                 '<div class="lane-num">' + sw.lane + '</div>' +
                 '<div class="swimmer-info"><div class="name">' + (sw.name||'') + '</div><div class="team">' + (sw.country||'') + '</div></div>' +
                 '<div class="progress-bar"><div class="progress-fill ' + dir + '" style="width:' + progress + '%"></div></div>' +
                 '<div class="close-indicator">' + closeText + '</div>' +
             '</div>' +
-            // 右端设备
             '<div class="right-devices devices">' +
                 '<div class="device-dot ' + statusClass(ds.rightTouchpad) + '" title="触板"></div>' +
                 '<div class="device-dot ' + statusClass(ds.rightStartBlock) + '" title="出发台"></div>' +
                 '<div class="device-dot ' + statusClass(ds.rightBlindWatch) + '" title="盲表"></div>' +
-                '<button class="touch-btn" onclick="manualTouch('+sw.lane+',\'right\')" title="右端手动触板">T</button>' +
+                '<button class="touch-btn" onclick="event.stopPropagation();manualTouch('+sw.lane+',\'right\')" title="右端手动触板">T</button>' +
             '</div>' +
-            // 成绩信息
             '<div class="info-area">' +
                 '<div class="reaction">' + (sw.reactionTime||'') + '</div>' +
                 '<div class="final-time">' + (sw.finalTime || sw.status || '') + '</div>' +
@@ -311,7 +389,6 @@ function statusClass(s) {
 
 function selectLane(lane) {
     selectedLane = lane;
-    // 显示计时源对比
     var swimmers = data.swimmers || [];
     for (var i = 0; i < swimmers.length; i++) {
         if (swimmers[i].lane === lane && swimmers[i].timingSources) {
@@ -327,6 +404,7 @@ function selectLane(lane) {
             break;
         }
     }
+    renderLanes(); // 刷新高亮
 }
 
 function manualTouch(lane, side) {
@@ -352,14 +430,6 @@ function addLog(msg) {
     el.scrollTop = el.scrollHeight;
 }
 
-// 填充日程选择器
-function onSessionChange() {}
-function onEventChange() {}
-function onHeatChange() {
-    var sel = document.getElementById('heatSelect');
-    if (sel.value) sendCmd('SET_HEAT', parseInt(sel.value));
-}
-
 // 键盘快捷键
 document.addEventListener('keydown', function(e) {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
@@ -369,21 +439,15 @@ document.addEventListener('keydown', function(e) {
         case 'F7': e.preventDefault(); sendCmd('RESTART'); break;
         case 'Enter': sendCmd('CONFIRM_RESULT'); break;
     }
-    // Shift+1~0 = 左端手动触板
     if (e.shiftKey && e.key >= '0' && e.key <= '9') {
-        var lane = e.key === '0' ? 10 : parseInt(e.key);
-        sendCmd('MANUAL_TOUCH_LEFT', {lane: lane});
+        sendCmd('MANUAL_TOUCH_LEFT', {lane: e.key === '0' ? 10 : parseInt(e.key)});
     }
-    // Ctrl+1~0 = 右端手动触板
     if (e.ctrlKey && e.key >= '0' && e.key <= '9') {
         e.preventDefault();
-        var lane = e.key === '0' ? 10 : parseInt(e.key);
-        sendCmd('MANUAL_TOUCH_RIGHT', {lane: lane});
+        sendCmd('MANUAL_TOUCH_RIGHT', {lane: e.key === '0' ? 10 : parseInt(e.key)});
     }
-    // Ctrl+Arrow
     if (e.ctrlKey && e.key === 'ArrowLeft') sendCmd('PREV_HEAT');
     if (e.ctrlKey && e.key === 'ArrowRight') sendCmd('NEXT_HEAT');
-    // Lane select 1-0
     if (!e.shiftKey && !e.ctrlKey && e.key >= '1' && e.key <= '9') selectLane(parseInt(e.key));
     if (!e.shiftKey && !e.ctrlKey && e.key === '0') selectLane(0);
     if (e.key === 'd' || e.key === 'D') { if (selectedLane >= 0) sendCmd('MARK_DNS', {lane: selectedLane}); }
