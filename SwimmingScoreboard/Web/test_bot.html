@@ -76,16 +76,20 @@ function connect() {
     ws = new WebSocket('ws://' + host + ':3002');
     ws.onopen = function() { log('已连接服务器'); };
     ws.onclose = function() { log('断开连接'); setTimeout(connect, 3000); };
-    ws.onmessage = function() {};
+    ws.onmessage = function(e) {
+        try {
+            var msg = JSON.parse(e.data);
+            if (msg.data) data = msg.data;
+        } catch(ex) {}
+    };
 }
 
-function send(type, data) {
-    if (ws && ws.readyState === 1) ws.send(JSON.stringify({type: type, data: data, command: data}));
+function send(type, payload) {
+    if (ws && ws.readyState === 1) ws.send(JSON.stringify({type: type, data: payload}));
 }
 
-function sendCmd(cmd, data) {
-    send('TIMING_CMD', undefined);
-    if (ws && ws.readyState === 1) ws.send(JSON.stringify({type: 'TIMING_CMD', command: cmd, data: data || null}));
+function sendCmd(cmd, cmdData) {
+    if (ws && ws.readyState === 1) ws.send(JSON.stringify({type: 'TIMING_CMD', command: cmd, data: cmdData || null}));
 }
 
 function log(msg) {
