@@ -50,12 +50,7 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 
 /* 泳池图 */
 .pool-area { flex: 1; overflow-y: auto; padding: 8px; }
-.pool-header { display: flex; font-size: 12px; color: var(--dim); padding: 0 0 4px 0; }
-.pool-header .left-devices { width: 200px; text-align: center; }
-.pool-header .lane-area { flex: 1; text-align: center; }
-.pool-header .right-devices { width: 200px; text-align: center; }
-.pool-header .info-area { width: 280px; display: flex; }
-.pool-header .info-area span { flex: 1; text-align: center; }
+.pool-header { display: flex; align-items: center; height: 24px; color: var(--dim); padding: 0 6px; margin-bottom: 2px; font-size: 9px; }
 
 .lane-row { display: flex; align-items: center; height: 48px; background: var(--card); border-radius: 4px; margin-bottom: 3px; padding: 0 6px; }
 .lane-row:hover { background: #253049; }
@@ -142,7 +137,6 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 .start-indicator { width: 8px; height: 100%; min-height: 28px; border-radius: 2px; flex-shrink: 0; }
 .start-indicator.active { background: var(--green); box-shadow: 0 0 6px var(--green); }
 .start-indicator.inactive { background: transparent; }
-.pool-header .start-ind-left, .pool-header .start-ind-right { width: 10px; text-align: center; font-size: 9px; }
 .lane-row .start-ind { width: 8px; margin: 0 2px; flex-shrink: 0; }
 </style>
 </head>
@@ -193,28 +187,7 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 
     <!-- 泳池图 -->
     <div class="pool-area" style="position:relative;">
-        <div class="pool-header" style="align-items:flex-end;padding-bottom:2px;">
-            <div class="start-ind-left" id="headerStartLeft"></div>
-            <div class="left-devices devices">
-                <span class="device-label-btn">[T]</span>
-                <span class="device-label">盲1</span>
-                <span class="device-label">盲2</span>
-                <span class="device-label">盲3</span>
-                <span class="device-label">出发</span>
-                <span class="device-label">触板</span>
-            </div>
-            <div class="lane-area">泳道</div>
-            <div class="right-devices devices">
-                <span class="device-label">触板</span>
-                <span class="device-label">出发</span>
-                <span class="device-label">盲1</span>
-                <span class="device-label">盲2</span>
-                <span class="device-label">盲3</span>
-                <span class="device-label-btn">[T]</span>
-            </div>
-            <div class="start-ind-right" id="headerStartRight"></div>
-            <div class="info-area"><span>反应</span><span>成绩</span><span>名次</span></div>
-        </div>
+        <div class="pool-header" id="poolHeader"></div>
         <div id="poolLanes"></div>
         <div class="running-time-corner" id="runTime">0.0</div>
     </div>
@@ -291,6 +264,7 @@ function render() {
     document.getElementById('currentInfo').textContent = info;
 
     renderScheduleTree();
+    renderHeader();
     renderLanes();
     renderStartListBar();
 
@@ -310,11 +284,7 @@ function render() {
         if (data.laneCloseSettings.startPosition) startPosition = data.laneCloseSettings.startPosition;
     }
 
-    // 发令位置指示灯（表头）
-    document.getElementById('headerStartLeft').textContent = startPosition === 'left' ? '▶' : '';
-    document.getElementById('headerStartLeft').style.color = startPosition === 'left' ? '#22c55e' : '';
-    document.getElementById('headerStartRight').textContent = startPosition === 'right' ? '◀' : '';
-    document.getElementById('headerStartRight').style.color = startPosition === 'right' ? '#22c55e' : '';
+    // 发令位置指示灯已在 renderHeader() 中处理
 }
 
 // ═══════ 参数设置对话框 ═══════
@@ -415,6 +385,45 @@ function selectHeat(key) {
         addLog('选择: ' + gender + '子 ' + eventName + ' ' + stage + ' 第' + heat + '组');
     }
     renderScheduleTree();
+}
+
+// ═══════ 表头渲染（与泳道行完全相同的结构） ═══════
+function renderHeader() {
+    var h = document.getElementById('poolHeader');
+    if (!h) return;
+    var leftInd = startPosition === 'left' ? '▶' : '';
+    var rightInd = startPosition === 'right' ? '◀' : '';
+    var leftColor = startPosition === 'left' ? 'color:#22c55e;' : '';
+    var rightColor = startPosition === 'right' ? 'color:#22c55e;' : '';
+    h.innerHTML =
+        '<div class="start-ind" style="width:8px;text-align:center;font-size:10px;' + leftColor + '">' + leftInd + '</div>' +
+        '<div class="left-devices devices">' +
+            '<span class="device-label-btn">[T]</span>' +
+            '<span class="device-label">盲1</span>' +
+            '<span class="device-label">盲2</span>' +
+            '<span class="device-label">盲3</span>' +
+            '<span class="device-label">出发</span>' +
+            '<span class="device-label">触板</span>' +
+        '</div>' +
+        '<div class="lane-mid" style="padding:0 8px;">' +
+            '<div class="lane-num" style="font-size:9px;">道</div>' +
+            '<div class="swimmer-info" style="font-size:9px;">姓名/代表队</div>' +
+            '<div class="lane-track" style="font-size:9px;height:auto;background:none;text-align:center;">方向/进度</div>' +
+        '</div>' +
+        '<div class="right-devices devices">' +
+            '<span class="device-label">触板</span>' +
+            '<span class="device-label">出发</span>' +
+            '<span class="device-label">盲1</span>' +
+            '<span class="device-label">盲2</span>' +
+            '<span class="device-label">盲3</span>' +
+            '<span class="device-label-btn">[T]</span>' +
+        '</div>' +
+        '<div class="start-ind" style="width:8px;text-align:center;font-size:10px;' + rightColor + '">' + rightInd + '</div>' +
+        '<div class="info-area" style="font-size:10px;font-family:inherit;">' +
+            '<div class="reaction">反应</div>' +
+            '<div class="final-time" style="font-size:10px;font-weight:normal;">成绩</div>' +
+            '<div class="rank" style="font-size:10px;font-weight:normal;">名次</div>' +
+        '</div>';
 }
 
 // ═══════ 泳道渲染 ═══════
