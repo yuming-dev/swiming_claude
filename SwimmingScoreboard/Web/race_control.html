@@ -501,12 +501,12 @@ function buildArrows(sw, swDir, dir) {
     var closeTime = (data.laneCloseSettings ? data.laneCloseSettings.laneCloseTime : 20) || 20;
     var arrow = swDir === '←' ? '◀' : '▶';
 
+    var maxArrows = 12;
+
     if (countdown > 0) {
         // 泳道关闭中：根据已经过去的时间计算箭头数量
-        // 已过去时间 = closeTime - countdown
         var elapsed = closeTime - countdown;
         var arrowCount = Math.max(1, Math.floor(elapsed / 2) + 1);
-        var maxArrows = 12;
         if (arrowCount > maxArrows) arrowCount = maxArrows;
 
         var arrows = '';
@@ -520,10 +520,10 @@ function buildArrows(sw, swDir, dir) {
         }
     }
 
-    // 泳道打开（等待触碰）：显示满箭头
-    if (sw.currentLap > 0) {
+    // 倒计时结束或比赛进行中：保留满箭头直到触板触碰改变方向
+    if (sw.currentLap > 0 || (data.raceState && data.raceState.toLowerCase() === 'racing')) {
         var fullArrows = '';
-        for (var i = 0; i < 10; i++) fullArrows += arrow;
+        for (var i = 0; i < maxArrows; i++) fullArrows += arrow;
         return '<span class="arrows">' + fullArrows + '</span>';
     }
 
