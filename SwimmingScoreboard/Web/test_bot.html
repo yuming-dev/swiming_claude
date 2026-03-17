@@ -128,53 +128,26 @@ function simReady() { sendCmd('READY'); log('发送: 就位'); }
 function simStart() { sendCmd('START_RACE'); log('发送: 发令'); }
 
 function simTouchpad() {
-    var min = parseFloat(document.getElementById('minTime').value) || 48;
-    var max = parseFloat(document.getElementById('maxTime').value) || 55;
-    var lanes = [0,1,2,3,4,5,6,7,8,9];
-
-    // 根据当前比赛项目计算段数
-    var ev = document.getElementById('regEvent').value || '100米自由泳';
-    var distMatch = ev.match(/(\d+)/);
-    var distance = distMatch ? parseInt(distMatch[1]) : 100;
-    var poolLength = 50; // 默认50米池
-    if (typeof data !== 'undefined' && data.poolConfig) poolLength = data.poolConfig.length || 50;
-    var totalLaps = Math.max(1, Math.floor(distance / poolLength));
-
-    log('模拟触板: ' + ev + ', ' + distance + '米, ' + totalLaps + '段');
-
-    for (var i = 0; i < lanes.length; i++) {
-        // 为每道生成各段分段时间（每段大致相等，加随机波动）
-        var finalTime = parseFloat(randomTime(min, max));
-        var avgLap = finalTime / totalLaps;
-
-        (function(lane, avgT, laps, total) {
-            // 发送出发台反应时间
-            setTimeout(function() {
-                send('TIMING_DATA', {lane: lane, commandType: 'StartingBlock', time: 0.5 + Math.random() * 0.4});
-            }, 500 + Math.random() * 500);
-
-            // 每段发送一次触板数据，时间为累计时间
-            var cumulative = 0;
-            for (var lap = 0; lap < laps; lap++) {
-                // 每段时间 = 平均值 ± 随机波动
-                var lapTime = avgT + (Math.random() - 0.5) * 2;
-                if (lap === laps - 1) {
-                    // 最后一段调整使总时间准确
-                    lapTime = total - cumulative;
-                }
-                cumulative += lapTime;
-
-                (function(ln, lapIdx, cumT) {
-                    // 用实际时间的比例来延迟发送，模拟真实到达
-                    setTimeout(function() {
-                        send('TIMING_DATA', {lane: ln, commandType: 'Touchpad', time: cumT});
-                        log('泳道' + ln + ' 第' + (lapIdx+1) + '段触板: ' + cumT.toFixed(2) + 's');
-                    }, cumT * 1000);
-                })(lane, lap, cumulative);
-            }
-        })(lanes[i], avgLap, totalLaps, finalTime);
+    // 读取服务器当前滚动计时器时间
+    var runTimeStr = (data && data.runningTime) ? data.runningTime : '0.0';
+    // 解析时间字符串为秒数 (格式: "S.t" 或 "M:SS.t")
+    var currentTime = 0;
+    var parts = runTimeStr.split(':');
+    if (parts.length === 2) {
+        currentTime = parseFloat(parts[0]) * 60 + parseFloat(parts[1]);
+    } else {
+        currentTime = parseFloat(parts[0]) || 0;
     }
-    log('模拟触板数据发送中... (共' + totalLaps + '段/道)');
+
+    // 为每道发送触板数据，时间为当前计时器时间（加微小随机偏差模拟不同泳道触碰先后）
+    var lanes = [0,1,2,3,4,5,6,7,8,9];
+    for (var i = 0; i < lanes.length; i++) {
+        var laneTime = currentTime + (Math.random() - 0.5) * 0.5; // ±0.25秒随机偏差
+        if (laneTime < 0.1) laneTime = 0.1;
+        send('TIMING_DATA', {lane: lanes[i], commandType: 'Touchpad', time: laneTime});
+        log('泳道' + lanes[i] + ' 触板: ' + laneTime.toFixed(2) + 's (取自计时器)');
+    }
+    log('已发送全部泳道触板数据，时间取自当前计时器: ' + runTimeStr);
 }
 
 function simFalseStart() {
