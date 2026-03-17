@@ -309,10 +309,11 @@ namespace SwimmingScoreboard
                         if (data["resultConfirmCloseDelay"] != null) _laneCloseSettings.ResultConfirmCloseDelay = (double)data["resultConfirmCloseDelay"];
                         if (data["falseStartThreshold"] != null) _laneCloseSettings.FalseStartThreshold = (double)data["falseStartThreshold"];
                         if (data["splitDisplayTime"] != null) _laneCloseSettings.SplitDisplayTime = (double)data["splitDisplayTime"];
-                        AddLog(string.Format("参数更新: 关闭{0}s 出发台{1}s 确认{2}s 抢跳{3}s 分段{4}s",
+                        if (data["startPosition"] != null) _laneCloseSettings.StartPosition = data["startPosition"].ToString();
+                        AddLog(string.Format("参数更新: 关闭{0}s 出发台{1}s 确认{2}s 抢跳{3}s 分段{4}s 发令:{5}",
                             _laneCloseSettings.LaneCloseTime, _laneCloseSettings.StartBlockCloseDelay,
                             _laneCloseSettings.ResultConfirmCloseDelay, _laneCloseSettings.FalseStartThreshold,
-                            _laneCloseSettings.SplitDisplayTime));
+                            _laneCloseSettings.SplitDisplayTime, _laneCloseSettings.StartPosition == "left" ? "左端" : "右端"));
                         AutoSaveData();
                     }
                     break;
@@ -555,7 +556,8 @@ namespace SwimmingScoreboard
                     startBlockCloseDelay = _laneCloseSettings.StartBlockCloseDelay,
                     resultConfirmCloseDelay = _laneCloseSettings.ResultConfirmCloseDelay,
                     falseStartThreshold = _laneCloseSettings.FalseStartThreshold,
-                    splitDisplayTime = _laneCloseSettings.SplitDisplayTime
+                    splitDisplayTime = _laneCloseSettings.SplitDisplayTime,
+                    startPosition = _laneCloseSettings.StartPosition
                 },
                 scoringControlMode = _scoringControlMode,
                 schedule = _schedule.Select(s => new {

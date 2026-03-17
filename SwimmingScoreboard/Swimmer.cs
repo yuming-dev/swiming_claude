@@ -38,6 +38,7 @@ namespace SwimmingScoreboard
         private double _resultConfirmCloseDelay = 3.0;
         private double _falseStartThreshold = 0.10;
         private double _splitDisplayTime = 5.0;
+        private string _startPosition = "left";
 
         public double LaneCloseTime {
             get { return _laneCloseTime; }
@@ -58,6 +59,10 @@ namespace SwimmingScoreboard
         public double SplitDisplayTime {
             get { return _splitDisplayTime; }
             set { _splitDisplayTime = value; OnPropertyChanged("SplitDisplayTime"); }
+        }
+        public string StartPosition {
+            get { return _startPosition; }
+            set { _startPosition = value; OnPropertyChanged("StartPosition"); }
         }
 
         public event PropertyChangedEventHandler PropertyChanged;

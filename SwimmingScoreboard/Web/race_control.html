@@ -132,6 +132,13 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 .modal-btns .btn-cancel { background: #475569; color: white; }
 .nav-bar .settings-btn { background: #475569; color: white; border: none; padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 11px; margin-left: 8px; }
 .nav-bar .settings-btn:hover { background: var(--accent); }
+
+/* 发令位置指示灯 */
+.start-indicator { width: 8px; height: 100%; min-height: 28px; border-radius: 2px; flex-shrink: 0; }
+.start-indicator.active { background: var(--green); box-shadow: 0 0 6px var(--green); }
+.start-indicator.inactive { background: transparent; }
+.pool-header .start-ind-left, .pool-header .start-ind-right { width: 10px; text-align: center; font-size: 9px; }
+.lane-row .start-ind { width: 8px; margin: 0 2px; flex-shrink: 0; }
 </style>
 </head>
 <body>
@@ -152,6 +159,13 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
         <div class="param-row"><label>成绩确认关闭延迟</label><input id="dlgConfDelay" value="3"><span class="unit">秒</span></div>
         <div class="param-row"><label>抢跳判定阈值</label><input id="dlgFSThresh" value="0.10"><span class="unit">秒</span></div>
         <div class="param-row"><label>分段成绩显示时长</label><input id="dlgSplitDisp" value="5"><span class="unit">秒</span></div>
+        <div class="param-row" style="margin-top:6px;padding-top:8px;border-top:1px solid #475569;">
+            <label>发令位置</label>
+            <span style="display:flex;gap:12px;">
+                <label style="cursor:pointer;color:var(--text);font-size:12px;"><input type="radio" name="startPos" value="left" id="dlgStartLeft" checked> 左端出发</label>
+                <label style="cursor:pointer;color:var(--text);font-size:12px;"><input type="radio" name="startPos" value="right" id="dlgStartRight"> 右端出发</label>
+            </span>
+        </div>
         <div class="modal-btns">
             <button class="btn-cancel" onclick="closeSettings()">取消</button>
             <button class="btn-ok" onclick="applySettings()">确定</button>
@@ -184,9 +198,11 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
     <!-- 泳池图 -->
     <div class="pool-area">
         <div class="pool-header">
+            <div class="start-ind-left" id="headerStartLeft"></div>
             <div class="left-devices">[T] 盲表 出发台 触板</div>
             <div class="lane-area">泳道</div>
             <div class="right-devices">触板 出发台 盲表 [T]</div>
+            <div class="start-ind-right" id="headerStartRight"></div>
             <div class="info-area"><span>反应</span><span>成绩</span><span>分段</span><span>名次</span></div>
         </div>
         <div id="poolLanes"></div>
@@ -217,6 +233,7 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 <script>
 var ws, data = {}, selectedLane = -1;
 var selectedHeatKey = ''; // "gender|event|stage|heat"
+var startPosition = 'left'; // 'left' or 'right' — 发令位置
 
 function connect() {
     var host = location.hostname || 'localhost';
@@ -274,7 +291,14 @@ function render() {
         document.getElementById('dlgConfDelay').value = data.laneCloseSettings.resultConfirmCloseDelay;
         document.getElementById('dlgFSThresh').value = data.laneCloseSettings.falseStartThreshold;
         document.getElementById('dlgSplitDisp').value = data.laneCloseSettings.splitDisplayTime;
+        if (data.laneCloseSettings.startPosition) startPosition = data.laneCloseSettings.startPosition;
     }
+
+    // 发令位置指示灯（表头）
+    document.getElementById('headerStartLeft').textContent = startPosition === 'left' ? '▶' : '';
+    document.getElementById('headerStartLeft').style.color = startPosition === 'left' ? '#22c55e' : '';
+    document.getElementById('headerStartRight').textContent = startPosition === 'right' ? '◀' : '';
+    document.getElementById('headerStartRight').style.color = startPosition === 'right' ? '#22c55e' : '';
 }
 
 // ═══════ 参数设置对话框 ═══════
@@ -286,6 +310,8 @@ function openSettings() {
         document.getElementById('dlgFSThresh').value = data.laneCloseSettings.falseStartThreshold;
         document.getElementById('dlgSplitDisp').value = data.laneCloseSettings.splitDisplayTime;
     }
+    document.getElementById('dlgStartLeft').checked = (startPosition === 'left');
+    document.getElementById('dlgStartRight').checked = (startPosition === 'right');
     document.getElementById('settingsModal').classList.remove('hidden');
 }
 
@@ -294,15 +320,17 @@ function closeSettings() {
 }
 
 function applySettings() {
+    startPosition = document.getElementById('dlgStartRight').checked ? 'right' : 'left';
     var settings = {
         laneCloseTime: parseFloat(document.getElementById('dlgCloseTime').value) || 20,
         startBlockCloseDelay: parseFloat(document.getElementById('dlgSBDelay').value) || 3,
         resultConfirmCloseDelay: parseFloat(document.getElementById('dlgConfDelay').value) || 3,
         falseStartThreshold: parseFloat(document.getElementById('dlgFSThresh').value) || 0.10,
-        splitDisplayTime: parseFloat(document.getElementById('dlgSplitDisp').value) || 5
+        splitDisplayTime: parseFloat(document.getElementById('dlgSplitDisp').value) || 5,
+        startPosition: startPosition
     };
     sendCmd('SET_LANE_CLOSE_SETTINGS', settings);
-    addLog('参数已更新');
+    addLog('参数已更新，发令位置: ' + (startPosition === 'left' ? '左端' : '右端'));
     closeSettings();
 }
 
@@ -393,7 +421,9 @@ function renderLanes() {
         var currentLap = sw.currentLap || 0;
         var progress = totalLaps > 0 ? Math.min(100, (currentLap / totalLaps) * 100) : 0;
         if (sw.isFinished) progress = 100;
-        var dir = sw.direction === '←' ? 'returning' : 'going';
+        // 方向由发令位置决定：左端出发第一段向右(going)，右端出发第一段向左(returning)
+        var swDir = sw.direction || (startPosition === 'left' ? '→' : '←');
+        var dir = swDir === '←' ? 'returning' : 'going';
 
         var rankClass = '';
         if (sw.rank === 1) rankClass = 'r1';
@@ -402,7 +432,12 @@ function renderLanes() {
 
         var closeText = sw.laneCloseCountdown > 0 ? '(' + sw.laneCloseCountdown.toFixed(1) + 's)' : '';
 
+        // 发令位置指示灯
+        var leftIndClass = startPosition === 'left' ? 'start-indicator active' : 'start-indicator inactive';
+        var rightIndClass = startPosition === 'right' ? 'start-indicator active' : 'start-indicator inactive';
+
         row.innerHTML =
+            '<div class="' + leftIndClass + ' start-ind"></div>' +
             '<div class="left-devices devices">' +
                 '<button class="touch-btn" onclick="event.stopPropagation();manualTouch('+sw.lane+',\'left\')" title="左端手动触板">T</button>' +
                 '<div class="device-dot ' + statusClass(ds.leftBlindWatch) + '" title="盲表"></div>' +
@@ -421,6 +456,7 @@ function renderLanes() {
                 '<div class="device-dot ' + statusClass(ds.rightBlindWatch) + '" title="盲表"></div>' +
                 '<button class="touch-btn" onclick="event.stopPropagation();manualTouch('+sw.lane+',\'right\')" title="右端手动触板">T</button>' +
             '</div>' +
+            '<div class="' + rightIndClass + ' start-ind"></div>' +
             '<div class="info-area">' +
                 '<div class="reaction">' + (sw.reactionTime||'') + '</div>' +
                 '<div class="final-time">' + (sw.finalTime || sw.status || '') + '</div>' +
