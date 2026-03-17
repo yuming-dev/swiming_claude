@@ -131,21 +131,50 @@ function simTouchpad() {
     var min = parseFloat(document.getElementById('minTime').value) || 48;
     var max = parseFloat(document.getElementById('maxTime').value) || 55;
     var lanes = [0,1,2,3,4,5,6,7,8,9];
+
+    // 根据当前比赛项目计算段数
+    var ev = document.getElementById('regEvent').value || '100米自由泳';
+    var distMatch = ev.match(/(\d+)/);
+    var distance = distMatch ? parseInt(distMatch[1]) : 100;
+    var poolLength = 50; // 默认50米池
+    if (typeof data !== 'undefined' && data.poolConfig) poolLength = data.poolConfig.length || 50;
+    var totalLaps = Math.max(1, Math.floor(distance / poolLength));
+
+    log('模拟触板: ' + ev + ', ' + distance + '米, ' + totalLaps + '段');
+
     for (var i = 0; i < lanes.length; i++) {
-        var time = parseFloat(randomTime(min, max));
-        // 模拟出发台反应时间
-        (function(lane, t) {
+        // 为每道生成各段分段时间（每段大致相等，加随机波动）
+        var finalTime = parseFloat(randomTime(min, max));
+        var avgLap = finalTime / totalLaps;
+
+        (function(lane, avgT, laps, total) {
+            // 发送出发台反应时间
             setTimeout(function() {
                 send('TIMING_DATA', {lane: lane, commandType: 'StartingBlock', time: 0.5 + Math.random() * 0.4});
             }, 500 + Math.random() * 500);
-            // 触板成绩
-            setTimeout(function() {
-                send('TIMING_DATA', {lane: lane, commandType: 'Touchpad', time: t});
-                log('泳道' + lane + ' 触板: ' + t.toFixed(2));
-            }, t * 1000);
-        })(lanes[i], time);
+
+            // 每段发送一次触板数据，时间为累计时间
+            var cumulative = 0;
+            for (var lap = 0; lap < laps; lap++) {
+                // 每段时间 = 平均值 ± 随机波动
+                var lapTime = avgT + (Math.random() - 0.5) * 2;
+                if (lap === laps - 1) {
+                    // 最后一段调整使总时间准确
+                    lapTime = total - cumulative;
+                }
+                cumulative += lapTime;
+
+                (function(ln, lapIdx, cumT) {
+                    // 用实际时间的比例来延迟发送，模拟真实到达
+                    setTimeout(function() {
+                        send('TIMING_DATA', {lane: ln, commandType: 'Touchpad', time: cumT});
+                        log('泳道' + ln + ' 第' + (lapIdx+1) + '段触板: ' + cumT.toFixed(2) + 's');
+                    }, cumT * 1000);
+                })(lane, lap, cumulative);
+            }
+        })(lanes[i], avgLap, totalLaps, finalTime);
     }
-    log('模拟触板数据发送中...');
+    log('模拟触板数据发送中... (共' + totalLaps + '段/道)');
 }
 
 function simFalseStart() {
