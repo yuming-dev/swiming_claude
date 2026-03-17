@@ -83,10 +83,12 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 .swimmer-info .name { font-weight: bold; }
 .swimmer-info .team { color: var(--dim); font-size: 12px; }
 .swim-dir { width: 24px; font-size: 18px; text-align: center; color: var(--accent); flex-shrink: 0; }
-.progress-bar { flex: 1; height: 10px; background: #334155; border-radius: 5px; margin: 0 8px; position: relative; overflow: hidden; }
-.progress-fill { height: 100%; border-radius: 5px; transition: width 0.3s; }
-.progress-fill.going { background: var(--accent); margin-left: 0; margin-right: auto; }
-.progress-fill.returning { background: var(--green); margin-left: auto; margin-right: 0; }
+.lane-track { flex: 1; height: 20px; background: #1a2332; border-radius: 4px; margin: 0 6px; display: flex; align-items: center; overflow: hidden; padding: 0 4px; font-family: Consolas, monospace; font-size: 13px; letter-spacing: 1px; }
+.lane-track.going { justify-content: flex-start; }
+.lane-track.returning { justify-content: flex-end; }
+.lane-track .arrows { color: var(--accent); white-space: nowrap; }
+.lane-track.returning .arrows { color: var(--green); }
+.lane-track .arrows.finished { color: var(--gold); }
 .close-indicator { font-size: 12px; color: var(--gold); min-width: 55px; text-align: center; }
 
 .info-area { width: 280px; display: flex; align-items: center; font-family: Consolas, monospace; }
@@ -463,9 +465,7 @@ function renderLanes() {
             '<div class="lane-mid">' +
                 '<div class="lane-num">' + sw.lane + '</div>' +
                 '<div class="swimmer-info"><div class="name">' + (sw.name||'') + '</div><div class="team">' + (sw.country||'') + '</div></div>' +
-                '<div class="swim-dir">' + swDir + '</div>' +
-                '<div class="progress-bar"><div class="progress-fill ' + dir + '" style="width:' + progress + '%"></div></div>' +
-                '<div class="close-indicator">' + closeText + '</div>' +
+                '<div class="lane-track ' + dir + '">' + buildArrows(sw, swDir, dir) + '</div>' +
             '</div>' +
             '<div class="right-devices devices">' +
                 '<div class="device-dot ' + statusClass(ds.rightTouchpad) + '" title="触板"></div>' +
@@ -484,6 +484,51 @@ function renderLanes() {
 
         container.appendChild(row);
     }
+}
+
+function buildArrows(sw, swDir, dir) {
+    // 完赛：显示完成标志
+    if (sw.isFinished) {
+        var ft = sw.finalTime || sw.status || '';
+        return '<span class="arrows finished">== ' + ft + ' ==</span>';
+    }
+    // DNS/DNF/DSQ
+    if (sw.status === 'DNS' || sw.status === 'DNF' || sw.status === 'DSQ') {
+        return '<span class="arrows finished">' + sw.status + '</span>';
+    }
+
+    var countdown = sw.laneCloseCountdown || 0;
+    var closeTime = (data.laneCloseSettings ? data.laneCloseSettings.laneCloseTime : 20) || 20;
+    var arrow = swDir === '←' ? '◀' : '▶';
+
+    if (countdown > 0) {
+        // 泳道关闭中：根据已经过去的时间计算箭头数量
+        // 已过去时间 = closeTime - countdown
+        var elapsed = closeTime - countdown;
+        var arrowCount = Math.max(1, Math.floor(elapsed / 2) + 1);
+        var maxArrows = 12;
+        if (arrowCount > maxArrows) arrowCount = maxArrows;
+
+        var arrows = '';
+        for (var i = 0; i < arrowCount; i++) arrows += arrow;
+        var countdownText = '(' + countdown.toFixed(1) + 's)';
+
+        if (dir === 'going') {
+            return '<span class="arrows">' + arrows + '</span><span style="color:var(--gold);font-size:11px;margin-left:4px;">' + countdownText + '</span>';
+        } else {
+            return '<span style="color:var(--gold);font-size:11px;margin-right:4px;">' + countdownText + '</span><span class="arrows">' + arrows + '</span>';
+        }
+    }
+
+    // 泳道打开（等待触碰）：显示满箭头
+    if (sw.currentLap > 0) {
+        var fullArrows = '';
+        for (var i = 0; i < 10; i++) fullArrows += arrow;
+        return '<span class="arrows">' + fullArrows + '</span>';
+    }
+
+    // 等待状态
+    return '';
 }
 
 function statusClass(s) {
