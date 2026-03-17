@@ -43,8 +43,8 @@ label { color: #94a3b8; font-size: 12px; }
     <div class="row">
         <button class="btn-gold" onclick="simReady()">就位</button>
         <button class="btn-green" onclick="simStart()">发令</button>
+        <button class="btn-blue" onclick="simStartBlock()">模拟出发(含抢跳)</button>
         <button class="btn-blue" onclick="simTouchpad()">模拟全部触板</button>
-        <button class="btn-red" onclick="simFalseStart()">模拟抢跳(道5)</button>
         <button class="btn-gray" onclick="simConfirm()">确认成绩</button>
     </div>
     <div class="row">
@@ -168,9 +168,40 @@ function simTouchpad() {
     }
 }
 
-function simFalseStart() {
-    send('FALSE_START_DETECTED', {lane: 5, reactionTime: -0.03});
-    log('模拟抢跳: 道5 反应时间 -0.03s');
+function simStartBlock() {
+    // 获取实际泳道号
+    var lanes = [];
+    if (data && data.poolConfig && data.poolConfig.laneNumbers) {
+        lanes = data.poolConfig.laneNumbers;
+    } else if (data && data.swimmers && data.swimmers.length > 0) {
+        for (var i = 0; i < data.swimmers.length; i++) lanes.push(data.swimmers[i].lane);
+    } else {
+        lanes = [0,1,2,3,4,5,6,7,8,9];
+    }
+
+    // 随机选一道作为抢跳
+    var fsLaneIdx = Math.floor(Math.random() * lanes.length);
+
+    log('=== 模拟全部出发 ===');
+    for (var i = 0; i < lanes.length; i++) {
+        var lane = lanes[i];
+        var reactionTime;
+        if (i === fsLaneIdx) {
+            // 抢跳：反应时间为负值或极小值
+            reactionTime = -(Math.random() * 0.05 + 0.01); // -0.01 ~ -0.06
+            reactionTime = parseFloat(reactionTime.toFixed(3));
+            send('TIMING_DATA', {lane: lane, commandType: 'StartingBlock', time: reactionTime});
+            send('FALSE_START_DETECTED', {lane: lane, reactionTime: reactionTime});
+            log('泳道' + lane + ' ★抢跳! 反应时间: ' + reactionTime.toFixed(3) + 's');
+        } else {
+            // 正常出发：反应时间 0.50 ~ 0.85 秒
+            reactionTime = 0.50 + Math.random() * 0.35;
+            reactionTime = parseFloat(reactionTime.toFixed(2));
+            send('TIMING_DATA', {lane: lane, commandType: 'StartingBlock', time: reactionTime});
+            log('泳道' + lane + ' 正常出发 反应时间: ' + reactionTime.toFixed(2) + 's');
+        }
+    }
+    log('全部' + lanes.length + '道出发数据已发送，泳道' + lanes[fsLaneIdx] + '抢跳');
 }
 
 function simConfirm() { sendCmd('CONFIRM_RESULT'); log('发送: 确认成绩'); }
