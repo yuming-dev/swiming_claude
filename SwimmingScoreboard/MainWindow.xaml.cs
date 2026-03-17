@@ -776,10 +776,21 @@ namespace SwimmingScoreboard
                     AddLog("本组比赛结束");
                 }
             } else {
-                // 分段触碰 — 关闭泳道，切换方向
+                // 分段触碰 — 立即关闭到达端设备，切换方向，开始新倒计时
+                // 先关闭刚到达端的设备
+                if (laneState.Direction == "→") {
+                    // 刚到达右端，关闭右端
+                    laneState.RightTouchpadStatus = DeviceStatus.Closed;
+                    laneState.RightBlindWatch1Status = DeviceStatus.Closed; laneState.RightBlindWatch2Status = DeviceStatus.Closed; laneState.RightBlindWatch3Status = DeviceStatus.Closed;
+                } else {
+                    // 刚到达左端，关闭左端
+                    laneState.LeftTouchpadStatus = DeviceStatus.Closed;
+                    laneState.LeftBlindWatch1Status = DeviceStatus.Closed; laneState.LeftBlindWatch2Status = DeviceStatus.Closed; laneState.LeftBlindWatch3Status = DeviceStatus.Closed;
+                }
+                // 切换方向
                 laneState.Direction = laneState.Direction == "→" ? "←" : "→";
-                // 延迟关闭
-                CloseLaneAfterDelay(laneState);
+                // 立即开始新倒计时
+                laneState.LaneCloseCountdown = laneState.LaneCloseTime > 0 ? laneState.LaneCloseTime : _laneCloseSettings.LaneCloseTime;
             }
         }
 
@@ -804,35 +815,6 @@ namespace SwimmingScoreboard
                 case "PushButton3": result.PushButton3Time = time; break;
             }
             AddLog(string.Format("泳道{0} {1}: {2}", lane, cmdType, TimeFormatter.Format(time)));
-        }
-
-        private void CloseLaneAfterDelay(LaneDeviceState laneState) {
-            // 触碰发生时方向已切换，当前方向是新的前进方向
-            // 需要关闭刚触碰的那端（即新方向的出发端），然后倒计时后打开新的到达端
-            // 新方向"→"表示刚触碰了左端（现在要向右游），关闭左端
-            // 新方向"←"表示刚触碰了右端（现在要向左游），关闭右端
-            string newDir = laneState.Direction;
-            var timer = new DispatcherTimer();
-            timer.Interval = TimeSpan.FromSeconds(_laneCloseSettings.ResultConfirmCloseDelay);
-            timer.Tick += delegate(object sender, EventArgs args) {
-                timer.Stop();
-                if (!laneState.IsFinished) {
-                    // 关闭刚触碰的那端
-                    if (newDir == "→") {
-                        // 刚触碰左端，关闭左端设备
-                        laneState.LeftTouchpadStatus = DeviceStatus.Closed;
-                        laneState.LeftBlindWatch1Status = DeviceStatus.Closed; laneState.LeftBlindWatch2Status = DeviceStatus.Closed; laneState.LeftBlindWatch3Status = DeviceStatus.Closed;
-                    } else {
-                        // 刚触碰右端，关闭右端设备
-                        laneState.RightTouchpadStatus = DeviceStatus.Closed;
-                        laneState.RightBlindWatch1Status = DeviceStatus.Closed; laneState.RightBlindWatch2Status = DeviceStatus.Closed; laneState.RightBlindWatch3Status = DeviceStatus.Closed;
-                    }
-                    // 开始倒计时，到时打开新到达端
-                    laneState.LaneCloseCountdown = laneState.LaneCloseTime > 0 ? laneState.LaneCloseTime : _laneCloseSettings.LaneCloseTime;
-                    Broadcast();
-                }
-            };
-            timer.Start();
         }
 
         private int GetTotalLaps() {
