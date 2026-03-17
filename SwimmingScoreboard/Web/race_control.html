@@ -50,46 +50,46 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 
 /* 泳池图 */
 .pool-area { flex: 1; overflow-y: auto; padding: 8px; }
-.pool-header { display: flex; font-size: 10px; color: var(--dim); padding: 0 0 4px 0; }
-.pool-header .left-devices { width: 140px; text-align: center; }
+.pool-header { display: flex; font-size: 12px; color: var(--dim); padding: 0 0 4px 0; }
+.pool-header .left-devices { width: 150px; text-align: center; }
 .pool-header .lane-area { flex: 1; text-align: center; }
-.pool-header .right-devices { width: 140px; text-align: center; }
-.pool-header .info-area { width: 320px; display: flex; }
+.pool-header .right-devices { width: 150px; text-align: center; }
+.pool-header .info-area { width: 340px; display: flex; }
 .pool-header .info-area span { flex: 1; text-align: center; }
 
-.lane-row { display: flex; align-items: center; height: 42px; background: var(--card); border-radius: 4px; margin-bottom: 2px; padding: 0 4px; }
+.lane-row { display: flex; align-items: center; height: 48px; background: var(--card); border-radius: 4px; margin-bottom: 3px; padding: 0 6px; }
 .lane-row:hover { background: #253049; }
 .lane-row.false-start { border: 1px solid var(--gold); }
 .lane-row.selected { outline: 1px solid var(--accent); }
 
-.devices { display: flex; align-items: center; gap: 2px; }
-.left-devices { width: 140px; }
-.right-devices { width: 140px; }
-.device-dot { width: 14px; height: 14px; border-radius: 50%; border: 1px solid #475569; cursor: pointer; flex-shrink: 0; }
+.devices { display: flex; align-items: center; gap: 3px; }
+.left-devices { width: 150px; }
+.right-devices { width: 150px; }
+.device-dot { width: 18px; height: 18px; border-radius: 50%; border: 1px solid #475569; cursor: pointer; flex-shrink: 0; }
 .device-dot.open { background: var(--green); border-color: var(--green); }
 .device-dot.closed { background: #475569; border-color: #64748b; }
 .device-dot.broken { background: var(--red); border-color: var(--red); }
 .device-dot.falsestart { background: var(--gold); border-color: var(--gold); }
-.touch-btn { width: 22px; height: 22px; background: #475569; border: 1px solid #64748b; border-radius: 3px; color: white; font-size: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+.touch-btn { width: 26px; height: 26px; background: #475569; border: 1px solid #64748b; border-radius: 3px; color: white; font-size: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
 .touch-btn:hover { background: var(--accent); }
 .touch-btn:active { background: var(--green); }
 
-.lane-mid { flex: 1; display: flex; align-items: center; padding: 0 6px; min-width: 0; }
-.lane-num { width: 20px; font-weight: bold; color: var(--dim); text-align: center; margin-right: 4px; }
-.swimmer-info { font-size: 12px; white-space: nowrap; overflow: hidden; width: 100px; }
+.lane-mid { flex: 1; display: flex; align-items: center; padding: 0 8px; min-width: 0; }
+.lane-num { width: 24px; font-size: 15px; font-weight: bold; color: var(--dim); text-align: center; margin-right: 6px; }
+.swimmer-info { font-size: 14px; white-space: nowrap; overflow: hidden; width: 110px; }
 .swimmer-info .name { font-weight: bold; }
-.swimmer-info .team { color: var(--dim); font-size: 10px; }
-.progress-bar { flex: 1; height: 8px; background: #334155; border-radius: 4px; margin: 0 6px; position: relative; overflow: hidden; }
-.progress-fill { height: 100%; border-radius: 4px; transition: width 0.3s; }
+.swimmer-info .team { color: var(--dim); font-size: 12px; }
+.progress-bar { flex: 1; height: 10px; background: #334155; border-radius: 5px; margin: 0 8px; position: relative; overflow: hidden; }
+.progress-fill { height: 100%; border-radius: 5px; transition: width 0.3s; }
 .progress-fill.going { background: var(--accent); }
 .progress-fill.returning { background: var(--green); }
-.close-indicator { font-size: 10px; color: var(--gold); min-width: 50px; text-align: center; }
+.close-indicator { font-size: 12px; color: var(--gold); min-width: 55px; text-align: center; }
 
-.info-area { width: 320px; display: flex; align-items: center; font-family: Consolas, monospace; }
-.info-area .reaction { width: 50px; font-size: 11px; text-align: center; }
-.info-area .final-time { width: 70px; font-size: 13px; font-weight: bold; text-align: center; }
-.info-area .split { width: 60px; font-size: 11px; color: var(--accent); text-align: center; }
-.info-area .rank { width: 30px; font-size: 14px; font-weight: bold; text-align: center; }
+.info-area { width: 340px; display: flex; align-items: center; font-family: Consolas, monospace; }
+.info-area .reaction { width: 55px; font-size: 13px; text-align: center; }
+.info-area .final-time { width: 80px; font-size: 15px; font-weight: bold; text-align: center; }
+.info-area .split { width: 65px; font-size: 13px; color: var(--accent); text-align: center; }
+.info-area .rank { width: 35px; font-size: 16px; font-weight: bold; text-align: center; }
 .info-area .rank.r1 { color: var(--gold); }
 .info-area .rank.r2 { color: #c0c0c0; }
 .info-area .rank.r3 { color: #cd7f32; }
