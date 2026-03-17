@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(file:*)",
+      "Bash(head:*)",
+      "Bash(pdfinfo:*)",
+      "Bash(find:*)",
+      "Bash(cd:*)",
+      "Bash(wc:*)",
+      "Bash(cp:*)",
+      "Bash(\"/c/Windows/Microsoft.NET/Framework/v4.0.30319/MSBuild.exe\" \"E:\\\\swiming_claude\\\\SwimmingScoreboard\\\\SwimmingScoreboard.csproj\" 2>&1 | tail -80)",
+      "Bash(\"/c/Windows/Microsoft.NET/Framework/v4.0.30319/MSBuild.exe\" \"E:\\\\swiming_claude\\\\SwimmingScoreboard\\\\SwimmingScoreboard.csproj\" 2>&1 | tail -20)",
+      "Bash(\"/c/Windows/Microsoft.NET/Framework/v4.0.30319/MSBuild.exe\" \"E:\\\\swiming_claude\\\\RemoteDisplayControl\\\\RemoteDisplayControl.csproj\" 2>&1 | tail -15)",
+      "Bash(\"/c/Windows/Microsoft.NET/Framework/v4.0.30319/MSBuild.exe\" \"E:\\\\swiming_claude\\\\RemoteTimingControl\\\\RemoteTimingControl.csproj\" 2>&1 | tail -15)",
+      "Bash(ls:*)",
+      "Bash(\"/c/Windows/Microsoft.NET/Framework/v4.0.30319/MSBuild.exe\" \"E:\\\\swiming_claude\\\\SwimmingScoreboard\\\\SwimmingScoreboard.csproj\" 2>&1 | tail -10)",
+      "Bash(\"/c/Windows/Microsoft.NET/Framework/v4.0.30319/MSBuild.exe\" \"E:\\\\swiming_claude\\\\SwimmingScoreboard\\\\SwimmingScoreboard.csproj\" 2>&1 | tail -8)",
+      "Bash(taskkill:*)",
+      "Bash(\"/c/Windows/Microsoft.NET/Framework/v4.0.30319/MSBuild.exe\" \"E:\\\\swiming_claude\\\\RemoteTimingControl\\\\RemoteTimingControl.csproj\" 2>&1 | tail -5)"
+    ]
+  }
+}
