@@ -361,6 +361,7 @@ namespace SwimmingScoreboard
                         int laneNum = (int)data["lane"];
                         var lState = _laneDeviceStates.FirstOrDefault(s => s.Lane == laneNum);
                         if (lState != null) lState.LeftManualTouchTime = _runningTime;
+                        SaveManualTouchToSplit(laneNum, _runningTime);
                         AddLog(string.Format("泳道{0} 左端手动触板: {1}", laneNum, TimeFormatter.Format(_runningTime)));
                     }
                     break;
@@ -369,6 +370,7 @@ namespace SwimmingScoreboard
                         int laneNum = (int)data["lane"];
                         var lState = _laneDeviceStates.FirstOrDefault(s => s.Lane == laneNum);
                         if (lState != null) lState.RightManualTouchTime = _runningTime;
+                        SaveManualTouchToSplit(laneNum, _runningTime);
                         AddLog(string.Format("泳道{0} 右端手动触板: {1}", laneNum, TimeFormatter.Format(_runningTime)));
                     }
                     break;
@@ -511,7 +513,13 @@ namespace SwimmingScoreboard
                     },
                     laneCloseCountdown = laneState != null ? laneState.LaneCloseCountdown : 0,
                     reactionTime = laneState != null && laneState.ReactionTime != 0 ? laneState.ReactionTime.ToString("F2") : "",
-                    splits = result != null ? result.Splits.Select(sp => new { lap = sp.Lap, distance = sp.Distance, time = TimeFormatter.Format(sp.Time), cumulative = TimeFormatter.Format(sp.CumulativeTime) }).ToList<object>() : new List<object>(),
+                    splits = result != null ? result.Splits.Select(sp => new {
+                        lap = sp.Lap, distance = sp.Distance,
+                        time = TimeFormatter.Format(sp.Time), cumulative = TimeFormatter.Format(sp.CumulativeTime),
+                        touchpad = TimeFormatter.Format(sp.TouchpadTime),
+                        blind1 = TimeFormatter.Format(sp.PushButton1Time), blind2 = TimeFormatter.Format(sp.PushButton2Time), blind3 = TimeFormatter.Format(sp.PushButton3Time),
+                        manual = TimeFormatter.Format(sp.ManualTouchTime), source = sp.TimingSource
+                    }).ToList<object>() : new List<object>(),
                     finalTime = result != null ? TimeFormatter.Format(result.FinalTime) : "",
                     rank = result != null ? result.Rank : 0,
                     status = sw.Status ?? "",
@@ -737,25 +745,27 @@ namespace SwimmingScoreboard
                 Lap = currentLap,
                 Distance = currentLap * _poolConfig.Length,
                 Time = time - prevCumulative,
-                CumulativeTime = time
+                CumulativeTime = time,
+                TouchpadTime = time
             };
             result.Splits.Add(split);
             AddLog(string.Format("泳道{0} 第{1}段: {2} (累计: {3})", lane, currentLap,
                 TimeFormatter.Format(split.Time), TimeFormatter.Format(time)));
 
             if (currentLap >= totalLaps) {
-                // 最终到达
+                // 最终到达 — 保存触板时间到LaneResult用于计时源裁定
                 laneState.IsFinished = true;
                 result.TouchpadTime = time;
                 result.FinalTime = time;
                 result.TimeInSeconds = time;
 
-                // 计时源裁定
+                // 计时源裁定（使用最终段的各计时源数据）
                 var judgement = TimingBridge.JudgeTimingSource(
-                    result.TouchpadTime, result.PushButton1Time, result.PushButton2Time, result.PushButton3Time,
-                    Math.Max(laneState.LeftManualTouchTime, laneState.RightManualTouchTime));
+                    split.TouchpadTime, split.PushButton1Time, split.PushButton2Time, split.PushButton3Time,
+                    split.ManualTouchTime > 0 ? split.ManualTouchTime : Math.Max(laneState.LeftManualTouchTime, laneState.RightManualTouchTime));
                 result.FinalTime = judgement.FinalTime;
                 result.TimingSource = judgement.Source;
+                split.TimingSource = judgement.Source;
 
                 // 关闭该泳道所有设备
                 laneState.LeftTouchpadStatus = DeviceStatus.Closed;
@@ -800,6 +810,15 @@ namespace SwimmingScoreboard
             }
         }
 
+        private void SaveManualTouchToSplit(int lane, double time) {
+            var swimmer = GetCurrentHeatSwimmers().FirstOrDefault(s => s.Lane == lane);
+            if (swimmer == null) return;
+            var result = swimmer.Results.FirstOrDefault(r => r.Stage == _currentStage && r.Heat == _currentHeat);
+            if (result != null && result.Splits.Count > 0) {
+                result.Splits.Last().ManualTouchTime = time;
+            }
+        }
+
         private void ProcessBlindWatchData(int lane, string cmdType, double time) {
             var swimmer = GetCurrentHeatSwimmers().FirstOrDefault(s => s.Lane == lane);
             if (swimmer == null) return;
@@ -815,10 +834,20 @@ namespace SwimmingScoreboard
                 swimmer.Results.Add(result);
             }
 
+            // 保存到LaneResult总记录
             switch (cmdType) {
                 case "PushButton1": result.PushButton1Time = time; break;
                 case "PushButton2": result.PushButton2Time = time; break;
                 case "PushButton3": result.PushButton3Time = time; break;
+            }
+            // 同时保存到当前分段
+            if (result.Splits.Count > 0) {
+                var currentSplit = result.Splits.Last();
+                switch (cmdType) {
+                    case "PushButton1": currentSplit.PushButton1Time = time; break;
+                    case "PushButton2": currentSplit.PushButton2Time = time; break;
+                    case "PushButton3": currentSplit.PushButton3Time = time; break;
+                }
             }
             AddLog(string.Format("泳道{0} {1}: {2}", lane, cmdType, TimeFormatter.Format(time)));
         }

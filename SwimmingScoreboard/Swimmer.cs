@@ -81,6 +81,12 @@ namespace SwimmingScoreboard
         private int _distance;
         private double _time;
         private double _cumulativeTime;
+        private double _touchpadTime;
+        private double _pushButton1Time;
+        private double _pushButton2Time;
+        private double _pushButton3Time;
+        private double _manualTouchTime;
+        private string _timingSource = "";
 
         public int Lap {
             get { return _lap; }
@@ -97,6 +103,30 @@ namespace SwimmingScoreboard
         public double CumulativeTime {
             get { return _cumulativeTime; }
             set { _cumulativeTime = value; OnPropertyChanged("CumulativeTime"); OnPropertyChanged("CumulativeTimeDisplay"); }
+        }
+        public double TouchpadTime {
+            get { return _touchpadTime; }
+            set { _touchpadTime = value; OnPropertyChanged("TouchpadTime"); }
+        }
+        public double PushButton1Time {
+            get { return _pushButton1Time; }
+            set { _pushButton1Time = value; OnPropertyChanged("PushButton1Time"); }
+        }
+        public double PushButton2Time {
+            get { return _pushButton2Time; }
+            set { _pushButton2Time = value; OnPropertyChanged("PushButton2Time"); }
+        }
+        public double PushButton3Time {
+            get { return _pushButton3Time; }
+            set { _pushButton3Time = value; OnPropertyChanged("PushButton3Time"); }
+        }
+        public double ManualTouchTime {
+            get { return _manualTouchTime; }
+            set { _manualTouchTime = value; OnPropertyChanged("ManualTouchTime"); }
+        }
+        public string TimingSource {
+            get { return _timingSource; }
+            set { _timingSource = value; OnPropertyChanged("TimingSource"); }
         }
 
         public string TimeDisplay { get { return TimeFormatter.Format(_time); } }
