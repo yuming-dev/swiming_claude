@@ -725,8 +725,6 @@ namespace SwimmingScoreboard
                 swimmer.Results.Add(result);
             }
 
-            result.TouchpadTime = time;
-
             // 计算分段
             int totalLaps = GetTotalLaps();
             int currentLap = laneState.CurrentLap + 1;
@@ -748,6 +746,7 @@ namespace SwimmingScoreboard
             if (currentLap >= totalLaps) {
                 // 最终到达
                 laneState.IsFinished = true;
+                result.TouchpadTime = time;
                 result.FinalTime = time;
                 result.TimeInSeconds = time;
 
@@ -776,21 +775,28 @@ namespace SwimmingScoreboard
                     AddLog("本组比赛结束");
                 }
             } else {
-                // 分段触碰 — 立即关闭到达端设备，切换方向，开始新倒计时
-                // 先关闭刚到达端的设备
-                if (laneState.Direction == "→") {
-                    // 刚到达右端，关闭右端
-                    laneState.RightTouchpadStatus = DeviceStatus.Closed;
-                    laneState.RightBlindWatch1Status = DeviceStatus.Closed; laneState.RightBlindWatch2Status = DeviceStatus.Closed; laneState.RightBlindWatch3Status = DeviceStatus.Closed;
-                } else {
-                    // 刚到达左端，关闭左端
-                    laneState.LeftTouchpadStatus = DeviceStatus.Closed;
-                    laneState.LeftBlindWatch1Status = DeviceStatus.Closed; laneState.LeftBlindWatch2Status = DeviceStatus.Closed; laneState.LeftBlindWatch3Status = DeviceStatus.Closed;
-                }
-                // 切换方向
+                // 分段触碰 — 不立即关闭到达端设备（盲表/出发台可能延后到达）
+                // 只切换方向和开始新倒计时
                 laneState.Direction = laneState.Direction == "→" ? "←" : "→";
-                // 立即开始新倒计时
+                // 立即开始新的泳道封闭倒计时
                 laneState.LaneCloseCountdown = laneState.LaneCloseTime > 0 ? laneState.LaneCloseTime : _laneCloseSettings.LaneCloseTime;
+                // 延迟后关闭到达端设备（给盲表和接力出发台留时间）
+                string arrivedEnd = laneState.Direction == "→" ? "left" : "right"; // 新方向的出发端=刚到达端
+                var closeTimer = new DispatcherTimer();
+                closeTimer.Interval = TimeSpan.FromSeconds(_laneCloseSettings.ResultConfirmCloseDelay);
+                closeTimer.Tick += delegate(object s2, EventArgs a2) {
+                    closeTimer.Stop();
+                    if (laneState.IsFinished) return;
+                    if (arrivedEnd == "right") {
+                        laneState.RightTouchpadStatus = DeviceStatus.Closed;
+                        laneState.RightBlindWatch1Status = DeviceStatus.Closed; laneState.RightBlindWatch2Status = DeviceStatus.Closed; laneState.RightBlindWatch3Status = DeviceStatus.Closed;
+                    } else {
+                        laneState.LeftTouchpadStatus = DeviceStatus.Closed;
+                        laneState.LeftBlindWatch1Status = DeviceStatus.Closed; laneState.LeftBlindWatch2Status = DeviceStatus.Closed; laneState.LeftBlindWatch3Status = DeviceStatus.Closed;
+                    }
+                    Broadcast();
+                };
+                closeTimer.Start();
             }
         }
 
