@@ -267,6 +267,7 @@ namespace SwimmingScoreboard
                 case "READY": Ready_Click(null, null); break;
                 case "START_RACE": StartRace_Click(null, null); break;
                 case "RESTART": Restart_Click(null, null); break;
+                case "TIMER_RESET": Restart_Click(null, null); break;
                 case "CONFIRM_RESULT": ConfirmResult_Click(null, null); break;
                 case "NEXT_HEAT": NextHeat_Click(null, null); break;
                 case "PREV_HEAT": PrevHeat_Click(null, null); break;
@@ -907,9 +908,10 @@ namespace SwimmingScoreboard
         }
 
         private void RaceTimer_Tick(object sender, EventArgs e) {
-            if (_raceState == RaceState.Racing) {
+            // 发令后一直计时，不因比赛结束而停止，直到复位信号
+            if (_raceStartTime != DateTime.MinValue) {
                 _runningTime = (DateTime.Now - _raceStartTime).TotalSeconds;
-                RunningTimeText.Text = TimeFormatter.FormatRunning(_runningTime);
+                if (RunningTimeText != null) RunningTimeText.Text = TimeFormatter.FormatRunning(_runningTime);
                 Broadcast();
             }
         }
@@ -1009,7 +1011,8 @@ namespace SwimmingScoreboard
             _raceTimer.Stop();
             _countdownTimer.Stop();
             _runningTime = 0;
-            RunningTimeText.Text = "0.0";
+            _raceStartTime = DateTime.MinValue;
+            if (RunningTimeText != null) RunningTimeText.Text = "0.0";
             UpdateRaceStateDisplay();
 
             foreach (var state in _laneDeviceStates) {
@@ -1034,7 +1037,7 @@ namespace SwimmingScoreboard
                 return;
             }
 
-            _raceTimer.Stop();
+            // 确认成绩不停止滚动计时器，计时器继续运行直到复位
             _countdownTimer.Stop();
             UpdateHeatRanking();
             AutoSaveData();
@@ -1091,10 +1094,12 @@ namespace SwimmingScoreboard
             _currentHeat = heat;
             CurrentHeatText.Text = string.Format("第{0}组 / 共{1}组", heat, _totalHeats);
             _raceState = RaceState.Waiting;
+            // 切换组次 = 复位计时器
             _runningTime = 0;
+            _raceStartTime = DateTime.MinValue;
             _raceTimer.Stop();
             _countdownTimer.Stop();
-            RunningTimeText.Text = "0.0";
+            if (RunningTimeText != null) RunningTimeText.Text = "0.0";
             UpdateRaceStateDisplay();
 
             foreach (var state in _laneDeviceStates) {
