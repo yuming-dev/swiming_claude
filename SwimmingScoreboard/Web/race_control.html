@@ -117,6 +117,21 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 .readonly-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; z-index: 100; }
 .readonly-overlay span { background: var(--gold); color: #000; padding: 8px 20px; border-radius: 6px; font-weight: bold; }
 .hidden { display: none; }
+
+/* 参数设置对话框 */
+.modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 200; }
+.modal-dialog { background: var(--card); border: 1px solid #475569; border-radius: 8px; padding: 20px 24px; min-width: 340px; }
+.modal-dialog h2 { font-size: 15px; margin-bottom: 14px; color: var(--text); }
+.modal-dialog .param-row { display: flex; align-items: center; margin-bottom: 10px; }
+.modal-dialog .param-row label { flex: 1; font-size: 13px; color: var(--dim); }
+.modal-dialog .param-row input { width: 70px; background: #334155; border: 1px solid #475569; color: white; padding: 4px 8px; border-radius: 4px; text-align: center; font-size: 13px; }
+.modal-dialog .param-row .unit { font-size: 11px; color: var(--dim); margin-left: 4px; width: 16px; }
+.modal-btns { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+.modal-btns button { padding: 6px 20px; border: none; border-radius: 4px; font-size: 13px; cursor: pointer; }
+.modal-btns .btn-ok { background: var(--accent); color: white; font-weight: bold; }
+.modal-btns .btn-cancel { background: #475569; color: white; }
+.nav-bar .settings-btn { background: #475569; color: white; border: none; padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 11px; margin-left: 8px; }
+.nav-bar .settings-btn:hover { background: var(--accent); }
 </style>
 </head>
 <body>
@@ -127,6 +142,23 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
     <button class="nav-btn" onclick="sendCmd('NEXT_HEAT')">下一组 &#9654;</button>
     <div id="stateDot" class="state-dot waiting"></div>
     <span id="stateLabel" class="state-label">等待</span>
+    <button class="settings-btn" onclick="openSettings()">&#9881; 参数设置</button>
+</div>
+
+<!-- 参数设置对话框 -->
+<div id="settingsModal" class="modal-overlay hidden" onclick="if(event.target===this)closeSettings()">
+    <div class="modal-dialog">
+        <h2>参数设置</h2>
+        <div class="param-row"><label>泳道关闭时间</label><input id="dlgCloseTime" value="20"><span class="unit">秒</span></div>
+        <div class="param-row"><label>出发台关闭延迟</label><input id="dlgSBDelay" value="3"><span class="unit">秒</span></div>
+        <div class="param-row"><label>成绩确认关闭延迟</label><input id="dlgConfDelay" value="3"><span class="unit">秒</span></div>
+        <div class="param-row"><label>抢跳判定阈值</label><input id="dlgFSThresh" value="0.10"><span class="unit">秒</span></div>
+        <div class="param-row"><label>分段成绩显示时长</label><input id="dlgSplitDisp" value="5"><span class="unit">秒</span></div>
+        <div class="modal-btns">
+            <button class="btn-cancel" onclick="closeSettings()">取消</button>
+            <button class="btn-ok" onclick="applySettings()">确定</button>
+        </div>
+    </div>
 </div>
 
 <!-- 只读遮罩 -->
@@ -164,12 +196,6 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 
     <!-- 右侧设置 -->
     <div class="right-panel">
-        <h3>泳道参数</h3>
-        <div class="setting-row"><label>关闭时间(s)</label><input id="setCloseTime" value="20"></div>
-        <div class="setting-row"><label>出发台延迟(s)</label><input id="setSBDelay" value="3"></div>
-        <div class="setting-row"><label>确认延迟(s)</label><input id="setConfDelay" value="3"></div>
-        <div class="setting-row"><label>抢跳阈值(s)</label><input id="setFSThresh" value="0.10"></div>
-        <div class="setting-row"><label>分段显示(s)</label><input id="setSplitDisp" value="5"></div>
         <button class="action-btn btn-all-open" onclick="sendCmd('OPEN_ALL_LANES')">全部打开</button>
         <button class="action-btn btn-all-close" onclick="sendCmd('CLOSE_ALL_LANES')">全部关闭</button>
         <hr style="border-color:#334155;margin:10px 0;">
@@ -244,13 +270,42 @@ function render() {
     }
     document.getElementById('fsInfo').textContent = fsInfo;
 
-    if (data.laneCloseSettings) {
-        document.getElementById('setCloseTime').value = data.laneCloseSettings.laneCloseTime;
-        document.getElementById('setSBDelay').value = data.laneCloseSettings.startBlockCloseDelay;
-        document.getElementById('setConfDelay').value = data.laneCloseSettings.resultConfirmCloseDelay;
-        document.getElementById('setFSThresh').value = data.laneCloseSettings.falseStartThreshold;
-        document.getElementById('setSplitDisp').value = data.laneCloseSettings.splitDisplayTime;
+    if (data.laneCloseSettings && document.getElementById('settingsModal').classList.contains('hidden')) {
+        document.getElementById('dlgCloseTime').value = data.laneCloseSettings.laneCloseTime;
+        document.getElementById('dlgSBDelay').value = data.laneCloseSettings.startBlockCloseDelay;
+        document.getElementById('dlgConfDelay').value = data.laneCloseSettings.resultConfirmCloseDelay;
+        document.getElementById('dlgFSThresh').value = data.laneCloseSettings.falseStartThreshold;
+        document.getElementById('dlgSplitDisp').value = data.laneCloseSettings.splitDisplayTime;
     }
+}
+
+// ═══════ 参数设置对话框 ═══════
+function openSettings() {
+    if (data.laneCloseSettings) {
+        document.getElementById('dlgCloseTime').value = data.laneCloseSettings.laneCloseTime;
+        document.getElementById('dlgSBDelay').value = data.laneCloseSettings.startBlockCloseDelay;
+        document.getElementById('dlgConfDelay').value = data.laneCloseSettings.resultConfirmCloseDelay;
+        document.getElementById('dlgFSThresh').value = data.laneCloseSettings.falseStartThreshold;
+        document.getElementById('dlgSplitDisp').value = data.laneCloseSettings.splitDisplayTime;
+    }
+    document.getElementById('settingsModal').classList.remove('hidden');
+}
+
+function closeSettings() {
+    document.getElementById('settingsModal').classList.add('hidden');
+}
+
+function applySettings() {
+    var settings = {
+        laneCloseTime: parseFloat(document.getElementById('dlgCloseTime').value) || 20,
+        startBlockCloseDelay: parseFloat(document.getElementById('dlgSBDelay').value) || 3,
+        resultConfirmCloseDelay: parseFloat(document.getElementById('dlgConfDelay').value) || 3,
+        falseStartThreshold: parseFloat(document.getElementById('dlgFSThresh').value) || 0.10,
+        splitDisplayTime: parseFloat(document.getElementById('dlgSplitDisp').value) || 5
+    };
+    sendCmd('SET_LANE_CLOSE_SETTINGS', settings);
+    addLog('参数已更新');
+    closeSettings();
 }
 
 // ═══════ 赛程树 ═══════

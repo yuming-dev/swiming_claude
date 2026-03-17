@@ -386,8 +386,80 @@ namespace RemoteTimingControl
         private void CloseAll_Click(object sender, RoutedEventArgs e) { SendCmd("CLOSE_ALL_LANES"); }
 
         private void ConnectSerial_Click(object sender, RoutedEventArgs e) {
-            // TODO: TimingBridgeLocal integration
             AddLog("串口功能待实现");
+        }
+
+        private void OpenSettings_Click(object sender, RoutedEventArgs e) {
+            // 构建参数设置对话框
+            var dlg = new Window {
+                Title = "参数设置",
+                Width = 360, Height = 300,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                Owner = this,
+                ResizeMode = ResizeMode.NoResize,
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E293B"))
+            };
+
+            // 读取当前值
+            double closeTime = 20, sbDelay = 3, confDelay = 3, fsThresh = 0.10, splitDisp = 5;
+            if (_data != null && _data["laneCloseSettings"] != null) {
+                var lcs = _data["laneCloseSettings"];
+                if (lcs["laneCloseTime"] != null) closeTime = (double)lcs["laneCloseTime"];
+                if (lcs["startBlockCloseDelay"] != null) sbDelay = (double)lcs["startBlockCloseDelay"];
+                if (lcs["resultConfirmCloseDelay"] != null) confDelay = (double)lcs["resultConfirmCloseDelay"];
+                if (lcs["falseStartThreshold"] != null) fsThresh = (double)lcs["falseStartThreshold"];
+                if (lcs["splitDisplayTime"] != null) splitDisp = (double)lcs["splitDisplayTime"];
+            }
+
+            var sp = new StackPanel { Margin = new Thickness(20) };
+            sp.Children.Add(new TextBlock { Text = "参数设置", FontSize = 15, FontWeight = FontWeights.Bold, Foreground = Brushes.White, Margin = new Thickness(0, 0, 0, 12) });
+
+            var tbCloseTime = AddParamRow(sp, "泳道关闭时间", closeTime.ToString(), "秒");
+            var tbSBDelay = AddParamRow(sp, "出发台关闭延迟", sbDelay.ToString(), "秒");
+            var tbConfDelay = AddParamRow(sp, "成绩确认关闭延迟", confDelay.ToString(), "秒");
+            var tbFSThresh = AddParamRow(sp, "抢跳判定阈值", fsThresh.ToString(), "秒");
+            var tbSplitDisp = AddParamRow(sp, "分段成绩显示时长", splitDisp.ToString(), "秒");
+
+            var btnPanel = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 16, 0, 0) };
+            var btnCancel = new Button { Content = "取消", Padding = new Thickness(16, 4, 16, 4), Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569")), Foreground = Brushes.White, BorderThickness = new Thickness(0), Margin = new Thickness(0, 0, 8, 0) };
+            btnCancel.Click += delegate { dlg.DialogResult = false; };
+            var btnOk = new Button { Content = "确定", Padding = new Thickness(16, 4, 16, 4), Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6")), Foreground = Brushes.White, BorderThickness = new Thickness(0), FontWeight = FontWeights.Bold };
+            btnOk.Click += delegate { dlg.DialogResult = true; };
+            btnPanel.Children.Add(btnCancel);
+            btnPanel.Children.Add(btnOk);
+            sp.Children.Add(btnPanel);
+
+            dlg.Content = sp;
+
+            if (dlg.ShowDialog() == true) {
+                var settings = new {
+                    laneCloseTime = double.Parse(tbCloseTime.Text),
+                    startBlockCloseDelay = double.Parse(tbSBDelay.Text),
+                    resultConfirmCloseDelay = double.Parse(tbConfDelay.Text),
+                    falseStartThreshold = double.Parse(tbFSThresh.Text),
+                    splitDisplayTime = double.Parse(tbSplitDisp.Text)
+                };
+                SendCmd("SET_LANE_CLOSE_SETTINGS", settings);
+                AddLog("参数已更新");
+            }
+        }
+
+        private TextBox AddParamRow(StackPanel parent, string label, string value, string unit) {
+            var row = new Grid { Margin = new Thickness(0, 0, 0, 8) };
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(70) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(24) });
+            var lbl = new TextBlock { Text = label, Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), FontSize = 13, VerticalAlignment = VerticalAlignment.Center };
+            Grid.SetColumn(lbl, 0);
+            var tb = new TextBox { Text = value, Padding = new Thickness(4), Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#334155")), Foreground = Brushes.White, BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569")), FontSize = 13, TextAlignment = TextAlignment.Center };
+            Grid.SetColumn(tb, 1);
+            var unitTb = new TextBlock { Text = unit, Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), FontSize = 11, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(4, 0, 0, 0) };
+            Grid.SetColumn(unitTb, 2);
+            row.Children.Add(lbl);
+            row.Children.Add(tb);
+            row.Children.Add(unitTb);
+            parent.Children.Add(row);
+            return tb;
         }
 
         // ═══════ 键盘快捷键 ═══════

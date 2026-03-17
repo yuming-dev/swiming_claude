@@ -302,6 +302,20 @@ namespace SwimmingScoreboard
                         if (state != null) state.LaneCloseTime = time;
                     }
                     break;
+                case "SET_LANE_CLOSE_SETTINGS":
+                    if (data != null) {
+                        if (data["laneCloseTime"] != null) _laneCloseSettings.LaneCloseTime = (double)data["laneCloseTime"];
+                        if (data["startBlockCloseDelay"] != null) _laneCloseSettings.StartBlockCloseDelay = (double)data["startBlockCloseDelay"];
+                        if (data["resultConfirmCloseDelay"] != null) _laneCloseSettings.ResultConfirmCloseDelay = (double)data["resultConfirmCloseDelay"];
+                        if (data["falseStartThreshold"] != null) _laneCloseSettings.FalseStartThreshold = (double)data["falseStartThreshold"];
+                        if (data["splitDisplayTime"] != null) _laneCloseSettings.SplitDisplayTime = (double)data["splitDisplayTime"];
+                        AddLog(string.Format("参数更新: 关闭{0}s 出发台{1}s 确认{2}s 抢跳{3}s 分段{4}s",
+                            _laneCloseSettings.LaneCloseTime, _laneCloseSettings.StartBlockCloseDelay,
+                            _laneCloseSettings.ResultConfirmCloseDelay, _laneCloseSettings.FalseStartThreshold,
+                            _laneCloseSettings.SplitDisplayTime));
+                        AutoSaveData();
+                    }
+                    break;
                 case "OPEN_ALL_LANES":
                     foreach (var s in _laneDeviceStates) {
                         s.LeftTouchpadStatus = DeviceStatus.Open;

@@ -36,6 +36,8 @@
                 <StackPanel Grid.Column="5" Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0,0,0">
                     <Ellipse x:Name="StateIndicator" Width="10" Height="10" Fill="#F59E0B" Margin="0,0,4,0"/>
                     <TextBlock x:Name="StateLabel" Text="等待" Foreground="#94A3B8" FontSize="12"/>
+                    <Button Content="&#9881; 参数设置" Click="OpenSettings_Click" Padding="6,2" Margin="12,0,0,0"
+                            Background="#475569" Foreground="White" BorderThickness="0" FontSize="11"/>
                 </StackPanel>
             </Grid>
         </Border>
@@ -112,31 +114,7 @@
             <Border Grid.Column="3" Background="#1E293B" Padding="8" BorderBrush="#334155" BorderThickness="1,0,0,0">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel>
-                        <TextBlock Text="泳道参数" Foreground="#64748B" FontSize="11" FontWeight="Bold" Margin="0,0,0,6"/>
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="50"/>
-                            </Grid.ColumnDefinitions>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="24"/>
-                                <RowDefinition Height="24"/>
-                                <RowDefinition Height="24"/>
-                                <RowDefinition Height="24"/>
-                                <RowDefinition Height="24"/>
-                            </Grid.RowDefinitions>
-                            <TextBlock Grid.Row="0" Text="关闭时间(s)" Foreground="#94A3B8" FontSize="10" VerticalAlignment="Center"/>
-                            <TextBox x:Name="SetCloseTime" Grid.Row="0" Grid.Column="1" Text="20" Padding="2" Background="#334155" Foreground="White" BorderBrush="#475569" FontSize="10"/>
-                            <TextBlock Grid.Row="1" Text="出发台延迟(s)" Foreground="#94A3B8" FontSize="10" VerticalAlignment="Center"/>
-                            <TextBox x:Name="SetSBDelay" Grid.Row="1" Grid.Column="1" Text="3" Padding="2" Background="#334155" Foreground="White" BorderBrush="#475569" FontSize="10"/>
-                            <TextBlock Grid.Row="2" Text="确认延迟(s)" Foreground="#94A3B8" FontSize="10" VerticalAlignment="Center"/>
-                            <TextBox x:Name="SetConfDelay" Grid.Row="2" Grid.Column="1" Text="3" Padding="2" Background="#334155" Foreground="White" BorderBrush="#475569" FontSize="10"/>
-                            <TextBlock Grid.Row="3" Text="抢跳阈值(s)" Foreground="#94A3B8" FontSize="10" VerticalAlignment="Center"/>
-                            <TextBox x:Name="SetFSThresh" Grid.Row="3" Grid.Column="1" Text="0.10" Padding="2" Background="#334155" Foreground="White" BorderBrush="#475569" FontSize="10"/>
-                            <TextBlock Grid.Row="4" Text="分段显示(s)" Foreground="#94A3B8" FontSize="10" VerticalAlignment="Center"/>
-                            <TextBox x:Name="SetSplitDisp" Grid.Row="4" Grid.Column="1" Text="5" Padding="2" Background="#334155" Foreground="White" BorderBrush="#475569" FontSize="10"/>
-                        </Grid>
-                        <Button Content="全部打开" Click="OpenAll_Click" Padding="0,6" Margin="0,8,0,2"
+                        <Button Content="全部打开" Click="OpenAll_Click" Padding="0,6" Margin="0,4,0,2"
                                 Background="#22C55E" Foreground="White" BorderThickness="0" FontSize="11"/>
                         <Button Content="全部关闭" Click="CloseAll_Click" Padding="0,6" Margin="0,0,0,8"
                                 Background="#64748B" Foreground="White" BorderThickness="0" FontSize="11"/>
