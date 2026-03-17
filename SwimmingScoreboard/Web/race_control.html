@@ -54,7 +54,7 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 .pool-header .left-devices { width: 150px; text-align: center; }
 .pool-header .lane-area { flex: 1; text-align: center; }
 .pool-header .right-devices { width: 150px; text-align: center; }
-.pool-header .info-area { width: 340px; display: flex; }
+.pool-header .info-area { width: 280px; display: flex; }
 .pool-header .info-area span { flex: 1; text-align: center; }
 
 .lane-row { display: flex; align-items: center; height: 48px; background: var(--card); border-radius: 4px; margin-bottom: 3px; padding: 0 6px; }
@@ -85,10 +85,9 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 .progress-fill.returning { background: var(--green); }
 .close-indicator { font-size: 12px; color: var(--gold); min-width: 55px; text-align: center; }
 
-.info-area { width: 340px; display: flex; align-items: center; font-family: Consolas, monospace; }
+.info-area { width: 280px; display: flex; align-items: center; font-family: Consolas, monospace; }
 .info-area .reaction { width: 55px; font-size: 13px; text-align: center; }
-.info-area .final-time { width: 80px; font-size: 15px; font-weight: bold; text-align: center; }
-.info-area .split { width: 65px; font-size: 13px; color: var(--accent); text-align: center; }
+.info-area .final-time { width: 100px; font-size: 15px; font-weight: bold; text-align: center; }
 .info-area .rank { width: 35px; font-size: 16px; font-weight: bold; text-align: center; }
 .info-area .rank.r1 { color: var(--gold); }
 .info-area .rank.r2 { color: #c0c0c0; }
@@ -203,7 +202,7 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
             <div class="lane-area">泳道</div>
             <div class="right-devices">触板 出发台 盲表 [T]</div>
             <div class="start-ind-right" id="headerStartRight"></div>
-            <div class="info-area"><span>反应</span><span>成绩</span><span>分段</span><span>名次</span></div>
+            <div class="info-area"><span>反应</span><span>成绩</span><span>名次</span></div>
         </div>
         <div id="poolLanes"></div>
     </div>
@@ -459,8 +458,7 @@ function renderLanes() {
             '<div class="' + rightIndClass + ' start-ind"></div>' +
             '<div class="info-area">' +
                 '<div class="reaction">' + (sw.reactionTime||'') + '</div>' +
-                '<div class="final-time">' + (sw.finalTime || sw.status || '') + '</div>' +
-                '<div class="split">' + (sw.splits && sw.splits.length>0 ? sw.splits[sw.splits.length-1].time : '') + '</div>' +
+                '<div class="final-time">' + (sw.finalTime || (sw.splits && sw.splits.length>0 ? sw.splits[sw.splits.length-1].time : '') || sw.status || '') + '</div>' +
                 '<div class="rank ' + rankClass + '">' + (sw.rank>0 ? sw.rank : '') + '</div>' +
             '</div>';
 
