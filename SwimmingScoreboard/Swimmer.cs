@@ -767,7 +767,9 @@ namespace SwimmingScoreboard
             }
         }
 
-        public void ResetForNewRace() {
+        public void ResetForNewRace() { ResetForNewRace("left"); }
+
+        public void ResetForNewRace(string startPosition) {
             _leftTouchpadStatus = DeviceStatus.Closed;
             _leftBlindWatch1Status = DeviceStatus.Closed;
             _leftBlindWatch2Status = DeviceStatus.Closed;
@@ -779,7 +781,7 @@ namespace SwimmingScoreboard
             _rightBlindWatch3Status = DeviceStatus.Closed;
             _rightStartBlockStatus = DeviceStatus.Closed;
             _laneCloseCountdown = 0;
-            _direction = "→";
+            _direction = startPosition == "right" ? "←" : "→";
             _currentLap = 0;
             _isFinished = false;
             _reactionTime = 0;

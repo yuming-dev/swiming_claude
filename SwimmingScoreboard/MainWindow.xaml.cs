@@ -496,7 +496,7 @@ namespace SwimmingScoreboard
                     country = sw.Country,
                     bibNumber = sw.BibNumber,
                     entryTime = sw.EntryTime ?? "",
-                    direction = laneState != null ? laneState.Direction : "→",
+                    direction = laneState != null ? laneState.Direction : (_laneCloseSettings.StartPosition == "right" ? "←" : "→"),
                     deviceStatus = new {
                         leftTouchpad = laneState != null ? laneState.LeftTouchpadStatus.ToString().ToLower() : "closed",
                         leftBlindWatch1 = laneState != null ? laneState.LeftBlindWatch1Status.ToString().ToLower() : "closed",
@@ -920,7 +920,7 @@ namespace SwimmingScoreboard
 
             // 重置泳道状态
             foreach (var state in _laneDeviceStates) {
-                state.ResetForNewRace();
+                state.ResetForNewRace(_laneCloseSettings.StartPosition);
             }
 
             AddLog("就位");
@@ -975,7 +975,7 @@ namespace SwimmingScoreboard
             UpdateRaceStateDisplay();
 
             foreach (var state in _laneDeviceStates) {
-                state.ResetForNewRace();
+                state.ResetForNewRace(_laneCloseSettings.StartPosition);
             }
 
             // 清除当前组的成绩数据
@@ -1060,7 +1060,7 @@ namespace SwimmingScoreboard
             UpdateRaceStateDisplay();
 
             foreach (var state in _laneDeviceStates) {
-                state.ResetForNewRace();
+                state.ResetForNewRace(_laneCloseSettings.StartPosition);
             }
 
             UpdateLaneStatusDisplay();
