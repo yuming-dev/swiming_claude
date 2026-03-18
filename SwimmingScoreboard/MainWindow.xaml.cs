@@ -1557,75 +1557,46 @@ namespace SwimmingScoreboard
             }
         }
 
-        private void QuickRegister_Click(object sender, RoutedEventArgs e) {
-            string name = RegNameBox.Text.Trim();
-            if (string.IsNullOrEmpty(name)) { AddLog("请输入姓名"); return; }
+        // 本地注册项目列表
+        private List<Tuple<string, string>> _regEventList = new List<Tuple<string, string>>(); // eventName, entryTime
 
-            string gender = ((ComboBoxItem)RegGenderCombo.SelectedItem).Content.ToString();
+        private void RegAddEvent_Click(object sender, RoutedEventArgs e) {
             string eventName = RegEventCombo.SelectedItem != null ? ((ComboBoxItem)RegEventCombo.SelectedItem).Content.ToString() : "";
-            string bibNumber = RegBibBox.Text.Trim();
-            if (string.IsNullOrEmpty(bibNumber)) bibNumber = GenerateNextBibNumber();
+            if (string.IsNullOrEmpty(eventName)) { RegStatusText.Text = "请选择项目"; return; }
 
-            // 计算年龄
-            string birthDate = RegBirthDatePicker.SelectedDate.HasValue ? RegBirthDatePicker.SelectedDate.Value.ToString("yyyy-MM-dd") : "";
-            int age = 0;
-            if (RegBirthDatePicker.SelectedDate.HasValue) {
-                var today = DateTime.Today;
-                var bd = RegBirthDatePicker.SelectedDate.Value;
-                age = today.Year - bd.Year;
-                if (bd.Date > today.AddYears(-age)) age--;
+            foreach (var ev in _regEventList) {
+                if (ev.Item1 == eventName) {
+                    MessageBox.Show("已添加此项目，不能重复！", "提示", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
             }
-
-            var sw = new Swimmer {
-                BibNumber = bibNumber,
-                Name = name,
-                Gender = gender,
-                Country = RegCountryBox.Text.Trim(),
-                IDNumber = RegIDNumberBox.Text.Trim(),
-                Phone = RegPhoneBox.Text.Trim(),
-                EventName = eventName,
-                EntryTime = RegEntryTimeBox.Text.Trim(),
-                BirthDate = birthDate,
-                Age = age,
-                CSANumber = RegCSABox.Text.Trim(),
-                Notes = RegNotesBox.Text.Trim()
-            };
-            sw.EntryTimeSeconds = TimeFormatter.Parse(sw.EntryTime);
-
-            var dup = FindDuplicate(sw.Name, sw.Gender, sw.EventName, sw.BibNumber);
-            if (dup != null) {
-                MessageBox.Show(string.Format("运动员重复！\n\n姓名: {0}\n项目: {1}\n已有号码: {2}\n\n请勿重复注册。", sw.Name, sw.EventName, dup.BibNumber), "重复注册", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return;
-            }
-
-            _swimmers.Add(sw);
-            RegBibBox.Text = bibNumber;
-            AddLog(string.Format("注册运动员: {0}({1}) {2}", sw.Name, bibNumber, sw.EventName));
-
-            // 只清空项目和报名成绩（方便为同一运动员添加另一个项目）
+            _regEventList.Add(new Tuple<string, string>(eventName, RegEntryTimeBox.Text.Trim()));
             RegEntryTimeBox.Clear();
-
-            AutoSaveData();
-            Broadcast();
+            RefreshRegEventList();
         }
 
-        private void AddAnotherEvent_Click(object sender, RoutedEventArgs e) {
-            // 为同一运动员（保留个人信息）注册另一个项目
-            string name = RegNameBox.Text.Trim();
-            if (string.IsNullOrEmpty(name)) { AddLog("请先输入运动员信息"); return; }
+        private void RegRemoveEvent_Click(object sender, RoutedEventArgs e) {
+            int idx = RegEventListBox.SelectedIndex;
+            if (idx < 0 || idx >= _regEventList.Count) { MessageBox.Show("请先选中要删除的项目"); return; }
+            _regEventList.RemoveAt(idx);
+            RefreshRegEventList();
+        }
 
-            string bibNumber = RegBibBox.Text.Trim();
-            if (string.IsNullOrEmpty(bibNumber)) { AddLog("请先注册第一个项目"); return; }
+        private void RefreshRegEventList() {
+            RegEventListBox.Items.Clear();
+            foreach (var ev in _regEventList) {
+                string display = string.IsNullOrEmpty(ev.Item2) ? ev.Item1 : string.Format("{0}  (报名: {1})", ev.Item1, ev.Item2);
+                RegEventListBox.Items.Add(display);
+            }
+        }
+
+        private void RegSubmitAll_Click(object sender, RoutedEventArgs e) {
+            string name = RegNameBox.Text.Trim();
+            if (string.IsNullOrEmpty(name)) { RegStatusText.Text = "请输入姓名"; return; }
+            if (_regEventList.Count == 0) { RegStatusText.Text = "请至少添加一个参赛项目"; return; }
 
             string gender = ((ComboBoxItem)RegGenderCombo.SelectedItem).Content.ToString();
-            string eventName = RegEventCombo.SelectedItem != null ? ((ComboBoxItem)RegEventCombo.SelectedItem).Content.ToString() : "";
-            if (string.IsNullOrEmpty(eventName)) { AddLog("请选择项目"); return; }
-
-            var dup = FindDuplicate(name, gender, eventName, bibNumber);
-            if (dup != null) {
-                MessageBox.Show(string.Format("该运动员已报名此项目！\n\n姓名: {0}\n项目: {1}", name, eventName), "重复报名", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return;
-            }
+            string bibNumber = GenerateNextBibNumber();
 
             string birthDate = RegBirthDatePicker.SelectedDate.HasValue ? RegBirthDatePicker.SelectedDate.Value.ToString("yyyy-MM-dd") : "";
             int age = 0;
@@ -1636,25 +1607,44 @@ namespace SwimmingScoreboard
                 if (bd.Date > today.AddYears(-age)) age--;
             }
 
-            var sw = new Swimmer {
-                BibNumber = bibNumber,
-                Name = name,
-                Gender = gender,
-                Country = RegCountryBox.Text.Trim(),
-                IDNumber = RegIDNumberBox.Text.Trim(),
-                Phone = RegPhoneBox.Text.Trim(),
-                EventName = eventName,
-                EntryTime = RegEntryTimeBox.Text.Trim(),
-                BirthDate = birthDate,
-                Age = age,
-                CSANumber = RegCSABox.Text.Trim(),
-                Notes = RegNotesBox.Text.Trim()
-            };
-            sw.EntryTimeSeconds = TimeFormatter.Parse(sw.EntryTime);
+            int added = 0;
+            foreach (var ev in _regEventList) {
+                var dup = FindDuplicate(name, gender, ev.Item1, bibNumber);
+                if (dup != null) continue;
 
-            _swimmers.Add(sw);
-            AddLog(string.Format("运动员 {0}({1}) 增报项目: {2}", name, bibNumber, eventName));
+                var sw = new Swimmer {
+                    BibNumber = bibNumber,
+                    Name = name,
+                    Gender = gender,
+                    Country = RegCountryBox.Text.Trim(),
+                    IDNumber = RegIDNumberBox.Text.Trim(),
+                    Phone = RegPhoneBox.Text.Trim(),
+                    EventName = ev.Item1,
+                    EntryTime = ev.Item2,
+                    BirthDate = birthDate,
+                    Age = age,
+                    Notes = RegNotesBox.Text.Trim()
+                };
+                sw.EntryTimeSeconds = TimeFormatter.Parse(sw.EntryTime);
+                _swimmers.Add(sw);
+                added++;
+            }
+
+            AddLog(string.Format("注册运动员: {0}({1}) {2}个项目", name, bibNumber, added));
+            RegStatusText.Text = string.Format("注册成功！参赛号: {0}，共{1}个项目", bibNumber, added);
+            RegStatusText.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#22C55E"));
+
+            // 清空表单准备下一位
+            RegNameBox.Clear();
+            RegIDNumberBox.Clear();
+            RegCountryBox.Clear();
+            RegPhoneBox.Clear();
+            RegNotesBox.Clear();
+            RegBirthDatePicker.SelectedDate = null;
             RegEntryTimeBox.Clear();
+            _regEventList.Clear();
+            RefreshRegEventList();
+
             AutoSaveData();
             Broadcast();
         }

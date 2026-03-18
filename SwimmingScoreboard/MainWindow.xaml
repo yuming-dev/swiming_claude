@@ -290,40 +290,68 @@
                         </TabItem>
                     </TabControl>
 
-                    <!-- 右侧：快速注册面板 -->
+                    <!-- 右侧：运动员注册面板 -->
                     <Border Grid.Column="1" Background="White" CornerRadius="6" Padding="16">
                         <ScrollViewer VerticalScrollBarVisibility="Auto">
                             <StackPanel>
-                                <TextBlock Text="运动员注册" FontSize="16" FontWeight="Bold" Margin="0,0,0,10"/>
-                                <TextBlock Text="参赛号（自动生成）:" Margin="0,4,0,2"/>
-                                <TextBox x:Name="RegBibBox" Padding="4" IsReadOnly="True" Background="#F1F5F9"/>
-                                <TextBlock Text="姓名:" Margin="0,4,0,2"/>
-                                <TextBox x:Name="RegNameBox" Padding="4"/>
-                                <TextBlock Text="性别:" Margin="0,4,0,2"/>
-                                <ComboBox x:Name="RegGenderCombo" SelectedIndex="0">
-                                    <ComboBoxItem Content="男"/>
-                                    <ComboBoxItem Content="女"/>
-                                </ComboBox>
-                                <TextBlock Text="出生日期:" Margin="0,4,0,2"/>
-                                <DatePicker x:Name="RegBirthDatePicker"/>
-                                <TextBlock Text="身份证号:" Margin="0,4,0,2"/>
-                                <TextBox x:Name="RegIDNumberBox" Padding="4"/>
-                                <TextBlock Text="代表队:" Margin="0,4,0,2"/>
-                                <TextBox x:Name="RegCountryBox" Padding="4"/>
-                                <TextBlock Text="联系电话:" Margin="0,4,0,2"/>
-                                <TextBox x:Name="RegPhoneBox" Padding="4"/>
-                                <TextBlock Text="项目:" Margin="0,4,0,2"/>
-                                <ComboBox x:Name="RegEventCombo"/>
-                                <TextBlock Text="报名成绩:" Margin="0,4,0,2"/>
-                                <TextBox x:Name="RegEntryTimeBox" Padding="4"/>
-                                <TextBlock Text="协会注册号:" Margin="0,4,0,2"/>
-                                <TextBox x:Name="RegCSABox" Padding="4"/>
-                                <TextBlock Text="备注:" Margin="0,4,0,2"/>
-                                <TextBox x:Name="RegNotesBox" Padding="4"/>
-                                <Button Content="注册此项目" Click="QuickRegister_Click" Margin="0,12,0,0"
-                                        Padding="0,8" Background="#3B82F6" Foreground="White" FontWeight="Bold" BorderThickness="0"/>
-                                <Button Content="为同一运动员添加另一个项目" Click="AddAnotherEvent_Click" Margin="0,4,0,0"
-                                        Padding="0,6" Background="#8B5CF6" Foreground="White" FontSize="12" BorderThickness="0"/>
+                                <TextBlock Text="运动员注册" FontSize="16" FontWeight="Bold" Margin="0,0,0,8"/>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="70"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="28"/>
+                                        <RowDefinition Height="28"/>
+                                        <RowDefinition Height="28"/>
+                                        <RowDefinition Height="28"/>
+                                        <RowDefinition Height="28"/>
+                                        <RowDefinition Height="28"/>
+                                        <RowDefinition Height="28"/>
+                                    </Grid.RowDefinitions>
+                                    <TextBlock Grid.Row="0" Text="姓名:" VerticalAlignment="Center"/>
+                                    <TextBox x:Name="RegNameBox" Grid.Row="0" Grid.Column="1" Padding="3"/>
+                                    <TextBlock Grid.Row="1" Text="性别:" VerticalAlignment="Center"/>
+                                    <ComboBox x:Name="RegGenderCombo" Grid.Row="1" Grid.Column="1" SelectedIndex="0">
+                                        <ComboBoxItem Content="男"/><ComboBoxItem Content="女"/>
+                                    </ComboBox>
+                                    <TextBlock Grid.Row="2" Text="出生日期:" VerticalAlignment="Center"/>
+                                    <DatePicker x:Name="RegBirthDatePicker" Grid.Row="2" Grid.Column="1"/>
+                                    <TextBlock Grid.Row="3" Text="身份证号:" VerticalAlignment="Center"/>
+                                    <TextBox x:Name="RegIDNumberBox" Grid.Row="3" Grid.Column="1" Padding="3"/>
+                                    <TextBlock Grid.Row="4" Text="代表队:" VerticalAlignment="Center"/>
+                                    <TextBox x:Name="RegCountryBox" Grid.Row="4" Grid.Column="1" Padding="3"/>
+                                    <TextBlock Grid.Row="5" Text="联系电话:" VerticalAlignment="Center"/>
+                                    <TextBox x:Name="RegPhoneBox" Grid.Row="5" Grid.Column="1" Padding="3"/>
+                                    <TextBlock Grid.Row="6" Text="备注:" VerticalAlignment="Center"/>
+                                    <TextBox x:Name="RegNotesBox" Grid.Row="6" Grid.Column="1" Padding="3"/>
+                                </Grid>
+
+                                <!-- 参赛项目列表 -->
+                                <TextBlock Text="参赛项目" FontSize="13" FontWeight="Bold" Margin="0,10,0,4"/>
+                                <ListBox x:Name="RegEventListBox" Height="80" FontSize="12"/>
+                                <Border Background="#F8FAFC" BorderBrush="#CBD5E1" BorderThickness="1" CornerRadius="4" Padding="6" Margin="0,4,0,0">
+                                    <StackPanel>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="90"/>
+                                            </Grid.ColumnDefinitions>
+                                            <ComboBox x:Name="RegEventCombo" Grid.Column="0" Margin="0,0,4,0"/>
+                                            <TextBox x:Name="RegEntryTimeBox" Grid.Column="1" Padding="3"/>
+                                        </Grid>
+                                        <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                            <Button Content="+ 添加参赛项目" Click="RegAddEvent_Click" Padding="8,4"
+                                                    Background="#8B5CF6" Foreground="White" BorderThickness="0" Margin="0,0,4,0" FontSize="12"/>
+                                            <Button Content="X 删除此项" Click="RegRemoveEvent_Click" Padding="8,4"
+                                                    Background="#EF4444" Foreground="White" BorderThickness="0" FontSize="12"/>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Border>
+
+                                <Button Content="提交全部报名信息" Click="RegSubmitAll_Click" Margin="0,10,0,0"
+                                        Padding="0,8" Background="#22C55E" Foreground="White" FontWeight="Bold" FontSize="14" BorderThickness="0"/>
+                                <TextBlock x:Name="RegStatusText" Text="" Margin="0,6,0,0" FontSize="12" TextWrapping="Wrap"/>
                             </StackPanel>
                         </ScrollViewer>
                     </Border>
