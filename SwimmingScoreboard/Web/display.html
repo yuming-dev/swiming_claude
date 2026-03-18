@@ -112,6 +112,8 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 <script>
 var ws, data = {}, reconnectTimer;
 var currentMode = 'SHOW_LIVE_RACE';
+// 每道的显示状态跟踪：{lane: {splitCount, reactionShown, showTime}}
+var laneDisplayState = {};
 
 function connect() {
     var host = location.hostname || 'localhost';
@@ -159,33 +161,107 @@ function renderRace() {
     document.getElementById('runningTime').textContent = data.runningTime || '0.0';
     document.getElementById('stageHeat').textContent = (data.currentStage||'') + ' 第' + (data.currentHeat||0) + '/' + (data.totalHeats||0) + '组';
 
+    var now = Date.now();
+    var displayTime = (data.laneCloseSettings ? data.laneCloseSettings.splitDisplayTime : 5) || 5;
+    var displayMs = displayTime * 1000;
+    var swimmers = data.swimmers || [];
+
+    // 如果比赛状态为等待，清除显示状态
+    if (data.raceState && data.raceState.toLowerCase() === 'waiting') {
+        laneDisplayState = {};
+    }
+
+    // 计算分段临时名次：按最新分段的累计时间排序（仅未完赛且有分段的运动员）
+    var splitRanks = {};
+    var splitSwimmers = [];
+    for (var i = 0; i < swimmers.length; i++) {
+        var s = swimmers[i];
+        if (!s.isFinished && s.splits && s.splits.length > 0 && !s.status) {
+            splitSwimmers.push({lane: s.lane, cumulative: s.splits[s.splits.length-1].cumulative, splitCount: s.splits.length});
+        }
+    }
+    // 按相同分段数分组排名
+    var splitGroups = {};
+    for (var i = 0; i < splitSwimmers.length; i++) {
+        var sc = splitSwimmers[i].splitCount;
+        if (!splitGroups[sc]) splitGroups[sc] = [];
+        splitGroups[sc].push(splitSwimmers[i]);
+    }
+    for (var sc in splitGroups) {
+        var group = splitGroups[sc];
+        group.sort(function(a,b) {
+            var ta = parseFloat(a.cumulative) || 9999;
+            var tb = parseFloat(b.cumulative) || 9999;
+            return ta - tb;
+        });
+        for (var i = 0; i < group.length; i++) {
+            splitRanks[group[i].lane] = i + 1;
+        }
+    }
+
     var container = document.getElementById('lanesContainer');
     container.innerHTML = '';
-    var swimmers = data.swimmers || [];
     for (var i = 0; i < swimmers.length; i++) {
         var sw = swimmers[i];
+        var lane = sw.lane;
+
+        // 初始化该道显示状态
+        if (!laneDisplayState[lane]) {
+            laneDisplayState[lane] = {splitCount: 0, reactionShown: false, showTime: 0};
+        }
+        var ls = laneDisplayState[lane];
+
+        // 检测新数据出现
+        var curSplitCount = (sw.splits ? sw.splits.length : 0);
+        var hasReaction = sw.reactionTime && sw.reactionTime !== '';
+        if (hasReaction && !ls.reactionShown) {
+            ls.reactionShown = true;
+            ls.showTime = now;
+        }
+        if (curSplitCount > ls.splitCount) {
+            ls.splitCount = curSplitCount;
+            ls.showTime = now;
+        }
+
         var row = document.createElement('div');
         row.className = 'lane-row';
         if (sw.isFinished) row.classList.add('finished');
         if (sw.status === 'DNS') row.classList.add('dns');
         if (sw.status === 'DSQ') row.classList.add('dsq');
 
-        var rankClass = '';
-        if (sw.rank === 1) rankClass = 'gold';
-        else if (sw.rank === 2) rankClass = 'silver';
-        else if (sw.rank === 3) rankClass = 'bronze';
-
-        // 成绩栏：优先显示最终成绩，其次分段成绩，再次反应时间
+        // 成绩和名次
         var resultText = '';
-        if (sw.finalTime) {
+        var rankText = '';
+        var rankClass = '';
+
+        if (sw.isFinished && sw.finalTime) {
+            // 最终成绩：永久显示
             resultText = sw.finalTime;
-        } else if (sw.splits && sw.splits.length > 0) {
-            resultText = sw.splits[sw.splits.length - 1].time;
-        } else if (sw.reactionTime) {
-            resultText = sw.reactionTime;
+            if (sw.rank === 1) { rankClass = 'gold'; rankText = sw.rank; }
+            else if (sw.rank === 2) { rankClass = 'silver'; rankText = sw.rank; }
+            else if (sw.rank === 3) { rankClass = 'bronze'; rankText = sw.rank; }
+            else if (sw.rank > 0) { rankText = sw.rank; }
+        } else if (sw.status) {
+            // DNS/DNF/DSQ 不显示成绩
+        } else {
+            // 中间数据：检查是否在显示窗口内
+            var elapsed = now - ls.showTime;
+            if (ls.showTime > 0 && elapsed < displayMs) {
+                if (curSplitCount > 0) {
+                    // 分段成绩 + 分段名次
+                    resultText = sw.splits[curSplitCount - 1].cumulative || sw.splits[curSplitCount - 1].time;
+                    if (splitRanks[lane]) {
+                        rankText = splitRanks[lane];
+                    }
+                } else if (hasReaction) {
+                    // 反应时间
+                    resultText = sw.reactionTime;
+                }
+            }
+            // 超过显示时间 → 自动消隐（resultText保持空）
         }
 
-        // 备注栏：犯规/抢跳/DNS/DNF/DSQ等
+        // 备注栏
         var remarkText = '';
         if (sw.status === 'DSQ') remarkText = '犯规';
         else if (sw.status === 'DNS') remarkText = '未出发';
@@ -193,11 +269,11 @@ function renderRace() {
         else if (sw.isFalseStart) remarkText = '抢跳';
 
         row.innerHTML =
-            '<div class="lane-num">' + sw.lane + '</div>' +
+            '<div class="lane-num">' + lane + '</div>' +
             '<div class="swimmer-name">' + (sw.name||'') + '</div>' +
             '<div class="swimmer-team">' + (sw.country||'') + '</div>' +
             '<div class="result-time">' + resultText + '</div>' +
-            '<div class="rank ' + rankClass + '">' + (sw.rank > 0 ? sw.rank : '') + '</div>' +
+            '<div class="rank ' + rankClass + '">' + (rankText !== '' ? rankText : '') + '</div>' +
             '<div class="remark">' + remarkText + '</div>';
         container.appendChild(row);
     }
