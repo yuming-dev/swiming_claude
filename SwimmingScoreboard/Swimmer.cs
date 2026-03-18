@@ -258,6 +258,9 @@ namespace SwimmingScoreboard
         private int _age;
         private string _gender;
         private string _country;
+        private string _idNumber;
+        private string _phone;
+        private string _notes;
         private string _csaNumber;
         private string _finaNumber;
         private string _healthCertDate;
@@ -312,6 +315,18 @@ namespace SwimmingScoreboard
         public string Country {
             get { return _country; }
             set { _country = value; OnPropertyChanged("Country"); }
+        }
+        public string IDNumber {
+            get { return _idNumber; }
+            set { _idNumber = value; OnPropertyChanged("IDNumber"); }
+        }
+        public string Phone {
+            get { return _phone; }
+            set { _phone = value; OnPropertyChanged("Phone"); }
+        }
+        public string Notes {
+            get { return _notes; }
+            set { _notes = value; OnPropertyChanged("Notes"); }
         }
         public string CSANumber {
             get { return _csaNumber; }
@@ -391,12 +406,41 @@ namespace SwimmingScoreboard
     // ═══════════════════════════════════════════════════════════════
     // 接力队伍
     // ═══════════════════════════════════════════════════════════════
+    // ═══════════════════════════════════════════════════════════════
+    // 接力棒次
+    // ═══════════════════════════════════════════════════════════════
+    public class RelayLeg : INotifyPropertyChanged
+    {
+        private int _legOrder;
+        private string _swimmerName;
+        private string _swimmerBibNumber;
+
+        public int LegOrder {
+            get { return _legOrder; }
+            set { _legOrder = value; OnPropertyChanged("LegOrder"); }
+        }
+        public string SwimmerName {
+            get { return _swimmerName; }
+            set { _swimmerName = value; OnPropertyChanged("SwimmerName"); }
+        }
+        public string SwimmerBibNumber {
+            get { return _swimmerBibNumber; }
+            set { _swimmerBibNumber = value; OnPropertyChanged("SwimmerBibNumber"); }
+        }
+
+        public event PropertyChangedEventHandler PropertyChanged;
+        protected void OnPropertyChanged(string name) {
+            if (PropertyChanged != null) PropertyChanged(this, new PropertyChangedEventArgs(name));
+        }
+    }
+
     public class RelayTeam : INotifyPropertyChanged
     {
         private string _teamName;
         private string _eventName;
         private string _gender;
         private ObservableCollection<Swimmer> _members;
+        private ObservableCollection<RelayLeg> _legs;
         private string _entryTime;
         private double _entryTimeSeconds;
         private int _heat;
@@ -409,6 +453,7 @@ namespace SwimmingScoreboard
 
         public RelayTeam() {
             _members = new ObservableCollection<Swimmer>();
+            _legs = new ObservableCollection<RelayLeg>();
             _legSplits = new ObservableCollection<SplitTime>();
             _stage = "预赛";
             _status = "";
@@ -428,6 +473,17 @@ namespace SwimmingScoreboard
         }
         public ObservableCollection<Swimmer> Members {
             get { return _members; }
+        }
+        public ObservableCollection<RelayLeg> Legs {
+            get { return _legs; }
+        }
+        public string LegOrderDisplay {
+            get {
+                if (_legs == null || _legs.Count == 0) return "";
+                var parts = new List<string>();
+                foreach (var leg in _legs) parts.Add(string.Format("{0}棒:{1}", leg.LegOrder, leg.SwimmerName));
+                return string.Join(", ", parts.ToArray());
+            }
         }
         public string EntryTime {
             get { return _entryTime; }

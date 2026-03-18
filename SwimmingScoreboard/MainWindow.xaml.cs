@@ -1388,9 +1388,18 @@ namespace SwimmingScoreboard
             return null;
         }
 
+        private string GenerateNextBibNumber() {
+            int max = 0;
+            foreach (var s in _swimmers) {
+                int n;
+                if (!string.IsNullOrEmpty(s.BibNumber) && int.TryParse(s.BibNumber, out n) && n > max) max = n;
+            }
+            return (max + 1).ToString("D3");
+        }
+
         private void AddSwimmer_Click(object sender, RoutedEventArgs e) {
             _swimmers.Add(new Swimmer {
-                BibNumber = (_swimmers.Count + 1).ToString("D3"),
+                BibNumber = GenerateNextBibNumber(),
                 Gender = "男"
             });
             AutoSaveData();
@@ -1416,8 +1425,11 @@ namespace SwimmingScoreboard
                     for (int i = 1; i < lines.Length; i++) {
                         string[] cols = lines[i].Split(',');
                         if (cols.Length < 5) continue;
+                        // CSV格式: 号码,姓名,性别,代表队,项目,报名成绩,年龄,出生日期,身份证号,电话,备注
+                        string bibNum = cols[0].Trim();
+                        if (string.IsNullOrEmpty(bibNum)) bibNum = GenerateNextBibNumber();
                         var sw = new Swimmer {
-                            BibNumber = cols[0].Trim(),
+                            BibNumber = bibNum,
                             Name = cols[1].Trim(),
                             Gender = cols[2].Trim(),
                             Country = cols[3].Trim(),
@@ -1426,6 +1438,9 @@ namespace SwimmingScoreboard
                         if (cols.Length > 5) sw.EntryTime = cols[5].Trim();
                         if (cols.Length > 6) { int age; if (int.TryParse(cols[6].Trim(), out age)) sw.Age = age; }
                         if (cols.Length > 7) sw.BirthDate = cols[7].Trim();
+                        if (cols.Length > 8) sw.IDNumber = cols[8].Trim();
+                        if (cols.Length > 9) sw.Phone = cols[9].Trim();
+                        if (cols.Length > 10) sw.Notes = cols[10].Trim();
                         sw.EntryTimeSeconds = TimeFormatter.Parse(sw.EntryTime);
                         var dup = FindDuplicate(sw.Name, sw.Gender, sw.EventName, sw.BibNumber);
                         if (dup != null) {
@@ -1461,18 +1476,35 @@ namespace SwimmingScoreboard
             string name = RegNameBox.Text.Trim();
             if (string.IsNullOrEmpty(name)) { AddLog("请输入姓名"); return; }
 
+            string gender = ((ComboBoxItem)RegGenderCombo.SelectedItem).Content.ToString();
+            string eventName = RegEventCombo.SelectedItem != null ? ((ComboBoxItem)RegEventCombo.SelectedItem).Content.ToString() : "";
+            string bibNumber = RegBibBox.Text.Trim();
+            if (string.IsNullOrEmpty(bibNumber)) bibNumber = GenerateNextBibNumber();
+
+            // 计算年龄
+            string birthDate = RegBirthDatePicker.SelectedDate.HasValue ? RegBirthDatePicker.SelectedDate.Value.ToString("yyyy-MM-dd") : "";
+            int age = 0;
+            if (RegBirthDatePicker.SelectedDate.HasValue) {
+                var today = DateTime.Today;
+                var bd = RegBirthDatePicker.SelectedDate.Value;
+                age = today.Year - bd.Year;
+                if (bd.Date > today.AddYears(-age)) age--;
+            }
+
             var sw = new Swimmer {
-                BibNumber = RegBibBox.Text.Trim(),
+                BibNumber = bibNumber,
                 Name = name,
-                Gender = ((ComboBoxItem)RegGenderCombo.SelectedItem).Content.ToString(),
+                Gender = gender,
                 Country = RegCountryBox.Text.Trim(),
-                EventName = RegEventCombo.SelectedItem != null ? ((ComboBoxItem)RegEventCombo.SelectedItem).Content.ToString() : "",
+                IDNumber = RegIDNumberBox.Text.Trim(),
+                Phone = RegPhoneBox.Text.Trim(),
+                EventName = eventName,
                 EntryTime = RegEntryTimeBox.Text.Trim(),
-                BirthDate = RegBirthDateBox.Text.Trim(),
-                CSANumber = RegCSABox.Text.Trim()
+                BirthDate = birthDate,
+                Age = age,
+                CSANumber = RegCSABox.Text.Trim(),
+                Notes = RegNotesBox.Text.Trim()
             };
-            int age;
-            if (int.TryParse(RegAgeBox.Text.Trim(), out age)) sw.Age = age;
             sw.EntryTimeSeconds = TimeFormatter.Parse(sw.EntryTime);
 
             var dup = FindDuplicate(sw.Name, sw.Gender, sw.EventName, sw.BibNumber);
@@ -1482,17 +1514,62 @@ namespace SwimmingScoreboard
             }
 
             _swimmers.Add(sw);
-            AddLog(string.Format("注册运动员: {0} {1}", sw.Name, sw.EventName));
+            RegBibBox.Text = bibNumber;
+            AddLog(string.Format("注册运动员: {0}({1}) {2}", sw.Name, bibNumber, sw.EventName));
 
-            // 清空输入
-            RegBibBox.Clear();
-            RegNameBox.Clear();
-            RegAgeBox.Clear();
-            RegCountryBox.Clear();
+            // 只清空项目和报名成绩（方便为同一运动员添加另一个项目）
             RegEntryTimeBox.Clear();
-            RegBirthDateBox.Clear();
-            RegCSABox.Clear();
 
+            AutoSaveData();
+            Broadcast();
+        }
+
+        private void AddAnotherEvent_Click(object sender, RoutedEventArgs e) {
+            // 为同一运动员（保留个人信息）注册另一个项目
+            string name = RegNameBox.Text.Trim();
+            if (string.IsNullOrEmpty(name)) { AddLog("请先输入运动员信息"); return; }
+
+            string bibNumber = RegBibBox.Text.Trim();
+            if (string.IsNullOrEmpty(bibNumber)) { AddLog("请先注册第一个项目"); return; }
+
+            string gender = ((ComboBoxItem)RegGenderCombo.SelectedItem).Content.ToString();
+            string eventName = RegEventCombo.SelectedItem != null ? ((ComboBoxItem)RegEventCombo.SelectedItem).Content.ToString() : "";
+            if (string.IsNullOrEmpty(eventName)) { AddLog("请选择项目"); return; }
+
+            var dup = FindDuplicate(name, gender, eventName, bibNumber);
+            if (dup != null) {
+                MessageBox.Show(string.Format("该运动员已报名此项目！\n\n姓名: {0}\n项目: {1}", name, eventName), "重复报名", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            string birthDate = RegBirthDatePicker.SelectedDate.HasValue ? RegBirthDatePicker.SelectedDate.Value.ToString("yyyy-MM-dd") : "";
+            int age = 0;
+            if (RegBirthDatePicker.SelectedDate.HasValue) {
+                var today = DateTime.Today;
+                var bd = RegBirthDatePicker.SelectedDate.Value;
+                age = today.Year - bd.Year;
+                if (bd.Date > today.AddYears(-age)) age--;
+            }
+
+            var sw = new Swimmer {
+                BibNumber = bibNumber,
+                Name = name,
+                Gender = gender,
+                Country = RegCountryBox.Text.Trim(),
+                IDNumber = RegIDNumberBox.Text.Trim(),
+                Phone = RegPhoneBox.Text.Trim(),
+                EventName = eventName,
+                EntryTime = RegEntryTimeBox.Text.Trim(),
+                BirthDate = birthDate,
+                Age = age,
+                CSANumber = RegCSABox.Text.Trim(),
+                Notes = RegNotesBox.Text.Trim()
+            };
+            sw.EntryTimeSeconds = TimeFormatter.Parse(sw.EntryTime);
+
+            _swimmers.Add(sw);
+            AddLog(string.Format("运动员 {0}({1}) 增报项目: {2}", name, bibNumber, eventName));
+            RegEntryTimeBox.Clear();
             AutoSaveData();
             Broadcast();
         }

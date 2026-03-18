@@ -223,18 +223,22 @@
                                 <DataGrid x:Name="SwimmerGrid" AutoGenerateColumns="False" CanUserAddRows="False"
                                           SelectionMode="Single" IsReadOnly="False" AlternatingRowBackground="#F8FAFC">
                                     <DataGrid.Columns>
-                                        <DataGridTextColumn Header="号码" Binding="{Binding BibNumber}" Width="60"/>
+                                        <DataGridTextColumn Header="号码" Binding="{Binding BibNumber}" Width="60" IsReadOnly="True"/>
                                         <DataGridTextColumn Header="姓名" Binding="{Binding Name}" Width="80"/>
                                         <DataGridTextColumn Header="性别" Binding="{Binding Gender}" Width="40"/>
-                                        <DataGridTextColumn Header="年龄" Binding="{Binding Age}" Width="40"/>
-                                        <DataGridTextColumn Header="年龄组" Binding="{Binding AgeCategory}" Width="60" IsReadOnly="True"/>
+                                        <DataGridTextColumn Header="出生日期" Binding="{Binding BirthDate}" Width="85"/>
+                                        <DataGridTextColumn Header="年龄" Binding="{Binding Age}" Width="35"/>
+                                        <DataGridTextColumn Header="年龄组" Binding="{Binding AgeCategory}" Width="50" IsReadOnly="True"/>
                                         <DataGridTextColumn Header="代表队" Binding="{Binding Country}" Width="80"/>
+                                        <DataGridTextColumn Header="身份证号" Binding="{Binding IDNumber}" Width="130"/>
+                                        <DataGridTextColumn Header="电话" Binding="{Binding Phone}" Width="100"/>
                                         <DataGridTextColumn Header="项目" Binding="{Binding EventName}" Width="120"/>
-                                        <DataGridTextColumn Header="报名成绩" Binding="{Binding EntryTime}" Width="80"/>
-                                        <DataGridTextColumn Header="阶段" Binding="{Binding CurrentStage}" Width="60"/>
-                                        <DataGridTextColumn Header="组" Binding="{Binding Heat}" Width="40"/>
-                                        <DataGridTextColumn Header="道" Binding="{Binding Lane}" Width="40"/>
-                                        <DataGridTextColumn Header="状态" Binding="{Binding Status}" Width="50"/>
+                                        <DataGridTextColumn Header="报名成绩" Binding="{Binding EntryTime}" Width="75"/>
+                                        <DataGridTextColumn Header="阶段" Binding="{Binding CurrentStage}" Width="50"/>
+                                        <DataGridTextColumn Header="组" Binding="{Binding Heat}" Width="35"/>
+                                        <DataGridTextColumn Header="道" Binding="{Binding Lane}" Width="35"/>
+                                        <DataGridTextColumn Header="状态" Binding="{Binding Status}" Width="45"/>
+                                        <DataGridTextColumn Header="备注" Binding="{Binding Notes}" Width="80"/>
                                     </DataGrid.Columns>
                                 </DataGrid>
                             </DockPanel>
@@ -251,11 +255,12 @@
                                         <DataGridTextColumn Header="队名" Binding="{Binding TeamName}" Width="100"/>
                                         <DataGridTextColumn Header="项目" Binding="{Binding EventName}" Width="140"/>
                                         <DataGridTextColumn Header="性别" Binding="{Binding Gender}" Width="40"/>
+                                        <DataGridTextColumn Header="棒次安排" Binding="{Binding LegOrderDisplay}" Width="200" IsReadOnly="True"/>
                                         <DataGridTextColumn Header="报名成绩" Binding="{Binding EntryTime}" Width="80"/>
-                                        <DataGridTextColumn Header="阶段" Binding="{Binding Stage}" Width="60"/>
-                                        <DataGridTextColumn Header="组" Binding="{Binding Heat}" Width="40"/>
-                                        <DataGridTextColumn Header="道" Binding="{Binding Lane}" Width="40"/>
-                                        <DataGridTextColumn Header="状态" Binding="{Binding Status}" Width="50"/>
+                                        <DataGridTextColumn Header="阶段" Binding="{Binding Stage}" Width="50"/>
+                                        <DataGridTextColumn Header="组" Binding="{Binding Heat}" Width="35"/>
+                                        <DataGridTextColumn Header="道" Binding="{Binding Lane}" Width="35"/>
+                                        <DataGridTextColumn Header="状态" Binding="{Binding Status}" Width="45"/>
                                     </DataGrid.Columns>
                                 </DataGrid>
                             </DockPanel>
@@ -289,9 +294,9 @@
                     <Border Grid.Column="1" Background="White" CornerRadius="6" Padding="16">
                         <ScrollViewer VerticalScrollBarVisibility="Auto">
                             <StackPanel>
-                                <TextBlock Text="快速注册" FontSize="16" FontWeight="Bold" Margin="0,0,0,10"/>
-                                <TextBlock Text="号码牌:" Margin="0,4,0,2"/>
-                                <TextBox x:Name="RegBibBox" Padding="4"/>
+                                <TextBlock Text="运动员注册" FontSize="16" FontWeight="Bold" Margin="0,0,0,10"/>
+                                <TextBlock Text="参赛号（自动生成）:" Margin="0,4,0,2"/>
+                                <TextBox x:Name="RegBibBox" Padding="4" IsReadOnly="True" Background="#F1F5F9"/>
                                 <TextBlock Text="姓名:" Margin="0,4,0,2"/>
                                 <TextBox x:Name="RegNameBox" Padding="4"/>
                                 <TextBlock Text="性别:" Margin="0,4,0,2"/>
@@ -299,20 +304,26 @@
                                     <ComboBoxItem Content="男"/>
                                     <ComboBoxItem Content="女"/>
                                 </ComboBox>
-                                <TextBlock Text="年龄:" Margin="0,4,0,2"/>
-                                <TextBox x:Name="RegAgeBox" Padding="4"/>
+                                <TextBlock Text="出生日期:" Margin="0,4,0,2"/>
+                                <DatePicker x:Name="RegBirthDatePicker"/>
+                                <TextBlock Text="身份证号:" Margin="0,4,0,2"/>
+                                <TextBox x:Name="RegIDNumberBox" Padding="4"/>
                                 <TextBlock Text="代表队:" Margin="0,4,0,2"/>
                                 <TextBox x:Name="RegCountryBox" Padding="4"/>
+                                <TextBlock Text="联系电话:" Margin="0,4,0,2"/>
+                                <TextBox x:Name="RegPhoneBox" Padding="4"/>
                                 <TextBlock Text="项目:" Margin="0,4,0,2"/>
                                 <ComboBox x:Name="RegEventCombo"/>
                                 <TextBlock Text="报名成绩:" Margin="0,4,0,2"/>
                                 <TextBox x:Name="RegEntryTimeBox" Padding="4"/>
-                                <TextBlock Text="出生日期:" Margin="0,4,0,2"/>
-                                <TextBox x:Name="RegBirthDateBox" Padding="4"/>
                                 <TextBlock Text="协会注册号:" Margin="0,4,0,2"/>
                                 <TextBox x:Name="RegCSABox" Padding="4"/>
-                                <Button Content="注册运动员" Click="QuickRegister_Click" Margin="0,12,0,0"
+                                <TextBlock Text="备注:" Margin="0,4,0,2"/>
+                                <TextBox x:Name="RegNotesBox" Padding="4"/>
+                                <Button Content="注册此项目" Click="QuickRegister_Click" Margin="0,12,0,0"
                                         Padding="0,8" Background="#3B82F6" Foreground="White" FontWeight="Bold" BorderThickness="0"/>
+                                <Button Content="为同一运动员添加另一个项目" Click="AddAnotherEvent_Click" Margin="0,4,0,0"
+                                        Padding="0,6" Background="#8B5CF6" Foreground="White" FontSize="12" BorderThickness="0"/>
                             </StackPanel>
                         </ScrollViewer>
                     </Border>
