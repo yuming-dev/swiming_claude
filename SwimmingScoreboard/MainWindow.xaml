@@ -432,7 +432,13 @@
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
                     <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8">
-                        <TextBlock Text="项目:" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                        <TextBlock Text="性别:" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                        <ComboBox x:Name="ResultGenderCombo" Width="60" SelectionChanged="ResultGender_Changed">
+                            <ComboBoxItem Content="全部" IsSelected="True"/>
+                            <ComboBoxItem Content="男"/>
+                            <ComboBoxItem Content="女"/>
+                        </ComboBox>
+                        <TextBlock Text=" 项目:" VerticalAlignment="Center" Margin="8,0,4,0"/>
                         <ComboBox x:Name="ResultEventCombo" Width="200" SelectionChanged="ResultEvent_Changed"/>
                         <TextBlock Text=" 阶段:" VerticalAlignment="Center" Margin="8,0,4,0"/>
                         <ComboBox x:Name="ResultStageCombo" Width="80" SelectionChanged="ResultStage_Changed">

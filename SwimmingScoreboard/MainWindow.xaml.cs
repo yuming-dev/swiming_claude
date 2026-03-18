@@ -1533,9 +1533,11 @@ namespace SwimmingScoreboard
         // ═══════════════════════════════════════════════════════════════
         private void ResultEvent_Changed(object sender, SelectionChangedEventArgs e) { if (_initialized) RefreshResultGrid(); }
         private void ResultStage_Changed(object sender, SelectionChangedEventArgs e) { if (_initialized) RefreshResultGrid(); }
+        private void ResultGender_Changed(object sender, SelectionChangedEventArgs e) { if (_initialized) RefreshResultGrid(); }
 
         private void RefreshResultGrid() {
-            if (ResultEventCombo == null || ResultStageCombo == null || ResultGrid == null) return;
+            if (ResultEventCombo == null || ResultStageCombo == null || ResultGenderCombo == null || ResultGrid == null) return;
+            string gender = ResultGenderCombo.SelectedItem != null ? ((ComboBoxItem)ResultGenderCombo.SelectedItem).Content.ToString() : "全部";
             string eventName = ResultEventCombo.SelectedItem != null ? ResultEventCombo.SelectedItem.ToString() : "";
             string stage = ResultStageCombo.SelectedItem != null ? ((ComboBoxItem)ResultStageCombo.SelectedItem).Content.ToString() : "全部";
 
@@ -1545,6 +1547,7 @@ namespace SwimmingScoreboard
             }
 
             var results = _swimmers.Where(s => s.EventName == eventName).ToList();
+            if (gender != "全部") results = results.Where(s => s.Gender == gender).ToList();
             if (stage != "全部") results = results.Where(s => s.CurrentStage == stage).ToList();
 
             var displayData = results.Select(s => {
