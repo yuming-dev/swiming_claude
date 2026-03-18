@@ -23,11 +23,15 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 
 /* 比赛视图 */
 .race-view { height: 89vh; padding: 1vh 2vw; display: flex; flex-direction: column; }
-.race-info { display: flex; justify-content: space-between; align-items: center; height: 6vh; margin-bottom: 0.5vh; border-bottom: 3px solid var(--accent); padding-bottom: 0.5vh; }
+.race-info { display: flex; justify-content: space-between; align-items: flex-start; min-height: 8vh; margin-bottom: 0.5vh; border-bottom: 3px solid var(--accent); padding-bottom: 0.5vh; }
 .lanes-header { display: flex; align-items: center; padding: 0 1.5vw; height: 3.5vh; color: var(--dim); font-size: 2vh; }
+.race-info .event-left { display: flex; align-items: baseline; gap: 1.5vw; }
 .race-info .event-name { font-size: 2.8vh; font-weight: bold; }
-.race-info .running-time { font-size: 5vh; font-weight: bold; color: var(--gold); font-family: 'Consolas', monospace; }
-.race-info .stage-heat { font-size: 2vh; color: var(--dim); }
+.race-info .stage-heat { font-size: 2.8vh; color: var(--dim); }
+.race-info .right-info { text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: 0.3vh; }
+.race-info .record-line { font-size: 2vh; color: var(--dim); font-family: 'Consolas', monospace; }
+.race-info .record-line .label { color: var(--gold); font-weight: bold; margin-right: 0.5vw; }
+.race-info .running-time { font-size: 4vh; font-weight: bold; color: var(--gold); font-family: 'Consolas', monospace; }
 
 .lanes-container { flex: 1; display: flex; flex-direction: column; gap: 0.4vh; }
 .lane-row {
@@ -84,9 +88,15 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 
 <div id="raceView" class="race-view">
     <div class="race-info">
-        <span class="event-name" id="eventName">-</span>
-        <span class="running-time" id="runningTime">0.0</span>
-        <span class="stage-heat" id="stageHeat">-</span>
+        <div class="event-left">
+            <span class="event-name" id="eventName">-</span>
+            <span class="stage-heat" id="stageHeat">-</span>
+        </div>
+        <div class="right-info">
+            <div class="record-line"><span class="label">WR</span><span id="recordWR">-</span></div>
+            <div class="record-line"><span class="label">CR</span><span id="recordCR">-</span></div>
+            <div class="running-time" id="runningTime">0.0</div>
+        </div>
     </div>
     <div class="lanes-header">
         <div style="width:3vw;text-align:center;">道次</div>
@@ -158,8 +168,22 @@ function render() {
 function renderRace() {
     document.getElementById('raceView').classList.remove('hidden');
     document.getElementById('eventName').textContent = (data.currentGender||'') + '子 ' + (data.currentEvent||'');
-    document.getElementById('runningTime').textContent = data.runningTime || '0.0';
     document.getElementById('stageHeat').textContent = (data.currentStage||'') + ' 第' + (data.currentHeat||0) + '/' + (data.totalHeats||0) + '组';
+    document.getElementById('runningTime').textContent = data.runningTime || '0.0';
+
+    // 查找当前项目的纪录
+    var wrText = '-', crText = '-';
+    var records = data.records || [];
+    var curEvent = (data.currentGender||'') + (data.currentEvent||'');
+    for (var r = 0; r < records.length; r++) {
+        var rec = records[r];
+        if (rec.eventName === curEvent || rec.eventName === (data.currentGender||'') + '子' + (data.currentEvent||'')) {
+            if (rec.recordType === '世界纪录') wrText = rec.time || '-';
+            else if (rec.recordType === '赛会纪录') crText = rec.time || '-';
+        }
+    }
+    document.getElementById('recordWR').textContent = wrText;
+    document.getElementById('recordCR').textContent = crText;
 
     var now = Date.now();
     var displayTime = (data.laneCloseSettings ? data.laneCloseSettings.splitDisplayTime : 5) || 5;
