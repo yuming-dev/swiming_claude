@@ -306,10 +306,10 @@ function renderStartList() {
     document.getElementById('listView').classList.remove('hidden');
     var lv = document.getElementById('listView');
     var html = '<h2 style="margin-bottom:2vh;font-size:3vh;">' + (data.currentGender||'') + '子 ' + (data.currentEvent||'') + ' ' + (data.currentStage||'') + ' 第' + (data.currentHeat||'') + '组 出发表</h2>';
-    html += '<table class="list-table"><thead><tr><th>道</th><th>号码</th><th>姓名</th><th>代表队</th><th>报名成绩</th></tr></thead><tbody>';
+    html += '<table class="list-table"><thead><tr><th>道</th><th>号码</th><th>姓名</th><th>代表队</th></tr></thead><tbody>';
     var sw = data.swimmers || [];
     for (var i = 0; i < sw.length; i++) {
-        html += '<tr><td>' + sw[i].lane + '</td><td>' + (sw[i].bibNumber||'') + '</td><td>' + (sw[i].name||'') + '</td><td>' + (sw[i].country||'') + '</td><td>' + (sw[i].entryTime||'') + '</td></tr>';
+        html += '<tr><td>' + sw[i].lane + '</td><td>' + (sw[i].bibNumber||'') + '</td><td>' + (sw[i].name||'') + '</td><td>' + (sw[i].country||'') + '</td></tr>';
     }
     html += '</tbody></table>';
     lv.innerHTML = html;

@@ -2038,10 +2038,10 @@ tr:nth-child(even) {{ background: #fafafa; }}
         private string BuildStartListHtml() {
             var sb = new StringBuilder();
             sb.AppendFormat("<h2>{0}子 {1} {2} 第{3}组</h2>", _currentGender, _currentEvent, _currentStage, _currentHeat);
-            sb.Append("<table><tr><th>道</th><th>号码</th><th>姓名</th><th>代表队</th><th>报名成绩</th></tr>");
+            sb.Append("<table><tr><th>道</th><th>号码</th><th>姓名</th><th>代表队</th></tr>");
             foreach (var sw in GetCurrentHeatSwimmers()) {
-                sb.AppendFormat("<tr><td>{0}</td><td>{1}</td><td>{2}</td><td>{3}</td><td>{4}</td></tr>",
-                    sw.Lane, sw.BibNumber, sw.Name, sw.Country, sw.EntryTime);
+                sb.AppendFormat("<tr><td>{0}</td><td>{1}</td><td>{2}</td><td>{3}</td></tr>",
+                    sw.Lane, sw.BibNumber, sw.Name, sw.Country);
             }
             sb.Append("</table>");
             return WrapHtml("出发表", sb.ToString());
