@@ -208,6 +208,7 @@
                                 <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
                                     <Button Content="添加运动员" Click="AddSwimmer_Click" Padding="12,6" Background="#3B82F6" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
                                     <Button Content="删除选中" Click="DeleteSwimmer_Click" Padding="12,6" Background="#EF4444" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
+                                    <Button Content="保存修改" Click="SaveSwimmerEdit_Click" Padding="12,6" Background="#22C55E" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
                                     <Button Content="导入CSV" Click="ImportCSV_Click" Padding="12,6" Background="#8B5CF6" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
                                     <TextBlock Text="  筛选项目:" VerticalAlignment="Center"/>
                                     <ComboBox x:Name="FilterEventCombo" Width="180" Margin="4,0" SelectionChanged="FilterEvent_Changed">
@@ -221,7 +222,8 @@
                                     </ComboBox>
                                 </StackPanel>
                                 <DataGrid x:Name="SwimmerGrid" AutoGenerateColumns="False" CanUserAddRows="False"
-                                          SelectionMode="Single" IsReadOnly="False" AlternatingRowBackground="#F8FAFC">
+                                          SelectionMode="Single" IsReadOnly="False" AlternatingRowBackground="#F8FAFC"
+                                          CellEditEnding="SwimmerGrid_CellEditEnding">
                                     <DataGrid.Columns>
                                         <DataGridTextColumn Header="号码" Binding="{Binding BibNumber}" Width="60" IsReadOnly="True"/>
                                         <DataGridTextColumn Header="姓名" Binding="{Binding Name}" Width="80"/>

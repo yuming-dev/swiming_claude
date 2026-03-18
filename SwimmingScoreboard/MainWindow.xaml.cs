@@ -1493,9 +1493,28 @@ namespace SwimmingScoreboard
         private void DeleteSwimmer_Click(object sender, RoutedEventArgs e) {
             var selected = SwimmerGrid.SelectedItem as Swimmer;
             if (selected != null) {
-                _swimmers.Remove(selected);
-                AutoSaveData();
+                if (MessageBox.Show(string.Format("确定删除运动员 {0}({1}) 的 {2} 报名记录？", selected.Name, selected.BibNumber, selected.EventName),
+                    "确认删除", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes) {
+                    _swimmers.Remove(selected);
+                    AutoSaveData();
+                    Broadcast();
+                    AddLog(string.Format("已删除: {0}({1}) {2}", selected.Name, selected.BibNumber, selected.EventName));
+                }
             }
+        }
+
+        private void SaveSwimmerEdit_Click(object sender, RoutedEventArgs e) {
+            AutoSaveData();
+            Broadcast();
+            AddLog("运动员数据修改已保存");
+            MessageBox.Show("修改已保存！", "保存成功", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+
+        private void SwimmerGrid_CellEditEnding(object sender, DataGridCellEditEndingEventArgs e) {
+            // 单元格编辑结束后延迟保存（等DataGrid提交值）
+            Dispatcher.BeginInvoke((Action)delegate() {
+                AutoSaveData();
+            }, System.Windows.Threading.DispatcherPriority.Background);
         }
 
         private void ImportCSV_Click(object sender, RoutedEventArgs e) {
