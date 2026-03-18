@@ -238,6 +238,11 @@ namespace SwimmingScoreboard
                 FINANumber = data["finaNumber"] != null ? data["finaNumber"].ToString() : ""
             };
             swimmer.EntryTimeSeconds = TimeFormatter.Parse(swimmer.EntryTime);
+            var dup = FindDuplicate(swimmer.Name, swimmer.Gender, swimmer.EventName, swimmer.BibNumber);
+            if (dup != null) {
+                AddLog(string.Format("远程注册被拒绝（重复）: {0} {1} — 已存在号码{2}", swimmer.Name, swimmer.EventName, dup.BibNumber));
+                return;
+            }
             _swimmers.Add(swimmer);
             AddLog(string.Format("远程注册运动员: {0} ({1})", swimmer.Name, swimmer.EventName));
             AutoSaveData();
@@ -1369,6 +1374,20 @@ namespace SwimmingScoreboard
         // ═══════════════════════════════════════════════════════════════
         // 运动员管理
         // ═══════════════════════════════════════════════════════════════
+        /// <summary>
+        /// 检查运动员是否重复（同姓名+同性别+同项目视为重复）
+        /// 返回重复的运动员，无重复返回null
+        /// </summary>
+        private Swimmer FindDuplicate(string name, string gender, string eventName, string bibNumber) {
+            foreach (var s in _swimmers) {
+                // 号码牌相同且非空 = 重复
+                if (!string.IsNullOrEmpty(bibNumber) && !string.IsNullOrEmpty(s.BibNumber) && s.BibNumber == bibNumber && s.EventName == eventName) return s;
+                // 同姓名 + 同性别 + 同项目 = 重复
+                if (!string.IsNullOrEmpty(name) && s.Name == name && s.Gender == gender && s.EventName == eventName) return s;
+            }
+            return null;
+        }
+
         private void AddSwimmer_Click(object sender, RoutedEventArgs e) {
             _swimmers.Add(new Swimmer {
                 BibNumber = (_swimmers.Count + 1).ToString("D3"),
@@ -1393,7 +1412,7 @@ namespace SwimmingScoreboard
             if (dlg.ShowDialog() == true) {
                 try {
                     string[] lines = File.ReadAllLines(dlg.FileName, Encoding.UTF8);
-                    int imported = 0;
+                    int imported = 0, skipped = 0;
                     for (int i = 1; i < lines.Length; i++) {
                         string[] cols = lines[i].Split(',');
                         if (cols.Length < 5) continue;
@@ -1408,10 +1427,15 @@ namespace SwimmingScoreboard
                         if (cols.Length > 6) { int age; if (int.TryParse(cols[6].Trim(), out age)) sw.Age = age; }
                         if (cols.Length > 7) sw.BirthDate = cols[7].Trim();
                         sw.EntryTimeSeconds = TimeFormatter.Parse(sw.EntryTime);
+                        var dup = FindDuplicate(sw.Name, sw.Gender, sw.EventName, sw.BibNumber);
+                        if (dup != null) {
+                            skipped++;
+                            continue;
+                        }
                         _swimmers.Add(sw);
                         imported++;
                     }
-                    AddLog(string.Format("CSV导入完成: {0}名运动员", imported));
+                    AddLog(string.Format("CSV导入完成: {0}名运动员, {1}名重复跳过", imported, skipped));
                     AutoSaveData();
                     Broadcast();
                 } catch (Exception ex) {
@@ -1450,6 +1474,12 @@ namespace SwimmingScoreboard
             int age;
             if (int.TryParse(RegAgeBox.Text.Trim(), out age)) sw.Age = age;
             sw.EntryTimeSeconds = TimeFormatter.Parse(sw.EntryTime);
+
+            var dup = FindDuplicate(sw.Name, sw.Gender, sw.EventName, sw.BibNumber);
+            if (dup != null) {
+                MessageBox.Show(string.Format("运动员重复！\n\n姓名: {0}\n项目: {1}\n已有号码: {2}\n\n请勿重复注册。", sw.Name, sw.EventName, dup.BibNumber), "重复注册", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
 
             _swimmers.Add(sw);
             AddLog(string.Format("注册运动员: {0} {1}", sw.Name, sw.EventName));
