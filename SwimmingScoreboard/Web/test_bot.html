@@ -134,7 +134,7 @@ function simStart() { sendCmd('START_RACE'); log('发送: 发令'); }
 function simTouchpad() {
     // 读取服务器当前滚动计时器时间
     var runTimeStr = (data && data.runningTime) ? data.runningTime : '0.0';
-    // 解析时间字符串为秒数 (格式: "H:MM:SS.t")
+    // 解析时间字符串为秒数 (格式: "S.t" / "M:SS.t" / "H:MM:SS.t"，前导零已消隐)
     var currentTime = 0;
     var parts = runTimeStr.split(':');
     if (parts.length === 3) {
