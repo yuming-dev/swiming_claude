@@ -196,7 +196,7 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
     <div class="right-panel">
         <button class="action-btn btn-ready" onclick="sendCmd('READY')">就 位</button>
         <button class="action-btn btn-start" onclick="sendCmd('START_RACE')">发 令</button>
-        <button class="action-btn btn-restart" onclick="sendCmd('TIMER_RESET')">计时复位</button>
+        <button class="action-btn btn-restart" onclick="confirmTimerReset()">计时复位</button>
         <hr style="border-color:#334155;margin:10px 0;">
         <button class="action-btn btn-all-open" onclick="sendCmd('OPEN_ALL_LANES')">全部打开</button>
         <button class="action-btn btn-all-close" onclick="sendCmd('CLOSE_ALL_LANES')">全部关闭</button>
@@ -297,6 +297,13 @@ function openSettings() {
 
 function closeSettings() {
     document.getElementById('settingsModal').classList.add('hidden');
+}
+
+function confirmTimerReset() {
+    if (confirm('确定要计时复位吗？\n\n本组所有反应时间、分段成绩、最终成绩将被清除！')) {
+        sendCmd('TIMER_RESET');
+        addLog('计时复位');
+    }
 }
 
 function applySettings() {
@@ -592,7 +599,7 @@ document.addEventListener('keydown', function(e) {
     switch(e.key) {
         case 'F5': e.preventDefault(); sendCmd('READY'); break;
         case 'F6': e.preventDefault(); sendCmd('START_RACE'); break;
-        case 'F7': e.preventDefault(); sendCmd('TIMER_RESET'); break;
+        case 'F7': e.preventDefault(); confirmTimerReset(); break;
         case 'Enter': sendCmd('CONFIRM_RESULT'); break;
     }
     if (e.shiftKey && e.key >= '0' && e.key <= '9') {
