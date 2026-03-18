@@ -515,16 +515,20 @@
                         <TextBlock Text="纪录管理" FontSize="16" FontWeight="Bold" Margin="0,24,0,10"/>
                         <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
                             <Button Content="添加纪录" Click="AddRecord_Click" Padding="12,6" Background="#3B82F6" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
-                            <Button Content="删除选中" Click="DeleteRecord_Click" Padding="12,6" Background="#EF4444" Foreground="White" BorderThickness="0"/>
+                            <Button Content="删除选中" Click="DeleteRecord_Click" Padding="12,6" Background="#EF4444" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
+                            <Button Content="导入标准纪录" Click="ImportDefaultRecords_Click" Padding="12,6" Background="#22C55E" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
+                            <Button Content="导入CSV纪录" Click="ImportRecordsCSV_Click" Padding="12,6" Background="#8B5CF6" Foreground="White" BorderThickness="0"/>
                         </StackPanel>
                         <DataGrid x:Name="RecordGrid" AutoGenerateColumns="False" CanUserAddRows="False"
-                                  Height="200" IsReadOnly="False" AlternatingRowBackground="#F8FAFC">
+                                  Height="300" IsReadOnly="False" AlternatingRowBackground="#F8FAFC">
                             <DataGrid.Columns>
+                                <DataGridTextColumn Header="性别" Binding="{Binding Gender}" Width="40"/>
                                 <DataGridTextColumn Header="项目" Binding="{Binding EventName}" Width="120"/>
                                 <DataGridTextColumn Header="类型" Binding="{Binding RecordType}" Width="80"/>
                                 <DataGridTextColumn Header="保持者" Binding="{Binding HolderName}" Width="80"/>
                                 <DataGridTextColumn Header="代表队" Binding="{Binding HolderCountry}" Width="80"/>
                                 <DataGridTextColumn Header="成绩" Binding="{Binding TimeDisplay}" Width="80" IsReadOnly="True"/>
+                                <DataGridTextColumn Header="秒数" Binding="{Binding Time}" Width="70"/>
                                 <DataGridTextColumn Header="日期" Binding="{Binding Date}" Width="90"/>
                                 <DataGridTextColumn Header="地点" Binding="{Binding Location}" Width="100"/>
                             </DataGrid.Columns>

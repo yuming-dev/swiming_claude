@@ -583,9 +583,10 @@ namespace SwimmingScoreboard
                 eventRanking = eventRanking,
                 teamScores = teamScoresData,
                 records = _records.Select(r => new {
-                    eventName = r.EventName, recordType = r.RecordType,
+                    eventName = r.EventName, gender = r.Gender, recordType = r.RecordType,
                     holderName = r.HolderName, holderCountry = r.HolderCountry,
-                    time = TimeFormatter.Format(r.Time), date = r.Date, location = r.Location
+                    time = TimeFormatter.Format(r.Time), timeInSeconds = r.Time,
+                    date = r.Date, location = r.Location
                 }).ToList()
             };
         }
@@ -885,7 +886,7 @@ namespace SwimmingScoreboard
 
         private void CheckRecords(Swimmer swimmer, LaneResult result) {
             if (result.FinalTime <= 0) return;
-            foreach (var record in _records.Where(r => r.EventName == _currentGender + _currentEvent)) {
+            foreach (var record in _records.Where(r => r.Gender == _currentGender && r.EventName == _currentEvent)) {
                 if (result.FinalTime < record.Time) {
                     AddLog(string.Format("★新纪录! {0} 打破{1}: {2} < {3}",
                         swimmer.Name, record.RecordType,
@@ -1850,7 +1851,7 @@ namespace SwimmingScoreboard
         // 纪录管理
         // ═══════════════════════════════════════════════════════════════
         private void AddRecord_Click(object sender, RoutedEventArgs e) {
-            _records.Add(new SwimmingRecord { RecordType = "赛会纪录" });
+            _records.Add(new SwimmingRecord { RecordType = "赛会纪录", Gender = "男" });
         }
 
         private void DeleteRecord_Click(object sender, RoutedEventArgs e) {
@@ -1858,6 +1859,98 @@ namespace SwimmingScoreboard
             if (selected != null) {
                 _records.Remove(selected);
                 AutoSaveData();
+            }
+        }
+
+        private void ImportDefaultRecords_Click(object sender, RoutedEventArgs e) {
+            // 预置世界纪录（长池50米，截至2024年数据）
+            var defaults = new[] {
+                // 男子
+                new { G="男", E="50米自由泳", T=20.91, H="Cielo", C="巴西", D="2009-12-18" },
+                new { G="男", E="100米自由泳", T=46.86, H="Pan Zhanle", C="中国", D="2024-07-31" },
+                new { G="男", E="200米自由泳", T=102.00, H="Milak", C="匈牙利", D="2024-02-11" },
+                new { G="男", E="400米自由泳", T=220.07, H="Thorpe", C="澳大利亚", D="2002-07-30" },
+                new { G="男", E="800米自由泳", T=452.12, H="Zhang Lin", C="中国", D="2009-07-29" },
+                new { G="男", E="1500米自由泳", T=871.02, H="Sun Yang", C="中国", D="2012-08-04" },
+                new { G="男", E="100米仰泳", T=51.60, H="Xu Jiayu", C="中国", D="2024-07-29" },
+                new { G="男", E="200米仰泳", T=111.92, H="Peirsol", C="美国", D="2009-07-31" },
+                new { G="男", E="100米蛙泳", T=56.88, H="Peaty", C="英国", D="2019-07-21" },
+                new { G="男", E="200米蛙泳", T=125.95, H="Stubblety-Cook", C="澳大利亚", D="2022-06-19" },
+                new { G="男", E="100米蝶泳", T=49.45, H="Caeleb Dressel", C="美国", D="2021-07-31" },
+                new { G="男", E="200米蝶泳", T=110.34, H="Milak", C="匈牙利", D="2022-06-14" },
+                new { G="男", E="200米个人混合泳", T=114.00, H="Lochte", C="美国", D="2011-07-28" },
+                new { G="男", E="400米个人混合泳", T=243.84, H="Phelps", C="美国", D="2008-08-10" },
+                // 女子
+                new { G="女", E="50米自由泳", T=23.61, H="Sjoestroem", C="瑞典", D="2024-07-28" },
+                new { G="女", E="100米自由泳", T=51.71, H="Sjoestroem", C="瑞典", D="2017-07-23" },
+                new { G="女", E="200米自由泳", T=112.98, H="Titmus", C="澳大利亚", D="2023-02-12" },
+                new { G="女", E="400米自由泳", T=235.82, H="Titmus", C="澳大利亚", D="2023-06-07" },
+                new { G="女", E="800米自由泳", T=494.07, H="Ledecky", C="美国", D="2016-08-12" },
+                new { G="女", E="1500米自由泳", T=920.48, H="Ledecky", C="美国", D="2018-05-20" },
+                new { G="女", E="100米仰泳", T=57.33, H="Kaylee McKeown", C="澳大利亚", D="2023-06-18" },
+                new { G="女", E="200米仰泳", T=123.35, H="McKeown", C="澳大利亚", D="2024-07-30" },
+                new { G="女", E="100米蛙泳", T=64.13, H="Lilly King", C="美国", D="2017-07-25" },
+                new { G="女", E="200米蛙泳", T=138.95, H="Tatjana Schoenmaker", C="南非", D="2021-07-30" },
+                new { G="女", E="100米蝶泳", T=55.18, H="Gretchen Walsh", C="美国", D="2024-12-19" },
+                new { G="女", E="200米蝶泳", T=121.81, H="Liu Zige", C="中国", D="2009-10-21" },
+                new { G="女", E="200米个人混合泳", T=124.06, H="Katinka Hosszu", C="匈牙利", D="2015-08-03" },
+                new { G="女", E="400米个人混合泳", T=266.36, H="Ye Shiwen", C="中国", D="2012-07-28" }
+            };
+
+            int added = 0;
+            foreach (var d in defaults) {
+                // 检查是否已存在
+                bool exists = false;
+                foreach (var r in _records) {
+                    if (r.Gender == d.G && r.EventName == d.E && r.RecordType == "世界纪录") { exists = true; break; }
+                }
+                if (!exists) {
+                    _records.Add(new SwimmingRecord {
+                        Gender = d.G, EventName = d.E, RecordType = "世界纪录",
+                        HolderName = d.H, HolderCountry = d.C,
+                        Time = d.T, TimeInSeconds = d.T, Date = d.D
+                    });
+                    added++;
+                }
+            }
+            AddLog(string.Format("已导入{0}条世界纪录", added));
+            AutoSaveData();
+            Broadcast();
+        }
+
+        private void ImportRecordsCSV_Click(object sender, RoutedEventArgs e) {
+            var dlg = new Microsoft.Win32.OpenFileDialog {
+                Filter = "CSV文件|*.csv|所有文件|*.*",
+                Title = "导入纪录CSV（格式：性别,项目,类型,保持者,代表队,成绩秒数,日期,地点）"
+            };
+            if (dlg.ShowDialog() == true) {
+                try {
+                    string[] lines = File.ReadAllLines(dlg.FileName, Encoding.UTF8);
+                    int imported = 0;
+                    for (int i = 1; i < lines.Length; i++) {
+                        string[] cols = lines[i].Split(',');
+                        if (cols.Length < 6) continue;
+                        var rec = new SwimmingRecord {
+                            Gender = cols[0].Trim(),
+                            EventName = cols[1].Trim(),
+                            RecordType = cols[2].Trim(),
+                            HolderName = cols[3].Trim(),
+                            HolderCountry = cols[4].Trim()
+                        };
+                        double t;
+                        if (double.TryParse(cols[5].Trim(), out t)) { rec.Time = t; rec.TimeInSeconds = t; }
+                        else { rec.Time = TimeFormatter.Parse(cols[5].Trim()); rec.TimeInSeconds = rec.Time; }
+                        if (cols.Length > 6) rec.Date = cols[6].Trim();
+                        if (cols.Length > 7) rec.Location = cols[7].Trim();
+                        _records.Add(rec);
+                        imported++;
+                    }
+                    AddLog(string.Format("CSV导入{0}条纪录", imported));
+                    AutoSaveData();
+                    Broadcast();
+                } catch (Exception ex) {
+                    AddLog("CSV导入纪录失败: " + ex.Message);
+                }
             }
         }
 

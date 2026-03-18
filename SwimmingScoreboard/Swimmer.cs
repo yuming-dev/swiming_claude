@@ -485,6 +485,7 @@ namespace SwimmingScoreboard
     public class SwimmingRecord : INotifyPropertyChanged
     {
         private string _eventName;
+        private string _gender;
         private string _recordType;
         private string _holderName;
         private string _holderCountry;
@@ -496,6 +497,10 @@ namespace SwimmingScoreboard
         public string EventName {
             get { return _eventName; }
             set { _eventName = value; OnPropertyChanged("EventName"); }
+        }
+        public string Gender {
+            get { return _gender; }
+            set { _gender = value; OnPropertyChanged("Gender"); }
         }
         public string RecordType {
             get { return _recordType; }

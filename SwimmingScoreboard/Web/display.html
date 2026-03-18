@@ -169,13 +169,14 @@ function renderRace() {
     document.getElementById('stageHeat').textContent = (data.currentStage||'') + ' 第' + (data.currentHeat||0) + '/' + (data.totalHeats||0) + '组';
     document.getElementById('runningTime').textContent = data.runningTime || '0.0';
 
-    // 查找当前项目的纪录
+    // 按性别+项目查找纪录
     var wrText = '-', crText = '-';
     var records = data.records || [];
-    var curEvent = (data.currentGender||'') + (data.currentEvent||'');
+    var curGender = data.currentGender || '';
+    var curEventName = data.currentEvent || '';
     for (var r = 0; r < records.length; r++) {
         var rec = records[r];
-        if (rec.eventName === curEvent || rec.eventName === (data.currentGender||'') + '子' + (data.currentEvent||'')) {
+        if (rec.gender === curGender && rec.eventName === curEventName) {
             if (rec.recordType === '世界纪录') wrText = rec.time || '-';
             else if (rec.recordType === '赛会纪录') crText = rec.time || '-';
         }
