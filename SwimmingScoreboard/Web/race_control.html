@@ -300,7 +300,7 @@ function closeSettings() {
 }
 
 function confirmTimerReset() {
-    if (confirm('确定要计时复位吗？\n\n本组所有反应时间、分段成绩、最终成绩将被清除！')) {
+    if (confirm('确定计时器复位，数据清除？')) {
         sendCmd('TIMER_RESET');
         addLog('计时复位');
     }
