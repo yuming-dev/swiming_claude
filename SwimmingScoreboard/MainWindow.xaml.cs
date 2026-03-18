@@ -1027,7 +1027,7 @@ namespace SwimmingScoreboard
                 sw.Status = "";
             }
 
-            AddLog("重新出发");
+            AddLog("计时复位 — 本组数据已清除");
             Broadcast();
         }
 
