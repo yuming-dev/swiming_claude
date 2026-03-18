@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Controls;
 using Newtonsoft.Json;
@@ -9,7 +10,17 @@ namespace RegistrationTool
     public partial class MainWindow : Window
     {
         private SimpleWebSocketClient _ws;
-        private string _lastBib = "";
+        private string _assignedBib = "";
+        private bool _submitted = false;
+        private List<EventEntry> _events = new List<EventEntry>();
+
+        private class EventEntry {
+            public string EventName { get; set; }
+            public string EntryTime { get; set; }
+            public override string ToString() {
+                return string.IsNullOrEmpty(EntryTime) ? EventName : string.Format("{0}  (报名: {1})", EventName, EntryTime);
+            }
+        }
 
         public MainWindow() {
             InitializeComponent();
@@ -30,7 +41,7 @@ namespace RegistrationTool
             if (parts.Length > 1) int.TryParse(parts[1], out port);
             try {
                 _ws = new SimpleWebSocketClient();
-                _ws.OnMessage += delegate(string msg) { };
+                _ws.OnMessage += OnServerMessage;
                 _ws.OnDisconnected += delegate() {
                     Dispatcher.Invoke((Action)delegate() {
                         StatusText.Text = "连接断开";
@@ -48,9 +59,60 @@ namespace RegistrationTool
             }
         }
 
-        private JObject BuildSwimmerData() {
+        private void OnServerMessage(string json) {
+            Dispatcher.Invoke((Action)delegate() {
+                try {
+                    var msg = JObject.Parse(json);
+                    if (msg["type"] != null && msg["type"].ToString() == "REGISTER_RESULT") {
+                        var data = msg["data"];
+                        bool ok = data != null && data["success"] != null && (bool)data["success"];
+                        if (ok) {
+                            _assignedBib = data["bibNumber"] != null ? data["bibNumber"].ToString() : _assignedBib;
+                            _submitted = true;
+                            RegStatusText.Text = string.Format("报名成功！参赛号: {0}。如需修改，可重新编辑后再次提交。", _assignedBib);
+                            RegStatusText.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Colors.Green);
+                        } else {
+                            string errMsg = data != null && data["message"] != null ? data["message"].ToString() : "未知错误";
+                            RegStatusText.Text = "报名失败: " + errMsg;
+                            RegStatusText.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Colors.Red);
+                        }
+                    }
+                } catch { }
+            });
+        }
+
+        private void AddEvent_Click(object sender, RoutedEventArgs e) {
+            string eventName = EventCombo.SelectedItem != null ? ((ComboBoxItem)EventCombo.SelectedItem).Content.ToString() : "";
+            if (string.IsNullOrEmpty(eventName)) return;
+            foreach (var ev in _events) {
+                if (ev.EventName == eventName) {
+                    MessageBox.Show("已添加此项目，不能重复！", "提示", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+            }
+            _events.Add(new EventEntry { EventName = eventName, EntryTime = EntryTimeBox.Text.Trim() });
+            EntryTimeBox.Clear();
+            RefreshEventList();
+        }
+
+        private void RemoveEvent_Click(object sender, RoutedEventArgs e) {
+            int idx = EventListBox.SelectedIndex;
+            if (idx < 0 || idx >= _events.Count) { MessageBox.Show("请先选中要删除的项目"); return; }
+            _events.RemoveAt(idx);
+            RefreshEventList();
+        }
+
+        private void RefreshEventList() {
+            EventListBox.Items.Clear();
+            foreach (var ev in _events) EventListBox.Items.Add(ev.ToString());
+        }
+
+        private void SubmitAll_Click(object sender, RoutedEventArgs e) {
+            if (_ws == null || !_ws.IsConnected) { RegStatusText.Text = "请先连接服务器"; return; }
             string name = NameBox.Text.Trim();
-            if (string.IsNullOrEmpty(name)) { RegStatusText.Text = "请输入姓名"; return null; }
+            if (string.IsNullOrEmpty(name)) { RegStatusText.Text = "请输入姓名"; return; }
+            if (_events.Count == 0) { RegStatusText.Text = "请至少添加一个参赛项目"; return; }
+
             string birthDate = BirthDatePicker.SelectedDate.HasValue ? BirthDatePicker.SelectedDate.Value.ToString("yyyy-MM-dd") : "";
             int age = 0;
             if (BirthDatePicker.SelectedDate.HasValue) {
@@ -59,46 +121,34 @@ namespace RegistrationTool
                 age = today.Year - bd.Year;
                 if (bd.Date > today.AddYears(-age)) age--;
             }
-            var obj = new JObject();
-            obj["bibNumber"] = BibBox.Text.Trim();
-            obj["name"] = name;
-            obj["gender"] = ((ComboBoxItem)GenderCombo.SelectedItem).Content.ToString();
-            obj["age"] = age;
-            obj["country"] = CountryBox.Text.Trim();
-            obj["idNumber"] = IDNumberBox.Text.Trim();
-            obj["phone"] = PhoneBox.Text.Trim();
-            obj["eventName"] = EventCombo.SelectedItem != null ? ((ComboBoxItem)EventCombo.SelectedItem).Content.ToString() : "";
-            obj["entryTime"] = EntryTimeBox.Text.Trim();
-            obj["birthDate"] = birthDate;
-            obj["csaNumber"] = CSABox.Text.Trim();
-            obj["notes"] = NotesBox.Text.Trim();
-            return obj;
-        }
 
-        private void Register_Click(object sender, RoutedEventArgs e) {
-            if (_ws == null || !_ws.IsConnected) { RegStatusText.Text = "请先连接服务器"; return; }
-            var data = BuildSwimmerData();
-            if (data == null) return;
-            _ws.Send(JsonConvert.SerializeObject(new { type = "REGISTER_SWIMMER", data = data }));
-            _lastBib = data["bibNumber"].ToString();
-            RegStatusText.Text = string.Format("已提交: {0} - {1}", data["name"], data["eventName"]);
-            EntryTimeBox.Clear();
-            NotesBox.Clear();
-        }
+            var swimmerData = new JObject();
+            swimmerData["name"] = name;
+            swimmerData["gender"] = ((ComboBoxItem)GenderCombo.SelectedItem).Content.ToString();
+            swimmerData["age"] = age;
+            swimmerData["country"] = CountryBox.Text.Trim();
+            swimmerData["idNumber"] = IDNumberBox.Text.Trim();
+            swimmerData["phone"] = PhoneBox.Text.Trim();
+            swimmerData["birthDate"] = birthDate;
+            swimmerData["csaNumber"] = CSABox.Text.Trim();
+            swimmerData["notes"] = NotesBox.Text.Trim();
+            swimmerData["bibNumber"] = _assignedBib;
 
-        private void AddEvent_Click(object sender, RoutedEventArgs e) {
-            if (_ws == null || !_ws.IsConnected) { RegStatusText.Text = "请先连接服务器"; return; }
-            if (string.IsNullOrEmpty(_lastBib) && string.IsNullOrEmpty(BibBox.Text.Trim())) {
-                RegStatusText.Text = "请先注册第一个项目";
-                return;
+            var eventsArr = new JArray();
+            foreach (var ev in _events) {
+                var obj = new JObject();
+                obj["eventName"] = ev.EventName;
+                obj["entryTime"] = ev.EntryTime;
+                eventsArr.Add(obj);
             }
-            var data = BuildSwimmerData();
-            if (data == null) return;
-            if (!string.IsNullOrEmpty(_lastBib)) data["bibNumber"] = _lastBib;
-            _ws.Send(JsonConvert.SerializeObject(new { type = "REGISTER_SWIMMER", data = data }));
-            RegStatusText.Text = string.Format("已为 {0} 增报: {1}", data["name"], data["eventName"]);
-            EntryTimeBox.Clear();
-            NotesBox.Clear();
+
+            var msgData = new JObject();
+            msgData["swimmer"] = swimmerData;
+            msgData["events"] = eventsArr;
+            msgData["isResubmit"] = _submitted;
+
+            _ws.Send(JsonConvert.SerializeObject(new { type = "REGISTER_SWIMMER_BATCH", data = msgData }));
+            RegStatusText.Text = string.Format("正在提交 {0} 个项目...", _events.Count);
         }
 
         private void RelayRegister_Click(object sender, RoutedEventArgs e) {

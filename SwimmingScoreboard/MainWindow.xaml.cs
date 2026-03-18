@@ -198,6 +198,9 @@ namespace SwimmingScoreboard
                     case "REGISTER_SWIMMER":
                         HandleRegisterSwimmer(msg);
                         break;
+                    case "REGISTER_SWIMMER_BATCH":
+                        HandleRegisterSwimmerBatch(socket, msg);
+                        break;
                     case "REGISTER_RELAY":
                         HandleRegisterRelay(msg);
                         break;
@@ -252,6 +255,72 @@ namespace SwimmingScoreboard
             AddLog(string.Format("远程注册运动员: {0}({1}) {2}", swimmer.Name, bibNumber, swimmer.EventName));
             AutoSaveData();
             Broadcast();
+        }
+
+        private void HandleRegisterSwimmerBatch(IWebSocketConnection socket, JObject msg) {
+            var data = msg["data"];
+            if (data == null) return;
+            var swimmerData = data["swimmer"];
+            var eventsArr = data["events"] as JArray;
+            bool isResubmit = data["isResubmit"] != null && (bool)data["isResubmit"];
+
+            if (swimmerData == null || eventsArr == null || eventsArr.Count == 0) {
+                SendRegisterResult(socket, false, "数据不完整", "");
+                return;
+            }
+
+            string name = swimmerData["name"] != null ? swimmerData["name"].ToString() : "";
+            string gender = swimmerData["gender"] != null ? swimmerData["gender"].ToString() : "男";
+            string bibNumber = swimmerData["bibNumber"] != null ? swimmerData["bibNumber"].ToString() : "";
+
+            // 如果是重新提交，先删除该运动员之前的所有报名记录
+            if (isResubmit && !string.IsNullOrEmpty(bibNumber)) {
+                var toRemove = _swimmers.Where(s => s.BibNumber == bibNumber).ToList();
+                foreach (var s in toRemove) _swimmers.Remove(s);
+                AddLog(string.Format("重新提交: 已清除 {0}({1}) 的 {2} 条旧记录", name, bibNumber, toRemove.Count));
+            }
+
+            // 生成参赛号
+            if (string.IsNullOrEmpty(bibNumber)) bibNumber = GenerateNextBibNumber();
+
+            int added = 0;
+            foreach (JObject ev in eventsArr) {
+                string eventName = ev["eventName"] != null ? ev["eventName"].ToString() : "";
+                string entryTime = ev["entryTime"] != null ? ev["entryTime"].ToString() : "";
+
+                var dup = FindDuplicate(name, gender, eventName, bibNumber);
+                if (dup != null && !isResubmit) continue;
+
+                var swimmer = new Swimmer {
+                    BibNumber = bibNumber,
+                    Name = name,
+                    Gender = gender,
+                    Age = swimmerData["age"] != null ? (int)swimmerData["age"] : 0,
+                    Country = swimmerData["country"] != null ? swimmerData["country"].ToString() : "",
+                    IDNumber = swimmerData["idNumber"] != null ? swimmerData["idNumber"].ToString() : "",
+                    Phone = swimmerData["phone"] != null ? swimmerData["phone"].ToString() : "",
+                    EventName = eventName,
+                    EntryTime = entryTime,
+                    BirthDate = swimmerData["birthDate"] != null ? swimmerData["birthDate"].ToString() : "",
+                    CSANumber = swimmerData["csaNumber"] != null ? swimmerData["csaNumber"].ToString() : "",
+                    Notes = swimmerData["notes"] != null ? swimmerData["notes"].ToString() : ""
+                };
+                swimmer.EntryTimeSeconds = TimeFormatter.Parse(swimmer.EntryTime);
+                _swimmers.Add(swimmer);
+                added++;
+            }
+
+            AddLog(string.Format("批量注册: {0}({1}) {2}个项目", name, bibNumber, added));
+            AutoSaveData();
+            Broadcast();
+            SendRegisterResult(socket, true, "", bibNumber);
+        }
+
+        private void SendRegisterResult(IWebSocketConnection socket, bool success, string message, string bibNumber) {
+            try {
+                var result = new { type = "REGISTER_RESULT", data = new { success = success, message = message, bibNumber = bibNumber } };
+                socket.Send(JsonConvert.SerializeObject(result));
+            } catch { }
         }
 
         private void HandleRegisterRelay(JObject msg) {
