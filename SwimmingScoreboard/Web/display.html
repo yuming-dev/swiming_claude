@@ -15,7 +15,7 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 
 .page-header {
     height: 11vh; display: flex; align-items: center; justify-content: center;
-    border-bottom: 3px solid var(--accent); padding: 0 3vw;
+    padding: 0 3vw;
     background: linear-gradient(135deg, #1e293b, #0f172a);
 }
 .page-header .title { font-size: 3.5vh; font-weight: bold; }
@@ -23,7 +23,8 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 
 /* 比赛视图 */
 .race-view { height: 89vh; padding: 1vh 2vw; display: flex; flex-direction: column; }
-.race-info { display: flex; justify-content: space-between; align-items: center; height: 6vh; margin-bottom: 0.5vh; }
+.race-info { display: flex; justify-content: space-between; align-items: center; height: 6vh; margin-bottom: 0.5vh; border-bottom: 3px solid var(--accent); padding-bottom: 0.5vh; }
+.lanes-header { display: flex; align-items: center; padding: 0 1.5vw; height: 3.5vh; color: var(--dim); font-size: 2vh; }
 .race-info .event-name { font-size: 2.8vh; font-weight: bold; }
 .race-info .running-time { font-size: 5vh; font-weight: bold; color: var(--gold); font-family: 'Consolas', monospace; }
 .race-info .stage-heat { font-size: 2vh; color: var(--dim); }
@@ -39,7 +40,6 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 .lane-row .lane-num { width: 3vw; font-size: 2.5vh; font-weight: bold; color: var(--dim); text-align: center; }
 .lane-row .swimmer-name { width: 10vw; font-size: 2.9vh; font-weight: bold; white-space: nowrap; overflow: hidden; }
 .lane-row .swimmer-team { width: 8vw; font-size: 2.9vh; color: var(--dim); white-space: nowrap; overflow: hidden; }
-.lane-row .entry-time { width: 7vw; font-size: 2.9vh; color: var(--dim); text-align: center; }
 .lane-row .split-time { width: 7vw; font-size: 2.9vh; color: var(--accent); text-align: center; }
 .lane-row .final-time { width: 8vw; font-size: 2.9vh; font-weight: bold; text-align: center; font-family: 'Consolas', monospace; }
 .lane-row .rank { width: 4vw; font-size: 2.9vh; font-weight: bold; text-align: center; }
@@ -88,6 +88,14 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
         <span class="event-name" id="eventName">-</span>
         <span class="running-time" id="runningTime">0.0</span>
         <span class="stage-heat" id="stageHeat">-</span>
+    </div>
+    <div class="lanes-header">
+        <div style="width:3vw;text-align:center;">道次</div>
+        <div style="width:10vw;">姓名</div>
+        <div style="width:8vw;">代表队</div>
+        <div style="width:7vw;text-align:center;">分段</div>
+        <div style="width:8vw;text-align:center;">成绩</div>
+        <div style="width:4vw;text-align:center;">名次</div>
     </div>
     <div class="lanes-container" id="lanesContainer"></div>
 </div>
@@ -172,7 +180,6 @@ function renderRace() {
             '<div class="lane-num">' + sw.lane + '</div>' +
             '<div class="swimmer-name">' + (sw.name||'') + '</div>' +
             '<div class="swimmer-team">' + (sw.country||'') + '</div>' +
-            '<div class="entry-time">' + (sw.entryTime||'') + '</div>' +
             '<div class="split-time">' + (sw.splits && sw.splits.length > 0 ? sw.splits[sw.splits.length-1].time : '') + '</div>' +
             '<div class="final-time">' + (sw.finalTime || (sw.status||'')) + '</div>' +
             '<div class="rank ' + rankClass + '">' + (sw.rank > 0 ? sw.rank : '') + '</div>' +
