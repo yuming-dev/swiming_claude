@@ -225,17 +225,22 @@ namespace SwimmingScoreboard
         private void HandleRegisterSwimmer(JObject msg) {
             var data = msg["data"];
             if (data == null) return;
+            string bibNumber = data["bibNumber"] != null ? data["bibNumber"].ToString() : "";
+            if (string.IsNullOrEmpty(bibNumber)) bibNumber = GenerateNextBibNumber();
             var swimmer = new Swimmer {
                 Name = data["name"] != null ? data["name"].ToString() : "",
-                BibNumber = data["bibNumber"] != null ? data["bibNumber"].ToString() : "",
+                BibNumber = bibNumber,
                 Gender = data["gender"] != null ? data["gender"].ToString() : "男",
                 Age = data["age"] != null ? (int)data["age"] : 0,
                 Country = data["country"] != null ? data["country"].ToString() : "",
+                IDNumber = data["idNumber"] != null ? data["idNumber"].ToString() : "",
+                Phone = data["phone"] != null ? data["phone"].ToString() : "",
                 EventName = data["eventName"] != null ? data["eventName"].ToString() : "",
                 EntryTime = data["entryTime"] != null ? data["entryTime"].ToString() : "",
                 BirthDate = data["birthDate"] != null ? data["birthDate"].ToString() : "",
                 CSANumber = data["csaNumber"] != null ? data["csaNumber"].ToString() : "",
-                FINANumber = data["finaNumber"] != null ? data["finaNumber"].ToString() : ""
+                FINANumber = data["finaNumber"] != null ? data["finaNumber"].ToString() : "",
+                Notes = data["notes"] != null ? data["notes"].ToString() : ""
             };
             swimmer.EntryTimeSeconds = TimeFormatter.Parse(swimmer.EntryTime);
             var dup = FindDuplicate(swimmer.Name, swimmer.Gender, swimmer.EventName, swimmer.BibNumber);
@@ -244,7 +249,7 @@ namespace SwimmingScoreboard
                 return;
             }
             _swimmers.Add(swimmer);
-            AddLog(string.Format("远程注册运动员: {0} ({1})", swimmer.Name, swimmer.EventName));
+            AddLog(string.Format("远程注册运动员: {0}({1}) {2}", swimmer.Name, bibNumber, swimmer.EventName));
             AutoSaveData();
             Broadcast();
         }
@@ -259,8 +264,19 @@ namespace SwimmingScoreboard
                 EntryTime = data["entryTime"] != null ? data["entryTime"].ToString() : ""
             };
             team.EntryTimeSeconds = TimeFormatter.Parse(team.EntryTime);
+            // 棒次安排
+            var legs = data["legs"] as JArray;
+            if (legs != null) {
+                foreach (JObject leg in legs) {
+                    team.Legs.Add(new RelayLeg {
+                        LegOrder = leg["legOrder"] != null ? (int)leg["legOrder"] : 0,
+                        SwimmerName = leg["swimmerName"] != null ? leg["swimmerName"].ToString() : "",
+                        SwimmerBibNumber = leg["swimmerBibNumber"] != null ? leg["swimmerBibNumber"].ToString() : ""
+                    });
+                }
+            }
             _relayTeams.Add(team);
-            AddLog(string.Format("远程注册接力队: {0} ({1})", team.TeamName, team.EventName));
+            AddLog(string.Format("远程注册接力队: {0} ({1}) {2}人", team.TeamName, team.EventName, team.Legs.Count));
             AutoSaveData();
             Broadcast();
         }
