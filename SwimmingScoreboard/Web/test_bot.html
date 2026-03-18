@@ -134,10 +134,12 @@ function simStart() { sendCmd('START_RACE'); log('发送: 发令'); }
 function simTouchpad() {
     // 读取服务器当前滚动计时器时间
     var runTimeStr = (data && data.runningTime) ? data.runningTime : '0.0';
-    // 解析时间字符串为秒数 (格式: "S.t" 或 "M:SS.t")
+    // 解析时间字符串为秒数 (格式: "H:MM:SS.t")
     var currentTime = 0;
     var parts = runTimeStr.split(':');
-    if (parts.length === 2) {
+    if (parts.length === 3) {
+        currentTime = parseFloat(parts[0]) * 3600 + parseFloat(parts[1]) * 60 + parseFloat(parts[2]);
+    } else if (parts.length === 2) {
         currentTime = parseFloat(parts[0]) * 60 + parseFloat(parts[1]);
     } else {
         currentTime = parseFloat(parts[0]) || 0;

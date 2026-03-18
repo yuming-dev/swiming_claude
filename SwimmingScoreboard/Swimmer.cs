@@ -993,6 +993,9 @@ namespace SwimmingScoreboard
         /// 规则：前导零消隐，小数部分始终保留两位
         /// 如：52.34, 1:05.30, 2:21.24, 0.24
         /// </summary>
+        /// <summary>
+        /// 格式化为 H:MM:SS.cc 格式（如 0:00:23.45, 0:01:23.45, 1:02:03.45）
+        /// </summary>
         public static string Format(double seconds) {
             if (seconds <= 0) return "";
             bool negative = seconds < 0;
@@ -1005,19 +1008,12 @@ namespace SwimmingScoreboard
             int mins = (totalSecs / 60) % 60;
             int hours = totalSecs / 3600;
 
-            string result;
-            if (hours > 0) {
-                result = string.Format("{0}:{1:D2}:{2:D2}.{3:D2}", hours, mins, secs, centis);
-            } else if (mins > 0) {
-                result = string.Format("{0}:{1:D2}.{2:D2}", mins, secs, centis);
-            } else {
-                result = string.Format("{0}.{1:D2}", secs, centis);
-            }
+            string result = string.Format("{0}:{1:D2}:{2:D2}.{3:D2}", hours, mins, secs, centis);
             return negative ? "-" + result : result;
         }
 
         /// <summary>
-        /// 格式化为滚动时间显示（精度0.1秒）：MM:SS.t
+        /// 格式化为滚动时间显示（精度0.1秒）：H:MM:SS.t
         /// </summary>
         public static string FormatRunning(double seconds) {
             if (seconds < 0) seconds = 0;
@@ -1025,12 +1021,10 @@ namespace SwimmingScoreboard
             int tenths = totalTenths % 10;
             int totalSecs = totalTenths / 10;
             int secs = totalSecs % 60;
-            int mins = totalSecs / 60;
+            int mins = (totalSecs / 60) % 60;
+            int hours = totalSecs / 3600;
 
-            if (mins > 0) {
-                return string.Format("{0}:{1:D2}.{2}", mins, secs, tenths);
-            }
-            return string.Format("{0}.{1}", secs, tenths);
+            return string.Format("{0}:{1:D2}:{2:D2}.{3}", hours, mins, secs, tenths);
         }
 
         /// <summary>
