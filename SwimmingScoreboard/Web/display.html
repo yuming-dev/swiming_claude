@@ -40,13 +40,12 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 .lane-row .lane-num { width: 3vw; font-size: 2.5vh; font-weight: bold; color: var(--dim); text-align: center; }
 .lane-row .swimmer-name { width: 10vw; font-size: 2.9vh; font-weight: bold; white-space: nowrap; overflow: hidden; }
 .lane-row .swimmer-team { width: 8vw; font-size: 2.9vh; color: var(--dim); white-space: nowrap; overflow: hidden; }
-.lane-row .split-time { width: 7vw; font-size: 2.9vh; color: var(--accent); text-align: center; }
-.lane-row .final-time { width: 8vw; font-size: 2.9vh; font-weight: bold; text-align: center; font-family: 'Consolas', monospace; }
+.lane-row .result-time { width: 10vw; font-size: 2.9vh; font-weight: bold; text-align: center; font-family: 'Consolas', monospace; }
 .lane-row .rank { width: 4vw; font-size: 2.9vh; font-weight: bold; text-align: center; }
 .lane-row .rank.gold { color: var(--gold); }
 .lane-row .rank.silver { color: #c0c0c0; }
 .lane-row .rank.bronze { color: #cd7f32; }
-.lane-row .status { width: 4vw; font-size: 2.9vh; color: var(--red); text-align: center; }
+.lane-row .remark { width: 6vw; font-size: 2.9vh; color: var(--red); text-align: center; }
 
 /* 列表视图 */
 .list-container { height: 89vh; padding: 2vh 3vw; }
@@ -93,9 +92,9 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
         <div style="width:3vw;text-align:center;">道次</div>
         <div style="width:10vw;">姓名</div>
         <div style="width:8vw;">代表队</div>
-        <div style="width:7vw;text-align:center;">分段</div>
-        <div style="width:8vw;text-align:center;">成绩</div>
+        <div style="width:10vw;text-align:center;">成绩</div>
         <div style="width:4vw;text-align:center;">名次</div>
+        <div style="width:6vw;text-align:center;">备注</div>
     </div>
     <div class="lanes-container" id="lanesContainer"></div>
 </div>
@@ -176,14 +175,30 @@ function renderRace() {
         else if (sw.rank === 2) rankClass = 'silver';
         else if (sw.rank === 3) rankClass = 'bronze';
 
+        // 成绩栏：优先显示最终成绩，其次分段成绩，再次反应时间
+        var resultText = '';
+        if (sw.finalTime) {
+            resultText = sw.finalTime;
+        } else if (sw.splits && sw.splits.length > 0) {
+            resultText = sw.splits[sw.splits.length - 1].time;
+        } else if (sw.reactionTime) {
+            resultText = sw.reactionTime;
+        }
+
+        // 备注栏：犯规/抢跳/DNS/DNF/DSQ等
+        var remarkText = '';
+        if (sw.status === 'DSQ') remarkText = '犯规';
+        else if (sw.status === 'DNS') remarkText = '未出发';
+        else if (sw.status === 'DNF') remarkText = '未完赛';
+        else if (sw.isFalseStart) remarkText = '抢跳';
+
         row.innerHTML =
             '<div class="lane-num">' + sw.lane + '</div>' +
             '<div class="swimmer-name">' + (sw.name||'') + '</div>' +
             '<div class="swimmer-team">' + (sw.country||'') + '</div>' +
-            '<div class="split-time">' + (sw.splits && sw.splits.length > 0 ? sw.splits[sw.splits.length-1].time : '') + '</div>' +
-            '<div class="final-time">' + (sw.finalTime || (sw.status||'')) + '</div>' +
+            '<div class="result-time">' + resultText + '</div>' +
             '<div class="rank ' + rankClass + '">' + (sw.rank > 0 ? sw.rank : '') + '</div>' +
-            '<div class="status">' + (sw.isFalseStart ? 'FS' : '') + '</div>';
+            '<div class="remark">' + remarkText + '</div>';
         container.appendChild(row);
     }
 }
