@@ -40,15 +40,15 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 .lane-row.finished { border-left: 4px solid var(--green); }
 .lane-row.dns { opacity: 0.4; }
 .lane-row.dsq { border-left: 4px solid var(--red); }
-.lane-row .lane-num { width: 3vw; font-size: 2.5vh; font-weight: bold; color: var(--dim); text-align: center; }
-.lane-row .swimmer-name { width: 10vw; font-size: 2.9vh; font-weight: bold; white-space: nowrap; overflow: hidden; }
-.lane-row .swimmer-team { width: 8vw; font-size: 2.9vh; color: var(--dim); white-space: nowrap; overflow: hidden; }
-.lane-row .result-time { width: 10vw; font-size: 2.9vh; font-weight: bold; text-align: center; font-family: 'Consolas', monospace; }
-.lane-row .rank { width: 4vw; font-size: 2.9vh; font-weight: bold; text-align: center; }
+.lane-row .lane-num { width: 5vw; font-size: 2.5vh; font-weight: bold; color: var(--dim); text-align: center; margin-right: 1vw; }
+.lane-row .swimmer-name { width: 14vw; font-size: 2.9vh; font-weight: bold; white-space: nowrap; overflow: hidden; margin-right: 1.5vw; }
+.lane-row .swimmer-team { width: 12vw; font-size: 2.9vh; color: var(--dim); white-space: nowrap; overflow: hidden; margin-right: 1.5vw; }
+.lane-row .result-time { width: 14vw; font-size: 2.9vh; font-weight: bold; text-align: center; font-family: 'Consolas', monospace; margin-right: 1.5vw; }
+.lane-row .rank { width: 5vw; font-size: 2.9vh; font-weight: bold; text-align: center; margin-right: 1vw; }
 .lane-row .rank.gold { color: var(--gold); }
 .lane-row .rank.silver { color: #c0c0c0; }
 .lane-row .rank.bronze { color: #cd7f32; }
-.lane-row .remark { width: 6vw; font-size: 2.9vh; color: var(--red); text-align: center; }
+.lane-row .remark { width: 8vw; font-size: 2.9vh; color: var(--red); text-align: center; }
 
 /* 列表视图 */
 .list-container { height: 89vh; padding: 2vh 3vw; }
@@ -97,12 +97,12 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
         <div class="running-time" id="runningTime">0.0</div>
     </div>
     <div class="lanes-header">
-        <div style="width:3vw;text-align:center;">道次</div>
-        <div style="width:10vw;">姓名</div>
-        <div style="width:8vw;">代表队</div>
-        <div style="width:10vw;text-align:center;">成绩</div>
-        <div style="width:4vw;text-align:center;">名次</div>
-        <div style="width:6vw;text-align:center;">备注</div>
+        <div style="width:5vw;text-align:center;margin-right:1vw;">道次</div>
+        <div style="width:14vw;margin-right:1.5vw;">姓名</div>
+        <div style="width:12vw;margin-right:1.5vw;">代表队</div>
+        <div style="width:14vw;text-align:center;margin-right:1.5vw;">成绩</div>
+        <div style="width:5vw;text-align:center;margin-right:1vw;">名次</div>
+        <div style="width:8vw;text-align:center;">备注</div>
     </div>
     <div class="lanes-container" id="lanesContainer"></div>
 </div>
