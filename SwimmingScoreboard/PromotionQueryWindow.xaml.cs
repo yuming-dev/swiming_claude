@@ -24,13 +24,20 @@ namespace SwimmingScoreboard
 
         private void Event_Changed(object sender, SelectionChangedEventArgs e) { }
 
+        private string GetSelectedGender() {
+            return GenderCombo.SelectedItem != null ? ((ComboBoxItem)GenderCombo.SelectedItem).Content.ToString() : "男";
+        }
+
         private void Query_Click(object sender, RoutedEventArgs e) {
+            string gender = GetSelectedGender();
             string eventName = EventCombo.SelectedItem != null ? EventCombo.SelectedItem.ToString() : "";
             string fromStage = ((ComboBoxItem)FromStageCombo.SelectedItem).Content.ToString();
             int count;
             if (!int.TryParse(CountBox.Text.Trim(), out count)) count = 8;
 
-            _promoted = HeatScheduler.GetPromotedSwimmers(_swimmers.ToList(), eventName, fromStage, count);
+            // 按性别和项目筛选
+            var filtered = _swimmers.Where(s => s.Gender == gender && s.EventName == eventName).ToList();
+            _promoted = HeatScheduler.GetPromotedSwimmers(filtered, eventName, fromStage, count);
 
             var displayData = new List<object>();
             int rank = 1;
@@ -57,7 +64,6 @@ namespace SwimmingScoreboard
                 sw.Lane = 0;
             }
 
-            // 重新分组
             string eventName = EventCombo.SelectedItem != null ? EventCombo.SelectedItem.ToString() : "";
             HeatScheduler.GenerateHeats(_promoted, _poolConfig, eventName, toStage);
 

@@ -11,7 +11,12 @@
         </Grid.RowDefinitions>
 
         <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,12">
-            <TextBlock Text="项目:" VerticalAlignment="Center" Margin="0,0,4,0"/>
+            <TextBlock Text="性别:" VerticalAlignment="Center" Margin="0,0,4,0"/>
+            <ComboBox x:Name="GenderCombo" Width="60">
+                <ComboBoxItem Content="男" IsSelected="True"/>
+                <ComboBoxItem Content="女"/>
+            </ComboBox>
+            <TextBlock Text=" 项目:" VerticalAlignment="Center" Margin="8,0,4,0"/>
             <ComboBox x:Name="EventCombo" Width="200" SelectionChanged="Event_Changed"/>
             <TextBlock Text=" 从:" VerticalAlignment="Center" Margin="8,0,4,0"/>
             <ComboBox x:Name="FromStageCombo" Width="80">
