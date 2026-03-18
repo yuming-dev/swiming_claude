@@ -201,7 +201,7 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
         <button class="action-btn btn-all-open" onclick="sendCmd('OPEN_ALL_LANES')">全部打开</button>
         <button class="action-btn btn-all-close" onclick="sendCmd('CLOSE_ALL_LANES')">全部关闭</button>
         <hr style="border-color:#334155;margin:10px 0;">
-        <button class="action-btn btn-confirm" onclick="sendCmd('CONFIRM_RESULT')">确认本组成绩</button>
+        <button class="action-btn btn-confirm" onclick="confirmResult()">确认本组成绩</button>
         <h3 style="margin-top:12px;">计时源对比</h3>
         <div id="timingSourceCompare" style="font-size:12px;color:var(--dim);"></div>
     </div>
@@ -297,6 +297,14 @@ function openSettings() {
 
 function closeSettings() {
     document.getElementById('settingsModal').classList.add('hidden');
+}
+
+function confirmResult() {
+    var info = (data.currentGender||'') + '子 ' + (data.currentEvent||'') + ' ' + (data.currentStage||'') + ' 第' + (data.currentHeat||'') + '组';
+    if (confirm('确认本组成绩？\n\n' + info + '\n\n确认后成绩将锁定保存。')) {
+        sendCmd('CONFIRM_RESULT');
+        addLog('已确认本组成绩');
+    }
 }
 
 function confirmTimerReset() {
@@ -600,7 +608,7 @@ document.addEventListener('keydown', function(e) {
         case 'F5': e.preventDefault(); sendCmd('READY'); break;
         case 'F6': e.preventDefault(); sendCmd('START_RACE'); break;
         case 'F7': e.preventDefault(); confirmTimerReset(); break;
-        case 'Enter': sendCmd('CONFIRM_RESULT'); break;
+        case 'Enter': confirmResult(); break;
     }
     if (e.shiftKey && e.key >= '0' && e.key <= '9') {
         sendCmd('MANUAL_TOUCH_LEFT', {lane: e.key === '0' ? 10 : parseInt(e.key)});
