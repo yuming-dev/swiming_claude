@@ -251,7 +251,9 @@ function render() {
     var state = (data.raceState || 'WAITING').toLowerCase();
     document.getElementById('stateDot').className = 'state-dot ' + state;
     var labels = {waiting:'等待', ready:'就位', racing:'比赛中', finished:'已完赛'};
-    document.getElementById('stateLabel').textContent = labels[state] || state;
+    var stateText = labels[state] || state;
+    if (data.resultConfirmed) stateText = '已确认 — 请选择下一组';
+    document.getElementById('stateLabel').textContent = stateText;
     document.getElementById('runTime').textContent = data.runningTime || '0.0';
 
     var ro = data.scoringControlMode === 'remote_exe';

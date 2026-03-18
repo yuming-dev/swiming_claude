@@ -71,6 +71,7 @@ namespace SwimmingScoreboard
         private DispatcherTimer _raceTimer;
         private DispatcherTimer _countdownTimer;
         private bool _initialized = false;
+        private bool _resultConfirmed = false;
 
         // ═══════════════════════════════════════════════════════════════
         // 构造函数与初始化
@@ -573,6 +574,7 @@ namespace SwimmingScoreboard
                     startPosition = _laneCloseSettings.StartPosition
                 },
                 scoringControlMode = _scoringControlMode,
+                resultConfirmed = _resultConfirmed,
                 schedule = _schedule.Select(s => new {
                     session = s.SessionNumber, sessionName = s.SessionName,
                     date = s.Date, time = s.Time,
@@ -1008,6 +1010,7 @@ namespace SwimmingScoreboard
         }
 
         private void Restart_Click(object sender, RoutedEventArgs e) {
+            // 计时复位：重置计时器和泳道设备状态
             _raceState = RaceState.Waiting;
             _raceTimer.Stop();
             _countdownTimer.Stop();
@@ -1020,27 +1023,32 @@ namespace SwimmingScoreboard
                 state.ResetForNewRace(_laneCloseSettings.StartPosition);
             }
 
-            // 清除当前组的成绩数据
-            var currentSwimmers = GetCurrentHeatSwimmers();
-            foreach (var sw in currentSwimmers) {
-                var result = sw.Results.FirstOrDefault(r => r.Stage == _currentStage && r.Heat == _currentHeat);
-                if (result != null) sw.Results.Remove(result);
-                sw.Status = "";
+            if (_resultConfirmed) {
+                // 成绩已确认，不清除数据，只复位计时器和设备
+                AddLog("计时复位 — 成绩已确认，数据保留");
+            } else {
+                // 成绩未确认，清除当前组的成绩数据
+                var currentSwimmers = GetCurrentHeatSwimmers();
+                foreach (var sw in currentSwimmers) {
+                    var result = sw.Results.FirstOrDefault(r => r.Stage == _currentStage && r.Heat == _currentHeat);
+                    if (result != null) sw.Results.Remove(result);
+                    sw.Status = "";
+                }
+                AddLog("计时复位 — 本组数据已清除");
             }
-
-            AddLog("计时复位 — 本组数据已清除");
             Broadcast();
         }
 
         private void ConfirmResult_Click(object sender, RoutedEventArgs e) {
             _countdownTimer.Stop();
             _raceState = RaceState.Finished;
+            _resultConfirmed = true;
             UpdateHeatRanking();
             AutoSaveData();
             UpdateLaneStatusDisplay();
             UpdateRaceStateDisplay();
 
-            AddLog(string.Format("已确认本组成绩: {0} {1} {2} 第{3}组", _currentGender, _currentEvent, _currentStage, _currentHeat));
+            AddLog(string.Format("★ 已确认本组成绩: {0}子 {1} {2} 第{3}组 — 请选择下一组比赛", _currentGender, _currentEvent, _currentStage, _currentHeat));
             Broadcast();
         }
 
@@ -1091,6 +1099,7 @@ namespace SwimmingScoreboard
             _currentHeat = heat;
             CurrentHeatText.Text = string.Format("第{0}组 / 共{1}组", heat, _totalHeats);
             _raceState = RaceState.Waiting;
+            _resultConfirmed = false;
             // 切换组次 = 复位计时器
             _runningTime = 0;
             _raceStartTime = DateTime.MinValue;
