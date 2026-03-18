@@ -1033,11 +1033,6 @@ namespace SwimmingScoreboard
         }
 
         private void ConfirmResult_Click(object sender, RoutedEventArgs e) {
-            if (_raceState != RaceState.Racing && _raceState != RaceState.Finished) {
-                AddLog("当前没有进行中或已完赛的比赛，无法确认成绩");
-                return;
-            }
-
             _countdownTimer.Stop();
             _raceState = RaceState.Finished;
             UpdateHeatRanking();
