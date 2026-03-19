@@ -56,18 +56,15 @@ namespace SwimmingScoreboard
 
         private void Execute_Click(object sender, RoutedEventArgs e) {
             if (_promoted.Count == 0) { MessageBox.Show("请先查询晋级名单"); return; }
+            string fromStage = ((ComboBoxItem)FromStageCombo.SelectedItem).Content.ToString();
             string toStage = ((ComboBoxItem)ToStageCombo.SelectedItem).Content.ToString();
-
-            foreach (var sw in _promoted) {
-                sw.CurrentStage = toStage;
-                sw.Heat = 0;
-                sw.Lane = 0;
-            }
-
             string eventName = EventCombo.SelectedItem != null ? EventCombo.SelectedItem.ToString() : "";
-            HeatScheduler.GenerateHeats(_promoted, _poolConfig, eventName, toStage);
 
-            MessageBox.Show(string.Format("已将{0}名运动员晋级到{1}", _promoted.Count, toStage));
+            // 使用晋级专用分组（按上一轮成绩蛇形分组）
+            var assignments = HeatScheduler.GenerateHeatsFromResults(_promoted, _poolConfig, eventName, toStage, fromStage);
+            int heatCount = assignments.Count > 0 ? assignments.Max(a => a.Heat) : 0;
+
+            MessageBox.Show(string.Format("已将{0}名运动员晋级到{1}，分为{2}组\n（按{3}成绩蛇形分组）", _promoted.Count, toStage, heatCount, fromStage));
         }
 
         private void Close_Click(object sender, RoutedEventArgs e) { Close(); }
