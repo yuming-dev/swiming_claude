@@ -1503,18 +1503,118 @@ namespace SwimmingScoreboard
             }
         }
 
-        private void SaveSwimmerEdit_Click(object sender, RoutedEventArgs e) {
-            AutoSaveData();
-            Broadcast();
-            AddLog("运动员数据修改已保存");
-            MessageBox.Show("修改已保存！", "保存成功", MessageBoxButton.OK, MessageBoxImage.Information);
+        private void EditSwimmer_Click(object sender, RoutedEventArgs e) {
+            var selected = SwimmerGrid.SelectedItem as Swimmer;
+            if (selected == null) { MessageBox.Show("请先选中要修改的运动员"); return; }
+
+            var dlg = new Window {
+                Title = string.Format("修改运动员信息 — {0}({1})", selected.Name, selected.BibNumber),
+                Width = 500, Height = 480,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                Owner = this, ResizeMode = ResizeMode.NoResize
+            };
+
+            var sp = new StackPanel { Margin = new Thickness(20) };
+            sp.Children.Add(new TextBlock { Text = string.Format("参赛号: {0}", selected.BibNumber), FontSize = 14, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 0, 0, 10) });
+
+            var grid = new Grid();
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(80) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(80) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+            string[] labels = { "姓名:", "性别:", "出生日期:", "年龄:", "身份证号:", "代表队:", "联系电话:", "项目:", "报名成绩:", "协会注册号:", "备注:" };
+            for (int i = 0; i < 6; i++) grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(32) });
+
+            // Row 0: 姓名 + 性别
+            var tbName = AddEditField(grid, 0, 0, "姓名:", selected.Name);
+            var cbGender = new ComboBox { VerticalAlignment = VerticalAlignment.Center };
+            cbGender.Items.Add("男"); cbGender.Items.Add("女");
+            cbGender.SelectedItem = selected.Gender ?? "男";
+            AddEditLabel(grid, 0, 2, "性别:");
+            Grid.SetRow(cbGender, 0); Grid.SetColumn(cbGender, 3);
+            grid.Children.Add(cbGender);
+
+            // Row 1: 出生日期 + 年龄
+            var tbBirth = AddEditField(grid, 1, 0, "出生日期:", selected.BirthDate);
+            var tbAge = AddEditField(grid, 1, 2, "年龄:", selected.Age.ToString());
+
+            // Row 2: 身份证号 + 代表队
+            var tbID = AddEditField(grid, 2, 0, "身份证号:", selected.IDNumber);
+            var tbCountry = AddEditField(grid, 2, 2, "代表队:", selected.Country);
+
+            // Row 3: 电话 + 协会注册号
+            var tbPhone = AddEditField(grid, 3, 0, "联系电话:", selected.Phone);
+            var tbCSA = AddEditField(grid, 3, 2, "协会注册号:", selected.CSANumber);
+
+            // Row 4: 项目 + 报名成绩
+            var tbEvent = AddEditField(grid, 4, 0, "项目:", selected.EventName);
+            var tbEntry = AddEditField(grid, 4, 2, "报名成绩:", selected.EntryTime);
+
+            // Row 5: 备注
+            var tbNotes = AddEditField(grid, 5, 0, "备注:", selected.Notes);
+
+            sp.Children.Add(grid);
+
+            // 按钮
+            var btnPanel = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 16, 0, 0) };
+            var btnCancel = new Button { Content = "取消", Padding = new Thickness(20, 6, 20, 6), Margin = new Thickness(0, 0, 8, 0) };
+            btnCancel.Click += delegate { dlg.DialogResult = false; };
+            var btnOk = new Button { Content = "确认修改", Padding = new Thickness(20, 6, 20, 6), Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#22C55E")), Foreground = Brushes.White, FontWeight = FontWeights.Bold, BorderThickness = new Thickness(0) };
+            btnOk.Click += delegate { dlg.DialogResult = true; };
+            btnPanel.Children.Add(btnCancel);
+            btnPanel.Children.Add(btnOk);
+            sp.Children.Add(btnPanel);
+
+            dlg.Content = sp;
+
+            if (dlg.ShowDialog() == true) {
+                selected.Name = tbName.Text.Trim();
+                selected.Gender = cbGender.SelectedItem.ToString();
+                selected.BirthDate = tbBirth.Text.Trim();
+                int age; if (int.TryParse(tbAge.Text.Trim(), out age)) selected.Age = age;
+                selected.IDNumber = tbID.Text.Trim();
+                selected.Country = tbCountry.Text.Trim();
+                selected.Phone = tbPhone.Text.Trim();
+                selected.CSANumber = tbCSA.Text.Trim();
+                selected.EventName = tbEvent.Text.Trim();
+                selected.EntryTime = tbEntry.Text.Trim();
+                selected.EntryTimeSeconds = TimeFormatter.Parse(selected.EntryTime);
+                selected.Notes = tbNotes.Text.Trim();
+
+                // 同步修改同一参赛号的其他项目记录的个人信息
+                foreach (var s in _swimmers) {
+                    if (s != selected && s.BibNumber == selected.BibNumber) {
+                        s.Name = selected.Name;
+                        s.Gender = selected.Gender;
+                        s.BirthDate = selected.BirthDate;
+                        s.Age = selected.Age;
+                        s.IDNumber = selected.IDNumber;
+                        s.Country = selected.Country;
+                        s.Phone = selected.Phone;
+                        s.CSANumber = selected.CSANumber;
+                    }
+                }
+
+                SwimmerGrid.Items.Refresh();
+                AutoSaveData();
+                Broadcast();
+                AddLog(string.Format("已修改运动员: {0}({1}) {2}", selected.Name, selected.BibNumber, selected.EventName));
+            }
         }
 
-        private void SwimmerGrid_CellEditEnding(object sender, DataGridCellEditEndingEventArgs e) {
-            // 单元格编辑结束后延迟保存（等DataGrid提交值）
-            Dispatcher.BeginInvoke((Action)delegate() {
-                AutoSaveData();
-            }, System.Windows.Threading.DispatcherPriority.Background);
+        private TextBox AddEditField(Grid grid, int row, int col, string label, string value) {
+            AddEditLabel(grid, row, col, label);
+            var tb = new TextBox { Text = value ?? "", Padding = new Thickness(4), VerticalAlignment = VerticalAlignment.Center };
+            Grid.SetRow(tb, row); Grid.SetColumn(tb, col + 1);
+            grid.Children.Add(tb);
+            return tb;
+        }
+
+        private void AddEditLabel(Grid grid, int row, int col, string text) {
+            var lbl = new TextBlock { Text = text, VerticalAlignment = VerticalAlignment.Center };
+            Grid.SetRow(lbl, row); Grid.SetColumn(lbl, col);
+            grid.Children.Add(lbl);
         }
 
         private void ImportCSV_Click(object sender, RoutedEventArgs e) {
