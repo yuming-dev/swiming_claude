@@ -215,10 +215,11 @@
                                         <ComboBoxItem Content="全部" IsSelected="True"/>
                                     </ComboBox>
                                     <TextBlock Text=" 性别:" VerticalAlignment="Center"/>
-                                    <ComboBox x:Name="FilterGenderCombo" Width="60" Margin="4,0" SelectionChanged="FilterGender_Changed">
+                                    <ComboBox x:Name="FilterGenderCombo" Width="70" Margin="4,0" SelectionChanged="FilterGender_Changed">
                                         <ComboBoxItem Content="全部" IsSelected="True"/>
                                         <ComboBoxItem Content="男"/>
                                         <ComboBoxItem Content="女"/>
+                                        <ComboBoxItem Content="混合"/>
                                     </ComboBox>
                                 </StackPanel>
                                 <DataGrid x:Name="SwimmerGrid" AutoGenerateColumns="False" CanUserAddRows="False"
@@ -314,7 +315,7 @@
                                     <TextBox x:Name="RegNameBox" Grid.Row="0" Grid.Column="1" Padding="3"/>
                                     <TextBlock Grid.Row="1" Text="性别:" VerticalAlignment="Center"/>
                                     <ComboBox x:Name="RegGenderCombo" Grid.Row="1" Grid.Column="1" SelectedIndex="0">
-                                        <ComboBoxItem Content="男"/><ComboBoxItem Content="女"/>
+                                        <ComboBoxItem Content="男"/><ComboBoxItem Content="女"/><ComboBoxItem Content="混合"/>
                                     </ComboBox>
                                     <TextBlock Grid.Row="2" Text="出生日期:" VerticalAlignment="Center"/>
                                     <DatePicker x:Name="RegBirthDatePicker" Grid.Row="2" Grid.Column="1"/>
@@ -473,10 +474,11 @@
                     </Grid.RowDefinitions>
                     <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8">
                         <TextBlock Text="性别:" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                        <ComboBox x:Name="ResultGenderCombo" Width="60" SelectionChanged="ResultGender_Changed">
+                        <ComboBox x:Name="ResultGenderCombo" Width="70" SelectionChanged="ResultGender_Changed">
                             <ComboBoxItem Content="全部" IsSelected="True"/>
                             <ComboBoxItem Content="男"/>
                             <ComboBoxItem Content="女"/>
+                            <ComboBoxItem Content="混合"/>
                         </ComboBox>
                         <TextBlock Text=" 项目:" VerticalAlignment="Center" Margin="8,0,4,0"/>
                         <ComboBox x:Name="ResultEventCombo" Width="200" SelectionChanged="ResultEvent_Changed"/>

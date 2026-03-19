@@ -1529,7 +1529,7 @@ namespace SwimmingScoreboard
             // Row 0: 姓名 + 性别
             var tbName = AddEditField(grid, 0, 0, "姓名:", selected.Name);
             var cbGender = new ComboBox { VerticalAlignment = VerticalAlignment.Center };
-            cbGender.Items.Add("男"); cbGender.Items.Add("女");
+            cbGender.Items.Add("男"); cbGender.Items.Add("女"); cbGender.Items.Add("混合");
             cbGender.SelectedItem = selected.Gender ?? "男";
             AddEditLabel(grid, 0, 2, "性别:");
             Grid.SetRow(cbGender, 0); Grid.SetColumn(cbGender, 3);

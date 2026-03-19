@@ -47,7 +47,7 @@
                             <TextBox x:Name="NameBox" Grid.Row="0" Grid.Column="1" Padding="4" VerticalAlignment="Center"/>
                             <TextBlock Grid.Row="0" Grid.Column="2" Text="性别:" VerticalAlignment="Center"/>
                             <ComboBox x:Name="GenderCombo" Grid.Row="0" Grid.Column="3" VerticalAlignment="Center" SelectedIndex="0">
-                                <ComboBoxItem Content="男"/><ComboBoxItem Content="女"/>
+                                <ComboBoxItem Content="男"/><ComboBoxItem Content="女"/><ComboBoxItem Content="混合"/>
                             </ComboBox>
                             <TextBlock Grid.Row="1" Grid.Column="0" Text="出生日期:" VerticalAlignment="Center"/>
                             <DatePicker x:Name="BirthDatePicker" Grid.Row="1" Grid.Column="1" VerticalAlignment="Center"/>
