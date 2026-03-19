@@ -1804,6 +1804,41 @@ namespace SwimmingScoreboard
         }
 
         private void AutoGenerateHeats_Click(object sender, RoutedEventArgs e) {
+            if (_swimmers.Count == 0) {
+                MessageBox.Show("没有已注册的运动员，请先注册运动员再生成分组。", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            // 如果赛程表为空，先根据运动员数据自动生成赛程
+            if (_schedule.Count == 0) {
+                AddLog("赛程表为空，根据已注册运动员自动生成赛程...");
+                var eventGroups = _swimmers.GroupBy(s => new { s.Gender, s.EventName })
+                    .OrderBy(g => g.Key.Gender).ThenBy(g => g.Key.EventName);
+                int sessionNum = 1;
+                foreach (var group in eventGroups) {
+                    string gender = group.Key.Gender;
+                    string eventName = group.Key.EventName;
+                    bool isRelay = eventName.Contains("接力");
+                    var stages = HeatScheduler.GetStages(group.Count());
+                    string firstStage = stages[0];
+                    // 将该项目所有运动员的阶段设为第一阶段
+                    foreach (var sw in group) sw.CurrentStage = firstStage;
+                    foreach (string stage in stages) {
+                        _schedule.Add(new ScheduleItem {
+                            SessionNumber = sessionNum,
+                            SessionName = string.Format("第{0}单元", sessionNum),
+                            Date = StartDateBox != null ? StartDateBox.Text : "",
+                            Gender = gender,
+                            EventName = eventName,
+                            Stage = stage,
+                            IsRelay = isRelay,
+                            HeatCount = 0
+                        });
+                    }
+                }
+                AddLog(string.Format("自动生成{0}条赛程", _schedule.Count));
+            }
+
             int generated = 0;
             foreach (var item in _schedule) {
                 string fullEvent = item.EventName;
@@ -1812,19 +1847,33 @@ namespace SwimmingScoreboard
 
                 var eventSwimmers = _swimmers.Where(s =>
                     s.EventName == fullEvent &&
-                    s.Gender.StartsWith(gender) &&
+                    s.Gender == gender &&
                     s.CurrentStage == stage
                 ).ToList();
+
+                // 宽松匹配：如精确匹配无结果，尝试StartsWith
+                if (eventSwimmers.Count == 0) {
+                    eventSwimmers = _swimmers.Where(s =>
+                        s.EventName == fullEvent &&
+                        (s.Gender.StartsWith(gender) || gender.StartsWith(s.Gender)) &&
+                        s.CurrentStage == stage
+                    ).ToList();
+                }
 
                 if (eventSwimmers.Count == 0) continue;
 
                 var assignments = HeatScheduler.GenerateHeats(eventSwimmers, _poolConfig, fullEvent, stage);
                 item.HeatCount = assignments.Count > 0 ? assignments.Max(a => a.Heat) : 0;
                 generated += assignments.Count;
+                AddLog(string.Format("  {0} {1} {2}: {3}人 → {4}组", gender, fullEvent, stage, eventSwimmers.Count, item.HeatCount));
             }
 
             BuildScheduleTree();
-            AddLog(string.Format("自动分组完成: {0}名运动员已分配", generated));
+            ScheduleGrid.Items.Refresh();
+            AddLog(string.Format("自动分组完成: {0}名运动员已分配到各组", generated));
+            if (generated == 0) {
+                MessageBox.Show("未分配任何运动员。\n\n请检查：\n1. 运动员的项目名称是否与赛程一致\n2. 运动员的性别是否与赛程一致\n3. 运动员的阶段是否与赛程一致", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
             AutoSaveData();
             Broadcast();
         }

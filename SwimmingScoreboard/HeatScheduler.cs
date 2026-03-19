@@ -79,21 +79,24 @@ namespace SwimmingScoreboard
                 heatCount--;
             }
 
-            // 按蛇形分配到各组（最后一组放最快的运动员）
-            // 先分配慢组，最后分配快组
+            // 分配到各组：最后一组放最快的运动员，第一组放最慢的
+            // eligible 已按快→慢排序
+            // 从最快开始，先填最后一组（满员），再填倒数第二组...第一组放剩余的（可能不满）
             List<List<Swimmer>> heats = new List<List<Swimmer>>();
             for (int h = 0; h < heatCount; h++) heats.Add(new List<Swimmer>());
 
-            // 从最慢开始分配到第1组，最快分配到最后一组
-            // 反转运动员列表（慢→快）
-            var reversed = new List<Swimmer>(eligible);
-            reversed.Reverse();
-
+            // 从最快的运动员开始，分配到最后一组
             int swimmerIdx = 0;
-            for (int h = 0; h < heatCount && swimmerIdx < reversed.Count; h++) {
-                int slotsInHeat = Math.Min(laneCount, reversed.Count - swimmerIdx);
-                for (int s = 0; s < slotsInHeat && swimmerIdx < reversed.Count; s++) {
-                    heats[h].Add(reversed[swimmerIdx++]);
+            for (int h = heatCount - 1; h >= 0 && swimmerIdx < eligible.Count; h--) {
+                int slotsInHeat;
+                if (h == 0) {
+                    // 第一组放剩余所有人（可能不满）
+                    slotsInHeat = eligible.Count - swimmerIdx;
+                } else {
+                    slotsInHeat = laneCount;
+                }
+                for (int s = 0; s < slotsInHeat && swimmerIdx < eligible.Count; s++) {
+                    heats[h].Add(eligible[swimmerIdx++]);
                 }
             }
 
@@ -162,14 +165,16 @@ namespace SwimmingScoreboard
             List<List<RelayTeam>> heats = new List<List<RelayTeam>>();
             for (int h = 0; h < heatCount; h++) heats.Add(new List<RelayTeam>());
 
-            var reversed = new List<RelayTeam>(eligible);
-            reversed.Reverse();
-
             int idx = 0;
-            for (int h = 0; h < heatCount && idx < reversed.Count; h++) {
-                int slots = Math.Min(laneCount, reversed.Count - idx);
-                for (int s = 0; s < slots && idx < reversed.Count; s++) {
-                    heats[h].Add(reversed[idx++]);
+            for (int h = heatCount - 1; h >= 0 && idx < eligible.Count; h--) {
+                int slots;
+                if (h == 0) {
+                    slots = eligible.Count - idx;
+                } else {
+                    slots = laneCount;
+                }
+                for (int s = 0; s < slots && idx < eligible.Count; s++) {
+                    heats[h].Add(eligible[idx++]);
                 }
             }
 
