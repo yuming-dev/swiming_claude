@@ -362,6 +362,7 @@ namespace SwimmingScoreboard
                 case "RESTART": Restart_Click(null, null); break;
                 case "TIMER_RESET": Restart_Click(null, null); break;
                 case "CONFIRM_RESULT": ConfirmResult_Click(null, null); break;
+                case "AUTO_GENERATE_HEATS": AutoGenerateHeats_Click(null, null); break;
                 case "NEXT_HEAT": NextHeat_Click(null, null); break;
                 case "PREV_HEAT": PrevHeat_Click(null, null); break;
                 case "SET_EVENT":

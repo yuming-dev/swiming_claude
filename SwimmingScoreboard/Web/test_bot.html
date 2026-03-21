@@ -9,20 +9,30 @@ body { font-family: 'Microsoft YaHei', monospace; background: #0f172a; color: #f
 h1 { text-align: center; margin-bottom: 16px; font-size: 18px; }
 .panel { background: #1e293b; border-radius: 8px; padding: 16px; margin-bottom: 12px; }
 .panel h2 { font-size: 14px; color: #94a3b8; margin-bottom: 8px; }
-.row { display: flex; gap: 8px; margin-bottom: 8px; align-items: center; }
+.row { display: flex; gap: 8px; margin-bottom: 8px; align-items: center; flex-wrap: wrap; }
 input, select { background: #334155; border: 1px solid #475569; color: white; padding: 6px 10px; border-radius: 4px; }
-button { padding: 8px 16px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; }
+button { padding: 8px 16px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 12px; }
 .btn-green { background: #22c55e; color: white; }
 .btn-blue { background: #3b82f6; color: white; }
 .btn-red { background: #ef4444; color: white; }
 .btn-gold { background: #f59e0b; color: #000; }
 .btn-gray { background: #64748b; color: white; }
-#log { background: #0f172a; border: 1px solid #334155; border-radius: 4px; height: 200px; overflow-y: auto; padding: 8px; font-size: 12px; color: #94a3b8; }
+.btn-purple { background: #8b5cf6; color: white; }
+#log { background: #0f172a; border: 1px solid #334155; border-radius: 4px; height: 250px; overflow-y: auto; padding: 8px; font-size: 12px; color: #94a3b8; white-space: pre-wrap; }
 label { color: #94a3b8; font-size: 12px; }
+.status-bar { background: #334155; padding: 6px 12px; border-radius: 4px; margin-bottom: 12px; display: flex; justify-content: space-between; font-size: 12px; }
+.status-bar .conn { color: #22c55e; }
+.status-bar .info { color: #f59e0b; }
 </style>
 </head>
 <body>
 <h1>自动化测试机器人</h1>
+
+<div class="status-bar">
+    <span id="connStatus" class="conn">连接中...</span>
+    <span id="raceInfo" class="info">-</span>
+    <span id="timerInfo" class="info">计时: -</span>
+</div>
 
 <div class="panel">
     <h2>1. 批量注册运动员</h2>
@@ -30,11 +40,17 @@ label { color: #94a3b8; font-size: 12px; }
         <label>数量:</label><input id="regCount" type="number" value="16" style="width:60px">
         <label>项目:</label>
         <select id="regEvent">
-            <option>100米自由泳</option><option>200米自由泳</option><option>50米蝶泳</option>
+            <option>50米自由泳</option><option>100米自由泳</option><option>200米自由泳</option>
+            <option>400米自由泳</option><option>800米自由泳</option>
+            <option>50米仰泳</option><option>100米仰泳</option><option>200米仰泳</option>
+            <option>50米蛙泳</option><option>100米蛙泳</option><option>200米蛙泳</option>
+            <option>50米蝶泳</option><option>100米蝶泳</option><option>200米蝶泳</option>
+            <option>200米个人混合泳</option><option>400米个人混合泳</option>
         </select>
         <label>性别:</label>
         <select id="regGender"><option>男</option><option>女</option><option>混合</option></select>
         <button class="btn-blue" onclick="batchRegister()">批量注册</button>
+        <button class="btn-purple" onclick="autoGenerateHeats()">自动生成分组</button>
     </div>
 </div>
 
@@ -45,27 +61,40 @@ label { color: #94a3b8; font-size: 12px; }
         <button class="btn-green" onclick="simStart()">发令</button>
         <button class="btn-blue" onclick="simStartBlock()">模拟出发(含抢跳)</button>
         <button class="btn-blue" onclick="simTouchpad()">模拟全部触板</button>
+        <button class="btn-blue" onclick="simBlindWatch()">模拟盲表</button>
         <button class="btn-gray" onclick="simConfirm()">确认成绩</button>
-    </div>
-    <div class="row">
-        <label>触板延迟范围(秒):</label>
-        <input id="minTime" type="number" value="48" style="width:60px" step="0.1">
-        <label>~</label>
-        <input id="maxTime" type="number" value="55" style="width:60px" step="0.1">
+        <button class="btn-red" onclick="simTimerReset()">计时复位</button>
     </div>
 </div>
 
 <div class="panel">
-    <h2>3. 完整自动测试</h2>
+    <h2>3. 显示模式切换</h2>
     <div class="row">
-        <button class="btn-green" onclick="fullAutoTest()">开始完整测试（注册→分组→比赛→成绩）</button>
+        <button class="btn-green" onclick="sendDisplay('SHOW_LIVE_RACE')">比赛视图</button>
+        <button class="btn-blue" onclick="sendDisplay('SHOW_START_LIST')">出发表</button>
+        <button class="btn-purple" onclick="sendDisplay('SHOW_HEAT_RESULT')">组成绩</button>
+        <button class="btn-gold" onclick="sendDisplay('SHOW_EVENT_RANKING')">总排名</button>
+        <button class="btn-blue" onclick="sendDisplay('SHOW_TEAM_STANDINGS')">团体</button>
+        <button class="btn-red" onclick="sendDisplay('SHOW_AWARDS')">颁奖</button>
+        <button class="btn-gray" onclick="sendDisplay('SHOW_WELCOME')">欢迎</button>
+    </div>
+</div>
+
+<div class="panel">
+    <h2>4. 完整自动测试</h2>
+    <div class="row">
+        <button class="btn-green" onclick="fullAutoTest()">开始完整测试</button>
         <button class="btn-red" onclick="stopAutoTest()">停止</button>
+        <label>注册→分组→就位→发令→出发→等待触板打开→触板→确认</label>
     </div>
 </div>
 
 <div class="panel">
     <h2>日志</h2>
     <div id="log"></div>
+    <div class="row" style="margin-top:8px;">
+        <button class="btn-gray" onclick="document.getElementById('log').innerHTML=''">清除日志</button>
+    </div>
 </div>
 
 <script>
@@ -74,14 +103,29 @@ var ws, data = {}, autoRunning = false;
 function connect() {
     var host = location.hostname || 'localhost';
     ws = new WebSocket('ws://' + host + ':3002');
-    ws.onopen = function() { log('已连接服务器'); };
-    ws.onclose = function() { log('断开连接'); setTimeout(connect, 3000); };
+    ws.onopen = function() {
+        document.getElementById('connStatus').textContent = '已连接';
+        log('已连接服务器');
+    };
+    ws.onclose = function() {
+        document.getElementById('connStatus').textContent = '断开，重连中...';
+        document.getElementById('connStatus').style.color = '#ef4444';
+        setTimeout(connect, 3000);
+    };
     ws.onmessage = function(e) {
         try {
             var msg = JSON.parse(e.data);
             if (msg.data) data = msg.data;
+            updateStatusBar();
         } catch(ex) {}
     };
+}
+
+function updateStatusBar() {
+    if (!data) return;
+    var info = (data.currentGender||'') + '子 ' + (data.currentEvent||'') + ' ' + (data.currentStage||'') + ' 第' + (data.currentHeat||0) + '组';
+    document.getElementById('raceInfo').textContent = info;
+    document.getElementById('timerInfo').textContent = '计时: ' + (data.runningTime || '-') + ' [' + (data.raceState || '-') + ']';
 }
 
 function send(type, payload) {
@@ -92,175 +136,259 @@ function sendCmd(cmd, cmdData) {
     if (ws && ws.readyState === 1) ws.send(JSON.stringify({type: 'TIMING_CMD', command: cmd, data: cmdData || null}));
 }
 
+function sendDisplay(mode) {
+    if (ws && ws.readyState === 1) ws.send(JSON.stringify({type: 'REMOTE_CONTROL', command: mode}));
+    log('显示模式: ' + mode);
+}
+
 function log(msg) {
     var el = document.getElementById('log');
     var now = new Date();
-    el.innerHTML += '[' + now.toLocaleTimeString() + '] ' + msg + '\n';
+    var time = now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0') + ':' + now.getSeconds().toString().padStart(2,'0');
+    el.innerHTML += '[' + time + '] ' + msg + '\n';
     el.scrollTop = el.scrollHeight;
 }
 
+function parseRunningTime() {
+    var runTimeStr = (data && data.runningTime) ? data.runningTime : '0.0';
+    var parts = runTimeStr.split(':');
+    if (parts.length === 3) return parseFloat(parts[0]) * 3600 + parseFloat(parts[1]) * 60 + parseFloat(parts[2]);
+    if (parts.length === 2) return parseFloat(parts[0]) * 60 + parseFloat(parts[1]);
+    return parseFloat(parts[0]) || 0;
+}
+
+function getLanes() {
+    if (data && data.poolConfig && data.poolConfig.laneNumbers) return data.poolConfig.laneNumbers;
+    if (data && data.swimmers && data.swimmers.length > 0) {
+        var lanes = [];
+        for (var i = 0; i < data.swimmers.length; i++) lanes.push(data.swimmers[i].lane);
+        return lanes;
+    }
+    return [0,1,2,3,4,5,6,7,8,9];
+}
+
+// ═══════ 数据 ═══════
 var teams = ['北京队','上海队','广东队','浙江队','江苏队','福建队','湖北队','四川队','山东队','辽宁队'];
 var surnames = ['张','李','王','赵','钱','孙','周','吴','郑','陈','刘','杨','黄','林','马'];
-var names = ['伟','芳','明','丽','强','静','磊','洁','军','敏','勇','艳','杰','娟','涛'];
+var givenNames = ['伟','芳','明','丽','强','静','磊','洁','军','敏','勇','艳','杰','娟','涛','鹏','超','浩','文','博'];
 
-function randomName() { return surnames[Math.floor(Math.random()*surnames.length)] + names[Math.floor(Math.random()*names.length)]; }
+function randomName() { return surnames[Math.floor(Math.random()*surnames.length)] + givenNames[Math.floor(Math.random()*givenNames.length)]; }
 function randomTeam() { return teams[Math.floor(Math.random()*teams.length)]; }
 function randomTime(min, max) { return (min + Math.random() * (max - min)).toFixed(2); }
+function randomBirthDate() {
+    var y = 1990 + Math.floor(Math.random() * 15);
+    var m = (1 + Math.floor(Math.random() * 12)).toString().padStart(2, '0');
+    var d = (1 + Math.floor(Math.random() * 28)).toString().padStart(2, '0');
+    return y + '-' + m + '-' + d;
+}
+function randomPhone() { return '138' + Math.floor(Math.random() * 100000000).toString().padStart(8, '0'); }
+function randomID() { return '110101' + (1990 + Math.floor(Math.random()*15)) + (1+Math.floor(Math.random()*12)).toString().padStart(2,'0') + (1+Math.floor(Math.random()*28)).toString().padStart(2,'0') + Math.floor(Math.random()*10000).toString().padStart(4,'0'); }
 
+// ═══════ 1. 批量注册 ═══════
 function batchRegister() {
     var count = parseInt(document.getElementById('regCount').value) || 16;
     var ev = document.getElementById('regEvent').value;
     var gender = document.getElementById('regGender').value;
+
     for (var i = 0; i < count; i++) {
-        var entryTime = randomTime(45, 60);
-        send('REGISTER_SWIMMER', {
-            bibNumber: (100 + i).toString(),
+        var entryTime = randomTime(25, 35);
+        // 根据项目调整报名成绩范围
+        var dist = parseInt(ev.match(/(\d+)/)[1]) || 100;
+        if (dist <= 50) entryTime = randomTime(22, 30);
+        else if (dist <= 100) entryTime = randomTime(48, 58);
+        else if (dist <= 200) entryTime = randomTime(105, 125);
+        else if (dist <= 400) entryTime = randomTime(230, 270);
+        else if (dist <= 800) entryTime = randomTime(480, 550);
+        else entryTime = randomTime(880, 960);
+
+        var swimmerData = {
             name: randomName(),
             gender: gender,
-            age: 18 + Math.floor(Math.random() * 10),
+            age: 18 + Math.floor(Math.random() * 12),
             country: randomTeam(),
-            eventName: ev,
-            entryTime: entryTime,
-            birthDate: '',
-            csaNumber: ''
-        });
+            idNumber: randomID(),
+            phone: randomPhone(),
+            birthDate: randomBirthDate(),
+            bibNumber: '',
+            csaNumber: '',
+            notes: ''
+        };
+        var events = [{eventName: ev, entryTime: entryTime}];
+        send('REGISTER_SWIMMER_BATCH', {swimmer: swimmerData, events: events, isResubmit: false});
     }
-    log('已注册 ' + count + ' 名运动员 (' + gender + ' ' + ev + ')');
+    log('已批量注册 ' + count + ' 名运动员 (' + gender + ' ' + ev + ')');
 }
 
+function autoGenerateHeats() {
+    sendCmd('AUTO_GENERATE_HEATS');
+    log('发送: 自动生成分组');
+}
+
+// ═══════ 2. 模拟比赛流程 ═══════
 function simReady() { sendCmd('READY'); log('发送: 就位'); }
 function simStart() { sendCmd('START_RACE'); log('发送: 发令'); }
 
-function simTouchpad() {
-    // 读取服务器当前滚动计时器时间
-    var runTimeStr = (data && data.runningTime) ? data.runningTime : '0.0';
-    // 解析时间字符串为秒数 (格式: "S.t" / "M:SS.t" / "H:MM:SS.t"，前导零已消隐)
-    var currentTime = 0;
-    var parts = runTimeStr.split(':');
-    if (parts.length === 3) {
-        currentTime = parseFloat(parts[0]) * 3600 + parseFloat(parts[1]) * 60 + parseFloat(parts[2]);
-    } else if (parts.length === 2) {
-        currentTime = parseFloat(parts[0]) * 60 + parseFloat(parts[1]);
-    } else {
-        currentTime = parseFloat(parts[0]) || 0;
-    }
-
-    if (currentTime < 0.5) {
-        log('警告: 计时器时间为 ' + currentTime.toFixed(2) + 's，请确认比赛已发令且正在计时');
-    }
-
-    // 从服务器数据获取实际泳道号
-    var lanes = [];
-    if (data && data.poolConfig && data.poolConfig.laneNumbers) {
-        lanes = data.poolConfig.laneNumbers;
-    } else if (data && data.swimmers && data.swimmers.length > 0) {
-        for (var i = 0; i < data.swimmers.length; i++) lanes.push(data.swimmers[i].lane);
-    } else {
-        lanes = [0,1,2,3,4,5,6,7,8,9];
-    }
-
-    log('泳道列表: [' + lanes.join(',') + '], 计时器: ' + runTimeStr + ' (' + currentTime.toFixed(2) + 's)');
-
-    // 为每道发送触板数据
-    for (var i = 0; i < lanes.length; i++) {
-        var laneTime = currentTime + (Math.random() - 0.5) * 0.5;
-        if (laneTime < 0.1) laneTime = 0.1;
-        send('TIMING_DATA', {lane: lanes[i], commandType: 'Touchpad', time: laneTime});
-        log('泳道' + lanes[i] + ' 触板: ' + laneTime.toFixed(2) + 's');
-    }
-}
-
 function simStartBlock() {
-    // 获取实际泳道号
-    var lanes = [];
-    if (data && data.poolConfig && data.poolConfig.laneNumbers) {
-        lanes = data.poolConfig.laneNumbers;
-    } else if (data && data.swimmers && data.swimmers.length > 0) {
-        for (var i = 0; i < data.swimmers.length; i++) lanes.push(data.swimmers[i].lane);
-    } else {
-        lanes = [0,1,2,3,4,5,6,7,8,9];
-    }
+    var lanes = getLanes();
+    var threshold = (data && data.laneCloseSettings) ? data.laneCloseSettings.falseStartThreshold || 0.10 : 0.10;
 
-    // 随机选3道：1道负值抢跳，2道反应时间小于阈值的抢跳
+    // 随机选3道抢跳
     var indices = [];
     for (var j = 0; j < lanes.length; j++) indices.push(j);
-    // 打乱顺序取前3个
     for (var j = indices.length - 1; j > 0; j--) {
         var k = Math.floor(Math.random() * (j + 1));
         var tmp = indices[j]; indices[j] = indices[k]; indices[k] = tmp;
     }
-    var fsNegIdx = indices[0];  // 负值抢跳
-    var fsLow1Idx = indices.length > 1 ? indices[1] : -1; // 阈值内抢跳1
-    var fsLow2Idx = indices.length > 2 ? indices[2] : -1; // 阈值内抢跳2
-    var threshold = (data && data.laneCloseSettings) ? data.laneCloseSettings.falseStartThreshold || 0.10 : 0.10;
+    var fsNegIdx = indices[0];
+    var fsLow1Idx = indices.length > 1 ? indices[1] : -1;
+    var fsLow2Idx = indices.length > 2 ? indices[2] : -1;
 
-    log('=== 模拟全部出发 (阈值: ' + threshold + 's) ===');
+    log('=== 模拟出发 (阈值: ' + threshold + 's) ===');
     var fsLanes = [];
     for (var i = 0; i < lanes.length; i++) {
         var lane = lanes[i];
-        var reactionTime;
+        var rt;
         if (i === fsNegIdx) {
-            // 抢跳：反应时间为负值
-            reactionTime = -(Math.random() * 0.05 + 0.01); // -0.01 ~ -0.06
-            reactionTime = parseFloat(reactionTime.toFixed(3));
-            send('TIMING_DATA', {lane: lane, commandType: 'StartingBlock', time: reactionTime});
-            send('FALSE_START_DETECTED', {lane: lane, reactionTime: reactionTime});
-            log('泳道' + lane + ' ★抢跳(负值)! 反应: ' + reactionTime.toFixed(3) + 's');
+            rt = -(Math.random() * 0.05 + 0.01);
+            rt = parseFloat(rt.toFixed(3));
+            send('TIMING_DATA', {lane: lane, commandType: 'StartingBlock', time: rt});
+            send('FALSE_START_DETECTED', {lane: lane, reactionTime: rt});
+            log('  道' + lane + ' ★抢跳(负值) ' + rt.toFixed(3) + 's');
             fsLanes.push(lane);
         } else if (i === fsLow1Idx || i === fsLow2Idx) {
-            // 抢跳：反应时间为正但≤阈值 (0.02 ~ threshold)
-            reactionTime = 0.02 + Math.random() * (threshold - 0.02);
-            reactionTime = parseFloat(reactionTime.toFixed(3));
-            send('TIMING_DATA', {lane: lane, commandType: 'StartingBlock', time: reactionTime});
-            send('FALSE_START_DETECTED', {lane: lane, reactionTime: reactionTime});
-            log('泳道' + lane + ' ★抢跳(≤阈值)! 反应: ' + reactionTime.toFixed(3) + 's');
+            rt = 0.02 + Math.random() * (threshold - 0.02);
+            rt = parseFloat(rt.toFixed(3));
+            send('TIMING_DATA', {lane: lane, commandType: 'StartingBlock', time: rt});
+            send('FALSE_START_DETECTED', {lane: lane, reactionTime: rt});
+            log('  道' + lane + ' ★抢跳(≤阈值) ' + rt.toFixed(3) + 's');
             fsLanes.push(lane);
         } else {
-            // 正常出发：反应时间 0.50 ~ 0.85 秒
-            reactionTime = 0.50 + Math.random() * 0.35;
-            reactionTime = parseFloat(reactionTime.toFixed(2));
-            send('TIMING_DATA', {lane: lane, commandType: 'StartingBlock', time: reactionTime});
-            log('泳道' + lane + ' 正常出发 反应: ' + reactionTime.toFixed(2) + 's');
+            rt = 0.50 + Math.random() * 0.35;
+            rt = parseFloat(rt.toFixed(2));
+            send('TIMING_DATA', {lane: lane, commandType: 'StartingBlock', time: rt});
+            log('  道' + lane + ' 正常出发 ' + rt.toFixed(2) + 's');
         }
     }
-    log('全部' + lanes.length + '道出发数据已发送，抢跳泳道: [' + fsLanes.join(',') + ']');
+    log('抢跳泳道: [' + fsLanes.join(',') + ']');
 }
 
-function simConfirm() { sendCmd('CONFIRM_RESULT'); log('发送: 确认成绩'); }
+function simTouchpad() {
+    var currentTime = parseRunningTime();
+    if (currentTime < 0.5) {
+        log('警告: 计时器 ' + currentTime.toFixed(2) + 's，请确认已发令');
+    }
+    var lanes = getLanes();
+    log('=== 模拟触板 (计时: ' + currentTime.toFixed(2) + 's) ===');
+    for (var i = 0; i < lanes.length; i++) {
+        var t = currentTime + (Math.random() - 0.5) * 0.5;
+        if (t < 0.1) t = 0.1;
+        send('TIMING_DATA', {lane: lanes[i], commandType: 'Touchpad', time: t});
+        log('  道' + lanes[i] + ' 触板: ' + t.toFixed(2) + 's');
+    }
+}
 
+function simBlindWatch() {
+    var currentTime = parseRunningTime();
+    var lanes = getLanes();
+    log('=== 模拟盲表 (计时: ' + currentTime.toFixed(2) + 's) ===');
+    for (var i = 0; i < lanes.length; i++) {
+        // 3个盲表，有微小差异
+        for (var b = 1; b <= 3; b++) {
+            var t = currentTime + (Math.random() - 0.3) * 0.3;
+            if (t < 0.1) t = 0.1;
+            send('TIMING_DATA', {lane: lanes[i], commandType: 'PushButton' + b, time: t});
+        }
+        log('  道' + lanes[i] + ' 盲表x3 ~' + currentTime.toFixed(2) + 's');
+    }
+}
+
+function simConfirm() {
+    sendCmd('CONFIRM_RESULT');
+    log('发送: 确认成绩');
+}
+
+function simTimerReset() {
+    sendCmd('TIMER_RESET');
+    log('发送: 计时复位');
+}
+
+// ═══════ 4. 完整自动测试 ═══════
 function stopAutoTest() { autoRunning = false; log('自动测试已停止'); }
 
 function fullAutoTest() {
     autoRunning = true;
-    log('=== 开始完整自动测试 ===');
+    var ev = document.getElementById('regEvent').value;
+    var dist = parseInt(ev.match(/(\d+)/)[1]) || 100;
+    var poolLen = (data && data.poolConfig) ? data.poolConfig.length || 50 : 50;
+    var totalLaps = Math.max(1, Math.floor(dist / poolLen));
+    var closeTime = (data && data.laneCloseSettings) ? data.laneCloseSettings.laneCloseTime || 20 : 20;
+
+    log('=== 完整自动测试 ===');
+    log('项目: ' + ev + ', 距离: ' + dist + 'm, 段数: ' + totalLaps + ', 泳道关闭: ' + closeTime + 's');
 
     // Step 1: 注册
     batchRegister();
+    log('[1/7] 注册完成');
 
     setTimeout(function() {
         if (!autoRunning) return;
-        // Step 2: 就位
-        simReady();
-        log('就位...');
+        // Step 2: 自动分组
+        autoGenerateHeats();
+        log('[2/7] 分组完成');
 
         setTimeout(function() {
             if (!autoRunning) return;
-            // Step 3: 发令
-            simStart();
-            log('发令!');
+            // Step 3: 就位
+            simReady();
+            log('[3/7] 就位');
 
             setTimeout(function() {
                 if (!autoRunning) return;
-                // Step 4: 模拟触板
-                simTouchpad();
+                // Step 4: 发令
+                simStart();
+                log('[4/7] 发令');
 
                 setTimeout(function() {
                     if (!autoRunning) return;
-                    // Step 5: 确认成绩
-                    simConfirm();
-                    log('=== 完整测试结束 ===');
-                    autoRunning = false;
-                }, 60000);
+                    // Step 5: 出发
+                    simStartBlock();
+                    log('[5/7] 出发完成');
+
+                    // Step 6: 逐段触板
+                    var lap = 0;
+                    function doLap() {
+                        if (!autoRunning) return;
+                        lap++;
+                        // 等泳道打开（关闭时间+2秒余量）
+                        var waitTime = (closeTime + 2) * 1000;
+                        log('等待泳道打开... (' + (closeTime + 2) + 's)');
+                        setTimeout(function() {
+                            if (!autoRunning) return;
+                            log('[6/7] 第' + lap + '/' + totalLaps + '段触板');
+                            simTouchpad();
+                            // 同时发盲表
+                            setTimeout(function() {
+                                if (!autoRunning) return;
+                                simBlindWatch();
+                            }, 500);
+
+                            if (lap < totalLaps) {
+                                // 还有下一段
+                                setTimeout(doLap, 3000);
+                            } else {
+                                // 全部完成，确认成绩
+                                setTimeout(function() {
+                                    if (!autoRunning) return;
+                                    simConfirm();
+                                    log('[7/7] 成绩已确认');
+                                    log('=== 完整自动测试结束 ===');
+                                    autoRunning = false;
+                                }, 2000);
+                            }
+                        }, waitTime);
+                    }
+                    doLap();
+                }, 1000);
             }, 2000);
         }, 2000);
     }, 1000);
