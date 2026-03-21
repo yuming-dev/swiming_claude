@@ -533,6 +533,59 @@
                 </ScrollViewer>
             </TabItem>
 
+            <!-- ═══ 系统日志与数据 ═══ -->
+            <TabItem Header="系统日志与数据">
+                <Grid Margin="10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="300"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- 左侧：运行日志 -->
+                    <GroupBox Header="运行日志">
+                        <ListBox x:Name="SystemLogListBox" FontFamily="Consolas" FontSize="12" BorderThickness="0"
+                                 ScrollViewer.VerticalScrollBarVisibility="Auto"/>
+                    </GroupBox>
+
+                    <!-- 右侧：存档管理 -->
+                    <GroupBox Grid.Column="1" Header="存档管理" Margin="10,0,0,0">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="*"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <ListBox x:Name="BackupListBox" Margin="0,0,0,10">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Margin="5">
+                                            <TextBlock Text="{Binding Name}" FontWeight="Bold" Foreground="#1E40AF"/>
+                                            <TextBlock Text="{Binding LastModified}" FontSize="11" Foreground="Gray"/>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+
+                            <StackPanel Grid.Row="1">
+                                <Button Content="加载选中存档" Click="LoadBackup_Click" Padding="10"
+                                        Background="#22C55E" Foreground="White" BorderThickness="0" Margin="0,0,0,5"/>
+                                <Button Content="删除选中存档" Click="DeleteBackup_Click" Padding="10"
+                                        Background="#EF4444" Foreground="White" BorderThickness="0" Margin="0,0,0,10"/>
+                                <Button Content="清除当前库数据" Click="ClearDatabase_Click" Padding="10"
+                                        Background="#7F1D1D" Foreground="White" BorderThickness="0" Margin="0,0,0,10"/>
+                                <Button Content="强制保存" Click="ForceSave_Click" Padding="10"
+                                        Background="#3B82F6" Foreground="White" BorderThickness="0" Margin="0,0,0,5"/>
+                                <Separator Margin="0,5,0,5"/>
+                                <Button Content="查询本机IP地址" Click="ShowLocalIP_Click" Padding="10"
+                                        Background="#0EA5E9" Foreground="White" BorderThickness="0" Margin="0,0,0,5"/>
+                                <Button Content="修改密码" Click="ChangePassword_Click" Padding="10"
+                                        Background="#475569" Foreground="White" BorderThickness="0"/>
+                            </StackPanel>
+                        </Grid>
+                    </GroupBox>
+                </Grid>
+            </TabItem>
+
             <!-- ═══ 设置 ═══ -->
             <TabItem Header="设置">
                 <ScrollViewer Margin="10">

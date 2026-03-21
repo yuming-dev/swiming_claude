@@ -72,6 +72,7 @@ namespace SwimmingScoreboard
         private DispatcherTimer _countdownTimer;
         private bool _initialized = false;
         private bool _resultConfirmed = false;
+        private ObservableCollection<BackupInfo> _savedCompetitions = new ObservableCollection<BackupInfo>();
 
         // ═══════════════════════════════════════════════════════════════
         // 构造函数与初始化
@@ -86,6 +87,7 @@ namespace SwimmingScoreboard
             PopulateComPorts();
             UpdateConnectionStatus();
             _initialized = true;
+            RefreshBackupList();
             AddLog("系统启动完成");
         }
 
@@ -2515,6 +2517,11 @@ tr:nth-child(even) {{ background: #fafafa; }}
             LogListBox.Items.Add(entry);
             if (LogListBox.Items.Count > 500) LogListBox.Items.RemoveAt(0);
             LogListBox.ScrollIntoView(entry);
+            // 同步到系统日志页
+            if (SystemLogListBox != null) {
+                SystemLogListBox.Items.Insert(0, entry);
+                if (SystemLogListBox.Items.Count > 1000) SystemLogListBox.Items.RemoveAt(SystemLogListBox.Items.Count - 1);
+            }
         }
 
         private string GetLocalIP() {
@@ -2536,5 +2543,148 @@ tr:nth-child(even) {{ background: #fafafa; }}
             if (_timingBridge != null) _timingBridge.Dispose();
             if (_server != null) _server.Dispose();
         }
+
+        // ═══════════════════════════════════════════════════════════════
+        // 系统日志与数据
+        // ═══════════════════════════════════════════════════════════════
+        private void RefreshBackupList() {
+            _savedCompetitions.Clear();
+            string dbDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Database");
+            if (!Directory.Exists(dbDir)) Directory.CreateDirectory(dbDir);
+            foreach (var f in Directory.GetFiles(dbDir, "*.json")) {
+                var fi = new FileInfo(f);
+                _savedCompetitions.Add(new BackupInfo {
+                    Name = Path.GetFileNameWithoutExtension(fi.Name),
+                    FilePath = fi.FullName,
+                    LastModified = fi.LastWriteTime.ToString("yyyy-MM-dd HH:mm")
+                });
+            }
+            if (BackupListBox != null) BackupListBox.ItemsSource = _savedCompetitions;
+        }
+
+        private void SyncSystemLog() {
+            // 将主日志同步到系统日志页
+            if (SystemLogListBox != null && LogListBox != null) {
+                SystemLogListBox.ItemsSource = LogListBox.Items;
+            }
+        }
+
+        private void LoadBackup_Click(object sender, RoutedEventArgs e) {
+            var selected = BackupListBox.SelectedItem as BackupInfo;
+            if (selected == null) { MessageBox.Show("请先选中一个存档"); return; }
+            if (MessageBox.Show(
+                string.Format("确定要加载存档 [{0}] 吗？\n当前未保存的数据将被覆盖。", selected.Name),
+                "确认加载", MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes) {
+                _competitionName = selected.Name;
+                CompNameBox.Text = selected.Name;
+                LoadCompetitionFromFile(selected.FilePath);
+                AddLog(string.Format("已加载存档: {0}", selected.Name));
+            }
+        }
+
+        private void DeleteBackup_Click(object sender, RoutedEventArgs e) {
+            var selected = BackupListBox.SelectedItem as BackupInfo;
+            if (selected == null) { MessageBox.Show("请先选中一个存档"); return; }
+            if (MessageBox.Show(
+                string.Format("严重警告：确定要永久删除存档文件 [{0}.json] 吗？\n\n此操作不可恢复！", selected.Name),
+                "确认删除", MessageBoxButton.YesNo, MessageBoxImage.Stop) == MessageBoxResult.Yes) {
+                try {
+                    if (File.Exists(selected.FilePath)) {
+                        File.Delete(selected.FilePath);
+                        AddLog("已删除存档文件: " + selected.Name);
+                        RefreshBackupList();
+                    }
+                } catch (Exception ex) {
+                    MessageBox.Show("删除失败: " + ex.Message);
+                }
+            }
+        }
+
+        private void ClearDatabase_Click(object sender, RoutedEventArgs e) {
+            if (MessageBox.Show(
+                string.Format("严重警告：确定要清空当前比赛 [{0}] 的所有数据吗？\n\n运动员、赛程、成绩将全部清除！\n不影响其他存档文件。", _competitionName),
+                "确认清空", MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes) {
+                _swimmers.Clear();
+                _relayTeams.Clear();
+                _teamScores.Clear();
+                _schedule.Clear();
+                ScheduleTree.Items.Clear();
+                AutoSaveData();
+                RefreshBackupList();
+                Broadcast();
+                AddLog(string.Format("比赛 [{0}] 的数据已清空", _competitionName));
+                MessageBox.Show(string.Format("比赛 [{0}] 的数据已成功清空。", _competitionName));
+            }
+        }
+
+        private void ForceSave_Click(object sender, RoutedEventArgs e) {
+            if (string.IsNullOrEmpty(_competitionName)) {
+                MessageBox.Show("请先设置赛事名称");
+                return;
+            }
+            if (MessageBox.Show("确定要立即执行强制保存吗？\n系统将根据当前项目名称覆盖现有存档文件。",
+                "确认保存", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes) {
+                AutoSaveData();
+                RefreshBackupList();
+                AddLog("强制保存完成: " + _competitionName);
+                MessageBox.Show("数据强制保存完成！");
+            }
+        }
+
+        private void ShowLocalIP_Click(object sender, RoutedEventArgs e) {
+            string ip = GetLocalIP();
+            string info = string.Format("本机IP地址: {0}\n\nWebSocket服务: ws://{0}:3002\nWeb页面: http://{0}:3002\n\n请将此地址告知各客户端连接。", ip);
+            MessageBox.Show(info, "本机IP地址", MessageBoxButton.OK, MessageBoxImage.Information);
+            AddLog("查询IP: " + ip);
+        }
+
+        private void ChangePassword_Click(object sender, RoutedEventArgs e) {
+            var dlg = new Window {
+                Title = "修改密码", Width = 350, Height = 220,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner, Owner = this, ResizeMode = ResizeMode.NoResize
+            };
+            var sp = new StackPanel { Margin = new Thickness(20) };
+            sp.Children.Add(new TextBlock { Text = "当前密码:" });
+            var oldPwd = new PasswordBox { Margin = new Thickness(0, 4, 0, 8) };
+            sp.Children.Add(oldPwd);
+            sp.Children.Add(new TextBlock { Text = "新密码:" });
+            var newPwd = new PasswordBox { Margin = new Thickness(0, 4, 0, 8) };
+            sp.Children.Add(newPwd);
+            sp.Children.Add(new TextBlock { Text = "确认新密码:" });
+            var cfmPwd = new PasswordBox { Margin = new Thickness(0, 4, 0, 12) };
+            sp.Children.Add(cfmPwd);
+            var btn = new Button {
+                Content = "确认修改", Padding = new Thickness(16, 6, 16, 6),
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6")),
+                Foreground = Brushes.White, BorderThickness = new Thickness(0), HorizontalAlignment = HorizontalAlignment.Right
+            };
+            btn.Click += delegate {
+                if (!AuthHelper.Verify("admin", oldPwd.Password)) {
+                    MessageBox.Show("当前密码错误！"); return;
+                }
+                if (newPwd.Password != cfmPwd.Password) {
+                    MessageBox.Show("两次输入的新密码不一致！"); return;
+                }
+                if (string.IsNullOrEmpty(newPwd.Password)) {
+                    MessageBox.Show("新密码不能为空！"); return;
+                }
+                var creds = AuthHelper.LoadCredentials();
+                creds.PasswordHash = AuthHelper.HashPassword(newPwd.Password);
+                AuthHelper.SaveCredentials(creds);
+                AddLog("密码已修改");
+                MessageBox.Show("密码修改成功！");
+                dlg.Close();
+            };
+            sp.Children.Add(btn);
+            dlg.Content = sp;
+            dlg.ShowDialog();
+        }
+    }
+
+    public class BackupInfo
+    {
+        public string Name { get; set; }
+        public string FilePath { get; set; }
+        public string LastModified { get; set; }
     }
 }
