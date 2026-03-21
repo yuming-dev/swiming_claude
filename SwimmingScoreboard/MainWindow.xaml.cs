@@ -2639,45 +2639,10 @@ tr:nth-child(even) {{ background: #fafafa; }}
         }
 
         private void ChangePassword_Click(object sender, RoutedEventArgs e) {
-            var dlg = new Window {
-                Title = "修改密码", Width = 350, Height = 220,
-                WindowStartupLocation = WindowStartupLocation.CenterOwner, Owner = this, ResizeMode = ResizeMode.NoResize
-            };
-            var sp = new StackPanel { Margin = new Thickness(20) };
-            sp.Children.Add(new TextBlock { Text = "当前密码:" });
-            var oldPwd = new PasswordBox { Margin = new Thickness(0, 4, 0, 8) };
-            sp.Children.Add(oldPwd);
-            sp.Children.Add(new TextBlock { Text = "新密码:" });
-            var newPwd = new PasswordBox { Margin = new Thickness(0, 4, 0, 8) };
-            sp.Children.Add(newPwd);
-            sp.Children.Add(new TextBlock { Text = "确认新密码:" });
-            var cfmPwd = new PasswordBox { Margin = new Thickness(0, 4, 0, 12) };
-            sp.Children.Add(cfmPwd);
-            var btn = new Button {
-                Content = "确认修改", Padding = new Thickness(16, 6, 16, 6),
-                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6")),
-                Foreground = Brushes.White, BorderThickness = new Thickness(0), HorizontalAlignment = HorizontalAlignment.Right
-            };
-            btn.Click += delegate {
-                if (!AuthHelper.Verify("admin", oldPwd.Password)) {
-                    MessageBox.Show("当前密码错误！"); return;
-                }
-                if (newPwd.Password != cfmPwd.Password) {
-                    MessageBox.Show("两次输入的新密码不一致！"); return;
-                }
-                if (string.IsNullOrEmpty(newPwd.Password)) {
-                    MessageBox.Show("新密码不能为空！"); return;
-                }
-                var creds = AuthHelper.LoadCredentials();
-                creds.PasswordHash = AuthHelper.HashPassword(newPwd.Password);
-                AuthHelper.SaveCredentials(creds);
-                AddLog("密码已修改");
-                MessageBox.Show("密码修改成功！");
-                dlg.Close();
-            };
-            sp.Children.Add(btn);
-            dlg.Content = sp;
-            dlg.ShowDialog();
+            var win = new ChangePasswordWindow();
+            win.Owner = this;
+            win.ShowDialog();
+            AddLog("打开修改密码窗口");
         }
     }
 
