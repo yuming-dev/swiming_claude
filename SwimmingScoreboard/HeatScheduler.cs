@@ -259,11 +259,21 @@ namespace SwimmingScoreboard
         /// 成绩相同者比较触壁反应时间（时间短者晋级）
         /// </summary>
         public static List<Swimmer> GetPromotedSwimmers(List<Swimmer> allSwimmers, string eventName, string fromStage, int count) {
+            // 筛选有该阶段成绩的运动员（不检查CurrentStage，因为调用者可能已预先过滤）
             var results = allSwimmers.Where(s =>
                 s.EventName == eventName &&
-                s.CurrentStage == fromStage &&
-                s.Status != "DNS" && s.Status != "DNF" && s.Status != "DSQ"
+                s.Status != "DNS" && s.Status != "DNF" && s.Status != "DSQ" &&
+                s.GetResultForStage(fromStage) != null
             ).ToList();
+
+            // 如果按成绩没找到，回退到按CurrentStage匹配
+            if (results.Count == 0) {
+                results = allSwimmers.Where(s =>
+                    s.EventName == eventName &&
+                    s.CurrentStage == fromStage &&
+                    s.Status != "DNS" && s.Status != "DNF" && s.Status != "DSQ"
+                ).ToList();
+            }
 
             // 按最终成绩排序（所有小组统一排名）
             results.Sort((a, b) => {

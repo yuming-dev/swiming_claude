@@ -1141,8 +1141,83 @@ namespace SwimmingScoreboard
             UpdateLaneStatusDisplay();
             UpdateRaceStateDisplay();
 
-            AddLog(string.Format("★ 已确认本组成绩: {0}子 {1} {2} 第{3}组 — 请选择下一组比赛", _currentGender, _currentEvent, _currentStage, _currentHeat));
+            AddLog(string.Format("★ 已确认本组成绩: {0}子 {1} {2} 第{3}组", _currentGender, _currentEvent, _currentStage, _currentHeat));
+
+            // 检查该项目该阶段是否所有组都已完赛
+            CheckStageComplete();
+
             Broadcast();
+        }
+
+        private void CheckStageComplete() {
+            if (string.IsNullOrEmpty(_currentEvent) || string.IsNullOrEmpty(_currentStage)) return;
+            if (_currentStage == "决赛") return; // 决赛无需晋级
+
+            // 查找同项目同阶段的所有运动员
+            var stageSwimmers = _swimmers.Where(s =>
+                s.EventName == _currentEvent &&
+                s.Gender == _currentGender &&
+                s.CurrentStage == _currentStage
+            ).ToList();
+
+            if (stageSwimmers.Count == 0) return;
+
+            // 检查是否所有运动员都有该阶段的成绩
+            bool allDone = true;
+            foreach (var sw in stageSwimmers) {
+                if (sw.Status == "DNS" || sw.Status == "DNF" || sw.Status == "DSQ") continue;
+                var result = sw.GetResultForStage(_currentStage);
+                if (result == null || result.FinalTime <= 0) { allDone = false; break; }
+            }
+
+            if (allDone) {
+                // 确定下一阶段
+                var stages = HeatScheduler.GetStages(stageSwimmers.Count);
+                int currentIdx = stages.IndexOf(_currentStage);
+                if (currentIdx >= 0 && currentIdx < stages.Count - 1) {
+                    string nextStage = stages[currentIdx + 1];
+                    int promoCount = HeatScheduler.GetPromotionCount(_currentStage, nextStage);
+
+                    AddLog(string.Format("★ {0}子{1} {2}全部完赛！可晋级{3}人到{4}", _currentGender, _currentEvent, _currentStage, promoCount, nextStage));
+
+                    var answer = MessageBox.Show(
+                        string.Format("{0}子 {1} {2} 全部{3}人已完赛！\n\n是否自动晋级前{4}名到{5}？\n（按成绩统一排名，蛇形分组）",
+                            _currentGender, _currentEvent, _currentStage, stageSwimmers.Count, promoCount, nextStage),
+                        "自动晋级", MessageBoxButton.YesNo, MessageBoxImage.Question);
+
+                    if (answer == MessageBoxResult.Yes) {
+                        var filtered = _swimmers.Where(s => s.Gender == _currentGender && s.EventName == _currentEvent).ToList();
+                        var promoted = HeatScheduler.GetPromotedSwimmers(filtered, _currentEvent, _currentStage, promoCount);
+
+                        if (promoted.Count > 0) {
+                            var assignments = HeatScheduler.GenerateHeatsFromResults(promoted, _poolConfig, _currentEvent, nextStage, _currentStage);
+                            int heatCount = assignments.Count > 0 ? assignments.Max(a => a.Heat) : 0;
+
+                            // 更新赛程
+                            bool scheduleExists = _schedule.Any(s => s.Gender == _currentGender && s.EventName == _currentEvent && s.Stage == nextStage);
+                            if (!scheduleExists) {
+                                _schedule.Add(new ScheduleItem {
+                                    SessionNumber = _schedule.Count > 0 ? _schedule.Max(s => s.SessionNumber) + 1 : 1,
+                                    Gender = _currentGender,
+                                    EventName = _currentEvent,
+                                    Stage = nextStage,
+                                    HeatCount = heatCount
+                                });
+                            } else {
+                                var schedItem = _schedule.FirstOrDefault(s => s.Gender == _currentGender && s.EventName == _currentEvent && s.Stage == nextStage);
+                                if (schedItem != null) schedItem.HeatCount = heatCount;
+                            }
+
+                            BuildScheduleTree();
+                            AutoSaveData();
+                            AddLog(string.Format("已自动晋级{0}人到{1}，分为{2}组", promoted.Count, nextStage, heatCount));
+                            MessageBox.Show(string.Format("已将{0}名运动员晋级到{1}，分为{2}组。\n请在赛程树中选择{1}的组次开始比赛。", promoted.Count, nextStage, heatCount));
+                        }
+                    }
+                }
+            } else {
+                AddLog("请选择下一组比赛");
+            }
         }
 
         private void PrevHeat_Click(object sender, RoutedEventArgs e) {
