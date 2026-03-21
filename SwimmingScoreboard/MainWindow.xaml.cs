@@ -1171,11 +1171,26 @@ namespace SwimmingScoreboard
             }
 
             if (allDone) {
-                // 确定下一阶段
-                var stages = HeatScheduler.GetStages(stageSwimmers.Count);
-                int currentIdx = stages.IndexOf(_currentStage);
-                if (currentIdx >= 0 && currentIdx < stages.Count - 1) {
-                    string nextStage = stages[currentIdx + 1];
+                // 直接根据当前阶段确定下一阶段（不依赖人数重新计算）
+                string nextStage = null;
+                if (_currentStage == "预赛") {
+                    // 查赛程表中该项目是否有复赛/半决赛
+                    if (_schedule.Any(s => s.Gender == _currentGender && s.EventName == _currentEvent && s.Stage == "复赛"))
+                        nextStage = "复赛";
+                    else if (_schedule.Any(s => s.Gender == _currentGender && s.EventName == _currentEvent && s.Stage == "半决赛"))
+                        nextStage = "半决赛";
+                    else
+                        nextStage = "决赛";
+                } else if (_currentStage == "复赛") {
+                    if (_schedule.Any(s => s.Gender == _currentGender && s.EventName == _currentEvent && s.Stage == "半决赛"))
+                        nextStage = "半决赛";
+                    else
+                        nextStage = "决赛";
+                } else if (_currentStage == "半决赛") {
+                    nextStage = "决赛";
+                }
+
+                if (nextStage != null) {
                     int promoCount = HeatScheduler.GetPromotionCount(_currentStage, nextStage);
 
                     AddLog(string.Format("★ {0}子{1} {2}全部完赛！可晋级{3}人到{4}", _currentGender, _currentEvent, _currentStage, promoCount, nextStage));
