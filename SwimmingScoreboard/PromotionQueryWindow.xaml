@@ -26,9 +26,14 @@
                 <TextBlock Grid.Column="0" Text="比赛项目:" VerticalAlignment="Center" Margin="0,0,4,0"/>
                 <ComboBox x:Name="EventCombo" Grid.Column="1" SelectionChanged="Event_Changed" Margin="0,0,12,0"/>
                 <TextBlock Grid.Column="2" Text="数据来源:" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                <ComboBox x:Name="FromStageCombo" Grid.Column="3" SelectionChanged="Stage_Changed" Margin="0,0,12,0"/>
-                <TextBlock Grid.Column="4" Text="晋级人数:" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                <TextBox x:Name="CountBox" Grid.Column="5" Text="8" Padding="4" VerticalAlignment="Center"/>
+                <ComboBox x:Name="FromStageCombo" Grid.Column="3" SelectionChanged="Stage_Changed" Margin="0,0,8,0"/>
+                <ComboBox x:Name="PromotionModeCombo" Grid.Column="4" Width="160" SelectionChanged="Mode_Changed" Margin="0,0,4,0">
+                    <ComboBoxItem Content="总成绩排名前N名" IsSelected="True"/>
+                    <ComboBoxItem Content="每组前2名+成绩递补"/>
+                    <ComboBoxItem Content="每组前3名+成绩递补"/>
+                    <ComboBoxItem Content="每组前4名+成绩递补"/>
+                </ComboBox>
+                <TextBox x:Name="CountBox" Grid.Column="5" Text="16" Padding="4" VerticalAlignment="Center"/>
                 <Button Grid.Column="6" Content="查询" Click="Query_Click" Padding="16,6" Margin="8,0,0,0"
                         Background="#3B82F6" Foreground="White" BorderThickness="0"/>
             </Grid>
@@ -46,14 +51,15 @@
         <DataGrid x:Name="PromotionGrid" Grid.Row="2" AutoGenerateColumns="False" CanUserAddRows="False"
                   IsReadOnly="True" AlternatingRowBackground="#F8FAFC" Margin="0,0,0,8">
             <DataGrid.Columns>
-                <DataGridTextColumn Header="名次" Binding="{Binding Rank}" Width="50"/>
-                <DataGridTextColumn Header="号码" Binding="{Binding BibNumber}" Width="60"/>
-                <DataGridTextColumn Header="姓名" Binding="{Binding Name}" Width="80"/>
-                <DataGridTextColumn Header="性别" Binding="{Binding Gender}" Width="40"/>
-                <DataGridTextColumn Header="代表队" Binding="{Binding Country}" Width="80"/>
-                <DataGridTextColumn Header="成绩" Binding="{Binding Time}" Width="90"/>
-                <DataGridTextColumn Header="原阶段" Binding="{Binding FromStage}" Width="60"/>
-                <DataGridTextColumn Header="晋级到" Binding="{Binding ToStage}" Width="60"/>
+                <DataGridTextColumn Header="名次" Binding="{Binding Rank}" Width="45"/>
+                <DataGridTextColumn Header="号码" Binding="{Binding BibNumber}" Width="55"/>
+                <DataGridTextColumn Header="姓名" Binding="{Binding Name}" Width="75"/>
+                <DataGridTextColumn Header="代表队" Binding="{Binding Country}" Width="70"/>
+                <DataGridTextColumn Header="组" Binding="{Binding Heat}" Width="35"/>
+                <DataGridTextColumn Header="成绩" Binding="{Binding Time}" Width="85"/>
+                <DataGridTextColumn Header="反应时间" Binding="{Binding Reaction}" Width="65"/>
+                <DataGridTextColumn Header="晋级方式" Binding="{Binding Method}" Width="75"/>
+                <DataGridTextColumn Header="晋级到" Binding="{Binding ToStage}" Width="55"/>
             </DataGrid.Columns>
         </DataGrid>
 
