@@ -1877,7 +1877,10 @@ namespace SwimmingScoreboard
 
         private void EditHeat_Changed(object sender, SelectionChangedEventArgs e) {
             if (!_initialized || _editUpdating) return;
-            RefreshEditPreview();
+            // 使用Dispatcher延迟执行，确保SelectedItem已更新
+            Dispatcher.BeginInvoke((Action)delegate() {
+                RefreshEditPreview();
+            }, System.Windows.Threading.DispatcherPriority.Background);
         }
 
         private void UpdateEditHeatCombo() {
@@ -1917,6 +1920,7 @@ namespace SwimmingScoreboard
             } finally {
                 _editUpdating = false;
             }
+            RefreshEditPreview();
         }
 
         private void RefreshEditPreview_Click(object sender, RoutedEventArgs e) {
@@ -1937,6 +1941,8 @@ namespace SwimmingScoreboard
             var swimmers = _swimmers.Where(s =>
                 s.Gender == gender && s.EventName == eventName && s.CurrentStage == stage && s.Heat == heat
             ).OrderBy(s => s.Lane).ToList();
+
+            AddLog(string.Format("编排预览: {0} {1} {2} 第{3}组 → {4}人", gender, eventName, stage, heat, swimmers.Count));
 
             var displayData = swimmers.Select(s => new {
                 Lane = s.Lane,
