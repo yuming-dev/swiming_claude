@@ -1893,12 +1893,21 @@ namespace SwimmingScoreboard
                 string stage = EditStageCombo.SelectedItem != null ? ((ComboBoxItem)EditStageCombo.SelectedItem).Content.ToString() : "预赛";
 
                 EditHeatCombo.Items.Clear();
-                var heats = new HashSet<int>();
-                foreach (var s in _swimmers) {
-                    if (s.Gender == gender && s.EventName == eventName && s.CurrentStage == stage && s.Heat > 0)
-                        heats.Add(s.Heat);
+                // 从赛程表获取组数（连续编号）
+                int maxHeat = 0;
+                var schedItem = _schedule.FirstOrDefault(s => s.Gender == gender && s.EventName == eventName && s.Stage == stage);
+                if (schedItem != null && schedItem.HeatCount > 0) {
+                    maxHeat = schedItem.HeatCount;
+                } else {
+                    // 从运动员数据获取
+                    foreach (var s in _swimmers) {
+                        if (s.Gender == gender && s.EventName == eventName && s.CurrentStage == stage && s.Heat > maxHeat)
+                            maxHeat = s.Heat;
+                    }
                 }
-                foreach (int h in heats.OrderBy(x => x)) EditHeatCombo.Items.Add(h);
+                for (int h = 1; h <= maxHeat; h++) {
+                    EditHeatCombo.Items.Add(string.Format("第{0}组", h));
+                }
                 if (EditHeatCombo.Items.Count > 0) EditHeatCombo.SelectedIndex = 0;
             } finally {
                 _editUpdating = false;
@@ -1911,10 +1920,14 @@ namespace SwimmingScoreboard
 
         private void RefreshEditPreview() {
             if (EditPreviewGrid == null) return;
-            string gender = EditGenderCombo != null ? ((ComboBoxItem)EditGenderCombo.SelectedItem).Content.ToString() : "";
+            string gender = EditGenderCombo != null && EditGenderCombo.SelectedItem != null ? ((ComboBoxItem)EditGenderCombo.SelectedItem).Content.ToString() : "";
             string eventName = EditEventCombo != null && EditEventCombo.SelectedItem != null ? EditEventCombo.SelectedItem.ToString() : "";
-            string stage = EditStageCombo != null ? ((ComboBoxItem)EditStageCombo.SelectedItem).Content.ToString() : "";
-            int heat = EditHeatCombo != null && EditHeatCombo.SelectedItem != null ? (int)EditHeatCombo.SelectedItem : 0;
+            string stage = EditStageCombo != null && EditStageCombo.SelectedItem != null ? ((ComboBoxItem)EditStageCombo.SelectedItem).Content.ToString() : "";
+            int heat = 0;
+            if (EditHeatCombo != null && EditHeatCombo.SelectedItem != null) {
+                var m = System.Text.RegularExpressions.Regex.Match(EditHeatCombo.SelectedItem.ToString(), @"\d+");
+                if (m.Success) heat = int.Parse(m.Value);
+            }
 
             var swimmers = _swimmers.Where(s =>
                 s.Gender == gender && s.EventName == eventName && s.CurrentStage == stage && s.Heat == heat
@@ -1954,7 +1967,11 @@ namespace SwimmingScoreboard
             string gender = ((ComboBoxItem)EditGenderCombo.SelectedItem).Content.ToString();
             string eventName = EditEventCombo.SelectedItem.ToString();
             string stage = ((ComboBoxItem)EditStageCombo.SelectedItem).Content.ToString();
-            int heat = (int)EditHeatCombo.SelectedItem;
+            int heat = 0;
+            if (EditHeatCombo.SelectedItem != null) {
+                var m = System.Text.RegularExpressions.Regex.Match(EditHeatCombo.SelectedItem.ToString(), @"\d+");
+                if (m.Success) heat = int.Parse(m.Value);
+            }
 
             var swimmers = _swimmers.Where(s =>
                 s.Gender == gender && s.EventName == eventName && s.CurrentStage == stage && s.Heat == heat
