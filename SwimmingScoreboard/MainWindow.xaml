@@ -315,28 +315,21 @@
                             </DockPanel>
                         </TabItem>
                         <TabItem Header="赛程管理">
-                            <DockPanel Margin="10">
-                                <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
-                                    <Button Content="添加赛程项" Click="AddSchedule_Click" Padding="12,6" Background="#3B82F6" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
-                                    <Button Content="删除选中" Click="DeleteSchedule_Click" Padding="12,6" Background="#EF4444" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
-                                    <Button Content="一键生成日程" Click="AutoGenerateHeats_Click" Padding="12,6" Background="#22C55E" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
-                                    <Button Content="导出日程表" Click="PrintSchedule_Click" Padding="12,6" Background="#8B5CF6" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
+                            <Grid Margin="10">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+                                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                    <StackPanel x:Name="ScheduleGroupedPanel"/>
+                                </ScrollViewer>
+                                <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
+                                    <Button Content="添加赛程项" Click="AddSchedule_Click" Padding="15,5" Background="#3B82F6" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
+                                    <Button Content="删除选中赛程项" Click="DeleteSchedule_Click" Padding="15,5" Background="#EF4444" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
+                                    <Button Content="一键生成日程" Click="AutoGenerateHeats_Click" Padding="15,5" Background="#F59E0B" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
+                                    <Button Content="导出日程表" Click="PrintSchedule_Click" Padding="15,5" Background="#8B5CF6" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
                                 </StackPanel>
-                                <DataGrid x:Name="ScheduleGrid" AutoGenerateColumns="False" CanUserAddRows="False"
-                                          SelectionMode="Single" IsReadOnly="False" AlternatingRowBackground="#F8FAFC">
-                                    <DataGrid.Columns>
-                                        <DataGridTextColumn Header="单元" Binding="{Binding SessionNumber}" Width="50"/>
-                                        <DataGridTextColumn Header="单元名" Binding="{Binding SessionName}" Width="140"/>
-                                        <DataGridTextColumn Header="日期" Binding="{Binding Date}" Width="90"/>
-                                        <DataGridTextColumn Header="时间" Binding="{Binding Time}" Width="60"/>
-                                        <DataGridTextColumn Header="性别" Binding="{Binding Gender}" Width="40"/>
-                                        <DataGridTextColumn Header="项目" Binding="{Binding EventName}" Width="120"/>
-                                        <DataGridTextColumn Header="阶段" Binding="{Binding Stage}" Width="60"/>
-                                        <DataGridCheckBoxColumn Header="接力" Binding="{Binding IsRelay}" Width="40"/>
-                                        <DataGridTextColumn Header="组数" Binding="{Binding HeatCount}" Width="50"/>
-                                    </DataGrid.Columns>
-                                </DataGrid>
-                            </DockPanel>
+                            </Grid>
                         </TabItem>
                     </TabControl>
 

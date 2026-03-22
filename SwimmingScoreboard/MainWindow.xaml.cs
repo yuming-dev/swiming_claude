@@ -95,7 +95,7 @@ namespace SwimmingScoreboard
         private void InitializeData() {
             SwimmerGrid.ItemsSource = _swimmers;
             RelayGrid.ItemsSource = _relayTeams;
-            ScheduleGrid.ItemsSource = _schedule;
+            // ScheduleGrid replaced by ScheduleGroupedPanel
             RecordGrid.ItemsSource = _records;
 
             // 初始化默认项目列表
@@ -1371,6 +1371,7 @@ namespace SwimmingScoreboard
                 }
                 ScheduleTree.Items.Add(sessionItem);
             }
+            RebuildScheduleGroupedView();
         }
 
         // ═══════════════════════════════════════════════════════════════
@@ -2010,18 +2011,109 @@ namespace SwimmingScoreboard
         // ═══════════════════════════════════════════════════════════════
         // 赛程管理
         // ═══════════════════════════════════════════════════════════════
+        private ScheduleItem _selectedScheduleItem;
+
         private void AddSchedule_Click(object sender, RoutedEventArgs e) {
+            int nextSession = _schedule.Count > 0 ? _schedule.Max(s => s.SessionNumber) : 1;
             _schedule.Add(new ScheduleItem {
-                SessionNumber = _schedule.Count > 0 ? _schedule.Max(s => s.SessionNumber) : 1
+                SessionNumber = nextSession,
+                SessionName = string.Format("第{0}单元", nextSession),
+                Date = StartDateBox != null ? StartDateBox.Text : ""
             });
             AutoSaveData();
+            RebuildScheduleGroupedView();
         }
 
         private void DeleteSchedule_Click(object sender, RoutedEventArgs e) {
-            var selected = ScheduleGrid.SelectedItem as ScheduleItem;
-            if (selected != null) {
-                _schedule.Remove(selected);
+            if (_selectedScheduleItem != null) {
+                _schedule.Remove(_selectedScheduleItem);
+                _selectedScheduleItem = null;
                 AutoSaveData();
+                RebuildScheduleGroupedView();
+            } else {
+                MessageBox.Show("请先在日程表中选中要删除的行");
+            }
+        }
+
+        private string InferTimePeriod(string time) {
+            if (string.IsNullOrEmpty(time)) return "上午";
+            int hour = 9;
+            var parts = time.Split(':');
+            if (parts.Length >= 1) int.TryParse(parts[0], out hour);
+            if (hour >= 18) return "晚上";
+            if (hour >= 12) return "下午";
+            return "上午";
+        }
+
+        private void RebuildScheduleGroupedView() {
+            if (ScheduleGroupedPanel == null) return;
+            ScheduleGroupedPanel.Children.Clear();
+
+            // 自动推断单元编号：按日期+时段分组
+            var sessionMap = new Dictionary<string, int>();
+            int sessionNum = 1;
+            foreach (var item in _schedule.OrderBy(s => s.Date).ThenBy(s => s.Time)) {
+                string period = InferTimePeriod(item.Time);
+                string key = (item.Date ?? "") + "|" + period;
+                if (!sessionMap.ContainsKey(key)) {
+                    sessionMap[key] = sessionNum;
+                    sessionNum++;
+                }
+                item.SessionNumber = sessionMap[key];
+                item.SessionName = string.Format("第{0}单元（{1}{2}）", sessionMap[key], item.Date ?? "", period);
+            }
+
+            // 按单元分组显示
+            var groups = _schedule.GroupBy(s => s.SessionNumber).OrderBy(g => g.Key);
+            foreach (var group in groups) {
+                string label = group.First().SessionName ?? string.Format("第{0}单元", group.Key);
+
+                // 单元标题
+                var header = new TextBlock {
+                    Text = label,
+                    FontWeight = FontWeights.Bold,
+                    FontSize = 15,
+                    Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1A5FB4")),
+                    Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#E8F0FE")),
+                    Padding = new Thickness(8, 4, 8, 4),
+                    Margin = new Thickness(0, 5, 0, 6)
+                };
+                ScheduleGroupedPanel.Children.Add(header);
+
+                // 该单元的DataGrid
+                var grid = new DataGrid {
+                    AutoGenerateColumns = false,
+                    CanUserAddRows = false,
+                    HeadersVisibility = DataGridHeadersVisibility.Column,
+                    MinHeight = 30,
+                    AlternatingRowBackground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F8FAFC")),
+                    IsReadOnly = false,
+                    SelectionMode = DataGridSelectionMode.Single
+                };
+
+                grid.Columns.Add(new DataGridTextColumn { Header = "时间", Binding = new System.Windows.Data.Binding("Time"), Width = new DataGridLength(70) });
+                grid.Columns.Add(new DataGridTextColumn { Header = "性别", Binding = new System.Windows.Data.Binding("Gender"), Width = new DataGridLength(40) });
+                grid.Columns.Add(new DataGridTextColumn { Header = "项目", Binding = new System.Windows.Data.Binding("EventName"), Width = new DataGridLength(140) });
+                grid.Columns.Add(new DataGridTextColumn { Header = "阶段", Binding = new System.Windows.Data.Binding("Stage"), Width = new DataGridLength(60) });
+                grid.Columns.Add(new DataGridTextColumn { Header = "组数", Binding = new System.Windows.Data.Binding("HeatCount"), Width = new DataGridLength(50) });
+
+                var items = new ObservableCollection<ScheduleItem>(group.OrderBy(s => s.Time));
+                grid.ItemsSource = items;
+
+                // 选中行跟踪
+                grid.SelectionChanged += delegate {
+                    _selectedScheduleItem = grid.SelectedItem as ScheduleItem;
+                };
+
+                ScheduleGroupedPanel.Children.Add(grid);
+            }
+
+            if (_schedule.Count == 0) {
+                ScheduleGroupedPanel.Children.Add(new TextBlock {
+                    Text = "暂无赛程。请点击\"一键生成日程\"或\"添加赛程项\"。",
+                    Foreground = new SolidColorBrush(Colors.Gray),
+                    Margin = new Thickness(10)
+                });
             }
         }
 
@@ -2091,7 +2183,6 @@ namespace SwimmingScoreboard
             }
 
             BuildScheduleTree();
-            ScheduleGrid.Items.Refresh();
             AddLog(string.Format("自动分组完成: {0}名运动员已分配到各组", generated));
             if (generated == 0) {
                 MessageBox.Show("未分配任何运动员。\n\n请检查：\n1. 运动员的项目名称是否与赛程一致\n2. 运动员的性别是否与赛程一致\n3. 运动员的阶段是否与赛程一致", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
