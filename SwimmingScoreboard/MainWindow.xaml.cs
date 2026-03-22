@@ -1875,6 +1875,11 @@ namespace SwimmingScoreboard
             UpdateEditHeatCombo();
         }
 
+        private void EditHeat_Changed(object sender, SelectionChangedEventArgs e) {
+            if (!_initialized || _editUpdating) return;
+            RefreshEditPreview();
+        }
+
         private void UpdateEditHeatCombo() {
             if (_editUpdating) return;
             if (EditHeatCombo == null || EditGenderCombo == null || EditEventCombo == null || EditStageCombo == null) return;
