@@ -18,11 +18,43 @@ namespace SwimmingScoreboard
             _swimmers = swimmers;
             _events = events;
             _poolConfig = poolConfig;
-            foreach (string ev in events) EventCombo.Items.Add(ev);
+
+            // 从实际运动员数据提取项目列表（而不是用固定列表）
+            var actualEvents = new HashSet<string>();
+            foreach (var s in swimmers) {
+                if (!string.IsNullOrEmpty(s.EventName)) actualEvents.Add(s.EventName);
+            }
+            foreach (string ev in actualEvents) EventCombo.Items.Add(ev);
+            // 也添加固定列表中有但运动员没报的项目
+            foreach (string ev in events) {
+                if (!actualEvents.Contains(ev)) EventCombo.Items.Add(ev);
+            }
             if (EventCombo.Items.Count > 0) EventCombo.SelectedIndex = 0;
+
+            // 自动填充性别（从运动员数据）
+            AutoFillFromData();
         }
 
-        private void Event_Changed(object sender, SelectionChangedEventArgs e) { }
+        private void AutoFillFromData() {
+            // 统计各阶段有成绩的运动员数量
+            var stageInfo = new Dictionary<string, int>();
+            foreach (var s in _swimmers) {
+                foreach (var r in s.Results) {
+                    if (!stageInfo.ContainsKey(r.Stage)) stageInfo[r.Stage] = 0;
+                    stageInfo[r.Stage]++;
+                }
+            }
+            // 在窗口标题显示信息
+            if (stageInfo.Count > 0) {
+                var parts = new List<string>();
+                foreach (var kv in stageInfo) parts.Add(string.Format("{0}:{1}人", kv.Key, kv.Value));
+                Title = "晋级处理 — " + string.Join(", ", parts.ToArray());
+            }
+        }
+
+        private void Event_Changed(object sender, SelectionChangedEventArgs e) {
+            // 切换项目时自动更新可用信息
+        }
 
         private string GetSelectedGender() {
             return GenderCombo.SelectedItem != null ? ((ComboBoxItem)GenderCombo.SelectedItem).Content.ToString() : "男";
@@ -35,18 +67,40 @@ namespace SwimmingScoreboard
             int count;
             if (!int.TryParse(CountBox.Text.Trim(), out count)) count = 8;
 
-            // 按性别和项目筛选（包括已晋级的运动员，只要有该阶段成绩）
-            var filtered = _swimmers.Where(s =>
-                s.Gender == gender &&
-                s.EventName == eventName &&
-                (s.GetResultForStage(fromStage) != null || s.CurrentStage == fromStage)
-            ).ToList();
+            // 查找有该阶段成绩的运动员（不管CurrentStage是什么）
+            var withResults = new List<Swimmer>();
+            var withoutResults = new List<Swimmer>();
 
-            _promoted = HeatScheduler.GetPromotedSwimmers(filtered, eventName, fromStage, count);
+            foreach (var s in _swimmers) {
+                if (s.EventName != eventName) continue;
+                if (s.Gender != gender) continue;
+
+                var result = s.GetResultForStage(fromStage);
+                if (result != null && result.FinalTime > 0 &&
+                    s.Status != "DNS" && s.Status != "DNF" && s.Status != "DSQ") {
+                    withResults.Add(s);
+                } else if (s.CurrentStage == fromStage) {
+                    withoutResults.Add(s);
+                }
+            }
+
+            // 按成绩排序
+            withResults.Sort((a, b) => {
+                var ra = a.GetResultForStage(fromStage);
+                var rb = b.GetResultForStage(fromStage);
+                double ta = ra != null ? ra.FinalTime : double.MaxValue;
+                double tb = rb != null ? rb.FinalTime : double.MaxValue;
+                return ta.CompareTo(tb);
+            });
+
+            _promoted = withResults.Take(count).ToList();
 
             if (_promoted.Count == 0) {
-                MessageBox.Show(string.Format("未找到 {0} {1} {2} 阶段的运动员成绩。\n\n请确认：\n1. 该阶段比赛是否已完成\n2. 性别和项目是否选择正确",
-                    gender, eventName, fromStage), "未找到数据", MessageBoxButton.OK, MessageBoxImage.Information);
+                string msg = string.Format("未找到 {0} {1} {2} 的成绩。\n\n", gender, eventName, fromStage);
+                msg += string.Format("该项目共 {0} 名运动员", _swimmers.Count(s => s.Gender == gender && s.EventName == eventName));
+                msg += string.Format("\n有{0}成绩的: {1}人", fromStage, withResults.Count);
+                msg += string.Format("\n当前在{0}阶段的: {1}人", fromStage, withoutResults.Count);
+                MessageBox.Show(msg, "查询结果", MessageBoxButton.OK, MessageBoxImage.Information);
             }
 
             var displayData = new List<object>();
