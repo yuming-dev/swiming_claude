@@ -95,30 +95,24 @@ namespace SwimmingScoreboard
             }
 
             // 蛇形分组：按成绩排名依次分配
-            // 排名第1→最后一组，第2→倒数第二组...到第一组后反向回来
+            // 排名第1→最后一组，第2→倒数第二组...到第一组后反向
+            // 例3组: 3,2,1,1,2,3,3,2,1,1,2,3...
             List<List<Swimmer>> heats = new List<List<Swimmer>>();
             for (int h = 0; h < heatCount; h++) heats.Add(new List<Swimmer>());
 
-            bool forward = false; // false=从最后一组开始往前
-            int currentHeat = heatCount - 1; // 从最后一组开始
-
             for (int i = 0; i < eligible.Count; i++) {
-                heats[currentHeat].Add(eligible[i]);
-
-                // 蛇形方向切换
-                if (forward) {
-                    currentHeat++;
-                    if (currentHeat >= heatCount) {
-                        currentHeat = heatCount - 1;
-                        forward = false;
-                    }
+                // 计算蛇形位置：每 heatCount 个一轮，奇数轮倒序，偶数轮正序
+                int round = i / heatCount;
+                int posInRound = i % heatCount;
+                int targetHeat;
+                if (round % 2 == 0) {
+                    // 偶数轮（0,2,4...）：从最后一组到第一组
+                    targetHeat = heatCount - 1 - posInRound;
                 } else {
-                    currentHeat--;
-                    if (currentHeat < 0) {
-                        currentHeat = 0;
-                        forward = true;
-                    }
+                    // 奇数轮（1,3,5...）：从第一组到最后一组
+                    targetHeat = posInRound;
                 }
+                heats[targetHeat].Add(eligible[i]);
             }
 
             // 每组内按报名成绩排序（快→慢），用于泳道分配
@@ -184,17 +178,11 @@ namespace SwimmingScoreboard
             List<List<RelayTeam>> heats = new List<List<RelayTeam>>();
             for (int h = 0; h < heatCount; h++) heats.Add(new List<RelayTeam>());
 
-            bool forward = false;
-            int currentHeat = heatCount - 1;
             for (int i = 0; i < eligible.Count; i++) {
-                heats[currentHeat].Add(eligible[i]);
-                if (forward) {
-                    currentHeat++;
-                    if (currentHeat >= heatCount) { currentHeat = heatCount - 1; forward = false; }
-                } else {
-                    currentHeat--;
-                    if (currentHeat < 0) { currentHeat = 0; forward = true; }
-                }
+                int round = i / heatCount;
+                int posInRound = i % heatCount;
+                int targetHeat = (round % 2 == 0) ? (heatCount - 1 - posInRound) : posInRound;
+                heats[targetHeat].Add(eligible[i]);
             }
 
             foreach (var heat in heats) {
