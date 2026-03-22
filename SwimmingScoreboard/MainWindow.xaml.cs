@@ -88,6 +88,7 @@ namespace SwimmingScoreboard
             UpdateConnectionStatus();
             _initialized = true;
             RefreshBackupList();
+            UpdateEditHeatCombo();
             AddLog("系统启动完成");
         }
 
@@ -1862,6 +1863,127 @@ namespace SwimmingScoreboard
         }
 
         private void FilterEvent_Changed(object sender, SelectionChangedEventArgs e) { if (_initialized) RefreshSwimmerFilter(); }
+
+        // ═══════════════════════════════════════════════════════════════
+        // 出场编排微调
+        // ═══════════════════════════════════════════════════════════════
+        private void EditFilter_Changed(object sender, SelectionChangedEventArgs e) {
+            if (!_initialized) return;
+            UpdateEditHeatCombo();
+        }
+
+        private void UpdateEditHeatCombo() {
+            if (EditHeatCombo == null || EditGenderCombo == null || EditEventCombo == null || EditStageCombo == null) return;
+            string gender = ((ComboBoxItem)EditGenderCombo.SelectedItem).Content.ToString();
+            string eventName = EditEventCombo.SelectedItem != null ? EditEventCombo.SelectedItem.ToString() : "";
+            string stage = ((ComboBoxItem)EditStageCombo.SelectedItem).Content.ToString();
+
+            // 填充项目列表（如果为空）
+            if (EditEventCombo.Items.Count == 0) {
+                var evSet = new HashSet<string>();
+                foreach (var s in _swimmers) { if (!string.IsNullOrEmpty(s.EventName)) evSet.Add(s.EventName); }
+                foreach (string ev in evSet.OrderBy(x => x)) EditEventCombo.Items.Add(ev);
+                if (EditEventCombo.Items.Count > 0) EditEventCombo.SelectedIndex = 0;
+                return;
+            }
+
+            EditHeatCombo.Items.Clear();
+            var heats = new HashSet<int>();
+            foreach (var s in _swimmers) {
+                if (s.Gender == gender && s.EventName == eventName && s.CurrentStage == stage && s.Heat > 0)
+                    heats.Add(s.Heat);
+            }
+            foreach (int h in heats.OrderBy(x => x)) EditHeatCombo.Items.Add(h);
+            if (EditHeatCombo.Items.Count > 0) EditHeatCombo.SelectedIndex = 0;
+        }
+
+        private void RefreshEditPreview_Click(object sender, RoutedEventArgs e) {
+            RefreshEditPreview();
+        }
+
+        private void RefreshEditPreview() {
+            if (EditPreviewGrid == null) return;
+            string gender = EditGenderCombo != null ? ((ComboBoxItem)EditGenderCombo.SelectedItem).Content.ToString() : "";
+            string eventName = EditEventCombo != null && EditEventCombo.SelectedItem != null ? EditEventCombo.SelectedItem.ToString() : "";
+            string stage = EditStageCombo != null ? ((ComboBoxItem)EditStageCombo.SelectedItem).Content.ToString() : "";
+            int heat = EditHeatCombo != null && EditHeatCombo.SelectedItem != null ? (int)EditHeatCombo.SelectedItem : 0;
+
+            var swimmers = _swimmers.Where(s =>
+                s.Gender == gender && s.EventName == eventName && s.CurrentStage == stage && s.Heat == heat
+            ).OrderBy(s => s.Lane).ToList();
+
+            var displayData = swimmers.Select(s => new {
+                Lane = s.Lane,
+                BibNumber = s.BibNumber ?? "",
+                Name = s.Name ?? "",
+                Gender = s.Gender ?? "",
+                Country = s.Country ?? "",
+                EntryTime = s.EntryTime ?? "",
+                AgeCategory = s.AgeCategory ?? "",
+                Status = s.Status ?? ""
+            }).ToList();
+
+            EditPreviewGrid.ItemsSource = displayData;
+        }
+
+        private void EditMoveUp_Click(object sender, RoutedEventArgs e) {
+            int idx = EditPreviewGrid.SelectedIndex;
+            if (idx <= 0) return;
+            SwapLanes(idx, idx - 1);
+        }
+
+        private void EditMoveDown_Click(object sender, RoutedEventArgs e) {
+            int idx = EditPreviewGrid.SelectedIndex;
+            if (idx < 0 || idx >= EditPreviewGrid.Items.Count - 1) return;
+            SwapLanes(idx, idx + 1);
+        }
+
+        private void EditSwapLane_Click(object sender, RoutedEventArgs e) {
+            MessageBox.Show("请选中一行后使用上移/下移来调整泳道位置", "提示");
+        }
+
+        private void SwapLanes(int idx1, int idx2) {
+            string gender = ((ComboBoxItem)EditGenderCombo.SelectedItem).Content.ToString();
+            string eventName = EditEventCombo.SelectedItem.ToString();
+            string stage = ((ComboBoxItem)EditStageCombo.SelectedItem).Content.ToString();
+            int heat = (int)EditHeatCombo.SelectedItem;
+
+            var swimmers = _swimmers.Where(s =>
+                s.Gender == gender && s.EventName == eventName && s.CurrentStage == stage && s.Heat == heat
+            ).OrderBy(s => s.Lane).ToList();
+
+            if (idx1 >= 0 && idx1 < swimmers.Count && idx2 >= 0 && idx2 < swimmers.Count) {
+                int tmpLane = swimmers[idx1].Lane;
+                swimmers[idx1].Lane = swimmers[idx2].Lane;
+                swimmers[idx2].Lane = tmpLane;
+                AutoSaveData();
+                RefreshEditPreview();
+            }
+        }
+
+        private void EditRemoveFromHeat_Click(object sender, RoutedEventArgs e) {
+            var selected = EditPreviewGrid.SelectedItem;
+            if (selected == null) { MessageBox.Show("请先选中一名运动员"); return; }
+            string bib = selected.GetType().GetProperty("BibNumber").GetValue(selected, null).ToString();
+            var sw = _swimmers.FirstOrDefault(s => s.BibNumber == bib);
+            if (sw != null) {
+                if (MessageBox.Show(string.Format("确定将 {0} 移出本组？", sw.Name), "确认", MessageBoxButton.YesNo) == MessageBoxResult.Yes) {
+                    sw.Heat = 0;
+                    sw.Lane = 0;
+                    AutoSaveData();
+                    RefreshEditPreview();
+                    AddLog(string.Format("已将 {0} 移出编排", sw.Name));
+                }
+            }
+        }
+
+        private void EditSaveChanges_Click(object sender, RoutedEventArgs e) {
+            AutoSaveData();
+            Broadcast();
+            BuildScheduleTree();
+            MessageBox.Show("编排修改已保存！", "保存成功");
+            AddLog("出场编排修改已保存");
+        }
         private void FilterGender_Changed(object sender, SelectionChangedEventArgs e) { if (_initialized) RefreshSwimmerFilter(); }
 
         private void RefreshSwimmerFilter() {
@@ -1974,15 +2096,49 @@ namespace SwimmingScoreboard
         // ═══════════════════════════════════════════════════════════════
         // 成绩与排名
         // ═══════════════════════════════════════════════════════════════
-        private void ResultEvent_Changed(object sender, SelectionChangedEventArgs e) { if (_initialized) RefreshResultGrid(); }
-        private void ResultStage_Changed(object sender, SelectionChangedEventArgs e) { if (_initialized) RefreshResultGrid(); }
-        private void ResultGender_Changed(object sender, SelectionChangedEventArgs e) { if (_initialized) RefreshResultGrid(); }
+        private void ResultEvent_Changed(object sender, SelectionChangedEventArgs e) { if (_initialized) { UpdateResultHeatCombo(); RefreshResultGrid(); } }
+        private void ResultStage_Changed(object sender, SelectionChangedEventArgs e) { if (_initialized) { UpdateResultHeatCombo(); RefreshResultGrid(); } }
+        private void ResultGender_Changed(object sender, SelectionChangedEventArgs e) { if (_initialized) { UpdateResultHeatCombo(); RefreshResultGrid(); } }
+        private void ResultHeat_Changed(object sender, SelectionChangedEventArgs e) { if (_initialized) RefreshResultGrid(); }
+
+        private void UpdateResultHeatCombo() {
+            if (ResultHeatCombo == null) return;
+            ResultHeatCombo.Items.Clear();
+            ResultHeatCombo.Items.Add(new ComboBoxItem { Content = "全部" });
+
+            string gender = ResultGenderCombo.SelectedItem != null ? ((ComboBoxItem)ResultGenderCombo.SelectedItem).Content.ToString() : "全部";
+            string eventName = ResultEventCombo.SelectedItem != null ? ResultEventCombo.SelectedItem.ToString() : "";
+            string stage = ResultStageCombo.SelectedItem != null ? ((ComboBoxItem)ResultStageCombo.SelectedItem).Content.ToString() : "全部";
+
+            var heats = new HashSet<int>();
+            foreach (var s in _swimmers) {
+                if (!string.IsNullOrEmpty(eventName) && s.EventName != eventName) continue;
+                if (gender != "全部" && s.Gender != gender) continue;
+                foreach (var r in s.Results) {
+                    if (stage != "全部" && r.Stage != stage) continue;
+                    if (r.Heat > 0) heats.Add(r.Heat);
+                }
+                if (stage == "全部" || s.CurrentStage == stage) {
+                    if (s.Heat > 0) heats.Add(s.Heat);
+                }
+            }
+            foreach (int h in heats.OrderBy(x => x)) {
+                ResultHeatCombo.Items.Add(new ComboBoxItem { Content = string.Format("第{0}组", h) });
+            }
+            ResultHeatCombo.SelectedIndex = 0;
+        }
 
         private void RefreshResultGrid() {
             if (ResultEventCombo == null || ResultStageCombo == null || ResultGenderCombo == null || ResultGrid == null) return;
             string gender = ResultGenderCombo.SelectedItem != null ? ((ComboBoxItem)ResultGenderCombo.SelectedItem).Content.ToString() : "全部";
             string eventName = ResultEventCombo.SelectedItem != null ? ResultEventCombo.SelectedItem.ToString() : "";
             string stage = ResultStageCombo.SelectedItem != null ? ((ComboBoxItem)ResultStageCombo.SelectedItem).Content.ToString() : "全部";
+            string heatFilter = ResultHeatCombo != null && ResultHeatCombo.SelectedItem != null ? ((ComboBoxItem)ResultHeatCombo.SelectedItem).Content.ToString() : "全部";
+            int filterHeat = 0;
+            if (heatFilter != "全部") {
+                var m = System.Text.RegularExpressions.Regex.Match(heatFilter, @"\d+");
+                if (m.Success) filterHeat = int.Parse(m.Value);
+            }
 
             if (string.IsNullOrEmpty(eventName)) {
                 ResultGrid.ItemsSource = null;
@@ -2000,6 +2156,17 @@ namespace SwimmingScoreboard
                 ).ToList();
             } else {
                 results = allMatched;
+            }
+
+            // 按组筛选
+            if (filterHeat > 0) {
+                results = results.Where(s => {
+                    if (stage != "全部") {
+                        var r = s.GetResultForStage(stage);
+                        return r != null && r.Heat == filterHeat;
+                    }
+                    return s.Heat == filterHeat;
+                }).ToList();
             }
 
             var displayData = results.Select(s => {

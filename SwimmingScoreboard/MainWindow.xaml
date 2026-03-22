@@ -267,12 +267,60 @@
                                 </DataGrid>
                             </DockPanel>
                         </TabItem>
+                        <TabItem Header="出场编排微调">
+                            <DockPanel Margin="10">
+                                <StackPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                        <TextBlock Text="性别:" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                        <ComboBox x:Name="EditGenderCombo" Width="60" SelectionChanged="EditFilter_Changed">
+                                            <ComboBoxItem Content="男" IsSelected="True"/>
+                                            <ComboBoxItem Content="女"/>
+                                            <ComboBoxItem Content="混合"/>
+                                        </ComboBox>
+                                        <TextBlock Text=" 项目:" VerticalAlignment="Center" Margin="8,0,4,0"/>
+                                        <ComboBox x:Name="EditEventCombo" Width="160" SelectionChanged="EditFilter_Changed"/>
+                                        <TextBlock Text=" 赛次:" VerticalAlignment="Center" Margin="8,0,4,0"/>
+                                        <ComboBox x:Name="EditStageCombo" Width="70" SelectionChanged="EditFilter_Changed">
+                                            <ComboBoxItem Content="预赛" IsSelected="True"/>
+                                            <ComboBoxItem Content="复赛"/>
+                                            <ComboBoxItem Content="半决赛"/>
+                                            <ComboBoxItem Content="决赛"/>
+                                        </ComboBox>
+                                        <TextBlock Text=" 组:" VerticalAlignment="Center" Margin="8,0,4,0"/>
+                                        <ComboBox x:Name="EditHeatCombo" Width="50" SelectionChanged="EditFilter_Changed"/>
+                                        <Button Content="刷新显示" Click="RefreshEditPreview_Click" Padding="12,4" Margin="12,0,0,0"
+                                                Background="#3B82F6" Foreground="White" BorderThickness="0"/>
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal">
+                                        <Button Content="上移" Click="EditMoveUp_Click" Padding="10,4" Background="#475569" Foreground="White" BorderThickness="0" Margin="0,0,4,0"/>
+                                        <Button Content="下移" Click="EditMoveDown_Click" Padding="10,4" Background="#475569" Foreground="White" BorderThickness="0" Margin="0,0,4,0"/>
+                                        <Button Content="交换泳道" Click="EditSwapLane_Click" Padding="10,4" Background="#F59E0B" Foreground="White" BorderThickness="0" Margin="0,0,4,0"/>
+                                        <Button Content="移出本组" Click="EditRemoveFromHeat_Click" Padding="10,4" Background="#EF4444" Foreground="White" BorderThickness="0" Margin="0,0,4,0"/>
+                                        <Button Content="保存修改" Click="EditSaveChanges_Click" Padding="10,4" Background="#22C55E" Foreground="White" BorderThickness="0" Margin="0,0,4,0"/>
+                                    </StackPanel>
+                                </StackPanel>
+                                <DataGrid x:Name="EditPreviewGrid" AutoGenerateColumns="False" CanUserAddRows="False"
+                                          SelectionMode="Single" IsReadOnly="True" AlternatingRowBackground="#F8FAFC">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="道" Binding="{Binding Lane}" Width="40"/>
+                                        <DataGridTextColumn Header="号码" Binding="{Binding BibNumber}" Width="60"/>
+                                        <DataGridTextColumn Header="姓名" Binding="{Binding Name}" Width="80"/>
+                                        <DataGridTextColumn Header="性别" Binding="{Binding Gender}" Width="40"/>
+                                        <DataGridTextColumn Header="代表队" Binding="{Binding Country}" Width="80"/>
+                                        <DataGridTextColumn Header="报名成绩" Binding="{Binding EntryTime}" Width="80"/>
+                                        <DataGridTextColumn Header="年龄组" Binding="{Binding AgeCategory}" Width="60"/>
+                                        <DataGridTextColumn Header="状态" Binding="{Binding Status}" Width="50"/>
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </DockPanel>
+                        </TabItem>
                         <TabItem Header="赛程管理">
                             <DockPanel Margin="10">
                                 <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
                                     <Button Content="添加赛程项" Click="AddSchedule_Click" Padding="12,6" Background="#3B82F6" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
                                     <Button Content="删除选中" Click="DeleteSchedule_Click" Padding="12,6" Background="#EF4444" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
-                                    <Button Content="自动生成分组" Click="AutoGenerateHeats_Click" Padding="12,6" Background="#22C55E" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
+                                    <Button Content="一键生成日程" Click="AutoGenerateHeats_Click" Padding="12,6" Background="#22C55E" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
+                                    <Button Content="导出日程表" Click="PrintSchedule_Click" Padding="12,6" Background="#8B5CF6" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
                                 </StackPanel>
                                 <DataGrid x:Name="ScheduleGrid" AutoGenerateColumns="False" CanUserAddRows="False"
                                           SelectionMode="Single" IsReadOnly="False" AlternatingRowBackground="#F8FAFC">
@@ -489,6 +537,10 @@
                             <ComboBoxItem Content="复赛"/>
                             <ComboBoxItem Content="半决赛"/>
                             <ComboBoxItem Content="决赛"/>
+                        </ComboBox>
+                        <TextBlock Text=" 组:" VerticalAlignment="Center" Margin="8,0,4,0"/>
+                        <ComboBox x:Name="ResultHeatCombo" Width="60" SelectionChanged="ResultHeat_Changed">
+                            <ComboBoxItem Content="全部" IsSelected="True"/>
                         </ComboBox>
                         <Button Content="晋级处理" Click="Promotion_Click" Padding="12,4" Margin="16,0,0,0"
                                 Background="#8B5CF6" Foreground="White" BorderThickness="0"/>
