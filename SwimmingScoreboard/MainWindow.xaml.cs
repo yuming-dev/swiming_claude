@@ -1867,34 +1867,41 @@ namespace SwimmingScoreboard
         // ═══════════════════════════════════════════════════════════════
         // 出场编排微调
         // ═══════════════════════════════════════════════════════════════
+        private bool _editUpdating = false;
+
         private void EditFilter_Changed(object sender, SelectionChangedEventArgs e) {
-            if (!_initialized) return;
+            if (!_initialized || _editUpdating) return;
             UpdateEditHeatCombo();
         }
 
         private void UpdateEditHeatCombo() {
+            if (_editUpdating) return;
             if (EditHeatCombo == null || EditGenderCombo == null || EditEventCombo == null || EditStageCombo == null) return;
-            string gender = ((ComboBoxItem)EditGenderCombo.SelectedItem).Content.ToString();
-            string eventName = EditEventCombo.SelectedItem != null ? EditEventCombo.SelectedItem.ToString() : "";
-            string stage = ((ComboBoxItem)EditStageCombo.SelectedItem).Content.ToString();
+            _editUpdating = true;
+            try {
+                // 填充项目列表（如果为空）
+                if (EditEventCombo.Items.Count == 0) {
+                    var evSet = new HashSet<string>();
+                    foreach (var s in _swimmers) { if (!string.IsNullOrEmpty(s.EventName)) evSet.Add(s.EventName); }
+                    foreach (string ev in evSet.OrderBy(x => x)) EditEventCombo.Items.Add(ev);
+                    if (EditEventCombo.Items.Count > 0) EditEventCombo.SelectedIndex = 0;
+                }
 
-            // 填充项目列表（如果为空）
-            if (EditEventCombo.Items.Count == 0) {
-                var evSet = new HashSet<string>();
-                foreach (var s in _swimmers) { if (!string.IsNullOrEmpty(s.EventName)) evSet.Add(s.EventName); }
-                foreach (string ev in evSet.OrderBy(x => x)) EditEventCombo.Items.Add(ev);
-                if (EditEventCombo.Items.Count > 0) EditEventCombo.SelectedIndex = 0;
-                return;
-            }
+                string gender = EditGenderCombo.SelectedItem != null ? ((ComboBoxItem)EditGenderCombo.SelectedItem).Content.ToString() : "男";
+                string eventName = EditEventCombo.SelectedItem != null ? EditEventCombo.SelectedItem.ToString() : "";
+                string stage = EditStageCombo.SelectedItem != null ? ((ComboBoxItem)EditStageCombo.SelectedItem).Content.ToString() : "预赛";
 
-            EditHeatCombo.Items.Clear();
-            var heats = new HashSet<int>();
-            foreach (var s in _swimmers) {
-                if (s.Gender == gender && s.EventName == eventName && s.CurrentStage == stage && s.Heat > 0)
-                    heats.Add(s.Heat);
+                EditHeatCombo.Items.Clear();
+                var heats = new HashSet<int>();
+                foreach (var s in _swimmers) {
+                    if (s.Gender == gender && s.EventName == eventName && s.CurrentStage == stage && s.Heat > 0)
+                        heats.Add(s.Heat);
+                }
+                foreach (int h in heats.OrderBy(x => x)) EditHeatCombo.Items.Add(h);
+                if (EditHeatCombo.Items.Count > 0) EditHeatCombo.SelectedIndex = 0;
+            } finally {
+                _editUpdating = false;
             }
-            foreach (int h in heats.OrderBy(x => x)) EditHeatCombo.Items.Add(h);
-            if (EditHeatCombo.Items.Count > 0) EditHeatCombo.SelectedIndex = 0;
         }
 
         private void RefreshEditPreview_Click(object sender, RoutedEventArgs e) {
