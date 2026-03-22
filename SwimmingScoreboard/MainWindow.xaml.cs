@@ -1989,14 +1989,32 @@ namespace SwimmingScoreboard
                 return;
             }
 
-            var results = _swimmers.Where(s => s.EventName == eventName).ToList();
-            if (gender != "全部") results = results.Where(s => s.Gender == gender).ToList();
-            if (stage != "全部") results = results.Where(s => s.CurrentStage == stage).ToList();
+            var allMatched = _swimmers.Where(s => s.EventName == eventName).ToList();
+            if (gender != "全部") allMatched = allMatched.Where(s => s.Gender == gender).ToList();
+
+            // 按阶段筛选：查找有该阶段成绩的运动员，或当前阶段匹配的
+            List<Swimmer> results;
+            if (stage != "全部") {
+                results = allMatched.Where(s =>
+                    s.GetResultForStage(stage) != null || s.CurrentStage == stage
+                ).ToList();
+            } else {
+                results = allMatched;
+            }
 
             var displayData = results.Select(s => {
-                var r = s.Results.FirstOrDefault(lr => stage == "全部" || lr.Stage == stage);
+                // 查找对应阶段的成绩
+                LaneResult r = null;
+                if (stage != "全部") {
+                    r = s.GetResultForStage(stage);
+                } else {
+                    // "全部"时取最新阶段的成绩
+                    r = s.Results.LastOrDefault();
+                }
+                // 按成绩排名
+                double sortTime = r != null && r.FinalTime > 0 ? r.FinalTime : double.MaxValue;
                 return new {
-                    Rank = s.CurrentRank > 0 ? s.CurrentRank.ToString() : "",
+                    SortTime = sortTime,
                     Lane = s.Lane,
                     BibNumber = s.BibNumber ?? "",
                     Name = s.Name ?? "",
@@ -2004,16 +2022,27 @@ namespace SwimmingScoreboard
                     EntryTime = s.EntryTime ?? "",
                     FinalTime = r != null ? TimeFormatter.Format(r.FinalTime) : "",
                     TimingSource = r != null ? r.TimingSource : "",
-                    ReactionTime = "",
+                    ReactionTime = r != null && r.StartingBlockTime > 0 ? r.StartingBlockTime.ToString("F2") : "",
                     Status = s.Status ?? "",
+                    Stage = s.CurrentStage ?? "",
                     RecordNote = ""
                 };
-            }).OrderBy(x => {
-                int rank;
-                return int.TryParse(x.Rank, out rank) ? rank : int.MaxValue;
-            }).ToList();
+            }).OrderBy(x => x.SortTime).ToList();
 
-            ResultGrid.ItemsSource = displayData;
+            // 重新计算排名
+            var rankedData = new List<object>();
+            int rankNum = 1;
+            foreach (var item in displayData) {
+                string rankStr = item.SortTime < double.MaxValue ? rankNum.ToString() : "";
+                rankedData.Add(new {
+                    Rank = rankStr,
+                    item.Lane, item.BibNumber, item.Name, item.Country, item.EntryTime,
+                    item.FinalTime, item.TimingSource, item.ReactionTime, item.Status, item.Stage, item.RecordNote
+                });
+                if (item.SortTime < double.MaxValue) rankNum++;
+            }
+
+            ResultGrid.ItemsSource = rankedData;
         }
 
         private void Promotion_Click(object sender, RoutedEventArgs e) {

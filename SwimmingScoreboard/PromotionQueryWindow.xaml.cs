@@ -35,9 +35,19 @@ namespace SwimmingScoreboard
             int count;
             if (!int.TryParse(CountBox.Text.Trim(), out count)) count = 8;
 
-            // 按性别和项目筛选
-            var filtered = _swimmers.Where(s => s.Gender == gender && s.EventName == eventName).ToList();
+            // 按性别和项目筛选（包括已晋级的运动员，只要有该阶段成绩）
+            var filtered = _swimmers.Where(s =>
+                s.Gender == gender &&
+                s.EventName == eventName &&
+                (s.GetResultForStage(fromStage) != null || s.CurrentStage == fromStage)
+            ).ToList();
+
             _promoted = HeatScheduler.GetPromotedSwimmers(filtered, eventName, fromStage, count);
+
+            if (_promoted.Count == 0) {
+                MessageBox.Show(string.Format("未找到 {0} {1} {2} 阶段的运动员成绩。\n\n请确认：\n1. 该阶段比赛是否已完成\n2. 性别和项目是否选择正确",
+                    gender, eventName, fromStage), "未找到数据", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
 
             var displayData = new List<object>();
             int rank = 1;
@@ -48,7 +58,8 @@ namespace SwimmingScoreboard
                     BibNumber = sw.BibNumber,
                     Name = sw.Name,
                     Country = sw.Country,
-                    Time = result != null ? TimeFormatter.Format(result.FinalTime) : "-"
+                    Time = result != null ? TimeFormatter.Format(result.FinalTime) : "-",
+                    Stage = sw.CurrentStage
                 });
             }
             PromotionGrid.ItemsSource = displayData;

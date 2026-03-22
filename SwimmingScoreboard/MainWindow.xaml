@@ -508,6 +508,7 @@
                             <DataGridTextColumn Header="计时源" Binding="{Binding TimingSource}" Width="60"/>
                             <DataGridTextColumn Header="反应时间" Binding="{Binding ReactionTime}" Width="70"/>
                             <DataGridTextColumn Header="状态" Binding="{Binding Status}" Width="50"/>
+                            <DataGridTextColumn Header="阶段" Binding="{Binding Stage}" Width="60"/>
                             <DataGridTextColumn Header="纪录" Binding="{Binding RecordNote}" Width="80"/>
                         </DataGrid.Columns>
                     </DataGrid>

@@ -45,6 +45,7 @@
                 <DataGridTextColumn Header="姓名" Binding="{Binding Name}" Width="80"/>
                 <DataGridTextColumn Header="代表队" Binding="{Binding Country}" Width="80"/>
                 <DataGridTextColumn Header="成绩" Binding="{Binding Time}" Width="80"/>
+                <DataGridTextColumn Header="当前阶段" Binding="{Binding Stage}" Width="70"/>
             </DataGrid.Columns>
         </DataGrid>
 
