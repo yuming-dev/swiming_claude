@@ -13,29 +13,33 @@
 
         <!-- 选择条件 -->
         <Border Grid.Row="0" Background="White" CornerRadius="6" Padding="12" Margin="0,0,0,8">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="60"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
-                <TextBlock Grid.Column="0" Text="比赛项目:" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                <ComboBox x:Name="EventCombo" Grid.Column="1" SelectionChanged="Event_Changed" Margin="0,0,12,0"/>
-                <TextBlock Grid.Column="2" Text="数据来源:" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                <ComboBox x:Name="FromStageCombo" Grid.Column="3" SelectionChanged="Stage_Changed" Margin="0,0,8,0"/>
-                <ComboBox x:Name="PromotionModeCombo" Grid.Column="4" Width="160" SelectionChanged="Mode_Changed" Margin="0,0,4,0">
-                    <ComboBoxItem Content="总成绩排名前N名" IsSelected="True"/>
-                    <ComboBoxItem Content="每组前2名+成绩递补"/>
-                    <ComboBoxItem Content="每组前3名+成绩递补"/>
-                    <ComboBoxItem Content="每组前4名+成绩递补"/>
-                </ComboBox>
-                <TextBox x:Name="CountBox" Grid.Column="5" Text="16" Padding="4" VerticalAlignment="Center"/>
-                <Button Grid.Column="6" Content="查询" Click="Query_Click" Padding="16,6" Margin="8,0,0,0"
-                        Background="#3B82F6" Foreground="White" BorderThickness="0"/>
+            <StackPanel>
+                <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                    <TextBlock Text="性别:" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                    <ComboBox x:Name="GenderCombo" Width="70" SelectionChanged="Gender_Changed" Margin="0,0,12,0">
+                        <ComboBoxItem Content="男" IsSelected="True"/>
+                        <ComboBoxItem Content="女"/>
+                        <ComboBoxItem Content="混合"/>
+                    </ComboBox>
+                    <TextBlock Text="项目:" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                    <ComboBox x:Name="EventCombo" Width="180" SelectionChanged="Event_Changed" Margin="0,0,12,0"/>
+                    <TextBlock Text="赛次:" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                    <ComboBox x:Name="FromStageCombo" Width="80" SelectionChanged="Stage_Changed" Margin="0,0,12,0"/>
+                    <Button Content="查询晋级名单" Click="Query_Click" Padding="16,6"
+                            Background="#3B82F6" Foreground="White" BorderThickness="0"/>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="晋级模式:" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                    <ComboBox x:Name="PromotionModeCombo" Width="170" SelectionChanged="Mode_Changed" Margin="0,0,12,0">
+                        <ComboBoxItem Content="总成绩排名前N名" IsSelected="True"/>
+                        <ComboBoxItem Content="每组前2名+成绩递补"/>
+                        <ComboBoxItem Content="每组前3名+成绩递补"/>
+                        <ComboBoxItem Content="每组前4名+成绩递补"/>
+                    </ComboBox>
+                    <TextBlock Text="晋级人数:" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                    <TextBox x:Name="CountBox" Width="50" Text="16" Padding="4" VerticalAlignment="Center"/>
+                </StackPanel>
+            </StackPanel>
             </Grid>
         </Border>
 
