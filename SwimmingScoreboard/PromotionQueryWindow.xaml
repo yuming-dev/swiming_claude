@@ -40,7 +40,6 @@
                     <TextBox x:Name="CountBox" Width="50" Text="16" Padding="4" VerticalAlignment="Center"/>
                 </StackPanel>
             </StackPanel>
-            </Grid>
         </Border>
 
         <!-- 信息提示 -->
