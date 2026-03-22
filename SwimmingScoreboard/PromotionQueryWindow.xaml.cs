@@ -15,6 +15,7 @@ namespace SwimmingScoreboard
         private List<Swimmer> _promoted = new List<Swimmer>();
         private string _fromStage = "";
         private string _toStage = "";
+        private bool _initialized = false;
 
         public PromotionQueryWindow(ObservableCollection<Swimmer> swimmers, List<string> events, PoolConfig poolConfig) {
             InitializeComponent();
@@ -22,6 +23,7 @@ namespace SwimmingScoreboard
             _events = events;
             _poolConfig = poolConfig;
             PopulateEvents();
+            _initialized = true;
         }
 
         private void PopulateEvents() {
@@ -36,9 +38,9 @@ namespace SwimmingScoreboard
             if (EventCombo.Items.Count > 0) EventCombo.SelectedIndex = 0;
         }
 
-        private void Event_Changed(object sender, SelectionChangedEventArgs e) { UpdateStages(); }
-        private void Stage_Changed(object sender, SelectionChangedEventArgs e) { UpdateInfo(); }
-        private void Mode_Changed(object sender, SelectionChangedEventArgs e) { UpdateInfo(); }
+        private void Event_Changed(object sender, SelectionChangedEventArgs e) { if (_initialized) UpdateStages(); }
+        private void Stage_Changed(object sender, SelectionChangedEventArgs e) { if (_initialized) UpdateInfo(); }
+        private void Mode_Changed(object sender, SelectionChangedEventArgs e) { if (_initialized) UpdateInfo(); }
 
         private void UpdateStages() {
             FromStageCombo.Items.Clear();
