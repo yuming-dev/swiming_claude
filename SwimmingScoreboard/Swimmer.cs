@@ -248,6 +248,18 @@ namespace SwimmingScoreboard
     }
 
     // ═══════════════════════════════════════════════════════════════
+    // 赛次分组记录（保存每个赛次的分组/泳道分配，不会被后续赛次覆盖）
+    // ═══════════════════════════════════════════════════════════════
+    public class StageAssignment
+    {
+        public string Stage { get; set; }
+        public int Heat { get; set; }
+        public int Lane { get; set; }
+        public double EntryTimeSeconds { get; set; }
+        public string EntryTime { get; set; }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
     // 运动员（对应跳水的 Diver）
     // ═══════════════════════════════════════════════════════════════
     public class Swimmer : INotifyPropertyChanged
@@ -275,6 +287,7 @@ namespace SwimmingScoreboard
         private int _currentRank;
         private string _ageCategory;
         private ObservableCollection<LaneResult> _results;
+        private Dictionary<string, StageAssignment> _stageAssignments;
 
         public Swimmer() {
             _gender = "男";
@@ -282,6 +295,7 @@ namespace SwimmingScoreboard
             _isQualified = true;
             _status = "";
             _results = new ObservableCollection<LaneResult>();
+            _stageAssignments = new Dictionary<string, StageAssignment>();
         }
 
         public string Name {
@@ -386,6 +400,27 @@ namespace SwimmingScoreboard
 
         public LaneResult GetResultForStage(string stage) {
             return _results.FirstOrDefault(r => r.Stage == stage);
+        }
+
+        // 每个赛次的分组记录（历史数据，不会被覆盖）
+        public Dictionary<string, StageAssignment> StageAssignments {
+            get { return _stageAssignments; }
+            set { _stageAssignments = value ?? new Dictionary<string, StageAssignment>(); }
+        }
+
+        public StageAssignment GetAssignmentForStage(string stage) {
+            StageAssignment a;
+            return _stageAssignments.TryGetValue(stage, out a) ? a : null;
+        }
+
+        public void SetStageAssignment(string stage, int heat, int lane, double entryTimeSeconds, string entryTime) {
+            _stageAssignments[stage] = new StageAssignment {
+                Stage = stage,
+                Heat = heat,
+                Lane = lane,
+                EntryTimeSeconds = entryTimeSeconds,
+                EntryTime = entryTime
+            };
         }
 
         private void UpdateAgeCategory() {
@@ -580,7 +615,19 @@ namespace SwimmingScoreboard
         }
         public string Date {
             get { return _date; }
-            set { _date = value; OnPropertyChanged("Date"); }
+            set { _date = value; OnPropertyChanged("Date"); OnPropertyChanged("DateAsDateTime"); }
+        }
+        // DatePicker绑定用
+        [Newtonsoft.Json.JsonIgnore]
+        public DateTime? DateAsDateTime {
+            get {
+                DateTime dt;
+                if (DateTime.TryParse(_date, out dt)) return dt;
+                return null;
+            }
+            set {
+                Date = value.HasValue ? value.Value.ToString("yyyy-MM-dd") : "";
+            }
         }
         public string Location {
             get { return _location; }

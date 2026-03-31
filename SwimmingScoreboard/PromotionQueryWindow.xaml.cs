@@ -10,17 +10,19 @@ namespace SwimmingScoreboard
     public partial class PromotionQueryWindow : Window
     {
         private ObservableCollection<Swimmer> _swimmers;
+        private ObservableCollection<ScheduleItem> _schedule;
         private List<string> _events;
         private PoolConfig _poolConfig;
         private List<Swimmer> _promoted = new List<Swimmer>();
         private string _toStage = "";
         private bool _initialized = false;
 
-        public PromotionQueryWindow(ObservableCollection<Swimmer> swimmers, List<string> events, PoolConfig poolConfig) {
+        public PromotionQueryWindow(ObservableCollection<Swimmer> swimmers, List<string> events, PoolConfig poolConfig, ObservableCollection<ScheduleItem> schedule = null) {
             InitializeComponent();
             _swimmers = swimmers;
             _events = events;
             _poolConfig = poolConfig;
+            _schedule = schedule ?? new ObservableCollection<ScheduleItem>();
             PopulateEvents();
             _initialized = true;
             UpdateStages();
@@ -54,7 +56,7 @@ namespace SwimmingScoreboard
                 }
             }
 
-            string[] stageOrder = { "预赛", "复赛", "半决赛" };
+            string[] stageOrder = { "预赛", "半决赛" };
             foreach (string st in stageOrder) {
                 if (stagesWithResults.Contains(st)) FromStageCombo.Items.Add(st);
             }
@@ -66,7 +68,6 @@ namespace SwimmingScoreboard
         private void Gender_Changed(object sender, SelectionChangedEventArgs e) { if (_initialized) UpdateStages(); }
         private void Event_Changed(object sender, SelectionChangedEventArgs e) { if (_initialized) UpdateStages(); }
         private void Stage_Changed(object sender, SelectionChangedEventArgs e) { if (_initialized) UpdateInfo(); }
-        private void Mode_Changed(object sender, SelectionChangedEventArgs e) { if (_initialized) UpdateInfo(); }
 
         // ═══════ 信息更新 ═══════
         private void UpdateInfo() {
@@ -81,11 +82,21 @@ namespace SwimmingScoreboard
                 return;
             }
 
-            // 确定下一阶段
-            if (fromStage == "预赛") _toStage = "半决赛";
-            else if (fromStage == "复赛") _toStage = "半决赛";
+            // 确定下一阶段并设置默认晋级人数
+            if (fromStage == "预赛") {
+                // 预赛晋级：检查赛程表是否有半决赛
+                bool hasSemis = false;
+                foreach (var sch in _schedule) {
+                    if (sch.Gender == gender && sch.EventName == eventName && sch.Stage == "半决赛") { hasSemis = true; break; }
+                }
+                _toStage = hasSemis ? "半决赛" : "决赛";
+            }
             else if (fromStage == "半决赛") _toStage = "决赛";
             else { _toStage = ""; return; }
+
+            // 晋级到半决赛→16人，晋级到决赛→8人
+            int defaultPromo = (_toStage == "半决赛") ? 16 : 8;
+            CountBox.Text = defaultPromo.ToString();
 
             int total = 0, withResults = 0;
             var heats = new HashSet<int>();
@@ -117,95 +128,42 @@ namespace SwimmingScoreboard
 
             int totalPromo = 16;
             int.TryParse(CountBox.Text.Trim(), out totalPromo);
-            int modeIdx = PromotionModeCombo != null ? PromotionModeCombo.SelectedIndex : 0;
 
-            // 收集有成绩的运动员，按组分类
-            var heatResults = new Dictionary<int, List<SwimmerResult>>();
+            // 收集所有有成绩的运动员（不分小组，统一排名）
+            var all = new List<SwimmerResult>();
             foreach (var s in _swimmers) {
                 if (s.Gender != gender || s.EventName != eventName) continue;
                 if (s.Status == "DNS" || s.Status == "DNF" || s.Status == "DSQ") continue;
                 var r = s.GetResultForStage(fromStage);
                 if (r == null || r.FinalTime <= 0) continue;
-                if (!heatResults.ContainsKey(r.Heat)) heatResults[r.Heat] = new List<SwimmerResult>();
-                heatResults[r.Heat].Add(new SwimmerResult { Swimmer = s, Result = r });
+                all.Add(new SwimmerResult { Swimmer = s, Result = r });
             }
 
-            // 每组内按成绩排序（相同成绩比较反应时间）
-            foreach (var kv in heatResults) {
-                kv.Value.Sort((a, b) => {
-                    int cmp = a.Result.FinalTime.CompareTo(b.Result.FinalTime);
-                    if (cmp != 0) return cmp;
-                    return a.Result.StartingBlockTime.CompareTo(b.Result.StartingBlockTime);
-                });
-                for (int i = 0; i < kv.Value.Count; i++) kv.Value[i].HeatRank = i + 1;
-            }
+            // 按成绩总排名（成绩相同比较反应时间）
+            all.Sort((a, b) => {
+                int cmp = a.Result.FinalTime.CompareTo(b.Result.FinalTime);
+                if (cmp != 0) return cmp;
+                return a.Result.StartingBlockTime.CompareTo(b.Result.StartingBlockTime);
+            });
 
             _promoted.Clear();
             var displayData = new List<object>();
 
-            if (modeIdx == 0) {
-                // 总成绩排名前N名
-                var all = new List<SwimmerResult>();
-                foreach (var kv in heatResults) all.AddRange(kv.Value);
-                all.Sort((a, b) => {
-                    int cmp = a.Result.FinalTime.CompareTo(b.Result.FinalTime);
-                    if (cmp != 0) return cmp;
-                    return a.Result.StartingBlockTime.CompareTo(b.Result.StartingBlockTime);
-                });
-                var selected = all.Take(totalPromo).ToList();
-                _promoted = selected.Select(x => x.Swimmer).ToList();
-                int rank = 1;
-                foreach (var sr in selected) displayData.Add(MakeRow(rank++, sr, "总排名"));
+            var selected = all.Take(totalPromo).ToList();
+            _promoted = selected.Select(x => x.Swimmer).ToList();
+            int rank = 1;
+            foreach (var sr in selected) displayData.Add(MakeRow(rank++, sr, "总排名"));
 
-                // 并列检查
-                if (selected.Count == totalPromo && all.Count > totalPromo) {
-                    double cutoff = selected.Last().Result.FinalTime;
-                    int tiedCount = all.Count(x => x.Result.FinalTime == cutoff) - selected.Count(x => x.Result.FinalTime == cutoff);
-                    if (tiedCount > 0) {
-                        // 再比反应时间后仍并列
-                        double cutReact = selected.Last().Result.StartingBlockTime;
-                        int stillTied = all.Count(x => x.Result.FinalTime == cutoff && x.Result.StartingBlockTime == cutReact && !selected.Contains(x));
-                        if (stillTied > 0)
-                            WarningText.Text = string.Format("警告：第{0}名成绩{1}反应{2}s存在并列{3}人！需加赛。", totalPromo, TimeFormatter.Format(cutoff), cutReact.ToString("F2"), stillTied);
-                    }
+            // 并列检查
+            if (selected.Count == totalPromo && all.Count > totalPromo) {
+                double cutoff = selected.Last().Result.FinalTime;
+                int tiedCount = all.Count(x => x.Result.FinalTime == cutoff) - selected.Count(x => x.Result.FinalTime == cutoff);
+                if (tiedCount > 0) {
+                    double cutReact = selected.Last().Result.StartingBlockTime;
+                    int stillTied = all.Count(x => x.Result.FinalTime == cutoff && x.Result.StartingBlockTime == cutReact && !selected.Contains(x));
+                    if (stillTied > 0)
+                        WarningText.Text = string.Format("警告：第{0}名成绩{1}反应{2}s存在并列{3}人！需加赛。", totalPromo, TimeFormatter.Format(cutoff), cutReact.ToString("F2"), stillTied);
                 }
-            } else {
-                // 每组前N名+成绩递补
-                int perHeat = modeIdx + 1;
-                var directQualified = new List<SwimmerResult>();
-                var remainders = new List<SwimmerResult>();
-                foreach (var kv in heatResults.OrderBy(k => k.Key)) {
-                    for (int i = 0; i < kv.Value.Count; i++) {
-                        if (i < perHeat) {
-                            kv.Value[i].Method = string.Format("组{0}第{1}", kv.Key, i + 1);
-                            directQualified.Add(kv.Value[i]);
-                        } else {
-                            remainders.Add(kv.Value[i]);
-                        }
-                    }
-                }
-                remainders.Sort((a, b) => {
-                    int cmp = a.Result.FinalTime.CompareTo(b.Result.FinalTime);
-                    if (cmp != 0) return cmp;
-                    return a.Result.StartingBlockTime.CompareTo(b.Result.StartingBlockTime);
-                });
-                int needed = Math.Max(0, totalPromo - directQualified.Count);
-                var supplemented = remainders.Take(needed).ToList();
-                foreach (var sr in supplemented) sr.Method = "成绩递补";
-
-                var allPromoted = new List<SwimmerResult>();
-                allPromoted.AddRange(directQualified);
-                allPromoted.AddRange(supplemented);
-                allPromoted.Sort((a, b) => {
-                    int cmp = a.Result.FinalTime.CompareTo(b.Result.FinalTime);
-                    if (cmp != 0) return cmp;
-                    return a.Result.StartingBlockTime.CompareTo(b.Result.StartingBlockTime);
-                });
-                _promoted = allPromoted.Select(x => x.Swimmer).ToList();
-                int rank = 1;
-                foreach (var sr in allPromoted) displayData.Add(MakeRow(rank++, sr, sr.Method));
-
-                InfoText.Text += string.Format("\n直接晋级: {0}人（每组前{1}名），成绩递补: {2}人", directQualified.Count, perHeat, supplemented.Count);
             }
 
             PromotionGrid.ItemsSource = displayData;

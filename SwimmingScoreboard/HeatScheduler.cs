@@ -141,6 +141,8 @@ namespace SwimmingScoreboard
                     });
                     heat[s].Heat = h + 1;
                     heat[s].Lane = lane;
+                    // 保存赛次分组记录（历史数据，不会被后续赛次覆盖）
+                    heat[s].SetStageAssignment(stage, h + 1, lane, heat[s].EntryTimeSeconds, heat[s].EntryTime);
                 }
             }
 
@@ -216,28 +218,48 @@ namespace SwimmingScoreboard
         }
 
         /// <summary>
-        /// 确定赛事阶段（按参赛人数，FINA标准）
-        /// >=25人：预赛→复赛→半决赛→决赛
-        /// 17-24人：预赛→半决赛→决赛
-        /// 9-16人：预赛→决赛
-        /// <=8人：直接决赛
+        /// 确定赛事阶段（按国际游泳竞赛规则）
+        /// 短距离个人项目（50m/100m/200m，含各泳姿）：
+        ///   ≥17人 → 预赛→半决赛→决赛（三步制）
+        ///   9-16人 → 预赛→决赛（两步制，不设半决赛，直接取前8名）
+        ///   ≤8人  → 直接决赛
+        /// 中长距离/接力（400m/800m/1500m/接力）：
+        ///   ≥9人  → 预赛→决赛（两步制，无半决赛）
+        ///   ≤8人  → 直接决赛
         /// </summary>
-        public static List<string> GetStages(int participantCount) {
-            if (participantCount >= 25) return new List<string> { "预赛", "复赛", "半决赛", "决赛" };
-            if (participantCount >= 17) return new List<string> { "预赛", "半决赛", "决赛" };
-            if (participantCount >= 9) return new List<string> { "预赛", "决赛" };
-            return new List<string> { "决赛" };
+        public static List<string> GetStages(int participantCount, string eventName = "") {
+            bool isShortDistance = IsShortDistanceEvent(eventName);
+
+            if (isShortDistance) {
+                // 50米/100米/200米：≥17人必须设半决赛
+                if (participantCount >= 17) return new List<string> { "预赛", "半决赛", "决赛" };
+                if (participantCount > 8) return new List<string> { "预赛", "决赛" };
+                return new List<string> { "决赛" };
+            } else {
+                // 400米及以上、接力：无半决赛，无论人数多少
+                if (participantCount > 8) return new List<string> { "预赛", "决赛" };
+                return new List<string> { "决赛" };
+            }
+        }
+
+        /// <summary>
+        /// 判断是否为短距离项目（50米/100米/200米，非接力）
+        /// </summary>
+        private static bool IsShortDistanceEvent(string eventName) {
+            if (string.IsNullOrEmpty(eventName)) return false;
+            if (eventName.Contains("接力")) return false;
+            if (eventName.Contains("50米") || eventName.Contains("100米") || eventName.Contains("200米")) return true;
+            return false;
         }
 
         /// <summary>
         /// 各阶段晋级人数
-        /// 预赛→半决赛/复赛：取所有小组成绩排名前16名
-        /// 半决赛→决赛：取所有半决赛成绩前8名
+        /// 预赛→半决赛：取前16名
+        /// 半决赛→决赛/预赛→决赛：取前8名
         /// </summary>
         public static int GetPromotionCount(string fromStage, string toStage) {
-            if (toStage == "决赛") return 8;
             if (toStage == "半决赛") return 16;
-            if (toStage == "复赛") return 16;
+            if (toStage == "决赛") return 8;
             return 8;
         }
 
@@ -281,11 +303,13 @@ namespace SwimmingScoreboard
         }
 
         /// <summary>
-        /// 晋级后重新蛇形分组（半决赛/决赛分组）
-        /// 按上一轮成绩蛇形排列，确保各组实力均衡
+        /// 晋级后分组（半决赛/决赛）
+        /// 半决赛：16人分2组，按总排名交替分配（奇数名→第1组，偶数名→第2组，最好成绩在第2组）
+        /// 决赛：8人1组，按成绩排泳道
+        /// 预赛→决赛（无半决赛时）：8人1组，按成绩排泳道
         /// </summary>
         public static List<HeatAssignment> GenerateHeatsFromResults(List<Swimmer> promoted, PoolConfig pool, string eventName, string toStage, string fromStage) {
-            // 按上一轮成绩排序
+            // 按上一轮成绩排序（总排名，不分小组）
             promoted.Sort((a, b) => {
                 var ra = a.GetResultForStage(fromStage);
                 var rb = b.GetResultForStage(fromStage);
@@ -294,7 +318,7 @@ namespace SwimmingScoreboard
                 return ta.CompareTo(tb);
             });
 
-            // 更新阶段和报名成绩（用上一轮成绩作为本轮排序依据）
+            // 更新阶段和成绩（用上一轮成绩作为本轮排序依据）
             foreach (var sw in promoted) {
                 sw.CurrentStage = toStage;
                 var result = sw.GetResultForStage(fromStage);
@@ -306,8 +330,64 @@ namespace SwimmingScoreboard
                 sw.Lane = 0;
             }
 
-            // 使用蛇形分组
-            return GenerateHeats(promoted, pool, eventName, toStage);
+            int laneCount = pool.LaneCount;
+            int[] lanePriority = GetLanePriority(pool);
+
+            // 决赛或人数≤泳道数：1组，按成绩排泳道
+            if (toStage == "决赛" || promoted.Count <= laneCount) {
+                var assignments = new List<HeatAssignment>();
+                for (int i = 0; i < promoted.Count; i++) {
+                    int lane = i < lanePriority.Length ? lanePriority[i] : pool.LaneNumbers[i];
+                    assignments.Add(new HeatAssignment {
+                        Swimmer = promoted[i], Heat = 1, Lane = lane,
+                        EventName = eventName, Stage = toStage
+                    });
+                    promoted[i].Heat = 1;
+                    promoted[i].Lane = lane;
+                    promoted[i].SetStageAssignment(toStage, 1, lane, promoted[i].EntryTimeSeconds, promoted[i].EntryTime);
+                }
+                return assignments;
+            }
+
+            // 半决赛：交替分组（奇数名次→第1组，偶数名次→第2组，成绩最好者在第2组）
+            // 第1名→第2组，第2名→第1组，第3名→第2组，第4名→第1组...
+            int heatCount = (int)Math.Ceiling((double)promoted.Count / laneCount);
+            if (heatCount < 2) heatCount = 2; // 半决赛至少2组
+            List<List<Swimmer>> heats = new List<List<Swimmer>>();
+            for (int h = 0; h < heatCount; h++) heats.Add(new List<Swimmer>());
+
+            for (int i = 0; i < promoted.Count; i++) {
+                // 交替分配：排名1,3,5...→最后一组（快组），排名2,4,6...→第一组
+                int targetHeat = (i % 2 == 0) ? (heatCount - 1) : 0;
+                // 超过2组时用蛇形
+                if (heatCount > 2) {
+                    int round = i / heatCount;
+                    int pos = i % heatCount;
+                    targetHeat = (round % 2 == 0) ? (heatCount - 1 - pos) : pos;
+                }
+                heats[targetHeat].Add(promoted[i]);
+            }
+
+            // 每组内按成绩排序后分配泳道
+            var allAssignments = new List<HeatAssignment>();
+            for (int h = 0; h < heats.Count; h++) {
+                heats[h].Sort((a, b) => {
+                    double ta2 = a.EntryTimeSeconds > 0 ? a.EntryTimeSeconds : double.MaxValue;
+                    double tb2 = b.EntryTimeSeconds > 0 ? b.EntryTimeSeconds : double.MaxValue;
+                    return ta2.CompareTo(tb2);
+                });
+                for (int s = 0; s < heats[h].Count; s++) {
+                    int lane = s < lanePriority.Length ? lanePriority[s] : pool.LaneNumbers[s];
+                    allAssignments.Add(new HeatAssignment {
+                        Swimmer = heats[h][s], Heat = h + 1, Lane = lane,
+                        EventName = eventName, Stage = toStage
+                    });
+                    heats[h][s].Heat = h + 1;
+                    heats[h][s].Lane = lane;
+                    heats[h][s].SetStageAssignment(toStage, h + 1, lane, heats[h][s].EntryTimeSeconds, heats[h][s].EntryTime);
+                }
+            }
+            return allAssignments;
         }
     }
 

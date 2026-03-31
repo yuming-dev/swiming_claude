@@ -165,9 +165,27 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
                 <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="startPos" value="right" id="dlgStartRight"> 右端出发</label>
             </span>
         </div>
+        <div style="margin-top:10px;padding-top:10px;border-top:1px solid #475569;">
+            <button style="width:100%;padding:8px;background:#8B5CF6;color:white;border:none;border-radius:6px;cursor:pointer;font-size:14px;font-weight:bold;" onclick="closeSettings();openDeviceManager();">设备状态管理</button>
+        </div>
         <div class="modal-btns">
             <button class="btn-cancel" onclick="closeSettings()">取消</button>
             <button class="btn-ok" onclick="applySettings()">确定</button>
+        </div>
+    </div>
+</div>
+
+<!-- 设备状态管理弹窗 -->
+<div id="deviceModal" class="modal-overlay hidden" onclick="if(event.target===this)closeDeviceManager()">
+    <div class="modal-dialog" style="max-width:750px;">
+        <h2 style="color:#F59E0B;">泳道设备好/坏状态设置</h2>
+        <div style="overflow-x:auto;" id="deviceStatusPanel"></div>
+        <div style="display:flex;gap:8px;margin-top:12px;">
+            <button style="flex:1;padding:8px;background:#22C55E;color:white;border:none;border-radius:6px;cursor:pointer;font-size:14px;font-weight:bold;" onclick="setAllDevices(false)">全部设为好</button>
+            <button style="flex:1;padding:8px;background:#EF4444;color:white;border:none;border-radius:6px;cursor:pointer;font-size:14px;font-weight:bold;" onclick="setAllDevices(true)">全部设为坏</button>
+        </div>
+        <div class="modal-btns">
+            <button class="btn-cancel" onclick="closeDeviceManager()">关闭</button>
         </div>
     </div>
 </div>
@@ -202,6 +220,18 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
         <button class="action-btn btn-all-close" onclick="sendCmd('CLOSE_ALL_LANES')">全部关闭</button>
         <hr style="border-color:#334155;margin:10px 0;">
         <button class="action-btn btn-confirm" onclick="confirmResult()">确认本组成绩</button>
+        <hr style="border-color:#334155;margin:10px 0;">
+        <h3 style="margin:8px 0 6px;">泳道操作</h3>
+        <div style="display:flex;gap:4px;margin-bottom:4px;">
+            <input type="number" id="laneInput" min="0" max="9" value="4" style="width:50px;padding:4px;border:1px solid #475569;border-radius:4px;background:#1E293B;color:white;text-align:center;font-size:14px;" placeholder="道">
+            <span style="color:#94A3B8;font-size:12px;line-height:30px;">道次</span>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:4px;">
+            <button class="action-btn" style="background:#64748B;padding:6px;font-size:13px;" onclick="markLane('DNS')">DNS</button>
+            <button class="action-btn" style="background:#78716C;padding:6px;font-size:13px;" onclick="markLane('DNF')">DNF</button>
+            <button class="action-btn" style="background:#9CA3AF;padding:6px;font-size:13px;" onclick="markLane('DSQ')">DSQ</button>
+            <button class="action-btn" style="background:#D97706;padding:6px;font-size:13px;" onclick="manualTimeInput()">手动输入</button>
+        </div>
         <h3 style="margin-top:12px;">计时源对比</h3>
         <div id="timingSourceCompare" style="font-size:12px;color:var(--dim);"></div>
     </div>
@@ -233,8 +263,32 @@ function connect() {
     };
     ws.onmessage = function(e) {
         var msg = JSON.parse(e.data);
+        if (msg.type === 'STAGE_COMPLETE') {
+            // 赛次全部完赛，弹出晋级确认
+            var g = msg.gender, ev = msg.eventName, from = msg.fromStage, next = msg.nextStage;
+            var total = msg.totalSwimmers, promo = msg.promoCount;
+            var answer = confirm(g + ' ' + ev + ' ' + from + ' 全部' + total + '人已完赛！\n\n'
+                + '是否自动晋级前' + promo + '名到' + next + '？\n（按成绩总排名）');
+            if (answer) {
+                ws.send(JSON.stringify({type:'TIMING_CMD', command:'EXECUTE_PROMOTION',
+                    data:{gender:g, eventName:ev, fromStage:from, nextStage:next, promoCount:promo}}));
+                addLog('已确认晋级：' + g + ' ' + ev + ' → ' + next);
+            } else {
+                addLog('已取消自动晋级，可在"成绩与排名→晋级处理"中手动操作');
+            }
+            return;
+        }
+        if (msg.type === 'PROMOTION_DONE') {
+            addLog('晋级完成：' + msg.gender + ' ' + msg.eventName + ' → ' + msg.nextStage
+                + '（' + msg.promotedCount + '人，' + msg.heatCount + '组）');
+            return;
+        }
         data = msg.data || {};
         render();
+        // 如果设备管理弹窗打开，刷新面板
+        if (!document.getElementById('deviceModal').classList.contains('hidden')) {
+            renderDeviceStatusPanel();
+        }
     };
     ws.onclose = function() {
         document.getElementById('wsConn').className = 'conn-dot off';
@@ -281,6 +335,126 @@ function render() {
     }
 
     // 发令位置指示灯已在 renderHeader() 中处理
+}
+
+// ═══════ 泳道操作 ═══════
+function getLaneInput() {
+    var v = parseInt(document.getElementById('laneInput').value);
+    return isNaN(v) ? -1 : v;
+}
+function markLane(status) {
+    var lane = getLaneInput();
+    if (lane < 0) { alert('请输入泳道号'); return; }
+    if (confirm('确定将泳道 ' + lane + ' 标记为 ' + status + '？')) {
+        sendCmd('MARK_' + status, {lane: lane});
+        addLog('泳道' + lane + ' 标记为 ' + status);
+    }
+}
+function manualTimeInput() {
+    var lane = getLaneInput();
+    if (lane < 0) { alert('请输入泳道号'); return; }
+    var timeStr = prompt('泳道 ' + lane + ' 手动输入成绩（如 49.23 或 1:23.45）：');
+    if (!timeStr) return;
+    var seconds = parseTimeToSeconds(timeStr);
+    if (seconds <= 0) { alert('成绩格式不正确'); return; }
+    sendCmd('OVERRIDE_TIME', {lane: lane, time: seconds});
+    addLog('泳道' + lane + ' 手动输入成绩: ' + timeStr);
+}
+function parseTimeToSeconds(str) {
+    str = str.trim();
+    if (str.indexOf(':') >= 0) {
+        var parts = str.split(':');
+        var min = parseFloat(parts[0]) || 0;
+        var sec = parseFloat(parts[1]) || 0;
+        return min * 60 + sec;
+    }
+    var v = parseFloat(str);
+    return isNaN(v) ? 0 : v;
+}
+
+// ═══════ 设备状态管理 ═══════
+var deviceNames = [
+    {key:'leftTouchpad', label:'左触板'}, {key:'leftStartBlock', label:'左出发台'},
+    {key:'leftBlindWatch1', label:'左盲表1'}, {key:'leftBlindWatch2', label:'左盲表2'}, {key:'leftBlindWatch3', label:'左盲表3'},
+    {key:'rightTouchpad', label:'右触板'}, {key:'rightStartBlock', label:'右出发台'},
+    {key:'rightBlindWatch1', label:'右盲表1'}, {key:'rightBlindWatch2', label:'右盲表2'}, {key:'rightBlindWatch3', label:'右盲表3'}
+];
+
+function openDeviceManager() {
+    renderDeviceStatusPanel();
+    document.getElementById('deviceModal').classList.remove('hidden');
+}
+
+function closeDeviceManager() {
+    document.getElementById('deviceModal').classList.add('hidden');
+}
+
+function renderDeviceStatusPanel() {
+    var panel = document.getElementById('deviceStatusPanel');
+    // 从独立的laneDevices字段读取设备状态（不依赖swimmers）
+    var laneDevices = data.laneDevices || [];
+    var pool = data.poolConfig || {};
+
+    if (laneDevices.length === 0) {
+        // 没有laneDevices数据时，用泳池配置生成空行
+        var laneNumbers = pool.laneNumbers || [];
+        if (laneNumbers.length === 0) {
+            var count = pool.lanes || 10;
+            for (var i = (count === 10 ? 0 : 1); i < (count === 10 ? 10 : count + 1); i++) laneNumbers.push(i);
+        }
+        for (var i = 0; i < laneNumbers.length; i++) {
+            laneDevices.push({lane: laneNumbers[i]});
+        }
+    }
+
+    var html = '<table style="width:100%;border-collapse:collapse;font-size:13px;">';
+    html += '<tr style="background:#1E293B;"><th style="padding:6px;border:1px solid #475569;color:#94A3B8;">道次</th>';
+    for (var d = 0; d < deviceNames.length; d++) {
+        html += '<th style="padding:6px;border:1px solid #475569;color:#94A3B8;white-space:nowrap;">' + deviceNames[d].label + '</th>';
+    }
+    html += '</tr>';
+
+    for (var n = 0; n < laneDevices.length; n++) {
+        var ld = laneDevices[n];
+        var lane = ld.lane;
+        html += '<tr>';
+        html += '<td style="padding:6px;border:1px solid #475569;text-align:center;font-weight:bold;font-size:15px;">' + lane + '</td>';
+        for (var d = 0; d < deviceNames.length; d++) {
+            var broken = ld[deviceNames[d].key + 'Broken'] === true;
+            var bgColor = broken ? '#7F1D1D' : '#14532D';
+            var text = broken ? '坏' : '好';
+            html += '<td style="padding:4px;border:1px solid #475569;text-align:center;background:' + bgColor + ';">';
+            html += '<span style="cursor:pointer;color:white;font-weight:bold;font-size:13px;" ';
+            html += 'onclick="toggleDevice(' + lane + ',\'' + deviceNames[d].key + '\',' + (!broken) + ')">' + text + '</span>';
+            html += '</td>';
+        }
+        html += '</tr>';
+    }
+    html += '</table>';
+    panel.innerHTML = html;
+}
+
+function toggleDevice(lane, device, broken) {
+    sendCmd('SET_DEVICE_STATUS', {lane: lane, device: device, status: broken ? 'broken' : 'good'});
+    addLog('泳道' + lane + ' ' + device + ' → ' + (broken ? '损坏' : '正常'));
+    // 本地立即更新laneDevices（不等服务器广播）
+    var ld = data.laneDevices || [];
+    for (var i = 0; i < ld.length; i++) {
+        if (ld[i].lane === lane) { ld[i][device + 'Broken'] = broken; break; }
+    }
+    renderDeviceStatusPanel();
+}
+
+function setAllDevices(broken) {
+    var ld = data.laneDevices || [];
+    for (var i = 0; i < ld.length; i++) {
+        for (var d = 0; d < deviceNames.length; d++) {
+            sendCmd('SET_DEVICE_STATUS', {lane: ld[i].lane, device: deviceNames[d].key, status: broken ? 'broken' : 'good'});
+            ld[i][deviceNames[d].key + 'Broken'] = broken;
+        }
+    }
+    renderDeviceStatusPanel();
+    addLog(broken ? '全部设备设为损坏' : '全部设备设为正常');
 }
 
 // ═══════ 参数设置对话框 ═══════
@@ -359,19 +533,32 @@ function renderScheduleTree() {
         if (!collapsed) {
             for (var j = 0; j < sess.events.length; j++) {
                 var ev = sess.events[j];
-                var evLabel = (ev.gender||'') + '子 ' + (ev.eventName||'') + ' ' + (ev.stage||'');
-                html += '<div class="tree-event">' + evLabel + '</div>';
+                var evLabel = (ev.gender||'') + ' ' + (ev.eventName||'') + ' ' + (ev.stage||'');
+                var allDone = ev.allConfirmed === true;
+                var heatDone = ev.heatConfirmed || [];
+
+                if (allDone) {
+                    html += '<div class="tree-event" style="color:#aaa;">' + evLabel + ' [已完赛]</div>';
+                } else {
+                    html += '<div class="tree-event">' + evLabel + '</div>';
+                }
                 var hc = ev.heatCount || 1;
                 for (var h = 1; h <= hc; h++) {
+                    var confirmed = heatDone[h-1] === true;
                     var key = (ev.gender||'') + '|' + (ev.eventName||'') + '|' + (ev.stage||'') + '|' + h;
                     var active = (key === selectedHeatKey) ? ' active' : '';
-                    // 高亮当前比赛
                     if (!selectedHeatKey && data.currentGender === ev.gender && data.currentEvent === ev.eventName && data.currentStage === ev.stage && data.currentHeat === h) {
                         active = ' active';
                     }
-                    html += '<div class="tree-heat' + active + '" onclick="selectHeat(\'' + key.replace(/'/g,"\\'") + '\')">';
-                    html += '第' + h + '组 (共' + hc + '组)';
-                    html += '</div>';
+                    if (confirmed) {
+                        html += '<div class="tree-heat" style="color:#aaa; cursor:default; pointer-events:none;">';
+                        html += '第' + h + '组 [已完赛]';
+                        html += '</div>';
+                    } else {
+                        html += '<div class="tree-heat' + active + '" onclick="selectHeat(\'' + key.replace(/'/g,"\\'") + '\')">';
+                        html += '第' + h + '组 (共' + hc + '组)';
+                        html += '</div>';
+                    }
                 }
             }
         }

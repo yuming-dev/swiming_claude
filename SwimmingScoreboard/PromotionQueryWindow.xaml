@@ -29,13 +29,7 @@
                             Background="#3B82F6" Foreground="White" BorderThickness="0"/>
                 </StackPanel>
                 <StackPanel Orientation="Horizontal">
-                    <TextBlock Text="晋级模式:" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                    <ComboBox x:Name="PromotionModeCombo" Width="170" SelectionChanged="Mode_Changed" Margin="0,0,12,0">
-                        <ComboBoxItem Content="总成绩排名前N名" IsSelected="True"/>
-                        <ComboBoxItem Content="每组前2名+成绩递补"/>
-                        <ComboBoxItem Content="每组前3名+成绩递补"/>
-                        <ComboBoxItem Content="每组前4名+成绩递补"/>
-                    </ComboBox>
+                    <TextBlock Text="晋级方式: 按成绩总排名" VerticalAlignment="Center" Margin="0,0,12,0" FontWeight="Bold" Foreground="#1E40AF"/>
                     <TextBlock Text="晋级人数:" VerticalAlignment="Center" Margin="0,0,4,0"/>
                     <TextBox x:Name="CountBox" Width="50" Text="16" Padding="4" VerticalAlignment="Center"/>
                 </StackPanel>
