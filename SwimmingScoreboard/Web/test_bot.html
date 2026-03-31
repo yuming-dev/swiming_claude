@@ -46,6 +46,7 @@ label { color: #94a3b8; font-size: 12px; }
             <option>50米蛙泳</option><option>100米蛙泳</option><option>200米蛙泳</option>
             <option>50米蝶泳</option><option>100米蝶泳</option><option>200米蝶泳</option>
             <option>200米个人混合泳</option><option>400米个人混合泳</option>
+            <option>4x100米自由泳接力</option><option>4x200米自由泳接力</option><option>4x100米混合泳接力</option>
         </select>
         <label>性别:</label>
         <select id="regGender"><option>男</option><option>女</option><option>混合</option></select>
@@ -81,7 +82,34 @@ label { color: #94a3b8; font-size: 12px; }
 </div>
 
 <div class="panel">
-    <h2>4. 完整自动测试</h2>
+    <h2>4. 接力比赛测试</h2>
+    <div class="row">
+        <label>队伍数:</label><input id="relayTeamCount" type="number" value="8" style="width:60px">
+        <label>项目:</label>
+        <select id="relayEvent">
+            <option>4x100米自由泳接力</option><option>4x200米自由泳接力</option><option>4x100米混合泳接力</option>
+        </select>
+        <label>性别:</label>
+        <select id="relayGender"><option>男</option><option>女</option><option>混合</option></select>
+        <button class="btn-blue" onclick="batchRegisterRelay()">注册接力队</button>
+    </div>
+    <div class="row">
+        <button class="btn-gold" onclick="simReady()">就位</button>
+        <button class="btn-green" onclick="simStart()">发令</button>
+        <button class="btn-blue" onclick="simStartBlock()">第1棒出发</button>
+        <button class="btn-purple" onclick="simRelayLeg(1)">第1棒触板</button>
+        <button class="btn-purple" onclick="simRelayLeg(2)">第2棒触板</button>
+        <button class="btn-purple" onclick="simRelayLeg(3)">第3棒触板</button>
+        <button class="btn-purple" onclick="simRelayLeg(4)">第4棒触板</button>
+        <button class="btn-gray" onclick="simConfirm()">确认成绩</button>
+    </div>
+    <div class="row" style="font-size:11px;color:#64748B;">
+        操作顺序：注册→(到主服务器分组)→就位→发令→第1棒出发→第1棒触板(交接)→第2棒触板(交接)→第3棒触板(交接)→第4棒触板(终点)→确认
+    </div>
+</div>
+
+<div class="panel">
+    <h2>5. 完整自动测试（个人项目）</h2>
     <div class="row">
         <button class="btn-green" onclick="fullAutoTest()">开始完整测试</button>
         <button class="btn-red" onclick="stopAutoTest()">停止</button>
@@ -183,7 +211,22 @@ function randomName() {
     return n2 + Math.floor(Math.random()*100);
 }
 function randomTeam() { return teams[Math.floor(Math.random()*teams.length)]; }
-function randomTime(min, max) { return (min + Math.random() * (max - min)).toFixed(2); }
+function randomTime(min, max) {
+    var totalSeconds = min + Math.random() * (max - min);
+    return formatTime(totalSeconds);
+}
+function formatTime(totalSeconds) {
+    var totalCentis = Math.round(totalSeconds * 100);
+    var centis = totalCentis % 100;
+    var totalSecs = Math.floor(totalCentis / 100);
+    var secs = totalSecs % 60;
+    var mins = Math.floor(totalSecs / 60) % 60;
+    var hours = Math.floor(totalSecs / 3600);
+    var cs = centis.toString().padStart(2, '0');
+    if (hours > 0) return hours + ':' + mins.toString().padStart(2,'0') + ':' + secs.toString().padStart(2,'0') + '.' + cs;
+    if (mins > 0) return mins + ':' + secs.toString().padStart(2,'0') + '.' + cs;
+    return secs + '.' + cs;
+}
 function randomBirthDate() {
     var y = 1990 + Math.floor(Math.random() * 15);
     var m = (1 + Math.floor(Math.random() * 12)).toString().padStart(2, '0');
@@ -195,38 +238,93 @@ function randomID() { return '110101' + (1990 + Math.floor(Math.random()*15)) + 
 
 // ═══════ 1. 批量注册 ═══════
 function batchRegister() {
-    _usedNames = {};  // 清空已用姓名，确保本批次内不重名
+    _usedNames = {};
     var count = parseInt(document.getElementById('regCount').value) || 16;
     var ev = document.getElementById('regEvent').value;
     var gender = document.getElementById('regGender').value;
+    var isRelay = ev.indexOf('接力') >= 0;
 
-    for (var i = 0; i < count; i++) {
-        var entryTime = randomTime(25, 35);
-        // 根据项目调整报名成绩范围
-        var dist = parseInt(ev.match(/(\d+)/)[1]) || 100;
-        if (dist <= 50) entryTime = randomTime(22, 30);
-        else if (dist <= 100) entryTime = randomTime(48, 58);
-        else if (dist <= 200) entryTime = randomTime(105, 125);
-        else if (dist <= 400) entryTime = randomTime(230, 270);
-        else if (dist <= 800) entryTime = randomTime(480, 550);
-        else entryTime = randomTime(880, 960);
+    if (isRelay) {
+        // 接力项目：按队伍注册，count为队伍数，每位队员信息齐全
+        var relayMatch = ev.match(/(\d+)x(\d+)/);
+        var legCount = relayMatch ? parseInt(relayMatch[1]) : 4;
+        var legDist = relayMatch ? parseInt(relayMatch[2]) : 100;
+        var totalDist = legCount * legDist;
 
-        var swimmerData = {
-            name: randomName(),
-            gender: gender,
-            age: 18 + Math.floor(Math.random() * 12),
-            country: randomTeam(),
-            idNumber: randomID(),
-            phone: randomPhone(),
-            birthDate: randomBirthDate(),
-            bibNumber: '',
-            csaNumber: '',
-            notes: ''
-        };
-        var events = [{eventName: ev, entryTime: entryTime}];
-        send('REGISTER_SWIMMER_BATCH', {swimmer: swimmerData, events: events, isResubmit: false});
+        for (var i = 0; i < count; i++) {
+            var teamName = teams[i % teams.length];
+            if (i >= teams.length) teamName += (Math.floor(i / teams.length) + 1);
+            var legs = [];
+            for (var j = 1; j <= legCount; j++) {
+                var memberName = randomName();
+                var memberAge = 18 + Math.floor(Math.random() * 12);
+                // 混合接力：队员性别交替男女（第1、3棒男，第2、4棒女）
+                var memberGender = gender;
+                if (gender === '混合') {
+                    memberGender = (j % 2 === 1) ? '男' : '女';
+                }
+                var memberID = randomID();
+                var memberPhone = randomPhone();
+                var memberBirth = randomBirthDate();
+                legs.push({
+                    legOrder: j,
+                    swimmerName: memberName,
+                    swimmerBibNumber: '',
+                    gender: memberGender,
+                    age: memberAge,
+                    country: teamName,
+                    idNumber: memberID,
+                    phone: memberPhone,
+                    birthDate: memberBirth
+                });
+                // 同时将每位队员作为个人运动员注册到系统（方便查询）
+                send('REGISTER_SWIMMER_BATCH', {
+                    swimmer: {
+                        name: memberName, gender: memberGender, age: memberAge,
+                        country: teamName, idNumber: memberID,
+                        phone: memberPhone, birthDate: memberBirth,
+                        bibNumber: '', csaNumber: '',
+                        notes: '接力队员 ' + ev + ' 第' + j + '棒'
+                    },
+                    events: [{eventName: ev, entryTime: ''}],
+                    isResubmit: false
+                });
+            }
+            var entryTime;
+            if (totalDist <= 400) entryTime = randomTime(190, 220);
+            else if (totalDist <= 800) entryTime = randomTime(420, 480);
+            else entryTime = randomTime(440, 500);
+
+            send('REGISTER_RELAY', {
+                teamName: teamName, eventName: ev, gender: gender,
+                entryTime: entryTime, legs: legs
+            });
+        }
+        log('已注册 ' + count + ' 支接力队 (' + gender + ' ' + ev + ', 每队' + legCount + '棒, 含' + (count * legCount) + '名队员个人信息)');
+    } else {
+        // 个人项目
+        for (var i = 0; i < count; i++) {
+            var entryTime = randomTime(25, 35);
+            var distMatch = ev.match(/(\d+)/);
+            var dist = distMatch ? parseInt(distMatch[1]) : 100;
+            if (dist <= 50) entryTime = randomTime(22, 30);
+            else if (dist <= 100) entryTime = randomTime(48, 58);
+            else if (dist <= 200) entryTime = randomTime(105, 125);
+            else if (dist <= 400) entryTime = randomTime(230, 270);
+            else if (dist <= 800) entryTime = randomTime(480, 550);
+            else entryTime = randomTime(880, 960);
+
+            var swimmerData = {
+                name: randomName(), gender: gender,
+                age: 18 + Math.floor(Math.random() * 12),
+                country: randomTeam(), idNumber: randomID(),
+                phone: randomPhone(), birthDate: randomBirthDate(),
+                bibNumber: '', csaNumber: '', notes: ''
+            };
+            send('REGISTER_SWIMMER_BATCH', {swimmer: swimmerData, events: [{eventName: ev, entryTime: entryTime}], isResubmit: false});
+        }
+        log('已批量注册 ' + count + ' 名运动员 (' + gender + ' ' + ev + ')');
     }
-    log('已批量注册 ' + count + ' 名运动员 (' + gender + ' ' + ev + ')');
 }
 
 function autoGenerateHeats() {
@@ -322,7 +420,86 @@ function simTimerReset() {
     log('发送: 计时复位');
 }
 
-// ═══════ 4. 完整自动测试 ═══════
+// ═══════ 4. 接力比赛测试 ═══════
+function batchRegisterRelay() {
+    _usedNames = {};
+    var teamCount = parseInt(document.getElementById('relayTeamCount').value) || 8;
+    var ev = document.getElementById('relayEvent').value;
+    var gender = document.getElementById('relayGender').value;
+
+    // 解析接力项目：4x100米 → 4棒，每棒100米
+    var relayMatch = ev.match(/(\d+)x(\d+)/);
+    var legCount = relayMatch ? parseInt(relayMatch[1]) : 4;
+    var legDist = relayMatch ? parseInt(relayMatch[2]) : 100;
+    var totalDist = legCount * legDist;
+
+    for (var i = 0; i < teamCount; i++) {
+        var teamName = teams[i % teams.length];
+        // 生成棒次队员
+        var legs = [];
+        for (var j = 1; j <= legCount; j++) {
+            legs.push({
+                legOrder: j,
+                swimmerName: randomName(),
+                swimmerBibNumber: ''
+            });
+        }
+        // 报名成绩：根据总距离估算
+        var entryTime;
+        if (totalDist <= 400) entryTime = randomTime(190, 220);
+        else if (totalDist <= 800) entryTime = randomTime(420, 480);
+        else entryTime = randomTime(440, 500);
+
+        send('REGISTER_RELAY', {
+            teamName: teamName + (i >= teams.length ? (Math.floor(i/teams.length)+1) : ''),
+            eventName: ev,
+            gender: gender,
+            entryTime: entryTime,
+            legs: legs
+        });
+    }
+    log('已注册 ' + teamCount + ' 支接力队 (' + gender + ' ' + ev + ', 每队' + legCount + '棒)');
+}
+
+function simRelayLeg(legNum) {
+    var ev = document.getElementById('relayEvent').value;
+    var relayMatch = ev.match(/(\d+)x(\d+)/);
+    var legCount = relayMatch ? parseInt(relayMatch[1]) : 4;
+    var legDist = relayMatch ? parseInt(relayMatch[2]) : 100;
+    var poolLen = (data && data.poolConfig) ? data.poolConfig.length || 50 : 50;
+    var lapsPerLeg = Math.max(1, Math.floor(legDist / poolLen));
+    var isLastLeg = (legNum >= legCount);
+    var currentTime = parseRunningTime();
+    var lanes = getLanes();
+
+    log('=== 第' + legNum + '棒触板 (' + lapsPerLeg + '段, ' + legDist + 'm) ===');
+
+    for (var lap = 1; lap <= lapsPerLeg; lap++) {
+        var isLegEnd = (lap === lapsPerLeg);
+        for (var i = 0; i < lanes.length; i++) {
+            // 每段约 legDist/lapsPerLeg 米，时间随机
+            var segTime = (legDist / lapsPerLeg) * (0.5 + Math.random() * 0.2);
+            var t = currentTime + segTime * lap + (Math.random() - 0.5) * 2;
+            if (t < 1) t = currentTime + 10 + Math.random() * 5;
+
+            send('TIMING_DATA', {lane: lanes[i], commandType: 'Touchpad', time: t});
+            // 同时发盲表
+            for (var b = 1; b <= 3; b++) {
+                send('TIMING_DATA', {lane: lanes[i], commandType: 'PushButton' + b, time: t + (Math.random() - 0.3) * 0.3});
+            }
+        }
+        if (isLegEnd && !isLastLeg) {
+            log('  第' + lap + '段: 交接触板 → 第' + (legNum + 1) + '棒入水');
+        } else if (isLegEnd && isLastLeg) {
+            log('  第' + lap + '段: 终点触板（比赛结束）');
+        } else {
+            log('  第' + lap + '段: 分段触板');
+        }
+    }
+    log('第' + legNum + '棒触板完成 (含盲表)');
+}
+
+// ═══════ 5. 完整自动测试（个人项目） ═══════
 function stopAutoTest() { autoRunning = false; log('自动测试已停止'); }
 
 function fullAutoTest() {

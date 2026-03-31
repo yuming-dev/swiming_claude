@@ -352,7 +352,6 @@ namespace SwimmingScoreboard
                 EntryTime = data["entryTime"] != null ? data["entryTime"].ToString() : ""
             };
             team.EntryTimeSeconds = TimeFormatter.Parse(team.EntryTime);
-            // 棒次安排
             var legs = data["legs"] as JArray;
             if (legs != null) {
                 foreach (JObject leg in legs) {
@@ -364,7 +363,27 @@ namespace SwimmingScoreboard
                 }
             }
             _relayTeams.Add(team);
-            AddLog(string.Format("远程注册接力队: {0} ({1}) {2}人", team.TeamName, team.EventName, team.Legs.Count));
+
+            // 在_swimmers中创建代表该接力队的条目，统一走日程/分组/成绩流程
+            string legNames = "";
+            foreach (var leg in team.Legs) legNames += (legNames.Length > 0 ? "," : "") + leg.SwimmerName;
+            string bibNumber = "R" + (_relayTeams.Count).ToString("D3");
+            // 检查重复
+            var dup = FindDuplicate(team.TeamName, team.Gender, team.EventName, bibNumber, "", team.TeamName);
+            if (dup == null) {
+                _swimmers.Add(new Swimmer {
+                    BibNumber = bibNumber,
+                    Name = team.TeamName,
+                    Gender = team.Gender,
+                    Country = team.TeamName,
+                    EventName = team.EventName,
+                    EntryTime = team.EntryTime,
+                    EntryTimeSeconds = team.EntryTimeSeconds,
+                    Notes = string.Format("接力队 棒次:{0}", legNames)
+                });
+            }
+
+            AddLog(string.Format("注册接力队: {0} ({1}) {2}人 [{3}]", team.TeamName, team.EventName, team.Legs.Count, legNames));
             AutoSaveData();
             Broadcast();
         }
@@ -2591,14 +2610,16 @@ namespace SwimmingScoreboard
         // ═══════════════════════════════════════════════════════════════
         private void AutoBuildSchedule_Click(object sender, RoutedEventArgs e) {
             if (_swimmers.Count == 0) {
-                MessageBox.Show("没有已注册的运动员，请先注册运动员再生成日程。", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show("没有已注册的运动员/接力队，请先注册再生成日程。", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
-            if (_schedule.Count > 0) {
-                if (MessageBox.Show("已有赛程数据，是否清除并重新生成？", "确认", MessageBoxButton.YesNo) != MessageBoxResult.Yes)
+            // 检查是否有有效赛程（忽略空条目）
+            int validScheduleCount = _schedule.Count(s => !string.IsNullOrEmpty(s.EventName));
+            if (validScheduleCount > 0) {
+                if (MessageBox.Show(string.Format("已有{0}条赛程数据，是否清除并重新生成？", validScheduleCount), "确认", MessageBoxButton.YesNo) != MessageBoxResult.Yes)
                     return;
-                _schedule.Clear();
             }
+            _schedule.Clear();
             AutoBuildSchedule();
             BuildScheduleTree();
             AutoSaveData();
@@ -2613,7 +2634,7 @@ namespace SwimmingScoreboard
         // ═══════════════════════════════════════════════════════════════
         private void AutoGenerateHeats_Click(object sender, RoutedEventArgs e) {
             if (_swimmers.Count == 0) {
-                MessageBox.Show("没有已注册的运动员，请先注册运动员再生成分组。", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show("没有已注册的运动员/接力队，请先注册再生成分组。", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
             if (_schedule.Count == 0) {
@@ -2621,21 +2642,17 @@ namespace SwimmingScoreboard
                 return;
             }
 
-            // 只对第一赛次（预赛或直接决赛）进行自动分组
+            // 统一对所有项目（个人+接力）的第一赛次进行蛇形分组
             int generated = 0;
             foreach (var item in _schedule) {
                 string fullEvent = item.EventName;
                 string stage = item.Stage;
                 string gender = item.Gender;
 
-                // 只处理运动员当前所在的赛次（预赛或直接决赛）
                 var eventSwimmers = _swimmers.Where(s =>
-                    s.EventName == fullEvent &&
-                    s.Gender == gender &&
-                    s.CurrentStage == stage
+                    s.EventName == fullEvent && s.Gender == gender && s.CurrentStage == stage
                 ).ToList();
 
-                // 宽松匹配
                 if (eventSwimmers.Count == 0) {
                     eventSwimmers = _swimmers.Where(s =>
                         s.EventName == fullEvent &&
@@ -2649,16 +2666,17 @@ namespace SwimmingScoreboard
                 var assignments = HeatScheduler.GenerateHeats(eventSwimmers, _poolConfig, fullEvent, stage);
                 item.HeatCount = assignments.Count > 0 ? assignments.Max(a => a.Heat) : 0;
                 generated += assignments.Count;
-                AddLog(string.Format("  {0} {1} {2}: {3}人 → {4}组", gender, fullEvent, stage, eventSwimmers.Count, item.HeatCount));
+                string typeLabel = fullEvent.Contains("接力") ? "队" : "人";
+                AddLog(string.Format("  {0} {1} {2}: {3}{4} → {5}组", gender, fullEvent, stage, eventSwimmers.Count, typeLabel, item.HeatCount));
             }
 
             BuildScheduleTree();
             if (generated > 0) {
-                AddLog(string.Format("预赛自动分组完成: {0}名运动员已分配到各组", generated));
-                MessageBox.Show(string.Format("预赛分组完成！\n{0}名运动员已按报名成绩蛇形分组。\n\n后续赛次（半决赛/决赛）需在成绩与排名中通过\"晋级处理\"根据比赛成绩进行分组。", generated),
+                AddLog(string.Format("自动分组完成: {0}项已分配", generated));
+                MessageBox.Show(string.Format("分组完成！\n共{0}项已按报名成绩蛇形分组。\n\n后续赛次需在成绩与排名中通过\"晋级处理\"根据比赛成绩进行分组。", generated),
                     "分组完成", MessageBoxButton.OK, MessageBoxImage.Information);
             } else {
-                MessageBox.Show("未分配任何运动员。\n\n请检查：\n1. 运动员的项目名称是否与赛程一致\n2. 运动员的性别是否与赛程一致\n3. 是否已生成日程", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show("未分配任何运动员/接力队。\n\n请检查：\n1. 项目名称是否与赛程一致\n2. 性别是否与赛程一致\n3. 是否已生成日程", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
             }
             AutoSaveData();
             Broadcast();
@@ -2679,12 +2697,14 @@ namespace SwimmingScoreboard
             if (endDate < startDate) endDate = startDate;
             int totalDays = (int)(endDate - startDate).TotalDays + 1;
 
-            // 收集所有项目及其赛次
-            var eventGroups = _swimmers.GroupBy(s => new { s.Gender, s.EventName })
+            // 收集所有项目（过滤掉无效数据：性别或项目为空的）
+            var validSwimmers = _swimmers.Where(s => !string.IsNullOrEmpty(s.Gender) && !string.IsNullOrEmpty(s.EventName)).ToList();
+            var eventGroups = validSwimmers.GroupBy(s => new { s.Gender, s.EventName })
                 .OrderBy(g => g.Key.Gender).ThenBy(g => g.Key.EventName).ToList();
 
-            // 为每个项目确定赛次，并生成赛程条目
             var allItems = new List<ScheduleItem>();
+            int laneCount = _poolConfig.LaneCount;
+
             foreach (var group in eventGroups) {
                 string gender = group.Key.Gender;
                 string eventName = group.Key.EventName;
@@ -2693,27 +2713,22 @@ namespace SwimmingScoreboard
                 var stages = HeatScheduler.GetStages(count, eventName);
                 string firstStage = stages[0];
 
-                // 设置运动员的初始赛次
                 foreach (var sw in group) sw.CurrentStage = firstStage;
 
-                // 预估各赛次的组数
-                int laneCount = _poolConfig.LaneCount;
                 foreach (string stage in stages) {
-                    int estimatedSwimmers = count;
-                    if (stage == "半决赛") estimatedSwimmers = 16;
-                    else if (stage == "决赛" && stages.Count > 1) estimatedSwimmers = 8;
-                    int estimatedHeats = (int)Math.Ceiling((double)estimatedSwimmers / laneCount);
+                    int estimatedCount = count;
+                    if (stage == "半决赛") estimatedCount = 16;
+                    else if (stage == "决赛" && stages.Count > 1) estimatedCount = 8;
+                    int estimatedHeats = (int)Math.Ceiling((double)estimatedCount / laneCount);
                     if (estimatedHeats < 1) estimatedHeats = 1;
 
                     allItems.Add(new ScheduleItem {
-                        Gender = gender,
-                        EventName = eventName,
-                        Stage = stage,
-                        IsRelay = isRelay,
-                        HeatCount = estimatedHeats
+                        Gender = gender, EventName = eventName, Stage = stage,
+                        IsRelay = isRelay, HeatCount = estimatedHeats
                     });
                 }
-                AddLog(string.Format("  {0} {1}: {2}人 → {3}", gender, eventName, count, string.Join("→", stages.ToArray())));
+                string typeLabel = isRelay ? "(接力)" : "";
+                AddLog(string.Format("  {0} {1}{2}: {3}{4} → {5}", gender, eventName, typeLabel, count, isRelay ? "队" : "人", string.Join("→", stages.ToArray())));
             }
 
             // 按赛次分类：预赛、半决赛、决赛
@@ -3044,7 +3059,22 @@ namespace SwimmingScoreboard
         // 赛事信息管理
         // ═══════════════════════════════════════════════════════════════
         private void SaveCompetitionInfo_Click(object sender, RoutedEventArgs e) {
-            _competitionName = CompNameBox.Text.Trim();
+            string newName = CompNameBox.Text.Trim();
+            if (string.IsNullOrEmpty(newName)) {
+                MessageBox.Show("请输入赛事名称", "提示");
+                return;
+            }
+
+            // 检查是否切换到了新赛事（名称变了）
+            bool isNewCompetition = !string.IsNullOrEmpty(_competitionName) && _competitionName != newName;
+
+            if (isNewCompetition) {
+                // 切换到新赛事，清除所有旧数据和界面
+                ClearAllDataAndUI();
+                AddLog(string.Format("已从 [{0}] 切换到新赛事 [{1}]", _competitionName, newName));
+            }
+
+            _competitionName = newName;
             _competitionMode = CompModeCombo.SelectedIndex == 0 ? "domestic" : "international";
 
             int poolLength = 50;
@@ -3059,6 +3089,8 @@ namespace SwimmingScoreboard
             InitLaneDeviceStates();
             UpdateRaceStateDisplay();
             AutoSaveData();
+            RefreshBackupList();
+            Broadcast();
             AddLog("赛事信息已保存: " + _competitionName);
         }
 
@@ -3074,15 +3106,78 @@ namespace SwimmingScoreboard
         }
 
         private void NewCompetition_Click(object sender, RoutedEventArgs e) {
+            if (_swimmers.Count > 0 || _schedule.Count > 0) {
+                if (MessageBox.Show("新建赛事将清除当前所有数据，是否继续？", "确认", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
+                    return;
+            }
+            ClearAllDataAndUI();
+            Broadcast();
+            AddLog("已新建赛事，所有数据已清除");
+        }
+
+        /// <summary>
+        /// 清除所有数据集合和所有界面显示（公共方法，供新建/清除/删除等调用）
+        /// </summary>
+        /// <summary>
+        /// 只清除比赛数据和界面，保留赛事基本信息（名称、日期、地点、裁判等）
+        /// 用于"清除当前库数据"
+        /// </summary>
+        private void ClearCompetitionData() {
             _swimmers.Clear();
             _relayTeams.Clear();
-            _records.Clear();
             _teamScores.Clear();
             _schedule.Clear();
-            _competitionName = "";
-            CompNameBox.Clear();
+            _records.Clear();
+
+            if (SwimmerGrid != null) SwimmerGrid.ItemsSource = _swimmers;
+            if (RelayGrid != null) RelayGrid.ItemsSource = _relayTeams;
+            if (RegEventListBox != null) RegEventListBox.Items.Clear();
+            if (RegStatusText != null) RegStatusText.Text = "";
             ScheduleTree.Items.Clear();
-            AddLog("已新建赛事");
+            if (ScheduleGroupedPanel != null) ScheduleGroupedPanel.Children.Clear();
+            if (EditEventCombo != null) EditEventCombo.Items.Clear();
+            if (EditHeatCombo != null) EditHeatCombo.Items.Clear();
+            if (EditPreviewGrid != null) EditPreviewGrid.ItemsSource = null;
+            if (EditAllGroupsPanel != null) EditAllGroupsPanel.Children.Clear();
+            if (EditAllGroupsScroll != null) EditAllGroupsScroll.Visibility = System.Windows.Visibility.Collapsed;
+            if (ResultEventCombo != null) ResultEventCombo.Items.Clear();
+            if (ResultGrid != null) ResultGrid.ItemsSource = null;
+            if (LaneStatusGrid != null) LaneStatusGrid.ItemsSource = null;
+            if (CurrentEventText != null) CurrentEventText.Text = "-";
+            if (CurrentStageText != null) CurrentStageText.Text = "-";
+            if (CurrentHeatText != null) CurrentHeatText.Text = "-";
+            if (RaceStateText != null) { RaceStateText.Text = "等待"; RaceStateText.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F59E0B")); }
+            if (RunningTimeText != null) RunningTimeText.Text = "0.0";
+
+            // 刷新系统状态显示（保留赛事信息的模式和泳池信息）
+            UpdateRaceStateDisplay();
+            RefreshBackupList();
+        }
+
+        /// <summary>
+        /// 清除全部数据和界面（含赛事基本信息）
+        /// 用于"新建赛事"、"删除当前存档"
+        /// </summary>
+        private void ClearAllDataAndUI() {
+            ClearCompetitionData();
+
+            // 赛事基本信息
+            _competitionName = "";
+            if (CompNameBox != null) CompNameBox.Clear();
+            if (CompModeCombo != null) CompModeCombo.SelectedIndex = 0;
+            SetDatePicker(StartDatePicker, null);
+            SetDatePicker(EndDatePicker, null);
+            if (LocationBox != null) LocationBox.Text = "";
+            if (OrganizerBox != null) OrganizerBox.Text = "";
+            if (HostBox != null) HostBox.Text = "";
+            if (TechDelegateBox != null) TechDelegateBox.Text = "";
+            if (RefereeBox != null) RefereeBox.Text = "";
+            if (StarterBox != null) StarterBox.Text = "";
+            if (ChiefJudgeBox != null) ChiefJudgeBox.Text = "";
+            if (PoolLengthCombo != null) PoolLengthCombo.SelectedIndex = 0;
+            if (LaneCountCombo != null) LaneCountCombo.SelectedIndex = 0;
+            if (CompModeText != null) CompModeText.Text = "";
+            if (PoolInfoText != null) PoolInfoText.Text = "";
         }
 
         // ═══════════════════════════════════════════════════════════════
@@ -3190,7 +3285,35 @@ namespace SwimmingScoreboard
                     }
                 }
                 _relayTeams.Clear();
-                if (package.RelayTeams != null) foreach (var rt in package.RelayTeams) _relayTeams.Add(rt);
+                if (package.RelayTeams != null) {
+                    foreach (var rt in package.RelayTeams) {
+                        _relayTeams.Add(rt);
+                        // 兼容旧数据：确保接力队在_swimmers中有对应条目
+                        if (!string.IsNullOrEmpty(rt.EventName)) {
+                            bool exists = false;
+                            foreach (var s in _swimmers) {
+                                if (s.Name == rt.TeamName && s.EventName == rt.EventName && s.Gender == rt.Gender) { exists = true; break; }
+                            }
+                            if (!exists) {
+                                string legNames = "";
+                                foreach (var leg in rt.Legs) legNames += (legNames.Length > 0 ? "," : "") + leg.SwimmerName;
+                                _swimmers.Add(new Swimmer {
+                                    BibNumber = "R" + _relayTeams.Count.ToString("D3"),
+                                    Name = rt.TeamName,
+                                    Gender = rt.Gender,
+                                    Country = rt.TeamName,
+                                    EventName = rt.EventName,
+                                    EntryTime = rt.EntryTime,
+                                    EntryTimeSeconds = rt.EntryTimeSeconds,
+                                    CurrentStage = rt.Stage ?? "预赛",
+                                    Heat = rt.Heat,
+                                    Lane = rt.Lane,
+                                    Notes = string.Format("接力队 棒次:{0}", legNames)
+                                });
+                            }
+                        }
+                    }
+                }
                 _records.Clear();
                 if (package.Records != null) foreach (var r in package.Records) _records.Add(r);
                 _teamScores.Clear();
@@ -4013,25 +4136,7 @@ namespace SwimmingScoreboard
 
                         // 如果删除的是当前正在使用的比赛，同步清除内存数据和界面
                         if (selected.Name == _competitionName) {
-                            _swimmers.Clear();
-                            _relayTeams.Clear();
-                            _teamScores.Clear();
-                            _schedule.Clear();
-                            _records.Clear();
-                            ScheduleTree.Items.Clear();
-                            if (ScheduleGroupedPanel != null) ScheduleGroupedPanel.Children.Clear();
-                            if (EditEventCombo != null) EditEventCombo.Items.Clear();
-                            if (EditHeatCombo != null) EditHeatCombo.Items.Clear();
-                            if (EditPreviewGrid != null) EditPreviewGrid.ItemsSource = null;
-                            if (EditAllGroupsPanel != null) EditAllGroupsPanel.Children.Clear();
-                            if (ResultEventCombo != null) ResultEventCombo.Items.Clear();
-                            if (ResultGrid != null) ResultGrid.ItemsSource = null;
-                            if (LaneStatusGrid != null) LaneStatusGrid.ItemsSource = null;
-                            if (CurrentEventText != null) CurrentEventText.Text = "-";
-                            if (CurrentStageText != null) CurrentStageText.Text = "-";
-                            if (CurrentHeatText != null) CurrentHeatText.Text = "-";
-                            if (RaceStateText != null) { RaceStateText.Text = "等待"; RaceStateText.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F59E0B")); }
-                            if (RunningTimeText != null) RunningTimeText.Text = "0.0";
+                            ClearAllDataAndUI();
                             Broadcast();
                             AddLog(string.Format("当前比赛 [{0}] 的存档已删除，界面数据已清除", _competitionName));
                         }
@@ -4044,46 +4149,13 @@ namespace SwimmingScoreboard
 
         private void ClearDatabase_Click(object sender, RoutedEventArgs e) {
             if (MessageBox.Show(
-                string.Format("严重警告：确定要清空当前比赛 [{0}] 的所有数据吗？\n\n运动员、赛程、成绩将全部清除！\n不影响其他存档文件。", _competitionName),
+                string.Format("严重警告：确定要清空当前比赛 [{0}] 的所有数据吗？\n\n运动员、赛程、成绩将全部清除！\n赛事基本信息（名称、日期、地点、裁判等）将保留。", _competitionName),
                 "确认清空", MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes) {
-                // 清除所有数据集合
-                _swimmers.Clear();
-                _relayTeams.Clear();
-                _teamScores.Clear();
-                _schedule.Clear();
-                _records.Clear();
-
-                // 清除赛程导航树
-                ScheduleTree.Items.Clear();
-
-                // 清除赛程管理分组视图
-                if (ScheduleGroupedPanel != null) ScheduleGroupedPanel.Children.Clear();
-
-                // 清除出场编排微调
-                if (EditEventCombo != null) EditEventCombo.Items.Clear();
-                if (EditHeatCombo != null) EditHeatCombo.Items.Clear();
-                if (EditPreviewGrid != null) EditPreviewGrid.ItemsSource = null;
-                if (EditAllGroupsPanel != null) EditAllGroupsPanel.Children.Clear();
-
-                // 清除成绩与排名
-                if (ResultEventCombo != null) ResultEventCombo.Items.Clear();
-                if (ResultGrid != null) ResultGrid.ItemsSource = null;
-
-                // 清除比赛控制泳道状态
-                if (LaneStatusGrid != null) LaneStatusGrid.ItemsSource = null;
-
-                // 重置比赛状态显示
-                if (CurrentEventText != null) CurrentEventText.Text = "-";
-                if (CurrentStageText != null) CurrentStageText.Text = "-";
-                if (CurrentHeatText != null) CurrentHeatText.Text = "-";
-                if (RaceStateText != null) { RaceStateText.Text = "等待"; RaceStateText.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F59E0B")); }
-                if (RunningTimeText != null) RunningTimeText.Text = "0.0";
-
+                ClearCompetitionData();
                 AutoSaveData();
-                RefreshBackupList();
                 Broadcast();
-                AddLog(string.Format("比赛 [{0}] 的数据已清空", _competitionName));
-                MessageBox.Show(string.Format("比赛 [{0}] 的数据已成功清空。", _competitionName));
+                AddLog(string.Format("比赛 [{0}] 的数据已清空（赛事信息保留）", _competitionName));
+                MessageBox.Show(string.Format("比赛 [{0}] 的数据已成功清空。\n赛事基本信息已保留。", _competitionName));
             }
         }
 
