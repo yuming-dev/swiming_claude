@@ -255,13 +255,24 @@ var laneSplitState = {};  // {lane: {splitCount, showTime}}
 var selectedHeatKey = ''; // "gender|event|stage|heat"
 var startPosition = 'left'; // 'left' or 'right' — 发令位置
 
+function getServerHost() {
+    var params = new URLSearchParams(window.location.search);
+    if (params.get('host')) return params.get('host');
+    if (location.hostname && location.hostname !== '' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') return location.hostname;
+    var saved = localStorage.getItem('swimServerHost');
+    if (saved) return saved;
+    var ip = prompt('请输入服务器IP地址（如192.168.1.100）:', '192.168.1.100');
+    if (ip) { localStorage.setItem('swimServerHost', ip); return ip; }
+    return 'localhost';
+}
+
 function connect() {
-    var host = location.hostname || 'localhost';
+    var host = getServerHost();
     ws = new WebSocket('ws://' + host + ':3002');
     ws.onopen = function() {
         ws.send(JSON.stringify({type: 'TIMING_WEB_IDENTITY'}));
         document.getElementById('wsConn').className = 'conn-dot on';
-        addLog('已连接服务器');
+        addLog('已连接服务器 ' + host);
     };
     ws.onmessage = function(e) {
         var msg = JSON.parse(e.data);

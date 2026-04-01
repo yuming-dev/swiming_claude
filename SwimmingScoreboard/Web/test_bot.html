@@ -128,12 +128,22 @@ label { color: #94a3b8; font-size: 12px; }
 <script>
 var ws, data = {}, autoRunning = false;
 
+function getServerHost() {
+    var params = new URLSearchParams(window.location.search);
+    if (params.get('host')) return params.get('host');
+    if (location.hostname && location.hostname !== '' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') return location.hostname;
+    var saved = localStorage.getItem('swimServerHost');
+    if (saved) return saved;
+    var ip = prompt('请输入服务器IP地址（如192.168.1.100）:', '192.168.1.100');
+    if (ip) { localStorage.setItem('swimServerHost', ip); return ip; }
+    return 'localhost';
+}
 function connect() {
-    var host = location.hostname || 'localhost';
+    var host = getServerHost();
     ws = new WebSocket('ws://' + host + ':3002');
     ws.onopen = function() {
-        document.getElementById('connStatus').textContent = '已连接';
-        log('已连接服务器');
+        document.getElementById('connStatus').textContent = '已连接 ' + host;
+        log('已连接服务器 ' + host);
     };
     ws.onclose = function() {
         document.getElementById('connStatus').textContent = '断开，重连中...';

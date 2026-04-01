@@ -703,6 +703,7 @@
                                         <RowDefinition Height="40"/>
                                         <RowDefinition Height="40"/>
                                         <RowDefinition Height="40"/>
+                                        <RowDefinition Height="40"/>
                                     </Grid.RowDefinitions>
                                     <!-- 赛中显示 -->
                                     <Button Grid.Row="0" Grid.Column="0" Click="ShowStartList_Click" Margin="2" BorderThickness="0" Cursor="Hand">
@@ -799,6 +800,19 @@
                                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
                                                         <TextBlock Text="&#xE80F;" FontFamily="Segoe MDL2 Assets" FontSize="15" Foreground="White" VerticalAlignment="Center" Margin="0,0,5,0"/>
                                                         <TextBlock Text="欢迎" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                    </StackPanel>
+                                                </Border>
+                                            </ControlTemplate>
+                                        </Button.Template>
+                                    </Button>
+                                    <!-- 成绩发布 -->
+                                    <Button Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="2" Click="PublishResult_Click" Margin="2" BorderThickness="0" Cursor="Hand">
+                                        <Button.Template>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border Background="#F59E0B" CornerRadius="6" Padding="4">
+                                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                        <TextBlock Text="&#xE8A5;" FontFamily="Segoe MDL2 Assets" FontSize="15" Foreground="White" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                                                        <TextBlock Text="成绩发布" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
                                                     </StackPanel>
                                                 </Border>
                                             </ControlTemplate>

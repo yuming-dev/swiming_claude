@@ -79,7 +79,7 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 .hidden { display: none; }
 </style>
 </head>
-<body>
+<body onclick="goFullScreen()">
 <div class="page-header">
     <span class="title" id="compName">游泳赛事管理系统</span>
     <div class="header-records">
@@ -118,24 +118,62 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 </div>
 
 <script>
+function goFullScreen() {
+    var el = document.documentElement;
+    if (document.fullscreenElement) return; // 已全屏
+    if (el.requestFullscreen) el.requestFullscreen();
+    else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+    else if (el.msRequestFullscreen) el.msRequestFullscreen();
+}
+
 var ws, data = {}, reconnectTimer;
 var currentMode = 'SHOW_LIVE_RACE';
+var publishedData = null;
+var modeLocked = false;  // 成绩发布时锁定模式，不被广播覆盖
 // 每道的显示状态跟踪：{lane: {splitCount, reactionShown, showTime}}
 var laneDisplayState = {};
 var refreshTimer = null;
 
+function getServerHost() {
+    // 优先从URL参数获取: display.html?host=192.168.1.100
+    var params = new URLSearchParams(window.location.search);
+    if (params.get('host')) return params.get('host');
+    // 其次用页面域名
+    if (location.hostname && location.hostname !== '' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') return location.hostname;
+    // 最后提示输入
+    var saved = localStorage.getItem('swimServerHost');
+    if (saved) return saved;
+    var ip = prompt('请输入服务器IP地址（如192.168.1.100）:', '192.168.1.100');
+    if (ip) { localStorage.setItem('swimServerHost', ip); return ip; }
+    return 'localhost';
+}
+
 function connect() {
-    var host = location.hostname || 'localhost';
+    var host = getServerHost();
+    document.title = '大屏幕 - ' + host;
     ws = new WebSocket('ws://' + host + ':3002');
     ws.onopen = function() {
         ws.send(JSON.stringify({type: 'DISPLAY_IDENTITY'}));
     };
     ws.onmessage = function(e) {
         var msg = JSON.parse(e.data);
+        if (msg.type === 'SHOW_PUBLISHED_RESULT') {
+            currentMode = 'SHOW_PUBLISHED_RESULT';
+            publishedData = msg.data;
+            modeLocked = true;  // 锁定模式
+            renderPublishedResult(msg.data);
+            return;
+        }
+        // 模式锁定时，只有主动切换命令（非SHOW_LIVE_RACE广播）才解锁
+        if (modeLocked && msg.type === 'SHOW_LIVE_RACE') {
+            // 仍更新data以备后用，但不切换显示
+            data = msg.data || {};
+            return;
+        }
+        modeLocked = false;
         currentMode = msg.type;
         data = msg.data || {};
         render();
-        // 比赛中启动定时刷新（用于分段成绩消隐）
         startRefreshTimer();
     };
     ws.onclose = function() {
@@ -177,6 +215,7 @@ function render() {
         case 'SHOW_LIVE_RACE': renderRace(); break;
         case 'SHOW_START_LIST': renderStartList(); break;
         case 'SHOW_HEAT_RESULT': renderHeatResult(); break;
+        case 'SHOW_PUBLISHED_RESULT': if (publishedData) renderPublishedResult(publishedData); break;
         case 'SHOW_EVENT_RANKING': renderEventRanking(); break;
         case 'SHOW_TEAM_STANDINGS': renderTeamStandings(); break;
         case 'SHOW_AWARDS': renderAwards(); break;
@@ -187,21 +226,30 @@ function render() {
     }
 }
 
+function getLaneCount() {
+    return (data.poolConfig && data.poolConfig.lanes) ? data.poolConfig.lanes : 10;
+}
+
 function renderRace() {
     document.getElementById('raceView').classList.remove('hidden');
     document.getElementById('eventName').textContent = (data.currentGender||'') + '子 ' + (data.currentEvent||'');
     document.getElementById('stageHeat').textContent = (data.currentStage||'') + ' 第' + (data.currentHeat||0) + '/' + (data.totalHeats||0) + '组';
     document.getElementById('runningTime').textContent = data.runningTime || '0.0';
 
+    // 根据泳道数调整字体
+    var lc = getLaneCount();
+    var fs = lc <= 8 ? '3.5vh' : '2.9vh';
+    var lnFs = lc <= 8 ? '3.0vh' : '2.5vh';
+
     // 恢复比赛视图表头
     var header = document.querySelector('.lanes-header');
     if (header) {
         header.innerHTML =
-            '<div style="width:5vw;text-align:center;margin-right:1vw;">道次</div>' +
-            '<div style="width:14vw;margin-right:1.5vw;">姓名</div>' +
-            '<div style="width:12vw;margin-right:1.5vw;">代表队</div>' +
-            '<div style="width:14vw;text-align:center;margin-right:1.5vw;">成绩</div>' +
-            '<div style="width:5vw;text-align:center;margin-right:1vw;">名次</div>' +
+            '<div style="width:5vw;text-align:center;margin-right:1vw;font-size:'+fs+';">道次</div>' +
+            '<div style="width:14vw;margin-right:1.5vw;font-size:'+fs+';">姓名</div>' +
+            '<div style="width:12vw;margin-right:1.5vw;font-size:'+fs+';">代表队</div>' +
+            '<div style="width:14vw;text-align:center;margin-right:1.5vw;font-size:'+fs+';">成绩</div>' +
+            '<div style="width:5vw;text-align:center;margin-right:1vw;font-size:'+fs+';">名次</div>' +
             '<div style="width:8vw;text-align:center;">备注</div>';
     }
 
@@ -398,6 +446,73 @@ function renderHeatResult() {
             '<div class="lane-num">' + s.lane + '</div>' +
             '<div class="result-time">' + resultText + '</div>' +
             '<div class="remark">' + remarkText + '</div>';
+        container.appendChild(row);
+    }
+}
+
+function renderPublishedResult(pubData) {
+    if (!pubData) return;
+
+    // 隐藏所有视图
+    document.getElementById('raceView').classList.add('hidden');
+    document.getElementById('listView').classList.add('hidden');
+    document.getElementById('welcomeView').classList.add('hidden');
+    document.getElementById('awardView').classList.add('hidden');
+
+    document.getElementById('compName').textContent = pubData.competitionName || '';
+    document.getElementById('raceView').classList.remove('hidden');
+
+    var eventTitle = (pubData.gender||'') + ' ' + (pubData.eventName||'');
+    var stageTitle = (pubData.stage||'') + (pubData.heatDisplay||'') + ' 成绩';
+    document.getElementById('eventName').textContent = eventTitle;
+    document.getElementById('stageHeat').textContent = stageTitle;
+    document.getElementById('runningTime').textContent = '';
+
+    // 根据泳道数调整字体
+    var laneCount = (pubData.poolConfig && pubData.poolConfig.lanes) ? pubData.poolConfig.lanes : 10;
+    var fontSize = laneCount <= 8 ? 3.5 : 2.9;  // 8道用更大字体
+    var laneNumSize = laneCount <= 8 ? 3.0 : 2.5;
+    var rankSize = laneCount <= 8 ? 3.5 : 2.9;
+
+    // 成绩排名表头
+    var header = document.querySelector('.lanes-header');
+    if (header) {
+        header.innerHTML =
+            '<div style="width:5vw;text-align:center;margin-right:1vw;font-size:' + fontSize + 'vh;">名次</div>' +
+            '<div style="width:14vw;margin-right:1.5vw;font-size:' + fontSize + 'vh;">姓名</div>' +
+            '<div style="width:12vw;margin-right:1.5vw;font-size:' + fontSize + 'vh;">代表队</div>' +
+            '<div style="width:5vw;text-align:center;margin-right:1vw;font-size:' + fontSize + 'vh;">道次</div>' +
+            '<div style="width:14vw;text-align:center;margin-right:1.5vw;font-size:' + fontSize + 'vh;">成绩</div>' +
+            '<div style="width:8vw;text-align:center;font-size:' + fontSize + 'vh;">备注</div>';
+    }
+
+    var sw = (pubData.swimmers || []).slice().sort(function(a,b) { return (a.rank||99) - (b.rank||99); });
+    var container = document.getElementById('lanesContainer');
+    container.innerHTML = '';
+
+    for (var i = 0; i < sw.length; i++) {
+        var s = sw[i];
+        var row = document.createElement('div');
+        row.className = 'lane-row finished';
+
+        var rankText = '', rankClass = '';
+        if (s.rank === 1) { rankClass = 'gold'; rankText = '1'; }
+        else if (s.rank === 2) { rankClass = 'silver'; rankText = '2'; }
+        else if (s.rank === 3) { rankClass = 'bronze'; rankText = '3'; }
+        else if (s.rank > 0) { rankText = s.rank; }
+
+        var remarkText = '';
+        if (s.status === 'DSQ') remarkText = '犯规';
+        else if (s.status === 'DNS') remarkText = '未出发';
+        else if (s.status === 'DNF') remarkText = '未完赛';
+
+        row.innerHTML =
+            '<div class="rank ' + rankClass + '" style="font-size:' + rankSize + 'vh;">' + rankText + '</div>' +
+            '<div class="swimmer-name" style="font-size:' + fontSize + 'vh;">' + (s.name||'') + '</div>' +
+            '<div class="swimmer-team" style="font-size:' + fontSize + 'vh;">' + (s.country||'') + '</div>' +
+            '<div class="lane-num" style="font-size:' + laneNumSize + 'vh;">' + s.lane + '</div>' +
+            '<div class="result-time" style="font-size:' + fontSize + 'vh;">' + (s.finalTime||'') + '</div>' +
+            '<div class="remark" style="font-size:' + fontSize + 'vh;">' + remarkText + '</div>';
         container.appendChild(row);
     }
 }

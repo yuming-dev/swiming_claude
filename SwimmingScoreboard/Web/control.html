@@ -40,17 +40,50 @@ h1 { text-align: center; margin-bottom: 20px; font-size: 20px; }
     <button class="btn btn-promo" onclick="send('SHOW_PROMOTION_LIST')">晋级名单</button>
     <button class="btn btn-welcome" onclick="send('SHOW_WELCOME')">欢迎画面</button>
     <button class="btn btn-pause" onclick="send('SHOW_PAUSE')">暂停画面</button>
+    <button class="btn" style="background:#F59E0B;color:#000;grid-column:span 3;" onclick="openPublishDialog()">成绩发布（选择已完赛项目发布到大屏）</button>
 </div>
 <div class="status" id="status">连接中...</div>
 
+<!-- 成绩发布弹窗 -->
+<div id="publishModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:100;">
+    <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:#1e293b;border-radius:12px;padding:20px;width:90%;max-width:500px;max-height:80vh;overflow-y:auto;">
+        <h2 style="margin-bottom:12px;font-size:18px;color:#F59E0B;">成绩发布到大屏</h2>
+        <p style="margin-bottom:8px;font-size:13px;color:#94a3b8;">选择已完赛的比赛项目：</p>
+        <div id="publishList" style="max-height:50vh;overflow-y:auto;"></div>
+        <div style="display:flex;gap:8px;margin-top:12px;justify-content:flex-end;">
+            <button class="btn" style="background:#64748b;color:white;padding:10px 20px;" onclick="closePublishDialog()">关闭</button>
+        </div>
+    </div>
+</div>
+
 <script>
-var ws;
+var ws, serverData = {};
+function getServerHost() {
+    var params = new URLSearchParams(window.location.search);
+    if (params.get('host')) return params.get('host');
+    if (location.hostname && location.hostname !== '' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') return location.hostname;
+    var saved = localStorage.getItem('swimServerHost');
+    if (saved) return saved;
+    var ip = prompt('请输入服务器IP地址（如192.168.1.100）:', '192.168.1.100');
+    if (ip) { localStorage.setItem('swimServerHost', ip); return ip; }
+    return 'localhost';
+}
 function connect() {
-    var host = location.hostname || 'localhost';
+    var host = getServerHost();
     ws = new WebSocket('ws://' + host + ':3002');
-    ws.onopen = function() { document.getElementById('status').textContent = '已连接'; };
+    ws.onopen = function() {
+        document.getElementById('status').textContent = '已连接 ' + host;
+        // 请求初始数据
+        ws.send(JSON.stringify({type: 'REMOTE_CONTROL', command: 'SHOW_LIVE_RACE'}));
+    };
     ws.onclose = function() { document.getElementById('status').textContent = '断开，重连中...'; setTimeout(connect, 3000); };
-    ws.onmessage = function() {};
+    ws.onmessage = function(e) {
+        try {
+            var msg = JSON.parse(e.data);
+            // 只更新含赛程数据的广播消息，跳过晋级通知等特殊消息
+            if (msg.data && msg.data.schedule) serverData = msg.data;
+        } catch(ex) {}
+    };
 }
 function send(cmd) {
     if (ws && ws.readyState === 1) {
@@ -58,6 +91,66 @@ function send(cmd) {
         document.getElementById('status').textContent = '已发送: ' + cmd;
     }
 }
+
+function openPublishDialog() {
+    var schedule = serverData.schedule || [];
+    if (schedule.length === 0) {
+        alert('暂未收到服务器赛程数据，请稍后再试。\n（如果刚连接，请等待几秒后重试）');
+        return;
+    }
+    var listEl = document.getElementById('publishList');
+    var html = '';
+    var found = 0;
+
+    for (var i = 0; i < schedule.length; i++) {
+        var s = schedule[i];
+        var hc = s.heatCount || 1;
+        var heatConfirmed = s.heatConfirmed || [];
+        for (var h = 0; h < hc; h++) {
+            if (heatConfirmed[h] !== true) continue;
+            found++;
+            var showHeat = (hc > 1) || (s.stage && (s.stage.indexOf('预赛') >= 0 || s.stage.indexOf('半决赛') >= 0));
+            var heatLabel = showHeat ? ' 第' + (h+1) + '组' : '';
+            var label = (s.gender||'') + ' ' + (s.eventName||'') + ' ' + (s.stage||'') + heatLabel;
+            var btnId = 'pub_' + i + '_' + h;
+            html += '<button id="' + btnId + '" style="display:block;width:100%;text-align:left;padding:10px 12px;margin-bottom:4px;' +
+                'background:#334155;color:white;border:none;border-radius:6px;font-size:14px;cursor:pointer;" ' +
+                'onclick="publishResult(\'' + (s.gender||'').replace(/'/g,"\\'") + '\',\'' + (s.eventName||'').replace(/'/g,"\\'") + '\',\'' +
+                (s.stage||'').replace(/'/g,"\\'") + '\',' + (h+1) + ',' + hc + ')">' +
+                label + '</button>';
+        }
+    }
+
+    if (found === 0) {
+        html = '<p style="color:#94a3b8;padding:20px;text-align:center;">暂无已完赛的比赛项目</p>';
+    }
+    listEl.innerHTML = html;
+    document.getElementById('publishModal').style.display = 'block';
+}
+
+function closePublishDialog() {
+    document.getElementById('publishModal').style.display = 'none';
+}
+
+function publishResult(gender, eventName, stage, heat, heatCount) {
+    if (!confirm('确定发布 ' + gender + ' ' + eventName + ' ' + stage + (heatCount > 1 ? ' 第'+heat+'组' : '') + ' 的成绩到大屏？')) return;
+
+    // 从serverData中构建该组成绩
+    var swimmers = [];
+    var allSwimmers = serverData.swimmers || [];
+    // 注意：serverData.swimmers只有当前组的运动员，无法获取历史组
+    // 需要通过服务器来发布，发送命令让服务器构建数据
+    if (ws && ws.readyState === 1) {
+        ws.send(JSON.stringify({
+            type: 'TIMING_CMD',
+            command: 'PUBLISH_RESULT',
+            data: { gender: gender, eventName: eventName, stage: stage, heat: heat }
+        }));
+        document.getElementById('status').textContent = '已请求发布: ' + gender + ' ' + eventName + ' ' + stage;
+    }
+    closePublishDialog();
+}
+
 connect();
 </script>
 </body>
