@@ -250,6 +250,8 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 
 <script>
 var ws, data = {}, selectedLane = -1;
+// 每道分段显示跟踪
+var laneSplitState = {};  // {lane: {splitCount, showTime}}
 var selectedHeatKey = ''; // "gender|event|stage|heat"
 var startPosition = 'left'; // 'left' or 'right' — 发令位置
 
@@ -301,8 +303,22 @@ function sendCmd(cmd, cmdData) {
     ws.send(JSON.stringify({type: 'TIMING_CMD', command: cmd, data: cmdData || null}));
 }
 
+var _rcRefreshTimer = null;
+function startRcRefresh() {
+    if (_rcRefreshTimer) return;
+    _rcRefreshTimer = setInterval(function() {
+        var st = (data.raceState || '').toLowerCase();
+        if (st === 'racing' || st === 'finished') renderLanes();
+    }, 500);
+}
+
 function render() {
     var state = (data.raceState || 'WAITING').toLowerCase();
+    // 比赛中/已完赛 启动定时刷新（分段消隐）
+    if (state === 'racing' || state === 'finished') startRcRefresh();
+    // 等待/就位 重置分段跟踪
+    if (state === 'waiting') { laneSplitState = {}; }
+
     document.getElementById('stateDot').className = 'state-dot ' + state;
     var labels = {waiting:'等待', ready:'就位', racing:'比赛中', finished:'已完赛'};
     var stateText = labels[state] || state;
@@ -602,6 +618,7 @@ function renderHeader() {
             '<span class="device-label">盲3</span>' +
             '<span class="device-label">出发</span>' +
             '<span class="device-label">触板</span>' +
+            '<span class="device-label" style="width:20px;">圈数</span>' +
         '</div>' +
         '<div class="lane-mid" style="padding:0 8px;">' +
             '<div class="lane-num" style="font-size:11px;">道</div>' +
@@ -609,6 +626,7 @@ function renderHeader() {
             '<div class="lane-track" style="font-size:16px;height:auto;background:none;text-align:center;">方向/进度</div>' +
         '</div>' +
         '<div class="right-devices devices">' +
+            '<span class="device-label" style="width:20px;">圈数</span>' +
             '<span class="device-label">触板</span>' +
             '<span class="device-label">出发</span>' +
             '<span class="device-label">盲1</span>' +
@@ -625,6 +643,36 @@ function renderHeader() {
 }
 
 // ═══════ 泳道渲染 ═══════
+function getSplitOrFinalTime(sw) {
+    // 已完赛或有最终成绩：永久显示
+    if (sw.finalTime) return sw.finalTime;
+    // DNS/DNF/DSQ
+    if (sw.status) return sw.status;
+
+    var lane = sw.lane;
+    var curSplitCount = (sw.splits && sw.splits.length) ? sw.splits.length : 0;
+
+    if (!laneSplitState[lane]) laneSplitState[lane] = {splitCount: 0, showTime: 0};
+    var ls = laneSplitState[lane];
+
+    // 检测新分段到来
+    if (curSplitCount > ls.splitCount) {
+        ls.splitCount = curSplitCount;
+        ls.showTime = Date.now();
+    }
+
+    // 在显示时间窗口内显示分段成绩：累计时间为主，分段时间为辅
+    if (curSplitCount > 0 && ls.showTime > 0) {
+        var displayMs = ((data.laneCloseSettings ? data.laneCloseSettings.splitDisplayTime : 5) || 5) * 1000;
+        var elapsed = Date.now() - ls.showTime;
+        if (elapsed < displayMs) {
+            var lastSplit = sw.splits[curSplitCount - 1];
+            return (lastSplit.cumulative || '') + ' [' + (lastSplit.time || '') + ']';
+        }
+    }
+    return '';
+}
+
 function renderLanes() {
     var container = document.getElementById('poolLanes');
     container.innerHTML = '';
@@ -659,6 +707,11 @@ function renderLanes() {
         var leftIndClass = startPosition === 'left' ? 'start-indicator active' : 'start-indicator inactive';
         var rightIndClass = startPosition === 'right' ? 'start-indicator active' : 'start-indicator inactive';
 
+        var leftRemain = (sw.leftTouchRemain != null) ? sw.leftTouchRemain : '';
+        var rightRemain = (sw.rightTouchRemain != null) ? sw.rightTouchRemain : '';
+        var leftRemainStyle = 'display:inline-block;width:22px;text-align:center;font-size:18px;font-weight:bold;color:' + (leftRemain > 0 ? '#F59E0B' : '#475569') + ';';
+        var rightRemainStyle = 'display:inline-block;width:22px;text-align:center;font-size:18px;font-weight:bold;color:' + (rightRemain > 0 ? '#F59E0B' : '#475569') + ';';
+
         row.innerHTML =
             '<div class="' + leftIndClass + ' start-ind"></div>' +
             '<div class="left-devices devices">' +
@@ -668,6 +721,7 @@ function renderLanes() {
                 '<div class="device-dot ' + statusClass(ds.leftBlindWatch3) + '" title="盲表3"></div>' +
                 '<div class="device-dot ' + statusClass(ds.leftStartBlock) + '" title="出发台"></div>' +
                 '<div class="device-dot ' + statusClass(ds.leftTouchpad) + '" title="触板"></div>' +
+                '<span style="' + leftRemainStyle + '" title="左端触板剩余">' + (leftRemain !== '' ? leftRemain : '') + '</span>' +
             '</div>' +
             '<div class="lane-mid">' +
                 '<div class="lane-num">' + sw.lane + '</div>' +
@@ -675,6 +729,7 @@ function renderLanes() {
                 '<div class="lane-track ' + dir + '">' + buildArrows(sw, swDir, dir) + '</div>' +
             '</div>' +
             '<div class="right-devices devices">' +
+                '<span style="' + rightRemainStyle + '" title="右端触板剩余">' + (rightRemain !== '' ? rightRemain : '') + '</span>' +
                 '<div class="device-dot ' + statusClass(ds.rightTouchpad) + '" title="触板"></div>' +
                 '<div class="device-dot ' + statusClass(ds.rightStartBlock) + '" title="出发台"></div>' +
                 '<div class="device-dot ' + statusClass(ds.rightBlindWatch1) + '" title="盲表1"></div>' +
@@ -685,7 +740,7 @@ function renderLanes() {
             '<div class="' + rightIndClass + ' start-ind"></div>' +
             '<div class="info-area">' +
                 '<div class="reaction">' + (sw.reactionTime||'') + '</div>' +
-                '<div class="final-time">' + (sw.finalTime || (sw.splits && sw.splits.length>0 ? sw.splits[sw.splits.length-1].time : '') || sw.status || '') + '</div>' +
+                '<div class="final-time">' + getSplitOrFinalTime(sw) + '</div>' +
                 '<div class="rank ' + rankClass + '">' + (sw.rank>0 ? sw.rank : '') + '</div>' +
             '</div>';
 

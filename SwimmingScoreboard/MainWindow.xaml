@@ -288,26 +288,43 @@
                             </DockPanel>
                         </TabItem>
                         <TabItem Header="接力队管理">
-                            <DockPanel Margin="10">
-                                <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
-                                    <Button Content="添加接力队" Click="AddRelay_Click" Padding="12,6" Background="#3B82F6" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
-                                    <Button Content="删除选中" Click="DeleteRelay_Click" Padding="12,6" Background="#EF4444" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
+                            <Grid Margin="10">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="180"/>
+                                </Grid.RowDefinitions>
+                                <!-- 顶部操作栏 -->
+                                <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8">
+                                    <Button Content="添加接力队" Click="AddRelay_Click" Padding="12,6" FontSize="13" Background="#3B82F6" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
+                                    <Button Content="删除选中队伍" Click="DeleteRelay_Click" Padding="12,6" FontSize="13" Background="#EF4444" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
+                                    <Button Content="同步分组信息" Click="SyncRelayHeatInfo_Click" Padding="12,6" FontSize="13" Background="#22C55E" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
                                 </StackPanel>
-                                <DataGrid x:Name="RelayGrid" AutoGenerateColumns="False" CanUserAddRows="False"
-                                          SelectionMode="Single" IsReadOnly="False" AlternatingRowBackground="#F8FAFC">
+                                <!-- 按项目分组的接力队列表 -->
+                                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                                    <StackPanel x:Name="RelayGroupedPanel"/>
+                                </ScrollViewer>
+                                <!-- 隐藏的RelayGrid用于数据绑定 -->
+                                <DataGrid x:Name="RelayGrid" Visibility="Collapsed" SelectionChanged="RelayGrid_SelectionChanged"/>
+                                <!-- 棒次详情标题 -->
+                                <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,8,0,4">
+                                    <TextBlock x:Name="RelayLegTitle" Text="棒次安排（请选中一支接力队）" FontSize="14" FontWeight="Bold" Foreground="#1E40AF" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                                    <Button Content="上移棒次" Click="RelayLegUp_Click" Padding="10,4" FontSize="12" Background="#475569" Foreground="White" BorderThickness="0" Margin="0,0,4,0"/>
+                                    <Button Content="下移棒次" Click="RelayLegDown_Click" Padding="10,4" FontSize="12" Background="#475569" Foreground="White" BorderThickness="0" Margin="0,0,4,0"/>
+                                    <Button Content="更换队员" Click="RelayLegReplace_Click" Padding="10,4" FontSize="12" Background="#F59E0B" Foreground="White" BorderThickness="0" Margin="0,0,4,0"/>
+                                    <Button Content="保存修改" Click="RelayLegSave_Click" Padding="10,4" FontSize="12" Background="#22C55E" Foreground="White" BorderThickness="0" Margin="0,0,4,0"/>
+                                </StackPanel>
+                                <!-- 棒次详情表格 -->
+                                <DataGrid x:Name="RelayLegGrid" Grid.Row="3" AutoGenerateColumns="False" CanUserAddRows="False"
+                                          SelectionMode="Single" IsReadOnly="False" AlternatingRowBackground="#F0F7FF">
                                     <DataGrid.Columns>
-                                        <DataGridTextColumn Header="队名" Binding="{Binding TeamName}" Width="100"/>
-                                        <DataGridTextColumn Header="项目" Binding="{Binding EventName}" Width="140"/>
-                                        <DataGridTextColumn Header="性别" Binding="{Binding Gender}" Width="40"/>
-                                        <DataGridTextColumn Header="棒次安排" Binding="{Binding LegOrderDisplay}" Width="200" IsReadOnly="True"/>
-                                        <DataGridTextColumn Header="报名成绩" Binding="{Binding EntryTime}" Width="80"/>
-                                        <DataGridTextColumn Header="阶段" Binding="{Binding Stage}" Width="50"/>
-                                        <DataGridTextColumn Header="组" Binding="{Binding Heat}" Width="35"/>
-                                        <DataGridTextColumn Header="道" Binding="{Binding Lane}" Width="35"/>
-                                        <DataGridTextColumn Header="状态" Binding="{Binding Status}" Width="45"/>
+                                        <DataGridTextColumn Header="棒次" Binding="{Binding LegOrder}" Width="50" IsReadOnly="True"/>
+                                        <DataGridTextColumn Header="姓名" Binding="{Binding SwimmerName}" Width="100"/>
+                                        <DataGridTextColumn Header="号码" Binding="{Binding SwimmerBibNumber}" Width="80"/>
                                     </DataGrid.Columns>
                                 </DataGrid>
-                            </DockPanel>
+                            </Grid>
                         </TabItem>
                         <TabItem Header="出场编排微调">
                             <DockPanel Margin="10">
@@ -336,6 +353,7 @@
                                         <Button Content="上移" Click="EditMoveUp_Click" Padding="10,4" Background="#475569" Foreground="White" BorderThickness="0" Margin="0,0,4,0"/>
                                         <Button Content="下移" Click="EditMoveDown_Click" Padding="10,4" Background="#475569" Foreground="White" BorderThickness="0" Margin="0,0,4,0"/>
                                         <Button Content="交换泳道" Click="EditSwapLane_Click" Padding="10,4" Background="#F59E0B" Foreground="White" BorderThickness="0" Margin="0,0,4,0"/>
+                                        <Button Content="增加到本组" Click="EditAddToHeat_Click" Padding="10,4" Background="#3B82F6" Foreground="White" BorderThickness="0" Margin="0,0,4,0"/>
                                         <Button Content="移出本组" Click="EditRemoveFromHeat_Click" Padding="10,4" Background="#EF4444" Foreground="White" BorderThickness="0" Margin="0,0,4,0"/>
                                         <Button Content="保存修改" Click="EditSaveChanges_Click" Padding="10,4" Background="#22C55E" Foreground="White" BorderThickness="0" Margin="0,0,4,0"/>
                                     </StackPanel>
@@ -527,13 +545,14 @@
                                       HeadersVisibility="Column" GridLinesVisibility="Horizontal" FontSize="13"
                                       BorderThickness="0">
                                 <DataGrid.Columns>
+                                    <DataGridTextColumn Header="左余" Binding="{Binding LeftRemain}" Width="32"/>
                                     <DataGridTextColumn Header="道" Binding="{Binding Lane}" Width="35"/>
                                     <DataGridTextColumn Header="姓名" Binding="{Binding Name}" Width="70"/>
                                     <DataGridTextColumn Header="代表队" Binding="{Binding Country}" Width="65"/>
-                                    <DataGridTextColumn Header="报名" Binding="{Binding EntryTime}" Width="65"/>
                                     <DataGridTextColumn Header="方向" Binding="{Binding Direction}" Width="35"/>
+                                    <DataGridTextColumn Header="右余" Binding="{Binding RightRemain}" Width="32"/>
                                     <DataGridTextColumn Header="反应" Binding="{Binding ReactionTime}" Width="50"/>
-                                    <DataGridTextColumn Header="分段" Binding="{Binding SplitTime}" Width="65"/>
+                                    <DataGridTextColumn Header="分段" Binding="{Binding SplitTime}" Width="80"/>
                                     <DataGridTextColumn Header="成绩" Binding="{Binding FinalTime}" Width="70"/>
                                     <DataGridTextColumn Header="名次" Binding="{Binding Rank}" Width="40"/>
                                     <DataGridTextColumn Header="状态" Binding="{Binding Status}" Width="45"/>

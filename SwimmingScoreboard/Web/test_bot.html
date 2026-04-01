@@ -380,33 +380,64 @@ function simStartBlock() {
     log('抢跳泳道: [' + fsLanes.join(',') + ']');
 }
 
+// 记录每道触板历史，用于计算下一段的合理时间
+var _lastTouchpadTime = {};  // 每道最近一次触板的绝对时间
+var _touchpadLapCount = {};  // 每道已触板的段数
+
 function simTouchpad() {
-    var currentTime = parseRunningTime();
-    if (currentTime < 0.5) {
-        log('警告: 计时器 ' + currentTime.toFixed(2) + 's，请确认已发令');
-    }
     var lanes = getLanes();
-    log('=== 模拟触板 (计时: ' + currentTime.toFixed(2) + 's) ===');
+    // 获取项目距离和每段时间估算
+    var ev = document.getElementById('regEvent').value;
+    var distMatch = ev.match(/(\d+)/);
+    var dist = distMatch ? parseInt(distMatch[1]) : 100;
+    var poolLen = (data && data.poolConfig) ? data.poolConfig.length || 50 : 50;
+    // 每段合理用时（秒）
+    var segTime = dist <= 50 ? 25 : (dist <= 100 ? 28 : (dist <= 200 ? 30 : (dist <= 400 ? 32 : 35)));
+
+    log('=== 模拟触板 (每段约' + segTime + 's) ===');
     for (var i = 0; i < lanes.length; i++) {
-        var t = currentTime + (Math.random() - 0.5) * 0.5;
-        if (t < 0.1) t = 0.1;
-        send('TIMING_DATA', {lane: lanes[i], commandType: 'Touchpad', time: t});
-        log('  道' + lanes[i] + ' 触板: ' + t.toFixed(2) + 's');
+        var lane = lanes[i];
+        if (!_touchpadLapCount[lane]) _touchpadLapCount[lane] = 0;
+        if (!_lastTouchpadTime[lane]) _lastTouchpadTime[lane] = 0;
+
+        _touchpadLapCount[lane]++;
+        var lapNum = _touchpadLapCount[lane];
+
+        // 第1段：基于当前计时器；后续段：在上一段基础上累加合理分段时间
+        var t;
+        if (lapNum === 1) {
+            t = parseRunningTime();
+            if (t < 1) t = segTime;  // 计时器还没走，用估算值
+            t += (Math.random() - 0.3) * 2;
+        } else {
+            t = _lastTouchpadTime[lane] + segTime + (Math.random() - 0.5) * 3;
+        }
+        if (t < 1) t = segTime * lapNum;
+
+        _lastTouchpadTime[lane] = t;
+        send('TIMING_DATA', {lane: lane, commandType: 'Touchpad', time: t});
+        log('  道' + lane + ' 第' + lapNum + '段 触板: ' + t.toFixed(2) + 's');
     }
 }
 
 function simBlindWatch() {
-    var currentTime = parseRunningTime();
     var lanes = getLanes();
-    log('=== 模拟盲表 (计时: ' + currentTime.toFixed(2) + 's) ===');
+    var hasRef = false;
+    for (var k in _lastTouchpadTime) { if (_lastTouchpadTime[k] > 0) { hasRef = true; break; } }
+    if (!hasRef) {
+        log('警告: 请先发送触板数据，再发送盲表数据');
+        return;
+    }
+    log('=== 模拟盲表 (基于触板时间) ===');
     for (var i = 0; i < lanes.length; i++) {
-        // 3个盲表，有微小差异
+        var refTime = _lastTouchpadTime[lanes[i]] || 0;
+        if (refTime <= 0) continue;
         for (var b = 1; b <= 3; b++) {
-            var t = currentTime + (Math.random() - 0.3) * 0.3;
-            if (t < 0.1) t = 0.1;
+            var t = refTime + (Math.random() - 0.5) * 0.30;
+            if (t < 0.5) t = refTime + 0.05;
             send('TIMING_DATA', {lane: lanes[i], commandType: 'PushButton' + b, time: t});
         }
-        log('  道' + lanes[i] + ' 盲表x3 ~' + currentTime.toFixed(2) + 's');
+        log('  道' + lanes[i] + ' 盲表x3 基准:' + refTime.toFixed(2) + 's');
     }
 }
 
@@ -417,6 +448,8 @@ function simConfirm() {
 
 function simTimerReset() {
     sendCmd('TIMER_RESET');
+    _lastTouchpadTime = {};
+    _touchpadLapCount = {};
     log('发送: 计时复位');
 }
 

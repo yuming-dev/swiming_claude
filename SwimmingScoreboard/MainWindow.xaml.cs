@@ -109,6 +109,7 @@ namespace SwimmingScoreboard
         private void InitializeData() {
             SwimmerGrid.ItemsSource = _swimmers;
             RelayGrid.ItemsSource = _relayTeams;
+            RebuildRelayGroupedView();
             // ScheduleGrid replaced by ScheduleGroupedPanel
             RecordGrid.ItemsSource = _records;
 
@@ -362,6 +363,15 @@ namespace SwimmingScoreboard
                     });
                 }
             }
+            // 自动匹配队员号码：从已注册运动员中查找
+            foreach (var leg in team.Legs) {
+                if (string.IsNullOrEmpty(leg.SwimmerBibNumber) && !string.IsNullOrEmpty(leg.SwimmerName)) {
+                    var match = _swimmers.FirstOrDefault(s => s.Name == leg.SwimmerName && s.Country == team.TeamName);
+                    if (match != null && !string.IsNullOrEmpty(match.BibNumber))
+                        leg.SwimmerBibNumber = match.BibNumber;
+                }
+            }
+
             _relayTeams.Add(team);
 
             // 在_swimmers中创建代表该接力队的条目，统一走日程/分组/成绩流程
@@ -384,6 +394,7 @@ namespace SwimmingScoreboard
             }
 
             AddLog(string.Format("注册接力队: {0} ({1}) {2}人 [{3}]", team.TeamName, team.EventName, team.Legs.Count, legNames));
+            RebuildRelayGroupedView();
             AutoSaveData();
             Broadcast();
         }
@@ -686,7 +697,9 @@ namespace SwimmingScoreboard
                     isFalseStart = laneState != null && laneState.IsFalseStart,
                     isNewRecord = false,
                     currentLap = laneState != null ? laneState.CurrentLap : 0,
-                    isFinished = laneState != null && laneState.IsFinished
+                    isFinished = laneState != null && laneState.IsFinished,
+                    leftTouchRemain = GetTouchRemain(laneState, true),
+                    rightTouchRemain = GetTouchRemain(laneState, false)
                 });
             }
 
@@ -1031,7 +1044,6 @@ namespace SwimmingScoreboard
         }
 
         private int GetTotalLaps() {
-            // 解析项目距离
             string ev = _currentEvent;
             int distance = 0;
             foreach (char c in ev) {
@@ -1040,6 +1052,39 @@ namespace SwimmingScoreboard
             }
             if (distance == 0) distance = 50;
             return Math.Max(1, distance / _poolConfig.Length);
+        }
+
+        /// <summary>
+        /// 计算某道左/右触板剩余次数
+        /// isLeft=true: 出发端(左端)触板剩余; isLeft=false: 到达端(右端)触板剩余
+        /// 出发方向由设置决定，这里假设startPosition决定出发端
+        /// </summary>
+        private int GetTouchRemain(LaneDeviceState laneState, bool isLeft) {
+            int totalLaps = GetTotalLaps();
+            int currentLap = laneState != null ? laneState.CurrentLap : 0;
+            bool startFromLeft = _laneCloseSettings.StartPosition != "right";
+
+            // 总触板次数：出发端 = totalLaps/2（偶数段触），到达端 = (totalLaps+1)/2（奇数段触）
+            int startSideTotal, farSideTotal;
+            if (totalLaps == 1) {
+                startSideTotal = 0; farSideTotal = 1;  // 50米：出发端0次，到达端1次
+            } else {
+                startSideTotal = totalLaps / 2;
+                farSideTotal = (totalLaps + 1) / 2;
+            }
+
+            // 已完成的触板次数
+            int startSideDone = currentLap / 2;           // 偶数段在出发端触板
+            int farSideDone = (currentLap + 1) / 2;       // 奇数段在到达端触板
+
+            int startRemain = Math.Max(0, startSideTotal - startSideDone);
+            int farRemain = Math.Max(0, farSideTotal - farSideDone);
+
+            if (startFromLeft) {
+                return isLeft ? startRemain : farRemain;
+            } else {
+                return isLeft ? farRemain : startRemain;
+            }
         }
 
         private void UpdateHeatRanking() {
@@ -1190,6 +1235,8 @@ namespace SwimmingScoreboard
             _countdownTimer.Stop();
             _runningTime = 0;
             _raceStartTime = DateTime.MinValue;
+            _laneSplitCount.Clear();
+            _laneSplitShowTime.Clear();
             if (RunningTimeText != null) RunningTimeText.Text = "0.0";
             UpdateRaceStateDisplay();
 
@@ -1364,6 +1411,7 @@ namespace SwimmingScoreboard
                 UpdateResultHeatCombo();
                 RefreshResultGrid();
                 UpdateEditHeatCombo();
+                SyncRelayHeatInfo();
                 AutoSaveData();
                 AddLog(string.Format("已自动晋级{0}人到{1}，分为{2}组", promoted.Count, nextStage, heatCount));
 
@@ -1432,6 +1480,8 @@ namespace SwimmingScoreboard
             CurrentHeatText.Text = string.Format("第{0}组 / 共{1}组", heat, _totalHeats);
             _raceState = RaceState.Waiting;
             _resultConfirmed = false;
+            _laneSplitCount.Clear();
+            _laneSplitShowTime.Clear();
             // 切换组次 = 复位计时器
             _runningTime = 0;
             _raceStartTime = DateTime.MinValue;
@@ -1575,22 +1625,51 @@ namespace SwimmingScoreboard
         // ═══════════════════════════════════════════════════════════════
         // 泳道状态显示更新
         // ═══════════════════════════════════════════════════════════════
+        private Dictionary<int, int> _laneSplitCount = new Dictionary<int, int>();  // 每道已显示的分段数
+        private Dictionary<int, DateTime> _laneSplitShowTime = new Dictionary<int, DateTime>();  // 每道分段显示开始时间
+
         private void UpdateLaneStatusDisplay() {
             var currentSwimmers = GetCurrentHeatSwimmers();
             var displayData = new List<object>();
+            double splitDisplaySec = _laneCloseSettings.SplitDisplayTime > 0 ? _laneCloseSettings.SplitDisplayTime : 5;
 
             foreach (var sw in currentSwimmers) {
                 var laneState = _laneDeviceStates.FirstOrDefault(s => s.Lane == sw.Lane);
                 var result = sw.Results.FirstOrDefault(r => r.Stage == _currentStage && r.Heat == _currentHeat);
 
+                int curSplitCount = result != null ? result.Splits.Count : 0;
+                if (!_laneSplitCount.ContainsKey(sw.Lane)) _laneSplitCount[sw.Lane] = 0;
+                if (!_laneSplitShowTime.ContainsKey(sw.Lane)) _laneSplitShowTime[sw.Lane] = DateTime.MinValue;
+
+                // 检测新分段到来
+                if (curSplitCount > _laneSplitCount[sw.Lane]) {
+                    _laneSplitCount[sw.Lane] = curSplitCount;
+                    _laneSplitShowTime[sw.Lane] = DateTime.Now;
+                }
+
+                // 分段成绩：在显示时间窗口内显示，超时消隐
+                string splitTimeText = "";
+                if (curSplitCount > 0 && !laneState.IsFinished) {
+                    double elapsed = (DateTime.Now - _laneSplitShowTime[sw.Lane]).TotalSeconds;
+                    if (elapsed < splitDisplaySec) {
+                        var lastSplit = result.Splits[curSplitCount - 1];
+                        splitTimeText = string.Format("{0} [{1}]", TimeFormatter.Format(lastSplit.CumulativeTime), TimeFormatter.Format(lastSplit.Time));
+                    }
+                }
+
+                int leftRemain = GetTouchRemain(laneState, true);
+                int rightRemain = GetTouchRemain(laneState, false);
+
                 displayData.Add(new {
+                    LeftRemain = leftRemain > 0 ? leftRemain.ToString() : (laneState != null && laneState.IsFinished ? "0" : ""),
                     Lane = sw.Lane,
                     Name = sw.Name,
                     Country = sw.Country ?? "",
                     EntryTime = sw.EntryTime ?? "",
                     Direction = laneState != null ? laneState.Direction : "→",
+                    RightRemain = rightRemain > 0 ? rightRemain.ToString() : (laneState != null && laneState.IsFinished ? "0" : ""),
                     ReactionTime = laneState != null && laneState.ReactionTime != 0 ? laneState.ReactionTime.ToString("F2") : "",
-                    SplitTime = result != null && result.Splits.Count > 0 ? TimeFormatter.Format(result.Splits.Last().Time) : "",
+                    SplitTime = splitTimeText,
                     FinalTime = result != null ? result.FinalTimeDisplay : "",
                     Rank = result != null && result.Rank > 0 ? result.Rank.ToString() : "",
                     Status = sw.Status ?? "",
@@ -1967,14 +2046,309 @@ namespace SwimmingScoreboard
 
         private void AddRelay_Click(object sender, RoutedEventArgs e) {
             _relayTeams.Add(new RelayTeam());
+            RebuildRelayGroupedView();
             AutoSaveData();
         }
 
         private void DeleteRelay_Click(object sender, RoutedEventArgs e) {
-            var selected = RelayGrid.SelectedItem as RelayTeam;
-            if (selected != null) {
+            var selected = _selectedRelayTeam;
+            if (selected == null) { MessageBox.Show("请先选中一支接力队"); return; }
+            if (MessageBox.Show(string.Format("确定删除接力队 [{0}] ({1})？", selected.TeamName, selected.EventName), "确认", MessageBoxButton.YesNo) == MessageBoxResult.Yes) {
+                // 同时删除_swimmers中的代表条目
+                var proxy = _swimmers.FirstOrDefault(s => s.Name == selected.TeamName && s.EventName == selected.EventName && s.Gender == selected.Gender && !string.IsNullOrEmpty(s.Notes) && s.Notes.StartsWith("接力队"));
+                if (proxy != null) _swimmers.Remove(proxy);
                 _relayTeams.Remove(selected);
+                _selectedRelayTeam = null;
+                if (RelayLegGrid != null) RelayLegGrid.ItemsSource = null;
+                RelayLegTitle.Text = "棒次安排（请选中一支接力队）";
+                RebuildRelayGroupedView();
                 AutoSaveData();
+            }
+        }
+
+        private void RelayGrid_SelectionChanged(object sender, SelectionChangedEventArgs e) {
+            var selected = _selectedRelayTeam;
+            if (selected == null) {
+                if (RelayLegGrid != null) RelayLegGrid.ItemsSource = null;
+                RelayLegTitle.Text = "棒次安排（请选中一支接力队）";
+                return;
+            }
+            // 自动补全队员号码
+            foreach (var leg in selected.Legs) {
+                if (string.IsNullOrEmpty(leg.SwimmerBibNumber) && !string.IsNullOrEmpty(leg.SwimmerName)) {
+                    var match = _swimmers.FirstOrDefault(s => s.Name == leg.SwimmerName && s.Country == selected.TeamName);
+                    if (match != null && !string.IsNullOrEmpty(match.BibNumber))
+                        leg.SwimmerBibNumber = match.BibNumber;
+                }
+            }
+            RelayLegTitle.Text = string.Format("{0} — {1} 棒次安排（{2}人）", selected.TeamName, selected.EventName, selected.Legs.Count);
+            RelayLegGrid.ItemsSource = selected.Legs;
+        }
+
+        private void RelayLegUp_Click(object sender, RoutedEventArgs e) {
+            var team = _selectedRelayTeam;
+            if (team == null) { MessageBox.Show("请先选中一支接力队"); return; }
+            int idx = RelayLegGrid.SelectedIndex;
+            if (idx <= 0) return;
+            // 交换棒次
+            var leg1 = team.Legs[idx];
+            var leg2 = team.Legs[idx - 1];
+            int tmpOrder = leg1.LegOrder;
+            leg1.LegOrder = leg2.LegOrder;
+            leg2.LegOrder = tmpOrder;
+            team.Legs.Move(idx, idx - 1);
+            RelayLegGrid.SelectedIndex = idx - 1;
+        }
+
+        private void RelayLegDown_Click(object sender, RoutedEventArgs e) {
+            var team = _selectedRelayTeam;
+            if (team == null) { MessageBox.Show("请先选中一支接力队"); return; }
+            int idx = RelayLegGrid.SelectedIndex;
+            if (idx < 0 || idx >= team.Legs.Count - 1) return;
+            var leg1 = team.Legs[idx];
+            var leg2 = team.Legs[idx + 1];
+            int tmpOrder = leg1.LegOrder;
+            leg1.LegOrder = leg2.LegOrder;
+            leg2.LegOrder = tmpOrder;
+            team.Legs.Move(idx, idx + 1);
+            RelayLegGrid.SelectedIndex = idx + 1;
+        }
+
+        private void RelayLegReplace_Click(object sender, RoutedEventArgs e) {
+            var team = _selectedRelayTeam;
+            if (team == null) { MessageBox.Show("请先选中一支接力队"); return; }
+            var leg = RelayLegGrid.SelectedItem as RelayLeg;
+            if (leg == null) { MessageBox.Show("请在棒次表中选中要更换的队员"); return; }
+
+            // 确定被更换队员的性别
+            string legGender = "";
+            if (!string.IsNullOrEmpty(leg.SwimmerName)) {
+                var currentMember = _swimmers.FirstOrDefault(s => s.Name == leg.SwimmerName && s.Country == team.TeamName);
+                if (currentMember != null) legGender = currentMember.Gender;
+            }
+            // 非混合接力：性别和队伍一致
+            if (team.Gender != "混合") legGender = team.Gender;
+
+            // 查找该代表队的可替换运动员（同队名、同性别，排除已在棒次中的）
+            var existingNames = new HashSet<string>();
+            foreach (var l in team.Legs) {
+                if (!string.IsNullOrEmpty(l.SwimmerName)) existingNames.Add(l.SwimmerName);
+            }
+            var teamMembers = _swimmers.Where(s =>
+                (s.Country == team.TeamName || s.Name == team.TeamName) &&
+                !string.IsNullOrEmpty(s.Name) &&
+                !existingNames.Contains(s.Name) &&
+                (string.IsNullOrEmpty(s.Notes) || !s.Notes.StartsWith("接力队 ")) &&
+                (string.IsNullOrEmpty(legGender) || s.Gender == legGender)
+            ).ToList();
+
+            string genderLabel = !string.IsNullOrEmpty(legGender) ? "（" + legGender + "）" : "";
+
+            var dlg = new Window {
+                Title = string.Format("更换第{0}棒队员{1} — {2}", leg.LegOrder, genderLabel, team.TeamName),
+                Width = 400, Height = 380,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner, Owner = this, ResizeMode = ResizeMode.NoResize
+            };
+            var sp = new StackPanel { Margin = new Thickness(16) };
+            sp.Children.Add(new TextBlock {
+                Text = string.Format("当前第{0}棒: {1} {2}", leg.LegOrder, leg.SwimmerName, genderLabel),
+                FontSize = 14, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 0, 0, 10)
+            });
+
+            // 从本队运动员中选择
+            sp.Children.Add(new TextBlock { Text = "从本队运动员中选择:", FontSize = 13, Margin = new Thickness(0, 0, 0, 4) });
+            var memberList = new ListBox { Height = 120, FontSize = 13 };
+            foreach (var m in teamMembers) {
+                memberList.Items.Add(string.Format("{0}  ({1})  {2}", m.Name, m.BibNumber ?? "", m.Gender));
+            }
+            if (teamMembers.Count == 0) {
+                memberList.Items.Add("（无可选队员，请手动输入）");
+                memberList.IsEnabled = false;
+            }
+            sp.Children.Add(memberList);
+
+            // 分隔线
+            sp.Children.Add(new TextBlock { Text = "— 或手动输入 —", HorizontalAlignment = HorizontalAlignment.Center,
+                Foreground = new SolidColorBrush(Colors.Gray), Margin = new Thickness(0, 8, 0, 4) });
+
+            var inputPanel = new Grid();
+            inputPanel.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            inputPanel.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(100) });
+            var tbName = new TextBox { Padding = new Thickness(4), Margin = new Thickness(0, 0, 4, 0) };
+            tbName.SetValue(Grid.ColumnProperty, 0);
+            var tbBib = new TextBox { Padding = new Thickness(4) };
+            tbBib.SetValue(Grid.ColumnProperty, 1);
+            inputPanel.Children.Add(tbName);
+            inputPanel.Children.Add(tbBib);
+
+            var labelPanel = new Grid();
+            labelPanel.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            labelPanel.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(100) });
+            var lb1 = new TextBlock { Text = "姓名:", FontSize = 12, Foreground = new SolidColorBrush(Colors.Gray) };
+            lb1.SetValue(Grid.ColumnProperty, 0);
+            var lb2 = new TextBlock { Text = "号码:", FontSize = 12, Foreground = new SolidColorBrush(Colors.Gray) };
+            lb2.SetValue(Grid.ColumnProperty, 1);
+            labelPanel.Children.Add(lb1);
+            labelPanel.Children.Add(lb2);
+            sp.Children.Add(labelPanel);
+            sp.Children.Add(inputPanel);
+
+            // 选择列表项时自动填入
+            memberList.SelectionChanged += delegate {
+                int selIdx = memberList.SelectedIndex;
+                if (selIdx >= 0 && selIdx < teamMembers.Count) {
+                    tbName.Text = teamMembers[selIdx].Name;
+                    tbBib.Text = teamMembers[selIdx].BibNumber ?? "";
+                }
+            };
+
+            var btnPanel = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 10, 0, 0) };
+            var btnOk = new Button {
+                Content = "确定更换", Padding = new Thickness(16, 6, 16, 6), FontSize = 13, Margin = new Thickness(0, 0, 8, 0),
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6")),
+                Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0)
+            };
+            btnOk.Click += delegate { dlg.DialogResult = true; };
+            var btnCancel = new Button {
+                Content = "关闭", Padding = new Thickness(16, 6, 16, 6), FontSize = 13,
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")),
+                Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0)
+            };
+            btnCancel.Click += delegate { dlg.DialogResult = false; };
+            btnPanel.Children.Add(btnOk);
+            btnPanel.Children.Add(btnCancel);
+            sp.Children.Add(btnPanel);
+            dlg.Content = sp;
+
+            if (dlg.ShowDialog() == true && !string.IsNullOrEmpty(tbName.Text.Trim())) {
+                string oldName = leg.SwimmerName;
+                leg.SwimmerName = tbName.Text.Trim();
+                leg.SwimmerBibNumber = tbBib.Text.Trim();
+                RelayLegGrid.Items.Refresh();
+                AddLog(string.Format("接力队 {0} 第{1}棒: {2} → {3}", team.TeamName, leg.LegOrder, oldName, leg.SwimmerName));
+            }
+        }
+
+        private void RelayLegSave_Click(object sender, RoutedEventArgs e) {
+            var team = _selectedRelayTeam;
+            if (team == null) { MessageBox.Show("请先选中一支接力队"); return; }
+            // 更新_swimmers中代表条目的Notes
+            var proxy = _swimmers.FirstOrDefault(s => s.Name == team.TeamName && s.EventName == team.EventName && s.Gender == team.Gender && !string.IsNullOrEmpty(s.Notes) && s.Notes.StartsWith("接力队"));
+            if (proxy != null) {
+                string legNames = "";
+                foreach (var leg in team.Legs) legNames += (legNames.Length > 0 ? "," : "") + leg.SwimmerName;
+                proxy.Notes = string.Format("接力队 棒次:{0}", legNames);
+            }
+            // 刷新上方分组视图
+            RebuildRelayGroupedView();
+            AutoSaveData();
+            Broadcast();
+            MessageBox.Show("接力队棒次修改已保存！", "保存成功");
+        }
+
+        /// <summary>
+        /// 同步接力队的分组信息：从_swimmers代表条目同步Heat/Lane/Stage到_relayTeams
+        /// </summary>
+        private void SyncRelayHeatInfo_Click(object sender, RoutedEventArgs e) {
+            SyncRelayHeatInfo();
+            RebuildRelayGroupedView();
+            MessageBox.Show(string.Format("已同步接力队的组数和道次信息。"), "同步完成");
+        }
+
+        /// <summary>
+        /// 同步接力队的分组信息：从_swimmers代表条目同步Heat/Lane/Stage到_relayTeams
+        /// </summary>
+        private void SyncRelayHeatInfo() {
+            int synced = 0;
+            foreach (var team in _relayTeams) {
+                var proxy = _swimmers.FirstOrDefault(s => s.Name == team.TeamName && s.EventName == team.EventName && s.Gender == team.Gender && !string.IsNullOrEmpty(s.Notes) && s.Notes.StartsWith("接力队"));
+                if (proxy != null) {
+                    team.Heat = proxy.Heat;
+                    team.Lane = proxy.Lane;
+                    team.Stage = proxy.CurrentStage;
+                    synced++;
+                }
+            }
+            if (RelayGrid != null) RelayGrid.Items.Refresh();
+            RebuildRelayGroupedView();
+            if (synced > 0) AddLog(string.Format("已同步{0}支接力队的分组信息", synced));
+        }
+
+        private RelayTeam _selectedRelayTeam;
+
+        /// <summary>
+        /// 按接力项目分组显示接力队列表（类似赛程管理的单元分组）
+        /// </summary>
+        private void RebuildRelayGroupedView() {
+            if (RelayGroupedPanel == null) return;
+            RelayGroupedPanel.Children.Clear();
+
+            if (_relayTeams.Count == 0) {
+                RelayGroupedPanel.Children.Add(new TextBlock {
+                    Text = "暂无接力队。请通过测试机器人或手动添加接力队。",
+                    Foreground = new SolidColorBrush(Colors.Gray), Margin = new Thickness(10), FontSize = 13
+                });
+                return;
+            }
+
+            // 按 性别+项目 分组
+            var groups = _relayTeams.GroupBy(t => new { t.Gender, t.EventName })
+                .OrderBy(g => g.Key.Gender).ThenBy(g => g.Key.EventName);
+
+            foreach (var group in groups) {
+                // 项目标题（蓝底）
+                string title = string.Format("{0} {1}（{2}队）", group.Key.Gender, group.Key.EventName, group.Count());
+                var header = new TextBlock {
+                    Text = title,
+                    FontWeight = FontWeights.Bold, FontSize = 15,
+                    Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E40AF")),
+                    Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#DBEAFE")),
+                    Padding = new Thickness(10, 5, 10, 5),
+                    Margin = new Thickness(0, 6, 0, 4)
+                };
+                RelayGroupedPanel.Children.Add(header);
+
+                // 该项目下的接力队DataGrid
+                var grid = new DataGrid {
+                    AutoGenerateColumns = false, CanUserAddRows = false,
+                    SelectionMode = DataGridSelectionMode.Single,
+                    IsReadOnly = true,
+                    HeadersVisibility = DataGridHeadersVisibility.Column,
+                    AlternatingRowBackground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F8FAFC")),
+                    MinHeight = 30,
+                    BorderThickness = new Thickness(1),
+                    BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#E2E8F0"))
+                };
+                grid.Columns.Add(new DataGridTextColumn { Header = "队名", Binding = new System.Windows.Data.Binding("TeamName"), Width = new DataGridLength(100) });
+                grid.Columns.Add(new DataGridTextColumn { Header = "报名成绩", Binding = new System.Windows.Data.Binding("EntryTime"), Width = new DataGridLength(80) });
+                grid.Columns.Add(new DataGridTextColumn { Header = "棒次", Binding = new System.Windows.Data.Binding("LegOrderDisplay"), Width = new DataGridLength(1, DataGridLengthUnitType.Star) });
+                grid.Columns.Add(new DataGridTextColumn { Header = "阶段", Binding = new System.Windows.Data.Binding("Stage"), Width = new DataGridLength(50) });
+                grid.Columns.Add(new DataGridTextColumn { Header = "组", Binding = new System.Windows.Data.Binding("Heat"), Width = new DataGridLength(35) });
+                grid.Columns.Add(new DataGridTextColumn { Header = "道", Binding = new System.Windows.Data.Binding("Lane"), Width = new DataGridLength(35) });
+                grid.Columns.Add(new DataGridTextColumn { Header = "状态", Binding = new System.Windows.Data.Binding("Status"), Width = new DataGridLength(50) });
+
+                var teamList = group.OrderBy(t => t.Heat).ThenBy(t => t.Lane).ToList();
+                grid.ItemsSource = teamList;
+
+                // 选中行时更新棒次详情
+                grid.SelectionChanged += delegate {
+                    var sel = grid.SelectedItem as RelayTeam;
+                    if (sel != null) {
+                        _selectedRelayTeam = sel;
+                        // 自动补全队员号码
+                        foreach (var leg in sel.Legs) {
+                            if (string.IsNullOrEmpty(leg.SwimmerBibNumber) && !string.IsNullOrEmpty(leg.SwimmerName)) {
+                                var match = _swimmers.FirstOrDefault(s => s.Name == leg.SwimmerName && s.Country == sel.TeamName);
+                                if (match != null && !string.IsNullOrEmpty(match.BibNumber))
+                                    leg.SwimmerBibNumber = match.BibNumber;
+                            }
+                        }
+                        RelayLegTitle.Text = string.Format("{0} — {1} 棒次安排（{2}人）", sel.TeamName, sel.EventName, sel.Legs.Count);
+                        RelayLegGrid.ItemsSource = sel.Legs;
+                    }
+                };
+
+                RelayGroupedPanel.Children.Add(grid);
             }
         }
 
@@ -2098,25 +2472,35 @@ namespace SwimmingScoreboard
             if (EditHeatCombo == null || EditGenderCombo == null || EditEventCombo == null || EditStageCombo == null) return;
             _editUpdating = true;
             try {
-                // 填充项目列表（仅在为空时填充，避免破坏选择状态）
-                if (EditEventCombo.Items.Count == 0) {
-                    var evSet = new HashSet<string>();
-                    foreach (var s in _swimmers) { if (!string.IsNullOrEmpty(s.EventName)) evSet.Add(s.EventName); }
-                    foreach (string ev in evSet.OrderBy(x => x)) EditEventCombo.Items.Add(ev);
-                    if (EditEventCombo.Items.Count > 0) EditEventCombo.SelectedIndex = 0;
-                }
-
                 string gender = EditGenderCombo.SelectedItem != null ? ((ComboBoxItem)EditGenderCombo.SelectedItem).Content.ToString() : "男";
+
+                // 按当前性别过滤项目列表（排除接力队员个人条目）
+                string prevEvent = EditEventCombo.SelectedItem != null ? EditEventCombo.SelectedItem.ToString() : "";
+                EditEventCombo.Items.Clear();
+                var evSet = new HashSet<string>();
+                foreach (var s in _swimmers) {
+                    if (string.IsNullOrEmpty(s.EventName) || s.Gender != gender) continue;
+                    if (s.Notes != null && s.Notes.StartsWith("接力队员")) continue;
+                    evSet.Add(s.EventName);
+                }
+                foreach (string ev in evSet.OrderBy(x => x)) EditEventCombo.Items.Add(ev);
+                if (!string.IsNullOrEmpty(prevEvent) && EditEventCombo.Items.Contains(prevEvent))
+                    EditEventCombo.SelectedItem = prevEvent;
+                else if (EditEventCombo.Items.Count > 0)
+                    EditEventCombo.SelectedIndex = 0;
+
                 string eventName = EditEventCombo.SelectedItem != null ? EditEventCombo.SelectedItem.ToString() : "";
                 string stage = EditStageCombo.SelectedItem != null ? ((ComboBoxItem)EditStageCombo.SelectedItem).Content.ToString() : "预赛";
 
                 int prevHeatIndex = EditHeatCombo.SelectedIndex;
                 EditHeatCombo.Items.Clear();
                 EditHeatCombo.Items.Add("全部");
-                // 从运动员数据获取有人的组号（同时检查当前赛次和历史StageAssignments）
+                // 从运动员数据获取有人的组号（接力项目只看代表队条目）
+                bool isRelayEv = eventName.Contains("接力");
                 var heatNumbers = new HashSet<int>();
                 foreach (var s in _swimmers) {
                     if (s.Gender != gender || s.EventName != eventName) continue;
+                    if (isRelayEv && !string.IsNullOrEmpty(s.Notes) && s.Notes.StartsWith("接力队员")) continue;
                     // 当前赛次匹配
                     if (s.CurrentStage == stage && s.Heat > 0)
                         heatNumbers.Add(s.Heat);
@@ -2140,11 +2524,16 @@ namespace SwimmingScoreboard
         }
 
         private void RebuildEditEventCombo() {
-            // 重建项目下拉框（保留当前选择）
+            // 重建项目下拉框（按性别过滤，保留当前选择）
+            string gender = EditGenderCombo != null && EditGenderCombo.SelectedItem != null ? ((ComboBoxItem)EditGenderCombo.SelectedItem).Content.ToString() : "男";
             int prevIndex = EditEventCombo.SelectedIndex;
             EditEventCombo.Items.Clear();
             var evSet = new HashSet<string>();
-            foreach (var s in _swimmers) { if (!string.IsNullOrEmpty(s.EventName)) evSet.Add(s.EventName); }
+            foreach (var s in _swimmers) {
+                if (string.IsNullOrEmpty(s.EventName) || s.Gender != gender) continue;
+                if (s.Notes != null && s.Notes.StartsWith("接力队员")) continue;
+                evSet.Add(s.EventName);
+            }
             foreach (string ev in evSet.OrderBy(x => x)) EditEventCombo.Items.Add(ev);
             if (prevIndex >= 0 && prevIndex < EditEventCombo.Items.Count)
                 EditEventCombo.SelectedIndex = prevIndex;
@@ -2190,10 +2579,13 @@ namespace SwimmingScoreboard
                 EditSeedTimeColumn.Header = stage == "预赛" ? "报名成绩" : (prevStage + "成绩");
             }
 
-            // 查找该赛次的运动员
+            // 查找该赛次的运动员（接力项目只显示代表队条目，不显示个人队员）
+            bool isRelay = eventName.Contains("接力");
             var matchedSwimmers = new List<Tuple<Swimmer, int, int>>();
             foreach (var s in _swimmers) {
                 if (s.Gender != gender || s.EventName != eventName) continue;
+                // 接力项目：跳过个人队员条目（Notes以"接力队员"开头），只保留代表队条目
+                if (isRelay && !string.IsNullOrEmpty(s.Notes) && s.Notes.StartsWith("接力队员")) continue;
                 var sa = s.GetAssignmentForStage(stage);
                 if (sa != null && sa.Heat > 0) {
                     if (showAll || sa.Heat == heat)
@@ -2392,7 +2784,158 @@ namespace SwimmingScoreboard
         }
 
         private void EditSwapLane_Click(object sender, RoutedEventArgs e) {
-            MessageBox.Show("请选中一行后使用上移/下移来调整泳道位置", "提示");
+            var grid = GetActiveEditGrid();
+            var selected = grid.SelectedItem;
+            if (selected == null) { MessageBox.Show("请先选中要交换的运动员"); return; }
+            string bib = selected.GetType().GetProperty("BibNumber").GetValue(selected, null).ToString();
+            string gender = EditGenderCombo.SelectedItem != null ? ((ComboBoxItem)EditGenderCombo.SelectedItem).Content.ToString() : "";
+            string eventName = EditEventCombo.SelectedItem != null ? EditEventCombo.SelectedItem.ToString() : "";
+            string stage = EditStageCombo.SelectedItem != null ? ((ComboBoxItem)EditStageCombo.SelectedItem).Content.ToString() : "";
+            bool isRelay = eventName.Contains("接力");
+
+            var sw1 = _swimmers.FirstOrDefault(s => s.BibNumber == bib);
+            if (sw1 == null) return;
+            var sa1 = sw1.GetAssignmentForStage(stage);
+            int heat1 = sa1 != null ? sa1.Heat : sw1.Heat;
+            int lane1 = sa1 != null ? sa1.Lane : sw1.Lane;
+
+            // 弹窗选择目标运动员（同项目所有组的运动员）
+            var candidates = new List<Tuple<Swimmer, int, int>>(); // swimmer, heat, lane
+            foreach (var s in _swimmers) {
+                if (s.Gender != gender || s.EventName != eventName || s.BibNumber == bib) continue;
+                if (isRelay && s.Notes != null && s.Notes.StartsWith("接力队员")) continue;
+                var sa = s.GetAssignmentForStage(stage);
+                if (sa != null && sa.Heat > 0) candidates.Add(Tuple.Create(s, sa.Heat, sa.Lane));
+                else if (s.CurrentStage == stage && s.Heat > 0) candidates.Add(Tuple.Create(s, s.Heat, s.Lane));
+            }
+            candidates.Sort((a, b) => { int c = a.Item2.CompareTo(b.Item2); return c != 0 ? c : a.Item3.CompareTo(b.Item3); });
+
+            if (candidates.Count == 0) { MessageBox.Show("没有可交换的运动员"); return; }
+
+            var dlg = new Window {
+                Title = string.Format("交换泳道 — {0}（第{1}组 第{2}道）", sw1.Name, heat1, lane1),
+                Width = 450, Height = 450, WindowStartupLocation = WindowStartupLocation.CenterOwner, Owner = this, ResizeMode = ResizeMode.NoResize
+            };
+            var sp = new StackPanel { Margin = new Thickness(16) };
+            sp.Children.Add(new TextBlock { Text = string.Format("当前: {0} — 第{1}组 第{2}道", sw1.Name, heat1, lane1), FontSize = 14, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 0, 0, 8) });
+            sp.Children.Add(new TextBlock { Text = "选择要交换的目标运动员:", Margin = new Thickness(0, 0, 0, 4) });
+
+            var listBox = new ListBox { Height = 200, FontSize = 13 };
+            foreach (var c in candidates) {
+                listBox.Items.Add(string.Format("第{0}组 第{1}道 — {2}（{3}）", c.Item2, c.Item3, c.Item1.Name, c.Item1.Country));
+            }
+            sp.Children.Add(listBox);
+
+            var btnPanel = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 10, 0, 0) };
+            var btnOk = new Button { Content = "确定交换", Padding = new Thickness(16, 6, 16, 6), FontSize = 13, Margin = new Thickness(0, 0, 8, 0),
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F59E0B")), Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0) };
+            btnOk.Click += delegate { dlg.DialogResult = true; };
+            var btnClose = new Button { Content = "关闭", Padding = new Thickness(16, 6, 16, 6), FontSize = 13,
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")), Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0) };
+            btnClose.Click += delegate { dlg.DialogResult = false; };
+            btnPanel.Children.Add(btnOk);
+            btnPanel.Children.Add(btnClose);
+            sp.Children.Add(btnPanel);
+            dlg.Content = sp;
+
+            if (dlg.ShowDialog() == true && listBox.SelectedIndex >= 0 && listBox.SelectedIndex < candidates.Count) {
+                var target = candidates[listBox.SelectedIndex];
+                var sw2 = target.Item1;
+                var sa2 = sw2.GetAssignmentForStage(stage);
+
+                // 交换 Heat 和 Lane
+                if (sa1 != null && sa2 != null) {
+                    int tmpH = sa1.Heat; int tmpL = sa1.Lane;
+                    sa1.Heat = sa2.Heat; sa1.Lane = sa2.Lane;
+                    sa2.Heat = tmpH; sa2.Lane = tmpL;
+                }
+                if (sw1.CurrentStage == stage && sw2.CurrentStage == stage) {
+                    int tmpH = sw1.Heat; int tmpL = sw1.Lane;
+                    sw1.Heat = sw2.Heat; sw1.Lane = sw2.Lane;
+                    sw2.Heat = tmpH; sw2.Lane = tmpL;
+                }
+                AutoSaveData();
+                RefreshEditPreview();
+                AddLog(string.Format("泳道交换: {0}(第{1}组{2}道) ↔ {3}(第{4}组{5}道)", sw1.Name, target.Item2, target.Item3, sw2.Name, heat1, lane1));
+            }
+        }
+
+        private void EditAddToHeat_Click(object sender, RoutedEventArgs e) {
+            string gender = EditGenderCombo.SelectedItem != null ? ((ComboBoxItem)EditGenderCombo.SelectedItem).Content.ToString() : "";
+            string eventName = EditEventCombo.SelectedItem != null ? EditEventCombo.SelectedItem.ToString() : "";
+            string stage = EditStageCombo.SelectedItem != null ? ((ComboBoxItem)EditStageCombo.SelectedItem).Content.ToString() : "";
+            string heatStr = EditHeatCombo.SelectedItem != null ? EditHeatCombo.SelectedItem.ToString() : "";
+            bool isRelay = eventName.Contains("接力");
+
+            if (heatStr == "全部" || string.IsNullOrEmpty(heatStr)) {
+                MessageBox.Show("请先选择具体的组（不能是\"全部\"）", "提示"); return;
+            }
+            int heat = 0;
+            var m = System.Text.RegularExpressions.Regex.Match(heatStr, @"\d+");
+            if (m.Success) heat = int.Parse(m.Value);
+            if (heat <= 0) return;
+
+            // 查找未分组的运动员（同性别同项目同赛次，Heat=0或无StageAssignment）
+            var unassigned = new List<Swimmer>();
+            foreach (var s in _swimmers) {
+                if (s.Gender != gender || s.EventName != eventName) continue;
+                if (isRelay && s.Notes != null && s.Notes.StartsWith("接力队员")) continue;
+                var sa = s.GetAssignmentForStage(stage);
+                bool hasAssignment = (sa != null && sa.Heat > 0) || (s.CurrentStage == stage && s.Heat > 0);
+                if (!hasAssignment) unassigned.Add(s);
+            }
+
+            if (unassigned.Count == 0) { MessageBox.Show("没有未分组的运动员可以添加", "提示"); return; }
+
+            var dlg = new Window {
+                Title = string.Format("增加到第{0}组 — {1} {2} {3}", heat, gender, eventName, stage),
+                Width = 450, Height = 480, WindowStartupLocation = WindowStartupLocation.CenterOwner, Owner = this, ResizeMode = ResizeMode.NoResize
+            };
+            var sp = new StackPanel { Margin = new Thickness(16) };
+            sp.Children.Add(new TextBlock { Text = string.Format("选择要加入第{0}组的运动员:", heat), FontSize = 14, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 0, 0, 8) });
+
+            var listBox = new ListBox { Height = 200, FontSize = 13, SelectionMode = SelectionMode.Extended };
+            foreach (var s in unassigned) {
+                listBox.Items.Add(string.Format("{0}（{1}）{2}", s.Name, s.BibNumber ?? "", !string.IsNullOrEmpty(s.EntryTime) ? " 成绩:" + s.EntryTime : ""));
+            }
+            sp.Children.Add(listBox);
+
+            // 泳道号输入
+            sp.Children.Add(new TextBlock { Text = "起始泳道号（自动递增）:", FontSize = 12, Foreground = new SolidColorBrush(Colors.Gray), Margin = new Thickness(0, 8, 0, 2) });
+            var tbLane = new TextBox { Text = "0", Width = 60, Padding = new Thickness(4), HorizontalAlignment = HorizontalAlignment.Left };
+            sp.Children.Add(tbLane);
+
+            var btnPanel = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 10, 0, 0) };
+            var btnOk = new Button { Content = "确定添加", Padding = new Thickness(16, 6, 16, 6), FontSize = 13, Margin = new Thickness(0, 0, 8, 0),
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6")), Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0) };
+            btnOk.Click += delegate { dlg.DialogResult = true; };
+            var btnClose = new Button { Content = "关闭", Padding = new Thickness(16, 6, 16, 6), FontSize = 13,
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")), Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0) };
+            btnClose.Click += delegate { dlg.DialogResult = false; };
+            btnPanel.Children.Add(btnOk);
+            btnPanel.Children.Add(btnClose);
+            sp.Children.Add(btnPanel);
+            dlg.Content = sp;
+
+            if (dlg.ShowDialog() == true && listBox.SelectedItems.Count > 0) {
+                int startLane = 0;
+                int.TryParse(tbLane.Text.Trim(), out startLane);
+                int added = 0;
+                foreach (var item in listBox.SelectedItems) {
+                    int idx = listBox.Items.IndexOf(item);
+                    if (idx >= 0 && idx < unassigned.Count) {
+                        var sw = unassigned[idx];
+                        int lane = startLane + added;
+                        sw.SetStageAssignment(stage, heat, lane, sw.EntryTimeSeconds, sw.EntryTime);
+                        if (sw.CurrentStage == stage) { sw.Heat = heat; sw.Lane = lane; }
+                        added++;
+                        AddLog(string.Format("已将 {0} 加入第{1}组第{2}道", sw.Name, heat, lane));
+                    }
+                }
+                AutoSaveData();
+                RefreshEditPreview();
+                UpdateEditHeatCombo();
+            }
         }
 
         private void SwapLanes(int idx1, int idx2) {
@@ -2407,10 +2950,12 @@ namespace SwimmingScoreboard
                 if (m.Success) heat = int.Parse(m.Value);
             }
 
-            // 查找运动员列表（同RefreshEditPreview逻辑）
-            var matchedSwimmers = new List<Tuple<Swimmer, int, int>>();  // (swimmer, heat, lane)
+            // 查找运动员列表（同RefreshEditPreview逻辑，接力项目只看代表队）
+            bool isRelaySwap = eventName.Contains("接力");
+            var matchedSwimmers = new List<Tuple<Swimmer, int, int>>();
             foreach (var s in _swimmers) {
                 if (s.Gender != gender || s.EventName != eventName) continue;
+                if (isRelaySwap && !string.IsNullOrEmpty(s.Notes) && s.Notes.StartsWith("接力队员")) continue;
                 var sa = s.GetAssignmentForStage(stage);
                 if (sa != null && sa.Heat > 0) {
                     if (showAll || sa.Heat == heat)
@@ -2502,25 +3047,67 @@ namespace SwimmingScoreboard
         private ScheduleItem _selectedScheduleItem;
 
         private void AddSchedule_Click(object sender, RoutedEventArgs e) {
-            int nextSession = _schedule.Count > 0 ? _schedule.Max(s => s.SessionNumber) : 1;
-            _schedule.Add(new ScheduleItem {
-                SessionNumber = nextSession,
-                SessionName = string.Format("第{0}单元", nextSession),
-                Date = GetDatePickerText(StartDatePicker)
-            });
+            if (MessageBox.Show("确定要添加一条新的赛程项？\n（将插入到选中行后面，未选中则添加到末尾）", "确认", MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
+
+            // 根据选中行确定插入位置和单元号
+            int insertIndex = _schedule.Count;
+            int sessionNum = _schedule.Count > 0 ? _schedule.Max(s => s.SessionNumber) : 1;
+            string date = GetDatePickerText(StartDatePicker);
+
+            // 没选中行时，时间设为当前最后一条的时间+1分钟
+            string time = "";
+            if (_schedule.Count > 0) {
+                var last = _schedule.OrderBy(s => s.Date).ThenBy(s => s.Time).LastOrDefault();
+                if (last != null) {
+                    if (!string.IsNullOrEmpty(last.Date)) date = last.Date;
+                    sessionNum = last.SessionNumber;
+                    if (!string.IsNullOrEmpty(last.Time)) {
+                        var p = last.Time.Split(':');
+                        int hh = 9, mm = 0;
+                        if (p.Length >= 1) int.TryParse(p[0], out hh);
+                        if (p.Length >= 2) int.TryParse(p[1], out mm);
+                        mm++;
+                        if (mm >= 60) { mm = 0; hh++; }
+                        time = string.Format("{0:D2}:{1:D2}", hh, mm);
+                    }
+                }
+            }
+
+            if (_selectedScheduleItem != null) {
+                insertIndex = _schedule.IndexOf(_selectedScheduleItem) + 1;
+                sessionNum = _selectedScheduleItem.SessionNumber;
+                if (!string.IsNullOrEmpty(_selectedScheduleItem.Date)) date = _selectedScheduleItem.Date;
+                // 时间设为选中行时间+1分钟，确保排在后面
+                if (!string.IsNullOrEmpty(_selectedScheduleItem.Time)) {
+                    var parts = _selectedScheduleItem.Time.Split(':');
+                    int h = 9, mi = 0;
+                    if (parts.Length >= 1) int.TryParse(parts[0], out h);
+                    if (parts.Length >= 2) int.TryParse(parts[1], out mi);
+                    mi++;
+                    if (mi >= 60) { mi = 0; h++; }
+                    time = string.Format("{0:D2}:{1:D2}", h, mi);
+                }
+            }
+
+            var newItem = new ScheduleItem {
+                SessionNumber = sessionNum,
+                SessionName = string.Format("第{0}单元", sessionNum),
+                Date = date,
+                Time = time
+            };
+            _schedule.Insert(insertIndex, newItem);
             AutoSaveData();
             RebuildScheduleGroupedView();
         }
 
         private void DeleteSchedule_Click(object sender, RoutedEventArgs e) {
-            if (_selectedScheduleItem != null) {
-                _schedule.Remove(_selectedScheduleItem);
-                _selectedScheduleItem = null;
-                AutoSaveData();
-                RebuildScheduleGroupedView();
-            } else {
-                MessageBox.Show("请先在日程表中选中要删除的行");
-            }
+            if (_selectedScheduleItem == null) { MessageBox.Show("请先在日程表中选中要删除的行"); return; }
+            string desc = string.Format("{0} {1} {2}", _selectedScheduleItem.Gender, _selectedScheduleItem.EventName, _selectedScheduleItem.Stage);
+            if (MessageBox.Show(string.Format("确定要删除赛程项 [{0}]？", desc), "确认删除", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+            _schedule.Remove(_selectedScheduleItem);
+            _selectedScheduleItem = null;
+            AutoSaveData();
+            RebuildScheduleGroupedView();
         }
 
         private string InferTimePeriod(string time) {
@@ -2580,9 +3167,31 @@ namespace SwimmingScoreboard
                 };
 
                 grid.Columns.Add(new DataGridTextColumn { Header = "时间", Binding = new System.Windows.Data.Binding("Time"), Width = new DataGridLength(70) });
-                grid.Columns.Add(new DataGridTextColumn { Header = "性别", Binding = new System.Windows.Data.Binding("Gender"), Width = new DataGridLength(40) });
-                grid.Columns.Add(new DataGridTextColumn { Header = "项目", Binding = new System.Windows.Data.Binding("EventName"), Width = new DataGridLength(140) });
-                grid.Columns.Add(new DataGridTextColumn { Header = "阶段", Binding = new System.Windows.Data.Binding("Stage"), Width = new DataGridLength(60) });
+
+                // 性别：下拉选择
+                var genderCol = new DataGridComboBoxColumn {
+                    Header = "性别", Width = new DataGridLength(55),
+                    SelectedItemBinding = new System.Windows.Data.Binding("Gender")
+                };
+                genderCol.ItemsSource = new string[] { "男", "女", "混合" };
+                grid.Columns.Add(genderCol);
+
+                // 项目：下拉选择
+                var eventCol = new DataGridComboBoxColumn {
+                    Header = "项目", Width = new DataGridLength(160),
+                    SelectedItemBinding = new System.Windows.Data.Binding("EventName")
+                };
+                eventCol.ItemsSource = _events;
+                grid.Columns.Add(eventCol);
+
+                // 阶段：下拉选择
+                var stageCol = new DataGridComboBoxColumn {
+                    Header = "阶段", Width = new DataGridLength(70),
+                    SelectedItemBinding = new System.Windows.Data.Binding("Stage")
+                };
+                stageCol.ItemsSource = new string[] { "预赛", "半决赛", "决赛" };
+                grid.Columns.Add(stageCol);
+
                 grid.Columns.Add(new DataGridTextColumn { Header = "组数", Binding = new System.Windows.Data.Binding("HeatCount"), Width = new DataGridLength(50) });
 
                 var items = new ObservableCollection<ScheduleItem>(group.OrderBy(s => s.Time));
@@ -2618,6 +3227,9 @@ namespace SwimmingScoreboard
             if (validScheduleCount > 0) {
                 if (MessageBox.Show(string.Format("已有{0}条赛程数据，是否清除并重新生成？", validScheduleCount), "确认", MessageBoxButton.YesNo) != MessageBoxResult.Yes)
                     return;
+            } else {
+                if (MessageBox.Show("确定根据已注册运动员自动生成比赛日程？", "确认", MessageBoxButton.YesNo) != MessageBoxResult.Yes)
+                    return;
             }
             _schedule.Clear();
             AutoBuildSchedule();
@@ -2641,6 +3253,7 @@ namespace SwimmingScoreboard
                 MessageBox.Show("请先点击\"一键生成日程\"生成赛程安排，再进行分组。", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
+            if (MessageBox.Show("确定按报名成绩对预赛进行蛇形自动分组？", "确认", MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
 
             // 统一对所有项目（个人+接力）的第一赛次进行蛇形分组
             int generated = 0;
@@ -2649,15 +3262,18 @@ namespace SwimmingScoreboard
                 string stage = item.Stage;
                 string gender = item.Gender;
 
+                // 过滤掉接力队员个人条目（只保留代表队条目）
                 var eventSwimmers = _swimmers.Where(s =>
-                    s.EventName == fullEvent && s.Gender == gender && s.CurrentStage == stage
+                    s.EventName == fullEvent && s.Gender == gender && s.CurrentStage == stage &&
+                    !(s.Notes != null && s.Notes.StartsWith("接力队员"))
                 ).ToList();
 
                 if (eventSwimmers.Count == 0) {
                     eventSwimmers = _swimmers.Where(s =>
                         s.EventName == fullEvent &&
                         (s.Gender.StartsWith(gender) || gender.StartsWith(s.Gender)) &&
-                        s.CurrentStage == stage
+                        s.CurrentStage == stage &&
+                        !(s.Notes != null && s.Notes.StartsWith("接力队员"))
                     ).ToList();
                 }
 
@@ -2671,6 +3287,7 @@ namespace SwimmingScoreboard
             }
 
             BuildScheduleTree();
+            SyncRelayHeatInfo();
             if (generated > 0) {
                 AddLog(string.Format("自动分组完成: {0}项已分配", generated));
                 MessageBox.Show(string.Format("分组完成！\n共{0}项已按报名成绩蛇形分组。\n\n后续赛次需在成绩与排名中通过\"晋级处理\"根据比赛成绩进行分组。", generated),
@@ -2697,8 +3314,11 @@ namespace SwimmingScoreboard
             if (endDate < startDate) endDate = startDate;
             int totalDays = (int)(endDate - startDate).TotalDays + 1;
 
-            // 收集所有项目（过滤掉无效数据：性别或项目为空的）
-            var validSwimmers = _swimmers.Where(s => !string.IsNullOrEmpty(s.Gender) && !string.IsNullOrEmpty(s.EventName)).ToList();
+            // 收集所有项目（过滤掉无效数据和个人接力队员条目）
+            var validSwimmers = _swimmers.Where(s =>
+                !string.IsNullOrEmpty(s.Gender) && !string.IsNullOrEmpty(s.EventName) &&
+                !(s.Notes != null && s.Notes.StartsWith("接力队员"))
+            ).ToList();
             var eventGroups = validSwimmers.GroupBy(s => new { s.Gender, s.EventName })
                 .OrderBy(g => g.Key.Gender).ThenBy(g => g.Key.EventName).ToList();
 
@@ -2717,8 +3337,8 @@ namespace SwimmingScoreboard
 
                 foreach (string stage in stages) {
                     int estimatedCount = count;
-                    if (stage == "半决赛") estimatedCount = 16;
-                    else if (stage == "决赛" && stages.Count > 1) estimatedCount = 8;
+                    if (stage == "半决赛") estimatedCount = Math.Min(count, 16);
+                    else if (stage == "决赛" && stages.Count > 1) estimatedCount = Math.Min(count, 8);
                     int estimatedHeats = (int)Math.Ceiling((double)estimatedCount / laneCount);
                     if (estimatedHeats < 1) estimatedHeats = 1;
 
@@ -2731,22 +3351,29 @@ namespace SwimmingScoreboard
                 AddLog(string.Format("  {0} {1}{2}: {3}{4} → {5}", gender, eventName, typeLabel, count, isRelay ? "队" : "人", string.Join("→", stages.ToArray())));
             }
 
-            // 按赛次分类：预赛、半决赛、决赛
-            var prelims = allItems.Where(s => s.Stage == "预赛").ToList();
-            var semis = allItems.Where(s => s.Stage == "半决赛").ToList();
-            var finals = allItems.Where(s => s.Stage == "决赛").ToList();
+            // 按比赛日程顺序安排：
+            // 每天：上午预赛 → 下午（前一天预赛项目的半决赛）→ 晚上（前一天半决赛项目的决赛 + 直接决赛）
+            // 第一天：只有预赛和直接决赛
+            // 保证同一项目的赛次顺序：预赛 → 半决赛 → 决赛（至少隔一天）
 
-            // 预赛分配到各天上午，半决赛分配到下午，决赛分配到晚上
-            int prelimsPerDay = prelims.Count > 0 ? (int)Math.Ceiling((double)prelims.Count / totalDays) : 0;
-            int finalsPerDay = finals.Count > 0 ? (int)Math.Ceiling((double)finals.Count / totalDays) : 0;
+            // 将项目按预赛→半决赛→决赛的依赖关系排序，每类内单项在前、接力在后
+            var prelims = allItems.Where(s => s.Stage == "预赛").OrderBy(s => s.IsRelay ? 1 : 0).ThenBy(s => s.EventName).ToList();
+            var semis = allItems.Where(s => s.Stage == "半决赛").OrderBy(s => s.IsRelay ? 1 : 0).ThenBy(s => s.EventName).ToList();
+            var directFinals = allItems.Where(s => s.Stage == "决赛" && !allItems.Any(p => p.EventName == s.EventName && p.Gender == s.Gender && p.Stage == "预赛"))
+                .OrderBy(s => s.IsRelay ? 1 : 0).ThenBy(s => s.EventName).ToList();
+            var linkedFinals = allItems.Where(s => s.Stage == "决赛" && allItems.Any(p => p.EventName == s.EventName && p.Gender == s.Gender && p.Stage == "预赛"))
+                .OrderBy(s => s.IsRelay ? 1 : 0).ThenBy(s => s.EventName).ToList();
 
-            int prelimIdx = 0, semiIdx = 0, finalIdx = 0;
+            int prelimsPerDay = prelims.Count > 0 ? (int)Math.Ceiling((double)prelims.Count / Math.Max(1, totalDays - 1)) : 0;
+            if (prelimsPerDay < 1 && prelims.Count > 0) prelimsPerDay = prelims.Count;
+
+            int prelimIdx = 0, semiIdx = 0, linkedFinalIdx = 0, directFinalIdx = 0;
             int sessionNum = 1;
 
             for (int day = 0; day < totalDays; day++) {
                 string dateStr = startDate.AddDays(day).ToString("yyyy-MM-dd");
 
-                // 上午场：预赛（09:00开始，每场约15分钟间隔）
+                // 上午场：预赛（09:00开始）
                 int morningCount = 0;
                 int morningMinute = 0;
                 while (prelimIdx < prelims.Count && morningCount < prelimsPerDay) {
@@ -2763,28 +3390,40 @@ namespace SwimmingScoreboard
                 }
                 if (morningCount > 0) sessionNum++;
 
-                // 下午场：半决赛（14:00开始）
+                // 下午场：前一天预赛项目的半决赛（14:00开始）
                 int afternoonMinute = 0;
+                // 下午场：半决赛（从第2天开始才有，是前一天预赛项目的半决赛）
                 bool hasAfternoon = false;
-                while (semiIdx < semis.Count && semiIdx < (day + 1) * Math.Max(1, (int)Math.Ceiling((double)semis.Count / totalDays))) {
-                    var item = semis[semiIdx];
-                    item.Date = dateStr;
-                    item.Time = string.Format("14:{0:D2}", afternoonMinute);
-                    item.SessionNumber = sessionNum;
-                    item.SessionName = string.Format("第{0}单元（{1}下午）", sessionNum, dateStr);
-                    _schedule.Add(item);
-                    afternoonMinute += 15;
-                    if (afternoonMinute >= 60) afternoonMinute = 0;
-                    semiIdx++;
-                    hasAfternoon = true;
+                if (day > 0) {
+                    int semisPerDay = semis.Count > 0 ? (int)Math.Ceiling((double)semis.Count / Math.Max(1, totalDays - 1)) : 0;
+                    int semiDayCount = 0;
+                    while (semiIdx < semis.Count && semiDayCount < semisPerDay) {
+                        var item = semis[semiIdx];
+                        item.Date = dateStr;
+                        item.Time = string.Format("14:{0:D2}", afternoonMinute);
+                        item.SessionNumber = sessionNum;
+                        item.SessionName = string.Format("第{0}单元（{1}下午）", sessionNum, dateStr);
+                        _schedule.Add(item);
+                        afternoonMinute += 15;
+                        if (afternoonMinute >= 60) afternoonMinute = 0;
+                        semiIdx++;
+                        semiDayCount++;
+                        hasAfternoon = true;
+                    }
                 }
                 if (hasAfternoon) sessionNum++;
 
                 // 晚上场：决赛（19:00开始）
-                int eveningCount = 0;
+                // 第1天晚上：直接决赛（≤8人的项目）
+                // 第2天起晚上：前一天预赛的决赛（无半决赛的项目） + 前一天半决赛的决赛
                 int eveningMinute = 0;
-                while (finalIdx < finals.Count && eveningCount < finalsPerDay) {
-                    var item = finals[finalIdx];
+                bool hasEvening = false;
+
+                // 直接决赛（≤8人直接进决赛的项目），均匀分配到各天晚上
+                int dfPerDay = directFinals.Count > 0 ? (int)Math.Ceiling((double)directFinals.Count / totalDays) : 0;
+                int dfDayCount = 0;
+                while (directFinalIdx < directFinals.Count && dfDayCount < dfPerDay) {
+                    var item = directFinals[directFinalIdx];
                     item.Date = dateStr;
                     item.Time = string.Format("19:{0:D2}", eveningMinute);
                     item.SessionNumber = sessionNum;
@@ -2792,10 +3431,30 @@ namespace SwimmingScoreboard
                     _schedule.Add(item);
                     eveningMinute += 15;
                     if (eveningMinute >= 60) eveningMinute = 0;
-                    finalIdx++;
-                    eveningCount++;
+                    directFinalIdx++;
+                    dfDayCount++;
+                    hasEvening = true;
                 }
-                if (eveningCount > 0) sessionNum++;
+
+                // 有预赛的项目的决赛（从第2天起）
+                if (day > 0) {
+                    int lfPerDay = linkedFinals.Count > 0 ? (int)Math.Ceiling((double)linkedFinals.Count / Math.Max(1, totalDays - 1)) : 0;
+                    int lfDayCount = 0;
+                    while (linkedFinalIdx < linkedFinals.Count && lfDayCount < lfPerDay) {
+                        var item = linkedFinals[linkedFinalIdx];
+                        item.Date = dateStr;
+                        item.Time = string.Format("19:{0:D2}", eveningMinute);
+                        item.SessionNumber = sessionNum;
+                        item.SessionName = string.Format("第{0}单元（{1}晚上）", sessionNum, dateStr);
+                        _schedule.Add(item);
+                        eveningMinute += 15;
+                        if (eveningMinute >= 60) eveningMinute = 0;
+                        linkedFinalIdx++;
+                        lfDayCount++;
+                        hasEvening = true;
+                    }
+                }
+                if (hasEvening) sessionNum++;
             }
 
             // 处理剩余未分配的（如果比赛天数不够）
@@ -2810,10 +3469,15 @@ namespace SwimmingScoreboard
                 semis[semiIdx].SessionNumber = sessionNum;
                 _schedule.Add(semis[semiIdx]); semiIdx++;
             }
-            while (finalIdx < finals.Count) {
-                finals[finalIdx].Date = lastDate; finals[finalIdx].Time = "19:00";
-                finals[finalIdx].SessionNumber = sessionNum;
-                _schedule.Add(finals[finalIdx]); finalIdx++;
+            while (directFinalIdx < directFinals.Count) {
+                directFinals[directFinalIdx].Date = lastDate; directFinals[directFinalIdx].Time = "19:00";
+                directFinals[directFinalIdx].SessionNumber = sessionNum;
+                _schedule.Add(directFinals[directFinalIdx]); directFinalIdx++;
+            }
+            while (linkedFinalIdx < linkedFinals.Count) {
+                linkedFinals[linkedFinalIdx].Date = lastDate; linkedFinals[linkedFinalIdx].Time = "19:00";
+                linkedFinals[linkedFinalIdx].SessionNumber = sessionNum;
+                _schedule.Add(linkedFinals[linkedFinalIdx]); linkedFinalIdx++;
             }
 
             AddLog(string.Format("自动日程安排完成: {0}条赛程, {1}天, 上午预赛/下午半决赛/晚上决赛",
@@ -3323,6 +3987,7 @@ namespace SwimmingScoreboard
 
                 InitLaneDeviceStates();
                 BuildScheduleTree();
+                RebuildRelayGroupedView();
                 UpdateRaceStateDisplay();
 
                 AddLog("已加载赛事: " + _competitionName);
