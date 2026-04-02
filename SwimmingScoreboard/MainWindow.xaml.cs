@@ -432,6 +432,12 @@ namespace SwimmingScoreboard
                 case "AUTO_GENERATE_HEATS": AutoGenerateHeats_Click(null, null); break;
                 case "NEXT_HEAT": NextHeat_Click(null, null); break;
                 case "PREV_HEAT": PrevHeat_Click(null, null); break;
+                case "SET_GENDER":
+                    if (data != null) {
+                        _currentGender = data.ToString();
+                        AddLog("设置性别: " + _currentGender);
+                    }
+                    break;
                 case "SET_EVENT":
                     if (data != null) SetCurrentEvent(data.ToString());
                     break;
@@ -793,9 +799,12 @@ namespace SwimmingScoreboard
         private List<Swimmer> GetCurrentHeatSwimmers() {
             if (string.IsNullOrEmpty(_currentEvent) || _currentHeat <= 0) return new List<Swimmer>();
             string fullEvent = _currentGender + _currentEvent;
+            bool isRelay = _currentEvent.Contains("接力");
             var result = new List<Swimmer>();
             foreach (var s in _swimmers) {
                 if ((_currentGender + s.EventName) != fullEvent) continue;
+                // 接力项目：跳过个人队员条目，只保留代表队
+                if (isRelay && s.Notes != null && s.Notes.StartsWith("接力队员")) continue;
                 // 优先从StageAssignments查找（不受晋级后CurrentStage变化影响）
                 var sa = s.GetAssignmentForStage(_currentStage);
                 if (sa != null && sa.Heat == _currentHeat) {
@@ -888,15 +897,41 @@ namespace SwimmingScoreboard
                     break;
 
                 case "StartingBlock":
-                    // 出发台 — 反应时间
+                    // 出发台 — 反应时间（含接力交接棒抢跳检测）
                     if (laneState.LeftStartBlockStatus == DeviceStatus.Open ||
-                        laneState.LeftStartBlockStatus == DeviceStatus.FalseStart) {
-                        laneState.ReactionTime = timeInSeconds;
-                        if (timeInSeconds <= _laneCloseSettings.FalseStartThreshold) {
-                            laneState.IsFalseStart = true;
-                            AddLog(string.Format("★抢跳! 泳道{0} 反应时间: {1:F3}s", lane, timeInSeconds));
+                        laneState.RightStartBlockStatus == DeviceStatus.Open ||
+                        laneState.LeftStartBlockStatus == DeviceStatus.FalseStart ||
+                        laneState.RightStartBlockStatus == DeviceStatus.FalseStart) {
+
+                        if (_isRelay && laneState.CurrentLap > 0) {
+                            // 接力交接：出发台时间是绝对时间，与上次触板时间比较
+                            // 获取上次触板累计时间
+                            var swForLane = GetCurrentHeatSwimmers().FirstOrDefault(s2 => {
+                                var sa2 = s2.GetAssignmentForStage(_currentStage);
+                                return (sa2 != null ? sa2.Lane : s2.Lane) == lane;
+                            });
+                            double lastTouchTime = 0;
+                            if (swForLane != null) {
+                                var res = swForLane.Results.FirstOrDefault(r2 => r2.Stage == _currentStage && r2.Heat == _currentHeat);
+                                if (res != null && res.Splits.Count > 0) lastTouchTime = res.Splits.Last().CumulativeTime;
+                            }
+                            double relayReaction = timeInSeconds - lastTouchTime;
+                            laneState.ReactionTime = relayReaction;
+                            if (relayReaction < _laneCloseSettings.FalseStartThreshold) {
+                                laneState.IsFalseStart = true;
+                                AddLog(string.Format("★接力抢跳! 泳道{0} 出发台:{1:F2}s 触板:{2:F2}s 差值:{3:F3}s", lane, timeInSeconds, lastTouchTime, relayReaction));
+                            } else {
+                                AddLog(string.Format("泳道{0} 接力交接 出发台:{1:F2}s 差值:{2:F2}s", lane, timeInSeconds, relayReaction));
+                            }
                         } else {
-                            AddLog(string.Format("泳道{0} 反应时间: {1:F2}s", lane, timeInSeconds));
+                            // 普通出发：反应时间就是出发台时间
+                            laneState.ReactionTime = timeInSeconds;
+                            if (timeInSeconds <= _laneCloseSettings.FalseStartThreshold) {
+                                laneState.IsFalseStart = true;
+                                AddLog(string.Format("★抢跳! 泳道{0} 反应时间: {1:F3}s", lane, timeInSeconds));
+                            } else {
+                                AddLog(string.Format("泳道{0} 反应时间: {1:F2}s", lane, timeInSeconds));
+                            }
                         }
                     }
                     break;
@@ -1003,13 +1038,41 @@ namespace SwimmingScoreboard
                     AddLog("本组比赛结束");
                 }
             } else {
-                // 分段触碰 — 不立即关闭到达端设备（盲表/出发台可能延后到达）
-                // 只切换方向和开始新倒计时
+                // 分段触碰 — 切换方向和开始新倒计时
                 laneState.Direction = laneState.Direction == "→" ? "←" : "→";
-                // 立即开始新的泳道封闭倒计时
                 laneState.LaneCloseCountdown = laneState.LaneCloseTime > 0 ? laneState.LaneCloseTime : _laneCloseSettings.LaneCloseTime;
-                // 延迟后关闭到达端设备（给盲表和接力出发台留时间）
-                string arrivedEnd = laneState.Direction == "→" ? "left" : "right"; // 新方向的出发端=刚到达端
+
+                // 接力项目：交接棒触板触碰后，延迟关闭出发台
+                if (_isRelay) {
+                    int totalLapsVal2 = GetTotalLaps();
+                    int legCnt2 = 4;
+                    var rlMatch2 = System.Text.RegularExpressions.Regex.Match(_currentEvent, @"(\d+)\s*[x×]");
+                    if (rlMatch2.Success) legCnt2 = int.Parse(rlMatch2.Groups[1].Value);
+                    int lapsPerLeg2 = totalLapsVal2 > 0 ? totalLapsVal2 / legCnt2 : 1;
+                    bool isExchange = (lapsPerLeg2 > 0) && (currentLap % lapsPerLeg2 == 0) && (currentLap < totalLapsVal2);
+
+                    if (isExchange) {
+                        // 交接棒触板已触碰，延迟后关闭出发台
+                        bool startLeft2 = _laneCloseSettings.StartPosition != "right";
+                        int capLane2 = lane;
+                        bool capStartLeft2 = startLeft2;
+                        var sbCloseTimer = new DispatcherTimer();
+                        sbCloseTimer.Interval = TimeSpan.FromSeconds(_laneCloseSettings.StartBlockCloseDelay);
+                        sbCloseTimer.Tick += delegate(object s4, EventArgs a4) {
+                            sbCloseTimer.Stop();
+                            var ls2 = _laneDeviceStates.FirstOrDefault(st => st.Lane == capLane2);
+                            if (ls2 == null || ls2.IsFinished) return;
+                            if (capStartLeft2) ls2.LeftStartBlockStatus = DeviceStatus.Closed;
+                            else ls2.RightStartBlockStatus = DeviceStatus.Closed;
+                            Broadcast();
+                        };
+                        sbCloseTimer.Start();
+                        AddLog(string.Format("泳道{0} 交接棒触板，出发台将在{1}秒后关闭", lane, _laneCloseSettings.StartBlockCloseDelay));
+                    }
+                }
+
+                // 延迟后关闭到达端设备（给盲表留时间）
+                string arrivedEnd = laneState.Direction == "→" ? "left" : "right";
                 var closeTimer = new DispatcherTimer();
                 closeTimer.Interval = TimeSpan.FromSeconds(_laneCloseSettings.ResultConfirmCloseDelay);
                 closeTimer.Tick += delegate(object s2, EventArgs a2) {
@@ -1073,10 +1136,23 @@ namespace SwimmingScoreboard
         private int GetTotalLaps() {
             string ev = _currentEvent;
             int distance = 0;
-            foreach (char c in ev) {
-                if (char.IsDigit(c)) distance = distance * 10 + (c - '0');
-                else if (distance > 0) break;
+
+            // 接力项目：4x100米 → 总距离 = 4 * 100 = 400
+            if (ev.Contains("x") || ev.Contains("×")) {
+                var relayMatch = System.Text.RegularExpressions.Regex.Match(ev, @"(\d+)\s*[x×]\s*(\d+)");
+                if (relayMatch.Success) {
+                    int legs = int.Parse(relayMatch.Groups[1].Value);
+                    int legDist = int.Parse(relayMatch.Groups[2].Value);
+                    distance = legs * legDist;
+                }
             }
+
+            // 个人项目：直接取第一个数字
+            if (distance == 0) {
+                var distMatch = System.Text.RegularExpressions.Regex.Match(ev, @"(\d+)米");
+                if (distMatch.Success) distance = int.Parse(distMatch.Groups[1].Value);
+            }
+
             if (distance == 0) distance = 50;
             return Math.Max(1, distance / _poolConfig.Length);
         }
@@ -1172,8 +1248,7 @@ namespace SwimmingScoreboard
                     state.LaneCloseCountdown -= 0.1;
                     if (state.LaneCloseCountdown <= 0) {
                         state.LaneCloseCountdown = 0;
-                        // 只打开运动员即将到达端的触板和盲表
-                        // 方向"→"表示向右游，到达端是右端；"←"表示向左游，到达端是左端
+                        // 打开运动员即将到达端的触板和盲表
                         bool arriveRight = state.Direction == "→";
                         if (arriveRight) {
                             if (!state.RightTouchpadBroken) state.RightTouchpadStatus = DeviceStatus.Open;
@@ -1186,7 +1261,32 @@ namespace SwimmingScoreboard
                             if (!state.LeftBlindWatch2Broken) state.LeftBlindWatch2Status = DeviceStatus.Open;
                             if (!state.LeftBlindWatch3Broken) state.LeftBlindWatch3Status = DeviceStatus.Open;
                         }
-                        AddLog(string.Format("泳道{0} 倒计时结束，{1}端设备已打开", state.Lane, arriveRight ? "右" : "左"));
+
+                        // 接力项目：只在交接棒段打开出发端出发台
+                        // 交接棒 = 每棒最后一段（运动员游回出发端触板）
+                        bool relayStartBlockOpened = false;
+                        if (_isRelay && state.CurrentLap > 0) {
+                            int totalLapsVal = GetTotalLaps();
+                            int legCnt = 4;
+                            var rlMatch = System.Text.RegularExpressions.Regex.Match(_currentEvent, @"(\d+)\s*[x×]");
+                            if (rlMatch.Success) legCnt = int.Parse(rlMatch.Groups[1].Value);
+                            int lapsPerLegVal = totalLapsVal > 0 ? totalLapsVal / legCnt : 1;
+                            // 下一段触板是否是交接棒（当前段+1 是每棒最后一段，且不是最后一棒最后一段）
+                            int nextLap = state.CurrentLap + 1;
+                            bool isNextExchange = (lapsPerLegVal > 0) && (nextLap % lapsPerLegVal == 0) && (nextLap < totalLapsVal);
+                            if (isNextExchange) {
+                                bool startLeft = _laneCloseSettings.StartPosition != "right";
+                                if (startLeft) {
+                                    if (!state.LeftStartBlockBroken) state.LeftStartBlockStatus = DeviceStatus.Open;
+                                } else {
+                                    if (!state.RightStartBlockBroken) state.RightStartBlockStatus = DeviceStatus.Open;
+                                }
+                                relayStartBlockOpened = true;
+                            }
+                        }
+
+                        AddLog(string.Format("泳道{0} 倒计时结束，{1}端设备已打开{2}", state.Lane, arriveRight ? "右" : "左",
+                            relayStartBlockOpened ? "（含出发台-交接棒检测）" : ""));
                     }
                     changed = true;
                 }
@@ -1475,16 +1575,27 @@ namespace SwimmingScoreboard
         // 赛事导航
         // ═══════════════════════════════════════════════════════════════
         private void SetCurrentEvent(string eventName) {
-            // 解析事件名：格式 "男子100米自由泳" 或 "女子200米蝶泳"
-            if (eventName.StartsWith("男") || eventName.StartsWith("女")) {
+            // 支持两种格式：
+            // 1. 带性别前缀："男子100米自由泳"（旧格式，兼容EXE端赛程树）
+            // 2. 纯项目名："4x100米自由泳接力"（新格式，HTML端单独发SET_GENDER）
+            if (eventName.StartsWith("男子") || eventName.StartsWith("女子")) {
                 _currentGender = eventName.Substring(0, 1);
-                _currentEvent = eventName.Length > 1 ? eventName.Substring(1) : "";
-                if (_currentEvent.StartsWith("子")) _currentEvent = _currentEvent.Substring(1);
+                _currentEvent = eventName.Substring(2);
+            } else if (eventName.StartsWith("混合子")) {
+                _currentGender = "混合";
+                _currentEvent = eventName.Substring(3);
+            } else if (eventName.StartsWith("男") && !eventName.StartsWith("男子") && eventName.Length > 1 && !char.IsDigit(eventName[1])) {
+                _currentGender = "男";
+                _currentEvent = eventName.Substring(1);
+            } else if (eventName.StartsWith("女") && !eventName.StartsWith("女子") && eventName.Length > 1 && !char.IsDigit(eventName[1])) {
+                _currentGender = "女";
+                _currentEvent = eventName.Substring(1);
             } else {
+                // 纯项目名（性别已通过SET_GENDER设置）
                 _currentEvent = eventName;
             }
             _isRelay = _currentEvent.Contains("接力");
-            CurrentEventText.Text = _currentGender + _currentEvent;
+            CurrentEventText.Text = _currentGender + " " + _currentEvent;
         }
 
         private void SetCurrentStage(string stage) {

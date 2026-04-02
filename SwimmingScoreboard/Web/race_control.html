@@ -604,10 +604,11 @@ function selectHeat(key) {
     var parts = key.split('|');
     if (parts.length >= 4) {
         var gender = parts[0], eventName = parts[1], stage = parts[2], heat = parseInt(parts[3]);
-        sendCmd('SET_EVENT', gender + '子' + eventName);
+        sendCmd('SET_GENDER', gender);
+        sendCmd('SET_EVENT', eventName);
         sendCmd('SET_STAGE', stage);
         sendCmd('SET_HEAT', heat);
-        addLog('选择: ' + gender + '子 ' + eventName + ' ' + stage + ' 第' + heat + '组');
+        addLog('选择: ' + gender + ' ' + eventName + ' ' + stage + ' 第' + heat + '组');
     }
     renderScheduleTree();
 }
