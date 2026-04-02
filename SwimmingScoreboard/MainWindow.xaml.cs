@@ -1421,7 +1421,8 @@ namespace SwimmingScoreboard
             if (_currentStage == "决赛") return;
 
             var stageSwimmers = _swimmers.Where(s =>
-                s.EventName == _currentEvent && s.Gender == _currentGender && s.CurrentStage == _currentStage
+                s.EventName == _currentEvent && s.Gender == _currentGender && s.CurrentStage == _currentStage &&
+                !(_isRelay && s.Notes != null && s.Notes.StartsWith("接力队员"))
             ).ToList();
             if (stageSwimmers.Count == 0) return;
 
@@ -1462,7 +1463,8 @@ namespace SwimmingScoreboard
             var stageSwimmers = _swimmers.Where(s =>
                 s.EventName == _currentEvent &&
                 s.Gender == _currentGender &&
-                s.CurrentStage == _currentStage
+                s.CurrentStage == _currentStage &&
+                !(_isRelay && s.Notes != null && s.Notes.StartsWith("接力队员"))
             ).ToList();
 
             if (stageSwimmers.Count == 0) return;
@@ -1724,11 +1726,12 @@ namespace SwimmingScoreboard
         /// 检查某组比赛是否已有成绩（所有运动员都有成绩或标记为DNS/DNF/DSQ）
         /// </summary>
         private bool IsHeatConfirmed(string gender, string eventName, string stage, int heat) {
+            bool isRelay = eventName.Contains("接力");
             var heatSwimmers = _swimmers.Where(s =>
-                s.Gender == gender && s.EventName == eventName
+                s.Gender == gender && s.EventName == eventName &&
+                !(isRelay && s.Notes != null && s.Notes.StartsWith("接力队员"))
             ).ToList();
 
-            // 从StageAssignments或当前赛次获取该组运动员
             var inHeat = new List<Swimmer>();
             foreach (var s in heatSwimmers) {
                 var sa = s.GetAssignmentForStage(stage);
@@ -3639,13 +3642,14 @@ namespace SwimmingScoreboard
             if (ResultHeatCombo == null || _resultUpdating) return;
             _resultUpdating = true;
             try {
-            // 刷新项目列表：只显示有运动员注册的项目
+            // 刷新项目列表：只显示有运动员/运动队注册的项目（过滤接力队员个人条目）
             string prevEvent = ResultEventCombo.SelectedItem != null ? ResultEventCombo.SelectedItem.ToString() : "";
             string gender = ResultGenderCombo.SelectedItem != null ? ((ComboBoxItem)ResultGenderCombo.SelectedItem).Content.ToString() : "男";
             ResultEventCombo.Items.Clear();
             var eventSet = new HashSet<string>();
             foreach (var s in _swimmers) {
-                if (s.Gender == gender && !string.IsNullOrEmpty(s.EventName))
+                if (s.Gender == gender && !string.IsNullOrEmpty(s.EventName) &&
+                    !(s.Notes != null && s.Notes.StartsWith("接力队员")))
                     eventSet.Add(s.EventName);
             }
             foreach (string ev in eventSet.OrderBy(x => x)) ResultEventCombo.Items.Add(ev);
@@ -3665,6 +3669,7 @@ namespace SwimmingScoreboard
             foreach (var s in _swimmers) {
                 if (!string.IsNullOrEmpty(eventName) && s.EventName != eventName) continue;
                 if (s.Gender != gender) continue;
+                if (s.Notes != null && s.Notes.StartsWith("接力队员")) continue;
                 foreach (var r in s.Results) {
                     if (r.Stage == stage && r.Heat > 0) heats.Add(r.Heat);
                 }
@@ -3698,8 +3703,11 @@ namespace SwimmingScoreboard
                 return;
             }
 
-            // 按性别和项目筛选
-            var allMatched = _swimmers.Where(s => s.EventName == eventName && s.Gender == gender).ToList();
+            // 按性别和项目筛选（接力项目只查代表队，不查个人队员）
+            var allMatched = _swimmers.Where(s =>
+                s.EventName == eventName && s.Gender == gender &&
+                !(s.Notes != null && s.Notes.StartsWith("接力队员"))
+            ).ToList();
 
             // 按阶段筛选：有该阶段成绩，或有该阶段分组记录
             var results = allMatched.Where(s =>
@@ -3719,9 +3727,9 @@ namespace SwimmingScoreboard
                 }).ToList();
             }
 
+            bool isRelayEvent = eventName.Contains("接力");
             var displayData = results.Select(s => {
                 var r = s.GetResultForStage(stage);
-                // 获取该赛次的泳道号（优先成绩记录 > StageAssignment > 当前值）
                 int lane = 0;
                 if (r != null) lane = r.Lane;
                 else {
@@ -3729,11 +3737,16 @@ namespace SwimmingScoreboard
                     lane = sa != null ? sa.Lane : s.Lane;
                 }
                 double sortTime = r != null && r.FinalTime > 0 ? r.FinalTime : double.MaxValue;
+                // 接力项目：姓名显示四位队员姓名
+                string displayName = s.Name ?? "";
+                if (isRelayEvent && !string.IsNullOrEmpty(s.Notes) && s.Notes.StartsWith("接力队 棒次:")) {
+                    displayName = s.Notes.Substring("接力队 棒次:".Length);
+                }
                 return new {
                     SortTime = sortTime,
                     Lane = lane,
                     BibNumber = s.BibNumber ?? "",
-                    Name = s.Name ?? "",
+                    Name = displayName,
                     Country = s.Country ?? "",
                     FinalTime = r != null ? TimeFormatter.Format(r.FinalTime) : "",
                     TimingSource = r != null ? (r.TimingSource ?? "") : "",
@@ -4986,6 +4999,10 @@ namespace SwimmingScoreboard
         }
 
         private void Window_Closing(object sender, CancelEventArgs e) {
+            if (MessageBox.Show("确定要退出游泳赛事管理系统？\n\n数据将自动保存。", "确认退出", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) {
+                e.Cancel = true;
+                return;
+            }
             AutoSaveData();
             _raceTimer.Stop();
             _countdownTimer.Stop();

@@ -26,7 +26,10 @@ label { color: #94a3b8; font-size: 12px; }
 </style>
 </head>
 <body>
-<h1>自动化测试机器人</h1>
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+    <h1 style="margin:0;">自动化测试机器人</h1>
+    <button class="fullscreen-btn" onclick="goFullScreen()" style="padding:6px 14px;background:#3B82F6;color:white;border:none;border-radius:6px;font-size:13px;cursor:pointer;">全屏</button>
+</div>
 
 <div class="status-bar">
     <span id="connStatus" class="conn">连接中...</span>
@@ -127,26 +130,39 @@ label { color: #94a3b8; font-size: 12px; }
 <script>
 var ws, data = {}, autoRunning = false;
 
-function getServerHost() {
+window.onbeforeunload = function(e) { e.preventDefault(); e.returnValue = ''; return '确定要关闭测试机器人？'; };
+
+function goFullScreen() { var el=document.documentElement; if(document.fullscreenElement)return; if(el.requestFullscreen)el.requestFullscreen(); else if(el.webkitRequestFullscreen)el.webkitRequestFullscreen(); else if(el.msRequestFullscreen)el.msRequestFullscreen(); }
+document.addEventListener('fullscreenchange', function() { var btns=document.querySelectorAll('.fullscreen-btn'); for(var i=0;i<btns.length;i++) btns[i].style.display=document.fullscreenElement?'none':''; });
+document.addEventListener('webkitfullscreenchange', function() { var btns=document.querySelectorAll('.fullscreen-btn'); for(var i=0;i<btns.length;i++) btns[i].style.display=document.webkitFullscreenElement?'none':''; });
+
+
+var _connFailCount = 0;
+function getServerHost(forceAsk) {
     var params = new URLSearchParams(window.location.search);
     if (params.get('host')) return params.get('host');
-    if (location.hostname && location.hostname !== '' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') return location.hostname;
+    if (!forceAsk && location.hostname && location.hostname !== '' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') return location.hostname;
     var saved = localStorage.getItem('swimServerHost');
-    if (saved) return saved;
-    var ip = prompt('请输入服务器IP地址（如192.168.1.100）:', '192.168.1.100');
+    if (!forceAsk && saved) return saved;
+    var def = saved || '192.168.1.100';
+    var ip = prompt('请输入服务器IP地址:', def);
     if (ip) { localStorage.setItem('swimServerHost', ip); return ip; }
-    return 'localhost';
+    return saved || 'localhost';
 }
+function changeServerHost() { _connFailCount = 0; var h = getServerHost(true); if (ws) try { ws.close(); } catch(e) {} connect(); }
 function connect() {
     var host = getServerHost();
     ws = new WebSocket('ws://' + host + ':3002');
     ws.onopen = function() {
+        _connFailCount = 0;
         document.getElementById('connStatus').textContent = '已连接 ' + host;
         log('已连接服务器 ' + host);
     };
     ws.onclose = function() {
         document.getElementById('connStatus').textContent = '断开，重连中...';
         document.getElementById('connStatus').style.color = '#ef4444';
+        _connFailCount++;
+        if (_connFailCount >= 3) { _connFailCount = 0; if (confirm('连接失败，是否重新设置服务器地址？')) { changeServerHost(); return; } }
         setTimeout(connect, 3000);
     };
     ws.onmessage = function(e) {

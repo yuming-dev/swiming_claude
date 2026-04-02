@@ -118,6 +118,8 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 </div>
 
 <script>
+window.onbeforeunload = function(e) { e.preventDefault(); e.returnValue = ''; return '确定要关闭大屏幕显示？'; };
+
 function goFullScreen() {
     var el = document.documentElement;
     if (document.fullscreenElement) return; // 已全屏
@@ -134,18 +136,25 @@ var modeLocked = false;  // 成绩发布时锁定模式，不被广播覆盖
 var laneDisplayState = {};
 var refreshTimer = null;
 
-function getServerHost() {
-    // 优先从URL参数获取: display.html?host=192.168.1.100
+var _connFailCount = 0;
+
+function getServerHost(forceAsk) {
     var params = new URLSearchParams(window.location.search);
     if (params.get('host')) return params.get('host');
-    // 其次用页面域名
-    if (location.hostname && location.hostname !== '' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') return location.hostname;
-    // 最后提示输入
+    if (!forceAsk && location.hostname && location.hostname !== '' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') return location.hostname;
     var saved = localStorage.getItem('swimServerHost');
-    if (saved) return saved;
-    var ip = prompt('请输入服务器IP地址（如192.168.1.100）:', '192.168.1.100');
+    if (!forceAsk && saved) return saved;
+    var def = saved || '192.168.1.100';
+    var ip = prompt('请输入服务器IP地址:', def);
     if (ip) { localStorage.setItem('swimServerHost', ip); return ip; }
-    return 'localhost';
+    return saved || 'localhost';
+}
+
+function changeServerHost() {
+    _connFailCount = 0;
+    var host = getServerHost(true);
+    if (ws) try { ws.close(); } catch(e) {}
+    connect();
 }
 
 function connect() {
@@ -153,6 +162,7 @@ function connect() {
     document.title = '大屏幕 - ' + host;
     ws = new WebSocket('ws://' + host + ':3002');
     ws.onopen = function() {
+        _connFailCount = 0;
         ws.send(JSON.stringify({type: 'DISPLAY_IDENTITY'}));
     };
     ws.onmessage = function(e) {
@@ -178,6 +188,12 @@ function connect() {
     };
     ws.onclose = function() {
         stopRefreshTimer();
+        _connFailCount++;
+        if (_connFailCount >= 3) {
+            _connFailCount = 0;
+            var retry = confirm('连接服务器失败，是否重新设置服务器地址？');
+            if (retry) { changeServerHost(); return; }
+        }
         setTimeout(connect, 3000);
     };
 }
