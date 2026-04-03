@@ -478,6 +478,8 @@ namespace SwimmingScoreboard
                         if (data["falseStartThreshold"] != null) _laneCloseSettings.FalseStartThreshold = (double)data["falseStartThreshold"];
                         if (data["splitDisplayTime"] != null) _laneCloseSettings.SplitDisplayTime = (double)data["splitDisplayTime"];
                         if (data["startPosition"] != null) _laneCloseSettings.StartPosition = data["startPosition"].ToString();
+                        // 同步全局设置到所有泳道（清除每道独立值，使用全局值）
+                        foreach (var st in _laneDeviceStates) st.LaneCloseTime = 0;
                         AddLog(string.Format("参数更新: 关闭{0}s 出发台{1}s 确认{2}s 抢跳{3}s 分段{4}s 发令:{5}",
                             _laneCloseSettings.LaneCloseTime, _laneCloseSettings.StartBlockCloseDelay,
                             _laneCloseSettings.ResultConfirmCloseDelay, _laneCloseSettings.FalseStartThreshold,
@@ -664,9 +666,14 @@ namespace SwimmingScoreboard
                 var result = sw.Results.FirstOrDefault(r => r.Stage == _currentStage && r.Heat == _currentHeat);
                 var latestSplit = result != null && result.Splits.Count > 0 ? result.Splits.Last() : null;
 
+                // 接力项目：name显示队员姓名
+                string bcastName = sw.Name;
+                if (_isRelay && !string.IsNullOrEmpty(sw.Notes) && sw.Notes.StartsWith("接力队 棒次:")) {
+                    bcastName = sw.Notes.Substring("接力队 棒次:".Length);
+                }
                 swimmerData.Add(new {
                     lane = displayLane,
-                    name = sw.Name,
+                    name = bcastName,
                     country = sw.Country,
                     bibNumber = sw.BibNumber,
                     entryTime = sw.EntryTime ?? "",
@@ -3242,7 +3249,153 @@ namespace SwimmingScoreboard
             };
             _schedule.Insert(insertIndex, newItem);
             AutoSaveData();
-            RebuildScheduleGroupedView();
+            BuildScheduleTree();
+            Broadcast();
+        }
+
+        private void EditSchedule_Click(object sender, RoutedEventArgs e) {
+            // 复制一份赛程用于编辑（取消时不影响原数据）
+            var editList = new ObservableCollection<ScheduleItem>();
+            foreach (var s in _schedule) {
+                editList.Add(new ScheduleItem {
+                    SessionNumber = s.SessionNumber, SessionName = s.SessionName,
+                    Date = s.Date, Time = s.Time,
+                    Gender = s.Gender, EventName = s.EventName,
+                    Stage = s.Stage, HeatCount = s.HeatCount,
+                    IsRelay = s.IsRelay
+                });
+            }
+
+            var dlg = new Window {
+                Title = "修改赛程", Width = 800, Height = 600,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner, Owner = this, ResizeMode = ResizeMode.CanResize
+            };
+
+            var mainGrid = new Grid { Margin = new Thickness(16) };
+            mainGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+            mainGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+            // 按单元分组显示（可编辑），和主界面风格一致
+            var scrollViewer = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
+            var editPanel = new StackPanel();
+            ScheduleItem _editSelected = null;
+
+            Action rebuildEditPanel = null;
+            rebuildEditPanel = delegate {
+                editPanel.Children.Clear();
+                // 推断单元
+                var sMap = new Dictionary<string, int>();
+                int sNum = 1;
+                foreach (var it in editList.OrderBy(s2 => s2.Date).ThenBy(s2 => s2.Time)) {
+                    string per = InferTimePeriod(it.Time);
+                    string k = (it.Date ?? "") + "|" + per;
+                    if (!sMap.ContainsKey(k)) { sMap[k] = sNum; sNum++; }
+                    it.SessionNumber = sMap[k];
+                    it.SessionName = string.Format("第{0}单元（{1}{2}）", sMap[k], it.Date ?? "", per);
+                }
+                var grps = editList.GroupBy(s2 => s2.SessionNumber).OrderBy(g2 => g2.Key);
+                foreach (var grp in grps) {
+                    var hdr = new TextBlock {
+                        Text = grp.First().SessionName ?? string.Format("第{0}单元", grp.Key),
+                        FontWeight = FontWeights.Bold, FontSize = 15,
+                        Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1A5FB4")),
+                        Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#E8F0FE")),
+                        Padding = new Thickness(8, 4, 8, 4), Margin = new Thickness(0, 5, 0, 6)
+                    };
+                    editPanel.Children.Add(hdr);
+
+                    var eg = new DataGrid {
+                        AutoGenerateColumns = false, CanUserAddRows = false, IsReadOnly = false,
+                        MinHeight = 30, SelectionMode = DataGridSelectionMode.Single,
+                        AlternatingRowBackground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F8FAFC"))
+                    };
+                    eg.Columns.Add(new DataGridTextColumn { Header = "时间", Binding = new System.Windows.Data.Binding("Time"), Width = new DataGridLength(70) });
+                    var gc = new DataGridComboBoxColumn { Header = "性别", Width = new DataGridLength(55), SelectedItemBinding = new System.Windows.Data.Binding("Gender") };
+                    gc.ItemsSource = new string[] { "男", "女", "混合" }; eg.Columns.Add(gc);
+                    var ec = new DataGridComboBoxColumn { Header = "项目", Width = new DataGridLength(160), SelectedItemBinding = new System.Windows.Data.Binding("EventName") };
+                    ec.ItemsSource = _events; eg.Columns.Add(ec);
+                    var sc = new DataGridComboBoxColumn { Header = "阶段", Width = new DataGridLength(70), SelectedItemBinding = new System.Windows.Data.Binding("Stage") };
+                    sc.ItemsSource = new string[] { "预赛", "半决赛", "决赛" }; eg.Columns.Add(sc);
+                    eg.Columns.Add(new DataGridTextColumn { Header = "组数", Binding = new System.Windows.Data.Binding("HeatCount"), Width = new DataGridLength(50) });
+
+                    eg.ItemsSource = new ObservableCollection<ScheduleItem>(grp.OrderBy(s2 => s2.Time));
+                    eg.SelectionChanged += delegate { _editSelected = eg.SelectedItem as ScheduleItem; };
+                    editPanel.Children.Add(eg);
+                }
+                if (editList.Count == 0) {
+                    editPanel.Children.Add(new TextBlock { Text = "暂无赛程项，请点击\"添加赛程项\"。", Foreground = new SolidColorBrush(Colors.Gray), Margin = new Thickness(10) });
+                }
+            };
+            rebuildEditPanel();
+            scrollViewer.Content = editPanel;
+            mainGrid.Children.Add(scrollViewer);
+
+            // 按钮栏
+            var btnPanel = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 10, 0, 0) };
+            btnPanel.SetValue(Grid.RowProperty, 1);
+
+            // 插入赛程项的公共方法
+            Action<bool> insertScheduleItem = delegate(bool before) {
+                var refItem = _editSelected != null ? _editSelected : (editList.Count > 0 ? editList[editList.Count - 1] : null);
+                int insertIdx = _editSelected != null ? editList.IndexOf(_editSelected) : editList.Count;
+                if (!before) insertIdx++;
+                string newTime = "";
+                if (refItem != null && !string.IsNullOrEmpty(refItem.Time)) {
+                    var tp = refItem.Time.Split(':'); int hh = 9, mm = 0;
+                    if (tp.Length >= 1) int.TryParse(tp[0], out hh);
+                    if (tp.Length >= 2) int.TryParse(tp[1], out mm);
+                    if (before) { mm--; if (mm < 0) { mm = 59; hh--; } }
+                    else { mm++; if (mm >= 60) { mm = 0; hh++; } }
+                    if (hh < 0) hh = 0;
+                    newTime = string.Format("{0:D2}:{1:D2}", hh, mm);
+                }
+                editList.Insert(insertIdx, new ScheduleItem {
+                    Date = refItem != null ? refItem.Date : GetDatePickerText(StartDatePicker),
+                    Time = newTime, SessionNumber = refItem != null ? refItem.SessionNumber : 1
+                });
+                rebuildEditPanel();
+            };
+
+            var btnAddBefore = new Button { Content = "前插入", Padding = new Thickness(10, 6, 10, 6), Margin = new Thickness(0, 0, 4, 0), FontSize = 13,
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6")), Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0) };
+            btnAddBefore.Click += delegate { insertScheduleItem(true); };
+
+            var btnAddAfter = new Button { Content = "后插入", Padding = new Thickness(10, 6, 10, 6), Margin = new Thickness(0, 0, 8, 0), FontSize = 13,
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#2563EB")), Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0) };
+            btnAddAfter.Click += delegate { insertScheduleItem(false); };
+
+            var btnDel = new Button { Content = "删除选中", Padding = new Thickness(12, 6, 12, 6), Margin = new Thickness(0, 0, 8, 0), FontSize = 13,
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EF4444")), Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0) };
+            btnDel.Click += delegate {
+                if (_editSelected != null) { editList.Remove(_editSelected); _editSelected = null; rebuildEditPanel(); }
+                else MessageBox.Show("请先选中要删除的行");
+            };
+
+            var btnOk = new Button { Content = "确认修改", Padding = new Thickness(16, 6, 16, 6), Margin = new Thickness(0, 0, 8, 0), FontSize = 13, FontWeight = FontWeights.Bold,
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#22C55E")), Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0) };
+            btnOk.Click += delegate { dlg.DialogResult = true; };
+
+            var btnCancel = new Button { Content = "取消", Padding = new Thickness(16, 6, 16, 6), FontSize = 13,
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")), Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0) };
+            btnCancel.Click += delegate { dlg.DialogResult = false; };
+
+            btnPanel.Children.Add(btnAddBefore);
+            btnPanel.Children.Add(btnAddAfter);
+            btnPanel.Children.Add(btnDel);
+            btnPanel.Children.Add(btnOk);
+            btnPanel.Children.Add(btnCancel);
+            mainGrid.Children.Add(btnPanel);
+            dlg.Content = mainGrid;
+
+            if (dlg.ShowDialog() == true) {
+                // 用编辑后的数据替换原赛程
+                _schedule.Clear();
+                foreach (var item in editList) _schedule.Add(item);
+                AutoSaveData();
+                BuildScheduleTree();
+                Broadcast();
+                AddLog(string.Format("赛程已修改: {0}条赛程项", _schedule.Count));
+            }
         }
 
         private void DeleteSchedule_Click(object sender, RoutedEventArgs e) {
@@ -3252,7 +3405,8 @@ namespace SwimmingScoreboard
             _schedule.Remove(_selectedScheduleItem);
             _selectedScheduleItem = null;
             AutoSaveData();
-            RebuildScheduleGroupedView();
+            BuildScheduleTree();
+            Broadcast();
         }
 
         private string InferTimePeriod(string time) {
@@ -3283,16 +3437,14 @@ namespace SwimmingScoreboard
                 item.SessionName = string.Format("第{0}单元（{1}{2}）", sessionMap[key], item.Date ?? "", period);
             }
 
-            // 按单元分组显示
+            // 按单元分组只读显示
             var groups = _schedule.GroupBy(s => s.SessionNumber).OrderBy(g => g.Key);
             foreach (var group in groups) {
                 string label = group.First().SessionName ?? string.Format("第{0}单元", group.Key);
 
-                // 单元标题
                 var header = new TextBlock {
                     Text = label,
-                    FontWeight = FontWeights.Bold,
-                    FontSize = 15,
+                    FontWeight = FontWeights.Bold, FontSize = 15,
                     Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1A5FB4")),
                     Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#E8F0FE")),
                     Padding = new Thickness(8, 4, 8, 4),
@@ -3300,53 +3452,21 @@ namespace SwimmingScoreboard
                 };
                 ScheduleGroupedPanel.Children.Add(header);
 
-                // 该单元的DataGrid
                 var grid = new DataGrid {
-                    AutoGenerateColumns = false,
-                    CanUserAddRows = false,
+                    AutoGenerateColumns = false, CanUserAddRows = false,
                     HeadersVisibility = DataGridHeadersVisibility.Column,
                     MinHeight = 30,
                     AlternatingRowBackground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F8FAFC")),
-                    IsReadOnly = false,
+                    IsReadOnly = true,
                     SelectionMode = DataGridSelectionMode.Single
                 };
-
                 grid.Columns.Add(new DataGridTextColumn { Header = "时间", Binding = new System.Windows.Data.Binding("Time"), Width = new DataGridLength(70) });
-
-                // 性别：下拉选择
-                var genderCol = new DataGridComboBoxColumn {
-                    Header = "性别", Width = new DataGridLength(55),
-                    SelectedItemBinding = new System.Windows.Data.Binding("Gender")
-                };
-                genderCol.ItemsSource = new string[] { "男", "女", "混合" };
-                grid.Columns.Add(genderCol);
-
-                // 项目：下拉选择
-                var eventCol = new DataGridComboBoxColumn {
-                    Header = "项目", Width = new DataGridLength(160),
-                    SelectedItemBinding = new System.Windows.Data.Binding("EventName")
-                };
-                eventCol.ItemsSource = _events;
-                grid.Columns.Add(eventCol);
-
-                // 阶段：下拉选择
-                var stageCol = new DataGridComboBoxColumn {
-                    Header = "阶段", Width = new DataGridLength(70),
-                    SelectedItemBinding = new System.Windows.Data.Binding("Stage")
-                };
-                stageCol.ItemsSource = new string[] { "预赛", "半决赛", "决赛" };
-                grid.Columns.Add(stageCol);
-
+                grid.Columns.Add(new DataGridTextColumn { Header = "性别", Binding = new System.Windows.Data.Binding("Gender"), Width = new DataGridLength(40) });
+                grid.Columns.Add(new DataGridTextColumn { Header = "项目", Binding = new System.Windows.Data.Binding("EventName"), Width = new DataGridLength(160) });
+                grid.Columns.Add(new DataGridTextColumn { Header = "阶段", Binding = new System.Windows.Data.Binding("Stage"), Width = new DataGridLength(60) });
                 grid.Columns.Add(new DataGridTextColumn { Header = "组数", Binding = new System.Windows.Data.Binding("HeatCount"), Width = new DataGridLength(50) });
 
-                var items = new ObservableCollection<ScheduleItem>(group.OrderBy(s => s.Time));
-                grid.ItemsSource = items;
-
-                // 选中行跟踪
-                grid.SelectionChanged += delegate {
-                    _selectedScheduleItem = grid.SelectedItem as ScheduleItem;
-                };
-
+                grid.ItemsSource = new ObservableCollection<ScheduleItem>(group.OrderBy(s => s.Time));
                 ScheduleGroupedPanel.Children.Add(grid);
             }
 
@@ -3763,7 +3883,9 @@ namespace SwimmingScoreboard
                 string rankStr = item.SortTime < double.MaxValue ? rankNum.ToString() : "";
                 rankedData.Add(new {
                     Rank = rankStr,
-                    item.Lane, item.BibNumber, item.Name, item.Country,
+                    item.Lane, item.BibNumber,
+                    Name = isRelayEvent ? item.Country : item.Name,
+                    Country = isRelayEvent ? item.Name : item.Country,
                     item.FinalTime, item.TimingSource, item.ReactionTime, item.Status, item.RecordNote
                 });
                 if (item.SortTime < double.MaxValue) rankNum++;
@@ -3839,9 +3961,14 @@ namespace SwimmingScoreboard
                 if (s.Notes != null && s.Notes.StartsWith("接力队员")) continue;
                 var r = s.GetResultForStage(stage);
                 int lane = sa != null ? sa.Lane : s.Lane;
+                // 接力项目：name显示队员姓名
+                string dispName = s.Name ?? "";
+                if (eventName.Contains("接力") && !string.IsNullOrEmpty(s.Notes) && s.Notes.StartsWith("接力队 棒次:")) {
+                    dispName = s.Notes.Substring("接力队 棒次:".Length);
+                }
                 heatSwimmers.Add(new {
                     lane = lane,
-                    name = s.Name ?? "",
+                    name = dispName,
                     country = s.Country ?? "",
                     bibNumber = s.BibNumber ?? "",
                     finalTime = r != null && r.FinalTime > 0 ? TimeFormatter.Format(r.FinalTime) : "",
@@ -4428,6 +4555,12 @@ namespace SwimmingScoreboard
         }
 
         // 通用文档CSS样式（参照跳水赛事系统格式）
+        // 接力项目列标题和数据交换：代表队在前，姓名在后
+        private static string RelayCol1Header(bool isRelay) { return isRelay ? "代表队" : "姓名"; }
+        private static string RelayCol2Header(bool isRelay) { return isRelay ? "姓名" : "代表队"; }
+        private static string RelayCol1(bool isRelay, string name, string country) { return isRelay ? country : name; }
+        private static string RelayCol2(bool isRelay, string name, string country) { return isRelay ? name : country; }
+
         private static string DocCss() {
             return "body{font-family:'SimSun'; padding:0; margin:0; line-height:1.5; color:#333;} "
                 + ".page{padding:50px; position:relative; box-sizing:border-box; min-height:1000px;} "
@@ -4578,13 +4711,18 @@ namespace SwimmingScoreboard
                     if (string.IsNullOrEmpty(dateTimeInfo.Trim())) dateTimeInfo = "（时间待定）";
                     sb.AppendFormat("<h4>比赛时间：{0} &nbsp;&nbsp;&nbsp;&nbsp; 地点：{1}</h4>", dateTimeInfo.Trim(), LocationBox.Text);
 
-                    sb.Append("<table><tr><th width='50'>道</th><th width='60'>号码</th><th width='100'>姓名</th><th width='40'>性别</th><th width='100'>代表队</th><th width='80'>备注</th></tr>");
+                    bool slRelay = eventName.Contains("接力");
+                    sb.AppendFormat("<table><tr><th width='50'>道</th><th width='60'>号码</th><th width='100'>{0}</th><th width='40'>性别</th><th width='100'>{1}</th><th width='80'>备注</th></tr>",
+                        RelayCol1Header(slRelay), RelayCol2Header(slRelay));
                     foreach (var t in heatSwimmers) {
                         var s = t.Item1;
                         string remark = "";
                         if (!string.IsNullOrEmpty(s.Status) && (s.Status == "DNS" || s.Status == "DNF" || s.Status == "DSQ" || s.Status == "DQ")) remark = s.Status;
+                        string slName = s.Name; string slCountry = s.Country ?? "";
+                        if (slRelay && !string.IsNullOrEmpty(s.Notes) && s.Notes.StartsWith("接力队 棒次:"))
+                            slName = s.Notes.Substring("接力队 棒次:".Length);
                         sb.AppendFormat("<tr><td>{0}</td><td>{1}</td><td><b>{2}</b></td><td>{3}</td><td>{4}</td><td style='color:#dc2626;'>{5}</td></tr>",
-                            t.Item3, s.BibNumber, s.Name, s.Gender, s.Country, remark);
+                            t.Item3, s.BibNumber, RelayCol1(slRelay, slName, slCountry), s.Gender, RelayCol2(slRelay, slName, slCountry), remark);
                     }
                     sb.Append("</table>");
                     sb.Append(DocSignatureRow());
@@ -4616,16 +4754,21 @@ namespace SwimmingScoreboard
             string dateTimeInfo = sch != null ? string.Format("{0} {1}", sch.Date, sch.Time).Trim() : "（时间待定）";
             sb.AppendFormat("<h4>比赛时间：{0} &nbsp;&nbsp;&nbsp;&nbsp; 地点：{1}</h4>", dateTimeInfo, LocationBox.Text);
 
-            sb.Append("<table><tr><th width='50'>名次</th><th width='40'>道</th><th width='60'>号码</th><th width='100'>姓名</th><th width='100'>代表队</th><th width='90'>成绩</th><th width='70'>反应时间</th><th width='50'>备注</th></tr>");
+            bool printRelay = _currentEvent.Contains("接力");
+            sb.AppendFormat("<table><tr><th width='50'>名次</th><th width='40'>道</th><th width='60'>号码</th><th width='100'>{0}</th><th width='100'>{1}</th><th width='90'>成绩</th><th width='70'>反应时间</th><th width='50'>备注</th></tr>",
+                RelayCol1Header(printRelay), RelayCol2Header(printRelay));
             var swimmers = GetCurrentHeatSwimmers().OrderBy(s => s.CurrentRank > 0 ? s.CurrentRank : int.MaxValue).ToList();
             foreach (var sw in swimmers) {
                 var r = sw.Results.FirstOrDefault(lr => lr.Stage == _currentStage && lr.Heat == _currentHeat);
                 string remark = "";
                 if (r != null && !string.IsNullOrEmpty(r.Status)) remark = r.Status;
                 else if (!string.IsNullOrEmpty(sw.Status) && (sw.Status == "DNS" || sw.Status == "DNF" || sw.Status == "DSQ" || sw.Status == "DQ")) remark = sw.Status;
+                string pName = sw.Name; string pCountry = sw.Country ?? "";
+                if (printRelay && !string.IsNullOrEmpty(sw.Notes) && sw.Notes.StartsWith("接力队 棒次:"))
+                    pName = sw.Notes.Substring("接力队 棒次:".Length);
                 sb.AppendFormat("<tr><td>{0}</td><td>{1}</td><td>{2}</td><td><b>{3}</b></td><td>{4}</td><td style='font-weight:bold; background:#eff6ff;'>{5}</td><td>{6}</td><td style='color:#dc2626;'>{7}</td></tr>",
                     r != null && r.Rank > 0 ? r.Rank.ToString() : "-",
-                    sw.Lane, sw.BibNumber, sw.Name, sw.Country,
+                    sw.Lane, sw.BibNumber, RelayCol1(printRelay, pName, pCountry), RelayCol2(printRelay, pName, pCountry),
                     r != null ? r.FinalTimeDisplay : "",
                     r != null && r.StartingBlockTime > 0 ? r.StartingBlockTime.ToString("F2") : "",
                     remark);
@@ -4740,9 +4883,10 @@ namespace SwimmingScoreboard
                     if (string.IsNullOrEmpty(dateTimeInfo.Trim())) dateTimeInfo = "（时间待定）";
                     sb.AppendFormat("<h4>比赛时间：{0} &nbsp;&nbsp;&nbsp;&nbsp; 地点：{1}</h4>", dateTimeInfo.Trim(), LocationBox.Text);
 
-                    // 成绩表
+                    // 成绩表（接力：代表队在前）
+                    bool bookRelay = eventName.Contains("接力");
                     sb.Append("<table><tr><th width='50'>名次</th><th width='40'>道</th><th width='60'>号码</th>");
-                    sb.Append("<th width='100'>姓名</th><th width='100'>代表队</th>");
+                    sb.AppendFormat("<th width='100'>{0}</th><th width='100'>{1}</th>", RelayCol1Header(bookRelay), RelayCol2Header(bookRelay));
                     sb.Append("<th width='90'>成绩</th><th width='70'>反应时间</th><th width='50'>备注</th></tr>");
 
                     int rank = 1;
@@ -4757,9 +4901,12 @@ namespace SwimmingScoreboard
                         string remark = "";
                         if (r != null && !string.IsNullOrEmpty(r.Status)) remark = r.Status;
                         else if (!string.IsNullOrEmpty(sw.Status) && (sw.Status == "DNS" || sw.Status == "DNF" || sw.Status == "DSQ" || sw.Status == "DQ")) remark = sw.Status;
+                        string bkName = sw.Name; string bkCountry = sw.Country ?? "";
+                        if (bookRelay && !string.IsNullOrEmpty(sw.Notes) && sw.Notes.StartsWith("接力队 棒次:"))
+                            bkName = sw.Notes.Substring("接力队 棒次:".Length);
                         sb.AppendFormat("<tr{0}><td>{1}</td><td>{2}</td><td>{3}</td>",
                             rowBg, rank, r.Lane, sw.BibNumber);
-                        sb.AppendFormat("<td><b>{0}</b></td><td>{1}</td>", sw.Name, sw.Country);
+                        sb.AppendFormat("<td><b>{0}</b></td><td>{1}</td>", RelayCol1(bookRelay, bkName, bkCountry), RelayCol2(bookRelay, bkName, bkCountry));
                         sb.AppendFormat("<td style='font-weight:bold; background:#eff6ff;'>{0}</td>", TimeFormatter.Format(r.FinalTime));
                         sb.AppendFormat("<td>{0}</td>", r.StartingBlockTime > 0 ? r.StartingBlockTime.ToString("F2") : "");
                         sb.AppendFormat("<td style='color:#dc2626;'>{0}</td></tr>", remark);

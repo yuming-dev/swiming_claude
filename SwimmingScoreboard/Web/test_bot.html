@@ -419,7 +419,8 @@ function simTouchpad() {
     // 每段合理用时（秒）
     var segTime = dist <= 50 ? 25 : (dist <= 100 ? 28 : (dist <= 200 ? 30 : (dist <= 400 ? 32 : 35)));
 
-    log('=== 模拟触板 (每段约' + segTime + 's) ===');
+    log('=== 模拟触板 ===');
+    var currentServerTime = parseRunningTime();
     for (var i = 0; i < lanes.length; i++) {
         var lane = lanes[i];
         if (!_touchpadLapCount[lane]) _touchpadLapCount[lane] = 0;
@@ -428,15 +429,8 @@ function simTouchpad() {
         _touchpadLapCount[lane]++;
         var lapNum = _touchpadLapCount[lane];
 
-        // 第1段：基于当前计时器；后续段：在上一段基础上累加合理分段时间
-        var t;
-        if (lapNum === 1) {
-            t = parseRunningTime();
-            if (t < 1) t = segTime;  // 计时器还没走，用估算值
-            t += (Math.random() - 0.3) * 2;
-        } else {
-            t = _lastTouchpadTime[lane] + segTime + (Math.random() - 0.5) * 3;
-        }
+        // 始终基于当前服务器实时时间，加微小随机偏差
+        var t = currentServerTime + (Math.random() - 0.3) * 0.5;
         if (t < 1) t = segTime * lapNum;
 
         _lastTouchpadTime[lane] = t;
@@ -609,19 +603,13 @@ function simRelayTouchpad(legNum, lapInLeg, globalLap) {
     else desc = '第' + legNum + '棒 第' + lapInLeg + '/' + p.lapsPerLeg + '段';
     log('=== ' + desc + ' (全局第' + globalLap + '段) ===');
 
+    var currentServerTime = parseRunningTime();
     for (var i = 0; i < lanes.length; i++) {
         var lane = lanes[i];
-        var prevTime = _relayStepTime[lane] || 0;
 
-        // 计算触板时间：在上次基础上累加一段时间
-        var t;
-        if (prevTime > 0) {
-            t = prevTime + segTime + (Math.random() - 0.5) * 3;
-        } else {
-            // 第1段没有历史，用计时器
-            t = parseRunningTime() + (Math.random() - 0.3) * 2;
-            if (t < 1) t = segTime;
-        }
+        // 始终基于当前服务器实时时间
+        var t = currentServerTime + (Math.random() - 0.3) * 0.5;
+        if (t < 1) t = segTime * globalLap;
 
         _relayStepTime[lane] = t;
         send('TIMING_DATA', {lane: lane, commandType: 'Touchpad', time: t});

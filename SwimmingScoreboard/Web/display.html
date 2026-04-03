@@ -242,6 +242,8 @@ function render() {
     }
 }
 
+function isRelayEvent() { return (data.currentEvent||'').indexOf('接力') >= 0; }
+
 function getLaneCount() {
     return (data.poolConfig && data.poolConfig.lanes) ? data.poolConfig.lanes : 10;
 }
@@ -257,13 +259,16 @@ function renderRace() {
     var fs = lc <= 8 ? '3.5vh' : '2.9vh';
     var lnFs = lc <= 8 ? '3.0vh' : '2.5vh';
 
-    // 恢复比赛视图表头
+    // 比赛视图表头（接力：代表队在前）
+    var relay = isRelayEvent();
+    var hdr1 = relay ? '代表队' : '姓名';
+    var hdr2 = relay ? '姓名' : '代表队';
     var header = document.querySelector('.lanes-header');
     if (header) {
         header.innerHTML =
             '<div style="width:5vw;text-align:center;margin-right:1vw;font-size:'+fs+';">道次</div>' +
-            '<div style="width:14vw;margin-right:1.5vw;font-size:'+fs+';">姓名</div>' +
-            '<div style="width:12vw;margin-right:1.5vw;font-size:'+fs+';">代表队</div>' +
+            '<div style="width:14vw;margin-right:1.5vw;font-size:'+fs+';">' + hdr1 + '</div>' +
+            '<div style="width:12vw;margin-right:1.5vw;font-size:'+fs+';">' + hdr2 + '</div>' +
             '<div style="width:14vw;text-align:center;margin-right:1.5vw;font-size:'+fs+';">成绩</div>' +
             '<div style="width:5vw;text-align:center;margin-right:1vw;font-size:'+fs+';">名次</div>' +
             '<div style="width:8vw;text-align:center;">备注</div>';
@@ -391,10 +396,12 @@ function renderRace() {
         else if (sw.status === 'DNF') remarkText = '未完赛';
         else if (sw.isFalseStart) remarkText = '抢跳';
 
+        var col1 = isRelayEvent() ? (sw.country||'') : (sw.name||'');
+        var col2 = isRelayEvent() ? (sw.name||'') : (sw.country||'');
         row.innerHTML =
             '<div class="lane-num">' + lane + '</div>' +
-            '<div class="swimmer-name">' + (sw.name||'') + '</div>' +
-            '<div class="swimmer-team">' + (sw.country||'') + '</div>' +
+            '<div class="swimmer-name">' + col1 + '</div>' +
+            '<div class="swimmer-team">' + col2 + '</div>' +
             '<div class="result-time">' + resultText + '</div>' +
             '<div class="rank ' + rankClass + '">' + (rankText !== '' ? rankText : '') + '</div>' +
             '<div class="remark">' + remarkText + '</div>';
@@ -422,13 +429,16 @@ function renderHeatResult() {
     document.getElementById('stageHeat').textContent = (data.currentStage||'') + ' 第' + (data.currentHeat||0) + '组 成绩';
     document.getElementById('runningTime').textContent = '';
 
-    // 修改表头为成绩排名顺序
+    // 成绩排名表头（接力：代表队在前）
+    var relay = isRelayEvent();
+    var hdr1 = relay ? '代表队' : '姓名';
+    var hdr2 = relay ? '姓名' : '代表队';
     var header = document.querySelector('.lanes-header');
     if (header) {
         header.innerHTML =
             '<div style="width:5vw;text-align:center;margin-right:1vw;">名次</div>' +
-            '<div style="width:14vw;margin-right:1.5vw;">姓名</div>' +
-            '<div style="width:12vw;margin-right:1.5vw;">代表队</div>' +
+            '<div style="width:14vw;margin-right:1.5vw;">' + hdr1 + '</div>' +
+            '<div style="width:12vw;margin-right:1.5vw;">' + hdr2 + '</div>' +
             '<div style="width:5vw;text-align:center;margin-right:1vw;">道次</div>' +
             '<div style="width:14vw;text-align:center;margin-right:1.5vw;">成绩</div>' +
             '<div style="width:8vw;text-align:center;">备注</div>';
@@ -455,10 +465,12 @@ function renderHeatResult() {
         else if (s.status === 'DNS') remarkText = '未出发';
         else if (s.status === 'DNF') remarkText = '未完赛';
 
+        var c1 = relay ? (s.country||'') : (s.name||'');
+        var c2 = relay ? (s.name||'') : (s.country||'');
         row.innerHTML =
             '<div class="rank ' + rankClass + '">' + rankText + '</div>' +
-            '<div class="swimmer-name">' + (s.name||'') + '</div>' +
-            '<div class="swimmer-team">' + (s.country||'') + '</div>' +
+            '<div class="swimmer-name">' + c1 + '</div>' +
+            '<div class="swimmer-team">' + c2 + '</div>' +
             '<div class="lane-num">' + s.lane + '</div>' +
             '<div class="result-time">' + resultText + '</div>' +
             '<div class="remark">' + remarkText + '</div>';
@@ -490,13 +502,16 @@ function renderPublishedResult(pubData) {
     var laneNumSize = laneCount <= 8 ? 3.0 : 2.5;
     var rankSize = laneCount <= 8 ? 3.5 : 2.9;
 
-    // 成绩排名表头
+    // 成绩排名表头（接力：代表队在前）
+    var pubRelay = (pubData.eventName||'').indexOf('接力') >= 0;
+    var ph1 = pubRelay ? '代表队' : '姓名';
+    var ph2 = pubRelay ? '姓名' : '代表队';
     var header = document.querySelector('.lanes-header');
     if (header) {
         header.innerHTML =
             '<div style="width:5vw;text-align:center;margin-right:1vw;font-size:' + fontSize + 'vh;">名次</div>' +
-            '<div style="width:14vw;margin-right:1.5vw;font-size:' + fontSize + 'vh;">姓名</div>' +
-            '<div style="width:12vw;margin-right:1.5vw;font-size:' + fontSize + 'vh;">代表队</div>' +
+            '<div style="width:14vw;margin-right:1.5vw;font-size:' + fontSize + 'vh;">' + ph1 + '</div>' +
+            '<div style="width:12vw;margin-right:1.5vw;font-size:' + fontSize + 'vh;">' + ph2 + '</div>' +
             '<div style="width:5vw;text-align:center;margin-right:1vw;font-size:' + fontSize + 'vh;">道次</div>' +
             '<div style="width:14vw;text-align:center;margin-right:1.5vw;font-size:' + fontSize + 'vh;">成绩</div>' +
             '<div style="width:8vw;text-align:center;font-size:' + fontSize + 'vh;">备注</div>';
@@ -522,10 +537,12 @@ function renderPublishedResult(pubData) {
         else if (s.status === 'DNS') remarkText = '未出发';
         else if (s.status === 'DNF') remarkText = '未完赛';
 
+        var pc1 = pubRelay ? (s.country||'') : (s.name||'');
+        var pc2 = pubRelay ? (s.name||'') : (s.country||'');
         row.innerHTML =
             '<div class="rank ' + rankClass + '" style="font-size:' + rankSize + 'vh;">' + rankText + '</div>' +
-            '<div class="swimmer-name" style="font-size:' + fontSize + 'vh;">' + (s.name||'') + '</div>' +
-            '<div class="swimmer-team" style="font-size:' + fontSize + 'vh;">' + (s.country||'') + '</div>' +
+            '<div class="swimmer-name" style="font-size:' + fontSize + 'vh;">' + pc1 + '</div>' +
+            '<div class="swimmer-team" style="font-size:' + fontSize + 'vh;">' + pc2 + '</div>' +
             '<div class="lane-num" style="font-size:' + laneNumSize + 'vh;">' + s.lane + '</div>' +
             '<div class="result-time" style="font-size:' + fontSize + 'vh;">' + (s.finalTime||'') + '</div>' +
             '<div class="remark" style="font-size:' + fontSize + 'vh;">' + remarkText + '</div>';

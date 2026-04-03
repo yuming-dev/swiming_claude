@@ -258,15 +258,18 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 
 <script>
 var ws, data = {}, selectedLane = -1;
+// 本地计时器：独立于服务器广播，保证滚动时间不间断
+var _localTimerStart = 0;    // 本地记录的比赛开始时刻（Date.now()）
+var _localTimerSynced = false; // 是否已同步过
 // 每道分段显示跟踪
 var laneSplitState = {};  // {lane: {splitCount, showTime}}
 var selectedHeatKey = ''; // "gender|event|stage|heat"
 // 第1名成绩停留显示
-var firstPlaceHoldTime = 3;  // 秒
+var firstPlaceHoldTime = parseFloat(localStorage.getItem('swimFirstPlaceHold')) || 3;
 var firstPlaceFinishTime = '';  // 第1名的成绩文本
 var firstPlaceShowStart = 0;   // 开始显示的时间戳
 var firstPlaceDetectedRank = 0; // 已检测到的最高完赛名次
-var startPosition = 'left'; // 'left' or 'right' — 发令位置
+var startPosition = localStorage.getItem('swimStartPosition') || 'left';
 
 window.onbeforeunload = function(e) { e.preventDefault(); e.returnValue = ''; return '确定要关闭比赛控制台？'; };
 
@@ -350,12 +353,49 @@ function sendCmd(cmd, cmdData) {
     ws.send(JSON.stringify({type: 'TIMING_CMD', command: cmd, data: cmdData || null}));
 }
 
+function parseServerTime(str) {
+    if (!str) return 0;
+    var parts = str.split(':');
+    if (parts.length === 3) return parseFloat(parts[0])*3600 + parseFloat(parts[1])*60 + parseFloat(parts[2]);
+    if (parts.length === 2) return parseFloat(parts[0])*60 + parseFloat(parts[1]);
+    return parseFloat(parts[0]) || 0;
+}
+
+function formatLocalTime(total) {
+    if (total < 0) total = 0;
+    var tenths = Math.floor(total * 10) % 10;
+    var secs = Math.floor(total) % 60;
+    var mins = Math.floor(total / 60) % 60;
+    var hrs = Math.floor(total / 3600);
+    if (hrs > 0) return hrs + ':' + mins.toString().padStart(2,'0') + ':' + secs.toString().padStart(2,'0') + '.' + tenths;
+    if (mins > 0) return mins + ':' + secs.toString().padStart(2,'0') + '.' + tenths;
+    return secs + '.' + tenths;
+}
+
+function getLocalRunningTime() {
+    if (_localTimerStart <= 0) return data.runningTime || '0.0';
+    var elapsed = (Date.now() - _localTimerStart) / 1000;
+    return formatLocalTime(elapsed);
+}
+
 var _rcRefreshTimer = null;
 function startRcRefresh() {
     if (_rcRefreshTimer) return;
     _rcRefreshTimer = setInterval(function() {
         var st = (data.raceState || '').toLowerCase();
-        if (st === 'racing' || st === 'finished') renderLanes();
+        if (st === 'racing' || st === 'finished') {
+            renderLanes();
+            // 本地计时器更新滚动时间
+            document.getElementById('runTime').textContent = getLocalRunningTime();
+            var holdMs = firstPlaceHoldTime * 1000;
+            var overlay = document.getElementById('firstPlaceOverlay');
+            if (firstPlaceShowStart > 0 && (Date.now() - firstPlaceShowStart) < holdMs && firstPlaceFinishTime) {
+                overlay.textContent = firstPlaceFinishTime;
+                overlay.style.display = 'block';
+            } else {
+                overlay.style.display = 'none';
+            }
+        }
     }, 500);
 }
 
@@ -372,8 +412,18 @@ function render() {
     if (data.resultConfirmed) stateText = '已确认 — 请选择下一组';
     document.getElementById('stateLabel').textContent = stateText;
 
-    // 右下角滚动时间：始终显示当前计时
-    document.getElementById('runTime').textContent = data.runningTime || '0.0';
+    // 本地计时器同步：只在首次进入racing时根据服务器时间计算发令时刻，之后完全本地独立计时
+    if (state === 'waiting' || state === 'ready') {
+        _localTimerStart = 0;
+        _localTimerSynced = false;
+    }
+    if ((state === 'racing' || state === 'finished') && !_localTimerSynced && data.runningTime) {
+        var serverSec = parseServerTime(data.runningTime);
+        _localTimerStart = Date.now() - serverSec * 1000;  // 反推发令时刻
+        _localTimerSynced = true;
+    }
+    // 右下角滚动时间：用本地计时器保证不间断
+    document.getElementById('runTime').textContent = getLocalRunningTime();
 
     // 第1名分段成绩叠加显示（在滚动时间上方）
     if (state === 'waiting') {
@@ -601,6 +651,9 @@ function confirmTimerReset() {
 function applySettings() {
     startPosition = document.getElementById('dlgStartRight').checked ? 'right' : 'left';
     firstPlaceHoldTime = parseFloat(document.getElementById('dlgFirstPlaceHold').value) || 3;
+    // 保存本地参数到localStorage
+    localStorage.setItem('swimStartPosition', startPosition);
+    localStorage.setItem('swimFirstPlaceHold', firstPlaceHoldTime.toString());
     var settings = {
         laneCloseTime: parseFloat(document.getElementById('dlgCloseTime').value) || 20,
         startBlockCloseDelay: parseFloat(document.getElementById('dlgSBDelay').value) || 3,
@@ -761,16 +814,37 @@ function getSplitOrFinalTime(sw) {
         var elapsed = Date.now() - ls.showTime;
         if (elapsed < displayMs) {
             var lastSplit = sw.splits[curSplitCount - 1];
-            return (lastSplit.cumulative || '') + ' [' + (lastSplit.time || '') + ']';
+            return lastSplit.cumulative || '';
         }
     }
     return '';
+}
+
+function getRelayCurrentLegName(sw) {
+    var names = (sw.name||'').split(',');
+    if (names.length <= 1) return sw.name || '';
+    // 根据当前段数计算第几棒
+    var currentLap = sw.currentLap || 0;
+    var ev = data.currentEvent || '';
+    var m = ev.match(/(\d+)\s*[x×]\s*(\d+)/);
+    var legCount = m ? parseInt(m[1]) : 4;
+    var legDist = m ? parseInt(m[2]) : 100;
+    var poolLen = (data.poolConfig && data.poolConfig.length) ? data.poolConfig.length : 50;
+    var lapsPerLeg = Math.max(1, Math.floor(legDist / poolLen));
+    var currentLeg = Math.floor(currentLap / lapsPerLeg);  // 0-based
+    if (currentLeg >= legCount) currentLeg = legCount - 1;
+    if (currentLeg < 0) currentLeg = 0;
+    // 完赛时显示最后一棒
+    if (sw.isFinished) currentLeg = legCount - 1;
+    var legName = (currentLeg < names.length) ? names[currentLeg].trim() : names[0].trim();
+    return '第' + (currentLeg + 1) + '棒: ' + legName;
 }
 
 function renderLanes() {
     var container = document.getElementById('poolLanes');
     container.innerHTML = '';
     var swimmers = data.swimmers || [];
+    var rcRelay = (data.currentEvent||'').indexOf('接力') >= 0;
 
     for (var i = 0; i < swimmers.length; i++) {
         var sw = swimmers[i];
@@ -819,7 +893,7 @@ function renderLanes() {
             '</div>' +
             '<div class="lane-mid">' +
                 '<div class="lane-num">' + sw.lane + '</div>' +
-                '<div class="swimmer-info"><div class="name">' + (sw.name||'') + '</div><div class="team">' + (sw.country||'') + '</div></div>' +
+                '<div class="swimmer-info"><div class="name">' + (rcRelay ? (sw.country||'') : (sw.name||'')) + '</div><div class="team">' + (rcRelay ? getRelayCurrentLegName(sw) : (sw.country||'')) + '</div></div>' +
                 '<div class="lane-track ' + dir + '">' + buildArrows(sw, swDir, dir) + '</div>' +
             '</div>' +
             '<div class="right-devices devices">' +
@@ -860,9 +934,10 @@ function buildArrows(sw, swDir, dir) {
     var maxArrows = 12;
 
     if (countdown > 0) {
-        // 泳道关闭中：根据已经过去的时间计算箭头数量
+        // 泳道关闭中：根据进度比例计算箭头数量（倒计时结束时满箭头）
         var elapsed = closeTime - countdown;
-        var arrowCount = Math.max(1, Math.floor(elapsed / 2) + 1);
+        var progress = closeTime > 0 ? elapsed / closeTime : 1;
+        var arrowCount = Math.max(1, Math.round(progress * maxArrows));
         if (arrowCount > maxArrows) arrowCount = maxArrows;
 
         var arrows = '';

@@ -388,8 +388,7 @@
                                     <StackPanel x:Name="ScheduleGroupedPanel"/>
                                 </ScrollViewer>
                                 <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
-                                    <Button Content="添加赛程项" Click="AddSchedule_Click" Padding="15,5" Background="#3B82F6" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
-                                    <Button Content="删除选中赛程项" Click="DeleteSchedule_Click" Padding="15,5" Background="#EF4444" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
+                                    <Button Content="修改赛程" Click="EditSchedule_Click" Padding="15,5" Background="#3B82F6" Foreground="White" FontWeight="Bold" BorderThickness="0" Margin="0,0,8,0"/>
                                     <Button Content="一键生成日程" Click="AutoBuildSchedule_Click" Padding="15,5" Background="#F59E0B" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
                                     <Button Content="预赛自动分组" Click="AutoGenerateHeats_Click" Padding="15,5" Background="#22C55E" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
                                     <Button Content="导出日程表" Click="PrintSchedule_Click" Padding="15,5" Background="#8B5CF6" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>

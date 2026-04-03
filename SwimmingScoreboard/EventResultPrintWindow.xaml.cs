@@ -157,12 +157,16 @@ namespace SwimmingScoreboard
                 string remark = "";
                 if (r != null && !string.IsNullOrEmpty(r.Status)) remark = r.Status;
                 else if (!string.IsNullOrEmpty(s.Status) && (s.Status == "DNS" || s.Status == "DNF" || s.Status == "DSQ" || s.Status == "DQ")) remark = s.Status;
+                // 接力项目：Name显示队员姓名
+                string epName = s.Name ?? "";
+                if (stage.Length > 0 && eventName.Contains("接力") && !string.IsNullOrEmpty(s.Notes) && s.Notes.StartsWith("接力队 棒次:"))
+                    epName = s.Notes.Substring("接力队 棒次:".Length);
                 return new
                 {
                     SortTime = r.FinalTime,
                     Lane = r.Lane,
                     BibNumber = s.BibNumber ?? "",
-                    Name = s.Name ?? "",
+                    Name = epName,
                     Country = s.Country ?? "",
                     FinalTime = TimeFormatter.Format(r.FinalTime),
                     ReactionTime = r.StartingBlockTime > 0 ? r.StartingBlockTime.ToString("F2") : "",
@@ -254,17 +258,22 @@ namespace SwimmingScoreboard
             sb.AppendFormat("<h4>比赛时间：{0} &nbsp;&nbsp;&nbsp;&nbsp; 地点：{1}</h4>",
                 dateTimeInfo, !string.IsNullOrEmpty(_location) ? _location : "——");
 
-            // 成绩表
+            // 成绩表（接力：代表队在前）
+            bool epRelay = SelectedEvent.Contains("接力");
+            string epH1 = epRelay ? "代表队" : "姓名";
+            string epH2 = epRelay ? "姓名" : "代表队";
             sb.Append("<table><tr>");
-            sb.Append("<th width='50'>名次</th><th width='40'>道</th><th width='60'>号码</th>");
-            sb.Append("<th width='100'>姓名</th><th width='100'>代表队</th>");
+            sb.AppendFormat("<th width='50'>名次</th><th width='40'>道</th><th width='60'>号码</th>");
+            sb.AppendFormat("<th width='100'>{0}</th><th width='100'>{1}</th>", epH1, epH2);
             sb.Append("<th width='90'>最终成绩</th><th width='70'>反应时间</th><th width='50'>备注</th>");
             sb.Append("</tr>");
             foreach (dynamic item in _currentResults)
             {
+                string c1 = epRelay ? item.Country : item.Name;
+                string c2 = epRelay ? item.Name : item.Country;
                 sb.Append("<tr>");
                 sb.AppendFormat("<td>{0}</td><td>{1}</td><td>{2}</td>", item.Rank, item.Lane, item.BibNumber);
-                sb.AppendFormat("<td><b>{0}</b></td><td>{1}</td>", item.Name, item.Country);
+                sb.AppendFormat("<td><b>{0}</b></td><td>{1}</td>", c1, c2);
                 sb.AppendFormat("<td style='font-weight:bold; background:#eff6ff;'>{0}</td>", item.FinalTime);
                 sb.AppendFormat("<td>{0}</td><td style='color:#dc2626;'>{1}</td>", item.ReactionTime, item.Remark);
                 sb.Append("</tr>");
