@@ -132,6 +132,14 @@ var ws, data = {}, reconnectTimer;
 var currentMode = 'SHOW_LIVE_RACE';
 var publishedData = null;
 var modeLocked = false;  // 成绩发布时锁定模式，不被广播覆盖
+// 第1名分段成绩显示
+var _dspFirstDetected = 0;
+var _dspFirstTime = '';
+var _dspFirstShowStart = 0;
+var _dspFirstHoldSec = 3;
+// 本地计时器（独立于服务器广播，保证滚动时间不间断）
+var _dspTimerStart = 0;
+var _dspTimerSynced = false;
 // 每道的显示状态跟踪：{lane: {splitCount, reactionShown, showTime}}
 var laneDisplayState = {};
 var refreshTimer = null;
@@ -252,7 +260,68 @@ function renderRace() {
     document.getElementById('raceView').classList.remove('hidden');
     document.getElementById('eventName').textContent = (data.currentGender||'') + '子 ' + (data.currentEvent||'');
     document.getElementById('stageHeat').textContent = (data.currentStage||'') + ' 第' + (data.currentHeat||0) + '/' + (data.totalHeats||0) + '组';
-    document.getElementById('runningTime').textContent = data.runningTime || '0.0';
+
+    // 本地计时器同步（只在首次进入racing时同步一次）
+    var rState = (data.raceState||'').toLowerCase();
+    if (rState === 'waiting' || rState === 'ready') {
+        _dspTimerStart = 0; _dspTimerSynced = false;
+        _dspFirstDetected = 0; _dspFirstShowStart = 0; _dspFirstTime = '';
+    }
+    if ((rState === 'racing' || rState === 'finished') && !_dspTimerSynced && data.runningTime) {
+        var svrSec = 0, rp = data.runningTime.split(':');
+        if (rp.length === 3) svrSec = parseFloat(rp[0])*3600 + parseFloat(rp[1])*60 + parseFloat(rp[2]);
+        else if (rp.length === 2) svrSec = parseFloat(rp[0])*60 + parseFloat(rp[1]);
+        else svrSec = parseFloat(rp[0]) || 0;
+        _dspTimerStart = Date.now() - svrSec * 1000;
+        _dspTimerSynced = true;
+    }
+    // 读取停留时间（从服务器设置的splitDisplayTime）
+    _dspFirstHoldSec = (data.laneCloseSettings && data.laneCloseSettings.splitDisplayTime) ? data.laneCloseSettings.splitDisplayTime : 3;
+    var dspSwimmers = data.swimmers || [];
+    var dspLeader = null, dspLeaderSc = 0;
+    for (var di = 0; di < dspSwimmers.length; di++) {
+        var ds = dspSwimmers[di];
+        if (ds.status) continue;
+        var dsc = (ds.splits && ds.splits.length) ? ds.splits.length : 0;
+        if (ds.isFinished) dsc = 9999;
+        if (dsc > dspLeaderSc || (dsc === dspLeaderSc && dspLeader && ds.rank > 0 && ds.rank < (dspLeader.rank||99))) {
+            dspLeaderSc = dsc;
+            dspLeader = ds;
+        }
+    }
+    if (dspLeader) {
+        var dlsc = (dspLeader.splits && dspLeader.splits.length) ? dspLeader.splits.length : 0;
+        if (dspLeader.isFinished && dspLeader.finalTime) dlsc = -1;
+        if (dlsc !== _dspFirstDetected) {
+            _dspFirstDetected = dlsc;
+            if (dspLeader.isFinished && dspLeader.finalTime) {
+                _dspFirstTime = dspLeader.finalTime;
+            } else if (dspLeader.splits && dspLeader.splits.length > 0) {
+                _dspFirstTime = dspLeader.splits[dspLeader.splits.length - 1].cumulative || '';
+            }
+            if (_dspFirstTime) _dspFirstShowStart = Date.now();
+        }
+    }
+    // 本地滚动时间
+    var localRunTime = data.runningTime || '0.0';
+    if (_dspTimerStart > 0) {
+        var elapsed = (Date.now() - _dspTimerStart) / 1000;
+        var ts = Math.floor(elapsed) % 60, tm = Math.floor(elapsed / 60) % 60, th = Math.floor(elapsed / 3600);
+        var tt = Math.floor(elapsed * 10) % 10;
+        if (th > 0) localRunTime = th + ':' + tm.toString().padStart(2,'0') + ':' + ts.toString().padStart(2,'0') + '.' + tt;
+        else if (tm > 0) localRunTime = tm + ':' + ts.toString().padStart(2,'0') + '.' + tt;
+        else localRunTime = ts + '.' + tt;
+    }
+    // 右上角显示：停留期间显示第1名成绩（绿色），否则显示滚动时间（金色）
+    var runEl = document.getElementById('runningTime');
+    var dspHoldMs = _dspFirstHoldSec * 1000;
+    if (_dspFirstShowStart > 0 && (Date.now() - _dspFirstShowStart) < dspHoldMs && _dspFirstTime) {
+        runEl.textContent = _dspFirstTime;
+        runEl.style.color = '#22c55e';
+    } else {
+        runEl.textContent = localRunTime;
+        runEl.style.color = '';
+    }
 
     // 根据泳道数调整字体
     var lc = getLaneCount();
@@ -391,17 +460,30 @@ function renderRace() {
 
         // 备注栏
         var remarkText = '';
-        if (sw.status === 'DSQ') remarkText = '犯规';
-        else if (sw.status === 'DNS') remarkText = '未出发';
-        else if (sw.status === 'DNF') remarkText = '未完赛';
+        if (sw.status === 'DSQ') remarkText = 'DSQ';
+        else if (sw.status === 'DNS') remarkText = 'DNS';
+        else if (sw.status === 'DNF') remarkText = 'DNF';
         else if (sw.isFalseStart) remarkText = '抢跳';
 
-        var col1 = isRelayEvent() ? (sw.country||'') : (sw.name||'');
-        var col2 = isRelayEvent() ? (sw.name||'') : (sw.country||'');
+        var relay = isRelayEvent();
+        var col1, col2;
+        if (relay) {
+            col1 = sw.country || '';
+            // 姓名按棒次分4行显示
+            var names = (sw.name||'').split(',');
+            var nameHtml = '';
+            for (var ni = 0; ni < names.length; ni++) {
+                nameHtml += '<div style="line-height:1.2;">' + names[ni].trim() + '</div>';
+            }
+            col2 = nameHtml;
+        } else {
+            col1 = sw.name || '';
+            col2 = sw.country || '';
+        }
         row.innerHTML =
             '<div class="lane-num">' + lane + '</div>' +
             '<div class="swimmer-name">' + col1 + '</div>' +
-            '<div class="swimmer-team">' + col2 + '</div>' +
+            '<div class="swimmer-team" style="' + (relay ? 'font-size:1.8vh;overflow:visible;white-space:normal;' : '') + '">' + col2 + '</div>' +
             '<div class="result-time">' + resultText + '</div>' +
             '<div class="rank ' + rankClass + '">' + (rankText !== '' ? rankText : '') + '</div>' +
             '<div class="remark">' + remarkText + '</div>';
@@ -413,10 +495,15 @@ function renderStartList() {
     document.getElementById('listView').classList.remove('hidden');
     var lv = document.getElementById('listView');
     var html = '<h2 style="margin-bottom:2vh;font-size:3vh;">' + (data.currentGender||'') + '子 ' + (data.currentEvent||'') + ' ' + (data.currentStage||'') + ' 第' + (data.currentHeat||'') + '组 出发表</h2>';
-    html += '<table class="list-table"><thead><tr><th>道</th><th>号码</th><th>姓名</th><th>代表队</th></tr></thead><tbody>';
+    var slRelay = isRelayEvent();
+    var slH1 = slRelay ? '代表队' : '姓名';
+    var slH2 = slRelay ? '姓名' : '代表队';
+    html += '<table class="list-table"><thead><tr><th>道</th><th>号码</th><th>' + slH1 + '</th><th>' + slH2 + '</th></tr></thead><tbody>';
     var sw = data.swimmers || [];
     for (var i = 0; i < sw.length; i++) {
-        html += '<tr><td>' + sw[i].lane + '</td><td>' + (sw[i].bibNumber||'') + '</td><td>' + (sw[i].name||'') + '</td><td>' + (sw[i].country||'') + '</td></tr>';
+        var sc1 = slRelay ? (sw[i].country||'') : (sw[i].name||'');
+        var sc2 = slRelay ? (sw[i].name||'') : (sw[i].country||'');
+        html += '<tr><td>' + sw[i].lane + '</td><td>' + (sw[i].bibNumber||'') + '</td><td>' + sc1 + '</td><td>' + sc2 + '</td></tr>';
     }
     html += '</tbody></table>';
     lv.innerHTML = html;
@@ -461,9 +548,9 @@ function renderHeatResult() {
 
         var resultText = s.finalTime || '';
         var remarkText = '';
-        if (s.status === 'DSQ') remarkText = '犯规';
-        else if (s.status === 'DNS') remarkText = '未出发';
-        else if (s.status === 'DNF') remarkText = '未完赛';
+        if (s.status === 'DSQ') remarkText = 'DSQ';
+        else if (s.status === 'DNS') remarkText = 'DNS';
+        else if (s.status === 'DNF') remarkText = 'DNF';
 
         var c1 = relay ? (s.country||'') : (s.name||'');
         var c2 = relay ? (s.name||'') : (s.country||'');
@@ -533,9 +620,9 @@ function renderPublishedResult(pubData) {
         else if (s.rank > 0) { rankText = s.rank; }
 
         var remarkText = '';
-        if (s.status === 'DSQ') remarkText = '犯规';
-        else if (s.status === 'DNS') remarkText = '未出发';
-        else if (s.status === 'DNF') remarkText = '未完赛';
+        if (s.status === 'DSQ') remarkText = 'DSQ';
+        else if (s.status === 'DNS') remarkText = 'DNS';
+        else if (s.status === 'DNF') remarkText = 'DNF';
 
         var pc1 = pubRelay ? (s.country||'') : (s.name||'');
         var pc2 = pubRelay ? (s.name||'') : (s.country||'');
@@ -554,10 +641,15 @@ function renderEventRanking() {
     document.getElementById('listView').classList.remove('hidden');
     var lv = document.getElementById('listView');
     var html = '<h2 style="margin-bottom:2vh;font-size:3vh;">' + (data.currentGender||'') + '子 ' + (data.currentEvent||'') + ' ' + (data.currentStage||'') + ' 总排名</h2>';
-    html += '<table class="list-table"><thead><tr><th>名次</th><th>号码</th><th>姓名</th><th>代表队</th><th>报名</th><th>成绩</th></tr></thead><tbody>';
+    var erRelay = isRelayEvent();
+    var erH1 = erRelay ? '代表队' : '姓名';
+    var erH2 = erRelay ? '姓名' : '代表队';
+    html += '<table class="list-table"><thead><tr><th>名次</th><th>号码</th><th>' + erH1 + '</th><th>' + erH2 + '</th><th>报名</th><th>成绩</th></tr></thead><tbody>';
     var er = data.eventRanking || [];
     for (var i = 0; i < er.length; i++) {
-        html += '<tr><td>' + er[i].rank + '</td><td>' + (er[i].bibNumber||'') + '</td><td>' + (er[i].name||'') + '</td><td>' + (er[i].country||'') + '</td><td>' + (er[i].entryTime||'') + '</td><td>' + (er[i].finalTime||'') + '</td></tr>';
+        var erc1 = erRelay ? (er[i].country||'') : (er[i].name||'');
+        var erc2 = erRelay ? (er[i].name||'') : (er[i].country||'');
+        html += '<tr><td>' + er[i].rank + '</td><td>' + (er[i].bibNumber||'') + '</td><td>' + erc1 + '</td><td>' + erc2 + '</td><td>' + (er[i].entryTime||'') + '</td><td>' + (er[i].finalTime||'') + '</td></tr>';
     }
     html += '</tbody></table>';
     lv.innerHTML = html;
@@ -603,7 +695,10 @@ function renderAwards() {
         if (idx >= er.length) continue;
         var card = document.createElement('div');
         card.className = 'podium-card ' + medals[i];
-        card.innerHTML = '<div class="medal">' + icons[i] + '</div><div class="name">' + (er[idx].name||'') + '</div><div class="team">' + (er[idx].country||'') + '</div><div class="time">' + (er[idx].finalTime||'') + '</div>';
+        var awRelay = isRelayEvent();
+        var awName = awRelay ? (er[idx].country||'') : (er[idx].name||'');
+        var awTeam = awRelay ? (er[idx].name||'') : (er[idx].country||'');
+        card.innerHTML = '<div class="medal">' + icons[i] + '</div><div class="name">' + awName + '</div><div class="team">' + awTeam + '</div><div class="time">' + (er[idx].finalTime||'') + '</div>';
         container.appendChild(card);
     }
 }

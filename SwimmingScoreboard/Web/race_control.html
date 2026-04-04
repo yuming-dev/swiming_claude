@@ -215,7 +215,6 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
         <div class="pool-header" id="poolHeader"></div>
         <div id="poolLanes"></div>
         <div class="running-time-corner" id="runTime">0.0</div>
-        <div id="firstPlaceOverlay" style="display:none;position:absolute;bottom:42px;right:12px;font-size:28px;font-weight:bold;color:#22c55e;font-family:Consolas,monospace;text-shadow:0 0 10px rgba(34,197,94,0.4);pointer-events:none;"></div>
     </div>
 
     <!-- 右侧设置 -->
@@ -385,15 +384,15 @@ function startRcRefresh() {
         var st = (data.raceState || '').toLowerCase();
         if (st === 'racing' || st === 'finished') {
             renderLanes();
-            // 本地计时器更新滚动时间
-            document.getElementById('runTime').textContent = getLocalRunningTime();
-            var holdMs = firstPlaceHoldTime * 1000;
-            var overlay = document.getElementById('firstPlaceOverlay');
-            if (firstPlaceShowStart > 0 && (Date.now() - firstPlaceShowStart) < holdMs && firstPlaceFinishTime) {
-                overlay.textContent = firstPlaceFinishTime;
-                overlay.style.display = 'block';
+            // 滚动时间/第1名成绩交替显示
+            var rtEl = document.getElementById('runTime');
+            var hMs = firstPlaceHoldTime * 1000;
+            if (firstPlaceShowStart > 0 && (Date.now() - firstPlaceShowStart) < hMs && firstPlaceFinishTime) {
+                rtEl.textContent = firstPlaceFinishTime;
+                rtEl.style.color = '#22c55e';
             } else {
-                overlay.style.display = 'none';
+                rtEl.textContent = getLocalRunningTime();
+                rtEl.style.color = '';
             }
         }
     }, 500);
@@ -422,15 +421,11 @@ function render() {
         _localTimerStart = Date.now() - serverSec * 1000;  // 反推发令时刻
         _localTimerSynced = true;
     }
-    // 右下角滚动时间：用本地计时器保证不间断
-    document.getElementById('runTime').textContent = getLocalRunningTime();
-
-    // 第1名分段成绩叠加显示（在滚动时间上方）
+    // 第1名检测
     if (state === 'waiting') {
         firstPlaceDetectedRank = 0;
         firstPlaceShowStart = 0;
         firstPlaceFinishTime = '';
-        document.getElementById('firstPlaceOverlay').style.display = 'none';
     }
     var swimmers = data.swimmers || [];
     var leader = null, leaderSplitCount = 0;
@@ -457,13 +452,15 @@ function render() {
             if (firstPlaceFinishTime) firstPlaceShowStart = Date.now();
         }
     }
+    // 右下角：停留期间显示第1名成绩（绿色），否则显示滚动时间（金色）
+    var runTimeEl = document.getElementById('runTime');
     var holdMs = firstPlaceHoldTime * 1000;
-    var overlay = document.getElementById('firstPlaceOverlay');
     if (firstPlaceShowStart > 0 && (Date.now() - firstPlaceShowStart) < holdMs && firstPlaceFinishTime) {
-        overlay.textContent = firstPlaceFinishTime;
-        overlay.style.display = 'block';
+        runTimeEl.textContent = firstPlaceFinishTime;
+        runTimeEl.style.color = '#22c55e';
     } else {
-        overlay.style.display = 'none';
+        runTimeEl.textContent = getLocalRunningTime();
+        runTimeEl.style.color = '';
     }
 
     var ro = data.scoringControlMode === 'remote_exe';
@@ -786,6 +783,7 @@ function renderHeader() {
             '<div class="reaction" style="font-size:16px;">反应</div>' +
             '<div class="final-time" style="font-size:16px;font-weight:normal;">成绩</div>' +
             '<div class="rank" style="font-size:16px;font-weight:normal;">名次</div>' +
+            '<div style="width:35px;text-align:center;font-size:16px;margin-left:8px;">备注</div>' +
         '</div>';
 }
 
@@ -910,6 +908,7 @@ function renderLanes() {
                 '<div class="reaction">' + (sw.reactionTime||'') + '</div>' +
                 '<div class="final-time">' + getSplitOrFinalTime(sw) + '</div>' +
                 '<div class="rank ' + rankClass + '">' + (sw.rank>0 ? sw.rank : '') + '</div>' +
+                '<div style="width:35px;text-align:center;font-size:20px;font-weight:bold;color:#EF4444;margin-left:8px;">' + (sw.status||'') + '</div>' +
             '</div>';
 
         container.appendChild(row);
@@ -1000,8 +999,10 @@ function renderStartListBar() {
     var sl = document.getElementById('startList');
     var html = '<b>出发表:</b> ';
     var swimmers = data.swimmers || [];
+    var slbRelay = (data.currentEvent||'').indexOf('接力') >= 0;
     for (var i = 0; i < swimmers.length; i++) {
-        html += '道' + swimmers[i].lane + '-' + (swimmers[i].name||'') + '(' + (swimmers[i].entryTime||'') + ') ';
+        var slbLabel = slbRelay ? (swimmers[i].country||'') : (swimmers[i].name||'');
+        html += '道' + swimmers[i].lane + '-' + slbLabel + '(' + (swimmers[i].entryTime||'') + ') ';
     }
     sl.innerHTML = html;
 }

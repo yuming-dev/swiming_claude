@@ -847,13 +847,17 @@ namespace SwimmingScoreboard
             }).ToList();
 
             int rank = 1;
+            bool rankRelay = _currentEvent.Contains("接力");
             foreach (var sw in withTimes) {
                 var r = sw.Results.FirstOrDefault(lr => lr.Stage == _currentStage);
+                string rkName = sw.Name;
+                if (rankRelay && !string.IsNullOrEmpty(sw.Notes) && sw.Notes.StartsWith("接力队 棒次:"))
+                    rkName = sw.Notes.Substring("接力队 棒次:".Length);
                 ranked.Add(new {
                     rank = rank++,
                     lane = sw.Lane,
                     bibNumber = sw.BibNumber,
-                    name = sw.Name,
+                    name = rkName,
                     country = sw.Country,
                     entryTime = sw.EntryTime ?? "",
                     finalTime = r != null ? TimeFormatter.Format(r.FinalTime) : "",
@@ -4177,20 +4181,40 @@ namespace SwimmingScoreboard
             _schedule.Clear();
             _records.Clear();
 
+            // 运动员管理
             if (SwimmerGrid != null) SwimmerGrid.ItemsSource = _swimmers;
             if (RelayGrid != null) RelayGrid.ItemsSource = _relayTeams;
             if (RegEventListBox != null) RegEventListBox.Items.Clear();
             if (RegStatusText != null) RegStatusText.Text = "";
+
+            // 接力队管理
+            _selectedRelayTeam = null;
+            if (RelayGroupedPanel != null) RelayGroupedPanel.Children.Clear();
+            if (RelayLegGrid != null) RelayLegGrid.ItemsSource = null;
+            if (RelayLegTitle != null) RelayLegTitle.Text = "棒次安排（请选中一支接力队）";
+
+            // 赛程导航树
             ScheduleTree.Items.Clear();
             if (ScheduleGroupedPanel != null) ScheduleGroupedPanel.Children.Clear();
+
+            // 出场编排微调
+            _editSelectedGrid = null;
             if (EditEventCombo != null) EditEventCombo.Items.Clear();
             if (EditHeatCombo != null) EditHeatCombo.Items.Clear();
             if (EditPreviewGrid != null) EditPreviewGrid.ItemsSource = null;
             if (EditAllGroupsPanel != null) EditAllGroupsPanel.Children.Clear();
             if (EditAllGroupsScroll != null) EditAllGroupsScroll.Visibility = System.Windows.Visibility.Collapsed;
+
+            // 成绩与排名
             if (ResultEventCombo != null) ResultEventCombo.Items.Clear();
             if (ResultGrid != null) ResultGrid.ItemsSource = null;
+
+            // 比赛控制
             if (LaneStatusGrid != null) LaneStatusGrid.ItemsSource = null;
+            _laneSplitCount.Clear();
+            _laneSplitShowTime.Clear();
+
+            // 系统工作状态
             if (CurrentEventText != null) CurrentEventText.Text = "-";
             if (CurrentStageText != null) CurrentStageText.Text = "-";
             if (CurrentHeatText != null) CurrentHeatText.Text = "-";
@@ -4645,11 +4669,16 @@ namespace SwimmingScoreboard
             // 各项目运动员名单
             var eventGroups = _swimmers.GroupBy(s => new { s.Gender, s.EventName }).OrderBy(g => g.Key.Gender).ThenBy(g => g.Key.EventName);
             foreach (var g in eventGroups) {
+                bool manRelay = g.Key.EventName.Contains("接力");
                 sb.AppendFormat("<h3>{0} {1}</h3>", g.Key.Gender, g.Key.EventName);
-                sb.Append("<table><tr><th width='50'>号码</th><th width='80'>姓名</th><th width='80'>代表队</th><th width='70'>报名成绩</th><th width='40'>组</th><th width='40'>道</th></tr>");
+                sb.AppendFormat("<table><tr><th width='50'>号码</th><th width='80'>{0}</th><th width='80'>{1}</th><th width='70'>报名成绩</th><th width='40'>组</th><th width='40'>道</th></tr>",
+                    RelayCol1Header(manRelay), RelayCol2Header(manRelay));
                 foreach (var sw in g.OrderBy(s => s.Heat).ThenBy(s => s.Lane)) {
+                    string mName = sw.Name; string mCountry = sw.Country ?? "";
+                    if (manRelay && !string.IsNullOrEmpty(sw.Notes) && sw.Notes.StartsWith("接力队 棒次:"))
+                        mName = sw.Notes.Substring("接力队 棒次:".Length);
                     sb.AppendFormat("<tr><td>{0}</td><td><b>{1}</b></td><td>{2}</td><td>{3}</td><td>{4}</td><td>{5}</td></tr>",
-                        sw.BibNumber, sw.Name, sw.Country, sw.EntryTime, sw.Heat > 0 ? sw.Heat.ToString() : "", sw.Lane > 0 ? sw.Lane.ToString() : "");
+                        sw.BibNumber, RelayCol1(manRelay, mName, mCountry), RelayCol2(manRelay, mName, mCountry), sw.EntryTime, sw.Heat > 0 ? sw.Heat.ToString() : "", sw.Lane > 0 ? sw.Lane.ToString() : "");
                 }
                 sb.Append("</table>");
             }
@@ -5010,7 +5039,11 @@ namespace SwimmingScoreboard
                     sb.Append("<div class='cert-title'>奖&nbsp;&nbsp;状</div>");
                     sb.Append("<hr class='cert-divider'/>");
                     sb.Append("<div class='cert-body'>");
-                    sb.AppendFormat("<div style='font-size:24px;'><span class='cert-name'>{0}</span>：</div>", sw.Name);
+                    string certName = sw.Name;
+                    bool certRelay = g.Key.EventName.Contains("接力");
+                    if (certRelay && !string.IsNullOrEmpty(sw.Notes) && sw.Notes.StartsWith("接力队 棒次:"))
+                        certName = sw.Country + "（" + sw.Notes.Substring("接力队 棒次:".Length) + "）";
+                    sb.AppendFormat("<div style='font-size:24px;'><span class='cert-name'>{0}</span>：</div>", certName);
                     sb.Append("<div class='cert-text'>");
                     sb.AppendFormat("在&nbsp;<span class='cert-comp-name'>{0}</span>&nbsp;", _competitionName);
                     sb.AppendFormat("<span class='cert-event-name'>{0} {1}</span>&nbsp;项目比赛中，", g.Key.Gender, g.Key.EventName);
@@ -5102,8 +5135,12 @@ namespace SwimmingScoreboard
             foreach (var sw in GetCurrentHeatSwimmers().OrderBy(s => s.Lane)) {
                 var result = sw.Results.FirstOrDefault(r => r.Stage == _currentStage && r.Heat == _currentHeat);
                 if (result == null || result.Splits.Count == 0) continue;
-                sb.AppendFormat("<h4 style='margin-top:30px;'>泳道 {0} &nbsp; {1} （{2}） &nbsp; 最终成绩：{3}</h4>",
-                    sw.Lane, sw.Name, sw.Country, TimeFormatter.Format(result.FinalTime));
+                string spName = sw.Name;
+                if (_isRelay && !string.IsNullOrEmpty(sw.Notes) && sw.Notes.StartsWith("接力队 棒次:"))
+                    spName = sw.Notes.Substring("接力队 棒次:".Length);
+                string spLabel = _isRelay ? string.Format("泳道 {0} &nbsp; {1} （{2}）", sw.Lane, sw.Country, spName)
+                    : string.Format("泳道 {0} &nbsp; {1} （{2}）", sw.Lane, spName, sw.Country);
+                sb.AppendFormat("<h4 style='margin-top:30px;'>{0} &nbsp; 最终成绩：{1}</h4>", spLabel, TimeFormatter.Format(result.FinalTime));
                 sb.Append("<table><tr><th width='50'>段</th><th width='70'>距离</th><th width='90'>分段时间</th><th width='90'>累计时间</th></tr>");
                 foreach (var split in result.Splits) {
                     sb.AppendFormat("<tr><td>{0}</td><td>{1}m</td><td>{2}</td><td style='font-weight:bold;'>{3}</td></tr>",

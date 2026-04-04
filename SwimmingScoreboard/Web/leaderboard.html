@@ -85,13 +85,19 @@ function showTab(tab) {
 function render() {
     document.getElementById('title').textContent = data.competitionName || '排名显示';
 
-    // 项目排名
+    // 项目排名（接力：代表队在前，姓名在后）
+    var lbRelay = (data.currentEvent||'').indexOf('接力') >= 0;
+    var h1 = lbRelay ? '代表队' : '姓名';
+    var h2 = lbRelay ? '姓名' : '代表队';
     var html = '<div class="section-title">' + (data.currentGender||'') + '子 ' + (data.currentEvent||'') + ' ' + (data.currentStage||'') + '</div>';
-    html += '<table><tr><th>名次</th><th>姓名</th><th>代表队</th><th>成绩</th></tr>';
+    html += '<table><tr><th>名次</th><th>' + h1 + '</th><th>' + h2 + '</th><th>成绩</th><th>备注</th></tr>';
     var er = data.eventRanking || [];
     for (var i = 0; i < er.length; i++) {
         var rc = er[i].rank <= 3 ? ' class="rank-' + er[i].rank + '"' : '';
-        html += '<tr' + rc + '><td>' + er[i].rank + '</td><td>' + (er[i].name||'') + '</td><td>' + (er[i].country||'') + '</td><td>' + (er[i].finalTime||'') + '</td></tr>';
+        var c1 = lbRelay ? (er[i].country||'') : (er[i].name||'');
+        var c2 = lbRelay ? (er[i].name||'') : (er[i].country||'');
+        var remark = er[i].status || '';
+        html += '<tr' + rc + '><td>' + er[i].rank + '</td><td>' + c1 + '</td><td>' + c2 + '</td><td>' + (er[i].finalTime||'') + '</td><td style="color:#ef4444;font-weight:bold;">' + remark + '</td></tr>';
     }
     html += '</table>';
     document.getElementById('rankingView').innerHTML = html;
