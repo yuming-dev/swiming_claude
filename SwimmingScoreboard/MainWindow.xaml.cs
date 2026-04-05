@@ -1110,15 +1110,25 @@ namespace SwimmingScoreboard
                         s.CurrentRank > 0 ? s.CurrentRank.ToString() : "-", sLane, s.Name, s.Country,
                         !string.IsNullOrEmpty(status) ? status : finalTime, source, reaction, status);
 
+                    // 各计时设备最终成绩
+                    if (r != null) {
+                        sb.AppendFormat("  终点成绩: 触板:{0}  盲表1:{1}  盲表2:{2}  盲表3:{3}\r\n",
+                            TimeFormatter.Format(r.TouchpadTime),
+                            TimeFormatter.Format(r.PushButton1Time),
+                            TimeFormatter.Format(r.PushButton2Time),
+                            TimeFormatter.Format(r.PushButton3Time));
+                    }
+
                     // 分段明细
                     if (r != null && r.Splits.Count > 0) {
                         foreach (var sp in r.Splits) {
-                            sb.AppendFormat("  分段{0}({1}m): 触板:{2} 盲1:{3} 盲2:{4} 盲3:{5} 累计:{6} 源:{7}\r\n",
+                            sb.AppendFormat("  分段{0}({1}m): 触板:{2}  盲1:{3}  盲2:{4}  盲3:{5}  手动:{6}  累计:{7}  源:{8}\r\n",
                                 sp.Lap, sp.Distance,
                                 TimeFormatter.Format(sp.TouchpadTime),
                                 TimeFormatter.Format(sp.PushButton1Time),
                                 TimeFormatter.Format(sp.PushButton2Time),
                                 TimeFormatter.Format(sp.PushButton3Time),
+                                TimeFormatter.Format(sp.ManualTouchTime),
                                 TimeFormatter.Format(sp.CumulativeTime), sp.TimingSource);
                         }
                     }
