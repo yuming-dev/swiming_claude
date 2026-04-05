@@ -161,10 +161,10 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
         <div class="param-row"><label>分段成绩显示时长</label><input id="dlgSplitDisp" value="5"><span class="unit">秒</span></div>
         <div class="param-row"><label>第1名成绩停留时间</label><input id="dlgFirstPlaceHold" value="3"><span class="unit">秒</span></div>
         <div class="param-row" style="margin-top:6px;padding-top:8px;border-top:1px solid #475569;">
-            <label>发令位置</label>
+            <label>终点位置</label>
             <span style="display:flex;gap:12px;">
-                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="startPos" value="left" id="dlgStartLeft" checked> 左端出发</label>
-                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="startPos" value="right" id="dlgStartRight"> 右端出发</label>
+                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="startPos" value="left" id="dlgStartLeft" checked> 左端</label>
+                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="startPos" value="right" id="dlgStartRight"> 右端</label>
             </span>
         </div>
         <div class="param-row" style="margin-top:6px;padding-top:8px;border-top:1px solid #475569;">
@@ -283,6 +283,7 @@ var firstPlaceFinishTime = '';  // 第1名的成绩文本
 var firstPlaceShowStart = 0;   // 开始显示的时间戳
 var firstPlaceDetectedRank = 0; // 已检测到的最高完赛名次
 var startPosition = localStorage.getItem('swimStartPosition') || 'left';
+var finishPosition = localStorage.getItem('swimFinishPosition') || 'left';
 
 window.onbeforeunload = function(e) { e.preventDefault(); e.returnValue = ''; return '确定要关闭比赛控制台？'; };
 
@@ -542,6 +543,7 @@ function render() {
         document.getElementById('dlgFSThresh').value = data.laneCloseSettings.falseStartThreshold;
         document.getElementById('dlgSplitDisp').value = data.laneCloseSettings.splitDisplayTime;
         if (data.laneCloseSettings.startPosition) startPosition = data.laneCloseSettings.startPosition;
+        if (data.laneCloseSettings.finishPosition) finishPosition = data.laneCloseSettings.finishPosition;
     }
 
     // 发令位置指示灯已在 renderHeader() 中处理
@@ -678,8 +680,8 @@ function openSettings() {
     }
     document.getElementById('dlgFirstPlaceHold').value = firstPlaceHoldTime;
     document.getElementById('dlgServerHost').value = localStorage.getItem('swimServerHost') || getServerHost();
-    document.getElementById('dlgStartLeft').checked = (startPosition === 'left');
-    document.getElementById('dlgStartRight').checked = (startPosition === 'right');
+    document.getElementById('dlgStartLeft').checked = (finishPosition === 'left');
+    document.getElementById('dlgStartRight').checked = (finishPosition === 'right');
     document.getElementById('settingsModal').classList.remove('hidden');
 }
 
@@ -703,10 +705,10 @@ function confirmTimerReset() {
 }
 
 function applySettings() {
-    startPosition = document.getElementById('dlgStartRight').checked ? 'right' : 'left';
+    finishPosition = document.getElementById('dlgStartRight').checked ? 'right' : 'left';
     firstPlaceHoldTime = parseFloat(document.getElementById('dlgFirstPlaceHold').value) || 3;
     // 保存本地参数到localStorage
-    localStorage.setItem('swimStartPosition', startPosition);
+    localStorage.setItem('swimFinishPosition', finishPosition);
     localStorage.setItem('swimFirstPlaceHold', firstPlaceHoldTime.toString());
     var settings = {
         laneCloseTime: parseFloat(document.getElementById('dlgCloseTime').value) || 20,
@@ -714,10 +716,10 @@ function applySettings() {
         resultConfirmCloseDelay: parseFloat(document.getElementById('dlgConfDelay').value) || 3,
         falseStartThreshold: parseFloat(document.getElementById('dlgFSThresh').value) || 0.10,
         splitDisplayTime: parseFloat(document.getElementById('dlgSplitDisp').value) || 5,
-        startPosition: startPosition
+        startPosition: finishPosition  // 发送终点位置，服务器根据项目自动计算发令位置
     };
     sendCmd('SET_LANE_CLOSE_SETTINGS', settings);
-    addLog('参数已更新，第1名停留: ' + firstPlaceHoldTime + 's，发令位置: ' + (startPosition === 'left' ? '左端' : '右端'));
+    addLog('参数已更新，第1名停留: ' + firstPlaceHoldTime + 's，终点位置: ' + (finishPosition === 'left' ? '左端' : '右端'));
     closeSettings();
 }
 

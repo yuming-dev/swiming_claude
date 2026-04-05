@@ -481,13 +481,18 @@ namespace SwimmingScoreboard
                         if (data["resultConfirmCloseDelay"] != null) _laneCloseSettings.ResultConfirmCloseDelay = (double)data["resultConfirmCloseDelay"];
                         if (data["falseStartThreshold"] != null) _laneCloseSettings.FalseStartThreshold = (double)data["falseStartThreshold"];
                         if (data["splitDisplayTime"] != null) _laneCloseSettings.SplitDisplayTime = (double)data["splitDisplayTime"];
-                        if (data["startPosition"] != null) _laneCloseSettings.StartPosition = data["startPosition"].ToString();
+                        if (data["startPosition"] != null) {
+                            string pos = data["startPosition"].ToString();
+                            _laneCloseSettings.FinishPosition = pos;  // 参数设置的是终点位置（固定）
+                            _laneCloseSettings.StartPosition = pos;   // 默认发令位置=终点位置（非50米时）
+                            AutoAdjustStartPosition();                // 根据当前项目自动调整
+                        }
                         // 同步全局设置到所有泳道（清除每道独立值，使用全局值）
                         foreach (var st in _laneDeviceStates) st.LaneCloseTime = 0;
-                        AddLog(string.Format("参数更新: 关闭{0}s 出发台{1}s 确认{2}s 抢跳{3}s 分段{4}s 发令:{5}",
+                        AddLog(string.Format("参数更新: 关闭{0}s 出发台{1}s 确认{2}s 抢跳{3}s 分段{4}s 终点:{5}",
                             _laneCloseSettings.LaneCloseTime, _laneCloseSettings.StartBlockCloseDelay,
                             _laneCloseSettings.ResultConfirmCloseDelay, _laneCloseSettings.FalseStartThreshold,
-                            _laneCloseSettings.SplitDisplayTime, _laneCloseSettings.StartPosition == "left" ? "左端" : "右端"));
+                            _laneCloseSettings.SplitDisplayTime, _laneCloseSettings.FinishPosition == "left" ? "左端" : "右端"));
                         AutoSaveData();
                     }
                     break;
@@ -765,7 +770,8 @@ namespace SwimmingScoreboard
                     resultConfirmCloseDelay = _laneCloseSettings.ResultConfirmCloseDelay,
                     falseStartThreshold = _laneCloseSettings.FalseStartThreshold,
                     splitDisplayTime = _laneCloseSettings.SplitDisplayTime,
-                    startPosition = _laneCloseSettings.StartPosition
+                    startPosition = _laneCloseSettings.StartPosition,
+                    finishPosition = _laneCloseSettings.FinishPosition
                 },
                 scoringControlMode = _scoringControlMode,
                 resultConfirmed = _resultConfirmed,
@@ -1696,6 +1702,30 @@ namespace SwimmingScoreboard
             }
         }
 
+        /// <summary>
+        /// 根据比赛项目自动调整发令位置：
+        /// 50米项目（单程）→ 发令在终点对面端
+        /// 其他项目（多程）→ 发令在终点同侧端
+        /// </summary>
+        private void AutoAdjustStartPosition() {
+            string finish = _laneCloseSettings.FinishPosition;
+            if (string.IsNullOrEmpty(finish)) finish = _laneCloseSettings.StartPosition;
+            bool is50m = !string.IsNullOrEmpty(_currentEvent) && _currentEvent.StartsWith("50米");
+            string newStart;
+            if (is50m) {
+                // 50米：出发在终点对面
+                newStart = finish == "left" ? "right" : "left";
+            } else {
+                // 其他项目：出发在终点同侧
+                newStart = finish;
+            }
+            if (_laneCloseSettings.StartPosition != newStart) {
+                _laneCloseSettings.StartPosition = newStart;
+                AddLog(string.Format("发令位置自动切换: {0}（{1}，终点在{2}端）",
+                    newStart == "left" ? "左端" : "右端", is50m ? "50米单程" : "多程", finish == "left" ? "左" : "右"));
+            }
+        }
+
         private void SetCurrentHeat(int heat) {
             _currentHeat = heat;
             CurrentHeatText.Text = string.Format("第{0}组 / 共{1}组", heat, _totalHeats);
@@ -1709,6 +1739,9 @@ namespace SwimmingScoreboard
             _raceTimer.Stop();
             _countdownTimer.Stop();
             if (RunningTimeText != null) RunningTimeText.Text = "0.0";
+
+            // 根据项目自动调整发令位置（50米项目切换到对面端）
+            AutoAdjustStartPosition();
             UpdateRaceStateDisplay();
 
             foreach (var state in _laneDeviceStates) {
@@ -4593,7 +4626,12 @@ namespace SwimmingScoreboard
                 PoolLengthCombo.SelectedIndex = _poolConfig.Length == 25 ? 1 : 0;
                 LaneCountCombo.SelectedIndex = _poolConfig.LaneCount == 8 ? 1 : (_poolConfig.LaneCount == 6 ? 2 : 0);
 
-                if (package.LaneCloseSettings != null) _laneCloseSettings = package.LaneCloseSettings;
+                if (package.LaneCloseSettings != null) {
+                    _laneCloseSettings = package.LaneCloseSettings;
+                    // 兼容旧数据：FinishPosition为空时，用StartPosition作为默认终点位置
+                    if (string.IsNullOrEmpty(_laneCloseSettings.FinishPosition))
+                        _laneCloseSettings.FinishPosition = _laneCloseSettings.StartPosition;
+                }
                 if (package.Events != null && package.Events.Count > 0) _events = package.Events;
 
                 _swimmers.Clear();

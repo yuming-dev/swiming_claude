@@ -40,6 +40,7 @@ namespace SwimmingScoreboard
         private double _falseStartThreshold = 0.10;
         private double _splitDisplayTime = 5.0;
         private string _startPosition = "left";
+        private string _finishPosition = "left";  // 终点（触板端）位置，整场比赛固定不变
 
         public double LaneCloseTime {
             get { return _laneCloseTime; }
@@ -64,6 +65,10 @@ namespace SwimmingScoreboard
         public string StartPosition {
             get { return _startPosition; }
             set { _startPosition = value; OnPropertyChanged("StartPosition"); }
+        }
+        public string FinishPosition {
+            get { return _finishPosition; }
+            set { _finishPosition = value; OnPropertyChanged("FinishPosition"); }
         }
 
         public event PropertyChangedEventHandler PropertyChanged;
