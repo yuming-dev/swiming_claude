@@ -712,8 +712,8 @@ namespace SwimmingScoreboard
                         blind1 = TimeFormatter.Format(sp.PushButton1Time), blind2 = TimeFormatter.Format(sp.PushButton2Time), blind3 = TimeFormatter.Format(sp.PushButton3Time),
                         manual = TimeFormatter.Format(sp.ManualTouchTime), source = sp.TimingSource
                     }).ToList<object>() : new List<object>(),
-                    finalTime = result != null ? TimeFormatter.Format(result.FinalTime) : "",
-                    rank = result != null ? result.Rank : 0,
+                    finalTime = (sw.Status == "DSQ" || sw.Status == "DNS" || sw.Status == "DNF") ? "" : (result != null ? TimeFormatter.Format(result.FinalTime) : ""),
+                    rank = (sw.Status == "DSQ" || sw.Status == "DNS" || sw.Status == "DNF") ? 0 : (result != null ? result.Rank : 0),
                     status = sw.Status ?? "",
                     timingSources = result != null ? new {
                         touchpad = TimeFormatter.Format(result.TouchpadTime),
@@ -4219,13 +4219,14 @@ namespace SwimmingScoreboard
                 if (eventName.Contains("接力") && !string.IsNullOrEmpty(s.Notes) && s.Notes.StartsWith("接力队 棒次:")) {
                     dispName = s.Notes.Substring("接力队 棒次:".Length);
                 }
+                bool isDQ = s.Status == "DSQ" || s.Status == "DNS" || s.Status == "DNF";
                 heatSwimmers.Add(new {
                     lane = lane,
                     name = dispName,
                     country = s.Country ?? "",
                     bibNumber = s.BibNumber ?? "",
-                    finalTime = r != null && r.FinalTime > 0 ? TimeFormatter.Format(r.FinalTime) : "",
-                    rank = r != null ? r.Rank : 0,
+                    finalTime = !isDQ && r != null && r.FinalTime > 0 ? TimeFormatter.Format(r.FinalTime) : "",
+                    rank = isDQ ? 0 : (r != null ? r.Rank : 0),
                     status = s.Status ?? "",
                     resultStatus = r != null ? (r.Status ?? "") : "",
                     reactionTime = r != null && r.StartingBlockTime > 0 ? r.StartingBlockTime.ToString("F2") : ""
