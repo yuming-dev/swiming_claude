@@ -241,6 +241,19 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
         </div>
         <h3 style="margin-top:12px;">计时源对比</h3>
         <div id="timingSourceCompare" style="font-size:12px;color:var(--dim);"></div>
+        <hr style="border-color:#334155;margin:10px 0;">
+        <h3 style="margin:0 0 6px;">显示控制</h3>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;">
+            <button class="action-btn" style="background:#3B82F6;padding:5px;font-size:12px;" onclick="sendDisplay('SHOW_START_LIST')">出发表</button>
+            <button class="action-btn" style="background:#2563EB;padding:5px;font-size:12px;" onclick="sendDisplay('SHOW_LIVE_RACE')">比赛视图</button>
+            <button class="action-btn" style="background:#059669;padding:5px;font-size:12px;" onclick="sendDisplay('SHOW_HEAT_RESULT')">组成绩</button>
+            <button class="action-btn" style="background:#10B981;padding:5px;font-size:12px;" onclick="sendDisplay('SHOW_EVENT_RANKING')">总排名</button>
+            <button class="action-btn" style="background:#D97706;padding:5px;font-size:12px;" onclick="sendDisplay('SHOW_TEAM_STANDINGS')">团体</button>
+            <button class="action-btn" style="background:#F59E0B;padding:5px;font-size:12px;" onclick="sendDisplay('SHOW_AWARDS')">颁奖</button>
+            <button class="action-btn" style="background:#DC2626;padding:5px;font-size:12px;" onclick="sendDisplay('SHOW_RECORDS')">纪录</button>
+            <button class="action-btn" style="background:#8B5CF6;padding:5px;font-size:12px;" onclick="sendDisplay('SHOW_WELCOME')">欢迎</button>
+        </div>
+        <button class="action-btn" style="background:#F59E0B;padding:6px;font-size:13px;width:100%;margin-top:4px;" onclick="publishResult()">成绩发布</button>
     </div>
 </div>
 
@@ -350,6 +363,49 @@ function connect() {
 function sendCmd(cmd, cmdData) {
     if (!ws || ws.readyState !== 1) return;
     ws.send(JSON.stringify({type: 'TIMING_CMD', command: cmd, data: cmdData || null}));
+}
+
+function sendDisplay(mode) {
+    if (!ws || ws.readyState !== 1) return;
+    ws.send(JSON.stringify({type: 'REMOTE_CONTROL', command: mode}));
+}
+
+function publishResult() {
+    if (!data || !data.schedule || data.schedule.length === 0) { alert('暂无赛程数据'); return; }
+    // 收集已完赛的组
+    var items = [];
+    var sched = data.schedule || [];
+    for (var i = 0; i < sched.length; i++) {
+        var s = sched[i];
+        var confirmed = s.heatConfirmed || [];
+        for (var h = 0; h < confirmed.length; h++) {
+            if (confirmed[h]) {
+                var showHeat = (confirmed.length > 1) || (s.stage||'').indexOf('预赛') >= 0 || (s.stage||'').indexOf('半决赛') >= 0;
+                var label = (s.gender||'') + ' ' + (s.eventName||'') + ' ' + (s.stage||'') + (showHeat ? ' 第' + (h+1) + '组' : '');
+                items.push({label: label, gender: s.gender, eventName: s.eventName, stage: s.stage, heat: h+1});
+            }
+        }
+    }
+    if (items.length === 0) { alert('暂无已完赛的比赛'); return; }
+    // 弹出选择框
+    var sel = '<select id="pubSelect" style="width:100%;padding:6px;font-size:14px;">';
+    for (var j = 0; j < items.length; j++) sel += '<option value="' + j + '">' + items[j].label + '</option>';
+    sel += '</select>';
+    var dlg = document.createElement('div');
+    dlg.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:9999;';
+    dlg.innerHTML = '<div style="background:#1E293B;border-radius:8px;padding:20px;min-width:320px;max-width:500px;">' +
+        '<h3 style="margin:0 0 12px;color:white;">选择发布成绩</h3>' + sel +
+        '<div style="margin-top:14px;text-align:right;">' +
+        '<button onclick="this.parentNode.parentNode.parentNode.remove()" style="padding:6px 16px;margin-right:8px;background:#64748B;color:white;border:none;border-radius:4px;cursor:pointer;">取消</button>' +
+        '<button id="pubOkBtn" style="padding:6px 16px;background:#F59E0B;color:white;border:none;border-radius:4px;font-weight:bold;cursor:pointer;">发布</button>' +
+        '</div></div>';
+    document.body.appendChild(dlg);
+    document.getElementById('pubOkBtn').onclick = function() {
+        var idx = parseInt(document.getElementById('pubSelect').value);
+        var it = items[idx];
+        sendCmd('PUBLISH_RESULT', {gender: it.gender, eventName: it.eventName, stage: it.stage, heat: it.heat});
+        dlg.remove();
+    };
 }
 
 function parseServerTime(str) {
