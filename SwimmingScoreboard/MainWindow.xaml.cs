@@ -89,6 +89,8 @@ namespace SwimmingScoreboard
             _initialized = true;
             RefreshBackupList();
             UpdateEditHeatCombo();
+            UpdateResultHeatCombo();
+            RefreshResultGrid();
             AddLog("系统启动完成");
         }
 
