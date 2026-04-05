@@ -4432,6 +4432,73 @@ namespace SwimmingScoreboard
         // ═══════════════════════════════════════════════════════════════
         // 团体计分
         // ═══════════════════════════════════════════════════════════════
+        private void ViewRawData_Click(object sender, RoutedEventArgs e) {
+            string dir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Database", "RawData");
+            if (!Directory.Exists(dir)) {
+                MessageBox.Show("暂无原始数据文件。\n\n原始数据在比赛确认成绩后自动保存到:\n" + dir, "提示");
+                return;
+            }
+            var files = Directory.GetFiles(dir, "*.txt").OrderByDescending(f => File.GetLastWriteTime(f)).ToArray();
+            if (files.Length == 0) {
+                MessageBox.Show("暂无原始数据文件。", "提示");
+                return;
+            }
+
+            var dlg = new Window {
+                Title = "查询比赛原始数据",
+                Width = 900, Height = 650,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                Owner = this,
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F8FAFC"))
+            };
+            var mainGrid = new Grid();
+            mainGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Auto) });
+            mainGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+
+            var topPanel = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(12, 10, 12, 6) };
+            topPanel.Children.Add(new TextBlock {
+                Text = "选择比赛:", VerticalAlignment = VerticalAlignment.Center,
+                FontSize = 14, Margin = new Thickness(0, 0, 8, 0)
+            });
+            var combo = new ComboBox { Width = 500, FontSize = 14 };
+            foreach (string f in files) {
+                string name = Path.GetFileNameWithoutExtension(f);
+                string time = File.GetLastWriteTime(f).ToString("MM-dd HH:mm");
+                combo.Items.Add(new ComboBoxItem { Content = name + "  (" + time + ")", Tag = f });
+            }
+            var textBox = new TextBox {
+                IsReadOnly = true,
+                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
+                FontFamily = new System.Windows.Media.FontFamily("Consolas, Microsoft YaHei"),
+                FontSize = 13, Margin = new Thickness(12, 0, 12, 12),
+                Background = new SolidColorBrush(Colors.White),
+                BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#CBD5E1")),
+                Padding = new Thickness(10),
+                AcceptsReturn = true, TextWrapping = TextWrapping.NoWrap
+            };
+            combo.SelectionChanged += delegate {
+                var sel = combo.SelectedItem as ComboBoxItem;
+                if (sel != null && sel.Tag != null) {
+                    try {
+                        textBox.Text = File.ReadAllText(sel.Tag.ToString(), Encoding.UTF8);
+                        textBox.ScrollToHome();
+                    } catch (Exception ex) {
+                        textBox.Text = "读取失败: " + ex.Message;
+                    }
+                }
+            };
+            topPanel.Children.Add(combo);
+            Grid.SetRow(topPanel, 0);
+            mainGrid.Children.Add(topPanel);
+            Grid.SetRow(textBox, 1);
+            mainGrid.Children.Add(textBox);
+
+            dlg.Content = mainGrid;
+            if (combo.Items.Count > 0) combo.SelectedIndex = 0;
+            dlg.ShowDialog();
+        }
+
         private static readonly double[] IndividualPoints = { 12, 10, 8, 7, 6, 5, 4, 3 };
         private static readonly double[] RelayPointsMultiplied = { 24, 20, 16, 14, 12, 10, 8, 6 };
 

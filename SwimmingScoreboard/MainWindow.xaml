@@ -881,8 +881,10 @@
                         </ComboBox>
                         <Button Content="晋级处理" Click="Promotion_Click" Padding="12,4" Margin="16,0,0,0"
                                 Background="#8B5CF6" Foreground="White" BorderThickness="0"/>
-                        <Button Content="团体计分" Click="CalcTeamScore_Click" Padding="12,4" Margin="8,0,0,0"
+                        <Button Content="团体计���" Click="CalcTeamScore_Click" Padding="12,4" Margin="8,0,0,0"
                                 Background="#22C55E" Foreground="White" BorderThickness="0"/>
+                        <Button Content="查询原始数据" Click="ViewRawData_Click" Padding="12,4" Margin="8,0,0,0"
+                                Background="#64748B" Foreground="White" BorderThickness="0"/>
                     </StackPanel>
                     <DataGrid x:Name="ResultGrid" Grid.Row="1" AutoGenerateColumns="False" CanUserAddRows="False"
                               IsReadOnly="True" AlternatingRowBackground="#F8FAFC">
