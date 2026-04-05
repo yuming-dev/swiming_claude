@@ -2040,14 +2040,15 @@ namespace SwimmingScoreboard
             var sessions = _schedule.GroupBy(s => s.SessionNumber).OrderBy(g => g.Key);
 
             foreach (var session in sessions) {
+                bool sessionAllDone = true;
                 var sessionItem = new TreeViewItem {
-                    Header = session.First().SessionName ?? string.Format("第{0}单元", session.Key),
-                    IsExpanded = true
+                    Header = session.First().SessionName ?? string.Format("第{0}单元", session.Key)
                 };
 
                 foreach (var ev in session) {
                     string header = string.Format("{0} {1} {2}", ev.Gender, ev.EventName, ev.Stage);
                     bool allHeatsConfirmed = IsStageAllConfirmed(ev.Gender, ev.EventName, ev.Stage);
+                    if (!allHeatsConfirmed) sessionAllDone = false;
 
                     var eventItem = new TreeViewItem {
                         Tag = string.Format("event:{0}|{1}|{2}", ev.Gender, ev.EventName, ev.Stage),
@@ -2068,6 +2069,14 @@ namespace SwimmingScoreboard
                     }
                     sessionItem.Items.Add(eventItem);
                 }
+
+                // 单元内所有项目都完赛时收起，否则展开
+                sessionItem.IsExpanded = !sessionAllDone;
+                if (sessionAllDone) {
+                    sessionItem.Header = (session.First().SessionName ?? string.Format("第{0}单元", session.Key)) + " [已完赛]";
+                    sessionItem.Foreground = new SolidColorBrush(Colors.Gray);
+                }
+
                 ScheduleTree.Items.Add(sessionItem);
             }
             RebuildScheduleGroupedView();
