@@ -10,7 +10,7 @@
 body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei', sans-serif; height: 100vh; display: flex; flex-direction: column; overflow: hidden; font-size: 15px; }
 
 /* 区域1: 顶部导航 */
-.nav-bar { display: flex; align-items: center; height: 36px; background: var(--card); padding: 0 12px; border-bottom: 1px solid #334155; gap: 8px; }
+.nav-bar { display: flex; align-items: center; height: 32px; background: var(--card); padding: 0 12px; border-bottom: 1px solid #334155; gap: 8px; }
 .nav-bar .current-info { font-size: 15px; font-weight: bold; flex: 1; }
 .nav-bar button { padding: 4px 12px; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; }
 .nav-btn { background: #475569; color: white; }
@@ -95,18 +95,16 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 .info-area .rank.r3 { color: #cd7f32; }
 
 /* 右侧设置 */
-.right-panel { width: 200px; background: var(--card); padding: 10px; border-left: 1px solid #334155; overflow-y: auto; }
-.right-panel h3 { font-size: 14px; margin-bottom: 6px; color: var(--dim); }
-.setting-row { display: flex; align-items: center; margin-bottom: 4px; font-size: 13px; }
-.setting-row label { flex: 1; color: var(--dim); }
-.setting-row input { width: 50px; background: #334155; border: 1px solid #475569; color: white; padding: 2px 4px; border-radius: 3px; text-align: center; }
-.action-btn { width: 100%; padding: 8px; border: none; border-radius: 4px; font-size: 14px; font-weight: bold; cursor: pointer; margin-top: 6px; }
+.right-panel { width: 180px; background: var(--card); padding: 6px 7px; border-left: 1px solid #334155; overflow: hidden; display: flex; flex-direction: column; }
+.right-panel h3 { font-size: 12px; margin: 0 0 3px; color: var(--dim); }
+.right-panel hr { border-color: #334155; margin: 4px 0; }
+.action-btn { width: 100%; padding: 5px; border: none; border-radius: 4px; font-size: 13px; font-weight: bold; cursor: pointer; margin-top: 3px; }
 .btn-confirm { background: var(--accent); color: white; }
 .btn-all-open { background: var(--green); color: white; }
 .btn-all-close { background: #64748b; color: white; }
 
 /* 底部信息 */
-.bottom-bar { height: 80px; background: var(--card); border-top: 1px solid #334155; display: flex; }
+.bottom-bar { height: 68px; background: var(--card); border-top: 1px solid #334155; display: flex; }
 .bottom-bar .start-list { flex: 1; overflow-y: auto; padding: 6px 12px; font-size: 13px; }
 .bottom-bar .log { flex: 1; overflow-y: auto; padding: 6px 12px; font-size: 13px; color: var(--dim); border-left: 1px solid #334155; }
 .bottom-bar .conn-status { width: 180px; padding: 6px 12px; font-size: 13px; border-left: 1px solid #334155; }
@@ -217,43 +215,50 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
         <div class="running-time-corner" id="runTime">0.0</div>
     </div>
 
-    <!-- 右侧设置 -->
+    <!-- 右侧操作面板 -->
     <div class="right-panel">
-        <button class="action-btn btn-ready" onclick="sendCmd('READY')">就 位</button>
-        <button class="action-btn btn-start" onclick="sendCmd('START_RACE')">发 令</button>
-        <button class="action-btn btn-restart" onclick="confirmTimerReset()">计时复位</button>
-        <hr style="border-color:#334155;margin:10px 0;">
-        <button class="action-btn btn-all-open" onclick="sendCmd('OPEN_ALL_LANES')">全部打开</button>
-        <button class="action-btn btn-all-close" onclick="sendCmd('CLOSE_ALL_LANES')">全部关闭</button>
-        <hr style="border-color:#334155;margin:10px 0;">
-        <button class="action-btn btn-confirm" onclick="confirmResult()">确认本组成绩</button>
-        <hr style="border-color:#334155;margin:10px 0;">
-        <h3 style="margin:8px 0 6px;">泳道操作</h3>
-        <div style="display:flex;gap:4px;margin-bottom:4px;">
-            <input type="number" id="laneInput" min="0" max="9" value="4" style="width:50px;padding:4px;border:1px solid #475569;border-radius:4px;background:#1E293B;color:white;text-align:center;font-size:14px;" placeholder="道">
-            <span style="color:#94A3B8;font-size:12px;line-height:30px;">道次</span>
+        <!-- 比赛控制 -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:3px;">
+            <button class="action-btn btn-ready" style="margin:0;" onclick="sendCmd('READY')">就位</button>
+            <button class="action-btn btn-start" style="margin:0;" onclick="sendCmd('START_RACE')">发令</button>
         </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:4px;">
-            <button class="action-btn" style="background:#64748B;padding:6px;font-size:13px;" onclick="markLane('DNS')">DNS</button>
-            <button class="action-btn" style="background:#78716C;padding:6px;font-size:13px;" onclick="markLane('DNF')">DNF</button>
-            <button class="action-btn" style="background:#9CA3AF;padding:6px;font-size:13px;" onclick="markLane('DSQ')">DSQ</button>
-            <button class="action-btn" style="background:#D97706;padding:6px;font-size:13px;" onclick="manualTimeInput()">手动输入</button>
+        <button class="action-btn btn-restart" style="margin:2px 0 0;" onclick="confirmTimerReset()">计时复位</button>
+        <hr>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:3px;">
+            <button class="action-btn btn-all-open" style="margin:0;padding:4px;font-size:12px;" onclick="sendCmd('OPEN_ALL_LANES')">全部打开</button>
+            <button class="action-btn btn-all-close" style="margin:0;padding:4px;font-size:12px;" onclick="sendCmd('CLOSE_ALL_LANES')">全部关闭</button>
         </div>
-        <h3 style="margin-top:12px;">计时源对比</h3>
-        <div id="timingSourceCompare" style="font-size:12px;color:var(--dim);"></div>
-        <hr style="border-color:#334155;margin:10px 0;">
-        <h3 style="margin:0 0 6px;">显示控制</h3>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;">
-            <button class="action-btn" style="background:#3B82F6;padding:5px;font-size:12px;" onclick="sendDisplay('SHOW_START_LIST')">出发表</button>
-            <button class="action-btn" style="background:#2563EB;padding:5px;font-size:12px;" onclick="sendDisplay('SHOW_LIVE_RACE')">比赛视图</button>
-            <button class="action-btn" style="background:#059669;padding:5px;font-size:12px;" onclick="sendDisplay('SHOW_HEAT_RESULT')">组成绩</button>
-            <button class="action-btn" style="background:#10B981;padding:5px;font-size:12px;" onclick="sendDisplay('SHOW_EVENT_RANKING')">总排名</button>
-            <button class="action-btn" style="background:#D97706;padding:5px;font-size:12px;" onclick="sendDisplay('SHOW_TEAM_STANDINGS')">团体</button>
-            <button class="action-btn" style="background:#F59E0B;padding:5px;font-size:12px;" onclick="sendDisplay('SHOW_AWARDS')">颁奖</button>
-            <button class="action-btn" style="background:#DC2626;padding:5px;font-size:12px;" onclick="sendDisplay('SHOW_RECORDS')">纪录</button>
-            <button class="action-btn" style="background:#8B5CF6;padding:5px;font-size:12px;" onclick="sendDisplay('SHOW_WELCOME')">欢迎</button>
+        <button class="action-btn btn-confirm" style="margin:3px 0 0;" onclick="confirmResult()">确认成绩</button>
+        <hr>
+        <!-- 泳道操作 -->
+        <h3>泳道操作</h3>
+        <div style="display:flex;gap:3px;margin-bottom:3px;align-items:center;">
+            <input type="number" id="laneInput" min="0" max="9" value="4" style="width:42px;padding:3px;border:1px solid #475569;border-radius:4px;background:#1E293B;color:white;text-align:center;font-size:13px;">
+            <span style="color:#94A3B8;font-size:11px;">道</span>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:2px;flex:1;">
+                <button class="action-btn" style="background:#64748B;padding:3px;font-size:11px;margin:0;" onclick="markLane('DNS')">DNS</button>
+                <button class="action-btn" style="background:#78716C;padding:3px;font-size:11px;margin:0;" onclick="markLane('DNF')">DNF</button>
+                <button class="action-btn" style="background:#9CA3AF;padding:3px;font-size:11px;margin:0;" onclick="markLane('DSQ')">DSQ</button>
+                <button class="action-btn" style="background:#D97706;padding:3px;font-size:11px;margin:0;" onclick="manualTimeInput()">手动</button>
+            </div>
         </div>
-        <button class="action-btn" style="background:#F59E0B;padding:6px;font-size:13px;width:100%;margin-top:4px;" onclick="publishResult()">成绩发布</button>
+        <!-- 计时源对比 -->
+        <h3>计时源对比</h3>
+        <div id="timingSourceCompare" style="font-size:11px;color:var(--dim);max-height:80px;overflow-y:auto;"></div>
+        <hr>
+        <!-- 显示控制 -->
+        <h3>显示控制</h3>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:2px;">
+            <button class="action-btn" style="background:#3B82F6;padding:3px;font-size:11px;margin:0;" onclick="sendDisplay('SHOW_START_LIST')">出发表</button>
+            <button class="action-btn" style="background:#2563EB;padding:3px;font-size:11px;margin:0;" onclick="sendDisplay('SHOW_LIVE_RACE')">比赛</button>
+            <button class="action-btn" style="background:#059669;padding:3px;font-size:11px;margin:0;" onclick="sendDisplay('SHOW_HEAT_RESULT')">组成绩</button>
+            <button class="action-btn" style="background:#10B981;padding:3px;font-size:11px;margin:0;" onclick="sendDisplay('SHOW_EVENT_RANKING')">排名</button>
+            <button class="action-btn" style="background:#D97706;padding:3px;font-size:11px;margin:0;" onclick="sendDisplay('SHOW_TEAM_STANDINGS')">团体</button>
+            <button class="action-btn" style="background:#F59E0B;padding:3px;font-size:11px;margin:0;" onclick="sendDisplay('SHOW_AWARDS')">颁奖</button>
+            <button class="action-btn" style="background:#DC2626;padding:3px;font-size:11px;margin:0;" onclick="sendDisplay('SHOW_RECORDS')">纪录</button>
+            <button class="action-btn" style="background:#8B5CF6;padding:3px;font-size:11px;margin:0;" onclick="sendDisplay('SHOW_WELCOME')">欢迎</button>
+        </div>
+        <button class="action-btn" style="background:#F59E0B;padding:4px;font-size:12px;width:100%;margin:3px 0 0;" onclick="publishResult()">成绩发布</button>
     </div>
 </div>
 
