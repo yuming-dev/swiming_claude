@@ -1251,7 +1251,7 @@ namespace SwimmingScoreboard
             h.Append("</table>");
 
             h.AppendFormat("<div class='footer'>保存时间：{0}</div>", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
-            h.Append("<div class='watermark'>本文档由竞赛管理系统自动生成 — 请使用浏览器"打印→另存为PDF"导出只读PDF文件</div>");
+            h.Append("<div class='watermark'>本文档由竞赛管理系统自动生成 - 请使用浏览器 打印-另存为PDF 导出只读PDF文件</div>");
             h.Append("</body></html>");
 
             File.WriteAllText(htmlPath, h.ToString(), Encoding.UTF8);
