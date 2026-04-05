@@ -94,10 +94,10 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 .info-area .rank.r2 { color: #c0c0c0; }
 .info-area .rank.r3 { color: #cd7f32; }
 
-/* 右侧操作面板 — 双列 */
-.right-panel { width: 340px; background: var(--card); padding: 8px; border-left: 1px solid #334155; overflow: hidden; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; align-content: start; }
+/* 右侧操作面板 */
+.right-panel { width: 200px; background: var(--card); padding: 8px; border-left: 1px solid #334155; overflow-y: auto; }
 .right-col { display: flex; flex-direction: column; gap: 4px; }
-.right-col h3 { font-size: 13px; margin: 4px 0 2px; color: var(--dim); border-bottom: 1px solid #334155; padding-bottom: 3px; }
+.right-col h3 { font-size: 13px; margin: 6px 0 2px; color: var(--dim); border-bottom: 1px solid #334155; padding-bottom: 3px; }
 .right-col h3:first-child { margin-top: 0; }
 .action-btn { width: 100%; padding: 7px 4px; border: none; border-radius: 5px; font-size: 14px; font-weight: bold; cursor: pointer; }
 .action-btn:active { opacity: 0.8; }
@@ -217,9 +217,8 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
         <div class="running-time-corner" id="runTime">0.0</div>
     </div>
 
-    <!-- 右侧操作面板（双列） -->
+    <!-- 右侧操作面板 -->
     <div class="right-panel">
-        <!-- 左列：比赛控制 + 泳道操作 + 计时源 -->
         <div class="right-col">
             <h3>比赛控制</h3>
             <button class="action-btn btn-ready" onclick="sendCmd('READY')">就 位</button>
@@ -242,22 +241,19 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
                 <button class="action-btn" style="background:#D97706;" onclick="manualTimeInput()">手动输入</button>
             </div>
             <h3>计时源对比</h3>
-            <div id="timingSourceCompare" style="font-size:12px;color:var(--dim);flex:1;overflow-y:auto;"></div>
-        </div>
-        <!-- 右列：显示控制 -->
-        <div class="right-col">
+            <div id="timingSourceCompare" style="font-size:12px;color:var(--dim);flex:1;overflow-y:auto;min-height:40px;"></div>
             <h3>显示控制</h3>
-            <button class="action-btn" style="background:#3B82F6;" onclick="sendDisplay('SHOW_START_LIST')">出发表</button>
-            <button class="action-btn" style="background:#2563EB;" onclick="sendDisplay('SHOW_LIVE_RACE')">比赛视图</button>
-            <button class="action-btn" style="background:#059669;" onclick="sendDisplay('SHOW_HEAT_RESULT')">组成绩</button>
-            <button class="action-btn" style="background:#10B981;" onclick="sendDisplay('SHOW_EVENT_RANKING')">总排名</button>
-            <button class="action-btn" style="background:#D97706;" onclick="sendDisplay('SHOW_TEAM_STANDINGS')">团体积分</button>
-            <button class="action-btn" style="background:#F59E0B;" onclick="sendDisplay('SHOW_AWARDS')">颁奖</button>
-            <button class="action-btn" style="background:#DC2626;" onclick="sendDisplay('SHOW_RECORDS')">纪录</button>
-            <button class="action-btn" style="background:#8B5CF6;" onclick="sendDisplay('SHOW_WELCOME')">欢迎</button>
-            <div style="margin-top:auto; padding-top:6px; border-top:1px solid #334155;">
-                <button class="action-btn" style="background:#F59E0B;font-size:15px;padding:9px;" onclick="publishResult()">成绩发布</button>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;">
+                <button class="action-btn" style="background:#3B82F6;" onclick="sendDisplay('SHOW_START_LIST')">出发表</button>
+                <button class="action-btn" style="background:#2563EB;" onclick="sendDisplay('SHOW_LIVE_RACE')">比赛视图</button>
+                <button class="action-btn" style="background:#059669;" onclick="sendDisplay('SHOW_HEAT_RESULT')">组成绩</button>
+                <button class="action-btn" style="background:#10B981;" onclick="sendDisplay('SHOW_EVENT_RANKING')">总排名</button>
+                <button class="action-btn" style="background:#D97706;" onclick="sendDisplay('SHOW_TEAM_STANDINGS')">团体积分</button>
+                <button class="action-btn" style="background:#F59E0B;" onclick="sendDisplay('SHOW_AWARDS')">颁奖</button>
+                <button class="action-btn" style="background:#DC2626;" onclick="sendDisplay('SHOW_RECORDS')">纪录</button>
+                <button class="action-btn" style="background:#8B5CF6;" onclick="sendDisplay('SHOW_WELCOME')">欢迎</button>
             </div>
+            <button class="action-btn" style="background:#F59E0B;font-size:15px;padding:9px;margin-top:4px;" onclick="publishResult()">成绩发布</button>
         </div>
     </div>
 </div>
