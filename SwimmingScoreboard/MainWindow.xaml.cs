@@ -1248,9 +1248,17 @@ namespace SwimmingScoreboard
 
         private void UpdateHeatRanking() {
             var swimmers = GetCurrentHeatSwimmers();
+
+            // 先清零所有运动员的排名（防止DSQ等运动员保留旧排名）
+            foreach (var sw in swimmers) {
+                sw.CurrentRank = 0;
+                var r = sw.Results.FirstOrDefault(lr => lr.Stage == _currentStage && lr.Heat == _currentHeat);
+                if (r != null) r.Rank = 0;
+            }
+
             var withResults = swimmers.Where(s => {
                 var r = s.Results.FirstOrDefault(lr => lr.Stage == _currentStage && lr.Heat == _currentHeat);
-                return r != null && r.FinalTime > 0 && s.Status != "DSQ";
+                return r != null && r.FinalTime > 0 && s.Status != "DSQ" && s.Status != "DNS" && s.Status != "DNF";
             }).OrderBy(s => {
                 var r = s.Results.FirstOrDefault(lr => lr.Stage == _currentStage && lr.Heat == _currentHeat);
                 return r.FinalTime;
