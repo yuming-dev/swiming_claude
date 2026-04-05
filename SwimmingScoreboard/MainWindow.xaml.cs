@@ -4109,31 +4109,35 @@ namespace SwimmingScoreboard
                     var sa = s.GetAssignmentForStage(stage);
                     lane = sa != null ? sa.Lane : s.Lane;
                 }
-                double sortTime = r != null && r.FinalTime > 0 ? r.FinalTime : double.MaxValue;
+                bool isDQ = s.Status == "DSQ" || s.Status == "DNS" || s.Status == "DNF" || s.Status == "DQ";
+                double sortTime = (!isDQ && r != null && r.FinalTime > 0) ? r.FinalTime : double.MaxValue;
                 // 接力项目：姓名显示四位队员姓名
                 string displayName = s.Name ?? "";
                 if (isRelayEvent && !string.IsNullOrEmpty(s.Notes) && s.Notes.StartsWith("接力队 棒次:")) {
                     displayName = s.Notes.Substring("接力队 棒次:".Length);
                 }
+                string remark = "";
+                if (r != null && !string.IsNullOrEmpty(r.Status)) remark = r.Status;
+                else if (isDQ) remark = s.Status;
                 return new {
                     SortTime = sortTime,
                     Lane = lane,
                     BibNumber = s.BibNumber ?? "",
                     Name = displayName,
                     Country = s.Country ?? "",
-                    FinalTime = r != null ? TimeFormatter.Format(r.FinalTime) : "",
+                    FinalTime = isDQ ? "" : (r != null && r.FinalTime > 0 ? TimeFormatter.Format(r.FinalTime) : ""),
                     TimingSource = r != null ? (r.TimingSource ?? "") : "",
                     ReactionTime = r != null && r.StartingBlockTime > 0 ? r.StartingBlockTime.ToString("F2") : "",
-                    Status = s.Status ?? "",
+                    Status = !string.IsNullOrEmpty(remark) ? remark : (s.Status ?? ""),
                     RecordNote = ""
                 };
             }).OrderBy(x => x.SortTime).ToList();
 
-            // 重新计算排名
+            // 重新计算排名（DSQ/DNS/DNF无名次）
             var rankedData = new List<object>();
             int rankNum = 1;
             foreach (var item in displayData) {
-                string rankStr = item.SortTime < double.MaxValue ? rankNum.ToString() : "";
+                string rankStr = item.SortTime < double.MaxValue ? rankNum.ToString() : "-";
                 rankedData.Add(new {
                     Rank = rankStr,
                     item.Lane, item.BibNumber,
@@ -5303,7 +5307,8 @@ namespace SwimmingScoreboard
             // 统计各项目决赛前3名的奖牌
             var eventGroups = _swimmers.GroupBy(s => new { s.Gender, s.EventName });
             foreach (var ev in eventGroups) {
-                var finalists = ev.Where(s => s.GetResultForStage("决赛") != null && s.GetResultForStage("决赛").FinalTime > 0)
+                var finalists = ev.Where(s => s.GetResultForStage("决赛") != null && s.GetResultForStage("决赛").FinalTime > 0
+                    && s.Status != "DSQ" && s.Status != "DNS" && s.Status != "DNF")
                     .OrderBy(s => s.GetResultForStage("决赛").FinalTime).Take(3).ToList();
                 for (int i = 0; i < finalists.Count; i++) {
                     string country = finalists[i].Country ?? "未知";
