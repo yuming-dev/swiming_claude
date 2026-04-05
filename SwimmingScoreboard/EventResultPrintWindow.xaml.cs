@@ -168,7 +168,7 @@ namespace SwimmingScoreboard
                     BibNumber = s.BibNumber ?? "",
                     Name = epName,
                     Country = s.Country ?? "",
-                    FinalTime = TimeFormatter.Format(r.FinalTime),
+                    FinalTime = string.IsNullOrEmpty(remark) && r.FinalTime > 0 ? TimeFormatter.Format(r.FinalTime) : "",
                     ReactionTime = r.StartingBlockTime > 0 ? r.StartingBlockTime.ToString("F2") : "",
                     Remark = remark
                 };

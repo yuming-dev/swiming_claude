@@ -431,15 +431,15 @@ function renderRace() {
         var rankText = '';
         var rankClass = '';
 
-        if (sw.isFinished && sw.finalTime) {
+        if (sw.status === 'DNS' || sw.status === 'DNF' || sw.status === 'DSQ') {
+            // DNS/DNF/DSQ 不显示成绩
+        } else if (sw.isFinished && sw.finalTime) {
             // 最终成绩：永久显示
             resultText = sw.finalTime;
             if (sw.rank === 1) { rankClass = 'gold'; rankText = sw.rank; }
             else if (sw.rank === 2) { rankClass = 'silver'; rankText = sw.rank; }
             else if (sw.rank === 3) { rankClass = 'bronze'; rankText = sw.rank; }
             else if (sw.rank > 0) { rankText = sw.rank; }
-        } else if (sw.status) {
-            // DNS/DNF/DSQ 不显示成绩
         } else {
             // 中间数据：检查是否在显示窗口内
             var elapsed = now - ls.showTime;
@@ -458,12 +458,13 @@ function renderRace() {
             // 超过显示时间 → 自动消隐（resultText保持空）
         }
 
-        // 备注栏
+        // 备注栏（全部在成绩确认后才显示）
         var remarkText = '';
-        if (sw.status === 'DSQ') remarkText = 'DSQ';
-        else if (sw.status === 'DNS') remarkText = 'DNS';
-        else if (sw.status === 'DNF') remarkText = 'DNF';
-        else if (sw.isFalseStart) remarkText = '抢跳';
+        if (data.resultConfirmed) {
+            if (sw.isFalseStart || sw.status === 'DSQ') remarkText = 'DSQ';
+            else if (sw.status === 'DNS') remarkText = 'DNS';
+            else if (sw.status === 'DNF') remarkText = 'DNF';
+        }
 
         var relay = isRelayEvent();
         var col1, col2;
@@ -546,11 +547,11 @@ function renderHeatResult() {
         else if (s.rank === 3) { rankClass = 'bronze'; rankText = '3'; }
         else if (s.rank > 0) { rankText = s.rank; }
 
-        var resultText = s.finalTime || '';
         var remarkText = '';
-        if (s.status === 'DSQ') remarkText = 'DSQ';
+        if (s.isFalseStart || s.status === 'DSQ') remarkText = 'DSQ';
         else if (s.status === 'DNS') remarkText = 'DNS';
         else if (s.status === 'DNF') remarkText = 'DNF';
+        var resultText = remarkText ? '' : (s.finalTime || '');
 
         var c1 = relay ? (s.country||'') : (s.name||'');
         var c2 = relay ? (s.name||'') : (s.country||'');
@@ -620,9 +621,10 @@ function renderPublishedResult(pubData) {
         else if (s.rank > 0) { rankText = s.rank; }
 
         var remarkText = '';
-        if (s.status === 'DSQ') remarkText = 'DSQ';
+        if (s.status === 'DSQ' || s.resultStatus === 'DSQ') remarkText = 'DSQ';
         else if (s.status === 'DNS') remarkText = 'DNS';
         else if (s.status === 'DNF') remarkText = 'DNF';
+        var pubResultText = remarkText ? '' : (s.finalTime || '');
 
         var pc1 = pubRelay ? (s.country||'') : (s.name||'');
         var pc2 = pubRelay ? (s.name||'') : (s.country||'');
@@ -631,7 +633,7 @@ function renderPublishedResult(pubData) {
             '<div class="swimmer-name" style="font-size:' + fontSize + 'vh;">' + pc1 + '</div>' +
             '<div class="swimmer-team" style="font-size:' + fontSize + 'vh;">' + pc2 + '</div>' +
             '<div class="lane-num" style="font-size:' + laneNumSize + 'vh;">' + s.lane + '</div>' +
-            '<div class="result-time" style="font-size:' + fontSize + 'vh;">' + (s.finalTime||'') + '</div>' +
+            '<div class="result-time" style="font-size:' + fontSize + 'vh;">' + pubResultText + '</div>' +
             '<div class="remark" style="font-size:' + fontSize + 'vh;">' + remarkText + '</div>';
         container.appendChild(row);
     }
@@ -649,7 +651,9 @@ function renderEventRanking() {
     for (var i = 0; i < er.length; i++) {
         var erc1 = erRelay ? (er[i].country||'') : (er[i].name||'');
         var erc2 = erRelay ? (er[i].name||'') : (er[i].country||'');
-        html += '<tr><td>' + er[i].rank + '</td><td>' + (er[i].bibNumber||'') + '</td><td>' + erc1 + '</td><td>' + erc2 + '</td><td>' + (er[i].entryTime||'') + '</td><td>' + (er[i].finalTime||'') + '</td></tr>';
+        var erkText = er[i].rank > 0 ? er[i].rank : '-';
+        var erStatus = er[i].resultStatus || er[i].status || '';
+        html += '<tr><td>' + erkText + '</td><td>' + (er[i].bibNumber||'') + '</td><td>' + erc1 + '</td><td>' + erc2 + '</td><td>' + (er[i].entryTime||'') + '</td><td>' + (er[i].finalTime || erStatus || '') + '</td></tr>';
     }
     html += '</tbody></table>';
     lv.innerHTML = html;

@@ -93,11 +93,12 @@ function render() {
     html += '<table><tr><th>名次</th><th>' + h1 + '</th><th>' + h2 + '</th><th>成绩</th><th>备注</th></tr>';
     var er = data.eventRanking || [];
     for (var i = 0; i < er.length; i++) {
-        var rc = er[i].rank <= 3 ? ' class="rank-' + er[i].rank + '"' : '';
+        var rc = er[i].rank >= 1 && er[i].rank <= 3 ? ' class="rank-' + er[i].rank + '"' : '';
         var c1 = lbRelay ? (er[i].country||'') : (er[i].name||'');
         var c2 = lbRelay ? (er[i].name||'') : (er[i].country||'');
-        var remark = er[i].status || '';
-        html += '<tr' + rc + '><td>' + er[i].rank + '</td><td>' + c1 + '</td><td>' + c2 + '</td><td>' + (er[i].finalTime||'') + '</td><td style="color:#ef4444;font-weight:bold;">' + remark + '</td></tr>';
+        var remark = er[i].resultStatus || er[i].status || '';
+        var rankText = er[i].rank > 0 ? er[i].rank : '-';
+        html += '<tr' + rc + '><td>' + rankText + '</td><td>' + c1 + '</td><td>' + c2 + '</td><td>' + (er[i].finalTime||'') + '</td><td style="color:#ef4444;font-weight:bold;">' + remark + '</td></tr>';
     }
     html += '</table>';
     document.getElementById('rankingView').innerHTML = html;
