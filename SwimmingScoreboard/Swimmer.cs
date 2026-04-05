@@ -913,16 +913,17 @@ namespace SwimmingScoreboard
         public void ResetForNewRace() { ResetForNewRace("left"); }
 
         public void ResetForNewRace(string startPosition) {
+            bool startLeft = startPosition != "right";
             _leftTouchpadStatus = DeviceStatus.Closed;
             _leftBlindWatch1Status = DeviceStatus.Closed;
             _leftBlindWatch2Status = DeviceStatus.Closed;
             _leftBlindWatch3Status = DeviceStatus.Closed;
-            _leftStartBlockStatus = DeviceStatus.Open;
+            _leftStartBlockStatus = startLeft ? DeviceStatus.Open : DeviceStatus.Closed;
             _rightTouchpadStatus = DeviceStatus.Closed;
             _rightBlindWatch1Status = DeviceStatus.Closed;
             _rightBlindWatch2Status = DeviceStatus.Closed;
             _rightBlindWatch3Status = DeviceStatus.Closed;
-            _rightStartBlockStatus = DeviceStatus.Closed;
+            _rightStartBlockStatus = startLeft ? DeviceStatus.Closed : DeviceStatus.Open;
             _laneCloseCountdown = 0;
             _direction = startPosition == "right" ? "←" : "→";
             _currentLap = 0;

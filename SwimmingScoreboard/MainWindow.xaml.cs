@@ -1545,6 +1545,9 @@ namespace SwimmingScoreboard
             if (RunningTimeText != null) RunningTimeText.Text = "0.0";
             UpdateRaceStateDisplay();
 
+            // 确保发令位置根据当前项目正确设置（50米→对面端）
+            AutoAdjustStartPosition();
+
             foreach (var state in _laneDeviceStates) {
                 state.ResetForNewRace(_laneCloseSettings.StartPosition);
             }
