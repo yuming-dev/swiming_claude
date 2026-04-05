@@ -1136,10 +1136,125 @@ namespace SwimmingScoreboard
 
                 sb.AppendFormat("\r\n保存时间: {0}\r\n", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff"));
                 File.WriteAllText(path, sb.ToString(), Encoding.UTF8);
-                AddLog(string.Format("原始计时数据已保存: {0}", safeName + ".txt"));
+
+                // 同时生成HTML版本（可用浏览器打印为PDF，不可编辑）
+                string htmlPath = Path.Combine(dir, safeName + ".html");
+                SaveRawTimingHtml(htmlPath, safeName);
+
+                AddLog(string.Format("原始计时数据已保存: {0}（txt + html）", safeName));
             } catch (Exception ex) {
                 AddLog("保存原始计时数据失败: " + ex.Message);
             }
+        }
+
+        private void SaveRawTimingHtml(string htmlPath, string title) {
+            var h = new StringBuilder();
+            h.Append("<!DOCTYPE html><html><head><meta charset='UTF-8'>");
+            h.AppendFormat("<title>{0} - 原始计时数据</title>", title);
+            h.Append("<style>");
+            h.Append("@page { size: A4; margin: 15mm; }");
+            h.Append("body { font-family: 'Microsoft YaHei', sans-serif; font-size: 12px; color: #1e293b; margin: 0; padding: 20px; -webkit-user-select: none; user-select: none; }");
+            h.Append("h1 { font-size: 18px; text-align: center; margin-bottom: 4px; }");
+            h.Append("h2 { font-size: 14px; text-align: center; color: #475569; margin-bottom: 16px; }");
+            h.Append(".info { margin-bottom: 12px; }");
+            h.Append(".info td { padding: 2px 12px 2px 0; font-size: 12px; }");
+            h.Append(".info .label { color: #64748b; }");
+            h.Append(".section { font-size: 13px; font-weight: bold; color: #3b82f6; margin: 14px 0 6px; border-bottom: 1px solid #e2e8f0; padding-bottom: 2px; }");
+            h.Append("table.data { width: 100%; border-collapse: collapse; font-size: 11px; margin-bottom: 10px; }");
+            h.Append("table.data th { background: #f1f5f9; border: 1px solid #cbd5e1; padding: 3px 6px; text-align: center; font-size: 11px; }");
+            h.Append("table.data td { border: 1px solid #e2e8f0; padding: 2px 6px; }");
+            h.Append("table.data tr:nth-child(even) { background: #f8fafc; }");
+            h.Append(".mono { font-family: Consolas, 'Courier New', monospace; }");
+            h.Append(".raw-data { font-family: Consolas, 'Courier New', monospace; font-size: 11px; white-space: pre; background: #f8fafc; border: 1px solid #e2e8f0; padding: 8px; overflow-x: auto; }");
+            h.Append(".footer { text-align: right; color: #94a3b8; font-size: 10px; margin-top: 12px; }");
+            h.Append(".watermark { text-align: center; color: #cbd5e1; font-size: 10px; margin-top: 6px; }");
+            h.Append("@media print { .no-print { display: none; } }");
+            h.Append("</style></head><body>");
+
+            // 标题
+            h.AppendFormat("<h1>{0}</h1>", _competitionName);
+            h.AppendFormat("<h2>{0} {1}　{2}　第{3}组　—　原始计时数据</h2>",
+                _currentGender, _currentEvent, _currentStage, _currentHeat);
+
+            // 赛事信息
+            h.Append("<table class='info'>");
+            h.AppendFormat("<tr><td class='label'>比赛时间:</td><td>{0}</td><td class='label'>终点位置:</td><td>{1}端</td></tr>",
+                _raceStartTime > DateTime.MinValue ? _raceStartTime.ToString("yyyy-MM-dd HH:mm:ss") : "未开始",
+                _laneCloseSettings.FinishPosition == "left" ? "左" : "右");
+            h.AppendFormat("<tr><td class='label'>发令位置:</td><td>{0}端</td><td class='label'>泳道数:</td><td>{1}道</td></tr>",
+                _laneCloseSettings.StartPosition == "left" ? "左" : "右", _poolConfig.LaneCount);
+            h.Append("</table>");
+
+            // 出场名单
+            h.Append("<div class='section'>出场名单</div>");
+            h.Append("<table class='data'><tr><th>道次</th><th>姓名</th><th>代表队</th><th>报名成绩</th></tr>");
+            foreach (var s in GetCurrentHeatSwimmers()) {
+                var sa = s.GetAssignmentForStage(_currentStage);
+                int sLane = sa != null ? sa.Lane : s.Lane;
+                h.AppendFormat("<tr><td style='text-align:center;'>{0}</td><td><b>{1}</b></td><td>{2}</td><td class='mono' style='text-align:center;'>{3}</td></tr>",
+                    sLane, s.Name, s.Country, s.EntryTime);
+            }
+            h.Append("</table>");
+
+            // 原始数据流
+            h.Append("<div class='section'>原始计时数据</div>");
+            h.Append("<table class='data'><tr><th>时刻</th><th>泳道</th><th>类型</th><th>时间</th><th>运动员</th></tr>");
+            string[] rawLines = _rawTimingLog.ToString().Split(new[] { "\r\n" }, StringSplitOptions.RemoveEmptyEntries);
+            foreach (string line in rawLines) {
+                string[] cols = line.Split('\t');
+                if (cols.Length >= 4) {
+                    h.AppendFormat("<tr><td class='mono'>{0}</td><td style='text-align:center;'>{1}</td><td>{2}</td><td class='mono' style='text-align:center;'>{3}</td><td>{4}</td></tr>",
+                        cols[0], cols[1], cols[2], cols[3], cols.Length > 4 ? cols[4] : "");
+                }
+            }
+            h.Append("</table>");
+
+            // 最终成绩
+            h.Append("<div class='section'>最终成绩</div>");
+            h.Append("<table class='data'><tr><th>名次</th><th>道</th><th>姓名</th><th>代表队</th><th>成绩</th><th>计时源</th><th>反应时间</th><th>触板</th><th>盲表1</th><th>盲表2</th><th>盲表3</th><th>状态</th></tr>");
+            foreach (var s in GetCurrentHeatSwimmers().OrderBy(s2 => s2.CurrentRank > 0 ? s2.CurrentRank : int.MaxValue)) {
+                var r = s.Results.FirstOrDefault(lr => lr.Stage == _currentStage && lr.Heat == _currentHeat);
+                var sa = s.GetAssignmentForStage(_currentStage);
+                int sLane = sa != null ? sa.Lane : s.Lane;
+                string status = s.Status ?? "";
+                bool isDQ = status == "DSQ" || status == "DNS" || status == "DNF";
+                string finalTime = !isDQ && r != null && r.FinalTime > 0 ? TimeFormatter.Format(r.FinalTime) : "";
+                h.AppendFormat("<tr><td style='text-align:center;font-weight:bold;'>{0}</td><td style='text-align:center;'>{1}</td><td><b>{2}</b></td><td>{3}</td>" +
+                    "<td class='mono' style='text-align:center;font-weight:bold;'>{4}</td><td style='text-align:center;'>{5}</td><td class='mono' style='text-align:center;'>{6}</td>" +
+                    "<td class='mono' style='text-align:center;'>{7}</td><td class='mono' style='text-align:center;'>{8}</td><td class='mono' style='text-align:center;'>{9}</td><td class='mono' style='text-align:center;'>{10}</td>" +
+                    "<td style='text-align:center;color:#dc2626;font-weight:bold;'>{11}</td></tr>",
+                    s.CurrentRank > 0 ? s.CurrentRank.ToString() : (isDQ ? "-" : ""),
+                    sLane, s.Name, s.Country, isDQ ? status : finalTime,
+                    r != null ? (r.TimingSource ?? "") : "",
+                    r != null && r.StartingBlockTime > 0 ? r.StartingBlockTime.ToString("F3") : "",
+                    r != null ? TimeFormatter.Format(r.TouchpadTime) : "",
+                    r != null ? TimeFormatter.Format(r.PushButton1Time) : "",
+                    r != null ? TimeFormatter.Format(r.PushButton2Time) : "",
+                    r != null ? TimeFormatter.Format(r.PushButton3Time) : "",
+                    isDQ ? status : "");
+
+                // 分段明细
+                if (r != null && r.Splits.Count > 1) {
+                    h.AppendFormat("<tr><td colspan='12' style='padding-left:30px;font-size:10px;color:#64748b;'>");
+                    foreach (var sp in r.Splits) {
+                        h.AppendFormat("分段{0}({1}m): 触板:<b>{2}</b> 盲1:{3} 盲2:{4} 盲3:{5} 累计:{6}　",
+                            sp.Lap, sp.Distance,
+                            TimeFormatter.Format(sp.TouchpadTime),
+                            TimeFormatter.Format(sp.PushButton1Time),
+                            TimeFormatter.Format(sp.PushButton2Time),
+                            TimeFormatter.Format(sp.PushButton3Time),
+                            TimeFormatter.Format(sp.CumulativeTime));
+                    }
+                    h.Append("</td></tr>");
+                }
+            }
+            h.Append("</table>");
+
+            h.AppendFormat("<div class='footer'>保存时间：{0}</div>", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
+            h.Append("<div class='watermark'>本文档由竞赛管理系统自动生成 — 请使用浏览器"打印→另存为PDF"导出只读PDF文件</div>");
+            h.Append("</body></html>");
+
+            File.WriteAllText(htmlPath, h.ToString(), Encoding.UTF8);
         }
 
         private void ProcessTouchpadHit(int lane, double time, LaneDeviceState laneState) {
@@ -4498,7 +4613,26 @@ namespace SwimmingScoreboard
                     }
                 }
             };
+            var pdfBtn = new Button {
+                Content = "导出PDF", Padding = new Thickness(14, 5, 14, 5), FontSize = 13,
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F59E0B")),
+                Foreground = new SolidColorBrush(Colors.White), FontWeight = FontWeights.Bold,
+                BorderThickness = new Thickness(0), Margin = new Thickness(12, 0, 0, 0),
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            pdfBtn.Click += delegate {
+                var sel = combo.SelectedItem as ComboBoxItem;
+                if (sel == null || sel.Tag == null) return;
+                string txtFile = sel.Tag.ToString();
+                string htmlFile = Path.ChangeExtension(txtFile, ".html");
+                if (File.Exists(htmlFile)) {
+                    try { Process.Start(htmlFile); } catch (Exception ex2) { MessageBox.Show("打开失败: " + ex2.Message); }
+                } else {
+                    MessageBox.Show("对应的HTML文件不存在。\n\n该文件可能是旧版本保存的，请重新确认成绩以生成HTML版本。", "提示");
+                }
+            };
             topPanel.Children.Add(combo);
+            topPanel.Children.Add(pdfBtn);
             Grid.SetRow(topPanel, 0);
             mainGrid.Children.Add(topPanel);
             Grid.SetRow(textBox, 1);
