@@ -272,6 +272,7 @@ namespace SwimmingScoreboard
             _swimmers.Add(swimmer);
             AddLog(string.Format("远程注册运动员: {0}({1}) {2}", swimmer.Name, bibNumber, swimmer.EventName));
             AutoSaveData();
+            RefreshOverviewStats();
             Broadcast();
         }
 
@@ -332,6 +333,7 @@ namespace SwimmingScoreboard
 
             AddLog(string.Format("批量注册: {0}({1}) {2}个项目", name, bibNumber, added));
             AutoSaveData();
+            RefreshOverviewStats();
             Broadcast();
             SendRegisterResult(socket, true, "", bibNumber);
         }
@@ -2083,6 +2085,7 @@ namespace SwimmingScoreboard
                 Gender = "男"
             });
             AutoSaveData();
+            RefreshOverviewStats();
         }
 
         private void DeleteSwimmer_Click(object sender, RoutedEventArgs e) {
@@ -2092,6 +2095,7 @@ namespace SwimmingScoreboard
                     "确认删除", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes) {
                     _swimmers.Remove(selected);
                     AutoSaveData();
+                    RefreshOverviewStats();
                     Broadcast();
                     AddLog(string.Format("已删除: {0}({1}) {2}", selected.Name, selected.BibNumber, selected.EventName));
                 }
@@ -2251,6 +2255,7 @@ namespace SwimmingScoreboard
                     }
                     AddLog(string.Format("CSV导入完成: {0}名运动员, {1}名重复跳过", imported, skipped));
                     AutoSaveData();
+                    RefreshOverviewStats();
                     Broadcast();
                 } catch (Exception ex) {
                     AddLog("CSV导入失败: " + ex.Message);
@@ -4379,6 +4384,7 @@ namespace SwimmingScoreboard
             UpdateRaceStateDisplay();
             AutoSaveData();
             RefreshBackupList();
+            RefreshOverviewStats();
             Broadcast();
             AddLog("赛事信息已保存: " + _competitionName);
         }
@@ -4400,6 +4406,7 @@ namespace SwimmingScoreboard
                     return;
             }
             ClearAllDataAndUI();
+            RefreshOverviewStats();
             Broadcast();
             AddLog("已新建赛事，所有数据已清除");
         }
@@ -4634,11 +4641,202 @@ namespace SwimmingScoreboard
                 BuildScheduleTree();
                 RebuildRelayGroupedView();
                 UpdateRaceStateDisplay();
+                RefreshOverviewStats();
 
                 AddLog("已加载赛事: " + _competitionName);
             } catch (Exception ex) {
                 AddLog("加载赛事失败: " + ex.Message);
             }
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        // 赛事概览统计
+        // ═══════════════════════════════════════════════════════════════
+        private void RefreshOverviewStats() {
+            if (OverviewSummaryPanel == null || OverviewStatsPanel == null) return;
+
+            // 统计各项目、各性别的报名人数（排除接力队员子条目）
+            var athletes = _swimmers.Where(s => s.Notes == null || !s.Notes.StartsWith("接力队员")).ToList();
+
+            // 按项目+性别统计
+            var eventStats = new Dictionary<string, int[]>(); // eventName -> [男, 女, 混合]
+            var teamSet = new HashSet<string>();
+            foreach (var s in athletes) {
+                string ev = s.EventName ?? "";
+                if (string.IsNullOrEmpty(ev)) continue;
+                if (!eventStats.ContainsKey(ev)) eventStats[ev] = new int[3];
+                if (s.Gender == "男") eventStats[ev][0]++;
+                else if (s.Gender == "女") eventStats[ev][1]++;
+                else eventStats[ev][2]++;
+                if (!string.IsNullOrEmpty(s.Country)) teamSet.Add(s.Country);
+            }
+
+            int totalMale = athletes.Count(s => s.Gender == "男");
+            int totalFemale = athletes.Count(s => s.Gender == "女");
+            int totalMixed = athletes.Count(s => s.Gender != "男" && s.Gender != "女");
+            int totalAthletes = athletes.Count;
+            int totalEvents = eventStats.Count;
+            int totalTeams = teamSet.Count;
+
+            // 汇总条
+            OverviewSummaryPanel.Children.Clear();
+            var summaryItems = new[] {
+                new { Label = "代表队", Value = totalTeams.ToString(), Color = "#8B5CF6" },
+                new { Label = "总人次", Value = totalAthletes.ToString(), Color = "#3B82F6" },
+                new { Label = "男", Value = totalMale.ToString(), Color = "#2563EB" },
+                new { Label = "女", Value = totalFemale.ToString(), Color = "#EC4899" },
+                new { Label = "项目数", Value = totalEvents.ToString(), Color = "#F59E0B" }
+            };
+            if (totalMixed > 0) summaryItems = new[] {
+                new { Label = "代表队", Value = totalTeams.ToString(), Color = "#8B5CF6" },
+                new { Label = "总人次", Value = totalAthletes.ToString(), Color = "#3B82F6" },
+                new { Label = "男", Value = totalMale.ToString(), Color = "#2563EB" },
+                new { Label = "女", Value = totalFemale.ToString(), Color = "#EC4899" },
+                new { Label = "混合", Value = totalMixed.ToString(), Color = "#10B981" },
+                new { Label = "项目数", Value = totalEvents.ToString(), Color = "#F59E0B" }
+            };
+
+            foreach (var item in summaryItems) {
+                var sp = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 24, 0) };
+                sp.Children.Add(new TextBlock {
+                    Text = item.Label + "  ",
+                    Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")),
+                    VerticalAlignment = VerticalAlignment.Center, FontSize = 13
+                });
+                sp.Children.Add(new TextBlock {
+                    Text = item.Value,
+                    Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString(item.Color)),
+                    FontWeight = FontWeights.Bold, FontSize = 20, VerticalAlignment = VerticalAlignment.Center
+                });
+                OverviewSummaryPanel.Children.Add(sp);
+            }
+
+            // 项目明细表
+            OverviewStatsPanel.Children.Clear();
+            if (eventStats.Count == 0) {
+                OverviewStatsPanel.Children.Add(new TextBlock {
+                    Text = "暂无项目报名数据", Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")),
+                    HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 10, 0, 0)
+                });
+                return;
+            }
+
+            // 按_events中的顺序排列，分为个人项目和接力项目
+            var personalEvents = new List<string>();
+            var relayEvents = new List<string>();
+            foreach (string ev in _events) {
+                if (!eventStats.ContainsKey(ev)) continue;
+                if (ev.Contains("接力")) relayEvents.Add(ev);
+                else personalEvents.Add(ev);
+            }
+            // 补充不在_events中的项目
+            foreach (var ev in eventStats.Keys) {
+                if (!personalEvents.Contains(ev) && !relayEvents.Contains(ev)) {
+                    if (ev.Contains("接力")) relayEvents.Add(ev);
+                    else personalEvents.Add(ev);
+                }
+            }
+
+            // 创建表格
+            Action<string, List<string>> buildTable = (title, evList) => {
+                if (evList.Count == 0) return;
+                var titleBlock = new TextBlock {
+                    Text = title, FontSize = 13, FontWeight = FontWeights.SemiBold,
+                    Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569")),
+                    Margin = new Thickness(0, 8, 0, 6)
+                };
+                OverviewStatsPanel.Children.Add(titleBlock);
+
+                var grid = new Grid();
+                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(30) });    // 序号
+                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) }); // 项目名
+                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(70) });    // 男
+                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(70) });    // 女
+                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(70) });    // 合计
+
+                // 表头
+                grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(28) });
+                var headerBg = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#E2E8F0"));
+                string[] headers = { "#", "项目名称", "男", "女", "合计" };
+                for (int c = 0; c < headers.Length; c++) {
+                    var border = new Border { Background = headerBg, Padding = new Thickness(6, 0, 6, 0) };
+                    var tb = new TextBlock {
+                        Text = headers[c], FontWeight = FontWeights.SemiBold, FontSize = 12,
+                        Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569")),
+                        VerticalAlignment = VerticalAlignment.Center,
+                        TextAlignment = c >= 2 ? TextAlignment.Center : TextAlignment.Left
+                    };
+                    border.Child = tb;
+                    Grid.SetRow(border, 0);
+                    Grid.SetColumn(border, c);
+                    grid.Children.Add(border);
+                }
+
+                int sumM = 0, sumF = 0, sumT = 0;
+                for (int i = 0; i < evList.Count; i++) {
+                    string ev = evList[i];
+                    int[] counts = eventStats[ev];
+                    int m = counts[0], f = counts[1], t = m + f + counts[2];
+                    sumM += m; sumF += f; sumT += t;
+
+                    grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(26) });
+                    int row = i + 1;
+                    var rowBg = i % 2 == 0 ? Brushes.White : new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F8FAFC"));
+                    var dimColor = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8"));
+                    var textColor = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#334155"));
+                    var maleColor = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#2563EB"));
+                    var femaleColor = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EC4899"));
+                    var totalColor = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E293B"));
+
+                    Action<int, string, Brush, TextAlignment, bool> addCell = (col, text, fg, align, bold) => {
+                        var border2 = new Border { Background = rowBg, Padding = new Thickness(6, 0, 6, 0),
+                            BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F1F5F9")), BorderThickness = new Thickness(0, 0, 0, 1) };
+                        var tb2 = new TextBlock {
+                            Text = text, FontSize = 12, Foreground = fg,
+                            VerticalAlignment = VerticalAlignment.Center, TextAlignment = align
+                        };
+                        if (bold) tb2.FontWeight = FontWeights.SemiBold;
+                        border2.Child = tb2;
+                        Grid.SetRow(border2, row);
+                        Grid.SetColumn(border2, col);
+                        grid.Children.Add(border2);
+                    };
+
+                    addCell(0, (i + 1).ToString(), dimColor, TextAlignment.Left, false);
+                    addCell(1, ev, textColor, TextAlignment.Left, false);
+                    addCell(2, m > 0 ? m.ToString() : "-", m > 0 ? maleColor : dimColor, TextAlignment.Center, m > 0);
+                    addCell(3, f > 0 ? f.ToString() : "-", f > 0 ? femaleColor : dimColor, TextAlignment.Center, f > 0);
+                    addCell(4, t.ToString(), totalColor, TextAlignment.Center, true);
+                }
+
+                // 合计行
+                grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(28) });
+                int sumRow = evList.Count + 1;
+                var sumBg = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EFF6FF"));
+                var sumFg = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E40AF"));
+                Action<int, string> addSumCell = (col, text) => {
+                    var border3 = new Border { Background = sumBg, Padding = new Thickness(6, 0, 6, 0) };
+                    var tb3 = new TextBlock {
+                        Text = text, FontSize = 12, FontWeight = FontWeights.Bold,
+                        Foreground = sumFg, VerticalAlignment = VerticalAlignment.Center,
+                        TextAlignment = col >= 2 ? TextAlignment.Center : TextAlignment.Left
+                    };
+                    border3.Child = tb3;
+                    Grid.SetRow(border3, sumRow);
+                    Grid.SetColumn(border3, col);
+                    grid.Children.Add(border3);
+                };
+                addSumCell(0, "");
+                addSumCell(1, "小计 (" + evList.Count + " 项)");
+                addSumCell(2, sumM.ToString());
+                addSumCell(3, sumF.ToString());
+                addSumCell(4, sumT.ToString());
+
+                OverviewStatsPanel.Children.Add(grid);
+            };
+
+            buildTable("个人项目", personalEvents);
+            buildTable("接力项目", relayEvents);
         }
 
         // ═══════════════════════════════════════════════════════════════
