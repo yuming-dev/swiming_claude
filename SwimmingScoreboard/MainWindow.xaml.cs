@@ -52,6 +52,9 @@ namespace SwimmingScoreboard
         // 泳道设备状态
         private List<LaneDeviceState> _laneDeviceStates = new List<LaneDeviceState>();
 
+        // 原始计时数据记录
+        private StringBuilder _rawTimingLog = new StringBuilder();
+
         // ═══════════════════════════════════════════════════════════════
         // WebSocket 服务器
         // ═══════════════════════════════════════════════════════════════
@@ -541,6 +544,7 @@ namespace SwimmingScoreboard
                         var lState = _laneDeviceStates.FirstOrDefault(s => s.Lane == laneNum);
                         if (lState != null) lState.LeftManualTouchTime = _runningTime;
                         SaveManualTouchToSplit(laneNum, _runningTime);
+                        LogRawTimingData(laneNum, "ManualTouchLeft", _runningTime);
                         AddLog(string.Format("泳道{0} 左端手动触板: {1}", laneNum, TimeFormatter.Format(_runningTime)));
                     }
                     break;
@@ -550,6 +554,7 @@ namespace SwimmingScoreboard
                         var lState = _laneDeviceStates.FirstOrDefault(s => s.Lane == laneNum);
                         if (lState != null) lState.RightManualTouchTime = _runningTime;
                         SaveManualTouchToSplit(laneNum, _runningTime);
+                        LogRawTimingData(laneNum, "ManualTouchRight", _runningTime);
                         AddLog(string.Format("泳道{0} 右端手动触板: {1}", laneNum, TimeFormatter.Format(_runningTime)));
                     }
                     break;
@@ -952,6 +957,9 @@ namespace SwimmingScoreboard
         private void ProcessTimingData(int lane, string cmdType, double timeInSeconds) {
             if (_raceState != RaceState.Racing && cmdType != "StartCommand") return;
 
+            // 记录原始数据
+            LogRawTimingData(lane, cmdType, timeInSeconds);
+
             var laneState = _laneDeviceStates.FirstOrDefault(s => s.Lane == lane);
             if (laneState == null) return;
 
@@ -1027,6 +1035,101 @@ namespace SwimmingScoreboard
 
             UpdateLaneStatusDisplay();
             Broadcast();
+        }
+
+        /// <summary>
+        /// 记录原始计时数据到当前比赛日志
+        /// </summary>
+        private void LogRawTimingData(int lane, string cmdType, double time) {
+            string elapsed = _raceStartTime > DateTime.MinValue
+                ? (DateTime.Now - _raceStartTime).TotalSeconds.ToString("F3")
+                : "0.000";
+            // 查找运动员
+            string swimmerName = "";
+            var sw = GetCurrentHeatSwimmers().FirstOrDefault(s => {
+                var sa = s.GetAssignmentForStage(_currentStage);
+                return (sa != null ? sa.Lane : s.Lane) == lane;
+            });
+            if (sw != null) swimmerName = sw.Name ?? "";
+
+            _rawTimingLog.AppendFormat("{0}\t道{1}\t{2}\t{3}\t{4}\r\n",
+                DateTime.Now.ToString("HH:mm:ss.fff"), lane, cmdType,
+                TimeFormatter.Format(time), swimmerName);
+        }
+
+        /// <summary>
+        /// 保存当前比赛的原始计时数据到文件
+        /// </summary>
+        private void SaveRawTimingLog() {
+            if (_rawTimingLog.Length == 0) return;
+            if (string.IsNullOrEmpty(_currentEvent) || _currentHeat <= 0) return;
+            try {
+                string dir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Database", "RawData");
+                if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
+
+                // 文件名：性别_项目_赛次_第N组.txt
+                string safeName = string.Format("{0}_{1}_{2}_第{3}组",
+                    _currentGender, _currentEvent, _currentStage, _currentHeat)
+                    .Replace("×", "x").Replace("/", "_");
+                string path = Path.Combine(dir, safeName + ".txt");
+
+                // 写入文件头 + 数据
+                var sb = new StringBuilder();
+                sb.AppendFormat("═══ 原始计时数据 ═══\r\n");
+                sb.AppendFormat("赛事: {0}\r\n", _competitionName);
+                sb.AppendFormat("项目: {0} {1}\r\n", _currentGender, _currentEvent);
+                sb.AppendFormat("赛次: {0}  第{1}组\r\n", _currentStage, _currentHeat);
+                sb.AppendFormat("比赛时间: {0}\r\n", _raceStartTime > DateTime.MinValue ? _raceStartTime.ToString("yyyy-MM-dd HH:mm:ss") : "未开始");
+                sb.AppendFormat("终点位置: {0}端  发令位置: {1}端\r\n",
+                    _laneCloseSettings.FinishPosition == "left" ? "左" : "右",
+                    _laneCloseSettings.StartPosition == "left" ? "左" : "右");
+
+                // 运动员名单
+                sb.AppendFormat("\r\n--- 出场名单 ---\r\n");
+                foreach (var s in GetCurrentHeatSwimmers()) {
+                    var sa = s.GetAssignmentForStage(_currentStage);
+                    int sLane = sa != null ? sa.Lane : s.Lane;
+                    sb.AppendFormat("道{0}\t{1}\t{2}\t报名:{3}\r\n", sLane, s.Name, s.Country, s.EntryTime);
+                }
+
+                // 原始数据
+                sb.AppendFormat("\r\n--- 原始数据 (时刻/泳道/类型/时间/运动员) ---\r\n");
+                sb.Append(_rawTimingLog.ToString());
+
+                // 最终成绩汇总
+                sb.AppendFormat("\r\n--- 最终成绩 ---\r\n");
+                foreach (var s in GetCurrentHeatSwimmers().OrderBy(s2 => s2.CurrentRank > 0 ? s2.CurrentRank : int.MaxValue)) {
+                    var r = s.Results.FirstOrDefault(lr => lr.Stage == _currentStage && lr.Heat == _currentHeat);
+                    var sa = s.GetAssignmentForStage(_currentStage);
+                    int sLane = sa != null ? sa.Lane : s.Lane;
+                    string status = !string.IsNullOrEmpty(s.Status) ? s.Status : "";
+                    string finalTime = r != null && r.FinalTime > 0 ? TimeFormatter.Format(r.FinalTime) : "";
+                    string source = r != null ? (r.TimingSource ?? "") : "";
+                    string reaction = r != null && r.StartingBlockTime > 0 ? r.StartingBlockTime.ToString("F3") : "";
+                    sb.AppendFormat("名次:{0}\t道{1}\t{2}\t{3}\t成绩:{4}\t计时源:{5}\t反应:{6}\t{7}\r\n",
+                        s.CurrentRank > 0 ? s.CurrentRank.ToString() : "-", sLane, s.Name, s.Country,
+                        !string.IsNullOrEmpty(status) ? status : finalTime, source, reaction, status);
+
+                    // 分段明细
+                    if (r != null && r.Splits.Count > 0) {
+                        foreach (var sp in r.Splits) {
+                            sb.AppendFormat("  分段{0}({1}m): 触板:{2} 盲1:{3} 盲2:{4} 盲3:{5} 累计:{6} 源:{7}\r\n",
+                                sp.Lap, sp.Distance,
+                                TimeFormatter.Format(sp.TouchpadTime),
+                                TimeFormatter.Format(sp.PushButton1Time),
+                                TimeFormatter.Format(sp.PushButton2Time),
+                                TimeFormatter.Format(sp.PushButton3Time),
+                                TimeFormatter.Format(sp.CumulativeTime), sp.TimingSource);
+                        }
+                    }
+                }
+
+                sb.AppendFormat("\r\n保存时间: {0}\r\n", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff"));
+                File.WriteAllText(path, sb.ToString(), Encoding.UTF8);
+                AddLog(string.Format("原始计时数据已保存: {0}", safeName + ".txt"));
+            } catch (Exception ex) {
+                AddLog("保存原始计时数据失败: " + ex.Message);
+            }
         }
 
         private void ProcessTouchpadHit(int lane, double time, LaneDeviceState laneState) {
@@ -1388,6 +1491,9 @@ namespace SwimmingScoreboard
             _raceState = RaceState.Racing;
             _raceStartTime = DateTime.Now;
             _runningTime = 0;
+            // 开始新的原始数据记录
+            _rawTimingLog.Clear();
+            _rawTimingLog.AppendFormat("{0}\t---\tSTART\t0.000\t发令\r\n", DateTime.Now.ToString("HH:mm:ss.fff"));
             UpdateRaceStateDisplay();
 
             // 启动计时器
@@ -1484,6 +1590,9 @@ namespace SwimmingScoreboard
             UpdateRaceStateDisplay();
 
             AddLog(string.Format("★ 已确认本组成绩: {0}子 {1} {2} 第{3}组", _currentGender, _currentEvent, _currentStage, _currentHeat));
+
+            // 保存原始计时数据
+            SaveRawTimingLog();
 
             // 刷新成绩与排名页面
             UpdateResultHeatCombo();
@@ -1977,6 +2086,7 @@ namespace SwimmingScoreboard
             var swimmer = GetCurrentHeatSwimmers().FirstOrDefault(s => s.Lane == lane);
             if (swimmer != null) {
                 swimmer.Status = status;
+                LogRawTimingData(lane, "MARK_" + status, 0);
                 AddLog(string.Format("泳道{0} {1} 标记为 {2}", lane, swimmer.Name, status));
                 var laneState = _laneDeviceStates.FirstOrDefault(s => s.Lane == lane);
                 if (laneState != null) laneState.IsFinished = true;
@@ -1987,6 +2097,7 @@ namespace SwimmingScoreboard
         }
 
         private void OverrideLaneTime(int lane, double time) {
+            LogRawTimingData(lane, "ManualOverride", time);
             var swimmer = GetCurrentHeatSwimmers().FirstOrDefault(s => s.Lane == lane);
             if (swimmer == null) return;
 
