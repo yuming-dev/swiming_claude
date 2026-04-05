@@ -157,18 +157,20 @@ namespace SwimmingScoreboard
                 string remark = "";
                 if (r != null && !string.IsNullOrEmpty(r.Status)) remark = r.Status;
                 else if (!string.IsNullOrEmpty(s.Status) && (s.Status == "DNS" || s.Status == "DNF" || s.Status == "DSQ" || s.Status == "DQ")) remark = s.Status;
+                bool isDQ = !string.IsNullOrEmpty(remark);
                 // 接力项目：Name显示队员姓名
                 string epName = s.Name ?? "";
                 if (stage.Length > 0 && eventName.Contains("接力") && !string.IsNullOrEmpty(s.Notes) && s.Notes.StartsWith("接力队 棒次:"))
                     epName = s.Notes.Substring("接力队 棒次:".Length);
                 return new
                 {
-                    SortTime = r.FinalTime,
+                    SortTime = isDQ ? double.MaxValue : r.FinalTime,
+                    IsDQ = isDQ,
                     Lane = r.Lane,
                     BibNumber = s.BibNumber ?? "",
                     Name = epName,
                     Country = s.Country ?? "",
-                    FinalTime = string.IsNullOrEmpty(remark) && r.FinalTime > 0 ? TimeFormatter.Format(r.FinalTime) : "",
+                    FinalTime = isDQ ? "" : (r.FinalTime > 0 ? TimeFormatter.Format(r.FinalTime) : ""),
                     ReactionTime = r.StartingBlockTime > 0 ? r.StartingBlockTime.ToString("F2") : "",
                     Remark = remark
                 };
@@ -180,7 +182,7 @@ namespace SwimmingScoreboard
             {
                 _currentResults.Add(new
                 {
-                    Rank = rank.ToString(),
+                    Rank = item.IsDQ ? "-" : rank.ToString(),
                     item.Lane,
                     item.BibNumber,
                     item.Name,
@@ -189,7 +191,7 @@ namespace SwimmingScoreboard
                     item.ReactionTime,
                     item.Remark
                 });
-                rank++;
+                if (!item.IsDQ) rank++;
             }
 
             PreviewGrid.ItemsSource = _currentResults;

@@ -5325,10 +5325,11 @@ namespace SwimmingScoreboard
                 string eventName = schedItem.EventName;
                 string stage = schedItem.Stage;
 
-                // 查找该场比赛中有成绩的运动员
+                // 查找该场比赛中有成绩记录的运动员（含DSQ等）
                 var matchedSwimmers = _swimmers.Where(s =>
                     s.Gender == gender && s.EventName == eventName &&
-                    s.GetResultForStage(stage) != null && s.GetResultForStage(stage).FinalTime > 0
+                    !(s.Notes != null && s.Notes.StartsWith("接力队员")) &&
+                    s.GetResultForStage(stage) != null
                 ).ToList();
 
                 if (matchedSwimmers.Count == 0) continue;
@@ -5337,8 +5338,13 @@ namespace SwimmingScoreboard
                 var heatNumbers = matchedSwimmers.Select(s => s.GetResultForStage(stage).Heat).Distinct().OrderBy(h => h).ToList();
 
                 foreach (int heat in heatNumbers) {
-                    var heatSwimmers = matchedSwimmers.Where(s => s.GetResultForStage(stage).Heat == heat)
-                        .OrderBy(s => s.GetResultForStage(stage).FinalTime).ToList();
+                    // 正常运动员按成绩排序，DSQ/DNS/DNF排到最后
+                    var heatSwimmers = matchedSwimmers.Where(s => s.GetResultForStage(stage).Heat == heat).ToList();
+                    Func<Swimmer, bool> isSwDQ = sw2 => sw2.Status == "DSQ" || sw2.Status == "DNS" || sw2.Status == "DNF";
+                    heatSwimmers = heatSwimmers
+                        .OrderBy(s => isSwDQ(s) ? 1 : 0)
+                        .ThenBy(s => isSwDQ(s) ? 0 : s.GetResultForStage(stage).FinalTime)
+                        .ToList();
 
                     if (heatSwimmers.Count == 0) continue;
 
@@ -5366,26 +5372,28 @@ namespace SwimmingScoreboard
                     int rank = 1;
                     foreach (var sw in heatSwimmers) {
                         var r = sw.GetResultForStage(stage);
+                        string remark = "";
+                        if (r != null && !string.IsNullOrEmpty(r.Status)) remark = r.Status;
+                        else if (!string.IsNullOrEmpty(sw.Status) && (sw.Status == "DNS" || sw.Status == "DNF" || sw.Status == "DSQ" || sw.Status == "DQ")) remark = sw.Status;
+                        bool swDQ = !string.IsNullOrEmpty(remark);
                         string rowBg = "";
-                        if (stage == "决赛" && !showHeat) {
+                        if (!swDQ && stage == "决赛" && !showHeat) {
                             if (rank == 1) rowBg = " style='background:#fef3c7;'";
                             else if (rank == 2) rowBg = " style='background:#f1f5f9;'";
                             else if (rank == 3) rowBg = " style='background:#fef0e7;'";
                         }
-                        string remark = "";
-                        if (r != null && !string.IsNullOrEmpty(r.Status)) remark = r.Status;
-                        else if (!string.IsNullOrEmpty(sw.Status) && (sw.Status == "DNS" || sw.Status == "DNF" || sw.Status == "DSQ" || sw.Status == "DQ")) remark = sw.Status;
                         string bkName = sw.Name; string bkCountry = sw.Country ?? "";
                         if (bookRelay && !string.IsNullOrEmpty(sw.Notes) && sw.Notes.StartsWith("接力队 棒次:"))
                             bkName = sw.Notes.Substring("接力队 棒次:".Length);
+                        string rankText = swDQ ? "-" : rank.ToString();
+                        string bkTime = swDQ ? "" : (r.FinalTime > 0 ? TimeFormatter.Format(r.FinalTime) : "");
                         sb.AppendFormat("<tr{0}><td>{1}</td><td>{2}</td><td>{3}</td>",
-                            rowBg, rank, r.Lane, sw.BibNumber);
-                        string bkTime = string.IsNullOrEmpty(remark) && r.FinalTime > 0 ? TimeFormatter.Format(r.FinalTime) : "";
+                            rowBg, rankText, r.Lane, sw.BibNumber);
                         sb.AppendFormat("<td><b>{0}</b></td><td>{1}</td>", RelayCol1(bookRelay, bkName, bkCountry), RelayCol2(bookRelay, bkName, bkCountry));
                         sb.AppendFormat("<td style='font-weight:bold; background:#eff6ff;'>{0}</td>", bkTime);
                         sb.AppendFormat("<td>{0}</td>", r.StartingBlockTime > 0 ? r.StartingBlockTime.ToString("F2") : "");
                         sb.AppendFormat("<td style='color:#dc2626;'>{0}</td></tr>", remark);
-                        rank++;
+                        if (!swDQ) rank++;
                     }
                     sb.Append("</table>");
                     sb.Append(DocSignatureRow());
