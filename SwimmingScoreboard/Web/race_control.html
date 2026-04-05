@@ -743,10 +743,19 @@ function renderScheduleTree() {
     var html = '';
     for (var sn in sessions) {
         var sess = sessions[sn];
+        // 检查单元内是否全部完赛
+        var sessionAllDone = true;
+        for (var j2 = 0; j2 < sess.events.length; j2++) {
+            if (sess.events[j2].allConfirmed !== true) { sessionAllDone = false; break; }
+        }
+        // 已完赛单元自动收起（除非用户手动展开过）
+        if (sessionAllDone && treeCollapsed[sn] === undefined) treeCollapsed[sn] = true;
         var collapsed = treeCollapsed[sn] === true;
+
         html += '<div class="tree-session">';
         html += '<div class="tree-session-header" onclick="toggleSession('+sn+')">';
         html += '<span class="arrow">' + (collapsed ? '▶' : '▼') + '</span> ' + sess.name;
+        if (sessionAllDone) html += ' <span style="color:#64748b;font-size:11px;">[已完赛]</span>';
         html += '</div>';
         if (!collapsed) {
             for (var j = 0; j < sess.events.length; j++) {
@@ -756,26 +765,32 @@ function renderScheduleTree() {
                 var heatDone = ev.heatConfirmed || [];
 
                 if (allDone) {
-                    html += '<div class="tree-event" style="color:#aaa;">' + evLabel + ' [已完赛]</div>';
+                    // 已完赛项目：点击可展开/收起
+                    var evKey = 'ev_' + sn + '_' + j;
+                    var evCollapsed = treeCollapsed[evKey] !== false; // 默认收起
+                    html += '<div class="tree-event" style="color:#aaa;cursor:pointer;" onclick="toggleSession(\'' + evKey + '\')">';
+                    html += '<span style="font-size:10px;margin-right:2px;">' + (evCollapsed ? '▶' : '▼') + '</span>' + evLabel + ' [已完赛]</div>';
+                    if (!evCollapsed) {
+                        var hc2 = ev.heatCount || 1;
+                        for (var h2 = 1; h2 <= hc2; h2++) {
+                            html += '<div class="tree-heat" style="color:#aaa;cursor:default;pointer-events:none;">第' + h2 + '组 [已完赛]</div>';
+                        }
+                    }
                 } else {
                     html += '<div class="tree-event">' + evLabel + '</div>';
-                }
-                var hc = ev.heatCount || 1;
-                for (var h = 1; h <= hc; h++) {
-                    var confirmed = heatDone[h-1] === true;
-                    var key = (ev.gender||'') + '|' + (ev.eventName||'') + '|' + (ev.stage||'') + '|' + h;
-                    var active = (key === selectedHeatKey) ? ' active' : '';
-                    if (!selectedHeatKey && data.currentGender === ev.gender && data.currentEvent === ev.eventName && data.currentStage === ev.stage && data.currentHeat === h) {
-                        active = ' active';
-                    }
-                    if (confirmed) {
-                        html += '<div class="tree-heat" style="color:#aaa; cursor:default; pointer-events:none;">';
-                        html += '第' + h + '组 [已完赛]';
-                        html += '</div>';
-                    } else {
-                        html += '<div class="tree-heat' + active + '" onclick="selectHeat(\'' + key.replace(/'/g,"\\'") + '\')">';
-                        html += '第' + h + '组 (共' + hc + '组)';
-                        html += '</div>';
+                    var hc = ev.heatCount || 1;
+                    for (var h = 1; h <= hc; h++) {
+                        var confirmed = heatDone[h-1] === true;
+                        var key = (ev.gender||'') + '|' + (ev.eventName||'') + '|' + (ev.stage||'') + '|' + h;
+                        var active = (key === selectedHeatKey) ? ' active' : '';
+                        if (!selectedHeatKey && data.currentGender === ev.gender && data.currentEvent === ev.eventName && data.currentStage === ev.stage && data.currentHeat === h) {
+                            active = ' active';
+                        }
+                        if (confirmed) {
+                            html += '<div class="tree-heat" style="color:#aaa;cursor:default;pointer-events:none;">第' + h + '组 [已完赛]</div>';
+                        } else {
+                            html += '<div class="tree-heat' + active + '" onclick="selectHeat(\'' + key.replace(/'/g,"\\'") + '\')">第' + h + '组 (共' + hc + '组)</div>';
+                        }
                     }
                 }
             }
@@ -786,7 +801,8 @@ function renderScheduleTree() {
 }
 
 function toggleSession(sn) {
-    treeCollapsed[sn] = !treeCollapsed[sn];
+    // 对于已完赛项目，默认是收起（undefined视为true），点击切换为展开(false)
+    treeCollapsed[sn] = treeCollapsed[sn] === undefined ? false : !treeCollapsed[sn];
     renderScheduleTree();
 }
 
