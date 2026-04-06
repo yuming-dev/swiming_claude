@@ -240,8 +240,6 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
                 <button class="action-btn" style="background:#9CA3AF;" onclick="markLane('DSQ')">DSQ</button>
                 <button class="action-btn" style="background:#D97706;" onclick="manualTimeInput()">手动输入</button>
             </div>
-            <h3>计时源对比</h3>
-            <div id="timingSourceCompare" style="font-size:12px;color:var(--dim);flex:1;overflow-y:auto;min-height:40px;"></div>
             <h3>显示控制</h3>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;">
                 <button class="action-btn" style="background:#3B82F6;" onclick="sendDisplay('SHOW_START_LIST')">出发表</button>
@@ -254,6 +252,8 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
                 <button class="action-btn" style="background:#8B5CF6;" onclick="sendDisplay('SHOW_WELCOME')">欢迎</button>
             </div>
             <button class="action-btn" style="background:#F59E0B;font-size:15px;padding:9px;margin-top:4px;" onclick="publishResult()">成绩发布</button>
+            <h3>计时源对比</h3>
+            <div id="timingSourceCompare" style="font-size:12px;color:var(--dim);flex:1;overflow-y:auto;min-height:40px;"></div>
         </div>
     </div>
 </div>

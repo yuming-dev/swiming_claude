@@ -130,10 +130,6 @@
                                     Background="#D97706" Foreground="White" BorderThickness="0" Margin="2,0,0,0"/>
                         </Grid>
 
-                        <!-- 计时源对比 -->
-                        <TextBlock Text="计时源对比" Foreground="#64748B" FontSize="13" FontWeight="Bold" Margin="0,6,0,6"/>
-                        <TextBlock x:Name="TimingSourceInfo" Text="" Foreground="#94A3B8" FontSize="12" TextWrapping="Wrap" MinHeight="40"/>
-
                         <!-- 显示控制 -->
                         <TextBlock Text="显示控制" Foreground="#64748B" FontSize="13" FontWeight="Bold" Margin="0,6,0,6"/>
                         <Grid Margin="0,0,0,4">
@@ -168,6 +164,10 @@
                         <!-- 成绩发布 -->
                         <Button Content="成绩发布" Click="PublishResult_Click" Padding="0,9" FontSize="15" FontWeight="Bold"
                                 Background="#F59E0B" Foreground="White" BorderThickness="0" Margin="0,4,0,0"/>
+
+                        <!-- 计时源对比 -->
+                        <TextBlock Text="计时源对比" Foreground="#64748B" FontSize="13" FontWeight="Bold" Margin="0,6,0,6"/>
+                        <TextBlock x:Name="TimingSourceInfo" Text="" Foreground="#94A3B8" FontSize="12" TextWrapping="Wrap" MinHeight="40"/>
 
                         <!-- 抢跳信息 -->
                         <TextBlock x:Name="FalseStartInfo" Text="" Foreground="#EF4444" FontSize="11"
