@@ -27,6 +27,13 @@ namespace RemoteTimingControl
         private int _connFailCount = 0;
         private DispatcherTimer _reconnectTimer;
 
+        // 保存的计时参数（本地缓存，用于设置对话框默认值和持久化）
+        private double _laneCloseTime = 20;
+        private double _startBlockCloseDelay = 3;
+        private double _resultConfirmCloseDelay = 3;
+        private double _falseStartThreshold = 0.10;
+        private double _splitDisplayTime = 5;
+
         // Local timer for smooth running time
         private DateTime _localTimerStart = DateTime.MinValue;
         private bool _localTimerSynced = false;
@@ -80,6 +87,11 @@ namespace RemoteTimingControl
                 if (obj["serverPort"] != null) _serverPort = (int)obj["serverPort"];
                 if (obj["finishPosition"] != null) _finishPosition = obj["finishPosition"].ToString();
                 if (obj["firstPlaceHoldTime"] != null) _firstPlaceHoldTime = (double)obj["firstPlaceHoldTime"];
+                if (obj["laneCloseTime"] != null) _laneCloseTime = (double)obj["laneCloseTime"];
+                if (obj["startBlockCloseDelay"] != null) _startBlockCloseDelay = (double)obj["startBlockCloseDelay"];
+                if (obj["resultConfirmCloseDelay"] != null) _resultConfirmCloseDelay = (double)obj["resultConfirmCloseDelay"];
+                if (obj["falseStartThreshold"] != null) _falseStartThreshold = (double)obj["falseStartThreshold"];
+                if (obj["splitDisplayTime"] != null) _splitDisplayTime = (double)obj["splitDisplayTime"];
             }
             catch { }
         }
@@ -93,7 +105,12 @@ namespace RemoteTimingControl
                     serverHost = _serverHost,
                     serverPort = _serverPort,
                     finishPosition = _finishPosition,
-                    firstPlaceHoldTime = _firstPlaceHoldTime
+                    firstPlaceHoldTime = _firstPlaceHoldTime,
+                    laneCloseTime = _laneCloseTime,
+                    startBlockCloseDelay = _startBlockCloseDelay,
+                    resultConfirmCloseDelay = _resultConfirmCloseDelay,
+                    falseStartThreshold = _falseStartThreshold,
+                    splitDisplayTime = _splitDisplayTime
                 };
                 string json = JsonConvert.SerializeObject(obj, Formatting.Indented);
                 File.WriteAllText(GetSettingsPath(), json, Encoding.UTF8);
@@ -1589,7 +1606,8 @@ namespace RemoteTimingControl
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E293B"))
             };
 
-            double closeTime = 20, sbDelay = 3, confDelay = 3, fsThresh = 0.10, splitDisp = 5;
+            // 优先用服务器广播的最新值，否则用本地保存值
+            double closeTime = _laneCloseTime, sbDelay = _startBlockCloseDelay, confDelay = _resultConfirmCloseDelay, fsThresh = _falseStartThreshold, splitDisp = _splitDisplayTime;
             if (_data != null && _data["laneCloseSettings"] != null)
             {
                 var lcs = _data["laneCloseSettings"];
@@ -1669,13 +1687,20 @@ namespace RemoteTimingControl
                 if (double.TryParse(tbFirstHold.Text, out holdVal)) _firstPlaceHoldTime = holdVal;
                 _finishPosition = rbRight.IsChecked == true ? "right" : "left";
 
+                // 保存计时参数到本地字段
+                _laneCloseTime = double.Parse(tbCloseTime.Text);
+                _startBlockCloseDelay = double.Parse(tbSBDelay.Text);
+                _resultConfirmCloseDelay = double.Parse(tbConfDelay.Text);
+                _falseStartThreshold = double.Parse(tbFSThresh.Text);
+                _splitDisplayTime = double.Parse(tbSplitDisp.Text);
+
                 var settings = new
                 {
-                    laneCloseTime = double.Parse(tbCloseTime.Text),
-                    startBlockCloseDelay = double.Parse(tbSBDelay.Text),
-                    resultConfirmCloseDelay = double.Parse(tbConfDelay.Text),
-                    falseStartThreshold = double.Parse(tbFSThresh.Text),
-                    splitDisplayTime = double.Parse(tbSplitDisp.Text),
+                    laneCloseTime = _laneCloseTime,
+                    startBlockCloseDelay = _startBlockCloseDelay,
+                    resultConfirmCloseDelay = _resultConfirmCloseDelay,
+                    falseStartThreshold = _falseStartThreshold,
+                    splitDisplayTime = _splitDisplayTime,
                     startPosition = _finishPosition
                 };
                 SendCmd("SET_LANE_CLOSE_SETTINGS", settings);
