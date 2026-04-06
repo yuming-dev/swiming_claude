@@ -316,8 +316,19 @@ namespace RemoteTimingControl
         // ═══════ 发送命令 ═══════
         private void SendCmd(string cmd, object data)
         {
-            if (_ws == null || !_ws.IsConnected) return;
-            _ws.Send(JsonConvert.SerializeObject(new { type = "TIMING_CMD", command = cmd, data = data }));
+            if (_ws == null || !_ws.IsConnected)
+            {
+                AddLog("命令未发送(未连接): " + cmd);
+                return;
+            }
+            try
+            {
+                _ws.Send(JsonConvert.SerializeObject(new { type = "TIMING_CMD", command = cmd, data = data }));
+            }
+            catch (Exception ex)
+            {
+                AddLog("发送失败: " + cmd + " - " + ex.Message);
+            }
         }
 
         private void SendCmd(string cmd)
@@ -327,8 +338,19 @@ namespace RemoteTimingControl
 
         private void SendDisplay(string mode)
         {
-            if (_ws == null || !_ws.IsConnected) return;
-            _ws.Send(JsonConvert.SerializeObject(new { type = "REMOTE_CONTROL", command = mode }));
+            if (_ws == null || !_ws.IsConnected)
+            {
+                AddLog("命令未发送(未连接): " + mode);
+                return;
+            }
+            try
+            {
+                _ws.Send(JsonConvert.SerializeObject(new { type = "REMOTE_CONTROL", command = mode }));
+            }
+            catch (Exception ex)
+            {
+                AddLog("发送失败: " + mode + " - " + ex.Message);
+            }
         }
 
         // ═══════ 渲染 ═══════

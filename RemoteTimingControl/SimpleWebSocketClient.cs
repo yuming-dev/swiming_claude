@@ -45,7 +45,7 @@ namespace RemoteTimingControl
         }
 
         public void Send(string message) {
-            if (!IsConnected) return;
+            if (!IsConnected) throw new InvalidOperationException("WebSocket not connected");
             byte[] payload = Encoding.UTF8.GetBytes(message);
             byte[] mask = new byte[4];
             new Random().NextBytes(mask);
@@ -63,6 +63,7 @@ namespace RemoteTimingControl
             lock (this) {
                 _stream.Write(header, 0, header.Length);
                 _stream.Write(masked, 0, masked.Length);
+                _stream.Flush();
             }
         }
 
