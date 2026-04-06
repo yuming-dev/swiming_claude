@@ -770,7 +770,7 @@ namespace SwimmingScoreboard
         public DeviceStatus LeftStartBlockStatus {
             get {
                 if (_leftStartBlockBroken) return DeviceStatus.Broken;
-                if (_isFalseStart) return DeviceStatus.FalseStart;
+                if (_isFalseStart && _leftStartBlockStatus == DeviceStatus.Open) return DeviceStatus.FalseStart;
                 return _leftStartBlockStatus;
             }
             set { _leftStartBlockStatus = value; OnPropertyChanged("LeftStartBlockStatus"); }
@@ -794,7 +794,7 @@ namespace SwimmingScoreboard
         public DeviceStatus RightStartBlockStatus {
             get {
                 if (_rightStartBlockBroken) return DeviceStatus.Broken;
-                if (_isFalseStart) return DeviceStatus.FalseStart;
+                if (_isFalseStart && _rightStartBlockStatus == DeviceStatus.Open) return DeviceStatus.FalseStart;
                 return _rightStartBlockStatus;
             }
             set { _rightStartBlockStatus = value; OnPropertyChanged("RightStartBlockStatus"); }
