@@ -1928,7 +1928,15 @@ namespace RemoteTimingControl
 
         private void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)
         {
+            MessageBoxResult result = MessageBox.Show("确定要退出远程计时控制台？", "确认退出", MessageBoxButton.YesNo, MessageBoxImage.Question);
+            if (result != MessageBoxResult.Yes)
+            {
+                e.Cancel = true;
+                return;
+            }
+            SaveSettings();
             if (_refreshTimer != null) _refreshTimer.Stop();
+            if (_reconnectTimer != null) _reconnectTimer.Stop();
             if (_ws != null) _ws.Close();
         }
     }

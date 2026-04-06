@@ -285,7 +285,13 @@ var firstPlaceDetectedRank = 0; // 已检测到的最高完赛名次
 var startPosition = localStorage.getItem('swimStartPosition') || 'left';
 var finishPosition = localStorage.getItem('swimFinishPosition') || 'left';
 
-window.onbeforeunload = function(e) { e.preventDefault(); e.returnValue = ''; return '确定要关闭比赛控制台？'; };
+window.onbeforeunload = function(e) {
+    // 退出前保存参数
+    localStorage.setItem('swimFinishPosition', finishPosition);
+    localStorage.setItem('swimFirstPlaceHold', firstPlaceHoldTime.toString());
+    localStorage.setItem('swimStartPosition', startPosition);
+    e.preventDefault(); e.returnValue = ''; return '确定要关闭比赛控制台？';
+};
 
 function goFullScreen() { var el=document.documentElement; if(document.fullscreenElement)return; if(el.requestFullscreen)el.requestFullscreen(); else if(el.webkitRequestFullscreen)el.webkitRequestFullscreen(); else if(el.msRequestFullscreen)el.msRequestFullscreen(); }
 document.addEventListener('fullscreenchange', function() { var btns=document.querySelectorAll('.fullscreen-btn'); for(var i=0;i<btns.length;i++) btns[i].style.display=document.fullscreenElement?'none':''; });
