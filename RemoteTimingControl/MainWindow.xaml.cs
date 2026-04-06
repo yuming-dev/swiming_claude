@@ -20,6 +20,10 @@ namespace RemoteTimingControl
         private string _startPosition = "left";
         private string _finishPosition = "left";
         private double _firstPlaceHoldTime = 3;
+        private string _serverHost = "127.0.0.1";
+        private int _serverPort = 3002;
+        private int _connFailCount = 0;
+        private DispatcherTimer _reconnectTimer;
 
         // Local timer for smooth running time
         private DateTime _localTimerStart = DateTime.MinValue;
@@ -45,6 +49,10 @@ namespace RemoteTimingControl
 
             _refreshTimer = new DispatcherTimer();
             _refreshTimer.Interval = TimeSpan.FromMilliseconds(500);
+
+            _reconnectTimer = new DispatcherTimer();
+            _reconnectTimer.Interval = TimeSpan.FromSeconds(3);
+            _reconnectTimer.Tick += delegate { TryReconnect(); };
             _refreshTimer.Tick += RefreshTimer_Tick;
         }
 
@@ -120,18 +128,25 @@ namespace RemoteTimingControl
         {
             if (_ws != null && _ws.IsConnected)
             {
+                _reconnectTimer.Stop();
                 _ws.Close();
                 UpdateConnStatus(false);
                 ConnBtn.Content = "连接";
+                _connFailCount = 0;
                 return;
             }
 
             string addr = ServerBox.Text.Trim();
             string[] parts = addr.Split(':');
-            string host = parts[0];
-            int port = 3002;
-            if (parts.Length > 1) int.TryParse(parts[1], out port);
+            _serverHost = parts[0];
+            _serverPort = 3002;
+            if (parts.Length > 1) int.TryParse(parts[1], out _serverPort);
 
+            DoConnect();
+        }
+
+        private void DoConnect()
+        {
             try
             {
                 _ws = new SimpleWebSocketClient();
@@ -143,18 +158,53 @@ namespace RemoteTimingControl
                         UpdateConnStatus(false);
                         ConnBtn.Content = "连接";
                         AddLog("服务器断开");
+                        // 自动重连
+                        _connFailCount++;
+                        if (_connFailCount >= 3)
+                        {
+                            _reconnectTimer.Stop();
+                            _connFailCount = 0;
+                            if (MessageBox.Show("连接失败，是否重新设置服务器地址？", "连接失败", MessageBoxButton.YesNo) == MessageBoxResult.Yes)
+                            {
+                                OpenSettings_Click(null, null);
+                            }
+                        }
+                        else
+                        {
+                            _reconnectTimer.Start();
+                        }
                     });
                 };
-                _ws.Connect(host, port);
+                _ws.Connect(_serverHost, _serverPort);
                 _ws.Send(JsonConvert.SerializeObject(new { type = "TIMING_EXE_IDENTITY" }));
                 UpdateConnStatus(true);
                 ConnBtn.Content = "断开";
-                AddLog("已连接: " + addr);
+                _connFailCount = 0;
+                _reconnectTimer.Stop();
+                AddLog("已连接: " + _serverHost + ":" + _serverPort);
             }
             catch (Exception ex)
             {
                 AddLog("连接失败: " + ex.Message);
+                _connFailCount++;
+                if (_connFailCount >= 3)
+                {
+                    _connFailCount = 0;
+                    _reconnectTimer.Stop();
+                }
+                else
+                {
+                    _reconnectTimer.Start();
+                }
             }
+        }
+
+        private void TryReconnect()
+        {
+            _reconnectTimer.Stop();
+            if (_ws != null && _ws.IsConnected) return;
+            AddLog("尝试重连...");
+            DoConnect();
         }
 
         private void OnServerMessage(string json)
@@ -976,6 +1026,7 @@ namespace RemoteTimingControl
                 row.MouseLeftButtonDown += delegate
                 {
                     _selectedLane = capturedLane;
+                    LaneInput.Text = capturedLane.ToString();
                     UpdateTimingSourceInfo();
                     RenderLanes(_data != null ? _data["swimmers"] as JArray : null);
                 };
