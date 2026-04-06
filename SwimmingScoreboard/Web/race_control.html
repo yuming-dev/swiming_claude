@@ -1054,15 +1054,27 @@ function selectLane(lane) {
     selectedLane = lane;
     var swimmers = data.swimmers || [];
     for (var i = 0; i < swimmers.length; i++) {
-        if (swimmers[i].lane === lane && swimmers[i].timingSources) {
-            var ts = swimmers[i].timingSources;
-            var html = '<b>道' + lane + ' ' + (swimmers[i].name||'') + '</b><br>';
-            html += '触板: ' + (ts.touchpad||'-') + '<br>';
-            html += '盲表1: ' + (ts.blindWatch1||'-') + '<br>';
-            html += '盲表2: ' + (ts.blindWatch2||'-') + '<br>';
-            html += '盲表3: ' + (ts.blindWatch3||'-') + '<br>';
-            html += '手动左: ' + (ts.manualTouchLeft||'-') + '<br>';
-            html += '手动右: ' + (ts.manualTouchRight||'-');
+        var sw = swimmers[i];
+        if (sw.lane === lane) {
+            var html = '<b>道' + lane + ' ' + (sw.name||'') + '</b><br>';
+            // 终点成绩
+            var ts = sw.timingSources;
+            if (ts) {
+                html += '<b>--- 终点 ---</b><br>';
+                html += '触板: ' + (ts.touchpad||'-') + '<br>';
+                html += '盲1: ' + (ts.blindWatch1||'-') + '  盲2: ' + (ts.blindWatch2||'-') + '  盲3: ' + (ts.blindWatch3||'-') + '<br>';
+                html += '手动左: ' + (ts.manualTouchLeft||'-') + '  手动右: ' + (ts.manualTouchRight||'-') + '<br>';
+            }
+            // 分段明细
+            var splits = sw.splits || [];
+            if (splits.length > 0) {
+                html += '<b>--- 分段 ---</b><br>';
+                for (var j = 0; j < splits.length; j++) {
+                    var sp = splits[j];
+                    html += '第' + sp.lap + '段(' + sp.distance + 'm) 累计:' + (sp.cumulative||'-') + '<br>';
+                    html += '&nbsp;&nbsp;触板:' + (sp.touchpad||'-') + ' 盲1:' + (sp.blind1||'-') + ' 盲2:' + (sp.blind2||'-') + ' 盲3:' + (sp.blind3||'-') + ' 手动:' + (sp.manual||'-') + ' 源:' + (sp.source||'-') + '<br>';
+                }
+            }
             document.getElementById('timingSourceCompare').innerHTML = html;
             break;
         }
