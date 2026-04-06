@@ -72,7 +72,7 @@ namespace RemoteTimingControl
         // ═══════ 参数持久化 ═══════
         private string GetSettingsPath()
         {
-            return Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "RemoteTimingSettings.json");
+            return System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "RemoteTimingSettings.json");
         }
 
         private void LoadSettings()
@@ -80,8 +80,8 @@ namespace RemoteTimingControl
             try
             {
                 string path = GetSettingsPath();
-                if (!File.Exists(path)) return;
-                string json = File.ReadAllText(path, Encoding.UTF8);
+                if (!System.IO.File.Exists(path)) return;
+                string json = System.IO.File.ReadAllText(path, Encoding.UTF8);
                 var obj = JObject.Parse(json);
                 if (obj["serverHost"] != null) _serverHost = obj["serverHost"].ToString();
                 if (obj["serverPort"] != null) _serverPort = (int)obj["serverPort"];
@@ -113,7 +113,7 @@ namespace RemoteTimingControl
                     splitDisplayTime = _splitDisplayTime
                 };
                 string json = JsonConvert.SerializeObject(obj, Formatting.Indented);
-                File.WriteAllText(GetSettingsPath(), json, Encoding.UTF8);
+                System.IO.File.WriteAllText(GetSettingsPath(), json, Encoding.UTF8);
             }
             catch { }
         }
