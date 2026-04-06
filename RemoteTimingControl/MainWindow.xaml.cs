@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
+using System.Text;
 using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
@@ -54,6 +56,49 @@ namespace RemoteTimingControl
             _reconnectTimer.Interval = TimeSpan.FromSeconds(3);
             _reconnectTimer.Tick += delegate { TryReconnect(); };
             _refreshTimer.Tick += RefreshTimer_Tick;
+
+            // 加载保存的参数
+            LoadSettings();
+            ServerBox.Text = _serverHost + ":" + _serverPort;
+        }
+
+        // ═══════ 参数持久化 ═══════
+        private string GetSettingsPath()
+        {
+            return Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "RemoteTimingSettings.json");
+        }
+
+        private void LoadSettings()
+        {
+            try
+            {
+                string path = GetSettingsPath();
+                if (!File.Exists(path)) return;
+                string json = File.ReadAllText(path, Encoding.UTF8);
+                var obj = JObject.Parse(json);
+                if (obj["serverHost"] != null) _serverHost = obj["serverHost"].ToString();
+                if (obj["serverPort"] != null) _serverPort = (int)obj["serverPort"];
+                if (obj["finishPosition"] != null) _finishPosition = obj["finishPosition"].ToString();
+                if (obj["firstPlaceHoldTime"] != null) _firstPlaceHoldTime = (double)obj["firstPlaceHoldTime"];
+            }
+            catch { }
+        }
+
+        private void SaveSettings()
+        {
+            try
+            {
+                var obj = new
+                {
+                    serverHost = _serverHost,
+                    serverPort = _serverPort,
+                    finishPosition = _finishPosition,
+                    firstPlaceHoldTime = _firstPlaceHoldTime
+                };
+                string json = JsonConvert.SerializeObject(obj, Formatting.Indented);
+                File.WriteAllText(GetSettingsPath(), json, Encoding.UTF8);
+            }
+            catch { }
         }
 
         private class SplitState
@@ -181,6 +226,7 @@ namespace RemoteTimingControl
                 ConnBtn.Content = "断开";
                 _connFailCount = 0;
                 _reconnectTimer.Stop();
+                SaveSettings();
                 AddLog("已连接: " + _serverHost + ":" + _serverPort);
             }
             catch (Exception ex)
@@ -1633,7 +1679,19 @@ namespace RemoteTimingControl
                     startPosition = _finishPosition
                 };
                 SendCmd("SET_LANE_CLOSE_SETTINGS", settings);
-                AddLog(string.Format("参数已更新，第1名停留: {0}s，终点位置: {1}", _firstPlaceHoldTime, _finishPosition == "left" ? "左端" : "右端"));
+
+                // 保存服务器地址（从设置对话框的输入）
+                string sAddr = tbServerHost.Text.Trim();
+                if (!string.IsNullOrEmpty(sAddr))
+                {
+                    string[] addrParts = sAddr.Split(':');
+                    _serverHost = addrParts[0];
+                    if (addrParts.Length > 1) int.TryParse(addrParts[1], out _serverPort);
+                    ServerBox.Text = _serverHost + ":" + _serverPort;
+                }
+
+                SaveSettings();
+                AddLog(string.Format("参数已更新并保存，第1名停留: {0}s，终点位置: {1}", _firstPlaceHoldTime, _finishPosition == "left" ? "左端" : "右端"));
             }
         }
 
