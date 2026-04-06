@@ -54,8 +54,8 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 .list-container { height: 89vh; padding: 2vh 3vw; overflow: hidden; position: relative; }
 .page-indicator { position: absolute; bottom: 1vh; right: 3vw; font-size: 1.8vh; color: var(--dim); }
 .list-table { width: 100%; border-collapse: collapse; }
-.list-table th { background: var(--card); padding: 1.5vh 1vw; text-align: left; font-size: 2vh; border-bottom: 2px solid var(--accent); }
-.list-table td { padding: 1.2vh 1vw; font-size: 2vh; border-bottom: 1px solid #334155; }
+.list-table th { background: var(--card); padding: 1.8vh 1.5vw; text-align: left; font-size: 3vh; border-bottom: 2px solid var(--accent); }
+.list-table td { padding: 1.5vh 1.5vw; font-size: 3vh; border-bottom: 1px solid #334155; }
 .list-table tr:hover { background: rgba(59,130,246,0.1); }
 
 /* 欢迎画面 */
@@ -655,10 +655,7 @@ function renderEventRanking() {
     var er = data.eventRanking || [];
     var erRelay = isRelayEvent();
 
-    // 计算每页行数：(容器高度 - 标题 - 表头 - 页码) / 行高
-    var rowH = 3.5; // 约3.5vh per row
-    var availH = 89 - 8; // 89vh容器 - 标题和表头约8vh
-    _rankingRowsPerPage = Math.max(5, Math.floor(availH / rowH));
+    _rankingRowsPerPage = 10;
     _rankingTotalPages = Math.max(1, Math.ceil(er.length / _rankingRowsPerPage));
     _rankingCurrentPage = 0;
 
