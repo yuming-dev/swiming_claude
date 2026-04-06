@@ -51,7 +51,8 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 .lane-row .remark { width: 8vw; font-size: 2.9vh; color: var(--red); text-align: center; }
 
 /* 列表视图 */
-.list-container { height: 89vh; padding: 2vh 3vw; }
+.list-container { height: 89vh; padding: 2vh 3vw; overflow: hidden; position: relative; }
+.page-indicator { position: absolute; bottom: 1vh; right: 3vw; font-size: 1.8vh; color: var(--dim); }
 .list-table { width: 100%; border-collapse: collapse; }
 .list-table th { background: var(--card); padding: 1.5vh 1vw; text-align: left; font-size: 2vh; border-bottom: 2px solid var(--accent); }
 .list-table td { padding: 1.2vh 1vw; font-size: 2vh; border-bottom: 1px solid #334155; }
@@ -223,7 +224,8 @@ function stopRefreshTimer() {
 function render() {
     document.getElementById('compName').textContent = data.competitionName || '游泳赛事管理系统';
 
-    // 隐藏所有视图
+    // 隐藏所有视图，清除翻页定时器
+    if (_rankingPageTimer) { clearInterval(_rankingPageTimer); _rankingPageTimer = null; }
     document.getElementById('raceView').classList.add('hidden');
     document.getElementById('listView').classList.add('hidden');
     document.getElementById('welcomeView').classList.add('hidden');
@@ -569,7 +571,8 @@ function renderHeatResult() {
 function renderPublishedResult(pubData) {
     if (!pubData) return;
 
-    // 隐藏所有视图
+    // 隐藏所有视图，清除翻页定时器
+    if (_rankingPageTimer) { clearInterval(_rankingPageTimer); _rankingPageTimer = null; }
     document.getElementById('raceView').classList.add('hidden');
     document.getElementById('listView').classList.add('hidden');
     document.getElementById('welcomeView').classList.add('hidden');
@@ -639,16 +642,48 @@ function renderPublishedResult(pubData) {
     }
 }
 
+var _rankingPageTimer = null;
+var _rankingCurrentPage = 0;
+var _rankingTotalPages = 1;
+var _rankingRowsPerPage = 10;
+var _rankingPageInterval = 5000; // 5秒翻页
+
 function renderEventRanking() {
+    if (_rankingPageTimer) { clearInterval(_rankingPageTimer); _rankingPageTimer = null; }
+
     document.getElementById('listView').classList.remove('hidden');
-    var lv = document.getElementById('listView');
-    var html = '<h2 style="margin-bottom:2vh;font-size:3vh;">' + (data.currentGender||'') + '子 ' + (data.currentEvent||'') + ' ' + (data.currentStage||'') + ' 总排名</h2>';
+    var er = data.eventRanking || [];
     var erRelay = isRelayEvent();
+
+    // 计算每页行数：(容器高度 - 标题 - 表头 - 页码) / 行高
+    var rowH = 3.5; // 约3.5vh per row
+    var availH = 89 - 8; // 89vh容器 - 标题和表头约8vh
+    _rankingRowsPerPage = Math.max(5, Math.floor(availH / rowH));
+    _rankingTotalPages = Math.max(1, Math.ceil(er.length / _rankingRowsPerPage));
+    _rankingCurrentPage = 0;
+
+    showRankingPage(er, erRelay);
+
+    // 多页时启动自动翻页
+    if (_rankingTotalPages > 1) {
+        _rankingPageTimer = setInterval(function() {
+            _rankingCurrentPage = (_rankingCurrentPage + 1) % _rankingTotalPages;
+            showRankingPage(er, erRelay);
+        }, _rankingPageInterval);
+    }
+}
+
+function showRankingPage(er, erRelay) {
+    var lv = document.getElementById('listView');
     var erH1 = erRelay ? '代表队' : '姓名';
     var erH2 = erRelay ? '姓名' : '代表队';
+
+    var html = '<h2 style="margin-bottom:1.5vh;font-size:3vh;">' + (data.currentGender||'') + '子 ' + (data.currentEvent||'') + ' ' + (data.currentStage||'') + ' 总排名</h2>';
     html += '<table class="list-table"><thead><tr><th>名次</th><th>号码</th><th>' + erH1 + '</th><th>' + erH2 + '</th><th>成绩</th></tr></thead><tbody>';
-    var er = data.eventRanking || [];
-    for (var i = 0; i < er.length; i++) {
+
+    var start = _rankingCurrentPage * _rankingRowsPerPage;
+    var end = Math.min(start + _rankingRowsPerPage, er.length);
+    for (var i = start; i < end; i++) {
         var erc1 = erRelay ? (er[i].country||'') : (er[i].name||'');
         var erc2 = erRelay ? (er[i].name||'') : (er[i].country||'');
         var erkText = er[i].rank > 0 ? er[i].rank : '-';
@@ -656,6 +691,10 @@ function renderEventRanking() {
         html += '<tr><td>' + erkText + '</td><td>' + (er[i].bibNumber||'') + '</td><td>' + erc1 + '</td><td>' + erc2 + '</td><td>' + (er[i].finalTime || erStatus || '') + '</td></tr>';
     }
     html += '</tbody></table>';
+
+    if (_rankingTotalPages > 1) {
+        html += '<div class="page-indicator">' + (_rankingCurrentPage + 1) + ' / ' + _rankingTotalPages + '</div>';
+    }
     lv.innerHTML = html;
 }
 
