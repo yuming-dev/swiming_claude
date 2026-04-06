@@ -646,14 +646,14 @@ function renderEventRanking() {
     var erRelay = isRelayEvent();
     var erH1 = erRelay ? '代表队' : '姓名';
     var erH2 = erRelay ? '姓名' : '代表队';
-    html += '<table class="list-table"><thead><tr><th>名次</th><th>号码</th><th>' + erH1 + '</th><th>' + erH2 + '</th><th>报名</th><th>成绩</th></tr></thead><tbody>';
+    html += '<table class="list-table"><thead><tr><th>名次</th><th>号码</th><th>' + erH1 + '</th><th>' + erH2 + '</th><th>成绩</th></tr></thead><tbody>';
     var er = data.eventRanking || [];
     for (var i = 0; i < er.length; i++) {
         var erc1 = erRelay ? (er[i].country||'') : (er[i].name||'');
         var erc2 = erRelay ? (er[i].name||'') : (er[i].country||'');
         var erkText = er[i].rank > 0 ? er[i].rank : '-';
         var erStatus = er[i].resultStatus || er[i].status || '';
-        html += '<tr><td>' + erkText + '</td><td>' + (er[i].bibNumber||'') + '</td><td>' + erc1 + '</td><td>' + erc2 + '</td><td>' + (er[i].entryTime||'') + '</td><td>' + (er[i].finalTime || erStatus || '') + '</td></tr>';
+        html += '<tr><td>' + erkText + '</td><td>' + (er[i].bibNumber||'') + '</td><td>' + erc1 + '</td><td>' + erc2 + '</td><td>' + (er[i].finalTime || erStatus || '') + '</td></tr>';
     }
     html += '</tbody></table>';
     lv.innerHTML = html;
