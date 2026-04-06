@@ -67,6 +67,9 @@ namespace RemoteTimingControl
             // 加载保存的参数
             LoadSettings();
             ServerBox.Text = _serverHost + ":" + _serverPort;
+
+            // 窗口加载完成后自动连接服务器
+            Loaded += delegate { DoConnect(); };
         }
 
         // ═══════ 参数持久化 ═══════
