@@ -489,6 +489,10 @@ namespace SwimmingScoreboard
                             _laneCloseSettings.FinishPosition = pos;  // 参数设置的是终点位置（固定）
                             _laneCloseSettings.StartPosition = pos;   // 默认发令位置=终点位置（非50米时）
                             AutoAdjustStartPosition();                // 根据当前项目自动调整
+                            // 重置出发台状态到正确一端
+                            if (_raceState == RaceState.Waiting || _raceState == RaceState.Ready) {
+                                foreach (var st in _laneDeviceStates) st.ResetForNewRace(_laneCloseSettings.StartPosition);
+                            }
                         }
                         // 同步全局设置到所有泳道（清除每道独立值，使用全局值）
                         foreach (var st in _laneDeviceStates) st.LaneCloseTime = 0;
