@@ -1238,44 +1238,78 @@ namespace RemoteTimingControl
             return ds[key].ToString();
         }
 
+        private void SplitSelect_Changed(object sender, SelectionChangedEventArgs e)
+        {
+            UpdateTimingSourceInfo();
+        }
+
         private void UpdateTimingSourceInfo()
         {
             if (_data == null || _selectedLane < 0) { TimingSourceInfo.Text = ""; return; }
             var swimmers = _data["swimmers"] as JArray;
             if (swimmers == null) return;
+
             foreach (JObject sw in swimmers)
             {
-                if (sw["lane"] != null && (int)sw["lane"] == _selectedLane)
-                {
-                    var sb = new System.Text.StringBuilder();
-                    sb.AppendFormat("道{0} {1}\n", _selectedLane, sw["name"] ?? "");
+                if (sw["lane"] == null || (int)sw["lane"] != _selectedLane) continue;
 
-                    // 终点成绩（各计时源）
+                var splits = sw["splits"] as JArray;
+                int splitCount = splits != null ? splits.Count : 0;
+
+                // 更新分段选择下拉框
+                int prevIdx = SplitSelectCombo.SelectedIndex;
+                SplitSelectCombo.SelectionChanged -= SplitSelect_Changed;
+                SplitSelectCombo.Items.Clear();
+                SplitSelectCombo.Items.Add(new ComboBoxItem { Content = "终点" });
+                for (int i = 0; i < splitCount; i++)
+                {
+                    JObject sp = (JObject)splits[i];
+                    string label = string.Format("第{0}段", sp["lap"]);
+                    SplitSelectCombo.Items.Add(new ComboBoxItem { Content = label });
+                }
+                if (prevIdx >= 0 && prevIdx < SplitSelectCombo.Items.Count)
+                    SplitSelectCombo.SelectedIndex = prevIdx;
+                else
+                    SplitSelectCombo.SelectedIndex = 0;
+                SplitSelectCombo.SelectionChanged += SplitSelect_Changed;
+
+                int selIdx = SplitSelectCombo.SelectedIndex;
+                var sb = new System.Text.StringBuilder();
+                sb.AppendFormat("道{0} {1}\n", _selectedLane, sw["name"] ?? "");
+
+                if (selIdx <= 0)
+                {
+                    // 终点成绩
                     var ts = sw["timingSources"] as JObject;
+                    sb.Append("反应: ");
+                    sb.Append(sw["reactionTime"] != null ? sw["reactionTime"].ToString() : "-");
+                    sb.Append("\n");
                     if (ts != null)
                     {
-                        sb.AppendFormat("--- 终点 ---\n");
-                        sb.AppendFormat("触板: {0}\n", ts["touchpad"] ?? "-");
-                        sb.AppendFormat("盲1: {0}  盲2: {1}  盲3: {2}\n", ts["blindWatch1"] ?? "-", ts["blindWatch2"] ?? "-", ts["blindWatch3"] ?? "-");
-                        sb.AppendFormat("手动左: {0}  手动右: {1}\n", ts["manualTouchLeft"] ?? "-", ts["manualTouchRight"] ?? "-");
+                        sb.AppendFormat("触板:  {0}\n", ts["touchpad"] ?? "-");
+                        sb.AppendFormat("盲表1: {0}\n", ts["blindWatch1"] ?? "-");
+                        sb.AppendFormat("盲表2: {0}\n", ts["blindWatch2"] ?? "-");
+                        sb.AppendFormat("盲表3: {0}\n", ts["blindWatch3"] ?? "-");
+                        sb.AppendFormat("手动左: {0}\n", ts["manualTouchLeft"] ?? "-");
+                        sb.AppendFormat("手动右: {0}\n", ts["manualTouchRight"] ?? "-");
                     }
-
-                    // 各分段成绩
-                    var splits = sw["splits"] as JArray;
-                    if (splits != null && splits.Count > 0)
-                    {
-                        sb.Append("--- 分段 ---\n");
-                        foreach (JObject sp in splits)
-                        {
-                            sb.AppendFormat("第{0}段({1}m) 累计:{2}\n", sp["lap"], sp["distance"], sp["cumulative"] ?? "-");
-                            sb.AppendFormat("  触板:{0} 盲1:{1} 盲2:{2} 盲3:{3} 手动:{4} 源:{5}\n",
-                                sp["touchpad"] ?? "-", sp["blind1"] ?? "-", sp["blind2"] ?? "-", sp["blind3"] ?? "-",
-                                sp["manual"] ?? "-", sp["source"] ?? "-");
-                        }
-                    }
-                    TimingSourceInfo.Text = sb.ToString();
-                    break;
                 }
+                else if (splits != null && selIdx - 1 < splitCount)
+                {
+                    // 选中的分段
+                    JObject sp = (JObject)splits[selIdx - 1];
+                    sb.AppendFormat("第{0}段 ({1}m)\n", sp["lap"], sp["distance"]);
+                    sb.AppendFormat("累计:  {0}\n", sp["cumulative"] ?? "-");
+                    sb.AppendFormat("分段:  {0}\n", sp["time"] ?? "-");
+                    sb.AppendFormat("触板:  {0}\n", sp["touchpad"] ?? "-");
+                    sb.AppendFormat("盲表1: {0}\n", sp["blind1"] ?? "-");
+                    sb.AppendFormat("盲表2: {0}\n", sp["blind2"] ?? "-");
+                    sb.AppendFormat("盲表3: {0}\n", sp["blind3"] ?? "-");
+                    sb.AppendFormat("手动:  {0}\n", sp["manual"] ?? "-");
+                    sb.AppendFormat("计时源: {0}\n", sp["source"] ?? "-");
+                }
+                TimingSourceInfo.Text = sb.ToString();
+                break;
             }
         }
 
