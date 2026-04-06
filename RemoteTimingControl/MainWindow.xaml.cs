@@ -447,6 +447,9 @@ namespace RemoteTimingControl
 
             // Start list
             RenderStartList(swimmers);
+
+            // 更新计时源对比（刷新分段下拉列表和数据）
+            UpdateTimingSourceInfo();
         }
 
         private void DetectFirstPlace(JArray swimmers)
