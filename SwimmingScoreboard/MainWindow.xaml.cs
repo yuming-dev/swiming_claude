@@ -4097,10 +4097,21 @@ namespace SwimmingScoreboard
                     }
                 }
 
-                // 更新赛程表中的组数
+                // 更新赛程表中的组数（不存在则新建）
                 var schedItem = _schedule.FirstOrDefault(s => s.Gender == gender && s.EventName == eventName && s.Stage == stage);
-                if (schedItem != null && maxHeat > schedItem.HeatCount)
-                    schedItem.HeatCount = maxHeat;
+                if (schedItem != null) {
+                    if (maxHeat > schedItem.HeatCount) schedItem.HeatCount = maxHeat;
+                } else {
+                    // 新项目：在赛程表中新建条目
+                    _schedule.Add(new ScheduleItem {
+                        SessionNumber = _schedule.Count > 0 ? _schedule.Max(s => s.SessionNumber) : 1,
+                        Gender = gender,
+                        EventName = eventName,
+                        Stage = stage,
+                        HeatCount = maxHeat
+                    });
+                    AddLog(string.Format("  新建赛程: {0} {1} {2}（{3}组）", gender, eventName, stage, maxHeat));
+                }
             }
 
             BuildScheduleTree();
