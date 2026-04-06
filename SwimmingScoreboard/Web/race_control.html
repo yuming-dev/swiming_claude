@@ -529,24 +529,23 @@ function render() {
     var info = (data.currentGender||'') + '子 ' + (data.currentEvent||'') + ' ' + (data.currentStage||'') + ' 第' + (data.currentHeat||0) + '/' + (data.totalHeats||0) + '组';
     document.getElementById('currentInfo').textContent = info;
 
+    // 先同步参数（发令位置等），再渲染界面
+    if (data.laneCloseSettings) {
+        if (data.laneCloseSettings.startPosition) startPosition = data.laneCloseSettings.startPosition;
+        if (data.laneCloseSettings.finishPosition) finishPosition = data.laneCloseSettings.finishPosition;
+        if (document.getElementById('settingsModal').classList.contains('hidden')) {
+            document.getElementById('dlgCloseTime').value = data.laneCloseSettings.laneCloseTime;
+            document.getElementById('dlgSBDelay').value = data.laneCloseSettings.startBlockCloseDelay;
+            document.getElementById('dlgConfDelay').value = data.laneCloseSettings.resultConfirmCloseDelay;
+            document.getElementById('dlgFSThresh').value = data.laneCloseSettings.falseStartThreshold;
+            document.getElementById('dlgSplitDisp').value = data.laneCloseSettings.splitDisplayTime;
+        }
+    }
+
     renderScheduleTree();
     renderHeader();
     renderLanes();
     renderStartListBar();
-
-    var swimmers = data.swimmers || [];
-
-    if (data.laneCloseSettings && document.getElementById('settingsModal').classList.contains('hidden')) {
-        document.getElementById('dlgCloseTime').value = data.laneCloseSettings.laneCloseTime;
-        document.getElementById('dlgSBDelay').value = data.laneCloseSettings.startBlockCloseDelay;
-        document.getElementById('dlgConfDelay').value = data.laneCloseSettings.resultConfirmCloseDelay;
-        document.getElementById('dlgFSThresh').value = data.laneCloseSettings.falseStartThreshold;
-        document.getElementById('dlgSplitDisp').value = data.laneCloseSettings.splitDisplayTime;
-        if (data.laneCloseSettings.startPosition) startPosition = data.laneCloseSettings.startPosition;
-        if (data.laneCloseSettings.finishPosition) finishPosition = data.laneCloseSettings.finishPosition;
-    }
-
-    // 发令位置指示灯已在 renderHeader() 中处理
 }
 
 // ═══════ 泳道操作 ═══════
