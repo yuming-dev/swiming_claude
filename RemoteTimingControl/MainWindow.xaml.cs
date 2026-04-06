@@ -255,9 +255,12 @@ namespace RemoteTimingControl
             DoConnect();
         }
 
+        private DateTime _lastRenderTime = DateTime.MinValue;
+        private bool _renderPending = false;
+
         private void OnServerMessage(string json)
         {
-            Dispatcher.Invoke((Action)delegate()
+            Dispatcher.BeginInvoke((Action)delegate()
             {
                 try
                 {
@@ -278,7 +281,30 @@ namespace RemoteTimingControl
                     }
 
                     _data = msg["data"] as JObject;
-                    if (_data != null) RenderAll();
+                    if (_data != null)
+                    {
+                        // 节流渲染：至少间隔200ms，避免频繁重建UI导致按钮无响应
+                        double elapsed = (DateTime.Now - _lastRenderTime).TotalMilliseconds;
+                        if (elapsed >= 200)
+                        {
+                            _lastRenderTime = DateTime.Now;
+                            _renderPending = false;
+                            RenderAll();
+                        }
+                        else if (!_renderPending)
+                        {
+                            _renderPending = true;
+                            var delayTimer = new DispatcherTimer();
+                            delayTimer.Interval = TimeSpan.FromMilliseconds(200 - elapsed);
+                            delayTimer.Tick += delegate {
+                                delayTimer.Stop();
+                                _renderPending = false;
+                                _lastRenderTime = DateTime.Now;
+                                if (_data != null) RenderAll();
+                            };
+                            delayTimer.Start();
+                        }
+                    }
                 }
                 catch { }
             });
