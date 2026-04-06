@@ -72,10 +72,10 @@ namespace RemoteTimingControl
             Loaded += delegate { DoConnect(); };
         }
 
-        // ═══════ 参数持久化 ═══════
+        // ═══════ 网络地址持久化（参数全部从服务器获取） ═══════
         private string GetSettingsPath()
         {
-            return System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "RemoteTimingSettings.json");
+            return System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "RemoteTimingServer.txt");
         }
 
         private void LoadSettings()
@@ -84,17 +84,11 @@ namespace RemoteTimingControl
             {
                 string path = GetSettingsPath();
                 if (!System.IO.File.Exists(path)) return;
-                string json = System.IO.File.ReadAllText(path, Encoding.UTF8);
-                var obj = JObject.Parse(json);
-                if (obj["serverHost"] != null) _serverHost = obj["serverHost"].ToString();
-                if (obj["serverPort"] != null) _serverPort = (int)obj["serverPort"];
-                if (obj["finishPosition"] != null) _finishPosition = obj["finishPosition"].ToString();
-                if (obj["firstPlaceHoldTime"] != null) _firstPlaceHoldTime = (double)obj["firstPlaceHoldTime"];
-                if (obj["laneCloseTime"] != null) _laneCloseTime = (double)obj["laneCloseTime"];
-                if (obj["startBlockCloseDelay"] != null) _startBlockCloseDelay = (double)obj["startBlockCloseDelay"];
-                if (obj["resultConfirmCloseDelay"] != null) _resultConfirmCloseDelay = (double)obj["resultConfirmCloseDelay"];
-                if (obj["falseStartThreshold"] != null) _falseStartThreshold = (double)obj["falseStartThreshold"];
-                if (obj["splitDisplayTime"] != null) _splitDisplayTime = (double)obj["splitDisplayTime"];
+                string addr = System.IO.File.ReadAllText(path, Encoding.UTF8).Trim();
+                if (string.IsNullOrEmpty(addr)) return;
+                string[] parts = addr.Split(':');
+                _serverHost = parts[0];
+                if (parts.Length > 1) int.TryParse(parts[1], out _serverPort);
             }
             catch { }
         }
@@ -103,20 +97,8 @@ namespace RemoteTimingControl
         {
             try
             {
-                var obj = new
-                {
-                    serverHost = _serverHost,
-                    serverPort = _serverPort,
-                    finishPosition = _finishPosition,
-                    firstPlaceHoldTime = _firstPlaceHoldTime,
-                    laneCloseTime = _laneCloseTime,
-                    startBlockCloseDelay = _startBlockCloseDelay,
-                    resultConfirmCloseDelay = _resultConfirmCloseDelay,
-                    falseStartThreshold = _falseStartThreshold,
-                    splitDisplayTime = _splitDisplayTime
-                };
-                string json = JsonConvert.SerializeObject(obj, Formatting.Indented);
-                System.IO.File.WriteAllText(GetSettingsPath(), json, Encoding.UTF8);
+                string addr = _serverHost + ":" + _serverPort;
+                System.IO.File.WriteAllText(GetSettingsPath(), addr, Encoding.UTF8);
             }
             catch { }
         }
@@ -417,12 +399,17 @@ namespace RemoteTimingControl
             DetectFirstPlace(swimmers);
             UpdateRunningTimeDisplay();
 
-            // Sync settings
+            // 从服务器同步所有参数（服务器是唯一的参数来源）
             if (_data["laneCloseSettings"] != null)
             {
                 var lcs = _data["laneCloseSettings"];
                 if (lcs["startPosition"] != null) _startPosition = lcs["startPosition"].ToString();
                 if (lcs["finishPosition"] != null) _finishPosition = lcs["finishPosition"].ToString();
+                if (lcs["laneCloseTime"] != null) _laneCloseTime = (double)lcs["laneCloseTime"];
+                if (lcs["startBlockCloseDelay"] != null) _startBlockCloseDelay = (double)lcs["startBlockCloseDelay"];
+                if (lcs["resultConfirmCloseDelay"] != null) _resultConfirmCloseDelay = (double)lcs["resultConfirmCloseDelay"];
+                if (lcs["falseStartThreshold"] != null) _falseStartThreshold = (double)lcs["falseStartThreshold"];
+                if (lcs["splitDisplayTime"] != null) _splitDisplayTime = (double)lcs["splitDisplayTime"];
             }
 
             // Control mode
