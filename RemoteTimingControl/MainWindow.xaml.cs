@@ -1240,11 +1240,13 @@ namespace RemoteTimingControl
 
         private void SplitSelect_Changed(object sender, SelectionChangedEventArgs e)
         {
+            if (TimingSourceInfo == null) return;
             UpdateTimingSourceInfo();
         }
 
         private void UpdateTimingSourceInfo()
         {
+            if (TimingSourceInfo == null) return;
             if (_data == null || _selectedLane < 0) { TimingSourceInfo.Text = ""; return; }
             var swimmers = _data["swimmers"] as JArray;
             if (swimmers == null) return;
