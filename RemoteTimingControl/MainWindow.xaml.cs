@@ -1522,18 +1522,37 @@ namespace RemoteTimingControl
             finishRow.Children.Add(rbRight);
             sp.Children.Add(finishRow);
 
-            // Serial port (moved from main UI)
-            var serialRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 10, 0, 0) };
-            serialRow.Children.Add(new TextBlock { Text = "本地串口(可选)", Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), FontSize = 13, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) });
-            var comPortCombo = new ComboBox { Width = 100, Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#334155")), Foreground = Brushes.White };
-            try
-            {
-                foreach (string port in System.IO.Ports.SerialPort.GetPortNames())
-                    comPortCombo.Items.Add(port);
-            }
-            catch { }
-            serialRow.Children.Add(comPortCombo);
-            sp.Children.Add(serialRow);
+            // 服务器地址
+            var serverSep = new Border { BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569")), BorderThickness = new Thickness(0, 1, 0, 0), Margin = new Thickness(0, 10, 0, 0), Padding = new Thickness(0, 10, 0, 0) };
+            var serverRow = new Grid();
+            serverRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Auto) });
+            serverRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            serverRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Auto) });
+            var serverLabel = new TextBlock { Text = "服务器地址", Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), FontSize = 15, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
+            Grid.SetColumn(serverLabel, 0);
+            serverRow.Children.Add(serverLabel);
+            var tbServerHost = new TextBox { Text = ServerBox.Text, Padding = new Thickness(4), Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#334155")), Foreground = Brushes.White, BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569")), FontSize = 14, Margin = new Thickness(0, 0, 4, 0) };
+            Grid.SetColumn(tbServerHost, 1);
+            serverRow.Children.Add(tbServerHost);
+            var btnConnect = new Button { Content = "连接", Padding = new Thickness(10, 4, 10, 4), Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6")), Foreground = Brushes.White, BorderThickness = new Thickness(0), FontSize = 12 };
+            btnConnect.Click += delegate {
+                ServerBox.Text = tbServerHost.Text.Trim();
+                Connect_Click(null, null);
+            };
+            Grid.SetColumn(btnConnect, 2);
+            serverRow.Children.Add(btnConnect);
+            serverSep.Child = serverRow;
+            sp.Children.Add(serverSep);
+
+            // 设备状态管理按钮
+            var deviceSep = new Border { BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569")), BorderThickness = new Thickness(0, 1, 0, 0), Margin = new Thickness(0, 10, 0, 0), Padding = new Thickness(0, 10, 0, 0) };
+            var btnDeviceMgr = new Button { Content = "设备状态管理", Padding = new Thickness(0, 8, 0, 8), FontSize = 14, FontWeight = FontWeights.Bold, Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#8B5CF6")), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
+            btnDeviceMgr.Click += delegate {
+                dlg.DialogResult = false;
+                OpenDeviceManager();
+            };
+            deviceSep.Child = btnDeviceMgr;
+            sp.Children.Add(deviceSep);
 
             var btnPanel = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 16, 0, 0) };
             var btnCancel = new Button { Content = "取消", Padding = new Thickness(16, 6, 16, 6), Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569")), Foreground = Brushes.White, BorderThickness = new Thickness(0), Margin = new Thickness(0, 0, 8, 0) };
@@ -1584,6 +1603,121 @@ namespace RemoteTimingControl
             row.Children.Add(unitTb);
             parent.Children.Add(row);
             return tb;
+        }
+
+        // ═══════ 设备状态管理 ═══════
+        private void OpenDeviceManager()
+        {
+            if (_data == null || _data["swimmers"] == null) { MessageBox.Show("暂无泳道数据"); return; }
+            var swimmers = _data["swimmers"] as JArray;
+            if (swimmers == null || swimmers.Count == 0) { MessageBox.Show("暂无泳道数据"); return; }
+
+            var dlg = new Window
+            {
+                Title = "设备状态管理",
+                Width = 750, Height = 500,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                Owner = this,
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E293B"))
+            };
+
+            var mainSp = new StackPanel { Margin = new Thickness(16) };
+            mainSp.Children.Add(new TextBlock { Text = "设备状态管理", FontSize = 17, FontWeight = FontWeights.Bold, Foreground = Brushes.White, Margin = new Thickness(0, 0, 0, 12) });
+            mainSp.Children.Add(new TextBlock { Text = "点击设备名切换损坏/正常状态（红色=损坏）", Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), FontSize = 12, Margin = new Thickness(0, 0, 0, 8) });
+
+            string[] deviceNames = { "左触板", "左盲1", "左盲2", "左盲3", "左出发台", "右触板", "右盲1", "右盲2", "右盲3", "右出发台" };
+            string[] deviceKeys = { "leftTouchpad", "leftBlindWatch1", "leftBlindWatch2", "leftBlindWatch3", "leftStartBlock", "rightTouchpad", "rightBlindWatch1", "rightBlindWatch2", "rightBlindWatch3", "rightStartBlock" };
+            string[] brokenKeys = { "leftTouchpadBroken", "leftBlindWatch1Broken", "leftBlindWatch2Broken", "leftBlindWatch3Broken", "leftStartBlockBroken", "rightTouchpadBroken", "rightBlindWatch1Broken", "rightBlindWatch2Broken", "rightBlindWatch3Broken", "rightStartBlockBroken" };
+
+            var scroll = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, MaxHeight = 350 };
+            var grid = new Grid();
+
+            // Header row
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(50) }); // 道次
+            for (int d = 0; d < deviceNames.Length; d++)
+                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(60) });
+            grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(28) });
+
+            var headerLane = new TextBlock { Text = "道次", Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), FontSize = 11, FontWeight = FontWeights.Bold, VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center };
+            Grid.SetRow(headerLane, 0); Grid.SetColumn(headerLane, 0);
+            grid.Children.Add(headerLane);
+            for (int d = 0; d < deviceNames.Length; d++)
+            {
+                var hdr = new TextBlock { Text = deviceNames[d], Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), FontSize = 10, VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center };
+                Grid.SetRow(hdr, 0); Grid.SetColumn(hdr, d + 1);
+                grid.Children.Add(hdr);
+            }
+
+            // Data rows
+            for (int si = 0; si < swimmers.Count; si++)
+            {
+                JObject sw = (JObject)swimmers[si];
+                int lane = sw["lane"] != null ? (int)sw["lane"] : si;
+                var ds = sw["deviceStatus"] as JObject;
+                grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(30) });
+                int rowIdx = si + 1;
+
+                var laneTb = new TextBlock { Text = "道" + lane, Foreground = Brushes.White, FontSize = 12, FontWeight = FontWeights.Bold, VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center };
+                Grid.SetRow(laneTb, rowIdx); Grid.SetColumn(laneTb, 0);
+                grid.Children.Add(laneTb);
+
+                for (int d = 0; d < deviceKeys.Length; d++)
+                {
+                    bool isBroken = ds != null && ds[brokenKeys[d]] != null && (bool)ds[brokenKeys[d]];
+                    int capturedLane = lane;
+                    string capturedDevice = deviceKeys[d];
+                    var btn = new Button
+                    {
+                        Content = isBroken ? "X" : "OK",
+                        FontSize = 10, Padding = new Thickness(2),
+                        Background = new SolidColorBrush(isBroken ? (Color)ColorConverter.ConvertFromString("#EF4444") : (Color)ColorConverter.ConvertFromString("#22C55E")),
+                        Foreground = Brushes.White, BorderThickness = new Thickness(0),
+                        Margin = new Thickness(2)
+                    };
+                    btn.Click += delegate {
+                        bool newBroken = btn.Content.ToString() == "OK";
+                        SendCmd("SET_DEVICE_STATUS", new { lane = capturedLane, device = capturedDevice, status = newBroken ? "broken" : "normal" });
+                        btn.Content = newBroken ? "X" : "OK";
+                        btn.Background = new SolidColorBrush(newBroken ? (Color)ColorConverter.ConvertFromString("#EF4444") : (Color)ColorConverter.ConvertFromString("#22C55E"));
+                    };
+                    Grid.SetRow(btn, rowIdx); Grid.SetColumn(btn, d + 1);
+                    grid.Children.Add(btn);
+                }
+            }
+            scroll.Content = grid;
+            mainSp.Children.Add(scroll);
+
+            // 全部正常/全部损坏 按钮
+            var allBtnPanel = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 10, 0, 0) };
+            var btnAllNormal = new Button { Content = "全部正常", Padding = new Thickness(16, 6, 16, 6), Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#22C55E")), Foreground = Brushes.White, BorderThickness = new Thickness(0), Margin = new Thickness(0, 0, 8, 0), FontWeight = FontWeights.Bold };
+            btnAllNormal.Click += delegate {
+                foreach (JObject sw in swimmers)
+                {
+                    int l = sw["lane"] != null ? (int)sw["lane"] : 0;
+                    for (int d = 0; d < deviceKeys.Length; d++)
+                        SendCmd("SET_DEVICE_STATUS", new { lane = l, device = deviceKeys[d], status = "normal" });
+                }
+                dlg.Close();
+                AddLog("已设置全部设备为正常");
+            };
+            var btnAllBroken = new Button { Content = "全部损坏", Padding = new Thickness(16, 6, 16, 6), Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EF4444")), Foreground = Brushes.White, BorderThickness = new Thickness(0), FontWeight = FontWeights.Bold };
+            btnAllBroken.Click += delegate {
+                foreach (JObject sw in swimmers)
+                {
+                    int l = sw["lane"] != null ? (int)sw["lane"] : 0;
+                    for (int d = 0; d < deviceKeys.Length; d++)
+                        SendCmd("SET_DEVICE_STATUS", new { lane = l, device = deviceKeys[d], status = "broken" });
+                }
+                dlg.Close();
+                AddLog("已设置全部设备为损坏");
+            };
+            allBtnPanel.Children.Add(btnAllNormal);
+            allBtnPanel.Children.Add(btnAllBroken);
+            mainSp.Children.Add(allBtnPanel);
+
+            var dlgScroll = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Content = mainSp };
+            dlg.Content = dlgScroll;
+            dlg.ShowDialog();
         }
 
         // ═══════ 键盘快捷键 ═══════
