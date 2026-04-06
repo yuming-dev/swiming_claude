@@ -728,6 +728,7 @@ namespace SwimmingScoreboard
         private bool _isFinished;
         private double _reactionTime;
         private bool _isFalseStart;
+        private string _startSide = "left";  // 出发台所在端（用于抢跳显示）
         private double _leftManualTouchTime;
         private double _rightManualTouchTime;
         private bool _leftTouchpadBroken;
@@ -767,10 +768,14 @@ namespace SwimmingScoreboard
             get { if (_leftBlindWatch3NotInstalled) return DeviceStatus.NotInstalled; return _leftBlindWatch3Broken ? DeviceStatus.Broken : _leftBlindWatch3Status; }
             set { _leftBlindWatch3Status = value; OnPropertyChanged("LeftBlindWatch3Status"); }
         }
+        public string StartSide {
+            get { return _startSide; }
+            set { _startSide = value; }
+        }
         public DeviceStatus LeftStartBlockStatus {
             get {
                 if (_leftStartBlockBroken) return DeviceStatus.Broken;
-                if (_isFalseStart && _leftStartBlockStatus == DeviceStatus.Open) return DeviceStatus.FalseStart;
+                if (_isFalseStart && _startSide == "left") return DeviceStatus.FalseStart;
                 return _leftStartBlockStatus;
             }
             set { _leftStartBlockStatus = value; OnPropertyChanged("LeftStartBlockStatus"); }
@@ -794,7 +799,7 @@ namespace SwimmingScoreboard
         public DeviceStatus RightStartBlockStatus {
             get {
                 if (_rightStartBlockBroken) return DeviceStatus.Broken;
-                if (_isFalseStart && _rightStartBlockStatus == DeviceStatus.Open) return DeviceStatus.FalseStart;
+                if (_isFalseStart && _startSide == "right") return DeviceStatus.FalseStart;
                 return _rightStartBlockStatus;
             }
             set { _rightStartBlockStatus = value; OnPropertyChanged("RightStartBlockStatus"); }
@@ -931,6 +936,7 @@ namespace SwimmingScoreboard
             _isFinished = false;
             _reactionTime = 0;
             _isFalseStart = false;
+            _startSide = startPosition;
             _leftManualTouchTime = 0;
             _rightManualTouchTime = 0;
             NotifyAll();
