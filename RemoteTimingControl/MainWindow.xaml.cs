@@ -452,15 +452,15 @@ namespace RemoteTimingControl
             // Start indicator left
             PoolHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(8) });
             // Left devices
-            PoolHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(200) });
+            PoolHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(220) });
             // Mid
             PoolHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             // Right devices
-            PoolHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(200) });
+            PoolHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(220) });
             // Start indicator right
             PoolHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(8) });
             // Info area
-            PoolHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(280) });
+            PoolHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(310) });
 
             // Left start indicator
             var leftInd = new TextBlock
@@ -477,12 +477,12 @@ namespace RemoteTimingControl
             // Left device labels
             var leftLabels = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
             leftLabels.Children.Add(MakeHeaderLabel("[T]", 78));
-            leftLabels.Children.Add(MakeHeaderLabel("盲1", 18));
-            leftLabels.Children.Add(MakeHeaderLabel("盲2", 18));
-            leftLabels.Children.Add(MakeHeaderLabel("盲3", 18));
-            leftLabels.Children.Add(MakeHeaderLabel("出发", 18));
-            leftLabels.Children.Add(MakeHeaderLabel("触板", 18));
-            leftLabels.Children.Add(MakeHeaderLabel("圈", 22));
+            leftLabels.Children.Add(MakeHeaderLabel("盲1", 22));
+            leftLabels.Children.Add(MakeHeaderLabel("盲2", 22));
+            leftLabels.Children.Add(MakeHeaderLabel("盲3", 22));
+            leftLabels.Children.Add(MakeHeaderLabel("出发", 22));
+            leftLabels.Children.Add(MakeHeaderLabel("触板", 22));
+            leftLabels.Children.Add(MakeHeaderLabel("圈", 26));
             Grid.SetColumn(leftLabels, 1);
             PoolHeader.Children.Add(leftLabels);
 
@@ -496,12 +496,12 @@ namespace RemoteTimingControl
 
             // Right device labels
             var rightLabels = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-            rightLabels.Children.Add(MakeHeaderLabel("圈", 22));
-            rightLabels.Children.Add(MakeHeaderLabel("触板", 18));
-            rightLabels.Children.Add(MakeHeaderLabel("出发", 18));
-            rightLabels.Children.Add(MakeHeaderLabel("盲1", 18));
-            rightLabels.Children.Add(MakeHeaderLabel("盲2", 18));
-            rightLabels.Children.Add(MakeHeaderLabel("盲3", 18));
+            rightLabels.Children.Add(MakeHeaderLabel("圈", 26));
+            rightLabels.Children.Add(MakeHeaderLabel("触板", 22));
+            rightLabels.Children.Add(MakeHeaderLabel("出发", 22));
+            rightLabels.Children.Add(MakeHeaderLabel("盲1", 22));
+            rightLabels.Children.Add(MakeHeaderLabel("盲2", 22));
+            rightLabels.Children.Add(MakeHeaderLabel("盲3", 22));
             rightLabels.Children.Add(MakeHeaderLabel("[T]", 78));
             Grid.SetColumn(rightLabels, 3);
             PoolHeader.Children.Add(rightLabels);
@@ -521,9 +521,9 @@ namespace RemoteTimingControl
             // Info area header
             var infoHeader = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
             infoHeader.Children.Add(MakeHeaderLabel("反应", 55));
-            infoHeader.Children.Add(MakeHeaderLabel("成绩", 100));
-            infoHeader.Children.Add(MakeHeaderLabel("名次", 35));
-            infoHeader.Children.Add(MakeHeaderLabel("备注", 35));
+            infoHeader.Children.Add(MakeHeaderLabel("成绩", 110));
+            infoHeader.Children.Add(MakeHeaderLabel("名次", 40));
+            infoHeader.Children.Add(MakeHeaderLabel("备注", 50));
             Grid.SetColumn(infoHeader, 5);
             PoolHeader.Children.Add(infoHeader);
         }
@@ -771,11 +771,11 @@ namespace RemoteTimingControl
                 var grid = new Grid();
                 // Columns: startIndL, leftDevices, mid, rightDevices, startIndR, infoArea
                 grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(8) });
-                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(200) });
+                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(220) });
                 grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(200) });
+                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(220) });
                 grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(8) });
-                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(280) });
+                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(310) });
 
                 int capturedLane = lane;
 
@@ -816,7 +816,7 @@ namespace RemoteTimingControl
                 leftDevices.Children.Add(new TextBlock
                 {
                     Text = leftRemainStr,
-                    Width = 22,
+                    Width = 26,
                     FontSize = 18,
                     FontWeight = FontWeights.Bold,
                     TextAlignment = TextAlignment.Center,
@@ -925,7 +925,7 @@ namespace RemoteTimingControl
                 rightDevices.Children.Add(new TextBlock
                 {
                     Text = rightRemainStr,
-                    Width = 22,
+                    Width = 26,
                     FontSize = 18,
                     FontWeight = FontWeights.Bold,
                     TextAlignment = TextAlignment.Center,
@@ -980,7 +980,7 @@ namespace RemoteTimingControl
                 infoArea.Children.Add(new TextBlock
                 {
                     Text = displayTime,
-                    Width = 100,
+                    Width = 110,
                     FontSize = 19,
                     FontWeight = FontWeights.Bold,
                     Foreground = Brushes.White,
@@ -996,7 +996,7 @@ namespace RemoteTimingControl
                 infoArea.Children.Add(new TextBlock
                 {
                     Text = rank > 0 ? rank.ToString() : "",
-                    Width = 35,
+                    Width = 40,
                     FontSize = 20,
                     FontWeight = FontWeights.Bold,
                     Foreground = new SolidColorBrush(rankColor),
@@ -1011,7 +1011,7 @@ namespace RemoteTimingControl
                 infoArea.Children.Add(new TextBlock
                 {
                     Text = remarkText,
-                    Width = 35,
+                    Width = 50,
                     FontSize = 20,
                     FontWeight = FontWeights.Bold,
                     Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EF4444")),
@@ -1156,8 +1156,8 @@ namespace RemoteTimingControl
             }
             return new Ellipse
             {
-                Width = 18,
-                Height = 18,
+                Width = 20,
+                Height = 20,
                 Fill = new SolidColorBrush(c),
                 Margin = new Thickness(2, 0, 2, 0),
                 Stroke = status == "notinstalled" ? new SolidColorBrush((Color)ColorConverter.ConvertFromString("#334155")) : null,
