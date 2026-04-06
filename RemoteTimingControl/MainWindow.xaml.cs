@@ -1481,8 +1481,8 @@ namespace RemoteTimingControl
             var dlg = new Window
             {
                 Title = "参数设置",
-                Width = 400,
-                Height = 420,
+                Width = 420,
+                Height = 560,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner,
                 Owner = this,
                 ResizeMode = ResizeMode.NoResize,
@@ -1541,7 +1541,8 @@ namespace RemoteTimingControl
             btnPanel.Children.Add(btnOk);
             sp.Children.Add(btnPanel);
 
-            dlg.Content = sp;
+            var scroll = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Content = sp };
+            dlg.Content = scroll;
 
             if (dlg.ShowDialog() == true)
             {
