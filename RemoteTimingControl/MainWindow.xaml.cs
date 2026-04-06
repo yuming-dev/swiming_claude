@@ -1748,7 +1748,16 @@ namespace RemoteTimingControl
                     for (int d = 0; d < deviceKeys.Length; d++)
                         SendCmd("SET_DEVICE_STATUS", new { lane = l, device = deviceKeys[d], status = "normal" });
                 }
-                dlg.Close();
+                // 刷新按钮状态
+                foreach (object child in grid.Children)
+                {
+                    var b = child as Button;
+                    if (b != null && (b.Content.ToString() == "OK" || b.Content.ToString() == "X"))
+                    {
+                        b.Content = "OK";
+                        b.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#22C55E"));
+                    }
+                }
                 AddLog("已设置全部设备为正常");
             };
             var btnAllBroken = new Button { Content = "全部损坏", Padding = new Thickness(16, 6, 16, 6), Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EF4444")), Foreground = Brushes.White, BorderThickness = new Thickness(0), FontWeight = FontWeights.Bold };
@@ -1759,12 +1768,30 @@ namespace RemoteTimingControl
                     for (int d = 0; d < deviceKeys.Length; d++)
                         SendCmd("SET_DEVICE_STATUS", new { lane = l, device = deviceKeys[d], status = "broken" });
                 }
-                dlg.Close();
+                foreach (object child in grid.Children)
+                {
+                    var b = child as Button;
+                    if (b != null && (b.Content.ToString() == "OK" || b.Content.ToString() == "X"))
+                    {
+                        b.Content = "X";
+                        b.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EF4444"));
+                    }
+                }
                 AddLog("已设置全部设备为损坏");
             };
             allBtnPanel.Children.Add(btnAllNormal);
             allBtnPanel.Children.Add(btnAllBroken);
             mainSp.Children.Add(allBtnPanel);
+
+            // 确认 / 关闭 按钮
+            var bottomPanel = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 14, 0, 0) };
+            var btnConfirm = new Button { Content = "确认", Padding = new Thickness(20, 6, 20, 6), Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6")), Foreground = Brushes.White, BorderThickness = new Thickness(0), FontWeight = FontWeights.Bold, FontSize = 14, Margin = new Thickness(0, 0, 8, 0) };
+            btnConfirm.Click += delegate { dlg.Close(); AddLog("设备状态已确认"); };
+            var btnClose = new Button { Content = "关闭", Padding = new Thickness(20, 6, 20, 6), Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569")), Foreground = Brushes.White, BorderThickness = new Thickness(0), FontSize = 14 };
+            btnClose.Click += delegate { dlg.Close(); };
+            bottomPanel.Children.Add(btnConfirm);
+            bottomPanel.Children.Add(btnClose);
+            mainSp.Children.Add(bottomPanel);
 
             var dlgScroll = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Content = mainSp };
             dlg.Content = dlgScroll;
