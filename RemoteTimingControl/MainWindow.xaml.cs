@@ -778,9 +778,9 @@ namespace RemoteTimingControl
                 Grid.SetColumn(leftDevices, 1);
                 grid.Children.Add(leftDevices);
 
-                // Mid panel
-                var midPanel = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 8, 0) };
-                midPanel.Children.Add(new TextBlock
+                // Mid panel — DockPanel让进度条填满剩余空间
+                var midPanel = new DockPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 8, 0) };
+                var laneNumTb = new TextBlock
                 {
                     Text = lane.ToString(),
                     Width = 24,
@@ -789,7 +789,9 @@ namespace RemoteTimingControl
                     Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")),
                     VerticalAlignment = VerticalAlignment.Center,
                     TextAlignment = TextAlignment.Center
-                });
+                };
+                DockPanel.SetDock(laneNumTb, Dock.Left);
+                midPanel.Children.Add(laneNumTb);
 
                 // Swimmer info - show differently for relay
                 var infoStack = new StackPanel { Width = 110 };
@@ -825,6 +827,7 @@ namespace RemoteTimingControl
                         FontSize = 14
                     });
                 }
+                DockPanel.SetDock(infoStack, Dock.Left);
                 midPanel.Children.Add(infoStack);
 
                 // Direction and progress track
