@@ -595,10 +595,8 @@ namespace RemoteTimingControl
             var sb = new System.Text.StringBuilder();
             sb.Append("WR: ");
             sb.Append(!string.IsNullOrEmpty(wrTime) ? wrTime : "---");
-            if (!string.IsNullOrEmpty(wrHolder)) sb.AppendFormat(" ({0})", wrHolder);
             sb.Append("    CR: ");
             sb.Append(!string.IsNullOrEmpty(crTime) ? crTime : "---");
-            if (!string.IsNullOrEmpty(crHolder)) sb.AppendFormat(" ({0})", crHolder);
 
             RecordDisplay.Text = sb.ToString();
         }
