@@ -449,14 +449,19 @@ function simBlindWatch() {
     log('=== 模拟盲表 (基于当前时间) ===');
     for (var i = 0; i < lanes.length; i++) {
         var lane = lanes[i];
-        // 基准时间：优先用该道最近触板时间，否则用当前服务器时间
-        var refTime = (_lastTouchpadTime[lane] && _lastTouchpadTime[lane] > 0) ? _lastTouchpadTime[lane] : currentServerTime;
+        // 基准时间：始终用当前服务器运行时间
+        // 如果该道有触板时间且与当前时间接近（3秒内），用触板时间更精确
+        var refTime = currentServerTime;
+        var lastTp = _lastTouchpadTime[lane] || 0;
+        if (lastTp > 0 && (currentServerTime - lastTp) < 3) {
+            refTime = lastTp;
+        }
         for (var b = 1; b <= 3; b++) {
             var t = refTime + (Math.random() - 0.5) * 0.30;
             if (t < 0.5) t = refTime + 0.05;
             send('TIMING_DATA', {lane: lane, commandType: 'PushButton' + b, time: t});
         }
-        log('  道' + lane + ' 盲表x3 基准:' + refTime.toFixed(2) + 's');
+        log('  道' + lane + ' 盲表x3 基准:' + refTime.toFixed(2) + 's (服务器:' + currentServerTime.toFixed(2) + 's)');
     }
 }
 
