@@ -252,8 +252,12 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
                 <button class="action-btn" style="background:#8B5CF6;" onclick="sendDisplay('SHOW_WELCOME')">欢迎</button>
             </div>
             <button class="action-btn" style="background:#F59E0B;font-size:15px;padding:9px;margin-top:4px;" onclick="publishResult()">成绩发布</button>
-            <h3>计时源对比</h3>
-            <div id="timingSourceCompare" style="font-size:12px;color:var(--dim);flex:1;overflow-y:auto;min-height:40px;"></div>
+            <h3 style="display:inline;">计时源对比</h3>
+            <span style="color:#94A3B8;font-size:11px;margin-left:4px;">分段:</span>
+            <select id="splitSelectCombo" onchange="showTimingSourceData()" style="width:100px;font-size:12px;background:black;color:white;border:1px solid #475569;border-radius:3px;padding:2px;">
+                <option value="0">终点</option>
+            </select>
+            <div id="timingSourceCompare" style="font-size:12px;color:var(--dim);flex:1;overflow-y:auto;min-height:40px;margin-top:4px;"></div>
         </div>
     </div>
 </div>
@@ -553,6 +557,7 @@ function render() {
     renderHeader();
     renderLanes();
     renderStartListBar();
+    updateTimingSourceInfo();
 }
 
 // ═══════ 泳道操作 ═══════
@@ -1069,36 +1074,90 @@ function statusClass(s) {
     return 'closed';
 }
 
+var _lastTsSplitCount = -1;
+
 function selectLane(lane) {
     selectedLane = lane;
+    _lastTsSplitCount = -1; // 切换泳道强制重建下拉框
+    updateTimingSourceInfo();
+    renderLanes();
+}
+
+function updateTimingSourceInfo() {
+    if (selectedLane < 0 || !data || !data.swimmers) {
+        document.getElementById('timingSourceCompare').innerHTML = '<span style="color:#64748B;">点击泳道行查看计时源</span>';
+        return;
+    }
     var swimmers = data.swimmers || [];
     for (var i = 0; i < swimmers.length; i++) {
         var sw = swimmers[i];
-        if (sw.lane === lane) {
-            var html = '<b>道' + lane + ' ' + (sw.name||'') + '</b><br>';
-            // 终点成绩
+        if (sw.lane !== selectedLane) continue;
+
+        var splits = sw.splits || [];
+        var splitCount = splits.length;
+        var combo = document.getElementById('splitSelectCombo');
+
+        // 只在分段数量变化时重建下拉框
+        if (splitCount !== _lastTsSplitCount) {
+            _lastTsSplitCount = splitCount;
+            var prevIdx = combo.selectedIndex;
+            combo.innerHTML = '<option value="0">终点</option>';
+            for (var j = 0; j < splitCount; j++) {
+                var sp = splits[j];
+                combo.innerHTML += '<option value="' + (j+1) + '">第' + sp.lap + '段(' + sp.distance + 'm)</option>';
+            }
+            if (prevIdx >= 0 && prevIdx < combo.options.length) combo.selectedIndex = prevIdx;
+            else combo.selectedIndex = 0;
+        }
+        showTimingSourceData();
+        break;
+    }
+}
+
+function showTimingSourceData() {
+    if (selectedLane < 0 || !data || !data.swimmers) return;
+    var swimmers = data.swimmers || [];
+    var combo = document.getElementById('splitSelectCombo');
+    var selIdx = combo ? combo.selectedIndex : 0;
+
+    for (var i = 0; i < swimmers.length; i++) {
+        var sw = swimmers[i];
+        if (sw.lane !== selectedLane) continue;
+
+        var splits = sw.splits || [];
+        var html = '<b>道' + selectedLane + '  ' + (sw.name||'') + '</b><br>';
+
+        if (selIdx <= 0) {
+            // 终点：反应时间、触板、盲表1/2/3、手动
+            html += '<b>【终点】</b><br>';
+            var rt = sw.reactionTime || '';
+            html += '反应时间: ' + (rt || '-') + '<br>';
             var ts = sw.timingSources;
             if (ts) {
-                html += '<b>--- 终点 ---</b><br>';
-                html += '触板: ' + (ts.touchpad||'-') + '<br>';
-                html += '盲1: ' + (ts.blindWatch1||'-') + '  盲2: ' + (ts.blindWatch2||'-') + '  盲3: ' + (ts.blindWatch3||'-') + '<br>';
-                html += '手动左: ' + (ts.manualTouchLeft||'-') + '  手动右: ' + (ts.manualTouchRight||'-') + '<br>';
+                html += '触&nbsp;&nbsp;板: ' + (ts.touchpad || '-') + '<br>';
+                html += '盲表 1: ' + (ts.blindWatch1 || '-') + '<br>';
+                html += '盲表 2: ' + (ts.blindWatch2 || '-') + '<br>';
+                html += '盲表 3: ' + (ts.blindWatch3 || '-') + '<br>';
+                var manual = ts.manual || '';
+                if (!manual) manual = (finishPosition === 'right') ? (ts.manualTouchRight||'') : (ts.manualTouchLeft||'');
+                html += '手&nbsp;&nbsp;动: ' + (manual || '-') + '<br>';
             }
-            // 分段明细
-            var splits = sw.splits || [];
-            if (splits.length > 0) {
-                html += '<b>--- 分段 ---</b><br>';
-                for (var j = 0; j < splits.length; j++) {
-                    var sp = splits[j];
-                    html += '第' + sp.lap + '段(' + sp.distance + 'm) 累计:' + (sp.cumulative||'-') + '<br>';
-                    html += '&nbsp;&nbsp;触板:' + (sp.touchpad||'-') + ' 盲1:' + (sp.blind1||'-') + ' 盲2:' + (sp.blind2||'-') + ' 盲3:' + (sp.blind3||'-') + ' 手动:' + (sp.manual||'-') + ' 源:' + (sp.source||'-') + '<br>';
-                }
-            }
-            document.getElementById('timingSourceCompare').innerHTML = html;
-            break;
+        } else if (selIdx - 1 < splits.length) {
+            // 分段：反应时间(若有)、触板、盲表1/2/3、手动、计时源
+            var sp = splits[selIdx - 1];
+            html += '<b>【第' + sp.lap + '段  ' + sp.distance + 'm】</b><br>';
+            var spReact = sw.reactionTime || '';
+            if (spReact) html += '反应时间: ' + spReact + '<br>';
+            html += '触&nbsp;&nbsp;板: ' + (sp.touchpad || '-') + '<br>';
+            html += '盲表 1: ' + (sp.blind1 || '-') + '<br>';
+            html += '盲表 2: ' + (sp.blind2 || '-') + '<br>';
+            html += '盲表 3: ' + (sp.blind3 || '-') + '<br>';
+            html += '手&nbsp;&nbsp;动: ' + (sp.manual || '-') + '<br>';
+            html += '计时源: ' + (sp.source || '-') + '<br>';
         }
+        document.getElementById('timingSourceCompare').innerHTML = html;
+        break;
     }
-    renderLanes(); // 刷新高亮
 }
 
 function manualTouch(lane, side) {
