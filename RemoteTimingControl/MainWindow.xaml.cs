@@ -557,7 +557,7 @@ namespace RemoteTimingControl
             var records = _data["records"] as JArray;
             string curEvent = _data["currentEvent"] != null ? _data["currentEvent"].ToString() : "";
             string curGender = _data["currentGender"] != null ? _data["currentGender"].ToString() : "";
-            if (records == null || string.IsNullOrEmpty(curEvent))
+            if (records == null || records.Count == 0 || string.IsNullOrEmpty(curEvent))
             {
                 RecordDisplay.Text = "";
                 return;
@@ -572,7 +572,11 @@ namespace RemoteTimingControl
 
                 string rType = r["recordType"] != null ? r["recordType"].ToString() : "";
                 string rTime = r["time"] != null ? r["time"].ToString() : "";
+                double rTimeSec = r["timeInSeconds"] != null ? (double)r["timeInSeconds"] : 0;
                 string rHolder = r["holderName"] != null ? r["holderName"].ToString() : "";
+
+                // 跳过无成绩的纪录
+                if (rTimeSec <= 0 || string.IsNullOrEmpty(rTime)) continue;
 
                 // 简写：世界纪录→WR, 赛会纪录→CR, 全国纪录→NR
                 string label = rType;
