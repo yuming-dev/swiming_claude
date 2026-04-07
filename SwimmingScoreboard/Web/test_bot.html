@@ -441,22 +441,22 @@ function simTouchpad() {
 
 function simBlindWatch() {
     var lanes = getLanes();
-    var hasRef = false;
-    for (var k in _lastTouchpadTime) { if (_lastTouchpadTime[k] > 0) { hasRef = true; break; } }
-    if (!hasRef) {
-        log('警告: 请先发送触板数据，再发送盲表数据');
+    var currentServerTime = parseRunningTime();
+    if (currentServerTime <= 0) {
+        log('警告: 比赛未开始，无法模拟盲表');
         return;
     }
-    log('=== 模拟盲表 (基于触板时间) ===');
+    log('=== 模拟盲表 (基于当前时间) ===');
     for (var i = 0; i < lanes.length; i++) {
-        var refTime = _lastTouchpadTime[lanes[i]] || 0;
-        if (refTime <= 0) continue;
+        var lane = lanes[i];
+        // 基准时间：优先用该道最近触板时间，否则用当前服务器时间
+        var refTime = (_lastTouchpadTime[lane] && _lastTouchpadTime[lane] > 0) ? _lastTouchpadTime[lane] : currentServerTime;
         for (var b = 1; b <= 3; b++) {
             var t = refTime + (Math.random() - 0.5) * 0.30;
             if (t < 0.5) t = refTime + 0.05;
-            send('TIMING_DATA', {lane: lanes[i], commandType: 'PushButton' + b, time: t});
+            send('TIMING_DATA', {lane: lane, commandType: 'PushButton' + b, time: t});
         }
-        log('  道' + lanes[i] + ' 盲表x3 基准:' + refTime.toFixed(2) + 's');
+        log('  道' + lane + ' 盲表x3 基准:' + refTime.toFixed(2) + 's');
     }
 }
 
