@@ -1316,12 +1316,24 @@ namespace SwimmingScoreboard
                 result.TimingSource = judgement.Source;
                 split.TimingSource = judgement.Source;
 
-                // 关闭该泳道所有设备
+                // 关闭触板（立即），盲表延迟关闭（给盲表和手动留时间记录）
                 laneState.LeftTouchpadStatus = DeviceStatus.Closed;
-                laneState.LeftBlindWatch1Status = DeviceStatus.Closed; laneState.LeftBlindWatch2Status = DeviceStatus.Closed; laneState.LeftBlindWatch3Status = DeviceStatus.Closed;
                 laneState.RightTouchpadStatus = DeviceStatus.Closed;
-                laneState.RightBlindWatch1Status = DeviceStatus.Closed; laneState.RightBlindWatch2Status = DeviceStatus.Closed; laneState.RightBlindWatch3Status = DeviceStatus.Closed;
                 laneState.LaneCloseCountdown = 0;
+
+                // 延迟关闭盲表（ResultConfirmCloseDelay秒后）
+                int capLane3 = lane;
+                var finishCloseTimer = new DispatcherTimer();
+                finishCloseTimer.Interval = TimeSpan.FromSeconds(_laneCloseSettings.ResultConfirmCloseDelay);
+                finishCloseTimer.Tick += delegate(object s3, EventArgs a3) {
+                    finishCloseTimer.Stop();
+                    var ls3 = _laneDeviceStates.FirstOrDefault(st => st.Lane == capLane3);
+                    if (ls3 == null) return;
+                    ls3.LeftBlindWatch1Status = DeviceStatus.Closed; ls3.LeftBlindWatch2Status = DeviceStatus.Closed; ls3.LeftBlindWatch3Status = DeviceStatus.Closed;
+                    ls3.RightBlindWatch1Status = DeviceStatus.Closed; ls3.RightBlindWatch2Status = DeviceStatus.Closed; ls3.RightBlindWatch3Status = DeviceStatus.Closed;
+                    Broadcast();
+                };
+                finishCloseTimer.Start();
 
                 AddLog(string.Format("泳道{0} 完赛: {1} (来源:{2})", lane, TimeFormatter.Format(result.FinalTime), result.TimingSource));
                 UpdateHeatRanking();
