@@ -1261,6 +1261,45 @@ namespace SwimmingScoreboard
             File.WriteAllText(htmlPath, h.ToString(), Encoding.UTF8);
         }
 
+        /// <summary>
+        /// 触板打开时预创建空分段，确保后续的触板/盲表/手动数据都能写入
+        /// </summary>
+        private void PreCreateSplit(int lane) {
+            var laneState = _laneDeviceStates.FirstOrDefault(s => s.Lane == lane);
+            if (laneState == null || laneState.IsFinished) return;
+            int nextLap = laneState.CurrentLap + 1;
+
+            var swimmer = GetCurrentHeatSwimmers().FirstOrDefault(s => {
+                var sa = s.GetAssignmentForStage(_currentStage);
+                return (sa != null ? sa.Lane : s.Lane) == lane;
+            });
+            if (swimmer == null) swimmer = GetCurrentHeatSwimmers().FirstOrDefault(s => s.Lane == lane);
+            if (swimmer == null) return;
+
+            var result = swimmer.Results.FirstOrDefault(r => r.Stage == _currentStage && r.Heat == _currentHeat);
+            if (result == null) {
+                result = new LaneResult {
+                    EventName = _currentEvent,
+                    Stage = _currentStage,
+                    Heat = _currentHeat,
+                    Lane = lane
+                };
+                swimmer.Results.Add(result);
+            }
+
+            // 检查是否已有该段的split（避免重复创建）
+            bool exists = false;
+            foreach (var sp in result.Splits) {
+                if (sp.Lap == nextLap) { exists = true; break; }
+            }
+            if (!exists) {
+                result.Splits.Add(new SplitTime {
+                    Lap = nextLap,
+                    Distance = nextLap * _poolConfig.Length
+                });
+            }
+        }
+
         private void ProcessTouchpadHit(int lane, double time, LaneDeviceState laneState) {
             // 获取当前运动员
             var swimmer = GetCurrentHeatSwimmers().FirstOrDefault(s => s.Lane == lane);
@@ -1283,24 +1322,40 @@ namespace SwimmingScoreboard
             int currentLap = laneState.CurrentLap + 1;
             laneState.CurrentLap = currentLap;
 
-            double prevCumulative = 0;
-            if (result.Splits.Count > 0) prevCumulative = result.Splits.Last().CumulativeTime;
+            // 查找预创建的split（由PreCreateSplit在触板打开时创建）
+            SplitTime split = null;
+            foreach (var sp in result.Splits) {
+                if (sp.Lap == currentLap) { split = sp; break; }
+            }
+            if (split == null) {
+                // 兼容：如果没有预创建（比如50米第1段出发后直接触板），创建新的
+                split = new SplitTime { Lap = currentLap, Distance = currentLap * _poolConfig.Length };
+                result.Splits.Add(split);
+            }
 
-            // 创建分段，同时带入已记录的手动时间和盲表暂存时间
-            double manualTime = Math.Max(laneState.LeftManualTouchTime, laneState.RightManualTouchTime);
-            var split = new SplitTime {
-                Lap = currentLap,
-                Distance = currentLap * _poolConfig.Length,
-                Time = time - prevCumulative,
-                CumulativeTime = time,
-                TouchpadTime = time,
-                ManualTouchTime = manualTime > prevCumulative ? manualTime : 0,
-                PushButton1Time = laneState.PendingBlind1Time > prevCumulative ? laneState.PendingBlind1Time : 0,
-                PushButton2Time = laneState.PendingBlind2Time > prevCumulative ? laneState.PendingBlind2Time : 0,
-                PushButton3Time = laneState.PendingBlind3Time > prevCumulative ? laneState.PendingBlind3Time : 0
-            };
-            result.Splits.Add(split);
-            // 清除已使用的暂存时间，避免下一段重复
+            // 计算上一段累计时间
+            double prevCumulative = 0;
+            foreach (var sp in result.Splits) {
+                if (sp.Lap == currentLap - 1) { prevCumulative = sp.CumulativeTime; break; }
+            }
+
+            // 填入触板数据到预创建的split中（盲表和手动可能已经写入了）
+            split.Time = time - prevCumulative;
+            split.CumulativeTime = time;
+            split.TouchpadTime = time;
+            // 如果手动/盲表还没写入split（在触板之前存到了laneState），补充写入
+            if (split.ManualTouchTime <= 0) {
+                double manualTime = Math.Max(laneState.LeftManualTouchTime, laneState.RightManualTouchTime);
+                if (manualTime > prevCumulative) split.ManualTouchTime = manualTime;
+            }
+            if (split.PushButton1Time <= 0 && laneState.PendingBlind1Time > prevCumulative)
+                split.PushButton1Time = laneState.PendingBlind1Time;
+            if (split.PushButton2Time <= 0 && laneState.PendingBlind2Time > prevCumulative)
+                split.PushButton2Time = laneState.PendingBlind2Time;
+            if (split.PushButton3Time <= 0 && laneState.PendingBlind3Time > prevCumulative)
+                split.PushButton3Time = laneState.PendingBlind3Time;
+
+            // 清除暂存
             laneState.LeftManualTouchTime = 0;
             laneState.RightManualTouchTime = 0;
             laneState.PendingBlind1Time = 0;
@@ -1412,13 +1467,13 @@ namespace SwimmingScoreboard
         }
 
         /// <summary>
-        /// 查找当前段的split记录（触板已触碰则返回该段，否则返回null）
+        /// 查找当前段的split记录（预创建的或已完成的）
+        /// 触板打开后、触板触碰前：targetLap = CurrentLap + 1（预创建的空split）
+        /// 触板触碰后：targetLap = CurrentLap（已填入触板数据的split）
         /// </summary>
         private SplitTime FindCurrentSplit(int lane) {
             var laneState = _laneDeviceStates.FirstOrDefault(s => s.Lane == lane);
             if (laneState == null) return null;
-            int targetLap = laneState.CurrentLap; // 触板触碰后CurrentLap已递增
-            if (targetLap <= 0) return null;
 
             var swimmer = GetCurrentHeatSwimmers().FirstOrDefault(s => {
                 var sa = s.GetAssignmentForStage(_currentStage);
@@ -1428,23 +1483,22 @@ namespace SwimmingScoreboard
             if (swimmer == null) return null;
 
             var result = swimmer.Results.FirstOrDefault(r => r.Stage == _currentStage && r.Heat == _currentHeat);
-            if (result == null) return null;
+            if (result == null || result.Splits.Count == 0) return null;
 
-            // 查找匹配当前段号的split
-            foreach (var sp in result.Splits) {
-                if (sp.Lap == targetLap) return sp;
-            }
-            return null;
+            // 返回最后一个split（预创建的或最近完成的）
+            // 因为预创建的split总是在最后面，且是当前段
+            return result.Splits.Last();
         }
 
         private void SaveManualTouchToSplit(int lane, double time) {
-            // 如果当前段的split已存在（触板已触碰），直接写入
+            // 查找当前段的预创建split（触板打开时已创建）
             var split = FindCurrentSplit(lane);
             if (split != null) {
                 split.ManualTouchTime = time;
+                return;
             }
-            // 如果split不存在（触板未触碰），手动时间保存在laneState中
-            // ProcessTouchpadHit创建split时会自动带入
+            // 备用：如果预创建split不存在，手动时间保存在laneState中
+            // ProcessTouchpadHit会在创建split时带入
         }
 
         private void ProcessBlindWatchData(int lane, string cmdType, double time) {
@@ -1469,7 +1523,7 @@ namespace SwimmingScoreboard
                 case "PushButton3": result.PushButton3Time = time; break;
             }
 
-            // 保存到当前段的split（用CurrentLap精确定位，不用Last）
+            // 保存到当前段的split（预创建的split在触板打开时已存在）
             var targetSplit = FindCurrentSplit(lane);
             if (targetSplit != null) {
                 switch (cmdType) {
@@ -1477,10 +1531,8 @@ namespace SwimmingScoreboard
                     case "PushButton2": targetSplit.PushButton2Time = time; break;
                     case "PushButton3": targetSplit.PushButton3Time = time; break;
                 }
-            }
-            // 如果split不存在（触板未触碰），盲表时间暂存到laneState
-            // ProcessTouchpadHit创建split时会带入
-            else {
+            } else {
+                // 备用：预创建split不存在时暂存到laneState
                 var laneState = _laneDeviceStates.FirstOrDefault(s => s.Lane == lane);
                 if (laneState != null) {
                     switch (cmdType) {
@@ -1629,6 +1681,9 @@ namespace SwimmingScoreboard
                             if (!state.LeftBlindWatch2Broken) state.LeftBlindWatch2Status = DeviceStatus.Open;
                             if (!state.LeftBlindWatch3Broken) state.LeftBlindWatch3Status = DeviceStatus.Open;
                         }
+
+                        // 触板打开 = 新分段开始：预创建空分段，后续触板/盲表/手动都写入此分段
+                        PreCreateSplit(state.Lane);
 
                         // 接力项目：只在交接棒段打开出发端出发台
                         // 交接棒 = 每棒最后一段（运动员游回出发端触板）
