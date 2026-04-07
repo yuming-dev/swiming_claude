@@ -252,11 +252,13 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
                 <button class="action-btn" style="background:#8B5CF6;" onclick="sendDisplay('SHOW_WELCOME')">欢迎</button>
             </div>
             <button class="action-btn" style="background:#F59E0B;font-size:15px;padding:9px;margin-top:4px;" onclick="publishResult()">成绩发布</button>
-            <h3 style="display:inline;">计时源对比</h3>
-            <span style="color:#94A3B8;font-size:11px;margin-left:4px;">分段:</span>
-            <select id="splitSelectCombo" onchange="showTimingSourceData()" style="width:100px;font-size:12px;background:black;color:white;border:1px solid #475569;border-radius:3px;padding:2px;">
-                <option value="0">终点</option>
-            </select>
+            <div style="display:flex;align-items:center;gap:4px;margin-bottom:4px;">
+                <h3 style="margin:0;">计时源对比</h3>
+                <span style="color:#94A3B8;font-size:11px;">分段:</span>
+                <select id="splitSelectCombo" onchange="showTimingSourceData()" style="width:100px;font-size:12px;background:black;color:white;border:1px solid #475569;border-radius:3px;padding:2px;">
+                    <option value="0">终点</option>
+                </select>
+            </div>
             <div id="timingSourceCompare" style="font-size:12px;color:var(--dim);flex:1;overflow-y:auto;min-height:40px;margin-top:4px;"></div>
         </div>
     </div>
