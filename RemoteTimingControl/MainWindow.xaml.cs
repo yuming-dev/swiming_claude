@@ -1130,6 +1130,7 @@ namespace RemoteTimingControl
                 row.MouseLeftButtonDown += delegate
                 {
                     _selectedLane = capturedLane;
+                    _lastSplitCount = -1; // 切换泳道时强制重建分段列表
                     LaneInput.Text = capturedLane.ToString();
                     UpdateTimingSourceInfo();
                     RenderLanes(_data != null ? _data["swimmers"] as JArray : null);
@@ -1276,16 +1277,18 @@ namespace RemoteTimingControl
             return ds[key].ToString();
         }
 
+        private int _lastSplitCount = -1;
+
         private void SplitSelect_Changed(object sender, SelectionChangedEventArgs e)
         {
             if (TimingSourceInfo == null) return;
-            UpdateTimingSourceInfo();
+            ShowTimingSourceData();
         }
 
         private void UpdateTimingSourceInfo()
         {
-            if (TimingSourceInfo == null) return;
-            if (_data == null || _selectedLane < 0) { TimingSourceInfo.Text = ""; return; }
+            if (TimingSourceInfo == null || SplitSelectCombo == null) return;
+            if (_data == null || _selectedLane < 0) { TimingSourceInfo.Text = "点击泳道行查看计时源"; return; }
             var swimmers = _data["swimmers"] as JArray;
             if (swimmers == null) return;
 
@@ -1296,57 +1299,80 @@ namespace RemoteTimingControl
                 var splits = sw["splits"] as JArray;
                 int splitCount = splits != null ? splits.Count : 0;
 
-                // 更新分段选择下拉框
-                int prevIdx = SplitSelectCombo.SelectedIndex;
-                SplitSelectCombo.SelectionChanged -= SplitSelect_Changed;
-                SplitSelectCombo.Items.Clear();
-                SplitSelectCombo.Items.Add(new ComboBoxItem { Content = "终点" });
-                for (int i = 0; i < splitCount; i++)
+                // 只在分段数量变化时才重建下拉框（避免频繁重建破坏用户选择）
+                if (splitCount != _lastSplitCount)
                 {
-                    JObject sp = (JObject)splits[i];
-                    string label = string.Format("第{0}段", sp["lap"]);
-                    SplitSelectCombo.Items.Add(new ComboBoxItem { Content = label });
+                    _lastSplitCount = splitCount;
+                    int prevIdx = SplitSelectCombo.SelectedIndex;
+                    SplitSelectCombo.SelectionChanged -= SplitSelect_Changed;
+                    SplitSelectCombo.Items.Clear();
+                    SplitSelectCombo.Items.Add(new ComboBoxItem { Content = "终点", Foreground = Brushes.Black });
+                    for (int i = 0; i < splitCount; i++)
+                    {
+                        JObject sp = (JObject)splits[i];
+                        SplitSelectCombo.Items.Add(new ComboBoxItem {
+                            Content = string.Format("第{0}段({1}m)", sp["lap"], sp["distance"]),
+                            Foreground = Brushes.Black
+                        });
+                    }
+                    if (prevIdx >= 0 && prevIdx < SplitSelectCombo.Items.Count)
+                        SplitSelectCombo.SelectedIndex = prevIdx;
+                    else
+                        SplitSelectCombo.SelectedIndex = 0;
+                    SplitSelectCombo.SelectionChanged += SplitSelect_Changed;
                 }
-                if (prevIdx >= 0 && prevIdx < SplitSelectCombo.Items.Count)
-                    SplitSelectCombo.SelectedIndex = prevIdx;
-                else
-                    SplitSelectCombo.SelectedIndex = 0;
-                SplitSelectCombo.SelectionChanged += SplitSelect_Changed;
 
+                ShowTimingSourceData();
+                break;
+            }
+        }
+
+        private void ShowTimingSourceData()
+        {
+            if (_data == null || _selectedLane < 0) return;
+            var swimmers = _data["swimmers"] as JArray;
+            if (swimmers == null) return;
+
+            foreach (JObject sw in swimmers)
+            {
+                if (sw["lane"] == null || (int)sw["lane"] != _selectedLane) continue;
+
+                var splits = sw["splits"] as JArray;
+                int splitCount = splits != null ? splits.Count : 0;
                 int selIdx = SplitSelectCombo.SelectedIndex;
+
                 var sb = new System.Text.StringBuilder();
-                sb.AppendFormat("道{0} {1}\n", _selectedLane, sw["name"] ?? "");
+                sb.AppendFormat("道{0}  {1}\n", _selectedLane, sw["name"] ?? "");
 
                 if (selIdx <= 0)
                 {
                     // 终点成绩
+                    sb.Append("【终点成绩】\n");
+                    sb.AppendFormat("反应时间: {0}\n", sw["reactionTime"] != null && sw["reactionTime"].ToString() != "" ? sw["reactionTime"].ToString() : "-");
                     var ts = sw["timingSources"] as JObject;
-                    sb.Append("反应: ");
-                    sb.Append(sw["reactionTime"] != null ? sw["reactionTime"].ToString() : "-");
-                    sb.Append("\n");
                     if (ts != null)
                     {
-                        sb.AppendFormat("触板:  {0}\n", ts["touchpad"] ?? "-");
-                        sb.AppendFormat("盲表1: {0}\n", ts["blindWatch1"] ?? "-");
-                        sb.AppendFormat("盲表2: {0}\n", ts["blindWatch2"] ?? "-");
-                        sb.AppendFormat("盲表3: {0}\n", ts["blindWatch3"] ?? "-");
-                        sb.AppendFormat("手动左: {0}\n", ts["manualTouchLeft"] ?? "-");
-                        sb.AppendFormat("手动右: {0}\n", ts["manualTouchRight"] ?? "-");
+                        sb.AppendFormat("触  板:  {0}\n", ts["touchpad"] != null && ts["touchpad"].ToString() != "" ? ts["touchpad"].ToString() : "-");
+                        sb.AppendFormat("盲表 1:  {0}\n", ts["blindWatch1"] != null && ts["blindWatch1"].ToString() != "" ? ts["blindWatch1"].ToString() : "-");
+                        sb.AppendFormat("盲表 2:  {0}\n", ts["blindWatch2"] != null && ts["blindWatch2"].ToString() != "" ? ts["blindWatch2"].ToString() : "-");
+                        sb.AppendFormat("盲表 3:  {0}\n", ts["blindWatch3"] != null && ts["blindWatch3"].ToString() != "" ? ts["blindWatch3"].ToString() : "-");
+                        sb.AppendFormat("手动左:  {0}\n", ts["manualTouchLeft"] != null && ts["manualTouchLeft"].ToString() != "" ? ts["manualTouchLeft"].ToString() : "-");
+                        sb.AppendFormat("手动右:  {0}\n", ts["manualTouchRight"] != null && ts["manualTouchRight"].ToString() != "" ? ts["manualTouchRight"].ToString() : "-");
                     }
                 }
                 else if (splits != null && selIdx - 1 < splitCount)
                 {
                     // 选中的分段
                     JObject sp = (JObject)splits[selIdx - 1];
-                    sb.AppendFormat("第{0}段 ({1}m)\n", sp["lap"], sp["distance"]);
-                    sb.AppendFormat("累计:  {0}\n", sp["cumulative"] ?? "-");
-                    sb.AppendFormat("分段:  {0}\n", sp["time"] ?? "-");
-                    sb.AppendFormat("触板:  {0}\n", sp["touchpad"] ?? "-");
-                    sb.AppendFormat("盲表1: {0}\n", sp["blind1"] ?? "-");
-                    sb.AppendFormat("盲表2: {0}\n", sp["blind2"] ?? "-");
-                    sb.AppendFormat("盲表3: {0}\n", sp["blind3"] ?? "-");
-                    sb.AppendFormat("手动:  {0}\n", sp["manual"] ?? "-");
-                    sb.AppendFormat("计时源: {0}\n", sp["source"] ?? "-");
+                    sb.AppendFormat("【第{0}段  {1}m】\n", sp["lap"], sp["distance"]);
+                    sb.AppendFormat("累  计:  {0}\n", sp["cumulative"] != null && sp["cumulative"].ToString() != "" ? sp["cumulative"].ToString() : "-");
+                    sb.AppendFormat("分  段:  {0}\n", sp["time"] != null && sp["time"].ToString() != "" ? sp["time"].ToString() : "-");
+                    sb.AppendFormat("触  板:  {0}\n", sp["touchpad"] != null && sp["touchpad"].ToString() != "" ? sp["touchpad"].ToString() : "-");
+                    sb.AppendFormat("盲表 1:  {0}\n", sp["blind1"] != null && sp["blind1"].ToString() != "" ? sp["blind1"].ToString() : "-");
+                    sb.AppendFormat("盲表 2:  {0}\n", sp["blind2"] != null && sp["blind2"].ToString() != "" ? sp["blind2"].ToString() : "-");
+                    sb.AppendFormat("盲表 3:  {0}\n", sp["blind3"] != null && sp["blind3"].ToString() != "" ? sp["blind3"].ToString() : "-");
+                    sb.AppendFormat("手  动:  {0}\n", sp["manual"] != null && sp["manual"].ToString() != "" ? sp["manual"].ToString() : "-");
+                    sb.AppendFormat("计时源:  {0}\n", sp["source"] != null && sp["source"].ToString() != "" ? sp["source"].ToString() : "-");
                 }
                 TimingSourceInfo.Text = sb.ToString();
                 break;
@@ -2001,8 +2027,8 @@ namespace RemoteTimingControl
             else if (e.Key == Key.F && _selectedLane >= 0 && Keyboard.Modifiers == ModifierKeys.None) { SendCmd("MARK_DNF", new { lane = _selectedLane }); }
             else if (e.Key == Key.Q && _selectedLane >= 0) { SendCmd("MARK_DSQ", new { lane = _selectedLane }); }
             // Number keys: select lane
-            else if (e.Key >= Key.D1 && e.Key <= Key.D9 && Keyboard.Modifiers == ModifierKeys.None) { _selectedLane = e.Key - Key.D0; UpdateTimingSourceInfo(); RenderLanes(_data != null ? _data["swimmers"] as JArray : null); }
-            else if (e.Key == Key.D0 && Keyboard.Modifiers == ModifierKeys.None) { _selectedLane = 0; UpdateTimingSourceInfo(); RenderLanes(_data != null ? _data["swimmers"] as JArray : null); }
+            else if (e.Key >= Key.D1 && e.Key <= Key.D9 && Keyboard.Modifiers == ModifierKeys.None) { _selectedLane = e.Key - Key.D0; _lastSplitCount = -1; UpdateTimingSourceInfo(); RenderLanes(_data != null ? _data["swimmers"] as JArray : null); }
+            else if (e.Key == Key.D0 && Keyboard.Modifiers == ModifierKeys.None) { _selectedLane = 0; _lastSplitCount = -1; UpdateTimingSourceInfo(); RenderLanes(_data != null ? _data["swimmers"] as JArray : null); }
             // Shift+1~0 = left manual touch
             else if (e.Key >= Key.D1 && e.Key <= Key.D9 && Keyboard.Modifiers == ModifierKeys.Shift) { SendCmd("MANUAL_TOUCH_LEFT", new { lane = e.Key - Key.D0 }); }
             else if (e.Key == Key.D0 && Keyboard.Modifiers == ModifierKeys.Shift) { SendCmd("MANUAL_TOUCH_LEFT", new { lane = 10 }); }
