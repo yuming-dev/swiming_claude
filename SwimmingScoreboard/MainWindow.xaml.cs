@@ -546,12 +546,8 @@ namespace SwimmingScoreboard
                     if (data != null && _raceState == RaceState.Racing) {
                         int laneNum = (int)data["lane"];
                         var lState = _laneDeviceStates.FirstOrDefault(s => s.Lane == laneNum);
-                        if (lState != null) {
-                            lState.LeftManualTouchTime = _runningTime;
-                            // 只在左端触板打开时保存到分段（该端正在等待到达）
-                            if (lState.LeftTouchpadStatus == DeviceStatus.Open)
-                                SaveManualTouchToSplit(laneNum, _runningTime);
-                        }
+                        if (lState != null) lState.LeftManualTouchTime = _runningTime;
+                        SaveManualTouchToSplit(laneNum, _runningTime);
                         LogRawTimingData(laneNum, "ManualTouchLeft", _runningTime);
                         AddLog(string.Format("泳道{0} 左端手动触板: {1}", laneNum, TimeFormatter.Format(_runningTime)));
                     }
@@ -560,12 +556,8 @@ namespace SwimmingScoreboard
                     if (data != null && _raceState == RaceState.Racing) {
                         int laneNum = (int)data["lane"];
                         var lState = _laneDeviceStates.FirstOrDefault(s => s.Lane == laneNum);
-                        if (lState != null) {
-                            lState.RightManualTouchTime = _runningTime;
-                            // 只在右端触板打开时保存到分段（该端正在等待到达）
-                            if (lState.RightTouchpadStatus == DeviceStatus.Open)
-                                SaveManualTouchToSplit(laneNum, _runningTime);
-                        }
+                        if (lState != null) lState.RightManualTouchTime = _runningTime;
+                        SaveManualTouchToSplit(laneNum, _runningTime);
                         LogRawTimingData(laneNum, "ManualTouchRight", _runningTime);
                         AddLog(string.Format("泳道{0} 右端手动触板: {1}", laneNum, TimeFormatter.Format(_runningTime)));
                     }
