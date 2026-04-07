@@ -200,8 +200,6 @@
             </Border>
         </Grid>
 
-        <!-- 隐藏的出发表文本（保留控件避免代码引用报错） -->
-        <!-- 隐藏的出发表文本（保留控件避免代码引用报错） -->
         <TextBlock x:Name="StartListText" Visibility="Collapsed"/>
     </Grid>
 </Window>
