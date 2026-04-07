@@ -731,6 +731,10 @@ namespace SwimmingScoreboard
         private string _startSide = "left";  // 出发台所在端（用于抢跳显示）
         private double _leftManualTouchTime;
         private double _rightManualTouchTime;
+        // 盲表暂存（触板未触碰时，盲表数据先存这里，触板创建split时带入）
+        public double PendingBlind1Time { get; set; }
+        public double PendingBlind2Time { get; set; }
+        public double PendingBlind3Time { get; set; }
         private bool _leftTouchpadBroken;
         private bool _leftBlindWatch1Broken;
         private bool _leftBlindWatch2Broken;
@@ -938,6 +942,7 @@ namespace SwimmingScoreboard
             _isFalseStart = false;
             _startSide = startPosition;
             _leftManualTouchTime = 0;
+            PendingBlind1Time = 0; PendingBlind2Time = 0; PendingBlind3Time = 0;
             _rightManualTouchTime = 0;
             NotifyAll();
         }

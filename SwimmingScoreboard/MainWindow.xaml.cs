@@ -1286,7 +1286,7 @@ namespace SwimmingScoreboard
             double prevCumulative = 0;
             if (result.Splits.Count > 0) prevCumulative = result.Splits.Last().CumulativeTime;
 
-            // 创建分段，同时带入已记录的手动时间
+            // 创建分段，同时带入已记录的手动时间和盲表暂存时间
             double manualTime = Math.Max(laneState.LeftManualTouchTime, laneState.RightManualTouchTime);
             var split = new SplitTime {
                 Lap = currentLap,
@@ -1294,12 +1294,18 @@ namespace SwimmingScoreboard
                 Time = time - prevCumulative,
                 CumulativeTime = time,
                 TouchpadTime = time,
-                ManualTouchTime = manualTime > prevCumulative ? manualTime : 0
+                ManualTouchTime = manualTime > prevCumulative ? manualTime : 0,
+                PushButton1Time = laneState.PendingBlind1Time > prevCumulative ? laneState.PendingBlind1Time : 0,
+                PushButton2Time = laneState.PendingBlind2Time > prevCumulative ? laneState.PendingBlind2Time : 0,
+                PushButton3Time = laneState.PendingBlind3Time > prevCumulative ? laneState.PendingBlind3Time : 0
             };
             result.Splits.Add(split);
-            // 清除已使用的手动时间，避免下一段重复
+            // 清除已使用的暂存时间，避免下一段重复
             laneState.LeftManualTouchTime = 0;
             laneState.RightManualTouchTime = 0;
+            laneState.PendingBlind1Time = 0;
+            laneState.PendingBlind2Time = 0;
+            laneState.PendingBlind3Time = 0;
             AddLog(string.Format("泳道{0} 第{1}段: {2} (累计: {3})", lane, currentLap,
                 TimeFormatter.Format(split.Time), TimeFormatter.Format(time)));
 
@@ -1405,24 +1411,40 @@ namespace SwimmingScoreboard
             }
         }
 
-        private void SaveManualTouchToSplit(int lane, double time) {
-            // 手动时间只保存到已有分段的最后一个（如果存在）
-            // 手动时间同时保存在 laneState.LeftManualTouchTime/RightManualTouchTime 中
-            // 当 ProcessTouchpadHit 创建新分段时会自动带入
+        /// <summary>
+        /// 查找当前段的split记录（触板已触碰则返回该段，否则返回null）
+        /// </summary>
+        private SplitTime FindCurrentSplit(int lane) {
+            var laneState = _laneDeviceStates.FirstOrDefault(s => s.Lane == lane);
+            if (laneState == null) return null;
+            int targetLap = laneState.CurrentLap; // 触板触碰后CurrentLap已递增
+            if (targetLap <= 0) return null;
+
             var swimmer = GetCurrentHeatSwimmers().FirstOrDefault(s => {
                 var sa = s.GetAssignmentForStage(_currentStage);
                 return (sa != null ? sa.Lane : s.Lane) == lane;
             });
-            if (swimmer == null) {
-                swimmer = GetCurrentHeatSwimmers().FirstOrDefault(s => s.Lane == lane);
-            }
-            if (swimmer == null) return;
+            if (swimmer == null) swimmer = GetCurrentHeatSwimmers().FirstOrDefault(s => s.Lane == lane);
+            if (swimmer == null) return null;
 
             var result = swimmer.Results.FirstOrDefault(r => r.Stage == _currentStage && r.Heat == _currentHeat);
-            if (result != null && result.Splits.Count > 0) {
-                result.Splits.Last().ManualTouchTime = time;
+            if (result == null) return null;
+
+            // 查找匹配当前段号的split
+            foreach (var sp in result.Splits) {
+                if (sp.Lap == targetLap) return sp;
             }
-            // 如果还没有分段，不创建——等触板到达时由 ProcessTouchpadHit 创建分段并带入手动时间
+            return null;
+        }
+
+        private void SaveManualTouchToSplit(int lane, double time) {
+            // 如果当前段的split已存在（触板已触碰），直接写入
+            var split = FindCurrentSplit(lane);
+            if (split != null) {
+                split.ManualTouchTime = time;
+            }
+            // 如果split不存在（触板未触碰），手动时间保存在laneState中
+            // ProcessTouchpadHit创建split时会自动带入
         }
 
         private void ProcessBlindWatchData(int lane, string cmdType, double time) {
@@ -1440,19 +1462,32 @@ namespace SwimmingScoreboard
                 swimmer.Results.Add(result);
             }
 
-            // 保存到LaneResult总记录
+            // 保存到LaneResult总记录（终点汇总）
             switch (cmdType) {
                 case "PushButton1": result.PushButton1Time = time; break;
                 case "PushButton2": result.PushButton2Time = time; break;
                 case "PushButton3": result.PushButton3Time = time; break;
             }
-            // 同时保存到当前分段
-            if (result.Splits.Count > 0) {
-                var currentSplit = result.Splits.Last();
+
+            // 保存到当前段的split（用CurrentLap精确定位，不用Last）
+            var targetSplit = FindCurrentSplit(lane);
+            if (targetSplit != null) {
                 switch (cmdType) {
-                    case "PushButton1": currentSplit.PushButton1Time = time; break;
-                    case "PushButton2": currentSplit.PushButton2Time = time; break;
-                    case "PushButton3": currentSplit.PushButton3Time = time; break;
+                    case "PushButton1": targetSplit.PushButton1Time = time; break;
+                    case "PushButton2": targetSplit.PushButton2Time = time; break;
+                    case "PushButton3": targetSplit.PushButton3Time = time; break;
+                }
+            }
+            // 如果split不存在（触板未触碰），盲表时间暂存到laneState
+            // ProcessTouchpadHit创建split时会带入
+            else {
+                var laneState = _laneDeviceStates.FirstOrDefault(s => s.Lane == lane);
+                if (laneState != null) {
+                    switch (cmdType) {
+                        case "PushButton1": laneState.PendingBlind1Time = time; break;
+                        case "PushButton2": laneState.PendingBlind2Time = time; break;
+                        case "PushButton3": laneState.PendingBlind3Time = time; break;
+                    }
                 }
             }
             AddLog(string.Format("泳道{0} {1}: {2}", lane, cmdType, TimeFormatter.Format(time)));
