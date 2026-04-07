@@ -1357,9 +1357,10 @@ namespace RemoteTimingControl
                         string b1 = ts["blindWatch1"] != null ? ts["blindWatch1"].ToString() : "";
                         string b2 = ts["blindWatch2"] != null ? ts["blindWatch2"].ToString() : "";
                         string b3 = ts["blindWatch3"] != null ? ts["blindWatch3"].ToString() : "";
-                        string ml = ts["manualTouchLeft"] != null ? ts["manualTouchLeft"].ToString() : "";
-                        string mr = ts["manualTouchRight"] != null ? ts["manualTouchRight"].ToString() : "";
-                        string manual = ml != "" ? ml : (mr != "" ? mr : "");
+                        // 手动成绩取终点端（触板所在位置）
+                        string manual = _finishPosition == "right"
+                            ? (ts["manualTouchRight"] != null ? ts["manualTouchRight"].ToString() : "")
+                            : (ts["manualTouchLeft"] != null ? ts["manualTouchLeft"].ToString() : "");
                         sb.AppendFormat("触  板:  {0}\n", tp != "" ? tp : "-");
                         sb.AppendFormat("盲表 1:  {0}\n", b1 != "" ? b1 : "-");
                         sb.AppendFormat("盲表 2:  {0}\n", b2 != "" ? b2 : "-");
