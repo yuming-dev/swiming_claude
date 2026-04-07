@@ -56,22 +56,34 @@
 
             <!-- 左侧：赛程树 + 日志 -->
             <Border Grid.Column="0" Background="#1E293B" BorderBrush="#334155" BorderThickness="0,0,1,0">
-                <DockPanel>
-                    <Border DockPanel.Dock="Top" BorderBrush="#334155" BorderThickness="0,0,0,1" Padding="10,8">
-                        <TextBlock Text="赛程导航" Foreground="#64748B" FontSize="14" FontWeight="Bold"/>
-                    </Border>
-                    <!-- 底部日志 -->
-                    <Border DockPanel.Dock="Bottom" BorderBrush="#334155" BorderThickness="0,1,0,0" Height="80">
-                        <DockPanel Margin="8,4">
-                            <TextBlock DockPanel.Dock="Top" Text="日志" Foreground="#64748B" FontSize="10" Margin="0,0,0,2" FontWeight="Bold"/>
-                            <ListBox x:Name="LogList" FontSize="11" Foreground="#94A3B8" Background="Transparent"
-                                     BorderThickness="0" ScrollViewer.VerticalScrollBarVisibility="Auto"/>
-                        </DockPanel>
-                    </Border>
-                    <!-- 赛程树填充剩余 -->
-                    <TreeView x:Name="ScheduleTree" Background="#1E293B" Foreground="White" FontSize="13"
-                              BorderThickness="0" SelectedItemChanged="ScheduleTree_Selected" Margin="0,4,0,0"/>
-                </DockPanel>
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="100"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- 赛程导航 -->
+                    <DockPanel Grid.Row="0">
+                        <Border DockPanel.Dock="Top" Background="#172033" Padding="10,8">
+                            <TextBlock Text="赛程导航" Foreground="#3B82F6" FontSize="14" FontWeight="Bold"/>
+                        </Border>
+                        <TreeView x:Name="ScheduleTree" Background="#1E293B" Foreground="White" FontSize="13"
+                                  BorderThickness="0" SelectedItemChanged="ScheduleTree_Selected" Margin="4,4,4,0"/>
+                    </DockPanel>
+
+                    <!-- 分隔线 -->
+                    <Border Grid.Row="1" Background="#334155" Height="1"/>
+
+                    <!-- 日志 -->
+                    <DockPanel Grid.Row="2">
+                        <Border DockPanel.Dock="Top" Background="#172033" Padding="10,6">
+                            <TextBlock Text="日志" Foreground="#3B82F6" FontSize="12" FontWeight="Bold"/>
+                        </Border>
+                        <ListBox x:Name="LogList" FontSize="11" Foreground="#94A3B8" Background="Transparent"
+                                 BorderThickness="0" ScrollViewer.VerticalScrollBarVisibility="Auto" Margin="4,2,4,4"/>
+                    </DockPanel>
+                </Grid>
             </Border>
 
             <!-- 泳池图（中间） -->
