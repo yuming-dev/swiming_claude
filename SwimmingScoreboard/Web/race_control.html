@@ -953,7 +953,7 @@ function renderLanes() {
         var ds = sw.deviceStatus || {};
         var row = document.createElement('div');
         row.className = 'lane-row' + (sw.isFalseStart ? ' false-start' : '') + (sw.lane === selectedLane ? ' selected' : '');
-        row.onclick = (function(lane) { return function() { selectLane(lane); }; })(sw.lane);
+        row.onmousedown = (function(lane) { return function() { selectLane(lane); }; })(sw.lane);
 
         var totalLaps = 1;
         var ev = data.currentEvent || '';
