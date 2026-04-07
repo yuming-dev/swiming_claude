@@ -172,7 +172,7 @@
                                 <TextBlock Text="计时源对比" Foreground="#64748B" FontSize="12" FontWeight="Bold" VerticalAlignment="Center"/>
                                 <TextBlock Text="  分段:" Foreground="#94A3B8" FontSize="11" VerticalAlignment="Center"/>
                                 <ComboBox x:Name="SplitSelectCombo" Width="100" FontSize="12" Margin="4,0,0,0"
-                                          Background="#334155" Foreground="White" BorderBrush="#475569" SelectionChanged="SplitSelect_Changed"
+                                          Background="Black" Foreground="White" BorderBrush="#475569" SelectionChanged="SplitSelect_Changed"
                                           SelectedIndex="0">
                                     <ComboBox.ItemContainerStyle>
                                         <Style TargetType="ComboBoxItem">
