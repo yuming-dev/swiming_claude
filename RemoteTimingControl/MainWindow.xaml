@@ -8,7 +8,6 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="36"/>
             <RowDefinition Height="*"/>
-            <RowDefinition Height="80"/>
         </Grid.RowDefinitions>
 
         <!-- 区域1: 导航栏 -->
@@ -53,12 +52,21 @@
                 <ColumnDefinition Width="200"/>
             </Grid.ColumnDefinitions>
 
-            <!-- 赛程树（左侧） -->
+            <!-- 左侧：赛程树 + 日志 -->
             <Border Grid.Column="0" Background="#1E293B" BorderBrush="#334155" BorderThickness="0,0,1,0">
                 <DockPanel>
                     <Border DockPanel.Dock="Top" BorderBrush="#334155" BorderThickness="0,0,0,1" Padding="10,8">
                         <TextBlock Text="赛程导航" Foreground="#64748B" FontSize="14" FontWeight="Bold"/>
                     </Border>
+                    <!-- 底部日志 -->
+                    <Border DockPanel.Dock="Bottom" BorderBrush="#334155" BorderThickness="0,1,0,0" Height="80">
+                        <DockPanel Margin="8,4">
+                            <TextBlock DockPanel.Dock="Top" Text="日志" Foreground="#64748B" FontSize="10" Margin="0,0,0,2" FontWeight="Bold"/>
+                            <ListBox x:Name="LogList" FontSize="11" Foreground="#94A3B8" Background="Transparent"
+                                     BorderThickness="0" ScrollViewer.VerticalScrollBarVisibility="Auto"/>
+                        </DockPanel>
+                    </Border>
+                    <!-- 赛程树填充剩余 -->
                     <TreeView x:Name="ScheduleTree" Background="#1E293B" Foreground="White" FontSize="13"
                               BorderThickness="0" SelectedItemChanged="ScheduleTree_Selected" Margin="0,4,0,0"/>
                 </DockPanel>
@@ -192,20 +200,7 @@
             </Border>
         </Grid>
 
-        <!-- 区域5: 底部 -->
-        <Border Grid.Row="2" Background="#1E293B" BorderBrush="#334155" BorderThickness="0,1,0,0">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="220"/>
-                    <ColumnDefinition Width="*"/>
-                </Grid.ColumnDefinitions>
-                <DockPanel Grid.Column="0" Margin="8,4" >
-                    <TextBlock DockPanel.Dock="Top" Text="日志" Foreground="#64748B" FontSize="10" Margin="0,0,0,2" FontWeight="Bold"/>
-                    <ListBox x:Name="LogList" FontSize="12" Foreground="#94A3B8" Background="Transparent"
-                             BorderThickness="0" ScrollViewer.VerticalScrollBarVisibility="Auto"/>
-                </DockPanel>
-            </Grid>
-        </Border>
+        <!-- 隐藏的出发表文本（保留控件避免代码引用报错） -->
         <!-- 隐藏的出发表文本（保留控件避免代码引用报错） -->
         <TextBlock x:Name="StartListText" Visibility="Collapsed"/>
     </Grid>
