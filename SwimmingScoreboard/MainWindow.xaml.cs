@@ -959,7 +959,8 @@ namespace SwimmingScoreboard
         }
 
         private void ProcessTimingData(int lane, string cmdType, double timeInSeconds) {
-            if (_raceState != RaceState.Racing && cmdType != "StartCommand") return;
+            // Racing状态或Finished状态（延迟关闭期内盲表/手动仍有效）都接收数据
+            if (_raceState != RaceState.Racing && _raceState != RaceState.Finished && cmdType != "StartCommand") return;
 
             // 记录原始数据
             LogRawTimingData(lane, cmdType, timeInSeconds);
