@@ -172,8 +172,14 @@
                                 <TextBlock Text="计时源对比" Foreground="#64748B" FontSize="12" FontWeight="Bold" VerticalAlignment="Center"/>
                                 <TextBlock Text="  分段:" Foreground="#94A3B8" FontSize="11" VerticalAlignment="Center"/>
                                 <ComboBox x:Name="SplitSelectCombo" Width="100" FontSize="12" Margin="4,0,0,0"
-                                          Background="Black" Foreground="White" BorderBrush="#475569" SelectionChanged="SplitSelect_Changed"
+                                          BorderBrush="#475569" SelectionChanged="SplitSelect_Changed"
                                           SelectedIndex="0">
+                                    <ComboBox.Resources>
+                                        <SolidColorBrush x:Key="{x:Static SystemColors.WindowBrushKey}" Color="Black"/>
+                                        <SolidColorBrush x:Key="{x:Static SystemColors.WindowTextBrushKey}" Color="White"/>
+                                        <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="#3B82F6"/>
+                                        <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="White"/>
+                                    </ComboBox.Resources>
                                     <ComboBox.ItemContainerStyle>
                                         <Style TargetType="ComboBoxItem">
                                             <Setter Property="Foreground" Value="White"/>
