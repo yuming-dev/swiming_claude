@@ -1388,11 +1388,44 @@ namespace SwimmingScoreboard
         }
 
         private void SaveManualTouchToSplit(int lane, double time) {
-            var swimmer = GetCurrentHeatSwimmers().FirstOrDefault(s => s.Lane == lane);
+            // 查找运动员（优先用StageAssignment泳道匹配）
+            var swimmer = GetCurrentHeatSwimmers().FirstOrDefault(s => {
+                var sa = s.GetAssignmentForStage(_currentStage);
+                return (sa != null ? sa.Lane : s.Lane) == lane;
+            });
+            if (swimmer == null) {
+                // 兼容：直接按Lane匹配
+                swimmer = GetCurrentHeatSwimmers().FirstOrDefault(s => s.Lane == lane);
+            }
             if (swimmer == null) return;
+
             var result = swimmer.Results.FirstOrDefault(r => r.Stage == _currentStage && r.Heat == _currentHeat);
-            if (result != null && result.Splits.Count > 0) {
+            if (result == null) {
+                // 还没有成绩记录，创建一个
+                result = new LaneResult {
+                    EventName = _currentEvent,
+                    Stage = _currentStage,
+                    Heat = _currentHeat,
+                    Lane = lane
+                };
+                swimmer.Results.Add(result);
+            }
+
+            if (result.Splits.Count > 0) {
+                // 保存到最后一个分段
                 result.Splits.Last().ManualTouchTime = time;
+            } else {
+                // 还没有分段（触板未到），创建临时分段保存手动时间
+                var laneState = _laneDeviceStates.FirstOrDefault(s => s.Lane == lane);
+                int currentLap = laneState != null ? laneState.CurrentLap + 1 : 1;
+                var split = new SplitTime {
+                    Lap = currentLap,
+                    Distance = currentLap * _poolConfig.Length,
+                    ManualTouchTime = time,
+                    CumulativeTime = time,
+                    Time = time
+                };
+                result.Splits.Add(split);
             }
         }
 
