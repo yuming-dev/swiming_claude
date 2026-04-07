@@ -1116,7 +1116,7 @@ namespace RemoteTimingControl
                 {
                     Text = remarkText,
                     Width = 50,
-                    FontSize = 20,
+                    FontSize = 13,
                     FontWeight = FontWeights.Bold,
                     Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EF4444")),
                     TextAlignment = TextAlignment.Center,
