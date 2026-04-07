@@ -736,8 +736,15 @@ namespace SwimmingScoreboard
                         blindWatch1 = TimeFormatter.Format(result.PushButton1Time),
                         blindWatch2 = TimeFormatter.Format(result.PushButton2Time),
                         blindWatch3 = TimeFormatter.Format(result.PushButton3Time),
-                        manualTouchLeft = laneState != null ? TimeFormatter.Format(laneState.LeftManualTouchTime) : "",
-                        manualTouchRight = laneState != null ? TimeFormatter.Format(laneState.RightManualTouchTime) : ""
+                        manualTouchLeft = laneState != null && laneState.LeftManualTouchTime > 0
+                            ? TimeFormatter.Format(laneState.LeftManualTouchTime)
+                            : "",
+                        manualTouchRight = laneState != null && laneState.RightManualTouchTime > 0
+                            ? TimeFormatter.Format(laneState.RightManualTouchTime)
+                            : "",
+                        manual = result.Splits.Count > 0 && result.Splits.Last().ManualTouchTime > 0
+                            ? TimeFormatter.Format(result.Splits.Last().ManualTouchTime)
+                            : (laneState != null ? TimeFormatter.Format(Math.Max(laneState.LeftManualTouchTime, laneState.RightManualTouchTime)) : "")
                     } : (object)null,
                     isFalseStart = laneState != null && laneState.IsFalseStart,
                     isNewRecord = false,
@@ -1499,10 +1506,34 @@ namespace SwimmingScoreboard
             var split = FindCurrentSplit(lane);
             if (split != null) {
                 split.ManualTouchTime = time;
+                // 如果已完赛，同步到result终点汇总（触板先到达时result已设置，手动后到需要补充）
+                SyncSplitToResultIfFinished(lane, split);
                 return;
             }
-            // 备用：如果预创建split不存在，手动时间保存在laneState中
-            // ProcessTouchpadHit会在创建split时带入
+        }
+
+        /// <summary>
+        /// 已完赛时，将最终段split的计时数据同步到result终点汇总
+        /// </summary>
+        private void SyncSplitToResultIfFinished(int lane, SplitTime split) {
+            var laneState = _laneDeviceStates.FirstOrDefault(s => s.Lane == lane);
+            if (laneState == null || !laneState.IsFinished) return;
+
+            var swimmer = GetCurrentHeatSwimmers().FirstOrDefault(s => {
+                var sa = s.GetAssignmentForStage(_currentStage);
+                return (sa != null ? sa.Lane : s.Lane) == lane;
+            });
+            if (swimmer == null) swimmer = GetCurrentHeatSwimmers().FirstOrDefault(s => s.Lane == lane);
+            if (swimmer == null) return;
+
+            var result = swimmer.Results.FirstOrDefault(r => r.Stage == _currentStage && r.Heat == _currentHeat);
+            if (result == null) return;
+
+            // 同步最终段的各计时源到result
+            if (split.TouchpadTime > 0) result.TouchpadTime = split.TouchpadTime;
+            if (split.PushButton1Time > 0) result.PushButton1Time = split.PushButton1Time;
+            if (split.PushButton2Time > 0) result.PushButton2Time = split.PushButton2Time;
+            if (split.PushButton3Time > 0) result.PushButton3Time = split.PushButton3Time;
         }
 
         private void ProcessBlindWatchData(int lane, string cmdType, double time) {
@@ -1535,6 +1566,8 @@ namespace SwimmingScoreboard
                     case "PushButton2": targetSplit.PushButton2Time = time; break;
                     case "PushButton3": targetSplit.PushButton3Time = time; break;
                 }
+                // 如果已完赛，同步到result终点汇总
+                SyncSplitToResultIfFinished(lane, targetSplit);
             } else {
                 // 备用：预创建split不存在时暂存到laneState
                 var laneState = _laneDeviceStates.FirstOrDefault(s => s.Lane == lane);
