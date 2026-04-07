@@ -107,6 +107,8 @@ namespace RemoteTimingControl
         {
             public int SplitCount;
             public DateTime ShowTime;
+            public string LastReaction;
+            public DateTime ReactionShowTime;
         }
 
         // ═══════ Local timer ═══════
@@ -1069,9 +1071,24 @@ namespace RemoteTimingControl
 
                 // Info area
                 var infoArea = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+                // 反应时间：与分段成绩一样显示后消隐
+                string rtVal = sw["reactionTime"] != null ? sw["reactionTime"].ToString() : "";
+                string rtDisplay = "";
+                if (!string.IsNullOrEmpty(rtVal)) {
+                    if (!_laneSplitState.ContainsKey(lane)) _laneSplitState[lane] = new SplitState();
+                    var ss = _laneSplitState[lane];
+                    if (rtVal != ss.LastReaction) {
+                        ss.LastReaction = rtVal;
+                        ss.ReactionShowTime = DateTime.Now;
+                    }
+                    if (ss.ReactionShowTime > DateTime.MinValue) {
+                        double dispSec = _splitDisplayTime > 0 ? _splitDisplayTime : 5;
+                        if ((DateTime.Now - ss.ReactionShowTime).TotalSeconds < dispSec) rtDisplay = rtVal;
+                    }
+                }
                 infoArea.Children.Add(new TextBlock
                 {
-                    Text = sw["reactionTime"] != null ? sw["reactionTime"].ToString() : "",
+                    Text = rtDisplay,
                     Width = 55,
                     FontSize = 17,
                     Foreground = Brushes.White,
