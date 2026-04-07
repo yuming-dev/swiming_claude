@@ -554,41 +554,52 @@ namespace RemoteTimingControl
         private void UpdateRecordDisplay()
         {
             if (RecordDisplay == null || _data == null) return;
-            var records = _data["records"] as JArray;
             string curEvent = _data["currentEvent"] != null ? _data["currentEvent"].ToString() : "";
             string curGender = _data["currentGender"] != null ? _data["currentGender"].ToString() : "";
-            if (records == null || records.Count == 0 || string.IsNullOrEmpty(curEvent))
+            if (string.IsNullOrEmpty(curEvent))
             {
                 RecordDisplay.Text = "";
                 return;
             }
 
-            var sb = new System.Text.StringBuilder();
-            foreach (JObject r in records)
+            // 从纪录数据中查找当前项目的WR和CR
+            string wrTime = "", crTime = "", wrHolder = "", crHolder = "";
+            var records = _data["records"] as JArray;
+            if (records != null)
             {
-                string rEvent = r["eventName"] != null ? r["eventName"].ToString() : "";
-                string rGender = r["gender"] != null ? r["gender"].ToString() : "";
-                if (rEvent != curEvent || rGender != curGender) continue;
+                foreach (JObject r in records)
+                {
+                    string rEvent = r["eventName"] != null ? r["eventName"].ToString() : "";
+                    string rGender = r["gender"] != null ? r["gender"].ToString() : "";
+                    if (rEvent != curEvent || rGender != curGender) continue;
 
-                string rType = r["recordType"] != null ? r["recordType"].ToString() : "";
-                string rTime = r["time"] != null ? r["time"].ToString() : "";
-                double rTimeSec = r["timeInSeconds"] != null ? (double)r["timeInSeconds"] : 0;
-                string rHolder = r["holderName"] != null ? r["holderName"].ToString() : "";
+                    string rType = r["recordType"] != null ? r["recordType"].ToString() : "";
+                    string rTime = r["time"] != null ? r["time"].ToString() : "";
+                    double rTimeSec = r["timeInSeconds"] != null ? (double)r["timeInSeconds"] : 0;
+                    string rHolder = r["holderName"] != null ? r["holderName"].ToString() : "";
 
-                // 跳过无成绩的纪录
-                if (rTimeSec <= 0 || string.IsNullOrEmpty(rTime)) continue;
-
-                // 简写：世界纪录→WR, 赛会纪录→CR, 全国纪录→NR
-                string label = rType;
-                if (rType.Contains("世界")) label = "WR";
-                else if (rType.Contains("赛会")) label = "CR";
-                else if (rType.Contains("全国")) label = "NR";
-                else if (rType.Contains("亚洲")) label = "AR";
-
-                if (sb.Length > 0) sb.Append("    ");
-                sb.AppendFormat("{0}: {1}", label, rTime);
-                if (!string.IsNullOrEmpty(rHolder)) sb.AppendFormat(" ({0})", rHolder);
+                    if (rType.Contains("世界") && rTimeSec > 0)
+                    {
+                        wrTime = rTime;
+                        wrHolder = rHolder;
+                    }
+                    else if (rType.Contains("赛会") && rTimeSec > 0)
+                    {
+                        crTime = rTime;
+                        crHolder = rHolder;
+                    }
+                }
             }
+
+            // 始终显示WR和CR标签，有数据则显示成绩，无数据显示空
+            var sb = new System.Text.StringBuilder();
+            sb.Append("WR: ");
+            sb.Append(!string.IsNullOrEmpty(wrTime) ? wrTime : "---");
+            if (!string.IsNullOrEmpty(wrHolder)) sb.AppendFormat(" ({0})", wrHolder);
+            sb.Append("    CR: ");
+            sb.Append(!string.IsNullOrEmpty(crTime) ? crTime : "---");
+            if (!string.IsNullOrEmpty(crHolder)) sb.AppendFormat(" ({0})", crHolder);
+
             RecordDisplay.Text = sb.ToString();
         }
 
