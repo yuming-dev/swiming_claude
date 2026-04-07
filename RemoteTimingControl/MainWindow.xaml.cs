@@ -904,7 +904,7 @@ namespace RemoteTimingControl
                     Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569")),
                     Foreground = Brushes.White, BorderThickness = new Thickness(0)
                 };
-                touchBtnL.Click += delegate { SendCmd("MANUAL_TOUCH_LEFT", new { lane = capturedLane }); };
+                touchBtnL.PreviewMouseLeftButtonDown += delegate { SendCmd("MANUAL_TOUCH_LEFT", new { lane = capturedLane }); };
                 leftDevices.Children.Add(touchBtnL);
                 leftDevices.Children.Add(MakeDeviceDot(GetDeviceStatus(ds, "leftBlindWatch1")));
                 leftDevices.Children.Add(MakeDeviceDot(GetDeviceStatus(ds, "leftBlindWatch2")));
@@ -1049,7 +1049,7 @@ namespace RemoteTimingControl
                     Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569")),
                     Foreground = Brushes.White, BorderThickness = new Thickness(0)
                 };
-                touchBtnR.Click += delegate { SendCmd("MANUAL_TOUCH_RIGHT", new { lane = capturedLane }); };
+                touchBtnR.PreviewMouseLeftButtonDown += delegate { SendCmd("MANUAL_TOUCH_RIGHT", new { lane = capturedLane }); };
                 rightDevices.Children.Add(touchBtnR);
                 Grid.SetColumn(rightDevices, 3);
                 grid.Children.Add(rightDevices);
