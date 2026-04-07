@@ -985,7 +985,7 @@ function renderLanes() {
         row.innerHTML =
             '<div class="' + leftIndClass + ' start-ind"></div>' +
             '<div class="left-devices devices">' +
-                '<button class="touch-btn" onclick="event.stopPropagation();manualTouch('+sw.lane+',\'left\')" title="左端手动触板">T</button>' +
+                '<button class="touch-btn" onmousedown="event.stopPropagation();manualTouch('+sw.lane+',\'left\')" title="左端手动触板">T</button>' +
                 '<div class="device-dot ' + statusClass(ds.leftBlindWatch1) + '" title="盲表1"></div>' +
                 '<div class="device-dot ' + statusClass(ds.leftBlindWatch2) + '" title="盲表2"></div>' +
                 '<div class="device-dot ' + statusClass(ds.leftBlindWatch3) + '" title="盲表3"></div>' +
@@ -1005,7 +1005,7 @@ function renderLanes() {
                 '<div class="device-dot ' + statusClass(ds.rightBlindWatch1) + '" title="盲表1"></div>' +
                 '<div class="device-dot ' + statusClass(ds.rightBlindWatch2) + '" title="盲表2"></div>' +
                 '<div class="device-dot ' + statusClass(ds.rightBlindWatch3) + '" title="盲表3"></div>' +
-                '<button class="touch-btn" onclick="event.stopPropagation();manualTouch('+sw.lane+',\'right\')" title="右端手动触板">T</button>' +
+                '<button class="touch-btn" onmousedown="event.stopPropagation();manualTouch('+sw.lane+',\'right\')" title="右端手动触板">T</button>' +
             '</div>' +
             '<div class="' + rightIndClass + ' start-ind"></div>' +
             '<div class="info-area">' +
