@@ -192,13 +192,19 @@
             </Border>
         </Grid>
 
-        <!-- 区域5: 底部日志 -->
+        <!-- 区域5: 底部 -->
         <Border Grid.Row="2" Background="#1E293B" BorderBrush="#334155" BorderThickness="0,1,0,0">
-            <DockPanel Margin="8,4">
-                <TextBlock DockPanel.Dock="Top" Text="日志" Foreground="#64748B" FontSize="10" Margin="0,0,0,2" FontWeight="Bold"/>
-                <ListBox x:Name="LogList" FontSize="12" Foreground="#94A3B8" Background="Transparent"
-                         BorderThickness="0" ScrollViewer.VerticalScrollBarVisibility="Auto"/>
-            </DockPanel>
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="220"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <DockPanel Grid.Column="0" Margin="8,4" >
+                    <TextBlock DockPanel.Dock="Top" Text="日志" Foreground="#64748B" FontSize="10" Margin="0,0,0,2" FontWeight="Bold"/>
+                    <ListBox x:Name="LogList" FontSize="12" Foreground="#94A3B8" Background="Transparent"
+                             BorderThickness="0" ScrollViewer.VerticalScrollBarVisibility="Auto"/>
+                </DockPanel>
+            </Grid>
         </Border>
         <!-- 隐藏的出发表文本（保留控件避免代码引用报错） -->
         <TextBlock x:Name="StartListText" Visibility="Collapsed"/>
