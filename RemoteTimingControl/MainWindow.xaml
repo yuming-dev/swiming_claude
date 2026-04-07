@@ -171,23 +171,29 @@
                             <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,4">
                                 <TextBlock Text="计时源对比" Foreground="#64748B" FontSize="12" FontWeight="Bold" VerticalAlignment="Center"/>
                                 <TextBlock Text="  分段:" Foreground="#94A3B8" FontSize="11" VerticalAlignment="Center"/>
-                                <ComboBox x:Name="SplitSelectCombo" Width="100" FontSize="12" Margin="4,0,0,0"
-                                          BorderBrush="#475569" SelectionChanged="SplitSelect_Changed"
-                                          SelectedIndex="0">
-                                    <ComboBox.Resources>
-                                        <SolidColorBrush x:Key="{x:Static SystemColors.WindowBrushKey}" Color="Black"/>
-                                        <SolidColorBrush x:Key="{x:Static SystemColors.WindowTextBrushKey}" Color="White"/>
-                                        <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="#3B82F6"/>
-                                        <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="White"/>
-                                    </ComboBox.Resources>
-                                    <ComboBox.ItemContainerStyle>
-                                        <Style TargetType="ComboBoxItem">
-                                            <Setter Property="Foreground" Value="White"/>
-                                            <Setter Property="Background" Value="Black"/>
-                                        </Style>
-                                    </ComboBox.ItemContainerStyle>
-                                    <sys:String xmlns:sys="clr-namespace:System;assembly=mscorlib">终点</sys:String>
-                                </ComboBox>
+                                <Border Background="Black" CornerRadius="3" Padding="0" Margin="4,0,0,0">
+                                    <ComboBox x:Name="SplitSelectCombo" Width="100" FontSize="12"
+                                              Background="Black" Foreground="White" BorderBrush="#475569"
+                                              SelectionChanged="SplitSelect_Changed" SelectedIndex="0">
+                                        <ComboBox.Resources>
+                                            <SolidColorBrush x:Key="{x:Static SystemColors.WindowBrushKey}" Color="Black"/>
+                                            <SolidColorBrush x:Key="{x:Static SystemColors.WindowTextBrushKey}" Color="White"/>
+                                            <SolidColorBrush x:Key="{x:Static SystemColors.ControlBrushKey}" Color="Black"/>
+                                            <SolidColorBrush x:Key="{x:Static SystemColors.ControlTextBrushKey}" Color="White"/>
+                                            <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="#3B82F6"/>
+                                            <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="White"/>
+                                            <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightBrushKey}" Color="Black"/>
+                                            <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightTextBrushKey}" Color="White"/>
+                                        </ComboBox.Resources>
+                                        <ComboBox.ItemContainerStyle>
+                                            <Style TargetType="ComboBoxItem">
+                                                <Setter Property="Foreground" Value="White"/>
+                                                <Setter Property="Background" Value="Black"/>
+                                            </Style>
+                                        </ComboBox.ItemContainerStyle>
+                                        <sys:String xmlns:sys="clr-namespace:System;assembly=mscorlib">终点</sys:String>
+                                    </ComboBox>
+                                </Border>
                             </StackPanel>
                             <TextBlock x:Name="TimingSourceInfo" Text="" Foreground="#94A3B8" FontSize="12" TextWrapping="Wrap"/>
                         </DockPanel>
