@@ -1079,6 +1079,9 @@ var _lastTsSplitCount = -1;
 function selectLane(lane) {
     selectedLane = lane;
     _lastTsSplitCount = -1; // 切换泳道强制重建下拉框
+    // 同步泳道操作处的道次号
+    var laneInput = document.getElementById('laneInput');
+    if (laneInput) laneInput.value = lane;
     updateTimingSourceInfo();
     renderLanes();
 }
