@@ -500,6 +500,7 @@ namespace RemoteTimingControl
 
             // 更新计时源对比（刷新分段下拉列表和数据）
             UpdateTimingSourceInfo();
+            UpdateRecordDisplay();
         }
 
         private void DetectFirstPlace(JArray swimmers)
@@ -550,6 +551,43 @@ namespace RemoteTimingControl
         }
 
         // ═══════ Pool Header ═══════
+        private void UpdateRecordDisplay()
+        {
+            if (RecordDisplay == null || _data == null) return;
+            var records = _data["records"] as JArray;
+            string curEvent = _data["currentEvent"] != null ? _data["currentEvent"].ToString() : "";
+            string curGender = _data["currentGender"] != null ? _data["currentGender"].ToString() : "";
+            if (records == null || string.IsNullOrEmpty(curEvent))
+            {
+                RecordDisplay.Text = "";
+                return;
+            }
+
+            var sb = new System.Text.StringBuilder();
+            foreach (JObject r in records)
+            {
+                string rEvent = r["eventName"] != null ? r["eventName"].ToString() : "";
+                string rGender = r["gender"] != null ? r["gender"].ToString() : "";
+                if (rEvent != curEvent || rGender != curGender) continue;
+
+                string rType = r["recordType"] != null ? r["recordType"].ToString() : "";
+                string rTime = r["time"] != null ? r["time"].ToString() : "";
+                string rHolder = r["holderName"] != null ? r["holderName"].ToString() : "";
+
+                // 简写：世界纪录→WR, 赛会纪录→CR, 全国纪录→NR
+                string label = rType;
+                if (rType.Contains("世界")) label = "WR";
+                else if (rType.Contains("赛会")) label = "CR";
+                else if (rType.Contains("全国")) label = "NR";
+                else if (rType.Contains("亚洲")) label = "AR";
+
+                if (sb.Length > 0) sb.Append("    ");
+                sb.AppendFormat("{0}: {1}", label, rTime);
+                if (!string.IsNullOrEmpty(rHolder)) sb.AppendFormat(" ({0})", rHolder);
+            }
+            RecordDisplay.Text = sb.ToString();
+        }
+
         private void RenderPoolHeader()
         {
             PoolHeader.Children.Clear();

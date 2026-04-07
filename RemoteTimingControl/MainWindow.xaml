@@ -82,6 +82,11 @@
                             <StackPanel x:Name="LanePanel"/>
                         </ScrollViewer>
                     </DockPanel>
+                    <!-- 左下角纪录显示 -->
+                    <TextBlock x:Name="RecordDisplay" Text="" FontSize="14" Foreground="#94A3B8"
+                               FontFamily="Consolas" Opacity="0.9"
+                               HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="8,0,0,10"
+                               IsHitTestVisible="False"/>
                     <!-- 右下角滚动时间 -->
                     <TextBlock x:Name="RunningTime" Text="0.0" FontSize="44" FontWeight="Bold"
                                Foreground="#F59E0B" FontFamily="Consolas" Opacity="0.85"
