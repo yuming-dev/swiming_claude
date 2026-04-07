@@ -1365,9 +1365,12 @@ namespace SwimmingScoreboard
                 TimeFormatter.Format(split.Time), TimeFormatter.Format(time)));
 
             if (currentLap >= totalLaps) {
-                // 最终到达 — 保存触板时间到LaneResult用于计时源裁定
+                // 最终到达 — 同步最终段的各计时源到LaneResult终点汇总
                 laneState.IsFinished = true;
-                result.TouchpadTime = time;
+                result.TouchpadTime = split.TouchpadTime;
+                result.PushButton1Time = split.PushButton1Time;
+                result.PushButton2Time = split.PushButton2Time;
+                result.PushButton3Time = split.PushButton3Time;
                 result.FinalTime = time;
                 result.TimeInSeconds = time;
                 // 保存反应时间到成绩记录
@@ -1378,7 +1381,7 @@ namespace SwimmingScoreboard
                 // 计时源裁定（使用最终段的各计时源数据）
                 var judgement = TimingBridge.JudgeTimingSource(
                     split.TouchpadTime, split.PushButton1Time, split.PushButton2Time, split.PushButton3Time,
-                    split.ManualTouchTime > 0 ? split.ManualTouchTime : Math.Max(laneState.LeftManualTouchTime, laneState.RightManualTouchTime));
+                    split.ManualTouchTime);
                 result.FinalTime = judgement.FinalTime;
                 result.TimingSource = judgement.Source;
                 split.TimingSource = judgement.Source;
