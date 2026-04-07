@@ -25,22 +25,22 @@
                     <Ellipse x:Name="StateIndicator" Width="10" Height="10" Fill="#F59E0B" Margin="0,0,4,0"/>
                     <TextBlock x:Name="StateLabel" Text="等待" Foreground="#94A3B8" FontSize="12"/>
                 </StackPanel>
-                <!-- 连接状态 -->
+                <!-- 硬件状态+控制模式 -->
                 <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0,0,0">
-                    <Ellipse x:Name="WsConn" Width="8" Height="8" Fill="#EF4444" Margin="0,0,3,0"/>
-                    <TextBlock x:Name="WsConnText" Text="服务器:未连接" Foreground="#94A3B8" FontSize="11"/>
-                    <Ellipse x:Name="HwConn" Width="8" Height="8" Fill="#EF4444" Margin="10,0,3,0"/>
-                    <TextBlock x:Name="HwConnText" Text="硬件:未连接" Foreground="#94A3B8" FontSize="11"/>
-                    <TextBlock x:Name="ControlModeText" Text="控制:-" Foreground="#64748B" FontSize="11" Margin="10,0,0,0"/>
+                    <Ellipse x:Name="HwConn" Width="8" Height="8" Fill="#EF4444" Margin="0,0,3,0"/>
+                    <TextBlock x:Name="HwConnText" Text="硬件" Foreground="#94A3B8" FontSize="11"/>
+                    <TextBlock x:Name="ControlModeText" Text="" Foreground="#64748B" FontSize="11" Margin="10,0,0,0"/>
                 </StackPanel>
                 <Button Content="&#9881; 参数设置" Grid.Column="3" Click="OpenSettings_Click" Padding="8,2" Margin="8,0,0,0"
                         Background="#475569" Foreground="White" BorderThickness="0" FontSize="12"/>
+                <!-- 服务器连接（指示灯+地址+按钮合并） -->
                 <StackPanel Grid.Column="4" Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0,0,0">
-                    <TextBlock Text="服务器:" Foreground="#94A3B8" Margin="0,0,4,0" FontSize="11"/>
+                    <Ellipse x:Name="WsConn" Width="8" Height="8" Fill="#EF4444" Margin="0,0,4,0"/>
                     <TextBox x:Name="ServerBox" Text="127.0.0.1:3002" Width="120" Padding="2" Background="#334155" Foreground="White" BorderBrush="#475569" FontSize="11"/>
                     <Button x:Name="ConnBtn" Content="连接" Click="Connect_Click" Padding="8,2" Margin="4,0,0,0"
                             Background="#3B82F6" Foreground="White" BorderThickness="0" FontSize="11"/>
                 </StackPanel>
+                <TextBlock x:Name="WsConnText" Visibility="Collapsed"/>
             </Grid>
         </Border>
 
