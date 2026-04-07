@@ -1346,33 +1346,47 @@ namespace RemoteTimingControl
 
                 if (selIdx <= 0)
                 {
-                    // 终点成绩
-                    sb.Append("【终点成绩】\n");
-                    sb.AppendFormat("反应时间: {0}\n", sw["reactionTime"] != null && sw["reactionTime"].ToString() != "" ? sw["reactionTime"].ToString() : "-");
+                    // 终点：反应时间、触板、盲表1/2/3、手动
+                    sb.Append("【终点】\n");
+                    string rt = sw["reactionTime"] != null ? sw["reactionTime"].ToString() : "";
+                    sb.AppendFormat("反应时间: {0}\n", rt != "" ? rt : "-");
                     var ts = sw["timingSources"] as JObject;
                     if (ts != null)
                     {
-                        sb.AppendFormat("触  板:  {0}\n", ts["touchpad"] != null && ts["touchpad"].ToString() != "" ? ts["touchpad"].ToString() : "-");
-                        sb.AppendFormat("盲表 1:  {0}\n", ts["blindWatch1"] != null && ts["blindWatch1"].ToString() != "" ? ts["blindWatch1"].ToString() : "-");
-                        sb.AppendFormat("盲表 2:  {0}\n", ts["blindWatch2"] != null && ts["blindWatch2"].ToString() != "" ? ts["blindWatch2"].ToString() : "-");
-                        sb.AppendFormat("盲表 3:  {0}\n", ts["blindWatch3"] != null && ts["blindWatch3"].ToString() != "" ? ts["blindWatch3"].ToString() : "-");
-                        sb.AppendFormat("手动左:  {0}\n", ts["manualTouchLeft"] != null && ts["manualTouchLeft"].ToString() != "" ? ts["manualTouchLeft"].ToString() : "-");
-                        sb.AppendFormat("手动右:  {0}\n", ts["manualTouchRight"] != null && ts["manualTouchRight"].ToString() != "" ? ts["manualTouchRight"].ToString() : "-");
+                        string tp = ts["touchpad"] != null ? ts["touchpad"].ToString() : "";
+                        string b1 = ts["blindWatch1"] != null ? ts["blindWatch1"].ToString() : "";
+                        string b2 = ts["blindWatch2"] != null ? ts["blindWatch2"].ToString() : "";
+                        string b3 = ts["blindWatch3"] != null ? ts["blindWatch3"].ToString() : "";
+                        string ml = ts["manualTouchLeft"] != null ? ts["manualTouchLeft"].ToString() : "";
+                        string mr = ts["manualTouchRight"] != null ? ts["manualTouchRight"].ToString() : "";
+                        string manual = ml != "" ? ml : (mr != "" ? mr : "");
+                        sb.AppendFormat("触  板:  {0}\n", tp != "" ? tp : "-");
+                        sb.AppendFormat("盲表 1:  {0}\n", b1 != "" ? b1 : "-");
+                        sb.AppendFormat("盲表 2:  {0}\n", b2 != "" ? b2 : "-");
+                        sb.AppendFormat("盲表 3:  {0}\n", b3 != "" ? b3 : "-");
+                        sb.AppendFormat("手  动:  {0}\n", manual != "" ? manual : "-");
                     }
                 }
                 else if (splits != null && selIdx - 1 < splitCount)
                 {
-                    // 选中的分段
+                    // 分段：反应时间(若有)、触板、盲表1/2/3、手动、计时源
                     JObject sp = (JObject)splits[selIdx - 1];
                     sb.AppendFormat("【第{0}段  {1}m】\n", sp["lap"], sp["distance"]);
-                    sb.AppendFormat("累  计:  {0}\n", sp["cumulative"] != null && sp["cumulative"].ToString() != "" ? sp["cumulative"].ToString() : "-");
-                    sb.AppendFormat("分  段:  {0}\n", sp["time"] != null && sp["time"].ToString() != "" ? sp["time"].ToString() : "-");
-                    sb.AppendFormat("触  板:  {0}\n", sp["touchpad"] != null && sp["touchpad"].ToString() != "" ? sp["touchpad"].ToString() : "-");
-                    sb.AppendFormat("盲表 1:  {0}\n", sp["blind1"] != null && sp["blind1"].ToString() != "" ? sp["blind1"].ToString() : "-");
-                    sb.AppendFormat("盲表 2:  {0}\n", sp["blind2"] != null && sp["blind2"].ToString() != "" ? sp["blind2"].ToString() : "-");
-                    sb.AppendFormat("盲表 3:  {0}\n", sp["blind3"] != null && sp["blind3"].ToString() != "" ? sp["blind3"].ToString() : "-");
-                    sb.AppendFormat("手  动:  {0}\n", sp["manual"] != null && sp["manual"].ToString() != "" ? sp["manual"].ToString() : "-");
-                    sb.AppendFormat("计时源:  {0}\n", sp["source"] != null && sp["source"].ToString() != "" ? sp["source"].ToString() : "-");
+                    // 接力交接棒有反应时间
+                    string spReact = sw["reactionTime"] != null ? sw["reactionTime"].ToString() : "";
+                    if (spReact != "") sb.AppendFormat("反应时间: {0}\n", spReact);
+                    string spTp = sp["touchpad"] != null ? sp["touchpad"].ToString() : "";
+                    string spB1 = sp["blind1"] != null ? sp["blind1"].ToString() : "";
+                    string spB2 = sp["blind2"] != null ? sp["blind2"].ToString() : "";
+                    string spB3 = sp["blind3"] != null ? sp["blind3"].ToString() : "";
+                    string spM = sp["manual"] != null ? sp["manual"].ToString() : "";
+                    string spSrc = sp["source"] != null ? sp["source"].ToString() : "";
+                    sb.AppendFormat("触  板:  {0}\n", spTp != "" ? spTp : "-");
+                    sb.AppendFormat("盲表 1:  {0}\n", spB1 != "" ? spB1 : "-");
+                    sb.AppendFormat("盲表 2:  {0}\n", spB2 != "" ? spB2 : "-");
+                    sb.AppendFormat("盲表 3:  {0}\n", spB3 != "" ? spB3 : "-");
+                    sb.AppendFormat("手  动:  {0}\n", spM != "" ? spM : "-");
+                    sb.AppendFormat("计时源:  {0}\n", spSrc != "" ? spSrc : "-");
                 }
                 TimingSourceInfo.Text = sb.ToString();
                 break;
