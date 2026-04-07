@@ -83,7 +83,7 @@
                         </ScrollViewer>
                     </DockPanel>
                     <!-- 左下角纪录显示 -->
-                    <TextBlock x:Name="RecordDisplay" Text="" FontSize="20" Foreground="#F59E0B"
+                    <TextBlock x:Name="RecordDisplay" Text="" FontSize="30" Foreground="#F59E0B"
                                FontFamily="Consolas" FontWeight="Bold" Opacity="0.9"
                                HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="10,0,0,12"
                                IsHitTestVisible="False"/>
