@@ -171,15 +171,10 @@
                             <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,4">
                                 <TextBlock Text="计时源对比" Foreground="#64748B" FontSize="12" FontWeight="Bold" VerticalAlignment="Center"/>
                                 <TextBlock Text="  分段:" Foreground="#94A3B8" FontSize="11" VerticalAlignment="Center"/>
-                                <ComboBox x:Name="SplitSelectCombo" Width="80" FontSize="12" Margin="4,0,0,0"
-                                          Background="#334155" Foreground="White" BorderBrush="#475569" SelectionChanged="SplitSelect_Changed">
-                                    <ComboBox.ItemContainerStyle>
-                                        <Style TargetType="ComboBoxItem">
-                                            <Setter Property="Foreground" Value="Black"/>
-                                            <Setter Property="FontSize" Value="12"/>
-                                        </Style>
-                                    </ComboBox.ItemContainerStyle>
-                                    <ComboBoxItem Content="终点" IsSelected="True"/>
+                                <ComboBox x:Name="SplitSelectCombo" Width="100" FontSize="12" Margin="4,0,0,0"
+                                          Background="#334155" Foreground="White" BorderBrush="#475569" SelectionChanged="SplitSelect_Changed"
+                                          SelectedIndex="0">
+                                    <sys:String xmlns:sys="clr-namespace:System;assembly=mscorlib">终点</sys:String>
                                 </ComboBox>
                             </StackPanel>
                             <TextBlock x:Name="TimingSourceInfo" Text="" Foreground="#94A3B8" FontSize="12" TextWrapping="Wrap"/>

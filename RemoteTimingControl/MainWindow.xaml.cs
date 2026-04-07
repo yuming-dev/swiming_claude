@@ -1306,14 +1306,11 @@ namespace RemoteTimingControl
                     int prevIdx = SplitSelectCombo.SelectedIndex;
                     SplitSelectCombo.SelectionChanged -= SplitSelect_Changed;
                     SplitSelectCombo.Items.Clear();
-                    SplitSelectCombo.Items.Add(new ComboBoxItem { Content = "终点", Foreground = Brushes.Black });
+                    SplitSelectCombo.Items.Add("终点");
                     for (int i = 0; i < splitCount; i++)
                     {
                         JObject sp = (JObject)splits[i];
-                        SplitSelectCombo.Items.Add(new ComboBoxItem {
-                            Content = string.Format("第{0}段({1}m)", sp["lap"], sp["distance"]),
-                            Foreground = Brushes.Black
-                        });
+                        SplitSelectCombo.Items.Add(string.Format("第{0}段({1}m)", sp["lap"], sp["distance"]));
                     }
                     if (prevIdx >= 0 && prevIdx < SplitSelectCombo.Items.Count)
                         SplitSelectCombo.SelectedIndex = prevIdx;
