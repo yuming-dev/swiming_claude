@@ -73,19 +73,19 @@
             </Border>
 
             <!-- 泳池图（中间） -->
-            <Border Grid.Column="1" Padding="8">
+            <Border Grid.Column="1" Padding="10,8">
                 <Grid>
                     <!-- 表头 + 泳道 -->
                     <DockPanel>
-                        <Grid x:Name="PoolHeader" DockPanel.Dock="Top" Height="24" Margin="0,0,0,2"/>
+                        <Grid x:Name="PoolHeader" DockPanel.Dock="Top" Height="28" Margin="0,0,0,4"/>
                         <ScrollViewer VerticalScrollBarVisibility="Auto">
                             <StackPanel x:Name="LanePanel"/>
                         </ScrollViewer>
                     </DockPanel>
                     <!-- 右下角滚动时间 -->
-                    <TextBlock x:Name="RunningTime" Text="0.0" FontSize="38" FontWeight="Bold"
-                               Foreground="#F59E0B" FontFamily="Consolas" Opacity="0.9"
-                               HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,12,8"
+                    <TextBlock x:Name="RunningTime" Text="0.0" FontSize="44" FontWeight="Bold"
+                               Foreground="#F59E0B" FontFamily="Consolas" Opacity="0.85"
+                               HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,16,12"
                                IsHitTestVisible="False"/>
                 </Grid>
             </Border>
