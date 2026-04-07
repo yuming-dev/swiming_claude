@@ -1286,14 +1286,20 @@ namespace SwimmingScoreboard
             double prevCumulative = 0;
             if (result.Splits.Count > 0) prevCumulative = result.Splits.Last().CumulativeTime;
 
+            // 创建分段，同时带入已记录的手动时间
+            double manualTime = Math.Max(laneState.LeftManualTouchTime, laneState.RightManualTouchTime);
             var split = new SplitTime {
                 Lap = currentLap,
                 Distance = currentLap * _poolConfig.Length,
                 Time = time - prevCumulative,
                 CumulativeTime = time,
-                TouchpadTime = time
+                TouchpadTime = time,
+                ManualTouchTime = manualTime > prevCumulative ? manualTime : 0
             };
             result.Splits.Add(split);
+            // 清除已使用的手动时间，避免下一段重复
+            laneState.LeftManualTouchTime = 0;
+            laneState.RightManualTouchTime = 0;
             AddLog(string.Format("泳道{0} 第{1}段: {2} (累计: {3})", lane, currentLap,
                 TimeFormatter.Format(split.Time), TimeFormatter.Format(time)));
 
@@ -1400,45 +1406,23 @@ namespace SwimmingScoreboard
         }
 
         private void SaveManualTouchToSplit(int lane, double time) {
-            // 查找运动员（优先用StageAssignment泳道匹配）
+            // 手动时间只保存到已有分段的最后一个（如果存在）
+            // 手动时间同时保存在 laneState.LeftManualTouchTime/RightManualTouchTime 中
+            // 当 ProcessTouchpadHit 创建新分段时会自动带入
             var swimmer = GetCurrentHeatSwimmers().FirstOrDefault(s => {
                 var sa = s.GetAssignmentForStage(_currentStage);
                 return (sa != null ? sa.Lane : s.Lane) == lane;
             });
             if (swimmer == null) {
-                // 兼容：直接按Lane匹配
                 swimmer = GetCurrentHeatSwimmers().FirstOrDefault(s => s.Lane == lane);
             }
             if (swimmer == null) return;
 
             var result = swimmer.Results.FirstOrDefault(r => r.Stage == _currentStage && r.Heat == _currentHeat);
-            if (result == null) {
-                // 还没有成绩记录，创建一个
-                result = new LaneResult {
-                    EventName = _currentEvent,
-                    Stage = _currentStage,
-                    Heat = _currentHeat,
-                    Lane = lane
-                };
-                swimmer.Results.Add(result);
-            }
-
-            if (result.Splits.Count > 0) {
-                // 保存到最后一个分段
+            if (result != null && result.Splits.Count > 0) {
                 result.Splits.Last().ManualTouchTime = time;
-            } else {
-                // 还没有分段（触板未到），创建临时分段保存手动时间
-                var laneState = _laneDeviceStates.FirstOrDefault(s => s.Lane == lane);
-                int currentLap = laneState != null ? laneState.CurrentLap + 1 : 1;
-                var split = new SplitTime {
-                    Lap = currentLap,
-                    Distance = currentLap * _poolConfig.Length,
-                    ManualTouchTime = time,
-                    CumulativeTime = time,
-                    Time = time
-                };
-                result.Splits.Add(split);
             }
+            // 如果还没有分段，不创建——等触板到达时由 ProcessTouchpadHit 创建分段并带入手动时间
         }
 
         private void ProcessBlindWatchData(int lane, string cmdType, double time) {
