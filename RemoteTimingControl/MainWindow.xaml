@@ -19,19 +19,28 @@
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
                 <TextBlock x:Name="CurrentInfoText" Grid.Column="0" Text="未选择比赛" Foreground="White" FontWeight="Bold" FontSize="14" VerticalAlignment="Center"/>
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                     <Ellipse x:Name="StateIndicator" Width="10" Height="10" Fill="#F59E0B" Margin="0,0,4,0"/>
-                    <TextBlock x:Name="StateLabel" Text="等待" Foreground="#94A3B8" FontSize="14"/>
+                    <TextBlock x:Name="StateLabel" Text="等待" Foreground="#94A3B8" FontSize="12"/>
                 </StackPanel>
-                <Button Content="&#9881; 参数设置" Grid.Column="2" Click="OpenSettings_Click" Padding="8,2" Margin="8,0,0,0"
-                        Background="#475569" Foreground="White" BorderThickness="0" FontSize="13"/>
-                <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0,0,0">
-                    <TextBlock Text="服务器:" Foreground="#94A3B8" Margin="0,0,4,0" FontSize="12"/>
-                    <TextBox x:Name="ServerBox" Text="127.0.0.1:3002" Width="130" Padding="2" Background="#334155" Foreground="White" BorderBrush="#475569" FontSize="12"/>
+                <!-- 连接状态 -->
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0,0,0">
+                    <Ellipse x:Name="WsConn" Width="8" Height="8" Fill="#EF4444" Margin="0,0,3,0"/>
+                    <TextBlock x:Name="WsConnText" Text="服务器:未连接" Foreground="#94A3B8" FontSize="11"/>
+                    <Ellipse x:Name="HwConn" Width="8" Height="8" Fill="#EF4444" Margin="10,0,3,0"/>
+                    <TextBlock x:Name="HwConnText" Text="硬件:未连接" Foreground="#94A3B8" FontSize="11"/>
+                    <TextBlock x:Name="ControlModeText" Text="控制:-" Foreground="#64748B" FontSize="11" Margin="10,0,0,0"/>
+                </StackPanel>
+                <Button Content="&#9881; 参数设置" Grid.Column="3" Click="OpenSettings_Click" Padding="8,2" Margin="8,0,0,0"
+                        Background="#475569" Foreground="White" BorderThickness="0" FontSize="12"/>
+                <StackPanel Grid.Column="4" Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0,0,0">
+                    <TextBlock Text="服务器:" Foreground="#94A3B8" Margin="0,0,4,0" FontSize="11"/>
+                    <TextBox x:Name="ServerBox" Text="127.0.0.1:3002" Width="120" Padding="2" Background="#334155" Foreground="White" BorderBrush="#475569" FontSize="11"/>
                     <Button x:Name="ConnBtn" Content="连接" Click="Connect_Click" Padding="8,2" Margin="4,0,0,0"
-                            Background="#3B82F6" Foreground="White" BorderThickness="0" FontSize="12"/>
+                            Background="#3B82F6" Foreground="White" BorderThickness="0" FontSize="11"/>
                 </StackPanel>
             </Grid>
         </Border>
@@ -183,39 +192,15 @@
             </Border>
         </Grid>
 
-        <!-- 区域5: 底部 -->
+        <!-- 区域5: 底部日志 -->
         <Border Grid.Row="2" Background="#1E293B" BorderBrush="#334155" BorderThickness="0,1,0,0">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="180"/>
-                </Grid.ColumnDefinitions>
-                <DockPanel Grid.Column="0" Margin="8,4">
-                    <TextBlock DockPanel.Dock="Top" Text="出发表" Foreground="#64748B" FontSize="10" Margin="0,0,0,2" FontWeight="Bold"/>
-                    <TextBlock x:Name="StartListText" Text="" Foreground="#94A3B8" FontSize="13" TextWrapping="Wrap"/>
-                </DockPanel>
-                <Border Grid.Column="1" BorderBrush="#334155" BorderThickness="1,0,0,0">
-                    <DockPanel Margin="8,4">
-                        <TextBlock DockPanel.Dock="Top" Text="日志" Foreground="#64748B" FontSize="10" Margin="0,0,0,2" FontWeight="Bold"/>
-                        <ListBox x:Name="LogList" FontSize="13" Foreground="#94A3B8" Background="Transparent"
-                                 BorderThickness="0" ScrollViewer.VerticalScrollBarVisibility="Auto"/>
-                    </DockPanel>
-                </Border>
-                <Border Grid.Column="2" BorderBrush="#334155" BorderThickness="1,0,0,0">
-                    <StackPanel Margin="8,4">
-                        <StackPanel Orientation="Horizontal">
-                            <Ellipse x:Name="WsConn" Width="8" Height="8" Fill="#EF4444" Margin="0,0,4,0"/>
-                            <TextBlock x:Name="WsConnText" Text="服务器: 未连接" Foreground="#94A3B8" FontSize="13"/>
-                        </StackPanel>
-                        <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
-                            <Ellipse x:Name="HwConn" Width="8" Height="8" Fill="#EF4444" Margin="0,0,4,0"/>
-                            <TextBlock x:Name="HwConnText" Text="计时硬件: 未连接" Foreground="#94A3B8" FontSize="13"/>
-                        </StackPanel>
-                        <TextBlock x:Name="ControlModeText" Text="控制模式: -" Foreground="#64748B" FontSize="12" Margin="0,4,0,0"/>
-                    </StackPanel>
-                </Border>
-            </Grid>
+            <DockPanel Margin="8,4">
+                <TextBlock DockPanel.Dock="Top" Text="日志" Foreground="#64748B" FontSize="10" Margin="0,0,0,2" FontWeight="Bold"/>
+                <ListBox x:Name="LogList" FontSize="12" Foreground="#94A3B8" Background="Transparent"
+                         BorderThickness="0" ScrollViewer.VerticalScrollBarVisibility="Auto"/>
+            </DockPanel>
         </Border>
+        <!-- 隐藏的出发表文本（保留控件避免代码引用报错） -->
+        <TextBlock x:Name="StartListText" Visibility="Collapsed"/>
     </Grid>
 </Window>
