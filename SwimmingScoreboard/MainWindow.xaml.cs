@@ -2468,7 +2468,7 @@ namespace SwimmingScoreboard
                 var leftDev = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(2, 0, 0, 0) };
                 var touchL = new Button { Content = "T", Width = 80, Height = 26, FontSize = 14, Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569")), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
                 int capLane = lane;
-                touchL.Click += delegate { HandleTimingCommand(Newtonsoft.Json.Linq.JObject.FromObject(new { command = "MANUAL_TOUCH_LEFT", data = new { lane = capLane } })); };
+                touchL.PreviewMouseLeftButtonDown += delegate { HandleTimingCommand(Newtonsoft.Json.Linq.JObject.FromObject(new { command = "MANUAL_TOUCH_LEFT", data = new { lane = capLane } })); };
                 leftDev.Children.Add(touchL);
                 if (ls != null) {
                     leftDev.Children.Add(MakeLaneDot(ls.LeftBlindWatch1Status));
@@ -2535,7 +2535,7 @@ namespace SwimmingScoreboard
                     rightDev.Children.Add(MakeLaneDot(ls.RightBlindWatch3Status));
                 }
                 var touchR = new Button { Content = "T", Width = 80, Height = 26, FontSize = 14, Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569")), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
-                touchR.Click += delegate { HandleTimingCommand(Newtonsoft.Json.Linq.JObject.FromObject(new { command = "MANUAL_TOUCH_RIGHT", data = new { lane = capLane } })); };
+                touchR.PreviewMouseLeftButtonDown += delegate { HandleTimingCommand(Newtonsoft.Json.Linq.JObject.FromObject(new { command = "MANUAL_TOUCH_RIGHT", data = new { lane = capLane } })); };
                 rightDev.Children.Add(touchR);
                 Grid.SetColumn(rightDev, 4); grid.Children.Add(rightDev);
 
