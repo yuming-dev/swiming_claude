@@ -731,25 +731,13 @@
                                         </ControlTemplate>
                                     </Button.Template>
                                 </Button>
-                                <Button Grid.Row="2" Grid.Column="0" Click="TimingSettings_Click" Margin="0,0,2,2" BorderThickness="0" Cursor="Hand">
+                                <Button Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2" Click="TimingSettings_Click" Margin="0,0,0,2" BorderThickness="0" Cursor="Hand">
                                     <Button.Template>
                                         <ControlTemplate TargetType="Button">
                                             <Border Background="#475569" CornerRadius="6">
                                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
                                                     <TextBlock Text="&#9881;" FontSize="14" Foreground="White" VerticalAlignment="Center" Margin="0,0,4,0"/>
                                                     <TextBlock Text="参数设置" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
-                                                </StackPanel>
-                                            </Border>
-                                        </ControlTemplate>
-                                    </Button.Template>
-                                </Button>
-                                <Button Grid.Row="2" Grid.Column="1" Click="DeviceStatus_Click" Margin="2,0,0,2" BorderThickness="0" Cursor="Hand">
-                                    <Button.Template>
-                                        <ControlTemplate TargetType="Button">
-                                            <Border Background="#8B5CF6" CornerRadius="6">
-                                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                                    <TextBlock Text="&#xE964;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="White" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                                                    <TextBlock Text="设备状态管理" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
                                                 </StackPanel>
                                             </Border>
                                         </ControlTemplate>
