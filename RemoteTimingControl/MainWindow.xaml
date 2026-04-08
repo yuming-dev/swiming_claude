@@ -87,26 +87,28 @@
             </Border>
 
             <!-- 泳池图（中间） -->
-            <Border Grid.Column="1" Padding="10,8">
-                <Grid>
+            <Border Grid.Column="1" Padding="10,4">
+                <DockPanel>
+                    <!-- 顶部：WR/CR + 滚动时间 -->
+                    <Grid DockPanel.Dock="Top" Height="36" Margin="0,0,0,4">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="280"/>
+                            <ColumnDefinition Width="160"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock x:Name="RecordDisplay" Grid.Column="1" Text="WR: ---    CR: ---"
+                                   FontSize="18" FontWeight="Bold" Foreground="#F59E0B" FontFamily="Consolas"
+                                   Opacity="0.9" TextAlignment="Right" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <TextBlock x:Name="RunningTime" Grid.Column="2" Text="0.00"
+                                   FontSize="32" FontWeight="Bold" Foreground="#F59E0B" FontFamily="Consolas"
+                                   Opacity="0.85" TextAlignment="Right" VerticalAlignment="Center"/>
+                    </Grid>
                     <!-- 表头 + 泳道 -->
-                    <DockPanel>
-                        <Grid x:Name="PoolHeader" DockPanel.Dock="Top" Height="28" Margin="0,0,0,4"/>
-                        <ScrollViewer VerticalScrollBarVisibility="Auto">
-                            <StackPanel x:Name="LanePanel"/>
-                        </ScrollViewer>
-                    </DockPanel>
-                    <!-- 左下角纪录显示 -->
-                    <TextBlock x:Name="RecordDisplay" Text="" FontSize="30" Foreground="#F59E0B"
-                               FontFamily="Consolas" FontWeight="Bold" Opacity="0.9"
-                               HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="10,0,0,12"
-                               IsHitTestVisible="False"/>
-                    <!-- 右下角滚动时间 -->
-                    <TextBlock x:Name="RunningTime" Text="0.00" FontSize="44" FontWeight="Bold"
-                               Foreground="#F59E0B" FontFamily="Consolas" Opacity="0.85"
-                               HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,16,12"
-                               IsHitTestVisible="False"/>
-                </Grid>
+                    <Grid x:Name="PoolHeader" DockPanel.Dock="Top" Height="28" Margin="0,0,0,4"/>
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel x:Name="LanePanel"/>
+                    </ScrollViewer>
+                </DockPanel>
             </Border>
 
             <!-- 右侧操作面板 -->
