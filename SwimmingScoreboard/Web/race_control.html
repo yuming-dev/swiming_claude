@@ -492,6 +492,8 @@ function render() {
     if (state === 'waiting' || state === 'ready') {
         _localTimerStart = 0;
         _localTimerSynced = false;
+        var rtReset = document.getElementById('runTime');
+        if (rtReset) { rtReset.textContent = '0.00'; rtReset.style.color = ''; }
     }
     if ((state === 'racing' || state === 'finished') && !_localTimerSynced && data.runningTime) {
         var serverSec = parseServerTime(data.runningTime);
