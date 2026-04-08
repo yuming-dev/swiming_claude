@@ -503,45 +503,54 @@
                         <ColumnDefinition Width="220"/>
                     </Grid.ColumnDefinitions>
 
-                    <!-- 左：赛程导航 -->
-                    <Border Grid.Column="0" CornerRadius="10" Padding="12" Margin="0,0,10,0"
-                            BorderBrush="#E2E8F0" BorderThickness="1">
-                        <Border.Background>
-                            <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-                                <GradientStop Color="#FFFFFF" Offset="0"/>
-                                <GradientStop Color="#F8FAFC" Offset="1"/>
-                            </LinearGradientBrush>
-                        </Border.Background>
-                        <DockPanel>
-                            <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,10">
-                                <Border Background="#8B5CF6" CornerRadius="4" Padding="5,3" Margin="0,0,8,0">
-                                    <TextBlock Text="&#xE8A5;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="White" VerticalAlignment="Center"/>
-                                </Border>
-                                <TextBlock Text="赛程导航" FontSize="16" FontWeight="Bold" Foreground="#1E293B" VerticalAlignment="Center"/>
-                            </StackPanel>
-                            <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,8,0,0">
-                                <Button Click="PrevHeat_Click" Margin="0,0,8,0" BorderThickness="0" Cursor="Hand">
-                                    <Button.Template>
-                                        <ControlTemplate TargetType="Button">
-                                            <Border Background="#6366F1" CornerRadius="6" Padding="14,6">
-                                                <TextBlock Text="◀ 上一组" FontSize="13" Foreground="White" FontWeight="Bold"/>
-                                            </Border>
-                                        </ControlTemplate>
-                                    </Button.Template>
-                                </Button>
-                                <Button Click="NextHeat_Click" BorderThickness="0" Cursor="Hand">
-                                    <Button.Template>
-                                        <ControlTemplate TargetType="Button">
-                                            <Border Background="#6366F1" CornerRadius="6" Padding="14,6">
-                                                <TextBlock Text="下一组 ▶" FontSize="13" Foreground="White" FontWeight="Bold"/>
-                                            </Border>
-                                        </ControlTemplate>
-                                    </Button.Template>
-                                </Button>
-                            </StackPanel>
-                            <TreeView x:Name="ScheduleTree" SelectedItemChanged="ScheduleTree_Selected" BorderThickness="0"/>
-                        </DockPanel>
-                    </Border>
+                    <!-- 左栏 -->
+                    <Grid Grid.Column="0" Margin="0,0,10,0">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="3*"/>
+                            <RowDefinition Height="1*"/>
+                        </Grid.RowDefinitions>
+                        <!-- 赛程导航（上3/4） -->
+                        <Border Grid.Row="0" CornerRadius="10" Padding="12" Margin="0,0,0,6"
+                                BorderBrush="#E2E8F0" BorderThickness="1">
+                            <Border.Background>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                    <GradientStop Color="#FFFFFF" Offset="0"/>
+                                    <GradientStop Color="#F8FAFC" Offset="1"/>
+                                </LinearGradientBrush>
+                            </Border.Background>
+                            <DockPanel>
+                                <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
+                                    <Border Background="#8B5CF6" CornerRadius="4" Padding="5,3" Margin="0,0,8,0">
+                                        <TextBlock Text="&#xE8A5;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="White" VerticalAlignment="Center"/>
+                                    </Border>
+                                    <TextBlock Text="赛程导航" FontSize="15" FontWeight="Bold" Foreground="#1E293B" VerticalAlignment="Center"/>
+                                </StackPanel>
+                                <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,6,0,0">
+                                    <Button Click="PrevHeat_Click" Margin="0,0,8,0" BorderThickness="0" Cursor="Hand">
+                                        <Button.Template>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border Background="#6366F1" CornerRadius="6" Padding="12,5">
+                                                    <TextBlock Text="◀ 上一组" FontSize="12" Foreground="White" FontWeight="Bold"/>
+                                                </Border>
+                                            </ControlTemplate>
+                                        </Button.Template>
+                                    </Button>
+                                    <Button Click="NextHeat_Click" BorderThickness="0" Cursor="Hand">
+                                        <Button.Template>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border Background="#6366F1" CornerRadius="6" Padding="12,5">
+                                                    <TextBlock Text="下一组 ▶" FontSize="12" Foreground="White" FontWeight="Bold"/>
+                                                </Border>
+                                            </ControlTemplate>
+                                        </Button.Template>
+                                    </Button>
+                                </StackPanel>
+                                <TreeView x:Name="ScheduleTree" SelectedItemChanged="ScheduleTree_Selected" BorderThickness="0"/>
+                            </DockPanel>
+                        </Border>
+                        <!-- 下1/4 空余 -->
+                        <Border Grid.Row="1"/>
+                    </Grid>
 
                     <!-- 中：泳道状态 -->
                     <Border Grid.Column="1" CornerRadius="10" Padding="12" Margin="0,0,10,0"
