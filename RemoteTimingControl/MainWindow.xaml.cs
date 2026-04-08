@@ -613,7 +613,7 @@ namespace RemoteTimingControl
             PoolHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) }); // 3: 姓名+进度
             PoolHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(240) });  // 4: 右设备
             PoolHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(8) });    // 5: 右发令
-            PoolHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(300) });  // 6: 成绩信息
+            PoolHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(267) });  // 6: 成绩信息
 
             // 道次
             var laneHeader = MakeHeaderLabel("道", 32);
@@ -933,7 +933,7 @@ namespace RemoteTimingControl
                 grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) }); // 3: 姓名+进度
                 grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(240) });  // 4: 右设备
                 grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(8) });    // 5: 右发令指示
-                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(300) });  // 6: 成绩信息
+                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(267) });  // 6: 成绩信息
 
                 int capturedLane = lane;
 
