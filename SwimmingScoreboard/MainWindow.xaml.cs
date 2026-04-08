@@ -50,6 +50,8 @@ namespace SwimmingScoreboard
         private RaceState _raceState = RaceState.Waiting;
         private DateTime _raceStartTime;
         private double _runningTime = 0;
+        private int _selectedLane = -1;
+        private int _lastTsSplitCount = -1;
 
         // 泳道设备状态
         private List<LaneDeviceState> _laneDeviceStates = new List<LaneDeviceState>();
@@ -2505,8 +2507,109 @@ namespace SwimmingScoreboard
                 Grid.SetColumn(infoArea, 6); grid.Children.Add(infoArea);
 
                 row.Child = grid;
+                int clickLane = lane;
+                row.MouseLeftButtonDown += delegate {
+                    _selectedLane = clickLane;
+                    _lastTsSplitCount = -1;
+                    if (LaneInputBox != null) LaneInputBox.Text = clickLane.ToString();
+                    UpdateTimingSourceInfo();
+                };
                 LanePanel.Children.Add(row);
             }
+            UpdateTimingSourceInfo();
+        }
+
+        // ═══════ 计时源对比 ═══════
+        private void SplitSelect_Changed(object sender, SelectionChangedEventArgs e) {
+            if (TimingSourceInfo == null) return;
+            ShowTimingSourceData();
+        }
+
+        private void UpdateTimingSourceInfo() {
+            if (TimingSourceInfo == null || SplitSelectCombo == null) return;
+            if (_selectedLane < 0) { TimingSourceInfo.Text = "点击泳道行查看计时源"; return; }
+
+            var currentSwimmers = GetCurrentHeatSwimmers();
+            Swimmer targetSw = null;
+            int targetLane = _selectedLane;
+            foreach (var s in currentSwimmers) {
+                var sa = s.GetAssignmentForStage(_currentStage);
+                int sLane = sa != null ? sa.Lane : s.Lane;
+                if (sLane == targetLane) { targetSw = s; break; }
+            }
+            if (targetSw == null) { TimingSourceInfo.Text = ""; return; }
+
+            var result = targetSw.Results.FirstOrDefault(r => r.Stage == _currentStage && r.Heat == _currentHeat);
+            int splitCount = result != null ? result.Splits.Count : 0;
+
+            if (splitCount != _lastTsSplitCount) {
+                _lastTsSplitCount = splitCount;
+                int prevIdx = SplitSelectCombo.SelectedIndex;
+                SplitSelectCombo.SelectionChanged -= SplitSelect_Changed;
+                SplitSelectCombo.Items.Clear();
+                SplitSelectCombo.Items.Add("终点");
+                if (result != null) {
+                    foreach (var sp in result.Splits) {
+                        SplitSelectCombo.Items.Add(string.Format("第{0}段({1}m)", sp.Lap, sp.Distance));
+                    }
+                }
+                if (prevIdx >= 0 && prevIdx < SplitSelectCombo.Items.Count)
+                    SplitSelectCombo.SelectedIndex = prevIdx;
+                else
+                    SplitSelectCombo.SelectedIndex = 0;
+                SplitSelectCombo.SelectionChanged += SplitSelect_Changed;
+            }
+            ShowTimingSourceData();
+        }
+
+        private void ShowTimingSourceData() {
+            if (TimingSourceInfo == null || _selectedLane < 0) return;
+
+            var currentSwimmers = GetCurrentHeatSwimmers();
+            Swimmer targetSw = null;
+            foreach (var s in currentSwimmers) {
+                var sa = s.GetAssignmentForStage(_currentStage);
+                int sLane = sa != null ? sa.Lane : s.Lane;
+                if (sLane == _selectedLane) { targetSw = s; break; }
+            }
+            if (targetSw == null) { TimingSourceInfo.Text = ""; return; }
+
+            var result = targetSw.Results.FirstOrDefault(r => r.Stage == _currentStage && r.Heat == _currentHeat);
+            var ls = _laneDeviceStates.FirstOrDefault(st => st.Lane == _selectedLane);
+            int selIdx = SplitSelectCombo != null ? SplitSelectCombo.SelectedIndex : 0;
+
+            var sb = new StringBuilder();
+            sb.AppendFormat("道{0}  {1}\n", _selectedLane, targetSw.Name ?? "");
+
+            if (selIdx <= 0) {
+                sb.Append("【终点】\n");
+                string rt = ls != null && ls.ReactionTime != 0 ? ls.ReactionTime.ToString("F2") : "-";
+                sb.AppendFormat("反应时间: {0}\n", rt);
+                sb.AppendFormat("触  板:  {0}\n", result != null && result.TouchpadTime > 0 ? TimeFormatter.Format(result.TouchpadTime) : "-");
+                sb.AppendFormat("盲表 1:  {0}\n", result != null && result.PushButton1Time > 0 ? TimeFormatter.Format(result.PushButton1Time) : "-");
+                sb.AppendFormat("盲表 2:  {0}\n", result != null && result.PushButton2Time > 0 ? TimeFormatter.Format(result.PushButton2Time) : "-");
+                sb.AppendFormat("盲表 3:  {0}\n", result != null && result.PushButton3Time > 0 ? TimeFormatter.Format(result.PushButton3Time) : "-");
+                string manual = "";
+                if (result != null && result.Splits.Count > 0 && result.Splits.Last().ManualTouchTime > 0)
+                    manual = TimeFormatter.Format(result.Splits.Last().ManualTouchTime);
+                else if (ls != null) {
+                    double m = _laneCloseSettings.FinishPosition == "right" ? ls.RightManualTouchTime : ls.LeftManualTouchTime;
+                    if (m > 0) manual = TimeFormatter.Format(m);
+                }
+                sb.AppendFormat("手  动:  {0}\n", !string.IsNullOrEmpty(manual) ? manual : "-");
+            } else if (result != null && selIdx - 1 < result.Splits.Count) {
+                var sp = result.Splits[selIdx - 1];
+                sb.AppendFormat("【第{0}段  {1}m】\n", sp.Lap, sp.Distance);
+                if (ls != null && ls.ReactionTime != 0)
+                    sb.AppendFormat("反应时间: {0}\n", ls.ReactionTime.ToString("F2"));
+                sb.AppendFormat("触  板:  {0}\n", sp.TouchpadTime > 0 ? TimeFormatter.Format(sp.TouchpadTime) : "-");
+                sb.AppendFormat("盲表 1:  {0}\n", sp.PushButton1Time > 0 ? TimeFormatter.Format(sp.PushButton1Time) : "-");
+                sb.AppendFormat("盲表 2:  {0}\n", sp.PushButton2Time > 0 ? TimeFormatter.Format(sp.PushButton2Time) : "-");
+                sb.AppendFormat("盲表 3:  {0}\n", sp.PushButton3Time > 0 ? TimeFormatter.Format(sp.PushButton3Time) : "-");
+                sb.AppendFormat("手  动:  {0}\n", sp.ManualTouchTime > 0 ? TimeFormatter.Format(sp.ManualTouchTime) : "-");
+                sb.AppendFormat("计时源:  {0}\n", !string.IsNullOrEmpty(sp.TimingSource) ? sp.TimingSource : "-");
+            }
+            TimingSourceInfo.Text = sb.ToString();
         }
 
         private void UpdateRaceStateDisplay() {

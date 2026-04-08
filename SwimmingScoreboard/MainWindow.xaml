@@ -570,6 +570,20 @@
                             </Grid>
                             <!-- 表头 -->
                             <Grid x:Name="PoolHeader" DockPanel.Dock="Top" Height="28" Margin="0,0,0,4" Background="#1E293B"/>
+                            <!-- 底部：计时源对比 -->
+                            <Border DockPanel.Dock="Bottom" BorderBrush="#334155" BorderThickness="0,1,0,0" Padding="8,6" Background="#1E293B" MaxHeight="140">
+                                <DockPanel>
+                                    <TextBlock DockPanel.Dock="Top" Text="计时源对比" Foreground="#3B82F6" FontSize="13" FontWeight="Bold" Margin="0,0,0,4"/>
+                                    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,4">
+                                        <TextBlock Text="分段:" Foreground="#94A3B8" FontSize="12" VerticalAlignment="Center"/>
+                                        <ComboBox x:Name="SplitSelectCombo" Width="110" FontSize="12" Margin="6,0,0,0"
+                                                  BorderBrush="#475569" SelectionChanged="SplitSelect_Changed" SelectedIndex="0">
+                                            <sys:String xmlns:sys="clr-namespace:System;assembly=mscorlib">终点</sys:String>
+                                        </ComboBox>
+                                    </StackPanel>
+                                    <TextBlock x:Name="TimingSourceInfo" Text="点击泳道行查看计时源" Foreground="#94A3B8" FontSize="13" TextWrapping="Wrap"/>
+                                </DockPanel>
+                            </Border>
                             <!-- 泳道行 -->
                             <ScrollViewer VerticalScrollBarVisibility="Auto">
                                 <StackPanel x:Name="LanePanel"/>
