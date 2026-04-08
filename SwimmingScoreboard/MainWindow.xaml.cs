@@ -551,23 +551,36 @@ namespace SwimmingScoreboard
                     }
                     break;
                 case "MANUAL_TOUCH_LEFT":
-                    if (data != null && _raceState == RaceState.Racing) {
+                    if (data != null && (_raceState == RaceState.Racing || _raceState == RaceState.Finished)) {
                         int laneNum = (int)data["lane"];
                         var lState = _laneDeviceStates.FirstOrDefault(s => s.Lane == laneNum);
-                        if (lState != null) lState.LeftManualTouchTime = _runningTime;
-                        SaveManualTouchToSplit(laneNum, _runningTime);
-                        LogRawTimingData(laneNum, "ManualTouchLeft", _runningTime);
-                        AddLog(string.Format("泳道{0} 左端手动触板: {1}", laneNum, TimeFormatter.Format(_runningTime)));
+                        // 检查：启用且打开状态才记录
+                        if (lState != null && lState.LeftManualEnabled && lState.LeftManualStatus == DeviceStatus.Open) {
+                            lState.LeftManualTouchTime = _runningTime;
+                            SaveManualTouchToSplit(laneNum, _runningTime);
+                            LogRawTimingData(laneNum, "ManualTouchLeft", _runningTime);
+                            AddLog(string.Format("泳道{0} 左端手动触板: {1}", laneNum, TimeFormatter.Format(_runningTime)));
+                        } else if (lState != null && !lState.LeftManualEnabled) {
+                            AddLog(string.Format("泳道{0} 左端手动触板(未启用)", laneNum));
+                        } else if (lState != null && lState.LeftManualStatus != DeviceStatus.Open) {
+                            AddLog(string.Format("泳道{0} 左端手动触板(未打开)", laneNum));
+                        }
                     }
                     break;
                 case "MANUAL_TOUCH_RIGHT":
-                    if (data != null && _raceState == RaceState.Racing) {
+                    if (data != null && (_raceState == RaceState.Racing || _raceState == RaceState.Finished)) {
                         int laneNum = (int)data["lane"];
                         var lState = _laneDeviceStates.FirstOrDefault(s => s.Lane == laneNum);
-                        if (lState != null) lState.RightManualTouchTime = _runningTime;
-                        SaveManualTouchToSplit(laneNum, _runningTime);
-                        LogRawTimingData(laneNum, "ManualTouchRight", _runningTime);
-                        AddLog(string.Format("泳道{0} 右端手动触板: {1}", laneNum, TimeFormatter.Format(_runningTime)));
+                        if (lState != null && lState.RightManualEnabled && lState.RightManualStatus == DeviceStatus.Open) {
+                            lState.RightManualTouchTime = _runningTime;
+                            SaveManualTouchToSplit(laneNum, _runningTime);
+                            LogRawTimingData(laneNum, "ManualTouchRight", _runningTime);
+                            AddLog(string.Format("泳道{0} 右端手动触板: {1}", laneNum, TimeFormatter.Format(_runningTime)));
+                        } else if (lState != null && !lState.RightManualEnabled) {
+                            AddLog(string.Format("泳道{0} 右端手动触板(未启用)", laneNum));
+                        } else if (lState != null && lState.RightManualStatus != DeviceStatus.Open) {
+                            AddLog(string.Format("泳道{0} 右端手动触板(未打开)", laneNum));
+                        }
                     }
                     break;
             }
@@ -726,6 +739,12 @@ namespace SwimmingScoreboard
                         rightBlindWatch2Broken = laneState != null && laneState.RightBlindWatch2Broken,
                         rightBlindWatch3Broken = laneState != null && laneState.RightBlindWatch3Broken,
                         rightStartBlockBroken = laneState != null && laneState.RightStartBlockBroken
+                    },
+                    manualButton = new {
+                        leftEnabled = laneState != null && laneState.LeftManualEnabled,
+                        rightEnabled = laneState != null && laneState.RightManualEnabled,
+                        leftStatus = laneState != null ? laneState.LeftManualStatus.ToString().ToLower() : "closed",
+                        rightStatus = laneState != null ? laneState.RightManualStatus.ToString().ToLower() : "closed"
                     },
                     laneCloseCountdown = laneState != null ? laneState.LaneCloseCountdown : 0,
                     reactionTime = laneState != null && laneState.ReactionTime != 0 ? laneState.ReactionTime.ToString("F2") : "",
@@ -1417,6 +1436,7 @@ namespace SwimmingScoreboard
                     if (ls3 == null) return;
                     ls3.LeftBlindWatch1Status = DeviceStatus.Closed; ls3.LeftBlindWatch2Status = DeviceStatus.Closed; ls3.LeftBlindWatch3Status = DeviceStatus.Closed;
                     ls3.RightBlindWatch1Status = DeviceStatus.Closed; ls3.RightBlindWatch2Status = DeviceStatus.Closed; ls3.RightBlindWatch3Status = DeviceStatus.Closed;
+                    ls3.LeftManualStatus = DeviceStatus.Closed; ls3.RightManualStatus = DeviceStatus.Closed;
                     Broadcast();
                 };
                 finishCloseTimer.Start();
@@ -1475,9 +1495,11 @@ namespace SwimmingScoreboard
                     if (arrivedEnd == "right") {
                         laneState.RightTouchpadStatus = DeviceStatus.Closed;
                         laneState.RightBlindWatch1Status = DeviceStatus.Closed; laneState.RightBlindWatch2Status = DeviceStatus.Closed; laneState.RightBlindWatch3Status = DeviceStatus.Closed;
+                        laneState.RightManualStatus = DeviceStatus.Closed;
                     } else {
                         laneState.LeftTouchpadStatus = DeviceStatus.Closed;
                         laneState.LeftBlindWatch1Status = DeviceStatus.Closed; laneState.LeftBlindWatch2Status = DeviceStatus.Closed; laneState.LeftBlindWatch3Status = DeviceStatus.Closed;
+                        laneState.LeftManualStatus = DeviceStatus.Closed;
                     }
                     Broadcast();
                 };
@@ -1774,11 +1796,13 @@ namespace SwimmingScoreboard
                             if (!state.RightBlindWatch1Broken) state.RightBlindWatch1Status = DeviceStatus.Open;
                             if (!state.RightBlindWatch2Broken) state.RightBlindWatch2Status = DeviceStatus.Open;
                             if (!state.RightBlindWatch3Broken) state.RightBlindWatch3Status = DeviceStatus.Open;
+                            if (state.RightManualEnabled) state.RightManualStatus = DeviceStatus.Open;
                         } else {
                             if (!state.LeftTouchpadBroken) state.LeftTouchpadStatus = DeviceStatus.Open;
                             if (!state.LeftBlindWatch1Broken) state.LeftBlindWatch1Status = DeviceStatus.Open;
                             if (!state.LeftBlindWatch2Broken) state.LeftBlindWatch2Status = DeviceStatus.Open;
                             if (!state.LeftBlindWatch3Broken) state.LeftBlindWatch3Status = DeviceStatus.Open;
+                            if (state.LeftManualEnabled) state.LeftManualStatus = DeviceStatus.Open;
                         }
 
                         // 触板打开 = 新分段开始：预创建空分段，后续触板/盲表/手动都写入此分段
@@ -2475,7 +2499,8 @@ namespace SwimmingScoreboard
 
                 // Col 2: 左设备
                 var leftDev = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(2, 0, 0, 0) };
-                var touchL = new Button { Content = "T", Width = 80, Height = 26, FontSize = 14, Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569")), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
+                Color touchLColor = (Color)ColorConverter.ConvertFromString(ls != null && ls.LeftManualEnabled ? (ls.LeftManualStatus == DeviceStatus.Open ? "#22C55E" : "#475569") : "#334155");
+                var touchL = new Button { Content = "T", Width = 80, Height = 26, FontSize = 14, Background = new SolidColorBrush(touchLColor), Foreground = Brushes.White, BorderThickness = new Thickness(0), IsEnabled = ls == null || ls.LeftManualEnabled };
                 int capLane = lane;
                 touchL.PreviewMouseLeftButtonDown += delegate(object s1, System.Windows.Input.MouseButtonEventArgs e1) { e1.Handled = true; HandleTimingCommand(Newtonsoft.Json.Linq.JObject.FromObject(new { command = "MANUAL_TOUCH_LEFT", data = new { lane = capLane } })); };
                 leftDev.Children.Add(touchL);
@@ -2543,7 +2568,8 @@ namespace SwimmingScoreboard
                     rightDev.Children.Add(MakeLaneDot(ls.RightBlindWatch2Status));
                     rightDev.Children.Add(MakeLaneDot(ls.RightBlindWatch3Status));
                 }
-                var touchR = new Button { Content = "T", Width = 80, Height = 26, FontSize = 14, Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569")), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
+                Color touchRColor = (Color)ColorConverter.ConvertFromString(ls != null && ls.RightManualEnabled ? (ls.RightManualStatus == DeviceStatus.Open ? "#22C55E" : "#475569") : "#334155");
+                var touchR = new Button { Content = "T", Width = 80, Height = 26, FontSize = 14, Background = new SolidColorBrush(touchRColor), Foreground = Brushes.White, BorderThickness = new Thickness(0), IsEnabled = ls == null || ls.RightManualEnabled };
                 touchR.PreviewMouseLeftButtonDown += delegate(object s2, System.Windows.Input.MouseButtonEventArgs e2) { e2.Handled = true; HandleTimingCommand(Newtonsoft.Json.Linq.JObject.FromObject(new { command = "MANUAL_TOUCH_RIGHT", data = new { lane = capLane } })); };
                 rightDev.Children.Add(touchR);
                 Grid.SetColumn(rightDev, 4); grid.Children.Add(rightDev);
@@ -2876,7 +2902,12 @@ namespace SwimmingScoreboard
             var deviceSep = new Border { BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569")), BorderThickness = new Thickness(0, 1, 0, 0), Margin = new Thickness(0, 10, 0, 0), Padding = new Thickness(0, 10, 0, 0) };
             var btnDeviceMgr = new Button { Content = "设备状态管理", Padding = new Thickness(0, 8, 0, 8), FontSize = 14, FontWeight = FontWeights.Bold, Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#8B5CF6")), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
             btnDeviceMgr.Click += delegate { dlg.DialogResult = false; DeviceStatus_Click(null, null); };
-            deviceSep.Child = btnDeviceMgr;
+            var btnManualMgr = new Button { Content = "手动按键管理", Padding = new Thickness(0, 8, 0, 8), FontSize = 14, FontWeight = FontWeights.Bold, Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#0EA5E9")), Foreground = Brushes.White, BorderThickness = new Thickness(0), Margin = new Thickness(0, 6, 0, 0) };
+            btnManualMgr.Click += delegate { dlg.DialogResult = false; OpenManualButtonManager(); };
+            var deviceStack = new StackPanel();
+            deviceStack.Children.Add(btnDeviceMgr);
+            deviceStack.Children.Add(btnManualMgr);
+            deviceSep.Child = deviceStack;
             sp.Children.Add(deviceSep);
 
             var btnPanel = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 16, 0, 0) };
@@ -2933,6 +2964,74 @@ namespace SwimmingScoreboard
             row.Children.Add(unitTb);
             parent.Children.Add(row);
             return tb;
+        }
+
+        private void OpenManualButtonManager() {
+            var dlg = new Window {
+                Title = "手动按键管理", Width = 500, Height = 480,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                Owner = this, ResizeMode = ResizeMode.CanResize
+            };
+
+            var mainGrid = new Grid { Margin = new Thickness(16) };
+            mainGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Auto) });
+            mainGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+            mainGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Auto) });
+
+            mainGrid.Children.Add(new TextBlock { Text = "手动按键 用/不用 设置", FontSize = 17, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 0, 0, 12) });
+
+            var dataGrid = new DataGrid {
+                AutoGenerateColumns = false, CanUserAddRows = false,
+                IsReadOnly = false, FontSize = 14, RowHeight = 30,
+                AlternatingRowBackground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F8FAFC")),
+                HeadersVisibility = DataGridHeadersVisibility.Column
+            };
+
+            dataGrid.Columns.Add(new DataGridTextColumn { Header = "道次", Binding = new System.Windows.Data.Binding("Lane"), Width = new DataGridLength(60), IsReadOnly = true });
+            dataGrid.Columns.Add(new DataGridCheckBoxColumn { Header = "左手动 用", Binding = new System.Windows.Data.Binding("LeftEnabled"), Width = new DataGridLength(100) });
+            dataGrid.Columns.Add(new DataGridCheckBoxColumn { Header = "右手动 用", Binding = new System.Windows.Data.Binding("RightEnabled"), Width = new DataGridLength(100) });
+
+            var items = new List<ManualBtnItem>();
+            foreach (var ls in _laneDeviceStates) {
+                items.Add(new ManualBtnItem { Lane = ls.Lane, LeftEnabled = ls.LeftManualEnabled, RightEnabled = ls.RightManualEnabled });
+            }
+            dataGrid.ItemsSource = items;
+            Grid.SetRow(dataGrid, 1);
+            mainGrid.Children.Add(dataGrid);
+
+            var btnPanel = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 12, 0, 0) };
+            var btnAllOn = new Button { Content = "全部设为用", Padding = new Thickness(16, 6, 16, 6), Margin = new Thickness(0, 0, 8, 0) };
+            btnAllOn.Click += delegate { foreach (var it in items) { it.LeftEnabled = true; it.RightEnabled = true; } dataGrid.Items.Refresh(); };
+            var btnAllOff = new Button { Content = "全部设为不用", Padding = new Thickness(16, 6, 16, 6), Margin = new Thickness(0, 0, 16, 0) };
+            btnAllOff.Click += delegate { foreach (var it in items) { it.LeftEnabled = false; it.RightEnabled = false; } dataGrid.Items.Refresh(); };
+            var btnOK = new Button { Content = "确认", Padding = new Thickness(16, 6, 16, 6), Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6")), Foreground = Brushes.White, BorderThickness = new Thickness(0), Margin = new Thickness(0, 0, 8, 0) };
+            btnOK.Click += delegate {
+                for (int i = 0; i < items.Count && i < _laneDeviceStates.Count; i++) {
+                    _laneDeviceStates[i].LeftManualEnabled = items[i].LeftEnabled;
+                    _laneDeviceStates[i].RightManualEnabled = items[i].RightEnabled;
+                    if (!items[i].LeftEnabled) _laneDeviceStates[i].LeftManualStatus = DeviceStatus.Closed;
+                    if (!items[i].RightEnabled) _laneDeviceStates[i].RightManualStatus = DeviceStatus.Closed;
+                }
+                UpdateLaneStatusDisplay();
+                Broadcast();
+                AddLog("手动按键设置已更新");
+                dlg.Close();
+            };
+            var btnCancel = new Button { Content = "取消", Padding = new Thickness(16, 6, 16, 6) };
+            btnCancel.Click += delegate { dlg.Close(); };
+            btnPanel.Children.Add(btnAllOn); btnPanel.Children.Add(btnAllOff);
+            btnPanel.Children.Add(btnOK); btnPanel.Children.Add(btnCancel);
+            Grid.SetRow(btnPanel, 2);
+            mainGrid.Children.Add(btnPanel);
+
+            dlg.Content = mainGrid;
+            dlg.ShowDialog();
+        }
+
+        private class ManualBtnItem {
+            public int Lane { get; set; }
+            public bool LeftEnabled { get; set; }
+            public bool RightEnabled { get; set; }
         }
 
         private void DeviceStatus_Click(object sender, RoutedEventArgs e) {

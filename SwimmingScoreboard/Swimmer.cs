@@ -735,6 +735,11 @@ namespace SwimmingScoreboard
         public double PendingBlind1Time { get; set; }
         public double PendingBlind2Time { get; set; }
         public double PendingBlind3Time { get; set; }
+        // 手动按钮状态：Enabled=用, Status=Open/Closed
+        public bool LeftManualEnabled { get; set; }
+        public bool RightManualEnabled { get; set; }
+        public DeviceStatus LeftManualStatus { get; set; }
+        public DeviceStatus RightManualStatus { get; set; }
         private bool _leftTouchpadBroken;
         private bool _leftBlindWatch1Broken;
         private bool _leftBlindWatch2Broken;
@@ -943,6 +948,9 @@ namespace SwimmingScoreboard
             _startSide = startPosition;
             _leftManualTouchTime = 0;
             PendingBlind1Time = 0; PendingBlind2Time = 0; PendingBlind3Time = 0;
+            // 手动按钮：保持Enabled状态不变（由设置控制），只重置Open/Closed
+            LeftManualStatus = LeftManualEnabled ? DeviceStatus.Closed : DeviceStatus.Closed;
+            RightManualStatus = RightManualEnabled ? DeviceStatus.Closed : DeviceStatus.Closed;
             _rightManualTouchTime = 0;
             NotifyAll();
         }
