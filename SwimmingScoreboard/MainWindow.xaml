@@ -573,6 +573,7 @@
                             <Grid DockPanel.Dock="Top" Margin="0,0,0,10">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="Auto"/>
@@ -583,15 +584,18 @@
                                     </Border>
                                     <TextBlock Text="泳道实时状态" FontSize="16" FontWeight="Bold" Foreground="White" VerticalAlignment="Center"/>
                                 </StackPanel>
+                                <!-- 选定的比赛项目 -->
+                                <TextBlock x:Name="PoolCurrentEventText" Grid.Column="1" Text="" FontSize="14" FontWeight="Bold"
+                                           Foreground="#94A3B8" Margin="12,0,0,0" VerticalAlignment="Center"/>
                                 <!-- WR/CR 纪录 -->
-                                <TextBlock x:Name="RecordDisplayText" Grid.Column="1" Text="WR: ---    CR: ---" FontSize="20" FontWeight="Bold"
+                                <TextBlock x:Name="RecordDisplayText" Grid.Column="2" Text="WR: ---    CR: ---" FontSize="20" FontWeight="Bold"
                                            Foreground="#F59E0B" FontFamily="Consolas" Opacity="0.9"
                                            HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                 <!-- 滚动时间 -->
-                                <TextBlock x:Name="RunningTimeText" Grid.Column="2" Text="0.0" FontSize="32" FontWeight="Bold"
+                                <TextBlock x:Name="RunningTimeText" Grid.Column="3" Text="0.00" FontSize="32" FontWeight="Bold"
                                            Foreground="#F59E0B" FontFamily="Consolas" Margin="12,0,12,0" VerticalAlignment="Center"/>
                                 <!-- 状态 -->
-                                <Border Grid.Column="3" Background="#1E293B" CornerRadius="12" Padding="10,4">
+                                <Border Grid.Column="4" Background="#1E293B" CornerRadius="12" Padding="10,4">
                                     <StackPanel Orientation="Horizontal">
                                         <Ellipse x:Name="RaceStateIndicator" Width="12" Height="12" Fill="#F59E0B" Margin="0,0,6,0" VerticalAlignment="Center"/>
                                         <TextBlock x:Name="RaceStateLabel" Text="等待" FontSize="14" FontWeight="Bold" Foreground="#94A3B8" VerticalAlignment="Center"/>

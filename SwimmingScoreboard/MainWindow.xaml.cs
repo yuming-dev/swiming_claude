@@ -2131,6 +2131,8 @@ namespace SwimmingScoreboard
         private void SetCurrentHeat(int heat) {
             _currentHeat = heat;
             CurrentHeatText.Text = string.Format("第{0}组 / 共{1}组", heat, _totalHeats);
+            if (PoolCurrentEventText != null)
+                PoolCurrentEventText.Text = string.Format("{0} {1} {2} 第{3}组", _currentGender, _currentEvent, _currentStage, heat);
             _raceState = RaceState.Waiting;
             _resultConfirmed = false;
             _laneSplitCount.Clear();
