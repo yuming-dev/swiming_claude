@@ -102,7 +102,7 @@
                                HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="10,0,0,12"
                                IsHitTestVisible="False"/>
                     <!-- 右下角滚动时间 -->
-                    <TextBlock x:Name="RunningTime" Text="0.0" FontSize="44" FontWeight="Bold"
+                    <TextBlock x:Name="RunningTime" Text="0.00" FontSize="44" FontWeight="Bold"
                                Foreground="#F59E0B" FontFamily="Consolas" Opacity="0.85"
                                HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,16,12"
                                IsHitTestVisible="False"/>

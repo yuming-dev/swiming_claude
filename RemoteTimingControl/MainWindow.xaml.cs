@@ -132,14 +132,14 @@ namespace RemoteTimingControl
             int secs = ((int)total) % 60;
             int mins = ((int)(total / 60)) % 60;
             int hrs = (int)(total / 3600);
-            if (hrs > 0) return string.Format("{0}:{1:D2}:{2:D2}.{3}", hrs, mins, secs, tenths);
-            if (mins > 0) return string.Format("{0}:{1:D2}.{2}", mins, secs, tenths);
-            return string.Format("{0}.{1}", secs, tenths);
+            if (hrs > 0) return string.Format("{0}:{1:D2}:{2:D2}.{3} ", hrs, mins, secs, tenths);
+            if (mins > 0) return string.Format("{0}:{1:D2}.{2} ", mins, secs, tenths);
+            return string.Format("{0}.{1} ", secs, tenths);
         }
 
         private string GetLocalRunningTime()
         {
-            if (_localTimerStart == DateTime.MinValue) return _data != null && _data["runningTime"] != null ? _data["runningTime"].ToString() : "0.0";
+            if (_localTimerStart == DateTime.MinValue) return _data != null && _data["runningTime"] != null ? _data["runningTime"].ToString() : "0.00";
             double elapsed = (DateTime.Now - _localTimerStart).TotalSeconds;
             return FormatLocalTime(elapsed);
         }
