@@ -2352,8 +2352,8 @@ namespace SwimmingScoreboard
         }
 
         private void UpdateLaneStatusDisplay() {
-            if (LanePanel == null) return;
-            if (!_poolHeaderBuilt) { RenderPoolHeader(); _poolHeaderBuilt = true; }
+            if (LanePanel == null || PoolHeader == null) return;
+            RenderPoolHeader();
 
             LanePanel.Children.Clear();
             var currentSwimmers = GetCurrentHeatSwimmers();
