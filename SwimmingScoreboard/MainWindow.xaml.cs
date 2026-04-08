@@ -2378,6 +2378,10 @@ namespace SwimmingScoreboard
             };
             addLabel(0, "道", 32);
 
+            // 左发令标志
+            var leftHdrInd = new TextBlock { Text = _laneCloseSettings.StartPosition == "left" ? ">" : "", Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#22C55E")), FontSize = 12, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+            Grid.SetColumn(leftHdrInd, 1); PoolHeader.Children.Add(leftHdrInd);
+
             var leftLabels = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
             foreach (string s in new[] { "[T]:80", "盲1:26", "盲2:26", "盲3:26", "出发:26", "触板:26", "圈:28" }) {
                 string[] p = s.Split(':');
@@ -2396,6 +2400,10 @@ namespace SwimmingScoreboard
                 rightLabels.Children.Add(new TextBlock { Text = p[0], Width = double.Parse(p[1]), Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")), FontSize = 12, TextAlignment = TextAlignment.Center, VerticalAlignment = VerticalAlignment.Center });
             }
             Grid.SetColumn(rightLabels, 4); PoolHeader.Children.Add(rightLabels);
+
+            // 右发令标志
+            var rightHdrInd = new TextBlock { Text = _laneCloseSettings.StartPosition == "right" ? "<" : "", Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#22C55E")), FontSize = 12, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+            Grid.SetColumn(rightHdrInd, 5); PoolHeader.Children.Add(rightHdrInd);
 
             var infoLabels = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
             foreach (string s in new[] { "反应:55", "成绩:110", "名次:44", "备注:40" }) {
@@ -2468,7 +2476,7 @@ namespace SwimmingScoreboard
                 var leftDev = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(2, 0, 0, 0) };
                 var touchL = new Button { Content = "T", Width = 80, Height = 26, FontSize = 14, Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569")), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
                 int capLane = lane;
-                touchL.PreviewMouseLeftButtonDown += delegate { HandleTimingCommand(Newtonsoft.Json.Linq.JObject.FromObject(new { command = "MANUAL_TOUCH_LEFT", data = new { lane = capLane } })); };
+                touchL.PreviewMouseLeftButtonDown += delegate(object s1, System.Windows.Input.MouseButtonEventArgs e1) { e1.Handled = true; HandleTimingCommand(Newtonsoft.Json.Linq.JObject.FromObject(new { command = "MANUAL_TOUCH_LEFT", data = new { lane = capLane } })); };
                 leftDev.Children.Add(touchL);
                 if (ls != null) {
                     leftDev.Children.Add(MakeLaneDot(ls.LeftBlindWatch1Status));
@@ -2535,7 +2543,7 @@ namespace SwimmingScoreboard
                     rightDev.Children.Add(MakeLaneDot(ls.RightBlindWatch3Status));
                 }
                 var touchR = new Button { Content = "T", Width = 80, Height = 26, FontSize = 14, Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569")), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
-                touchR.PreviewMouseLeftButtonDown += delegate { HandleTimingCommand(Newtonsoft.Json.Linq.JObject.FromObject(new { command = "MANUAL_TOUCH_RIGHT", data = new { lane = capLane } })); };
+                touchR.PreviewMouseLeftButtonDown += delegate(object s2, System.Windows.Input.MouseButtonEventArgs e2) { e2.Handled = true; HandleTimingCommand(Newtonsoft.Json.Linq.JObject.FromObject(new { command = "MANUAL_TOUCH_RIGHT", data = new { lane = capLane } })); };
                 rightDev.Children.Add(touchR);
                 Grid.SetColumn(rightDev, 4); grid.Children.Add(rightDev);
 
