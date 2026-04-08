@@ -1963,7 +1963,7 @@ namespace RemoteTimingControl
             var dlg = new Window
             {
                 Title = "设备状态管理",
-                Width = 800, Height = 500,
+                Width = 950, Height = 580,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner,
                 Owner = this, ResizeMode = ResizeMode.CanResize
             };
@@ -1973,7 +1973,7 @@ namespace RemoteTimingControl
             mainGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
             mainGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Auto) });
 
-            mainGrid.Children.Add(new TextBlock { Text = "泳道设备好/坏状态设置", FontSize = 16, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 0, 0, 12) });
+            mainGrid.Children.Add(new TextBlock { Text = "泳道设备好/坏状态设置", FontSize = 17, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 0, 0, 12) });
 
             // DataGrid with CheckBox columns
             var dataGrid = new DataGrid
@@ -1981,11 +1981,13 @@ namespace RemoteTimingControl
                 AutoGenerateColumns = false,
                 CanUserAddRows = false,
                 IsReadOnly = false,
+                FontSize = 14,
+                RowHeight = 30,
                 AlternatingRowBackground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F8FAFC")),
                 HeadersVisibility = DataGridHeadersVisibility.Column
             };
 
-            dataGrid.Columns.Add(new DataGridTextColumn { Header = "道次", Binding = new System.Windows.Data.Binding("Lane"), Width = new DataGridLength(50), IsReadOnly = true });
+            dataGrid.Columns.Add(new DataGridTextColumn { Header = "道次", Binding = new System.Windows.Data.Binding("Lane"), Width = new DataGridLength(55), IsReadOnly = true });
 
             // 构建每道数据，用CheckBox列
             var items = new List<DeviceRowItem>();
@@ -2007,16 +2009,16 @@ namespace RemoteTimingControl
                 items.Add(item);
             }
 
-            dataGrid.Columns.Add(new DataGridCheckBoxColumn { Header = "左触板坏", Binding = new System.Windows.Data.Binding("LeftTouchpadBroken"), Width = new DataGridLength(60) });
-            dataGrid.Columns.Add(new DataGridCheckBoxColumn { Header = "左出发台坏", Binding = new System.Windows.Data.Binding("LeftStartBlockBroken"), Width = new DataGridLength(70) });
-            dataGrid.Columns.Add(new DataGridCheckBoxColumn { Header = "左盲1坏", Binding = new System.Windows.Data.Binding("LeftBlindWatch1Broken"), Width = new DataGridLength(55) });
-            dataGrid.Columns.Add(new DataGridCheckBoxColumn { Header = "左盲2坏", Binding = new System.Windows.Data.Binding("LeftBlindWatch2Broken"), Width = new DataGridLength(55) });
-            dataGrid.Columns.Add(new DataGridCheckBoxColumn { Header = "左盲3坏", Binding = new System.Windows.Data.Binding("LeftBlindWatch3Broken"), Width = new DataGridLength(55) });
-            dataGrid.Columns.Add(new DataGridCheckBoxColumn { Header = "右触板坏", Binding = new System.Windows.Data.Binding("RightTouchpadBroken"), Width = new DataGridLength(60) });
-            dataGrid.Columns.Add(new DataGridCheckBoxColumn { Header = "右出发台坏", Binding = new System.Windows.Data.Binding("RightStartBlockBroken"), Width = new DataGridLength(70) });
-            dataGrid.Columns.Add(new DataGridCheckBoxColumn { Header = "右盲1坏", Binding = new System.Windows.Data.Binding("RightBlindWatch1Broken"), Width = new DataGridLength(55) });
-            dataGrid.Columns.Add(new DataGridCheckBoxColumn { Header = "右盲2坏", Binding = new System.Windows.Data.Binding("RightBlindWatch2Broken"), Width = new DataGridLength(55) });
-            dataGrid.Columns.Add(new DataGridCheckBoxColumn { Header = "右盲3坏", Binding = new System.Windows.Data.Binding("RightBlindWatch3Broken"), Width = new DataGridLength(55) });
+            dataGrid.Columns.Add(new DataGridCheckBoxColumn { Header = "左触板坏", Binding = new System.Windows.Data.Binding("LeftTouchpadBroken"), Width = new DataGridLength(70) });
+            dataGrid.Columns.Add(new DataGridCheckBoxColumn { Header = "左出发台坏", Binding = new System.Windows.Data.Binding("LeftStartBlockBroken"), Width = new DataGridLength(80) });
+            dataGrid.Columns.Add(new DataGridCheckBoxColumn { Header = "左盲1坏", Binding = new System.Windows.Data.Binding("LeftBlindWatch1Broken"), Width = new DataGridLength(65) });
+            dataGrid.Columns.Add(new DataGridCheckBoxColumn { Header = "左盲2坏", Binding = new System.Windows.Data.Binding("LeftBlindWatch2Broken"), Width = new DataGridLength(65) });
+            dataGrid.Columns.Add(new DataGridCheckBoxColumn { Header = "左盲3坏", Binding = new System.Windows.Data.Binding("LeftBlindWatch3Broken"), Width = new DataGridLength(65) });
+            dataGrid.Columns.Add(new DataGridCheckBoxColumn { Header = "右触板坏", Binding = new System.Windows.Data.Binding("RightTouchpadBroken"), Width = new DataGridLength(70) });
+            dataGrid.Columns.Add(new DataGridCheckBoxColumn { Header = "右出发台坏", Binding = new System.Windows.Data.Binding("RightStartBlockBroken"), Width = new DataGridLength(80) });
+            dataGrid.Columns.Add(new DataGridCheckBoxColumn { Header = "右盲1坏", Binding = new System.Windows.Data.Binding("RightBlindWatch1Broken"), Width = new DataGridLength(65) });
+            dataGrid.Columns.Add(new DataGridCheckBoxColumn { Header = "右盲2坏", Binding = new System.Windows.Data.Binding("RightBlindWatch2Broken"), Width = new DataGridLength(65) });
+            dataGrid.Columns.Add(new DataGridCheckBoxColumn { Header = "右盲3坏", Binding = new System.Windows.Data.Binding("RightBlindWatch3Broken"), Width = new DataGridLength(65) });
             dataGrid.ItemsSource = items;
 
             Grid.SetRow(dataGrid, 1);
