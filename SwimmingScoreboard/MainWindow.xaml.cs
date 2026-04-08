@@ -2421,11 +2421,36 @@ namespace SwimmingScoreboard
                 if (!string.IsNullOrEmpty(dispTeam)) infoStack.Children.Add(new TextBlock { Text = dispTeam, Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), FontSize = 12 });
                 DockPanel.SetDock(infoStack, Dock.Left); midPanel.Children.Add(infoStack);
                 string dir = ls != null ? ls.Direction : "→";
-                var trackBorder = new Border { Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1A2332")), CornerRadius = new CornerRadius(4), Height = 20, Padding = new Thickness(4, 0, 4, 0) };
-                var trackText = new TextBlock { FontFamily = new FontFamily("Consolas"), FontSize = 13, VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = dir == "←" ? HorizontalAlignment.Right : HorizontalAlignment.Left, Foreground = new SolidColorBrush(isFinished ? (Color)ColorConverter.ConvertFromString("#F59E0B") : (Color)ColorConverter.ConvertFromString("#3B82F6")) };
-                if (isFinished && result != null) trackText.Text = "== " + TimeFormatter.Format(result.FinalTime) + " ==";
-                else if (status == "DNS" || status == "DNF" || status == "DSQ") trackText.Text = status;
-                else if (ls != null && ls.LaneCloseCountdown > 0) trackText.Text = string.Format("({0:F1}s)", ls.LaneCloseCountdown);
+                var trackBorder = new Border { Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1A2332")), CornerRadius = new CornerRadius(4), Height = 22, Padding = new Thickness(4, 0, 4, 0), MinWidth = 60 };
+                var trackText = new TextBlock { FontFamily = new FontFamily("Consolas"), FontSize = 14, VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = dir == "←" ? HorizontalAlignment.Right : HorizontalAlignment.Left };
+                // 方向/进度显示（与EXE一致）
+                string arrow = dir == "←" ? "◀" : "▶";
+                int maxArrows = 12;
+                if (isFinished && result != null) {
+                    trackText.Text = "== " + TimeFormatter.Format(result.FinalTime) + " ==";
+                    trackText.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F59E0B"));
+                } else if (status == "DNS" || status == "DNF" || status == "DSQ") {
+                    trackText.Text = status;
+                    trackText.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F59E0B"));
+                } else if (ls != null && ls.LaneCloseCountdown > 0) {
+                    double closeTime = _laneCloseSettings.LaneCloseTime > 0 ? _laneCloseSettings.LaneCloseTime : 20;
+                    double elapsed = closeTime - ls.LaneCloseCountdown;
+                    double progress = closeTime > 0 ? elapsed / closeTime : 1;
+                    int arrowCount = Math.Max(1, (int)Math.Round(progress * maxArrows));
+                    if (arrowCount > maxArrows) arrowCount = maxArrows;
+                    string arrows = "";
+                    for (int a = 0; a < arrowCount; a++) arrows += arrow;
+                    string cdText = string.Format("({0:F1}s)", ls.LaneCloseCountdown);
+                    trackText.Text = dir == "←" ? cdText + " " + arrows : arrows + " " + cdText;
+                    trackText.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6"));
+                } else if (ls != null && (ls.CurrentLap > 0 || _raceState == RaceState.Racing)) {
+                    string fullArrows = "";
+                    for (int a = 0; a < maxArrows; a++) fullArrows += arrow;
+                    trackText.Text = fullArrows;
+                    trackText.Foreground = new SolidColorBrush(dir == "←" ? (Color)ColorConverter.ConvertFromString("#22C55E") : (Color)ColorConverter.ConvertFromString("#3B82F6"));
+                } else {
+                    trackText.Text = "";
+                }
                 trackBorder.Child = trackText; midPanel.Children.Add(trackBorder);
                 Grid.SetColumn(midPanel, 3); grid.Children.Add(midPanel);
 
