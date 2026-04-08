@@ -593,7 +593,7 @@
                                            TextAlignment="Right" VerticalAlignment="Center"/>
                                 <!-- 滚动时间 -->
                                 <TextBlock x:Name="RunningTimeText" Grid.Column="3" Text="0.0" Width="160" FontSize="32" FontWeight="Bold"
-                                           Foreground="#F59E0B" FontFamily="Consolas" TextAlignment="Center" Margin="0,0,20,0" VerticalAlignment="Center"/>
+                                           Foreground="#F59E0B" FontFamily="Consolas" TextAlignment="Right" Margin="8,0,8,0" VerticalAlignment="Center"/>
                                 <!-- 状态 -->
                                 <Border Grid.Column="4" Background="#1E293B" CornerRadius="12" Padding="10,4" Width="80">
                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">

@@ -1722,9 +1722,9 @@ namespace SwimmingScoreboard
                 if (lSc != _firstPlaceDetectedRank) {
                     _firstPlaceDetectedRank = lSc;
                     if (lFinished && lr != null && lr.FinalTime > 0) {
-                        _firstPlaceFinishTime = TimeFormatter.Format(lr.FinalTime);
+                        _firstPlaceFinishTime = TimeFormatter.FormatRunning(lr.FinalTime);
                     } else if (lr != null && lr.Splits.Count > 0) {
-                        _firstPlaceFinishTime = TimeFormatter.Format(lr.Splits.Last().CumulativeTime);
+                        _firstPlaceFinishTime = TimeFormatter.FormatRunning(lr.Splits.Last().CumulativeTime);
                     }
                     if (!string.IsNullOrEmpty(_firstPlaceFinishTime))
                         _firstPlaceShowStart = DateTime.Now;
