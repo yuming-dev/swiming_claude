@@ -2843,6 +2843,88 @@ namespace SwimmingScoreboard
             }
         }
 
+        private void TimingSettings_Click(object sender, RoutedEventArgs e) {
+            var dlg = new Window {
+                Title = "参数设置",
+                Width = 420, Height = 560,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                Owner = this, ResizeMode = ResizeMode.NoResize,
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E293B"))
+            };
+
+            var sp = new StackPanel { Margin = new Thickness(20) };
+            sp.Children.Add(new TextBlock { Text = "参数设置", FontSize = 17, FontWeight = FontWeights.Bold, Foreground = Brushes.White, Margin = new Thickness(0, 0, 0, 14) });
+
+            var tbCloseTime = AddSettingsRow(sp, "泳道关闭时间", _laneCloseSettings.LaneCloseTime.ToString(), "秒");
+            var tbSBDelay = AddSettingsRow(sp, "出发台关闭延迟", _laneCloseSettings.StartBlockCloseDelay.ToString(), "秒");
+            var tbConfDelay = AddSettingsRow(sp, "成绩确认关闭延迟", _laneCloseSettings.ResultConfirmCloseDelay.ToString(), "秒");
+            var tbFSThresh = AddSettingsRow(sp, "抢跳判定阈值", _laneCloseSettings.FalseStartThreshold.ToString(), "秒");
+            var tbSplitDisp = AddSettingsRow(sp, "分段成绩显示时长", _laneCloseSettings.SplitDisplayTime.ToString(), "秒");
+
+            // 终点位置
+            var finishRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 10, 0, 0) };
+            finishRow.Children.Add(new TextBlock { Text = "终点位置", Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), FontSize = 15, VerticalAlignment = VerticalAlignment.Center, Width = 140 });
+            var rbLeft = new RadioButton { Content = "左端", Foreground = Brushes.White, FontSize = 14, IsChecked = _laneCloseSettings.FinishPosition == "left", GroupName = "FinPos", Margin = new Thickness(0, 0, 12, 0) };
+            var rbRight = new RadioButton { Content = "右端", Foreground = Brushes.White, FontSize = 14, IsChecked = _laneCloseSettings.FinishPosition == "right", GroupName = "FinPos" };
+            finishRow.Children.Add(rbLeft);
+            finishRow.Children.Add(rbRight);
+            sp.Children.Add(finishRow);
+
+            var btnPanel = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 20, 0, 0) };
+            var btnCancel = new Button { Content = "取消", Padding = new Thickness(16, 6, 16, 6), Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569")), Foreground = Brushes.White, BorderThickness = new Thickness(0), Margin = new Thickness(0, 0, 8, 0) };
+            btnCancel.Click += delegate { dlg.DialogResult = false; };
+            var btnOk = new Button { Content = "确定", Padding = new Thickness(16, 6, 16, 6), Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6")), Foreground = Brushes.White, BorderThickness = new Thickness(0), FontWeight = FontWeights.Bold };
+            btnOk.Click += delegate { dlg.DialogResult = true; };
+            btnPanel.Children.Add(btnCancel);
+            btnPanel.Children.Add(btnOk);
+            sp.Children.Add(btnPanel);
+
+            var scroll = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Content = sp };
+            dlg.Content = scroll;
+
+            if (dlg.ShowDialog() == true) {
+                double v;
+                if (double.TryParse(tbCloseTime.Text, out v)) _laneCloseSettings.LaneCloseTime = v;
+                if (double.TryParse(tbSBDelay.Text, out v)) _laneCloseSettings.StartBlockCloseDelay = v;
+                if (double.TryParse(tbConfDelay.Text, out v)) _laneCloseSettings.ResultConfirmCloseDelay = v;
+                if (double.TryParse(tbFSThresh.Text, out v)) _laneCloseSettings.FalseStartThreshold = v;
+                if (double.TryParse(tbSplitDisp.Text, out v)) _laneCloseSettings.SplitDisplayTime = v;
+                string newFinish = rbRight.IsChecked == true ? "right" : "left";
+                _laneCloseSettings.FinishPosition = newFinish;
+                _laneCloseSettings.StartPosition = newFinish;
+                AutoAdjustStartPosition();
+                if (_raceState == RaceState.Waiting || _raceState == RaceState.Ready) {
+                    foreach (var st in _laneDeviceStates) st.ResetForNewRace(_laneCloseSettings.StartPosition);
+                }
+                foreach (var st in _laneDeviceStates) st.LaneCloseTime = 0;
+                AutoSaveData();
+                UpdateLaneStatusDisplay();
+                Broadcast();
+                AddLog(string.Format("参数更新: 关闭{0}s 出发台{1}s 确认{2}s 抢跳{3}s 分段{4}s 终点:{5}",
+                    _laneCloseSettings.LaneCloseTime, _laneCloseSettings.StartBlockCloseDelay,
+                    _laneCloseSettings.ResultConfirmCloseDelay, _laneCloseSettings.FalseStartThreshold,
+                    _laneCloseSettings.SplitDisplayTime, _laneCloseSettings.FinishPosition == "left" ? "左端" : "右端"));
+            }
+        }
+
+        private TextBox AddSettingsRow(StackPanel parent, string label, string value, string unit) {
+            var row = new Grid { Margin = new Thickness(0, 0, 0, 10) };
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(70) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(24) });
+            var lbl = new TextBlock { Text = label, Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), FontSize = 15, VerticalAlignment = VerticalAlignment.Center };
+            Grid.SetColumn(lbl, 0);
+            var tb = new TextBox { Text = value, Padding = new Thickness(4), Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#334155")), Foreground = Brushes.White, BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569")), FontSize = 15, TextAlignment = TextAlignment.Center };
+            Grid.SetColumn(tb, 1);
+            var unitTb = new TextBlock { Text = unit, Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), FontSize = 13, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(4, 0, 0, 0) };
+            Grid.SetColumn(unitTb, 2);
+            row.Children.Add(lbl);
+            row.Children.Add(tb);
+            row.Children.Add(unitTb);
+            parent.Children.Add(row);
+            return tb;
+        }
+
         private void DeviceStatus_Click(object sender, RoutedEventArgs e) {
             var win = new DeviceStatusWindow(_laneDeviceStates, _poolConfig);
             win.Owner = this;
