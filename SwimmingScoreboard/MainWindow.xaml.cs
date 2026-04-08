@@ -485,6 +485,21 @@ namespace SwimmingScoreboard
                         if (state != null) state.LaneCloseTime = time;
                     }
                     break;
+                case "SET_MANUAL_STATUS":
+                    if (data != null) {
+                        int msLane = (int)data["lane"];
+                        bool msLeft = data["leftEnabled"] != null && (bool)data["leftEnabled"];
+                        bool msRight = data["rightEnabled"] != null && (bool)data["rightEnabled"];
+                        var msState = _laneDeviceStates.FirstOrDefault(s => s.Lane == msLane);
+                        if (msState != null) {
+                            msState.LeftManualEnabled = msLeft;
+                            msState.RightManualEnabled = msRight;
+                            if (!msLeft) msState.LeftManualStatus = DeviceStatus.Closed;
+                            if (!msRight) msState.RightManualStatus = DeviceStatus.Closed;
+                        }
+                        AddLog(string.Format("泳道{0} 手动按键: 左={1} 右={2}", msLane, msLeft ? "启用" : "禁用", msRight ? "启用" : "禁用"));
+                    }
+                    break;
                 case "SET_LANE_CLOSE_SETTINGS":
                     if (data != null) {
                         if (data["laneCloseTime"] != null) _laneCloseSettings.LaneCloseTime = (double)data["laneCloseTime"];

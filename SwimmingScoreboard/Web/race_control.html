@@ -181,6 +181,7 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
         </div>
         <div style="margin-top:10px;padding-top:10px;border-top:1px solid #475569;">
             <button style="width:100%;padding:8px;background:#8B5CF6;color:white;border:none;border-radius:6px;cursor:pointer;font-size:14px;font-weight:bold;" onclick="closeSettings();openDeviceManager();">设备状态管理</button>
+            <button style="width:100%;padding:8px;background:#0EA5E9;color:white;border:none;border-radius:6px;cursor:pointer;font-size:14px;font-weight:bold;margin-top:6px;" onmousedown="closeSettings();openManualButtonManager();">手动按键管理</button>
         </div>
         <div class="modal-btns">
             <button class="btn-cancel" onclick="closeSettings()">取消</button>
@@ -200,6 +201,22 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
         </div>
         <div class="modal-btns">
             <button class="btn-cancel" onclick="closeDeviceManager()">关闭</button>
+        </div>
+    </div>
+</div>
+
+<!-- 手动按键管理弹窗 -->
+<div id="manualBtnModal" class="modal-overlay hidden" onclick="if(event.target===this)closeManualButtonManager()">
+    <div class="modal-dialog" style="max-width:500px;">
+        <h2 style="color:#0EA5E9;">手动按键 用/不用 设置</h2>
+        <div style="overflow-x:auto;" id="manualBtnPanel"></div>
+        <div style="display:flex;gap:8px;margin-top:12px;">
+            <button style="flex:1;padding:8px;background:#22C55E;color:white;border:none;border-radius:6px;cursor:pointer;font-size:14px;font-weight:bold;" onmousedown="setAllManualBtn(true)">全部设为用</button>
+            <button style="flex:1;padding:8px;background:#EF4444;color:white;border:none;border-radius:6px;cursor:pointer;font-size:14px;font-weight:bold;" onmousedown="setAllManualBtn(false)">全部设为不用</button>
+        </div>
+        <div class="modal-btns">
+            <button class="btn-cancel" onmousedown="closeManualButtonManager()">取消</button>
+            <button class="btn-ok" onmousedown="applyManualBtnSettings()">确认</button>
         </div>
     </div>
 </div>
@@ -693,6 +710,69 @@ function setAllDevices(broken) {
     addLog(broken ? '全部设备设为损坏' : '全部设备设为正常');
 }
 
+// ═══════ 手动按键管理 ═══════
+function openManualButtonManager() {
+    renderManualBtnPanel();
+    document.getElementById('manualBtnModal').classList.remove('hidden');
+}
+
+function closeManualButtonManager() {
+    document.getElementById('manualBtnModal').classList.add('hidden');
+}
+
+function renderManualBtnPanel() {
+    var panel = document.getElementById('manualBtnPanel');
+    var swimmers = data.swimmers || [];
+    if (swimmers.length === 0) { panel.innerHTML = '<p style="color:#94A3B8;">暂无泳道数据</p>'; return; }
+
+    var html = '<table style="width:100%;border-collapse:collapse;font-size:14px;">';
+    html += '<tr style="background:#1E293B;"><th style="padding:6px;border:1px solid #475569;color:#94A3B8;">道次</th>';
+    html += '<th style="padding:6px;border:1px solid #475569;color:#94A3B8;">左手动 用</th>';
+    html += '<th style="padding:6px;border:1px solid #475569;color:#94A3B8;">右手动 用</th></tr>';
+
+    for (var i = 0; i < swimmers.length; i++) {
+        var sw = swimmers[i];
+        var mb = sw.manualButton || {};
+        var leftEn = mb.leftEnabled === true;
+        var rightEn = mb.rightEnabled === true;
+        html += '<tr>';
+        html += '<td style="padding:6px;border:1px solid #475569;text-align:center;font-weight:bold;font-size:15px;">' + sw.lane + '</td>';
+        html += '<td style="padding:4px;border:1px solid #475569;text-align:center;">';
+        html += '<input type="checkbox" id="mbLeft_' + sw.lane + '"' + (leftEn ? ' checked' : '') + ' style="width:18px;height:18px;">';
+        html += '</td>';
+        html += '<td style="padding:4px;border:1px solid #475569;text-align:center;">';
+        html += '<input type="checkbox" id="mbRight_' + sw.lane + '"' + (rightEn ? ' checked' : '') + ' style="width:18px;height:18px;">';
+        html += '</td>';
+        html += '</tr>';
+    }
+    html += '</table>';
+    panel.innerHTML = html;
+}
+
+function setAllManualBtn(enabled) {
+    var swimmers = data.swimmers || [];
+    for (var i = 0; i < swimmers.length; i++) {
+        var el1 = document.getElementById('mbLeft_' + swimmers[i].lane);
+        var el2 = document.getElementById('mbRight_' + swimmers[i].lane);
+        if (el1) el1.checked = enabled;
+        if (el2) el2.checked = enabled;
+    }
+}
+
+function applyManualBtnSettings() {
+    var swimmers = data.swimmers || [];
+    for (var i = 0; i < swimmers.length; i++) {
+        var lane = swimmers[i].lane;
+        var el1 = document.getElementById('mbLeft_' + lane);
+        var el2 = document.getElementById('mbRight_' + lane);
+        var leftEn = el1 ? el1.checked : false;
+        var rightEn = el2 ? el2.checked : false;
+        sendCmd('SET_MANUAL_STATUS', {lane: lane, leftEnabled: leftEn, rightEnabled: rightEn});
+    }
+    addLog('手动按键设置已发送');
+    closeManualButtonManager();
+}
+
 // ═══════ 参数设置对话框 ═══════
 function openSettings() {
     if (data.laneCloseSettings) {
@@ -995,11 +1075,21 @@ function renderLanes() {
         var leftRemainStyle = 'display:inline-block;width:28px;text-align:center;font-size:20px;font-weight:bold;color:' + (leftRemain > 0 ? '#F59E0B' : '#475569') + ';';
         var rightRemainStyle = 'display:inline-block;width:28px;text-align:center;font-size:20px;font-weight:bold;color:' + (rightRemain > 0 ? '#F59E0B' : '#475569') + ';';
 
+        var mbData = sw.manualButton || {};
+        var leftMbEnabled = mbData.leftEnabled === true;
+        var rightMbEnabled = mbData.rightEnabled === true;
+        var leftMbStatus = mbData.leftStatus || 'closed';
+        var rightMbStatus = mbData.rightStatus || 'closed';
+        var leftTouchColor = leftMbEnabled ? (leftMbStatus === 'open' ? '#22C55E' : '#475569') : '#334155';
+        var rightTouchColor = rightMbEnabled ? (rightMbStatus === 'open' ? '#22C55E' : '#475569') : '#334155';
+        var leftTouchDisabled = leftMbEnabled ? '' : ' disabled';
+        var rightTouchDisabled = rightMbEnabled ? '' : ' disabled';
+
         row.innerHTML =
             '<div class="lane-num">' + sw.lane + '</div>' +
             '<div class="' + leftIndClass + ' start-ind"></div>' +
             '<div class="left-devices devices">' +
-                '<button class="touch-btn" onmousedown="event.stopPropagation();manualTouch('+sw.lane+',\'left\')" title="左端手动触板">T</button>' +
+                '<button class="touch-btn" style="background:'+leftTouchColor+';" onmousedown="event.stopPropagation();manualTouch('+sw.lane+',\'left\')" title="左端手动触板"'+leftTouchDisabled+'>T</button>' +
                 '<div class="device-dot ' + statusClass(ds.leftBlindWatch1) + '" title="盲表1"></div>' +
                 '<div class="device-dot ' + statusClass(ds.leftBlindWatch2) + '" title="盲表2"></div>' +
                 '<div class="device-dot ' + statusClass(ds.leftBlindWatch3) + '" title="盲表3"></div>' +
@@ -1018,7 +1108,7 @@ function renderLanes() {
                 '<div class="device-dot ' + statusClass(ds.rightBlindWatch1) + '" title="盲表1"></div>' +
                 '<div class="device-dot ' + statusClass(ds.rightBlindWatch2) + '" title="盲表2"></div>' +
                 '<div class="device-dot ' + statusClass(ds.rightBlindWatch3) + '" title="盲表3"></div>' +
-                '<button class="touch-btn" onmousedown="event.stopPropagation();manualTouch('+sw.lane+',\'right\')" title="右端手动触板">T</button>' +
+                '<button class="touch-btn" style="background:'+rightTouchColor+';" onmousedown="event.stopPropagation();manualTouch('+sw.lane+',\'right\')" title="右端手动触板"'+rightTouchDisabled+'>T</button>' +
             '</div>' +
             '<div class="' + rightIndClass + ' start-ind"></div>' +
             '<div class="info-area">' +
@@ -1195,6 +1285,15 @@ function updateRecordDisplay() {
 }
 
 function manualTouch(lane, side) {
+    var swimmers = data.swimmers || [];
+    for (var i = 0; i < swimmers.length; i++) {
+        if (swimmers[i].lane === lane) {
+            var mb = swimmers[i].manualButton || {};
+            if (side === 'left' && !mb.leftEnabled) { addLog('道' + lane + ' 左端手动按键未启用'); return; }
+            if (side === 'right' && !mb.rightEnabled) { addLog('道' + lane + ' 右端手动按键未启用'); return; }
+            break;
+        }
+    }
     sendCmd(side === 'left' ? 'MANUAL_TOUCH_LEFT' : 'MANUAL_TOUCH_RIGHT', {lane: lane});
     addLog('手动触板: 道' + lane + ' ' + side);
 }

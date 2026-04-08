@@ -965,13 +965,20 @@ namespace RemoteTimingControl
 
                 // Left devices
                 var leftDevices = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(2, 0, 0, 0) };
+                var mb = sw["manualButton"] as JObject;
+                bool leftManualEnabled = mb != null && mb["leftEnabled"] != null && (bool)mb["leftEnabled"];
+                bool rightManualEnabled = mb != null && mb["rightEnabled"] != null && (bool)mb["rightEnabled"];
+                string leftManualStatus = mb != null && mb["leftStatus"] != null ? mb["leftStatus"].ToString() : "closed";
+                string rightManualStatus = mb != null && mb["rightStatus"] != null ? mb["rightStatus"].ToString() : "closed";
+                Color touchLColor = (Color)ColorConverter.ConvertFromString(leftManualEnabled ? (leftManualStatus == "open" ? "#22C55E" : "#475569") : "#334155");
                 var touchBtnL = new Button
                 {
                     Content = "T", Width = 80, Height = 30, FontSize = 15,
-                    Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569")),
-                    Foreground = Brushes.White, BorderThickness = new Thickness(0)
+                    Background = new SolidColorBrush(touchLColor),
+                    Foreground = Brushes.White, BorderThickness = new Thickness(0),
+                    IsEnabled = leftManualEnabled
                 };
-                touchBtnL.PreviewMouseLeftButtonDown += delegate { SendCmd("MANUAL_TOUCH_LEFT", new { lane = capturedLane }); };
+                touchBtnL.PreviewMouseLeftButtonDown += delegate { if (leftManualEnabled) SendCmd("MANUAL_TOUCH_LEFT", new { lane = capturedLane }); };
                 leftDevices.Children.Add(touchBtnL);
                 leftDevices.Children.Add(MakeDeviceDot(GetDeviceStatus(ds, "leftBlindWatch1")));
                 leftDevices.Children.Add(MakeDeviceDot(GetDeviceStatus(ds, "leftBlindWatch2")));
@@ -1098,13 +1105,15 @@ namespace RemoteTimingControl
                 rightDevices.Children.Add(MakeDeviceDot(GetDeviceStatus(ds, "rightBlindWatch1")));
                 rightDevices.Children.Add(MakeDeviceDot(GetDeviceStatus(ds, "rightBlindWatch2")));
                 rightDevices.Children.Add(MakeDeviceDot(GetDeviceStatus(ds, "rightBlindWatch3")));
+                Color touchRColor = (Color)ColorConverter.ConvertFromString(rightManualEnabled ? (rightManualStatus == "open" ? "#22C55E" : "#475569") : "#334155");
                 var touchBtnR = new Button
                 {
                     Content = "T", Width = 80, Height = 30, FontSize = 15,
-                    Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569")),
-                    Foreground = Brushes.White, BorderThickness = new Thickness(0)
+                    Background = new SolidColorBrush(touchRColor),
+                    Foreground = Brushes.White, BorderThickness = new Thickness(0),
+                    IsEnabled = rightManualEnabled
                 };
-                touchBtnR.PreviewMouseLeftButtonDown += delegate { SendCmd("MANUAL_TOUCH_RIGHT", new { lane = capturedLane }); };
+                touchBtnR.PreviewMouseLeftButtonDown += delegate { if (rightManualEnabled) SendCmd("MANUAL_TOUCH_RIGHT", new { lane = capturedLane }); };
                 rightDevices.Children.Add(touchBtnR);
                 Grid.SetColumn(rightDevices, 4);
                 grid.Children.Add(rightDevices);
@@ -1873,7 +1882,12 @@ namespace RemoteTimingControl
                 dlg.DialogResult = false;
                 OpenDeviceManager();
             };
-            deviceSep.Child = btnDeviceMgr;
+            var btnManualMgr = new Button { Content = "手动按键管理", Padding = new Thickness(0, 8, 0, 8), FontSize = 14, FontWeight = FontWeights.Bold, Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#0EA5E9")), Foreground = Brushes.White, BorderThickness = new Thickness(0), Margin = new Thickness(0, 6, 0, 0) };
+            btnManualMgr.Click += delegate { dlg.DialogResult = false; OpenManualButtonManager(); };
+            var deviceStack = new StackPanel();
+            deviceStack.Children.Add(btnDeviceMgr);
+            deviceStack.Children.Add(btnManualMgr);
+            deviceSep.Child = deviceStack;
             sp.Children.Add(deviceSep);
 
             var btnPanel = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 16, 0, 0) };
@@ -2092,6 +2106,83 @@ namespace RemoteTimingControl
             public bool RightBlindWatch1Broken { get; set; }
             public bool RightBlindWatch2Broken { get; set; }
             public bool RightBlindWatch3Broken { get; set; }
+        }
+
+        // ═══════ 手动按键管理 ═══════
+        private void OpenManualButtonManager()
+        {
+            if (_data == null || _data["swimmers"] == null) { MessageBox.Show("暂无泳道数据"); return; }
+            var swimmers = _data["swimmers"] as JArray;
+            if (swimmers == null || swimmers.Count == 0) { MessageBox.Show("暂无泳道数据"); return; }
+
+            var dlg = new Window
+            {
+                Title = "手动按键管理", Width = 500, Height = 480,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                Owner = this, ResizeMode = ResizeMode.CanResize
+            };
+
+            var mainGrid = new Grid { Margin = new Thickness(16) };
+            mainGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Auto) });
+            mainGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+            mainGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Auto) });
+
+            mainGrid.Children.Add(new TextBlock { Text = "手动按键 用/不用 设置", FontSize = 17, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 0, 0, 12) });
+
+            var dataGrid = new DataGrid
+            {
+                AutoGenerateColumns = false, CanUserAddRows = false,
+                IsReadOnly = false, FontSize = 14, RowHeight = 30,
+                AlternatingRowBackground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F8FAFC")),
+                HeadersVisibility = DataGridHeadersVisibility.Column
+            };
+
+            dataGrid.Columns.Add(new DataGridTextColumn { Header = "道次", Binding = new System.Windows.Data.Binding("Lane"), Width = new DataGridLength(60), IsReadOnly = true });
+            dataGrid.Columns.Add(new DataGridCheckBoxColumn { Header = "左手动 用", Binding = new System.Windows.Data.Binding("LeftEnabled"), Width = new DataGridLength(100) });
+            dataGrid.Columns.Add(new DataGridCheckBoxColumn { Header = "右手动 用", Binding = new System.Windows.Data.Binding("RightEnabled"), Width = new DataGridLength(100) });
+
+            var items = new List<ManualBtnItem>();
+            foreach (JObject sw in swimmers)
+            {
+                int lane = sw["lane"] != null ? (int)sw["lane"] : 0;
+                var mb = sw["manualButton"] as JObject;
+                bool leftEn = mb != null && mb["leftEnabled"] != null && (bool)mb["leftEnabled"];
+                bool rightEn = mb != null && mb["rightEnabled"] != null && (bool)mb["rightEnabled"];
+                items.Add(new ManualBtnItem { Lane = lane, LeftEnabled = leftEn, RightEnabled = rightEn });
+            }
+            dataGrid.ItemsSource = items;
+            Grid.SetRow(dataGrid, 1);
+            mainGrid.Children.Add(dataGrid);
+
+            var btnPanel = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 12, 0, 0) };
+            var btnAllOn = new Button { Content = "全部设为用", Padding = new Thickness(16, 6, 16, 6), Margin = new Thickness(0, 0, 8, 0) };
+            btnAllOn.Click += delegate { foreach (var it in items) { it.LeftEnabled = true; it.RightEnabled = true; } dataGrid.Items.Refresh(); };
+            var btnAllOff = new Button { Content = "全部设为不用", Padding = new Thickness(16, 6, 16, 6), Margin = new Thickness(0, 0, 16, 0) };
+            btnAllOff.Click += delegate { foreach (var it in items) { it.LeftEnabled = false; it.RightEnabled = false; } dataGrid.Items.Refresh(); };
+            var btnOK = new Button { Content = "确认", Padding = new Thickness(16, 6, 16, 6), Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6")), Foreground = Brushes.White, BorderThickness = new Thickness(0), Margin = new Thickness(0, 0, 8, 0) };
+            btnOK.Click += delegate {
+                for (int i = 0; i < items.Count; i++) {
+                    SendCmd("SET_MANUAL_STATUS", new { lane = items[i].Lane, leftEnabled = items[i].LeftEnabled, rightEnabled = items[i].RightEnabled });
+                }
+                AddLog("手动按键设置已发送");
+                dlg.Close();
+            };
+            var btnCancel = new Button { Content = "取消", Padding = new Thickness(16, 6, 16, 6) };
+            btnCancel.Click += delegate { dlg.Close(); };
+            btnPanel.Children.Add(btnAllOn); btnPanel.Children.Add(btnAllOff);
+            btnPanel.Children.Add(btnOK); btnPanel.Children.Add(btnCancel);
+            Grid.SetRow(btnPanel, 2);
+            mainGrid.Children.Add(btnPanel);
+
+            dlg.Content = mainGrid;
+            dlg.ShowDialog();
+        }
+
+        private class ManualBtnItem
+        {
+            public int Lane { get; set; }
+            public bool LeftEnabled { get; set; }
+            public bool RightEnabled { get; set; }
         }
 
         // ═══════ 键盘快捷键 ═══════
