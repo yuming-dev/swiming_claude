@@ -1,7 +1,7 @@
 <Window x:Class="SwimmingScoreboard.DeviceStatusWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="设备状态管理" Width="800" Height="500"
+        Title="设备状态管理" Width="950" Height="580"
         WindowStartupLocation="CenterOwner" ResizeMode="CanResize">
     <Grid Margin="16">
         <Grid.RowDefinitions>
@@ -10,23 +10,24 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <TextBlock Grid.Row="0" Text="泳道设备好/坏状态设置" FontSize="16" FontWeight="Bold" Margin="0,0,0,12"/>
+        <TextBlock Grid.Row="0" Text="泳道设备好/坏状态设置" FontSize="17" FontWeight="Bold" Margin="0,0,0,12"/>
 
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
             <DataGrid x:Name="DeviceGrid" AutoGenerateColumns="False" CanUserAddRows="False"
-                      IsReadOnly="False" AlternatingRowBackground="#F8FAFC" HeadersVisibility="Column">
+                      IsReadOnly="False" FontSize="14" RowHeight="30"
+                      AlternatingRowBackground="#F8FAFC" HeadersVisibility="Column">
                 <DataGrid.Columns>
-                    <DataGridTextColumn Header="道次" Binding="{Binding Lane}" Width="50" IsReadOnly="True"/>
-                    <DataGridCheckBoxColumn Header="左触板坏" Binding="{Binding LeftTouchpadBroken}" Width="60"/>
-                    <DataGridCheckBoxColumn Header="左出发台坏" Binding="{Binding LeftStartBlockBroken}" Width="70"/>
-                    <DataGridCheckBoxColumn Header="左盲1坏" Binding="{Binding LeftBlindWatch1Broken}" Width="55"/>
-                    <DataGridCheckBoxColumn Header="左盲2坏" Binding="{Binding LeftBlindWatch2Broken}" Width="55"/>
-                    <DataGridCheckBoxColumn Header="左盲3坏" Binding="{Binding LeftBlindWatch3Broken}" Width="55"/>
-                    <DataGridCheckBoxColumn Header="右触板坏" Binding="{Binding RightTouchpadBroken}" Width="60"/>
-                    <DataGridCheckBoxColumn Header="右出发台坏" Binding="{Binding RightStartBlockBroken}" Width="70"/>
-                    <DataGridCheckBoxColumn Header="右盲1坏" Binding="{Binding RightBlindWatch1Broken}" Width="55"/>
-                    <DataGridCheckBoxColumn Header="右盲2坏" Binding="{Binding RightBlindWatch2Broken}" Width="55"/>
-                    <DataGridCheckBoxColumn Header="右盲3坏" Binding="{Binding RightBlindWatch3Broken}" Width="55"/>
+                    <DataGridTextColumn Header="道次" Binding="{Binding Lane}" Width="55" IsReadOnly="True"/>
+                    <DataGridCheckBoxColumn Header="左触板坏" Binding="{Binding LeftTouchpadBroken}" Width="70"/>
+                    <DataGridCheckBoxColumn Header="左出发台坏" Binding="{Binding LeftStartBlockBroken}" Width="80"/>
+                    <DataGridCheckBoxColumn Header="左盲1坏" Binding="{Binding LeftBlindWatch1Broken}" Width="65"/>
+                    <DataGridCheckBoxColumn Header="左盲2坏" Binding="{Binding LeftBlindWatch2Broken}" Width="65"/>
+                    <DataGridCheckBoxColumn Header="左盲3坏" Binding="{Binding LeftBlindWatch3Broken}" Width="65"/>
+                    <DataGridCheckBoxColumn Header="右触板坏" Binding="{Binding RightTouchpadBroken}" Width="70"/>
+                    <DataGridCheckBoxColumn Header="右出发台坏" Binding="{Binding RightStartBlockBroken}" Width="80"/>
+                    <DataGridCheckBoxColumn Header="右盲1坏" Binding="{Binding RightBlindWatch1Broken}" Width="65"/>
+                    <DataGridCheckBoxColumn Header="右盲2坏" Binding="{Binding RightBlindWatch2Broken}" Width="65"/>
+                    <DataGridCheckBoxColumn Header="右盲3坏" Binding="{Binding RightBlindWatch3Broken}" Width="65"/>
                 </DataGrid.Columns>
             </DataGrid>
         </ScrollViewer>
