@@ -506,8 +506,8 @@
                     <!-- 左栏 -->
                     <Grid Grid.Column="0" Margin="0,0,10,0">
                         <Grid.RowDefinitions>
-                            <RowDefinition Height="2*"/>
-                            <RowDefinition Height="1*"/>
+                            <RowDefinition Height="6*"/>
+                            <RowDefinition Height="4*"/>
                         </Grid.RowDefinitions>
                         <!-- 赛程导航（上3/4） -->
                         <Border Grid.Row="0" CornerRadius="10" Padding="12" Margin="0,0,0,6"
