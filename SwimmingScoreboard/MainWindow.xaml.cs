@@ -2442,6 +2442,10 @@ namespace SwimmingScoreboard
                     row.BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F59E0B"));
                     row.BorderThickness = new Thickness(2);
                 }
+                if (lane == _selectedLane) {
+                    row.BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6"));
+                    row.BorderThickness = new Thickness(2);
+                }
 
                 var grid = new Grid();
                 grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(32) });
