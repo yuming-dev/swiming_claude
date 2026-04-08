@@ -506,7 +506,7 @@
                     <!-- 左栏 -->
                     <Grid Grid.Column="0" Margin="0,0,10,0">
                         <Grid.RowDefinitions>
-                            <RowDefinition Height="3*"/>
+                            <RowDefinition Height="2*"/>
                             <RowDefinition Height="1*"/>
                         </Grid.RowDefinitions>
                         <!-- 赛程导航（上3/4） -->
