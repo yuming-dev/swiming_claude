@@ -2379,7 +2379,7 @@ namespace SwimmingScoreboard
             addLabel(0, "道", 32);
 
             // 左发令标志
-            var leftHdrInd = new TextBlock { Text = _laneCloseSettings.StartPosition == "left" ? ">" : "", Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#22C55E")), FontSize = 12, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+            var leftHdrInd = new Border { Width = 8, CornerRadius = new CornerRadius(2), Background = _laneCloseSettings.StartPosition == "left" ? new SolidColorBrush((Color)ColorConverter.ConvertFromString("#22C55E")) : Brushes.Transparent, Margin = new Thickness(0, 4, 0, 4) };
             Grid.SetColumn(leftHdrInd, 1); PoolHeader.Children.Add(leftHdrInd);
 
             var leftLabels = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
@@ -2402,7 +2402,7 @@ namespace SwimmingScoreboard
             Grid.SetColumn(rightLabels, 4); PoolHeader.Children.Add(rightLabels);
 
             // 右发令标志
-            var rightHdrInd = new TextBlock { Text = _laneCloseSettings.StartPosition == "right" ? "<" : "", Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#22C55E")), FontSize = 12, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+            var rightHdrInd = new Border { Width = 8, CornerRadius = new CornerRadius(2), Background = _laneCloseSettings.StartPosition == "right" ? new SolidColorBrush((Color)ColorConverter.ConvertFromString("#22C55E")) : Brushes.Transparent, Margin = new Thickness(0, 4, 0, 4) };
             Grid.SetColumn(rightHdrInd, 5); PoolHeader.Children.Add(rightHdrInd);
 
             var infoLabels = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
@@ -2582,7 +2582,7 @@ namespace SwimmingScoreboard
 
                 row.Child = grid;
                 int clickLane = lane;
-                row.PreviewMouseLeftButtonDown += delegate {
+                row.MouseLeftButtonDown += delegate {
                     _selectedLane = clickLane;
                     _lastTsSplitCount = -1;
                     if (LaneInputBox != null) LaneInputBox.Text = clickLane.ToString();
