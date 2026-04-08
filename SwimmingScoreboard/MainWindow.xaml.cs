@@ -1696,6 +1696,7 @@ namespace SwimmingScoreboard
             if (_raceStartTime != DateTime.MinValue) {
                 _runningTime = (DateTime.Now - _raceStartTime).TotalSeconds;
                 if (RunningTimeText != null) RunningTimeText.Text = TimeFormatter.FormatRunning(_runningTime);
+                UpdateLaneStatusDisplay();
                 Broadcast();
             }
         }
@@ -2298,13 +2299,13 @@ namespace SwimmingScoreboard
             PoolHeader.Children.Clear();
             PoolHeader.ColumnDefinitions.Clear();
 
-            PoolHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(26) });   // 道次
-            PoolHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(6) });    // 左发令
-            PoolHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(170) });  // 左设备
+            PoolHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(32) });   // 道次
+            PoolHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(8) });    // 左发令
+            PoolHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(240) });  // 左设备
             PoolHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) }); // 姓名+进度
-            PoolHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(170) });  // 右设备
-            PoolHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(6) });    // 右发令
-            PoolHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(230) });  // 成绩信息
+            PoolHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(240) });  // 右设备
+            PoolHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(8) });    // 右发令
+            PoolHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(300) });  // 成绩信息
 
             Action<int, string, double> addLabel = (col, text, width) => {
                 var tb = new TextBlock { Text = text, Width = width, Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")), FontSize = 12, TextAlignment = TextAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
@@ -2314,26 +2315,26 @@ namespace SwimmingScoreboard
             addLabel(0, "道", 32);
 
             var leftLabels = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-            foreach (string s in new[] { "[T]:60", "盲1:16", "盲2:16", "盲3:16", "出发:16", "触板:16", "圈:18" }) {
+            foreach (string s in new[] { "[T]:80", "盲1:26", "盲2:26", "盲3:26", "出发:26", "触板:26", "圈:28" }) {
                 string[] p = s.Split(':');
                 leftLabels.Children.Add(new TextBlock { Text = p[0], Width = double.Parse(p[1]), Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")), FontSize = 12, TextAlignment = TextAlignment.Center, VerticalAlignment = VerticalAlignment.Center });
             }
             Grid.SetColumn(leftLabels, 2); PoolHeader.Children.Add(leftLabels);
 
             var midLabels = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 6, 0) };
-            midLabels.Children.Add(new TextBlock { Text = "姓名/代表队", Width = 100, Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")), FontSize = 12, VerticalAlignment = VerticalAlignment.Center });
+            midLabels.Children.Add(new TextBlock { Text = "姓名/代表队", Width = 120, Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")), FontSize = 12, VerticalAlignment = VerticalAlignment.Center });
             midLabels.Children.Add(new TextBlock { Text = "方向/进度", Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")), FontSize = 12, VerticalAlignment = VerticalAlignment.Center });
             Grid.SetColumn(midLabels, 3); PoolHeader.Children.Add(midLabels);
 
             var rightLabels = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-            foreach (string s in new[] { "圈:18", "触板:16", "出发:16", "盲1:16", "盲2:16", "盲3:16", "[T]:60" }) {
+            foreach (string s in new[] { "圈:28", "触板:26", "出发:26", "盲1:26", "盲2:26", "盲3:26", "[T]:80" }) {
                 string[] p = s.Split(':');
                 rightLabels.Children.Add(new TextBlock { Text = p[0], Width = double.Parse(p[1]), Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")), FontSize = 12, TextAlignment = TextAlignment.Center, VerticalAlignment = VerticalAlignment.Center });
             }
             Grid.SetColumn(rightLabels, 4); PoolHeader.Children.Add(rightLabels);
 
             var infoLabels = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-            foreach (string s in new[] { "反应:45", "成绩:85", "名次:35", "备注:30" }) {
+            foreach (string s in new[] { "反应:55", "成绩:110", "名次:44", "备注:40" }) {
                 string[] p = s.Split(':');
                 infoLabels.Children.Add(new TextBlock { Text = p[0], Width = double.Parse(p[1]), Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")), FontSize = 12, TextAlignment = TextAlignment.Center, VerticalAlignment = VerticalAlignment.Center });
             }
@@ -2348,7 +2349,7 @@ namespace SwimmingScoreboard
                 case DeviceStatus.FalseStart: c = (Color)ColorConverter.ConvertFromString("#F59E0B"); break;
                 default: c = (Color)ColorConverter.ConvertFromString("#475569"); break;
             }
-            return new Ellipse { Width = 16, Height = 16, Fill = new SolidColorBrush(c), Margin = new Thickness(1, 0, 1, 0) };
+            return new Ellipse { Width = 22, Height = 22, Fill = new SolidColorBrush(c), Margin = new Thickness(2, 0, 2, 0) };
         }
 
         private void UpdateLaneStatusDisplay() {
@@ -2379,13 +2380,13 @@ namespace SwimmingScoreboard
                 }
 
                 var grid = new Grid();
-                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(26) });
-                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(6) });
-                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(170) });
+                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(32) });
+                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(8) });
+                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(240) });
                 grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(170) });
-                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(6) });
-                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(230) });
+                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(240) });
+                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(8) });
+                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(300) });
 
                 // Col 0: 道次
                 var laneNum = new TextBlock { Text = lane.ToString(), FontSize = 18, FontWeight = FontWeights.Bold, Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
@@ -2397,7 +2398,7 @@ namespace SwimmingScoreboard
 
                 // Col 2: 左设备
                 var leftDev = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(2, 0, 0, 0) };
-                var touchL = new Button { Content = "T", Width = 60, Height = 24, FontSize = 12, Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569")), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
+                var touchL = new Button { Content = "T", Width = 80, Height = 26, FontSize = 14, Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569")), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
                 int capLane = lane;
                 touchL.Click += delegate { HandleTimingCommand(Newtonsoft.Json.Linq.JObject.FromObject(new { command = "MANUAL_TOUCH_LEFT", data = new { lane = capLane } })); };
                 leftDev.Children.Add(touchL);
@@ -2409,12 +2410,12 @@ namespace SwimmingScoreboard
                     leftDev.Children.Add(MakeLaneDot(ls.LeftTouchpadStatus));
                 }
                 int leftRemain = GetTouchRemain(ls, true);
-                leftDev.Children.Add(new TextBlock { Text = leftRemain > 0 ? leftRemain.ToString() : "", Width = 18, FontSize = 14, FontWeight = FontWeights.Bold, TextAlignment = TextAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Foreground = new SolidColorBrush(leftRemain > 0 ? (Color)ColorConverter.ConvertFromString("#F59E0B") : (Color)ColorConverter.ConvertFromString("#475569")) });
+                leftDev.Children.Add(new TextBlock { Text = leftRemain > 0 ? leftRemain.ToString() : "", Width = 28, FontSize = 18, FontWeight = FontWeights.Bold, TextAlignment = TextAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Foreground = new SolidColorBrush(leftRemain > 0 ? (Color)ColorConverter.ConvertFromString("#F59E0B") : (Color)ColorConverter.ConvertFromString("#475569")) });
                 Grid.SetColumn(leftDev, 2); grid.Children.Add(leftDev);
 
                 // Col 3: 姓名 + 进度
                 var midPanel = new DockPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 6, 0) };
-                var infoStack = new StackPanel { Width = 100 };
+                var infoStack = new StackPanel { Width = 120 };
                 string dispName = isRelay && !string.IsNullOrEmpty(sw.Notes) && sw.Notes.StartsWith("接力队 棒次:") ? sw.Country : sw.Name;
                 string dispTeam = isRelay ? "" : (sw.Country ?? "");
                 infoStack.Children.Add(new TextBlock { Text = dispName ?? "", FontWeight = FontWeights.Bold, Foreground = Brushes.White, FontSize = 14 });
@@ -2457,7 +2458,7 @@ namespace SwimmingScoreboard
                 // Col 4: 右设备
                 var rightDev = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
                 int rightRemain = GetTouchRemain(ls, false);
-                rightDev.Children.Add(new TextBlock { Text = rightRemain > 0 ? rightRemain.ToString() : "", Width = 18, FontSize = 14, FontWeight = FontWeights.Bold, TextAlignment = TextAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Foreground = new SolidColorBrush(rightRemain > 0 ? (Color)ColorConverter.ConvertFromString("#F59E0B") : (Color)ColorConverter.ConvertFromString("#475569")) });
+                rightDev.Children.Add(new TextBlock { Text = rightRemain > 0 ? rightRemain.ToString() : "", Width = 28, FontSize = 18, FontWeight = FontWeights.Bold, TextAlignment = TextAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Foreground = new SolidColorBrush(rightRemain > 0 ? (Color)ColorConverter.ConvertFromString("#F59E0B") : (Color)ColorConverter.ConvertFromString("#475569")) });
                 if (ls != null) {
                     rightDev.Children.Add(MakeLaneDot(ls.RightTouchpadStatus));
                     rightDev.Children.Add(MakeLaneDot(ls.RightStartBlockStatus));
@@ -2465,7 +2466,7 @@ namespace SwimmingScoreboard
                     rightDev.Children.Add(MakeLaneDot(ls.RightBlindWatch2Status));
                     rightDev.Children.Add(MakeLaneDot(ls.RightBlindWatch3Status));
                 }
-                var touchR = new Button { Content = "T", Width = 60, Height = 24, FontSize = 12, Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569")), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
+                var touchR = new Button { Content = "T", Width = 80, Height = 26, FontSize = 14, Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569")), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
                 touchR.Click += delegate { HandleTimingCommand(Newtonsoft.Json.Linq.JObject.FromObject(new { command = "MANUAL_TOUCH_RIGHT", data = new { lane = capLane } })); };
                 rightDev.Children.Add(touchR);
                 Grid.SetColumn(rightDev, 4); grid.Children.Add(rightDev);
@@ -2477,7 +2478,7 @@ namespace SwimmingScoreboard
                 // Col 6: 成绩信息
                 var infoArea = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
                 string reactionText = ls != null && ls.ReactionTime != 0 ? ls.ReactionTime.ToString("F2") : "";
-                infoArea.Children.Add(new TextBlock { Text = reactionText, Width = 45, FontSize = 13, Foreground = Brushes.White, TextAlignment = TextAlignment.Center, FontFamily = new FontFamily("Consolas") });
+                infoArea.Children.Add(new TextBlock { Text = reactionText, Width = 55, FontSize = 15, Foreground = Brushes.White, TextAlignment = TextAlignment.Center, FontFamily = new FontFamily("Consolas") });
 
                 // 分段/成绩
                 int curSplitCount = result != null ? result.Splits.Count : 0;
@@ -2489,17 +2490,17 @@ namespace SwimmingScoreboard
                 if (isFinished && result != null && !isDQ) displayTime = TimeFormatter.Format(result.FinalTime);
                 else if (isDQ) displayTime = "";
                 else if (curSplitCount > 0 && (DateTime.Now - _laneSplitShowTime[lane]).TotalSeconds < splitDisplaySec) displayTime = TimeFormatter.Format(result.Splits[curSplitCount - 1].CumulativeTime);
-                infoArea.Children.Add(new TextBlock { Text = displayTime, Width = 85, FontSize = 14, FontWeight = FontWeights.Bold, Foreground = Brushes.White, TextAlignment = TextAlignment.Center, FontFamily = new FontFamily("Consolas") });
+                infoArea.Children.Add(new TextBlock { Text = displayTime, Width = 110, FontSize = 17, FontWeight = FontWeights.Bold, Foreground = Brushes.White, TextAlignment = TextAlignment.Center, FontFamily = new FontFamily("Consolas") });
 
                 int rank = result != null ? result.Rank : 0;
                 Color rankColor = Colors.White;
                 if (rank == 1) rankColor = (Color)ColorConverter.ConvertFromString("#F59E0B");
                 else if (rank == 2) rankColor = (Color)ColorConverter.ConvertFromString("#C0C0C0");
                 else if (rank == 3) rankColor = (Color)ColorConverter.ConvertFromString("#CD7F32");
-                infoArea.Children.Add(new TextBlock { Text = rank > 0 ? rank.ToString() : "", Width = 35, FontSize = 15, FontWeight = FontWeights.Bold, Foreground = new SolidColorBrush(rankColor), TextAlignment = TextAlignment.Center });
+                infoArea.Children.Add(new TextBlock { Text = rank > 0 ? rank.ToString() : "", Width = 44, FontSize = 18, FontWeight = FontWeights.Bold, Foreground = new SolidColorBrush(rankColor), TextAlignment = TextAlignment.Center });
 
                 string remarkText = ls != null && ls.IsFalseStart ? "DSQ" : (isDQ ? status : "");
-                infoArea.Children.Add(new TextBlock { Text = remarkText, Width = 30, FontSize = 11, FontWeight = FontWeights.Bold, Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EF4444")), TextAlignment = TextAlignment.Center });
+                infoArea.Children.Add(new TextBlock { Text = remarkText, Width = 40, FontSize = 13, FontWeight = FontWeights.Bold, Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EF4444")), TextAlignment = TextAlignment.Center });
 
                 Grid.SetColumn(infoArea, 6); grid.Children.Add(infoArea);
 
