@@ -52,6 +52,9 @@ namespace SwimmingScoreboard
         private double _runningTime = 0;
         private int _selectedLane = -1;
         private int _lastTsSplitCount = -1;
+        private string _firstPlaceFinishTime = "";
+        private DateTime _firstPlaceShowStart = DateTime.MinValue;
+        private int _firstPlaceDetectedRank = 0;
 
         // 泳道设备状态
         private List<LaneDeviceState> _laneDeviceStates = new List<LaneDeviceState>();
@@ -1693,11 +1696,64 @@ namespace SwimmingScoreboard
             _countdownTimer.Tick += CountdownTimer_Tick;
         }
 
+        private void DetectFirstPlace() {
+            var swimmers = GetCurrentHeatSwimmers();
+            if (swimmers.Count == 0) return;
+            Swimmer leader = null;
+            int leaderSplitCount = 0;
+            foreach (var sw in swimmers) {
+                if (!string.IsNullOrEmpty(sw.Status)) continue;
+                var r = sw.Results.FirstOrDefault(lr => lr.Stage == _currentStage && lr.Heat == _currentHeat);
+                int sc = r != null ? r.Splits.Count : 0;
+                var ls = _laneDeviceStates.FirstOrDefault(s => s.Lane == sw.Lane);
+                bool finished = ls != null && ls.IsFinished;
+                if (finished) sc = 9999;
+                if (sc > leaderSplitCount || (sc == leaderSplitCount && leader != null && r != null && r.Rank > 0)) {
+                    leaderSplitCount = sc;
+                    leader = sw;
+                }
+            }
+            if (leader != null) {
+                var lr = leader.Results.FirstOrDefault(r2 => r2.Stage == _currentStage && r2.Heat == _currentHeat);
+                var lls = _laneDeviceStates.FirstOrDefault(s => s.Lane == leader.Lane);
+                bool lFinished = lls != null && lls.IsFinished;
+                int lSc = lr != null ? lr.Splits.Count : 0;
+                if (lFinished) lSc = -1;
+                if (lSc != _firstPlaceDetectedRank) {
+                    _firstPlaceDetectedRank = lSc;
+                    if (lFinished && lr != null && lr.FinalTime > 0) {
+                        _firstPlaceFinishTime = TimeFormatter.Format(lr.FinalTime);
+                    } else if (lr != null && lr.Splits.Count > 0) {
+                        _firstPlaceFinishTime = TimeFormatter.Format(lr.Splits.Last().CumulativeTime);
+                    }
+                    if (!string.IsNullOrEmpty(_firstPlaceFinishTime))
+                        _firstPlaceShowStart = DateTime.Now;
+                }
+            }
+        }
+
         private void RaceTimer_Tick(object sender, EventArgs e) {
             // 发令后一直计时，不因比赛结束而停止，直到复位信号
             if (_raceStartTime != DateTime.MinValue) {
                 _runningTime = (DateTime.Now - _raceStartTime).TotalSeconds;
-                if (RunningTimeText != null) RunningTimeText.Text = TimeFormatter.FormatRunning(_runningTime);
+
+                // 第1名成绩交替显示
+                DetectFirstPlace();
+                double holdSec = _laneCloseSettings.SplitDisplayTime > 0 ? _laneCloseSettings.SplitDisplayTime : 5;
+                if (_firstPlaceShowStart != DateTime.MinValue &&
+                    (DateTime.Now - _firstPlaceShowStart).TotalSeconds < holdSec &&
+                    !string.IsNullOrEmpty(_firstPlaceFinishTime)) {
+                    if (RunningTimeText != null) {
+                        RunningTimeText.Text = _firstPlaceFinishTime;
+                        RunningTimeText.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#22C55E"));
+                    }
+                } else {
+                    if (RunningTimeText != null) {
+                        RunningTimeText.Text = TimeFormatter.FormatRunning(_runningTime);
+                        RunningTimeText.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F59E0B"));
+                    }
+                }
+
                 UpdateLaneStatusDisplay();
                 Broadcast();
             }
@@ -2137,6 +2193,9 @@ namespace SwimmingScoreboard
             _resultConfirmed = false;
             _laneSplitCount.Clear();
             _laneSplitShowTime.Clear();
+            _firstPlaceFinishTime = "";
+            _firstPlaceShowStart = DateTime.MinValue;
+            _firstPlaceDetectedRank = 0;
             // 切换组次 = 复位计时器
             _runningTime = 0;
             _raceStartTime = DateTime.MinValue;
