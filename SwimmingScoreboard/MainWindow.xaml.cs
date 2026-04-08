@@ -14,6 +14,7 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Shapes;
 using System.Windows.Threading;
+using IOPath = System.IO.Path;
 using Fleck;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -1077,14 +1078,14 @@ namespace SwimmingScoreboard
             if (_rawTimingLog.Length == 0) return;
             if (string.IsNullOrEmpty(_currentEvent) || _currentHeat <= 0) return;
             try {
-                string dir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Database", "RawData");
+                string dir = IOPath.Combine(AppDomain.CurrentDomain.BaseDirectory, "Database", "RawData");
                 if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
 
                 // 文件名：性别_项目_赛次_第N组.txt
                 string safeName = string.Format("{0}_{1}_{2}_第{3}组",
                     _currentGender, _currentEvent, _currentStage, _currentHeat)
                     .Replace("×", "x").Replace("/", "_");
-                string path = Path.Combine(dir, safeName + ".txt");
+                string path = IOPath.Combine(dir, safeName + ".txt");
 
                 // 写入文件头 + 数据
                 var sb = new StringBuilder();
@@ -1151,7 +1152,7 @@ namespace SwimmingScoreboard
                 File.WriteAllText(path, sb.ToString(), Encoding.UTF8);
 
                 // 同时生成HTML版本（可用浏览器打印为PDF，不可编辑）
-                string htmlPath = Path.Combine(dir, safeName + ".html");
+                string htmlPath = IOPath.Combine(dir, safeName + ".html");
                 SaveRawTimingHtml(htmlPath, safeName);
 
                 AddLog(string.Format("原始计时数据已保存: {0}（txt + html）", safeName));
@@ -4871,7 +4872,7 @@ namespace SwimmingScoreboard
         // 团体计分
         // ═══════════════════════════════════════════════════════════════
         private void ViewRawData_Click(object sender, RoutedEventArgs e) {
-            string dir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Database", "RawData");
+            string dir = IOPath.Combine(AppDomain.CurrentDomain.BaseDirectory, "Database", "RawData");
             if (!Directory.Exists(dir)) {
                 MessageBox.Show("暂无原始数据文件。\n\n原始数据在比赛确认成绩后自动保存到:\n" + dir, "提示");
                 return;
@@ -4900,7 +4901,7 @@ namespace SwimmingScoreboard
             });
             var combo = new ComboBox { Width = 500, FontSize = 14 };
             foreach (string f in files) {
-                string name = Path.GetFileNameWithoutExtension(f);
+                string name = IOPath.GetFileNameWithoutExtension(f);
                 string time = File.GetLastWriteTime(f).ToString("MM-dd HH:mm");
                 combo.Items.Add(new ComboBoxItem { Content = name + "  (" + time + ")", Tag = f });
             }
@@ -4937,7 +4938,7 @@ namespace SwimmingScoreboard
                 var sel = combo.SelectedItem as ComboBoxItem;
                 if (sel == null || sel.Tag == null) return;
                 string txtFile = sel.Tag.ToString();
-                string htmlFile = Path.ChangeExtension(txtFile, ".html");
+                string htmlFile = IOPath.ChangeExtension(txtFile, ".html");
                 if (File.Exists(htmlFile)) {
                     try { Process.Start(htmlFile); } catch (Exception ex2) { MessageBox.Show("打开失败: " + ex2.Message); }
                 } else {
@@ -5078,7 +5079,7 @@ namespace SwimmingScoreboard
         private void LoadCompetition_Click(object sender, RoutedEventArgs e) {
             var dlg = new Microsoft.Win32.OpenFileDialog {
                 Filter = "JSON文件|*.json",
-                InitialDirectory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Database"),
+                InitialDirectory = IOPath.Combine(AppDomain.CurrentDomain.BaseDirectory, "Database"),
                 Title = "加载赛事"
             };
             if (dlg.ShowDialog() == true) {
@@ -5188,11 +5189,11 @@ namespace SwimmingScoreboard
         private void AutoSaveData() {
             if (string.IsNullOrEmpty(_competitionName)) return;
             try {
-                string dbDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Database");
+                string dbDir = IOPath.Combine(AppDomain.CurrentDomain.BaseDirectory, "Database");
                 if (!Directory.Exists(dbDir)) Directory.CreateDirectory(dbDir);
 
                 File.WriteAllText(
-                    Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "last_competition.txt"),
+                    IOPath.Combine(AppDomain.CurrentDomain.BaseDirectory, "last_competition.txt"),
                     _competitionName, Encoding.UTF8);
 
                 var package = new CompetitionPackage {
@@ -5219,7 +5220,7 @@ namespace SwimmingScoreboard
                 };
 
                 string json = JsonConvert.SerializeObject(package, Formatting.Indented);
-                File.WriteAllText(Path.Combine(dbDir, _competitionName + ".json"), json, Encoding.UTF8);
+                File.WriteAllText(IOPath.Combine(dbDir, _competitionName + ".json"), json, Encoding.UTF8);
             } catch (Exception ex) {
                 AddLog("自动保存失败: " + ex.Message);
             }
@@ -5227,10 +5228,10 @@ namespace SwimmingScoreboard
 
         private void LoadLastCompetition() {
             try {
-                string lastFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "last_competition.txt");
+                string lastFile = IOPath.Combine(AppDomain.CurrentDomain.BaseDirectory, "last_competition.txt");
                 if (File.Exists(lastFile)) {
                     string name = File.ReadAllText(lastFile, Encoding.UTF8).Trim();
-                    string jsonFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Database", name + ".json");
+                    string jsonFile = IOPath.Combine(AppDomain.CurrentDomain.BaseDirectory, "Database", name + ".json");
                     if (File.Exists(jsonFile)) {
                         LoadCompetitionFromFile(jsonFile);
                         return;
@@ -5693,9 +5694,9 @@ namespace SwimmingScoreboard
 
         private void GenerateAndOpenDocument(string title, string html) {
             try {
-                string dir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Documents");
+                string dir = IOPath.Combine(AppDomain.CurrentDomain.BaseDirectory, "Documents");
                 if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
-                string filePath = Path.Combine(dir, title + "_" + DateTime.Now.ToString("yyyyMMdd_HHmmss") + ".html");
+                string filePath = IOPath.Combine(dir, title + "_" + DateTime.Now.ToString("yyyyMMdd_HHmmss") + ".html");
                 File.WriteAllText(filePath, html, Encoding.UTF8);
                 Process.Start(filePath);
                 AddLog("已生成文档: " + title);
@@ -6336,12 +6337,12 @@ namespace SwimmingScoreboard
         // ═══════════════════════════════════════════════════════════════
         private void RefreshBackupList() {
             _savedCompetitions.Clear();
-            string dbDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Database");
+            string dbDir = IOPath.Combine(AppDomain.CurrentDomain.BaseDirectory, "Database");
             if (!Directory.Exists(dbDir)) Directory.CreateDirectory(dbDir);
             foreach (var f in Directory.GetFiles(dbDir, "*.json")) {
                 var fi = new FileInfo(f);
                 _savedCompetitions.Add(new BackupInfo {
-                    Name = Path.GetFileNameWithoutExtension(fi.Name),
+                    Name = IOPath.GetFileNameWithoutExtension(fi.Name),
                     FilePath = fi.FullName,
                     LastModified = fi.LastWriteTime.ToString("yyyy-MM-dd HH:mm")
                 });
