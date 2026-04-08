@@ -2151,6 +2151,7 @@ namespace SwimmingScoreboard
             }
 
             UpdateLaneStatusDisplay();
+            UpdateRecordDisplay();
             Broadcast();
         }
 
@@ -2610,6 +2611,18 @@ namespace SwimmingScoreboard
                 sb.AppendFormat("计时源:  {0}\n", !string.IsNullOrEmpty(sp.TimingSource) ? sp.TimingSource : "-");
             }
             TimingSourceInfo.Text = sb.ToString();
+        }
+
+        private void UpdateRecordDisplay() {
+            if (RecordDisplayText == null) return;
+            if (string.IsNullOrEmpty(_currentEvent)) { RecordDisplayText.Text = "WR: ---    CR: ---"; return; }
+            string wrTime = "", crTime = "";
+            foreach (var r in _records) {
+                if (r.EventName != _currentEvent || r.Gender != _currentGender) continue;
+                if (r.RecordType != null && r.RecordType.Contains("世界") && r.Time > 0) wrTime = TimeFormatter.Format(r.Time);
+                else if (r.RecordType != null && r.RecordType.Contains("赛会") && r.Time > 0) crTime = TimeFormatter.Format(r.Time);
+            }
+            RecordDisplayText.Text = string.Format("WR: {0}    CR: {1}", !string.IsNullOrEmpty(wrTime) ? wrTime : "---", !string.IsNullOrEmpty(crTime) ? crTime : "---");
         }
 
         private void UpdateRaceStateDisplay() {
