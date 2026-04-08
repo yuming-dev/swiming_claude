@@ -43,9 +43,7 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 .tree-heat.active { background: var(--accent); color: white; border-radius: 3px; margin: 1px 4px; }
 
 /* 滚动时间（泳池面板右下角） */
-.running-time-corner { position: absolute; bottom: 4px; right: 12px; font-size: 44px; font-weight: bold; color: var(--gold); font-family: Consolas, monospace; opacity: 0.85; pointer-events: none; text-shadow: 0 0 10px rgba(245,158,11,0.3); white-space: pre; }
-/* WR/CR纪录（泳池面板左下角） */
-.record-display { position: absolute; bottom: 4px; left: 10px; font-size: 30px; font-weight: bold; color: var(--gold); font-family: Consolas, monospace; opacity: 0.9; pointer-events: none; }
+/* WR/CR和滚动时间已移到顶部inline */
 
 /* 发令按钮（右侧面板内） */
 .btn-ready { background: var(--gold); color: #000; }
@@ -222,11 +220,14 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
     </div>
 
     <!-- 泳池图 -->
-    <div class="pool-area" style="position:relative;">
+    <div class="pool-area" style="position:relative;display:flex;flex-direction:column;">
+        <!-- 顶部栏：WR/CR + 滚动时间 -->
+        <div style="display:flex;align-items:center;justify-content:flex-end;height:36px;padding:0 8px;flex-shrink:0;">
+            <div id="recordDisplay" style="font-size:20px;font-weight:bold;color:var(--gold);font-family:Consolas,monospace;opacity:0.9;margin-right:16px;">WR: ---    CR: ---</div>
+            <div id="runTime" style="font-size:32px;font-weight:bold;color:var(--gold);font-family:Consolas,monospace;opacity:0.85;white-space:pre;">0.00</div>
+        </div>
         <div class="pool-header" id="poolHeader"></div>
-        <div id="poolLanes"></div>
-        <div class="record-display" id="recordDisplay">WR: ---    CR: ---</div>
-        <div class="running-time-corner" id="runTime">0.00</div>
+        <div id="poolLanes" style="flex:1;overflow-y:auto;"></div>
     </div>
 
     <!-- 右侧操作面板 -->
