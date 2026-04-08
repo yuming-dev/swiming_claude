@@ -70,8 +70,9 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 .device-dot.falsestart { background: var(--gold); border-color: var(--gold); }
 .device-dot.notinstalled { background: transparent; border: 2px dashed #334155; }
 .touch-btn { width: 80px; height: 30px; background: #475569; border: 1px solid #64748b; border-radius: 3px; color: white; font-size: 15px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-.touch-btn:hover { background: var(--accent); }
-.touch-btn:active { background: var(--green); }
+.touch-btn:hover:not(:disabled) { background: var(--accent); }
+.touch-btn:active:not(:disabled) { background: var(--green); }
+.touch-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .device-label { width: 22px; font-size: 12px; color: var(--dim); text-align: center; flex-shrink: 0; }
 .device-label-btn { width: 80px; font-size: 12px; color: var(--dim); text-align: center; flex-shrink: 0; }
 
