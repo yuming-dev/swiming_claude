@@ -588,12 +588,12 @@
                                 <TextBlock x:Name="PoolCurrentEventText" Grid.Column="1" Text="" FontSize="14" FontWeight="Bold"
                                            Foreground="#94A3B8" Margin="12,0,0,0" VerticalAlignment="Center"/>
                                 <!-- WR/CR 纪录 -->
-                                <TextBlock x:Name="RecordDisplayText" Grid.Column="2" Text="WR: ---    CR: ---" FontSize="20" FontWeight="Bold"
+                                <TextBlock x:Name="RecordDisplayText" Grid.Column="2" Text="WR: ---    CR: ---" Width="280" FontSize="18" FontWeight="Bold"
                                            Foreground="#F59E0B" FontFamily="Consolas" Opacity="0.9"
-                                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                           TextAlignment="Right" VerticalAlignment="Center"/>
                                 <!-- 滚动时间 -->
-                                <TextBlock x:Name="RunningTimeText" Grid.Column="3" Text="0.00" FontSize="32" FontWeight="Bold"
-                                           Foreground="#F59E0B" FontFamily="Consolas" Margin="12,0,12,0" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="RunningTimeText" Grid.Column="3" Text="0:00.0" Width="120" FontSize="32" FontWeight="Bold"
+                                           Foreground="#F59E0B" FontFamily="Consolas" TextAlignment="Right" Margin="8,0,8,0" VerticalAlignment="Center"/>
                                 <!-- 状态 -->
                                 <Border Grid.Column="4" Background="#1E293B" CornerRadius="12" Padding="10,4">
                                     <StackPanel Orientation="Horizontal">
