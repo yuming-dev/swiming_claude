@@ -55,6 +55,7 @@ namespace SwimmingScoreboard
         private string _firstPlaceFinishTime = "";
         private DateTime _firstPlaceShowStart = DateTime.MinValue;
         private int _firstPlaceDetectedRank = 0;
+        private double _firstPlaceHoldTime = 3;
 
         // 泳道设备状态
         private List<LaneDeviceState> _laneDeviceStates = new List<LaneDeviceState>();
@@ -1739,7 +1740,7 @@ namespace SwimmingScoreboard
 
                 // 第1名成绩交替显示
                 DetectFirstPlace();
-                double holdSec = _laneCloseSettings.SplitDisplayTime > 0 ? _laneCloseSettings.SplitDisplayTime : 5;
+                double holdSec = _firstPlaceHoldTime > 0 ? _firstPlaceHoldTime : 3;
                 if (_firstPlaceShowStart != DateTime.MinValue &&
                     (DateTime.Now - _firstPlaceShowStart).TotalSeconds < holdSec &&
                     !string.IsNullOrEmpty(_firstPlaceFinishTime)) {
@@ -2860,6 +2861,7 @@ namespace SwimmingScoreboard
             var tbConfDelay = AddSettingsRow(sp, "成绩确认关闭延迟", _laneCloseSettings.ResultConfirmCloseDelay.ToString(), "秒");
             var tbFSThresh = AddSettingsRow(sp, "抢跳判定阈值", _laneCloseSettings.FalseStartThreshold.ToString(), "秒");
             var tbSplitDisp = AddSettingsRow(sp, "分段成绩显示时长", _laneCloseSettings.SplitDisplayTime.ToString(), "秒");
+            var tbFirstHold = AddSettingsRow(sp, "第1名成绩停留时间", _firstPlaceHoldTime.ToString(), "秒");
 
             // 终点位置
             var finishRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 10, 0, 0) };
@@ -2896,6 +2898,7 @@ namespace SwimmingScoreboard
                 if (double.TryParse(tbConfDelay.Text, out v)) _laneCloseSettings.ResultConfirmCloseDelay = v;
                 if (double.TryParse(tbFSThresh.Text, out v)) _laneCloseSettings.FalseStartThreshold = v;
                 if (double.TryParse(tbSplitDisp.Text, out v)) _laneCloseSettings.SplitDisplayTime = v;
+                if (double.TryParse(tbFirstHold.Text, out v)) _firstPlaceHoldTime = v;
                 string newFinish = rbRight.IsChecked == true ? "right" : "left";
                 _laneCloseSettings.FinishPosition = newFinish;
                 _laneCloseSettings.StartPosition = newFinish;
