@@ -545,7 +545,7 @@
 
                     <!-- 中：泳道状态 -->
                     <Border Grid.Column="1" CornerRadius="10" Padding="12" Margin="0,0,10,0"
-                            BorderBrush="#E2E8F0" BorderThickness="1" Background="White">
+                            BorderBrush="#334155" BorderThickness="1" Background="#0F172A">
                         <DockPanel>
                             <Grid DockPanel.Dock="Top" Margin="0,0,0,10">
                                 <Grid.ColumnDefinitions>
@@ -557,19 +557,19 @@
                                     <Border Background="#3B82F6" CornerRadius="4" Padding="5,3" Margin="0,0,8,0">
                                         <TextBlock Text="&#xE916;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="White" VerticalAlignment="Center"/>
                                     </Border>
-                                    <TextBlock Text="泳道实时状态" FontSize="16" FontWeight="Bold" Foreground="#1E293B" VerticalAlignment="Center"/>
+                                    <TextBlock Text="泳道实时状态" FontSize="16" FontWeight="Bold" Foreground="White" VerticalAlignment="Center"/>
                                 </StackPanel>
                                 <TextBlock x:Name="RunningTimeText" Grid.Column="1" Text="0.0" FontSize="32" FontWeight="Bold"
-                                           Foreground="#3B82F6" HorizontalAlignment="Center" FontFamily="Consolas"/>
-                                <Border Grid.Column="2" Background="#F1F5F9" CornerRadius="12" Padding="10,4">
+                                           Foreground="#F59E0B" HorizontalAlignment="Center" FontFamily="Consolas"/>
+                                <Border Grid.Column="2" Background="#1E293B" CornerRadius="12" Padding="10,4">
                                     <StackPanel Orientation="Horizontal">
                                         <Ellipse x:Name="RaceStateIndicator" Width="12" Height="12" Fill="#F59E0B" Margin="0,0,6,0" VerticalAlignment="Center"/>
-                                        <TextBlock x:Name="RaceStateLabel" Text="等待" FontSize="14" FontWeight="Bold" Foreground="#64748B" VerticalAlignment="Center"/>
+                                        <TextBlock x:Name="RaceStateLabel" Text="等待" FontSize="14" FontWeight="Bold" Foreground="#94A3B8" VerticalAlignment="Center"/>
                                     </StackPanel>
                                 </Border>
                             </Grid>
                             <!-- 表头 -->
-                            <Grid x:Name="PoolHeader" DockPanel.Dock="Top" Height="28" Margin="0,0,0,4" Background="#F1F5F9"/>
+                            <Grid x:Name="PoolHeader" DockPanel.Dock="Top" Height="28" Margin="0,0,0,4" Background="#1E293B"/>
                             <!-- 泳道行 -->
                             <ScrollViewer VerticalScrollBarVisibility="Auto">
                                 <StackPanel x:Name="LanePanel"/>

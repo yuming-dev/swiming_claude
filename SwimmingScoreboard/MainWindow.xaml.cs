@@ -2369,9 +2369,9 @@ namespace SwimmingScoreboard
                 string status = sw.Status ?? "";
 
                 var row = new Border {
-                    Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F8FAFC")),
+                    Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E293B")),
                     CornerRadius = new CornerRadius(4), Margin = new Thickness(0, 0, 0, 4),
-                    Height = 48, BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#E2E8F0")), BorderThickness = new Thickness(1)
+                    Height = 48, BorderThickness = new Thickness(0)
                 };
                 if (ls != null && ls.IsFalseStart) {
                     row.BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F59E0B"));
@@ -2409,7 +2409,7 @@ namespace SwimmingScoreboard
                     leftDev.Children.Add(MakeLaneDot(ls.LeftTouchpadStatus));
                 }
                 int leftRemain = GetTouchRemain(ls, true);
-                leftDev.Children.Add(new TextBlock { Text = leftRemain > 0 ? leftRemain.ToString() : "", Width = 28, FontSize = 18, FontWeight = FontWeights.Bold, TextAlignment = TextAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Foreground = new SolidColorBrush(leftRemain > 0 ? (Color)ColorConverter.ConvertFromString("#F59E0B") : (Color)ColorConverter.ConvertFromString("#CBD5E1")) });
+                leftDev.Children.Add(new TextBlock { Text = leftRemain > 0 ? leftRemain.ToString() : "", Width = 28, FontSize = 18, FontWeight = FontWeights.Bold, TextAlignment = TextAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Foreground = new SolidColorBrush(leftRemain > 0 ? (Color)ColorConverter.ConvertFromString("#F59E0B") : (Color)ColorConverter.ConvertFromString("#475569")) });
                 Grid.SetColumn(leftDev, 2); grid.Children.Add(leftDev);
 
                 // Col 3: 姓名 + 进度
@@ -2417,11 +2417,11 @@ namespace SwimmingScoreboard
                 var infoStack = new StackPanel { Width = 120 };
                 string dispName = isRelay && !string.IsNullOrEmpty(sw.Notes) && sw.Notes.StartsWith("接力队 棒次:") ? sw.Country : sw.Name;
                 string dispTeam = isRelay ? "" : (sw.Country ?? "");
-                infoStack.Children.Add(new TextBlock { Text = dispName ?? "", FontWeight = FontWeights.Bold, Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E293B")), FontSize = 14 });
+                infoStack.Children.Add(new TextBlock { Text = dispName ?? "", FontWeight = FontWeights.Bold, Foreground = Brushes.White, FontSize = 14 });
                 if (!string.IsNullOrEmpty(dispTeam)) infoStack.Children.Add(new TextBlock { Text = dispTeam, Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), FontSize = 12 });
                 DockPanel.SetDock(infoStack, Dock.Left); midPanel.Children.Add(infoStack);
                 string dir = ls != null ? ls.Direction : "→";
-                var trackBorder = new Border { Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#E2E8F0")), CornerRadius = new CornerRadius(4), Height = 20, Padding = new Thickness(4, 0, 4, 0) };
+                var trackBorder = new Border { Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1A2332")), CornerRadius = new CornerRadius(4), Height = 20, Padding = new Thickness(4, 0, 4, 0) };
                 var trackText = new TextBlock { FontFamily = new FontFamily("Consolas"), FontSize = 13, VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = dir == "←" ? HorizontalAlignment.Right : HorizontalAlignment.Left, Foreground = new SolidColorBrush(isFinished ? (Color)ColorConverter.ConvertFromString("#F59E0B") : (Color)ColorConverter.ConvertFromString("#3B82F6")) };
                 if (isFinished && result != null) trackText.Text = "== " + TimeFormatter.Format(result.FinalTime) + " ==";
                 else if (status == "DNS" || status == "DNF" || status == "DSQ") trackText.Text = status;
@@ -2432,7 +2432,7 @@ namespace SwimmingScoreboard
                 // Col 4: 右设备
                 var rightDev = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
                 int rightRemain = GetTouchRemain(ls, false);
-                rightDev.Children.Add(new TextBlock { Text = rightRemain > 0 ? rightRemain.ToString() : "", Width = 28, FontSize = 18, FontWeight = FontWeights.Bold, TextAlignment = TextAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Foreground = new SolidColorBrush(rightRemain > 0 ? (Color)ColorConverter.ConvertFromString("#F59E0B") : (Color)ColorConverter.ConvertFromString("#CBD5E1")) });
+                rightDev.Children.Add(new TextBlock { Text = rightRemain > 0 ? rightRemain.ToString() : "", Width = 28, FontSize = 18, FontWeight = FontWeights.Bold, TextAlignment = TextAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Foreground = new SolidColorBrush(rightRemain > 0 ? (Color)ColorConverter.ConvertFromString("#F59E0B") : (Color)ColorConverter.ConvertFromString("#475569")) });
                 if (ls != null) {
                     rightDev.Children.Add(MakeLaneDot(ls.RightTouchpadStatus));
                     rightDev.Children.Add(MakeLaneDot(ls.RightStartBlockStatus));
@@ -2452,7 +2452,7 @@ namespace SwimmingScoreboard
                 // Col 6: 成绩信息
                 var infoArea = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
                 string reactionText = ls != null && ls.ReactionTime != 0 ? ls.ReactionTime.ToString("F2") : "";
-                infoArea.Children.Add(new TextBlock { Text = reactionText, Width = 60, FontSize = 15, Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E293B")), TextAlignment = TextAlignment.Center, FontFamily = new FontFamily("Consolas") });
+                infoArea.Children.Add(new TextBlock { Text = reactionText, Width = 60, FontSize = 15, Foreground = Brushes.White, TextAlignment = TextAlignment.Center, FontFamily = new FontFamily("Consolas") });
 
                 // 分段/成绩
                 int curSplitCount = result != null ? result.Splits.Count : 0;
@@ -2464,10 +2464,10 @@ namespace SwimmingScoreboard
                 if (isFinished && result != null && !isDQ) displayTime = TimeFormatter.Format(result.FinalTime);
                 else if (isDQ) displayTime = "";
                 else if (curSplitCount > 0 && (DateTime.Now - _laneSplitShowTime[lane]).TotalSeconds < splitDisplaySec) displayTime = TimeFormatter.Format(result.Splits[curSplitCount - 1].CumulativeTime);
-                infoArea.Children.Add(new TextBlock { Text = displayTime, Width = 115, FontSize = 17, FontWeight = FontWeights.Bold, Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E293B")), TextAlignment = TextAlignment.Center, FontFamily = new FontFamily("Consolas") });
+                infoArea.Children.Add(new TextBlock { Text = displayTime, Width = 115, FontSize = 17, FontWeight = FontWeights.Bold, Foreground = Brushes.White, TextAlignment = TextAlignment.Center, FontFamily = new FontFamily("Consolas") });
 
                 int rank = result != null ? result.Rank : 0;
-                Color rankColor = (Color)ColorConverter.ConvertFromString("#1E293B");
+                Color rankColor = Colors.White;
                 if (rank == 1) rankColor = (Color)ColorConverter.ConvertFromString("#F59E0B");
                 else if (rank == 2) rankColor = (Color)ColorConverter.ConvertFromString("#C0C0C0");
                 else if (rank == 3) rankColor = (Color)ColorConverter.ConvertFromString("#CD7F32");
@@ -4912,7 +4912,7 @@ namespace SwimmingScoreboard
                 FontFamily = new System.Windows.Media.FontFamily("Consolas, Microsoft YaHei"),
                 FontSize = 13, Margin = new Thickness(12, 0, 12, 12),
                 Background = new SolidColorBrush(Colors.White),
-                BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#CBD5E1")),
+                BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569")),
                 Padding = new Thickness(10),
                 AcceptsReturn = true, TextWrapping = TextWrapping.NoWrap
             };
