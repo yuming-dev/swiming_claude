@@ -2574,11 +2574,12 @@ namespace SwimmingScoreboard
 
                 row.Child = grid;
                 int clickLane = lane;
-                row.MouseLeftButtonDown += delegate {
+                row.PreviewMouseLeftButtonDown += delegate {
                     _selectedLane = clickLane;
                     _lastTsSplitCount = -1;
                     if (LaneInputBox != null) LaneInputBox.Text = clickLane.ToString();
                     UpdateTimingSourceInfo();
+                    UpdateLaneStatusDisplay();
                 };
                 LanePanel.Children.Add(row);
             }
