@@ -1888,7 +1888,7 @@ namespace SwimmingScoreboard
             _raceStartTime = DateTime.MinValue;
             _laneSplitCount.Clear();
             _laneSplitShowTime.Clear();
-            if (RunningTimeText != null) RunningTimeText.Text = "0.0";
+            if (RunningTimeText != null) RunningTimeText.Text = "0.00";
             UpdateRaceStateDisplay();
 
             // 确保发令位置根据当前项目正确设置（50米→对面端）
@@ -2201,7 +2201,7 @@ namespace SwimmingScoreboard
             _raceStartTime = DateTime.MinValue;
             _raceTimer.Stop();
             _countdownTimer.Stop();
-            if (RunningTimeText != null) RunningTimeText.Text = "0.0";
+            if (RunningTimeText != null) RunningTimeText.Text = "0.00";
 
             // 根据项目自动调整发令位置（50米项目切换到对面端）
             AutoAdjustStartPosition();
@@ -5358,7 +5358,7 @@ namespace SwimmingScoreboard
             if (CurrentStageText != null) CurrentStageText.Text = "-";
             if (CurrentHeatText != null) CurrentHeatText.Text = "-";
             if (RaceStateText != null) { RaceStateText.Text = "等待"; RaceStateText.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F59E0B")); }
-            if (RunningTimeText != null) RunningTimeText.Text = "0.0";
+            if (RunningTimeText != null) RunningTimeText.Text = "0.00";
 
             // 刷新系统状态显示（保留赛事信息的模式和泳池信息）
             UpdateRaceStateDisplay();
