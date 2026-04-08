@@ -570,21 +570,96 @@
                             </Grid>
                             <DataGrid x:Name="LaneStatusGrid" AutoGenerateColumns="False" CanUserAddRows="False"
                                       IsReadOnly="True" SelectionMode="Single" AlternatingRowBackground="#F8FAFC"
-                                      HeadersVisibility="Column" GridLinesVisibility="Horizontal" FontSize="13"
-                                      BorderThickness="0">
+                                      HeadersVisibility="Column" GridLinesVisibility="Horizontal" FontSize="14"
+                                      RowHeight="32" BorderThickness="0" FontFamily="Consolas, Microsoft YaHei">
                                 <DataGrid.Columns>
-                                    <DataGridTextColumn Header="左余" Binding="{Binding LeftRemain}" Width="32"/>
-                                    <DataGridTextColumn Header="道" Binding="{Binding Lane}" Width="35"/>
-                                    <DataGridTextColumn Header="姓名" Binding="{Binding Name}" Width="70"/>
-                                    <DataGridTextColumn Header="代表队" Binding="{Binding Country}" Width="65"/>
-                                    <DataGridTextColumn Header="方向" Binding="{Binding Direction}" Width="35"/>
-                                    <DataGridTextColumn Header="右余" Binding="{Binding RightRemain}" Width="32"/>
-                                    <DataGridTextColumn Header="反应" Binding="{Binding ReactionTime}" Width="50"/>
-                                    <DataGridTextColumn Header="分段" Binding="{Binding SplitTime}" Width="80"/>
-                                    <DataGridTextColumn Header="成绩" Binding="{Binding FinalTime}" Width="70"/>
-                                    <DataGridTextColumn Header="名次" Binding="{Binding Rank}" Width="40"/>
-                                    <DataGridTextColumn Header="状态" Binding="{Binding Status}" Width="45"/>
-                                    <DataGridTextColumn Header="计时源" Binding="{Binding TimingSource}" Width="50"/>
+                                    <DataGridTextColumn Header="道" Binding="{Binding Lane}" Width="36">
+                                        <DataGridTextColumn.ElementStyle>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="HorizontalAlignment" Value="Center"/>
+                                                <Setter Property="FontWeight" Value="Bold"/>
+                                                <Setter Property="FontSize" Value="16"/>
+                                            </Style>
+                                        </DataGridTextColumn.ElementStyle>
+                                    </DataGridTextColumn>
+                                    <DataGridTextColumn Header="左圈" Binding="{Binding LeftRemain}" Width="38">
+                                        <DataGridTextColumn.ElementStyle>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="HorizontalAlignment" Value="Center"/>
+                                                <Setter Property="Foreground" Value="#F59E0B"/>
+                                                <Setter Property="FontWeight" Value="Bold"/>
+                                            </Style>
+                                        </DataGridTextColumn.ElementStyle>
+                                    </DataGridTextColumn>
+                                    <DataGridTextColumn Header="姓名" Binding="{Binding Name}" Width="80"/>
+                                    <DataGridTextColumn Header="代表队" Binding="{Binding Country}" Width="70"/>
+                                    <DataGridTextColumn Header="方向" Binding="{Binding Direction}" Width="38">
+                                        <DataGridTextColumn.ElementStyle>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="HorizontalAlignment" Value="Center"/>
+                                                <Setter Property="Foreground" Value="#3B82F6"/>
+                                                <Setter Property="FontSize" Value="16"/>
+                                            </Style>
+                                        </DataGridTextColumn.ElementStyle>
+                                    </DataGridTextColumn>
+                                    <DataGridTextColumn Header="右圈" Binding="{Binding RightRemain}" Width="38">
+                                        <DataGridTextColumn.ElementStyle>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="HorizontalAlignment" Value="Center"/>
+                                                <Setter Property="Foreground" Value="#F59E0B"/>
+                                                <Setter Property="FontWeight" Value="Bold"/>
+                                            </Style>
+                                        </DataGridTextColumn.ElementStyle>
+                                    </DataGridTextColumn>
+                                    <DataGridTextColumn Header="反应时间" Binding="{Binding ReactionTime}" Width="70">
+                                        <DataGridTextColumn.ElementStyle>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="HorizontalAlignment" Value="Center"/>
+                                            </Style>
+                                        </DataGridTextColumn.ElementStyle>
+                                    </DataGridTextColumn>
+                                    <DataGridTextColumn Header="分段成绩" Binding="{Binding SplitTime}" Width="120">
+                                        <DataGridTextColumn.ElementStyle>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="HorizontalAlignment" Value="Center"/>
+                                                <Setter Property="Foreground" Value="#3B82F6"/>
+                                            </Style>
+                                        </DataGridTextColumn.ElementStyle>
+                                    </DataGridTextColumn>
+                                    <DataGridTextColumn Header="成绩" Binding="{Binding FinalTime}" Width="90">
+                                        <DataGridTextColumn.ElementStyle>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="HorizontalAlignment" Value="Center"/>
+                                                <Setter Property="FontWeight" Value="Bold"/>
+                                                <Setter Property="FontSize" Value="15"/>
+                                            </Style>
+                                        </DataGridTextColumn.ElementStyle>
+                                    </DataGridTextColumn>
+                                    <DataGridTextColumn Header="名次" Binding="{Binding Rank}" Width="44">
+                                        <DataGridTextColumn.ElementStyle>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="HorizontalAlignment" Value="Center"/>
+                                                <Setter Property="FontWeight" Value="Bold"/>
+                                                <Setter Property="FontSize" Value="16"/>
+                                            </Style>
+                                        </DataGridTextColumn.ElementStyle>
+                                    </DataGridTextColumn>
+                                    <DataGridTextColumn Header="备注" Binding="{Binding Status}" Width="45">
+                                        <DataGridTextColumn.ElementStyle>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="HorizontalAlignment" Value="Center"/>
+                                                <Setter Property="Foreground" Value="#EF4444"/>
+                                                <Setter Property="FontWeight" Value="Bold"/>
+                                            </Style>
+                                        </DataGridTextColumn.ElementStyle>
+                                    </DataGridTextColumn>
+                                    <DataGridTextColumn Header="计时源" Binding="{Binding TimingSource}" Width="55">
+                                        <DataGridTextColumn.ElementStyle>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="HorizontalAlignment" Value="Center"/>
+                                            </Style>
+                                        </DataGridTextColumn.ElementStyle>
+                                    </DataGridTextColumn>
                                 </DataGrid.Columns>
                             </DataGrid>
                         </DockPanel>
