@@ -222,9 +222,10 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
     <!-- 泳池图 -->
     <div class="pool-area" style="position:relative;display:flex;flex-direction:column;">
         <!-- 顶部栏：WR/CR + 滚动时间 -->
-        <div style="display:flex;align-items:center;justify-content:flex-end;height:36px;padding:0 8px;flex-shrink:0;">
-            <div id="recordDisplay" style="font-size:20px;font-weight:bold;color:var(--gold);font-family:Consolas,monospace;opacity:0.9;margin-right:16px;">WR: ---    CR: ---</div>
-            <div id="runTime" style="font-size:32px;font-weight:bold;color:var(--gold);font-family:Consolas,monospace;opacity:0.85;white-space:pre;">0.00</div>
+        <div style="display:flex;align-items:center;height:36px;padding:0 8px;flex-shrink:0;">
+            <div style="flex:1;"></div>
+            <div id="recordDisplay" style="width:280px;font-size:18px;font-weight:bold;color:var(--gold);font-family:Consolas,monospace;opacity:0.9;text-align:right;">WR: ---    CR: ---</div>
+            <div id="runTime" style="width:160px;font-size:32px;font-weight:bold;color:var(--gold);font-family:Consolas,monospace;opacity:0.85;white-space:pre;text-align:right;">0.00</div>
         </div>
         <div class="pool-header" id="poolHeader"></div>
         <div id="poolLanes" style="flex:1;overflow-y:auto;"></div>
