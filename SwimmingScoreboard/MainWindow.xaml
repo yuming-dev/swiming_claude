@@ -595,10 +595,10 @@
                                 <TextBlock x:Name="RunningTimeText" Grid.Column="3" Text="0.0" Width="120" FontSize="32" FontWeight="Bold"
                                            Foreground="#F59E0B" FontFamily="Consolas" TextAlignment="Right" Margin="8,0,8,0" VerticalAlignment="Center"/>
                                 <!-- 状态 -->
-                                <Border Grid.Column="4" Background="#1E293B" CornerRadius="12" Padding="10,4">
-                                    <StackPanel Orientation="Horizontal">
+                                <Border Grid.Column="4" Background="#1E293B" CornerRadius="12" Padding="10,4" Width="80">
+                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                                         <Ellipse x:Name="RaceStateIndicator" Width="12" Height="12" Fill="#F59E0B" Margin="0,0,6,0" VerticalAlignment="Center"/>
-                                        <TextBlock x:Name="RaceStateLabel" Text="等待" FontSize="14" FontWeight="Bold" Foreground="#94A3B8" VerticalAlignment="Center"/>
+                                        <TextBlock x:Name="RaceStateLabel" Text="等待" FontSize="14" FontWeight="Bold" Foreground="#94A3B8" VerticalAlignment="Center" Width="42" TextAlignment="Center"/>
                                     </StackPanel>
                                 </Border>
                             </Grid>
