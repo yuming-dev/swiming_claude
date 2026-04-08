@@ -1953,139 +1953,143 @@ namespace RemoteTimingControl
             var swimmers = _data["swimmers"] as JArray;
             if (swimmers == null || swimmers.Count == 0) { MessageBox.Show("暂无泳道数据"); return; }
 
+            string[] deviceKeys = { "leftTouchpad", "leftStartBlock", "leftBlindWatch1", "leftBlindWatch2", "leftBlindWatch3",
+                                    "rightTouchpad", "rightStartBlock", "rightBlindWatch1", "rightBlindWatch2", "rightBlindWatch3" };
+            string[] brokenKeys = { "leftTouchpadBroken", "leftStartBlockBroken", "leftBlindWatch1Broken", "leftBlindWatch2Broken", "leftBlindWatch3Broken",
+                                    "rightTouchpadBroken", "rightStartBlockBroken", "rightBlindWatch1Broken", "rightBlindWatch2Broken", "rightBlindWatch3Broken" };
+            string[] colHeaders = { "左触板坏", "左出发台坏", "左盲1坏", "左盲2坏", "左盲3坏",
+                                    "右触板坏", "右出发台坏", "右盲1坏", "右盲2坏", "右盲3坏" };
+
             var dlg = new Window
             {
                 Title = "设备状态管理",
-                Width = 750, Height = 500,
+                Width = 800, Height = 500,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner,
-                Owner = this,
-                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E293B"))
+                Owner = this, ResizeMode = ResizeMode.CanResize
             };
 
-            var mainSp = new StackPanel { Margin = new Thickness(16) };
-            mainSp.Children.Add(new TextBlock { Text = "设备状态管理", FontSize = 17, FontWeight = FontWeights.Bold, Foreground = Brushes.White, Margin = new Thickness(0, 0, 0, 12) });
-            mainSp.Children.Add(new TextBlock { Text = "点击设备名切换损坏/正常状态（红色=损坏）", Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), FontSize = 12, Margin = new Thickness(0, 0, 0, 8) });
+            var mainGrid = new Grid { Margin = new Thickness(16) };
+            mainGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Auto) });
+            mainGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+            mainGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Auto) });
 
-            string[] deviceNames = { "左触板", "左盲1", "左盲2", "左盲3", "左出发台", "右触板", "右盲1", "右盲2", "右盲3", "右出发台" };
-            string[] deviceKeys = { "leftTouchpad", "leftBlindWatch1", "leftBlindWatch2", "leftBlindWatch3", "leftStartBlock", "rightTouchpad", "rightBlindWatch1", "rightBlindWatch2", "rightBlindWatch3", "rightStartBlock" };
-            string[] brokenKeys = { "leftTouchpadBroken", "leftBlindWatch1Broken", "leftBlindWatch2Broken", "leftBlindWatch3Broken", "leftStartBlockBroken", "rightTouchpadBroken", "rightBlindWatch1Broken", "rightBlindWatch2Broken", "rightBlindWatch3Broken", "rightStartBlockBroken" };
+            mainGrid.Children.Add(new TextBlock { Text = "泳道设备好/坏状态设置", FontSize = 16, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 0, 0, 12) });
 
-            var scroll = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, MaxHeight = 350 };
-            var grid = new Grid();
-
-            // Header row
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(50) }); // 道次
-            for (int d = 0; d < deviceNames.Length; d++)
-                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(60) });
-            grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(28) });
-
-            var headerLane = new TextBlock { Text = "道次", Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), FontSize = 11, FontWeight = FontWeights.Bold, VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center };
-            Grid.SetRow(headerLane, 0); Grid.SetColumn(headerLane, 0);
-            grid.Children.Add(headerLane);
-            for (int d = 0; d < deviceNames.Length; d++)
+            // DataGrid with CheckBox columns
+            var dataGrid = new DataGrid
             {
-                var hdr = new TextBlock { Text = deviceNames[d], Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), FontSize = 10, VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center };
-                Grid.SetRow(hdr, 0); Grid.SetColumn(hdr, d + 1);
-                grid.Children.Add(hdr);
-            }
+                AutoGenerateColumns = false,
+                CanUserAddRows = false,
+                IsReadOnly = false,
+                AlternatingRowBackground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F8FAFC")),
+                HeadersVisibility = DataGridHeadersVisibility.Column
+            };
 
-            // Data rows
-            for (int si = 0; si < swimmers.Count; si++)
+            dataGrid.Columns.Add(new DataGridTextColumn { Header = "道次", Binding = new System.Windows.Data.Binding("Lane"), Width = new DataGridLength(50), IsReadOnly = true });
+
+            // 构建每道数据，用CheckBox列
+            var items = new List<DeviceRowItem>();
+            foreach (JObject sw in swimmers)
             {
-                JObject sw = (JObject)swimmers[si];
-                int lane = sw["lane"] != null ? (int)sw["lane"] : si;
+                int lane = sw["lane"] != null ? (int)sw["lane"] : 0;
                 var ds = sw["deviceStatus"] as JObject;
-                grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(30) });
-                int rowIdx = si + 1;
-
-                var laneTb = new TextBlock { Text = "道" + lane, Foreground = Brushes.White, FontSize = 12, FontWeight = FontWeights.Bold, VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center };
-                Grid.SetRow(laneTb, rowIdx); Grid.SetColumn(laneTb, 0);
-                grid.Children.Add(laneTb);
-
-                for (int d = 0; d < deviceKeys.Length; d++)
-                {
-                    bool isBroken = ds != null && ds[brokenKeys[d]] != null && (bool)ds[brokenKeys[d]];
-                    int capturedLane = lane;
-                    string capturedDevice = deviceKeys[d];
-                    var btn = new Button
-                    {
-                        Content = isBroken ? "X" : "OK",
-                        FontSize = 10, Padding = new Thickness(2),
-                        Background = new SolidColorBrush(isBroken ? (Color)ColorConverter.ConvertFromString("#EF4444") : (Color)ColorConverter.ConvertFromString("#22C55E")),
-                        Foreground = Brushes.White, BorderThickness = new Thickness(0),
-                        Margin = new Thickness(2)
-                    };
-                    btn.Click += delegate {
-                        bool newBroken = btn.Content.ToString() == "OK";
-                        SendCmd("SET_DEVICE_STATUS", new { lane = capturedLane, device = capturedDevice, status = newBroken ? "broken" : "normal" });
-                        btn.Content = newBroken ? "X" : "OK";
-                        btn.Background = new SolidColorBrush(newBroken ? (Color)ColorConverter.ConvertFromString("#EF4444") : (Color)ColorConverter.ConvertFromString("#22C55E"));
-                    };
-                    Grid.SetRow(btn, rowIdx); Grid.SetColumn(btn, d + 1);
-                    grid.Children.Add(btn);
-                }
+                var item = new DeviceRowItem { Lane = lane };
+                item.LeftTouchpadBroken = ds != null && ds[brokenKeys[0]] != null && (bool)ds[brokenKeys[0]];
+                item.LeftStartBlockBroken = ds != null && ds[brokenKeys[1]] != null && (bool)ds[brokenKeys[1]];
+                item.LeftBlindWatch1Broken = ds != null && ds[brokenKeys[2]] != null && (bool)ds[brokenKeys[2]];
+                item.LeftBlindWatch2Broken = ds != null && ds[brokenKeys[3]] != null && (bool)ds[brokenKeys[3]];
+                item.LeftBlindWatch3Broken = ds != null && ds[brokenKeys[4]] != null && (bool)ds[brokenKeys[4]];
+                item.RightTouchpadBroken = ds != null && ds[brokenKeys[5]] != null && (bool)ds[brokenKeys[5]];
+                item.RightStartBlockBroken = ds != null && ds[brokenKeys[6]] != null && (bool)ds[brokenKeys[6]];
+                item.RightBlindWatch1Broken = ds != null && ds[brokenKeys[7]] != null && (bool)ds[brokenKeys[7]];
+                item.RightBlindWatch2Broken = ds != null && ds[brokenKeys[8]] != null && (bool)ds[brokenKeys[8]];
+                item.RightBlindWatch3Broken = ds != null && ds[brokenKeys[9]] != null && (bool)ds[brokenKeys[9]];
+                items.Add(item);
             }
-            scroll.Content = grid;
-            mainSp.Children.Add(scroll);
 
-            // 全部正常/全部损坏 按钮
-            var allBtnPanel = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 10, 0, 0) };
-            var btnAllNormal = new Button { Content = "全部正常", Padding = new Thickness(16, 6, 16, 6), Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#22C55E")), Foreground = Brushes.White, BorderThickness = new Thickness(0), Margin = new Thickness(0, 0, 8, 0), FontWeight = FontWeights.Bold };
-            btnAllNormal.Click += delegate {
-                foreach (JObject sw in swimmers)
-                {
-                    int l = sw["lane"] != null ? (int)sw["lane"] : 0;
-                    for (int d = 0; d < deviceKeys.Length; d++)
-                        SendCmd("SET_DEVICE_STATUS", new { lane = l, device = deviceKeys[d], status = "normal" });
+            dataGrid.Columns.Add(new DataGridCheckBoxColumn { Header = "左触板坏", Binding = new System.Windows.Data.Binding("LeftTouchpadBroken"), Width = new DataGridLength(60) });
+            dataGrid.Columns.Add(new DataGridCheckBoxColumn { Header = "左出发台坏", Binding = new System.Windows.Data.Binding("LeftStartBlockBroken"), Width = new DataGridLength(70) });
+            dataGrid.Columns.Add(new DataGridCheckBoxColumn { Header = "左盲1坏", Binding = new System.Windows.Data.Binding("LeftBlindWatch1Broken"), Width = new DataGridLength(55) });
+            dataGrid.Columns.Add(new DataGridCheckBoxColumn { Header = "左盲2坏", Binding = new System.Windows.Data.Binding("LeftBlindWatch2Broken"), Width = new DataGridLength(55) });
+            dataGrid.Columns.Add(new DataGridCheckBoxColumn { Header = "左盲3坏", Binding = new System.Windows.Data.Binding("LeftBlindWatch3Broken"), Width = new DataGridLength(55) });
+            dataGrid.Columns.Add(new DataGridCheckBoxColumn { Header = "右触板坏", Binding = new System.Windows.Data.Binding("RightTouchpadBroken"), Width = new DataGridLength(60) });
+            dataGrid.Columns.Add(new DataGridCheckBoxColumn { Header = "右出发台坏", Binding = new System.Windows.Data.Binding("RightStartBlockBroken"), Width = new DataGridLength(70) });
+            dataGrid.Columns.Add(new DataGridCheckBoxColumn { Header = "右盲1坏", Binding = new System.Windows.Data.Binding("RightBlindWatch1Broken"), Width = new DataGridLength(55) });
+            dataGrid.Columns.Add(new DataGridCheckBoxColumn { Header = "右盲2坏", Binding = new System.Windows.Data.Binding("RightBlindWatch2Broken"), Width = new DataGridLength(55) });
+            dataGrid.Columns.Add(new DataGridCheckBoxColumn { Header = "右盲3坏", Binding = new System.Windows.Data.Binding("RightBlindWatch3Broken"), Width = new DataGridLength(55) });
+            dataGrid.ItemsSource = items;
+
+            Grid.SetRow(dataGrid, 1);
+            mainGrid.Children.Add(dataGrid);
+
+            // 底部按钮
+            var btnPanel = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 12, 0, 0) };
+            var btnAllGood = new Button { Content = "全部设为好", Padding = new Thickness(16, 6, 16, 6), Margin = new Thickness(0, 0, 8, 0) };
+            btnAllGood.Click += delegate {
+                foreach (var item in items) {
+                    item.LeftTouchpadBroken = false; item.LeftStartBlockBroken = false;
+                    item.LeftBlindWatch1Broken = false; item.LeftBlindWatch2Broken = false; item.LeftBlindWatch3Broken = false;
+                    item.RightTouchpadBroken = false; item.RightStartBlockBroken = false;
+                    item.RightBlindWatch1Broken = false; item.RightBlindWatch2Broken = false; item.RightBlindWatch3Broken = false;
                 }
-                // 刷新按钮状态
-                foreach (object child in grid.Children)
-                {
-                    var b = child as Button;
-                    if (b != null && (b.Content.ToString() == "OK" || b.Content.ToString() == "X"))
-                    {
-                        b.Content = "OK";
-                        b.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#22C55E"));
-                    }
-                }
-                AddLog("已设置全部设备为正常");
+                dataGrid.Items.Refresh();
             };
-            var btnAllBroken = new Button { Content = "全部损坏", Padding = new Thickness(16, 6, 16, 6), Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EF4444")), Foreground = Brushes.White, BorderThickness = new Thickness(0), FontWeight = FontWeights.Bold };
-            btnAllBroken.Click += delegate {
-                foreach (JObject sw in swimmers)
-                {
-                    int l = sw["lane"] != null ? (int)sw["lane"] : 0;
-                    for (int d = 0; d < deviceKeys.Length; d++)
-                        SendCmd("SET_DEVICE_STATUS", new { lane = l, device = deviceKeys[d], status = "broken" });
+            var btnAllBad = new Button { Content = "全部设为坏", Padding = new Thickness(16, 6, 16, 6), Margin = new Thickness(0, 0, 16, 0) };
+            btnAllBad.Click += delegate {
+                foreach (var item in items) {
+                    item.LeftTouchpadBroken = true; item.LeftStartBlockBroken = true;
+                    item.LeftBlindWatch1Broken = true; item.LeftBlindWatch2Broken = true; item.LeftBlindWatch3Broken = true;
+                    item.RightTouchpadBroken = true; item.RightStartBlockBroken = true;
+                    item.RightBlindWatch1Broken = true; item.RightBlindWatch2Broken = true; item.RightBlindWatch3Broken = true;
                 }
-                foreach (object child in grid.Children)
-                {
-                    var b = child as Button;
-                    if (b != null && (b.Content.ToString() == "OK" || b.Content.ToString() == "X"))
-                    {
-                        b.Content = "X";
-                        b.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EF4444"));
-                    }
-                }
-                AddLog("已设置全部设备为损坏");
+                dataGrid.Items.Refresh();
             };
-            allBtnPanel.Children.Add(btnAllNormal);
-            allBtnPanel.Children.Add(btnAllBroken);
-            mainSp.Children.Add(allBtnPanel);
+            var btnOK = new Button { Content = "确定", Padding = new Thickness(16, 6, 16, 6), Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6")), Foreground = Brushes.White, BorderThickness = new Thickness(0), Margin = new Thickness(0, 0, 8, 0) };
+            btnOK.Click += delegate {
+                // 发送所有设备状态到服务器
+                foreach (var item in items) {
+                    SendCmd("SET_DEVICE_STATUS", new { lane = item.Lane, device = "leftTouchpad", status = item.LeftTouchpadBroken ? "broken" : "normal" });
+                    SendCmd("SET_DEVICE_STATUS", new { lane = item.Lane, device = "leftStartBlock", status = item.LeftStartBlockBroken ? "broken" : "normal" });
+                    SendCmd("SET_DEVICE_STATUS", new { lane = item.Lane, device = "leftBlindWatch1", status = item.LeftBlindWatch1Broken ? "broken" : "normal" });
+                    SendCmd("SET_DEVICE_STATUS", new { lane = item.Lane, device = "leftBlindWatch2", status = item.LeftBlindWatch2Broken ? "broken" : "normal" });
+                    SendCmd("SET_DEVICE_STATUS", new { lane = item.Lane, device = "leftBlindWatch3", status = item.LeftBlindWatch3Broken ? "broken" : "normal" });
+                    SendCmd("SET_DEVICE_STATUS", new { lane = item.Lane, device = "rightTouchpad", status = item.RightTouchpadBroken ? "broken" : "normal" });
+                    SendCmd("SET_DEVICE_STATUS", new { lane = item.Lane, device = "rightStartBlock", status = item.RightStartBlockBroken ? "broken" : "normal" });
+                    SendCmd("SET_DEVICE_STATUS", new { lane = item.Lane, device = "rightBlindWatch1", status = item.RightBlindWatch1Broken ? "broken" : "normal" });
+                    SendCmd("SET_DEVICE_STATUS", new { lane = item.Lane, device = "rightBlindWatch2", status = item.RightBlindWatch2Broken ? "broken" : "normal" });
+                    SendCmd("SET_DEVICE_STATUS", new { lane = item.Lane, device = "rightBlindWatch3", status = item.RightBlindWatch3Broken ? "broken" : "normal" });
+                }
+                AddLog("设备状态已更新");
+                dlg.Close();
+            };
+            var btnCancel = new Button { Content = "取消", Padding = new Thickness(16, 6, 16, 6) };
+            btnCancel.Click += delegate { dlg.Close(); };
 
-            // 确认 / 关闭 按钮
-            var bottomPanel = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 14, 0, 0) };
-            var btnConfirm = new Button { Content = "确认", Padding = new Thickness(20, 6, 20, 6), Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6")), Foreground = Brushes.White, BorderThickness = new Thickness(0), FontWeight = FontWeights.Bold, FontSize = 14, Margin = new Thickness(0, 0, 8, 0) };
-            btnConfirm.Click += delegate { dlg.Close(); AddLog("设备状态已确认"); };
-            var btnClose = new Button { Content = "关闭", Padding = new Thickness(20, 6, 20, 6), Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569")), Foreground = Brushes.White, BorderThickness = new Thickness(0), FontSize = 14 };
-            btnClose.Click += delegate { dlg.Close(); };
-            bottomPanel.Children.Add(btnConfirm);
-            bottomPanel.Children.Add(btnClose);
-            mainSp.Children.Add(bottomPanel);
+            btnPanel.Children.Add(btnAllGood);
+            btnPanel.Children.Add(btnAllBad);
+            btnPanel.Children.Add(btnOK);
+            btnPanel.Children.Add(btnCancel);
+            Grid.SetRow(btnPanel, 2);
+            mainGrid.Children.Add(btnPanel);
 
-            var dlgScroll = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Content = mainSp };
-            dlg.Content = dlgScroll;
+            dlg.Content = mainGrid;
             dlg.ShowDialog();
+        }
+
+        // 设备状态数据行
+        private class DeviceRowItem
+        {
+            public int Lane { get; set; }
+            public bool LeftTouchpadBroken { get; set; }
+            public bool LeftStartBlockBroken { get; set; }
+            public bool LeftBlindWatch1Broken { get; set; }
+            public bool LeftBlindWatch2Broken { get; set; }
+            public bool LeftBlindWatch3Broken { get; set; }
+            public bool RightTouchpadBroken { get; set; }
+            public bool RightStartBlockBroken { get; set; }
+            public bool RightBlindWatch1Broken { get; set; }
+            public bool RightBlindWatch2Broken { get; set; }
+            public bool RightBlindWatch3Broken { get; set; }
         }
 
         // ═══════ 键盘快捷键 ═══════
