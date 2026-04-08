@@ -1154,12 +1154,13 @@ namespace SwimmingScoreboard
             int mins = (totalSecs / 60) % 60;
             int hours = totalSecs / 3600;
 
+            // 百分位用空格占位，保持与Format()对齐
             if (hours > 0) {
-                return string.Format("{0}:{1:D2}:{2:D2}.{3}", hours, mins, secs, tenths);
+                return string.Format("{0}:{1:D2}:{2:D2}.{3} ", hours, mins, secs, tenths);
             } else if (mins > 0) {
-                return string.Format("{0}:{1:D2}.{2}", mins, secs, tenths);
+                return string.Format("{0}:{1:D2}.{2} ", mins, secs, tenths);
             }
-            return string.Format("{0}.{1}", secs, tenths);
+            return string.Format("{0}.{1} ", secs, tenths);
         }
 
         /// <summary>
