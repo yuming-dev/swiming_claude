@@ -2334,7 +2334,7 @@ namespace SwimmingScoreboard
             Grid.SetColumn(rightLabels, 4); PoolHeader.Children.Add(rightLabels);
 
             var infoLabels = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-            foreach (string s in new[] { "反应:55", "成绩:110", "名次:44", "备注:15" }) {
+            foreach (string s in new[] { "反应:55", "成绩:110", "名次:44", "备注:66" }) {
                 string[] p = s.Split(':');
                 infoLabels.Children.Add(new TextBlock { Text = p[0], Width = double.Parse(p[1]), Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")), FontSize = 12, TextAlignment = TextAlignment.Center, VerticalAlignment = VerticalAlignment.Center });
             }
@@ -2500,7 +2500,7 @@ namespace SwimmingScoreboard
                 infoArea.Children.Add(new TextBlock { Text = rank > 0 ? rank.ToString() : "", Width = 44, FontSize = 18, FontWeight = FontWeights.Bold, Foreground = new SolidColorBrush(rankColor), TextAlignment = TextAlignment.Center });
 
                 string remarkText = ls != null && ls.IsFalseStart ? "DSQ" : (isDQ ? status : "");
-                infoArea.Children.Add(new TextBlock { Text = remarkText, Width = 15, FontSize = 11, FontWeight = FontWeights.Bold, Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EF4444")), TextAlignment = TextAlignment.Center });
+                infoArea.Children.Add(new TextBlock { Text = remarkText, Width = 66, FontSize = 13, FontWeight = FontWeights.Bold, Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EF4444")), TextAlignment = TextAlignment.Center });
 
                 Grid.SetColumn(infoArea, 6); grid.Children.Add(infoArea);
 
