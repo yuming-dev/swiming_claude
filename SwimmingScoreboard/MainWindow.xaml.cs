@@ -2305,7 +2305,7 @@ namespace SwimmingScoreboard
             PoolHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) }); // 姓名+进度
             PoolHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(240) });  // 右设备
             PoolHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(8) });    // 右发令
-            PoolHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(300) });  // 成绩信息
+            PoolHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(285) });  // 成绩信息
 
             Action<int, string, double> addLabel = (col, text, width) => {
                 var tb = new TextBlock { Text = text, Width = width, Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")), FontSize = 12, TextAlignment = TextAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
@@ -2334,7 +2334,7 @@ namespace SwimmingScoreboard
             Grid.SetColumn(rightLabels, 4); PoolHeader.Children.Add(rightLabels);
 
             var infoLabels = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-            foreach (string s in new[] { "反应:55", "成绩:110", "名次:44", "备注:40" }) {
+            foreach (string s in new[] { "反应:55", "成绩:110", "名次:44", "备注:25" }) {
                 string[] p = s.Split(':');
                 infoLabels.Children.Add(new TextBlock { Text = p[0], Width = double.Parse(p[1]), Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")), FontSize = 12, TextAlignment = TextAlignment.Center, VerticalAlignment = VerticalAlignment.Center });
             }
@@ -2386,7 +2386,7 @@ namespace SwimmingScoreboard
                 grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
                 grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(240) });
                 grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(8) });
-                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(300) });
+                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(285) });
 
                 // Col 0: 道次
                 var laneNum = new TextBlock { Text = lane.ToString(), FontSize = 18, FontWeight = FontWeights.Bold, Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
@@ -2500,7 +2500,7 @@ namespace SwimmingScoreboard
                 infoArea.Children.Add(new TextBlock { Text = rank > 0 ? rank.ToString() : "", Width = 44, FontSize = 18, FontWeight = FontWeights.Bold, Foreground = new SolidColorBrush(rankColor), TextAlignment = TextAlignment.Center });
 
                 string remarkText = ls != null && ls.IsFalseStart ? "DSQ" : (isDQ ? status : "");
-                infoArea.Children.Add(new TextBlock { Text = remarkText, Width = 40, FontSize = 13, FontWeight = FontWeights.Bold, Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EF4444")), TextAlignment = TextAlignment.Center });
+                infoArea.Children.Add(new TextBlock { Text = remarkText, Width = 25, FontSize = 11, FontWeight = FontWeights.Bold, Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EF4444")), TextAlignment = TextAlignment.Center });
 
                 Grid.SetColumn(infoArea, 6); grid.Children.Add(infoArea);
 
