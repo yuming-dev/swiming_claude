@@ -878,11 +878,10 @@ namespace SwimmingScoreboard
 
         private List<Swimmer> GetCurrentHeatSwimmers() {
             if (string.IsNullOrEmpty(_currentEvent) || _currentHeat <= 0) return new List<Swimmer>();
-            string fullEvent = _currentGender + _currentEvent;
             bool isRelay = _currentEvent.Contains("接力");
             var result = new List<Swimmer>();
             foreach (var s in _swimmers) {
-                if ((_currentGender + s.EventName) != fullEvent) continue;
+                if (s.EventName != _currentEvent || s.Gender != _currentGender) continue;
                 // 接力项目：跳过个人队员条目，只保留代表队
                 if (isRelay && s.Notes != null && s.Notes.StartsWith("接力队员")) continue;
                 // 优先从StageAssignments查找（不受晋级后CurrentStage变化影响）
@@ -6310,23 +6309,38 @@ namespace SwimmingScoreboard
 
         private void ImportRecordsCSV_Click(object sender, RoutedEventArgs e) {
             var dlg = new Microsoft.Win32.OpenFileDialog {
-                Filter = "CSV文件|*.csv|所有文件|*.*",
-                Title = "导入纪录CSV（格式：性别,项目,类型,保持者,代表队,成绩(如1:42.00),日期,地点）"
+                Filter = "CSV文件|*.csv|文本文件|*.txt|所有文件|*.*",
+                Title = "导入纪录（格式：性别,项目,类型,保持者,代表队,成绩,日期,地点）"
             };
             if (dlg.ShowDialog() == true) {
                 try {
+                    // 检查是否为Excel二进制格式（.xls/.xlsx），提示用户先另存为CSV
+                    string ext = System.IO.Path.GetExtension(dlg.FileName).ToLower();
+                    if (ext == ".xls" || ext == ".xlsx") {
+                        MessageBox.Show(
+                            "无法直接读取Excel文件（.xls/.xlsx）。\n\n" +
+                            "请在Excel中将文件另存为：\n" +
+                            "  文件类型: CSV UTF-8（逗号分隔）(*.csv)\n" +
+                            "  或: CSV（逗号分隔）(*.csv)\n\n" +
+                            "然后用导出的CSV文件重新导入。",
+                            "格式提示", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        return;
+                    }
+
                     // 自动检测编码：有UTF-8 BOM用UTF-8，否则用系统默认编码（中文Windows为GBK）
-                    // Excel保存CSV默认用系统编码，不加BOM，直接用UTF-8读会中文乱码
                     Encoding csvEncoding = Encoding.Default;
                     byte[] rawBytes = File.ReadAllBytes(dlg.FileName);
                     if (rawBytes.Length >= 3 && rawBytes[0] == 0xEF && rawBytes[1] == 0xBB && rawBytes[2] == 0xBF)
                         csvEncoding = Encoding.UTF8;
                     string[] lines = File.ReadAllLines(dlg.FileName, csvEncoding);
-                    int imported = 0, skipped = 0;
+                    int imported = 0, updated = 0, skippedEmpty = 0, skippedParse = 0, skippedDup = 0;
                     for (int i = 1; i < lines.Length; i++) {
                         string line = lines[i].Trim();
                         if (string.IsNullOrEmpty(line)) continue;
-                        string[] cols = line.Split(',');
+
+                        // 支持逗号分隔和Tab分隔（Excel另存为文本时用Tab）
+                        char delimiter = line.Contains('\t') ? '\t' : ',';
+                        string[] cols = line.Split(delimiter);
                         if (cols.Length < 3) continue;
 
                         string gender = cols[0].Trim();
@@ -6338,14 +6352,21 @@ namespace SwimmingScoreboard
                         string dateStr = cols.Length > 6 ? cols[6].Trim() : "";
                         string location = cols.Length > 7 ? cols[7].Trim() : "";
 
-                        // 跳过成绩为空的行（模板占位行）
-                        if (string.IsNullOrEmpty(timeStr) || string.IsNullOrEmpty(holderName)) { skipped++; continue; }
+                        // 跳过成绩或保持者为空的行（模板占位行）
+                        if (string.IsNullOrEmpty(timeStr) || string.IsNullOrEmpty(holderName)) { skippedEmpty++; continue; }
 
-                        // 统一使用TimeFormatter.Parse解析时间格式（支持 SS.ss / M:SS.ss / H:MM:SS.ss）
+                        // 清理成绩字符串：去除Excel可能添加的多余字符
+                        // Excel可能将 1:42.00 显示为 0:01:42.00 或 1:42:00 等
+                        timeStr = timeStr.Replace("'", "").Replace("\u2019", "").Trim();
+
                         double t = TimeFormatter.Parse(timeStr);
-                        if (t <= 0) { skipped++; continue; }
+                        if (t <= 0) {
+                            AddLog(string.Format("  第{0}行成绩解析失败: [{1}] ({2} {3})", i + 1, timeStr, gender, eventName));
+                            skippedParse++;
+                            continue;
+                        }
 
-                        // 查找是否已存在相同纪录，已存在则更新（取更好成绩）
+                        // 查找是否已存在相同纪录
                         SwimmingRecord existing = null;
                         foreach (var r in _records) {
                             if (r.Gender == gender && r.EventName == eventName && r.RecordType == recordType) {
@@ -6353,12 +6374,12 @@ namespace SwimmingScoreboard
                             }
                         }
                         if (existing != null) {
-                            if (t < existing.Time) {
+                            if (t < existing.Time || existing.Time <= 0) {
                                 existing.HolderName = holderName; existing.HolderCountry = holderCountry;
                                 existing.Time = t; existing.TimeInSeconds = t;
                                 existing.Date = dateStr; existing.Location = location;
-                                imported++;
-                            } else { skipped++; }
+                                updated++;
+                            } else { skippedDup++; }
                         } else {
                             _records.Add(new SwimmingRecord {
                                 Gender = gender, EventName = eventName, RecordType = recordType,
@@ -6368,7 +6389,8 @@ namespace SwimmingScoreboard
                             imported++;
                         }
                     }
-                    AddLog(string.Format("CSV导入纪录: 导入{0}条, 跳过{1}条（空行/重复/较慢）", imported, skipped));
+                    AddLog(string.Format("CSV导入纪录: 新增{0}条, 更新{1}条, 跳过空行{2}, 解析失败{3}, 重复{4}",
+                        imported, updated, skippedEmpty, skippedParse, skippedDup));
                     AutoSaveData();
                     Broadcast();
                     RefreshRecordFilterCombos();

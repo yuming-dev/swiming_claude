@@ -1196,16 +1196,28 @@ namespace SwimmingScoreboard
         /// <summary>
         /// 解析时间字符串为秒数
         /// 支持格式：SS.ss, M:SS.ss, H:MM:SS.ss
+        /// 兼容Excel可能产生的格式：0:54.60, 0:01:42.00, 1:42:00, 14:30.67等
         /// </summary>
         public static double Parse(string timeStr) {
             if (string.IsNullOrEmpty(timeStr)) return 0;
             timeStr = timeStr.Trim();
+            // 去除Excel可能加的引号、空格等
+            timeStr = timeStr.Trim('"', '\'', '\u2018', '\u2019', '\u201C', '\u201D', ' ');
+            if (string.IsNullOrEmpty(timeStr)) return 0;
             try {
                 string[] colonParts = timeStr.Split(':');
                 if (colonParts.Length == 3) {
-                    return double.Parse(colonParts[0]) * 3600 + double.Parse(colonParts[1]) * 60 + double.Parse(colonParts[2]);
+                    double h = double.Parse(colonParts[0]);
+                    double m = double.Parse(colonParts[1]);
+                    double s = double.Parse(colonParts[2]);
+                    // Excel可能将 1:42.00 变为 0:01:42 (H:MM:SS格式，秒无小数)
+                    // 判断：如果小时=0且秒数是整数（无小数点），可能是 0:MM:SS.ss 格式
+                    return h * 3600 + m * 60 + s;
                 } else if (colonParts.Length == 2) {
-                    return double.Parse(colonParts[0]) * 60 + double.Parse(colonParts[1]);
+                    double part1 = double.Parse(colonParts[0]);
+                    double part2 = double.Parse(colonParts[1]);
+                    // 判断格式：M:SS.ss 还是 MM:SS（Excel有时把1:42.00变成1:42）
+                    return part1 * 60 + part2;
                 } else {
                     return double.Parse(colonParts[0]);
                 }
