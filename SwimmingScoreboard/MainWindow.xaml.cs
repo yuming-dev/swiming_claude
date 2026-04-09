@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
@@ -55,9 +55,7 @@ namespace SwimmingScoreboard
         private string _firstPlaceFinishTime = "";
         private DateTime _firstPlaceShowStart = DateTime.MinValue;
         private int _firstPlaceDetectedRank = 0;
-        private double _firstPlaceHoldTime = 3;
-
-        // 泳道设备状态
+        // 泳��设备状态
         private List<LaneDeviceState> _laneDeviceStates = new List<LaneDeviceState>();
 
         // 原始计时数据记录
@@ -94,6 +92,7 @@ namespace SwimmingScoreboard
             InitializeWebSocketServer();
             InitializeTimingBridge();
             InitializeTimers();
+            LoadTimingSettings();
             LoadLastCompetition();
             PopulateComPorts();
             UpdateConnectionStatus();
@@ -125,6 +124,7 @@ namespace SwimmingScoreboard
             RebuildRelayGroupedView();
             // ScheduleGrid replaced by ScheduleGroupedPanel
             RecordGrid.ItemsSource = _records;
+            RefreshRecordFilterCombos();
 
             // 初始化默认项目列表
             _events = new List<string> {
@@ -519,11 +519,15 @@ namespace SwimmingScoreboard
                         }
                         // 同步全局设置到所有泳道（清除每道独立值，使用全局值）
                         foreach (var st in _laneDeviceStates) st.LaneCloseTime = 0;
+                        if (data["firstPlaceHoldTime"] != null) _laneCloseSettings.FirstPlaceHoldTime = (double)data["firstPlaceHoldTime"];
                         AddLog(string.Format("参数更新: 关闭{0}s 出发台{1}s 确认{2}s 抢跳{3}s 分段{4}s 终点:{5}",
                             _laneCloseSettings.LaneCloseTime, _laneCloseSettings.StartBlockCloseDelay,
                             _laneCloseSettings.ResultConfirmCloseDelay, _laneCloseSettings.FalseStartThreshold,
                             _laneCloseSettings.SplitDisplayTime, _laneCloseSettings.FinishPosition == "left" ? "左端" : "右端"));
+                        SaveTimingSettings();
                         AutoSaveData();
+                        UpdateLaneStatusDisplay();
+                        Broadcast();
                     }
                     break;
                 case "OPEN_ALL_LANES":
@@ -829,7 +833,8 @@ namespace SwimmingScoreboard
                     falseStartThreshold = _laneCloseSettings.FalseStartThreshold,
                     splitDisplayTime = _laneCloseSettings.SplitDisplayTime,
                     startPosition = _laneCloseSettings.StartPosition,
-                    finishPosition = _laneCloseSettings.FinishPosition
+                    finishPosition = _laneCloseSettings.FinishPosition,
+                    firstPlaceHoldTime = _laneCloseSettings.FirstPlaceHoldTime
                 },
                 scoringControlMode = _scoringControlMode,
                 resultConfirmed = _resultConfirmed,
@@ -1777,7 +1782,7 @@ namespace SwimmingScoreboard
 
                 // 第1名成绩交替显示
                 DetectFirstPlace();
-                double holdSec = _firstPlaceHoldTime > 0 ? _firstPlaceHoldTime : 3;
+                double holdSec = _laneCloseSettings.FirstPlaceHoldTime > 0 ? _laneCloseSettings.FirstPlaceHoldTime : 3;
                 if (_firstPlaceShowStart != DateTime.MinValue &&
                     (DateTime.Now - _firstPlaceShowStart).TotalSeconds < holdSec &&
                     !string.IsNullOrEmpty(_firstPlaceFinishTime)) {
@@ -2544,7 +2549,7 @@ namespace SwimmingScoreboard
                 var trackText = new TextBlock { FontFamily = new FontFamily("Consolas"), FontSize = 14, VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = dir == "←" ? HorizontalAlignment.Right : HorizontalAlignment.Left };
                 // 方向/进度显示（与EXE一致）
                 string arrow = dir == "←" ? "◀" : "▶";
-                int maxArrows = 12;
+                int maxArrows = 8;
                 if (isFinished && result != null) {
                     trackText.Text = "== " + TimeFormatter.Format(result.FinalTime) + " ==";
                     trackText.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F59E0B"));
@@ -2904,7 +2909,7 @@ namespace SwimmingScoreboard
             var tbConfDelay = AddSettingsRow(sp, "成绩确认关闭延迟", _laneCloseSettings.ResultConfirmCloseDelay.ToString(), "秒");
             var tbFSThresh = AddSettingsRow(sp, "抢跳判定阈值", _laneCloseSettings.FalseStartThreshold.ToString(), "秒");
             var tbSplitDisp = AddSettingsRow(sp, "分段成绩显示时长", _laneCloseSettings.SplitDisplayTime.ToString(), "秒");
-            var tbFirstHold = AddSettingsRow(sp, "第1名成绩停留时间", _firstPlaceHoldTime.ToString(), "秒");
+            var tbFirstHold = AddSettingsRow(sp, "第1名成绩停留时间", _laneCloseSettings.FirstPlaceHoldTime.ToString(), "秒");
 
             // 终点位置
             var finishRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 10, 0, 0) };
@@ -2946,7 +2951,7 @@ namespace SwimmingScoreboard
                 if (double.TryParse(tbConfDelay.Text, out v)) _laneCloseSettings.ResultConfirmCloseDelay = v;
                 if (double.TryParse(tbFSThresh.Text, out v)) _laneCloseSettings.FalseStartThreshold = v;
                 if (double.TryParse(tbSplitDisp.Text, out v)) _laneCloseSettings.SplitDisplayTime = v;
-                if (double.TryParse(tbFirstHold.Text, out v)) _firstPlaceHoldTime = v;
+                if (double.TryParse(tbFirstHold.Text, out v)) _laneCloseSettings.FirstPlaceHoldTime = v;
                 string newFinish = rbRight.IsChecked == true ? "right" : "left";
                 _laneCloseSettings.FinishPosition = newFinish;
                 _laneCloseSettings.StartPosition = newFinish;
@@ -2955,6 +2960,7 @@ namespace SwimmingScoreboard
                     foreach (var st in _laneDeviceStates) st.ResetForNewRace(_laneCloseSettings.StartPosition);
                 }
                 foreach (var st in _laneDeviceStates) st.LaneCloseTime = 0;
+                SaveTimingSettings();
                 AutoSaveData();
                 UpdateLaneStatusDisplay();
                 Broadcast();
@@ -3232,7 +3238,12 @@ namespace SwimmingScoreboard
             };
             if (dlg.ShowDialog() == true) {
                 try {
-                    string[] lines = File.ReadAllLines(dlg.FileName, Encoding.UTF8);
+                    // 自动检测编码：有UTF-8 BOM用UTF-8，否则用系统默认编码（中文Windows为GBK）
+                    Encoding csvEncoding = Encoding.Default;
+                    byte[] rawBytes = File.ReadAllBytes(dlg.FileName);
+                    if (rawBytes.Length >= 3 && rawBytes[0] == 0xEF && rawBytes[1] == 0xBB && rawBytes[2] == 0xBF)
+                        csvEncoding = Encoding.UTF8;
+                    string[] lines = File.ReadAllLines(dlg.FileName, csvEncoding);
                     int imported = 0, skipped = 0;
                     for (int i = 1; i < lines.Length; i++) {
                         string[] cols = lines[i].Split(',');
@@ -4881,12 +4892,10 @@ namespace SwimmingScoreboard
                 AddLog(string.Format("  {0} {1}{2}: {3}{4} → {5}", gender, eventName, typeLabel, count, isRelay ? "队" : "人", string.Join("→", stages.ToArray())));
             }
 
-            // 按比赛日程顺序安排：
-            // 每天：上午预赛 → 下午（前一天预赛项目的半决赛）→ 晚上（前一天半决赛项目的决赛 + 直接决赛）
-            // 第一天：只有预赛和直接决赛
-            // 保证同一项目的赛次顺序：预赛 → 半决赛 → 决赛（至少隔一天）
+            // ====== 按依赖关系分配日程 ======
+            // 核心原则：同一项目的赛次必须严格按 预赛→半决赛→决赛 的时间顺序，且至少间隔一天
+            // 每个项目的半决赛日 = 预赛日+1，决赛日 = 半决赛日+1（或预赛日+1）
 
-            // 将项目按预赛→半决赛→决赛的依赖关系排序，每类内单项在前、接力在后
             var prelims = allItems.Where(s => s.Stage == "预赛").OrderBy(s => s.IsRelay ? 1 : 0).ThenBy(s => s.EventName).ToList();
             var semis = allItems.Where(s => s.Stage == "半决赛").OrderBy(s => s.IsRelay ? 1 : 0).ThenBy(s => s.EventName).ToList();
             var directFinals = allItems.Where(s => s.Stage == "决赛" && !allItems.Any(p => p.EventName == s.EventName && p.Gender == s.Gender && p.Stage == "预赛"))
@@ -4894,124 +4903,205 @@ namespace SwimmingScoreboard
             var linkedFinals = allItems.Where(s => s.Stage == "决赛" && allItems.Any(p => p.EventName == s.EventName && p.Gender == s.Gender && p.Stage == "预赛"))
                 .OrderBy(s => s.IsRelay ? 1 : 0).ThenBy(s => s.EventName).ToList();
 
-            int prelimsPerDay = prelims.Count > 0 ? (int)Math.Ceiling((double)prelims.Count / Math.Max(1, totalDays - 1)) : 0;
-            if (prelimsPerDay < 1 && prelims.Count > 0) prelimsPerDay = prelims.Count;
+            // 标识有半决赛的项目（三阶段：预赛→半决赛→决赛）
+            var threeStageKeys = new HashSet<string>();
+            foreach (var semi in semis)
+                threeStageKeys.Add(semi.Gender + "|" + semi.EventName);
 
-            int prelimIdx = 0, semiIdx = 0, linkedFinalIdx = 0, directFinalIdx = 0;
+            // ---- 第一步：分配预赛到各天上午 ----
+            // 三阶段项目的预赛必须在 day 0 ~ totalDays-3（留2天给半决赛和决赛）
+            // 两阶段项目的预赛必须在 day 0 ~ totalDays-2（留1天给决赛）
+            var prelimDayMap = new Dictionary<string, int>();
+
+            var threeStgPrelims = prelims.Where(p => threeStageKeys.Contains(p.Gender + "|" + p.EventName)).ToList();
+            var twoStgPrelims = prelims.Where(p => !threeStageKeys.Contains(p.Gender + "|" + p.EventName)).ToList();
+
+            int availDays3 = Math.Max(1, totalDays - 2);
+            int availDays2 = Math.Max(1, totalDays - 1);
+            if (availDays2 < 1) availDays2 = 1;
+
+            int perDay3 = threeStgPrelims.Count > 0 ? (int)Math.Ceiling((double)threeStgPrelims.Count / availDays3) : 0;
+            int pIdx = 0;
+            for (int d = 0; d < availDays3 && pIdx < threeStgPrelims.Count; d++) {
+                for (int i = 0; i < perDay3 && pIdx < threeStgPrelims.Count; i++, pIdx++)
+                    prelimDayMap[threeStgPrelims[pIdx].Gender + "|" + threeStgPrelims[pIdx].EventName] = d;
+            }
+
+            int perDay2 = twoStgPrelims.Count > 0 ? (int)Math.Ceiling((double)twoStgPrelims.Count / availDays2) : 0;
+            pIdx = 0;
+            for (int d = 0; d < availDays2 && pIdx < twoStgPrelims.Count; d++) {
+                for (int i = 0; i < perDay2 && pIdx < twoStgPrelims.Count; i++, pIdx++)
+                    prelimDayMap[twoStgPrelims[pIdx].Gender + "|" + twoStgPrelims[pIdx].EventName] = d;
+            }
+
+            // ---- 第二步：半决赛日 = 预赛日+1（下午场） ----
+            var semiDayMap = new Dictionary<string, int>();
+            foreach (var semi in semis) {
+                string key = semi.Gender + "|" + semi.EventName;
+                int pDay = prelimDayMap.ContainsKey(key) ? prelimDayMap[key] : 0;
+                semiDayMap[key] = Math.Min(pDay + 1, totalDays - 1);
+            }
+
+            // ---- 第三步：关联决赛日 ----
+            // 有半决赛的：决赛日 = 半决赛日+1（晚上场）
+            // 无半决赛的：决赛日 = 预赛日+1（晚上场）
+            var linkedFinalDayMap = new Dictionary<string, int>();
+            foreach (var lf in linkedFinals) {
+                string key = lf.Gender + "|" + lf.EventName;
+                int fDay;
+                if (semiDayMap.ContainsKey(key))
+                    fDay = semiDayMap[key] + 1;
+                else if (prelimDayMap.ContainsKey(key))
+                    fDay = prelimDayMap[key] + 1;
+                else
+                    fDay = totalDays - 1;
+                linkedFinalDayMap[key] = Math.Min(fDay, totalDays - 1);
+            }
+
+            // ---- 第四步：直接决赛均匀分配到各天晚上 ----
+            var directFinalDayMap = new Dictionary<string, int>();
+            int dfPerDay = directFinals.Count > 0 ? (int)Math.Ceiling((double)directFinals.Count / totalDays) : 0;
+            if (dfPerDay < 1 && directFinals.Count > 0) dfPerDay = directFinals.Count;
+            int dfIdx = 0;
+            for (int d = 0; d < totalDays && dfIdx < directFinals.Count; d++) {
+                for (int i = 0; i < dfPerDay && dfIdx < directFinals.Count; i++, dfIdx++)
+                    directFinalDayMap[directFinals[dfIdx].Gender + "|" + directFinals[dfIdx].EventName] = d;
+            }
+
+            // ---- 第五步：按天分组 ----
+            var prelimsByDay = new Dictionary<int, List<ScheduleItem>>();
+            foreach (var p in prelims) {
+                string key = p.Gender + "|" + p.EventName;
+                int d = prelimDayMap.ContainsKey(key) ? prelimDayMap[key] : 0;
+                if (!prelimsByDay.ContainsKey(d)) prelimsByDay[d] = new List<ScheduleItem>();
+                prelimsByDay[d].Add(p);
+            }
+            var semisByDay = new Dictionary<int, List<ScheduleItem>>();
+            foreach (var s in semis) {
+                string key = s.Gender + "|" + s.EventName;
+                int d = semiDayMap.ContainsKey(key) ? semiDayMap[key] : 1;
+                if (!semisByDay.ContainsKey(d)) semisByDay[d] = new List<ScheduleItem>();
+                semisByDay[d].Add(s);
+            }
+            var dfByDay = new Dictionary<int, List<ScheduleItem>>();
+            foreach (var df in directFinals) {
+                string key = df.Gender + "|" + df.EventName;
+                int d = directFinalDayMap.ContainsKey(key) ? directFinalDayMap[key] : 0;
+                if (!dfByDay.ContainsKey(d)) dfByDay[d] = new List<ScheduleItem>();
+                dfByDay[d].Add(df);
+            }
+            var lfByDay = new Dictionary<int, List<ScheduleItem>>();
+            foreach (var lf in linkedFinals) {
+                string key = lf.Gender + "|" + lf.EventName;
+                int d = linkedFinalDayMap.ContainsKey(key) ? linkedFinalDayMap[key] : totalDays - 1;
+                if (!lfByDay.ContainsKey(d)) lfByDay[d] = new List<ScheduleItem>();
+                lfByDay[d].Add(lf);
+            }
+
+            // ---- 第六步：逐天分配日期和时间 ----
+            // 每个项目的时间间隔 = 组数 × 每组预估用时（根据比赛距离计算）
             int sessionNum = 1;
 
             for (int day = 0; day < totalDays; day++) {
                 string dateStr = startDate.AddDays(day).ToString("yyyy-MM-dd");
+                int offsetMin; // 从场次开始时间算起的分钟偏移
 
                 // 上午场：预赛（09:00开始）
-                int morningCount = 0;
-                int morningMinute = 0;
-                while (prelimIdx < prelims.Count && morningCount < prelimsPerDay) {
-                    var item = prelims[prelimIdx];
-                    item.Date = dateStr;
-                    item.Time = string.Format("09:{0:D2}", morningMinute);
-                    item.SessionNumber = sessionNum;
-                    item.SessionName = string.Format("第{0}单元（{1}上午）", sessionNum, dateStr);
-                    _schedule.Add(item);
-                    morningMinute += 15;
-                    if (morningMinute >= 60) morningMinute = 0;
-                    prelimIdx++;
-                    morningCount++;
-                }
-                if (morningCount > 0) sessionNum++;
-
-                // 下午场：前一天预赛项目的半决赛（14:00开始）
-                int afternoonMinute = 0;
-                // 下午场：半决赛（从第2天开始才有，是前一天预赛项目的半决赛）
-                bool hasAfternoon = false;
-                if (day > 0) {
-                    int semisPerDay = semis.Count > 0 ? (int)Math.Ceiling((double)semis.Count / Math.Max(1, totalDays - 1)) : 0;
-                    int semiDayCount = 0;
-                    while (semiIdx < semis.Count && semiDayCount < semisPerDay) {
-                        var item = semis[semiIdx];
+                if (prelimsByDay.ContainsKey(day)) {
+                    offsetMin = 0;
+                    foreach (var item in prelimsByDay[day]) {
                         item.Date = dateStr;
-                        item.Time = string.Format("14:{0:D2}", afternoonMinute);
+                        item.Time = string.Format("{0:D2}:{1:D2}", 9 + offsetMin / 60, offsetMin % 60);
+                        item.SessionNumber = sessionNum;
+                        item.SessionName = string.Format("第{0}单元（{1}上午）", sessionNum, dateStr);
+                        _schedule.Add(item);
+                        int duration = Math.Max(1, item.HeatCount) * EstimateMinutesPerHeat(item.EventName);
+                        offsetMin += duration;
+                    }
+                    sessionNum++;
+                }
+
+                // 下午场：半决赛（14:00开始）
+                if (semisByDay.ContainsKey(day)) {
+                    offsetMin = 0;
+                    foreach (var item in semisByDay[day]) {
+                        item.Date = dateStr;
+                        item.Time = string.Format("{0:D2}:{1:D2}", 14 + offsetMin / 60, offsetMin % 60);
                         item.SessionNumber = sessionNum;
                         item.SessionName = string.Format("第{0}单元（{1}下午）", sessionNum, dateStr);
                         _schedule.Add(item);
-                        afternoonMinute += 15;
-                        if (afternoonMinute >= 60) afternoonMinute = 0;
-                        semiIdx++;
-                        semiDayCount++;
-                        hasAfternoon = true;
+                        int duration = Math.Max(1, item.HeatCount) * EstimateMinutesPerHeat(item.EventName);
+                        offsetMin += duration;
                     }
+                    sessionNum++;
                 }
-                if (hasAfternoon) sessionNum++;
 
                 // 晚上场：决赛（19:00开始）
-                // 第1天晚上：直接决赛（≤8人的项目）
-                // 第2天起晚上：前一天预赛的决赛（无半决赛的项目） + 前一天半决赛的决赛
-                int eveningMinute = 0;
                 bool hasEvening = false;
+                offsetMin = 0;
 
-                // 直接决赛（≤8人直接进决赛的项目），均匀分配到各天晚上
-                int dfPerDay = directFinals.Count > 0 ? (int)Math.Ceiling((double)directFinals.Count / totalDays) : 0;
-                int dfDayCount = 0;
-                while (directFinalIdx < directFinals.Count && dfDayCount < dfPerDay) {
-                    var item = directFinals[directFinalIdx];
-                    item.Date = dateStr;
-                    item.Time = string.Format("19:{0:D2}", eveningMinute);
-                    item.SessionNumber = sessionNum;
-                    item.SessionName = string.Format("第{0}单元（{1}晚上）", sessionNum, dateStr);
-                    _schedule.Add(item);
-                    eveningMinute += 15;
-                    if (eveningMinute >= 60) eveningMinute = 0;
-                    directFinalIdx++;
-                    dfDayCount++;
-                    hasEvening = true;
-                }
-
-                // 有预赛的项目的决赛（从第2天起）
-                if (day > 0) {
-                    int lfPerDay = linkedFinals.Count > 0 ? (int)Math.Ceiling((double)linkedFinals.Count / Math.Max(1, totalDays - 1)) : 0;
-                    int lfDayCount = 0;
-                    while (linkedFinalIdx < linkedFinals.Count && lfDayCount < lfPerDay) {
-                        var item = linkedFinals[linkedFinalIdx];
+                // 直接决赛
+                if (dfByDay.ContainsKey(day)) {
+                    foreach (var item in dfByDay[day]) {
                         item.Date = dateStr;
-                        item.Time = string.Format("19:{0:D2}", eveningMinute);
+                        item.Time = string.Format("{0:D2}:{1:D2}", 19 + offsetMin / 60, offsetMin % 60);
                         item.SessionNumber = sessionNum;
                         item.SessionName = string.Format("第{0}单元（{1}晚上）", sessionNum, dateStr);
                         _schedule.Add(item);
-                        eveningMinute += 15;
-                        if (eveningMinute >= 60) eveningMinute = 0;
-                        linkedFinalIdx++;
-                        lfDayCount++;
+                        int duration = Math.Max(1, item.HeatCount) * EstimateMinutesPerHeat(item.EventName);
+                        offsetMin += duration;
                         hasEvening = true;
                     }
                 }
-                if (hasEvening) sessionNum++;
-            }
 
-            // 处理剩余未分配的（如果比赛天数不够）
-            string lastDate = endDate.ToString("yyyy-MM-dd");
-            while (prelimIdx < prelims.Count) {
-                prelims[prelimIdx].Date = lastDate; prelims[prelimIdx].Time = "09:00";
-                prelims[prelimIdx].SessionNumber = sessionNum;
-                _schedule.Add(prelims[prelimIdx]); prelimIdx++;
-            }
-            while (semiIdx < semis.Count) {
-                semis[semiIdx].Date = lastDate; semis[semiIdx].Time = "14:00";
-                semis[semiIdx].SessionNumber = sessionNum;
-                _schedule.Add(semis[semiIdx]); semiIdx++;
-            }
-            while (directFinalIdx < directFinals.Count) {
-                directFinals[directFinalIdx].Date = lastDate; directFinals[directFinalIdx].Time = "19:00";
-                directFinals[directFinalIdx].SessionNumber = sessionNum;
-                _schedule.Add(directFinals[directFinalIdx]); directFinalIdx++;
-            }
-            while (linkedFinalIdx < linkedFinals.Count) {
-                linkedFinals[linkedFinalIdx].Date = lastDate; linkedFinals[linkedFinalIdx].Time = "19:00";
-                linkedFinals[linkedFinalIdx].SessionNumber = sessionNum;
-                _schedule.Add(linkedFinals[linkedFinalIdx]); linkedFinalIdx++;
+                // 关联决赛（有预赛/半决赛的项目的决赛）
+                if (lfByDay.ContainsKey(day)) {
+                    foreach (var item in lfByDay[day]) {
+                        item.Date = dateStr;
+                        item.Time = string.Format("{0:D2}:{1:D2}", 19 + offsetMin / 60, offsetMin % 60);
+                        item.SessionNumber = sessionNum;
+                        item.SessionName = string.Format("第{0}单元（{1}晚上）", sessionNum, dateStr);
+                        _schedule.Add(item);
+                        int duration = Math.Max(1, item.HeatCount) * EstimateMinutesPerHeat(item.EventName);
+                        offsetMin += duration;
+                        hasEvening = true;
+                    }
+                }
+
+                if (hasEvening) sessionNum++;
             }
 
             AddLog(string.Format("自动日程安排完成: {0}条赛程, {1}天, 上午预赛/下午半决赛/晚上决赛",
                 _schedule.Count, totalDays));
+        }
+
+        /// <summary>
+        /// 根据项目名称估算每组比赛所需分钟数（含运动员检录出场、上道准备、比赛、间歇）
+        /// 参考世界纪录成绩，考虑普通运动员较慢，加上赛间流程时间
+        /// </summary>
+        private static int EstimateMinutesPerHeat(string eventName) {
+            bool isRelay = eventName.Contains("接力");
+            // 解析距离：匹配 "50米"、"100米"、"1500米"、"4×100米" 等
+            int distance = 0;
+            var match = System.Text.RegularExpressions.Regex.Match(eventName, @"(\d+)米");
+            if (match.Success) distance = int.Parse(match.Groups[1].Value);
+
+            // 接力：实际比赛距离 = 单人距离 × 4
+            int effectiveDistance = isRelay ? distance * 4 : distance;
+
+            // 每组用时（分钟）= 预估比赛时间 + 赛间流程时间(检录、出场、上道、间歇约4分钟)
+            // 50米:  ~35秒比赛 + 4分钟流程 ≈ 5分钟
+            // 100米: ~1分15秒 + 4分钟 ≈ 6分钟
+            // 200米: ~2分30秒 + 4分钟 ≈ 7分钟
+            // 400米(含4×100接力): ~5分钟 + 5分钟 ≈ 10分钟
+            // 800米(含4×200接力): ~10分钟 + 5分钟 ≈ 15分钟
+            // 1500米: ~18分钟 + 4分钟 ≈ 22分钟
+            if (effectiveDistance <= 50) return 5;
+            if (effectiveDistance <= 100) return 6;
+            if (effectiveDistance <= 200) return 7;
+            if (effectiveDistance <= 400) return 10;
+            if (effectiveDistance <= 800) return 15;
+            return 22; // 1500米及以上
         }
 
         // ═══════════════════════════════════════════════════════════════
@@ -5608,6 +5698,37 @@ namespace SwimmingScoreboard
         }
 
         // ═══════════════════════════════════════════════════════════════
+        // 计时参数独立存储（不依赖比赛数据）
+        // ═══════════════════════════════════════════════════════════════
+        private string TimingSettingsPath {
+            get { return IOPath.Combine(AppDomain.CurrentDomain.BaseDirectory, "timing_settings.json"); }
+        }
+
+        private void SaveTimingSettings() {
+            try {
+                string json = JsonConvert.SerializeObject(_laneCloseSettings, Formatting.Indented);
+                File.WriteAllText(TimingSettingsPath, json, Encoding.UTF8);
+            } catch { }
+        }
+
+        private void LoadTimingSettings() {
+            try {
+                if (File.Exists(TimingSettingsPath)) {
+                    string json = File.ReadAllText(TimingSettingsPath, Encoding.UTF8);
+                    var loaded = JsonConvert.DeserializeObject<LaneCloseSettings>(json);
+                    if (loaded != null) {
+                        _laneCloseSettings = loaded;
+                        AddLog(string.Format("已加载计时参数: 关闭{0}s 出发台{1}s 确认{2}s 抢跳{3}s 分段{4}s 第1名停留{5}s 终点:{6}",
+                            _laneCloseSettings.LaneCloseTime, _laneCloseSettings.StartBlockCloseDelay,
+                            _laneCloseSettings.ResultConfirmCloseDelay, _laneCloseSettings.FalseStartThreshold,
+                            _laneCloseSettings.SplitDisplayTime, _laneCloseSettings.FirstPlaceHoldTime,
+                            _laneCloseSettings.FinishPosition == "left" ? "左端" : "右端"));
+                    }
+                }
+            } catch { }
+        }
+
+        // ═══════════════════════════════════════════════════════════════
         // JSON 持久化
         // ═══════════════════════════════════════════════════════════════
         private void AutoSaveData() {
@@ -5758,6 +5879,7 @@ namespace SwimmingScoreboard
                 RebuildRelayGroupedView();
                 UpdateRaceStateDisplay();
                 RefreshOverviewStats();
+                RefreshRecordFilterCombos();
 
                 AddLog("已加载赛事: " + _competitionName);
             } catch (Exception ex) {
@@ -5992,8 +6114,105 @@ namespace SwimmingScoreboard
         // ═══════════════════════════════════════════════════════════════
         // 纪录管理
         // ═══════════════════════════════════════════════════════════════
+        private bool _recordFilterUpdating = false;
+
+        private void RefreshRecordFilterCombos() {
+            if (_recordFilterUpdating) return;
+            _recordFilterUpdating = true;
+            try {
+                // 刷新项目下拉框
+                string prevEvent = RecordFilterEvent.SelectedItem != null ? RecordFilterEvent.SelectedItem.ToString() : "";
+                RecordFilterEvent.Items.Clear();
+                RecordFilterEvent.Items.Add("全部");
+                var eventSet = new HashSet<string>();
+                foreach (var r in _records) {
+                    if (!string.IsNullOrEmpty(r.EventName) && eventSet.Add(r.EventName))
+                        RecordFilterEvent.Items.Add(r.EventName);
+                }
+                RecordFilterEvent.SelectedItem = RecordFilterEvent.Items.Contains(prevEvent) ? prevEvent : "全部";
+
+                // 刷新类型下拉框
+                string prevType = RecordFilterType.SelectedItem != null ? RecordFilterType.SelectedItem.ToString() : "";
+                RecordFilterType.Items.Clear();
+                RecordFilterType.Items.Add("全部");
+                var typeSet = new HashSet<string>();
+                foreach (var r in _records) {
+                    if (!string.IsNullOrEmpty(r.RecordType) && typeSet.Add(r.RecordType))
+                        RecordFilterType.Items.Add(r.RecordType);
+                }
+                RecordFilterType.SelectedItem = RecordFilterType.Items.Contains(prevType) ? prevType : "全部";
+            } finally {
+                _recordFilterUpdating = false;
+            }
+        }
+
+        private void ApplyRecordFilter() {
+            if (_recordFilterUpdating || RecordGrid == null) return;
+
+            string gender = RecordFilterGender.SelectedItem != null ? ((ComboBoxItem)RecordFilterGender.SelectedItem).Content.ToString() : "全部";
+            string eventName = RecordFilterEvent.SelectedItem != null ? RecordFilterEvent.SelectedItem.ToString() : "全部";
+            string recordType = RecordFilterType.SelectedItem != null ? RecordFilterType.SelectedItem.ToString() : "全部";
+            string keyword = RecordFilterKeyword != null ? RecordFilterKeyword.Text.Trim() : "";
+
+            var filtered = new List<SwimmingRecord>();
+            foreach (var r in _records) {
+                if (gender != "全部" && r.Gender != gender) continue;
+                if (eventName != "全部" && r.EventName != eventName) continue;
+                if (recordType != "全部" && r.RecordType != recordType) continue;
+                if (!string.IsNullOrEmpty(keyword)) {
+                    bool match = false;
+                    if (r.HolderName != null && r.HolderName.IndexOf(keyword, StringComparison.OrdinalIgnoreCase) >= 0) match = true;
+                    if (r.HolderCountry != null && r.HolderCountry.IndexOf(keyword, StringComparison.OrdinalIgnoreCase) >= 0) match = true;
+                    if (r.Location != null && r.Location.IndexOf(keyword, StringComparison.OrdinalIgnoreCase) >= 0) match = true;
+                    if (!match) continue;
+                }
+                filtered.Add(r);
+            }
+            RecordGrid.ItemsSource = filtered;
+            RecordFilterCount.Text = string.Format("共 {0} 条（总 {1} 条）", filtered.Count, _records.Count);
+        }
+
+        private void RecordFilter_Changed(object sender, SelectionChangedEventArgs e) {
+            if (_initialized && !_recordFilterUpdating) ApplyRecordFilter();
+        }
+
+        private void RecordFilter_Changed(object sender, TextChangedEventArgs e) {
+            if (_initialized && !_recordFilterUpdating) ApplyRecordFilter();
+        }
+
+        private void RecordFilterReset_Click(object sender, RoutedEventArgs e) {
+            _recordFilterUpdating = true;
+            RecordFilterGender.SelectedIndex = 0;
+            if (RecordFilterEvent.Items.Count > 0) RecordFilterEvent.SelectedIndex = 0;
+            if (RecordFilterType.Items.Count > 0) RecordFilterType.SelectedIndex = 0;
+            RecordFilterKeyword.Text = "";
+            _recordFilterUpdating = false;
+            RecordGrid.ItemsSource = _records;
+            RecordFilterCount.Text = string.Format("共 {0} 条", _records.Count);
+        }
+
+        private void ClearAllRecords_Click(object sender, RoutedEventArgs e) {
+            if (_records.Count == 0) {
+                MessageBox.Show("当前没有纪录数据。", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            var result = MessageBox.Show(
+                string.Format("确定要删除全部 {0} 条纪录数据吗？\n\n此操作不可撤销！", _records.Count),
+                "删除全部纪录", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+            if (result == MessageBoxResult.Yes) {
+                int count = _records.Count;
+                _records.Clear();
+                AutoSaveData();
+                Broadcast();
+                RefreshRecordFilterCombos();
+                RecordFilterReset_Click(null, null);
+                AddLog(string.Format("已删除全部 {0} 条纪录数据", count));
+            }
+        }
+
         private void AddRecord_Click(object sender, RoutedEventArgs e) {
             _records.Add(new SwimmingRecord { RecordType = "赛会纪录", Gender = "男" });
+            RefreshRecordFilterCombos();
         }
 
         private void DeleteRecord_Click(object sender, RoutedEventArgs e) {
@@ -6001,98 +6220,245 @@ namespace SwimmingScoreboard
             if (selected != null) {
                 _records.Remove(selected);
                 AutoSaveData();
+                RefreshRecordFilterCombos();
+                ApplyRecordFilter();
             }
         }
 
         private void ImportDefaultRecords_Click(object sender, RoutedEventArgs e) {
-            // 预置世界纪录（长池50米，截至2024年数据）
+            // 预置世界纪录（长池50米，截至2025年最新数据）
             var defaults = new[] {
-                // 男子
-                new { G="男", E="50米自由泳", T=20.91, H="Cielo", C="巴西", D="2009-12-18" },
-                new { G="男", E="100米自由泳", T=46.86, H="Pan Zhanle", C="中国", D="2024-07-31" },
-                new { G="男", E="200米自由泳", T=102.00, H="Milak", C="匈牙利", D="2024-02-11" },
-                new { G="男", E="400米自由泳", T=220.07, H="Thorpe", C="澳大利亚", D="2002-07-30" },
-                new { G="男", E="800米自由泳", T=452.12, H="Zhang Lin", C="中国", D="2009-07-29" },
-                new { G="男", E="1500米自由泳", T=871.02, H="Sun Yang", C="中国", D="2012-08-04" },
-                new { G="男", E="100米仰泳", T=51.60, H="Xu Jiayu", C="中国", D="2024-07-29" },
-                new { G="男", E="200米仰泳", T=111.92, H="Peirsol", C="美国", D="2009-07-31" },
-                new { G="男", E="100米蛙泳", T=56.88, H="Peaty", C="英国", D="2019-07-21" },
-                new { G="男", E="200米蛙泳", T=125.95, H="Stubblety-Cook", C="澳大利亚", D="2022-06-19" },
-                new { G="男", E="100米蝶泳", T=49.45, H="Caeleb Dressel", C="美国", D="2021-07-31" },
-                new { G="男", E="200米蝶泳", T=110.34, H="Milak", C="匈牙利", D="2022-06-14" },
-                new { G="男", E="200米个人混合泳", T=114.00, H="Lochte", C="美国", D="2011-07-28" },
-                new { G="男", E="400米个人混合泳", T=243.84, H="Phelps", C="美国", D="2008-08-10" },
-                // 女子
-                new { G="女", E="50米自由泳", T=23.61, H="Sjoestroem", C="瑞典", D="2024-07-28" },
-                new { G="女", E="100米自由泳", T=51.71, H="Sjoestroem", C="瑞典", D="2017-07-23" },
-                new { G="女", E="200米自由泳", T=112.98, H="Titmus", C="澳大利亚", D="2023-02-12" },
-                new { G="女", E="400米自由泳", T=235.82, H="Titmus", C="澳大利亚", D="2023-06-07" },
-                new { G="女", E="800米自由泳", T=494.07, H="Ledecky", C="美国", D="2016-08-12" },
-                new { G="女", E="1500米自由泳", T=920.48, H="Ledecky", C="美国", D="2018-05-20" },
-                new { G="女", E="100米仰泳", T=57.33, H="Kaylee McKeown", C="澳大利亚", D="2023-06-18" },
-                new { G="女", E="200米仰泳", T=123.35, H="McKeown", C="澳大利亚", D="2024-07-30" },
-                new { G="女", E="100米蛙泳", T=64.13, H="Lilly King", C="美国", D="2017-07-25" },
-                new { G="女", E="200米蛙泳", T=138.95, H="Tatjana Schoenmaker", C="南非", D="2021-07-30" },
-                new { G="女", E="100米蝶泳", T=55.18, H="Gretchen Walsh", C="美国", D="2024-12-19" },
-                new { G="女", E="200米蝶泳", T=121.81, H="Liu Zige", C="中国", D="2009-10-21" },
-                new { G="女", E="200米个人混合泳", T=124.06, H="Katinka Hosszu", C="匈牙利", D="2015-08-03" },
-                new { G="女", E="400米个人混合泳", T=266.36, H="Ye Shiwen", C="中国", D="2012-07-28" }
+                // ═══ 男子个人 ═══
+                new { G="男", E="50米自由泳",       T=20.91,  H="César Cielo",          C="巴西",   D="2009-12-18", L="圣保罗" },
+                new { G="男", E="100米自由泳",      T=46.40,  H="潘展乐",               C="中国",   D="2024-07-31", L="巴黎" },
+                new { G="男", E="200米自由泳",      T=102.00, H="Paul Biedermann",      C="德国",   D="2009-07-28", L="罗马" },
+                new { G="男", E="400米自由泳",      T=219.96, H="Lukas Märtens",        C="德国",   D="2025-04-12", L="布达佩斯" },
+                new { G="男", E="800米自由泳",      T=451.12, H="张琳",                 C="中国",   D="2009-07-29", L="罗马" },
+                new { G="男", E="1500米自由泳",     T=870.67, H="Bobby Finke",          C="美国",   D="2024-08-04", L="巴黎" },
+                new { G="男", E="50米仰泳",         T=23.55,  H="Kliment Kolesnikov",   C="俄罗斯", D="2023-07-27", L="福冈" },
+                new { G="男", E="100米仰泳",        T=51.60,  H="Thomas Ceccon",        C="意大利", D="2022-06-20", L="布达佩斯" },
+                new { G="男", E="200米仰泳",        T=111.92, H="Aaron Peirsol",        C="美国",   D="2009-07-31", L="罗马" },
+                new { G="男", E="50米蛙泳",         T=25.95,  H="Adam Peaty",           C="英国",   D="2017-07-25", L="布达佩斯" },
+                new { G="男", E="100米蛙泳",        T=56.88,  H="Adam Peaty",           C="英国",   D="2019-07-21", L="光州" },
+                new { G="男", E="200米蛙泳",        T=125.48, H="覃海洋",               C="中国",   D="2023-07-28", L="福冈" },
+                new { G="男", E="50米蝶泳",         T=22.27,  H="Andrii Govorov",       C="乌克兰", D="2018-07-01", L="罗马" },
+                new { G="男", E="100米蝶泳",        T=49.45,  H="Caeleb Dressel",       C="美国",   D="2021-07-31", L="东京" },
+                new { G="男", E="200米蝶泳",        T=110.34, H="Kristóf Milák",        C="匈牙利", D="2022-06-21", L="布达佩斯" },
+                new { G="男", E="200米个人混合泳",  T=112.69, H="Léon Marchand",        C="法国",   D="2025-07-30", L="新加坡" },
+                new { G="男", E="400米个人混合泳",  T=242.50, H="Léon Marchand",        C="法国",   D="2023-07-23", L="福冈" },
+                // ═══ 男子接力 ═══
+                new { G="男", E="4×100米自由泳接力",  T=188.24, H="美国队",  C="美国", D="2008-08-11", L="北京" },
+                new { G="男", E="4×200米自由泳接力",  T=418.55, H="美国队",  C="美国", D="2009-07-31", L="罗马" },
+                new { G="男", E="4×100米混合泳接力",  T=206.78, H="美国队",  C="美国", D="2021-08-01", L="东京" },
+                // ═══ 女子个人 ═══
+                new { G="女", E="50米自由泳",       T=23.61,  H="Sarah Sjöström",       C="瑞典",     D="2023-07-29", L="福冈" },
+                new { G="女", E="100米自由泳",      T=51.71,  H="Sarah Sjöström",       C="瑞典",     D="2017-07-23", L="布达佩斯" },
+                new { G="女", E="200米自由泳",      T=112.23, H="Ariarne Titmus",       C="澳大利亚", D="2024-06-12", L="布里斯班" },
+                new { G="女", E="400米自由泳",      T=234.18, H="Summer McIntosh",      C="加拿大",   D="2025-06-07", L="多伦多" },
+                new { G="女", E="800米自由泳",      T=484.12, H="Katie Ledecky",        C="美国",     D="2025-05-03", L="印第安纳波利斯" },
+                new { G="女", E="1500米自由泳",     T=920.48, H="Katie Ledecky",        C="美国",     D="2018-05-16", L="印第安纳波利斯" },
+                new { G="女", E="50米仰泳",         T=26.86,  H="Kaylee McKeown",       C="澳大利亚", D="2023-10-20", L="柏林" },
+                new { G="女", E="100米仰泳",        T=57.13,  H="Regan Smith",          C="美国",     D="2024-06-18", L="印第安纳波利斯" },
+                new { G="女", E="200米仰泳",        T=123.14, H="Kaylee McKeown",       C="澳大利亚", D="2023-03-10", L="墨尔本" },
+                new { G="女", E="50米蛙泳",         T=29.16,  H="Rūta Meilutytė",      C="立陶宛",   D="2023-07-30", L="福冈" },
+                new { G="女", E="100米蛙泳",        T=64.13,  H="Lilly King",           C="美国",     D="2017-07-25", L="布达佩斯" },
+                new { G="女", E="200米蛙泳",        T=137.55, H="Evgeniia Chikunova",   C="俄罗斯",   D="2023-04-21", L="喀山" },
+                new { G="女", E="50米蝶泳",         T=24.43,  H="Sarah Sjöström",       C="瑞典",     D="2014-07-05", L="博洛斯" },
+                new { G="女", E="100米蝶泳",        T=54.60,  H="Gretchen Walsh",       C="美国",     D="2025-05-03", L="印第安纳波利斯" },
+                new { G="女", E="200米蝶泳",        T=121.81, H="刘子歌",               C="中国",     D="2009-10-21", L="济南" },
+                new { G="女", E="200米个人混合泳",  T=125.70, H="Summer McIntosh",      C="加拿大",   D="2025-06-09", L="多伦多" },
+                new { G="女", E="400米个人混合泳",  T=263.65, H="Summer McIntosh",      C="加拿大",   D="2025-06-11", L="多伦多" },
+                // ═══ 女子接力 ═══
+                new { G="女", E="4×100米自由泳接力",  T=207.96, H="澳大利亚队", C="澳大利亚", D="2023-07-23", L="福冈" },
+                new { G="女", E="4×200米自由泳接力",  T=457.50, H="澳大利亚队", C="澳大利亚", D="2023-07-27", L="福冈" },
+                new { G="女", E="4×100米混合泳接力",  T=229.34, H="美国队",     C="美国",     D="2025-08-03", L="新加坡" },
+                // ═══ 混合接力 ═══
+                new { G="混合", E="4×100米自由泳接力",  T=198.48, H="美国队", C="美国", D="2025-08-02", L="新加坡" },
+                new { G="混合", E="4×100米混合泳接力",  T=217.43, H="美国队", C="美国", D="2024-08-03", L="巴黎" }
             };
 
-            int added = 0;
+            int added = 0, updated = 0;
             foreach (var d in defaults) {
-                // 检查是否已存在
-                bool exists = false;
+                // 查找是否已存在同项目同性别的世界纪录
+                SwimmingRecord existing = null;
                 foreach (var r in _records) {
-                    if (r.Gender == d.G && r.EventName == d.E && r.RecordType == "世界纪录") { exists = true; break; }
+                    if (r.Gender == d.G && r.EventName == d.E && r.RecordType == "世界纪录") { existing = r; break; }
                 }
-                if (!exists) {
+                if (existing != null) {
+                    // 如果成绩更好（更小），则更新
+                    if (d.T < existing.Time) {
+                        existing.HolderName = d.H; existing.HolderCountry = d.C;
+                        existing.Time = d.T; existing.TimeInSeconds = d.T;
+                        existing.Date = d.D; existing.Location = d.L;
+                        updated++;
+                    } else if (string.IsNullOrEmpty(existing.Location)) {
+                        existing.Location = d.L; // 补充缺失的地点
+                    }
+                } else {
                     _records.Add(new SwimmingRecord {
                         Gender = d.G, EventName = d.E, RecordType = "世界纪录",
                         HolderName = d.H, HolderCountry = d.C,
-                        Time = d.T, TimeInSeconds = d.T, Date = d.D
+                        Time = d.T, TimeInSeconds = d.T, Date = d.D, Location = d.L
                     });
                     added++;
                 }
             }
-            AddLog(string.Format("已导入{0}条世界纪录", added));
+            AddLog(string.Format("世界纪录: 新增{0}条, 更新{1}条", added, updated));
             AutoSaveData();
             Broadcast();
+            RefreshRecordFilterCombos();
         }
 
         private void ImportRecordsCSV_Click(object sender, RoutedEventArgs e) {
             var dlg = new Microsoft.Win32.OpenFileDialog {
                 Filter = "CSV文件|*.csv|所有文件|*.*",
-                Title = "导入纪录CSV（格式：性别,项目,类型,保持者,代表队,成绩秒数,日期,地点）"
+                Title = "导入纪录CSV（格式：性别,项目,类型,保持者,代表队,成绩(如1:42.00),日期,地点）"
             };
             if (dlg.ShowDialog() == true) {
                 try {
-                    string[] lines = File.ReadAllLines(dlg.FileName, Encoding.UTF8);
-                    int imported = 0;
+                    // 自动检测编码：有UTF-8 BOM用UTF-8，否则用系统默认编码（中文Windows为GBK）
+                    // Excel保存CSV默认用系统编码，不加BOM，直接用UTF-8读会中文乱码
+                    Encoding csvEncoding = Encoding.Default;
+                    byte[] rawBytes = File.ReadAllBytes(dlg.FileName);
+                    if (rawBytes.Length >= 3 && rawBytes[0] == 0xEF && rawBytes[1] == 0xBB && rawBytes[2] == 0xBF)
+                        csvEncoding = Encoding.UTF8;
+                    string[] lines = File.ReadAllLines(dlg.FileName, csvEncoding);
+                    int imported = 0, skipped = 0;
                     for (int i = 1; i < lines.Length; i++) {
-                        string[] cols = lines[i].Split(',');
-                        if (cols.Length < 6) continue;
-                        var rec = new SwimmingRecord {
-                            Gender = cols[0].Trim(),
-                            EventName = cols[1].Trim(),
-                            RecordType = cols[2].Trim(),
-                            HolderName = cols[3].Trim(),
-                            HolderCountry = cols[4].Trim()
-                        };
-                        double t;
-                        if (double.TryParse(cols[5].Trim(), out t)) { rec.Time = t; rec.TimeInSeconds = t; }
-                        else { rec.Time = TimeFormatter.Parse(cols[5].Trim()); rec.TimeInSeconds = rec.Time; }
-                        if (cols.Length > 6) rec.Date = cols[6].Trim();
-                        if (cols.Length > 7) rec.Location = cols[7].Trim();
-                        _records.Add(rec);
-                        imported++;
+                        string line = lines[i].Trim();
+                        if (string.IsNullOrEmpty(line)) continue;
+                        string[] cols = line.Split(',');
+                        if (cols.Length < 3) continue;
+
+                        string gender = cols[0].Trim();
+                        string eventName = cols[1].Trim();
+                        string recordType = cols[2].Trim();
+                        string holderName = cols.Length > 3 ? cols[3].Trim() : "";
+                        string holderCountry = cols.Length > 4 ? cols[4].Trim() : "";
+                        string timeStr = cols.Length > 5 ? cols[5].Trim() : "";
+                        string dateStr = cols.Length > 6 ? cols[6].Trim() : "";
+                        string location = cols.Length > 7 ? cols[7].Trim() : "";
+
+                        // 跳过成绩为空的行（模板占位行）
+                        if (string.IsNullOrEmpty(timeStr) || string.IsNullOrEmpty(holderName)) { skipped++; continue; }
+
+                        // 统一使用TimeFormatter.Parse解析时间格式（支持 SS.ss / M:SS.ss / H:MM:SS.ss）
+                        double t = TimeFormatter.Parse(timeStr);
+                        if (t <= 0) { skipped++; continue; }
+
+                        // 查找是否已存在相同纪录，已存在则更新（取更好成绩）
+                        SwimmingRecord existing = null;
+                        foreach (var r in _records) {
+                            if (r.Gender == gender && r.EventName == eventName && r.RecordType == recordType) {
+                                existing = r; break;
+                            }
+                        }
+                        if (existing != null) {
+                            if (t < existing.Time) {
+                                existing.HolderName = holderName; existing.HolderCountry = holderCountry;
+                                existing.Time = t; existing.TimeInSeconds = t;
+                                existing.Date = dateStr; existing.Location = location;
+                                imported++;
+                            } else { skipped++; }
+                        } else {
+                            _records.Add(new SwimmingRecord {
+                                Gender = gender, EventName = eventName, RecordType = recordType,
+                                HolderName = holderName, HolderCountry = holderCountry,
+                                Time = t, TimeInSeconds = t, Date = dateStr, Location = location
+                            });
+                            imported++;
+                        }
                     }
-                    AddLog(string.Format("CSV导入{0}条纪录", imported));
+                    AddLog(string.Format("CSV导入纪录: 导入{0}条, 跳过{1}条（空行/重复/较慢）", imported, skipped));
                     AutoSaveData();
                     Broadcast();
+                    RefreshRecordFilterCombos();
                 } catch (Exception ex) {
                     AddLog("CSV导入纪录失败: " + ex.Message);
                 }
+            }
+        }
+
+        private void ExportRecordTemplate_Click(object sender, RoutedEventArgs e) {
+            var dlg = new Microsoft.Win32.SaveFileDialog {
+                Filter = "CSV文件|*.csv",
+                Title = "保存纪录模板（用Excel打开填写后，通过【导入CSV纪录】读入）",
+                FileName = "游泳纪录模板.csv"
+            };
+            if (dlg.ShowDialog() != true) return;
+            try {
+                // 所有比赛项目（个人 + 接力）
+                var events = new[] {
+                    "50米自由泳", "100米自由泳", "200米自由泳", "400米自由泳", "800米自由泳", "1500米自由泳",
+                    "50米仰泳", "100米仰泳", "200米仰泳",
+                    "50米蛙泳", "100米蛙泳", "200米蛙泳",
+                    "50米蝶泳", "100米蝶泳", "200米蝶泳",
+                    "200米个人混合泳", "400米个人混合泳",
+                    "4×100米自由泳接力", "4×200米自由泳接力", "4×100米混合泳接力"
+                };
+                var genders = new[] { "男", "女" };
+                var recordTypes = new[] { "世界纪录", "奥运会纪录", "亚洲纪录", "亚洲青年纪录", "全国纪录", "省运会纪录", "赛会纪录" };
+
+                var sb = new System.Text.StringBuilder();
+                // BOM + 表头
+                sb.Append('\uFEFF');
+                sb.AppendLine("性别,项目,类型,保持者,代表队,成绩,日期,地点");
+
+                // 已有的纪录数据先填入对应位置
+                var existingMap = new Dictionary<string, SwimmingRecord>();
+                foreach (var r in _records) {
+                    string key = r.Gender + "|" + r.EventName + "|" + r.RecordType;
+                    existingMap[key] = r;
+                }
+
+                foreach (string recType in recordTypes) {
+                    foreach (string gender in genders) {
+                        foreach (string ev in events) {
+                            string key = gender + "|" + ev + "|" + recType;
+                            SwimmingRecord existing;
+                            if (existingMap.TryGetValue(key, out existing) && existing.Time > 0) {
+                                sb.AppendLine(string.Format("{0},{1},{2},{3},{4},{5},{6},{7}",
+                                    gender, ev, recType,
+                                    existing.HolderName ?? "", existing.HolderCountry ?? "",
+                                    TimeFormatter.Format(existing.Time),
+                                    existing.Date ?? "", existing.Location ?? ""));
+                            } else {
+                                sb.AppendLine(string.Format("{0},{1},{2},,,,,", gender, ev, recType));
+                            }
+                        }
+                    }
+                    // 混合接力（仅部分项目）
+                    if (recType == "世界纪录" || recType == "奥运会纪录") {
+                        foreach (string ev in new[] { "4×100米自由泳接力", "4×100米混合泳接力" }) {
+                            string key = "混合|" + ev + "|" + recType;
+                            SwimmingRecord existing;
+                            if (existingMap.TryGetValue(key, out existing) && existing.Time > 0) {
+                                sb.AppendLine(string.Format("混合,{0},{1},{2},{3},{4},{5},{6}",
+                                    ev, recType,
+                                    existing.HolderName ?? "", existing.HolderCountry ?? "",
+                                    TimeFormatter.Format(existing.Time),
+                                    existing.Date ?? "", existing.Location ?? ""));
+                            } else {
+                                sb.AppendLine(string.Format("混合,{0},{1},,,,,", ev, recType));
+                            }
+                        }
+                    }
+                }
+
+                File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
+                AddLog("已导出纪录模板: " + dlg.FileName);
+                MessageBox.Show(
+                    "纪录模板已保存！\n\n" +
+                    "使用说明：\n" +
+                    "1. 用Excel打开CSV文件\n" +
+                    "2. 在空行中填入各项纪录（保持者、代表队、成绩、日期、地点）\n" +
+                    "3. 成绩格式：秒.百分秒(如20.91) 或 分:秒.百分秒(如1:42.00) 或 时:分:秒.百分秒\n" +
+                    "4. 已有世界纪录数据已预填，可直接修改\n" +
+                    "5. 未填的行会自动跳过\n" +
+                    "6. 保存后通过【导入CSV纪录】按钮一次性读入",
+                    "纪录模板", MessageBoxButton.OK, MessageBoxImage.Information);
+            } catch (Exception ex) {
+                AddLog("导出纪录模板失败: " + ex.Message);
             }
         }
 

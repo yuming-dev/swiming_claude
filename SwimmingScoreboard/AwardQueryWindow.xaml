@@ -1,4 +1,4 @@
-<Window x:Class="SwimmingScoreboard.AwardQueryWindow"
+﻿<Window x:Class="SwimmingScoreboard.AwardQueryWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="颁奖查询" Width="600" Height="400"

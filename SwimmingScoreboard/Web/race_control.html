@@ -28,10 +28,10 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 .schedule-tree-panel { width: 220px; background: var(--card); border-right: 1px solid #334155; display: flex; flex-direction: column; overflow: hidden; }
 .schedule-tree-panel .panel-header { padding: 8px 10px; font-size: 14px; font-weight: bold; color: #3B82F6; background: #172033; }
 .schedule-tree-panel .panel-header button { background: none; border: none; color: var(--dim); cursor: pointer; font-size: 16px; }
-.log-section { border-top: 1px solid #334155; height: 100px; display: flex; flex-direction: column; }
+.log-section { border-top: 1px solid #334155; flex: 1; display: flex; flex-direction: column; min-height: 0; }
 .log-section .log-header { padding: 6px 10px; font-size: 12px; font-weight: bold; color: #3B82F6; background: #172033; }
 .log-section .log-content { flex: 1; overflow-y: auto; padding: 4px 8px; font-size: 11px; color: var(--dim); }
-.tree-scroll { flex: 1; overflow-y: auto; padding: 4px 0; }
+.tree-scroll { flex: 2; overflow-y: auto; padding: 4px 0; min-height: 0; }
 .tree-session { }
 .tree-session-header { padding: 4px 10px; font-size: 13px; font-weight: bold; color: var(--dim); cursor: pointer; user-select: none; }
 .tree-session-header:hover { color: var(--text); }
@@ -574,12 +574,14 @@ function render() {
     if (data.laneCloseSettings) {
         if (data.laneCloseSettings.startPosition) startPosition = data.laneCloseSettings.startPosition;
         if (data.laneCloseSettings.finishPosition) finishPosition = data.laneCloseSettings.finishPosition;
+        if (data.laneCloseSettings.firstPlaceHoldTime) firstPlaceHoldTime = data.laneCloseSettings.firstPlaceHoldTime;
         if (document.getElementById('settingsModal').classList.contains('hidden')) {
             document.getElementById('dlgCloseTime').value = data.laneCloseSettings.laneCloseTime;
             document.getElementById('dlgSBDelay').value = data.laneCloseSettings.startBlockCloseDelay;
             document.getElementById('dlgConfDelay').value = data.laneCloseSettings.resultConfirmCloseDelay;
             document.getElementById('dlgFSThresh').value = data.laneCloseSettings.falseStartThreshold;
             document.getElementById('dlgSplitDisp').value = data.laneCloseSettings.splitDisplayTime;
+            document.getElementById('dlgFirstPlaceHold').value = data.laneCloseSettings.firstPlaceHoldTime;
         }
     }
 
@@ -821,7 +823,8 @@ function applySettings() {
         resultConfirmCloseDelay: parseFloat(document.getElementById('dlgConfDelay').value) || 3,
         falseStartThreshold: parseFloat(document.getElementById('dlgFSThresh').value) || 0.10,
         splitDisplayTime: parseFloat(document.getElementById('dlgSplitDisp').value) || 5,
-        startPosition: finishPosition  // 发送终点位置，服务器根据项目自动计算发令位置
+        startPosition: finishPosition,  // 发送终点位置，服务器根据项目自动计算发令位置
+        firstPlaceHoldTime: firstPlaceHoldTime
     };
     sendCmd('SET_LANE_CLOSE_SETTINGS', settings);
     addLog('参数已更新，第1名停留: ' + firstPlaceHoldTime + 's，终点位置: ' + (finishPosition === 'left' ? '左端' : '右端'));
@@ -1138,7 +1141,7 @@ function buildArrows(sw, swDir, dir) {
     var closeTime = (data.laneCloseSettings ? data.laneCloseSettings.laneCloseTime : 20) || 20;
     var arrow = swDir === '←' ? '◀' : '▶';
 
-    var maxArrows = 12;
+    var maxArrows = 8;
 
     if (countdown > 0) {
         // 泳道关闭中：根据进度比例计算箭头数量（倒计时结束时满箭头）

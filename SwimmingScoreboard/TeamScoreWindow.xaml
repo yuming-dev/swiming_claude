@@ -1,4 +1,4 @@
-<Window x:Class="SwimmingScoreboard.TeamScoreWindow"
+﻿<Window x:Class="SwimmingScoreboard.TeamScoreWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="团体成绩" Width="800" Height="500"

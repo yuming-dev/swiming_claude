@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
@@ -40,7 +40,8 @@ namespace SwimmingScoreboard
         private double _falseStartThreshold = 0.10;
         private double _splitDisplayTime = 5.0;
         private string _startPosition = "left";
-        private string _finishPosition = "left";  // 终点（触板端）位置，整场比赛固定不变
+        private string _finishPosition = "left";  // ���点（触板端）位置，整场比赛固定不变
+        private double _firstPlaceHoldTime = 3.0;
 
         public double LaneCloseTime {
             get { return _laneCloseTime; }
@@ -69,6 +70,10 @@ namespace SwimmingScoreboard
         public string FinishPosition {
             get { return _finishPosition; }
             set { _finishPosition = value; OnPropertyChanged("FinishPosition"); }
+        }
+        public double FirstPlaceHoldTime {
+            get { return _firstPlaceHoldTime; }
+            set { _firstPlaceHoldTime = value; OnPropertyChanged("FirstPlaceHoldTime"); }
         }
 
         public event PropertyChangedEventHandler PropertyChanged;
@@ -640,6 +645,23 @@ namespace SwimmingScoreboard
         }
 
         public string TimeDisplay { get { return TimeFormatter.Format(_time); } }
+
+        /// <summary>
+        /// 可编辑的成绩字段，支持输入 SS.ss / M:SS.ss / H:MM:SS.ss 格式
+        /// 设置时自动解析为秒数并同步 Time 和 TimeInSeconds
+        /// </summary>
+        [Newtonsoft.Json.JsonIgnore]
+        public string TimeText {
+            get { return TimeFormatter.Format(_time); }
+            set {
+                double parsed = TimeFormatter.Parse(value);
+                if (parsed > 0) {
+                    Time = parsed;
+                    TimeInSeconds = parsed;
+                }
+                OnPropertyChanged("TimeText");
+            }
+        }
 
         public event PropertyChangedEventHandler PropertyChanged;
         protected void OnPropertyChanged(string name) {
