@@ -2514,9 +2514,9 @@ namespace SwimmingScoreboard
 
                 // Col 2: 左设备
                 var leftDev = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(2, 0, 0, 0) };
-                Color touchLColor = (Color)ColorConverter.ConvertFromString(ls != null && ls.LeftManualEnabled ? (ls.LeftManualStatus == DeviceStatus.Open ? "#22C55E" : "#475569") : "#334155");
                 bool leftManualOn = ls == null || ls.LeftManualEnabled;
-                var touchL = new Button { Content = "T", Width = 80, Height = 26, FontSize = 14, Background = new SolidColorBrush(touchLColor), Foreground = Brushes.White, BorderThickness = new Thickness(0), IsEnabled = leftManualOn, Opacity = leftManualOn ? 1.0 : 0.25 };
+                Color touchLColor = (Color)ColorConverter.ConvertFromString(leftManualOn ? (ls != null && ls.LeftManualStatus == DeviceStatus.Open ? "#22C55E" : "#475569") : "#1E293B");
+                var touchL = new Button { Content = "T", Width = 80, Height = 26, FontSize = 14, Background = new SolidColorBrush(touchLColor), Foreground = Brushes.White, BorderThickness = new Thickness(0), IsEnabled = leftManualOn, Opacity = leftManualOn ? 1.0 : 0.5 };
                 int capLane = lane;
                 touchL.PreviewMouseLeftButtonDown += delegate(object s1, System.Windows.Input.MouseButtonEventArgs e1) { e1.Handled = true; HandleTimingCommand(Newtonsoft.Json.Linq.JObject.FromObject(new { command = "MANUAL_TOUCH_LEFT", data = new { lane = capLane } })); };
                 leftDev.Children.Add(touchL);
@@ -2584,9 +2584,9 @@ namespace SwimmingScoreboard
                     rightDev.Children.Add(MakeLaneDot(ls.RightBlindWatch2Status));
                     rightDev.Children.Add(MakeLaneDot(ls.RightBlindWatch3Status));
                 }
-                Color touchRColor = (Color)ColorConverter.ConvertFromString(ls != null && ls.RightManualEnabled ? (ls.RightManualStatus == DeviceStatus.Open ? "#22C55E" : "#475569") : "#334155");
                 bool rightManualOn = ls == null || ls.RightManualEnabled;
-                var touchR = new Button { Content = "T", Width = 80, Height = 26, FontSize = 14, Background = new SolidColorBrush(touchRColor), Foreground = Brushes.White, BorderThickness = new Thickness(0), IsEnabled = rightManualOn, Opacity = rightManualOn ? 1.0 : 0.25 };
+                Color touchRColor = (Color)ColorConverter.ConvertFromString(rightManualOn ? (ls != null && ls.RightManualStatus == DeviceStatus.Open ? "#22C55E" : "#475569") : "#1E293B");
+                var touchR = new Button { Content = "T", Width = 80, Height = 26, FontSize = 14, Background = new SolidColorBrush(touchRColor), Foreground = Brushes.White, BorderThickness = new Thickness(0), IsEnabled = rightManualOn, Opacity = rightManualOn ? 1.0 : 0.5 };
                 touchR.PreviewMouseLeftButtonDown += delegate(object s2, System.Windows.Input.MouseButtonEventArgs e2) { e2.Handled = true; HandleTimingCommand(Newtonsoft.Json.Linq.JObject.FromObject(new { command = "MANUAL_TOUCH_RIGHT", data = new { lane = capLane } })); };
                 rightDev.Children.Add(touchR);
                 Grid.SetColumn(rightDev, 4); grid.Children.Add(rightDev);

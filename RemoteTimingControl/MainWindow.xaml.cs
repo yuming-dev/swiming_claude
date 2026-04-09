@@ -970,13 +970,13 @@ namespace RemoteTimingControl
                 bool rightManualEnabled = mb != null && mb["rightEnabled"] != null && (bool)mb["rightEnabled"];
                 string leftManualStatus = mb != null && mb["leftStatus"] != null ? mb["leftStatus"].ToString() : "closed";
                 string rightManualStatus = mb != null && mb["rightStatus"] != null ? mb["rightStatus"].ToString() : "closed";
-                Color touchLColor = (Color)ColorConverter.ConvertFromString(leftManualEnabled ? (leftManualStatus == "open" ? "#22C55E" : "#475569") : "#334155");
+                Color touchLColor = (Color)ColorConverter.ConvertFromString(leftManualEnabled ? (leftManualStatus == "open" ? "#22C55E" : "#475569") : "#1E293B");
                 var touchBtnL = new Button
                 {
                     Content = "T", Width = 80, Height = 30, FontSize = 15,
                     Background = new SolidColorBrush(touchLColor),
                     Foreground = Brushes.White, BorderThickness = new Thickness(0),
-                    IsEnabled = leftManualEnabled, Opacity = leftManualEnabled ? 1.0 : 0.25
+                    IsEnabled = leftManualEnabled, Opacity = leftManualEnabled ? 1.0 : 0.5
                 };
                 touchBtnL.PreviewMouseLeftButtonDown += delegate { if (leftManualEnabled) SendCmd("MANUAL_TOUCH_LEFT", new { lane = capturedLane }); };
                 leftDevices.Children.Add(touchBtnL);
@@ -1105,13 +1105,13 @@ namespace RemoteTimingControl
                 rightDevices.Children.Add(MakeDeviceDot(GetDeviceStatus(ds, "rightBlindWatch1")));
                 rightDevices.Children.Add(MakeDeviceDot(GetDeviceStatus(ds, "rightBlindWatch2")));
                 rightDevices.Children.Add(MakeDeviceDot(GetDeviceStatus(ds, "rightBlindWatch3")));
-                Color touchRColor = (Color)ColorConverter.ConvertFromString(rightManualEnabled ? (rightManualStatus == "open" ? "#22C55E" : "#475569") : "#334155");
+                Color touchRColor = (Color)ColorConverter.ConvertFromString(rightManualEnabled ? (rightManualStatus == "open" ? "#22C55E" : "#475569") : "#1E293B");
                 var touchBtnR = new Button
                 {
                     Content = "T", Width = 80, Height = 30, FontSize = 15,
                     Background = new SolidColorBrush(touchRColor),
                     Foreground = Brushes.White, BorderThickness = new Thickness(0),
-                    IsEnabled = rightManualEnabled, Opacity = rightManualEnabled ? 1.0 : 0.25
+                    IsEnabled = rightManualEnabled, Opacity = rightManualEnabled ? 1.0 : 0.5
                 };
                 touchBtnR.PreviewMouseLeftButtonDown += delegate { if (rightManualEnabled) SendCmd("MANUAL_TOUCH_RIGHT", new { lane = capturedLane }); };
                 rightDevices.Children.Add(touchBtnR);
