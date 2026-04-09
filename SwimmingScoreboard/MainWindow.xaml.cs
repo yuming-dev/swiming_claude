@@ -2516,7 +2516,7 @@ namespace SwimmingScoreboard
                 var leftDev = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(2, 0, 0, 0) };
                 bool leftManualOn = ls == null || ls.LeftManualEnabled;
                 Color touchLColor = (Color)ColorConverter.ConvertFromString(leftManualOn ? (ls != null && ls.LeftManualStatus == DeviceStatus.Open ? "#22C55E" : "#475569") : "#1E293B");
-                var touchL = new Button { Content = "T", Width = 80, Height = 26, FontSize = 14, Background = new SolidColorBrush(touchLColor), Foreground = Brushes.White, BorderThickness = new Thickness(0), IsEnabled = leftManualOn, Opacity = leftManualOn ? 1.0 : 0.5 };
+                var touchL = new Button { Content = "T", Width = 80, Height = 26, FontSize = 14, Background = new SolidColorBrush(touchLColor), Foreground = leftManualOn ? Brushes.White : new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569")), BorderThickness = new Thickness(0) };
                 int capLane = lane;
                 touchL.PreviewMouseLeftButtonDown += delegate(object s1, System.Windows.Input.MouseButtonEventArgs e1) { e1.Handled = true; HandleTimingCommand(Newtonsoft.Json.Linq.JObject.FromObject(new { command = "MANUAL_TOUCH_LEFT", data = new { lane = capLane } })); };
                 leftDev.Children.Add(touchL);
@@ -2586,7 +2586,7 @@ namespace SwimmingScoreboard
                 }
                 bool rightManualOn = ls == null || ls.RightManualEnabled;
                 Color touchRColor = (Color)ColorConverter.ConvertFromString(rightManualOn ? (ls != null && ls.RightManualStatus == DeviceStatus.Open ? "#22C55E" : "#475569") : "#1E293B");
-                var touchR = new Button { Content = "T", Width = 80, Height = 26, FontSize = 14, Background = new SolidColorBrush(touchRColor), Foreground = Brushes.White, BorderThickness = new Thickness(0), IsEnabled = rightManualOn, Opacity = rightManualOn ? 1.0 : 0.5 };
+                var touchR = new Button { Content = "T", Width = 80, Height = 26, FontSize = 14, Background = new SolidColorBrush(touchRColor), Foreground = rightManualOn ? Brushes.White : new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569")), BorderThickness = new Thickness(0) };
                 touchR.PreviewMouseLeftButtonDown += delegate(object s2, System.Windows.Input.MouseButtonEventArgs e2) { e2.Handled = true; HandleTimingCommand(Newtonsoft.Json.Linq.JObject.FromObject(new { command = "MANUAL_TOUCH_RIGHT", data = new { lane = capLane } })); };
                 rightDev.Children.Add(touchR);
                 Grid.SetColumn(rightDev, 4); grid.Children.Add(rightDev);
