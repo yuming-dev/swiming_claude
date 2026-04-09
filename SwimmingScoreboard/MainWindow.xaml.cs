@@ -2188,6 +2188,7 @@ namespace SwimmingScoreboard
             }
             _isRelay = _currentEvent.Contains("接力");
             CurrentEventText.Text = _currentGender + " " + _currentEvent;
+            UpdateRecordDisplay();
         }
 
         private void SetCurrentStage(string stage) {
@@ -2740,8 +2741,14 @@ namespace SwimmingScoreboard
             if (RecordDisplayText == null) return;
             if (string.IsNullOrEmpty(_currentEvent)) { RecordDisplayText.Text = "WR: ---    CR: ---"; return; }
             string wrTime = "", crTime = "";
+            string evClean = _currentEvent.Trim();
+            string genClean = (_currentGender ?? "").Trim();
             foreach (var r in _records) {
-                if (r.EventName != _currentEvent || r.Gender != _currentGender) continue;
+                if (string.IsNullOrEmpty(r.EventName) || string.IsNullOrEmpty(r.Gender)) continue;
+                string rGender = r.Gender.Trim();
+                string rEvent = r.EventName.Trim();
+                bool genderMatch = rGender.StartsWith(genClean) || genClean.StartsWith(rGender);
+                if (!genderMatch || rEvent != evClean) continue;
                 if (r.RecordType != null && r.RecordType.Contains("世界") && r.Time > 0) wrTime = TimeFormatter.Format(r.Time);
                 else if (r.RecordType != null && r.RecordType.Contains("赛会") && r.Time > 0) crTime = TimeFormatter.Format(r.Time);
             }
@@ -6277,33 +6284,25 @@ namespace SwimmingScoreboard
                 new { G="混合", E="4×100米混合泳接力",  T=217.43, H="美国队", C="美国", D="2024-08-03", L="巴黎" }
             };
 
-            int added = 0, updated = 0;
-            foreach (var d in defaults) {
-                // 查找是否已存在同项目同性别的世界纪录
-                SwimmingRecord existing = null;
-                foreach (var r in _records) {
-                    if (r.Gender == d.G && r.EventName == d.E && r.RecordType == "世界纪录") { existing = r; break; }
-                }
-                if (existing != null) {
-                    // 如果成绩更好（更小），则更新
-                    if (d.T < existing.Time) {
-                        existing.HolderName = d.H; existing.HolderCountry = d.C;
-                        existing.Time = d.T; existing.TimeInSeconds = d.T;
-                        existing.Date = d.D; existing.Location = d.L;
-                        updated++;
-                    } else if (string.IsNullOrEmpty(existing.Location)) {
-                        existing.Location = d.L; // 补充缺失的地点
-                    }
-                } else {
-                    _records.Add(new SwimmingRecord {
-                        Gender = d.G, EventName = d.E, RecordType = "世界纪录",
-                        HolderName = d.H, HolderCountry = d.C,
-                        Time = d.T, TimeInSeconds = d.T, Date = d.D, Location = d.L
-                    });
-                    added++;
-                }
+            // 先清除所有旧的世界纪录（包括可能因编码问题产生的乱码记录）
+            var toRemove = new List<SwimmingRecord>();
+            foreach (var r in _records) {
+                if (r.RecordType != null && r.RecordType.Contains("世界")) toRemove.Add(r);
             }
-            AddLog(string.Format("世界纪录: 新增{0}条, 更新{1}条", added, updated));
+            foreach (var r in toRemove) _records.Remove(r);
+            int removed = toRemove.Count;
+
+            // 重新写入全部世界纪录
+            int added = 0;
+            foreach (var d in defaults) {
+                _records.Add(new SwimmingRecord {
+                    Gender = d.G, EventName = d.E, RecordType = "世界纪录",
+                    HolderName = d.H, HolderCountry = d.C,
+                    Time = d.T, TimeInSeconds = d.T, Date = d.D, Location = d.L
+                });
+                added++;
+            }
+            AddLog(string.Format("世界纪录: 清除旧记录{0}条, 导入{1}条", removed, added));
             AutoSaveData();
             Broadcast();
             RefreshRecordFilterCombos();

@@ -1273,14 +1273,18 @@ function showTimingSourceData() {
 function updateRecordDisplay() {
     var el = document.getElementById('recordDisplay');
     if (!el || !data) { return; }
-    var curEvent = data.currentEvent || '';
-    var curGender = data.currentGender || '';
+    var curEvent = (data.currentEvent || '').trim();
+    var curGender = (data.currentGender || '').trim();
     if (!curEvent) { el.textContent = 'WR: ---    CR: ---'; return; }
     var records = data.records || [];
     var wrTime = '', crTime = '';
     for (var i = 0; i < records.length; i++) {
         var r = records[i];
-        if (r.eventName !== curEvent || r.gender !== curGender) continue;
+        var rEvent = (r.eventName || '').trim();
+        var rGender = (r.gender || '').trim();
+        // 性别匹配：兼容"男"/"男子"等格式
+        var genderMatch = rGender.indexOf(curGender) === 0 || curGender.indexOf(rGender) === 0;
+        if (!genderMatch || rEvent !== curEvent) continue;
         var rt = r.recordType || '';
         if (rt.indexOf('世界') >= 0 && r.timeInSeconds > 0) wrTime = r.time || '';
         else if (rt.indexOf('赛会') >= 0 && r.timeInSeconds > 0) crTime = r.time || '';
