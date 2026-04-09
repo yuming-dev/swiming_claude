@@ -976,7 +976,7 @@ namespace RemoteTimingControl
                     Content = "T", Width = 80, Height = 30, FontSize = 15,
                     Background = new SolidColorBrush(touchLColor),
                     Foreground = Brushes.White, BorderThickness = new Thickness(0),
-                    IsEnabled = leftManualEnabled
+                    IsEnabled = leftManualEnabled, Opacity = leftManualEnabled ? 1.0 : 0.25
                 };
                 touchBtnL.PreviewMouseLeftButtonDown += delegate { if (leftManualEnabled) SendCmd("MANUAL_TOUCH_LEFT", new { lane = capturedLane }); };
                 leftDevices.Children.Add(touchBtnL);
@@ -1111,7 +1111,7 @@ namespace RemoteTimingControl
                     Content = "T", Width = 80, Height = 30, FontSize = 15,
                     Background = new SolidColorBrush(touchRColor),
                     Foreground = Brushes.White, BorderThickness = new Thickness(0),
-                    IsEnabled = rightManualEnabled
+                    IsEnabled = rightManualEnabled, Opacity = rightManualEnabled ? 1.0 : 0.25
                 };
                 touchBtnR.PreviewMouseLeftButtonDown += delegate { if (rightManualEnabled) SendCmd("MANUAL_TOUCH_RIGHT", new { lane = capturedLane }); };
                 rightDevices.Children.Add(touchBtnR);
