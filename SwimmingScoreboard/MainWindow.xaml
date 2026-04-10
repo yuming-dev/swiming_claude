@@ -552,7 +552,7 @@
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="220"/>
                         <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="220"/>
+                        <ColumnDefinition Width="240"/>
                     </Grid.ColumnDefinitions>
 
                     <!-- 左栏 -->
@@ -665,7 +665,7 @@
                     </Border>
 
                     <!-- 右：比赛控制 -->
-                    <Border Grid.Column="2" CornerRadius="10" Padding="14"
+                    <Border Grid.Column="2" CornerRadius="10" Padding="14" Margin="0,0,4,4"
                             BorderBrush="#E2E8F0" BorderThickness="1">
                         <Border.Background>
                             <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
@@ -673,6 +673,23 @@
                                 <GradientStop Color="#F8FAFC" Offset="1"/>
                             </LinearGradientBrush>
                         </Border.Background>
+                        <Border.Effect>
+                            <DropShadowEffect Color="#94A3B8" BlurRadius="10" ShadowDepth="2" Opacity="0.12"/>
+                        </Border.Effect>
+                        <Border.Resources>
+                            <!-- 所有按钮统一添加悬停/按下的交互反馈，不改变其他视觉 -->
+                            <Style TargetType="Button">
+                                <Style.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter Property="Opacity" Value="0.85"/>
+                                    </Trigger>
+                                    <Trigger Property="IsPressed" Value="True">
+                                        <Setter Property="Opacity" Value="0.7"/>
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Resources>
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                         <StackPanel>
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
                                 <Border Background="#DC2626" CornerRadius="4" Padding="5,3" Margin="0,0,8,0">
@@ -681,38 +698,38 @@
                                 <TextBlock Text="比赛控制" FontSize="16" FontWeight="Bold" Foreground="#1E293B" VerticalAlignment="Center"/>
                             </StackPanel>
 
-                            <!-- 核心操作按钮 -->
-                            <Button Click="Ready_Click" Margin="0,0,0,6" BorderThickness="0" Cursor="Hand">
+                            <!-- 核心操作按钮（统一高度40px） -->
+                            <Button Click="Ready_Click" Height="36" Margin="0,0,0,6" BorderThickness="0" Cursor="Hand">
                                 <Button.Template>
                                     <ControlTemplate TargetType="Button">
-                                        <Border Background="#F59E0B" CornerRadius="8" Padding="0,12">
-                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                                                <TextBlock Text="&#xE768;" FontFamily="Segoe MDL2 Assets" FontSize="18" Foreground="White" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                                <TextBlock Text="就  位" FontSize="16" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
+                                        <Border Background="#F59E0B" CornerRadius="8">
+                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                <TextBlock Text="&#xE768;" FontFamily="Segoe MDL2 Assets" FontSize="16" Foreground="White" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                                <TextBlock Text="就  位" FontSize="15" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
                                             </StackPanel>
                                         </Border>
                                     </ControlTemplate>
                                 </Button.Template>
                             </Button>
-                            <Button Click="StartRace_Click" Margin="0,0,0,6" BorderThickness="0" Cursor="Hand">
+                            <Button Click="StartRace_Click" Height="36" Margin="0,0,0,6" BorderThickness="0" Cursor="Hand">
                                 <Button.Template>
                                     <ControlTemplate TargetType="Button">
-                                        <Border Background="#22C55E" CornerRadius="8" Padding="0,12">
-                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                                                <TextBlock Text="&#xE768;" FontFamily="Segoe MDL2 Assets" FontSize="18" Foreground="White" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                                <TextBlock Text="发  令" FontSize="16" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
+                                        <Border Background="#22C55E" CornerRadius="8">
+                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                <TextBlock Text="&#xE768;" FontFamily="Segoe MDL2 Assets" FontSize="16" Foreground="White" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                                <TextBlock Text="发  令" FontSize="15" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
                                             </StackPanel>
                                         </Border>
                                     </ControlTemplate>
                                 </Button.Template>
                             </Button>
-                            <Button Click="Restart_Click" Margin="0,0,0,6" BorderThickness="0" Cursor="Hand">
+                            <Button Click="Restart_Click" Height="36" Margin="0,0,0,6" BorderThickness="0" Cursor="Hand">
                                 <Button.Template>
                                     <ControlTemplate TargetType="Button">
-                                        <Border Background="#EF4444" CornerRadius="8" Padding="0,12">
-                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                                                <TextBlock Text="&#xE72C;" FontFamily="Segoe MDL2 Assets" FontSize="18" Foreground="White" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                                <TextBlock Text="计时复位" FontSize="16" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
+                                        <Border Background="#EF4444" CornerRadius="8">
+                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                <TextBlock Text="&#xE72C;" FontFamily="Segoe MDL2 Assets" FontSize="16" Foreground="White" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                                <TextBlock Text="计时复位" FontSize="15" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
                                             </StackPanel>
                                         </Border>
                                     </ControlTemplate>
@@ -723,38 +740,38 @@
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
-                                <Button Grid.Column="0" Click="OpenAll_Click" Margin="0,0,3,0" BorderThickness="0" Cursor="Hand">
+                                <Button Grid.Column="0" Click="OpenAll_Click" Height="36" Margin="0,0,3,0" BorderThickness="0" Cursor="Hand">
                                     <Button.Template>
                                         <ControlTemplate TargetType="Button">
-                                            <Border Background="#22C55E" CornerRadius="8" Padding="0,12">
-                                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                                                    <TextBlock Text="&#xE8FB;" FontFamily="Segoe MDL2 Assets" FontSize="16" Foreground="White" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                                                    <TextBlock Text="全部打开" FontSize="15" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
+                                            <Border Background="#22C55E" CornerRadius="8">
+                                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                    <TextBlock Text="&#xE8FB;" FontFamily="Segoe MDL2 Assets" FontSize="15" Foreground="White" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                                    <TextBlock Text="全部打开" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
                                                 </StackPanel>
                                             </Border>
                                         </ControlTemplate>
                                     </Button.Template>
                                 </Button>
-                                <Button Grid.Column="1" Click="CloseAll_Click" Margin="3,0,0,0" BorderThickness="0" Cursor="Hand">
+                                <Button Grid.Column="1" Click="CloseAll_Click" Height="36" Margin="3,0,0,0" BorderThickness="0" Cursor="Hand">
                                     <Button.Template>
                                         <ControlTemplate TargetType="Button">
-                                            <Border Background="#64748B" CornerRadius="8" Padding="0,12">
-                                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                                                    <TextBlock Text="&#xE711;" FontFamily="Segoe MDL2 Assets" FontSize="16" Foreground="White" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                                                    <TextBlock Text="全部关闭" FontSize="15" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
+                                            <Border Background="#64748B" CornerRadius="8">
+                                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                    <TextBlock Text="&#xE711;" FontFamily="Segoe MDL2 Assets" FontSize="15" Foreground="White" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                                    <TextBlock Text="全部关闭" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
                                                 </StackPanel>
                                             </Border>
                                         </ControlTemplate>
                                     </Button.Template>
                                 </Button>
                             </Grid>
-                            <Button Click="ConfirmResult_Click" Margin="0,0,0,14" BorderThickness="0" Cursor="Hand">
+                            <Button Click="ConfirmResult_Click" Height="36" Margin="0,0,0,12" BorderThickness="0" Cursor="Hand">
                                 <Button.Template>
                                     <ControlTemplate TargetType="Button">
-                                        <Border Background="#3B82F6" CornerRadius="8" Padding="0,12">
-                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                                                <TextBlock Text="&#xE73E;" FontFamily="Segoe MDL2 Assets" FontSize="18" Foreground="White" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                                <TextBlock Text="确认本组成绩" FontSize="16" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
+                                        <Border Background="#3B82F6" CornerRadius="8">
+                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                <TextBlock Text="&#xE73E;" FontFamily="Segoe MDL2 Assets" FontSize="16" Foreground="White" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                                <TextBlock Text="确认本组成绩" FontSize="15" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
                                             </StackPanel>
                                         </Border>
                                     </ControlTemplate>
@@ -773,11 +790,11 @@
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
                                 <Grid.RowDefinitions>
-                                    <RowDefinition Height="36"/>
-                                    <RowDefinition Height="36"/>
-                                    <RowDefinition Height="36"/>
+                                    <RowDefinition Height="40"/>
+                                    <RowDefinition Height="40"/>
+                                    <RowDefinition Height="40"/>
                                 </Grid.RowDefinitions>
-                                <Button Grid.Row="0" Grid.Column="0" Click="MarkDNS_Click" Margin="0,0,2,2" BorderThickness="0" Cursor="Hand">
+                                <Button Grid.Row="0" Grid.Column="0" Click="MarkDNS_Click" Margin="2" BorderThickness="0" Cursor="Hand">
                                     <Button.Template>
                                         <ControlTemplate TargetType="Button">
                                             <Border Background="#64748B" CornerRadius="6">
@@ -786,7 +803,7 @@
                                         </ControlTemplate>
                                     </Button.Template>
                                 </Button>
-                                <Button Grid.Row="0" Grid.Column="1" Click="MarkDNF_Click" Margin="2,0,0,2" BorderThickness="0" Cursor="Hand">
+                                <Button Grid.Row="0" Grid.Column="1" Click="MarkDNF_Click" Margin="2" BorderThickness="0" Cursor="Hand">
                                     <Button.Template>
                                         <ControlTemplate TargetType="Button">
                                             <Border Background="#78716C" CornerRadius="6">
@@ -795,7 +812,7 @@
                                         </ControlTemplate>
                                     </Button.Template>
                                 </Button>
-                                <Button Grid.Row="1" Grid.Column="0" Click="MarkDSQ_Click" Margin="0,0,2,2" BorderThickness="0" Cursor="Hand">
+                                <Button Grid.Row="1" Grid.Column="0" Click="MarkDSQ_Click" Margin="2" BorderThickness="0" Cursor="Hand">
                                     <Button.Template>
                                         <ControlTemplate TargetType="Button">
                                             <Border Background="#9CA3AF" CornerRadius="6">
@@ -804,7 +821,7 @@
                                         </ControlTemplate>
                                     </Button.Template>
                                 </Button>
-                                <Button Grid.Row="1" Grid.Column="1" Click="ManualTime_Click" Margin="2,0,0,2" BorderThickness="0" Cursor="Hand">
+                                <Button Grid.Row="1" Grid.Column="1" Click="ManualTime_Click" Margin="2" BorderThickness="0" Cursor="Hand">
                                     <Button.Template>
                                         <ControlTemplate TargetType="Button">
                                             <Border Background="#D97706" CornerRadius="6">
@@ -813,7 +830,7 @@
                                         </ControlTemplate>
                                     </Button.Template>
                                 </Button>
-                                <Button Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2" Click="TimingSettings_Click" Margin="0,0,0,2" BorderThickness="0" Cursor="Hand">
+                                <Button Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2" Click="TimingSettings_Click" Margin="2" BorderThickness="0" Cursor="Hand">
                                     <Button.Template>
                                         <ControlTemplate TargetType="Button">
                                             <Border Background="#475569" CornerRadius="6">
@@ -957,6 +974,7 @@
                                 </Grid>
                             </Border>
                         </StackPanel>
+                        </ScrollViewer>
                     </Border>
                 </Grid>
             </TabItem>
