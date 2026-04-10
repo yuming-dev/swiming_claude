@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
@@ -157,12 +157,12 @@ namespace RemoteTimingControl
 
         private void UpdateRunningTimeDisplay()
         {
-            double holdMs = _firstPlaceHoldTime * 1000;
-            if (_firstPlaceShowStart != DateTime.MinValue &&
-                (DateTime.Now - _firstPlaceShowStart).TotalMilliseconds < holdMs &&
-                !string.IsNullOrEmpty(_firstPlaceFinishTime))
+            // 第1名成绩：直接读取服务器数据（由服务器端 ProcessTouchpadHit 设置）
+            bool fpActive = _data != null && _data["firstPlaceActive"] != null && (bool)_data["firstPlaceActive"];
+            string fpTime = _data != null && _data["firstPlaceFinishTime"] != null ? _data["firstPlaceFinishTime"].ToString() : "";
+            if (fpActive && !string.IsNullOrEmpty(fpTime))
             {
-                RunningTime.Text = _firstPlaceFinishTime;
+                RunningTime.Text = fpTime;
                 RunningTime.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#22C55E"));
             }
             else
@@ -446,7 +446,6 @@ namespace RemoteTimingControl
             }
 
             var swimmers = _data["swimmers"] as JArray;
-            DetectFirstPlace(swimmers);
             UpdateRunningTimeDisplay();
 
             // 从服务器同步所有参数（服务器是唯一的参数来源）
@@ -460,6 +459,7 @@ namespace RemoteTimingControl
                 if (lcs["resultConfirmCloseDelay"] != null) _resultConfirmCloseDelay = (double)lcs["resultConfirmCloseDelay"];
                 if (lcs["falseStartThreshold"] != null) _falseStartThreshold = (double)lcs["falseStartThreshold"];
                 if (lcs["splitDisplayTime"] != null) _splitDisplayTime = (double)lcs["splitDisplayTime"];
+                if (lcs["firstPlaceHoldTime"] != null) _firstPlaceHoldTime = (double)lcs["firstPlaceHoldTime"];
             }
 
             // Control mode
@@ -501,53 +501,6 @@ namespace RemoteTimingControl
             // 更新计时源对比（刷新分段下拉列表和数据）
             UpdateTimingSourceInfo();
             UpdateRecordDisplay();
-        }
-
-        private void DetectFirstPlace(JArray swimmers)
-        {
-            if (swimmers == null) return;
-            JObject leader = null;
-            int leaderSplitCount = 0;
-            foreach (JObject sw in swimmers)
-            {
-                if (sw["status"] != null && sw["status"].ToString() != "") continue;
-                int sc = 0;
-                var splits = sw["splits"] as JArray;
-                if (splits != null) sc = splits.Count;
-                bool isFinished = sw["isFinished"] != null && (bool)sw["isFinished"];
-                if (isFinished) sc = 9999;
-                if (sc > leaderSplitCount || (sc == leaderSplitCount && leader != null &&
-                    sw["rank"] != null && (int)sw["rank"] > 0 &&
-                    (leader["rank"] == null || (int)sw["rank"] < (int)leader["rank"])))
-                {
-                    leaderSplitCount = sc;
-                    leader = sw;
-                }
-            }
-            if (leader != null)
-            {
-                int leaderSc = 0;
-                var lSplits = leader["splits"] as JArray;
-                if (lSplits != null) leaderSc = lSplits.Count;
-                bool lFinished = leader["isFinished"] != null && (bool)leader["isFinished"];
-                if (lFinished && leader["finalTime"] != null) leaderSc = -1;
-                if (leaderSc != _firstPlaceDetectedRank)
-                {
-                    _firstPlaceDetectedRank = leaderSc;
-                    if (lFinished && leader["finalTime"] != null)
-                    {
-                        _firstPlaceFinishTime = leader["finalTime"].ToString();
-                    }
-                    else if (lSplits != null && lSplits.Count > 0)
-                    {
-                        var last = lSplits[lSplits.Count - 1] as JObject;
-                        if (last != null && last["cumulative"] != null)
-                            _firstPlaceFinishTime = last["cumulative"].ToString();
-                    }
-                    if (!string.IsNullOrEmpty(_firstPlaceFinishTime))
-                        _firstPlaceShowStart = DateTime.Now;
-                }
-            }
         }
 
         // ═══════ Pool Header ═══════
@@ -888,333 +841,359 @@ namespace RemoteTimingControl
             }
         }
 
-        // ═══════ Lane Rendering ═══════
+        // ═══════ Lane Rendering (增量更新) ═══════
+        // 画刷缓存
+        private static readonly SolidColorBrush _brushGreen = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#22C55E"));
+        private static readonly SolidColorBrush _brushRed = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EF4444"));
+        private static readonly SolidColorBrush _brushAmber = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F59E0B"));
+        private static readonly SolidColorBrush _brushSlate = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569"));
+        private static readonly SolidColorBrush _brushDark = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E293B"));
+        private static readonly SolidColorBrush _brushBlue = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6"));
+        private static readonly SolidColorBrush _brushSilver = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#C0C0C0"));
+        private static readonly SolidColorBrush _brushBronze = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#CD7F32"));
+        private static readonly SolidColorBrush _brushGray = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B"));
+        private static readonly SolidColorBrush _brushMutedText = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8"));
+        private static readonly SolidColorBrush _brushInstalledStroke = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#334155"));
+
+        private static SolidColorBrush GetDeviceBrush(string status)
+        {
+            switch (status)
+            {
+                case "open": return _brushGreen;
+                case "broken": return _brushRed;
+                case "falsestart": return _brushAmber;
+                case "notinstalled": return _brushInstalledStroke;
+                default: return _brushSlate;
+            }
+        }
+
+        // 泳道行UI引用
+        private class LaneRowUI
+        {
+            public int Lane;
+            public Border Row;
+            public Button TouchL, TouchR;
+            public Ellipse[] LeftDots;  // 0-4: BlindWatch1/2/3, StartBlock, Touchpad
+            public Ellipse[] RightDots; // 0-4: Touchpad, StartBlock, BlindWatch1/2/3
+            public TextBlock LeftRemainText, RightRemainText;
+            public TextBlock TrackText;
+            public TextBlock ReactionText, DisplayTimeText, RankText, RemarkText;
+            public Border LeftSignalInd, RightSignalInd;
+            public TextBlock NameText, TeamText;
+        }
+
+        private List<LaneRowUI> _laneRowUIs = new List<LaneRowUI>();
+        private string _laneRowsBuiltKey = "";
+
         private void RenderLanes(JArray swimmers)
         {
-            LanePanel.Children.Clear();
-            if (swimmers == null) return;
+            if (swimmers == null) { LanePanel.Children.Clear(); _laneRowUIs.Clear(); _laneRowsBuiltKey = ""; return; }
 
             bool isRelay = false;
-            string curEventStr = _data["currentEvent"] != null ? _data["currentEvent"].ToString() : "";
+            string curEventStr = _data != null && _data["currentEvent"] != null ? _data["currentEvent"].ToString() : "";
             if (curEventStr.Contains("接力")) isRelay = true;
+
+            // 构造 key：运动员列表/项目变化时重建结构
+            var sbKey = new StringBuilder();
+            sbKey.Append(curEventStr).Append('|').Append(isRelay).Append('|').Append(swimmers.Count);
+            foreach (JObject sw in swimmers)
+            {
+                sbKey.Append('|');
+                sbKey.Append(sw["name"] != null ? sw["name"].ToString() : "");
+                sbKey.Append(':').Append(sw["lane"] != null ? sw["lane"].ToString() : "0");
+            }
+            string key = sbKey.ToString();
+
+            if (key != _laneRowsBuiltKey)
+            {
+                BuildLaneRows(swimmers, isRelay);
+                _laneRowsBuiltKey = key;
+            }
+            RefreshLaneRows(swimmers, isRelay);
+        }
+
+        private void BuildLaneRows(JArray swimmers, bool isRelay)
+        {
+            LanePanel.Children.Clear();
+            _laneRowUIs.Clear();
 
             foreach (JObject sw in swimmers)
             {
                 int lane = sw["lane"] != null ? (int)sw["lane"] : 0;
-                var ds = sw["deviceStatus"] as JObject;
-                bool isFalseStart = sw["isFalseStart"] != null && (bool)sw["isFalseStart"];
-                bool isFinished = sw["isFinished"] != null && (bool)sw["isFinished"];
+                var rowUI = new LaneRowUI { Lane = lane };
 
                 var row = new Border
                 {
-                    Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E293B")),
+                    Background = _brushDark,
                     CornerRadius = new CornerRadius(4),
                     Margin = new Thickness(0, 0, 0, 4),
                     Padding = new Thickness(0, 0, 0, 0),
                     Height = 56
                 };
-
-                if (isFalseStart)
-                {
-                    row.BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F59E0B"));
-                    row.BorderThickness = new Thickness(1);
-                }
-                if (lane == _selectedLane)
-                {
-                    row.BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6"));
-                    row.BorderThickness = new Thickness(1);
-                }
+                rowUI.Row = row;
 
                 var grid = new Grid();
-                // Columns: laneNum, startIndL, leftDevices, mid, rightDevices, startIndR, infoArea
-                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(32) });   // 0: 道次
-                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(8) });    // 1: 左发令指示
-                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(240) });  // 2: 左设备
-                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) }); // 3: 姓名+进度
-                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(240) });  // 4: 右设备
-                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(8) });    // 5: 右发令指示
-                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(267) });  // 6: 成绩信息
+                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(32) });
+                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(8) });
+                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(240) });
+                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(240) });
+                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(8) });
+                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(267) });
 
                 int capturedLane = lane;
 
-                // Lane number (column 0, leftmost)
+                // Col 0: 道次（静态）
                 var laneNumTb = new TextBlock
                 {
-                    Text = lane.ToString(),
-                    FontSize = 22,
-                    FontWeight = FontWeights.Bold,
-                    Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")),
-                    VerticalAlignment = VerticalAlignment.Center,
-                    HorizontalAlignment = HorizontalAlignment.Center
+                    Text = lane.ToString(), FontSize = 22, FontWeight = FontWeights.Bold,
+                    Foreground = _brushGray,
+                    VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center
                 };
-                Grid.SetColumn(laneNumTb, 0);
-                grid.Children.Add(laneNumTb);
+                Grid.SetColumn(laneNumTb, 0); grid.Children.Add(laneNumTb);
 
-                // Left start indicator (green bar)
-                var leftStartInd = new Border
-                {
-                    Width = 8,
-                    CornerRadius = new CornerRadius(2),
-                    Margin = new Thickness(0, 2, 0, 2),
-                    Background = _startPosition == "left" ?
-                        new SolidColorBrush((Color)ColorConverter.ConvertFromString("#22C55E")) :
-                        Brushes.Transparent
-                };
-                Grid.SetColumn(leftStartInd, 1);
-                grid.Children.Add(leftStartInd);
+                // Col 1: 左发令指示（动态）
+                var leftStartInd = new Border { Width = 8, CornerRadius = new CornerRadius(2), Margin = new Thickness(0, 2, 0, 2) };
+                Grid.SetColumn(leftStartInd, 1); grid.Children.Add(leftStartInd);
+                rowUI.LeftSignalInd = leftStartInd;
 
-                // Left devices
+                // Col 2: 左设备
                 var leftDevices = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(2, 0, 0, 0) };
-                var mb = sw["manualButton"] as JObject;
-                bool leftManualEnabled = mb != null && mb["leftEnabled"] != null && (bool)mb["leftEnabled"];
-                bool rightManualEnabled = mb != null && mb["rightEnabled"] != null && (bool)mb["rightEnabled"];
-                string leftManualStatus = mb != null && mb["leftStatus"] != null ? mb["leftStatus"].ToString() : "closed";
-                string rightManualStatus = mb != null && mb["rightStatus"] != null ? mb["rightStatus"].ToString() : "closed";
-                Color touchLColor = (Color)ColorConverter.ConvertFromString(leftManualEnabled ? (leftManualStatus == "open" ? "#22C55E" : "#475569") : "#1E293B");
-                var touchBtnL = new Button
-                {
-                    Content = "T", Width = 80, Height = 30, FontSize = 15,
-                    Background = new SolidColorBrush(touchLColor),
-                    Foreground = leftManualEnabled ? Brushes.White : new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569")),
-                    BorderThickness = new Thickness(0)
-                };
-                touchBtnL.PreviewMouseLeftButtonDown += delegate { if (leftManualEnabled) SendCmd("MANUAL_TOUCH_LEFT", new { lane = capturedLane }); };
+                var touchBtnL = new Button { Content = "T", Width = 80, Height = 30, FontSize = 15, BorderThickness = new Thickness(0) };
+                touchBtnL.PreviewMouseLeftButtonDown += delegate { SendCmd("MANUAL_TOUCH_LEFT", new { lane = capturedLane }); };
                 leftDevices.Children.Add(touchBtnL);
-                leftDevices.Children.Add(MakeDeviceDot(GetDeviceStatus(ds, "leftBlindWatch1")));
-                leftDevices.Children.Add(MakeDeviceDot(GetDeviceStatus(ds, "leftBlindWatch2")));
-                leftDevices.Children.Add(MakeDeviceDot(GetDeviceStatus(ds, "leftBlindWatch3")));
-                leftDevices.Children.Add(MakeDeviceDot(GetDeviceStatus(ds, "leftStartBlock")));
-                leftDevices.Children.Add(MakeDeviceDot(GetDeviceStatus(ds, "leftTouchpad")));
-                // Left touch remaining counter
-                string leftRemainStr = "";
-                if (sw["leftTouchRemain"] != null) leftRemainStr = sw["leftTouchRemain"].ToString();
-                bool leftRemainActive = false;
-                int leftRemainVal;
-                if (int.TryParse(leftRemainStr, out leftRemainVal) && leftRemainVal > 0) leftRemainActive = true;
-                leftDevices.Children.Add(new TextBlock
-                {
-                    Text = leftRemainStr,
-                    Width = 28,
-                    FontSize = 20,
-                    FontWeight = FontWeights.Bold,
-                    TextAlignment = TextAlignment.Center,
-                    VerticalAlignment = VerticalAlignment.Center,
-                    Foreground = new SolidColorBrush(leftRemainActive ?
-                        (Color)ColorConverter.ConvertFromString("#F59E0B") :
-                        (Color)ColorConverter.ConvertFromString("#475569"))
-                });
-                Grid.SetColumn(leftDevices, 2);
-                grid.Children.Add(leftDevices);
+                rowUI.TouchL = touchBtnL;
 
-                // Mid panel — DockPanel让进度条填满剩余空间（道次已在最左列）
+                rowUI.LeftDots = new Ellipse[5];
+                for (int i = 0; i < 5; i++)
+                {
+                    var dot = new Ellipse { Width = 22, Height = 22, Margin = new Thickness(2, 0, 2, 0) };
+                    rowUI.LeftDots[i] = dot;
+                    leftDevices.Children.Add(dot);
+                }
+
+                var leftRemainTb = new TextBlock { Width = 28, FontSize = 20, FontWeight = FontWeights.Bold, TextAlignment = TextAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+                leftDevices.Children.Add(leftRemainTb);
+                rowUI.LeftRemainText = leftRemainTb;
+                Grid.SetColumn(leftDevices, 2); grid.Children.Add(leftDevices);
+
+                // Col 3: 姓名+进度
                 var midPanel = new DockPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 6, 0) };
-
-                // Swimmer info - show differently for relay
                 var infoStack = new StackPanel { Width = 120 };
-                if (isRelay)
-                {
-                    infoStack.Children.Add(new TextBlock
-                    {
-                        Text = sw["country"] != null ? sw["country"].ToString() : "",
-                        FontWeight = FontWeights.Bold,
-                        Foreground = Brushes.White,
-                        FontSize = 16
-                    });
-                    infoStack.Children.Add(new TextBlock
-                    {
-                        Text = GetRelayCurrentLegName(sw),
-                        Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")),
-                        FontSize = 14
-                    });
-                }
-                else
-                {
-                    infoStack.Children.Add(new TextBlock
-                    {
-                        Text = sw["name"] != null ? sw["name"].ToString() : "",
-                        FontWeight = FontWeights.Bold,
-                        Foreground = Brushes.White,
-                        FontSize = 16
-                    });
-                    infoStack.Children.Add(new TextBlock
-                    {
-                        Text = sw["country"] != null ? sw["country"].ToString() : "",
-                        Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")),
-                        FontSize = 14
-                    });
-                }
-                DockPanel.SetDock(infoStack, Dock.Left);
-                midPanel.Children.Add(infoStack);
-
-                // Direction and progress track
-                string swDir = sw["direction"] != null ? sw["direction"].ToString() : (_startPosition == "left" ? "→" : "←");
-                string dir = swDir == "←" ? "returning" : "going";
-                string status = sw["status"] != null ? sw["status"].ToString() : "";
+                var nameTb = new TextBlock { FontWeight = FontWeights.Bold, Foreground = Brushes.White, FontSize = 16 };
+                var teamTb = new TextBlock { Foreground = _brushMutedText, FontSize = 14 };
+                infoStack.Children.Add(nameTb);
+                infoStack.Children.Add(teamTb);
+                rowUI.NameText = nameTb;
+                rowUI.TeamText = teamTb;
+                DockPanel.SetDock(infoStack, Dock.Left); midPanel.Children.Add(infoStack);
 
                 var trackBorder = new Border
                 {
                     Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1A2332")),
-                    CornerRadius = new CornerRadius(4),
-                    Height = 22,
-                    Margin = new Thickness(6, 0, 6, 0),
-                    Padding = new Thickness(4, 0, 4, 0),
-                    MinWidth = 60
+                    CornerRadius = new CornerRadius(4), Height = 22,
+                    Margin = new Thickness(6, 0, 6, 0), Padding = new Thickness(4, 0, 4, 0), MinWidth = 60
                 };
-                var trackText = new TextBlock
-                {
-                    FontFamily = new FontFamily("Consolas"),
-                    FontSize = 15,
-                    VerticalAlignment = VerticalAlignment.Center,
-                    HorizontalAlignment = dir == "returning" ? HorizontalAlignment.Right : HorizontalAlignment.Left
-                };
-                trackText.Text = BuildArrows(sw, swDir, dir);
-                if (isFinished)
-                    trackText.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F59E0B"));
-                else if (dir == "returning")
-                    trackText.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#22C55E"));
-                else
-                    trackText.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6"));
+                var trackText = new TextBlock { FontFamily = new FontFamily("Consolas"), FontSize = 15, VerticalAlignment = VerticalAlignment.Center };
                 trackBorder.Child = trackText;
                 midPanel.Children.Add(trackBorder);
+                rowUI.TrackText = trackText;
+                Grid.SetColumn(midPanel, 3); grid.Children.Add(midPanel);
 
-                Grid.SetColumn(midPanel, 3);
-                grid.Children.Add(midPanel);
-
-                // Right devices
+                // Col 4: 右设备
                 var rightDevices = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-                // Right touch remaining counter
-                string rightRemainStr = "";
-                if (sw["rightTouchRemain"] != null) rightRemainStr = sw["rightTouchRemain"].ToString();
-                bool rightRemainActive = false;
-                int rightRemainVal;
-                if (int.TryParse(rightRemainStr, out rightRemainVal) && rightRemainVal > 0) rightRemainActive = true;
-                rightDevices.Children.Add(new TextBlock
-                {
-                    Text = rightRemainStr,
-                    Width = 28,
-                    FontSize = 20,
-                    FontWeight = FontWeights.Bold,
-                    TextAlignment = TextAlignment.Center,
-                    VerticalAlignment = VerticalAlignment.Center,
-                    Foreground = new SolidColorBrush(rightRemainActive ?
-                        (Color)ColorConverter.ConvertFromString("#F59E0B") :
-                        (Color)ColorConverter.ConvertFromString("#475569"))
-                });
-                rightDevices.Children.Add(MakeDeviceDot(GetDeviceStatus(ds, "rightTouchpad")));
-                rightDevices.Children.Add(MakeDeviceDot(GetDeviceStatus(ds, "rightStartBlock")));
-                rightDevices.Children.Add(MakeDeviceDot(GetDeviceStatus(ds, "rightBlindWatch1")));
-                rightDevices.Children.Add(MakeDeviceDot(GetDeviceStatus(ds, "rightBlindWatch2")));
-                rightDevices.Children.Add(MakeDeviceDot(GetDeviceStatus(ds, "rightBlindWatch3")));
-                Color touchRColor = (Color)ColorConverter.ConvertFromString(rightManualEnabled ? (rightManualStatus == "open" ? "#22C55E" : "#475569") : "#1E293B");
-                var touchBtnR = new Button
-                {
-                    Content = "T", Width = 80, Height = 30, FontSize = 15,
-                    Background = new SolidColorBrush(touchRColor),
-                    Foreground = rightManualEnabled ? Brushes.White : new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569")),
-                    BorderThickness = new Thickness(0)
-                };
-                touchBtnR.PreviewMouseLeftButtonDown += delegate { if (rightManualEnabled) SendCmd("MANUAL_TOUCH_RIGHT", new { lane = capturedLane }); };
-                rightDevices.Children.Add(touchBtnR);
-                Grid.SetColumn(rightDevices, 4);
-                grid.Children.Add(rightDevices);
+                var rightRemainTb = new TextBlock { Width = 28, FontSize = 20, FontWeight = FontWeights.Bold, TextAlignment = TextAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+                rightDevices.Children.Add(rightRemainTb);
+                rowUI.RightRemainText = rightRemainTb;
 
-                // Right start indicator (green bar)
-                var rightStartInd = new Border
+                rowUI.RightDots = new Ellipse[5];
+                for (int i = 0; i < 5; i++)
                 {
-                    Width = 8,
-                    CornerRadius = new CornerRadius(2),
-                    Margin = new Thickness(0, 2, 0, 2),
-                    Background = _startPosition == "right" ?
-                        new SolidColorBrush((Color)ColorConverter.ConvertFromString("#22C55E")) :
-                        Brushes.Transparent
-                };
-                Grid.SetColumn(rightStartInd, 5);
-                grid.Children.Add(rightStartInd);
-
-                // Info area
-                var infoArea = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-                // 反应时间：与分段成绩一样显示后消隐
-                string rtVal = sw["reactionTime"] != null ? sw["reactionTime"].ToString() : "";
-                string rtDisplay = "";
-                if (!string.IsNullOrEmpty(rtVal)) {
-                    if (!_laneSplitState.ContainsKey(lane)) _laneSplitState[lane] = new SplitState();
-                    var ss = _laneSplitState[lane];
-                    if (rtVal != ss.LastReaction) {
-                        ss.LastReaction = rtVal;
-                        ss.ReactionShowTime = DateTime.Now;
-                    }
-                    if (ss.ReactionShowTime > DateTime.MinValue) {
-                        double dispSec = _splitDisplayTime > 0 ? _splitDisplayTime : 5;
-                        if ((DateTime.Now - ss.ReactionShowTime).TotalSeconds < dispSec) rtDisplay = rtVal;
-                    }
+                    var dot = new Ellipse { Width = 22, Height = 22, Margin = new Thickness(2, 0, 2, 0) };
+                    rowUI.RightDots[i] = dot;
+                    rightDevices.Children.Add(dot);
                 }
-                infoArea.Children.Add(new TextBlock
-                {
-                    Text = rtDisplay,
-                    Width = 60,
-                    FontSize = 18,
-                    Foreground = Brushes.White,
-                    TextAlignment = TextAlignment.Center,
-                    FontFamily = new FontFamily("Consolas")
-                });
 
-                // Final time / split time with timed display
-                string displayTime = GetSplitOrFinalTime(sw);
-                infoArea.Children.Add(new TextBlock
-                {
-                    Text = displayTime,
-                    Width = 115,
-                    FontSize = 21,
-                    FontWeight = FontWeights.Bold,
-                    Foreground = Brushes.White,
-                    TextAlignment = TextAlignment.Center,
-                    FontFamily = new FontFamily("Consolas")
-                });
+                var touchBtnR = new Button { Content = "T", Width = 80, Height = 30, FontSize = 15, BorderThickness = new Thickness(0) };
+                touchBtnR.PreviewMouseLeftButtonDown += delegate { SendCmd("MANUAL_TOUCH_RIGHT", new { lane = capturedLane }); };
+                rightDevices.Children.Add(touchBtnR);
+                rowUI.TouchR = touchBtnR;
+                Grid.SetColumn(rightDevices, 4); grid.Children.Add(rightDevices);
 
-                int rank = sw["rank"] != null ? (int)sw["rank"] : 0;
-                Color rankColor = Colors.White;
-                if (rank == 1) rankColor = (Color)ColorConverter.ConvertFromString("#F59E0B");
-                else if (rank == 2) rankColor = (Color)ColorConverter.ConvertFromString("#C0C0C0");
-                else if (rank == 3) rankColor = (Color)ColorConverter.ConvertFromString("#CD7F32");
-                infoArea.Children.Add(new TextBlock
-                {
-                    Text = rank > 0 ? rank.ToString() : "",
-                    Width = 44,
-                    FontSize = 22,
-                    FontWeight = FontWeights.Bold,
-                    Foreground = new SolidColorBrush(rankColor),
-                    TextAlignment = TextAlignment.Center,
-                    FontFamily = new FontFamily("Consolas")
-                });
+                // Col 5: 右发令指示
+                var rightStartInd = new Border { Width = 8, CornerRadius = new CornerRadius(2), Margin = new Thickness(0, 2, 0, 2) };
+                Grid.SetColumn(rightStartInd, 5); grid.Children.Add(rightStartInd);
+                rowUI.RightSignalInd = rightStartInd;
 
-                // Remark column (isFalseStart -> DSQ, or status)
-                string remarkText = "";
-                if (isFalseStart) remarkText = "DSQ";
-                else if (!string.IsNullOrEmpty(status)) remarkText = status;
-                infoArea.Children.Add(new TextBlock
-                {
-                    Text = remarkText,
-                    Width = 40,
-                    FontSize = 13,
-                    FontWeight = FontWeights.Bold,
-                    Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EF4444")),
-                    TextAlignment = TextAlignment.Center,
-                    Margin = new Thickness(8, 0, 0, 0)
-                });
+                // Col 6: 成绩信息
+                var infoArea = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+                var reactionTb = new TextBlock { Width = 60, FontSize = 18, Foreground = Brushes.White, TextAlignment = TextAlignment.Center, FontFamily = new FontFamily("Consolas") };
+                infoArea.Children.Add(reactionTb);
+                rowUI.ReactionText = reactionTb;
 
-                Grid.SetColumn(infoArea, 6);
-                grid.Children.Add(infoArea);
+                var displayTimeTb = new TextBlock { Width = 115, FontSize = 21, FontWeight = FontWeights.Bold, Foreground = Brushes.White, TextAlignment = TextAlignment.Center, FontFamily = new FontFamily("Consolas") };
+                infoArea.Children.Add(displayTimeTb);
+                rowUI.DisplayTimeText = displayTimeTb;
+
+                var rankTb = new TextBlock { Width = 44, FontSize = 22, FontWeight = FontWeights.Bold, TextAlignment = TextAlignment.Center, FontFamily = new FontFamily("Consolas") };
+                infoArea.Children.Add(rankTb);
+                rowUI.RankText = rankTb;
+
+                var remarkTb = new TextBlock { Width = 40, FontSize = 13, FontWeight = FontWeights.Bold, Foreground = _brushRed, TextAlignment = TextAlignment.Center, Margin = new Thickness(8, 0, 0, 0) };
+                infoArea.Children.Add(remarkTb);
+                rowUI.RemarkText = remarkTb;
+
+                Grid.SetColumn(infoArea, 6); grid.Children.Add(infoArea);
 
                 row.Child = grid;
                 row.MouseLeftButtonDown += delegate
                 {
                     _selectedLane = capturedLane;
-                    _lastSplitCount = -1; // 切换泳道时强制重建分段列表
+                    _lastSplitCount = -1;
                     LaneInput.Text = capturedLane.ToString();
                     UpdateTimingSourceInfo();
-                    RenderLanes(_data != null ? _data["swimmers"] as JArray : null);
+                    RefreshLaneRows(_data != null ? _data["swimmers"] as JArray : null, isRelay);
                 };
                 LanePanel.Children.Add(row);
+                _laneRowUIs.Add(rowUI);
+            }
+        }
+
+        private void RefreshLaneRows(JArray swimmers, bool isRelay)
+        {
+            if (swimmers == null || _laneRowUIs.Count == 0) return;
+            bool leftStart = _startPosition == "left";
+
+            int idx = 0;
+            foreach (JObject sw in swimmers)
+            {
+                if (idx >= _laneRowUIs.Count) break;
+                var rowUI = _laneRowUIs[idx++];
+                int lane = rowUI.Lane;
+                var ds = sw["deviceStatus"] as JObject;
+                var mb = sw["manualButton"] as JObject;
+                bool isFalseStart = sw["isFalseStart"] != null && (bool)sw["isFalseStart"];
+                bool isFinished = sw["isFinished"] != null && (bool)sw["isFinished"];
+                string status = sw["status"] != null ? sw["status"].ToString() : "";
+
+                // 行边框
+                if (isFalseStart) { rowUI.Row.BorderBrush = _brushAmber; rowUI.Row.BorderThickness = new Thickness(1); }
+                else if (lane == _selectedLane) { rowUI.Row.BorderBrush = _brushBlue; rowUI.Row.BorderThickness = new Thickness(1); }
+                else { rowUI.Row.BorderThickness = new Thickness(0); }
+
+                // 左右发令指示
+                rowUI.LeftSignalInd.Background = leftStart ? (Brush)_brushGreen : Brushes.Transparent;
+                rowUI.RightSignalInd.Background = !leftStart ? (Brush)_brushGreen : Brushes.Transparent;
+
+                // 左T按钮
+                bool leftManualEnabled = mb != null && mb["leftEnabled"] != null && (bool)mb["leftEnabled"];
+                bool rightManualEnabled = mb != null && mb["rightEnabled"] != null && (bool)mb["rightEnabled"];
+                string leftManualStatus = mb != null && mb["leftStatus"] != null ? mb["leftStatus"].ToString() : "closed";
+                string rightManualStatus = mb != null && mb["rightStatus"] != null ? mb["rightStatus"].ToString() : "closed";
+                if (leftManualEnabled)
+                {
+                    rowUI.TouchL.Background = leftManualStatus == "open" ? (Brush)_brushGreen : (Brush)_brushSlate;
+                    rowUI.TouchL.Foreground = Brushes.White;
+                }
+                else
+                {
+                    rowUI.TouchL.Background = _brushDark;
+                    rowUI.TouchL.Foreground = _brushSlate;
+                }
+
+                // 左设备5个圆点
+                rowUI.LeftDots[0].Fill = GetDeviceBrush(GetDeviceStatus(ds, "leftBlindWatch1"));
+                rowUI.LeftDots[1].Fill = GetDeviceBrush(GetDeviceStatus(ds, "leftBlindWatch2"));
+                rowUI.LeftDots[2].Fill = GetDeviceBrush(GetDeviceStatus(ds, "leftBlindWatch3"));
+                rowUI.LeftDots[3].Fill = GetDeviceBrush(GetDeviceStatus(ds, "leftStartBlock"));
+                rowUI.LeftDots[4].Fill = GetDeviceBrush(GetDeviceStatus(ds, "leftTouchpad"));
+
+                // 左剩余秒数
+                string leftRemainStr = sw["leftTouchRemain"] != null ? sw["leftTouchRemain"].ToString() : "";
+                int leftRemainVal;
+                bool leftRemainActive = int.TryParse(leftRemainStr, out leftRemainVal) && leftRemainVal > 0;
+                rowUI.LeftRemainText.Text = leftRemainActive ? leftRemainStr : "";
+                rowUI.LeftRemainText.Foreground = leftRemainActive ? (Brush)_brushAmber : (Brush)_brushSlate;
+
+                // 右T按钮
+                if (rightManualEnabled)
+                {
+                    rowUI.TouchR.Background = rightManualStatus == "open" ? (Brush)_brushGreen : (Brush)_brushSlate;
+                    rowUI.TouchR.Foreground = Brushes.White;
+                }
+                else
+                {
+                    rowUI.TouchR.Background = _brushDark;
+                    rowUI.TouchR.Foreground = _brushSlate;
+                }
+
+                // 右设备5个圆点
+                rowUI.RightDots[0].Fill = GetDeviceBrush(GetDeviceStatus(ds, "rightTouchpad"));
+                rowUI.RightDots[1].Fill = GetDeviceBrush(GetDeviceStatus(ds, "rightStartBlock"));
+                rowUI.RightDots[2].Fill = GetDeviceBrush(GetDeviceStatus(ds, "rightBlindWatch1"));
+                rowUI.RightDots[3].Fill = GetDeviceBrush(GetDeviceStatus(ds, "rightBlindWatch2"));
+                rowUI.RightDots[4].Fill = GetDeviceBrush(GetDeviceStatus(ds, "rightBlindWatch3"));
+
+                // 右剩余秒数
+                string rightRemainStr = sw["rightTouchRemain"] != null ? sw["rightTouchRemain"].ToString() : "";
+                int rightRemainVal;
+                bool rightRemainActive = int.TryParse(rightRemainStr, out rightRemainVal) && rightRemainVal > 0;
+                rowUI.RightRemainText.Text = rightRemainActive ? rightRemainStr : "";
+                rowUI.RightRemainText.Foreground = rightRemainActive ? (Brush)_brushAmber : (Brush)_brushSlate;
+
+                // 姓名/代表队
+                if (isRelay)
+                {
+                    rowUI.NameText.Text = sw["country"] != null ? sw["country"].ToString() : "";
+                    rowUI.TeamText.Text = GetRelayCurrentLegName(sw);
+                }
+                else
+                {
+                    rowUI.NameText.Text = sw["name"] != null ? sw["name"].ToString() : "";
+                    rowUI.TeamText.Text = sw["country"] != null ? sw["country"].ToString() : "";
+                }
+
+                // 方向/进度
+                string swDir = sw["direction"] != null ? sw["direction"].ToString() : (leftStart ? "→" : "←");
+                string dir = swDir == "←" ? "returning" : "going";
+                rowUI.TrackText.HorizontalAlignment = dir == "returning" ? HorizontalAlignment.Right : HorizontalAlignment.Left;
+                rowUI.TrackText.Text = BuildArrows(sw, swDir, dir);
+                if (isFinished) rowUI.TrackText.Foreground = _brushAmber;
+                else if (dir == "returning") rowUI.TrackText.Foreground = _brushGreen;
+                else rowUI.TrackText.Foreground = _brushBlue;
+
+                // 反应时：消隐
+                string rtVal = sw["reactionTime"] != null ? sw["reactionTime"].ToString() : "";
+                string rtDisplay = "";
+                if (!string.IsNullOrEmpty(rtVal))
+                {
+                    if (!_laneSplitState.ContainsKey(lane)) _laneSplitState[lane] = new SplitState();
+                    var ss = _laneSplitState[lane];
+                    if (rtVal != ss.LastReaction) { ss.LastReaction = rtVal; ss.ReactionShowTime = DateTime.Now; }
+                    if (ss.ReactionShowTime > DateTime.MinValue)
+                    {
+                        double dispSec = _splitDisplayTime > 0 ? _splitDisplayTime : 5;
+                        if ((DateTime.Now - ss.ReactionShowTime).TotalSeconds < dispSec) rtDisplay = rtVal;
+                    }
+                }
+                rowUI.ReactionText.Text = rtDisplay;
+
+                // 成绩/分段
+                rowUI.DisplayTimeText.Text = GetSplitOrFinalTime(sw);
+
+                // 名次
+                int rank = sw["rank"] != null ? (int)sw["rank"] : 0;
+                rowUI.RankText.Text = rank > 0 ? rank.ToString() : "";
+                if (rank == 1) rowUI.RankText.Foreground = _brushAmber;
+                else if (rank == 2) rowUI.RankText.Foreground = _brushSilver;
+                else if (rank == 3) rowUI.RankText.Foreground = _brushBronze;
+                else rowUI.RankText.Foreground = Brushes.White;
+
+                // 备注
+                string remarkText = "";
+                if (isFalseStart) remarkText = "DSQ";
+                else if (!string.IsNullOrEmpty(status)) remarkText = status;
+                rowUI.RemarkText.Text = remarkText;
             }
         }
 
@@ -1227,7 +1206,23 @@ namespace RemoteTimingControl
 
             int lane = sw["lane"] != null ? (int)sw["lane"] : 0;
             var splits = sw["splits"] as JArray;
-            int curSplitCount = splits != null ? splits.Count : 0;
+
+            // 只统计有效分段（cumulative 非空），跳过服务器预创建的空段
+            JObject lastValidSplit = null;
+            int validSplitCount = 0;
+            if (splits != null)
+            {
+                for (int i = splits.Count - 1; i >= 0; i--)
+                {
+                    var sp = splits[i] as JObject;
+                    if (sp != null && sp["cumulative"] != null && !string.IsNullOrEmpty(sp["cumulative"].ToString()))
+                    {
+                        lastValidSplit = sp;
+                        validSplitCount = sp["lap"] != null ? (int)sp["lap"] : (i + 1);
+                        break;
+                    }
+                }
+            }
 
             SplitState ls;
             if (!_laneSplitState.TryGetValue(lane, out ls))
@@ -1236,13 +1231,13 @@ namespace RemoteTimingControl
                 _laneSplitState[lane] = ls;
             }
 
-            if (curSplitCount > ls.SplitCount)
+            if (validSplitCount > ls.SplitCount)
             {
-                ls.SplitCount = curSplitCount;
+                ls.SplitCount = validSplitCount;
                 ls.ShowTime = DateTime.Now;
             }
 
-            if (curSplitCount > 0 && ls.ShowTime != DateTime.MinValue)
+            if (lastValidSplit != null && ls.ShowTime != DateTime.MinValue)
             {
                 double displaySec = 5;
                 if (_data != null && _data["laneCloseSettings"] != null && _data["laneCloseSettings"]["splitDisplayTime"] != null)
@@ -1250,9 +1245,7 @@ namespace RemoteTimingControl
                 double elapsed = (DateTime.Now - ls.ShowTime).TotalMilliseconds;
                 if (elapsed < displaySec * 1000)
                 {
-                    var lastSplit = splits[curSplitCount - 1] as JObject;
-                    if (lastSplit != null && lastSplit["cumulative"] != null)
-                        return lastSplit["cumulative"].ToString();
+                    return lastValidSplit["cumulative"].ToString();
                 }
             }
             return "";
@@ -1301,7 +1294,7 @@ namespace RemoteTimingControl
                 closeTime = (double)_data["laneCloseSettings"]["laneCloseTime"];
 
             string arrow = swDir == "←" ? "◀" : "▶";
-            int maxArrows = 12;
+            int maxArrows = 8;
 
             if (countdown > 0)
             {
@@ -1823,7 +1816,7 @@ namespace RemoteTimingControl
             };
 
             // 优先用服务器广播的最新值，否则用本地保存值
-            double closeTime = _laneCloseTime, sbDelay = _startBlockCloseDelay, confDelay = _resultConfirmCloseDelay, fsThresh = _falseStartThreshold, splitDisp = _splitDisplayTime;
+            double closeTime = _laneCloseTime, sbDelay = _startBlockCloseDelay, confDelay = _resultConfirmCloseDelay, fsThresh = _falseStartThreshold, splitDisp = _splitDisplayTime, holdTime = _firstPlaceHoldTime;
             if (_data != null && _data["laneCloseSettings"] != null)
             {
                 var lcs = _data["laneCloseSettings"];
@@ -1832,6 +1825,7 @@ namespace RemoteTimingControl
                 if (lcs["resultConfirmCloseDelay"] != null) confDelay = (double)lcs["resultConfirmCloseDelay"];
                 if (lcs["falseStartThreshold"] != null) fsThresh = (double)lcs["falseStartThreshold"];
                 if (lcs["splitDisplayTime"] != null) splitDisp = (double)lcs["splitDisplayTime"];
+                if (lcs["firstPlaceHoldTime"] != null) holdTime = (double)lcs["firstPlaceHoldTime"];
             }
 
             var sp = new StackPanel { Margin = new Thickness(20) };
@@ -1842,7 +1836,7 @@ namespace RemoteTimingControl
             var tbConfDelay = AddParamRow(sp, "成绩确认关闭延迟", confDelay.ToString(), "秒");
             var tbFSThresh = AddParamRow(sp, "抢跳判定阈值", fsThresh.ToString(), "秒");
             var tbSplitDisp = AddParamRow(sp, "分段成绩显示时长", splitDisp.ToString(), "秒");
-            var tbFirstHold = AddParamRow(sp, "第1名成绩停留时间", _firstPlaceHoldTime.ToString(), "秒");
+            var tbFirstHold = AddParamRow(sp, "第1名成绩停留时间", holdTime.ToString(), "秒");
 
             // Finish position radio
             var finishRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 10, 0, 0) };
@@ -1922,7 +1916,8 @@ namespace RemoteTimingControl
                     resultConfirmCloseDelay = _resultConfirmCloseDelay,
                     falseStartThreshold = _falseStartThreshold,
                     splitDisplayTime = _splitDisplayTime,
-                    startPosition = _finishPosition
+                    startPosition = _finishPosition,
+                    firstPlaceHoldTime = _firstPlaceHoldTime
                 };
                 SendCmd("SET_LANE_CLOSE_SETTINGS", settings);
 

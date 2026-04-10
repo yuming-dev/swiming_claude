@@ -826,6 +826,11 @@ namespace SwimmingScoreboard
                 },
                 raceState = _raceState.ToString().ToUpper(),
                 runningTime = TimeFormatter.FormatRunning(_runningTime),
+                // 第1名成绩（由ProcessTouchpadHit设置，客户端直接显示）
+                firstPlaceFinishTime = _firstPlaceFinishTime ?? "",
+                firstPlaceActive = (_firstPlaceShowStart != DateTime.MinValue &&
+                    (DateTime.Now - _firstPlaceShowStart).TotalSeconds <
+                    (_laneCloseSettings.FirstPlaceHoldTime > 0 ? _laneCloseSettings.FirstPlaceHoldTime : 3)),
                 laneCloseSettings = new {
                     laneCloseTime = _laneCloseSettings.LaneCloseTime,
                     startBlockCloseDelay = _laneCloseSettings.StartBlockCloseDelay,
@@ -881,7 +886,9 @@ namespace SwimmingScoreboard
             bool isRelay = _currentEvent.Contains("接力");
             var result = new List<Swimmer>();
             foreach (var s in _swimmers) {
-                if (s.EventName != _currentEvent || s.Gender != _currentGender) continue;
+                if (s.EventName != _currentEvent) continue;
+                // 性别匹配：兼容"男"/"男子"等格式
+                if (s.Gender != _currentGender && !s.Gender.StartsWith(_currentGender) && !_currentGender.StartsWith(s.Gender)) continue;
                 // 接力项目：跳过个人队员条目，只保留代表队
                 if (isRelay && s.Notes != null && s.Notes.StartsWith("接力队员")) continue;
                 // 优先从StageAssignments查找（不受晋级后CurrentStage变化影响）
@@ -1355,8 +1362,28 @@ namespace SwimmingScoreboard
         }
 
         private void ProcessTouchpadHit(int lane, double time, LaneDeviceState laneState) {
-            // 获取当前运动员
-            var swimmer = GetCurrentHeatSwimmers().FirstOrDefault(s => s.Lane == lane);
+            // 第1名成绩检测：不管哪个泳道，hold时间过期后最先收到的触板就是新的第1名
+            if (time > 0) {
+                double holdSec = _laneCloseSettings.FirstPlaceHoldTime > 0 ? _laneCloseSettings.FirstPlaceHoldTime : 3;
+                bool holdExpired = _firstPlaceShowStart == DateTime.MinValue ||
+                                   (DateTime.Now - _firstPlaceShowStart).TotalSeconds >= holdSec;
+                if (holdExpired) {
+                    _firstPlaceFinishTime = TimeFormatter.Format(time);
+                    _firstPlaceShowStart = DateTime.Now;
+                    // 立即更新滚动时间显示（不等下一个timer tick）
+                    if (RunningTimeText != null) {
+                        RunningTimeText.Text = _firstPlaceFinishTime;
+                        RunningTimeText.Foreground = _firstPlaceBrush;
+                    }
+                }
+            }
+
+            // 获取当前运动员（优先StageAssignment泳道号，兼容sw.Lane）
+            var swimmer = GetCurrentHeatSwimmers().FirstOrDefault(s => {
+                var sa = s.GetAssignmentForStage(_currentStage);
+                return (sa != null ? sa.Lane : s.Lane) == lane;
+            });
+            if (swimmer == null) swimmer = GetCurrentHeatSwimmers().FirstOrDefault(s => s.Lane == lane);
             if (swimmer == null) return;
 
             // 获取或创建成绩记录
@@ -1586,7 +1613,11 @@ namespace SwimmingScoreboard
         }
 
         private void ProcessBlindWatchData(int lane, string cmdType, double time) {
-            var swimmer = GetCurrentHeatSwimmers().FirstOrDefault(s => s.Lane == lane);
+            var swimmer = GetCurrentHeatSwimmers().FirstOrDefault(s => {
+                var sa = s.GetAssignmentForStage(_currentStage);
+                return (sa != null ? sa.Lane : s.Lane) == lane;
+            });
+            if (swimmer == null) swimmer = GetCurrentHeatSwimmers().FirstOrDefault(s => s.Lane == lane);
             if (swimmer == null) return;
 
             var result = swimmer.Results.FirstOrDefault(r => r.Stage == _currentStage && r.Heat == _currentHeat);
@@ -1738,66 +1769,40 @@ namespace SwimmingScoreboard
             _countdownTimer.Tick += CountdownTimer_Tick;
         }
 
-        private void DetectFirstPlace() {
-            var swimmers = GetCurrentHeatSwimmers();
-            if (swimmers.Count == 0) return;
-            Swimmer leader = null;
-            int leaderSplitCount = 0;
-            foreach (var sw in swimmers) {
-                if (!string.IsNullOrEmpty(sw.Status)) continue;
-                var r = sw.Results.FirstOrDefault(lr => lr.Stage == _currentStage && lr.Heat == _currentHeat);
-                int sc = r != null ? r.Splits.Count : 0;
-                var ls = _laneDeviceStates.FirstOrDefault(s => s.Lane == sw.Lane);
-                bool finished = ls != null && ls.IsFinished;
-                if (finished) sc = 9999;
-                if (sc > leaderSplitCount || (sc == leaderSplitCount && leader != null && r != null && r.Rank > 0)) {
-                    leaderSplitCount = sc;
-                    leader = sw;
-                }
-            }
-            if (leader != null) {
-                var lr = leader.Results.FirstOrDefault(r2 => r2.Stage == _currentStage && r2.Heat == _currentHeat);
-                var lls = _laneDeviceStates.FirstOrDefault(s => s.Lane == leader.Lane);
-                bool lFinished = lls != null && lls.IsFinished;
-                int lSc = lr != null ? lr.Splits.Count : 0;
-                if (lFinished) lSc = -1;
-                if (lSc != _firstPlaceDetectedRank) {
-                    _firstPlaceDetectedRank = lSc;
-                    if (lFinished && lr != null && lr.FinalTime > 0) {
-                        _firstPlaceFinishTime = TimeFormatter.Format(lr.FinalTime);
-                    } else if (lr != null && lr.Splits.Count > 0) {
-                        _firstPlaceFinishTime = TimeFormatter.Format(lr.Splits.Last().CumulativeTime);
-                    }
-                    if (!string.IsNullOrEmpty(_firstPlaceFinishTime))
-                        _firstPlaceShowStart = DateTime.Now;
-                }
-            }
-        }
+
+        private int _raceTickCount = 0;
+        private static readonly SolidColorBrush _firstPlaceBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#22C55E"));
+        private static readonly SolidColorBrush _runningTimeBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F59E0B"));
 
         private void RaceTimer_Tick(object sender, EventArgs e) {
             // 发令后一直计时，不因比赛结束而停止，直到复位信号
             if (_raceStartTime != DateTime.MinValue) {
                 _runningTime = (DateTime.Now - _raceStartTime).TotalSeconds;
+                _raceTickCount++;
 
-                // 第1名成绩交替显示
-                DetectFirstPlace();
+                // 第1名成绩显示（轻量操作，每次tick都执行）
                 double holdSec = _laneCloseSettings.FirstPlaceHoldTime > 0 ? _laneCloseSettings.FirstPlaceHoldTime : 3;
                 if (_firstPlaceShowStart != DateTime.MinValue &&
                     (DateTime.Now - _firstPlaceShowStart).TotalSeconds < holdSec &&
                     !string.IsNullOrEmpty(_firstPlaceFinishTime)) {
                     if (RunningTimeText != null) {
                         RunningTimeText.Text = _firstPlaceFinishTime;
-                        RunningTimeText.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#22C55E"));
+                        RunningTimeText.Foreground = _firstPlaceBrush;
                     }
                 } else {
                     if (RunningTimeText != null) {
                         RunningTimeText.Text = TimeFormatter.FormatRunning(_runningTime);
-                        RunningTimeText.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F59E0B"));
+                        RunningTimeText.Foreground = _runningTimeBrush;
                     }
                 }
 
+                // 每100ms刷新泳道动态内容（增量更新，不重建UI）
                 UpdateLaneStatusDisplay();
-                Broadcast();
+
+                // 广播降频为每500ms一次（WebSocket序列化/网络发送开销大）
+                if (_raceTickCount % 5 == 0) {
+                    Broadcast();
+                }
             }
         }
 
@@ -1923,42 +1928,100 @@ namespace SwimmingScoreboard
             Broadcast();
         }
 
+        private void OpenAll_Click(object sender, RoutedEventArgs e) {
+            foreach (var s in _laneDeviceStates) {
+                s.LeftTouchpadStatus = DeviceStatus.Open;
+                s.LeftBlindWatch1Status = DeviceStatus.Open;
+                s.LeftBlindWatch2Status = DeviceStatus.Open;
+                s.LeftBlindWatch3Status = DeviceStatus.Open;
+                s.RightTouchpadStatus = DeviceStatus.Open;
+                s.RightBlindWatch1Status = DeviceStatus.Open;
+                s.RightBlindWatch2Status = DeviceStatus.Open;
+                s.RightBlindWatch3Status = DeviceStatus.Open;
+                s.LaneCloseCountdown = 0;
+            }
+            UpdateLaneStatusDisplay();
+            AddLog("全部泳道已打开");
+            Broadcast();
+        }
+
+        private void CloseAll_Click(object sender, RoutedEventArgs e) {
+            foreach (var s in _laneDeviceStates) {
+                s.LeftTouchpadStatus = DeviceStatus.Closed;
+                s.LeftBlindWatch1Status = DeviceStatus.Closed;
+                s.LeftBlindWatch2Status = DeviceStatus.Closed;
+                s.LeftBlindWatch3Status = DeviceStatus.Closed;
+                s.RightTouchpadStatus = DeviceStatus.Closed;
+                s.RightBlindWatch1Status = DeviceStatus.Closed;
+                s.RightBlindWatch2Status = DeviceStatus.Closed;
+                s.RightBlindWatch3Status = DeviceStatus.Closed;
+                s.LaneCloseCountdown = 0;
+            }
+            UpdateLaneStatusDisplay();
+            AddLog("全部泳道已关闭");
+            Broadcast();
+        }
+
         private void Restart_Click(object sender, RoutedEventArgs e) {
-            // 计时复位：重置计时器和泳道设备状态
+            // 本地按钮点击时弹确认对话框，WebSocket远程调用时(sender==null)跳过
+            if (sender != null) {
+                var r = MessageBox.Show("确定计时器复位，数据清除？", "计时复位",
+                    MessageBoxButton.YesNo, MessageBoxImage.Warning);
+                if (r != MessageBoxResult.Yes) return;
+            }
+
+            // ═══ 计时复位：与EXE "计时复位"按钮功能完全一致 ═══
+            // 1. 停止计时器，复位状态到Waiting
             _raceState = RaceState.Waiting;
             _raceTimer.Stop();
             _countdownTimer.Stop();
             _runningTime = 0;
             _raceStartTime = DateTime.MinValue;
+            _resultConfirmed = false;
+
+            // 2. 清除所有计时显示状态（第一名成绩、分段、滚动时间）
+            _firstPlaceFinishTime = "";
+            _firstPlaceShowStart = DateTime.MinValue;
+            _firstPlaceDetectedRank = 0;
             _laneSplitCount.Clear();
             _laneSplitShowTime.Clear();
             if (RunningTimeText != null) RunningTimeText.Text = "0.00";
-            UpdateRaceStateDisplay();
 
-            // 确保发令位置根据当前项目正确设置（50米→对面端）
+            // 3. 清除原始计时日志
+            if (_rawTimingLog != null) _rawTimingLog.Clear();
+
+            // 4. 根据项目重置发令位置（50米→对面端）
             AutoAdjustStartPosition();
 
+            // 5. 重置所有泳道设备状态
             foreach (var state in _laneDeviceStates) {
                 state.ResetForNewRace(_laneCloseSettings.StartPosition);
             }
 
-            if (_resultConfirmed) {
-                // 成绩已确认，不清除数据，只复位计时器和设备
-                AddLog("计时复位 — 成绩已确认，数据保留");
-            } else {
-                // 成绩未确认，清除当前组的成绩数据
-                var currentSwimmers = GetCurrentHeatSwimmers();
-                foreach (var sw in currentSwimmers) {
-                    var result = sw.Results.FirstOrDefault(r => r.Stage == _currentStage && r.Heat == _currentHeat);
-                    if (result != null) sw.Results.Remove(result);
-                    sw.Status = "";
-                }
-                AddLog("计时复位 — 本组数据已清除");
+            // 6. 清除当前组的成绩数据（确认对话框已明确"数据清除"）
+            var currentSwimmers = GetCurrentHeatSwimmers();
+            foreach (var sw in currentSwimmers) {
+                var result = sw.Results.FirstOrDefault(r => r.Stage == _currentStage && r.Heat == _currentHeat);
+                if (result != null) sw.Results.Remove(result);
+                sw.Status = "";
             }
+
+            // 7. 更新显示和广播
+            UpdateRaceStateDisplay();
+            UpdateLaneStatusDisplay();
+            AddLog("计时复位");
             Broadcast();
         }
 
         private void ConfirmResult_Click(object sender, RoutedEventArgs e) {
+            // 本地按钮点击时弹确认对话框，WebSocket远程调用时(sender==null)跳过
+            if (sender != null) {
+                string info = string.Format("{0} {1} {2} 第{3}组", _currentGender, _currentEvent, _currentStage, _currentHeat);
+                var r = MessageBox.Show(
+                    "确认本组成绩？\n\n" + info + "\n\n确认后成绩将锁定保存。",
+                    "确认成绩", MessageBoxButton.YesNo, MessageBoxImage.Question);
+                if (r != MessageBoxResult.Yes) return;
+            }
             _countdownTimer.Stop();
             _raceState = RaceState.Finished;
             _resultConfirmed = true;
@@ -2458,47 +2521,82 @@ namespace SwimmingScoreboard
             Grid.SetColumn(infoLabels, 6); PoolHeader.Children.Add(infoLabels);
         }
 
-        private Ellipse MakeLaneDot(DeviceStatus status) {
-            Color c;
+        // 画刷缓存：避免每次tick重复创建
+        private static readonly SolidColorBrush _brushGreen = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#22C55E"));
+        private static readonly SolidColorBrush _brushRed = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EF4444"));
+        private static readonly SolidColorBrush _brushAmber = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F59E0B"));
+        private static readonly SolidColorBrush _brushSlate = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569"));
+        private static readonly SolidColorBrush _brushDark = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E293B"));
+        private static readonly SolidColorBrush _brushBlue = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6"));
+        private static readonly SolidColorBrush _brushSilver = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#C0C0C0"));
+        private static readonly SolidColorBrush _brushBronze = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#CD7F32"));
+        private static readonly SolidColorBrush _brushGray = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B"));
+        private static readonly SolidColorBrush _brushMutedText = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8"));
+
+        private static SolidColorBrush GetDeviceBrush(DeviceStatus status) {
             switch (status) {
-                case DeviceStatus.Open: c = (Color)ColorConverter.ConvertFromString("#22C55E"); break;
-                case DeviceStatus.Broken: c = (Color)ColorConverter.ConvertFromString("#EF4444"); break;
-                case DeviceStatus.FalseStart: c = (Color)ColorConverter.ConvertFromString("#F59E0B"); break;
-                default: c = (Color)ColorConverter.ConvertFromString("#475569"); break;
+                case DeviceStatus.Open: return _brushGreen;
+                case DeviceStatus.Broken: return _brushRed;
+                case DeviceStatus.FalseStart: return _brushAmber;
+                default: return _brushSlate;
             }
-            return new Ellipse { Width = 22, Height = 22, Fill = new SolidColorBrush(c), Margin = new Thickness(2, 0, 2, 0) };
         }
+
+        private Ellipse MakeLaneDot(DeviceStatus status) {
+            return new Ellipse { Width = 22, Height = 22, Fill = GetDeviceBrush(status), Margin = new Thickness(2, 0, 2, 0) };
+        }
+
+        // 泳道行UI引用（动态内容增量更新用）
+        private class LaneRowUI {
+            public int Lane;
+            public Swimmer Swimmer;
+            public Border Row;
+            public Button TouchL, TouchR;
+            public Ellipse[] LeftDots;  // [BlindWatch1, BlindWatch2, BlindWatch3, StartBlock, Touchpad]
+            public Ellipse[] RightDots; // [Touchpad, StartBlock, BlindWatch1, BlindWatch2, BlindWatch3]
+            public TextBlock LeftRemainText, RightRemainText;
+            public TextBlock TrackText;
+            public TextBlock ReactionText, DisplayTimeText, RankText, RemarkText;
+            public Border LeftSignalInd, RightSignalInd;
+        }
+
+        private List<LaneRowUI> _laneRowUIs = new List<LaneRowUI>();
+        private string _laneRowsBuiltKey = "";
 
         private void UpdateLaneStatusDisplay() {
             if (LanePanel == null || PoolHeader == null) return;
-            RenderPoolHeader();
 
-            LanePanel.Children.Clear();
             var currentSwimmers = GetCurrentHeatSwimmers();
-            double splitDisplaySec = _laneCloseSettings.SplitDisplayTime > 0 ? _laneCloseSettings.SplitDisplayTime : 5;
+
+            // 构造本次数据的key（运动员列表变化时需要重建UI）
+            string key = _currentGender + "|" + _currentEvent + "|" + _currentStage + "|" + _currentHeat + "|" + currentSwimmers.Count;
+            foreach (var sw in currentSwimmers) key += "|" + sw.Name + ":" + sw.Lane;
+
+            if (key != _laneRowsBuiltKey) {
+                RenderPoolHeader();
+                BuildLaneRows(currentSwimmers);
+                _laneRowsBuiltKey = key;
+            }
+            RefreshLaneRows(currentSwimmers);
+            UpdateTimingSourceInfo();
+        }
+
+        private void BuildLaneRows(List<Swimmer> currentSwimmers) {
+            LanePanel.Children.Clear();
+            _laneRowUIs.Clear();
             bool isRelay = _isRelay;
 
             foreach (var sw in currentSwimmers) {
                 var stageAssign = sw.GetAssignmentForStage(_currentStage);
                 int lane = stageAssign != null ? stageAssign.Lane : sw.Lane;
-                var ls = _laneDeviceStates.FirstOrDefault(s => s.Lane == lane);
-                var result = sw.Results.FirstOrDefault(r => r.Stage == _currentStage && r.Heat == _currentHeat);
-                bool isFinished = ls != null && ls.IsFinished;
-                string status = sw.Status ?? "";
+                var rowUI = new LaneRowUI { Lane = lane, Swimmer = sw };
 
                 var row = new Border {
-                    Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E293B")),
+                    Background = _brushDark,
                     CornerRadius = new CornerRadius(4), Margin = new Thickness(0, 0, 0, 4),
                     Height = 48, BorderThickness = new Thickness(0)
                 };
-                if (ls != null && ls.IsFalseStart) {
-                    row.BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F59E0B"));
-                    row.BorderThickness = new Thickness(2);
-                }
-                if (lane == _selectedLane) {
-                    row.BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6"));
-                    row.BorderThickness = new Thickness(2);
-                }
+                rowUI.Row = row;
 
                 var grid = new Grid();
                 grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(32) });
@@ -2509,123 +2607,92 @@ namespace SwimmingScoreboard
                 grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(8) });
                 grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(249) });
 
-                // Col 0: 道次
-                var laneNum = new TextBlock { Text = lane.ToString(), FontSize = 18, FontWeight = FontWeights.Bold, Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+                // Col 0: 道次（静态）
+                var laneNum = new TextBlock { Text = lane.ToString(), FontSize = 18, FontWeight = FontWeights.Bold, Foreground = _brushGray, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
                 Grid.SetColumn(laneNum, 0); grid.Children.Add(laneNum);
 
-                // Col 1: 左发令指示
-                var leftInd = new Border { Width = 8, CornerRadius = new CornerRadius(2), Margin = new Thickness(0, 2, 0, 2), Background = _laneCloseSettings.StartPosition == "left" ? new SolidColorBrush((Color)ColorConverter.ConvertFromString("#22C55E")) : Brushes.Transparent };
+                // Col 1: 左发令指示（动态：背景色）
+                var leftInd = new Border { Width = 8, CornerRadius = new CornerRadius(2), Margin = new Thickness(0, 2, 0, 2) };
                 Grid.SetColumn(leftInd, 1); grid.Children.Add(leftInd);
+                rowUI.LeftSignalInd = leftInd;
 
-                // Col 2: 左设备
+                // Col 2: 左设备（T按钮 + 5圆点 + 剩余秒数）
                 var leftDev = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(2, 0, 0, 0) };
-                bool leftManualOn = ls == null || ls.LeftManualEnabled;
-                Color touchLColor = (Color)ColorConverter.ConvertFromString(leftManualOn ? (ls != null && ls.LeftManualStatus == DeviceStatus.Open ? "#22C55E" : "#475569") : "#1E293B");
-                var touchL = new Button { Content = "T", Width = 80, Height = 26, FontSize = 14, Background = new SolidColorBrush(touchLColor), Foreground = leftManualOn ? Brushes.White : new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569")), BorderThickness = new Thickness(0) };
+                var touchL = new Button { Content = "T", Width = 80, Height = 26, FontSize = 14, BorderThickness = new Thickness(0) };
                 int capLane = lane;
                 touchL.PreviewMouseLeftButtonDown += delegate(object s1, System.Windows.Input.MouseButtonEventArgs e1) { e1.Handled = true; HandleTimingCommand(Newtonsoft.Json.Linq.JObject.FromObject(new { command = "MANUAL_TOUCH_LEFT", data = new { lane = capLane } })); };
                 leftDev.Children.Add(touchL);
-                if (ls != null) {
-                    leftDev.Children.Add(MakeLaneDot(ls.LeftBlindWatch1Status));
-                    leftDev.Children.Add(MakeLaneDot(ls.LeftBlindWatch2Status));
-                    leftDev.Children.Add(MakeLaneDot(ls.LeftBlindWatch3Status));
-                    leftDev.Children.Add(MakeLaneDot(ls.LeftStartBlockStatus));
-                    leftDev.Children.Add(MakeLaneDot(ls.LeftTouchpadStatus));
+                rowUI.TouchL = touchL;
+
+                rowUI.LeftDots = new Ellipse[5];
+                for (int i = 0; i < 5; i++) {
+                    var dot = new Ellipse { Width = 22, Height = 22, Margin = new Thickness(2, 0, 2, 0) };
+                    rowUI.LeftDots[i] = dot;
+                    leftDev.Children.Add(dot);
                 }
-                int leftRemain = GetTouchRemain(ls, true);
-                leftDev.Children.Add(new TextBlock { Text = leftRemain > 0 ? leftRemain.ToString() : "", Width = 28, FontSize = 18, FontWeight = FontWeights.Bold, TextAlignment = TextAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Foreground = new SolidColorBrush(leftRemain > 0 ? (Color)ColorConverter.ConvertFromString("#F59E0B") : (Color)ColorConverter.ConvertFromString("#475569")) });
+
+                var leftRemainText = new TextBlock { Width = 28, FontSize = 18, FontWeight = FontWeights.Bold, TextAlignment = TextAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+                leftDev.Children.Add(leftRemainText);
+                rowUI.LeftRemainText = leftRemainText;
                 Grid.SetColumn(leftDev, 2); grid.Children.Add(leftDev);
 
-                // Col 3: 姓名 + 进度
+                // Col 3: 姓名 + 进度条
                 var midPanel = new DockPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 6, 0) };
                 var infoStack = new StackPanel { Width = 120 };
                 string dispName = isRelay && !string.IsNullOrEmpty(sw.Notes) && sw.Notes.StartsWith("接力队 棒次:") ? sw.Country : sw.Name;
                 string dispTeam = isRelay ? "" : (sw.Country ?? "");
                 infoStack.Children.Add(new TextBlock { Text = dispName ?? "", FontWeight = FontWeights.Bold, Foreground = Brushes.White, FontSize = 14 });
-                if (!string.IsNullOrEmpty(dispTeam)) infoStack.Children.Add(new TextBlock { Text = dispTeam, Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), FontSize = 12 });
+                if (!string.IsNullOrEmpty(dispTeam)) infoStack.Children.Add(new TextBlock { Text = dispTeam, Foreground = _brushMutedText, FontSize = 12 });
                 DockPanel.SetDock(infoStack, Dock.Left); midPanel.Children.Add(infoStack);
-                string dir = ls != null ? ls.Direction : "→";
+
                 var trackBorder = new Border { Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1A2332")), CornerRadius = new CornerRadius(4), Height = 22, Padding = new Thickness(4, 0, 4, 0), MinWidth = 60 };
-                var trackText = new TextBlock { FontFamily = new FontFamily("Consolas"), FontSize = 14, VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = dir == "←" ? HorizontalAlignment.Right : HorizontalAlignment.Left };
-                // 方向/进度显示（与EXE一致）
-                string arrow = dir == "←" ? "◀" : "▶";
-                int maxArrows = 8;
-                if (isFinished && result != null) {
-                    trackText.Text = "== " + TimeFormatter.Format(result.FinalTime) + " ==";
-                    trackText.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F59E0B"));
-                } else if (status == "DNS" || status == "DNF" || status == "DSQ") {
-                    trackText.Text = status;
-                    trackText.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F59E0B"));
-                } else if (ls != null && ls.LaneCloseCountdown > 0) {
-                    double closeTime = _laneCloseSettings.LaneCloseTime > 0 ? _laneCloseSettings.LaneCloseTime : 20;
-                    double elapsed = closeTime - ls.LaneCloseCountdown;
-                    double progress = closeTime > 0 ? elapsed / closeTime : 1;
-                    int arrowCount = Math.Max(1, (int)Math.Round(progress * maxArrows));
-                    if (arrowCount > maxArrows) arrowCount = maxArrows;
-                    string arrows = "";
-                    for (int a = 0; a < arrowCount; a++) arrows += arrow;
-                    string cdText = string.Format("({0:F1}s)", ls.LaneCloseCountdown);
-                    trackText.Text = dir == "←" ? cdText + " " + arrows : arrows + " " + cdText;
-                    trackText.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6"));
-                } else if (ls != null && (ls.CurrentLap > 0 || _raceState == RaceState.Racing)) {
-                    string fullArrows = "";
-                    for (int a = 0; a < maxArrows; a++) fullArrows += arrow;
-                    trackText.Text = fullArrows;
-                    trackText.Foreground = new SolidColorBrush(dir == "←" ? (Color)ColorConverter.ConvertFromString("#22C55E") : (Color)ColorConverter.ConvertFromString("#3B82F6"));
-                } else {
-                    trackText.Text = "";
-                }
-                trackBorder.Child = trackText; midPanel.Children.Add(trackBorder);
+                var trackText = new TextBlock { FontFamily = new FontFamily("Consolas"), FontSize = 14, VerticalAlignment = VerticalAlignment.Center };
+                trackBorder.Child = trackText;
+                midPanel.Children.Add(trackBorder);
+                rowUI.TrackText = trackText;
                 Grid.SetColumn(midPanel, 3); grid.Children.Add(midPanel);
 
                 // Col 4: 右设备
                 var rightDev = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-                int rightRemain = GetTouchRemain(ls, false);
-                rightDev.Children.Add(new TextBlock { Text = rightRemain > 0 ? rightRemain.ToString() : "", Width = 28, FontSize = 18, FontWeight = FontWeights.Bold, TextAlignment = TextAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Foreground = new SolidColorBrush(rightRemain > 0 ? (Color)ColorConverter.ConvertFromString("#F59E0B") : (Color)ColorConverter.ConvertFromString("#475569")) });
-                if (ls != null) {
-                    rightDev.Children.Add(MakeLaneDot(ls.RightTouchpadStatus));
-                    rightDev.Children.Add(MakeLaneDot(ls.RightStartBlockStatus));
-                    rightDev.Children.Add(MakeLaneDot(ls.RightBlindWatch1Status));
-                    rightDev.Children.Add(MakeLaneDot(ls.RightBlindWatch2Status));
-                    rightDev.Children.Add(MakeLaneDot(ls.RightBlindWatch3Status));
+                var rightRemainText = new TextBlock { Width = 28, FontSize = 18, FontWeight = FontWeights.Bold, TextAlignment = TextAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+                rightDev.Children.Add(rightRemainText);
+                rowUI.RightRemainText = rightRemainText;
+
+                rowUI.RightDots = new Ellipse[5];
+                for (int i = 0; i < 5; i++) {
+                    var dot = new Ellipse { Width = 22, Height = 22, Margin = new Thickness(2, 0, 2, 0) };
+                    rowUI.RightDots[i] = dot;
+                    rightDev.Children.Add(dot);
                 }
-                bool rightManualOn = ls == null || ls.RightManualEnabled;
-                Color touchRColor = (Color)ColorConverter.ConvertFromString(rightManualOn ? (ls != null && ls.RightManualStatus == DeviceStatus.Open ? "#22C55E" : "#475569") : "#1E293B");
-                var touchR = new Button { Content = "T", Width = 80, Height = 26, FontSize = 14, Background = new SolidColorBrush(touchRColor), Foreground = rightManualOn ? Brushes.White : new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569")), BorderThickness = new Thickness(0) };
+
+                var touchR = new Button { Content = "T", Width = 80, Height = 26, FontSize = 14, BorderThickness = new Thickness(0) };
                 touchR.PreviewMouseLeftButtonDown += delegate(object s2, System.Windows.Input.MouseButtonEventArgs e2) { e2.Handled = true; HandleTimingCommand(Newtonsoft.Json.Linq.JObject.FromObject(new { command = "MANUAL_TOUCH_RIGHT", data = new { lane = capLane } })); };
                 rightDev.Children.Add(touchR);
+                rowUI.TouchR = touchR;
                 Grid.SetColumn(rightDev, 4); grid.Children.Add(rightDev);
 
                 // Col 5: 右发令指示
-                var rightInd = new Border { Width = 8, CornerRadius = new CornerRadius(2), Margin = new Thickness(0, 2, 0, 2), Background = _laneCloseSettings.StartPosition == "right" ? new SolidColorBrush((Color)ColorConverter.ConvertFromString("#22C55E")) : Brushes.Transparent };
+                var rightInd = new Border { Width = 8, CornerRadius = new CornerRadius(2), Margin = new Thickness(0, 2, 0, 2) };
                 Grid.SetColumn(rightInd, 5); grid.Children.Add(rightInd);
+                rowUI.RightSignalInd = rightInd;
 
-                // Col 6: 成绩信息
+                // Col 6: 成绩信息（反应时 + 成绩 + 名次 + 备注）
                 var infoArea = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-                string reactionText = ls != null && ls.ReactionTime != 0 ? ls.ReactionTime.ToString("F2") : "";
-                infoArea.Children.Add(new TextBlock { Text = reactionText, Width = 55, FontSize = 15, Foreground = Brushes.White, TextAlignment = TextAlignment.Center, FontFamily = new FontFamily("Consolas") });
+                var reactionText = new TextBlock { Width = 55, FontSize = 15, Foreground = Brushes.White, TextAlignment = TextAlignment.Center, FontFamily = new FontFamily("Consolas") };
+                infoArea.Children.Add(reactionText);
+                rowUI.ReactionText = reactionText;
 
-                // 分段/成绩
-                int curSplitCount = result != null ? result.Splits.Count : 0;
-                if (!_laneSplitCount.ContainsKey(lane)) _laneSplitCount[lane] = 0;
-                if (!_laneSplitShowTime.ContainsKey(lane)) _laneSplitShowTime[lane] = DateTime.MinValue;
-                if (curSplitCount > _laneSplitCount[lane]) { _laneSplitCount[lane] = curSplitCount; _laneSplitShowTime[lane] = DateTime.Now; }
-                string displayTime = "";
-                bool isDQ = status == "DSQ" || status == "DNS" || status == "DNF";
-                if (isFinished && result != null && !isDQ) displayTime = TimeFormatter.Format(result.FinalTime);
-                else if (isDQ) displayTime = "";
-                else if (curSplitCount > 0 && (DateTime.Now - _laneSplitShowTime[lane]).TotalSeconds < splitDisplaySec) displayTime = TimeFormatter.Format(result.Splits[curSplitCount - 1].CumulativeTime);
-                infoArea.Children.Add(new TextBlock { Text = displayTime, Width = 110, FontSize = 17, FontWeight = FontWeights.Bold, Foreground = Brushes.White, TextAlignment = TextAlignment.Center, FontFamily = new FontFamily("Consolas") });
+                var displayTimeText = new TextBlock { Width = 110, FontSize = 17, FontWeight = FontWeights.Bold, Foreground = Brushes.White, TextAlignment = TextAlignment.Center, FontFamily = new FontFamily("Consolas") };
+                infoArea.Children.Add(displayTimeText);
+                rowUI.DisplayTimeText = displayTimeText;
 
-                int rank = result != null ? result.Rank : 0;
-                Color rankColor = Colors.White;
-                if (rank == 1) rankColor = (Color)ColorConverter.ConvertFromString("#F59E0B");
-                else if (rank == 2) rankColor = (Color)ColorConverter.ConvertFromString("#C0C0C0");
-                else if (rank == 3) rankColor = (Color)ColorConverter.ConvertFromString("#CD7F32");
-                infoArea.Children.Add(new TextBlock { Text = rank > 0 ? rank.ToString() : "", Width = 44, FontSize = 18, FontWeight = FontWeights.Bold, Foreground = new SolidColorBrush(rankColor), TextAlignment = TextAlignment.Center });
+                var rankText = new TextBlock { Width = 44, FontSize = 18, FontWeight = FontWeights.Bold, TextAlignment = TextAlignment.Center };
+                infoArea.Children.Add(rankText);
+                rowUI.RankText = rankText;
 
-                string remarkText = ls != null && ls.IsFalseStart ? "DSQ" : (isDQ ? status : "");
-                infoArea.Children.Add(new TextBlock { Text = remarkText, Width = 40, FontSize = 13, FontWeight = FontWeights.Bold, Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EF4444")), TextAlignment = TextAlignment.Center });
+                var remarkText = new TextBlock { Width = 40, FontSize = 13, FontWeight = FontWeights.Bold, Foreground = _brushRed, TextAlignment = TextAlignment.Center };
+                infoArea.Children.Add(remarkText);
+                rowUI.RemarkText = remarkText;
 
                 Grid.SetColumn(infoArea, 6); grid.Children.Add(infoArea);
 
@@ -2636,11 +2703,161 @@ namespace SwimmingScoreboard
                     _lastTsSplitCount = -1;
                     if (LaneInputBox != null) LaneInputBox.Text = clickLane.ToString();
                     UpdateTimingSourceInfo();
-                    UpdateLaneStatusDisplay();
+                    RefreshLaneRows(GetCurrentHeatSwimmers());
                 };
                 LanePanel.Children.Add(row);
+                _laneRowUIs.Add(rowUI);
             }
-            UpdateTimingSourceInfo();
+        }
+
+        private void RefreshLaneRows(List<Swimmer> currentSwimmers) {
+            double splitDisplaySec = _laneCloseSettings.SplitDisplayTime > 0 ? _laneCloseSettings.SplitDisplayTime : 5;
+            bool leftStart = _laneCloseSettings.StartPosition == "left";
+
+            foreach (var rowUI in _laneRowUIs) {
+                var sw = rowUI.Swimmer;
+                int lane = rowUI.Lane;
+                var ls = _laneDeviceStates.FirstOrDefault(s => s.Lane == lane);
+                var result = sw.Results.FirstOrDefault(r => r.Stage == _currentStage && r.Heat == _currentHeat);
+                bool isFinished = ls != null && ls.IsFinished;
+                string status = sw.Status ?? "";
+                bool isDQ = status == "DSQ" || status == "DNS" || status == "DNF";
+
+                // 行边框（抢跳/选中高亮）
+                if (ls != null && ls.IsFalseStart) {
+                    rowUI.Row.BorderBrush = _brushAmber;
+                    rowUI.Row.BorderThickness = new Thickness(2);
+                } else if (lane == _selectedLane) {
+                    rowUI.Row.BorderBrush = _brushBlue;
+                    rowUI.Row.BorderThickness = new Thickness(2);
+                } else {
+                    rowUI.Row.BorderThickness = new Thickness(0);
+                }
+
+                // 左右发令指示
+                rowUI.LeftSignalInd.Background = leftStart ? (Brush)_brushGreen : Brushes.Transparent;
+                rowUI.RightSignalInd.Background = !leftStart ? (Brush)_brushGreen : Brushes.Transparent;
+
+                // 左T按钮
+                bool leftManualOn = ls == null || ls.LeftManualEnabled;
+                if (leftManualOn) {
+                    rowUI.TouchL.Background = (ls != null && ls.LeftManualStatus == DeviceStatus.Open) ? (Brush)_brushGreen : (Brush)_brushSlate;
+                    rowUI.TouchL.Foreground = Brushes.White;
+                } else {
+                    rowUI.TouchL.Background = _brushDark;
+                    rowUI.TouchL.Foreground = _brushSlate;
+                }
+
+                // 左设备5个圆点：BlindWatch1/2/3, StartBlock, Touchpad
+                if (ls != null) {
+                    rowUI.LeftDots[0].Fill = GetDeviceBrush(ls.LeftBlindWatch1Status);
+                    rowUI.LeftDots[1].Fill = GetDeviceBrush(ls.LeftBlindWatch2Status);
+                    rowUI.LeftDots[2].Fill = GetDeviceBrush(ls.LeftBlindWatch3Status);
+                    rowUI.LeftDots[3].Fill = GetDeviceBrush(ls.LeftStartBlockStatus);
+                    rowUI.LeftDots[4].Fill = GetDeviceBrush(ls.LeftTouchpadStatus);
+                } else {
+                    for (int i = 0; i < 5; i++) rowUI.LeftDots[i].Fill = _brushSlate;
+                }
+
+                // 左剩余秒数
+                int leftRemain = GetTouchRemain(ls, true);
+                rowUI.LeftRemainText.Text = leftRemain > 0 ? leftRemain.ToString() : "";
+                rowUI.LeftRemainText.Foreground = leftRemain > 0 ? (Brush)_brushAmber : (Brush)_brushSlate;
+
+                // 右T按钮
+                bool rightManualOn = ls == null || ls.RightManualEnabled;
+                if (rightManualOn) {
+                    rowUI.TouchR.Background = (ls != null && ls.RightManualStatus == DeviceStatus.Open) ? (Brush)_brushGreen : (Brush)_brushSlate;
+                    rowUI.TouchR.Foreground = Brushes.White;
+                } else {
+                    rowUI.TouchR.Background = _brushDark;
+                    rowUI.TouchR.Foreground = _brushSlate;
+                }
+
+                // 右设备5个圆点：Touchpad, StartBlock, BlindWatch1/2/3
+                if (ls != null) {
+                    rowUI.RightDots[0].Fill = GetDeviceBrush(ls.RightTouchpadStatus);
+                    rowUI.RightDots[1].Fill = GetDeviceBrush(ls.RightStartBlockStatus);
+                    rowUI.RightDots[2].Fill = GetDeviceBrush(ls.RightBlindWatch1Status);
+                    rowUI.RightDots[3].Fill = GetDeviceBrush(ls.RightBlindWatch2Status);
+                    rowUI.RightDots[4].Fill = GetDeviceBrush(ls.RightBlindWatch3Status);
+                } else {
+                    for (int i = 0; i < 5; i++) rowUI.RightDots[i].Fill = _brushSlate;
+                }
+
+                // 右剩余秒数
+                int rightRemain = GetTouchRemain(ls, false);
+                rowUI.RightRemainText.Text = rightRemain > 0 ? rightRemain.ToString() : "";
+                rowUI.RightRemainText.Foreground = rightRemain > 0 ? (Brush)_brushAmber : (Brush)_brushSlate;
+
+                // 方向/进度文本
+                string dir = ls != null ? ls.Direction : "→";
+                rowUI.TrackText.HorizontalAlignment = dir == "←" ? HorizontalAlignment.Right : HorizontalAlignment.Left;
+                string arrow = dir == "←" ? "◀" : "▶";
+                int maxArrows = 8;
+                if (isFinished && result != null) {
+                    rowUI.TrackText.Text = "== " + TimeFormatter.Format(result.FinalTime) + " ==";
+                    rowUI.TrackText.Foreground = _brushAmber;
+                } else if (isDQ) {
+                    rowUI.TrackText.Text = status;
+                    rowUI.TrackText.Foreground = _brushAmber;
+                } else if (ls != null && ls.LaneCloseCountdown > 0) {
+                    double closeTime = _laneCloseSettings.LaneCloseTime > 0 ? _laneCloseSettings.LaneCloseTime : 20;
+                    double elapsed = closeTime - ls.LaneCloseCountdown;
+                    double progress = closeTime > 0 ? elapsed / closeTime : 1;
+                    int arrowCount = Math.Max(1, (int)Math.Round(progress * maxArrows));
+                    if (arrowCount > maxArrows) arrowCount = maxArrows;
+                    string arrows = new string(arrow[0], arrowCount);
+                    string cdText = string.Format("({0:F1}s)", ls.LaneCloseCountdown);
+                    rowUI.TrackText.Text = dir == "←" ? cdText + " " + arrows : arrows + " " + cdText;
+                    rowUI.TrackText.Foreground = _brushBlue;
+                } else if (ls != null && (ls.CurrentLap > 0 || _raceState == RaceState.Racing)) {
+                    rowUI.TrackText.Text = new string(arrow[0], maxArrows);
+                    rowUI.TrackText.Foreground = dir == "←" ? (Brush)_brushGreen : (Brush)_brushBlue;
+                } else {
+                    rowUI.TrackText.Text = "";
+                }
+
+                // 反应时
+                rowUI.ReactionText.Text = ls != null && ls.ReactionTime != 0 ? ls.ReactionTime.ToString("F2") : "";
+
+                // 分段/成绩显示（带停留时长）
+                // 只统计有效分段（CumulativeTime > 0），跳过 PreCreateSplit 创建的空段
+                SplitTime lastValidSplit = null;
+                int validSplitCount = 0;
+                if (result != null) {
+                    for (int i = result.Splits.Count - 1; i >= 0; i--) {
+                        if (result.Splits[i].CumulativeTime > 0) {
+                            lastValidSplit = result.Splits[i];
+                            validSplitCount = lastValidSplit.Lap;
+                            break;
+                        }
+                    }
+                }
+                if (!_laneSplitCount.ContainsKey(lane)) _laneSplitCount[lane] = 0;
+                if (!_laneSplitShowTime.ContainsKey(lane)) _laneSplitShowTime[lane] = DateTime.MinValue;
+                if (validSplitCount > _laneSplitCount[lane]) {
+                    _laneSplitCount[lane] = validSplitCount;
+                    _laneSplitShowTime[lane] = DateTime.Now;
+                }
+                string displayTime = "";
+                if (isFinished && result != null && !isDQ) displayTime = TimeFormatter.Format(result.FinalTime);
+                else if (!isDQ && lastValidSplit != null &&
+                         (DateTime.Now - _laneSplitShowTime[lane]).TotalSeconds < splitDisplaySec)
+                    displayTime = TimeFormatter.Format(lastValidSplit.CumulativeTime);
+                rowUI.DisplayTimeText.Text = displayTime;
+
+                // 名次
+                int rank = result != null ? result.Rank : 0;
+                rowUI.RankText.Text = rank > 0 ? rank.ToString() : "";
+                if (rank == 1) rowUI.RankText.Foreground = _brushAmber;
+                else if (rank == 2) rowUI.RankText.Foreground = _brushSilver;
+                else if (rank == 3) rowUI.RankText.Foreground = _brushBronze;
+                else rowUI.RankText.Foreground = Brushes.White;
+
+                // 备注
+                rowUI.RemarkText.Text = ls != null && ls.IsFalseStart ? "DSQ" : (isDQ ? status : "");
+            }
         }
 
         // ═══════ 计时源对比 ═══════
@@ -2740,16 +2957,19 @@ namespace SwimmingScoreboard
             if (RecordDisplayText == null) return;
             if (string.IsNullOrEmpty(_currentEvent)) { RecordDisplayText.Text = "WR: ---    CR: ---"; return; }
             string wrTime = "", crTime = "";
-            string evClean = _currentEvent.Trim();
+            // 去除所有空格，防止"50 米自由泳"与"50米自由泳"不匹配
+            string evClean = _currentEvent.Replace(" ", "").Trim();
             string genClean = (_currentGender ?? "").Trim();
             foreach (var r in _records) {
                 if (string.IsNullOrEmpty(r.EventName) || string.IsNullOrEmpty(r.Gender)) continue;
                 string rGender = r.Gender.Trim();
-                string rEvent = r.EventName.Trim();
+                string rEvent = r.EventName.Replace(" ", "").Trim();
                 bool genderMatch = rGender.StartsWith(genClean) || genClean.StartsWith(rGender);
                 if (!genderMatch || rEvent != evClean) continue;
-                if (r.RecordType != null && r.RecordType.Contains("世界") && r.Time > 0) wrTime = TimeFormatter.Format(r.Time);
-                else if (r.RecordType != null && r.RecordType.Contains("赛会") && r.Time > 0) crTime = TimeFormatter.Format(r.Time);
+                if (r.RecordType == null || r.Time <= 0) continue;
+                string rt = r.RecordType;
+                if (rt.Contains("世界")) wrTime = TimeFormatter.Format(r.Time);
+                if (rt.Contains("赛会") || rt.Contains("省运会")) crTime = TimeFormatter.Format(r.Time);
             }
             RecordDisplayText.Text = string.Format("WR: {0}    CR: {1}", !string.IsNullOrEmpty(wrTime) ? wrTime : "---", !string.IsNullOrEmpty(crTime) ? crTime : "---");
         }
@@ -2789,7 +3009,11 @@ namespace SwimmingScoreboard
         // 泳道操作
         // ═══════════════════════════════════════════════════════════════
         private void MarkLaneStatus(int lane, string status) {
-            var swimmer = GetCurrentHeatSwimmers().FirstOrDefault(s => s.Lane == lane);
+            var swimmer = GetCurrentHeatSwimmers().FirstOrDefault(s => {
+                var sa = s.GetAssignmentForStage(_currentStage);
+                return (sa != null ? sa.Lane : s.Lane) == lane;
+            });
+            if (swimmer == null) swimmer = GetCurrentHeatSwimmers().FirstOrDefault(s => s.Lane == lane);
             if (swimmer != null) {
                 swimmer.Status = status;
                 LogRawTimingData(lane, "MARK_" + status, 0);
@@ -2804,7 +3028,11 @@ namespace SwimmingScoreboard
 
         private void OverrideLaneTime(int lane, double time) {
             LogRawTimingData(lane, "ManualOverride", time);
-            var swimmer = GetCurrentHeatSwimmers().FirstOrDefault(s => s.Lane == lane);
+            var swimmer = GetCurrentHeatSwimmers().FirstOrDefault(s => {
+                var sa = s.GetAssignmentForStage(_currentStage);
+                return (sa != null ? sa.Lane : s.Lane) == lane;
+            });
+            if (swimmer == null) swimmer = GetCurrentHeatSwimmers().FirstOrDefault(s => s.Lane == lane);
             if (swimmer == null) return;
 
             var result = swimmer.Results.FirstOrDefault(r => r.Stage == _currentStage && r.Heat == _currentHeat);
@@ -6344,7 +6572,8 @@ namespace SwimmingScoreboard
                         if (cols.Length < 3) continue;
 
                         string gender = cols[0].Trim();
-                        string eventName = cols[1].Trim();
+                        // 规范化项目名：去除多余空格（如"50 米自由泳"→"50米自由泳"）
+                        string eventName = System.Text.RegularExpressions.Regex.Replace(cols[1].Trim(), @"\s+", "");
                         string recordType = cols[2].Trim();
                         string holderName = cols.Length > 3 ? cols[3].Trim() : "";
                         string holderCountry = cols.Length > 4 ? cols[4].Trim() : "";

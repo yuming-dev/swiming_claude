@@ -481,11 +481,10 @@ function startRcRefresh() {
         var st = (data.raceState || '').toLowerCase();
         if (st === 'racing' || st === 'finished') {
             renderLanes();
-            // 滚动时间/第1名成绩交替显示
+            // 滚动时间/第1名成绩交替显示（直接读取服务器数据）
             var rtEl = document.getElementById('runTime');
-            var hMs = firstPlaceHoldTime * 1000;
-            if (firstPlaceShowStart > 0 && (Date.now() - firstPlaceShowStart) < hMs && firstPlaceFinishTime) {
-                rtEl.textContent = firstPlaceFinishTime;
+            if (data.firstPlaceActive && data.firstPlaceFinishTime) {
+                rtEl.textContent = data.firstPlaceFinishTime;
                 rtEl.style.color = '#22c55e';
             } else {
                 rtEl.textContent = getLocalRunningTime();
@@ -520,42 +519,10 @@ function render() {
         _localTimerStart = Date.now() - serverSec * 1000;  // 反推发令时刻
         _localTimerSynced = true;
     }
-    // 第1名检测
-    if (state === 'waiting') {
-        firstPlaceDetectedRank = 0;
-        firstPlaceShowStart = 0;
-        firstPlaceFinishTime = '';
-    }
-    var swimmers = data.swimmers || [];
-    var leader = null, leaderSplitCount = 0;
-    for (var fi = 0; fi < swimmers.length; fi++) {
-        var fSw = swimmers[fi];
-        if (fSw.status) continue;
-        var sc = (fSw.splits && fSw.splits.length) ? fSw.splits.length : 0;
-        if (fSw.isFinished) sc = 9999;
-        if (sc > leaderSplitCount || (sc === leaderSplitCount && leader && fSw.rank > 0 && fSw.rank < (leader.rank || 99))) {
-            leaderSplitCount = sc;
-            leader = fSw;
-        }
-    }
-    if (leader) {
-        var leaderSc = (leader.splits && leader.splits.length) ? leader.splits.length : 0;
-        if (leader.isFinished && leader.finalTime) leaderSc = -1;
-        if (leaderSc !== firstPlaceDetectedRank) {
-            firstPlaceDetectedRank = leaderSc;
-            if (leader.isFinished && leader.finalTime) {
-                firstPlaceFinishTime = leader.finalTime;
-            } else if (leader.splits && leader.splits.length > 0) {
-                firstPlaceFinishTime = leader.splits[leader.splits.length - 1].cumulative || '';
-            }
-            if (firstPlaceFinishTime) firstPlaceShowStart = Date.now();
-        }
-    }
-    // 右下角：停留期间显示第1名成绩（绿色），否则显示滚动时间（金色）
+    // 右下角：第1名成绩直接读取服务器数据（由服务器端 ProcessTouchpadHit 设置）
     var runTimeEl = document.getElementById('runTime');
-    var holdMs = firstPlaceHoldTime * 1000;
-    if (firstPlaceShowStart > 0 && (Date.now() - firstPlaceShowStart) < holdMs && firstPlaceFinishTime) {
-        runTimeEl.textContent = firstPlaceFinishTime;
+    if (data.firstPlaceActive && data.firstPlaceFinishTime) {
+        runTimeEl.textContent = data.firstPlaceFinishTime;
         runTimeEl.style.color = '#22c55e';
     } else {
         runTimeEl.textContent = getLocalRunningTime();
@@ -996,24 +963,36 @@ function getSplitOrFinalTime(sw) {
     if (sw.status) return sw.status;
 
     var lane = sw.lane;
-    var curSplitCount = (sw.splits && sw.splits.length) ? sw.splits.length : 0;
+
+    // 只统计有效分段（cumulative 非空），跳过服务器预创建的空段
+    var lastValidSplit = null;
+    var validSplitCount = 0;
+    if (sw.splits && sw.splits.length) {
+        for (var i = sw.splits.length - 1; i >= 0; i--) {
+            var sp = sw.splits[i];
+            if (sp && sp.cumulative) {
+                lastValidSplit = sp;
+                validSplitCount = sp.lap || (i + 1);
+                break;
+            }
+        }
+    }
 
     if (!laneSplitState[lane]) laneSplitState[lane] = {splitCount: 0, showTime: 0};
     var ls = laneSplitState[lane];
 
-    // 检测新分段到来
-    if (curSplitCount > ls.splitCount) {
-        ls.splitCount = curSplitCount;
+    // 检测新有效分段到来
+    if (validSplitCount > ls.splitCount) {
+        ls.splitCount = validSplitCount;
         ls.showTime = Date.now();
     }
 
-    // 在显示时间窗口内显示分段成绩：累计时间为主，分段时间为辅
-    if (curSplitCount > 0 && ls.showTime > 0) {
+    // 在显示时间窗口内显示分段成绩
+    if (lastValidSplit && ls.showTime > 0) {
         var displayMs = ((data.laneCloseSettings ? data.laneCloseSettings.splitDisplayTime : 5) || 5) * 1000;
         var elapsed = Date.now() - ls.showTime;
         if (elapsed < displayMs) {
-            var lastSplit = sw.splits[curSplitCount - 1];
-            return lastSplit.cumulative || '';
+            return lastValidSplit.cumulative || '';
         }
     }
     return '';
@@ -1039,90 +1018,198 @@ function getRelayCurrentLegName(sw) {
     return '第' + (currentLeg + 1) + '棒: ' + legName;
 }
 
+// 泳道行 DOM 缓存：每行动态元素的引用，避免每次重建 innerHTML
+var _laneRowDOM = []; // [{lane, row, touchL, touchR, leftDots[5], rightDots[5], leftRemain, rightRemain, nameEl, teamEl, trackEl, reactionEl, finalTimeEl, rankEl, remarkEl, leftInd, rightInd}]
+var _laneRowsBuiltKey = '';
+
 function renderLanes() {
     var container = document.getElementById('poolLanes');
-    container.innerHTML = '';
     var swimmers = data.swimmers || [];
     var rcRelay = (data.currentEvent||'').indexOf('接力') >= 0;
 
+    // 构造 key 检测是否需要重建
+    var keyParts = [data.currentEvent||'', rcRelay, swimmers.length];
+    for (var k = 0; k < swimmers.length; k++) {
+        keyParts.push((swimmers[k].name||'') + ':' + swimmers[k].lane);
+    }
+    var key = keyParts.join('|');
+
+    if (key !== _laneRowsBuiltKey) {
+        buildLaneRows(container, swimmers, rcRelay);
+        _laneRowsBuiltKey = key;
+    }
+    refreshLaneRows(swimmers, rcRelay);
+}
+
+function buildLaneRows(container, swimmers, rcRelay) {
+    container.innerHTML = '';
+    _laneRowDOM = [];
+
     for (var i = 0; i < swimmers.length; i++) {
         var sw = swimmers[i];
-        var ds = sw.deviceStatus || {};
+        var lane = sw.lane;
         var row = document.createElement('div');
-        row.className = 'lane-row' + (sw.isFalseStart ? ' false-start' : '') + (sw.lane === selectedLane ? ' selected' : '');
-        row.onmousedown = (function(lane) { return function() { selectLane(lane); }; })(sw.lane);
+        row.className = 'lane-row';
+        row.onmousedown = (function(ln) { return function() { selectLane(ln); }; })(lane);
 
-        var totalLaps = 1;
-        var ev = data.currentEvent || '';
-        var m = ev.match(/(\d+)/);
-        if (m) totalLaps = Math.max(1, parseInt(m[1]) / ((data.poolConfig||{}).length||50));
-        var currentLap = sw.currentLap || 0;
-        var progress = totalLaps > 0 ? Math.min(100, (currentLap / totalLaps) * 100) : 0;
-        if (sw.isFinished) progress = 100;
-        // 方向由服务器根据发令位置设置
-        var swDir = sw.direction || (startPosition === 'left' ? '→' : '←');
-        var dir = (swDir === '←') ? 'returning' : 'going';
-
-        var rankClass = '';
-        if (sw.rank === 1) rankClass = 'r1';
-        else if (sw.rank === 2) rankClass = 'r2';
-        else if (sw.rank === 3) rankClass = 'r3';
-
-        var closeText = sw.laneCloseCountdown > 0 ? '(' + sw.laneCloseCountdown.toFixed(1) + 's)' : '';
-
-        // 发令位置指示灯
-        var leftIndClass = startPosition === 'left' ? 'start-indicator active' : 'start-indicator inactive';
-        var rightIndClass = startPosition === 'right' ? 'start-indicator active' : 'start-indicator inactive';
-
-        var leftRemain = (sw.leftTouchRemain != null) ? sw.leftTouchRemain : '';
-        var rightRemain = (sw.rightTouchRemain != null) ? sw.rightTouchRemain : '';
-        var leftRemainStyle = 'display:inline-block;width:28px;text-align:center;font-size:20px;font-weight:bold;color:' + (leftRemain > 0 ? '#F59E0B' : '#475569') + ';';
-        var rightRemainStyle = 'display:inline-block;width:28px;text-align:center;font-size:20px;font-weight:bold;color:' + (rightRemain > 0 ? '#F59E0B' : '#475569') + ';';
-
-        var mbData = sw.manualButton || {};
-        var leftMbEnabled = mbData.leftEnabled === true;
-        var rightMbEnabled = mbData.rightEnabled === true;
-        var leftMbStatus = mbData.leftStatus || 'closed';
-        var rightMbStatus = mbData.rightStatus || 'closed';
-        var leftTouchColor = leftMbEnabled ? (leftMbStatus === 'open' ? '#22C55E' : '#475569') : '#1E293B';
-        var rightTouchColor = rightMbEnabled ? (rightMbStatus === 'open' ? '#22C55E' : '#475569') : '#1E293B';
-        var leftTouchDisabled = leftMbEnabled ? '' : ' disabled';
-        var rightTouchDisabled = rightMbEnabled ? '' : ' disabled';
-
+        // 构建固定结构，把动态元素用占位符类标识
         row.innerHTML =
-            '<div class="lane-num">' + sw.lane + '</div>' +
-            '<div class="' + leftIndClass + ' start-ind"></div>' +
+            '<div class="lane-num">' + lane + '</div>' +
+            '<div class="start-ind lr-left-ind"></div>' +
             '<div class="left-devices devices">' +
-                '<button class="touch-btn" style="background:'+leftTouchColor+';" onmousedown="event.stopPropagation();manualTouch('+sw.lane+',\'left\')" title="左端手动触板"'+leftTouchDisabled+'>T</button>' +
-                '<div class="device-dot ' + statusClass(ds.leftBlindWatch1) + '" title="盲表1"></div>' +
-                '<div class="device-dot ' + statusClass(ds.leftBlindWatch2) + '" title="盲表2"></div>' +
-                '<div class="device-dot ' + statusClass(ds.leftBlindWatch3) + '" title="盲表3"></div>' +
-                '<div class="device-dot ' + statusClass(ds.leftStartBlock) + '" title="出发台"></div>' +
-                '<div class="device-dot ' + statusClass(ds.leftTouchpad) + '" title="触板"></div>' +
-                '<span style="' + leftRemainStyle + '" title="左端触板剩余">' + (leftRemain !== '' ? leftRemain : '') + '</span>' +
+                '<button class="touch-btn lr-touch-l" onmousedown="event.stopPropagation();manualTouch('+lane+',\'left\')" title="左端手动触板">T</button>' +
+                '<div class="device-dot lr-ld-0" title="盲表1"></div>' +
+                '<div class="device-dot lr-ld-1" title="盲表2"></div>' +
+                '<div class="device-dot lr-ld-2" title="盲表3"></div>' +
+                '<div class="device-dot lr-ld-3" title="出发台"></div>' +
+                '<div class="device-dot lr-ld-4" title="触板"></div>' +
+                '<span class="lr-left-remain" style="display:inline-block;width:28px;text-align:center;font-size:20px;font-weight:bold;"></span>' +
             '</div>' +
             '<div class="lane-mid">' +
-                '<div class="swimmer-info"><div class="name">' + (rcRelay ? (sw.country||'') : (sw.name||'')) + '</div><div class="team">' + (rcRelay ? getRelayCurrentLegName(sw) : (sw.country||'')) + '</div></div>' +
-                '<div class="lane-track ' + dir + '">' + buildArrows(sw, swDir, dir) + '</div>' +
+                '<div class="swimmer-info"><div class="name lr-name"></div><div class="team lr-team"></div></div>' +
+                '<div class="lane-track lr-track"></div>' +
             '</div>' +
             '<div class="right-devices devices">' +
-                '<span style="' + rightRemainStyle + '" title="右端触板剩余">' + (rightRemain !== '' ? rightRemain : '') + '</span>' +
-                '<div class="device-dot ' + statusClass(ds.rightTouchpad) + '" title="触板"></div>' +
-                '<div class="device-dot ' + statusClass(ds.rightStartBlock) + '" title="出发台"></div>' +
-                '<div class="device-dot ' + statusClass(ds.rightBlindWatch1) + '" title="盲表1"></div>' +
-                '<div class="device-dot ' + statusClass(ds.rightBlindWatch2) + '" title="盲表2"></div>' +
-                '<div class="device-dot ' + statusClass(ds.rightBlindWatch3) + '" title="盲表3"></div>' +
-                '<button class="touch-btn" style="background:'+rightTouchColor+';" onmousedown="event.stopPropagation();manualTouch('+sw.lane+',\'right\')" title="右端手动触板"'+rightTouchDisabled+'>T</button>' +
+                '<span class="lr-right-remain" style="display:inline-block;width:28px;text-align:center;font-size:20px;font-weight:bold;"></span>' +
+                '<div class="device-dot lr-rd-0" title="触板"></div>' +
+                '<div class="device-dot lr-rd-1" title="出发台"></div>' +
+                '<div class="device-dot lr-rd-2" title="盲表1"></div>' +
+                '<div class="device-dot lr-rd-3" title="盲表2"></div>' +
+                '<div class="device-dot lr-rd-4" title="盲表3"></div>' +
+                '<button class="touch-btn lr-touch-r" onmousedown="event.stopPropagation();manualTouch('+lane+',\'right\')" title="右端手动触板">T</button>' +
             '</div>' +
-            '<div class="' + rightIndClass + ' start-ind"></div>' +
+            '<div class="start-ind lr-right-ind"></div>' +
             '<div class="info-area">' +
-                '<div class="reaction">' + getReactionDisplay(sw) + '</div>' +
-                '<div class="final-time">' + getSplitOrFinalTime(sw) + '</div>' +
-                '<div class="rank ' + rankClass + '">' + (sw.rank>0 ? sw.rank : '') + '</div>' +
-                '<div style="width:40px;text-align:center;font-size:13px;font-weight:bold;color:#EF4444;margin-left:8px;">' + (sw.isFalseStart ? 'DSQ' : (sw.status || '')) + '</div>' +
+                '<div class="reaction lr-reaction"></div>' +
+                '<div class="final-time lr-final"></div>' +
+                '<div class="rank lr-rank"></div>' +
+                '<div class="lr-remark" style="width:40px;text-align:center;font-size:13px;font-weight:bold;color:#EF4444;margin-left:8px;"></div>' +
             '</div>';
 
         container.appendChild(row);
+
+        // 缓存动态元素引用
+        _laneRowDOM.push({
+            lane: lane,
+            row: row,
+            touchL: row.querySelector('.lr-touch-l'),
+            touchR: row.querySelector('.lr-touch-r'),
+            leftDots: [
+                row.querySelector('.lr-ld-0'), row.querySelector('.lr-ld-1'),
+                row.querySelector('.lr-ld-2'), row.querySelector('.lr-ld-3'),
+                row.querySelector('.lr-ld-4')
+            ],
+            rightDots: [
+                row.querySelector('.lr-rd-0'), row.querySelector('.lr-rd-1'),
+                row.querySelector('.lr-rd-2'), row.querySelector('.lr-rd-3'),
+                row.querySelector('.lr-rd-4')
+            ],
+            leftRemain: row.querySelector('.lr-left-remain'),
+            rightRemain: row.querySelector('.lr-right-remain'),
+            leftInd: row.querySelector('.lr-left-ind'),
+            rightInd: row.querySelector('.lr-right-ind'),
+            nameEl: row.querySelector('.lr-name'),
+            teamEl: row.querySelector('.lr-team'),
+            trackEl: row.querySelector('.lr-track'),
+            reactionEl: row.querySelector('.lr-reaction'),
+            finalTimeEl: row.querySelector('.lr-final'),
+            rankEl: row.querySelector('.lr-rank'),
+            remarkEl: row.querySelector('.lr-remark')
+        });
+    }
+}
+
+function refreshLaneRows(swimmers, rcRelay) {
+    if (!_laneRowDOM.length) return;
+    var leftStart = startPosition === 'left';
+
+    for (var i = 0; i < swimmers.length && i < _laneRowDOM.length; i++) {
+        var sw = swimmers[i];
+        var rowUI = _laneRowDOM[i];
+        var ds = sw.deviceStatus || {};
+        var mb = sw.manualButton || {};
+        var lane = rowUI.lane;
+
+        // 行类名：false-start / selected
+        var cn = 'lane-row';
+        if (sw.isFalseStart) cn += ' false-start';
+        if (sw.lane === selectedLane) cn += ' selected';
+        if (rowUI.row.className !== cn) rowUI.row.className = cn;
+
+        // 左右发令指示
+        rowUI.leftInd.className = 'start-ind lr-left-ind start-indicator ' + (leftStart ? 'active' : 'inactive');
+        rowUI.rightInd.className = 'start-ind lr-right-ind start-indicator ' + (!leftStart ? 'active' : 'inactive');
+
+        // 左T按钮
+        var leftMbEnabled = mb.leftEnabled === true;
+        var leftMbStatus = mb.leftStatus || 'closed';
+        var leftTouchColor = leftMbEnabled ? (leftMbStatus === 'open' ? '#22C55E' : '#475569') : '#1E293B';
+        rowUI.touchL.style.background = leftTouchColor;
+        rowUI.touchL.disabled = !leftMbEnabled;
+
+        // 左设备5圆点
+        rowUI.leftDots[0].className = 'device-dot lr-ld-0 ' + statusClass(ds.leftBlindWatch1);
+        rowUI.leftDots[1].className = 'device-dot lr-ld-1 ' + statusClass(ds.leftBlindWatch2);
+        rowUI.leftDots[2].className = 'device-dot lr-ld-2 ' + statusClass(ds.leftBlindWatch3);
+        rowUI.leftDots[3].className = 'device-dot lr-ld-3 ' + statusClass(ds.leftStartBlock);
+        rowUI.leftDots[4].className = 'device-dot lr-ld-4 ' + statusClass(ds.leftTouchpad);
+
+        // 左剩余秒数
+        var leftRemain = (sw.leftTouchRemain != null && sw.leftTouchRemain > 0) ? sw.leftTouchRemain : '';
+        if (rowUI.leftRemain.textContent !== String(leftRemain)) rowUI.leftRemain.textContent = leftRemain;
+        rowUI.leftRemain.style.color = leftRemain > 0 ? '#F59E0B' : '#475569';
+
+        // 右T按钮
+        var rightMbEnabled = mb.rightEnabled === true;
+        var rightMbStatus = mb.rightStatus || 'closed';
+        var rightTouchColor = rightMbEnabled ? (rightMbStatus === 'open' ? '#22C55E' : '#475569') : '#1E293B';
+        rowUI.touchR.style.background = rightTouchColor;
+        rowUI.touchR.disabled = !rightMbEnabled;
+
+        // 右设备5圆点
+        rowUI.rightDots[0].className = 'device-dot lr-rd-0 ' + statusClass(ds.rightTouchpad);
+        rowUI.rightDots[1].className = 'device-dot lr-rd-1 ' + statusClass(ds.rightStartBlock);
+        rowUI.rightDots[2].className = 'device-dot lr-rd-2 ' + statusClass(ds.rightBlindWatch1);
+        rowUI.rightDots[3].className = 'device-dot lr-rd-3 ' + statusClass(ds.rightBlindWatch2);
+        rowUI.rightDots[4].className = 'device-dot lr-rd-4 ' + statusClass(ds.rightBlindWatch3);
+
+        // 右剩余秒数
+        var rightRemain = (sw.rightTouchRemain != null && sw.rightTouchRemain > 0) ? sw.rightTouchRemain : '';
+        if (rowUI.rightRemain.textContent !== String(rightRemain)) rowUI.rightRemain.textContent = rightRemain;
+        rowUI.rightRemain.style.color = rightRemain > 0 ? '#F59E0B' : '#475569';
+
+        // 姓名/代表队
+        var newName = rcRelay ? (sw.country||'') : (sw.name||'');
+        var newTeam = rcRelay ? getRelayCurrentLegName(sw) : (sw.country||'');
+        if (rowUI.nameEl.textContent !== newName) rowUI.nameEl.textContent = newName;
+        if (rowUI.teamEl.textContent !== newTeam) rowUI.teamEl.textContent = newTeam;
+
+        // 方向/进度
+        var swDir = sw.direction || (leftStart ? '→' : '←');
+        var dir = (swDir === '←') ? 'returning' : 'going';
+        rowUI.trackEl.className = 'lane-track lr-track ' + dir;
+        rowUI.trackEl.innerHTML = buildArrows(sw, swDir, dir);
+
+        // 反应时（消隐）
+        var newReaction = getReactionDisplay(sw);
+        if (rowUI.reactionEl.textContent !== newReaction) rowUI.reactionEl.textContent = newReaction;
+
+        // 成绩/分段
+        var newFinal = getSplitOrFinalTime(sw);
+        if (rowUI.finalTimeEl.textContent !== newFinal) rowUI.finalTimeEl.textContent = newFinal;
+
+        // 名次
+        var rankClass = 'rank lr-rank';
+        if (sw.rank === 1) rankClass += ' r1';
+        else if (sw.rank === 2) rankClass += ' r2';
+        else if (sw.rank === 3) rankClass += ' r3';
+        rowUI.rankEl.className = rankClass;
+        var newRank = sw.rank > 0 ? String(sw.rank) : '';
+        if (rowUI.rankEl.textContent !== newRank) rowUI.rankEl.textContent = newRank;
+
+        // 备注
+        var newRemark = sw.isFalseStart ? 'DSQ' : (sw.status || '');
+        if (rowUI.remarkEl.textContent !== newRemark) rowUI.remarkEl.textContent = newRemark;
     }
 }
 
@@ -1286,8 +1373,9 @@ function updateRecordDisplay() {
         var genderMatch = rGender.indexOf(curGender) === 0 || curGender.indexOf(rGender) === 0;
         if (!genderMatch || rEvent !== curEvent) continue;
         var rt = r.recordType || '';
-        if (rt.indexOf('世界') >= 0 && r.timeInSeconds > 0) wrTime = r.time || '';
-        else if (rt.indexOf('赛会') >= 0 && r.timeInSeconds > 0) crTime = r.time || '';
+        if (!rt || r.timeInSeconds <= 0) continue;
+        if (rt.indexOf('世界') >= 0) wrTime = r.time || '';
+        if (rt.indexOf('赛会') >= 0 || rt.indexOf('省运会') >= 0) crTime = r.time || '';
     }
     el.textContent = 'WR: ' + (wrTime || '---') + '    CR: ' + (crTime || '---');
 }
