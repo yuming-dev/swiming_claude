@@ -54,13 +54,12 @@
                 <ColumnDefinition Width="200"/>
             </Grid.ColumnDefinitions>
 
-            <!-- 左侧：赛程树 + 日志 -->
+            <!-- 左侧：赛程导航(6) + 计时源对比(4)，与主服务器比例一致 -->
             <Border Grid.Column="0" Background="#1E293B" BorderBrush="#334155" BorderThickness="0,0,1,0">
                 <Grid>
                     <Grid.RowDefinitions>
-                        <RowDefinition Height="2*"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="1*"/>
+                        <RowDefinition Height="6*"/>
+                        <RowDefinition Height="4*"/>
                     </Grid.RowDefinitions>
 
                     <!-- 赛程导航 -->
@@ -69,28 +68,40 @@
                             <TextBlock Text="赛程导航" Foreground="#3B82F6" FontSize="14" FontWeight="Bold"/>
                         </Border>
                         <TreeView x:Name="ScheduleTree" Background="#1E293B" Foreground="White" FontSize="13"
-                                  BorderThickness="0" SelectedItemChanged="ScheduleTree_Selected" Margin="4,4,4,0"/>
+                                  BorderThickness="0" SelectedItemChanged="ScheduleTree_Selected" Margin="4,4,4,4"/>
                     </DockPanel>
 
-                    <!-- 分隔线 -->
-                    <Border Grid.Row="1" Background="#334155" Height="1"/>
-
-                    <!-- 日志 -->
-                    <DockPanel Grid.Row="2">
-                        <Border DockPanel.Dock="Top" Background="#172033" Padding="10,6">
-                            <TextBlock Text="日志" Foreground="#3B82F6" FontSize="12" FontWeight="Bold"/>
-                        </Border>
-                        <ListBox x:Name="LogList" FontSize="11" Foreground="#94A3B8" Background="Transparent"
-                                 BorderThickness="0" ScrollViewer.VerticalScrollBarVisibility="Auto" Margin="4,2,4,4"/>
-                    </DockPanel>
+                    <!-- 计时源对比（从右栏下方移过来） -->
+                    <Border Grid.Row="1" BorderBrush="#334155" BorderThickness="0,1,0,0" Background="#1E293B">
+                        <DockPanel Margin="10,8">
+                            <TextBlock DockPanel.Dock="Top" Text="计时源对比" Foreground="#3B82F6" FontSize="13" FontWeight="Bold" Margin="0,0,0,6"/>
+                            <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,6">
+                                <TextBlock Text="分段:" Foreground="#94A3B8" FontSize="12" VerticalAlignment="Center"/>
+                                <ComboBox x:Name="SplitSelectCombo" Width="110" FontSize="12" Margin="6,0,0,0"
+                                          BorderBrush="#475569" SelectionChanged="SplitSelect_Changed" SelectedIndex="0">
+                                    <sys:String xmlns:sys="clr-namespace:System;assembly=mscorlib">终点</sys:String>
+                                </ComboBox>
+                            </StackPanel>
+                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                <TextBlock x:Name="TimingSourceInfo" Text="点击泳道行查看计时源" Foreground="#94A3B8" FontSize="13" TextWrapping="Wrap"/>
+                            </ScrollViewer>
+                        </DockPanel>
+                    </Border>
                 </Grid>
             </Border>
 
-            <!-- 泳池图（中间） -->
+            <!-- 中间：WR/CR + 滚动时间 + 泳道实时状态 + 日志 -->
             <Border Grid.Column="1" Padding="10,4">
-                <DockPanel>
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="36"/>
+                        <RowDefinition Height="28"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
                     <!-- 顶部：WR/CR + 滚动时间 -->
-                    <Grid DockPanel.Dock="Top" Height="36" Margin="0,0,0,4">
+                    <Grid Grid.Row="0" Margin="0,0,0,4">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="280"/>
@@ -103,51 +114,140 @@
                                    FontSize="32" FontWeight="Bold" Foreground="#F59E0B" FontFamily="Consolas"
                                    Opacity="0.85" TextAlignment="Right" VerticalAlignment="Center"/>
                     </Grid>
-                    <!-- 表头 + 泳道 -->
-                    <Grid x:Name="PoolHeader" DockPanel.Dock="Top" Height="28" Margin="0,0,0,4"/>
-                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+
+                    <!-- 表头 -->
+                    <Grid x:Name="PoolHeader" Grid.Row="1" Margin="0,0,0,4"/>
+
+                    <!-- 泳道行：固定高度，刚好容纳10道（每道60px×10 = 600px），位置固定不随窗口滚动 -->
+                    <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" Height="620">
                         <StackPanel x:Name="LanePanel"/>
                     </ScrollViewer>
-                </DockPanel>
+
+                    <!-- 日志区（填充剩余空间） -->
+                    <Border Grid.Row="3" Margin="0,8,0,0" Background="#1E293B"
+                            BorderBrush="#334155" BorderThickness="1" CornerRadius="4">
+                        <DockPanel>
+                            <Border DockPanel.Dock="Top" Background="#172033" Padding="10,6">
+                                <TextBlock Text="日志" Foreground="#3B82F6" FontSize="13" FontWeight="Bold"/>
+                            </Border>
+                            <ListBox x:Name="LogList" FontSize="12" Foreground="#94A3B8" Background="Transparent"
+                                     BorderThickness="0" ScrollViewer.VerticalScrollBarVisibility="Auto" Margin="4"/>
+                        </DockPanel>
+                    </Border>
+                </Grid>
             </Border>
 
             <!-- 右侧操作面板 -->
             <Border Grid.Column="2" Background="#1E293B" BorderBrush="#334155" BorderThickness="1,0,0,0">
+                <Border.Resources>
+                    <!-- 所有按钮统一悬停/按下反馈 -->
+                    <Style TargetType="Button">
+                        <Setter Property="BorderThickness" Value="0"/>
+                        <Setter Property="Cursor" Value="Hand"/>
+                        <Style.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Opacity" Value="0.85"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter Property="Opacity" Value="0.7"/>
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Resources>
                 <DockPanel Margin="10">
                     <!-- 上半部分：固定不滚动 -->
                     <StackPanel DockPanel.Dock="Top">
                         <!-- ═══ 比赛控制 ═══ -->
-                        <TextBlock Text="比赛控制" Foreground="#3B82F6" FontSize="13" FontWeight="Bold" Margin="0,0,0,6"/>
-                        <Grid Margin="0,0,0,5">
+                        <TextBlock Text="比赛控制" Foreground="#3B82F6" FontSize="14" FontWeight="Bold" Margin="0,0,0,8"/>
+                        <!-- 就  位 -->
+                        <Button Click="Ready_Click" Height="36" Margin="0,0,0,6">
+                            <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <Border Background="#F59E0B" CornerRadius="8">
+                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                            <TextBlock Text="&#xE7C1;" FontFamily="Segoe MDL2 Assets" FontSize="16" Foreground="White" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                            <TextBlock Text="就  位" FontSize="15" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Border>
+                                </ControlTemplate>
+                            </Button.Template>
+                        </Button>
+                        <!-- 发  令 -->
+                        <Button Click="Start_Click" Height="36" Margin="0,0,0,6">
+                            <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <Border Background="#22C55E" CornerRadius="8">
+                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                            <TextBlock Text="&#xE768;" FontFamily="Segoe MDL2 Assets" FontSize="16" Foreground="White" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                            <TextBlock Text="发  令" FontSize="15" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Border>
+                                </ControlTemplate>
+                            </Button.Template>
+                        </Button>
+                        <!-- 计时复位 -->
+                        <Button Click="TimerReset_Click" Height="36" Margin="0,0,0,6">
+                            <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <Border Background="#EF4444" CornerRadius="8">
+                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                            <TextBlock Text="&#xE72C;" FontFamily="Segoe MDL2 Assets" FontSize="16" Foreground="White" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                            <TextBlock Text="计时复位" FontSize="15" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Border>
+                                </ControlTemplate>
+                            </Button.Template>
+                        </Button>
+                        <!-- 全部打开 / 全部关闭 -->
+                        <Grid Margin="0,0,0,6">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
-                            <Button Content="就  位" Grid.Column="0" Click="Ready_Click" Padding="0,8" FontSize="14" FontWeight="Bold"
-                                    Background="#F59E0B" Foreground="Black" BorderThickness="0" Margin="0,0,3,0"/>
-                            <Button Content="发  令" Grid.Column="1" Click="Start_Click" Padding="0,8" FontSize="14" FontWeight="Bold"
-                                    Background="#22C55E" Foreground="White" BorderThickness="0" Margin="3,0,0,0"/>
+                            <Button Grid.Column="0" Click="OpenAll_Click" Height="36" Margin="0,0,3,0">
+                                <Button.Template>
+                                    <ControlTemplate TargetType="Button">
+                                        <Border Background="#22C55E" CornerRadius="8">
+                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                <TextBlock Text="&#xE8FB;" FontFamily="Segoe MDL2 Assets" FontSize="15" Foreground="White" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                                <TextBlock Text="全部打开" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </Border>
+                                    </ControlTemplate>
+                                </Button.Template>
+                            </Button>
+                            <Button Grid.Column="1" Click="CloseAll_Click" Height="36" Margin="3,0,0,0">
+                                <Button.Template>
+                                    <ControlTemplate TargetType="Button">
+                                        <Border Background="#64748B" CornerRadius="8">
+                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                <TextBlock Text="&#xE711;" FontFamily="Segoe MDL2 Assets" FontSize="15" Foreground="White" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                                <TextBlock Text="全部关闭" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </Border>
+                                    </ControlTemplate>
+                                </Button.Template>
+                            </Button>
                         </Grid>
-                        <Button Content="计时复位" Click="TimerReset_Click" Padding="0,8" FontSize="14" FontWeight="Bold"
-                                Background="#EF4444" Foreground="White" BorderThickness="0" Margin="0,0,0,5"/>
-                        <Grid Margin="0,0,0,5">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-                            <Button Content="全部打开" Grid.Column="0" Click="OpenAll_Click" Padding="0,7" FontSize="13" FontWeight="Bold"
-                                    Background="#22C55E" Foreground="White" BorderThickness="0" Margin="0,0,3,0"/>
-                            <Button Content="全部关闭" Grid.Column="1" Click="CloseAll_Click" Padding="0,7" FontSize="13" FontWeight="Bold"
-                                    Background="#64748B" Foreground="White" BorderThickness="0" Margin="3,0,0,0"/>
-                        </Grid>
-                        <Button Content="确认本组成绩" Click="Confirm_Click" Padding="0,9" FontSize="14" FontWeight="Bold"
-                                Background="#3B82F6" Foreground="White" BorderThickness="0" Margin="0,0,0,8"/>
+                        <!-- 确认本组成绩 -->
+                        <Button Click="Confirm_Click" Height="36" Margin="0,0,0,12">
+                            <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <Border Background="#3B82F6" CornerRadius="8">
+                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                            <TextBlock Text="&#xE73E;" FontFamily="Segoe MDL2 Assets" FontSize="16" Foreground="White" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                            <TextBlock Text="确认本组成绩" FontSize="15" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Border>
+                                </ControlTemplate>
+                            </Button.Template>
+                        </Button>
 
                         <!-- ═══ 泳道操作 ═══ -->
-                        <Border BorderBrush="#334155" BorderThickness="0,1,0,0" Padding="0,8,0,0" Margin="0,0,0,6">
+                        <Border BorderBrush="#334155" BorderThickness="0,1,0,0" Padding="0,10,0,0" Margin="0,0,0,6">
                             <StackPanel>
-                                <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
-                                    <TextBlock Text="泳道操作" Foreground="#3B82F6" FontSize="13" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                    <TextBlock Text="泳道操作" Foreground="#3B82F6" FontSize="14" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,8,0"/>
                                     <TextBox x:Name="LaneInput" Text="4" Width="46" Padding="4" FontSize="14" TextAlignment="Center"
                                              Background="#0F172A" Foreground="White" BorderBrush="#475569"/>
                                     <TextBlock Text="道" Foreground="#94A3B8" FontSize="12" VerticalAlignment="Center" Margin="4,0,0,0"/>
@@ -160,24 +260,68 @@
                                     <Grid.RowDefinitions>
                                         <RowDefinition Height="Auto"/>
                                         <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
                                     </Grid.RowDefinitions>
-                                    <Button Content="DNS" Grid.Row="0" Grid.Column="0" Click="MarkDNS_Click" Padding="0,7" FontSize="14" FontWeight="Bold"
-                                            Background="#64748B" Foreground="White" BorderThickness="0" Margin="0,0,3,5"/>
-                                    <Button Content="DNF" Grid.Row="0" Grid.Column="1" Click="MarkDNF_Click" Padding="0,7" FontSize="14" FontWeight="Bold"
-                                            Background="#78716C" Foreground="White" BorderThickness="0" Margin="3,0,0,5"/>
-                                    <Button Content="DSQ" Grid.Row="1" Grid.Column="0" Click="MarkDSQ_Click" Padding="0,7" FontSize="14" FontWeight="Bold"
-                                            Background="#9CA3AF" Foreground="White" BorderThickness="0" Margin="0,0,3,0"/>
-                                    <Button Content="手动输入" Grid.Row="1" Grid.Column="1" Click="ManualTime_Click" Padding="0,7" FontSize="14" FontWeight="Bold"
-                                            Background="#D97706" Foreground="White" BorderThickness="0" Margin="3,0,0,0"/>
+                                    <Button Grid.Row="0" Grid.Column="0" Click="MarkDNS_Click" Height="36" Margin="0,0,3,6">
+                                        <Button.Template>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border Background="#64748B" CornerRadius="6">
+                                                    <TextBlock Text="DNS" FontSize="14" Foreground="White" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                </Border>
+                                            </ControlTemplate>
+                                        </Button.Template>
+                                    </Button>
+                                    <Button Grid.Row="0" Grid.Column="1" Click="MarkDNF_Click" Height="36" Margin="3,0,0,6">
+                                        <Button.Template>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border Background="#78716C" CornerRadius="6">
+                                                    <TextBlock Text="DNF" FontSize="14" Foreground="White" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                </Border>
+                                            </ControlTemplate>
+                                        </Button.Template>
+                                    </Button>
+                                    <Button Grid.Row="1" Grid.Column="0" Click="MarkDSQ_Click" Height="36" Margin="0,0,3,6">
+                                        <Button.Template>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border Background="#9CA3AF" CornerRadius="6">
+                                                    <TextBlock Text="DSQ" FontSize="14" Foreground="White" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                </Border>
+                                            </ControlTemplate>
+                                        </Button.Template>
+                                    </Button>
+                                    <Button Grid.Row="1" Grid.Column="1" Click="ManualTime_Click" Height="36" Margin="3,0,0,6">
+                                        <Button.Template>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border Background="#D97706" CornerRadius="6">
+                                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                        <TextBlock Text="&#xE932;" FontFamily="Segoe MDL2 Assets" FontSize="13" Foreground="White" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                                        <TextBlock Text="手动输入" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                    </StackPanel>
+                                                </Border>
+                                            </ControlTemplate>
+                                        </Button.Template>
+                                    </Button>
+                                    <Button Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2" Click="OpenSettings_Click" Height="36">
+                                        <Button.Template>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border Background="#475569" CornerRadius="6">
+                                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                        <TextBlock Text="&#xE713;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="White" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                                        <TextBlock Text="参数设置" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                    </StackPanel>
+                                                </Border>
+                                            </ControlTemplate>
+                                        </Button.Template>
+                                    </Button>
                                 </Grid>
                             </StackPanel>
                         </Border>
 
                         <!-- ═══ 显示控制 ═══ -->
-                        <Border BorderBrush="#334155" BorderThickness="0,1,0,0" Padding="0,8,0,0" Margin="0,0,0,6">
+                        <Border BorderBrush="#334155" BorderThickness="0,1,0,0" Padding="0,10,0,0" Margin="0,6,0,6">
                             <StackPanel>
-                                <TextBlock Text="显示控制" Foreground="#3B82F6" FontSize="13" FontWeight="Bold" Margin="0,0,0,6"/>
-                                <Grid Margin="0,0,0,5">
+                                <TextBlock Text="显示控制" Foreground="#3B82F6" FontSize="14" FontWeight="Bold" Margin="0,0,0,8"/>
+                                <Grid Margin="0,0,0,6">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="*"/>
@@ -188,25 +332,115 @@
                                         <RowDefinition Height="Auto"/>
                                         <RowDefinition Height="Auto"/>
                                     </Grid.RowDefinitions>
-                                    <Button Content="出发表" Grid.Row="0" Grid.Column="0" Tag="SHOW_START_LIST" Click="DisplayBtn_Click" Padding="0,7" FontSize="14" FontWeight="Bold"
-                                            Background="#3B82F6" Foreground="White" BorderThickness="0" Margin="0,0,3,5"/>
-                                    <Button Content="比赛视图" Grid.Row="0" Grid.Column="1" Tag="SHOW_LIVE_RACE" Click="DisplayBtn_Click" Padding="0,7" FontSize="14" FontWeight="Bold"
-                                            Background="#2563EB" Foreground="White" BorderThickness="0" Margin="3,0,0,5"/>
-                                    <Button Content="组成绩" Grid.Row="1" Grid.Column="0" Tag="SHOW_HEAT_RESULT" Click="DisplayBtn_Click" Padding="0,7" FontSize="14" FontWeight="Bold"
-                                            Background="#059669" Foreground="White" BorderThickness="0" Margin="0,0,3,5"/>
-                                    <Button Content="总排名" Grid.Row="1" Grid.Column="1" Tag="SHOW_EVENT_RANKING" Click="DisplayBtn_Click" Padding="0,7" FontSize="14" FontWeight="Bold"
-                                            Background="#10B981" Foreground="White" BorderThickness="0" Margin="3,0,0,5"/>
-                                    <Button Content="团体积分" Grid.Row="2" Grid.Column="0" Tag="SHOW_TEAM_STANDINGS" Click="DisplayBtn_Click" Padding="0,7" FontSize="14" FontWeight="Bold"
-                                            Background="#D97706" Foreground="White" BorderThickness="0" Margin="0,0,3,5"/>
-                                    <Button Content="颁奖" Grid.Row="2" Grid.Column="1" Tag="SHOW_AWARDS" Click="DisplayBtn_Click" Padding="0,7" FontSize="14" FontWeight="Bold"
-                                            Background="#F59E0B" Foreground="White" BorderThickness="0" Margin="3,0,0,5"/>
-                                    <Button Content="纪录" Grid.Row="3" Grid.Column="0" Tag="SHOW_RECORDS" Click="DisplayBtn_Click" Padding="0,7" FontSize="14" FontWeight="Bold"
-                                            Background="#DC2626" Foreground="White" BorderThickness="0" Margin="0,0,3,0"/>
-                                    <Button Content="欢迎" Grid.Row="3" Grid.Column="1" Tag="SHOW_WELCOME" Click="DisplayBtn_Click" Padding="0,7" FontSize="14" FontWeight="Bold"
-                                            Background="#8B5CF6" Foreground="White" BorderThickness="0" Margin="3,0,0,0"/>
+                                    <Button Grid.Row="0" Grid.Column="0" Tag="SHOW_START_LIST" Click="DisplayBtn_Click" Height="36" Margin="0,0,3,6">
+                                        <Button.Template>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border Background="#3B82F6" CornerRadius="6">
+                                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                        <TextBlock Text="&#xE8F1;" FontFamily="Segoe MDL2 Assets" FontSize="15" Foreground="White" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                                                        <TextBlock Text="出发表" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                    </StackPanel>
+                                                </Border>
+                                            </ControlTemplate>
+                                        </Button.Template>
+                                    </Button>
+                                    <Button Grid.Row="0" Grid.Column="1" Tag="SHOW_LIVE_RACE" Click="DisplayBtn_Click" Height="36" Margin="3,0,0,6">
+                                        <Button.Template>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border Background="#2563EB" CornerRadius="6">
+                                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                        <TextBlock Text="&#xE768;" FontFamily="Segoe MDL2 Assets" FontSize="15" Foreground="White" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                                                        <TextBlock Text="比赛视图" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                    </StackPanel>
+                                                </Border>
+                                            </ControlTemplate>
+                                        </Button.Template>
+                                    </Button>
+                                    <Button Grid.Row="1" Grid.Column="0" Tag="SHOW_HEAT_RESULT" Click="DisplayBtn_Click" Height="36" Margin="0,0,3,6">
+                                        <Button.Template>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border Background="#059669" CornerRadius="6">
+                                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                        <TextBlock Text="&#xE9D5;" FontFamily="Segoe MDL2 Assets" FontSize="15" Foreground="White" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                                                        <TextBlock Text="组成绩" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                    </StackPanel>
+                                                </Border>
+                                            </ControlTemplate>
+                                        </Button.Template>
+                                    </Button>
+                                    <Button Grid.Row="1" Grid.Column="1" Tag="SHOW_EVENT_RANKING" Click="DisplayBtn_Click" Height="36" Margin="3,0,0,6">
+                                        <Button.Template>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border Background="#10B981" CornerRadius="6">
+                                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                        <TextBlock Text="&#xE8CB;" FontFamily="Segoe MDL2 Assets" FontSize="15" Foreground="White" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                                                        <TextBlock Text="总排名" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                    </StackPanel>
+                                                </Border>
+                                            </ControlTemplate>
+                                        </Button.Template>
+                                    </Button>
+                                    <Button Grid.Row="2" Grid.Column="0" Tag="SHOW_TEAM_STANDINGS" Click="DisplayBtn_Click" Height="36" Margin="0,0,3,6">
+                                        <Button.Template>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border Background="#D97706" CornerRadius="6">
+                                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                        <TextBlock Text="&#xE8D1;" FontFamily="Segoe MDL2 Assets" FontSize="15" Foreground="White" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                                                        <TextBlock Text="团  体" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                    </StackPanel>
+                                                </Border>
+                                            </ControlTemplate>
+                                        </Button.Template>
+                                    </Button>
+                                    <Button Grid.Row="2" Grid.Column="1" Tag="SHOW_AWARDS" Click="DisplayBtn_Click" Height="36" Margin="3,0,0,6">
+                                        <Button.Template>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border Background="#F59E0B" CornerRadius="6">
+                                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                        <TextBlock Text="&#xE8A0;" FontFamily="Segoe MDL2 Assets" FontSize="15" Foreground="White" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                                                        <TextBlock Text="颁  奖" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                    </StackPanel>
+                                                </Border>
+                                            </ControlTemplate>
+                                        </Button.Template>
+                                    </Button>
+                                    <Button Grid.Row="3" Grid.Column="0" Tag="SHOW_RECORDS" Click="DisplayBtn_Click" Height="36" Margin="0,0,3,0">
+                                        <Button.Template>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border Background="#DC2626" CornerRadius="6">
+                                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                        <TextBlock Text="&#xEDB3;" FontFamily="Segoe MDL2 Assets" FontSize="15" Foreground="White" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                                                        <TextBlock Text="纪  录" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                    </StackPanel>
+                                                </Border>
+                                            </ControlTemplate>
+                                        </Button.Template>
+                                    </Button>
+                                    <Button Grid.Row="3" Grid.Column="1" Tag="SHOW_WELCOME" Click="DisplayBtn_Click" Height="36" Margin="3,0,0,0">
+                                        <Button.Template>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border Background="#8B5CF6" CornerRadius="6">
+                                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                        <TextBlock Text="&#xE80F;" FontFamily="Segoe MDL2 Assets" FontSize="15" Foreground="White" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                                                        <TextBlock Text="欢  迎" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                    </StackPanel>
+                                                </Border>
+                                            </ControlTemplate>
+                                        </Button.Template>
+                                    </Button>
                                 </Grid>
-                                <Button Content="成绩发布" Click="PublishResult_Click" Padding="0,9" FontSize="15" FontWeight="Bold"
-                                        Background="#F59E0B" Foreground="White" BorderThickness="0"/>
+                                <Button Click="PublishResult_Click" Height="36" Margin="0,6,0,0">
+                                    <Button.Template>
+                                        <ControlTemplate TargetType="Button">
+                                            <Border Background="#F59E0B" CornerRadius="6">
+                                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                    <TextBlock Text="&#xE8A5;" FontFamily="Segoe MDL2 Assets" FontSize="15" Foreground="White" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                                                    <TextBlock Text="成绩发布" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                </StackPanel>
+                                            </Border>
+                                        </ControlTemplate>
+                                    </Button.Template>
+                                </Button>
                             </StackPanel>
                         </Border>
 
@@ -214,21 +448,6 @@
                         <TextBlock x:Name="FalseStartInfo" Text="" Foreground="#EF4444" FontSize="12"
                                    TextWrapping="Wrap" HorizontalAlignment="Center" Margin="0,4,0,0"/>
                     </StackPanel>
-
-                    <!-- ═══ 计时源对比（填充剩余空间） ═══ -->
-                    <Border BorderBrush="#334155" BorderThickness="0,1,0,0" Margin="0,8,0,0" Padding="0,8,0,0">
-                        <DockPanel>
-                            <TextBlock DockPanel.Dock="Top" Text="计时源对比" Foreground="#3B82F6" FontSize="13" FontWeight="Bold" Margin="0,0,0,6"/>
-                            <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,6">
-                                <TextBlock Text="分段:" Foreground="#94A3B8" FontSize="12" VerticalAlignment="Center"/>
-                                <ComboBox x:Name="SplitSelectCombo" Width="110" FontSize="12" Margin="6,0,0,0"
-                                          BorderBrush="#475569" SelectionChanged="SplitSelect_Changed" SelectedIndex="0">
-                                    <sys:String xmlns:sys="clr-namespace:System;assembly=mscorlib">终点</sys:String>
-                                </ComboBox>
-                            </StackPanel>
-                            <TextBlock x:Name="TimingSourceInfo" Text="" Foreground="#94A3B8" FontSize="13" TextWrapping="Wrap"/>
-                        </DockPanel>
-                    </Border>
                 </DockPanel>
             </Border>
         </Grid>

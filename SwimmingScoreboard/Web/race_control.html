@@ -24,14 +24,17 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 /* 主体 */
 .main-area { flex: 1; display: flex; overflow: hidden; }
 
-/* 赛程树面板（左侧） */
+/* 赛程树面板（左侧）：赛程导航(6) + 计时源对比(4)，与主服务器比例一致 */
 .schedule-tree-panel { width: 220px; background: var(--card); border-right: 1px solid #334155; display: flex; flex-direction: column; overflow: hidden; }
+.schedule-tree-panel .sched-section { flex: 6; display: flex; flex-direction: column; min-height: 0; }
+.schedule-tree-panel .timing-source-section { flex: 4; display: flex; flex-direction: column; min-height: 0; border-top: 1px solid #334155; }
 .schedule-tree-panel .panel-header { padding: 8px 10px; font-size: 14px; font-weight: bold; color: #3B82F6; background: #172033; }
 .schedule-tree-panel .panel-header button { background: none; border: none; color: var(--dim); cursor: pointer; font-size: 16px; }
-.log-section { border-top: 1px solid #334155; flex: 1; display: flex; flex-direction: column; min-height: 0; }
-.log-section .log-header { padding: 6px 10px; font-size: 12px; font-weight: bold; color: #3B82F6; background: #172033; }
-.log-section .log-content { flex: 1; overflow-y: auto; padding: 4px 8px; font-size: 11px; color: var(--dim); }
-.tree-scroll { flex: 2; overflow-y: auto; padding: 4px 0; min-height: 0; }
+/* 日志区（位于中间面板底部，固定位置填充剩余空间） */
+.log-section { border: 1px solid #334155; border-radius: 4px; background: var(--card); display: flex; flex-direction: column; min-height: 0; margin-top: 8px; flex: 1; }
+.log-section .log-header { padding: 6px 10px; font-size: 13px; font-weight: bold; color: #3B82F6; background: #172033; border-radius: 4px 4px 0 0; }
+.log-section .log-content { flex: 1; overflow-y: auto; padding: 4px 8px; font-size: 12px; color: var(--dim); }
+.tree-scroll { flex: 1; overflow-y: auto; padding: 4px 0; min-height: 0; }
 .tree-session { }
 .tree-session-header { padding: 4px 10px; font-size: 13px; font-weight: bold; color: var(--dim); cursor: pointer; user-select: none; }
 .tree-session-header:hover { color: var(--text); }
@@ -51,9 +54,11 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 .btn-restart { background: var(--red); color: #fff; }
 
 
-/* 泳池图 */
-.pool-area { flex: 1; overflow-y: auto; padding: 8px; }
-.pool-header { display: flex; align-items: center; height: 28px; color: var(--dim); padding: 0 6px; margin-bottom: 4px; font-size: 12px; }
+/* 泳池图：顶部(固定) + 表头(固定) + 泳道10道(固定620px) + 日志(填充剩余) */
+.pool-area { flex: 1; padding: 8px; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+.pool-topbar { display: flex; align-items: center; height: 36px; padding: 0 8px; flex-shrink: 0; }
+.pool-lanes-wrap { height: 620px; overflow-y: auto; flex-shrink: 0; }
+.pool-header { display: flex; align-items: center; height: 28px; color: var(--dim); padding: 0 6px; margin-bottom: 4px; font-size: 12px; flex-shrink: 0; }
 
 .lane-row { display: flex; align-items: center; height: 52px; background: var(--card); border-radius: 4px; margin-bottom: 4px; padding: 0 6px; }
 .lane-row:hover { background: #253049; }
@@ -99,15 +104,27 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 .info-area .rank.r3 { color: #cd7f32; }
 
 /* 右侧操作面板 */
-.right-panel { width: 200px; background: var(--card); padding: 8px; border-left: 1px solid #334155; overflow-y: auto; }
-.right-col { display: flex; flex-direction: column; gap: 4px; }
-.right-col h3 { font-size: 13px; margin: 6px 0 2px; color: var(--dim); border-bottom: 1px solid #334155; padding-bottom: 3px; }
+.right-panel { width: 220px; background: var(--card); padding: 10px; border-left: 1px solid #334155; overflow-y: auto; }
+.right-col { display: flex; flex-direction: column; gap: 6px; }
+.right-col h3 { font-size: 14px; margin: 0 0 2px 0; color: #3B82F6; font-weight: bold; }
 .right-col h3:first-child { margin-top: 0; }
-.action-btn { width: 100%; padding: 7px 4px; border: none; border-radius: 5px; font-size: 14px; font-weight: bold; cursor: pointer; }
-.action-btn:active { opacity: 0.8; }
-.btn-confirm { background: var(--accent); color: white; }
-.btn-all-open { background: var(--green); color: white; }
-.btn-all-close { background: #64748b; color: white; }
+/* 按钮统一样式：圆角 + 图标 + 文字 + 悬停反馈 */
+.action-btn {
+    width: 100%; height: 36px; padding: 0 6px;
+    border: none; border-radius: 8px;
+    font-size: 14px; font-weight: bold; color: white; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    transition: opacity 0.1s;
+}
+.action-btn:hover { opacity: 0.85; }
+.action-btn:active { opacity: 0.7; }
+.action-btn .ico {
+    font-family: "Segoe MDL2 Assets", "Segoe UI Symbol", sans-serif;
+    font-size: 15px; font-weight: normal; line-height: 1;
+}
+/* 小圆角用于工具按钮 */
+.action-btn.small { border-radius: 6px; font-size: 13px; }
+.action-btn.small .ico { font-size: 13px; }
 
 /* 底部信息（已移到左侧面板和顶部栏） */
 .bottom-bar { display: none; }
@@ -227,71 +244,87 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 
 <!-- 主体 -->
 <div class="main-area">
-    <!-- 赛程树（左侧）+ 日志 -->
+    <!-- 左栏：赛程导航(6) + 计时源对比(4) -->
     <div class="schedule-tree-panel">
-        <div class="panel-header">赛程导航</div>
-        <div class="tree-scroll" id="scheduleTree"></div>
+        <!-- 赛程导航 -->
+        <div class="sched-section">
+            <div class="panel-header">赛程导航</div>
+            <div class="tree-scroll" id="scheduleTree"></div>
+        </div>
+        <!-- 计时源对比（从右栏移到这里，与主服务器一致） -->
+        <div class="timing-source-section">
+            <div class="panel-header" style="padding:6px 10px;font-size:13px;">计时源对比</div>
+            <div style="display:flex;align-items:center;gap:4px;padding:4px 10px 2px 10px;">
+                <span style="color:#94A3B8;font-size:12px;">分段:</span>
+                <select id="splitSelectCombo" onchange="showTimingSourceData()" style="width:110px;font-size:12px;background:#0F172A;color:white;border:1px solid #475569;border-radius:3px;padding:2px;">
+                    <option value="0">终点</option>
+                </select>
+            </div>
+            <div id="timingSourceCompare" style="font-size:12px;color:var(--dim);flex:1;overflow-y:auto;padding:4px 10px;">点击泳道行查看计时源</div>
+        </div>
+    </div>
+
+    <!-- 中间：WR/CR + 滚动时间 + 泳道实时状态 + 日志（三段固定布局） -->
+    <div class="pool-area">
+        <!-- 顶部栏（固定）：WR/CR + 滚动时间 -->
+        <div class="pool-topbar">
+            <div style="flex:1;"></div>
+            <div id="recordDisplay" style="width:280px;font-size:18px;font-weight:bold;color:var(--gold);font-family:Consolas,monospace;opacity:0.9;text-align:right;">WR: ---    CR: ---</div>
+            <div id="runTime" style="width:160px;font-size:32px;font-weight:bold;color:var(--gold);font-family:Consolas,monospace;opacity:0.85;white-space:pre;text-align:right;">0.00</div>
+        </div>
+        <!-- 泳道表头（固定） -->
+        <div class="pool-header" id="poolHeader"></div>
+        <!-- 泳道状态（固定高度，10道） -->
+        <div class="pool-lanes-wrap">
+            <div id="poolLanes"></div>
+        </div>
+        <!-- 日志区（固定位置，自动填充剩余空间） -->
         <div class="log-section">
             <div class="log-header">日志</div>
             <div class="log-content" id="logArea"></div>
         </div>
     </div>
 
-    <!-- 泳池图 -->
-    <div class="pool-area" style="position:relative;display:flex;flex-direction:column;">
-        <!-- 顶部栏：WR/CR + 滚动时间 -->
-        <div style="display:flex;align-items:center;height:36px;padding:0 8px;flex-shrink:0;">
-            <div style="flex:1;"></div>
-            <div id="recordDisplay" style="width:280px;font-size:18px;font-weight:bold;color:var(--gold);font-family:Consolas,monospace;opacity:0.9;text-align:right;">WR: ---    CR: ---</div>
-            <div id="runTime" style="width:160px;font-size:32px;font-weight:bold;color:var(--gold);font-family:Consolas,monospace;opacity:0.85;white-space:pre;text-align:right;">0.00</div>
-        </div>
-        <div class="pool-header" id="poolHeader"></div>
-        <div id="poolLanes" style="flex:1;overflow-y:auto;"></div>
-    </div>
-
     <!-- 右侧操作面板 -->
     <div class="right-panel">
         <div class="right-col">
             <h3>比赛控制</h3>
-            <button class="action-btn btn-ready" onclick="sendCmd('READY')">就 位</button>
-            <button class="action-btn btn-start" onclick="sendCmd('START_RACE')">发 令</button>
-            <button class="action-btn btn-restart" onclick="confirmTimerReset()">计时复位</button>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-top:2px;">
-                <button class="action-btn btn-all-open" onclick="sendCmd('OPEN_ALL_LANES')">全开</button>
-                <button class="action-btn btn-all-close" onclick="sendCmd('CLOSE_ALL_LANES')">全关</button>
+            <button class="action-btn" style="background:#F59E0B;" onclick="sendCmd('READY')"><span class="ico">&#xE7C1;</span>就  位</button>
+            <button class="action-btn" style="background:#22C55E;" onclick="sendCmd('START_RACE')"><span class="ico">&#xE768;</span>发  令</button>
+            <button class="action-btn" style="background:#EF4444;" onclick="confirmTimerReset()"><span class="ico">&#xE72C;</span>计时复位</button>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+                <button class="action-btn" style="background:#22C55E;margin:0;" onclick="sendCmd('OPEN_ALL_LANES')"><span class="ico">&#xE8FB;</span>全部打开</button>
+                <button class="action-btn" style="background:#64748B;margin:0;" onclick="sendCmd('CLOSE_ALL_LANES')"><span class="ico">&#xE711;</span>全部关闭</button>
             </div>
-            <button class="action-btn btn-confirm" onclick="confirmResult()">确认本组成绩</button>
-            <div style="display:flex;align-items:center;gap:6px;">
-                <h3 style="margin:0;">泳道操作</h3>
-                <input type="number" id="laneInput" min="0" max="9" value="4" style="width:42px;padding:3px;border:1px solid #475569;border-radius:4px;background:#1E293B;color:white;text-align:center;font-size:14px;">
-                <span style="color:#94A3B8;font-size:12px;">道</span>
+            <button class="action-btn" style="background:#3B82F6;" onclick="confirmResult()"><span class="ico">&#xE73E;</span>确认本组成绩</button>
+            <div style="border-top:1px solid #334155;margin-top:6px;padding-top:10px;">
+                <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;">
+                    <h3 style="margin:0;">泳道操作</h3>
+                    <input type="number" id="laneInput" min="0" max="9" value="4" style="width:46px;padding:4px;border:1px solid #475569;border-radius:4px;background:#0F172A;color:white;text-align:center;font-size:14px;">
+                    <span style="color:#94A3B8;font-size:12px;">道</span>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+                    <button class="action-btn small" style="background:#64748B;margin:0;" onclick="markLane('DNS')">DNS</button>
+                    <button class="action-btn small" style="background:#78716C;margin:0;" onclick="markLane('DNF')">DNF</button>
+                    <button class="action-btn small" style="background:#9CA3AF;margin:0;" onclick="markLane('DSQ')">DSQ</button>
+                    <button class="action-btn small" style="background:#D97706;margin:0;" onclick="manualTimeInput()"><span class="ico">&#xE932;</span>手动输入</button>
+                </div>
+                <button class="action-btn small" style="background:#475569;margin-top:6px;" onclick="openSettings()"><span class="ico">&#xE713;</span>参数设置</button>
             </div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;">
-                <button class="action-btn" style="background:#64748B;" onclick="markLane('DNS')">DNS</button>
-                <button class="action-btn" style="background:#78716C;" onclick="markLane('DNF')">DNF</button>
-                <button class="action-btn" style="background:#9CA3AF;" onclick="markLane('DSQ')">DSQ</button>
-                <button class="action-btn" style="background:#D97706;" onclick="manualTimeInput()">手动输入</button>
+            <div style="border-top:1px solid #334155;margin-top:6px;padding-top:10px;">
+                <h3 style="margin:0 0 8px 0;">显示控制</h3>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+                    <button class="action-btn small" style="background:#3B82F6;margin:0;" onclick="sendDisplay('SHOW_START_LIST')"><span class="ico">&#xE8F1;</span>出发表</button>
+                    <button class="action-btn small" style="background:#2563EB;margin:0;" onclick="sendDisplay('SHOW_LIVE_RACE')"><span class="ico">&#xE768;</span>比赛视图</button>
+                    <button class="action-btn small" style="background:#059669;margin:0;" onclick="sendDisplay('SHOW_HEAT_RESULT')"><span class="ico">&#xE9D5;</span>组成绩</button>
+                    <button class="action-btn small" style="background:#10B981;margin:0;" onclick="sendDisplay('SHOW_EVENT_RANKING')"><span class="ico">&#xE8CB;</span>总排名</button>
+                    <button class="action-btn small" style="background:#D97706;margin:0;" onclick="sendDisplay('SHOW_TEAM_STANDINGS')"><span class="ico">&#xE8D1;</span>团  体</button>
+                    <button class="action-btn small" style="background:#F59E0B;margin:0;" onclick="sendDisplay('SHOW_AWARDS')"><span class="ico">&#xE8A0;</span>颁  奖</button>
+                    <button class="action-btn small" style="background:#DC2626;margin:0;" onclick="sendDisplay('SHOW_RECORDS')"><span class="ico">&#xEDB3;</span>纪  录</button>
+                    <button class="action-btn small" style="background:#8B5CF6;margin:0;" onclick="sendDisplay('SHOW_WELCOME')"><span class="ico">&#xE80F;</span>欢  迎</button>
+                </div>
+                <button class="action-btn small" style="background:#F59E0B;margin-top:6px;" onclick="publishResult()"><span class="ico">&#xE8A5;</span>成绩发布</button>
             </div>
-            <h3>显示控制</h3>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;">
-                <button class="action-btn" style="background:#3B82F6;" onclick="sendDisplay('SHOW_START_LIST')">出发表</button>
-                <button class="action-btn" style="background:#2563EB;" onclick="sendDisplay('SHOW_LIVE_RACE')">比赛视图</button>
-                <button class="action-btn" style="background:#059669;" onclick="sendDisplay('SHOW_HEAT_RESULT')">组成绩</button>
-                <button class="action-btn" style="background:#10B981;" onclick="sendDisplay('SHOW_EVENT_RANKING')">总排名</button>
-                <button class="action-btn" style="background:#D97706;" onclick="sendDisplay('SHOW_TEAM_STANDINGS')">团体积分</button>
-                <button class="action-btn" style="background:#F59E0B;" onclick="sendDisplay('SHOW_AWARDS')">颁奖</button>
-                <button class="action-btn" style="background:#DC2626;" onclick="sendDisplay('SHOW_RECORDS')">纪录</button>
-                <button class="action-btn" style="background:#8B5CF6;" onclick="sendDisplay('SHOW_WELCOME')">欢迎</button>
-            </div>
-            <button class="action-btn" style="background:#F59E0B;font-size:15px;padding:9px;margin-top:4px;" onclick="publishResult()">成绩发布</button>
-            <h3>计时源对比</h3>
-            <div style="display:flex;align-items:center;gap:4px;margin-bottom:4px;">
-                <span style="color:#94A3B8;font-size:12px;">分段:</span>
-                <select id="splitSelectCombo" onchange="showTimingSourceData()" style="width:100px;font-size:12px;background:black;color:white;border:1px solid #475569;border-radius:3px;padding:2px;">
-                    <option value="0">终点</option>
-                </select>
-            </div>
-            <div id="timingSourceCompare" style="font-size:12px;color:var(--dim);flex:1;overflow-y:auto;min-height:40px;margin-top:4px;"></div>
         </div>
     </div>
 </div>
@@ -507,16 +540,19 @@ function render() {
     if (data.resultConfirmed) stateText = '已确认 — 请选择下一组';
     document.getElementById('stateLabel').textContent = stateText;
 
-    // 本地计时器同步：只在首次进入racing时根据服务器时间计算发令时刻，之后完全本地独立计时
+    // 本地计时器同步：
+    // 服务器（主控制）是唯一权威时钟源，由硬件START事件驱动。
+    // 每次收到广播都重新同步 _localTimerStart，确保本地时钟不会漂移。
     if (state === 'waiting' || state === 'ready') {
         _localTimerStart = 0;
         _localTimerSynced = false;
         var rtReset = document.getElementById('runTime');
         if (rtReset) { rtReset.textContent = '0.00'; rtReset.style.color = ''; }
     }
-    if ((state === 'racing' || state === 'finished') && !_localTimerSynced && data.runningTime) {
+    if ((state === 'racing' || state === 'finished') && data.runningTime) {
         var serverSec = parseServerTime(data.runningTime);
-        _localTimerStart = Date.now() - serverSec * 1000;  // 反推发令时刻
+        // 每次服务器广播都重新同步本地起点（消除时钟漂移）
+        _localTimerStart = Date.now() - serverSec * 1000;
         _localTimerSynced = true;
     }
     // 右下角：第1名成绩直接读取服务器数据（由服务器端 ProcessTouchpadHit 设置）
@@ -568,7 +604,9 @@ function getLaneInput() {
 function markLane(status) {
     var lane = getLaneInput();
     if (lane < 0) { alert('请输入泳道号'); return; }
-    if (confirm('确定将泳道 ' + lane + ' 标记为 ' + status + '？')) {
+    var descMap = { 'DNS': '缺席未出发', 'DNF': '中途退出', 'DSQ': '犯规取消资格' };
+    var desc = descMap[status] || '';
+    if (confirm('确认将泳道 ' + lane + ' 标记为 ' + status + '（' + desc + '）？\n\n此操作将取消该泳道的成绩。')) {
         sendCmd('MARK_' + status, {lane: lane});
         addLog('泳道' + lane + ' 标记为 ' + status);
     }
@@ -578,8 +616,11 @@ function manualTimeInput() {
     if (lane < 0) { alert('请输入泳道号'); return; }
     var timeStr = prompt('泳道 ' + lane + ' 手动输入成绩（如 49.23 或 1:23.45）：');
     if (!timeStr) return;
+    timeStr = timeStr.trim();
     var seconds = parseTimeToSeconds(timeStr);
     if (seconds <= 0) { alert('成绩格式不正确'); return; }
+    // 二次确认
+    if (!confirm('确认将泳道 ' + lane + ' 的成绩手动输入为 ' + timeStr + '？\n\n此操作将写入数据库。')) return;
     sendCmd('OVERRIDE_TIME', {lane: lane, time: seconds});
     addLog('泳道' + lane + ' 手动输入成绩: ' + timeStr);
 }
@@ -772,7 +813,7 @@ function confirmResult() {
 }
 
 function confirmTimerReset() {
-    if (confirm('确定计时器复位，数据清除？')) {
+    if (confirm('确定计时器复位？\n\n本组成绩数据将被清除，\n但 DSQ/DNS/DNF 等特殊状态会保留。')) {
         sendCmd('TIMER_RESET');
         addLog('计时复位');
     }
@@ -881,7 +922,25 @@ function toggleSession(sn) {
     renderScheduleTree();
 }
 
+// 比赛进行中禁止切换项目（防止误操作导致参数复位）
+function isRacing() {
+    var st = (data.raceState || '').toUpperCase();
+    return st === 'READY' || st === 'RACING';
+}
+
+function blockIfRacing(action) {
+    if (isRacing()) {
+        alert('比赛进行中不能重新选择比赛项目。\n\n如需切换，请先点击"计时复位"结束当前比赛。');
+        addLog('比赛进行中不能' + action);
+        return true;
+    }
+    return false;
+}
+
 function selectHeat(key) {
+    // 比赛进行中拦截
+    if (blockIfRacing('切换项目')) return;
+
     selectedHeatKey = key;
     var parts = key.split('|');
     if (parts.length >= 4) {
@@ -949,11 +1008,24 @@ function getReactionDisplay(sw) {
         rs.value = rt;
         rs.showTime = Date.now();
     }
+    // 已完赛时一直显示
+    if (sw.isFinished) return rt;
     if (rs.showTime > 0) {
         var displayMs = ((data.laneCloseSettings ? data.laneCloseSettings.splitDisplayTime : 5) || 5) * 1000;
         if ((Date.now() - rs.showTime) < displayMs) return rt;
     }
     return '';
+}
+
+// 判断该泳道的分段成绩/名次是否应当可见（用于与分段时间同步显示/消隐）
+function isSplitVisible(sw) {
+    if (sw.finalTime) return true;           // 已完赛
+    if (sw.status) return false;              // DNS/DNF/DSQ
+    var lane = sw.lane;
+    var ls = laneSplitState[lane];
+    if (!ls || !ls.showTime) return false;
+    var displayMs = ((data.laneCloseSettings ? data.laneCloseSettings.splitDisplayTime : 5) || 5) * 1000;
+    return (Date.now() - ls.showTime) < displayMs;
 }
 
 function getSplitOrFinalTime(sw) {
@@ -1198,13 +1270,17 @@ function refreshLaneRows(swimmers, rcRelay) {
         var newFinal = getSplitOrFinalTime(sw);
         if (rowUI.finalTimeEl.textContent !== newFinal) rowUI.finalTimeEl.textContent = newFinal;
 
-        // 名次
+        // 名次：直接以分段成绩显示与否为同步依据
+        // 分段成绩有显示 && 服务器送来的 rank > 0 → 显示名次
+        // DSQ/DNS/DNF 服务器会把 rank 设为 0，所以自动不会显示
+        var hasTimeDisplay = newFinal !== '' && !sw.status;
+        var displayRank = (hasTimeDisplay && sw.rank > 0) ? sw.rank : 0;
         var rankClass = 'rank lr-rank';
-        if (sw.rank === 1) rankClass += ' r1';
-        else if (sw.rank === 2) rankClass += ' r2';
-        else if (sw.rank === 3) rankClass += ' r3';
+        if (displayRank === 1) rankClass += ' r1';
+        else if (displayRank === 2) rankClass += ' r2';
+        else if (displayRank === 3) rankClass += ' r3';
         rowUI.rankEl.className = rankClass;
-        var newRank = sw.rank > 0 ? String(sw.rank) : '';
+        var newRank = displayRank > 0 ? String(displayRank) : '';
         if (rowUI.rankEl.textContent !== newRank) rowUI.rankEl.textContent = newRank;
 
         // 备注
@@ -1231,20 +1307,22 @@ function buildArrows(sw, swDir, dir) {
     var maxArrows = 8;
 
     if (countdown > 0) {
-        // 泳道关闭中：根据进度比例计算箭头数量（倒计时结束时满箭头）
+        // 泳道关闭中：格式 = 第1个箭头 + 倒计时时间 + 尾部箭头（尾部随进度增长）
         var elapsed = closeTime - countdown;
         var progress = closeTime > 0 ? elapsed / closeTime : 1;
         var arrowCount = Math.max(1, Math.round(progress * maxArrows));
         if (arrowCount > maxArrows) arrowCount = maxArrows;
 
-        var arrows = '';
-        for (var i = 0; i < arrowCount; i++) arrows += arrow;
+        var tailCount = arrowCount > 0 ? arrowCount - 1 : 0;
+        var tailArrows = '';
+        for (var i = 0; i < tailCount; i++) tailArrows += arrow;
         var countdownText = '(' + countdown.toFixed(1) + 's)';
+        var cdSpan = '<span style="color:var(--gold);font-size:11px;margin:0 4px;">' + countdownText + '</span>';
 
         if (dir === 'going') {
-            return '<span class="arrows">' + arrows + '</span><span style="color:var(--gold);font-size:11px;margin-left:4px;">' + countdownText + '</span>';
+            return '<span class="arrows">' + arrow + '</span>' + cdSpan + '<span class="arrows">' + tailArrows + '</span>';
         } else {
-            return '<span style="color:var(--gold);font-size:11px;margin-right:4px;">' + countdownText + '</span><span class="arrows">' + arrows + '</span>';
+            return '<span class="arrows">' + tailArrows + '</span>' + cdSpan + '<span class="arrows">' + arrow + '</span>';
         }
     }
 
@@ -1430,8 +1508,14 @@ document.addEventListener('keydown', function(e) {
         e.preventDefault();
         sendCmd('MANUAL_TOUCH_RIGHT', {lane: e.key === '0' ? 10 : parseInt(e.key)});
     }
-    if (e.ctrlKey && e.key === 'ArrowLeft') sendCmd('PREV_HEAT');
-    if (e.ctrlKey && e.key === 'ArrowRight') sendCmd('NEXT_HEAT');
+    if (e.ctrlKey && e.key === 'ArrowLeft') {
+        if (!blockIfRacing('切换到上一组')) sendCmd('PREV_HEAT');
+        e.preventDefault();
+    }
+    if (e.ctrlKey && e.key === 'ArrowRight') {
+        if (!blockIfRacing('切换到下一组')) sendCmd('NEXT_HEAT');
+        e.preventDefault();
+    }
     if (!e.shiftKey && !e.ctrlKey && e.key >= '1' && e.key <= '9') selectLane(parseInt(e.key));
     if (!e.shiftKey && !e.ctrlKey && e.key === '0') selectLane(0);
     if (e.key === 'd' || e.key === 'D') { if (selectedLane >= 0) sendCmd('MARK_DNS', {lane: selectedLane}); }

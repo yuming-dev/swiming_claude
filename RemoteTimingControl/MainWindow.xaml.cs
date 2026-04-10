@@ -424,15 +424,18 @@ namespace RemoteTimingControl
             if (resultConfirmed) stateText = "已确认 — 请选择下一组";
             StateLabel.Text = stateText;
 
-            // Local timer sync
+            // Local timer sync：
+            // 服务器（主控制）是唯一权威时钟源，由硬件START事件驱动。
+            // 客户端每次接收服务器广播都重新同步 _localTimerStart，确保本地时钟不会漂移。
             if (state == "waiting" || state == "ready")
             {
                 _localTimerStart = DateTime.MinValue;
                 _localTimerSynced = false;
             }
-            if ((state == "racing" || state == "finished") && !_localTimerSynced && _data["runningTime"] != null)
+            if ((state == "racing" || state == "finished") && _data["runningTime"] != null)
             {
                 double serverSec = ParseServerTime(_data["runningTime"].ToString());
+                // 每次服务器广播都重新同步本地起点（消除时钟漂移）
                 _localTimerStart = DateTime.Now.AddSeconds(-serverSec);
                 _localTimerSynced = true;
             }
@@ -816,6 +819,27 @@ namespace RemoteTimingControl
             }
         }
 
+        // 比赛进行中禁止切换项目（防止误操作导致参数复位）
+        private bool IsRacing()
+        {
+            if (_data == null) return false;
+            string st = _data["raceState"] != null ? _data["raceState"].ToString().ToUpper() : "";
+            return st == "READY" || st == "RACING";
+        }
+
+        private bool BlockIfRacing(string action)
+        {
+            if (IsRacing())
+            {
+                MessageBox.Show(
+                    "比赛进行中不能重新选择比赛项目。\n\n如需切换，请先点击 \"计时复位\" 结束当前比赛。",
+                    "操作被阻止", MessageBoxButton.OK, MessageBoxImage.Warning);
+                AddLog("比赛进行中不能" + action);
+                return true;
+            }
+            return false;
+        }
+
         private void ScheduleTree_Selected(object sender, RoutedPropertyChangedEventArgs<object> e)
         {
             var item = ScheduleTree.SelectedItem as TreeViewItem;
@@ -824,6 +848,9 @@ namespace RemoteTimingControl
             string[] parts = tag.Split('|');
             if (parts.Length >= 4)
             {
+                // 比赛进行中拦截
+                if (BlockIfRacing("切换项目")) return;
+
                 string gender = parts[0];
                 string eventName = parts[1];
                 string stage = parts[2];
@@ -1162,7 +1189,7 @@ namespace RemoteTimingControl
                 else if (dir == "returning") rowUI.TrackText.Foreground = _brushGreen;
                 else rowUI.TrackText.Foreground = _brushBlue;
 
-                // 反应时：消隐
+                // 反应时：首次显示后 splitDisplayTime 秒后消隐，已完赛则一直显示
                 string rtVal = sw["reactionTime"] != null ? sw["reactionTime"].ToString() : "";
                 string rtDisplay = "";
                 if (!string.IsNullOrEmpty(rtVal))
@@ -1170,8 +1197,9 @@ namespace RemoteTimingControl
                     if (!_laneSplitState.ContainsKey(lane)) _laneSplitState[lane] = new SplitState();
                     var ss = _laneSplitState[lane];
                     if (rtVal != ss.LastReaction) { ss.LastReaction = rtVal; ss.ReactionShowTime = DateTime.Now; }
-                    if (ss.ReactionShowTime > DateTime.MinValue)
-                    {
+                    if (isFinished) {
+                        rtDisplay = rtVal; // 完赛后一直显示
+                    } else if (ss.ReactionShowTime > DateTime.MinValue) {
                         double dispSec = _splitDisplayTime > 0 ? _splitDisplayTime : 5;
                         if ((DateTime.Now - ss.ReactionShowTime).TotalSeconds < dispSec) rtDisplay = rtVal;
                     }
@@ -1179,10 +1207,15 @@ namespace RemoteTimingControl
                 rowUI.ReactionText.Text = rtDisplay;
 
                 // 成绩/分段
-                rowUI.DisplayTimeText.Text = GetSplitOrFinalTime(sw);
+                string timeDisplay = GetSplitOrFinalTime(sw);
+                rowUI.DisplayTimeText.Text = timeDisplay;
 
-                // 名次
-                int rank = sw["rank"] != null ? (int)sw["rank"] : 0;
+                // 名次：直接以分段成绩显示与否为同步依据
+                // 分段成绩有显示 && 服务器送来的 rank > 0 → 显示名次
+                // DSQ/DNS/DNF 服务器会把 rank 设为 0，所以自动不会显示
+                bool hasTimeDisplay = !string.IsNullOrEmpty(timeDisplay) && string.IsNullOrEmpty(status);
+                int rank = 0;
+                if (hasTimeDisplay && sw["rank"] != null) rank = (int)sw["rank"];
                 rowUI.RankText.Text = rank > 0 ? rank.ToString() : "";
                 if (rank == 1) rowUI.RankText.Foreground = _brushAmber;
                 else if (rank == 2) rowUI.RankText.Foreground = _brushSilver;
@@ -1251,6 +1284,27 @@ namespace RemoteTimingControl
             return "";
         }
 
+        /// <summary>
+        /// 判断该泳道的分段成绩/名次是否应当可见（用于与分段时间同步显示/消隐）
+        /// 已完赛永远可见；否则看最后有效分段的显示窗口
+        /// </summary>
+        private bool IsSplitVisible(JObject sw)
+        {
+            string finalTime = sw["finalTime"] != null ? sw["finalTime"].ToString() : "";
+            if (!string.IsNullOrEmpty(finalTime)) return true;
+            string status = sw["status"] != null ? sw["status"].ToString() : "";
+            if (!string.IsNullOrEmpty(status)) return false;
+
+            int lane = sw["lane"] != null ? (int)sw["lane"] : 0;
+            SplitState ls;
+            if (!_laneSplitState.TryGetValue(lane, out ls)) return false;
+            if (ls.ShowTime == DateTime.MinValue) return false;
+            double displaySec = 5;
+            if (_data != null && _data["laneCloseSettings"] != null && _data["laneCloseSettings"]["splitDisplayTime"] != null)
+                displaySec = (double)_data["laneCloseSettings"]["splitDisplayTime"];
+            return (DateTime.Now - ls.ShowTime).TotalMilliseconds < displaySec * 1000;
+        }
+
         private string GetRelayCurrentLegName(JObject sw)
         {
             string names = sw["name"] != null ? sw["name"].ToString() : "";
@@ -1302,11 +1356,13 @@ namespace RemoteTimingControl
                 double progress = closeTime > 0 ? elapsed / closeTime : 1;
                 int arrowCount = Math.Max(1, (int)Math.Round(progress * maxArrows));
                 if (arrowCount > maxArrows) arrowCount = maxArrows;
-                string arrows = "";
-                for (int i = 0; i < arrowCount; i++) arrows += arrow;
+                // 格式：第1个箭头 + 倒计时时间 + 尾部箭头（尾部随进度增长）
+                int tailCount = arrowCount > 0 ? arrowCount - 1 : 0;
+                string tailArrows = "";
+                for (int i = 0; i < tailCount; i++) tailArrows += arrow;
                 string cdText = string.Format("({0:F1}s)", countdown);
-                if (dir == "going") return arrows + " " + cdText;
-                return cdText + " " + arrows;
+                if (dir == "going") return arrow + " " + cdText + " " + tailArrows;
+                return tailArrows + " " + cdText + " " + arrow;
             }
 
             int currentLap = sw["currentLap"] != null ? (int)sw["currentLap"] : 0;
@@ -1496,7 +1552,9 @@ namespace RemoteTimingControl
 
         private void TimerReset_Click(object sender, RoutedEventArgs e)
         {
-            MessageBoxResult result = MessageBox.Show("确定计时器复位，数据清除？", "计时复位", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+            MessageBoxResult result = MessageBox.Show(
+                "确定计时器复位？\n\n本组成绩数据将被清除，\n但 DSQ/DNS/DNF 等特殊状态会保留。",
+                "计时复位", MessageBoxButton.YesNo, MessageBoxImage.Warning);
             if (result == MessageBoxResult.Yes)
             {
                 SendCmd("TIMER_RESET");
@@ -1523,11 +1581,13 @@ namespace RemoteTimingControl
 
         private void PrevHeat_Click(object sender, RoutedEventArgs e)
         {
+            if (BlockIfRacing("切换到上一组")) return;
             SendCmd("PREV_HEAT");
         }
 
         private void NextHeat_Click(object sender, RoutedEventArgs e)
         {
+            if (BlockIfRacing("切换到下一组")) return;
             SendCmd("NEXT_HEAT");
         }
 
@@ -1551,26 +1611,27 @@ namespace RemoteTimingControl
 
         private void MarkDNS_Click(object sender, RoutedEventArgs e)
         {
-            MarkLane("DNS");
+            MarkLane("DNS", "缺席未出发");
         }
 
         private void MarkDNF_Click(object sender, RoutedEventArgs e)
         {
-            MarkLane("DNF");
+            MarkLane("DNF", "中途退出");
         }
 
         private void MarkDSQ_Click(object sender, RoutedEventArgs e)
         {
-            MarkLane("DSQ");
+            MarkLane("DSQ", "犯规取消资格");
         }
 
-        private void MarkLane(string status)
+        private void MarkLane(string status, string desc)
         {
             int lane = GetLaneInput();
             if (lane < 0) { MessageBox.Show("请输入泳道号"); return; }
             MessageBoxResult result = MessageBox.Show(
-                string.Format("确定将泳道 {0} 标记为 {1}？", lane, status),
-                "泳道操作", MessageBoxButton.YesNo, MessageBoxImage.Question);
+                string.Format("确认将泳道 {0} 标记为 {1}（{2}）？\n\n此操作将取消该泳道的成绩。",
+                    lane, status, desc),
+                "确认标记", MessageBoxButton.YesNo, MessageBoxImage.Warning);
             if (result == MessageBoxResult.Yes)
             {
                 SendCmd("MARK_" + status, new { lane = lane });
@@ -1643,6 +1704,12 @@ namespace RemoteTimingControl
                 if (string.IsNullOrEmpty(timeStr)) return;
                 double seconds = ParseTimeToSeconds(timeStr);
                 if (seconds <= 0) { MessageBox.Show("成绩格式不正确"); return; }
+                // 二次确认
+                var cr = MessageBox.Show(
+                    string.Format("确认将泳道 {0} 的成绩手动输入为 {1}？\n\n此操作将写入数据库。",
+                        lane, timeStr),
+                    "确认手动输入", MessageBoxButton.YesNo, MessageBoxImage.Question);
+                if (cr != MessageBoxResult.Yes) return;
                 SendCmd("OVERRIDE_TIME", new { lane = lane, time = seconds });
                 AddLog(string.Format("泳道{0} 手动输入成绩: {1}", lane, timeStr));
             }
@@ -2198,8 +2265,14 @@ namespace RemoteTimingControl
             {
                 Confirm_Click(null, null);
             }
-            else if (e.Key == Key.Left && Keyboard.Modifiers == ModifierKeys.Control) { SendCmd("PREV_HEAT"); }
-            else if (e.Key == Key.Right && Keyboard.Modifiers == ModifierKeys.Control) { SendCmd("NEXT_HEAT"); }
+            else if (e.Key == Key.Left && Keyboard.Modifiers == ModifierKeys.Control) {
+                if (!BlockIfRacing("切换到上一组")) SendCmd("PREV_HEAT");
+                e.Handled = true;
+            }
+            else if (e.Key == Key.Right && Keyboard.Modifiers == ModifierKeys.Control) {
+                if (!BlockIfRacing("切换到下一组")) SendCmd("NEXT_HEAT");
+                e.Handled = true;
+            }
             else if (e.Key == Key.D && _selectedLane >= 0 && Keyboard.Modifiers == ModifierKeys.None) { SendCmd("MARK_DNS", new { lane = _selectedLane }); }
             else if (e.Key == Key.F && _selectedLane >= 0 && Keyboard.Modifiers == ModifierKeys.None) { SendCmd("MARK_DNF", new { lane = _selectedLane }); }
             else if (e.Key == Key.Q && _selectedLane >= 0) { SendCmd("MARK_DSQ", new { lane = _selectedLane }); }

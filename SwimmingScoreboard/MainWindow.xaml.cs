@@ -445,21 +445,41 @@ namespace SwimmingScoreboard
                     }
                     break;
                 case "AUTO_GENERATE_HEATS": AutoGenerateHeats_Click(null, null); break;
-                case "NEXT_HEAT": NextHeat_Click(null, null); break;
-                case "PREV_HEAT": PrevHeat_Click(null, null); break;
+                case "NEXT_HEAT":
+                    if (_raceState == RaceState.Ready || _raceState == RaceState.Racing) {
+                        AddLog("比赛进行中不能切换到下一组"); break;
+                    }
+                    NextHeat_Click(null, null); break;
+                case "PREV_HEAT":
+                    if (_raceState == RaceState.Ready || _raceState == RaceState.Racing) {
+                        AddLog("比赛进行中不能切换到上一组"); break;
+                    }
+                    PrevHeat_Click(null, null); break;
                 case "SET_GENDER":
+                    if (_raceState == RaceState.Ready || _raceState == RaceState.Racing) {
+                        AddLog("比赛进行中不能切换项目"); break;
+                    }
                     if (data != null) {
                         _currentGender = data.ToString();
                         AddLog("设置性别: " + _currentGender);
                     }
                     break;
                 case "SET_EVENT":
+                    if (_raceState == RaceState.Ready || _raceState == RaceState.Racing) {
+                        AddLog("比赛进行中不能切换项目"); break;
+                    }
                     if (data != null) SetCurrentEvent(data.ToString());
                     break;
                 case "SET_STAGE":
+                    if (_raceState == RaceState.Ready || _raceState == RaceState.Racing) {
+                        AddLog("比赛进行中不能切换赛次"); break;
+                    }
                     if (data != null) SetCurrentStage(data.ToString());
                     break;
                 case "SET_HEAT":
+                    if (_raceState == RaceState.Ready || _raceState == RaceState.Racing) {
+                        AddLog("比赛进行中不能切换组次"); break;
+                    }
                     if (data != null) SetCurrentHeat((int)data);
                     break;
                 case "MARK_DNS":
@@ -715,6 +735,8 @@ namespace SwimmingScoreboard
             // 构建当前组运动员数据
             var swimmerData = new List<object>();
             var currentSwimmers = GetCurrentHeatSwimmers();
+            // 实时分段名次（广播给客户端）
+            var liveRanksForBroadcast = ComputeLiveRanks(currentSwimmers);
             foreach (var sw in currentSwimmers) {
                 // 获取该赛次的泳道号（优先StageAssignment，不受晋级影响）
                 var stageAssign = sw.GetAssignmentForStage(_currentStage);
@@ -775,7 +797,10 @@ namespace SwimmingScoreboard
                         manual = TimeFormatter.Format(sp.ManualTouchTime), source = sp.TimingSource
                     }).ToList<object>() : new List<object>(),
                     finalTime = (sw.Status == "DSQ" || sw.Status == "DNS" || sw.Status == "DNF") ? "" : (result != null ? TimeFormatter.Format(result.FinalTime) : ""),
-                    rank = (sw.Status == "DSQ" || sw.Status == "DNS" || sw.Status == "DNF") ? 0 : (result != null ? result.Rank : 0),
+                    // 实时分段名次：有则用 liveRank，否则回退到 result.Rank
+                    rank = (sw.Status == "DSQ" || sw.Status == "DNS" || sw.Status == "DNF") ? 0
+                        : (liveRanksForBroadcast.ContainsKey(sw) ? liveRanksForBroadcast[sw]
+                           : (result != null ? result.Rank : 0)),
                     status = sw.Status ?? "",
                     timingSources = result != null ? new {
                         touchpad = TimeFormatter.Format(result.TouchpadTime),
@@ -1965,8 +1990,9 @@ namespace SwimmingScoreboard
         private void Restart_Click(object sender, RoutedEventArgs e) {
             // 本地按钮点击时弹确认对话框，WebSocket远程调用时(sender==null)跳过
             if (sender != null) {
-                var r = MessageBox.Show("确定计时器复位，数据清除？", "计时复位",
-                    MessageBoxButton.YesNo, MessageBoxImage.Warning);
+                var r = MessageBox.Show(
+                    "确定计时器复位？\n\n本组成绩数据将被清除，\n但 DSQ/DNS/DNF 等特殊状态会保留。",
+                    "计时复位", MessageBoxButton.YesNo, MessageBoxImage.Warning);
                 if (r != MessageBoxResult.Yes) return;
             }
 
@@ -1985,6 +2011,8 @@ namespace SwimmingScoreboard
             _firstPlaceDetectedRank = 0;
             _laneSplitCount.Clear();
             _laneSplitShowTime.Clear();
+            _laneReactionLastValue.Clear();
+            _laneReactionShowTime.Clear();
             if (RunningTimeText != null) RunningTimeText.Text = "0.00";
 
             // 3. 清除原始计时日志
@@ -2001,9 +2029,12 @@ namespace SwimmingScoreboard
             // 6. 清除当前组的成绩数据（确认对话框已明确"数据清除"）
             var currentSwimmers = GetCurrentHeatSwimmers();
             foreach (var sw in currentSwimmers) {
+                // 规则：犯规/中退/缺席等状态（DSQ/DNS/DNF）不能清除
+                // 因为这些运动员按规则不能参赛或被取消资格，保留其状态（只是没有成绩）
+                bool keepStatus = sw.Status == "DSQ" || sw.Status == "DNS" || sw.Status == "DNF";
                 var result = sw.Results.FirstOrDefault(r => r.Stage == _currentStage && r.Heat == _currentHeat);
                 if (result != null) sw.Results.Remove(result);
-                sw.Status = "";
+                if (!keepStatus) sw.Status = "";
             }
 
             // 7. 更新显示和广播
@@ -2301,6 +2332,8 @@ namespace SwimmingScoreboard
             _resultConfirmed = false;
             _laneSplitCount.Clear();
             _laneSplitShowTime.Clear();
+            _laneReactionLastValue.Clear();
+            _laneReactionShowTime.Clear();
             _firstPlaceFinishTime = "";
             _firstPlaceShowStart = DateTime.MinValue;
             _firstPlaceDetectedRank = 0;
@@ -2329,6 +2362,15 @@ namespace SwimmingScoreboard
             if (item == null || item.Tag == null) return;
 
             string tag = item.Tag.ToString();
+            // 比赛进行中禁止切换项目/组次（防止误操作导致参数复位）
+            if ((_raceState == RaceState.Ready || _raceState == RaceState.Racing) &&
+                (tag.StartsWith("heat:") || tag.StartsWith("event:"))) {
+                MessageBox.Show(
+                    "比赛进行中不能重新选择比赛项目。\n\n如需切换，请先点击 \"计时复位\" 结束当前比赛。",
+                    "操作被阻止", MessageBoxButton.OK, MessageBoxImage.Warning);
+                AddLog("比赛进行中不能切换项目");
+                return;
+            }
             // 已完赛的组：灰色可见但不能选择开始比赛
             if (tag.StartsWith("done:")) {
                 AddLog("该组比赛已完赛，不能重新选择");
@@ -2463,6 +2505,8 @@ namespace SwimmingScoreboard
         // ═══════════════════════════════════════════════════════════════
         private Dictionary<int, int> _laneSplitCount = new Dictionary<int, int>();  // 每道已显示的分段数
         private Dictionary<int, DateTime> _laneSplitShowTime = new Dictionary<int, DateTime>();  // 每道分段显示开始时间
+        private Dictionary<int, double> _laneReactionLastValue = new Dictionary<int, double>();  // 每道上次记录的反应时值
+        private Dictionary<int, DateTime> _laneReactionShowTime = new Dictionary<int, DateTime>();  // 每道反应时显示开始时间
 
         private bool _poolHeaderBuilt = false;
 
@@ -2710,9 +2754,51 @@ namespace SwimmingScoreboard
             }
         }
 
+        /// <summary>
+        /// 计算当前组运动员的实时分段名次
+        /// 规则：DSQ/DNS/DNF 无名次；已完赛按 FinalTime；未完赛按 (有效分段数 DESC, 最后累计时间 ASC)
+        /// </summary>
+        private Dictionary<Swimmer, int> ComputeLiveRanks(IEnumerable<Swimmer> swimmers) {
+            var liveRanks = new Dictionary<Swimmer, int>();
+            var rankables = new List<Tuple<Swimmer, int, double, bool>>(); // (swimmer, splitCount, cumTime/FinalTime, finished)
+            foreach (var sw2 in swimmers) {
+                string st = sw2.Status ?? "";
+                if (st == "DSQ" || st == "DNS" || st == "DNF") continue;
+                var r2 = sw2.Results.FirstOrDefault(lr => lr.Stage == _currentStage && lr.Heat == _currentHeat);
+                if (r2 == null) continue;
+
+                // 查找最后一个有效分段（CumulativeTime > 0）
+                int validSplits = 0;
+                double lastCum = 0;
+                for (int i = r2.Splits.Count - 1; i >= 0; i--) {
+                    if (r2.Splits[i].CumulativeTime > 0) {
+                        validSplits = r2.Splits[i].Lap;
+                        lastCum = r2.Splits[i].CumulativeTime;
+                        break;
+                    }
+                }
+                bool fin = r2.FinalTime > 0;
+                double sortTime = fin ? r2.FinalTime : lastCum;
+                if (validSplits == 0 && !fin) continue; // 无任何分段数据
+                rankables.Add(Tuple.Create(sw2, validSplits, sortTime, fin));
+            }
+            rankables.Sort((a, b) => {
+                if (a.Item4 != b.Item4) return a.Item4 ? -1 : 1; // 已完赛优先
+                if (a.Item4) return a.Item3.CompareTo(b.Item3);  // 都完赛：FinalTime升序
+                int c = b.Item2.CompareTo(a.Item2);              // 分段数降序
+                if (c != 0) return c;
+                return a.Item3.CompareTo(b.Item3);               // 累计时间升序
+            });
+            for (int i = 0; i < rankables.Count; i++) liveRanks[rankables[i].Item1] = i + 1;
+            return liveRanks;
+        }
+
         private void RefreshLaneRows(List<Swimmer> currentSwimmers) {
             double splitDisplaySec = _laneCloseSettings.SplitDisplayTime > 0 ? _laneCloseSettings.SplitDisplayTime : 5;
             bool leftStart = _laneCloseSettings.StartPosition == "left";
+
+            // 实时分段名次
+            var liveRanks = ComputeLiveRanks(_laneRowUIs.Select(r => r.Swimmer));
 
             foreach (var rowUI in _laneRowUIs) {
                 var sw = rowUI.Swimmer;
@@ -2807,9 +2893,13 @@ namespace SwimmingScoreboard
                     double progress = closeTime > 0 ? elapsed / closeTime : 1;
                     int arrowCount = Math.Max(1, (int)Math.Round(progress * maxArrows));
                     if (arrowCount > maxArrows) arrowCount = maxArrows;
-                    string arrows = new string(arrow[0], arrowCount);
+                    // 格式：第1个箭头 + 倒计时时间 + 尾部箭头（尾部箭头数量随进度增长）
+                    int tailCount = arrowCount > 0 ? arrowCount - 1 : 0;
+                    string tailArrows = new string(arrow[0], tailCount);
                     string cdText = string.Format("({0:F1}s)", ls.LaneCloseCountdown);
-                    rowUI.TrackText.Text = dir == "←" ? cdText + " " + arrows : arrows + " " + cdText;
+                    rowUI.TrackText.Text = dir == "←"
+                        ? tailArrows + " " + cdText + " " + arrow
+                        : arrow + " " + cdText + " " + tailArrows;
                     rowUI.TrackText.Foreground = _brushBlue;
                 } else if (ls != null && (ls.CurrentLap > 0 || _raceState == RaceState.Racing)) {
                     rowUI.TrackText.Text = new string(arrow[0], maxArrows);
@@ -2817,9 +2907,6 @@ namespace SwimmingScoreboard
                 } else {
                     rowUI.TrackText.Text = "";
                 }
-
-                // 反应时
-                rowUI.ReactionText.Text = ls != null && ls.ReactionTime != 0 ? ls.ReactionTime.ToString("F2") : "";
 
                 // 分段/成绩显示（带停留时长）
                 // 只统计有效分段（CumulativeTime > 0），跳过 PreCreateSplit 创建的空段
@@ -2840,20 +2927,43 @@ namespace SwimmingScoreboard
                     _laneSplitCount[lane] = validSplitCount;
                     _laneSplitShowTime[lane] = DateTime.Now;
                 }
+                // splitVisible：分段成绩是否在显示时间窗口内（已完赛则一直显示）
+                bool splitVisible = (isFinished && result != null && !isDQ) ||
+                                    (!isDQ && lastValidSplit != null &&
+                                     (DateTime.Now - _laneSplitShowTime[lane]).TotalSeconds < splitDisplaySec);
                 string displayTime = "";
-                if (isFinished && result != null && !isDQ) displayTime = TimeFormatter.Format(result.FinalTime);
-                else if (!isDQ && lastValidSplit != null &&
-                         (DateTime.Now - _laneSplitShowTime[lane]).TotalSeconds < splitDisplaySec)
-                    displayTime = TimeFormatter.Format(lastValidSplit.CumulativeTime);
+                if (splitVisible) {
+                    displayTime = (isFinished && result != null && !isDQ)
+                        ? TimeFormatter.Format(result.FinalTime)
+                        : TimeFormatter.Format(lastValidSplit.CumulativeTime);
+                }
                 rowUI.DisplayTimeText.Text = displayTime;
 
-                // 名次
-                int rank = result != null ? result.Rank : 0;
+                // 名次：与分段成绩同步显示/消隐
+                int rank = 0;
+                if (splitVisible) {
+                    if (liveRanks.ContainsKey(sw)) rank = liveRanks[sw];
+                    else if (result != null && result.Rank > 0) rank = result.Rank;
+                }
                 rowUI.RankText.Text = rank > 0 ? rank.ToString() : "";
                 if (rank == 1) rowUI.RankText.Foreground = _brushAmber;
                 else if (rank == 2) rowUI.RankText.Foreground = _brushSilver;
                 else if (rank == 3) rowUI.RankText.Foreground = _brushBronze;
                 else rowUI.RankText.Foreground = Brushes.White;
+
+                // 反应时：首次显示后 splitDisplaySec 秒后消隐，已完赛则一直显示
+                double reactionVal = ls != null ? ls.ReactionTime : 0;
+                if (reactionVal != 0) {
+                    if (!_laneReactionLastValue.ContainsKey(lane) || _laneReactionLastValue[lane] != reactionVal) {
+                        _laneReactionLastValue[lane] = reactionVal;
+                        _laneReactionShowTime[lane] = DateTime.Now;
+                    }
+                }
+                bool reactionVisible = reactionVal != 0 && (
+                    isFinished ||
+                    (_laneReactionShowTime.ContainsKey(lane) &&
+                     (DateTime.Now - _laneReactionShowTime[lane]).TotalSeconds < splitDisplaySec));
+                rowUI.ReactionText.Text = reactionVisible ? reactionVal.ToString("F2") : "";
 
                 // 备注
                 rowUI.RemarkText.Text = ls != null && ls.IsFalseStart ? "DSQ" : (isDQ ? status : "");
@@ -3086,21 +3196,32 @@ namespace SwimmingScoreboard
             Broadcast();
         }
 
+        private bool ConfirmMarkStatus(int lane, string status, string desc) {
+            var r = MessageBox.Show(
+                string.Format("确认将泳道 {0} 标记为 {1}（{2}）？\n\n此操作将取消该泳道的成绩。",
+                    lane, status, desc),
+                "确认标记", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+            return r == MessageBoxResult.Yes;
+        }
+
         private void MarkDNS_Click(object sender, RoutedEventArgs e) {
             int lane;
             if (!int.TryParse(LaneInputBox.Text, out lane)) { AddLog("请输入泳道号"); return; }
+            if (!ConfirmMarkStatus(lane, "DNS", "缺席未出发")) return;
             MarkLaneStatus(lane, "DNS");
         }
 
         private void MarkDNF_Click(object sender, RoutedEventArgs e) {
             int lane;
             if (!int.TryParse(LaneInputBox.Text, out lane)) { AddLog("请输入泳道号"); return; }
+            if (!ConfirmMarkStatus(lane, "DNF", "中途退出")) return;
             MarkLaneStatus(lane, "DNF");
         }
 
         private void MarkDSQ_Click(object sender, RoutedEventArgs e) {
             int lane;
             if (!int.TryParse(LaneInputBox.Text, out lane)) { AddLog("请输入泳道号"); return; }
+            if (!ConfirmMarkStatus(lane, "DSQ", "犯规取消资格")) return;
             MarkLaneStatus(lane, "DSQ");
         }
 
@@ -3108,21 +3229,36 @@ namespace SwimmingScoreboard
             int lane;
             if (!int.TryParse(LaneInputBox.Text, out lane)) { AddLog("请输入泳道号"); return; }
             var dlg = new Window {
-                Title = "手动输入成绩", Width = 300, Height = 150,
+                Title = string.Format("手动输入成绩 — 泳道{0}", lane), Width = 320, Height = 170,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner, Owner = this, ResizeMode = ResizeMode.NoResize
             };
             var sp = new StackPanel { Margin = new Thickness(16) };
             sp.Children.Add(new TextBlock { Text = "请输入成绩（如 49.23 或 1:23.45）:" });
-            var tb = new TextBox { Margin = new Thickness(0, 8, 0, 8), Padding = new Thickness(4) };
+            var tb = new TextBox { Margin = new Thickness(0, 8, 0, 8), Padding = new Thickness(4), FontSize = 14 };
             sp.Children.Add(tb);
-            var btn = new Button { Content = "确定", Padding = new Thickness(16, 4, 16, 4), HorizontalAlignment = HorizontalAlignment.Right };
-            btn.Click += delegate { dlg.DialogResult = true; };
-            sp.Children.Add(btn);
+            var btnRow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
+            var btnOK = new Button { Content = "确定", Padding = new Thickness(16, 4, 16, 4), Margin = new Thickness(0, 0, 6, 0) };
+            var btnCancel = new Button { Content = "取消", Padding = new Thickness(16, 4, 16, 4) };
+            btnOK.Click += delegate { dlg.DialogResult = true; };
+            btnCancel.Click += delegate { dlg.DialogResult = false; };
+            btnRow.Children.Add(btnOK);
+            btnRow.Children.Add(btnCancel);
+            sp.Children.Add(btnRow);
             dlg.Content = sp;
             tb.Focus();
             if (dlg.ShowDialog() == true && !string.IsNullOrEmpty(tb.Text)) {
                 double time = TimeFormatter.Parse(tb.Text.Trim());
-                if (time > 0) OverrideLaneTime(lane, time);
+                if (time <= 0) {
+                    MessageBox.Show("成绩格式无效", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                    return;
+                }
+                // 确认对话框
+                var r = MessageBox.Show(
+                    string.Format("确认将泳道 {0} 的成绩手动输入为 {1}？\n\n此操作将写入数据库。",
+                        lane, TimeFormatter.Format(time)),
+                    "确认手动输入", MessageBoxButton.YesNo, MessageBoxImage.Question);
+                if (r != MessageBoxResult.Yes) return;
+                OverrideLaneTime(lane, time);
             }
         }
 
@@ -5892,6 +6028,8 @@ namespace SwimmingScoreboard
             if (LanePanel != null) LanePanel.Children.Clear();
             _laneSplitCount.Clear();
             _laneSplitShowTime.Clear();
+            _laneReactionLastValue.Clear();
+            _laneReactionShowTime.Clear();
 
             // 系统工作状态
             if (CurrentEventText != null) CurrentEventText.Text = "-";
