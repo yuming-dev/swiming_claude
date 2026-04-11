@@ -292,10 +292,6 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
             <button class="action-btn" style="background:#F59E0B;" onclick="sendCmd('READY')"><span class="ico">&#xE7C1;</span>就  位</button>
             <button class="action-btn" style="background:#22C55E;" onclick="sendCmd('START_RACE')"><span class="ico">&#xE768;</span>发  令</button>
             <button class="action-btn" style="background:#EF4444;" onclick="confirmTimerReset()"><span class="ico">&#xE72C;</span>计时复位</button>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
-                <button class="action-btn" style="background:#22C55E;margin:0;" onclick="sendCmd('OPEN_ALL_LANES')"><span class="ico">&#xE8FB;</span>全部打开</button>
-                <button class="action-btn" style="background:#64748B;margin:0;" onclick="sendCmd('CLOSE_ALL_LANES')"><span class="ico">&#xE711;</span>全部关闭</button>
-            </div>
             <button class="action-btn" style="background:#3B82F6;" onclick="confirmResult()"><span class="ico">&#xE73E;</span>确认本组成绩</button>
             <div style="border-top:1px solid #334155;margin-top:6px;padding-top:10px;">
                 <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;">
@@ -308,8 +304,10 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
                     <button class="action-btn small" style="background:#78716C;margin:0;" onclick="markLane('DNF')">DNF</button>
                     <button class="action-btn small" style="background:#9CA3AF;margin:0;" onclick="markLane('DSQ')">DSQ</button>
                     <button class="action-btn small" style="background:#D97706;margin:0;" onclick="manualTimeInput()"><span class="ico">&#xE932;</span>手动输入</button>
+                    <!-- 全部打开 / 全部关闭 -->
+                    <button class="action-btn small" style="background:#22C55E;margin:0;" onclick="sendCmd('OPEN_ALL_LANES')"><span class="ico">&#xE8FB;</span>全部打开</button>
+                    <button class="action-btn small" style="background:#64748B;margin:0;" onclick="sendCmd('CLOSE_ALL_LANES')"><span class="ico">&#xE711;</span>全部关闭</button>
                 </div>
-                <button class="action-btn small" style="background:#475569;margin-top:6px;" onclick="openSettings()"><span class="ico">&#xE713;</span>参数设置</button>
             </div>
             <div style="border-top:1px solid #334155;margin-top:6px;padding-top:10px;">
                 <h3 style="margin:0 0 8px 0;">显示控制</h3>

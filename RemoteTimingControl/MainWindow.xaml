@@ -198,37 +198,6 @@
                                 </ControlTemplate>
                             </Button.Template>
                         </Button>
-                        <!-- 全部打开 / 全部关闭 -->
-                        <Grid Margin="0,0,0,6">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-                            <Button Grid.Column="0" Click="OpenAll_Click" Height="36" Margin="0,0,3,0">
-                                <Button.Template>
-                                    <ControlTemplate TargetType="Button">
-                                        <Border Background="#22C55E" CornerRadius="8">
-                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                                <TextBlock Text="&#xE8FB;" FontFamily="Segoe MDL2 Assets" FontSize="15" Foreground="White" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                                                <TextBlock Text="全部打开" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
-                                            </StackPanel>
-                                        </Border>
-                                    </ControlTemplate>
-                                </Button.Template>
-                            </Button>
-                            <Button Grid.Column="1" Click="CloseAll_Click" Height="36" Margin="3,0,0,0">
-                                <Button.Template>
-                                    <ControlTemplate TargetType="Button">
-                                        <Border Background="#64748B" CornerRadius="8">
-                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                                <TextBlock Text="&#xE711;" FontFamily="Segoe MDL2 Assets" FontSize="15" Foreground="White" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                                                <TextBlock Text="全部关闭" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
-                                            </StackPanel>
-                                        </Border>
-                                    </ControlTemplate>
-                                </Button.Template>
-                            </Button>
-                        </Grid>
                         <!-- 确认本组成绩 -->
                         <Button Click="Confirm_Click" Height="36" Margin="0,0,0,12">
                             <Button.Template>
@@ -301,13 +270,26 @@
                                             </ControlTemplate>
                                         </Button.Template>
                                     </Button>
-                                    <Button Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2" Click="OpenSettings_Click" Height="36">
+                                    <!-- 全部打开 / 全部关闭 -->
+                                    <Button Grid.Row="2" Grid.Column="0" Click="OpenAll_Click" Height="36" Margin="0,0,3,0">
                                         <Button.Template>
                                             <ControlTemplate TargetType="Button">
-                                                <Border Background="#475569" CornerRadius="6">
+                                                <Border Background="#22C55E" CornerRadius="6">
                                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                                        <TextBlock Text="&#xE713;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="White" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                                                        <TextBlock Text="参数设置" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                        <TextBlock Text="&#xE8FB;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="White" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                                        <TextBlock Text="全部打开" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                    </StackPanel>
+                                                </Border>
+                                            </ControlTemplate>
+                                        </Button.Template>
+                                    </Button>
+                                    <Button Grid.Row="2" Grid.Column="1" Click="CloseAll_Click" Height="36" Margin="3,0,0,0">
+                                        <Button.Template>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border Background="#64748B" CornerRadius="6">
+                                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                        <TextBlock Text="&#xE711;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="White" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                                        <TextBlock Text="全部关闭" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
                                                     </StackPanel>
                                                 </Border>
                                             </ControlTemplate>
