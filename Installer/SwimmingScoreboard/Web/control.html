@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>显示控制</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'Microsoft YaHei', sans-serif; background: #1e293b; color: #f8fafc; padding: 20px; }
+h1 { text-align: center; margin-bottom: 20px; font-size: 20px; }
+.grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; max-width: 600px; margin: 0 auto; }
+.btn { padding: 20px; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; transition: transform 0.1s; }
+.btn:hover { transform: scale(1.02); }
+.btn:active { transform: scale(0.98); }
+.btn-live { background: #22c55e; color: white; }
+.btn-start { background: #3b82f6; color: white; }
+.btn-result { background: #8b5cf6; color: white; }
+.btn-rank { background: #f59e0b; color: #000; }
+.btn-team { background: #06b6d4; color: white; }
+.btn-award { background: #ec4899; color: white; }
+.btn-record { background: #ef4444; color: white; }
+.btn-welcome { background: #64748b; color: white; }
+.btn-pause { background: #475569; color: white; }
+.btn-list { background: #14b8a6; color: white; }
+.btn-promo { background: #a855f7; color: white; }
+.status { text-align: center; margin-top: 16px; font-size: 13px; color: #94a3b8; }
+</style>
+</head>
+<body>
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+    <h1 style="margin:0;">显示模式控制</h1>
+    <button class="fullscreen-btn" onclick="goFullScreen()" style="padding:6px 14px;background:#3B82F6;color:white;border:none;border-radius:6px;font-size:13px;cursor:pointer;">全屏</button>
+</div>
+<div class="grid">
+    <button class="btn btn-live" onclick="send('SHOW_LIVE_RACE')">比赛视图</button>
+    <button class="btn btn-start" onclick="send('SHOW_START_LIST')">出发表</button>
+    <button class="btn btn-result" onclick="send('SHOW_HEAT_RESULT')">组成绩</button>
+    <button class="btn btn-rank" onclick="send('SHOW_EVENT_RANKING')">总排名</button>
+    <button class="btn btn-team" onclick="send('SHOW_TEAM_STANDINGS')">团体积分</button>
+    <button class="btn btn-award" onclick="send('SHOW_AWARDS')">颁奖典礼</button>
+    <button class="btn btn-record" onclick="send('SHOW_RECORDS')">纪录榜</button>
+    <button class="btn btn-list" onclick="send('SHOW_EVENT_LIST')">赛程表</button>
+    <button class="btn btn-promo" onclick="send('SHOW_PROMOTION_LIST')">晋级名单</button>
+    <button class="btn btn-welcome" onclick="send('SHOW_WELCOME')">欢迎画面</button>
+    <button class="btn btn-pause" onclick="send('SHOW_PAUSE')">暂停画面</button>
+    <button class="btn" style="background:#F59E0B;color:#000;grid-column:span 3;" onclick="openPublishDialog()">成绩发布（选择已完赛项目发布到大屏）</button>
+</div>
+<div class="status" id="status">连接中...</div>
+
+<!-- 成绩发布弹窗 -->
+<div id="publishModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:100;">
+    <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:#1e293b;border-radius:12px;padding:20px;width:90%;max-width:500px;max-height:80vh;overflow-y:auto;">
+        <h2 style="margin-bottom:12px;font-size:18px;color:#F59E0B;">成绩发布到大屏</h2>
+        <p style="margin-bottom:8px;font-size:13px;color:#94a3b8;">选择已完赛的比赛项目：</p>
+        <div id="publishList" style="max-height:50vh;overflow-y:auto;"></div>
+        <div style="display:flex;gap:8px;margin-top:12px;justify-content:flex-end;">
+            <button class="btn" style="background:#64748b;color:white;padding:10px 20px;" onclick="closePublishDialog()">关闭</button>
+        </div>
+    </div>
+</div>
+
+<script>
+var ws, serverData = {};
+window.onbeforeunload = function(e) { e.preventDefault(); e.returnValue = ''; return '确定要关闭显示控制？'; };
+
+function goFullScreen() { var el=document.documentElement; if(document.fullscreenElement)return; if(el.requestFullscreen)el.requestFullscreen(); else if(el.webkitRequestFullscreen)el.webkitRequestFullscreen(); else if(el.msRequestFullscreen)el.msRequestFullscreen(); }
+document.addEventListener('fullscreenchange', function() { var btns=document.querySelectorAll('.fullscreen-btn'); for(var i=0;i<btns.length;i++) btns[i].style.display=document.fullscreenElement?'none':''; });
+document.addEventListener('webkitfullscreenchange', function() { var btns=document.querySelectorAll('.fullscreen-btn'); for(var i=0;i<btns.length;i++) btns[i].style.display=document.webkitFullscreenElement?'none':''; });
+
+
+var _connFailCount = 0;
+function getServerHost(forceAsk) {
+    var params = new URLSearchParams(window.location.search);
+    if (params.get('host')) return params.get('host');
+    if (!forceAsk && location.hostname && location.hostname !== '' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') return location.hostname;
+    var saved = localStorage.getItem('swimServerHost');
+    if (!forceAsk && saved) return saved;
+    var def = saved || '192.168.1.100';
+    var ip = prompt('请输入服务器IP地址:', def);
+    if (ip) { localStorage.setItem('swimServerHost', ip); return ip; }
+    return saved || 'localhost';
+}
+function changeServerHost() { _connFailCount = 0; var h = getServerHost(true); if (ws) try { ws.close(); } catch(e) {} connect(); }
+function connect() {
+    var host = getServerHost();
+    ws = new WebSocket('ws://' + host + ':3002');
+    ws.onopen = function() {
+        _connFailCount = 0;
+        document.getElementById('status').textContent = '已连接 ' + host;
+        ws.send(JSON.stringify({type: 'REMOTE_CONTROL', command: 'SHOW_LIVE_RACE'}));
+    };
+    ws.onclose = function() {
+        document.getElementById('status').textContent = '断开，重连中...';
+        _connFailCount++;
+        if (_connFailCount >= 3) { _connFailCount = 0; if (confirm('连接失败，是否重新设置服务器地址？')) { changeServerHost(); return; } }
+        setTimeout(connect, 3000);
+    };
+    ws.onmessage = function(e) {
+        try {
+            var msg = JSON.parse(e.data);
+            // 只更新含赛程数据的广播消息，跳过晋级通知等特殊消息
+            if (msg.data && msg.data.schedule) serverData = msg.data;
+        } catch(ex) {}
+    };
+}
+function send(cmd) {
+    if (ws && ws.readyState === 1) {
+        ws.send(JSON.stringify({type: 'REMOTE_CONTROL', command: cmd}));
+        document.getElementById('status').textContent = '已发送: ' + cmd;
+    }
+}
+
+function openPublishDialog() {
+    var schedule = serverData.schedule || [];
+    if (schedule.length === 0) {
+        alert('暂未收到服务器赛程数据，请稍后再试。\n（如果刚连接，请等待几秒后重试）');
+        return;
+    }
+    var listEl = document.getElementById('publishList');
+    var html = '';
+    var found = 0;
+
+    for (var i = 0; i < schedule.length; i++) {
+        var s = schedule[i];
+        var hc = s.heatCount || 1;
+        var heatConfirmed = s.heatConfirmed || [];
+        for (var h = 0; h < hc; h++) {
+            if (heatConfirmed[h] !== true) continue;
+            found++;
+            var showHeat = (hc > 1) || (s.stage && (s.stage.indexOf('预赛') >= 0 || s.stage.indexOf('半决赛') >= 0));
+            var heatLabel = showHeat ? ' 第' + (h+1) + '组' : '';
+            var label = (s.gender||'') + ' ' + (s.eventName||'') + ' ' + (s.stage||'') + heatLabel;
+            var btnId = 'pub_' + i + '_' + h;
+            html += '<button id="' + btnId + '" style="display:block;width:100%;text-align:left;padding:10px 12px;margin-bottom:4px;' +
+                'background:#334155;color:white;border:none;border-radius:6px;font-size:14px;cursor:pointer;" ' +
+                'onclick="publishResult(\'' + (s.gender||'').replace(/'/g,"\\'") + '\',\'' + (s.eventName||'').replace(/'/g,"\\'") + '\',\'' +
+                (s.stage||'').replace(/'/g,"\\'") + '\',' + (h+1) + ',' + hc + ')">' +
+                label + '</button>';
+        }
+    }
+
+    if (found === 0) {
+        html = '<p style="color:#94a3b8;padding:20px;text-align:center;">暂无已完赛的比赛项目</p>';
+    }
+    listEl.innerHTML = html;
+    document.getElementById('publishModal').style.display = 'block';
+}
+
+function closePublishDialog() {
+    document.getElementById('publishModal').style.display = 'none';
+}
+
+function publishResult(gender, eventName, stage, heat, heatCount) {
+    if (!confirm('确定发布 ' + gender + ' ' + eventName + ' ' + stage + (heatCount > 1 ? ' 第'+heat+'组' : '') + ' 的成绩到大屏？')) return;
+
+    // 从serverData中构建该组成绩
+    var swimmers = [];
+    var allSwimmers = serverData.swimmers || [];
+    // 注意：serverData.swimmers只有当前组的运动员，无法获取历史组
+    // 需要通过服务器来发布，发送命令让服务器构建数据
+    if (ws && ws.readyState === 1) {
+        ws.send(JSON.stringify({
+            type: 'TIMING_CMD',
+            command: 'PUBLISH_RESULT',
+            data: { gender: gender, eventName: eventName, stage: stage, heat: heat }
+        }));
+        document.getElementById('status').textContent = '已请求发布: ' + gender + ' ' + eventName + ' ' + stage;
+    }
+    closePublishDialog();
+}
+
+connect();
+</script>
+</body>
+</html>

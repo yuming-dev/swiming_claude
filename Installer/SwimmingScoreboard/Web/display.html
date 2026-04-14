@@ -1,0 +1,755 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache">
+<title>大屏幕</title>
+<style>
+:root {
+    --bg: #0f172a; --card: #1e293b; --text: #f8fafc; --dim: #94a3b8;
+    --gold: #f59e0b; --accent: #3b82f6; --red: #ef4444; --green: #22c55e;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei', sans-serif; overflow: hidden; height: 100vh; }
+
+.page-header {
+    height: 11vh; display: flex; align-items: center; justify-content: center;
+    padding: 0 3vw; position: relative;
+    background: linear-gradient(135deg, #1e293b, #0f172a);
+}
+.page-header .title { font-size: 3.5vh; font-weight: bold; }
+.header-records { position: absolute; right: 3vw; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; align-items: flex-end; gap: 0.3vh; }
+.record-item { font-size: 2.6vh; font-family: 'Consolas', monospace; color: var(--dim); }
+.rec-label { color: var(--gold); font-weight: bold; margin-right: 0.5vw; }
+
+/* 比赛视图 */
+.race-view { height: 89vh; padding: 1vh 2vw; display: flex; flex-direction: column; }
+.race-info { display: flex; justify-content: space-between; align-items: center; height: 6vh; margin-bottom: 0.5vh; border-bottom: 3px solid var(--accent); padding-bottom: 0.5vh; }
+.lanes-header { display: flex; align-items: center; padding: 0 1.5vw; height: 3.5vh; color: var(--dim); font-size: 2.9vh; }
+.race-info .event-left { display: flex; align-items: baseline; gap: 1.5vw; }
+.race-info .event-name { font-size: 2.8vh; font-weight: bold; }
+.race-info .stage-heat { font-size: 2.8vh; color: var(--dim); }
+.race-info .running-time { font-size: 4vh; font-weight: bold; color: var(--gold); font-family: 'Consolas', monospace; }
+
+.lanes-container { flex: 1; display: flex; flex-direction: column; gap: 0.4vh; }
+.lane-row {
+    flex: 1; display: flex; align-items: center; background: var(--card); border-radius: 0.5vh;
+    padding: 0 1.5vw; position: relative; overflow: hidden; min-height: 0;
+}
+.lane-row.finished { border-left: 4px solid var(--green); }
+.lane-row.dns { opacity: 0.4; }
+.lane-row.dsq { border-left: 4px solid var(--red); }
+.lane-row .lane-num { width: 5vw; font-size: 2.5vh; font-weight: bold; color: var(--dim); text-align: center; margin-right: 1vw; }
+.lane-row .swimmer-name { width: 14vw; font-size: 2.9vh; font-weight: bold; white-space: nowrap; overflow: hidden; margin-right: 1.5vw; }
+.lane-row .swimmer-team { width: 12vw; font-size: 2.9vh; color: var(--dim); white-space: nowrap; overflow: hidden; margin-right: 1.5vw; }
+.lane-row .result-time { width: 14vw; font-size: 2.9vh; font-weight: bold; text-align: center; font-family: 'Consolas', monospace; margin-right: 1.5vw; }
+.lane-row .rank { width: 5vw; font-size: 2.9vh; font-weight: bold; text-align: center; margin-right: 1vw; }
+.lane-row .rank.gold { color: var(--gold); }
+.lane-row .rank.silver { color: #c0c0c0; }
+.lane-row .rank.bronze { color: #cd7f32; }
+.lane-row .remark { width: 8vw; font-size: 2.9vh; color: var(--red); text-align: center; }
+
+/* 列表视图 */
+.list-container { height: 89vh; padding: 2vh 3vw; overflow: hidden; position: relative; }
+.page-indicator { position: absolute; bottom: 1vh; right: 3vw; font-size: 1.8vh; color: var(--dim); }
+.list-table { width: 100%; border-collapse: collapse; }
+.list-table th { background: var(--card); padding: 1.8vh 1.5vw; text-align: left; font-size: 3vh; border-bottom: 2px solid var(--accent); }
+.list-table td { padding: 1.5vh 1.5vw; font-size: 3vh; border-bottom: 1px solid #334155; }
+.list-table tr:hover { background: rgba(59,130,246,0.1); }
+
+/* 欢迎画面 */
+.center-msg { height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.hero-text { font-size: 6vh; font-weight: bold; margin-bottom: 2vh; }
+.sub-text { font-size: 3vh; color: var(--dim); }
+
+/* 颁奖 */
+.award-container { height: 89vh; display: flex; align-items: flex-end; justify-content: center; gap: 3vw; padding-bottom: 5vh; }
+.podium-card { display: flex; flex-direction: column; align-items: center; padding: 3vh 2vw; border-radius: 1vh; animation: reveal 0.8s ease-out forwards; opacity: 0; }
+.podium-card.gold { background: linear-gradient(180deg, #f59e0b22, #f59e0b11); border: 2px solid var(--gold); height: 55vh; animation-delay: 2.5s; }
+.podium-card.silver { background: linear-gradient(180deg, #c0c0c022, #c0c0c011); border: 2px solid #c0c0c0; height: 45vh; animation-delay: 1.2s; }
+.podium-card.bronze { background: linear-gradient(180deg, #cd7f3222, #cd7f3211); border: 2px solid #cd7f32; height: 40vh; animation-delay: 0.2s; }
+.podium-card .medal { font-size: 5vh; margin-bottom: 1vh; }
+.podium-card .name { font-size: 3vh; font-weight: bold; margin-bottom: 0.5vh; }
+.podium-card .team { font-size: 2vh; color: var(--dim); margin-bottom: 1vh; }
+.podium-card .time { font-size: 2.5vh; font-family: 'Consolas', monospace; }
+
+@keyframes reveal { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+.hidden { display: none; }
+</style>
+</head>
+<body onclick="goFullScreen()">
+<div class="page-header">
+    <span class="title" id="compName">游泳赛事管理系统</span>
+    <div class="header-records">
+        <span class="record-item"><span class="rec-label">WR</span><span id="recordWR">-</span></span>
+        <span class="record-item"><span class="rec-label">CR</span><span id="recordCR">-</span></span>
+    </div>
+</div>
+
+<div id="raceView" class="race-view">
+    <div class="race-info">
+        <div class="event-left">
+            <span class="event-name" id="eventName">-</span>
+            <span class="stage-heat" id="stageHeat">-</span>
+        </div>
+        <div class="running-time" id="runningTime">0.0</div>
+    </div>
+    <div class="lanes-header">
+        <div style="width:5vw;text-align:center;margin-right:1vw;">道次</div>
+        <div style="width:14vw;margin-right:1.5vw;">姓名</div>
+        <div style="width:12vw;margin-right:1.5vw;">代表队</div>
+        <div style="width:14vw;text-align:center;margin-right:1.5vw;">成绩</div>
+        <div style="width:5vw;text-align:center;margin-right:1vw;">名次</div>
+        <div style="width:8vw;text-align:center;">备注</div>
+    </div>
+    <div class="lanes-container" id="lanesContainer"></div>
+</div>
+
+<div id="listView" class="list-container hidden"></div>
+<div id="welcomeView" class="center-msg hidden">
+    <div class="hero-text" id="welcomeTitle">欢迎</div>
+    <div class="sub-text" id="welcomeSub"></div>
+</div>
+<div id="awardView" class="hidden">
+    <div class="page-header"><span class="title" id="awardTitle">颁奖典礼</span></div>
+    <div class="award-container" id="awardContainer"></div>
+</div>
+
+<script>
+window.onbeforeunload = function(e) { e.preventDefault(); e.returnValue = ''; return '确定要关闭大屏幕显示？'; };
+
+function goFullScreen() {
+    var el = document.documentElement;
+    if (document.fullscreenElement) return; // 已全屏
+    if (el.requestFullscreen) el.requestFullscreen();
+    else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+    else if (el.msRequestFullscreen) el.msRequestFullscreen();
+}
+
+var ws, data = {}, reconnectTimer;
+var currentMode = 'SHOW_LIVE_RACE';
+var publishedData = null;
+var modeLocked = false;  // 成绩发布时锁定模式，不被广播覆盖
+// 第1名分段成绩显示
+var _dspFirstDetected = 0;
+var _dspFirstTime = '';
+var _dspFirstShowStart = 0;
+var _dspFirstHoldSec = 3;
+// 本地计时器（独立于服务器广播，保证滚动时间不间断）
+var _dspTimerStart = 0;
+var _dspTimerSynced = false;
+// 每道的显示状态跟踪：{lane: {splitCount, reactionShown, showTime}}
+var laneDisplayState = {};
+var refreshTimer = null;
+
+var _connFailCount = 0;
+
+function getServerHost(forceAsk) {
+    var params = new URLSearchParams(window.location.search);
+    if (params.get('host')) return params.get('host');
+    if (!forceAsk && location.hostname && location.hostname !== '' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') return location.hostname;
+    var saved = localStorage.getItem('swimServerHost');
+    if (!forceAsk && saved) return saved;
+    var def = saved || '192.168.1.100';
+    var ip = prompt('请输入服务器IP地址:', def);
+    if (ip) { localStorage.setItem('swimServerHost', ip); return ip; }
+    return saved || 'localhost';
+}
+
+function changeServerHost() {
+    _connFailCount = 0;
+    var host = getServerHost(true);
+    if (ws) try { ws.close(); } catch(e) {}
+    connect();
+}
+
+function connect() {
+    var host = getServerHost();
+    document.title = '大屏幕 - ' + host;
+    ws = new WebSocket('ws://' + host + ':3002');
+    ws.onopen = function() {
+        _connFailCount = 0;
+        ws.send(JSON.stringify({type: 'DISPLAY_IDENTITY'}));
+    };
+    ws.onmessage = function(e) {
+        var msg = JSON.parse(e.data);
+        if (msg.type === 'SHOW_PUBLISHED_RESULT') {
+            currentMode = 'SHOW_PUBLISHED_RESULT';
+            publishedData = msg.data;
+            modeLocked = true;  // 锁定模式
+            renderPublishedResult(msg.data);
+            return;
+        }
+        // 模式锁定时，只有主动切换命令（非SHOW_LIVE_RACE广播）才解锁
+        if (modeLocked && msg.type === 'SHOW_LIVE_RACE') {
+            // 仍更新data以备后用，但不切换显示
+            data = msg.data || {};
+            return;
+        }
+        modeLocked = false;
+        currentMode = msg.type;
+        data = msg.data || {};
+        render();
+        startRefreshTimer();
+    };
+    ws.onclose = function() {
+        stopRefreshTimer();
+        _connFailCount++;
+        if (_connFailCount >= 3) {
+            _connFailCount = 0;
+            var retry = confirm('连接服务器失败，是否重新设置服务器地址？');
+            if (retry) { changeServerHost(); return; }
+        }
+        setTimeout(connect, 3000);
+    };
+}
+
+function startRefreshTimer() {
+    if (refreshTimer) return;
+    refreshTimer = setInterval(function() {
+        if (currentMode === 'SHOW_LIVE_RACE' && data.raceState &&
+            (data.raceState.toLowerCase() === 'racing' || data.raceState.toLowerCase() === 'finished')) {
+            render();
+        }
+    }, 500);
+}
+
+function stopRefreshTimer() {
+    if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null; }
+}
+
+function render() {
+    document.getElementById('compName').textContent = data.competitionName || '游泳赛事管理系统';
+
+    // 隐藏所有视图，清除翻页定时器
+    if (_rankingPageTimer) { clearInterval(_rankingPageTimer); _rankingPageTimer = null; }
+    document.getElementById('raceView').classList.add('hidden');
+    document.getElementById('listView').classList.add('hidden');
+    document.getElementById('welcomeView').classList.add('hidden');
+    document.getElementById('awardView').classList.add('hidden');
+
+    // 成绩确认后自动切换到本组成绩排名
+    if (data.resultConfirmed && currentMode === 'SHOW_LIVE_RACE') {
+        renderHeatResult();
+        return;
+    }
+
+    switch(currentMode) {
+        case 'SHOW_LIVE_RACE': renderRace(); break;
+        case 'SHOW_START_LIST': renderStartList(); break;
+        case 'SHOW_HEAT_RESULT': renderHeatResult(); break;
+        case 'SHOW_PUBLISHED_RESULT': if (publishedData) renderPublishedResult(publishedData); break;
+        case 'SHOW_EVENT_RANKING': renderEventRanking(); break;
+        case 'SHOW_TEAM_STANDINGS': renderTeamStandings(); break;
+        case 'SHOW_AWARDS': renderAwards(); break;
+        case 'SHOW_RECORDS': renderRecords(); break;
+        case 'SHOW_WELCOME': case 'SHOW_PAUSE':
+            renderWelcome(); break;
+        default: renderRace();
+    }
+}
+
+function isRelayEvent() { return (data.currentEvent||'').indexOf('接力') >= 0; }
+
+function getLaneCount() {
+    return (data.poolConfig && data.poolConfig.lanes) ? data.poolConfig.lanes : 10;
+}
+
+function renderRace() {
+    document.getElementById('raceView').classList.remove('hidden');
+    document.getElementById('eventName').textContent = (data.currentGender||'') + '子 ' + (data.currentEvent||'');
+    document.getElementById('stageHeat').textContent = (data.currentStage||'') + ' 第' + (data.currentHeat||0) + '/' + (data.totalHeats||0) + '组';
+
+    // 本地计时器同步（只在首次进入racing时同步一次）
+    var rState = (data.raceState||'').toLowerCase();
+    if (rState === 'waiting' || rState === 'ready') {
+        _dspTimerStart = 0; _dspTimerSynced = false;
+        _dspFirstDetected = 0; _dspFirstShowStart = 0; _dspFirstTime = '';
+    }
+    if ((rState === 'racing' || rState === 'finished') && !_dspTimerSynced && data.runningTime) {
+        var svrSec = 0, rp = data.runningTime.split(':');
+        if (rp.length === 3) svrSec = parseFloat(rp[0])*3600 + parseFloat(rp[1])*60 + parseFloat(rp[2]);
+        else if (rp.length === 2) svrSec = parseFloat(rp[0])*60 + parseFloat(rp[1]);
+        else svrSec = parseFloat(rp[0]) || 0;
+        _dspTimerStart = Date.now() - svrSec * 1000;
+        _dspTimerSynced = true;
+    }
+    // 读取停留时间（从服务器设置的splitDisplayTime）
+    _dspFirstHoldSec = (data.laneCloseSettings && data.laneCloseSettings.splitDisplayTime) ? data.laneCloseSettings.splitDisplayTime : 3;
+    var dspSwimmers = data.swimmers || [];
+    var dspLeader = null, dspLeaderSc = 0;
+    for (var di = 0; di < dspSwimmers.length; di++) {
+        var ds = dspSwimmers[di];
+        if (ds.status) continue;
+        var dsc = (ds.splits && ds.splits.length) ? ds.splits.length : 0;
+        if (ds.isFinished) dsc = 9999;
+        if (dsc > dspLeaderSc || (dsc === dspLeaderSc && dspLeader && ds.rank > 0 && ds.rank < (dspLeader.rank||99))) {
+            dspLeaderSc = dsc;
+            dspLeader = ds;
+        }
+    }
+    if (dspLeader) {
+        var dlsc = (dspLeader.splits && dspLeader.splits.length) ? dspLeader.splits.length : 0;
+        if (dspLeader.isFinished && dspLeader.finalTime) dlsc = -1;
+        if (dlsc !== _dspFirstDetected) {
+            _dspFirstDetected = dlsc;
+            if (dspLeader.isFinished && dspLeader.finalTime) {
+                _dspFirstTime = dspLeader.finalTime;
+            } else if (dspLeader.splits && dspLeader.splits.length > 0) {
+                _dspFirstTime = dspLeader.splits[dspLeader.splits.length - 1].cumulative || '';
+            }
+            if (_dspFirstTime) _dspFirstShowStart = Date.now();
+        }
+    }
+    // 本地滚动时间
+    var localRunTime = data.runningTime || '0.0';
+    if (_dspTimerStart > 0) {
+        var elapsed = (Date.now() - _dspTimerStart) / 1000;
+        var ts = Math.floor(elapsed) % 60, tm = Math.floor(elapsed / 60) % 60, th = Math.floor(elapsed / 3600);
+        var tt = Math.floor(elapsed * 10) % 10;
+        if (th > 0) localRunTime = th + ':' + tm.toString().padStart(2,'0') + ':' + ts.toString().padStart(2,'0') + '.' + tt;
+        else if (tm > 0) localRunTime = tm + ':' + ts.toString().padStart(2,'0') + '.' + tt;
+        else localRunTime = ts + '.' + tt;
+    }
+    // 右上角显示：停留期间显示第1名成绩（绿色），否则显示滚动时间（金色）
+    var runEl = document.getElementById('runningTime');
+    var dspHoldMs = _dspFirstHoldSec * 1000;
+    if (_dspFirstShowStart > 0 && (Date.now() - _dspFirstShowStart) < dspHoldMs && _dspFirstTime) {
+        runEl.textContent = _dspFirstTime;
+        runEl.style.color = '#22c55e';
+    } else {
+        runEl.textContent = localRunTime;
+        runEl.style.color = '';
+    }
+
+    // 根据泳道数调整字体
+    var lc = getLaneCount();
+    var fs = lc <= 8 ? '3.5vh' : '2.9vh';
+    var lnFs = lc <= 8 ? '3.0vh' : '2.5vh';
+
+    // 比赛视图表头（接力：代表队在前）
+    var relay = isRelayEvent();
+    var hdr1 = relay ? '代表队' : '姓名';
+    var hdr2 = relay ? '姓名' : '代表队';
+    var header = document.querySelector('.lanes-header');
+    if (header) {
+        header.innerHTML =
+            '<div style="width:5vw;text-align:center;margin-right:1vw;font-size:'+fs+';">道次</div>' +
+            '<div style="width:14vw;margin-right:1.5vw;font-size:'+fs+';">' + hdr1 + '</div>' +
+            '<div style="width:12vw;margin-right:1.5vw;font-size:'+fs+';">' + hdr2 + '</div>' +
+            '<div style="width:14vw;text-align:center;margin-right:1.5vw;font-size:'+fs+';">成绩</div>' +
+            '<div style="width:5vw;text-align:center;margin-right:1vw;font-size:'+fs+';">名次</div>' +
+            '<div style="width:8vw;text-align:center;">备注</div>';
+    }
+
+    // 按性别+项目查找纪录
+    var wrText = '-', crText = '-';
+    var records = data.records || [];
+    var curGender = data.currentGender || '';
+    var curEventName = data.currentEvent || '';
+    for (var r = 0; r < records.length; r++) {
+        var rec = records[r];
+        if (rec.gender === curGender && rec.eventName === curEventName) {
+            if (rec.recordType === '世界纪录') wrText = rec.time || '-';
+            else if (rec.recordType === '赛会纪录') crText = rec.time || '-';
+        }
+    }
+    document.getElementById('recordWR').textContent = wrText;
+    document.getElementById('recordCR').textContent = crText;
+
+    var now = Date.now();
+    var displayTime = (data.laneCloseSettings ? data.laneCloseSettings.splitDisplayTime : 5) || 5;
+    var displayMs = displayTime * 1000;
+    var swimmers = data.swimmers || [];
+
+    // 如果比赛状态为等待，清除显示状态
+    if (data.raceState && data.raceState.toLowerCase() === 'waiting') {
+        laneDisplayState = {};
+    }
+
+    // 计算分段临时名次：按最新分段的累计时间排序（仅未完赛且有分段的运动员）
+    var splitRanks = {};
+    var splitSwimmers = [];
+    for (var i = 0; i < swimmers.length; i++) {
+        var s = swimmers[i];
+        if (!s.isFinished && s.splits && s.splits.length > 0 && !s.status) {
+            splitSwimmers.push({lane: s.lane, cumulative: s.splits[s.splits.length-1].cumulative, splitCount: s.splits.length});
+        }
+    }
+    // 按相同分段数分组排名
+    var splitGroups = {};
+    for (var i = 0; i < splitSwimmers.length; i++) {
+        var sc = splitSwimmers[i].splitCount;
+        if (!splitGroups[sc]) splitGroups[sc] = [];
+        splitGroups[sc].push(splitSwimmers[i]);
+    }
+    for (var sc in splitGroups) {
+        var group = splitGroups[sc];
+        group.sort(function(a,b) {
+            var ta = parseFloat(a.cumulative) || 9999;
+            var tb = parseFloat(b.cumulative) || 9999;
+            return ta - tb;
+        });
+        for (var i = 0; i < group.length; i++) {
+            splitRanks[group[i].lane] = i + 1;
+        }
+    }
+
+    var container = document.getElementById('lanesContainer');
+    container.innerHTML = '';
+    for (var i = 0; i < swimmers.length; i++) {
+        var sw = swimmers[i];
+        var lane = sw.lane;
+
+        // 初始化该道显示状态
+        if (!laneDisplayState[lane]) {
+            laneDisplayState[lane] = {splitCount: 0, reactionShown: false, showTime: 0};
+        }
+        var ls = laneDisplayState[lane];
+
+        // 检测新数据出现
+        var curSplitCount = (sw.splits ? sw.splits.length : 0);
+        var hasReaction = sw.reactionTime && sw.reactionTime !== '';
+        if (hasReaction && !ls.reactionShown) {
+            ls.reactionShown = true;
+            ls.showTime = now;
+        }
+        if (curSplitCount > ls.splitCount) {
+            ls.splitCount = curSplitCount;
+            ls.showTime = now;
+        }
+
+        var row = document.createElement('div');
+        row.className = 'lane-row';
+        if (sw.isFinished) row.classList.add('finished');
+        if (sw.status === 'DNS') row.classList.add('dns');
+        if (sw.status === 'DSQ') row.classList.add('dsq');
+
+        // 成绩和名次
+        var resultText = '';
+        var rankText = '';
+        var rankClass = '';
+
+        if (sw.status === 'DNS' || sw.status === 'DNF' || sw.status === 'DSQ') {
+            // DNS/DNF/DSQ 不显示成绩
+        } else if (sw.isFinished && sw.finalTime) {
+            // 最终成绩：永久显示
+            resultText = sw.finalTime;
+            if (sw.rank === 1) { rankClass = 'gold'; rankText = sw.rank; }
+            else if (sw.rank === 2) { rankClass = 'silver'; rankText = sw.rank; }
+            else if (sw.rank === 3) { rankClass = 'bronze'; rankText = sw.rank; }
+            else if (sw.rank > 0) { rankText = sw.rank; }
+        } else {
+            // 中间数据：检查是否在显示窗口内
+            var elapsed = now - ls.showTime;
+            if (ls.showTime > 0 && elapsed < displayMs) {
+                if (curSplitCount > 0) {
+                    // 分段成绩 + 分段名次
+                    resultText = sw.splits[curSplitCount - 1].cumulative || sw.splits[curSplitCount - 1].time;
+                    if (splitRanks[lane]) {
+                        rankText = splitRanks[lane];
+                    }
+                } else if (hasReaction) {
+                    // 反应时间
+                    resultText = sw.reactionTime;
+                }
+            }
+            // 超过显示时间 → 自动消隐（resultText保持空）
+        }
+
+        // 备注栏（全部在成绩确认后才显示）
+        var remarkText = '';
+        if (data.resultConfirmed) {
+            if (sw.isFalseStart || sw.status === 'DSQ') remarkText = 'DSQ';
+            else if (sw.status === 'DNS') remarkText = 'DNS';
+            else if (sw.status === 'DNF') remarkText = 'DNF';
+        }
+
+        var relay = isRelayEvent();
+        var col1, col2;
+        if (relay) {
+            col1 = sw.country || '';
+            // 姓名按棒次分4行显示
+            var names = (sw.name||'').split(',');
+            var nameHtml = '';
+            for (var ni = 0; ni < names.length; ni++) {
+                nameHtml += '<div style="line-height:1.2;">' + names[ni].trim() + '</div>';
+            }
+            col2 = nameHtml;
+        } else {
+            col1 = sw.name || '';
+            col2 = sw.country || '';
+        }
+        row.innerHTML =
+            '<div class="lane-num">' + lane + '</div>' +
+            '<div class="swimmer-name">' + col1 + '</div>' +
+            '<div class="swimmer-team" style="' + (relay ? 'font-size:1.8vh;overflow:visible;white-space:normal;' : '') + '">' + col2 + '</div>' +
+            '<div class="result-time">' + resultText + '</div>' +
+            '<div class="rank ' + rankClass + '">' + (rankText !== '' ? rankText : '') + '</div>' +
+            '<div class="remark">' + remarkText + '</div>';
+        container.appendChild(row);
+    }
+}
+
+function renderStartList() {
+    document.getElementById('listView').classList.remove('hidden');
+    var lv = document.getElementById('listView');
+    var html = '<h2 style="margin-bottom:2vh;font-size:3vh;">' + (data.currentGender||'') + '子 ' + (data.currentEvent||'') + ' ' + (data.currentStage||'') + ' 第' + (data.currentHeat||'') + '组 出发表</h2>';
+    var slRelay = isRelayEvent();
+    var slH1 = slRelay ? '代表队' : '姓名';
+    var slH2 = slRelay ? '姓名' : '代表队';
+    html += '<table class="list-table"><thead><tr><th>道</th><th>号码</th><th>' + slH1 + '</th><th>' + slH2 + '</th></tr></thead><tbody>';
+    var sw = data.swimmers || [];
+    for (var i = 0; i < sw.length; i++) {
+        var sc1 = slRelay ? (sw[i].country||'') : (sw[i].name||'');
+        var sc2 = slRelay ? (sw[i].name||'') : (sw[i].country||'');
+        html += '<tr><td>' + sw[i].lane + '</td><td>' + (sw[i].bibNumber||'') + '</td><td>' + sc1 + '</td><td>' + sc2 + '</td></tr>';
+    }
+    html += '</tbody></table>';
+    lv.innerHTML = html;
+}
+
+function renderHeatResult() {
+    // 使用和比赛视图相同的布局和字体
+    document.getElementById('raceView').classList.remove('hidden');
+    document.getElementById('eventName').textContent = (data.currentGender||'') + ' ' + (data.currentEvent||'');
+    document.getElementById('stageHeat').textContent = (data.currentStage||'') + ' 第' + (data.currentHeat||0) + '组 成绩';
+    document.getElementById('runningTime').textContent = '';
+
+    // 成绩排名表头（接力：代表队在前）
+    var relay = isRelayEvent();
+    var hdr1 = relay ? '代表队' : '姓名';
+    var hdr2 = relay ? '姓名' : '代表队';
+    var header = document.querySelector('.lanes-header');
+    if (header) {
+        header.innerHTML =
+            '<div style="width:5vw;text-align:center;margin-right:1vw;">名次</div>' +
+            '<div style="width:14vw;margin-right:1.5vw;">' + hdr1 + '</div>' +
+            '<div style="width:12vw;margin-right:1.5vw;">' + hdr2 + '</div>' +
+            '<div style="width:5vw;text-align:center;margin-right:1vw;">道次</div>' +
+            '<div style="width:14vw;text-align:center;margin-right:1.5vw;">成绩</div>' +
+            '<div style="width:8vw;text-align:center;">备注</div>';
+    }
+
+    var sw = (data.swimmers || []).slice().sort(function(a,b) { return (a.rank||99) - (b.rank||99); });
+    var container = document.getElementById('lanesContainer');
+    container.innerHTML = '';
+
+    for (var i = 0; i < sw.length; i++) {
+        var s = sw[i];
+        var row = document.createElement('div');
+        row.className = 'lane-row finished';
+
+        var rankText = '', rankClass = '';
+        if (s.rank === 1) { rankClass = 'gold'; rankText = '1'; }
+        else if (s.rank === 2) { rankClass = 'silver'; rankText = '2'; }
+        else if (s.rank === 3) { rankClass = 'bronze'; rankText = '3'; }
+        else if (s.rank > 0) { rankText = s.rank; }
+
+        var remarkText = '';
+        if (s.isFalseStart || s.status === 'DSQ') remarkText = 'DSQ';
+        else if (s.status === 'DNS') remarkText = 'DNS';
+        else if (s.status === 'DNF') remarkText = 'DNF';
+        var resultText = remarkText ? '' : (s.finalTime || '');
+
+        var c1 = relay ? (s.country||'') : (s.name||'');
+        var c2 = relay ? (s.name||'') : (s.country||'');
+        row.innerHTML =
+            '<div class="rank ' + rankClass + '">' + rankText + '</div>' +
+            '<div class="swimmer-name">' + c1 + '</div>' +
+            '<div class="swimmer-team">' + c2 + '</div>' +
+            '<div class="lane-num">' + s.lane + '</div>' +
+            '<div class="result-time">' + resultText + '</div>' +
+            '<div class="remark">' + remarkText + '</div>';
+        container.appendChild(row);
+    }
+}
+
+function renderPublishedResult(pubData) {
+    if (!pubData) return;
+
+    // 隐藏所有视图，清除翻页定时器
+    if (_rankingPageTimer) { clearInterval(_rankingPageTimer); _rankingPageTimer = null; }
+    document.getElementById('raceView').classList.add('hidden');
+    document.getElementById('listView').classList.add('hidden');
+    document.getElementById('welcomeView').classList.add('hidden');
+    document.getElementById('awardView').classList.add('hidden');
+
+    document.getElementById('compName').textContent = pubData.competitionName || '';
+    document.getElementById('raceView').classList.remove('hidden');
+
+    var eventTitle = (pubData.gender||'') + ' ' + (pubData.eventName||'');
+    var stageTitle = (pubData.stage||'') + (pubData.heatDisplay||'') + ' 成绩';
+    document.getElementById('eventName').textContent = eventTitle;
+    document.getElementById('stageHeat').textContent = stageTitle;
+    document.getElementById('runningTime').textContent = '';
+
+    // 根据泳道数调整字体
+    var laneCount = (pubData.poolConfig && pubData.poolConfig.lanes) ? pubData.poolConfig.lanes : 10;
+    var fontSize = laneCount <= 8 ? 3.5 : 2.9;  // 8道用更大字体
+    var laneNumSize = laneCount <= 8 ? 3.0 : 2.5;
+    var rankSize = laneCount <= 8 ? 3.5 : 2.9;
+
+    // 成绩排名表头（接力：代表队在前）
+    var pubRelay = (pubData.eventName||'').indexOf('接力') >= 0;
+    var ph1 = pubRelay ? '代表队' : '姓名';
+    var ph2 = pubRelay ? '姓名' : '代表队';
+    var header = document.querySelector('.lanes-header');
+    if (header) {
+        header.innerHTML =
+            '<div style="width:5vw;text-align:center;margin-right:1vw;font-size:' + fontSize + 'vh;">名次</div>' +
+            '<div style="width:14vw;margin-right:1.5vw;font-size:' + fontSize + 'vh;">' + ph1 + '</div>' +
+            '<div style="width:12vw;margin-right:1.5vw;font-size:' + fontSize + 'vh;">' + ph2 + '</div>' +
+            '<div style="width:5vw;text-align:center;margin-right:1vw;font-size:' + fontSize + 'vh;">道次</div>' +
+            '<div style="width:14vw;text-align:center;margin-right:1.5vw;font-size:' + fontSize + 'vh;">成绩</div>' +
+            '<div style="width:8vw;text-align:center;font-size:' + fontSize + 'vh;">备注</div>';
+    }
+
+    var sw = (pubData.swimmers || []).slice().sort(function(a,b) { return (a.rank||99) - (b.rank||99); });
+    var container = document.getElementById('lanesContainer');
+    container.innerHTML = '';
+
+    for (var i = 0; i < sw.length; i++) {
+        var s = sw[i];
+        var row = document.createElement('div');
+        row.className = 'lane-row finished';
+
+        var rankText = '', rankClass = '';
+        if (s.rank === 1) { rankClass = 'gold'; rankText = '1'; }
+        else if (s.rank === 2) { rankClass = 'silver'; rankText = '2'; }
+        else if (s.rank === 3) { rankClass = 'bronze'; rankText = '3'; }
+        else if (s.rank > 0) { rankText = s.rank; }
+
+        var remarkText = '';
+        if (s.status === 'DSQ' || s.resultStatus === 'DSQ') remarkText = 'DSQ';
+        else if (s.status === 'DNS') remarkText = 'DNS';
+        else if (s.status === 'DNF') remarkText = 'DNF';
+        var pubResultText = remarkText ? '' : (s.finalTime || '');
+
+        var pc1 = pubRelay ? (s.country||'') : (s.name||'');
+        var pc2 = pubRelay ? (s.name||'') : (s.country||'');
+        row.innerHTML =
+            '<div class="rank ' + rankClass + '" style="font-size:' + rankSize + 'vh;">' + rankText + '</div>' +
+            '<div class="swimmer-name" style="font-size:' + fontSize + 'vh;">' + pc1 + '</div>' +
+            '<div class="swimmer-team" style="font-size:' + fontSize + 'vh;">' + pc2 + '</div>' +
+            '<div class="lane-num" style="font-size:' + laneNumSize + 'vh;">' + s.lane + '</div>' +
+            '<div class="result-time" style="font-size:' + fontSize + 'vh;">' + pubResultText + '</div>' +
+            '<div class="remark" style="font-size:' + fontSize + 'vh;">' + remarkText + '</div>';
+        container.appendChild(row);
+    }
+}
+
+var _rankingPageTimer = null;
+var _rankingCurrentPage = 0;
+var _rankingTotalPages = 1;
+var _rankingRowsPerPage = 10;
+var _rankingPageInterval = 5000; // 5秒翻页
+
+function renderEventRanking() {
+    if (_rankingPageTimer) { clearInterval(_rankingPageTimer); _rankingPageTimer = null; }
+
+    document.getElementById('listView').classList.remove('hidden');
+    var er = data.eventRanking || [];
+    var erRelay = isRelayEvent();
+
+    _rankingRowsPerPage = 10;
+    _rankingTotalPages = Math.max(1, Math.ceil(er.length / _rankingRowsPerPage));
+    _rankingCurrentPage = 0;
+
+    showRankingPage(er, erRelay);
+
+    // 多页时启动自动翻页
+    if (_rankingTotalPages > 1) {
+        _rankingPageTimer = setInterval(function() {
+            _rankingCurrentPage = (_rankingCurrentPage + 1) % _rankingTotalPages;
+            showRankingPage(er, erRelay);
+        }, _rankingPageInterval);
+    }
+}
+
+function showRankingPage(er, erRelay) {
+    var lv = document.getElementById('listView');
+    var erH1 = erRelay ? '代表队' : '姓名';
+    var erH2 = erRelay ? '姓名' : '代表队';
+
+    var html = '<h2 style="margin-bottom:1.5vh;font-size:3vh;">' + (data.currentGender||'') + '子 ' + (data.currentEvent||'') + ' ' + (data.currentStage||'') + ' 总排名</h2>';
+    html += '<table class="list-table"><thead><tr><th>名次</th><th>号码</th><th>' + erH1 + '</th><th>' + erH2 + '</th><th>成绩</th></tr></thead><tbody>';
+
+    var start = _rankingCurrentPage * _rankingRowsPerPage;
+    var end = Math.min(start + _rankingRowsPerPage, er.length);
+    for (var i = start; i < end; i++) {
+        var erc1 = erRelay ? (er[i].country||'') : (er[i].name||'');
+        var erc2 = erRelay ? (er[i].name||'') : (er[i].country||'');
+        var erkText = er[i].rank > 0 ? er[i].rank : '-';
+        var erStatus = er[i].resultStatus || er[i].status || '';
+        html += '<tr><td>' + erkText + '</td><td>' + (er[i].bibNumber||'') + '</td><td>' + erc1 + '</td><td>' + erc2 + '</td><td>' + (er[i].finalTime || erStatus || '') + '</td></tr>';
+    }
+    html += '</tbody></table>';
+
+    if (_rankingTotalPages > 1) {
+        html += '<div class="page-indicator">' + (_rankingCurrentPage + 1) + ' / ' + _rankingTotalPages + '</div>';
+    }
+    lv.innerHTML = html;
+}
+
+function renderTeamStandings() {
+    document.getElementById('listView').classList.remove('hidden');
+    var lv = document.getElementById('listView');
+    var html = '<h2 style="margin-bottom:2vh;font-size:3vh;">团体积分排名</h2>';
+    html += '<table class="list-table"><thead><tr><th>名次</th><th>代表队</th><th>总分</th><th>金</th><th>银</th><th>铜</th></tr></thead><tbody>';
+    var ts = data.teamScores || [];
+    for (var i = 0; i < ts.length; i++) {
+        html += '<tr><td>' + ts[i].rank + '</td><td>' + ts[i].teamName + '</td><td>' + ts[i].totalPoints + '</td><td>' + ts[i].gold + '</td><td>' + ts[i].silver + '</td><td>' + ts[i].bronze + '</td></tr>';
+    }
+    html += '</tbody></table>';
+    lv.innerHTML = html;
+}
+
+function renderRecords() {
+    document.getElementById('listView').classList.remove('hidden');
+    var lv = document.getElementById('listView');
+    var html = '<h2 style="margin-bottom:2vh;font-size:3vh;">纪录榜</h2>';
+    html += '<table class="list-table"><thead><tr><th>项目</th><th>类型</th><th>保持者</th><th>代表队</th><th>成绩</th><th>日期</th></tr></thead><tbody>';
+    var rs = data.records || [];
+    for (var i = 0; i < rs.length; i++) {
+        html += '<tr><td>' + rs[i].eventName + '</td><td>' + rs[i].recordType + '</td><td>' + rs[i].holderName + '</td><td>' + rs[i].holderCountry + '</td><td>' + rs[i].time + '</td><td>' + rs[i].date + '</td></tr>';
+    }
+    html += '</tbody></table>';
+    lv.innerHTML = html;
+}
+
+function renderAwards() {
+    document.getElementById('awardView').classList.remove('hidden');
+    document.getElementById('awardTitle').textContent = (data.currentGender||'') + '子 ' + (data.currentEvent||'') + ' 颁奖典礼';
+    var container = document.getElementById('awardContainer');
+    container.innerHTML = '';
+    var er = data.eventRanking || [];
+    var medals = ['silver','gold','bronze'];
+    var icons = ['\uD83E\uDD48','\uD83E\uDD47','\uD83E\uDD49'];
+    var order = [1,0,2]; // silver, gold, bronze display order
+    for (var i = 0; i < 3 && i < er.length; i++) {
+        var idx = order[i];
+        if (idx >= er.length) continue;
+        var card = document.createElement('div');
+        card.className = 'podium-card ' + medals[i];
+        var awRelay = isRelayEvent();
+        var awName = awRelay ? (er[idx].country||'') : (er[idx].name||'');
+        var awTeam = awRelay ? (er[idx].name||'') : (er[idx].country||'');
+        card.innerHTML = '<div class="medal">' + icons[i] + '</div><div class="name">' + awName + '</div><div class="team">' + awTeam + '</div><div class="time">' + (er[idx].finalTime||'') + '</div>';
+        container.appendChild(card);
+    }
+}
+
+function renderWelcome() {
+    document.getElementById('welcomeView').classList.remove('hidden');
+    document.getElementById('welcomeTitle').textContent = data.competitionName || '欢迎';
+    document.getElementById('welcomeSub').textContent = '';
+}
+
+connect();
+</script>
+</body>
+</html>

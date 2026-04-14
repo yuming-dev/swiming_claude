@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>排名显示</title>
+<style>
+:root { --bg: #0f172a; --card: #1e293b; --text: #f8fafc; --dim: #94a3b8; --accent: #3b82f6; --gold: #f59e0b; }
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei', sans-serif; height: 100vh; overflow: hidden; }
+.header { height: 10vh; display: flex; align-items: center; justify-content: center; border-bottom: 3px solid var(--accent); }
+.header h1 { font-size: 3vh; }
+.content { height: 90vh; padding: 2vh 3vw; overflow-y: auto; }
+.section-title { font-size: 2.5vh; font-weight: bold; margin: 2vh 0 1vh; color: var(--accent); }
+table { width: 100%; border-collapse: collapse; margin-bottom: 2vh; }
+th { background: var(--card); padding: 1vh 1vw; text-align: left; font-size: 1.8vh; border-bottom: 2px solid var(--accent); }
+td { padding: 0.8vh 1vw; font-size: 1.8vh; border-bottom: 1px solid #334155; }
+tr:hover { background: rgba(59,130,246,0.05); }
+.rank-1 { color: var(--gold); font-weight: bold; }
+.rank-2 { color: #c0c0c0; font-weight: bold; }
+.rank-3 { color: #cd7f32; font-weight: bold; }
+.tabs { display: flex; gap: 1vw; margin-bottom: 2vh; }
+.tab { padding: 0.8vh 2vw; background: var(--card); border-radius: 4px; cursor: pointer; font-size: 1.8vh; }
+.tab.active { background: var(--accent); }
+</style>
+</head>
+<body>
+<div class="header" style="display:flex;justify-content:space-between;align-items:center;">
+    <h1 id="title" style="margin:0;">排名显示</h1>
+    <button class="fullscreen-btn" onclick="goFullScreen()" style="padding:4px 12px;background:#3B82F6;color:white;border:none;border-radius:4px;font-size:12px;cursor:pointer;">全屏</button>
+</div>
+<div class="content">
+    <div class="tabs">
+        <div class="tab active" onclick="showTab('ranking')">项目排名</div>
+        <div class="tab" onclick="showTab('team')">团体积分</div>
+        <div class="tab" onclick="showTab('records')">纪录榜</div>
+    </div>
+    <div id="rankingView"></div>
+    <div id="teamView" style="display:none"></div>
+    <div id="recordsView" style="display:none"></div>
+</div>
+
+<script>
+var ws, data = {};
+window.onbeforeunload = function(e) { e.preventDefault(); e.returnValue = ''; return '确定要关闭排名屏？'; };
+
+function goFullScreen() { var el=document.documentElement; if(document.fullscreenElement)return; if(el.requestFullscreen)el.requestFullscreen(); else if(el.webkitRequestFullscreen)el.webkitRequestFullscreen(); else if(el.msRequestFullscreen)el.msRequestFullscreen(); }
+document.addEventListener('fullscreenchange', function() { var btns=document.querySelectorAll('.fullscreen-btn'); for(var i=0;i<btns.length;i++) btns[i].style.display=document.fullscreenElement?'none':''; });
+document.addEventListener('webkitfullscreenchange', function() { var btns=document.querySelectorAll('.fullscreen-btn'); for(var i=0;i<btns.length;i++) btns[i].style.display=document.webkitFullscreenElement?'none':''; });
+
+
+var _connFailCount = 0;
+function getServerHost(forceAsk) {
+    var params = new URLSearchParams(window.location.search);
+    if (params.get('host')) return params.get('host');
+    if (!forceAsk && location.hostname && location.hostname !== '' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') return location.hostname;
+    var saved = localStorage.getItem('swimServerHost');
+    if (!forceAsk && saved) return saved;
+    var def = saved || '192.168.1.100';
+    var ip = prompt('请输入服务器IP地址:', def);
+    if (ip) { localStorage.setItem('swimServerHost', ip); return ip; }
+    return saved || 'localhost';
+}
+function changeServerHost() { _connFailCount = 0; var h = getServerHost(true); if (ws) try { ws.close(); } catch(e) {} connect(); }
+function connect() {
+    var host = getServerHost();
+    ws = new WebSocket('ws://' + host + ':3002');
+    ws.onopen = function() { _connFailCount = 0; ws.send(JSON.stringify({type: 'LEADERBOARD_IDENTITY'})); };
+    ws.onmessage = function(e) { var msg = JSON.parse(e.data); data = msg.data || {}; render(); };
+    ws.onclose = function() {
+        _connFailCount++;
+        if (_connFailCount >= 3) { _connFailCount = 0; if (confirm('连接失败，是否重新设置服务器地址？')) { changeServerHost(); return; } }
+        setTimeout(connect, 3000);
+    };
+}
+
+function showTab(tab) {
+    document.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('active'); });
+    event.target.classList.add('active');
+    document.getElementById('rankingView').style.display = tab === 'ranking' ? '' : 'none';
+    document.getElementById('teamView').style.display = tab === 'team' ? '' : 'none';
+    document.getElementById('recordsView').style.display = tab === 'records' ? '' : 'none';
+}
+
+function render() {
+    document.getElementById('title').textContent = data.competitionName || '排名显示';
+
+    // 项目排名（接力：代表队在前，姓名在后）
+    var lbRelay = (data.currentEvent||'').indexOf('接力') >= 0;
+    var h1 = lbRelay ? '代表队' : '姓名';
+    var h2 = lbRelay ? '姓名' : '代表队';
+    var html = '<div class="section-title">' + (data.currentGender||'') + '子 ' + (data.currentEvent||'') + ' ' + (data.currentStage||'') + '</div>';
+    html += '<table><tr><th>名次</th><th>' + h1 + '</th><th>' + h2 + '</th><th>成绩</th><th>备注</th></tr>';
+    var er = data.eventRanking || [];
+    for (var i = 0; i < er.length; i++) {
+        var rc = er[i].rank >= 1 && er[i].rank <= 3 ? ' class="rank-' + er[i].rank + '"' : '';
+        var c1 = lbRelay ? (er[i].country||'') : (er[i].name||'');
+        var c2 = lbRelay ? (er[i].name||'') : (er[i].country||'');
+        var remark = er[i].resultStatus || er[i].status || '';
+        var rankText = er[i].rank > 0 ? er[i].rank : '-';
+        html += '<tr' + rc + '><td>' + rankText + '</td><td>' + c1 + '</td><td>' + c2 + '</td><td>' + (er[i].finalTime||'') + '</td><td style="color:#ef4444;font-weight:bold;">' + remark + '</td></tr>';
+    }
+    html += '</table>';
+    document.getElementById('rankingView').innerHTML = html;
+
+    // 团体
+    html = '<div class="section-title">团体积分排名</div>';
+    html += '<table><tr><th>名次</th><th>代表队</th><th>总分</th><th>金</th><th>银</th><th>铜</th></tr>';
+    var ts = data.teamScores || [];
+    for (var i = 0; i < ts.length; i++) {
+        html += '<tr><td>' + ts[i].rank + '</td><td>' + ts[i].teamName + '</td><td>' + ts[i].totalPoints + '</td><td>' + ts[i].gold + '</td><td>' + ts[i].silver + '</td><td>' + ts[i].bronze + '</td></tr>';
+    }
+    html += '</table>';
+    document.getElementById('teamView').innerHTML = html;
+
+    // 纪录
+    html = '<div class="section-title">纪录榜</div>';
+    html += '<table><tr><th>项目</th><th>类型</th><th>保持者</th><th>成绩</th></tr>';
+    var rs = data.records || [];
+    for (var i = 0; i < rs.length; i++) {
+        html += '<tr><td>' + rs[i].eventName + '</td><td>' + rs[i].recordType + '</td><td>' + rs[i].holderName + '</td><td>' + rs[i].time + '</td></tr>';
+    }
+    html += '</table>';
+    document.getElementById('recordsView').innerHTML = html;
+}
+
+connect();
+</script>
+</body>
+</html>

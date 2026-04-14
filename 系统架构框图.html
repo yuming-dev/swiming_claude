@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>游泳赛事管理与计时系统 - 系统架构框图</title>
+<style>
+body { margin: 0; padding: 40px; background: white; font-family: "Microsoft YaHei", sans-serif; }
+.page { width: 1100px; margin: 0 auto; }
+h1 { text-align: center; font-size: 28px; color: #1E40AF; margin-bottom: 8px; }
+.subtitle { text-align: center; font-size: 14px; color: #64748B; margin-bottom: 40px; }
+
+/* SVG styles */
+svg { display: block; margin: 0 auto; }
+.box { rx: 12; ry: 12; stroke-width: 2; }
+.box-main { fill: #1E40AF; stroke: #1E3A8A; }
+.box-hw { fill: #DC2626; stroke: #991B1B; }
+.box-exe { fill: #059669; stroke: #047857; }
+.box-web { fill: #7C3AED; stroke: #6D28D9; }
+.box-display { fill: #D97706; stroke: #B45309; }
+.box-data { fill: #475569; stroke: #334155; }
+.box-func { fill: #F8FAFC; stroke: #CBD5E1; rx: 8; ry: 8; }
+
+.label { fill: white; font-size: 15px; font-weight: bold; text-anchor: middle; dominant-baseline: central; }
+.label-dark { fill: #1E293B; font-size: 12px; text-anchor: middle; dominant-baseline: central; }
+.label-small { fill: #64748B; font-size: 11px; text-anchor: middle; dominant-baseline: central; }
+.label-title { fill: white; font-size: 13px; font-weight: bold; text-anchor: middle; dominant-baseline: central; }
+
+.arrow { stroke: #94A3B8; stroke-width: 2; fill: none; marker-end: url(#arrowhead); }
+.arrow-hw { stroke: #DC2626; stroke-width: 2.5; }
+.arrow-ws { stroke: #3B82F6; stroke-width: 2; stroke-dasharray: 6,3; }
+.arrow-data { stroke: #F59E0B; stroke-width: 2; }
+
+.group-border { fill: none; stroke: #E2E8F0; stroke-width: 1.5; stroke-dasharray: 8,4; rx: 16; ry: 16; }
+.group-label { fill: #94A3B8; font-size: 12px; font-style: italic; }
+
+.legend { font-size: 12px; fill: #475569; }
+.legend-line { stroke-width: 3; fill: none; }
+
+@media print { body { padding: 20px; } .page { width: 100%; } }
+</style>
+</head>
+<body>
+<div class="page">
+<h1>游泳赛事管理与计时系统 — 系统架构框图</h1>
+<p class="subtitle">Swimming Event Management &amp; Timing System Architecture v2026.04</p>
+
+<svg width="1100" height="880" viewBox="0 0 1100 880">
+<defs>
+  <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+    <polygon points="0 0, 10 3.5, 0 7" fill="#94A3B8"/>
+  </marker>
+  <marker id="arrowhead-red" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+    <polygon points="0 0, 10 3.5, 0 7" fill="#DC2626"/>
+  </marker>
+  <marker id="arrowhead-blue" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+    <polygon points="0 0, 10 3.5, 0 7" fill="#3B82F6"/>
+  </marker>
+  <marker id="arrowhead-gold" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+    <polygon points="0 0, 10 3.5, 0 7" fill="#F59E0B"/>
+  </marker>
+  <!-- 阴影 -->
+  <filter id="shadow" x="-4%" y="-4%" width="108%" height="112%">
+    <feDropShadow dx="2" dy="3" stdDeviation="3" flood-color="#000" flood-opacity="0.15"/>
+  </filter>
+</defs>
+
+<!-- ════════ 第一层：计时硬件 ════════ -->
+<rect class="group-border" x="320" y="10" width="460" height="100"/>
+<text class="group-label" x="340" y="30">计时硬件层</text>
+
+<rect class="box box-hw" x="345" y="38" width="120" height="52" filter="url(#shadow)"/>
+<text class="label" x="405" y="64">触板</text>
+
+<rect class="box box-hw" x="490" y="38" width="120" height="52" filter="url(#shadow)"/>
+<text class="label" x="550" y="64">盲表 ×3</text>
+
+<rect class="box box-hw" x="635" y="38" width="120" height="52" filter="url(#shadow)"/>
+<text class="label" x="695" y="64">出发台</text>
+
+<!-- 硬件到主服务器的连线 -->
+<line x1="550" y1="90" x2="550" y2="148" class="arrow arrow-hw" marker-end="url(#arrowhead-red)"/>
+<text x="570" y="126" style="font-size:11px;fill:#DC2626;">串口 / TCP</text>
+
+<!-- ════════ 第二层：主服务器 ════════ -->
+<rect class="group-border" x="80" y="140" width="940" height="310"/>
+<text class="group-label" x="100" y="160">主服务器 SwimmingScoreboard.exe（端口 3002）</text>
+
+<!-- 主服务器核心 -->
+<rect class="box box-main" x="380" y="168" width="340" height="56" filter="url(#shadow)"/>
+<text class="label" x="550" y="190" style="font-size:18px;">赛事管理主服务器</text>
+<text class="label" x="550" y="208" style="font-size:11px;opacity:0.8;">SwimmingScoreboard.exe</text>
+
+<!-- 功能模块 -->
+<rect class="box-func" x="100" y="250" width="140" height="46"/>
+<text class="label-dark" x="170" y="267">赛事管理</text>
+<text class="label-small" x="170" y="282">运动员/接力队/日程</text>
+
+<rect class="box-func" x="260" y="250" width="140" height="46"/>
+<text class="label-dark" x="330" y="267">计时控制</text>
+<text class="label-small" x="330" y="282">就位/发令/复位</text>
+
+<rect class="box-func" x="420" y="250" width="140" height="46"/>
+<text class="label-dark" x="490" y="267">泳道管理</text>
+<text class="label-small" x="490" y="282">设备状态/分段/排名</text>
+
+<rect class="box-func" x="580" y="250" width="140" height="46"/>
+<text class="label-dark" x="650" y="267">成绩处理</text>
+<text class="label-small" x="650" y="282">确认/晋级/纪录检查</text>
+
+<rect class="box-func" x="740" y="250" width="140" height="46"/>
+<text class="label-dark" x="810" y="267">纪录管理</text>
+<text class="label-small" x="810" y="282">WR/CR/导入/查询</text>
+
+<!-- 第二行功能 -->
+<rect class="box-func" x="100" y="310" width="140" height="46"/>
+<text class="label-dark" x="170" y="327">自动分组</text>
+<text class="label-small" x="170" y="342">蛇形分道/FINA规则</text>
+
+<rect class="box-func" x="260" y="310" width="140" height="46"/>
+<text class="label-dark" x="330" y="327">显示控制</text>
+<text class="label-small" x="330" y="342">大屏/排名/颁奖</text>
+
+<rect class="box-func" x="420" y="310" width="140" height="46"/>
+<text class="label-dark" x="490" y="327">文档打印</text>
+<text class="label-small" x="490" y="342">秩序册/出发表/成绩册</text>
+
+<rect class="box-func" x="580" y="310" width="140" height="46"/>
+<text class="label-dark" x="650" y="327">WebSocket 服务</text>
+<text class="label-small" x="650" y="342">实时广播/指令接收</text>
+
+<rect class="box-func" x="740" y="310" width="140" height="46"/>
+<text class="label-dark" x="810" y="327">参数设置</text>
+<text class="label-small" x="810" y="342">泳道/抢跳/显示时长</text>
+
+<!-- 数据库 -->
+<rect class="box box-data" x="100" y="380" width="160" height="50" filter="url(#shadow)"/>
+<text class="label" x="180" y="400">JSON 数据库</text>
+<text class="label" x="180" y="416" style="font-size:10px;opacity:0.7;">赛事/成绩/纪录</text>
+
+<rect class="box box-data" x="280" y="380" width="160" height="50" filter="url(#shadow)"/>
+<text class="label" x="360" y="400">Web 资源</text>
+<text class="label" x="360" y="416" style="font-size:10px;opacity:0.7;">HTML/CSS/JS</text>
+
+<rect class="box box-data" x="460" y="380" width="160" height="50" filter="url(#shadow)"/>
+<text class="label" x="540" y="400">纪录 CSV</text>
+<text class="label" x="540" y="416" style="font-size:10px;opacity:0.7;">世界/亚洲/赛会纪录</text>
+
+<!-- ════════ WebSocket 连线 ════════ -->
+<!-- 向下的三条WebSocket线 -->
+<line x1="300" y1="450" x2="200" y2="530" class="arrow arrow-ws" marker-end="url(#arrowhead-blue)"/>
+<line x1="550" y1="450" x2="550" y2="530" class="arrow arrow-ws" marker-end="url(#arrowhead-blue)"/>
+<line x1="750" y1="450" x2="900" y2="530" class="arrow arrow-ws" marker-end="url(#arrowhead-blue)"/>
+
+<text x="220" y="485" style="font-size:11px;fill:#3B82F6;">WebSocket</text>
+<text x="560" y="485" style="font-size:11px;fill:#3B82F6;">WebSocket</text>
+<text x="810" y="485" style="font-size:11px;fill:#3B82F6;">WebSocket</text>
+
+<!-- ════════ 第三层：客户端/大屏 ════════ -->
+
+<!-- EXE 控制台 -->
+<rect class="group-border" x="50" y="520" width="310" height="200"/>
+<text class="group-label" x="70" y="540">比赛控制平台 (EXE)</text>
+
+<rect class="box box-exe" x="90" y="555" width="230" height="50" filter="url(#shadow)"/>
+<text class="label" x="205" y="575">远程计时控制台</text>
+<text class="label" x="205" y="592" style="font-size:10px;opacity:0.8;">RemoteTimingControl.exe</text>
+
+<rect class="box-func" x="90" y="620" width="110" height="36"/>
+<text class="label-dark" x="145" y="638" style="font-size:11px;">比赛控制</text>
+
+<rect class="box-func" x="210" y="620" width="110" height="36"/>
+<text class="label-dark" x="265" y="638" style="font-size:11px;">泳道状态</text>
+
+<rect class="box-func" x="90" y="664" width="110" height="36"/>
+<text class="label-dark" x="145" y="682" style="font-size:11px;">显示控制</text>
+
+<rect class="box-func" x="210" y="664" width="110" height="36"/>
+<text class="label-dark" x="265" y="682" style="font-size:11px;">参数设置</text>
+
+<!-- HTML 控制台 -->
+<rect class="group-border" x="395" y="520" width="310" height="200"/>
+<text class="group-label" x="415" y="540">比赛控制平台 (HTML)</text>
+
+<rect class="box box-web" x="435" y="555" width="230" height="50" filter="url(#shadow)"/>
+<text class="label" x="550" y="575">Web 比赛控制台</text>
+<text class="label" x="550" y="592" style="font-size:10px;opacity:0.8;">race_control.html</text>
+
+<rect class="box-func" x="435" y="620" width="110" height="36"/>
+<text class="label-dark" x="490" y="638" style="font-size:11px;">比赛控制</text>
+
+<rect class="box-func" x="555" y="620" width="110" height="36"/>
+<text class="label-dark" x="610" y="638" style="font-size:11px;">泳道状态</text>
+
+<rect class="box-func" x="435" y="664" width="110" height="36"/>
+<text class="label-dark" x="490" y="682" style="font-size:11px;">显示控制</text>
+
+<rect class="box-func" x="555" y="664" width="110" height="36"/>
+<text class="label-dark" x="610" y="682" style="font-size:11px;">参数设置</text>
+
+<!-- 大屏显示 -->
+<rect class="group-border" x="740" y="520" width="310" height="200"/>
+<text class="group-label" x="760" y="540">大屏显示系统 (HTML)</text>
+
+<rect class="box box-display" x="780" y="555" width="230" height="50" filter="url(#shadow)"/>
+<text class="label" x="895" y="575">大屏显示</text>
+<text class="label" x="895" y="592" style="font-size:10px;opacity:0.8;">display.html</text>
+
+<rect class="box-func" x="780" y="620" width="110" height="36"/>
+<text class="label-dark" x="835" y="638" style="font-size:11px;">出发表/比赛</text>
+
+<rect class="box-func" x="900" y="620" width="110" height="36"/>
+<text class="label-dark" x="955" y="638" style="font-size:11px;">成绩/排名</text>
+
+<rect class="box-func" x="780" y="664" width="110" height="36"/>
+<text class="label-dark" x="835" y="682" style="font-size:11px;">颁奖/纪录</text>
+
+<rect class="box-func" x="900" y="664" width="110" height="36"/>
+<text class="label-dark" x="955" y="682" style="font-size:11px;">欢迎/发布</text>
+
+<!-- ════════ 第四层：其他终端 ════════ -->
+<rect class="group-border" x="200" y="760" width="700" height="100"/>
+<text class="group-label" x="220" y="780">其他终端</text>
+
+<rect class="box box-web" x="240" y="795" width="180" height="44" filter="url(#shadow)"/>
+<text class="label" x="330" y="812">排名屏</text>
+<text class="label" x="330" y="828" style="font-size:10px;opacity:0.8;">leaderboard.html</text>
+
+<rect class="box box-web" x="460" y="795" width="180" height="44" filter="url(#shadow)"/>
+<text class="label" x="550" y="812">在线报名</text>
+<text class="label" x="550" y="828" style="font-size:10px;opacity:0.8;">register.html</text>
+
+<rect class="box box-web" x="680" y="795" width="180" height="44" filter="url(#shadow)"/>
+<text class="label" x="770" y="812">测试机器人</text>
+<text class="label" x="770" y="828" style="font-size:10px;opacity:0.8;">test_bot.html</text>
+
+<!-- 连线到其他终端 -->
+<line x1="330" y1="720" x2="330" y2="795" class="arrow arrow-ws" marker-end="url(#arrowhead-blue)"/>
+<line x1="550" y1="720" x2="550" y2="795" class="arrow arrow-ws" marker-end="url(#arrowhead-blue)"/>
+<line x1="770" y1="720" x2="770" y2="795" class="arrow arrow-ws" marker-end="url(#arrowhead-blue)"/>
+
+<!-- ════════ 图例 ════════ -->
+<rect x="30" y="780" width="140" height="80" fill="#F8FAFC" stroke="#E2E8F0" rx="6"/>
+<text x="50" y="798" class="legend" style="font-weight:bold;">图例</text>
+<line x1="44" y1="812" x2="80" y2="812" class="legend-line" stroke="#DC2626"/>
+<text x="88" y="816" class="legend">硬件连接</text>
+<line x1="44" y1="832" x2="80" y2="832" class="legend-line" stroke="#3B82F6" stroke-dasharray="6,3"/>
+<text x="88" y="836" class="legend">WebSocket</text>
+<line x1="44" y1="852" x2="80" y2="852" class="legend-line" stroke="#F59E0B"/>
+<text x="88" y="856" class="legend">数据流</text>
+
+</svg>
+
+<p style="text-align:center;color:#94A3B8;font-size:11px;margin-top:20px;">游泳赛事管理与计时系统 2026.04</p>
+</div>
+</body>
+</html>

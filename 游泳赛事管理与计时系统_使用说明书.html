@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>游泳赛事管理与计时系统 使用说明书</title>
+<style>
+@page { size: A4; margin: 2cm 2.5cm; }
+body { font-family: "Microsoft YaHei", "SimSun", sans-serif; font-size: 12pt; line-height: 1.8; color: #1a1a1a; max-width: 210mm; margin: 0 auto; padding: 20px; }
+h1 { text-align: center; font-size: 24pt; color: #1E40AF; border-bottom: 3px solid #1E40AF; padding-bottom: 12px; margin-top: 60px; }
+h2 { font-size: 18pt; color: #1E40AF; border-bottom: 2px solid #CBD5E1; padding-bottom: 6px; margin-top: 40px; page-break-after: avoid; }
+h3 { font-size: 14pt; color: #334155; margin-top: 24px; page-break-after: avoid; }
+h4 { font-size: 12pt; color: #475569; margin-top: 16px; }
+table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 11pt; page-break-inside: avoid; }
+th, td { border: 1px solid #CBD5E1; padding: 6px 10px; text-align: left; }
+th { background: #F1F5F9; color: #1E293B; font-weight: bold; }
+tr:nth-child(even) { background: #F8FAFC; }
+code { background: #F1F5F9; padding: 2px 6px; border-radius: 3px; font-family: Consolas, monospace; font-size: 10.5pt; color: #DC2626; }
+pre { background: #0F172A; color: #E2E8F0; padding: 14px 18px; border-radius: 6px; font-family: Consolas, monospace; font-size: 10pt; line-height: 1.6; overflow-x: auto; page-break-inside: avoid; }
+blockquote { border-left: 4px solid #F59E0B; background: #FFFBEB; padding: 10px 16px; margin: 12px 0; color: #92400E; font-size: 11pt; }
+.cover { text-align: center; padding: 120px 0 80px; page-break-after: always; }
+.cover h1 { font-size: 32pt; border: none; margin: 0; }
+.cover .subtitle { font-size: 16pt; color: #64748B; margin-top: 20px; }
+.cover .version { font-size: 14pt; color: #94A3B8; margin-top: 40px; }
+.cover .date { font-size: 12pt; color: #94A3B8; margin-top: 10px; }
+.toc { page-break-after: always; }
+.toc h2 { text-align: center; border: none; }
+.toc ul { list-style: none; padding: 0; }
+.toc li { padding: 4px 0; font-size: 13pt; border-bottom: 1px dotted #CBD5E1; }
+.toc li a { color: #1E40AF; text-decoration: none; }
+.arch-diagram { background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; padding: 16px; text-align: center; font-family: Consolas, monospace; font-size: 10.5pt; line-height: 1.8; white-space: pre; margin: 16px 0; }
+.note { background: #EFF6FF; border-left: 4px solid #3B82F6; padding: 10px 16px; margin: 12px 0; font-size: 11pt; }
+.warn { background: #FEF3C7; border-left: 4px solid #F59E0B; padding: 10px 16px; margin: 12px 0; font-size: 11pt; }
+@media print { .cover { padding: 200px 0 100px; } body { font-size: 11pt; } }
+</style>
+</head>
+<body>
+
+<!-- 封面 -->
+<div class="cover">
+<h1>游泳赛事管理与计时系统</h1>
+<div class="subtitle">使 用 说 明 书</div>
+<div class="version">版本 2026.04</div>
+<div class="date">适用平台：Windows 7 及以上</div>
+</div>
+
+<!-- 目录 -->
+<div class="toc">
+<h2>目 录</h2>
+<ul>
+<li><a href="#ch1">一、系统概述</a></li>
+<li><a href="#ch2">二、安装与启动</a></li>
+<li><a href="#ch3">三、系统架构</a></li>
+<li><a href="#ch4">四、赛事管理与报名</a></li>
+<li><a href="#ch5">五、比赛控制</a></li>
+<li><a href="#ch6">六、成绩与排名</a></li>
+<li><a href="#ch7">七、纪录管理</a></li>
+<li><a href="#ch8">八、文档打印</a></li>
+<li><a href="#ch9">九、系统日志与数据管理</a></li>
+<li><a href="#ch10">十、设置</a></li>
+<li><a href="#ch11">十一、EXE远程控制台</a></li>
+<li><a href="#ch12">十二、HTML浏览器控制台</a></li>
+<li><a href="#ch13">十三、大屏显示系统</a></li>
+<li><a href="#ch14">十四、常见问题</a></li>
+<li><a href="#appendix">附录</a></li>
+</ul>
+</div>
+
+<!-- 正文 -->
+<h2 id="ch1">一、系统概述</h2>
+
+<h3>1.1 功能简介</h3>
+<p>本系统是一套完整的游泳比赛管理与计时解决方案，覆盖赛事全生命周期：</p>
+<ul>
+<li><b>赛前</b>：赛事创建、运动员报名、自动生成日程、预赛分组编排、纪录数据管理</li>
+<li><b>赛中</b>：实时计时控制、泳道设备管理、分段成绩显示、第1名成绩高亮、WR/CR纪录对比</li>
+<li><b>赛后</b>：成绩确认与排名、晋级管理、成绩发布、文档打印（秩序册/出发表/成绩册等）</li>
+</ul>
+
+<h3>1.2 系统组成</h3>
+<table>
+<tr><th>组件</th><th>说明</th><th>运行方式</th></tr>
+<tr><td><b>主服务器</b> (SwimmingScoreboard.exe)</td><td>赛事管理核心，连接计时硬件</td><td>Windows 应用程序</td></tr>
+<tr><td><b>远程控制台</b> (RemoteTimingControl.exe)</td><td>独立的比赛控制客户端</td><td>Windows 应用程序</td></tr>
+<tr><td><b>Web控制台</b> (race_control.html)</td><td>浏览器端比赛控制界面</td><td>任意浏览器打开</td></tr>
+<tr><td><b>大屏显示</b> (display.html)</td><td>观众大屏幕显示</td><td>浏览器全屏</td></tr>
+<tr><td><b>排名屏</b> (leaderboard.html)</td><td>实时排名显示</td><td>浏览器全屏</td></tr>
+<tr><td><b>在线报名</b> (register.html)</td><td>运动员自助报名</td><td>浏览器打开</td></tr>
+</table>
+
+<h3>1.3 系统要求</h3>
+<ul>
+<li><b>操作系统</b>：Windows 7/8/10/11</li>
+<li><b>运行环境</b>：.NET Framework 4.0（Windows 7+ 自带）</li>
+<li><b>网络</b>：局域网（主服务器与客户端/大屏需在同一网络）</li>
+<li><b>端口</b>：3002（WebSocket通信）</li>
+<li><b>浏览器</b>：Chrome / Edge（推荐）</li>
+</ul>
+
+<h2 id="ch2">二、安装与启动</h2>
+
+<h3>2.1 安装步骤</h3>
+<ol>
+<li>解压安装包 <code>游泳赛事管理系统_安装包.zip</code></li>
+<li>双击 <b>安装.bat</b></li>
+<li>输入安装目录（直接回车使用默认路径 <code>C:\SwimmingTimingSystem</code>）</li>
+<li>安装完成后桌面出现两个快捷方式</li>
+</ol>
+
+<h3>2.2 启动主服务器</h3>
+<p>双击桌面 <b>"游泳赛事管理主服务器"</b> 快捷方式。首次启动需设置管理员密码，登录后进入主界面。</p>
+
+<h3>2.3 启动远程控制台</h3>
+<p>双击桌面 <b>"远程计时控制台"</b> 快捷方式。在顶部输入主服务器IP和端口（如 <code>192.168.1.100:3002</code>），点击"连接"。</p>
+
+<h3>2.4 打开Web控制台</h3>
+<p>在浏览器地址栏输入：<code>http://主服务器IP:3002/race_control.html</code></p>
+
+<h3>2.5 防火墙设置</h3>
+<p>首次运行主服务器时，Windows 可能弹出防火墙提示。请选择 <b>"允许访问"</b>，确保端口 3002 可用。</p>
+
+<h2 id="ch3">三、系统架构</h2>
+
+<div class="arch-diagram">
+                ┌──────────────────┐
+                │   计时硬件        │
+                │ (触板/盲表/出发台) │
+                └────────┬─────────┘
+                         │ 串口/TCP
+                ┌────────▼─────────┐
+                │   主服务器        │
+                │ SwimmingScoreboard│
+                │  (端口 3002)      │
+                └────────┬─────────┘
+                         │ WebSocket
+       ┌─────────────────┼─────────────────┐
+       │                 │                  │
+┌──────▼──────┐   ┌──────▼──────┐   ┌──────▼──────┐
+│ 远程控制台   │   │ Web控制台   │   │ 大屏/排名屏 │
+│ (EXE客户端) │   │ (浏览器)    │   │ (浏览器全屏) │
+└─────────────┘   └─────────────┘   └─────────────┘
+</div>
+
+<div class="note"><b>说明：</b>三个控制平台（主服务器/EXE/HTML）功能完全一致，平时只需使用其中一个进行比赛控制。主服务器是唯一的数据权威和时钟源。</div>
+
+<h2 id="ch4">四、赛事管理与报名</h2>
+
+<p>主服务器的 <b>"赛事管理与报名"</b> 标签页包含以下子标签：</p>
+
+<h3>4.1 赛事概览</h3>
+<p>显示当前赛事基本信息（名称、日期、地点等），统计已注册运动员数、项目数、团队数等概览数据。可编辑赛事名称、举办单位、裁判信息等。</p>
+
+<h3>4.2 运动员管理</h3>
+<ul>
+<li><b>添加运动员</b>：填写姓名、性别、代表队、出生日期、身份证号等</li>
+<li><b>导入CSV</b>：批量导入运动员数据（支持 UTF-8 和 GBK 编码自动识别）</li>
+<li><b>参赛项目管理</b>：为每位运动员分配参赛项目和报名成绩</li>
+<li><b>在线报名</b>：运动员可通过 <code>http://主服务器IP:3002/register.html</code> 自助报名</li>
+</ul>
+
+<h3>4.3 接力队管理</h3>
+<p>创建接力队（4人一队），指定棒次顺序，设置接力项目。</p>
+
+<h3>4.4 出场编排微调</h3>
+<p>在自动分组后，手动微调运动员的组次和泳道。</p>
+
+<h3>4.5 赛程管理</h3>
+<ul>
+<li><b>一键生成日程</b>：根据报名数据自动生成完整赛程
+<ul>
+<li>自动安排预赛 → 半决赛 → 决赛的时序（严格保证时间顺序）</li>
+<li>根据项目距离计算合理的时间间隔</li>
+<li>三阶段项目的预赛安排在前几天，保证半决赛和决赛有充足间隔</li>
+</ul></li>
+<li><b>预赛自动分组</b>：按报名成绩蛇形分配泳道</li>
+<li><b>修改赛程</b>：可手动调整日期、时间、组次</li>
+</ul>
+
+<h3>4.6 纪录管理</h3>
+<p>详见 <a href="#ch7">第七章 纪录管理</a>。</p>
+
+<h2 id="ch5">五、比赛控制</h2>
+
+<h3>5.1 界面布局</h3>
+<table>
+<tr><th>区域</th><th>内容</th></tr>
+<tr><td><b>左栏</b></td><td>赛程导航树（上60%）+ 计时源对比（下40%）</td></tr>
+<tr><td><b>中间</b></td><td>WR/CR纪录 + 滚动时间 + 泳道实时状态（10道）+ 日志</td></tr>
+<tr><td><b>右栏</b></td><td>比赛控制按钮 + 泳道操作 + 显示控制</td></tr>
+</table>
+
+<h3>5.2 比赛流程</h3>
+
+<h4>第一步：选择项目</h4>
+<p>在左栏赛程导航树中点击要比赛的组次（如"女 100米蝶泳 预赛 第1组"）。</p>
+<div class="warn"><b>注意：</b>比赛进行中（就位/比赛中状态）不能切换项目，必须先"计时复位"。</div>
+
+<h4>第二步：就位</h4>
+<p>点击 <b>"就位"</b> 按钮：状态变为"就位"，泳道设备重置为初始状态，出发端出发台打开。</p>
+
+<h4>第三步：发令</h4>
+<p>点击 <b>"发令"</b> 按钮：状态变为"比赛中"，计时器开始，所有触板和盲表关闭，泳道关闭倒计时开始。倒计时结束后触板/盲表自动打开。</p>
+
+<h4>第四步：比赛进行中</h4>
+<p>比赛中系统自动处理：</p>
+<ul>
+<li><b>泳道关闭/打开</b>：按设定的倒计时自动控制</li>
+<li><b>分段成绩</b>：每次触板触碰显示当前分段累计时间，保持设定秒数后消隐</li>
+<li><b>实时名次</b>：与分段成绩同步显示/消隐</li>
+<li><b>反应时</b>：出发台检测到反应时间后显示相同时长</li>
+<li><b>第1名成绩</b>：每个分段点最先触板的成绩以<span style="color:#22C55E;font-weight:bold;">绿色</span>显示在滚动时间位置</li>
+</ul>
+
+<h4>第五步：确认成绩</h4>
+<p>所有泳道完赛后，点击 <b>"确认本组成绩"</b>，弹出确认对话框，确认后成绩锁定保存并自动检查纪录。</p>
+
+<h3>5.3 比赛控制按钮</h3>
+<table>
+<tr><th>按钮</th><th>功能</th></tr>
+<tr><td><b>就  位</b></td><td>进入就位状态，重置泳道设备</td></tr>
+<tr><td><b>发  令</b></td><td>开始比赛，启动计时</td></tr>
+<tr><td><b>计时复位</b></td><td>重置计时器和设备；DSQ/DNS/DNF状态保留</td></tr>
+<tr><td><b>确认本组成绩</b></td><td>锁定保存当前组成绩</td></tr>
+</table>
+
+<h3>5.4 泳道操作</h3>
+<p>需要先在输入框中输入道次号码，再点击操作按钮：</p>
+<table>
+<tr><th>按钮</th><th>功能</th><th>说明</th></tr>
+<tr><td>DNS</td><td>缺席未出发</td><td>运动员未到场</td></tr>
+<tr><td>DNF</td><td>中途退出</td><td>因伤病等原因中途退赛</td></tr>
+<tr><td>DSQ</td><td>犯规取消资格</td><td>违反比赛规则</td></tr>
+<tr><td>手动输入</td><td>手动输入成绩</td><td>在无自动计时数据时人工录入</td></tr>
+<tr><td>全部打开</td><td>打开所有泳道设备</td><td>触板和盲表全部打开</td></tr>
+<tr><td>全部关闭</td><td>关闭所有泳道设备</td><td>触板和盲表全部关闭</td></tr>
+</table>
+<div class="note"><b>说明：</b>DNS/DNF/DSQ 操作都有确认对话框防止误操作。手动输入有二次确认后直接写入数据库。计时复位时 DSQ/DNS/DNF 状态不会被清除。</div>
+
+<h3>5.5 显示控制</h3>
+<table>
+<tr><th>按钮</th><th>功能</th></tr>
+<tr><td>出发表</td><td>显示当前组的出发名单</td></tr>
+<tr><td>比赛视图</td><td>显示实时比赛画面</td></tr>
+<tr><td>组成绩</td><td>显示当前组的比赛成绩</td></tr>
+<tr><td>总排名</td><td>显示项目总排名</td></tr>
+<tr><td>团  体</td><td>显示团体积分排名</td></tr>
+<tr><td>颁  奖</td><td>显示颁奖信息</td></tr>
+<tr><td>纪  录</td><td>显示纪录信息</td></tr>
+<tr><td>欢  迎</td><td>显示欢迎画面</td></tr>
+<tr><td>成绩发布</td><td>发布当前组成绩到大屏</td></tr>
+</table>
+
+<h3>5.6 参数设置</h3>
+<p>点击右上角 <b>"⚙ 参数设置"</b> 按钮打开设置对话框：</p>
+<table>
+<tr><th>参数</th><th>默认值</th><th>说明</th></tr>
+<tr><td>泳道关闭时间</td><td>20秒</td><td>发令后到触板打开的倒计时</td></tr>
+<tr><td>出发台关闭延迟</td><td>3秒</td><td>出发后出发台延迟关闭时间</td></tr>
+<tr><td>成绩确认关闭延迟</td><td>3秒</td><td>完赛后设备延迟关闭时间</td></tr>
+<tr><td>抢跳判定阈值</td><td>0.10秒</td><td>小于此值判定为抢跳</td></tr>
+<tr><td>分段成绩显示时长</td><td>5秒</td><td>分段成绩、名次、反应时的显示持续时间</td></tr>
+<tr><td>第1名成绩停留时间</td><td>3秒</td><td>第1名成绩在滚动时间位置的绿色显示时间</td></tr>
+<tr><td>终点位置</td><td>左端</td><td>终点（触板端）在泳池的哪一端</td></tr>
+</table>
+
+<h3>5.7 泳道实时状态说明</h3>
+<p>每道显示：道次 | 左设备状态 | 姓名+进度条 | 右设备状态 | 反应时 | 成绩 | 名次 | 备注</p>
+<ul>
+<li><b>设备状态圆点</b>：绿色=打开, 灰色=关闭, 红色=损坏, 黄色=抢跳</li>
+<li><b>进度条</b>：第1箭头 + 倒计时 + 尾部箭头（如 <code>▶ (15.5s) ▶▶▶</code>）；完赛后显示最终成绩</li>
+<li><b>T按钮</b>：手动触板按钮（左端/右端各一个）</li>
+</ul>
+
+<h2 id="ch6">六、成绩与排名</h2>
+
+<h3>6.1 查看成绩</h3>
+<p>在 <b>"成绩与排名"</b> 标签页中选择性别、项目、赛次，成绩列表自动显示。</p>
+
+<h3>6.2 晋级操作</h3>
+<p>成绩确认后，可进行晋级操作：</p>
+<ul>
+<li><b>预赛 → 半决赛</b>：取前16名（短距离项目）</li>
+<li><b>半决赛 → 决赛</b>：取前8名</li>
+<li><b>预赛 → 决赛</b>：取前8名（无半决赛时）</li>
+</ul>
+
+<h2 id="ch7">七、纪录管理</h2>
+
+<h3>7.1 纪录类型</h3>
+<p>系统支持：世界纪录、奥运会纪录、亚洲纪录、亚洲青年纪录、全国纪录、省运会纪录、赛会纪录。</p>
+
+<h3>7.2 导入纪录</h3>
+<p><b>方式一：一键导入</b> — 点击"导入标准纪录"按钮，自动导入内置的42条世界纪录。</p>
+<p><b>方式二：模板填写</b> — 点击"下载纪录模板"→ Excel打开填写 → "导入CSV纪录"读入。</p>
+<p>成绩格式：<code>20.91</code>（秒）、<code>1:42.00</code>（分:秒）、<code>14:30.67</code>（分:秒）</p>
+
+<h3>7.3 查询纪录</h3>
+<p>使用顶部筛选控件（性别/项目/类型/关键词）查询。</p>
+
+<h3>7.4 WR/CR 显示</h3>
+<p>比赛控制界面顶部自动显示当前项目的 WR（世界纪录）和 CR（赛会纪录）。</p>
+
+<h2 id="ch8">八、文档打印</h2>
+<table>
+<tr><th>文档</th><th>说明</th></tr>
+<tr><td>竞赛日程</td><td>完整的比赛日程安排</td></tr>
+<tr><td>秩序册</td><td>运动员出场顺序</td></tr>
+<tr><td>出发表</td><td>每组的出发名单和泳道分配</td></tr>
+<tr><td>分组成绩</td><td>每组的比赛成绩</td></tr>
+<tr><td>成绩册</td><td>完整的比赛成绩汇总</td></tr>
+<tr><td>团体成绩</td><td>团体积分排名</td></tr>
+<tr><td>纪录报告</td><td>打破纪录的统计</td></tr>
+<tr><td>奖状/纪录证书</td><td>可打印的获奖证书</td></tr>
+<tr><td>分段计时报告</td><td>详细的分段计时数据</td></tr>
+</table>
+
+<h2 id="ch9">九、系统日志与数据管理</h2>
+<table>
+<tr><th>操作</th><th>说明</th></tr>
+<tr><td>加载选中存档</td><td>加载之前保存的赛事数据</td></tr>
+<tr><td>删除选中存档</td><td>删除指定存档文件</td></tr>
+<tr><td>清除当前库数据</td><td>清空当前赛事的所有数据</td></tr>
+<tr><td>删除全部纪录</td><td>清空所有纪录数据（需确认）</td></tr>
+<tr><td>强制保存</td><td>立即保存当前数据到磁盘</td></tr>
+<tr><td>查询本机IP地址</td><td>显示当前电脑的局域网IP</td></tr>
+<tr><td>修改密码</td><td>修改管理员登录密码</td></tr>
+</table>
+
+<h2 id="ch10">十、设置</h2>
+<h3>10.1 计时硬件连接</h3>
+<ul>
+<li><b>串口连接</b>：选择串口号，点击"连接串口"</li>
+<li><b>TCP连接</b>：输入TCP地址（如 <code>127.0.0.1:5000</code>），点击"连接TCP"</li>
+</ul>
+
+<h2 id="ch11">十一、EXE远程控制台</h2>
+
+<h3>11.1 适用场景</h3>
+<p>当主服务器不便直接操作时，可在裁判台电脑运行远程控制台，通过网络远程控制整个比赛。</p>
+
+<h3>11.2 连接服务器</h3>
+<p>在顶部输入主服务器IP和端口：<code>192.168.1.100:3002</code>，点击"连接"。绿色指示灯亮起表示连接成功。</p>
+
+<h3>11.3 独立操作</h3>
+<p>远程控制台可以完全独立操作整场比赛，功能与主服务器完全一致。</p>
+
+<h3>11.4 快捷键</h3>
+<table>
+<tr><th>快捷键</th><th>功能</th></tr>
+<tr><td>F5</td><td>就位</td></tr>
+<tr><td>F6</td><td>发令</td></tr>
+<tr><td>F7</td><td>计时复位</td></tr>
+<tr><td>F8</td><td>确认成绩</td></tr>
+<tr><td>Ctrl+←</td><td>上一组</td></tr>
+<tr><td>Ctrl+→</td><td>下一组</td></tr>
+</table>
+
+<h2 id="ch12">十二、HTML浏览器控制台</h2>
+<p>无需安装客户端，在浏览器中打开 <code>http://主服务器IP:3002/race_control.html</code> 即可控制比赛。功能与EXE控制台和主服务器完全一致。</p>
+
+<h2 id="ch13">十三、大屏显示系统</h2>
+<table>
+<tr><th>页面</th><th>地址</th><th>说明</th></tr>
+<tr><td>大屏显示</td><td><code>http://IP:3002/display.html</code></td><td>投影仪/大电视全屏，由控制台切换内容</td></tr>
+<tr><td>排名屏</td><td><code>http://IP:3002/leaderboard.html</code></td><td>实时排名信息</td></tr>
+<tr><td>在线报名</td><td><code>http://IP:3002/register.html</code></td><td>运动员手机/电脑自助报名</td></tr>
+</table>
+
+<h2 id="ch14">十四、常见问题</h2>
+
+<p><b>Q1: 远程控制台无法连接主服务器</b></p>
+<p>检查：①主服务器已启动 ②同一局域网 ③IP和端口正确 ④防火墙放行3002端口</p>
+
+<p><b>Q2: 导入CSV纪录后中文乱码</b></p>
+<p>程序已自动检测编码。如仍有乱码，在Excel中"另存为"选择 <b>"CSV UTF-8"</b> 格式后重新导入。</p>
+
+<p><b>Q3: 计时复位后 DSQ/DNS 状态消失</b></p>
+<p>当前版本已修复，计时复位时特殊状态自动保留。</p>
+
+<p><b>Q4: 第1名成绩没有在滚动时间位置显示</b></p>
+<p>当前版本已修复，基于"最先收到的触板信号"检测第1名。</p>
+
+<p><b>Q5: 三个控制平台的时间不一致</b></p>
+<p>当前版本已修复，客户端每500ms与服务器重新同步时钟。</p>
+
+<p><b>Q6: 比赛中不小心点了其他项目</b></p>
+<p>"就位"和"比赛中"状态下禁止切换项目，必须先"计时复位"。</p>
+
+<h2 id="appendix">附录</h2>
+
+<h3>A. 支持的比赛项目</h3>
+<p><b>个人项目</b>（男/女各20项）：自由泳 50/100/200/400/800/1500m，仰泳 50/100/200m，蛙泳 50/100/200m，蝶泳 50/100/200m，个人混合泳 200/400m</p>
+<p><b>接力项目</b>：4×100m自由泳接力，4×200m自由泳接力，4×100m混合泳接力，4×100m混合接力</p>
+
+<h3>B. 每组预计用时参考</h3>
+<table>
+<tr><th>项目距离</th><th>每组用时</th><th>说明</th></tr>
+<tr><td>50米</td><td>5分钟</td><td>~35秒比赛 + 4分钟流程</td></tr>
+<tr><td>100米</td><td>6分钟</td><td>~1分15秒 + 4分钟流程</td></tr>
+<tr><td>200米</td><td>7分钟</td><td>~2分30秒 + 4分钟流程</td></tr>
+<tr><td>400米/4×100接力</td><td>10分钟</td><td>~5分钟 + 5分钟流程</td></tr>
+<tr><td>800米/4×200接力</td><td>15分钟</td><td>~10分钟 + 5分钟流程</td></tr>
+<tr><td>1500米</td><td>22分钟</td><td>~18分钟 + 4分钟流程</td></tr>
+</table>
+
+<h3>C. 赛事阶段规则</h3>
+<table>
+<tr><th>参赛人数</th><th>短距离(50-200m)</th><th>长距离(400m+)/接力</th></tr>
+<tr><td>≤8人</td><td>直接决赛</td><td>直接决赛</td></tr>
+<tr><td>9-16人</td><td>预赛→决赛</td><td>预赛→决赛</td></tr>
+<tr><td>≥17人</td><td>预赛→半决赛→决赛</td><td>预赛→决赛</td></tr>
+</table>
+
+<br><br>
+<p style="text-align:center;color:#94A3B8;font-size:11pt;">— 游泳赛事管理与计时系统 2026.04 —</p>
+
+</body>
+</html>

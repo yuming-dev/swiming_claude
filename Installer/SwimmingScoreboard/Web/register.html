@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>运动员注册</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'Microsoft YaHei', sans-serif; background: #f1f5f9; padding: 20px; }
+.container { max-width: 700px; margin: 0 auto; }
+h1 { text-align: center; color: #1e293b; margin-bottom: 20px; }
+.card { background: white; border-radius: 8px; padding: 20px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+.card h2 { font-size: 16px; color: #1e293b; margin-bottom: 12px; }
+label { display: block; font-size: 13px; color: #64748b; margin: 8px 0 4px; }
+input, select { width: 100%; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 14px; }
+input[readonly] { background: #f1f5f9; }
+.row { display: flex; gap: 12px; }
+.row > div { flex: 1; }
+.btn { display: inline-block; padding: 10px 20px; border: none; border-radius: 6px; font-size: 14px; font-weight: bold; cursor: pointer; }
+.btn-primary { background: #3b82f6; color: white; }
+.btn-primary:hover { background: #2563eb; }
+.btn-green { background: #22c55e; color: white; }
+.btn-green:hover { background: #16a34a; }
+.btn-purple { background: #8b5cf6; color: white; }
+.btn-purple:hover { background: #7c3aed; }
+.btn-red { background: #ef4444; color: white; font-size: 12px; padding: 4px 10px; }
+.btn-red:hover { background: #dc2626; }
+.btn-gray { background: #64748b; color: white; }
+.btn-gray:hover { background: #475569; }
+.btn-block { display: block; width: 100%; text-align: center; }
+.status { text-align: center; padding: 10px; border-radius: 4px; margin-bottom: 12px; font-size: 14px; display: none; }
+.status.ok { background: #dcfce7; color: #166534; display: block; }
+.status.err { background: #fee2e2; color: #991b1b; display: block; }
+#connStatus { text-align: center; font-size: 12px; color: #94a3b8; margin-bottom: 8px; }
+.event-list { margin: 8px 0; }
+.event-item { display: flex; align-items: center; padding: 8px 12px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 4px; margin-bottom: 4px; }
+.event-item .ev-info { flex: 1; font-size: 14px; }
+.event-item .ev-info .ev-name { font-weight: bold; color: #1e293b; }
+.event-item .ev-info .ev-time { color: #64748b; margin-left: 12px; }
+.event-item .ev-edit { margin-right: 8px; background: #3b82f6; color: white; border: none; padding: 3px 8px; border-radius: 3px; cursor: pointer; font-size: 12px; }
+.sep { border: none; border-top: 1px solid #e2e8f0; margin: 16px 0; }
+.leg-row { display: flex; gap: 8px; align-items: center; margin-bottom: 6px; }
+.leg-row .leg-num { width: 50px; font-size: 13px; color: #64748b; text-align: center; }
+.leg-row input { flex: 1; }
+.submitted-banner { background: #dbeafe; color: #1e40af; padding: 10px; border-radius: 4px; margin-bottom: 12px; font-size: 14px; text-align: center; display: none; }
+.submitted-banner button { margin-left: 12px; }
+</style>
+</head>
+<body>
+<div class="container">
+    <div style="display:flex;justify-content:space-between;align-items:center;">
+        <h1 style="margin:0;">运动员注册</h1>
+        <button class="fullscreen-btn" onclick="goFullScreen()" style="padding:6px 14px;background:#3B82F6;color:white;border:none;border-radius:6px;font-size:13px;cursor:pointer;">全屏</button>
+    </div>
+    <div id="connStatus">连接中...</div>
+    <div id="statusMsg" class="status"></div>
+
+    <!-- 已提交提示 -->
+    <div id="submittedBanner" class="submitted-banner">
+        报名信息已提交成功！
+        <button class="btn btn-gray" onclick="enableEdit()">修改报名信息</button>
+    </div>
+
+    <div class="card" id="personalCard">
+        <h2>个人项目报名</h2>
+        <!-- 运动员基本信息 -->
+        <div class="row">
+            <div><label>姓名</label><input id="name" placeholder="张三"></div>
+            <div><label>性别</label><select id="gender"><option>男</option><option>女</option><option>混合</option></select></div>
+        </div>
+        <div class="row">
+            <div><label>出生日期</label><input id="birthDate" type="date"></div>
+            <div><label>身份证号</label><input id="idNumber" placeholder=""></div>
+        </div>
+        <div class="row">
+            <div><label>代表队</label><input id="country" placeholder="北京队"></div>
+            <div><label>联系电话</label><input id="phone" placeholder=""></div>
+        </div>
+        <div class="row">
+            <div><label>协会注册号</label><input id="csaNumber" placeholder=""></div>
+            <div><label>备注</label><input id="notes" placeholder=""></div>
+        </div>
+
+        <hr class="sep">
+
+        <!-- 参赛项目列表 -->
+        <h2>参赛项目</h2>
+        <div class="event-list" id="eventList"></div>
+
+        <!-- 添加项目 -->
+        <div style="background:#f8fafc;border:1px dashed #cbd5e1;border-radius:4px;padding:12px;margin-top:8px;">
+            <div class="row">
+                <div><label>项目</label>
+                    <select id="event">
+                        <option>50米自由泳</option><option>100米自由泳</option><option>200米自由泳</option>
+                        <option>400米自由泳</option><option>800米自由泳</option><option>1500米自由泳</option>
+                        <option>50米仰泳</option><option>100米仰泳</option><option>200米仰泳</option>
+                        <option>50米蛙泳</option><option>100米蛙泳</option><option>200米蛙泳</option>
+                        <option>50米蝶泳</option><option>100米蝶泳</option><option>200米蝶泳</option>
+                        <option>200米个人混合泳</option><option>400米个人混合泳</option>
+                    </select>
+                </div>
+                <div><label>报名成绩</label><input id="entryTime" placeholder="49.50"></div>
+            </div>
+            <button class="btn btn-purple" style="margin-top:8px;" onclick="addEvent()">+ 添加参赛项目</button>
+        </div>
+
+        <hr class="sep">
+        <button class="btn btn-green btn-block" style="padding:14px;font-size:16px;" onclick="submitAll()">提交全部报名信息</button>
+    </div>
+
+    <div class="card">
+        <h2>接力队报名</h2>
+        <div class="row">
+            <div><label>队名</label><input id="relayTeam" placeholder="北京队"></div>
+            <div><label>性别</label><select id="relayGender"><option>男</option><option>女</option><option>混合</option></select></div>
+        </div>
+        <label>项目</label>
+        <select id="relayEvent">
+            <option>4x100米自由泳接力</option><option>4x200米自由泳接力</option><option>4x100米混合泳接力</option>
+        </select>
+        <label>报名成绩</label>
+        <input id="relayEntryTime" placeholder="3:20.00">
+        <hr class="sep">
+        <label style="font-weight:bold;color:#1e293b;">棒次安排</label>
+        <div class="leg-row"><span class="leg-num">第1棒</span><input id="leg1Name" placeholder="运动员姓名"><input id="leg1Bib" placeholder="参赛号" style="width:80px;flex:none;"></div>
+        <div class="leg-row"><span class="leg-num">第2棒</span><input id="leg2Name" placeholder="运动员姓名"><input id="leg2Bib" placeholder="参赛号" style="width:80px;flex:none;"></div>
+        <div class="leg-row"><span class="leg-num">第3棒</span><input id="leg3Name" placeholder="运动员姓名"><input id="leg3Bib" placeholder="参赛号" style="width:80px;flex:none;"></div>
+        <div class="leg-row"><span class="leg-num">第4棒</span><input id="leg4Name" placeholder="运动员姓名"><input id="leg4Bib" placeholder="参赛号" style="width:80px;flex:none;"></div>
+        <button class="btn btn-green btn-block" style="margin-top:12px;" onclick="registerRelay()">提交接力报名</button>
+    </div>
+</div>
+
+<script>
+var ws, events = [], submitted = false, assignedBib = '';
+
+window.onbeforeunload = function(e) { e.preventDefault(); e.returnValue = ''; return '确定要关闭注册终端？'; };
+
+function goFullScreen() { var el=document.documentElement; if(document.fullscreenElement)return; if(el.requestFullscreen)el.requestFullscreen(); else if(el.webkitRequestFullscreen)el.webkitRequestFullscreen(); else if(el.msRequestFullscreen)el.msRequestFullscreen(); }
+document.addEventListener('fullscreenchange', function() { var btns=document.querySelectorAll('.fullscreen-btn'); for(var i=0;i<btns.length;i++) btns[i].style.display=document.fullscreenElement?'none':''; });
+document.addEventListener('webkitfullscreenchange', function() { var btns=document.querySelectorAll('.fullscreen-btn'); for(var i=0;i<btns.length;i++) btns[i].style.display=document.webkitFullscreenElement?'none':''; });
+
+
+var _connFailCount = 0;
+function getServerHost(forceAsk) {
+    var params = new URLSearchParams(window.location.search);
+    if (params.get('host')) return params.get('host');
+    if (!forceAsk && location.hostname && location.hostname !== '' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') return location.hostname;
+    var saved = localStorage.getItem('swimServerHost');
+    if (!forceAsk && saved) return saved;
+    var def = saved || '192.168.1.100';
+    var ip = prompt('请输入服务器IP地址:', def);
+    if (ip) { localStorage.setItem('swimServerHost', ip); return ip; }
+    return saved || 'localhost';
+}
+function changeServerHost() { _connFailCount = 0; var h = getServerHost(true); if (ws) try { ws.close(); } catch(e) {} connect(); }
+function connect() {
+    var host = getServerHost();
+    ws = new WebSocket('ws://' + host + ':3002');
+    ws.onopen = function() {
+        _connFailCount = 0;
+        ws.send(JSON.stringify({type: 'REGISTER_TERMINAL_IDENTITY'}));
+        document.getElementById('connStatus').textContent = '已连接服务器 ' + host;
+        document.getElementById('connStatus').style.color = '#22c55e';
+    };
+    ws.onclose = function() {
+        document.getElementById('connStatus').textContent = '连接断开，重连中...';
+        document.getElementById('connStatus').style.color = '#ef4444';
+        _connFailCount++;
+        if (_connFailCount >= 3) { _connFailCount = 0; if (confirm('连接失败，是否重新设置服务器地址？')) { changeServerHost(); return; } }
+        setTimeout(connect, 3000);
+    };
+    ws.onmessage = function(e) {
+        try {
+            var msg = JSON.parse(e.data);
+            if (msg.type === 'REGISTER_RESULT') {
+                var ok = msg.data && msg.data.success;
+                if (ok) {
+                    assignedBib = msg.data.bibNumber || assignedBib;
+                    showStatus('报名成功！参赛号: ' + assignedBib, true);
+                    submitted = true;
+                    document.getElementById('submittedBanner').style.display = 'block';
+                    setFormReadonly(true);
+                } else {
+                    showStatus('报名失败: ' + (msg.data.message || '未知错误'), false);
+                }
+            }
+        } catch(ex) {}
+    };
+}
+
+function showStatus(msg, ok) {
+    var el = document.getElementById('statusMsg');
+    el.textContent = msg;
+    el.className = 'status ' + (ok ? 'ok' : 'err');
+    if (ok) setTimeout(function() { el.style.display = 'none'; }, 5000);
+}
+
+function setFormReadonly(readonly) {
+    var inputs = document.getElementById('personalCard').querySelectorAll('input, select, button');
+    for (var i = 0; i < inputs.length; i++) {
+        if (readonly) {
+            inputs[i].disabled = true;
+        } else {
+            inputs[i].disabled = false;
+        }
+    }
+}
+
+function enableEdit() {
+    submitted = false;
+    document.getElementById('submittedBanner').style.display = 'none';
+    setFormReadonly(false);
+}
+
+// ═══════ 参赛项目管理 ═══════
+function addEvent() {
+    var ev = document.getElementById('event').value;
+    var time = document.getElementById('entryTime').value.trim();
+    // 检查重复
+    for (var i = 0; i < events.length; i++) {
+        if (events[i].eventName === ev) {
+            showStatus('已添加此项目，不能重复！', false);
+            return;
+        }
+    }
+    events.push({eventName: ev, entryTime: time});
+    document.getElementById('entryTime').value = '';
+    renderEvents();
+}
+
+function removeEvent(idx) {
+    events.splice(idx, 1);
+    renderEvents();
+}
+
+function renderEvents() {
+    var el = document.getElementById('eventList');
+    if (events.length === 0) {
+        el.innerHTML = '<div style="color:#94a3b8;font-size:13px;padding:8px;">尚未添加参赛项目</div>';
+        return;
+    }
+    var html = '';
+    for (var i = 0; i < events.length; i++) {
+        html += '<div class="event-item">' +
+            '<div class="ev-info"><span class="ev-name">' + events[i].eventName + '</span>' +
+            (events[i].entryTime ? '<span class="ev-time">报名: ' + events[i].entryTime + '</span>' : '') +
+            '</div>' +
+            '<button class="btn-red" onclick="removeEvent(' + i + ')">X 删除此项</button>' +
+            '</div>';
+    }
+    el.innerHTML = html;
+}
+
+function submitAll() {
+    var name = document.getElementById('name').value.trim();
+    if (!name) { showStatus('请输入姓名', false); return; }
+    if (events.length === 0) { showStatus('请至少添加一个参赛项目', false); return; }
+
+    var bd = document.getElementById('birthDate').value;
+    var age = 0;
+    if (bd) {
+        var today = new Date();
+        var birth = new Date(bd);
+        age = today.getFullYear() - birth.getFullYear();
+        if (birth > new Date(today.getFullYear() - age, today.getMonth(), today.getDate())) age--;
+    }
+
+    var baseData = {
+        name: name,
+        gender: document.getElementById('gender').value,
+        age: age,
+        country: document.getElementById('country').value.trim(),
+        idNumber: document.getElementById('idNumber').value.trim(),
+        phone: document.getElementById('phone').value.trim(),
+        birthDate: bd,
+        csaNumber: document.getElementById('csaNumber').value.trim(),
+        notes: document.getElementById('notes').value.trim(),
+        bibNumber: assignedBib
+    };
+
+    // 发送批量注册
+    ws.send(JSON.stringify({
+        type: 'REGISTER_SWIMMER_BATCH',
+        data: {
+            swimmer: baseData,
+            events: events,
+            isResubmit: submitted
+        }
+    }));
+    showStatus('正在提交 ' + events.length + ' 个项目...', true);
+}
+
+// 初始化
+renderEvents();
+
+// ═══════ 接力 ═══════
+function registerRelay() {
+    var team = document.getElementById('relayTeam').value.trim();
+    if (!team) { showStatus('请输入队名', false); return; }
+    var legs = [];
+    for (var i = 1; i <= 4; i++) {
+        var legName = document.getElementById('leg' + i + 'Name').value.trim();
+        var legBib = document.getElementById('leg' + i + 'Bib').value.trim();
+        if (legName) legs.push({legOrder: i, swimmerName: legName, swimmerBibNumber: legBib});
+    }
+    ws.send(JSON.stringify({
+        type: 'REGISTER_RELAY',
+        data: {
+            teamName: team,
+            eventName: document.getElementById('relayEvent').value,
+            gender: document.getElementById('relayGender').value,
+            entryTime: document.getElementById('relayEntryTime').value.trim(),
+            legs: legs
+        }
+    }));
+    showStatus('已提交接力: ' + team + ' (' + legs.length + '人)', true);
+}
+
+connect();
+</script>
+</body>
+</html>
