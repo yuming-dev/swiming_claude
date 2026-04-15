@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Ports;
+using System.Net;
 using System.Net.Sockets;
 using System.Threading;
 
@@ -33,14 +34,19 @@ namespace SwimmingScoreboard
         PushButton3 = 0x09,
         StartingBlock = 0x0A,
         StartCommand = 0x0C,
-        TestCommand = 0x0D
+        TestCommand = 0x0D,
+        // 硬件触发的比赛控制命令
+        HwReady = 0x10,         // 就位
+        HwStart = 0x11,         // 发令（含发令时间戳）
+        HwReset = 0x12          // 计时复位
     }
 
     public enum TimingConnectionMode
     {
         None,
         SerialPort,
-        TcpClient
+        TcpClient,
+        UdpListener
     }
 
     public class TimingBridge : IDisposable
@@ -54,6 +60,7 @@ namespace SwimmingScoreboard
         private SerialPort _serialPort;
         private TcpClient _tcpClient;
         private NetworkStream _tcpStream;
+        private UdpClient _udpClient;
         private Thread _receiveThread;
         private volatile bool _running;
 
@@ -135,12 +142,53 @@ namespace SwimmingScoreboard
             try { if (_serialPort != null && _serialPort.IsOpen) _serialPort.Close(); } catch { }
             try { if (_tcpStream != null) _tcpStream.Close(); } catch { }
             try { if (_tcpClient != null) _tcpClient.Close(); } catch { }
+            try { if (_udpClient != null) _udpClient.Close(); } catch { }
             _serialPort = null;
             _tcpClient = null;
             _tcpStream = null;
+            _udpClient = null;
             ConnectionMode = TimingConnectionMode.None;
             IsConnected = false;
             StatusText = "未连接";
+        }
+
+        // ═══════ UDP监听 ═══════
+        public void ConnectUdp(int port) {
+            Disconnect();
+            try {
+                _udpClient = new UdpClient(port);
+                ConnectionMode = TimingConnectionMode.UdpListener;
+                IsConnected = true;
+                StatusText = string.Format("UDP监听中: 端口 {0}", port);
+                RaiseStatus(StatusText);
+
+                _running = true;
+                _receiveThread = new Thread(UdpReceiveLoop) { IsBackground = true, Name = "TimingUdp" };
+                _receiveThread.Start();
+            } catch (Exception ex) {
+                StatusText = "UDP监听失败: " + ex.Message;
+                RaiseStatus(StatusText);
+                RaiseLog("UDP监听错误: " + ex.Message);
+            }
+        }
+
+        private void UdpReceiveLoop() {
+            List<byte> accumulator = new List<byte>();
+            IPEndPoint remoteEP = new IPEndPoint(IPAddress.Any, 0);
+
+            while (_running && _udpClient != null) {
+                try {
+                    byte[] received = _udpClient.Receive(ref remoteEP);
+                    for (int i = 0; i < received.Length; i++) accumulator.Add(received[i]);
+                    ProcessAccumulator(accumulator);
+                } catch {
+                    if (_running) break;
+                }
+            }
+
+            IsConnected = false;
+            StatusText = "UDP已停止";
+            RaiseStatus(StatusText);
         }
 
         // ═══════ 串口接收循环 ═══════
@@ -245,6 +293,9 @@ namespace SwimmingScoreboard
                 case 0x0A: cmdType = TimingCommandType.StartingBlock; break;
                 case 0x0C: cmdType = TimingCommandType.StartCommand; break;
                 case 0x0D: cmdType = TimingCommandType.TestCommand; break;
+                case 0x10: cmdType = TimingCommandType.HwReady; break;
+                case 0x11: cmdType = TimingCommandType.HwStart; break;
+                case 0x12: cmdType = TimingCommandType.HwReset; break;
                 default:
                     RaiseLog(string.Format("未知命令类型: 0x{0:X2}", cmd0));
                     return;

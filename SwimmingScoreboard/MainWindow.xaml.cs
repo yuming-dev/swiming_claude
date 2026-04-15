@@ -1044,6 +1044,22 @@ namespace SwimmingScoreboard
         }
 
         private void ProcessTimingData(int lane, string cmdType, double timeInSeconds) {
+            // 硬件触发的比赛控制命令：任何状态下都接收
+            switch (cmdType) {
+                case "HwReady":
+                    AddLog("硬件触发: 就位");
+                    Ready_Click(null, null);
+                    return;
+                case "HwStart":
+                    AddLog("硬件触发: 发令");
+                    StartRace_Click(null, null);
+                    return;
+                case "HwReset":
+                    AddLog("硬件触发: 计时复位");
+                    Restart_Click(null, null);
+                    return;
+            }
+
             // Racing状态或Finished状态（延迟关闭期内盲表/手动仍有效）都接收数据
             if (_raceState != RaceState.Racing && _raceState != RaceState.Finished && cmdType != "StartCommand") return;
 
@@ -1055,7 +1071,7 @@ namespace SwimmingScoreboard
 
             switch (cmdType) {
                 case "StartCommand":
-                    // 发令信号已在StartRace中处理
+                    // 发令信号（兼容旧协议）
                     break;
 
                 case "StartingBlock":
@@ -6475,6 +6491,13 @@ namespace SwimmingScoreboard
             int port = 5000;
             if (parts.Length > 1) int.TryParse(parts[1], out port);
             _timingBridge.ConnectTcp(host, port);
+            UpdateConnectionStatus();
+        }
+
+        private void ConnectUdp_Click(object sender, RoutedEventArgs e) {
+            int port = 5001;
+            int.TryParse(UdpPortBox.Text.Trim(), out port);
+            _timingBridge.ConnectUdp(port);
             UpdateConnectionStatus();
         }
 
