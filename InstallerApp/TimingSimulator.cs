@@ -19,12 +19,15 @@ class TimingSimulatorForm : Form
     SerialPort _serial;
     UdpClient _udpSend;
     UdpClient _udpRecv;
+    TcpListener _tcpServer;
+    TcpClient _tcpClient;
+    NetworkStream _tcpStream;
     Thread _recvThread;
     volatile bool _running;
 
     // 控件
     ComboBox cmbConnType, cmbPort, cmbLane;
-    TextBox txtUdpHost, txtUdpSendPort, txtUdpRecvPort, txtTime;
+    TextBox txtUdpHost, txtUdpSendPort, txtUdpRecvPort, txtTcpPort, txtTime;
     Button btnConnect, btnDisconnect;
     Label lblStatus;
     ListBox lstLog;
@@ -36,6 +39,13 @@ class TimingSimulatorForm : Form
     Button btnAutoRace;
     CheckBox chkAutoBlind;
     volatile bool _autoRunning;
+
+    // 时钟
+    Label lblClock, lblClockState;
+    System.Windows.Forms.Timer _clockTimer;
+    DateTime _clockStart;
+    volatile bool _clockRunning;
+    double _clockOffset; // 已累计时间（暂停/恢复用）
 
     public TimingSimulatorForm()
     {
@@ -64,30 +74,31 @@ class TimingSimulatorForm : Form
         Controls.Add(grpConn);
 
         grpConn.Controls.Add(MakeLabel("连接方式:", 15, 25));
-        cmbConnType = new ComboBox { Location = new Point(90, 22), Width = 100, DropDownStyle = ComboBoxStyle.DropDownList };
-        cmbConnType.Items.AddRange(new[] { "串口", "UDP" });
-        cmbConnType.SelectedIndex = 1;
+        cmbConnType = new ComboBox { Location = new Point(90, 22), Width = 110, DropDownStyle = ComboBoxStyle.DropDownList };
+        cmbConnType.Items.AddRange(new[] { "串口", "UDP", "TCP服务器" });
+        cmbConnType.SelectedIndex = 2; // 默认TCP服务器
         cmbConnType.SelectedIndexChanged += (s, e) => ToggleConnUI();
         grpConn.Controls.Add(cmbConnType);
 
-        // 串口
-        grpConn.Controls.Add(MakeLabel("串口:", 210, 25));
-        cmbPort = new ComboBox { Location = new Point(255, 22), Width = 90, DropDownStyle = ComboBoxStyle.DropDownList };
+        // 串口控件
+        grpConn.Controls.Add(MakeLabel("串口:", 220, 25));
+        cmbPort = new ComboBox { Location = new Point(265, 22), Width = 90, DropDownStyle = ComboBoxStyle.DropDownList };
         grpConn.Controls.Add(cmbPort);
-        var btnRefresh = MakeBtn("刷新", 355, 21, 50, 26, Color.FromArgb(71, 85, 105));
+        var btnRefresh = MakeBtn("刷新", 365, 21, 50, 26, Color.FromArgb(71, 85, 105));
         btnRefresh.Click += (s, e) => PopulateComPorts();
         grpConn.Controls.Add(btnRefresh);
 
-        // UDP
-        grpConn.Controls.Add(MakeLabel("目标IP:", 210, 25));
+        // UDP控件
         txtUdpHost = new TextBox { Text = "127.0.0.1", Location = new Point(275, 22), Width = 110, BackColor = Color.FromArgb(30, 41, 59), ForeColor = Color.White, BorderStyle = BorderStyle.FixedSingle };
         grpConn.Controls.Add(txtUdpHost);
-        grpConn.Controls.Add(MakeLabel("发送端口:", 395, 25));
         txtUdpSendPort = new TextBox { Text = "5001", Location = new Point(470, 22), Width = 60, BackColor = Color.FromArgb(30, 41, 59), ForeColor = Color.White, BorderStyle = BorderStyle.FixedSingle };
         grpConn.Controls.Add(txtUdpSendPort);
-        grpConn.Controls.Add(MakeLabel("接收端口:", 540, 25));
         txtUdpRecvPort = new TextBox { Text = "5002", Location = new Point(615, 22), Width = 60, BackColor = Color.FromArgb(30, 41, 59), ForeColor = Color.White, BorderStyle = BorderStyle.FixedSingle };
         grpConn.Controls.Add(txtUdpRecvPort);
+
+        // TCP服务器控件
+        txtTcpPort = new TextBox { Text = "5555", Location = new Point(320, 22), Width = 70, BackColor = Color.FromArgb(30, 41, 59), ForeColor = Color.White, BorderStyle = BorderStyle.FixedSingle };
+        grpConn.Controls.Add(txtTcpPort);
 
         btnConnect = MakeBtn("连接", 15, 58, 100, 32, Color.FromArgb(34, 197, 94));
         btnConnect.Click += (s, e) => DoConnect();
@@ -101,7 +112,7 @@ class TimingSimulatorForm : Form
         lblStatus = new Label { Text = "● 未连接", ForeColor = Color.FromArgb(239, 68, 68), Location = new Point(240, 64), AutoSize = true, Font = new Font("Microsoft YaHei", 10, FontStyle.Bold) };
         grpConn.Controls.Add(lblStatus);
 
-        grpConn.Controls.Add(MakeLabel("协议: SOH(F1) | 'S' | CMD | 00 | Lane | Min | Sec | Cs | Ms | 00 | 00 | EOT(F4)", 15, 98, Color.FromArgb(148, 163, 184), 9));
+        grpConn.Controls.Add(MakeLabel("协议: SOH(F1) | 'S'(53) | CMD | CMD1 | Lane | Min | Sec | Cs | (Hr<<4)|Ms1 | 00 | 00 | EOT(F4)", 15, 98, Color.FromArgb(148, 163, 184), 9));
 
         ToggleConnUI();
 
@@ -109,16 +120,25 @@ class TimingSimulatorForm : Form
         var grpCmd = MakeGroup("比赛控制命令（发送到主服务器）", 10, 150, 360, 130);
         Controls.Add(grpCmd);
 
-        btnReady = MakeBtn("就  位 (0x10)", 15, 25, 150, 38, Color.FromArgb(245, 158, 11));
-        btnReady.Click += (s, e) => SendCommand(0x10, 0, "就位");
+        btnReady = MakeBtn("准备就绪 (0x21)", 15, 25, 150, 38, Color.FromArgb(245, 158, 11));
+        btnReady.Click += (s, e) => {
+            SendCommand(0x21, 0, "准备就绪");
+            if (lblClockState != null) { lblClockState.Text = "■ 就位"; lblClockState.ForeColor = Color.FromArgb(245, 158, 11); }
+        };
         grpCmd.Controls.Add(btnReady);
 
-        btnStart = MakeBtn("发  令 (0x11)", 175, 25, 150, 38, Color.FromArgb(34, 197, 94));
-        btnStart.Click += (s, e) => SendCommand(0x11, 0, "发令");
+        btnStart = MakeBtn("开始计时 (0x1C)", 175, 25, 150, 38, Color.FromArgb(34, 197, 94));
+        btnStart.Click += (s, e) => { SendCommand(0x1C, 0, "开始计时"); StartClock(); };
         grpCmd.Controls.Add(btnStart);
 
-        btnReset = MakeBtn("计时复位 (0x12)", 15, 73, 150, 38, Color.FromArgb(239, 68, 68));
-        btnReset.Click += (s, e) => SendCommand(0x12, 0, "计时复位");
+        btnReset = MakeBtn("计时清零 (0x20)", 15, 73, 150, 38, Color.FromArgb(239, 68, 68));
+        btnReset.Click += (s, e) => {
+            SendCommand(0x20, 0, "计时清零");
+            byte[] rtFrame = BuildFrame(0x7F, 0, 0.0);
+            SendFrame(rtFrame);
+            Log("[发送] 滚动时间 0 (" + FrameToHex(rtFrame) + ")");
+            ResetClock();
+        };
         grpCmd.Controls.Add(btnReset);
 
         // ═══ 计时数据发送 ═══
@@ -136,24 +156,24 @@ class TimingSimulatorForm : Form
         grpData.Controls.Add(txtTime);
         grpData.Controls.Add(MakeLabel("秒", 255, 28));
 
-        btnTouchpad = MakeBtn("触板 (0x06)", 15, 65, 155, 34, Color.FromArgb(59, 130, 246));
-        btnTouchpad.Click += (s, e) => SendTimingData(0x06, "触板");
+        btnTouchpad = MakeBtn("触板 (0x16)", 15, 65, 155, 34, Color.FromArgb(59, 130, 246));
+        btnTouchpad.Click += (s, e) => SendTimingData(0x16, "触板");
         grpData.Controls.Add(btnTouchpad);
 
-        btnStartBlock = MakeBtn("出发台 (0x0A)", 180, 65, 155, 34, Color.FromArgb(124, 58, 237));
-        btnStartBlock.Click += (s, e) => SendTimingData(0x0A, "出发台");
+        btnStartBlock = MakeBtn("出发台 (0x1A)", 180, 65, 155, 34, Color.FromArgb(124, 58, 237));
+        btnStartBlock.Click += (s, e) => SendTimingData(0x1A, "出发台");
         grpData.Controls.Add(btnStartBlock);
 
-        btnBlind1 = MakeBtn("盲表1 (0x07)", 15, 108, 100, 34, Color.FromArgb(100, 116, 139));
-        btnBlind1.Click += (s, e) => SendTimingData(0x07, "盲表1");
+        btnBlind1 = MakeBtn("盲表1 (0x17)", 15, 108, 100, 34, Color.FromArgb(100, 116, 139));
+        btnBlind1.Click += (s, e) => SendTimingData(0x17, "盲表1");
         grpData.Controls.Add(btnBlind1);
 
-        btnBlind2 = MakeBtn("盲表2 (0x08)", 125, 108, 100, 34, Color.FromArgb(100, 116, 139));
-        btnBlind2.Click += (s, e) => SendTimingData(0x08, "盲表2");
+        btnBlind2 = MakeBtn("盲表2 (0x18)", 125, 108, 100, 34, Color.FromArgb(100, 116, 139));
+        btnBlind2.Click += (s, e) => SendTimingData(0x18, "盲表2");
         grpData.Controls.Add(btnBlind2);
 
-        btnBlind3 = MakeBtn("盲表3 (0x09)", 235, 108, 100, 34, Color.FromArgb(100, 116, 139));
-        btnBlind3.Click += (s, e) => SendTimingData(0x09, "盲表3");
+        btnBlind3 = MakeBtn("盲表3 (0x19)", 235, 108, 100, 34, Color.FromArgb(100, 116, 139));
+        btnBlind3.Click += (s, e) => SendTimingData(0x19, "盲表3");
         grpData.Controls.Add(btnBlind3);
 
         // 自动模拟
@@ -193,21 +213,98 @@ class TimingSimulatorForm : Form
         btnClear.Click += (s, e) => lstLog.Items.Clear();
         grpLog.Controls.Add(btnClear);
 
+        // ═══ 时钟 ═══
+        var grpClock = MakeGroup("计时时钟", 380, 540, 370, 110);
+        Controls.Add(grpClock);
+
+        lblClock = new Label {
+            Text = "0:00.00",
+            Font = new Font("Consolas", 32, FontStyle.Bold),
+            ForeColor = Color.FromArgb(34, 197, 94),
+            Location = new Point(10, 20), AutoSize = true
+        };
+        grpClock.Controls.Add(lblClock);
+
+        lblClockState = new Label {
+            Text = "● 待机",
+            Font = new Font("Microsoft YaHei", 10, FontStyle.Bold),
+            ForeColor = Color.FromArgb(148, 163, 184),
+            Location = new Point(260, 45), AutoSize = true
+        };
+        grpClock.Controls.Add(lblClockState);
+
+        var btnClockReset = MakeBtn("清零", 260, 70, 80, 28, Color.FromArgb(71, 85, 105));
+        btnClockReset.Font = new Font("Microsoft YaHei", 9);
+        btnClockReset.Click += (s, e) => ResetClock();
+        grpClock.Controls.Add(btnClockReset);
+
+        _clockTimer = new System.Windows.Forms.Timer { Interval = 10 };
+        _clockTimer.Tick += (s, e) => UpdateClockDisplay();
+
         // ═══ 协议说明 ═══
-        var grpHelp = MakeGroup("协议说明", 10, 540, 740, 110);
+        var grpHelp = MakeGroup("协议说明", 10, 540, 370, 110);
         Controls.Add(grpHelp);
 
         var helpText = new Label {
-            Text = "命令码:  0x06=触板  0x07/08/09=盲表1/2/3  0x0A=出发台  0x0C=发令信号(旧)\n" +
-                   "         0x10=就位  0x11=发令  0x12=计时复位\n" +
-                   "帧格式:  F1 53 CMD 00 Lane Min Sec CentiSec MilliSec 00 00 F4  (12字节)\n" +
-                   "时间字段: Min(分) Sec(秒) CentiSec(百分秒0-99) MilliSec(毫秒0-9)\n" +
-                   "示例:  1:23.456 → Min=1, Sec=23, Cs=45, Ms=6",
+            Text = "命令码(游泳计时通讯协议2023-11-13):\n" +
+                   "  0x16=触板  0x17/18/19=盲表1/2/3  0x1A=出发台  0x1C=开始计时\n" +
+                   "  0x1D=测试  0x20=计时清零  0x21=准备就绪  0x7F=滚动时间\n" +
+                   "帧格式: F1 53 CMD CMD1 Lane Min Sec Cs (Hr<<4)|Ms1 00 00 F4  (12字节)\n" +
+                   "示例: 1:23.456 → Min=1,Sec=23,Cs=45,D8=0x06(Hr=0,Ms1=6)",
             ForeColor = Color.FromArgb(148, 163, 184),
             Font = new Font("Consolas", 9.5f),
             Location = new Point(10, 20), Size = new Size(720, 82)
         };
         grpHelp.Controls.Add(helpText);
+    }
+
+    // ═══════ 时钟方法 ═══════
+    void StartClock()
+    {
+        _clockStart = DateTime.Now;
+        _clockOffset = 0;
+        _clockRunning = true;
+        _clockTimer.Start();
+        if (InvokeRequired) BeginInvoke(new Action(() => {
+            lblClockState.Text = "▶ 计时中";
+            lblClockState.ForeColor = Color.FromArgb(34, 197, 94);
+            lblClock.ForeColor = Color.FromArgb(34, 197, 94);
+        }));
+        else {
+            lblClockState.Text = "▶ 计时中";
+            lblClockState.ForeColor = Color.FromArgb(34, 197, 94);
+            lblClock.ForeColor = Color.FromArgb(34, 197, 94);
+        }
+    }
+
+    void ResetClock()
+    {
+        _clockRunning = false;
+        _clockTimer.Stop();
+        _clockOffset = 0;
+        if (InvokeRequired) BeginInvoke(new Action(() => {
+            lblClock.Text = "0:00.00";
+            lblClock.ForeColor = Color.FromArgb(148, 163, 184);
+            lblClockState.Text = "● 待机";
+            lblClockState.ForeColor = Color.FromArgb(148, 163, 184);
+        }));
+        else {
+            lblClock.Text = "0:00.00";
+            lblClock.ForeColor = Color.FromArgb(148, 163, 184);
+            lblClockState.Text = "● 待机";
+            lblClockState.ForeColor = Color.FromArgb(148, 163, 184);
+        }
+    }
+
+    void UpdateClockDisplay()
+    {
+        if (!_clockRunning) return;
+        double elapsed = (DateTime.Now - _clockStart).TotalSeconds + _clockOffset;
+        int totalCs = (int)(elapsed * 100);
+        int min = totalCs / 6000;
+        int sec = (totalCs % 6000) / 100;
+        int cs = totalCs % 100;
+        lblClock.Text = string.Format("{0}:{1:D2}.{2:D2}", min, sec, cs);
     }
 
     // ═══════ UI 辅助 ═══════
@@ -234,11 +331,15 @@ class TimingSimulatorForm : Form
 
     void ToggleConnUI()
     {
-        bool isUdp = cmbConnType.SelectedIndex == 1;
-        cmbPort.Visible = !isUdp;
-        txtUdpHost.Visible = isUdp;
-        txtUdpSendPort.Visible = isUdp;
-        txtUdpRecvPort.Visible = isUdp;
+        int mode = cmbConnType.SelectedIndex; // 0=串口, 1=UDP, 2=TCP服务器
+        // 串口控件
+        cmbPort.Visible = (mode == 0);
+        // UDP控件
+        txtUdpHost.Visible = (mode == 1);
+        txtUdpSendPort.Visible = (mode == 1);
+        txtUdpRecvPort.Visible = (mode == 1);
+        // TCP服务器控件
+        txtTcpPort.Visible = (mode == 2);
     }
 
     void Log(string msg)
@@ -255,7 +356,8 @@ class TimingSimulatorForm : Form
     {
         DoDisconnect();
         try {
-            if (cmbConnType.SelectedIndex == 0) {
+            int mode = cmbConnType.SelectedIndex;
+            if (mode == 0) {
                 // 串口
                 if (cmbPort.SelectedItem == null) { Log("[错误] 请选择串口"); return; }
                 _serial = new SerialPort(cmbPort.SelectedItem.ToString(), 115200, Parity.None, 8, StopBits.One);
@@ -264,7 +366,7 @@ class TimingSimulatorForm : Form
                 _recvThread = new Thread(SerialRecvLoop) { IsBackground = true };
                 _recvThread.Start();
                 Log("[串口] 已连接: " + cmbPort.SelectedItem);
-            } else {
+            } else if (mode == 1) {
                 // UDP
                 int sendPort, recvPort;
                 int.TryParse(txtUdpSendPort.Text, out sendPort);
@@ -277,11 +379,22 @@ class TimingSimulatorForm : Form
                     _recvThread = new Thread(UdpRecvLoop) { IsBackground = true };
                     _recvThread.Start();
                 } catch { }
-                Log(string.Format("[UDP] 发送→{0}:{1}  接收←{2}", txtUdpHost.Text, sendPort, recvPort));
+                Log(string.Format("[UDP] 发送->{0}:{1}  接收<-{2}", txtUdpHost.Text, sendPort, recvPort));
+            } else {
+                // TCP服务器：模拟器作为服务器，主服务器用"连接TCP"连过来
+                int port = 5555;
+                int.TryParse(txtTcpPort.Text, out port);
+                _tcpServer = new TcpListener(IPAddress.Any, port);
+                _tcpServer.Start();
+                _running = true;
+                _recvThread = new Thread(TcpServerLoop) { IsBackground = true };
+                _recvThread.Start();
+                Log(string.Format("[TCP服务器] 监听端口 {0}，等待主服务器连接...", port));
+                Log("提示: 主服务器 -> 设置 -> TCP地址填 127.0.0.1:" + port + " -> 点击连接TCP");
             }
 
-            lblStatus.Text = "● 已连接";
-            lblStatus.ForeColor = Color.FromArgb(34, 197, 94);
+            lblStatus.Text = mode == 2 ? "● 等待连接..." : "● 已连接";
+            lblStatus.ForeColor = mode == 2 ? Color.FromArgb(245, 158, 11) : Color.FromArgb(34, 197, 94);
             btnConnect.Enabled = false;
             btnDisconnect.Enabled = true;
         } catch (Exception ex) {
@@ -296,7 +409,11 @@ class TimingSimulatorForm : Form
         try { if (_serial != null && _serial.IsOpen) _serial.Close(); } catch { }
         try { if (_udpSend != null) _udpSend.Close(); } catch { }
         try { if (_udpRecv != null) _udpRecv.Close(); } catch { }
+        try { if (_tcpStream != null) _tcpStream.Close(); } catch { }
+        try { if (_tcpClient != null) _tcpClient.Close(); } catch { }
+        try { if (_tcpServer != null) _tcpServer.Stop(); } catch { }
         _serial = null; _udpSend = null; _udpRecv = null;
+        _tcpStream = null; _tcpClient = null; _tcpServer = null;
         lblStatus.Text = "● 未连接";
         lblStatus.ForeColor = Color.FromArgb(239, 68, 68);
         btnConnect.Enabled = true;
@@ -333,6 +450,54 @@ class TimingSimulatorForm : Form
         }
     }
 
+    void TcpServerLoop()
+    {
+        // 等待主服务器连接
+        try {
+            _tcpServer.Server.ReceiveTimeout = 500;
+            while (_running && _tcpClient == null) {
+                try {
+                    if (_tcpServer.Pending()) {
+                        _tcpClient = _tcpServer.AcceptTcpClient();
+                        _tcpStream = _tcpClient.GetStream();
+                        BeginInvoke(new Action(() => {
+                            lblStatus.Text = "● 已连接";
+                            lblStatus.ForeColor = Color.FromArgb(34, 197, 94);
+                        }));
+                        Log("[TCP服务器] 主服务器已连接: " + ((IPEndPoint)_tcpClient.Client.RemoteEndPoint).ToString());
+                    } else {
+                        Thread.Sleep(200);
+                    }
+                } catch { if (_running) Thread.Sleep(200); }
+            }
+        } catch (Exception ex) {
+            Log("[TCP服务器] 监听错误: " + ex.Message);
+            return;
+        }
+
+        // 接收帧（阻塞读，500ms 超时检查 _running）
+        _tcpClient.ReceiveTimeout = 500;
+        var acc = new List<byte>();
+        byte[] buf = new byte[1024];
+        while (_running && _tcpClient != null) {
+            try {
+                int c = _tcpStream.Read(buf, 0, buf.Length);
+                if (c == 0) break;
+                for (int i = 0; i < c; i++) acc.Add(buf[i]);
+                ParseReceived(acc);
+            } catch (System.IO.IOException) {
+                // 超时 — 继续检查 _running
+                if (_running) continue;
+                break;
+            } catch { if (_running) break; }
+        }
+        Log("[TCP服务器] 连接已断开");
+        BeginInvoke(new Action(() => {
+            lblStatus.Text = "● 等待连接...";
+            lblStatus.ForeColor = Color.FromArgb(245, 158, 11);
+        }));
+    }
+
     void ParseReceived(List<byte> acc)
     {
         while (acc.Count >= FRAME_LEN) {
@@ -342,27 +507,61 @@ class TimingSimulatorForm : Form
             if (acc.Count < FRAME_LEN) return;
             if (acc[FRAME_LEN - 1] != EOT || acc[1] != (byte)'S') { acc.RemoveAt(0); continue; }
 
-            byte cmd = acc[2];
+            // 提取完整帧字节
+            byte[] rawFrame = new byte[FRAME_LEN];
+            for (int i = 0; i < FRAME_LEN; i++) rawFrame[i] = acc[i];
+
+            byte cmd  = acc[2];
             byte lane = acc[4];
-            int min = acc[5], sec = acc[6], cs = acc[7], ms = acc[8];
-            double time = min * 60.0 + sec + cs / 100.0 + ms / 1000.0;
+            int min = acc[5], sec = acc[6], cs = acc[7];
+            int hour = (acc[8] >> 4) & 0x0F;
+            int ms1  = acc[8] & 0x0F;   // 1/1000秒个位
+            double time = hour * 3600.0 + min * 60.0 + sec + cs / 100.0 + ms1 / 1000.0;
 
             string cmdName = GetCmdName(cmd);
-            Log(string.Format("[接收] 泳道{0} {1}(0x{2:X2}) {3}", lane, cmdName, cmd, FormatTime(time)));
+            Log(string.Format("[接收] {0} 道{1} {2} ({3})", cmdName, lane, FormatTime(time), FrameToHex(rawFrame)));
+
+            // 驱动时钟
+            switch (cmd) {
+                case 0x21: // 准备就绪
+                    BeginInvoke(new Action(() => {
+                        lblClockState.Text = "■ 就位";
+                        lblClockState.ForeColor = Color.FromArgb(245, 158, 11);
+                    }));
+                    break;
+                case 0x1C: // 开始计时 → 启动时钟
+                    BeginInvoke(new Action(() => StartClock()));
+                    break;
+                case 0x20: // 计时清零 → 清零
+                    BeginInvoke(new Action(() => ResetClock()));
+                    break;
+            }
 
             acc.RemoveRange(0, FRAME_LEN);
         }
     }
 
+    // ═══════ 帧 Hex 显示 ═══════
+    string FrameToHex(byte[] frame)
+    {
+        var sb = new System.Text.StringBuilder();
+        for (int i = 0; i < frame.Length; i++) {
+            if (i > 0) sb.Append(' ');
+            sb.Append(frame[i].ToString("X2"));
+        }
+        return sb.ToString();
+    }
+
     // ═══════ 发送 ═══════
     byte[] BuildFrame(byte cmd, int lane, double timeInSeconds)
     {
-        int totalCs = (int)Math.Round(timeInSeconds * 100);
-        int min = totalCs / 6000;
-        totalCs %= 6000;
-        int sec = totalCs / 100;
-        int cs = totalCs % 100;
-        int ms = (int)((timeInSeconds * 1000) % 10);
+        // D5=分 D6=秒 D7=1/100秒 D8=(小时<<4)|(1/1000秒个位)
+        int totalMs  = (int)Math.Round(timeInSeconds * 1000);
+        int hour     = totalMs / 3600000; totalMs %= 3600000;
+        int min      = totalMs / 60000;   totalMs %= 60000;
+        int sec      = totalMs / 1000;    totalMs %= 1000;
+        int cs       = totalMs / 10;
+        int ms1      = totalMs % 10;      // 1/1000秒个位
 
         byte[] frame = new byte[FRAME_LEN];
         frame[0] = SOH;
@@ -373,9 +572,16 @@ class TimingSimulatorForm : Form
         frame[5] = (byte)min;
         frame[6] = (byte)sec;
         frame[7] = (byte)cs;
-        frame[8] = (byte)ms;
+        frame[8] = (byte)((hour << 4) | ms1);  // 高4位=小时，低4位=1/1000秒个位
         frame[FRAME_LEN - 1] = EOT;
         return frame;
+    }
+
+    // 发送帧并记录完整日志（供自动模拟使用）
+    void SendFrameLog(byte[] frame, string prefix)
+    {
+        SendFrame(frame);
+        Log(string.Format("{0} ({1})", prefix, FrameToHex(frame)));
     }
 
     void SendFrame(byte[] frame)
@@ -385,6 +591,9 @@ class TimingSimulatorForm : Form
                 _serial.Write(frame, 0, frame.Length);
             } else if (_udpSend != null) {
                 _udpSend.Send(frame, frame.Length);
+            } else if (_tcpStream != null) {
+                _tcpStream.Write(frame, 0, frame.Length);
+                _tcpStream.Flush();
             } else {
                 Log("[错误] 未连接");
                 return;
@@ -398,7 +607,7 @@ class TimingSimulatorForm : Form
     {
         byte[] frame = BuildFrame(cmd, lane, 0);
         SendFrame(frame);
-        Log(string.Format("[发送] {0} (0x{1:X2})", desc, cmd));
+        Log(string.Format("[发送] {0} ({1})", desc, FrameToHex(frame)));
     }
 
     void SendTimingData(byte cmd, string desc)
@@ -409,7 +618,7 @@ class TimingSimulatorForm : Form
 
         byte[] frame = BuildFrame(cmd, lane, time);
         SendFrame(frame);
-        Log(string.Format("[发送] 泳道{0} {1}(0x{2:X2}) {3}", lane, desc, cmd, FormatTime(time)));
+        Log(string.Format("[发送] 道{0} {1} {2} ({3})", lane, desc, FormatTime(time), FrameToHex(frame)));
     }
 
     // ═══════ 自动模拟比赛 ═══════
@@ -423,21 +632,19 @@ class TimingSimulatorForm : Form
 
         // 1. 就位
         if (!_autoRunning) return;
-        Log("[自动] 发送就位...");
-        SendFrame(BuildFrame(0x10, 0, 0));
+        SendFrameLog(BuildFrame(0x21, 0, 0), "[自动] 准备就绪");
         Thread.Sleep(2000);
 
         // 2. 发令
         if (!_autoRunning) return;
-        Log("[自动] 发送发令...");
-        SendFrame(BuildFrame(0x11, 0, 0));
+        SendFrameLog(BuildFrame(0x1C, 0, 0), "[自动] 开始计时");
         Thread.Sleep(500);
 
-        // 3. 出发台反应时
-        for (int i = 1; i <= lanes && _autoRunning; i++) {
-            double rt = 0.15 + rng.NextDouble() * 0.45; // 0.15~0.60s
-            SendFrame(BuildFrame(0x0A, i, rt));
-            Log(string.Format("[自动] 道{0} 出发台 反应时={1:F2}s", i, rt));
+        // 3. 出发台反应时（含第0道）
+        for (int i = 0; i <= lanes && _autoRunning; i++) {
+            double rt = 0.15 + rng.NextDouble() * 0.45;
+            var sbFrame = BuildFrame(0x1A, i, rt);
+            SendFrameLog(sbFrame, string.Format("[自动] 道{0} 出发台 反应时={1:F2}s", i, rt));
             Thread.Sleep(50);
         }
 
@@ -445,13 +652,12 @@ class TimingSimulatorForm : Form
         Log("[自动] 等待泳道关闭倒计时...");
         Thread.Sleep(8000);
 
-        // 5. 50米分段（模拟100米比赛）
+        // 5. 50米分段（模拟100米比赛，含第0道）
         if (!_autoRunning) return;
         Log("[自动] ─── 50米分段 ───");
         double[] splitTimes = new double[lanes + 1];
-        // 按随机顺序触碰（模拟不同速度）
         var order = new List<int>();
-        for (int i = 1; i <= lanes; i++) order.Add(i);
+        for (int i = 0; i <= lanes; i++) order.Add(i);
         Shuffle(order, rng);
 
         double baseTime = 24.0 + rng.NextDouble() * 3.0;
@@ -460,18 +666,15 @@ class TimingSimulatorForm : Form
             double t = baseTime + rng.NextDouble() * 4.0;
             splitTimes[i] = t;
 
-            // 触板
-            SendFrame(BuildFrame(0x06, i, t));
-            Log(string.Format("[自动] 道{0} 触板 50m={1}", i, FormatTime(t)));
+            SendFrameLog(BuildFrame(0x16, i, t), string.Format("[自动] 道{0} 触板 50m={1}", i, FormatTime(t)));
 
-            // 盲表（略有偏差）
             if (withBlind) {
                 Thread.Sleep(30);
-                SendFrame(BuildFrame(0x07, i, t + (rng.NextDouble() * 0.06 - 0.03)));
+                SendFrameLog(BuildFrame(0x17, i, t + (rng.NextDouble() * 0.06 - 0.03)), string.Format("[自动] 道{0} 盲表1", i));
                 Thread.Sleep(20);
-                SendFrame(BuildFrame(0x08, i, t + (rng.NextDouble() * 0.06 - 0.03)));
+                SendFrameLog(BuildFrame(0x18, i, t + (rng.NextDouble() * 0.06 - 0.03)), string.Format("[自动] 道{0} 盲表2", i));
                 Thread.Sleep(20);
-                SendFrame(BuildFrame(0x09, i, t + (rng.NextDouble() * 0.06 - 0.03)));
+                SendFrameLog(BuildFrame(0x19, i, t + (rng.NextDouble() * 0.06 - 0.03)), string.Format("[自动] 道{0} 盲表3", i));
             }
 
             Thread.Sleep(200 + rng.Next(500));
@@ -490,16 +693,15 @@ class TimingSimulatorForm : Form
             if (!_autoRunning) return;
             double t = splitTimes[i] + 26.0 + rng.NextDouble() * 5.0;
 
-            SendFrame(BuildFrame(0x06, i, t));
-            Log(string.Format("[自动] 道{0} 触板 100m={1} (终点)", i, FormatTime(t)));
+            SendFrameLog(BuildFrame(0x16, i, t), string.Format("[自动] 道{0} 触板 100m={1} (终点)", i, FormatTime(t)));
 
             if (withBlind) {
                 Thread.Sleep(30);
-                SendFrame(BuildFrame(0x07, i, t + (rng.NextDouble() * 0.06 - 0.03)));
+                SendFrameLog(BuildFrame(0x17, i, t + (rng.NextDouble() * 0.06 - 0.03)), string.Format("[自动] 道{0} 盲表1", i));
                 Thread.Sleep(20);
-                SendFrame(BuildFrame(0x08, i, t + (rng.NextDouble() * 0.06 - 0.03)));
+                SendFrameLog(BuildFrame(0x18, i, t + (rng.NextDouble() * 0.06 - 0.03)), string.Format("[自动] 道{0} 盲表2", i));
                 Thread.Sleep(20);
-                SendFrame(BuildFrame(0x09, i, t + (rng.NextDouble() * 0.06 - 0.03)));
+                SendFrameLog(BuildFrame(0x19, i, t + (rng.NextDouble() * 0.06 - 0.03)), string.Format("[自动] 道{0} 盲表3", i));
             }
 
             Thread.Sleep(300 + rng.Next(800));
@@ -548,15 +750,19 @@ class TimingSimulatorForm : Form
     string GetCmdName(byte cmd)
     {
         switch (cmd) {
-            case 0x06: return "触板";
-            case 0x07: return "盲表1";
-            case 0x08: return "盲表2";
-            case 0x09: return "盲表3";
-            case 0x0A: return "出发台";
-            case 0x0C: return "发令信号";
-            case 0x10: return "就位";
-            case 0x11: return "发令";
-            case 0x12: return "计时复位";
+            case 0x16: return "触板成绩";
+            case 0x17: return "盲表1";
+            case 0x18: return "盲表2";
+            case 0x19: return "盲表3";
+            case 0x1A: return "出发台";
+            case 0x1C: return "开始计时";
+            case 0x1D: return "测试设备";
+            case 0x20: return "计时清零";
+            case 0x21: return "准备就绪";
+            case 0x40: return "设置泳池参数";
+            case 0x41: return "设置比赛距离";
+            case 0x42: return "设置命令";
+            case 0x7F: return "滚动时间";
             default: return string.Format("未知(0x{0:X2})", cmd);
         }
     }

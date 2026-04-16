@@ -235,6 +235,9 @@ namespace SwimmingScoreboard
                     case "REGISTER_RELAY":
                         HandleRegisterRelay(msg);
                         break;
+                    case "CONNECT_HW":
+                        HandleConnectHw(msg);
+                        break;
                     case "TIMING_CMD":
                         HandleTimingCommand(msg);
                         break;
@@ -419,10 +422,19 @@ namespace SwimmingScoreboard
             var data = msg["data"];
 
             switch (cmd) {
-                case "READY": Ready_Click(null, null); break;
-                case "START_RACE": StartRace_Click(null, null); break;
-                case "RESTART": Restart_Click(null, null); break;
-                case "TIMER_RESET": Restart_Click(null, null); break;
+                case "READY":
+                    if (_timingBridge != null && _timingBridge.IsConnected) _timingBridge.SendCommand(0x21);
+                    Ready_Click(null, null);
+                    break;
+                case "START_RACE":
+                    if (_timingBridge != null && _timingBridge.IsConnected) _timingBridge.SendCommand(0x1C);
+                    StartRace_Click(null, null);
+                    break;
+                case "RESTART":
+                case "TIMER_RESET":
+                    if (_timingBridge != null && _timingBridge.IsConnected) _timingBridge.SendCommand(0x20);
+                    Restart_Click(null, null);
+                    break;
                 case "CONFIRM_RESULT": ConfirmResult_Click(null, null); break;
                 case "EXECUTE_PROMOTION":
                     if (data != null) {
@@ -634,6 +646,29 @@ namespace SwimmingScoreboard
             string cmdType = data["commandType"].ToString();
             double time = (double)data["time"];
             ProcessTimingData(lane, cmdType, time);
+        }
+
+        private void HandleConnectHw(JObject msg) {
+            var d = msg["data"];
+            if (d == null) return;
+            string mode = d["mode"] != null ? d["mode"].ToString() : "none";
+            if (mode == "disconnect") {
+                if (_timingBridge != null) { _timingBridge.Disconnect(); UpdateConnectionStatus(); Broadcast(); }
+                return;
+            }
+            if (mode == "serial") {
+                string port = d["port"] != null ? d["port"].ToString() : "COM3";
+                _timingBridge.ConnectSerial(port);
+            } else if (mode == "udp") {
+                int udpPort = d["port"] != null ? (int)d["port"] : 5002;
+                _timingBridge.ConnectUdp(udpPort);
+            } else if (mode == "tcp") {
+                string host = d["host"] != null ? d["host"].ToString() : "127.0.0.1";
+                int port = d["port"] != null ? (int)d["port"] : 5555;
+                _timingBridge.ConnectTcp(host, port);
+            }
+            UpdateConnectionStatus();
+            Broadcast();
         }
 
         private void HandleRemoteControl(JObject msg) {
@@ -866,6 +901,8 @@ namespace SwimmingScoreboard
                     finishPosition = _laneCloseSettings.FinishPosition,
                     firstPlaceHoldTime = _laneCloseSettings.FirstPlaceHoldTime
                 },
+                timingHwConnected = _timingBridge != null && _timingBridge.IsConnected,
+                timingHwStatus = _timingBridge != null ? _timingBridge.StatusText : "未连接",
                 scoringControlMode = _scoringControlMode,
                 resultConfirmed = _resultConfirmed,
                 schedule = _schedule.Select(s => {
@@ -1046,16 +1083,18 @@ namespace SwimmingScoreboard
         private void ProcessTimingData(int lane, string cmdType, double timeInSeconds) {
             // 硬件触发的比赛控制命令：任何状态下都接收
             switch (cmdType) {
-                case "HwReady":
+                case "TimerReady":
                     AddLog("硬件触发: 就位");
                     Ready_Click(null, null);
                     return;
-                case "HwStart":
+                case "StartCommand":
                     AddLog("硬件触发: 发令");
+                    // 若仍在 Waiting 状态，先自动就位再发令，确保定时器能启动
+                    if (_raceState == RaceState.Waiting) Ready_Click(null, null);
                     StartRace_Click(null, null);
                     return;
-                case "HwReset":
-                    AddLog("硬件触发: 计时复位");
+                case "TimerReset":
+                    AddLog("硬件触发: 计时清零");
                     Restart_Click(null, null);
                     return;
             }
@@ -1919,6 +1958,7 @@ namespace SwimmingScoreboard
             }
 
             AddLog("就位");
+            if (sender != null && _timingBridge != null && _timingBridge.IsConnected) _timingBridge.SendCommand(0x21);
             Broadcast();
         }
 
@@ -1966,6 +2006,7 @@ namespace SwimmingScoreboard
             sbTimer.Start();
 
             AddLog("发令 - 比赛开始");
+            if (sender != null && _timingBridge != null && _timingBridge.IsConnected) _timingBridge.SendCommand(0x1C);
             Broadcast();
         }
 
@@ -2057,6 +2098,10 @@ namespace SwimmingScoreboard
             UpdateRaceStateDisplay();
             UpdateLaneStatusDisplay();
             AddLog("计时复位");
+            if (_timingBridge != null && _timingBridge.IsConnected) {
+                _timingBridge.SendCommand(0x20); // 计时清零命令
+                _timingBridge.SendCommand(0x7F); // 滚动时间 = 0
+            }
             Broadcast();
         }
 
@@ -6495,9 +6540,19 @@ namespace SwimmingScoreboard
         }
 
         private void ConnectUdp_Click(object sender, RoutedEventArgs e) {
-            int port = 5001;
-            int.TryParse(UdpPortBox.Text.Trim(), out port);
-            _timingBridge.ConnectUdp(port);
+            int listenPort = 5001;
+            int.TryParse(UdpPortBox.Text.Trim(), out listenPort);
+            string sendHost = null;
+            int sendPort = 0;
+            string sendText = UdpSendBox.Text.Trim();
+            if (!string.IsNullOrEmpty(sendText)) {
+                string[] parts = sendText.Split(':');
+                if (parts.Length == 2) {
+                    sendHost = parts[0];
+                    int.TryParse(parts[1], out sendPort);
+                }
+            }
+            _timingBridge.ConnectUdp(listenPort, sendHost, sendPort);
             UpdateConnectionStatus();
         }
 

@@ -26,19 +26,22 @@ namespace SwimmingScoreboard
         public DateTime ReceivedAt { get; set; }
     }
 
+    // 游泳计时通讯协议 2023-11-13  D2命令字节定义
     public enum TimingCommandType
     {
-        Touchpad = 0x06,
-        PushButton1 = 0x07,
-        PushButton2 = 0x08,
-        PushButton3 = 0x09,
-        StartingBlock = 0x0A,
-        StartCommand = 0x0C,
-        TestCommand = 0x0D,
-        // 硬件触发的比赛控制命令
-        HwReady = 0x10,         // 就位
-        HwStart = 0x11,         // 发令（含发令时间戳）
-        HwReset = 0x12          // 计时复位
+        Touchpad      = 0x16,   // 触板时间成绩   D4=泳道号(0-9终点,10-19另一端)
+        PushButton1   = 0x17,   // 盲表1时间成绩  D4=泳道号
+        PushButton2   = 0x18,   // 盲表2时间成绩  D4=泳道号
+        PushButton3   = 0x19,   // 盲表3时间成绩  D4=泳道号
+        StartingBlock = 0x1A,   // 出发台出发时间 D4=泳道号
+        StartCommand  = 0x1C,   // 发令开始计时
+        TestCommand   = 0x1D,   // 测试设备
+        TimerReset    = 0x20,   // 计时清零
+        TimerReady    = 0x21,   // 准备就绪
+        RunningTime   = 0x7F,   // 滚动时间
+        PoolConfig    = 0x40,   // 设置泳池参数
+        RaceConfig    = 0x41,   // 设置比赛距离参数
+        SetCommand    = 0x42,   // 设置命令
     }
 
     public enum TimingConnectionMode
@@ -61,6 +64,8 @@ namespace SwimmingScoreboard
         private TcpClient _tcpClient;
         private NetworkStream _tcpStream;
         private UdpClient _udpClient;
+        private IPEndPoint _udpSendTarget;   // 配置的UDP发送目标
+        private IPEndPoint _udpLastSender;   // 最后一次收到数据的来源（自动回复）
         private Thread _receiveThread;
         private volatile bool _running;
 
@@ -153,13 +158,20 @@ namespace SwimmingScoreboard
         }
 
         // ═══════ UDP监听 ═══════
-        public void ConnectUdp(int port) {
+        public void ConnectUdp(int listenPort, string sendHost = null, int sendPort = 0) {
             Disconnect();
             try {
-                _udpClient = new UdpClient(port);
+                _udpClient = new UdpClient(listenPort);
+                if (!string.IsNullOrEmpty(sendHost) && sendPort > 0)
+                    _udpSendTarget = new IPEndPoint(IPAddress.Parse(sendHost), sendPort);
+                else
+                    _udpSendTarget = null;
                 ConnectionMode = TimingConnectionMode.UdpListener;
                 IsConnected = true;
-                StatusText = string.Format("UDP监听中: 端口 {0}", port);
+                if (_udpSendTarget != null)
+                    StatusText = string.Format("UDP: 收←{0} 发→{1}:{2}", listenPort, sendHost, sendPort);
+                else
+                    StatusText = string.Format("UDP监听中: 端口 {0}", listenPort);
                 RaiseStatus(StatusText);
 
                 _running = true;
@@ -179,6 +191,7 @@ namespace SwimmingScoreboard
             while (_running && _udpClient != null) {
                 try {
                     byte[] received = _udpClient.Receive(ref remoteEP);
+                    _udpLastSender = remoteEP;  // 记住发送方，用于回复
                     for (int i = 0; i < received.Length; i++) accumulator.Add(received[i]);
                     ProcessAccumulator(accumulator);
                 } catch {
@@ -269,35 +282,41 @@ namespace SwimmingScoreboard
         }
 
         private void ParseFrame(byte[] frame) {
-            // frame[0] = SOH, frame[1] = 'S'
-            // frame[2] = CMD0, frame[3] = CMD1
-            // frame[4] = 控制端口/泳道
-            // frame[5] = 分, frame[6] = 秒, frame[7] = 百毫秒, frame[8] = 毫秒
-            byte cmd0 = frame[2];
-            byte controlPort = frame[4];
-            int minutes = frame[5];
-            int seconds = frame[6];
+            // 游泳计时通讯协议 2023-11-13  12字节帧
+            // D0=0xF1(SOH)  D1=0x53('S')  D2=命令  D3=命令1  D4=命令2/泳道号
+            // D5=分  D6=秒  D7=1/100秒  D8=(小时<<4)|(1/1000秒)  D9=备用  D10=备用  D11=0xF4(EOT)
+            byte cmd  = frame[2];
+            byte cmd1 = frame[3];
+            byte lane = frame[4];   // 0-9=终点泳道, 10-19=另一端泳道(-10)
+            int minutes      = frame[5];
+            int seconds      = frame[6];
             int centiseconds = frame[7];
-            int milliseconds = frame[8];
+            int hour         = (frame[8] >> 4) & 0x0F;
+            int ms1          = frame[8] & 0x0F;   // 1/1000秒个位
 
-            int laneIndex = controlPort < 20 ? _moduleToLane[controlPort] : controlPort;
+            int laneIndex = lane < 20 ? _moduleToLane[lane] : lane;
 
-            double timeInSeconds = minutes * 60.0 + seconds + centiseconds / 100.0 + milliseconds / 1000.0;
+            // 时间：小时*3600 + 分*60 + 秒 + 1/100秒 + 1/1000秒
+            double timeInSeconds = hour * 3600.0 + minutes * 60.0 + seconds
+                                   + centiseconds / 100.0 + ms1 / 1000.0;
 
             TimingCommandType cmdType;
-            switch (cmd0) {
-                case 0x06: cmdType = TimingCommandType.Touchpad; break;
-                case 0x07: cmdType = TimingCommandType.PushButton1; break;
-                case 0x08: cmdType = TimingCommandType.PushButton2; break;
-                case 0x09: cmdType = TimingCommandType.PushButton3; break;
-                case 0x0A: cmdType = TimingCommandType.StartingBlock; break;
-                case 0x0C: cmdType = TimingCommandType.StartCommand; break;
-                case 0x0D: cmdType = TimingCommandType.TestCommand; break;
-                case 0x10: cmdType = TimingCommandType.HwReady; break;
-                case 0x11: cmdType = TimingCommandType.HwStart; break;
-                case 0x12: cmdType = TimingCommandType.HwReset; break;
+            switch (cmd) {
+                case 0x16: cmdType = TimingCommandType.Touchpad;      break;  // 触板时间成绩
+                case 0x17: cmdType = TimingCommandType.PushButton1;   break;  // 盲表1
+                case 0x18: cmdType = TimingCommandType.PushButton2;   break;  // 盲表2
+                case 0x19: cmdType = TimingCommandType.PushButton3;   break;  // 盲表3
+                case 0x1A: cmdType = TimingCommandType.StartingBlock; break;  // 出发台出发时间
+                case 0x1C: cmdType = TimingCommandType.StartCommand;  break;  // 发令开始计时
+                case 0x1D: cmdType = TimingCommandType.TestCommand;   break;  // 测试设备
+                case 0x20: cmdType = TimingCommandType.TimerReset;    break;  // 计时清零
+                case 0x21: cmdType = TimingCommandType.TimerReady;    break;  // 准备就绪
+                case 0x7F: cmdType = TimingCommandType.RunningTime;   break;  // 滚动时间
+                case 0x40: cmdType = TimingCommandType.PoolConfig;    break;  // 泳池参数
+                case 0x41: cmdType = TimingCommandType.RaceConfig;    break;  // 比赛距离参数
+                case 0x42: cmdType = TimingCommandType.SetCommand;    break;  // 设置命令
                 default:
-                    RaiseLog(string.Format("未知命令类型: 0x{0:X2}", cmd0));
+                    RaiseLog(string.Format("未知命令: 0x{0:X2}", cmd));
                     return;
             }
 
@@ -308,11 +327,11 @@ namespace SwimmingScoreboard
                 Minutes = minutes,
                 Seconds = seconds,
                 Centiseconds = centiseconds,
-                Milliseconds = milliseconds,
+                Milliseconds = ms1,
                 ReceivedAt = DateTime.Now
             };
 
-            RaiseLog(string.Format("计时数据: 泳道{0} {1} {2}", laneIndex, cmdType, TimeFormatter.Format(timeInSeconds)));
+            RaiseLog(string.Format("收帧: CMD=0x{0:X2} 泳道{1} {2} {3}", cmd, laneIndex, cmdType, TimeFormatter.Format(timeInSeconds)));
 
             Action<TimingData> handler = OnTimingData;
             if (handler != null) handler(data);
@@ -333,6 +352,13 @@ namespace SwimmingScoreboard
                     _serialPort.Write(frame, 0, frame.Length);
                 } else if (ConnectionMode == TimingConnectionMode.TcpClient && _tcpStream != null) {
                     _tcpStream.Write(frame, 0, frame.Length);
+                } else if (ConnectionMode == TimingConnectionMode.UdpListener && _udpClient != null) {
+                    IPEndPoint target = _udpSendTarget ?? _udpLastSender;
+                    if (target != null) {
+                        _udpClient.Send(frame, frame.Length, target);
+                    } else {
+                        RaiseLog("UDP发送失败: 未知目标地址，请配置UDP发送目标或等待硬件先发送数据");
+                    }
                 }
             } catch (Exception ex) {
                 RaiseLog("发送命令失败: " + ex.Message);

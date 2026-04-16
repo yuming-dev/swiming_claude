@@ -6,6 +6,7 @@ using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Markup;
 using System.Windows.Media;
 using System.Windows.Shapes;
 using System.Windows.Threading;
@@ -26,6 +27,14 @@ namespace RemoteTimingControl
         private int _serverPort = 3002;
         private int _connFailCount = 0;
         private DispatcherTimer _reconnectTimer;
+
+        // 计时硬件直连
+        private TimingBridgeLocal _localBridge;
+        private string _hwMode = "none";       // "none" / "serial" / "udp"
+        private string _hwSerialPort = "COM3";
+        private string _hwUdpHost = "127.0.0.1";
+        private int _hwUdpSendPort = 5001;
+        private int _hwUdpRecvPort = 5002;
 
         // 保存的计时参数（本地缓存，用于设置对话框默认值和持久化）
         private double _laneCloseTime = 20;
@@ -68,8 +77,76 @@ namespace RemoteTimingControl
             LoadSettings();
             ServerBox.Text = _serverHost + ":" + _serverPort;
 
-            // 窗口加载完成后自动连接服务器
-            Loaded += delegate { DoConnect(); };
+            // 窗口加载完成后自动连接服务器 + 硬件
+            Loaded += delegate {
+                DoConnect();
+                if (_hwMode != "none") ConnectHardware(_hwMode, _hwSerialPort, _hwUdpHost, _hwUdpSendPort, _hwUdpRecvPort);
+            };
+        }
+
+        // ═══════ 暗色 ComboBox 模板（WPF 4.0 Aero 主题的 ComboBox 闭合态由主题 ButtonChrome 控制，
+        //   忽略 Background 属性。只有完整替换 ControlTemplate 才能实现深色背景） ═══════
+        private static ControlTemplate BuildDarkComboTemplate() {
+            const string xaml =
+"<ControlTemplate xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation' " +
+"                 xmlns:x='http://schemas.microsoft.com/winfx/2006/xaml' TargetType='ComboBox'>" +
+"  <Grid>" +
+"    <Grid.ColumnDefinitions>" +
+"      <ColumnDefinition Width='*'/>" +
+"      <ColumnDefinition Width='20'/>" +
+"    </Grid.ColumnDefinitions>" +
+"    <Border Grid.ColumnSpan='2' Background='{TemplateBinding Background}'" +
+"            BorderBrush='{TemplateBinding BorderBrush}' BorderThickness='1'/>" +
+"    <ContentPresenter Grid.Column='0' Margin='6,2,2,2'" +
+"                      Content='{TemplateBinding SelectionBoxItem}'" +
+"                      ContentTemplate='{TemplateBinding SelectionBoxItemTemplate}'" +
+"                      IsHitTestVisible='False' VerticalAlignment='Center'" +
+"                      TextBlock.Foreground='{TemplateBinding Foreground}'/>" +
+"    <Path Grid.Column='1' Fill='{TemplateBinding Foreground}'" +
+"          Data='M 0 0 L 4 4 L 8 0 Z'" +
+"          HorizontalAlignment='Center' VerticalAlignment='Center' IsHitTestVisible='False'/>" +
+"    <ToggleButton Grid.ColumnSpan='2' Background='Transparent' BorderThickness='0' Focusable='False'" +
+"                  IsChecked='{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}'>" +
+"      <ToggleButton.Template>" +
+"        <ControlTemplate TargetType='ToggleButton'>" +
+"          <Border Background='Transparent'/>" +
+"        </ControlTemplate>" +
+"      </ToggleButton.Template>" +
+"    </ToggleButton>" +
+"    <Popup Placement='Bottom' IsOpen='{TemplateBinding IsDropDownOpen}'" +
+"           Focusable='False' AllowsTransparency='True' PopupAnimation='Slide'>" +
+"      <Border Background='{TemplateBinding Background}' BorderBrush='{TemplateBinding BorderBrush}'" +
+"              BorderThickness='1' MinWidth='{TemplateBinding ActualWidth}' MaxHeight='240'>" +
+"        <ScrollViewer>" +
+"          <StackPanel IsItemsHost='True' KeyboardNavigation.DirectionalNavigation='Contained'/>" +
+"        </ScrollViewer>" +
+"      </Border>" +
+"    </Popup>" +
+"  </Grid>" +
+"</ControlTemplate>";
+            return (ControlTemplate)XamlReader.Parse(xaml);
+        }
+
+        private static Style BuildDarkComboItemStyle(Brush bg, Brush hoverBg) {
+            var s = new Style(typeof(ComboBoxItem));
+            s.Setters.Add(new Setter(Control.BackgroundProperty, bg));
+            s.Setters.Add(new Setter(Control.ForegroundProperty, Brushes.White));
+            s.Setters.Add(new Setter(Control.PaddingProperty, new Thickness(6, 3, 6, 3)));
+            // 覆写 ComboBoxItem 模板：否则 Aero 主题下选中/悬停色仍然是系统色
+            string itemXaml =
+"<ControlTemplate xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation' " +
+"                 xmlns:x='http://schemas.microsoft.com/winfx/2006/xaml' TargetType='ComboBoxItem'>" +
+"  <Border x:Name='Bd' Background='{TemplateBinding Background}' Padding='{TemplateBinding Padding}'>" +
+"    <ContentPresenter TextBlock.Foreground='{TemplateBinding Foreground}'/>" +
+"  </Border>" +
+"  <ControlTemplate.Triggers>" +
+"    <Trigger Property='IsHighlighted' Value='True'>" +
+"      <Setter TargetName='Bd' Property='Background' Value='#374151'/>" +
+"    </Trigger>" +
+"  </ControlTemplate.Triggers>" +
+"</ControlTemplate>";
+            s.Setters.Add(new Setter(Control.TemplateProperty, (ControlTemplate)XamlReader.Parse(itemXaml)));
+            return s;
         }
 
         // ═══════ 网络地址持久化（参数全部从服务器获取） ═══════
@@ -78,17 +155,36 @@ namespace RemoteTimingControl
             return System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "RemoteTimingServer.txt");
         }
 
+        private string GetHwSettingsPath() {
+            return System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "RemoteTimingHw.json");
+        }
+
         private void LoadSettings()
         {
             try
             {
                 string path = GetSettingsPath();
-                if (!System.IO.File.Exists(path)) return;
-                string addr = System.IO.File.ReadAllText(path, Encoding.UTF8).Trim();
-                if (string.IsNullOrEmpty(addr)) return;
-                string[] parts = addr.Split(':');
-                _serverHost = parts[0];
-                if (parts.Length > 1) int.TryParse(parts[1], out _serverPort);
+                if (System.IO.File.Exists(path)) {
+                    string addr = System.IO.File.ReadAllText(path, Encoding.UTF8).Trim();
+                    if (!string.IsNullOrEmpty(addr)) {
+                        string[] parts = addr.Split(':');
+                        _serverHost = parts[0];
+                        if (parts.Length > 1) int.TryParse(parts[1], out _serverPort);
+                    }
+                }
+            }
+            catch { }
+            try
+            {
+                string hwPath = GetHwSettingsPath();
+                if (System.IO.File.Exists(hwPath)) {
+                    var j = JObject.Parse(System.IO.File.ReadAllText(hwPath, Encoding.UTF8));
+                    if (j["mode"] != null) _hwMode = j["mode"].ToString();
+                    if (j["serialPort"] != null) _hwSerialPort = j["serialPort"].ToString();
+                    if (j["udpHost"] != null) _hwUdpHost = j["udpHost"].ToString();
+                    if (j["udpSendPort"] != null) _hwUdpSendPort = (int)j["udpSendPort"];
+                    if (j["udpRecvPort"] != null) _hwUdpRecvPort = (int)j["udpRecvPort"];
+                }
             }
             catch { }
         }
@@ -97,8 +193,18 @@ namespace RemoteTimingControl
         {
             try
             {
-                string addr = _serverHost + ":" + _serverPort;
-                System.IO.File.WriteAllText(GetSettingsPath(), addr, Encoding.UTF8);
+                System.IO.File.WriteAllText(GetSettingsPath(), _serverHost + ":" + _serverPort, Encoding.UTF8);
+            }
+            catch { }
+            try
+            {
+                var hw = new JObject();
+                hw["mode"] = _hwMode;
+                hw["serialPort"] = _hwSerialPort;
+                hw["udpHost"] = _hwUdpHost;
+                hw["udpSendPort"] = _hwUdpSendPort;
+                hw["udpRecvPort"] = _hwUdpRecvPort;
+                System.IO.File.WriteAllText(GetHwSettingsPath(), hw.ToString(), Encoding.UTF8);
             }
             catch { }
         }
@@ -342,6 +448,44 @@ namespace RemoteTimingControl
         }
 
         // ═══════ 发送命令 ═══════
+        // ═══════ 计时硬件直连 ═══════
+        private void ConnectHardware(string mode, string serialPort, string udpHost, int udpSend, int udpRecv) {
+            if (_localBridge != null) { _localBridge.Dispose(); _localBridge = null; }
+            if (mode == "none") { UpdateHwStatus(false, "未连接"); return; }
+
+            _localBridge = new TimingBridgeLocal();
+            _localBridge.OnStatusChanged += status => Dispatcher.Invoke((Action)(() => UpdateHwStatus(_localBridge.IsConnected, status)));
+            _localBridge.OnLog += msg => Dispatcher.Invoke((Action)(() => AddLog(msg)));
+            _localBridge.OnTimingData += (lane, cmdType, time) => Dispatcher.Invoke((Action)(() => HandleHwTimingData(lane, cmdType, time)));
+
+            if (mode == "serial") _localBridge.ConnectSerial(serialPort);
+            else if (mode == "udp") _localBridge.ConnectUdp(udpHost, udpSend, udpRecv);
+
+            UpdateHwStatus(_localBridge.IsConnected, _localBridge.StatusText);
+        }
+
+        private void HandleHwTimingData(int lane, string cmdType, double time) {
+            switch (cmdType) {
+                case "TimerReady":   SendCmd("READY"); AddLog("[硬件触发] 就位"); return;
+                case "StartCommand": SendCmd("START_RACE"); AddLog("[硬件触发] 发令"); return;
+                case "TimerReset":   SendCmd("TIMER_RESET"); AddLog("[硬件触发] 计时复位"); return;
+                case "TestCommand":  AddLog("[硬件] 测试命令"); return;
+                case "RunningTime":  return; // 滚动时间：由本地计时器显示，硬件数据忽略
+                case "PoolConfig":
+                case "RaceConfig":
+                case "SetCommand":   AddLog("[硬件] 配置命令 " + cmdType); return;
+            }
+            // 计时数据 → 转发给主服务器
+            SendCmd("TIMING_DATA", new { lane = lane, commandType = cmdType, time = time });
+        }
+
+        private void UpdateHwStatus(bool connected, string text) {
+            HwConn.Fill = new SolidColorBrush(connected
+                ? (Color)ColorConverter.ConvertFromString("#22C55E")
+                : (Color)ColorConverter.ConvertFromString("#EF4444"));
+            HwConnText.Text = connected ? "硬件: " + text : "硬件";
+        }
+
         private void SendCmd(string cmd, object data)
         {
             if (_ws == null || !_ws.IsConnected)
@@ -1541,12 +1685,14 @@ namespace RemoteTimingControl
         private void Ready_Click(object sender, RoutedEventArgs e)
         {
             SendCmd("READY");
+            if (_localBridge != null && _localBridge.IsConnected) _localBridge.SendCommand(0x21);
             AddLog("就位");
         }
 
         private void Start_Click(object sender, RoutedEventArgs e)
         {
             SendCmd("START_RACE");
+            if (_localBridge != null && _localBridge.IsConnected) _localBridge.SendCommand(0x1C);
             AddLog("发令");
         }
 
@@ -1558,6 +1704,10 @@ namespace RemoteTimingControl
             if (result == MessageBoxResult.Yes)
             {
                 SendCmd("TIMER_RESET");
+                if (_localBridge != null && _localBridge.IsConnected) {
+                    _localBridge.SendCommand(0x20); // 计时清零命令
+                    _localBridge.SendCommand(0x7F); // 滚动时间 = 0
+                }
                 AddLog("计时复位");
             }
         }
@@ -1936,6 +2086,108 @@ namespace RemoteTimingControl
             serverSep.Child = serverRow;
             sp.Children.Add(serverSep);
 
+            // ── 计时硬件直连 ──
+            var hwSep = new Border { BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569")), BorderThickness = new Thickness(0, 1, 0, 0), Margin = new Thickness(0, 10, 0, 0), Padding = new Thickness(0, 10, 0, 0) };
+            var hwStack = new StackPanel();
+            hwStack.Children.Add(new TextBlock { Text = "计时硬件直连", Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#38BDF8")), FontSize = 14, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 0, 0, 8) });
+
+            // 模式选择
+            var hwModeRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) };
+            hwModeRow.Children.Add(new TextBlock { Text = "连接方式:", Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), FontSize = 13, VerticalAlignment = VerticalAlignment.Center, Width = 70 });
+            // 暗灰色 ComboBox：WPF 4.0 Aero 主题的 ComboBox 闭合态由模板的 ButtonChrome 渲染，
+            // 忽略 Background 属性，必须完整替换 ControlTemplate 才能生效
+            var darkBg = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1F2937"));
+            var darkBgHover = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#374151"));
+            var darkBorder = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569"));
+            var darkCombo = BuildDarkComboTemplate();
+            var cmbItemStyle = BuildDarkComboItemStyle(darkBg, darkBgHover);
+            var cmbHwMode = new ComboBox {
+                Width = 100, Padding = new Thickness(6, 2, 4, 2),
+                Background = darkBg, Foreground = Brushes.White, BorderBrush = darkBorder,
+                FontSize = 13, ItemContainerStyle = cmbItemStyle, Template = darkCombo
+            };
+            cmbHwMode.Items.Add("不连接");
+            cmbHwMode.Items.Add("串口");
+            cmbHwMode.Items.Add("UDP");
+            cmbHwMode.SelectedIndex = _hwMode == "serial" ? 1 : (_hwMode == "udp" ? 2 : 0);
+            hwModeRow.Children.Add(cmbHwMode);
+            hwStack.Children.Add(hwModeRow);
+
+            // 串口参数面板
+            var serialPanel = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) };
+            serialPanel.Children.Add(new TextBlock { Text = "串口:", Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), FontSize = 13, VerticalAlignment = VerticalAlignment.Center, Width = 40 });
+            var cmbSerialPort = new ComboBox {
+                Width = 90, Padding = new Thickness(6, 2, 4, 2),
+                Background = darkBg, Foreground = Brushes.White, BorderBrush = darkBorder,
+                FontSize = 13, ItemContainerStyle = cmbItemStyle, Template = BuildDarkComboTemplate()
+            };
+            foreach (string p in System.IO.Ports.SerialPort.GetPortNames()) cmbSerialPort.Items.Add(p);
+            if (cmbSerialPort.Items.Count == 0) cmbSerialPort.Items.Add("COM3");
+            cmbSerialPort.Text = _hwSerialPort;
+            serialPanel.Children.Add(cmbSerialPort);
+            var btnRefreshPorts = new Button { Content = "刷新", Padding = new Thickness(6, 2, 6, 2), Margin = new Thickness(6, 0, 0, 0), Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569")), Foreground = Brushes.White, BorderThickness = new Thickness(0), FontSize = 12 };
+            btnRefreshPorts.Click += delegate { cmbSerialPort.Items.Clear(); foreach (string p in System.IO.Ports.SerialPort.GetPortNames()) cmbSerialPort.Items.Add(p); };
+            serialPanel.Children.Add(btnRefreshPorts);
+            hwStack.Children.Add(serialPanel);
+
+            // UDP参数面板
+            var udpPanel = new StackPanel { Margin = new Thickness(0, 0, 0, 8) };
+            var udpRow1 = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 4) };
+            udpRow1.Children.Add(new TextBlock { Text = "目标IP:", Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), FontSize = 13, VerticalAlignment = VerticalAlignment.Center, Width = 55 });
+            var tbUdpHost = new TextBox { Text = _hwUdpHost, Width = 120, Padding = new Thickness(4, 2, 4, 2), Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#334155")), Foreground = Brushes.White, BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569")), FontSize = 13 };
+            udpRow1.Children.Add(tbUdpHost);
+            var udpRow2 = new StackPanel { Orientation = Orientation.Horizontal };
+            udpRow2.Children.Add(new TextBlock { Text = "发送:", Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), FontSize = 13, VerticalAlignment = VerticalAlignment.Center, Width = 55 });
+            var tbUdpSend = new TextBox { Text = _hwUdpSendPort.ToString(), Width = 60, Padding = new Thickness(4, 2, 4, 2), Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#334155")), Foreground = Brushes.White, BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569")), FontSize = 13 };
+            udpRow2.Children.Add(tbUdpSend);
+            udpRow2.Children.Add(new TextBlock { Text = " 接收:", Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), FontSize = 13, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 0, 0) });
+            var tbUdpRecv = new TextBox { Text = _hwUdpRecvPort.ToString(), Width = 60, Padding = new Thickness(4, 2, 4, 2), Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#334155")), Foreground = Brushes.White, BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569")), FontSize = 13 };
+            udpRow2.Children.Add(tbUdpRecv);
+            udpPanel.Children.Add(udpRow1);
+            udpPanel.Children.Add(udpRow2);
+            hwStack.Children.Add(udpPanel);
+
+            // 模式切换可见性
+            Action updateHwPanels = () => {
+                serialPanel.Visibility = cmbHwMode.SelectedIndex == 1 ? Visibility.Visible : Visibility.Collapsed;
+                udpPanel.Visibility = cmbHwMode.SelectedIndex == 2 ? Visibility.Visible : Visibility.Collapsed;
+            };
+            cmbHwMode.SelectionChanged += (s2, e2) => updateHwPanels();
+            updateHwPanels();
+
+            // 连接/断开按钮 + 状态
+            var hwBtnRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 0) };
+            var btnHwConnect = new Button { Content = "连接硬件", Padding = new Thickness(12, 4, 12, 4), Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#22C55E")), Foreground = Brushes.White, BorderThickness = new Thickness(0), FontSize = 13, FontWeight = FontWeights.Bold };
+            var btnHwDisconnect = new Button { Content = "断开", Padding = new Thickness(10, 4, 10, 4), Margin = new Thickness(8, 0, 0, 0), Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EF4444")), Foreground = Brushes.White, BorderThickness = new Thickness(0), FontSize = 13 };
+            var lblHwStatus = new TextBlock { Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), FontSize = 12, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 0, 0),
+                Text = _localBridge != null && _localBridge.IsConnected ? "● " + _localBridge.StatusText : "● 未连接" };
+            btnHwConnect.Click += delegate {
+                string modeStr = cmbHwMode.SelectedIndex == 1 ? "serial" : (cmbHwMode.SelectedIndex == 2 ? "udp" : "none");
+                _hwMode = modeStr; _hwSerialPort = cmbSerialPort.Text.Trim();
+                _hwUdpHost = tbUdpHost.Text.Trim();
+                int.TryParse(tbUdpSend.Text, out _hwUdpSendPort);
+                int.TryParse(tbUdpRecv.Text, out _hwUdpRecvPort);
+                ConnectHardware(_hwMode, _hwSerialPort, _hwUdpHost, _hwUdpSendPort, _hwUdpRecvPort);
+                SaveSettings();
+                lblHwStatus.Text = _localBridge != null && _localBridge.IsConnected ? "● " + _localBridge.StatusText : "● 连接失败";
+                lblHwStatus.Foreground = new SolidColorBrush(_localBridge != null && _localBridge.IsConnected
+                    ? (Color)ColorConverter.ConvertFromString("#22C55E")
+                    : (Color)ColorConverter.ConvertFromString("#EF4444"));
+            };
+            btnHwDisconnect.Click += delegate {
+                _hwMode = "none";
+                ConnectHardware("none", "", "", 0, 0);
+                SaveSettings();
+                lblHwStatus.Text = "● 未连接";
+                lblHwStatus.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8"));
+            };
+            hwBtnRow.Children.Add(btnHwConnect);
+            hwBtnRow.Children.Add(btnHwDisconnect);
+            hwBtnRow.Children.Add(lblHwStatus);
+            hwStack.Children.Add(hwBtnRow);
+            hwSep.Child = hwStack;
+            sp.Children.Add(hwSep);
+
             // 设备状态管理按钮
             var deviceSep = new Border { BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569")), BorderThickness = new Thickness(0, 1, 0, 0), Margin = new Thickness(0, 10, 0, 0), Padding = new Thickness(0, 10, 0, 0) };
             var btnDeviceMgr = new Button { Content = "设备状态管理", Padding = new Thickness(0, 8, 0, 8), FontSize = 14, FontWeight = FontWeights.Bold, Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#8B5CF6")), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
@@ -2307,6 +2559,7 @@ namespace RemoteTimingControl
             if (_refreshTimer != null) _refreshTimer.Stop();
             if (_reconnectTimer != null) _reconnectTimer.Stop();
             if (_ws != null) _ws.Close();
+            if (_localBridge != null) { _localBridge.Dispose(); _localBridge = null; }
         }
     }
 }

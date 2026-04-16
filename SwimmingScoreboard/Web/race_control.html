@@ -197,6 +197,41 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
             <input id="dlgServerHost" value="" style="flex:1;">
             <button style="padding:4px 12px;background:#3B82F6;color:white;border:none;border-radius:4px;cursor:pointer;font-size:12px;margin-left:4px;" onclick="applyServerHost()">连接</button>
         </div>
+        <!-- 计时硬件连接 -->
+        <div style="margin-top:10px;padding-top:10px;border-top:1px solid #475569;">
+            <div style="color:#38BDF8;font-size:14px;font-weight:bold;margin-bottom:8px;">计时硬件连接（由服务器代理）</div>
+            <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;">
+                <label style="color:#94A3B8;font-size:13px;width:60px;">连接方式</label>
+                <select id="dlgHwMode" style="background:#334155;color:white;border:1px solid #475569;padding:3px 6px;font-size:13px;" onchange="toggleHwPanels()">
+                    <option value="none">不连接</option>
+                    <option value="serial">串口</option>
+                    <option value="udp">UDP</option>
+                    <option value="tcp">TCP客户端</option>
+                </select>
+            </div>
+            <div id="hwSerialPanel" style="display:none;align-items:center;gap:6px;margin-bottom:6px;">
+                <label style="color:#94A3B8;font-size:13px;width:60px;">串口</label>
+                <input id="dlgHwPort" value="COM3" style="background:#334155;color:white;border:1px solid #475569;padding:3px 6px;font-size:13px;width:80px;">
+            </div>
+            <div id="hwUdpPanel" style="display:none;flex-direction:column;gap:4px;margin-bottom:6px;">
+                <div style="display:flex;align-items:center;gap:6px;">
+                    <label style="color:#94A3B8;font-size:13px;width:60px;">接收端口</label>
+                    <input id="dlgHwUdpPort" value="5002" style="background:#334155;color:white;border:1px solid #475569;padding:3px 6px;font-size:13px;width:70px;">
+                </div>
+            </div>
+            <div id="hwTcpPanel" style="display:none;flex-direction:column;gap:4px;margin-bottom:6px;">
+                <div style="display:flex;align-items:center;gap:6px;">
+                    <label style="color:#94A3B8;font-size:13px;width:60px;">TCP地址</label>
+                    <input id="dlgHwTcpHost" value="127.0.0.1" style="background:#334155;color:white;border:1px solid #475569;padding:3px 6px;font-size:13px;width:110px;">
+                    <input id="dlgHwTcpPort" value="5555" style="background:#334155;color:white;border:1px solid #475569;padding:3px 6px;font-size:13px;width:60px;">
+                </div>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;">
+                <button style="padding:5px 14px;background:#22C55E;color:white;border:none;border-radius:4px;cursor:pointer;font-size:13px;font-weight:bold;" onclick="connectHwFromDialog()">连接硬件</button>
+                <button style="padding:5px 12px;background:#EF4444;color:white;border:none;border-radius:4px;cursor:pointer;font-size:13px;" onclick="disconnectHw()">断开</button>
+                <span id="dlgHwStatus" style="color:#94A3B8;font-size:12px;">● 未连接</span>
+            </div>
+        </div>
         <div style="margin-top:10px;padding-top:10px;border-top:1px solid #475569;">
             <button style="width:100%;padding:8px;background:#8B5CF6;color:white;border:none;border-radius:6px;cursor:pointer;font-size:14px;font-weight:bold;" onclick="closeSettings();openDeviceManager();">设备状态管理</button>
             <button style="width:100%;padding:8px;background:#0EA5E9;color:white;border:none;border-radius:6px;cursor:pointer;font-size:14px;font-weight:bold;margin-top:6px;" onmousedown="closeSettings();openManualButtonManager();">手动按键管理</button>
@@ -586,6 +621,20 @@ function render() {
         }
     }
 
+    // 硬件连接状态指示灯
+    var hwDot = document.getElementById('hwConn');
+    if (hwDot) {
+        hwDot.className = data.timingHwConnected ? 'conn-dot on' : 'conn-dot off';
+        var hwSpan = hwDot.nextElementSibling;
+        if (hwSpan) hwSpan.textContent = data.timingHwConnected ? ('硬件: ' + (data.timingHwStatus||'')) : '硬件';
+    }
+    // 同步设置弹窗内的硬件状态
+    var dlgHwSt = document.getElementById('dlgHwStatus');
+    if (dlgHwSt) {
+        dlgHwSt.textContent = data.timingHwConnected ? ('● ' + (data.timingHwStatus||'已连接')) : '● 未连接';
+        dlgHwSt.style.color = data.timingHwConnected ? '#22C55E' : '#94A3B8';
+    }
+
     renderScheduleTree();
     renderHeader();
     renderLanes();
@@ -800,6 +849,37 @@ function openSettings() {
 
 function closeSettings() {
     document.getElementById('settingsModal').classList.add('hidden');
+}
+
+function toggleHwPanels() {
+    var mode = document.getElementById('dlgHwMode').value;
+    document.getElementById('hwSerialPanel').style.display = mode === 'serial' ? 'flex' : 'none';
+    document.getElementById('hwUdpPanel').style.display = mode === 'udp' ? 'flex' : 'none';
+    document.getElementById('hwTcpPanel').style.display = mode === 'tcp' ? 'flex' : 'none';
+}
+
+function connectHwFromDialog() {
+    var mode = document.getElementById('dlgHwMode').value;
+    var payload = { mode: mode };
+    if (mode === 'serial') {
+        payload.port = document.getElementById('dlgHwPort').value;
+    } else if (mode === 'udp') {
+        payload.port = parseInt(document.getElementById('dlgHwUdpPort').value) || 5002;
+    } else if (mode === 'tcp') {
+        payload.host = document.getElementById('dlgHwTcpHost').value;
+        payload.port = parseInt(document.getElementById('dlgHwTcpPort').value) || 5555;
+    }
+    if (!ws || ws.readyState !== 1) { alert('请先连接服务器'); return; }
+    ws.send(JSON.stringify({ type: 'CONNECT_HW', data: payload }));
+    document.getElementById('dlgHwStatus').textContent = '● 连接中...';
+    document.getElementById('dlgHwStatus').style.color = '#F59E0B';
+}
+
+function disconnectHw() {
+    if (!ws || ws.readyState !== 1) return;
+    ws.send(JSON.stringify({ type: 'CONNECT_HW', data: { mode: 'disconnect' } }));
+    document.getElementById('dlgHwStatus').textContent = '● 已断开';
+    document.getElementById('dlgHwStatus').style.color = '#94A3B8';
 }
 
 function confirmResult() {
