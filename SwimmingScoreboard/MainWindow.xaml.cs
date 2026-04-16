@@ -1054,6 +1054,56 @@ namespace SwimmingScoreboard
                 });
             }
 
+            // 为空泳道（无运动员或无当前组）添加占位，使客户端总能显示全部泳道
+            var assignedLanes = new HashSet<int>();
+            foreach (var o in swimmerData) {
+                try { assignedLanes.Add((int)((dynamic)o).lane); } catch { }
+            }
+            if (_poolConfig.LaneNumbers != null) {
+                foreach (int ln in _poolConfig.LaneNumbers) {
+                    if (assignedLanes.Contains(ln)) continue;
+                    var ls = _laneDeviceStates.FirstOrDefault(s => s.Lane == ln);
+                    swimmerData.Add(new {
+                        lane = ln,
+                        name = "", country = "", bibNumber = "", entryTime = "",
+                        direction = ls != null ? ls.Direction : "",
+                        deviceStatus = new {
+                            leftTouchpad = "closed", leftBlindWatch1 = "closed",
+                            leftBlindWatch2 = "closed", leftBlindWatch3 = "closed",
+                            leftStartBlock = "closed",
+                            rightTouchpad = "closed", rightBlindWatch1 = "closed",
+                            rightBlindWatch2 = "closed", rightBlindWatch3 = "closed",
+                            rightStartBlock = "closed",
+                            leftTouchpadBroken = false, leftBlindWatch1Broken = false,
+                            leftBlindWatch2Broken = false, leftBlindWatch3Broken = false,
+                            leftStartBlockBroken = false,
+                            rightTouchpadBroken = false, rightBlindWatch1Broken = false,
+                            rightBlindWatch2Broken = false, rightBlindWatch3Broken = false,
+                            rightStartBlockBroken = false
+                        },
+                        manualButton = new {
+                            leftEnabled = false, rightEnabled = false,
+                            leftStatus = "closed", rightStatus = "closed"
+                        },
+                        laneCloseCountdown = 0.0,
+                        reactionTime = "",
+                        splits = new List<object>(),
+                        finalTime = "",
+                        rank = 0,
+                        status = "EMPTY",         // 空泳道标记（客户端以此区别）
+                        timingSources = (object)null,
+                        isFalseStart = false,
+                        isNewRecord = false,
+                        currentLap = 0,
+                        isFinished = false,
+                        leftTouchRemain = "",
+                        rightTouchRemain = ""
+                    });
+                }
+            }
+            // 按泳道号排序（空泳道正确插入对应位置）
+            swimmerData = swimmerData.OrderBy(o => { try { return (int)((dynamic)o).lane; } catch { return 0; } }).ToList();
+
             // 项目总排名
             var eventRanking = GetEventRanking(_currentEvent, _currentGender);
             var teamScoresData = _teamScores.OrderBy(t => t.Rank).Select(t => new {
@@ -1134,6 +1184,18 @@ namespace SwimmingScoreboard
                     date = r.Date, location = r.Location
                 }).ToList()
             };
+        }
+
+        // 判断泳道是否参赛：有运动员 且 状态不是 DNS/DNF/DSQ
+        private bool IsLaneParticipating(int lane) {
+            var swimmers = GetCurrentHeatSwimmers();
+            var sw = swimmers.FirstOrDefault(s => {
+                var sa = s.GetAssignmentForStage(_currentStage);
+                return (sa != null ? sa.Lane : s.Lane) == lane;
+            });
+            if (sw == null) return false;
+            string st = sw.Status ?? "";
+            return st != "DNS" && st != "DNF" && st != "DSQ";
         }
 
         private List<Swimmer> GetCurrentHeatSwimmers() {
@@ -1294,6 +1356,12 @@ namespace SwimmingScoreboard
 
             // Racing状态或Finished状态（延迟关闭期内盲表/手动仍有效）都接收数据
             if (_raceState != RaceState.Racing && _raceState != RaceState.Finished && cmdType != "StartCommand") return;
+
+            // 空泳道或 DNS/DNF/DSQ 泳道：整条泳道关闭，不记录也不处理任何计时数据
+            if (!IsLaneParticipating(lane)) {
+                AddLog(string.Format("泳道{0} 数据丢弃（空泳道或未参赛）: {1}", lane, cmdType));
+                return;
+            }
 
             // 记录原始数据
             LogRawTimingData(lane, cmdType, timeInSeconds);
@@ -2086,6 +2154,8 @@ namespace SwimmingScoreboard
                     state.LaneCloseCountdown -= 0.1;
                     if (state.LaneCloseCountdown <= 0) {
                         state.LaneCloseCountdown = 0;
+                        // 空泳道或 DNS/DNF/DSQ 运动员：不自动打开任何设备
+                        if (!IsLaneParticipating(state.Lane)) { changed = true; continue; }
                         // 打开运动员即将到达端的触板和盲表
                         bool arriveRight = state.Direction == "→";
                         if (arriveRight) {
@@ -2866,27 +2936,42 @@ namespace SwimmingScoreboard
 
             var currentSwimmers = GetCurrentHeatSwimmers();
 
-            // 构造本次数据的key（运动员列表变化时需要重建UI）
-            string key = _currentGender + "|" + _currentEvent + "|" + _currentStage + "|" + _currentHeat + "|" + currentSwimmers.Count;
-            foreach (var sw in currentSwimmers) key += "|" + sw.Name + ":" + sw.Lane;
+            // 为所有泳道建立 lane→swimmer 映射（空泳道 swimmer 为 null）
+            var laneSwimmerMap = new Dictionary<int, Swimmer>();
+            foreach (var sw in currentSwimmers) {
+                var sa = sw.GetAssignmentForStage(_currentStage);
+                int ln = sa != null ? sa.Lane : sw.Lane;
+                if (!laneSwimmerMap.ContainsKey(ln)) laneSwimmerMap[ln] = sw;
+            }
+            var allPoolLanes = (_poolConfig.LaneNumbers ?? new List<int>()).ToList();
+            allPoolLanes.Sort();
+
+            // 构造本次数据的key（运动员列表或泳道集合变化时需要重建UI）
+            string key = _currentGender + "|" + _currentEvent + "|" + _currentStage + "|" + _currentHeat + "|" + allPoolLanes.Count + "|" + currentSwimmers.Count;
+            foreach (int ln in allPoolLanes) {
+                Swimmer lsw;
+                laneSwimmerMap.TryGetValue(ln, out lsw);
+                key += "|" + ln + ":" + (lsw != null ? lsw.Name : "(empty)");
+            }
 
             if (key != _laneRowsBuiltKey) {
                 RenderPoolHeader();
-                BuildLaneRows(currentSwimmers);
+                BuildLaneRows(allPoolLanes, laneSwimmerMap);
                 _laneRowsBuiltKey = key;
             }
             RefreshLaneRows(currentSwimmers);
             UpdateTimingSourceInfo();
         }
 
-        private void BuildLaneRows(List<Swimmer> currentSwimmers) {
+        private void BuildLaneRows(List<int> allPoolLanes, Dictionary<int, Swimmer> laneSwimmerMap) {
             LanePanel.Children.Clear();
             _laneRowUIs.Clear();
             bool isRelay = _isRelay;
 
-            foreach (var sw in currentSwimmers) {
-                var stageAssign = sw.GetAssignmentForStage(_currentStage);
-                int lane = stageAssign != null ? stageAssign.Lane : sw.Lane;
+            foreach (int ln in allPoolLanes) {
+                int lane = ln;
+                Swimmer sw;
+                laneSwimmerMap.TryGetValue(lane, out sw);
                 var rowUI = new LaneRowUI { Lane = lane, Swimmer = sw };
 
                 var row = new Border {
@@ -2937,8 +3022,17 @@ namespace SwimmingScoreboard
                 // Col 3: 姓名 + 进度条
                 var midPanel = new DockPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 6, 0) };
                 var infoStack = new StackPanel { Width = 120 };
-                string dispName = isRelay && !string.IsNullOrEmpty(sw.Notes) && sw.Notes.StartsWith("接力队 棒次:") ? sw.Country : sw.Name;
-                string dispTeam = isRelay ? "" : (sw.Country ?? "");
+                string dispName;
+                string dispTeam;
+                if (sw == null) {
+                    // 空泳道
+                    dispName = "（空泳道）";
+                    dispTeam = "";
+                    row.Opacity = 0.35;   // 整行淡化
+                } else {
+                    dispName = isRelay && !string.IsNullOrEmpty(sw.Notes) && sw.Notes.StartsWith("接力队 棒次:") ? sw.Country : sw.Name;
+                    dispTeam = isRelay ? "" : (sw.Country ?? "");
+                }
                 infoStack.Children.Add(new TextBlock { Text = dispName ?? "", FontWeight = FontWeights.Bold, Foreground = Brushes.White, FontSize = 14 });
                 if (!string.IsNullOrEmpty(dispTeam)) infoStack.Children.Add(new TextBlock { Text = dispTeam, Foreground = _brushMutedText, FontSize = 12 });
                 DockPanel.SetDock(infoStack, Dock.Left); midPanel.Children.Add(infoStack);
@@ -3052,16 +3146,34 @@ namespace SwimmingScoreboard
             bool leftStart = _laneCloseSettings.StartPosition == "left";
 
             // 实时分段名次
-            var liveRanks = ComputeLiveRanks(_laneRowUIs.Select(r => r.Swimmer));
+            var liveRanks = ComputeLiveRanks(_laneRowUIs.Select(r => r.Swimmer).Where(s => s != null));
 
             foreach (var rowUI in _laneRowUIs) {
                 var sw = rowUI.Swimmer;
                 int lane = rowUI.Lane;
                 var ls = _laneDeviceStates.FirstOrDefault(s => s.Lane == lane);
+                // 空泳道：仅保留淡化效果，所有状态/成绩字段清空
+                if (sw == null) {
+                    rowUI.Row.BorderThickness = new Thickness(0);
+                    if (rowUI.LeftDots != null) for (int i = 0; i < rowUI.LeftDots.Length; i++) rowUI.LeftDots[i].Fill = _brushSlate;
+                    if (rowUI.RightDots != null) for (int i = 0; i < rowUI.RightDots.Length; i++) rowUI.RightDots[i].Fill = _brushSlate;
+                    if (rowUI.LeftRemainText != null) rowUI.LeftRemainText.Text = "";
+                    if (rowUI.RightRemainText != null) rowUI.RightRemainText.Text = "";
+                    if (rowUI.ReactionText != null) rowUI.ReactionText.Text = "";
+                    if (rowUI.DisplayTimeText != null) rowUI.DisplayTimeText.Text = "";
+                    if (rowUI.RankText != null) rowUI.RankText.Text = "";
+                    if (rowUI.RemarkText != null) rowUI.RemarkText.Text = "";
+                    if (rowUI.TrackText != null) rowUI.TrackText.Text = "";
+                    if (rowUI.TouchL != null) { rowUI.TouchL.Background = _brushDark; rowUI.TouchL.Foreground = _brushSlate; }
+                    if (rowUI.TouchR != null) { rowUI.TouchR.Background = _brushDark; rowUI.TouchR.Foreground = _brushSlate; }
+                    continue;
+                }
                 var result = sw.Results.FirstOrDefault(r => r.Stage == _currentStage && r.Heat == _currentHeat);
                 bool isFinished = ls != null && ls.IsFinished;
                 string status = sw.Status ?? "";
                 bool isDQ = status == "DSQ" || status == "DNS" || status == "DNF";
+                // DSQ/DNS/DNF 行淡化
+                rowUI.Row.Opacity = isDQ ? 0.45 : 1.0;
 
                 // 行边框（抢跳/选中高亮）
                 if (ls != null && ls.IsFalseStart) {

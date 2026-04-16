@@ -64,6 +64,8 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 .lane-row:hover { background: #253049; }
 .lane-row.false-start { border: 1px solid var(--gold); }
 .lane-row.selected { outline: 1px solid var(--accent); }
+.lane-row.empty-lane { opacity: 0.35; }
+.lane-row.inactive-lane { opacity: 0.45; }
 
 .devices { display: flex; align-items: center; gap: 3px; }
 .left-devices { width: 240px; }
@@ -1311,10 +1313,12 @@ function refreshLaneRows(swimmers, rcRelay) {
         var mb = sw.manualButton || {};
         var lane = rowUI.lane;
 
-        // 行类名：false-start / selected
+        // 行类名：false-start / selected / empty / inactive
         var cn = 'lane-row';
         if (sw.isFalseStart) cn += ' false-start';
         if (sw.lane === selectedLane) cn += ' selected';
+        if (sw.status === 'EMPTY') cn += ' empty-lane';
+        else if (sw.status === 'DNS' || sw.status === 'DNF' || sw.status === 'DSQ') cn += ' inactive-lane';
         if (rowUI.row.className !== cn) rowUI.row.className = cn;
 
         // 左右发令指示
@@ -1360,8 +1364,13 @@ function refreshLaneRows(swimmers, rcRelay) {
         rowUI.rightRemain.style.color = rightRemain > 0 ? '#F59E0B' : '#475569';
 
         // 姓名/代表队
-        var newName = rcRelay ? (sw.country||'') : (sw.name||'');
-        var newTeam = rcRelay ? getRelayCurrentLegName(sw) : (sw.country||'');
+        var newName, newTeam;
+        if (sw.status === 'EMPTY') {
+            newName = '（空泳道）'; newTeam = '';
+        } else {
+            newName = rcRelay ? (sw.country||'') : (sw.name||'');
+            newTeam = rcRelay ? getRelayCurrentLegName(sw) : (sw.country||'');
+        }
         if (rowUI.nameEl.textContent !== newName) rowUI.nameEl.textContent = newName;
         if (rowUI.teamEl.textContent !== newTeam) rowUI.teamEl.textContent = newTeam;
 

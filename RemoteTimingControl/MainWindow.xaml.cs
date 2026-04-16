@@ -1247,10 +1247,13 @@ namespace RemoteTimingControl
                 bool isFinished = sw["isFinished"] != null && (bool)sw["isFinished"];
                 string status = sw["status"] != null ? sw["status"].ToString() : "";
 
-                // 行边框
+                // 行边框 + 空泳道/未参赛泳道淡化
                 if (isFalseStart) { rowUI.Row.BorderBrush = _brushAmber; rowUI.Row.BorderThickness = new Thickness(1); }
                 else if (lane == _selectedLane) { rowUI.Row.BorderBrush = _brushBlue; rowUI.Row.BorderThickness = new Thickness(1); }
                 else { rowUI.Row.BorderThickness = new Thickness(0); }
+                if (status == "EMPTY") rowUI.Row.Opacity = 0.35;
+                else if (status == "DNS" || status == "DNF" || status == "DSQ") rowUI.Row.Opacity = 0.45;
+                else rowUI.Row.Opacity = 1.0;
 
                 // 左右发令指示
                 rowUI.LeftSignalInd.Background = leftStart ? (Brush)_brushGreen : Brushes.Transparent;
@@ -1313,7 +1316,12 @@ namespace RemoteTimingControl
                 rowUI.RightRemainText.Foreground = rightRemainActive ? (Brush)_brushAmber : (Brush)_brushSlate;
 
                 // 姓名/代表队
-                if (isRelay)
+                if (status == "EMPTY")
+                {
+                    rowUI.NameText.Text = "（空泳道）";
+                    rowUI.TeamText.Text = "";
+                }
+                else if (isRelay)
                 {
                     rowUI.NameText.Text = sw["country"] != null ? sw["country"].ToString() : "";
                     rowUI.TeamText.Text = GetRelayCurrentLegName(sw);
