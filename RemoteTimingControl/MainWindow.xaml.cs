@@ -1774,6 +1774,38 @@ namespace RemoteTimingControl
             MarkLane("DSQ", "犯规取消资格");
         }
 
+        private void CancelNote_Click(object sender, RoutedEventArgs e)
+        {
+            int lane = GetLaneInput();
+            if (lane < 0) { MessageBox.Show("请输入泳道号"); return; }
+            SendCmd("CANCEL_NOTE", new { lane = lane });
+            AddLog(string.Format("泳道{0} 取消备注", lane));
+        }
+
+        private void BlindResult_Click(object sender, RoutedEventArgs e)
+        {
+            int lane = GetLaneInput();
+            if (lane < 0) { MessageBox.Show("请输入泳道号"); return; }
+            SendCmd("USE_BLIND_RESULT", new { lane = lane });
+            AddLog(string.Format("泳道{0} 使用盲表成绩", lane));
+        }
+
+        private void LaneOpen_Click(object sender, RoutedEventArgs e)
+        {
+            int lane = GetLaneInput();
+            if (lane < 0) { MessageBox.Show("请输入泳道号"); return; }
+            SendCmd("MANUAL_LANE_OPEN", new { lane = lane });
+            AddLog(string.Format("泳道{0} 打开", lane));
+        }
+
+        private void LaneClose_Click(object sender, RoutedEventArgs e)
+        {
+            int lane = GetLaneInput();
+            if (lane < 0) { MessageBox.Show("请输入泳道号"); return; }
+            SendCmd("MANUAL_LANE_CLOSE", new { lane = lane });
+            AddLog(string.Format("泳道{0} 关闭", lane));
+        }
+
         private void MarkLane(string status, string desc)
         {
             int lane = GetLaneInput();

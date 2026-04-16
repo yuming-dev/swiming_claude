@@ -132,26 +132,45 @@
                             <TextBox x:Name="RelayEntryTimeBox" Grid.Row="2" Grid.Column="1" Padding="4" VerticalAlignment="Center"/>
                         </Grid>
                         <TextBlock Text="棒次安排" FontSize="14" FontWeight="Bold" Margin="0,12,0,6"/>
+                        <!-- 列抬头（填写提示，防止输错） -->
+                        <Grid Margin="0,0,0,2">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="50"/><ColumnDefinition Width="*"/><ColumnDefinition Width="180"/><ColumnDefinition Width="80"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="棒次" FontSize="12" FontWeight="Bold" Foreground="#1E40AF"/>
+                            <TextBlock Grid.Column="1" Text="姓名（与身份证一致）" FontSize="12" FontWeight="Bold" Foreground="#1E40AF" Margin="0,0,4,0"/>
+                            <TextBlock Grid.Column="2" Text="身份证号（18位）" FontSize="12" FontWeight="Bold" Foreground="#1E40AF" Margin="0,0,4,0"/>
+                            <TextBlock Grid.Column="3" Text="参赛号" FontSize="12" FontWeight="Bold" Foreground="#1E40AF"/>
+                        </Grid>
                         <Grid>
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="50"/><ColumnDefinition Width="*"/><ColumnDefinition Width="80"/>
+                                <ColumnDefinition Width="50"/><ColumnDefinition Width="*"/><ColumnDefinition Width="180"/><ColumnDefinition Width="80"/>
                             </Grid.ColumnDefinitions>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="28"/><RowDefinition Height="28"/><RowDefinition Height="28"/><RowDefinition Height="28"/>
                             </Grid.RowDefinitions>
                             <TextBlock Grid.Row="0" Text="第1棒" VerticalAlignment="Center" Foreground="#64748B"/>
                             <TextBox x:Name="Leg1Name" Grid.Row="0" Grid.Column="1" Padding="4" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                            <TextBox x:Name="Leg1Bib" Grid.Row="0" Grid.Column="2" Padding="4" VerticalAlignment="Center"/>
+                            <TextBox x:Name="Leg1ID"   Grid.Row="0" Grid.Column="2" Padding="4" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                            <TextBox x:Name="Leg1Bib"  Grid.Row="0" Grid.Column="3" Padding="4" VerticalAlignment="Center"/>
                             <TextBlock Grid.Row="1" Text="第2棒" VerticalAlignment="Center" Foreground="#64748B"/>
                             <TextBox x:Name="Leg2Name" Grid.Row="1" Grid.Column="1" Padding="4" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                            <TextBox x:Name="Leg2Bib" Grid.Row="1" Grid.Column="2" Padding="4" VerticalAlignment="Center"/>
+                            <TextBox x:Name="Leg2ID"   Grid.Row="1" Grid.Column="2" Padding="4" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                            <TextBox x:Name="Leg2Bib"  Grid.Row="1" Grid.Column="3" Padding="4" VerticalAlignment="Center"/>
                             <TextBlock Grid.Row="2" Text="第3棒" VerticalAlignment="Center" Foreground="#64748B"/>
                             <TextBox x:Name="Leg3Name" Grid.Row="2" Grid.Column="1" Padding="4" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                            <TextBox x:Name="Leg3Bib" Grid.Row="2" Grid.Column="2" Padding="4" VerticalAlignment="Center"/>
+                            <TextBox x:Name="Leg3ID"   Grid.Row="2" Grid.Column="2" Padding="4" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                            <TextBox x:Name="Leg3Bib"  Grid.Row="2" Grid.Column="3" Padding="4" VerticalAlignment="Center"/>
                             <TextBlock Grid.Row="3" Text="第4棒" VerticalAlignment="Center" Foreground="#64748B"/>
                             <TextBox x:Name="Leg4Name" Grid.Row="3" Grid.Column="1" Padding="4" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                            <TextBox x:Name="Leg4Bib" Grid.Row="3" Grid.Column="2" Padding="4" VerticalAlignment="Center"/>
+                            <TextBox x:Name="Leg4ID"   Grid.Row="3" Grid.Column="2" Padding="4" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                            <TextBox x:Name="Leg4Bib"  Grid.Row="3" Grid.Column="3" Padding="4" VerticalAlignment="Center"/>
                         </Grid>
+                        <!-- 填写提示（琥珀色警示条） -->
+                        <Border Background="#FEF3C7" BorderBrush="#F59E0B" BorderThickness="1" CornerRadius="4" Padding="8,4" Margin="0,6,0,0">
+                            <TextBlock Foreground="#92400E" FontSize="11" TextWrapping="Wrap"
+                                       Text="提示：姓名需与身份证一致；身份证号为 18 位数字（供检录时核对证件）；参赛号由赛事组委会分配（可留空由系统自动分配）。"/>
+                        </Border>
                         <Button Content="提交接力报名" Click="RelayRegister_Click" Padding="0,10" Margin="0,12,0,0"
                                 Background="#22C55E" Foreground="White" FontSize="15" FontWeight="Bold" BorderThickness="0"/>
                         <TextBlock x:Name="RelayStatusText" Text="" Foreground="#22C55E" Margin="0,8,0,0" FontWeight="Bold"/>

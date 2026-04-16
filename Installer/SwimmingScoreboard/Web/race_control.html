@@ -110,12 +110,13 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 .right-col h3:first-child { margin-top: 0; }
 /* 按钮统一样式：圆角 + 图标 + 文字 + 悬停反馈 */
 .action-btn {
-    width: 100%; height: 36px; padding: 0 6px;
+    width: 100%; height: 30px; padding: 0 6px;
     border: none; border-radius: 8px;
     font-size: 14px; font-weight: bold; color: white; cursor: pointer;
     display: flex; align-items: center; justify-content: center; gap: 6px;
     transition: opacity 0.1s;
 }
+.action-btn + .action-btn { margin-top: 4px; }
 .action-btn:hover { opacity: 0.85; }
 .action-btn:active { opacity: 0.7; }
 .action-btn .ico {
@@ -123,7 +124,7 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
     font-size: 15px; font-weight: normal; line-height: 1;
 }
 /* 小圆角用于工具按钮 */
-.action-btn.small { border-radius: 6px; font-size: 13px; }
+.action-btn.small { border-radius: 6px; font-size: 13px; height: 28px; }
 .action-btn.small .ico { font-size: 13px; }
 
 /* 底部信息（已移到左侧面板和顶部栏） */
@@ -334,11 +335,17 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
                     <input type="number" id="laneInput" min="0" max="9" value="4" style="width:46px;padding:4px;border:1px solid #475569;border-radius:4px;background:#0F172A;color:white;text-align:center;font-size:14px;">
                     <span style="color:#94A3B8;font-size:12px;">道</span>
                 </div>
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;">
                     <button class="action-btn small" style="background:#64748B;margin:0;" onclick="markLane('DNS')">DNS</button>
                     <button class="action-btn small" style="background:#78716C;margin:0;" onclick="markLane('DNF')">DNF</button>
                     <button class="action-btn small" style="background:#9CA3AF;margin:0;" onclick="markLane('DSQ')">DSQ</button>
                     <button class="action-btn small" style="background:#D97706;margin:0;" onclick="manualTimeInput()"><span class="ico">&#xE932;</span>手动输入</button>
+                    <!-- 取消备注 / 盲表成绩 -->
+                    <button class="action-btn small" style="background:#0EA5E9;margin:0;" onclick="cancelNote()">取消备注</button>
+                    <button class="action-btn small" style="background:#8B5CF6;margin:0;" onclick="useBlindResult()">盲表成绩</button>
+                    <!-- 道次打开 / 道次关闭（仅当前泳道） -->
+                    <button class="action-btn small" style="background:#10B981;margin:0;" onclick="laneOpen()">道次打开</button>
+                    <button class="action-btn small" style="background:#94A3B8;margin:0;" onclick="laneClose()">道次关闭</button>
                     <!-- 全部打开 / 全部关闭 -->
                     <button class="action-btn small" style="background:#22C55E;margin:0;" onclick="sendCmd('OPEN_ALL_LANES')"><span class="ico">&#xE8FB;</span>全部打开</button>
                     <button class="action-btn small" style="background:#64748B;margin:0;" onclick="sendCmd('CLOSE_ALL_LANES')"><span class="ico">&#xE711;</span>全部关闭</button>
@@ -657,6 +664,30 @@ function markLane(status) {
         sendCmd('MARK_' + status, {lane: lane});
         addLog('泳道' + lane + ' 标记为 ' + status);
     }
+}
+function cancelNote() {
+    var lane = getLaneInput();
+    if (lane < 0) { alert('请输入泳道号'); return; }
+    sendCmd('CANCEL_NOTE', {lane: lane});
+    addLog('泳道' + lane + ' 取消备注');
+}
+function useBlindResult() {
+    var lane = getLaneInput();
+    if (lane < 0) { alert('请输入泳道号'); return; }
+    sendCmd('USE_BLIND_RESULT', {lane: lane});
+    addLog('泳道' + lane + ' 使用盲表成绩');
+}
+function laneOpen() {
+    var lane = getLaneInput();
+    if (lane < 0) { alert('请输入泳道号'); return; }
+    sendCmd('MANUAL_LANE_OPEN', {lane: lane});
+    addLog('泳道' + lane + ' 打开');
+}
+function laneClose() {
+    var lane = getLaneInput();
+    if (lane < 0) { alert('请输入泳道号'); return; }
+    sendCmd('MANUAL_LANE_CLOSE', {lane: lane});
+    addLog('泳道' + lane + ' 关闭');
 }
 function manualTimeInput() {
     var lane = getLaneInput();

@@ -160,7 +160,7 @@
                         <!-- ═══ 比赛控制 ═══ -->
                         <TextBlock Text="比赛控制" Foreground="#3B82F6" FontSize="14" FontWeight="Bold" Margin="0,0,0,8"/>
                         <!-- 就  位 -->
-                        <Button Click="Ready_Click" Height="36" Margin="0,0,0,6">
+                        <Button Click="Ready_Click" Height="30" Margin="0,0,0,4">
                             <Button.Template>
                                 <ControlTemplate TargetType="Button">
                                     <Border Background="#F59E0B" CornerRadius="8">
@@ -173,7 +173,7 @@
                             </Button.Template>
                         </Button>
                         <!-- 发  令 -->
-                        <Button Click="Start_Click" Height="36" Margin="0,0,0,6">
+                        <Button Click="Start_Click" Height="30" Margin="0,0,0,4">
                             <Button.Template>
                                 <ControlTemplate TargetType="Button">
                                     <Border Background="#22C55E" CornerRadius="8">
@@ -186,7 +186,7 @@
                             </Button.Template>
                         </Button>
                         <!-- 计时复位 -->
-                        <Button Click="TimerReset_Click" Height="36" Margin="0,0,0,6">
+                        <Button Click="TimerReset_Click" Height="30" Margin="0,0,0,4">
                             <Button.Template>
                                 <ControlTemplate TargetType="Button">
                                     <Border Background="#EF4444" CornerRadius="8">
@@ -199,7 +199,7 @@
                             </Button.Template>
                         </Button>
                         <!-- 确认本组成绩 -->
-                        <Button Click="Confirm_Click" Height="36" Margin="0,0,0,12">
+                        <Button Click="Confirm_Click" Height="30" Margin="0,0,0,8">
                             <Button.Template>
                                 <ControlTemplate TargetType="Button">
                                     <Border Background="#3B82F6" CornerRadius="8">
@@ -230,8 +230,10 @@
                                         <RowDefinition Height="Auto"/>
                                         <RowDefinition Height="Auto"/>
                                         <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
                                     </Grid.RowDefinitions>
-                                    <Button Grid.Row="0" Grid.Column="0" Click="MarkDNS_Click" Height="36" Margin="0,0,3,6">
+                                    <Button Grid.Row="0" Grid.Column="0" Click="MarkDNS_Click" Height="30" Margin="0,0,3,4">
                                         <Button.Template>
                                             <ControlTemplate TargetType="Button">
                                                 <Border Background="#64748B" CornerRadius="6">
@@ -240,7 +242,7 @@
                                             </ControlTemplate>
                                         </Button.Template>
                                     </Button>
-                                    <Button Grid.Row="0" Grid.Column="1" Click="MarkDNF_Click" Height="36" Margin="3,0,0,6">
+                                    <Button Grid.Row="0" Grid.Column="1" Click="MarkDNF_Click" Height="30" Margin="3,0,0,4">
                                         <Button.Template>
                                             <ControlTemplate TargetType="Button">
                                                 <Border Background="#78716C" CornerRadius="6">
@@ -249,7 +251,7 @@
                                             </ControlTemplate>
                                         </Button.Template>
                                     </Button>
-                                    <Button Grid.Row="1" Grid.Column="0" Click="MarkDSQ_Click" Height="36" Margin="0,0,3,6">
+                                    <Button Grid.Row="1" Grid.Column="0" Click="MarkDSQ_Click" Height="30" Margin="0,0,3,4">
                                         <Button.Template>
                                             <ControlTemplate TargetType="Button">
                                                 <Border Background="#9CA3AF" CornerRadius="6">
@@ -258,7 +260,7 @@
                                             </ControlTemplate>
                                         </Button.Template>
                                     </Button>
-                                    <Button Grid.Row="1" Grid.Column="1" Click="ManualTime_Click" Height="36" Margin="3,0,0,6">
+                                    <Button Grid.Row="1" Grid.Column="1" Click="ManualTime_Click" Height="30" Margin="3,0,0,4">
                                         <Button.Template>
                                             <ControlTemplate TargetType="Button">
                                                 <Border Background="#D97706" CornerRadius="6">
@@ -270,8 +272,46 @@
                                             </ControlTemplate>
                                         </Button.Template>
                                     </Button>
+                                    <!-- 取消备注 / 盲表成绩 -->
+                                    <Button Grid.Row="2" Grid.Column="0" Click="CancelNote_Click" Height="30" Margin="0,0,3,4">
+                                        <Button.Template>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border Background="#0EA5E9" CornerRadius="6">
+                                                    <TextBlock Text="取消备注" FontSize="14" Foreground="White" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                </Border>
+                                            </ControlTemplate>
+                                        </Button.Template>
+                                    </Button>
+                                    <Button Grid.Row="2" Grid.Column="1" Click="BlindResult_Click" Height="30" Margin="3,0,0,4">
+                                        <Button.Template>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border Background="#8B5CF6" CornerRadius="6">
+                                                    <TextBlock Text="盲表成绩" FontSize="14" Foreground="White" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                </Border>
+                                            </ControlTemplate>
+                                        </Button.Template>
+                                    </Button>
+                                    <!-- 道次打开 / 道次关闭（仅当前泳道） -->
+                                    <Button Grid.Row="3" Grid.Column="0" Click="LaneOpen_Click" Height="30" Margin="0,0,3,4">
+                                        <Button.Template>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border Background="#10B981" CornerRadius="6">
+                                                    <TextBlock Text="道次打开" FontSize="14" Foreground="White" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                </Border>
+                                            </ControlTemplate>
+                                        </Button.Template>
+                                    </Button>
+                                    <Button Grid.Row="3" Grid.Column="1" Click="LaneClose_Click" Height="30" Margin="3,0,0,4">
+                                        <Button.Template>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border Background="#94A3B8" CornerRadius="6">
+                                                    <TextBlock Text="道次关闭" FontSize="14" Foreground="White" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                </Border>
+                                            </ControlTemplate>
+                                        </Button.Template>
+                                    </Button>
                                     <!-- 全部打开 / 全部关闭 -->
-                                    <Button Grid.Row="2" Grid.Column="0" Click="OpenAll_Click" Height="36" Margin="0,0,3,0">
+                                    <Button Grid.Row="4" Grid.Column="0" Click="OpenAll_Click" Height="30" Margin="0,0,3,0">
                                         <Button.Template>
                                             <ControlTemplate TargetType="Button">
                                                 <Border Background="#22C55E" CornerRadius="6">
@@ -283,7 +323,7 @@
                                             </ControlTemplate>
                                         </Button.Template>
                                     </Button>
-                                    <Button Grid.Row="2" Grid.Column="1" Click="CloseAll_Click" Height="36" Margin="3,0,0,0">
+                                    <Button Grid.Row="4" Grid.Column="1" Click="CloseAll_Click" Height="30" Margin="3,0,0,0">
                                         <Button.Template>
                                             <ControlTemplate TargetType="Button">
                                                 <Border Background="#64748B" CornerRadius="6">
@@ -314,7 +354,7 @@
                                         <RowDefinition Height="Auto"/>
                                         <RowDefinition Height="Auto"/>
                                     </Grid.RowDefinitions>
-                                    <Button Grid.Row="0" Grid.Column="0" Tag="SHOW_START_LIST" Click="DisplayBtn_Click" Height="36" Margin="0,0,3,6">
+                                    <Button Grid.Row="0" Grid.Column="0" Tag="SHOW_START_LIST" Click="DisplayBtn_Click" Height="30" Margin="0,0,3,4">
                                         <Button.Template>
                                             <ControlTemplate TargetType="Button">
                                                 <Border Background="#3B82F6" CornerRadius="6">
@@ -326,7 +366,7 @@
                                             </ControlTemplate>
                                         </Button.Template>
                                     </Button>
-                                    <Button Grid.Row="0" Grid.Column="1" Tag="SHOW_LIVE_RACE" Click="DisplayBtn_Click" Height="36" Margin="3,0,0,6">
+                                    <Button Grid.Row="0" Grid.Column="1" Tag="SHOW_LIVE_RACE" Click="DisplayBtn_Click" Height="30" Margin="3,0,0,4">
                                         <Button.Template>
                                             <ControlTemplate TargetType="Button">
                                                 <Border Background="#2563EB" CornerRadius="6">
@@ -338,7 +378,7 @@
                                             </ControlTemplate>
                                         </Button.Template>
                                     </Button>
-                                    <Button Grid.Row="1" Grid.Column="0" Tag="SHOW_HEAT_RESULT" Click="DisplayBtn_Click" Height="36" Margin="0,0,3,6">
+                                    <Button Grid.Row="1" Grid.Column="0" Tag="SHOW_HEAT_RESULT" Click="DisplayBtn_Click" Height="30" Margin="0,0,3,4">
                                         <Button.Template>
                                             <ControlTemplate TargetType="Button">
                                                 <Border Background="#059669" CornerRadius="6">
@@ -350,7 +390,7 @@
                                             </ControlTemplate>
                                         </Button.Template>
                                     </Button>
-                                    <Button Grid.Row="1" Grid.Column="1" Tag="SHOW_EVENT_RANKING" Click="DisplayBtn_Click" Height="36" Margin="3,0,0,6">
+                                    <Button Grid.Row="1" Grid.Column="1" Tag="SHOW_EVENT_RANKING" Click="DisplayBtn_Click" Height="30" Margin="3,0,0,4">
                                         <Button.Template>
                                             <ControlTemplate TargetType="Button">
                                                 <Border Background="#10B981" CornerRadius="6">
@@ -362,7 +402,7 @@
                                             </ControlTemplate>
                                         </Button.Template>
                                     </Button>
-                                    <Button Grid.Row="2" Grid.Column="0" Tag="SHOW_TEAM_STANDINGS" Click="DisplayBtn_Click" Height="36" Margin="0,0,3,6">
+                                    <Button Grid.Row="2" Grid.Column="0" Tag="SHOW_TEAM_STANDINGS" Click="DisplayBtn_Click" Height="30" Margin="0,0,3,4">
                                         <Button.Template>
                                             <ControlTemplate TargetType="Button">
                                                 <Border Background="#D97706" CornerRadius="6">
@@ -374,7 +414,7 @@
                                             </ControlTemplate>
                                         </Button.Template>
                                     </Button>
-                                    <Button Grid.Row="2" Grid.Column="1" Tag="SHOW_AWARDS" Click="DisplayBtn_Click" Height="36" Margin="3,0,0,6">
+                                    <Button Grid.Row="2" Grid.Column="1" Tag="SHOW_AWARDS" Click="DisplayBtn_Click" Height="30" Margin="3,0,0,4">
                                         <Button.Template>
                                             <ControlTemplate TargetType="Button">
                                                 <Border Background="#F59E0B" CornerRadius="6">
@@ -386,7 +426,7 @@
                                             </ControlTemplate>
                                         </Button.Template>
                                     </Button>
-                                    <Button Grid.Row="3" Grid.Column="0" Tag="SHOW_RECORDS" Click="DisplayBtn_Click" Height="36" Margin="0,0,3,0">
+                                    <Button Grid.Row="3" Grid.Column="0" Tag="SHOW_RECORDS" Click="DisplayBtn_Click" Height="30" Margin="0,0,3,0">
                                         <Button.Template>
                                             <ControlTemplate TargetType="Button">
                                                 <Border Background="#DC2626" CornerRadius="6">
@@ -398,7 +438,7 @@
                                             </ControlTemplate>
                                         </Button.Template>
                                     </Button>
-                                    <Button Grid.Row="3" Grid.Column="1" Tag="SHOW_WELCOME" Click="DisplayBtn_Click" Height="36" Margin="3,0,0,0">
+                                    <Button Grid.Row="3" Grid.Column="1" Tag="SHOW_WELCOME" Click="DisplayBtn_Click" Height="30" Margin="3,0,0,0">
                                         <Button.Template>
                                             <ControlTemplate TargetType="Button">
                                                 <Border Background="#8B5CF6" CornerRadius="6">
@@ -411,7 +451,7 @@
                                         </Button.Template>
                                     </Button>
                                 </Grid>
-                                <Button Click="PublishResult_Click" Height="36" Margin="0,6,0,0">
+                                <Button Click="PublishResult_Click" Height="30" Margin="0,4,0,0">
                                     <Button.Template>
                                         <ControlTemplate TargetType="Button">
                                             <Border Background="#F59E0B" CornerRadius="6">

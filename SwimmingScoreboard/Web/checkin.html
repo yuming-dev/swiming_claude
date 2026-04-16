@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>游泳竞赛检录台</title>
+<style>
+:root { --bg: #0f172a; --card: #1e293b; --text: #f8fafc; --dim: #94a3b8; --accent: #3b82f6; --green: #22c55e; --red: #ef4444; --gold: #f59e0b; --border: #334155; }
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; }
+body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei', sans-serif; display: flex; flex-direction: column; overflow: hidden; font-size: 14px; }
+
+/* 顶部栏 */
+.top-bar { display: flex; align-items: center; gap: 12px; height: 44px; background: var(--card); padding: 0 14px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.top-bar .title { font-size: 16px; font-weight: bold; color: #3B82F6; }
+.top-bar .comp { color: var(--dim); flex: 1; font-size: 13px; }
+.top-bar .conn-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--red); margin-right: 4px; }
+.top-bar .conn-dot.on { background: var(--green); }
+.top-bar button { padding: 6px 14px; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: bold; color: white; }
+.btn-print { background: #475569; }
+.btn-confirm { background: var(--green); }
+.btn-server { background: #334155; }
+
+/* 主区 */
+.main { flex: 1; display: flex; overflow: hidden; }
+
+/* 左侧赛程导航 */
+.sched-panel { width: 240px; background: var(--card); border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; flex-shrink: 0; }
+.sched-header { padding: 8px 10px; font-size: 14px; font-weight: bold; color: #3B82F6; background: #172033; border-bottom: 1px solid var(--border); }
+.sched-tree { flex: 1; overflow-y: auto; padding: 4px 0; }
+.tree-session-header { padding: 4px 10px; font-size: 13px; font-weight: bold; color: var(--dim); cursor: pointer; user-select: none; }
+.tree-session-header:hover { color: var(--text); }
+.tree-session-header .arrow { display: inline-block; width: 12px; font-size: 12px; }
+.tree-event { padding: 3px 10px 3px 22px; font-size: 13px; color: var(--text); user-select: none; }
+.tree-heat { padding: 3px 10px 3px 38px; font-size: 13px; color: var(--dim); cursor: pointer; user-select: none; }
+.tree-heat:hover { background: #253049; }
+.tree-heat.active { background: var(--accent); color: white; border-radius: 3px; margin: 1px 4px; }
+.tree-heat.checked { color: #10b981; }
+
+/* 右侧主体：限宽居中，视觉更紧凑 */
+.content { flex: 1; display: flex; flex-direction: column; overflow: hidden; padding: 12px; max-width: 860px; width: 100%; margin: 0 auto; }
+.info-card { background: var(--card); border-radius: 6px; padding: 10px 14px; margin-bottom: 10px; border: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
+.info-card .title { font-size: 16px; font-weight: bold; color: var(--text); }
+.info-card .title .sep { color: var(--dim); margin: 0 6px; }
+.info-card .stats { font-size: 13px; color: var(--dim); }
+.info-card .stats b { color: var(--text); padding: 0 2px; }
+
+/* 表格 */
+.table-wrap { flex: 1; overflow: auto; background: var(--card); border: 1px solid var(--border); border-radius: 6px; }
+table.checkin { width: 100%; border-collapse: collapse; font-size: 14px; table-layout: fixed; }
+table.checkin th { position: sticky; top: 0; background: #172033; color: #3B82F6; font-weight: bold; text-align: left; padding: 6px 8px; border-bottom: 2px solid var(--border); z-index: 1; font-size: 13px; }
+table.checkin td { padding: 5px 8px; border-bottom: 1px solid var(--border); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+table.checkin tr:hover td { background: #253049; }
+table.checkin .lane-cell { font-weight: bold; color: var(--gold); text-align: center; width: 50px; }
+table.checkin .bib-cell { text-align: center; width: 70px; color: var(--dim); }
+table.checkin .name-cell { font-weight: 500; width: 130px; padding-right: 18px; }
+table.checkin .id-cell { width: 190px; color: var(--dim); font-family: 'Consolas', monospace; font-size: 13px; padding-left: 14px; }
+table.checkin .team-cell { color: var(--dim); padding-left: 12px; padding-right: 2px; }
+table.checkin .age-cell { text-align: center; width: 80px; color: var(--dim); }
+table.checkin .entry-cell { text-align: center; width: 100px; font-family: 'Consolas', monospace; color: #10B981; }
+table.checkin .note-cell { width: 130px; text-align: center; padding-left: 2px; }
+table.checkin select.note-sel { background: #0F172A; color: white; border: 1px solid #475569; padding: 3px 6px; border-radius: 4px; font-size: 13px; width: 100%; cursor: pointer; }
+table.checkin select.note-sel.dns { background: #7c2d12; border-color: #dc2626; }
+table.checkin select.note-sel.dnf { background: #713f12; border-color: #d97706; }
+table.checkin select.note-sel.dsq { background: #701a75; border-color: #a21caf; }
+table.checkin tr.absent td { opacity: 0.7; }
+table.checkin tr.absent .name-cell { text-decoration: line-through; }
+/* 接力：队行 vs 队员行 */
+table.checkin tr.team-row td { background: #172033; border-top: 2px solid #3B82F6; }
+table.checkin tr.team-row .team-name { color: #3B82F6; font-weight: bold; font-size: 15px; }
+table.checkin tr.member-row td { background: transparent; }
+table.checkin tr.member-row .name-cell { padding-left: 16px; color: #cbd5e1; }
+table.checkin .leg-tag { display: inline-block; background: #334155; color: #94a3b8; font-size: 11px; padding: 1px 6px; border-radius: 3px; margin-right: 6px; font-weight: normal; }
+/* 打印模式下队行浅色 */
+@media print {
+    table.checkin tr.team-row td { background: #eef2ff; border-top: 2px solid #333; }
+    table.checkin tr.team-row .team-name { color: black; }
+    table.checkin tr.member-row td { background: white; }
+    table.checkin tr.member-row .name-cell { color: black; }
+    table.checkin .leg-tag { background: #e5e7eb; color: #333; }
+}
+.empty-hint { text-align: center; padding: 30px; color: var(--dim); font-size: 14px; }
+
+/* 打印样式：切换到浅色、隐藏非打印区 */
+@media print {
+    body { background: white; color: black; font-size: 12pt; }
+    .top-bar, .sched-panel, .btn-print, .btn-confirm, .btn-server, .info-card { display: none !important; }
+    .main { flex-direction: column; }
+    .content { padding: 0; overflow: visible; max-width: none; }
+    .table-wrap { background: white; border: 1px solid #ccc; overflow: visible; }
+    table.checkin th { background: #f3f4f6; color: black; }
+    table.checkin td { color: black; border-bottom: 1px solid #ccc; }
+    table.checkin .lane-cell, table.checkin .entry-cell { color: black; }
+    table.checkin .bib-cell, table.checkin .team-cell, table.checkin .age-cell, table.checkin .id-cell { color: #333; }
+    table.checkin select.note-sel { background: white; color: black; border: 1px solid #999; -webkit-appearance: none; appearance: none; }
+    .print-title { display: block !important; text-align: center; margin: 0 0 10pt 0; }
+    .print-title .pt-comp { font-size: 18pt; font-weight: bold; color: black; letter-spacing: 2pt; }
+    .print-title .pt-heat { font-size: 14pt; margin-top: 4pt; color: #111; }
+    .print-title .pt-sub  { font-size: 11pt; color: #555; margin-top: 2pt; }
+    .print-foot { display: flex !important; margin-top: 12pt; font-size: 10pt; color: #555; justify-content: space-between; }
+    @page { size: A4 portrait; margin: 12mm; }
+}
+.print-title, .print-foot { display: none; }
+
+/* 服务器连接对话框 */
+.modal { position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: none; align-items: center; justify-content: center; z-index: 100; }
+.modal.show { display: flex; }
+.modal-box { background: var(--card); padding: 20px; border-radius: 8px; border: 1px solid var(--border); width: 360px; }
+.modal-box h3 { color: #3B82F6; margin-bottom: 12px; font-size: 15px; }
+.modal-box label { display: block; font-size: 13px; color: var(--dim); margin-bottom: 4px; margin-top: 8px; }
+.modal-box input { width: 100%; background: #0F172A; color: white; border: 1px solid #475569; padding: 6px 8px; border-radius: 4px; font-size: 14px; }
+.modal-box .btnrow { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+.modal-box button { padding: 6px 14px; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; color: white; }
+.btn-ok { background: var(--green); }
+.btn-cancel { background: #475569; }
+</style>
+</head>
+<body>
+
+<div class="top-bar">
+    <span class="title">游泳竞赛检录台</span>
+    <span class="comp" id="compName">（未连接）</span>
+    <span><span class="conn-dot" id="connDot"></span><span id="connText" style="font-size:12px;color:var(--dim);">未连接</span></span>
+    <button class="btn-server" onclick="showServerDialog()">服务器</button>
+    <button class="btn-print" onclick="doPrint()">打印</button>
+    <button class="btn-confirm" onclick="confirmCheckin()">确认检录</button>
+</div>
+
+<div class="main">
+    <div class="sched-panel">
+        <div class="sched-header">赛程导航</div>
+        <div class="sched-tree" id="schedTree">
+            <div style="padding:10px;color:var(--dim);font-size:12px;">等待赛程数据…</div>
+        </div>
+    </div>
+    <div class="content">
+        <!-- 打印抬头（仅打印时显示） -->
+        <div class="print-title" id="printTitle"></div>
+        <div class="info-card">
+            <div>
+                <div class="title" id="heatTitle">请从左侧选择比赛组</div>
+                <div style="font-size:12px;color:var(--dim);margin-top:2px;" id="heatSub"></div>
+            </div>
+            <div class="stats" id="heatStats"></div>
+        </div>
+        <div class="table-wrap" id="tableWrap">
+            <div class="empty-hint">请从左侧赛程导航中选择一个比赛组</div>
+        </div>
+        <div class="print-foot" id="printFoot"></div>
+    </div>
+</div>
+
+<div class="modal" id="serverModal">
+    <div class="modal-box">
+        <h3>连接主服务器</h3>
+        <label>服务器地址（ws://host:port）</label>
+        <input id="serverInput" value="">
+        <div class="btnrow">
+            <button class="btn-cancel" onclick="hideServerDialog()">取消</button>
+            <button class="btn-ok" onclick="applyServer()">连接</button>
+        </div>
+    </div>
+</div>
+
+<script>
+// ═══════ 状态 ═══════
+var ws = null;
+var data = {};
+var currentHeat = null;  // {gender, eventName, stage, heat}
+var currentSwimmers = [];
+var dirty = false;       // 是否有未保存的备注修改
+var treeCollapsed = {};
+var serverUrl = localStorage.getItem('checkinServer') || ('ws://' + location.hostname + ':3002');
+
+// ═══════ 连接 ═══════
+function connect() {
+    try {
+        if (ws) { try { ws.close(); } catch(e){} }
+        ws = new WebSocket(serverUrl);
+        setConnState(false, '连接中...');
+        ws.onopen = function() {
+            setConnState(true, '已连接');
+            ws.send(JSON.stringify({ type: 'CHECKIN_IDENTITY' }));
+        };
+        ws.onclose = function() {
+            setConnState(false, '已断开');
+            setTimeout(connect, 3000);
+        };
+        ws.onerror = function() { setConnState(false, '连接错误'); };
+        ws.onmessage = function(e) {
+            try { handleMessage(JSON.parse(e.data)); }
+            catch (err) { console.error(err); }
+        };
+    } catch (e) { setConnState(false, '无法连接: ' + e.message); }
+}
+
+function setConnState(ok, text) {
+    var dot = document.getElementById('connDot');
+    dot.className = 'conn-dot' + (ok ? ' on' : '');
+    document.getElementById('connText').textContent = text || (ok ? '已连接' : '未连接');
+}
+
+function handleMessage(msg) {
+    if (msg.type === 'HEAT_SWIMMERS') {
+        renderSwimmers(msg.data);
+        return;
+    }
+    // 其余广播都包含服务器完整状态 data
+    if (msg.data) {
+        data = msg.data;
+        if (data.competitionName) document.getElementById('compName').textContent = data.competitionName;
+        renderScheduleTree();
+    }
+}
+
+// ═══════ 赛程导航 ═══════
+function renderScheduleTree() {
+    var container = document.getElementById('schedTree');
+    var schedule = (data && data.schedule) || [];
+    if (schedule.length === 0) {
+        container.innerHTML = '<div style="padding:10px;color:var(--dim);font-size:12px;">暂无赛程</div>';
+        return;
+    }
+    // 按单元分组
+    var sessions = {};
+    for (var i = 0; i < schedule.length; i++) {
+        var s = schedule[i];
+        var sn = s.session || 1;
+        if (!sessions[sn]) sessions[sn] = { name: s.sessionName || ('第' + sn + '单元'), events: [] };
+        sessions[sn].events.push(s);
+    }
+    var html = '';
+    for (var sn in sessions) {
+        var sess = sessions[sn];
+        var collapsed = treeCollapsed[sn] === true;
+        html += '<div class="tree-session">';
+        html += '<div class="tree-session-header" onclick="toggleSession(\'' + sn + '\')">';
+        html += '<span class="arrow">' + (collapsed ? '▶' : '▼') + '</span> ' + escHtml(sess.name);
+        html += '</div>';
+        if (!collapsed) {
+            for (var j = 0; j < sess.events.length; j++) {
+                var ev = sess.events[j];
+                var label = (ev.gender || '') + ' ' + (ev.eventName || '') + ' ' + (ev.stage || '');
+                html += '<div class="tree-event">' + escHtml(label) + '</div>';
+                var hc = ev.heatCount || 1;
+                for (var h = 1; h <= hc; h++) {
+                    var key = (ev.gender || '') + '|' + (ev.eventName || '') + '|' + (ev.stage || '') + '|' + h;
+                    var active = '';
+                    if (currentHeat && currentHeat.gender === ev.gender && currentHeat.eventName === ev.eventName
+                        && currentHeat.stage === ev.stage && currentHeat.heat === h) active = ' active';
+                    var confirmed = (ev.heatConfirmed && ev.heatConfirmed[h - 1]) ? ' checked' : '';
+                    html += '<div class="tree-heat' + active + confirmed + '" onclick="selectHeat(\'' + key.replace(/\\/g, '\\\\').replace(/\'/g, "\\'") + '\')">第' + h + '组（共' + hc + '组）'
+                         + (confirmed ? ' ✓' : '') + '</div>';
+                }
+            }
+        }
+        html += '</div>';
+    }
+    container.innerHTML = html;
+}
+function toggleSession(sn) { treeCollapsed[sn] = !(treeCollapsed[sn] === true); renderScheduleTree(); }
+
+function selectHeat(key) {
+    if (dirty && !confirm('当前组有未保存的备注修改，切换后将丢失。确定切换？')) return;
+    var parts = key.split('|');
+    if (parts.length < 4) return;
+    currentHeat = { gender: parts[0], eventName: parts[1], stage: parts[2], heat: parseInt(parts[3]) };
+    dirty = false;
+    if (ws && ws.readyState === 1) {
+        ws.send(JSON.stringify({ type: 'GET_HEAT_SWIMMERS', data: currentHeat }));
+    }
+    renderScheduleTree();
+}
+
+// ═══════ 运动员表格 ═══════
+function renderSwimmers(d) {
+    currentSwimmers = d.swimmers || [];
+    var title = (d.gender || '') + ' ' + (d.eventName || '') + ' ' + (d.stage || '') + ' 第' + d.heat + '组';
+    document.getElementById('heatTitle').textContent = title;
+    document.getElementById('heatSub').textContent =
+        '（共 ' + currentSwimmers.length + ' ' + (d.isRelay ? '队' : '人') + '）';
+    updateStats();
+    // 打印抬头（大赛名 + 项目组别 + 小字检录表）
+    var compName = (data && data.competitionName) ? data.competitionName : '游泳竞赛';
+    document.getElementById('printTitle').innerHTML =
+        '<div class="pt-comp">' + escHtml(compName) + '</div>'
+      + '<div class="pt-heat">' + escHtml(title) + '  检录表</div>'
+      + '<div class="pt-sub">共 ' + currentSwimmers.length + ' ' + (d.isRelay ? '队' : '人') + '</div>';
+    // 打印页脚
+    var foot = document.getElementById('printFoot');
+    var now = new Date();
+    foot.innerHTML = '<span>打印时间: ' + now.getFullYear() + '-' + pad(now.getMonth() + 1) + '-' + pad(now.getDate())
+        + ' ' + pad(now.getHours()) + ':' + pad(now.getMinutes()) + '</span>'
+        + '<span>检录裁判签字: ________________</span>';
+
+    if (currentSwimmers.length === 0) {
+        document.getElementById('tableWrap').innerHTML = '<div class="empty-hint">该组暂无运动员报名</div>';
+        return;
+    }
+
+    var html = '<table class="checkin">';
+    html += '<thead><tr>';
+    html += '<th class="lane-cell">泳道</th>';
+    html += '<th class="bib-cell">号码布</th>';
+    html += '<th class="name-cell">姓名' + (d.isRelay ? '（队 / 队员）' : '') + '</th>';
+    html += '<th class="id-cell">身份证号</th>';
+    html += '<th class="team-cell">单位</th>';
+    html += '<th class="note-cell">备注（检录）</th>';
+    html += '</tr></thead><tbody>';
+
+    for (var i = 0; i < currentSwimmers.length; i++) {
+        var s = currentSwimmers[i];
+        var teamCls = (s.status === 'DNS' || s.status === 'DNF' || s.status === 'DSQ') ? ' absent' : '';
+        // 接力队：队行仅显示队名，每位队员单独一行
+        if (d.isRelay && s.members && s.members.length > 0) {
+            var mc = s.members.length;
+            html += '<tr class="team-row' + teamCls + '">';
+            html += '<td class="lane-cell" rowspan="' + (mc + 1) + '">' + s.lane + '</td>';
+            html += '<td class="bib-cell">' + escHtml(s.bibNumber || '') + '</td>';
+            html += '<td class="name-cell team-name">' + escHtml(s.name || s.country || '') + '</td>';
+            html += '<td class="id-cell">—</td>';
+            html += '<td class="team-cell" rowspan="' + (mc + 1) + '">' + escHtml(s.team || s.country || '') + '</td>';
+            html += '<td class="note-cell">' + buildStatusSelect(s.bibNumber, s.status, '队') + '</td>';
+            html += '</tr>';
+            for (var k = 0; k < mc; k++) {
+                var m = s.members[k];
+                var mcls = (m.status === 'DNS' || m.status === 'DNF' || m.status === 'DSQ') ? ' class="member-row absent"' : ' class="member-row"';
+                html += '<tr' + mcls + '>';
+                html += '<td class="bib-cell">' + escHtml(m.bibNumber || '') + '</td>';
+                html += '<td class="name-cell"><span class="leg-tag">第' + (m.legOrder || (k + 1)) + '棒</span>' + escHtml(m.name || '') + '</td>';
+                html += '<td class="id-cell">' + escHtml(m.idNumber || '') + '</td>';
+                html += '<td class="note-cell">' + buildStatusSelect(m.bibNumber, m.status) + '</td>';
+                html += '</tr>';
+            }
+        } else {
+            var cls = teamCls ? ' class="' + teamCls.trim() + '"' : '';
+            html += '<tr' + cls + '>';
+            html += '<td class="lane-cell">' + s.lane + '</td>';
+            html += '<td class="bib-cell">' + escHtml(s.bibNumber || '') + '</td>';
+            html += '<td class="name-cell">' + escHtml(s.name || '') + '</td>';
+            html += '<td class="id-cell">' + escHtml(s.idNumber || '') + '</td>';
+            html += '<td class="team-cell">' + escHtml(s.team || s.country || '') + '</td>';
+            html += '<td class="note-cell">' + buildStatusSelect(s.bibNumber, s.status) + '</td>';
+            html += '</tr>';
+        }
+    }
+    html += '</tbody></table>';
+    document.getElementById('tableWrap').innerHTML = html;
+}
+
+function buildStatusSelect(bib, cur, labelPrefix) {
+    var opts = [
+        { v: '', t: (labelPrefix ? labelPrefix + ' ' : '') + '正常' },
+        { v: 'DNS', t: 'DNS 弃权/未到' },
+        { v: 'DNF', t: 'DNF 中途退出' },
+        { v: 'DSQ', t: 'DSQ 犯规' }
+    ];
+    var selClass = 'note-sel';
+    if (cur === 'DNS') selClass += ' dns';
+    else if (cur === 'DNF') selClass += ' dnf';
+    else if (cur === 'DSQ') selClass += ' dsq';
+    var html = '<select class="' + selClass + '" data-bib="' + escHtml(bib || '') + '" onchange="onStatusChange(this)">';
+    for (var i = 0; i < opts.length; i++) {
+        var sel = (opts[i].v === (cur || '')) ? ' selected' : '';
+        html += '<option value="' + opts[i].v + '"' + sel + '>' + opts[i].t + '</option>';
+    }
+    html += '</select>';
+    return html;
+}
+
+function onStatusChange(sel) {
+    dirty = true;
+    var bib = sel.getAttribute('data-bib');
+    var newVal = sel.value;
+    // 在当前列表中（含接力队员）更新本地 status
+    for (var i = 0; i < currentSwimmers.length; i++) {
+        var s = currentSwimmers[i];
+        if (s.bibNumber === bib) { s.status = newVal; break; }
+        if (s.members && s.members.length) {
+            var found = false;
+            for (var k = 0; k < s.members.length; k++) {
+                if (s.members[k].bibNumber === bib) { s.members[k].status = newVal; found = true; break; }
+            }
+            if (found) break;
+        }
+    }
+    // 刷新 select 的配色
+    sel.className = 'note-sel' + (newVal === 'DNS' ? ' dns' : newVal === 'DNF' ? ' dnf' : newVal === 'DSQ' ? ' dsq' : '');
+    // 刷新行样式
+    var tr = sel.closest('tr');
+    if (tr) {
+        var base = tr.classList.contains('team-row') ? 'team-row' : (tr.classList.contains('member-row') ? 'member-row' : '');
+        tr.className = (base + ((newVal === 'DNS' || newVal === 'DNF' || newVal === 'DSQ') ? ' absent' : '')).trim();
+    }
+    updateStats();
+}
+
+function updateStats() {
+    var total = currentSwimmers.length, dns = 0, dnf = 0, dsq = 0;
+    var memTotal = 0, memDns = 0;
+    for (var i = 0; i < currentSwimmers.length; i++) {
+        var st = currentSwimmers[i].status;
+        if (st === 'DNS') dns++;
+        else if (st === 'DNF') dnf++;
+        else if (st === 'DSQ') dsq++;
+        if (currentSwimmers[i].members) {
+            for (var k = 0; k < currentSwimmers[i].members.length; k++) {
+                memTotal++;
+                var mst = currentSwimmers[i].members[k].status;
+                if (mst === 'DNS' || mst === 'DNF' || mst === 'DSQ') memDns++;
+            }
+        }
+    }
+    var present = total - dns - dnf - dsq;
+    var s = '实到 <b style="color:#22c55e;">' + present + '</b> / 队数 <b>' + total + '</b>';
+    if (memTotal > 0) s += '　队员实到 <b style="color:#22c55e;">' + (memTotal - memDns) + '</b>/' + memTotal;
+    if (dns) s += '　弃权 <b style="color:#ef4444;">' + dns + '</b>';
+    if (dnf) s += '　中退 <b style="color:#f59e0b;">' + dnf + '</b>';
+    if (dsq) s += '　犯规 <b style="color:#a855f7;">' + dsq + '</b>';
+    if (memDns) s += '　缺席队员 <b style="color:#ef4444;">' + memDns + '</b>';
+    if (dirty) s += '　<b style="color:#f59e0b;">(未保存)</b>';
+    // 个人项目把"队数"改回"总数"
+    if (memTotal === 0) {
+        s = s.replace(/队数/, '总数');
+    }
+    document.getElementById('heatStats').innerHTML = s;
+}
+
+// ═══════ 操作 ═══════
+function confirmCheckin() {
+    if (!currentHeat) { alert('请先选择比赛组'); return; }
+    if (!ws || ws.readyState !== 1) { alert('未连接主服务器'); return; }
+    if (!confirm('确认提交本组检录结果？\n\n将把备注中的 DNS/DNF/DSQ 状态同步到主服务器。')) return;
+
+    var statuses = [];
+    for (var i = 0; i < currentSwimmers.length; i++) {
+        var s = currentSwimmers[i];
+        statuses.push({ bibNumber: s.bibNumber || '', lane: s.lane, status: s.status || '' });
+        if (s.members && s.members.length) {
+            for (var k = 0; k < s.members.length; k++) {
+                var m = s.members[k];
+                statuses.push({ bibNumber: m.bibNumber || '', status: m.status || '' });
+            }
+        }
+    }
+    ws.send(JSON.stringify({
+        type: 'SAVE_CHECKIN',
+        data: {
+            gender: currentHeat.gender, eventName: currentHeat.eventName,
+            stage: currentHeat.stage, heat: currentHeat.heat,
+            statuses: statuses
+        }
+    }));
+    dirty = false;
+    updateStats();
+    alert('检录结果已提交');
+}
+
+function doPrint() {
+    if (!currentHeat) { alert('请先选择比赛组'); return; }
+    // 浏览器打印时会在页眉自动打印 document.title —— 临时替换为赛事名，避免打上"游泳竞赛检录台"
+    var oldTitle = document.title;
+    var compName = (data && data.competitionName) ? data.competitionName : '';
+    document.title = compName;   // 若赛事名为空则留空标题
+    try {
+        window.print();
+    } finally {
+        // 打印对话框关闭后恢复
+        setTimeout(function () { document.title = oldTitle; }, 300);
+    }
+}
+
+// ═══════ 服务器地址 ═══════
+function showServerDialog() {
+    document.getElementById('serverInput').value = serverUrl;
+    document.getElementById('serverModal').classList.add('show');
+}
+function hideServerDialog() { document.getElementById('serverModal').classList.remove('show'); }
+function applyServer() {
+    var v = document.getElementById('serverInput').value.trim();
+    if (!v) return;
+    if (v.indexOf('ws://') !== 0 && v.indexOf('wss://') !== 0) v = 'ws://' + v;
+    serverUrl = v;
+    localStorage.setItem('checkinServer', serverUrl);
+    hideServerDialog();
+    connect();
+}
+
+// ═══════ 辅助 ═══════
+function escHtml(s) {
+    return String(s == null ? '' : s)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+function pad(n) { return n < 10 ? '0' + n : n; }
+
+// 退出前警告
+window.addEventListener('beforeunload', function(e) {
+    if (dirty) { e.preventDefault(); e.returnValue = ''; return ''; }
+});
+
+// 启动
+connect();
+</script>
+</body>
+</html>

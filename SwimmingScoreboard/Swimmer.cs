@@ -459,6 +459,7 @@ namespace SwimmingScoreboard
         private int _legOrder;
         private string _swimmerName;
         private string _swimmerBibNumber;
+        private string _swimmerIDNumber;
 
         public int LegOrder {
             get { return _legOrder; }
@@ -471,6 +472,10 @@ namespace SwimmingScoreboard
         public string SwimmerBibNumber {
             get { return _swimmerBibNumber; }
             set { _swimmerBibNumber = value; OnPropertyChanged("SwimmerBibNumber"); }
+        }
+        public string SwimmerIDNumber {
+            get { return _swimmerIDNumber; }
+            set { _swimmerIDNumber = value; OnPropertyChanged("SwimmerIDNumber"); }
         }
 
         public event PropertyChangedEventHandler PropertyChanged;

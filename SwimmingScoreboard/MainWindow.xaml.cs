@@ -226,6 +226,15 @@ namespace SwimmingScoreboard
                         AddLog("计时Web已连接");
                         UpdateScoringControlMode();
                         break;
+                    case "CHECKIN_IDENTITY":
+                        AddLog("检录台已连接");
+                        break;
+                    case "GET_HEAT_SWIMMERS":
+                        HandleGetHeatSwimmers(socket, msg);
+                        break;
+                    case "SAVE_CHECKIN":
+                        HandleSaveCheckin(msg);
+                        break;
                     case "REGISTER_SWIMMER":
                         HandleRegisterSwimmer(msg);
                         break;
@@ -257,6 +266,151 @@ namespace SwimmingScoreboard
             } catch (Exception ex) {
                 AddLog("消息处理错误: " + ex.Message);
             }
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        // 检录台支持
+        // ═══════════════════════════════════════════════════════════════
+
+        // 查询指定组运动员（不改变服务器当前组状态；只回复给请求者）
+        private void HandleGetHeatSwimmers(IWebSocketConnection socket, JObject msg) {
+            var data = msg["data"];
+            if (data == null) return;
+            string gender = data["gender"] != null ? data["gender"].ToString() : "";
+            string eventName = data["eventName"] != null ? data["eventName"].ToString() : "";
+            string stage = data["stage"] != null ? data["stage"].ToString() : "";
+            int heat = data["heat"] != null ? (int)data["heat"] : 0;
+
+            bool isRelay = eventName.Contains("接力");
+            var heatSwimmers = _swimmers.Where(s =>
+                s.Gender == gender && s.EventName == eventName &&
+                !(isRelay && s.Notes != null && s.Notes.StartsWith("接力队员"))
+            ).ToList();
+
+            var list = new List<object>();
+            foreach (var s in heatSwimmers) {
+                var sa = s.GetAssignmentForStage(stage);
+                int lane = 0;
+                string entryTime = s.EntryTime ?? "";
+                if (sa != null && sa.Heat == heat) { lane = sa.Lane; if (!string.IsNullOrEmpty(sa.EntryTime)) entryTime = sa.EntryTime; }
+                else if (s.CurrentStage == stage && s.Heat == heat) { lane = s.Lane; }
+                else continue;
+
+                // 接力队员列表（按棒次顺序）
+                var memberList = new List<object>();
+                if (isRelay) {
+                    // 优先从 RelayTeam.Legs 按棒次顺序取
+                    var relayTeam = _relayTeams.FirstOrDefault(rt =>
+                        rt.TeamName == s.Country && rt.EventName == s.EventName && rt.Gender == s.Gender);
+                    if (relayTeam != null && relayTeam.Legs != null && relayTeam.Legs.Count > 0) {
+                        var orderedLegs = relayTeam.Legs.OrderBy(l => l.LegOrder).ToList();
+                        foreach (var leg in orderedLegs) {
+                            // 通过 bibNumber 或 name 在 _swimmers 中找到该队员
+                            var mem = _swimmers.FirstOrDefault(m =>
+                                m.Notes != null && m.Notes.StartsWith("接力队员")
+                                && m.EventName == s.EventName && m.Country == s.Country
+                                && ((!string.IsNullOrEmpty(leg.SwimmerBibNumber) && m.BibNumber == leg.SwimmerBibNumber)
+                                    || (!string.IsNullOrEmpty(leg.SwimmerName) && m.Name == leg.SwimmerName)));
+                            // 身份证号：优先取 Swimmer 记录；否则取 RelayLeg 存储的值
+                            string memIdNum = (mem != null && !string.IsNullOrEmpty(mem.IDNumber))
+                                ? mem.IDNumber : (leg.SwimmerIDNumber ?? "");
+                            memberList.Add(new {
+                                legOrder = leg.LegOrder,
+                                bibNumber = mem != null ? (mem.BibNumber ?? "") : (leg.SwimmerBibNumber ?? ""),
+                                name = mem != null ? (mem.Name ?? "") : (leg.SwimmerName ?? ""),
+                                idNumber = memIdNum,
+                                status = mem != null ? (mem.Status ?? "") : ""
+                            });
+                        }
+                    } else {
+                        // 兼容：没有 RelayTeam 数据时，按 _swimmers 直接过滤
+                        var members = _swimmers.Where(m => m.Notes != null && m.Notes.StartsWith("接力队员")
+                            && m.Country == s.Country && m.EventName == s.EventName).ToList();
+                        int idx = 1;
+                        foreach (var m in members) {
+                            memberList.Add(new {
+                                legOrder = idx++,
+                                bibNumber = m.BibNumber ?? "",
+                                name = m.Name ?? "",
+                                idNumber = m.IDNumber ?? "",
+                                status = m.Status ?? ""
+                            });
+                        }
+                    }
+                }
+
+                list.Add(new {
+                    lane = lane,
+                    bibNumber = s.BibNumber ?? "",
+                    name = s.Name ?? "",
+                    idNumber = s.IDNumber ?? "",
+                    country = s.Country ?? "",
+                    team = s.Country ?? "",
+                    age = s.Age,
+                    ageCategory = s.AgeCategory ?? "",
+                    entryTime = entryTime,
+                    status = s.Status ?? "",
+                    members = memberList,
+                    isRelay = isRelay
+                });
+            }
+            list = list.OrderBy(o => ((dynamic)o).lane).ToList();
+
+            try {
+                var reply = new {
+                    type = "HEAT_SWIMMERS",
+                    data = new { gender, eventName, stage, heat, isRelay, swimmers = list }
+                };
+                socket.Send(JsonConvert.SerializeObject(reply));
+            } catch { }
+        }
+
+        // 检录表确认：批量更新状态（DNS 等），保存并广播
+        // statuses 支持两种键：bibNumber（首选，兼容接力队员）或 lane（个人项目兼容）
+        private void HandleSaveCheckin(JObject msg) {
+            var data = msg["data"];
+            if (data == null) return;
+            string gender = data["gender"] != null ? data["gender"].ToString() : "";
+            string eventName = data["eventName"] != null ? data["eventName"].ToString() : "";
+            string stage = data["stage"] != null ? data["stage"].ToString() : "";
+            int heat = data["heat"] != null ? (int)data["heat"] : 0;
+            var statuses = data["statuses"] as JArray;
+            if (statuses == null) return;
+
+            int updated = 0;
+            foreach (JObject st in statuses.Cast<JObject>()) {
+                string bib = st["bibNumber"] != null ? st["bibNumber"].ToString() : "";
+                int lane = st["lane"] != null ? (int)st["lane"] : 0;
+                string newStatus = st["status"] != null ? st["status"].ToString() : "";
+
+                Swimmer target = null;
+                // 首选按 bibNumber 精准匹配（个人 + 接力队员通用）
+                if (!string.IsNullOrEmpty(bib)) {
+                    target = _swimmers.FirstOrDefault(s =>
+                        s.BibNumber == bib && s.EventName == eventName && s.Gender == gender);
+                }
+                // 回退按泳道匹配（仅针对当前组的非接力队员代表条目）
+                if (target == null && lane > 0) {
+                    target = _swimmers.FirstOrDefault(s => {
+                        if (s.Gender != gender || s.EventName != eventName) return false;
+                        if (s.Notes != null && s.Notes.StartsWith("接力队员")) return false;
+                        var sa = s.GetAssignmentForStage(stage);
+                        if (sa != null && sa.Heat == heat && sa.Lane == lane) return true;
+                        if (s.CurrentStage == stage && s.Heat == heat && s.Lane == lane) return true;
+                        return false;
+                    });
+                }
+                if (target != null && (target.Status ?? "") != newStatus) {
+                    target.Status = newStatus;
+                    updated++;
+                }
+            }
+
+            AddLog(string.Format("检录: {0} {1} {2} 第{3}组 已保存{4}条状态",
+                gender, eventName, stage, heat, updated));
+            AutoSaveData();
+            UpdateLaneStatusDisplay();
+            Broadcast();
         }
 
         private void HandleRegisterSwimmer(JObject msg) {
@@ -377,16 +531,20 @@ namespace SwimmingScoreboard
                     team.Legs.Add(new RelayLeg {
                         LegOrder = leg["legOrder"] != null ? (int)leg["legOrder"] : 0,
                         SwimmerName = leg["swimmerName"] != null ? leg["swimmerName"].ToString() : "",
-                        SwimmerBibNumber = leg["swimmerBibNumber"] != null ? leg["swimmerBibNumber"].ToString() : ""
+                        SwimmerBibNumber = leg["swimmerBibNumber"] != null ? leg["swimmerBibNumber"].ToString() : "",
+                        SwimmerIDNumber = leg["swimmerIDNumber"] != null ? leg["swimmerIDNumber"].ToString() : ""
                     });
                 }
             }
-            // 自动匹配队员号码：从已注册运动员中查找
+            // 自动匹配队员号码/身份证：从已注册运动员中查找
             foreach (var leg in team.Legs) {
-                if (string.IsNullOrEmpty(leg.SwimmerBibNumber) && !string.IsNullOrEmpty(leg.SwimmerName)) {
-                    var match = _swimmers.FirstOrDefault(s => s.Name == leg.SwimmerName && s.Country == team.TeamName);
-                    if (match != null && !string.IsNullOrEmpty(match.BibNumber))
+                if (string.IsNullOrEmpty(leg.SwimmerName)) continue;
+                var match = _swimmers.FirstOrDefault(s => s.Name == leg.SwimmerName && s.Country == team.TeamName);
+                if (match != null) {
+                    if (string.IsNullOrEmpty(leg.SwimmerBibNumber) && !string.IsNullOrEmpty(match.BibNumber))
                         leg.SwimmerBibNumber = match.BibNumber;
+                    if (string.IsNullOrEmpty(leg.SwimmerIDNumber) && !string.IsNullOrEmpty(match.IDNumber))
+                        leg.SwimmerIDNumber = match.IDNumber;
                 }
             }
 
@@ -409,6 +567,35 @@ namespace SwimmingScoreboard
                     EntryTimeSeconds = team.EntryTimeSeconds,
                     Notes = string.Format("接力队 棒次:{0}", legNames)
                 });
+            }
+
+            // 为每位队员创建/更新 Swimmer 子条目（用于存储身份证并承载检录状态）
+            foreach (var leg in team.Legs) {
+                if (string.IsNullOrEmpty(leg.SwimmerName)) continue;
+                // 队员条目的 BibNumber 取自 RelayLeg.SwimmerBibNumber（若无则生成 teamBib-legN）
+                string memBib = !string.IsNullOrEmpty(leg.SwimmerBibNumber)
+                    ? leg.SwimmerBibNumber : bibNumber + "-" + leg.LegOrder;
+
+                var memExisting = _swimmers.FirstOrDefault(s =>
+                    s.Notes != null && s.Notes.StartsWith("接力队员")
+                    && s.EventName == team.EventName && s.Country == team.TeamName
+                    && (s.Name == leg.SwimmerName || s.BibNumber == memBib));
+                if (memExisting != null) {
+                    // 补充/更新身份证号（若新数据非空）
+                    if (!string.IsNullOrEmpty(leg.SwimmerIDNumber))
+                        memExisting.IDNumber = leg.SwimmerIDNumber;
+                    if (string.IsNullOrEmpty(memExisting.BibNumber)) memExisting.BibNumber = memBib;
+                } else {
+                    _swimmers.Add(new Swimmer {
+                        BibNumber = memBib,
+                        Name = leg.SwimmerName,
+                        Gender = team.Gender == "混合" ? "男" : team.Gender, // 混合默认标男，可后续编辑
+                        Country = team.TeamName,
+                        IDNumber = leg.SwimmerIDNumber ?? "",
+                        EventName = team.EventName,
+                        Notes = string.Format("接力队员 {0} 第{1}棒", team.EventName, leg.LegOrder)
+                    });
+                }
             }
 
             AddLog(string.Format("注册接力队: {0} ({1}) {2}人 [{3}]", team.TeamName, team.EventName, team.Legs.Count, legNames));
@@ -502,6 +689,12 @@ namespace SwimmingScoreboard
                     break;
                 case "MARK_DSQ":
                     if (data != null) MarkLaneStatus((int)data["lane"], "DSQ");
+                    break;
+                case "CANCEL_NOTE":
+                    if (data != null) CancelLaneNote((int)data["lane"]);
+                    break;
+                case "USE_BLIND_RESULT":
+                    if (data != null) UseBlindResultForCurrentSegment((int)data["lane"]);
                     break;
                 case "OVERRIDE_TIME":
                     if (data != null) OverrideLaneTime((int)data["lane"], (double)data["time"]);
@@ -3179,6 +3372,99 @@ namespace SwimmingScoreboard
         // ═══════════════════════════════════════════════════════════════
         // 泳道操作
         // ═══════════════════════════════════════════════════════════════
+
+        // 取消备注：清除 DNS/DNF/DSQ 等状态，使运动员回到正常参赛状态
+        private void CancelLaneNote(int lane) {
+            var swimmer = GetCurrentHeatSwimmers().FirstOrDefault(s => {
+                var sa = s.GetAssignmentForStage(_currentStage);
+                return (sa != null ? sa.Lane : s.Lane) == lane;
+            });
+            if (swimmer == null) swimmer = GetCurrentHeatSwimmers().FirstOrDefault(s => s.Lane == lane);
+            if (swimmer == null) { AddLog(string.Format("泳道{0} 未找到运动员", lane)); return; }
+
+            string oldStatus = swimmer.Status ?? "";
+            swimmer.Status = "";
+            var laneState = _laneDeviceStates.FirstOrDefault(s => s.Lane == lane);
+            if (laneState != null) {
+                // 若比赛尚未结束/未有最终成绩，重置完成标志，使其继续参赛
+                var result = swimmer.Results.FirstOrDefault(r => r.Stage == _currentStage && r.Heat == _currentHeat);
+                bool hasFinalTime = result != null && result.FinalTime > 0;
+                if (!hasFinalTime) laneState.IsFinished = false;
+            }
+            LogRawTimingData(lane, "CANCEL_NOTE", 0);
+            AddLog(string.Format("泳道{0} {1} 取消备注（原 {2}），恢复正常参赛状态",
+                lane, swimmer.Name, string.IsNullOrEmpty(oldStatus) ? "无" : oldStatus));
+            UpdateLaneStatusDisplay();
+            AutoSaveData();
+            Broadcast();
+        }
+
+        // 盲表成绩：当前分段若无触板时间，使用盲表时间作为该段正式成绩
+        // 逻辑：在 laneState.PendingBlind*Time 中选择一个最早的有效盲表时间，
+        //       按触板到达处理（ProcessTouchpadHit 会把盲表时间清理并完成分段）
+        private void UseBlindResultForCurrentSegment(int lane) {
+            var laneState = _laneDeviceStates.FirstOrDefault(s => s.Lane == lane);
+            if (laneState == null) { AddLog(string.Format("泳道{0} 状态不存在", lane)); return; }
+
+            // 选择一个可用盲表时间：优先中位数；若只有一个则取之
+            var blinds = new List<double>();
+            if (laneState.PendingBlind1Time > 0) blinds.Add(laneState.PendingBlind1Time);
+            if (laneState.PendingBlind2Time > 0) blinds.Add(laneState.PendingBlind2Time);
+            if (laneState.PendingBlind3Time > 0) blinds.Add(laneState.PendingBlind3Time);
+            if (blinds.Count == 0) {
+                AddLog(string.Format("泳道{0} 无盲表数据可用", lane));
+                return;
+            }
+            blinds.Sort();
+            double blindTime = blinds[blinds.Count / 2]; // 中位数
+
+            // 检查当前段是否已有触板时间（若有则不覆盖）
+            var swimmer = GetCurrentHeatSwimmers().FirstOrDefault(s => {
+                var sa = s.GetAssignmentForStage(_currentStage);
+                return (sa != null ? sa.Lane : s.Lane) == lane;
+            });
+            if (swimmer == null) swimmer = GetCurrentHeatSwimmers().FirstOrDefault(s => s.Lane == lane);
+            if (swimmer != null) {
+                var res = swimmer.Results.FirstOrDefault(r => r.Stage == _currentStage && r.Heat == _currentHeat);
+                int curLap = laneState.CurrentLap + 1;
+                if (res != null) {
+                    var sp = res.Splits.FirstOrDefault(x => x.Lap == curLap);
+                    if (sp != null && sp.TouchpadTime > 0) {
+                        AddLog(string.Format("泳道{0} 当前分段已有触板成绩，盲表成绩补充操作跳过", lane));
+                        return;
+                    }
+                }
+            }
+
+            AddLog(string.Format("泳道{0} 使用盲表成绩 {1} 作为当前分段正式成绩",
+                lane, TimeFormatter.Format(blindTime)));
+            LogRawTimingData(lane, "USE_BLIND_RESULT", blindTime);
+
+            // 按触板处理（ProcessTouchpadHit 会把 PendingBlind 写入分段后清空）
+            ProcessTouchpadHit(lane, blindTime, laneState);
+            // 恢复泳道到正常参赛状态：不自动关闭
+            laneState.LaneCloseCountdown = 0;
+            UpdateLaneStatusDisplay();
+            Broadcast();
+        }
+
+        // 道次打开 / 道次关闭：只对指定泳道生效（单道版本的 OpenAll/CloseAll）
+        private void SetSingleLaneOpen(int lane, bool open) {
+            var s = _laneDeviceStates.FirstOrDefault(x => x.Lane == lane);
+            if (s == null) { AddLog(string.Format("泳道{0} 状态不存在", lane)); return; }
+            DeviceStatus st = open ? DeviceStatus.Open : DeviceStatus.Closed;
+            s.LeftTouchpadStatus = st;
+            s.LeftBlindWatch1Status = st; s.LeftBlindWatch2Status = st; s.LeftBlindWatch3Status = st;
+            s.LeftStartBlockStatus = st;
+            s.RightTouchpadStatus = st;
+            s.RightBlindWatch1Status = st; s.RightBlindWatch2Status = st; s.RightBlindWatch3Status = st;
+            s.RightStartBlockStatus = st;
+            s.LaneCloseCountdown = 0;
+            AddLog(string.Format("泳道{0} 已{1}", lane, open ? "打开" : "关闭"));
+            UpdateLaneStatusDisplay();
+            Broadcast();
+        }
+
         private void MarkLaneStatus(int lane, string status) {
             var swimmer = GetCurrentHeatSwimmers().FirstOrDefault(s => {
                 var sa = s.GetAssignmentForStage(_currentStage);
@@ -3284,6 +3570,30 @@ namespace SwimmingScoreboard
             if (!int.TryParse(LaneInputBox.Text, out lane)) { AddLog("请输入泳道号"); return; }
             if (!ConfirmMarkStatus(lane, "DSQ", "犯规取消资格")) return;
             MarkLaneStatus(lane, "DSQ");
+        }
+
+        private void CancelNote_Click(object sender, RoutedEventArgs e) {
+            int lane;
+            if (!int.TryParse(LaneInputBox.Text, out lane)) { AddLog("请输入泳道号"); return; }
+            CancelLaneNote(lane);
+        }
+
+        private void BlindResult_Click(object sender, RoutedEventArgs e) {
+            int lane;
+            if (!int.TryParse(LaneInputBox.Text, out lane)) { AddLog("请输入泳道号"); return; }
+            UseBlindResultForCurrentSegment(lane);
+        }
+
+        private void LaneOpen_Click(object sender, RoutedEventArgs e) {
+            int lane;
+            if (!int.TryParse(LaneInputBox.Text, out lane)) { AddLog("请输入泳道号"); return; }
+            SetSingleLaneOpen(lane, true);
+        }
+
+        private void LaneClose_Click(object sender, RoutedEventArgs e) {
+            int lane;
+            if (!int.TryParse(LaneInputBox.Text, out lane)) { AddLog("请输入泳道号"); return; }
+            SetSingleLaneOpen(lane, false);
         }
 
         private void ManualTime_Click(object sender, RoutedEventArgs e) {
@@ -3743,13 +4053,15 @@ namespace SwimmingScoreboard
                 RelayLegTitle.Text = "棒次安排（请选中一支接力队）";
                 return;
             }
-            // 自动补全队员号码
+            // 自动补全队员号码 / 身份证号
             foreach (var leg in selected.Legs) {
-                if (string.IsNullOrEmpty(leg.SwimmerBibNumber) && !string.IsNullOrEmpty(leg.SwimmerName)) {
-                    var match = _swimmers.FirstOrDefault(s => s.Name == leg.SwimmerName && s.Country == selected.TeamName);
-                    if (match != null && !string.IsNullOrEmpty(match.BibNumber))
-                        leg.SwimmerBibNumber = match.BibNumber;
-                }
+                if (string.IsNullOrEmpty(leg.SwimmerName)) continue;
+                var match = _swimmers.FirstOrDefault(s => s.Name == leg.SwimmerName && s.Country == selected.TeamName);
+                if (match == null) continue;
+                if (string.IsNullOrEmpty(leg.SwimmerBibNumber) && !string.IsNullOrEmpty(match.BibNumber))
+                    leg.SwimmerBibNumber = match.BibNumber;
+                if (string.IsNullOrEmpty(leg.SwimmerIDNumber) && !string.IsNullOrEmpty(match.IDNumber))
+                    leg.SwimmerIDNumber = match.IDNumber;
             }
             RelayLegTitle.Text = string.Format("{0} — {1} 棒次安排（{2}人）", selected.TeamName, selected.EventName, selected.Legs.Count);
             RelayLegGrid.ItemsSource = selected.Legs;
@@ -3843,25 +4155,47 @@ namespace SwimmingScoreboard
 
             var inputPanel = new Grid();
             inputPanel.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            inputPanel.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(100) });
+            inputPanel.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(180) });
+            inputPanel.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(80) });
             var tbName = new TextBox { Padding = new Thickness(4), Margin = new Thickness(0, 0, 4, 0) };
             tbName.SetValue(Grid.ColumnProperty, 0);
+            var tbID = new TextBox { Padding = new Thickness(4), Margin = new Thickness(0, 0, 4, 0) };
+            tbID.SetValue(Grid.ColumnProperty, 1);
             var tbBib = new TextBox { Padding = new Thickness(4) };
-            tbBib.SetValue(Grid.ColumnProperty, 1);
+            tbBib.SetValue(Grid.ColumnProperty, 2);
             inputPanel.Children.Add(tbName);
+            inputPanel.Children.Add(tbID);
             inputPanel.Children.Add(tbBib);
 
             var labelPanel = new Grid();
             labelPanel.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            labelPanel.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(100) });
+            labelPanel.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(180) });
+            labelPanel.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(80) });
             var lb1 = new TextBlock { Text = "姓名:", FontSize = 12, Foreground = new SolidColorBrush(Colors.Gray) };
             lb1.SetValue(Grid.ColumnProperty, 0);
-            var lb2 = new TextBlock { Text = "号码:", FontSize = 12, Foreground = new SolidColorBrush(Colors.Gray) };
+            var lb2 = new TextBlock { Text = "身份证号:", FontSize = 12, Foreground = new SolidColorBrush(Colors.Gray) };
             lb2.SetValue(Grid.ColumnProperty, 1);
+            var lb3 = new TextBlock { Text = "参赛号:", FontSize = 12, Foreground = new SolidColorBrush(Colors.Gray) };
+            lb3.SetValue(Grid.ColumnProperty, 2);
             labelPanel.Children.Add(lb1);
             labelPanel.Children.Add(lb2);
+            labelPanel.Children.Add(lb3);
             sp.Children.Add(labelPanel);
             sp.Children.Add(inputPanel);
+
+            // 提示条
+            var hintBorder = new Border {
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FEF3C7")),
+                BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F59E0B")),
+                BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(4),
+                Padding = new Thickness(8, 4, 8, 4), Margin = new Thickness(0, 6, 0, 0)
+            };
+            hintBorder.Child = new TextBlock {
+                Text = "提示：姓名需与身份证一致；身份证号为 18 位数字；参赛号由报名时分配",
+                Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#92400E")),
+                FontSize = 11, TextWrapping = TextWrapping.Wrap
+            };
+            sp.Children.Add(hintBorder);
 
             // 选择列表项时自动填入
             memberList.SelectionChanged += delegate {
@@ -3869,6 +4203,7 @@ namespace SwimmingScoreboard
                 if (selIdx >= 0 && selIdx < teamMembers.Count) {
                     tbName.Text = teamMembers[selIdx].Name;
                     tbBib.Text = teamMembers[selIdx].BibNumber ?? "";
+                    tbID.Text = teamMembers[selIdx].IDNumber ?? "";
                 }
             };
 
@@ -3894,6 +4229,7 @@ namespace SwimmingScoreboard
                 string oldName = leg.SwimmerName;
                 leg.SwimmerName = tbName.Text.Trim();
                 leg.SwimmerBibNumber = tbBib.Text.Trim();
+                leg.SwimmerIDNumber = tbID.Text.Trim();
                 RelayLegGrid.Items.Refresh();
                 AddLog(string.Format("接力队 {0} 第{1}棒: {2} → {3}", team.TeamName, leg.LegOrder, oldName, leg.SwimmerName));
             }
@@ -3908,6 +4244,31 @@ namespace SwimmingScoreboard
                 string legNames = "";
                 foreach (var leg in team.Legs) legNames += (legNames.Length > 0 ? "," : "") + leg.SwimmerName;
                 proxy.Notes = string.Format("接力队 棒次:{0}", legNames);
+            }
+            // 同步每位队员的 Swimmer 子条目：身份证号/号码
+            string teamBib = proxy != null ? (proxy.BibNumber ?? "") : "";
+            foreach (var leg in team.Legs) {
+                if (string.IsNullOrEmpty(leg.SwimmerName)) continue;
+                string memBib = !string.IsNullOrEmpty(leg.SwimmerBibNumber) ? leg.SwimmerBibNumber : teamBib + "-" + leg.LegOrder;
+                var memExisting = _swimmers.FirstOrDefault(s =>
+                    s.Notes != null && s.Notes.StartsWith("接力队员")
+                    && s.EventName == team.EventName && s.Country == team.TeamName
+                    && (s.Name == leg.SwimmerName || s.BibNumber == memBib));
+                if (memExisting != null) {
+                    if (!string.IsNullOrEmpty(leg.SwimmerIDNumber)) memExisting.IDNumber = leg.SwimmerIDNumber;
+                    if (!string.IsNullOrEmpty(leg.SwimmerBibNumber)) memExisting.BibNumber = leg.SwimmerBibNumber;
+                    if (!string.IsNullOrEmpty(leg.SwimmerName)) memExisting.Name = leg.SwimmerName;
+                } else {
+                    _swimmers.Add(new Swimmer {
+                        BibNumber = memBib,
+                        Name = leg.SwimmerName,
+                        Gender = team.Gender == "混合" ? "男" : team.Gender,
+                        Country = team.TeamName,
+                        IDNumber = leg.SwimmerIDNumber ?? "",
+                        EventName = team.EventName,
+                        Notes = string.Format("接力队员 {0} 第{1}棒", team.EventName, leg.LegOrder)
+                    });
+                }
             }
             // 刷新上方分组视图
             RebuildRelayGroupedView();

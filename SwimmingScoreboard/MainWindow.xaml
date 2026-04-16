@@ -335,21 +335,33 @@
                                 </ScrollViewer>
                                 <!-- 隐藏的RelayGrid用于数据绑定 -->
                                 <DataGrid x:Name="RelayGrid" Visibility="Collapsed" SelectionChanged="RelayGrid_SelectionChanged"/>
-                                <!-- 棒次详情标题 -->
-                                <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,8,0,4">
-                                    <TextBlock x:Name="RelayLegTitle" Text="棒次安排（请选中一支接力队）" FontSize="14" FontWeight="Bold" Foreground="#1E40AF" VerticalAlignment="Center" Margin="0,0,12,0"/>
-                                    <Button Content="上移棒次" Click="RelayLegUp_Click" Padding="10,4" FontSize="12" Background="#475569" Foreground="White" BorderThickness="0" Margin="0,0,4,0"/>
-                                    <Button Content="下移棒次" Click="RelayLegDown_Click" Padding="10,4" FontSize="12" Background="#475569" Foreground="White" BorderThickness="0" Margin="0,0,4,0"/>
-                                    <Button Content="更换队员" Click="RelayLegReplace_Click" Padding="10,4" FontSize="12" Background="#F59E0B" Foreground="White" BorderThickness="0" Margin="0,0,4,0"/>
-                                    <Button Content="保存修改" Click="RelayLegSave_Click" Padding="10,4" FontSize="12" Background="#22C55E" Foreground="White" BorderThickness="0" Margin="0,0,4,0"/>
+                                <!-- 棒次详情标题 + 填写提示 -->
+                                <StackPanel Grid.Row="2" Margin="0,8,0,4">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock x:Name="RelayLegTitle" Text="棒次安排（请选中一支接力队）" FontSize="14" FontWeight="Bold" Foreground="#1E40AF" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                                        <Button Content="上移棒次" Click="RelayLegUp_Click" Padding="10,4" FontSize="12" Background="#475569" Foreground="White" BorderThickness="0" Margin="0,0,4,0"/>
+                                        <Button Content="下移棒次" Click="RelayLegDown_Click" Padding="10,4" FontSize="12" Background="#475569" Foreground="White" BorderThickness="0" Margin="0,0,4,0"/>
+                                        <Button Content="更换队员" Click="RelayLegReplace_Click" Padding="10,4" FontSize="12" Background="#F59E0B" Foreground="White" BorderThickness="0" Margin="0,0,4,0"/>
+                                        <Button Content="保存修改" Click="RelayLegSave_Click" Padding="10,4" FontSize="12" Background="#22C55E" Foreground="White" BorderThickness="0" Margin="0,0,4,0"/>
+                                    </StackPanel>
+                                    <Border Background="#FEF3C7" BorderBrush="#F59E0B" BorderThickness="1" CornerRadius="4" Padding="8,4" Margin="0,6,0,0">
+                                        <TextBlock Foreground="#92400E" FontSize="12" TextWrapping="Wrap">
+                                            <Run FontWeight="Bold">填写提示：</Run>
+                                            <Run>棒次</Run><Run Foreground="#B45309">（第1-4棒，固定顺序不可改）</Run>
+                                            <Run>｜ 姓名</Run><Run Foreground="#B45309">（队员全名，与身份证一致）</Run>
+                                            <Run>｜ 身份证号</Run><Run Foreground="#B45309">（18位数字，检录时核对证件）</Run>
+                                            <Run>｜ 参赛号</Run><Run Foreground="#B45309">（报名时分配的参赛号码）</Run>
+                                        </TextBlock>
+                                    </Border>
                                 </StackPanel>
-                                <!-- 棒次详情表格 -->
+                                <!-- 棒次详情表格（列序与HTML报名表一致：棒次 / 姓名 / 身份证号 / 参赛号） -->
                                 <DataGrid x:Name="RelayLegGrid" Grid.Row="3" AutoGenerateColumns="False" CanUserAddRows="False"
                                           SelectionMode="Single" IsReadOnly="False" AlternatingRowBackground="#F0F7FF">
                                     <DataGrid.Columns>
-                                        <DataGridTextColumn Header="棒次" Binding="{Binding LegOrder}" Width="50" IsReadOnly="True"/>
-                                        <DataGridTextColumn Header="姓名" Binding="{Binding SwimmerName}" Width="100"/>
-                                        <DataGridTextColumn Header="号码" Binding="{Binding SwimmerBibNumber}" Width="80"/>
+                                        <DataGridTextColumn Header="棒次" Binding="{Binding LegOrder}" Width="60" IsReadOnly="True"/>
+                                        <DataGridTextColumn Header="姓名" Binding="{Binding SwimmerName}" Width="110"/>
+                                        <DataGridTextColumn Header="身份证号" Binding="{Binding SwimmerIDNumber}" Width="190"/>
+                                        <DataGridTextColumn Header="参赛号" Binding="{Binding SwimmerBibNumber}" Width="90"/>
                                     </DataGrid.Columns>
                                 </DataGrid>
                             </Grid>
@@ -708,8 +720,8 @@
                                         FontSize="12" VerticalAlignment="Center" Cursor="Hand"/>
                             </Grid>
 
-                            <!-- 核心操作按钮（统一高度40px） -->
-                            <Button Click="Ready_Click" Height="36" Margin="0,0,0,6" BorderThickness="0" Cursor="Hand">
+                            <!-- 核心操作按钮（压缩高度以容纳新增的泳道操作行） -->
+                            <Button Click="Ready_Click" Height="30" Margin="0,0,0,4" BorderThickness="0" Cursor="Hand">
                                 <Button.Template>
                                     <ControlTemplate TargetType="Button">
                                         <Border Background="#F59E0B" CornerRadius="8">
@@ -721,7 +733,7 @@
                                     </ControlTemplate>
                                 </Button.Template>
                             </Button>
-                            <Button Click="StartRace_Click" Height="36" Margin="0,0,0,6" BorderThickness="0" Cursor="Hand">
+                            <Button Click="StartRace_Click" Height="30" Margin="0,0,0,4" BorderThickness="0" Cursor="Hand">
                                 <Button.Template>
                                     <ControlTemplate TargetType="Button">
                                         <Border Background="#22C55E" CornerRadius="8">
@@ -733,7 +745,7 @@
                                     </ControlTemplate>
                                 </Button.Template>
                             </Button>
-                            <Button Click="Restart_Click" Height="36" Margin="0,0,0,6" BorderThickness="0" Cursor="Hand">
+                            <Button Click="Restart_Click" Height="30" Margin="0,0,0,4" BorderThickness="0" Cursor="Hand">
                                 <Button.Template>
                                     <ControlTemplate TargetType="Button">
                                         <Border Background="#EF4444" CornerRadius="8">
@@ -745,7 +757,7 @@
                                     </ControlTemplate>
                                 </Button.Template>
                             </Button>
-                            <Button Click="ConfirmResult_Click" Height="36" Margin="0,0,0,12" BorderThickness="0" Cursor="Hand">
+                            <Button Click="ConfirmResult_Click" Height="30" Margin="0,0,0,8" BorderThickness="0" Cursor="Hand">
                                 <Button.Template>
                                     <ControlTemplate TargetType="Button">
                                         <Border Background="#3B82F6" CornerRadius="8">
@@ -770,9 +782,11 @@
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
                                 <Grid.RowDefinitions>
-                                    <RowDefinition Height="40"/>
-                                    <RowDefinition Height="40"/>
-                                    <RowDefinition Height="40"/>
+                                    <RowDefinition Height="32"/>
+                                    <RowDefinition Height="32"/>
+                                    <RowDefinition Height="32"/>
+                                    <RowDefinition Height="32"/>
+                                    <RowDefinition Height="32"/>
                                 </Grid.RowDefinitions>
                                 <Button Grid.Row="0" Grid.Column="0" Click="MarkDNS_Click" Margin="2" BorderThickness="0" Cursor="Hand">
                                     <Button.Template>
@@ -813,8 +827,46 @@
                                         </ControlTemplate>
                                     </Button.Template>
                                 </Button>
+                                <!-- 取消备注 / 盲表成绩 -->
+                                <Button Grid.Row="2" Grid.Column="0" Click="CancelNote_Click" Margin="2" BorderThickness="0" Cursor="Hand">
+                                    <Button.Template>
+                                        <ControlTemplate TargetType="Button">
+                                            <Border Background="#0EA5E9" CornerRadius="6">
+                                                <TextBlock Text="取消备注" FontSize="14" Foreground="White" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            </Border>
+                                        </ControlTemplate>
+                                    </Button.Template>
+                                </Button>
+                                <Button Grid.Row="2" Grid.Column="1" Click="BlindResult_Click" Margin="2" BorderThickness="0" Cursor="Hand">
+                                    <Button.Template>
+                                        <ControlTemplate TargetType="Button">
+                                            <Border Background="#8B5CF6" CornerRadius="6">
+                                                <TextBlock Text="盲表成绩" FontSize="14" Foreground="White" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            </Border>
+                                        </ControlTemplate>
+                                    </Button.Template>
+                                </Button>
+                                <!-- 道次打开 / 道次关闭（仅当前选中泳道） -->
+                                <Button Grid.Row="3" Grid.Column="0" Click="LaneOpen_Click" Margin="2" BorderThickness="0" Cursor="Hand">
+                                    <Button.Template>
+                                        <ControlTemplate TargetType="Button">
+                                            <Border Background="#10B981" CornerRadius="6">
+                                                <TextBlock Text="道次打开" FontSize="14" Foreground="White" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            </Border>
+                                        </ControlTemplate>
+                                    </Button.Template>
+                                </Button>
+                                <Button Grid.Row="3" Grid.Column="1" Click="LaneClose_Click" Margin="2" BorderThickness="0" Cursor="Hand">
+                                    <Button.Template>
+                                        <ControlTemplate TargetType="Button">
+                                            <Border Background="#94A3B8" CornerRadius="6">
+                                                <TextBlock Text="道次关闭" FontSize="14" Foreground="White" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            </Border>
+                                        </ControlTemplate>
+                                    </Button.Template>
+                                </Button>
                                 <!-- 全部打开 / 全部关闭 -->
-                                <Button Grid.Row="2" Grid.Column="0" Click="OpenAll_Click" Margin="2" BorderThickness="0" Cursor="Hand">
+                                <Button Grid.Row="4" Grid.Column="0" Click="OpenAll_Click" Margin="2" BorderThickness="0" Cursor="Hand">
                                     <Button.Template>
                                         <ControlTemplate TargetType="Button">
                                             <Border Background="#22C55E" CornerRadius="6">
@@ -826,7 +878,7 @@
                                         </ControlTemplate>
                                     </Button.Template>
                                 </Button>
-                                <Button Grid.Row="2" Grid.Column="1" Click="CloseAll_Click" Margin="2" BorderThickness="0" Cursor="Hand">
+                                <Button Grid.Row="4" Grid.Column="1" Click="CloseAll_Click" Margin="2" BorderThickness="0" Cursor="Hand">
                                     <Button.Template>
                                         <ControlTemplate TargetType="Button">
                                             <Border Background="#64748B" CornerRadius="6">
@@ -840,19 +892,19 @@
                                 </Button>
                             </Grid>
 
-                            <TextBlock Text="显示控制" FontSize="14" FontWeight="Bold" Foreground="#475569" Margin="0,12,0,8"/>
-                            <Border Background="#F8FAFC" CornerRadius="6" Padding="8">
+                            <TextBlock Text="显示控制" FontSize="14" FontWeight="Bold" Foreground="#475569" Margin="0,8,0,6"/>
+                            <Border Background="#F8FAFC" CornerRadius="6" Padding="6">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="*"/>
                                     </Grid.ColumnDefinitions>
                                     <Grid.RowDefinitions>
-                                        <RowDefinition Height="40"/>
-                                        <RowDefinition Height="40"/>
-                                        <RowDefinition Height="40"/>
-                                        <RowDefinition Height="40"/>
-                                        <RowDefinition Height="40"/>
+                                        <RowDefinition Height="32"/>
+                                        <RowDefinition Height="32"/>
+                                        <RowDefinition Height="32"/>
+                                        <RowDefinition Height="32"/>
+                                        <RowDefinition Height="32"/>
                                     </Grid.RowDefinitions>
                                     <!-- 赛中显示 -->
                                     <Button Grid.Row="0" Grid.Column="0" Click="ShowStartList_Click" Margin="2" BorderThickness="0" Cursor="Hand">

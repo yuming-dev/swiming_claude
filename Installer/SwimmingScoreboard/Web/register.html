@@ -123,10 +123,10 @@ input[readonly] { background: #f1f5f9; }
         <input id="relayEntryTime" placeholder="3:20.00">
         <hr class="sep">
         <label style="font-weight:bold;color:#1e293b;">棒次安排</label>
-        <div class="leg-row"><span class="leg-num">第1棒</span><input id="leg1Name" placeholder="运动员姓名"><input id="leg1Bib" placeholder="参赛号" style="width:80px;flex:none;"></div>
-        <div class="leg-row"><span class="leg-num">第2棒</span><input id="leg2Name" placeholder="运动员姓名"><input id="leg2Bib" placeholder="参赛号" style="width:80px;flex:none;"></div>
-        <div class="leg-row"><span class="leg-num">第3棒</span><input id="leg3Name" placeholder="运动员姓名"><input id="leg3Bib" placeholder="参赛号" style="width:80px;flex:none;"></div>
-        <div class="leg-row"><span class="leg-num">第4棒</span><input id="leg4Name" placeholder="运动员姓名"><input id="leg4Bib" placeholder="参赛号" style="width:80px;flex:none;"></div>
+        <div class="leg-row"><span class="leg-num">第1棒</span><input id="leg1Name" placeholder="运动员姓名" style="flex:1;"><input id="leg1ID" placeholder="身份证号" style="width:180px;flex:none;"><input id="leg1Bib" placeholder="参赛号" style="width:80px;flex:none;"></div>
+        <div class="leg-row"><span class="leg-num">第2棒</span><input id="leg2Name" placeholder="运动员姓名" style="flex:1;"><input id="leg2ID" placeholder="身份证号" style="width:180px;flex:none;"><input id="leg2Bib" placeholder="参赛号" style="width:80px;flex:none;"></div>
+        <div class="leg-row"><span class="leg-num">第3棒</span><input id="leg3Name" placeholder="运动员姓名" style="flex:1;"><input id="leg3ID" placeholder="身份证号" style="width:180px;flex:none;"><input id="leg3Bib" placeholder="参赛号" style="width:80px;flex:none;"></div>
+        <div class="leg-row"><span class="leg-num">第4棒</span><input id="leg4Name" placeholder="运动员姓名" style="flex:1;"><input id="leg4ID" placeholder="身份证号" style="width:180px;flex:none;"><input id="leg4Bib" placeholder="参赛号" style="width:80px;flex:none;"></div>
         <button class="btn btn-green btn-block" style="margin-top:12px;" onclick="registerRelay()">提交接力报名</button>
     </div>
 </div>
@@ -302,7 +302,8 @@ function registerRelay() {
     for (var i = 1; i <= 4; i++) {
         var legName = document.getElementById('leg' + i + 'Name').value.trim();
         var legBib = document.getElementById('leg' + i + 'Bib').value.trim();
-        if (legName) legs.push({legOrder: i, swimmerName: legName, swimmerBibNumber: legBib});
+        var legID = document.getElementById('leg' + i + 'ID').value.trim();
+        if (legName) legs.push({legOrder: i, swimmerName: legName, swimmerBibNumber: legBib, swimmerIDNumber: legID});
     }
     ws.send(JSON.stringify({
         type: 'REGISTER_RELAY',

@@ -158,6 +158,7 @@ namespace RegistrationTool
 
             var legs = new JArray();
             TextBox[] nameBoxes = { Leg1Name, Leg2Name, Leg3Name, Leg4Name };
+            TextBox[] idBoxes = { Leg1ID, Leg2ID, Leg3ID, Leg4ID };
             TextBox[] bibBoxes = { Leg1Bib, Leg2Bib, Leg3Bib, Leg4Bib };
             for (int i = 0; i < 4; i++) {
                 string legName = nameBoxes[i].Text.Trim();
@@ -165,6 +166,7 @@ namespace RegistrationTool
                     var leg = new JObject();
                     leg["legOrder"] = i + 1;
                     leg["swimmerName"] = legName;
+                    leg["swimmerIDNumber"] = idBoxes[i].Text.Trim();
                     leg["swimmerBibNumber"] = bibBoxes[i].Text.Trim();
                     legs.Add(leg);
                 }
