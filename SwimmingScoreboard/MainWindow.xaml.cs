@@ -838,7 +838,8 @@ namespace SwimmingScoreboard
             int lane = (int)data["lane"];
             string cmdType = data["commandType"].ToString();
             double time = (double)data["time"];
-            ProcessTimingData(lane, cmdType, time);
+            string side = data["side"] != null ? data["side"].ToString() : null;
+            ProcessTimingData(lane, cmdType, time, side);
         }
 
         private void HandleConnectHw(JObject msg) {
@@ -1332,10 +1333,19 @@ namespace SwimmingScoreboard
 
         private void ProcessTimingDataFromHardware(TimingData data) {
             string cmdType = data.CommandType.ToString();
-            ProcessTimingData(data.Lane, cmdType, data.TimeInSeconds);
+            // 根据终点端/另一端标识 + 终点位置设置，映射到 left/right
+            // FinishPosition="left" → 终点端=left, 另一端=right
+            // FinishPosition="right" → 终点端=right, 另一端=left
+            bool finishIsLeft = _laneCloseSettings.FinishPosition != "right";
+            string side;
+            if (data.IsFinishEnd)
+                side = finishIsLeft ? "left" : "right";
+            else
+                side = finishIsLeft ? "right" : "left";
+            ProcessTimingData(data.Lane, cmdType, data.TimeInSeconds, side);
         }
 
-        private void ProcessTimingData(int lane, string cmdType, double timeInSeconds) {
+        private void ProcessTimingData(int lane, string cmdType, double timeInSeconds, string side = null) {
             // 硬件触发的比赛控制命令：任何状态下都接收
             switch (cmdType) {
                 case "TimerReady":
@@ -1376,10 +1386,17 @@ namespace SwimmingScoreboard
 
                 case "StartingBlock":
                     // 出发台 — 反应时间（含接力交接棒抢跳检测）
-                    if (laneState.LeftStartBlockStatus == DeviceStatus.Open ||
-                        laneState.RightStartBlockStatus == DeviceStatus.Open ||
-                        laneState.LeftStartBlockStatus == DeviceStatus.FalseStart ||
-                        laneState.RightStartBlockStatus == DeviceStatus.FalseStart) {
+                    // 根据 side 检查对应端出发台是否打开（side=null 时兼容两端任一打开）
+                    {
+                        bool sbOpen;
+                        if (side == "left")
+                            sbOpen = laneState.LeftStartBlockStatus == DeviceStatus.Open || laneState.LeftStartBlockStatus == DeviceStatus.FalseStart;
+                        else if (side == "right")
+                            sbOpen = laneState.RightStartBlockStatus == DeviceStatus.Open || laneState.RightStartBlockStatus == DeviceStatus.FalseStart;
+                        else
+                            sbOpen = laneState.LeftStartBlockStatus == DeviceStatus.Open || laneState.RightStartBlockStatus == DeviceStatus.Open
+                                  || laneState.LeftStartBlockStatus == DeviceStatus.FalseStart || laneState.RightStartBlockStatus == DeviceStatus.FalseStart;
+                        if (sbOpen) {
 
                         if (_isRelay && laneState.CurrentLap > 0) {
                             // 接力交接：出发台时间是绝对时间，与上次触板时间比较
@@ -1412,29 +1429,40 @@ namespace SwimmingScoreboard
                             }
                         }
                     }
+                    }
                     break;
 
                 case "Touchpad":
-                    // 触板 — 检查泳道是否打开
-                    if (laneState.LeftTouchpadStatus == DeviceStatus.Open ||
-                        laneState.RightTouchpadStatus == DeviceStatus.Open) {
-                        ProcessTouchpadHit(lane, timeInSeconds, laneState);
-                    } else {
-                        AddLog(string.Format("泳道{0} 触板数据丢弃（泳道关闭中）", lane));
+                    // 触板 — 根据 side 检查对应端是否打开（side=null 时兼容两端任一打开）
+                    {
+                        bool touchOpen;
+                        if (side == "left") touchOpen = laneState.LeftTouchpadStatus == DeviceStatus.Open;
+                        else if (side == "right") touchOpen = laneState.RightTouchpadStatus == DeviceStatus.Open;
+                        else touchOpen = laneState.LeftTouchpadStatus == DeviceStatus.Open || laneState.RightTouchpadStatus == DeviceStatus.Open;
+                        if (touchOpen) {
+                            ProcessTouchpadHit(lane, timeInSeconds, laneState);
+                        } else {
+                            AddLog(string.Format("泳道{0} 触板数据丢弃（{1}泳道关闭中）", lane, side ?? ""));
+                        }
                     }
                     break;
 
                 case "PushButton1":
                 case "PushButton2":
                 case "PushButton3":
-                    // 盲表
-                    if (laneState.LeftBlindWatch1Status == DeviceStatus.Open ||
-                        laneState.LeftBlindWatch2Status == DeviceStatus.Open ||
-                        laneState.LeftBlindWatch3Status == DeviceStatus.Open ||
-                        laneState.RightBlindWatch1Status == DeviceStatus.Open ||
-                        laneState.RightBlindWatch2Status == DeviceStatus.Open ||
-                        laneState.RightBlindWatch3Status == DeviceStatus.Open) {
-                        ProcessBlindWatchData(lane, cmdType, timeInSeconds);
+                    // 盲表 — 根据 side 检查对应端盲表是否打开
+                    {
+                        bool blindOpen;
+                        if (side == "left")
+                            blindOpen = laneState.LeftBlindWatch1Status == DeviceStatus.Open || laneState.LeftBlindWatch2Status == DeviceStatus.Open || laneState.LeftBlindWatch3Status == DeviceStatus.Open;
+                        else if (side == "right")
+                            blindOpen = laneState.RightBlindWatch1Status == DeviceStatus.Open || laneState.RightBlindWatch2Status == DeviceStatus.Open || laneState.RightBlindWatch3Status == DeviceStatus.Open;
+                        else
+                            blindOpen = laneState.LeftBlindWatch1Status == DeviceStatus.Open || laneState.LeftBlindWatch2Status == DeviceStatus.Open || laneState.LeftBlindWatch3Status == DeviceStatus.Open
+                                     || laneState.RightBlindWatch1Status == DeviceStatus.Open || laneState.RightBlindWatch2Status == DeviceStatus.Open || laneState.RightBlindWatch3Status == DeviceStatus.Open;
+                        if (blindOpen) {
+                            ProcessBlindWatchData(lane, cmdType, timeInSeconds);
+                        }
                     }
                     break;
             }

@@ -26,7 +26,7 @@ class TimingSimulatorForm : Form
     volatile bool _running;
 
     // 控件
-    ComboBox cmbConnType, cmbPort, cmbLane;
+    ComboBox cmbConnType, cmbPort, cmbLane, cmbEnd;
     TextBox txtUdpHost, txtUdpSendPort, txtUdpRecvPort, txtTcpPort, txtTime;
     Button btnConnect, btnDisconnect;
     Label lblStatus;
@@ -146,15 +146,22 @@ class TimingSimulatorForm : Form
         Controls.Add(grpData);
 
         grpData.Controls.Add(MakeLabel("泳道:", 15, 28));
-        cmbLane = new ComboBox { Location = new Point(60, 25), Width = 55, DropDownStyle = ComboBoxStyle.DropDownList };
+        cmbLane = new ComboBox { Location = new Point(55, 25), Width = 45, DropDownStyle = ComboBoxStyle.DropDownList };
         for (int i = 0; i <= 9; i++) cmbLane.Items.Add(i.ToString());
         cmbLane.SelectedIndex = 4;
         grpData.Controls.Add(cmbLane);
 
-        grpData.Controls.Add(MakeLabel("成绩:", 125, 28));
-        txtTime = new TextBox { Text = "25.34", Location = new Point(170, 25), Width = 80, BackColor = Color.FromArgb(30, 41, 59), ForeColor = Color.White, BorderStyle = BorderStyle.FixedSingle, Font = new Font("Consolas", 11) };
+        // 端选择（D4 编码：终点端=0-9, 另一端=10-19）
+        cmbEnd = new ComboBox { Location = new Point(105, 25), Width = 75, DropDownStyle = ComboBoxStyle.DropDownList };
+        cmbEnd.Items.Add("终点端");
+        cmbEnd.Items.Add("另一端");
+        cmbEnd.SelectedIndex = 0;
+        grpData.Controls.Add(cmbEnd);
+
+        grpData.Controls.Add(MakeLabel("成绩:", 185, 28));
+        txtTime = new TextBox { Text = "25.34", Location = new Point(225, 25), Width = 80, BackColor = Color.FromArgb(30, 41, 59), ForeColor = Color.White, BorderStyle = BorderStyle.FixedSingle, Font = new Font("Consolas", 11) };
         grpData.Controls.Add(txtTime);
-        grpData.Controls.Add(MakeLabel("秒", 255, 28));
+        grpData.Controls.Add(MakeLabel("秒", 310, 28));
 
         btnTouchpad = MakeBtn("触板 (0x16)", 15, 65, 155, 34, Color.FromArgb(59, 130, 246));
         btnTouchpad.Click += (s, e) => SendTimingData(0x16, "触板");
@@ -512,14 +519,18 @@ class TimingSimulatorForm : Form
             for (int i = 0; i < FRAME_LEN; i++) rawFrame[i] = acc[i];
 
             byte cmd  = acc[2];
-            byte lane = acc[4];
+            byte rawD4 = acc[4]; // D4: 0-9=终点端泳道号, 10-19=另一端泳道号(实际泳道=D4-10)
             int min = acc[5], sec = acc[6], cs = acc[7];
             int hour = (acc[8] >> 4) & 0x0F;
             int ms1  = acc[8] & 0x0F;   // 1/1000秒个位
             double time = hour * 3600.0 + min * 60.0 + sec + cs / 100.0 + ms1 / 1000.0;
+            // D4 拆分
+            bool isFinishEnd = rawD4 < 10;
+            int lane = isFinishEnd ? rawD4 : rawD4 - 10;
+            string endLabel = isFinishEnd ? "终点端" : "另一端";
 
             string cmdName = GetCmdName(cmd);
-            Log(string.Format("[接收] {0} 道{1} {2} ({3})", cmdName, lane, FormatTime(time), FrameToHex(rawFrame)));
+            Log(string.Format("[接收] {0} D4={1} 道{2}({3}) {4} ({5})", cmdName, rawD4, lane, endLabel, FormatTime(time), FrameToHex(rawFrame)));
 
             // 驱动时钟
             switch (cmd) {
@@ -613,22 +624,30 @@ class TimingSimulatorForm : Form
     void SendTimingData(byte cmd, string desc)
     {
         int lane = cmbLane.SelectedIndex;
+        bool isOtherEnd = cmbEnd.SelectedIndex == 1; // 1=另一端
+        int d4 = isOtherEnd ? lane + 10 : lane;       // D4 编码
         double time = ParseTime(txtTime.Text);
         if (time <= 0) { Log("[错误] 成绩格式无效"); return; }
 
-        byte[] frame = BuildFrame(cmd, lane, time);
+        byte[] frame = BuildFrame(cmd, d4, time);
+        string endLabel = isOtherEnd ? "另一端" : "终点端";
         SendFrame(frame);
-        Log(string.Format("[发送] 道{0} {1} {2} ({3})", lane, desc, FormatTime(time), FrameToHex(frame)));
+        Log(string.Format("[发送] 道{0}({1}) {2} {3} ({4})", lane, endLabel, desc, FormatTime(time), FrameToHex(frame)));
     }
 
     // ═══════ 自动模拟比赛 ═══════
+    // D4 编码规则（游泳计时通讯协议）：
+    //   D4 = 泳道号 (0-9)    → 终点端设备（触板/出发台/盲表在终点端）
+    //   D4 = 泳道号 + 10     → 另一端设备
+    // 100米比赛：出发在终点端 → 出发台 D4=0-9(终点端), 50m转身触板 D4=10-19(另一端), 100m终点触板 D4=0-9(终点端)
     void AutoRaceThread()
     {
         var rng = new Random();
         int lanes = (int)Invoke(new Func<int>(() => (int)nudLanes.Value));
         bool withBlind = (bool)Invoke(new Func<bool>(() => chkAutoBlind.Checked));
 
-        Log("═══ 自动模拟开始 ═══");
+        Log("═══ 自动模拟开始（100米比赛，出发=终点端）═══");
+        // 终点端(D4=lane), 另一端(D4=lane+10)
 
         // 1. 就位
         if (!_autoRunning) return;
@@ -640,11 +659,11 @@ class TimingSimulatorForm : Form
         SendFrameLog(BuildFrame(0x1C, 0, 0), "[自动] 开始计时");
         Thread.Sleep(500);
 
-        // 3. 出发台反应时（含第0道）
+        // 3. 出发台反应时 — 出发台在终点端 → D4=lane（含第0道）
         for (int i = 0; i <= lanes && _autoRunning; i++) {
             double rt = 0.15 + rng.NextDouble() * 0.45;
-            var sbFrame = BuildFrame(0x1A, i, rt);
-            SendFrameLog(sbFrame, string.Format("[自动] 道{0} 出发台 反应时={1:F2}s", i, rt));
+            var sbFrame = BuildFrame(0x1A, i, rt);  // D4=i (终点端)
+            SendFrameLog(sbFrame, string.Format("[自动] 道{0} 出发台(终点端 D4={0}) 反应时={1:F2}s", i, rt));
             Thread.Sleep(50);
         }
 
@@ -652,9 +671,9 @@ class TimingSimulatorForm : Form
         Log("[自动] 等待泳道关闭倒计时...");
         Thread.Sleep(8000);
 
-        // 5. 50米分段（模拟100米比赛，含第0道）
+        // 5. 50米分段 — 转身端=另一端 → D4=lane+10（含第0道）
         if (!_autoRunning) return;
-        Log("[自动] ─── 50米分段 ───");
+        Log("[自动] ─── 50米分段（另一端 D4=道号+10） ───");
         double[] splitTimes = new double[lanes + 1];
         var order = new List<int>();
         for (int i = 0; i <= lanes; i++) order.Add(i);
@@ -665,16 +684,17 @@ class TimingSimulatorForm : Form
             if (!_autoRunning) return;
             double t = baseTime + rng.NextDouble() * 4.0;
             splitTimes[i] = t;
+            int d4Turn = i + 10;  // 另一端
 
-            SendFrameLog(BuildFrame(0x16, i, t), string.Format("[自动] 道{0} 触板 50m={1}", i, FormatTime(t)));
+            SendFrameLog(BuildFrame(0x16, d4Turn, t), string.Format("[自动] 道{0} 触板(另一端 D4={1}) 50m={2}", i, d4Turn, FormatTime(t)));
 
             if (withBlind) {
                 Thread.Sleep(30);
-                SendFrameLog(BuildFrame(0x17, i, t + (rng.NextDouble() * 0.06 - 0.03)), string.Format("[自动] 道{0} 盲表1", i));
+                SendFrameLog(BuildFrame(0x17, d4Turn, t + (rng.NextDouble() * 0.06 - 0.03)), string.Format("[自动] 道{0} 盲表1(另一端)", i));
                 Thread.Sleep(20);
-                SendFrameLog(BuildFrame(0x18, i, t + (rng.NextDouble() * 0.06 - 0.03)), string.Format("[自动] 道{0} 盲表2", i));
+                SendFrameLog(BuildFrame(0x18, d4Turn, t + (rng.NextDouble() * 0.06 - 0.03)), string.Format("[自动] 道{0} 盲表2(另一端)", i));
                 Thread.Sleep(20);
-                SendFrameLog(BuildFrame(0x19, i, t + (rng.NextDouble() * 0.06 - 0.03)), string.Format("[自动] 道{0} 盲表3", i));
+                SendFrameLog(BuildFrame(0x19, d4Turn, t + (rng.NextDouble() * 0.06 - 0.03)), string.Format("[自动] 道{0} 盲表3(另一端)", i));
             }
 
             Thread.Sleep(200 + rng.Next(500));
@@ -684,24 +704,25 @@ class TimingSimulatorForm : Form
         Log("[自动] 等待下一段泳道关闭...");
         Thread.Sleep(6000);
 
-        // 7. 100米终点
+        // 7. 100米终点 — 终点端 → D4=lane
         if (!_autoRunning) return;
-        Log("[自动] ─── 100米终点 ───");
+        Log("[自动] ─── 100米终点（终点端 D4=道号） ───");
         Shuffle(order, rng);
 
         foreach (int i in order) {
             if (!_autoRunning) return;
             double t = splitTimes[i] + 26.0 + rng.NextDouble() * 5.0;
+            int d4Finish = i;  // 终点端
 
-            SendFrameLog(BuildFrame(0x16, i, t), string.Format("[自动] 道{0} 触板 100m={1} (终点)", i, FormatTime(t)));
+            SendFrameLog(BuildFrame(0x16, d4Finish, t), string.Format("[自动] 道{0} 触板(终点端 D4={1}) 100m={2} (终点)", i, d4Finish, FormatTime(t)));
 
             if (withBlind) {
                 Thread.Sleep(30);
-                SendFrameLog(BuildFrame(0x17, i, t + (rng.NextDouble() * 0.06 - 0.03)), string.Format("[自动] 道{0} 盲表1", i));
+                SendFrameLog(BuildFrame(0x17, d4Finish, t + (rng.NextDouble() * 0.06 - 0.03)), string.Format("[自动] 道{0} 盲表1(终点端)", i));
                 Thread.Sleep(20);
-                SendFrameLog(BuildFrame(0x18, i, t + (rng.NextDouble() * 0.06 - 0.03)), string.Format("[自动] 道{0} 盲表2", i));
+                SendFrameLog(BuildFrame(0x18, d4Finish, t + (rng.NextDouble() * 0.06 - 0.03)), string.Format("[自动] 道{0} 盲表2(终点端)", i));
                 Thread.Sleep(20);
-                SendFrameLog(BuildFrame(0x19, i, t + (rng.NextDouble() * 0.06 - 0.03)), string.Format("[自动] 道{0} 盲表3", i));
+                SendFrameLog(BuildFrame(0x19, d4Finish, t + (rng.NextDouble() * 0.06 - 0.03)), string.Format("[自动] 道{0} 盲表3(终点端)", i));
             }
 
             Thread.Sleep(300 + rng.Next(800));

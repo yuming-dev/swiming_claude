@@ -24,6 +24,11 @@ namespace SwimmingScoreboard
         public int Centiseconds { get; set; }
         public int Milliseconds { get; set; }
         public DateTime ReceivedAt { get; set; }
+        /// <summary>
+        /// D4 泳道端标识：true = 终点端 (D4 0-9), false = 另一端 (D4 10-19)
+        /// 用于区分左右设备（结合 FinishPosition 设置映射到 left/right）
+        /// </summary>
+        public bool IsFinishEnd { get; set; }
     }
 
     // 游泳计时通讯协议 2023-11-13  D2命令字节定义
@@ -287,14 +292,17 @@ namespace SwimmingScoreboard
             // D5=分  D6=秒  D7=1/100秒  D8=(小时<<4)|(1/1000秒)  D9=备用  D10=备用  D11=0xF4(EOT)
             byte cmd  = frame[2];
             byte cmd1 = frame[3];
-            byte lane = frame[4];   // 0-9=终点泳道, 10-19=另一端泳道(-10)
+            byte rawD4 = frame[4];   // D4: 0-9=终点端泳道号, 10-19=另一端泳道号(实际泳道=D4-10)
             int minutes      = frame[5];
             int seconds      = frame[6];
             int centiseconds = frame[7];
             int hour         = (frame[8] >> 4) & 0x0F;
             int ms1          = frame[8] & 0x0F;   // 1/1000秒个位
 
-            int laneIndex = lane < 20 ? _moduleToLane[lane] : lane;
+            // D4 拆分：实际泳道号 + 终点端/另一端标识
+            bool isFinishEnd = rawD4 < 10;
+            int actualLane = isFinishEnd ? rawD4 : rawD4 - 10;
+            int laneIndex = actualLane < 20 ? _moduleToLane[actualLane] : actualLane;
 
             // 时间：小时*3600 + 分*60 + 秒 + 1/100秒 + 1/1000秒
             double timeInSeconds = hour * 3600.0 + minutes * 60.0 + seconds
@@ -328,10 +336,13 @@ namespace SwimmingScoreboard
                 Seconds = seconds,
                 Centiseconds = centiseconds,
                 Milliseconds = ms1,
-                ReceivedAt = DateTime.Now
+                ReceivedAt = DateTime.Now,
+                IsFinishEnd = isFinishEnd
             };
 
-            RaiseLog(string.Format("收帧: CMD=0x{0:X2} 泳道{1} {2} {3}", cmd, laneIndex, cmdType, TimeFormatter.Format(timeInSeconds)));
+            string endLabel = isFinishEnd ? "终点端" : "另一端";
+            RaiseLog(string.Format("收帧: CMD=0x{0:X2} D4={1} 泳道{2}({3}) {4} {5}",
+                cmd, rawD4, laneIndex, endLabel, cmdType, TimeFormatter.Format(timeInSeconds)));
 
             Action<TimingData> handler = OnTimingData;
             if (handler != null) handler(data);

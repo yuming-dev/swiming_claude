@@ -63,9 +63,12 @@ label { color: #94a3b8; font-size: 12px; }
     <div class="row">
         <button class="btn-gold" onclick="simReady()">就位</button>
         <button class="btn-green" onclick="simStart()">发令</button>
-        <button class="btn-blue" onclick="simStartBlock()">模拟出发(含抢跳)</button>
-        <button class="btn-blue" onclick="simTouchpad()">模拟全部触板</button>
-        <button class="btn-blue" onclick="simBlindWatch()">模拟盲表</button>
+        <button class="btn-blue" onclick="simStartBlock('left')">模拟左边出发台</button>
+        <button class="btn-blue" onclick="simTouchpad('left')">模拟左边触板</button>
+        <button class="btn-blue" onclick="simBlindWatch('left')">模拟左边盲表</button>
+        <button class="btn-purple" onclick="simStartBlock('right')">模拟右边出发台</button>
+        <button class="btn-purple" onclick="simTouchpad('right')">模拟右边触板</button>
+        <button class="btn-purple" onclick="simBlindWatch('right')">模拟右边盲表</button>
         <button class="btn-gray" onclick="simConfirm()">确认成绩</button>
         <button class="btn-red" onclick="simTimerReset()">计时复位</button>
     </div>
@@ -361,7 +364,7 @@ function autoGenerateHeats() {
 function simReady() { sendCmd('READY'); log('发送: 就位'); }
 function simStart() { sendCmd('START_RACE'); log('发送: 发令'); }
 
-function simStartBlock() {
+function simStartBlock(side) {
     var lanes = getLanes();
     var threshold = (data && data.laneCloseSettings) ? data.laneCloseSettings.falseStartThreshold || 0.10 : 0.10;
 
@@ -376,7 +379,7 @@ function simStartBlock() {
     var fsLow1Idx = indices.length > 1 ? indices[1] : -1;
     var fsLow2Idx = indices.length > 2 ? indices[2] : -1;
 
-    log('=== 模拟出发 (阈值: ' + threshold + 's) ===');
+    log('=== 模拟'+side+'出发台 (阈值:'+threshold+'s) ===');
     var fsLanes = [];
     for (var i = 0; i < lanes.length; i++) {
         var lane = lanes[i];
@@ -384,43 +387,37 @@ function simStartBlock() {
         if (i === fsNegIdx) {
             rt = -(Math.random() * 0.05 + 0.01);
             rt = parseFloat(rt.toFixed(3));
-            send('TIMING_DATA', {lane: lane, commandType: 'StartingBlock', time: rt});
+            send('TIMING_DATA', {lane: lane, commandType: 'StartingBlock', time: rt, side: side});
             send('FALSE_START_DETECTED', {lane: lane, reactionTime: rt});
-            log('  道' + lane + ' ★抢跳(负值) ' + rt.toFixed(3) + 's');
+            log('  道'+lane+'('+side+') ★抢跳(负值) '+rt.toFixed(3)+'s');
             fsLanes.push(lane);
         } else if (i === fsLow1Idx || i === fsLow2Idx) {
             rt = 0.02 + Math.random() * (threshold - 0.02);
             rt = parseFloat(rt.toFixed(3));
-            send('TIMING_DATA', {lane: lane, commandType: 'StartingBlock', time: rt});
+            send('TIMING_DATA', {lane: lane, commandType: 'StartingBlock', time: rt, side: side});
             send('FALSE_START_DETECTED', {lane: lane, reactionTime: rt});
-            log('  道' + lane + ' ★抢跳(≤阈值) ' + rt.toFixed(3) + 's');
+            log('  道'+lane+'('+side+') ★抢跳(≤阈值) '+rt.toFixed(3)+'s');
             fsLanes.push(lane);
         } else {
             rt = 0.50 + Math.random() * 0.35;
             rt = parseFloat(rt.toFixed(2));
-            send('TIMING_DATA', {lane: lane, commandType: 'StartingBlock', time: rt});
-            log('  道' + lane + ' 正常出发 ' + rt.toFixed(2) + 's');
+            send('TIMING_DATA', {lane: lane, commandType: 'StartingBlock', time: rt, side: side});
+            log('  道'+lane+'('+side+') 正常出发 '+rt.toFixed(2)+'s');
         }
     }
-    log('抢跳泳道: [' + fsLanes.join(',') + ']');
+    log('抢跳泳道: ['+fsLanes.join(',')+']');
 }
 
 // 记录每道触板历史，用于计算下一段的合理时间
 var _lastTouchpadTime = {};  // 每道最近一次触板的绝对时间
 var _touchpadLapCount = {};  // 每道已触板的段数
 
-function simTouchpad() {
+function simTouchpad(side) {
     var lanes = getLanes();
-    // 获取项目距离和每段时间估算
-    var ev = document.getElementById('regEvent').value;
-    var distMatch = ev.match(/(\d+)/);
-    var dist = distMatch ? parseInt(distMatch[1]) : 100;
-    var poolLen = (data && data.poolConfig) ? data.poolConfig.length || 50 : 50;
-    // 每段合理用时（秒）
-    var segTime = dist <= 50 ? 25 : (dist <= 100 ? 28 : (dist <= 200 ? 30 : (dist <= 400 ? 32 : 35)));
-
-    log('=== 模拟触板 ===');
     var currentServerTime = parseRunningTime();
+    var segTime = 26;
+
+    log('=== 模拟'+side+'触板 ===');
     for (var i = 0; i < lanes.length; i++) {
         var lane = lanes[i];
         if (!_touchpadLapCount[lane]) _touchpadLapCount[lane] = 0;
@@ -429,32 +426,31 @@ function simTouchpad() {
         _touchpadLapCount[lane]++;
         var lapNum = _touchpadLapCount[lane];
 
-        // 始终基于当前服务器实时时间，加微小随机偏差
         var t = currentServerTime + (Math.random() - 0.3) * 0.5;
         if (t < 1) t = segTime * lapNum;
 
         _lastTouchpadTime[lane] = t;
-        send('TIMING_DATA', {lane: lane, commandType: 'Touchpad', time: t});
-        log('  道' + lane + ' 第' + lapNum + '段 触板: ' + t.toFixed(2) + 's');
+        send('TIMING_DATA', {lane: lane, commandType: 'Touchpad', time: t, side: side});
+        log('  道'+lane+'('+side+') 第'+lapNum+'段 触板: '+t.toFixed(2)+'s');
     }
 }
 
-function simBlindWatch() {
+function simBlindWatch(side) {
     var lanes = getLanes();
     var currentServerTime = parseRunningTime();
     if (currentServerTime <= 0) {
         log('警告: 比赛未开始，无法模拟盲表');
         return;
     }
-    log('=== 模拟盲表 (当前时间:' + currentServerTime.toFixed(2) + 's) ===');
+    log('=== 模拟'+side+'盲表 (当前时间:'+currentServerTime.toFixed(2)+'s) ===');
     for (var i = 0; i < lanes.length; i++) {
         var lane = lanes[i];
         for (var b = 1; b <= 3; b++) {
             var t = currentServerTime + (Math.random() - 0.5) * 0.30;
             if (t < 0.5) t = currentServerTime + 0.05;
-            send('TIMING_DATA', {lane: lane, commandType: 'PushButton' + b, time: t});
+            send('TIMING_DATA', {lane: lane, commandType: 'PushButton' + b, time: t, side: side});
         }
-        log('  道' + lane + ' 盲表x3 基准:' + currentServerTime.toFixed(2) + 's');
+        log('  道'+lane+'('+side+') 盲表x3 基准:'+currentServerTime.toFixed(2)+'s');
     }
 }
 
@@ -661,26 +657,29 @@ function fullAutoTest() {
 
                 setTimeout(function() {
                     if (!autoRunning) return;
-                    // Step 5: 出发
-                    simStartBlock();
-                    log('[5/7] 出发完成');
+                    // Step 5: 出发 — 出发台在出发端
+                    var startSide = (data && data.laneCloseSettings && data.laneCloseSettings.startPosition) || 'left';
+                    var oppSide = (startSide === 'left') ? 'right' : 'left';
+                    simStartBlock(startSide);
+                    log('[5/7] 出发完成('+startSide+'端)');
 
-                    // Step 6: 逐段触板
+                    // Step 6: 逐段触板（奇数段=出发对面, 偶数段=出发端）
                     var lap = 0;
                     function doLap() {
                         if (!autoRunning) return;
                         lap++;
+                        var lapSide = (lap % 2 === 1) ? oppSide : startSide;
                         // 等泳道打开（关闭时间+2秒余量）
                         var waitTime = (closeTime + 2) * 1000;
                         log('等待泳道打开... (' + (closeTime + 2) + 's)');
                         setTimeout(function() {
                             if (!autoRunning) return;
-                            log('[6/7] 第' + lap + '/' + totalLaps + '段触板');
-                            simTouchpad();
+                            log('[6/7] 第'+lap+'/'+totalLaps+'段('+lapSide+'端) 触板');
+                            simTouchpad(lapSide);
                             // 同时发盲表
                             setTimeout(function() {
                                 if (!autoRunning) return;
-                                simBlindWatch();
+                                simBlindWatch(lapSide);
                             }, 500);
 
                             if (lap < totalLaps) {

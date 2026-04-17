@@ -153,14 +153,17 @@ namespace RemoteTimingControl
                 if (acc[FRAME_LENGTH - 1] != EOT || acc[1] != (byte)'S') { acc.RemoveAt(0); continue; }
 
                 byte cmd0 = acc[2];
-                byte controlPort = acc[4];
+                byte rawD4 = acc[4]; // D4: 0-9=终点端泳道号, 10-19=另一端泳道号(实际泳道=D4-10)
                 // D5=分 D6=秒 D7=1/100秒 D8=(小时<<4)|(1/1000秒个位)
                 int min = acc[5], sec = acc[6], cs = acc[7];
                 int hour = (acc[8] >> 4) & 0x0F;
                 int ms1  = acc[8] & 0x0F;
                 acc.RemoveRange(0, FRAME_LENGTH);
 
-                int lane = controlPort < 20 ? _moduleToLane[controlPort] : controlPort;
+                // D4 拆分：实际泳道号 + 终点端/另一端标识
+                bool isFinishEnd = rawD4 < 10;
+                int actualLane = isFinishEnd ? rawD4 : rawD4 - 10;
+                int lane = actualLane < 20 ? _moduleToLane[actualLane] : actualLane;
                 double time = hour * 3600.0 + min * 60.0 + sec + cs / 100.0 + ms1 / 1000.0;
 
                 string cmdType;
@@ -183,7 +186,8 @@ namespace RemoteTimingControl
                         continue;
                 }
 
-                RaiseLog(string.Format("[硬件] 道{0} {1} {2:F3}s", lane, cmdType, time));
+                string endLabel = isFinishEnd ? "终点端" : "另一端";
+                RaiseLog(string.Format("[硬件] D4={0} 道{1}({2}) {3} {4:F3}s", rawD4, lane, endLabel, cmdType, time));
                 Action<int, string, double> h = OnTimingData;
                 if (h != null) h(lane, cmdType, time);
             }
