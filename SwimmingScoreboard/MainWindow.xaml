@@ -372,7 +372,10 @@
                             <DockPanel Margin="10">
                                 <StackPanel DockPanel.Dock="Top" Margin="0,0,0,8">
                                     <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
-                                        <TextBlock Text="性别:" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                        <TextBlock Text="年龄组:" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                        <ComboBox x:Name="EditAgeGroupCombo" Width="90" SelectionChanged="EditFilter_Changed"
+                                                  ToolTip="选择“全部”表示不按年龄组过滤"/>
+                                        <TextBlock Text=" 性别:" VerticalAlignment="Center" Margin="8,0,4,0"/>
                                         <ComboBox x:Name="EditGenderCombo" Width="60" SelectionChanged="EditFilter_Changed">
                                             <ComboBoxItem Content="男" IsSelected="True"/>
                                             <ComboBoxItem Content="女"/>

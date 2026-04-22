@@ -1006,6 +1006,7 @@ namespace SwimmingScoreboard
         private string _sessionName;
         private string _date;
         private string _time;
+        private string _ageGroup;
         private string _eventName;
         private string _gender;
         private string _stage;
@@ -1027,6 +1028,11 @@ namespace SwimmingScoreboard
         public string Time {
             get { return _time; }
             set { _time = value; OnPropertyChanged("Time"); }
+        }
+        // 年龄组：空串表示不限年龄组（兼容旧存档）
+        public string AgeGroup {
+            get { return _ageGroup; }
+            set { _ageGroup = value; OnPropertyChanged("AgeGroup"); }
         }
         public string EventName {
             get { return _eventName; }
