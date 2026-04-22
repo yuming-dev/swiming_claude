@@ -1098,6 +1098,17 @@ namespace SwimmingScoreboard
     // ═══════════════════════════════════════════════════════════════
     // 比赛数据包（JSON 序列化）
     // ═══════════════════════════════════════════════════════════════
+    // 代表队号码段：每个代表队设置一个数字区间（如 中国 001-050）
+    public class BibRange
+    {
+        public string Country { get; set; }   // 代表队 / 单位 / 国家
+        public int Start { get; set; }        // 起始号（纯数字）
+        public int End { get; set; }          // 结束号（纯数字，含）
+        public int Width { get; set; }        // 补零宽度（通常 3 或 4）
+
+        public BibRange() { Width = 3; }
+    }
+
     public class CompetitionPackage
     {
         public string CompetitionName { get; set; }
@@ -1120,6 +1131,7 @@ namespace SwimmingScoreboard
         public List<TeamScore> TeamScores { get; set; }
         public List<ScheduleItem> Schedule { get; set; }
         public List<string> Events { get; set; }
+        public List<BibRange> BibRanges { get; set; }
         public LaneCloseSettings LaneCloseSettings { get; set; }
         public Dictionary<string, List<string>> DisputeLog { get; set; }
 
@@ -1134,6 +1146,7 @@ namespace SwimmingScoreboard
             TeamScores = new List<TeamScore>();
             Schedule = new List<ScheduleItem>();
             Events = new List<string>();
+            BibRanges = new List<BibRange>();
             LaneCloseSettings = new LaneCloseSettings();
             DisputeLog = new Dictionary<string, List<string>>();
         }

@@ -280,6 +280,8 @@
                                     <Button Content="修改选中" Click="EditSwimmer_Click" Padding="12,6" Background="#F59E0B" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
                                     <Button Content="删除选中" Click="DeleteSwimmer_Click" Padding="12,6" Background="#EF4444" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
                                     <Button Content="导入CSV" Click="ImportCSV_Click" Padding="12,6" Background="#8B5CF6" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
+                                    <Button Content="号码区间设置" Click="BibRangeConfig_Click" Padding="12,6" Background="#0EA5E9" Foreground="White" BorderThickness="0" Margin="0,0,8,0"
+                                            ToolTip="按代表队设置参赛号号码段（如 中国 001-050）。新注册的运动员将在所属代表队的号码段内自动取号。"/>
                                     <TextBlock Text="  筛选项目:" VerticalAlignment="Center"/>
                                     <ComboBox x:Name="FilterEventCombo" Width="180" Margin="4,0" SelectionChanged="FilterEvent_Changed">
                                         <ComboBoxItem Content="全部" IsSelected="True"/>

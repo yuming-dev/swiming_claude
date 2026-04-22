@@ -32,6 +32,7 @@ namespace SwimmingScoreboard
         private ObservableCollection<TeamScore> _teamScores = new ObservableCollection<TeamScore>();
         private ObservableCollection<ScheduleItem> _schedule = new ObservableCollection<ScheduleItem>();
         private List<string> _events = new List<string>();
+        private List<BibRange> _bibRanges = new List<BibRange>();
 
         // ═══════════════════════════════════════════════════════════════
         // 比赛状态
@@ -417,7 +418,8 @@ namespace SwimmingScoreboard
             var data = msg["data"];
             if (data == null) return;
             string bibNumber = data["bibNumber"] != null ? data["bibNumber"].ToString() : "";
-            if (string.IsNullOrEmpty(bibNumber)) bibNumber = GenerateNextBibNumber();
+            string regCountry = data["country"] != null ? data["country"].ToString() : "";
+            if (string.IsNullOrEmpty(bibNumber)) bibNumber = GenerateNextBibNumber(regCountry);
             var swimmer = new Swimmer {
                 Name = data["name"] != null ? data["name"].ToString() : "",
                 BibNumber = bibNumber,
@@ -469,8 +471,9 @@ namespace SwimmingScoreboard
                 AddLog(string.Format("重新提交: 已清除 {0}({1}) 的 {2} 条旧记录", name, bibNumber, toRemove.Count));
             }
 
-            // 生成参赛号
-            if (string.IsNullOrEmpty(bibNumber)) bibNumber = GenerateNextBibNumber();
+            // 生成参赛号（按代表队号码段）
+            string batchCountry = swimmerData["country"] != null ? swimmerData["country"].ToString() : "";
+            if (string.IsNullOrEmpty(bibNumber)) bibNumber = GenerateNextBibNumber(batchCountry);
 
             int added = 0;
             foreach (JObject ev in eventsArr) {
@@ -3966,13 +3969,29 @@ namespace SwimmingScoreboard
             return null;
         }
 
-        private string GenerateNextBibNumber() {
-            int max = 0;
+        // 生成下一个参赛号：若该代表队配置了号码段，则在段内取最小未用号码；
+        // 否则回退到全局 (max+1) 逻辑。
+        private string GenerateNextBibNumber(string country = null) {
+            BibRange range = null;
+            if (!string.IsNullOrEmpty(country)) {
+                range = _bibRanges.FirstOrDefault(r => r.Country == country && r.Start > 0 && r.End >= r.Start);
+            }
+            var usedNums = new HashSet<int>();
             foreach (var s in _swimmers) {
                 int n;
-                if (!string.IsNullOrEmpty(s.BibNumber) && int.TryParse(s.BibNumber, out n) && n > max) max = n;
+                if (!string.IsNullOrEmpty(s.BibNumber) && int.TryParse(s.BibNumber, out n)) usedNums.Add(n);
             }
-            return (max + 1).ToString("D3");
+            if (range != null) {
+                int width = range.Width > 0 ? range.Width : 3;
+                for (int i = range.Start; i <= range.End; i++) {
+                    if (!usedNums.Contains(i)) return i.ToString("D" + width);
+                }
+                AddLog(string.Format("代表队 [{0}] 号码段 {1}-{2} 已用完，使用全局号码。", country, range.Start, range.End));
+            }
+            int max = 0;
+            foreach (int n in usedNums) if (n > max) max = n;
+            int defaultWidth = (range != null && range.Width > 0) ? range.Width : 3;
+            return (max + 1).ToString("D" + defaultWidth);
         }
 
         private void AddSwimmer_Click(object sender, RoutedEventArgs e) {
@@ -4010,7 +4029,16 @@ namespace SwimmingScoreboard
             };
 
             var sp = new StackPanel { Margin = new Thickness(20) };
-            sp.Children.Add(new TextBlock { Text = string.Format("参赛号: {0}", selected.BibNumber), FontSize = 14, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 0, 0, 10) });
+
+            // 可编辑的参赛号（不再是静态文本）
+            var bibRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 10) };
+            bibRow.Children.Add(new TextBlock { Text = "参赛号:", Width = 60, VerticalAlignment = VerticalAlignment.Center, FontWeight = FontWeights.Bold });
+            var tbBib = new TextBox { Text = selected.BibNumber ?? "", Width = 150, Padding = new Thickness(4), VerticalAlignment = VerticalAlignment.Center };
+            bibRow.Children.Add(tbBib);
+            bibRow.Children.Add(new TextBlock { Text = "（可手动修改；更改后将同步到该运动员的所有项目记录）",
+                Margin = new Thickness(10, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center,
+                Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")), FontSize = 12 });
+            sp.Children.Add(bibRow);
 
             var grid = new Grid();
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(80) });
@@ -4064,6 +4092,23 @@ namespace SwimmingScoreboard
             dlg.Content = sp;
 
             if (dlg.ShowDialog() == true) {
+                // 参赛号变更校验：非空、与其它运动员不冲突（同一人的多项目记录除外）
+                string oldBib = selected.BibNumber ?? "";
+                string newBib = (tbBib.Text ?? "").Trim();
+                if (string.IsNullOrEmpty(newBib)) {
+                    MessageBox.Show("参赛号不能为空"); return;
+                }
+                if (newBib != oldBib) {
+                    bool conflict = _swimmers.Any(s => s != selected && s.BibNumber == newBib
+                        && !(!string.IsNullOrEmpty(oldBib) && s.BibNumber == oldBib));
+                    // 简单冲突判断：若新号码已被不同运动员（不同姓名/身份证）使用，拒绝
+                    var others = _swimmers.Where(s => s != selected && s.BibNumber == newBib).ToList();
+                    if (others.Any(s => s.Name != selected.Name || (!string.IsNullOrEmpty(s.IDNumber) && !string.IsNullOrEmpty(selected.IDNumber) && s.IDNumber != selected.IDNumber))) {
+                        MessageBox.Show(string.Format("参赛号 {0} 已被其他运动员使用，请换一个号码。", newBib));
+                        return;
+                    }
+                }
+
                 selected.Name = tbName.Text.Trim();
                 selected.Gender = cbGender.SelectedItem.ToString();
                 selected.BirthDate = tbBirth.Text.Trim();
@@ -4076,6 +4121,24 @@ namespace SwimmingScoreboard
                 selected.EntryTime = tbEntry.Text.Trim();
                 selected.EntryTimeSeconds = TimeFormatter.Parse(selected.EntryTime);
                 selected.Notes = tbNotes.Text.Trim();
+
+                // 号码变更：级联更新同一人的所有项目记录 + 接力棒次引用
+                if (newBib != oldBib) {
+                    foreach (var s in _swimmers) {
+                        if (s.BibNumber == oldBib) s.BibNumber = newBib;
+                    }
+                    if (_relayTeams != null) {
+                        foreach (var team in _relayTeams) {
+                            foreach (var leg in team.Legs) {
+                                if (!string.IsNullOrEmpty(leg.SwimmerBibNumber) && leg.SwimmerBibNumber == oldBib)
+                                    leg.SwimmerBibNumber = newBib;
+                            }
+                        }
+                    }
+                    AddLog(string.Format("参赛号变更: {0} → {1}（{2}）", oldBib, newBib, selected.Name));
+                } else {
+                    selected.BibNumber = newBib;
+                }
 
                 // 同步修改同一参赛号的其他项目记录的个人信息
                 foreach (var s in _swimmers) {
@@ -4112,6 +4175,142 @@ namespace SwimmingScoreboard
             grid.Children.Add(lbl);
         }
 
+        // 按代表队配置号码段（如 中国 001-050）
+        private void BibRangeConfig_Click(object sender, RoutedEventArgs e) {
+            // 汇总候选代表队列表：已有 BibRanges 中的 + 已注册运动员中出现的
+            var countries = new List<string>();
+            foreach (var r in _bibRanges) if (!countries.Contains(r.Country) && !string.IsNullOrEmpty(r.Country)) countries.Add(r.Country);
+            foreach (var s in _swimmers) if (!string.IsNullOrEmpty(s.Country) && !countries.Contains(s.Country)) countries.Add(s.Country);
+
+            // 编辑副本，取消时不保存
+            var working = new System.Collections.ObjectModel.ObservableCollection<BibRange>();
+            foreach (var c in countries) {
+                var existing = _bibRanges.FirstOrDefault(r => r.Country == c);
+                if (existing != null) working.Add(new BibRange { Country = existing.Country, Start = existing.Start, End = existing.End, Width = existing.Width > 0 ? existing.Width : 3 });
+                else working.Add(new BibRange { Country = c, Start = 0, End = 0, Width = 3 });
+            }
+
+            var dlg = new Window {
+                Title = "号码区间设置（按代表队）",
+                Width = 600, Height = 460,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner, Owner = this, ResizeMode = ResizeMode.CanResize
+            };
+            var mainGrid = new Grid { Margin = new Thickness(16) };
+            mainGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            mainGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+            mainGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+            mainGrid.Children.Add(new TextBlock {
+                Text = "为每个代表队设置参赛号的数字区间。Width 为补零宽度（3=001/4=0001）。起/止为 0 视为未配置，使用全局 +1 逻辑。",
+                TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 8), Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#334155"))
+            });
+
+            var grid = new DataGrid {
+                AutoGenerateColumns = false, CanUserAddRows = false, IsReadOnly = false,
+                SelectionMode = DataGridSelectionMode.Single,
+                AlternatingRowBackground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F8FAFC"))
+            };
+            grid.Columns.Add(new DataGridTextColumn { Header = "代表队", Binding = new System.Windows.Data.Binding("Country") { Mode = System.Windows.Data.BindingMode.TwoWay, UpdateSourceTrigger = System.Windows.Data.UpdateSourceTrigger.PropertyChanged }, Width = new DataGridLength(180) });
+            grid.Columns.Add(new DataGridTextColumn { Header = "起始号", Binding = new System.Windows.Data.Binding("Start") { Mode = System.Windows.Data.BindingMode.TwoWay }, Width = new DataGridLength(80) });
+            grid.Columns.Add(new DataGridTextColumn { Header = "结束号", Binding = new System.Windows.Data.Binding("End") { Mode = System.Windows.Data.BindingMode.TwoWay }, Width = new DataGridLength(80) });
+            grid.Columns.Add(new DataGridTextColumn { Header = "补零位数", Binding = new System.Windows.Data.Binding("Width") { Mode = System.Windows.Data.BindingMode.TwoWay }, Width = new DataGridLength(80) });
+            // 动态计算使用状态
+            var usageCol = new DataGridTextColumn { Header = "已用/区间", Width = new DataGridLength(120), IsReadOnly = true };
+            usageCol.Binding = new System.Windows.Data.Binding(".") { Converter = new BibRangeUsageConverter(_swimmers) };
+            grid.Columns.Add(usageCol);
+            grid.ItemsSource = working;
+            Grid.SetRow(grid, 1);
+            mainGrid.Children.Add(grid);
+
+            var btnPanel = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 10, 0, 0) };
+            Grid.SetRow(btnPanel, 2);
+            var btnAdd = new Button { Content = "新增行", Padding = new Thickness(12, 6, 12, 6), Margin = new Thickness(0, 0, 8, 0),
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6")), Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0) };
+            btnAdd.Click += delegate { working.Add(new BibRange { Country = "", Start = 0, End = 0, Width = 3 }); };
+            var btnDel = new Button { Content = "删除选中", Padding = new Thickness(12, 6, 12, 6), Margin = new Thickness(0, 0, 8, 0),
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EF4444")), Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0) };
+            btnDel.Click += delegate {
+                var sel = grid.SelectedItem as BibRange;
+                if (sel != null) working.Remove(sel);
+            };
+            var btnOk = new Button { Content = "保存", Padding = new Thickness(16, 6, 16, 6), Margin = new Thickness(0, 0, 8, 0), FontWeight = FontWeights.Bold,
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#22C55E")), Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0) };
+            btnOk.Click += delegate {
+                // 提交正在编辑的单元格
+                var fe = System.Windows.Input.Keyboard.FocusedElement as FrameworkElement;
+                if (fe is TextBox) {
+                    var be = fe.GetBindingExpression(TextBox.TextProperty);
+                    if (be != null) be.UpdateSource();
+                }
+                try { grid.CommitEdit(DataGridEditingUnit.Cell, true); grid.CommitEdit(DataGridEditingUnit.Row, true); } catch { }
+
+                // 校验 & 检测区间冲突
+                var finalList = new List<BibRange>();
+                var seenCountries = new HashSet<string>();
+                foreach (var r in working) {
+                    if (string.IsNullOrWhiteSpace(r.Country)) continue;
+                    r.Country = r.Country.Trim();
+                    if (r.Width <= 0) r.Width = 3;
+                    if (seenCountries.Contains(r.Country)) {
+                        MessageBox.Show(string.Format("代表队 \"{0}\" 重复，请合并或删除重复行。", r.Country), "提示"); return;
+                    }
+                    seenCountries.Add(r.Country);
+                    if (r.Start != 0 || r.End != 0) {
+                        if (r.Start <= 0 || r.End < r.Start) {
+                            MessageBox.Show(string.Format("代表队 [{0}] 的起始/结束号不合法（要求 起始 > 0 且 结束 ≥ 起始）。", r.Country), "提示"); return;
+                        }
+                    }
+                    finalList.Add(r);
+                }
+                // 检查区间重叠
+                for (int i = 0; i < finalList.Count; i++) {
+                    for (int j = i + 1; j < finalList.Count; j++) {
+                        var a = finalList[i]; var b = finalList[j];
+                        if (a.Start <= 0 || b.Start <= 0) continue;
+                        if (a.End >= b.Start && b.End >= a.Start) {
+                            MessageBox.Show(string.Format("[{0}] 的号码段 {1}-{2} 与 [{3}] 的 {4}-{5} 重叠，请调整。", a.Country, a.Start, a.End, b.Country, b.Start, b.End), "提示"); return;
+                        }
+                    }
+                }
+                _bibRanges = finalList;
+                AutoSaveData();
+                AddLog(string.Format("已更新代表队号码段配置（{0} 条）", _bibRanges.Count));
+                dlg.DialogResult = true;
+            };
+            var btnCancel = new Button { Content = "取消", Padding = new Thickness(16, 6, 16, 6),
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")), Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0) };
+            btnCancel.Click += delegate { dlg.DialogResult = false; };
+            btnPanel.Children.Add(btnAdd);
+            btnPanel.Children.Add(btnDel);
+            btnPanel.Children.Add(btnOk);
+            btnPanel.Children.Add(btnCancel);
+            mainGrid.Children.Add(btnPanel);
+
+            dlg.Content = mainGrid;
+            dlg.ShowDialog();
+        }
+
+        // 把完整的 BibRange 行渲染成 "x/区间大小" 已用统计
+        private class BibRangeUsageConverter : System.Windows.Data.IValueConverter
+        {
+            private readonly System.Collections.ObjectModel.ObservableCollection<Swimmer> _list;
+            public BibRangeUsageConverter(System.Collections.ObjectModel.ObservableCollection<Swimmer> list) { _list = list; }
+            public object Convert(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture) {
+                var r = value as BibRange; if (r == null) return "";
+                if (r.Start <= 0 || r.End < r.Start) return "未配置";
+                int total = r.End - r.Start + 1;
+                int used = 0;
+                foreach (var s in _list) {
+                    int n;
+                    if (s != null && s.Country == r.Country && !string.IsNullOrEmpty(s.BibNumber) && int.TryParse(s.BibNumber, out n)) {
+                        if (n >= r.Start && n <= r.End) used++;
+                    }
+                }
+                return string.Format("{0}/{1}", used, total);
+            }
+            public object ConvertBack(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture) { throw new NotImplementedException(); }
+        }
+
         private void ImportCSV_Click(object sender, RoutedEventArgs e) {
             var dlg = new Microsoft.Win32.OpenFileDialog {
                 Filter = "CSV文件|*.csv|所有文件|*.*",
@@ -4131,7 +4330,7 @@ namespace SwimmingScoreboard
                         if (cols.Length < 5) continue;
                         // CSV格式: 号码,姓名,性别,代表队,项目,报名成绩,年龄,出生日期,身份证号,电话,备注
                         string bibNum = cols[0].Trim();
-                        if (string.IsNullOrEmpty(bibNum)) bibNum = GenerateNextBibNumber();
+                        if (string.IsNullOrEmpty(bibNum)) bibNum = GenerateNextBibNumber(cols[3].Trim());
                         var sw = new Swimmer {
                             BibNumber = bibNum,
                             Name = cols[1].Trim(),
@@ -4710,7 +4909,7 @@ namespace SwimmingScoreboard
             if (_regEventList.Count == 0) { RegStatusText.Text = "请至少添加一个参赛项目"; return; }
 
             string gender = ((ComboBoxItem)RegGenderCombo.SelectedItem).Content.ToString();
-            string bibNumber = GenerateNextBibNumber();
+            string bibNumber = GenerateNextBibNumber(RegCountryBox != null ? RegCountryBox.Text.Trim() : "");
 
             string birthDate = RegBirthDatePicker.SelectedDate.HasValue ? RegBirthDatePicker.SelectedDate.Value.ToString("yyyy-MM-dd") : "";
             int age = 0;
@@ -7210,6 +7409,7 @@ namespace SwimmingScoreboard
                     TeamScores = _teamScores.ToList(),
                     Schedule = _schedule.ToList(),
                     Events = _events,
+                    BibRanges = _bibRanges,
                     LaneCloseSettings = _laneCloseSettings
                 };
 
@@ -7266,6 +7466,7 @@ namespace SwimmingScoreboard
                         _laneCloseSettings.FinishPosition = _laneCloseSettings.StartPosition;
                 }
                 if (package.Events != null && package.Events.Count > 0) _events = package.Events;
+                _bibRanges = package.BibRanges ?? new List<BibRange>();
 
                 _swimmers.Clear();
                 if (package.Swimmers != null) {
