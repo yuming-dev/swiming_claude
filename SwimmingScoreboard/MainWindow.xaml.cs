@@ -4165,9 +4165,157 @@ namespace SwimmingScoreboard
         }
 
         private void AddRelay_Click(object sender, RoutedEventArgs e) {
-            _relayTeams.Add(new RelayTeam());
-            RebuildRelayGroupedView();
+            // 弹出对话框，让用户填写队名/项目/性别/报名成绩/各棒队员，
+            // 确认后完整创建 RelayTeam + _swimmers 代表条目 + 队员子条目
+            var relayEvents = _events.Where(ev => ev.Contains("接力")).ToList();
+            if (relayEvents.Count == 0) {
+                MessageBox.Show("没有可用的接力项目。请检查项目列表。", "提示"); return;
+            }
+
+            var dlg = new Window {
+                Title = "添加接力队", Width = 480, Height = 540,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner, Owner = this, ResizeMode = ResizeMode.CanResize
+            };
+            var sp = new StackPanel { Margin = new Thickness(16) };
+            sp.Children.Add(new TextBlock { Text = "填写接力队信息：", FontSize = 14, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 0, 0, 8) });
+
+            // 项目
+            var rowEvent = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 0) };
+            rowEvent.Children.Add(new TextBlock { Text = "项目:", Width = 80, VerticalAlignment = VerticalAlignment.Center });
+            var cbEvent = new ComboBox { Width = 320 };
+            foreach (var ev in relayEvents) cbEvent.Items.Add(ev);
+            cbEvent.SelectedIndex = 0;
+            rowEvent.Children.Add(cbEvent);
+            sp.Children.Add(rowEvent);
+
+            // 性别
+            var rowGender = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 0) };
+            rowGender.Children.Add(new TextBlock { Text = "性别:", Width = 80, VerticalAlignment = VerticalAlignment.Center });
+            var cbGender = new ComboBox { Width = 320 };
+            cbGender.Items.Add("男"); cbGender.Items.Add("女"); cbGender.Items.Add("混合");
+            cbGender.SelectedIndex = 0;
+            rowGender.Children.Add(cbGender);
+            sp.Children.Add(rowGender);
+
+            // 队名
+            var rowTeam = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 0) };
+            rowTeam.Children.Add(new TextBlock { Text = "队名:", Width = 80, VerticalAlignment = VerticalAlignment.Center });
+            var tbTeam = new TextBox { Width = 320, Padding = new Thickness(4) };
+            rowTeam.Children.Add(tbTeam);
+            sp.Children.Add(rowTeam);
+
+            // 报名成绩
+            var rowEntry = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 0) };
+            rowEntry.Children.Add(new TextBlock { Text = "报名成绩:", Width = 80, VerticalAlignment = VerticalAlignment.Center });
+            var tbEntryTime = new TextBox { Width = 320, Padding = new Thickness(4), ToolTip = "如 4:10.20 或 250.20，可留空" };
+            rowEntry.Children.Add(tbEntryTime);
+            sp.Children.Add(rowEntry);
+
+            // 棒次行容器（根据项目名自动调整棒数）
+            var legsTitle = new TextBlock { Margin = new Thickness(0, 10, 0, 4), FontSize = 13, FontWeight = FontWeights.Bold };
+            sp.Children.Add(legsTitle);
+            var legsPanel = new StackPanel();
+            sp.Children.Add(legsPanel);
+
+            var legNameBoxes = new List<TextBox>();
+            var legBibBoxes = new List<TextBox>();
+
+            Action rebuildLegs = delegate {
+                legsPanel.Children.Clear();
+                legNameBoxes.Clear();
+                legBibBoxes.Clear();
+                string evName = cbEvent.SelectedItem != null ? cbEvent.SelectedItem.ToString() : "";
+                int legCount = 4;
+                var mm = System.Text.RegularExpressions.Regex.Match(evName, @"(\d+)\s*[x×*]");
+                if (mm.Success) { int n; if (int.TryParse(mm.Groups[1].Value, out n) && n > 0 && n <= 10) legCount = n; }
+                legsTitle.Text = string.Format("队员（共{0}棒，可留空，后续再补）:", legCount);
+                for (int i = 0; i < legCount; i++) {
+                    var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 2, 0, 0) };
+                    row.Children.Add(new TextBlock { Text = string.Format("第{0}棒:", i + 1), Width = 55, VerticalAlignment = VerticalAlignment.Center });
+                    var tbLegName = new TextBox { Width = 180, Padding = new Thickness(4) };
+                    var tbLegBib = new TextBox { Width = 100, Padding = new Thickness(4), Margin = new Thickness(8, 0, 0, 0), ToolTip = "队员号码（可空）" };
+                    row.Children.Add(new TextBlock { Text = "姓名", Margin = new Thickness(0, 0, 4, 0), VerticalAlignment = VerticalAlignment.Center });
+                    row.Children.Add(tbLegName);
+                    row.Children.Add(new TextBlock { Text = "号码", Margin = new Thickness(8, 0, 4, 0), VerticalAlignment = VerticalAlignment.Center });
+                    row.Children.Add(tbLegBib);
+                    legsPanel.Children.Add(row);
+                    legNameBoxes.Add(tbLegName);
+                    legBibBoxes.Add(tbLegBib);
+                }
+            };
+            cbEvent.SelectionChanged += delegate { rebuildLegs(); };
+            rebuildLegs();
+
+            var btnPanel = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 14, 0, 0) };
+            var btnOk = new Button { Content = "确定添加", Padding = new Thickness(16, 6, 16, 6), FontSize = 13, Margin = new Thickness(0, 0, 8, 0),
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6")), Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0) };
+            btnOk.Click += delegate { dlg.DialogResult = true; };
+            var btnCancel = new Button { Content = "取消", Padding = new Thickness(16, 6, 16, 6), FontSize = 13,
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")), Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0) };
+            btnCancel.Click += delegate { dlg.DialogResult = false; };
+            btnPanel.Children.Add(btnOk);
+            btnPanel.Children.Add(btnCancel);
+            sp.Children.Add(btnPanel);
+
+            dlg.Content = new ScrollViewer { Content = sp, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
+
+            if (dlg.ShowDialog() != true) return;
+
+            string eventName = cbEvent.SelectedItem != null ? cbEvent.SelectedItem.ToString() : "";
+            string gender = cbGender.SelectedItem != null ? cbGender.SelectedItem.ToString() : "男";
+            string teamName = (tbTeam.Text ?? "").Trim();
+            string entryTimeStr = (tbEntryTime.Text ?? "").Trim();
+
+            if (string.IsNullOrEmpty(eventName)) { MessageBox.Show("请选择接力项目"); return; }
+            if (string.IsNullOrEmpty(teamName)) { MessageBox.Show("队名不能为空"); return; }
+            if (_relayTeams.Any(t => t.EventName == eventName && t.TeamName == teamName && t.Gender == gender)) {
+                MessageBox.Show(string.Format("代表队 \"{0}\" 已在该项目（{1} {2}）报名过接力队。", teamName, gender, eventName)); return;
+            }
+
+            double entrySec = 0;
+            if (!string.IsNullOrEmpty(entryTimeStr)) entrySec = TimeFormatter.Parse(entryTimeStr);
+
+            var team = new RelayTeam {
+                TeamName = teamName, EventName = eventName, Gender = gender,
+                EntryTime = entryTimeStr, EntryTimeSeconds = entrySec
+            };
+            for (int i = 0; i < legNameBoxes.Count; i++) {
+                string ln = (legNameBoxes[i].Text ?? "").Trim();
+                string lb = (legBibBoxes[i].Text ?? "").Trim();
+                team.Legs.Add(new RelayLeg { LegOrder = i + 1, SwimmerName = ln, SwimmerBibNumber = lb, SwimmerIDNumber = "" });
+            }
+            _relayTeams.Add(team);
+
+            // 代表队条目（用于分组/成绩流程）
+            string legNames = "";
+            foreach (var leg in team.Legs) legNames += (legNames.Length > 0 ? "," : "") + (leg.SwimmerName ?? "");
+            string teamBib = "R" + (_relayTeams.Count).ToString("D3");
+            while (_swimmers.Any(s => s.BibNumber == teamBib)) teamBib = "R" + DateTime.Now.Ticks.ToString().Substring(10);
+
+            _swimmers.Add(new Swimmer {
+                BibNumber = teamBib, Name = teamName, Gender = gender, Country = teamName,
+                EventName = eventName,
+                EntryTime = entryTimeStr, EntryTimeSeconds = entrySec,
+                Notes = string.Format("接力队 棒次:{0}", legNames)
+            });
+
+            // 队员子条目
+            foreach (var leg in team.Legs) {
+                if (string.IsNullOrEmpty(leg.SwimmerName)) continue;
+                string memBib = !string.IsNullOrEmpty(leg.SwimmerBibNumber) ? leg.SwimmerBibNumber : (teamBib + "-" + leg.LegOrder);
+                if (_swimmers.Any(s => s.BibNumber == memBib)) continue;
+                _swimmers.Add(new Swimmer {
+                    BibNumber = memBib, Name = leg.SwimmerName,
+                    Gender = gender == "混合" ? "男" : gender, Country = teamName,
+                    IDNumber = leg.SwimmerIDNumber ?? "",
+                    EventName = eventName,
+                    Notes = string.Format("接力队员 {0} 第{1}棒", eventName, leg.LegOrder)
+                });
+            }
+
             AutoSaveData();
+            RebuildRelayGroupedView();
+            AddLog(string.Format("手动添加接力队: {0} ({1} {2}) {3}棒", teamName, gender, eventName, team.Legs.Count));
         }
 
         private void DeleteRelay_Click(object sender, RoutedEventArgs e) {
