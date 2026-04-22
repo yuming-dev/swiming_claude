@@ -5090,7 +5090,7 @@ namespace SwimmingScoreboard
         }
 
         private void RefreshAllAgeGroupFilterCombos() {
-            RefreshAllAgeGroupFilterCombos();
+            RefreshEditAgeGroupCombo();
             FillAgeGroupFilterCombo(FilterAgeGroupCombo);
             FillAgeGroupFilterCombo(RecordFilterAgeGroup);
             FillAgeGroupFilterCombo(ResultAgeGroupCombo);
