@@ -51,6 +51,17 @@ label { color: #94a3b8; font-size: 12px; }
             <option>200米个人混合泳</option><option>400米个人混合泳</option>
             <option>4x100米自由泳接力</option><option>4x200米自由泳接力</option><option>4x100米混合泳接力</option>
         </select>
+        <label>年龄组:</label>
+        <select id="regAgeGroup" title="选“全部”则使用默认年龄范围 18-29">
+            <option value="">全部</option>
+            <option value="青少年">青少年 (12-13)</option>
+            <option value="少年">少年 (14-17)</option>
+            <option value="青年">青年 (15-24)</option>
+            <option value="成年">成年 (18-45)</option>
+            <option value="成人">成人 (18-45)</option>
+            <option value="大师">大师 (46-70)</option>
+            <option value="老年">老年 (46-70)</option>
+        </select>
         <label>性别:</label>
         <select id="regGender"><option>男</option><option>女</option><option>混合</option></select>
         <button class="btn-blue" onclick="batchRegister()">批量注册</button>
@@ -94,6 +105,17 @@ label { color: #94a3b8; font-size: 12px; }
         <label>项目:</label>
         <select id="relayEvent" onchange="updateRelayButtons()">
             <option>4x100米自由泳接力</option><option>4x200米自由泳接力</option><option>4x100米混合泳接力</option>
+        </select>
+        <label>年龄组:</label>
+        <select id="relayAgeGroup" title="选“全部”则使用默认年龄范围 18-29">
+            <option value="">全部</option>
+            <option value="青少年">青少年 (12-13)</option>
+            <option value="少年">少年 (14-17)</option>
+            <option value="青年">青年 (15-24)</option>
+            <option value="成年">成年 (18-45)</option>
+            <option value="成人">成人 (18-45)</option>
+            <option value="大师">大师 (46-70)</option>
+            <option value="老年">老年 (46-70)</option>
         </select>
         <label>性别:</label>
         <select id="relayGender"><option>男</option><option>女</option><option>混合</option></select>
@@ -264,12 +286,39 @@ function randomBirthDate() {
 function randomPhone() { return '138' + Math.floor(Math.random() * 100000000).toString().padStart(8, '0'); }
 function randomID() { return '110101' + (1990 + Math.floor(Math.random()*15)) + (1+Math.floor(Math.random()*12)).toString().padStart(2,'0') + (1+Math.floor(Math.random()*28)).toString().padStart(2,'0') + Math.floor(Math.random()*10000).toString().padStart(4,'0'); }
 
+// 根据年龄组返回 [minAge, maxAge]；为空或未识别则回退默认 18-29
+function ageRangeFor(ageGroup) {
+    switch (ageGroup) {
+        case '青少年': return [12, 13];
+        case '少年':   return [14, 17];
+        case '青年':   return [15, 24];
+        case '成年':
+        case '成人':   return [18, 45];
+        case '大师':
+        case '老年':   return [46, 70];
+        default:       return [18, 29];
+    }
+}
+function randomAgeFor(ageGroup) {
+    var r = ageRangeFor(ageGroup);
+    return r[0] + Math.floor(Math.random() * (r[1] - r[0] + 1));
+}
+// 根据年龄推导出生日期 yyyy-MM-dd
+function birthDateForAge(age) {
+    var today = new Date();
+    var year = today.getFullYear() - age;
+    var m = (1 + Math.floor(Math.random() * 12)).toString().padStart(2, '0');
+    var d = (1 + Math.floor(Math.random() * 28)).toString().padStart(2, '0');
+    return year + '-' + m + '-' + d;
+}
+
 // ═══════ 1. 批量注册 ═══════
 function batchRegister() {
     _usedNames = {};
     var count = parseInt(document.getElementById('regCount').value) || 16;
     var ev = document.getElementById('regEvent').value;
     var gender = document.getElementById('regGender').value;
+    var ageGroup = document.getElementById('regAgeGroup').value || '';
     var isRelay = ev.indexOf('接力') >= 0;
 
     if (isRelay) {
@@ -285,7 +334,7 @@ function batchRegister() {
             var legs = [];
             for (var j = 1; j <= legCount; j++) {
                 var memberName = randomName();
-                var memberAge = 18 + Math.floor(Math.random() * 12);
+                var memberAge = randomAgeFor(ageGroup);
                 // 混合接力：队员性别交替男女（第1、3棒男，第2、4棒女）
                 var memberGender = gender;
                 if (gender === '混合') {
@@ -293,7 +342,7 @@ function batchRegister() {
                 }
                 var memberID = randomID();
                 var memberPhone = randomPhone();
-                var memberBirth = randomBirthDate();
+                var memberBirth = birthDateForAge(memberAge);
                 legs.push({
                     legOrder: j,
                     swimmerName: memberName,
@@ -328,7 +377,7 @@ function batchRegister() {
                 entryTime: entryTime, legs: legs
             });
         }
-        log('已注册 ' + count + ' 支接力队 (' + gender + ' ' + ev + ', 每队' + legCount + '棒, 含' + (count * legCount) + '名队员个人信息)');
+        log('已注册 ' + count + ' 支接力队 (' + gender + ' ' + ev + (ageGroup ? ' ' + ageGroup : '') + ', 每队' + legCount + '棒, 含' + (count * legCount) + '名队员个人信息)');
     } else {
         // 个人项目
         for (var i = 0; i < count; i++) {
@@ -342,16 +391,17 @@ function batchRegister() {
             else if (dist <= 800) entryTime = randomTime(480, 550);
             else entryTime = randomTime(880, 960);
 
+            var swimAge = randomAgeFor(ageGroup);
             var swimmerData = {
                 name: randomName(), gender: gender,
-                age: 18 + Math.floor(Math.random() * 12),
+                age: swimAge,
                 country: randomTeam(), idNumber: randomID(),
-                phone: randomPhone(), birthDate: randomBirthDate(),
+                phone: randomPhone(), birthDate: birthDateForAge(swimAge),
                 bibNumber: '', csaNumber: '', notes: ''
             };
             send('REGISTER_SWIMMER_BATCH', {swimmer: swimmerData, events: [{eventName: ev, entryTime: entryTime}], isResubmit: false});
         }
-        log('已批量注册 ' + count + ' 名运动员 (' + gender + ' ' + ev + ')');
+        log('已批量注册 ' + count + ' 名运动员 (' + gender + ' ' + ev + (ageGroup ? ' ' + ageGroup : '') + ')');
     }
 }
 
@@ -472,6 +522,7 @@ function batchRegisterRelay() {
     var teamCount = parseInt(document.getElementById('relayTeamCount').value) || 8;
     var ev = document.getElementById('relayEvent').value;
     var gender = document.getElementById('relayGender').value;
+    var ageGroup = document.getElementById('relayAgeGroup').value || '';
 
     // 解析接力项目：4x100米 → 4棒，每棒100米
     var relayMatch = ev.match(/(\d+)x(\d+)/);
@@ -481,13 +532,16 @@ function batchRegisterRelay() {
 
     for (var i = 0; i < teamCount; i++) {
         var teamName = teams[i % teams.length];
-        // 生成棒次队员
+        // 生成棒次队员（带年龄组对应的出生日期，保证服务端分配到对应年龄组）
         var legs = [];
         for (var j = 1; j <= legCount; j++) {
+            var legAge = randomAgeFor(ageGroup);
             legs.push({
                 legOrder: j,
                 swimmerName: randomName(),
-                swimmerBibNumber: ''
+                swimmerBibNumber: '',
+                age: legAge,
+                birthDate: birthDateForAge(legAge)
             });
         }
         // 报名成绩：根据总距离估算
@@ -504,7 +558,7 @@ function batchRegisterRelay() {
             legs: legs
         });
     }
-    log('已注册 ' + teamCount + ' 支接力队 (' + gender + ' ' + ev + ', 每队' + legCount + '棒)');
+    log('已注册 ' + teamCount + ' 支接力队 (' + gender + ' ' + ev + (ageGroup ? ' ' + ageGroup : '') + ', 每队' + legCount + '棒)');
 }
 
 // 接力赛步骤跟踪
