@@ -8146,6 +8146,313 @@ namespace SwimmingScoreboard
         }
 
         // ═══════════════════════════════════════════════════════════════
+        // 赛程/分组表 CSV 导入导出（Excel/WPS 可直接打开或另存为 CSV 导入）
+        // ═══════════════════════════════════════════════════════════════
+
+        // —— 日程表 CSV ——
+        // 列: 单元,日期,时间,性别,项目,阶段,组数
+        private static string CsvEscape(string s) {
+            if (s == null) return "";
+            if (s.IndexOfAny(new[] { ',', '"', '\n', '\r' }) >= 0)
+                return "\"" + s.Replace("\"", "\"\"") + "\"";
+            return s;
+        }
+
+        private static List<string[]> ReadCsvLines(string path) {
+            Encoding enc = Encoding.Default;
+            byte[] raw = File.ReadAllBytes(path);
+            if (raw.Length >= 3 && raw[0] == 0xEF && raw[1] == 0xBB && raw[2] == 0xBF) enc = Encoding.UTF8;
+            var text = File.ReadAllText(path, enc);
+            var rows = new List<string[]>();
+            var row = new List<string>();
+            var cur = new StringBuilder();
+            bool inQuotes = false;
+            for (int i = 0; i < text.Length; i++) {
+                char ch = text[i];
+                if (inQuotes) {
+                    if (ch == '"') {
+                        if (i + 1 < text.Length && text[i + 1] == '"') { cur.Append('"'); i++; }
+                        else inQuotes = false;
+                    } else cur.Append(ch);
+                } else {
+                    if (ch == '"') inQuotes = true;
+                    else if (ch == ',' || ch == '\t') { row.Add(cur.ToString()); cur.Length = 0; }
+                    else if (ch == '\r') { }
+                    else if (ch == '\n') { row.Add(cur.ToString()); cur.Length = 0; rows.Add(row.ToArray()); row = new List<string>(); }
+                    else cur.Append(ch);
+                }
+            }
+            if (cur.Length > 0 || row.Count > 0) { row.Add(cur.ToString()); rows.Add(row.ToArray()); }
+            return rows;
+        }
+
+        private void ExportScheduleCSV_Click(object sender, RoutedEventArgs e) {
+            var dlg = new Microsoft.Win32.SaveFileDialog {
+                Filter = "CSV文件|*.csv",
+                Title = "导出日程表（Excel/WPS 可直接打开）",
+                FileName = (string.IsNullOrEmpty(_competitionName) ? "日程表" : _competitionName) + ".csv"
+            };
+            if (dlg.ShowDialog() != true) return;
+            try {
+                var sb = new StringBuilder();
+                sb.Append('﻿'); // UTF-8 BOM so Excel recognizes encoding
+                sb.AppendLine("单元,日期,时间,性别,项目,阶段,组数");
+                foreach (var s in _schedule) {
+                    sb.AppendLine(string.Format("{0},{1},{2},{3},{4},{5},{6}",
+                        s.SessionNumber,
+                        CsvEscape(s.Date),
+                        CsvEscape(s.Time),
+                        CsvEscape(s.Gender),
+                        CsvEscape(s.EventName),
+                        CsvEscape(s.Stage),
+                        s.HeatCount));
+                }
+                File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
+                AddLog(string.Format("已导出日程表 CSV: {0} 条 → {1}", _schedule.Count, dlg.FileName));
+                MessageBox.Show("日程表已导出。", "完成");
+            } catch (Exception ex) {
+                MessageBox.Show("导出失败: " + ex.Message, "错误");
+            }
+        }
+
+        private void ImportScheduleCSV_Click(object sender, RoutedEventArgs e) {
+            var dlg = new Microsoft.Win32.OpenFileDialog {
+                Filter = "CSV文件|*.csv|文本文件|*.txt|所有文件|*.*",
+                Title = "导入日程表（表头: 单元,日期,时间,性别,项目,阶段,组数）"
+            };
+            if (dlg.ShowDialog() != true) return;
+            string ext = IOPath.GetExtension(dlg.FileName).ToLower();
+            if (ext == ".xls" || ext == ".xlsx") {
+                MessageBox.Show("无法直接读取 Excel 文件。请在 Excel/WPS 中另存为 “CSV UTF-8（逗号分隔）(*.csv)” 后再导入。",
+                    "格式提示", MessageBoxButton.OK, MessageBoxImage.Warning); return;
+            }
+            if (_schedule.Count > 0) {
+                if (MessageBox.Show(string.Format("当前已有{0}条日程，导入将会清空并替换。继续？", _schedule.Count),
+                    "确认", MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
+            }
+            try {
+                var rows = ReadCsvLines(dlg.FileName);
+                if (rows.Count < 2) { MessageBox.Show("CSV 无有效数据"); return; }
+                _schedule.Clear();
+                int imported = 0, skipped = 0;
+                for (int i = 1; i < rows.Count; i++) {
+                    var c = rows[i];
+                    if (c.Length == 0 || (c.Length == 1 && string.IsNullOrWhiteSpace(c[0]))) { skipped++; continue; }
+                    int sessionNum = 0;
+                    if (c.Length > 0) int.TryParse((c[0] ?? "").Trim(), out sessionNum);
+                    string date = c.Length > 1 ? NormalizeDate((c[1] ?? "").Trim()) : "";
+                    string time = c.Length > 2 ? NormalizeTime((c[2] ?? "").Trim()) : "";
+                    string gender = c.Length > 3 ? (c[3] ?? "").Trim() : "";
+                    string eventName = c.Length > 4 ? System.Text.RegularExpressions.Regex.Replace((c[4] ?? "").Trim(), @"\s+", "") : "";
+                    string stage = c.Length > 5 ? (c[5] ?? "").Trim() : "";
+                    int heatCount = 0;
+                    if (c.Length > 6) int.TryParse((c[6] ?? "").Trim(), out heatCount);
+                    if (string.IsNullOrEmpty(eventName) || string.IsNullOrEmpty(gender) || string.IsNullOrEmpty(stage)) { skipped++; continue; }
+                    _schedule.Add(new ScheduleItem {
+                        SessionNumber = sessionNum, Date = date, Time = time,
+                        Gender = gender, EventName = eventName, Stage = stage,
+                        HeatCount = heatCount, IsRelay = eventName.Contains("接力")
+                    });
+                    imported++;
+                }
+                AutoSaveData();
+                BuildScheduleTree();
+                Broadcast();
+                AddLog(string.Format("导入日程表: 新增{0}条, 跳过{1}行", imported, skipped));
+                MessageBox.Show(string.Format("已导入日程 {0} 条（跳过{1}行）。", imported, skipped), "完成");
+            } catch (Exception ex) {
+                MessageBox.Show("导入失败: " + ex.Message, "错误");
+            }
+        }
+
+        private void DownloadScheduleTemplate_Click(object sender, RoutedEventArgs e) {
+            var dlg = new Microsoft.Win32.SaveFileDialog {
+                Filter = "CSV文件|*.csv",
+                Title = "保存日程表模板",
+                FileName = "日程表模板.csv"
+            };
+            if (dlg.ShowDialog() != true) return;
+            try {
+                var sb = new StringBuilder();
+                sb.Append('﻿');
+                sb.AppendLine("单元,日期,时间,性别,项目,阶段,组数");
+                sb.AppendLine("1,2026-04-20,09:00,男,50米自由泳,预赛,4");
+                sb.AppendLine("1,2026-04-20,09:15,女,50米自由泳,预赛,4");
+                sb.AppendLine("2,2026-04-20,15:00,男,50米自由泳,决赛,1");
+                sb.AppendLine("2,2026-04-20,15:10,女,50米自由泳,决赛,1");
+                File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
+                MessageBox.Show("模板已保存，用 Excel/WPS 打开填写后通过【导入日程表】读入。", "完成");
+            } catch (Exception ex) {
+                MessageBox.Show("保存失败: " + ex.Message, "错误");
+            }
+        }
+
+        // —— 分组表 CSV ——
+        // 列: 性别,项目,阶段,组号,道次,参赛号,姓名,代表队,报名成绩
+        private void ExportHeatAssignmentsCSV_Click(object sender, RoutedEventArgs e) {
+            var dlg = new Microsoft.Win32.SaveFileDialog {
+                Filter = "CSV文件|*.csv",
+                Title = "导出分组表",
+                FileName = (string.IsNullOrEmpty(_competitionName) ? "分组表" : _competitionName) + "_分组表.csv"
+            };
+            if (dlg.ShowDialog() != true) return;
+            try {
+                var sb = new StringBuilder();
+                sb.Append('﻿');
+                sb.AppendLine("性别,项目,阶段,组号,道次,参赛号,姓名,代表队,报名成绩");
+                // 按赛程顺序输出，保证与日程表对应
+                foreach (var schedItem in _schedule) {
+                    string gender = schedItem.Gender, eventName = schedItem.EventName, stage = schedItem.Stage;
+                    bool isRelayEv = eventName.Contains("接力");
+                    // 收集该项目该赛次的分组信息
+                    var rows = new List<Tuple<int, int, Swimmer, string>>(); // heat, lane, sw, seedTime
+                    foreach (var s in _swimmers) {
+                        if (s.Gender != gender || s.EventName != eventName) continue;
+                        if (isRelayEv && !string.IsNullOrEmpty(s.Notes) && s.Notes.StartsWith("接力队员")) continue;
+                        var sa = s.GetAssignmentForStage(stage);
+                        int h = 0, ln = 0; string seed = "";
+                        if (sa != null && sa.Heat > 0) { h = sa.Heat; ln = sa.Lane; seed = sa.EntryTime ?? s.EntryTime ?? ""; }
+                        else if (s.CurrentStage == stage && s.Heat > 0) { h = s.Heat; ln = s.Lane; seed = s.EntryTime ?? ""; }
+                        if (h <= 0) continue;
+                        rows.Add(Tuple.Create(h, ln, s, seed));
+                    }
+                    rows.Sort((a, b) => { int c = a.Item1.CompareTo(b.Item1); return c != 0 ? c : a.Item2.CompareTo(b.Item2); });
+                    foreach (var r in rows) {
+                        var s = r.Item3;
+                        string displayName = s.Name ?? "";
+                        if (isRelayEv && !string.IsNullOrEmpty(s.Notes) && s.Notes.StartsWith("接力队 棒次:"))
+                            displayName = s.Name ?? "";
+                        sb.AppendLine(string.Format("{0},{1},{2},{3},{4},{5},{6},{7},{8}",
+                            CsvEscape(gender), CsvEscape(eventName), CsvEscape(stage),
+                            r.Item1, r.Item2,
+                            CsvEscape(s.BibNumber ?? ""), CsvEscape(displayName),
+                            CsvEscape(s.Country ?? ""), CsvEscape(r.Item4 ?? "")));
+                    }
+                }
+                File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
+                AddLog("已导出分组表 CSV → " + dlg.FileName);
+                MessageBox.Show("分组表已导出。", "完成");
+            } catch (Exception ex) {
+                MessageBox.Show("导出失败: " + ex.Message, "错误");
+            }
+        }
+
+        private void ImportHeatAssignmentsCSV_Click(object sender, RoutedEventArgs e) {
+            var dlg = new Microsoft.Win32.OpenFileDialog {
+                Filter = "CSV文件|*.csv|文本文件|*.txt|所有文件|*.*",
+                Title = "导入分组表（表头: 性别,项目,阶段,组号,道次,参赛号,姓名,代表队,报名成绩）"
+            };
+            if (dlg.ShowDialog() != true) return;
+            string ext = IOPath.GetExtension(dlg.FileName).ToLower();
+            if (ext == ".xls" || ext == ".xlsx") {
+                MessageBox.Show("无法直接读取 Excel 文件。请另存为 “CSV UTF-8（逗号分隔）(*.csv)” 后再导入。",
+                    "格式提示", MessageBoxButton.OK, MessageBoxImage.Warning); return;
+            }
+            if (MessageBox.Show("导入分组表将覆盖相应项目/赛次的现有分组。继续？", "确认", MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
+
+            try {
+                var rows = ReadCsvLines(dlg.FileName);
+                if (rows.Count < 2) { MessageBox.Show("CSV 无有效数据"); return; }
+
+                // 按 (gender, event, stage) 分组：清空后再填充
+                var seen = new HashSet<string>();
+                int imported = 0, skipped = 0, notFound = 0;
+                for (int i = 1; i < rows.Count; i++) {
+                    var c = rows[i];
+                    if (c.Length < 6) { skipped++; continue; }
+                    string gender = (c[0] ?? "").Trim();
+                    string eventName = System.Text.RegularExpressions.Regex.Replace((c[1] ?? "").Trim(), @"\s+", "");
+                    string stage = (c[2] ?? "").Trim();
+                    int heat = 0, lane = 0;
+                    int.TryParse((c[3] ?? "").Trim(), out heat);
+                    int.TryParse((c[4] ?? "").Trim(), out lane);
+                    string bib = (c[5] ?? "").Trim();
+                    string name = c.Length > 6 ? (c[6] ?? "").Trim() : "";
+                    string country = c.Length > 7 ? (c[7] ?? "").Trim() : "";
+                    string seedTime = c.Length > 8 ? (c[8] ?? "").Trim() : "";
+
+                    if (string.IsNullOrEmpty(gender) || string.IsNullOrEmpty(eventName) || string.IsNullOrEmpty(stage) || heat <= 0) {
+                        skipped++; continue;
+                    }
+
+                    // 首次遇到 (gender,event,stage) → 清空其现有分组
+                    string key = gender + "|" + eventName + "|" + stage;
+                    if (!seen.Contains(key)) {
+                        seen.Add(key);
+                        foreach (var s in _swimmers) {
+                            if (s.Gender != gender || s.EventName != eventName) continue;
+                            if (s.Notes != null && s.Notes.StartsWith("接力队员")) continue;
+                            if (s.StageAssignments.ContainsKey(stage)) s.StageAssignments.Remove(stage);
+                            if (s.CurrentStage == stage) { s.Heat = 0; s.Lane = 0; }
+                        }
+                    }
+
+                    // 定位运动员：优先按参赛号，其次按姓名+代表队
+                    Swimmer sw = null;
+                    bool isRelayEv = eventName.Contains("接力");
+                    if (!string.IsNullOrEmpty(bib)) {
+                        sw = _swimmers.FirstOrDefault(s => s.BibNumber == bib && s.EventName == eventName && s.Gender == gender
+                            && !(isRelayEv && s.Notes != null && s.Notes.StartsWith("接力队员")));
+                    }
+                    if (sw == null && !string.IsNullOrEmpty(name)) {
+                        sw = _swimmers.FirstOrDefault(s => s.Name == name && s.Country == country
+                            && s.EventName == eventName && s.Gender == gender
+                            && !(isRelayEv && s.Notes != null && s.Notes.StartsWith("接力队员")));
+                    }
+                    if (sw == null) { notFound++; continue; }
+
+                    double sec = !string.IsNullOrEmpty(seedTime) ? TimeFormatter.Parse(seedTime) : sw.EntryTimeSeconds;
+                    sw.SetStageAssignment(stage, heat, lane, sec, seedTime);
+                    if (sw.CurrentStage == stage) { sw.Heat = heat; sw.Lane = lane; }
+                    imported++;
+                }
+
+                // 更新各项目的 HeatCount（按导入后最大组号）
+                foreach (var sched in _schedule) {
+                    int maxHeat = 0;
+                    foreach (var s in _swimmers) {
+                        if (s.Gender != sched.Gender || s.EventName != sched.EventName) continue;
+                        var sa = s.GetAssignmentForStage(sched.Stage);
+                        if (sa != null && sa.Heat > maxHeat) maxHeat = sa.Heat;
+                    }
+                    if (maxHeat > 0) sched.HeatCount = maxHeat;
+                }
+
+                AutoSaveData();
+                BuildScheduleTree();
+                Broadcast();
+                AddLog(string.Format("导入分组表: 分配{0}条, 跳过{1}行, 未匹配{2}人", imported, skipped, notFound));
+                string note = notFound > 0 ? string.Format("\n有 {0} 行未匹配到运动员（参赛号或姓名+代表队不符，已跳过）。", notFound) : "";
+                MessageBox.Show(string.Format("已导入分组 {0} 条。{1}", imported, note), "完成");
+            } catch (Exception ex) {
+                MessageBox.Show("导入失败: " + ex.Message, "错误");
+            }
+        }
+
+        private void DownloadHeatAssignmentsTemplate_Click(object sender, RoutedEventArgs e) {
+            var dlg = new Microsoft.Win32.SaveFileDialog {
+                Filter = "CSV文件|*.csv",
+                Title = "保存分组表模板",
+                FileName = "分组表模板.csv"
+            };
+            if (dlg.ShowDialog() != true) return;
+            try {
+                var sb = new StringBuilder();
+                sb.Append('﻿');
+                sb.AppendLine("性别,项目,阶段,组号,道次,参赛号,姓名,代表队,报名成绩");
+                sb.AppendLine("男,50米自由泳,预赛,1,4,001,张三,北京,0:23.45");
+                sb.AppendLine("男,50米自由泳,预赛,1,5,002,李四,上海,0:23.60");
+                sb.AppendLine("男,50米自由泳,预赛,2,4,003,王五,广东,0:24.10");
+                File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
+                MessageBox.Show("模板已保存，用 Excel/WPS 打开填写后通过【导入分组表】读入。\n\n" +
+                    "说明：\n• 参赛号或 “姓名+代表队” 任一能匹配到已注册运动员即可\n• 导入会覆盖相应项目/赛次的所有分组",
+                    "完成");
+            } catch (Exception ex) {
+                MessageBox.Show("保存失败: " + ex.Message, "错误");
+            }
+        }
+
+        // ═══════════════════════════════════════════════════════════════
         // 文档打印
         // ═══════════════════════════════════════════════════════════════
         private void PrintSchedule_Click(object sender, RoutedEventArgs e) { GenerateAndOpenDocument("竞赛日程", BuildScheduleHtml()); }

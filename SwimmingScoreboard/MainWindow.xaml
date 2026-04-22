@@ -431,12 +431,27 @@
                                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                                     <StackPanel x:Name="ScheduleGroupedPanel"/>
                                 </ScrollViewer>
-                                <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
-                                    <Button Content="修改赛程" Click="EditSchedule_Click" Padding="15,5" Background="#3B82F6" Foreground="White" FontWeight="Bold" BorderThickness="0" Margin="0,0,8,0"/>
-                                    <Button Content="一键生成日程" Click="AutoBuildSchedule_Click" Padding="15,5" Background="#F59E0B" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
-                                    <Button Content="预赛自动分组" Click="AutoGenerateHeats_Click" Padding="15,5" Background="#22C55E" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
-                                    <Button Content="追加分组" Click="SupplementHeats_Click" Padding="15,5" Background="#0EA5E9" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
-                                    <Button Content="导出日程表" Click="PrintSchedule_Click" Padding="15,5" Background="#8B5CF6" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
+                                <StackPanel Grid.Row="1" Orientation="Vertical" HorizontalAlignment="Right" Margin="0,10,0,0">
+                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                        <Button Content="修改赛程" Click="EditSchedule_Click" Padding="15,5" Background="#3B82F6" Foreground="White" FontWeight="Bold" BorderThickness="0" Margin="0,0,8,0"/>
+                                        <Button Content="一键生成日程" Click="AutoBuildSchedule_Click" Padding="15,5" Background="#F59E0B" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
+                                        <Button Content="预赛自动分组" Click="AutoGenerateHeats_Click" Padding="15,5" Background="#22C55E" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
+                                        <Button Content="追加分组" Click="SupplementHeats_Click" Padding="15,5" Background="#0EA5E9" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
+                                        <Button Content="打印日程表" Click="PrintSchedule_Click" Padding="15,5" Background="#8B5CF6" Foreground="White" BorderThickness="0" Margin="0,0,8,0"
+                                                ToolTip="生成 HTML 文档可直接打印"/>
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,6,0,0">
+                                        <Button Content="导入日程表" Click="ImportScheduleCSV_Click" Padding="15,5" Background="#3B82F6" Foreground="White" BorderThickness="0" Margin="0,0,8,0"
+                                                ToolTip="从 CSV 读取日程（Excel 可另存为 CSV UTF-8）"/>
+                                        <Button Content="导入分组表" Click="ImportHeatAssignmentsCSV_Click" Padding="15,5" Background="#0EA5E9" Foreground="White" BorderThickness="0" Margin="0,0,8,0"
+                                                ToolTip="从 CSV 读取各项目各组的运动员分道"/>
+                                        <Button Content="导出日程表" Click="ExportScheduleCSV_Click" Padding="15,5" Background="#22C55E" Foreground="White" BorderThickness="0" Margin="0,0,8,0"
+                                                ToolTip="导出为 CSV（Excel/WPS 可直接打开）"/>
+                                        <Button Content="导出分组表" Click="ExportHeatAssignmentsCSV_Click" Padding="15,5" Background="#16A34A" Foreground="White" BorderThickness="0" Margin="0,0,8,0"
+                                                ToolTip="导出各项目各组分道 CSV"/>
+                                        <Button Content="下载日程表模板" Click="DownloadScheduleTemplate_Click" Padding="15,5" Background="#F59E0B" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
+                                        <Button Content="下载分组表模板" Click="DownloadHeatAssignmentsTemplate_Click" Padding="15,5" Background="#D97706" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
+                                    </StackPanel>
                                 </StackPanel>
                             </Grid>
                         </TabItem>
