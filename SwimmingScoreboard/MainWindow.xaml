@@ -455,6 +455,53 @@
                                 </StackPanel>
                             </Grid>
                         </TabItem>
+                        <TabItem Header="比赛类型管理">
+                            <ScrollViewer Margin="10" VerticalScrollBarVisibility="Auto">
+                                <StackPanel>
+                                    <TextBlock Text="比赛项目 / 年龄组配置（数据库持久化，支持手动编辑、导入、导出）"
+                                               FontSize="14" FontWeight="Bold" Foreground="#1E293B" Margin="0,0,0,8"/>
+                                    <!-- 操作栏：上行比赛项目，下行年龄组 -->
+                                    <Border Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,0,0,10">
+                                        <StackPanel>
+                                            <TextBlock Text="比赛项目" FontSize="13" FontWeight="Bold" Foreground="#1E40AF" Margin="0,0,0,6"/>
+                                            <StackPanel Orientation="Horizontal">
+                                                <Button Content="比赛项目编辑" Click="EditEventsList_Click" Padding="12,6" Background="#3B82F6" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
+                                                <Button Content="导入比赛项目表" Click="ImportEventsCSV_Click" Padding="12,6" Background="#8B5CF6" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
+                                                <Button Content="导出比赛项目表" Click="ExportEventsCSV_Click" Padding="12,6" Background="#22C55E" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
+                                                <Button Content="下载比赛项目模板" Click="DownloadEventsTemplate_Click" Padding="12,6" Background="#F59E0B" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
+                                            </StackPanel>
+                                            <DataGrid x:Name="EventsPreviewGrid" AutoGenerateColumns="False" CanUserAddRows="False"
+                                                      IsReadOnly="True" AlternatingRowBackground="#F1F5F9" MinHeight="80" MaxHeight="220" Margin="0,8,0,0">
+                                                <DataGrid.Columns>
+                                                    <DataGridTextColumn Header="序号" Binding="{Binding Index}" Width="50"/>
+                                                    <DataGridTextColumn Header="比赛项目" Binding="{Binding Name}" Width="*"/>
+                                                </DataGrid.Columns>
+                                            </DataGrid>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <Border Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,0,0,10">
+                                        <StackPanel>
+                                            <TextBlock Text="年龄组" FontSize="13" FontWeight="Bold" Foreground="#1E40AF" Margin="0,0,0,6"/>
+                                            <StackPanel Orientation="Horizontal">
+                                                <Button Content="年龄组编辑" Click="EditAgeGroupsList_Click" Padding="12,6" Background="#3B82F6" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
+                                                <Button Content="导入年龄组表" Click="ImportAgeGroupsCSV_Click" Padding="12,6" Background="#8B5CF6" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
+                                                <Button Content="导出年龄组表" Click="ExportAgeGroupsCSV_Click" Padding="12,6" Background="#22C55E" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
+                                                <Button Content="下载年龄组模板" Click="DownloadAgeGroupsTemplate_Click" Padding="12,6" Background="#F59E0B" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
+                                            </StackPanel>
+                                            <DataGrid x:Name="AgeGroupsPreviewGrid" AutoGenerateColumns="False" CanUserAddRows="False"
+                                                      IsReadOnly="True" AlternatingRowBackground="#F1F5F9" MinHeight="80" MaxHeight="220" Margin="0,8,0,0">
+                                                <DataGrid.Columns>
+                                                    <DataGridTextColumn Header="名称" Binding="{Binding Name}" Width="120"/>
+                                                    <DataGridTextColumn Header="最小年龄" Binding="{Binding MinAge}" Width="80"/>
+                                                    <DataGridTextColumn Header="最大年龄" Binding="{Binding MaxAge}" Width="80"/>
+                                                </DataGrid.Columns>
+                                            </DataGrid>
+                                        </StackPanel>
+                                    </Border>
+                                </StackPanel>
+                            </ScrollViewer>
+                        </TabItem>
                         <TabItem Header="记录管理">
                             <ScrollViewer Margin="10" VerticalScrollBarVisibility="Auto">
                                 <StackPanel>

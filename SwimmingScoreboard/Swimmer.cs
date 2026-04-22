@@ -434,11 +434,7 @@ namespace SwimmingScoreboard
         }
 
         private void UpdateAgeCategory() {
-            if (_age >= 12 && _age <= 13) _ageCategory = "青少年";
-            else if (_age >= 14 && _age <= 17) _ageCategory = "少年";
-            else if (_age >= 18 && _age <= 45) _ageCategory = "成人";
-            else if (_age > 45) _ageCategory = "大师";
-            else _ageCategory = "";
+            _ageCategory = AgeGroupRegistry.CategoryFor(_age);
             OnPropertyChanged("AgeCategory");
         }
 
@@ -1098,6 +1094,42 @@ namespace SwimmingScoreboard
     // ═══════════════════════════════════════════════════════════════
     // 比赛数据包（JSON 序列化）
     // ═══════════════════════════════════════════════════════════════
+    // 年龄组：{名称, 最小年龄, 最大年龄}。一个运动员按其年龄落入第一个匹配的组
+    public class AgeGroup
+    {
+        public string Name { get; set; }
+        public int MinAge { get; set; }
+        public int MaxAge { get; set; }
+    }
+
+    // 静态注册表：Swimmer.UpdateAgeCategory 运行时通过它查询当前有效年龄组列表；
+    // MainWindow 负责在加载/保存年龄组时同步到此表
+    public static class AgeGroupRegistry
+    {
+        private static List<AgeGroup> _groups = new List<AgeGroup>();
+
+        public static List<AgeGroup> Groups { get { return _groups; } }
+
+        public static void Set(IEnumerable<AgeGroup> groups) {
+            _groups = groups != null ? new List<AgeGroup>(groups) : new List<AgeGroup>();
+        }
+
+        public static string CategoryFor(int age) {
+            if (_groups.Count == 0) {
+                // 缺省规则（兼容旧数据）
+                if (age >= 12 && age <= 13) return "青少年";
+                if (age >= 14 && age <= 17) return "少年";
+                if (age >= 18 && age <= 45) return "成人";
+                if (age > 45) return "大师";
+                return "";
+            }
+            foreach (var g in _groups) {
+                if (age >= g.MinAge && age <= g.MaxAge) return g.Name ?? "";
+            }
+            return "";
+        }
+    }
+
     // 代表队号码段：每个代表队设置一个数字区间（如 中国 001-050）
     public class BibRange
     {
@@ -1131,6 +1163,7 @@ namespace SwimmingScoreboard
         public List<TeamScore> TeamScores { get; set; }
         public List<ScheduleItem> Schedule { get; set; }
         public List<string> Events { get; set; }
+        public List<AgeGroup> AgeGroups { get; set; }
         public List<BibRange> BibRanges { get; set; }
         public LaneCloseSettings LaneCloseSettings { get; set; }
         public Dictionary<string, List<string>> DisputeLog { get; set; }
@@ -1146,6 +1179,7 @@ namespace SwimmingScoreboard
             TeamScores = new List<TeamScore>();
             Schedule = new List<ScheduleItem>();
             Events = new List<string>();
+            AgeGroups = new List<AgeGroup>();
             BibRanges = new List<BibRange>();
             LaneCloseSettings = new LaneCloseSettings();
             DisputeLog = new Dictionary<string, List<string>>();

@@ -32,6 +32,7 @@ namespace SwimmingScoreboard
         private ObservableCollection<TeamScore> _teamScores = new ObservableCollection<TeamScore>();
         private ObservableCollection<ScheduleItem> _schedule = new ObservableCollection<ScheduleItem>();
         private List<string> _events = new List<string>();
+        private List<AgeGroup> _ageGroups = new List<AgeGroup>();
         private List<BibRange> _bibRanges = new List<BibRange>();
 
         // ═══════════════════════════════════════════════════════════════
@@ -138,11 +139,16 @@ namespace SwimmingScoreboard
                 "4x100米自由泳接力", "4x200米自由泳接力",
                 "4x100米混合泳接力"
             };
-            foreach (string ev in _events) {
-                if (RegEventCombo != null) RegEventCombo.Items.Add(new ComboBoxItem { Content = ev });
-                if (FilterEventCombo != null) FilterEventCombo.Items.Add(new ComboBoxItem { Content = ev });
-                if (ResultEventCombo != null) ResultEventCombo.Items.Add(ev);
-            }
+            _ageGroups = new List<AgeGroup> {
+                new AgeGroup { Name = "青少年", MinAge = 12, MaxAge = 13 },
+                new AgeGroup { Name = "少年",   MinAge = 14, MaxAge = 17 },
+                new AgeGroup { Name = "成人",   MinAge = 18, MaxAge = 45 },
+                new AgeGroup { Name = "大师",   MinAge = 46, MaxAge = 200 }
+            };
+            AgeGroupRegistry.Set(_ageGroups);
+            RefreshEventComboBoxes();
+            RefreshEventsPreview();
+            RefreshAgeGroupsPreview();
             if (RegEventCombo != null && RegEventCombo.Items.Count > 0) RegEventCombo.SelectedIndex = 0;
 
             // 初始化泳道设备状态
@@ -7409,6 +7415,7 @@ namespace SwimmingScoreboard
                     TeamScores = _teamScores.ToList(),
                     Schedule = _schedule.ToList(),
                     Events = _events,
+                    AgeGroups = _ageGroups,
                     BibRanges = _bibRanges,
                     LaneCloseSettings = _laneCloseSettings
                 };
@@ -7466,6 +7473,11 @@ namespace SwimmingScoreboard
                         _laneCloseSettings.FinishPosition = _laneCloseSettings.StartPosition;
                 }
                 if (package.Events != null && package.Events.Count > 0) _events = package.Events;
+                if (package.AgeGroups != null && package.AgeGroups.Count > 0) _ageGroups = package.AgeGroups;
+                AgeGroupRegistry.Set(_ageGroups);
+                RefreshEventComboBoxes();
+                RefreshEventsPreview();
+                RefreshAgeGroupsPreview();
                 _bibRanges = package.BibRanges ?? new List<BibRange>();
 
                 _swimmers.Clear();
@@ -8143,6 +8155,364 @@ namespace SwimmingScoreboard
             } catch (Exception ex) {
                 AddLog("导出纪录模板失败: " + ex.Message);
             }
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        // 比赛类型管理：比赛项目 / 年龄组（数据库持久化 + Excel CSV 导入导出）
+        // ═══════════════════════════════════════════════════════════════
+
+        private void RefreshEventComboBoxes() {
+            // 重建依赖 _events 的下拉：RegEventCombo / FilterEventCombo / ResultEventCombo / RecordFilterEvent
+            if (RegEventCombo != null) {
+                object prev = RegEventCombo.SelectedItem;
+                RegEventCombo.Items.Clear();
+                foreach (string ev in _events) RegEventCombo.Items.Add(new ComboBoxItem { Content = ev });
+                if (RegEventCombo.Items.Count > 0) RegEventCombo.SelectedIndex = 0;
+            }
+            if (FilterEventCombo != null) {
+                FilterEventCombo.Items.Clear();
+                FilterEventCombo.Items.Add(new ComboBoxItem { Content = "全部", IsSelected = true });
+                foreach (string ev in _events) FilterEventCombo.Items.Add(new ComboBoxItem { Content = ev });
+            }
+            if (ResultEventCombo != null) {
+                string prev = ResultEventCombo.SelectedItem as string;
+                ResultEventCombo.Items.Clear();
+                foreach (string ev in _events) ResultEventCombo.Items.Add(ev);
+                if (!string.IsNullOrEmpty(prev) && ResultEventCombo.Items.Contains(prev))
+                    ResultEventCombo.SelectedItem = prev;
+                else if (ResultEventCombo.Items.Count > 0) ResultEventCombo.SelectedIndex = 0;
+            }
+            if (RecordFilterEvent != null) {
+                string prev = RecordFilterEvent.SelectedItem as string;
+                RecordFilterEvent.Items.Clear();
+                RecordFilterEvent.Items.Add("全部");
+                foreach (string ev in _events) RecordFilterEvent.Items.Add(ev);
+                if (!string.IsNullOrEmpty(prev) && RecordFilterEvent.Items.Contains(prev))
+                    RecordFilterEvent.SelectedItem = prev;
+                else RecordFilterEvent.SelectedIndex = 0;
+            }
+        }
+
+        private void RefreshEventsPreview() {
+            if (EventsPreviewGrid == null) return;
+            var list = new List<object>();
+            for (int i = 0; i < _events.Count; i++) list.Add(new { Index = i + 1, Name = _events[i] });
+            EventsPreviewGrid.ItemsSource = list;
+        }
+
+        private void RefreshAgeGroupsPreview() {
+            if (AgeGroupsPreviewGrid == null) return;
+            AgeGroupsPreviewGrid.ItemsSource = _ageGroups.Select(g => new { g.Name, g.MinAge, g.MaxAge }).ToList();
+        }
+
+        // 年龄组变更后，重新计算所有运动员的 AgeCategory
+        private void RecomputeAllAgeCategories() {
+            foreach (var s in _swimmers) {
+                int age = s.Age;
+                s.Age = 0;
+                s.Age = age; // setter 触发 UpdateAgeCategory
+            }
+        }
+
+        private void EditEventsList_Click(object sender, RoutedEventArgs e) {
+            var working = new System.Collections.ObjectModel.ObservableCollection<EventRow>();
+            foreach (var ev in _events) working.Add(new EventRow { Name = ev });
+
+            var dlg = new Window {
+                Title = "比赛项目编辑", Width = 480, Height = 520,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner, Owner = this, ResizeMode = ResizeMode.CanResize
+            };
+            var mainGrid = new Grid { Margin = new Thickness(16) };
+            mainGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            mainGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+            mainGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            mainGrid.Children.Add(new TextBlock {
+                Text = "直接双击单元格编辑项目名；可新增或删除行。确认后保存到数据库，取消则不生效。",
+                TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 8),
+                Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569"))
+            });
+
+            var grid = new DataGrid {
+                AutoGenerateColumns = false, CanUserAddRows = false, IsReadOnly = false,
+                SelectionMode = DataGridSelectionMode.Single,
+                AlternatingRowBackground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F8FAFC"))
+            };
+            grid.Columns.Add(new DataGridTextColumn {
+                Header = "比赛项目", Width = new DataGridLength(1, DataGridLengthUnitType.Star),
+                Binding = new System.Windows.Data.Binding("Name") { Mode = System.Windows.Data.BindingMode.TwoWay, UpdateSourceTrigger = System.Windows.Data.UpdateSourceTrigger.PropertyChanged }
+            });
+            grid.ItemsSource = working;
+            Grid.SetRow(grid, 1);
+            mainGrid.Children.Add(grid);
+
+            var btnPanel = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 10, 0, 0) };
+            Grid.SetRow(btnPanel, 2);
+
+            var btnAdd = new Button { Content = "新增项目", Padding = new Thickness(12, 6, 12, 6), Margin = new Thickness(0, 0, 8, 0),
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6")), Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0) };
+            btnAdd.Click += delegate { working.Add(new EventRow { Name = "新项目" }); };
+            var btnDel = new Button { Content = "删除选中", Padding = new Thickness(12, 6, 12, 6), Margin = new Thickness(0, 0, 8, 0),
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EF4444")), Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0) };
+            btnDel.Click += delegate {
+                var sel = grid.SelectedItem as EventRow;
+                if (sel != null) working.Remove(sel);
+                else MessageBox.Show("请先选中要删除的行");
+            };
+            var btnOk = new Button { Content = "确认保存", Padding = new Thickness(16, 6, 16, 6), Margin = new Thickness(0, 0, 8, 0), FontWeight = FontWeights.Bold,
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#22C55E")), Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0) };
+            btnOk.Click += delegate {
+                var fe = System.Windows.Input.Keyboard.FocusedElement as FrameworkElement;
+                if (fe is TextBox) { var be = fe.GetBindingExpression(TextBox.TextProperty); if (be != null) be.UpdateSource(); }
+                try { grid.CommitEdit(DataGridEditingUnit.Cell, true); grid.CommitEdit(DataGridEditingUnit.Row, true); } catch { }
+                var finalList = new List<string>();
+                var seen = new HashSet<string>();
+                foreach (var row in working) {
+                    string name = (row.Name ?? "").Trim();
+                    if (string.IsNullOrEmpty(name)) continue;
+                    if (seen.Contains(name)) { MessageBox.Show(string.Format("项目 [{0}] 重复，请合并或删除。", name)); return; }
+                    seen.Add(name);
+                    finalList.Add(name);
+                }
+                if (finalList.Count == 0) { MessageBox.Show("至少保留一个比赛项目"); return; }
+                _events = finalList;
+                RefreshEventComboBoxes();
+                RefreshEventsPreview();
+                AutoSaveData();
+                AddLog(string.Format("已更新比赛项目列表（{0} 条）", _events.Count));
+                dlg.DialogResult = true;
+            };
+            var btnCancel = new Button { Content = "取消", Padding = new Thickness(16, 6, 16, 6),
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")), Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0) };
+            btnCancel.Click += delegate { dlg.DialogResult = false; };
+            btnPanel.Children.Add(btnAdd); btnPanel.Children.Add(btnDel); btnPanel.Children.Add(btnOk); btnPanel.Children.Add(btnCancel);
+            mainGrid.Children.Add(btnPanel);
+            dlg.Content = mainGrid;
+            dlg.ShowDialog();
+        }
+
+        private class EventRow : INotifyPropertyChanged
+        {
+            private string _name;
+            public string Name { get { return _name; } set { _name = value; if (PropertyChanged != null) PropertyChanged(this, new PropertyChangedEventArgs("Name")); } }
+            public event PropertyChangedEventHandler PropertyChanged;
+        }
+
+        private void EditAgeGroupsList_Click(object sender, RoutedEventArgs e) {
+            var working = new System.Collections.ObjectModel.ObservableCollection<AgeGroup>();
+            foreach (var g in _ageGroups) working.Add(new AgeGroup { Name = g.Name, MinAge = g.MinAge, MaxAge = g.MaxAge });
+
+            var dlg = new Window {
+                Title = "年龄组编辑", Width = 540, Height = 520,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner, Owner = this, ResizeMode = ResizeMode.CanResize
+            };
+            var mainGrid = new Grid { Margin = new Thickness(16) };
+            mainGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            mainGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+            mainGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            mainGrid.Children.Add(new TextBlock {
+                Text = "编辑年龄组（名称 + 最小年龄 + 最大年龄）。运动员按年龄命中第一个匹配组。可增删；确认保存，取消不生效。",
+                TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 8),
+                Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569"))
+            });
+
+            var grid = new DataGrid {
+                AutoGenerateColumns = false, CanUserAddRows = false, IsReadOnly = false,
+                SelectionMode = DataGridSelectionMode.Single,
+                AlternatingRowBackground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F8FAFC"))
+            };
+            grid.Columns.Add(new DataGridTextColumn { Header = "名称", Width = new DataGridLength(180),
+                Binding = new System.Windows.Data.Binding("Name") { Mode = System.Windows.Data.BindingMode.TwoWay, UpdateSourceTrigger = System.Windows.Data.UpdateSourceTrigger.PropertyChanged } });
+            grid.Columns.Add(new DataGridTextColumn { Header = "最小年龄", Width = new DataGridLength(120),
+                Binding = new System.Windows.Data.Binding("MinAge") { Mode = System.Windows.Data.BindingMode.TwoWay } });
+            grid.Columns.Add(new DataGridTextColumn { Header = "最大年龄", Width = new DataGridLength(120),
+                Binding = new System.Windows.Data.Binding("MaxAge") { Mode = System.Windows.Data.BindingMode.TwoWay } });
+            grid.ItemsSource = working;
+            Grid.SetRow(grid, 1);
+            mainGrid.Children.Add(grid);
+
+            var btnPanel = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 10, 0, 0) };
+            Grid.SetRow(btnPanel, 2);
+            var btnAdd = new Button { Content = "新增", Padding = new Thickness(12, 6, 12, 6), Margin = new Thickness(0, 0, 8, 0),
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6")), Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0) };
+            btnAdd.Click += delegate { working.Add(new AgeGroup { Name = "新年龄组", MinAge = 0, MaxAge = 0 }); };
+            var btnDel = new Button { Content = "删除选中", Padding = new Thickness(12, 6, 12, 6), Margin = new Thickness(0, 0, 8, 0),
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EF4444")), Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0) };
+            btnDel.Click += delegate {
+                var sel = grid.SelectedItem as AgeGroup;
+                if (sel != null) working.Remove(sel); else MessageBox.Show("请先选中要删除的行");
+            };
+            var btnOk = new Button { Content = "确认保存", Padding = new Thickness(16, 6, 16, 6), Margin = new Thickness(0, 0, 8, 0), FontWeight = FontWeights.Bold,
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#22C55E")), Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0) };
+            btnOk.Click += delegate {
+                var fe = System.Windows.Input.Keyboard.FocusedElement as FrameworkElement;
+                if (fe is TextBox) { var be = fe.GetBindingExpression(TextBox.TextProperty); if (be != null) be.UpdateSource(); }
+                try { grid.CommitEdit(DataGridEditingUnit.Cell, true); grid.CommitEdit(DataGridEditingUnit.Row, true); } catch { }
+                var finalList = new List<AgeGroup>();
+                var seen = new HashSet<string>();
+                foreach (var r in working) {
+                    string name = (r.Name ?? "").Trim();
+                    if (string.IsNullOrEmpty(name)) continue;
+                    if (r.MaxAge < r.MinAge) {
+                        MessageBox.Show(string.Format("[{0}] 最大年龄 < 最小年龄，请修正。", name)); return;
+                    }
+                    if (seen.Contains(name)) { MessageBox.Show(string.Format("年龄组 [{0}] 重复。", name)); return; }
+                    seen.Add(name);
+                    finalList.Add(new AgeGroup { Name = name, MinAge = r.MinAge, MaxAge = r.MaxAge });
+                }
+                if (finalList.Count == 0) { MessageBox.Show("至少保留一个年龄组"); return; }
+                _ageGroups = finalList;
+                AgeGroupRegistry.Set(_ageGroups);
+                RefreshAgeGroupsPreview();
+                RecomputeAllAgeCategories();
+                AutoSaveData();
+                AddLog(string.Format("已更新年龄组列表（{0} 条）", _ageGroups.Count));
+                dlg.DialogResult = true;
+            };
+            var btnCancel = new Button { Content = "取消", Padding = new Thickness(16, 6, 16, 6),
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")), Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0) };
+            btnCancel.Click += delegate { dlg.DialogResult = false; };
+            btnPanel.Children.Add(btnAdd); btnPanel.Children.Add(btnDel); btnPanel.Children.Add(btnOk); btnPanel.Children.Add(btnCancel);
+            mainGrid.Children.Add(btnPanel);
+            dlg.Content = mainGrid;
+            dlg.ShowDialog();
+        }
+
+        private void ExportEventsCSV_Click(object sender, RoutedEventArgs e) {
+            var dlg = new Microsoft.Win32.SaveFileDialog { Filter = "CSV文件|*.csv", Title = "导出比赛项目表", FileName = "比赛项目表.csv" };
+            if (dlg.ShowDialog() != true) return;
+            try {
+                var sb = new StringBuilder();
+                sb.Append('﻿');
+                sb.AppendLine("比赛项目");
+                foreach (var ev in _events) sb.AppendLine(CsvEscape(ev));
+                File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
+                MessageBox.Show("比赛项目表已导出。", "完成");
+            } catch (Exception ex) { MessageBox.Show("导出失败: " + ex.Message, "错误"); }
+        }
+
+        private void ImportEventsCSV_Click(object sender, RoutedEventArgs e) {
+            var dlg = new Microsoft.Win32.OpenFileDialog {
+                Filter = "CSV文件|*.csv|文本文件|*.txt|所有文件|*.*",
+                Title = "导入比赛项目表（首列为项目名，可带表头）"
+            };
+            if (dlg.ShowDialog() != true) return;
+            string ext = IOPath.GetExtension(dlg.FileName).ToLower();
+            if (ext == ".xls" || ext == ".xlsx") {
+                MessageBox.Show("无法直接读取 Excel 文件。请另存为 CSV UTF-8 后再导入。", "格式提示"); return;
+            }
+            if (MessageBox.Show("导入将替换当前比赛项目列表。继续？", "确认", MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
+            try {
+                var rows = ReadCsvLines(dlg.FileName);
+                var finalList = new List<string>();
+                var seen = new HashSet<string>();
+                for (int i = 0; i < rows.Count; i++) {
+                    var c = rows[i];
+                    if (c.Length == 0) continue;
+                    string name = (c[0] ?? "").Trim();
+                    if (string.IsNullOrEmpty(name)) continue;
+                    // 跳过表头行（如 "比赛项目" / "项目"）
+                    if (i == 0 && (name == "比赛项目" || name == "项目" || name == "Event")) continue;
+                    name = System.Text.RegularExpressions.Regex.Replace(name, @"\s+", "");
+                    if (seen.Contains(name)) continue;
+                    seen.Add(name);
+                    finalList.Add(name);
+                }
+                if (finalList.Count == 0) { MessageBox.Show("未读取到有效项目行"); return; }
+                _events = finalList;
+                RefreshEventComboBoxes();
+                RefreshEventsPreview();
+                AutoSaveData();
+                AddLog(string.Format("导入比赛项目: 共{0}条", _events.Count));
+                MessageBox.Show(string.Format("已导入 {0} 条比赛项目。", _events.Count), "完成");
+            } catch (Exception ex) { MessageBox.Show("导入失败: " + ex.Message, "错误"); }
+        }
+
+        private void DownloadEventsTemplate_Click(object sender, RoutedEventArgs e) {
+            var dlg = new Microsoft.Win32.SaveFileDialog { Filter = "CSV文件|*.csv", Title = "保存比赛项目模板", FileName = "比赛项目模板.csv" };
+            if (dlg.ShowDialog() != true) return;
+            try {
+                var sb = new StringBuilder();
+                sb.Append('﻿');
+                sb.AppendLine("比赛项目");
+                sb.AppendLine("50米自由泳");
+                sb.AppendLine("100米自由泳");
+                sb.AppendLine("200米自由泳");
+                sb.AppendLine("4×50米自由泳接力");
+                sb.AppendLine("4×100米混合泳接力");
+                File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
+                MessageBox.Show("比赛项目模板已保存。", "完成");
+            } catch (Exception ex) { MessageBox.Show("保存失败: " + ex.Message, "错误"); }
+        }
+
+        private void ExportAgeGroupsCSV_Click(object sender, RoutedEventArgs e) {
+            var dlg = new Microsoft.Win32.SaveFileDialog { Filter = "CSV文件|*.csv", Title = "导出年龄组表", FileName = "年龄组表.csv" };
+            if (dlg.ShowDialog() != true) return;
+            try {
+                var sb = new StringBuilder();
+                sb.Append('﻿');
+                sb.AppendLine("名称,最小年龄,最大年龄");
+                foreach (var g in _ageGroups) sb.AppendLine(string.Format("{0},{1},{2}", CsvEscape(g.Name), g.MinAge, g.MaxAge));
+                File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
+                MessageBox.Show("年龄组表已导出。", "完成");
+            } catch (Exception ex) { MessageBox.Show("导出失败: " + ex.Message, "错误"); }
+        }
+
+        private void ImportAgeGroupsCSV_Click(object sender, RoutedEventArgs e) {
+            var dlg = new Microsoft.Win32.OpenFileDialog {
+                Filter = "CSV文件|*.csv|文本文件|*.txt|所有文件|*.*",
+                Title = "导入年龄组表（表头: 名称,最小年龄,最大年龄）"
+            };
+            if (dlg.ShowDialog() != true) return;
+            string ext = IOPath.GetExtension(dlg.FileName).ToLower();
+            if (ext == ".xls" || ext == ".xlsx") {
+                MessageBox.Show("无法直接读取 Excel 文件。请另存为 CSV UTF-8 后再导入。", "格式提示"); return;
+            }
+            if (MessageBox.Show("导入将替换当前年龄组列表。继续？", "确认", MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
+            try {
+                var rows = ReadCsvLines(dlg.FileName);
+                var finalList = new List<AgeGroup>();
+                var seen = new HashSet<string>();
+                for (int i = 0; i < rows.Count; i++) {
+                    var c = rows[i];
+                    if (c.Length == 0) continue;
+                    string name = (c[0] ?? "").Trim();
+                    if (string.IsNullOrEmpty(name)) continue;
+                    // 跳表头
+                    if (i == 0 && (name == "名称" || name == "年龄组" || name == "Name")) continue;
+                    int minA = 0, maxA = 0;
+                    if (c.Length > 1) int.TryParse((c[1] ?? "").Trim(), out minA);
+                    if (c.Length > 2) int.TryParse((c[2] ?? "").Trim(), out maxA);
+                    if (maxA < minA) continue;
+                    if (seen.Contains(name)) continue;
+                    seen.Add(name);
+                    finalList.Add(new AgeGroup { Name = name, MinAge = minA, MaxAge = maxA });
+                }
+                if (finalList.Count == 0) { MessageBox.Show("未读取到有效年龄组"); return; }
+                _ageGroups = finalList;
+                AgeGroupRegistry.Set(_ageGroups);
+                RefreshAgeGroupsPreview();
+                RecomputeAllAgeCategories();
+                AutoSaveData();
+                AddLog(string.Format("导入年龄组: 共{0}条", _ageGroups.Count));
+                MessageBox.Show(string.Format("已导入 {0} 个年龄组。", _ageGroups.Count), "完成");
+            } catch (Exception ex) { MessageBox.Show("导入失败: " + ex.Message, "错误"); }
+        }
+
+        private void DownloadAgeGroupsTemplate_Click(object sender, RoutedEventArgs e) {
+            var dlg = new Microsoft.Win32.SaveFileDialog { Filter = "CSV文件|*.csv", Title = "保存年龄组模板", FileName = "年龄组模板.csv" };
+            if (dlg.ShowDialog() != true) return;
+            try {
+                var sb = new StringBuilder();
+                sb.Append('﻿');
+                sb.AppendLine("名称,最小年龄,最大年龄");
+                sb.AppendLine("少年,12,14");
+                sb.AppendLine("青年,15,17");
+                sb.AppendLine("成年,18,39");
+                sb.AppendLine("老年,40,120");
+                sb.AppendLine("小戊组,8,11");
+                File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
+                MessageBox.Show("年龄组模板已保存。", "完成");
+            } catch (Exception ex) { MessageBox.Show("保存失败: " + ex.Message, "错误"); }
         }
 
         // ═══════════════════════════════════════════════════════════════
