@@ -246,8 +246,6 @@ namespace SwimmingScoreboard
         private class SwimmerResult {
             public Swimmer Swimmer;
             public LaneResult Result;
-            public int HeatRank;
-            public string Method = "";
         }
     }
 }

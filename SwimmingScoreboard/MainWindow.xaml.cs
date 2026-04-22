@@ -56,7 +56,6 @@ namespace SwimmingScoreboard
         private int _lastTsSplitCount = -1;
         private string _firstPlaceFinishTime = "";
         private DateTime _firstPlaceShowStart = DateTime.MinValue;
-        private int _firstPlaceDetectedRank = 0;
         // 泳��设备状态
         private List<LaneDeviceState> _laneDeviceStates = new List<LaneDeviceState>();
 
@@ -2366,7 +2365,6 @@ namespace SwimmingScoreboard
             // 2. 清除所有计时显示状态（第一名成绩、分段、滚动时间）
             _firstPlaceFinishTime = "";
             _firstPlaceShowStart = DateTime.MinValue;
-            _firstPlaceDetectedRank = 0;
             _laneSplitCount.Clear();
             _laneSplitShowTime.Clear();
             _laneReactionLastValue.Clear();
@@ -2698,7 +2696,6 @@ namespace SwimmingScoreboard
             _laneReactionShowTime.Clear();
             _firstPlaceFinishTime = "";
             _firstPlaceShowStart = DateTime.MinValue;
-            _firstPlaceDetectedRank = 0;
             // 切换组次 = 复位计时器
             _runningTime = 0;
             _raceStartTime = DateTime.MinValue;
@@ -2869,8 +2866,6 @@ namespace SwimmingScoreboard
         private Dictionary<int, DateTime> _laneSplitShowTime = new Dictionary<int, DateTime>();  // 每道分段显示开始时间
         private Dictionary<int, double> _laneReactionLastValue = new Dictionary<int, double>();  // 每道上次记录的反应时值
         private Dictionary<int, DateTime> _laneReactionShowTime = new Dictionary<int, DateTime>();  // 每道反应时显示开始时间
-
-        private bool _poolHeaderBuilt = false;
 
         private void RenderPoolHeader() {
             if (PoolHeader == null) return;
