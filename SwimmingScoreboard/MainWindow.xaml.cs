@@ -5229,18 +5229,21 @@ namespace SwimmingScoreboard
         }
 
         private void EditAddTempSwimmer_Click(object sender, RoutedEventArgs e) {
-            // 临时加人：在当前项目/赛次新增一名运动员，不自动重新编排全部分组；
-            // 新运动员默认未分组，需通过"增加到本组"或"交换泳道→空道"手动放入组/道
+            // 临时加人：在当前项目/赛次新增个人运动员或接力队，不自动重新编排全部分组；
+            // 新增对象默认未分组，需通过"增加到本组"或"交换泳道→空道"手动放入组/道
             string gender = EditGenderCombo != null && EditGenderCombo.SelectedItem != null ? ((ComboBoxItem)EditGenderCombo.SelectedItem).Content.ToString() : "";
             string eventName = EditEventCombo != null && EditEventCombo.SelectedItem != null ? EditEventCombo.SelectedItem.ToString() : "";
             string stage = EditStageCombo != null && EditStageCombo.SelectedItem != null ? ((ComboBoxItem)EditStageCombo.SelectedItem).Content.ToString() : "";
             if (string.IsNullOrEmpty(gender) || string.IsNullOrEmpty(eventName) || string.IsNullOrEmpty(stage)) {
                 MessageBox.Show("请先在上方选择性别、项目、赛次后再临时加人。", "提示"); return;
             }
-            if (eventName.Contains("接力")) {
-                MessageBox.Show("接力项目请在注册页面添加接力队及队员，\n此处的临时加人只用于个人项目。", "提示"); return;
-            }
 
+            bool isRelay = eventName.Contains("接力");
+            if (isRelay) AddTempRelayTeam(gender, eventName, stage);
+            else AddTempIndividualSwimmer(gender, eventName, stage);
+        }
+
+        private void AddTempIndividualSwimmer(string gender, string eventName, string stage) {
             var dlg = new Window {
                 Title = string.Format("临时加人 — {0} {1} {2}", gender, eventName, stage),
                 Width = 420, Height = 400, WindowStartupLocation = WindowStartupLocation.CenterOwner, Owner = this, ResizeMode = ResizeMode.NoResize
@@ -5297,31 +5300,142 @@ namespace SwimmingScoreboard
             }
 
             double entrySec = 0;
-            if (!string.IsNullOrEmpty(entryTimeStr)) {
-                entrySec = TimeFormatter.Parse(entryTimeStr);
-            }
+            if (!string.IsNullOrEmpty(entryTimeStr)) entrySec = TimeFormatter.Parse(entryTimeStr);
 
             var sw = new Swimmer {
-                Name = name,
-                BibNumber = bib,
-                Gender = gender,
-                Country = country,
-                Age = ageVal,
-                EventName = eventName,
-                CurrentStage = stage,
-                EntryTime = entryTimeStr,
-                EntryTimeSeconds = entrySec,
-                Heat = 0,
-                Lane = 0,
-                Notes = "临时加人"
+                Name = name, BibNumber = bib, Gender = gender, Country = country, Age = ageVal,
+                EventName = eventName, CurrentStage = stage,
+                EntryTime = entryTimeStr, EntryTimeSeconds = entrySec,
+                Heat = 0, Lane = 0, Notes = "临时加人"
             };
             _swimmers.Add(sw);
             AutoSaveData();
-            // 仅刷新编排微调预览和组别下拉，不重新分组其他人
             UpdateEditHeatCombo();
             RefreshEditPreview();
             AddLog(string.Format("临时加人: {0} 加入 {1} {2} {3}（未分组，请手动放入组/道）", name, gender, eventName, stage));
             MessageBox.Show(string.Format("已添加 {0}。\n请使用“增加到本组”或“交换泳道→空道”将其放入具体组/道。", name), "临时加人完成");
+        }
+
+        private void AddTempRelayTeam(string gender, string eventName, string stage) {
+            // 从项目名解析棒数（如 "4×100米自由泳接力" → 4 棒），解析失败默认 4
+            int legCount = 4;
+            var mm = System.Text.RegularExpressions.Regex.Match(eventName, @"(\d+)\s*[x×*]");
+            if (mm.Success) { int n; if (int.TryParse(mm.Groups[1].Value, out n) && n > 0 && n <= 10) legCount = n; }
+
+            var dlg = new Window {
+                Title = string.Format("临时加接力队 — {0} {1} {2}", gender, eventName, stage),
+                Width = 460, Height = 140 + legCount * 34 + 160,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner, Owner = this, ResizeMode = ResizeMode.NoResize
+            };
+            var sp = new StackPanel { Margin = new Thickness(16) };
+            sp.Children.Add(new TextBlock {
+                Text = string.Format("新增接力队到: {0} {1} {2}（确认后请用“增加到本组”或“交换泳道→空道”手动放入组/道，不会自动重新分组）", gender, eventName, stage),
+                TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 10), FontSize = 13
+            });
+
+            Func<string, TextBox, double, StackPanel> addRow = delegate(string label, TextBox tb, double labelWidth) {
+                var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 0) };
+                row.Children.Add(new TextBlock { Text = label, Width = labelWidth, VerticalAlignment = VerticalAlignment.Center });
+                tb.Padding = new Thickness(4);
+                row.Children.Add(tb);
+                sp.Children.Add(row);
+                return row;
+            };
+
+            var tbTeam = new TextBox { Width = 320 };
+            var tbEntryTime = new TextBox { Width = 320, ToolTip = "报名成绩，格式如 4:10.20 或 250.20" };
+            addRow("队名（代表队）:", tbTeam, 110);
+            addRow("报名成绩:", tbEntryTime, 110);
+
+            sp.Children.Add(new TextBlock { Text = string.Format("队员（共{0}棒，可留空，后续再补）:", legCount),
+                Margin = new Thickness(0, 10, 0, 4), FontSize = 13, FontWeight = FontWeights.Bold });
+
+            var legNameBoxes = new List<TextBox>();
+            var legBibBoxes = new List<TextBox>();
+            for (int i = 0; i < legCount; i++) {
+                var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 2, 0, 0) };
+                row.Children.Add(new TextBlock { Text = string.Format("第{0}棒:", i + 1), Width = 55, VerticalAlignment = VerticalAlignment.Center });
+                var tbLegName = new TextBox { Width = 180, Padding = new Thickness(4) };
+                var tbLegBib = new TextBox { Width = 100, Padding = new Thickness(4), Margin = new Thickness(8, 0, 0, 0), ToolTip = "队员号码（可空）" };
+                row.Children.Add(new TextBlock { Text = "姓名", Margin = new Thickness(0, 0, 4, 0), VerticalAlignment = VerticalAlignment.Center });
+                row.Children.Add(tbLegName);
+                row.Children.Add(new TextBlock { Text = "号码", Margin = new Thickness(8, 0, 4, 0), VerticalAlignment = VerticalAlignment.Center });
+                row.Children.Add(tbLegBib);
+                sp.Children.Add(row);
+                legNameBoxes.Add(tbLegName);
+                legBibBoxes.Add(tbLegBib);
+            }
+
+            var btnPanel = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 14, 0, 0) };
+            var btnOk = new Button { Content = "确定添加", Padding = new Thickness(16, 6, 16, 6), FontSize = 13, Margin = new Thickness(0, 0, 8, 0),
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#8B5CF6")), Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0) };
+            btnOk.Click += delegate { dlg.DialogResult = true; };
+            var btnCancel = new Button { Content = "取消", Padding = new Thickness(16, 6, 16, 6), FontSize = 13,
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")), Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0) };
+            btnCancel.Click += delegate { dlg.DialogResult = false; };
+            btnPanel.Children.Add(btnOk);
+            btnPanel.Children.Add(btnCancel);
+            sp.Children.Add(btnPanel);
+            dlg.Content = new ScrollViewer { Content = sp, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
+
+            if (dlg.ShowDialog() != true) return;
+
+            string teamName = (tbTeam.Text ?? "").Trim();
+            string entryTimeStr = (tbEntryTime.Text ?? "").Trim();
+            if (string.IsNullOrEmpty(teamName)) { MessageBox.Show("队名不能为空"); return; }
+            if (_swimmers.Any(s => s.EventName == eventName && s.Country == teamName && s.Notes != null && s.Notes.StartsWith("接力队 棒次:"))) {
+                MessageBox.Show(string.Format("代表队 \"{0}\" 已在本项目报名过接力队。", teamName)); return;
+            }
+
+            double entrySec = 0;
+            if (!string.IsNullOrEmpty(entryTimeStr)) entrySec = TimeFormatter.Parse(entryTimeStr);
+
+            // 构造 RelayTeam
+            var team = new RelayTeam {
+                TeamName = teamName, EventName = eventName, Gender = gender,
+                EntryTime = entryTimeStr, EntryTimeSeconds = entrySec
+            };
+            for (int i = 0; i < legCount; i++) {
+                string ln = (legNameBoxes[i].Text ?? "").Trim();
+                string lb = (legBibBoxes[i].Text ?? "").Trim();
+                team.Legs.Add(new RelayLeg { LegOrder = i + 1, SwimmerName = ln, SwimmerBibNumber = lb, SwimmerIDNumber = "" });
+            }
+            _relayTeams.Add(team);
+
+            // 代表队条目（统一走分组/成绩流程）
+            string legNames = "";
+            foreach (var leg in team.Legs) legNames += (legNames.Length > 0 ? "," : "") + (leg.SwimmerName ?? "");
+            string teamBib = "R" + (_relayTeams.Count).ToString("D3");
+            while (_swimmers.Any(s => s.BibNumber == teamBib)) teamBib = "R" + DateTime.Now.Ticks.ToString().Substring(10);
+
+            _swimmers.Add(new Swimmer {
+                BibNumber = teamBib, Name = teamName, Gender = gender, Country = teamName,
+                EventName = eventName, CurrentStage = stage,
+                EntryTime = entryTimeStr, EntryTimeSeconds = entrySec,
+                Heat = 0, Lane = 0,
+                Notes = string.Format("接力队 棒次:{0}", legNames)
+            });
+
+            // 队员子条目（号码为空时自动生成 teamBib-legN）
+            foreach (var leg in team.Legs) {
+                if (string.IsNullOrEmpty(leg.SwimmerName)) continue;
+                string memBib = !string.IsNullOrEmpty(leg.SwimmerBibNumber) ? leg.SwimmerBibNumber : (teamBib + "-" + leg.LegOrder);
+                if (_swimmers.Any(s => s.BibNumber == memBib)) continue;
+                _swimmers.Add(new Swimmer {
+                    BibNumber = memBib, Name = leg.SwimmerName,
+                    Gender = gender == "混合" ? "男" : gender, Country = teamName,
+                    IDNumber = leg.SwimmerIDNumber ?? "",
+                    EventName = eventName,
+                    Notes = string.Format("接力队员 {0} 第{1}棒", eventName, leg.LegOrder)
+                });
+            }
+
+            AutoSaveData();
+            RebuildRelayGroupedView();
+            UpdateEditHeatCombo();
+            RefreshEditPreview();
+            AddLog(string.Format("临时加接力队: {0} ({1}) → {2} {3}（未分组，请手动放入组/道）", teamName, eventName, gender, stage));
+            MessageBox.Show(string.Format("已添加接力队 {0}。\n请使用“增加到本组”或“交换泳道→空道”将其放入具体组/道。", teamName), "临时加人完成");
         }
 
         private void EditSaveChanges_Click(object sender, RoutedEventArgs e) {
