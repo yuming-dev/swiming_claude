@@ -588,6 +588,7 @@ namespace SwimmingScoreboard
     {
         private string _eventName;
         private string _gender;
+        private string _ageGroup;
         private string _recordType;
         private string _holderName;
         private string _holderCountry;
@@ -603,6 +604,11 @@ namespace SwimmingScoreboard
         public string Gender {
             get { return _gender; }
             set { _gender = value; OnPropertyChanged("Gender"); }
+        }
+        // 年龄组：空串表示不限（兼容旧存档的纪录数据）
+        public string AgeGroup {
+            get { return _ageGroup; }
+            set { _ageGroup = value; OnPropertyChanged("AgeGroup"); }
         }
         public string RecordType {
             get { return _recordType; }

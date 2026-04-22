@@ -23,25 +23,45 @@ namespace SwimmingScoreboard
             _events = events;
             _poolConfig = poolConfig;
             _schedule = schedule ?? new ObservableCollection<ScheduleItem>();
+            PopulateAgeGroups();
             PopulateEvents();
             _initialized = true;
             UpdateStages();
         }
 
         // ═══════ 下拉框填充 ═══════
+        private void PopulateAgeGroups() {
+            AgeGroupCombo.Items.Clear();
+            AgeGroupCombo.Items.Add("全部");
+            foreach (var g in AgeGroupRegistry.Groups) AgeGroupCombo.Items.Add(g.Name);
+            AgeGroupCombo.SelectedIndex = 0;
+        }
+
         private void PopulateEvents() {
             EventCombo.Items.Clear();
+            string ageFilter = GetAgeGroup();
             var eventSet = new HashSet<string>();
             foreach (var s in _swimmers) {
-                if (!string.IsNullOrEmpty(s.EventName)) eventSet.Add(s.EventName);
+                if (!string.IsNullOrEmpty(s.EventName) && MatchesAgeFilter(s, ageFilter))
+                    eventSet.Add(s.EventName);
             }
             foreach (string ev in eventSet.OrderBy(e => e)) EventCombo.Items.Add(ev);
             if (EventCombo.Items.Count > 0) EventCombo.SelectedIndex = 0;
         }
 
+        private string GetAgeGroup() {
+            return AgeGroupCombo != null && AgeGroupCombo.SelectedItem != null ? AgeGroupCombo.SelectedItem.ToString() : "全部";
+        }
+
+        private bool MatchesAgeFilter(Swimmer s, string ageFilter) {
+            if (string.IsNullOrEmpty(ageFilter) || ageFilter == "全部") return true;
+            return (s.AgeCategory ?? "") == ageFilter;
+        }
+
         private void UpdateStages() {
             if (!_initialized) return;
             FromStageCombo.Items.Clear();
+            string ageFilter = GetAgeGroup();
             string gender = GetGender();
             string eventName = GetEventName();
             if (string.IsNullOrEmpty(eventName)) return;
@@ -49,7 +69,7 @@ namespace SwimmingScoreboard
             // 从运动员成绩记录中提取有成绩的阶段
             var stagesWithResults = new HashSet<string>();
             foreach (var s in _swimmers) {
-                if (s.Gender == gender && s.EventName == eventName) {
+                if (s.Gender == gender && s.EventName == eventName && MatchesAgeFilter(s, ageFilter)) {
                     foreach (var r in s.Results) {
                         if (r.FinalTime > 0) stagesWithResults.Add(r.Stage);
                     }
@@ -65,6 +85,7 @@ namespace SwimmingScoreboard
         }
 
         // ═══════ 事件处理 ═══════
+        private void AgeGroup_Changed(object sender, SelectionChangedEventArgs e) { if (_initialized) { PopulateEvents(); UpdateStages(); } }
         private void Gender_Changed(object sender, SelectionChangedEventArgs e) { if (_initialized) UpdateStages(); }
         private void Event_Changed(object sender, SelectionChangedEventArgs e) { if (_initialized) UpdateStages(); }
         private void Stage_Changed(object sender, SelectionChangedEventArgs e) { if (_initialized) UpdateInfo(); }
@@ -98,10 +119,12 @@ namespace SwimmingScoreboard
             int defaultPromo = (_toStage == "半决赛") ? 16 : 8;
             CountBox.Text = defaultPromo.ToString();
 
+            string ageFilter = GetAgeGroup();
             int total = 0, withResults = 0;
             var heats = new HashSet<int>();
             foreach (var s in _swimmers) {
                 if (s.Gender != gender || s.EventName != eventName) continue;
+                if (!MatchesAgeFilter(s, ageFilter)) continue;
                 var r = s.GetResultForStage(fromStage);
                 if (r != null && r.FinalTime > 0) { withResults++; heats.Add(r.Heat); }
                 total++;
@@ -129,10 +152,12 @@ namespace SwimmingScoreboard
             int totalPromo = 16;
             int.TryParse(CountBox.Text.Trim(), out totalPromo);
 
-            // 收集所有有成绩的运动员（不分小组，统一排名）
+            // 收集所有有成绩的运动员（不分小组，统一排名；按年龄组过滤）
+            string ageFilter = GetAgeGroup();
             var all = new List<SwimmerResult>();
             foreach (var s in _swimmers) {
                 if (s.Gender != gender || s.EventName != eventName) continue;
+                if (!MatchesAgeFilter(s, ageFilter)) continue;
                 if (s.Status == "DNS" || s.Status == "DNF" || s.Status == "DSQ") continue;
                 var r = s.GetResultForStage(fromStage);
                 if (r == null || r.FinalTime <= 0) continue;

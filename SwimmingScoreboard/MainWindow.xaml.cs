@@ -149,7 +149,7 @@ namespace SwimmingScoreboard
             RefreshEventComboBoxes();
             RefreshEventsPreview();
             RefreshAgeGroupsPreview();
-            RefreshEditAgeGroupCombo();
+            RefreshAllAgeGroupFilterCombos();
             if (RegEventCombo != null && RegEventCombo.Items.Count > 0) RegEventCombo.SelectedIndex = 0;
 
             // 初始化泳道设备状态
@@ -5083,6 +5083,24 @@ namespace SwimmingScoreboard
             else EditAgeGroupCombo.SelectedIndex = 0;
         }
 
+        // 其它年龄组过滤下拉（运动员管理/记录管理/成绩与排名）
+        private void FillAgeGroupFilterCombo(ComboBox cb) {
+            if (cb == null) return;
+            string prev = cb.SelectedItem as string;
+            cb.Items.Clear();
+            cb.Items.Add("全部");
+            foreach (var g in _ageGroups) cb.Items.Add(g.Name);
+            if (!string.IsNullOrEmpty(prev) && cb.Items.Contains(prev)) cb.SelectedItem = prev;
+            else cb.SelectedIndex = 0;
+        }
+
+        private void RefreshAllAgeGroupFilterCombos() {
+            RefreshAllAgeGroupFilterCombos();
+            FillAgeGroupFilterCombo(FilterAgeGroupCombo);
+            FillAgeGroupFilterCombo(RecordFilterAgeGroup);
+            FillAgeGroupFilterCombo(ResultAgeGroupCombo);
+        }
+
         private void RefreshEditPreview_Click(object sender, RoutedEventArgs e) {
             // 刷新按钮：重建项目列表（可能有新导入的项目），然后刷新组别和数据
             _editUpdating = true;
@@ -5825,15 +5843,18 @@ namespace SwimmingScoreboard
             AddLog("出场编排修改已保存");
         }
         private void FilterGender_Changed(object sender, SelectionChangedEventArgs e) { if (_initialized) RefreshSwimmerFilter(); }
+        private void FilterAgeGroup_Changed(object sender, SelectionChangedEventArgs e) { if (_initialized) RefreshSwimmerFilter(); }
 
         private void RefreshSwimmerFilter() {
             if (FilterEventCombo == null || FilterGenderCombo == null || SwimmerGrid == null) return;
             string eventFilter = FilterEventCombo.SelectedItem != null ? ((ComboBoxItem)FilterEventCombo.SelectedItem).Content.ToString() : "全部";
             string genderFilter = FilterGenderCombo.SelectedItem != null ? ((ComboBoxItem)FilterGenderCombo.SelectedItem).Content.ToString() : "全部";
+            string ageFilter = FilterAgeGroupCombo != null && FilterAgeGroupCombo.SelectedItem != null ? FilterAgeGroupCombo.SelectedItem.ToString() : "全部";
 
             var filtered = _swimmers.Where(s => {
                 if (eventFilter != "全部" && s.EventName != eventFilter) return false;
                 if (genderFilter != "全部" && s.Gender != genderFilter) return false;
+                if (!MatchesAgeGroup(s, ageFilter)) return false;
                 return true;
             }).ToList();
 
@@ -6792,6 +6813,7 @@ namespace SwimmingScoreboard
         // 成绩与排名
         // ═══════════════════════════════════════════════════════════════
         private bool _resultUpdating = false;
+        private void ResultAgeGroup_Changed(object sender, SelectionChangedEventArgs e) { if (_initialized && !_resultUpdating) { UpdateResultHeatCombo(); RefreshResultGrid(); } }
         private void ResultEvent_Changed(object sender, SelectionChangedEventArgs e) { if (_initialized && !_resultUpdating) { UpdateResultHeatCombo(); RefreshResultGrid(); } }
         private void ResultStage_Changed(object sender, SelectionChangedEventArgs e) { if (_initialized && !_resultUpdating) { UpdateResultHeatCombo(); RefreshResultGrid(); } }
         private void ResultGender_Changed(object sender, SelectionChangedEventArgs e) { if (_initialized && !_resultUpdating) { UpdateResultHeatCombo(); RefreshResultGrid(); } }
@@ -6803,11 +6825,13 @@ namespace SwimmingScoreboard
             try {
             // 刷新项目列表：只显示有运动员/运动队注册的项目（过滤接力队员个人条目）
             string prevEvent = ResultEventCombo.SelectedItem != null ? ResultEventCombo.SelectedItem.ToString() : "";
+            string ageFilter = ResultAgeGroupCombo != null && ResultAgeGroupCombo.SelectedItem != null ? ResultAgeGroupCombo.SelectedItem.ToString() : "全部";
             string gender = ResultGenderCombo.SelectedItem != null ? ((ComboBoxItem)ResultGenderCombo.SelectedItem).Content.ToString() : "男";
             ResultEventCombo.Items.Clear();
             var eventSet = new HashSet<string>();
             foreach (var s in _swimmers) {
                 if (s.Gender == gender && !string.IsNullOrEmpty(s.EventName) &&
+                    MatchesAgeGroup(s, ageFilter) &&
                     !(s.Notes != null && s.Notes.StartsWith("接力队员")))
                     eventSet.Add(s.EventName);
             }
@@ -6828,6 +6852,7 @@ namespace SwimmingScoreboard
             foreach (var s in _swimmers) {
                 if (!string.IsNullOrEmpty(eventName) && s.EventName != eventName) continue;
                 if (s.Gender != gender) continue;
+                if (!MatchesAgeGroup(s, ageFilter)) continue;
                 if (s.Notes != null && s.Notes.StartsWith("接力队员")) continue;
                 foreach (var r in s.Results) {
                     if (r.Stage == stage && r.Heat > 0) heats.Add(r.Heat);
@@ -6847,6 +6872,7 @@ namespace SwimmingScoreboard
 
         private void RefreshResultGrid() {
             if (ResultEventCombo == null || ResultStageCombo == null || ResultGenderCombo == null || ResultGrid == null) return;
+            string ageFilter = ResultAgeGroupCombo != null && ResultAgeGroupCombo.SelectedItem != null ? ResultAgeGroupCombo.SelectedItem.ToString() : "全部";
             string gender = ResultGenderCombo.SelectedItem != null ? ((ComboBoxItem)ResultGenderCombo.SelectedItem).Content.ToString() : "男";
             string eventName = ResultEventCombo.SelectedItem != null ? ResultEventCombo.SelectedItem.ToString() : "";
             string stage = ResultStageCombo.SelectedItem != null ? ((ComboBoxItem)ResultStageCombo.SelectedItem).Content.ToString() : "预赛";
@@ -6862,9 +6888,10 @@ namespace SwimmingScoreboard
                 return;
             }
 
-            // 按性别和项目筛选（接力项目只查代表队，不查个人队员）
+            // 按年龄组/性别和项目筛选（接力项目只查代表队，不查个人队员）
             var allMatched = _swimmers.Where(s =>
                 s.EventName == eventName && s.Gender == gender &&
+                MatchesAgeGroup(s, ageFilter) &&
                 !(s.Notes != null && s.Notes.StartsWith("接力队员"))
             ).ToList();
 
@@ -7510,7 +7537,7 @@ namespace SwimmingScoreboard
                 RefreshEventComboBoxes();
                 RefreshEventsPreview();
                 RefreshAgeGroupsPreview();
-                RefreshEditAgeGroupCombo();
+                RefreshAllAgeGroupFilterCombos();
                 _bibRanges = package.BibRanges ?? new List<BibRange>();
 
                 _swimmers.Clear();
@@ -7861,6 +7888,7 @@ namespace SwimmingScoreboard
         private void ApplyRecordFilter() {
             if (_recordFilterUpdating || RecordGrid == null) return;
 
+            string ageFilter = RecordFilterAgeGroup != null && RecordFilterAgeGroup.SelectedItem != null ? RecordFilterAgeGroup.SelectedItem.ToString() : "全部";
             string gender = RecordFilterGender.SelectedItem != null ? ((ComboBoxItem)RecordFilterGender.SelectedItem).Content.ToString() : "全部";
             string eventName = RecordFilterEvent.SelectedItem != null ? RecordFilterEvent.SelectedItem.ToString() : "全部";
             string recordType = RecordFilterType.SelectedItem != null ? RecordFilterType.SelectedItem.ToString() : "全部";
@@ -7868,6 +7896,7 @@ namespace SwimmingScoreboard
 
             var filtered = new List<SwimmingRecord>();
             foreach (var r in _records) {
+                if (ageFilter != "全部" && (r.AgeGroup ?? "") != ageFilter) continue;
                 if (gender != "全部" && r.Gender != gender) continue;
                 if (eventName != "全部" && r.EventName != eventName) continue;
                 if (recordType != "全部" && r.RecordType != recordType) continue;
@@ -7894,6 +7923,7 @@ namespace SwimmingScoreboard
 
         private void RecordFilterReset_Click(object sender, RoutedEventArgs e) {
             _recordFilterUpdating = true;
+            if (RecordFilterAgeGroup != null && RecordFilterAgeGroup.Items.Count > 0) RecordFilterAgeGroup.SelectedIndex = 0;
             RecordFilterGender.SelectedIndex = 0;
             if (RecordFilterEvent.Items.Count > 0) RecordFilterEvent.SelectedIndex = 0;
             if (RecordFilterType.Items.Count > 0) RecordFilterType.SelectedIndex = 0;
@@ -8016,7 +8046,7 @@ namespace SwimmingScoreboard
         private void ImportRecordsCSV_Click(object sender, RoutedEventArgs e) {
             var dlg = new Microsoft.Win32.OpenFileDialog {
                 Filter = "CSV文件|*.csv|文本文件|*.txt|所有文件|*.*",
-                Title = "导入纪录（格式：性别,项目,类型,保持者,代表队,成绩,日期,地点）"
+                Title = "导入纪录（格式：年龄组,性别,项目,类型,保持者,代表队,成绩,日期,地点；年龄组列可省略）"
             };
             if (dlg.ShowDialog() == true) {
                 try {
@@ -8049,15 +8079,21 @@ namespace SwimmingScoreboard
                         string[] cols = line.Split(delimiter);
                         if (cols.Length < 3) continue;
 
-                        string gender = cols[0].Trim();
+                        // 兼容 9 列（含年龄组）与 8 列（旧）两种格式：首列值是性别关键字则视为无年龄组
+                        string first = cols[0].Trim();
+                        bool hasAge = !(first == "男" || first == "女" || first == "混合");
+                        int colIdx = 0;
+                        string ageGroup = hasAge ? cols[colIdx++].Trim() : "";
+                        if (cols.Length < (hasAge ? 4 : 3)) continue;
+                        string gender = cols[colIdx++].Trim();
                         // 规范化项目名：去除多余空格（如"50 米自由泳"→"50米自由泳"）
-                        string eventName = System.Text.RegularExpressions.Regex.Replace(cols[1].Trim(), @"\s+", "");
-                        string recordType = cols[2].Trim();
-                        string holderName = cols.Length > 3 ? cols[3].Trim() : "";
-                        string holderCountry = cols.Length > 4 ? cols[4].Trim() : "";
-                        string timeStr = cols.Length > 5 ? cols[5].Trim() : "";
-                        string dateStr = cols.Length > 6 ? cols[6].Trim() : "";
-                        string location = cols.Length > 7 ? cols[7].Trim() : "";
+                        string eventName = System.Text.RegularExpressions.Regex.Replace(cols[colIdx++].Trim(), @"\s+", "");
+                        string recordType = cols[colIdx++].Trim();
+                        string holderName = cols.Length > colIdx ? cols[colIdx++].Trim() : "";
+                        string holderCountry = cols.Length > colIdx ? cols[colIdx++].Trim() : "";
+                        string timeStr = cols.Length > colIdx ? cols[colIdx++].Trim() : "";
+                        string dateStr = cols.Length > colIdx ? cols[colIdx++].Trim() : "";
+                        string location = cols.Length > colIdx ? cols[colIdx++].Trim() : "";
 
                         // 跳过成绩或保持者为空的行（模板占位行）
                         if (string.IsNullOrEmpty(timeStr) || string.IsNullOrEmpty(holderName)) { skippedEmpty++; continue; }
@@ -8073,10 +8109,11 @@ namespace SwimmingScoreboard
                             continue;
                         }
 
-                        // 查找是否已存在相同纪录
+                        // 查找是否已存在相同纪录（年龄组+性别+项目+类型共同决定唯一性）
                         SwimmingRecord existing = null;
                         foreach (var r in _records) {
-                            if (r.Gender == gender && r.EventName == eventName && r.RecordType == recordType) {
+                            if ((r.AgeGroup ?? "") == (ageGroup ?? "") && r.Gender == gender
+                                && r.EventName == eventName && r.RecordType == recordType) {
                                 existing = r; break;
                             }
                         }
@@ -8089,7 +8126,7 @@ namespace SwimmingScoreboard
                             } else { skippedDup++; }
                         } else {
                             _records.Add(new SwimmingRecord {
-                                Gender = gender, EventName = eventName, RecordType = recordType,
+                                AgeGroup = ageGroup, Gender = gender, EventName = eventName, RecordType = recordType,
                                 HolderName = holderName, HolderCountry = holderCountry,
                                 Time = t, TimeInSeconds = t, Date = dateStr, Location = location
                             });
@@ -8130,28 +8167,29 @@ namespace SwimmingScoreboard
                 var sb = new System.Text.StringBuilder();
                 // BOM + 表头
                 sb.Append('\uFEFF');
-                sb.AppendLine("性别,项目,类型,保持者,代表队,成绩,日期,地点");
+                sb.AppendLine("年龄组,性别,项目,类型,保持者,代表队,成绩,日期,地点");
 
                 // 已有的纪录数据先填入对应位置
                 var existingMap = new Dictionary<string, SwimmingRecord>();
                 foreach (var r in _records) {
-                    string key = r.Gender + "|" + r.EventName + "|" + r.RecordType;
+                    string key = (r.AgeGroup ?? "") + "|" + r.Gender + "|" + r.EventName + "|" + r.RecordType;
                     existingMap[key] = r;
                 }
 
                 foreach (string recType in recordTypes) {
                     foreach (string gender in genders) {
                         foreach (string ev in events) {
-                            string key = gender + "|" + ev + "|" + recType;
+                            string key = "" + "|" + gender + "|" + ev + "|" + recType;
                             SwimmingRecord existing;
                             if (existingMap.TryGetValue(key, out existing) && existing.Time > 0) {
-                                sb.AppendLine(string.Format("{0},{1},{2},{3},{4},{5},{6},{7}",
+                                sb.AppendLine(string.Format("{0},{1},{2},{3},{4},{5},{6},{7},{8}",
+                                    existing.AgeGroup ?? "",
                                     gender, ev, recType,
                                     existing.HolderName ?? "", existing.HolderCountry ?? "",
                                     TimeFormatter.Format(existing.Time),
                                     existing.Date ?? "", existing.Location ?? ""));
                             } else {
-                                sb.AppendLine(string.Format("{0},{1},{2},,,,,", gender, ev, recType));
+                                sb.AppendLine(string.Format(",{0},{1},{2},,,,,", gender, ev, recType));
                             }
                         }
                     }
@@ -8402,7 +8440,7 @@ namespace SwimmingScoreboard
                 _ageGroups = finalList;
                 AgeGroupRegistry.Set(_ageGroups);
                 RefreshAgeGroupsPreview();
-                RefreshEditAgeGroupCombo();
+                RefreshAllAgeGroupFilterCombos();
                 RecomputeAllAgeCategories();
                 AutoSaveData();
                 AddLog(string.Format("已更新年龄组列表（{0} 条）", _ageGroups.Count));
@@ -8531,7 +8569,7 @@ namespace SwimmingScoreboard
                 _ageGroups = finalList;
                 AgeGroupRegistry.Set(_ageGroups);
                 RefreshAgeGroupsPreview();
-                RefreshEditAgeGroupCombo();
+                RefreshAllAgeGroupFilterCombos();
                 RecomputeAllAgeCategories();
                 AutoSaveData();
                 AddLog(string.Format("导入年龄组: 共{0}条", _ageGroups.Count));
