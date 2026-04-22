@@ -5228,6 +5228,102 @@ namespace SwimmingScoreboard
             }
         }
 
+        private void EditAddTempSwimmer_Click(object sender, RoutedEventArgs e) {
+            // 临时加人：在当前项目/赛次新增一名运动员，不自动重新编排全部分组；
+            // 新运动员默认未分组，需通过"增加到本组"或"交换泳道→空道"手动放入组/道
+            string gender = EditGenderCombo != null && EditGenderCombo.SelectedItem != null ? ((ComboBoxItem)EditGenderCombo.SelectedItem).Content.ToString() : "";
+            string eventName = EditEventCombo != null && EditEventCombo.SelectedItem != null ? EditEventCombo.SelectedItem.ToString() : "";
+            string stage = EditStageCombo != null && EditStageCombo.SelectedItem != null ? ((ComboBoxItem)EditStageCombo.SelectedItem).Content.ToString() : "";
+            if (string.IsNullOrEmpty(gender) || string.IsNullOrEmpty(eventName) || string.IsNullOrEmpty(stage)) {
+                MessageBox.Show("请先在上方选择性别、项目、赛次后再临时加人。", "提示"); return;
+            }
+            if (eventName.Contains("接力")) {
+                MessageBox.Show("接力项目请在注册页面添加接力队及队员，\n此处的临时加人只用于个人项目。", "提示"); return;
+            }
+
+            var dlg = new Window {
+                Title = string.Format("临时加人 — {0} {1} {2}", gender, eventName, stage),
+                Width = 420, Height = 400, WindowStartupLocation = WindowStartupLocation.CenterOwner, Owner = this, ResizeMode = ResizeMode.NoResize
+            };
+            var sp = new StackPanel { Margin = new Thickness(16) };
+            sp.Children.Add(new TextBlock {
+                Text = string.Format("新增到: {0} {1} {2}（确认后请使用“增加到本组”或“交换泳道”手动放入组/道，不会自动重新分组）", gender, eventName, stage),
+                TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 10), FontSize = 13
+            });
+
+            Func<string, TextBox, StackPanel> addRow = delegate(string label, TextBox tb) {
+                var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 0) };
+                row.Children.Add(new TextBlock { Text = label, Width = 80, VerticalAlignment = VerticalAlignment.Center });
+                tb.Width = 280; tb.Padding = new Thickness(4);
+                row.Children.Add(tb);
+                sp.Children.Add(row);
+                return row;
+            };
+
+            var tbName = new TextBox();
+            var tbBib = new TextBox();
+            var tbCountry = new TextBox();
+            var tbAge = new TextBox();
+            var tbEntryTime = new TextBox { ToolTip = "报名成绩，格式如 0:58.23 或 58.23" };
+            addRow("姓名:", tbName);
+            addRow("号码:", tbBib);
+            addRow("代表队:", tbCountry);
+            addRow("年龄:", tbAge);
+            addRow("报名成绩:", tbEntryTime);
+
+            var btnPanel = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 14, 0, 0) };
+            var btnOk = new Button { Content = "确定添加", Padding = new Thickness(16, 6, 16, 6), FontSize = 13, Margin = new Thickness(0, 0, 8, 0),
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#8B5CF6")), Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0) };
+            btnOk.Click += delegate { dlg.DialogResult = true; };
+            var btnCancel = new Button { Content = "取消", Padding = new Thickness(16, 6, 16, 6), FontSize = 13,
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")), Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0) };
+            btnCancel.Click += delegate { dlg.DialogResult = false; };
+            btnPanel.Children.Add(btnOk);
+            btnPanel.Children.Add(btnCancel);
+            sp.Children.Add(btnPanel);
+            dlg.Content = sp;
+
+            if (dlg.ShowDialog() != true) return;
+
+            string name = (tbName.Text ?? "").Trim();
+            string bib = (tbBib.Text ?? "").Trim();
+            string country = (tbCountry.Text ?? "").Trim();
+            string entryTimeStr = (tbEntryTime.Text ?? "").Trim();
+            int ageVal = 0; int.TryParse((tbAge.Text ?? "").Trim(), out ageVal);
+
+            if (string.IsNullOrEmpty(name)) { MessageBox.Show("姓名不能为空"); return; }
+            if (!string.IsNullOrEmpty(bib) && _swimmers.Any(s => s.BibNumber == bib)) {
+                MessageBox.Show(string.Format("号码 {0} 已存在，请使用唯一号码。", bib)); return;
+            }
+
+            double entrySec = 0;
+            if (!string.IsNullOrEmpty(entryTimeStr)) {
+                entrySec = TimeFormatter.Parse(entryTimeStr);
+            }
+
+            var sw = new Swimmer {
+                Name = name,
+                BibNumber = bib,
+                Gender = gender,
+                Country = country,
+                Age = ageVal,
+                EventName = eventName,
+                CurrentStage = stage,
+                EntryTime = entryTimeStr,
+                EntryTimeSeconds = entrySec,
+                Heat = 0,
+                Lane = 0,
+                Notes = "临时加人"
+            };
+            _swimmers.Add(sw);
+            AutoSaveData();
+            // 仅刷新编排微调预览和组别下拉，不重新分组其他人
+            UpdateEditHeatCombo();
+            RefreshEditPreview();
+            AddLog(string.Format("临时加人: {0} 加入 {1} {2} {3}（未分组，请手动放入组/道）", name, gender, eventName, stage));
+            MessageBox.Show(string.Format("已添加 {0}。\n请使用“增加到本组”或“交换泳道→空道”将其放入具体组/道。", name), "临时加人完成");
+        }
+
         private void EditSaveChanges_Click(object sender, RoutedEventArgs e) {
             AutoSaveData();
             Broadcast();

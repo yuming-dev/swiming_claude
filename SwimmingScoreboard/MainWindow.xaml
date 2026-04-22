@@ -395,6 +395,8 @@
                                         <Button Content="交换泳道" Click="EditSwapLane_Click" Padding="10,4" Background="#F59E0B" Foreground="White" BorderThickness="0" Margin="0,0,4,0"/>
                                         <Button Content="增加到本组" Click="EditAddToHeat_Click" Padding="10,4" Background="#3B82F6" Foreground="White" BorderThickness="0" Margin="0,0,4,0"/>
                                         <Button Content="移出本组" Click="EditRemoveFromHeat_Click" Padding="10,4" Background="#EF4444" Foreground="White" BorderThickness="0" Margin="0,0,4,0"/>
+                                        <Button Content="临时加人" Click="EditAddTempSwimmer_Click" Padding="10,4" Background="#8B5CF6" Foreground="White" BorderThickness="0" Margin="0,0,4,0"
+                                                ToolTip="在当前项目/赛次临时新增一名运动员，不自动重新编排，需用“增加到本组”手动放入组道"/>
                                         <Button Content="保存修改" Click="EditSaveChanges_Click" Padding="10,4" Background="#22C55E" Foreground="White" BorderThickness="0" Margin="0,0,4,0"/>
                                     </StackPanel>
                                 </StackPanel>
