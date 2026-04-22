@@ -5302,10 +5302,15 @@ namespace SwimmingScoreboard
             Action rebuildEditPanel = null;
             rebuildEditPanel = delegate {
                 editPanel.Children.Clear();
-                // 推断单元
+                // 归一化日期和时间（2026-4-21 -> 2026-04-21；9:5 -> 09:05），使不同写法视为同一天
+                foreach (var it in editList) {
+                    it.Date = NormalizeDate(it.Date);
+                    it.Time = NormalizeTime(it.Time);
+                }
+                // 推断单元：按 editList 自然顺序遍历，首次出现的 (日期+时段) 组合分配新单元号
                 var sMap = new Dictionary<string, int>();
                 int sNum = 1;
-                foreach (var it in editList.OrderBy(s2 => s2.Date).ThenBy(s2 => s2.Time)) {
+                foreach (var it in editList) {
                     string per = InferTimePeriod(it.Time);
                     string k = (it.Date ?? "") + "|" + per;
                     if (!sMap.ContainsKey(k)) { sMap[k] = sNum; sNum++; }
@@ -5328,6 +5333,7 @@ namespace SwimmingScoreboard
                         MinHeight = 30, SelectionMode = DataGridSelectionMode.Single,
                         AlternatingRowBackground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F8FAFC"))
                     };
+                    eg.Columns.Add(new DataGridTextColumn { Header = "日期", Binding = new System.Windows.Data.Binding("Date"), Width = new DataGridLength(100) });
                     eg.Columns.Add(new DataGridTextColumn { Header = "时间", Binding = new System.Windows.Data.Binding("Time"), Width = new DataGridLength(70) });
                     var gc = new DataGridComboBoxColumn { Header = "性别", Width = new DataGridLength(55), SelectedItemBinding = new System.Windows.Data.Binding("Gender") };
                     gc.ItemsSource = new string[] { "男", "女", "混合" }; eg.Columns.Add(gc);
@@ -5337,7 +5343,8 @@ namespace SwimmingScoreboard
                     sc.ItemsSource = new string[] { "预赛", "半决赛", "决赛" }; eg.Columns.Add(sc);
                     eg.Columns.Add(new DataGridTextColumn { Header = "组数", Binding = new System.Windows.Data.Binding("HeatCount"), Width = new DataGridLength(50) });
 
-                    eg.ItemsSource = new ObservableCollection<ScheduleItem>(grp.OrderBy(s2 => s2.Time));
+                    // 保留 editList 自然顺序（不再按时间排序），便于用户自定义比赛顺序
+                    eg.ItemsSource = new ObservableCollection<ScheduleItem>(grp);
                     eg.SelectionChanged += delegate { _editSelected = eg.SelectedItem as ScheduleItem; };
                     editPanel.Children.Add(eg);
                 }
@@ -5390,9 +5397,68 @@ namespace SwimmingScoreboard
                 else MessageBox.Show("请先选中要删除的行");
             };
 
+            // 上移/下移：在 editList 中交换选中项与相邻项的位置
+            Action<int> moveSelected = delegate(int delta) {
+                if (_editSelected == null) { MessageBox.Show("请先选中要移动的行"); return; }
+                int idx = editList.IndexOf(_editSelected);
+                int newIdx = idx + delta;
+                if (idx < 0 || newIdx < 0 || newIdx >= editList.Count) return;
+                var sel = _editSelected;
+                editList.Move(idx, newIdx);
+                rebuildEditPanel();
+                _editSelected = sel;
+            };
+
+            var btnMoveUp = new Button { Content = "上移", Padding = new Thickness(10, 6, 10, 6), Margin = new Thickness(0, 0, 4, 0), FontSize = 13,
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#0EA5E9")), Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0) };
+            btnMoveUp.Click += delegate { moveSelected(-1); };
+
+            var btnMoveDown = new Button { Content = "下移", Padding = new Thickness(10, 6, 10, 6), Margin = new Thickness(0, 0, 8, 0), FontSize = 13,
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#0284C7")), Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0) };
+            btnMoveDown.Click += delegate { moveSelected(1); };
+
+            // 将当前 DataGrid 里正在编辑的单元格提交回绑定源，防止未失焦的输入被丢弃
+            Action flushPendingEdits = delegate {
+                var fe = System.Windows.Input.Keyboard.FocusedElement as FrameworkElement;
+                if (fe is TextBox) {
+                    var be = fe.GetBindingExpression(TextBox.TextProperty);
+                    if (be != null) be.UpdateSource();
+                }
+                foreach (var child in editPanel.Children) {
+                    var g = child as DataGrid;
+                    if (g != null) {
+                        try { g.CommitEdit(DataGridEditingUnit.Cell, true); g.CommitEdit(DataGridEditingUnit.Row, true); } catch { }
+                    }
+                }
+            };
+
+            // 按 (日期, 时间) 对 editList 整体重排
+            Action sortEditListByDateTime = delegate {
+                var sorted = editList.OrderBy(s2 => s2.Date ?? "").ThenBy(s2 => s2.Time ?? "").ToList();
+                editList.Clear();
+                foreach (var it in sorted) editList.Add(it);
+            };
+
+            // 刷新按钮：flush + 归一化 + 按日期/时间重排 + 重建面板
+            var btnRefresh = new Button { Content = "刷新", Padding = new Thickness(12, 6, 12, 6), Margin = new Thickness(0, 0, 8, 0), FontSize = 13,
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F59E0B")), Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0) };
+            btnRefresh.Click += delegate {
+                flushPendingEdits();
+                foreach (var it in editList) { it.Date = NormalizeDate(it.Date); it.Time = NormalizeTime(it.Time); }
+                sortEditListByDateTime();
+                _editSelected = null;
+                rebuildEditPanel();
+            };
+
             var btnOk = new Button { Content = "确认修改", Padding = new Thickness(16, 6, 16, 6), Margin = new Thickness(0, 0, 8, 0), FontSize = 13, FontWeight = FontWeights.Bold,
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#22C55E")), Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0) };
-            btnOk.Click += delegate { dlg.DialogResult = true; };
+            btnOk.Click += delegate {
+                flushPendingEdits();
+                // 归一化 + 按日期、时间重排
+                foreach (var it in editList) { it.Date = NormalizeDate(it.Date); it.Time = NormalizeTime(it.Time); }
+                sortEditListByDateTime();
+                dlg.DialogResult = true;
+            };
 
             var btnCancel = new Button { Content = "取消", Padding = new Thickness(16, 6, 16, 6), FontSize = 13,
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")), Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0) };
@@ -5400,19 +5466,32 @@ namespace SwimmingScoreboard
 
             btnPanel.Children.Add(btnAddBefore);
             btnPanel.Children.Add(btnAddAfter);
+            btnPanel.Children.Add(btnMoveUp);
+            btnPanel.Children.Add(btnMoveDown);
             btnPanel.Children.Add(btnDel);
+            btnPanel.Children.Add(btnRefresh);
             btnPanel.Children.Add(btnOk);
             btnPanel.Children.Add(btnCancel);
             mainGrid.Children.Add(btnPanel);
             dlg.Content = mainGrid;
 
             if (dlg.ShowDialog() == true) {
-                // 用编辑后的数据替换原赛程
+                // 根据最终的 editList 顺序，重新推断单元编号（日期+时段 首次出现分配新单元号）
+                var sMap2 = new Dictionary<string, int>();
+                int sNum2 = 1;
+                foreach (var it in editList) {
+                    string per = InferTimePeriod(it.Time);
+                    string k = (it.Date ?? "") + "|" + per;
+                    if (!sMap2.ContainsKey(k)) { sMap2[k] = sNum2; sNum2++; }
+                    it.SessionNumber = sMap2[k];
+                    it.SessionName = string.Format("第{0}单元（{1}{2}）", sMap2[k], it.Date ?? "", per);
+                }
+                // 用编辑后的数据替换原赛程（保留用户自定义顺序）
                 _schedule.Clear();
                 foreach (var item in editList) _schedule.Add(item);
-                AutoSaveData();
-                BuildScheduleTree();
-                Broadcast();
+                AutoSaveData();       // 保存
+                BuildScheduleTree();  // 刷新日程树 & 赛程管理面板
+                Broadcast();          // 同步到三个计时控制台 + 显示 + 打印
                 AddLog(string.Format("赛程已修改: {0}条赛程项", _schedule.Count));
             }
         }
@@ -5426,6 +5505,38 @@ namespace SwimmingScoreboard
             AutoSaveData();
             BuildScheduleTree();
             Broadcast();
+        }
+
+        // 将用户输入的日期归一化为 yyyy-MM-dd 格式（支持 2026-4-21、2026/4/21、2026.4.21 等）
+        private string NormalizeDate(string input) {
+            if (string.IsNullOrWhiteSpace(input)) return input;
+            string s = input.Trim().Replace('/', '-').Replace('.', '-');
+            DateTime dt;
+            if (DateTime.TryParseExact(s, new[] { "yyyy-M-d", "yyyy-MM-dd", "yyyy-M-dd", "yyyy-MM-d" },
+                System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out dt)) {
+                return dt.ToString("yyyy-MM-dd");
+            }
+            if (DateTime.TryParse(s, System.Globalization.CultureInfo.InvariantCulture,
+                System.Globalization.DateTimeStyles.None, out dt)) {
+                return dt.ToString("yyyy-MM-dd");
+            }
+            return input;
+        }
+
+        // 将用户输入的时间归一化为 HH:mm 格式（支持 9:5、09:05、9:05 等）
+        private string NormalizeTime(string input) {
+            if (string.IsNullOrWhiteSpace(input)) return input;
+            string s = input.Trim();
+            DateTime dt;
+            if (DateTime.TryParseExact(s, new[] { "H:m", "HH:mm", "H:mm", "HH:m" },
+                System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out dt)) {
+                return dt.ToString("HH:mm");
+            }
+            if (DateTime.TryParse(s, System.Globalization.CultureInfo.InvariantCulture,
+                System.Globalization.DateTimeStyles.None, out dt)) {
+                return dt.ToString("HH:mm");
+            }
+            return input;
         }
 
         private string InferTimePeriod(string time) {
@@ -5442,10 +5553,16 @@ namespace SwimmingScoreboard
             if (ScheduleGroupedPanel == null) return;
             ScheduleGroupedPanel.Children.Clear();
 
-            // 自动推断单元编号：按日期+时段分组
+            // 归一化日期/时间，避免 2026-4-21 与 2026-04-21 被视为不同日期
+            foreach (var item in _schedule) {
+                item.Date = NormalizeDate(item.Date);
+                item.Time = NormalizeTime(item.Time);
+            }
+
+            // 自动推断单元编号：按 _schedule 自然顺序遍历，首次出现的(日期+时段)分配新单元号
             var sessionMap = new Dictionary<string, int>();
             int sessionNum = 1;
-            foreach (var item in _schedule.OrderBy(s => s.Date).ThenBy(s => s.Time)) {
+            foreach (var item in _schedule) {
                 string period = InferTimePeriod(item.Time);
                 string key = (item.Date ?? "") + "|" + period;
                 if (!sessionMap.ContainsKey(key)) {
@@ -5485,7 +5602,8 @@ namespace SwimmingScoreboard
                 grid.Columns.Add(new DataGridTextColumn { Header = "阶段", Binding = new System.Windows.Data.Binding("Stage"), Width = new DataGridLength(60) });
                 grid.Columns.Add(new DataGridTextColumn { Header = "组数", Binding = new System.Windows.Data.Binding("HeatCount"), Width = new DataGridLength(50) });
 
-                grid.ItemsSource = new ObservableCollection<ScheduleItem>(group.OrderBy(s => s.Time));
+                // 保留 _schedule 自然顺序（支持用户自定义的比赛顺序）
+                grid.ItemsSource = new ObservableCollection<ScheduleItem>(group);
                 ScheduleGroupedPanel.Children.Add(grid);
             }
 
@@ -6197,7 +6315,7 @@ namespace SwimmingScoreboard
             // 收集所有已完赛的组
             var completedHeats = new List<object>();
             var completedLabels = new List<string>();
-            foreach (var schedItem in _schedule.OrderBy(s => s.SessionNumber).ThenBy(s => s.Time)) {
+            foreach (var schedItem in _schedule) {
                 int hc = schedItem.HeatCount > 0 ? schedItem.HeatCount : 1;
                 for (int h = 1; h <= hc; h++) {
                     if (IsHeatConfirmed(schedItem.Gender, schedItem.EventName, schedItem.Stage, h)) {
@@ -7513,7 +7631,7 @@ namespace SwimmingScoreboard
                 var first = session.First();
                 sb.AppendFormat("<h3>第{0}单元 {1}</h3>", session.Key, !string.IsNullOrEmpty(first.Date) ? first.Date : "");
                 sb.Append("<table><tr><th width='60'>时间</th><th>项目</th><th width='70'>赛次</th><th width='50'>组数</th></tr>");
-                foreach (var s in session.OrderBy(x => x.Time)) {
+                foreach (var s in session) {
                     sb.AppendFormat("<tr><td>{0}</td><td>{1} {2}</td><td>{3}</td><td>{4}</td></tr>",
                         s.Time, s.Gender, s.EventName, s.Stage, s.HeatCount > 0 ? s.HeatCount.ToString() : "");
                 }
@@ -7578,8 +7696,8 @@ namespace SwimmingScoreboard
 
             bool hasContent = false;
 
-            // 按赛程顺序遍历每个赛次的每一组
-            foreach (var schedItem in _schedule.OrderBy(s => s.SessionNumber).ThenBy(s => s.Time)) {
+            // 按用户编辑的赛程顺序遍历每个赛次的每一组
+            foreach (var schedItem in _schedule) {
                 string gender = schedItem.Gender;
                 string eventName = schedItem.EventName;
                 string stage = schedItem.Stage;
@@ -7760,8 +7878,8 @@ namespace SwimmingScoreboard
             }
             sb.Append("</table></div><div class='page-break'></div>");
 
-            // ═══ 按赛程顺序逐场打印成绩 ═══
-            foreach (var schedItem in _schedule.OrderBy(s => s.SessionNumber).ThenBy(s => s.Time)) {
+            // ═══ 按赛程顺序逐场打印成绩（遵循用户在赛程管理中的自定义顺序） ═══
+            foreach (var schedItem in _schedule) {
                 string gender = schedItem.Gender;
                 string eventName = schedItem.EventName;
                 string stage = schedItem.Stage;
