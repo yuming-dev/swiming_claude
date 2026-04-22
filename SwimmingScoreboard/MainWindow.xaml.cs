@@ -4970,30 +4970,56 @@ namespace SwimmingScoreboard
             int heat1 = sa1 != null ? sa1.Heat : sw1.Heat;
             int lane1 = sa1 != null ? sa1.Lane : sw1.Lane;
 
-            // 弹窗选择目标运动员（同项目所有组的运动员）
-            var candidates = new List<Tuple<Swimmer, int, int>>(); // swimmer, heat, lane
+            // 候选目标 = 同项目/同赛次的其它运动员（可交换） + 空道（可移动）
+            // 使用 Tuple<Swimmer, int, int>：Swimmer==null 表示空道；Heat, Lane 为目标组/道
+            var candidates = new List<Tuple<Swimmer, int, int>>();
+            var occupiedHeatLane = new HashSet<string>(); // "heat|lane" 占用记录（用于计算空道）
+            var heatSet = new HashSet<int>();             // 该项目该赛次出现过的组号
+
             foreach (var s in _swimmers) {
-                if (s.Gender != gender || s.EventName != eventName || s.BibNumber == bib) continue;
+                if (s.Gender != gender || s.EventName != eventName) continue;
                 if (isRelay && s.Notes != null && s.Notes.StartsWith("接力队员")) continue;
+                int h = 0, ln = 0;
                 var sa = s.GetAssignmentForStage(stage);
-                if (sa != null && sa.Heat > 0) candidates.Add(Tuple.Create(s, sa.Heat, sa.Lane));
-                else if (s.CurrentStage == stage && s.Heat > 0) candidates.Add(Tuple.Create(s, s.Heat, s.Lane));
+                if (sa != null && sa.Heat > 0) { h = sa.Heat; ln = sa.Lane; }
+                else if (s.CurrentStage == stage && s.Heat > 0) { h = s.Heat; ln = s.Lane; }
+                if (h <= 0) continue;
+                heatSet.Add(h);
+                occupiedHeatLane.Add(h + "|" + ln);
+                if (s.BibNumber == bib) continue;
+                candidates.Add(Tuple.Create(s, h, ln));
             }
+
+            // 补充空道候选：泳池所有泳道 × 所有出现过的组，剔除已占用
+            var poolLanes = (_poolConfig != null && _poolConfig.LaneNumbers != null)
+                ? _poolConfig.LaneNumbers.ToList() : new List<int>();
+            foreach (int h in heatSet) {
+                foreach (int ln in poolLanes) {
+                    if (occupiedHeatLane.Contains(h + "|" + ln)) continue;
+                    candidates.Add(Tuple.Create<Swimmer, int, int>(null, h, ln));
+                }
+            }
+
             candidates.Sort((a, b) => { int c = a.Item2.CompareTo(b.Item2); return c != 0 ? c : a.Item3.CompareTo(b.Item3); });
 
-            if (candidates.Count == 0) { MessageBox.Show("没有可交换的运动员"); return; }
+            if (candidates.Count == 0) { MessageBox.Show("没有可交换的运动员或空道"); return; }
 
             var dlg = new Window {
-                Title = string.Format("交换泳道 — {0}（第{1}组 第{2}道）", sw1.Name, heat1, lane1),
-                Width = 450, Height = 450, WindowStartupLocation = WindowStartupLocation.CenterOwner, Owner = this, ResizeMode = ResizeMode.NoResize
+                Title = string.Format("交换泳道 / 移到空道 — {0}（第{1}组 第{2}道）", sw1.Name, heat1, lane1),
+                Width = 500, Height = 500, WindowStartupLocation = WindowStartupLocation.CenterOwner, Owner = this, ResizeMode = ResizeMode.NoResize
             };
             var sp = new StackPanel { Margin = new Thickness(16) };
             sp.Children.Add(new TextBlock { Text = string.Format("当前: {0} — 第{1}组 第{2}道", sw1.Name, heat1, lane1), FontSize = 14, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 0, 0, 8) });
-            sp.Children.Add(new TextBlock { Text = "选择要交换的目标运动员:", Margin = new Thickness(0, 0, 0, 4) });
+            sp.Children.Add(new TextBlock { Text = "选择要交换的运动员，或选择空道直接移动（空道项标注“[空道]”）:", Margin = new Thickness(0, 0, 0, 4), TextWrapping = TextWrapping.Wrap });
 
-            var listBox = new ListBox { Height = 200, FontSize = 13 };
+            var listBox = new ListBox { Height = 240, FontSize = 13 };
             foreach (var c in candidates) {
-                listBox.Items.Add(string.Format("第{0}组 第{1}道 — {2}（{3}）", c.Item2, c.Item3, c.Item1.Name, c.Item1.Country));
+                string label;
+                if (c.Item1 == null)
+                    label = string.Format("第{0}组 第{1}道 — [空道]", c.Item2, c.Item3);
+                else
+                    label = string.Format("第{0}组 第{1}道 — {2}（{3}）", c.Item2, c.Item3, c.Item1.Name, c.Item1.Country);
+                listBox.Items.Add(label);
             }
             sp.Children.Add(listBox);
 
@@ -5012,22 +5038,35 @@ namespace SwimmingScoreboard
             if (dlg.ShowDialog() == true && listBox.SelectedIndex >= 0 && listBox.SelectedIndex < candidates.Count) {
                 var target = candidates[listBox.SelectedIndex];
                 var sw2 = target.Item1;
-                var sa2 = sw2.GetAssignmentForStage(stage);
 
-                // 交换 Heat 和 Lane
-                if (sa1 != null && sa2 != null) {
-                    int tmpH = sa1.Heat; int tmpL = sa1.Lane;
-                    sa1.Heat = sa2.Heat; sa1.Lane = sa2.Lane;
-                    sa2.Heat = tmpH; sa2.Lane = tmpL;
+                if (sw2 == null) {
+                    // 目标是空道：直接把 sw1 移到目标组/道
+                    int newHeat = target.Item2, newLane = target.Item3;
+                    if (sa1 != null) { sa1.Heat = newHeat; sa1.Lane = newLane; }
+                    else {
+                        sw1.SetStageAssignment(stage, newHeat, newLane, sw1.EntryTimeSeconds, sw1.EntryTime);
+                    }
+                    if (sw1.CurrentStage == stage) { sw1.Heat = newHeat; sw1.Lane = newLane; }
+                    AutoSaveData();
+                    RefreshEditPreview();
+                    AddLog(string.Format("移动到空道: {0}(第{1}组{2}道) → 第{3}组{4}道", sw1.Name, heat1, lane1, newHeat, newLane));
+                } else {
+                    var sa2 = sw2.GetAssignmentForStage(stage);
+                    // 交换 Heat 和 Lane
+                    if (sa1 != null && sa2 != null) {
+                        int tmpH = sa1.Heat; int tmpL = sa1.Lane;
+                        sa1.Heat = sa2.Heat; sa1.Lane = sa2.Lane;
+                        sa2.Heat = tmpH; sa2.Lane = tmpL;
+                    }
+                    if (sw1.CurrentStage == stage && sw2.CurrentStage == stage) {
+                        int tmpH = sw1.Heat; int tmpL = sw1.Lane;
+                        sw1.Heat = sw2.Heat; sw1.Lane = sw2.Lane;
+                        sw2.Heat = tmpH; sw2.Lane = tmpL;
+                    }
+                    AutoSaveData();
+                    RefreshEditPreview();
+                    AddLog(string.Format("泳道交换: {0}(第{1}组{2}道) ↔ {3}(第{4}组{5}道)", sw1.Name, target.Item2, target.Item3, sw2.Name, heat1, lane1));
                 }
-                if (sw1.CurrentStage == stage && sw2.CurrentStage == stage) {
-                    int tmpH = sw1.Heat; int tmpL = sw1.Lane;
-                    sw1.Heat = sw2.Heat; sw1.Lane = sw2.Lane;
-                    sw2.Heat = tmpH; sw2.Lane = tmpL;
-                }
-                AutoSaveData();
-                RefreshEditPreview();
-                AddLog(string.Format("泳道交换: {0}(第{1}组{2}道) ↔ {3}(第{4}组{5}道)", sw1.Name, target.Item2, target.Item3, sw2.Name, heat1, lane1));
             }
         }
 
