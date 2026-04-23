@@ -29,6 +29,14 @@ namespace SwimmingScoreboard
         /// 用于区分左右设备（结合 FinishPosition 设置映射到 left/right）
         /// </summary>
         public bool IsFinishEnd { get; set; }
+        /// <summary>D3 原始字节（设置类命令子码）</summary>
+        public byte Param1 { get; set; }
+        /// <summary>D4 原始字节（0x40=泳池长度；0x41=比赛距离；0x42=子参数值；0x16/0x17/…=rawD4 含终点端标识）</summary>
+        public byte RawD4 { get; set; }
+        /// <summary>D6 原始字节（0x41 下 0-4 泳道空道位图）</summary>
+        public byte Param6 { get; set; }
+        /// <summary>D7 原始字节（0x41 下 5-9 泳道空道位图）</summary>
+        public byte Param7 { get; set; }
     }
 
     // 游泳计时通讯协议 2023-11-13  D2命令字节定义
@@ -337,7 +345,11 @@ namespace SwimmingScoreboard
                 Centiseconds = centiseconds,
                 Milliseconds = ms1,
                 ReceivedAt = DateTime.Now,
-                IsFinishEnd = isFinishEnd
+                IsFinishEnd = isFinishEnd,
+                Param1 = cmd1,
+                RawD4 = rawD4,
+                Param6 = frame[6],
+                Param7 = frame[7]
             };
 
             string endLabel = isFinishEnd ? "终点端" : "另一端";

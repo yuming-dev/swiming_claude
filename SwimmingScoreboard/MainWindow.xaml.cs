@@ -762,6 +762,7 @@ namespace SwimmingScoreboard
                         AutoSaveData();
                         UpdateLaneStatusDisplay();
                         Broadcast();
+                        SendTimingSettingsToHardware();   // 同步到硬件计时控制器
                     }
                     break;
                 case "OPEN_ALL_LANES":
@@ -1331,6 +1332,10 @@ namespace SwimmingScoreboard
                 Dispatcher.Invoke((Action)delegate() {
                     TimingStatusText.Text = status;
                     UpdateConnectionStatus();
+                    // 硬件刚连上时，把当前参数下发一次（以服务器为准）
+                    if (_timingBridge != null && _timingBridge.IsConnected) {
+                        SendTimingSettingsToHardware();
+                    }
                 });
             };
             _timingBridge.OnLog += delegate(string msg) {
@@ -1341,6 +1346,14 @@ namespace SwimmingScoreboard
         }
 
         private void ProcessTimingDataFromHardware(TimingData data) {
+            // 硬件下发的参数设置帧：不走运动员计时路径，走双向同步
+            if (data.CommandType == TimingCommandType.PoolConfig ||
+                data.CommandType == TimingCommandType.RaceConfig ||
+                data.CommandType == TimingCommandType.SetCommand) {
+                ApplyHardwareSettingFrame(data);
+                return;
+            }
+
             string cmdType = data.CommandType.ToString();
             // 根据终点端/另一端标识 + 终点位置设置，映射到 left/right
             // FinishPosition="left" → 终点端=left, 另一端=right
@@ -1352,6 +1365,130 @@ namespace SwimmingScoreboard
             else
                 side = finishIsLeft ? "right" : "left";
             ProcessTimingData(data.Lane, cmdType, data.TimeInSeconds, side);
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        // 硬件计时控制器参数双向同步（按 2023-11-13 通讯协议）
+        //   下发：按确认后的参数生成 0x40 / 0x42 帧 → 发送到硬件
+        //   接收：0x40 / 0x41 / 0x42 帧 → 更新 _laneCloseSettings/_poolConfig 并广播到三端
+        // 0x40 D3=泳道数(8-10) D4=泳池长度(25/50 米)
+        // 0x42 D3=子参数码 D4=参数值（按下表）
+        //   0x01 LaneCloseTime              秒（0-255）
+        //   0x02 StartBlockCloseDelay       0.1 秒（D4 × 0.1）
+        //   0x03 ResultConfirmCloseDelay    0.1 秒
+        //   0x04 FalseStartThreshold        0.01 秒
+        //   0x05 SplitDisplayTime           秒
+        //   0x06 FirstPlaceHoldTime         秒
+        //   0x07 FinishPosition             0=左端，1=右端
+        // ═══════════════════════════════════════════════════════════════
+        private bool _applyingHardwareSettings = false;
+
+        private void SendTimingSettingsToHardware() {
+            if (_applyingHardwareSettings) return;                // 来自硬件的回环，不要再发
+            if (_timingBridge == null || !_timingBridge.IsConnected) return;
+            try {
+                // 0x40 泳池参数
+                byte lanes = (byte)Math.Max(0, Math.Min(255, _poolConfig.LaneCount));
+                byte length = (byte)Math.Max(0, Math.Min(255, _poolConfig.Length));
+                _timingBridge.SendCommand(0x40, lanes, length);
+
+                // 0x42 各项设置子码
+                _timingBridge.SendCommand(0x42, 0x01, ByteClamp(_laneCloseSettings.LaneCloseTime));
+                _timingBridge.SendCommand(0x42, 0x02, ByteClamp(_laneCloseSettings.StartBlockCloseDelay * 10));
+                _timingBridge.SendCommand(0x42, 0x03, ByteClamp(_laneCloseSettings.ResultConfirmCloseDelay * 10));
+                _timingBridge.SendCommand(0x42, 0x04, ByteClamp(_laneCloseSettings.FalseStartThreshold * 100));
+                _timingBridge.SendCommand(0x42, 0x05, ByteClamp(_laneCloseSettings.SplitDisplayTime));
+                _timingBridge.SendCommand(0x42, 0x06, ByteClamp(_laneCloseSettings.FirstPlaceHoldTime));
+                byte fp = _laneCloseSettings.FinishPosition == "right" ? (byte)1 : (byte)0;
+                _timingBridge.SendCommand(0x42, 0x07, fp);
+
+                AddLog(string.Format(
+                    "参数已同步到硬件: 泳池{0}米{1}道, 关闭{2}s, 出发台{3}s, 确认{4}s, 抢跳{5}s, 分段{6}s, 第1名{7}s, 终点:{8}",
+                    _poolConfig.Length, _poolConfig.LaneCount,
+                    _laneCloseSettings.LaneCloseTime, _laneCloseSettings.StartBlockCloseDelay,
+                    _laneCloseSettings.ResultConfirmCloseDelay, _laneCloseSettings.FalseStartThreshold,
+                    _laneCloseSettings.SplitDisplayTime, _laneCloseSettings.FirstPlaceHoldTime,
+                    _laneCloseSettings.FinishPosition == "left" ? "左端" : "右端"));
+            } catch (Exception ex) {
+                AddLog("参数下发硬件失败: " + ex.Message);
+            }
+        }
+
+        private static byte ByteClamp(double v) {
+            int n = (int)Math.Round(v);
+            if (n < 0) n = 0;
+            if (n > 255) n = 255;
+            return (byte)n;
+        }
+
+        private void ApplyHardwareSettingFrame(TimingData data) {
+            _applyingHardwareSettings = true;
+            try {
+                bool changed = false;
+                switch (data.CommandType) {
+                    case TimingCommandType.PoolConfig: {
+                        int lanes = data.Param1;
+                        int length = data.RawD4;
+                        if (lanes >= 6 && lanes <= 10 && _poolConfig.LaneCount != lanes) {
+                            _poolConfig.SetLaneCount(lanes);
+                            if (LaneCountCombo != null) LaneCountCombo.SelectedIndex = lanes == 8 ? 1 : (lanes == 6 ? 2 : 0);
+                            InitLaneDeviceStates();
+                            changed = true;
+                        }
+                        if ((length == 25 || length == 50) && _poolConfig.Length != length) {
+                            _poolConfig.Length = length;
+                            if (PoolLengthCombo != null) PoolLengthCombo.SelectedIndex = length == 25 ? 1 : 0;
+                            changed = true;
+                        }
+                        if (changed) AddLog(string.Format("硬件参数回报: 泳池 {0}米 {1}道", _poolConfig.Length, _poolConfig.LaneCount));
+                        break;
+                    }
+                    case TimingCommandType.SetCommand: {
+                        double vOld, vNew;
+                        switch (data.Param1) {
+                            case 0x01: vOld = _laneCloseSettings.LaneCloseTime;           vNew = data.RawD4;           if (Math.Abs(vOld - vNew) > 0.001) { _laneCloseSettings.LaneCloseTime = vNew; changed = true; } break;
+                            case 0x02: vOld = _laneCloseSettings.StartBlockCloseDelay;    vNew = data.RawD4 / 10.0;    if (Math.Abs(vOld - vNew) > 0.001) { _laneCloseSettings.StartBlockCloseDelay = vNew; changed = true; } break;
+                            case 0x03: vOld = _laneCloseSettings.ResultConfirmCloseDelay; vNew = data.RawD4 / 10.0;    if (Math.Abs(vOld - vNew) > 0.001) { _laneCloseSettings.ResultConfirmCloseDelay = vNew; changed = true; } break;
+                            case 0x04: vOld = _laneCloseSettings.FalseStartThreshold;     vNew = data.RawD4 / 100.0;   if (Math.Abs(vOld - vNew) > 0.0001) { _laneCloseSettings.FalseStartThreshold = vNew; changed = true; } break;
+                            case 0x05: vOld = _laneCloseSettings.SplitDisplayTime;        vNew = data.RawD4;           if (Math.Abs(vOld - vNew) > 0.001) { _laneCloseSettings.SplitDisplayTime = vNew; changed = true; } break;
+                            case 0x06: vOld = _laneCloseSettings.FirstPlaceHoldTime;      vNew = data.RawD4;           if (Math.Abs(vOld - vNew) > 0.001) { _laneCloseSettings.FirstPlaceHoldTime = vNew; changed = true; } break;
+                            case 0x07: {
+                                string newFin = data.RawD4 == 0 ? "left" : "right";
+                                if (_laneCloseSettings.FinishPosition != newFin) {
+                                    _laneCloseSettings.FinishPosition = newFin;
+                                    _laneCloseSettings.StartPosition = newFin;
+                                    AutoAdjustStartPosition();
+                                    if (_raceState == RaceState.Waiting || _raceState == RaceState.Ready) {
+                                        foreach (var st in _laneDeviceStates) st.ResetForNewRace(_laneCloseSettings.StartPosition);
+                                    }
+                                    changed = true;
+                                }
+                                break;
+                            }
+                            default:
+                                AddLog(string.Format("硬件参数: 未识别子码 D3=0x{0:X2} D4=0x{1:X2}", data.Param1, data.RawD4));
+                                break;
+                        }
+                        if (changed) AddLog(string.Format("硬件参数回报: D3=0x{0:X2} D4={1}", data.Param1, data.RawD4));
+                        break;
+                    }
+                    case TimingCommandType.RaceConfig:
+                        // 0x41 比赛距离+空道位图，当前仅记录日志，由操作员自行确认
+                        AddLog(string.Format("硬件比赛参数: 趟数={0} 空道位图 D6=0x{1:X2} D7=0x{2:X2}",
+                            data.RawD4, data.Param6, data.Param7));
+                        break;
+                }
+
+                if (changed) {
+                    SaveTimingSettings();
+                    AutoSaveData();
+                    UpdateLaneStatusDisplay();
+                    UpdateRaceStateDisplay();
+                    Broadcast();   // 同步到 EXE/Web 三端
+                }
+            } finally {
+                _applyingHardwareSettings = false;
+            }
         }
 
         private void ProcessTimingData(int lane, string cmdType, double timeInSeconds, string side = null) {
@@ -3850,6 +3987,7 @@ namespace SwimmingScoreboard
                 AutoSaveData();
                 UpdateLaneStatusDisplay();
                 Broadcast();
+                SendTimingSettingsToHardware();   // 同步到硬件计时控制器
                 AddLog(string.Format("参数更新: 关闭{0}s 出发台{1}s 确认{2}s 抢跳{3}s 分段{4}s 终点:{5}",
                     _laneCloseSettings.LaneCloseTime, _laneCloseSettings.StartBlockCloseDelay,
                     _laneCloseSettings.ResultConfirmCloseDelay, _laneCloseSettings.FalseStartThreshold,
@@ -7293,6 +7431,7 @@ namespace SwimmingScoreboard
             RefreshBackupList();
             RefreshOverviewStats();
             Broadcast();
+            SendTimingSettingsToHardware();   // 泳池参数可能变更，同步给硬件
             AddLog("赛事信息已保存: " + _competitionName);
         }
 
