@@ -1332,9 +1332,10 @@ namespace SwimmingScoreboard
                 Dispatcher.Invoke((Action)delegate() {
                     TimingStatusText.Text = status;
                     UpdateConnectionStatus();
-                    // 硬件刚连上时，把当前参数下发一次（以服务器为准）
+                    // 硬件刚连上时，把当前参数和设备状态下发一次（以服务器为准）
                     if (_timingBridge != null && _timingBridge.IsConnected) {
                         SendTimingSettingsToHardware();
+                        SendDeviceStatusesToHardware();
                     }
                 });
             };
@@ -1421,6 +1422,65 @@ namespace SwimmingScoreboard
             return (byte)n;
         }
 
+        // 设备损坏位图编码（2023-11-13 协议扩展：0x42 D3=0x10 子码）
+        //   D4 = 泳道号（0-9）
+        //   D5 = 左端损坏位图   D6 = 右端损坏位图
+        //   bit0=触板  bit1=盲表1  bit2=盲表2  bit3=盲表3  bit4=出发台   （1=损坏）
+        private const byte DEVSTAT_SUBCODE = 0x10;
+
+        private static byte EncodeBrokenMask(bool touchpad, bool bw1, bool bw2, bool bw3, bool startBlock) {
+            byte v = 0;
+            if (touchpad) v |= 0x01;
+            if (bw1) v |= 0x02;
+            if (bw2) v |= 0x04;
+            if (bw3) v |= 0x08;
+            if (startBlock) v |= 0x10;
+            return v;
+        }
+
+        private void SendDeviceStatusesToHardware() {
+            if (_applyingHardwareSettings) return;
+            if (_timingBridge == null || !_timingBridge.IsConnected) return;
+            try {
+                foreach (var st in _laneDeviceStates) {
+                    byte left = EncodeBrokenMask(st.LeftTouchpadBroken, st.LeftBlindWatch1Broken, st.LeftBlindWatch2Broken, st.LeftBlindWatch3Broken, st.LeftStartBlockBroken);
+                    byte right = EncodeBrokenMask(st.RightTouchpadBroken, st.RightBlindWatch1Broken, st.RightBlindWatch2Broken, st.RightBlindWatch3Broken, st.RightStartBlockBroken);
+                    _timingBridge.SendFullFrame(0x42, DEVSTAT_SUBCODE, (byte)st.Lane, left, right);
+                }
+                AddLog(string.Format("设备状态已同步到硬件: {0}条泳道记录", _laneDeviceStates.Count));
+            } catch (Exception ex) {
+                AddLog("设备状态下发硬件失败: " + ex.Message);
+            }
+        }
+
+        private void ApplyDeviceStatusFromHardware(TimingData data) {
+            int lane = data.RawD4;
+            byte left = data.Param5;
+            byte right = data.Param6;
+            var st = _laneDeviceStates.FirstOrDefault(x => x.Lane == lane);
+            if (st == null) return;
+            bool changed = false;
+            Action<Func<bool>, Action<bool>, bool> maybeSet = (getter, setter, target) => {
+                if (getter() != target) { setter(target); changed = true; }
+            };
+            maybeSet(() => st.LeftTouchpadBroken,   b => st.LeftTouchpadBroken = b,   (left & 0x01) != 0);
+            maybeSet(() => st.LeftBlindWatch1Broken, b => st.LeftBlindWatch1Broken = b, (left & 0x02) != 0);
+            maybeSet(() => st.LeftBlindWatch2Broken, b => st.LeftBlindWatch2Broken = b, (left & 0x04) != 0);
+            maybeSet(() => st.LeftBlindWatch3Broken, b => st.LeftBlindWatch3Broken = b, (left & 0x08) != 0);
+            maybeSet(() => st.LeftStartBlockBroken,  b => st.LeftStartBlockBroken = b, (left & 0x10) != 0);
+            maybeSet(() => st.RightTouchpadBroken,   b => st.RightTouchpadBroken = b,   (right & 0x01) != 0);
+            maybeSet(() => st.RightBlindWatch1Broken, b => st.RightBlindWatch1Broken = b, (right & 0x02) != 0);
+            maybeSet(() => st.RightBlindWatch2Broken, b => st.RightBlindWatch2Broken = b, (right & 0x04) != 0);
+            maybeSet(() => st.RightBlindWatch3Broken, b => st.RightBlindWatch3Broken = b, (right & 0x08) != 0);
+            maybeSet(() => st.RightStartBlockBroken,  b => st.RightStartBlockBroken = b, (right & 0x10) != 0);
+            if (changed) {
+                AddLog(string.Format("硬件设备状态回报: 泳道{0} 左=0x{1:X2} 右=0x{2:X2}", lane, left, right));
+                AutoSaveData();
+                UpdateLaneStatusDisplay();
+                Broadcast();
+            }
+        }
+
         private void ApplyHardwareSettingFrame(TimingData data) {
             _applyingHardwareSettings = true;
             try {
@@ -1444,6 +1504,11 @@ namespace SwimmingScoreboard
                         break;
                     }
                     case TimingCommandType.SetCommand: {
+                        // 子码 0x10：设备状态帧（D4=泳道 D5=左位图 D6=右位图）
+                        if (data.Param1 == DEVSTAT_SUBCODE) {
+                            ApplyDeviceStatusFromHardware(data);
+                            break;
+                        }
                         double vOld, vNew;
                         switch (data.Param1) {
                             case 0x01: vOld = _laneCloseSettings.LaneCloseTime;           vNew = data.RawD4;           if (Math.Abs(vOld - vNew) > 0.001) { _laneCloseSettings.LaneCloseTime = vNew; changed = true; } break;
@@ -3823,6 +3888,7 @@ namespace SwimmingScoreboard
             }
             AddLog(string.Format("泳道{0} {1} 设为 {2}", lane, device, broken ? "损坏" : "正常"));
             Broadcast();
+            SendDeviceStatusesToHardware();   // 同步该泳道的设备状态到硬件
         }
 
         private bool ConfirmMarkStatus(int lane, string status, string desc) {
@@ -4085,7 +4151,9 @@ namespace SwimmingScoreboard
             var win = new DeviceStatusWindow(_laneDeviceStates, _poolConfig);
             win.Owner = this;
             if (win.ShowDialog() == true) {
-                Broadcast();
+                AutoSaveData();
+                Broadcast();                         // 同步到 EXE/Web 三端
+                SendDeviceStatusesToHardware();      // 同步到硬件计时控制器
             }
         }
 

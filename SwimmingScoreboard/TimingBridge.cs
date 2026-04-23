@@ -33,6 +33,8 @@ namespace SwimmingScoreboard
         public byte Param1 { get; set; }
         /// <summary>D4 原始字节（0x40=泳池长度；0x41=比赛距离；0x42=子参数值；0x16/0x17/…=rawD4 含终点端标识）</summary>
         public byte RawD4 { get; set; }
+        /// <summary>D5 原始字节（设置类命令扩展字段）</summary>
+        public byte Param5 { get; set; }
         /// <summary>D6 原始字节（0x41 下 0-4 泳道空道位图）</summary>
         public byte Param6 { get; set; }
         /// <summary>D7 原始字节（0x41 下 5-9 泳道空道位图）</summary>
@@ -348,6 +350,7 @@ namespace SwimmingScoreboard
                 IsFinishEnd = isFinishEnd,
                 Param1 = cmd1,
                 RawD4 = rawD4,
+                Param5 = frame[5],
                 Param6 = frame[6],
                 Param7 = frame[7]
             };
@@ -362,12 +365,21 @@ namespace SwimmingScoreboard
 
         // ═══════ 发送命令到计时系统 ═══════
         public void SendCommand(byte command, byte param1 = 0, byte param2 = 0) {
+            SendFullFrame(command, param1, param2, 0, 0, 0, 0);
+        }
+
+        /// <summary>发送 12 字节帧，支持在 D5/D6/D7/D8 携带扩展参数（设备状态等）</summary>
+        public void SendFullFrame(byte command, byte d3, byte d4, byte d5 = 0, byte d6 = 0, byte d7 = 0, byte d8 = 0) {
             byte[] frame = new byte[FRAME_LENGTH];
             frame[0] = SOH;
             frame[1] = (byte)'S';
             frame[2] = command;
-            frame[3] = param1;
-            frame[4] = param2;
+            frame[3] = d3;
+            frame[4] = d4;
+            frame[5] = d5;
+            frame[6] = d6;
+            frame[7] = d7;
+            frame[8] = d8;
             frame[FRAME_LENGTH - 1] = EOT;
 
             try {
