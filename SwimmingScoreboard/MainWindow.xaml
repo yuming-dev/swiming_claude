@@ -594,6 +594,8 @@
                                         <RowDefinition Height="28"/>
                                         <RowDefinition Height="28"/>
                                         <RowDefinition Height="28"/>
+                                        <RowDefinition Height="28"/>
+                                        <RowDefinition Height="28"/>
                                     </Grid.RowDefinitions>
                                     <TextBlock Grid.Row="0" Text="姓名:" VerticalAlignment="Center"/>
                                     <TextBox x:Name="RegNameBox" Grid.Row="0" Grid.Column="1" Padding="3"/>
@@ -601,16 +603,22 @@
                                     <ComboBox x:Name="RegGenderCombo" Grid.Row="1" Grid.Column="1" SelectedIndex="0">
                                         <ComboBoxItem Content="男"/><ComboBoxItem Content="女"/><ComboBoxItem Content="混合"/>
                                     </ComboBox>
-                                    <TextBlock Grid.Row="2" Text="出生日期:" VerticalAlignment="Center"/>
-                                    <DatePicker x:Name="RegBirthDatePicker" Grid.Row="2" Grid.Column="1"/>
-                                    <TextBlock Grid.Row="3" Text="身份证号:" VerticalAlignment="Center"/>
-                                    <TextBox x:Name="RegIDNumberBox" Grid.Row="3" Grid.Column="1" Padding="3"/>
-                                    <TextBlock Grid.Row="4" Text="代表队:" VerticalAlignment="Center"/>
-                                    <TextBox x:Name="RegCountryBox" Grid.Row="4" Grid.Column="1" Padding="3"/>
-                                    <TextBlock Grid.Row="5" Text="联系电话:" VerticalAlignment="Center"/>
-                                    <TextBox x:Name="RegPhoneBox" Grid.Row="5" Grid.Column="1" Padding="3"/>
-                                    <TextBlock Grid.Row="6" Text="备注:" VerticalAlignment="Center"/>
-                                    <TextBox x:Name="RegNotesBox" Grid.Row="6" Grid.Column="1" Padding="3"/>
+                                    <TextBlock Grid.Row="2" Text="组别:" VerticalAlignment="Center"/>
+                                    <ComboBox x:Name="RegGroupCombo" Grid.Row="2" Grid.Column="1" IsEditable="True"
+                                              ToolTip="报名时直接选择甲组/乙组等；留空则按出生日期自动推断"/>
+                                    <TextBlock Grid.Row="3" Text="出生日期:" VerticalAlignment="Center"/>
+                                    <DatePicker x:Name="RegBirthDatePicker" Grid.Row="3" Grid.Column="1"/>
+                                    <TextBlock Grid.Row="4" Text="身份证号:" VerticalAlignment="Center"/>
+                                    <TextBox x:Name="RegIDNumberBox" Grid.Row="4" Grid.Column="1" Padding="3"/>
+                                    <TextBlock Grid.Row="5" Text="代表队:" VerticalAlignment="Center"/>
+                                    <TextBox x:Name="RegCountryBox" Grid.Row="5" Grid.Column="1" Padding="3"/>
+                                    <TextBlock Grid.Row="6" Text="单位简称:" VerticalAlignment="Center"/>
+                                    <TextBox x:Name="RegCountryShortBox" Grid.Row="6" Grid.Column="1" Padding="3"
+                                             ToolTip="大屏/成绩表显示时使用的简短单位名，如 绵阳蓝鲸 → 蓝鲸"/>
+                                    <TextBlock Grid.Row="7" Text="联系电话:" VerticalAlignment="Center"/>
+                                    <TextBox x:Name="RegPhoneBox" Grid.Row="7" Grid.Column="1" Padding="3"/>
+                                    <TextBlock Grid.Row="8" Text="备注:" VerticalAlignment="Center"/>
+                                    <TextBox x:Name="RegNotesBox" Grid.Row="8" Grid.Column="1" Padding="3"/>
                                 </Grid>
 
                                 <!-- 参赛项目列表 -->

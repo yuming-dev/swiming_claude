@@ -280,6 +280,7 @@ namespace SwimmingScoreboard
         private int _age;
         private string _gender;
         private string _country;
+        private string _countryShort;
         private string _idNumber;
         private string _phone;
         private string _notes;
@@ -339,6 +340,11 @@ namespace SwimmingScoreboard
         public string Country {
             get { return _country; }
             set { _country = value; OnPropertyChanged("Country"); }
+        }
+        // 参赛单位简称（大屏/成绩表简显用）
+        public string CountryShort {
+            get { return _countryShort; }
+            set { _countryShort = value; OnPropertyChanged("CountryShort"); }
         }
         public string IDNumber {
             get { return _idNumber; }
