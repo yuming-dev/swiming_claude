@@ -195,7 +195,34 @@
 <div class="note"><b>说明：</b>任意一方（主服务器或硬件）修改上述参数后，应以单帧形式把该子码发送给对端；
 对端收到后更新本地状态并向其管辖的所有下游客户端（EXE/HTML 计时控制 或 连接中的显示屏等）进行广播。</div>
 
-<h3>4.2 &nbsp;设备状态子码（D3 = 0x10）</h3>
+<h3>4.2 &nbsp;比赛距离子码（D3 = 0x20）</h3>
+<table class="cmd-table">
+<tr><th style="width:10%">字段</th><th style="width:22%">含义</th><th>编码</th></tr>
+<tr><td class="mono">D3</td><td class="c">子码</td><td class="mono">0x20（固定）</td></tr>
+<tr><td class="mono">D4</td><td class="c">趟数 (totalLaps)</td><td>1 ~ 255</td></tr>
+<tr><td class="mono">D5</td><td class="c">左端触板总次数</td><td>0 ~ 255</td></tr>
+<tr><td class="mono">D6</td><td class="c">右端触板总次数</td><td>0 ~ 255</td></tr>
+<tr><td class="mono">D7</td><td class="c">距离高字节</td><td>距离米数 / 256</td></tr>
+<tr><td class="mono">D8</td><td class="c">距离低字节</td><td>距离米数 % 256（D7:D8 合成 16 位米数，最大 65535）</td></tr>
+</table>
+<div class="info">
+  <b>触发时机</b>（主服务器 → 硬件）：
+  <ul>
+    <li>比赛控制台选中新项目 / 新组次（<code>SetCurrentEvent</code>, <code>SetCurrentHeat</code>）</li>
+    <li>硬件计时控制器首次连接</li>
+  </ul>
+  左/右触板次数根据当前<code>FinishPosition</code> 与当前项目趟数计算。以 50 米池 / 出发在左端为例：
+  <table class="frame-table" style="margin-top:4pt;width:80%">
+    <tr><th>项目</th><th>趟数</th><th>左端(出发)</th><th>右端(到达)</th></tr>
+    <tr><td class="c">50 米</td><td class="c">1</td><td class="c">0</td><td class="c">1</td></tr>
+    <tr><td class="c">100 米</td><td class="c">2</td><td class="c">1</td><td class="c">1</td></tr>
+    <tr><td class="c">200 米</td><td class="c">4</td><td class="c">2</td><td class="c">2</td></tr>
+    <tr><td class="c">400 米</td><td class="c">8</td><td class="c">4</td><td class="c">4</td></tr>
+    <tr><td class="c">1500 米</td><td class="c">30</td><td class="c">15</td><td class="c">15</td></tr>
+  </table>
+</div>
+
+<h3>4.3 &nbsp;设备状态子码（D3 = 0x10）</h3>
 <table class="cmd-table">
 <tr><th style="width:10%">字段</th><th style="width:20%">含义</th><th>编码</th></tr>
 <tr><td class="mono">D3</td><td class="c">子码</td><td class="mono">0x10（固定）</td></tr>
@@ -223,7 +250,8 @@
   <li>"设备状态管理"对话框点击"确定"</li>
   <li>单点设备状态变更（远程 <code>SET_DEVICE_STATUS</code>）</li>
   <li>"赛事信息"中修改泳道数 / 泳池长度后保存</li>
-  <li>硬件连接刚刚建立（以服务器当前参数为准做一次全量下发）</li>
+  <li><b>比赛控制台切换项目 / 组次</b>（<code>SetCurrentEvent</code> / <code>SetCurrentHeat</code>）→ 发送 0x42 / 0x20 比赛距离帧</li>
+  <li>硬件连接刚刚建立（以服务器当前参数为准做一次全量下发，包含 0x40 + 7 个 0x42 参数 + 10 个 0x42/0x10 设备状态 + 0x42/0x20 比赛距离）</li>
 </ul>
 <p>下发顺序（<code>SendTimingSettingsToHardware</code> + <code>SendDeviceStatusesToHardware</code>）：</p>
 <pre>0x40   D3=Lanes    D4=PoolLen
@@ -302,7 +330,12 @@
                 // D5=0x03 = 0b00011 (左端: 触板+盲1)
                 // D6=0x00 (右端: 全部正常)</pre>
 
-<h3>7.4 &nbsp;触板：第 5 道终点端，成绩 27.83 秒</h3>
+<h3>7.4 &nbsp;比赛距离：400 米 / 8 趟 / 左端 4 次 右端 4 次</h3>
+<pre>F1 53 42 20 08 04 04 01 90 00 00 F4
+           20  .  08  04 04  .  01 90    .
+           子码0x20 . D4=8 D5=4 D6=4 . D7:D8=0x0190 (400 米)</pre>
+
+<h3>7.5 &nbsp;触板：第 5 道终点端，成绩 27.83 秒</h3>
 <pre>F1 53 16 00 05 00 1B 53 00 00 00 F4
         16  .  05  .  1B 53  .
         触板 .  D4=5(终点端) . Min=0 Sec=27 Cs=83</pre>
@@ -312,6 +345,8 @@
   <li><b>2023-11-13：</b>奠定 12 字节帧、0x16~0x21/0x7F、0x40/0x41/0x42 外壳。</li>
   <li><b>2026-04：</b>在 0x42 下约定子码 0x01~0x07（参数）及 0x10（设备状态），
     新增双向同步实现；帧长 / 起止 / 命令字节码保持完全兼容。</li>
+  <li><b>2026-04-b：</b>追加 0x42 / 0x20 子码（比赛距离 + 左右触板总次数 + 距离米数 16 位），
+    切换项目/组次时自动下发，使硬件可预知当前项目的触板总数。</li>
 </ul>
 <p>任何旧版硬件只处理 0x16~0x21/0x7F/0x40/0x41 仍可正常收发；
 收到它无法识别的 0x42 子码时应静默忽略而非错误重置。</p>

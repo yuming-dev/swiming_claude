@@ -37,8 +37,10 @@ namespace SwimmingScoreboard
         public byte Param5 { get; set; }
         /// <summary>D6 原始字节（0x41 下 0-4 泳道空道位图）</summary>
         public byte Param6 { get; set; }
-        /// <summary>D7 原始字节（0x41 下 5-9 泳道空道位图）</summary>
+        /// <summary>D7 原始字节（0x41 下 5-9 泳道空道位图；0x42/0x20 下为距离高字节）</summary>
         public byte Param7 { get; set; }
+        /// <summary>D8 原始字节（计时帧为 (hour&lt;&lt;4)|ms1；设置帧作扩展值）</summary>
+        public byte Param8 { get; set; }
     }
 
     // 游泳计时通讯协议 2023-11-13  D2命令字节定义
@@ -352,7 +354,8 @@ namespace SwimmingScoreboard
                 RawD4 = rawD4,
                 Param5 = frame[5],
                 Param6 = frame[6],
-                Param7 = frame[7]
+                Param7 = frame[7],
+                Param8 = frame[8]
             };
 
             string endLabel = isFinishEnd ? "终点端" : "另一端";

@@ -27,6 +27,8 @@ using System.Windows.Forms;
 //     0x10 DeviceStatus          D4=泳道(0-9)
 //                                D5=左端损坏位图  D6=右端损坏位图
 //                                bit0 触板  bit1 盲表1  bit2 盲表2  bit3 盲表3  bit4 出发台  (1=损坏)
+//     0x20 RaceDistance          D4=趟数  D5=左端触板总次数  D6=右端触板总次数
+//                                D7=距离高字节(米/256)  D8=距离低字节(米%256)
 
 class ParamDebugBotForm : Form
 {
@@ -64,6 +66,11 @@ class ParamDebugBotForm : Form
     Button btnSendDevAll, btnSendDevOne, btnDevClearAll, btnDevSetAll;
     NumericUpDown nudDevLane;
 
+    // 比赛距离控件
+    NumericUpDown nudDistMeters, nudDistLaps, nudDistLeft, nudDistRight;
+    Button btnSendDist;
+    Label lblLastDist;
+
     // 显示接收到的参数帧
     Label lblLastFrame;
 
@@ -72,7 +79,7 @@ class ParamDebugBotForm : Form
     public ParamDebugBotForm()
     {
         Text = "硬件参数调试机器人 (Param Debug Bot)";
-        Size = new Size(1050, 720);
+        Size = new Size(1050, 820);
         StartPosition = FormStartPosition.CenterScreen;
         BackColor = Color.FromArgb(15, 23, 42);
         ForeColor = Color.White;
@@ -264,8 +271,41 @@ class ParamDebugBotForm : Form
         btnSendDevOne.Click += delegate { SendOneDeviceStatus((int)nudDevLane.Value); };
         grpDev.Controls.Add(btnSendDevOne);
 
+        // ───── 比赛距离区 (0x42 D3=0x20) ─────
+        var grpDist = MakeGroup("比赛距离 / 触板次数 (0x42 D3=0x20)", 10, 466, 1020, 100);
+        Controls.Add(grpDist);
+
+        int dY = 26;
+        grpDist.Controls.Add(MakeLabel("距离 (米):", 15, dY + 2));
+        nudDistMeters = MakeNum(85, dY, 0, 65535, 100);
+        nudDistMeters.Width = 80;
+        grpDist.Controls.Add(nudDistMeters);
+        grpDist.Controls.Add(MakeLabel("趟数:", 175, dY + 2));
+        nudDistLaps = MakeNum(215, dY, 0, 255, 2);
+        grpDist.Controls.Add(nudDistLaps);
+        grpDist.Controls.Add(MakeLabel("左端触板总数:", 290, dY + 2));
+        nudDistLeft = MakeNum(395, dY, 0, 255, 1);
+        grpDist.Controls.Add(nudDistLeft);
+        grpDist.Controls.Add(MakeLabel("右端触板总数:", 460, dY + 2));
+        nudDistRight = MakeNum(565, dY, 0, 255, 1);
+        grpDist.Controls.Add(nudDistRight);
+
+        btnSendDist = MakeBtn("发送比赛距离 (0x42/0x20)", 640, dY - 2, 190, 30, Color.FromArgb(34, 197, 94));
+        btnSendDist.Click += delegate { SendRaceDistance(); };
+        grpDist.Controls.Add(btnSendDist);
+        var btnAutoDist = MakeBtn("距离→趟/左右 (50m池)", 840, dY - 2, 170, 30, Color.FromArgb(71, 85, 105));
+        btnAutoDist.Click += delegate { AutoFillFromDistance(50); };
+        grpDist.Controls.Add(btnAutoDist);
+
+        dY += 36;
+        lblLastDist = new Label {
+            Text = "最近接收: (无)", Location = new Point(15, dY + 6), Size = new Size(990, 22),
+            Font = new Font("Consolas", 9.5f), ForeColor = Color.FromArgb(148, 163, 184)
+        };
+        grpDist.Controls.Add(lblLastDist);
+
         // ───── 日志区 ─────
-        var grpLog = MakeGroup("通信日志（收 / 发 帧）", 10, 466, 1020, 210);
+        var grpLog = MakeGroup("通信日志（收 / 发 帧）", 10, 574, 1020, 210);
         Controls.Add(grpLog);
 
         lstLog = new ListBox {
@@ -485,6 +525,21 @@ class ParamDebugBotForm : Form
                     lblLastFrame.Text = "最近接收: " + msg;
                     return;
                 }
+                // 比赛距离
+                if (d3 == 0x20) {
+                    int laps = d4;
+                    int leftN = d5;
+                    int rightN = d6;
+                    int dist = (d7 << 8) | d8;
+                    ClampAndSet(nudDistLaps, (byte)Math.Min(255, laps));
+                    ClampAndSet(nudDistLeft, (byte)Math.Min(255, leftN));
+                    ClampAndSet(nudDistRight, (byte)Math.Min(255, rightN));
+                    if (dist >= 0 && dist <= (int)nudDistMeters.Maximum) nudDistMeters.Value = dist;
+                    string msg = string.Format("[收 0x42/0x20 比赛距离] {0}米 / {1}趟 / 左{2}次 右{3}次", dist, laps, leftN, rightN);
+                    Log(msg + "  " + hex);
+                    lblLastDist.Text = "最近接收: " + msg;
+                    return;
+                }
                 // 单参数
                 switch (d3) {
                     case 0x01: ClampAndSet(nudLaneClose, d4); break;
@@ -582,6 +637,32 @@ class ParamDebugBotForm : Form
     void SendAllDeviceStatuses()
     {
         for (int lane = 0; lane < LANE_COUNT_UI; lane++) SendOneDeviceStatus(lane);
+    }
+
+    void SendRaceDistance()
+    {
+        int dist = (int)nudDistMeters.Value;
+        byte laps = (byte)nudDistLaps.Value;
+        byte leftN = (byte)nudDistLeft.Value;
+        byte rightN = (byte)nudDistRight.Value;
+        byte distHi = (byte)((dist >> 8) & 0xFF);
+        byte distLo = (byte)(dist & 0xFF);
+        Send(0x42, 0x20, laps, leftN, rightN, distHi, distLo,
+            string.Format("[发 0x42 D3=0x20 比赛距离] {0}米 / {1}趟 / 左{2}次 右{3}次", dist, laps, leftN, rightN));
+    }
+
+    // 按"出发在左端"规则，由距离和泳池长度推算趟数和左右触板次数（便于快速填表）
+    void AutoFillFromDistance(int poolLen)
+    {
+        int dist = (int)nudDistMeters.Value;
+        int laps = poolLen > 0 ? Math.Max(1, dist / poolLen) : 1;
+        int startSide, farSide;
+        if (laps <= 1) { startSide = 0; farSide = 1; }
+        else { startSide = laps / 2; farSide = (laps + 1) / 2; }
+        // 约定：出发端 = 左端（若硬件 StartPosition 不同，可自行调换；调试场景默认出发在左）
+        nudDistLaps.Value = Math.Min(255, laps);
+        nudDistLeft.Value = Math.Min(255, startSide);
+        nudDistRight.Value = Math.Min(255, farSide);
     }
 
     void Send(byte cmd, byte d3, byte d4, byte d5, byte d6, byte d7, byte d8, string desc)

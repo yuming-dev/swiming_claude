@@ -1332,10 +1332,11 @@ namespace SwimmingScoreboard
                 Dispatcher.Invoke((Action)delegate() {
                     TimingStatusText.Text = status;
                     UpdateConnectionStatus();
-                    // 硬件刚连上时，把当前参数和设备状态下发一次（以服务器为准）
+                    // 硬件刚连上时，把当前参数/设备状态/比赛距离下发一次（以服务器为准）
                     if (_timingBridge != null && _timingBridge.IsConnected) {
                         SendTimingSettingsToHardware();
                         SendDeviceStatusesToHardware();
+                        SendRaceDistanceToHardware();
                     }
                 });
             };
@@ -1428,6 +1429,57 @@ namespace SwimmingScoreboard
         //   bit0=触板  bit1=盲表1  bit2=盲表2  bit3=盲表3  bit4=出发台   （1=损坏）
         private const byte DEVSTAT_SUBCODE = 0x10;
 
+        // 比赛距离子码（2023-11-13 协议扩展：0x42 D3=0x20）
+        //   D4 = 趟数 (totalLaps, 1-255)
+        //   D5 = 左端触板总次数       D6 = 右端触板总次数
+        //   D7 = 距离高字节 (米/256)  D8 = 距离低字节 (米%256)
+        //   发送时机：当前项目变更（SetCurrentEvent / SetCurrentHeat）、硬件刚连上
+        private const byte RACEDIST_SUBCODE = 0x20;
+
+        // 计算某项目当前出发方向下的左/右触板总次数
+        private void GetRaceTouchTotals(int totalLaps, out int leftTotal, out int rightTotal) {
+            int startSideTotal, farSideTotal;
+            if (totalLaps <= 1) { startSideTotal = 0; farSideTotal = 1; }
+            else { startSideTotal = totalLaps / 2; farSideTotal = (totalLaps + 1) / 2; }
+            bool startFromLeft = _laneCloseSettings.StartPosition != "right";
+            if (startFromLeft) { leftTotal = startSideTotal; rightTotal = farSideTotal; }
+            else               { leftTotal = farSideTotal;   rightTotal = startSideTotal; }
+        }
+
+        private int GetRaceDistanceMeters() {
+            string ev = _currentEvent ?? "";
+            if (ev.Contains("x") || ev.Contains("×")) {
+                var m = System.Text.RegularExpressions.Regex.Match(ev, @"(\d+)\s*[x×]\s*(\d+)");
+                if (m.Success) return int.Parse(m.Groups[1].Value) * int.Parse(m.Groups[2].Value);
+            }
+            var d = System.Text.RegularExpressions.Regex.Match(ev, @"(\d+)米");
+            if (d.Success) return int.Parse(d.Groups[1].Value);
+            return 0;
+        }
+
+        private void SendRaceDistanceToHardware() {
+            if (_applyingHardwareSettings) return;
+            if (_timingBridge == null || !_timingBridge.IsConnected) return;
+            if (string.IsNullOrEmpty(_currentEvent)) return;
+            try {
+                int totalLaps = GetTotalLaps();
+                int distance = GetRaceDistanceMeters();
+                int leftTotal, rightTotal;
+                GetRaceTouchTotals(totalLaps, out leftTotal, out rightTotal);
+                byte distHi = (byte)((distance >> 8) & 0xFF);
+                byte distLo = (byte)(distance & 0xFF);
+                _timingBridge.SendFullFrame(0x42, RACEDIST_SUBCODE,
+                    (byte)Math.Min(255, totalLaps),
+                    (byte)Math.Min(255, leftTotal),
+                    (byte)Math.Min(255, rightTotal),
+                    distHi, distLo);
+                AddLog(string.Format("比赛距离已同步到硬件: {0} ({1} 米, {2} 趟, 左{3}次 右{4}次)",
+                    _currentEvent, distance, totalLaps, leftTotal, rightTotal));
+            } catch (Exception ex) {
+                AddLog("比赛距离下发硬件失败: " + ex.Message);
+            }
+        }
+
         private static byte EncodeBrokenMask(bool touchpad, bool bw1, bool bw2, bool bw3, bool startBlock) {
             byte v = 0;
             if (touchpad) v |= 0x01;
@@ -1507,6 +1559,16 @@ namespace SwimmingScoreboard
                         // 子码 0x10：设备状态帧（D4=泳道 D5=左位图 D6=右位图）
                         if (data.Param1 == DEVSTAT_SUBCODE) {
                             ApplyDeviceStatusFromHardware(data);
+                            break;
+                        }
+                        // 子码 0x20：比赛距离回报（仅日志；比赛项目由主服务器决定，硬件下发不更改项目）
+                        if (data.Param1 == RACEDIST_SUBCODE) {
+                            int laps = data.RawD4;          // D4
+                            int leftN = data.Param5;        // D5
+                            int rightN = data.Param6;       // D6
+                            int dist = (data.Param7 << 8) | data.Param8;   // D7:D8
+                            AddLog(string.Format("硬件比赛距离回报: {0}米 / {1}趟 / 左{2}次 右{3}次",
+                                dist, laps, leftN, rightN));
                             break;
                         }
                         double vOld, vNew;
@@ -2844,6 +2906,7 @@ namespace SwimmingScoreboard
             _isRelay = _currentEvent.Contains("接力");
             CurrentEventText.Text = _currentGender + " " + _currentEvent;
             UpdateRecordDisplay();
+            SendRaceDistanceToHardware();   // 项目变更 → 通知硬件距离+左右触板次数
         }
 
         private void SetCurrentStage(string stage) {
@@ -2916,6 +2979,7 @@ namespace SwimmingScoreboard
             UpdateLaneStatusDisplay();
             UpdateRecordDisplay();
             Broadcast();
+            SendRaceDistanceToHardware();   // 组次变更 → 同步比赛距离 & 左右触板次数
         }
 
         private void ScheduleTree_Selected(object sender, RoutedPropertyChangedEventArgs<object> e) {
