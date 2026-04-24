@@ -6662,6 +6662,286 @@ namespace SwimmingScoreboard
         }
 
         // ═══════════════════════════════════════════════════════════════
+        // 手动分组：按项目选人员 → 可一键均分到 N 组，或直接编辑 组/道次
+        // 解决自动分组"第一组满道，后面组缺很多"的不均衡问题
+        // ═══════════════════════════════════════════════════════════════
+        private void ManualHeatAssign_Click(object sender, RoutedEventArgs e) {
+            if (_swimmers.Count == 0) { MessageBox.Show("暂无已注册运动员。"); return; }
+
+            // 收集有效 (gender, event, stage) 组合
+            var combos = _swimmers
+                .Where(s => !string.IsNullOrEmpty(s.Gender) && !string.IsNullOrEmpty(s.EventName) &&
+                            !(s.Notes != null && s.Notes.StartsWith("接力队员")))
+                .GroupBy(s => new { s.Gender, s.EventName })
+                .OrderBy(g => g.Key.Gender).ThenBy(g => g.Key.EventName)
+                .Select(g => g.Key)
+                .ToList();
+            if (combos.Count == 0) { MessageBox.Show("没有可分组的运动员。"); return; }
+
+            var dlg = new Window {
+                Title = "手动分组", Width = 900, Height = 620,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner, Owner = this, ResizeMode = ResizeMode.CanResize
+            };
+            var mainGrid = new Grid { Margin = new Thickness(14) };
+            mainGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            mainGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            mainGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+            mainGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+            // ─ 选择条 ─
+            var pickRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) };
+            pickRow.Children.Add(new TextBlock { Text = "项目:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 4, 0) });
+            var cbEvent = new ComboBox { Width = 280 };
+            foreach (var c in combos) cbEvent.Items.Add(c.Gender + " " + c.EventName);
+            cbEvent.SelectedIndex = 0;
+            pickRow.Children.Add(cbEvent);
+
+            pickRow.Children.Add(new TextBlock { Text = "  阶段:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 4, 0) });
+            var cbStage = new ComboBox { Width = 90 };
+            cbStage.Items.Add("预赛"); cbStage.Items.Add("半决赛"); cbStage.Items.Add("决赛");
+            cbStage.SelectedIndex = 0;
+            pickRow.Children.Add(cbStage);
+
+            pickRow.Children.Add(new TextBlock { Text = "  每组人数:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 4, 0) });
+            var tbPerHeat = new TextBox { Width = 50, Padding = new Thickness(4), Text = _poolConfig.LaneCount.ToString() };
+            pickRow.Children.Add(tbPerHeat);
+
+            pickRow.Children.Add(new TextBlock { Text = "  分组方式:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 4, 0) });
+            var cbMode = new ComboBox { Width = 130 };
+            cbMode.Items.Add("蛇形(强↔弱交替)");
+            cbMode.Items.Add("顺序(按成绩依次)");
+            cbMode.Items.Add("按注册顺序");
+            cbMode.SelectedIndex = 0;
+            pickRow.Children.Add(cbMode);
+            Grid.SetRow(pickRow, 0);
+            mainGrid.Children.Add(pickRow);
+
+            // ─ 操作按钮行 ─
+            var btnRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) };
+            var btnEvenSplit = new Button { Content = "均匀分组 (按每组人数)", Padding = new Thickness(12, 5, 12, 5),
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#22C55E")),
+                Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0), Margin = new Thickness(0, 0, 8, 0),
+                ToolTip = "根据每组人数把所选项目的运动员平均分成若干组，例如 19 人按每组 8 → 2 组各 10 和 9"};
+            btnRow.Children.Add(btnEvenSplit);
+            var btnClear = new Button { Content = "清空本项目分组", Padding = new Thickness(12, 5, 12, 5),
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EF4444")),
+                Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0), Margin = new Thickness(0, 0, 8, 0) };
+            btnRow.Children.Add(btnClear);
+            btnRow.Children.Add(new TextBlock { Text = "  表格里可直接修改 [组] [道]，再按\"确认保存\"；空白表示未分配。",
+                VerticalAlignment = VerticalAlignment.Center,
+                Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")) });
+            Grid.SetRow(btnRow, 1);
+            mainGrid.Children.Add(btnRow);
+
+            // ─ 表格 ─
+            var rowSource = new System.Collections.ObjectModel.ObservableCollection<ManualHeatRow>();
+            var grid = new DataGrid {
+                AutoGenerateColumns = false, CanUserAddRows = false, IsReadOnly = false,
+                SelectionMode = DataGridSelectionMode.Extended,
+                AlternatingRowBackground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F8FAFC"))
+            };
+            grid.Columns.Add(new DataGridTextColumn { Header = "号码", Binding = new System.Windows.Data.Binding("BibNumber") { Mode = System.Windows.Data.BindingMode.OneWay }, Width = new DataGridLength(70), IsReadOnly = true });
+            grid.Columns.Add(new DataGridTextColumn { Header = "姓名", Binding = new System.Windows.Data.Binding("Name") { Mode = System.Windows.Data.BindingMode.OneWay }, Width = new DataGridLength(100), IsReadOnly = true });
+            grid.Columns.Add(new DataGridTextColumn { Header = "代表队", Binding = new System.Windows.Data.Binding("Country") { Mode = System.Windows.Data.BindingMode.OneWay }, Width = new DataGridLength(120), IsReadOnly = true });
+            grid.Columns.Add(new DataGridTextColumn { Header = "年龄组", Binding = new System.Windows.Data.Binding("AgeCategory") { Mode = System.Windows.Data.BindingMode.OneWay }, Width = new DataGridLength(70), IsReadOnly = true });
+            grid.Columns.Add(new DataGridTextColumn { Header = "报名成绩", Binding = new System.Windows.Data.Binding("EntryTime") { Mode = System.Windows.Data.BindingMode.OneWay }, Width = new DataGridLength(90), IsReadOnly = true });
+            grid.Columns.Add(new DataGridTextColumn { Header = "组", Binding = new System.Windows.Data.Binding("Heat") { Mode = System.Windows.Data.BindingMode.TwoWay, UpdateSourceTrigger = System.Windows.Data.UpdateSourceTrigger.PropertyChanged }, Width = new DataGridLength(60) });
+            grid.Columns.Add(new DataGridTextColumn { Header = "道", Binding = new System.Windows.Data.Binding("Lane") { Mode = System.Windows.Data.BindingMode.TwoWay, UpdateSourceTrigger = System.Windows.Data.UpdateSourceTrigger.PropertyChanged }, Width = new DataGridLength(60) });
+            grid.ItemsSource = rowSource;
+            Grid.SetRow(grid, 2);
+            mainGrid.Children.Add(grid);
+
+            // ─ 确认 / 取消 ─
+            var okRow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 8, 0, 0) };
+            var btnOk = new Button { Content = "确认保存", Padding = new Thickness(18, 6, 18, 6), FontWeight = FontWeights.Bold,
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6")),
+                Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0), Margin = new Thickness(0, 0, 8, 0) };
+            var btnCancel = new Button { Content = "取消", Padding = new Thickness(18, 6, 18, 6),
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")),
+                Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0) };
+            okRow.Children.Add(btnOk);
+            okRow.Children.Add(btnCancel);
+            Grid.SetRow(okRow, 3);
+            mainGrid.Children.Add(okRow);
+            dlg.Content = mainGrid;
+
+            // ─ 事件绑定 ─
+            Action reloadRows = delegate {
+                rowSource.Clear();
+                if (cbEvent.SelectedIndex < 0) return;
+                var combo = combos[cbEvent.SelectedIndex];
+                string stage = cbStage.SelectedItem as string ?? "预赛";
+                bool isRelay = combo.EventName.Contains("接力");
+                var matched = _swimmers.Where(s =>
+                    s.Gender == combo.Gender && s.EventName == combo.EventName &&
+                    !(isRelay && s.Notes != null && s.Notes.StartsWith("接力队员"))).ToList();
+                foreach (var s in matched) {
+                    int h = 0, ln = 0;
+                    var sa = s.GetAssignmentForStage(stage);
+                    if (sa != null) { h = sa.Heat; ln = sa.Lane; }
+                    else if (s.CurrentStage == stage) { h = s.Heat; ln = s.Lane; }
+                    rowSource.Add(new ManualHeatRow(s, h, ln));
+                }
+            };
+            cbEvent.SelectionChanged += delegate { reloadRows(); };
+            cbStage.SelectionChanged += delegate { reloadRows(); };
+            reloadRows();
+
+            btnEvenSplit.Click += delegate {
+                // 提交正在编辑的单元
+                try { grid.CommitEdit(DataGridEditingUnit.Cell, true); grid.CommitEdit(DataGridEditingUnit.Row, true); } catch { }
+
+                int perHeat = 0;
+                int.TryParse((tbPerHeat.Text ?? "").Trim(), out perHeat);
+                if (perHeat <= 0) perHeat = _poolConfig.LaneCount;
+
+                var targets = grid.SelectedItems.Cast<ManualHeatRow>().ToList();
+                if (targets.Count == 0) targets = rowSource.ToList();
+                if (targets.Count == 0) return;
+
+                // 排序
+                if (cbMode.SelectedIndex == 0 || cbMode.SelectedIndex == 1) {
+                    // 按报名成绩；无成绩放最后
+                    targets = targets.OrderBy(r => {
+                        double t = TimeFormatter.Parse(r.Swimmer.EntryTime ?? "");
+                        return t > 0 ? t : double.MaxValue;
+                    }).ToList();
+                }
+                // cbMode == 2 按注册顺序（也就是当前 rowSource 顺序），保持不变即可
+                if (cbMode.SelectedIndex == 2) {
+                    targets = rowSource.Where(targets.Contains).ToList();
+                }
+
+                int total = targets.Count;
+                int heatCount = (int)Math.Ceiling((double)total / perHeat);
+                if (heatCount < 1) heatCount = 1;
+
+                // 均分：各组尽量相等（多出的人数依序加到前面组）
+                int baseSize = total / heatCount;
+                int extra = total % heatCount;
+                // lane 优先顺序：中间道次优先（快者在中）
+                int[] lanePrio = HeatScheduler.GetLanePriority(_poolConfig);
+
+                if (cbMode.SelectedIndex == 0) {
+                    // 蛇形：把 sorted[i] 放到 heat index = SnakeHeat(i) —— 每组各 k 人，按蛇形交替
+                    int idx = 0;
+                    // 先按 "每组大小" 把 heats 准备好
+                    var heatBuckets = new List<ManualHeatRow>[heatCount];
+                    for (int h = 0; h < heatCount; h++) heatBuckets[h] = new List<ManualHeatRow>();
+                    int[] heatSizes = new int[heatCount];
+                    for (int h = 0; h < heatCount; h++) heatSizes[h] = baseSize + (h < extra ? 1 : 0);
+                    // 蛇形放：第 1 轮 h=0,1,2,...,heatCount-1；第 2 轮逆序；如此循环
+                    int round = 0;
+                    int[] remain = (int[])heatSizes.Clone();
+                    while (idx < total) {
+                        bool leftToRight = (round % 2) == 0;
+                        for (int j = 0; j < heatCount && idx < total; j++) {
+                            int h = leftToRight ? j : heatCount - 1 - j;
+                            if (remain[h] <= 0) continue;
+                            heatBuckets[h].Add(targets[idx++]);
+                            remain[h]--;
+                        }
+                        round++;
+                    }
+                    // 分道次：每组内按报名成绩由快到慢映射到 lanePrio
+                    for (int h = 0; h < heatCount; h++) {
+                        var bucket = heatBuckets[h].OrderBy(r => {
+                            double t = TimeFormatter.Parse(r.Swimmer.EntryTime ?? "");
+                            return t > 0 ? t : double.MaxValue;
+                        }).ToList();
+                        for (int k = 0; k < bucket.Count; k++) {
+                            bucket[k].Heat = (heatCount - h).ToString();   // 速度最快的人放"最后一组"(正式比赛惯例)
+                            bucket[k].Lane = (k < lanePrio.Length ? lanePrio[k] : k + 1).ToString();
+                        }
+                    }
+                } else {
+                    // 顺序/按注册顺序：按 targets 顺序填满每组
+                    int idx = 0;
+                    for (int h = 0; h < heatCount && idx < total; h++) {
+                        int size = baseSize + (h < extra ? 1 : 0);
+                        for (int k = 0; k < size && idx < total; k++) {
+                            targets[idx].Heat = (h + 1).ToString();
+                            targets[idx].Lane = (k < lanePrio.Length ? lanePrio[k] : k + 1).ToString();
+                            idx++;
+                        }
+                    }
+                }
+                grid.Items.Refresh();
+            };
+
+            btnClear.Click += delegate {
+                foreach (var r in rowSource) { r.Heat = ""; r.Lane = ""; }
+                grid.Items.Refresh();
+            };
+
+            btnOk.Click += delegate {
+                try { grid.CommitEdit(DataGridEditingUnit.Cell, true); grid.CommitEdit(DataGridEditingUnit.Row, true); } catch { }
+                dlg.DialogResult = true;
+            };
+            btnCancel.Click += delegate { dlg.DialogResult = false; };
+
+            if (dlg.ShowDialog() == true) {
+                if (cbEvent.SelectedIndex < 0) return;
+                var combo = combos[cbEvent.SelectedIndex];
+                string stage = cbStage.SelectedItem as string ?? "预赛";
+
+                int maxHeat = 0, assigned = 0;
+                foreach (var r in rowSource) {
+                    int h = 0, ln = 0;
+                    int.TryParse(r.Heat ?? "", out h);
+                    int.TryParse(r.Lane ?? "", out ln);
+                    if (h > 0) {
+                        r.Swimmer.SetStageAssignment(stage, h, ln, r.Swimmer.EntryTimeSeconds, r.Swimmer.EntryTime);
+                        if (r.Swimmer.CurrentStage == stage) { r.Swimmer.Heat = h; r.Swimmer.Lane = ln; }
+                        if (h > maxHeat) maxHeat = h;
+                        assigned++;
+                    } else {
+                        if (r.Swimmer.StageAssignments.ContainsKey(stage)) r.Swimmer.StageAssignments.Remove(stage);
+                        if (r.Swimmer.CurrentStage == stage) { r.Swimmer.Heat = 0; r.Swimmer.Lane = 0; }
+                    }
+                }
+
+                // 更新/新建 Schedule 项
+                var sched = _schedule.FirstOrDefault(s => s.Gender == combo.Gender && s.EventName == combo.EventName && s.Stage == stage);
+                if (sched == null && maxHeat > 0) {
+                    _schedule.Add(new ScheduleItem {
+                        SessionNumber = _schedule.Count > 0 ? _schedule.Max(s => s.SessionNumber) : 1,
+                        Gender = combo.Gender, EventName = combo.EventName, Stage = stage, HeatCount = maxHeat
+                    });
+                } else if (sched != null) {
+                    sched.HeatCount = maxHeat;
+                }
+
+                AutoSaveData();
+                BuildScheduleTree();
+                SyncRelayHeatInfo();
+                UpdateEditHeatCombo();
+                Broadcast();
+                AddLog(string.Format("手动分组: {0} {1} {2} — {3}人已分配到{4}组",
+                    combo.Gender, combo.EventName, stage, assigned, maxHeat));
+            }
+        }
+
+        // 手动分组对话框的行绑定对象
+        private class ManualHeatRow : INotifyPropertyChanged
+        {
+            private string _heat, _lane;
+            public Swimmer Swimmer { get; private set; }
+            public string BibNumber { get { return Swimmer.BibNumber ?? ""; } }
+            public string Name { get { return Swimmer.Name ?? ""; } }
+            public string Country { get { return Swimmer.Country ?? ""; } }
+            public string AgeCategory { get { return Swimmer.AgeCategory ?? ""; } }
+            public string EntryTime { get { return Swimmer.EntryTime ?? ""; } }
+            public string Heat { get { return _heat; } set { _heat = value; Raise("Heat"); } }
+            public string Lane { get { return _lane; } set { _lane = value; Raise("Lane"); } }
+            public ManualHeatRow(Swimmer s, int h, int l) {
+                Swimmer = s; _heat = h > 0 ? h.ToString() : ""; _lane = l > 0 ? l.ToString() : "";
+            }
+            public event PropertyChangedEventHandler PropertyChanged;
+            void Raise(string n) { if (PropertyChanged != null) PropertyChanged(this, new PropertyChangedEventArgs(n)); }
+        }
+
+        // ═══════════════════════════════════════════════════════════════
         // 追加分组：只对新增的未分组运动员进行分组，已分好组的不变
         // ═══════════════════════════════════════════════════════════════
         private void SupplementHeats_Click(object sender, RoutedEventArgs e) {

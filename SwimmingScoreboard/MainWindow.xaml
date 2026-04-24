@@ -449,6 +449,8 @@
                                         <Button Content="修改赛程" Click="EditSchedule_Click" Padding="15,5" Background="#3B82F6" Foreground="White" FontWeight="Bold" BorderThickness="0" Margin="0,0,8,0"/>
                                         <Button Content="一键生成日程" Click="AutoBuildSchedule_Click" Padding="15,5" Background="#F59E0B" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
                                         <Button Content="预赛自动分组" Click="AutoGenerateHeats_Click" Padding="15,5" Background="#22C55E" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
+                                        <Button Content="手动分组" Click="ManualHeatAssign_Click" Padding="15,5" Background="#D97706" Foreground="White" BorderThickness="0" Margin="0,0,8,0"
+                                                ToolTip="按项目选人员 → 可一键均分到 N 组，或直接在表格里修改 组/道次"/>
                                         <Button Content="追加分组" Click="SupplementHeats_Click" Padding="15,5" Background="#0EA5E9" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
                                         <Button Content="打印日程表" Click="PrintSchedule_Click" Padding="15,5" Background="#8B5CF6" Foreground="White" BorderThickness="0" Margin="0,0,8,0"
                                                 ToolTip="生成 HTML 文档可直接打印"/>
