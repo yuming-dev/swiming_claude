@@ -89,7 +89,7 @@ function render() {
     var lbRelay = (data.currentEvent||'').indexOf('接力') >= 0;
     var h1 = lbRelay ? '代表队' : '姓名';
     var h2 = lbRelay ? '姓名' : '代表队';
-    var html = '<div class="section-title">' + (data.currentGender||'') + '子 ' + (data.currentEvent||'') + ' ' + (data.currentStage||'') + '</div>';
+    var html = '<div class="section-title">' + ((data.currentAgeGroup||'')?(data.currentAgeGroup+' '):'') + (data.currentGender||'') + '子 ' + (data.currentEvent||'') + ' ' + (data.currentStage||'') + '</div>';
     html += '<table><tr><th>名次</th><th>' + h1 + '</th><th>' + h2 + '</th><th>成绩</th><th>备注</th></tr>';
     var er = data.eventRanking || [];
     for (var i = 0; i < er.length; i++) {

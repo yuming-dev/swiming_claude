@@ -997,6 +997,9 @@ namespace SwimmingScoreboard
                     lane = displayLane,
                     name = bcastName,
                     country = sw.Country,
+                    countryShort = sw.CountryShort ?? "",
+                    ageGroup = sw.AgeCategory ?? "",
+                    notes = sw.Notes ?? "",
                     bibNumber = sw.BibNumber,
                     entryTime = sw.EntryTime ?? "",
                     direction = laneState != null ? laneState.Direction : (_laneCloseSettings.StartPosition == "right" ? "←" : "→"),
@@ -1079,7 +1082,8 @@ namespace SwimmingScoreboard
                     var ls = _laneDeviceStates.FirstOrDefault(s => s.Lane == ln);
                     swimmerData.Add(new {
                         lane = ln,
-                        name = "", country = "", bibNumber = "", entryTime = "",
+                        name = "", country = "", countryShort = "", ageGroup = "", notes = "",
+                        bibNumber = "", entryTime = "",
                         direction = ls != null ? ls.Direction : "",
                         deviceStatus = new {
                             leftTouchpad = "closed", leftBlindWatch1 = "closed",
@@ -1132,6 +1136,7 @@ namespace SwimmingScoreboard
                 competitionMode = _competitionMode,
                 currentEvent = _currentEvent,
                 currentGender = _currentGender,
+                currentAgeGroup = _currentAgeGroup ?? "",
                 currentStage = _currentStage,
                 currentHeat = _currentHeat,
                 totalHeats = _totalHeats,
@@ -7593,6 +7598,11 @@ namespace SwimmingScoreboard
             if (ResultHeatCombo == null || _resultUpdating) return;
             _resultUpdating = true;
             try {
+            // 记住当前选中的组号文本（如 "第2组" 或 "全部"），在重建下拉后尽量恢复
+            string prevHeat = null;
+            var prevHeatItem = ResultHeatCombo.SelectedItem as ComboBoxItem;
+            if (prevHeatItem != null && prevHeatItem.Content != null) prevHeat = prevHeatItem.Content.ToString();
+
             // 刷新项目列表：只显示有运动员/运动队注册的项目（过滤接力队员个人条目）
             string prevEvent = ResultEventCombo.SelectedItem != null ? ResultEventCombo.SelectedItem.ToString() : "";
             string ageFilter = ResultAgeGroupCombo != null && ResultAgeGroupCombo.SelectedItem != null ? ResultAgeGroupCombo.SelectedItem.ToString() : "全部";
@@ -7634,7 +7644,16 @@ namespace SwimmingScoreboard
             foreach (int h in heats.OrderBy(x => x)) {
                 ResultHeatCombo.Items.Add(new ComboBoxItem { Content = string.Format("第{0}组", h) });
             }
-            ResultHeatCombo.SelectedIndex = 0;
+
+            // 恢复之前选中的组号；找不到则回退到"全部"
+            int restored = -1;
+            if (!string.IsNullOrEmpty(prevHeat)) {
+                for (int i = 0; i < ResultHeatCombo.Items.Count; i++) {
+                    var ci = ResultHeatCombo.Items[i] as ComboBoxItem;
+                    if (ci != null && ci.Content != null && ci.Content.ToString() == prevHeat) { restored = i; break; }
+                }
+            }
+            ResultHeatCombo.SelectedIndex = restored >= 0 ? restored : 0;
             } finally {
                 _resultUpdating = false;
             }

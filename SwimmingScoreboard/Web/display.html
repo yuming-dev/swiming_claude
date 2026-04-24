@@ -260,7 +260,7 @@ function getLaneCount() {
 
 function renderRace() {
     document.getElementById('raceView').classList.remove('hidden');
-    document.getElementById('eventName').textContent = (data.currentGender||'') + '子 ' + (data.currentEvent||'');
+    document.getElementById('eventName').textContent = ((data.currentAgeGroup||'') ? (data.currentAgeGroup+' ') : '') + (data.currentGender||'') + '子 ' + (data.currentEvent||'');
     document.getElementById('stageHeat').textContent = (data.currentStage||'') + ' 第' + (data.currentHeat||0) + '/' + (data.totalHeats||0) + '组';
 
     // 本地计时器同步（只在首次进入racing时同步一次）
@@ -469,9 +469,11 @@ function renderRace() {
         }
 
         var relay = isRelayEvent();
+        // 代表队优先用简称（小单位名大屏更清晰）
+        var teamDisplay = sw.countryShort || sw.country || '';
         var col1, col2;
         if (relay) {
-            col1 = sw.country || '';
+            col1 = teamDisplay;
             // 姓名按棒次分4行显示
             var names = (sw.name||'').split(',');
             var nameHtml = '';
@@ -481,15 +483,18 @@ function renderRace() {
             col2 = nameHtml;
         } else {
             col1 = sw.name || '';
-            col2 = sw.country || '';
+            col2 = teamDisplay;
         }
+        // 备注：优先显示操作员 DSQ/DNS/DNF 标记；否则显示注册备注（同步实时推送）
+        var effRemark = remarkText;
+        if (!effRemark && sw.notes) effRemark = sw.notes;
         row.innerHTML =
             '<div class="lane-num">' + lane + '</div>' +
             '<div class="swimmer-name">' + col1 + '</div>' +
             '<div class="swimmer-team" style="' + (relay ? 'font-size:1.8vh;overflow:visible;white-space:normal;' : '') + '">' + col2 + '</div>' +
             '<div class="result-time">' + resultText + '</div>' +
             '<div class="rank ' + rankClass + '">' + (rankText !== '' ? rankText : '') + '</div>' +
-            '<div class="remark">' + remarkText + '</div>';
+            '<div class="remark" title="' + (sw.notes||'').replace(/"/g,'&quot;') + '">' + effRemark + '</div>';
         container.appendChild(row);
     }
 }
@@ -497,7 +502,7 @@ function renderRace() {
 function renderStartList() {
     document.getElementById('listView').classList.remove('hidden');
     var lv = document.getElementById('listView');
-    var html = '<h2 style="margin-bottom:2vh;font-size:3vh;">' + (data.currentGender||'') + '子 ' + (data.currentEvent||'') + ' ' + (data.currentStage||'') + ' 第' + (data.currentHeat||'') + '组 出发表</h2>';
+    var html = '<h2 style="margin-bottom:2vh;font-size:3vh;">' + ((data.currentAgeGroup||'') ? (data.currentAgeGroup+' ') : '') + (data.currentGender||'') + '子 ' + (data.currentEvent||'') + ' ' + (data.currentStage||'') + ' 第' + (data.currentHeat||'') + '组 出发表</h2>';
     var slRelay = isRelayEvent();
     var slH1 = slRelay ? '代表队' : '姓名';
     var slH2 = slRelay ? '姓名' : '代表队';
@@ -515,7 +520,7 @@ function renderStartList() {
 function renderHeatResult() {
     // 使用和比赛视图相同的布局和字体
     document.getElementById('raceView').classList.remove('hidden');
-    document.getElementById('eventName').textContent = (data.currentGender||'') + ' ' + (data.currentEvent||'');
+    document.getElementById('eventName').textContent = ((data.currentAgeGroup||'') ? (data.currentAgeGroup+' ') : '') + (data.currentGender||'') + ' ' + (data.currentEvent||'');
     document.getElementById('stageHeat').textContent = (data.currentStage||'') + ' 第' + (data.currentHeat||0) + '组 成绩';
     document.getElementById('runningTime').textContent = '';
 
@@ -675,7 +680,7 @@ function showRankingPage(er, erRelay) {
     var erH1 = erRelay ? '代表队' : '姓名';
     var erH2 = erRelay ? '姓名' : '代表队';
 
-    var html = '<h2 style="margin-bottom:1.5vh;font-size:3vh;">' + (data.currentGender||'') + '子 ' + (data.currentEvent||'') + ' ' + (data.currentStage||'') + ' 总排名</h2>';
+    var html = '<h2 style="margin-bottom:1.5vh;font-size:3vh;">' + ((data.currentAgeGroup||'') ? (data.currentAgeGroup+' ') : '') + (data.currentGender||'') + '子 ' + (data.currentEvent||'') + ' ' + (data.currentStage||'') + ' 总排名</h2>';
     html += '<table class="list-table"><thead><tr><th>名次</th><th>号码</th><th>' + erH1 + '</th><th>' + erH2 + '</th><th>成绩</th></tr></thead><tbody>';
 
     var start = _rankingCurrentPage * _rankingRowsPerPage;
@@ -723,7 +728,7 @@ function renderRecords() {
 
 function renderAwards() {
     document.getElementById('awardView').classList.remove('hidden');
-    document.getElementById('awardTitle').textContent = (data.currentGender||'') + '子 ' + (data.currentEvent||'') + ' 颁奖典礼';
+    document.getElementById('awardTitle').textContent = ((data.currentAgeGroup||'') ? (data.currentAgeGroup+' ') : '') + (data.currentGender||'') + '子 ' + (data.currentEvent||'') + ' 颁奖典礼';
     var container = document.getElementById('awardContainer');
     container.innerHTML = '';
     var er = data.eventRanking || [];
