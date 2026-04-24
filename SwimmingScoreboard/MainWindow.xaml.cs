@@ -451,6 +451,7 @@ namespace SwimmingScoreboard
             AddLog(string.Format("远程注册运动员: {0}({1}) {2}", swimmer.Name, bibNumber, swimmer.EventName));
             AutoSaveData();
             RefreshOverviewStats();
+            RefreshSwimmerFilter();
             Broadcast();
         }
 
@@ -513,6 +514,7 @@ namespace SwimmingScoreboard
             AddLog(string.Format("批量注册: {0}({1}) {2}个项目", name, bibNumber, added));
             AutoSaveData();
             RefreshOverviewStats();
+            RefreshSwimmerFilter();
             Broadcast();
             SendRegisterResult(socket, true, "", bibNumber);
         }
@@ -4273,6 +4275,7 @@ namespace SwimmingScoreboard
             });
             AutoSaveData();
             RefreshOverviewStats();
+            RefreshSwimmerFilter();
         }
 
         private void DeleteSwimmer_Click(object sender, RoutedEventArgs e) {
@@ -4283,6 +4286,7 @@ namespace SwimmingScoreboard
                     _swimmers.Remove(selected);
                     AutoSaveData();
                     RefreshOverviewStats();
+                    RefreshSwimmerFilter();
                     Broadcast();
                     AddLog(string.Format("已删除: {0}({1}) {2}", selected.Name, selected.BibNumber, selected.EventName));
                 }
@@ -4426,7 +4430,7 @@ namespace SwimmingScoreboard
                     }
                 }
 
-                SwimmerGrid.Items.Refresh();
+                RefreshSwimmerFilter();
                 AutoSaveData();
                 Broadcast();
                 AddLog(string.Format("已修改运动员: {0}({1}) {2}", selected.Name, selected.BibNumber, selected.EventName));
@@ -4628,6 +4632,7 @@ namespace SwimmingScoreboard
                     AddLog(string.Format("CSV导入完成: {0}名运动员, {1}名重复跳过", imported, skipped));
                     AutoSaveData();
                     RefreshOverviewStats();
+                    RefreshSwimmerFilter();
                     Broadcast();
                 } catch (Exception ex) {
                     AddLog("CSV导入失败: " + ex.Message);
@@ -5233,6 +5238,8 @@ namespace SwimmingScoreboard
             RefreshRegEventList();
 
             AutoSaveData();
+            RefreshOverviewStats();
+            RefreshSwimmerFilter();
             Broadcast();
         }
 
@@ -6109,17 +6116,42 @@ namespace SwimmingScoreboard
         }
         private void FilterGender_Changed(object sender, SelectionChangedEventArgs e) { if (_initialized) RefreshSwimmerFilter(); }
         private void FilterAgeGroup_Changed(object sender, SelectionChangedEventArgs e) { if (_initialized) RefreshSwimmerFilter(); }
+        private void FilterText_Changed(object sender, TextChangedEventArgs e) { if (_initialized) RefreshSwimmerFilter(); }
+
+        private void FilterReset_Click(object sender, RoutedEventArgs e) {
+            if (FilterEventCombo != null && FilterEventCombo.Items.Count > 0) FilterEventCombo.SelectedIndex = 0;
+            if (FilterAgeGroupCombo != null && FilterAgeGroupCombo.Items.Count > 0) FilterAgeGroupCombo.SelectedIndex = 0;
+            if (FilterGenderCombo != null && FilterGenderCombo.Items.Count > 0) FilterGenderCombo.SelectedIndex = 0;
+            if (FilterNameBox != null) FilterNameBox.Text = "";
+            if (FilterBibBox != null) FilterBibBox.Text = "";
+            RefreshSwimmerFilter();
+        }
 
         private void RefreshSwimmerFilter() {
             if (FilterEventCombo == null || FilterGenderCombo == null || SwimmerGrid == null) return;
             string eventFilter = FilterEventCombo.SelectedItem != null ? ((ComboBoxItem)FilterEventCombo.SelectedItem).Content.ToString() : "全部";
             string genderFilter = FilterGenderCombo.SelectedItem != null ? ((ComboBoxItem)FilterGenderCombo.SelectedItem).Content.ToString() : "全部";
             string ageFilter = FilterAgeGroupCombo != null && FilterAgeGroupCombo.SelectedItem != null ? FilterAgeGroupCombo.SelectedItem.ToString() : "全部";
+            string nameFilter = FilterNameBox != null ? (FilterNameBox.Text ?? "").Trim() : "";
+            string bibFilter = FilterBibBox != null ? (FilterBibBox.Text ?? "").Trim() : "";
+
+            // 全部筛选条件都为"默认值"时，直接使用原 ObservableCollection，
+            // 保证新注册的运动员能实时出现在列表中而无需再按"重置"。
+            bool allDefault = eventFilter == "全部" && genderFilter == "全部"
+                           && (ageFilter == "全部" || string.IsNullOrEmpty(ageFilter))
+                           && string.IsNullOrEmpty(nameFilter) && string.IsNullOrEmpty(bibFilter);
+            if (allDefault) {
+                if (!object.ReferenceEquals(SwimmerGrid.ItemsSource, _swimmers))
+                    SwimmerGrid.ItemsSource = _swimmers;
+                return;
+            }
 
             var filtered = _swimmers.Where(s => {
                 if (eventFilter != "全部" && s.EventName != eventFilter) return false;
                 if (genderFilter != "全部" && s.Gender != genderFilter) return false;
                 if (!MatchesAgeGroup(s, ageFilter)) return false;
+                if (!string.IsNullOrEmpty(nameFilter) && (s.Name == null || s.Name.IndexOf(nameFilter, StringComparison.OrdinalIgnoreCase) < 0)) return false;
+                if (!string.IsNullOrEmpty(bibFilter) && (s.BibNumber == null || s.BibNumber.IndexOf(bibFilter, StringComparison.OrdinalIgnoreCase) < 0)) return false;
                 return true;
             }).ToList();
 
