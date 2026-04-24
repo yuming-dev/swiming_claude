@@ -4269,13 +4269,20 @@ namespace SwimmingScoreboard
         }
 
         private void AddSwimmer_Click(object sender, RoutedEventArgs e) {
-            _swimmers.Add(new Swimmer {
+            // 弹出与"修改选中"一致的对话框，要求一次填齐运动员信息
+            var sw = new Swimmer {
                 BibNumber = GenerateNextBibNumber(),
-                Gender = "男"
-            });
-            AutoSaveData();
-            RefreshOverviewStats();
-            RefreshSwimmerFilter();
+                Gender = "男",
+                CurrentStage = "决赛"
+            };
+            if (OpenSwimmerEditor(sw, isNew: true)) {
+                _swimmers.Add(sw);
+                AutoSaveData();
+                RefreshOverviewStats();
+                RefreshSwimmerFilter();
+                Broadcast();
+                AddLog(string.Format("新增运动员: {0}({1}) {2}", sw.Name, sw.BibNumber, sw.EventName));
+            }
         }
 
         private void DeleteSwimmer_Click(object sender, RoutedEventArgs e) {
@@ -4338,22 +4345,33 @@ namespace SwimmingScoreboard
         private void EditSwimmer_Click(object sender, RoutedEventArgs e) {
             var selected = SwimmerGrid.SelectedItem as Swimmer;
             if (selected == null) { MessageBox.Show("请先选中要修改的运动员"); return; }
+            if (OpenSwimmerEditor(selected, isNew: false)) {
+                RefreshSwimmerFilter();
+                AutoSaveData();
+                Broadcast();
+                AddLog(string.Format("已修改运动员: {0}({1}) {2}", selected.Name, selected.BibNumber, selected.EventName));
+            }
+        }
 
+        // 新增 / 修改运动员共用对话框。参数 target 是将被写入的 Swimmer 实例。
+        // 返回 true 表示用户确认了修改。
+        private bool OpenSwimmerEditor(Swimmer target, bool isNew) {
             var dlg = new Window {
-                Title = string.Format("修改运动员信息 — {0}({1})", selected.Name, selected.BibNumber),
-                Width = 500, Height = 480,
+                Title = isNew ? "新增运动员" : string.Format("修改运动员信息 — {0}({1})", target.Name, target.BibNumber),
+                Width = 520, Height = 540,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner,
                 Owner = this, ResizeMode = ResizeMode.NoResize
             };
 
             var sp = new StackPanel { Margin = new Thickness(20) };
 
-            // 可编辑的参赛号（不再是静态文本）
+            // 参赛号
             var bibRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 10) };
             bibRow.Children.Add(new TextBlock { Text = "参赛号:", Width = 60, VerticalAlignment = VerticalAlignment.Center, FontWeight = FontWeights.Bold });
-            var tbBib = new TextBox { Text = selected.BibNumber ?? "", Width = 150, Padding = new Thickness(4), VerticalAlignment = VerticalAlignment.Center };
+            var tbBib = new TextBox { Text = target.BibNumber ?? "", Width = 150, Padding = new Thickness(4), VerticalAlignment = VerticalAlignment.Center };
             bibRow.Children.Add(tbBib);
-            bibRow.Children.Add(new TextBlock { Text = "（可手动修改；更改后将同步到该运动员的所有项目记录）",
+            bibRow.Children.Add(new TextBlock {
+                Text = isNew ? "（可手动修改；默认已按代表队号码段取号）" : "（可手动修改；更改后将同步到该运动员的所有项目记录）",
                 Margin = new Thickness(10, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center,
                 Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")), FontSize = 12 });
             sp.Children.Add(bibRow);
@@ -4363,37 +4381,63 @@ namespace SwimmingScoreboard
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(80) });
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-            string[] labels = { "姓名:", "性别:", "出生日期:", "年龄:", "身份证号:", "代表队:", "联系电话:", "项目:", "报名成绩:", "协会注册号:", "备注:" };
-            for (int i = 0; i < 6; i++) grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(32) });
+            for (int i = 0; i < 7; i++) grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(32) });
 
             // Row 0: 姓名 + 性别
-            var tbName = AddEditField(grid, 0, 0, "姓名:", selected.Name);
+            var tbName = AddEditField(grid, 0, 0, "姓名:", target.Name);
             var cbGender = new ComboBox { VerticalAlignment = VerticalAlignment.Center };
             cbGender.Items.Add("男"); cbGender.Items.Add("女"); cbGender.Items.Add("混合");
-            cbGender.SelectedItem = selected.Gender ?? "男";
+            cbGender.SelectedItem = target.Gender ?? "男";
             AddEditLabel(grid, 0, 2, "性别:");
             Grid.SetRow(cbGender, 0); Grid.SetColumn(cbGender, 3);
             grid.Children.Add(cbGender);
 
             // Row 1: 出生日期 + 年龄
-            var tbBirth = AddEditField(grid, 1, 0, "出生日期:", selected.BirthDate);
-            var tbAge = AddEditField(grid, 1, 2, "年龄:", selected.Age.ToString());
+            var tbBirth = AddEditField(grid, 1, 0, "出生日期:", target.BirthDate);
+            var tbAge = AddEditField(grid, 1, 2, "年龄:", isNew && target.Age == 0 ? "" : target.Age.ToString());
 
             // Row 2: 身份证号 + 代表队
-            var tbID = AddEditField(grid, 2, 0, "身份证号:", selected.IDNumber);
-            var tbCountry = AddEditField(grid, 2, 2, "代表队:", selected.Country);
+            var tbID = AddEditField(grid, 2, 0, "身份证号:", target.IDNumber);
+            var tbCountry = AddEditField(grid, 2, 2, "代表队:", target.Country);
 
             // Row 3: 电话 + 协会注册号
-            var tbPhone = AddEditField(grid, 3, 0, "联系电话:", selected.Phone);
-            var tbCSA = AddEditField(grid, 3, 2, "协会注册号:", selected.CSANumber);
+            var tbPhone = AddEditField(grid, 3, 0, "联系电话:", target.Phone);
+            var tbCSA = AddEditField(grid, 3, 2, "协会注册号:", target.CSANumber);
 
-            // Row 4: 项目 + 报名成绩
-            var tbEvent = AddEditField(grid, 4, 0, "项目:", selected.EventName);
-            var tbEntry = AddEditField(grid, 4, 2, "报名成绩:", selected.EntryTime);
+            // Row 4: 项目（下拉） + 报名成绩
+            AddEditLabel(grid, 4, 0, "项目:");
+            var cbEvent = new ComboBox { VerticalAlignment = VerticalAlignment.Center, IsEditable = true };
+            foreach (var ev in _events) cbEvent.Items.Add(ev);
+            if (!string.IsNullOrEmpty(target.EventName)) {
+                if (!cbEvent.Items.Contains(target.EventName)) cbEvent.Items.Add(target.EventName);
+                cbEvent.SelectedItem = target.EventName;
+            } else if (cbEvent.Items.Count > 0) {
+                cbEvent.SelectedIndex = 0;
+            }
+            Grid.SetRow(cbEvent, 4); Grid.SetColumn(cbEvent, 1);
+            grid.Children.Add(cbEvent);
+            var tbEntry = AddEditField(grid, 4, 2, "报名成绩:", target.EntryTime);
 
-            // Row 5: 备注
-            var tbNotes = AddEditField(grid, 5, 0, "备注:", selected.Notes);
+            // Row 5: 赛次（下拉，手动）+ 组别（下拉，选自年龄组）
+            AddEditLabel(grid, 5, 0, "赛次:");
+            var cbStage = new ComboBox { VerticalAlignment = VerticalAlignment.Center };
+            cbStage.Items.Add("决赛"); cbStage.Items.Add("预赛"); cbStage.Items.Add("半决赛");
+            cbStage.SelectedItem = string.IsNullOrEmpty(target.CurrentStage) ? "决赛" : target.CurrentStage;
+            Grid.SetRow(cbStage, 5); Grid.SetColumn(cbStage, 1);
+            grid.Children.Add(cbStage);
+            AddEditLabel(grid, 5, 2, "组别:");
+            var cbGroup = new ComboBox { VerticalAlignment = VerticalAlignment.Center, IsEditable = true };
+            cbGroup.Items.Add("");   // 空 = 不分组
+            foreach (var g in _ageGroups) cbGroup.Items.Add(g.Name);
+            // 若运动员当前 AgeCategory 不在列表里（手动输入），加入
+            if (!string.IsNullOrEmpty(target.AgeCategory) && !cbGroup.Items.Contains(target.AgeCategory))
+                cbGroup.Items.Add(target.AgeCategory);
+            cbGroup.SelectedItem = target.AgeCategory ?? "";
+            Grid.SetRow(cbGroup, 5); Grid.SetColumn(cbGroup, 3);
+            grid.Children.Add(cbGroup);
+
+            // Row 6: 备注
+            var tbNotes = AddEditField(grid, 6, 0, "备注:", target.Notes);
 
             sp.Children.Add(grid);
 
@@ -4401,82 +4445,87 @@ namespace SwimmingScoreboard
             var btnPanel = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 16, 0, 0) };
             var btnCancel = new Button { Content = "取消", Padding = new Thickness(20, 6, 20, 6), Margin = new Thickness(0, 0, 8, 0) };
             btnCancel.Click += delegate { dlg.DialogResult = false; };
-            var btnOk = new Button { Content = "确认修改", Padding = new Thickness(20, 6, 20, 6), Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#22C55E")), Foreground = Brushes.White, FontWeight = FontWeights.Bold, BorderThickness = new Thickness(0) };
+            var btnOk = new Button {
+                Content = isNew ? "确认添加" : "确认修改",
+                Padding = new Thickness(20, 6, 20, 6),
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#22C55E")),
+                Foreground = Brushes.White, FontWeight = FontWeights.Bold, BorderThickness = new Thickness(0)
+            };
             btnOk.Click += delegate { dlg.DialogResult = true; };
             btnPanel.Children.Add(btnCancel);
             btnPanel.Children.Add(btnOk);
             sp.Children.Add(btnPanel);
 
             dlg.Content = sp;
+            if (dlg.ShowDialog() != true) return false;
 
-            if (dlg.ShowDialog() == true) {
-                // 参赛号变更校验：非空、与其它运动员不冲突（同一人的多项目记录除外）
-                string oldBib = selected.BibNumber ?? "";
-                string newBib = (tbBib.Text ?? "").Trim();
-                if (string.IsNullOrEmpty(newBib)) {
-                    MessageBox.Show("参赛号不能为空"); return;
+            // 参赛号校验
+            string oldBib = target.BibNumber ?? "";
+            string newBib = (tbBib.Text ?? "").Trim();
+            if (string.IsNullOrEmpty(newBib)) { MessageBox.Show("参赛号不能为空"); return false; }
+
+            if (isNew) {
+                // 新增时直接查重
+                if (_swimmers.Any(s => s.BibNumber == newBib)) {
+                    MessageBox.Show(string.Format("参赛号 {0} 已存在，请换一个号码。", newBib));
+                    return false;
                 }
-                if (newBib != oldBib) {
-                    bool conflict = _swimmers.Any(s => s != selected && s.BibNumber == newBib
-                        && !(!string.IsNullOrEmpty(oldBib) && s.BibNumber == oldBib));
-                    // 简单冲突判断：若新号码已被不同运动员（不同姓名/身份证）使用，拒绝
-                    var others = _swimmers.Where(s => s != selected && s.BibNumber == newBib).ToList();
-                    if (others.Any(s => s.Name != selected.Name || (!string.IsNullOrEmpty(s.IDNumber) && !string.IsNullOrEmpty(selected.IDNumber) && s.IDNumber != selected.IDNumber))) {
-                        MessageBox.Show(string.Format("参赛号 {0} 已被其他运动员使用，请换一个号码。", newBib));
-                        return;
-                    }
+            } else if (newBib != oldBib) {
+                var others = _swimmers.Where(s => s != target && s.BibNumber == newBib).ToList();
+                if (others.Any(s => s.Name != target.Name ||
+                    (!string.IsNullOrEmpty(s.IDNumber) && !string.IsNullOrEmpty(target.IDNumber) && s.IDNumber != target.IDNumber))) {
+                    MessageBox.Show(string.Format("参赛号 {0} 已被其他运动员使用，请换一个号码。", newBib));
+                    return false;
                 }
-
-                selected.Name = tbName.Text.Trim();
-                selected.Gender = cbGender.SelectedItem.ToString();
-                selected.BirthDate = tbBirth.Text.Trim();
-                int age; if (int.TryParse(tbAge.Text.Trim(), out age)) selected.Age = age;
-                selected.IDNumber = tbID.Text.Trim();
-                selected.Country = tbCountry.Text.Trim();
-                selected.Phone = tbPhone.Text.Trim();
-                selected.CSANumber = tbCSA.Text.Trim();
-                selected.EventName = tbEvent.Text.Trim();
-                selected.EntryTime = tbEntry.Text.Trim();
-                selected.EntryTimeSeconds = TimeFormatter.Parse(selected.EntryTime);
-                selected.Notes = tbNotes.Text.Trim();
-
-                // 号码变更：级联更新同一人的所有项目记录 + 接力棒次引用
-                if (newBib != oldBib) {
-                    foreach (var s in _swimmers) {
-                        if (s.BibNumber == oldBib) s.BibNumber = newBib;
-                    }
-                    if (_relayTeams != null) {
-                        foreach (var team in _relayTeams) {
-                            foreach (var leg in team.Legs) {
-                                if (!string.IsNullOrEmpty(leg.SwimmerBibNumber) && leg.SwimmerBibNumber == oldBib)
-                                    leg.SwimmerBibNumber = newBib;
-                            }
-                        }
-                    }
-                    AddLog(string.Format("参赛号变更: {0} → {1}（{2}）", oldBib, newBib, selected.Name));
-                } else {
-                    selected.BibNumber = newBib;
-                }
-
-                // 同步修改同一参赛号的其他项目记录的个人信息
-                foreach (var s in _swimmers) {
-                    if (s != selected && s.BibNumber == selected.BibNumber) {
-                        s.Name = selected.Name;
-                        s.Gender = selected.Gender;
-                        s.BirthDate = selected.BirthDate;
-                        s.Age = selected.Age;
-                        s.IDNumber = selected.IDNumber;
-                        s.Country = selected.Country;
-                        s.Phone = selected.Phone;
-                        s.CSANumber = selected.CSANumber;
-                    }
-                }
-
-                RefreshSwimmerFilter();
-                AutoSaveData();
-                Broadcast();
-                AddLog(string.Format("已修改运动员: {0}({1}) {2}", selected.Name, selected.BibNumber, selected.EventName));
             }
+
+            target.Name = (tbName.Text ?? "").Trim();
+            target.Gender = cbGender.SelectedItem != null ? cbGender.SelectedItem.ToString() : "男";
+            target.BirthDate = (tbBirth.Text ?? "").Trim();
+            int ageVal; if (int.TryParse((tbAge.Text ?? "").Trim(), out ageVal)) target.Age = ageVal;
+            target.IDNumber = (tbID.Text ?? "").Trim();
+            target.Country = (tbCountry.Text ?? "").Trim();
+            target.Phone = (tbPhone.Text ?? "").Trim();
+            target.CSANumber = (tbCSA.Text ?? "").Trim();
+            target.EventName = cbEvent.SelectedItem != null ? cbEvent.SelectedItem.ToString().Trim() : ((cbEvent.Text ?? "").Trim());
+            target.EntryTime = (tbEntry.Text ?? "").Trim();
+            target.EntryTimeSeconds = TimeFormatter.Parse(target.EntryTime);
+            target.CurrentStage = cbStage.SelectedItem != null ? cbStage.SelectedItem.ToString() : "决赛";
+            // "组别" 手动覆盖 AgeCategory；空串表示不指定
+            string manualGroup = cbGroup.SelectedItem != null ? cbGroup.SelectedItem.ToString() : ((cbGroup.Text ?? "").Trim());
+            if (!string.IsNullOrEmpty(manualGroup)) target.AgeCategory = manualGroup;
+            target.Notes = (tbNotes.Text ?? "").Trim();
+
+            // 号码变更：级联更新同一人的其它项目记录 + 接力棒次
+            if (!isNew && newBib != oldBib) {
+                foreach (var s in _swimmers) { if (s.BibNumber == oldBib) s.BibNumber = newBib; }
+                if (_relayTeams != null) {
+                    foreach (var team in _relayTeams)
+                        foreach (var leg in team.Legs)
+                            if (!string.IsNullOrEmpty(leg.SwimmerBibNumber) && leg.SwimmerBibNumber == oldBib)
+                                leg.SwimmerBibNumber = newBib;
+                }
+                AddLog(string.Format("参赛号变更: {0} → {1}（{2}）", oldBib, newBib, target.Name));
+            } else {
+                target.BibNumber = newBib;
+            }
+
+            // 同步同一参赛号其它项目记录（仅修改流程；新增时此刻 target 还未在 _swimmers 里，不做同步）
+            if (!isNew) {
+                foreach (var s in _swimmers) {
+                    if (s != target && s.BibNumber == target.BibNumber) {
+                        s.Name = target.Name;
+                        s.Gender = target.Gender;
+                        s.BirthDate = target.BirthDate;
+                        s.Age = target.Age;
+                        s.IDNumber = target.IDNumber;
+                        s.Country = target.Country;
+                        s.Phone = target.Phone;
+                        s.CSANumber = target.CSANumber;
+                    }
+                }
+            }
+            return true;
         }
 
         private TextBox AddEditField(Grid grid, int row, int col, string label, string value) {
@@ -6623,17 +6672,55 @@ namespace SwimmingScoreboard
             if (validScheduleCount > 0) {
                 if (MessageBox.Show(string.Format("已有{0}条赛程数据，是否清除并重新生成？", validScheduleCount), "确认", MessageBoxButton.YesNo) != MessageBoxResult.Yes)
                     return;
-            } else {
-                if (MessageBox.Show("确定根据已注册运动员自动生成比赛日程？", "确认", MessageBoxButton.YesNo) != MessageBoxResult.Yes)
-                    return;
             }
+
+            // 手动选择赛次方案（默认 "只决赛"），生效于本次生成的全部项目
+            List<string> stagePlan;
+            if (!PromptStagePlan(out stagePlan)) return;   // 用户取消
+
             _schedule.Clear();
-            AutoBuildSchedule();
+            AutoBuildSchedule(stagePlan);
             BuildScheduleTree();
             AutoSaveData();
             Broadcast();
-            MessageBox.Show(string.Format("日程生成完成！\n共{0}条赛程项。\n\n下一步请点击\"预赛自动分组\"对预赛进行蛇形分组。", _schedule.Count),
+            MessageBox.Show(string.Format("日程生成完成！\n共{0}条赛程项（赛次：{1}）。\n\n可在\"修改赛程\"里进一步调整，或用\"预赛自动分组\"/\"手动分组\"分配道次。",
+                _schedule.Count, string.Join(" → ", stagePlan.ToArray())),
                 "日程安排完成", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+
+        // 弹窗让操作员手动选本次日程要包含哪些赛次（决赛 / 预赛+决赛 / 预赛+半决赛+决赛）
+        private bool PromptStagePlan(out List<string> plan) {
+            plan = new List<string> { "决赛" };
+            var dlg = new Window {
+                Title = "选择赛次方案", Width = 420, Height = 260,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner, Owner = this, ResizeMode = ResizeMode.NoResize
+            };
+            var sp = new StackPanel { Margin = new Thickness(18) };
+            sp.Children.Add(new TextBlock {
+                Text = "本次日程中所有项目使用的赛次方案（手动选择，不再按人数自动判定）：",
+                TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 12), FontSize = 13
+            });
+            var rb1 = new RadioButton { Content = "只决赛（推荐，适合中小型赛事）", IsChecked = true, Margin = new Thickness(0, 6, 0, 6), FontSize = 13 };
+            var rb2 = new RadioButton { Content = "预赛 → 决赛", Margin = new Thickness(0, 6, 0, 6), FontSize = 13 };
+            var rb3 = new RadioButton { Content = "预赛 → 半决赛 → 决赛", Margin = new Thickness(0, 6, 0, 6), FontSize = 13 };
+            sp.Children.Add(rb1); sp.Children.Add(rb2); sp.Children.Add(rb3);
+
+            var btnRow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 16, 0, 0) };
+            var btnOk = new Button { Content = "确定", Padding = new Thickness(20, 6, 20, 6), Margin = new Thickness(0, 0, 8, 0),
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#22C55E")),
+                Foreground = Brushes.White, FontWeight = FontWeights.Bold, BorderThickness = new Thickness(0) };
+            btnOk.Click += delegate { dlg.DialogResult = true; };
+            var btnCancel = new Button { Content = "取消", Padding = new Thickness(20, 6, 20, 6) };
+            btnCancel.Click += delegate { dlg.DialogResult = false; };
+            btnRow.Children.Add(btnOk); btnRow.Children.Add(btnCancel);
+            sp.Children.Add(btnRow);
+            dlg.Content = sp;
+            if (dlg.ShowDialog() != true) { plan = null; return false; }
+
+            if (rb3.IsChecked == true) plan = new List<string> { "预赛", "半决赛", "决赛" };
+            else if (rb2.IsChecked == true) plan = new List<string> { "预赛", "决赛" };
+            else plan = new List<string> { "决赛" };
+            return true;
         }
 
         // ═══════════════════════════════════════════════════════════════
@@ -7170,7 +7257,9 @@ namespace SwimmingScoreboard
         /// 根据报名人数确定赛次和预估组数，按游泳比赛惯例安排时间
         /// 上午预赛，下午半决赛，晚上决赛
         /// </summary>
-        private void AutoBuildSchedule() {
+        private void AutoBuildSchedule(List<string> stagePlan = null) {
+            // stagePlan 为 null 时回退到"只决赛"——手动默认
+            if (stagePlan == null || stagePlan.Count == 0) stagePlan = new List<string> { "决赛" };
             string startDateStr = GetDatePickerText(StartDatePicker);
             string endDateStr = GetDatePickerText(EndDatePicker);
             DateTime startDate, endDate;
@@ -7195,7 +7284,11 @@ namespace SwimmingScoreboard
                 string eventName = group.Key.EventName;
                 bool isRelay = eventName.Contains("接力");
                 int count = group.Count();
-                var stages = HeatScheduler.GetStages(count, eventName);
+                // 不再按人数自动判定赛次，完全按用户选择的方案生成
+                var stages = new List<string>(stagePlan);
+                // 特例：接力项目没有半决赛，自动剔除
+                if (isRelay) stages.RemoveAll(s => s == "半决赛");
+                if (stages.Count == 0) stages.Add("决赛");
                 string firstStage = stages[0];
 
                 foreach (var sw in group) sw.CurrentStage = firstStage;

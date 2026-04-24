@@ -286,7 +286,7 @@
                                     <ComboBox x:Name="FilterEventCombo" Width="180" Margin="4,0" SelectionChanged="FilterEvent_Changed">
                                         <ComboBoxItem Content="全部" IsSelected="True"/>
                                     </ComboBox>
-                                    <TextBlock Text=" 年龄组:" VerticalAlignment="Center"/>
+                                    <TextBlock Text=" 组别:" VerticalAlignment="Center"/>
                                     <ComboBox x:Name="FilterAgeGroupCombo" Width="90" Margin="4,0" SelectionChanged="FilterAgeGroup_Changed"/>
                                     <TextBlock Text=" 性别:" VerticalAlignment="Center"/>
                                     <ComboBox x:Name="FilterGenderCombo" Width="70" Margin="4,0" SelectionChanged="FilterGender_Changed">
@@ -314,7 +314,7 @@
                                         <DataGridTextColumn Header="性别" Binding="{Binding Gender}" Width="40"/>
                                         <DataGridTextColumn Header="出生日期" Binding="{Binding BirthDate}" Width="85"/>
                                         <DataGridTextColumn Header="年龄" Binding="{Binding Age}" Width="35"/>
-                                        <DataGridTextColumn Header="年龄组" Binding="{Binding AgeCategory}" Width="50" IsReadOnly="True"/>
+                                        <DataGridTextColumn Header="组别" Binding="{Binding AgeCategory}" Width="50" IsReadOnly="True"/>
                                         <DataGridTextColumn Header="代表队" Binding="{Binding Country}" Width="80"/>
                                         <DataGridTextColumn Header="身份证号" Binding="{Binding IDNumber}" Width="130"/>
                                         <DataGridTextColumn Header="电话" Binding="{Binding Phone}" Width="100"/>
@@ -384,7 +384,7 @@
                             <DockPanel Margin="10">
                                 <StackPanel DockPanel.Dock="Top" Margin="0,0,0,8">
                                     <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
-                                        <TextBlock Text="年龄组:" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                        <TextBlock Text="组别:" VerticalAlignment="Center" Margin="0,0,4,0"/>
                                         <ComboBox x:Name="EditAgeGroupCombo" Width="90" SelectionChanged="EditFilter_Changed"
                                                   ToolTip="选择“全部”表示不按年龄组过滤"/>
                                         <TextBlock Text=" 性别:" VerticalAlignment="Center" Margin="8,0,4,0"/>
@@ -427,7 +427,7 @@
                                         <DataGridTextColumn Header="性别" Binding="{Binding Gender}" Width="40"/>
                                         <DataGridTextColumn Header="代表队" Binding="{Binding Country}" Width="80"/>
                                         <DataGridTextColumn x:Name="EditSeedTimeColumn" Header="报名成绩" Binding="{Binding SeedTime}" Width="80"/>
-                                        <DataGridTextColumn Header="年龄组" Binding="{Binding AgeCategory}" Width="60"/>
+                                        <DataGridTextColumn Header="组别" Binding="{Binding AgeCategory}" Width="60"/>
                                         <DataGridTextColumn Header="状态" Binding="{Binding Status}" Width="50"/>
                                     </DataGrid.Columns>
                                 </DataGrid>
@@ -549,7 +549,7 @@
                                     <DataGrid x:Name="RecordGrid" AutoGenerateColumns="False" CanUserAddRows="False"
                                               IsReadOnly="False" AlternatingRowBackground="#F8FAFC">
                                         <DataGrid.Columns>
-                                            <DataGridTextColumn Header="年龄组" Binding="{Binding AgeGroup}" Width="70"/>
+                                            <DataGridTextColumn Header="组别" Binding="{Binding AgeGroup}" Width="70"/>
                                             <DataGridTextColumn Header="性别" Binding="{Binding Gender}" Width="40"/>
                                             <DataGridTextColumn Header="项目" Binding="{Binding EventName}" Width="120"/>
                                             <DataGridTextColumn Header="类型" Binding="{Binding RecordType}" Width="80"/>
@@ -1121,7 +1121,7 @@
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
                     <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8">
-                        <TextBlock Text="年龄组:" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                        <TextBlock Text="组别:" VerticalAlignment="Center" Margin="0,0,4,0"/>
                         <ComboBox x:Name="ResultAgeGroupCombo" Width="90" Margin="0,0,8,0" SelectionChanged="ResultAgeGroup_Changed"
                                   ToolTip="选择“全部”表示不按年龄组过滤"/>
                         <TextBlock Text="性别:" VerticalAlignment="Center" Margin="0,0,4,0"/>
