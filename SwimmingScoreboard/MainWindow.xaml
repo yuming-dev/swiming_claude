@@ -305,7 +305,9 @@
                                             ToolTip="清空所有筛选条件"/>
                                 </StackPanel>
                                 <DataGrid x:Name="SwimmerGrid" AutoGenerateColumns="False" CanUserAddRows="False"
-                                          SelectionMode="Single" IsReadOnly="True" AlternatingRowBackground="#F8FAFC">
+                                          SelectionMode="Extended" SelectionUnit="FullRow"
+                                          IsReadOnly="True" AlternatingRowBackground="#F8FAFC"
+                                          PreviewKeyDown="SwimmerGrid_PreviewKeyDown">
                                     <DataGrid.Columns>
                                         <DataGridTextColumn Header="号码" Binding="{Binding BibNumber}" Width="60" IsReadOnly="True"/>
                                         <DataGridTextColumn Header="姓名" Binding="{Binding Name}" Width="80"/>

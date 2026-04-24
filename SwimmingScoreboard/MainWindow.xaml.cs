@@ -4279,17 +4279,59 @@ namespace SwimmingScoreboard
         }
 
         private void DeleteSwimmer_Click(object sender, RoutedEventArgs e) {
-            var selected = SwimmerGrid.SelectedItem as Swimmer;
-            if (selected != null) {
-                if (MessageBox.Show(string.Format("确定删除运动员 {0}({1}) 的 {2} 报名记录？", selected.Name, selected.BibNumber, selected.EventName),
-                    "确认删除", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes) {
-                    _swimmers.Remove(selected);
-                    AutoSaveData();
-                    RefreshOverviewStats();
-                    RefreshSwimmerFilter();
-                    Broadcast();
-                    AddLog(string.Format("已删除: {0}({1}) {2}", selected.Name, selected.BibNumber, selected.EventName));
+            // 先从 DataGrid 拿多选；如果为空再退回 SelectedItem（兼容单行场景）
+            var toDelete = new List<Swimmer>();
+            if (SwimmerGrid.SelectedItems != null) {
+                foreach (var item in SwimmerGrid.SelectedItems) {
+                    var sw = item as Swimmer;
+                    if (sw != null && !toDelete.Contains(sw)) toDelete.Add(sw);
                 }
+            }
+            if (toDelete.Count == 0) {
+                var single = SwimmerGrid.SelectedItem as Swimmer;
+                if (single != null) toDelete.Add(single);
+            }
+            if (toDelete.Count == 0) {
+                MessageBox.Show("请先在列表里选中要删除的行（可按住 Ctrl/Shift 多选）。", "提示",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            string confirmMsg;
+            if (toDelete.Count == 1) {
+                var s = toDelete[0];
+                confirmMsg = string.Format("确定删除运动员 {0}({1}) 的 {2} 报名记录？", s.Name, s.BibNumber, s.EventName);
+            } else {
+                var preview = string.Join("\n", toDelete.Take(8).Select(s => string.Format("· {0}({1}) {2}", s.Name, s.BibNumber, s.EventName)));
+                if (toDelete.Count > 8) preview += string.Format("\n... 及其它 {0} 条", toDelete.Count - 8);
+                confirmMsg = string.Format("确定删除以下 {0} 条报名记录？\n\n{1}", toDelete.Count, preview);
+            }
+            if (MessageBox.Show(confirmMsg, "确认删除", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+
+            int removed = 0, notFound = 0;
+            foreach (var sw in toDelete) {
+                if (_swimmers.Remove(sw)) { removed++; continue; }
+                // 兜底：按 (BibNumber + Name + EventName) 查找同一条记录再删（避免引用不对等的极端情况）
+                var alt = _swimmers.FirstOrDefault(s => s.BibNumber == sw.BibNumber && s.Name == sw.Name && s.EventName == sw.EventName);
+                if (alt != null && _swimmers.Remove(alt)) { removed++; AddLog(string.Format("按号码兜底删除: {0}({1}) {2}", alt.Name, alt.BibNumber, alt.EventName)); }
+                else { notFound++; }
+            }
+
+            AutoSaveData();
+            RefreshOverviewStats();
+            RefreshSwimmerFilter();
+            Broadcast();
+            AddLog(string.Format("已删除运动员 {0} 条{1}", removed, notFound > 0 ? string.Format("（{0} 条未在列表中找到）", notFound) : ""));
+            if (notFound > 0) {
+                MessageBox.Show(string.Format("已删除 {0} 条。另有 {1} 条未在列表中找到，请检查是否被其他筛选/编辑中的操作修改。",
+                    removed, notFound), "删除结果", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+        }
+
+        private void SwimmerGrid_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e) {
+            if (e.Key == System.Windows.Input.Key.Delete) {
+                e.Handled = true;
+                DeleteSwimmer_Click(sender, null);
             }
         }
 
