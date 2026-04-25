@@ -49,7 +49,7 @@ class ParamDebugBotForm : Form
     // 连接控件
     ComboBox cmbConnType, cmbPort;
     TextBox txtUdpHost, txtUdpSendPort, txtUdpRecvPort, txtTcpPort;
-    Button btnConnect, btnDisconnect;
+    Button btnConnect, btnDisconnect, btnRefreshPorts;
     Label lblStatus;
     ListBox lstLog;
 
@@ -112,9 +112,9 @@ class ParamDebugBotForm : Form
         grpConn.Controls.Add(MakeLabel("串口:", 185, 28));
         cmbPort = new ComboBox { Location = new Point(230, 25), Width = 90, DropDownStyle = ComboBoxStyle.DropDownList };
         grpConn.Controls.Add(cmbPort);
-        var btnRefresh = MakeBtn("刷新", 325, 24, 50, 26, Color.FromArgb(71, 85, 105));
-        btnRefresh.Click += delegate { PopulateComPorts(); };
-        grpConn.Controls.Add(btnRefresh);
+        btnRefreshPorts = MakeBtn("刷新", 325, 24, 50, 26, Color.FromArgb(71, 85, 105));
+        btnRefreshPorts.Click += delegate { PopulateComPorts(); };
+        grpConn.Controls.Add(btnRefreshPorts);
 
         txtUdpHost = new TextBox { Text = "127.0.0.1", Location = new Point(230, 25), Width = 110, BackColor = Color.FromArgb(30, 41, 59), ForeColor = Color.White, BorderStyle = BorderStyle.FixedSingle };
         grpConn.Controls.Add(txtUdpHost);
@@ -395,6 +395,7 @@ class ParamDebugBotForm : Form
     {
         int m = cmbConnType.SelectedIndex;
         cmbPort.Visible = (m == 0);
+        if (btnRefreshPorts != null) btnRefreshPorts.Visible = (m == 0);
         txtUdpHost.Visible = txtUdpSendPort.Visible = txtUdpRecvPort.Visible = (m == 1);
         txtTcpPort.Visible = (m == 2);
     }
