@@ -9206,11 +9206,19 @@ namespace SwimmingScoreboard
             var grid = new DataGrid {
                 AutoGenerateColumns = false, CanUserAddRows = false, IsReadOnly = false,
                 SelectionMode = DataGridSelectionMode.Single,
-                AlternatingRowBackground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F8FAFC"))
+                AlternatingRowBackground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F8FAFC")),
+                HeadersVisibility = DataGridHeadersVisibility.All,
+                RowHeaderWidth = 56
+            };
+            // 序号列：在行头显示 1, 2, 3 ...，添加/删除后自动刷新
+            grid.LoadingRow += delegate(object _s, DataGridRowEventArgs _ev) {
+                _ev.Row.Header = (_ev.Row.GetIndex() + 1).ToString();
             };
             grid.Columns.Add(new DataGridTextColumn { Header = "组别名称", Width = new DataGridLength(1, DataGridLengthUnitType.Star),
                 Binding = new System.Windows.Data.Binding("Name") { Mode = System.Windows.Data.BindingMode.TwoWay, UpdateSourceTrigger = System.Windows.Data.UpdateSourceTrigger.PropertyChanged } });
             grid.ItemsSource = working;
+            // 添加/删除行后强制刷新行头序号
+            working.CollectionChanged += delegate { try { grid.Items.Refresh(); } catch { } };
             Grid.SetRow(grid, 1);
             mainGrid.Children.Add(grid);
 
