@@ -672,8 +672,12 @@ namespace RemoteTimingControl
                 return;
             }
 
-            // 从纪录数据中查找当前项目的WR和CR
-            string wrTime = "", crTime = "", wrHolder = "", crHolder = "";
+            // 主纪录类型（来自主控的"大屏显示记录"设置）
+            string mainLabel = _data["displayRecordLabel"] != null ? _data["displayRecordLabel"].ToString() : "WR";
+            string mainTypeName = _data["displayRecordTypeName"] != null ? _data["displayRecordTypeName"].ToString() : "世界纪录";
+
+            // 从纪录数据中查找当前项目的主纪录与赛会纪录
+            string mainTime = "", crTime = "", mainHolder = "", crHolder = "";
             var records = _data["records"] as JArray;
             if (records != null)
             {
@@ -688,10 +692,10 @@ namespace RemoteTimingControl
                     double rTimeSec = r["timeInSeconds"] != null ? (double)r["timeInSeconds"] : 0;
                     string rHolder = r["holderName"] != null ? r["holderName"].ToString() : "";
 
-                    if (rType.Contains("世界") && rTimeSec > 0)
+                    if ((rType == mainTypeName || rType.Contains(mainTypeName)) && rTimeSec > 0)
                     {
-                        wrTime = rTime;
-                        wrHolder = rHolder;
+                        mainTime = rTime;
+                        mainHolder = rHolder;
                     }
                     else if (rType.Contains("赛会") && rTimeSec > 0)
                     {
@@ -701,10 +705,10 @@ namespace RemoteTimingControl
                 }
             }
 
-            // 始终显示WR和CR标签，有数据则显示成绩，无数据显示空
+            // 显示当前主纪录类型 + CR
             var sb = new System.Text.StringBuilder();
-            sb.Append("WR: ");
-            sb.Append(!string.IsNullOrEmpty(wrTime) ? wrTime : "---");
+            sb.Append(mainLabel + ": ");
+            sb.Append(!string.IsNullOrEmpty(mainTime) ? mainTime : "---");
             sb.Append("    CR: ");
             sb.Append(!string.IsNullOrEmpty(crTime) ? crTime : "---");
 

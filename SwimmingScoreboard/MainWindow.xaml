@@ -579,13 +579,21 @@
                         <TabItem Header="记录管理">
                             <ScrollViewer Margin="10" VerticalScrollBarVisibility="Auto">
                                 <StackPanel>
-                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                                        <Button Content="添加纪录" Click="AddRecord_Click" Padding="12,6" Background="#3B82F6" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
-                                        <Button Content="删除选中" Click="DeleteRecord_Click" Padding="12,6" Background="#EF4444" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
-                                        <Button Content="导入标准纪录" Click="ImportDefaultRecords_Click" Padding="12,6" Background="#22C55E" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
-                                        <Button Content="导入CSV纪录" Click="ImportRecordsCSV_Click" Padding="12,6" Background="#8B5CF6" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
-                                        <Button Content="下载纪录模板" Click="ExportRecordTemplate_Click" Padding="12,6" Background="#F59E0B" Foreground="White" BorderThickness="0"/>
-                                    </StackPanel>
+                                    <DockPanel Margin="0,0,0,8" LastChildFill="False">
+                                        <StackPanel DockPanel.Dock="Left" Orientation="Horizontal">
+                                            <Button Content="添加纪录" Click="AddRecord_Click" Padding="12,6" Background="#3B82F6" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
+                                            <Button Content="删除选中" Click="DeleteRecord_Click" Padding="12,6" Background="#EF4444" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
+                                            <Button Content="导入标准纪录" Click="ImportDefaultRecords_Click" Padding="12,6" Background="#22C55E" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
+                                            <Button Content="导入CSV纪录" Click="ImportRecordsCSV_Click" Padding="12,6" Background="#8B5CF6" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
+                                            <Button Content="下载纪录模板" Click="ExportRecordTemplate_Click" Padding="12,6" Background="#F59E0B" Foreground="White" BorderThickness="0"/>
+                                        </StackPanel>
+                                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                                            <TextBlock Text="大屏显示记录:" VerticalAlignment="Center" Foreground="#475569" FontWeight="Bold" Margin="0,0,8,0"/>
+                                            <TextBlock x:Name="DisplayRecordLabelText" Text="WR (世界纪录)" VerticalAlignment="Center"
+                                                       Foreground="#1E40AF" FontWeight="Bold" FontSize="14" Margin="0,0,12,0"/>
+                                            <Button Content="设置..." Click="DisplayRecordTypeSetting_Click" Padding="12,6" Background="#0EA5E9" Foreground="White" BorderThickness="0"/>
+                                        </StackPanel>
+                                    </DockPanel>
                                     <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
                                         <TextBlock Text="查询：" VerticalAlignment="Center" Margin="0,0,4,0"/>
                                         <ComboBox x:Name="RecordFilterAgeGroup" Width="90" Margin="0,0,8,0" SelectionChanged="RecordFilter_Changed"
@@ -803,7 +811,7 @@
                                 <TextBlock x:Name="PoolCurrentEventText" Grid.Column="1" Text="" FontSize="14" FontWeight="Bold"
                                            Foreground="#94A3B8" Margin="12,0,0,0" VerticalAlignment="Center"/>
                                 <!-- WR/CR 纪录 -->
-                                <TextBlock x:Name="RecordDisplayText" Grid.Column="2" Text="WR: ---    CR: ---" Width="280" FontSize="18" FontWeight="Bold"
+                                <TextBlock x:Name="RecordDisplayText" Grid.Column="2" Text="WR: ---    CR: ---" Width="320" FontSize="18" FontWeight="Bold"
                                            Foreground="#F59E0B" FontFamily="Consolas" Opacity="0.9"
                                            TextAlignment="Right" VerticalAlignment="Center"/>
                                 <!-- 滚动时间 -->

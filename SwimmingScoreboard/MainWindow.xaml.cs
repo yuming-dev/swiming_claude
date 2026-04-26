@@ -39,6 +39,17 @@ namespace SwimmingScoreboard
         private List<BibRange> _bibRanges = new List<BibRange>();
         private ProgramBookData _programBook = new ProgramBookData();
         private ResultBookData _resultBook = new ResultBookData();
+        // 大屏显示主纪录设置（默认 WR/世界纪录）
+        private string _displayRecordLabel = "WR";
+        private string _displayRecordTypeName = "世界纪录";
+        private List<DisplayRecordOption> _displayRecordOptions = new List<DisplayRecordOption> {
+            new DisplayRecordOption { Label = "WR", TypeName = "世界纪录" },
+            new DisplayRecordOption { Label = "AR", TypeName = "亚洲纪录" },
+            new DisplayRecordOption { Label = "NR", TypeName = "全国纪录" },
+            new DisplayRecordOption { Label = "省R", TypeName = "省运会纪录" },
+            new DisplayRecordOption { Label = "市R", TypeName = "市纪录" },
+            new DisplayRecordOption { Label = "CR", TypeName = "赛会纪录" }
+        };
 
         // ═══════════════════════════════════════════════════════════════
         // 比赛状态
@@ -155,6 +166,7 @@ namespace SwimmingScoreboard
             RefreshEventsPreview();
             RefreshAgeGroupsPreview();
             RefreshAllAgeGroupFilterCombos();
+            RefreshDisplayRecordLabelText();
             if (RegEventCombo != null && RegEventCombo.Items.Count > 0) RegEventCombo.SelectedIndex = 0;
 
             // 初始化泳道设备状态
@@ -1185,6 +1197,8 @@ namespace SwimmingScoreboard
                     leftBlindWatchCount = _laneCloseSettings.LeftBlindWatchCount,
                     rightBlindWatchCount = _laneCloseSettings.RightBlindWatchCount
                 },
+                displayRecordLabel = string.IsNullOrEmpty(_displayRecordLabel) ? "WR" : _displayRecordLabel,
+                displayRecordTypeName = string.IsNullOrEmpty(_displayRecordTypeName) ? "世界纪录" : _displayRecordTypeName,
                 timingHwConnected = _timingBridge != null && _timingBridge.IsConnected,
                 timingHwStatus = _timingBridge != null ? _timingBridge.StatusText : "未连接",
                 scoringControlMode = _scoringControlMode,
@@ -3830,9 +3844,10 @@ namespace SwimmingScoreboard
 
         private void UpdateRecordDisplay() {
             if (RecordDisplayText == null) return;
-            if (string.IsNullOrEmpty(_currentEvent)) { RecordDisplayText.Text = "WR: ---    CR: ---"; return; }
-            string wrTime = "", crTime = "";
-            // 去除所有空格，防止"50 米自由泳"与"50米自由泳"不匹配
+            string label = string.IsNullOrEmpty(_displayRecordLabel) ? "WR" : _displayRecordLabel;
+            string typeName = string.IsNullOrEmpty(_displayRecordTypeName) ? "世界纪录" : _displayRecordTypeName;
+            if (string.IsNullOrEmpty(_currentEvent)) { RecordDisplayText.Text = string.Format("{0}: ---    CR: ---", label); return; }
+            string mainTime = "", crTime = "";
             string evClean = _currentEvent.Replace(" ", "").Trim();
             string genClean = (_currentGender ?? "").Trim();
             foreach (var r in _records) {
@@ -3843,10 +3858,121 @@ namespace SwimmingScoreboard
                 if (!genderMatch || rEvent != evClean) continue;
                 if (r.RecordType == null || r.Time <= 0) continue;
                 string rt = r.RecordType;
-                if (rt.Contains("世界")) wrTime = TimeFormatter.Format(r.Time);
+                if (rt == typeName || rt.Contains(typeName)) mainTime = TimeFormatter.Format(r.Time);
                 if (rt.Contains("赛会") || rt.Contains("省运会")) crTime = TimeFormatter.Format(r.Time);
             }
-            RecordDisplayText.Text = string.Format("WR: {0}    CR: {1}", !string.IsNullOrEmpty(wrTime) ? wrTime : "---", !string.IsNullOrEmpty(crTime) ? crTime : "---");
+            RecordDisplayText.Text = string.Format("{0}: {1}    CR: {2}",
+                label,
+                !string.IsNullOrEmpty(mainTime) ? mainTime : "---",
+                !string.IsNullOrEmpty(crTime) ? crTime : "---");
+        }
+
+        private void RefreshDisplayRecordLabelText() {
+            if (DisplayRecordLabelText == null) return;
+            DisplayRecordLabelText.Text = string.Format("{0} ({1})",
+                string.IsNullOrEmpty(_displayRecordLabel) ? "WR" : _displayRecordLabel,
+                string.IsNullOrEmpty(_displayRecordTypeName) ? "世界纪录" : _displayRecordTypeName);
+        }
+
+        private void DisplayRecordTypeSetting_Click(object sender, RoutedEventArgs e) {
+            var dlg = new Window {
+                Title = "大屏显示记录设置",
+                Width = 520, Height = 480,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner, Owner = this, ResizeMode = ResizeMode.CanResize,
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F8FAFC"))
+            };
+            var sp = new StackPanel { Margin = new Thickness(16) };
+            sp.Children.Add(new TextBlock {
+                Text = "大屏显示记录设置",
+                FontSize = 16, FontWeight = FontWeights.Bold,
+                Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E293B")),
+                Margin = new Thickness(0, 0, 0, 6)
+            });
+            sp.Children.Add(new TextBlock {
+                Text = "选择大屏顶部及泳道实时状态界面中显示的主纪录类型。可在下方列表中编辑、增加新项（如 市记录 / 行业纪录 等）。",
+                TextWrapping = TextWrapping.Wrap,
+                Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")),
+                FontSize = 12, Margin = new Thickness(0, 0, 0, 12)
+            });
+
+            var working = new System.Collections.ObjectModel.ObservableCollection<DisplayRecordOption>();
+            foreach (var o in _displayRecordOptions) working.Add(new DisplayRecordOption { Label = o.Label, TypeName = o.TypeName });
+
+            var grid = new DataGrid {
+                AutoGenerateColumns = false, CanUserAddRows = false, IsReadOnly = false,
+                SelectionMode = DataGridSelectionMode.Single, Height = 250,
+                AlternatingRowBackground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F1F5F9")),
+                HeadersVisibility = DataGridHeadersVisibility.All, RowHeaderWidth = 50
+            };
+            grid.LoadingRow += delegate(object _s, DataGridRowEventArgs _ev) { _ev.Row.Header = (_ev.Row.GetIndex() + 1).ToString(); };
+            grid.Columns.Add(new DataGridTextColumn { Header = "简称", Width = new DataGridLength(100),
+                Binding = new System.Windows.Data.Binding("Label") { Mode = System.Windows.Data.BindingMode.TwoWay, UpdateSourceTrigger = System.Windows.Data.UpdateSourceTrigger.PropertyChanged } });
+            grid.Columns.Add(new DataGridTextColumn { Header = "完整名称", Width = new DataGridLength(1, DataGridLengthUnitType.Star),
+                Binding = new System.Windows.Data.Binding("TypeName") { Mode = System.Windows.Data.BindingMode.TwoWay, UpdateSourceTrigger = System.Windows.Data.UpdateSourceTrigger.PropertyChanged } });
+            grid.ItemsSource = working;
+            // 选中当前生效项
+            for (int i = 0; i < working.Count; i++) {
+                if (working[i].Label == _displayRecordLabel && working[i].TypeName == _displayRecordTypeName) {
+                    grid.SelectedIndex = i; break;
+                }
+            }
+            sp.Children.Add(grid);
+
+            var btnRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 10, 0, 0) };
+            var btnAdd = new Button { Content = "新增", Padding = new Thickness(12, 6, 12, 6), Margin = new Thickness(0, 0, 8, 0),
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6")), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
+            btnAdd.Click += delegate { working.Add(new DisplayRecordOption { Label = "新", TypeName = "新记录类型" }); };
+            var btnDel = new Button { Content = "删除选中", Padding = new Thickness(12, 6, 12, 6), Margin = new Thickness(0, 0, 8, 0),
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EF4444")), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
+            btnDel.Click += delegate {
+                var sel = grid.SelectedItem as DisplayRecordOption;
+                if (sel != null) working.Remove(sel); else MessageBox.Show("请先选中一行");
+            };
+            btnRow.Children.Add(btnAdd);
+            btnRow.Children.Add(btnDel);
+            sp.Children.Add(btnRow);
+
+            var okRow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 12, 0, 0) };
+            var btnCancel = new Button { Content = "取消", Padding = new Thickness(16, 6, 16, 6), Margin = new Thickness(0, 0, 8, 0),
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
+            btnCancel.Click += delegate { dlg.DialogResult = false; };
+            var btnOk = new Button { Content = "确定（应用选中项）", Padding = new Thickness(16, 6, 16, 6), FontWeight = FontWeights.Bold,
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#22C55E")), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
+            btnOk.Click += delegate {
+                try { grid.CommitEdit(DataGridEditingUnit.Cell, true); grid.CommitEdit(DataGridEditingUnit.Row, true); } catch { }
+                var sel = grid.SelectedItem as DisplayRecordOption;
+                if (sel == null) { MessageBox.Show("请先选中要应用的记录类型行"); return; }
+                if (string.IsNullOrWhiteSpace(sel.Label) || string.IsNullOrWhiteSpace(sel.TypeName)) {
+                    MessageBox.Show("简称和完整名称都不能为空"); return;
+                }
+                var finalList = new List<DisplayRecordOption>();
+                var seen = new HashSet<string>();
+                foreach (var r in working) {
+                    string lab = (r.Label ?? "").Trim();
+                    string tn = (r.TypeName ?? "").Trim();
+                    if (string.IsNullOrEmpty(lab) || string.IsNullOrEmpty(tn)) continue;
+                    string key = lab + "|" + tn;
+                    if (seen.Contains(key)) continue;
+                    seen.Add(key);
+                    finalList.Add(new DisplayRecordOption { Label = lab, TypeName = tn });
+                }
+                _displayRecordOptions = finalList;
+                _displayRecordLabel = (sel.Label ?? "").Trim();
+                _displayRecordTypeName = (sel.TypeName ?? "").Trim();
+                dlg.DialogResult = true;
+            };
+            okRow.Children.Add(btnCancel);
+            okRow.Children.Add(btnOk);
+            sp.Children.Add(okRow);
+
+            dlg.Content = sp;
+            if (dlg.ShowDialog() == true) {
+                RefreshDisplayRecordLabelText();
+                UpdateRecordDisplay();
+                AutoSaveData();
+                Broadcast();
+                AddLog(string.Format("大屏显示记录已切换为：{0} ({1})", _displayRecordLabel, _displayRecordTypeName));
+            }
         }
 
         private void UpdateRaceStateDisplay() {
@@ -8422,7 +8548,10 @@ namespace SwimmingScoreboard
                     BibRanges = _bibRanges,
                     LaneCloseSettings = _laneCloseSettings,
                     ProgramBook = _programBook,
-                    ResultBook = _resultBook
+                    ResultBook = _resultBook,
+                    DisplayRecordLabel = _displayRecordLabel,
+                    DisplayRecordTypeName = _displayRecordTypeName,
+                    DisplayRecordOptions = _displayRecordOptions
                 };
 
                 string json = JsonConvert.SerializeObject(package, Formatting.Indented);
@@ -8486,6 +8615,7 @@ namespace SwimmingScoreboard
                 RefreshEventComboBoxes();
                 RefreshEventsPreview();
                 RefreshAgeGroupsPreview();
+                RefreshDisplayRecordLabelText();
                 RefreshGendersPreview();
                 RefreshStagesPreview();
                 RefreshHeatCountsPreview();
@@ -8493,6 +8623,9 @@ namespace SwimmingScoreboard
                 _bibRanges = package.BibRanges ?? new List<BibRange>();
                 _programBook = package.ProgramBook ?? new ProgramBookData();
                 _resultBook = package.ResultBook ?? new ResultBookData();
+                if (!string.IsNullOrEmpty(package.DisplayRecordLabel)) _displayRecordLabel = package.DisplayRecordLabel;
+                if (!string.IsNullOrEmpty(package.DisplayRecordTypeName)) _displayRecordTypeName = package.DisplayRecordTypeName;
+                if (package.DisplayRecordOptions != null && package.DisplayRecordOptions.Count > 0) _displayRecordOptions = package.DisplayRecordOptions;
 
                 _swimmers.Clear();
                 if (package.Swimmers != null) {

@@ -1179,6 +1179,13 @@ namespace SwimmingScoreboard
         public BibRange() { Width = 3; }
     }
 
+    // 大屏顶部主纪录的可选项（由用户在"大屏显示记录"对话框管理）
+    public class DisplayRecordOption
+    {
+        public string Label { get; set; }      // 简称：WR / AR / NR / 省R / 市R …
+        public string TypeName { get; set; }    // 完整名称（与 SwimmingRecord.RecordType 一致）
+    }
+
     public class CompetitionPackage
     {
         public string CompetitionName { get; set; }
@@ -1210,6 +1217,10 @@ namespace SwimmingScoreboard
         public Dictionary<string, List<string>> DisputeLog { get; set; }
         public ProgramBookData ProgramBook { get; set; }
         public ResultBookData ResultBook { get; set; }
+        // 大屏顶部显示的"主纪录"类型（如 世界纪录/亚洲纪录/全国纪录/省记录/市记录…）
+        public string DisplayRecordLabel { get; set; }      // 显示用简称，如 WR / AR / NR / 省R / 市R
+        public string DisplayRecordTypeName { get; set; }    // 与 SwimmingRecord.RecordType 比对，如 "世界纪录"
+        public List<DisplayRecordOption> DisplayRecordOptions { get; set; } // 可选项（预设+用户自定义）
 
         public CompetitionPackage() {
             CompetitionMode = "domestic";

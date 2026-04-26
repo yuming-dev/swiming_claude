@@ -84,7 +84,7 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 <div class="page-header">
     <span class="title" id="compName">游泳赛事管理系统</span>
     <div class="header-records">
-        <span class="record-item"><span class="rec-label">WR</span><span id="recordWR">-</span></span>
+        <span class="record-item"><span class="rec-label" id="recordMainLabel">WR</span><span id="recordWR">-</span></span>
         <span class="record-item"><span class="rec-label">CR</span><span id="recordCR">-</span></span>
     </div>
 </div>
@@ -345,7 +345,9 @@ function renderRace() {
             '<div style="width:8vw;text-align:center;">备注</div>';
     }
 
-    // 按性别+项目查找纪录
+    // 按性别+项目查找纪录（主纪录类型由主控可配置：WR/AR/NR/省R/市R…）
+    var mainLabel = data.displayRecordLabel || 'WR';
+    var mainTypeName = data.displayRecordTypeName || '世界纪录';
     var wrText = '-', crText = '-';
     var records = data.records || [];
     var curGender = data.currentGender || '';
@@ -353,10 +355,13 @@ function renderRace() {
     for (var r = 0; r < records.length; r++) {
         var rec = records[r];
         if (rec.gender === curGender && rec.eventName === curEventName) {
-            if (rec.recordType === '世界纪录') wrText = rec.time || '-';
-            else if (rec.recordType === '赛会纪录') crText = rec.time || '-';
+            var rt = rec.recordType || '';
+            if (rt === mainTypeName || rt.indexOf(mainTypeName) >= 0) wrText = rec.time || '-';
+            else if (rt === '赛会纪录') crText = rec.time || '-';
         }
     }
+    var labelEl = document.getElementById('recordMainLabel');
+    if (labelEl && labelEl.textContent !== mainLabel) labelEl.textContent = mainLabel;
     document.getElementById('recordWR').textContent = wrText;
     document.getElementById('recordCR').textContent = crText;
 
