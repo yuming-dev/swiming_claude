@@ -9578,10 +9578,12 @@ namespace SwimmingScoreboard
                 var events = CollectEventInfoForExport();
                 var teams = _swimmers.Where(s => !IsRelayMemberNote(s.Notes))
                     .Select(s => s.Country ?? "").Where(c => !string.IsNullOrEmpty(c)).Distinct().OrderBy(c => c).ToList();
-                int laneCount = _poolConfig != null && _poolConfig.LaneCount > 0 ? _poolConfig.LaneCount : 10;
+                var laneNumbers = (_poolConfig != null && _poolConfig.LaneNumbers != null && _poolConfig.LaneNumbers.Count > 0)
+                    ? _poolConfig.LaneNumbers
+                    : new List<int> { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
                 HeatExcelService.Export(dlg.FileName, _competitionName,
                     GetDatePickerText(StartDatePicker), GetDatePickerText(EndDatePicker),
-                    LocationBox != null ? LocationBox.Text : "", laneCount, rows, events, teams);
+                    LocationBox != null ? LocationBox.Text : "", laneNumbers, rows, events, teams);
                 AddLog("已导出分组表 Excel → " + dlg.FileName);
                 if (MessageBox.Show("分组表已导出。\n\n是否立即打开？", "完成", MessageBoxButton.YesNo, MessageBoxImage.Information) == MessageBoxResult.Yes)
                     System.Diagnostics.Process.Start(dlg.FileName);
@@ -9702,8 +9704,10 @@ namespace SwimmingScoreboard
             };
             if (dlg.ShowDialog() != true) return;
             try {
-                int laneCount = _poolConfig != null && _poolConfig.LaneCount > 0 ? _poolConfig.LaneCount : 10;
-                HeatExcelService.WriteTemplate(dlg.FileName, laneCount,
+                var laneNumbers = (_poolConfig != null && _poolConfig.LaneNumbers != null && _poolConfig.LaneNumbers.Count > 0)
+                    ? _poolConfig.LaneNumbers
+                    : new List<int> { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+                HeatExcelService.WriteTemplate(dlg.FileName, laneNumbers,
                     CollectEventInfoForExport(),
                     _swimmers.Where(s => !IsRelayMemberNote(s.Notes)).Select(s => s.Country ?? "")
                         .Where(c => !string.IsNullOrEmpty(c)).Distinct().OrderBy(c => c).ToList());

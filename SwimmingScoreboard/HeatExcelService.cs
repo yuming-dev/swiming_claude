@@ -42,9 +42,13 @@ namespace SwimmingScoreboard
         };
 
         // ───── 导出 ─────
+        // laneNumbers：实际使用的道次列表（10道游泳池常规为 0..9；8道为 1..8）
         public static void Export(string path, string competitionName, string startDate, string endDate, string location,
-                                  int laneCount, IEnumerable<HeatRow> rows, IEnumerable<EventInfo> events,
+                                  IList<int> laneNumbers, IEnumerable<HeatRow> rows, IEnumerable<EventInfo> events,
                                   IEnumerable<string> teams) {
+            if (laneNumbers == null || laneNumbers.Count == 0) {
+                laneNumbers = new List<int> { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+            }
             var wb = new XSSFWorkbook();
             var styles = new Styles(wb);
 
@@ -53,7 +57,7 @@ namespace SwimmingScoreboard
             BuildSheet1(sh1, styles, rows);
 
             var sh2 = wb.CreateSheet("分组表(网格)");
-            BuildSheet2(sh2, styles, competitionName, startDate, endDate, location, laneCount, rows);
+            BuildSheet2(sh2, styles, competitionName, startDate, endDate, location, laneNumbers, rows);
 
             var sh3 = wb.CreateSheet("填写说明");
             BuildSheet3(sh3, styles, events, teams);
@@ -64,13 +68,13 @@ namespace SwimmingScoreboard
         }
 
         // ───── 模板（空数据，仅说明 + 示例）─────
-        public static void WriteTemplate(string path, int laneCount, IEnumerable<EventInfo> events, IEnumerable<string> teams) {
+        public static void WriteTemplate(string path, IList<int> laneNumbers, IEnumerable<EventInfo> events, IEnumerable<string> teams) {
             var samples = new List<HeatRow> {
                 new HeatRow { SessionNumber=1, Date="2026-01-01", SessionPeriod="下午", EventNumber=1, AgeGroup="戊组", Gender="女", EventName="50米仰泳", Stage="决赛", SortMethod="按成绩排名", Heat=1, Lane=4, BibNumber="F012", Name="李沐桐", Country="南山启美", EntryTime="0:34.20", BirthDate="2014-05-12", Age=11 },
                 new HeatRow { SessionNumber=1, Date="2026-01-01", SessionPeriod="下午", EventNumber=1, AgeGroup="戊组", Gender="女", EventName="50米仰泳", Stage="决赛", SortMethod="按成绩排名", Heat=1, Lane=5, BibNumber="F013", Name="叶曼羽", Country="绵阳蓝鲸", EntryTime="0:34.55", BirthDate="2014-08-03", Age=11 },
                 new HeatRow { SessionNumber=1, Date="2026-01-01", SessionPeriod="下午", EventNumber=2, AgeGroup="丁组", Gender="男", EventName="50米自由泳", Stage="预赛", SortMethod="按成绩排名", Heat=1, Lane=4, BibNumber="M021", Name="张三", Country="金五环", EntryTime="0:28.10", BirthDate="2013-02-15", Age=12 }
             };
-            Export(path, "比赛名称", "", "", "", laneCount, samples, events, teams);
+            Export(path, "比赛名称", "", "", "", laneNumbers, samples, events, teams);
         }
 
         // ───── 导入 ─────
@@ -181,14 +185,17 @@ namespace SwimmingScoreboard
         }
 
         private static void BuildSheet2(ISheet sh, Styles st, string compName, string startDate, string endDate,
-                                        string location, int laneCount, IEnumerable<HeatRow> rows) {
+                                        string location, IList<int> laneNumbers, IEnumerable<HeatRow> rows) {
+            int laneCount = laneNumbers.Count;
+            int lastCol = 1 + laneCount; // A=组号, B=角色, C..=道次列
+
             // 标题
             int r = 0;
             IRow t1 = sh.CreateRow(r++);
             ICell tc1 = t1.CreateCell(0);
             tc1.SetCellValue(string.IsNullOrEmpty(compName) ? "竞赛分组表" : compName);
             tc1.CellStyle = st.TitleStyle;
-            sh.AddMergedRegion(new CellRangeAddress(0, 0, 0, laneCount + 1));
+            sh.AddMergedRegion(new CellRangeAddress(0, 0, 0, lastCol));
             t1.HeightInPoints = 26;
 
             IRow t2 = sh.CreateRow(r++);
@@ -197,7 +204,7 @@ namespace SwimmingScoreboard
                 startDate ?? "", string.IsNullOrEmpty(endDate) || endDate == startDate ? "" : " 至 " + endDate,
                 string.IsNullOrEmpty(location) ? "" : "    " + location));
             tc2.CellStyle = st.SubtitleStyle;
-            sh.AddMergedRegion(new CellRangeAddress(1, 1, 0, laneCount + 1));
+            sh.AddMergedRegion(new CellRangeAddress(1, 1, 0, lastCol));
             r++;
 
             // 分场次→项目→组
@@ -212,7 +219,7 @@ namespace SwimmingScoreboard
                     sess.Key.SessionNumber > 0 ? sess.Key.SessionNumber.ToString() : "—",
                     sess.Key.Date ?? "", string.IsNullOrEmpty(sess.Key.SessionPeriod) ? "" : "　" + sess.Key.SessionPeriod));
                 sC.CellStyle = st.SessionStyle;
-                sh.AddMergedRegion(new CellRangeAddress(r, r, 0, laneCount + 1));
+                sh.AddMergedRegion(new CellRangeAddress(r, r, 0, lastCol));
                 sRow.HeightInPoints = 22;
                 r += 2;
 
@@ -230,52 +237,50 @@ namespace SwimmingScoreboard
                     ICell eC = eRow.CreateCell(0);
                     eC.SetCellValue(evHeader);
                     eC.CellStyle = st.EventStyle;
-                    sh.AddMergedRegion(new CellRangeAddress(r, r, 0, laneCount + 1));
+                    sh.AddMergedRegion(new CellRangeAddress(r, r, 0, lastCol));
                     eRow.HeightInPoints = 18;
                     r++;
 
-                    // 道次表头行
+                    // 道次表头行（按实际道次号：10道泳池为 0..9；8道为 1..8）
                     IRow lh = sh.CreateRow(r);
                     ICell lh0 = lh.CreateCell(0); lh0.SetCellValue("组号"); lh0.CellStyle = st.SubHeaderStyle;
                     ICell lh1 = lh.CreateCell(1); lh1.SetCellValue("道次"); lh1.CellStyle = st.SubHeaderStyle;
-                    for (int ln = 1; ln <= laneCount; ln++) {
-                        ICell c = lh.CreateCell(1 + ln);
-                        c.SetCellValue(ln);
+                    for (int i = 0; i < laneCount; i++) {
+                        ICell c = lh.CreateCell(2 + i);
+                        c.SetCellValue(laneNumbers[i]);
                         c.CellStyle = st.SubHeaderStyle;
                     }
                     r++;
 
                     bool isRelay = (ev.Key.EventName ?? "").IndexOf("接力", StringComparison.Ordinal) >= 0;
                     foreach (var heatGrp in ev.GroupBy(x => x.Heat).OrderBy(g => g.Key)) {
-                        var byLane = heatGrp.ToDictionary(x => x.Lane, x => x);
+                        var byLane = new Dictionary<int, HeatRow>();
+                        foreach (var x in heatGrp) byLane[x.Lane] = x;
+
                         // 行1：姓名
                         IRow nRow = sh.CreateRow(r);
                         ICell nA = nRow.CreateCell(0); nA.SetCellValue(heatGrp.Key + "组"); nA.CellStyle = st.HeatLabelStyle;
                         ICell nB = nRow.CreateCell(1); nB.SetCellValue("姓名"); nB.CellStyle = st.RoleLabelStyle;
-                        // 接力时第一行只放代表队（队伍名）/ 队号；姓名放在多行
-                        for (int ln = 1; ln <= laneCount; ln++) {
-                            ICell cell = nRow.CreateCell(1 + ln);
-                            if (byLane.ContainsKey(ln)) {
-                                cell.SetCellValue(byLane[ln].Name ?? "");
-                            }
+                        for (int i = 0; i < laneCount; i++) {
+                            int lnNum = laneNumbers[i];
+                            ICell cell = nRow.CreateCell(2 + i);
+                            if (byLane.ContainsKey(lnNum)) cell.SetCellValue(byLane[lnNum].Name ?? "");
                             cell.CellStyle = st.DataStyle;
                         }
                         r++;
 
-                        // 接力：再加 4 棒姓名行（如果 Notes 中包含 "接力队 棒次:" 列出 4 棒，则展开）
-                        // 简化：从 Name 字段中按 / 或 、 拆分；此处不依赖 Notes
+                        // 接力：4 棒姓名行（从 Notes 中"接力队 棒次:张三、李四..."提取）
                         if (isRelay) {
                             int maxLegs = 4;
                             for (int leg = 1; leg <= maxLegs; leg++) {
                                 IRow legRow = sh.CreateRow(r);
                                 ICell legA = legRow.CreateCell(0); legA.SetCellValue(""); legA.CellStyle = st.HeatLabelStyle;
                                 ICell legB = legRow.CreateCell(1); legB.SetCellValue("第" + leg + "棒"); legB.CellStyle = st.RoleLabelStyle;
-                                for (int ln = 1; ln <= laneCount; ln++) {
-                                    ICell cell = legRow.CreateCell(1 + ln);
-                                    if (byLane.ContainsKey(ln)) {
-                                        var rec = byLane[ln];
-                                        // 从 Notes 中尝试提取棒次队员（"接力队 棒次:张三、李四、王五、赵六"）
-                                        var legs = ExtractRelayLegs(rec.Notes);
+                                for (int i = 0; i < laneCount; i++) {
+                                    int lnNum = laneNumbers[i];
+                                    ICell cell = legRow.CreateCell(2 + i);
+                                    if (byLane.ContainsKey(lnNum)) {
+                                        var legs = ExtractRelayLegs(byLane[lnNum].Notes);
                                         if (legs != null && legs.Count >= leg) cell.SetCellValue(legs[leg - 1]);
                                     }
                                     cell.CellStyle = st.DataStyle;
@@ -288,11 +293,10 @@ namespace SwimmingScoreboard
                         IRow tRow = sh.CreateRow(r);
                         ICell tA = tRow.CreateCell(0); tA.SetCellValue(""); tA.CellStyle = st.HeatLabelStyle;
                         ICell tB = tRow.CreateCell(1); tB.SetCellValue("代表队"); tB.CellStyle = st.RoleLabelStyle;
-                        for (int ln = 1; ln <= laneCount; ln++) {
-                            ICell cell = tRow.CreateCell(1 + ln);
-                            if (byLane.ContainsKey(ln)) {
-                                cell.SetCellValue(byLane[ln].Country ?? "");
-                            }
+                        for (int i = 0; i < laneCount; i++) {
+                            int lnNum = laneNumbers[i];
+                            ICell cell = tRow.CreateCell(2 + i);
+                            if (byLane.ContainsKey(lnNum)) cell.SetCellValue(byLane[lnNum].Country ?? "");
                             cell.CellStyle = st.DataStyle;
                         }
                         r++;
@@ -304,7 +308,7 @@ namespace SwimmingScoreboard
             // 列宽
             sh.SetColumnWidth(0, 6 * 256);
             sh.SetColumnWidth(1, 8 * 256);
-            for (int ln = 1; ln <= laneCount; ln++) sh.SetColumnWidth(1 + ln, 12 * 256);
+            for (int i = 0; i < laneCount; i++) sh.SetColumnWidth(2 + i, 12 * 256);
         }
 
         private static List<string> ExtractRelayLegs(string notes) {
