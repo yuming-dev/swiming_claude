@@ -1203,13 +1203,28 @@
                                         </Button.Template>
                                     </Button>
                                     <Button Click="PrintManual_Click" Width="155" Height="56" Margin="6"
-                                            Background="#2563EB" Foreground="White" BorderThickness="0" Cursor="Hand">
+                                            Background="#2563EB" Foreground="White" BorderThickness="0" Cursor="Hand"
+                                            ToolTip="生成并打开秩序册预览页面">
                                         <Button.Template>
                                             <ControlTemplate TargetType="Button">
                                                 <Border Background="{TemplateBinding Background}" CornerRadius="8" Padding="12,8">
                                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
                                                         <TextBlock Text="&#xE82D;" FontFamily="Segoe MDL2 Assets" FontSize="18" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="White"/>
                                                         <TextBlock Text="秩序册" FontSize="14" VerticalAlignment="Center" Foreground="White"/>
+                                                    </StackPanel>
+                                                </Border>
+                                            </ControlTemplate>
+                                        </Button.Template>
+                                    </Button>
+                                    <Button Click="EditProgramBook_Click" Width="155" Height="56" Margin="6"
+                                            Background="#7C3AED" Foreground="White" BorderThickness="0" Cursor="Hand"
+                                            ToolTip="编辑、保存秩序册自定义内容（封面、前言、规程、活动日程、技术官员、运动队人员等）">
+                                        <Button.Template>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border Background="{TemplateBinding Background}" CornerRadius="8" Padding="12,8">
+                                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                        <TextBlock Text="&#xE70F;" FontFamily="Segoe MDL2 Assets" FontSize="18" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="White"/>
+                                                        <TextBlock Text="编辑秩序册" FontSize="14" VerticalAlignment="Center" Foreground="White"/>
                                                     </StackPanel>
                                                 </Border>
                                             </ControlTemplate>

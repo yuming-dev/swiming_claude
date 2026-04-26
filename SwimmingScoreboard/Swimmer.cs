@@ -1185,6 +1185,7 @@ namespace SwimmingScoreboard
         public List<BibRange> BibRanges { get; set; }
         public LaneCloseSettings LaneCloseSettings { get; set; }
         public Dictionary<string, List<string>> DisputeLog { get; set; }
+        public ProgramBookData ProgramBook { get; set; }
 
         public CompetitionPackage() {
             CompetitionMode = "domestic";

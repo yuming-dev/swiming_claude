@@ -1,0 +1,200 @@
+<Window x:Class="SwimmingScoreboard.ProgramBookEditWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="秩序册编辑器"
+        Width="980" Height="700"
+        WindowStartupLocation="CenterOwner"
+        Background="#F8FAFC">
+    <Window.Resources>
+        <Style TargetType="TextBox">
+            <Setter Property="Padding" Value="6"/>
+            <Setter Property="BorderBrush" Value="#CBD5E1"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+        </Style>
+        <Style x:Key="MultiBox" TargetType="TextBox">
+            <Setter Property="AcceptsReturn" Value="True"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="VerticalScrollBarVisibility" Value="Auto"/>
+            <Setter Property="Padding" Value="8"/>
+            <Setter Property="FontFamily" Value="Microsoft YaHei,SimSun"/>
+            <Setter Property="VerticalContentAlignment" Value="Top"/>
+        </Style>
+        <Style TargetType="DataGrid">
+            <Setter Property="AutoGenerateColumns" Value="False"/>
+            <Setter Property="CanUserAddRows" Value="True"/>
+            <Setter Property="CanUserDeleteRows" Value="True"/>
+            <Setter Property="HeadersVisibility" Value="Column"/>
+            <Setter Property="GridLinesVisibility" Value="All"/>
+            <Setter Property="RowHeight" Value="28"/>
+            <Setter Property="AlternatingRowBackground" Value="#F1F5F9"/>
+            <Setter Property="ColumnHeaderHeight" Value="32"/>
+        </Style>
+        <Style TargetType="Button">
+            <Setter Property="Padding" Value="14,6"/>
+            <Setter Property="Margin" Value="4,0"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Cursor" Value="Hand"/>
+        </Style>
+        <Style x:Key="LblStyle" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#475569"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Margin" Value="0,0,8,0"/>
+        </Style>
+    </Window.Resources>
+
+    <DockPanel>
+        <!-- 顶部说明栏 -->
+        <Border DockPanel.Dock="Top" Background="#1E40AF" Padding="16,12">
+            <StackPanel>
+                <TextBlock Text="秩序册编辑器" FontSize="18" FontWeight="Bold" Foreground="White"/>
+                <TextBlock Text="编辑封面、前言、规程、活动日程、技术官员、运动队人员等。空字段将自动使用系统默认内容。"
+                           Foreground="#DBEAFE" Margin="0,4,0,0" FontSize="12"/>
+            </StackPanel>
+        </Border>
+
+        <!-- 底部按钮栏 -->
+        <Border DockPanel.Dock="Bottom" Background="#E2E8F0" Padding="14,10">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button Content="预览" Click="Preview_Click" Background="#0EA5E9"/>
+                <Button Content="重置为默认" Click="Reset_Click" Background="#94A3B8"/>
+                <Button Content="保存并关闭" Click="Save_Click" Background="#22C55E"/>
+                <Button Content="取消" Click="Cancel_Click" Background="#EF4444"/>
+            </StackPanel>
+        </Border>
+
+        <TabControl Margin="10">
+            <!-- 1. 封面 -->
+            <TabItem Header="封面">
+                <Grid Margin="20">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="120"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="封面主标题:" Style="{StaticResource LblStyle}" Grid.Row="0" Grid.Column="0" Margin="0,8"/>
+                    <TextBox x:Name="CoverTitleBox" Grid.Row="0" Grid.Column="1" Margin="0,8"/>
+                    <TextBlock Text="封面副标题:" Style="{StaticResource LblStyle}" Grid.Row="1" Grid.Column="0" Margin="0,8"/>
+                    <TextBox x:Name="CoverSubtitleBox" Grid.Row="1" Grid.Column="1" Margin="0,8"/>
+                    <TextBlock Text="场地示意图:" Style="{StaticResource LblStyle}" Grid.Row="2" Grid.Column="0" Margin="0,8"/>
+                    <DockPanel Grid.Row="2" Grid.Column="1" Margin="0,8">
+                        <Button DockPanel.Dock="Right" Content="选择图片..." Click="PickVenueImage_Click" Background="#3B82F6"/>
+                        <Button DockPanel.Dock="Right" Content="清除" Click="ClearVenueImage_Click" Background="#94A3B8"/>
+                        <TextBox x:Name="VenueImagePathBox" IsReadOnly="True" Background="#F1F5F9"/>
+                    </DockPanel>
+                    <TextBlock Grid.Row="3" Grid.ColumnSpan="2" Margin="0,12,0,4"
+                               Text="提示：赛事名称、主办/承办单位、比赛时间地点等基础字段在【赛事管理与报名】中维护，将自动同步到封面。"
+                               Foreground="#64748B" FontSize="12" TextWrapping="Wrap"/>
+                </Grid>
+            </TabItem>
+
+            <!-- 2. 前言 / 规程 / 通知 -->
+            <TabItem Header="前言/规程/通知">
+                <Grid Margin="20">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <TextBlock Grid.Row="0" Text="前言 / 序" FontWeight="Bold" Foreground="#1E40AF" FontSize="14" Margin="0,0,0,4"/>
+                    <TextBox x:Name="ForewordBox" Grid.Row="1" Style="{StaticResource MultiBox}" Margin="0,0,0,12" MinHeight="100"/>
+                    <TextBlock Grid.Row="2" Text="竞赛规程总则" FontWeight="Bold" Foreground="#1E40AF" FontSize="14" Margin="0,0,0,4"/>
+                    <TextBox x:Name="RegulationsBox" Grid.Row="3" Style="{StaticResource MultiBox}" Margin="0,0,0,12" MinHeight="120"/>
+                    <TextBlock Grid.Row="4" Text="比赛补充通知" FontWeight="Bold" Foreground="#1E40AF" FontSize="14" Margin="0,0,0,4"/>
+                    <TextBox x:Name="NoticeBox" Grid.Row="5" Style="{StaticResource MultiBox}" MinHeight="100"/>
+                </Grid>
+            </TabItem>
+
+            <!-- 3. 重要活动日程 -->
+            <TabItem Header="重要活动日程">
+                <DockPanel Margin="14">
+                    <TextBlock DockPanel.Dock="Top" Margin="0,0,0,8" Foreground="#475569"
+                               Text="按报到、赛前训练、技术官员会议、领队会议等重要活动逐行填写。可在最下方空行直接输入，回车确认。"/>
+                    <DataGrid x:Name="ActivitiesGrid">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="日期" Binding="{Binding Date}" Width="120"/>
+                            <DataGridTextColumn Header="时间" Binding="{Binding Time}" Width="120"/>
+                            <DataGridTextColumn Header="活动内容" Binding="{Binding Activity}" Width="200"/>
+                            <DataGridTextColumn Header="参与人员" Binding="{Binding Participants}" Width="160"/>
+                            <DataGridTextColumn Header="地点" Binding="{Binding Venue}" Width="*"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </DockPanel>
+            </TabItem>
+
+            <!-- 4. 训练日程 -->
+            <TabItem Header="训练日程">
+                <DockPanel Margin="14">
+                    <TextBlock DockPanel.Dock="Top" Margin="0,0,0,8" Foreground="#475569"
+                               Text="赛前/赛中训练时段表。每天可填多条（上午/下午/晚上）。"/>
+                    <DataGrid x:Name="TrainingGrid">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="日期" Binding="{Binding Date}" Width="160"/>
+                            <DataGridTextColumn Header="时间" Binding="{Binding Time}" Width="200"/>
+                            <DataGridTextColumn Header="地点" Binding="{Binding Venue}" Width="*"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </DockPanel>
+            </TabItem>
+
+            <!-- 5. 竞赛人员 -->
+            <TabItem Header="竞赛人员">
+                <DockPanel Margin="14">
+                    <TextBlock DockPanel.Dock="Top" Margin="0,0,0,8" Foreground="#475569"
+                               Text="技术官员名单：仲裁委员、总裁判长、副总裁判长、检录长、计时长、终点长、各裁判组等。"/>
+                    <DataGrid x:Name="OfficialsGrid">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="职务" Binding="{Binding Title}" Width="200"/>
+                            <DataGridTextColumn Header="姓名" Binding="{Binding Name}" Width="*"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </DockPanel>
+            </TabItem>
+
+            <!-- 6. 运动队人员 -->
+            <TabItem Header="运动队人员">
+                <DockPanel Margin="14">
+                    <StackPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+                        <TextBlock Foreground="#475569"
+                                   Text="按队伍逐行填写领队 / 教练 / 队医 / 工作人员。多人姓名以中文顿号或逗号分隔。"/>
+                        <Button HorizontalAlignment="Left" Margin="0,8,0,0" Padding="14,5"
+                                Content="从已报名队伍自动建表" Click="AutoFillTeamStaff_Click" Background="#0EA5E9"/>
+                    </StackPanel>
+                    <DataGrid x:Name="TeamStaffGrid">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="代表队" Binding="{Binding TeamName}" Width="140"/>
+                            <DataGridTextColumn Header="领队" Binding="{Binding Leader}" Width="160"/>
+                            <DataGridTextColumn Header="教练" Binding="{Binding Coaches}" Width="200"/>
+                            <DataGridTextColumn Header="队医" Binding="{Binding Doctors}" Width="160"/>
+                            <DataGridTextColumn Header="工作人员" Binding="{Binding Staff}" Width="*"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </DockPanel>
+            </TabItem>
+
+            <!-- 7. 附注 -->
+            <TabItem Header="附注/尾页">
+                <Grid Margin="20">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <TextBlock Grid.Row="0" Text="附注 / 尾页（如奖项说明、安全须知、感谢词等）"
+                               FontWeight="Bold" Foreground="#1E40AF" FontSize="14" Margin="0,0,0,4"/>
+                    <TextBox x:Name="ClosingBox" Grid.Row="1" Style="{StaticResource MultiBox}"/>
+                </Grid>
+            </TabItem>
+        </TabControl>
+    </DockPanel>
+</Window>

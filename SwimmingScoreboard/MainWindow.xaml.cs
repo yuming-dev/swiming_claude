@@ -34,6 +34,7 @@ namespace SwimmingScoreboard
         private List<string> _events = new List<string>();
         private List<AgeGroup> _ageGroups = new List<AgeGroup>();
         private List<BibRange> _bibRanges = new List<BibRange>();
+        private ProgramBookData _programBook = new ProgramBookData();
 
         // ═══════════════════════════════════════════════════════════════
         // 比赛状态
@@ -8196,6 +8197,9 @@ namespace SwimmingScoreboard
         private void ClearAllDataAndUI() {
             ClearCompetitionData();
 
+            // 秩序册自定义内容
+            _programBook = new ProgramBookData();
+
             // 赛事基本信息
             _competitionName = "";
             if (CompNameBox != null) CompNameBox.Clear();
@@ -8281,7 +8285,8 @@ namespace SwimmingScoreboard
                     Events = _events,
                     AgeGroups = _ageGroups,
                     BibRanges = _bibRanges,
-                    LaneCloseSettings = _laneCloseSettings
+                    LaneCloseSettings = _laneCloseSettings,
+                    ProgramBook = _programBook
                 };
 
                 string json = JsonConvert.SerializeObject(package, Formatting.Indented);
@@ -8344,6 +8349,7 @@ namespace SwimmingScoreboard
                 RefreshAgeGroupsPreview();
                 RefreshAllAgeGroupFilterCombos();
                 _bibRanges = package.BibRanges ?? new List<BibRange>();
+                _programBook = package.ProgramBook ?? new ProgramBookData();
 
                 _swimmers.Clear();
                 if (package.Swimmers != null) {
@@ -9735,6 +9741,28 @@ namespace SwimmingScoreboard
         // ═══════════════════════════════════════════════════════════════
         private void PrintSchedule_Click(object sender, RoutedEventArgs e) { GenerateAndOpenDocument("竞赛日程", BuildScheduleHtml()); }
         private void PrintManual_Click(object sender, RoutedEventArgs e) { GenerateAndOpenDocument("秩序册", BuildManualHtml()); }
+
+        private void EditProgramBook_Click(object sender, RoutedEventArgs e) {
+            // 预览回调：用窗口当前快照临时替换 _programBook 渲染，再恢复
+            ProgramBookData backup = _programBook;
+            ProgramBookEditWindow win = null;
+            Func<List<string>> teamProvider = () =>
+                _swimmers.Where(s => !IsRelayMemberNote(s.Notes))
+                    .Select(s => s.Country ?? "")
+                    .Where(c => !string.IsNullOrEmpty(c))
+                    .Distinct().OrderBy(c => c).ToList();
+            Func<string> previewProvider = () => {
+                if (win != null && win.Result != null) _programBook = win.Result;
+                try { return BuildManualHtml(); }
+                finally { _programBook = backup; }
+            };
+            win = new ProgramBookEditWindow(_programBook, teamProvider, previewProvider) { Owner = this };
+            if (win.ShowDialog() == true && win.Saved && win.Result != null) {
+                _programBook = win.Result;
+                AutoSaveData();
+                AddLog("秩序册自定义内容已保存。");
+            }
+        }
         private void PrintStartList_Click(object sender, RoutedEventArgs e) { GenerateAndOpenDocument("出发表", BuildStartListHtml()); }
         private void PrintHeatResults_Click(object sender, RoutedEventArgs e) { GenerateAndOpenDocument("分组成绩", BuildHeatResultsHtml()); }
         private void PrintEventResults_Click(object sender, RoutedEventArgs e) {
@@ -9896,14 +9924,15 @@ namespace SwimmingScoreboard
             string starter = StarterBox.Text ?? "";
             string chiefJ = ChiefJudgeBox.Text ?? "";
             string compName = string.IsNullOrEmpty(_competitionName) ? "游泳比赛" : _competitionName;
+            var pb = _programBook ?? new ProgramBookData();
 
             var evtMap = BuildEventNumberMap();
 
             // ═══ 1. 封面 ═══
             sb.Append("<div class='page cover'>");
             sb.Append("<div class='cover-top'>");
-            sb.Append("<div class='ttl1'>游 泳 比 赛</div>");
-            sb.Append("<div class='ttl2'>秩 　 序 　 册</div>");
+            sb.AppendFormat("<div class='ttl1'>{0}</div>", string.IsNullOrEmpty(pb.CoverTitle) ? "游 泳 比 赛" : pb.CoverTitle);
+            sb.AppendFormat("<div class='ttl2'>{0}</div>", string.IsNullOrEmpty(pb.CoverSubtitle) ? "秩 　 序 　 册" : pb.CoverSubtitle);
             sb.Append("</div>");
             sb.Append("<div class='cover-mid'>");
             sb.AppendFormat("<div class='name'>{0}</div>", compName);
@@ -9916,23 +9945,51 @@ namespace SwimmingScoreboard
             sb.AppendFormat("<div class='row'><div class='lbl'>比赛地点：</div><div class='val'>{0}</div></div>", string.IsNullOrEmpty(location) ? "&nbsp;" : location);
             sb.Append("</div></div>");
 
-            // ═══ 2. 目录 ═══
+            // ═══ 2. 目录（动态：根据 _programBook 是否填充内容增加可选条目）═══
+            bool hasForeword = !string.IsNullOrWhiteSpace(pb.Foreword);
+            bool hasReg = !string.IsNullOrWhiteSpace(pb.Regulations);
+            bool hasNotice = !string.IsNullOrWhiteSpace(pb.SupplementaryNotice);
+            bool hasActivities = pb.KeyActivities != null && pb.KeyActivities.Count > 0;
+            bool hasTraining = pb.TrainingSchedule != null && pb.TrainingSchedule.Count > 0;
+            bool hasClosing = !string.IsNullOrWhiteSpace(pb.ClosingNote);
+            bool hasVenueImg = !string.IsNullOrEmpty(pb.VenueImagePath) && File.Exists(pb.VenueImagePath);
+
             sb.Append("<div class='page-break'></div><div class='page'>");
             sb.AppendFormat("<h1>{0}</h1><h2>目 　 录</h2>", compName);
             sb.Append("<div class='toc'>");
-            sb.Append("<div class='row'><span>一、赛事概况</span><span>1</span></div>");
-            sb.Append("<div class='row'><span>二、竞赛人员（仲裁、技术官员）</span><span>2</span></div>");
-            sb.Append("<div class='row'><span>三、小项设置</span><span>3</span></div>");
-            sb.Append("<div class='row'><span>四、竞赛日程</span><span>4</span></div>");
-            sb.Append("<div class='row'><span>五、运动队人数统计</span><span>5</span></div>");
-            sb.Append("<div class='row'><span>六、运动队名单</span><span>6</span></div>");
-            sb.Append("<div class='row'><span>七、各项目报名表</span><span>7</span></div>");
+            int tocN = 0;
+            if (hasForeword) sb.AppendFormat("<div class='row'><span>{0}、前言</span><span></span></div>", CnNum(++tocN));
+            sb.AppendFormat("<div class='row'><span>{0}、赛事概况</span><span></span></div>", CnNum(++tocN));
+            if (hasReg) sb.AppendFormat("<div class='row'><span>{0}、竞赛规程</span><span></span></div>", CnNum(++tocN));
+            sb.AppendFormat("<div class='row'><span>{0}、竞赛人员（仲裁、技术官员）</span><span></span></div>", CnNum(++tocN));
+            if (hasActivities) sb.AppendFormat("<div class='row'><span>{0}、重要活动日程</span><span></span></div>", CnNum(++tocN));
+            sb.AppendFormat("<div class='row'><span>{0}、小项设置</span><span></span></div>", CnNum(++tocN));
+            sb.AppendFormat("<div class='row'><span>{0}、竞赛日程</span><span></span></div>", CnNum(++tocN));
+            if (hasTraining) sb.AppendFormat("<div class='row'><span>{0}、训练日程</span><span></span></div>", CnNum(++tocN));
+            sb.AppendFormat("<div class='row'><span>{0}、运动队人数统计</span><span></span></div>", CnNum(++tocN));
+            sb.AppendFormat("<div class='row'><span>{0}、运动队名单</span><span></span></div>", CnNum(++tocN));
+            sb.AppendFormat("<div class='row'><span>{0}、各项目报名表</span><span></span></div>", CnNum(++tocN));
+            if (hasNotice) sb.AppendFormat("<div class='row'><span>{0}、比赛补充通知</span><span></span></div>", CnNum(++tocN));
+            if (hasVenueImg) sb.AppendFormat("<div class='row'><span>{0}、比赛场地和功能区示意图</span><span></span></div>", CnNum(++tocN));
+            if (hasClosing) sb.AppendFormat("<div class='row'><span>{0}、附注</span><span></span></div>", CnNum(++tocN));
             sb.Append("</div></div>");
 
+            // ═══ 前言 ═══
+            if (hasForeword) {
+                sb.Append("<div class='page-break'></div><div class='page'>");
+                sb.AppendFormat("<h1>{0}</h1>", compName);
+                sb.Append("<h3><span class='section-tag'>前</span>前言</h3>");
+                sb.AppendFormat("<div style='font-size:16px; line-height:1.9; text-indent:2em; white-space:pre-wrap;'>{0}</div>",
+                    System.Net.WebUtility.HtmlEncode(pb.Foreword));
+                sb.Append("</div>");
+            }
+
             // ═══ 3. 赛事概况 ═══
+            int sectN = 0;
+            if (hasForeword) sectN = 1; // 前言已占一节
             sb.Append("<div class='page-break'></div><div class='page'>");
             sb.AppendFormat("<h1>{0}</h1>", compName);
-            sb.Append("<h3><span class='section-tag'>一</span>赛事概况</h3>");
+            sb.AppendFormat("<h3><span class='section-tag'>{0}</span>赛事概况</h3>", CnNum(++sectN));
             sb.Append("<table>");
             sb.AppendFormat("<tr><th width='130'>赛事名称</th><td colspan='3' style='text-align:left;'>{0}</td></tr>", compName);
             sb.AppendFormat("<tr><th>主办单位</th><td colspan='3' style='text-align:left;'>{0}</td></tr>", string.IsNullOrEmpty(organizer) ? "&nbsp;" : organizer);
@@ -9949,20 +10006,62 @@ namespace SwimmingScoreboard
             sb.AppendFormat("<tr><th>设置项目</th><td>{0} 项</td><th>接力队伍</th><td>{1} 支</td></tr>", totalEvents, totalRelays);
             sb.Append("</table>");
 
-            // ═══ 4. 竞赛人员 ═══
-            sb.Append("<h3><span class='section-tag'>二</span>竞赛人员</h3>");
+            sb.Append("</div>");
+
+            // ═══ 竞赛规程 ═══
+            if (hasReg) {
+                sb.Append("<div class='page-break'></div><div class='page'>");
+                sb.AppendFormat("<h1>{0}</h1>", compName);
+                sb.AppendFormat("<h3><span class='section-tag'>{0}</span>竞赛规程</h3>", CnNum(++sectN));
+                sb.AppendFormat("<div style='font-size:15px; line-height:1.9; white-space:pre-wrap;'>{0}</div>",
+                    System.Net.WebUtility.HtmlEncode(pb.Regulations));
+                sb.Append("</div>");
+            }
+
+            // ═══ 竞赛人员 ═══
+            sb.Append("<div class='page-break'></div><div class='page'>");
+            sb.AppendFormat("<h1>{0}</h1>", compName);
+            sb.AppendFormat("<h3><span class='section-tag'>{0}</span>竞赛人员</h3>", CnNum(++sectN));
             sb.Append("<table>");
             sb.AppendFormat("<tr><th width='130'>技术代表</th><td>{0}</td><th width='130'>总裁判长</th><td>{1}</td></tr>",
                 Hyphen(techDel), Hyphen(referee));
             sb.AppendFormat("<tr><th>发令员</th><td>{0}</td><th>编排长</th><td>{1}</td></tr>",
                 Hyphen(starter), Hyphen(chiefJ));
             sb.Append("</table>");
+            if (pb.Officials != null && pb.Officials.Count > 0) {
+                sb.Append("<h4>技术官员名单</h4>");
+                sb.Append("<table><tr><th width='200'>职务</th><th>姓名</th></tr>");
+                foreach (var o in pb.Officials) {
+                    sb.AppendFormat("<tr><td>{0}</td><td style='text-align:left;'>{1}</td></tr>",
+                        System.Net.WebUtility.HtmlEncode(o.Title ?? ""),
+                        System.Net.WebUtility.HtmlEncode(o.Name ?? ""));
+                }
+                sb.Append("</table>");
+            }
             sb.Append("</div>");
+
+            // ═══ 重要活动日程 ═══
+            if (hasActivities) {
+                sb.Append("<div class='page-break'></div><div class='page'>");
+                sb.AppendFormat("<h1>{0}</h1>", compName);
+                sb.AppendFormat("<h3><span class='section-tag'>{0}</span>重要活动日程</h3>", CnNum(++sectN));
+                sb.Append("<table><tr><th width='110'>日期</th><th width='110'>时间</th><th>活动内容</th><th width='140'>参与人员</th><th width='160'>地点</th></tr>");
+                foreach (var a in pb.KeyActivities) {
+                    sb.AppendFormat("<tr><td>{0}</td><td>{1}</td><td style='text-align:left;'>{2}</td><td>{3}</td><td>{4}</td></tr>",
+                        System.Net.WebUtility.HtmlEncode(a.Date ?? ""),
+                        System.Net.WebUtility.HtmlEncode(a.Time ?? ""),
+                        System.Net.WebUtility.HtmlEncode(a.Activity ?? ""),
+                        System.Net.WebUtility.HtmlEncode(a.Participants ?? ""),
+                        System.Net.WebUtility.HtmlEncode(a.Venue ?? ""));
+                }
+                sb.Append("</table>");
+                sb.Append("</div>");
+            }
 
             // ═══ 5. 小项设置 ═══
             sb.Append("<div class='page-break'></div><div class='page'>");
             sb.AppendFormat("<h1>{0}</h1>", compName);
-            sb.Append("<h3><span class='section-tag'>三</span>小项设置</h3>");
+            sb.AppendFormat("<h3><span class='section-tag'>{0}</span>小项设置</h3>", CnNum(++sectN));
             sb.Append("<table><tr><th width='80'>性别</th><th>小项</th><th width='80'>项数</th></tr>");
             foreach (var gp in evtMap.Keys.GroupBy(k => k.Split('|')[0])) {
                 var events = gp.Select(k => k.Split('|')[1]).OrderBy(e => evtMap[gp.Key + "|" + e]).ToList();
@@ -9978,7 +10077,7 @@ namespace SwimmingScoreboard
             // ═══ 6. 竞赛日程 ═══
             sb.Append("<div class='page-break'></div><div class='page'>");
             sb.AppendFormat("<h1>{0}</h1>", compName);
-            sb.Append("<h3><span class='section-tag'>四</span>竞赛日程</h3>");
+            sb.AppendFormat("<h3><span class='section-tag'>{0}</span>竞赛日程</h3>", CnNum(++sectN));
             if (_schedule.Count == 0) {
                 sb.Append("<p style='text-align:center; color:#94a3b8;'>暂未编排日程，请在【赛事管理与报名】中维护。</p>");
             } else {
@@ -10009,10 +10108,26 @@ namespace SwimmingScoreboard
             }
             sb.Append("</div>");
 
+            // ═══ 训练日程（可选）═══
+            if (hasTraining) {
+                sb.Append("<div class='page-break'></div><div class='page'>");
+                sb.AppendFormat("<h1>{0}</h1>", compName);
+                sb.AppendFormat("<h3><span class='section-tag'>{0}</span>训练日程</h3>", CnNum(++sectN));
+                sb.Append("<table><tr><th width='160'>日期</th><th width='200'>时间</th><th>地点</th></tr>");
+                foreach (var t in pb.TrainingSchedule) {
+                    sb.AppendFormat("<tr><td>{0}</td><td>{1}</td><td>{2}</td></tr>",
+                        System.Net.WebUtility.HtmlEncode(t.Date ?? ""),
+                        System.Net.WebUtility.HtmlEncode(t.Time ?? ""),
+                        System.Net.WebUtility.HtmlEncode(t.Venue ?? ""));
+                }
+                sb.Append("</table>");
+                sb.Append("</div>");
+            }
+
             // ═══ 7. 运动队人数统计 ═══
             sb.Append("<div class='page-break'></div><div class='page'>");
             sb.AppendFormat("<h1>{0}</h1>", compName);
-            sb.Append("<h3><span class='section-tag'>五</span>运动队人数统计</h3>");
+            sb.AppendFormat("<h3><span class='section-tag'>{0}</span>运动队人数统计</h3>", CnNum(++sectN));
             sb.Append("<table><tr><th width='50'>序号</th><th>代表队</th><th width='70'>男</th><th width='70'>女</th><th width='70'>合计</th><th width='70'>接力队</th></tr>");
             var teamRows = _swimmers
                 .Where(s => !IsRelayMemberNote(s.Notes))
@@ -10042,7 +10157,10 @@ namespace SwimmingScoreboard
             // ═══ 8. 运动队名单 ═══
             sb.Append("<div class='page-break'></div><div class='page'>");
             sb.AppendFormat("<h1>{0}</h1>", compName);
-            sb.Append("<h3><span class='section-tag'>六</span>运动队名单</h3>");
+            sb.AppendFormat("<h3><span class='section-tag'>{0}</span>运动队名单</h3>", CnNum(++sectN));
+            var staffMap = (pb.TeamStaffList ?? new List<ProgramBookTeamStaff>())
+                .Where(s => !string.IsNullOrEmpty(s.TeamName))
+                .GroupBy(s => s.TeamName).ToDictionary(g => g.Key, g => g.First());
             foreach (var team in teamRows) {
                 var teamSwimmers = _swimmers.Where(s => (s.Country ?? "") == team.Team && !IsRelayMemberNote(s.Notes)).ToList();
                 var men = teamSwimmers.Where(s => s.Gender == "男").Select(s => s.Name).Where(n => !string.IsNullOrEmpty(n)).Distinct().OrderBy(n => n).ToList();
@@ -10050,6 +10168,17 @@ namespace SwimmingScoreboard
                 sb.Append("<div class='team-block'>");
                 sb.AppendFormat("<div class='team-name'>{0}　<span style='font-size:13px; color:#64748b; font-family:SimSun; letter-spacing:0;'>（男 {1} 人，女 {2} 人）</span></div>",
                     team.Team, men.Count, women.Count);
+                ProgramBookTeamStaff staff;
+                if (staffMap.TryGetValue(team.Team, out staff)) {
+                    if (!string.IsNullOrWhiteSpace(staff.Leader))
+                        sb.AppendFormat("<div class='role'><div class='lbl'>领　　队：</div><div class='vals'>{0}</div></div>", System.Net.WebUtility.HtmlEncode(staff.Leader));
+                    if (!string.IsNullOrWhiteSpace(staff.Coaches))
+                        sb.AppendFormat("<div class='role'><div class='lbl'>教　　练：</div><div class='vals'>{0}</div></div>", System.Net.WebUtility.HtmlEncode(staff.Coaches));
+                    if (!string.IsNullOrWhiteSpace(staff.Doctors))
+                        sb.AppendFormat("<div class='role'><div class='lbl'>队　　医：</div><div class='vals'>{0}</div></div>", System.Net.WebUtility.HtmlEncode(staff.Doctors));
+                    if (!string.IsNullOrWhiteSpace(staff.Staff))
+                        sb.AppendFormat("<div class='role'><div class='lbl'>工作人员：</div><div class='vals'>{0}</div></div>", System.Net.WebUtility.HtmlEncode(staff.Staff));
+                }
                 if (men.Count > 0)
                     sb.AppendFormat("<div class='role'><div class='lbl'>男运动员：</div><div class='vals'>{0}</div></div>", string.Join("　", men.ToArray()));
                 if (women.Count > 0)
@@ -10064,7 +10193,7 @@ namespace SwimmingScoreboard
             // ═══ 9. 各项目报名表 ═══
             sb.Append("<div class='page-break'></div><div class='page'>");
             sb.AppendFormat("<h1>{0}</h1>", compName);
-            sb.Append("<h3><span class='section-tag'>七</span>各项目报名表</h3>");
+            sb.AppendFormat("<h3><span class='section-tag'>{0}</span>各项目报名表</h3>", CnNum(++sectN));
             // 按项目编号排序展示
             var sortedKeys = evtMap.OrderBy(kv => kv.Value).ToList();
             int blockIdx = 0;
@@ -10101,6 +10230,44 @@ namespace SwimmingScoreboard
 
             sb.Append(DocSignatureRow());
             sb.Append("</div>");
+
+            // ═══ 比赛补充通知 ═══
+            if (hasNotice) {
+                sb.Append("<div class='page-break'></div><div class='page'>");
+                sb.AppendFormat("<h1>{0}</h1>", compName);
+                sb.AppendFormat("<h3><span class='section-tag'>{0}</span>比赛补充通知</h3>", CnNum(++sectN));
+                sb.AppendFormat("<div style='font-size:15px; line-height:1.9; white-space:pre-wrap;'>{0}</div>",
+                    System.Net.WebUtility.HtmlEncode(pb.SupplementaryNotice));
+                sb.Append("</div>");
+            }
+
+            // ═══ 比赛场地和功能区示意图 ═══
+            if (hasVenueImg) {
+                sb.Append("<div class='page-break'></div><div class='page'>");
+                sb.AppendFormat("<h1>{0}</h1>", compName);
+                sb.AppendFormat("<h3><span class='section-tag'>{0}</span>比赛场地和功能区示意图</h3>", CnNum(++sectN));
+                try {
+                    byte[] bytes = File.ReadAllBytes(pb.VenueImagePath);
+                    string ext = (System.IO.Path.GetExtension(pb.VenueImagePath) ?? ".png").TrimStart('.').ToLower();
+                    string mime = ext == "jpg" || ext == "jpeg" ? "image/jpeg" : (ext == "bmp" ? "image/bmp" : "image/png");
+                    sb.AppendFormat("<div style='text-align:center; margin-top:20px;'><img src='data:{0};base64,{1}' style='max-width:100%; max-height:900px;'/></div>",
+                        mime, Convert.ToBase64String(bytes));
+                } catch (Exception ex) {
+                    sb.AppendFormat("<p style='color:#dc2626;'>无法载入图片：{0}</p>", System.Net.WebUtility.HtmlEncode(ex.Message));
+                }
+                sb.Append("</div>");
+            }
+
+            // ═══ 附注 / 尾页 ═══
+            if (hasClosing) {
+                sb.Append("<div class='page-break'></div><div class='page'>");
+                sb.AppendFormat("<h1>{0}</h1>", compName);
+                sb.AppendFormat("<h3><span class='section-tag'>{0}</span>附注</h3>", CnNum(++sectN));
+                sb.AppendFormat("<div style='font-size:15px; line-height:1.9; white-space:pre-wrap;'>{0}</div>",
+                    System.Net.WebUtility.HtmlEncode(pb.ClosingNote));
+                sb.Append("</div>");
+            }
+
             sb.Append(DocFooter());
             sb.Append("</body></html>");
             return sb.ToString();
@@ -10111,6 +10278,14 @@ namespace SwimmingScoreboard
         // 判断 Swimmer.Notes 是否表示"接力队员"子条目（用于人数统计/名单中排除）
         private static bool IsRelayMemberNote(string notes) {
             return !string.IsNullOrEmpty(notes) && notes.StartsWith("接力队员");
+        }
+
+        // 中文数字（一~二十），用于秩序册章节编号
+        private static string CnNum(int n) {
+            string[] tbl = { "零","一","二","三","四","五","六","七","八","九","十",
+                             "十一","十二","十三","十四","十五","十六","十七","十八","十九","二十" };
+            if (n >= 0 && n < tbl.Length) return tbl[n];
+            return n.ToString();
         }
 
         private static int ComputeDays(string startDate, string endDate) {
