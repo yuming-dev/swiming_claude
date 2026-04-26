@@ -317,7 +317,7 @@ function randomBirthDate() {
 function randomPhone() { return '138' + Math.floor(Math.random() * 100000000).toString().padStart(8, '0'); }
 function randomID() { return '110101' + (1990 + Math.floor(Math.random()*15)) + (1+Math.floor(Math.random()*12)).toString().padStart(2,'0') + (1+Math.floor(Math.random()*28)).toString().padStart(2,'0') + Math.floor(Math.random()*10000).toString().padStart(4,'0'); }
 
-// 根据年龄组返回 [minAge, maxAge]；为空或未识别则回退默认 18-29
+// 根据组别返回 [minAge, maxAge]；为空或未识别则回退默认 18-29
 function ageRangeFor(ageGroup) {
     switch (ageGroup) {
         case '青少年': return [12, 13];

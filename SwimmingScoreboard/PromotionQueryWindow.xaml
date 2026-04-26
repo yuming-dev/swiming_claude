@@ -15,9 +15,9 @@
         <Border Grid.Row="0" Background="White" CornerRadius="6" Padding="12" Margin="0,0,0,8">
             <StackPanel>
                 <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                    <TextBlock Text="年龄组:" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                    <TextBlock Text="组别:" VerticalAlignment="Center" Margin="0,0,4,0"/>
                     <ComboBox x:Name="AgeGroupCombo" Width="90" SelectionChanged="AgeGroup_Changed" Margin="0,0,12,0"
-                              ToolTip="选“全部”表示不按年龄组过滤"/>
+                              ToolTip="选“全部”表示不按组别过滤"/>
                     <TextBlock Text="性别:" VerticalAlignment="Center" Margin="0,0,4,0"/>
                     <ComboBox x:Name="GenderCombo" Width="70" SelectionChanged="Gender_Changed" Margin="0,0,12,0">
                         <ComboBoxItem Content="男" IsSelected="True"/>

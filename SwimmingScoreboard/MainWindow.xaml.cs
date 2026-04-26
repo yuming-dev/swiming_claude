@@ -4463,7 +4463,7 @@ namespace SwimmingScoreboard
             grid.Children.Add(cbEvent);
             var tbEntry = AddEditField(grid, 4, 2, "报名成绩:", target.EntryTime);
 
-            // Row 5: 赛次（下拉，手动）+ 组别（下拉，选自年龄组）
+            // Row 5: 赛次（下拉，手动）+ 组别（下拉，选自组别）
             AddEditLabel(grid, 5, 0, "赛次:");
             var cbStage = new ComboBox { VerticalAlignment = VerticalAlignment.Center };
             cbStage.Items.Add("决赛"); cbStage.Items.Add("预赛"); cbStage.Items.Add("半决赛");
@@ -5426,7 +5426,7 @@ namespace SwimmingScoreboard
                 string ageGroup = EditAgeGroupCombo != null && EditAgeGroupCombo.SelectedItem != null ? EditAgeGroupCombo.SelectedItem.ToString() : "";
                 string gender = EditGenderCombo.SelectedItem != null ? ((ComboBoxItem)EditGenderCombo.SelectedItem).Content.ToString() : "男";
 
-                // 按当前性别+年龄组过滤项目列表（排除接力队员个人条目）
+                // 按当前性别+组别过滤项目列表（排除接力队员个人条目）
                 string prevEvent = EditEventCombo.SelectedItem != null ? EditEventCombo.SelectedItem.ToString() : "";
                 EditEventCombo.Items.Clear();
                 var evSet = new HashSet<string>();
@@ -5478,7 +5478,7 @@ namespace SwimmingScoreboard
         }
 
         private void RebuildEditEventCombo() {
-            // 重建项目下拉框（按年龄组+性别过滤，保留当前选择）
+            // 重建项目下拉框（按组别+性别过滤，保留当前选择）
             string ageGroup = EditAgeGroupCombo != null && EditAgeGroupCombo.SelectedItem != null ? EditAgeGroupCombo.SelectedItem.ToString() : "";
             string gender = EditGenderCombo != null && EditGenderCombo.SelectedItem != null ? ((ComboBoxItem)EditGenderCombo.SelectedItem).Content.ToString() : "男";
             int prevIndex = EditEventCombo.SelectedIndex;
@@ -5497,7 +5497,7 @@ namespace SwimmingScoreboard
                 EditEventCombo.SelectedIndex = 0;
         }
 
-        // 填充"出场编排微调"里的年龄组下拉（首项=全部），当年龄组列表变化时调用
+        // 填充"出场编排微调"里的组别下拉（首项=全部），当组别列表变化时调用
         private void RefreshEditAgeGroupCombo() {
             if (EditAgeGroupCombo == null) return;
             string prev = EditAgeGroupCombo.SelectedItem as string;
@@ -5509,7 +5509,7 @@ namespace SwimmingScoreboard
             else EditAgeGroupCombo.SelectedIndex = 0;
         }
 
-        // 其它年龄组过滤下拉（运动员管理/记录管理/成绩与排名）
+        // 其它组别过滤下拉（运动员管理/记录管理/成绩与排名）
         private void FillAgeGroupFilterCombo(ComboBox cb) {
             if (cb == null) return;
             string prev = cb.SelectedItem as string;
@@ -5643,7 +5643,7 @@ namespace SwimmingScoreboard
                     grid.Columns.Add(new DataGridTextColumn { Header = "性别", Binding = new System.Windows.Data.Binding("Gender"), Width = new DataGridLength(40) });
                     grid.Columns.Add(new DataGridTextColumn { Header = "代表队", Binding = new System.Windows.Data.Binding("Country"), Width = new DataGridLength(80) });
                     grid.Columns.Add(new DataGridTextColumn { Header = seedColHeader, Binding = new System.Windows.Data.Binding("SeedTime"), Width = new DataGridLength(80) });
-                    grid.Columns.Add(new DataGridTextColumn { Header = "年龄组", Binding = new System.Windows.Data.Binding("AgeCategory"), Width = new DataGridLength(60) });
+                    grid.Columns.Add(new DataGridTextColumn { Header = "组别", Binding = new System.Windows.Data.Binding("AgeCategory"), Width = new DataGridLength(60) });
                     grid.Columns.Add(new DataGridTextColumn { Header = "状态", Binding = new System.Windows.Data.Binding("Status"), Width = new DataGridLength(50) });
 
                     var grpData = grp.OrderBy(t => t.Item3).Select(t => {
@@ -5717,7 +5717,7 @@ namespace SwimmingScoreboard
                 grid.Columns.Add(new DataGridTextColumn { Header = "性别", Binding = new System.Windows.Data.Binding("Gender"), Width = new DataGridLength(40) });
                 grid.Columns.Add(new DataGridTextColumn { Header = "代表队", Binding = new System.Windows.Data.Binding("Country"), Width = new DataGridLength(80) });
                 grid.Columns.Add(new DataGridTextColumn { Header = seedColHeader, Binding = new System.Windows.Data.Binding("SeedTime"), Width = new DataGridLength(80) });
-                grid.Columns.Add(new DataGridTextColumn { Header = "年龄组", Binding = new System.Windows.Data.Binding("AgeCategory"), Width = new DataGridLength(60) });
+                grid.Columns.Add(new DataGridTextColumn { Header = "组别", Binding = new System.Windows.Data.Binding("AgeCategory"), Width = new DataGridLength(60) });
                 grid.Columns.Add(new DataGridTextColumn { Header = "状态", Binding = new System.Windows.Data.Binding("Status"), Width = new DataGridLength(50) });
 
                 // 选中行跟踪（用于上移/下移操作）
@@ -5796,7 +5796,7 @@ namespace SwimmingScoreboard
             int heat1 = sa1 != null ? sa1.Heat : sw1.Heat;
             int lane1 = sa1 != null ? sa1.Lane : sw1.Lane;
 
-            // 候选目标 = 同项目/同赛次的其它运动员（可交换） + 空道（可移动），按年龄组过滤
+            // 候选目标 = 同项目/同赛次的其它运动员（可交换） + 空道（可移动），按组别过滤
             // 使用 Tuple<Swimmer, int, int>：Swimmer==null 表示空道；Heat, Lane 为目标组/道
             var candidates = new List<Tuple<Swimmer, int, int>>();
             var occupiedHeatLane = new HashSet<string>(); // "heat|lane" 占用记录（用于计算空道）
@@ -5913,7 +5913,7 @@ namespace SwimmingScoreboard
             if (m.Success) heat = int.Parse(m.Value);
             if (heat <= 0) return;
 
-            // 查找未分组的运动员（同年龄组同性别同项目同赛次，Heat=0或无StageAssignment）
+            // 查找未分组的运动员（同组别同性别同项目同赛次，Heat=0或无StageAssignment）
             var unassigned = new List<Swimmer>();
             foreach (var s in _swimmers) {
                 if (s.Gender != gender || s.EventName != eventName) continue;
@@ -5990,7 +5990,7 @@ namespace SwimmingScoreboard
                 if (m.Success) heat = int.Parse(m.Value);
             }
 
-            // 查找运动员列表（同RefreshEditPreview逻辑，接力项目只看代表队；按年龄组过滤）
+            // 查找运动员列表（同RefreshEditPreview逻辑，接力项目只看代表队；按组别过滤）
             bool isRelaySwap = eventName.Contains("接力");
             var matchedSwimmers = new List<Tuple<Swimmer, int, int>>();
             foreach (var s in _swimmers) {
@@ -6443,8 +6443,8 @@ namespace SwimmingScoreboard
                     };
                     eg.Columns.Add(new DataGridTextColumn { Header = "日期", Binding = new System.Windows.Data.Binding("Date"), Width = new DataGridLength(100) });
                     eg.Columns.Add(new DataGridTextColumn { Header = "时间", Binding = new System.Windows.Data.Binding("Time"), Width = new DataGridLength(70) });
-                    // 年龄组（空串=不限）
-                    var agCol = new DataGridComboBoxColumn { Header = "年龄组", Width = new DataGridLength(80), SelectedItemBinding = new System.Windows.Data.Binding("AgeGroup") };
+                    // 组别（空串=不限）
+                    var agCol = new DataGridComboBoxColumn { Header = "组别", Width = new DataGridLength(80), SelectedItemBinding = new System.Windows.Data.Binding("AgeGroup") };
                     var agItems = new List<string> { "" };
                     foreach (var g in _ageGroups) agItems.Add(g.Name);
                     agCol.ItemsSource = agItems; eg.Columns.Add(agCol);
@@ -6710,7 +6710,7 @@ namespace SwimmingScoreboard
                     SelectionMode = DataGridSelectionMode.Single
                 };
                 grid.Columns.Add(new DataGridTextColumn { Header = "时间", Binding = new System.Windows.Data.Binding("Time"), Width = new DataGridLength(70) });
-                grid.Columns.Add(new DataGridTextColumn { Header = "年龄组", Binding = new System.Windows.Data.Binding("AgeGroup"), Width = new DataGridLength(70) });
+                grid.Columns.Add(new DataGridTextColumn { Header = "组别", Binding = new System.Windows.Data.Binding("AgeGroup"), Width = new DataGridLength(70) });
                 grid.Columns.Add(new DataGridTextColumn { Header = "性别", Binding = new System.Windows.Data.Binding("Gender"), Width = new DataGridLength(40) });
                 grid.Columns.Add(new DataGridTextColumn { Header = "项目", Binding = new System.Windows.Data.Binding("EventName"), Width = new DataGridLength(160) });
                 grid.Columns.Add(new DataGridTextColumn { Header = "阶段", Binding = new System.Windows.Data.Binding("Stage"), Width = new DataGridLength(60) });
@@ -6941,7 +6941,7 @@ namespace SwimmingScoreboard
             grid.Columns.Add(new DataGridTextColumn { Header = "号码", Binding = new System.Windows.Data.Binding("BibNumber") { Mode = System.Windows.Data.BindingMode.OneWay }, Width = new DataGridLength(70), IsReadOnly = true });
             grid.Columns.Add(new DataGridTextColumn { Header = "姓名", Binding = new System.Windows.Data.Binding("Name") { Mode = System.Windows.Data.BindingMode.OneWay }, Width = new DataGridLength(100), IsReadOnly = true });
             grid.Columns.Add(new DataGridTextColumn { Header = "代表队", Binding = new System.Windows.Data.Binding("Country") { Mode = System.Windows.Data.BindingMode.OneWay }, Width = new DataGridLength(120), IsReadOnly = true });
-            grid.Columns.Add(new DataGridTextColumn { Header = "年龄组", Binding = new System.Windows.Data.Binding("AgeCategory") { Mode = System.Windows.Data.BindingMode.OneWay }, Width = new DataGridLength(70), IsReadOnly = true });
+            grid.Columns.Add(new DataGridTextColumn { Header = "组别", Binding = new System.Windows.Data.Binding("AgeCategory") { Mode = System.Windows.Data.BindingMode.OneWay }, Width = new DataGridLength(70), IsReadOnly = true });
             grid.Columns.Add(new DataGridTextColumn { Header = "报名成绩", Binding = new System.Windows.Data.Binding("EntryTime") { Mode = System.Windows.Data.BindingMode.OneWay }, Width = new DataGridLength(90), IsReadOnly = true });
             grid.Columns.Add(new DataGridTextColumn { Header = "组", Binding = new System.Windows.Data.Binding("Heat") { Mode = System.Windows.Data.BindingMode.TwoWay, UpdateSourceTrigger = System.Windows.Data.UpdateSourceTrigger.PropertyChanged }, Width = new DataGridLength(60) });
             grid.Columns.Add(new DataGridTextColumn { Header = "道", Binding = new System.Windows.Data.Binding("Lane") { Mode = System.Windows.Data.BindingMode.TwoWay, UpdateSourceTrigger = System.Windows.Data.UpdateSourceTrigger.PropertyChanged }, Width = new DataGridLength(60) });
@@ -7694,7 +7694,7 @@ namespace SwimmingScoreboard
                 return;
             }
 
-            // 按年龄组/性别和项目筛选（接力项目只查代表队，不查个人队员）
+            // 按组别/性别和项目筛选（接力项目只查代表队，不查个人队员）
             var allMatched = _swimmers.Where(s =>
                 s.EventName == eventName && s.Gender == gender &&
                 MatchesAgeGroup(s, ageFilter) &&
@@ -8012,7 +8012,7 @@ namespace SwimmingScoreboard
                     points = isRelay ? RelayPointsMultiplied[idx] : IndividualPoints[idx];
                 }
 
-                // 年龄组系数
+                // 组别系数
                 if (sw.AgeCategory == "青少年" || sw.AgeCategory == "少年") {
                     points = Math.Round(points * 0.8);
                 } else if (sw.AgeCategory == "大师") {
@@ -8861,7 +8861,7 @@ namespace SwimmingScoreboard
         private void ImportRecordsCSV_Click(object sender, RoutedEventArgs e) {
             var dlg = new Microsoft.Win32.OpenFileDialog {
                 Filter = "CSV文件|*.csv|文本文件|*.txt|所有文件|*.*",
-                Title = "导入纪录（格式：年龄组,性别,项目,类型,保持者,代表队,成绩,日期,地点；年龄组列可省略）"
+                Title = "导入纪录（格式：组别,性别,项目,类型,保持者,代表队,成绩,日期,地点；组别列可省略）"
             };
             if (dlg.ShowDialog() == true) {
                 try {
@@ -8894,7 +8894,7 @@ namespace SwimmingScoreboard
                         string[] cols = line.Split(delimiter);
                         if (cols.Length < 3) continue;
 
-                        // 兼容 9 列（含年龄组）与 8 列（旧）两种格式：首列值是性别关键字则视为无年龄组
+                        // 兼容 9 列（含组别）与 8 列（旧）两种格式：首列值是性别关键字则视为无组别
                         string first = cols[0].Trim();
                         bool hasAge = !(first == "男" || first == "女" || first == "混合");
                         int colIdx = 0;
@@ -8924,7 +8924,7 @@ namespace SwimmingScoreboard
                             continue;
                         }
 
-                        // 查找是否已存在相同纪录（年龄组+性别+项目+类型共同决定唯一性）
+                        // 查找是否已存在相同纪录（组别+性别+项目+类型共同决定唯一性）
                         SwimmingRecord existing = null;
                         foreach (var r in _records) {
                             if ((r.AgeGroup ?? "") == (ageGroup ?? "") && r.Gender == gender
@@ -8982,7 +8982,7 @@ namespace SwimmingScoreboard
                 var sb = new System.Text.StringBuilder();
                 // BOM + 表头
                 sb.Append('\uFEFF');
-                sb.AppendLine("年龄组,性别,项目,类型,保持者,代表队,成绩,日期,地点");
+                sb.AppendLine("组别,性别,项目,类型,保持者,代表队,成绩,日期,地点");
 
                 // 已有的纪录数据先填入对应位置
                 var existingMap = new Dictionary<string, SwimmingRecord>();
@@ -9044,10 +9044,10 @@ namespace SwimmingScoreboard
         }
 
         // ═══════════════════════════════════════════════════════════════
-        // 比赛类型管理：比赛项目 / 年龄组（数据库持久化 + Excel CSV 导入导出）
+        // 比赛类型管理：比赛项目 / 组别（数据库持久化 + Excel CSV 导入导出）
         // ═══════════════════════════════════════════════════════════════
 
-        // 若年龄组为空/"全部"/"不限"，则不过滤（兼容旧逻辑）；否则运动员的 AgeCategory 必须与之一致
+        // 若组别为空/"全部"/"不限"，则不过滤（兼容旧逻辑）；否则运动员的 AgeCategory 必须与之一致
         private bool MatchesAgeGroup(Swimmer s, string ageGroup) {
             if (string.IsNullOrEmpty(ageGroup) || ageGroup == "全部" || ageGroup == "不限") return true;
             return (s.AgeCategory ?? "") == ageGroup;
@@ -9097,7 +9097,7 @@ namespace SwimmingScoreboard
             AgeGroupsPreviewGrid.ItemsSource = _ageGroups.Select(g => new { g.Name, g.MinAge, g.MaxAge }).ToList();
         }
 
-        // 年龄组变更后，重新计算所有运动员的 AgeCategory
+        // 组别变更后，重新计算所有运动员的 AgeCategory
         private void RecomputeAllAgeCategories() {
             foreach (var s in _swimmers) {
                 int age = s.Age;
@@ -9194,7 +9194,7 @@ namespace SwimmingScoreboard
             foreach (var g in _ageGroups) working.Add(new AgeGroup { Name = g.Name, MinAge = g.MinAge, MaxAge = g.MaxAge });
 
             var dlg = new Window {
-                Title = "年龄组编辑", Width = 540, Height = 520,
+                Title = "组别编辑", Width = 540, Height = 520,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner, Owner = this, ResizeMode = ResizeMode.CanResize
             };
             var mainGrid = new Grid { Margin = new Thickness(16) };
@@ -9202,7 +9202,7 @@ namespace SwimmingScoreboard
             mainGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
             mainGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             mainGrid.Children.Add(new TextBlock {
-                Text = "编辑年龄组（名称 + 最小年龄 + 最大年龄）。运动员按年龄命中第一个匹配组。可增删；确认保存，取消不生效。",
+                Text = "编辑组别（名称 + 最小年龄 + 最大年龄）。运动员按年龄命中第一个匹配组。可增删；确认保存，取消不生效。",
                 TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 8),
                 Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569"))
             });
@@ -9226,7 +9226,7 @@ namespace SwimmingScoreboard
             Grid.SetRow(btnPanel, 2);
             var btnAdd = new Button { Content = "新增", Padding = new Thickness(12, 6, 12, 6), Margin = new Thickness(0, 0, 8, 0),
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6")), Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0) };
-            btnAdd.Click += delegate { working.Add(new AgeGroup { Name = "新年龄组", MinAge = 0, MaxAge = 0 }); };
+            btnAdd.Click += delegate { working.Add(new AgeGroup { Name = "新组别", MinAge = 0, MaxAge = 0 }); };
             var btnDel = new Button { Content = "删除选中", Padding = new Thickness(12, 6, 12, 6), Margin = new Thickness(0, 0, 8, 0),
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EF4444")), Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0) };
             btnDel.Click += delegate {
@@ -9247,18 +9247,18 @@ namespace SwimmingScoreboard
                     if (r.MaxAge < r.MinAge) {
                         MessageBox.Show(string.Format("[{0}] 最大年龄 < 最小年龄，请修正。", name)); return;
                     }
-                    if (seen.Contains(name)) { MessageBox.Show(string.Format("年龄组 [{0}] 重复。", name)); return; }
+                    if (seen.Contains(name)) { MessageBox.Show(string.Format("组别 [{0}] 重复。", name)); return; }
                     seen.Add(name);
                     finalList.Add(new AgeGroup { Name = name, MinAge = r.MinAge, MaxAge = r.MaxAge });
                 }
-                if (finalList.Count == 0) { MessageBox.Show("至少保留一个年龄组"); return; }
+                if (finalList.Count == 0) { MessageBox.Show("至少保留一个组别"); return; }
                 _ageGroups = finalList;
                 AgeGroupRegistry.Set(_ageGroups);
                 RefreshAgeGroupsPreview();
                 RefreshAllAgeGroupFilterCombos();
                 RecomputeAllAgeCategories();
                 AutoSaveData();
-                AddLog(string.Format("已更新年龄组列表（{0} 条）", _ageGroups.Count));
+                AddLog(string.Format("已更新组别列表（{0} 条）", _ageGroups.Count));
                 dlg.DialogResult = true;
             };
             var btnCancel = new Button { Content = "取消", Padding = new Thickness(16, 6, 16, 6),
@@ -9338,7 +9338,7 @@ namespace SwimmingScoreboard
         }
 
         private void ExportAgeGroupsCSV_Click(object sender, RoutedEventArgs e) {
-            var dlg = new Microsoft.Win32.SaveFileDialog { Filter = "CSV文件|*.csv", Title = "导出年龄组表", FileName = "年龄组表.csv" };
+            var dlg = new Microsoft.Win32.SaveFileDialog { Filter = "CSV文件|*.csv", Title = "导出组别表", FileName = "组别表.csv" };
             if (dlg.ShowDialog() != true) return;
             try {
                 var sb = new StringBuilder();
@@ -9346,21 +9346,21 @@ namespace SwimmingScoreboard
                 sb.AppendLine("名称,最小年龄,最大年龄");
                 foreach (var g in _ageGroups) sb.AppendLine(string.Format("{0},{1},{2}", CsvEscape(g.Name), g.MinAge, g.MaxAge));
                 File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
-                MessageBox.Show("年龄组表已导出。", "完成");
+                MessageBox.Show("组别表已导出。", "完成");
             } catch (Exception ex) { MessageBox.Show("导出失败: " + ex.Message, "错误"); }
         }
 
         private void ImportAgeGroupsCSV_Click(object sender, RoutedEventArgs e) {
             var dlg = new Microsoft.Win32.OpenFileDialog {
                 Filter = "CSV文件|*.csv|文本文件|*.txt|所有文件|*.*",
-                Title = "导入年龄组表（表头: 名称,最小年龄,最大年龄）"
+                Title = "导入组别表（表头: 名称,最小年龄,最大年龄）"
             };
             if (dlg.ShowDialog() != true) return;
             string ext = IOPath.GetExtension(dlg.FileName).ToLower();
             if (ext == ".xls" || ext == ".xlsx") {
                 MessageBox.Show("无法直接读取 Excel 文件。请另存为 CSV UTF-8 后再导入。", "格式提示"); return;
             }
-            if (MessageBox.Show("导入将替换当前年龄组列表。继续？", "确认", MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
+            if (MessageBox.Show("导入将替换当前组别列表。继续？", "确认", MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
             try {
                 var rows = ReadCsvLines(dlg.FileName);
                 var finalList = new List<AgeGroup>();
@@ -9371,7 +9371,7 @@ namespace SwimmingScoreboard
                     string name = (c[0] ?? "").Trim();
                     if (string.IsNullOrEmpty(name)) continue;
                     // 跳表头
-                    if (i == 0 && (name == "名称" || name == "年龄组" || name == "Name")) continue;
+                    if (i == 0 && (name == "名称" || name == "组别" || name == "年龄组" || name == "Name")) continue;
                     int minA = 0, maxA = 0;
                     if (c.Length > 1) int.TryParse((c[1] ?? "").Trim(), out minA);
                     if (c.Length > 2) int.TryParse((c[2] ?? "").Trim(), out maxA);
@@ -9380,20 +9380,20 @@ namespace SwimmingScoreboard
                     seen.Add(name);
                     finalList.Add(new AgeGroup { Name = name, MinAge = minA, MaxAge = maxA });
                 }
-                if (finalList.Count == 0) { MessageBox.Show("未读取到有效年龄组"); return; }
+                if (finalList.Count == 0) { MessageBox.Show("未读取到有效组别"); return; }
                 _ageGroups = finalList;
                 AgeGroupRegistry.Set(_ageGroups);
                 RefreshAgeGroupsPreview();
                 RefreshAllAgeGroupFilterCombos();
                 RecomputeAllAgeCategories();
                 AutoSaveData();
-                AddLog(string.Format("导入年龄组: 共{0}条", _ageGroups.Count));
-                MessageBox.Show(string.Format("已导入 {0} 个年龄组。", _ageGroups.Count), "完成");
+                AddLog(string.Format("导入组别: 共{0}条", _ageGroups.Count));
+                MessageBox.Show(string.Format("已导入 {0} 个组别。", _ageGroups.Count), "完成");
             } catch (Exception ex) { MessageBox.Show("导入失败: " + ex.Message, "错误"); }
         }
 
         private void DownloadAgeGroupsTemplate_Click(object sender, RoutedEventArgs e) {
-            var dlg = new Microsoft.Win32.SaveFileDialog { Filter = "CSV文件|*.csv", Title = "保存年龄组模板", FileName = "年龄组模板.csv" };
+            var dlg = new Microsoft.Win32.SaveFileDialog { Filter = "CSV文件|*.csv", Title = "保存组别模板", FileName = "组别模板.csv" };
             if (dlg.ShowDialog() != true) return;
             try {
                 var sb = new StringBuilder();
@@ -9405,7 +9405,7 @@ namespace SwimmingScoreboard
                 sb.AppendLine("老年,40,120");
                 sb.AppendLine("小戊组,8,11");
                 File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
-                MessageBox.Show("年龄组模板已保存。", "完成");
+                MessageBox.Show("组别模板已保存。", "完成");
             } catch (Exception ex) { MessageBox.Show("保存失败: " + ex.Message, "错误"); }
         }
 
@@ -9460,7 +9460,7 @@ namespace SwimmingScoreboard
             try {
                 var sb = new StringBuilder();
                 sb.Append('﻿'); // UTF-8 BOM so Excel recognizes encoding
-                sb.AppendLine("单元,日期,时间,年龄组,性别,项目,阶段,组数");
+                sb.AppendLine("单元,日期,时间,组别,性别,项目,阶段,组数");
                 foreach (var s in _schedule) {
                     sb.AppendLine(string.Format("{0},{1},{2},{3},{4},{5},{6},{7}",
                         s.SessionNumber,
@@ -9483,7 +9483,7 @@ namespace SwimmingScoreboard
         private void ImportScheduleCSV_Click(object sender, RoutedEventArgs e) {
             var dlg = new Microsoft.Win32.OpenFileDialog {
                 Filter = "CSV文件|*.csv|文本文件|*.txt|所有文件|*.*",
-                Title = "导入日程表（表头: 单元,日期,时间,年龄组,性别,项目,阶段,组数）"
+                Title = "导入日程表（表头: 单元,日期,时间,组别,性别,项目,阶段,组数）"
             };
             if (dlg.ShowDialog() != true) return;
             string ext = IOPath.GetExtension(dlg.FileName).ToLower();
@@ -9507,7 +9507,7 @@ namespace SwimmingScoreboard
                     if (c.Length > 0) int.TryParse((c[0] ?? "").Trim(), out sessionNum);
                     string date = c.Length > 1 ? NormalizeDate((c[1] ?? "").Trim()) : "";
                     string time = c.Length > 2 ? NormalizeTime((c[2] ?? "").Trim()) : "";
-                    // 兼容 8 列（含年龄组）/ 7 列（旧：无年龄组）两种格式
+                    // 兼容 8 列（含组别）/ 7 列（旧：无组别）两种格式
                     string ageGroup = "";
                     string gender, eventName, stage;
                     int heatCount = 0;
@@ -9551,7 +9551,7 @@ namespace SwimmingScoreboard
             try {
                 var sb = new StringBuilder();
                 sb.Append('﻿');
-                sb.AppendLine("单元,日期,时间,年龄组,性别,项目,阶段,组数");
+                sb.AppendLine("单元,日期,时间,组别,性别,项目,阶段,组数");
                 sb.AppendLine("1,2026-04-20,09:00,少年,男,50米自由泳,预赛,4");
                 sb.AppendLine("1,2026-04-20,09:15,少年,女,50米自由泳,预赛,4");
                 sb.AppendLine("1,2026-04-20,09:30,成人,男,50米自由泳,预赛,4");
@@ -9813,13 +9813,13 @@ namespace SwimmingScoreboard
             try {
                 var sb = new StringBuilder();
                 sb.Append('﻿');
-                sb.AppendLine("年龄组,性别,项目,阶段,组号,道次,参赛号,姓名,代表队,报名成绩");
+                sb.AppendLine("组别,性别,项目,阶段,组号,道次,参赛号,姓名,代表队,报名成绩");
                 // 按赛程顺序输出，保证与日程表对应
                 foreach (var schedItem in _schedule) {
                     string ageGroup = schedItem.AgeGroup ?? "";
                     string gender = schedItem.Gender, eventName = schedItem.EventName, stage = schedItem.Stage;
                     bool isRelayEv = eventName.Contains("接力");
-                    // 收集该项目该赛次的分组信息（按年龄组过滤）
+                    // 收集该项目该赛次的分组信息（按组别过滤）
                     var rows = new List<Tuple<int, int, Swimmer, string>>(); // heat, lane, sw, seedTime
                     foreach (var s in _swimmers) {
                         if (s.Gender != gender || s.EventName != eventName) continue;
@@ -9856,7 +9856,7 @@ namespace SwimmingScoreboard
         private void ImportHeatAssignmentsCSV_Click(object sender, RoutedEventArgs e) {
             var dlg = new Microsoft.Win32.OpenFileDialog {
                 Filter = "CSV文件|*.csv|文本文件|*.txt|所有文件|*.*",
-                Title = "导入分组表（表头: 年龄组,性别,项目,阶段,组号,道次,参赛号,姓名,代表队,报名成绩）"
+                Title = "导入分组表（表头: 组别,性别,项目,阶段,组号,道次,参赛号,姓名,代表队,报名成绩）"
             };
             if (dlg.ShowDialog() != true) return;
             string ext = IOPath.GetExtension(dlg.FileName).ToLower();
@@ -9876,7 +9876,7 @@ namespace SwimmingScoreboard
                 for (int i = 1; i < rows.Count; i++) {
                     var c = rows[i];
                     if (c.Length < 6) { skipped++; continue; }
-                    // 兼容 10 列（含年龄组）/ 9 列（旧：无年龄组）两种格式：通过识别首列值判断
+                    // 兼容 10 列（含组别）/ 9 列（旧：无组别）两种格式：通过识别首列值判断
                     string first = (c[0] ?? "").Trim();
                     bool hasAge = !(first == "男" || first == "女" || first == "混合");
                     int col = 0;
@@ -9897,7 +9897,7 @@ namespace SwimmingScoreboard
                         skipped++; continue;
                     }
 
-                    // 首次遇到 (年龄组,gender,event,stage) → 清空其现有分组
+                    // 首次遇到 (组别,gender,event,stage) → 清空其现有分组
                     string key = (ageGroup ?? "") + "|" + gender + "|" + eventName + "|" + stage;
                     if (!seen.Contains(key)) {
                         seen.Add(key);
@@ -9910,7 +9910,7 @@ namespace SwimmingScoreboard
                         }
                     }
 
-                    // 定位运动员：优先按参赛号，其次按姓名+代表队（都要满足年龄组）
+                    // 定位运动员：优先按参赛号，其次按姓名+代表队（都要满足组别）
                     Swimmer sw = null;
                     bool isRelayEv = eventName.Contains("接力");
                     if (!string.IsNullOrEmpty(bib)) {
@@ -9964,7 +9964,7 @@ namespace SwimmingScoreboard
             try {
                 var sb = new StringBuilder();
                 sb.Append('﻿');
-                sb.AppendLine("年龄组,性别,项目,阶段,组号,道次,参赛号,姓名,代表队,报名成绩");
+                sb.AppendLine("组别,性别,项目,阶段,组号,道次,参赛号,姓名,代表队,报名成绩");
                 sb.AppendLine("少年,男,50米自由泳,预赛,1,4,001,张三,北京,0:23.45");
                 sb.AppendLine("少年,男,50米自由泳,预赛,1,5,002,李四,上海,0:23.60");
                 sb.AppendLine("成人,男,50米自由泳,预赛,2,4,003,王五,广东,0:24.10");

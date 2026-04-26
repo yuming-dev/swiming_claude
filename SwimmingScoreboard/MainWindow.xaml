@@ -386,7 +386,7 @@
                                     <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
                                         <TextBlock Text="组别:" VerticalAlignment="Center" Margin="0,0,4,0"/>
                                         <ComboBox x:Name="EditAgeGroupCombo" Width="90" SelectionChanged="EditFilter_Changed"
-                                                  ToolTip="选择“全部”表示不按年龄组过滤"/>
+                                                  ToolTip="选择“全部”表示不按组别过滤"/>
                                         <TextBlock Text=" 性别:" VerticalAlignment="Center" Margin="8,0,4,0"/>
                                         <ComboBox x:Name="EditGenderCombo" Width="60" SelectionChanged="EditFilter_Changed">
                                             <ComboBoxItem Content="男" IsSelected="True"/>
@@ -476,9 +476,9 @@
                         <TabItem Header="比赛类型管理">
                             <ScrollViewer Margin="10" VerticalScrollBarVisibility="Auto">
                                 <StackPanel>
-                                    <TextBlock Text="比赛项目 / 年龄组配置（数据库持久化，支持手动编辑、导入、导出）"
+                                    <TextBlock Text="比赛项目 / 组别配置（数据库持久化，支持手动编辑、导入、导出）"
                                                FontSize="14" FontWeight="Bold" Foreground="#1E293B" Margin="0,0,0,8"/>
-                                    <!-- 操作栏：上行比赛项目，下行年龄组 -->
+                                    <!-- 操作栏：上行比赛项目，下行组别 -->
                                     <Border Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,0,0,10">
                                         <StackPanel>
                                             <TextBlock Text="比赛项目" FontSize="13" FontWeight="Bold" Foreground="#1E40AF" Margin="0,0,0,6"/>
@@ -500,12 +500,12 @@
 
                                     <Border Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,0,0,10">
                                         <StackPanel>
-                                            <TextBlock Text="年龄组" FontSize="13" FontWeight="Bold" Foreground="#1E40AF" Margin="0,0,0,6"/>
+                                            <TextBlock Text="组别" FontSize="13" FontWeight="Bold" Foreground="#1E40AF" Margin="0,0,0,6"/>
                                             <StackPanel Orientation="Horizontal">
-                                                <Button Content="年龄组编辑" Click="EditAgeGroupsList_Click" Padding="12,6" Background="#3B82F6" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
-                                                <Button Content="导入年龄组表" Click="ImportAgeGroupsCSV_Click" Padding="12,6" Background="#8B5CF6" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
-                                                <Button Content="导出年龄组表" Click="ExportAgeGroupsCSV_Click" Padding="12,6" Background="#22C55E" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
-                                                <Button Content="下载年龄组模板" Click="DownloadAgeGroupsTemplate_Click" Padding="12,6" Background="#F59E0B" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
+                                                <Button Content="组别编辑" Click="EditAgeGroupsList_Click" Padding="12,6" Background="#3B82F6" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
+                                                <Button Content="导入组别表" Click="ImportAgeGroupsCSV_Click" Padding="12,6" Background="#8B5CF6" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
+                                                <Button Content="导出组别表" Click="ExportAgeGroupsCSV_Click" Padding="12,6" Background="#22C55E" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
+                                                <Button Content="下载组别模板" Click="DownloadAgeGroupsTemplate_Click" Padding="12,6" Background="#F59E0B" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
                                             </StackPanel>
                                             <DataGrid x:Name="AgeGroupsPreviewGrid" AutoGenerateColumns="False" CanUserAddRows="False"
                                                       IsReadOnly="True" AlternatingRowBackground="#F1F5F9" MinHeight="80" MaxHeight="220" Margin="0,8,0,0">
@@ -533,7 +533,7 @@
                                     <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
                                         <TextBlock Text="查询：" VerticalAlignment="Center" Margin="0,0,4,0"/>
                                         <ComboBox x:Name="RecordFilterAgeGroup" Width="90" Margin="0,0,8,0" SelectionChanged="RecordFilter_Changed"
-                                                  ToolTip="按年龄组过滤；选“全部”表示不过滤"/>
+                                                  ToolTip="按组别过滤；选“全部”表示不过滤"/>
                                         <ComboBox x:Name="RecordFilterGender" Width="60" Margin="0,0,8,0" SelectionChanged="RecordFilter_Changed">
                                             <ComboBoxItem Content="全部" IsSelected="True"/>
                                             <ComboBoxItem Content="男"/>
@@ -1132,7 +1132,7 @@
                     <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8">
                         <TextBlock Text="组别:" VerticalAlignment="Center" Margin="0,0,4,0"/>
                         <ComboBox x:Name="ResultAgeGroupCombo" Width="90" Margin="0,0,8,0" SelectionChanged="ResultAgeGroup_Changed"
-                                  ToolTip="选择“全部”表示不按年龄组过滤"/>
+                                  ToolTip="选择“全部”表示不按组别过滤"/>
                         <TextBlock Text="性别:" VerticalAlignment="Center" Margin="0,0,4,0"/>
                         <ComboBox x:Name="ResultGenderCombo" Width="70" SelectionChanged="ResultGender_Changed">
                             <ComboBoxItem Content="男" IsSelected="True"/>

@@ -152,7 +152,7 @@ namespace SwimmingScoreboard
             int totalPromo = 16;
             int.TryParse(CountBox.Text.Trim(), out totalPromo);
 
-            // 收集所有有成绩的运动员（不分小组，统一排名；按年龄组过滤）
+            // 收集所有有成绩的运动员（不分小组，统一排名；按组别过滤）
             string ageFilter = GetAgeGroup();
             var all = new List<SwimmerResult>();
             foreach (var s in _swimmers) {

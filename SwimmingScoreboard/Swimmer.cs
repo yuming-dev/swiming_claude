@@ -611,7 +611,7 @@ namespace SwimmingScoreboard
             get { return _gender; }
             set { _gender = value; OnPropertyChanged("Gender"); }
         }
-        // 年龄组：空串表示不限（兼容旧存档的纪录数据）
+        // 组别：空串表示不限（兼容旧存档的纪录数据）
         public string AgeGroup {
             get { return _ageGroup; }
             set { _ageGroup = value; OnPropertyChanged("AgeGroup"); }
@@ -1041,7 +1041,7 @@ namespace SwimmingScoreboard
             get { return _time; }
             set { _time = value; OnPropertyChanged("Time"); }
         }
-        // 年龄组：空串表示不限年龄组（兼容旧存档）
+        // 组别：空串表示不限组别（兼容旧存档）
         public string AgeGroup {
             get { return _ageGroup; }
             set { _ageGroup = value; OnPropertyChanged("AgeGroup"); }
@@ -1112,7 +1112,7 @@ namespace SwimmingScoreboard
     // ═══════════════════════════════════════════════════════════════
     // 比赛数据包（JSON 序列化）
     // ═══════════════════════════════════════════════════════════════
-    // 年龄组：{名称, 最小年龄, 最大年龄}。一个运动员按其年龄落入第一个匹配的组
+    // 组别：{名称, 最小年龄, 最大年龄}。一个运动员按其年龄落入第一个匹配的组
     public class AgeGroup
     {
         public string Name { get; set; }
@@ -1120,8 +1120,8 @@ namespace SwimmingScoreboard
         public int MaxAge { get; set; }
     }
 
-    // 静态注册表：Swimmer.UpdateAgeCategory 运行时通过它查询当前有效年龄组列表；
-    // MainWindow 负责在加载/保存年龄组时同步到此表
+    // 静态注册表：Swimmer.UpdateAgeCategory 运行时通过它查询当前有效组别列表；
+    // MainWindow 负责在加载/保存组别时同步到此表
     public static class AgeGroupRegistry
     {
         private static List<AgeGroup> _groups = new List<AgeGroup>();
