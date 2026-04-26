@@ -459,15 +459,16 @@
                                     </StackPanel>
                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,6,0,0">
                                         <Button Content="导入日程表" Click="ImportScheduleCSV_Click" Padding="15,5" Background="#3B82F6" Foreground="White" BorderThickness="0" Margin="0,0,8,0"
-                                                ToolTip="从 CSV 读取日程（Excel 可另存为 CSV UTF-8）"/>
-                                        <Button Content="导入分组表" Click="ImportHeatAssignmentsCSV_Click" Padding="15,5" Background="#0EA5E9" Foreground="White" BorderThickness="0" Margin="0,0,8,0"
-                                                ToolTip="从 CSV 读取各项目各组的运动员分道"/>
+                                                ToolTip="从 CSV 读取日程（Excel/WPS 可另存为 CSV UTF-8）"/>
                                         <Button Content="导出日程表" Click="ExportScheduleCSV_Click" Padding="15,5" Background="#22C55E" Foreground="White" BorderThickness="0" Margin="0,0,8,0"
                                                 ToolTip="导出为 CSV（Excel/WPS 可直接打开）"/>
-                                        <Button Content="导出分组表" Click="ExportHeatAssignmentsCSV_Click" Padding="15,5" Background="#16A34A" Foreground="White" BorderThickness="0" Margin="0,0,8,0"
-                                                ToolTip="导出各项目各组分道 CSV"/>
-                                        <Button Content="下载日程表模板" Click="DownloadScheduleTemplate_Click" Padding="15,5" Background="#F59E0B" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
-                                        <Button Content="下载分组表模板" Click="DownloadHeatAssignmentsTemplate_Click" Padding="15,5" Background="#D97706" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
+                                        <Button Content="下载日程表模板" Click="DownloadScheduleTemplate_Click" Padding="15,5" Background="#F59E0B" Foreground="White" BorderThickness="0" Margin="0,0,16,0"/>
+                                        <Separator Width="1" Background="#94A3B8" Margin="0,0,16,0"/>
+                                        <Button Content="导入分组表 (Excel)" Click="ImportHeatAssignmentsExcel_Click" Padding="15,5" Background="#0EA5E9" Foreground="White" BorderThickness="0" Margin="0,0,8,0"
+                                                ToolTip="从 Excel (.xlsx) 读取各项目各组的运动员分道，可在 WPS / Excel / Word 中编辑"/>
+                                        <Button Content="导出分组表 (Excel)" Click="ExportHeatAssignmentsExcel_Click" Padding="15,5" Background="#16A34A" Foreground="White" BorderThickness="0" Margin="0,0,8,0"
+                                                ToolTip="导出 Excel：含「分组明细」「分组表(网格)」「填写说明」3 个工作表"/>
+                                        <Button Content="下载分组表 Excel 模板" Click="DownloadHeatAssignmentsExcelTemplate_Click" Padding="15,5" Background="#D97706" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
                                     </StackPanel>
                                 </StackPanel>
                             </Grid>

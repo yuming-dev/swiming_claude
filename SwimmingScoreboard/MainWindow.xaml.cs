@@ -9564,8 +9564,241 @@ namespace SwimmingScoreboard
             }
         }
 
-        // —— 分组表 CSV ——
-        // 列: 性别,项目,阶段,组号,道次,参赛号,姓名,代表队,报名成绩
+        // —— 分组表 Excel (.xlsx) ——
+        // 三个工作表：分组明细 / 分组表(网格) / 填写说明
+        private void ExportHeatAssignmentsExcel_Click(object sender, RoutedEventArgs e) {
+            var dlg = new Microsoft.Win32.SaveFileDialog {
+                Filter = "Excel 工作簿|*.xlsx",
+                Title = "导出分组表 (Excel)",
+                FileName = (string.IsNullOrEmpty(_competitionName) ? "分组表" : _competitionName) + "_分组表.xlsx"
+            };
+            if (dlg.ShowDialog() != true) return;
+            try {
+                var rows = CollectHeatRowsForExport();
+                var events = CollectEventInfoForExport();
+                var teams = _swimmers.Where(s => !IsRelayMemberNote(s.Notes))
+                    .Select(s => s.Country ?? "").Where(c => !string.IsNullOrEmpty(c)).Distinct().OrderBy(c => c).ToList();
+                int laneCount = _poolConfig != null && _poolConfig.LaneCount > 0 ? _poolConfig.LaneCount : 10;
+                HeatExcelService.Export(dlg.FileName, _competitionName,
+                    GetDatePickerText(StartDatePicker), GetDatePickerText(EndDatePicker),
+                    LocationBox != null ? LocationBox.Text : "", laneCount, rows, events, teams);
+                AddLog("已导出分组表 Excel → " + dlg.FileName);
+                if (MessageBox.Show("分组表已导出。\n\n是否立即打开？", "完成", MessageBoxButton.YesNo, MessageBoxImage.Information) == MessageBoxResult.Yes)
+                    System.Diagnostics.Process.Start(dlg.FileName);
+            } catch (Exception ex) {
+                MessageBox.Show("导出失败: " + ex.Message, "错误");
+            }
+        }
+
+        private void ImportHeatAssignmentsExcel_Click(object sender, RoutedEventArgs e) {
+            var dlg = new Microsoft.Win32.OpenFileDialog {
+                Filter = "Excel 文件|*.xlsx;*.xls",
+                Title = "导入分组表 (Excel)"
+            };
+            if (dlg.ShowDialog() != true) return;
+
+            var prompt = new HeatImportPromptWindow { Owner = this };
+            if (prompt.ShowDialog() != true) return;
+            bool autoRegister = prompt.AutoRegister;
+
+            try {
+                string warning;
+                var rows = HeatExcelService.Import(dlg.FileName, out warning);
+                if (!string.IsNullOrEmpty(warning)) {
+                    if (MessageBox.Show(warning + "\n\n是否仍然继续？", "导入提示", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
+                        return;
+                }
+                if (rows.Count == 0) { MessageBox.Show("Excel 中没有可导入的分组数据。", "提示"); return; }
+
+                int imported = 0, skipped = 0, autoAdded = 0;
+                var unmatched = new List<string>();
+                var seenKeys = new HashSet<string>();
+                foreach (var hr in rows) {
+                    if (string.IsNullOrEmpty(hr.Gender) || string.IsNullOrEmpty(hr.EventName) || string.IsNullOrEmpty(hr.Stage) || hr.Heat <= 0) {
+                        skipped++; continue;
+                    }
+                    string key = (hr.AgeGroup ?? "") + "|" + hr.Gender + "|" + hr.EventName + "|" + hr.Stage;
+                    if (!seenKeys.Contains(key)) {
+                        seenKeys.Add(key);
+                        foreach (var sw in _swimmers) {
+                            if (sw.Gender != hr.Gender || sw.EventName != hr.EventName) continue;
+                            if (!MatchesAgeGroup(sw, hr.AgeGroup)) continue;
+                            if (sw.Notes != null && sw.Notes.StartsWith("接力队员")) continue;
+                            if (sw.StageAssignments.ContainsKey(hr.Stage)) sw.StageAssignments.Remove(hr.Stage);
+                            if (sw.CurrentStage == hr.Stage) { sw.Heat = 0; sw.Lane = 0; }
+                        }
+                    }
+
+                    bool isRelayEv = hr.EventName.Contains("接力");
+                    Swimmer target = null;
+                    if (!string.IsNullOrEmpty(hr.BibNumber)) {
+                        target = _swimmers.FirstOrDefault(s => s.BibNumber == hr.BibNumber && s.EventName == hr.EventName && s.Gender == hr.Gender
+                            && MatchesAgeGroup(s, hr.AgeGroup)
+                            && !(isRelayEv && s.Notes != null && s.Notes.StartsWith("接力队员")));
+                    }
+                    if (target == null && !string.IsNullOrEmpty(hr.Name)) {
+                        target = _swimmers.FirstOrDefault(s => s.Name == hr.Name && s.Country == hr.Country
+                            && s.EventName == hr.EventName && s.Gender == hr.Gender
+                            && MatchesAgeGroup(s, hr.AgeGroup)
+                            && !(isRelayEv && s.Notes != null && s.Notes.StartsWith("接力队员")));
+                    }
+                    if (target == null && autoRegister && !string.IsNullOrEmpty(hr.Name)) {
+                        target = new Swimmer {
+                            BibNumber = string.IsNullOrEmpty(hr.BibNumber) ? "" : hr.BibNumber,
+                            Name = hr.Name, Gender = hr.Gender, Country = hr.Country ?? "",
+                            CountryShort = hr.CountryShort ?? "",
+                            EventName = hr.EventName,
+                            EntryTime = hr.EntryTime ?? "", BirthDate = hr.BirthDate ?? "",
+                            Age = hr.Age, Notes = hr.Notes ?? ""
+                        };
+                        if (!string.IsNullOrEmpty(hr.AgeGroup)) target.AgeCategory = hr.AgeGroup;
+                        target.EntryTimeSeconds = TimeFormatter.Parse(target.EntryTime);
+                        _swimmers.Add(target);
+                        autoAdded++;
+                    }
+                    if (target == null) {
+                        unmatched.Add(string.Format("{0} {1} {2} 第{3}组道{4}: {5} ({6})",
+                            hr.Gender, hr.EventName, hr.Stage, hr.Heat, hr.Lane, hr.Name ?? "—", hr.Country ?? "—"));
+                        skipped++; continue;
+                    }
+                    double sec = !string.IsNullOrEmpty(hr.EntryTime) ? TimeFormatter.Parse(hr.EntryTime) : target.EntryTimeSeconds;
+                    target.SetStageAssignment(hr.Stage, hr.Heat, hr.Lane, sec, hr.EntryTime);
+                    if (target.CurrentStage == hr.Stage) { target.Heat = hr.Heat; target.Lane = hr.Lane; }
+                    imported++;
+                }
+
+                foreach (var sched in _schedule) {
+                    int maxHeat = 0;
+                    foreach (var s in _swimmers) {
+                        if (s.Gender != sched.Gender || s.EventName != sched.EventName) continue;
+                        var sa = s.GetAssignmentForStage(sched.Stage);
+                        if (sa != null && sa.Heat > maxHeat) maxHeat = sa.Heat;
+                    }
+                    if (maxHeat > 0) sched.HeatCount = maxHeat;
+                }
+
+                AutoSaveData();
+                BuildScheduleTree();
+                Broadcast();
+                AddLog(string.Format("导入分组表 Excel: 分配{0}条, 跳过{1}行, 自动新建{2}人", imported, skipped, autoAdded));
+                string detail = string.Format("已导入分组 {0} 条。", imported);
+                if (autoAdded > 0) detail += string.Format("\n已自动注册 {0} 名运动员。", autoAdded);
+                if (unmatched.Count > 0) {
+                    detail += string.Format("\n有 {0} 行未匹配到运动员（已跳过）：\n  · ", unmatched.Count);
+                    detail += string.Join("\n  · ", unmatched.Take(20).ToArray());
+                    if (unmatched.Count > 20) detail += "\n  · ... 等共 " + unmatched.Count + " 条";
+                }
+                MessageBox.Show(detail, "完成");
+            } catch (Exception ex) {
+                MessageBox.Show("导入失败: " + ex.Message, "错误");
+            }
+        }
+
+        private void DownloadHeatAssignmentsExcelTemplate_Click(object sender, RoutedEventArgs e) {
+            var dlg = new Microsoft.Win32.SaveFileDialog {
+                Filter = "Excel 工作簿|*.xlsx",
+                Title = "保存分组表 Excel 模板",
+                FileName = "分组表_Excel模板.xlsx"
+            };
+            if (dlg.ShowDialog() != true) return;
+            try {
+                int laneCount = _poolConfig != null && _poolConfig.LaneCount > 0 ? _poolConfig.LaneCount : 10;
+                HeatExcelService.WriteTemplate(dlg.FileName, laneCount,
+                    CollectEventInfoForExport(),
+                    _swimmers.Where(s => !IsRelayMemberNote(s.Notes)).Select(s => s.Country ?? "")
+                        .Where(c => !string.IsNullOrEmpty(c)).Distinct().OrderBy(c => c).ToList());
+                if (MessageBox.Show("模板已保存：\n" + dlg.FileName + "\n\n是否立即打开？", "完成",
+                    MessageBoxButton.YesNo, MessageBoxImage.Information) == MessageBoxResult.Yes) {
+                    System.Diagnostics.Process.Start(dlg.FileName);
+                }
+            } catch (Exception ex) {
+                MessageBox.Show("保存失败: " + ex.Message, "错误");
+            }
+        }
+
+        // —— 收集导出数据 ——
+        private List<HeatExcelService.HeatRow> CollectHeatRowsForExport() {
+            var rows = new List<HeatExcelService.HeatRow>();
+            // 项目编号映射（与秩序册/竞赛日程一致）
+            var evtMap = BuildEventNumberMap();
+            // 场次序号查表：由 schedule.SessionNumber 决定
+            for (int i = 0; i < _schedule.Count; i++) {
+                var schedItem = _schedule[i];
+                string ageGroup = schedItem.AgeGroup ?? "";
+                string gender = schedItem.Gender, ev = schedItem.EventName, stage = schedItem.Stage;
+                bool isRelay = ev.Contains("接力");
+                int evNo;
+                evtMap.TryGetValue((gender ?? "") + "|" + (ev ?? ""), out evNo);
+                string period = ParseSessionPeriod(schedItem.Time);
+                foreach (var s in _swimmers) {
+                    if (s.Gender != gender || s.EventName != ev) continue;
+                    if (!MatchesAgeGroup(s, ageGroup)) continue;
+                    if (isRelay && !string.IsNullOrEmpty(s.Notes) && s.Notes.StartsWith("接力队员")) continue;
+                    var sa = s.GetAssignmentForStage(stage);
+                    int h = 0, ln = 0; string seed = "";
+                    if (sa != null && sa.Heat > 0) { h = sa.Heat; ln = sa.Lane; seed = sa.EntryTime ?? s.EntryTime ?? ""; }
+                    else if (s.CurrentStage == stage && s.Heat > 0) { h = s.Heat; ln = s.Lane; seed = s.EntryTime ?? ""; }
+                    if (h <= 0) continue;
+                    rows.Add(new HeatExcelService.HeatRow {
+                        SessionNumber = schedItem.SessionNumber,
+                        Date = schedItem.Date ?? "",
+                        SessionPeriod = period,
+                        EventNumber = evNo,
+                        AgeGroup = ageGroup,
+                        Gender = gender,
+                        EventName = ev,
+                        Stage = stage,
+                        SortMethod = "按成绩排名",
+                        Heat = h, Lane = ln,
+                        BibNumber = s.BibNumber ?? "",
+                        Name = s.Name ?? "",
+                        Country = s.Country ?? "",
+                        CountryShort = s.CountryShort ?? "",
+                        EntryTime = seed ?? "",
+                        BirthDate = s.BirthDate ?? "",
+                        Age = s.Age,
+                        Notes = s.Notes ?? ""
+                    });
+                }
+            }
+            rows.Sort((a, b) => {
+                int c = a.SessionNumber.CompareTo(b.SessionNumber);
+                if (c != 0) return c;
+                c = a.EventNumber.CompareTo(b.EventNumber);
+                if (c != 0) return c;
+                c = a.Heat.CompareTo(b.Heat);
+                if (c != 0) return c;
+                return a.Lane.CompareTo(b.Lane);
+            });
+            return rows;
+        }
+
+        private List<HeatExcelService.EventInfo> CollectEventInfoForExport() {
+            var evtMap = BuildEventNumberMap();
+            var list = new List<HeatExcelService.EventInfo>();
+            foreach (var s in _schedule) {
+                int n;
+                evtMap.TryGetValue((s.Gender ?? "") + "|" + (s.EventName ?? ""), out n);
+                list.Add(new HeatExcelService.EventInfo {
+                    Number = n, AgeGroup = s.AgeGroup ?? "", Gender = s.Gender ?? "",
+                    EventName = s.EventName ?? "", Stage = s.Stage ?? "",
+                    SortMethod = "按成绩排名", HeatCount = s.HeatCount
+                });
+            }
+            return list;
+        }
+
+        private static string ParseSessionPeriod(string time) {
+            if (string.IsNullOrEmpty(time)) return "";
+            var m = System.Text.RegularExpressions.Regex.Match(time, @"^(\d{1,2})");
+            if (!m.Success) return "";
+            int hh; if (!int.TryParse(m.Groups[1].Value, out hh)) return "";
+            if (hh < 12) return "上午";
+            if (hh < 18) return "下午";
+            return "晚上";
+        }
+
+        // —— 旧 CSV 导出（已弃用，保留方法以避免事件处理器引用问题）——
         private void ExportHeatAssignmentsCSV_Click(object sender, RoutedEventArgs e) {
             var dlg = new Microsoft.Win32.SaveFileDialog {
                 Filter = "CSV文件|*.csv",

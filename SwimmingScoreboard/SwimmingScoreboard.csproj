@@ -10,8 +10,8 @@
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>SwimmingScoreboard</RootNamespace>
     <AssemblyName>SwimmingScoreboard</AssemblyName>
-    <TargetFrameworkVersion>v4.0</TargetFrameworkVersion>
-    <TargetFrameworkProfile>Client</TargetFrameworkProfile>
+    <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
+    <TargetFrameworkProfile></TargetFrameworkProfile>
     <FileAlignment>512</FileAlignment>
     <ProjectTypeGuids>{60dc8134-eba5-43b8-bcc9-bb4bc16c2548};{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}</ProjectTypeGuids>
     <WarningLevel>4</WarningLevel>
@@ -60,6 +60,27 @@
     <Reference Include="Newtonsoft.Json">
       <HintPath>libs\Newtonsoft.Json.dll</HintPath>
     </Reference>
+    <Reference Include="NPOI">
+      <HintPath>libs\NPOI.dll</HintPath>
+    </Reference>
+    <Reference Include="NPOI.OOXML">
+      <HintPath>libs\NPOI.OOXML.dll</HintPath>
+    </Reference>
+    <Reference Include="NPOI.OpenXml4Net">
+      <HintPath>libs\NPOI.OpenXml4Net.dll</HintPath>
+    </Reference>
+    <Reference Include="NPOI.OpenXmlFormats">
+      <HintPath>libs\NPOI.OpenXmlFormats.dll</HintPath>
+    </Reference>
+    <Reference Include="ICSharpCode.SharpZipLib">
+      <HintPath>libs\ICSharpCode.SharpZipLib.dll</HintPath>
+    </Reference>
+    <Reference Include="BouncyCastle.Crypto">
+      <HintPath>libs\BouncyCastle.Crypto.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Configuration" />
+    <Reference Include="System.IO.Compression" />
+    <Reference Include="System.IO.Compression.FileSystem" />
     <Reference Include="System" />
     <Reference Include="System.Security" />
     <Reference Include="System.Data" />
@@ -136,6 +157,10 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </Page>
+    <Page Include="HeatImportPromptWindow.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
     <Compile Include="App.xaml.cs">
       <DependentUpon>App.xaml</DependentUpon>
       <SubType>Code</SubType>
@@ -194,6 +219,11 @@
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="ResultBookData.cs" />
+    <Compile Include="HeatExcelService.cs" />
+    <Compile Include="HeatImportPromptWindow.xaml.cs">
+      <DependentUpon>HeatImportPromptWindow.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Include="DocumentPreviewWindow.xaml.cs">
       <DependentUpon>DocumentPreviewWindow.xaml</DependentUpon>
       <SubType>Code</SubType>
