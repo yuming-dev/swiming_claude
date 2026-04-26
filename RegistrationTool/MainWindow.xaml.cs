@@ -127,6 +127,8 @@ namespace RegistrationTool
             swimmerData["gender"] = ((ComboBoxItem)GenderCombo.SelectedItem).Content.ToString();
             swimmerData["age"] = age;
             swimmerData["country"] = CountryBox.Text.Trim();
+            swimmerData["countryShort"] = CountryShortBox.Text.Trim();
+            swimmerData["ageGroup"] = ReadComboText(AgeGroupCombo);
             swimmerData["idNumber"] = IDNumberBox.Text.Trim();
             swimmerData["phone"] = PhoneBox.Text.Trim();
             swimmerData["birthDate"] = birthDate;
@@ -176,11 +178,21 @@ namespace RegistrationTool
             data["teamName"] = team;
             data["eventName"] = ((ComboBoxItem)RelayEventCombo.SelectedItem).Content.ToString();
             data["gender"] = ((ComboBoxItem)RelayGenderCombo.SelectedItem).Content.ToString();
+            data["ageGroup"] = ReadComboText(RelayAgeGroupCombo);
+            data["countryShort"] = RelayCountryShortBox.Text.Trim();
             data["entryTime"] = RelayEntryTimeBox.Text.Trim();
             data["legs"] = legs;
 
             _ws.Send(JsonConvert.SerializeObject(new { type = "REGISTER_RELAY", data = data }));
             RelayStatusText.Text = string.Format("已提交: {0} ({1}人)", team, legs.Count);
+        }
+
+        // 读取可编辑 ComboBox 的当前值（兼容选项+自由输入）
+        private static string ReadComboText(ComboBox cb) {
+            if (cb == null) return "";
+            var cbi = cb.SelectedItem as ComboBoxItem;
+            if (cbi != null && cbi.Content != null) return cbi.Content.ToString().Trim();
+            return (cb.Text ?? "").Trim();
         }
 
         protected override void OnClosed(EventArgs e) {

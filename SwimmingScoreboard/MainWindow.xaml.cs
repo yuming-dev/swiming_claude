@@ -9583,8 +9583,8 @@ namespace SwimmingScoreboard
                     if (c.Length == 0) continue;
                     string name = (c[0] ?? "").Trim();
                     if (string.IsNullOrEmpty(name)) continue;
-                    // 跳表头（兼容旧"名称/年龄组"和新"组别名称/组别"）
-                    if (i == 0 && (name == "组别名称" || name == "名称" || name == "组别" || name == "年龄组" || name == "Name")) continue;
+                    // 跳表头
+                    if (i == 0 && (name == "组别名称" || name == "组别")) continue;
                     if (seen.Contains(name)) continue;
                     seen.Add(name);
                     // 兼容旧 CSV：若仍带最小/最大年龄列，读入但忽略（用于运动员自动归类已停用）

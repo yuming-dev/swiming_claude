@@ -80,6 +80,26 @@ input[readonly] { background: #f1f5f9; }
             <div><label>协会注册号</label><input id="csaNumber" placeholder=""></div>
             <div><label>备注</label><input id="notes" placeholder=""></div>
         </div>
+        <div class="row">
+            <div><label>组别</label>
+                <select id="ageGroup" title="可选；大众赛事可填甲/乙/丙组；国际/国内大赛可留空或填年龄段">
+                    <option value="">不指定</option>
+                    <option value="甲组">甲组</option>
+                    <option value="乙组">乙组</option>
+                    <option value="丙组">丙组</option>
+                    <option value="丁组">丁组</option>
+                    <option value="戊组">戊组</option>
+                    <option value="己组">己组</option>
+                    <option value="青少年">青少年</option>
+                    <option value="少年">少年</option>
+                    <option value="青年">青年</option>
+                    <option value="成年">成年</option>
+                    <option value="大师">大师</option>
+                    <option value="老年">老年</option>
+                </select>
+            </div>
+            <div><label>单位简称</label><input id="countryShort" placeholder="（可选）"></div>
+        </div>
 
         <hr class="sep">
 
@@ -114,6 +134,26 @@ input[readonly] { background: #f1f5f9; }
         <div class="row">
             <div><label>队名</label><input id="relayTeam" placeholder="北京队"></div>
             <div><label>性别</label><select id="relayGender"><option>男</option><option>女</option><option>混合</option></select></div>
+        </div>
+        <div class="row">
+            <div><label>组别</label>
+                <select id="relayAgeGroup" title="可选；大众赛事可填甲/乙/丙组等">
+                    <option value="">不指定</option>
+                    <option value="甲组">甲组</option>
+                    <option value="乙组">乙组</option>
+                    <option value="丙组">丙组</option>
+                    <option value="丁组">丁组</option>
+                    <option value="戊组">戊组</option>
+                    <option value="己组">己组</option>
+                    <option value="青少年">青少年</option>
+                    <option value="少年">少年</option>
+                    <option value="青年">青年</option>
+                    <option value="成年">成年</option>
+                    <option value="大师">大师</option>
+                    <option value="老年">老年</option>
+                </select>
+            </div>
+            <div><label>单位简称</label><input id="relayCountryShort" placeholder="（可选）"></div>
         </div>
         <label>项目</label>
         <select id="relayEvent">
@@ -270,7 +310,9 @@ function submitAll() {
         name: name,
         gender: document.getElementById('gender').value,
         age: age,
+        ageGroup: document.getElementById('ageGroup').value || '',
         country: document.getElementById('country').value.trim(),
+        countryShort: document.getElementById('countryShort').value.trim(),
         idNumber: document.getElementById('idNumber').value.trim(),
         phone: document.getElementById('phone').value.trim(),
         birthDate: bd,
@@ -311,6 +353,8 @@ function registerRelay() {
             teamName: team,
             eventName: document.getElementById('relayEvent').value,
             gender: document.getElementById('relayGender').value,
+            ageGroup: document.getElementById('relayAgeGroup').value || '',
+            countryShort: document.getElementById('relayCountryShort').value.trim(),
             entryTime: document.getElementById('relayEntryTime').value.trim(),
             legs: legs
         }

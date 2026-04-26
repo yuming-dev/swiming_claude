@@ -42,6 +42,7 @@
                                 <RowDefinition Height="30"/>
                                 <RowDefinition Height="30"/>
                                 <RowDefinition Height="30"/>
+                                <RowDefinition Height="30"/>
                             </Grid.RowDefinitions>
                             <TextBlock Grid.Row="0" Grid.Column="0" Text="姓名:" VerticalAlignment="Center"/>
                             <TextBox x:Name="NameBox" Grid.Row="0" Grid.Column="1" Padding="4" VerticalAlignment="Center"/>
@@ -55,12 +56,33 @@
                             <TextBox x:Name="IDNumberBox" Grid.Row="1" Grid.Column="3" Padding="4" VerticalAlignment="Center"/>
                             <TextBlock Grid.Row="2" Grid.Column="0" Text="代表队:" VerticalAlignment="Center"/>
                             <TextBox x:Name="CountryBox" Grid.Row="2" Grid.Column="1" Padding="4" VerticalAlignment="Center"/>
-                            <TextBlock Grid.Row="2" Grid.Column="2" Text="联系电话:" VerticalAlignment="Center"/>
-                            <TextBox x:Name="PhoneBox" Grid.Row="2" Grid.Column="3" Padding="4" VerticalAlignment="Center"/>
-                            <TextBlock Grid.Row="3" Grid.Column="0" Text="协会注册号:" VerticalAlignment="Center"/>
-                            <TextBox x:Name="CSABox" Grid.Row="3" Grid.Column="1" Padding="4" VerticalAlignment="Center"/>
-                            <TextBlock Grid.Row="3" Grid.Column="2" Text="备注:" VerticalAlignment="Center"/>
-                            <TextBox x:Name="NotesBox" Grid.Row="3" Grid.Column="3" Padding="4" VerticalAlignment="Center"/>
+                            <TextBlock Grid.Row="2" Grid.Column="2" Text="单位简称:" VerticalAlignment="Center"/>
+                            <TextBox x:Name="CountryShortBox" Grid.Row="2" Grid.Column="3" Padding="4" VerticalAlignment="Center"
+                                     ToolTip="可选，用于大屏显示"/>
+                            <TextBlock Grid.Row="3" Grid.Column="0" Text="组别:" VerticalAlignment="Center"/>
+                            <ComboBox x:Name="AgeGroupCombo" Grid.Row="3" Grid.Column="1" VerticalAlignment="Center"
+                                      IsEditable="True"
+                                      ToolTip="大众赛事可填甲/乙/丙组；国际/国内大赛可留空或填年龄段">
+                                <ComboBoxItem Content=""/>
+                                <ComboBoxItem Content="甲组"/>
+                                <ComboBoxItem Content="乙组"/>
+                                <ComboBoxItem Content="丙组"/>
+                                <ComboBoxItem Content="丁组"/>
+                                <ComboBoxItem Content="戊组"/>
+                                <ComboBoxItem Content="己组"/>
+                                <ComboBoxItem Content="青少年"/>
+                                <ComboBoxItem Content="少年"/>
+                                <ComboBoxItem Content="青年"/>
+                                <ComboBoxItem Content="成年"/>
+                                <ComboBoxItem Content="大师"/>
+                                <ComboBoxItem Content="老年"/>
+                            </ComboBox>
+                            <TextBlock Grid.Row="3" Grid.Column="2" Text="联系电话:" VerticalAlignment="Center"/>
+                            <TextBox x:Name="PhoneBox" Grid.Row="3" Grid.Column="3" Padding="4" VerticalAlignment="Center"/>
+                            <TextBlock Grid.Row="4" Grid.Column="0" Text="协会注册号:" VerticalAlignment="Center"/>
+                            <TextBox x:Name="CSABox" Grid.Row="4" Grid.Column="1" Padding="4" VerticalAlignment="Center"/>
+                            <TextBlock Grid.Row="4" Grid.Column="2" Text="备注:" VerticalAlignment="Center"/>
+                            <TextBox x:Name="NotesBox" Grid.Row="4" Grid.Column="3" Padding="4" VerticalAlignment="Center"/>
                         </Grid>
 
                         <TextBlock Text="参赛项目" FontSize="14" FontWeight="Bold" Margin="0,12,0,4"/>
@@ -117,6 +139,7 @@
                                 <RowDefinition Height="30"/>
                                 <RowDefinition Height="30"/>
                                 <RowDefinition Height="30"/>
+                                <RowDefinition Height="30"/>
                             </Grid.RowDefinitions>
                             <TextBlock Grid.Row="0" Grid.Column="0" Text="队名:" VerticalAlignment="Center"/>
                             <TextBox x:Name="RelayTeamBox" Grid.Row="0" Grid.Column="1" Padding="4" VerticalAlignment="Center"/>
@@ -124,12 +147,30 @@
                             <ComboBox x:Name="RelayGenderCombo" Grid.Row="0" Grid.Column="3" SelectedIndex="0" VerticalAlignment="Center">
                                 <ComboBoxItem Content="男"/><ComboBoxItem Content="女"/><ComboBoxItem Content="混合"/>
                             </ComboBox>
-                            <TextBlock Grid.Row="1" Grid.Column="0" Text="项目:" VerticalAlignment="Center"/>
-                            <ComboBox x:Name="RelayEventCombo" Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="3" SelectedIndex="0" VerticalAlignment="Center">
+                            <TextBlock Grid.Row="1" Grid.Column="0" Text="组别:" VerticalAlignment="Center"/>
+                            <ComboBox x:Name="RelayAgeGroupCombo" Grid.Row="1" Grid.Column="1" VerticalAlignment="Center" IsEditable="True">
+                                <ComboBoxItem Content=""/>
+                                <ComboBoxItem Content="甲组"/>
+                                <ComboBoxItem Content="乙组"/>
+                                <ComboBoxItem Content="丙组"/>
+                                <ComboBoxItem Content="丁组"/>
+                                <ComboBoxItem Content="戊组"/>
+                                <ComboBoxItem Content="己组"/>
+                                <ComboBoxItem Content="青少年"/>
+                                <ComboBoxItem Content="少年"/>
+                                <ComboBoxItem Content="青年"/>
+                                <ComboBoxItem Content="成年"/>
+                                <ComboBoxItem Content="大师"/>
+                                <ComboBoxItem Content="老年"/>
+                            </ComboBox>
+                            <TextBlock Grid.Row="1" Grid.Column="2" Text="单位简称:" VerticalAlignment="Center"/>
+                            <TextBox x:Name="RelayCountryShortBox" Grid.Row="1" Grid.Column="3" Padding="4" VerticalAlignment="Center"/>
+                            <TextBlock Grid.Row="2" Grid.Column="0" Text="项目:" VerticalAlignment="Center"/>
+                            <ComboBox x:Name="RelayEventCombo" Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="3" SelectedIndex="0" VerticalAlignment="Center">
                                 <ComboBoxItem Content="4x100米自由泳接力"/><ComboBoxItem Content="4x200米自由泳接力"/><ComboBoxItem Content="4x100米混合泳接力"/>
                             </ComboBox>
-                            <TextBlock Grid.Row="2" Grid.Column="0" Text="报名成绩:" VerticalAlignment="Center"/>
-                            <TextBox x:Name="RelayEntryTimeBox" Grid.Row="2" Grid.Column="1" Padding="4" VerticalAlignment="Center"/>
+                            <TextBlock Grid.Row="3" Grid.Column="0" Text="报名成绩:" VerticalAlignment="Center"/>
+                            <TextBox x:Name="RelayEntryTimeBox" Grid.Row="3" Grid.Column="1" Padding="4" VerticalAlignment="Center"/>
                         </Grid>
                         <TextBlock Text="棒次安排" FontSize="14" FontWeight="Bold" Margin="0,12,0,6"/>
                         <!-- 列抬头（填写提示，防止输错） -->
