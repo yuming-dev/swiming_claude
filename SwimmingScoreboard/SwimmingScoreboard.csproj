@@ -111,6 +111,10 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </Page>
+    <Page Include="ResultBookEditWindow.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
     <Compile Include="App.xaml.cs">
       <DependentUpon>App.xaml</DependentUpon>
       <SubType>Code</SubType>
@@ -164,6 +168,11 @@
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="ProgramBookData.cs" />
+    <Compile Include="ResultBookEditWindow.xaml.cs">
+      <DependentUpon>ResultBookEditWindow.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="ResultBookData.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="app.manifest" />

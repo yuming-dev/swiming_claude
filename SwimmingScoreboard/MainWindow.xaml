@@ -1280,13 +1280,28 @@
                                         </Button.Template>
                                     </Button>
                                     <Button Click="PrintFullResultBook_Click" Width="155" Height="56" Margin="6"
-                                            Background="#047857" Foreground="White" BorderThickness="0" Cursor="Hand">
+                                            Background="#047857" Foreground="White" BorderThickness="0" Cursor="Hand"
+                                            ToolTip="生成并预览成绩册（封面、奖牌榜、风尚奖、破纪录、名次/成绩公告）">
                                         <Button.Template>
                                             <ControlTemplate TargetType="Button">
                                                 <Border Background="{TemplateBinding Background}" CornerRadius="8" Padding="12,8">
                                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
                                                         <TextBlock Text="&#xE8F1;" FontFamily="Segoe MDL2 Assets" FontSize="18" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="White"/>
                                                         <TextBlock Text="成绩册" FontSize="14" VerticalAlignment="Center" Foreground="White"/>
+                                                    </StackPanel>
+                                                </Border>
+                                            </ControlTemplate>
+                                        </Button.Template>
+                                    </Button>
+                                    <Button Click="EditResultBook_Click" Width="155" Height="56" Margin="6"
+                                            Background="#B45309" Foreground="White" BorderThickness="0" Cursor="Hand"
+                                            ToolTip="编辑、预览并打印/导出（PDF 通过浏览器打印；DOC 直接导出）">
+                                        <Button.Template>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border Background="{TemplateBinding Background}" CornerRadius="8" Padding="12,8">
+                                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                        <TextBlock Text="&#xE70F;" FontFamily="Segoe MDL2 Assets" FontSize="18" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="White"/>
+                                                        <TextBlock Text="编辑成绩册" FontSize="14" VerticalAlignment="Center" Foreground="White"/>
                                                     </StackPanel>
                                                 </Border>
                                             </ControlTemplate>
