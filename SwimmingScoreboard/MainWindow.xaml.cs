@@ -9094,7 +9094,7 @@ namespace SwimmingScoreboard
 
         private void RefreshAgeGroupsPreview() {
             if (AgeGroupsPreviewGrid == null) return;
-            AgeGroupsPreviewGrid.ItemsSource = _ageGroups.Select(g => new { g.Name }).ToList();
+            AgeGroupsPreviewGrid.ItemsSource = _ageGroups.Select((g, i) => new { Index = i + 1, g.Name }).ToList();
         }
 
         // 组别现为人工分类，不再依赖年龄。此方法仅用于兼容性触发，不会覆盖已设置的组别。
