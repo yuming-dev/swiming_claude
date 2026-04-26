@@ -1186,6 +1186,9 @@ namespace SwimmingScoreboard
         public List<ScheduleItem> Schedule { get; set; }
         public List<string> Events { get; set; }
         public List<AgeGroup> AgeGroups { get; set; }
+        public List<string> Genders { get; set; }
+        public List<string> Stages { get; set; }
+        public List<string> HeatCounts { get; set; }
         public List<BibRange> BibRanges { get; set; }
         public LaneCloseSettings LaneCloseSettings { get; set; }
         public Dictionary<string, List<string>> DisputeLog { get; set; }

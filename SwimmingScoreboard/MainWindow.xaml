@@ -516,6 +516,63 @@
                                             </DataGrid>
                                         </StackPanel>
                                     </Border>
+
+                                    <Border Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,0,0,10">
+                                        <StackPanel>
+                                            <TextBlock Text="性别" FontSize="13" FontWeight="Bold" Foreground="#1E40AF" Margin="0,0,0,6"/>
+                                            <StackPanel Orientation="Horizontal">
+                                                <Button Content="性别编辑" Click="EditGendersList_Click" Padding="12,6" Background="#3B82F6" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
+                                                <Button Content="导入性别表" Click="ImportGendersCSV_Click" Padding="12,6" Background="#8B5CF6" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
+                                                <Button Content="导出性别表" Click="ExportGendersCSV_Click" Padding="12,6" Background="#22C55E" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
+                                                <Button Content="下载性别模板" Click="DownloadGendersTemplate_Click" Padding="12,6" Background="#F59E0B" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
+                                            </StackPanel>
+                                            <DataGrid x:Name="GendersPreviewGrid" AutoGenerateColumns="False" CanUserAddRows="False"
+                                                      IsReadOnly="True" AlternatingRowBackground="#F1F5F9" MinHeight="80" MaxHeight="220" Margin="0,8,0,0">
+                                                <DataGrid.Columns>
+                                                    <DataGridTextColumn Header="序号" Binding="{Binding Index}" Width="60"/>
+                                                    <DataGridTextColumn Header="性别名称" Binding="{Binding Name}" Width="*"/>
+                                                </DataGrid.Columns>
+                                            </DataGrid>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <Border Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,0,0,10">
+                                        <StackPanel>
+                                            <TextBlock Text="赛次" FontSize="13" FontWeight="Bold" Foreground="#1E40AF" Margin="0,0,0,6"/>
+                                            <StackPanel Orientation="Horizontal">
+                                                <Button Content="赛次编辑" Click="EditStagesList_Click" Padding="12,6" Background="#3B82F6" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
+                                                <Button Content="导入赛次表" Click="ImportStagesCSV_Click" Padding="12,6" Background="#8B5CF6" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
+                                                <Button Content="导出赛次表" Click="ExportStagesCSV_Click" Padding="12,6" Background="#22C55E" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
+                                                <Button Content="下载赛次模板" Click="DownloadStagesTemplate_Click" Padding="12,6" Background="#F59E0B" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
+                                            </StackPanel>
+                                            <DataGrid x:Name="StagesPreviewGrid" AutoGenerateColumns="False" CanUserAddRows="False"
+                                                      IsReadOnly="True" AlternatingRowBackground="#F1F5F9" MinHeight="80" MaxHeight="220" Margin="0,8,0,0">
+                                                <DataGrid.Columns>
+                                                    <DataGridTextColumn Header="序号" Binding="{Binding Index}" Width="60"/>
+                                                    <DataGridTextColumn Header="赛次名称" Binding="{Binding Name}" Width="*"/>
+                                                </DataGrid.Columns>
+                                            </DataGrid>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <Border Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,0,0,10">
+                                        <StackPanel>
+                                            <TextBlock Text="组数" FontSize="13" FontWeight="Bold" Foreground="#1E40AF" Margin="0,0,0,6"/>
+                                            <StackPanel Orientation="Horizontal">
+                                                <Button Content="组数编辑" Click="EditHeatCountsList_Click" Padding="12,6" Background="#3B82F6" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
+                                                <Button Content="导入组数表" Click="ImportHeatCountsCSV_Click" Padding="12,6" Background="#8B5CF6" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
+                                                <Button Content="导出组数表" Click="ExportHeatCountsCSV_Click" Padding="12,6" Background="#22C55E" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
+                                                <Button Content="下载组数模板" Click="DownloadHeatCountsTemplate_Click" Padding="12,6" Background="#F59E0B" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
+                                            </StackPanel>
+                                            <DataGrid x:Name="HeatCountsPreviewGrid" AutoGenerateColumns="False" CanUserAddRows="False"
+                                                      IsReadOnly="True" AlternatingRowBackground="#F1F5F9" MinHeight="80" MaxHeight="220" Margin="0,8,0,0">
+                                                <DataGrid.Columns>
+                                                    <DataGridTextColumn Header="序号" Binding="{Binding Index}" Width="60"/>
+                                                    <DataGridTextColumn Header="组数" Binding="{Binding Name}" Width="*"/>
+                                                </DataGrid.Columns>
+                                            </DataGrid>
+                                        </StackPanel>
+                                    </Border>
                                 </StackPanel>
                             </ScrollViewer>
                         </TabItem>

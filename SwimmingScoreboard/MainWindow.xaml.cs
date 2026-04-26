@@ -33,6 +33,9 @@ namespace SwimmingScoreboard
         private ObservableCollection<ScheduleItem> _schedule = new ObservableCollection<ScheduleItem>();
         private List<string> _events = new List<string>();
         private List<AgeGroup> _ageGroups = new List<AgeGroup>();
+        private List<string> _genders = new List<string> { "男", "女", "混合" };
+        private List<string> _stages = new List<string> { "预赛", "半决赛", "决赛" };
+        private List<string> _heatCounts = new List<string> { "1组", "2组", "3组", "4组", "5组", "6组", "7组", "8组" };
         private List<BibRange> _bibRanges = new List<BibRange>();
         private ProgramBookData _programBook = new ProgramBookData();
         private ResultBookData _resultBook = new ResultBookData();
@@ -8286,6 +8289,9 @@ namespace SwimmingScoreboard
                     Schedule = _schedule.ToList(),
                     Events = _events,
                     AgeGroups = _ageGroups,
+                    Genders = _genders,
+                    Stages = _stages,
+                    HeatCounts = _heatCounts,
                     BibRanges = _bibRanges,
                     LaneCloseSettings = _laneCloseSettings,
                     ProgramBook = _programBook,
@@ -8346,10 +8352,16 @@ namespace SwimmingScoreboard
                 }
                 if (package.Events != null && package.Events.Count > 0) _events = package.Events;
                 if (package.AgeGroups != null && package.AgeGroups.Count > 0) _ageGroups = package.AgeGroups;
+                if (package.Genders != null && package.Genders.Count > 0) _genders = package.Genders;
+                if (package.Stages != null && package.Stages.Count > 0) _stages = package.Stages;
+                if (package.HeatCounts != null && package.HeatCounts.Count > 0) _heatCounts = package.HeatCounts;
                 AgeGroupRegistry.Set(_ageGroups);
                 RefreshEventComboBoxes();
                 RefreshEventsPreview();
                 RefreshAgeGroupsPreview();
+                RefreshGendersPreview();
+                RefreshStagesPreview();
+                RefreshHeatCountsPreview();
                 RefreshAllAgeGroupFilterCombos();
                 _bibRanges = package.BibRanges ?? new List<BibRange>();
                 _programBook = package.ProgramBook ?? new ProgramBookData();
@@ -9102,6 +9114,207 @@ namespace SwimmingScoreboard
             // 留空：保留方法签名以兼容现有调用点
         }
 
+        // ═══════════════════════════════════════════════════════════════
+        // 性别 / 赛次 / 组数 三个简单字符串列表的 编辑/导入/导出/模板（与组别完全一致的交互）
+        // ═══════════════════════════════════════════════════════════════
+        private void RefreshGendersPreview() {
+            if (GendersPreviewGrid == null) return;
+            GendersPreviewGrid.ItemsSource = _genders.Select((n, i) => new { Index = i + 1, Name = n }).ToList();
+        }
+        private void RefreshStagesPreview() {
+            if (StagesPreviewGrid == null) return;
+            StagesPreviewGrid.ItemsSource = _stages.Select((n, i) => new { Index = i + 1, Name = n }).ToList();
+        }
+        private void RefreshHeatCountsPreview() {
+            if (HeatCountsPreviewGrid == null) return;
+            HeatCountsPreviewGrid.ItemsSource = _heatCounts.Select((n, i) => new { Index = i + 1, Name = n }).ToList();
+        }
+
+        // 通用：弹出"序号 + 名称"的可编辑列表对话框，确认时回调
+        private void EditStringListDialog(string title, string nameHeader, List<string> source, string[] defaults, Action<List<string>> onSave) {
+            var working = new System.Collections.ObjectModel.ObservableCollection<EditableNameRow>();
+            foreach (var n in source) working.Add(new EditableNameRow { Value = n });
+
+            var dlg = new Window {
+                Title = title, Width = 460, Height = 520,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner, Owner = this, ResizeMode = ResizeMode.CanResize
+            };
+            var mainGrid = new Grid { Margin = new Thickness(16) };
+            mainGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            mainGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+            mainGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            mainGrid.Children.Add(new TextBlock {
+                Text = string.Format("编辑{0}列表。可增删；确认保存，取消不生效。", nameHeader),
+                TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 8),
+                Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569"))
+            });
+
+            var grid = new DataGrid {
+                AutoGenerateColumns = false, CanUserAddRows = false, IsReadOnly = false,
+                SelectionMode = DataGridSelectionMode.Single,
+                AlternatingRowBackground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F8FAFC")),
+                HeadersVisibility = DataGridHeadersVisibility.All,
+                RowHeaderWidth = 56
+            };
+            grid.LoadingRow += delegate(object _s, DataGridRowEventArgs _ev) {
+                _ev.Row.Header = (_ev.Row.GetIndex() + 1).ToString();
+            };
+            grid.Columns.Add(new DataGridTextColumn { Header = nameHeader, Width = new DataGridLength(1, DataGridLengthUnitType.Star),
+                Binding = new System.Windows.Data.Binding("Value") { Mode = System.Windows.Data.BindingMode.TwoWay, UpdateSourceTrigger = System.Windows.Data.UpdateSourceTrigger.PropertyChanged } });
+            grid.ItemsSource = working;
+            working.CollectionChanged += delegate { try { grid.Items.Refresh(); } catch { } };
+            Grid.SetRow(grid, 1);
+            mainGrid.Children.Add(grid);
+
+            var btnPanel = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 10, 0, 0) };
+            Grid.SetRow(btnPanel, 2);
+            var btnAdd = new Button { Content = "新增", Padding = new Thickness(12, 6, 12, 6), Margin = new Thickness(0, 0, 8, 0),
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6")), Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0) };
+            btnAdd.Click += delegate { working.Add(new EditableNameRow { Value = "" }); };
+            var btnDel = new Button { Content = "删除选中", Padding = new Thickness(12, 6, 12, 6), Margin = new Thickness(0, 0, 8, 0),
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EF4444")), Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0) };
+            btnDel.Click += delegate {
+                var sel = grid.SelectedItem as EditableNameRow;
+                if (sel != null) working.Remove(sel); else MessageBox.Show("请先选中要删除的行");
+            };
+            var btnOk = new Button { Content = "确认保存", Padding = new Thickness(16, 6, 16, 6), Margin = new Thickness(0, 0, 8, 0), FontWeight = FontWeights.Bold,
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#22C55E")), Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0) };
+            btnOk.Click += delegate {
+                var fe = System.Windows.Input.Keyboard.FocusedElement as FrameworkElement;
+                if (fe is TextBox) { var be = fe.GetBindingExpression(TextBox.TextProperty); if (be != null) be.UpdateSource(); }
+                try { grid.CommitEdit(DataGridEditingUnit.Cell, true); grid.CommitEdit(DataGridEditingUnit.Row, true); } catch { }
+                var seen = new HashSet<string>();
+                var finalList = new List<string>();
+                foreach (var r in working) {
+                    string v = (r.Value ?? "").Trim();
+                    if (string.IsNullOrEmpty(v)) continue;
+                    if (seen.Contains(v)) { MessageBox.Show(string.Format("[{0}] 重复。", v)); return; }
+                    seen.Add(v);
+                    finalList.Add(v);
+                }
+                if (finalList.Count == 0) { MessageBox.Show(string.Format("至少保留一项{0}", nameHeader)); return; }
+                onSave(finalList);
+                dlg.DialogResult = true;
+            };
+            var btnCancel = new Button { Content = "取消", Padding = new Thickness(16, 6, 16, 6),
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")), Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0) };
+            btnCancel.Click += delegate { dlg.DialogResult = false; };
+            btnPanel.Children.Add(btnAdd); btnPanel.Children.Add(btnDel); btnPanel.Children.Add(btnOk); btnPanel.Children.Add(btnCancel);
+            mainGrid.Children.Add(btnPanel);
+            dlg.Content = mainGrid;
+            dlg.ShowDialog();
+        }
+
+        private class EditableNameRow : INotifyPropertyChanged {
+            private string _v;
+            public string Value { get { return _v; } set { _v = value; if (PropertyChanged != null) PropertyChanged(this, new PropertyChangedEventArgs("Value")); } }
+            public event PropertyChangedEventHandler PropertyChanged;
+        }
+
+        // 通用 CSV 导入/导出
+        private void ExportStringListCsv(string title, string fileName, string headerName, List<string> source) {
+            var dlg = new Microsoft.Win32.SaveFileDialog { Filter = "CSV文件|*.csv", Title = title, FileName = fileName };
+            if (dlg.ShowDialog() != true) return;
+            try {
+                var sb = new StringBuilder();
+                sb.Append('﻿');
+                sb.AppendLine(headerName);
+                foreach (var v in source) sb.AppendLine(CsvEscape(v));
+                File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
+                MessageBox.Show(headerName + "表已导出。", "完成");
+            } catch (Exception ex) { MessageBox.Show("导出失败: " + ex.Message, "错误"); }
+        }
+        private void ImportStringListCsv(string title, string headerName, Action<List<string>> onLoaded) {
+            var dlg = new Microsoft.Win32.OpenFileDialog {
+                Filter = "CSV文件|*.csv|文本文件|*.txt|所有文件|*.*",
+                Title = string.Format("导入{0}表（表头: {0}名称）", headerName)
+            };
+            if (dlg.ShowDialog() != true) return;
+            string ext = IOPath.GetExtension(dlg.FileName).ToLower();
+            if (ext == ".xls" || ext == ".xlsx") {
+                MessageBox.Show("无法直接读取 Excel 文件。请另存为 CSV UTF-8 后再导入。", "格式提示"); return;
+            }
+            if (MessageBox.Show("导入将替换当前列表。继续？", "确认", MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
+            try {
+                var rows = ReadCsvLines(dlg.FileName);
+                var seen = new HashSet<string>();
+                var finalList = new List<string>();
+                for (int i = 0; i < rows.Count; i++) {
+                    var c = rows[i];
+                    if (c.Length == 0) continue;
+                    string v = (c[0] ?? "").Trim();
+                    if (string.IsNullOrEmpty(v)) continue;
+                    if (i == 0 && (v == headerName + "名称" || v == "名称" || v == headerName || v == "Name")) continue;
+                    if (seen.Contains(v)) continue;
+                    seen.Add(v);
+                    finalList.Add(v);
+                }
+                if (finalList.Count == 0) { MessageBox.Show("未读取到有效条目"); return; }
+                onLoaded(finalList);
+                MessageBox.Show(string.Format("已导入 {0} 个{1}。", finalList.Count, headerName), "完成");
+            } catch (Exception ex) { MessageBox.Show("导入失败: " + ex.Message, "错误"); }
+        }
+        private void DownloadStringListTemplate(string title, string fileName, string headerName, string[] sampleRows) {
+            var dlg = new Microsoft.Win32.SaveFileDialog { Filter = "CSV文件|*.csv", Title = title, FileName = fileName };
+            if (dlg.ShowDialog() != true) return;
+            try {
+                var sb = new StringBuilder();
+                sb.Append('﻿');
+                sb.AppendLine(headerName + "名称");
+                foreach (var s in sampleRows) sb.AppendLine(s);
+                File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
+                MessageBox.Show(headerName + "模板已保存。", "完成");
+            } catch (Exception ex) { MessageBox.Show("保存失败: " + ex.Message, "错误"); }
+        }
+
+        // —— 性别 ——
+        private void EditGendersList_Click(object sender, RoutedEventArgs e) {
+            EditStringListDialog("性别编辑", "性别名称", _genders, new[] { "男", "女", "混合" }, list => {
+                _genders = list; RefreshGendersPreview(); AutoSaveData();
+                AddLog(string.Format("已更新性别列表（{0} 条）", _genders.Count));
+            });
+        }
+        private void ExportGendersCSV_Click(object sender, RoutedEventArgs e) { ExportStringListCsv("导出性别表", "性别表.csv", "性别", _genders); }
+        private void ImportGendersCSV_Click(object sender, RoutedEventArgs e) {
+            ImportStringListCsv("导入性别表", "性别", list => { _genders = list; RefreshGendersPreview(); AutoSaveData();
+                AddLog(string.Format("导入性别: 共{0}条", _genders.Count)); });
+        }
+        private void DownloadGendersTemplate_Click(object sender, RoutedEventArgs e) {
+            DownloadStringListTemplate("保存性别模板", "性别模板.csv", "性别", new[] { "男", "女", "混合" });
+        }
+
+        // —— 赛次 ——
+        private void EditStagesList_Click(object sender, RoutedEventArgs e) {
+            EditStringListDialog("赛次编辑", "赛次名称", _stages, new[] { "预赛", "半决赛", "决赛" }, list => {
+                _stages = list; RefreshStagesPreview(); AutoSaveData();
+                AddLog(string.Format("已更新赛次列表（{0} 条）", _stages.Count));
+            });
+        }
+        private void ExportStagesCSV_Click(object sender, RoutedEventArgs e) { ExportStringListCsv("导出赛次表", "赛次表.csv", "赛次", _stages); }
+        private void ImportStagesCSV_Click(object sender, RoutedEventArgs e) {
+            ImportStringListCsv("导入赛次表", "赛次", list => { _stages = list; RefreshStagesPreview(); AutoSaveData();
+                AddLog(string.Format("导入赛次: 共{0}条", _stages.Count)); });
+        }
+        private void DownloadStagesTemplate_Click(object sender, RoutedEventArgs e) {
+            DownloadStringListTemplate("保存赛次模板", "赛次模板.csv", "赛次", new[] { "预赛", "半决赛", "决赛", "A决赛", "B决赛" });
+        }
+
+        // —— 组数 ——
+        private void EditHeatCountsList_Click(object sender, RoutedEventArgs e) {
+            EditStringListDialog("组数编辑", "组数", _heatCounts, new[] { "1组", "2组", "3组", "4组", "5组", "6组", "7组", "8组" }, list => {
+                _heatCounts = list; RefreshHeatCountsPreview(); AutoSaveData();
+                AddLog(string.Format("已更新组数列表（{0} 条）", _heatCounts.Count));
+            });
+        }
+        private void ExportHeatCountsCSV_Click(object sender, RoutedEventArgs e) { ExportStringListCsv("导出组数表", "组数表.csv", "组数", _heatCounts); }
+        private void ImportHeatCountsCSV_Click(object sender, RoutedEventArgs e) {
+            ImportStringListCsv("导入组数表", "组数", list => { _heatCounts = list; RefreshHeatCountsPreview(); AutoSaveData();
+                AddLog(string.Format("导入组数: 共{0}条", _heatCounts.Count)); });
+        }
+        private void DownloadHeatCountsTemplate_Click(object sender, RoutedEventArgs e) {
+            DownloadStringListTemplate("保存组数模板", "组数模板.csv", "组数", new[] { "1组", "2组", "3组", "4组", "5组", "6组", "7组", "8组" });
+        }
+
         private void EditEventsList_Click(object sender, RoutedEventArgs e) {
             var working = new System.Collections.ObjectModel.ObservableCollection<EventRow>();
             foreach (var ev in _events) working.Add(new EventRow { Name = ev });
@@ -9252,6 +9465,9 @@ namespace SwimmingScoreboard
                 _ageGroups = finalList;
                 AgeGroupRegistry.Set(_ageGroups);
                 RefreshAgeGroupsPreview();
+                RefreshGendersPreview();
+                RefreshStagesPreview();
+                RefreshHeatCountsPreview();
                 RefreshAllAgeGroupFilterCombos();
                 RecomputeAllAgeCategories();
                 AutoSaveData();
@@ -9381,6 +9597,9 @@ namespace SwimmingScoreboard
                 _ageGroups = finalList;
                 AgeGroupRegistry.Set(_ageGroups);
                 RefreshAgeGroupsPreview();
+                RefreshGendersPreview();
+                RefreshStagesPreview();
+                RefreshHeatCountsPreview();
                 RefreshAllAgeGroupFilterCombos();
                 RecomputeAllAgeCategories();
                 AutoSaveData();
