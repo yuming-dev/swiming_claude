@@ -42,6 +42,8 @@ namespace SwimmingScoreboard
         private string _startPosition = "left";
         private string _finishPosition = "left";  // ���点（触板端）位置，整场比赛固定不变
         private double _firstPlaceHoldTime = 3.0;
+        private int _leftBlindWatchCount = 3;   // 左端每道盲表数量（1-3）
+        private int _rightBlindWatchCount = 3;  // 右端每道盲表数量（1-3）
 
         public double LaneCloseTime {
             get { return _laneCloseTime; }
@@ -74,6 +76,20 @@ namespace SwimmingScoreboard
         public double FirstPlaceHoldTime {
             get { return _firstPlaceHoldTime; }
             set { _firstPlaceHoldTime = value; OnPropertyChanged("FirstPlaceHoldTime"); }
+        }
+        public int LeftBlindWatchCount {
+            get { return _leftBlindWatchCount; }
+            set {
+                int v = value < 1 ? 1 : (value > 3 ? 3 : value);
+                if (_leftBlindWatchCount != v) { _leftBlindWatchCount = v; OnPropertyChanged("LeftBlindWatchCount"); }
+            }
+        }
+        public int RightBlindWatchCount {
+            get { return _rightBlindWatchCount; }
+            set {
+                int v = value < 1 ? 1 : (value > 3 ? 3 : value);
+                if (_rightBlindWatchCount != v) { _rightBlindWatchCount = v; OnPropertyChanged("RightBlindWatchCount"); }
+            }
         }
 
         public event PropertyChangedEventHandler PropertyChanged;

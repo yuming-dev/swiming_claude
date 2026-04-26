@@ -392,6 +392,8 @@ var firstPlaceShowStart = 0;   // 开始显示的时间戳
 var firstPlaceDetectedRank = 0; // 已检测到的最高完赛名次
 var startPosition = localStorage.getItem('swimStartPosition') || 'left';
 var finishPosition = localStorage.getItem('swimFinishPosition') || 'left';
+var leftBlindWatchCount = parseInt(localStorage.getItem('swimLeftBlindCount')) || 3;
+var rightBlindWatchCount = parseInt(localStorage.getItem('swimRightBlindCount')) || 3;
 
 window.onbeforeunload = function(e) {
     // 退出前保存参数
@@ -620,6 +622,18 @@ function render() {
         if (data.laneCloseSettings.startPosition) startPosition = data.laneCloseSettings.startPosition;
         if (data.laneCloseSettings.finishPosition) finishPosition = data.laneCloseSettings.finishPosition;
         if (data.laneCloseSettings.firstPlaceHoldTime) firstPlaceHoldTime = data.laneCloseSettings.firstPlaceHoldTime;
+        var lbcNew = parseInt(data.laneCloseSettings.leftBlindWatchCount);
+        var rbcNew = parseInt(data.laneCloseSettings.rightBlindWatchCount);
+        if (lbcNew >= 1 && lbcNew <= 3 && lbcNew !== leftBlindWatchCount) {
+            leftBlindWatchCount = lbcNew;
+            localStorage.setItem('swimLeftBlindCount', lbcNew);
+            applyBlindWatchVisibility();
+        }
+        if (rbcNew >= 1 && rbcNew <= 3 && rbcNew !== rightBlindWatchCount) {
+            rightBlindWatchCount = rbcNew;
+            localStorage.setItem('swimRightBlindCount', rbcNew);
+            applyBlindWatchVisibility();
+        }
         if (document.getElementById('settingsModal').classList.contains('hidden')) {
             document.getElementById('dlgCloseTime').value = data.laneCloseSettings.laneCloseTime;
             document.getElementById('dlgSBDelay').value = data.laneCloseSettings.startBlockCloseDelay;
@@ -1203,6 +1217,22 @@ function getRelayCurrentLegName(sw) {
 
 // 泳道行 DOM 缓存：每行动态元素的引用，避免每次重建 innerHTML
 var _laneRowDOM = []; // [{lane, row, touchL, touchR, leftDots[5], rightDots[5], leftRemain, rightRemain, nameEl, teamEl, trackEl, reactionEl, finalTimeEl, rankEl, remarkEl, leftInd, rightInd}]
+
+// 根据 left/rightBlindWatchCount 控制盲表圆点显示/隐藏（每端最多 3 个，超出隐藏）
+function applyBlindWatchVisibility() {
+    if (!_laneRowDOM.length) return;
+    for (var i = 0; i < _laneRowDOM.length; i++) {
+        var ui = _laneRowDOM[i];
+        // 左端：leftDots[0..2] 是盲表 1/2/3
+        for (var k = 0; k < 3; k++) {
+            if (ui.leftDots[k]) ui.leftDots[k].style.display = (k < leftBlindWatchCount) ? '' : 'none';
+        }
+        // 右端：rightDots[2..4] 是盲表 1/2/3
+        for (var k = 0; k < 3; k++) {
+            if (ui.rightDots[2 + k]) ui.rightDots[2 + k].style.display = (k < rightBlindWatchCount) ? '' : 'none';
+        }
+    }
+}
 var _laneRowsBuiltKey = '';
 
 function renderLanes() {
@@ -1300,6 +1330,7 @@ function buildLaneRows(container, swimmers, rcRelay) {
             remarkEl: row.querySelector('.lr-remark')
         });
     }
+    applyBlindWatchVisibility();
 }
 
 function refreshLaneRows(swimmers, rcRelay) {

@@ -42,6 +42,8 @@ namespace RemoteTimingControl
         private double _resultConfirmCloseDelay = 3;
         private double _falseStartThreshold = 0.10;
         private double _splitDisplayTime = 5;
+        private int _leftBlindWatchCount = 3;
+        private int _rightBlindWatchCount = 3;
 
         // Local timer for smooth running time
         private DateTime _localTimerStart = DateTime.MinValue;
@@ -607,6 +609,14 @@ namespace RemoteTimingControl
                 if (lcs["falseStartThreshold"] != null) _falseStartThreshold = (double)lcs["falseStartThreshold"];
                 if (lcs["splitDisplayTime"] != null) _splitDisplayTime = (double)lcs["splitDisplayTime"];
                 if (lcs["firstPlaceHoldTime"] != null) _firstPlaceHoldTime = (double)lcs["firstPlaceHoldTime"];
+                if (lcs["leftBlindWatchCount"] != null) {
+                    int v = (int)lcs["leftBlindWatchCount"];
+                    if (v >= 1 && v <= 3) _leftBlindWatchCount = v;
+                }
+                if (lcs["rightBlindWatchCount"] != null) {
+                    int v = (int)lcs["rightBlindWatchCount"];
+                    if (v >= 1 && v <= 3) _rightBlindWatchCount = v;
+                }
             }
 
             // Control mode
@@ -1275,10 +1285,13 @@ namespace RemoteTimingControl
                     rowUI.TouchL.Foreground = _brushSlate;
                 }
 
-                // 左设备5个圆点
+                // 左设备5个圆点（前 3 个为盲表，按 _leftBlindWatchCount 控制可见性）
                 rowUI.LeftDots[0].Fill = GetDeviceBrush(GetDeviceStatus(ds, "leftBlindWatch1"));
                 rowUI.LeftDots[1].Fill = GetDeviceBrush(GetDeviceStatus(ds, "leftBlindWatch2"));
                 rowUI.LeftDots[2].Fill = GetDeviceBrush(GetDeviceStatus(ds, "leftBlindWatch3"));
+                rowUI.LeftDots[0].Visibility = _leftBlindWatchCount >= 1 ? Visibility.Visible : Visibility.Collapsed;
+                rowUI.LeftDots[1].Visibility = _leftBlindWatchCount >= 2 ? Visibility.Visible : Visibility.Collapsed;
+                rowUI.LeftDots[2].Visibility = _leftBlindWatchCount >= 3 ? Visibility.Visible : Visibility.Collapsed;
                 rowUI.LeftDots[3].Fill = GetDeviceBrush(GetDeviceStatus(ds, "leftStartBlock"));
                 rowUI.LeftDots[4].Fill = GetDeviceBrush(GetDeviceStatus(ds, "leftTouchpad"));
 
@@ -1307,6 +1320,9 @@ namespace RemoteTimingControl
                 rowUI.RightDots[2].Fill = GetDeviceBrush(GetDeviceStatus(ds, "rightBlindWatch1"));
                 rowUI.RightDots[3].Fill = GetDeviceBrush(GetDeviceStatus(ds, "rightBlindWatch2"));
                 rowUI.RightDots[4].Fill = GetDeviceBrush(GetDeviceStatus(ds, "rightBlindWatch3"));
+                rowUI.RightDots[2].Visibility = _rightBlindWatchCount >= 1 ? Visibility.Visible : Visibility.Collapsed;
+                rowUI.RightDots[3].Visibility = _rightBlindWatchCount >= 2 ? Visibility.Visible : Visibility.Collapsed;
+                rowUI.RightDots[4].Visibility = _rightBlindWatchCount >= 3 ? Visibility.Visible : Visibility.Collapsed;
 
                 // 右剩余秒数
                 string rightRemainStr = sw["rightTouchRemain"] != null ? sw["rightTouchRemain"].ToString() : "";
