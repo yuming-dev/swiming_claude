@@ -433,6 +433,7 @@ namespace SwimmingScoreboard
                 Gender = data["gender"] != null ? data["gender"].ToString() : "男",
                 Age = data["age"] != null ? (int)data["age"] : 0,
                 Country = data["country"] != null ? data["country"].ToString() : "",
+                CountryShort = data["countryShort"] != null ? data["countryShort"].ToString() : "",
                 IDNumber = data["idNumber"] != null ? data["idNumber"].ToString() : "",
                 Phone = data["phone"] != null ? data["phone"].ToString() : "",
                 EventName = data["eventName"] != null ? data["eventName"].ToString() : "",
@@ -442,6 +443,9 @@ namespace SwimmingScoreboard
                 FINANumber = data["finaNumber"] != null ? data["finaNumber"].ToString() : "",
                 Notes = data["notes"] != null ? data["notes"].ToString() : ""
             };
+            // 远程指定组别（如"甲组/乙组"）→ 覆盖按年龄自动推断
+            string ageGroupStr = data["ageGroup"] != null ? data["ageGroup"].ToString() : "";
+            if (!string.IsNullOrEmpty(ageGroupStr)) swimmer.AgeCategory = ageGroupStr;
             swimmer.EntryTimeSeconds = TimeFormatter.Parse(swimmer.EntryTime);
             var dup = FindDuplicate(swimmer.Name, swimmer.Gender, swimmer.EventName, swimmer.BibNumber, swimmer.IDNumber, swimmer.Country);
             if (dup != null) {
@@ -499,6 +503,7 @@ namespace SwimmingScoreboard
                     Gender = gender,
                     Age = swimmerData["age"] != null ? (int)swimmerData["age"] : 0,
                     Country = country,
+                    CountryShort = swimmerData["countryShort"] != null ? swimmerData["countryShort"].ToString() : "",
                     IDNumber = idNum,
                     Phone = swimmerData["phone"] != null ? swimmerData["phone"].ToString() : "",
                     EventName = eventName,
@@ -507,6 +512,8 @@ namespace SwimmingScoreboard
                     CSANumber = swimmerData["csaNumber"] != null ? swimmerData["csaNumber"].ToString() : "",
                     Notes = swimmerData["notes"] != null ? swimmerData["notes"].ToString() : ""
                 };
+                string batchAgeGroup = swimmerData["ageGroup"] != null ? swimmerData["ageGroup"].ToString() : "";
+                if (!string.IsNullOrEmpty(batchAgeGroup)) swimmer.AgeCategory = batchAgeGroup;
                 swimmer.EntryTimeSeconds = TimeFormatter.Parse(swimmer.EntryTime);
                 _swimmers.Add(swimmer);
                 added++;
@@ -568,17 +575,22 @@ namespace SwimmingScoreboard
             string bibNumber = "R" + (_relayTeams.Count).ToString("D3");
             // 检查重复
             var dup = FindDuplicate(team.TeamName, team.Gender, team.EventName, bibNumber, "", team.TeamName);
+            string relayCountryShort = data["countryShort"] != null ? data["countryShort"].ToString() : "";
+            string relayAgeGroup = data["ageGroup"] != null ? data["ageGroup"].ToString() : "";
             if (dup == null) {
-                _swimmers.Add(new Swimmer {
+                var proxy = new Swimmer {
                     BibNumber = bibNumber,
                     Name = team.TeamName,
                     Gender = team.Gender,
                     Country = team.TeamName,
+                    CountryShort = relayCountryShort,
                     EventName = team.EventName,
                     EntryTime = team.EntryTime,
                     EntryTimeSeconds = team.EntryTimeSeconds,
                     Notes = string.Format("接力队 棒次:{0}", legNames)
-                });
+                };
+                if (!string.IsNullOrEmpty(relayAgeGroup)) proxy.AgeCategory = relayAgeGroup;
+                _swimmers.Add(proxy);
             }
 
             // 为每位队员创建/更新 Swimmer 子条目（用于存储身份证并承载检录状态）
@@ -598,15 +610,18 @@ namespace SwimmingScoreboard
                         memExisting.IDNumber = leg.SwimmerIDNumber;
                     if (string.IsNullOrEmpty(memExisting.BibNumber)) memExisting.BibNumber = memBib;
                 } else {
-                    _swimmers.Add(new Swimmer {
+                    var mem = new Swimmer {
                         BibNumber = memBib,
                         Name = leg.SwimmerName,
                         Gender = team.Gender == "混合" ? "男" : team.Gender, // 混合默认标男，可后续编辑
                         Country = team.TeamName,
+                        CountryShort = relayCountryShort,
                         IDNumber = leg.SwimmerIDNumber ?? "",
                         EventName = team.EventName,
                         Notes = string.Format("接力队员 {0} 第{1}棒", team.EventName, leg.LegOrder)
-                    });
+                    };
+                    if (!string.IsNullOrEmpty(relayAgeGroup)) mem.AgeCategory = relayAgeGroup;
+                    _swimmers.Add(mem);
                 }
             }
 
