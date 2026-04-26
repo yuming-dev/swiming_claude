@@ -115,6 +115,10 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </Page>
+    <Page Include="DocumentPreviewWindow.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
     <Compile Include="App.xaml.cs">
       <DependentUpon>App.xaml</DependentUpon>
       <SubType>Code</SubType>
@@ -173,6 +177,10 @@
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="ResultBookData.cs" />
+    <Compile Include="DocumentPreviewWindow.xaml.cs">
+      <DependentUpon>DocumentPreviewWindow.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Compile>
   </ItemGroup>
   <ItemGroup>
     <None Include="app.manifest" />

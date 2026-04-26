@@ -9833,15 +9833,21 @@ namespace SwimmingScoreboard
         private void PrintSplitTimeReport_Click(object sender, RoutedEventArgs e) { GenerateAndOpenDocument("分段计时报告", BuildSplitTimeReportHtml()); }
 
         private void GenerateAndOpenDocument(string title, string html) {
+            // 同时存档到 Documents 目录，并在文档预览/输出对话框中打开
             try {
                 string dir = IOPath.Combine(AppDomain.CurrentDomain.BaseDirectory, "Documents");
                 if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
                 string filePath = IOPath.Combine(dir, title + "_" + DateTime.Now.ToString("yyyyMMdd_HHmmss") + ".html");
                 File.WriteAllText(filePath, html, Encoding.UTF8);
-                Process.Start(filePath);
-                AddLog("已生成文档: " + title);
+                AddLog("已生成文档: " + title + "（" + filePath + "）");
             } catch (Exception ex) {
-                AddLog("文档生成失败: " + ex.Message);
+                AddLog("文档存档失败: " + ex.Message);
+            }
+            try {
+                var win = new DocumentPreviewWindow(title, html) { Owner = this };
+                win.Show();
+            } catch (Exception ex) {
+                AddLog("文档预览失败: " + ex.Message);
             }
         }
 
