@@ -3599,6 +3599,11 @@ namespace SwimmingScoreboard
                 } else {
                     for (int i = 0; i < 5; i++) rowUI.LeftDots[i].Fill = _brushSlate;
                 }
+                // 按当前设置的左盲表数量隐藏多余圆点
+                int leftBwCount = _laneCloseSettings.LeftBlindWatchCount;
+                rowUI.LeftDots[0].Visibility = leftBwCount >= 1 ? Visibility.Visible : Visibility.Collapsed;
+                rowUI.LeftDots[1].Visibility = leftBwCount >= 2 ? Visibility.Visible : Visibility.Collapsed;
+                rowUI.LeftDots[2].Visibility = leftBwCount >= 3 ? Visibility.Visible : Visibility.Collapsed;
 
                 // 左剩余秒数
                 int leftRemain = GetTouchRemain(ls, true);
@@ -3625,6 +3630,11 @@ namespace SwimmingScoreboard
                 } else {
                     for (int i = 0; i < 5; i++) rowUI.RightDots[i].Fill = _brushSlate;
                 }
+                // 按当前设置的右盲表数量隐藏多余圆点
+                int rightBwCount = _laneCloseSettings.RightBlindWatchCount;
+                rowUI.RightDots[2].Visibility = rightBwCount >= 1 ? Visibility.Visible : Visibility.Collapsed;
+                rowUI.RightDots[3].Visibility = rightBwCount >= 2 ? Visibility.Visible : Visibility.Collapsed;
+                rowUI.RightDots[4].Visibility = rightBwCount >= 3 ? Visibility.Visible : Visibility.Collapsed;
 
                 // 右剩余秒数
                 int rightRemain = GetTouchRemain(ls, false);
