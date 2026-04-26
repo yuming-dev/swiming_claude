@@ -440,8 +440,12 @@ namespace SwimmingScoreboard
         }
 
         private void UpdateAgeCategory() {
-            _ageCategory = AgeGroupRegistry.CategoryFor(_age);
-            OnPropertyChanged("AgeCategory");
+            // 组别现为人工分类（甲组/乙组/少年/成人 等），不再从年龄自动推断。
+            // 仅当 AgeCategory 为空时调用 Registry.CategoryFor 作为兜底（兼容旧存档）。
+            if (string.IsNullOrEmpty(_ageCategory)) {
+                _ageCategory = AgeGroupRegistry.CategoryFor(_age);
+                OnPropertyChanged("AgeCategory");
+            }
         }
 
         public event PropertyChangedEventHandler PropertyChanged;

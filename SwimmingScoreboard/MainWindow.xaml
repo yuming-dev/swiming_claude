@@ -510,9 +510,7 @@
                                             <DataGrid x:Name="AgeGroupsPreviewGrid" AutoGenerateColumns="False" CanUserAddRows="False"
                                                       IsReadOnly="True" AlternatingRowBackground="#F1F5F9" MinHeight="80" MaxHeight="220" Margin="0,8,0,0">
                                                 <DataGrid.Columns>
-                                                    <DataGridTextColumn Header="名称" Binding="{Binding Name}" Width="120"/>
-                                                    <DataGridTextColumn Header="最小年龄" Binding="{Binding MinAge}" Width="80"/>
-                                                    <DataGridTextColumn Header="最大年龄" Binding="{Binding MaxAge}" Width="80"/>
+                                                    <DataGridTextColumn Header="组别名称" Binding="{Binding Name}" Width="*"/>
                                                 </DataGrid.Columns>
                                             </DataGrid>
                                         </StackPanel>

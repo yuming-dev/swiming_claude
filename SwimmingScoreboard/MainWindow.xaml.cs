@@ -9094,16 +9094,12 @@ namespace SwimmingScoreboard
 
         private void RefreshAgeGroupsPreview() {
             if (AgeGroupsPreviewGrid == null) return;
-            AgeGroupsPreviewGrid.ItemsSource = _ageGroups.Select(g => new { g.Name, g.MinAge, g.MaxAge }).ToList();
+            AgeGroupsPreviewGrid.ItemsSource = _ageGroups.Select(g => new { g.Name }).ToList();
         }
 
-        // 组别变更后，重新计算所有运动员的 AgeCategory
+        // 组别现为人工分类，不再依赖年龄。此方法仅用于兼容性触发，不会覆盖已设置的组别。
         private void RecomputeAllAgeCategories() {
-            foreach (var s in _swimmers) {
-                int age = s.Age;
-                s.Age = 0;
-                s.Age = age; // setter 触发 UpdateAgeCategory
-            }
+            // 留空：保留方法签名以兼容现有调用点
         }
 
         private void EditEventsList_Click(object sender, RoutedEventArgs e) {
@@ -9194,7 +9190,7 @@ namespace SwimmingScoreboard
             foreach (var g in _ageGroups) working.Add(new AgeGroup { Name = g.Name, MinAge = g.MinAge, MaxAge = g.MaxAge });
 
             var dlg = new Window {
-                Title = "组别编辑", Width = 540, Height = 520,
+                Title = "组别编辑", Width = 460, Height = 520,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner, Owner = this, ResizeMode = ResizeMode.CanResize
             };
             var mainGrid = new Grid { Margin = new Thickness(16) };
@@ -9202,7 +9198,7 @@ namespace SwimmingScoreboard
             mainGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
             mainGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             mainGrid.Children.Add(new TextBlock {
-                Text = "编辑组别（名称 + 最小年龄 + 最大年龄）。运动员按年龄命中第一个匹配组。可增删；确认保存，取消不生效。",
+                Text = "编辑组别。组别用于报名/分组等的人工分类（如甲组/乙组/少年/成人），与年龄无关。可增删；确认保存，取消不生效。",
                 TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 8),
                 Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569"))
             });
@@ -9212,12 +9208,8 @@ namespace SwimmingScoreboard
                 SelectionMode = DataGridSelectionMode.Single,
                 AlternatingRowBackground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F8FAFC"))
             };
-            grid.Columns.Add(new DataGridTextColumn { Header = "名称", Width = new DataGridLength(180),
+            grid.Columns.Add(new DataGridTextColumn { Header = "组别名称", Width = new DataGridLength(1, DataGridLengthUnitType.Star),
                 Binding = new System.Windows.Data.Binding("Name") { Mode = System.Windows.Data.BindingMode.TwoWay, UpdateSourceTrigger = System.Windows.Data.UpdateSourceTrigger.PropertyChanged } });
-            grid.Columns.Add(new DataGridTextColumn { Header = "最小年龄", Width = new DataGridLength(120),
-                Binding = new System.Windows.Data.Binding("MinAge") { Mode = System.Windows.Data.BindingMode.TwoWay } });
-            grid.Columns.Add(new DataGridTextColumn { Header = "最大年龄", Width = new DataGridLength(120),
-                Binding = new System.Windows.Data.Binding("MaxAge") { Mode = System.Windows.Data.BindingMode.TwoWay } });
             grid.ItemsSource = working;
             Grid.SetRow(grid, 1);
             mainGrid.Children.Add(grid);
@@ -9244,9 +9236,6 @@ namespace SwimmingScoreboard
                 foreach (var r in working) {
                     string name = (r.Name ?? "").Trim();
                     if (string.IsNullOrEmpty(name)) continue;
-                    if (r.MaxAge < r.MinAge) {
-                        MessageBox.Show(string.Format("[{0}] 最大年龄 < 最小年龄，请修正。", name)); return;
-                    }
                     if (seen.Contains(name)) { MessageBox.Show(string.Format("组别 [{0}] 重复。", name)); return; }
                     seen.Add(name);
                     finalList.Add(new AgeGroup { Name = name, MinAge = r.MinAge, MaxAge = r.MaxAge });
@@ -9343,8 +9332,8 @@ namespace SwimmingScoreboard
             try {
                 var sb = new StringBuilder();
                 sb.Append('﻿');
-                sb.AppendLine("名称,最小年龄,最大年龄");
-                foreach (var g in _ageGroups) sb.AppendLine(string.Format("{0},{1},{2}", CsvEscape(g.Name), g.MinAge, g.MaxAge));
+                sb.AppendLine("组别名称");
+                foreach (var g in _ageGroups) sb.AppendLine(CsvEscape(g.Name));
                 File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
                 MessageBox.Show("组别表已导出。", "完成");
             } catch (Exception ex) { MessageBox.Show("导出失败: " + ex.Message, "错误"); }
@@ -9353,7 +9342,7 @@ namespace SwimmingScoreboard
         private void ImportAgeGroupsCSV_Click(object sender, RoutedEventArgs e) {
             var dlg = new Microsoft.Win32.OpenFileDialog {
                 Filter = "CSV文件|*.csv|文本文件|*.txt|所有文件|*.*",
-                Title = "导入组别表（表头: 名称,最小年龄,最大年龄）"
+                Title = "导入组别表（表头: 组别名称）"
             };
             if (dlg.ShowDialog() != true) return;
             string ext = IOPath.GetExtension(dlg.FileName).ToLower();
@@ -9370,14 +9359,14 @@ namespace SwimmingScoreboard
                     if (c.Length == 0) continue;
                     string name = (c[0] ?? "").Trim();
                     if (string.IsNullOrEmpty(name)) continue;
-                    // 跳表头
-                    if (i == 0 && (name == "名称" || name == "组别" || name == "年龄组" || name == "Name")) continue;
+                    // 跳表头（兼容旧"名称/年龄组"和新"组别名称/组别"）
+                    if (i == 0 && (name == "组别名称" || name == "名称" || name == "组别" || name == "年龄组" || name == "Name")) continue;
+                    if (seen.Contains(name)) continue;
+                    seen.Add(name);
+                    // 兼容旧 CSV：若仍带最小/最大年龄列，读入但忽略（用于运动员自动归类已停用）
                     int minA = 0, maxA = 0;
                     if (c.Length > 1) int.TryParse((c[1] ?? "").Trim(), out minA);
                     if (c.Length > 2) int.TryParse((c[2] ?? "").Trim(), out maxA);
-                    if (maxA < minA) continue;
-                    if (seen.Contains(name)) continue;
-                    seen.Add(name);
                     finalList.Add(new AgeGroup { Name = name, MinAge = minA, MaxAge = maxA });
                 }
                 if (finalList.Count == 0) { MessageBox.Show("未读取到有效组别"); return; }
@@ -9398,12 +9387,13 @@ namespace SwimmingScoreboard
             try {
                 var sb = new StringBuilder();
                 sb.Append('﻿');
-                sb.AppendLine("名称,最小年龄,最大年龄");
-                sb.AppendLine("少年,12,14");
-                sb.AppendLine("青年,15,17");
-                sb.AppendLine("成年,18,39");
-                sb.AppendLine("老年,40,120");
-                sb.AppendLine("小戊组,8,11");
+                sb.AppendLine("组别名称");
+                sb.AppendLine("甲组");
+                sb.AppendLine("乙组");
+                sb.AppendLine("丙组");
+                sb.AppendLine("丁组");
+                sb.AppendLine("戊组");
+                sb.AppendLine("己组");
                 File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
                 MessageBox.Show("组别模板已保存。", "完成");
             } catch (Exception ex) { MessageBox.Show("保存失败: " + ex.Message, "错误"); }
