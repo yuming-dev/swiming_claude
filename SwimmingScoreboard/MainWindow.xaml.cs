@@ -9782,6 +9782,28 @@ namespace SwimmingScoreboard
                 + "td{border:1px solid #333; padding:8px; text-align:center; font-size:14px;} "
                 + "tr:nth-child(even){background:#f0f7ff;} "
                 + ".signature-row{margin-top:60px; display:flex; justify-content:space-between; font-size:15px; font-weight:bold;} "
+                + ".cover{display:flex; flex-direction:column; justify-content:space-between; min-height:1100px; padding:80px 60px;} "
+                + ".cover-top{text-align:center;} "
+                + ".cover-top .ttl1{font-size:44px; font-family:'SimHei'; letter-spacing:10px; color:#1e3a8a; margin-bottom:8px;} "
+                + ".cover-top .ttl2{font-size:30px; font-family:'SimHei'; letter-spacing:6px; color:#0f172a;} "
+                + ".cover-mid{flex:1; display:flex; align-items:center; justify-content:center;} "
+                + ".cover-mid .name{font-size:60px; font-family:'SimHei'; letter-spacing:14px; color:#1e40af; text-align:center; line-height:1.4;} "
+                + ".cover-bot{font-size:18px; line-height:2.2; border-top:3px solid #1e40af; padding-top:18px;} "
+                + ".cover-bot .row{display:flex;} "
+                + ".cover-bot .lbl{flex:0 0 110px; color:#475569; font-weight:bold;} "
+                + ".cover-bot .val{flex:1; color:#0f172a;} "
+                + ".toc{font-size:18px; line-height:2.4; max-width:560px; margin:30px auto;} "
+                + ".toc .row{display:flex; border-bottom:1px dotted #94a3b8;} "
+                + ".toc .row span:first-child{flex:1;} "
+                + ".section-tag{display:inline-block; background:#1e40af; color:#fff; padding:2px 10px; font-size:14px; margin-right:10px; font-family:'SimHei'; letter-spacing:2px;} "
+                + ".team-block{margin-bottom:18px; padding:14px 16px; border:1px solid #cbd5e1; border-radius:4px; background:#f8fafc; page-break-inside:avoid;} "
+                + ".team-block .team-name{font-size:18px; font-family:'SimHei'; color:#1e40af; margin-bottom:8px; padding-bottom:6px; border-bottom:1px dashed #94a3b8;} "
+                + ".team-block .role{display:flex; font-size:14px; line-height:1.9;} "
+                + ".team-block .role .lbl{flex:0 0 84px; color:#475569; font-weight:bold;} "
+                + ".team-block .role .vals{flex:1; color:#0f172a;} "
+                + ".kv{display:inline-block; min-width:130px; margin:2px 18px 2px 0;} "
+                + ".kv .k{color:#475569; font-weight:bold;} "
+                + ".kv .v{color:#0f172a;} "
                 + "@media print { .page-break{page-break-before:always;} body{-webkit-print-color-adjust:exact;} @page { margin: 1cm; } } ";
         }
 
@@ -9808,15 +9830,23 @@ namespace SwimmingScoreboard
             sb.AppendFormat("<h4>日期：{0} - {1} &nbsp;&nbsp;&nbsp;&nbsp; 地点：{2}</h4>",
                 GetDatePickerText(StartDatePicker), GetDatePickerText(EndDatePicker), LocationBox.Text);
 
-            // 按单元分组显示
+            var evtMap = BuildEventNumberMap();
+
+            // 按场次分组显示
             var sessions = _schedule.GroupBy(s => s.SessionNumber).OrderBy(g => g.Key);
             foreach (var session in sessions) {
                 var first = session.First();
-                sb.AppendFormat("<h3>第{0}单元 {1}</h3>", session.Key, !string.IsNullOrEmpty(first.Date) ? first.Date : "");
-                sb.Append("<table><tr><th width='60'>时间</th><th width='70'>年龄组</th><th>项目</th><th width='70'>赛次</th><th width='50'>组数</th></tr>");
+                sb.AppendFormat("<h3>第{0}场 {1} {2}</h3>", session.Key,
+                    !string.IsNullOrEmpty(first.Date) ? first.Date : "",
+                    ComputeSessionTimeRange(session));
+                sb.Append("<table><tr><th width='60'>时间</th><th width='70'>编号</th><th width='70'>组别</th><th>项目</th><th width='70'>赛次</th><th width='50'>组数</th></tr>");
                 foreach (var s in session) {
-                    sb.AppendFormat("<tr><td>{0}</td><td>{1}</td><td>{2} {3}</td><td>{4}</td><td>{5}</td></tr>",
-                        s.Time, s.AgeGroup ?? "", s.Gender, s.EventName, s.Stage, s.HeatCount > 0 ? s.HeatCount.ToString() : "");
+                    sb.AppendFormat("<tr><td>{0}</td><td><b>{1}</b></td><td>{2}</td><td style='text-align:left;'>{3} {4}</td><td>{5}</td><td>{6}</td></tr>",
+                        s.Time,
+                        EventNumberLabel(evtMap, s.Gender, s.EventName),
+                        s.AgeGroup ?? "",
+                        s.Gender, s.EventName, s.Stage,
+                        s.HeatCount > 0 ? s.HeatCount.ToString() : "");
                 }
                 sb.Append("</table>");
             }
@@ -9826,51 +9856,275 @@ namespace SwimmingScoreboard
             return sb.ToString();
         }
 
+        // 项目编号：基于赛程顺序为每个 (性别, 项目) 分配唯一编号；不在赛程内的项目按字典序排在末尾
+        private Dictionary<string, int> BuildEventNumberMap() {
+            var map = new Dictionary<string, int>();
+            int n = 0;
+            foreach (var s in _schedule) {
+                string key = (s.Gender ?? "") + "|" + (s.EventName ?? "");
+                if (!map.ContainsKey(key)) map[key] = ++n;
+            }
+            // 报名表中存在但赛程未列出的项目
+            var extras = _swimmers
+                .Select(sw => new { G = sw.Gender ?? "", E = sw.EventName ?? "" })
+                .Where(x => !string.IsNullOrEmpty(x.E))
+                .Distinct()
+                .Select(x => x.G + "|" + x.E)
+                .Where(k => !map.ContainsKey(k))
+                .OrderBy(k => k);
+            foreach (var k in extras) map[k] = ++n;
+            return map;
+        }
+
+        private static string EventNumberLabel(Dictionary<string, int> map, string gender, string eventName) {
+            string k = (gender ?? "") + "|" + (eventName ?? "");
+            int no;
+            return map.TryGetValue(k, out no) ? no.ToString() : "-";
+        }
+
         private string BuildManualHtml() {
             var sb = new StringBuilder();
             sb.AppendFormat("<html><head><meta charset='UTF-8'><style>{0}</style></head><body>", DocCss());
-            sb.Append(DocHeader("秩 序 册"));
 
-            // 赛事信息
-            sb.Append("<h3>赛事信息</h3>");
-            sb.AppendFormat("<h4>地点：{0} &nbsp;&nbsp; 日期：{1} - {2} &nbsp;&nbsp; 泳池：{3}米 {4}道</h4>",
-                LocationBox.Text, GetDatePickerText(StartDatePicker), GetDatePickerText(EndDatePicker),
-                _poolConfig.Length, _poolConfig.LaneCount);
-            sb.Append("<table><tr><th>主办方</th><th>承办方</th><th>技术代表</th><th>裁判长</th><th>发令员</th></tr>");
-            sb.AppendFormat("<tr><td>{0}</td><td>{1}</td><td>{2}</td><td>{3}</td><td>{4}</td></tr>",
-                OrganizerBox.Text, HostBox.Text, TechDelegateBox.Text, ChiefJudgeBox.Text, StarterBox.Text);
+            string startDate = GetDatePickerText(StartDatePicker);
+            string endDate = GetDatePickerText(EndDatePicker);
+            string location = LocationBox.Text ?? "";
+            string organizer = OrganizerBox.Text ?? "";
+            string host = HostBox.Text ?? "";
+            string techDel = TechDelegateBox.Text ?? "";
+            string referee = RefereeBox.Text ?? "";
+            string starter = StarterBox.Text ?? "";
+            string chiefJ = ChiefJudgeBox.Text ?? "";
+            string compName = string.IsNullOrEmpty(_competitionName) ? "游泳比赛" : _competitionName;
+
+            var evtMap = BuildEventNumberMap();
+
+            // ═══ 1. 封面 ═══
+            sb.Append("<div class='page cover'>");
+            sb.Append("<div class='cover-top'>");
+            sb.Append("<div class='ttl1'>游 泳 比 赛</div>");
+            sb.Append("<div class='ttl2'>秩 　 序 　 册</div>");
+            sb.Append("</div>");
+            sb.Append("<div class='cover-mid'>");
+            sb.AppendFormat("<div class='name'>{0}</div>", compName);
+            sb.Append("</div>");
+            sb.Append("<div class='cover-bot'>");
+            if (!string.IsNullOrEmpty(organizer)) sb.AppendFormat("<div class='row'><div class='lbl'>主办单位：</div><div class='val'>{0}</div></div>", organizer);
+            if (!string.IsNullOrEmpty(host)) sb.AppendFormat("<div class='row'><div class='lbl'>承办单位：</div><div class='val'>{0}</div></div>", host);
+            sb.AppendFormat("<div class='row'><div class='lbl'>比赛时间：</div><div class='val'>{0}{1}</div></div>",
+                startDate, string.IsNullOrEmpty(endDate) || endDate == startDate ? "" : " 至 " + endDate);
+            sb.AppendFormat("<div class='row'><div class='lbl'>比赛地点：</div><div class='val'>{0}</div></div>", string.IsNullOrEmpty(location) ? "&nbsp;" : location);
+            sb.Append("</div></div>");
+
+            // ═══ 2. 目录 ═══
+            sb.Append("<div class='page-break'></div><div class='page'>");
+            sb.AppendFormat("<h1>{0}</h1><h2>目 　 录</h2>", compName);
+            sb.Append("<div class='toc'>");
+            sb.Append("<div class='row'><span>一、赛事概况</span><span>1</span></div>");
+            sb.Append("<div class='row'><span>二、竞赛人员（仲裁、技术官员）</span><span>2</span></div>");
+            sb.Append("<div class='row'><span>三、小项设置</span><span>3</span></div>");
+            sb.Append("<div class='row'><span>四、竞赛日程</span><span>4</span></div>");
+            sb.Append("<div class='row'><span>五、运动队人数统计</span><span>5</span></div>");
+            sb.Append("<div class='row'><span>六、运动队名单</span><span>6</span></div>");
+            sb.Append("<div class='row'><span>七、各项目报名表</span><span>7</span></div>");
+            sb.Append("</div></div>");
+
+            // ═══ 3. 赛事概况 ═══
+            sb.Append("<div class='page-break'></div><div class='page'>");
+            sb.AppendFormat("<h1>{0}</h1>", compName);
+            sb.Append("<h3><span class='section-tag'>一</span>赛事概况</h3>");
+            sb.Append("<table>");
+            sb.AppendFormat("<tr><th width='130'>赛事名称</th><td colspan='3' style='text-align:left;'>{0}</td></tr>", compName);
+            sb.AppendFormat("<tr><th>主办单位</th><td colspan='3' style='text-align:left;'>{0}</td></tr>", string.IsNullOrEmpty(organizer) ? "&nbsp;" : organizer);
+            sb.AppendFormat("<tr><th>承办单位</th><td colspan='3' style='text-align:left;'>{0}</td></tr>", string.IsNullOrEmpty(host) ? "&nbsp;" : host);
+            sb.AppendFormat("<tr><th>比赛时间</th><td>{0} 至 {1}</td><th width='80'>比赛地点</th><td>{2}</td></tr>",
+                startDate, string.IsNullOrEmpty(endDate) ? startDate : endDate, location);
+            sb.AppendFormat("<tr><th>泳池规格</th><td>{0} 米 / {1} 道</td><th>赛事天数</th><td>{2} 天</td></tr>",
+                _poolConfig.Length, _poolConfig.LaneCount, ComputeDays(startDate, endDate));
+            int totalSwimmers = _swimmers.Count(s => !IsRelayMemberNote(s.Notes));
+            int totalTeams = _swimmers.Select(s => s.Country ?? "").Where(c => !string.IsNullOrEmpty(c)).Distinct().Count();
+            int totalRelays = _relayTeams.Count;
+            int totalEvents = evtMap.Count;
+            sb.AppendFormat("<tr><th>参赛队伍</th><td>{0} 支</td><th>报名人次</th><td>{1}</td></tr>", totalTeams, totalSwimmers);
+            sb.AppendFormat("<tr><th>设置项目</th><td>{0} 项</td><th>接力队伍</th><td>{1} 支</td></tr>", totalEvents, totalRelays);
             sb.Append("</table>");
 
-            // 参赛队伍统计
-            var teamStats = _swimmers.GroupBy(s => s.Country).OrderBy(g => g.Key);
-            sb.Append("<h3>参赛队伍统计</h3>");
-            sb.Append("<table><tr><th>代表队</th><th>人数</th><th>男</th><th>女</th></tr>");
-            foreach (var team in teamStats) {
-                sb.AppendFormat("<tr><td>{0}</td><td>{1}</td><td>{2}</td><td>{3}</td></tr>",
-                    team.Key, team.Count(), team.Count(s => s.Gender == "男"), team.Count(s => s.Gender == "女"));
+            // ═══ 4. 竞赛人员 ═══
+            sb.Append("<h3><span class='section-tag'>二</span>竞赛人员</h3>");
+            sb.Append("<table>");
+            sb.AppendFormat("<tr><th width='130'>技术代表</th><td>{0}</td><th width='130'>总裁判长</th><td>{1}</td></tr>",
+                Hyphen(techDel), Hyphen(referee));
+            sb.AppendFormat("<tr><th>发令员</th><td>{0}</td><th>编排长</th><td>{1}</td></tr>",
+                Hyphen(starter), Hyphen(chiefJ));
+            sb.Append("</table>");
+            sb.Append("</div>");
+
+            // ═══ 5. 小项设置 ═══
+            sb.Append("<div class='page-break'></div><div class='page'>");
+            sb.AppendFormat("<h1>{0}</h1>", compName);
+            sb.Append("<h3><span class='section-tag'>三</span>小项设置</h3>");
+            sb.Append("<table><tr><th width='80'>性别</th><th>小项</th><th width='80'>项数</th></tr>");
+            foreach (var gp in evtMap.Keys.GroupBy(k => k.Split('|')[0])) {
+                var events = gp.Select(k => k.Split('|')[1]).OrderBy(e => evtMap[gp.Key + "|" + e]).ToList();
+                sb.AppendFormat("<tr><td><b>{0}子</b></td><td style='text-align:left;'>{1}</td><td>{2} 项</td></tr>",
+                    string.IsNullOrEmpty(gp.Key) ? "全部" : gp.Key,
+                    string.Join("、", events.Select(e => string.Format("{0}({1})", e, evtMap[gp.Key + "|" + e])).ToArray()),
+                    events.Count);
             }
             sb.Append("</table>");
+            sb.Append("<p style='font-size:13px; color:#64748b; margin-top:8px;'>说明：括号内数字为项目编号，作为竞赛日程及成绩册的项目索引。</p>");
+            sb.Append("</div>");
 
-            // 各项目运动员名单
-            var eventGroups = _swimmers.GroupBy(s => new { s.Gender, s.EventName }).OrderBy(g => g.Key.Gender).ThenBy(g => g.Key.EventName);
-            foreach (var g in eventGroups) {
-                bool manRelay = g.Key.EventName.Contains("接力");
-                sb.AppendFormat("<h3>{0} {1}</h3>", g.Key.Gender, g.Key.EventName);
-                sb.AppendFormat("<table><tr><th width='50'>号码</th><th width='80'>{0}</th><th width='80'>{1}</th><th width='70'>报名成绩</th><th width='40'>组</th><th width='40'>道</th></tr>",
-                    RelayCol1Header(manRelay), RelayCol2Header(manRelay));
-                foreach (var sw in g.OrderBy(s => s.Heat).ThenBy(s => s.Lane)) {
-                    string mName = sw.Name; string mCountry = sw.Country ?? "";
-                    if (manRelay && !string.IsNullOrEmpty(sw.Notes) && sw.Notes.StartsWith("接力队 棒次:"))
-                        mName = sw.Notes.Substring("接力队 棒次:".Length);
-                    sb.AppendFormat("<tr><td>{0}</td><td><b>{1}</b></td><td>{2}</td><td>{3}</td><td>{4}</td><td>{5}</td></tr>",
-                        sw.BibNumber, RelayCol1(manRelay, mName, mCountry), RelayCol2(manRelay, mName, mCountry), sw.EntryTime, sw.Heat > 0 ? sw.Heat.ToString() : "", sw.Lane > 0 ? sw.Lane.ToString() : "");
+            // ═══ 6. 竞赛日程 ═══
+            sb.Append("<div class='page-break'></div><div class='page'>");
+            sb.AppendFormat("<h1>{0}</h1>", compName);
+            sb.Append("<h3><span class='section-tag'>四</span>竞赛日程</h3>");
+            if (_schedule.Count == 0) {
+                sb.Append("<p style='text-align:center; color:#94a3b8;'>暂未编排日程，请在【赛事管理与报名】中维护。</p>");
+            } else {
+                sb.Append("<table><tr><th width='95'>日期</th><th width='70'>场次</th><th width='110'>时间</th><th width='70'>项目编号</th><th>内容</th></tr>");
+                var sessions = _schedule.GroupBy(s => s.SessionNumber).OrderBy(g => g.Key);
+                foreach (var session in sessions) {
+                    var first = session.First();
+                    int rowCount = session.Count();
+                    int idx = 0;
+                    string timeRange = ComputeSessionTimeRange(session);
+                    foreach (var s in session) {
+                        sb.Append("<tr>");
+                        if (idx == 0) {
+                            sb.AppendFormat("<td rowspan='{0}'>{1}</td>", rowCount, string.IsNullOrEmpty(first.Date) ? "—" : first.Date);
+                            sb.AppendFormat("<td rowspan='{0}'><b>第{1}场</b></td>", rowCount, session.Key);
+                            sb.AppendFormat("<td rowspan='{0}'>{1}</td>", rowCount, timeRange);
+                        }
+                        sb.AppendFormat("<td><b>{0}</b></td><td style='text-align:left;'>{1}{2} {3} {4}{5}</td>",
+                            EventNumberLabel(evtMap, s.Gender, s.EventName),
+                            string.IsNullOrEmpty(s.AgeGroup) ? "" : ("[" + s.AgeGroup + "] "),
+                            s.Gender, s.EventName, s.Stage,
+                            s.HeatCount > 0 ? string.Format(" （{0}组）", s.HeatCount) : "");
+                        sb.Append("</tr>");
+                        idx++;
+                    }
                 }
                 sb.Append("</table>");
             }
+            sb.Append("</div>");
+
+            // ═══ 7. 运动队人数统计 ═══
+            sb.Append("<div class='page-break'></div><div class='page'>");
+            sb.AppendFormat("<h1>{0}</h1>", compName);
+            sb.Append("<h3><span class='section-tag'>五</span>运动队人数统计</h3>");
+            sb.Append("<table><tr><th width='50'>序号</th><th>代表队</th><th width='70'>男</th><th width='70'>女</th><th width='70'>合计</th><th width='70'>接力队</th></tr>");
+            var teamRows = _swimmers
+                .Where(s => !IsRelayMemberNote(s.Notes))
+                .GroupBy(s => s.Country ?? "")
+                .Where(g => !string.IsNullOrEmpty(g.Key))
+                .OrderBy(g => g.Key)
+                .Select(g => new {
+                    Team = g.Key,
+                    Men = g.Count(s => s.Gender == "男"),
+                    Women = g.Count(s => s.Gender == "女"),
+                    Total = g.Count()
+                })
+                .ToList();
+            int sumM = 0, sumW = 0, sumT = 0, sumR = 0, idxRow = 0;
+            foreach (var t in teamRows) {
+                idxRow++;
+                int relayN = _relayTeams.Count(r => (r.TeamName ?? "") == t.Team);
+                sumM += t.Men; sumW += t.Women; sumT += t.Total; sumR += relayN;
+                sb.AppendFormat("<tr><td>{0}</td><td style='text-align:left;'>{1}</td><td>{2}</td><td>{3}</td><td><b>{4}</b></td><td>{5}</td></tr>",
+                    idxRow, t.Team, t.Men, t.Women, t.Total, relayN);
+            }
+            sb.AppendFormat("<tr style='background:#e0e7ff; font-weight:bold;'><td colspan='2'>合计（{0} 支队伍）</td><td>{1}</td><td>{2}</td><td>{3}</td><td>{4}</td></tr>",
+                teamRows.Count, sumM, sumW, sumT, sumR);
+            sb.Append("</table>");
+            sb.Append("</div>");
+
+            // ═══ 8. 运动队名单 ═══
+            sb.Append("<div class='page-break'></div><div class='page'>");
+            sb.AppendFormat("<h1>{0}</h1>", compName);
+            sb.Append("<h3><span class='section-tag'>六</span>运动队名单</h3>");
+            foreach (var team in teamRows) {
+                var teamSwimmers = _swimmers.Where(s => (s.Country ?? "") == team.Team && !IsRelayMemberNote(s.Notes)).ToList();
+                var men = teamSwimmers.Where(s => s.Gender == "男").Select(s => s.Name).Where(n => !string.IsNullOrEmpty(n)).Distinct().OrderBy(n => n).ToList();
+                var women = teamSwimmers.Where(s => s.Gender == "女").Select(s => s.Name).Where(n => !string.IsNullOrEmpty(n)).Distinct().OrderBy(n => n).ToList();
+                sb.Append("<div class='team-block'>");
+                sb.AppendFormat("<div class='team-name'>{0}　<span style='font-size:13px; color:#64748b; font-family:SimSun; letter-spacing:0;'>（男 {1} 人，女 {2} 人）</span></div>",
+                    team.Team, men.Count, women.Count);
+                if (men.Count > 0)
+                    sb.AppendFormat("<div class='role'><div class='lbl'>男运动员：</div><div class='vals'>{0}</div></div>", string.Join("　", men.ToArray()));
+                if (women.Count > 0)
+                    sb.AppendFormat("<div class='role'><div class='lbl'>女运动员：</div><div class='vals'>{0}</div></div>", string.Join("　", women.ToArray()));
+                var relays = _relayTeams.Where(r => (r.TeamName ?? "") == team.Team).Select(r => r.EventName + "(" + r.Gender + ")").Distinct().OrderBy(s => s).ToList();
+                if (relays.Count > 0)
+                    sb.AppendFormat("<div class='role'><div class='lbl'>接力项目：</div><div class='vals'>{0}</div></div>", string.Join("　", relays.ToArray()));
+                sb.Append("</div>");
+            }
+            sb.Append("</div>");
+
+            // ═══ 9. 各项目报名表 ═══
+            sb.Append("<div class='page-break'></div><div class='page'>");
+            sb.AppendFormat("<h1>{0}</h1>", compName);
+            sb.Append("<h3><span class='section-tag'>七</span>各项目报名表</h3>");
+            // 按项目编号排序展示
+            var sortedKeys = evtMap.OrderBy(kv => kv.Value).ToList();
+            int blockIdx = 0;
+            foreach (var kv in sortedKeys) {
+                var parts = kv.Key.Split('|');
+                string evGender = parts[0];
+                string evName = parts[1];
+                bool manRelay = evName.IndexOf("接力", StringComparison.Ordinal) >= 0;
+                var entries = _swimmers
+                    .Where(s => s.Gender == evGender && s.EventName == evName)
+                    .Where(s => !manRelay || !IsRelayMemberNote(s.Notes)) // 接力只显示队伍代表
+                    .ToList();
+                if (entries.Count == 0) continue;
+
+                blockIdx++;
+                if (blockIdx > 1 && blockIdx % 4 == 1) sb.Append("<div class='page-break'></div><div class='page'>");
+                sb.AppendFormat("<h4>项目 {0}：{1} {2}　<span style='font-weight:normal; font-size:14px; color:#64748b;'>报名 {3} 人{4}</span></h4>",
+                    kv.Value, evGender, evName, entries.Count, manRelay ? "/队" : "");
+                sb.AppendFormat("<table><tr><th width='50'>序号</th><th width='70'>号码</th><th width='110'>{0}</th><th width='110'>{1}</th><th width='80'>报名成绩</th><th width='80'>组别</th></tr>",
+                    RelayCol1Header(manRelay), RelayCol2Header(manRelay));
+                int rowI = 0;
+                foreach (var sw in entries.OrderBy(s => s.EntryTimeSeconds <= 0 ? double.MaxValue : s.EntryTimeSeconds).ThenBy(s => s.BibNumber ?? "")) {
+                    rowI++;
+                    string nm = sw.Name ?? ""; string ctry = sw.Country ?? "";
+                    if (manRelay && !string.IsNullOrEmpty(sw.Notes) && sw.Notes.StartsWith("接力队 棒次:"))
+                        nm = sw.Notes.Substring("接力队 棒次:".Length);
+                    sb.AppendFormat("<tr><td>{0}</td><td>{1}</td><td><b>{2}</b></td><td>{3}</td><td>{4}</td><td>{5}</td></tr>",
+                        rowI, sw.BibNumber, RelayCol1(manRelay, nm, ctry), RelayCol2(manRelay, nm, ctry),
+                        string.IsNullOrEmpty(sw.EntryTime) ? "—" : sw.EntryTime,
+                        sw.AgeCategory ?? "");
+                }
+                sb.Append("</table>");
+            }
+
             sb.Append(DocSignatureRow());
+            sb.Append("</div>");
             sb.Append(DocFooter());
             sb.Append("</body></html>");
             return sb.ToString();
+        }
+
+        private static string Hyphen(string s) { return string.IsNullOrEmpty(s) ? "—" : s; }
+
+        // 判断 Swimmer.Notes 是否表示"接力队员"子条目（用于人数统计/名单中排除）
+        private static bool IsRelayMemberNote(string notes) {
+            return !string.IsNullOrEmpty(notes) && notes.StartsWith("接力队员");
+        }
+
+        private static int ComputeDays(string startDate, string endDate) {
+            DateTime ds, de;
+            if (!DateTime.TryParse(startDate, out ds)) return 0;
+            if (!DateTime.TryParse(endDate, out de)) de = ds;
+            return Math.Max(1, (int)(de.Date - ds.Date).TotalDays + 1);
+        }
+
+        private static string ComputeSessionTimeRange(IEnumerable<ScheduleItem> session) {
+            var times = session.Select(s => s.Time ?? "").Where(t => !string.IsNullOrEmpty(t)).Distinct().ToList();
+            if (times.Count == 0) return "—";
+            if (times.Count == 1) return times[0];
+            return times.OrderBy(t => t).First() + " ~ " + times.OrderByDescending(t => t).First();
         }
 
         private string BuildStartListHtml() {
