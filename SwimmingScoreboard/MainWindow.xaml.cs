@@ -3590,6 +3590,19 @@ namespace SwimmingScoreboard
                     rowUI.Row.BorderThickness = new Thickness(0);
                     if (rowUI.LeftDots != null) for (int i = 0; i < rowUI.LeftDots.Length; i++) rowUI.LeftDots[i].Fill = _brushSlate;
                     if (rowUI.RightDots != null) for (int i = 0; i < rowUI.RightDots.Length; i++) rowUI.RightDots[i].Fill = _brushSlate;
+                    // 空泳道也要按当前盲表数量隐藏多余圆点
+                    if (rowUI.LeftDots != null) {
+                        int lbc0 = _laneCloseSettings.LeftBlindWatchCount;
+                        rowUI.LeftDots[0].Visibility = lbc0 >= 3 ? Visibility.Visible : Visibility.Hidden; // 盲3
+                        rowUI.LeftDots[1].Visibility = lbc0 >= 2 ? Visibility.Visible : Visibility.Hidden; // 盲2
+                        rowUI.LeftDots[2].Visibility = lbc0 >= 1 ? Visibility.Visible : Visibility.Hidden; // 盲1
+                    }
+                    if (rowUI.RightDots != null) {
+                        int rbc0 = _laneCloseSettings.RightBlindWatchCount;
+                        rowUI.RightDots[2].Visibility = rbc0 >= 1 ? Visibility.Visible : Visibility.Hidden; // 盲1
+                        rowUI.RightDots[3].Visibility = rbc0 >= 2 ? Visibility.Visible : Visibility.Hidden; // 盲2
+                        rowUI.RightDots[4].Visibility = rbc0 >= 3 ? Visibility.Visible : Visibility.Hidden; // 盲3
+                    }
                     if (rowUI.LeftRemainText != null) rowUI.LeftRemainText.Text = "";
                     if (rowUI.RightRemainText != null) rowUI.RightRemainText.Text = "";
                     if (rowUI.ReactionText != null) rowUI.ReactionText.Text = "";
