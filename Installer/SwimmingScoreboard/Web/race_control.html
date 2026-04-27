@@ -1159,14 +1159,22 @@ function renderHeader() {
     var rightInd = startPosition === 'right' ? '◀' : '';
     var leftColor = startPosition === 'left' ? 'color:#22c55e;' : '';
     var rightColor = startPosition === 'right' ? 'color:#22c55e;' : '';
+    var lbc = (leftBlindWatchCount >= 1 && leftBlindWatchCount <= 3) ? leftBlindWatchCount : 3;
+    var rbc = (rightBlindWatchCount >= 1 && rightBlindWatchCount <= 3) ? rightBlindWatchCount : 3;
+    var leftBlindLabels = '';
+    for (var i = 1; i <= 3; i++) {
+        leftBlindLabels += '<span class="device-label" style="' + (i > lbc ? 'visibility:hidden;' : '') + '">盲' + i + '</span>';
+    }
+    var rightBlindLabels = '';
+    for (var i = 1; i <= 3; i++) {
+        rightBlindLabels += '<span class="device-label" style="' + (i > rbc ? 'visibility:hidden;' : '') + '">盲' + i + '</span>';
+    }
     h.innerHTML =
         '<div style="width:32px;text-align:center;flex-shrink:0;">道</div>' +
         '<div class="start-ind" style="width:8px;text-align:center;font-size:12px;' + leftColor + '">' + leftInd + '</div>' +
         '<div class="left-devices devices">' +
             '<span class="device-label-btn">[T]</span>' +
-            '<span class="device-label">盲1</span>' +
-            '<span class="device-label">盲2</span>' +
-            '<span class="device-label">盲3</span>' +
+            leftBlindLabels +
             '<span class="device-label">出发</span>' +
             '<span class="device-label">触板</span>' +
             '<span class="device-label" style="width:28px;">圈</span>' +
@@ -1179,9 +1187,7 @@ function renderHeader() {
             '<span class="device-label" style="width:28px;">圈</span>' +
             '<span class="device-label">触板</span>' +
             '<span class="device-label">出发</span>' +
-            '<span class="device-label">盲1</span>' +
-            '<span class="device-label">盲2</span>' +
-            '<span class="device-label">盲3</span>' +
+            rightBlindLabels +
             '<span class="device-label-btn">[T]</span>' +
         '</div>' +
         '<div class="start-ind" style="width:8px;text-align:center;font-size:12px;' + rightColor + '">' + rightInd + '</div>' +
@@ -1290,8 +1296,10 @@ function getRelayCurrentLegName(sw) {
 // 泳道行 DOM 缓存：每行动态元素的引用，避免每次重建 innerHTML
 var _laneRowDOM = []; // [{lane, row, touchL, touchR, leftDots[5], rightDots[5], leftRemain, rightRemain, nameEl, teamEl, trackEl, reactionEl, finalTimeEl, rankEl, remarkEl, leftInd, rightInd}]
 
-// 根据 left/rightBlindWatchCount 控制盲表圆点显示/隐藏（每端最多 3 个，超出隐藏）
+// 根据 left/rightBlindWatchCount 控制盲表圆点显示/隐藏（每端最多 3 个，超出隐藏）+ 重画顶部表头
 function applyBlindWatchVisibility() {
+    // 表头标签同步重画（盲1/盲2/盲3 按数量隐藏）
+    try { renderHeader(); } catch (e) {}
     if (!_laneRowDOM.length) return;
     for (var i = 0; i < _laneRowDOM.length; i++) {
         var ui = _laneRowDOM[i];
