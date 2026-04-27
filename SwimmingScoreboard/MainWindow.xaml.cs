@@ -3613,21 +3613,21 @@ namespace SwimmingScoreboard
                     rowUI.TouchL.Foreground = _brushSlate;
                 }
 
-                // 左设备5个圆点：BlindWatch1/2/3, StartBlock, Touchpad
+                // 左设备5个圆点（与右端对称）：盲表3 / 盲表2 / 盲表1 / 出发台 / 触板
                 if (ls != null) {
-                    rowUI.LeftDots[0].Fill = GetDeviceBrush(ls.LeftBlindWatch1Status);
+                    rowUI.LeftDots[0].Fill = GetDeviceBrush(ls.LeftBlindWatch3Status);
                     rowUI.LeftDots[1].Fill = GetDeviceBrush(ls.LeftBlindWatch2Status);
-                    rowUI.LeftDots[2].Fill = GetDeviceBrush(ls.LeftBlindWatch3Status);
+                    rowUI.LeftDots[2].Fill = GetDeviceBrush(ls.LeftBlindWatch1Status);
                     rowUI.LeftDots[3].Fill = GetDeviceBrush(ls.LeftStartBlockStatus);
                     rowUI.LeftDots[4].Fill = GetDeviceBrush(ls.LeftTouchpadStatus);
                 } else {
                     for (int i = 0; i < 5; i++) rowUI.LeftDots[i].Fill = _brushSlate;
                 }
-                // 按当前设置的左盲表数量隐藏多余圆点
+                // 按当前设置的左盲表数量隐藏多余圆点（最里侧的"盲1"始终最先显示）
                 int leftBwCount = _laneCloseSettings.LeftBlindWatchCount;
-                rowUI.LeftDots[0].Visibility = leftBwCount >= 1 ? Visibility.Visible : Visibility.Collapsed;
-                rowUI.LeftDots[1].Visibility = leftBwCount >= 2 ? Visibility.Visible : Visibility.Collapsed;
-                rowUI.LeftDots[2].Visibility = leftBwCount >= 3 ? Visibility.Visible : Visibility.Collapsed;
+                rowUI.LeftDots[0].Visibility = leftBwCount >= 3 ? Visibility.Visible : Visibility.Collapsed; // 盲3
+                rowUI.LeftDots[1].Visibility = leftBwCount >= 2 ? Visibility.Visible : Visibility.Collapsed; // 盲2
+                rowUI.LeftDots[2].Visibility = leftBwCount >= 1 ? Visibility.Visible : Visibility.Collapsed; // 盲1
 
                 // 左剩余秒数
                 int leftRemain = GetTouchRemain(ls, true);

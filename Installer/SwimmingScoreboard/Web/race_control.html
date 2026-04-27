@@ -1161,8 +1161,9 @@ function renderHeader() {
     var rightColor = startPosition === 'right' ? 'color:#22c55e;' : '';
     var lbc = (leftBlindWatchCount >= 1 && leftBlindWatchCount <= 3) ? leftBlindWatchCount : 3;
     var rbc = (rightBlindWatchCount >= 1 && rightBlindWatchCount <= 3) ? rightBlindWatchCount : 3;
+    // 左端与右端对称：从外到内为 盲3 / 盲2 / 盲1（最里侧的盲1始终最先显示）
     var leftBlindLabels = '';
-    for (var i = 1; i <= 3; i++) {
+    for (var i = 3; i >= 1; i--) {
         leftBlindLabels += '<span class="device-label" style="' + (i > lbc ? 'visibility:hidden;' : '') + '">盲' + i + '</span>';
     }
     var rightBlindLabels = '';
@@ -1296,18 +1297,19 @@ function getRelayCurrentLegName(sw) {
 // 泳道行 DOM 缓存：每行动态元素的引用，避免每次重建 innerHTML
 var _laneRowDOM = []; // [{lane, row, touchL, touchR, leftDots[5], rightDots[5], leftRemain, rightRemain, nameEl, teamEl, trackEl, reactionEl, finalTimeEl, rankEl, remarkEl, leftInd, rightInd}]
 
-// 根据 left/rightBlindWatchCount 控制盲表圆点显示/隐藏（每端最多 3 个，超出隐藏）+ 重画顶部表头
+// 根据 left/rightBlindWatchCount 控制盲表圆点显示/隐藏 + 重画顶部表头
+// 左端 leftDots[0..2] 现按对称方向排列：[0]=盲3, [1]=盲2, [2]=盲1
+// 右端 rightDots[2..4] 仍为 [2]=盲1, [3]=盲2, [4]=盲3
 function applyBlindWatchVisibility() {
-    // 表头标签同步重画（盲1/盲2/盲3 按数量隐藏）
     try { renderHeader(); } catch (e) {}
     if (!_laneRowDOM.length) return;
     for (var i = 0; i < _laneRowDOM.length; i++) {
         var ui = _laneRowDOM[i];
-        // 左端：leftDots[0..2] 是盲表 1/2/3
-        for (var k = 0; k < 3; k++) {
-            if (ui.leftDots[k]) ui.leftDots[k].style.display = (k < leftBlindWatchCount) ? '' : 'none';
-        }
-        // 右端：rightDots[2..4] 是盲表 1/2/3
+        // 左端：leftDots[0]=盲3, [1]=盲2, [2]=盲1
+        if (ui.leftDots[0]) ui.leftDots[0].style.display = (leftBlindWatchCount >= 3) ? '' : 'none'; // 盲3
+        if (ui.leftDots[1]) ui.leftDots[1].style.display = (leftBlindWatchCount >= 2) ? '' : 'none'; // 盲2
+        if (ui.leftDots[2]) ui.leftDots[2].style.display = (leftBlindWatchCount >= 1) ? '' : 'none'; // 盲1
+        // 右端：rightDots[2]=盲1, [3]=盲2, [4]=盲3
         for (var k = 0; k < 3; k++) {
             if (ui.rightDots[2 + k]) ui.rightDots[2 + k].style.display = (k < rightBlindWatchCount) ? '' : 'none';
         }
@@ -1351,9 +1353,9 @@ function buildLaneRows(container, swimmers, rcRelay) {
             '<div class="start-ind lr-left-ind"></div>' +
             '<div class="left-devices devices">' +
                 '<button class="touch-btn lr-touch-l" onmousedown="event.stopPropagation();manualTouch('+lane+',\'left\')" title="左端手动触板">T</button>' +
-                '<div class="device-dot lr-ld-0" title="盲表1"></div>' +
+                '<div class="device-dot lr-ld-0" title="盲表3"></div>' +
                 '<div class="device-dot lr-ld-1" title="盲表2"></div>' +
-                '<div class="device-dot lr-ld-2" title="盲表3"></div>' +
+                '<div class="device-dot lr-ld-2" title="盲表1"></div>' +
                 '<div class="device-dot lr-ld-3" title="出发台"></div>' +
                 '<div class="device-dot lr-ld-4" title="触板"></div>' +
                 '<span class="lr-left-remain" style="display:inline-block;width:28px;text-align:center;font-size:20px;font-weight:bold;"></span>' +
@@ -1443,10 +1445,10 @@ function refreshLaneRows(swimmers, rcRelay) {
         rowUI.touchL.style.background = leftTouchColor;
         rowUI.touchL.disabled = !leftMbEnabled;
 
-        // 左设备5圆点
-        rowUI.leftDots[0].className = 'device-dot lr-ld-0 ' + statusClass(ds.leftBlindWatch1);
+        // 左设备5圆点（与右端对称）：盲3 / 盲2 / 盲1 / 出发台 / 触板
+        rowUI.leftDots[0].className = 'device-dot lr-ld-0 ' + statusClass(ds.leftBlindWatch3);
         rowUI.leftDots[1].className = 'device-dot lr-ld-1 ' + statusClass(ds.leftBlindWatch2);
-        rowUI.leftDots[2].className = 'device-dot lr-ld-2 ' + statusClass(ds.leftBlindWatch3);
+        rowUI.leftDots[2].className = 'device-dot lr-ld-2 ' + statusClass(ds.leftBlindWatch1);
         rowUI.leftDots[3].className = 'device-dot lr-ld-3 ' + statusClass(ds.leftStartBlock);
         rowUI.leftDots[4].className = 'device-dot lr-ld-4 ' + statusClass(ds.leftTouchpad);
 

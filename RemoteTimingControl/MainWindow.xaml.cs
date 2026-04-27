@@ -1289,13 +1289,13 @@ namespace RemoteTimingControl
                     rowUI.TouchL.Foreground = _brushSlate;
                 }
 
-                // 左设备5个圆点（前 3 个为盲表，按 _leftBlindWatchCount 控制可见性）
-                rowUI.LeftDots[0].Fill = GetDeviceBrush(GetDeviceStatus(ds, "leftBlindWatch1"));
+                // 左设备5个圆点（与右端对称）：盲表3 / 盲表2 / 盲表1 / 出发台 / 触板
+                rowUI.LeftDots[0].Fill = GetDeviceBrush(GetDeviceStatus(ds, "leftBlindWatch3"));
                 rowUI.LeftDots[1].Fill = GetDeviceBrush(GetDeviceStatus(ds, "leftBlindWatch2"));
-                rowUI.LeftDots[2].Fill = GetDeviceBrush(GetDeviceStatus(ds, "leftBlindWatch3"));
-                rowUI.LeftDots[0].Visibility = _leftBlindWatchCount >= 1 ? Visibility.Visible : Visibility.Collapsed;
-                rowUI.LeftDots[1].Visibility = _leftBlindWatchCount >= 2 ? Visibility.Visible : Visibility.Collapsed;
-                rowUI.LeftDots[2].Visibility = _leftBlindWatchCount >= 3 ? Visibility.Visible : Visibility.Collapsed;
+                rowUI.LeftDots[2].Fill = GetDeviceBrush(GetDeviceStatus(ds, "leftBlindWatch1"));
+                rowUI.LeftDots[0].Visibility = _leftBlindWatchCount >= 3 ? Visibility.Visible : Visibility.Collapsed; // 盲3
+                rowUI.LeftDots[1].Visibility = _leftBlindWatchCount >= 2 ? Visibility.Visible : Visibility.Collapsed; // 盲2
+                rowUI.LeftDots[2].Visibility = _leftBlindWatchCount >= 1 ? Visibility.Visible : Visibility.Collapsed; // 盲1
                 rowUI.LeftDots[3].Fill = GetDeviceBrush(GetDeviceStatus(ds, "leftStartBlock"));
                 rowUI.LeftDots[4].Fill = GetDeviceBrush(GetDeviceStatus(ds, "leftTouchpad"));
 
