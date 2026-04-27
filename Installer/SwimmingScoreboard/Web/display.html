@@ -118,6 +118,12 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
     <div class="award-container" id="awardContainer"></div>
 </div>
 
+<!-- 媒体（图片 / 视频）全屏显示层 -->
+<div id="mediaView" class="hidden" style="position:fixed;left:0;top:0;width:100vw;height:100vh;background:#000;z-index:9999;display:flex;align-items:center;justify-content:center;">
+    <img id="mediaImg" style="display:none;max-width:100vw;max-height:100vh;"/>
+    <video id="mediaVideo" style="display:none;max-width:100vw;max-height:100vh;background:#000;" playsinline></video>
+</div>
+
 <script>
 window.onbeforeunload = function(e) { e.preventDefault(); e.returnValue = ''; return '确定要关闭大屏幕显示？'; };
 
@@ -183,6 +189,13 @@ function connect() {
             renderPublishedResult(msg.data);
             return;
         }
+        // 媒体（图片/视频）显示
+        if (msg.type === 'SHOW_MEDIA') {
+            currentMode = 'SHOW_MEDIA';
+            modeLocked = true;
+            renderMedia(msg.data || {});
+            return;
+        }
         // 模式锁定时，只有主动切换命令（非SHOW_LIVE_RACE广播）才解锁
         if (modeLocked && msg.type === 'SHOW_LIVE_RACE') {
             // 仍更新data以备后用，但不切换显示
@@ -230,6 +243,7 @@ function render() {
     document.getElementById('listView').classList.add('hidden');
     document.getElementById('welcomeView').classList.add('hidden');
     document.getElementById('awardView').classList.add('hidden');
+    hideMediaView();
 
     // 成绩确认后自动切换到本组成绩排名
     if (data.resultConfirmed && currentMode === 'SHOW_LIVE_RACE') {
@@ -249,6 +263,56 @@ function render() {
         case 'SHOW_WELCOME': case 'SHOW_PAUSE':
             renderWelcome(); break;
         default: renderRace();
+    }
+}
+
+// 媒体（图片/视频）显示控制
+function hideMediaView() {
+    var mv = document.getElementById('mediaView');
+    if (!mv) return;
+    mv.classList.add('hidden');
+    mv.style.display = 'none';
+    var v = document.getElementById('mediaVideo');
+    if (v) { try { v.pause(); } catch(e) {} v.removeAttribute('src'); v.load && v.load(); v.style.display = 'none'; }
+    var img = document.getElementById('mediaImg');
+    if (img) { img.removeAttribute('src'); img.style.display = 'none'; }
+}
+function renderMedia(d) {
+    // 隐藏其他视图，确保媒体在最前
+    if (_rankingPageTimer) { clearInterval(_rankingPageTimer); _rankingPageTimer = null; }
+    document.getElementById('raceView').classList.add('hidden');
+    document.getElementById('listView').classList.add('hidden');
+    document.getElementById('welcomeView').classList.add('hidden');
+    document.getElementById('awardView').classList.add('hidden');
+    var mv = document.getElementById('mediaView');
+    var img = document.getElementById('mediaImg');
+    var vid = document.getElementById('mediaVideo');
+    if (!mv || !img || !vid) return;
+    mv.classList.remove('hidden');
+    mv.style.display = 'flex';
+    var fit = d.fit || 'contain';
+    var fitCss = (fit === 'cover') ? 'cover' : (fit === 'fill' ? 'fill' : 'contain');
+    if (d.kind === 'image') {
+        try { vid.pause(); } catch(e) {}
+        vid.removeAttribute('src'); vid.load && vid.load(); vid.style.display = 'none';
+        img.style.display = '';
+        img.style.objectFit = fitCss;
+        img.style.width = '100vw';
+        img.style.height = '100vh';
+        img.src = d.dataUrl || '';
+    } else if (d.kind === 'video') {
+        img.removeAttribute('src'); img.style.display = 'none';
+        vid.style.display = '';
+        vid.style.objectFit = fitCss;
+        vid.style.width = '100vw';
+        vid.style.height = '100vh';
+        vid.loop = !!d.loop;
+        vid.muted = !!d.muted;
+        vid.controls = false;
+        vid.src = d.dataUrl || '';
+        if (d.autoplay !== false) {
+            try { vid.play(); } catch(e) {}
+        }
     }
 }
 
@@ -587,6 +651,7 @@ function renderPublishedResult(pubData) {
     document.getElementById('listView').classList.add('hidden');
     document.getElementById('welcomeView').classList.add('hidden');
     document.getElementById('awardView').classList.add('hidden');
+    hideMediaView();
 
     document.getElementById('compName').textContent = pubData.competitionName || '';
     document.getElementById('raceView').classList.remove('hidden');

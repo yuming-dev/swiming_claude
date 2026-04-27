@@ -1064,6 +1064,7 @@
                                         <RowDefinition Height="32"/>
                                         <RowDefinition Height="32"/>
                                         <RowDefinition Height="32"/>
+                                        <RowDefinition Height="32"/>
                                     </Grid.RowDefinitions>
                                     <!-- 赛中显示 -->
                                     <Button Grid.Row="0" Grid.Column="0" Click="ShowStartList_Click" Margin="2" BorderThickness="0" Cursor="Hand">
@@ -1173,6 +1174,20 @@
                                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
                                                         <TextBlock Text="&#xE8A5;" FontFamily="Segoe MDL2 Assets" FontSize="15" Foreground="White" VerticalAlignment="Center" Margin="0,0,5,0"/>
                                                         <TextBlock Text="成绩发布" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                    </StackPanel>
+                                                </Border>
+                                            </ControlTemplate>
+                                        </Button.Template>
+                                    </Button>
+                                    <!-- 图片 / 视频 -->
+                                    <Button Grid.Row="5" Grid.Column="0" Grid.ColumnSpan="2" Click="ShowMedia_Click" Margin="2" BorderThickness="0" Cursor="Hand"
+                                            ToolTip="选择图片或视频文件，发送到大屏播放">
+                                        <Button.Template>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border Background="#0EA5E9" CornerRadius="6" Padding="4">
+                                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                        <TextBlock Text="&#xE8B9;" FontFamily="Segoe MDL2 Assets" FontSize="15" Foreground="White" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                                                        <TextBlock Text="图片 / 视频" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
                                                     </StackPanel>
                                                 </Border>
                                             </ControlTemplate>

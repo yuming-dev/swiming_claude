@@ -8323,6 +8323,184 @@ namespace SwimmingScoreboard
         private void ShowRecords_Click(object sender, RoutedEventArgs e) { BroadcastDisplayMode("SHOW_RECORDS"); }
         private void ShowWelcome_Click(object sender, RoutedEventArgs e) { BroadcastDisplayMode("SHOW_WELCOME"); }
 
+        // —— 图片 / 视频 显示控制 ——
+        private string _lastMediaPath = "";
+        private void ShowMedia_Click(object sender, RoutedEventArgs e) {
+            var dlg = new Window {
+                Title = "图片 / 视频 - 大屏显示",
+                Width = 560, Height = 420,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner, Owner = this, ResizeMode = ResizeMode.NoResize,
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F8FAFC"))
+            };
+            var sp = new StackPanel { Margin = new Thickness(16) };
+            sp.Children.Add(new TextBlock {
+                Text = "图片 / 视频 大屏显示",
+                FontSize = 16, FontWeight = FontWeights.Bold,
+                Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E293B")),
+                Margin = new Thickness(0, 0, 0, 6)
+            });
+            sp.Children.Add(new TextBlock {
+                Text = "选择图片（PNG/JPG/BMP/GIF）或视频（MP4/WEBM/OGG），点击\"发送到大屏\"全屏播放。点击\"停止显示\"返回比赛视图。",
+                TextWrapping = TextWrapping.Wrap,
+                Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")),
+                FontSize = 12, Margin = new Thickness(0, 0, 0, 12)
+            });
+
+            var pathRow = new DockPanel { Margin = new Thickness(0, 0, 0, 10) };
+            DockPanel.SetDock(pathRow, Dock.Top);
+            var btnPick = new Button {
+                Content = "选择文件...", Padding = new Thickness(12, 6, 12, 6),
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6")),
+                Foreground = Brushes.White, BorderThickness = new Thickness(0)
+            };
+            DockPanel.SetDock(btnPick, Dock.Right);
+            var pathBox = new TextBox {
+                IsReadOnly = true, Padding = new Thickness(6),
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F1F5F9")),
+                BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#CBD5E1")),
+                Text = _lastMediaPath, Margin = new Thickness(0, 0, 8, 0)
+            };
+            pathRow.Children.Add(btnPick);
+            pathRow.Children.Add(pathBox);
+            sp.Children.Add(pathRow);
+
+            // 显示选项
+            var optsGrid = new Grid { Margin = new Thickness(0, 0, 0, 10) };
+            optsGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(110) });
+            optsGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            optsGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            optsGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            var lblFit = new TextBlock { Text = "缩放方式：", VerticalAlignment = VerticalAlignment.Center, Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569")) };
+            Grid.SetRow(lblFit, 0); Grid.SetColumn(lblFit, 0);
+            var fitPanel = new StackPanel { Orientation = Orientation.Horizontal };
+            var rbContain = new RadioButton { Content = "保持比例（contain）", IsChecked = true, GroupName = "MediaFit", Margin = new Thickness(0, 0, 16, 0), VerticalAlignment = VerticalAlignment.Center };
+            var rbCover = new RadioButton { Content = "填满屏幕（cover）", GroupName = "MediaFit", Margin = new Thickness(0, 0, 16, 0), VerticalAlignment = VerticalAlignment.Center };
+            var rbStretch = new RadioButton { Content = "拉伸（fill）", GroupName = "MediaFit", VerticalAlignment = VerticalAlignment.Center };
+            fitPanel.Children.Add(rbContain); fitPanel.Children.Add(rbCover); fitPanel.Children.Add(rbStretch);
+            Grid.SetRow(fitPanel, 0); Grid.SetColumn(fitPanel, 1);
+            var lblOpt = new TextBlock { Text = "视频选项：", VerticalAlignment = VerticalAlignment.Center, Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569")), Margin = new Thickness(0, 6, 0, 0) };
+            Grid.SetRow(lblOpt, 1); Grid.SetColumn(lblOpt, 0);
+            var optPanel = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 6, 0, 0) };
+            var cbLoop = new CheckBox { Content = "循环播放", IsChecked = true, Margin = new Thickness(0, 0, 16, 0), VerticalAlignment = VerticalAlignment.Center };
+            var cbMute = new CheckBox { Content = "静音", IsChecked = false, Margin = new Thickness(0, 0, 16, 0), VerticalAlignment = VerticalAlignment.Center };
+            var cbAuto = new CheckBox { Content = "自动播放", IsChecked = true, VerticalAlignment = VerticalAlignment.Center };
+            optPanel.Children.Add(cbLoop); optPanel.Children.Add(cbMute); optPanel.Children.Add(cbAuto);
+            Grid.SetRow(optPanel, 1); Grid.SetColumn(optPanel, 1);
+            optsGrid.Children.Add(lblFit); optsGrid.Children.Add(fitPanel); optsGrid.Children.Add(lblOpt); optsGrid.Children.Add(optPanel);
+            sp.Children.Add(optsGrid);
+
+            var sizeText = new TextBlock { Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")), FontSize = 12, Margin = new Thickness(0, 0, 0, 10) };
+            sp.Children.Add(sizeText);
+
+            string detectedKind = "";
+            string detectedMime = "";
+            Action updateInfo = delegate {
+                string p = pathBox.Text;
+                if (string.IsNullOrEmpty(p) || !File.Exists(p)) {
+                    sizeText.Text = "";
+                    detectedKind = ""; detectedMime = "";
+                    return;
+                }
+                string ext = (IOPath.GetExtension(p) ?? "").ToLower();
+                if (ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".bmp" || ext == ".gif" || ext == ".webp") {
+                    detectedKind = "image";
+                    detectedMime = ext == ".jpg" || ext == ".jpeg" ? "image/jpeg"
+                                 : ext == ".bmp" ? "image/bmp"
+                                 : ext == ".gif" ? "image/gif"
+                                 : ext == ".webp" ? "image/webp"
+                                 : "image/png";
+                } else if (ext == ".mp4" || ext == ".webm" || ext == ".ogg" || ext == ".m4v") {
+                    detectedKind = "video";
+                    detectedMime = ext == ".webm" ? "video/webm"
+                                 : ext == ".ogg" ? "video/ogg"
+                                 : "video/mp4";
+                } else {
+                    detectedKind = ""; detectedMime = "";
+                }
+                long len = new FileInfo(p).Length;
+                sizeText.Text = string.Format("文件：{0}    大小：{1:F2} MB    类型：{2}",
+                    IOPath.GetFileName(p), len / 1048576.0, string.IsNullOrEmpty(detectedKind) ? "未识别（请选择图片或视频文件）" : detectedKind);
+            };
+            updateInfo();
+
+            btnPick.Click += delegate {
+                var ofd = new Microsoft.Win32.OpenFileDialog {
+                    Title = "选择图片或视频",
+                    Filter = "图片 / 视频|*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.webp;*.mp4;*.webm;*.ogg;*.m4v|图片|*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.webp|视频|*.mp4;*.webm;*.ogg;*.m4v|所有文件|*.*"
+                };
+                if (ofd.ShowDialog() == true) {
+                    pathBox.Text = ofd.FileName;
+                    updateInfo();
+                }
+            };
+
+            var btnRow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 12, 0, 0) };
+            var btnStop = new Button {
+                Content = "停止显示（返回比赛视图）", Padding = new Thickness(14, 6, 14, 6), Margin = new Thickness(0, 0, 8, 0),
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EF4444")), Foreground = Brushes.White, BorderThickness = new Thickness(0)
+            };
+            btnStop.Click += delegate { BroadcastDisplayMode("SHOW_LIVE_RACE"); AddLog("停止媒体显示，已返回比赛视图"); };
+            var btnSend = new Button {
+                Content = "发送到大屏", Padding = new Thickness(14, 6, 14, 6), Margin = new Thickness(0, 0, 8, 0), FontWeight = FontWeights.Bold,
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#22C55E")), Foreground = Brushes.White, BorderThickness = new Thickness(0)
+            };
+            btnSend.Click += delegate {
+                string p = pathBox.Text;
+                if (string.IsNullOrEmpty(p) || !File.Exists(p)) { MessageBox.Show("请选择有效的图片或视频文件"); return; }
+                if (string.IsNullOrEmpty(detectedKind)) { MessageBox.Show("无法识别文件类型，请选择 PNG/JPG/BMP/GIF/WEBP 图片或 MP4/WEBM/OGG 视频"); return; }
+                long len = new FileInfo(p).Length;
+                if (len > 60L * 1024 * 1024) {
+                    if (MessageBox.Show(string.Format("文件较大（{0:F1} MB），通过 WebSocket 嵌入可能耗时。继续发送？", len / 1048576.0),
+                        "确认", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+                }
+                string fit = rbCover.IsChecked == true ? "cover" : (rbStretch.IsChecked == true ? "fill" : "contain");
+                BroadcastMediaToDisplay(p, detectedKind, detectedMime, fit, cbLoop.IsChecked == true, cbMute.IsChecked == true, cbAuto.IsChecked == true);
+                _lastMediaPath = p;
+            };
+            var btnClose = new Button {
+                Content = "关闭", Padding = new Thickness(14, 6, 14, 6),
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")), Foreground = Brushes.White, BorderThickness = new Thickness(0)
+            };
+            btnClose.Click += delegate { dlg.Close(); };
+            btnRow.Children.Add(btnStop); btnRow.Children.Add(btnSend); btnRow.Children.Add(btnClose);
+            sp.Children.Add(btnRow);
+
+            dlg.Content = sp;
+            dlg.ShowDialog();
+        }
+
+        private void BroadcastMediaToDisplay(string path, string kind, string mime, string fit, bool loop, bool muted, bool autoplay) {
+            try {
+                byte[] bytes = File.ReadAllBytes(path);
+                string b64 = Convert.ToBase64String(bytes);
+                string dataUrl = "data:" + mime + ";base64," + b64;
+                var payload = new {
+                    type = "SHOW_MEDIA",
+                    data = new {
+                        kind = kind,
+                        mime = mime,
+                        fileName = IOPath.GetFileName(path),
+                        dataUrl = dataUrl,
+                        fit = fit,
+                        loop = loop,
+                        muted = muted,
+                        autoplay = autoplay,
+                        sizeBytes = bytes.LongLength
+                    }
+                };
+                string json = JsonConvert.SerializeObject(payload);
+                int sent = 0;
+                foreach (var s in _allSockets.ToList()) {
+                    try { s.Send(json); sent++; } catch { }
+                }
+                AddLog(string.Format("已发送{0}到大屏：{1}（{2:F2} MB），客户端 {3} 个",
+                    kind == "image" ? "图片" : "视频", IOPath.GetFileName(path), bytes.Length / 1048576.0, sent));
+            } catch (Exception ex) {
+                MessageBox.Show("发送失败：" + ex.Message);
+                AddLog("媒体发送失败: " + ex.Message);
+            }
+        }
+
         // ═══════════════════════════════════════════════════════════════
         // 赛事信息管理
         // ═══════════════════════════════════════════════════════════════
