@@ -746,12 +746,13 @@ namespace RemoteTimingControl
             Grid.SetColumn(leftInd, 1);
             PoolHeader.Children.Add(leftInd);
 
-            // Left device labels
+            // Left device labels（与右端对称：[T] 盲3 盲2 盲1 出发 触板 圈；盲表数量减少时
+            // 用 Hidden 保留位置，使盲1/出发/触板的位置固定）
             var leftLabels = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
             leftLabels.Children.Add(MakeHeaderLabel("[T]", 80));
-            leftLabels.Children.Add(MakeHeaderLabel("盲1", 26));
-            leftLabels.Children.Add(MakeHeaderLabel("盲2", 26));
-            leftLabels.Children.Add(MakeHeaderLabel("盲3", 26));
+            var lh3 = MakeHeaderLabel("盲3", 26); lh3.Visibility = _leftBlindWatchCount >= 3 ? Visibility.Visible : Visibility.Hidden; leftLabels.Children.Add(lh3);
+            var lh2 = MakeHeaderLabel("盲2", 26); lh2.Visibility = _leftBlindWatchCount >= 2 ? Visibility.Visible : Visibility.Hidden; leftLabels.Children.Add(lh2);
+            var lh1 = MakeHeaderLabel("盲1", 26); lh1.Visibility = _leftBlindWatchCount >= 1 ? Visibility.Visible : Visibility.Hidden; leftLabels.Children.Add(lh1);
             leftLabels.Children.Add(MakeHeaderLabel("出发", 26));
             leftLabels.Children.Add(MakeHeaderLabel("触板", 26));
             leftLabels.Children.Add(MakeHeaderLabel("圈", 28));
@@ -765,14 +766,14 @@ namespace RemoteTimingControl
             Grid.SetColumn(midHeaderPanel, 3);
             PoolHeader.Children.Add(midHeaderPanel);
 
-            // Right device labels
+            // Right device labels（圈 触板 出发 盲1 盲2 盲3 [T]；盲表数量减少时盲2/盲3 用 Hidden 保留位置）
             var rightLabels = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
             rightLabels.Children.Add(MakeHeaderLabel("圈", 28));
             rightLabels.Children.Add(MakeHeaderLabel("触板", 26));
             rightLabels.Children.Add(MakeHeaderLabel("出发", 26));
-            rightLabels.Children.Add(MakeHeaderLabel("盲1", 26));
-            rightLabels.Children.Add(MakeHeaderLabel("盲2", 26));
-            rightLabels.Children.Add(MakeHeaderLabel("盲3", 26));
+            var rh1 = MakeHeaderLabel("盲1", 26); rh1.Visibility = _rightBlindWatchCount >= 1 ? Visibility.Visible : Visibility.Hidden; rightLabels.Children.Add(rh1);
+            var rh2 = MakeHeaderLabel("盲2", 26); rh2.Visibility = _rightBlindWatchCount >= 2 ? Visibility.Visible : Visibility.Hidden; rightLabels.Children.Add(rh2);
+            var rh3 = MakeHeaderLabel("盲3", 26); rh3.Visibility = _rightBlindWatchCount >= 3 ? Visibility.Visible : Visibility.Hidden; rightLabels.Children.Add(rh3);
             rightLabels.Children.Add(MakeHeaderLabel("[T]", 80));
             Grid.SetColumn(rightLabels, 4);
             PoolHeader.Children.Add(rightLabels);
@@ -1078,9 +1079,10 @@ namespace RemoteTimingControl
             string curEventStr = _data != null && _data["currentEvent"] != null ? _data["currentEvent"].ToString() : "";
             if (curEventStr.Contains("接力")) isRelay = true;
 
-            // 构造 key：运动员列表/项目变化时重建结构
+            // 构造 key：运动员列表/项目变化时重建结构（盲表数量变更也触发重建）
             var sbKey = new StringBuilder();
             sbKey.Append(curEventStr).Append('|').Append(isRelay).Append('|').Append(swimmers.Count);
+            sbKey.Append("|bw:").Append(_leftBlindWatchCount).Append('/').Append(_rightBlindWatchCount);
             foreach (JObject sw in swimmers)
             {
                 sbKey.Append('|');
@@ -1091,6 +1093,7 @@ namespace RemoteTimingControl
 
             if (key != _laneRowsBuiltKey)
             {
+                RenderPoolHeader();   // 表头同步重画（盲表数量影响标签可见性）
                 BuildLaneRows(swimmers, isRelay);
                 _laneRowsBuiltKey = key;
             }

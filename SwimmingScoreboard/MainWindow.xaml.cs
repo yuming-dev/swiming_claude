@@ -3271,10 +3271,20 @@ namespace SwimmingScoreboard
             var leftHdrInd = new Border { Width = 8, CornerRadius = new CornerRadius(2), Background = _laneCloseSettings.StartPosition == "left" ? new SolidColorBrush((Color)ColorConverter.ConvertFromString("#22C55E")) : Brushes.Transparent, Margin = new Thickness(0, 4, 0, 4) };
             Grid.SetColumn(leftHdrInd, 1); PoolHeader.Children.Add(leftHdrInd);
 
+            // 左端表头与右端对称：[T] 盲3 盲2 盲1 出发 触板 圈
+            // 当 LeftBlindWatchCount<3 时，最外侧的 盲3/盲2 标签使用 Hidden 保留位置，
+            // 这样 盲1 / 出发 / 触板 的位置固定不动
             var leftLabels = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-            foreach (string s in new[] { "[T]:80", "盲1:26", "盲2:26", "盲3:26", "出发:26", "触板:26", "圈:28" }) {
-                string[] p = s.Split(':');
-                leftLabels.Children.Add(new TextBlock { Text = p[0], Width = double.Parse(p[1]), Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")), FontSize = 12, TextAlignment = TextAlignment.Center, VerticalAlignment = VerticalAlignment.Center });
+            string[] leftLabelDefs = new[] { "[T]:80", "盲3:26", "盲2:26", "盲1:26", "出发:26", "触板:26", "圈:28" };
+            int leftBwc = _laneCloseSettings.LeftBlindWatchCount;
+            for (int li = 0; li < leftLabelDefs.Length; li++) {
+                string[] p = leftLabelDefs[li].Split(':');
+                var tb = new TextBlock { Text = p[0], Width = double.Parse(p[1]), Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")), FontSize = 12, TextAlignment = TextAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+                // li=1 是 盲3（数量>=3 才显示），li=2 是 盲2（数量>=2），li=3 是 盲1（数量>=1）
+                if (li == 1) tb.Visibility = leftBwc >= 3 ? Visibility.Visible : Visibility.Hidden;
+                else if (li == 2) tb.Visibility = leftBwc >= 2 ? Visibility.Visible : Visibility.Hidden;
+                else if (li == 3) tb.Visibility = leftBwc >= 1 ? Visibility.Visible : Visibility.Hidden;
+                leftLabels.Children.Add(tb);
             }
             Grid.SetColumn(leftLabels, 2); PoolHeader.Children.Add(leftLabels);
 
@@ -3283,10 +3293,18 @@ namespace SwimmingScoreboard
             midLabels.Children.Add(new TextBlock { Text = "方向/进度", Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")), FontSize = 12, VerticalAlignment = VerticalAlignment.Center });
             Grid.SetColumn(midLabels, 3); PoolHeader.Children.Add(midLabels);
 
+            // 右端表头：圈 触板 出发 盲1 盲2 盲3 [T]（盲表数量减少时盲2/盲3 用 Hidden 保留位置）
             var rightLabels = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-            foreach (string s in new[] { "圈:28", "触板:26", "出发:26", "盲1:26", "盲2:26", "盲3:26", "[T]:80" }) {
-                string[] p = s.Split(':');
-                rightLabels.Children.Add(new TextBlock { Text = p[0], Width = double.Parse(p[1]), Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")), FontSize = 12, TextAlignment = TextAlignment.Center, VerticalAlignment = VerticalAlignment.Center });
+            string[] rightLabelDefs = new[] { "圈:28", "触板:26", "出发:26", "盲1:26", "盲2:26", "盲3:26", "[T]:80" };
+            int rightBwc = _laneCloseSettings.RightBlindWatchCount;
+            for (int ri = 0; ri < rightLabelDefs.Length; ri++) {
+                string[] p = rightLabelDefs[ri].Split(':');
+                var tb = new TextBlock { Text = p[0], Width = double.Parse(p[1]), Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")), FontSize = 12, TextAlignment = TextAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+                // ri=3 是 盲1（数量>=1），ri=4 是 盲2（数量>=2），ri=5 是 盲3（数量>=3）
+                if (ri == 3) tb.Visibility = rightBwc >= 1 ? Visibility.Visible : Visibility.Hidden;
+                else if (ri == 4) tb.Visibility = rightBwc >= 2 ? Visibility.Visible : Visibility.Hidden;
+                else if (ri == 5) tb.Visibility = rightBwc >= 3 ? Visibility.Visible : Visibility.Hidden;
+                rightLabels.Children.Add(tb);
             }
             Grid.SetColumn(rightLabels, 4); PoolHeader.Children.Add(rightLabels);
 
@@ -3359,8 +3377,10 @@ namespace SwimmingScoreboard
             var allPoolLanes = (_poolConfig.LaneNumbers ?? new List<int>()).ToList();
             allPoolLanes.Sort();
 
-            // 构造本次数据的key（运动员列表或泳道集合变化时需要重建UI）
-            string key = _currentGender + "|" + _currentEvent + "|" + _currentStage + "|" + _currentHeat + "|" + allPoolLanes.Count + "|" + currentSwimmers.Count;
+            // 构造本次数据的key（运动员列表或泳道集合变化时需要重建UI；盲表数量变更也要重建）
+            string key = _currentGender + "|" + _currentEvent + "|" + _currentStage + "|" + _currentHeat
+                + "|" + allPoolLanes.Count + "|" + currentSwimmers.Count
+                + "|bw:" + _laneCloseSettings.LeftBlindWatchCount + "/" + _laneCloseSettings.RightBlindWatchCount;
             foreach (int ln in allPoolLanes) {
                 Swimmer lsw;
                 laneSwimmerMap.TryGetValue(ln, out lsw);
