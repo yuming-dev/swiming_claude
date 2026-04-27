@@ -2257,9 +2257,12 @@ namespace RemoteTimingControl
             };
             var btnManualMgr = new Button { Content = "手动按键管理", Padding = new Thickness(0, 8, 0, 8), FontSize = 14, FontWeight = FontWeights.Bold, Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#0EA5E9")), Foreground = Brushes.White, BorderThickness = new Thickness(0), Margin = new Thickness(0, 6, 0, 0) };
             btnManualMgr.Click += delegate { dlg.DialogResult = false; OpenManualButtonManager(); };
+            var btnBlindMgr = new Button { Content = "左右盲表数量设置", Padding = new Thickness(0, 8, 0, 8), FontSize = 14, FontWeight = FontWeights.Bold, Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F59E0B")), Foreground = Brushes.Black, BorderThickness = new Thickness(0), Margin = new Thickness(0, 6, 0, 0) };
+            btnBlindMgr.Click += delegate { dlg.DialogResult = false; OpenBlindWatchCountDialog(); };
             var deviceStack = new StackPanel();
             deviceStack.Children.Add(btnDeviceMgr);
             deviceStack.Children.Add(btnManualMgr);
+            deviceStack.Children.Add(btnBlindMgr);
             deviceSep.Child = deviceStack;
             sp.Children.Add(deviceSep);
 
@@ -2296,7 +2299,9 @@ namespace RemoteTimingControl
                     falseStartThreshold = _falseStartThreshold,
                     splitDisplayTime = _splitDisplayTime,
                     startPosition = _finishPosition,
-                    firstPlaceHoldTime = _firstPlaceHoldTime
+                    firstPlaceHoldTime = _firstPlaceHoldTime,
+                    leftBlindWatchCount = _leftBlindWatchCount,
+                    rightBlindWatchCount = _rightBlindWatchCount
                 };
                 SendCmd("SET_LANE_CLOSE_SETTINGS", settings);
 
@@ -2332,6 +2337,93 @@ namespace RemoteTimingControl
             row.Children.Add(unitTb);
             parent.Children.Add(row);
             return tb;
+        }
+
+        // ═══════ 左右盲表数量设置 ═══════
+        private void OpenBlindWatchCountDialog()
+        {
+            var dlg = new Window
+            {
+                Title = "左右盲表数量设置",
+                Width = 400, Height = 280,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                Owner = this, ResizeMode = ResizeMode.NoResize,
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E293B"))
+            };
+            var sp = new StackPanel { Margin = new Thickness(20) };
+            sp.Children.Add(new TextBlock { Text = "左右盲表数量设置", FontSize = 17, FontWeight = FontWeights.Bold, Foreground = Brushes.White, Margin = new Thickness(0, 0, 0, 6) });
+            sp.Children.Add(new TextBlock {
+                Text = "每道使用的盲表数量（1-3）。修改后将通过服务器同步到所有计时控制台与硬件计时控制器。",
+                Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")),
+                FontSize = 12, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 14)
+            });
+
+            Func<string, int, ComboBox> mkRow = delegate (string label, int sel) {
+                var row = new Grid { Margin = new Thickness(0, 0, 0, 10) };
+                row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(120) });
+                row.Children.Add(new TextBlock {
+                    Text = label, Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")),
+                    FontSize = 15, VerticalAlignment = VerticalAlignment.Center
+                });
+                var cb = new ComboBox {
+                    Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#334155")),
+                    Foreground = Brushes.Black, FontSize = 15, FontWeight = FontWeights.Bold
+                };
+                cb.Items.Add("1"); cb.Items.Add("2"); cb.Items.Add("3");
+                cb.SelectedIndex = (sel < 1 ? 1 : (sel > 3 ? 3 : sel)) - 1;
+                Grid.SetColumn(cb, 1);
+                row.Children.Add(cb);
+                sp.Children.Add(row);
+                return cb;
+            };
+            var cbLeft = mkRow("左边 盲表数量", _leftBlindWatchCount);
+            var cbRight = mkRow("右边 盲表数量", _rightBlindWatchCount);
+
+            var btnPanel = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 16, 0, 0) };
+            var btnCancel = new Button {
+                Content = "取消", Padding = new Thickness(16, 6, 16, 6),
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569")),
+                Foreground = Brushes.White, BorderThickness = new Thickness(0), Margin = new Thickness(0, 0, 8, 0)
+            };
+            btnCancel.Click += delegate { dlg.DialogResult = false; };
+            var btnOk = new Button {
+                Content = "确定", Padding = new Thickness(16, 6, 16, 6),
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6")),
+                Foreground = Brushes.White, BorderThickness = new Thickness(0), FontWeight = FontWeights.Bold
+            };
+            btnOk.Click += delegate { dlg.DialogResult = true; };
+            btnPanel.Children.Add(btnCancel);
+            btnPanel.Children.Add(btnOk);
+            sp.Children.Add(btnPanel);
+
+            dlg.Content = sp;
+            if (dlg.ShowDialog() == true)
+            {
+                int newLeft = cbLeft.SelectedIndex + 1;
+                int newRight = cbRight.SelectedIndex + 1;
+                if (newLeft != _leftBlindWatchCount || newRight != _rightBlindWatchCount)
+                {
+                    _leftBlindWatchCount = newLeft;
+                    _rightBlindWatchCount = newRight;
+                    // 通过服务器同步：发送完整 SET_LANE_CLOSE_SETTINGS（仅含已知字段+新增计数）
+                    var settings = new
+                    {
+                        laneCloseTime = _laneCloseTime,
+                        startBlockCloseDelay = _startBlockCloseDelay,
+                        resultConfirmCloseDelay = _resultConfirmCloseDelay,
+                        falseStartThreshold = _falseStartThreshold,
+                        splitDisplayTime = _splitDisplayTime,
+                        startPosition = _finishPosition,
+                        firstPlaceHoldTime = _firstPlaceHoldTime,
+                        leftBlindWatchCount = _leftBlindWatchCount,
+                        rightBlindWatchCount = _rightBlindWatchCount
+                    };
+                    SendCmd("SET_LANE_CLOSE_SETTINGS", settings);
+                    SaveSettings();
+                    AddLog(string.Format("盲表数量更新：左 {0}，右 {1}（已通过服务器同步到三端与硬件）", newLeft, newRight));
+                }
+            }
         }
 
         // ═══════ 设备状态管理 ═══════

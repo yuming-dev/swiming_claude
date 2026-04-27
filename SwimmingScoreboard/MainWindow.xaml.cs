@@ -789,10 +789,20 @@ namespace SwimmingScoreboard
                         // 同步全局设置到所有泳道（清除每道独立值，使用全局值）
                         foreach (var st in _laneDeviceStates) st.LaneCloseTime = 0;
                         if (data["firstPlaceHoldTime"] != null) _laneCloseSettings.FirstPlaceHoldTime = (double)data["firstPlaceHoldTime"];
-                        AddLog(string.Format("参数更新: 关闭{0}s 出发台{1}s 确认{2}s 抢跳{3}s 分段{4}s 终点:{5}",
+                        // 左右盲表数量（来自远程台）
+                        if (data["leftBlindWatchCount"] != null) {
+                            int v = (int)data["leftBlindWatchCount"];
+                            if (v >= 1 && v <= 3) _laneCloseSettings.LeftBlindWatchCount = v;
+                        }
+                        if (data["rightBlindWatchCount"] != null) {
+                            int v = (int)data["rightBlindWatchCount"];
+                            if (v >= 1 && v <= 3) _laneCloseSettings.RightBlindWatchCount = v;
+                        }
+                        AddLog(string.Format("参数更新: 关闭{0}s 出发台{1}s 确认{2}s 抢跳{3}s 分段{4}s 终点:{5} 盲表 左{6}/右{7}",
                             _laneCloseSettings.LaneCloseTime, _laneCloseSettings.StartBlockCloseDelay,
                             _laneCloseSettings.ResultConfirmCloseDelay, _laneCloseSettings.FalseStartThreshold,
-                            _laneCloseSettings.SplitDisplayTime, _laneCloseSettings.FinishPosition == "left" ? "左端" : "右端"));
+                            _laneCloseSettings.SplitDisplayTime, _laneCloseSettings.FinishPosition == "left" ? "左端" : "右端",
+                            _laneCloseSettings.LeftBlindWatchCount, _laneCloseSettings.RightBlindWatchCount));
                         SaveTimingSettings();
                         AutoSaveData();
                         UpdateLaneStatusDisplay();

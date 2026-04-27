@@ -238,10 +238,37 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
         <div style="margin-top:10px;padding-top:10px;border-top:1px solid #475569;">
             <button style="width:100%;padding:8px;background:#8B5CF6;color:white;border:none;border-radius:6px;cursor:pointer;font-size:14px;font-weight:bold;" onclick="closeSettings();openDeviceManager();">设备状态管理</button>
             <button style="width:100%;padding:8px;background:#0EA5E9;color:white;border:none;border-radius:6px;cursor:pointer;font-size:14px;font-weight:bold;margin-top:6px;" onmousedown="closeSettings();openManualButtonManager();">手动按键管理</button>
+            <button style="width:100%;padding:8px;background:#F59E0B;color:black;border:none;border-radius:6px;cursor:pointer;font-size:14px;font-weight:bold;margin-top:6px;" onclick="closeSettings();openBlindWatchCountDialog();">左右盲表数量设置</button>
         </div>
         <div class="modal-btns">
             <button class="btn-cancel" onclick="closeSettings()">取消</button>
             <button class="btn-ok" onclick="applySettings()">确定</button>
+        </div>
+    </div>
+</div>
+
+<!-- 左右盲表数量设置弹窗 -->
+<div id="blindCountModal" class="modal-overlay hidden" onclick="if(event.target===this)closeBlindWatchCountDialog()">
+    <div class="modal-dialog">
+        <h2 style="color:#F59E0B;">左右盲表数量设置</h2>
+        <div style="color:#94A3B8;font-size:12px;margin-bottom:12px;line-height:1.6;">
+            每道使用的盲表数量（1-3）。修改后将通过服务器同步到所有计时控制台与硬件计时控制器。
+        </div>
+        <div class="param-row">
+            <label>左边 盲表数量</label>
+            <select id="dlgLeftBlindCount" style="background:#334155;color:white;border:1px solid #475569;padding:5px 10px;border-radius:4px;font-size:15px;font-weight:bold;">
+                <option value="1">1</option><option value="2">2</option><option value="3" selected>3</option>
+            </select>
+        </div>
+        <div class="param-row">
+            <label>右边 盲表数量</label>
+            <select id="dlgRightBlindCount" style="background:#334155;color:white;border:1px solid #475569;padding:5px 10px;border-radius:4px;font-size:15px;font-weight:bold;">
+                <option value="1">1</option><option value="2">2</option><option value="3" selected>3</option>
+            </select>
+        </div>
+        <div class="modal-btns">
+            <button class="btn-cancel" onclick="closeBlindWatchCountDialog()">取消</button>
+            <button class="btn-ok" onclick="applyBlindWatchCount()">确定</button>
         </div>
     </div>
 </div>
@@ -957,11 +984,56 @@ function applySettings() {
         falseStartThreshold: parseFloat(document.getElementById('dlgFSThresh').value) || 0.10,
         splitDisplayTime: parseFloat(document.getElementById('dlgSplitDisp').value) || 5,
         startPosition: finishPosition,  // 发送终点位置，服务器根据项目自动计算发令位置
-        firstPlaceHoldTime: firstPlaceHoldTime
+        firstPlaceHoldTime: firstPlaceHoldTime,
+        leftBlindWatchCount: leftBlindWatchCount,
+        rightBlindWatchCount: rightBlindWatchCount
     };
     sendCmd('SET_LANE_CLOSE_SETTINGS', settings);
     addLog('参数已更新，第1名停留: ' + firstPlaceHoldTime + 's，终点位置: ' + (finishPosition === 'left' ? '左端' : '右端'));
     closeSettings();
+}
+
+// ═══════ 左右盲表数量设置对话框 ═══════
+function openBlindWatchCountDialog() {
+    var l = leftBlindWatchCount || 3;
+    var r = rightBlindWatchCount || 3;
+    if (l < 1 || l > 3) l = 3;
+    if (r < 1 || r > 3) r = 3;
+    document.getElementById('dlgLeftBlindCount').value = l;
+    document.getElementById('dlgRightBlindCount').value = r;
+    document.getElementById('blindCountModal').classList.remove('hidden');
+}
+function closeBlindWatchCountDialog() {
+    document.getElementById('blindCountModal').classList.add('hidden');
+}
+function applyBlindWatchCount() {
+    var newLeft = parseInt(document.getElementById('dlgLeftBlindCount').value) || 3;
+    var newRight = parseInt(document.getElementById('dlgRightBlindCount').value) || 3;
+    if (newLeft < 1) newLeft = 1; if (newLeft > 3) newLeft = 3;
+    if (newRight < 1) newRight = 1; if (newRight > 3) newRight = 3;
+    var changed = (newLeft !== leftBlindWatchCount) || (newRight !== rightBlindWatchCount);
+    leftBlindWatchCount = newLeft;
+    rightBlindWatchCount = newRight;
+    localStorage.setItem('swimLeftBlindCount', newLeft);
+    localStorage.setItem('swimRightBlindCount', newRight);
+    if (changed) {
+        // 通过服务器同步：发送完整 SET_LANE_CLOSE_SETTINGS（带计数字段）
+        var settings = {
+            laneCloseTime: data && data.laneCloseSettings ? data.laneCloseSettings.laneCloseTime : 20,
+            startBlockCloseDelay: data && data.laneCloseSettings ? data.laneCloseSettings.startBlockCloseDelay : 3,
+            resultConfirmCloseDelay: data && data.laneCloseSettings ? data.laneCloseSettings.resultConfirmCloseDelay : 3,
+            falseStartThreshold: data && data.laneCloseSettings ? data.laneCloseSettings.falseStartThreshold : 0.10,
+            splitDisplayTime: data && data.laneCloseSettings ? data.laneCloseSettings.splitDisplayTime : 5,
+            startPosition: finishPosition,
+            firstPlaceHoldTime: firstPlaceHoldTime,
+            leftBlindWatchCount: newLeft,
+            rightBlindWatchCount: newRight
+        };
+        sendCmd('SET_LANE_CLOSE_SETTINGS', settings);
+        addLog('盲表数量更新：左 ' + newLeft + '，右 ' + newRight + '（已通过服务器同步到三端与硬件）');
+        applyBlindWatchVisibility();
+    }
+    closeBlindWatchCountDialog();
 }
 
 // ═══════ 赛程树 ═══════
