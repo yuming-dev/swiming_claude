@@ -11427,9 +11427,18 @@ namespace SwimmingScoreboard
             sb.AppendFormat("<h4>比赛时间：{0} &nbsp;&nbsp;&nbsp;&nbsp; 地点：{1}</h4>", dateTimeInfo, LocationBox.Text);
 
             bool printRelay = _currentEvent.Contains("接力");
-            sb.AppendFormat("<table><tr><th width='50'>名次</th><th width='40'>道</th><th width='60'>号码</th><th width='100'>{0}</th><th width='100'>{1}</th><th width='90'>成绩</th><th width='70'>反应时间</th><th width='50'>备注</th></tr>",
+            sb.AppendFormat("<table><tr><th width='50'>名次</th><th width='40'>道</th><th width='60'>号码</th><th width='100'>{0}</th><th width='100'>{1}</th><th width='90'>成绩</th><th width='70'>成绩差</th><th width='70'>反应时间</th><th width='50'>备注</th></tr>",
                 RelayCol1Header(printRelay), RelayCol2Header(printRelay));
             var swimmers = GetCurrentHeatSwimmers().OrderBy(s => s.CurrentRank > 0 ? s.CurrentRank : int.MaxValue).ToList();
+            // 计算第1名成绩（用于"成绩差"列）：取本组中有有效成绩且非 DSQ/DNS/DNF 的最快者
+            double leaderTime = 0;
+            foreach (var sw in swimmers) {
+                if (sw.Status == "DSQ" || sw.Status == "DNS" || sw.Status == "DNF" || sw.Status == "DQ") continue;
+                var rr = sw.Results.FirstOrDefault(lr => lr.Stage == _currentStage && lr.Heat == _currentHeat);
+                if (rr == null || rr.FinalTime <= 0) continue;
+                if (!string.IsNullOrEmpty(rr.Status)) continue;
+                if (leaderTime <= 0 || rr.FinalTime < leaderTime) leaderTime = rr.FinalTime;
+            }
             foreach (var sw in swimmers) {
                 var r = sw.Results.FirstOrDefault(lr => lr.Stage == _currentStage && lr.Heat == _currentHeat);
                 string remark = "";
@@ -11439,10 +11448,16 @@ namespace SwimmingScoreboard
                 if (printRelay && !string.IsNullOrEmpty(sw.Notes) && sw.Notes.StartsWith("接力队 棒次:"))
                     pName = sw.Notes.Substring("接力队 棒次:".Length);
                 string timeText = string.IsNullOrEmpty(remark) && r != null && r.FinalTime > 0 ? TimeFormatter.Format(r.FinalTime) : "";
-                sb.AppendFormat("<tr><td>{0}</td><td>{1}</td><td>{2}</td><td><b>{3}</b></td><td>{4}</td><td style='font-weight:bold; background:#eff6ff;'>{5}</td><td>{6}</td><td style='color:#dc2626;'>{7}</td></tr>",
+                // 成绩差：当前道成绩 - 第1名成绩；第1名留空
+                string diffText = "";
+                if (string.IsNullOrEmpty(remark) && r != null && r.FinalTime > 0 && leaderTime > 0 && r.FinalTime > leaderTime) {
+                    diffText = (r.FinalTime - leaderTime).ToString("F2");
+                }
+                sb.AppendFormat("<tr><td>{0}</td><td>{1}</td><td>{2}</td><td><b>{3}</b></td><td>{4}</td><td style='font-weight:bold; background:#eff6ff;'>{5}</td><td>{6}</td><td>{7}</td><td style='color:#dc2626;'>{8}</td></tr>",
                     r != null && r.Rank > 0 ? r.Rank.ToString() : "-",
                     sw.Lane, sw.BibNumber, RelayCol1(printRelay, pName, pCountry), RelayCol2(printRelay, pName, pCountry),
                     timeText,
+                    diffText,
                     r != null && r.StartingBlockTime > 0 ? r.StartingBlockTime.ToString("F2") : "",
                     remark);
             }

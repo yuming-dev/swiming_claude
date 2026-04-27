@@ -52,6 +52,7 @@
                 <DataGridTextColumn Header="姓名" Binding="{Binding Name}" Width="80"/>
                 <DataGridTextColumn Header="代表队" Binding="{Binding Country}" Width="80"/>
                 <DataGridTextColumn Header="最终成绩" Binding="{Binding FinalTime}" Width="80"/>
+                <DataGridTextColumn Header="成绩差" Binding="{Binding Diff}" Width="70"/>
                 <DataGridTextColumn Header="反应时间" Binding="{Binding ReactionTime}" Width="70"/>
                 <DataGridTextColumn Header="备注" Binding="{Binding Remark}" Width="50"/>
             </DataGrid.Columns>

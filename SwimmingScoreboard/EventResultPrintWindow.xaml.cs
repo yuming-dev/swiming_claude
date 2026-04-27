@@ -165,6 +165,7 @@ namespace SwimmingScoreboard
                 return new
                 {
                     SortTime = isDQ ? double.MaxValue : r.FinalTime,
+                    RawFinalTime = isDQ ? 0 : r.FinalTime,
                     IsDQ = isDQ,
                     Lane = r.Lane,
                     BibNumber = s.BibNumber ?? "",
@@ -176,10 +177,20 @@ namespace SwimmingScoreboard
                 };
             }).OrderBy(x => x.SortTime).ToList();
 
+            // 计算第1名成绩 = 排序后的第一个非 DQ 项
+            double leaderTime = 0;
+            foreach (var d in displayData) {
+                if (!d.IsDQ && d.RawFinalTime > 0) { leaderTime = d.RawFinalTime; break; }
+            }
+
             _currentResults = new List<object>();
             int rank = 1;
             foreach (var item in displayData)
             {
+                string diffText = "";
+                if (!item.IsDQ && item.RawFinalTime > 0 && leaderTime > 0 && item.RawFinalTime > leaderTime) {
+                    diffText = (item.RawFinalTime - leaderTime).ToString("F2");
+                }
                 _currentResults.Add(new
                 {
                     Rank = item.IsDQ ? "-" : rank.ToString(),
@@ -188,6 +199,7 @@ namespace SwimmingScoreboard
                     item.Name,
                     item.Country,
                     item.FinalTime,
+                    Diff = diffText,
                     item.ReactionTime,
                     item.Remark
                 });
@@ -267,7 +279,7 @@ namespace SwimmingScoreboard
             sb.Append("<table><tr>");
             sb.AppendFormat("<th width='50'>名次</th><th width='40'>道</th><th width='60'>号码</th>");
             sb.AppendFormat("<th width='100'>{0}</th><th width='100'>{1}</th>", epH1, epH2);
-            sb.Append("<th width='90'>最终成绩</th><th width='70'>反应时间</th><th width='50'>备注</th>");
+            sb.Append("<th width='90'>最终成绩</th><th width='70'>成绩差</th><th width='70'>反应时间</th><th width='50'>备注</th>");
             sb.Append("</tr>");
             foreach (dynamic item in _currentResults)
             {
@@ -277,6 +289,7 @@ namespace SwimmingScoreboard
                 sb.AppendFormat("<td>{0}</td><td>{1}</td><td>{2}</td>", item.Rank, item.Lane, item.BibNumber);
                 sb.AppendFormat("<td><b>{0}</b></td><td>{1}</td>", c1, c2);
                 sb.AppendFormat("<td style='font-weight:bold; background:#eff6ff;'>{0}</td>", item.FinalTime);
+                sb.AppendFormat("<td>{0}</td>", item.Diff);
                 sb.AppendFormat("<td>{0}</td><td style='color:#dc2626;'>{1}</td>", item.ReactionTime, item.Remark);
                 sb.Append("</tr>");
             }
