@@ -1152,10 +1152,16 @@ namespace RemoteTimingControl
                 leftDevices.Children.Add(touchBtnL);
                 rowUI.TouchL = touchBtnL;
 
+                // 左端 5 圆点：[0]=盲3, [1]=盲2, [2]=盲1, [3]=出发, [4]=触板
+                // 创建时即按当前数量设置 Visibility，避免初始全显示再被刷新隐藏
+                int initLbc = _leftBlindWatchCount;
                 rowUI.LeftDots = new Ellipse[5];
                 for (int i = 0; i < 5; i++)
                 {
                     var dot = new Ellipse { Width = 22, Height = 22, Margin = new Thickness(2, 0, 2, 0) };
+                    if (i == 0) dot.Visibility = initLbc >= 3 ? Visibility.Visible : Visibility.Hidden;
+                    else if (i == 1) dot.Visibility = initLbc >= 2 ? Visibility.Visible : Visibility.Hidden;
+                    else if (i == 2) dot.Visibility = initLbc >= 1 ? Visibility.Visible : Visibility.Hidden;
                     rowUI.LeftDots[i] = dot;
                     leftDevices.Children.Add(dot);
                 }
@@ -1194,10 +1200,15 @@ namespace RemoteTimingControl
                 rightDevices.Children.Add(rightRemainTb);
                 rowUI.RightRemainText = rightRemainTb;
 
+                // 右端 5 圆点：[0]=触板, [1]=出发, [2]=盲1, [3]=盲2, [4]=盲3
+                int initRbc = _rightBlindWatchCount;
                 rowUI.RightDots = new Ellipse[5];
                 for (int i = 0; i < 5; i++)
                 {
                     var dot = new Ellipse { Width = 22, Height = 22, Margin = new Thickness(2, 0, 2, 0) };
+                    if (i == 2) dot.Visibility = initRbc >= 1 ? Visibility.Visible : Visibility.Hidden;
+                    else if (i == 3) dot.Visibility = initRbc >= 2 ? Visibility.Visible : Visibility.Hidden;
+                    else if (i == 4) dot.Visibility = initRbc >= 3 ? Visibility.Visible : Visibility.Hidden;
                     rowUI.RightDots[i] = dot;
                     rightDevices.Children.Add(dot);
                 }

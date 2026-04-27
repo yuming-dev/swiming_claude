@@ -1347,15 +1347,29 @@ function buildLaneRows(container, swimmers, rcRelay) {
         row.className = 'lane-row';
         row.onmousedown = (function(ln) { return function() { selectLane(ln); }; })(lane);
 
-        // 构建固定结构，把动态元素用占位符类标识
+        // 圆点初始 visibility 按当前盲表数量，避免首次渲染时多余圆点闪现
+        var ldVis = function(idx) {
+            // 左端 leftDots: idx=0(盲3), 1(盲2), 2(盲1)
+            if (idx === 0) return leftBlindWatchCount >= 3 ? '' : 'visibility:hidden;';
+            if (idx === 1) return leftBlindWatchCount >= 2 ? '' : 'visibility:hidden;';
+            if (idx === 2) return leftBlindWatchCount >= 1 ? '' : 'visibility:hidden;';
+            return '';
+        };
+        var rdVis = function(idx) {
+            // 右端 rightDots: idx=2(盲1), 3(盲2), 4(盲3)
+            if (idx === 2) return rightBlindWatchCount >= 1 ? '' : 'visibility:hidden;';
+            if (idx === 3) return rightBlindWatchCount >= 2 ? '' : 'visibility:hidden;';
+            if (idx === 4) return rightBlindWatchCount >= 3 ? '' : 'visibility:hidden;';
+            return '';
+        };
         row.innerHTML =
             '<div class="lane-num">' + lane + '</div>' +
             '<div class="start-ind lr-left-ind"></div>' +
             '<div class="left-devices devices">' +
                 '<button class="touch-btn lr-touch-l" onmousedown="event.stopPropagation();manualTouch('+lane+',\'left\')" title="左端手动触板">T</button>' +
-                '<div class="device-dot lr-ld-0" title="盲表3"></div>' +
-                '<div class="device-dot lr-ld-1" title="盲表2"></div>' +
-                '<div class="device-dot lr-ld-2" title="盲表1"></div>' +
+                '<div class="device-dot lr-ld-0" title="盲表3" style="' + ldVis(0) + '"></div>' +
+                '<div class="device-dot lr-ld-1" title="盲表2" style="' + ldVis(1) + '"></div>' +
+                '<div class="device-dot lr-ld-2" title="盲表1" style="' + ldVis(2) + '"></div>' +
                 '<div class="device-dot lr-ld-3" title="出发台"></div>' +
                 '<div class="device-dot lr-ld-4" title="触板"></div>' +
                 '<span class="lr-left-remain" style="display:inline-block;width:28px;text-align:center;font-size:20px;font-weight:bold;"></span>' +
@@ -1368,9 +1382,9 @@ function buildLaneRows(container, swimmers, rcRelay) {
                 '<span class="lr-right-remain" style="display:inline-block;width:28px;text-align:center;font-size:20px;font-weight:bold;"></span>' +
                 '<div class="device-dot lr-rd-0" title="触板"></div>' +
                 '<div class="device-dot lr-rd-1" title="出发台"></div>' +
-                '<div class="device-dot lr-rd-2" title="盲表1"></div>' +
-                '<div class="device-dot lr-rd-3" title="盲表2"></div>' +
-                '<div class="device-dot lr-rd-4" title="盲表3"></div>' +
+                '<div class="device-dot lr-rd-2" title="盲表1" style="' + rdVis(2) + '"></div>' +
+                '<div class="device-dot lr-rd-3" title="盲表2" style="' + rdVis(3) + '"></div>' +
+                '<div class="device-dot lr-rd-4" title="盲表3" style="' + rdVis(4) + '"></div>' +
                 '<button class="touch-btn lr-touch-r" onmousedown="event.stopPropagation();manualTouch('+lane+',\'right\')" title="右端手动触板">T</button>' +
             '</div>' +
             '<div class="start-ind lr-right-ind"></div>' +
