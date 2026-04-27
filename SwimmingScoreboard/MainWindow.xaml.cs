@@ -3623,11 +3623,12 @@ namespace SwimmingScoreboard
                 } else {
                     for (int i = 0; i < 5; i++) rowUI.LeftDots[i].Fill = _brushSlate;
                 }
-                // 按当前设置的左盲表数量隐藏多余圆点（最里侧的"盲1"始终最先显示）
+                // 按当前设置的左盲表数量隐藏多余圆点（保留位置：用 Hidden 而非 Collapsed
+                // 这样盲1 / 出发台 / 触板的位置固定不变）
                 int leftBwCount = _laneCloseSettings.LeftBlindWatchCount;
-                rowUI.LeftDots[0].Visibility = leftBwCount >= 3 ? Visibility.Visible : Visibility.Collapsed; // 盲3
-                rowUI.LeftDots[1].Visibility = leftBwCount >= 2 ? Visibility.Visible : Visibility.Collapsed; // 盲2
-                rowUI.LeftDots[2].Visibility = leftBwCount >= 1 ? Visibility.Visible : Visibility.Collapsed; // 盲1
+                rowUI.LeftDots[0].Visibility = leftBwCount >= 3 ? Visibility.Visible : Visibility.Hidden; // 盲3
+                rowUI.LeftDots[1].Visibility = leftBwCount >= 2 ? Visibility.Visible : Visibility.Hidden; // 盲2
+                rowUI.LeftDots[2].Visibility = leftBwCount >= 1 ? Visibility.Visible : Visibility.Hidden; // 盲1
 
                 // 左剩余秒数
                 int leftRemain = GetTouchRemain(ls, true);
@@ -3654,11 +3655,11 @@ namespace SwimmingScoreboard
                 } else {
                     for (int i = 0; i < 5; i++) rowUI.RightDots[i].Fill = _brushSlate;
                 }
-                // 按当前设置的右盲表数量隐藏多余圆点
+                // 按当前设置的右盲表数量隐藏多余圆点（保留位置）
                 int rightBwCount = _laneCloseSettings.RightBlindWatchCount;
-                rowUI.RightDots[2].Visibility = rightBwCount >= 1 ? Visibility.Visible : Visibility.Collapsed;
-                rowUI.RightDots[3].Visibility = rightBwCount >= 2 ? Visibility.Visible : Visibility.Collapsed;
-                rowUI.RightDots[4].Visibility = rightBwCount >= 3 ? Visibility.Visible : Visibility.Collapsed;
+                rowUI.RightDots[2].Visibility = rightBwCount >= 1 ? Visibility.Visible : Visibility.Hidden;
+                rowUI.RightDots[3].Visibility = rightBwCount >= 2 ? Visibility.Visible : Visibility.Hidden;
+                rowUI.RightDots[4].Visibility = rightBwCount >= 3 ? Visibility.Visible : Visibility.Hidden;
 
                 // 右剩余秒数
                 int rightRemain = GetTouchRemain(ls, false);

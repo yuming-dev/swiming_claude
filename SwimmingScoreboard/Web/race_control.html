@@ -1298,20 +1298,20 @@ function getRelayCurrentLegName(sw) {
 var _laneRowDOM = []; // [{lane, row, touchL, touchR, leftDots[5], rightDots[5], leftRemain, rightRemain, nameEl, teamEl, trackEl, reactionEl, finalTimeEl, rankEl, remarkEl, leftInd, rightInd}]
 
 // 根据 left/rightBlindWatchCount 控制盲表圆点显示/隐藏 + 重画顶部表头
-// 左端 leftDots[0..2] 现按对称方向排列：[0]=盲3, [1]=盲2, [2]=盲1
-// 右端 rightDots[2..4] 仍为 [2]=盲1, [3]=盲2, [4]=盲3
+// 用 visibility:hidden 而非 display:none —— 保留圆点占位，
+// 这样盲1 / 出发台 / 触板的位置固定不会因为盲3/盲2隐藏而前移
+// 左端 leftDots[0..2]: [0]=盲3, [1]=盲2, [2]=盲1
+// 右端 rightDots[2..4]: [2]=盲1, [3]=盲2, [4]=盲3
 function applyBlindWatchVisibility() {
     try { renderHeader(); } catch (e) {}
     if (!_laneRowDOM.length) return;
     for (var i = 0; i < _laneRowDOM.length; i++) {
         var ui = _laneRowDOM[i];
-        // 左端：leftDots[0]=盲3, [1]=盲2, [2]=盲1
-        if (ui.leftDots[0]) ui.leftDots[0].style.display = (leftBlindWatchCount >= 3) ? '' : 'none'; // 盲3
-        if (ui.leftDots[1]) ui.leftDots[1].style.display = (leftBlindWatchCount >= 2) ? '' : 'none'; // 盲2
-        if (ui.leftDots[2]) ui.leftDots[2].style.display = (leftBlindWatchCount >= 1) ? '' : 'none'; // 盲1
-        // 右端：rightDots[2]=盲1, [3]=盲2, [4]=盲3
+        if (ui.leftDots[0]) ui.leftDots[0].style.visibility = (leftBlindWatchCount >= 3) ? 'visible' : 'hidden'; // 盲3
+        if (ui.leftDots[1]) ui.leftDots[1].style.visibility = (leftBlindWatchCount >= 2) ? 'visible' : 'hidden'; // 盲2
+        if (ui.leftDots[2]) ui.leftDots[2].style.visibility = (leftBlindWatchCount >= 1) ? 'visible' : 'hidden'; // 盲1
         for (var k = 0; k < 3; k++) {
-            if (ui.rightDots[2 + k]) ui.rightDots[2 + k].style.display = (k < rightBlindWatchCount) ? '' : 'none';
+            if (ui.rightDots[2 + k]) ui.rightDots[2 + k].style.visibility = (k < rightBlindWatchCount) ? 'visible' : 'hidden';
         }
     }
 }
