@@ -1107,7 +1107,8 @@ namespace SwimmingScoreboard
                     isFalseStart = laneState != null && laneState.IsFalseStart,
                     isNewRecord = false,
                     currentLap = laneState != null ? laneState.CurrentLap : 0,
-                    isFinished = laneState != null && laneState.IsFinished,
+                    // 已记录最终成绩的运动员（即便 LaneDeviceState.IsFinished 因切组被复位）也算作完赛
+                    isFinished = (laneState != null && laneState.IsFinished) || (result != null && result.FinalTime > 0),
                     leftTouchRemain = GetTouchRemain(laneState, true),
                     rightTouchRemain = GetTouchRemain(laneState, false)
                 });
@@ -3048,8 +3049,13 @@ namespace SwimmingScoreboard
             CurrentHeatText.Text = string.Format("第{0}组 / 共{1}组", heat, _totalHeats);
             if (PoolCurrentEventText != null)
                 PoolCurrentEventText.Text = string.Format("{0} {1} {2} 第{3}组", _currentGender, _currentEvent, _currentStage, heat);
-            _raceState = RaceState.Waiting;
-            _resultConfirmed = false;
+
+            // 判断该组是否已有确认成绩；若是则保留 Finished 状态，避免覆盖已确认的成绩显示
+            bool heatAlreadyConfirmed = !string.IsNullOrEmpty(_currentEvent) && _currentHeat > 0
+                && IsHeatConfirmed(_currentAgeGroup, _currentGender, _currentEvent, _currentStage, _currentHeat);
+
+            _raceState = heatAlreadyConfirmed ? RaceState.Finished : RaceState.Waiting;
+            _resultConfirmed = heatAlreadyConfirmed;
             _laneSplitCount.Clear();
             _laneSplitShowTime.Clear();
             _laneReactionLastValue.Clear();
@@ -3067,8 +3073,23 @@ namespace SwimmingScoreboard
             AutoAdjustStartPosition();
             UpdateRaceStateDisplay();
 
+            // 复位所有泳道设备状态
             foreach (var state in _laneDeviceStates) {
                 state.ResetForNewRace(_laneCloseSettings.StartPosition);
+            }
+            // 若该组已确认成绩：把每位完赛运动员对应泳道的 IsFinished 置回 true，
+            // 让广播/UI 把对应运动员显示为已完赛（保留 finalTime 显示）
+            if (heatAlreadyConfirmed) {
+                foreach (var sw in GetCurrentHeatSwimmers()) {
+                    var sa = sw.GetAssignmentForStage(_currentStage);
+                    int swLane = sa != null ? sa.Lane : sw.Lane;
+                    var ls = _laneDeviceStates.FirstOrDefault(s => s.Lane == swLane);
+                    if (ls == null) continue;
+                    var rr = sw.Results.FirstOrDefault(rx => rx.Stage == _currentStage && rx.Heat == _currentHeat);
+                    if (rr != null && rr.FinalTime > 0) {
+                        ls.IsFinished = true;
+                    }
+                }
             }
 
             UpdateLaneStatusDisplay();
@@ -3626,7 +3647,8 @@ namespace SwimmingScoreboard
                     continue;
                 }
                 var result = sw.Results.FirstOrDefault(r => r.Stage == _currentStage && r.Heat == _currentHeat);
-                bool isFinished = ls != null && ls.IsFinished;
+                // 已记录最终成绩的运动员（即便 LaneDeviceState.IsFinished 因切组被复位）也算作完赛
+                bool isFinished = (ls != null && ls.IsFinished) || (result != null && result.FinalTime > 0);
                 string status = sw.Status ?? "";
                 bool isDQ = status == "DSQ" || status == "DNS" || status == "DNF";
                 // DSQ/DNS/DNF 行淡化
