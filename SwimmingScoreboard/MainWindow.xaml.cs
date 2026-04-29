@@ -1353,8 +1353,8 @@ namespace SwimmingScoreboard
                     currentLap = laneState != null ? laneState.CurrentLap : 0,
                     // 已记录最终成绩的运动员（即便 LaneDeviceState.IsFinished 因切组被复位）也算作完赛
                     isFinished = (laneState != null && laneState.IsFinished) || (result != null && result.FinalTime > 0),
-                    leftTouchRemain = GetTouchRemain(laneState, true),
-                    rightTouchRemain = GetTouchRemain(laneState, false)
+                    leftTouchRemain = GetDisplayedLapCount(laneState, true),
+                    rightTouchRemain = GetDisplayedLapCount(laneState, false)
                 });
             }
 
@@ -2700,6 +2700,52 @@ namespace SwimmingScoreboard
         /// isLeft=true: 出发端(左端)触板剩余; isLeft=false: 到达端(右端)触板剩余
         /// 出发方向由设置决定，这里假设startPosition决定出发端
         /// </summary>
+        // 圈数显示上限：按比赛项目实际设定的"该侧触板次数"。
+        // 50m(1 段)：出发端 0 次，到达端 1 次；100m(2 段)：双侧各 1 次；
+        // 150m(3 段)：出发端 1、到达端 2；200m(4 段)：双侧各 2 次；以此类推。
+        private int GetLapDisplayMaxForSide(bool isLeft) {
+            int totalLaps = GetTotalLaps();
+            if (totalLaps <= 0) return int.MaxValue;
+            int startSideTotal, farSideTotal;
+            if (totalLaps == 1) { startSideTotal = 0; farSideTotal = 1; }
+            else { startSideTotal = totalLaps / 2; farSideTotal = (totalLaps + 1) / 2; }
+            bool startFromLeft = _laneCloseSettings.StartPosition != "right";
+            if (startFromLeft) return isLeft ? startSideTotal : farSideTotal;
+            return isLeft ? farSideTotal : startSideTotal;
+        }
+
+        // 手动调整某道圈数显示：左/右独立，钳到 [0, 该侧触板总次数]。
+        // 仅修改对应侧的人工偏移量；不直接动 CurrentLap，所以左侧按键只改左侧显示，右侧按键只改右侧显示。
+        private void AdjustLapDisplay(int lane, bool isLeft, int delta) {
+            var ls = _laneDeviceStates.FirstOrDefault(s => s.Lane == lane);
+            if (ls == null) return;
+            int maxDisp = GetLapDisplayMaxForSide(isLeft);
+            int curDisp = GetDisplayedLapCount(ls, isLeft);
+            int newDisp = curDisp + delta;
+            if (newDisp < 0) newDisp = 0;
+            if (newDisp > maxDisp) newDisp = maxDisp;
+            if (newDisp == curDisp) return; // 已经在边界
+            int baseVal = GetTouchRemain(ls, isLeft);
+            int newAdj = newDisp - baseVal;
+            if (isLeft) ls.LeftLapManualAdjust = newAdj;
+            else        ls.RightLapManualAdjust = newAdj;
+            AddLog(string.Format("泳道{0} 手动调整{1}侧圈数显示: {2}→{3}", lane, isLeft ? "左" : "右", curDisp, newDisp));
+            UpdateLaneStatusDisplay();
+            Broadcast();
+        }
+
+        // 显示用的"该侧剩余圈数" = GetTouchRemain(自动推算) + 人工 spinner 偏移；钳到 [0, 该侧触板总次数]。
+        private int GetDisplayedLapCount(LaneDeviceState ls, bool isLeft) {
+            if (ls == null) return 0;
+            int baseVal = GetTouchRemain(ls, isLeft);
+            int adj = isLeft ? ls.LeftLapManualAdjust : ls.RightLapManualAdjust;
+            int v = baseVal + adj;
+            int maxDisp = GetLapDisplayMaxForSide(isLeft);
+            if (v < 0) v = 0;
+            if (v > maxDisp) v = maxDisp;
+            return v;
+        }
+
         private int GetTouchRemain(LaneDeviceState laneState, bool isLeft) {
             int totalLaps = GetTotalLaps();
             int currentLap = laneState != null ? laneState.CurrentLap : 0;
@@ -3754,9 +3800,9 @@ namespace SwimmingScoreboard
 
             PoolHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(32) });   // 道次
             PoolHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(8) });    // 左发令
-            PoolHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(240) });  // 左设备
+            PoolHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(264) });  // 左设备（+24，容纳圈数 spinner）
             PoolHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) }); // 姓名+进度
-            PoolHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(240) });  // 右设备
+            PoolHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(264) });  // 右设备（+24，容纳圈数 spinner）
             PoolHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(8) });    // 右发令
             PoolHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(249) });  // 成绩信息
 
@@ -3775,7 +3821,7 @@ namespace SwimmingScoreboard
             // 当 LeftBlindWatchCount<3 时，最外侧的 盲3/盲2 标签使用 Hidden 保留位置，
             // 这样 盲1 / 出发 / 触板 的位置固定不动
             var leftLabels = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-            string[] leftLabelDefs = new[] { "[T]:80", "盲3:26", "盲2:26", "盲1:26", "出发:26", "触板:26", "圈:28" };
+            string[] leftLabelDefs = new[] { "[T]:80", "盲3:26", "盲2:26", "盲1:26", "出发:26", "触板:26", "圈:50" };
             int leftBwc = _laneCloseSettings.LeftBlindWatchCount;
             for (int li = 0; li < leftLabelDefs.Length; li++) {
                 string[] p = leftLabelDefs[li].Split(':');
@@ -3795,7 +3841,7 @@ namespace SwimmingScoreboard
 
             // 右端表头：圈 触板 出发 盲1 盲2 盲3 [T]（盲表数量减少时盲2/盲3 用 Hidden 保留位置）
             var rightLabels = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-            string[] rightLabelDefs = new[] { "圈:28", "触板:26", "出发:26", "盲1:26", "盲2:26", "盲3:26", "[T]:80" };
+            string[] rightLabelDefs = new[] { "圈:50", "触板:26", "出发:26", "盲1:26", "盲2:26", "盲3:26", "[T]:80" };
             int rightBwc = _laneCloseSettings.RightBlindWatchCount;
             for (int ri = 0; ri < rightLabelDefs.Length; ri++) {
                 string[] p = rightLabelDefs[ri].Split(':');
@@ -3943,9 +3989,9 @@ namespace SwimmingScoreboard
                 var grid = new Grid();
                 grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(32) });
                 grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(8) });
-                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(240) });
+                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(264) });
                 grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(240) });
+                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(264) });
                 grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(8) });
                 grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(249) });
 
@@ -3979,9 +4025,18 @@ namespace SwimmingScoreboard
                     leftDev.Children.Add(dot);
                 }
 
-                var leftRemainText = new TextBlock { Width = 28, FontSize = 18, FontWeight = FontWeights.Bold, TextAlignment = TextAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+                // 圈数 [数字 + ▲▼ 微调]：左端（spinner 风格，更简洁美观）
+                var leftRemainText = new TextBlock { Width = 26, FontSize = 18, FontWeight = FontWeights.Bold, TextAlignment = TextAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
                 leftDev.Children.Add(leftRemainText);
                 rowUI.LeftRemainText = leftRemainText;
+                var leftSpinner = new StackPanel { Orientation = Orientation.Vertical, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 0, 0) };
+                var leftLapUp = new Button { Content = "▲", Width = 18, Height = 13, FontSize = 9, BorderThickness = new Thickness(0), Background = _brushSlate, Foreground = Brushes.White, Padding = new Thickness(0), Cursor = System.Windows.Input.Cursors.Hand };
+                leftLapUp.PreviewMouseLeftButtonDown += delegate(object s1, System.Windows.Input.MouseButtonEventArgs e1) { e1.Handled = true; AdjustLapDisplay(capLane, true, +1); };
+                var leftLapDown = new Button { Content = "▼", Width = 18, Height = 13, FontSize = 9, BorderThickness = new Thickness(0), Background = _brushSlate, Foreground = Brushes.White, Padding = new Thickness(0), Margin = new Thickness(0, 1, 0, 0), Cursor = System.Windows.Input.Cursors.Hand };
+                leftLapDown.PreviewMouseLeftButtonDown += delegate(object s1, System.Windows.Input.MouseButtonEventArgs e1) { e1.Handled = true; AdjustLapDisplay(capLane, true, -1); };
+                leftSpinner.Children.Add(leftLapUp);
+                leftSpinner.Children.Add(leftLapDown);
+                leftDev.Children.Add(leftSpinner);
                 Grid.SetColumn(leftDev, 2); grid.Children.Add(leftDev);
 
                 // Col 3: 姓名 + 进度条
@@ -4006,7 +4061,16 @@ namespace SwimmingScoreboard
 
                 // Col 4: 右设备
                 var rightDev = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-                var rightRemainText = new TextBlock { Width = 28, FontSize = 18, FontWeight = FontWeights.Bold, TextAlignment = TextAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+                // 圈数 [▲▼ 微调 + 数字]：右端（spinner 风格）
+                var rightSpinner = new StackPanel { Orientation = Orientation.Vertical, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 0, 0) };
+                var rightLapUp = new Button { Content = "▲", Width = 18, Height = 13, FontSize = 9, BorderThickness = new Thickness(0), Background = _brushSlate, Foreground = Brushes.White, Padding = new Thickness(0), Cursor = System.Windows.Input.Cursors.Hand };
+                rightLapUp.PreviewMouseLeftButtonDown += delegate(object s1, System.Windows.Input.MouseButtonEventArgs e1) { e1.Handled = true; AdjustLapDisplay(capLane, false, +1); };
+                var rightLapDown = new Button { Content = "▼", Width = 18, Height = 13, FontSize = 9, BorderThickness = new Thickness(0), Background = _brushSlate, Foreground = Brushes.White, Padding = new Thickness(0), Margin = new Thickness(0, 1, 0, 0), Cursor = System.Windows.Input.Cursors.Hand };
+                rightLapDown.PreviewMouseLeftButtonDown += delegate(object s2, System.Windows.Input.MouseButtonEventArgs e2) { e2.Handled = true; AdjustLapDisplay(capLane, false, -1); };
+                rightSpinner.Children.Add(rightLapUp);
+                rightSpinner.Children.Add(rightLapDown);
+                rightDev.Children.Add(rightSpinner);
+                var rightRemainText = new TextBlock { Width = 26, FontSize = 18, FontWeight = FontWeights.Bold, TextAlignment = TextAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
                 rightDev.Children.Add(rightRemainText);
                 rowUI.RightRemainText = rightRemainText;
 
@@ -4222,9 +4286,9 @@ namespace SwimmingScoreboard
                 rowUI.LeftDots[1].Visibility = leftBwCount >= 2 ? Visibility.Visible : Visibility.Hidden; // 盲2
                 rowUI.LeftDots[2].Visibility = leftBwCount >= 1 ? Visibility.Visible : Visibility.Hidden; // 盲1
 
-                // 左剩余秒数
-                int leftRemain = GetTouchRemain(ls, true);
-                rowUI.LeftRemainText.Text = leftRemain > 0 ? leftRemain.ToString() : "";
+                // 左剩余圈数（含 spinner 人工偏移）
+                int leftRemain = GetDisplayedLapCount(ls, true);
+                rowUI.LeftRemainText.Text = leftRemain > 0 ? leftRemain.ToString() : "0";
                 rowUI.LeftRemainText.Foreground = leftRemain > 0 ? (Brush)_brushAmber : (Brush)_brushSlate;
 
                 // 右T按钮
@@ -4253,9 +4317,9 @@ namespace SwimmingScoreboard
                 rowUI.RightDots[3].Visibility = rightBwCount >= 2 ? Visibility.Visible : Visibility.Hidden;
                 rowUI.RightDots[4].Visibility = rightBwCount >= 3 ? Visibility.Visible : Visibility.Hidden;
 
-                // 右剩余秒数
-                int rightRemain = GetTouchRemain(ls, false);
-                rowUI.RightRemainText.Text = rightRemain > 0 ? rightRemain.ToString() : "";
+                // 右剩余圈数（含 spinner 人工偏移）
+                int rightRemain = GetDisplayedLapCount(ls, false);
+                rowUI.RightRemainText.Text = rightRemain > 0 ? rightRemain.ToString() : "0";
                 rowUI.RightRemainText.Foreground = rightRemain > 0 ? (Brush)_brushAmber : (Brush)_brushSlate;
 
                 // 方向/进度文本

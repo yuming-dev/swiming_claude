@@ -809,6 +809,8 @@ namespace SwimmingScoreboard
         private double _reactionTime;
         private bool _isFalseStart;
         private bool _isSuspectFalseStart; // 反应时低于阈值（疑似抢跳）：仅作为视觉提示（反应时标红），是否判罚由裁判手动决定
+        private int _leftLapManualAdjust;   // 左端"圈数"显示的人工调整值（spinner ▲▼）
+        private int _rightLapManualAdjust;  // 右端"圈数"显示的人工调整值（spinner ▲▼）
         private string _startSide = "left";  // 出发台所在端（用于抢跳显示）
         private double _leftManualTouchTime;
         private double _rightManualTouchTime;
@@ -926,6 +928,14 @@ namespace SwimmingScoreboard
             get { return _isSuspectFalseStart; }
             set { if (_isSuspectFalseStart != value) { _isSuspectFalseStart = value; OnPropertyChanged("IsSuspectFalseStart"); } }
         }
+        public int LeftLapManualAdjust {
+            get { return _leftLapManualAdjust; }
+            set { if (_leftLapManualAdjust != value) { _leftLapManualAdjust = value; OnPropertyChanged("LeftLapManualAdjust"); } }
+        }
+        public int RightLapManualAdjust {
+            get { return _rightLapManualAdjust; }
+            set { if (_rightLapManualAdjust != value) { _rightLapManualAdjust = value; OnPropertyChanged("RightLapManualAdjust"); } }
+        }
         public double LeftManualTouchTime {
             get { return _leftManualTouchTime; }
             set { _leftManualTouchTime = value; OnPropertyChanged("LeftManualTouchTime"); }
@@ -1031,6 +1041,8 @@ namespace SwimmingScoreboard
             _reactionTime = 0;
             _isFalseStart = false;
             _isSuspectFalseStart = false;
+            _leftLapManualAdjust = 0;
+            _rightLapManualAdjust = 0;
             _startSide = startPosition;
             _leftManualTouchTime = 0;
             PendingBlind1Time = 0; PendingBlind2Time = 0; PendingBlind3Time = 0;

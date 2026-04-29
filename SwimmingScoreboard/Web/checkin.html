@@ -153,8 +153,8 @@ table.checkin .leg-tag { display: inline-block; background: #334155; color: #94a
 <div class="modal" id="serverModal">
     <div class="modal-box">
         <h3>连接主服务器</h3>
-        <label>服务器地址（ws://host:port）</label>
-        <input id="serverInput" value="">
+        <label>服务器IP地址</label>
+        <input id="serverInput" placeholder="如 192.168.1.100" autocomplete="off">
         <div class="btnrow">
             <button class="btn-cancel" onclick="hideServerDialog()">取消</button>
             <button class="btn-ok" onclick="applyServer()">连接</button>
@@ -170,13 +170,19 @@ var currentHeat = null;  // {gender, eventName, stage, heat}
 var currentSwimmers = [];
 var dirty = false;       // 是否有未保存的备注修改
 var treeCollapsed = {};
-var serverUrl = localStorage.getItem('checkinServer') || ('ws://' + location.hostname + ':3002');
+// 与 display.html / race_control.html / register.html 等其他网页客户端保持一致：
+// 仅保存裸 IP（host），WebSocket URL 由代码内部拼成 ws://host:3002
+var serverHost = localStorage.getItem('swimServerHost')
+    || localStorage.getItem('checkinServer')   // 兼容旧版（曾保存完整 URL）
+    || (location.hostname && location.hostname !== '' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1' ? location.hostname : '192.168.1.100');
+// 兼容旧版：localStorage 里若残留了完整 URL，剥成 host
+serverHost = String(serverHost).replace(/^wss?:\/\//, '').replace(/:\d+.*$/, '').trim() || '192.168.1.100';
 
 // ═══════ 连接 ═══════
 function connect() {
     try {
         if (ws) { try { ws.close(); } catch(e){} }
-        ws = new WebSocket(serverUrl);
+        ws = new WebSocket('ws://' + serverHost + ':3002');
         setConnState(false, '连接中...');
         ws.onopen = function() {
             setConnState(true, '已连接');
@@ -472,16 +478,18 @@ function doPrint() {
 
 // ═══════ 服务器地址 ═══════
 function showServerDialog() {
-    document.getElementById('serverInput').value = serverUrl;
+    document.getElementById('serverInput').value = serverHost;
     document.getElementById('serverModal').classList.add('show');
 }
 function hideServerDialog() { document.getElementById('serverModal').classList.remove('show'); }
 function applyServer() {
     var v = document.getElementById('serverInput').value.trim();
     if (!v) return;
-    if (v.indexOf('ws://') !== 0 && v.indexOf('wss://') !== 0) v = 'ws://' + v;
-    serverUrl = v;
-    localStorage.setItem('checkinServer', serverUrl);
+    // 只接受裸 IP（host）：用户即便粘贴 ws://host:3002 也强制剥成 host
+    v = v.replace(/^wss?:\/\//, '').replace(/:\d+.*$/, '').trim();
+    if (!v) return;
+    serverHost = v;
+    localStorage.setItem('swimServerHost', serverHost);
     hideServerDialog();
     connect();
 }
