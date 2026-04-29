@@ -26,12 +26,22 @@ namespace RegistrationTool
             InitializeComponent();
         }
 
+        // 状态颜色：红=未连接，绿=已连接，黄=连接中/失败
+        private static readonly System.Windows.Media.SolidColorBrush LedRed   = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0xEF, 0x44, 0x44));
+        private static readonly System.Windows.Media.SolidColorBrush LedGreen = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x22, 0xC5, 0x5E));
+        private static readonly System.Windows.Media.SolidColorBrush LedAmber = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0xF5, 0x9E, 0x0B));
+
+        private void SetConnState(string text, System.Windows.Media.Brush color, string btnLabel) {
+            StatusText.Text = text;
+            StatusText.Foreground = color;
+            if (StatusLed != null) StatusLed.Background = color;
+            ConnBtn.Content = btnLabel;
+        }
+
         private void Connect_Click(object sender, RoutedEventArgs e) {
             if (_ws != null && _ws.IsConnected) {
                 _ws.Close();
-                StatusText.Text = "未连接";
-                StatusText.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Colors.Red);
-                ConnBtn.Content = "连接";
+                SetConnState("未连接", LedRed, "连接");
                 return;
             }
             string addr = ServerBox.Text.Trim();
@@ -39,23 +49,20 @@ namespace RegistrationTool
             string host = parts[0];
             int port = 3002;
             if (parts.Length > 1) int.TryParse(parts[1], out port);
+            SetConnState("连接中…", LedAmber, "连接");
             try {
                 _ws = new SimpleWebSocketClient();
                 _ws.OnMessage += OnServerMessage;
                 _ws.OnDisconnected += delegate() {
                     Dispatcher.Invoke((Action)delegate() {
-                        StatusText.Text = "连接断开";
-                        StatusText.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Colors.Red);
-                        ConnBtn.Content = "连接";
+                        SetConnState("连接断开", LedRed, "连接");
                     });
                 };
                 _ws.Connect(host, port);
                 _ws.Send(JsonConvert.SerializeObject(new { type = "REGISTER_TERMINAL_IDENTITY" }));
-                StatusText.Text = "已连接";
-                StatusText.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Colors.Green);
-                ConnBtn.Content = "断开";
+                SetConnState("已连接 " + host + ":" + port, LedGreen, "断开");
             } catch (Exception ex) {
-                StatusText.Text = "失败: " + ex.Message;
+                SetConnState("连接失败: " + ex.Message, LedAmber, "连接");
             }
         }
 
@@ -162,6 +169,7 @@ namespace RegistrationTool
             TextBox[] nameBoxes = { Leg1Name, Leg2Name, Leg3Name, Leg4Name };
             TextBox[] idBoxes = { Leg1ID, Leg2ID, Leg3ID, Leg4ID };
             TextBox[] bibBoxes = { Leg1Bib, Leg2Bib, Leg3Bib, Leg4Bib };
+            DatePicker[] birthPickers = { Leg1Birth, Leg2Birth, Leg3Birth, Leg4Birth };
             for (int i = 0; i < 4; i++) {
                 string legName = nameBoxes[i].Text.Trim();
                 if (!string.IsNullOrEmpty(legName)) {
@@ -170,6 +178,8 @@ namespace RegistrationTool
                     leg["swimmerName"] = legName;
                     leg["swimmerIDNumber"] = idBoxes[i].Text.Trim();
                     leg["swimmerBibNumber"] = bibBoxes[i].Text.Trim();
+                    leg["swimmerBirthDate"] = birthPickers[i].SelectedDate.HasValue
+                        ? birthPickers[i].SelectedDate.Value.ToString("yyyy-MM-dd") : "";
                     legs.Add(leg);
                 }
             }

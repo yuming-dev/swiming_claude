@@ -188,6 +188,14 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
         <div class="param-row"><label>抢跳判定阈值</label><input id="dlgFSThresh" value="0.10"><span class="unit">秒</span></div>
         <div class="param-row"><label>分段成绩显示时长</label><input id="dlgSplitDisp" value="5"><span class="unit">秒</span></div>
         <div class="param-row"><label>第1名成绩停留时间</label><input id="dlgFirstPlaceHold" value="3"><span class="unit">秒</span></div>
+        <div class="param-row"><label>大屏翻屏时间</label><input id="dlgBigDisplayPageInterval" value="5"><span class="unit">秒</span></div>
+        <div class="param-row" style="margin-top:6px;padding-top:8px;border-top:1px solid #475569;">
+            <label>反应时(RT)</label>
+            <span style="display:flex;gap:12px;">
+                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="rtSwitch" value="on" id="dlgRtOn" checked> 打开</label>
+                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="rtSwitch" value="off" id="dlgRtOff"> 关闭</label>
+            </span>
+        </div>
         <div class="param-row" style="margin-top:6px;padding-top:8px;border-top:1px solid #475569;">
             <label>终点位置</label>
             <span style="display:flex;gap:12px;">
@@ -354,7 +362,7 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
     <div class="right-panel">
         <div class="right-col">
             <h3>比赛控制</h3>
-            <button class="action-btn" style="background:#F59E0B;" onclick="sendCmd('READY')"><span class="ico">&#xE7C1;</span>就  位</button>
+            <button class="action-btn" style="background:#F59E0B;" onclick="readyClick()"><span class="ico">&#xE7C1;</span>就  位</button>
             <button class="action-btn" style="background:#22C55E;" onclick="sendCmd('START_RACE')"><span class="ico">&#xE768;</span>发  令</button>
             <button class="action-btn" style="background:#EF4444;" onclick="confirmTimerReset()"><span class="ico">&#xE72C;</span>计时复位</button>
             <button class="action-btn" style="background:#3B82F6;" onclick="confirmResult()"><span class="ico">&#xE73E;</span>确认本组成绩</button>
@@ -421,12 +429,36 @@ var startPosition = localStorage.getItem('swimStartPosition') || 'left';
 var finishPosition = localStorage.getItem('swimFinishPosition') || 'left';
 var leftBlindWatchCount = parseInt(localStorage.getItem('swimLeftBlindCount')) || 3;
 var rightBlindWatchCount = parseInt(localStorage.getItem('swimRightBlindCount')) || 3;
+// 反应时(RT)开关：默认打开。localStorage 存的是 "1" / "0"
+var reactionTimeEnabled = (localStorage.getItem('swimReactionTimeEnabled') !== '0');
+
+// 把"参数设置"完整结构写入 localStorage（启动初始化用）；
+// 收到服务器广播或本地修改时调用，三端参数同步。
+function saveLaneCloseSettingsLocal(lcs) {
+    if (!lcs) return;
+    if (typeof lcs.laneCloseTime !== 'undefined') localStorage.setItem('swimLaneCloseTime', lcs.laneCloseTime);
+    if (typeof lcs.startBlockCloseDelay !== 'undefined') localStorage.setItem('swimStartBlockCloseDelay', lcs.startBlockCloseDelay);
+    if (typeof lcs.resultConfirmCloseDelay !== 'undefined') localStorage.setItem('swimResultConfirmCloseDelay', lcs.resultConfirmCloseDelay);
+    if (typeof lcs.falseStartThreshold !== 'undefined') localStorage.setItem('swimFalseStartThreshold', lcs.falseStartThreshold);
+    if (typeof lcs.splitDisplayTime !== 'undefined') localStorage.setItem('swimSplitDisplayTime', lcs.splitDisplayTime);
+    if (typeof lcs.firstPlaceHoldTime !== 'undefined') localStorage.setItem('swimFirstPlaceHold', lcs.firstPlaceHoldTime);
+    if (typeof lcs.startPosition !== 'undefined') localStorage.setItem('swimStartPosition', lcs.startPosition);
+    if (typeof lcs.finishPosition !== 'undefined') localStorage.setItem('swimFinishPosition', lcs.finishPosition);
+    if (typeof lcs.leftBlindWatchCount !== 'undefined') localStorage.setItem('swimLeftBlindCount', lcs.leftBlindWatchCount);
+    if (typeof lcs.rightBlindWatchCount !== 'undefined') localStorage.setItem('swimRightBlindCount', lcs.rightBlindWatchCount);
+    if (typeof lcs.bigDisplayPageInterval !== 'undefined') localStorage.setItem('swimBigDisplayPageInterval', lcs.bigDisplayPageInterval);
+    if (typeof lcs.reactionTimeEnabled !== 'undefined') localStorage.setItem('swimReactionTimeEnabled', lcs.reactionTimeEnabled ? '1' : '0');
+}
 
 window.onbeforeunload = function(e) {
     // 退出前保存参数
-    localStorage.setItem('swimFinishPosition', finishPosition);
-    localStorage.setItem('swimFirstPlaceHold', firstPlaceHoldTime.toString());
-    localStorage.setItem('swimStartPosition', startPosition);
+    saveLaneCloseSettingsLocal({
+        firstPlaceHoldTime: firstPlaceHoldTime,
+        startPosition: startPosition,
+        finishPosition: finishPosition,
+        leftBlindWatchCount: leftBlindWatchCount,
+        rightBlindWatchCount: rightBlindWatchCount
+    });
     e.preventDefault(); e.returnValue = ''; return '确定要关闭比赛控制台？';
 };
 
@@ -468,10 +500,31 @@ function connect() {
         document.getElementById('wsConn').className = 'conn-dot on';
         addLog('已连接服务器 ' + host);
     };
+    // 用 requestAnimationFrame 合并消息：服务器密集广播（每个触板/盲表/手动按下都广播）
+    // 在手机/平板等慢设备上一旦积压会出现严重延迟与"计时复位"不同步。
+    // 这里只保留最新一份 SHOW_LIVE_RACE 数据，下一帧统一渲染——队列瞬间排空。
+    var _rcPendingData = null;
+    var _rcRenderScheduled = false;
+    function _rcScheduleRender(payload) {
+        _rcPendingData = payload || {};
+        if (_rcRenderScheduled) return;
+        _rcRenderScheduled = true;
+        var doIt = function() {
+            _rcRenderScheduled = false;
+            data = _rcPendingData || {};
+            try { render(); } catch (er) {}
+            try {
+                if (!document.getElementById('deviceModal').classList.contains('hidden')) renderDeviceStatusPanel();
+            } catch (er2) {}
+        };
+        if (window.requestAnimationFrame) requestAnimationFrame(doIt);
+        else setTimeout(doIt, 16);
+    }
+
     ws.onmessage = function(e) {
-        var msg = JSON.parse(e.data);
+        var msg;
+        try { msg = JSON.parse(e.data); } catch (er) { return; }
         if (msg.type === 'STAGE_COMPLETE') {
-            // 赛次全部完赛，弹出晋级确认
             var g = msg.gender, ev = msg.eventName, from = msg.fromStage, next = msg.nextStage;
             var total = msg.totalSwimmers, promo = msg.promoCount;
             var answer = confirm(g + ' ' + ev + ' ' + from + ' 全部' + total + '人已完赛！\n\n'
@@ -490,12 +543,8 @@ function connect() {
                 + '（' + msg.promotedCount + '人，' + msg.heatCount + '组）');
             return;
         }
-        data = msg.data || {};
-        render();
-        // 如果设备管理弹窗打开，刷新面板
-        if (!document.getElementById('deviceModal').classList.contains('hidden')) {
-            renderDeviceStatusPanel();
-        }
+        // 其它（SHOW_LIVE_RACE 等高频广播）走帧合并
+        _rcScheduleRender(msg.data);
     };
     ws.onclose = function() {
         document.getElementById('wsConn').className = 'conn-dot off';
@@ -641,7 +690,8 @@ function render() {
     document.getElementById('controlMode').textContent = '控制模式: ' + (data.scoringControlMode || '-');
 
     // 当前比赛信息
-    var info = (data.currentGender||'') + '子 ' + (data.currentEvent||'') + ' ' + (data.currentStage||'') + ' 第' + (data.currentHeat||0) + '/' + (data.totalHeats||0) + '组';
+    var curAg = data.currentAgeGroup || '';
+    var info = (curAg ? ('[' + curAg + '] ') : '') + (data.currentGender||'') + '子 ' + (data.currentEvent||'') + ' ' + (data.currentStage||'') + ' 第' + (data.currentHeat||0) + '/' + (data.totalHeats||0) + '组';
     document.getElementById('currentInfo').textContent = info;
 
     // 先同步参数（发令位置等），再渲染界面
@@ -649,6 +699,7 @@ function render() {
         if (data.laneCloseSettings.startPosition) startPosition = data.laneCloseSettings.startPosition;
         if (data.laneCloseSettings.finishPosition) finishPosition = data.laneCloseSettings.finishPosition;
         if (data.laneCloseSettings.firstPlaceHoldTime) firstPlaceHoldTime = data.laneCloseSettings.firstPlaceHoldTime;
+        if (typeof data.laneCloseSettings.reactionTimeEnabled !== 'undefined') reactionTimeEnabled = !!data.laneCloseSettings.reactionTimeEnabled;
         var lbcNew = parseInt(data.laneCloseSettings.leftBlindWatchCount);
         var rbcNew = parseInt(data.laneCloseSettings.rightBlindWatchCount);
         if (lbcNew >= 1 && lbcNew <= 3 && lbcNew !== leftBlindWatchCount) {
@@ -668,7 +719,11 @@ function render() {
             document.getElementById('dlgFSThresh').value = data.laneCloseSettings.falseStartThreshold;
             document.getElementById('dlgSplitDisp').value = data.laneCloseSettings.splitDisplayTime;
             document.getElementById('dlgFirstPlaceHold').value = data.laneCloseSettings.firstPlaceHoldTime;
+            if (typeof data.laneCloseSettings.bigDisplayPageInterval !== 'undefined')
+                document.getElementById('dlgBigDisplayPageInterval').value = data.laneCloseSettings.bigDisplayPageInterval;
         }
+        // 把"主服务器同步过来"的参数也写到 localStorage，下次启动（即便服务器尚未连上）也能用最新值初始化
+        try { saveLaneCloseSettingsLocal(data.laneCloseSettings); } catch (er) {}
     }
 
     // 硬件连接状态指示灯
@@ -913,7 +968,13 @@ function openSettings() {
         document.getElementById('dlgConfDelay').value = data.laneCloseSettings.resultConfirmCloseDelay;
         document.getElementById('dlgFSThresh').value = data.laneCloseSettings.falseStartThreshold;
         document.getElementById('dlgSplitDisp').value = data.laneCloseSettings.splitDisplayTime;
+        if (typeof data.laneCloseSettings.bigDisplayPageInterval !== 'undefined')
+            document.getElementById('dlgBigDisplayPageInterval').value = data.laneCloseSettings.bigDisplayPageInterval;
+        if (typeof data.laneCloseSettings.reactionTimeEnabled !== 'undefined')
+            reactionTimeEnabled = !!data.laneCloseSettings.reactionTimeEnabled;
     }
+    document.getElementById('dlgRtOn').checked = reactionTimeEnabled;
+    document.getElementById('dlgRtOff').checked = !reactionTimeEnabled;
     document.getElementById('dlgFirstPlaceHold').value = firstPlaceHoldTime;
     document.getElementById('dlgServerHost').value = localStorage.getItem('swimServerHost') || getServerHost();
     document.getElementById('dlgStartLeft').checked = (finishPosition === 'left');
@@ -956,8 +1017,32 @@ function disconnectHw() {
     document.getElementById('dlgHwStatus').style.color = '#94A3B8';
 }
 
+// 当前组是否已"确认本组成绩"（从广播 data.schedule[].heatConfirmed 数组反查）
+function isCurrentHeatConfirmed() {
+    var sched = data.schedule || [];
+    var curAg = data.currentAgeGroup || '';
+    var curG = data.currentGender || '';
+    var curE = data.currentEvent || '';
+    var curS = data.currentStage || '';
+    var curH = parseInt(data.currentHeat || 0) || 0;
+    if (!curE || curH <= 0) return false;
+    for (var i = 0; i < sched.length; i++) {
+        var it = sched[i];
+        if ((it.ageGroup||'') !== curAg) continue;
+        if ((it.gender||'') !== curG) continue;
+        if ((it.eventName||'') !== curE) continue;
+        if ((it.stage||'') !== curS) continue;
+        var hc = it.heatConfirmed || [];
+        var idx = curH - 1;
+        if (idx < 0 || idx >= hc.length) return false;
+        return hc[idx] === true;
+    }
+    return false;
+}
+
 function confirmResult() {
-    var info = (data.currentGender||'') + '子 ' + (data.currentEvent||'') + ' ' + (data.currentStage||'') + ' 第' + (data.currentHeat||'') + '组';
+    var ag = data.currentAgeGroup || '';
+    var info = (ag ? ('[' + ag + '] ') : '') + (data.currentGender||'') + '子 ' + (data.currentEvent||'') + ' ' + (data.currentStage||'') + ' 第' + (data.currentHeat||'') + '组';
     if (confirm('确认本组成绩？\n\n' + info + '\n\n确认后成绩将锁定保存。')) {
         sendCmd('CONFIRM_RESULT');
         addLog('已确认本组成绩');
@@ -965,18 +1050,36 @@ function confirmResult() {
 }
 
 function confirmTimerReset() {
-    if (confirm('确定计时器复位？\n\n本组成绩数据将被清除，\n但 DSQ/DNS/DNF 等特殊状态会保留。')) {
+    // 与主控端两种语义一致：
+    //   A) 本组已确认 → 全部清零复位，自动进入下一组（已确认成绩永久保留）
+    //   B) 本组未确认 → 清当前组时间数据；备注（DSQ/DNS/DNF）保留（用于抢跳召回重新发令）
+    var confirmed = isCurrentHeatConfirmed();
+    var prompt = confirmed
+        ? '本组成绩已确认并锁定。\n\n点击"计时器清零"将全部清零复位，自动进入下一组比赛准备状态。\n（已确认的成绩在"成绩与排名"里继续保留）'
+        : '确定计时器复位？\n\n本组的时间/分段数据将被清除（用于抢跳召回等重新发令），\n但 DSQ/DNS/DNF 等备注状态会保留。';
+    if (confirm(prompt)) {
         sendCmd('TIMER_RESET');
-        addLog('计时复位');
+        addLog(confirmed ? '计时复位（保留已确认成绩，自动切下一组）' : '计时复位（重新发令）');
     }
+}
+
+// 已确认成绩的组：禁止再次开始比赛（与主控端规则一致）
+function readyClick() {
+    if (isCurrentHeatConfirmed()) {
+        alert('当前组已确认成绩并锁定，不能重新开始比赛。\n请在赛程导航中切换到下一组。');
+        addLog('当前组已确认成绩，不能再次开始');
+        return;
+    }
+    sendCmd('READY');
 }
 
 function applySettings() {
     finishPosition = document.getElementById('dlgStartRight').checked ? 'right' : 'left';
     firstPlaceHoldTime = parseFloat(document.getElementById('dlgFirstPlaceHold').value) || 3;
-    // 保存本地参数到localStorage
-    localStorage.setItem('swimFinishPosition', finishPosition);
-    localStorage.setItem('swimFirstPlaceHold', firstPlaceHoldTime.toString());
+    var bigDisplayPageInterval = parseFloat(document.getElementById('dlgBigDisplayPageInterval').value) || 5;
+    if (bigDisplayPageInterval < 1) bigDisplayPageInterval = 1;
+    if (bigDisplayPageInterval > 60) bigDisplayPageInterval = 60;
+    reactionTimeEnabled = document.getElementById('dlgRtOn').checked;
     var settings = {
         laneCloseTime: parseFloat(document.getElementById('dlgCloseTime').value) || 20,
         startBlockCloseDelay: parseFloat(document.getElementById('dlgSBDelay').value) || 3,
@@ -984,12 +1087,17 @@ function applySettings() {
         falseStartThreshold: parseFloat(document.getElementById('dlgFSThresh').value) || 0.10,
         splitDisplayTime: parseFloat(document.getElementById('dlgSplitDisp').value) || 5,
         startPosition: finishPosition,  // 发送终点位置，服务器根据项目自动计算发令位置
+        finishPosition: finishPosition,
         firstPlaceHoldTime: firstPlaceHoldTime,
         leftBlindWatchCount: leftBlindWatchCount,
-        rightBlindWatchCount: rightBlindWatchCount
+        rightBlindWatchCount: rightBlindWatchCount,
+        bigDisplayPageInterval: bigDisplayPageInterval,
+        reactionTimeEnabled: reactionTimeEnabled
     };
+    // 本地落盘 + 推到服务器（服务器再广播给主控/EXE 远程台）
+    saveLaneCloseSettingsLocal(settings);
     sendCmd('SET_LANE_CLOSE_SETTINGS', settings);
-    addLog('参数已更新，第1名停留: ' + firstPlaceHoldTime + 's，终点位置: ' + (finishPosition === 'left' ? '左端' : '右端'));
+    addLog('参数已更新（本地保存 + 同步主服务器），第1名停留: ' + firstPlaceHoldTime + 's，终点位置: ' + (finishPosition === 'left' ? '左端' : '右端') + '，大屏翻屏: ' + bigDisplayPageInterval + 's，反应时: ' + (reactionTimeEnabled ? '打开' : '关闭'));
     closeSettings();
 }
 
@@ -1027,7 +1135,9 @@ function applyBlindWatchCount() {
             startPosition: finishPosition,
             firstPlaceHoldTime: firstPlaceHoldTime,
             leftBlindWatchCount: newLeft,
-            rightBlindWatchCount: newRight
+            rightBlindWatchCount: newRight,
+            bigDisplayPageInterval: data && data.laneCloseSettings && data.laneCloseSettings.bigDisplayPageInterval ? data.laneCloseSettings.bigDisplayPageInterval : 5,
+            reactionTimeEnabled: reactionTimeEnabled
         };
         sendCmd('SET_LANE_CLOSE_SETTINGS', settings);
         addLog('盲表数量更新：左 ' + newLeft + '，右 ' + newRight + '（已通过服务器同步到三端与硬件）');
@@ -1073,7 +1183,8 @@ function renderScheduleTree() {
         if (!collapsed) {
             for (var j = 0; j < sess.events.length; j++) {
                 var ev = sess.events[j];
-                var evLabel = (ev.gender||'') + ' ' + (ev.eventName||'') + ' ' + (ev.stage||'');
+                var ag = ev.ageGroup || '';
+                var evLabel = (ag ? ('[' + ag + '] ') : '') + (ev.gender||'') + ' ' + (ev.eventName||'') + ' ' + (ev.stage||'');
                 var allDone = ev.allConfirmed === true;
                 var heatDone = ev.heatConfirmed || [];
 
@@ -1094,9 +1205,10 @@ function renderScheduleTree() {
                     var hc = ev.heatCount || 1;
                     for (var h = 1; h <= hc; h++) {
                         var confirmed = heatDone[h-1] === true;
-                        var key = (ev.gender||'') + '|' + (ev.eventName||'') + '|' + (ev.stage||'') + '|' + h;
+                        // key 含组别在最前，避免不同组别同性别同项目同赛次同组次的冲突
+                        var key = ag + '|' + (ev.gender||'') + '|' + (ev.eventName||'') + '|' + (ev.stage||'') + '|' + h;
                         var active = (key === selectedHeatKey) ? ' active' : '';
-                        if (!selectedHeatKey && data.currentGender === ev.gender && data.currentEvent === ev.eventName && data.currentStage === ev.stage && data.currentHeat === h) {
+                        if (!selectedHeatKey && (data.currentAgeGroup||'') === ag && data.currentGender === ev.gender && data.currentEvent === ev.eventName && data.currentStage === ev.stage && data.currentHeat === h) {
                             active = ' active';
                         }
                         if (confirmed) {
@@ -1125,10 +1237,27 @@ function isRacing() {
     return st === 'READY' || st === 'RACING';
 }
 
+// 当前组已比完但成绩还未确认：也禁止切组（裁判可能要修改/取消成绩）
+function isFinishedUnconfirmed() {
+    var st = (data.raceState || '').toUpperCase();
+    if (st !== 'FINISHED') return false;
+    if (data.resultConfirmed === true) return false;
+    var sws = data.swimmers || [];
+    for (var i = 0; i < sws.length; i++) {
+        if (sws[i].isFinished || (sws[i].finalTime && sws[i].finalTime !== '')) return true;
+    }
+    return false;
+}
+
 function blockIfRacing(action) {
     if (isRacing()) {
         alert('比赛进行中不能重新选择比赛项目。\n\n如需切换，请先点击"计时复位"结束当前比赛。');
         addLog('比赛进行中不能' + action);
+        return true;
+    }
+    if (isFinishedUnconfirmed()) {
+        alert('当前组尚未确认成绩，不能' + action + '。\n请先点击"确认成绩"或"计时复位"。');
+        addLog('当前组未确认成绩，不能' + action);
         return true;
     }
     return false;
@@ -1139,15 +1268,16 @@ function selectHeat(key) {
     if (blockIfRacing('切换项目')) return;
 
     selectedHeatKey = key;
+    // key 格式: 组别|性别|项目|赛次|组次（5 段）
     var parts = key.split('|');
-    if (parts.length >= 4) {
-        var gender = parts[0], eventName = parts[1], stage = parts[2], heat = parseInt(parts[3]);
-        sendCmd('SET_GENDER', gender);
-        sendCmd('SET_EVENT', eventName);
-        sendCmd('SET_STAGE', stage);
-        sendCmd('SET_HEAT', heat);
-        addLog('选择: ' + gender + ' ' + eventName + ' ' + stage + ' 第' + heat + '组');
-    }
+    if (parts.length < 5) return;
+    var ageGroup = parts[0], gender = parts[1], eventName = parts[2], stage = parts[3], heat = parseInt(parts[4]);
+    sendCmd('SET_AGEGROUP', ageGroup);
+    sendCmd('SET_GENDER', gender);
+    sendCmd('SET_EVENT', eventName);
+    sendCmd('SET_STAGE', stage);
+    sendCmd('SET_HEAT', heat);
+    addLog('选择: ' + (ageGroup ? ('['+ageGroup+'] ') : '') + gender + ' ' + eventName + ' ' + stage + ' 第' + heat + '组');
     renderScheduleTree();
 }
 
@@ -1202,6 +1332,7 @@ function renderHeader() {
 
 // ═══════ 泳道渲染 ═══════
 function getReactionDisplay(sw) {
+    if (!reactionTimeEnabled) return '';
     var rt = sw.reactionTime || '';
     if (!rt) return '';
     var lane = sw.lane;
@@ -1507,9 +1638,11 @@ function refreshLaneRows(swimmers, rcRelay) {
         rowUI.trackEl.className = 'lane-track lr-track ' + dir;
         rowUI.trackEl.innerHTML = buildArrows(sw, swDir, dir);
 
-        // 反应时（消隐）
+        // 反应时（消隐）；起跳可疑/已判罚 → 标红提醒裁判
         var newReaction = getReactionDisplay(sw);
         if (rowUI.reactionEl.textContent !== newReaction) rowUI.reactionEl.textContent = newReaction;
+        var rtRed = reactionTimeEnabled && (sw.isSuspectFalseStart || sw.isFalseStart);
+        rowUI.reactionEl.style.color = rtRed ? '#EF4444' : '';
 
         // 成绩/分段
         var newFinal = getSplitOrFinalTime(sw);
@@ -1528,9 +1661,14 @@ function refreshLaneRows(swimmers, rcRelay) {
         var newRank = displayRank > 0 ? String(displayRank) : '';
         if (rowUI.rankEl.textContent !== newRank) rowUI.rankEl.textContent = newRank;
 
-        // 备注
-        var newRemark = sw.isFalseStart ? 'DSQ' : (sw.status || '');
+        // 备注：DSQ/DNS/DNF 优先；否则显示破/平纪录标识（WR / =AR / WR/NR）
+        var isStatusDQ = (sw.status === 'DSQ' || sw.status === 'DNS' || sw.status === 'DNF');
+        var rec = sw.recordNote || '';
+        var newRemark = isStatusDQ ? sw.status : (rec || '');
         if (rowUI.remarkEl.textContent !== newRemark) rowUI.remarkEl.textContent = newRemark;
+        // 破纪录金色高亮，DSQ/DNS/DNF 红色
+        var newRemarkColor = (!isStatusDQ && rec) ? '#F59E0B' : '';
+        if (rowUI.remarkEl.style.color !== newRemarkColor) rowUI.remarkEl.style.color = newRemarkColor;
     }
 }
 
@@ -1650,8 +1788,12 @@ function showTimingSourceData() {
         if (selIdx <= 0) {
             // 终点：反应时间、触板、盲表1/2/3、手动
             html += '<b>【终点】</b><br>';
-            var rt = sw.reactionTime || '';
-            html += '反应时间: ' + (rt || '-') + '<br>';
+            if (reactionTimeEnabled) {
+                var rt = sw.reactionTime || '';
+                html += '反应时间: ' + (rt || '-') + '<br>';
+            } else {
+                html += '反应时间: 已关闭<br>';
+            }
             var ts = sw.timingSources;
             if (ts) {
                 html += '触&nbsp;&nbsp;板: ' + (ts.touchpad || '-') + '<br>';
@@ -1666,8 +1808,10 @@ function showTimingSourceData() {
             // 分段：反应时间(若有)、触板、盲表1/2/3、手动、计时源
             var sp = splits[selIdx - 1];
             html += '<b>【第' + sp.lap + '段  ' + sp.distance + 'm】</b><br>';
-            var spReact = sw.reactionTime || '';
-            if (spReact) html += '反应时间: ' + spReact + '<br>';
+            if (reactionTimeEnabled) {
+                var spReact = sw.reactionTime || '';
+                if (spReact) html += '反应时间: ' + spReact + '<br>';
+            }
             html += '触&nbsp;&nbsp;板: ' + (sp.touchpad || '-') + '<br>';
             html += '盲表 1: ' + (sp.blind1 || '-') + '<br>';
             html += '盲表 2: ' + (sp.blind2 || '-') + '<br>';
@@ -1742,7 +1886,7 @@ function addLog(msg) {
 document.addEventListener('keydown', function(e) {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
     switch(e.key) {
-        case 'F5': e.preventDefault(); sendCmd('READY'); break;
+        case 'F5': e.preventDefault(); readyClick(); break;
         case 'F6': e.preventDefault(); sendCmd('START_RACE'); break;
         case 'F7': e.preventDefault(); confirmTimerReset(); break;
         case 'Enter': confirmResult(); break;
@@ -1768,6 +1912,29 @@ document.addEventListener('keydown', function(e) {
     if (e.key === 'f') { if (selectedLane >= 0) sendCmd('MARK_DNF', {lane: selectedLane}); }
     if (e.key === 'q' || e.key === 'Q') { if (selectedLane >= 0) sendCmd('MARK_DSQ', {lane: selectedLane}); }
 });
+
+// 启动时把上次保存的"参数设置"先填入设置对话框输入框，作为本地初始化值；
+// 连上服务器后将被服务器广播过来的最新值覆盖（同时也会被再次写回 localStorage）。
+(function bootstrapLaneCloseSettings() {
+    function getNum(key, def) { var v = parseFloat(localStorage.getItem(key)); return isNaN(v) ? def : v; }
+    var dlgIds = {
+        dlgCloseTime: getNum('swimLaneCloseTime', 20),
+        dlgSBDelay: getNum('swimStartBlockCloseDelay', 3),
+        dlgConfDelay: getNum('swimResultConfirmCloseDelay', 3),
+        dlgFSThresh: getNum('swimFalseStartThreshold', 0.10),
+        dlgSplitDisp: getNum('swimSplitDisplayTime', 5),
+        dlgFirstPlaceHold: firstPlaceHoldTime,
+        dlgBigDisplayPageInterval: getNum('swimBigDisplayPageInterval', 5)
+    };
+    for (var id in dlgIds) {
+        var el = document.getElementById(id);
+        if (el) el.value = dlgIds[id];
+    }
+    // 反应时(RT)开关单选
+    var rtOn = document.getElementById('dlgRtOn'), rtOff = document.getElementById('dlgRtOff');
+    if (rtOn) rtOn.checked = reactionTimeEnabled;
+    if (rtOff) rtOff.checked = !reactionTimeEnabled;
+})();
 
 connect();
 </script>

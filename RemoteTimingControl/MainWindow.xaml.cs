@@ -44,6 +44,8 @@ namespace RemoteTimingControl
         private double _splitDisplayTime = 5;
         private int _leftBlindWatchCount = 3;
         private int _rightBlindWatchCount = 3;
+        private double _bigDisplayPageInterval = 5;
+        private bool _reactionTimeEnabled = true; // 反应时(RT)开关：关闭时所有出发反应时相关处理跳过
 
         // Local timer for smooth running time
         private DateTime _localTimerStart = DateTime.MinValue;
@@ -84,6 +86,9 @@ namespace RemoteTimingControl
                 DoConnect();
                 if (_hwMode != "none") ConnectHardware(_hwMode, _hwSerialPort, _hwUdpHost, _hwUdpSendPort, _hwUdpRecvPort);
             };
+
+            // 退出时把当前参数设置再落盘一次，确保下次启动可正确初始化
+            Closing += delegate { try { SaveSettings(); } catch { } };
         }
 
         // ═══════ 暗色 ComboBox 模板（WPF 4.0 Aero 主题的 ComboBox 闭合态由主题 ButtonChrome 控制，
@@ -161,6 +166,10 @@ namespace RemoteTimingControl
             return System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "RemoteTimingHw.json");
         }
 
+        private string GetLaneCloseSettingsPath() {
+            return System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "remote_lane_close_settings.json");
+        }
+
         private void LoadSettings()
         {
             try
@@ -189,6 +198,31 @@ namespace RemoteTimingControl
                 }
             }
             catch { }
+            // 计时"参数设置"本地缓存：启动时先用上次的值初始化（连上服务器后会被服务器值覆盖）
+            try
+            {
+                string lcsPath = GetLaneCloseSettingsPath();
+                if (System.IO.File.Exists(lcsPath)) {
+                    var j = JObject.Parse(System.IO.File.ReadAllText(lcsPath, Encoding.UTF8));
+                    if (j["laneCloseTime"] != null) _laneCloseTime = (double)j["laneCloseTime"];
+                    if (j["startBlockCloseDelay"] != null) _startBlockCloseDelay = (double)j["startBlockCloseDelay"];
+                    if (j["resultConfirmCloseDelay"] != null) _resultConfirmCloseDelay = (double)j["resultConfirmCloseDelay"];
+                    if (j["falseStartThreshold"] != null) _falseStartThreshold = (double)j["falseStartThreshold"];
+                    if (j["splitDisplayTime"] != null) _splitDisplayTime = (double)j["splitDisplayTime"];
+                    if (j["firstPlaceHoldTime"] != null) _firstPlaceHoldTime = (double)j["firstPlaceHoldTime"];
+                    if (j["startPosition"] != null) _startPosition = j["startPosition"].ToString();
+                    if (j["finishPosition"] != null) _finishPosition = j["finishPosition"].ToString();
+                    if (j["leftBlindWatchCount"] != null) {
+                        int v = (int)j["leftBlindWatchCount"]; if (v >= 1 && v <= 3) _leftBlindWatchCount = v;
+                    }
+                    if (j["rightBlindWatchCount"] != null) {
+                        int v = (int)j["rightBlindWatchCount"]; if (v >= 1 && v <= 3) _rightBlindWatchCount = v;
+                    }
+                    if (j["bigDisplayPageInterval"] != null) _bigDisplayPageInterval = (double)j["bigDisplayPageInterval"];
+                    if (j["reactionTimeEnabled"] != null) _reactionTimeEnabled = (bool)j["reactionTimeEnabled"];
+                }
+            }
+            catch { }
         }
 
         private void SaveSettings()
@@ -207,6 +241,24 @@ namespace RemoteTimingControl
                 hw["udpSendPort"] = _hwUdpSendPort;
                 hw["udpRecvPort"] = _hwUdpRecvPort;
                 System.IO.File.WriteAllText(GetHwSettingsPath(), hw.ToString(), Encoding.UTF8);
+            }
+            catch { }
+            try
+            {
+                var lcs = new JObject();
+                lcs["laneCloseTime"] = _laneCloseTime;
+                lcs["startBlockCloseDelay"] = _startBlockCloseDelay;
+                lcs["resultConfirmCloseDelay"] = _resultConfirmCloseDelay;
+                lcs["falseStartThreshold"] = _falseStartThreshold;
+                lcs["splitDisplayTime"] = _splitDisplayTime;
+                lcs["firstPlaceHoldTime"] = _firstPlaceHoldTime;
+                lcs["startPosition"] = _startPosition;
+                lcs["finishPosition"] = _finishPosition;
+                lcs["leftBlindWatchCount"] = _leftBlindWatchCount;
+                lcs["rightBlindWatchCount"] = _rightBlindWatchCount;
+                lcs["bigDisplayPageInterval"] = _bigDisplayPageInterval;
+                lcs["reactionTimeEnabled"] = _reactionTimeEnabled;
+                System.IO.File.WriteAllText(GetLaneCloseSettingsPath(), lcs.ToString(), Encoding.UTF8);
             }
             catch { }
         }
@@ -617,6 +669,11 @@ namespace RemoteTimingControl
                     int v = (int)lcs["rightBlindWatchCount"];
                     if (v >= 1 && v <= 3) _rightBlindWatchCount = v;
                 }
+                if (lcs["bigDisplayPageInterval"] != null) _bigDisplayPageInterval = (double)lcs["bigDisplayPageInterval"];
+                if (lcs["reactionTimeEnabled"] != null) _reactionTimeEnabled = (bool)lcs["reactionTimeEnabled"];
+                // 把"主服务器同步过来"的参数也写到本地持久化文件，
+                // 这样下次启动（即便服务器尚未连上）也能用最新值初始化
+                try { SaveSettings(); } catch { }
             }
 
             // Control mode
@@ -630,17 +687,62 @@ namespace RemoteTimingControl
                 foreach (JObject sw in swimmers)
                 {
                     if (sw["isFalseStart"] != null && (bool)sw["isFalseStart"])
-                    {
                         fsText += string.Format("道{0} FS! ", sw["lane"]);
-                    }
+                    else if (sw["isSuspectFalseStart"] != null && (bool)sw["isSuspectFalseStart"])
+                        fsText += string.Format("道{0} 可疑 ", sw["lane"]);
                 }
             }
             FalseStartInfo.Text = fsText;
 
             // Current race info
-            string curInfo = string.Format("{0}子 {1} {2} 第{3}/{4}组",
-                _data["currentGender"] ?? "", _data["currentEvent"] ?? "",
-                _data["currentStage"] ?? "", _data["currentHeat"] ?? "0", _data["totalHeats"] ?? "0");
+            // 特例：服务器在最后一组确认+计时器清零后会把 currentHeat 设为 0
+            //       并把本赛次所有组的 heatConfirmed 都置为 true。此时 EXE 也展示
+            //       "[组别] 性别 项目 阶段 第N组已完赛 / 共M组"，与主控顶部一致。
+            string curAgInfo = _data["currentAgeGroup"] != null ? _data["currentAgeGroup"].ToString() : "";
+            string curGenderS = _data["currentGender"] != null ? _data["currentGender"].ToString() : "";
+            string curEventS = _data["currentEvent"] != null ? _data["currentEvent"].ToString() : "";
+            string curStageS = _data["currentStage"] != null ? _data["currentStage"].ToString() : "";
+            int curHeatN = _data["currentHeat"] != null ? (int)_data["currentHeat"] : 0;
+            int totalHeatN = _data["totalHeats"] != null ? (int)_data["totalHeats"] : 0;
+
+            bool stageDone = false;
+            int doneHeatNum = 0, doneHeatCount = 0;
+            if (curHeatN == 0 && !string.IsNullOrEmpty(curEventS)) {
+                var sched = _data["schedule"] as JArray;
+                if (sched != null) {
+                    foreach (JObject it in sched) {
+                        string ag = it["ageGroup"] != null ? it["ageGroup"].ToString() : "";
+                        string g = it["gender"] != null ? it["gender"].ToString() : "";
+                        string ev = it["eventName"] != null ? it["eventName"].ToString() : "";
+                        string st = it["stage"] != null ? it["stage"].ToString() : "";
+                        if (ag != curAgInfo || g != curGenderS || ev != curEventS || st != curStageS) continue;
+                        var hc = it["heatConfirmed"] as JArray;
+                        int hCount = it["heatCount"] != null ? (int)it["heatCount"] : 0;
+                        if (hc == null || hc.Count == 0 || hCount == 0) break;
+                        bool allDone = true;
+                        for (int i = 0; i < hc.Count; i++) {
+                            if (hc[i] == null || !(bool)hc[i]) { allDone = false; break; }
+                        }
+                        if (allDone) {
+                            stageDone = true;
+                            doneHeatNum = hCount;
+                            doneHeatCount = hCount;
+                        }
+                        break;
+                    }
+                }
+            }
+
+            string curInfo;
+            if (stageDone) {
+                curInfo = string.Format("{0}{1}子 {2} {3} 第{4}组已完赛 / 共{5}组",
+                    string.IsNullOrEmpty(curAgInfo) ? "" : ("[" + curAgInfo + "] "),
+                    curGenderS, curEventS, curStageS, doneHeatNum, doneHeatCount);
+            } else {
+                curInfo = string.Format("{0}{1}子 {2} {3} 第{4}/{5}组",
+                    string.IsNullOrEmpty(curAgInfo) ? "" : ("[" + curAgInfo + "] "),
+                    curGenderS, curEventS, curStageS, curHeatN, totalHeatN);
+            }
             CurrentInfoText.Text = curInfo;
 
             // Schedule tree
@@ -820,12 +922,13 @@ namespace RemoteTimingControl
             var schedule = _data["schedule"] as JArray;
             if (schedule == null) return;
 
+            string curAgeGroup = _data["currentAgeGroup"] != null ? _data["currentAgeGroup"].ToString() : "";
             string curGender = _data["currentGender"] != null ? _data["currentGender"].ToString() : "";
             string curEvent = _data["currentEvent"] != null ? _data["currentEvent"].ToString() : "";
             string curStage = _data["currentStage"] != null ? _data["currentStage"].ToString() : "";
             int curHeat = _data["currentHeat"] != null ? (int)_data["currentHeat"] : 0;
 
-            string hash = schedule.Count + "|" + curGender + "|" + curEvent + "|" + curStage + "|" + curHeat + "|" + _selectedHeatKey;
+            string hash = schedule.Count + "|" + curAgeGroup + "|" + curGender + "|" + curEvent + "|" + curStage + "|" + curHeat + "|" + _selectedHeatKey;
             if (hash == _lastScheduleHash) return;
             _lastScheduleHash = hash;
 
@@ -885,6 +988,7 @@ namespace RemoteTimingControl
                     int evIdx = 0;
                     foreach (JObject ev in kv.Value)
                     {
+                        string ageGroup = ev["ageGroup"] != null ? ev["ageGroup"].ToString() : "";
                         string gender = ev["gender"] != null ? ev["gender"].ToString() : "";
                         string eventName = ev["eventName"] != null ? ev["eventName"].ToString() : "";
                         string stage = ev["stage"] != null ? ev["stage"].ToString() : "";
@@ -893,7 +997,8 @@ namespace RemoteTimingControl
                         bool allDone = ev["allConfirmed"] != null && (bool)ev["allConfirmed"];
                         var heatConfirmed = ev["heatConfirmed"] as JArray;
 
-                        string evHeader = string.Format("{0} {1} {2}", gender, eventName, stage);
+                        string evHeader = (string.IsNullOrEmpty(ageGroup) ? "" : ("[" + ageGroup + "] "))
+                                        + string.Format("{0} {1} {2}", gender, eventName, stage);
                         if (allDone) evHeader += " [已完赛]";
 
                         // Auto-collapse completed events
@@ -923,7 +1028,8 @@ namespace RemoteTimingControl
                                 if (heatConfirmed != null && h - 1 < heatConfirmed.Count)
                                     confirmed = heatConfirmed[h - 1] != null && (bool)heatConfirmed[h - 1];
 
-                                string tag = string.Format("{0}|{1}|{2}|{3}", gender, eventName, stage, h);
+                                // tag 格式: 组别|性别|项目|赛次|组次（5 段）
+                                string tag = string.Format("{0}|{1}|{2}|{3}|{4}", ageGroup, gender, eventName, stage, h);
                                 string heatHeader;
                                 if (confirmed)
                                 {
@@ -954,7 +1060,7 @@ namespace RemoteTimingControl
                                     if (!string.IsNullOrEmpty(_selectedHeatKey) && tag == _selectedHeatKey)
                                         isActive = true;
                                     else if (string.IsNullOrEmpty(_selectedHeatKey) &&
-                                        gender == curGender && eventName == curEvent && stage == curStage && h == curHeat)
+                                        ageGroup == curAgeGroup && gender == curGender && eventName == curEvent && stage == curStage && h == curHeat)
                                         isActive = true;
 
                                     if (isActive)
@@ -986,6 +1092,25 @@ namespace RemoteTimingControl
             return st == "READY" || st == "RACING";
         }
 
+        // 当前组已比完但成绩还未确认：也禁止切组
+        private bool IsFinishedUnconfirmed()
+        {
+            if (_data == null) return false;
+            string st = _data["raceState"] != null ? _data["raceState"].ToString().ToUpper() : "";
+            if (st != "FINISHED") return false;
+            bool resCnf = _data["resultConfirmed"] != null && (bool)_data["resultConfirmed"];
+            if (resCnf) return false;
+            var sws = _data["swimmers"] as JArray;
+            if (sws == null) return false;
+            foreach (JObject sw in sws)
+            {
+                bool fin = sw["isFinished"] != null && (bool)sw["isFinished"];
+                string ft = sw["finalTime"] != null ? sw["finalTime"].ToString() : "";
+                if (fin || !string.IsNullOrEmpty(ft)) return true;
+            }
+            return false;
+        }
+
         private bool BlockIfRacing(string action)
         {
             if (IsRacing())
@@ -996,6 +1121,14 @@ namespace RemoteTimingControl
                 AddLog("比赛进行中不能" + action);
                 return true;
             }
+            if (IsFinishedUnconfirmed())
+            {
+                MessageBox.Show(
+                    "当前组尚未确认成绩，不能" + action + "。\n请先点击 \"确认成绩\" 或 \"计时复位\"。",
+                    "操作被阻止", MessageBoxButton.OK, MessageBoxImage.Warning);
+                AddLog("当前组未确认成绩，不能" + action);
+                return true;
+            }
             return false;
         }
 
@@ -1003,28 +1136,29 @@ namespace RemoteTimingControl
         {
             var item = ScheduleTree.SelectedItem as TreeViewItem;
             if (item == null || item.Tag == null) return;
-            string tag = item.Tag.ToString();
-            string[] parts = tag.Split('|');
-            if (parts.Length >= 4)
-            {
-                // 比赛进行中拦截
-                if (BlockIfRacing("切换项目")) return;
+            // tag 格式: 组别|性别|项目|赛次|组次（5 段）
+            string[] parts = item.Tag.ToString().Split('|');
+            if (parts.Length < 5) return;
+            string ageGroup = parts[0];
+            string gender = parts[1];
+            string eventName = parts[2];
+            string stage = parts[3];
+            int heat;
+            if (!int.TryParse(parts[4], out heat)) return;
 
-                string gender = parts[0];
-                string eventName = parts[1];
-                string stage = parts[2];
-                int heat;
-                if (int.TryParse(parts[3], out heat))
-                {
-                    _selectedHeatKey = tag;
-                    SendCmd("SET_GENDER", gender);
-                    SendCmd("SET_EVENT", eventName);
-                    SendCmd("SET_STAGE", stage);
-                    SendCmd("SET_HEAT", heat);
-                    AddLog(string.Format("选择: {0} {1} {2} 第{3}组", gender, eventName, stage, heat));
-                    _lastScheduleHash = ""; // Force refresh
-                }
-            }
+            // 比赛进行中拦截
+            if (BlockIfRacing("切换项目")) return;
+
+            _selectedHeatKey = item.Tag.ToString();
+            SendCmd("SET_AGEGROUP", ageGroup);
+            SendCmd("SET_GENDER", gender);
+            SendCmd("SET_EVENT", eventName);
+            SendCmd("SET_STAGE", stage);
+            SendCmd("SET_HEAT", heat);
+            AddLog(string.Format("选择: {0}{1} {2} {3} 第{4}组",
+                string.IsNullOrEmpty(ageGroup) ? "" : ("[" + ageGroup + "] "),
+                gender, eventName, stage, heat));
+            _lastScheduleHash = ""; // Force refresh
         }
 
         // ═══════ Lane Rendering (增量更新) ═══════
@@ -1272,11 +1406,12 @@ namespace RemoteTimingControl
                 var ds = sw["deviceStatus"] as JObject;
                 var mb = sw["manualButton"] as JObject;
                 bool isFalseStart = sw["isFalseStart"] != null && (bool)sw["isFalseStart"];
+                bool isSuspectFalseStart = sw["isSuspectFalseStart"] != null && (bool)sw["isSuspectFalseStart"];
                 bool isFinished = sw["isFinished"] != null && (bool)sw["isFinished"];
                 string status = sw["status"] != null ? sw["status"].ToString() : "";
 
-                // 行边框 + 空泳道/未参赛泳道淡化
-                if (isFalseStart) { rowUI.Row.BorderBrush = _brushAmber; rowUI.Row.BorderThickness = new Thickness(1); }
+                // 行边框 + 空泳道/未参赛泳道淡化（已判罚抢跳=琥珀，可疑抢跳=琥珀，选中=蓝）
+                if (isFalseStart || isSuspectFalseStart) { rowUI.Row.BorderBrush = _brushAmber; rowUI.Row.BorderThickness = new Thickness(1); }
                 else if (lane == _selectedLane) { rowUI.Row.BorderBrush = _brushBlue; rowUI.Row.BorderThickness = new Thickness(1); }
                 else { rowUI.Row.BorderThickness = new Thickness(0); }
                 if (status == "EMPTY") rowUI.Row.Opacity = 0.35;
@@ -1377,9 +1512,10 @@ namespace RemoteTimingControl
                 else rowUI.TrackText.Foreground = _brushBlue;
 
                 // 反应时：首次显示后 splitDisplayTime 秒后消隐，已完赛则一直显示
-                string rtVal = sw["reactionTime"] != null ? sw["reactionTime"].ToString() : "";
+                // 关闭RT时直接隐藏（服务器端已停止发送有效值，但本地也兜底）
+                string rtVal = (_reactionTimeEnabled && sw["reactionTime"] != null) ? sw["reactionTime"].ToString() : "";
                 string rtDisplay = "";
-                if (!string.IsNullOrEmpty(rtVal))
+                if (_reactionTimeEnabled && !string.IsNullOrEmpty(rtVal))
                 {
                     if (!_laneSplitState.ContainsKey(lane)) _laneSplitState[lane] = new SplitState();
                     var ss = _laneSplitState[lane];
@@ -1392,6 +1528,13 @@ namespace RemoteTimingControl
                     }
                 }
                 rowUI.ReactionText.Text = rtDisplay;
+                // 起跳可疑/已判罚：反应时标红，提醒裁判判罚
+                bool rtSuspect = _reactionTimeEnabled && (
+                    (sw["isSuspectFalseStart"] != null && (bool)sw["isSuspectFalseStart"]) ||
+                    (sw["isFalseStart"] != null && (bool)sw["isFalseStart"]));
+                rowUI.ReactionText.Foreground = rtSuspect
+                    ? new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EF4444"))
+                    : Brushes.White;
 
                 // 成绩/分段
                 string timeDisplay = GetSplitOrFinalTime(sw);
@@ -1409,11 +1552,15 @@ namespace RemoteTimingControl
                 else if (rank == 3) rowUI.RankText.Foreground = _brushBronze;
                 else rowUI.RankText.Foreground = Brushes.White;
 
-                // 备注
-                string remarkText = "";
-                if (isFalseStart) remarkText = "DSQ";
-                else if (!string.IsNullOrEmpty(status)) remarkText = status;
-                rowUI.RemarkText.Text = remarkText;
+                // 备注：DSQ/DNS/DNF 优先显示；否则显示破/平纪录标识（如 WR / =AR / WR/NR）
+                string recordNote = sw["recordNote"] != null ? sw["recordNote"].ToString() : "";
+                bool isStatusDQ = (status == "DSQ" || status == "DNS" || status == "DNF");
+                string remark = isStatusDQ ? status : (string.IsNullOrEmpty(recordNote) ? "" : recordNote);
+                rowUI.RemarkText.Text = remark;
+                // 破纪录用金色，DSQ/DNS/DNF 用红色
+                rowUI.RemarkText.Foreground = (!isStatusDQ && !string.IsNullOrEmpty(recordNote))
+                    ? new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F59E0B"))
+                    : new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EF4444"));
             }
         }
 
@@ -1660,8 +1807,12 @@ namespace RemoteTimingControl
                 {
                     // 终点：反应时间、触板、盲表1/2/3、手动
                     sb.Append("【终点】\n");
-                    string rt = sw["reactionTime"] != null ? sw["reactionTime"].ToString() : "";
-                    sb.AppendFormat("反应时间: {0}\n", rt != "" ? rt : "-");
+                    if (_reactionTimeEnabled) {
+                        string rt = sw["reactionTime"] != null ? sw["reactionTime"].ToString() : "";
+                        sb.AppendFormat("反应时间: {0}\n", rt != "" ? rt : "-");
+                    } else {
+                        sb.Append("反应时间: 已关闭\n");
+                    }
                     var ts = sw["timingSources"] as JObject;
                     if (ts != null)
                     {
@@ -1688,9 +1839,11 @@ namespace RemoteTimingControl
                     // 分段：反应时间(若有)、触板、盲表1/2/3、手动、计时源
                     JObject sp = (JObject)splits[selIdx - 1];
                     sb.AppendFormat("【第{0}段  {1}m】\n", sp["lap"], sp["distance"]);
-                    // 接力交接棒有反应时间
-                    string spReact = sw["reactionTime"] != null ? sw["reactionTime"].ToString() : "";
-                    if (spReact != "") sb.AppendFormat("反应时间: {0}\n", spReact);
+                    // 接力交接棒有反应时间（关闭RT时隐藏）
+                    if (_reactionTimeEnabled) {
+                        string spReact = sw["reactionTime"] != null ? sw["reactionTime"].ToString() : "";
+                        if (spReact != "") sb.AppendFormat("反应时间: {0}\n", spReact);
+                    }
                     string spTp = sp["touchpad"] != null ? sp["touchpad"].ToString() : "";
                     string spB1 = sp["blind1"] != null ? sp["blind1"].ToString() : "";
                     string spB2 = sp["blind2"] != null ? sp["blind2"].ToString() : "";
@@ -1724,9 +1877,46 @@ namespace RemoteTimingControl
             StartListText.Text = startList;
         }
 
+        // 当前组是否已"确认本组成绩"（从广播的 schedule.heatConfirmed 数组里反查）
+        private bool IsCurrentHeatConfirmed()
+        {
+            if (_data == null) return false;
+            string curAg = _data["currentAgeGroup"] != null ? _data["currentAgeGroup"].ToString() : "";
+            string curG = _data["currentGender"] != null ? _data["currentGender"].ToString() : "";
+            string curE = _data["currentEvent"] != null ? _data["currentEvent"].ToString() : "";
+            string curS = _data["currentStage"] != null ? _data["currentStage"].ToString() : "";
+            int curH = _data["currentHeat"] != null ? (int)_data["currentHeat"] : 0;
+            if (string.IsNullOrEmpty(curE) || curH <= 0) return false;
+            var schedule = _data["schedule"] as JArray;
+            if (schedule == null) return false;
+            foreach (JObject item in schedule)
+            {
+                string ag = item["ageGroup"] != null ? item["ageGroup"].ToString() : "";
+                string g = item["gender"] != null ? item["gender"].ToString() : "";
+                string ev = item["eventName"] != null ? item["eventName"].ToString() : "";
+                string st = item["stage"] != null ? item["stage"].ToString() : "";
+                if (ag != curAg || g != curG || ev != curE || st != curS) continue;
+                var hc = item["heatConfirmed"] as JArray;
+                if (hc == null) return false;
+                int idx = curH - 1;
+                if (idx < 0 || idx >= hc.Count) return false;
+                return hc[idx] != null && (bool)hc[idx];
+            }
+            return false;
+        }
+
         // ═══════ 按钮事件 ═══════
         private void Ready_Click(object sender, RoutedEventArgs e)
         {
+            // 已确认成绩的组：禁止再次开始比赛（与主控端规则一致）
+            if (IsCurrentHeatConfirmed())
+            {
+                MessageBox.Show(
+                    "当前组已确认成绩并锁定，不能重新开始比赛。\n请在赛程导航中切换到下一组。",
+                    "操作被阻止", MessageBoxButton.OK, MessageBoxImage.Warning);
+                AddLog("当前组已确认成绩，不能再次开始");
+                return;
+            }
             SendCmd("READY");
             if (_localBridge != null && _localBridge.IsConnected) _localBridge.SendCommand(0x21);
             AddLog("就位");
@@ -1741,9 +1931,14 @@ namespace RemoteTimingControl
 
         private void TimerReset_Click(object sender, RoutedEventArgs e)
         {
-            MessageBoxResult result = MessageBox.Show(
-                "确定计时器复位？\n\n本组成绩数据将被清除，\n但 DSQ/DNS/DNF 等特殊状态会保留。",
-                "计时复位", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+            // 与主控端两种语义一致：
+            //   A) 本组已确认 → 全部清零复位，自动进入下一组（已确认成绩永久保留）
+            //   B) 本组未确认 → 清当前组时间数据；备注（DSQ/DNS/DNF）保留（用于抢跳召回重新发令）
+            bool currentHeatConfirmed = IsCurrentHeatConfirmed();
+            string prompt = currentHeatConfirmed
+                ? "本组成绩已确认并锁定。\n\n点击\"计时器清零\"将全部清零复位，自动进入下一组比赛准备状态。\n（已确认的成绩在'成绩与排名'里继续保留）"
+                : "确定计时器复位？\n\n本组的时间/分段数据将被清除（用于抢跳召回等重新发令），\n但 DSQ/DNS/DNF 等备注状态会保留。";
+            MessageBoxResult result = MessageBox.Show(prompt, "计时复位", MessageBoxButton.YesNo, MessageBoxImage.Warning);
             if (result == MessageBoxResult.Yes)
             {
                 SendCmd("TIMER_RESET");
@@ -1751,13 +1946,15 @@ namespace RemoteTimingControl
                     _localBridge.SendCommand(0x20); // 计时清零命令
                     _localBridge.SendCommand(0x7F); // 滚动时间 = 0
                 }
-                AddLog("计时复位");
+                AddLog(currentHeatConfirmed ? "计时复位（保留已确认成绩，自动切下一组）" : "计时复位（重新发令）");
             }
         }
 
         private void Confirm_Click(object sender, RoutedEventArgs e)
         {
-            string info = string.Format("{0}子 {1} {2} 第{3}组",
+            string ag = _data != null && _data["currentAgeGroup"] != null ? _data["currentAgeGroup"].ToString() : "";
+            string info = string.Format("{0}{1}子 {2} {3} 第{4}组",
+                string.IsNullOrEmpty(ag) ? "" : ("[" + ag + "] "),
                 _data != null ? (_data["currentGender"] ?? "") : "",
                 _data != null ? (_data["currentEvent"] ?? "") : "",
                 _data != null ? (_data["currentStage"] ?? "") : "",
@@ -2109,6 +2306,8 @@ namespace RemoteTimingControl
 
             // 优先用服务器广播的最新值，否则用本地保存值
             double closeTime = _laneCloseTime, sbDelay = _startBlockCloseDelay, confDelay = _resultConfirmCloseDelay, fsThresh = _falseStartThreshold, splitDisp = _splitDisplayTime, holdTime = _firstPlaceHoldTime;
+            double bigPageInterval = _bigDisplayPageInterval;
+            bool rtEnabled = _reactionTimeEnabled;
             if (_data != null && _data["laneCloseSettings"] != null)
             {
                 var lcs = _data["laneCloseSettings"];
@@ -2118,6 +2317,8 @@ namespace RemoteTimingControl
                 if (lcs["falseStartThreshold"] != null) fsThresh = (double)lcs["falseStartThreshold"];
                 if (lcs["splitDisplayTime"] != null) splitDisp = (double)lcs["splitDisplayTime"];
                 if (lcs["firstPlaceHoldTime"] != null) holdTime = (double)lcs["firstPlaceHoldTime"];
+                if (lcs["bigDisplayPageInterval"] != null) bigPageInterval = (double)lcs["bigDisplayPageInterval"];
+                if (lcs["reactionTimeEnabled"] != null) rtEnabled = (bool)lcs["reactionTimeEnabled"];
             }
 
             var sp = new StackPanel { Margin = new Thickness(20) };
@@ -2129,6 +2330,7 @@ namespace RemoteTimingControl
             var tbFSThresh = AddParamRow(sp, "抢跳判定阈值", fsThresh.ToString(), "秒");
             var tbSplitDisp = AddParamRow(sp, "分段成绩显示时长", splitDisp.ToString(), "秒");
             var tbFirstHold = AddParamRow(sp, "第1名成绩停留时间", holdTime.ToString(), "秒");
+            var tbBigPage = AddParamRow(sp, "大屏翻屏时间", bigPageInterval.ToString(), "秒");
 
             // Finish position radio
             var finishRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 10, 0, 0) };
@@ -2138,6 +2340,15 @@ namespace RemoteTimingControl
             finishRow.Children.Add(rbLeft);
             finishRow.Children.Add(rbRight);
             sp.Children.Add(finishRow);
+
+            // 反应时(RT)开关：关闭后所有出发反应时相关处理跳过
+            var rtRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 10, 0, 0) };
+            rtRow.Children.Add(new TextBlock { Text = "反应时(RT)", Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), FontSize = 15, VerticalAlignment = VerticalAlignment.Center, Width = 140 });
+            var rbRtOn = new RadioButton { Content = "打开", Foreground = Brushes.White, FontSize = 14, IsChecked = rtEnabled, GroupName = "RTSwitch", Margin = new Thickness(0, 0, 12, 0) };
+            var rbRtOff = new RadioButton { Content = "关闭", Foreground = Brushes.White, FontSize = 14, IsChecked = !rtEnabled, GroupName = "RTSwitch" };
+            rtRow.Children.Add(rbRtOn);
+            rtRow.Children.Add(rbRtOff);
+            sp.Children.Add(rtRow);
 
             // 服务器地址
             var serverSep = new Border { BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569")), BorderThickness = new Thickness(0, 1, 0, 0), Margin = new Thickness(0, 10, 0, 0), Padding = new Thickness(0, 10, 0, 0) };
@@ -2305,6 +2516,12 @@ namespace RemoteTimingControl
                 _resultConfirmCloseDelay = double.Parse(tbConfDelay.Text);
                 _falseStartThreshold = double.Parse(tbFSThresh.Text);
                 _splitDisplayTime = double.Parse(tbSplitDisp.Text);
+                double bigPageVal;
+                if (double.TryParse(tbBigPage.Text, out bigPageVal)) {
+                    if (bigPageVal < 1) bigPageVal = 1; if (bigPageVal > 60) bigPageVal = 60;
+                    _bigDisplayPageInterval = bigPageVal;
+                }
+                _reactionTimeEnabled = rbRtOn.IsChecked == true;
 
                 var settings = new
                 {
@@ -2316,7 +2533,9 @@ namespace RemoteTimingControl
                     startPosition = _finishPosition,
                     firstPlaceHoldTime = _firstPlaceHoldTime,
                     leftBlindWatchCount = _leftBlindWatchCount,
-                    rightBlindWatchCount = _rightBlindWatchCount
+                    rightBlindWatchCount = _rightBlindWatchCount,
+                    bigDisplayPageInterval = _bigDisplayPageInterval,
+                    reactionTimeEnabled = _reactionTimeEnabled
                 };
                 SendCmd("SET_LANE_CLOSE_SETTINGS", settings);
 
@@ -2331,7 +2550,9 @@ namespace RemoteTimingControl
                 }
 
                 SaveSettings();
-                AddLog(string.Format("参数已更新并保存，第1名停留: {0}s，终点位置: {1}", _firstPlaceHoldTime, _finishPosition == "left" ? "左端" : "右端"));
+                AddLog(string.Format("参数已更新并保存，第1名停留: {0}s，终点位置: {1}，翻屏: {2}s，反应时: {3}",
+                    _firstPlaceHoldTime, _finishPosition == "left" ? "左端" : "右端",
+                    _bigDisplayPageInterval, _reactionTimeEnabled ? "打开" : "关闭"));
             }
         }
 
@@ -2432,7 +2653,9 @@ namespace RemoteTimingControl
                         startPosition = _finishPosition,
                         firstPlaceHoldTime = _firstPlaceHoldTime,
                         leftBlindWatchCount = _leftBlindWatchCount,
-                        rightBlindWatchCount = _rightBlindWatchCount
+                        rightBlindWatchCount = _rightBlindWatchCount,
+                        bigDisplayPageInterval = _bigDisplayPageInterval,
+                        reactionTimeEnabled = _reactionTimeEnabled
                     };
                     SendCmd("SET_LANE_CLOSE_SETTINGS", settings);
                     SaveSettings();
@@ -2672,13 +2895,22 @@ namespace RemoteTimingControl
             // Skip if focus is on a TextBox or ComboBox
             if (e.OriginalSource is TextBox || e.OriginalSource is ComboBox) return;
 
-            if (e.Key == Key.F5) { SendCmd("READY"); e.Handled = true; }
+            if (e.Key == Key.F5) {
+                if (IsCurrentHeatConfirmed()) {
+                    MessageBox.Show("当前组已确认成绩并锁定，不能重新开始比赛。\n请在赛程导航中切换到下一组。",
+                        "操作被阻止", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    AddLog("当前组已确认成绩，不能再次开始");
+                } else {
+                    SendCmd("READY");
+                }
+                e.Handled = true;
+            }
             else if (e.Key == Key.F6) { SendCmd("START_RACE"); e.Handled = true; }
             else if (e.Key == Key.F7)
             {
                 e.Handled = true;
-                MessageBoxResult r = MessageBox.Show("确定计时器复位，数据清除？", "计时复位", MessageBoxButton.YesNo, MessageBoxImage.Warning);
-                if (r == MessageBoxResult.Yes) { SendCmd("TIMER_RESET"); AddLog("计时复位"); }
+                // F7 计时复位走与按钮一致的逻辑
+                TimerReset_Click(null, null);
             }
             else if (e.Key == Key.Return)
             {

@@ -35,7 +35,7 @@
         </Border>
 
         <!-- 标签页 -->
-        <TabControl Grid.Row="1" Margin="8" x:Name="MainTabControl">
+        <TabControl Grid.Row="1" Margin="8" x:Name="MainTabControl" SelectionChanged="MainTabControl_SelectionChanged">
 
             <!-- ═══ 系统状态 ═══ -->
             <TabItem Header="系统工作状态">
@@ -225,9 +225,11 @@
                                                     <ComboBoxItem Content="6道"/>
                                                 </ComboBox>
                                                 <TextBlock Grid.Row="3" Grid.Column="0" Text="开始日期:" VerticalAlignment="Center" Foreground="#475569"/>
-                                                <DatePicker x:Name="StartDatePicker" Grid.Row="3" Grid.Column="1" VerticalAlignment="Center"/>
+                                                <DatePicker x:Name="StartDatePicker" Grid.Row="3" Grid.Column="1" VerticalAlignment="Center"
+                                                            Language="en-CA" SelectedDateFormat="Short"/>
                                                 <TextBlock Grid.Row="3" Grid.Column="2" Text="结束日期:" VerticalAlignment="Center" Foreground="#475569"/>
-                                                <DatePicker x:Name="EndDatePicker" Grid.Row="3" Grid.Column="3" VerticalAlignment="Center"/>
+                                                <DatePicker x:Name="EndDatePicker" Grid.Row="3" Grid.Column="3" VerticalAlignment="Center"
+                                                            Language="en-CA" SelectedDateFormat="Short"/>
                                                 <TextBlock Grid.Row="4" Grid.Column="0" Text="比赛地点:" VerticalAlignment="Center" Foreground="#475569"/>
                                                 <TextBox x:Name="LocationBox" Grid.Row="4" Grid.Column="1" Grid.ColumnSpan="3" Padding="4" VerticalAlignment="Center"/>
                                                 <TextBlock Grid.Row="5" Grid.Column="0" Text="主办方:" VerticalAlignment="Center" Foreground="#475569"/>
@@ -275,33 +277,45 @@
                         </TabItem>
                         <TabItem Header="运动员管理">
                             <DockPanel Margin="10">
-                                <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
-                                    <Button Content="添加运动员" Click="AddSwimmer_Click" Padding="12,6" Background="#3B82F6" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
-                                    <Button Content="修改选中" Click="EditSwimmer_Click" Padding="12,6" Background="#F59E0B" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
-                                    <Button Content="删除选中" Click="DeleteSwimmer_Click" Padding="12,6" Background="#EF4444" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
-                                    <Button Content="导入CSV" Click="ImportCSV_Click" Padding="12,6" Background="#8B5CF6" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
-                                    <Button Content="号码区间设置" Click="BibRangeConfig_Click" Padding="12,6" Background="#0EA5E9" Foreground="White" BorderThickness="0" Margin="0,0,8,0"
+                                <!-- 第一行：数据维护 / 导入导出 -->
+                                <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,6">
+                                    <Button Content="添加运动员" Click="AddSwimmer_Click" Padding="12,6" Background="#3B82F6" Foreground="White" BorderThickness="0" Margin="0,0,6,0"/>
+                                    <Button Content="修改选中" Click="EditSwimmer_Click" Padding="12,6" Background="#F59E0B" Foreground="White" BorderThickness="0" Margin="0,0,6,0"/>
+                                    <Button Content="删除选中" Click="DeleteSwimmer_Click" Padding="12,6" Background="#EF4444" Foreground="White" BorderThickness="0" Margin="0,0,6,0"/>
+                                    <!-- 视觉分隔 -->
+                                    <Border Width="1" Background="#CBD5E1" Margin="6,4,6,4"/>
+                                    <Button Content="导入CSV" Click="ImportCSV_Click" Padding="12,6" Background="#8B5CF6" Foreground="White" BorderThickness="0" Margin="0,0,6,0"
+                                            ToolTip="从 CSV 导入运动员报名信息（支持 Excel/WPS 另存为 CSV）"/>
+                                    <Button Content="导出CSV" Click="ExportSwimmersCSV_Click" Padding="12,6" Background="#10B981" Foreground="White" BorderThickness="0" Margin="0,0,6,0"
+                                            ToolTip="将当前所有报名运动员的数据导出为 CSV"/>
+                                    <Button Content="导出报名模板" Click="DownloadSwimmersTemplateCSV_Click" Padding="12,6" Background="#F97316" Foreground="White" BorderThickness="0" Margin="0,0,6,0"
+                                            ToolTip="导出空白报名 CSV 模板（带表头与示例行），用 Excel/WPS 编辑后可用'导入CSV'回灌"/>
+                                    <Border Width="1" Background="#CBD5E1" Margin="6,4,6,4"/>
+                                    <Button Content="号码区间设置" Click="BibRangeConfig_Click" Padding="12,6" Background="#0EA5E9" Foreground="White" BorderThickness="0"
                                             ToolTip="按代表队设置参赛号号码段（如 中国 001-050）。新注册的运动员将在所属代表队的号码段内自动取号。"/>
-                                    <TextBlock Text="  筛选项目:" VerticalAlignment="Center"/>
-                                    <ComboBox x:Name="FilterEventCombo" Width="180" Margin="4,0" SelectionChanged="FilterEvent_Changed">
+                                </StackPanel>
+                                <!-- 第二行：筛选条件 -->
+                                <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
+                                    <TextBlock Text="筛选项目:" VerticalAlignment="Center"/>
+                                    <ComboBox x:Name="FilterEventCombo" Width="180" Margin="4,0,8,0" SelectionChanged="FilterEvent_Changed">
                                         <ComboBoxItem Content="全部" IsSelected="True"/>
                                     </ComboBox>
-                                    <TextBlock Text=" 组别:" VerticalAlignment="Center"/>
-                                    <ComboBox x:Name="FilterAgeGroupCombo" Width="90" Margin="4,0" SelectionChanged="FilterAgeGroup_Changed"/>
-                                    <TextBlock Text=" 性别:" VerticalAlignment="Center"/>
-                                    <ComboBox x:Name="FilterGenderCombo" Width="70" Margin="4,0" SelectionChanged="FilterGender_Changed">
+                                    <TextBlock Text="组别:" VerticalAlignment="Center"/>
+                                    <ComboBox x:Name="FilterAgeGroupCombo" Width="90" Margin="4,0,8,0" SelectionChanged="FilterAgeGroup_Changed"/>
+                                    <TextBlock Text="性别:" VerticalAlignment="Center"/>
+                                    <ComboBox x:Name="FilterGenderCombo" Width="70" Margin="4,0,8,0" SelectionChanged="FilterGender_Changed">
                                         <ComboBoxItem Content="全部" IsSelected="True"/>
                                         <ComboBoxItem Content="男"/>
                                         <ComboBoxItem Content="女"/>
                                         <ComboBoxItem Content="混合"/>
                                     </ComboBox>
-                                    <TextBlock Text=" 姓名:" VerticalAlignment="Center"/>
-                                    <TextBox x:Name="FilterNameBox" Width="90" Margin="4,0" Padding="4,2" TextChanged="FilterText_Changed"
+                                    <TextBlock Text="姓名:" VerticalAlignment="Center"/>
+                                    <TextBox x:Name="FilterNameBox" Width="90" Margin="4,0,8,0" Padding="4,2" TextChanged="FilterText_Changed"
                                              ToolTip="按姓名模糊匹配（支持任意子串）"/>
-                                    <TextBlock Text=" 编号:" VerticalAlignment="Center"/>
-                                    <TextBox x:Name="FilterBibBox" Width="80" Margin="4,0" Padding="4,2" TextChanged="FilterText_Changed"
+                                    <TextBlock Text="编号:" VerticalAlignment="Center"/>
+                                    <TextBox x:Name="FilterBibBox" Width="80" Margin="4,0,8,0" Padding="4,2" TextChanged="FilterText_Changed"
                                              ToolTip="按参赛号模糊匹配"/>
-                                    <Button Content="重置" Click="FilterReset_Click" Padding="10,4" Margin="8,0,0,0" Background="#64748B" Foreground="White" BorderThickness="0"
+                                    <Button Content="重置筛选" Click="FilterReset_Click" Padding="10,4" Background="#64748B" Foreground="White" BorderThickness="0"
                                             ToolTip="清空所有筛选条件"/>
                                 </StackPanel>
                                 <DataGrid x:Name="SwimmerGrid" AutoGenerateColumns="False" CanUserAddRows="False"
@@ -316,6 +330,7 @@
                                         <DataGridTextColumn Header="年龄" Binding="{Binding Age}" Width="35"/>
                                         <DataGridTextColumn Header="组别" Binding="{Binding AgeCategory}" Width="50" IsReadOnly="True"/>
                                         <DataGridTextColumn Header="代表队" Binding="{Binding Country}" Width="80"/>
+                                        <DataGridTextColumn Header="单位简称" Binding="{Binding CountryShort}" Width="80"/>
                                         <DataGridTextColumn Header="身份证号" Binding="{Binding IDNumber}" Width="130"/>
                                         <DataGridTextColumn Header="电话" Binding="{Binding Phone}" Width="100"/>
                                         <DataGridTextColumn Header="项目" Binding="{Binding EventName}" Width="120"/>
@@ -661,6 +676,7 @@
                                         <RowDefinition Height="28"/>
                                         <RowDefinition Height="28"/>
                                         <RowDefinition Height="28"/>
+                                        <RowDefinition Height="28"/>
                                     </Grid.RowDefinitions>
                                     <TextBlock Grid.Row="0" Text="姓名:" VerticalAlignment="Center"/>
                                     <TextBox x:Name="RegNameBox" Grid.Row="0" Grid.Column="1" Padding="3"/>
@@ -672,7 +688,9 @@
                                     <ComboBox x:Name="RegGroupCombo" Grid.Row="2" Grid.Column="1" IsEditable="True"
                                               ToolTip="报名时直接选择甲组/乙组等；留空则按出生日期自动推断"/>
                                     <TextBlock Grid.Row="3" Text="出生日期:" VerticalAlignment="Center"/>
-                                    <DatePicker x:Name="RegBirthDatePicker" Grid.Row="3" Grid.Column="1"/>
+                                    <DatePicker x:Name="RegBirthDatePicker" Grid.Row="3" Grid.Column="1"
+                                                Language="en-CA" SelectedDateFormat="Short"
+                                                ToolTip="格式：yyyy-MM-dd（4 位年份）"/>
                                     <TextBlock Grid.Row="4" Text="身份证号:" VerticalAlignment="Center"/>
                                     <TextBox x:Name="RegIDNumberBox" Grid.Row="4" Grid.Column="1" Padding="3"/>
                                     <TextBlock Grid.Row="5" Text="代表队:" VerticalAlignment="Center"/>
@@ -682,8 +700,10 @@
                                              ToolTip="大屏/成绩表显示时使用的简短单位名，如 绵阳蓝鲸 → 蓝鲸"/>
                                     <TextBlock Grid.Row="7" Text="联系电话:" VerticalAlignment="Center"/>
                                     <TextBox x:Name="RegPhoneBox" Grid.Row="7" Grid.Column="1" Padding="3"/>
-                                    <TextBlock Grid.Row="8" Text="备注:" VerticalAlignment="Center"/>
-                                    <TextBox x:Name="RegNotesBox" Grid.Row="8" Grid.Column="1" Padding="3"/>
+                                    <TextBlock Grid.Row="8" Text="协会注册号:" VerticalAlignment="Center"/>
+                                    <TextBox x:Name="RegCSABox" Grid.Row="8" Grid.Column="1" Padding="3"/>
+                                    <TextBlock Grid.Row="9" Text="备注:" VerticalAlignment="Center"/>
+                                    <TextBox x:Name="RegNotesBox" Grid.Row="9" Grid.Column="1" Padding="3"/>
                                 </Grid>
 
                                 <!-- 参赛项目列表 -->
@@ -693,11 +713,16 @@
                                     <StackPanel>
                                         <Grid>
                                             <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="44"/>
                                                 <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="70"/>
                                                 <ColumnDefinition Width="90"/>
                                             </Grid.ColumnDefinitions>
-                                            <ComboBox x:Name="RegEventCombo" Grid.Column="0" Margin="0,0,4,0"/>
-                                            <TextBox x:Name="RegEntryTimeBox" Grid.Column="1" Padding="3"/>
+                                            <TextBlock Grid.Column="0" Text="项目:" VerticalAlignment="Center"/>
+                                            <ComboBox x:Name="RegEventCombo" Grid.Column="1" Margin="0,0,4,0"/>
+                                            <TextBlock Grid.Column="2" Text="报名成绩:" VerticalAlignment="Center"/>
+                                            <TextBox x:Name="RegEntryTimeBox" Grid.Column="3" Padding="3"
+                                                     ToolTip="如 49.50 或 1:23.45，可留空"/>
                                         </Grid>
                                         <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
                                             <Button Content="+ 添加参赛项目" Click="RegAddEvent_Click" Padding="8,4"

@@ -44,21 +44,80 @@ input[readonly] { background: #f1f5f9; }
 .leg-row input { flex: 1; }
 .submitted-banner { background: #dbeafe; color: #1e40af; padding: 10px; border-radius: 4px; margin-bottom: 12px; font-size: 14px; text-align: center; display: none; }
 .submitted-banner button { margin-left: 12px; }
+/* 多人报名队列 */
+.queue-card { background: #ECFDF5; border: 1px solid #6EE7B7; }
+.queue-card h2 { color: #065F46; }
+.queue-item { display: flex; align-items: center; padding: 10px 12px; background: white; border: 1px solid #D1FAE5; border-radius: 4px; margin-bottom: 6px; }
+.queue-item.err { background: #FEF2F2; border-color: #FCA5A5; }
+.queue-item .qi-info { flex: 1; font-size: 14px; }
+.queue-item .qi-info .qi-name { font-weight: bold; color: #065F46; }
+.queue-item .qi-info .qi-meta { color: #475569; margin-left: 10px; font-size: 12px; }
+.queue-item.err .qi-info .qi-name { color: #991B1B; }
+.queue-item .qi-actions button { margin-left: 6px; padding: 4px 10px; font-size: 12px; border: none; border-radius: 3px; cursor: pointer; color: white; }
+.queue-item .qi-edit { background: #3B82F6; }
+.queue-item .qi-del { background: #EF4444; }
+.qi-error { color: #991B1B; font-size: 12px; margin-top: 4px; }
+/* 报名结果弹窗 */
+.modal-mask { position: fixed; left: 0; top: 0; right: 0; bottom: 0; background: rgba(15, 23, 42, 0.55); display: none; align-items: center; justify-content: center; z-index: 9999; }
+.modal-mask.show { display: flex; }
+.modal-box { background: white; border-radius: 8px; max-width: 560px; width: 90%; max-height: 80vh; overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 20px 50px rgba(0,0,0,0.25); }
+.modal-head { padding: 16px 20px; font-size: 17px; font-weight: bold; color: white; }
+.modal-head.ok { background: #16A34A; }
+.modal-head.err { background: #DC2626; }
+.modal-body { padding: 16px 20px; overflow-y: auto; font-size: 14px; color: #1e293b; }
+.modal-body .summary { margin-bottom: 10px; line-height: 1.6; }
+.modal-body ul { padding-left: 20px; margin: 8px 0; }
+.modal-body ul.ok li { color: #166534; margin-bottom: 4px; }
+.modal-body ul.err li { color: #991B1B; margin-bottom: 4px; }
+.modal-foot { padding: 12px 20px; text-align: right; border-top: 1px solid #e5e7eb; }
+.modal-foot button { padding: 8px 18px; border: none; border-radius: 6px; font-size: 14px; font-weight: bold; cursor: pointer; color: white; }
+.modal-foot button.ok { background: #16A34A; }
+.modal-foot button.err { background: #DC2626; }
 </style>
 </head>
 <body>
+<!-- 主服务器反馈：报名结果弹窗 -->
+<div id="resultModal" class="modal-mask" onclick="if(event.target===this)closeResultModal()">
+    <div class="modal-box">
+        <div id="resultModalHead" class="modal-head"></div>
+        <div id="resultModalBody" class="modal-body"></div>
+        <div class="modal-foot">
+            <button id="resultModalBtn" onclick="closeResultModal()">关闭</button>
+        </div>
+    </div>
+</div>
 <div class="container">
     <div style="display:flex;justify-content:space-between;align-items:center;">
         <h1 style="margin:0;">运动员注册</h1>
         <button class="fullscreen-btn" onclick="goFullScreen()" style="padding:6px 14px;background:#3B82F6;color:white;border:none;border-radius:6px;font-size:13px;cursor:pointer;">全屏</button>
     </div>
-    <div id="connStatus">连接中...</div>
+    <div id="connStatus">连接中...
+        <button onclick="changeServerHost()" style="margin-left:8px;padding:2px 8px;background:#64748B;color:white;border:none;border-radius:3px;font-size:11px;cursor:pointer;">设置服务器IP</button>
+    </div>
     <div id="statusMsg" class="status"></div>
 
-    <!-- 已提交提示 -->
+    <!-- 已提交提示（提交成功后短暂显示，3 秒后自动隐藏 + 表单重置以便录入下一位）-->
     <div id="submittedBanner" class="submitted-banner">
-        报名信息已提交成功！
-        <button class="btn btn-gray" onclick="enableEdit()">修改报名信息</button>
+        <span id="submittedMsg">报名信息已提交成功！</span>
+        <button class="btn btn-gray" onclick="enableEdit()">修改本次报名</button>
+    </div>
+
+    <!-- 查询 / 修改我已经提交的报名 -->
+    <div class="card" id="queryCard" style="background:#FEFCE8;border:1px solid #FACC15;">
+        <h2 style="color:#92400E;">查询 / 修改我已经提交的报名</h2>
+        <div class="row" style="align-items:flex-end;">
+            <div style="flex:2;"><label>参赛号</label><input id="queryBib" placeholder="如 001"></div>
+            <div style="flex:3;"><label>或 姓名 + 代表队</label>
+                <div style="display:flex;gap:6px;">
+                    <input id="queryName" placeholder="姓名">
+                    <input id="queryCountry" placeholder="代表队">
+                </div>
+            </div>
+            <div style="flex:0 0 auto;">
+                <button class="btn btn-primary" onclick="queryMyRegistration()">查询</button>
+            </div>
+        </div>
+        <div id="queryStatus" style="margin-top:6px;font-size:13px;color:#92400E;"></div>
     </div>
 
     <div class="card" id="personalCard">
@@ -69,7 +128,7 @@ input[readonly] { background: #f1f5f9; }
             <div><label>性别</label><select id="gender"><option>男</option><option>女</option><option>混合</option></select></div>
         </div>
         <div class="row">
-            <div><label>出生日期</label><input id="birthDate" type="date"></div>
+            <div><label>出生日期</label><input id="birthDate" type="date" min="1900-01-01" max="2099-12-31" placeholder="yyyy-MM-dd" title="格式：yyyy-MM-dd（4 位年份）"></div>
             <div><label>身份证号</label><input id="idNumber" placeholder=""></div>
         </div>
         <div class="row">
@@ -82,20 +141,8 @@ input[readonly] { background: #f1f5f9; }
         </div>
         <div class="row">
             <div><label>组别</label>
-                <select id="ageGroup" title="可选；大众赛事可填甲/乙/丙组；国际/国内大赛可留空或填年龄段">
+                <select id="ageGroup" title="组别由服务器同步，可在主控软件“比赛类型管理→组别”里维护">
                     <option value="">不指定</option>
-                    <option value="甲组">甲组</option>
-                    <option value="乙组">乙组</option>
-                    <option value="丙组">丙组</option>
-                    <option value="丁组">丁组</option>
-                    <option value="戊组">戊组</option>
-                    <option value="己组">己组</option>
-                    <option value="青少年">青少年</option>
-                    <option value="少年">少年</option>
-                    <option value="青年">青年</option>
-                    <option value="成年">成年</option>
-                    <option value="大师">大师</option>
-                    <option value="老年">老年</option>
                 </select>
             </div>
             <div><label>单位简称</label><input id="countryShort" placeholder="（可选）"></div>
@@ -111,14 +158,7 @@ input[readonly] { background: #f1f5f9; }
         <div style="background:#f8fafc;border:1px dashed #cbd5e1;border-radius:4px;padding:12px;margin-top:8px;">
             <div class="row">
                 <div><label>项目</label>
-                    <select id="event">
-                        <option>50米自由泳</option><option>100米自由泳</option><option>200米自由泳</option>
-                        <option>400米自由泳</option><option>800米自由泳</option><option>1500米自由泳</option>
-                        <option>50米仰泳</option><option>100米仰泳</option><option>200米仰泳</option>
-                        <option>50米蛙泳</option><option>100米蛙泳</option><option>200米蛙泳</option>
-                        <option>50米蝶泳</option><option>100米蝶泳</option><option>200米蝶泳</option>
-                        <option>200米个人混合泳</option><option>400米个人混合泳</option>
-                    </select>
+                    <select id="event"></select>
                 </div>
                 <div><label>报名成绩</label><input id="entryTime" placeholder="49.50"></div>
             </div>
@@ -126,7 +166,27 @@ input[readonly] { background: #f1f5f9; }
         </div>
 
         <hr class="sep">
-        <button class="btn btn-green btn-block" style="padding:14px;font-size:16px;" onclick="submitAll()">提交全部报名信息</button>
+        <div class="row">
+            <div style="flex:2;">
+                <button class="btn btn-purple btn-block" style="padding:12px;font-size:14px;" onclick="addToQueue()">+ 添加到报名列表</button>
+            </div>
+            <div style="flex:1;">
+                <button class="btn btn-gray btn-block" style="padding:12px;font-size:14px;" onclick="clearForm()">清空当前表单</button>
+            </div>
+        </div>
+        <div style="font-size:12px;color:#64748b;margin-top:6px;text-align:center;">
+            录入完一人后点"添加到报名列表"，再录入下一人；全部录入完成后在下方"待提交报名列表"统一提交。
+        </div>
+    </div>
+
+    <!-- 待提交多人报名队列 -->
+    <div class="card queue-card" id="queueCard">
+        <h2>待提交报名列表 <span id="queueCount" style="font-weight:normal;color:#475569;font-size:13px;"></span></h2>
+        <div id="queueList"></div>
+        <button id="submitAllBtn" class="btn btn-green btn-block" style="padding:14px;font-size:16px;margin-top:12px;" onclick="submitQueue()" disabled>全部提交报名（0 人）</button>
+        <div style="font-size:12px;color:#475569;margin-top:6px;">
+            提交后服务器会逐条返回结果。未通过的条目会保留在列表里并显示原因，修改后再次"全部提交"。
+        </div>
     </div>
 
     <div class="card">
@@ -137,42 +197,32 @@ input[readonly] { background: #f1f5f9; }
         </div>
         <div class="row">
             <div><label>组别</label>
-                <select id="relayAgeGroup" title="可选；大众赛事可填甲/乙/丙组等">
+                <select id="relayAgeGroup" title="组别由服务器同步">
                     <option value="">不指定</option>
-                    <option value="甲组">甲组</option>
-                    <option value="乙组">乙组</option>
-                    <option value="丙组">丙组</option>
-                    <option value="丁组">丁组</option>
-                    <option value="戊组">戊组</option>
-                    <option value="己组">己组</option>
-                    <option value="青少年">青少年</option>
-                    <option value="少年">少年</option>
-                    <option value="青年">青年</option>
-                    <option value="成年">成年</option>
-                    <option value="大师">大师</option>
-                    <option value="老年">老年</option>
                 </select>
             </div>
             <div><label>单位简称</label><input id="relayCountryShort" placeholder="（可选）"></div>
         </div>
         <label>项目</label>
-        <select id="relayEvent">
-            <option>4x100米自由泳接力</option><option>4x200米自由泳接力</option><option>4x100米混合泳接力</option>
-        </select>
+        <select id="relayEvent"></select>
         <label>报名成绩</label>
         <input id="relayEntryTime" placeholder="3:20.00">
         <hr class="sep">
         <label style="font-weight:bold;color:#1e293b;">棒次安排</label>
-        <div class="leg-row"><span class="leg-num">第1棒</span><input id="leg1Name" placeholder="运动员姓名" style="flex:1;"><input id="leg1ID" placeholder="身份证号" style="width:180px;flex:none;"><input id="leg1Bib" placeholder="参赛号" style="width:80px;flex:none;"></div>
-        <div class="leg-row"><span class="leg-num">第2棒</span><input id="leg2Name" placeholder="运动员姓名" style="flex:1;"><input id="leg2ID" placeholder="身份证号" style="width:180px;flex:none;"><input id="leg2Bib" placeholder="参赛号" style="width:80px;flex:none;"></div>
-        <div class="leg-row"><span class="leg-num">第3棒</span><input id="leg3Name" placeholder="运动员姓名" style="flex:1;"><input id="leg3ID" placeholder="身份证号" style="width:180px;flex:none;"><input id="leg3Bib" placeholder="参赛号" style="width:80px;flex:none;"></div>
-        <div class="leg-row"><span class="leg-num">第4棒</span><input id="leg4Name" placeholder="运动员姓名" style="flex:1;"><input id="leg4ID" placeholder="身份证号" style="width:180px;flex:none;"><input id="leg4Bib" placeholder="参赛号" style="width:80px;flex:none;"></div>
+        <div class="leg-row"><span class="leg-num">第1棒</span><input id="leg1Name" placeholder="姓名" style="flex:1;"><input id="leg1Birth" type="date" min="1900-01-01" max="2099-12-31" title="出生日期 yyyy-MM-dd" style="width:155px;flex:none;"><input id="leg1ID" placeholder="身份证号" style="width:170px;flex:none;"><input id="leg1Bib" placeholder="参赛号" style="width:75px;flex:none;"></div>
+        <div class="leg-row"><span class="leg-num">第2棒</span><input id="leg2Name" placeholder="姓名" style="flex:1;"><input id="leg2Birth" type="date" min="1900-01-01" max="2099-12-31" title="出生日期 yyyy-MM-dd" style="width:155px;flex:none;"><input id="leg2ID" placeholder="身份证号" style="width:170px;flex:none;"><input id="leg2Bib" placeholder="参赛号" style="width:75px;flex:none;"></div>
+        <div class="leg-row"><span class="leg-num">第3棒</span><input id="leg3Name" placeholder="姓名" style="flex:1;"><input id="leg3Birth" type="date" min="1900-01-01" max="2099-12-31" title="出生日期 yyyy-MM-dd" style="width:155px;flex:none;"><input id="leg3ID" placeholder="身份证号" style="width:170px;flex:none;"><input id="leg3Bib" placeholder="参赛号" style="width:75px;flex:none;"></div>
+        <div class="leg-row"><span class="leg-num">第4棒</span><input id="leg4Name" placeholder="姓名" style="flex:1;"><input id="leg4Birth" type="date" min="1900-01-01" max="2099-12-31" title="出生日期 yyyy-MM-dd" style="width:155px;flex:none;"><input id="leg4ID" placeholder="身份证号" style="width:170px;flex:none;"><input id="leg4Bib" placeholder="参赛号" style="width:75px;flex:none;"></div>
         <button class="btn btn-green btn-block" style="margin-top:12px;" onclick="registerRelay()">提交接力报名</button>
     </div>
 </div>
 
 <script>
 var ws, events = [], submitted = false, assignedBib = '';
+// 多人报名队列：每个元素 = { swimmer:{...}, events:[...], isResubmit:bool, error:'', editingIndex:int(when re-edited) }
+var pendingRegs = [];
+// 当前正在编辑的队列条目下标；null 表示新增
+var editingQueueIdx = null;
 
 window.onbeforeunload = function(e) { e.preventDefault(); e.returnValue = ''; return '确定要关闭注册终端？'; };
 
@@ -217,16 +267,65 @@ function connect() {
                 var ok = msg.data && msg.data.success;
                 if (ok) {
                     assignedBib = msg.data.bibNumber || assignedBib;
-                    showStatus('报名成功！参赛号: ' + assignedBib, true);
-                    submitted = true;
+                    var lastName = document.getElementById('name').value.trim() || '运动员';
+                    var bannerMsg = document.getElementById('submittedMsg');
+                    if (bannerMsg) bannerMsg.textContent = '报名成功！' + lastName + '（参赛号 ' + assignedBib + '），表单已自动重置可继续注册下一位。';
                     document.getElementById('submittedBanner').style.display = 'block';
-                    setFormReadonly(true);
+                    showStatus('报名成功！参赛号: ' + assignedBib, true);
+                    // 记住最近一次成功提交的参赛号，便于"查询/修改"功能默认填入
+                    try { localStorage.setItem('swimRegLastBib', assignedBib); } catch (er) {}
+                    // 自动重置表单：清空个人信息和参赛项目，恢复可编辑状态，无需手动刷新页面
+                    resetFormForNext();
+                    // 5 秒后自动隐藏成功横幅
+                    setTimeout(function() {
+                        var b = document.getElementById('submittedBanner');
+                        if (b) b.style.display = 'none';
+                    }, 5000);
                 } else {
                     showStatus('报名失败: ' + (msg.data.message || '未知错误'), false);
                 }
+            } else if (msg.type === 'REGISTER_MULTI_RESULT') {
+                handleMultiResult(msg.data);
+            } else if (msg.type === 'REGISTER_QUERY_RESULT') {
+                handleQueryResult(msg.data);
+            } else if (msg.type === 'SHOW_LIVE_RACE' && msg.data) {
+                applyServerConfig(msg.data);
             }
         } catch(ex) {}
     };
+}
+
+// 用服务器同步过来的组别 / 项目 / 性别填充下拉（保留当前选择）
+function applyServerConfig(data) {
+    if (!data) return;
+    fillSelect('ageGroup', data.ageGroups, true);
+    fillSelect('relayAgeGroup', data.ageGroups, true);
+    if (Array.isArray(data.eventList) && data.eventList.length > 0) {
+        var ind = data.eventList.filter(function(e) { return e && e.indexOf('接力') < 0; });
+        var rel = data.eventList.filter(function(e) { return e && e.indexOf('接力') >= 0; });
+        if (ind.length > 0) fillSelect('event', ind, false);
+        if (rel.length > 0) fillSelect('relayEvent', rel, false);
+    }
+    if (Array.isArray(data.genderList) && data.genderList.length > 0) {
+        fillSelect('gender', data.genderList, false);
+        fillSelect('relayGender', data.genderList, false);
+    }
+}
+
+function fillSelect(id, items, withBlank) {
+    var sel = document.getElementById(id);
+    if (!sel || !Array.isArray(items)) return;
+    var prev = sel.value;
+    sel.innerHTML = '';
+    if (withBlank) sel.appendChild(new Option('不指定', ''));
+    for (var i = 0; i < items.length; i++) {
+        if (!items[i]) continue;
+        sel.appendChild(new Option(items[i], items[i]));
+    }
+    // 恢复之前选择
+    for (var j = 0; j < sel.options.length; j++) {
+        if (sel.options[j].value === prev) { sel.selectedIndex = j; return; }
+    }
 }
 
 function showStatus(msg, ok) {
@@ -251,6 +350,93 @@ function enableEdit() {
     submitted = false;
     document.getElementById('submittedBanner').style.display = 'none';
     setFormReadonly(false);
+}
+
+// 提交成功后自动调用：清空所有个人字段 + 参赛项目列表 + assignedBib，
+// 让用户无需手动刷新即可立刻录入下一位运动员
+function resetFormForNext() {
+    var ids = ['name','idNumber','phone','csaNumber','notes','country','countryShort','birthDate','entryTime'];
+    for (var i = 0; i < ids.length; i++) {
+        var el = document.getElementById(ids[i]);
+        if (el) el.value = '';
+    }
+    var gSel = document.getElementById('gender'); if (gSel && gSel.options.length > 0) gSel.selectedIndex = 0;
+    var agSel = document.getElementById('ageGroup'); if (agSel && agSel.options.length > 0) agSel.selectedIndex = 0;
+    events = [];
+    renderEvents();
+    submitted = false;
+    assignedBib = '';
+    setFormReadonly(false);
+}
+
+// 查询：根据参赛号 / 姓名+代表队 向服务器请求当前已注册数据
+function queryMyRegistration() {
+    var bib = document.getElementById('queryBib').value.trim();
+    var nm = document.getElementById('queryName').value.trim();
+    var ct = document.getElementById('queryCountry').value.trim();
+    if (!bib && !(nm && ct)) {
+        showQueryStatus('请输入参赛号，或同时输入姓名+代表队', '#EF4444');
+        return;
+    }
+    if (!ws || ws.readyState !== 1) {
+        showQueryStatus('未连接服务器，无法查询', '#EF4444');
+        return;
+    }
+    showQueryStatus('查询中…', '#92400E');
+    ws.send(JSON.stringify({
+        type: 'REGISTER_QUERY',
+        data: { bibNumber: bib, name: nm, country: ct }
+    }));
+}
+
+function showQueryStatus(text, color) {
+    var st = document.getElementById('queryStatus');
+    if (!st) return;
+    st.textContent = text;
+    st.style.color = color || '#92400E';
+}
+
+// 服务器返回查询结果：把数据回填到注册表单，进入"修改模式"
+// 用户改完点击"提交全部报名信息"，会以 isResubmit=true 方式提交，服务器先清旧记录再写入新记录
+function handleQueryResult(data) {
+    if (!data || data.success === false) {
+        showQueryStatus(data && data.message ? data.message : '未找到对应报名记录', '#EF4444');
+        return;
+    }
+    var sw = data.swimmer || {};
+    function setVal(id, v) { var el = document.getElementById(id); if (el) el.value = (v == null ? '' : v); }
+    setVal('name', sw.name);
+    setVal('idNumber', sw.idNumber);
+    setVal('phone', sw.phone);
+    setVal('csaNumber', sw.csaNumber);
+    setVal('notes', sw.notes);
+    setVal('country', sw.country);
+    setVal('countryShort', sw.countryShort);
+    setVal('birthDate', sw.birthDate || '');
+    var gSel = document.getElementById('gender');
+    if (gSel) {
+        for (var i = 0; i < gSel.options.length; i++) {
+            if (gSel.options[i].value === sw.gender) { gSel.selectedIndex = i; break; }
+        }
+    }
+    var agSel = document.getElementById('ageGroup');
+    if (agSel) {
+        for (var j = 0; j < agSel.options.length; j++) {
+            if (agSel.options[j].value === (sw.ageGroup||'')) { agSel.selectedIndex = j; break; }
+        }
+    }
+    // 参赛项目
+    events = [];
+    var evs = data.events || [];
+    for (var k = 0; k < evs.length; k++) {
+        events.push({ eventName: evs[k].eventName || '', entryTime: evs[k].entryTime || '' });
+    }
+    renderEvents();
+    assignedBib = sw.bibNumber || '';
+    submitted = true;     // 标记为"修改模式"，提交时 isResubmit=true
+    setFormReadonly(false);
+    showQueryStatus('已加载报名信息（参赛号 ' + assignedBib + '），可修改后再次提交。', '#16A34A');
+    showStatus('修改模式：参赛号 ' + assignedBib + '。提交将覆盖旧记录。', true);
 }
 
 // ═══════ 参赛项目管理 ═══════
@@ -292,12 +478,14 @@ function renderEvents() {
     el.innerHTML = html;
 }
 
-function submitAll() {
+// ═══════ 多人报名：表单 → 队列 → 一次性提交 ═══════
+function buildSwimmerFromForm() {
     var name = document.getElementById('name').value.trim();
-    if (!name) { showStatus('请输入姓名', false); return; }
-    if (events.length === 0) { showStatus('请至少添加一个参赛项目', false); return; }
-
+    if (!name) { showStatus('请输入姓名', false); return null; }
+    if (events.length === 0) { showStatus('请至少添加一个参赛项目', false); return null; }
     var bd = document.getElementById('birthDate').value;
+    // 出生日期格式校验（HTML date input 已限制 yyyy-MM-dd，但仍兜底校验）
+    if (bd && !/^\d{4}-\d{2}-\d{2}$/.test(bd)) { showStatus('出生日期格式应为 yyyy-MM-dd', false); return null; }
     var age = 0;
     if (bd) {
         var today = new Date();
@@ -305,36 +493,217 @@ function submitAll() {
         age = today.getFullYear() - birth.getFullYear();
         if (birth > new Date(today.getFullYear() - age, today.getMonth(), today.getDate())) age--;
     }
-
-    var baseData = {
-        name: name,
-        gender: document.getElementById('gender').value,
-        age: age,
-        ageGroup: document.getElementById('ageGroup').value || '',
-        country: document.getElementById('country').value.trim(),
-        countryShort: document.getElementById('countryShort').value.trim(),
-        idNumber: document.getElementById('idNumber').value.trim(),
-        phone: document.getElementById('phone').value.trim(),
-        birthDate: bd,
-        csaNumber: document.getElementById('csaNumber').value.trim(),
-        notes: document.getElementById('notes').value.trim(),
-        bibNumber: assignedBib
+    return {
+        swimmer: {
+            name: name,
+            gender: document.getElementById('gender').value,
+            age: age,
+            ageGroup: document.getElementById('ageGroup').value || '',
+            country: document.getElementById('country').value.trim(),
+            countryShort: document.getElementById('countryShort').value.trim(),
+            idNumber: document.getElementById('idNumber').value.trim(),
+            phone: document.getElementById('phone').value.trim(),
+            birthDate: bd,
+            csaNumber: document.getElementById('csaNumber').value.trim(),
+            notes: document.getElementById('notes').value.trim(),
+            bibNumber: assignedBib
+        },
+        events: events.slice(),
+        isResubmit: submitted,
+        error: ''
     };
+}
 
-    // 发送批量注册
-    ws.send(JSON.stringify({
-        type: 'REGISTER_SWIMMER_BATCH',
-        data: {
-            swimmer: baseData,
-            events: events,
-            isResubmit: submitted
+function addToQueue() {
+    var entry = buildSwimmerFromForm();
+    if (!entry) return;
+    if (editingQueueIdx !== null && editingQueueIdx >= 0 && editingQueueIdx < pendingRegs.length) {
+        pendingRegs[editingQueueIdx] = entry;
+        editingQueueIdx = null;
+    } else {
+        pendingRegs.push(entry);
+    }
+    renderQueue();
+    clearForm();
+    showStatus('已加入报名列表，可继续录入下一位', true);
+}
+
+function editQueue(idx) {
+    if (idx < 0 || idx >= pendingRegs.length) return;
+    var e = pendingRegs[idx];
+    var sw = e.swimmer || {};
+    function setVal(id, v) { var el = document.getElementById(id); if (el) el.value = (v == null ? '' : v); }
+    setVal('name', sw.name); setVal('idNumber', sw.idNumber); setVal('phone', sw.phone);
+    setVal('csaNumber', sw.csaNumber); setVal('notes', sw.notes); setVal('country', sw.country);
+    setVal('countryShort', sw.countryShort); setVal('birthDate', sw.birthDate || '');
+    var gSel = document.getElementById('gender');
+    if (gSel) for (var i = 0; i < gSel.options.length; i++) if (gSel.options[i].value === sw.gender) { gSel.selectedIndex = i; break; }
+    var agSel = document.getElementById('ageGroup');
+    if (agSel) for (var j = 0; j < agSel.options.length; j++) if (agSel.options[j].value === (sw.ageGroup||'')) { agSel.selectedIndex = j; break; }
+    events = (e.events || []).slice();
+    renderEvents();
+    assignedBib = sw.bibNumber || '';
+    submitted = !!e.isResubmit;
+    editingQueueIdx = idx;
+    showStatus('正在编辑队列第 ' + (idx + 1) + ' 条，修改后请再次点"添加到报名列表"', true);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function removeFromQueue(idx) {
+    if (idx < 0 || idx >= pendingRegs.length) return;
+    pendingRegs.splice(idx, 1);
+    if (editingQueueIdx === idx) editingQueueIdx = null;
+    else if (editingQueueIdx !== null && editingQueueIdx > idx) editingQueueIdx--;
+    renderQueue();
+}
+
+function renderQueue() {
+    var list = document.getElementById('queueList');
+    var btn = document.getElementById('submitAllBtn');
+    var cnt = document.getElementById('queueCount');
+    if (pendingRegs.length === 0) {
+        list.innerHTML = '<div style="color:#94a3b8;font-size:13px;padding:8px;">列表为空，请先在上方录入运动员后"添加到报名列表"</div>';
+        btn.disabled = true;
+        btn.textContent = '全部提交报名（0 人）';
+        if (cnt) cnt.textContent = '';
+        return;
+    }
+    var html = '';
+    for (var i = 0; i < pendingRegs.length; i++) {
+        var e = pendingRegs[i];
+        var sw = e.swimmer || {};
+        var evCount = (e.events || []).length;
+        var errCls = e.error ? ' err' : '';
+        html += '<div class="queue-item' + errCls + '">' +
+            '<div class="qi-info">' +
+                '<span class="qi-name">' + (sw.name || '') + '</span>' +
+                '<span class="qi-meta">' + (sw.gender || '') + ' / ' + (sw.country || '') + ' / ' + evCount + ' 项' +
+                (sw.bibNumber ? ' / 号 ' + sw.bibNumber : '') + '</span>' +
+                (e.error ? '<div class="qi-error">✗ ' + e.error + '</div>' : '') +
+            '</div>' +
+            '<div class="qi-actions">' +
+                '<button class="qi-edit" onclick="editQueue(' + i + ')">修改</button>' +
+                '<button class="qi-del" onclick="removeFromQueue(' + i + ')">删除</button>' +
+            '</div>' +
+        '</div>';
+    }
+    list.innerHTML = html;
+    btn.disabled = false;
+    btn.textContent = '全部提交报名（' + pendingRegs.length + ' 人）';
+    if (cnt) cnt.textContent = '共 ' + pendingRegs.length + ' 人';
+}
+
+function clearForm() {
+    var ids = ['name','idNumber','phone','csaNumber','notes','country','countryShort','birthDate','entryTime'];
+    for (var i = 0; i < ids.length; i++) { var el = document.getElementById(ids[i]); if (el) el.value = ''; }
+    var gSel = document.getElementById('gender'); if (gSel && gSel.options.length > 0) gSel.selectedIndex = 0;
+    var agSel = document.getElementById('ageGroup'); if (agSel && agSel.options.length > 0) agSel.selectedIndex = 0;
+    events = [];
+    renderEvents();
+    assignedBib = '';
+    submitted = false;
+    editingQueueIdx = null;
+}
+
+function submitQueue() {
+    if (!ws || ws.readyState !== 1) { showStatus('未连接服务器', false); return; }
+    if (pendingRegs.length === 0) { showStatus('列表为空，请先添加', false); return; }
+    var entries = [];
+    for (var i = 0; i < pendingRegs.length; i++) {
+        var p = pendingRegs[i];
+        entries.push({ swimmer: p.swimmer, events: p.events, isResubmit: !!p.isResubmit });
+    }
+    ws.send(JSON.stringify({ type: 'REGISTER_SWIMMERS_MULTI', data: { entries: entries } }));
+    showStatus('正在提交 ' + entries.length + ' 人报名……等待服务器结果', true);
+}
+
+function handleMultiResult(d) {
+    if (!d) return;
+    var entries = d.entries || [];
+    if (d.success) {
+        // 全部通过：弹窗告知 + 清空队列/表单
+        var okItems = [];
+        for (var i = 0; i < entries.length; i++) {
+            var name = entries[i].name || ('第' + (i + 1) + '条');
+            var bib = entries[i].bibNumber || '';
+            var addedCount = (entries[i].addedCount != null) ? entries[i].addedCount : '';
+            okItems.push(name + (bib ? '（参赛号 ' + bib + '）' : '') + (addedCount !== '' ? '：' + addedCount + ' 项' : ''));
         }
-    }));
-    showStatus('正在提交 ' + events.length + ' 个项目...', true);
+        showResultModal(true,
+            '报名提交成功',
+            '主服务器已通过本次报名，共 ' + entries.length + ' 人，相关数据已写入比赛系统。',
+            okItems, []);
+        try { if (entries.length > 0 && entries[0].bibNumber) localStorage.setItem('swimRegLastBib', entries[0].bibNumber); } catch (er) {}
+        pendingRegs = [];
+        editingQueueIdx = null;
+        renderQueue();
+        clearForm();
+    } else {
+        // 部分/全部未通过：把每条 error 写到对应队列项 + 弹窗列出未通过原因
+        var errItems = [];
+        for (var k = 0; k < entries.length && k < pendingRegs.length; k++) {
+            var ok = !!entries[k].ok;
+            pendingRegs[k].error = ok ? '' : (entries[k].message || '校验未通过');
+            if (!ok) {
+                var nm = (pendingRegs[k].swimmer && pendingRegs[k].swimmer.name) ? pendingRegs[k].swimmer.name : ('第' + (k + 1) + '条');
+                errItems.push(nm + '：' + (entries[k].message || '校验未通过'));
+            }
+        }
+        renderQueue();
+        showResultModal(false,
+            '报名未通过',
+            d.message || '主服务器反馈：部分条目未通过校验。请修改下方红色标记的条目后再次"全部提交报名"。',
+            [], errItems);
+    }
+}
+
+function showResultModal(ok, title, summary, okItems, errItems) {
+    var mask = document.getElementById('resultModal');
+    var head = document.getElementById('resultModalHead');
+    var body = document.getElementById('resultModalBody');
+    var btn = document.getElementById('resultModalBtn');
+    head.className = 'modal-head ' + (ok ? 'ok' : 'err');
+    head.textContent = (ok ? '✓ ' : '✗ ') + title;
+    btn.className = ok ? 'ok' : 'err';
+    btn.textContent = ok ? '知道了' : '返回修改';
+    var html = '<div class="summary">' + (summary || '') + '</div>';
+    if (okItems && okItems.length > 0) {
+        html += '<div style="font-weight:bold;color:#166534;margin-top:6px;">报名通过：</div><ul class="ok">';
+        for (var i = 0; i < okItems.length; i++) html += '<li>' + escapeHtml(okItems[i]) + '</li>';
+        html += '</ul>';
+    }
+    if (errItems && errItems.length > 0) {
+        html += '<div style="font-weight:bold;color:#991B1B;margin-top:6px;">未通过项：</div><ul class="err">';
+        for (var j = 0; j < errItems.length; j++) html += '<li>' + escapeHtml(errItems[j]) + '</li>';
+        html += '</ul>';
+        html += '<div style="margin-top:10px;color:#475569;font-size:13px;">提示：在下方"待提交报名列表"中点对应条目"修改"按钮调出表单更正后，再次点"全部提交报名"。</div>';
+    }
+    body.innerHTML = html;
+    mask.classList.add('show');
+}
+
+function closeResultModal() {
+    var mask = document.getElementById('resultModal');
+    if (mask) mask.classList.remove('show');
+}
+
+function escapeHtml(s) {
+    return String(s == null ? '' : s)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
 // 初始化
 renderEvents();
+renderQueue();
+// 自动把上次成功提交的参赛号填入"查询"框，用户一键就能调出自己的报名再修改
+try {
+    var lastBib = localStorage.getItem('swimRegLastBib');
+    if (lastBib) {
+        var qb = document.getElementById('queryBib');
+        if (qb) qb.value = lastBib;
+    }
+} catch (er) {}
 
 // ═══════ 接力 ═══════
 function registerRelay() {
@@ -345,7 +714,14 @@ function registerRelay() {
         var legName = document.getElementById('leg' + i + 'Name').value.trim();
         var legBib = document.getElementById('leg' + i + 'Bib').value.trim();
         var legID = document.getElementById('leg' + i + 'ID').value.trim();
-        if (legName) legs.push({legOrder: i, swimmerName: legName, swimmerBibNumber: legBib, swimmerIDNumber: legID});
+        var legBirth = document.getElementById('leg' + i + 'Birth').value;   // yyyy-MM-dd
+        if (legName) legs.push({
+            legOrder: i,
+            swimmerName: legName,
+            swimmerBibNumber: legBib,
+            swimmerIDNumber: legID,
+            swimmerBirthDate: legBirth
+        });
     }
     ws.send(JSON.stringify({
         type: 'REGISTER_RELAY',

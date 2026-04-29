@@ -44,6 +44,8 @@ namespace SwimmingScoreboard
         private double _firstPlaceHoldTime = 3.0;
         private int _leftBlindWatchCount = 3;   // 左端每道盲表数量（1-3）
         private int _rightBlindWatchCount = 3;  // 右端每道盲表数量（1-3）
+        private double _bigDisplayPageInterval = 5.0; // 大屏翻屏时间（秒）— 总排名等多页内容自动翻页周期
+        private bool _reactionTimeEnabled = true;     // 是否启用出发反应时检测：关闭时，所有出发反应时相关处理跳过
 
         public double LaneCloseTime {
             get { return _laneCloseTime; }
@@ -90,6 +92,17 @@ namespace SwimmingScoreboard
                 int v = value < 1 ? 1 : (value > 3 ? 3 : value);
                 if (_rightBlindWatchCount != v) { _rightBlindWatchCount = v; OnPropertyChanged("RightBlindWatchCount"); }
             }
+        }
+        public double BigDisplayPageInterval {
+            get { return _bigDisplayPageInterval; }
+            set {
+                double v = value < 1 ? 1 : (value > 60 ? 60 : value);
+                if (_bigDisplayPageInterval != v) { _bigDisplayPageInterval = v; OnPropertyChanged("BigDisplayPageInterval"); }
+            }
+        }
+        public bool ReactionTimeEnabled {
+            get { return _reactionTimeEnabled; }
+            set { if (_reactionTimeEnabled != value) { _reactionTimeEnabled = value; OnPropertyChanged("ReactionTimeEnabled"); } }
         }
 
         public event PropertyChangedEventHandler PropertyChanged;
@@ -185,6 +198,7 @@ namespace SwimmingScoreboard
         private string _timingSource = "";
         private int _rank;
         private string _status = "";
+        private string _recordNote = ""; // 破/平纪录标识，如 "WR" / "=WR" / "WR/AR/NR"
         private ObservableCollection<SplitTime> _splits;
 
         public LaneResult() {
@@ -254,6 +268,11 @@ namespace SwimmingScoreboard
         public string Status {
             get { return _status; }
             set { _status = value; OnPropertyChanged("Status"); }
+        }
+        // 破/平纪录标识：例如 "WR" 表示破世界纪录，"=AR" 表示平亚洲纪录，多条用 "/" 拼接
+        public string RecordNote {
+            get { return _recordNote; }
+            set { _recordNote = value ?? ""; OnPropertyChanged("RecordNote"); }
         }
         public ObservableCollection<SplitTime> Splits {
             get { return _splits; }
@@ -482,6 +501,7 @@ namespace SwimmingScoreboard
         private string _swimmerName;
         private string _swimmerBibNumber;
         private string _swimmerIDNumber;
+        private string _swimmerBirthDate;
 
         public int LegOrder {
             get { return _legOrder; }
@@ -498,6 +518,11 @@ namespace SwimmingScoreboard
         public string SwimmerIDNumber {
             get { return _swimmerIDNumber; }
             set { _swimmerIDNumber = value; OnPropertyChanged("SwimmerIDNumber"); }
+        }
+        // 队员出生日期（yyyy-MM-dd）；用于检录核对、组别判断等
+        public string SwimmerBirthDate {
+            get { return _swimmerBirthDate; }
+            set { _swimmerBirthDate = value; OnPropertyChanged("SwimmerBirthDate"); }
         }
 
         public event PropertyChangedEventHandler PropertyChanged;
@@ -783,6 +808,7 @@ namespace SwimmingScoreboard
         private bool _isFinished;
         private double _reactionTime;
         private bool _isFalseStart;
+        private bool _isSuspectFalseStart; // 反应时低于阈值（疑似抢跳）：仅作为视觉提示（反应时标红），是否判罚由裁判手动决定
         private string _startSide = "left";  // 出发台所在端（用于抢跳显示）
         private double _leftManualTouchTime;
         private double _rightManualTouchTime;
@@ -896,6 +922,10 @@ namespace SwimmingScoreboard
             get { return _isFalseStart; }
             set { _isFalseStart = value; OnPropertyChanged("IsFalseStart"); OnPropertyChanged("LeftStartBlockStatus"); OnPropertyChanged("RightStartBlockStatus"); }
         }
+        public bool IsSuspectFalseStart {
+            get { return _isSuspectFalseStart; }
+            set { if (_isSuspectFalseStart != value) { _isSuspectFalseStart = value; OnPropertyChanged("IsSuspectFalseStart"); } }
+        }
         public double LeftManualTouchTime {
             get { return _leftManualTouchTime; }
             set { _leftManualTouchTime = value; OnPropertyChanged("LeftManualTouchTime"); }
@@ -1000,6 +1030,7 @@ namespace SwimmingScoreboard
             _isFinished = false;
             _reactionTime = 0;
             _isFalseStart = false;
+            _isSuspectFalseStart = false;
             _startSide = startPosition;
             _leftManualTouchTime = 0;
             PendingBlind1Time = 0; PendingBlind2Time = 0; PendingBlind3Time = 0;
@@ -1018,7 +1049,7 @@ namespace SwimmingScoreboard
                 "RightBlindWatch1Status", "RightBlindWatch2Status", "RightBlindWatch3Status",
                 "RightStartBlockStatus",
                 "LaneCloseCountdown", "Direction", "CurrentLap", "IsFinished",
-                "ReactionTime", "ReactionTimeDisplay", "IsFalseStart",
+                "ReactionTime", "ReactionTimeDisplay", "IsFalseStart", "IsSuspectFalseStart",
                 "LeftManualTouchTime", "RightManualTouchTime" };
             foreach (string p in props) OnPropertyChanged(p);
         }
@@ -1221,6 +1252,8 @@ namespace SwimmingScoreboard
         public string DisplayRecordLabel { get; set; }      // 显示用简称，如 WR / AR / NR / 省R / 市R
         public string DisplayRecordTypeName { get; set; }    // 与 SwimmingRecord.RecordType 比对，如 "世界纪录"
         public List<DisplayRecordOption> DisplayRecordOptions { get; set; } // 可选项（预设+用户自定义）
+        // 已"确认本组成绩"并锁定的组次列表，元素 = "<组别>|<性别>|<项目>|<赛次>|<组次>"
+        public List<string> ConfirmedHeats { get; set; }
 
         public CompetitionPackage() {
             CompetitionMode = "domestic";
