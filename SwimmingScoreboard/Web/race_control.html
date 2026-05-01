@@ -775,6 +775,10 @@ function useBlindResult() {
     sendCmd('USE_BLIND_RESULT', {lane: lane});
     addLog('泳道' + lane + ' 使用盲表成绩');
 }
+// 圈数 spinner ▲/▼：每道左/右独立调整。服务器端 AdjustLapDisplay 会按本侧上限钳到 [0, 该侧触板总次数]。
+function adjustLap(lane, isLeft, delta) {
+    sendCmd('ADJUST_LAP_DISPLAY', { lane: lane, isLeft: !!isLeft, delta: delta });
+}
 function laneOpen() {
     var lane = getLaneInput();
     if (lane < 0) { alert('请输入泳道号'); return; }
@@ -1308,14 +1312,14 @@ function renderHeader() {
             leftBlindLabels +
             '<span class="device-label">出发</span>' +
             '<span class="device-label">触板</span>' +
-            '<span class="device-label" style="width:28px;">圈</span>' +
+            '<span class="device-label" style="width:50px;">圈</span>' +
         '</div>' +
         '<div class="lane-mid" style="padding:0 6px;">' +
             '<div class="swimmer-info" style="font-size:12px;">姓名/代表队</div>' +
             '<div class="lane-track" style="font-size:12px;height:auto;background:none;text-align:center;">方向/进度</div>' +
         '</div>' +
         '<div class="right-devices devices">' +
-            '<span class="device-label" style="width:28px;">圈</span>' +
+            '<span class="device-label" style="width:50px;">圈</span>' +
             '<span class="device-label">触板</span>' +
             '<span class="device-label">出发</span>' +
             rightBlindLabels +
@@ -1503,14 +1507,22 @@ function buildLaneRows(container, swimmers, rcRelay) {
                 '<div class="device-dot lr-ld-2" title="盲表1" style="' + ldVis(2) + '"></div>' +
                 '<div class="device-dot lr-ld-3" title="出发台"></div>' +
                 '<div class="device-dot lr-ld-4" title="触板"></div>' +
-                '<span class="lr-left-remain" style="display:inline-block;width:28px;text-align:center;font-size:20px;font-weight:bold;"></span>' +
+                '<span class="lr-left-remain" style="display:inline-block;width:26px;text-align:center;font-size:20px;font-weight:bold;"></span>' +
+                '<span class="lap-spinner" style="display:inline-flex;flex-direction:column;align-items:center;vertical-align:middle;">' +
+                    '<button class="lap-up" onmousedown="event.stopPropagation();adjustLap('+lane+',true,1)" title="左侧 +1" style="width:18px;height:13px;font-size:9px;background:#475569;color:white;border:0;padding:0;cursor:pointer;line-height:1;">▲</button>' +
+                    '<button class="lap-down" onmousedown="event.stopPropagation();adjustLap('+lane+',true,-1)" title="左侧 -1" style="width:18px;height:13px;font-size:9px;background:#475569;color:white;border:0;padding:0;margin-top:1px;cursor:pointer;line-height:1;">▼</button>' +
+                '</span>' +
             '</div>' +
             '<div class="lane-mid">' +
                 '<div class="swimmer-info"><div class="name lr-name"></div><div class="team lr-team"></div></div>' +
                 '<div class="lane-track lr-track"></div>' +
             '</div>' +
             '<div class="right-devices devices">' +
-                '<span class="lr-right-remain" style="display:inline-block;width:28px;text-align:center;font-size:20px;font-weight:bold;"></span>' +
+                '<span class="lap-spinner" style="display:inline-flex;flex-direction:column;align-items:center;vertical-align:middle;">' +
+                    '<button class="lap-up" onmousedown="event.stopPropagation();adjustLap('+lane+',false,1)" title="右侧 +1" style="width:18px;height:13px;font-size:9px;background:#475569;color:white;border:0;padding:0;cursor:pointer;line-height:1;">▲</button>' +
+                    '<button class="lap-down" onmousedown="event.stopPropagation();adjustLap('+lane+',false,-1)" title="右侧 -1" style="width:18px;height:13px;font-size:9px;background:#475569;color:white;border:0;padding:0;margin-top:1px;cursor:pointer;line-height:1;">▼</button>' +
+                '</span>' +
+                '<span class="lr-right-remain" style="display:inline-block;width:26px;text-align:center;font-size:20px;font-weight:bold;"></span>' +
                 '<div class="device-dot lr-rd-0" title="触板"></div>' +
                 '<div class="device-dot lr-rd-1" title="出发台"></div>' +
                 '<div class="device-dot lr-rd-2" title="盲表1" style="' + rdVis(2) + '"></div>' +

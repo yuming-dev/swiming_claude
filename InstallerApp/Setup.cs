@@ -62,7 +62,7 @@ class SetupForm : Form
                 e.Graphics.DrawString("系统", titleFont, Brushes.White, new RectangleF(0, 210, p.Width, 30), sf);
             // 版本号
             using (var verFont = new Font("Segoe UI", 10))
-                e.Graphics.DrawString("v2026.04", verFont, new SolidBrush(Color.FromArgb(180, 255, 255, 255)), new RectangleF(0, 260, p.Width, 22), sf);
+                e.Graphics.DrawString("v2026.05.10", verFont, new SolidBrush(Color.FromArgb(180, 255, 255, 255)), new RectangleF(0, 260, p.Width, 22), sf);
         };
         return p;
     }
@@ -225,15 +225,17 @@ class SetupForm : Form
         content.Controls.Add(title);
 
         var info = new Label {
-            Text = "游泳赛事管理与计时系统已成功安装。\n\n" +
+            Text = "游泳赛事管理与计时系统 v2026.05.10 已成功安装。\n\n" +
                    "已创建桌面快捷方式：\n" +
                    "  ★  游泳赛事管理主服务器\n" +
                    "  ★  远程计时控制台\n\n" +
-                   "Web控制台地址（主服务器启动后）：\n" +
-                   "  比赛控制  http://localhost:3002/race_control.html\n" +
-                   "  大屏显示  http://localhost:3002/display.html\n" +
-                   "  排名屏      http://localhost:3002/leaderboard.html\n" +
-                   "  在线报名  http://localhost:3002/register.html",
+                   "Web 客户端地址（主服务器启动后）：\n" +
+                   "  比赛控制  http://<server>:3002/race_control.html\n" +
+                   "  大屏显示  http://<server>:3002/display.html\n" +
+                   "  排名屏      http://<server>:3002/leaderboard.html\n" +
+                   "  在线报名  http://<server>:3002/register.html\n" +
+                   "  检录台      http://<server>:3002/checkin.html\n\n" +
+                   "使用说明书：" + installDir + "\\使用说明书.pdf",
             Font = new Font("Microsoft YaHei", 10), ForeColor = Color.FromArgb(71, 85, 105),
             Location = new Point(30, 60), Size = new Size(380, 280)
         };
@@ -272,11 +274,13 @@ class SetupForm : Form
                 installDir + @"\Server\Documents", installDir + @"\RemoteControl" };
             foreach (var d in dirs) { if (!Directory.Exists(d)) Directory.CreateDirectory(d); }
 
-            SetProgress(15, "复制主服务器程序...");
-            FileCopy("SwimmingScoreboard\\SwimmingScoreboard.exe", "Server\\SwimmingScoreboard.exe");
-            SetProgress(25, "复制依赖库...");
-            FileCopy("SwimmingScoreboard\\Fleck.dll", "Server\\Fleck.dll");
-            FileCopy("SwimmingScoreboard\\Newtonsoft.Json.dll", "Server\\Newtonsoft.Json.dll");
+            SetProgress(15, "复制主服务器程序及依赖库...");
+            // 复制 SwimmingScoreboard\ 根目录下所有文件（exe + 所有 dll）到 Server\
+            string serverSrc = Path.Combine(sourceDir, "SwimmingScoreboard");
+            string serverDst = Path.Combine(installDir, "Server");
+            if (Directory.Exists(serverSrc))
+                foreach (var f in Directory.GetFiles(serverSrc))
+                    File.Copy(f, Path.Combine(serverDst, Path.GetFileName(f)), true);
 
             SetProgress(40, "复制Web页面...");
             string webSrc = Path.Combine(sourceDir, "SwimmingScoreboard", "Web");
@@ -290,9 +294,21 @@ class SetupForm : Form
                 foreach (var f in Directory.GetFiles(recSrc))
                     File.Copy(f, Path.Combine(installDir, "Server", "Records", Path.GetFileName(f)), true);
 
-            SetProgress(65, "复制远程控制台...");
-            FileCopy("RemoteTimingControl\\RemoteTimingControl.exe", "RemoteControl\\RemoteTimingControl.exe");
-            FileCopy("RemoteTimingControl\\Newtonsoft.Json.dll", "RemoteControl\\Newtonsoft.Json.dll");
+            SetProgress(65, "复制远程控制台及依赖库...");
+            // 复制 RemoteTimingControl\ 根目录下所有文件到 RemoteControl\
+            string remoteSrc = Path.Combine(sourceDir, "RemoteTimingControl");
+            string remoteDst = Path.Combine(installDir, "RemoteControl");
+            if (Directory.Exists(remoteSrc))
+                foreach (var f in Directory.GetFiles(remoteSrc))
+                    File.Copy(f, Path.Combine(remoteDst, Path.GetFileName(f)), true);
+
+            SetProgress(70, "复制工具程序（计时模拟器/参数调试）...");
+            string toolsDst = Path.Combine(installDir, "Tools");
+            if (!Directory.Exists(toolsDst)) Directory.CreateDirectory(toolsDst);
+            foreach (string toolName in new[] { "TimingSimulator.exe", "ParamDebugBot.exe" }) {
+                string toolSrc = Path.Combine(sourceDir, toolName);
+                if (File.Exists(toolSrc)) File.Copy(toolSrc, Path.Combine(toolsDst, toolName), true);
+            }
 
             SetProgress(80, "创建桌面快捷方式...");
             string desktop = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);

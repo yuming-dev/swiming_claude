@@ -286,6 +286,8 @@ function connect() {
                 }
             } else if (msg.type === 'REGISTER_MULTI_RESULT') {
                 handleMultiResult(msg.data);
+            } else if (msg.type === 'REGISTER_RELAY_RESULT') {
+                handleRelayResult(msg.data);
             } else if (msg.type === 'REGISTER_QUERY_RESULT') {
                 handleQueryResult(msg.data);
             } else if (msg.type === 'SHOW_LIVE_RACE' && msg.data) {
@@ -707,6 +709,7 @@ try {
 
 // ═══════ 接力 ═══════
 function registerRelay() {
+    if (!ws || ws.readyState !== 1) { showStatus('未连接服务器', false); return; }
     var team = document.getElementById('relayTeam').value.trim();
     if (!team) { showStatus('请输入队名', false); return; }
     var legs = [];
@@ -715,6 +718,9 @@ function registerRelay() {
         var legBib = document.getElementById('leg' + i + 'Bib').value.trim();
         var legID = document.getElementById('leg' + i + 'ID').value.trim();
         var legBirth = document.getElementById('leg' + i + 'Birth').value;   // yyyy-MM-dd
+        if (legBirth && !/^\d{4}-\d{2}-\d{2}$/.test(legBirth)) {
+            showStatus('第' + i + '棒出生日期格式应为 yyyy-MM-dd', false); return;
+        }
         if (legName) legs.push({
             legOrder: i,
             swimmerName: legName,
@@ -723,6 +729,7 @@ function registerRelay() {
             swimmerBirthDate: legBirth
         });
     }
+    if (legs.length === 0) { showStatus('请至少填写 1 棒队员姓名', false); return; }
     ws.send(JSON.stringify({
         type: 'REGISTER_RELAY',
         data: {
@@ -735,7 +742,39 @@ function registerRelay() {
             legs: legs
         }
     }));
-    showStatus('已提交接力: ' + team + ' (' + legs.length + '人)', true);
+    showStatus('正在提交接力: ' + team + ' (' + legs.length + '人) ……等待服务器结果', true);
+}
+
+// 主服务器对接力报名的反馈：弹窗 + 自动刷新表单
+function handleRelayResult(d) {
+    if (!d) return;
+    if (d.success) {
+        var info = (d.teamName || '') +
+            (d.bibNumber ? '（队伍号 ' + d.bibNumber + '）' : '') +
+            '：' + (d.legCount || 0) + ' 棒';
+        var summary = d.updated
+            ? '主服务器已更新该接力队（队名+性别+项目唯一），原有报名被新数据覆盖。'
+            : '主服务器已通过本次接力报名，相关数据已写入比赛系统。';
+        showResultModal(true, '接力报名提交成功', summary, [info], []);
+        resetRelayForm();
+    } else {
+        showResultModal(false, '接力报名未通过',
+            d.message || '主服务器反馈：接力队报名未通过。请修改后重新提交。',
+            [], [(d.teamName ? d.teamName + '：' : '') + (d.message || '校验未通过')]);
+    }
+}
+
+function resetRelayForm() {
+    var ids = ['relayTeam', 'relayCountryShort', 'relayEntryTime'];
+    for (var i = 0; i < ids.length; i++) { var el = document.getElementById(ids[i]); if (el) el.value = ''; }
+    var rg = document.getElementById('relayGender'); if (rg && rg.options.length > 0) rg.selectedIndex = 0;
+    var rag = document.getElementById('relayAgeGroup'); if (rag && rag.options.length > 0) rag.selectedIndex = 0;
+    for (var k = 1; k <= 4; k++) {
+        ['Name', 'Birth', 'ID', 'Bib'].forEach(function(suf) {
+            var el = document.getElementById('leg' + k + suf);
+            if (el) el.value = '';
+        });
+    }
 }
 
 connect();

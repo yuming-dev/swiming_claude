@@ -1,619 +1,1037 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-<meta charset="UTF-8">
-<title>游泳赛事管理与计时系统 使用说明书</title>
-<style>
-  body { font-family: "Microsoft YaHei", "微软雅黑", "Segoe UI", sans-serif;
-         max-width: 1100px; margin: 32px auto; padding: 0 28px; line-height: 1.7;
-         color: #1f2937; background: #ffffff; }
-  h1 { font-size: 28px; color: #0f172a; border-bottom: 3px solid #2563eb; padding-bottom: 8px; }
-  h2 { font-size: 22px; color: #1d4ed8; border-left: 5px solid #2563eb; padding-left: 10px;
-       margin-top: 36px; }
-  h3 { font-size: 17px; color: #1e40af; margin-top: 22px; }
-  h4 { font-size: 15px; color: #334155; margin-top: 18px; }
-  table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 14px; }
-  th, td { border: 1px solid #cbd5e1; padding: 7px 10px; text-align: left; vertical-align: top; }
-  th { background: #f1f5f9; font-weight: bold; color: #0f172a; }
-  tr:nth-child(even) td { background: #f8fafc; }
-  code { background: #f1f5f9; padding: 1px 6px; border-radius: 3px; font-family: Consolas, Menlo, monospace;
-         color: #be185d; font-size: 13px; }
-  pre { background: #0f172a; color: #e2e8f0; padding: 14px 16px; border-radius: 6px; overflow-x: auto;
-        font-family: Consolas, Menlo, monospace; font-size: 13px; line-height: 1.55; }
-  pre code { background: transparent; color: inherit; padding: 0; }
-  ul, ol { padding-left: 26px; }
-  li { margin: 4px 0; }
-  blockquote { border-left: 4px solid #f59e0b; background: #fffbeb; margin: 14px 0; padding: 10px 16px;
-               color: #78350f; }
-  .toc { background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; padding: 14px 24px; }
-  .toc ol { margin: 0; }
-  .toc a { color: #1d4ed8; text-decoration: none; }
-  .toc a:hover { text-decoration: underline; }
-  .version { background: #ecfdf5; border-left: 4px solid #10b981; padding: 10px 16px;
-             border-radius: 4px; margin: 18px 0; }
-  .new { color: #b91c1c; font-weight: bold; font-size: 12px; background: #fee2e2;
-         padding: 1px 6px; border-radius: 3px; margin-left: 4px; }
-  hr { border: none; border-top: 1px solid #cbd5e1; margin: 32px 0; }
-  .section-anchor { padding-top: 6px; }
-</style>
-</head>
-<body>
-
-<h1>游泳赛事管理与计时系统 使用说明书</h1>
-
-<p>
-<b>版本</b>：2026.04<br>
-<b>适用平台</b>：Windows 7 / 8 / 10 / 11<br>
-<b>主要分发文件</b>：<code>游泳赛事管理系统_安装包.zip</code>
-</p>
-
+﻿<!DOCTYPE html><html lang="zh"><head><meta charset="utf-8"><title>游泳赛事管理与计时系统 使用说明书 v2026.05.10</title><style>body{font-family:'Microsoft YaHei','Source Han Sans CN',sans-serif;max-width:960px;margin:30px auto;padding:0 20px;line-height:1.7;color:#1f2937;background:#fff;}h1{color:#1e3a8a;font-size:28px;border-bottom:3px solid #3b82f6;padding-bottom:12px;margin-top:30px;}h2{color:#1e40af;font-size:22px;border-bottom:1px solid #cbd5e1;padding-bottom:6px;margin-top:30px;}h3{color:#1e3a8a;font-size:18px;margin-top:24px;}h4{color:#334155;font-size:16px;margin-top:18px;}h5,h6{color:#475569;font-size:14px;}p{margin:8px 0;}table{border-collapse:collapse;margin:12px 0;width:100%;font-size:14px;}th,td{border:1px solid #cbd5e1;padding:8px 12px;text-align:left;vertical-align:top;}th{background:#eff6ff;color:#1e40af;font-weight:bold;}tr:nth-child(even) td{background:#f8fafc;}code{background:#f1f5f9;padding:1px 6px;border-radius:3px;color:#be185d;font-family:Consolas,monospace;font-size:90%;}pre{background:#0f172a;color:#e2e8f0;padding:14px 16px;border-radius:6px;overflow-x:auto;font-family:Consolas,monospace;font-size:13px;}ul,ol{margin:8px 0 8px 28px;}li{margin:4px 0;}blockquote{border-left:4px solid #3b82f6;background:#eff6ff;padding:6px 14px;margin:10px 0;color:#1e3a8a;}hr{border:none;border-top:2px solid #e2e8f0;margin:30px 0;}a{color:#2563eb;text-decoration:none;}a:hover{text-decoration:underline;}strong{color:#1e293b;}@media print{body{font-size:11pt;max-width:100%;}h1{page-break-before:always;}h1:first-child{page-break-before:auto;}table,pre,blockquote{page-break-inside:avoid;}pre{background:#f8fafc;color:#1f2937;}}</style></head><body><h1>游泳赛事管理与计时系统 使用说明书</h1>
+<p><strong>版本</strong>：v2026.05.10</p>
+<p><strong>适用平台</strong>：Windows 10 / 11（x64）</p>
+<p><strong>主要分发文件</strong>：<code>游泳赛事管理系统_安装包_&lt;日期&gt;.zip</code></p>
 <hr>
-
+<h2>本版主要变更（v2026.05）</h2>
+<table>
+<thead><tr>
+  <th>类别</th>
+  <th>变更要点</th>
+</tr></thead><tbody>
+<tr>
+  <td><strong>多人在线报名</strong></td>
+  <td>网页 <code>register.html</code> 改为"录入表单 → 加入待提交列表 → 一次提交全部"工作流；服务器逐条校验，未通过原因弹窗提示</td>
+</tr>
+<tr>
+  <td><strong>起跳犯规改为人工判罚</strong></td>
+  <td>反应时低于阈值不再自动 DSQ；只把反应时<strong>标红</strong>作为可疑提示。是否判罚由裁判手动按 DSQ 按钮决定，全部判罚实时上大屏</td>
+</tr>
+<tr>
+  <td><strong>破 / 平纪录自动比对</strong></td>
+  <td>触板完赛即与"记录库"（WR/OR/AR/AJR/NR/省R/市R/CR）比对，备注栏 + 大屏 + 打印输出实时显示标识；裁判确认后自动更新对应记录</td>
+</tr>
+<tr>
+  <td><strong>并列名次</strong></td>
+  <td>同 FinalTime 的运动员共享名次（1-2-2-4），下一位名次按总数跳过</td>
+</tr>
+<tr>
+  <td><strong>圈数 ▲▼ 微调</strong></td>
+  <td>三个计时控制端每道左 / 右各加 spinner，按哪边只动哪边；钳到 [0, 该侧实际触板次数]</td>
+</tr>
+<tr>
+  <td><strong>反应时(RT)开 / 关</strong></td>
+  <td>参数设置中增加"反应时(RT)"打开 / 关闭单选；关闭后所有出发反应时相关处理跳过</td>
+</tr>
+<tr>
+  <td><strong>大屏翻屏时间</strong></td>
+  <td>参数设置中增加"大屏翻屏时间"（默认 5 秒），影响总排名等多页内容自动翻页周期</td>
+</tr>
+<tr>
+  <td><strong>接力出生日期</strong></td>
+  <td>三个报名端（register.html / RegistrationTool.exe / 主控接力对话框）每棒加"出生日期"字段</td>
+</tr>
+<tr>
+  <td><strong>手动分组对话框</strong></td>
+  <td>选半决赛 / 决赛时，"种子成绩"列自动改显<strong>前一赛次成绩</strong>（对应排序 key 也跟着切换）</td>
+</tr>
+<tr>
+  <td><strong>盲表成绩按钮修复</strong></td>
+  <td>既读 <code>laneState.PendingBlind<em>Time</code>，也读当前 split 的 <code>PushButton</em>Time</code>，避免常规路径下"无盲表数据可用"</td>
+</tr>
+<tr>
+  <td><strong>主控参数设置弹窗</strong></td>
+  <td>改为 SizeToContent.Height，去掉滚动条，自适应高度容纳新增条目</td>
+</tr>
+</tbody></table>
+<hr>
 <h2>目录</h2>
-<div class="toc">
 <ol>
-  <li><a href="#sec1">系统概述</a></li>
-  <li><a href="#sec2">安装与启动</a></li>
-  <li><a href="#sec3">系统架构与通讯</a></li>
-  <li><a href="#sec4">比赛类型管理</a></li>
-  <li><a href="#sec5">赛事管理与报名</a></li>
-  <li><a href="#sec6">运动员管理</a></li>
-  <li><a href="#sec7">赛程与分组</a></li>
-  <li><a href="#sec8">比赛控制</a></li>
-  <li><a href="#sec9">成绩与排名</a></li>
-  <li><a href="#sec10">纪录管理</a></li>
-  <li><a href="#sec11">文档编辑/输出/打印</a></li>
-  <li><a href="#sec12">图片/视频大屏显示</a></li>
-  <li><a href="#sec13">系统日志与数据管理</a></li>
-  <li><a href="#sec14">参数设置与硬件连接</a></li>
-  <li><a href="#sec15">EXE 远程计时控制台</a></li>
-  <li><a href="#sec16">HTML 浏览器计时控制台</a></li>
-  <li><a href="#sec17">网页检录台</a></li>
-  <li><a href="#sec18">大屏显示与排名屏</a></li>
-  <li><a href="#sec19">在线报名 / 注册工具</a></li>
-  <li><a href="#sec20">自动化测试机器人</a></li>
-  <li><a href="#sec21">硬件参数调试机器人</a></li>
-  <li><a href="#sec22">常见问题</a></li>
+<li><a href="#1-系统概述">系统概述</a></li>
+<li><a href="#2-安装与启动">安装与启动</a></li>
+<li><a href="#3-系统架构与通讯">系统架构与通讯</a></li>
+<li><a href="#4-比赛类型管理">比赛类型管理</a></li>
+<li><a href="#5-赛事管理与报名">赛事管理与报名</a></li>
+<li><a href="#6-运动员管理">运动员管理</a></li>
+<li><a href="#7-接力队管理">接力队管理</a></li>
+<li><a href="#8-赛程与分组">赛程与分组</a></li>
+<li><a href="#9-比赛控制">比赛控制</a></li>
+<li><a href="#10-成绩与排名">成绩与排名</a></li>
+<li><a href="#11-纪录管理">纪录管理</a></li>
+<li><a href="#12-文档编辑-输出-打印">文档编辑 / 输出 / 打印</a></li>
+<li><a href="#13-显示控制图片-视频-模式切换">显示控制（图片 / 视频 / 模式切换）</a></li>
+<li><a href="#14-系统日志与数据管理">系统日志与数据管理</a></li>
+<li><a href="#15-参数设置与硬件连接">参数设置与硬件连接</a></li>
+<li><a href="#16-exe-远程计时控制台">EXE 远程计时控制台</a></li>
+<li><a href="#17-html-浏览器计时控制台">HTML 浏览器计时控制台</a></li>
+<li><a href="#18-网页检录台">网页检录台</a></li>
+<li><a href="#19-大屏显示-排名屏">大屏显示 / 排名屏</a></li>
+<li><a href="#20-在线报名-注册工具">在线报名 / 注册工具</a></li>
+<li><a href="#21-自动化测试机器人">自动化测试机器人</a></li>
+<li><a href="#22-硬件参数调试机器人">硬件参数调试机器人</a></li>
+<li><a href="#23-常见问题">常见问题</a></li>
 </ol>
-</div>
-
 <hr>
-
-<h2 id="sec1" class="section-anchor">1. 系统概述</h2>
-
+<h2>1. 系统概述</h2>
 <h3>1.1 设计目标</h3>
-<p>本系统是一套<b>完整的游泳比赛管理与计时解决方案</b>，覆盖赛事全生命周期：</p>
+<p>本系统是一套<strong>完整的游泳比赛管理与计时解决方案</strong>，覆盖赛事全生命周期：</p>
 <ul>
-  <li><b>赛前</b>：赛事创建 / 运动员报名 / 自动或手动分组 / 秩序册编辑 / 纪录数据导入</li>
-  <li><b>赛中</b>：硬件计时实时联动 / 三端控制台同步 / 设备状态管理 / 大屏展示 / 媒体播放</li>
-  <li><b>赛后</b>：成绩确认与排名 / 多轮晋级 / 成绩册编辑 / 多格式文档输出（PDF / DOC / HTML）</li>
+<li><strong>赛前</strong>：赛事创建 / 运动员报名 / 自动或手动分组 / 秩序册编辑 / 纪录数据导入</li>
+<li><strong>赛中</strong>：硬件计时实时联动 / 三端控制台同步 / 设备状态管理 / 大屏展示 / 媒体播放</li>
+<li><strong>赛后</strong>：成绩确认与排名 / 多轮晋级 / 成绩册编辑 / 多格式文档输出（PDF / DOC / HTML）</li>
 </ul>
-
+<p>系统遵循 <strong>World Aquatics（FINA）SW 3 竞赛规则</strong> 自动分组（蛇形/种子排位、矛头泳道分配等）。</p>
 <h3>1.2 系统组成</h3>
 <table>
-<tr><th>组件</th><th>说明</th><th>运行方式</th></tr>
-<tr><td><b>主服务器</b> <code>SwimmingScoreboard.exe</code></td><td>赛事管理核心，连接计时硬件</td><td>Windows 应用程序</td></tr>
-<tr><td><b>远程计时控制台</b> <code>RemoteTimingControl.exe</code></td><td>独立 PC 上的比赛控制客户端</td><td>Windows 应用程序</td></tr>
-<tr><td><b>HTML 计时控制台</b> <code>race_control.html</code></td><td>浏览器端比赛控制（与 EXE 同等功能）</td><td>浏览器</td></tr>
-<tr><td><b>网页检录台</b> <code>checkin.html</code></td><td>检录台核对身份、打印检录单</td><td>浏览器</td></tr>
-<tr><td><b>大屏显示</b> <code>display.html</code></td><td>观众大屏（项目/成绩/纪录/媒体）</td><td>浏览器全屏</td></tr>
-<tr><td><b>排名屏</b> <code>leaderboard.html</code></td><td>项目/团体/纪录排名展示</td><td>浏览器全屏</td></tr>
-<tr><td><b>在线报名</b> <code>register.html</code></td><td>运动员/接力队自助报名</td><td>浏览器</td></tr>
-<tr><td><b>注册工具</b> <code>RegistrationTool.exe</code></td><td>桌面端运动员注册客户端</td><td>Windows 应用程序</td></tr>
-<tr><td><b>自动化测试机器人</b> <code>test_bot.html</code></td><td>模拟报名/比赛流程，便于演示与压测</td><td>浏览器</td></tr>
-<tr><td><b>计时模拟器</b> <code>TimingSimulator.exe</code></td><td>在没有实物硬件时调试协议</td><td>Windows 应用程序</td></tr>
-<tr><td><b>硬件参数调试机器人</b> <code>ParamDebugBot.exe</code></td><td>硬件双向调试</td><td>Windows 应用程序</td></tr>
-</table>
-
+<thead><tr>
+  <th>组件</th>
+  <th>说明</th>
+  <th>运行方式</th>
+</tr></thead><tbody>
+<tr>
+  <td><strong>主服务器</strong> <code>SwimmingScoreboard.exe</code></td>
+  <td>赛事管理核心，连接计时硬件，承载所有数据</td>
+  <td>Windows 应用程序</td>
+</tr>
+<tr>
+  <td><strong>远程计时控制台</strong> <code>RemoteTimingControl.exe</code></td>
+  <td>独立 PC 上的比赛控制客户端</td>
+  <td>Windows 应用程序</td>
+</tr>
+<tr>
+  <td><strong>HTML 计时控制台</strong> <code>race_control.html</code></td>
+  <td>浏览器端比赛控制（与 EXE 等价）</td>
+  <td>浏览器全屏</td>
+</tr>
+<tr>
+  <td><strong>网页检录台</strong> <code>checkin.html</code></td>
+  <td>检录台核对身份、登记 DSQ/DNS/DNF</td>
+  <td>浏览器</td>
+</tr>
+<tr>
+  <td><strong>大屏显示</strong> <code>display.html</code></td>
+  <td>观众大屏（项目/成绩/纪录/媒体）</td>
+  <td>浏览器全屏</td>
+</tr>
+<tr>
+  <td><strong>排名屏</strong> <code>leaderboard.html</code></td>
+  <td>项目/团体/纪录排名展示</td>
+  <td>浏览器全屏</td>
+</tr>
+<tr>
+  <td><strong>显示控制</strong> <code>control.html</code></td>
+  <td>大屏显示模式遥控</td>
+  <td>浏览器</td>
+</tr>
+<tr>
+  <td><strong>在线报名</strong> <code>register.html</code></td>
+  <td>运动员/接力队自助报名</td>
+  <td>浏览器</td>
+</tr>
+<tr>
+  <td><strong>EXE 注册工具</strong> <code>RegistrationTool.exe</code></td>
+  <td>桌面端运动员注册客户端</td>
+  <td>Windows 应用程序</td>
+</tr>
+<tr>
+  <td><strong>自动化测试机器人</strong> <code>test_bot.html</code></td>
+  <td>模拟报名/比赛流程，便于演示与压测</td>
+  <td>浏览器</td>
+</tr>
+<tr>
+  <td><strong>计时模拟器</strong> <code>TimingSimulator.exe</code></td>
+  <td>在没有实物硬件时调试通讯协议</td>
+  <td>Windows 应用程序</td>
+</tr>
+<tr>
+  <td><strong>硬件参数调试机器人</strong> <code>ParamDebugBot.exe</code></td>
+  <td>与硬件计时器双向调试</td>
+  <td>Windows 应用程序</td>
+</tr>
+</tbody></table>
 <h3>1.3 系统要求</h3>
 <ul>
-  <li><b>操作系统</b>：Windows 7 / 8 / 10 / 11</li>
-  <li><b>运行环境</b>：.NET Framework 4.5（系统通常已预装）</li>
-  <li><b>网络</b>：局域网即可（主服务器与各客户端 / 大屏在同一子网）</li>
-  <li><b>端口</b>：<code>3002</code>（WebSocket）</li>
-  <li><b>浏览器</b>：Chrome / Edge（推荐）</li>
-  <li><b>硬件计时器</b>：通过串口 / UDP / TCP 任一方式连接（协议详见 §3）</li>
+<li><strong>操作系统</strong>：Windows 10 / 11（推荐 64 位）</li>
+<li><strong>运行环境</strong>：.NET Framework 4.5+（系统通常已预装）</li>
+<li><strong>网络</strong>：局域网即可（主服务器与各客户端、大屏在同一子网）</li>
+<li><strong>端口</strong>：<code>3002</code>（WebSocket）</li>
+<li><strong>浏览器</strong>：Chrome / Edge（推荐最新版）</li>
+<li><strong>硬件计时器</strong>：通过串口 / UDP / TCP 任一方式连接（协议详见 §3）</li>
 </ul>
-
 <hr>
-
-<h2 id="sec2" class="section-anchor">2. 安装与启动</h2>
-
+<h2>2. 安装与启动</h2>
 <h3>2.1 安装</h3>
 <ol>
-  <li>解压 <code>游泳赛事管理系统_安装包_&lt;日期&gt;.zip</code></li>
-  <li>双击 <code>Setup.exe</code>，选择安装目录（默认 <code>C:\SwimmingTimingSystem</code>）</li>
-  <li>安装完成，桌面 / 开始菜单生成快捷方式</li>
+<li>解压 <code>游泳赛事管理系统_安装包_&lt;日期&gt;.zip</code></li>
+<li>双击 <code>Setup.exe</code>，选择安装目录（默认 <code>C:\SwimmingTimingSystem</code>）</li>
+<li>安装完成，桌面 / 开始菜单生成快捷方式（主服务器、注册工具、远程计时台）</li>
 </ol>
-
 <h3>2.2 启动主服务器</h3>
 <ol>
-  <li>双击 <b>"游泳赛事管理主服务器"</b></li>
-  <li>首次启动设置管理员密码</li>
-  <li>登录后进入主界面（标签页：赛事管理与报名 / 比赛控制 / 成绩与排名 / 纪录管理 / 比赛类型管理 / 文档编辑/输出/打印 / 系统日志与数据）</li>
+<li>双击 <strong>"游泳赛事管理主服务器"</strong>（<code>SwimmingScoreboard.exe</code>）</li>
+<li>首次启动会要求设置管理员密码</li>
+<li>登录后进入主界面（多 Tab：系统工作状态 / 赛事管理与报名 / 比赛控制 / 成绩与排名 / 纪录管理 / 比赛类型管理 / 文档编辑 / 系统日志）</li>
 </ol>
-
 <h3>2.3 启动远程计时控制台（异机操作）</h3>
 <ol>
-  <li>双击 <b>"远程计时控制台"</b></li>
-  <li>顶部输入主服务器地址 <code>&lt;IP&gt;:3002</code></li>
-  <li>点击 <b>连接</b></li>
+<li>双击 <strong>"远程计时控制台"</strong>（<code>RemoteTimingControl.exe</code>）</li>
+<li>顶部输入主服务器地址 <code>&lt;IP&gt;:3002</code></li>
+<li>点击 <strong>连接</strong></li>
 </ol>
-
-<h3>2.4 打开 HTML 控制台 / 大屏</h3>
+<h3>2.4 打开 HTML 控制台 / 大屏 / 注册端</h3>
 <ul>
-  <li>浏览器输入 <code>http://&lt;主服务器IP&gt;:8080/race_control.html</code> 等（或直接打开本地 HTML 文件，首次输入服务器 IP）</li>
+<li>浏览器打开如下页面之一（首次启动会显示<strong>全屏连接遮罩</strong>，输入主服务器 IP 并点击"连接"按钮即可）：</li>
+<li>计时控制台 <code>race_control.html</code></li>
+<li>大屏显示 <code>display.html</code></li>
+<li>排名屏 <code>leaderboard.html</code></li>
+<li>显示控制 <code>control.html</code></li>
+<li>在线报名 <code>register.html</code></li>
+<li>检录台 <code>checkin.html</code></li>
 </ul>
-
 <h3>2.5 防火墙</h3>
-<p>请允许 <code>SwimmingScoreboard.exe</code> 通过 Windows 防火墙；否则其它客户端将无法连接 3002 端口。</p>
-
+<p>请允许 <code>SwimmingScoreboard.exe</code> 通过 Windows 防火墙（专用 / 公用都勾选），否则其它客户端将无法连接 3002 端口。</p>
 <hr>
-
-<h2 id="sec3" class="section-anchor">3. 系统架构与通讯</h2>
-
-<pre><code>            ┌──────────────────────────────┐
-            │       计时硬件控制器          │
+<h2>3. 系统架构与通讯</h2>
+<pre>
+            ┌──────────────────────────────┐
+            │        计时硬件控制器         │
             │   (串口 / UDP / TCP)         │
             └──────────┬───────────────────┘
-                       │ 12 字节帧 F1 53 ...
-                       │（双向同步：参数/设备/比赛距离）
+                       │ 12 字节帧 F1 53 ... F4
+                       │（双向同步：参数 / 设备 / 比赛距离）
         ┌──────────────▼──────────────────┐
-        │    主服务器 SwimmingScoreboard   │
-        │   (WebSocket :3002 / SQLite备份) │
+        │   主服务器 SwimmingScoreboard    │
+        │   (WebSocket :3002 / JSON 持久化) │
         └──────────────┬──────────────────┘
                        │
-        ┌──────────────┼─────────────────┬───────────────┐
-        ▼              ▼                 ▼               ▼
-   EXE 远程台    HTML 计时台       大屏 / 排名屏     在线报名 / 检录台
-  (RemoteTimingControl)    (race_control.html)
-</code></pre>
-
-<h3>3.1 三个计时控制台</h3>
-<p>主服务器 EXE / RemoteTimingControl EXE / race_control.html 三者<b>功能完全等价</b>，操作哪一台都通过 WebSocket 同步到其它两端。任意一端的"参数设置"修改会立即广播到全部端 + 硬件。</p>
-
-<h3>3.2 硬件计时协议</h3>
+        ┌──────────────┼─────────────────┬──────────────┐
+        ▼              ▼                 ▼              ▼
+   EXE 远程台    HTML 计时台      大屏 / 排名屏     在线报名 / 检录台
+</pre>
+<h3>3.1 三个计时控制台等价</h3>
+<p>主服务器 / <code>RemoteTimingControl.exe</code> / <code>race_control.html</code> <strong>功能完全等价</strong>——任何一端按下就位 / 发令 / 确认成绩 / 计时器清零，都通过 WebSocket 广播到其它两端 + 硬件，状态保持一致。</p>
+<h3>3.2 硬件计时协议（摘要）</h3>
 <ul>
-  <li>12 字节帧 <code>F1 53 ... F4</code>（详见 <code>硬件计时协议规范.html</code>）</li>
-  <li><code>0x42</code> 子码扩展（双向）：
-    <ul>
-      <li><code>0x01-0x07</code>：泳道关闭时间 / 出发台延迟 / 抢跳阈值 / 终点位置 等</li>
-      <li><code>0x08</code>：左右盲表数量（高 4 位左 / 低 4 位右）</li>
-      <li><code>0x10</code>：设备好/坏位图</li>
-      <li><code>0x20</code>：比赛距离 + 左右触板次数</li>
-    </ul>
-  </li>
+<li>12 字节帧 <code>F1 53 [子码] [数据 ×8] F4</code></li>
+<li><code>0x42</code> 子码扩展（双向）：</li>
+<li><code>0x01-0x07</code>：泳道关闭时间 / 出发台延迟 / 抢跳阈值 / 终点位置</li>
+<li><code>0x08</code>：左右盲表数量（高 4 位左 / 低 4 位右）</li>
+<li><code>0x10</code>：设备好/坏位图</li>
+<li><code>0x20</code>：比赛距离 + 左右触板次数</li>
+<li>详见 <code>游泳计时系统通讯协议.pdf</code></li>
 </ul>
-
 <hr>
-
-<h2 id="sec4" class="section-anchor">4. 比赛类型管理</h2>
-<p><code>比赛类型管理</code> tab 用于配置 5 种基础维度：</p>
+<h2>4. 比赛类型管理</h2>
+<p><code>比赛类型管理</code> Tab 用于配置 5 种基础维度，<strong>任意修改都会即时同步到所有 WPF 下拉、网页报名端、大屏和远程台</strong>（通过 <code>NotifyMetadataChanged</code>）：</p>
 <table>
-<tr><th>维度</th><th>用途</th><th>默认值</th></tr>
-<tr><td><b>比赛项目</b></td><td>报名 / 赛程的可选项目（50/100/200米…）</td><td>标准游泳项目</td></tr>
-<tr><td><b>组别</b></td><td>报名时分类（甲/乙/丙/丁/戊/己 等）</td><td>6 个标准组</td></tr>
-<tr><td><b>性别</b></td><td>男 / 女 / 混合</td><td>三个</td></tr>
-<tr><td><b>赛次</b></td><td>预赛 / 半决赛 / 决赛 / 自定义</td><td>三个</td></tr>
-<tr><td><b>组数</b></td><td>1 组 / 2 组 / … 的预设值</td><td>1-8</td></tr>
-</table>
-<p>每个维度都有"<b>编辑</b> / <b>导入</b> / <b>导出</b> / <b>下载模板</b>" 4 个按钮，编辑器为弹窗 DataGrid（左侧自动序号 1, 2, 3 …，可增/删行），数据持久化于赛事档案。</p>
-<blockquote>注：组别与年龄无关，是人工分类（如奥运/全运的甲乙丙组），不再像旧版按 MinAge/MaxAge 自动判定。</blockquote>
-
-<hr>
-
-<h2 id="sec5" class="section-anchor">5. 赛事管理与报名</h2>
-<p><code>赛事管理与报名</code> tab 顶部为赛事基本信息卡片：</p>
-<ul>
-  <li><b>赛事名称 / 比赛模式 / 泳池长度 / 泳道数量</b>（10 道默认 0-9，8 道默认 1-8）</li>
-  <li><b>开始/结束日期 / 比赛地点</b></li>
-  <li><b>主办方 / 承办方 / 技术代表 / 总裁判长 / 发令员 / 编排长</b></li>
-  <li>操作按钮：<b>保存赛事信息 / 加载赛事 / 新建赛事</b></li>
-</ul>
-<p>下方"报名统计"实时显示各项目分性别/组别的报名人数。</p>
-
-<hr>
-
-<h2 id="sec6" class="section-anchor">6. 运动员管理</h2>
-
-<h3>6.1 添加 / 修改 / 删除</h3>
-<ul>
-  <li><b>添加运动员</b> 弹出对话框，可一次性填齐：姓名 / 性别 / 出生日期 / 身份证 / 代表队 / 单位简称 / 组别 / 联系电话 / 协会注册号 / 备注 / 报名项目 / 报名成绩 等</li>
-  <li><b>修改选中</b> / <b>删除选中</b>：支持多选（Ctrl/Shift），按 Delete 键也可删除</li>
-  <li><b>添加接力队</b>：支持 4 棒队员姓名 / 身份证 / 队号录入</li>
-</ul>
-
-<h3>6.2 筛选</h3>
-<p>顶部筛选器：项目 / 组别 / 性别 / 姓名（模糊）/ 号码（模糊）。状态修改后立即同步到 race control / 大屏。</p>
-
-<h3>6.3 号码区间设置</h3>
-<p>按代表队设置号码段（如 北京队 001-050）。新注册运动员自动在该队号码段内取号；也可手动指定。</p>
-
-<h3>6.4 CSV / Excel 批量</h3>
-<ul>
-  <li><b>导入 CSV</b>：旧版扁平列表导入</li>
-  <li><b>导入 / 导出 / 下载模板</b>：详见 §7.3 分组表 Excel</li>
-</ul>
-
-<hr>
-
-<h2 id="sec7" class="section-anchor">7. 赛程与分组</h2>
-
-<h3>7.1 自动 / 手动赛程生成</h3>
-<ul>
-  <li><b>一键生成日程</b>：按"组别 → 性别 → 项目 → 赛次"维度合成场次，自动按距离 / 项目类型排序</li>
-  <li><b>手动赛次设置</b>：弹出 <code>PromptStagePlan</code> 让用户为每个项目自定义需要的赛次（仅决赛 / 预+决 / 预+半+决 / A决+B决 / 自定义）</li>
-</ul>
-
-<h3>7.2 自动 / 手动分组</h3>
-<ul>
-  <li><b>自动生成分组</b>：按报名成绩蛇形分配</li>
-  <li><b>出场编排微调</b>：可拖动调整每道运动员，处理空泳道 / 临时加人</li>
-</ul>
-
-<h3>7.3 分组表 Excel 导入 / 导出 <span class="new">新增</span></h3>
-<p><code>赛事管理与报名 → 导入分组表 (Excel)</code> / <code>导出分组表 (Excel)</code> / <code>下载分组表 Excel 模板</code></p>
-<p><b>Excel 工作簿含 3 个 sheet</b>：</p>
-<ol>
-  <li><b>「分组明细」</b>（行式 / 主数据） 19 列：场次 / 比赛日期 / 时段 / 项目编号 / 组别 / 性别 / 项目 / 赛次 / 排序方式 / 组号 / 道次 / 参赛号 / 姓名 / 代表队 / 单位简称 / 报名成绩 / 出生年月 / 年龄 / 备注</li>
-  <li><b>「分组表(网格)」</b>：仿全运会秩序册排版，每组 3 行（道次 / 姓名 / 代表队），接力额外 4 棒</li>
-  <li><b>「填写说明」</b>：说明 + 完整项目清单 + 已注册代表队列表</li>
-</ol>
-<p><b>导入对话框</b> 含「<b>未注册时自动添加</b>」复选框（默认勾选）—— 当 Excel 中的姓名+代表队 在系统中未找到时，自动按 Excel 行新建运动员。</p>
-<p>10 道泳池表头显示道次 <code>0~9</code>；8 道为 <code>1~8</code>。</p>
-
-<h3>7.4 晋级处理</h3>
-<p><code>成绩与排名</code> tab 的 <b>晋级处理</b> 按钮调出 <code>PromotionQueryWindow</code>，支持：</p>
-<ul>
-  <li>查询当前赛次的总排名（不分组统一排名）</li>
-  <li>设置晋级人数（默认 16）</li>
-  <li>一键执行晋级 + 自动分组到下一赛次</li>
-</ul>
-
-<hr>
-
-<h2 id="sec8" class="section-anchor">8. 比赛控制</h2>
-<p><code>比赛控制</code> tab 三栏布局：</p>
-<pre><code>左：赛程导航 + 计时源对比          中：泳道实时状态                 右：比赛控制按钮</code></pre>
-
-<h3>8.1 泳道实时状态（左右对称布局）</h3>
-<p>每道一行，左右对称：</p>
-<pre><code>[T] 盲3 盲2 盲1 出发 触板 圈 │ 姓名+进度 │ 圈 触板 出发 盲1 盲2 盲3 [T]</code></pre>
-<ul>
-  <li><b>左右盲表数量</b> 可独立设置 1-3，超出数量的圆点占位但隐藏（盲 1 / 出发 / 触板的位置始终固定）</li>
-  <li><b>T 按钮</b>：手动触板（左右两侧各一个，可单独启用）</li>
-  <li><b>进度条</b>：箭头方向跟随发令位置；显示运动员所在段</li>
-  <li>顶部条显示 <b>大屏主纪录</b>（WR / AR / NR / 省R / 市R 之一，可在记录管理中切换）</li>
-</ul>
-
-<h3>8.2 比赛控制按钮组</h3>
-<ul>
-  <li><b>就位</b> / <b>发令</b> / <b>计时复位</b> / <b>确认成绩</b></li>
-  <li><b>一键全开/全关泳道</b> / <b>重启</b> / <b>手动盲表成绩</b></li>
-  <li><b>上一组 / 下一组</b></li>
-</ul>
-
-<h3>8.3 显示控制（右侧）</h3>
-<p>向大屏推送：<b>出发表 / 比赛视图 / 组成绩 / 总排名 / 团体 / 颁奖 / 纪录 / 欢迎 / 成绩发布 / 图片/视频</b></p>
-
-<h3>8.4 比赛流程</h3>
-<ol>
-  <li>选择项目 → 选组 → <b>就位</b></li>
-  <li><b>发令</b>（可由硬件触发或软件触发）</li>
-  <li>触板/盲表/手动按钮接收 → 自动判定计时源</li>
-  <li>完成 → 检查抢跳/犯规 → <b>确认成绩</b></li>
-  <li>一组完成可 <b>下一组</b>（已确认组返回时仍能看到成绩）</li>
-</ol>
-<blockquote><b>跨组成绩保留</b>：进入已确认组时，自动恢复完赛状态显示，不会因切组而丢失之前的成绩显示。</blockquote>
-
-<hr>
-
-<h2 id="sec9" class="section-anchor">9. 成绩与排名</h2>
-<p><code>成绩与排名</code> tab：</p>
-<ul>
-  <li>6 维筛选：组别 / 性别 / 项目 / 赛次 / 组次 / 关键词</li>
-  <li>表格列：名次 / 道 / 号码 / 姓名 / 代表队 / 最终成绩 / 计时源 / 反应时 / 备注</li>
-  <li>操作：<b>晋级处理 / 项目成绩打印 / 成绩发布到大屏</b></li>
-</ul>
-
-<hr>
-
-<h2 id="sec10" class="section-anchor">10. 纪录管理</h2>
-
-<h3>10.1 纪录类型</h3>
-<p>可自定义任意类型字符串。常见：</p>
-<ul>
-  <li>世界纪录 (WR) / 亚洲纪录 (AR) / 全国纪录 (NR) / 省运会纪录 / 市纪录 / 赛会纪录 (CR) / 学校纪录 …</li>
-</ul>
-
-<h3>10.2 大屏显示记录 <span class="new">新增</span></h3>
-<p><code>记录管理</code> tab 右上角 <b>大屏显示记录</b> 按钮 → 弹出对话框，可：</p>
-<ul>
-  <li>在预设列表（WR/AR/NR/省R/市R/CR）中选择</li>
-  <li>编辑或新增"简称 + 完整名称"组合（如 市R / 市纪录）</li>
-  <li>选定后，主控泳道状态条 + race_control + 大屏 + RemoteTimingControl 顶部统一显示该简称及对应纪录数据</li>
-</ul>
-
-<h3>10.3 导入</h3>
-<ul>
-  <li><b>导入标准纪录</b>：内置常见标准</li>
-  <li><b>导入 CSV 纪录</b>：自定义批量</li>
-  <li><b>下载纪录模板</b></li>
-</ul>
-
-<hr>
-
-<h2 id="sec11" class="section-anchor">11. 文档编辑/输出/打印</h2>
-<p><code>文档编辑/输出/打印</code> tab 把所有文档归类成 4 大块（每个文档为统一卡片）：</p>
-<table>
+<thead><tr>
+  <th>维度</th>
+  <th>用途</th>
+  <th>默认值</th>
+</tr></thead><tbody>
 <tr>
-  <th>一、赛前文档</th><th>二、比赛成绩</th><th>三、排名与纪录</th><th>四、证书与奖状</th>
+  <td><strong>比赛项目</strong></td>
+  <td>报名 / 赛程的可选项目（50/100/200米…）</td>
+  <td>标准游泳项目 17 项</td>
 </tr>
 <tr>
-  <td>秩序册 [编辑｜输出/打印]<br>竞赛日程<br>出发表</td>
-  <td>成绩册 [编辑｜输出/打印]<br>分组成绩<br>项目成绩<br>分段计时报告</td>
-  <td>团体成绩<br>纪录报告</td>
-  <td>奖状<br>纪录证书</td>
+  <td><strong>组别</strong></td>
+  <td>报名时分类（甲/乙/丙/丁/戊/己/青少年/少年/青年/成年/大师/老年）</td>
+  <td>6 个标准组</td>
 </tr>
-</table>
-
-<h3>11.1 统一预览/输出窗口 <span class="new">新增</span></h3>
-<p>每个"输出/打印"按钮弹出 <code>DocumentPreviewWindow</code>：</p>
+<tr>
+  <td><strong>性别</strong></td>
+  <td>男 / 女 / 混合</td>
+  <td>三个</td>
+</tr>
+<tr>
+  <td><strong>赛次</strong></td>
+  <td>预赛 / 半决赛 / 决赛 / 自定义</td>
+  <td>三个</td>
+</tr>
+<tr>
+  <td><strong>组数</strong></td>
+  <td>1组 / 2组 / … 的预设值</td>
+  <td>1-8</td>
+</tr>
+</tbody></table>
+<p>每个维度都有 <strong>编辑 / 导入CSV / 导出CSV / 下载模板</strong> 4 个按钮：</p>
 <ul>
-  <li><b>预览 tab</b>：内嵌浏览器渲染</li>
-  <li><b>编辑源码 tab</b>：可手改 HTML 后刷新预览</li>
-  <li>底部按钮：<b>刷新预览 / 在浏览器中打开 / 导出 PDF</b>（浏览器 → Microsoft Print to PDF）/ <b>导出 DOC / 导出 HTML / 打印</b></li>
+<li>编辑器：弹窗 DataGrid，左侧自动序号 1, 2, 3 …，可增/删行；点击 <strong>确认保存</strong> 立即生效</li>
+<li>导入 / 导出 CSV 与 Excel/WPS 兼容（UTF-8 BOM）</li>
 </ul>
-<p>文档生成时会自动归档到 <code>Documents/</code> 目录。</p>
-
-<h3>11.2 秩序册编辑器</h3>
-<p><code>编辑秩序册</code> 按钮 → 7 选项卡弹窗：</p>
-<ol>
-  <li><b>封面</b>：主标题 / 副标题 / 场地示意图</li>
-  <li><b>前言/规程/通知</b>：3 个多行文本区</li>
-  <li><b>重要活动日程</b>：日期/时间/活动/参与人员/地点</li>
-  <li><b>训练日程</b>：日期/时间/地点</li>
-  <li><b>竞赛人员</b>：职务/姓名（仲裁/技术官员）</li>
-  <li><b>运动队人员</b>：每队的领队/教练/队医/工作人员（"从已报名队伍自动建表"按钮）</li>
-  <li><b>附注/尾页</b></li>
-</ol>
-<p>任意空字段使用系统默认内容。秩序册可导出为 PDF/DOC/HTML。</p>
-
-<h3>11.3 成绩册编辑器</h3>
-<p><code>编辑成绩册</code> 按钮 → 4 选项卡：</p>
-<ol>
-  <li><b>封面/前言/尾页</b></li>
-  <li><b>体育道德风尚奖</b>：运动队 / 运动员 / 裁判员 三栏</li>
-  <li><b>教练员/联合培养</b>：DataGrid，按号码批量编辑（"从已注册运动员自动建表"按钮）</li>
-  <li><b>显示选项</b>：奖牌榜 / 风尚奖 / 破纪录统计 / 名次公告 / 成绩公告 / 分段成绩 / 成绩差 5+2 个开关</li>
-</ol>
-<p>成绩册结构（参照全运会成绩册）：封面 → 目录 → 奖牌榜 → 风尚奖 → 破纪录统计表 → 名次公告（每项目决赛排名 + 教练员/联合培养单位）→ 成绩公告（每组逐运动员，可含分段成绩）→ 尾页。</p>
-
-<h3>11.4 「成绩差」列 <span class="new">新增</span></h3>
-<p>打印 / 输出的所有"每组比赛成绩"都包含 <b>成绩差</b> 列，<b>适用所有赛次</b>（预赛 / 半决赛 / 决赛 …）：</p>
-<ul>
-  <li>第 1 名留空</li>
-  <li>其它道：<code>成绩差 = 当前道成绩 - 第1名成绩</code>，保留 2 位小数</li>
-  <li>DSQ / DNS / DNF 行不计算</li>
-</ul>
-
-<h3>11.5 输出格式选择</h3>
-<ul>
-  <li><b>PDF</b>：浏览器 Ctrl+P → 选择 "Microsoft Print to PDF" 打印机</li>
-  <li><b>DOC</b>：直接保存为 .doc，Word 可打开</li>
-  <li><b>HTML</b>：保留原始 HTML（可二次编辑）</li>
-  <li><b>直接打印</b>：调用系统打印对话框</li>
-</ul>
-
+<blockquote>⚠ 组别现为人工分类（如奥运/全运的甲乙丙组），与年龄无关；不再像旧版按 MinAge/MaxAge 自动判定。</blockquote>
 <hr>
-
-<h2 id="sec12" class="section-anchor">12. 图片/视频大屏显示 <span class="new">新增</span></h2>
-<p><code>比赛控制 → 显示控制</code> 新增 <b>「图片 / 视频」</b> 按钮 → 弹出对话框：</p>
-<ol>
-  <li><b>选择文件</b>：PNG / JPG / BMP / GIF / WEBP / MP4 / WEBM / OGG</li>
-  <li><b>缩放方式</b>：保持比例（contain）/ 填满屏幕（cover）/ 拉伸（fill）</li>
-  <li><b>视频选项</b>：循环播放 / 静音 / 自动播放</li>
-  <li><b>发送到大屏</b> → base64 推送到所有 <code>display.html</code> 客户端，全屏播放</li>
-  <li><b>停止显示</b> → 回到比赛视图</li>
-</ol>
-<blockquote>文件大于 60 MB 时会弹出确认（base64 编码可能耗时）。</blockquote>
-
+<h2>5. 赛事管理与报名</h2>
+<p><code>赛事管理与报名</code> Tab 顶部为赛事基本信息卡片：</p>
+<ul>
+<li><strong>赛事名称 / 比赛模式 / 泳池长度 / 泳道数量</strong>（10 道默认 0-9，8 道默认 1-8）</li>
+<li><strong>开始/结束日期 / 比赛地点</strong></li>
+<li><strong>主办方 / 承办方 / 技术代表 / 总裁判长 / 发令员 / 编排长</strong></li>
+<li>操作按钮：<strong>保存赛事信息 / 加载赛事 / 新建赛事</strong></li>
+</ul>
+<p>下方"赛事概览统计"实时显示各项目分性别 / 组别的报名人数。</p>
+<blockquote>💡 删除赛事 / 清除当前库 / 新建赛事时，所有依赖数据的下拉、统计、面板、网页端都会自动同步刷新归零。</blockquote>
 <hr>
-
-<h2 id="sec13" class="section-anchor">13. 系统日志与数据管理</h2>
-<p><code>系统日志与数据</code> tab：</p>
+<h2>6. 运动员管理</h2>
+<h3>6.1 工具栏布局</h3>
+<p>第 1 行：<strong>添加 / 修改选中 / 删除选中</strong> ｜ <strong>导入CSV / 导出CSV / 导出报名模板</strong> ｜ <strong>号码区间设置</strong></p>
+<p>第 2 行：项目 / 组别 / 性别 / 姓名（模糊）/ 编号（模糊）/ 重置筛选</p>
+<h3>6.2 添加 / 修改 / 删除</h3>
 <ul>
-  <li><b>运行日志</b>（左）：实时滚动</li>
-  <li><b>存档管理</b>（右）：
-    <ul>
-      <li><b>加载 / 删除选中存档</b></li>
-      <li><b>清除当前库数据</b>（含确认）</li>
-      <li><b>删除全部纪录</b>（含确认）</li>
-      <li><b>强制保存</b></li>
-      <li><b>查询本机 IP 地址</b></li>
-      <li><b>修改密码</b></li>
-    </ul>
-  </li>
+<li><strong>添加运动员</strong>：弹出对话框，可一次性填齐：姓名 / 性别 / 出生日期 / 身份证 / 代表队 / 单位简称 / 组别 / 联系电话 / 协会注册号 / 备注 / 报名项目 / 报名成绩 等</li>
+<li><strong>修改选中</strong> / <strong>删除选中</strong>：支持多选（Ctrl/Shift），按 Delete 键也可删除</li>
 </ul>
-<p>赛事档案存于 <code>Database/&lt;赛事名&gt;.json</code>，包含运动员 / 接力 / 赛程 / 纪录 / 团体分 / 秩序册 / 成绩册 / 显示纪录设置等所有数据。</p>
-
+<h3>6.3 单位简称</h3>
+<p>新增列 <code>单位简称</code>（CountryShort），用于大屏 / 成绩册简显（如 国队队伍名"广东省体育代表团"显示为"粤"）。</p>
+<h3>6.4 接力队员条目</h3>
+<p>接力队报名后会自动生成 4 位 <strong>接力队员个人条目</strong>（Notes 以 <code>接力队员</code> 开头），它们：</p>
+<ul>
+<li>在"运动员管理"中<strong>自动隐藏</strong>，避免界面混乱</li>
+<li>在"接力队管理"中按队伍归类显示</li>
+<li>在"导出 CSV"时<strong>包含</strong>进去（便于导出全量名单）</li>
+</ul>
+<h3>6.5 号码区间设置</h3>
+<p>按代表队设置号码段（如 北京队 001-050，江苏队 051-100）。新注册运动员自动在该队号码段内取号；也可手动指定。</p>
+<h3>6.6 CSV 表头格式</h3>
+<p><code>号码 , 姓名 , 性别 , 代表队 , 项目 , 报名成绩 , 年龄 , 出生日期 , 身份证号 , 电话 , 备注 , 组别 , 单位简称</code></p>
+<ul>
+<li><strong>导出 CSV</strong>：当前所有运动员（含接力代表与接力队员）</li>
+<li><strong>导出报名模板</strong>：空白模板 + 表头 + 2 条示例行；用 Excel/WPS 编辑后用"导入CSV"回灌</li>
+<li><strong>导入 CSV</strong>：号码列留空时由系统按号码段自动分配</li>
+</ul>
 <hr>
-
-<h2 id="sec14" class="section-anchor">14. 参数设置与硬件连接</h2>
-<p><code>比赛控制 → 参数设置</code> 按钮（齿轮图标）弹出（<b>自适应高度，无滚动条</b>）：</p>
-
-<h3>14.1 计时参数</h3>
+<h2>7. 接力队管理</h2>
+<p><code>接力队管理</code> Tab：按"性别+项目"分组展示所有接力队，每队列出 4 棒队员。</p>
+<h3>7.1 添加 / 删除接力队</h3>
 <ul>
-  <li>泳道关闭时间 / 出发台关闭延迟 / 成绩确认关闭延迟 / 抢跳判定阈值 / 分段成绩显示时长 / 第1名成绩停留时间</li>
-  <li><b>终点位置</b>：左端 / 右端</li>
+<li><strong>添加接力队</strong>：选项目 / 性别 / 队名 / 报名成绩 / 4 棒队员姓名（可留空，后续补）</li>
+<li><strong>删除选中队伍</strong>：同时清除 _swimmers 中的代表条目和 4 位队员条目</li>
 </ul>
-
-<h3>14.2 设备状态管理 / 手动按键管理</h3>
-<ul>
-  <li>设备好/坏：每道每个设备（触板/出发台/盲表1/2/3）独立标记，影响计时源仲裁</li>
-  <li>手动按键：每道左右T按钮启用/禁用</li>
-</ul>
-
-<h3>14.3 左右盲表数量设置 <span class="new">新增</span></h3>
-<p>弹出子窗，左右各 1 个 1/2/3 下拉：</p>
-<ul>
-  <li>修改后立即同步到三个计时控制台 + 大屏 + 硬件（0x42 / 0x08 子码）</li>
-  <li>隐藏多余圆点时<b>保留位置</b>，让"盲 1 / 出发台 / 触板"的位置永远固定</li>
-  <li>三端 + 大屏的圆点 / 表头标签 / 表头列<b>完全对称</b></li>
-</ul>
-
-<h3>14.4 计时硬件直连</h3>
-<p>支持三种模式：</p>
-<ul>
-  <li><b>串口</b>（COM3 等）</li>
-  <li><b>UDP</b>（接收端口 5002）</li>
-  <li><b>TCP 客户端</b>（127.0.0.1:5555）</li>
-</ul>
-<p>主服务器与硬件双向同步：参数变更（任一方）即推送给另一方。</p>
-
+<h3>7.2 防重复登记（v2026.04 修复）</h3>
+<p>接力队以 (队名 + 性别 + 项目) 为唯一键。重复提交同一队伍时<strong>不会新增重复条目</strong>，而是用最新数据覆盖现有队伍（更新报名成绩与棒次）。</p>
+<h3>7.3 同步分组信息</h3>
+<p>按下"<strong>同步分组信息</strong>"按钮，把代表条目的 Heat/Lane 信息同步到 4 棒队员。这样接力队员个人条目（用于检录核对身份）也带组别 / 道次。</p>
 <hr>
-
-<h2 id="sec15" class="section-anchor">15. EXE 远程计时控制台</h2>
-
-<h3>15.1 适用场景</h3>
+<h2>8. 赛程与分组</h2>
+<h3>8.1 一键生成日程</h3>
+<p>点击 <strong>一键生成日程</strong>，弹窗让用户为所有项目选择赛次方案：</p>
 <ul>
-  <li>在异机操作比赛（裁判桌 / 技术官员席）</li>
-  <li>与主服务器同等权限：选项目 / 就位 / 发令 / 触板 / 确认成绩 / 改参数 / 改盲表数量 …</li>
+<li>只决赛（推荐，适合中小型赛事）</li>
+<li>预赛 → 决赛</li>
+<li>预赛 → 半决赛 → 决赛</li>
 </ul>
-
-<h3>15.2 连接 / 操作</h3>
-<ul>
-  <li>顶部输入服务器地址 → <b>连接</b> / <b>断开</b></li>
-  <li>自动重连（断开 3 次后弹出"是否更换服务器"对话框）</li>
-</ul>
-
-<h3>15.3 与主服务器同步</h3>
-<p>任意修改通过 WebSocket 实时同步给所有端：</p>
-<ul>
-  <li>参数设置 → <code>SET_LANE_CLOSE_SETTINGS</code></li>
-  <li>显示模式切换 → <code>SHOW_*</code> 系列</li>
-  <li>比赛控制（就位 / 发令 / 确认成绩）→ <code>READY</code> / <code>START_RACE</code> / <code>CONFIRM_RESULT</code></li>
-</ul>
-
-<hr>
-
-<h2 id="sec16" class="section-anchor">16. HTML 浏览器计时控制台</h2>
-
-<h3>16.1 访问</h3>
-<ul>
-  <li><code>http://&lt;主服务器IP&gt;:8080/race_control.html</code>，或本地 HTML 文件首次输入 IP</li>
-  <li>全屏按钮（右上角）适合大触屏裁判台</li>
-</ul>
-
-<h3>16.2 功能</h3>
-<p>与 EXE 远程台同等：</p>
-<ul>
-  <li>泳道实时状态 / 比赛控制 / 参数设置 / 设备管理 / 手动按键 / 左右盲表数量</li>
-  <li>顶部主纪录条（WR/AR/NR…）随系统设置同步</li>
-</ul>
-
-<hr>
-
-<h2 id="sec17" class="section-anchor">17. 网页检录台</h2>
-<p><code>checkin.html</code>：</p>
-<ul>
-  <li>选择项目 / 赛次 / 组次</li>
-  <li>列出运动员 → 检录员核对身份 → 标记到检</li>
-  <li><b>打印检录单</b>（含赛事名 / 项目+组别 / 运动员表）</li>
-  <li>关闭浏览器页眉 / 页脚以获得整洁打印</li>
-</ul>
-
-<hr>
-
-<h2 id="sec18" class="section-anchor">18. 大屏显示与排名屏</h2>
-
-<h3>18.1 <code>display.html</code>（大屏）</h3>
-<p>随主服务器"显示控制"切换以下视图：</p>
+<p>系统按"组别 → 性别 → 项目 → 赛次"维度合成场次，按距离 / 项目类型自动排序到上午（预赛）/ 下午（半决赛）/ 晚上（决赛）三段：</p>
 <table>
-<tr><th>模式</th><th>内容</th></tr>
-<tr><td>比赛视图</td><td>当前组各道运动员 + 实时进度</td></tr>
-<tr><td>出发表</td><td>即将比赛组的出场顺序</td></tr>
-<tr><td>组成绩</td><td>当前组完赛的最终名次</td></tr>
-<tr><td>总排名</td><td>项目最终排名</td></tr>
-<tr><td>团体</td><td>各队总分排名</td></tr>
-<tr><td>颁奖</td><td>冠/亚/季军</td></tr>
-<tr><td>纪录</td><td>当前项目对应纪录</td></tr>
-<tr><td>欢迎 / 暂停</td><td>文字大屏</td></tr>
-<tr><td>成绩发布</td><td>已完赛项目的官方公告</td></tr>
-<tr><td>媒体（图/视频）</td><td>全屏播放</td></tr>
-</table>
-<p>顶部主纪录显示 <b>WR / AR / NR / 省R / 市R 等</b>（由记录管理中切换）。</p>
-
-<h3>18.2 <code>leaderboard.html</code>（排名屏）</h3>
-<p>3 个 tab：项目排名 / 团体积分 / 纪录榜。</p>
-
-<hr>
-
-<h2 id="sec19" class="section-anchor">19. 在线报名 / 注册工具</h2>
-<p>三个报名入口（<b>均支持组别选择</b>）：</p>
-<ol>
-  <li><b><code>register.html</code></b>（在线报名网页）：个人项目 + 接力两段</li>
-  <li><b><code>RegistrationTool.exe</code></b>（桌面注册工具）：个人 + 接力 两个 tab</li>
-  <li><b>主服务器→运动员管理→添加运动员</b>：完整字段一站式</li>
-</ol>
-<p>每个表单的字段：姓名 / 性别 / 出生日期 / 身份证 / 代表队 / 单位简称 / <b>组别</b> / 报名项目 / 报名成绩 / 协会注册号 / 备注。</p>
-
-<hr>
-
-<h2 id="sec20" class="section-anchor">20. 自动化测试机器人</h2>
-<p><code>test_bot.html</code> —— 用于演示和压力测试：</p>
+<thead><tr>
+  <th>时段</th>
+  <th>起始时间</th>
+</tr></thead><tbody>
+<tr>
+  <td>上午</td>
+  <td>09:00</td>
+</tr>
+<tr>
+  <td>下午</td>
+  <td>14:00</td>
+</tr>
+<tr>
+  <td>晚上</td>
+  <td><strong>17:30</strong>（v2026.04 由 19:00 改为 17:30）</td>
+</tr>
+</tbody></table>
+<h3>8.2 预赛自动分组（FINA SW 3 规则）</h3>
+<p>按 <strong>World Aquatics SW 3.1.1.4 / 3.1.1.5 / 3.1.2</strong> 标准实现：</p>
+<h4>短距离项目（50 / 100 / 200 米）</h4>
 <ul>
-  <li><b>批量注册</b>：N 名运动员（指定项目 / 性别 / 组别 / 代表队随机或固定 / 单位简称 / 备注）</li>
-  <li><b>多组别一键样本</b>：勾选甲/乙/丙/丁/戊各 N 人</li>
-  <li><b>自动生成分组</b></li>
-  <li><b>模拟比赛流程</b>：就位 / 发令 / 出发台 / 触板 / 盲表 / 确认成绩</li>
-  <li><b>接力比赛测试</b>：自动按棒次模拟所有触板点</li>
+<li><code>seedHeats = min(总组数, 3)</code> ：<strong>最后 3 组</strong>进行循环（种子）排位</li>
+<li>前面组进行直接排位，由慢到快编号；最慢组（第 1 组）拿剩余不满人数</li>
+<li>种子分配：第1名→最后组中道，第2名→倒数第2组中道…第4名→最后组次中道，依次循环</li>
 </ul>
-
-<hr>
-
-<h2 id="sec21" class="section-anchor">21. 硬件参数调试机器人</h2>
-<p><code>ParamDebugBot.exe</code>：双向调试 0x42 帧族（含 0x08 盲表数量、0x10 设备状态、0x20 比赛距离）。三种连接：串口 / UDP / TCP（UDP/TCP 模式下"刷新"按钮自动隐藏避免遮挡端口设置）。</p>
-
-<hr>
-
-<h2 id="sec22" class="section-anchor">22. 常见问题</h2>
-
-<p><b>Q1：HTML 控制台连不上服务器？</b><br>
-A：检查主服务器是否运行、防火墙是否放行 3002 端口、客户端与服务器是否同子网；或者点击控制台连接框旁的"换服务器"重新输入 IP。</p>
-
-<p><b>Q2：硬件计时器无信号？</b><br>
-A：先在"参数设置 → 计时硬件直连"确认连接方式与端口；可用 <code>ParamDebugBot.exe</code> 单独调试帧通讯。</p>
-
-<p><b>Q3：盲表数量改了但 race_control 上方的"盲 1/2/3"标签没变？</b><br>
-A：需要刷新浏览器或等待下一次广播；表头按 <code>applyBlindWatchVisibility()</code> 自动重画。</p>
-
-<p><b>Q4：从主控切到第 2 组确认后，第 1 组成绩看不到了？</b><br>
-A：已修复 —— 进入已确认组时自动恢复完赛状态显示。如仍异常，请关闭主服务器后重新启动以加载最新代码。</p>
-
-<p><b>Q5：导出秩序册 / 成绩册时列内容未显示？</b><br>
-A：确认秩序册/成绩册编辑器中相应 tab 的字段已填，或 <code>显示选项</code> tab 中对应章节开关已勾选。</p>
-
-<p><b>Q6：导出 PDF 时浏览器没自动选 PDF 打印机？</b><br>
-A：浏览器 Ctrl+P 后在"打印机"下拉中选 "Microsoft Print to PDF"（Win10/11 自带）或第三方 PDF 打印机。</p>
-
-<p><b>Q7：分组表 Excel 导入未匹配的运动员怎么处理？</b><br>
-A：导入对话框勾选 ☑ "未注册时自动添加"，未匹配的行将按 Excel 内容自动新建运动员。</p>
-
-<p><b>Q8：纪录显示标签需要从 WR 改为 AR / NR / 市记录…</b><br>
-A：纪录管理 tab → 右上角 <b>大屏显示记录</b> → 选择或新增项 → 确定，三端 + 大屏立即同步。</p>
-
-<hr>
-
-<div class="version">
-<b>版本说明</b>
+<h4>中长距离 / 接力（400 / 800 / 1500 米 / 4×N 接力）</h4>
 <ul>
-  <li><b>v2026.04</b>：组别一级化、文档编辑/输出/打印重构、秩序册/成绩册编辑器、左右盲表对称布局、大屏纪录可配置、图片/视频媒体显示、Excel 分组表、成绩差列、跨组成绩保留、参数设置自适应高度。</li>
-  <li><b>v2025.12</b>：硬件协议双向同步、设备状态管理、晋级处理。</li>
-  <li><b>v2025.06</b>：基础赛事管理、计时联动、大屏 / 排名屏 / 检录台。</li>
+<li><code>seedHeats = min(总组数, 2)</code> ：<strong>最后 2 组</strong>进行循环（种子）排位</li>
 </ul>
-<p>—— 最后更新：2026 年 04 月</p>
-</div>
-
-</body>
-</html>
+<h4>矛头泳道（Spearhead）分配</h4>
+<table>
+<thead><tr>
+  <th>泳池</th>
+  <th>优先级（最快→最慢）</th>
+</tr></thead><tbody>
+<tr>
+  <td>8 道</td>
+  <td><code>4, 5, 3, 6, 2, 7, 1, 8</code></td>
+</tr>
+<tr>
+  <td>10 道</td>
+  <td><code>4, 5, 3, 6, 2, 7, 1, 8, 0, 9</code></td>
+</tr>
+</tbody></table>
+<p>成绩最快者必占 4 道；最慢者排到边道（10 道场景下 0/9 道）。</p>
+<blockquote>注：8 人以下单组直接决赛时，0、9 道空着不用，FINA 标准如此。</blockquote>
+<h3>8.3 出场编排微调</h3>
+<p><code>出场编排微调</code> Tab 的 DataGrid 可对每位运动员的"组次/道次"做精细调整。支持：</p>
+<ul>
+<li><strong>手动均分</strong>：输入"每组 N 人"自动分组</li>
+<li><strong>同组互换泳道</strong></li>
+<li><strong>追加分组</strong>：把新报名的运动员塞到最后一组空位 + 必要时新建组</li>
+</ul>
+<h3>8.4 晋级处理</h3>
+<p><code>成绩与排名</code> Tab 的 <strong>晋级处理</strong> 按钮 → 弹出 <code>PromotionQueryWindow</code>：</p>
+<ul>
+<li>查询当前赛次的总排名（不分组统一排名）</li>
+<li>设置晋级人数（默认：预赛→半决赛取 16，半决赛→决赛取 8）</li>
+<li>一键执行晋级 + 自动分组到下一赛次</li>
+</ul>
+<p>每组确认成绩后系统也会<strong>主动询问</strong>是否进入晋级流程（仅当全部组完赛）。</p>
+<hr>
+<h2>9. 比赛控制</h2>
+<p><code>比赛控制</code> Tab 三栏布局：</p>
+<pre>
+左：赛程导航 + 计时源对比          中：泳道实时状态                 右：比赛控制按钮
+</pre>
+<h3>9.1 赛程导航（含组别 / 已完赛标记）</h3>
+<p>树形结构按"单元 → 项目 → 组次"展开：</p>
+<pre>
+第1单元（2026-05-01上午）
+├ [甲组] 男 50米自由泳 预赛
+│   ├ 第1组 [已完赛]
+│   ├ 第2组 [已完赛]
+│   └ 第3组 (共3组)   ← 当前组高亮
+├ [乙组] 男 100米自由泳 预赛
+...
+</pre>
+<ul>
+<li>项目标签自动加 <code>[组别]</code> 前缀</li>
+<li>组次确认成绩后立即追加 <code>[已完赛]</code> 灰色标记</li>
+<li>当前选中组高亮蓝色</li>
+</ul>
+<blockquote>✅ <strong>已确认成绩永久锁定</strong>：通过 <code>_confirmedHeats</code> 集合记录每个已确认组次（key = 组别|性别|项目|赛次|组次），并入档持久化；后续任何数据变化都不会让"[已完赛]"标记消失。</blockquote>
+<h3>9.2 顶部当前比赛行</h3>
+<p>显示 <code>[组别] 性别子 项目 赛次 第N/M组</code>，便于操作员一眼确认当前组别。</p>
+<h3>9.3 泳道实时状态</h3>
+<p>每条泳道一行，左右对称布局：</p>
+<pre>
+[T] 盲3 盲2 盲1 出发 触板 [圈 ▲▼] │ 姓名+进度 │ [▲▼ 圈] 触板 出发 盲1 盲2 盲3 [T]
+</pre>
+<ul>
+<li><strong>左右盲表数量</strong>：可独立设置 1-3，超出数量的圆点占位但隐藏（盲1 / 出发 / 触板的位置始终固定）</li>
+<li><strong>T 按钮</strong>：手动触板，左右各一，可独立启用 / 禁用</li>
+<li><strong>进度条</strong>：箭头方向跟随发令位置；显示运动员所在段</li>
+<li><strong>接力项目</strong>：第 1 行显示代表队（如"江苏"），第 2 行显示 <code>第N棒: 队员姓名</code>（按当前圈数自动推断）</li>
+<li><strong>空泳道</strong>：整行淡化（透明度 35%），名字显示"（空泳道）"</li>
+<li><strong>圈数 ▲▼ 微调（v2026.05 新增）</strong>：每道左 / 右各有一对 spinner，按哪一侧只调整哪一侧的剩余圈数显示。值钳到 <code>[0, 该侧实际触板次数]</code>：50m 出发端 0 / 到达端 1；100m 双侧各 1；150m 出发端 1 / 到达端 2；200m 双侧各 2；以此类推。三端（主控 / EXE / HTML）操作一致，结果由服务器统一计算后实时广播。</li>
+<li><strong>反应时颜色（v2026.05 新增）</strong>：硬件检测到反应时低于阈值时，反应时数字变 <strong>红色</strong> 提醒裁判；行边框琥珀色提示"可疑起跳"。<strong>不再自动 DSQ</strong>——是否判罚由裁判手动按 DSQ 按钮决定。</li>
+<li><strong>备注栏（v2026.05 新增）</strong>：DSQ/DNS/DNF 优先红字显示；否则显示破/平纪录标识（如 <code>WR</code> / <code>=AR</code> / <code>WR/NR</code>），金色高亮（详见 §11）。</li>
+</ul>
+<h3>9.4 比赛控制按钮</h3>
+<ul>
+<li><strong>就位</strong> → 锁定泳道、出发台打开</li>
+<li><strong>发令</strong> → 启动计时器、关闭出发台</li>
+<li><strong>确认本组成绩</strong> → 锁定本组成绩并永久入档</li>
+<li><strong>计时器清零</strong> → 见 §9.6 两种语义</li>
+</ul>
+<h3>9.5 显示控制按钮组（向大屏推送）</h3>
+<ul>
+<li><strong>比赛视图 / 出发表 / 组成绩 / 总排名 / 团体积分 / 颁奖典礼 / 纪录榜 / 赛程表 / 晋级名单 / 欢迎画面 / 暂停画面</strong></li>
+<li><strong>成绩发布</strong>：选择已完赛的组次，发布到大屏（独立锁定模式，不被实时画面覆盖）</li>
+<li><strong>图片 / 视频</strong>：上传图片或视频全屏播放</li>
+</ul>
+<h3>9.6 计时器清零的两种语义（v2026.04 重构）</h3>
+<p>按"当前组是否已确认成绩"自动选择行为：</p>
+<h4>A) 已确认成绩的组（赛程导航已显示 [已完赛]）</h4>
+<ul>
+<li><strong>彻底清零复位</strong>，准备进入下一组比赛</li>
+<li><strong>已确认成绩永久保留</strong>（在 <code>_confirmedHeats</code> + 各运动员 <code>Results</code> 中已落盘）</li>
+<li>自动 <code>SetCurrentHeat(N+1)</code> 切到下一组</li>
+<li>若已是本赛次最后一组：泳道行整体清空（"（空泳道）"），顶部"组别"行改为"第 N 组已完赛 / 共 M 组"，<strong>大屏切到欢迎画面</strong></li>
+</ul>
+<h4>B) 未确认成绩的组（如抢跳召回重赛）</h4>
+<ul>
+<li>只清当前组的时间 / 分段数据</li>
+<li><strong>DSQ / DNS / DNF 等备注状态保留</strong></li>
+<li>停留在当前组，重新发令</li>
+</ul>
+<h3>9.7 切组守卫</h3>
+<p>当前组未确认成绩时，禁止切换到其它项目 / 组次（保护操作员避免误操作丢成绩）。三个计时控制台（主控 / EXE / HTML）规则一致。</p>
+<h3>9.8 已确认组防再次开赛</h3>
+<p><code>就位 / READY</code> 按钮：当前组已确认时，弹"操作被阻止"提示，必须切到下一组才能继续。</p>
+<h3>9.9 起跳犯规处理（v2026.05 改为人工判罚）</h3>
+<table>
+<thead><tr>
+  <th>步骤</th>
+  <th>系统行为</th>
+</tr></thead><tbody>
+<tr>
+  <td>硬件检测到反应时 &lt; <code>抢跳判定阈值</code></td>
+  <td>仅置 <code>IsSuspectFalseStart=true</code>，反应时数字变红、行边框 amber 提示</td>
+</tr>
+<tr>
+  <td>三端日志</td>
+  <td>输出 <code>⚠ 起跳可疑（待裁判确认）泳道X 反应时:0.082s</code></td>
+</tr>
+<tr>
+  <td>裁判判罚</td>
+  <td>在该泳道按 <strong>DSQ</strong> 按钮（三端均可）；备注栏显示 <code>DSQ</code>、运动员状态置 DSQ</td>
+</tr>
+<tr>
+  <td>裁判不判罚</td>
+  <td>反应时仍标红，但成绩照常计入；后续可继续比赛</td>
+</tr>
+<tr>
+  <td>实时上大屏</td>
+  <td>任何手动 DSQ 操作通过 <code>MARK_DSQ</code> 立刻广播到 <code>display.html</code>，备注栏立即出现 <code>DSQ</code></td>
+</tr>
+</tbody></table>
+<blockquote>⚠ 之前版本"反应时低于阈值自动 DSQ + 在确认成绩时把抢跳标 DSQ"两条逻辑均已删除；判罚必须<strong>人工确认</strong>。</blockquote>
+<hr>
+<h2>10. 成绩与排名</h2>
+<p><code>成绩与排名</code> Tab：</p>
+<h3>10.1 筛选器</h3>
+<p>6 维筛选：组别 / 性别 / 项目 / 赛次 / 组次 / 名次</p>
+<ul>
+<li><strong>组别下拉</strong>：自动列出 <code>_ageGroups</code> 主列表 + 已报运动员中实际出现的组别（兼容历史/导入数据中存在但未维护到主列表的组别）</li>
+<li><strong>组次下拉</strong>：只列出<strong>已确认成绩</strong>的组次（未确认的隐藏，避免操作员看到不完整结果）</li>
+</ul>
+<h3>10.2 成绩表</h3>
+<p>列：名次 / 道 / 号码 / 姓名 / 代表队 / 最终成绩 / 计时源 / 反应时 / 备注 / 纪录</p>
+<p>只显示<strong>已确认成绩</strong>的组（<code>IsHeatConfirmed</code> 真）。</p>
+<h3>10.3 并列名次（v2026.05 新增）</h3>
+<p><code>UpdateHeatRanking</code> / <code>ComputeLiveRanks</code> / <code>GetEventRanking</code> 三处排名计算统一使用 <strong>competition ranking 1-2-2-4</strong> 规则：</p>
+<ul>
+<li>同 <code>FinalTime</code> 的运动员<strong>共享名次</strong></li>
+<li>下一位名次按已遍历个数跳过</li>
+</ul>
+<p>例：A=54.50（1）、B=54.68（2）、C=54.68（2）、D=54.99（4）。</p>
+<p>打印的每组成绩表中，并列名次以 <code>=2</code> 形式标注（首条为 <code>2</code>，第二个并列写 <code>=2</code>），保留可读性。</p>
+<h3>10.4 团体计分</h3>
+<ul>
+<li>自动按"个人前 8 名 + 接力前 8 名"计分（可在团体计分配置中调整）</li>
+<li>并列名次的运动员均按其名次取分；金 / 银 / 铜也并列发放</li>
+</ul>
+<h3>10.5 查询原始数据</h3>
+<p>弹窗选择已保存的"项目原始数据"文件（含 <code>[组别]</code> 前缀），查看每组的：触板 / 盲表 / 手动 / 计时源裁定明细，可导出 PDF（HTML）。</p>
+<h3>10.6 操作按钮</h3>
+<ul>
+<li><strong>晋级处理</strong>：见 §8.4</li>
+<li><strong>团体计分</strong>：见 §10.4</li>
+</ul>
+<hr>
+<h2>11. 纪录管理</h2>
+<h3>11.1 数据维护</h3>
+<ul>
+<li>支持类型：世界纪录 / 奥运会纪录 / 亚洲纪录 / 亚洲青年纪录 / 全国纪录 / 省运会纪录 / 市纪录 / 赛会纪录（可在大屏顶部"主纪录"切换显示）</li>
+<li>字段：项目 / 性别 / 类型 / 保持者 / 代表队 / 成绩 / 日期 / 地点</li>
+<li>操作：<strong>添加 / 修改 / 删除 / 导入 CSV / 导出 CSV / 导入预置纪录</strong></li>
+<li>大屏顶部显示 <strong>当前项目的"主纪录" + "赛会纪录 CR"</strong> 两条；主纪录类型可在该面板下拉调整</li>
+</ul>
+<h3>11.2 简写标识表（v2026.05 新增）</h3>
+<table>
+<thead><tr>
+  <th>纪录类型</th>
+  <th>破纪录标签</th>
+  <th>平纪录标签</th>
+</tr></thead><tbody>
+<tr>
+  <td>世界纪录</td>
+  <td><code>WR</code></td>
+  <td><code>=WR</code></td>
+</tr>
+<tr>
+  <td>奥运会纪录</td>
+  <td><code>OR</code></td>
+  <td><code>=OR</code></td>
+</tr>
+<tr>
+  <td>亚洲纪录</td>
+  <td><code>AR</code></td>
+  <td><code>=AR</code></td>
+</tr>
+<tr>
+  <td>亚洲青年纪录</td>
+  <td><code>AJR</code></td>
+  <td><code>=AJR</code></td>
+</tr>
+<tr>
+  <td>全国纪录</td>
+  <td><code>NR</code></td>
+  <td><code>=NR</code></td>
+</tr>
+<tr>
+  <td>省运会 / 省纪录</td>
+  <td><code>省R</code></td>
+  <td><code>=省R</code></td>
+</tr>
+<tr>
+  <td>市纪录</td>
+  <td><code>市R</code></td>
+  <td><code>=市R</code></td>
+</tr>
+<tr>
+  <td>赛会纪录</td>
+  <td><code>CR</code></td>
+  <td><code>=CR</code></td>
+</tr>
+</tbody></table>
+<p>多条破纪录用 <code>/</code> 拼接（如 <code>WR/AR/NR</code>），按 WR &gt; OR &gt; AR &gt; AJR &gt; NR &gt; 省R &gt; 市R &gt; CR 顺序排序。</p>
+<h3>11.3 自动比对工作流（v2026.05 新增）</h3>
+<pre>
+触板完赛  → CheckRecords() → 写 result.RecordNote → 广播 + UI/打印 显示
+                                    ↓ 裁判 ConfirmResult
+                              UpdateRecordsAfterConfirm() → 刷新 SwimmingRecord
+                                    ↓ AutoSaveData
+                              入档持久化（CompetitionPackage._records）
+</pre>
+<table>
+<thead><tr>
+  <th>阶段</th>
+  <th>行为</th>
+</tr></thead><tbody>
+<tr>
+  <td><strong>完赛瞬间</strong></td>
+  <td><code>CheckRecords</code> 遍历所有匹配 <code>项目+性别+组别(可空)</code> 且 <code>Time&gt;0</code> 的记录条目；<code>FinalTime &lt; record.Time</code> 写破纪录、<code>FinalTime == record.Time</code> 写平纪录；记录库为空则不比较</td>
+</tr>
+<tr>
+  <td><strong>同步显示</strong></td>
+  <td><code>result.RecordNote</code> 通过 <code>Broadcast</code> 同时推到主控泳道行（备注栏金色）、EXE 远程台、<code>race_control.html</code>、<code>display.html</code>（成绩位标红的反应时之外，备注金色显示标识）</td>
+</tr>
+<tr>
+  <td><strong>打印输出</strong></td>
+  <td>每组成绩打印模板的成绩单元格后追加 <code>&lt;span style='color:#b45309;font-weight:bold;'&gt;WR&lt;/span&gt;</code>（FINA 惯例）；"成绩与排名" Tab 的"纪录"列同步填值</td>
+</tr>
+<tr>
+  <td><strong>裁判确认</strong></td>
+  <td>按 <strong>确认本组成绩</strong>，<code>UpdateRecordsAfterConfirm</code> 把仍 <code>&lt; record.Time</code> 的成绩写回 <code>SwimmingRecord</code>：刷新 <code>HolderName / HolderCountry / Time / TimeInSeconds / Date(今天) / Location(_competitionName)</code>，落盘到 CompetitionPackage</td>
+</tr>
+<tr>
+  <td><strong>平纪录不刷新</strong></td>
+  <td><code>=</code> 前缀（平纪录）只标识，不更新原条目</td>
+</tr>
+</tbody></table>
+<h3>11.4 破纪录统计表</h3>
+<p>成绩册中可勾选的"破纪录统计表"自动收集本届被改写的纪录条目（按 HolderName+HolderCountry 在本届运动员里能匹配上的）：项目 / 类型 / 保持者 / 单位 / 成绩 / 日期。</p>
+<hr>
+<h2>12. 文档编辑 / 输出 / 打印</h2>
+<p><code>文档编辑/输出/打印</code> Tab 提供两本核心文档的可视化编辑：</p>
+<h3>12.1 秩序册</h3>
+<ul>
+<li>封面（标题 / 副标题 / 场地图）</li>
+<li>序言 / 致辞</li>
+<li>主办方 / 承办方</li>
+<li>技术官员名单 / 裁判员名单</li>
+<li>项目秩序（按编排自动生成）</li>
+<li>闭幕词</li>
+</ul>
+<h3>12.2 成绩册</h3>
+<ul>
+<li>封面 / 序言</li>
+<li>成绩排名（按项目自动生成）</li>
+<li>团体积分 / 颁奖统计</li>
+<li>纪录统计</li>
+<li>全部成绩（含分段、可选）</li>
+<li>闭幕词</li>
+</ul>
+<p>输出格式：<strong>HTML（在线预览） / DOC（Word） / PDF（打印）</strong></p>
+<hr>
+<h2>13. 显示控制（图片 / 视频 / 模式切换）</h2>
+<h3>13.1 大屏显示模式</h3>
+<p>主控的"显示控制"面板可远程切换大屏（<code>display.html</code>）显示模式：</p>
+<ul>
+<li><strong>比赛视图</strong>：泳道行实时成绩</li>
+<li><strong>出发表 / 组成绩 / 总排名 / 团体 / 颁奖 / 纪录 / 赛程表 / 晋级名单</strong></li>
+<li><strong>欢迎画面 / 暂停画面</strong></li>
+</ul>
+<h3>13.2 图片 / 视频全屏</h3>
+<p>支持 PNG/JPG/MP4 全屏推送到大屏，三种贴合方式（contain / cover / fill）。视频可循环、静音、自动播放。</p>
+<h3>13.3 大屏分区刷新（v2026.04.29 优化）</h3>
+<p>为避免高频整屏 innerHTML 重建造成的卡顿：</p>
+<ul>
+<li><strong>顶部静态文字</strong>（赛事名 / 项目 / 阶段·组 / 纪录条）：仅在数据变化时写入 textContent</li>
+<li><strong>滚动时间右上角</strong>：100ms 独立 ticker 本地插值，与网络广播解耦</li>
+<li><strong>泳道行 DOM</strong>：仅在 <code>buildKey</code>（项目 / 组 / 泳道布局 / 接力切换）变化时重建一次，缓存到 <code>_raceRowDOM[]</code></li>
+<li><strong>泳道字段（道次 / 姓名 / 队伍 / 成绩 / 名次 / 备注）</strong>：250ms 廉价刷新 + 收到广播时刷新；字段对比，仅写差异</li>
+</ul>
+<p>效果：滚动时间走时丝滑，泳道字段无重绘抖动。</p>
+<h3>13.4 空泳道不显示（成绩榜）</h3>
+<p><code>renderHeatResult</code> / <code>renderPublishedResult</code> 自动过滤空泳道（<code>status === 'EMPTY'</code> 或所有字段都为空），避免 0 道无人时仍显示"0"那一行。</p>
+<hr>
+<h2>14. 系统日志与数据管理</h2>
+<p><code>系统日志</code> Tab：</p>
+<ul>
+<li><strong>日志窗口</strong>：实时输出操作 / 状态 / 错误日志，便于排查偶发问题</li>
+<li><strong>数据备份</strong>：JSON 自动保存（每次确认成绩 / 关键操作）+ 手动导出</li>
+<li><strong>历史赛事</strong>：按"赛事名称"列出可加载的存档文件</li>
+<li><strong>删除当前赛事</strong>：清空所有数据 + 同步刷新所有面板（v2026.04 修复）</li>
+</ul>
+<hr>
+<h2>15. 参数设置与硬件连接</h2>
+<p>主控的"系统工作状态" Tab 内有 <strong>参数设置</strong> / <strong>硬件连接</strong> 二级 Tab：</p>
+<h3>15.1 参数设置（与所有客户端 + 硬件双向同步）</h3>
+<table>
+<thead><tr>
+  <th>参数</th>
+  <th>默认</th>
+  <th>说明</th>
+</tr></thead><tbody>
+<tr>
+  <td>泳道关闭时间（秒）</td>
+  <td>20</td>
+  <td>触板触碰后多久关闭其它设备</td>
+</tr>
+<tr>
+  <td>出发台关闭延迟</td>
+  <td>3</td>
+  <td>发令后延迟多少秒关出发台</td>
+</tr>
+<tr>
+  <td>成绩确认关闭延迟</td>
+  <td>3</td>
+  <td>确认成绩后延迟关闭出发台</td>
+</tr>
+<tr>
+  <td>抢跳判定阈值</td>
+  <td>0.10</td>
+  <td>反应时低于此值视为"可疑抢跳"（仅标红，不自动 DSQ）</td>
+</tr>
+<tr>
+  <td>分段成绩显示时长</td>
+  <td>5</td>
+  <td>大屏显示分段时间的秒数</td>
+</tr>
+<tr>
+  <td>第 1 名成绩停留时间</td>
+  <td>3</td>
+  <td>右上角"第 1 名分段成绩"绿色提示秒数</td>
+</tr>
+<tr>
+  <td><strong>大屏翻屏时间</strong>（v2026.05 新增）</td>
+  <td>5</td>
+  <td>总排名等多页内容自动翻页周期，1–60 秒</td>
+</tr>
+<tr>
+  <td><strong>反应时(RT)</strong>（v2026.05 新增）</td>
+  <td>打开</td>
+  <td>打开/关闭 出发反应时检测</td>
+</tr>
+<tr>
+  <td>终点位置 / 发令位置</td>
+  <td>左 / 右</td>
+  <td>单选</td>
+</tr>
+<tr>
+  <td>左 / 右盲表数量</td>
+  <td>3 / 3</td>
+  <td>1-3 个</td>
+</tr>
+</tbody></table>
+<p>修改后立即广播到所有客户端 + 硬件，三个计时控制端（主控 / EXE / HTML）的"参数设置"对话框都内置上述所有条目。</p>
+<blockquote>主控参数设置弹窗（v2026.05）改为 <code>SizeToContent.Height</code> 自适应高度，去掉滚动条，不会因新增条目而显示不全。</blockquote>
+<h4>15.1.1 反应时(RT) 开 / 关详解</h4>
+<ul>
+<li><strong>打开（默认）</strong>：硬件检测到出发台触发后写入反应时；反应时低于阈值时自动标红"可疑起跳"（不再自动 DSQ）。</li>
+<li><strong>关闭</strong>：所有反应时相关处理统一跳过——</li>
+<li><code>HandleFalseStartDetected</code> 直接 return</li>
+<li>出发台命中处理（普通+接力交接）：不写 <code>ReactionTime</code>、不判定可疑、不再标红</li>
+<li><code>result.StartingBlockTime</code> 不写入</li>
+<li>三端泳道行 <code>ReactionText</code> 与计时源详情面板：显示空 / "已关闭"</li>
+<li>广播 <code>reactionTime</code> 字段为空字符串</li>
+</ul>
+<p>适用场景：训练记录 / 没有出发台硬件 / 不需要反应时统计的赛事。</p>
+<h4>15.1.2 大屏翻屏时间详解</h4>
+<ul>
+<li>影响 <code>display.html</code> 总排名（多页超过 10 行时）的自动翻页周期</li>
+<li>不影响其它显示模式（比赛视图 / 出发表 / 颁奖等）</li>
+<li>实时生效：服务器广播后大屏立即采用新值，无需刷新页面</li>
+</ul>
+<h3>15.2 硬件连接</h3>
+<ul>
+<li>协议类型：串口 / UDP（局域网）/ TCP</li>
+<li>串口参数：波特率（默认 9600）/ 串口号</li>
+<li>UDP / TCP：IP + 端口</li>
+<li>测试 / 连接 / 断开 / 重连</li>
+</ul>
+<hr>
+<h2>16. EXE 远程计时控制台</h2>
+<p><code>RemoteTimingControl.exe</code>：独立 PC 上的客户端，与主服务器功能等价。</p>
+<h3>16.1 连接</h3>
+<p>顶部输入 <code>&lt;服务器IP&gt;:3002</code> → 点 <strong>连接</strong>。状态栏显示连接情况。</p>
+<h3>16.2 主要面板</h3>
+<ul>
+<li><strong>赛程导航树</strong>（含 <code>[组别]</code> 前缀，已完赛 [已完赛]）</li>
+<li><strong>比赛控制按钮</strong>（就位 / 发令 / 计时器清零 / 确认本组成绩）</li>
+<li><strong>泳道实时状态</strong>（接力显示当前棒次队员名）</li>
+<li><strong>顶部"当前比赛"行</strong>：与主控同款 <code>[组别] 性别子 项目 赛次 第N/M组</code></li>
+<li><strong>本赛次最后一组完赛态</strong>：自动显示"第 N 组已完赛 / 共 M 组"</li>
+</ul>
+<h3>16.3 守卫机制（与主控一致）</h3>
+<ul>
+<li>已确认成绩的组：禁止再次"就位"</li>
+<li>当前组未确认成绩：禁止切换组次（弹"操作被阻止"）</li>
+<li>比赛中：禁止切换项目</li>
+</ul>
+<h3>16.4 快捷键</h3>
+<ul>
+<li>F5 = 就位</li>
+<li>F6 = 发令</li>
+<li>F7 = 计时器清零</li>
+<li>Enter = 确认本组成绩</li>
+<li>Ctrl+← / Ctrl+→ = 上一组 / 下一组</li>
+<li>数字键 0-9 = 选中泳道</li>
+<li>D / F / Q = 当前选中泳道标记 DNS / DNF / DSQ</li>
+</ul>
+<hr>
+<h2>17. HTML 浏览器计时控制台</h2>
+<p><code>race_control.html</code>：浏览器版的等价控制台，所有按钮 + 守卫规则与 EXE 完全一致。</p>
+<p>启动时显示<strong>全屏连接遮罩</strong>，输入服务器 IP → 点击"连接"按钮 → 连接成功后遮罩消隐进入主界面。连接失败保留遮罩 + 状态提示，自动重连。</p>
+<h3>17.1 圈数 spinner / 反应时标红 / 备注栏（v2026.05）</h3>
+<p>每条泳道的左 / 右 "圈" 数字两侧均带 ▲▼ spinner（按哪边只调那边，钳到该侧实际触板次数）。点击发 <code>ADJUST_LAP_DISPLAY</code> 命令到服务器，由服务器统一调整 <code>LeftLapManualAdjust</code> / <code>RightLapManualAdjust</code> 后回广播。</p>
+<p>反应时 <code>lr-reaction</code> 单元在 <code>isSuspectFalseStart || isFalseStart</code> 时变红 <code>#EF4444</code>；备注 <code>lr-remark</code> 在非 DSQ 时显示破/平纪录标识，金色 <code>#F59E0B</code>。</p>
+<h3>17.2 参数设置（与主服务器同步）</h3>
+<p>弹窗包含全部参数（含 v2026.05 新增的"大屏翻屏时间" + "反应时(RT)" 单选）。<code>applySettings</code> 用 <code>SET_LANE_CLOSE_SETTINGS</code> 上报；<code>localStorage.swimReactionTimeEnabled</code> / <code>swimBigDisplayPageInterval</code> 持久化，下次启动即使尚未连服务器也用上次值。</p>
+<hr>
+<h2>18. 网页检录台</h2>
+<p><code>checkin.html</code>：检录员核对身份、登记 DSQ/DNS/DNF。</p>
+<ul>
+<li>选项目 → 选组 → 显示该组 8/10 道运动员（含接力队员个人条目）</li>
+<li>每位运动员可勾"已检录"</li>
+<li>一键标记 DNS / DNF / DSQ（同步到比赛控制端 + 大屏）</li>
+</ul>
+<h3>18.1 服务器连接弹窗（v2026.05 改进）</h3>
+<ul>
+<li>输入框 placeholder 改为 <code>如 192.168.1.100</code>，标签改为"服务器IP地址"，与 <code>display.html</code> / <code>race_control.html</code> 风格统一</li>
+<li>持久化 key 改为 <code>localStorage.swimServerHost</code>（与其他网页客户端共享）；旧版 <code>checkinServer</code> 自动迁移</li>
+<li>内部拼 <code>ws://host:3002</code>；用户即便粘贴完整 URL 也会被剥成 host</li>
+</ul>
+<hr>
+<h2>19. 大屏显示 / 排名屏</h2>
+<h3>19.1 <code>display.html</code> 比赛实时大屏</h3>
+<p>显示模式：见 §13.1。启动时显示连接遮罩。</p>
+<h3>19.2 <code>leaderboard.html</code> 排名屏</h3>
+<p>3 个 Tab 切换：</p>
+<ul>
+<li><strong>项目排名</strong>：当前选中项目的总排名</li>
+<li><strong>团体积分</strong>：各代表队总分 / 金 / 银 / 铜</li>
+<li><strong>纪录榜</strong>：当前赛事所有纪录列表</li>
+</ul>
+<h3>19.3 大屏顶部主纪录条</h3>
+<p>显示当前项目的两条纪录：左为"主纪录"（WR/AR/NR/省R/市R 之一，由主控配置），右为"赛会纪录 CR"。</p>
+<hr>
+<h2>20. 在线报名 / 注册工具</h2>
+<h3>20.1 <code>register.html</code>（在线报名）</h3>
+<p>启动连接遮罩输入 IP → 进入主界面：</p>
+<ul>
+<li><strong>个人项目报名</strong>：姓名 / 性别 / 出生日期 / 身份证 / 代表队 / 单位简称 / 组别 / 协会注册号 / 备注 / + 多项目报名</li>
+<li><strong>接力队报名</strong>：队名 / 性别 / 组别 / 单位简称 / 项目 / 报名成绩 / <strong>4 棒队员（含出生日期，v2026.05）</strong></li>
+</ul>
+<p><strong>组别 / 项目 / 性别下拉</strong>：从主服务器实时同步（<code>比赛类型管理</code>修改后立即生效），不再硬编码。</p>
+<h4>20.1.1 多人报名（v2026.05 新增）</h4>
+<p>工作流：</p>
+<pre>
+[录入 1 人表单] → [+ 添加到报名列表] → [清空表单 → 录入下一人] → … → [全部提交报名（N 人）]
+                              ↓                                                   ↓
+                  待提交报名列表（绿色卡片，可"修改"/"删除"）         REGISTER_SWIMMERS_MULTI
+                                                                              ↓
+                                                            主服务器逐条校验（姓名 / 项目数 /
+                                                            日期格式 / 批内重名 / 批内项目重复）
+                                                                              ↓
+                                                                ┌─ 全部通过 → 写入 + 弹窗成功
+                                                                └─ 任一未通过 → 整批不入库 + 弹窗
+                                                                                列出原因 + 失败条目变红
+</pre>
+<p><strong>弹窗反馈</strong>（v2026.05）：</p>
+<table>
+<thead><tr>
+  <th>标题</th>
+  <th>颜色</th>
+  <th>内容</th>
+</tr></thead><tbody>
+<tr>
+  <td><code>✓ 报名提交成功</code></td>
+  <td>绿色</td>
+  <td>"主服务器已通过本次报名，共 N 人，相关数据已写入比赛系统。"+ 每位姓名（参赛号 xxx）：N 项</td>
+</tr>
+<tr>
+  <td><code>✗ 报名未通过</code></td>
+  <td>红色</td>
+  <td>主服务器返回的整体消息 + 每条失败原因列表 + 提示在"待提交报名列表"点对应条目"修改"调出表单更正后再次"全部提交报名"</td>
+</tr>
+</tbody></table>
+<p>待提交列表里失败条目背景变红、显示具体错误（如"张三：与本批内其他条目重复（同姓名+性别+代表队）"或"李四：项目重复 100米自由泳"）。</p>
+<h4>20.1.2 查询 / 修改已提交的报名</h4>
+<p>黄色卡片"查询 / 修改我已经提交的报名"：输入参赛号或（姓名+代表队）查询；服务器返回当前已注册数据，回填到表单进入"修改模式"，再次"添加到报名列表 → 全部提交报名"会以 <code>isResubmit=true</code> 提交，服务器先清旧记录再写新记录。</p>
+<h3>20.2 <code>RegistrationTool.exe</code>（EXE 注册工具）</h3>
+<p>桌面端，与 <code>register.html</code> 等价：</p>
+<ul>
+<li>顶部连接栏：状态指示灯（红/绿/黄）+ 文字 + 服务器输入框 + 连接/断开按钮</li>
+<li>表单字段间距优化（v2026.04 调整），输入框与左侧标签留有合理间距</li>
+<li>接力报名 5 列棒次表（v2026.05）：第N棒 / 姓名 / <strong>出生日期</strong> / 身份证号 / 参赛号；DatePicker 设 <code>Language="en-CA" SelectedDateFormat="Short"</code> 强制 <code>yyyy-MM-dd</code> 格式</li>
+</ul>
+<hr>
+<h2>21. 自动化测试机器人</h2>
+<p><code>test_bot.html</code>：</p>
+<ul>
+<li>一键模拟报名（个人 / 接力）100+ 运动员</li>
+<li>模拟比赛流程（就位 → 发令 → 触板序列 → 确认成绩 → 切到下一组 → 晋级…）</li>
+<li>可在没有硬件、没有真人时，演示 / 压测整套系统</li>
+</ul>
+<hr>
+<h2>22. 硬件参数调试机器人</h2>
+<p><code>ParamDebugBot.exe</code>：</p>
+<ul>
+<li>不连主服务器，直接对接硬件计时器</li>
+<li>双向调试 12 字节帧</li>
+<li>实时显示每条命令的子码 / 数据 / 时间戳</li>
+<li>支持 UDP / TCP / 串口</li>
+</ul>
+<hr>
+<h2>23. 常见问题</h2>
+<h3>23.1 主服务器闪退或无法启动</h3>
+<ul>
+<li>查看是否被防病毒软件拦截</li>
+<li>检查 .NET Framework 4.5+ 是否安装</li>
+<li>端口 3002 是否被其它进程占用</li>
+</ul>
+<h3>23.2 客户端连不上主服务器</h3>
+<ul>
+<li>检查 IP 是否正确（用 <code>ipconfig</code> 确认主机 IP）</li>
+<li>防火墙是否放行 <code>SwimmingScoreboard.exe</code></li>
+<li>主服务器右下角"连接状态"是否显示已启动 WebSocket</li>
+</ul>
+<h3>23.3 大屏卡顿</h3>
+<ul>
+<li>v2026.04.29 已优化为分区刷新（100ms 滚动时间 + 250ms 廉价字段刷新 + DOM 缓存）</li>
+<li>老版本浏览器（IE / 旧 Edge）渲染慢，建议 Chrome / 新 Edge</li>
+</ul>
+<h3>23.4 自动分组结果不符合 FINA 规则</h3>
+<ul>
+<li>请确认"项目类型"识别正确（短距 50/100/200 / 中长距离 400+ / 接力）</li>
+<li>重新点 <strong>预赛自动分组</strong>（旧版数据手动调整后再点会重新执行 SW 3 算法）</li>
+</ul>
+<h3>23.5 已确认成绩消失</h3>
+<ul>
+<li>检查"赛程导航"是否仍显示 <code>[已完赛]</code></li>
+<li>在"成绩与排名"Tab 检查组次下拉是否包含该组</li>
+<li>查看主控日志窗口是否有"赛程导航刷新失败 / 成绩与排名刷新失败"红色错误</li>
+</ul>
+<h3>23.6 接力队员重复登记</h3>
+<ul>
+<li>v2026.04 已修复：相同 (队名 + 性别 + 项目) 的接力队会被识别为更新，不会增加重复行</li>
+</ul>
+<h3>23.7 计时器清零后大屏没切到欢迎画面</h3>
+<ul>
+<li>仅在"本赛次最后一组已确认 + 计时器清零"才会切欢迎画面</li>
+<li>中间组的清零会自动切到下一组（仍显示比赛视图）</li>
+</ul>
+<h3>23.8 50/100/150 米触板打开时大屏闪现"出发反应时"</h3>
+<ul>
+<li>v2026.04.29 已修复：分段计数只算"已记录到真实时间"的分段，PreCreateSplit 空占位不再触发反应时回放</li>
+</ul>
+<hr>
+<h2>附录 A：CSV 表头速查</h2>
+<table>
+<thead><tr>
+  <th>文件</th>
+  <th>表头（首行）</th>
+</tr></thead><tbody>
+<tr>
+  <td><strong>运动员报名</strong></td>
+  <td><code>号码,姓名,性别,代表队,项目,报名成绩,年龄,出生日期,身份证号,电话,备注,组别,单位简称</code></td>
+</tr>
+<tr>
+  <td><strong>比赛项目表</strong></td>
+  <td><code>比赛项目</code></td>
+</tr>
+<tr>
+  <td><strong>组别表</strong></td>
+  <td><code>组别名称</code></td>
+</tr>
+<tr>
+  <td><strong>性别表</strong></td>
+  <td><code>性别</code></td>
+</tr>
+<tr>
+  <td><strong>赛次表</strong></td>
+  <td><code>赛次</code></td>
+</tr>
+<tr>
+  <td><strong>组数表</strong></td>
+  <td><code>组数</code></td>
+</tr>
+<tr>
+  <td><strong>代表队号码段</strong></td>
+  <td><code>代表队,起始号,结束号,位宽</code></td>
+</tr>
+</tbody></table>
+<h2>附录 B：版本变更摘要</h2>
+<h3>v2026.05.10 大版本更新</h3>
+<ul>
+<li><strong>多人在线报名</strong>：register.html 新增"待提交报名列表"工作流，<code>REGISTER_SWIMMERS_MULTI</code> 一次提交；弹窗反馈通过 / 未通过及具体原因</li>
+<li><strong>起跳犯规改为人工判罚</strong>：硬件检测的"抢跳"只置 <code>IsSuspectFalseStart</code>（反应时标红），是否 DSQ 由裁判按按钮决定；自动 DSQ 的两条逻辑全部删除</li>
+<li><strong>破 / 平纪录自动比对</strong>：完赛即写 <code>LaneResult.RecordNote</code>（WR/OR/AR/AJR/NR/省R/市R/CR），三端 + 大屏 + 打印同步显示；裁判确认后 <code>UpdateRecordsAfterConfirm</code> 自动刷新对应 <code>SwimmingRecord</code></li>
+<li><strong>并列名次</strong>：1-2-2-4 规则；<code>UpdateHeatRanking</code> / <code>ComputeLiveRanks</code> / <code>GetEventRanking</code> 三处统一</li>
+<li><strong>圈数 ▲▼ spinner</strong>：每道左右独立调整，钳到 [0, 该侧实际触板次数]；三端命令路径 <code>ADJUST_LAP_DISPLAY</code></li>
+<li><strong>反应时(RT) 开 / 关</strong>：参数设置中新增；关闭后所有反应时处理跳过</li>
+<li><strong>大屏翻屏时间</strong>：参数设置中新增（默认 5 秒）；display.html 总排名翻页周期实时跟随</li>
+<li><strong>接力出生日期</strong>：三个报名端每棒新增"出生日期"字段；<code>RelayLeg.SwimmerBirthDate</code> 持久化贯穿</li>
+<li><strong>手动分组对话框</strong>：阶段为半决赛 / 决赛时自动改显前一赛次成绩；排序 key 也跟着切换</li>
+<li><strong>主控参数设置弹窗</strong>：改为 <code>SizeToContent.Height</code>，去掉 ScrollViewer</li>
+<li><strong>checkin.html 服务器弹窗</strong>：对齐 display.html 风格（裸 IP，URL 内部拼接，旧 <code>checkinServer</code> 迁移）</li>
+<li><strong>control.html 状态文字</strong>：连接成功简化为"已连接"</li>
+<li><strong>盲表成绩按钮修复</strong>：既读 <code>laneState.PendingBlind<em>Time</code>，也读当前 split 的 <code>PushButton</em>Time</code></li>
+</ul>
+<h3>v2026.04.29 大屏分区刷新优化</h3>
+<ul>
+<li>display.html 不再 500ms 整屏 innerHTML 重建；100ms 滚动时间 ticker + 250ms 字段对比刷新 + DOM 缓存复用</li>
+<li>200/400/800/1500 米所有分段触板打开瞬间不再闪现反应时</li>
+</ul>
+<h3>v2026.04.28 计时控制三端一致</h3>
+<ul>
+<li>引入 <code>_confirmedHeats</code> 集合永久锁定已确认组次，并入档持久化</li>
+<li>"计时器清零"按是否已确认拆两种语义；最后一组完赛 → 自动清空泳道 + 大屏切欢迎画面</li>
+<li>主控 / EXE / HTML 三端共用同一守卫与提示规则</li>
+<li>显示控制端 <code>control.html</code> 加连接栏，移到右上角</li>
+</ul>
+<h3>v2026.04.27 FINA SW 3 自动分组</h3>
+<ul>
+<li>重写 <code>HeatScheduler.GenerateHeats / GenerateRelayHeats</code> 严格遵循 FINA SW 3.1.1.4 / 3.1.1.5 / 3.1.2</li>
+<li>短距离最后 3 组循环排位；中长距离 / 接力最后 2 组循环排位</li>
+</ul>
+<h3>v2026.04.27 自动日程 / 三端组别同步</h3>
+<ul>
+<li>自动日程晚上场起始时间 19:00 → 17:30</li>
+<li><code>比赛类型管理</code> 任意修改通过 <code>NotifyMetadataChanged</code> 同步到 WPF 下拉 + 网页报名端</li>
+<li>三端 "顶部当前比赛行" + "赛程导航" 加 <code>[组别]</code> 前缀；选中 key 改 5 段含组别</li>
+</ul>
+<h3>v2026.04.27 接力 / 报名修复</h3>
+<ul>
+<li>接力队员个人条目从"运动员管理"隐藏</li>
+<li>接力队管理防重复登记（队名+性别+项目唯一键）</li>
+<li>比赛控制接力项目泳道行第 2 行显示 <code>第N棒: 队员姓名</code></li>
+</ul>
+<h3>v2026.04.27 显示 / 大屏修复</h3>
+<ul>
+<li>display.html 启动连接遮罩；leaderboard.html 同款</li>
+<li>大屏空泳道（<code>status==='EMPTY'</code>）不再渲染 0 道空行</li>
+</ul>
+<h3>v2026.04 早期更新</h3>
+<ul>
+<li>增加"代表队简称"列；修复显示</li>
+<li>网页报名端动态从服务器同步组别 / 项目下拉</li>
+<li>"成绩与排名"组次下拉只列已确认组</li>
+<li>删除赛事 / 清库时同步刷新所有面板</li>
+</ul>
+<hr>
+<p><strong>主服务器版本号</strong>：v2026.05.10</p>
+<p><strong>手册版本</strong>：v2026.05.10</p>
+<p><strong>版权所有</strong>：游泳赛事管理与计时系统项目</p>
+</body></html>

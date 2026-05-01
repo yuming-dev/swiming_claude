@@ -825,9 +825,9 @@ namespace RemoteTimingControl
             // 列布局与泳道行一致
             PoolHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(32) });   // 0: 道次
             PoolHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(8) });    // 1: 左发令
-            PoolHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(240) });  // 2: 左设备
+            PoolHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(264) });  // 2: 左设备（+24，容纳圈数 spinner）
             PoolHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) }); // 3: 姓名+进度
-            PoolHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(240) });  // 4: 右设备
+            PoolHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(264) });  // 4: 右设备（+24，容纳圈数 spinner）
             PoolHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(8) });    // 5: 右发令
             PoolHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(267) });  // 6: 成绩信息
 
@@ -857,7 +857,7 @@ namespace RemoteTimingControl
             var lh1 = MakeHeaderLabel("盲1", 26); lh1.Visibility = _leftBlindWatchCount >= 1 ? Visibility.Visible : Visibility.Hidden; leftLabels.Children.Add(lh1);
             leftLabels.Children.Add(MakeHeaderLabel("出发", 26));
             leftLabels.Children.Add(MakeHeaderLabel("触板", 26));
-            leftLabels.Children.Add(MakeHeaderLabel("圈", 28));
+            leftLabels.Children.Add(MakeHeaderLabel("圈", 50));
             Grid.SetColumn(leftLabels, 2);
             PoolHeader.Children.Add(leftLabels);
 
@@ -870,7 +870,7 @@ namespace RemoteTimingControl
 
             // Right device labels（圈 触板 出发 盲1 盲2 盲3 [T]；盲表数量减少时盲2/盲3 用 Hidden 保留位置）
             var rightLabels = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-            rightLabels.Children.Add(MakeHeaderLabel("圈", 28));
+            rightLabels.Children.Add(MakeHeaderLabel("圈", 50));
             rightLabels.Children.Add(MakeHeaderLabel("触板", 26));
             rightLabels.Children.Add(MakeHeaderLabel("出发", 26));
             var rh1 = MakeHeaderLabel("盲1", 26); rh1.Visibility = _rightBlindWatchCount >= 1 ? Visibility.Visible : Visibility.Hidden; rightLabels.Children.Add(rh1);
@@ -1257,9 +1257,9 @@ namespace RemoteTimingControl
                 var grid = new Grid();
                 grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(32) });
                 grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(8) });
-                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(240) });
+                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(264) });
                 grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(240) });
+                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(264) });
                 grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(8) });
                 grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(267) });
 
@@ -1300,9 +1300,18 @@ namespace RemoteTimingControl
                     leftDevices.Children.Add(dot);
                 }
 
-                var leftRemainTb = new TextBlock { Width = 28, FontSize = 20, FontWeight = FontWeights.Bold, TextAlignment = TextAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+                // 圈数 [数字 + ▲▼ spinner]：左端
+                var leftRemainTb = new TextBlock { Width = 26, FontSize = 20, FontWeight = FontWeights.Bold, TextAlignment = TextAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
                 leftDevices.Children.Add(leftRemainTb);
                 rowUI.LeftRemainText = leftRemainTb;
+                var leftSpinner = new StackPanel { Orientation = Orientation.Vertical, VerticalAlignment = VerticalAlignment.Center };
+                var leftLapUp = new Button { Content = "▲", Width = 18, Height = 13, FontSize = 9, BorderThickness = new Thickness(0), Background = _brushSlate, Foreground = Brushes.White, Padding = new Thickness(0), Cursor = System.Windows.Input.Cursors.Hand };
+                leftLapUp.PreviewMouseLeftButtonDown += delegate { SendCmd("ADJUST_LAP_DISPLAY", new { lane = capturedLane, isLeft = true, delta = +1 }); };
+                var leftLapDown = new Button { Content = "▼", Width = 18, Height = 13, FontSize = 9, BorderThickness = new Thickness(0), Background = _brushSlate, Foreground = Brushes.White, Padding = new Thickness(0), Margin = new Thickness(0, 1, 0, 0), Cursor = System.Windows.Input.Cursors.Hand };
+                leftLapDown.PreviewMouseLeftButtonDown += delegate { SendCmd("ADJUST_LAP_DISPLAY", new { lane = capturedLane, isLeft = true, delta = -1 }); };
+                leftSpinner.Children.Add(leftLapUp);
+                leftSpinner.Children.Add(leftLapDown);
+                leftDevices.Children.Add(leftSpinner);
                 Grid.SetColumn(leftDevices, 2); grid.Children.Add(leftDevices);
 
                 // Col 3: 姓名+进度
@@ -1330,7 +1339,16 @@ namespace RemoteTimingControl
 
                 // Col 4: 右设备
                 var rightDevices = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-                var rightRemainTb = new TextBlock { Width = 28, FontSize = 20, FontWeight = FontWeights.Bold, TextAlignment = TextAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+                // 圈数 [▲▼ spinner + 数字]：右端
+                var rightSpinner = new StackPanel { Orientation = Orientation.Vertical, VerticalAlignment = VerticalAlignment.Center };
+                var rightLapUp = new Button { Content = "▲", Width = 18, Height = 13, FontSize = 9, BorderThickness = new Thickness(0), Background = _brushSlate, Foreground = Brushes.White, Padding = new Thickness(0), Cursor = System.Windows.Input.Cursors.Hand };
+                rightLapUp.PreviewMouseLeftButtonDown += delegate { SendCmd("ADJUST_LAP_DISPLAY", new { lane = capturedLane, isLeft = false, delta = +1 }); };
+                var rightLapDown = new Button { Content = "▼", Width = 18, Height = 13, FontSize = 9, BorderThickness = new Thickness(0), Background = _brushSlate, Foreground = Brushes.White, Padding = new Thickness(0), Margin = new Thickness(0, 1, 0, 0), Cursor = System.Windows.Input.Cursors.Hand };
+                rightLapDown.PreviewMouseLeftButtonDown += delegate { SendCmd("ADJUST_LAP_DISPLAY", new { lane = capturedLane, isLeft = false, delta = -1 }); };
+                rightSpinner.Children.Add(rightLapUp);
+                rightSpinner.Children.Add(rightLapDown);
+                rightDevices.Children.Add(rightSpinner);
+                var rightRemainTb = new TextBlock { Width = 26, FontSize = 20, FontWeight = FontWeights.Bold, TextAlignment = TextAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
                 rightDevices.Children.Add(rightRemainTb);
                 rowUI.RightRemainText = rightRemainTb;
 

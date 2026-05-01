@@ -953,6 +953,19 @@
                                     </ControlTemplate>
                                 </Button.Template>
                             </Button>
+                            <!-- 打印成绩：仅当当前组已确认成绩时直接打印；比赛中弹窗提示 -->
+                            <Button Click="PrintCurrentHeatResult_Click" Height="30" Margin="0,0,0,8" BorderThickness="0" Cursor="Hand">
+                                <Button.Template>
+                                    <ControlTemplate TargetType="Button">
+                                        <Border Background="#059669" CornerRadius="8">
+                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                <TextBlock Text="&#xE749;" FontFamily="Segoe MDL2 Assets" FontSize="16" Foreground="White" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                                <TextBlock Text="打印成绩" FontSize="15" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </Border>
+                                    </ControlTemplate>
+                                </Button.Template>
+                            </Button>
 
                             <!-- 泳道操作 -->
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
@@ -1381,16 +1394,7 @@
                                             </StackPanel>
                                         </StackPanel>
                                     </Border>
-                                    <Border Style="{StaticResource DocCardBorder}">
-                                        <StackPanel>
-                                            <TextBlock Text="分组成绩" Style="{StaticResource DocTitle}"/>
-                                            <TextBlock Style="{StaticResource DocSub}"
-                                                       Text="当前比赛组的完整成绩单（名次/道次/号码/姓名/成绩/反应时）。"/>
-                                            <StackPanel Orientation="Horizontal">
-                                                <Button Content="输出 / 打印" Click="PrintHeatResults_Click" Background="#059669" Style="{StaticResource DocActionBtn}"/>
-                                            </StackPanel>
-                                        </StackPanel>
-                                    </Border>
+                                    <!-- "分组成绩"原"输出/打印"按钮已迁移至"比赛控制"Tab"确认本组成绩"下方的"打印成绩"按钮 -->
                                     <Border Style="{StaticResource DocCardBorder}">
                                         <StackPanel>
                                             <TextBlock Text="项目成绩" Style="{StaticResource DocTitle}"/>

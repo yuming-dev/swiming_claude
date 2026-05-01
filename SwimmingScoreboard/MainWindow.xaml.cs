@@ -279,7 +279,7 @@ namespace SwimmingScoreboard
                         HandleRegisterSwimmersMulti(socket, msg);
                         break;
                     case "REGISTER_RELAY":
-                        HandleRegisterRelay(msg);
+                        HandleRegisterRelay(socket, msg);
                         break;
                     case "CONNECT_HW":
                         HandleConnectHw(msg);
@@ -765,15 +765,35 @@ namespace SwimmingScoreboard
             }
         }
 
-        private void HandleRegisterRelay(JObject msg) {
+        private void SendRelayResult(IWebSocketConnection socket, bool success, string message, string teamName, string bibNumber, int legCount, bool updated) {
+            if (socket == null) return;
+            try {
+                var result = new {
+                    type = "REGISTER_RELAY_RESULT",
+                    data = new {
+                        success = success,
+                        message = message,
+                        teamName = teamName,
+                        bibNumber = bibNumber,
+                        legCount = legCount,
+                        updated = updated
+                    }
+                };
+                socket.Send(JsonConvert.SerializeObject(result));
+            } catch { }
+        }
+
+        private void HandleRegisterRelay(IWebSocketConnection socket, JObject msg) {
             var data = msg["data"];
-            if (data == null) return;
+            if (data == null) { SendRelayResult(socket, false, "数据不完整", "", "", 0, false); return; }
             var team = new RelayTeam {
                 TeamName = data["teamName"] != null ? data["teamName"].ToString() : "",
                 EventName = data["eventName"] != null ? data["eventName"].ToString() : "",
                 Gender = data["gender"] != null ? data["gender"].ToString() : "男",
                 EntryTime = data["entryTime"] != null ? data["entryTime"].ToString() : ""
             };
+            if (string.IsNullOrEmpty(team.TeamName)) { SendRelayResult(socket, false, "队名不能为空", "", "", 0, false); return; }
+            if (string.IsNullOrEmpty(team.EventName)) { SendRelayResult(socket, false, "请选择项目", team.TeamName, "", 0, false); return; }
             team.EntryTimeSeconds = TimeFormatter.Parse(team.EntryTime);
             var legs = data["legs"] as JArray;
             if (legs != null) {
@@ -799,6 +819,8 @@ namespace SwimmingScoreboard
                 }
             }
 
+            if (team.Legs.Count == 0) { SendRelayResult(socket, false, "请至少填写 1 棒队员姓名", team.TeamName, "", 0, false); return; }
+
             // 防止同一接力队重复注册（队名+性别+项目唯一）
             var existingTeam = _relayTeams.FirstOrDefault(t =>
                 t.TeamName == team.TeamName && t.Gender == team.Gender && t.EventName == team.EventName);
@@ -812,6 +834,12 @@ namespace SwimmingScoreboard
                 RebuildRelayGroupedView();
                 AutoSaveData();
                 Broadcast();
+                // 反馈：更新已存在的接力队
+                var existingProxy = _swimmers.FirstOrDefault(s =>
+                    s.Country == team.TeamName && s.Gender == team.Gender && s.EventName == team.EventName
+                    && !string.IsNullOrEmpty(s.Notes) && s.Notes.StartsWith("接力队 棒次:"));
+                string existBib = existingProxy != null ? (existingProxy.BibNumber ?? "") : "";
+                SendRelayResult(socket, true, "接力队信息已更新", team.TeamName, existBib, team.Legs.Count, true);
                 return;
             }
             _relayTeams.Add(team);
@@ -879,6 +907,7 @@ namespace SwimmingScoreboard
             RebuildRelayGroupedView();
             AutoSaveData();
             Broadcast();
+            SendRelayResult(socket, true, "接力队报名成功", team.TeamName, bibNumber, team.Legs.Count, false);
         }
 
         private void HandleTimingCommand(JObject msg) {
@@ -971,6 +1000,14 @@ namespace SwimmingScoreboard
                     break;
                 case "USE_BLIND_RESULT":
                     if (data != null) UseBlindResultForCurrentSegment((int)data["lane"]);
+                    break;
+                case "ADJUST_LAP_DISPLAY":
+                    if (data != null) {
+                        int aldLane = (int)data["lane"];
+                        bool aldLeft = data["isLeft"] != null && (bool)data["isLeft"];
+                        int aldDelta = data["delta"] != null ? (int)data["delta"] : 0;
+                        if (aldDelta != 0) AdjustLapDisplay(aldLane, aldLeft, aldDelta);
+                    }
                     break;
                 case "OVERRIDE_TIME":
                     if (data != null) OverrideLaneTime((int)data["lane"], (double)data["time"]);
@@ -3270,6 +3307,9 @@ namespace SwimmingScoreboard
             }
 
             Broadcast();
+
+            // 确认成绩后大屏自动从"比赛视图"切换到"本组成绩"
+            try { BroadcastDisplayMode("SHOW_HEAT_RESULT"); } catch (Exception ex) { AddLog("切换大屏到本组成绩失败: " + ex.Message); }
         }
 
         /// <summary>
@@ -4704,15 +4744,27 @@ namespace SwimmingScoreboard
             string oldStatus = swimmer.Status ?? "";
             swimmer.Status = "";
             var laneState = _laneDeviceStates.FirstOrDefault(s => s.Lane == lane);
+            // 取消 DSQ/DNS/DNF 后：若该运动员有有效成绩，按需重新比对纪录 + 更新本组排名
+            var resCN = swimmer.Results.FirstOrDefault(r => r.Stage == _currentStage && r.Heat == _currentHeat);
+            if (resCN != null) {
+                bool wasDQ = (oldStatus == "DSQ" || oldStatus == "DNS" || oldStatus == "DNF");
+                if (wasDQ) {
+                    if (resCN.Status == oldStatus) resCN.Status = "";
+                    if (resCN.FinalTime > 0) {
+                        // 复算破/平纪录标识
+                        try { CheckRecords(swimmer, resCN); } catch { }
+                    }
+                }
+            }
             if (laneState != null) {
                 // 若比赛尚未结束/未有最终成绩，重置完成标志，使其继续参赛
-                var result = swimmer.Results.FirstOrDefault(r => r.Stage == _currentStage && r.Heat == _currentHeat);
-                bool hasFinalTime = result != null && result.FinalTime > 0;
+                bool hasFinalTime = resCN != null && resCN.FinalTime > 0;
                 if (!hasFinalTime) laneState.IsFinished = false;
             }
             LogRawTimingData(lane, "CANCEL_NOTE", 0);
             AddLog(string.Format("泳道{0} {1} 取消备注（原 {2}），恢复正常参赛状态",
                 lane, swimmer.Name, string.IsNullOrEmpty(oldStatus) ? "无" : oldStatus));
+            try { UpdateHeatRanking(); } catch { }
             UpdateLaneStatusDisplay();
             AutoSaveData();
             Broadcast();
@@ -4801,10 +4853,26 @@ namespace SwimmingScoreboard
             if (swimmer == null) swimmer = GetCurrentHeatSwimmers().FirstOrDefault(s => s.Lane == lane);
             if (swimmer != null) {
                 swimmer.Status = status;
+                // DSQ/DNS/DNF：成绩无效，必须清除 RecordNote（否则破/平纪录标识仍残留），
+                // 同时重新计算本组排名 + 复算其它运动员的破/平纪录（被取消的人不再占名次/不再当纪录候选）
+                if (status == "DSQ" || status == "DNS" || status == "DNF") {
+                    var res = swimmer.Results.FirstOrDefault(r => r.Stage == _currentStage && r.Heat == _currentHeat);
+                    if (res != null) {
+                        if (!string.IsNullOrEmpty(res.RecordNote)) {
+                            AddLog(string.Format("  泳道{0} {1} 成绩无效，取消破/平纪录标识: {2}", lane, swimmer.Name, res.RecordNote));
+                            res.RecordNote = "";
+                        }
+                        res.Status = status;
+                        res.Rank = 0;
+                    }
+                    swimmer.CurrentRank = 0;
+                }
                 LogRawTimingData(lane, "MARK_" + status, 0);
                 AddLog(string.Format("泳道{0} {1} 标记为 {2}", lane, swimmer.Name, status));
                 var laneState = _laneDeviceStates.FirstOrDefault(s => s.Lane == lane);
                 if (laneState != null) laneState.IsFinished = true;
+                // 重新计算本组排名（被取消的运动员让出名次）
+                try { UpdateHeatRanking(); } catch { }
                 UpdateLaneStatusDisplay();
                 AutoSaveData();
                 Broadcast();
@@ -11603,6 +11671,20 @@ namespace SwimmingScoreboard
         }
         private void PrintStartList_Click(object sender, RoutedEventArgs e) { GenerateAndOpenDocument("出发表", BuildStartListHtml()); }
         private void PrintHeatResults_Click(object sender, RoutedEventArgs e) { GenerateAndOpenDocument("分组成绩", BuildHeatResultsHtml()); }
+
+        // 比赛控制 Tab "确认本组成绩"下方的"打印成绩"按钮：
+        // - 当前组成绩已确认 → 直接打印当前组成绩单
+        // - 仍在比赛 / 未确认 → 弹窗提示"正在比赛中，不能打印，请稍后"
+        private void PrintCurrentHeatResult_Click(object sender, RoutedEventArgs e) {
+            // 当前组是否已确认：以 _resultConfirmed（本次刚确认）或 _confirmedHeats（历史已确认）为准
+            bool confirmed = _resultConfirmed
+                || _confirmedHeats.Contains(ConfirmedHeatKey(_currentAgeGroup, _currentGender, _currentEvent, _currentStage, _currentHeat));
+            if (!confirmed) {
+                MessageBox.Show("正在比赛中，不能打印，请稍后。", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            GenerateAndOpenDocument("分组成绩", BuildHeatResultsHtml());
+        }
         private void PrintEventResults_Click(object sender, RoutedEventArgs e) {
             var win = new EventResultPrintWindow(_swimmers, _schedule, _competitionName,
                 LocationBox.Text, RefereeBox.Text, ChiefJudgeBox.Text, StarterBox.Text);
