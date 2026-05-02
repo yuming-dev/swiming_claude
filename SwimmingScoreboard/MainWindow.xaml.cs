@@ -1546,7 +1546,7 @@ namespace SwimmingScoreboard
             };
         }
 
-        // 判断泳道是否参赛：有运动员 且 状态不是 DNS/DNF/DSQ
+        // 判断泳道是否参赛：有运动员 且 状态不是 DNS/DNF/DSQ（用于排名/积分等"算成绩"决策）
         private bool IsLaneParticipating(int lane) {
             var swimmers = GetCurrentHeatSwimmers();
             var sw = swimmers.FirstOrDefault(s => {
@@ -1556,6 +1556,21 @@ namespace SwimmingScoreboard
             if (sw == null) return false;
             string st = sw.Status ?? "";
             return st != "DNS" && st != "DNF" && st != "DSQ";
+        }
+
+        // 判断泳道是否仍需接收/保存原始计时数据：
+        // DSQ（含抢跳取消资格）运动员仍在水中继续完成比赛，触板/盲表/分段/反应时数据应继续接收并保存以便日后查询；
+        // 仅大屏排名/最终成绩侧把它排除（由 IsLaneParticipating 控制）。
+        // DNS / DNF / 空泳道则没有数据可期，直接丢弃。
+        private bool IsLaneReceivingData(int lane) {
+            var swimmers = GetCurrentHeatSwimmers();
+            var sw = swimmers.FirstOrDefault(s => {
+                var sa = s.GetAssignmentForStage(_currentStage);
+                return (sa != null ? sa.Lane : s.Lane) == lane;
+            });
+            if (sw == null) return false;
+            string st = sw.Status ?? "";
+            return st != "DNS" && st != "DNF";
         }
 
         private List<Swimmer> GetCurrentHeatSwimmers() {
@@ -2036,8 +2051,9 @@ namespace SwimmingScoreboard
             // Racing状态或Finished状态（延迟关闭期内盲表/手动仍有效）都接收数据
             if (_raceState != RaceState.Racing && _raceState != RaceState.Finished && cmdType != "StartCommand") return;
 
-            // 空泳道或 DNS/DNF/DSQ 泳道：整条泳道关闭，不记录也不处理任何计时数据
-            if (!IsLaneParticipating(lane)) {
+            // 空泳道或 DNS/DNF：整条泳道关闭，不记录也不处理任何计时数据。
+            // 抢跳 DSQ 运动员仍在水中继续比赛，触板/盲表/分段数据应继续接收并保存（仅大屏不显示成绩）。
+            if (!IsLaneReceivingData(lane)) {
                 AddLog(string.Format("泳道{0} 数据丢弃（空泳道或未参赛）: {1}", lane, cmdType));
                 return;
             }
@@ -3016,8 +3032,9 @@ namespace SwimmingScoreboard
                     state.LaneCloseCountdown -= 0.1;
                     if (state.LaneCloseCountdown <= 0) {
                         state.LaneCloseCountdown = 0;
-                        // 空泳道或 DNS/DNF/DSQ 运动员：不自动打开任何设备
-                        if (!IsLaneParticipating(state.Lane)) { changed = true; continue; }
+                        // 空泳道或 DNS/DNF 运动员：不自动打开任何设备；
+                        // 抢跳 DSQ 仍继续比赛，下一段触板/盲表照常打开以接收原始数据
+                        if (!IsLaneReceivingData(state.Lane)) { changed = true; continue; }
                         // 打开运动员即将到达端的触板和盲表
                         bool arriveRight = state.Direction == "→";
                         if (arriveRight) {
