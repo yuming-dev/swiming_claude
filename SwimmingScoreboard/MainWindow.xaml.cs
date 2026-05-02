@@ -1320,7 +1320,6 @@ namespace SwimmingScoreboard
                     country = sw.Country,
                     countryShort = sw.CountryShort ?? "",
                     ageGroup = sw.AgeCategory ?? "",
-                    notes = sw.Notes ?? "",
                     bibNumber = sw.BibNumber,
                     entryTime = sw.EntryTime ?? "",
                     direction = laneState != null ? laneState.Direction : (_laneCloseSettings.StartPosition == "right" ? "←" : "→"),
@@ -1406,7 +1405,7 @@ namespace SwimmingScoreboard
                     var ls = _laneDeviceStates.FirstOrDefault(s => s.Lane == ln);
                     swimmerData.Add(new {
                         lane = ln,
-                        name = "", country = "", countryShort = "", ageGroup = "", notes = "",
+                        name = "", country = "", countryShort = "", ageGroup = "",
                         bibNumber = "", entryTime = "",
                         direction = ls != null ? ls.Direction : "",
                         deviceStatus = new {

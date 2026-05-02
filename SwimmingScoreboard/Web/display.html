@@ -439,7 +439,7 @@ function getLaneCount() {
 //      运动员数据更新时按字段对比、最小化 textContent / className 写入
 //   4) 显示窗口超时消隐 —— 250ms 廉价刷新（只走 _refreshRaceRows，无 DOM 重建）
 var _raceRowsBuiltKey = '';
-var _raceRowDOM = [];   // [{lane, row, laneNum, nameEl, teamEl, resultEl, rankEl, remarkEl, lastClass, lastResult, lastRank, lastRankClass, lastRemark, lastRemarkTitle, lastNameHtml, lastTeamHtml}]
+var _raceRowDOM = [];   // [{lane, row, laneNum, nameEl, teamEl, resultEl, rankEl, remarkEl, lastClass, lastResult, lastRank, lastRankClass, lastRemark, lastNameHtml, lastTeamHtml}]
 var _raceHeaderRelay = null;
 
 function renderRace() {
@@ -658,7 +658,7 @@ function _ensureRaceRowsDom() {
             rankEl: row.children[4],
             remarkEl: row.children[5],
             lastClass: '', lastResult: null, lastRank: null, lastRankClass: '',
-            lastRemark: null, lastRemarkTitle: null, lastNameHtml: null, lastTeamHtml: null,
+            lastRemark: null, lastNameHtml: null, lastTeamHtml: null,
             lastLaneNum: null
         });
     }
@@ -772,14 +772,13 @@ function _refreshRaceRows() {
         }
         // 破/平纪录优先用金色显示（不与 DSQ 冲突时）
         if (!remarkText && sw.recordNote) remarkText = sw.recordNote;
-        // 备注栏只显示 DSQ/DNS/DNF 或 破/平纪录标识；不要把 sw.notes（含运动员姓名等内部注释）写到大屏
+        // 备注栏只显示服务器送来的判罚状态(DSQ/DNS/DNF)或破/平纪录标识；
+        // 绝不写入 sw.notes（运动员的内部备注，可能含姓名/教练/单位等隐私文本）
         var effRemark = remarkText;
         if (ui.lastRemark !== effRemark) { ui.remarkEl.textContent = effRemark; ui.lastRemark = effRemark; }
         // 破/平纪录金色高亮（仅当备注就是 recordNote 时）
         var newRemarkColor = (sw.recordNote && effRemark === sw.recordNote) ? '#fbbf24' : '';
         if (ui.lastRemarkColor !== newRemarkColor) { ui.remarkEl.style.color = newRemarkColor; ui.lastRemarkColor = newRemarkColor; }
-        var remarkTitle = sw.notes || '';
-        if (ui.lastRemarkTitle !== remarkTitle) { ui.remarkEl.title = remarkTitle; ui.lastRemarkTitle = remarkTitle; }
     }
 }
 
