@@ -274,6 +274,15 @@ namespace SwimmingScoreboard
             get { return _recordNote; }
             set { _recordNote = value ?? ""; OnPropertyChanged("RecordNote"); }
         }
+        // 接力赛各棒反应时（单位：秒）；按棒次顺序追加：
+        //   第1棒 = 出发反应时（与 StartingBlockTime 相同）
+        //   第2-4棒 = 交接反应时（出发台动作时刻 - 上一棒触板时刻）
+        // 个人赛此列表保持空（StartingBlockTime 即可表达）
+        private List<double> _legReactionTimes = new List<double>();
+        public List<double> LegReactionTimes {
+            get { return _legReactionTimes; }
+            set { _legReactionTimes = value ?? new List<double>(); OnPropertyChanged("LegReactionTimes"); }
+        }
         public ObservableCollection<SplitTime> Splits {
             get { return _splits; }
         }

@@ -2076,12 +2076,18 @@ namespace SwimmingScoreboard
                                 return (sa2 != null ? sa2.Lane : s2.Lane) == lane;
                             });
                             double lastTouchTime = 0;
+                            LaneResult relayRes = null;
                             if (swForLane != null) {
-                                var res = swForLane.Results.FirstOrDefault(r2 => r2.Stage == _currentStage && r2.Heat == _currentHeat);
-                                if (res != null && res.Splits.Count > 0) lastTouchTime = res.Splits.Last().CumulativeTime;
+                                relayRes = swForLane.Results.FirstOrDefault(r2 => r2.Stage == _currentStage && r2.Heat == _currentHeat);
+                                if (relayRes != null && relayRes.Splits.Count > 0) lastTouchTime = relayRes.Splits.Last().CumulativeTime;
                             }
                             double relayReaction = timeInSeconds - lastTouchTime;
                             laneState.ReactionTime = relayReaction;
+                            // 把这一棒交接反应时追加到 LegReactionTimes，用于"打印成绩"输出每棒一个反应时
+                            if (relayRes != null) {
+                                if (relayRes.LegReactionTimes == null) relayRes.LegReactionTimes = new List<double>();
+                                relayRes.LegReactionTimes.Add(relayReaction);
+                            }
                             if (relayReaction < _laneCloseSettings.FalseStartThreshold) {
                                 // 仅作可疑提示（反应时标红），是否判罚由裁判手动决定
                                 laneState.IsSuspectFalseStart = true;
@@ -2092,6 +2098,25 @@ namespace SwimmingScoreboard
                         } else {
                             // 普通出发：反应时间就是出发台时间
                             laneState.ReactionTime = timeInSeconds;
+                            // 接力第 1 棒：把出发反应时也存入 LegReactionTimes[0]
+                            if (_isRelay) {
+                                var swForLane0 = GetCurrentHeatSwimmers().FirstOrDefault(s2 => {
+                                    var sa2 = s2.GetAssignmentForStage(_currentStage);
+                                    return (sa2 != null ? sa2.Lane : s2.Lane) == lane;
+                                });
+                                if (swForLane0 != null) {
+                                    var res0 = swForLane0.Results.FirstOrDefault(r2 => r2.Stage == _currentStage && r2.Heat == _currentHeat);
+                                    if (res0 == null) {
+                                        res0 = new LaneResult {
+                                            EventName = _currentEvent, Stage = _currentStage,
+                                            Heat = _currentHeat, Lane = lane
+                                        };
+                                        swForLane0.Results.Add(res0);
+                                    }
+                                    if (res0.LegReactionTimes == null) res0.LegReactionTimes = new List<double>();
+                                    if (res0.LegReactionTimes.Count == 0) res0.LegReactionTimes.Add(timeInSeconds);
+                                }
+                            }
                             if (timeInSeconds <= _laneCloseSettings.FalseStartThreshold) {
                                 // 仅作可疑提示（反应时标红），是否判罚由裁判手动决定
                                 laneState.IsSuspectFalseStart = true;
@@ -11746,7 +11771,166 @@ namespace SwimmingScoreboard
         private void PrintRecordReport_Click(object sender, RoutedEventArgs e) { GenerateAndOpenDocument("纪录报告", BuildRecordReportHtml()); }
         private void PrintAwardCertificate_Click(object sender, RoutedEventArgs e) { GenerateAndOpenDocument("奖状", BuildAwardCertificateHtml()); }
         private void PrintRecordCertificate_Click(object sender, RoutedEventArgs e) { GenerateAndOpenDocument("纪录证书", BuildRecordCertificateHtml()); }
-        private void PrintSplitTimeReport_Click(object sender, RoutedEventArgs e) { GenerateAndOpenDocument("分段计时报告", BuildSplitTimeReportHtml()); }
+        // "分段计时报告"按钮：弹出已完赛组次树（与赛程导航同结构），选择后打印对应组的分段计时；取消则不打印
+        private void PrintSplitTimeReport_Click(object sender, RoutedEventArgs e) {
+            var picked = ShowConfirmedHeatPicker("选择已完赛组次 — 分段计时报告");
+            if (picked == null) return;     // 取消
+            GenerateAndOpenDocument("分段计时报告",
+                BuildSplitTimeReportHtmlFor(picked.AgeGroup, picked.Gender, picked.EventName, picked.Stage, picked.Heat));
+        }
+
+        private class ConfirmedHeatPick {
+            public string AgeGroup; public string Gender; public string EventName; public string Stage; public int Heat;
+        }
+
+        private ConfirmedHeatPick ShowConfirmedHeatPicker(string title) {
+            // 构造仅含已完赛组的 TreeView（结构与"赛程导航"一致：单元 → 项目 → 第N组）
+            ConfirmedHeatPick selected = null;
+            var dlg = new Window {
+                Title = title, Width = 500, Height = 560,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner, Owner = this,
+                ResizeMode = ResizeMode.CanResize,
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F8FAFC"))
+            };
+            var grid = new Grid { Margin = new Thickness(14) };
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+            var hint = new TextBlock {
+                Text = "请选择已完赛的组次（仅显示按下\"确认本组成绩\"的组）：",
+                Margin = new Thickness(0, 0, 0, 8), FontSize = 13,
+                Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569"))
+            };
+            Grid.SetRow(hint, 0); grid.Children.Add(hint);
+
+            var tv = new TreeView { Background = Brushes.White };
+            int totalConfirmed = 0;
+            var sessions = _schedule.GroupBy(s => s.SessionNumber).OrderBy(g => g.Key);
+            foreach (var session in sessions) {
+                var sessionEvents = new List<TreeViewItem>();
+                foreach (var ev in session) {
+                    string ag = ev.AgeGroup ?? "";
+                    int heatCount = ev.HeatCount > 0 ? ev.HeatCount : 1;
+                    var heatNodes = new List<TreeViewItem>();
+                    for (int h = 1; h <= heatCount; h++) {
+                        if (!IsHeatConfirmed(ag, ev.Gender, ev.EventName, ev.Stage, h)) continue;
+                        var heatNode = new TreeViewItem {
+                            Header = string.Format("第{0}组 [已完赛]", h),
+                            Tag = new ConfirmedHeatPick { AgeGroup = ag, Gender = ev.Gender, EventName = ev.EventName, Stage = ev.Stage, Heat = h },
+                            Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E293B"))
+                        };
+                        heatNodes.Add(heatNode);
+                        totalConfirmed++;
+                    }
+                    if (heatNodes.Count == 0) continue;
+                    string evHeader = (string.IsNullOrEmpty(ag) ? "" : ("[" + ag + "] "))
+                        + string.Format("{0} {1} {2}", ev.Gender, ev.EventName, ev.Stage);
+                    var evItem = new TreeViewItem { Header = evHeader, IsExpanded = true,
+                        Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E40AF")) };
+                    foreach (var n in heatNodes) evItem.Items.Add(n);
+                    sessionEvents.Add(evItem);
+                }
+                if (sessionEvents.Count == 0) continue;
+                var sessionItem = new TreeViewItem {
+                    Header = session.First().SessionName ?? string.Format("第{0}单元", session.Key),
+                    IsExpanded = true,
+                    Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#0F172A")),
+                    FontWeight = FontWeights.Bold
+                };
+                foreach (var e2 in sessionEvents) sessionItem.Items.Add(e2);
+                tv.Items.Add(sessionItem);
+            }
+            if (totalConfirmed == 0) {
+                var empty = new TextBlock {
+                    Text = "暂无已完赛组次。请在\"比赛控制\"中按下\"确认本组成绩\"后再来打印。",
+                    Margin = new Thickness(20, 30, 20, 0), FontSize = 14,
+                    Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")),
+                    TextWrapping = TextWrapping.Wrap
+                };
+                Grid.SetRow(empty, 1); grid.Children.Add(empty);
+            } else {
+                Grid.SetRow(tv, 1); grid.Children.Add(tv);
+            }
+
+            var btnPanel = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 12, 0, 0) };
+            var btnCancel = new Button { Content = "取消", Padding = new Thickness(20, 6, 20, 6), Margin = new Thickness(0, 0, 8, 0),
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")), Foreground = Brushes.White,
+                BorderThickness = new Thickness(0) };
+            btnCancel.Click += delegate { dlg.DialogResult = false; };
+            var btnOK = new Button { Content = "确定", Padding = new Thickness(20, 6, 20, 6), FontWeight = FontWeights.Bold,
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6")), Foreground = Brushes.White,
+                BorderThickness = new Thickness(0) };
+            btnOK.Click += delegate {
+                var sel = tv.SelectedItem as TreeViewItem;
+                if (sel == null || !(sel.Tag is ConfirmedHeatPick)) {
+                    MessageBox.Show("请先在树中选择一个【第N组 [已完赛]】节点。", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                    return;
+                }
+                selected = (ConfirmedHeatPick)sel.Tag;
+                dlg.DialogResult = true;
+            };
+            btnPanel.Children.Add(btnCancel); btnPanel.Children.Add(btnOK);
+            Grid.SetRow(btnPanel, 2); grid.Children.Add(btnPanel);
+
+            dlg.Content = grid;
+            return dlg.ShowDialog() == true ? selected : null;
+        }
+
+        // 指定组次的"分段计时报告"HTML（v2026.05 新增；不依赖 _current* 全局状态）
+        private string BuildSplitTimeReportHtmlFor(string ageGroup, string gender, string eventName, string stage, int heat) {
+            var sb = new StringBuilder();
+            sb.AppendFormat("<html><head><meta charset='UTF-8'><style>{0}</style></head><body>", DocCss());
+            sb.Append(DocHeader("分 段 计 时 报 告"));
+
+            string evTitleAg = string.IsNullOrEmpty(ageGroup) ? "" : ("[" + ageGroup + "] ");
+            string eventTitle = string.Format("{0}{1} {2} {3} 第 {4} 组", evTitleAg, gender, eventName, stage, heat);
+            sb.AppendFormat("<h3>项目：{0}</h3>", System.Net.WebUtility.HtmlEncode(eventTitle));
+
+            var sch = _schedule.FirstOrDefault(s =>
+                (s.AgeGroup ?? "") == (ageGroup ?? "") && s.Gender == gender && s.EventName == eventName && s.Stage == stage);
+            string dateTimeInfo = sch != null ? string.Format("{0} {1}", sch.Date, sch.Time).Trim() : "（时间待定）";
+            sb.AppendFormat("<h4>比赛时间：{0} &nbsp;&nbsp;&nbsp;&nbsp; 地点：{1}</h4>",
+                System.Net.WebUtility.HtmlEncode(dateTimeInfo),
+                System.Net.WebUtility.HtmlEncode(LocationBox != null ? LocationBox.Text : ""));
+
+            bool isRelay = (eventName ?? "").Contains("接力");
+            var swimmers = _swimmers.Where(s => {
+                if (s.EventName != eventName) return false;
+                if (s.Gender != gender && !s.Gender.StartsWith(gender) && !gender.StartsWith(s.Gender)) return false;
+                if (!MatchesAgeGroup(s, ageGroup)) return false;
+                if (isRelay && s.Notes != null && s.Notes.StartsWith("接力队员")) return false;
+                var sa = s.GetAssignmentForStage(stage);
+                if (sa != null && sa.Heat == heat) return true;
+                return s.CurrentStage == stage && s.Heat == heat;
+            }).OrderBy(s => {
+                var sa = s.GetAssignmentForStage(stage);
+                return sa != null ? sa.Lane : s.Lane;
+            }).ToList();
+
+            foreach (var sw in swimmers) {
+                var result = sw.Results.FirstOrDefault(r => r.Stage == stage && r.Heat == heat);
+                if (result == null || result.Splits.Count == 0) continue;
+                string spName = sw.Name;
+                if (isRelay && !string.IsNullOrEmpty(sw.Notes) && sw.Notes.StartsWith("接力队 棒次:"))
+                    spName = sw.Notes.Substring("接力队 棒次:".Length);
+                int dispLane = (result != null && result.Lane > 0) ? result.Lane : sw.Lane;
+                string spLabel = isRelay
+                    ? string.Format("泳道 {0} &nbsp; {1} （{2}）", dispLane, System.Net.WebUtility.HtmlEncode(sw.Country ?? ""), System.Net.WebUtility.HtmlEncode(spName ?? ""))
+                    : string.Format("泳道 {0} &nbsp; {1} （{2}）", dispLane, System.Net.WebUtility.HtmlEncode(spName ?? ""), System.Net.WebUtility.HtmlEncode(sw.Country ?? ""));
+                sb.AppendFormat("<h4 style='margin-top:30px;'>{0} &nbsp; 最终成绩：{1}</h4>", spLabel, TimeFormatter.Format(result.FinalTime));
+                sb.Append("<table><tr><th width='50'>段</th><th width='70'>距离</th><th width='90'>分段时间</th><th width='90'>累计时间</th></tr>");
+                foreach (var split in result.Splits) {
+                    sb.AppendFormat("<tr><td>{0}</td><td>{1}m</td><td>{2}</td><td style='font-weight:bold;'>{3}</td></tr>",
+                        split.Lap, split.Distance, TimeFormatter.Format(split.Time), TimeFormatter.Format(split.CumulativeTime));
+                }
+                sb.Append("</table>");
+            }
+            sb.Append(DocSignatureRow());
+            sb.Append(DocFooter());
+            sb.Append("</body></html>");
+            return sb.ToString();
+        }
 
         private void GenerateAndOpenDocument(string title, string html) {
             // 同时存档到 Documents 目录，并在文档预览/输出对话框中打开
@@ -12400,12 +12584,25 @@ namespace SwimmingScoreboard
                 if (string.IsNullOrEmpty(remark) && r != null && r.FinalTime > 0 && leaderTime > 0 && r.FinalTime > leaderTime) {
                     diffText = (r.FinalTime - leaderTime).ToString("F2");
                 }
-                sb.AppendFormat("<tr><td>{0}</td><td>{1}</td><td>{2}</td><td><b>{3}</b></td><td>{4}</td><td style='font-weight:bold; background:#eff6ff;'>{5}</td><td>{6}</td><td>{7}</td><td style='color:#dc2626;'>{8}</td></tr>",
+                // 反应时单元：接力赛展开为每棒一个反应时（最多 4 棒，按次序换行/逗号）
+                string reactionCell = "";
+                if (printRelay && r != null && r.LegReactionTimes != null && r.LegReactionTimes.Count > 0) {
+                    var parts = new List<string>();
+                    int legCount = r.LegReactionTimes.Count;
+                    for (int li = 0; li < legCount; li++) {
+                        double rt = r.LegReactionTimes[li];
+                        parts.Add(string.Format("第{0}棒:{1}", li + 1, rt > 0 ? rt.ToString("F2") : "—"));
+                    }
+                    reactionCell = string.Join("<br>", parts.ToArray());
+                } else if (r != null && r.StartingBlockTime > 0) {
+                    reactionCell = r.StartingBlockTime.ToString("F2");
+                }
+                sb.AppendFormat("<tr><td>{0}</td><td>{1}</td><td>{2}</td><td><b>{3}</b></td><td>{4}</td><td style='font-weight:bold; background:#eff6ff;'>{5}</td><td>{6}</td><td style='font-size:12px;'>{7}</td><td style='color:#dc2626;'>{8}</td></tr>",
                     r != null && r.Rank > 0 ? r.Rank.ToString() : "-",
                     sw.Lane, sw.BibNumber, RelayCol1(printRelay, pName, pCountry), RelayCol2(printRelay, pName, pCountry),
                     timeText,
                     diffText,
-                    r != null && r.StartingBlockTime > 0 ? r.StartingBlockTime.ToString("F2") : "",
+                    reactionCell,
                     remark);
             }
             sb.Append("</table>");

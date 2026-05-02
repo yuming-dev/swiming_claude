@@ -26,6 +26,19 @@ label { color: #94a3b8; font-size: 12px; }
 </style>
 </head>
 <body>
+<!-- 启动连接遮罩：未连上主服务器前不让用户操作 -->
+<div id="connectOverlay" style="position:fixed;left:0;top:0;width:100vw;height:100vh;background:rgba(15,23,42,0.96);z-index:10000;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#f8fafc;font-family:'Microsoft YaHei',sans-serif;">
+    <div style="background:#1e293b;border-radius:12px;padding:36px 48px;min-width:420px;box-shadow:0 8px 30px rgba(0,0,0,.4);">
+        <div style="font-size:22px;font-weight:bold;text-align:center;margin-bottom:18px;">连接主服务器</div>
+        <div style="font-size:13px;color:#94a3b8;margin-bottom:6px;">服务器 IP 地址</div>
+        <input id="connHostInput" type="text" placeholder="如 192.168.1.100" autocomplete="off"
+               style="width:100%;padding:10px 12px;border:1px solid #334155;border-radius:6px;background:#0f172a;color:#f8fafc;font-size:16px;outline:none;"/>
+        <div style="margin-top:18px;">
+            <button onclick="overlayConnect()" style="width:100%;padding:11px;background:#22c55e;color:white;border:none;border-radius:6px;font-size:15px;font-weight:bold;cursor:pointer;">连接</button>
+        </div>
+        <div id="connOverlayStatus" style="margin-top:14px;text-align:center;font-size:13px;color:#f59e0b;min-height:18px;">请输入主服务器IP并点击连接</div>
+    </div>
+</div>
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
     <h1 style="margin:0;">自动化测试机器人</h1>
     <button class="fullscreen-btn" onclick="goFullScreen()" style="padding:6px 14px;background:#3B82F6;color:white;border:none;border-radius:6px;font-size:13px;cursor:pointer;">全屏</button>
@@ -194,6 +207,36 @@ document.addEventListener('webkitfullscreenchange', function() { var btns=docume
 
 
 var _connFailCount = 0;
+
+// 启动连接遮罩控制
+function getInitialHost() {
+    var params = new URLSearchParams(window.location.search);
+    if (params.get('host')) return params.get('host');
+    if (location.hostname && location.hostname !== '' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') return location.hostname;
+    return localStorage.getItem('swimServerHost') || '192.168.1.100';
+}
+function showConnectOverlay(text, color) {
+    var ov = document.getElementById('connectOverlay');
+    if (ov) ov.style.display = 'flex';
+    var st = document.getElementById('connOverlayStatus');
+    if (st) { st.textContent = text || '请输入主服务器IP并点击连接'; st.style.color = color || '#f59e0b'; }
+}
+function hideConnectOverlay() {
+    var ov = document.getElementById('connectOverlay');
+    if (ov) ov.style.display = 'none';
+}
+function overlayConnect() {
+    var inp = document.getElementById('connHostInput');
+    var ip = inp ? inp.value.trim() : '';
+    if (!ip) { showConnectOverlay('请输入服务器IP', '#ef4444'); return; }
+    localStorage.setItem('swimServerHost', ip);
+    _connFailCount = 0;
+    if (ws) try { ws.close(); } catch(e) {}
+    showConnectOverlay('连接中… ' + ip + ':3002', '#f59e0b');
+    connect();
+}
+
+// 兼容旧版：保留 prompt 询问 IP，外部代码可调用
 function getServerHost(forceAsk) {
     var params = new URLSearchParams(window.location.search);
     if (params.get('host')) return params.get('host');
@@ -205,21 +248,31 @@ function getServerHost(forceAsk) {
     if (ip) { localStorage.setItem('swimServerHost', ip); return ip; }
     return saved || 'localhost';
 }
-function changeServerHost() { _connFailCount = 0; var h = getServerHost(true); if (ws) try { ws.close(); } catch(e) {} connect(); }
+function changeServerHost() {
+    showConnectOverlay('请重新输入服务器IP并点击连接', '#f59e0b');
+    _connFailCount = 0;
+}
+
 function connect() {
-    var host = getServerHost();
-    ws = new WebSocket('ws://' + host + ':3002');
+    var host = localStorage.getItem('swimServerHost') || getInitialHost();
+    try { ws = new WebSocket('ws://' + host + ':3002'); }
+    catch (ex) { showConnectOverlay('连接失败：' + ex.message, '#ef4444'); return; }
     ws.onopen = function() {
         _connFailCount = 0;
         document.getElementById('connStatus').textContent = '已连接 ' + host;
         log('已连接服务器 ' + host);
+        hideConnectOverlay();   // 只有连接成功才进入主界面
     };
     ws.onclose = function() {
         document.getElementById('connStatus').textContent = '断开，重连中...';
         document.getElementById('connStatus').style.color = '#ef4444';
         _connFailCount++;
+        showConnectOverlay('未连接 / 连接断开（已尝试 ' + _connFailCount + ' 次），3 秒后自动重连…', '#ef4444');
         if (_connFailCount >= 3) { _connFailCount = 0; if (confirm('连接失败，是否重新设置服务器地址？')) { changeServerHost(); return; } }
         setTimeout(connect, 3000);
+    };
+    ws.onerror = function() {
+        showConnectOverlay('连接错误，请检查服务器IP是否正确', '#ef4444');
     };
     ws.onmessage = function(e) {
         try {
@@ -880,7 +933,15 @@ function fullAutoTest() {
     }, 1000);
 }
 
-connect();
+// 启动：把已知/默认 IP 填入遮罩输入框，等用户点击"连接"按钮才真的发起 WebSocket
+(function bootstrap() {
+    var inp = document.getElementById('connHostInput');
+    if (inp) {
+        inp.value = getInitialHost();
+        inp.addEventListener('keydown', function(ev) { if (ev.key === 'Enter') overlayConnect(); });
+    }
+    showConnectOverlay('请输入主服务器IP并点击连接', '#f59e0b');
+})();
 </script>
 </body>
 </html>

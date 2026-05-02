@@ -76,6 +76,8 @@ class ParamDebugBotForm : Form
 
     bool _applyingFromHw = false;
 
+    Panel _startupOverlay;
+
     public ParamDebugBotForm()
     {
         Text = "硬件参数调试机器人 (Param Debug Bot)";
@@ -87,6 +89,41 @@ class ParamDebugBotForm : Form
 
         BuildUI();
         PopulateComPorts();
+        BuildStartupOverlay();
+    }
+
+    // 启动时遮罩：只露出顶部"连接区"，其它面板被半透明面板盖住，
+    // 强制用户先按"连接 / 启动监听"成功后才能使用其它功能（与 display.html 启动遮罩等价）
+    void BuildStartupOverlay()
+    {
+        _startupOverlay = new Panel {
+            Bounds = new Rectangle(10, 115, 1020, 660),
+            BackColor = Color.FromArgb(15, 23, 42)
+        };
+        var card = new Panel {
+            Bounds = new Rectangle(280, 200, 460, 220),
+            BackColor = Color.FromArgb(30, 41, 59),
+            BorderStyle = BorderStyle.FixedSingle
+        };
+        var title = new Label {
+            Text = "请先连接主服务器",
+            Font = new Font("Microsoft YaHei", 16, FontStyle.Bold),
+            ForeColor = Color.White,
+            Bounds = new Rectangle(0, 30, 460, 36),
+            TextAlign = ContentAlignment.MiddleCenter
+        };
+        var hint = new Label {
+            Text = "在上方「连接设置」区配置 TCP/UDP/串口 参数，\n按下「连接 / 启动监听」按钮；\n连接成功后此遮罩自动消失，方可使用其它功能。",
+            Font = new Font("Microsoft YaHei", 11),
+            ForeColor = Color.FromArgb(148, 163, 184),
+            Bounds = new Rectangle(20, 80, 420, 110),
+            TextAlign = ContentAlignment.MiddleCenter
+        };
+        card.Controls.Add(title);
+        card.Controls.Add(hint);
+        _startupOverlay.Controls.Add(card);
+        Controls.Add(_startupOverlay);
+        _startupOverlay.BringToFront();
     }
 
     void PopulateComPorts()
@@ -369,6 +406,8 @@ class ParamDebugBotForm : Form
             lblStatus.ForeColor = mode == 2 ? Color.FromArgb(245, 158, 11) : Color.FromArgb(34, 197, 94);
             btnConnect.Enabled = false;
             btnDisconnect.Enabled = true;
+            // 连接 / 监听 启动成功 → 隐藏启动遮罩，允许用户使用其它功能
+            if (_startupOverlay != null) _startupOverlay.Visible = false;
         } catch (Exception ex) {
             Log("[错误] 连接失败: " + ex.Message);
         }

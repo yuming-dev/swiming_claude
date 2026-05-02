@@ -72,85 +72,38 @@ namespace SwimmingScoreboard
                 double tb = b.EntryTimeSeconds > 0 ? b.EntryTimeSeconds : double.MaxValue;
                 int cmp = ta.CompareTo(tb);
                 if (cmp != 0) return cmp;
-                // 成绩相同按姓名排序
                 return string.Compare(a.Name, b.Name, StringComparison.Ordinal);
             });
 
             int laneCount = pool.LaneCount;
-            int totalSwimmers = eligible.Count;
-            if (totalSwimmers == 0) return new List<HeatAssignment>();
+            if (eligible.Count == 0) return new List<HeatAssignment>();
 
-            // 计算组数
-            int heatCount = (int)Math.Ceiling((double)totalSwimmers / laneCount);
-
-            // 确保每组不少于3人（FINA规则）
-            while (heatCount > 1) {
-                // 计算第一组（最慢组）的人数
-                int firstHeatSize = totalSwimmers - (heatCount - 1) * laneCount;
-                if (firstHeatSize < 0) firstHeatSize = totalSwimmers % laneCount;
-                // 用蛇形分配时各组人数会更均匀，但仍需保证最少组不少于3人
-                int minPerGroup = totalSwimmers / heatCount;
-                if (minPerGroup >= 3) break;
-                heatCount--;
-            }
-
-            // 蛇形分组：按成绩排名依次分配
-            // 排名第1→最后一组，第2→倒数第二组...到第一组后反向
-            // 例3组: 3,2,1,1,2,3,3,2,1,1,2,3...
-            List<List<Swimmer>> heats = new List<List<Swimmer>>();
-            for (int h = 0; h < heatCount; h++) heats.Add(new List<Swimmer>());
-
-            for (int i = 0; i < eligible.Count; i++) {
-                // 计算蛇形位置：每 heatCount 个一轮，奇数轮倒序，偶数轮正序
-                int round = i / heatCount;
-                int posInRound = i % heatCount;
-                int targetHeat;
-                if (round % 2 == 0) {
-                    // 偶数轮（0,2,4...）：从最后一组到第一组
-                    targetHeat = heatCount - 1 - posInRound;
-                } else {
-                    // 奇数轮（1,3,5...）：从第一组到最后一组
-                    targetHeat = posInRound;
-                }
-                heats[targetHeat].Add(eligible[i]);
-            }
-
-            // 每组内按报名成绩排序（快→慢），用于泳道分配
-            foreach (var heat in heats) {
-                heat.Sort((a, b) => {
-                    double ta = a.EntryTimeSeconds > 0 ? a.EntryTimeSeconds : double.MaxValue;
-                    double tb = b.EntryTimeSeconds > 0 ? b.EntryTimeSeconds : double.MaxValue;
-                    return ta.CompareTo(tb);
-                });
-            }
-
-            // 分配泳道（最快→中间道，交替向外）
             int[] lanePriority = GetLanePriority(pool);
-            var assignments = new List<HeatAssignment>();
+            var heats = AssignFinaSeeding(eligible.Cast<object>().ToList(), laneCount, lanePriority,
+                                          isShortDistance: IsShortDistanceEvent(eventName));
 
+            var assignments = new List<HeatAssignment>();
             for (int h = 0; h < heats.Count; h++) {
-                var heat = heats[h];
-                for (int s = 0; s < heat.Count; s++) {
-                    int lane = s < lanePriority.Length ? lanePriority[s] : pool.LaneNumbers[s];
+                foreach (var slot in heats[h]) {
+                    var sw = (Swimmer)slot.Item1;
+                    int lane = slot.Item2;
                     assignments.Add(new HeatAssignment {
-                        Swimmer = heat[s],
-                        Heat = h + 1,  // 第1组=最慢组先游
+                        Swimmer = sw,
+                        Heat = h + 1,   // 第1组=最慢组先游
                         Lane = lane,
                         EventName = eventName,
                         Stage = stage
                     });
-                    heat[s].Heat = h + 1;
-                    heat[s].Lane = lane;
-                    // 保存赛次分组记录（历史数据，不会被后续赛次覆盖）
-                    heat[s].SetStageAssignment(stage, h + 1, lane, heat[s].EntryTimeSeconds, heat[s].EntryTime);
+                    sw.Heat = h + 1;
+                    sw.Lane = lane;
+                    sw.SetStageAssignment(stage, h + 1, lane, sw.EntryTimeSeconds, sw.EntryTime);
                 }
             }
-
             return assignments;
         }
 
         /// <summary>
-        /// 接力队蛇形分组（同个人项目规则）
+        /// 接力队分组（按 FINA SW 3.1.1.5：最后两组循环排位，前面组直接排位由慢到快）
         /// </summary>
         public static List<RelayHeatAssignment> GenerateRelayHeats(List<RelayTeam> teams, PoolConfig pool, string eventName, string stage) {
             var eligible = teams.Where(t =>
@@ -166,55 +119,90 @@ namespace SwimmingScoreboard
             });
 
             int laneCount = pool.LaneCount;
-            int totalTeams = eligible.Count;
-            if (totalTeams == 0) return new List<RelayHeatAssignment>();
-
-            int heatCount = (int)Math.Ceiling((double)totalTeams / laneCount);
-            while (heatCount > 1) {
-                int minPerGroup = totalTeams / heatCount;
-                if (minPerGroup >= 3) break;
-                heatCount--;
-            }
-
-            // 蛇形分组
-            List<List<RelayTeam>> heats = new List<List<RelayTeam>>();
-            for (int h = 0; h < heatCount; h++) heats.Add(new List<RelayTeam>());
-
-            for (int i = 0; i < eligible.Count; i++) {
-                int round = i / heatCount;
-                int posInRound = i % heatCount;
-                int targetHeat = (round % 2 == 0) ? (heatCount - 1 - posInRound) : posInRound;
-                heats[targetHeat].Add(eligible[i]);
-            }
-
-            foreach (var heat in heats) {
-                heat.Sort((a, b) => {
-                    double ta = a.EntryTimeSeconds > 0 ? a.EntryTimeSeconds : double.MaxValue;
-                    double tb = b.EntryTimeSeconds > 0 ? b.EntryTimeSeconds : double.MaxValue;
-                    return ta.CompareTo(tb);
-                });
-            }
+            if (eligible.Count == 0) return new List<RelayHeatAssignment>();
 
             int[] lanePriority = GetLanePriority(pool);
-            var assignments = new List<RelayHeatAssignment>();
+            // 接力按"长距离"规则：最后2组循环排位
+            var heats = AssignFinaSeeding(eligible.Cast<object>().ToList(), laneCount, lanePriority,
+                                          isShortDistance: false);
 
+            var assignments = new List<RelayHeatAssignment>();
             for (int h = 0; h < heats.Count; h++) {
-                var heat = heats[h];
-                for (int s = 0; s < heat.Count; s++) {
-                    int lane = s < lanePriority.Length ? lanePriority[s] : pool.LaneNumbers[s];
+                foreach (var slot in heats[h]) {
+                    var team = (RelayTeam)slot.Item1;
+                    int lane = slot.Item2;
                     assignments.Add(new RelayHeatAssignment {
-                        Team = heat[s],
+                        Team = team,
                         Heat = h + 1,
                         Lane = lane,
                         EventName = eventName,
                         Stage = stage
                     });
-                    heat[s].Heat = h + 1;
-                    heat[s].Lane = lane;
+                    team.Heat = h + 1;
+                    team.Lane = lane;
+                }
+            }
+            return assignments;
+        }
+
+        /// <summary>
+        /// 按 FINA SW 3.1 规则把已排序（快→慢）的参赛者分配到组次和泳道。
+        /// 返回 heats[heatIndex0]: List of (entry, lane).
+        ///
+        /// 规则：
+        ///  - heatCount = ceil(N / laneCount)
+        ///  - 短距离(50/100/200米)：seedHeats = min(heatCount, 3)；其余项目（含中长距离/接力）：min(heatCount, 2)
+        ///  - 后 seedHeats 组按"循环（种子）排位"分配前 seededN = seedHeats × laneCount 名（不足按实际人数）
+        ///    第1名→最后组中道(优先级[0])，第2名→倒数第2组中道，… 第seedHeats名→倒数第seedHeats组中道，
+        ///    第seedHeats+1名→最后组优先级[1]道，依次填满。
+        ///  - 前面 (heatCount - seedHeats) 个"直接排位"组由慢到快：
+        ///    第1组放最慢若干人（不满则中央泳道用满，最外侧空着）；后续组每组 laneCount 人，
+        ///    组内按报名成绩快→慢用 lanePriority 分道。
+        /// </summary>
+        private static List<List<Tuple<object, int>>> AssignFinaSeeding(
+                List<object> sortedFastFirst, int laneCount, int[] lanePriority, bool isShortDistance) {
+            int total = sortedFastFirst.Count;
+            int heatCount = (int)Math.Ceiling((double)total / laneCount);
+            if (heatCount < 1) heatCount = 1;
+
+            int seedHeats = Math.Min(heatCount, isShortDistance ? 3 : 2);
+            int directHeats = heatCount - seedHeats;
+            int seededN = Math.Min(total, seedHeats * laneCount);
+
+            var heats = new List<List<Tuple<object, int>>>();
+            for (int h = 0; h < heatCount; h++) heats.Add(new List<Tuple<object, int>>());
+
+            // ── 后 seedHeats 组：循环（种子）排位 ──
+            // 种子顺序索引 i (0=最快): 中道优先级 lanePos = i / seedHeats，组内偏移 within = i % seedHeats
+            // i % seedHeats == 0 ⇒ 最后一组；==1 ⇒ 倒数第2组；……
+            for (int i = 0; i < seededN; i++) {
+                int lanePos = i / seedHeats;
+                int within = i % seedHeats;
+                int heatIndex = heatCount - 1 - within;
+                int lane = lanePos < lanePriority.Length ? lanePriority[lanePos] : lanePriority[lanePriority.Length - 1];
+                heats[heatIndex].Add(Tuple.Create(sortedFastFirst[i], lane));
+            }
+
+            // ── 前 directHeats 组：直接排位 ──
+            // remaining 是种子之外剩余的报名（仍按快→慢排序）。
+            // 安排次序：把"快的"放进最靠后的直接组（heatIndex = directHeats-1）填满 laneCount，依次往前；
+            // 第1组（最慢组）拿剩下不满的部分（最外侧泳道空着）。
+            int idx = seededN;
+            for (int h = directHeats; h >= 1; h--) {
+                int remaining = total - idx;
+                if (remaining <= 0) break;
+                bool isFirstHeat = (h == 1);
+                int heatSize = isFirstHeat ? remaining : Math.Min(laneCount, remaining);
+                // 取出 heatSize 名（仍按快→慢顺序）
+                var thisHeat = sortedFastFirst.GetRange(idx, heatSize);
+                idx += heatSize;
+                for (int j = 0; j < thisHeat.Count; j++) {
+                    int lane = j < lanePriority.Length ? lanePriority[j] : lanePriority[lanePriority.Length - 1];
+                    heats[h - 1].Add(Tuple.Create(thisHeat[j], lane));
                 }
             }
 
-            return assignments;
+            return heats;
         }
 
         /// <summary>
