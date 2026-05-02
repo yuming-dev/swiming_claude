@@ -94,7 +94,9 @@
       "Bash(cp -v RemoteTimingControl/bin/Release/*.dll InstallerBuild/RemoteTimingControl/)",
       "Bash(\"/c/Windows/Microsoft.NET/Framework64/v4.0.30319/csc.exe\" /target:winexe /out:InstallerBuild/Setup.exe /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /win32icon:InstallerBuild/setup.ico InstallerApp/Setup.cs)",
       "PowerShell($csc = 'C:\\\\Windows\\\\Microsoft.NET\\\\Framework64\\\\v4.0.30319\\\\csc.exe'; & $csc /target:winexe /out:'C:\\\\代码\\\\swiming_claude\\\\InstallerBuild\\\\Setup.exe' /reference:System.Windows.Forms.dll /reference:System.Drawing.dll 'C:\\\\代码\\\\swiming_claude\\\\InstallerApp\\\\Setup.cs' 2>&1 | Select-Object -Last 8)",
-      "Bash(unzip -l 游泳赛事管理系统_安装包.zip)"
+      "Bash(unzip -l 游泳赛事管理系统_安装包.zip)",
+      "Bash(git commit *)",
+      "Bash(\"/c/Program Files/Microsoft Visual Studio/2022/Community/MSBuild/Current/Bin/MSBuild.exe\" \"SwimmingScoreboard/SwimmingScoreboard.csproj\" -p:Configuration=Debug -p:Platform=x86 -v:minimal -nologo)"
     ]
   }
 }
