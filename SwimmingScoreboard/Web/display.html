@@ -41,8 +41,8 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 .lane-row.dns { opacity: 0.4; }
 .lane-row.dsq { border-left: 4px solid var(--red); }
 .lane-row .lane-num { width: 5vw; font-size: 2.5vh; font-weight: bold; color: var(--dim); text-align: center; margin-right: 1vw; }
-.lane-row .swimmer-name { width: 14vw; font-size: 2.9vh; font-weight: bold; white-space: nowrap; overflow: hidden; margin-right: 1.5vw; }
-.lane-row .swimmer-team { width: 12vw; font-size: 2.9vh; color: var(--dim); white-space: nowrap; overflow: hidden; margin-right: 1.5vw; }
+.lane-row .swimmer-name { width: 14vw; font-size: 2.9vh; font-weight: bold; white-space: nowrap; overflow: hidden; margin-right: 1.5vw; text-align: center; }
+.lane-row .swimmer-team { width: 12vw; font-size: 2.9vh; color: var(--dim); white-space: nowrap; overflow: hidden; margin-right: 1.5vw; text-align: center; }
 .lane-row .result-time { width: 14vw; font-size: 2.9vh; font-weight: bold; text-align: center; font-family: 'Consolas', monospace; margin-right: 1.5vw; }
 .lane-row .rank { width: 5vw; font-size: 2.9vh; font-weight: bold; text-align: center; margin-right: 1vw; }
 .lane-row .rank.gold { color: var(--gold); }
@@ -99,8 +99,8 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
     </div>
     <div class="lanes-header">
         <div style="width:5vw;text-align:center;margin-right:1vw;">道次</div>
-        <div style="width:14vw;margin-right:1.5vw;">姓名</div>
-        <div style="width:12vw;margin-right:1.5vw;">代表队</div>
+        <div style="width:14vw;text-align:center;margin-right:1.5vw;">姓名</div>
+        <div style="width:12vw;text-align:center;margin-right:1.5vw;">代表队</div>
         <div style="width:14vw;text-align:center;margin-right:1.5vw;">成绩</div>
         <div style="width:5vw;text-align:center;margin-right:1vw;">名次</div>
         <div style="width:8vw;text-align:center;">备注</div>
@@ -622,8 +622,8 @@ function _ensureRaceRowsDom() {
     if (header) {
         header.innerHTML =
             '<div style="width:5vw;text-align:center;margin-right:1vw;font-size:'+fs+';">道次</div>' +
-            '<div style="width:14vw;margin-right:1.5vw;font-size:'+fs+';">' + hdr1 + '</div>' +
-            '<div style="width:12vw;margin-right:1.5vw;font-size:'+fs+';">' + hdr2 + '</div>' +
+            '<div style="width:14vw;text-align:center;margin-right:1.5vw;font-size:'+fs+';">' + hdr1 + '</div>' +
+            '<div style="width:12vw;text-align:center;margin-right:1.5vw;font-size:'+fs+';">' + hdr2 + '</div>' +
             '<div style="width:14vw;text-align:center;margin-right:1.5vw;font-size:'+fs+';">成绩</div>' +
             '<div style="width:5vw;text-align:center;margin-right:1vw;font-size:'+fs+';">名次</div>' +
             '<div style="width:8vw;text-align:center;">备注</div>';
@@ -816,8 +816,8 @@ function renderHeatResult() {
     if (header) {
         header.innerHTML =
             '<div style="width:5vw;text-align:center;margin-right:1vw;">名次</div>' +
-            '<div style="width:14vw;margin-right:1.5vw;">' + hdr1 + '</div>' +
-            '<div style="width:12vw;margin-right:1.5vw;">' + hdr2 + '</div>' +
+            '<div style="width:14vw;text-align:center;margin-right:1.5vw;">' + hdr1 + '</div>' +
+            '<div style="width:12vw;text-align:center;margin-right:1.5vw;">' + hdr2 + '</div>' +
             '<div style="width:5vw;text-align:center;margin-right:1vw;">道次</div>' +
             '<div style="width:14vw;text-align:center;margin-right:1.5vw;">成绩</div>' +
             '<div style="width:8vw;text-align:center;">备注</div>';
@@ -907,8 +907,8 @@ function renderPublishedResult(pubData) {
     if (header) {
         header.innerHTML =
             '<div style="width:5vw;text-align:center;margin-right:1vw;font-size:' + fontSize + 'vh;">名次</div>' +
-            '<div style="width:14vw;margin-right:1.5vw;font-size:' + fontSize + 'vh;">' + ph1 + '</div>' +
-            '<div style="width:12vw;margin-right:1.5vw;font-size:' + fontSize + 'vh;">' + ph2 + '</div>' +
+            '<div style="width:14vw;text-align:center;margin-right:1.5vw;font-size:' + fontSize + 'vh;">' + ph1 + '</div>' +
+            '<div style="width:12vw;text-align:center;margin-right:1.5vw;font-size:' + fontSize + 'vh;">' + ph2 + '</div>' +
             '<div style="width:5vw;text-align:center;margin-right:1vw;font-size:' + fontSize + 'vh;">道次</div>' +
             '<div style="width:14vw;text-align:center;margin-right:1.5vw;font-size:' + fontSize + 'vh;">成绩</div>' +
             '<div style="width:8vw;text-align:center;font-size:' + fontSize + 'vh;">备注</div>';
