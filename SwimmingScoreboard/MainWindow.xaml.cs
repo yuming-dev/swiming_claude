@@ -2880,6 +2880,9 @@ namespace SwimmingScoreboard
                 if (r != null) { r.Rank = rank; prevTime = r.FinalTime; }
                 sw.CurrentRank = rank;
             }
+            // 名次重算后同步处理"只有本组第 1 名保留破/平纪录标识"，
+            // 覆盖 DSQ 取消/晋级把更慢成绩拽到第 1 等场景
+            EnforceOnlyLeaderRecordNote();
         }
 
         // 纪录类型 → 简写标识（用于备注栏/打印/大屏 BREAK/TIE 提示）
@@ -2939,7 +2942,35 @@ namespace SwimmingScoreboard
             }).ToList();
             string note = string.Join("/", tags);
             result.RecordNote = note;
+            // 一组多人同时打破纪录时，仅保留本组成绩最佳者（含并列）的标识；其余清除。
+            // FINA 惯例：纪录归本组最快者所有；慢于他的同组选手即便也好于历史纪录，也不计破纪录。
+            EnforceOnlyLeaderRecordNote();
             return tags.Count > 0;
+        }
+
+        // 仅本组最快成绩（含并列）的 LaneResult.RecordNote 保留；其它人 RecordNote 清空。
+        // 用于"一组多人破纪录只显示第 1 名记录"的展示+持久化逻辑。
+        // 对 DSQ/DNS/DNF：成绩无效，本就不参与"最快"判定（也不会有 RecordNote 留存）。
+        private void EnforceOnlyLeaderRecordNote() {
+            var swimmers = GetCurrentHeatSwimmers();
+            double leaderTime = double.MaxValue;
+            foreach (var sw in swimmers) {
+                if (sw.Status == "DSQ" || sw.Status == "DNS" || sw.Status == "DNF") continue;
+                var r = sw.Results.FirstOrDefault(lr => lr.Stage == _currentStage && lr.Heat == _currentHeat);
+                if (r == null || r.FinalTime <= 0) continue;
+                if (r.FinalTime < leaderTime) leaderTime = r.FinalTime;
+            }
+            if (leaderTime == double.MaxValue) return;
+            const double tieTol = 0.0049;       // 5ms 内视为并列第 1
+            foreach (var sw in swimmers) {
+                var r = sw.Results.FirstOrDefault(lr => lr.Stage == _currentStage && lr.Heat == _currentHeat);
+                if (r == null || string.IsNullOrEmpty(r.RecordNote)) continue;
+                if (r.FinalTime > leaderTime + tieTol) {
+                    AddLog(string.Format("  泳道{0} {1} 非本组第1名（{2} > {3}），清除破/平纪录标识 [{4}]",
+                        sw.Lane, sw.Name, TimeFormatter.Format(r.FinalTime), TimeFormatter.Format(leaderTime), r.RecordNote));
+                    r.RecordNote = "";
+                }
+            }
         }
 
         // 裁判确认成绩后调用：把本组中所有 RecordNote 含"破纪录"标签（不带=前缀）的成绩
