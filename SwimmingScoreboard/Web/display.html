@@ -689,7 +689,7 @@ function _refreshRaceRows() {
         if (!ui) continue;
         var lane = sw.lane;
 
-        if (!laneDisplayState[lane]) laneDisplayState[lane] = {splitCount: 0, showTime: 0, lastReactionSeq: -1, reactionShowAt: 0};
+        if (!laneDisplayState[lane]) laneDisplayState[lane] = {splitCount: 0, showTime: 0, lastReactionSeq: -1, lastReactionStr: '', reactionShowAt: 0};
         var ls = laneDisplayState[lane];
 
         var rawSplitCount = (sw.splits ? sw.splits.length : 0);
@@ -697,11 +697,19 @@ function _refreshRaceRows() {
         var realSplitCount = rsi2.count;
         var lastRealSplitStr = rsi2.last;
         var hasReaction = sw.reactionTime && sw.reactionTime !== '';
-        // 检测"新一棒反应时"：reactionSeq 服务器每次写入 ReactionTime 自增，
-        // 接力 4 棒会有 4 个不同 seq，每次变化都重启备注栏的反应时显示窗口
-        if (hasReaction && typeof sw.reactionSeq === 'number' && sw.reactionSeq !== ls.lastReactionSeq) {
-            ls.lastReactionSeq = sw.reactionSeq;
-            ls.reactionShowAt = now;
+        // 检测"新一棒反应时"，同时给两条触发路径以兼容新旧服务器：
+        //   (1) 优先使用服务器送来的 reactionSeq（每次写 ReactionTime 自增）
+        //   (2) 老服务器无 reactionSeq 字段时，退回比较 reactionTime 字符串
+        if (hasReaction) {
+            var seq = (typeof sw.reactionSeq === 'number') ? sw.reactionSeq : null;
+            var trig = false;
+            if (seq !== null) {
+                if (seq !== ls.lastReactionSeq) { ls.lastReactionSeq = seq; trig = true; }
+            } else {
+                if (sw.reactionTime !== ls.lastReactionStr) trig = true;
+            }
+            if (sw.reactionTime !== ls.lastReactionStr) ls.lastReactionStr = sw.reactionTime;
+            if (trig) ls.reactionShowAt = now;
         }
         if (realSplitCount > ls.splitCount) { ls.splitCount = realSplitCount; ls.showTime = now; }
 
