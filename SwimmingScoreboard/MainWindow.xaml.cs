@@ -12995,7 +12995,9 @@ namespace SwimmingScoreboard
                             sb.AppendFormat("<div class='heat-title'>{0}</div>", stage);
                         }
 
-                        sb.Append("<table><tr><th width='50'>名次</th><th width='40'>道次</th><th width='110'>运动员</th><th width='80'>单位</th><th width='100'>出生日期</th><th width='60'>反应时</th>");
+                        // 反应时列：接力赛展开 N 棒，宽度加大
+                        int rtColW = ffRelay ? 110 : 60;
+                        sb.AppendFormat("<table><tr><th width='50'>名次</th><th width='40'>道次</th><th width='110'>运动员</th><th width='80'>单位</th><th width='100'>出生日期</th><th width='{0}'>反应时</th>", rtColW);
                         foreach (var sm in splitMarks) sb.AppendFormat("<th width='60'>{0}m</th>", sm);
                         sb.Append("<th width='80'>成绩</th>");
                         if (rb.ShowTimeDifference) sb.Append("<th width='70'>成绩差</th>");
@@ -13024,12 +13026,29 @@ namespace SwimmingScoreboard
                                     prevTime = r.FinalTime;
                                 }
                             }
-                            sb.AppendFormat("<tr><td>{0}</td><td>{1}</td><td><b>{2}</b></td><td>{3}</td><td>{4}</td><td>{5}</td>",
+                            // 反应时单元：接力赛展开 N 棒（"第N棒:0.45<br>..."），未记录到的棒显示"—"
+                            string reactionCell = "";
+                            if (ffRelay) {
+                                int legCnt = 4;
+                                var mLeg2 = System.Text.RegularExpressions.Regex.Match(eventName ?? "", @"(\d+)\s*[x×]\s*\d+");
+                                if (mLeg2.Success) {
+                                    int n2; if (int.TryParse(mLeg2.Groups[1].Value, out n2) && n2 > 0 && n2 <= 10) legCnt = n2;
+                                }
+                                var rtParts = new List<string>();
+                                for (int li = 0; li < legCnt; li++) {
+                                    double rt = (r != null && r.LegReactionTimes != null && li < r.LegReactionTimes.Count) ? r.LegReactionTimes[li] : 0;
+                                    rtParts.Add(string.Format("第{0}棒:{1}", li + 1, rt > 0 ? rt.ToString("F2") : "—"));
+                                }
+                                reactionCell = string.Join("<br>", rtParts.ToArray());
+                            } else if (r != null && r.StartingBlockTime > 0) {
+                                reactionCell = r.StartingBlockTime.ToString("F2");
+                            }
+                            sb.AppendFormat("<tr><td>{0}</td><td>{1}</td><td><b>{2}</b></td><td>{3}</td><td>{4}</td><td style='font-size:12px;'>{5}</td>",
                                 rankText, dq ? "—" : r.Lane.ToString(),
                                 System.Net.WebUtility.HtmlEncode(nm),
                                 System.Net.WebUtility.HtmlEncode(ctry),
                                 System.Net.WebUtility.HtmlEncode(sw.BirthDate ?? ""),
-                                r.StartingBlockTime > 0 ? r.StartingBlockTime.ToString("F2") : "");
+                                reactionCell);
                             // 分段成绩
                             foreach (var sm in splitMarks) {
                                 string st = "";

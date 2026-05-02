@@ -151,6 +151,16 @@ namespace SwimmingScoreboard
                 return;
             }
 
+            // 接力赛棒次数（用于反应时分棒输出）
+            bool isRelay = eventName.Contains("接力");
+            int legCount = 4;
+            if (isRelay) {
+                var mLeg = System.Text.RegularExpressions.Regex.Match(eventName, @"(\d+)\s*[x×]\s*\d+");
+                if (mLeg.Success) {
+                    int n; if (int.TryParse(mLeg.Groups[1].Value, out n) && n > 0 && n <= 10) legCount = n;
+                }
+            }
+
             var displayData = withResults.Select(s =>
             {
                 var r = s.GetResultForStage(stage);
@@ -162,6 +172,18 @@ namespace SwimmingScoreboard
                 string epName = s.Name ?? "";
                 if (stage.Length > 0 && eventName.Contains("接力") && !string.IsNullOrEmpty(s.Notes) && s.Notes.StartsWith("接力队 棒次:"))
                     epName = s.Notes.Substring("接力队 棒次:".Length);
+                // 反应时：接力赛展开为 N 棒（"第N棒:0.45"），未记录到的棒显示"—"；个人赛仍是单值
+                string reactionPlain = "";
+                if (isRelay) {
+                    var parts = new List<string>();
+                    for (int li = 0; li < legCount; li++) {
+                        double rt = (r != null && r.LegReactionTimes != null && li < r.LegReactionTimes.Count) ? r.LegReactionTimes[li] : 0;
+                        parts.Add(string.Format("第{0}棒:{1}", li + 1, rt > 0 ? rt.ToString("F2") : "—"));
+                    }
+                    reactionPlain = string.Join(" | ", parts.ToArray());
+                } else if (r != null && r.StartingBlockTime > 0) {
+                    reactionPlain = r.StartingBlockTime.ToString("F2");
+                }
                 return new
                 {
                     SortTime = isDQ ? double.MaxValue : r.FinalTime,
@@ -172,7 +194,8 @@ namespace SwimmingScoreboard
                     Name = epName,
                     Country = s.Country ?? "",
                     FinalTime = isDQ ? "" : (r.FinalTime > 0 ? TimeFormatter.Format(r.FinalTime) : ""),
-                    ReactionTime = r.StartingBlockTime > 0 ? r.StartingBlockTime.ToString("F2") : "",
+                    ReactionTime = reactionPlain,                                                      // 预览用（接力时" | "分隔）
+                    ReactionTimeHtml = isRelay ? reactionPlain.Replace(" | ", "<br>") : reactionPlain, // 打印用（接力时<br>换行）
                     Remark = remark
                 };
             }).OrderBy(x => x.SortTime).ToList();
@@ -201,6 +224,7 @@ namespace SwimmingScoreboard
                     item.FinalTime,
                     Diff = diffText,
                     item.ReactionTime,
+                    item.ReactionTimeHtml,
                     item.Remark
                 });
                 if (!item.IsDQ) rank++;
@@ -279,7 +303,9 @@ namespace SwimmingScoreboard
             sb.Append("<table><tr>");
             sb.AppendFormat("<th width='50'>名次</th><th width='40'>道</th><th width='60'>号码</th>");
             sb.AppendFormat("<th width='100'>{0}</th><th width='100'>{1}</th>", epH1, epH2);
-            sb.Append("<th width='90'>最终成绩</th><th width='70'>成绩差</th><th width='70'>反应时间</th><th width='50'>备注</th>");
+            // 接力赛反应时分 4 棒，宽度加大以容纳"第N棒:0.45"换行展示
+            int reactionWidth = epRelay ? 110 : 70;
+            sb.AppendFormat("<th width='90'>最终成绩</th><th width='70'>成绩差</th><th width='{0}'>反应时间</th><th width='50'>备注</th>", reactionWidth);
             sb.Append("</tr>");
             foreach (dynamic item in _currentResults)
             {
@@ -290,7 +316,7 @@ namespace SwimmingScoreboard
                 sb.AppendFormat("<td><b>{0}</b></td><td>{1}</td>", c1, c2);
                 sb.AppendFormat("<td style='font-weight:bold; background:#eff6ff;'>{0}</td>", item.FinalTime);
                 sb.AppendFormat("<td>{0}</td>", item.Diff);
-                sb.AppendFormat("<td>{0}</td><td style='color:#dc2626;'>{1}</td>", item.ReactionTime, item.Remark);
+                sb.AppendFormat("<td style='font-size:12px;'>{0}</td><td style='color:#dc2626;'>{1}</td>", item.ReactionTimeHtml, item.Remark);
                 sb.Append("</tr>");
             }
             sb.Append("</table>");
