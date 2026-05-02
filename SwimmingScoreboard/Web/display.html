@@ -778,16 +778,14 @@ function _refreshRaceRows() {
         if (ui.lastRankClass !== rankClsFull) { ui.rankEl.className = rankClsFull; ui.lastRankClass = rankClsFull; }
 
         // 备注栏（优先级，从高到低）：
-        //   1) 判罚 DSQ/DNS/DNF（成绩确认后）— 红色
+        //   1) 判罚 DSQ/DNS/DNF/DQ — 红色（裁判一标注就实时显示，不等待成绩确认）
         //   2) 破/平纪录 recordNote — 金色
         //   3) 反应时显示窗口（最近一次 reactionSeq 触发后的 splitDisplayTime 秒内）— 抢跳可疑标红，否则正常色
         // 前两类不会被反应时覆盖，符合"犯规等信息持续显示"的要求。
         var remarkText = '', remarkColor = '';
-        if (data.resultConfirmed) {
-            if (sw.status === 'DSQ') { remarkText = 'DSQ'; remarkColor = ''; }     // 默认红（CSS .remark）
-            else if (sw.status === 'DNS') { remarkText = 'DNS'; remarkColor = ''; }
-            else if (sw.status === 'DNF') { remarkText = 'DNF'; remarkColor = ''; }
-        }
+        if (sw.status === 'DSQ' || sw.status === 'DQ') { remarkText = 'DSQ'; remarkColor = ''; }     // 默认红（CSS .remark）
+        else if (sw.status === 'DNS') { remarkText = 'DNS'; remarkColor = ''; }
+        else if (sw.status === 'DNF') { remarkText = 'DNF'; remarkColor = ''; }
         if (!remarkText && sw.recordNote) { remarkText = sw.recordNote; remarkColor = '#fbbf24'; }
         if (!remarkText && hasReaction && ls.reactionShowAt > 0 && (now - ls.reactionShowAt) < displayMs) {
             remarkText = sw.reactionTime;
