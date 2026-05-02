@@ -173,16 +173,19 @@ namespace SwimmingScoreboard
                 if (stage.Length > 0 && eventName.Contains("接力") && !string.IsNullOrEmpty(s.Notes) && s.Notes.StartsWith("接力队 棒次:"))
                     epName = s.Notes.Substring("接力队 棒次:".Length);
                 // 反应时：接力赛展开为 N 棒（"第N棒:0.45"），未记录到的棒显示"—"；个人赛仍是单值
-                string reactionPlain = "";
+                // 预览（DataGrid TextWrapping=Wrap）用空格分隔以便在窄列里按词换行；打印 HTML 用 <br>
+                string reactionPlain = "", reactionHtml = "";
                 if (isRelay) {
                     var parts = new List<string>();
                     for (int li = 0; li < legCount; li++) {
                         double rt = (r != null && r.LegReactionTimes != null && li < r.LegReactionTimes.Count) ? r.LegReactionTimes[li] : 0;
                         parts.Add(string.Format("第{0}棒:{1}", li + 1, rt > 0 ? rt.ToString("F2") : "—"));
                     }
-                    reactionPlain = string.Join(" | ", parts.ToArray());
+                    reactionPlain = string.Join("  ", parts.ToArray());
+                    reactionHtml = string.Join("<br>", parts.ToArray());
                 } else if (r != null && r.StartingBlockTime > 0) {
                     reactionPlain = r.StartingBlockTime.ToString("F2");
+                    reactionHtml = reactionPlain;
                 }
                 return new
                 {
@@ -194,8 +197,8 @@ namespace SwimmingScoreboard
                     Name = epName,
                     Country = s.Country ?? "",
                     FinalTime = isDQ ? "" : (r.FinalTime > 0 ? TimeFormatter.Format(r.FinalTime) : ""),
-                    ReactionTime = reactionPlain,                                                      // 预览用（接力时" | "分隔）
-                    ReactionTimeHtml = isRelay ? reactionPlain.Replace(" | ", "<br>") : reactionPlain, // 打印用（接力时<br>换行）
+                    ReactionTime = reactionPlain,        // DataGrid 预览用：空格分隔，TextWrapping=Wrap 自动换行
+                    ReactionTimeHtml = reactionHtml,     // 打印 HTML 用：<br> 强制每棒一行
                     Remark = remark
                 };
             }).OrderBy(x => x.SortTime).ToList();
