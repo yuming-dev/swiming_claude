@@ -439,7 +439,7 @@ function getLaneCount() {
 //      运动员数据更新时按字段对比、最小化 textContent / className 写入
 //   4) 显示窗口超时消隐 —— 250ms 廉价刷新（只走 _refreshRaceRows，无 DOM 重建）
 var _raceRowsBuiltKey = '';
-var _raceRowDOM = [];   // [{lane, row, laneNum, nameEl, teamEl, resultEl, rankEl, remarkEl, lastClass, lastResult, lastRank, lastRankClass, lastRemark, lastNameHtml, lastTeamHtml}]
+var _raceRowDOM = [];   // [{lane, row, laneNum, nameEl, teamEl, resultEl, rankEl, remarkEl, lastClass, lastResult, lastResultColor, lastRank, lastRankClass, lastRemark, lastRemarkColor, lastNameHtml, lastTeamHtml, lastLaneNum}]
 var _raceHeaderRelay = null;
 
 function renderRace() {
@@ -657,8 +657,9 @@ function _ensureRaceRowsDom() {
             resultEl: row.children[3],
             rankEl: row.children[4],
             remarkEl: row.children[5],
-            lastClass: '', lastResult: null, lastRank: null, lastRankClass: '',
-            lastRemark: null, lastNameHtml: null, lastTeamHtml: null,
+            lastClass: '', lastResult: null, lastResultColor: '', lastRank: null, lastRankClass: '',
+            lastRemark: null, lastRemarkColor: '',
+            lastNameHtml: null, lastTeamHtml: null,
             lastLaneNum: null
         });
     }
@@ -688,7 +689,7 @@ function _refreshRaceRows() {
         if (!ui) continue;
         var lane = sw.lane;
 
-        if (!laneDisplayState[lane]) laneDisplayState[lane] = {splitCount: 0, reactionShown: false, showTime: 0};
+        if (!laneDisplayState[lane]) laneDisplayState[lane] = {splitCount: 0, showTime: 0, lastReactionSeq: -1, reactionShowAt: 0};
         var ls = laneDisplayState[lane];
 
         var rawSplitCount = (sw.splits ? sw.splits.length : 0);
@@ -696,7 +697,12 @@ function _refreshRaceRows() {
         var realSplitCount = rsi2.count;
         var lastRealSplitStr = rsi2.last;
         var hasReaction = sw.reactionTime && sw.reactionTime !== '';
-        if (hasReaction && !ls.reactionShown) { ls.reactionShown = true; ls.showTime = now; }
+        // 检测"新一棒反应时"：reactionSeq 服务器每次写入 ReactionTime 自增，
+        // 接力 4 棒会有 4 个不同 seq，每次变化都重启备注栏的反应时显示窗口
+        if (hasReaction && typeof sw.reactionSeq === 'number' && sw.reactionSeq !== ls.lastReactionSeq) {
+            ls.lastReactionSeq = sw.reactionSeq;
+            ls.reactionShowAt = now;
+        }
         if (realSplitCount > ls.splitCount) { ls.splitCount = realSplitCount; ls.showTime = now; }
 
         // 行类名
@@ -736,49 +742,44 @@ function _refreshRaceRows() {
             else if (sw.rank > 0) { rankText = sw.rank; }
         } else {
             var elapsed = now - ls.showTime;
-            if (ls.showTime > 0 && elapsed < displayMs) {
-                if (realSplitCount > 0) {
-                    resultText = lastRealSplitStr;
-                    if (splitRanks[lane]) {
-                        rankText = splitRanks[lane];
-                        // 与终点态保持一致的奖牌色
-                        if (rankText === 1) rankClass = 'gold';
-                        else if (rankText === 2) rankClass = 'silver';
-                        else if (rankText === 3) rankClass = 'bronze';
-                    }
-                } else if (hasReaction && rawSplitCount === 0) {
-                    resultText = sw.reactionTime;
-                    rankText = '';
+            if (ls.showTime > 0 && elapsed < displayMs && realSplitCount > 0) {
+                resultText = lastRealSplitStr;
+                if (splitRanks[lane]) {
+                    rankText = splitRanks[lane];
+                    // 与终点态保持一致的奖牌色
+                    if (rankText === 1) rankClass = 'gold';
+                    else if (rankText === 2) rankClass = 'silver';
+                    else if (rankText === 3) rankClass = 'bronze';
                 }
             }
+            // 反应时不再写入成绩栏 — 改到下方"备注栏"显示，时长与 splitDisplayTime 相同
         }
         if (ui.lastResult !== resultText) { ui.resultEl.textContent = resultText; ui.lastResult = resultText; }
-        // 起跳可疑/已判罚：当成绩位显示的是反应时（开赛瞬间），将其标红，所有计时端/大屏统一
-        var dispRtRed = (sw.isSuspectFalseStart || sw.isFalseStart) && resultText && resultText === sw.reactionTime;
-        var newResultColor = dispRtRed ? '#ef4444' : '';
-        if (ui.lastResultColor !== newResultColor) { ui.resultEl.style.color = newResultColor; ui.lastResultColor = newResultColor; }
+        // 成绩栏不再承载反应时，统一不染色
+        if (ui.lastResultColor !== '') { ui.resultEl.style.color = ''; ui.lastResultColor = ''; }
         var rankStr = rankText !== '' ? String(rankText) : '';
         if (ui.lastRank !== rankStr) { ui.rankEl.textContent = rankStr; ui.lastRank = rankStr; }
         var rankClsFull = 'rank' + (rankClass ? ' ' + rankClass : '');
         if (ui.lastRankClass !== rankClsFull) { ui.rankEl.className = rankClsFull; ui.lastRankClass = rankClsFull; }
 
-        // 备注
-        var remarkText = '';
+        // 备注栏（优先级，从高到低）：
+        //   1) 判罚 DSQ/DNS/DNF（成绩确认后）— 红色
+        //   2) 破/平纪录 recordNote — 金色
+        //   3) 反应时显示窗口（最近一次 reactionSeq 触发后的 splitDisplayTime 秒内）— 抢跳可疑标红，否则正常色
+        // 前两类不会被反应时覆盖，符合"犯规等信息持续显示"的要求。
+        var remarkText = '', remarkColor = '';
         if (data.resultConfirmed) {
-            // 起跳犯规判罚改为人工：仅当裁判手动设置 Status=DSQ 才显示
-            if (sw.status === 'DSQ') remarkText = 'DSQ';
-            else if (sw.status === 'DNS') remarkText = 'DNS';
-            else if (sw.status === 'DNF') remarkText = 'DNF';
+            if (sw.status === 'DSQ') { remarkText = 'DSQ'; remarkColor = ''; }     // 默认红（CSS .remark）
+            else if (sw.status === 'DNS') { remarkText = 'DNS'; remarkColor = ''; }
+            else if (sw.status === 'DNF') { remarkText = 'DNF'; remarkColor = ''; }
         }
-        // 破/平纪录优先用金色显示（不与 DSQ 冲突时）
-        if (!remarkText && sw.recordNote) remarkText = sw.recordNote;
-        // 备注栏只显示服务器送来的判罚状态(DSQ/DNS/DNF)或破/平纪录标识；
-        // 绝不写入 sw.notes（运动员的内部备注，可能含姓名/教练/单位等隐私文本）
-        var effRemark = remarkText;
-        if (ui.lastRemark !== effRemark) { ui.remarkEl.textContent = effRemark; ui.lastRemark = effRemark; }
-        // 破/平纪录金色高亮（仅当备注就是 recordNote 时）
-        var newRemarkColor = (sw.recordNote && effRemark === sw.recordNote) ? '#fbbf24' : '';
-        if (ui.lastRemarkColor !== newRemarkColor) { ui.remarkEl.style.color = newRemarkColor; ui.lastRemarkColor = newRemarkColor; }
+        if (!remarkText && sw.recordNote) { remarkText = sw.recordNote; remarkColor = '#fbbf24'; }
+        if (!remarkText && hasReaction && ls.reactionShowAt > 0 && (now - ls.reactionShowAt) < displayMs) {
+            remarkText = sw.reactionTime;
+            remarkColor = (sw.isSuspectFalseStart || sw.isFalseStart) ? '#ef4444' : '#f8fafc';
+        }
+        if (ui.lastRemark !== remarkText) { ui.remarkEl.textContent = remarkText; ui.lastRemark = remarkText; }
+        if (ui.lastRemarkColor !== remarkColor) { ui.remarkEl.style.color = remarkColor; ui.lastRemarkColor = remarkColor; }
     }
 }
 

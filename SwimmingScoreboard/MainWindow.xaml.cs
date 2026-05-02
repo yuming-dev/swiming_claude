@@ -1354,6 +1354,9 @@ namespace SwimmingScoreboard
                     },
                     laneCloseCountdown = laneState != null ? laneState.LaneCloseCountdown : 0,
                     reactionTime = (_laneCloseSettings.ReactionTimeEnabled && laneState != null && laneState.ReactionTime != 0) ? laneState.ReactionTime.ToString("F2") : "",
+                    // 反应时序号：每次 laneState.ReactionTime 写入即 +1，用于客户端识别"新一棒反应时"
+                    // 触发大屏备注栏的反应时显示窗口（接力 4 棒共 4 个 seq）
+                    reactionSeq = laneState != null ? laneState.ReactionSeq : 0,
                     splits = result != null ? result.Splits.Select(sp => new {
                         lap = sp.Lap, distance = sp.Distance,
                         time = TimeFormatter.Format(sp.Time), cumulative = TimeFormatter.Format(sp.CumulativeTime),

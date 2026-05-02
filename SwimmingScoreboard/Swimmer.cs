@@ -927,8 +927,11 @@ namespace SwimmingScoreboard
         }
         public double ReactionTime {
             get { return _reactionTime; }
-            set { _reactionTime = value; OnPropertyChanged("ReactionTime"); OnPropertyChanged("ReactionTimeDisplay"); }
+            set { _reactionTime = value; ReactionSeq++; OnPropertyChanged("ReactionTime"); OnPropertyChanged("ReactionTimeDisplay"); }
         }
+        // 每次写入 ReactionTime 自动 +1；客户端比较 sw.reactionSeq 即可判断"出现了新一棒反应时"，
+        // 用来在大屏触发"反应时显示窗口"，跟随 splitDisplayTime 倒计时；接力赛 4 棒会有 4 个不同的 seq
+        public int ReactionSeq { get; set; }
         public bool IsFalseStart {
             get { return _isFalseStart; }
             set { _isFalseStart = value; OnPropertyChanged("IsFalseStart"); OnPropertyChanged("LeftStartBlockStatus"); OnPropertyChanged("RightStartBlockStatus"); }
