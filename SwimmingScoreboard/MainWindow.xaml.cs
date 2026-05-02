@@ -2078,15 +2078,18 @@ namespace SwimmingScoreboard
                             double lastTouchTime = 0;
                             LaneResult relayRes = null;
                             if (swForLane != null) {
-                                relayRes = swForLane.Results.FirstOrDefault(r2 => r2.Stage == _currentStage && r2.Heat == _currentHeat);
+                                relayRes = EnsureRelayLaneResult(swForLane, lane);
                                 if (relayRes != null && relayRes.Splits.Count > 0) lastTouchTime = relayRes.Splits.Last().CumulativeTime;
                             }
                             double relayReaction = timeInSeconds - lastTouchTime;
                             laneState.ReactionTime = relayReaction;
-                            // 把这一棒交接反应时追加到 LegReactionTimes，用于"打印成绩"输出每棒一个反应时
+                            // 按棒次索引覆盖写入 LegReactionTimes[legIdx]，
+                            // 这样即使硬件事件重复/乱序，也只保留每棒最新值，且槽位与棒次对齐
                             if (relayRes != null) {
-                                if (relayRes.LegReactionTimes == null) relayRes.LegReactionTimes = new List<double>();
-                                relayRes.LegReactionTimes.Add(relayReaction);
+                                int legIdx = ComputeRelayLegIndex(laneState.CurrentLap);
+                                EnsureLegReactionSlots(relayRes);
+                                if (legIdx >= 0 && legIdx < relayRes.LegReactionTimes.Count)
+                                    relayRes.LegReactionTimes[legIdx] = relayReaction;
                             }
                             if (relayReaction < _laneCloseSettings.FalseStartThreshold) {
                                 // 仅作可疑提示（反应时标红），是否判罚由裁判手动决定
@@ -2098,23 +2101,18 @@ namespace SwimmingScoreboard
                         } else {
                             // 普通出发：反应时间就是出发台时间
                             laneState.ReactionTime = timeInSeconds;
-                            // 接力第 1 棒：把出发反应时也存入 LegReactionTimes[0]
+                            // 接力第 1 棒：把出发反应时写入 LegReactionTimes[0]（覆盖式，重复触发只保留最近一次）
                             if (_isRelay) {
                                 var swForLane0 = GetCurrentHeatSwimmers().FirstOrDefault(s2 => {
                                     var sa2 = s2.GetAssignmentForStage(_currentStage);
                                     return (sa2 != null ? sa2.Lane : s2.Lane) == lane;
                                 });
                                 if (swForLane0 != null) {
-                                    var res0 = swForLane0.Results.FirstOrDefault(r2 => r2.Stage == _currentStage && r2.Heat == _currentHeat);
-                                    if (res0 == null) {
-                                        res0 = new LaneResult {
-                                            EventName = _currentEvent, Stage = _currentStage,
-                                            Heat = _currentHeat, Lane = lane
-                                        };
-                                        swForLane0.Results.Add(res0);
+                                    var res0 = EnsureRelayLaneResult(swForLane0, lane);
+                                    if (res0 != null) {
+                                        EnsureLegReactionSlots(res0);
+                                        if (res0.LegReactionTimes.Count > 0) res0.LegReactionTimes[0] = timeInSeconds;
                                     }
-                                    if (res0.LegReactionTimes == null) res0.LegReactionTimes = new List<double>();
-                                    if (res0.LegReactionTimes.Count == 0) res0.LegReactionTimes.Add(timeInSeconds);
                                 }
                             }
                             if (timeInSeconds <= _laneCloseSettings.FalseStartThreshold) {
@@ -3997,6 +3995,59 @@ namespace SwimmingScoreboard
             if (isFinished) currentLeg = legCount - 1;
             string legName = currentLeg < parts.Length ? parts[currentLeg].Trim() : parts[0].Trim();
             return string.Format("第{0}棒: {1}", currentLeg + 1, legName);
+        }
+
+        // 解析 _currentEvent (如 "4×100米自由泳接力") → (legCount, lapsPerLeg)；解析失败回退 (4, 2)
+        private void ParseRelayLayout(out int legCount, out int lapsPerLeg) {
+            legCount = 4; lapsPerLeg = 2;
+            var ev = _currentEvent ?? "";
+            var m = System.Text.RegularExpressions.Regex.Match(ev, @"(\d+)\s*[x×]\s*(\d+)");
+            if (m.Success) {
+                int n;
+                if (int.TryParse(m.Groups[1].Value, out n) && n > 0 && n <= 10) legCount = n;
+                int d;
+                if (int.TryParse(m.Groups[2].Value, out d) && d > 0) {
+                    int poolLen = (_poolConfig != null && _poolConfig.Length > 0) ? _poolConfig.Length : 50;
+                    lapsPerLeg = Math.Max(1, d / poolLen);
+                }
+            }
+        }
+
+        // 由 currentLap 计算"出发台事件属于第几棒"（0-based）。
+        //   leg-1 出发台触发时 currentLap=0 → 0
+        //   leg-2 交接时 currentLap=lapsPerLeg → 1
+        //   依次类推；越界时夹到 [0, legCount-1]
+        private int ComputeRelayLegIndex(int currentLap) {
+            int legCount, lapsPerLeg;
+            ParseRelayLayout(out legCount, out lapsPerLeg);
+            int idx = currentLap / lapsPerLeg;
+            if (idx < 0) idx = 0;
+            if (idx > legCount - 1) idx = legCount - 1;
+            return idx;
+        }
+
+        // 找/建当前 stage+heat 对应的 LaneResult（用于接力反应时写入；避免事件早于触板创建 LaneResult 导致丢写）
+        private LaneResult EnsureRelayLaneResult(Swimmer sw, int lane) {
+            if (sw == null) return null;
+            var res = sw.Results.FirstOrDefault(r2 => r2.Stage == _currentStage && r2.Heat == _currentHeat);
+            if (res == null) {
+                res = new LaneResult {
+                    EventName = _currentEvent, Stage = _currentStage,
+                    Heat = _currentHeat, Lane = lane
+                };
+                sw.Results.Add(res);
+            }
+            return res;
+        }
+
+        // 把 LegReactionTimes 预填到 legCount 个 0 占位槽位。
+        // 0 表示该棒尚未记录到反应时；打印端看到 0 显示 "—"。
+        private void EnsureLegReactionSlots(LaneResult res) {
+            if (res == null) return;
+            int legCount, lapsPerLeg;
+            ParseRelayLayout(out legCount, out lapsPerLeg);
+            if (res.LegReactionTimes == null) res.LegReactionTimes = new List<double>();
+            while (res.LegReactionTimes.Count < legCount) res.LegReactionTimes.Add(0);
         }
 
         private void UpdateLaneStatusDisplay() {
@@ -12584,13 +12635,18 @@ namespace SwimmingScoreboard
                 if (string.IsNullOrEmpty(remark) && r != null && r.FinalTime > 0 && leaderTime > 0 && r.FinalTime > leaderTime) {
                     diffText = (r.FinalTime - leaderTime).ToString("F2");
                 }
-                // 反应时单元：接力赛展开为每棒一个反应时（最多 4 棒，按次序换行/逗号）
+                // 反应时单元：接力赛固定展开为 N 棒（N 由项目名"4×100"解析），未记录到的棒次显示"—"。
+                // 这样即便硬件事件丢失或顺序错乱，打印行数始终与棒次数对齐。
                 string reactionCell = "";
-                if (printRelay && r != null && r.LegReactionTimes != null && r.LegReactionTimes.Count > 0) {
+                if (printRelay) {
+                    int legCount = 4;
+                    var mLeg = System.Text.RegularExpressions.Regex.Match(_currentEvent ?? "", @"(\d+)\s*[x×]\s*\d+");
+                    if (mLeg.Success) {
+                        int n; if (int.TryParse(mLeg.Groups[1].Value, out n) && n > 0 && n <= 10) legCount = n;
+                    }
                     var parts = new List<string>();
-                    int legCount = r.LegReactionTimes.Count;
                     for (int li = 0; li < legCount; li++) {
-                        double rt = r.LegReactionTimes[li];
+                        double rt = (r != null && r.LegReactionTimes != null && li < r.LegReactionTimes.Count) ? r.LegReactionTimes[li] : 0;
                         parts.Add(string.Format("第{0}棒:{1}", li + 1, rt > 0 ? rt.ToString("F2") : "—"));
                     }
                     reactionCell = string.Join("<br>", parts.ToArray());
