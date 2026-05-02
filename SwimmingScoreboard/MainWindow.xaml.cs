@@ -2234,12 +2234,15 @@ namespace SwimmingScoreboard
                     _laneCloseSettings.FinishPosition == "left" ? "左" : "右",
                     _laneCloseSettings.StartPosition == "left" ? "左" : "右");
 
-                // 运动员名单
+                // 运动员名单 — 接力赛 s.Name 实为队名，4 位队员姓名存于 s.Notes（"接力队 棒次:张三,李四,..."）
                 sb.AppendFormat("\r\n--- 出场名单 ---\r\n");
                 foreach (var s in GetCurrentHeatSwimmers()) {
                     var sa = s.GetAssignmentForStage(_currentStage);
                     int sLane = sa != null ? sa.Lane : s.Lane;
-                    sb.AppendFormat("道{0}\t{1}\t{2}\t报名:{3}\r\n", sLane, s.Name, s.Country, s.EntryTime);
+                    string athletes = s.Name ?? "";
+                    if (_isRelay && !string.IsNullOrEmpty(s.Notes) && s.Notes.StartsWith("接力队 棒次:"))
+                        athletes = s.Notes.Substring("接力队 棒次:".Length);
+                    sb.AppendFormat("道{0}\t代表队:{1}\t运动员:{2}\t报名:{3}\r\n", sLane, s.Country, athletes, s.EntryTime);
                 }
 
                 // 原始数据
@@ -2255,9 +2258,23 @@ namespace SwimmingScoreboard
                     string status = !string.IsNullOrEmpty(s.Status) ? s.Status : "";
                     string finalTime = r != null && r.FinalTime > 0 ? TimeFormatter.Format(r.FinalTime) : "";
                     string source = r != null ? (r.TimingSource ?? "") : "";
-                    string reaction = r != null && r.StartingBlockTime > 0 ? r.StartingBlockTime.ToString("F3") : "";
-                    sb.AppendFormat("名次:{0}\t道{1}\t{2}\t{3}\t成绩:{4}\t计时源:{5}\t反应:{6}\t{7}\r\n",
-                        s.CurrentRank > 0 ? s.CurrentRank.ToString() : "-", sLane, s.Name, s.Country,
+                    // 接力赛反应时按棒展开"第1棒:0.45 / 第2棒:0.30 ..."；个人赛仍是 StartingBlockTime 单值
+                    string reaction = "";
+                    if (_isRelay && r != null && r.LegReactionTimes != null && r.LegReactionTimes.Count > 0) {
+                        var rtParts = new List<string>();
+                        for (int li = 0; li < r.LegReactionTimes.Count; li++) {
+                            double rt = r.LegReactionTimes[li];
+                            rtParts.Add(string.Format("第{0}棒:{1}", li + 1, rt > 0 ? rt.ToString("F3") : "—"));
+                        }
+                        reaction = string.Join(" / ", rtParts.ToArray());
+                    } else if (r != null && r.StartingBlockTime > 0) {
+                        reaction = r.StartingBlockTime.ToString("F3");
+                    }
+                    string athletesFr = s.Name ?? "";
+                    if (_isRelay && !string.IsNullOrEmpty(s.Notes) && s.Notes.StartsWith("接力队 棒次:"))
+                        athletesFr = s.Notes.Substring("接力队 棒次:".Length);
+                    sb.AppendFormat("名次:{0}\t道{1}\t代表队:{2}\t运动员:{3}\t成绩:{4}\t计时源:{5}\t反应:{6}\t{7}\r\n",
+                        s.CurrentRank > 0 ? s.CurrentRank.ToString() : "-", sLane, s.Country, athletesFr,
                         !string.IsNullOrEmpty(status) ? status : finalTime, source, reaction, status);
 
                     // 各计时设备最终成绩
@@ -2336,14 +2353,17 @@ namespace SwimmingScoreboard
                 _laneCloseSettings.StartPosition == "left" ? "左" : "右", _poolConfig.LaneCount);
             h.Append("</table>");
 
-            // 出场名单
+            // 出场名单 — 接力赛 s.Name 是队名，队员姓名在 s.Notes("接力队 棒次:...") 里
             h.Append("<div class='section'>出场名单</div>");
-            h.Append("<table class='data'><tr><th>道次</th><th>姓名</th><th>代表队</th><th>报名成绩</th></tr>");
+            h.Append("<table class='data'><tr><th>道次</th><th>代表队</th><th>运动员姓名</th><th>报名成绩</th></tr>");
             foreach (var s in GetCurrentHeatSwimmers()) {
                 var sa = s.GetAssignmentForStage(_currentStage);
                 int sLane = sa != null ? sa.Lane : s.Lane;
-                h.AppendFormat("<tr><td style='text-align:center;'>{0}</td><td><b>{1}</b></td><td>{2}</td><td class='mono' style='text-align:center;'>{3}</td></tr>",
-                    sLane, s.Name, s.Country, s.EntryTime);
+                string athletesH = s.Name ?? "";
+                if (_isRelay && !string.IsNullOrEmpty(s.Notes) && s.Notes.StartsWith("接力队 棒次:"))
+                    athletesH = s.Notes.Substring("接力队 棒次:".Length);
+                h.AppendFormat("<tr><td style='text-align:center;'>{0}</td><td>{1}</td><td><b>{2}</b></td><td class='mono' style='text-align:center;'>{3}</td></tr>",
+                    sLane, s.Country, athletesH, s.EntryTime);
             }
             h.Append("</table>");
 
@@ -2360,9 +2380,9 @@ namespace SwimmingScoreboard
             }
             h.Append("</table>");
 
-            // 最终成绩
+            // 最终成绩 — 接力赛分别给"代表队"和"运动员姓名"列；反应时按棒展开
             h.Append("<div class='section'>最终成绩</div>");
-            h.Append("<table class='data'><tr><th>名次</th><th>道</th><th>姓名</th><th>代表队</th><th>成绩</th><th>计时源</th><th>反应时间</th><th>触板</th><th>盲表1</th><th>盲表2</th><th>盲表3</th><th>状态</th></tr>");
+            h.Append("<table class='data'><tr><th>名次</th><th>道</th><th>代表队</th><th>运动员姓名</th><th>成绩</th><th>计时源</th><th>反应时间</th><th>触板</th><th>盲表1</th><th>盲表2</th><th>盲表3</th><th>状态</th></tr>");
             foreach (var s in GetCurrentHeatSwimmers().OrderBy(s2 => s2.CurrentRank > 0 ? s2.CurrentRank : int.MaxValue)) {
                 var r = s.Results.FirstOrDefault(lr => lr.Stage == _currentStage && lr.Heat == _currentHeat);
                 var sa = s.GetAssignmentForStage(_currentStage);
@@ -2370,14 +2390,29 @@ namespace SwimmingScoreboard
                 string status = s.Status ?? "";
                 bool isDQ = status == "DSQ" || status == "DNS" || status == "DNF";
                 string finalTime = !isDQ && r != null && r.FinalTime > 0 ? TimeFormatter.Format(r.FinalTime) : "";
-                h.AppendFormat("<tr><td style='text-align:center;font-weight:bold;'>{0}</td><td style='text-align:center;'>{1}</td><td><b>{2}</b></td><td>{3}</td>" +
-                    "<td class='mono' style='text-align:center;font-weight:bold;'>{4}</td><td style='text-align:center;'>{5}</td><td class='mono' style='text-align:center;'>{6}</td>" +
+                string athletesFh = s.Name ?? "";
+                if (_isRelay && !string.IsNullOrEmpty(s.Notes) && s.Notes.StartsWith("接力队 棒次:"))
+                    athletesFh = s.Notes.Substring("接力队 棒次:".Length);
+                // 反应时单元：接力按棒展开（<br> 分行），个人为单值
+                string reactionHtml = "";
+                if (_isRelay && r != null && r.LegReactionTimes != null && r.LegReactionTimes.Count > 0) {
+                    var rtParts2 = new List<string>();
+                    for (int li = 0; li < r.LegReactionTimes.Count; li++) {
+                        double rt2 = r.LegReactionTimes[li];
+                        rtParts2.Add(string.Format("第{0}棒:{1}", li + 1, rt2 > 0 ? rt2.ToString("F3") : "—"));
+                    }
+                    reactionHtml = string.Join("<br>", rtParts2.ToArray());
+                } else if (r != null && r.StartingBlockTime > 0) {
+                    reactionHtml = r.StartingBlockTime.ToString("F3");
+                }
+                h.AppendFormat("<tr><td style='text-align:center;font-weight:bold;'>{0}</td><td style='text-align:center;'>{1}</td><td>{2}</td><td><b>{3}</b></td>" +
+                    "<td class='mono' style='text-align:center;font-weight:bold;'>{4}</td><td style='text-align:center;'>{5}</td><td class='mono' style='text-align:center;font-size:10px;'>{6}</td>" +
                     "<td class='mono' style='text-align:center;'>{7}</td><td class='mono' style='text-align:center;'>{8}</td><td class='mono' style='text-align:center;'>{9}</td><td class='mono' style='text-align:center;'>{10}</td>" +
                     "<td style='text-align:center;color:#dc2626;font-weight:bold;'>{11}</td></tr>",
                     s.CurrentRank > 0 ? s.CurrentRank.ToString() : (isDQ ? "-" : ""),
-                    sLane, s.Name, s.Country, isDQ ? status : finalTime,
+                    sLane, s.Country, athletesFh, isDQ ? status : finalTime,
                     r != null ? (r.TimingSource ?? "") : "",
-                    r != null && r.StartingBlockTime > 0 ? r.StartingBlockTime.ToString("F3") : "",
+                    reactionHtml,
                     r != null ? TimeFormatter.Format(r.TouchpadTime) : "",
                     r != null ? TimeFormatter.Format(r.PushButton1Time) : "",
                     r != null ? TimeFormatter.Format(r.PushButton2Time) : "",
