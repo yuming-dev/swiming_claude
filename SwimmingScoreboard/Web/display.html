@@ -827,12 +827,15 @@ function renderHeatResult() {
     var relay = isRelayEvent();
     var hdr1 = relay ? '代表队' : '姓名';
     var hdr2 = relay ? '姓名' : '代表队';
+    // 接力赛 col2 为 4 个队员姓名（逗号分隔）— 加宽到 22vw，对应 col1（代表队）压到 8vw
+    var c1Width = relay ? '8vw' : '14vw';
+    var c2Width = relay ? '22vw' : '12vw';
     var header = document.querySelector('.lanes-header');
     if (header) {
         header.innerHTML =
             '<div style="width:5vw;text-align:center;margin-right:1vw;">名次</div>' +
-            '<div style="width:14vw;text-align:center;margin-right:1.5vw;">' + hdr1 + '</div>' +
-            '<div style="width:12vw;text-align:center;margin-right:1.5vw;">' + hdr2 + '</div>' +
+            '<div style="width:' + c1Width + ';text-align:center;margin-right:1.5vw;">' + hdr1 + '</div>' +
+            '<div style="width:' + c2Width + ';text-align:center;margin-right:1.5vw;">' + hdr2 + '</div>' +
             '<div style="width:5vw;text-align:center;margin-right:1vw;">道次</div>' +
             '<div style="width:14vw;text-align:center;margin-right:1.5vw;">成绩</div>' +
             '<div style="width:8vw;text-align:center;">备注</div>';
@@ -865,8 +868,8 @@ function renderHeatResult() {
         var c2 = relay ? (s.name||'') : (s.country||'');
         row.innerHTML =
             '<div class="rank ' + rankClass + '">' + rankText + '</div>' +
-            '<div class="swimmer-name">' + c1 + '</div>' +
-            '<div class="swimmer-team">' + c2 + '</div>' +
+            '<div class="swimmer-name" style="width:' + c1Width + ';">' + c1 + '</div>' +
+            '<div class="swimmer-team" style="width:' + c2Width + ';">' + c2 + '</div>' +
             '<div class="lane-num">' + s.lane + '</div>' +
             '<div class="result-time">' + resultText + '</div>' +
             '<div class="remark">' + remarkText + '</div>';
@@ -918,12 +921,15 @@ function renderPublishedResult(pubData) {
     var pubRelay = (pubData.eventName||'').indexOf('接力') >= 0;
     var ph1 = pubRelay ? '代表队' : '姓名';
     var ph2 = pubRelay ? '姓名' : '代表队';
+    // 接力 col2 为 4 个队员姓名（逗号分隔）— 加宽到 22vw，对应 col1（代表队）压到 8vw
+    var pc1Width = pubRelay ? '8vw' : '14vw';
+    var pc2Width = pubRelay ? '22vw' : '12vw';
     var header = document.querySelector('.lanes-header');
     if (header) {
         header.innerHTML =
             '<div style="width:5vw;text-align:center;margin-right:1vw;font-size:' + fontSize + 'vh;">名次</div>' +
-            '<div style="width:14vw;text-align:center;margin-right:1.5vw;font-size:' + fontSize + 'vh;">' + ph1 + '</div>' +
-            '<div style="width:12vw;text-align:center;margin-right:1.5vw;font-size:' + fontSize + 'vh;">' + ph2 + '</div>' +
+            '<div style="width:' + pc1Width + ';text-align:center;margin-right:1.5vw;font-size:' + fontSize + 'vh;">' + ph1 + '</div>' +
+            '<div style="width:' + pc2Width + ';text-align:center;margin-right:1.5vw;font-size:' + fontSize + 'vh;">' + ph2 + '</div>' +
             '<div style="width:5vw;text-align:center;margin-right:1vw;font-size:' + fontSize + 'vh;">道次</div>' +
             '<div style="width:14vw;text-align:center;margin-right:1.5vw;font-size:' + fontSize + 'vh;">成绩</div>' +
             '<div style="width:8vw;text-align:center;font-size:' + fontSize + 'vh;">备注</div>';
@@ -955,8 +961,8 @@ function renderPublishedResult(pubData) {
         var pc2 = pubRelay ? (s.name||'') : (s.country||'');
         row.innerHTML =
             '<div class="rank ' + rankClass + '" style="font-size:' + rankSize + 'vh;">' + rankText + '</div>' +
-            '<div class="swimmer-name" style="font-size:' + fontSize + 'vh;">' + pc1 + '</div>' +
-            '<div class="swimmer-team" style="font-size:' + fontSize + 'vh;">' + pc2 + '</div>' +
+            '<div class="swimmer-name" style="width:' + pc1Width + ';font-size:' + fontSize + 'vh;">' + pc1 + '</div>' +
+            '<div class="swimmer-team" style="width:' + pc2Width + ';font-size:' + fontSize + 'vh;">' + pc2 + '</div>' +
             '<div class="lane-num" style="font-size:' + laneNumSize + 'vh;">' + s.lane + '</div>' +
             '<div class="result-time" style="font-size:' + fontSize + 'vh;">' + pubResultText + '</div>' +
             '<div class="remark" style="font-size:' + fontSize + 'vh;">' + remarkText + '</div>';
