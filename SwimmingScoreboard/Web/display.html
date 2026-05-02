@@ -533,6 +533,15 @@ function renderRace() {
 
 // 抽出来给 100ms ticker 复用：仅写右上角 #runningTime 文本/颜色
 function _updateRunningTimeOnly() {
+    var runEl = document.getElementById('runningTime');
+    if (!runEl) return;
+    // 计时控制端确认本组成绩后，大屏切换到本组成绩榜，滚动时间不再显示
+    // （否则 100ms ticker 会把 renderHeatResult 设的空文本反复覆盖回去）
+    if (data && data.resultConfirmed) {
+        if (runEl.textContent !== '') runEl.textContent = '';
+        if (runEl.style.color !== '') runEl.style.color = '';
+        return;
+    }
     var localRunTime = data.runningTime || '0.0';
     if (_dspTimerStart > 0) {
         var elapsed = (Date.now() - _dspTimerStart) / 1000;
@@ -542,8 +551,6 @@ function _updateRunningTimeOnly() {
         else if (tm > 0) localRunTime = tm + ':' + ts.toString().padStart(2,'0') + '.' + tt;
         else localRunTime = ts + '.' + tt;
     }
-    var runEl = document.getElementById('runningTime');
-    if (!runEl) return;
     var dspHoldMs = _dspFirstHoldSec * 1000;
     var showLeader = (_dspFirstShowStart > 0 && (Date.now() - _dspFirstShowStart) < dspHoldMs && _dspFirstTime);
     var newText = showLeader ? _dspFirstTime : localRunTime;
