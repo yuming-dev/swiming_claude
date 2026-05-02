@@ -1275,17 +1275,31 @@
                         <Button Content="查询原始数据" Click="ViewRawData_Click" Padding="12,4" Margin="8,0,0,0"
                                 Background="#64748B" Foreground="White" BorderThickness="0"/>
                     </StackPanel>
+                    <!-- 姓名列 / 反应时间列加宽并允许换行：接力赛"姓名"为 4 名队员（逗号分隔），
+                         "反应时间"按棒展开为"第1棒:0.45 第2棒:0.30 ..."；列宽不够时 TextWrapping 自动换行 -->
                     <DataGrid x:Name="ResultGrid" Grid.Row="1" AutoGenerateColumns="False" CanUserAddRows="False"
                               IsReadOnly="True" AlternatingRowBackground="#F8FAFC">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="名次" Binding="{Binding Rank}" Width="50"/>
                             <DataGridTextColumn Header="道" Binding="{Binding Lane}" Width="40"/>
                             <DataGridTextColumn Header="号码" Binding="{Binding BibNumber}" Width="60"/>
-                            <DataGridTextColumn Header="姓名" Binding="{Binding Name}" Width="80"/>
-                            <DataGridTextColumn Header="代表队" Binding="{Binding Country}" Width="80"/>
+                            <DataGridTemplateColumn Header="姓名" Width="220">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Name}" TextWrapping="Wrap" Padding="4,3"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTextColumn Header="代表队" Binding="{Binding Country}" Width="100"/>
                             <DataGridTextColumn Header="最终成绩" Binding="{Binding FinalTime}" Width="80"/>
                             <DataGridTextColumn Header="计时源" Binding="{Binding TimingSource}" Width="60"/>
-                            <DataGridTextColumn Header="反应时间" Binding="{Binding ReactionTime}" Width="70"/>
+                            <DataGridTemplateColumn Header="反应时间" Width="170">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding ReactionTime}" TextWrapping="Wrap" Padding="4,3"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
                             <DataGridTextColumn Header="状态" Binding="{Binding Status}" Width="50"/>
                             <DataGridTextColumn Header="纪录" Binding="{Binding RecordNote}" Width="80"/>
                         </DataGrid.Columns>

@@ -9080,6 +9080,14 @@ namespace SwimmingScoreboard
             }).ToList();
 
             bool isRelayEvent = eventName.Contains("接力");
+            // 接力赛棒次数：用于反应时按棒展开
+            int rgLegCount = 4;
+            if (isRelayEvent) {
+                var mLeg = System.Text.RegularExpressions.Regex.Match(eventName, @"(\d+)\s*[x×]\s*\d+");
+                if (mLeg.Success) {
+                    int n; if (int.TryParse(mLeg.Groups[1].Value, out n) && n > 0 && n <= 10) rgLegCount = n;
+                }
+            }
             var displayData = results.Select(s => {
                 // 按运动员所属的组精确查找该组成绩（避免在 stage 内多组场景下取错）
                 int swHeat = 0;
@@ -9105,21 +9113,35 @@ namespace SwimmingScoreboard
                 string remark = "";
                 if (r != null && !string.IsNullOrEmpty(r.Status)) remark = r.Status;
                 else if (isDQ) remark = s.Status;
+                // 反应时：接力按棒展开 "第N棒:0.45  第N棒:..."（双空格分隔，DataGrid TextWrapping=Wrap 自动换行）
+                string reactionStr = "";
+                if (isRelayEvent) {
+                    var rtParts = new List<string>();
+                    for (int li = 0; li < rgLegCount; li++) {
+                        double rt = (r != null && r.LegReactionTimes != null && li < r.LegReactionTimes.Count) ? r.LegReactionTimes[li] : 0;
+                        rtParts.Add(string.Format("第{0}棒:{1}", li + 1, rt > 0 ? rt.ToString("F2") : "—"));
+                    }
+                    reactionStr = string.Join("  ", rtParts.ToArray());
+                } else if (r != null && r.StartingBlockTime > 0) {
+                    reactionStr = r.StartingBlockTime.ToString("F2");
+                }
                 return new {
                     SortTime = sortTime,
                     Lane = lane,
                     BibNumber = s.BibNumber ?? "",
-                    Name = displayName,
-                    Country = s.Country ?? "",
+                    Name = displayName,                  // 接力时为 4 名队员姓名（逗号分隔）
+                    Country = s.Country ?? "",            // 代表队/队名
                     FinalTime = isDQ ? "" : (r != null && r.FinalTime > 0 ? TimeFormatter.Format(r.FinalTime) : ""),
                     TimingSource = r != null ? (r.TimingSource ?? "") : "",
-                    ReactionTime = r != null && r.StartingBlockTime > 0 ? r.StartingBlockTime.ToString("F2") : "",
+                    ReactionTime = reactionStr,
                     Status = !string.IsNullOrEmpty(remark) ? remark : (s.Status ?? ""),
                     RecordNote = r != null ? (r.RecordNote ?? "") : ""
                 };
             }).OrderBy(x => x.SortTime).ToList();
 
-            // 重新计算排名（DSQ/DNS/DNF无名次）
+            // 重新计算排名（DSQ/DNS/DNF无名次）；列与表头一一对应：
+            //   "姓名"列 -> Name（接力时即 4 棒队员姓名）
+            //   "代表队"列 -> Country（队名）
             var rankedData = new List<object>();
             int rankNum = 1;
             foreach (var item in displayData) {
@@ -9127,8 +9149,7 @@ namespace SwimmingScoreboard
                 rankedData.Add(new {
                     Rank = rankStr,
                     item.Lane, item.BibNumber,
-                    Name = isRelayEvent ? item.Country : item.Name,
-                    Country = isRelayEvent ? item.Name : item.Country,
+                    item.Name, item.Country,
                     item.FinalTime, item.TimingSource, item.ReactionTime, item.Status, item.RecordNote
                 });
                 if (item.SortTime < double.MaxValue) rankNum++;
