@@ -161,6 +161,16 @@ namespace SwimmingScoreboard
                 }
             }
 
+            // 录取标志 Q：判断打印的赛次后是否还有"半决赛 / 决赛"分组
+            // 预赛 → 半决赛（若 schedule 含）/ 决赛；半决赛 → 决赛；决赛无下一赛次
+            string nextStageQ = null;
+            if (stage == "预赛") {
+                bool hasSemi = _schedule != null && _schedule.Any(s => s.Gender == gender && s.EventName == eventName && s.Stage == "半决赛");
+                nextStageQ = hasSemi ? "半决赛" : "决赛";
+            } else if (stage == "半决赛") {
+                nextStageQ = "决赛";
+            }
+
             var displayData = withResults.Select(s =>
             {
                 var r = s.GetResultForStage(stage);
@@ -187,6 +197,8 @@ namespace SwimmingScoreboard
                     reactionPlain = r.StartingBlockTime.ToString("F2");
                     reactionHtml = reactionPlain;
                 }
+                // 是否晋级到下一赛次：检查该运动员是否已被分配到 nextStageQ 的组次
+                bool qualified = !isDQ && !string.IsNullOrEmpty(nextStageQ) && s.GetAssignmentForStage(nextStageQ) != null;
                 return new
                 {
                     SortTime = isDQ ? double.MaxValue : r.FinalTime,
@@ -199,7 +211,8 @@ namespace SwimmingScoreboard
                     FinalTime = isDQ ? "" : (r.FinalTime > 0 ? TimeFormatter.Format(r.FinalTime) : ""),
                     ReactionTime = reactionPlain,        // DataGrid 预览用：空格分隔，TextWrapping=Wrap 自动换行
                     ReactionTimeHtml = reactionHtml,     // 打印 HTML 用：<br> 强制每棒一行
-                    Remark = remark
+                    Remark = remark,
+                    Qualified = qualified
                 };
             }).OrderBy(x => x.SortTime).ToList();
 
@@ -217,6 +230,17 @@ namespace SwimmingScoreboard
                 if (!item.IsDQ && item.RawFinalTime > 0 && leaderTime > 0 && item.RawFinalTime > leaderTime) {
                     diffText = (item.RawFinalTime - leaderTime).ToString("F2");
                 }
+                // 备注列：判罚（DSQ/DNS/DNF）优先；否则若已晋级则显示 Q
+                string remarkPlain = item.Remark;
+                string remarkHtml;
+                if (!string.IsNullOrEmpty(item.Remark)) {
+                    remarkHtml = "<span style='color:#dc2626;'>" + item.Remark + "</span>";
+                } else if (item.Qualified) {
+                    remarkPlain = "Q";
+                    remarkHtml = "<span style='color:#16a34a;font-weight:bold;'>Q</span>";
+                } else {
+                    remarkHtml = "";
+                }
                 _currentResults.Add(new
                 {
                     Rank = item.IsDQ ? "-" : rank.ToString(),
@@ -228,7 +252,8 @@ namespace SwimmingScoreboard
                     Diff = diffText,
                     item.ReactionTime,
                     item.ReactionTimeHtml,
-                    item.Remark
+                    Remark = remarkPlain,
+                    RemarkHtml = remarkHtml
                 });
                 if (!item.IsDQ) rank++;
             }
@@ -319,7 +344,7 @@ namespace SwimmingScoreboard
                 sb.AppendFormat("<td><b>{0}</b></td><td>{1}</td>", c1, c2);
                 sb.AppendFormat("<td style='font-weight:bold; background:#eff6ff;'>{0}</td>", item.FinalTime);
                 sb.AppendFormat("<td>{0}</td>", item.Diff);
-                sb.AppendFormat("<td style='font-size:12px;'>{0}</td><td style='color:#dc2626;'>{1}</td>", item.ReactionTimeHtml, item.Remark);
+                sb.AppendFormat("<td style='font-size:12px;'>{0}</td><td>{1}</td>", item.ReactionTimeHtml, item.RemarkHtml);
                 sb.Append("</tr>");
             }
             sb.Append("</table>");

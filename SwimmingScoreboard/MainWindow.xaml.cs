@@ -2985,6 +2985,41 @@ namespace SwimmingScoreboard
             return tags.Count > 0;
         }
 
+        // 判断该项目从 fromStage 出发的下一赛次（"预赛" → "半决赛"或"决赛"，"半决赛" → "决赛"）
+        // 用于打印预赛/半决赛成绩单时给晋级者标 Q
+        private string GetNextStageFor(string gender, string eventName, string fromStage) {
+            if (fromStage == "预赛") {
+                if (_schedule.Any(s => s.Gender == gender && s.EventName == eventName && s.Stage == "半决赛"))
+                    return "半决赛";
+                return "决赛";
+            }
+            if (fromStage == "半决赛") return "决赛";
+            return null;     // 决赛及其它无下一赛次
+        }
+
+        // 该运动员是否已晋级到下一赛次（StageAssignments 含下一赛次 → 已被分组）
+        private bool IsQualifiedToNext(Swimmer sw, string fromStage) {
+            if (sw == null) return false;
+            string next = GetNextStageFor(sw.Gender, sw.EventName, fromStage);
+            if (string.IsNullOrEmpty(next)) return false;
+            return sw.GetAssignmentForStage(next) != null;
+        }
+
+        // 备注栏渲染：判罚（DSQ/DNS/DNF/DQ）红色，晋级 Q 绿色，其它空白。
+        // 集中在一处，让所有打印路径（本组成绩单 / 赛事级公告 等）共用样式。
+        private string RenderRemarkCellHtml(Swimmer sw, LaneResult r, string fromStage) {
+            string status = "";
+            if (r != null && !string.IsNullOrEmpty(r.Status)) status = r.Status;
+            else if (sw != null && !string.IsNullOrEmpty(sw.Status) &&
+                     (sw.Status == "DNS" || sw.Status == "DNF" || sw.Status == "DSQ" || sw.Status == "DQ"))
+                status = sw.Status;
+            if (!string.IsNullOrEmpty(status))
+                return string.Format("<span style='color:#dc2626;'>{0}</span>", status);
+            if (IsQualifiedToNext(sw, fromStage))
+                return "<span style='color:#16a34a;font-weight:bold;'>Q</span>";
+            return "";
+        }
+
         // 并列名次比较：硬件计时控制器以 1/100 秒精度（单字节）发送成绩，
         // 软件侧 FinalTime 是 double，存储 0.5468 这样的值时由于 IEEE 754 表达
         // 会有微小尾差（54.68 实际为 54.68000000000000682…），不同计时源裁定后
@@ -12750,6 +12785,8 @@ namespace SwimmingScoreboard
                 string remark = "";
                 if (r != null && !string.IsNullOrEmpty(r.Status)) remark = r.Status;
                 else if (!string.IsNullOrEmpty(sw.Status) && (sw.Status == "DNS" || sw.Status == "DNF" || sw.Status == "DSQ" || sw.Status == "DQ")) remark = sw.Status;
+                // 备注列 HTML：判罚红色 / 晋级 Q 绿色 / 其它空白；timeText/diffText 下面仍按 remark（纯文本）判断
+                string remarkHtml = RenderRemarkCellHtml(sw, r, _currentStage);
                 string pName = sw.Name; string pCountry = sw.Country ?? "";
                 if (printRelay && !string.IsNullOrEmpty(sw.Notes) && sw.Notes.StartsWith("接力队 棒次:"))
                     pName = sw.Notes.Substring("接力队 棒次:".Length);
@@ -12777,13 +12814,13 @@ namespace SwimmingScoreboard
                 } else if (r != null && r.StartingBlockTime > 0) {
                     reactionCell = r.StartingBlockTime.ToString("F2");
                 }
-                sb.AppendFormat("<tr><td>{0}</td><td>{1}</td><td>{2}</td><td><b>{3}</b></td><td>{4}</td><td style='font-weight:bold; background:#eff6ff;'>{5}</td><td>{6}</td><td style='font-size:12px;'>{7}</td><td style='color:#dc2626;'>{8}</td></tr>",
+                sb.AppendFormat("<tr><td>{0}</td><td>{1}</td><td>{2}</td><td><b>{3}</b></td><td>{4}</td><td style='font-weight:bold; background:#eff6ff;'>{5}</td><td>{6}</td><td style='font-size:12px;'>{7}</td><td>{8}</td></tr>",
                     r != null && r.Rank > 0 ? r.Rank.ToString() : "-",
                     sw.Lane, sw.BibNumber, RelayCol1(printRelay, pName, pCountry), RelayCol2(printRelay, pName, pCountry),
                     timeText,
                     diffText,
                     reactionCell,
-                    remark);
+                    remarkHtml);
             }
             sb.Append("</table>");
             sb.Append(DocSignatureRow());
@@ -13138,9 +13175,13 @@ namespace SwimmingScoreboard
                             string recTag = (!dq && r != null && !string.IsNullOrEmpty(r.RecordNote))
                                 ? string.Format(" <span style='color:#b45309;font-weight:bold;'>{0}</span>", System.Net.WebUtility.HtmlEncode(r.RecordNote))
                                 : "";
-                            sb.AppendFormat("<td style='font-weight:bold;'>{0}{1}</td>",
+                            // 录取标志 Q：预赛/半决赛后有下一赛次分组的运动员，时间后追加绿色 Q
+                            string qTag = (!dq && IsQualifiedToNext(sw, stage))
+                                ? " <span style='color:#16a34a;font-weight:bold;'>Q</span>"
+                                : "";
+                            sb.AppendFormat("<td style='font-weight:bold;'>{0}{1}{2}</td>",
                                 dq ? string.Format("<span style='color:#dc2626;'>{0}</span>", finalText) : finalText,
-                                recTag);
+                                recTag, qTag);
                             if (rb.ShowTimeDifference) {
                                 string diff = "";
                                 if (!dq && leaderTime > 0 && r.FinalTime > 0 && r.FinalTime > leaderTime)
