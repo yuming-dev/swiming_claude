@@ -825,9 +825,11 @@ function renderHeatResult() {
     var relay = isRelayEvent();
     var hdr1 = relay ? '代表队' : '姓名';
     var hdr2 = relay ? '姓名' : '代表队';
-    // 接力赛 col2 为 4 个队员姓名（逗号分隔）— 加宽到 22vw，对应 col1（代表队）压到 8vw
+    // 接力赛 col2 为 4 个队员姓名（逗号分隔）— 加宽到 36vw 并允许换行；对应 col1（代表队）压到 8vw
     var c1Width = relay ? '8vw' : '14vw';
-    var c2Width = relay ? '22vw' : '12vw';
+    var c2Width = relay ? '36vw' : '12vw';
+    // 接力姓名列覆盖 .swimmer-team 默认的 nowrap+overflow:hidden，让 4 名队员名超宽时自动换行
+    var c2WrapStyle = relay ? 'white-space:normal;overflow:visible;line-height:1.3;' : '';
     var header = document.querySelector('.lanes-header');
     if (header) {
         header.innerHTML =
@@ -869,7 +871,7 @@ function renderHeatResult() {
         row.innerHTML =
             '<div class="rank ' + rankClass + '">' + rankText + '</div>' +
             '<div class="swimmer-name" style="width:' + c1Width + ';">' + c1 + '</div>' +
-            '<div class="swimmer-team" style="width:' + c2Width + ';">' + c2 + '</div>' +
+            '<div class="swimmer-team" style="width:' + c2Width + ';' + c2WrapStyle + '">' + c2 + '</div>' +
             '<div class="lane-num">' + s.lane + '</div>' +
             '<div class="result-time">' + resultText + '</div>' +
             '<div class="remark"' + remarkStyle + '>' + remarkText + '</div>';
@@ -921,9 +923,10 @@ function renderPublishedResult(pubData) {
     var pubRelay = (pubData.eventName||'').indexOf('接力') >= 0;
     var ph1 = pubRelay ? '代表队' : '姓名';
     var ph2 = pubRelay ? '姓名' : '代表队';
-    // 接力 col2 为 4 个队员姓名（逗号分隔）— 加宽到 22vw，对应 col1（代表队）压到 8vw
+    // 接力 col2 为 4 个队员姓名（逗号分隔）— 加宽到 36vw 并允许换行，对应 col1（代表队）压到 8vw
     var pc1Width = pubRelay ? '8vw' : '14vw';
-    var pc2Width = pubRelay ? '22vw' : '12vw';
+    var pc2Width = pubRelay ? '36vw' : '12vw';
+    var pc2WrapStyle = pubRelay ? 'white-space:normal;overflow:visible;line-height:1.3;' : '';
     var header = document.querySelector('.lanes-header');
     if (header) {
         header.innerHTML =
@@ -965,7 +968,7 @@ function renderPublishedResult(pubData) {
         row.innerHTML =
             '<div class="rank ' + rankClass + '" style="font-size:' + rankSize + 'vh;">' + rankText + '</div>' +
             '<div class="swimmer-name" style="width:' + pc1Width + ';font-size:' + fontSize + 'vh;">' + pc1 + '</div>' +
-            '<div class="swimmer-team" style="width:' + pc2Width + ';font-size:' + fontSize + 'vh;">' + pc2 + '</div>' +
+            '<div class="swimmer-team" style="width:' + pc2Width + ';font-size:' + fontSize + 'vh;' + pc2WrapStyle + '">' + pc2 + '</div>' +
             '<div class="lane-num" style="font-size:' + laneNumSize + 'vh;">' + s.lane + '</div>' +
             '<div class="result-time" style="font-size:' + fontSize + 'vh;">' + pubResultText + '</div>' +
             '<div class="remark"' + pubRemarkStyle + '>' + remarkText + '</div>';
