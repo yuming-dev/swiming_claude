@@ -488,7 +488,7 @@
                                 </StackPanel>
                             </Grid>
                         </TabItem>
-                        <TabItem Header="比赛类型管理">
+                        <TabItem Header="比赛参数设置管理">
                             <ScrollViewer Margin="10" VerticalScrollBarVisibility="Auto">
                                 <StackPanel>
                                     <TextBlock Text="比赛项目 / 组别配置（数据库持久化，支持手动编辑、导入、导出）"
