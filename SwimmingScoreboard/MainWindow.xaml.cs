@@ -64,6 +64,8 @@ namespace SwimmingScoreboard
         private string _competitionMode = "domestic";
         private PoolConfig _poolConfig = new PoolConfig();
         private LaneCloseSettings _laneCloseSettings = new LaneCloseSettings();
+        // 团体计分配置（持久化在 CompetitionPackage.ScoringConfig）
+        private ScoringConfig _scoringConfig = new ScoringConfig();
 
         private string _currentEvent = "";
         private string _currentGender = "";
@@ -9375,6 +9377,137 @@ namespace SwimmingScoreboard
             win.ShowDialog();
         }
 
+        // "名次分设置"对话框：编辑各名次得分（个人/接力）、组别系数、取分人数、破纪录加分。
+        // 点击保存后写入 _scoringConfig + 持久化到 CompetitionPackage，并重算团体积分。
+        private void ScoringConfig_Click(object sender, RoutedEventArgs e) {
+            var dlg = new Window {
+                Title = "名次分设置 — 团体计分",
+                Width = 720, Height = 560,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner, Owner = this,
+                ResizeMode = ResizeMode.CanResize,
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F1F5F9"))
+            };
+            var root = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Padding = new Thickness(14) };
+            var sp = new StackPanel { Orientation = Orientation.Vertical };
+
+            sp.Children.Add(new TextBlock {
+                Text = "团体积分按\"决赛\"成绩取分；下面所有数值均可修改，保存后立即重算并入档持久化。",
+                FontSize = 12, Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569")),
+                Margin = new Thickness(0, 0, 0, 12), TextWrapping = TextWrapping.Wrap
+            });
+
+            // 取分人数 + 破纪录加分（顶部一行）
+            var topRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 12) };
+            topRow.Children.Add(new TextBlock { Text = "取分人数（前 N 名得分）：", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 6, 0) });
+            var cutoffBox = new TextBox { Text = _scoringConfig.RankCutoff.ToString(), Width = 60, VerticalAlignment = VerticalAlignment.Center };
+            topRow.Children.Add(cutoffBox);
+            topRow.Children.Add(new TextBlock { Text = "    破纪录加分（每项）：", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(20, 0, 6, 0) });
+            var bonusBox = new TextBox { Text = _scoringConfig.RecordBreakBonus.ToString("0.##"), Width = 60, VerticalAlignment = VerticalAlignment.Center };
+            topRow.Children.Add(bonusBox);
+            sp.Children.Add(topRow);
+
+            // 个人项目名次分（每名次一个 TextBox，按取分人数限定个数；多于 cutoff 时仍允许编辑保留历史值）
+            sp.Children.Add(new TextBlock { Text = "个人项目 — 名次得分", FontSize = 14, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 8, 0, 4) });
+            var indPanel = new WrapPanel { Margin = new Thickness(0, 0, 0, 12) };
+            var indBoxes = new List<TextBox>();
+            int maxRanks = Math.Max(8, Math.Max(_scoringConfig.IndividualPoints.Count, _scoringConfig.RelayPoints.Count));
+            for (int i = 0; i < maxRanks; i++) {
+                var item = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 12, 6) };
+                item.Children.Add(new TextBlock { Text = "第" + (i + 1) + "名：", VerticalAlignment = VerticalAlignment.Center, Width = 56, TextAlign​ment = TextAlignment.Right });
+                double v = i < _scoringConfig.IndividualPoints.Count ? _scoringConfig.IndividualPoints[i] : 0;
+                var tb = new TextBox { Text = v.ToString("0.##"), Width = 60, VerticalAlignment = VerticalAlignment.Center };
+                indBoxes.Add(tb);
+                item.Children.Add(tb);
+                indPanel.Children.Add(item);
+            }
+            sp.Children.Add(indPanel);
+
+            // 接力项目名次分
+            sp.Children.Add(new TextBlock { Text = "接力项目 — 名次得分", FontSize = 14, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 8, 0, 4) });
+            var relayPanel = new WrapPanel { Margin = new Thickness(0, 0, 0, 12) };
+            var relayBoxes = new List<TextBox>();
+            for (int i = 0; i < maxRanks; i++) {
+                var item = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 12, 6) };
+                item.Children.Add(new TextBlock { Text = "第" + (i + 1) + "名：", VerticalAlignment = VerticalAlignment.Center, Width = 56, TextAlignment = TextAlignment.Right });
+                double v = i < _scoringConfig.RelayPoints.Count ? _scoringConfig.RelayPoints[i] : 0;
+                var tb = new TextBox { Text = v.ToString("0.##"), Width = 60, VerticalAlignment = VerticalAlignment.Center };
+                relayBoxes.Add(tb);
+                item.Children.Add(tb);
+                relayPanel.Children.Add(item);
+            }
+            sp.Children.Add(relayPanel);
+
+            // 组别系数（含已有的 + 当前比赛实际出现的所有 AgeCategory）
+            sp.Children.Add(new TextBlock { Text = "组别系数（最终得分 = 名次分 × 系数；找不到的组按 1.0 计）", FontSize = 14, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 8, 0, 4) });
+            var ageGroupKeys = new SortedSet<string>(_scoringConfig.AgeGroupCoefficients.Keys);
+            foreach (var s in _swimmers) if (!string.IsNullOrEmpty(s.AgeCategory)) ageGroupKeys.Add(s.AgeCategory);
+            var coeffPanel = new WrapPanel { Margin = new Thickness(0, 0, 0, 12) };
+            var coeffBoxes = new Dictionary<string, TextBox>();
+            foreach (var key in ageGroupKeys) {
+                var item = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 12, 6) };
+                item.Children.Add(new TextBlock { Text = key + "：", VerticalAlignment = VerticalAlignment.Center, MinWidth = 60, TextAlignment = TextAlignment.Right });
+                double v = _scoringConfig.GetAgeCoefficient(key);
+                var tb = new TextBox { Text = v.ToString("0.##"), Width = 60, VerticalAlignment = VerticalAlignment.Center };
+                coeffBoxes[key] = tb;
+                item.Children.Add(tb);
+                coeffPanel.Children.Add(item);
+            }
+            sp.Children.Add(coeffPanel);
+
+            // 按钮行
+            var btnRow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 12, 0, 0) };
+            var btnReset = new Button { Content = "恢复默认", Padding = new Thickness(16, 6, 16, 6), Margin = new Thickness(0, 0, 8, 0),
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
+            btnReset.Click += delegate {
+                if (MessageBox.Show("将所有数值恢复为系统默认（个人 12/10/8/7/6/5/4/3，接力 24/20/16/14/12/10/8/6，青少年/少年=0.8、大师=0.7，取分前 8 名）。继续？",
+                    "恢复默认", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes) {
+                    _scoringConfig.ResetToDefaults();
+                    dlg.DialogResult = false;
+                    dlg.Close();
+                    ScoringConfig_Click(null, null);   // 重新打开载入默认值
+                }
+            };
+            var btnCancel = new Button { Content = "取消", Padding = new Thickness(20, 6, 20, 6), Margin = new Thickness(0, 0, 8, 0),
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
+            btnCancel.Click += delegate { dlg.DialogResult = false; };
+            var btnOK = new Button { Content = "保存并重算", Padding = new Thickness(20, 6, 20, 6), FontWeight = FontWeights.Bold,
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#22C55E")), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
+            btnOK.Click += delegate {
+                int cutoff;
+                if (!int.TryParse(cutoffBox.Text.Trim(), out cutoff) || cutoff < 1 || cutoff > 50) {
+                    MessageBox.Show("取分人数必须是 1–50 的整数。", "输入错误", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+                double bonus;
+                if (!double.TryParse(bonusBox.Text.Trim(), out bonus) || bonus < 0) bonus = 0;
+
+                var indPoints = new List<double>();
+                foreach (var tb in indBoxes) { double p; double.TryParse(tb.Text.Trim(), out p); indPoints.Add(p); }
+                var relayPoints = new List<double>();
+                foreach (var tb in relayBoxes) { double p; double.TryParse(tb.Text.Trim(), out p); relayPoints.Add(p); }
+                var coeffs = new Dictionary<string, double>();
+                foreach (var kv in coeffBoxes) { double c; if (double.TryParse(kv.Value.Text.Trim(), out c) && c > 0) coeffs[kv.Key] = c; }
+
+                _scoringConfig.RankCutoff = cutoff;
+                _scoringConfig.RecordBreakBonus = bonus;
+                _scoringConfig.IndividualPoints = indPoints;
+                _scoringConfig.RelayPoints = relayPoints;
+                _scoringConfig.AgeGroupCoefficients = coeffs;
+
+                CalculateTeamScores();
+                AutoSaveData();
+                AddLog(string.Format("名次分设置已更新：取分前 {0} 名，个人 [{1}]，接力 [{2}]",
+                    cutoff, string.Join(",", indPoints.Take(cutoff).ToArray()), string.Join(",", relayPoints.Take(cutoff).ToArray())));
+                dlg.DialogResult = true;
+            };
+            btnRow.Children.Add(btnReset); btnRow.Children.Add(btnCancel); btnRow.Children.Add(btnOK);
+            sp.Children.Add(btnRow);
+
+            root.Content = sp;
+            dlg.Content = root;
+            dlg.ShowDialog();
+        }
+
         // ═══════════════════════════════════════════════════════════════
         // 团体计分
         // ═══════════════════════════════════════════════════════════════
@@ -9464,14 +9597,12 @@ namespace SwimmingScoreboard
             dlg.ShowDialog();
         }
 
-        private static readonly double[] IndividualPoints = { 12, 10, 8, 7, 6, 5, 4, 3 };
-        private static readonly double[] RelayPointsMultiplied = { 24, 20, 16, 14, 12, 10, 8, 6 };
-
         private void CalculateTeamScores() {
             var teamDict = new Dictionary<string, TeamScore>();
 
-            // 统计所有决赛成绩
-            var finalSwimmers = _swimmers.Where(s => s.CurrentStage == "决赛" && s.CurrentRank > 0 && s.CurrentRank <= 8).ToList();
+            // 取分范围由配置控制（默认前 8 名）
+            int cutoff = _scoringConfig != null && _scoringConfig.RankCutoff > 0 ? _scoringConfig.RankCutoff : 8;
+            var finalSwimmers = _swimmers.Where(s => s.CurrentStage == "决赛" && s.CurrentRank > 0 && s.CurrentRank <= cutoff).ToList();
 
             foreach (var sw in finalSwimmers) {
                 if (string.IsNullOrEmpty(sw.Country)) continue;
@@ -9480,20 +9611,14 @@ namespace SwimmingScoreboard
                 }
                 var ts = teamDict[sw.Country];
 
-                int idx = sw.CurrentRank - 1;
                 bool isRelay = sw.EventName.Contains("接力");
-                double points = 0;
+                double points = isRelay
+                    ? _scoringConfig.GetRelayPoint(sw.CurrentRank)
+                    : _scoringConfig.GetIndividualPoint(sw.CurrentRank);
 
-                if (idx >= 0 && idx < 8) {
-                    points = isRelay ? RelayPointsMultiplied[idx] : IndividualPoints[idx];
-                }
-
-                // 组别系数
-                if (sw.AgeCategory == "青少年" || sw.AgeCategory == "少年") {
-                    points = Math.Round(points * 0.8);
-                } else if (sw.AgeCategory == "大师") {
-                    points = Math.Round(points * 0.7);
-                }
+                // 组别系数：从配置读，找不到按 1.0
+                double coeff = _scoringConfig.GetAgeCoefficient(sw.AgeCategory);
+                if (coeff != 1.0) points = Math.Round(points * coeff);
 
                 if (isRelay) ts.RelayPoints += points;
                 else ts.IndividualPoints += points;
@@ -9962,6 +10087,7 @@ namespace SwimmingScoreboard
                     HeatCounts = _heatCounts,
                     BibRanges = _bibRanges,
                     LaneCloseSettings = _laneCloseSettings,
+                    ScoringConfig = _scoringConfig,
                     ProgramBook = _programBook,
                     ResultBook = _resultBook,
                     DisplayRecordLabel = _displayRecordLabel,
@@ -10021,6 +10147,14 @@ namespace SwimmingScoreboard
                     // 兼容旧数据：FinishPosition为空时，用StartPosition作为默认终点位置
                     if (string.IsNullOrEmpty(_laneCloseSettings.FinishPosition))
                         _laneCloseSettings.FinishPosition = _laneCloseSettings.StartPosition;
+                }
+                // 团体计分配置：旧档案没有就保留默认；空字段补默认值
+                if (package.ScoringConfig != null) {
+                    _scoringConfig = package.ScoringConfig;
+                    if (_scoringConfig.IndividualPoints == null || _scoringConfig.IndividualPoints.Count == 0
+                        || _scoringConfig.RelayPoints == null || _scoringConfig.RelayPoints.Count == 0) {
+                        _scoringConfig.ResetToDefaults();
+                    }
                 }
                 if (package.Events != null && package.Events.Count > 0) _events = package.Events;
                 if (package.AgeGroups != null && package.AgeGroups.Count > 0) _ageGroups = package.AgeGroups;

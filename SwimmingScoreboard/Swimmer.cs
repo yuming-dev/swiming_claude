@@ -1241,6 +1241,50 @@ namespace SwimmingScoreboard
         public string TypeName { get; set; }    // 完整名称（与 SwimmingRecord.RecordType 一致）
     }
 
+    // 团体计分配置：每个名次的得分、接力倍率、组别系数、取分人数
+    // 写到 CompetitionPackage 持久化，赛事重新加载时仍生效
+    public class ScoringConfig
+    {
+        // 个人项目第 1 / 2 / 3 / ... 名得分（按索引 0..N-1）
+        public List<double> IndividualPoints { get; set; }
+        // 接力项目第 1 / 2 / 3 / ... 名得分（按索引 0..N-1）
+        public List<double> RelayPoints { get; set; }
+        // 组别 → 得分系数（如 青少年=0.8、大师=0.7）；找不到则按 1.0 计
+        public Dictionary<string, double> AgeGroupCoefficients { get; set; }
+        // 取分人数（前 N 名得分），默认 8
+        public int RankCutoff { get; set; }
+        // 破纪录加分（每破 1 项纪录额外加分）；0 = 不加分
+        public double RecordBreakBonus { get; set; }
+
+        public ScoringConfig() { ResetToDefaults(); }
+
+        public void ResetToDefaults() {
+            IndividualPoints = new List<double> { 12, 10, 8, 7, 6, 5, 4, 3 };
+            RelayPoints      = new List<double> { 24, 20, 16, 14, 12, 10, 8, 6 };
+            AgeGroupCoefficients = new Dictionary<string, double> {
+                { "青少年", 0.8 }, { "少年", 0.8 }, { "大师", 0.7 }
+            };
+            RankCutoff = 8;
+            RecordBreakBonus = 0;
+        }
+
+        public double GetIndividualPoint(int rank) {
+            int idx = rank - 1;
+            if (idx < 0 || idx >= (IndividualPoints != null ? IndividualPoints.Count : 0)) return 0;
+            return IndividualPoints[idx];
+        }
+        public double GetRelayPoint(int rank) {
+            int idx = rank - 1;
+            if (idx < 0 || idx >= (RelayPoints != null ? RelayPoints.Count : 0)) return 0;
+            return RelayPoints[idx];
+        }
+        public double GetAgeCoefficient(string ageGroup) {
+            if (string.IsNullOrEmpty(ageGroup) || AgeGroupCoefficients == null) return 1.0;
+            double c;
+            return AgeGroupCoefficients.TryGetValue(ageGroup, out c) ? c : 1.0;
+        }
+    }
+
     public class CompetitionPackage
     {
         public string CompetitionName { get; set; }
@@ -1278,6 +1322,8 @@ namespace SwimmingScoreboard
         public List<DisplayRecordOption> DisplayRecordOptions { get; set; } // 可选项（预设+用户自定义）
         // 已"确认本组成绩"并锁定的组次列表，元素 = "<组别>|<性别>|<项目>|<赛次>|<组次>"
         public List<string> ConfirmedHeats { get; set; }
+        // 团体计分配置（名次分 / 接力倍率 / 组别系数 / 取分人数 / 破纪录加分）
+        public ScoringConfig ScoringConfig { get; set; }
 
         public CompetitionPackage() {
             CompetitionMode = "domestic";
@@ -1294,6 +1340,7 @@ namespace SwimmingScoreboard
             BibRanges = new List<BibRange>();
             LaneCloseSettings = new LaneCloseSettings();
             DisputeLog = new Dictionary<string, List<string>>();
+            ScoringConfig = new ScoringConfig();
         }
     }
 
