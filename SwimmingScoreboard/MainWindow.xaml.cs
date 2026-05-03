@@ -12118,27 +12118,70 @@ namespace SwimmingScoreboard
                 return sa != null ? sa.Lane : s.Lane;
             }).ToList();
 
-            foreach (var sw in swimmers) {
-                var result = sw.Results.FirstOrDefault(r => r.Stage == stage && r.Heat == heat);
-                if (result == null || result.Splits.Count == 0) continue;
-                string spName = sw.Name;
-                if (isRelay && !string.IsNullOrEmpty(sw.Notes) && sw.Notes.StartsWith("接力队 棒次:"))
-                    spName = sw.Notes.Substring("接力队 棒次:".Length);
-                int dispLane = (result != null && result.Lane > 0) ? result.Lane : sw.Lane;
-                string spLabel = isRelay
-                    ? string.Format("泳道 {0} &nbsp; {1} （{2}）", dispLane, System.Net.WebUtility.HtmlEncode(sw.Country ?? ""), System.Net.WebUtility.HtmlEncode(spName ?? ""))
-                    : string.Format("泳道 {0} &nbsp; {1} （{2}）", dispLane, System.Net.WebUtility.HtmlEncode(spName ?? ""), System.Net.WebUtility.HtmlEncode(sw.Country ?? ""));
-                sb.AppendFormat("<h4 style='margin-top:30px;'>{0} &nbsp; 最终成绩：{1}</h4>", spLabel, TimeFormatter.Format(result.FinalTime));
-                sb.Append("<table><tr><th width='50'>段</th><th width='70'>距离</th><th width='90'>分段时间</th><th width='90'>累计时间</th></tr>");
-                foreach (var split in result.Splits) {
-                    sb.AppendFormat("<tr><td>{0}</td><td>{1}m</td><td>{2}</td><td style='font-weight:bold;'>{3}</td></tr>",
-                        split.Lap, split.Distance, TimeFormatter.Format(split.Time), TimeFormatter.Format(split.CumulativeTime));
-                }
-                sb.Append("</table>");
-            }
+            // 把同组所有运动员的分段成绩合并到一张表：每位一行，每段距离一列。
+            // 单元格双行：上行=累计时间（粗体），下行=本段时间（小字灰色，括号包裹）。
+            sb.Append(BuildMergedSplitsTableHtml(swimmers, stage, heat, isRelay));
             sb.Append(DocSignatureRow());
             sb.Append(DocFooter());
             sb.Append("</body></html>");
+            return sb.ToString();
+        }
+
+        // 合并表渲染：把指定组的所有运动员分段成绩拼成一张表
+        private string BuildMergedSplitsTableHtml(List<Swimmer> swimmers, string stage, int heat, bool isRelay) {
+            var sb = new StringBuilder();
+            // 找参考运动员（分段最齐全者）来确定列：所有出现过的距离的并集，按升序
+            var distSet = new SortedSet<int>();
+            var rowData = new List<Tuple<Swimmer, LaneResult>>();
+            foreach (var sw in swimmers) {
+                var result = sw.Results.FirstOrDefault(r => r.Stage == stage && r.Heat == heat);
+                if (result == null || result.Splits.Count == 0) continue;
+                rowData.Add(Tuple.Create(sw, result));
+                foreach (var sp in result.Splits) if (sp.Distance > 0) distSet.Add(sp.Distance);
+            }
+            if (rowData.Count == 0) {
+                sb.Append("<p style='text-align:center;color:#94a3b8;margin-top:40px;'>本组暂无分段计时数据。</p>");
+                return sb.ToString();
+            }
+            var dists = distSet.ToList();
+
+            sb.Append("<table style='margin-top:20px;'>");
+            sb.Append("<tr>");
+            sb.Append("<th width='40'>道</th>");
+            sb.AppendFormat("<th width='110'>{0}</th>", isRelay ? "代表队" : "姓名");
+            sb.AppendFormat("<th width='110'>{0}</th>", isRelay ? "队员" : "代表队");
+            foreach (var d in dists) sb.AppendFormat("<th width='80'>{0}m</th>", d);
+            sb.Append("<th width='90'>最终成绩</th></tr>");
+
+            foreach (var pair in rowData) {
+                var sw = pair.Item1;
+                var result = pair.Item2;
+                int dispLane = result.Lane > 0 ? result.Lane : sw.Lane;
+                string spName = sw.Name;
+                if (isRelay && !string.IsNullOrEmpty(sw.Notes) && sw.Notes.StartsWith("接力队 棒次:"))
+                    spName = sw.Notes.Substring("接力队 棒次:".Length);
+                string col1 = isRelay ? (sw.Country ?? "") : (spName ?? "");
+                string col2 = isRelay ? (spName ?? "") : (sw.Country ?? "");
+                sb.AppendFormat("<tr><td style='text-align:center;font-weight:bold;'>{0}</td><td><b>{1}</b></td><td>{2}</td>",
+                    dispLane,
+                    System.Net.WebUtility.HtmlEncode(col1),
+                    System.Net.WebUtility.HtmlEncode(col2));
+                foreach (var d in dists) {
+                    var split = result.Splits.FirstOrDefault(sp => sp.Distance == d);
+                    if (split == null) {
+                        sb.Append("<td style='text-align:center;color:#cbd5e1;'>—</td>");
+                    } else {
+                        // 累计时间（粗体上行）+ 本段时间（小字下行带括号）
+                        sb.AppendFormat("<td style='text-align:center;font-family:Consolas,monospace;'><b>{0}</b><br><span style='font-size:10px;color:#64748b;'>({1})</span></td>",
+                            TimeFormatter.Format(split.CumulativeTime), TimeFormatter.Format(split.Time));
+                    }
+                }
+                sb.AppendFormat("<td style='text-align:center;font-weight:bold;background:#eff6ff;font-family:Consolas,monospace;'>{0}</td>",
+                    TimeFormatter.Format(result.FinalTime));
+                sb.Append("</tr>");
+            }
+            sb.Append("</table>");
+            sb.Append("<p style='font-size:11px;color:#64748b;margin-top:6px;'>说明：单元格上行为<b>累计时间</b>，下行为<i>本段时间</i>。</p>");
             return sb.ToString();
         }
 
@@ -13489,22 +13532,9 @@ namespace SwimmingScoreboard
             string dateTimeInfo = sch != null ? string.Format("{0} {1}", sch.Date, sch.Time).Trim() : "（时间待定）";
             sb.AppendFormat("<h4>比赛时间：{0} &nbsp;&nbsp;&nbsp;&nbsp; 地点：{1}</h4>", dateTimeInfo, LocationBox.Text);
 
-            foreach (var sw in GetCurrentHeatSwimmers().OrderBy(s => s.Lane)) {
-                var result = sw.Results.FirstOrDefault(r => r.Stage == _currentStage && r.Heat == _currentHeat);
-                if (result == null || result.Splits.Count == 0) continue;
-                string spName = sw.Name;
-                if (_isRelay && !string.IsNullOrEmpty(sw.Notes) && sw.Notes.StartsWith("接力队 棒次:"))
-                    spName = sw.Notes.Substring("接力队 棒次:".Length);
-                string spLabel = _isRelay ? string.Format("泳道 {0} &nbsp; {1} （{2}）", sw.Lane, sw.Country, spName)
-                    : string.Format("泳道 {0} &nbsp; {1} （{2}）", sw.Lane, spName, sw.Country);
-                sb.AppendFormat("<h4 style='margin-top:30px;'>{0} &nbsp; 最终成绩：{1}</h4>", spLabel, TimeFormatter.Format(result.FinalTime));
-                sb.Append("<table><tr><th width='50'>段</th><th width='70'>距离</th><th width='90'>分段时间</th><th width='90'>累计时间</th></tr>");
-                foreach (var split in result.Splits) {
-                    sb.AppendFormat("<tr><td>{0}</td><td>{1}m</td><td>{2}</td><td style='font-weight:bold;'>{3}</td></tr>",
-                        split.Lap, split.Distance, TimeFormatter.Format(split.Time), TimeFormatter.Format(split.CumulativeTime));
-                }
-                sb.Append("</table>");
-            }
+            // 合并表：每位运动员一行，每段距离一列（与 BuildSplitTimeReportHtmlFor 共用）
+            var heatSwimmers = GetCurrentHeatSwimmers().OrderBy(s => s.Lane).ToList();
+            sb.Append(BuildMergedSplitsTableHtml(heatSwimmers, _currentStage, _currentHeat, _isRelay));
             sb.Append(DocSignatureRow());
             sb.Append(DocFooter());
             sb.Append("</body></html>");
