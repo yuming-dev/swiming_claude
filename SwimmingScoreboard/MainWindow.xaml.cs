@@ -1639,13 +1639,14 @@ namespace SwimmingScoreboard
             }).OrderBy(s => s.GetResultForStage(_currentStage).FinalTime).ToList();
 
             // 并列名次（competition ranking 1-2-2-4）：同 FinalTime 并列，后续名次跳过
+            // 浮点容差：百分秒级精度，5ms 内视为并列
             int idxER = 0, rank = 1;
             double prevTimeER = -1;
             foreach (var sw in withTimes) {
                 var r = sw.GetResultForStage(_currentStage);
                 idxER++;
                 double curT = r != null ? r.FinalTime : 0;
-                if (idxER == 1 || curT != prevTimeER) rank = idxER;
+                if (idxER == 1 || !IsTieTime(curT, prevTimeER)) rank = idxER;
                 prevTimeER = curT;
                 string rkName = sw.Name;
                 if (rankRelay && !string.IsNullOrEmpty(sw.Notes) && sw.Notes.StartsWith("接力队 棒次:"))
@@ -2911,7 +2912,8 @@ namespace SwimmingScoreboard
             foreach (var sw in withResults) {
                 var r = sw.Results.FirstOrDefault(lr => lr.Stage == _currentStage && lr.Heat == _currentHeat);
                 idx++;
-                if (idx == 1 || (r != null && r.FinalTime != prevTime)) rank = idx;
+                // 浮点容差：百分秒级精度，5ms 内视为并列；直接 == 会因不同计时源裁定的微小差异导致漏并列
+                if (idx == 1 || (r != null && !IsTieTime(r.FinalTime, prevTime))) rank = idx;
                 if (r != null) { r.Rank = rank; prevTime = r.FinalTime; }
                 sw.CurrentRank = rank;
             }
@@ -2981,6 +2983,14 @@ namespace SwimmingScoreboard
             // FINA 惯例：纪录归本组最快者所有；慢于他的同组选手即便也好于历史纪录，也不计破纪录。
             EnforceOnlyLeaderRecordNote();
             return tags.Count > 0;
+        }
+
+        // 并列名次比较：游泳成绩按 0.01s 精度判定，绝对差小于 5ms 视为并列。
+        // 直接 == 比较 double 会因不同计时源（触板/盲表均值/手动）裁定的微小浮点差异漏并列。
+        // 5 处排名计算（UpdateHeatRanking / GetEventRanking / ComputeLiveRanks / 两处打印）统一调用此方法。
+        private const double TieTolerance = 0.005;
+        private static bool IsTieTime(double a, double b) {
+            return Math.Abs(a - b) < TieTolerance;
         }
 
         // 仅本组最快成绩（含并列）的 LaneResult.RecordNote 保留；其它人 RecordNote 清空。
@@ -4373,7 +4383,7 @@ namespace SwimmingScoreboard
                 if (i > 0) {
                     var prev = rankables[i - 1];
                     var cur = rankables[i];
-                    bool tieEligible = prev.Item4 && cur.Item4 && prev.Item3 == cur.Item3;
+                    bool tieEligible = prev.Item4 && cur.Item4 && IsTieTime(prev.Item3, cur.Item3);
                     if (!tieEligible) rank = i + 1;
                 }
                 liveRanks[rankables[i].Item1] = rank;
@@ -13074,7 +13084,7 @@ namespace SwimmingScoreboard
                             string rankText;
                             if (dq) { rankText = "—"; }
                             else {
-                                if (r.FinalTime == prevTime && prevTime > 0) {
+                                if (IsTieTime(r.FinalTime, prevTime) && prevTime > 0) {
                                     rankText = "=" + prevRank.ToString();
                                 } else {
                                     rankText = rank.ToString();
@@ -13223,7 +13233,7 @@ namespace SwimmingScoreboard
             foreach (var x in list) {
                 int useRank;
                 bool tie = false;
-                if (x.R.FinalTime == prevTime) { useRank = prevRank; tie = true; }
+                if (IsTieTime(x.R.FinalTime, prevTime)) { useRank = prevRank; tie = true; }
                 else { useRank = rank; prevRank = rank; prevTime = x.R.FinalTime; }
                 result.Add(new RankRow { Swimmer = x.Swimmer, Rank = useRank, IsTie = tie, TimeText = TimeFormatter.Format(x.R.FinalTime) });
                 rank++;
