@@ -2985,12 +2985,18 @@ namespace SwimmingScoreboard
             return tags.Count > 0;
         }
 
-        // 并列名次比较：游泳成绩按 0.01s 精度判定，绝对差小于 5ms 视为并列。
-        // 直接 == 比较 double 会因不同计时源（触板/盲表均值/手动）裁定的微小浮点差异漏并列。
+        // 并列名次比较：硬件计时控制器以 1/100 秒精度（单字节）发送成绩，
+        // 软件侧 FinalTime 是 double，存储 0.5468 这样的值时由于 IEEE 754 表达
+        // 会有微小尾差（54.68 实际为 54.68000000000000682…），不同计时源裁定后
+        // "本应并列"的两条成绩用 == 比较常常失败。
+        // 因此先按硬件精度四舍五入到 1/100 秒整数（百分秒），再做 int 相等比较：
+        // 两条都 round 到 5468 → 视为并列；硬件上一致即并列，与精度直接对齐。
         // 5 处排名计算（UpdateHeatRanking / GetEventRanking / ComputeLiveRanks / 两处打印）统一调用此方法。
-        private const double TieTolerance = 0.005;
         private static bool IsTieTime(double a, double b) {
-            return Math.Abs(a - b) < TieTolerance;
+            // MidpointRounding.AwayFromZero 与裁判惯例一致：54.685 → 54.69 而非 54.68
+            long ah = (long)Math.Round(a * 100.0, MidpointRounding.AwayFromZero);
+            long bh = (long)Math.Round(b * 100.0, MidpointRounding.AwayFromZero);
+            return ah == bh;
         }
 
         // 仅本组最快成绩（含并列）的 LaneResult.RecordNote 保留；其它人 RecordNote 清空。
@@ -3006,11 +3012,13 @@ namespace SwimmingScoreboard
                 if (r.FinalTime < leaderTime) leaderTime = r.FinalTime;
             }
             if (leaderTime == double.MaxValue) return;
-            const double tieTol = 0.0049;       // 5ms 内视为并列第 1
+            // 与 IsTieTime 同精度：按硬件 1/100 秒整数比较，避免浮点尾差
+            long leaderHundredths = (long)Math.Round(leaderTime * 100.0, MidpointRounding.AwayFromZero);
             foreach (var sw in swimmers) {
                 var r = sw.Results.FirstOrDefault(lr => lr.Stage == _currentStage && lr.Heat == _currentHeat);
                 if (r == null || string.IsNullOrEmpty(r.RecordNote)) continue;
-                if (r.FinalTime > leaderTime + tieTol) {
+                long curH = (long)Math.Round(r.FinalTime * 100.0, MidpointRounding.AwayFromZero);
+                if (curH > leaderHundredths) {
                     AddLog(string.Format("  泳道{0} {1} 非本组第1名（{2} > {3}），清除破/平纪录标识 [{4}]",
                         sw.Lane, sw.Name, TimeFormatter.Format(r.FinalTime), TimeFormatter.Format(leaderTime), r.RecordNote));
                     r.RecordNote = "";
