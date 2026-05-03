@@ -855,22 +855,24 @@ function renderHeatResult() {
         else if (s.rank === 3) { rankClass = 'bronze'; rankText = '3'; }
         else if (s.rank > 0) { rankText = s.rank; }
 
-        var remarkText = '';
-        // 起跳犯规判罚改为人工：仅当裁判手动设置 Status=DSQ 才显示
+        // 备注栏优先级（确认成绩后的本组成绩榜）：DSQ/DNS/DNF（红）> 破/平纪录 recordNote（金）
+        var remarkText = '', remarkColor = '';
         if (s.status === 'DSQ') remarkText = 'DSQ';
         else if (s.status === 'DNS') remarkText = 'DNS';
         else if (s.status === 'DNF') remarkText = 'DNF';
-        var resultText = remarkText ? '' : (s.finalTime || '');
+        if (!remarkText && s.recordNote) { remarkText = s.recordNote; remarkColor = '#fbbf24'; }
+        var resultText = (s.status === 'DSQ' || s.status === 'DNS' || s.status === 'DNF') ? '' : (s.finalTime || '');
 
         var c1 = relay ? (s.country||'') : (s.name||'');
         var c2 = relay ? (s.name||'') : (s.country||'');
+        var remarkStyle = remarkColor ? (' style="color:' + remarkColor + ';"') : '';
         row.innerHTML =
             '<div class="rank ' + rankClass + '">' + rankText + '</div>' +
             '<div class="swimmer-name" style="width:' + c1Width + ';">' + c1 + '</div>' +
             '<div class="swimmer-team" style="width:' + c2Width + ';">' + c2 + '</div>' +
             '<div class="lane-num">' + s.lane + '</div>' +
             '<div class="result-time">' + resultText + '</div>' +
-            '<div class="remark">' + remarkText + '</div>';
+            '<div class="remark"' + remarkStyle + '>' + remarkText + '</div>';
         container.appendChild(row);
     }
 }
@@ -949,21 +951,24 @@ function renderPublishedResult(pubData) {
         else if (s.rank === 3) { rankClass = 'bronze'; rankText = '3'; }
         else if (s.rank > 0) { rankText = s.rank; }
 
-        var remarkText = '';
+        // 备注栏优先级（公布成绩）：DSQ/DNS/DNF（红）> 破/平纪录 recordNote（金）
+        var remarkText = '', remarkColor = '';
         if (s.status === 'DSQ' || s.resultStatus === 'DSQ') remarkText = 'DSQ';
         else if (s.status === 'DNS') remarkText = 'DNS';
         else if (s.status === 'DNF') remarkText = 'DNF';
-        var pubResultText = remarkText ? '' : (s.finalTime || '');
+        if (!remarkText && s.recordNote) { remarkText = s.recordNote; remarkColor = '#fbbf24'; }
+        var pubResultText = (s.status === 'DSQ' || s.status === 'DNS' || s.status === 'DNF' || s.resultStatus === 'DSQ') ? '' : (s.finalTime || '');
 
         var pc1 = pubRelay ? (s.country||'') : (s.name||'');
         var pc2 = pubRelay ? (s.name||'') : (s.country||'');
+        var pubRemarkStyle = ' style="font-size:' + fontSize + 'vh;' + (remarkColor ? ('color:' + remarkColor + ';') : '') + '"';
         row.innerHTML =
             '<div class="rank ' + rankClass + '" style="font-size:' + rankSize + 'vh;">' + rankText + '</div>' +
             '<div class="swimmer-name" style="width:' + pc1Width + ';font-size:' + fontSize + 'vh;">' + pc1 + '</div>' +
             '<div class="swimmer-team" style="width:' + pc2Width + ';font-size:' + fontSize + 'vh;">' + pc2 + '</div>' +
             '<div class="lane-num" style="font-size:' + laneNumSize + 'vh;">' + s.lane + '</div>' +
             '<div class="result-time" style="font-size:' + fontSize + 'vh;">' + pubResultText + '</div>' +
-            '<div class="remark" style="font-size:' + fontSize + 'vh;">' + remarkText + '</div>';
+            '<div class="remark"' + pubRemarkStyle + '>' + remarkText + '</div>';
         container.appendChild(row);
     }
 }
