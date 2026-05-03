@@ -1663,7 +1663,10 @@ namespace RemoteTimingControl
             string[] parts = names.Split(',');
             if (parts.Length <= 1) return names;
 
-            int currentLap = sw["currentLap"] != null ? (int)sw["currentLap"] : 0;
+            // 优先用 displayedCurrentLap（含 spinner 加/减圈偏移），旧版主控只有 currentLap 时退回用之
+            int currentLap;
+            if (sw["displayedCurrentLap"] != null) currentLap = (int)sw["displayedCurrentLap"];
+            else currentLap = sw["currentLap"] != null ? (int)sw["currentLap"] : 0;
             string ev = _data["currentEvent"] != null ? _data["currentEvent"].ToString() : "";
             Match m = Regex.Match(ev, @"(\d+)\s*[x×]\s*(\d+)");
             int legCount = m.Success ? int.Parse(m.Groups[1].Value) : 4;

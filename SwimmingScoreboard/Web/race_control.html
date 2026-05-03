@@ -1412,8 +1412,8 @@ function getSplitOrFinalTime(sw) {
 function getRelayCurrentLegName(sw) {
     var names = (sw.name||'').split(',');
     if (names.length <= 1) return sw.name || '';
-    // 根据当前段数计算第几棒
-    var currentLap = sw.currentLap || 0;
+    // 根据当前段数计算第几棒；优先用 displayedCurrentLap（含 spinner 加/减圈偏移）
+    var currentLap = (typeof sw.displayedCurrentLap === 'number') ? sw.displayedCurrentLap : (sw.currentLap || 0);
     var ev = data.currentEvent || '';
     var m = ev.match(/(\d+)\s*[x×]\s*(\d+)/);
     var legCount = m ? parseInt(m[1]) : 4;

@@ -1392,6 +1392,9 @@ namespace SwimmingScoreboard
                     isNewRecord = result != null && !string.IsNullOrEmpty(result.RecordNote),
                     recordNote = result != null ? (result.RecordNote ?? "") : "",
                     currentLap = laneState != null ? laneState.CurrentLap : 0,
+                    // 含 spinner 人工偏移的"显示用当前圈数" = 总圈数 − 左剩余显示 − 右剩余显示。
+                    // 接力赛大屏 / 三端控制台据此推算"第N棒"，让加圈/减圈即时切换棒次显示。
+                    displayedCurrentLap = laneState != null ? GetDisplayedCurrentLap(laneState) : 0,
                     // 已记录最终成绩的运动员（即便 LaneDeviceState.IsFinished 因切组被复位）也算作完赛
                     isFinished = (laneState != null && laneState.IsFinished) || (result != null && result.FinalTime > 0),
                     leftTouchRemain = GetDisplayedLapCount(laneState, true),
@@ -2848,6 +2851,20 @@ namespace SwimmingScoreboard
             AddLog(string.Format("泳道{0} 手动调整{1}侧圈数显示: {2}→{3}", lane, isLeft ? "左" : "右", curDisp, newDisp));
             UpdateLaneStatusDisplay();
             Broadcast();
+        }
+
+        // 含 spinner 偏移的"显示用当前圈数"：
+        // = 总圈数 − 左剩余显示 − 右剩余显示
+        // 用于接力赛"第N棒"的实时切换：用户 ▲ 加圈 → 剩余降低 → 当前圈数升高 → 棒次自动前进。
+        private int GetDisplayedCurrentLap(LaneDeviceState ls) {
+            if (ls == null) return 0;
+            int totalLaps = GetTotalLaps();
+            int leftRemain = GetDisplayedLapCount(ls, true);
+            int rightRemain = GetDisplayedLapCount(ls, false);
+            int v = totalLaps - leftRemain - rightRemain;
+            if (v < 0) v = 0;
+            if (v > totalLaps) v = totalLaps;
+            return v;
         }
 
         // 显示用的"该侧剩余圈数" = GetTouchRemain(自动推算) + 人工 spinner 偏移；钳到 [0, 该侧触板总次数]。
@@ -4488,7 +4505,8 @@ namespace SwimmingScoreboard
                 if (rowUI.NameText != null && rowUI.TeamText != null) {
                     if (_isRelay) {
                         rowUI.NameText.Text = sw.Country ?? "";
-                        rowUI.TeamText.Text = ComputeRelayCurrentLegLabel(sw, ls != null ? ls.CurrentLap : 0, isFinished);
+                        // 用 spinner 偏移后的圈数，让"加圈/减圈"即时切换棒次显示
+                        rowUI.TeamText.Text = ComputeRelayCurrentLegLabel(sw, GetDisplayedCurrentLap(ls), isFinished);
                     } else {
                         rowUI.NameText.Text = sw.Name ?? "";
                         rowUI.TeamText.Text = sw.Country ?? "";

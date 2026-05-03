@@ -577,7 +577,9 @@ function _realSplitInfoOf(ds) {
 function getRelayCurrentLegName(sw) {
     var names = (sw.name||'').split(',');
     if (names.length <= 1) return (sw.name || '').trim();
-    var currentLap = sw.currentLap || 0;
+    // 优先用服务器的 displayedCurrentLap（含 spinner 加圈/减圈偏移），
+    // 旧版主控只有 currentLap 时退回用之
+    var currentLap = (typeof sw.displayedCurrentLap === 'number') ? sw.displayedCurrentLap : (sw.currentLap || 0);
     var ev = data.currentEvent || '';
     var m = ev.match(/(\d+)\s*[x×]\s*(\d+)/);
     var legCount = m ? parseInt(m[1]) : 4;
