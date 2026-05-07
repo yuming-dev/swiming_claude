@@ -2082,21 +2082,26 @@ namespace SwimmingScoreboard
                 return;
             }
             // 硬件触发的比赛控制命令：任何状态下都接收
+            // 三个命令统一去抖：距上次本地控制（用户按 主服务器 任一控制键）不到 ResetDebounceMs，
+            // 视为硬件回弹整组吞掉，避免硬件"复位键发 0x20+0x21+0x1C 组合"把刚刚的本地复位顶回 Racing
+            switch (cmdType) {
+                case "TimerReady":
+                case "StartCommand":
+                case "TimerReset": {
+                    double sinceLocal = (DateTime.Now - _lastResetAt).TotalMilliseconds;
+                    if (_lastResetAt != DateTime.MinValue && sinceLocal < ResetDebounceMs) {
+                        AddLog(string.Format("硬件 {0} 被忽略：距上次本地控制仅 {1:F0} ms，疑似回弹", cmdType, sinceLocal));
+                        return;
+                    }
+                    break;
+                }
+            }
             switch (cmdType) {
                 case "TimerReady":
                     AddLog("硬件触发: 就位");
                     Ready_Click(null, null);
                     return;
                 case "StartCommand":
-                    // 复位刚刚发生过 → 当前 0x1C 大概率是硬件复位键的回弹（部分硬件复位会同时发 0x20+0x1C），
-                    // 直接忽略，否则比赛会被自动再次启动，软件按键看起来就"失灵"
-                    {
-                        double sinceReset = (DateTime.Now - _lastResetAt).TotalMilliseconds;
-                        if (_lastResetAt != DateTime.MinValue && sinceReset < ResetDebounceMs) {
-                            AddLog(string.Format("硬件 0x1C 被忽略：距上次复位仅 {0:F0} ms，疑似复位回弹", sinceReset));
-                            return;
-                        }
-                    }
                     AddLog("硬件触发: 发令");
                     // 若仍在 Waiting 状态，先自动就位再发令，确保定时器能启动
                     if (_raceState == RaceState.Waiting) Ready_Click(null, null);
@@ -2105,7 +2110,7 @@ namespace SwimmingScoreboard
                 case "TimerReset":
                     AddLog("硬件触发: 计时清零");
                     Restart_Click(null, null);
-                    _lastResetAt = DateTime.Now;       // 标记复位时刻，给后续 0x1C 去抖参考
+                    _lastResetAt = DateTime.Now;       // 标记复位时刻，给后续硬件命令去抖参考
                     return;
             }
 
@@ -3306,7 +3311,10 @@ namespace SwimmingScoreboard
             }
 
             AddLog("就位");
-            if (sender != null && _timingBridge != null && _timingBridge.IsConnected) _timingBridge.SendCommand(0x21);
+            if (sender != null) {
+                _lastResetAt = DateTime.Now;     // 本地控制：1 秒内吞掉硬件回弹的 0x21/0x1C/0x20
+                if (_timingBridge != null && _timingBridge.IsConnected) _timingBridge.SendCommand(0x21);
+            }
             Broadcast();
         }
 
@@ -3362,7 +3370,10 @@ namespace SwimmingScoreboard
             sbTimer.Start();
 
             AddLog("发令 - 比赛开始");
-            if (sender != null && _timingBridge != null && _timingBridge.IsConnected) _timingBridge.SendCommand(0x1C);
+            if (sender != null) {
+                _lastResetAt = DateTime.Now;     // 本地控制：1 秒内吞掉硬件回弹
+                if (_timingBridge != null && _timingBridge.IsConnected) _timingBridge.SendCommand(0x1C);
+            }
             Broadcast();
         }
 
@@ -3401,12 +3412,27 @@ namespace SwimmingScoreboard
         }
 
         private void Restart_Click(object sender, RoutedEventArgs e) {
-            // 防再入：上一次"已确认+计时器清零"已把 _currentHeat 置 0、大屏切到 SHOW_WELCOME；
-            // 此时若硬件 TimerReset/远程再发一次 TIMER_RESET 进来，再次执行会广播 SHOW_LIVE_RACE
-            // 把欢迎画面顶掉。这里直接重发一次 SHOW_WELCOME（幂等）并返回。
+            // _currentHeat <= 0 = 没当前组：仍要硬复位状态机和滚动时间显示，
+            // 否则 主服务器 复位 / 就位 / 发令 按钮在这种"看上去没在比赛"状态下都会静默失效。
+            // sender == null（硬件/远程触发）时再额外广播 SHOW_WELCOME 保护欢迎画面。
             if (_currentHeat <= 0) {
-                if (sender == null) {   // 远程/硬件触发的二次重置
+                _raceState = RaceState.Waiting;
+                if (_raceTimer != null) _raceTimer.Stop();
+                if (_countdownTimer != null) _countdownTimer.Stop();
+                _runningTime = 0;
+                _raceStartTime = DateTime.MinValue;
+                _hwRunningTimeAvailable = false;
+                _hwRunningTimeReceivedAt = DateTime.MinValue;
+                _hwRunningTimeSec = 0;
+                _lastResetAt = DateTime.Now;
+                if (RunningTimeText != null) RunningTimeText.Text = "0.00";
+                try { UpdateRaceStateDisplay(); } catch { }
+                if (sender == null) {
                     try { BroadcastDisplayMode("SHOW_WELCOME"); } catch { Broadcast(); }
+                } else if (_timingBridge != null && _timingBridge.IsConnected) {
+                    _timingBridge.SendCommand(0x20);
+                    _timingBridge.SendCommand(0x7F);
+                    AddLog("空组态硬复位：已向硬件发送 0x20 + 0x7F");
                 }
                 return;
             }
