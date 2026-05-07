@@ -1888,6 +1888,46 @@ namespace SwimmingScoreboard
             return 0;
         }
 
+        // 0x43 Set_MatchEvent: 告诉硬件本场比赛的总圈数 + 左右两侧期望触板次数 + 空泳道位图。
+        // 参考程序（C:\2024年11月2日PM SWIM串口通讯程序Server）每次按"准备就绪"前必发此帧；
+        // 否则硬件不知道比赛结构，后续 0x21 / 0x1C 都不会进入 Ready / 开始计时。
+        // 帧布局：F1 53 43 [D3=All_Lap] [D4=RightExpected] [D5=LeftExpected] [D6=LackLane0_4] [D7=LackLane5_9] 0 0 0 F4
+        // LackLane 位图编码：bit i = 第 i 道空（1）/ 有运动员（0）；位 0..4 装在 D6，位 5..9 装在 D7
+        private void SendSetMatchEventToHardware() {
+            if (_applyingHardwareSettings) return;
+            if (_timingBridge == null || !_timingBridge.IsConnected) return;
+            if (string.IsNullOrEmpty(_currentEvent)) return;
+            try {
+                int totalLaps = GetTotalLaps();
+                int leftTotal, rightTotal;
+                GetRaceTouchTotals(totalLaps, out leftTotal, out rightTotal);
+                // 空泳道位图：当前组没有运动员的泳道置 1
+                var swimmers = GetCurrentHeatSwimmers();
+                var occupiedLanes = new HashSet<int>();
+                foreach (var sw in swimmers) {
+                    var sa = sw.GetAssignmentForStage(_currentStage);
+                    int ln = sa != null ? sa.Lane : sw.Lane;
+                    if (ln >= 0 && ln <= 9) occupiedLanes.Add(ln);
+                }
+                byte lackLane0_4 = 0, lackLane5_9 = 0;
+                for (int i = 0; i <= 4; i++) {
+                    if (!occupiedLanes.Contains(i)) lackLane0_4 |= (byte)(1 << i);
+                }
+                for (int i = 5; i <= 9; i++) {
+                    if (!occupiedLanes.Contains(i)) lackLane5_9 |= (byte)(1 << (i - 5));
+                }
+                _timingBridge.SendFullFrame(0x43,
+                    (byte)Math.Min(255, totalLaps),
+                    (byte)Math.Min(255, rightTotal),
+                    (byte)Math.Min(255, leftTotal),
+                    lackLane0_4, lackLane5_9, 0);
+                AddLog(string.Format("Set_MatchEvent 已下发: 总圈{0} 右{1} 左{2} 空道0-4=0x{3:X2} 空道5-9=0x{4:X2}",
+                    totalLaps, rightTotal, leftTotal, lackLane0_4, lackLane5_9));
+            } catch (Exception ex) {
+                AddLog("Set_MatchEvent 下发失败: " + ex.Message);
+            }
+        }
+
         private void SendRaceDistanceToHardware() {
             if (_applyingHardwareSettings) return;
             if (_timingBridge == null || !_timingBridge.IsConnected) return;
@@ -3288,9 +3328,13 @@ namespace SwimmingScoreboard
                 state.ResetForNewRace(_laneCloseSettings.StartPosition);
             }
             AddLog("就位");
-            // 用户本地点"就位"才发 0x21；硬件触发的（sender==null）已是硬件自身行为，不再回送
+            // 用户本地点"就位"才发 0x43+0x21；硬件触发的（sender==null）已是硬件自身行为，不再回送
+            // 0x43 Set_MatchEvent 必须先于 0x21 发送（参考 C:\2024年11月2日PM SWIM串口通讯程序Server），
+            // 否则硬件不知道比赛结构，0x21 不会让它真正进入 Ready
             if (sender != null && _timingBridge != null && _timingBridge.IsConnected) {
+                SendSetMatchEventToHardware();
                 _timingBridge.SendCommand(0x21);
+                AddLog("已向硬件发送 0x43 Set_MatchEvent + 0x21 准备就绪");
             }
             Broadcast();
         }
@@ -3345,12 +3389,12 @@ namespace SwimmingScoreboard
             sbTimer.Start();
 
             AddLog("发令 - 比赛开始");
-            // 发令前把全部参数 / 设备状态 / 比赛距离推送给硬件，让硬件用最新参数开始计时；
-            // 之后再发 0x1C 启动硬件计时器。这样 复位 / 就绪 不需要再做 param sync。
+            // 发令前把全部参数 / 设备状态 / 比赛配置推送给硬件，确保硬件用最新参数开始计时
+            // 顺序参考 C:\2024年11月2日PM SWIM串口通讯程序Server：先 Set_MatchEvent (0x43)，再 0x1C
             if (sender != null && _timingBridge != null && _timingBridge.IsConnected) {
                 try { SendTimingSettingsToHardware(); } catch (Exception ex) { AddLog("参数同步失败: " + ex.Message); }
                 try { SendDeviceStatusesToHardware(); } catch (Exception ex) { AddLog("设备状态同步失败: " + ex.Message); }
-                try { SendRaceDistanceToHardware(); } catch (Exception ex) { AddLog("比赛距离同步失败: " + ex.Message); }
+                try { SendSetMatchEventToHardware(); } catch (Exception ex) { AddLog("Set_MatchEvent 同步失败: " + ex.Message); }
                 _timingBridge.SendCommand(0x1C);
                 AddLog("已向硬件发送 0x1C 发令");
             }
