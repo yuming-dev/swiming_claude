@@ -385,21 +385,29 @@ namespace SwimmingScoreboard
             frame[8] = d8;
             frame[FRAME_LENGTH - 1] = EOT;
 
+            // 逐字节十六进制日志，便于对照硬件协议判定收到的帧是否符合预期
+            string hex = string.Format("F1 53 {0:X2} {1:X2} {2:X2} {3:X2} {4:X2} {5:X2} {6:X2} {7:X2} 00 F4",
+                command, d3, d4, d5, d6, d7, d8);
             try {
                 if (ConnectionMode == TimingConnectionMode.SerialPort && _serialPort != null && _serialPort.IsOpen) {
                     _serialPort.Write(frame, 0, frame.Length);
+                    RaiseLog("发帧[串口]: " + hex);
                 } else if (ConnectionMode == TimingConnectionMode.TcpClient && _tcpStream != null) {
                     _tcpStream.Write(frame, 0, frame.Length);
+                    RaiseLog("发帧[TCP]: " + hex);
                 } else if (ConnectionMode == TimingConnectionMode.UdpListener && _udpClient != null) {
                     IPEndPoint target = _udpSendTarget ?? _udpLastSender;
                     if (target != null) {
                         _udpClient.Send(frame, frame.Length, target);
+                        RaiseLog("发帧[UDP " + target + "]: " + hex);
                     } else {
                         RaiseLog("UDP发送失败: 未知目标地址，请配置UDP发送目标或等待硬件先发送数据");
                     }
+                } else {
+                    RaiseLog("未发送（无连接）: " + hex);
                 }
             } catch (Exception ex) {
-                RaiseLog("发送命令失败: " + ex.Message);
+                RaiseLog("发送命令失败: " + ex.Message + "  帧: " + hex);
             }
         }
 
