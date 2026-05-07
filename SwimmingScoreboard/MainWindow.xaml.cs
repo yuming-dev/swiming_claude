@@ -73,6 +73,10 @@ namespace SwimmingScoreboard
         private double _hwRunningTimeSec = 0;
         private DateTime _hwRunningTimeReceivedAt = DateTime.MinValue;
         private bool _hwRunningTimeAvailable = false;
+        // 上次执行复位（本地或硬件触发）的时刻；用于硬件 0x1C 的去抖，
+        // 避免"复位 + 紧接着 0x1C 回弹"导致比赛被自动再次启动
+        private DateTime _lastResetAt = DateTime.MinValue;
+        private const int ResetDebounceMs = 1000;
 
         private string _currentEvent = "";
         private string _currentGender = "";
@@ -2068,6 +2072,15 @@ namespace SwimmingScoreboard
                     Ready_Click(null, null);
                     return;
                 case "StartCommand":
+                    // 复位刚刚发生过 → 当前 0x1C 大概率是硬件复位键的回弹（部分硬件复位会同时发 0x20+0x1C），
+                    // 直接忽略，否则比赛会被自动再次启动，软件按键看起来就"失灵"
+                    {
+                        double sinceReset = (DateTime.Now - _lastResetAt).TotalMilliseconds;
+                        if (_lastResetAt != DateTime.MinValue && sinceReset < ResetDebounceMs) {
+                            AddLog(string.Format("硬件 0x1C 被忽略：距上次复位仅 {0:F0} ms，疑似复位回弹", sinceReset));
+                            return;
+                        }
+                    }
                     AddLog("硬件触发: 发令");
                     // 若仍在 Waiting 状态，先自动就位再发令，确保定时器能启动
                     if (_raceState == RaceState.Waiting) Ready_Click(null, null);
@@ -2076,6 +2089,7 @@ namespace SwimmingScoreboard
                 case "TimerReset":
                     AddLog("硬件触发: 计时清零");
                     Restart_Click(null, null);
+                    _lastResetAt = DateTime.Now;       // 标记复位时刻，给后续 0x1C 去抖参考
                     return;
             }
 
@@ -3420,6 +3434,8 @@ namespace SwimmingScoreboard
             _hwRunningTimeAvailable = false;
             _hwRunningTimeReceivedAt = DateTime.MinValue;
             _hwRunningTimeSec = 0;
+            // 标记本次复位时刻 — 接下来 1 秒内到达的硬件 0x1C 当作回弹忽略
+            _lastResetAt = DateTime.Now;
             _resultConfirmed = false;
 
             _firstPlaceFinishTime = "";
