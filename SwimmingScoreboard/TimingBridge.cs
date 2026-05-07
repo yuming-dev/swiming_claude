@@ -294,6 +294,13 @@ namespace SwimmingScoreboard
                 for (int i = 0; i < FRAME_LENGTH; i++) frame[i] = acc[i];
                 acc.RemoveRange(0, FRAME_LENGTH);
 
+                // 与"发帧"日志对称的"收帧"逐字节十六进制日志，方便对照硬件实际行为
+                try {
+                    var sb = new System.Text.StringBuilder("收帧[原始]: ");
+                    for (int i = 0; i < frame.Length; i++) sb.AppendFormat("{0:X2} ", frame[i]);
+                    RaiseLog(sb.ToString().TrimEnd());
+                } catch { }
+
                 ParseFrame(frame);
             }
         }
