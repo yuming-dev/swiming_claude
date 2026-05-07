@@ -459,7 +459,9 @@ function renderRace() {
         _dspTimerStart = 0; _dspTimerSynced = false;
         _dspFirstDetected = 0; _dspFirstShowStart = 0; _dspFirstTime = '';
     }
-    if ((rState === 'racing' || rState === 'finished') && !_dspTimerSynced && data.runningTime) {
+    if ((rState === 'racing' || rState === 'finished') && data.runningTime) {
+        // 每次广播都重新对齐：服务器现在用硬件 0x7F 滚动时间作为权威时间源，
+        // 大屏只对齐一次会导致漂移；改为每广播重锚 _dspTimerStart 跟着服务器走。
         var svrSec = 0, rp = data.runningTime.split(':');
         if (rp.length === 3) svrSec = parseFloat(rp[0])*3600 + parseFloat(rp[1])*60 + parseFloat(rp[2]);
         else if (rp.length === 2) svrSec = parseFloat(rp[0])*60 + parseFloat(rp[1]);

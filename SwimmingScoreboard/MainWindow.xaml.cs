@@ -68,6 +68,11 @@ namespace SwimmingScoreboard
         private ScoringConfig _scoringConfig = new ScoringConfig();
         // 计时硬件通讯参数（串口 / TCP / UDP）— 独立 JSON 持久化，下次运行自动恢复
         private TimingConnectionConfig _timingConn = new TimingConnectionConfig();
+        // 硬件滚动时间锚点：收到 0x7F 帧时记录 (硬件秒数, 本地接收时刻)；
+        // RaceTimer_Tick 优先用此值 + 自接收以来的本地补偿外推，避免帧间跳动也避免本地时钟偏差
+        private double _hwRunningTimeSec = 0;
+        private DateTime _hwRunningTimeReceivedAt = DateTime.MinValue;
+        private bool _hwRunningTimeAvailable = false;
 
         private string _currentEvent = "";
         private string _currentGender = "";
@@ -2041,6 +2046,16 @@ namespace SwimmingScoreboard
         }
 
         private void ProcessTimingData(int lane, string cmdType, double timeInSeconds, string side = null) {
+            // 硬件 0x7F 滚动时间：硬件计时器是权威时间源，软件直接采用，不再用本地 DateTime 自算
+            // 任何 race state 都接收、立即显示、立即广播；与开始/复位命令解耦
+            if (cmdType == "RunningTime") {
+                _hwRunningTimeSec = timeInSeconds;
+                _hwRunningTimeReceivedAt = DateTime.Now;
+                _hwRunningTimeAvailable = true;
+                _runningTime = timeInSeconds;
+                if (RunningTimeText != null) RunningTimeText.Text = TimeFormatter.FormatRunning(_runningTime);
+                return;
+            }
             // 硬件触发的比赛控制命令：任何状态下都接收
             switch (cmdType) {
                 case "TimerReady":
@@ -3139,7 +3154,21 @@ namespace SwimmingScoreboard
         private void RaceTimer_Tick(object sender, EventArgs e) {
             // 发令后一直计时，不因比赛结束而停止，直到复位信号
             if (_raceStartTime != DateTime.MinValue) {
-                _runningTime = (DateTime.Now - _raceStartTime).TotalSeconds;
+                // 优先以硬件 0x7F 帧的滚动时间为权威：取上次硬件秒数 + 自接收以来的本地补偿
+                // 超过 2 秒没收到硬件帧（含未连接硬件 / 串口断开）则退回本地 DateTime 推算
+                if (_hwRunningTimeAvailable && _hwRunningTimeReceivedAt != DateTime.MinValue) {
+                    double sinceHw = (DateTime.Now - _hwRunningTimeReceivedAt).TotalSeconds;
+                    if (sinceHw < 0) sinceHw = 0;
+                    if (sinceHw > 2.0) {
+                        // 硬件帧停发超 2s，可能离线，退回本地推算且清掉锚点
+                        _hwRunningTimeAvailable = false;
+                        _runningTime = (DateTime.Now - _raceStartTime).TotalSeconds;
+                    } else {
+                        _runningTime = _hwRunningTimeSec + sinceHw;
+                    }
+                } else {
+                    _runningTime = (DateTime.Now - _raceStartTime).TotalSeconds;
+                }
                 _raceTickCount++;
 
                 // 第1名成绩显示（轻量操作，每次tick都执行）
@@ -3260,10 +3289,17 @@ namespace SwimmingScoreboard
         }
 
         private void StartRace_Click(object sender, RoutedEventArgs e) {
+            // 计时复位后状态会回到 Waiting；点"发令"前用户可能没点"就位"，此时与硬件 StartCommand 行为对齐：
+            // 自动先就位再发令，避免按钮静默失效
+            if (_raceState == RaceState.Waiting) Ready_Click(null, null);
             if (_raceState != RaceState.Ready) return;
             _raceState = RaceState.Racing;
             _raceStartTime = DateTime.Now;
             _runningTime = 0;
+            // 清掉旧硬件锚点：等下一个 0x7F 帧重新对齐到硬件
+            _hwRunningTimeAvailable = false;
+            _hwRunningTimeReceivedAt = DateTime.MinValue;
+            _hwRunningTimeSec = 0;
             // 开始新的原始数据记录
             _rawTimingLog.Clear();
             _rawTimingLog.AppendFormat("{0}\t---\tSTART\t0.000\t发令\r\n", DateTime.Now.ToString("HH:mm:ss.fff"));
@@ -3374,6 +3410,10 @@ namespace SwimmingScoreboard
             _countdownTimer.Stop();
             _runningTime = 0;
             _raceStartTime = DateTime.MinValue;
+            // 清掉硬件时间锚点；如果硬件没复位继续发 0x7F，UI 仍会被新帧立刻对齐
+            _hwRunningTimeAvailable = false;
+            _hwRunningTimeReceivedAt = DateTime.MinValue;
+            _hwRunningTimeSec = 0;
             _resultConfirmed = false;
 
             _firstPlaceFinishTime = "";
@@ -3428,6 +3468,9 @@ namespace SwimmingScoreboard
             if (_timingBridge != null && _timingBridge.IsConnected) {
                 _timingBridge.SendCommand(0x20); // 计时清零命令
                 _timingBridge.SendCommand(0x7F); // 滚动时间 = 0
+                AddLog("已向硬件发送 0x20 计时清零 + 0x7F 滚动时间归零");
+            } else {
+                AddLog("硬件未连接，仅本地复位");
             }
             try { BuildScheduleTree(); } catch { }
             // 最后一次广播：若赛次已结束就直接发 SHOW_WELCOME（包含本次 GetStatusData），
