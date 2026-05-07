@@ -268,6 +268,21 @@ function connect() {
     ws.onmessage = function(e) {
         var msg;
         try { msg = JSON.parse(e.data); } catch (er) { return; }
+        // 硬件 0.1s 节拍的轻量滚动时间帧 — 只更新右上角时间，不重渲染整页
+        if (msg.type === 'RUNNING_TIME_UPDATE') {
+            if (msg.data && typeof msg.data.runningTime === 'string') {
+                data.runningTime = msg.data.runningTime;
+                // 重锚本地插值起点；100ms ticker 之间用本地补，每帧到达再校准
+                var rt = msg.data.runningTime, svrSec = 0, rp = rt.split(':');
+                if (rp.length === 3) svrSec = parseFloat(rp[0])*3600 + parseFloat(rp[1])*60 + parseFloat(rp[2]);
+                else if (rp.length === 2) svrSec = parseFloat(rp[0])*60 + parseFloat(rp[1]);
+                else svrSec = parseFloat(rp[0]) || 0;
+                _dspTimerStart = Date.now() - svrSec * 1000;
+                _dspTimerSynced = true;
+                try { _updateRunningTimeOnly(); } catch (er2) {}
+            }
+            return;
+        }
         if (msg.type === 'SHOW_PUBLISHED_RESULT') {
             currentMode = 'SHOW_PUBLISHED_RESULT';
             publishedData = msg.data;

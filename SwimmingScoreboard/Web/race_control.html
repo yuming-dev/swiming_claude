@@ -524,6 +524,15 @@ function connect() {
     ws.onmessage = function(e) {
         var msg;
         try { msg = JSON.parse(e.data); } catch (er) { return; }
+        // 硬件 0.1s 节拍的轻量滚动时间帧 — 只更新顶部时间显示，不重渲染整页
+        if (msg.type === 'RUNNING_TIME_UPDATE') {
+            if (msg.data && typeof msg.data.runningTime === 'string' && data) {
+                data.runningTime = msg.data.runningTime;
+                var rtEl = document.getElementById('runningTime');
+                if (rtEl) rtEl.textContent = msg.data.runningTime;
+            }
+            return;
+        }
         if (msg.type === 'STAGE_COMPLETE') {
             var g = msg.gender, ev = msg.eventName, from = msg.fromStage, next = msg.nextStage;
             var total = msg.totalSwimmers, promo = msg.promoCount;

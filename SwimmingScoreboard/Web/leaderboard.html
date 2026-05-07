@@ -134,6 +134,8 @@ function connect() {
     ws.onmessage = function(e) {
         var msg;
         try { msg = JSON.parse(e.data); } catch (er) { return; }
+        // 排名屏不展示滚动时间，跳过 0.1s 节拍的轻量帧避免覆盖完整 data
+        if (msg.type === 'RUNNING_TIME_UPDATE') return;
         _pendingData = msg.data || {};
         if (_renderScheduled) return;
         _renderScheduled = true;

@@ -1310,6 +1310,23 @@ namespace SwimmingScoreboard
             } catch { }
         }
 
+        // 轻量级滚动时间广播：硬件每 100ms 发一帧 0x7F，主服务器收到后立刻把当前
+        // _runningTime 发给所有客户端（大屏 / 计时控制台）。只送 type+runningTime 两个字段，
+        // 比 Broadcast() 全量状态轻得多，适合 10Hz 高频转发。
+        private void BroadcastRunningTime() {
+            if (!_initialized || _allSockets.Count == 0) return;
+            try {
+                var msg = new {
+                    type = "RUNNING_TIME_UPDATE",
+                    data = new { runningTime = TimeFormatter.FormatRunning(_runningTime) }
+                };
+                string json = JsonConvert.SerializeObject(msg);
+                foreach (var s in _allSockets.ToList()) {
+                    try { s.Send(json); } catch { }
+                }
+            } catch { }
+        }
+
         private object GetStatusData() {
             // 构建当前组运动员数据
             var swimmerData = new List<object>();
@@ -2060,6 +2077,8 @@ namespace SwimmingScoreboard
                 _hwRunningTimeAvailable = true;
                 _runningTime = timeInSeconds;
                 if (RunningTimeText != null) RunningTimeText.Text = TimeFormatter.FormatRunning(_runningTime);
+                // 立刻把硬件时间转发给大屏 / EXE / HTML 计时控制台 — 硬件 100ms 节拍
+                BroadcastRunningTime();
                 return;
             }
             // 硬件触发的比赛控制命令：任何状态下都接收

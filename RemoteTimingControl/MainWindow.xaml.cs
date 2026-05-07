@@ -441,6 +441,15 @@ namespace RemoteTimingControl
                             msg["promotedCount"], msg["heatCount"]));
                         return;
                     }
+                    // 硬件 0.1s 节拍的轻量滚动时间帧 — 仅更新现有 _data 中的 runningTime，
+                    // 不替换整个 _data，也不触发完整 RenderAll；专门的时间显示由现有同步逻辑刷新
+                    if (msgType == "RUNNING_TIME_UPDATE" && _data != null)
+                    {
+                        var rtMsg = msg["data"] as JObject;
+                        if (rtMsg != null && rtMsg["runningTime"] != null)
+                            _data["runningTime"] = rtMsg["runningTime"].ToString();
+                        return;
+                    }
 
                     _data = msg["data"] as JObject;
                     if (_data != null)
