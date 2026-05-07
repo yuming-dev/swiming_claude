@@ -386,8 +386,15 @@ namespace SwimmingScoreboard
             frame[FRAME_LENGTH - 1] = EOT;
 
             // 逐字节十六进制日志，便于对照硬件协议判定收到的帧是否符合预期
-            string hex = string.Format("F1 53 {0:X2} {1:X2} {2:X2} {3:X2} {4:X2} {5:X2} {6:X2} {7:X2} 00 F4",
-                command, d3, d4, d5, d6, d7, d8);
+            // 12 字节帧：F1 53 [cmd d3 d4 d5 d6 d7 d8] 00 00 F4
+            // = 静态首尾 4 字节 + 中间 7 个动态字节（占位符 {0}-{6}）
+            string hex;
+            try {
+                hex = string.Format("F1 53 {0:X2} {1:X2} {2:X2} {3:X2} {4:X2} {5:X2} {6:X2} 00 00 F4",
+                    command, d3, d4, d5, d6, d7, d8);
+            } catch (Exception fex) {
+                hex = string.Format("(hex format failed: {0})", fex.Message);
+            }
             try {
                 if (ConnectionMode == TimingConnectionMode.SerialPort && _serialPort != null && _serialPort.IsOpen) {
                     _serialPort.Write(frame, 0, frame.Length);
