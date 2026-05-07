@@ -3289,8 +3289,18 @@ namespace SwimmingScoreboard
         // 比赛控制按钮
         // ═══════════════════════════════════════════════════════════════
         private void Ready_Click(object sender, RoutedEventArgs e) {
-            if (_raceState != RaceState.Waiting) return;
-            // 已确认成绩的组：禁止再次开始比赛（成绩已锁定）
+            // 本地按键 → 第一时间把 0x21 推给硬件（与硬件"准备就绪"按键效果等价）
+            // 任何本地状态机检查都放在命令发送之后，避免按键看起来"无反应"
+            if (sender != null) {
+                _lastResetAt = DateTime.Now;
+                if (_timingBridge != null && _timingBridge.IsConnected) {
+                    _timingBridge.SendCommand(0x21);
+                    AddLog("已向硬件发送 0x21 准备就绪");
+                } else {
+                    AddLog("硬件未连接，仅本地就位");
+                }
+            }
+            // 已确认成绩的组：禁止本地状态机再次进入 Ready（成绩已锁定）
             if (!string.IsNullOrEmpty(_currentEvent) && _currentHeat > 0
                 && IsHeatConfirmed(_currentAgeGroup, _currentGender, _currentEvent, _currentStage, _currentHeat)) {
                 if (sender != null) {
@@ -3302,6 +3312,7 @@ namespace SwimmingScoreboard
                 AddLog("当前组已确认成绩，不能再次开始");
                 return;
             }
+            if (_raceState != RaceState.Waiting) return;
             _raceState = RaceState.Ready;
             UpdateRaceStateDisplay();
 
@@ -3311,17 +3322,22 @@ namespace SwimmingScoreboard
             }
 
             AddLog("就位");
-            if (sender != null) {
-                _lastResetAt = DateTime.Now;     // 本地控制：1 秒内吞掉硬件回弹的 0x21/0x1C/0x20
-                if (_timingBridge != null && _timingBridge.IsConnected) _timingBridge.SendCommand(0x21);
-            }
             Broadcast();
         }
 
         private void StartRace_Click(object sender, RoutedEventArgs e) {
-            // 计时复位后状态会回到 Waiting；点"发令"前用户可能没点"就位"，此时与硬件 StartCommand 行为对齐：
-            // 自动先就位再发令，避免按钮静默失效。
-            // 透传 sender — 用户本地点击时让 Ready_Click 也把 0x21 推到硬件，硬件才会进入 Ready 进而响应 0x1C
+            // 本地按键 → 第一时间把 0x1C 推给硬件（与硬件"发令"按键效果等价）
+            // 任何本地状态机检查都放在命令发送之后；同时透传 sender 让 Ready_Click 也把 0x21 推过去
+            if (sender != null) {
+                _lastResetAt = DateTime.Now;
+                if (_timingBridge != null && _timingBridge.IsConnected) {
+                    _timingBridge.SendCommand(0x1C);
+                    AddLog("已向硬件发送 0x1C 发令");
+                } else {
+                    AddLog("硬件未连接，仅本地发令");
+                }
+            }
+            // 计时复位后状态会回到 Waiting；点"发令"前用户可能没点"就位"，此时自动先就位再发令
             if (_raceState == RaceState.Waiting) Ready_Click(sender, e);
             if (_raceState != RaceState.Ready) return;
             _raceState = RaceState.Racing;
@@ -3370,10 +3386,7 @@ namespace SwimmingScoreboard
             sbTimer.Start();
 
             AddLog("发令 - 比赛开始");
-            if (sender != null) {
-                _lastResetAt = DateTime.Now;     // 本地控制：1 秒内吞掉硬件回弹
-                if (_timingBridge != null && _timingBridge.IsConnected) _timingBridge.SendCommand(0x1C);
-            }
+            // 0x1C 已在函数入口发出，这里不再重复发送
             Broadcast();
         }
 
@@ -3412,6 +3425,18 @@ namespace SwimmingScoreboard
         }
 
         private void Restart_Click(object sender, RoutedEventArgs e) {
+            // 本地按键 → 第一时间把 0x20 + 0x7F 推给硬件（与硬件"复位"按键效果等价）
+            // 命令发送先于一切本地状态/对话框/早退路径，按键看到的是"硬件按键代理"
+            if (sender != null) {
+                _lastResetAt = DateTime.Now;
+                if (_timingBridge != null && _timingBridge.IsConnected) {
+                    _timingBridge.SendCommand(0x20);
+                    _timingBridge.SendCommand(0x7F);
+                    AddLog("已向硬件发送 0x20 计时清零 + 0x7F 滚动时间归零");
+                } else {
+                    AddLog("硬件未连接，仅本地复位");
+                }
+            }
             // _currentHeat <= 0 = 没当前组：仍要硬复位状态机和滚动时间显示，
             // 否则 主服务器 复位 / 就位 / 发令 按钮在这种"看上去没在比赛"状态下都会静默失效。
             // sender == null（硬件/远程触发）时再额外广播 SHOW_WELCOME 保护欢迎画面。
@@ -3424,15 +3449,10 @@ namespace SwimmingScoreboard
                 _hwRunningTimeAvailable = false;
                 _hwRunningTimeReceivedAt = DateTime.MinValue;
                 _hwRunningTimeSec = 0;
-                _lastResetAt = DateTime.Now;
                 if (RunningTimeText != null) RunningTimeText.Text = "0.00";
                 try { UpdateRaceStateDisplay(); } catch { }
                 if (sender == null) {
                     try { BroadcastDisplayMode("SHOW_WELCOME"); } catch { Broadcast(); }
-                } else if (_timingBridge != null && _timingBridge.IsConnected) {
-                    _timingBridge.SendCommand(0x20);
-                    _timingBridge.SendCommand(0x7F);
-                    AddLog("空组态硬复位：已向硬件发送 0x20 + 0x7F");
                 }
                 return;
             }
@@ -3444,14 +3464,9 @@ namespace SwimmingScoreboard
             bool currentHeatConfirmed = !string.IsNullOrEmpty(_currentEvent) && _currentHeat > 0 &&
                 _confirmedHeats.Contains(ConfirmedHeatKey(_currentAgeGroup, _currentGender, _currentEvent, _currentStage, _currentHeat));
 
-            // 本地按钮点击时弹确认对话框，WebSocket远程调用时(sender==null)跳过
-            if (sender != null) {
-                string prompt = currentHeatConfirmed
-                    ? "本组成绩已确认并锁定。\n\n点击\"计时器清零\"将全部清零复位，自动进入下一组比赛准备状态。\n（已确认的成绩在'成绩与排名'里继续保留）"
-                    : "确定计时器复位？\n\n本组的时间/分段数据将被清除（用于抢跳召回等重新发令），\n但 DSQ/DNS/DNF 等备注状态会保留。";
-                var r = MessageBox.Show(prompt, "计时复位", MessageBoxButton.YesNo, MessageBoxImage.Warning);
-                if (r != MessageBoxResult.Yes) return;
-            }
+            // 与硬件"复位"按键语义对齐：按下即生效，不再弹确认对话框（已在函数入口把 0x20 推给硬件）。
+            // 已确认成绩的组：成绩在 _confirmedHeats / Swimmer.Results 中已落盘，本次复位不会丢；
+            // 未确认的组：当前组的时间/分段数据会被清掉，DSQ/DNS/DNF 状态保留（与之前一致）。
 
             // ═══ 公共复位：计时器 / 状态 / 显示 ═══
             _raceState = RaceState.Waiting;
@@ -3516,19 +3531,7 @@ namespace SwimmingScoreboard
                 UpdateLaneStatusDisplay();
             }
 
-            // 仅在用户本地点击复位（sender != null）时才把 0x20 + 0x7F 推给硬件；
-            // 当本次复位是由硬件 0x20 帧回灌进来（sender == null）则不再回送，避免回环
-            if (sender != null) {
-                if (_timingBridge != null && _timingBridge.IsConnected) {
-                    _timingBridge.SendCommand(0x20); // 计时清零命令
-                    _timingBridge.SendCommand(0x7F); // 滚动时间 = 0
-                    AddLog("已向硬件发送 0x20 计时清零 + 0x7F 滚动时间归零");
-                } else {
-                    AddLog("硬件未连接，仅本地复位");
-                }
-            } else {
-                AddLog("复位由硬件 / 远程触发，跳过回送 0x20");
-            }
+            // 0x20 + 0x7F 已在函数入口发出（仅 sender != null 时），这里不再重复
             try { BuildScheduleTree(); } catch { }
             // 最后一次广播：若赛次已结束就直接发 SHOW_WELCOME（包含本次 GetStatusData），
             // 否则发 SHOW_LIVE_RACE。两者只发一次，避免后发的覆盖前发的。
