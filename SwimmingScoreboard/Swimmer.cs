@@ -1241,6 +1241,39 @@ namespace SwimmingScoreboard
         public string TypeName { get; set; }    // 完整名称（与 SwimmingRecord.RecordType 一致）
     }
 
+    // 计时硬件通讯参数（串口 / TCP / UDP）持久化结构
+    // 写到 EXE 旁的 timing_connection.json，与赛事存档解耦：换比赛文件不丢失硬件配置
+    public class TimingConnectionConfig
+    {
+        // 上次成功使用的连接类型："serial" / "tcp" / "udp" / ""
+        public string LastType { get; set; }
+        // 串口
+        public string SerialPort { get; set; }
+        public int SerialBaudRate { get; set; }
+        // TCP（"host:port" 字符串保留以便完整还原 UI）
+        public string TcpHost { get; set; }
+        public int TcpPort { get; set; }
+        // UDP 监听端口
+        public int UdpListenPort { get; set; }
+        // UDP 发送目标
+        public string UdpSendHost { get; set; }
+        public int UdpSendPort { get; set; }
+        // 启动时是否自动按 LastType 重连（默认 false，避免硬件未上电时反复尝试）
+        public bool AutoReconnectOnStartup { get; set; }
+
+        public TimingConnectionConfig() {
+            LastType = "";
+            SerialPort = "";
+            SerialBaudRate = 9600;
+            TcpHost = "127.0.0.1";
+            TcpPort = 5000;
+            UdpListenPort = 5001;
+            UdpSendHost = "127.0.0.1";
+            UdpSendPort = 5002;
+            AutoReconnectOnStartup = false;
+        }
+    }
+
     // 团体计分配置：每个名次的得分、接力倍率、组别系数、取分人数
     // 写到 CompetitionPackage 持久化，赛事重新加载时仍生效
     public class ScoringConfig

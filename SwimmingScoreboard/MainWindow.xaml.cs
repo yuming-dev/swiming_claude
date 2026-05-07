@@ -66,6 +66,8 @@ namespace SwimmingScoreboard
         private LaneCloseSettings _laneCloseSettings = new LaneCloseSettings();
         // 团体计分配置（持久化在 CompetitionPackage.ScoringConfig）
         private ScoringConfig _scoringConfig = new ScoringConfig();
+        // 计时硬件通讯参数（串口 / TCP / UDP）— 独立 JSON 持久化，下次运行自动恢复
+        private TimingConnectionConfig _timingConn = new TimingConnectionConfig();
 
         private string _currentEvent = "";
         private string _currentGender = "";
@@ -119,8 +121,11 @@ namespace SwimmingScoreboard
             InitializeTimingBridge();
             InitializeTimers();
             LoadTimingSettings();
+            LoadTimingConnectionConfig();   // 通讯参数从 timing_connection.json 还原
             LoadLastCompetition();
             PopulateComPorts();
+            ApplyTimingConnectionToUi();    // 把保存的串口/TCP/UDP 还原到 UI 控件
+            TryAutoReconnectTiming();       // 仅当 AutoReconnectOnStartup=true 才尝试
             UpdateConnectionStatus();
             _initialized = true;
             RefreshBackupList();
@@ -10066,6 +10071,84 @@ namespace SwimmingScoreboard
             } catch { }
         }
 
+        // 计时硬件通讯参数（串口 / TCP / UDP）持久化路径
+        private string TimingConnectionPath {
+            get { return IOPath.Combine(AppDomain.CurrentDomain.BaseDirectory, "timing_connection.json"); }
+        }
+
+        private void SaveTimingConnectionConfig() {
+            try {
+                string json = JsonConvert.SerializeObject(_timingConn, Formatting.Indented);
+                File.WriteAllText(TimingConnectionPath, json, Encoding.UTF8);
+            } catch (Exception ex) {
+                AddLog("保存通讯参数失败: " + ex.Message);
+            }
+        }
+
+        private void LoadTimingConnectionConfig() {
+            try {
+                if (!File.Exists(TimingConnectionPath)) return;
+                string json = File.ReadAllText(TimingConnectionPath, Encoding.UTF8);
+                var loaded = JsonConvert.DeserializeObject<TimingConnectionConfig>(json);
+                if (loaded != null) {
+                    _timingConn = loaded;
+                    AddLog(string.Format("已加载通讯参数: 上次={0} 串口={1} TCP={2}:{3} UDP收={4} UDP发={5}:{6}",
+                        string.IsNullOrEmpty(_timingConn.LastType) ? "未连接过" : _timingConn.LastType,
+                        string.IsNullOrEmpty(_timingConn.SerialPort) ? "—" : _timingConn.SerialPort,
+                        _timingConn.TcpHost ?? "—", _timingConn.TcpPort,
+                        _timingConn.UdpListenPort,
+                        _timingConn.UdpSendHost ?? "—", _timingConn.UdpSendPort));
+                }
+            } catch (Exception ex) {
+                AddLog("加载通讯参数失败: " + ex.Message);
+            }
+        }
+
+        // 把 _timingConn 还原到 UI 控件（在 PopulateComPorts 之后调用，确保 ComboBox 已有可选项）
+        private void ApplyTimingConnectionToUi() {
+            if (_timingConn == null) return;
+            // 串口：若保存的端口仍存在于当前可选列表中，自动选中
+            if (!string.IsNullOrEmpty(_timingConn.SerialPort) && ComPortCombo != null) {
+                foreach (var item in ComPortCombo.Items) {
+                    if (item != null && item.ToString() == _timingConn.SerialPort) {
+                        ComPortCombo.SelectedItem = item;
+                        break;
+                    }
+                }
+            }
+            if (TcpHostBox != null && _timingConn.TcpPort > 0)
+                TcpHostBox.Text = string.Format("{0}:{1}",
+                    string.IsNullOrEmpty(_timingConn.TcpHost) ? "127.0.0.1" : _timingConn.TcpHost,
+                    _timingConn.TcpPort);
+            if (UdpPortBox != null && _timingConn.UdpListenPort > 0)
+                UdpPortBox.Text = _timingConn.UdpListenPort.ToString();
+            if (UdpSendBox != null && _timingConn.UdpSendPort > 0)
+                UdpSendBox.Text = string.Format("{0}:{1}",
+                    string.IsNullOrEmpty(_timingConn.UdpSendHost) ? "127.0.0.1" : _timingConn.UdpSendHost,
+                    _timingConn.UdpSendPort);
+        }
+
+        // 启动时自动重连（仅当 AutoReconnectOnStartup=true）
+        private void TryAutoReconnectTiming() {
+            if (_timingConn == null || !_timingConn.AutoReconnectOnStartup) return;
+            try {
+                if (_timingConn.LastType == "serial" && !string.IsNullOrEmpty(_timingConn.SerialPort)) {
+                    _timingBridge.ConnectSerial(_timingConn.SerialPort);
+                    UpdateConnectionStatus();
+                    AddLog("启动自动重连串口: " + _timingConn.SerialPort);
+                } else if (_timingConn.LastType == "tcp" && !string.IsNullOrEmpty(_timingConn.TcpHost) && _timingConn.TcpPort > 0) {
+                    _timingBridge.ConnectTcp(_timingConn.TcpHost, _timingConn.TcpPort);
+                    UpdateConnectionStatus();
+                    AddLog(string.Format("启动自动重连TCP: {0}:{1}", _timingConn.TcpHost, _timingConn.TcpPort));
+                } else if (_timingConn.LastType == "udp" && _timingConn.UdpListenPort > 0) {
+                    _timingBridge.ConnectUdp(_timingConn.UdpListenPort, _timingConn.UdpSendHost, _timingConn.UdpSendPort);
+                    UpdateConnectionStatus();
+                    AddLog(string.Format("启动自动重连UDP: 收{0} 发{1}:{2}",
+                        _timingConn.UdpListenPort, _timingConn.UdpSendHost ?? "—", _timingConn.UdpSendPort));
+                }
+            } catch (Exception ex) { AddLog("自动重连失败: " + ex.Message); }
+        }
+
         // ═══════════════════════════════════════════════════════════════
         // JSON 持久化
         // ═══════════════════════════════════════════════════════════════
@@ -10470,8 +10553,13 @@ namespace SwimmingScoreboard
 
         private void ConnectSerial_Click(object sender, RoutedEventArgs e) {
             if (ComPortCombo.SelectedItem == null) { AddLog("请选择串口"); return; }
-            _timingBridge.ConnectSerial(ComPortCombo.SelectedItem.ToString());
+            string portName = ComPortCombo.SelectedItem.ToString();
+            _timingBridge.ConnectSerial(portName);
             UpdateConnectionStatus();
+            // 通讯参数立即落盘 — 下次启动自动还原 UI 选择
+            _timingConn.SerialPort = portName;
+            _timingConn.LastType = "serial";
+            SaveTimingConnectionConfig();
         }
 
         private void ConnectTcp_Click(object sender, RoutedEventArgs e) {
@@ -10482,6 +10570,10 @@ namespace SwimmingScoreboard
             if (parts.Length > 1) int.TryParse(parts[1], out port);
             _timingBridge.ConnectTcp(host, port);
             UpdateConnectionStatus();
+            _timingConn.TcpHost = host;
+            _timingConn.TcpPort = port;
+            _timingConn.LastType = "tcp";
+            SaveTimingConnectionConfig();
         }
 
         private void ConnectUdp_Click(object sender, RoutedEventArgs e) {
@@ -10499,6 +10591,11 @@ namespace SwimmingScoreboard
             }
             _timingBridge.ConnectUdp(listenPort, sendHost, sendPort);
             UpdateConnectionStatus();
+            _timingConn.UdpListenPort = listenPort;
+            _timingConn.UdpSendHost = sendHost ?? "";
+            _timingConn.UdpSendPort = sendPort;
+            _timingConn.LastType = "udp";
+            SaveTimingConnectionConfig();
         }
 
         private void DisconnectTiming_Click(object sender, RoutedEventArgs e) {
