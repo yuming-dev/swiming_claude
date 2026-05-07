@@ -2050,19 +2050,16 @@ namespace SwimmingScoreboard
         }
 
         private void ProcessTimingData(int lane, string cmdType, double timeInSeconds, string side = null) {
-            // 硬件 0x7F 滚动时间：硬件计时器是权威时间源。
-            // 仅在 Racing / Finished 状态下让硬件时间驱动主显示；Waiting / Ready 状态下保留 0：
-            //   ① 避免硬件复位时缓冲里残留的 0x7F 帧把刚清零的显示推回去
-            //   ② 避免某些硬件在非比赛态也持续发 0x7F（free-running）带跑软件时间
-            // 锚点字段无条件更新，便于 RaceTimer_Tick 在 Racing 中外推 + 失联检测
+            // 硬件 0x7F 滚动时间：硬件计时器是【唯一】权威时间源。
+            // 软件不再用本地 DateTime 自算时间，也不按 race state 过滤：收到什么显示什么。
+            // 这样硬件清零后只要它发 0x7F=0，软件立刻同步；硬件继续走时则软件也跟着；
+            // 唯一保留 0 的场景是从未连接到硬件 / 硬件未发任何 0x7F。
             if (cmdType == "RunningTime") {
                 _hwRunningTimeSec = timeInSeconds;
                 _hwRunningTimeReceivedAt = DateTime.Now;
                 _hwRunningTimeAvailable = true;
-                if (_raceState == RaceState.Racing || _raceState == RaceState.Finished) {
-                    _runningTime = timeInSeconds;
-                    if (RunningTimeText != null) RunningTimeText.Text = TimeFormatter.FormatRunning(_runningTime);
-                }
+                _runningTime = timeInSeconds;
+                if (RunningTimeText != null) RunningTimeText.Text = TimeFormatter.FormatRunning(_runningTime);
                 return;
             }
             // 硬件触发的比赛控制命令：任何状态下都接收
@@ -3173,21 +3170,8 @@ namespace SwimmingScoreboard
         private void RaceTimer_Tick(object sender, EventArgs e) {
             // 发令后一直计时，不因比赛结束而停止，直到复位信号
             if (_raceStartTime != DateTime.MinValue) {
-                // 优先以硬件 0x7F 帧的滚动时间为权威：取上次硬件秒数 + 自接收以来的本地补偿
-                // 超过 2 秒没收到硬件帧（含未连接硬件 / 串口断开）则退回本地 DateTime 推算
-                if (_hwRunningTimeAvailable && _hwRunningTimeReceivedAt != DateTime.MinValue) {
-                    double sinceHw = (DateTime.Now - _hwRunningTimeReceivedAt).TotalSeconds;
-                    if (sinceHw < 0) sinceHw = 0;
-                    if (sinceHw > 2.0) {
-                        // 硬件帧停发超 2s，可能离线，退回本地推算且清掉锚点
-                        _hwRunningTimeAvailable = false;
-                        _runningTime = (DateTime.Now - _raceStartTime).TotalSeconds;
-                    } else {
-                        _runningTime = _hwRunningTimeSec + sinceHw;
-                    }
-                } else {
-                    _runningTime = (DateTime.Now - _raceStartTime).TotalSeconds;
-                }
+                // _runningTime 完全由硬件 0x7F 帧驱动（见 ProcessTimingData 早期分支），
+                // 此处不再用本地 DateTime 自算时间：硬件是唯一权威时间源。
                 _raceTickCount++;
 
                 // 第1名成绩显示（轻量操作，每次tick都执行）
