@@ -2046,14 +2046,19 @@ namespace SwimmingScoreboard
         }
 
         private void ProcessTimingData(int lane, string cmdType, double timeInSeconds, string side = null) {
-            // 硬件 0x7F 滚动时间：硬件计时器是权威时间源，软件直接采用，不再用本地 DateTime 自算
-            // 任何 race state 都接收、立即显示、立即广播；与开始/复位命令解耦
+            // 硬件 0x7F 滚动时间：硬件计时器是权威时间源。
+            // 仅在 Racing / Finished 状态下让硬件时间驱动主显示；Waiting / Ready 状态下保留 0：
+            //   ① 避免硬件复位时缓冲里残留的 0x7F 帧把刚清零的显示推回去
+            //   ② 避免某些硬件在非比赛态也持续发 0x7F（free-running）带跑软件时间
+            // 锚点字段无条件更新，便于 RaceTimer_Tick 在 Racing 中外推 + 失联检测
             if (cmdType == "RunningTime") {
                 _hwRunningTimeSec = timeInSeconds;
                 _hwRunningTimeReceivedAt = DateTime.Now;
                 _hwRunningTimeAvailable = true;
-                _runningTime = timeInSeconds;
-                if (RunningTimeText != null) RunningTimeText.Text = TimeFormatter.FormatRunning(_runningTime);
+                if (_raceState == RaceState.Racing || _raceState == RaceState.Finished) {
+                    _runningTime = timeInSeconds;
+                    if (RunningTimeText != null) RunningTimeText.Text = TimeFormatter.FormatRunning(_runningTime);
+                }
                 return;
             }
             // 硬件触发的比赛控制命令：任何状态下都接收
@@ -3290,8 +3295,9 @@ namespace SwimmingScoreboard
 
         private void StartRace_Click(object sender, RoutedEventArgs e) {
             // 计时复位后状态会回到 Waiting；点"发令"前用户可能没点"就位"，此时与硬件 StartCommand 行为对齐：
-            // 自动先就位再发令，避免按钮静默失效
-            if (_raceState == RaceState.Waiting) Ready_Click(null, null);
+            // 自动先就位再发令，避免按钮静默失效。
+            // 透传 sender — 用户本地点击时让 Ready_Click 也把 0x21 推到硬件，硬件才会进入 Ready 进而响应 0x1C
+            if (_raceState == RaceState.Waiting) Ready_Click(sender, e);
             if (_raceState != RaceState.Ready) return;
             _raceState = RaceState.Racing;
             _raceStartTime = DateTime.Now;
@@ -3465,12 +3471,18 @@ namespace SwimmingScoreboard
                 UpdateLaneStatusDisplay();
             }
 
-            if (_timingBridge != null && _timingBridge.IsConnected) {
-                _timingBridge.SendCommand(0x20); // 计时清零命令
-                _timingBridge.SendCommand(0x7F); // 滚动时间 = 0
-                AddLog("已向硬件发送 0x20 计时清零 + 0x7F 滚动时间归零");
+            // 仅在用户本地点击复位（sender != null）时才把 0x20 + 0x7F 推给硬件；
+            // 当本次复位是由硬件 0x20 帧回灌进来（sender == null）则不再回送，避免回环
+            if (sender != null) {
+                if (_timingBridge != null && _timingBridge.IsConnected) {
+                    _timingBridge.SendCommand(0x20); // 计时清零命令
+                    _timingBridge.SendCommand(0x7F); // 滚动时间 = 0
+                    AddLog("已向硬件发送 0x20 计时清零 + 0x7F 滚动时间归零");
+                } else {
+                    AddLog("硬件未连接，仅本地复位");
+                }
             } else {
-                AddLog("硬件未连接，仅本地复位");
+                AddLog("复位由硬件 / 远程触发，跳过回送 0x20");
             }
             try { BuildScheduleTree(); } catch { }
             // 最后一次广播：若赛次已结束就直接发 SHOW_WELCOME（包含本次 GetStatusData），
