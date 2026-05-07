@@ -1601,7 +1601,17 @@
                                 <RowDefinition Height="36"/>
                             </Grid.RowDefinitions>
                             <TextBlock Grid.Row="0" Grid.Column="0" Text="串口:" VerticalAlignment="Center"/>
-                            <ComboBox x:Name="ComPortCombo" Grid.Row="0" Grid.Column="1" VerticalAlignment="Center"/>
+                            <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                <ComboBox x:Name="ComPortCombo" Width="120" VerticalAlignment="Center"/>
+                                <TextBlock Text="波特率:" VerticalAlignment="Center" Margin="12,0,4,0"/>
+                                <ComboBox x:Name="BaudRateCombo" Width="90" VerticalAlignment="Center" SelectionChanged="BaudRate_Changed">
+                                    <ComboBoxItem Content="9600" IsSelected="True"/>
+                                    <ComboBoxItem Content="19200"/>
+                                    <ComboBoxItem Content="38400"/>
+                                    <ComboBoxItem Content="57600"/>
+                                    <ComboBoxItem Content="115200"/>
+                                </ComboBox>
+                            </StackPanel>
                             <Button Grid.Row="0" Grid.Column="2" Content="连接串口" Click="ConnectSerial_Click" Padding="12,4" Margin="8,0,0,0"/>
                             <TextBlock Grid.Row="1" Grid.Column="0" Text="TCP地址:" VerticalAlignment="Center"/>
                             <TextBox x:Name="TcpHostBox" Grid.Row="1" Grid.Column="1" Text="127.0.0.1:5000" Padding="4" VerticalAlignment="Center"/>

@@ -10219,6 +10219,18 @@ namespace SwimmingScoreboard
                     }
                 }
             }
+            // 波特率：在下拉里找匹配项；找不到就保持默认（9600）
+            if (BaudRateCombo != null && _timingConn.SerialBaudRate > 0) {
+                string want = _timingConn.SerialBaudRate.ToString();
+                foreach (var item in BaudRateCombo.Items) {
+                    var ci = item as ComboBoxItem;
+                    string txt = ci != null ? ci.Content.ToString() : (item != null ? item.ToString() : "");
+                    if (txt == want) {
+                        BaudRateCombo.SelectedItem = item;
+                        break;
+                    }
+                }
+            }
             if (TcpHostBox != null && _timingConn.TcpPort > 0)
                 TcpHostBox.Text = string.Format("{0}:{1}",
                     string.IsNullOrEmpty(_timingConn.TcpHost) ? "127.0.0.1" : _timingConn.TcpHost,
@@ -10236,9 +10248,10 @@ namespace SwimmingScoreboard
             if (_timingConn == null || !_timingConn.AutoReconnectOnStartup) return;
             try {
                 if (_timingConn.LastType == "serial" && !string.IsNullOrEmpty(_timingConn.SerialPort)) {
-                    _timingBridge.ConnectSerial(_timingConn.SerialPort);
+                    int baud = _timingConn.SerialBaudRate > 0 ? _timingConn.SerialBaudRate : 9600;
+                    _timingBridge.ConnectSerial(_timingConn.SerialPort, baud);
                     UpdateConnectionStatus();
-                    AddLog("启动自动重连串口: " + _timingConn.SerialPort);
+                    AddLog(string.Format("启动自动重连串口: {0} @ {1} baud", _timingConn.SerialPort, baud));
                 } else if (_timingConn.LastType == "tcp" && !string.IsNullOrEmpty(_timingConn.TcpHost) && _timingConn.TcpPort > 0) {
                     _timingBridge.ConnectTcp(_timingConn.TcpHost, _timingConn.TcpPort);
                     UpdateConnectionStatus();
@@ -10657,12 +10670,37 @@ namespace SwimmingScoreboard
         private void ConnectSerial_Click(object sender, RoutedEventArgs e) {
             if (ComPortCombo.SelectedItem == null) { AddLog("请选择串口"); return; }
             string portName = ComPortCombo.SelectedItem.ToString();
-            _timingBridge.ConnectSerial(portName);
+            int baud = ReadBaudRateFromUi();
+            _timingBridge.ConnectSerial(portName, baud);
+            AddLog(string.Format("串口连接: {0} @ {1} baud", portName, baud));
             UpdateConnectionStatus();
             // 通讯参数立即落盘 — 下次启动自动还原 UI 选择
             _timingConn.SerialPort = portName;
+            _timingConn.SerialBaudRate = baud;
             _timingConn.LastType = "serial";
             SaveTimingConnectionConfig();
+        }
+
+        private int ReadBaudRateFromUi() {
+            if (BaudRateCombo == null || BaudRateCombo.SelectedItem == null) {
+                return _timingConn != null && _timingConn.SerialBaudRate > 0 ? _timingConn.SerialBaudRate : 9600;
+            }
+            string txt = (BaudRateCombo.SelectedItem is ComboBoxItem)
+                ? ((ComboBoxItem)BaudRateCombo.SelectedItem).Content.ToString()
+                : BaudRateCombo.SelectedItem.ToString();
+            int v;
+            return int.TryParse(txt.Trim(), out v) && v > 0 ? v : 9600;
+        }
+
+        private void BaudRate_Changed(object sender, SelectionChangedEventArgs e) {
+            // 用户改波特率即落盘；连接已建立时不会立刻断开重连，等下次 ConnectSerial_Click 才生效
+            if (!_initialized || _timingConn == null) return;
+            int v = ReadBaudRateFromUi();
+            if (v > 0 && v != _timingConn.SerialBaudRate) {
+                _timingConn.SerialBaudRate = v;
+                SaveTimingConnectionConfig();
+                AddLog(string.Format("波特率设置已保存: {0}（下次\"连接串口\"生效）", v));
+            }
         }
 
         private void ConnectTcp_Click(object sender, RoutedEventArgs e) {
