@@ -1743,11 +1743,12 @@ namespace SwimmingScoreboard
                 Dispatcher.Invoke((Action)delegate() {
                     TimingStatusText.Text = status;
                     UpdateConnectionStatus();
-                    // 硬件刚连上时，把当前参数/设备状态/比赛距离下发一次（以服务器为准）
+                    // 硬件刚连上时，把当前参数/设备状态/比赛距离/发令点下发一次（以服务器为准）
                     if (_timingBridge != null && _timingBridge.IsConnected) {
                         SendTimingSettingsToHardware();
                         SendDeviceStatusesToHardware();
-                        SendRaceDistanceToHardware();
+                        SendSetMatchEventToHardware();   // 0x43 — 总圈数+左右触板次数+空泳道位图
+                        SendStartPositionToHardware();   // 0x10 0x42 — 发令点
                     }
                 });
             };
@@ -1897,6 +1898,24 @@ namespace SwimmingScoreboard
             var d = System.Text.RegularExpressions.Regex.Match(ev, @"(\d+)米");
             if (d.Success) return int.Parse(d.Groups[1].Value);
             return 0;
+        }
+
+        // 0x10 0x42 [position]：Set_SwStartingPosition — 告诉硬件发令点（左/右）。
+        // 参考 C:\2024年11月2日PM SWIM串口通讯程序Server\OnBnClickedSetSwStartingPositionButton：
+        //   TCPIP_SendCommand(TCPIP_Con_command=0x10, Set_SwStartingPosition=0x42, StartingPosition, 0, ...)
+        //   → 帧 F1 53 [0x10] [0x42] [pos] 00 00 00 00 00 00 F4
+        // 这与我们 SendTimingSettingsToHardware 里的 0x42 0x07 (FinishPosition) 是不同的命令体系。
+        private void SendStartPositionToHardware() {
+            if (_applyingHardwareSettings) return;
+            if (_timingBridge == null || !_timingBridge.IsConnected) return;
+            try {
+                byte pos = _laneCloseSettings.StartPosition == "right" ? (byte)1 : (byte)0;
+                _timingBridge.SendCommand(0x10, 0x42, pos);
+                _timingBridge.DelayBetweenFrames(20);
+                AddLog(string.Format("发令点已下发: {0}", pos == 1 ? "右端" : "左端"));
+            } catch (Exception ex) {
+                AddLog("发令点下发失败: " + ex.Message);
+            }
         }
 
         // 0x43 Set_MatchEvent: 告诉硬件本场比赛的总圈数 + 左右两侧期望触板次数 + 空泳道位图。
@@ -3849,7 +3868,14 @@ namespace SwimmingScoreboard
             _isRelay = _currentEvent.Contains("接力");
             CurrentEventText.Text = (string.IsNullOrEmpty(_currentAgeGroup) ? "" : ("[" + _currentAgeGroup + "] ")) + _currentGender + " " + _currentEvent;
             UpdateRecordDisplay();
-            SendRaceDistanceToHardware();   // 项目变更 → 通知硬件距离+左右触板次数
+            // 项目变更 → 把本场比赛的"距离/圈数 + 发令点 + 是否有运动员参赛"打包推送给硬件计时器：
+            //   1) Set_MatchEvent (0x43) — 总圈数、左右预期触板次数、空泳道位图（=是否有运动员）
+            //   2) Set_SwStartingPosition (0x10 0x42) — 发令点
+            // 旧的 SendRaceDistanceToHardware (0x42 0x20) 是软件自创格式，硬件无法识别，不再调用
+            if (_timingBridge != null && _timingBridge.IsConnected) {
+                try { SendSetMatchEventToHardware(); } catch (Exception ex) { AddLog("Set_MatchEvent 同步失败: " + ex.Message); }
+                try { SendStartPositionToHardware(); } catch (Exception ex) { AddLog("发令点同步失败: " + ex.Message); }
+            }
         }
 
         private void SetCurrentStage(string stage) {
@@ -3989,7 +4015,11 @@ namespace SwimmingScoreboard
             UpdateLaneStatusDisplay();
             UpdateRecordDisplay();
             Broadcast();
-            SendRaceDistanceToHardware();   // 组次变更 → 同步比赛距离 & 左右触板次数
+            // 组次变更 → 重新同步空泳道位图（不同组次可能空道不同）+ 发令点
+            if (_timingBridge != null && _timingBridge.IsConnected) {
+                try { SendSetMatchEventToHardware(); } catch (Exception ex) { AddLog("Set_MatchEvent 同步失败: " + ex.Message); }
+                try { SendStartPositionToHardware(); } catch (Exception ex) { AddLog("发令点同步失败: " + ex.Message); }
+            }
         }
 
         private void ScheduleTree_Selected(object sender, RoutedPropertyChangedEventArgs<object> e) {
