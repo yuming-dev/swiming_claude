@@ -3326,7 +3326,7 @@ namespace SwimmingScoreboard
         // 比赛控制按钮
         // ═══════════════════════════════════════════════════════════════
         private void Ready_Click(object sender, RoutedEventArgs e) {
-            // 状态守卫 → 改本地状态 → 送 0x21；硬件参数已在 StartRace_Click 发令前同步过一遍
+            // 状态守卫 → 改本地状态 → 送 0x21；硬件参数在每次 Ready 时由 SendSetMatchEventToHardware 一同下发
             if (_raceState != RaceState.Waiting) return;
             // 已确认成绩的组：禁止再次开始比赛
             if (!string.IsNullOrEmpty(_currentEvent) && _currentHeat > 0
@@ -3343,18 +3343,26 @@ namespace SwimmingScoreboard
                     "就位确认", MessageBoxButton.YesNo, MessageBoxImage.Question);
                 if (r != MessageBoxResult.Yes) return;
             }
+            // 实际进 Ready 状态 + 推送 0x43 + 0x21 给硬件（仅本地点击时；硬件回流路径 sender==null 不回送）
+            EnterReadyStateInternal(pushToHardware: sender != null);
+        }
+
+        // Ready 内部入口：状态机更新 + 可选硬件命令推送。
+        // - Ready_Click 弹完确认对话框后调用（pushToHardware=本地点击）。
+        // - StartRace_Click 自动就位时调用（pushToHardware=true，让硬件先收到 0x43+0x21 进入 Ready，
+        //   随后的 0x1C 才会被硬件接受），不弹对话框（用户按发令已明确表示要开始）。
+        private void EnterReadyStateInternal(bool pushToHardware) {
             _raceState = RaceState.Ready;
             UpdateRaceStateDisplay();
             foreach (var state in _laneDeviceStates) {
                 state.ResetForNewRace(_laneCloseSettings.StartPosition);
             }
             AddLog("就位");
-            // "就位"参考 C:\2024年11月2日PM SWIM串口通讯程序Server\OnBnClickedTimerReadyButton：
+            // 参考 C:\2024年11月2日PM SWIM串口通讯程序Server\OnBnClickedTimerReadyButton：
             //   1) Set_MatchEvent (0x43) — 告诉硬件本场比赛的圈数 / 左右触板次数 / 空泳道
             //   2) 0x21 — 准备就绪，硬件根据自身状态机打开出发台
-            // 不发 0x42 0x10 设备坏位图：硬件协议解释方式与我们不同，发出去会反向地把出发台关掉。
-            // 不发 0x40 / 0x42 0x01-0x08 全套参数：参考程序只在用户修改参数时下发，不在每次 Ready 时下发。
-            if (sender != null && _timingBridge != null && _timingBridge.IsConnected) {
+            // 不发 0x42 0x10 设备坏位图（与硬件协议含义相反，会把出发台关掉）；不发 0x40/0x42 全套参数。
+            if (pushToHardware && _timingBridge != null && _timingBridge.IsConnected) {
                 try { SendSetMatchEventToHardware(); } catch (Exception ex) { AddLog("Set_MatchEvent 同步失败: " + ex.Message); }
                 _timingBridge.SendCommand(0x21);
                 AddLog("已向硬件发送 0x43 Set_MatchEvent + 0x21 准备就绪");
@@ -3363,8 +3371,18 @@ namespace SwimmingScoreboard
         }
 
         private void StartRace_Click(object sender, RoutedEventArgs e) {
-            // 计时复位后状态会回到 Waiting；点"发令"前用户可能没点"就位"，此时自动先就位再发令
-            if (_raceState == RaceState.Waiting) Ready_Click(sender, e);
+            // 计时复位后状态会回到 Waiting；点"发令"前用户可能没点"就位"，此时自动先就位再发令。
+            // 走 EnterReadyStateInternal 跳过 Ready_Click 的确认对话框（用户按"发令"已明确开始意图），
+            // 同时仍把 0x43+0x21 推给硬件，让硬件先进 Ready 再接受 0x1C。
+            if (_raceState == RaceState.Waiting) {
+                // 已确认组守卫
+                if (!string.IsNullOrEmpty(_currentEvent) && _currentHeat > 0
+                    && IsHeatConfirmed(_currentAgeGroup, _currentGender, _currentEvent, _currentStage, _currentHeat)) {
+                    AddLog("当前组已确认成绩，不能再次开始");
+                    return;
+                }
+                EnterReadyStateInternal(pushToHardware: sender != null);
+            }
             if (_raceState != RaceState.Ready) return;
             _raceState = RaceState.Racing;
             _raceStartTime = DateTime.Now;
