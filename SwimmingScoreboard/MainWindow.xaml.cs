@@ -1802,22 +1802,31 @@ namespace SwimmingScoreboard
                 byte lanes = (byte)Math.Max(0, Math.Min(255, _poolConfig.LaneCount));
                 byte length = (byte)Math.Max(0, Math.Min(255, _poolConfig.Length));
                 _timingBridge.SendCommand(0x40, lanes, length);
+                _timingBridge.DelayBetweenFrames(50);
 
-                // 0x42 各项设置子码
+                // 0x42 各项设置子码 — 每帧间留 50ms，避免硬件来不及处理
                 _timingBridge.SendCommand(0x42, 0x01, ByteClamp(_laneCloseSettings.LaneCloseTime));
+                _timingBridge.DelayBetweenFrames(50);
                 _timingBridge.SendCommand(0x42, 0x02, ByteClamp(_laneCloseSettings.StartBlockCloseDelay * 10));
+                _timingBridge.DelayBetweenFrames(50);
                 _timingBridge.SendCommand(0x42, 0x03, ByteClamp(_laneCloseSettings.ResultConfirmCloseDelay * 10));
+                _timingBridge.DelayBetweenFrames(50);
                 _timingBridge.SendCommand(0x42, 0x04, ByteClamp(_laneCloseSettings.FalseStartThreshold * 100));
+                _timingBridge.DelayBetweenFrames(50);
                 _timingBridge.SendCommand(0x42, 0x05, ByteClamp(_laneCloseSettings.SplitDisplayTime));
+                _timingBridge.DelayBetweenFrames(50);
                 _timingBridge.SendCommand(0x42, 0x06, ByteClamp(_laneCloseSettings.FirstPlaceHoldTime));
+                _timingBridge.DelayBetweenFrames(50);
                 byte fp = _laneCloseSettings.FinishPosition == "right" ? (byte)1 : (byte)0;
                 _timingBridge.SendCommand(0x42, 0x07, fp);
+                _timingBridge.DelayBetweenFrames(50);
                 // 0x08 盲表数量（D4 高 4 位=左端 1-3，低 4 位=右端 1-3）
                 int lc = _laneCloseSettings.LeftBlindWatchCount, rc = _laneCloseSettings.RightBlindWatchCount;
                 if (lc < 1) lc = 1; if (lc > 3) lc = 3;
                 if (rc < 1) rc = 1; if (rc > 3) rc = 3;
                 byte bw = (byte)(((lc & 0x0F) << 4) | (rc & 0x0F));
                 _timingBridge.SendCommand(0x42, 0x08, bw);
+                _timingBridge.DelayBetweenFrames(50);
 
                 AddLog(string.Format(
                     "参数已同步到硬件: 泳池{0}米{1}道, 关闭{2}s, 出发台{3}s, 确认{4}s, 抢跳{5}s, 分段{6}s, 第1名{7}s, 终点:{8}",
@@ -1921,6 +1930,7 @@ namespace SwimmingScoreboard
                     (byte)Math.Min(255, rightTotal),
                     (byte)Math.Min(255, leftTotal),
                     lackLane0_4, lackLane5_9, 0);
+                _timingBridge.DelayBetweenFrames(50);     // 给硬件处理本帧的时间，防止下一条命令被吞
                 AddLog(string.Format("Set_MatchEvent 已下发: 总圈{0} 右{1} 左{2} 空道0-4=0x{3:X2} 空道5-9=0x{4:X2}",
                     totalLaps, rightTotal, leftTotal, lackLane0_4, lackLane5_9));
             } catch (Exception ex) {
@@ -1969,6 +1979,7 @@ namespace SwimmingScoreboard
                     byte left = EncodeBrokenMask(st.LeftTouchpadBroken, st.LeftBlindWatch1Broken, st.LeftBlindWatch2Broken, st.LeftBlindWatch3Broken, st.LeftStartBlockBroken);
                     byte right = EncodeBrokenMask(st.RightTouchpadBroken, st.RightBlindWatch1Broken, st.RightBlindWatch2Broken, st.RightBlindWatch3Broken, st.RightStartBlockBroken);
                     _timingBridge.SendFullFrame(0x42, DEVSTAT_SUBCODE, (byte)st.Lane, left, right);
+                    _timingBridge.DelayBetweenFrames(30);   // 每泳道帧间 30ms
                 }
                 AddLog(string.Format("设备状态已同步到硬件: {0}条泳道记录", _laneDeviceStates.Count));
             } catch (Exception ex) {
@@ -3453,6 +3464,7 @@ namespace SwimmingScoreboard
                     try { BroadcastDisplayMode("SHOW_WELCOME"); } catch { Broadcast(); }
                 } else if (_timingBridge != null && _timingBridge.IsConnected) {
                     _timingBridge.SendCommand(0x20);
+                    _timingBridge.DelayBetweenFrames(50);
                     _timingBridge.SendCommand(0x7F);
                 }
                 return;

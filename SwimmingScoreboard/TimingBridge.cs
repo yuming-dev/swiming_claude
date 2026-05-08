@@ -378,6 +378,12 @@ namespace SwimmingScoreboard
             SendFullFrame(command, param1, param2, 0, 0, 0, 0);
         }
 
+        // 帧间隔：硬件需要时间处理上一帧；连续发多个控制帧时调用本方法等一会再发下一帧。
+        // 典型场景：发完 0x43 Set_MatchEvent 后 sleep 50ms，再发 0x21 准备就绪 / 0x1C 发令。
+        public void DelayBetweenFrames(int milliseconds = 50) {
+            try { System.Threading.Thread.Sleep(milliseconds); } catch { }
+        }
+
         /// <summary>发送 12 字节帧，支持在 D5/D6/D7/D8 携带扩展参数（设备状态等）</summary>
         public void SendFullFrame(byte command, byte d3, byte d4, byte d5 = 0, byte d6 = 0, byte d7 = 0, byte d8 = 0) {
             byte[] frame = new byte[FRAME_LENGTH];
