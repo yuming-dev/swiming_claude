@@ -911,10 +911,16 @@
                                     </Border>
                                     <TextBlock Text="比赛控制" FontSize="16" FontWeight="Bold" Foreground="#1E293B" VerticalAlignment="Center"/>
                                 </StackPanel>
-                                <!-- 参数设置（右上角小按钮，与EXE顶部参数设置按钮同样大小） -->
-                                <Button Grid.Column="1" Content="&#9881; 参数设置" Click="TimingSettings_Click"
-                                        Padding="8,2" Background="#475569" Foreground="White" BorderThickness="0"
-                                        FontSize="12" VerticalAlignment="Center" Cursor="Hand"/>
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <!-- 连接串口快捷按钮：用 timing_connection.json 里保存的串口名 + 波特率连接 -->
+                                    <Button x:Name="QuickConnectSerialButton" Content="连接串口" Click="QuickConnectSerial_Click"
+                                            Padding="8,2" Background="#22C55E" Foreground="White" BorderThickness="0"
+                                            FontSize="12" VerticalAlignment="Center" Cursor="Hand" Margin="0,0,6,0"
+                                            ToolTip="用上次保存的串口/波特率快速连接硬件计时器；详细配置请到 系统工作状态 → 硬件计时器连接"/>
+                                    <Button Content="&#9881; 参数设置" Click="TimingSettings_Click"
+                                            Padding="8,2" Background="#475569" Foreground="White" BorderThickness="0"
+                                            FontSize="12" VerticalAlignment="Center" Cursor="Hand"/>
+                                </StackPanel>
                             </Grid>
 
                             <!-- 核心操作按钮（压缩高度以容纳新增的泳道操作行） -->

@@ -1276,6 +1276,8 @@ namespace SwimmingScoreboard
             TimingWebConnText.Foreground = new SolidColorBrush(_timingWebSockets.Count > 0 ? Colors.Green : Colors.Red);
             TimingHwConnText.Text = _timingBridge != null && _timingBridge.IsConnected ? _timingBridge.StatusText : "未连接";
             TimingHwConnText.Foreground = new SolidColorBrush(_timingBridge != null && _timingBridge.IsConnected ? Colors.Green : Colors.Red);
+            // 比赛控制面板上的快捷"连接串口"按钮跟随状态变化
+            UpdateQuickConnectButton();
         }
 
         // ═══════════════════════════════════════════════════════════════
@@ -10694,6 +10696,47 @@ namespace SwimmingScoreboard
             _timingConn.SerialBaudRate = baud;
             _timingConn.LastType = "serial";
             SaveTimingConnectionConfig();
+        }
+
+        // "比赛控制"面板上的"连接串口"快捷按钮：
+        // - 已连接 → 断开
+        // - 未连接 → 用 timing_connection.json 里保存的串口/波特率连接；没保存就提示去 系统工作状态 配
+        private void QuickConnectSerial_Click(object sender, RoutedEventArgs e) {
+            if (_timingBridge != null && _timingBridge.IsConnected) {
+                _timingBridge.Disconnect();
+                UpdateConnectionStatus();
+                UpdateQuickConnectButton();
+                AddLog("硬件已断开");
+                return;
+            }
+            string portName = _timingConn != null ? _timingConn.SerialPort : null;
+            int baud = _timingConn != null && _timingConn.SerialBaudRate > 0 ? _timingConn.SerialBaudRate : 9600;
+            if (string.IsNullOrEmpty(portName)) {
+                MessageBox.Show(
+                    "未保存默认串口。请先到 \"系统工作状态 → 硬件计时器连接\" 选择 COM 端口和波特率，按一次\"连接串口\"使其落盘，下次再用这个快捷键。",
+                    "无默认串口", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            try {
+                _timingBridge.ConnectSerial(portName, baud);
+                AddLog(string.Format("串口快速连接: {0} @ {1} baud", portName, baud));
+                _timingConn.LastType = "serial";
+                SaveTimingConnectionConfig();
+            } catch (Exception ex) {
+                AddLog("串口快速连接失败: " + ex.Message);
+            }
+            UpdateConnectionStatus();
+            UpdateQuickConnectButton();
+        }
+
+        // 根据当前连接状态刷新比赛控制面板上的"连接串口"按钮文字与颜色
+        private void UpdateQuickConnectButton() {
+            if (QuickConnectSerialButton == null) return;
+            bool connected = _timingBridge != null && _timingBridge.IsConnected;
+            QuickConnectSerialButton.Content = connected ? "断开" : "连接串口";
+            QuickConnectSerialButton.Background = connected
+                ? new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EF4444"))
+                : new SolidColorBrush((Color)ColorConverter.ConvertFromString("#22C55E"));
         }
 
         private int ReadBaudRateFromUi() {
