@@ -3339,15 +3339,15 @@ namespace SwimmingScoreboard
                 state.ResetForNewRace(_laneCloseSettings.StartPosition);
             }
             AddLog("就位");
-            // "就位"是"比赛准备阶段" — 把所有比赛参数 / 设备状态 / 比赛结构都同步给硬件，
-            // 这样后续按"发令"时只需发一条 0x1C，硬件可以瞬时启动计时（不会有几秒钟延迟）。
-            // 顺序参考 C:\2024年11月2日PM SWIM串口通讯程序Server：先 Set_MatchEvent (0x43)，再 0x21。
+            // "就位"参考 C:\2024年11月2日PM SWIM串口通讯程序Server\OnBnClickedTimerReadyButton：
+            //   1) Set_MatchEvent (0x43) — 告诉硬件本场比赛的圈数 / 左右触板次数 / 空泳道
+            //   2) 0x21 — 准备就绪，硬件根据自身状态机打开出发台
+            // 不发 0x42 0x10 设备坏位图：硬件协议解释方式与我们不同，发出去会反向地把出发台关掉。
+            // 不发 0x40 / 0x42 0x01-0x08 全套参数：参考程序只在用户修改参数时下发，不在每次 Ready 时下发。
             if (sender != null && _timingBridge != null && _timingBridge.IsConnected) {
-                try { SendTimingSettingsToHardware(); } catch (Exception ex) { AddLog("参数同步失败: " + ex.Message); }
-                try { SendDeviceStatusesToHardware(); } catch (Exception ex) { AddLog("设备状态同步失败: " + ex.Message); }
                 try { SendSetMatchEventToHardware(); } catch (Exception ex) { AddLog("Set_MatchEvent 同步失败: " + ex.Message); }
                 _timingBridge.SendCommand(0x21);
-                AddLog("已向硬件发送 0x21 准备就绪（参数已同步）");
+                AddLog("已向硬件发送 0x43 Set_MatchEvent + 0x21 准备就绪");
             }
             Broadcast();
         }
