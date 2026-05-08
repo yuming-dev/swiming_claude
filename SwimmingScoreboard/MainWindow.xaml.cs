@@ -3326,14 +3326,22 @@ namespace SwimmingScoreboard
         // 比赛控制按钮
         // ═══════════════════════════════════════════════════════════════
         private void Ready_Click(object sender, RoutedEventArgs e) {
-            // 简化版：状态守卫 → 改本地状态 → 送 0x21。
-            // 硬件参数已在 StartRace_Click 发令前同步过一遍，这里只发单条命令即可
+            // 状态守卫 → 改本地状态 → 送 0x21；硬件参数已在 StartRace_Click 发令前同步过一遍
             if (_raceState != RaceState.Waiting) return;
             // 已确认成绩的组：禁止再次开始比赛
             if (!string.IsNullOrEmpty(_currentEvent) && _currentHeat > 0
                 && IsHeatConfirmed(_currentAgeGroup, _currentGender, _currentEvent, _currentStage, _currentHeat)) {
                 AddLog("当前组已确认成绩，不能再次开始");
                 return;
+            }
+            // 本地点击弹确认；硬件触发或 WebSocket 远程调用（sender==null）跳过
+            if (sender != null) {
+                string info = string.Format("{0} {1} {2} 第{3}组",
+                    _currentGender ?? "", _currentEvent ?? "", _currentStage ?? "", _currentHeat);
+                var r = MessageBox.Show(
+                    "确定让本组进入【就位】状态？\n\n" + info + "\n\n按下后软件会下发 Set_MatchEvent + 0x21 准备就绪给硬件计时器，硬件出发台将打开。",
+                    "就位确认", MessageBoxButton.YesNo, MessageBoxImage.Question);
+                if (r != MessageBoxResult.Yes) return;
             }
             _raceState = RaceState.Ready;
             UpdateRaceStateDisplay();
@@ -3447,7 +3455,17 @@ namespace SwimmingScoreboard
         }
 
         private void Restart_Click(object sender, RoutedEventArgs e) {
-            // 简化版：状态/界面复位 → 送 0x20 + 0x7F。无确认对话框（与硬件复位键一致）。
+            // 本地点击"计时复位"先弹确认，避免误按导致丢失计时数据；
+            // 硬件触发或 WebSocket 远程调用（sender==null）跳过对话框
+            if (sender != null) {
+                bool currentConfirmed = !string.IsNullOrEmpty(_currentEvent) && _currentHeat > 0 &&
+                    _confirmedHeats.Contains(ConfirmedHeatKey(_currentAgeGroup, _currentGender, _currentEvent, _currentStage, _currentHeat));
+                string prompt = currentConfirmed
+                    ? "本组成绩已确认并锁定。\n\n点击\"是\"将本组计时器全部清零复位，自动进入下一组准备状态。\n（已确认的成绩在 \"成绩与排名\" 里继续保留）"
+                    : "确定计时复位？\n\n本组的时间 / 分段数据将被清除（用于抢跳召回等重新发令），\n但 DSQ / DNS / DNF 等备注状态会保留。";
+                var r = MessageBox.Show(prompt, "计时复位确认", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+                if (r != MessageBoxResult.Yes) return;
+            }
             // 没当前组（_currentHeat <= 0）也要把状态机硬复位，避免按键静默失效。
             if (_currentHeat <= 0) {
                 _raceState = RaceState.Waiting;
