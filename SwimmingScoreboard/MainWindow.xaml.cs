@@ -1918,11 +1918,17 @@ namespace SwimmingScoreboard
             }
         }
 
-        // 0x43 Set_MatchEvent: 告诉硬件本场比赛的总圈数 + 左右两侧期望触板次数 + 空泳道位图。
+        // 0x43 Set_MatchEvent: 告诉硬件本场比赛的总圈数 + 左右两侧期望触板次数 + 泳道开关位图。
         // 参考程序（C:\2024年11月2日PM SWIM串口通讯程序Server）每次按"准备就绪"前必发此帧；
         // 否则硬件不知道比赛结构，后续 0x21 / 0x1C 都不会进入 Ready / 开始计时。
-        // 帧布局：F1 53 43 [D3=All_Lap] [D4=RightExpected] [D5=LeftExpected] [D6=LackLane0_4] [D7=LackLane5_9] 0 0 0 F4
-        // LackLane 位图编码：bit i = 第 i 道空（1）/ 有运动员（0）；位 0..4 装在 D6，位 5..9 装在 D7
+        //
+        // 帧布局：F1 53 43 [D3=All_Lap] [D4=RightExpected] [D5=LeftExpected] [D6=LaneOpen0_4] [D7=LaneOpen5_9] 0 0 0 F4
+        //
+        // 泳道开关位图（修正后协议含义，2026-05-08）：
+        //   bit i = 1 → 第 i 道【有运动员 / 打开】
+        //   bit i = 0 → 第 i 道【空道 / 关闭】
+        //   位 0..4 装在 D6，位 5..9 装在 D7（D7 的 bit 0 对应第 5 道，依此类推）
+        // 早期实现按"空道=1"反向编码，导致硬件实际开关与软件意图相反，已修正。
         private void SendSetMatchEventToHardware() {
             if (_applyingHardwareSettings) return;
             if (_timingBridge == null || !_timingBridge.IsConnected) return;
@@ -1931,7 +1937,7 @@ namespace SwimmingScoreboard
                 int totalLaps = GetTotalLaps();
                 int leftTotal, rightTotal;
                 GetRaceTouchTotals(totalLaps, out leftTotal, out rightTotal);
-                // 空泳道位图：当前组没有运动员的泳道置 1
+                // 泳道开关位图：本组有运动员的泳道置 1，空道置 0
                 var swimmers = GetCurrentHeatSwimmers();
                 var occupiedLanes = new HashSet<int>();
                 foreach (var sw in swimmers) {
@@ -1939,21 +1945,21 @@ namespace SwimmingScoreboard
                     int ln = sa != null ? sa.Lane : sw.Lane;
                     if (ln >= 0 && ln <= 9) occupiedLanes.Add(ln);
                 }
-                byte lackLane0_4 = 0, lackLane5_9 = 0;
+                byte laneOpen0_4 = 0, laneOpen5_9 = 0;
                 for (int i = 0; i <= 4; i++) {
-                    if (!occupiedLanes.Contains(i)) lackLane0_4 |= (byte)(1 << i);
+                    if (occupiedLanes.Contains(i)) laneOpen0_4 |= (byte)(1 << i);
                 }
                 for (int i = 5; i <= 9; i++) {
-                    if (!occupiedLanes.Contains(i)) lackLane5_9 |= (byte)(1 << (i - 5));
+                    if (occupiedLanes.Contains(i)) laneOpen5_9 |= (byte)(1 << (i - 5));
                 }
                 _timingBridge.SendFullFrame(0x43,
                     (byte)Math.Min(255, totalLaps),
                     (byte)Math.Min(255, rightTotal),
                     (byte)Math.Min(255, leftTotal),
-                    lackLane0_4, lackLane5_9, 0);
+                    laneOpen0_4, laneOpen5_9, 0);
                 _timingBridge.DelayBetweenFrames(20);     // 给硬件处理本帧的时间，防止下一条命令被吞
-                AddLog(string.Format("Set_MatchEvent 已下发: 总圈{0} 右{1} 左{2} 空道0-4=0x{3:X2} 空道5-9=0x{4:X2}",
-                    totalLaps, rightTotal, leftTotal, lackLane0_4, lackLane5_9));
+                AddLog(string.Format("Set_MatchEvent 已下发: 总圈{0} 右{1} 左{2} 开0-4=0x{3:X2} 开5-9=0x{4:X2}（bit=1 有运动员）",
+                    totalLaps, rightTotal, leftTotal, laneOpen0_4, laneOpen5_9));
             } catch (Exception ex) {
                 AddLog("Set_MatchEvent 下发失败: " + ex.Message);
             }
