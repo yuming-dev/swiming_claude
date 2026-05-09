@@ -3523,6 +3523,10 @@ namespace SwimmingScoreboard
                     _timingBridge.SendCommand(0x20);
                     _timingBridge.DelayBetweenFrames(20);
                     _timingBridge.SendCommand(0x7F);
+                    // 复位也要重发 0x43 Set_MatchEvent，否则硬件清空了"缺道"位图，
+                    // 与主服务器实际的本组运动员名单不一致
+                    _timingBridge.DelayBetweenFrames(20);
+                    try { SendSetMatchEventToHardware(); } catch (Exception ex) { AddLog("Set_MatchEvent 重发失败: " + ex.Message); }
                 }
                 return;
             }
@@ -3606,10 +3610,15 @@ namespace SwimmingScoreboard
                 UpdateLaneStatusDisplay();
             }
 
-            // 仅在用户本地点击复位（sender != null）时把 0x20 + 0x7F 推给硬件
+            // 仅在用户本地点击复位（sender != null）时把 0x20 + 0x7F 推给硬件，
+            // 之后再补发一次 0x43 Set_MatchEvent —— 硬件 0x20 复位会顺带清掉"缺道"位图，
+            // 不重发的话主服务器的本组缺道与硬件就不一致了
             if (sender != null && _timingBridge != null && _timingBridge.IsConnected) {
                 _timingBridge.SendCommand(0x20);
+                _timingBridge.DelayBetweenFrames(20);
                 _timingBridge.SendCommand(0x7F);
+                _timingBridge.DelayBetweenFrames(20);
+                try { SendSetMatchEventToHardware(); } catch (Exception ex) { AddLog("Set_MatchEvent 重发失败: " + ex.Message); }
             }
             try { BuildScheduleTree(); } catch { }
             // 最后一次广播：若赛次已结束就直接发 SHOW_WELCOME（包含本次 GetStatusData），
