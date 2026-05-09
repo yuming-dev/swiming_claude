@@ -204,6 +204,13 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
             </span>
         </div>
         <div class="param-row" style="margin-top:6px;padding-top:8px;border-top:1px solid #475569;">
+            <label>道次顺序</label>
+            <span style="display:flex;gap:12px;">
+                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="laneOrder" value="forward" id="dlgLaneOrderFwd" checked> 正序 0→9</label>
+                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="laneOrder" value="reverse" id="dlgLaneOrderRev"> 逆序 9→0</label>
+            </span>
+        </div>
+        <div class="param-row" style="margin-top:6px;padding-top:8px;border-top:1px solid #475569;">
             <label>服务器地址</label>
             <input id="dlgServerHost" value="" style="flex:1;">
             <button style="padding:4px 12px;background:#3B82F6;color:white;border:none;border-radius:4px;cursor:pointer;font-size:12px;margin-left:4px;" onclick="applyServerHost()">连接</button>
@@ -431,6 +438,8 @@ var leftBlindWatchCount = parseInt(localStorage.getItem('swimLeftBlindCount')) |
 var rightBlindWatchCount = parseInt(localStorage.getItem('swimRightBlindCount')) || 3;
 // 反应时(RT)开关：默认打开。localStorage 存的是 "1" / "0"
 var reactionTimeEnabled = (localStorage.getItem('swimReactionTimeEnabled') !== '0');
+// 道次顺序：'forward' = 顶到底 0→9；'reverse' = 顶到底 9→0（同硬件）
+var laneOrder = localStorage.getItem('swimLaneOrder') || 'forward';
 
 // 把"参数设置"完整结构写入 localStorage（启动初始化用）；
 // 收到服务器广播或本地修改时调用，三端参数同步。
@@ -448,6 +457,7 @@ function saveLaneCloseSettingsLocal(lcs) {
     if (typeof lcs.rightBlindWatchCount !== 'undefined') localStorage.setItem('swimRightBlindCount', lcs.rightBlindWatchCount);
     if (typeof lcs.bigDisplayPageInterval !== 'undefined') localStorage.setItem('swimBigDisplayPageInterval', lcs.bigDisplayPageInterval);
     if (typeof lcs.reactionTimeEnabled !== 'undefined') localStorage.setItem('swimReactionTimeEnabled', lcs.reactionTimeEnabled ? '1' : '0');
+    if (typeof lcs.laneOrder !== 'undefined') localStorage.setItem('swimLaneOrder', lcs.laneOrder);
 }
 
 window.onbeforeunload = function(e) {
@@ -709,6 +719,7 @@ function render() {
         if (data.laneCloseSettings.finishPosition) finishPosition = data.laneCloseSettings.finishPosition;
         if (data.laneCloseSettings.firstPlaceHoldTime) firstPlaceHoldTime = data.laneCloseSettings.firstPlaceHoldTime;
         if (typeof data.laneCloseSettings.reactionTimeEnabled !== 'undefined') reactionTimeEnabled = !!data.laneCloseSettings.reactionTimeEnabled;
+        if (typeof data.laneCloseSettings.laneOrder !== 'undefined') laneOrder = (data.laneCloseSettings.laneOrder === 'reverse') ? 'reverse' : 'forward';
         var lbcNew = parseInt(data.laneCloseSettings.leftBlindWatchCount);
         var rbcNew = parseInt(data.laneCloseSettings.rightBlindWatchCount);
         if (lbcNew >= 1 && lbcNew <= 3 && lbcNew !== leftBlindWatchCount) {
@@ -992,6 +1003,8 @@ function openSettings() {
     document.getElementById('dlgServerHost').value = localStorage.getItem('swimServerHost') || getServerHost();
     document.getElementById('dlgStartLeft').checked = (finishPosition === 'left');
     document.getElementById('dlgStartRight').checked = (finishPosition === 'right');
+    document.getElementById('dlgLaneOrderFwd').checked = (laneOrder !== 'reverse');
+    document.getElementById('dlgLaneOrderRev').checked = (laneOrder === 'reverse');
     document.getElementById('settingsModal').classList.remove('hidden');
 }
 
@@ -1092,6 +1105,7 @@ function applySettings() {
     if (bigDisplayPageInterval < 1) bigDisplayPageInterval = 1;
     if (bigDisplayPageInterval > 60) bigDisplayPageInterval = 60;
     reactionTimeEnabled = document.getElementById('dlgRtOn').checked;
+    laneOrder = document.getElementById('dlgLaneOrderRev').checked ? 'reverse' : 'forward';
     var settings = {
         laneCloseTime: parseFloat(document.getElementById('dlgCloseTime').value) || 20,
         startBlockCloseDelay: parseFloat(document.getElementById('dlgSBDelay').value) || 3,
@@ -1104,12 +1118,13 @@ function applySettings() {
         leftBlindWatchCount: leftBlindWatchCount,
         rightBlindWatchCount: rightBlindWatchCount,
         bigDisplayPageInterval: bigDisplayPageInterval,
-        reactionTimeEnabled: reactionTimeEnabled
+        reactionTimeEnabled: reactionTimeEnabled,
+        laneOrder: laneOrder
     };
     // 本地落盘 + 推到服务器（服务器再广播给主控/EXE 远程台）
     saveLaneCloseSettingsLocal(settings);
     sendCmd('SET_LANE_CLOSE_SETTINGS', settings);
-    addLog('参数已更新（本地保存 + 同步主服务器），第1名停留: ' + firstPlaceHoldTime + 's，终点位置: ' + (finishPosition === 'left' ? '左端' : '右端') + '，大屏翻屏: ' + bigDisplayPageInterval + 's，反应时: ' + (reactionTimeEnabled ? '打开' : '关闭'));
+    addLog('参数已更新（本地保存 + 同步主服务器），第1名停留: ' + firstPlaceHoldTime + 's，终点位置: ' + (finishPosition === 'left' ? '左端' : '右端') + '，大屏翻屏: ' + bigDisplayPageInterval + 's，反应时: ' + (reactionTimeEnabled ? '打开' : '关闭') + '，道次: ' + (laneOrder === 'reverse' ? '逆序9→0' : '正序0→9'));
     closeSettings();
 }
 
@@ -1462,11 +1477,16 @@ var _laneRowsBuiltKey = '';
 
 function renderLanes() {
     var container = document.getElementById('poolLanes');
-    var swimmers = data.swimmers || [];
+    var swimmers = (data.swimmers || []).slice();
+    // 按设定的道次顺序排序（参数设置 → 道次正序/逆序）
+    swimmers.sort(function(a, b) {
+        var d = (a.lane || 0) - (b.lane || 0);
+        return laneOrder === 'reverse' ? -d : d;
+    });
     var rcRelay = (data.currentEvent||'').indexOf('接力') >= 0;
 
-    // 构造 key 检测是否需要重建
-    var keyParts = [data.currentEvent||'', rcRelay, swimmers.length];
+    // 构造 key 检测是否需要重建（laneOrder 变化也要重建以触发翻转）
+    var keyParts = [data.currentEvent||'', rcRelay, swimmers.length, laneOrder];
     for (var k = 0; k < swimmers.length; k++) {
         keyParts.push((swimmers[k].name||'') + ':' + swimmers[k].lane);
     }

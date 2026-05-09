@@ -1096,12 +1096,16 @@ namespace SwimmingScoreboard
                         if (data["reactionTimeEnabled"] != null) {
                             _laneCloseSettings.ReactionTimeEnabled = (bool)data["reactionTimeEnabled"];
                         }
-                        AddLog(string.Format("参数更新: 关闭{0}s 出发台{1}s 确认{2}s 抢跳{3}s 分段{4}s 终点:{5} 盲表 左{6}/右{7} 翻屏{8}s",
+                        if (data["laneOrder"] != null) {
+                            _laneCloseSettings.LaneOrder = data["laneOrder"].ToString();
+                        }
+                        AddLog(string.Format("参数更新: 关闭{0}s 出发台{1}s 确认{2}s 抢跳{3}s 分段{4}s 终点:{5} 盲表 左{6}/右{7} 翻屏{8}s 道次:{9}",
                             _laneCloseSettings.LaneCloseTime, _laneCloseSettings.StartBlockCloseDelay,
                             _laneCloseSettings.ResultConfirmCloseDelay, _laneCloseSettings.FalseStartThreshold,
                             _laneCloseSettings.SplitDisplayTime, _laneCloseSettings.FinishPosition == "left" ? "左端" : "右端",
                             _laneCloseSettings.LeftBlindWatchCount, _laneCloseSettings.RightBlindWatchCount,
-                            _laneCloseSettings.BigDisplayPageInterval));
+                            _laneCloseSettings.BigDisplayPageInterval,
+                            _laneCloseSettings.LaneOrder == "reverse" ? "逆序9→0" : "正序0→9"));
                         SaveTimingSettings();
                         AutoSaveData();
                         UpdateLaneStatusDisplay();
@@ -1538,7 +1542,8 @@ namespace SwimmingScoreboard
                     leftBlindWatchCount = _laneCloseSettings.LeftBlindWatchCount,
                     rightBlindWatchCount = _laneCloseSettings.RightBlindWatchCount,
                     bigDisplayPageInterval = _laneCloseSettings.BigDisplayPageInterval,
-                    reactionTimeEnabled = _laneCloseSettings.ReactionTimeEnabled
+                    reactionTimeEnabled = _laneCloseSettings.ReactionTimeEnabled,
+                    laneOrder = _laneCloseSettings.LaneOrder
                 },
                 displayRecordLabel = string.IsNullOrEmpty(_displayRecordLabel) ? "WR" : _displayRecordLabel,
                 displayRecordTypeName = string.IsNullOrEmpty(_displayRecordTypeName) ? "世界纪录" : _displayRecordTypeName,
@@ -1801,6 +1806,7 @@ namespace SwimmingScoreboard
         //   0x05 SplitDisplayTime           秒
         //   0x06 FirstPlaceHoldTime         秒
         //   0x07 FinishPosition             0=左端，1=右端
+        //   0x09 LaneOrder                  0=正序0→9，1=逆序9→0（道次显示方向）
         // ═══════════════════════════════════════════════════════════════
         private bool _applyingHardwareSettings = false;
 
@@ -1837,14 +1843,19 @@ namespace SwimmingScoreboard
                 byte bw = (byte)(((lc & 0x0F) << 4) | (rc & 0x0F));
                 _timingBridge.SendCommand(0x42, 0x08, bw);
                 _timingBridge.DelayBetweenFrames(20);
+                // 0x09 道次顺序：0=正序 0→9，1=逆序 9→0
+                byte lo = _laneCloseSettings.LaneOrder == "reverse" ? (byte)1 : (byte)0;
+                _timingBridge.SendCommand(0x42, 0x09, lo);
+                _timingBridge.DelayBetweenFrames(20);
 
                 AddLog(string.Format(
-                    "参数已同步到硬件: 泳池{0}米{1}道, 关闭{2}s, 出发台{3}s, 确认{4}s, 抢跳{5}s, 分段{6}s, 第1名{7}s, 终点:{8}",
+                    "参数已同步到硬件: 泳池{0}米{1}道, 关闭{2}s, 出发台{3}s, 确认{4}s, 抢跳{5}s, 分段{6}s, 第1名{7}s, 终点:{8}, 道次:{9}",
                     _poolConfig.Length, _poolConfig.LaneCount,
                     _laneCloseSettings.LaneCloseTime, _laneCloseSettings.StartBlockCloseDelay,
                     _laneCloseSettings.ResultConfirmCloseDelay, _laneCloseSettings.FalseStartThreshold,
                     _laneCloseSettings.SplitDisplayTime, _laneCloseSettings.FirstPlaceHoldTime,
-                    _laneCloseSettings.FinishPosition == "left" ? "左端" : "右端"));
+                    _laneCloseSettings.FinishPosition == "left" ? "左端" : "右端",
+                    _laneCloseSettings.LaneOrder == "reverse" ? "逆序9→0" : "正序0→9"));
             } catch (Exception ex) {
                 AddLog("参数下发硬件失败: " + ex.Message);
             }
@@ -4438,7 +4449,9 @@ namespace SwimmingScoreboard
                 if (!laneSwimmerMap.ContainsKey(ln)) laneSwimmerMap[ln] = sw;
             }
             var allPoolLanes = (_poolConfig.LaneNumbers ?? new List<int>()).ToList();
+            // 道次顺序：正序=升序 0→9（顶到底）；逆序=降序 9→0
             allPoolLanes.Sort();
+            if (_laneCloseSettings.LaneOrder == "reverse") allPoolLanes.Reverse();
 
             // 构造本次数据的key（运动员列表或泳道集合变化时需要重建UI；盲表数量变更也要重建）
             string key = _currentGender + "|" + _currentEvent + "|" + _currentStage + "|" + _currentHeat
@@ -5522,6 +5535,15 @@ namespace SwimmingScoreboard
             rtRow.Children.Add(rbRtOff);
             sp.Children.Add(rtRow);
 
+            // 道次显示顺序：正序=顶到底为 0→9；逆序=顶到底为 9→0（同步给硬件计时器及所有 UI）
+            var orderRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 10, 0, 0) };
+            orderRow.Children.Add(new TextBlock { Text = "道次顺序", Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), FontSize = 15, VerticalAlignment = VerticalAlignment.Center, Width = 140 });
+            var rbOrderFwd = new RadioButton { Content = "正序 0→9", Foreground = Brushes.White, FontSize = 14, IsChecked = _laneCloseSettings.LaneOrder != "reverse", GroupName = "LaneOrder", Margin = new Thickness(0, 0, 12, 0) };
+            var rbOrderRev = new RadioButton { Content = "逆序 9→0", Foreground = Brushes.White, FontSize = 14, IsChecked = _laneCloseSettings.LaneOrder == "reverse", GroupName = "LaneOrder" };
+            orderRow.Children.Add(rbOrderFwd);
+            orderRow.Children.Add(rbOrderRev);
+            sp.Children.Add(orderRow);
+
             // 设备状态管理按钮
             var deviceSep = new Border { BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569")), BorderThickness = new Thickness(0, 1, 0, 0), Margin = new Thickness(0, 10, 0, 0), Padding = new Thickness(0, 10, 0, 0) };
             var btnDeviceMgr = new Button { Content = "设备状态管理", Padding = new Thickness(0, 8, 0, 8), FontSize = 14, FontWeight = FontWeights.Bold, Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#8B5CF6")), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
@@ -5559,6 +5581,7 @@ namespace SwimmingScoreboard
                 if (double.TryParse(tbFirstHold.Text, out v)) _laneCloseSettings.FirstPlaceHoldTime = v;
                 if (double.TryParse(tbBigPage.Text, out v)) _laneCloseSettings.BigDisplayPageInterval = v;
                 _laneCloseSettings.ReactionTimeEnabled = rbRtOn.IsChecked == true;
+                _laneCloseSettings.LaneOrder = rbOrderRev.IsChecked == true ? "reverse" : "forward";
                 string newFinish = rbRight.IsChecked == true ? "right" : "left";
                 _laneCloseSettings.FinishPosition = newFinish;
                 _laneCloseSettings.StartPosition = newFinish;
@@ -5572,11 +5595,12 @@ namespace SwimmingScoreboard
                 UpdateLaneStatusDisplay();
                 Broadcast();
                 SendTimingSettingsToHardware();   // 同步到硬件计时控制器
-                AddLog(string.Format("参数更新: 关闭{0}s 出发台{1}s 确认{2}s 抢跳{3}s 分段{4}s 终点:{5} 翻屏{6}s 反应时:{7}",
+                AddLog(string.Format("参数更新: 关闭{0}s 出发台{1}s 确认{2}s 抢跳{3}s 分段{4}s 终点:{5} 翻屏{6}s 反应时:{7} 道次:{8}",
                     _laneCloseSettings.LaneCloseTime, _laneCloseSettings.StartBlockCloseDelay,
                     _laneCloseSettings.ResultConfirmCloseDelay, _laneCloseSettings.FalseStartThreshold,
                     _laneCloseSettings.SplitDisplayTime, _laneCloseSettings.FinishPosition == "left" ? "左端" : "右端",
-                    _laneCloseSettings.BigDisplayPageInterval, _laneCloseSettings.ReactionTimeEnabled ? "打开" : "关闭"));
+                    _laneCloseSettings.BigDisplayPageInterval, _laneCloseSettings.ReactionTimeEnabled ? "打开" : "关闭",
+                    _laneCloseSettings.LaneOrder == "reverse" ? "逆序9→0" : "正序0→9"));
             }
         }
 

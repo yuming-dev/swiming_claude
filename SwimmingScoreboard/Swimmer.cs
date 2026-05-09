@@ -46,6 +46,7 @@ namespace SwimmingScoreboard
         private int _rightBlindWatchCount = 3;  // 右端每道盲表数量（1-3）
         private double _bigDisplayPageInterval = 5.0; // 大屏翻屏时间（秒）— 总排名等多页内容自动翻页周期
         private bool _reactionTimeEnabled = true;     // 是否启用出发反应时检测：关闭时，所有出发反应时相关处理跳过
+        private string _laneOrder = "forward";        // 道次显示顺序: "forward"=0→9（顶到底）；"reverse"=9→0（顶到底）
 
         public double LaneCloseTime {
             get { return _laneCloseTime; }
@@ -103,6 +104,13 @@ namespace SwimmingScoreboard
         public bool ReactionTimeEnabled {
             get { return _reactionTimeEnabled; }
             set { if (_reactionTimeEnabled != value) { _reactionTimeEnabled = value; OnPropertyChanged("ReactionTimeEnabled"); } }
+        }
+        public string LaneOrder {
+            get { return _laneOrder; }
+            set {
+                string v = (value == "reverse") ? "reverse" : "forward";
+                if (_laneOrder != v) { _laneOrder = v; OnPropertyChanged("LaneOrder"); }
+            }
         }
 
         public event PropertyChangedEventHandler PropertyChanged;

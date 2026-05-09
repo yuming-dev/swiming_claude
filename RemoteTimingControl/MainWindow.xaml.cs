@@ -46,6 +46,7 @@ namespace RemoteTimingControl
         private int _rightBlindWatchCount = 3;
         private double _bigDisplayPageInterval = 5;
         private bool _reactionTimeEnabled = true; // 反应时(RT)开关：关闭时所有出发反应时相关处理跳过
+        private string _laneOrder = "forward";    // 道次顺序: "forward" 0→9（顶到底）；"reverse" 9→0
 
         // Local timer for smooth running time
         private DateTime _localTimerStart = DateTime.MinValue;
@@ -220,6 +221,10 @@ namespace RemoteTimingControl
                     }
                     if (j["bigDisplayPageInterval"] != null) _bigDisplayPageInterval = (double)j["bigDisplayPageInterval"];
                     if (j["reactionTimeEnabled"] != null) _reactionTimeEnabled = (bool)j["reactionTimeEnabled"];
+                    if (j["laneOrder"] != null) {
+                        string lv = j["laneOrder"].ToString();
+                        _laneOrder = (lv == "reverse") ? "reverse" : "forward";
+                    }
                 }
             }
             catch { }
@@ -258,6 +263,7 @@ namespace RemoteTimingControl
                 lcs["rightBlindWatchCount"] = _rightBlindWatchCount;
                 lcs["bigDisplayPageInterval"] = _bigDisplayPageInterval;
                 lcs["reactionTimeEnabled"] = _reactionTimeEnabled;
+                lcs["laneOrder"] = _laneOrder;
                 System.IO.File.WriteAllText(GetLaneCloseSettingsPath(), lcs.ToString(), Encoding.UTF8);
             }
             catch { }
@@ -680,6 +686,10 @@ namespace RemoteTimingControl
                 }
                 if (lcs["bigDisplayPageInterval"] != null) _bigDisplayPageInterval = (double)lcs["bigDisplayPageInterval"];
                 if (lcs["reactionTimeEnabled"] != null) _reactionTimeEnabled = (bool)lcs["reactionTimeEnabled"];
+                if (lcs["laneOrder"] != null) {
+                    string lv2 = lcs["laneOrder"].ToString();
+                    _laneOrder = (lv2 == "reverse") ? "reverse" : "forward";
+                }
                 // 把"主服务器同步过来"的参数也写到本地持久化文件，
                 // 这样下次启动（即便服务器尚未连上）也能用最新值初始化
                 try { SaveSettings(); } catch { }
@@ -1218,14 +1228,28 @@ namespace RemoteTimingControl
         {
             if (swimmers == null) { LanePanel.Children.Clear(); _laneRowUIs.Clear(); _laneRowsBuiltKey = ""; return; }
 
+            // 按"参数设置 → 道次顺序"排序：正序=升序 0→9，逆序=降序 9→0
+            var sortedList = new List<JObject>();
+            foreach (JObject sw in swimmers) sortedList.Add(sw);
+            sortedList.Sort(delegate (JObject a, JObject b) {
+                int la = a["lane"] != null ? (int)a["lane"] : 0;
+                int lb = b["lane"] != null ? (int)b["lane"] : 0;
+                int d = la - lb;
+                return _laneOrder == "reverse" ? -d : d;
+            });
+            var sorted = new JArray();
+            foreach (var s in sortedList) sorted.Add(s);
+            swimmers = sorted;
+
             bool isRelay = false;
             string curEventStr = _data != null && _data["currentEvent"] != null ? _data["currentEvent"].ToString() : "";
             if (curEventStr.Contains("接力")) isRelay = true;
 
-            // 构造 key：运动员列表/项目变化时重建结构（盲表数量变更也触发重建）
+            // 构造 key：运动员列表/项目变化时重建结构（盲表数量、道次顺序变更也触发重建）
             var sbKey = new StringBuilder();
             sbKey.Append(curEventStr).Append('|').Append(isRelay).Append('|').Append(swimmers.Count);
             sbKey.Append("|bw:").Append(_leftBlindWatchCount).Append('/').Append(_rightBlindWatchCount);
+            sbKey.Append("|lo:").Append(_laneOrder);
             foreach (JObject sw in swimmers)
             {
                 sbKey.Append('|');
@@ -1898,8 +1922,17 @@ namespace RemoteTimingControl
             bool isRelay = false;
             string curEventStr = _data["currentEvent"] != null ? _data["currentEvent"].ToString() : "";
             if (curEventStr.Contains("接力")) isRelay = true;
+            // 与道次顺序设置一致排序
+            var sortedList = new List<JObject>();
+            foreach (JObject sw in swimmers) sortedList.Add(sw);
+            sortedList.Sort(delegate (JObject a, JObject b) {
+                int la = a["lane"] != null ? (int)a["lane"] : 0;
+                int lb = b["lane"] != null ? (int)b["lane"] : 0;
+                int d = la - lb;
+                return _laneOrder == "reverse" ? -d : d;
+            });
             string startList = "";
-            foreach (JObject sw in swimmers)
+            foreach (var sw in sortedList)
             {
                 string label = isRelay ? (sw["country"] != null ? sw["country"].ToString() : "") : (sw["name"] != null ? sw["name"].ToString() : "");
                 startList += string.Format("道{0}-{1}({2}) ", sw["lane"], label, sw["entryTime"] ?? "");
@@ -2386,6 +2419,15 @@ namespace RemoteTimingControl
             rtRow.Children.Add(rbRtOff);
             sp.Children.Add(rtRow);
 
+            // 道次顺序：正序 0→9（顶到底）/ 逆序 9→0
+            var orderRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 10, 0, 0) };
+            orderRow.Children.Add(new TextBlock { Text = "道次顺序", Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), FontSize = 15, VerticalAlignment = VerticalAlignment.Center, Width = 140 });
+            var rbOrderFwd = new RadioButton { Content = "正序 0→9", Foreground = Brushes.White, FontSize = 14, IsChecked = _laneOrder != "reverse", GroupName = "LaneOrderSwitch", Margin = new Thickness(0, 0, 12, 0) };
+            var rbOrderRev = new RadioButton { Content = "逆序 9→0", Foreground = Brushes.White, FontSize = 14, IsChecked = _laneOrder == "reverse", GroupName = "LaneOrderSwitch" };
+            orderRow.Children.Add(rbOrderFwd);
+            orderRow.Children.Add(rbOrderRev);
+            sp.Children.Add(orderRow);
+
             // 服务器地址
             var serverSep = new Border { BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569")), BorderThickness = new Thickness(0, 1, 0, 0), Margin = new Thickness(0, 10, 0, 0), Padding = new Thickness(0, 10, 0, 0) };
             var serverRow = new Grid();
@@ -2558,6 +2600,7 @@ namespace RemoteTimingControl
                     _bigDisplayPageInterval = bigPageVal;
                 }
                 _reactionTimeEnabled = rbRtOn.IsChecked == true;
+                _laneOrder = rbOrderRev.IsChecked == true ? "reverse" : "forward";
 
                 var settings = new
                 {
@@ -2571,7 +2614,8 @@ namespace RemoteTimingControl
                     leftBlindWatchCount = _leftBlindWatchCount,
                     rightBlindWatchCount = _rightBlindWatchCount,
                     bigDisplayPageInterval = _bigDisplayPageInterval,
-                    reactionTimeEnabled = _reactionTimeEnabled
+                    reactionTimeEnabled = _reactionTimeEnabled,
+                    laneOrder = _laneOrder
                 };
                 SendCmd("SET_LANE_CLOSE_SETTINGS", settings);
 
@@ -2586,9 +2630,10 @@ namespace RemoteTimingControl
                 }
 
                 SaveSettings();
-                AddLog(string.Format("参数已更新并保存，第1名停留: {0}s，终点位置: {1}，翻屏: {2}s，反应时: {3}",
+                AddLog(string.Format("参数已更新并保存，第1名停留: {0}s，终点位置: {1}，翻屏: {2}s，反应时: {3}，道次: {4}",
                     _firstPlaceHoldTime, _finishPosition == "left" ? "左端" : "右端",
-                    _bigDisplayPageInterval, _reactionTimeEnabled ? "打开" : "关闭"));
+                    _bigDisplayPageInterval, _reactionTimeEnabled ? "打开" : "关闭",
+                    _laneOrder == "reverse" ? "逆序9→0" : "正序0→9"));
             }
         }
 

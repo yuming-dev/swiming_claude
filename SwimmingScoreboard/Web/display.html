@@ -625,6 +625,12 @@ function _activeSwimmersForDisplay() {
         if (!hasName && !hasBib) continue;              // 无姓名+无号码：视为空道
         out.push(s);
     }
+    // 按"参数设置 → 道次顺序"排序：正序=升序 0→9（顶到底）；逆序=降序 9→0
+    var lo = (data.laneCloseSettings && data.laneCloseSettings.laneOrder === 'reverse') ? 'reverse' : 'forward';
+    out.sort(function(a, b) {
+        var d = (a.lane || 0) - (b.lane || 0);
+        return lo === 'reverse' ? -d : d;
+    });
     return out;
 }
 
