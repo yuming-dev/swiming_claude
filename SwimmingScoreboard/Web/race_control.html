@@ -74,6 +74,7 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 .device-dot.open { background: var(--green); border-color: var(--green); }
 .device-dot.closed { background: #475569; border-color: #64748b; }
 .device-dot.broken { background: var(--red); border-color: var(--red); }
+.device-dot.touched { background: var(--red); border-color: var(--red); }
 .device-dot.falsestart { background: var(--gold); border-color: var(--gold); }
 .device-dot.notinstalled { background: transparent; border: 2px dashed #334155; }
 .touch-btn { width: 80px; height: 30px; background: #475569; border: 1px solid #64748b; border-radius: 3px; color: white; font-size: 15px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
@@ -1764,6 +1765,7 @@ function statusClass(s) {
     if (!s) return 'closed';
     if (s === 'open') return 'open';
     if (s === 'broken') return 'broken';
+    if (s === 'touched') return 'touched';   // 已触板（红）：触板有正式成绩后保持期间
     if (s === 'falsestart') return 'falsestart';
     if (s === 'notinstalled') return 'notinstalled';
     return 'closed';

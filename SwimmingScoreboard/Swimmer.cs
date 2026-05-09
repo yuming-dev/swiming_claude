@@ -15,7 +15,9 @@ namespace SwimmingScoreboard
         Closed,       // 灰色 - 关闭（不接收数据）
         Broken,       // 红色 - 损坏
         FalseStart,   // 黄色 - 抢跳（仅出发台）
-        NotInstalled  // 虚线框 - 未安装
+        NotInstalled, // 虚线框 - 未安装
+        Touched       // 红色 - 已触板（运动员触板有正式成绩后保持 LaneCloseTime 秒，
+                      // 期间再触板作为"备用成绩"记录，到点后转为 Closed）
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -290,6 +292,13 @@ namespace SwimmingScoreboard
         public List<double> LegReactionTimes {
             get { return _legReactionTimes; }
             set { _legReactionTimes = value ?? new List<double>(); OnPropertyChanged("LegReactionTimes"); }
+        }
+        // 触板"已触板（红色）"窗口期内的额外触板时间 — 作为备用成绩用于争议裁定。
+        // 元素是绝对累计时间（同 TouchpadTime），按到达先后追加。窗口期外再触板只写日志，不进此列表。
+        private List<double> _backupTouchTimes = new List<double>();
+        public List<double> BackupTouchTimes {
+            get { return _backupTouchTimes; }
+            set { _backupTouchTimes = value ?? new List<double>(); OnPropertyChanged("BackupTouchTimes"); }
         }
         public ObservableCollection<SplitTime> Splits {
             get { return _splits; }

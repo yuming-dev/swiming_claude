@@ -1200,6 +1200,7 @@ namespace RemoteTimingControl
             {
                 case "open": return _brushGreen;
                 case "broken": return _brushRed;
+                case "touched": return _brushRed;   // 已触板（红）— 与损坏同色，按用户指定
                 case "falsestart": return _brushAmber;
                 case "notinstalled": return _brushInstalledStroke;
                 default: return _brushSlate;
@@ -1771,6 +1772,7 @@ namespace RemoteTimingControl
             {
                 case "open": c = (Color)ColorConverter.ConvertFromString("#22C55E"); break;
                 case "broken": c = (Color)ColorConverter.ConvertFromString("#EF4444"); break;
+                case "touched": c = (Color)ColorConverter.ConvertFromString("#EF4444"); break;
                 case "falsestart": c = (Color)ColorConverter.ConvertFromString("#F59E0B"); break;
                 case "notinstalled": c = (Color)ColorConverter.ConvertFromString("#334155"); break;
                 default: c = (Color)ColorConverter.ConvertFromString("#475569"); break;

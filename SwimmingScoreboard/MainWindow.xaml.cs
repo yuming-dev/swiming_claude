@@ -2292,16 +2292,34 @@ namespace SwimmingScoreboard
                     break;
 
                 case "Touchpad":
-                    // 触板 — 根据 side 检查对应端是否打开（side=null 时兼容两端任一打开）
+                    // 触板状态机：
+                    //   Open       → 作为正式成绩送进 ProcessTouchpadHit，再把该端切到 Touched（红）保持 LaneCloseTime 秒
+                    //   Touched    → 已有正式成绩；本次记日志并写入"备用成绩"（争议时使用）
+                    //   其它（Closed/Broken/NotInstalled）→ 仅记日志，不作为成绩
                     {
-                        bool touchOpen;
-                        if (side == "left") touchOpen = laneState.LeftTouchpadStatus == DeviceStatus.Open;
-                        else if (side == "right") touchOpen = laneState.RightTouchpadStatus == DeviceStatus.Open;
-                        else touchOpen = laneState.LeftTouchpadStatus == DeviceStatus.Open || laneState.RightTouchpadStatus == DeviceStatus.Open;
-                        if (touchOpen) {
+                        DeviceStatus tpStatus;
+                        string sideForClose = side;
+                        if (side == "left") tpStatus = laneState.LeftTouchpadStatus;
+                        else if (side == "right") tpStatus = laneState.RightTouchpadStatus;
+                        else {
+                            // 兼容旧路径（side 缺失）：优先选 Open 的一端，否则左端
+                            if (laneState.LeftTouchpadStatus == DeviceStatus.Open) { tpStatus = DeviceStatus.Open; sideForClose = "left"; }
+                            else if (laneState.RightTouchpadStatus == DeviceStatus.Open) { tpStatus = DeviceStatus.Open; sideForClose = "right"; }
+                            else if (laneState.LeftTouchpadStatus == DeviceStatus.Touched) { tpStatus = DeviceStatus.Touched; sideForClose = "left"; }
+                            else if (laneState.RightTouchpadStatus == DeviceStatus.Touched) { tpStatus = DeviceStatus.Touched; sideForClose = "right"; }
+                            else { tpStatus = laneState.LeftTouchpadStatus; sideForClose = "left"; }
+                        }
+
+                        if (tpStatus == DeviceStatus.Open) {
                             ProcessTouchpadHit(lane, timeInSeconds, laneState);
+                            // 已记录正式成绩，把该端切到"已触板（红）"，到点再 Closed
+                            EnterTouchedThenClose(laneState, sideForClose, lane);
+                        } else if (tpStatus == DeviceStatus.Touched) {
+                            // 备用成绩：写入运动员当前组的成绩记录 + 日志
+                            RecordBackupTouch(lane, timeInSeconds);
                         } else {
-                            AddLog(string.Format("泳道{0} 触板数据丢弃（{1}泳道关闭中）", lane, side ?? ""));
+                            AddLog(string.Format("泳道{0} 触板数据已记录但不作为成绩（{1}状态:{2}）",
+                                lane, side ?? "", tpStatus));
                         }
                     }
                     break;
@@ -2628,6 +2646,57 @@ namespace SwimmingScoreboard
             }
         }
 
+        // 把触板从 Open → Touched（红色），LaneCloseTime 秒后再 → Closed。
+        // 期间硬件上来的额外触板事件会被 RecordBackupTouch 写为"备用成绩"。
+        private void EnterTouchedThenClose(LaneDeviceState laneState, string side, int lane) {
+            if (laneState == null) return;
+            if (side == "right") {
+                if (laneState.RightTouchpadBroken) return;
+                laneState.RightTouchpadStatus = DeviceStatus.Touched;
+            } else {
+                if (laneState.LeftTouchpadBroken) return;
+                laneState.LeftTouchpadStatus = DeviceStatus.Touched;
+            }
+
+            double holdSec = _laneCloseSettings.LaneCloseTime > 0 ? _laneCloseSettings.LaneCloseTime : 20;
+            int capLane = lane;
+            string capSide = side;
+            var closeTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(holdSec) };
+            closeTimer.Tick += delegate {
+                closeTimer.Stop();
+                var ls = _laneDeviceStates.FirstOrDefault(s => s.Lane == capLane);
+                if (ls == null) return;
+                if (capSide == "right") {
+                    if (ls.RightTouchpadStatus == DeviceStatus.Touched) ls.RightTouchpadStatus = DeviceStatus.Closed;
+                } else {
+                    if (ls.LeftTouchpadStatus == DeviceStatus.Touched) ls.LeftTouchpadStatus = DeviceStatus.Closed;
+                }
+                Broadcast();
+            };
+            closeTimer.Start();
+        }
+
+        // 触板"已触板（红）"窗口期内的额外触板：写日志 + 保存到 LaneResult.BackupTouchTimes（争议成绩）。
+        private void RecordBackupTouch(int lane, double time) {
+            var swimmer = GetCurrentHeatSwimmers().FirstOrDefault(s => {
+                var sa = s.GetAssignmentForStage(_currentStage);
+                return (sa != null ? sa.Lane : s.Lane) == lane;
+            });
+            if (swimmer == null) {
+                AddLog(string.Format("泳道{0} 备用成绩 {1}（找不到运动员，仅日志）", lane, TimeFormatter.Format(time)));
+                return;
+            }
+            var result = swimmer.Results.FirstOrDefault(r => r.Stage == _currentStage && r.Heat == _currentHeat);
+            if (result == null) {
+                AddLog(string.Format("泳道{0} 备用成绩 {1}（无成绩记录，仅日志）", lane, TimeFormatter.Format(time)));
+                return;
+            }
+            result.BackupTouchTimes.Add(time);
+            AddLog(string.Format("泳道{0} {1} 触板【备用成绩】{2}（争议时使用，正式成绩 {3}）",
+                lane, swimmer.Name ?? "", TimeFormatter.Format(time),
+                result.FinalTime > 0 ? TimeFormatter.Format(result.FinalTime) : "—"));
+        }
+
         private void ProcessTouchpadHit(int lane, double time, LaneDeviceState laneState) {
             // 第1名成绩检测：不管哪个泳道，hold时间过期后最先收到的触板就是新的第1名
             if (time > 0) {
@@ -2734,7 +2803,8 @@ namespace SwimmingScoreboard
                 result.TimingSource = judgement.Source;
                 split.TimingSource = judgement.Source;
 
-                // 关闭触板（立即），盲表延迟关闭（给盲表和手动留时间记录）
+                // 终点圈：先把两端都置 Closed（清场），后面 EnterTouchedThenClose 会把
+                // 真正"触板那一端"覆盖为 Touched（红）→ LaneCloseTime 秒后再回到 Closed。
                 laneState.LeftTouchpadStatus = DeviceStatus.Closed;
                 laneState.RightTouchpadStatus = DeviceStatus.Closed;
                 laneState.LaneCloseCountdown = 0;
@@ -2799,7 +2869,8 @@ namespace SwimmingScoreboard
                     }
                 }
 
-                // 延迟后关闭到达端设备（给盲表留时间）
+                // 触板：由调用方 EnterTouchedThenClose 把到达端切到"已触板（红）"，
+                // 到点 LaneCloseTime 后再转 Closed。这里只处理"该端的盲表/手动按钮"延迟关闭。
                 string arrivedEnd = laneState.Direction == "→" ? "left" : "right";
                 var closeTimer = new DispatcherTimer();
                 closeTimer.Interval = TimeSpan.FromSeconds(_laneCloseSettings.ResultConfirmCloseDelay);
@@ -2807,11 +2878,9 @@ namespace SwimmingScoreboard
                     closeTimer.Stop();
                     if (laneState.IsFinished) return;
                     if (arrivedEnd == "right") {
-                        laneState.RightTouchpadStatus = DeviceStatus.Closed;
                         laneState.RightBlindWatch1Status = DeviceStatus.Closed; laneState.RightBlindWatch2Status = DeviceStatus.Closed; laneState.RightBlindWatch3Status = DeviceStatus.Closed;
                         laneState.RightManualStatus = DeviceStatus.Closed;
                     } else {
-                        laneState.LeftTouchpadStatus = DeviceStatus.Closed;
                         laneState.LeftBlindWatch1Status = DeviceStatus.Closed; laneState.LeftBlindWatch2Status = DeviceStatus.Closed; laneState.LeftBlindWatch3Status = DeviceStatus.Closed;
                         laneState.LeftManualStatus = DeviceStatus.Closed;
                     }
@@ -4331,6 +4400,7 @@ namespace SwimmingScoreboard
             switch (status) {
                 case DeviceStatus.Open: return _brushGreen;
                 case DeviceStatus.Broken: return _brushRed;
+                case DeviceStatus.Touched: return _brushRed;     // 已触板（红）— 与损坏同色，按用户指定
                 case DeviceStatus.FalseStart: return _brushAmber;
                 default: return _brushSlate;
             }
