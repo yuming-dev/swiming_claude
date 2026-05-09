@@ -2216,17 +2216,31 @@ namespace SwimmingScoreboard
                     break;
 
                 case "StartingBlock":
-                    // 出发台 — 反应时间（含接力交接棒抢跳检测）
-                    // 根据 side 检查对应端出发台是否打开（side=null 时兼容两端任一打开）
+                    // 出发台状态机（与触板对称）：
+                    //   Open / FalseStart → 作为正式反应时处理，再切到 Touched（红）保持 StartBlockCloseDelay 秒
+                    //   Touched           → 已记录正式反应时；本次记日志并写入"备用反应时"
+                    //   其它              → 仅记日志
                     {
-                        bool sbOpen;
-                        if (side == "left")
-                            sbOpen = laneState.LeftStartBlockStatus == DeviceStatus.Open || laneState.LeftStartBlockStatus == DeviceStatus.FalseStart;
-                        else if (side == "right")
-                            sbOpen = laneState.RightStartBlockStatus == DeviceStatus.Open || laneState.RightStartBlockStatus == DeviceStatus.FalseStart;
-                        else
-                            sbOpen = laneState.LeftStartBlockStatus == DeviceStatus.Open || laneState.RightStartBlockStatus == DeviceStatus.Open
-                                  || laneState.LeftStartBlockStatus == DeviceStatus.FalseStart || laneState.RightStartBlockStatus == DeviceStatus.FalseStart;
+                        DeviceStatus sbStatus;
+                        string sbSideForClose = side;
+                        if (side == "left") sbStatus = laneState.LeftStartBlockStatus;
+                        else if (side == "right") sbStatus = laneState.RightStartBlockStatus;
+                        else {
+                            // side 缺失：先选 Open/FalseStart 一端，否则 Touched 一端，否则左端
+                            DeviceStatus lst = laneState.LeftStartBlockStatus;
+                            DeviceStatus rst = laneState.RightStartBlockStatus;
+                            if (lst == DeviceStatus.Open || lst == DeviceStatus.FalseStart) { sbStatus = lst; sbSideForClose = "left"; }
+                            else if (rst == DeviceStatus.Open || rst == DeviceStatus.FalseStart) { sbStatus = rst; sbSideForClose = "right"; }
+                            else if (lst == DeviceStatus.Touched) { sbStatus = lst; sbSideForClose = "left"; }
+                            else if (rst == DeviceStatus.Touched) { sbStatus = rst; sbSideForClose = "right"; }
+                            else { sbStatus = lst; sbSideForClose = "left"; }
+                        }
+
+                        bool sbOpen = (sbStatus == DeviceStatus.Open || sbStatus == DeviceStatus.FalseStart);
+                        if (!sbOpen && sbStatus == DeviceStatus.Touched) {
+                            RecordBackupReaction(lane, timeInSeconds, sbSideForClose);
+                            break;
+                        }
                         if (sbOpen) {
 
                         if (!_laneCloseSettings.ReactionTimeEnabled) {
@@ -2287,6 +2301,8 @@ namespace SwimmingScoreboard
                                 AddLog(string.Format("泳道{0} 反应时间: {1:F2}s", lane, timeInSeconds));
                             }
                         }
+                        // 正式反应时已记录，把该端出发台切到"已触板（红）"，StartBlockCloseDelay 秒后转 Closed
+                        EnterStartBlockTouchedThenClose(laneState, sbSideForClose, lane);
                     }
                     }
                     break;
@@ -2327,18 +2343,34 @@ namespace SwimmingScoreboard
                 case "PushButton1":
                 case "PushButton2":
                 case "PushButton3":
-                    // 盲表 — 根据 side 检查对应端盲表是否打开
+                    // 盲表状态机（按【单个盲表】粒度，每个盲表独立计时）：
+                    //   Open    → 作为正式分段计时数据送 ProcessBlindWatchData，再切到 Touched（红）保持 ResultConfirmCloseDelay 秒
+                    //   Touched → 已记录正式成绩；本次记日志并写入"备用盲表成绩"
+                    //   其它    → 仅记日志
                     {
-                        bool blindOpen;
-                        if (side == "left")
-                            blindOpen = laneState.LeftBlindWatch1Status == DeviceStatus.Open || laneState.LeftBlindWatch2Status == DeviceStatus.Open || laneState.LeftBlindWatch3Status == DeviceStatus.Open;
-                        else if (side == "right")
-                            blindOpen = laneState.RightBlindWatch1Status == DeviceStatus.Open || laneState.RightBlindWatch2Status == DeviceStatus.Open || laneState.RightBlindWatch3Status == DeviceStatus.Open;
-                        else
-                            blindOpen = laneState.LeftBlindWatch1Status == DeviceStatus.Open || laneState.LeftBlindWatch2Status == DeviceStatus.Open || laneState.LeftBlindWatch3Status == DeviceStatus.Open
-                                     || laneState.RightBlindWatch1Status == DeviceStatus.Open || laneState.RightBlindWatch2Status == DeviceStatus.Open || laneState.RightBlindWatch3Status == DeviceStatus.Open;
-                        if (blindOpen) {
+                        int blindNum = (cmdType == "PushButton1") ? 1 : (cmdType == "PushButton2" ? 2 : 3);
+                        DeviceStatus bwStatus;
+                        string bwSideForClose = side;
+                        if (side == "left") bwStatus = GetBlindStatusByNum(laneState, true, blindNum);
+                        else if (side == "right") bwStatus = GetBlindStatusByNum(laneState, false, blindNum);
+                        else {
+                            DeviceStatus lst = GetBlindStatusByNum(laneState, true, blindNum);
+                            DeviceStatus rst = GetBlindStatusByNum(laneState, false, blindNum);
+                            if (lst == DeviceStatus.Open) { bwStatus = lst; bwSideForClose = "left"; }
+                            else if (rst == DeviceStatus.Open) { bwStatus = rst; bwSideForClose = "right"; }
+                            else if (lst == DeviceStatus.Touched) { bwStatus = lst; bwSideForClose = "left"; }
+                            else if (rst == DeviceStatus.Touched) { bwStatus = rst; bwSideForClose = "right"; }
+                            else { bwStatus = lst; bwSideForClose = "left"; }
+                        }
+
+                        if (bwStatus == DeviceStatus.Open) {
                             ProcessBlindWatchData(lane, cmdType, timeInSeconds);
+                            EnterBlindTouchedThenClose(laneState, bwSideForClose, blindNum, lane);
+                        } else if (bwStatus == DeviceStatus.Touched) {
+                            RecordBackupBlind(lane, blindNum, timeInSeconds);
+                        } else {
+                            AddLog(string.Format("泳道{0} 盲表{1} 数据已记录但不作为成绩（{2}状态:{3}）",
+                                lane, blindNum, side ?? "", bwStatus));
                         }
                     }
                     break;
@@ -2674,6 +2706,117 @@ namespace SwimmingScoreboard
                 Broadcast();
             };
             closeTimer.Start();
+        }
+
+        // 出发台 Open/FalseStart → Touched（红色）→ StartBlockCloseDelay 秒后 → Closed。
+        // 期间额外的出发台事件作为"备用反应时"记录（争议时使用）。
+        private void EnterStartBlockTouchedThenClose(LaneDeviceState laneState, string side, int lane) {
+            if (laneState == null) return;
+            if (side == "right") {
+                if (laneState.RightStartBlockBroken) return;
+                laneState.RightStartBlockStatus = DeviceStatus.Touched;
+            } else {
+                if (laneState.LeftStartBlockBroken) return;
+                laneState.LeftStartBlockStatus = DeviceStatus.Touched;
+            }
+
+            double holdSec = _laneCloseSettings.StartBlockCloseDelay > 0 ? _laneCloseSettings.StartBlockCloseDelay : 3;
+            int capLane = lane;
+            string capSide = side;
+            var t = new DispatcherTimer { Interval = TimeSpan.FromSeconds(holdSec) };
+            t.Tick += delegate {
+                t.Stop();
+                var ls = _laneDeviceStates.FirstOrDefault(s => s.Lane == capLane);
+                if (ls == null) return;
+                if (capSide == "right") {
+                    if (ls.RightStartBlockStatus == DeviceStatus.Touched) ls.RightStartBlockStatus = DeviceStatus.Closed;
+                } else {
+                    if (ls.LeftStartBlockStatus == DeviceStatus.Touched) ls.LeftStartBlockStatus = DeviceStatus.Closed;
+                }
+                Broadcast();
+            };
+            t.Start();
+        }
+
+        // 盲表 Open → Touched（红色）→ ResultConfirmCloseDelay 秒后 → Closed。
+        // 每个盲表（左/右 × 1/2/3）独立计时，不影响其它盲表。
+        private void EnterBlindTouchedThenClose(LaneDeviceState laneState, string side, int blindNum, int lane) {
+            if (laneState == null) return;
+            bool isLeft = side != "right";
+            if (isLeft) {
+                if (blindNum == 1) { if (laneState.LeftBlindWatch1Broken || laneState.LeftBlindWatch1NotInstalled) return; laneState.LeftBlindWatch1Status = DeviceStatus.Touched; }
+                else if (blindNum == 2) { if (laneState.LeftBlindWatch2Broken || laneState.LeftBlindWatch2NotInstalled) return; laneState.LeftBlindWatch2Status = DeviceStatus.Touched; }
+                else if (blindNum == 3) { if (laneState.LeftBlindWatch3Broken || laneState.LeftBlindWatch3NotInstalled) return; laneState.LeftBlindWatch3Status = DeviceStatus.Touched; }
+                else return;
+            } else {
+                if (blindNum == 1) { if (laneState.RightBlindWatch1Broken || laneState.RightBlindWatch1NotInstalled) return; laneState.RightBlindWatch1Status = DeviceStatus.Touched; }
+                else if (blindNum == 2) { if (laneState.RightBlindWatch2Broken || laneState.RightBlindWatch2NotInstalled) return; laneState.RightBlindWatch2Status = DeviceStatus.Touched; }
+                else if (blindNum == 3) { if (laneState.RightBlindWatch3Broken || laneState.RightBlindWatch3NotInstalled) return; laneState.RightBlindWatch3Status = DeviceStatus.Touched; }
+                else return;
+            }
+
+            double holdSec = _laneCloseSettings.ResultConfirmCloseDelay > 0 ? _laneCloseSettings.ResultConfirmCloseDelay : 3;
+            int capLane = lane;
+            bool capLeft = isLeft;
+            int capNum = blindNum;
+            var t = new DispatcherTimer { Interval = TimeSpan.FromSeconds(holdSec) };
+            t.Tick += delegate {
+                t.Stop();
+                var ls = _laneDeviceStates.FirstOrDefault(s => s.Lane == capLane);
+                if (ls == null) return;
+                if (capLeft) {
+                    if (capNum == 1 && ls.LeftBlindWatch1Status == DeviceStatus.Touched) ls.LeftBlindWatch1Status = DeviceStatus.Closed;
+                    else if (capNum == 2 && ls.LeftBlindWatch2Status == DeviceStatus.Touched) ls.LeftBlindWatch2Status = DeviceStatus.Closed;
+                    else if (capNum == 3 && ls.LeftBlindWatch3Status == DeviceStatus.Touched) ls.LeftBlindWatch3Status = DeviceStatus.Closed;
+                } else {
+                    if (capNum == 1 && ls.RightBlindWatch1Status == DeviceStatus.Touched) ls.RightBlindWatch1Status = DeviceStatus.Closed;
+                    else if (capNum == 2 && ls.RightBlindWatch2Status == DeviceStatus.Touched) ls.RightBlindWatch2Status = DeviceStatus.Closed;
+                    else if (capNum == 3 && ls.RightBlindWatch3Status == DeviceStatus.Touched) ls.RightBlindWatch3Status = DeviceStatus.Closed;
+                }
+                Broadcast();
+            };
+            t.Start();
+        }
+
+        // 读取指定盲表当前状态（getter 本身屏蔽 Broken / NotInstalled）。
+        private static DeviceStatus GetBlindStatusByNum(LaneDeviceState ls, bool isLeft, int blindNum) {
+            if (isLeft) {
+                if (blindNum == 1) return ls.LeftBlindWatch1Status;
+                if (blindNum == 2) return ls.LeftBlindWatch2Status;
+                return ls.LeftBlindWatch3Status;
+            } else {
+                if (blindNum == 1) return ls.RightBlindWatch1Status;
+                if (blindNum == 2) return ls.RightBlindWatch2Status;
+                return ls.RightBlindWatch3Status;
+            }
+        }
+
+        // 出发台已 Touched 期间又来事件 → 备用反应时（写日志 + 持久到 LaneResult.BackupReactionTimes）
+        private void RecordBackupReaction(int lane, double time, string side) {
+            var swimmer = GetCurrentHeatSwimmers().FirstOrDefault(s => {
+                var sa = s.GetAssignmentForStage(_currentStage);
+                return (sa != null ? sa.Lane : s.Lane) == lane;
+            });
+            if (swimmer != null) {
+                var result = swimmer.Results.FirstOrDefault(r => r.Stage == _currentStage && r.Heat == _currentHeat);
+                if (result != null) result.BackupReactionTimes.Add((side ?? "?") + ":" + time.ToString("F3"));
+            }
+            AddLog(string.Format("泳道{0} 出发台触发【备用反应时】{1}={2:F3}s（争议时使用，已记录但不作为正式反应时）",
+                lane, side ?? "?", time));
+        }
+
+        // 盲表已 Touched 期间又来事件 → 备用盲表（写日志 + 持久到 LaneResult.BackupBlindTimes）
+        private void RecordBackupBlind(int lane, int blindNum, double time) {
+            var swimmer = GetCurrentHeatSwimmers().FirstOrDefault(s => {
+                var sa = s.GetAssignmentForStage(_currentStage);
+                return (sa != null ? sa.Lane : s.Lane) == lane;
+            });
+            if (swimmer != null) {
+                var result = swimmer.Results.FirstOrDefault(r => r.Stage == _currentStage && r.Heat == _currentHeat);
+                if (result != null) result.BackupBlindTimes.Add(blindNum + ":" + time.ToString("F3"));
+            }
+            AddLog(string.Format("泳道{0} 盲表{1}【备用成绩】{2:F3}s（争议时使用，已记录但不作为正式分段）",
+                lane, blindNum, time));
         }
 
         // 触板"已触板（红）"窗口期内的额外触板：写日志 + 保存到 LaneResult.BackupTouchTimes（争议成绩）。

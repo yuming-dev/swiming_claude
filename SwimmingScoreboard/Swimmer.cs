@@ -300,6 +300,18 @@ namespace SwimmingScoreboard
             get { return _backupTouchTimes; }
             set { _backupTouchTimes = value ?? new List<double>(); OnPropertyChanged("BackupTouchTimes"); }
         }
+        // 盲表"已触板（红色）"窗口期内的额外盲表时间（每个 = "blindNum:time"，争议裁定备用）
+        private List<string> _backupBlindTimes = new List<string>();
+        public List<string> BackupBlindTimes {
+            get { return _backupBlindTimes; }
+            set { _backupBlindTimes = value ?? new List<string>(); OnPropertyChanged("BackupBlindTimes"); }
+        }
+        // 出发台"已触板（红色）"窗口期内的额外反应时数据（每个 = "side:time"，争议裁定备用）
+        private List<string> _backupReactionTimes = new List<string>();
+        public List<string> BackupReactionTimes {
+            get { return _backupReactionTimes; }
+            set { _backupReactionTimes = value ?? new List<string>(); OnPropertyChanged("BackupReactionTimes"); }
+        }
         public ObservableCollection<SplitTime> Splits {
             get { return _splits; }
         }
