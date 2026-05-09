@@ -5417,29 +5417,38 @@ namespace SwimmingScoreboard
         }
 
         private void UpdateRaceStateDisplay() {
+            // 顶部"状态"框：白底彩字改为彩底白字，醒目
+            //   等待   蓝 #3B82F6（白字）
+            //   就位   黄 #F59E0B（黑字 — 黄色配白字对比度差）
+            //   比赛中 红 #EF4444（白字）
+            //   已完赛 灰 #475569（白字）— 与三个进行中状态区分开
             switch (_raceState) {
                 case RaceState.Waiting:
                     RaceStateText.Text = "等待";
-                    RaceStateText.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F59E0B"));
-                    RaceStateIndicator.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F59E0B"));
+                    RaceStateText.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6"));
+                    RaceStateText.Foreground = new SolidColorBrush(Colors.White);
+                    RaceStateIndicator.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6"));
                     RaceStateLabel.Text = "等待";
                     break;
                 case RaceState.Ready:
                     RaceStateText.Text = "就位";
-                    RaceStateText.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6"));
-                    RaceStateIndicator.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6"));
+                    RaceStateText.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F59E0B"));
+                    RaceStateText.Foreground = new SolidColorBrush(Colors.Black);
+                    RaceStateIndicator.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F59E0B"));
                     RaceStateLabel.Text = "就位";
                     break;
                 case RaceState.Racing:
                     RaceStateText.Text = "比赛中";
-                    RaceStateText.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#22C55E"));
-                    RaceStateIndicator.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#22C55E"));
+                    RaceStateText.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EF4444"));
+                    RaceStateText.Foreground = new SolidColorBrush(Colors.White);
+                    RaceStateIndicator.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EF4444"));
                     RaceStateLabel.Text = "比赛中";
                     break;
                 case RaceState.Finished:
                     RaceStateText.Text = "已完赛";
-                    RaceStateText.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EF4444"));
-                    RaceStateIndicator.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EF4444"));
+                    RaceStateText.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569"));
+                    RaceStateText.Foreground = new SolidColorBrush(Colors.White);
+                    RaceStateIndicator.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569"));
                     RaceStateLabel.Text = "已完赛";
                     break;
             }

@@ -84,7 +84,7 @@
                                 <TextBlock Grid.Row="1" Grid.Column="0" Text="组  次:" FontSize="15" Foreground="#64748B" VerticalAlignment="Center"/>
                                 <TextBlock x:Name="CurrentHeatText" Grid.Row="1" Grid.Column="1" Text="-" FontSize="16" FontWeight="Bold" Foreground="#1E293B" VerticalAlignment="Center"/>
                                 <TextBlock Grid.Row="1" Grid.Column="2" Text="状  态:" FontSize="15" Foreground="#64748B" VerticalAlignment="Center"/>
-                                <TextBlock x:Name="RaceStateText" Grid.Row="1" Grid.Column="3" Text="等待" FontSize="16" FontWeight="Bold" Foreground="#F59E0B" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="RaceStateText" Grid.Row="1" Grid.Column="3" Text="等待" FontSize="16" FontWeight="Bold" Background="#3B82F6" Foreground="White" VerticalAlignment="Center" HorizontalAlignment="Left" Padding="10,3,10,3"/>
                                 <TextBlock Grid.Row="2" Grid.Column="0" Text="模  式:" FontSize="15" Foreground="#64748B" VerticalAlignment="Center"/>
                                 <TextBlock x:Name="CompModeText" Grid.Row="2" Grid.Column="1" Text="国内" FontSize="15" Foreground="#1E293B" VerticalAlignment="Center"/>
                                 <TextBlock Grid.Row="2" Grid.Column="2" Text="泳  池:" FontSize="15" Foreground="#64748B" VerticalAlignment="Center"/>
