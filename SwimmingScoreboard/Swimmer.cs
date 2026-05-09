@@ -16,7 +16,7 @@ namespace SwimmingScoreboard
         Broken,       // 红色 - 损坏
         FalseStart,   // 黄色 - 抢跳（仅出发台）
         NotInstalled, // 虚线框 - 未安装
-        Touched       // 红色 - 已触板（运动员触板有正式成绩后保持 LaneCloseTime 秒，
+        Touched       // 红色 - 已触板（运动员触板有正式成绩后保持 ResultConfirmCloseDelay 秒，
                       // 期间再触板作为"备用成绩"记录，到点后转为 Closed）
     }
 

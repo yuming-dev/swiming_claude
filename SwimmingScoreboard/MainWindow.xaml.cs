@@ -2293,7 +2293,7 @@ namespace SwimmingScoreboard
 
                 case "Touchpad":
                     // 触板状态机：
-                    //   Open       → 作为正式成绩送进 ProcessTouchpadHit，再把该端切到 Touched（红）保持 LaneCloseTime 秒
+                    //   Open       → 作为正式成绩送进 ProcessTouchpadHit，再把该端切到 Touched（红）保持 ResultConfirmCloseDelay 秒
                     //   Touched    → 已有正式成绩；本次记日志并写入"备用成绩"（争议时使用）
                     //   其它（Closed/Broken/NotInstalled）→ 仅记日志，不作为成绩
                     {
@@ -2646,7 +2646,7 @@ namespace SwimmingScoreboard
             }
         }
 
-        // 把触板从 Open → Touched（红色），LaneCloseTime 秒后再 → Closed。
+        // 把触板从 Open → Touched（红色），ResultConfirmCloseDelay 秒后再 → Closed。
         // 期间硬件上来的额外触板事件会被 RecordBackupTouch 写为"备用成绩"。
         private void EnterTouchedThenClose(LaneDeviceState laneState, string side, int lane) {
             if (laneState == null) return;
@@ -2658,7 +2658,7 @@ namespace SwimmingScoreboard
                 laneState.LeftTouchpadStatus = DeviceStatus.Touched;
             }
 
-            double holdSec = _laneCloseSettings.LaneCloseTime > 0 ? _laneCloseSettings.LaneCloseTime : 20;
+            double holdSec = _laneCloseSettings.ResultConfirmCloseDelay > 0 ? _laneCloseSettings.ResultConfirmCloseDelay : 3;
             int capLane = lane;
             string capSide = side;
             var closeTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(holdSec) };
@@ -2804,7 +2804,7 @@ namespace SwimmingScoreboard
                 split.TimingSource = judgement.Source;
 
                 // 终点圈：先把两端都置 Closed（清场），后面 EnterTouchedThenClose 会把
-                // 真正"触板那一端"覆盖为 Touched（红）→ LaneCloseTime 秒后再回到 Closed。
+                // 真正"触板那一端"覆盖为 Touched（红）→ ResultConfirmCloseDelay 秒后再回到 Closed。
                 laneState.LeftTouchpadStatus = DeviceStatus.Closed;
                 laneState.RightTouchpadStatus = DeviceStatus.Closed;
                 laneState.LaneCloseCountdown = 0;
@@ -2870,7 +2870,7 @@ namespace SwimmingScoreboard
                 }
 
                 // 触板：由调用方 EnterTouchedThenClose 把到达端切到"已触板（红）"，
-                // 到点 LaneCloseTime 后再转 Closed。这里只处理"该端的盲表/手动按钮"延迟关闭。
+                // 到点 ResultConfirmCloseDelay 后再转 Closed。这里只处理"该端的盲表/手动按钮"延迟关闭。
                 string arrivedEnd = laneState.Direction == "→" ? "left" : "right";
                 var closeTimer = new DispatcherTimer();
                 closeTimer.Interval = TimeSpan.FromSeconds(_laneCloseSettings.ResultConfirmCloseDelay);
