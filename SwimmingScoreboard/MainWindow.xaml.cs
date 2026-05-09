@@ -3383,16 +3383,11 @@ namespace SwimmingScoreboard
                 state.ResetForNewRace(_laneCloseSettings.StartPosition);
             }
             AddLog("就位");
-            // 参考 C:\2024年11月2日PM SWIM串口通讯程序Server\OnBnClickedTimerReadyButton：
-            //   1) Set_SwStartingPosition (0x10 0x42 [pos]) — 发令点
-            //   2) Set_MatchEvent (0x43) — 告诉硬件本场比赛的圈数 / 左右触板次数 / 泳道开关位图
-            //   3) 0x21 — 准备就绪，硬件根据自身状态机打开出发台
-            // 这三条只在按"就绪"键时一起送，确保出发台只在用户确认后才打开。
+            // Set_MatchEvent (0x43) 和 发令点已经在 SetCurrentEvent / SetCurrentHeat 同步过了，
+            // 这里只送 0x21 准备就绪，硬件据此打开出发台。
             if (pushToHardware && _timingBridge != null && _timingBridge.IsConnected) {
-                try { SendStartPositionToHardware(); } catch (Exception ex) { AddLog("发令点同步失败: " + ex.Message); }
-                try { SendSetMatchEventToHardware(); } catch (Exception ex) { AddLog("Set_MatchEvent 同步失败: " + ex.Message); }
                 _timingBridge.SendCommand(0x21);
-                AddLog("已向硬件发送 发令点 + 0x43 Set_MatchEvent + 0x21 准备就绪");
+                AddLog("已向硬件发送 0x21 准备就绪");
             }
             Broadcast();
         }
@@ -3876,11 +3871,14 @@ namespace SwimmingScoreboard
             _isRelay = _currentEvent.Contains("接力");
             CurrentEventText.Text = (string.IsNullOrEmpty(_currentAgeGroup) ? "" : ("[" + _currentAgeGroup + "] ")) + _currentGender + " " + _currentEvent;
             UpdateRecordDisplay();
-            // 选项目时 [仅在主服务器 UI 上显示] 哪些道有运动员；不要立刻把 0x43 / 发令点发给硬件，
-            // 因为硬件收到 0x43 lane bitmap 会立即打开"有运动员"那些道的出发台。
-            // 出发台必须等操作员按"就绪"按键确认后才能打开。
-            // 0x43 + 发令点 + 0x21 都集中在 Ready_Click → EnterReadyStateInternal 一起下发。
-            UpdateLaneStatusDisplay();   // 仅刷新软件本机的泳道占用显示
+            UpdateLaneStatusDisplay();   // 主服务器本机泳道占用显示
+            // 选项目时把比赛配置 / 发令点同步给硬件（出发台仍由 0x21 Ready 控制是否打开）：
+            //   1) Set_MatchEvent (0x43) — 总圈数、左右预期触板次数、泳道开关位图
+            //   2) Set_SwStartingPosition (0x10 0x42 [pos]) — 发令点
+            if (_timingBridge != null && _timingBridge.IsConnected) {
+                try { SendSetMatchEventToHardware(); } catch (Exception ex) { AddLog("Set_MatchEvent 同步失败: " + ex.Message); }
+                try { SendStartPositionToHardware(); } catch (Exception ex) { AddLog("发令点同步失败: " + ex.Message); }
+            }
         }
 
         private void SetCurrentStage(string stage) {
@@ -4020,8 +4018,11 @@ namespace SwimmingScoreboard
             UpdateLaneStatusDisplay();
             UpdateRecordDisplay();
             Broadcast();
-            // 组次变更 → 仅刷新主服务器 UI 显示。0x43 / 发令点不立即下发给硬件，
-            // 否则硬件会立即打开本组有运动员那些道的出发台。统一推迟到"就绪"按键时下发。
+            // 组次变更 → 重新同步 0x43（不同组的空泳道位图不同）+ 发令点
+            if (_timingBridge != null && _timingBridge.IsConnected) {
+                try { SendSetMatchEventToHardware(); } catch (Exception ex) { AddLog("Set_MatchEvent 同步失败: " + ex.Message); }
+                try { SendStartPositionToHardware(); } catch (Exception ex) { AddLog("发令点同步失败: " + ex.Message); }
+            }
         }
 
         private void ScheduleTree_Selected(object sender, RoutedPropertyChangedEventArgs<object> e) {
