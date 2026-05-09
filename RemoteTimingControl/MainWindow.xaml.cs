@@ -1947,6 +1947,17 @@ namespace RemoteTimingControl
                 AddLog("当前组已确认成绩，不能再次开始");
                 return;
             }
+            // 与主服务器一致：弹简短确认对话框，避免误按
+            string ag = _data != null && _data["currentAgeGroup"] != null ? _data["currentAgeGroup"].ToString() : "";
+            string gender = _data != null && _data["currentGender"] != null ? _data["currentGender"].ToString() : "";
+            string ev = _data != null && _data["currentEvent"] != null ? _data["currentEvent"].ToString() : "";
+            string stage = _data != null && _data["currentStage"] != null ? _data["currentStage"].ToString() : "";
+            int heat = _data != null && _data["currentHeat"] != null ? (int)_data["currentHeat"] : 0;
+            string info = (string.IsNullOrEmpty(ag) ? "" : ("[" + ag + "] ")) + gender + " " + ev + " " + stage + " 第" + heat + "组";
+            var rR = MessageBox.Show("确定让本组进入【就位】状态？" + info + "\n",
+                "就位确认", MessageBoxButton.YesNo, MessageBoxImage.Question);
+            if (rR != MessageBoxResult.Yes) return;
+
             SendCmd("READY");
             if (_localBridge != null && _localBridge.IsConnected) _localBridge.SendCommand(0x21);
             AddLog("就位");
@@ -1961,16 +1972,11 @@ namespace RemoteTimingControl
 
         private void TimerReset_Click(object sender, RoutedEventArgs e)
         {
-            // 与主控端两种语义一致：
-            //   A) 本组已确认 → 全部清零复位，自动进入下一组（已确认成绩永久保留）
-            //   B) 本组未确认 → 清当前组时间数据；备注（DSQ/DNS/DNF）保留（用于抢跳召回重新发令）
-            bool currentHeatConfirmed = IsCurrentHeatConfirmed();
-            string prompt = currentHeatConfirmed
-                ? "本组成绩已确认并锁定。\n\n点击\"计时器清零\"将全部清零复位，自动进入下一组比赛准备状态。\n（已确认的成绩在'成绩与排名'里继续保留）"
-                : "确定计时器复位？\n\n本组的时间/分段数据将被清除（用于抢跳召回等重新发令），\n但 DSQ/DNS/DNF 等备注状态会保留。";
-            MessageBoxResult result = MessageBox.Show(prompt, "计时复位", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+            // 与主服务器一致：简短确认，避免误按
+            MessageBoxResult result = MessageBox.Show("确定计时复位？", "计时复位确认", MessageBoxButton.YesNo, MessageBoxImage.Warning);
             if (result == MessageBoxResult.Yes)
             {
+                bool currentHeatConfirmed = IsCurrentHeatConfirmed();
                 SendCmd("TIMER_RESET");
                 if (_localBridge != null && _localBridge.IsConnected) {
                     _localBridge.SendCommand(0x20); // 计时清零命令

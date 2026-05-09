@@ -1063,16 +1063,10 @@ function confirmResult() {
 }
 
 function confirmTimerReset() {
-    // 与主控端两种语义一致：
-    //   A) 本组已确认 → 全部清零复位，自动进入下一组（已确认成绩永久保留）
-    //   B) 本组未确认 → 清当前组时间数据；备注（DSQ/DNS/DNF）保留（用于抢跳召回重新发令）
-    var confirmed = isCurrentHeatConfirmed();
-    var prompt = confirmed
-        ? '本组成绩已确认并锁定。\n\n点击"计时器清零"将全部清零复位，自动进入下一组比赛准备状态。\n（已确认的成绩在"成绩与排名"里继续保留）'
-        : '确定计时器复位？\n\n本组的时间/分段数据将被清除（用于抢跳召回等重新发令），\n但 DSQ/DNS/DNF 等备注状态会保留。';
-    if (confirm(prompt)) {
+    // 与主服务器一致：简短确认，避免误按
+    if (confirm('确定计时复位？')) {
         sendCmd('TIMER_RESET');
-        addLog(confirmed ? '计时复位（保留已确认成绩，自动切下一组）' : '计时复位（重新发令）');
+        addLog(isCurrentHeatConfirmed() ? '计时复位（保留已确认成绩，自动切下一组）' : '计时复位（重新发令）');
     }
 }
 
@@ -1083,6 +1077,11 @@ function readyClick() {
         addLog('当前组已确认成绩，不能再次开始');
         return;
     }
+    // 与主服务器一致：弹简短确认对话框
+    var ag = data.currentAgeGroup || '';
+    var info = (ag ? ('[' + ag + '] ') : '') + (data.currentGender||'') + ' '
+             + (data.currentEvent||'') + ' ' + (data.currentStage||'') + ' 第' + (data.currentHeat||'') + '组';
+    if (!confirm('确定让本组进入【就位】状态？' + info + '\n')) return;
     sendCmd('READY');
 }
 
