@@ -3379,9 +3379,13 @@ namespace SwimmingScoreboard
         private void EnterReadyStateInternal(bool pushToHardware) {
             _raceState = RaceState.Ready;
             UpdateRaceStateDisplay();
+            // ResetForNewRace 把发令端出发台打开（"准备就绪"语义），其它端关闭
             foreach (var state in _laneDeviceStates) {
                 state.ResetForNewRace(_laneCloseSettings.StartPosition);
             }
+            // 立刻刷新泳道状态 UI — 此时 _raceTimer 还没启动（要发令后才启动），
+            // 100ms tick 不会自动重绘，必须显式调一次让发令端出发台立即变成打开
+            UpdateLaneStatusDisplay();
             AddLog("就位");
             // Set_MatchEvent (0x43) 和 发令点已经在 SetCurrentEvent / SetCurrentHeat 同步过了，
             // 这里只送 0x21 准备就绪，硬件据此打开出发台。
@@ -3559,8 +3563,13 @@ namespace SwimmingScoreboard
             if (_rawTimingLog != null) _rawTimingLog.Clear();
 
             AutoAdjustStartPosition();
+            // 计时复位：所有泳道全部回到"未开赛/全关闭"状态。
+            // ResetForNewRace 会自动把发令端出发台打开（为下一场预备），但复位语义是"全部关闭"，
+            // 等用户按"就绪"才打开。这里立即覆盖回 Closed。
             foreach (var state in _laneDeviceStates) {
                 state.ResetForNewRace(_laneCloseSettings.StartPosition);
+                state.LeftStartBlockStatus = DeviceStatus.Closed;
+                state.RightStartBlockStatus = DeviceStatus.Closed;
             }
 
             bool stageDoneSwitchToWelcome = false;
