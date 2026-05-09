@@ -3996,9 +3996,13 @@ namespace SwimmingScoreboard
             AutoAdjustStartPosition();
             UpdateRaceStateDisplay();
 
-            // 复位所有泳道设备状态
+            // 复位所有泳道设备状态。注意：选项目/切组次时出发台必须保持【关闭】，
+            // 等操作员按"就绪"按键确认后才打开 — 因此 ResetForNewRace 之后立即把
+            // 两端出发台都置为 Closed（覆盖 ResetForNewRace 自动把发令端置 Open 的行为）。
             foreach (var state in _laneDeviceStates) {
                 state.ResetForNewRace(_laneCloseSettings.StartPosition);
+                state.LeftStartBlockStatus = DeviceStatus.Closed;
+                state.RightStartBlockStatus = DeviceStatus.Closed;
             }
             // 若该组已确认成绩：把每位完赛运动员对应泳道的 IsFinished 置回 true，
             // 让广播/UI 把对应运动员显示为已完赛（保留 finalTime 显示）
