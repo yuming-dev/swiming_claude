@@ -941,7 +941,14 @@ namespace SwimmingScoreboard
                     break;
                 case "RESTART":
                 case "TIMER_RESET":
-                    if (_timingBridge != null && _timingBridge.IsConnected) _timingBridge.SendCommand(0x20);
+                    // 与本地"计时复位"一致：0x20 → 0x7F → 0x43（重发缺道，因为硬件 0x20 会清掉缺道位图）
+                    if (_timingBridge != null && _timingBridge.IsConnected) {
+                        _timingBridge.SendCommand(0x20);
+                        _timingBridge.DelayBetweenFrames(20);
+                        _timingBridge.SendCommand(0x7F);
+                        _timingBridge.DelayBetweenFrames(20);
+                        try { SendSetMatchEventToHardware(); } catch (Exception ex) { AddLog("Set_MatchEvent 重发失败: " + ex.Message); }
+                    }
                     Restart_Click(null, null);
                     break;
                 case "CONFIRM_RESULT": ConfirmResult_Click(null, null); break;
