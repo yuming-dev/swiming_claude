@@ -2495,6 +2495,26 @@ namespace SwimmingScoreboard
                                 TimeFormatter.Format(sp.CumulativeTime), sp.TimingSource);
                         }
                     }
+
+                    // 备用成绩 — Touched（已触板红色）窗口期内捕获的额外计时事件，争议裁定时使用
+                    if (r != null && (
+                        (r.BackupTouchTimes != null && r.BackupTouchTimes.Count > 0) ||
+                        (r.BackupBlindTimes != null && r.BackupBlindTimes.Count > 0) ||
+                        (r.BackupReactionTimes != null && r.BackupReactionTimes.Count > 0))) {
+                        sb.Append("  ★备用成绩(争议时使用):");
+                        if (r.BackupTouchTimes != null && r.BackupTouchTimes.Count > 0) {
+                            var touchStrs = new List<string>();
+                            foreach (double t in r.BackupTouchTimes) touchStrs.Add(TimeFormatter.Format(t));
+                            sb.AppendFormat("  触板[{0}]", string.Join(", ", touchStrs.ToArray()));
+                        }
+                        if (r.BackupBlindTimes != null && r.BackupBlindTimes.Count > 0) {
+                            sb.AppendFormat("  盲表[{0}]", string.Join(", ", r.BackupBlindTimes.ToArray()));
+                        }
+                        if (r.BackupReactionTimes != null && r.BackupReactionTimes.Count > 0) {
+                            sb.AppendFormat("  出发台[{0}]", string.Join(", ", r.BackupReactionTimes.ToArray()));
+                        }
+                        sb.Append("\r\n");
+                    }
                 }
 
                 sb.AppendFormat("\r\n保存时间: {0}\r\n", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff"));
@@ -2626,6 +2646,27 @@ namespace SwimmingScoreboard
                             TimeFormatter.Format(sp.PushButton2Time),
                             TimeFormatter.Format(sp.PushButton3Time),
                             TimeFormatter.Format(sp.CumulativeTime));
+                    }
+                    h.Append("</td></tr>");
+                }
+
+                // 备用成绩（争议时使用）— Touched 窗口期内捕获的额外触板/盲表/出发台事件
+                if (r != null && (
+                    (r.BackupTouchTimes != null && r.BackupTouchTimes.Count > 0) ||
+                    (r.BackupBlindTimes != null && r.BackupBlindTimes.Count > 0) ||
+                    (r.BackupReactionTimes != null && r.BackupReactionTimes.Count > 0))) {
+                    h.Append("<tr><td colspan='12' style='padding-left:30px;font-size:10px;color:#dc2626;background:#fef2f2;'>");
+                    h.Append("<b>★备用成绩(争议时使用):</b>");
+                    if (r.BackupTouchTimes != null && r.BackupTouchTimes.Count > 0) {
+                        var touchStrs = new List<string>();
+                        foreach (double t in r.BackupTouchTimes) touchStrs.Add(TimeFormatter.Format(t));
+                        h.AppendFormat(" 触板[<span class='mono'>{0}</span>]", string.Join(", ", touchStrs.ToArray()));
+                    }
+                    if (r.BackupBlindTimes != null && r.BackupBlindTimes.Count > 0) {
+                        h.AppendFormat(" 盲表[<span class='mono'>{0}</span>]", string.Join(", ", r.BackupBlindTimes.ToArray()));
+                    }
+                    if (r.BackupReactionTimes != null && r.BackupReactionTimes.Count > 0) {
+                        h.AppendFormat(" 出发台[<span class='mono'>{0}</span>]", string.Join(", ", r.BackupReactionTimes.ToArray()));
                     }
                     h.Append("</td></tr>");
                 }
