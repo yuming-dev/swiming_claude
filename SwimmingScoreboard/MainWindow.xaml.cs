@@ -6084,6 +6084,7 @@ namespace SwimmingScoreboard
             if (win.ShowDialog() == true) {
                 AutoSaveData();
                 SaveDeviceStates();                  // 持久化到 device_states.json，下次启动还原
+                UpdateLaneStatusDisplay();           // 立即刷新泳道实时状态 UI（设备点颜色）
                 Broadcast();                         // 同步到 EXE/Web 三端
                 SendDeviceStatusesToHardware();      // 同步到硬件计时控制器
             }
