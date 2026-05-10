@@ -82,6 +82,10 @@ namespace SwimmingScoreboard
         // 进入后所有触板/出发台/盲表都强制视为打开，并跳过"空泳道/未参赛"过滤，
         // 硬件来什么数据都直接显示+写日志，但不计入正式成绩、不归到任何运动员名下。
         private bool _testMode = false;
+        // 测试模式下每道左右两端最近一次硬件事件文字（"触 12.34" / "出发 0.45"）—
+        // RefreshLaneRows 把它们贴到 Left/RightRemainText 文本框上让操作员能直接看到时间。
+        private Dictionary<int, string> _testLastEventLeft = new Dictionary<int, string>();
+        private Dictionary<int, string> _testLastEventRight = new Dictionary<int, string>();
 
         private string _currentEvent = "";
         private string _currentGender = "";
@@ -2263,6 +2267,10 @@ namespace SwimmingScoreboard
                     lane, cmdType,
                     string.IsNullOrEmpty(side) ? "" : ("[" + side + "] "),
                     TimeFormatter.Format(timeInSeconds)));
+                // 把"最近事件"文字写到对应端的 Remain 文本框，让操作员能看到时间值
+                string evtText = string.Format("{0} {1}", TestModeShortName(cmdType), TimeFormatter.Format(timeInSeconds));
+                if (side == "right") _testLastEventRight[lane] = evtText;
+                else _testLastEventLeft[lane] = evtText;
                 FlashDeviceInTestMode(lane, cmdType, side);
                 Broadcast();
                 return;
@@ -5066,8 +5074,22 @@ namespace SwimmingScoreboard
                         rowUI.RightDots[3].Visibility = rbc0 >= 2 ? Visibility.Visible : Visibility.Hidden; // 盲2
                         rowUI.RightDots[4].Visibility = rbc0 >= 3 ? Visibility.Visible : Visibility.Hidden; // 盲3
                     }
-                    if (rowUI.LeftRemainText != null) rowUI.LeftRemainText.Text = "";
-                    if (rowUI.RightRemainText != null) rowUI.RightRemainText.Text = "";
+                    // 测试模式：左/右端 Remain 框显示最近事件；正常空道全部清空
+                    if (_testMode) {
+                        string leftEvt = _testLastEventLeft.ContainsKey(lane) ? _testLastEventLeft[lane] : "";
+                        string rightEvt = _testLastEventRight.ContainsKey(lane) ? _testLastEventRight[lane] : "";
+                        if (rowUI.LeftRemainText != null) {
+                            rowUI.LeftRemainText.Text = leftEvt;
+                            rowUI.LeftRemainText.Foreground = leftEvt.Length > 0 ? (Brush)_brushAmber : _brushSlate;
+                        }
+                        if (rowUI.RightRemainText != null) {
+                            rowUI.RightRemainText.Text = rightEvt;
+                            rowUI.RightRemainText.Foreground = rightEvt.Length > 0 ? (Brush)_brushAmber : _brushSlate;
+                        }
+                    } else {
+                        if (rowUI.LeftRemainText != null) rowUI.LeftRemainText.Text = "";
+                        if (rowUI.RightRemainText != null) rowUI.RightRemainText.Text = "";
+                    }
                     if (rowUI.ReactionText != null) rowUI.ReactionText.Text = "";
                     if (rowUI.DisplayTimeText != null) rowUI.DisplayTimeText.Text = "";
                     if (rowUI.RankText != null) rowUI.RankText.Text = "";
@@ -11289,6 +11311,18 @@ namespace SwimmingScoreboard
             UpdateQuickConnectButton();
         }
 
+        // 测试模式下事件类型简短名（用于贴到 Remain 框，长字符串会撑破布局）
+        private static string TestModeShortName(string cmdType) {
+            switch (cmdType) {
+                case "Touchpad": return "触";
+                case "StartingBlock": return "出发";
+                case "PushButton1": return "盲1";
+                case "PushButton2": return "盲2";
+                case "PushButton3": return "盲3";
+                default: return cmdType;
+            }
+        }
+
         // 设备测试模式下：对应设备点先 Touched（红）→ 500ms 后回 Open（绿），实时可视
         // 当 _testMode 中途被关闭，定时器到点不再恢复 Open，避免和正常状态机冲突。
         private void FlashDeviceInTestMode(int lane, string cmdType, string side) {
@@ -11378,6 +11412,8 @@ namespace SwimmingScoreboard
                 _testMode = true;
 
                 // 清空原始计时日志缓冲（与参考程序 m_ReceiveData.Empty 等价）+ 滚动时间归零
+                _testLastEventLeft.Clear();
+                _testLastEventRight.Clear();
                 _rawTimingLog.Clear();
                 _runningTime = 0;
                 _firstPlaceFinishTime = "";
@@ -11417,6 +11453,8 @@ namespace SwimmingScoreboard
                 AddLog("★ 设备测试模式已进入：所有设备打开，仅记录不计成绩");
             } else {
                 _testMode = false;
+                _testLastEventLeft.Clear();
+                _testLastEventRight.Clear();
                 // 退出测试：把所有设备回到 Closed（与"全部关闭"等价），用户后续可正常 Ready
                 foreach (var st in _laneDeviceStates) {
                     st.LeftTouchpadStatus = DeviceStatus.Closed;
