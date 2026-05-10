@@ -1794,19 +1794,28 @@ namespace SwimmingScoreboard
         }
 
         // ═══════════════════════════════════════════════════════════════
-        // 硬件计时控制器参数双向同步（按 2023-11-13 通讯协议）
-        //   下发：按确认后的参数生成 0x40 / 0x42 帧 → 发送到硬件
-        //   接收：0x40 / 0x41 / 0x42 帧 → 更新 _laneCloseSettings/_poolConfig 并广播到三端
-        // 0x40 D3=泳道数(8-10) D4=泳池长度(25/50 米)
-        // 0x42 D3=子参数码 D4=参数值（按下表）
-        //   0x01 LaneCloseTime              秒（0-255）
-        //   0x02 StartBlockCloseDelay       0.1 秒（D4 × 0.1）
-        //   0x03 ResultConfirmCloseDelay    0.1 秒
-        //   0x04 FalseStartThreshold        0.01 秒
-        //   0x05 SplitDisplayTime           秒
-        //   0x06 FirstPlaceHoldTime         秒
-        //   0x07 FinishPosition             0=左端，1=右端
-        //   0x09 LaneOrder                  0=正序0→9，1=逆序9→0（道次显示方向）
+        // 硬件计时控制器参数下发（按参考程序 C:\2024年11月2日PM SWIM串口通讯程序Server）
+        //
+        // 之前用的"0x42 + 子码"逐项发送方式硬件并不识别（用户实测无效）。改为
+        // 与参考程序完全一致的命令编号 + 单帧打包格式：
+        //
+        // 0x41 Set_ArmDelay_Time — 触板/盲表/出发台 各项延迟全部装一帧（位置 3..10 全用）
+        //   d3  ArmDelayNormalTime       触板正常关闭时间(s)        ← LaneCloseTime
+        //   d4  ArmDelayAfterStartTime   触板抢跳后关闭时间(s)      ← LaneCloseTime（暂复用同值）
+        //   d5  MBDelayTime              盲表等待时间(s)            ← 50（参考默认值）
+        //   d6  Result_Display_Time      成绩显示时间(s)            ← SplitDisplayTime
+        //   d7  StartboxEdgeBit          出发信号边沿(0=下降,1=上升) ← 0
+        //   d8  LaneDir<<4 | SP50M<<1 | StartPlace                  ← 道次方向 + 50米发令位 + 发令端
+        //   d9  TPDelayTime              触板延迟(s)                ← ResultConfirmCloseDelay
+        //   d10 SBDelayTime              出发台延迟(s)              ← StartBlockCloseDelay
+        //
+        // 0x44 Set_PoolConfiguration_Com1 — 泳池参数
+        //   d3 泳道数 (8-10)   d4 泳池长度 (25/50)
+        //
+        // 0x45 Set_MB_Num — 盲表数量
+        //   d3 左端 (1-3)      d4 右端 (1-3)
+        //
+        // 接收侧仍兼容老的 0x40 / 0x42（如果硬件继续上报这些）。
         // ═══════════════════════════════════════════════════════════════
         private bool _applyingHardwareSettings = false;
 
@@ -1814,54 +1823,48 @@ namespace SwimmingScoreboard
             if (_applyingHardwareSettings) return;                // 来自硬件的回环，不要再发
             if (_timingBridge == null || !_timingBridge.IsConnected) return;
             try {
-                // 0x40 泳池参数
-                byte lanes = (byte)Math.Max(0, Math.Min(255, _poolConfig.LaneCount));
-                byte length = (byte)Math.Max(0, Math.Min(255, _poolConfig.Length));
-                _timingBridge.SendCommand(0x40, lanes, length);
-                _timingBridge.DelayBetweenFrames(20);
+                // ── 0x41 Set_ArmDelay_Time（一帧 8 个数据字节）──
+                byte armNorm   = ByteClamp(_laneCloseSettings.LaneCloseTime);
+                byte armAfter  = ByteClamp(_laneCloseSettings.LaneCloseTime);
+                byte mbDelay   = 50;                                                  // 参考程序默认值
+                byte resultDsp = ByteClamp(_laneCloseSettings.SplitDisplayTime);
+                byte edgeBit   = 0;                                                   // 出发信号边沿 0=下降沿
+                byte laneDir   = (byte)(_laneCloseSettings.LaneOrder == "reverse" ? 1 : 0);
+                byte startPl   = (byte)(_laneCloseSettings.StartPosition == "right" ? 1 : 0);
+                byte sp50m     = (byte)(_laneCloseSettings.StartPosition != _laneCloseSettings.FinishPosition ? 1 : 0);
+                byte placeDir  = (byte)(((laneDir & 0x01) << 4) | ((sp50m & 0x01) << 1) | (startPl & 0x01));
+                byte tpDelay   = ByteClamp(_laneCloseSettings.ResultConfirmCloseDelay);
+                byte sbDelay   = ByteClamp(_laneCloseSettings.StartBlockCloseDelay);
+                _timingBridge.SendFullFrame(0x41, armNorm, armAfter, mbDelay, resultDsp, edgeBit, placeDir, tpDelay, sbDelay);
+                _timingBridge.DelayBetweenFrames(50);
 
-                // 0x42 各项设置子码 — 每帧间留 50ms，避免硬件来不及处理
-                _timingBridge.SendCommand(0x42, 0x01, ByteClamp(_laneCloseSettings.LaneCloseTime));
-                _timingBridge.DelayBetweenFrames(20);
-                _timingBridge.SendCommand(0x42, 0x02, ByteClamp(_laneCloseSettings.StartBlockCloseDelay * 10));
-                _timingBridge.DelayBetweenFrames(20);
-                _timingBridge.SendCommand(0x42, 0x03, ByteClamp(_laneCloseSettings.ResultConfirmCloseDelay * 10));
-                _timingBridge.DelayBetweenFrames(20);
-                _timingBridge.SendCommand(0x42, 0x04, ByteClamp(_laneCloseSettings.FalseStartThreshold * 100));
-                _timingBridge.DelayBetweenFrames(20);
-                _timingBridge.SendCommand(0x42, 0x05, ByteClamp(_laneCloseSettings.SplitDisplayTime));
-                _timingBridge.DelayBetweenFrames(20);
-                _timingBridge.SendCommand(0x42, 0x06, ByteClamp(_laneCloseSettings.FirstPlaceHoldTime));
-                _timingBridge.DelayBetweenFrames(20);
-                byte fp = _laneCloseSettings.FinishPosition == "right" ? (byte)1 : (byte)0;
-                _timingBridge.SendCommand(0x42, 0x07, fp);
-                _timingBridge.DelayBetweenFrames(20);
-                // 0x08 盲表数量（D4 高 4 位=左端 1-3，低 4 位=右端 1-3）
+                // ── 0x44 Set_PoolConfiguration_Com1 ──
+                byte lanes  = (byte)Math.Max(0, Math.Min(255, _poolConfig.LaneCount));
+                byte length = (byte)Math.Max(0, Math.Min(255, _poolConfig.Length));
+                _timingBridge.SendFullFrame(0x44, lanes, length);
+                _timingBridge.DelayBetweenFrames(50);
+
+                // ── 0x45 Set_MB_Num ──
                 int lc = _laneCloseSettings.LeftBlindWatchCount, rc = _laneCloseSettings.RightBlindWatchCount;
                 if (lc < 1) lc = 1; if (lc > 3) lc = 3;
                 if (rc < 1) rc = 1; if (rc > 3) rc = 3;
-                byte bw = (byte)(((lc & 0x0F) << 4) | (rc & 0x0F));
-                _timingBridge.SendCommand(0x42, 0x08, bw);
-                _timingBridge.DelayBetweenFrames(20);
-                // 0x09 道次顺序：0=正序 0→9，1=逆序 9→0
-                byte lo = _laneCloseSettings.LaneOrder == "reverse" ? (byte)1 : (byte)0;
-                _timingBridge.SendCommand(0x42, 0x09, lo);
-                _timingBridge.DelayBetweenFrames(20);
+                _timingBridge.SendFullFrame(0x45, (byte)lc, (byte)rc);
+                _timingBridge.DelayBetweenFrames(50);
 
                 AddLog(string.Format(
-                    "参数已同步到硬件: 泳池{0}米{1}道, 关闭{2}s, 出发台{3}s, 确认{4}s, 抢跳{5}s, 分段{6}s, 第1名{7}s, 终点:{8}, 道次:{9}",
+                    "参数已同步到硬件 (0x41+0x44+0x45): 泳池{0}米{1}道, 触板关闭{2}s, 出发台{3}s, 确认{4}s, 分段{5}s, 终点:{6}, 道次:{7}, 盲表 左{8}/右{9}",
                     _poolConfig.Length, _poolConfig.LaneCount,
                     _laneCloseSettings.LaneCloseTime, _laneCloseSettings.StartBlockCloseDelay,
-                    _laneCloseSettings.ResultConfirmCloseDelay, _laneCloseSettings.FalseStartThreshold,
-                    _laneCloseSettings.SplitDisplayTime, _laneCloseSettings.FirstPlaceHoldTime,
+                    _laneCloseSettings.ResultConfirmCloseDelay, _laneCloseSettings.SplitDisplayTime,
                     _laneCloseSettings.FinishPosition == "left" ? "左端" : "右端",
-                    _laneCloseSettings.LaneOrder == "reverse" ? "逆序9→0" : "正序0→9"));
+                    _laneCloseSettings.LaneOrder == "reverse" ? "逆序9→0" : "正序0→9",
+                    lc, rc));
             } catch (Exception ex) {
                 AddLog("参数下发硬件失败: " + ex.Message);
             }
         }
 
-        // 仅同步盲表数量到硬件（避免重发整组参数）
+        // 仅同步盲表数量到硬件（避免重发整组参数）— 0x45 Set_MB_Num: D3=左端 D4=右端
         private void SendBlindWatchCountToHardware() {
             if (_applyingHardwareSettings) return;
             if (_timingBridge == null || !_timingBridge.IsConnected) return;
@@ -1869,9 +1872,8 @@ namespace SwimmingScoreboard
                 int lc = _laneCloseSettings.LeftBlindWatchCount, rc = _laneCloseSettings.RightBlindWatchCount;
                 if (lc < 1) lc = 1; if (lc > 3) lc = 3;
                 if (rc < 1) rc = 1; if (rc > 3) rc = 3;
-                byte bw = (byte)(((lc & 0x0F) << 4) | (rc & 0x0F));
-                _timingBridge.SendCommand(0x42, 0x08, bw);
-                AddLog(string.Format("盲表数量已同步到硬件：左 {0}，右 {1}（0x42/0x08 = 0x{2:X2}）", lc, rc, bw));
+                _timingBridge.SendFullFrame(0x45, (byte)lc, (byte)rc);
+                AddLog(string.Format("盲表数量已同步到硬件：左 {0}，右 {1}（0x45）", lc, rc));
             } catch (Exception ex) {
                 AddLog("盲表数量下发硬件失败: " + ex.Message);
             }

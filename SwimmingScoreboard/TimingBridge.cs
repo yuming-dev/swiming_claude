@@ -384,8 +384,9 @@ namespace SwimmingScoreboard
             try { System.Threading.Thread.Sleep(milliseconds); } catch { }
         }
 
-        /// <summary>发送 12 字节帧，支持在 D5/D6/D7/D8 携带扩展参数（设备状态等）</summary>
-        public void SendFullFrame(byte command, byte d3, byte d4, byte d5 = 0, byte d6 = 0, byte d7 = 0, byte d8 = 0) {
+        /// <summary>发送 12 字节帧。位置 3..10 全部可携带数据（与参考程序 OnSendSWCommand_Data 对齐）。
+        /// 帧布局：[0]F1 [1]'S' [2]command [3]d3 [4]d4 [5]d5 [6]d6 [7]d7 [8]d8 [9]d9 [10]d10 [11]F4</summary>
+        public void SendFullFrame(byte command, byte d3, byte d4, byte d5 = 0, byte d6 = 0, byte d7 = 0, byte d8 = 0, byte d9 = 0, byte d10 = 0) {
             byte[] frame = new byte[FRAME_LENGTH];
             frame[0] = SOH;
             frame[1] = (byte)'S';
@@ -396,15 +397,15 @@ namespace SwimmingScoreboard
             frame[6] = d6;
             frame[7] = d7;
             frame[8] = d8;
+            frame[9] = d9;
+            frame[10] = d10;
             frame[FRAME_LENGTH - 1] = EOT;
 
-            // 逐字节十六进制日志，便于对照硬件协议判定收到的帧是否符合预期
-            // 12 字节帧：F1 53 [cmd d3 d4 d5 d6 d7 d8] 00 00 F4
-            // = 静态首尾 4 字节 + 中间 7 个动态字节（占位符 {0}-{6}）
+            // 逐字节十六进制日志（与参考程序 0x41 Set_ArmDelay_Time 帧对齐使用全部 8 个数据字节）
             string hex;
             try {
-                hex = string.Format("F1 53 {0:X2} {1:X2} {2:X2} {3:X2} {4:X2} {5:X2} {6:X2} 00 00 F4",
-                    command, d3, d4, d5, d6, d7, d8);
+                hex = string.Format("F1 53 {0:X2} {1:X2} {2:X2} {3:X2} {4:X2} {5:X2} {6:X2} {7:X2} {8:X2} F4",
+                    command, d3, d4, d5, d6, d7, d8, d9, d10);
             } catch (Exception fex) {
                 hex = string.Format("(hex format failed: {0})", fex.Message);
             }
