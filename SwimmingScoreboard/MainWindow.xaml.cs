@@ -2018,17 +2018,47 @@ namespace SwimmingScoreboard
             return v;
         }
 
+        // 0x46 Set_TPSBMB_State — 与参考程序 BadTP_SB_MBProg 同格式：触板/出发台/盲表 启用状态
+        // 一帧打包发送全部 20 个泳道(左 0-9 + 右 0-9)的启用位（1=启用，0=未用/损坏）。
+        // 帧布局：F1 53 46 [TP_lo] [TP_mid] [TP_hi] [SB_lo] [SB_hi] [MB_lo] [MB_hi] [SB_MB_top] F4
+        //   TP/SB/MB 三段位流均为 20 位；State[7] 高 4 位=SB[16..19]，低 4 位=MB[16..19]
+        //   位序与参考一致：bit i = lane (i<10 ? 左i : 右(i-10))
+        // 我们每端有 3 只盲表，对应硬件的 1 个 MB 槽：任一只 NotInstalled+!Broken→ MB=1。
         private void SendDeviceStatusesToHardware() {
             if (_applyingHardwareSettings) return;
             if (_timingBridge == null || !_timingBridge.IsConnected) return;
             try {
+                int tpVal = 0, sbVal = 0, mbVal = 0;
                 foreach (var st in _laneDeviceStates) {
-                    byte left = EncodeBrokenMask(st.LeftTouchpadBroken, st.LeftBlindWatch1Broken, st.LeftBlindWatch2Broken, st.LeftBlindWatch3Broken, st.LeftStartBlockBroken);
-                    byte right = EncodeBrokenMask(st.RightTouchpadBroken, st.RightBlindWatch1Broken, st.RightBlindWatch2Broken, st.RightBlindWatch3Broken, st.RightStartBlockBroken);
-                    _timingBridge.SendFullFrame(0x42, DEVSTAT_SUBCODE, (byte)st.Lane, left, right);
-                    _timingBridge.DelayBetweenFrames(15);   // 每泳道帧间 15ms
+                    int ln = st.Lane;
+                    if (ln < 0 || ln > 9) continue;
+                    if (!st.LeftTouchpadBroken)   tpVal |= (1 << ln);          // 左 = bit 0..9
+                    if (!st.RightTouchpadBroken)  tpVal |= (1 << (ln + 10));   // 右 = bit 10..19
+                    if (!st.LeftStartBlockBroken) sbVal |= (1 << ln);
+                    if (!st.RightStartBlockBroken) sbVal |= (1 << (ln + 10));
+                    bool leftMbOK = (!st.LeftBlindWatch1Broken && !st.LeftBlindWatch1NotInstalled)
+                                  || (!st.LeftBlindWatch2Broken && !st.LeftBlindWatch2NotInstalled)
+                                  || (!st.LeftBlindWatch3Broken && !st.LeftBlindWatch3NotInstalled);
+                    bool rightMbOK = (!st.RightBlindWatch1Broken && !st.RightBlindWatch1NotInstalled)
+                                   || (!st.RightBlindWatch2Broken && !st.RightBlindWatch2NotInstalled)
+                                   || (!st.RightBlindWatch3Broken && !st.RightBlindWatch3NotInstalled);
+                    if (leftMbOK)  mbVal |= (1 << ln);
+                    if (rightMbOK) mbVal |= (1 << (ln + 10));
                 }
-                AddLog(string.Format("设备状态已同步到硬件: {0}条泳道记录", _laneDeviceStates.Count));
+
+                byte s0 = (byte)(tpVal & 0xFF);
+                byte s1 = (byte)((tpVal >> 8) & 0xFF);
+                byte s2 = (byte)((tpVal >> 16) & 0x0F);
+                byte s3 = (byte)(sbVal & 0xFF);
+                byte s4 = (byte)((sbVal >> 8) & 0xFF);
+                byte s5 = (byte)(mbVal & 0xFF);
+                byte s6 = (byte)((mbVal >> 8) & 0xFF);
+                byte s7 = (byte)((((sbVal >> 16) & 0x0F) << 4) | ((mbVal >> 16) & 0x0F));
+
+                _timingBridge.SendFullFrame(0x46, s0, s1, s2, s3, s4, s5, s6, s7);
+                _timingBridge.DelayBetweenFrames(50);
+                AddLog(string.Format("设备状态已同步到硬件 (0x46): TP=0x{0:X5} SB=0x{1:X5} MB=0x{2:X5}",
+                    tpVal & 0xFFFFF, sbVal & 0xFFFFF, mbVal & 0xFFFFF));
             } catch (Exception ex) {
                 AddLog("设备状态下发硬件失败: " + ex.Message);
             }
