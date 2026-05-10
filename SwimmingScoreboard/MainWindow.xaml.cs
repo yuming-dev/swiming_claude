@@ -1060,6 +1060,8 @@ namespace SwimmingScoreboard
                             if (!msRight) msState.RightManualStatus = DeviceStatus.Closed;
                         }
                         AddLog(string.Format("泳道{0} 手动按键: 左={1} 右={2}", msLane, msLeft ? "启用" : "禁用", msRight ? "启用" : "禁用"));
+                        SaveDeviceStates();         // 远端改动也要持久化
+                        UpdateLaneStatusDisplay();  // 刷新本地 UI
                     }
                     break;
                 case "SET_LANE_CLOSE_SETTINGS":
@@ -5716,6 +5718,8 @@ namespace SwimmingScoreboard
                 case "rightStartBlock": state.RightStartBlockBroken = broken; break;
             }
             AddLog(string.Format("泳道{0} {1} 设为 {2}", lane, device, broken ? "损坏" : "正常"));
+            SaveDeviceStates();               // 远端 HTML/EXE 改的也要持久化，下次启动还原
+            UpdateLaneStatusDisplay();        // 立即刷新本地泳道实时状态 UI
             Broadcast();
             SendDeviceStatusesToHardware();   // 同步该泳道的设备状态到硬件
         }
