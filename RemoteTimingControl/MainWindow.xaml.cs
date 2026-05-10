@@ -1630,15 +1630,17 @@ namespace RemoteTimingControl
                     : Brushes.White;
 
                 // 成绩/分段 — 测试模式下成绩栏改为显示右端最近事件文字
+                string timeDisplay;
                 if (inTestMode)
                 {
                     string rightEvt = sw["testRightEvent"] != null ? sw["testRightEvent"].ToString() : "";
+                    timeDisplay = rightEvt;
                     rowUI.DisplayTimeText.Text = rightEvt;
                     rowUI.DisplayTimeText.Foreground = rightEvt.Length > 0 ? (Brush)_brushAmber : Brushes.White;
                 }
                 else
                 {
-                    string timeDisplay = GetSplitOrFinalTime(sw);
+                    timeDisplay = GetSplitOrFinalTime(sw);
                     rowUI.DisplayTimeText.Text = timeDisplay;
                     rowUI.DisplayTimeText.Foreground = Brushes.White;
                 }
@@ -1646,7 +1648,8 @@ namespace RemoteTimingControl
                 // 名次：直接以分段成绩显示与否为同步依据
                 // 分段成绩有显示 && 服务器送来的 rank > 0 → 显示名次
                 // DSQ/DNS/DNF 服务器会把 rank 设为 0，所以自动不会显示
-                bool hasTimeDisplay = !string.IsNullOrEmpty(timeDisplay) && string.IsNullOrEmpty(status);
+                // 测试模式下 timeDisplay 是事件文字，不是真正成绩 → 名次列不亮
+                bool hasTimeDisplay = !inTestMode && !string.IsNullOrEmpty(timeDisplay) && string.IsNullOrEmpty(status);
                 int rank = 0;
                 if (hasTimeDisplay && sw["rank"] != null) rank = (int)sw["rank"];
                 rowUI.RankText.Text = rank > 0 ? rank.ToString() : "";
