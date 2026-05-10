@@ -78,6 +78,11 @@ namespace SwimmingScoreboard
         private DateTime _lastResetAt = DateTime.MinValue;
         private const int ResetDebounceMs = 1000;
 
+        // "设备测试"模式：等同于参考程序的 Test_System_Bit。
+        // 进入后所有触板/出发台/盲表都强制视为打开，并跳过"空泳道/未参赛"过滤，
+        // 硬件来什么数据都直接显示+写日志，但不计入正式成绩、不归到任何运动员名下。
+        private bool _testMode = false;
+
         private string _currentEvent = "";
         private string _currentGender = "";
         private string _currentStage = "";
@@ -2248,6 +2253,15 @@ namespace SwimmingScoreboard
                     AddLog("硬件触发: 计时清零");
                     Restart_Click(null, null);
                     return;
+            }
+
+            // 设备测试模式：硬件来什么数据都接收并显示，跳过"比赛状态/空泳道"过滤；
+            // 走完日志后直接 return，不计入分段/成绩，也不打开 Touched 窗口。
+            if (_testMode) {
+                LogRawTimingData(lane, cmdType, timeInSeconds);
+                AddLog(string.Format("【测试】泳道{0} {1} {2}", lane, cmdType, TimeFormatter.Format(timeInSeconds)));
+                Broadcast();
+                return;
             }
 
             // Racing状态或Finished状态（延迟关闭期内盲表/手动仍有效）都接收数据
@@ -11249,14 +11263,106 @@ namespace SwimmingScoreboard
             UpdateQuickConnectButton();
         }
 
-        // 根据当前连接状态刷新比赛控制面板上的"连接串口"按钮文字与颜色
+        // "系统硬件"栏 — 设备测试：参考 C:\2024年11月2日PM SWIM串口通讯程序Server 的 OnBnClickedTestSystemButton。
+        // 进入测试：发 0x1D 给硬件、所有触板/出发台/盲表强制 Open、_testMode=true、状态条改字提示。
+        // 退出测试：再次点击恢复正常 — 关掉 _testMode，所有设备重置为 Closed（用户可重新开比赛）。
+        private void DeviceTest_Click(object sender, RoutedEventArgs e) {
+            if (!_testMode) {
+                if (_raceState == RaceState.Racing) {
+                    MessageBox.Show("当前正在比赛，请先按下\"计时复位\"再进入设备测试。", "提示",
+                        MessageBoxButton.OK, MessageBoxImage.Information);
+                    return;
+                }
+                var r = MessageBox.Show(
+                    "确认进入设备测试模式？\n\n所有触板/出发台/盲表都将强制打开，硬件来什么数据都直接显示并写日志，但不计入比赛成绩。\n再点击同一按钮可退出测试。",
+                    "设备测试", MessageBoxButton.YesNo, MessageBoxImage.Question);
+                if (r != MessageBoxResult.Yes) return;
+
+                _testMode = true;
+
+                // 把所有泳道的设备都打开（损坏/未安装的不强开）
+                foreach (var st in _laneDeviceStates) {
+                    if (!st.LeftTouchpadBroken)   st.LeftTouchpadStatus   = DeviceStatus.Open;
+                    if (!st.RightTouchpadBroken)  st.RightTouchpadStatus  = DeviceStatus.Open;
+                    if (!st.LeftStartBlockBroken) st.LeftStartBlockStatus = DeviceStatus.Open;
+                    if (!st.RightStartBlockBroken) st.RightStartBlockStatus = DeviceStatus.Open;
+                    if (!st.LeftBlindWatch1Broken && !st.LeftBlindWatch1NotInstalled)   st.LeftBlindWatch1Status   = DeviceStatus.Open;
+                    if (!st.LeftBlindWatch2Broken && !st.LeftBlindWatch2NotInstalled)   st.LeftBlindWatch2Status   = DeviceStatus.Open;
+                    if (!st.LeftBlindWatch3Broken && !st.LeftBlindWatch3NotInstalled)   st.LeftBlindWatch3Status   = DeviceStatus.Open;
+                    if (!st.RightBlindWatch1Broken && !st.RightBlindWatch1NotInstalled) st.RightBlindWatch1Status  = DeviceStatus.Open;
+                    if (!st.RightBlindWatch2Broken && !st.RightBlindWatch2NotInstalled) st.RightBlindWatch2Status  = DeviceStatus.Open;
+                    if (!st.RightBlindWatch3Broken && !st.RightBlindWatch3NotInstalled) st.RightBlindWatch3Status  = DeviceStatus.Open;
+                    st.LaneCloseCountdown = 0;
+                }
+
+                // 0x1D Test_Command — 让硬件进入"任何设备触发都上报"的测试模式
+                if (_timingBridge != null && _timingBridge.IsConnected) {
+                    try {
+                        _timingBridge.SendCommand(0x1D);
+                        AddLog("已向硬件发送 0x1D 设备测试命令");
+                    } catch (Exception ex) {
+                        AddLog("发送 0x1D 失败: " + ex.Message);
+                    }
+                }
+
+                UpdateLaneStatusDisplay();
+                Broadcast();
+                AddLog("★ 设备测试模式已进入：所有设备打开，仅记录不计成绩");
+            } else {
+                _testMode = false;
+                // 退出测试：把所有设备回到 Closed（与"全部关闭"等价），用户后续可正常 Ready
+                foreach (var st in _laneDeviceStates) {
+                    st.LeftTouchpadStatus = DeviceStatus.Closed;
+                    st.RightTouchpadStatus = DeviceStatus.Closed;
+                    st.LeftStartBlockStatus = DeviceStatus.Closed;
+                    st.RightStartBlockStatus = DeviceStatus.Closed;
+                    st.LeftBlindWatch1Status = DeviceStatus.Closed;
+                    st.LeftBlindWatch2Status = DeviceStatus.Closed;
+                    st.LeftBlindWatch3Status = DeviceStatus.Closed;
+                    st.RightBlindWatch1Status = DeviceStatus.Closed;
+                    st.RightBlindWatch2Status = DeviceStatus.Closed;
+                    st.RightBlindWatch3Status = DeviceStatus.Closed;
+                }
+                UpdateLaneStatusDisplay();
+                Broadcast();
+                AddLog("★ 设备测试模式已退出");
+            }
+            UpdateDeviceTestButton();
+        }
+
+        // 设备测试按钮文字/底色随 _testMode 变化
+        private void UpdateDeviceTestButton() {
+            if (DeviceTestButton == null) return;
+            string label = _testMode ? "退出测试" : "设备测试";
+            string bgHex = _testMode ? "#EF4444" : "#0EA5E9";
+            try {
+                DeviceTestButton.ApplyTemplate();
+                var tb = DeviceTestButton.Template.FindName("DeviceTestButtonText", DeviceTestButton) as TextBlock;
+                if (tb != null) tb.Text = label;
+                if (VisualTreeHelper.GetChildrenCount(DeviceTestButton) > 0) {
+                    var root = VisualTreeHelper.GetChild(DeviceTestButton, 0) as Border;
+                    if (root != null) root.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString(bgHex));
+                }
+            } catch { }
+        }
+
+        // 根据当前连接状态刷新"系统硬件"栏里"连接串口"按钮的文字与底色（模板里的内层 TextBlock + Border）
         private void UpdateQuickConnectButton() {
             if (QuickConnectSerialButton == null) return;
             bool connected = _timingBridge != null && _timingBridge.IsConnected;
-            QuickConnectSerialButton.Content = connected ? "断开" : "连接串口";
-            QuickConnectSerialButton.Background = connected
-                ? new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EF4444"))
-                : new SolidColorBrush((Color)ColorConverter.ConvertFromString("#22C55E"));
+            string label = connected ? "断开" : "连接串口";
+            string bgHex = connected ? "#EF4444" : "#22C55E";
+            // 模板内的 TextBlock 用 x:Name="QuickConnectSerialButtonText"，
+            // 模板里的 Border 是按钮 Template 的根元素 — 通过 VisualTreeHelper 拿到再改 Background
+            try {
+                QuickConnectSerialButton.ApplyTemplate();
+                var tb = QuickConnectSerialButton.Template.FindName("QuickConnectSerialButtonText", QuickConnectSerialButton) as TextBlock;
+                if (tb != null) tb.Text = label;
+                if (VisualTreeHelper.GetChildrenCount(QuickConnectSerialButton) > 0) {
+                    var root = VisualTreeHelper.GetChild(QuickConnectSerialButton, 0) as Border;
+                    if (root != null) root.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString(bgHex));
+                }
+            } catch { }
         }
 
         private int ReadBaudRateFromUi() {

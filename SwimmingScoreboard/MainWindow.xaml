@@ -912,11 +912,7 @@
                                     <TextBlock Text="比赛控制" FontSize="16" FontWeight="Bold" Foreground="#1E293B" VerticalAlignment="Center"/>
                                 </StackPanel>
                                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                                    <!-- 连接串口快捷按钮：用 timing_connection.json 里保存的串口名 + 波特率连接 -->
-                                    <Button x:Name="QuickConnectSerialButton" Content="连接串口" Click="QuickConnectSerial_Click"
-                                            Padding="8,2" Background="#22C55E" Foreground="White" BorderThickness="0"
-                                            FontSize="12" VerticalAlignment="Center" Cursor="Hand" Margin="0,0,6,0"
-                                            ToolTip="用上次保存的串口/波特率快速连接硬件计时器；详细配置请到 系统工作状态 → 硬件计时器连接"/>
+                                    <!-- 连接串口按钮已移到下方"系统硬件"栏 -->
                                     <Button Content="&#9881; 参数设置" Click="TimingSettings_Click"
                                             Padding="8,2" Background="#475569" Foreground="White" BorderThickness="0"
                                             FontSize="12" VerticalAlignment="Center" Cursor="Hand"/>
@@ -1245,6 +1241,50 @@
                                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
                                                         <TextBlock Text="&#xE8B9;" FontFamily="Segoe MDL2 Assets" FontSize="15" Foreground="White" VerticalAlignment="Center" Margin="0,0,5,0"/>
                                                         <TextBlock Text="图片 / 视频" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                    </StackPanel>
+                                                </Border>
+                                            </ControlTemplate>
+                                        </Button.Template>
+                                    </Button>
+                                </Grid>
+                            </Border>
+
+                            <!-- 系统硬件 — 与硬件计时器交互的入口（连接 / 设备测试）-->
+                            <TextBlock Text="系统硬件" FontSize="14" FontWeight="Bold" Foreground="#475569" Margin="0,8,0,6"/>
+                            <Border Background="#F8FAFC" CornerRadius="6" Padding="6">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="32"/>
+                                    </Grid.RowDefinitions>
+                                    <!-- 连接串口（从顶部移过来） -->
+                                    <Button x:Name="QuickConnectSerialButton" Grid.Row="0" Grid.Column="0" Content="连接串口" Click="QuickConnectSerial_Click"
+                                            Margin="2" BorderThickness="0" Cursor="Hand"
+                                            ToolTip="用上次保存的串口/波特率快速连接硬件计时器；详细配置请到 系统工作状态 → 硬件计时器连接">
+                                        <Button.Template>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border Background="#22C55E" CornerRadius="6" Padding="4">
+                                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                        <TextBlock Text="&#xE839;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="White" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                                                        <TextBlock x:Name="QuickConnectSerialButtonText" Text="连接串口" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                    </StackPanel>
+                                                </Border>
+                                            </ControlTemplate>
+                                        </Button.Template>
+                                    </Button>
+                                    <!-- 设备测试：触板/出发台/盲表全部打开，硬件来什么数据都接收并显示 -->
+                                    <Button x:Name="DeviceTestButton" Grid.Row="0" Grid.Column="1" Content="设备测试" Click="DeviceTest_Click"
+                                            Margin="2" BorderThickness="0" Cursor="Hand"
+                                            ToolTip="所有触板/出发台/盲表都打开，硬件发来的任何数据都接收显示（用于联调）。再点一次退出测试。">
+                                        <Button.Template>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border Background="#0EA5E9" CornerRadius="6" Padding="4">
+                                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                        <TextBlock Text="&#xE9F5;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="White" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                                                        <TextBlock x:Name="DeviceTestButtonText" Text="设备测试" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
                                                     </StackPanel>
                                                 </Border>
                                             </ControlTemplate>
