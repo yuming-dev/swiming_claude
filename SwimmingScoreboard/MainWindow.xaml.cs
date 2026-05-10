@@ -5025,12 +5025,34 @@ namespace SwimmingScoreboard
                 int lane = rowUI.Lane;
                 var ls = _laneDeviceStates.FirstOrDefault(s => s.Lane == lane);
                 // 空泳道：仅保留淡化效果，所有状态/成绩字段清空
+                // 例外：设备测试模式下要按真实设备状态涂色，否则用户看不到 Open / Touched
                 if (sw == null) {
                     rowUI.Row.BorderThickness = new Thickness(0);
-                    if (rowUI.NameText != null) rowUI.NameText.Text = "（空泳道）";
+                    if (rowUI.NameText != null) rowUI.NameText.Text = _testMode ? "" : "（空泳道）";
                     if (rowUI.TeamText != null) rowUI.TeamText.Text = "";
-                    if (rowUI.LeftDots != null) for (int i = 0; i < rowUI.LeftDots.Length; i++) rowUI.LeftDots[i].Fill = _brushSlate;
-                    if (rowUI.RightDots != null) for (int i = 0; i < rowUI.RightDots.Length; i++) rowUI.RightDots[i].Fill = _brushSlate;
+                    // 测试模式下按真实状态涂色，正常空道全部置灰
+                    if (rowUI.LeftDots != null && ls != null) {
+                        if (_testMode) {
+                            rowUI.LeftDots[0].Fill = GetDeviceBrush(ls.LeftBlindWatch3Status);
+                            rowUI.LeftDots[1].Fill = GetDeviceBrush(ls.LeftBlindWatch2Status);
+                            rowUI.LeftDots[2].Fill = GetDeviceBrush(ls.LeftBlindWatch1Status);
+                            rowUI.LeftDots[3].Fill = GetDeviceBrush(ls.LeftStartBlockStatus);
+                            rowUI.LeftDots[4].Fill = GetDeviceBrush(ls.LeftTouchpadStatus);
+                        } else {
+                            for (int i = 0; i < rowUI.LeftDots.Length; i++) rowUI.LeftDots[i].Fill = _brushSlate;
+                        }
+                    }
+                    if (rowUI.RightDots != null && ls != null) {
+                        if (_testMode) {
+                            rowUI.RightDots[0].Fill = GetDeviceBrush(ls.RightTouchpadStatus);
+                            rowUI.RightDots[1].Fill = GetDeviceBrush(ls.RightStartBlockStatus);
+                            rowUI.RightDots[2].Fill = GetDeviceBrush(ls.RightBlindWatch1Status);
+                            rowUI.RightDots[3].Fill = GetDeviceBrush(ls.RightBlindWatch2Status);
+                            rowUI.RightDots[4].Fill = GetDeviceBrush(ls.RightBlindWatch3Status);
+                        } else {
+                            for (int i = 0; i < rowUI.RightDots.Length; i++) rowUI.RightDots[i].Fill = _brushSlate;
+                        }
+                    }
                     // 空泳道也要按当前盲表数量隐藏多余圆点
                     if (rowUI.LeftDots != null) {
                         int lbc0 = _laneCloseSettings.LeftBlindWatchCount;
