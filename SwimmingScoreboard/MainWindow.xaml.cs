@@ -5417,41 +5417,37 @@ namespace SwimmingScoreboard
         }
 
         private void UpdateRaceStateDisplay() {
-            // 顶部"状态"框：白底彩字改为彩底白字，醒目
+            // "泳道实时状态"右上的状态徽章 + 顶部信息栏的状态文本，统一用同一组配色：
             //   等待   蓝 #3B82F6（白字）
-            //   就位   黄 #F59E0B（黑字 — 黄色配白字对比度差）
+            //   就位   黄 #F59E0B（黑字，黄底白字对比差）
             //   比赛中 红 #EF4444（白字）
-            //   已完赛 灰 #475569（白字）— 与三个进行中状态区分开
+            //   已完赛 灰 #475569（白字 — 与进行中三状态区分）
+            string label;
+            string bgHex, fgHex;
             switch (_raceState) {
-                case RaceState.Waiting:
-                    RaceStateText.Text = "等待";
-                    RaceStateText.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6"));
-                    RaceStateText.Foreground = new SolidColorBrush(Colors.White);
-                    RaceStateIndicator.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6"));
-                    RaceStateLabel.Text = "等待";
-                    break;
                 case RaceState.Ready:
-                    RaceStateText.Text = "就位";
-                    RaceStateText.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F59E0B"));
-                    RaceStateText.Foreground = new SolidColorBrush(Colors.Black);
-                    RaceStateIndicator.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F59E0B"));
-                    RaceStateLabel.Text = "就位";
-                    break;
+                    label = "就位"; bgHex = "#F59E0B"; fgHex = "#000000"; break;
                 case RaceState.Racing:
-                    RaceStateText.Text = "比赛中";
-                    RaceStateText.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EF4444"));
-                    RaceStateText.Foreground = new SolidColorBrush(Colors.White);
-                    RaceStateIndicator.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EF4444"));
-                    RaceStateLabel.Text = "比赛中";
-                    break;
+                    label = "比赛中"; bgHex = "#EF4444"; fgHex = "#FFFFFF"; break;
                 case RaceState.Finished:
-                    RaceStateText.Text = "已完赛";
-                    RaceStateText.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569"));
-                    RaceStateText.Foreground = new SolidColorBrush(Colors.White);
-                    RaceStateIndicator.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569"));
-                    RaceStateLabel.Text = "已完赛";
-                    break;
+                    label = "已完赛"; bgHex = "#475569"; fgHex = "#FFFFFF"; break;
+                default:
+                    label = "等待"; bgHex = "#3B82F6"; fgHex = "#FFFFFF"; break;
             }
+            var bgBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString(bgHex));
+            var fgBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString(fgHex));
+
+            // 顶部信息栏的状态文本（彩底白/黑字）
+            RaceStateText.Text = label;
+            RaceStateText.Background = bgBrush;
+            RaceStateText.Foreground = fgBrush;
+
+            // 泳道实时状态右上角徽章：整框底色随状态走，圆点 + 文字保持白色
+            if (RaceStateBox != null) RaceStateBox.Background = bgBrush;
+            RaceStateIndicator.Fill = new SolidColorBrush(Colors.White);
+            RaceStateLabel.Text = label;
+            RaceStateLabel.Foreground = fgBrush;
+
             CompModeText.Text = _competitionMode == "domestic" ? "国内" : "国际";
             PoolInfoText.Text = string.Format("{0}米 {1}道", _poolConfig.Length, _poolConfig.LaneCount);
         }

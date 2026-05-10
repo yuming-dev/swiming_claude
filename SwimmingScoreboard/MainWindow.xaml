@@ -855,11 +855,11 @@
                                 <!-- 滚动时间 -->
                                 <TextBlock x:Name="RunningTimeText" Grid.Column="3" Text="0.00" Width="160" FontSize="32" FontWeight="Bold"
                                            Foreground="#F59E0B" FontFamily="Consolas" TextAlignment="Right" Margin="8,0,8,0" VerticalAlignment="Center"/>
-                                <!-- 状态 -->
-                                <Border Grid.Column="4" Background="#1E293B" CornerRadius="12" Padding="10,4" Width="80">
+                                <!-- 状态 — 整框底色随当前比赛状态变化（等待蓝/就位黄/比赛中红/已完赛灰） -->
+                                <Border x:Name="RaceStateBox" Grid.Column="4" Background="#3B82F6" CornerRadius="12" Padding="10,4" Width="90">
                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                                        <Ellipse x:Name="RaceStateIndicator" Width="12" Height="12" Fill="#F59E0B" Margin="0,0,6,0" VerticalAlignment="Center"/>
-                                        <TextBlock x:Name="RaceStateLabel" Text="等待" FontSize="14" FontWeight="Bold" Foreground="#94A3B8" VerticalAlignment="Center" Width="42" TextAlignment="Center"/>
+                                        <Ellipse x:Name="RaceStateIndicator" Width="12" Height="12" Fill="White" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                        <TextBlock x:Name="RaceStateLabel" Text="等待" FontSize="14" FontWeight="Bold" Foreground="White" VerticalAlignment="Center" Width="48" TextAlignment="Center"/>
                                     </StackPanel>
                                 </Border>
                             </Grid>
