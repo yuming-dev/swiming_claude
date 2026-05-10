@@ -614,9 +614,13 @@ namespace RemoteTimingControl
             }
 
             // 状态徽章：等待蓝 / 就位黄 / 比赛中红 / 已完赛灰；与主服务器一致
+            // 设备测试模式覆盖所有比赛状态，显示红底"设备测试"
+            bool inTestMode = _data["testMode"] != null && (bool)_data["testMode"];
             string stateText;
             string bgHex, fgHex;
-            switch (state)
+            if (inTestMode) {
+                stateText = "设备测试"; bgHex = "#EF4444"; fgHex = "#FFFFFF";
+            } else switch (state)
             {
                 case "ready":    stateText = "就位";   bgHex = "#F59E0B"; fgHex = "#000000"; break;
                 case "racing":   stateText = "比赛中"; bgHex = "#EF4444"; fgHex = "#FFFFFF"; break;
@@ -2567,6 +2571,46 @@ namespace RemoteTimingControl
             deviceStack.Children.Add(btnBlindMgr);
             deviceSep.Child = deviceStack;
             sp.Children.Add(deviceSep);
+
+            // 系统硬件 — 连接串口（请求服务器）+ 设备测试切换
+            var hwOpsSep = new Border { BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569")), BorderThickness = new Thickness(0, 1, 0, 0), Margin = new Thickness(0, 10, 0, 0), Padding = new Thickness(0, 10, 0, 0) };
+            var hwOpsStack = new StackPanel();
+            hwOpsStack.Children.Add(new TextBlock { Text = "系统硬件", Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#38BDF8")), FontSize = 14, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 0, 0, 8) });
+            var hwOpsRow = new Grid();
+            hwOpsRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            hwOpsRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(6) });
+            hwOpsRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            var btnQuickConn = new Button { Content = "连接串口", Padding = new Thickness(0, 8, 0, 8), FontSize = 13, FontWeight = FontWeights.Bold, Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#22C55E")), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
+            btnQuickConn.Click += delegate {
+                SendCmd("QUICK_CONNECT_SERIAL", null);
+                AddLog("已请求服务器连接/断开串口");
+                dlg.DialogResult = false;
+            };
+            Grid.SetColumn(btnQuickConn, 0);
+            bool dtNow = (_data != null && _data["testMode"] != null && (bool)_data["testMode"]);
+            var btnDeviceTest = new Button {
+                Content = dtNow ? "退出测试" : "设备测试",
+                Padding = new Thickness(0, 8, 0, 8), FontSize = 13, FontWeight = FontWeights.Bold,
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString(dtNow ? "#EF4444" : "#0EA5E9")),
+                Foreground = Brushes.White, BorderThickness = new Thickness(0)
+            };
+            btnDeviceTest.Click += delegate {
+                bool inTest = (_data != null && _data["testMode"] != null && (bool)_data["testMode"]);
+                if (!inTest) {
+                    var r = MessageBox.Show("确认进入设备测试模式？\n\n所有触板/出发台/盲表都将打开，硬件来什么数据都直接显示但不计入比赛成绩。\n再点同一按钮退出。",
+                        "设备测试", MessageBoxButton.YesNo, MessageBoxImage.Question);
+                    if (r != MessageBoxResult.Yes) return;
+                }
+                SendCmd("DEVICE_TEST_TOGGLE", null);
+                AddLog(inTest ? "已请求退出设备测试" : "已请求进入设备测试");
+                dlg.DialogResult = false;
+            };
+            Grid.SetColumn(btnDeviceTest, 2);
+            hwOpsRow.Children.Add(btnQuickConn);
+            hwOpsRow.Children.Add(btnDeviceTest);
+            hwOpsStack.Children.Add(hwOpsRow);
+            hwOpsSep.Child = hwOpsStack;
+            sp.Children.Add(hwOpsSep);
 
             var btnPanel = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 16, 0, 0) };
             var btnCancel = new Button { Content = "取消", Padding = new Thickness(16, 6, 16, 6), Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569")), Foreground = Brushes.White, BorderThickness = new Thickness(0), Margin = new Thickness(0, 0, 8, 0) };

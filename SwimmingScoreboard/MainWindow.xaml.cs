@@ -962,6 +962,12 @@ namespace SwimmingScoreboard
                     Restart_Click(null, null);
                     break;
                 case "CONFIRM_RESULT": ConfirmResult_Click(null, null); break;
+                case "QUICK_CONNECT_SERIAL":
+                    QuickConnectSerial_Click(null, null);
+                    break;
+                case "DEVICE_TEST_TOGGLE":
+                    DeviceTest_Click(null, null);
+                    break;
                 case "EXECUTE_PROMOTION":
                     if (data != null) {
                         string pGender = data["gender"] != null ? data["gender"].ToString() : "";
@@ -1542,6 +1548,13 @@ namespace SwimmingScoreboard
                 firstPlaceActive = (_firstPlaceShowStart != DateTime.MinValue &&
                     (DateTime.Now - _firstPlaceShowStart).TotalSeconds <
                     (_laneCloseSettings.FirstPlaceHoldTime > 0 ? _laneCloseSettings.FirstPlaceHoldTime : 3)),
+                // 设备测试：客户端用此标志切换测试 UI；事件文字按泳道左/右分组
+                testMode = _testMode,
+                testEvents = _testMode ? _laneDeviceStates.Select(s => new {
+                    lane = s.Lane,
+                    left  = _testLastEventLeft.ContainsKey(s.Lane)  ? _testLastEventLeft[s.Lane]  : "",
+                    right = _testLastEventRight.ContainsKey(s.Lane) ? _testLastEventRight[s.Lane] : ""
+                }).ToList() : null,
                 laneCloseSettings = new {
                     laneCloseTime = _laneCloseSettings.LaneCloseTime,
                     startBlockCloseDelay = _laneCloseSettings.StartBlockCloseDelay,
@@ -11408,14 +11421,23 @@ namespace SwimmingScoreboard
         private void DeviceTest_Click(object sender, RoutedEventArgs e) {
             if (!_testMode) {
                 if (_raceState == RaceState.Racing) {
-                    MessageBox.Show("当前正在比赛，请先按下\"计时复位\"再进入设备测试。", "提示",
-                        MessageBoxButton.OK, MessageBoxImage.Information);
+                    // 远端命令也会走这里，没必要弹本地框 — 直接拒绝并写日志
+                    if (sender != null) {
+                        MessageBox.Show("当前正在比赛，请先按下\"计时复位\"再进入设备测试。", "提示",
+                            MessageBoxButton.OK, MessageBoxImage.Information);
+                    } else {
+                        AddLog("远端请求设备测试被拒：当前正在比赛");
+                    }
                     return;
                 }
-                var r = MessageBox.Show(
-                    "确认进入设备测试模式？\n\n所有触板/出发台/盲表都将强制打开，硬件来什么数据都直接显示并写日志，但不计入比赛成绩。\n再点击同一按钮可退出测试。",
-                    "设备测试", MessageBoxButton.YesNo, MessageBoxImage.Question);
-                if (r != MessageBoxResult.Yes) return;
+                if (sender != null) {
+                    var r = MessageBox.Show(
+                        "确认进入设备测试模式？\n\n所有触板/出发台/盲表都将强制打开，硬件来什么数据都直接显示并写日志，但不计入比赛成绩。\n再点击同一按钮可退出测试。",
+                        "设备测试", MessageBoxButton.YesNo, MessageBoxImage.Question);
+                    if (r != MessageBoxResult.Yes) return;
+                } else {
+                    AddLog("远端请求进入设备测试模式");
+                }
 
                 _testMode = true;
 

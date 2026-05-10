@@ -257,6 +257,15 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
             <button style="width:100%;padding:8px;background:#0EA5E9;color:white;border:none;border-radius:6px;cursor:pointer;font-size:14px;font-weight:bold;margin-top:6px;" onmousedown="closeSettings();openManualButtonManager();">手动按键管理</button>
             <button style="width:100%;padding:8px;background:#F59E0B;color:black;border:none;border-radius:6px;cursor:pointer;font-size:14px;font-weight:bold;margin-top:6px;" onclick="closeSettings();openBlindWatchCountDialog();">左右盲表数量设置</button>
         </div>
+        <div style="margin-top:10px;padding-top:10px;border-top:1px solid #475569;">
+            <div style="color:#38BDF8;font-size:13px;font-weight:bold;margin-bottom:6px;">系统硬件</div>
+            <div style="display:flex;gap:6px;">
+                <button style="flex:1;padding:8px;background:#22C55E;color:white;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:bold;"
+                        onclick="closeSettings();sendCmd('QUICK_CONNECT_SERIAL');addLog('已请求服务器连接/断开串口');">连接串口</button>
+                <button id="btnDeviceTest" style="flex:1;padding:8px;background:#0EA5E9;color:white;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:bold;"
+                        onclick="toggleDeviceTest()">设备测试</button>
+            </div>
+        </div>
         <div class="modal-btns">
             <button class="btn-cancel" onclick="closeSettings()">取消</button>
             <button class="btn-ok" onclick="applySettings()">确定</button>
@@ -680,8 +689,20 @@ function render() {
     var stateText = labels[state] || state;
     if (data.resultConfirmed) stateText = '已确认 — 请选择下一组';
     var labelEl = document.getElementById('stateLabel');
-    labelEl.textContent = stateText;
-    labelEl.className = 'state-label ' + state;   // 让 CSS 的 .state-label.{waiting|ready|racing|finished} 生效
+    // 设备测试模式覆盖：显示"设备测试"红底白字，比正常 state 更醒目
+    if (data.testMode) {
+        labelEl.textContent = '设备测试';
+        labelEl.className = 'state-label racing';   // 红底
+    } else {
+        labelEl.textContent = stateText;
+        labelEl.className = 'state-label ' + state;   // 让 CSS 的 .state-label.{waiting|ready|racing|finished} 生效
+    }
+    // 设备测试按钮文字随服务器 testMode 变化（设置对话框打开时也适用）
+    var btnDt = document.getElementById('btnDeviceTest');
+    if (btnDt) {
+        btnDt.textContent = data.testMode ? '退出测试' : '设备测试';
+        btnDt.style.background = data.testMode ? '#EF4444' : '#0EA5E9';
+    }
 
     // 本地计时器同步：
     // 服务器（主控制）是唯一权威时钟源，由硬件START事件驱动。
@@ -1762,6 +1783,15 @@ function buildArrows(sw, swDir, dir) {
 
     // 等待状态
     return '';
+}
+
+// 设备测试切换 — 通过服务器（服务器是唯一硬件出口）
+function toggleDeviceTest() {
+    var inTest = !!(data && data.testMode);
+    if (!inTest && !confirm('确认进入设备测试模式？\n\n所有触板/出发台/盲表都将打开，硬件来什么数据都直接显示但不计入比赛成绩。\n再点同一按钮退出。')) return;
+    sendCmd('DEVICE_TEST_TOGGLE');
+    closeSettings();
+    addLog(inTest ? '已请求退出设备测试' : '已请求进入设备测试');
 }
 
 function statusClass(s) {
