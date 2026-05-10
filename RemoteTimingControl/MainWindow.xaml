@@ -21,10 +21,13 @@
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
                 <TextBlock x:Name="CurrentInfoText" Grid.Column="0" Text="未选择比赛" Foreground="White" FontWeight="Bold" FontSize="14" VerticalAlignment="Center"/>
-                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                    <Ellipse x:Name="StateIndicator" Width="10" Height="10" Fill="#F59E0B" Margin="0,0,4,0"/>
-                    <TextBlock x:Name="StateLabel" Text="等待" Foreground="#94A3B8" FontSize="12"/>
-                </StackPanel>
+                <!-- 比赛状态徽章：彩底白/黑字（与主服务器一致） -->
+                <Border x:Name="StateBox" Grid.Column="1" Background="#3B82F6" CornerRadius="10" Padding="10,3" VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                        <Ellipse x:Name="StateIndicator" Width="0" Height="0" Visibility="Collapsed"/>
+                        <TextBlock x:Name="StateLabel" Text="等待" Foreground="White" FontSize="12" FontWeight="Bold"/>
+                    </StackPanel>
+                </Border>
                 <!-- 硬件状态+控制模式 -->
                 <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0,0,0">
                     <Ellipse x:Name="HwConn" Width="8" Height="8" Fill="#EF4444" Margin="0,0,3,0"/>

@@ -14,12 +14,13 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 .nav-bar .current-info { font-size: 15px; font-weight: bold; flex: 1; }
 .nav-bar button { padding: 4px 12px; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; }
 .nav-btn { background: #475569; color: white; }
-.state-dot { width: 10px; height: 10px; border-radius: 50%; }
-.state-dot.waiting { background: var(--gold); }
-.state-dot.ready { background: var(--accent); }
-.state-dot.racing { background: var(--green); }
-.state-dot.finished { background: var(--red); }
-.state-label { font-size: 14px; color: var(--dim); margin-left: 4px; }
+/* 比赛状态徽章 — 彩底白字（就位用黑字，黄底白字对比差） */
+.state-dot { display: none; }
+.state-label { font-size: 13px; font-weight: bold; padding: 3px 12px; border-radius: 12px; min-width: 60px; display: inline-block; text-align: center; color: white; margin-left: 4px; }
+.state-label.waiting  { background: #3B82F6; color: white; }
+.state-label.ready    { background: #F59E0B; color: black; }
+.state-label.racing   { background: #EF4444; color: white; }
+.state-label.finished { background: #475569; color: white; }
 
 /* 主体 */
 .main-area { flex: 1; display: flex; overflow: hidden; }
@@ -678,7 +679,9 @@ function render() {
     var labels = {waiting:'等待', ready:'就位', racing:'比赛中', finished:'已完赛'};
     var stateText = labels[state] || state;
     if (data.resultConfirmed) stateText = '已确认 — 请选择下一组';
-    document.getElementById('stateLabel').textContent = stateText;
+    var labelEl = document.getElementById('stateLabel');
+    labelEl.textContent = stateText;
+    labelEl.className = 'state-label ' + state;   // 让 CSS 的 .state-label.{waiting|ready|racing|finished} 生效
 
     // 本地计时器同步：
     // 服务器（主控制）是唯一权威时钟源，由硬件START事件驱动。

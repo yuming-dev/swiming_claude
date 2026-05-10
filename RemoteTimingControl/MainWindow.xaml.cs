@@ -613,26 +613,21 @@ namespace RemoteTimingControl
                 _laneSplitState.Clear();
             }
 
-            // State indicator
-            Color stateColor;
-            switch (state)
-            {
-                case "ready": stateColor = (Color)ColorConverter.ConvertFromString("#3B82F6"); break;
-                case "racing": stateColor = (Color)ColorConverter.ConvertFromString("#22C55E"); break;
-                case "finished": stateColor = (Color)ColorConverter.ConvertFromString("#EF4444"); break;
-                default: stateColor = (Color)ColorConverter.ConvertFromString("#F59E0B"); break;
-            }
-            StateIndicator.Fill = new SolidColorBrush(stateColor);
-
+            // 状态徽章：等待蓝 / 就位黄 / 比赛中红 / 已完赛灰；与主服务器一致
             string stateText;
+            string bgHex, fgHex;
             switch (state)
             {
-                case "waiting": stateText = "等待"; break;
-                case "ready": stateText = "就位"; break;
-                case "racing": stateText = "比赛中"; break;
-                case "finished": stateText = "已完赛"; break;
-                default: stateText = state; break;
+                case "ready":    stateText = "就位";   bgHex = "#F59E0B"; fgHex = "#000000"; break;
+                case "racing":   stateText = "比赛中"; bgHex = "#EF4444"; fgHex = "#FFFFFF"; break;
+                case "finished": stateText = "已完赛"; bgHex = "#475569"; fgHex = "#FFFFFF"; break;
+                default:         stateText = "等待";   bgHex = "#3B82F6"; fgHex = "#FFFFFF"; break;
             }
+            var bgBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString(bgHex));
+            var fgBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString(fgHex));
+            if (StateBox != null) StateBox.Background = bgBrush;
+            StateLabel.Foreground = fgBrush;
+
             bool resultConfirmed = _data["resultConfirmed"] != null && (bool)_data["resultConfirmed"];
             if (resultConfirmed) stateText = "已确认 — 请选择下一组";
             StateLabel.Text = stateText;
