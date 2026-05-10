@@ -5036,7 +5036,19 @@ namespace SwimmingScoreboard
                 // 例外：设备测试模式下要按真实设备状态涂色，否则用户看不到 Open / Touched
                 if (sw == null) {
                     rowUI.Row.BorderThickness = new Thickness(0);
-                    if (rowUI.NameText != null) rowUI.NameText.Text = _testMode ? "" : "（空泳道）";
+                    // 测试模式：左端事件贴到姓名栏，右端事件贴到成绩栏（比 Remain 框宽很多）
+                    if (_testMode) {
+                        string leftEvtName = _testLastEventLeft.ContainsKey(lane) ? _testLastEventLeft[lane] : "";
+                        if (rowUI.NameText != null) {
+                            rowUI.NameText.Text = leftEvtName;
+                            rowUI.NameText.Foreground = leftEvtName.Length > 0 ? (Brush)_brushAmber : (Brush)_brushMutedText;
+                        }
+                    } else {
+                        if (rowUI.NameText != null) {
+                            rowUI.NameText.Text = "（空泳道）";
+                            rowUI.NameText.Foreground = _brushMutedText;
+                        }
+                    }
                     if (rowUI.TeamText != null) rowUI.TeamText.Text = "";
                     // 测试模式下按真实状态涂色，正常空道全部置灰
                     if (rowUI.LeftDots != null && ls != null) {
@@ -5074,24 +5086,20 @@ namespace SwimmingScoreboard
                         rowUI.RightDots[3].Visibility = rbc0 >= 2 ? Visibility.Visible : Visibility.Hidden; // 盲2
                         rowUI.RightDots[4].Visibility = rbc0 >= 3 ? Visibility.Visible : Visibility.Hidden; // 盲3
                     }
-                    // 测试模式：左/右端 Remain 框显示最近事件；正常空道全部清空
-                    if (_testMode) {
-                        string leftEvt = _testLastEventLeft.ContainsKey(lane) ? _testLastEventLeft[lane] : "";
-                        string rightEvt = _testLastEventRight.ContainsKey(lane) ? _testLastEventRight[lane] : "";
-                        if (rowUI.LeftRemainText != null) {
-                            rowUI.LeftRemainText.Text = leftEvt;
-                            rowUI.LeftRemainText.Foreground = leftEvt.Length > 0 ? (Brush)_brushAmber : _brushSlate;
-                        }
-                        if (rowUI.RightRemainText != null) {
-                            rowUI.RightRemainText.Text = rightEvt;
-                            rowUI.RightRemainText.Foreground = rightEvt.Length > 0 ? (Brush)_brushAmber : _brushSlate;
-                        }
-                    } else {
-                        if (rowUI.LeftRemainText != null) rowUI.LeftRemainText.Text = "";
-                        if (rowUI.RightRemainText != null) rowUI.RightRemainText.Text = "";
-                    }
+                    // Remain 框（赛中倒计时位置）测试模式下不再用，统一清空
+                    if (rowUI.LeftRemainText != null) rowUI.LeftRemainText.Text = "";
+                    if (rowUI.RightRemainText != null) rowUI.RightRemainText.Text = "";
                     if (rowUI.ReactionText != null) rowUI.ReactionText.Text = "";
-                    if (rowUI.DisplayTimeText != null) rowUI.DisplayTimeText.Text = "";
+                    // 测试模式：右端事件贴到成绩栏（DisplayTimeText）；正常空道清空
+                    if (rowUI.DisplayTimeText != null) {
+                        if (_testMode) {
+                            string rightEvtTime = _testLastEventRight.ContainsKey(lane) ? _testLastEventRight[lane] : "";
+                            rowUI.DisplayTimeText.Text = rightEvtTime;
+                            rowUI.DisplayTimeText.Foreground = rightEvtTime.Length > 0 ? (Brush)_brushAmber : (Brush)_brushMutedText;
+                        } else {
+                            rowUI.DisplayTimeText.Text = "";
+                        }
+                    }
                     if (rowUI.RankText != null) rowUI.RankText.Text = "";
                     if (rowUI.RemarkText != null) rowUI.RemarkText.Text = "";
                     if (rowUI.TrackText != null) rowUI.TrackText.Text = "";
