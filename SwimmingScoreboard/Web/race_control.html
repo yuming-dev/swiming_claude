@@ -176,6 +176,11 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
     <span style="margin-left:8px;display:flex;align-items:center;gap:3px;font-size:11px;">
         <span id="wsConn" class="conn-dot off"></span><span style="color:#94A3B8;">服务器</span>
     </span>
+    <!-- 系统硬件：连接串口 + 设备测试（直接放导航栏，不藏在参数设置里）-->
+    <button id="navQuickConnBtn" onclick="quickConnectFromNav()" title="请求服务器用上次保存的串口/波特率连接硬件计时器；已连接时再点为断开"
+            style="margin-left:6px;padding:4px 10px;background:#22C55E;color:white;border:none;border-radius:4px;font-size:12px;font-weight:bold;cursor:pointer;">连接串口</button>
+    <button id="navDeviceTestBtn" onclick="toggleDeviceTest()" title="进入设备测试模式：所有触板/出发台/盲表打开，硬件来什么都接收显示，不计入比赛"
+            style="margin-left:4px;padding:4px 10px;background:#0EA5E9;color:white;border:none;border-radius:4px;font-size:12px;font-weight:bold;cursor:pointer;">设备测试</button>
     <button class="settings-btn" onclick="openSettings()">&#9881; 参数设置</button>
     <button class="fullscreen-btn" onclick="goFullScreen()" style="position:fixed;top:4px;right:8px;z-index:50;padding:4px 10px;background:#3B82F6;color:white;border:none;border-radius:4px;font-size:12px;cursor:pointer;">全屏</button>
 </div>
@@ -697,11 +702,23 @@ function render() {
         labelEl.textContent = stateText;
         labelEl.className = 'state-label ' + state;   // 让 CSS 的 .state-label.{waiting|ready|racing|finished} 生效
     }
-    // 设备测试按钮文字随服务器 testMode 变化（设置对话框打开时也适用）
-    var btnDt = document.getElementById('btnDeviceTest');
-    if (btnDt) {
-        btnDt.textContent = data.testMode ? '退出测试' : '设备测试';
-        btnDt.style.background = data.testMode ? '#EF4444' : '#0EA5E9';
+    // 设备测试按钮文字随服务器 testMode 变化（设置对话框 + 导航栏都更新）
+    var dtSettings = document.getElementById('btnDeviceTest');
+    if (dtSettings) {
+        dtSettings.textContent = data.testMode ? '退出测试' : '设备测试';
+        dtSettings.style.background = data.testMode ? '#EF4444' : '#0EA5E9';
+    }
+    var dtNav = document.getElementById('navDeviceTestBtn');
+    if (dtNav) {
+        dtNav.textContent = data.testMode ? '退出测试' : '设备测试';
+        dtNav.style.background = data.testMode ? '#EF4444' : '#0EA5E9';
+    }
+    // 连接串口按钮跟硬件连接状态走（已连接=红"断开"，未连接=绿"连接串口"）
+    var connNav = document.getElementById('navQuickConnBtn');
+    if (connNav) {
+        var hwOn = !!data.timingHwConnected;
+        connNav.textContent = hwOn ? '断开串口' : '连接串口';
+        connNav.style.background = hwOn ? '#EF4444' : '#22C55E';
     }
 
     // 本地计时器同步：
@@ -1785,12 +1802,17 @@ function buildArrows(sw, swDir, dir) {
     return '';
 }
 
+// 系统硬件：连接串口 — 让服务器用上次保存的串口/波特率快速连接
+function quickConnectFromNav() {
+    sendCmd('QUICK_CONNECT_SERIAL');
+    addLog('已请求服务器连接/断开串口');
+}
+
 // 设备测试切换 — 通过服务器（服务器是唯一硬件出口）
 function toggleDeviceTest() {
     var inTest = !!(data && data.testMode);
     if (!inTest && !confirm('确认进入设备测试模式？\n\n所有触板/出发台/盲表都将打开，硬件来什么数据都直接显示但不计入比赛成绩。\n再点同一按钮退出。')) return;
     sendCmd('DEVICE_TEST_TOGGLE');
-    closeSettings();
     addLog(inTest ? '已请求退出设备测试' : '已请求进入设备测试');
 }
 

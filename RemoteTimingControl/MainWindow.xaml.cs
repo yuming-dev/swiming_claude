@@ -339,6 +339,26 @@ namespace RemoteTimingControl
         }
 
         // ═══════ 连接管理 ═══════
+        // 导航栏 系统硬件 — 连接串口 / 断开（让服务器执行）
+        private void NavQuickConnSerial_Click(object sender, RoutedEventArgs e)
+        {
+            SendCmd("QUICK_CONNECT_SERIAL", null);
+            AddLog("已请求服务器连接/断开串口");
+        }
+
+        // 导航栏 系统硬件 — 设备测试切换
+        private void NavDeviceTest_Click(object sender, RoutedEventArgs e)
+        {
+            bool inTest = (_data != null && _data["testMode"] != null && (bool)_data["testMode"]);
+            if (!inTest) {
+                var r = MessageBox.Show("确认进入设备测试模式？\n\n所有触板/出发台/盲表都将打开，硬件来什么数据都直接显示但不计入比赛成绩。\n再点同一按钮退出。",
+                    "设备测试", MessageBoxButton.YesNo, MessageBoxImage.Question);
+                if (r != MessageBoxResult.Yes) return;
+            }
+            SendCmd("DEVICE_TEST_TOGGLE", null);
+            AddLog(inTest ? "已请求退出设备测试" : "已请求进入设备测试");
+        }
+
         private void Connect_Click(object sender, RoutedEventArgs e)
         {
             if (_ws != null && _ws.IsConnected)
@@ -616,6 +636,16 @@ namespace RemoteTimingControl
             // 状态徽章：等待蓝 / 就位黄 / 比赛中红 / 已完赛灰；与主服务器一致
             // 设备测试模式覆盖所有比赛状态，显示红底"设备测试"
             bool inTestMode = _data["testMode"] != null && (bool)_data["testMode"];
+            // 导航栏 设备测试 / 连接串口 按钮文字+底色随服务器状态走
+            if (NavDeviceTestBtn != null) {
+                NavDeviceTestBtn.Content = inTestMode ? "退出测试" : "设备测试";
+                NavDeviceTestBtn.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString(inTestMode ? "#EF4444" : "#0EA5E9"));
+            }
+            bool hwConnected = _data["timingHwConnected"] != null && (bool)_data["timingHwConnected"];
+            if (NavQuickConnBtn != null) {
+                NavQuickConnBtn.Content = hwConnected ? "断开串口" : "连接串口";
+                NavQuickConnBtn.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString(hwConnected ? "#EF4444" : "#22C55E"));
+            }
             string stateText;
             string bgHex, fgHex;
             if (inTestMode) {

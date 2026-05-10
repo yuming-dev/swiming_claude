@@ -19,6 +19,7 @@
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
                 <TextBlock x:Name="CurrentInfoText" Grid.Column="0" Text="未选择比赛" Foreground="White" FontWeight="Bold" FontSize="14" VerticalAlignment="Center"/>
                 <!-- 比赛状态徽章：彩底白/黑字（与主服务器一致） -->
@@ -42,8 +43,17 @@
                     <Button x:Name="ConnBtn" Content="连接" Click="Connect_Click" Padding="8,2" Margin="4,0,0,0"
                             Background="#3B82F6" Foreground="White" BorderThickness="0" FontSize="11"/>
                 </StackPanel>
+                <!-- 系统硬件：连接串口 + 设备测试（直接挂在导航栏，不藏在设置里）-->
+                <StackPanel Grid.Column="4" Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0,0,0">
+                    <Button x:Name="NavQuickConnBtn" Content="连接串口" Click="NavQuickConnSerial_Click" Padding="8,2"
+                            Background="#22C55E" Foreground="White" BorderThickness="0" FontSize="12"
+                            ToolTip="请求服务器用上次保存的串口/波特率连接硬件计时器；已连接时再点为断开"/>
+                    <Button x:Name="NavDeviceTestBtn" Content="设备测试" Click="NavDeviceTest_Click" Padding="8,2" Margin="4,0,0,0"
+                            Background="#0EA5E9" Foreground="White" BorderThickness="0" FontSize="12"
+                            ToolTip="进入设备测试模式：所有触板/出发台/盲表打开，硬件来什么数据都接收显示但不计入比赛"/>
+                </StackPanel>
                 <!-- 参数设置 -->
-                <Button Content="&#9881; 参数设置" Grid.Column="4" Click="OpenSettings_Click" Padding="8,2" Margin="8,0,0,0"
+                <Button Content="&#9881; 参数设置" Grid.Column="5" Click="OpenSettings_Click" Padding="8,2" Margin="8,0,0,0"
                         Background="#475569" Foreground="White" BorderThickness="0" FontSize="12"/>
                 <TextBlock x:Name="WsConnText" Visibility="Collapsed"/>
             </Grid>
