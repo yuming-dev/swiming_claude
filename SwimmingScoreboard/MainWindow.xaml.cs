@@ -2256,10 +2256,14 @@ namespace SwimmingScoreboard
             }
 
             // 设备测试模式：硬件来什么数据都接收并显示，跳过"比赛状态/空泳道"过滤；
-            // 走完日志后直接 return，不计入分段/成绩，也不打开 Touched 窗口。
+            // 不计入分段/成绩，但在对应设备点上闪一下红色（Touched），让操作员看到哪个设备触发了。
             if (_testMode) {
                 LogRawTimingData(lane, cmdType, timeInSeconds);
-                AddLog(string.Format("【测试】泳道{0} {1} {2}", lane, cmdType, TimeFormatter.Format(timeInSeconds)));
+                AddLog(string.Format("【测试】泳道{0} {1} {2}{3}",
+                    lane, cmdType,
+                    string.IsNullOrEmpty(side) ? "" : ("[" + side + "] "),
+                    TimeFormatter.Format(timeInSeconds)));
+                FlashDeviceInTestMode(lane, cmdType, side);
                 Broadcast();
                 return;
             }
@@ -11263,6 +11267,77 @@ namespace SwimmingScoreboard
             UpdateQuickConnectButton();
         }
 
+        // 设备测试模式下：对应设备点先 Touched（红）→ 500ms 后回 Open（绿），实时可视
+        // 当 _testMode 中途被关闭，定时器到点不再恢复 Open，避免和正常状态机冲突。
+        private void FlashDeviceInTestMode(int lane, string cmdType, string side) {
+            var ls = _laneDeviceStates.FirstOrDefault(s => s.Lane == lane);
+            if (ls == null) return;
+            bool isLeft = side != "right";
+
+            // 设置目标设备点为 Touched
+            switch (cmdType) {
+                case "Touchpad":
+                    if (isLeft) ls.LeftTouchpadStatus = DeviceStatus.Touched;
+                    else        ls.RightTouchpadStatus = DeviceStatus.Touched;
+                    break;
+                case "StartingBlock":
+                    if (isLeft) ls.LeftStartBlockStatus = DeviceStatus.Touched;
+                    else        ls.RightStartBlockStatus = DeviceStatus.Touched;
+                    break;
+                case "PushButton1":
+                    if (isLeft) ls.LeftBlindWatch1Status = DeviceStatus.Touched;
+                    else        ls.RightBlindWatch1Status = DeviceStatus.Touched;
+                    break;
+                case "PushButton2":
+                    if (isLeft) ls.LeftBlindWatch2Status = DeviceStatus.Touched;
+                    else        ls.RightBlindWatch2Status = DeviceStatus.Touched;
+                    break;
+                case "PushButton3":
+                    if (isLeft) ls.LeftBlindWatch3Status = DeviceStatus.Touched;
+                    else        ls.RightBlindWatch3Status = DeviceStatus.Touched;
+                    break;
+                default:
+                    return;
+            }
+            UpdateLaneStatusDisplay();   // 立即显示红色闪烁
+
+            int capLane = lane;
+            string capCmd = cmdType;
+            bool capLeft = isLeft;
+            var t = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
+            t.Tick += delegate {
+                t.Stop();
+                if (!_testMode) return;     // 已退出测试，让退出逻辑里的 Closed 生效
+                var ls2 = _laneDeviceStates.FirstOrDefault(s => s.Lane == capLane);
+                if (ls2 == null) return;
+                switch (capCmd) {
+                    case "Touchpad":
+                        if (capLeft) { if (!ls2.LeftTouchpadBroken) ls2.LeftTouchpadStatus = DeviceStatus.Open; }
+                        else          { if (!ls2.RightTouchpadBroken) ls2.RightTouchpadStatus = DeviceStatus.Open; }
+                        break;
+                    case "StartingBlock":
+                        if (capLeft) { if (!ls2.LeftStartBlockBroken) ls2.LeftStartBlockStatus = DeviceStatus.Open; }
+                        else          { if (!ls2.RightStartBlockBroken) ls2.RightStartBlockStatus = DeviceStatus.Open; }
+                        break;
+                    case "PushButton1":
+                        if (capLeft) { if (!ls2.LeftBlindWatch1Broken && !ls2.LeftBlindWatch1NotInstalled) ls2.LeftBlindWatch1Status = DeviceStatus.Open; }
+                        else          { if (!ls2.RightBlindWatch1Broken && !ls2.RightBlindWatch1NotInstalled) ls2.RightBlindWatch1Status = DeviceStatus.Open; }
+                        break;
+                    case "PushButton2":
+                        if (capLeft) { if (!ls2.LeftBlindWatch2Broken && !ls2.LeftBlindWatch2NotInstalled) ls2.LeftBlindWatch2Status = DeviceStatus.Open; }
+                        else          { if (!ls2.RightBlindWatch2Broken && !ls2.RightBlindWatch2NotInstalled) ls2.RightBlindWatch2Status = DeviceStatus.Open; }
+                        break;
+                    case "PushButton3":
+                        if (capLeft) { if (!ls2.LeftBlindWatch3Broken && !ls2.LeftBlindWatch3NotInstalled) ls2.LeftBlindWatch3Status = DeviceStatus.Open; }
+                        else          { if (!ls2.RightBlindWatch3Broken && !ls2.RightBlindWatch3NotInstalled) ls2.RightBlindWatch3Status = DeviceStatus.Open; }
+                        break;
+                }
+                UpdateLaneStatusDisplay();
+                Broadcast();
+            };
+            t.Start();
+        }
+
         // "系统硬件"栏 — 设备测试：参考 C:\2024年11月2日PM SWIM串口通讯程序Server 的 OnBnClickedTestSystemButton。
         // 进入测试：发 0x1D 给硬件、所有触板/出发台/盲表强制 Open、_testMode=true、状态条改字提示。
         // 退出测试：再次点击恢复正常 — 关掉 _testMode，所有设备重置为 Closed（用户可重新开比赛）。
@@ -11279,6 +11354,16 @@ namespace SwimmingScoreboard
                 if (r != MessageBoxResult.Yes) return;
 
                 _testMode = true;
+
+                // 清空原始计时日志缓冲（与参考程序 m_ReceiveData.Empty 等价）+ 滚动时间归零
+                _rawTimingLog.Clear();
+                _runningTime = 0;
+                _firstPlaceFinishTime = "";
+                _firstPlaceShowStart = DateTime.MinValue;
+                if (RunningTimeText != null) {
+                    RunningTimeText.Text = "0.00";
+                    RunningTimeText.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F59E0B"));
+                }
 
                 // 把所有泳道的设备都打开（损坏/未安装的不强开）
                 foreach (var st in _laneDeviceStates) {
