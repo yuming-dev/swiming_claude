@@ -1707,9 +1707,14 @@ function refreshLaneRows(swimmers, rcRelay) {
         if (rowUI.rightRemain.textContent !== String(rightRemain)) rowUI.rightRemain.textContent = rightRemain;
         rowUI.rightRemain.style.color = rightRemain > 0 ? '#F59E0B' : '#475569';
 
-        // 姓名/代表队
-        var newName, newTeam;
-        if (sw.status === 'EMPTY') {
+        // 姓名/代表队 — 测试模式下姓名栏改为显示左端最近事件文字（"触 23.45" / "出发 0.42"）
+        var newName, newTeam, nameColor = '';
+        var inTestMode = !!(data && data.testMode);
+        if (inTestMode) {
+            newName = sw.testLeftEvent || '';
+            newTeam = '';
+            nameColor = newName ? '#F59E0B' : '';
+        } else if (sw.status === 'EMPTY') {
             newName = '（空泳道）'; newTeam = '';
         } else {
             newName = rcRelay ? (sw.country||'') : (sw.name||'');
@@ -1717,6 +1722,7 @@ function refreshLaneRows(swimmers, rcRelay) {
         }
         if (rowUI.nameEl.textContent !== newName) rowUI.nameEl.textContent = newName;
         if (rowUI.teamEl.textContent !== newTeam) rowUI.teamEl.textContent = newTeam;
+        rowUI.nameEl.style.color = nameColor;
 
         // 方向/进度
         var swDir = sw.direction || (leftStart ? '→' : '←');
@@ -1730,14 +1736,22 @@ function refreshLaneRows(swimmers, rcRelay) {
         var rtRed = reactionTimeEnabled && (sw.isSuspectFalseStart || sw.isFalseStart);
         rowUI.reactionEl.style.color = rtRed ? '#EF4444' : '';
 
-        // 成绩/分段
-        var newFinal = getSplitOrFinalTime(sw);
+        // 成绩/分段 — 测试模式下成绩栏改为显示右端最近事件文字
+        var newFinal, finalColor = '';
+        if (inTestMode) {
+            newFinal = sw.testRightEvent || '';
+            finalColor = newFinal ? '#F59E0B' : '';
+        } else {
+            newFinal = getSplitOrFinalTime(sw);
+        }
         if (rowUI.finalTimeEl.textContent !== newFinal) rowUI.finalTimeEl.textContent = newFinal;
+        rowUI.finalTimeEl.style.color = finalColor;
 
         // 名次：直接以分段成绩显示与否为同步依据
         // 分段成绩有显示 && 服务器送来的 rank > 0 → 显示名次
         // DSQ/DNS/DNF 服务器会把 rank 设为 0，所以自动不会显示
-        var hasTimeDisplay = newFinal !== '' && !sw.status;
+        // 测试模式下 newFinal 是事件标签不是成绩 → 不点亮名次
+        var hasTimeDisplay = !inTestMode && newFinal !== '' && !sw.status;
         var displayRank = (hasTimeDisplay && sw.rank > 0) ? sw.rank : 0;
         var rankClass = 'rank lr-rank';
         if (displayRank === 1) rankClass += ' r1';
