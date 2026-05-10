@@ -62,7 +62,7 @@ class SetupForm : Form
                 e.Graphics.DrawString("系统", titleFont, Brushes.White, new RectangleF(0, 210, p.Width, 30), sf);
             // 版本号
             using (var verFont = new Font("Segoe UI", 10))
-                e.Graphics.DrawString("v2026.05.10", verFont, new SolidBrush(Color.FromArgb(180, 255, 255, 255)), new RectangleF(0, 260, p.Width, 22), sf);
+                e.Graphics.DrawString("v2026.06.10", verFont, new SolidBrush(Color.FromArgb(180, 255, 255, 255)), new RectangleF(0, 260, p.Width, 22), sf);
         };
         return p;
     }
