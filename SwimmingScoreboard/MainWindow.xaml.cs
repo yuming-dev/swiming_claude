@@ -2018,47 +2018,67 @@ namespace SwimmingScoreboard
             return v;
         }
 
-        // 0x46 Set_TPSBMB_State — 与参考程序 BadTP_SB_MBProg 同格式：触板/出发台/盲表 启用状态
+        // 0x46 Set_TPSBMB_State — 与参考程序 BadTP_SB_MBProg 同格式：触板/出发台/盲表(1) 启用状态
         // 一帧打包发送全部 20 个泳道(左 0-9 + 右 0-9)的启用位（1=启用，0=未用/损坏）。
         // 帧布局：F1 53 46 [TP_lo] [TP_mid] [TP_hi] [SB_lo] [SB_hi] [MB_lo] [MB_hi] [SB_MB_top] F4
         //   TP/SB/MB 三段位流均为 20 位；State[7] 高 4 位=SB[16..19]，低 4 位=MB[16..19]
         //   位序与参考一致：bit i = lane (i<10 ? 左i : 右(i-10))
-        // 我们每端有 3 只盲表，对应硬件的 1 个 MB 槽：任一只 NotInstalled+!Broken→ MB=1。
+        //
+        // 参考硬件每端每道只有 1 个盲表槽 → 0x46 的 MB 段对应我们的"盲表 1"。
+        // 我们另有盲表 2 / 盲表 3，硬件目前没有对应槽位 —— 用扩展命令 0x49 / 0x4A 单独发出
+        // （沿用 SB/MB 同样的 3 字节 × 20 位编排），等硬件计时器固件升级后即可识别。
         private void SendDeviceStatusesToHardware() {
             if (_applyingHardwareSettings) return;
             if (_timingBridge == null || !_timingBridge.IsConnected) return;
             try {
-                int tpVal = 0, sbVal = 0, mbVal = 0;
+                int tpVal = 0, sbVal = 0, mb1Val = 0, mb2Val = 0, mb3Val = 0;
                 foreach (var st in _laneDeviceStates) {
                     int ln = st.Lane;
                     if (ln < 0 || ln > 9) continue;
-                    if (!st.LeftTouchpadBroken)   tpVal |= (1 << ln);          // 左 = bit 0..9
-                    if (!st.RightTouchpadBroken)  tpVal |= (1 << (ln + 10));   // 右 = bit 10..19
-                    if (!st.LeftStartBlockBroken) sbVal |= (1 << ln);
-                    if (!st.RightStartBlockBroken) sbVal |= (1 << (ln + 10));
-                    bool leftMbOK = (!st.LeftBlindWatch1Broken && !st.LeftBlindWatch1NotInstalled)
-                                  || (!st.LeftBlindWatch2Broken && !st.LeftBlindWatch2NotInstalled)
-                                  || (!st.LeftBlindWatch3Broken && !st.LeftBlindWatch3NotInstalled);
-                    bool rightMbOK = (!st.RightBlindWatch1Broken && !st.RightBlindWatch1NotInstalled)
-                                   || (!st.RightBlindWatch2Broken && !st.RightBlindWatch2NotInstalled)
-                                   || (!st.RightBlindWatch3Broken && !st.RightBlindWatch3NotInstalled);
-                    if (leftMbOK)  mbVal |= (1 << ln);
-                    if (rightMbOK) mbVal |= (1 << (ln + 10));
+                    int leftBit = 1 << ln;
+                    int rightBit = 1 << (ln + 10);
+                    if (!st.LeftTouchpadBroken)   tpVal |= leftBit;
+                    if (!st.RightTouchpadBroken)  tpVal |= rightBit;
+                    if (!st.LeftStartBlockBroken) sbVal |= leftBit;
+                    if (!st.RightStartBlockBroken) sbVal |= rightBit;
+                    // 盲表 1 — 对应硬件 0x46 MB 槽
+                    if (!st.LeftBlindWatch1Broken && !st.LeftBlindWatch1NotInstalled)   mb1Val |= leftBit;
+                    if (!st.RightBlindWatch1Broken && !st.RightBlindWatch1NotInstalled) mb1Val |= rightBit;
+                    // 盲表 2 / 盲表 3 — 用扩展帧 0x49 / 0x4A 发出（硬件待升级）
+                    if (!st.LeftBlindWatch2Broken && !st.LeftBlindWatch2NotInstalled)   mb2Val |= leftBit;
+                    if (!st.RightBlindWatch2Broken && !st.RightBlindWatch2NotInstalled) mb2Val |= rightBit;
+                    if (!st.LeftBlindWatch3Broken && !st.LeftBlindWatch3NotInstalled)   mb3Val |= leftBit;
+                    if (!st.RightBlindWatch3Broken && !st.RightBlindWatch3NotInstalled) mb3Val |= rightBit;
                 }
 
+                // ── 0x46 Set_TPSBMB_State (TP + SB + MB1) ──
                 byte s0 = (byte)(tpVal & 0xFF);
                 byte s1 = (byte)((tpVal >> 8) & 0xFF);
                 byte s2 = (byte)((tpVal >> 16) & 0x0F);
                 byte s3 = (byte)(sbVal & 0xFF);
                 byte s4 = (byte)((sbVal >> 8) & 0xFF);
-                byte s5 = (byte)(mbVal & 0xFF);
-                byte s6 = (byte)((mbVal >> 8) & 0xFF);
-                byte s7 = (byte)((((sbVal >> 16) & 0x0F) << 4) | ((mbVal >> 16) & 0x0F));
-
+                byte s5 = (byte)(mb1Val & 0xFF);
+                byte s6 = (byte)((mb1Val >> 8) & 0xFF);
+                byte s7 = (byte)((((sbVal >> 16) & 0x0F) << 4) | ((mb1Val >> 16) & 0x0F));
                 _timingBridge.SendFullFrame(0x46, s0, s1, s2, s3, s4, s5, s6, s7);
                 _timingBridge.DelayBetweenFrames(50);
-                AddLog(string.Format("设备状态已同步到硬件 (0x46): TP=0x{0:X5} SB=0x{1:X5} MB=0x{2:X5}",
-                    tpVal & 0xFFFFF, sbVal & 0xFFFFF, mbVal & 0xFFFFF));
+
+                // ── 0x49 扩展：盲表 2 状态（同 20 位编排，固件升级后识别）──
+                _timingBridge.SendFullFrame(0x49,
+                    (byte)(mb2Val & 0xFF),
+                    (byte)((mb2Val >> 8) & 0xFF),
+                    (byte)((mb2Val >> 16) & 0x0F));
+                _timingBridge.DelayBetweenFrames(50);
+
+                // ── 0x4A 扩展：盲表 3 状态 ──
+                _timingBridge.SendFullFrame(0x4A,
+                    (byte)(mb3Val & 0xFF),
+                    (byte)((mb3Val >> 8) & 0xFF),
+                    (byte)((mb3Val >> 16) & 0x0F));
+                _timingBridge.DelayBetweenFrames(50);
+
+                AddLog(string.Format("设备状态已同步到硬件: TP=0x{0:X5} SB=0x{1:X5} MB1=0x{2:X5} MB2=0x{3:X5}(0x49) MB3=0x{4:X5}(0x4A)",
+                    tpVal & 0xFFFFF, sbVal & 0xFFFFF, mb1Val & 0xFFFFF, mb2Val & 0xFFFFF, mb3Val & 0xFFFFF));
             } catch (Exception ex) {
                 AddLog("设备状态下发硬件失败: " + ex.Message);
             }
