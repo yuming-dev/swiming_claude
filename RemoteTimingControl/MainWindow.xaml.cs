@@ -1567,20 +1567,31 @@ namespace RemoteTimingControl
                 rowUI.RightRemainText.Text = rightRemainActive ? rightRemainStr : "";
                 rowUI.RightRemainText.Foreground = rightRemainActive ? (Brush)_brushAmber : (Brush)_brushSlate;
 
-                // 姓名/代表队
-                if (status == "EMPTY")
+                // 姓名/代表队 — 测试模式下姓名栏改为显示左端最近事件文字
+                bool inTestMode = (_data != null && _data["testMode"] != null && (bool)_data["testMode"]);
+                if (inTestMode)
+                {
+                    string leftEvt = sw["testLeftEvent"] != null ? sw["testLeftEvent"].ToString() : "";
+                    rowUI.NameText.Text = leftEvt;
+                    rowUI.NameText.Foreground = leftEvt.Length > 0 ? (Brush)_brushAmber : Brushes.White;
+                    rowUI.TeamText.Text = "";
+                }
+                else if (status == "EMPTY")
                 {
                     rowUI.NameText.Text = "（空泳道）";
+                    rowUI.NameText.Foreground = Brushes.White;
                     rowUI.TeamText.Text = "";
                 }
                 else if (isRelay)
                 {
                     rowUI.NameText.Text = sw["country"] != null ? sw["country"].ToString() : "";
+                    rowUI.NameText.Foreground = Brushes.White;
                     rowUI.TeamText.Text = GetRelayCurrentLegName(sw);
                 }
                 else
                 {
                     rowUI.NameText.Text = sw["name"] != null ? sw["name"].ToString() : "";
+                    rowUI.NameText.Foreground = Brushes.White;
                     rowUI.TeamText.Text = sw["country"] != null ? sw["country"].ToString() : "";
                 }
 
@@ -1618,9 +1629,19 @@ namespace RemoteTimingControl
                     ? new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EF4444"))
                     : Brushes.White;
 
-                // 成绩/分段
-                string timeDisplay = GetSplitOrFinalTime(sw);
-                rowUI.DisplayTimeText.Text = timeDisplay;
+                // 成绩/分段 — 测试模式下成绩栏改为显示右端最近事件文字
+                if (inTestMode)
+                {
+                    string rightEvt = sw["testRightEvent"] != null ? sw["testRightEvent"].ToString() : "";
+                    rowUI.DisplayTimeText.Text = rightEvt;
+                    rowUI.DisplayTimeText.Foreground = rightEvt.Length > 0 ? (Brush)_brushAmber : Brushes.White;
+                }
+                else
+                {
+                    string timeDisplay = GetSplitOrFinalTime(sw);
+                    rowUI.DisplayTimeText.Text = timeDisplay;
+                    rowUI.DisplayTimeText.Foreground = Brushes.White;
+                }
 
                 // 名次：直接以分段成绩显示与否为同步依据
                 // 分段成绩有显示 && 服务器送来的 rank > 0 → 显示名次

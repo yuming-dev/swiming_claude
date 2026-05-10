@@ -1476,35 +1476,48 @@ namespace SwimmingScoreboard
                 foreach (int ln in _poolConfig.LaneNumbers) {
                     if (assignedLanes.Contains(ln)) continue;
                     var ls = _laneDeviceStates.FirstOrDefault(s => s.Lane == ln);
+                    string testLeftEvt = (_testMode && _testLastEventLeft.ContainsKey(ln)) ? _testLastEventLeft[ln] : "";
+                    string testRightEvt = (_testMode && _testLastEventRight.ContainsKey(ln)) ? _testLastEventRight[ln] : "";
                     swimmerData.Add(new {
                         lane = ln,
                         name = "", country = "", countryShort = "", ageGroup = "",
                         bibNumber = "", entryTime = "",
                         direction = ls != null ? ls.Direction : "",
+                        // 真实设备状态（不再硬编码 "closed"）— 测试模式下客户端要看到 Open/Touched
                         deviceStatus = new {
-                            leftTouchpad = "closed", leftBlindWatch1 = "closed",
-                            leftBlindWatch2 = "closed", leftBlindWatch3 = "closed",
-                            leftStartBlock = "closed",
-                            rightTouchpad = "closed", rightBlindWatch1 = "closed",
-                            rightBlindWatch2 = "closed", rightBlindWatch3 = "closed",
-                            rightStartBlock = "closed",
-                            leftTouchpadBroken = false, leftBlindWatch1Broken = false,
-                            leftBlindWatch2Broken = false, leftBlindWatch3Broken = false,
-                            leftStartBlockBroken = false,
-                            rightTouchpadBroken = false, rightBlindWatch1Broken = false,
-                            rightBlindWatch2Broken = false, rightBlindWatch3Broken = false,
-                            rightStartBlockBroken = false
+                            leftTouchpad      = ls != null ? ls.LeftTouchpadStatus.ToString().ToLower()      : "closed",
+                            leftBlindWatch1   = ls != null ? ls.LeftBlindWatch1Status.ToString().ToLower()   : "closed",
+                            leftBlindWatch2   = ls != null ? ls.LeftBlindWatch2Status.ToString().ToLower()   : "closed",
+                            leftBlindWatch3   = ls != null ? ls.LeftBlindWatch3Status.ToString().ToLower()   : "closed",
+                            leftStartBlock    = ls != null ? ls.LeftStartBlockStatus.ToString().ToLower()    : "closed",
+                            rightTouchpad     = ls != null ? ls.RightTouchpadStatus.ToString().ToLower()     : "closed",
+                            rightBlindWatch1  = ls != null ? ls.RightBlindWatch1Status.ToString().ToLower()  : "closed",
+                            rightBlindWatch2  = ls != null ? ls.RightBlindWatch2Status.ToString().ToLower()  : "closed",
+                            rightBlindWatch3  = ls != null ? ls.RightBlindWatch3Status.ToString().ToLower()  : "closed",
+                            rightStartBlock   = ls != null ? ls.RightStartBlockStatus.ToString().ToLower()   : "closed",
+                            leftTouchpadBroken    = ls != null && ls.LeftTouchpadBroken,
+                            leftBlindWatch1Broken = ls != null && ls.LeftBlindWatch1Broken,
+                            leftBlindWatch2Broken = ls != null && ls.LeftBlindWatch2Broken,
+                            leftBlindWatch3Broken = ls != null && ls.LeftBlindWatch3Broken,
+                            leftStartBlockBroken  = ls != null && ls.LeftStartBlockBroken,
+                            rightTouchpadBroken    = ls != null && ls.RightTouchpadBroken,
+                            rightBlindWatch1Broken = ls != null && ls.RightBlindWatch1Broken,
+                            rightBlindWatch2Broken = ls != null && ls.RightBlindWatch2Broken,
+                            rightBlindWatch3Broken = ls != null && ls.RightBlindWatch3Broken,
+                            rightStartBlockBroken  = ls != null && ls.RightStartBlockBroken
                         },
                         manualButton = new {
-                            leftEnabled = false, rightEnabled = false,
-                            leftStatus = "closed", rightStatus = "closed"
+                            leftEnabled = ls != null && ls.LeftManualEnabled,
+                            rightEnabled = ls != null && ls.RightManualEnabled,
+                            leftStatus  = ls != null ? ls.LeftManualStatus.ToString().ToLower()  : "closed",
+                            rightStatus = ls != null ? ls.RightManualStatus.ToString().ToLower() : "closed"
                         },
                         laneCloseCountdown = 0.0,
                         reactionTime = "",
                         splits = new List<object>(),
                         finalTime = "",
                         rank = 0,
-                        status = "EMPTY",         // 空泳道标记（客户端以此区别）
+                        status = _testMode ? "" : "EMPTY",   // 测试模式不打 EMPTY 标记，避免客户端淡化
                         timingSources = (object)null,
                         isFalseStart = false,
                         isSuspectFalseStart = false,
@@ -1513,7 +1526,10 @@ namespace SwimmingScoreboard
                         currentLap = 0,
                         isFinished = false,
                         leftTouchRemain = "",
-                        rightTouchRemain = ""
+                        rightTouchRemain = "",
+                        // 测试模式：左/右最近事件文字（"触 23.45" / "出发 0.42"）
+                        testLeftEvent = testLeftEvt,
+                        testRightEvent = testRightEvt
                     });
                 }
             }
