@@ -130,6 +130,7 @@ namespace SwimmingScoreboard
             InitializeTimingBridge();
             InitializeTimers();
             LoadTimingSettings();
+            ApplyPersistedDeviceStates();   // 设备状态（损坏/未安装/手动按键）从 device_states.json 还原
             LoadTimingConnectionConfig();   // 通讯参数从 timing_connection.json 还原
             LoadLastCompetition();
             PopulateComPorts();
@@ -2124,6 +2125,7 @@ namespace SwimmingScoreboard
                             _poolConfig.SetLaneCount(lanes);
                             if (LaneCountCombo != null) LaneCountCombo.SelectedIndex = lanes == 8 ? 1 : (lanes == 6 ? 2 : 0);
                             InitLaneDeviceStates();
+                            ApplyPersistedDeviceStates();   // 重建后还原持久化的设备状态
                             changed = true;
                         }
                         if ((length == 25 || length == 50) && _poolConfig.Length != length) {
@@ -6052,6 +6054,7 @@ namespace SwimmingScoreboard
                     if (!items[i].LeftEnabled) _laneDeviceStates[i].LeftManualStatus = DeviceStatus.Closed;
                     if (!items[i].RightEnabled) _laneDeviceStates[i].RightManualStatus = DeviceStatus.Closed;
                 }
+                SaveDeviceStates();              // 同 device_states.json 持久化
                 UpdateLaneStatusDisplay();
                 Broadcast();
                 AddLog("手动按键设置已更新");
@@ -6079,6 +6082,7 @@ namespace SwimmingScoreboard
             win.Owner = this;
             if (win.ShowDialog() == true) {
                 AutoSaveData();
+                SaveDeviceStates();                  // 持久化到 device_states.json，下次启动还原
                 Broadcast();                         // 同步到 EXE/Web 三端
                 SendDeviceStatusesToHardware();      // 同步到硬件计时控制器
             }
@@ -10449,6 +10453,7 @@ namespace SwimmingScoreboard
             _poolConfig.SetLaneCount(laneCount);
 
             InitLaneDeviceStates();
+            ApplyPersistedDeviceStates();   // 改泳道数后还原已记录的设备状态
             UpdateRaceStateDisplay();
             AutoSaveData();
             RefreshBackupList();
@@ -10617,6 +10622,86 @@ namespace SwimmingScoreboard
                     }
                 }
             } catch { }
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        // 设备状态持久化 — 设备状态管理 / 手动按键管理 修改的标志位
+        //   保存内容：每道左右两端的 触板/盲表1-3/出发台 损坏 + 盲表1-3 未安装 + 手动按键启用
+        //   不保存运行状态（Open/Closed/Touched/FalseStart/CurrentLap/ReactionTime 等）
+        // ═══════════════════════════════════════════════════════════════
+        private string DeviceStatesPath {
+            get { return IOPath.Combine(AppDomain.CurrentDomain.BaseDirectory, "device_states.json"); }
+        }
+
+        private void SaveDeviceStates() {
+            try {
+                var arr = new JArray();
+                foreach (var st in _laneDeviceStates) {
+                    var o = new JObject();
+                    o["lane"] = st.Lane;
+                    o["leftTouchpadBroken"]    = st.LeftTouchpadBroken;
+                    o["leftBlindWatch1Broken"] = st.LeftBlindWatch1Broken;
+                    o["leftBlindWatch2Broken"] = st.LeftBlindWatch2Broken;
+                    o["leftBlindWatch3Broken"] = st.LeftBlindWatch3Broken;
+                    o["leftStartBlockBroken"]  = st.LeftStartBlockBroken;
+                    o["rightTouchpadBroken"]    = st.RightTouchpadBroken;
+                    o["rightBlindWatch1Broken"] = st.RightBlindWatch1Broken;
+                    o["rightBlindWatch2Broken"] = st.RightBlindWatch2Broken;
+                    o["rightBlindWatch3Broken"] = st.RightBlindWatch3Broken;
+                    o["rightStartBlockBroken"]  = st.RightStartBlockBroken;
+                    o["leftBlindWatch1NotInstalled"] = st.LeftBlindWatch1NotInstalled;
+                    o["leftBlindWatch2NotInstalled"] = st.LeftBlindWatch2NotInstalled;
+                    o["leftBlindWatch3NotInstalled"] = st.LeftBlindWatch3NotInstalled;
+                    o["rightBlindWatch1NotInstalled"] = st.RightBlindWatch1NotInstalled;
+                    o["rightBlindWatch2NotInstalled"] = st.RightBlindWatch2NotInstalled;
+                    o["rightBlindWatch3NotInstalled"] = st.RightBlindWatch3NotInstalled;
+                    o["leftManualEnabled"]  = st.LeftManualEnabled;
+                    o["rightManualEnabled"] = st.RightManualEnabled;
+                    arr.Add(o);
+                }
+                File.WriteAllText(DeviceStatesPath, arr.ToString(Formatting.Indented), Encoding.UTF8);
+            } catch (Exception ex) {
+                AddLog("保存设备状态失败: " + ex.Message);
+            }
+        }
+
+        // 把磁盘上的设备状态贴回到当前 _laneDeviceStates；
+        // 任何 InitLaneDeviceStates 之后调用一次即可让用户上次的"损坏/未安装/手动按键"配置生效。
+        private void ApplyPersistedDeviceStates() {
+            try {
+                if (!File.Exists(DeviceStatesPath)) return;
+                string json = File.ReadAllText(DeviceStatesPath, Encoding.UTF8);
+                var arr = JArray.Parse(json);
+                int hits = 0;
+                foreach (JObject o in arr) {
+                    if (o["lane"] == null) continue;
+                    int lane = (int)o["lane"];
+                    var st = _laneDeviceStates.FirstOrDefault(s => s.Lane == lane);
+                    if (st == null) continue;
+                    if (o["leftTouchpadBroken"]    != null) st.LeftTouchpadBroken    = (bool)o["leftTouchpadBroken"];
+                    if (o["leftBlindWatch1Broken"] != null) st.LeftBlindWatch1Broken = (bool)o["leftBlindWatch1Broken"];
+                    if (o["leftBlindWatch2Broken"] != null) st.LeftBlindWatch2Broken = (bool)o["leftBlindWatch2Broken"];
+                    if (o["leftBlindWatch3Broken"] != null) st.LeftBlindWatch3Broken = (bool)o["leftBlindWatch3Broken"];
+                    if (o["leftStartBlockBroken"]  != null) st.LeftStartBlockBroken  = (bool)o["leftStartBlockBroken"];
+                    if (o["rightTouchpadBroken"]    != null) st.RightTouchpadBroken    = (bool)o["rightTouchpadBroken"];
+                    if (o["rightBlindWatch1Broken"] != null) st.RightBlindWatch1Broken = (bool)o["rightBlindWatch1Broken"];
+                    if (o["rightBlindWatch2Broken"] != null) st.RightBlindWatch2Broken = (bool)o["rightBlindWatch2Broken"];
+                    if (o["rightBlindWatch3Broken"] != null) st.RightBlindWatch3Broken = (bool)o["rightBlindWatch3Broken"];
+                    if (o["rightStartBlockBroken"]  != null) st.RightStartBlockBroken  = (bool)o["rightStartBlockBroken"];
+                    if (o["leftBlindWatch1NotInstalled"]  != null) st.LeftBlindWatch1NotInstalled  = (bool)o["leftBlindWatch1NotInstalled"];
+                    if (o["leftBlindWatch2NotInstalled"]  != null) st.LeftBlindWatch2NotInstalled  = (bool)o["leftBlindWatch2NotInstalled"];
+                    if (o["leftBlindWatch3NotInstalled"]  != null) st.LeftBlindWatch3NotInstalled  = (bool)o["leftBlindWatch3NotInstalled"];
+                    if (o["rightBlindWatch1NotInstalled"] != null) st.RightBlindWatch1NotInstalled = (bool)o["rightBlindWatch1NotInstalled"];
+                    if (o["rightBlindWatch2NotInstalled"] != null) st.RightBlindWatch2NotInstalled = (bool)o["rightBlindWatch2NotInstalled"];
+                    if (o["rightBlindWatch3NotInstalled"] != null) st.RightBlindWatch3NotInstalled = (bool)o["rightBlindWatch3NotInstalled"];
+                    if (o["leftManualEnabled"]  != null) st.LeftManualEnabled  = (bool)o["leftManualEnabled"];
+                    if (o["rightManualEnabled"] != null) st.RightManualEnabled = (bool)o["rightManualEnabled"];
+                    hits++;
+                }
+                if (hits > 0) AddLog(string.Format("已加载设备状态: {0} 道", hits));
+            } catch (Exception ex) {
+                AddLog("加载设备状态失败: " + ex.Message);
+            }
         }
 
         // 计时硬件通讯参数（串口 / TCP / UDP）持久化路径
