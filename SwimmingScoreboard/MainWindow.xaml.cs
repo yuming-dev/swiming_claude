@@ -10984,6 +10984,7 @@ namespace SwimmingScoreboard
                 if (package.Schedule != null) foreach (var s in package.Schedule) _schedule.Add(s);
 
                 InitLaneDeviceStates();
+                ApplyPersistedDeviceStates();   // 加载赛事 package 时不要冲掉用户的设备状态
                 BuildScheduleTree();
                 RebuildRelayGroupedView();
                 UpdateRaceStateDisplay();
