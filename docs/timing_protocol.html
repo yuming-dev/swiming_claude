@@ -57,6 +57,10 @@
     background: #dbeafe; border-left: 4px solid #3b82f6; padding: 8pt 10pt;
     margin: 8pt 0; font-size: 10pt;
   }
+  .warn {
+    background: #fee2e2; border-left: 4px solid #dc2626; padding: 8pt 10pt;
+    margin: 8pt 0; font-size: 10pt;
+  }
   code, .code {
     font-family: Consolas, "Courier New", monospace;
     background: #f1f5f9; border: 1px solid #e2e8f0; padding: 1pt 4pt;
@@ -92,23 +96,27 @@
 
 <h1>游泳计时系统 通讯协议</h1>
 <div class="subtitle">主服务器（SwimmingScoreboard）&#x20;↔&#x20;硬件计时控制器</div>
-<div class="meta">版本 v2026-04 &nbsp;|&nbsp; 基于 2023-11-13 协议扩展 &nbsp;|&nbsp; 波特率 115200 8N1</div>
+<div class="meta">版本 v2026-06 &nbsp;|&nbsp; 与参考程序 SWIM 串口通讯程序 Server 对齐 &nbsp;|&nbsp; 默认串口 9600/115200 8N1</div>
 
 <h2>1 &nbsp;文档目的</h2>
 <p>本文描述游泳计时系统主服务器（<code>SwimmingScoreboard.exe</code>）与硬件计时控制器之间的
-串口 / UDP / TCP 帧级通讯协议。在 2023-11-13 版本协议基础上，加入"参数设置 / 设备状态"
-双向同步所需的约定子码，作为当前实现（<code>TimingBridge.cs</code> 及
-<code>MainWindow.ProcessTimingDataFromHardware</code> / <code>SendTimingSettingsToHardware</code>
-/ <code>SendDeviceStatusesToHardware</code>）的权威说明。</p>
+串口 / UDP / TCP 帧级通讯协议。<b>本版（v2026-06）相对 v2026-04 做了一次大幅对齐</b>：
+设置类命令一律改为参考程序 <code>C:\2026年11月2日PM SWIM串口通讯程序Server</code> 的命令编号
+和参数布局（<code>SwimView.h</code> / <code>OnSendSWCommand_Data</code>）；原先用
+<code>0x42 + 子码</code> 的方式硬件不识别，已废弃。本文档与
+<code>SwimmingScoreboard/TimingBridge.cs</code>、
+<code>MainWindow.SendTimingSettingsToHardware</code>、
+<code>SendDeviceStatusesToHardware</code>、
+<code>HandleTimingCommand</code> 的当前实现保持一致。</p>
 
 <h2>2 &nbsp;物理层与帧结构</h2>
 <h3>2.1 &nbsp;物理层</h3>
 <table class="frame-table">
 <tr><th style="width:25%">项</th><th>参数</th></tr>
 <tr><td>链路</td><td>串口（推荐）/ UDP / TCP 任选其一</td></tr>
-<tr><td>串口参数</td><td><span class="code">115200 baud, 8 data bits, no parity, 1 stop bit（115200 n 8 1）</span></td></tr>
+<tr><td>串口参数</td><td><span class="code">9600 baud, 8 data bits, no parity, 1 stop bit（9600 n 8 1）</span><br>主服务器界面可改 9600 / 19200 / 38400 / 57600 / 115200，落盘到 <code>timing_connection.json</code>。</td></tr>
 <tr><td>字节序</td><td>按字节顺序发送，无大小端差异；所有参数值为 8 位无符号整数</td></tr>
-<tr><td>帧定界</td><td>起始字节 <span class="code">0xF1 ('ﾑ')</span>，结束字节 <span class="code">0xF4 ('ﾔ')</span></td></tr>
+<tr><td>帧定界</td><td>起始字节 <span class="code">0xF1</span>，结束字节 <span class="code">0xF4</span></td></tr>
 <tr><td>帧长</td><td>固定 12 字节</td></tr>
 </table>
 
@@ -120,18 +128,20 @@
 <tr><td class="c mono">D0</td><td class="c mono">SOH</td><td class="c mono">0xF1</td><td>起始标识（固定）</td></tr>
 <tr><td class="c mono">D1</td><td class="c mono">'S'</td><td class="c mono">0x53</td><td>协议识别字符（固定）</td></tr>
 <tr><td class="c mono">D2</td><td class="c mono">CMD</td><td>命令字节</td><td>见第 3 章"命令表"</td></tr>
-<tr><td class="c mono">D3</td><td class="c mono">命令1</td><td>子码 / 附加参数</td><td>设置类帧：子码；计时帧：保留（0）</td></tr>
-<tr><td class="c mono">D4</td><td class="c mono">命令2 / 泳道</td><td>泳道号或参数值</td><td>计时帧：0-9 终点端泳道，10-19 另一端泳道（实际泳道 = D4-10）<br>设置帧：参数值</td></tr>
-<tr><td class="c mono">D5</td><td class="c mono">分</td><td>计时分</td><td>计时帧有效；设置帧作为扩展字段（见 4.2）</td></tr>
-<tr><td class="c mono">D6</td><td class="c mono">秒</td><td>计时秒</td><td>计时帧有效；设置帧作为扩展字段</td></tr>
+<tr><td class="c mono">D3</td><td class="c mono">参数 1</td><td>子码 / 第一参数</td><td>计时帧：保留 0；设置帧：含义随命令</td></tr>
+<tr><td class="c mono">D4</td><td class="c mono">参数 2 / 泳道</td><td>泳道号或参数值</td><td>计时帧：0-9 终点端泳道，10-19 另一端泳道（实际泳道 = D4-10）<br>设置帧：参数值</td></tr>
+<tr><td class="c mono">D5</td><td class="c mono">分</td><td>计时分</td><td>计时帧有效；设置帧作扩展字段</td></tr>
+<tr><td class="c mono">D6</td><td class="c mono">秒</td><td>计时秒</td><td>计时帧有效；设置帧作扩展字段</td></tr>
 <tr><td class="c mono">D7</td><td class="c mono">1/100 秒</td><td>百分之一秒</td><td>计时帧有效</td></tr>
 <tr><td class="c mono">D8</td><td class="c mono">小时|毫秒</td><td>(hour &lt;&lt; 4) | ms1</td><td>高 4 位 = 小时，低 4 位 = 1/1000 秒个位</td></tr>
-<tr><td class="c mono">D9</td><td class="c mono">备用</td><td>0</td><td>保留（固定 0）</td></tr>
-<tr><td class="c mono">D10</td><td class="c mono">备用</td><td>0</td><td>保留（固定 0）</td></tr>
+<tr><td class="c mono">D9</td><td class="c mono">扩展 1</td><td>0 / 参数</td><td>v2026-04 之前固定为 0；v2026-06 起 0x41 等命令使用</td></tr>
+<tr><td class="c mono">D10</td><td class="c mono">扩展 2</td><td>0 / 参数</td><td>同 D9</td></tr>
 <tr><td class="c mono">D11</td><td class="c mono">EOT</td><td class="c mono">0xF4</td><td>结束标识（固定）</td></tr>
 </table>
 
 <div class="note"><b>解析要点：</b>接收端应扫描起始字节 <code>0xF1</code>，检查 D1 = <code>0x53</code> 且 D11 = <code>0xF4</code>，不满足则丢弃该字节继续扫描；支持任意碎片累积到 12 字节后进行一次帧解析。</div>
+
+<div class="warn"><b>v2026-06 重要变化：</b>D9 / D10 之前固定为 0（由 <code>TimingBridge.SendFullFrame</code> 保证）。新版 0x41 Set_ArmDelay_Time 帧把这两个位置当作 TPDelayTime / SBDelayTime 使用。<code>SendFullFrame</code> 已扩展到接受 d9 / d10 参数，旧版调用没传 d9 / d10 仍会写 0，不影响 0x40 / 0x44 / 0x45 / 0x46 等帧。</div>
 
 <h3>2.3 &nbsp;时间字段编码（计时帧）</h3>
 <p>以 "1 小时 23 分 45.678 秒" 为例（01:23:45.67 加 8 ms）：</p>
@@ -149,207 +159,270 @@
 
 <h2>3 &nbsp;命令字节（D2）一览</h2>
 <table class="cmd-table">
-<tr><th style="width:12%">CMD</th><th style="width:18%">名称</th><th style="width:15%">方向</th><th>含义 &amp; D3/D4 约定</th></tr>
+<tr><th style="width:10%">CMD</th><th style="width:22%">名称</th><th style="width:14%">方向</th><th>含义 &amp; 参数</th></tr>
 <tr><td class="mono">0x16</td><td>触板时间成绩</td><td class="c">硬件 → 主服</td><td>D4 = 泳道号（0-9 终点端；10-19 另一端 - 10）</td></tr>
 <tr><td class="mono">0x17</td><td>盲表 1 时间成绩</td><td class="c">硬件 → 主服</td><td>D4 同上</td></tr>
 <tr><td class="mono">0x18</td><td>盲表 2 时间成绩</td><td class="c">硬件 → 主服</td><td>D4 同上</td></tr>
 <tr><td class="mono">0x19</td><td>盲表 3 时间成绩</td><td class="c">硬件 → 主服</td><td>D4 同上</td></tr>
-<tr><td class="mono">0x1A</td><td>出发台出发时间</td><td class="c">硬件 → 主服</td><td>D4 同上；用于反应时间 / 接力抢跳检测</td></tr>
+<tr><td class="mono">0x1A</td><td>出发台出发时间</td><td class="c">硬件 → 主服</td><td>D4 同上；用于反应时 / 接力抢跳检测</td></tr>
 <tr><td class="mono">0x1C</td><td>发令开始计时</td><td class="c">双向</td><td>无参数</td></tr>
-<tr><td class="mono">0x1D</td><td>测试设备</td><td class="c">双向</td><td>调试用</td></tr>
+<tr><td class="mono">0x1D</td><td>设备测试 (Test_Command)</td><td class="c">主服 → 硬件</td><td>无参数。硬件进入测试模式：所有触板/出发台/盲表都允许触发并立刻上报，软件相应进入 _testMode（不计成绩）。参考程序 <code>OnBnClickedTestSystemButton</code>。</td></tr>
 <tr><td class="mono">0x20</td><td>计时清零</td><td class="c">双向</td><td>无参数</td></tr>
-<tr><td class="mono">0x21</td><td>准备就绪</td><td class="c">双向</td><td>无参数</td></tr>
-<tr><td class="mono">0x7F</td><td>滚动时间</td><td class="c">硬件 → 主服</td><td>实时时钟广播</td></tr>
-<tr><td class="mono">0x40</td><td>设置泳池参数</td><td class="c">双向</td><td>D3 = 泳道数 (8-10)；D4 = 泳池长度 (25 或 50 米)</td></tr>
-<tr><td class="mono">0x41</td><td>设置比赛距离参数</td><td class="c">双向</td><td>D4 = 比赛距离（趟数）；D6 = 0-4 道空道位图；D7 = 5-9 道空道位图<br>（每位：0 无运动员 / 1 有运动员）</td></tr>
-<tr><td class="mono">0x42</td><td>设置命令（子码）</td><td class="c">双向</td><td>D3 = 子码；D4 / D5 / D6 为参数值；见第 4 章</td></tr>
+<tr><td class="mono">0x21</td><td>准备就绪</td><td class="c">双向</td><td>无参数；通常在 <code>0x43</code> Set_MatchEvent 之后发送（见 5.1）</td></tr>
+<tr><td class="mono">0x7F</td><td>滚动时间</td><td class="c">硬件 → 主服</td><td>实时时钟广播，约 100ms 一帧；主服务器以此为权威时钟</td></tr>
+<tr><td class="mono">0x10 0x42</td><td>Set_SwStartingPosition</td><td class="c">主服 → 硬件</td><td>D2=0x10（TCPIP_Con_command），D3=0x42（Set_SwStartingPosition），D4=发令端（0=左/1=右）</td></tr>
+<tr><td class="mono">0x40</td><td>设置泳池参数（旧）</td><td class="c">兼容接收</td><td>v2026-04 旧版的泳池参数下发命令；v2026-06 改用 0x44。仍接收硬件可能上报的 0x40。</td></tr>
+<tr><td class="mono"><b>0x41</b></td><td><b>Set_ArmDelay_Time</b></td><td class="c">主服 → 硬件</td><td>触板/盲表/出发台 各项延迟一帧打包，使用全部 8 个数据字节（D3..D10）。<br>详见 4.1。</td></tr>
+<tr><td class="mono">0x42</td><td>Set_SwStartingPosition（独立）</td><td class="c">主服 → 硬件</td><td>串口直接独立帧时使用：D3=发令端 (0/1)。<br>v2026-04 的 "0x42 + 子码 0x01..0x09" 用法<b>已废弃</b>。</td></tr>
+<tr><td class="mono"><b>0x43</b></td><td><b>Set_MatchEvent</b></td><td class="c">主服 → 硬件</td><td>当前组比赛参数：总圈数、左右触板预期次数、缺道位图。详见 4.2。</td></tr>
+<tr><td class="mono"><b>0x44</b></td><td><b>Set_PoolConfiguration_Com1</b></td><td class="c">主服 → 硬件</td><td>泳池参数：D3=泳道数 (8-10)，D4=泳池长度 (25/50)。替代旧 0x40。</td></tr>
+<tr><td class="mono"><b>0x45</b></td><td><b>Set_MB_Num</b></td><td class="c">主服 → 硬件</td><td>盲表数量：D3=左端数量 (1-3)，D4=右端数量 (1-3)。</td></tr>
+<tr><td class="mono"><b>0x46</b></td><td><b>Set_TPSBMB_State</b></td><td class="c">主服 → 硬件</td><td>触板/出发台/盲表 1 启用位流（一帧含全部 20 道左右两端）。详见 4.3。<br>替代旧 0x42 / 0x10 设备状态子码。</td></tr>
+<tr><td class="mono">0x47</td><td>Set_StartPlaceLaneDir</td><td class="c">主服 → 硬件</td><td>发令端 + 道次方向位（与 0x41 d8 同一字节布局）。一般通过 0x41 一起下发，0x47 备用。</td></tr>
+<tr><td class="mono">0x48</td><td>Set_OpenOrClose_ALL_TP</td><td class="c">主服 → 硬件</td><td>整体开/关全部触板（参考程序 <code>OnSendSWCommand_Data(Set_OpenOrClose_ALL_TP, ..)</code>）；当前主服未发，预留。</td></tr>
+<tr><td class="mono"><b>0x49</b></td><td><b>盲表 2 启用位（扩展）</b></td><td class="c">主服 → 硬件</td><td>v2026-06 新增。同 0x46 MB 段格式，3 字节 × 20 位编排。当前固件未识别会忽略，待硬件升级。</td></tr>
+<tr><td class="mono"><b>0x4A</b></td><td><b>盲表 3 启用位（扩展）</b></td><td class="c">主服 → 硬件</td><td>同 0x49，针对盲表 3。</td></tr>
 </table>
 
-<h2>4 &nbsp;0x42 子码（参数 / 设备状态同步）</h2>
-<p>0x42 在 2023-11-13 原始协议中定义为 "设置命令" 的通用外壳，
-其 D3 为 "命令1"、D4 为 "命令2"。主服务器与硬件计时控制器在此外壳上
-商定了如下子码，用于实现"参数设置"与"设备状态"的双向同步。</p>
+<div class="info"><b>命令编号约定（参考程序 SwimView.h）：</b>所有 Set_* 命令以 <code>0x30 + 序号 + 0x10</code> 计算：
+<code>Con_Display_SwDirection=0x40, Set_ArmDelay_Time=0x41, Set_SwStartingPosition=0x42,
+Set_MatchEvent=0x43, Set_PoolConfiguration_Com1=0x44, Set_MB_Num=0x45,
+Set_TPSBMB_State=0x46, Set_StartPlaceLaneDir=0x47, Set_OpenOrClose_ALL_TP=0x48</code>。</div>
 
-<h3>4.1 &nbsp;单参数子码（D3 = 0x01 ~ 0x07，D4 为值）</h3>
+<h2>4 &nbsp;设置类帧详细布局</h2>
+
+<h3>4.1 &nbsp;0x41 Set_ArmDelay_Time（核心配置帧）</h3>
+<p>主服务器"参数设置"对话框点击确定后，所有触板/盲表/出发台的延迟、显示时长、发令端、道次方向都打包在这一帧里：</p>
 <table class="cmd-table">
-<tr>
-  <th style="width:10%">D3</th><th>设置项</th>
-  <th style="width:16%">D4 取值单位</th><th style="width:15%">有效范围</th><th>示例</th>
-</tr>
-<tr><td class="mono">0x01</td><td>LaneCloseTime &nbsp;(泳道关闭时间)</td>
-  <td class="c">秒</td><td class="c">0 ~ 255</td><td class="mono">D4 = 20 → 20 秒</td></tr>
-<tr><td class="mono">0x02</td><td>StartBlockCloseDelay &nbsp;(出发台关闭延迟)</td>
-  <td class="c">0.1 秒单位</td><td class="c">0 ~ 255 → 0 ~ 25.5 秒</td><td class="mono">D4 = 30 → 3.0 秒</td></tr>
-<tr><td class="mono">0x03</td><td>ResultConfirmCloseDelay &nbsp;(成绩确认关闭延迟)</td>
-  <td class="c">0.1 秒单位</td><td class="c">0 ~ 255</td><td class="mono">D4 = 30 → 3.0 秒</td></tr>
-<tr><td class="mono">0x04</td><td>FalseStartThreshold &nbsp;(抢跳判定阈值)</td>
-  <td class="c">0.01 秒单位</td><td class="c">0 ~ 100 → 0 ~ 1.00 秒</td><td class="mono">D4 = 10 → 0.10 秒</td></tr>
-<tr><td class="mono">0x05</td><td>SplitDisplayTime &nbsp;(分段成绩显示时长)</td>
-  <td class="c">秒</td><td class="c">0 ~ 255</td><td class="mono">D4 = 5 → 5 秒</td></tr>
-<tr><td class="mono">0x06</td><td>FirstPlaceHoldTime &nbsp;(第 1 名成绩停留时间)</td>
-  <td class="c">秒</td><td class="c">0 ~ 255</td><td class="mono">D4 = 3 → 3 秒</td></tr>
-<tr><td class="mono">0x07</td><td>FinishPosition &nbsp;(终点位置)</td>
-  <td class="c">枚举</td><td class="c">0 = 左端，1 = 右端</td><td class="mono">D4 = 0 → 左端</td></tr>
+<tr><th style="width:8%">字段</th><th style="width:24%">含义</th><th style="width:18%">单位</th><th>说明</th></tr>
+<tr><td class="mono">D2 = 0x41</td><td>命令</td><td class="c">—</td><td>Set_ArmDelay_Time</td></tr>
+<tr><td class="mono">D3</td><td>ArmDelayNormalTime</td><td class="c">秒</td><td>触板正常关闭时间。当前实现 = LaneCloseTime（默认 20）</td></tr>
+<tr><td class="mono">D4</td><td>ArmDelayAfterStartTime</td><td class="c">秒</td><td>抢跳后触板关闭时间。当前实现 = LaneCloseTime（暂复用同值）</td></tr>
+<tr><td class="mono">D5</td><td>MBDelayTime</td><td class="c">秒</td><td>盲表等待时间（无 TP 时盲表数据等待此时长后落地）。默认 50（参考程序值）</td></tr>
+<tr><td class="mono">D6</td><td>Result_Display_Time</td><td class="c">秒</td><td>分段成绩显示时长，= SplitDisplayTime（默认 5）</td></tr>
+<tr><td class="mono">D7</td><td>StartboxEdgeBit</td><td class="c">0/1</td><td>出发信号边沿：0 = 下降沿，1 = 上升沿。默认 0</td></tr>
+<tr><td class="mono">D8</td><td>方向 / 50m / 发令端 三合一</td><td class="c">位</td><td>
+<table class="frame-table" style="margin:4pt 0">
+  <tr><th>bit 4</th><th>bit 1</th><th>bit 0</th></tr>
+  <tr><td class="bit-cell">LaneDirectBit (1=逆序9→0 / 0=正序0→9)</td>
+      <td class="bit-cell">StartPlace50MBit (1=50米发令端不同于终点)</td>
+      <td class="bit-cell">StartPlaceBit (0=左 / 1=右)</td></tr>
+</table>
+即 <code>D8 = LaneDirectBit*16 + StartPlace50MBit*2 + StartPlaceBit*1</code>，与参考程序一致。
+</td></tr>
+<tr><td class="mono">D9</td><td>TPDelayTime</td><td class="c">秒</td><td>触板关闭延迟，= ResultConfirmCloseDelay（默认 3）</td></tr>
+<tr><td class="mono">D10</td><td>SBDelayTime</td><td class="c">秒</td><td>出发台关闭延迟，= StartBlockCloseDelay（默认 3）</td></tr>
+</table>
+<p>例：默认参数 + 终点在左端 + 道次正序：
+<code>D8 = 0×16 + 0×2 + 0×1 = 0x00</code>。
+若改逆序：<code>D8 = 1×16 + 0 + 0 = 0x10</code>。
+若 50 米项目从右端发令：<code>D8 = 0×16 + 1×2 + 1×1 = 0x03</code>。</p>
+
+<h3>4.2 &nbsp;0x43 Set_MatchEvent（当前组）</h3>
+<p>主服务器选定项目 / 切换组次时下发，告诉硬件本组比赛的总圈数、左右预期触板次数、哪些泳道有运动员：</p>
+<table class="cmd-table">
+<tr><th style="width:8%">字段</th><th style="width:26%">含义</th><th>说明</th></tr>
+<tr><td class="mono">D2 = 0x43</td><td>命令</td><td>Set_MatchEvent</td></tr>
+<tr><td class="mono">D3</td><td>总圈数 (All_Lap)</td><td>例 100 米 / 50 米池 = 2；400 米 / 25 米池 = 16</td></tr>
+<tr><td class="mono">D4</td><td>RightExpected_Lap</td><td>右端预期触板次数</td></tr>
+<tr><td class="mono">D5</td><td>LeftExpected_Lap</td><td>左端预期触板次数</td></tr>
+<tr><td class="mono">D6</td><td>LaneOpen0_4 位图</td><td>bit i (i=0..4) = 1 表示第 i 道<b>有运动员</b>（v2026-06 起统一为"有=1"）</td></tr>
+<tr><td class="mono">D7</td><td>LaneOpen5_9 位图</td><td>bit i (i=0..4) = 1 表示第 (i+5) 道有运动员</td></tr>
 </table>
 
-<div class="note"><b>说明：</b>任意一方（主服务器或硬件）修改上述参数后，应以单帧形式把该子码发送给对端；
-对端收到后更新本地状态并向其管辖的所有下游客户端（EXE/HTML 计时控制 或 连接中的显示屏等）进行广播。</div>
+<div class="info"><b>触发时机：</b>
+<ul>
+  <li>选项目 / 切组次（<code>SetCurrentEvent</code> / <code>SetCurrentHeat</code>）</li>
+  <li>"计时复位"按下后（硬件 0x20 会清掉缺道位图，需要重发）</li>
+  <li>就位前的全量参数同步</li>
+</ul>
+缺道位图位序：bit 0..9 = 道 0..9；位 = 1 表示该道<b>有运动员</b>，位 = 0 表示该道空（v2026-04 b 版位序与含义已统一为此版本）。
+</div>
 
-<h3>4.2 &nbsp;比赛距离子码（D3 = 0x20）</h3>
+<h3>4.3 &nbsp;0x46 Set_TPSBMB_State（设备启用位）</h3>
+<p>"设备状态管理"对话框确定后下发；包含<b>触板 + 出发台 + 盲表 1</b> 三大类、左右两端共 20 个泳道、共 60 个启用位。盲表 2 / 盲表 3 通过 <b>0x49 / 0x4A 扩展帧</b>独立发送。</p>
+
+<h4>4.3.1 &nbsp;20 位编排</h4>
+<p>每一类（TP / SB / MB）有 20 位：bit 0..9 = 左端 0..9 道，bit 10..19 = 右端 0..9 道。位 = 1 表示该位置<b>启用</b>（设备正常工作）；位 = 0 表示<b>未用 / 损坏</b>。</p>
+
+<h4>4.3.2 &nbsp;0x46 帧布局</h4>
 <table class="cmd-table">
-<tr><th style="width:10%">字段</th><th style="width:22%">含义</th><th>编码</th></tr>
-<tr><td class="mono">D3</td><td class="c">子码</td><td class="mono">0x20（固定）</td></tr>
-<tr><td class="mono">D4</td><td class="c">趟数 (totalLaps)</td><td>1 ~ 255</td></tr>
-<tr><td class="mono">D5</td><td class="c">左端触板总次数</td><td>0 ~ 255</td></tr>
-<tr><td class="mono">D6</td><td class="c">右端触板总次数</td><td>0 ~ 255</td></tr>
-<tr><td class="mono">D7</td><td class="c">距离高字节</td><td>距离米数 / 256</td></tr>
-<tr><td class="mono">D8</td><td class="c">距离低字节</td><td>距离米数 % 256（D7:D8 合成 16 位米数，最大 65535）</td></tr>
+<tr><th style="width:8%">字段</th><th style="width:30%">含义</th><th>编码</th></tr>
+<tr><td class="mono">D2 = 0x46</td><td>命令</td><td>Set_TPSBMB_State</td></tr>
+<tr><td class="mono">D3</td><td>State[0]</td><td>TP_Value bit 0..7</td></tr>
+<tr><td class="mono">D4</td><td>State[1]</td><td>TP_Value bit 8..15</td></tr>
+<tr><td class="mono">D5</td><td>State[2]</td><td>TP_Value bit 16..19（仅低 4 位有效）</td></tr>
+<tr><td class="mono">D6</td><td>State[3]</td><td>SB_Value bit 0..7</td></tr>
+<tr><td class="mono">D7</td><td>State[4]</td><td>SB_Value bit 8..15</td></tr>
+<tr><td class="mono">D8</td><td>State[5]</td><td>MB1_Value bit 0..7</td></tr>
+<tr><td class="mono">D9</td><td>State[6]</td><td>MB1_Value bit 8..15</td></tr>
+<tr><td class="mono">D10</td><td>State[7]</td><td>高 4 位 = SB_Value bit 16..19；低 4 位 = MB1_Value bit 16..19</td></tr>
 </table>
 <div class="info">
-  <b>触发时机</b>（主服务器 → 硬件）：
-  <ul>
-    <li>比赛控制台选中新项目 / 新组次（<code>SetCurrentEvent</code>, <code>SetCurrentHeat</code>）</li>
-    <li>硬件计时控制器首次连接</li>
-  </ul>
-  左/右触板次数根据当前<code>FinishPosition</code> 与当前项目趟数计算。以 50 米池 / 出发在左端为例：
-  <table class="frame-table" style="margin-top:4pt;width:80%">
-    <tr><th>项目</th><th>趟数</th><th>左端(出发)</th><th>右端(到达)</th></tr>
-    <tr><td class="c">50 米</td><td class="c">1</td><td class="c">0</td><td class="c">1</td></tr>
-    <tr><td class="c">100 米</td><td class="c">2</td><td class="c">1</td><td class="c">1</td></tr>
-    <tr><td class="c">200 米</td><td class="c">4</td><td class="c">2</td><td class="c">2</td></tr>
-    <tr><td class="c">400 米</td><td class="c">8</td><td class="c">4</td><td class="c">4</td></tr>
-    <tr><td class="c">1500 米</td><td class="c">30</td><td class="c">15</td><td class="c">15</td></tr>
-  </table>
+  与参考程序 <code>BadTP_SB_MBProg.cpp</code>（<code>OnBnClickedOk</code>）的位流构造完全一致。每按下一次"设备状态管理 → 确定"主服务器一次性下发整帧；硬件以收到的 60 位为权威全量替换内部状态。
 </div>
 
-<h3>4.3 &nbsp;设备状态子码（D3 = 0x10）</h3>
+<h4>4.3.3 &nbsp;0x49 / 0x4A 扩展帧（盲表 2 / 盲表 3）</h4>
+<p>参考程序硬件每端每道只有 1 个 MB 槽（即上面 0x46 的 MB1）。本系统每端每道支持 3 只盲表，所以扩展两条命令把盲表 2 / 盲表 3 的启用位单独下发：</p>
 <table class="cmd-table">
-<tr><th style="width:10%">字段</th><th style="width:20%">含义</th><th>编码</th></tr>
-<tr><td class="mono">D3</td><td class="c">子码</td><td class="mono">0x10（固定）</td></tr>
-<tr><td class="mono">D4</td><td class="c">泳道号</td><td>0 ~ 9</td></tr>
-<tr><td class="mono">D5</td><td>左端设备损坏位图</td><td>
-  位图（1 = 损坏 / 0 = 正常）：
-  <table class="frame-table" style="margin-top:4pt">
-    <tr><th>bit4</th><th>bit3</th><th>bit2</th><th>bit1</th><th>bit0</th></tr>
-    <tr><td class="bit-cell">出发台</td><td class="bit-cell">盲表 3</td><td class="bit-cell">盲表 2</td><td class="bit-cell">盲表 1</td><td class="bit-cell">触板</td></tr>
-  </table>
-</td></tr>
-<tr><td class="mono">D6</td><td>右端设备损坏位图</td><td>同上（bit0 触板 / bit1 盲1 / bit2 盲2 / bit3 盲3 / bit4 出发台）</td></tr>
+<tr><th style="width:8%">字段</th><th style="width:26%">含义</th><th>编码</th></tr>
+<tr><td class="mono">D2</td><td>命令</td><td>0x49 = 盲表 2，0x4A = 盲表 3</td></tr>
+<tr><td class="mono">D3</td><td>MB2/3 bit 0..7</td><td>同 0x46 MB 段</td></tr>
+<tr><td class="mono">D4</td><td>MB2/3 bit 8..15</td><td>同上</td></tr>
+<tr><td class="mono">D5</td><td>MB2/3 bit 16..19</td><td>仅低 4 位有效</td></tr>
+<tr><td class="mono">D6..D10</td><td>保留</td><td>0</td></tr>
+</table>
+<div class="warn">
+  <b>当前固件未识别 0x49 / 0x4A：</b>主服务器一直发，固件忽略不报错。待硬件方升级到识别这两条后即可显式利用 3 只盲表的位图，<b>主服务器侧无需再修改</b>。
+</div>
+
+<h3>4.4 &nbsp;0x44 Set_PoolConfiguration_Com1（泳池参数）</h3>
+<table class="cmd-table">
+<tr><th style="width:8%">字段</th><th style="width:30%">含义</th><th>说明</th></tr>
+<tr><td class="mono">D2 = 0x44</td><td>命令</td><td>Set_PoolConfiguration_Com1</td></tr>
+<tr><td class="mono">D3</td><td>泳道数</td><td>6 / 8 / 10</td></tr>
+<tr><td class="mono">D4</td><td>泳池长度</td><td>25 / 50（米）</td></tr>
 </table>
 
-<div class="info"><b>一次全量同步：</b>"设备状态管理"对话框确认后，主服务器会按 0 ~ 9 道顺序发送 10 帧
-<code>0x42 / 0x10</code>；硬件端也可按任意顺序随时发送 0~9 道中任何一帧，接收方仅对收到的那一道更新状态。</div>
+<h3>4.5 &nbsp;0x45 Set_MB_Num（盲表数量）</h3>
+<table class="cmd-table">
+<tr><th style="width:8%">字段</th><th style="width:30%">含义</th><th>说明</th></tr>
+<tr><td class="mono">D2 = 0x45</td><td>命令</td><td>Set_MB_Num</td></tr>
+<tr><td class="mono">D3</td><td>左端盲表数量</td><td>1 / 2 / 3</td></tr>
+<tr><td class="mono">D4</td><td>右端盲表数量</td><td>1 / 2 / 3</td></tr>
+</table>
 
-<h2>5 &nbsp;参数双向同步时序</h2>
+<h3>4.6 &nbsp;0x10 0x42 Set_SwStartingPosition（发令端）</h3>
+<p>这是 TCPIP 包装版本（<code>TCPIP_Con_command=0x10</code> + <code>Set_SwStartingPosition=0x42</code>）。串口直连场景下，直接发 <code>F1 53 42 [pos] 00 00 00 00 00 00 00 F4</code> 即可（D2=0x42, D3=发令端）。</p>
 
-<h3>5.1 &nbsp;主服务器 → 硬件（下行）</h3>
-<p>触发时机：</p>
-<ul>
-  <li>主界面"参数设置"对话框点击"确定"</li>
-  <li>来自 EXE/Web 比赛控制端的 WebSocket 指令 <code>SET_LANE_CLOSE_SETTINGS</code></li>
-  <li>"设备状态管理"对话框点击"确定"</li>
-  <li>单点设备状态变更（远程 <code>SET_DEVICE_STATUS</code>）</li>
-  <li>"赛事信息"中修改泳道数 / 泳池长度后保存</li>
-  <li><b>比赛控制台切换项目 / 组次</b>（<code>SetCurrentEvent</code> / <code>SetCurrentHeat</code>）→ 发送 0x42 / 0x20 比赛距离帧</li>
-  <li>硬件连接刚刚建立（以服务器当前参数为准做一次全量下发，包含 0x40 + 7 个 0x42 参数 + 10 个 0x42/0x10 设备状态 + 0x42/0x20 比赛距离）</li>
-</ul>
-<p>下发顺序（<code>SendTimingSettingsToHardware</code> + <code>SendDeviceStatusesToHardware</code>）：</p>
-<pre>0x40   D3=Lanes    D4=PoolLen
-0x42   D3=0x01     D4=LaneCloseTime (s)
-0x42   D3=0x02     D4=StartBlockCloseDelay×10
-0x42   D3=0x03     D4=ResultConfirmCloseDelay×10
-0x42   D3=0x04     D4=FalseStartThreshold×100
-0x42   D3=0x05     D4=SplitDisplayTime (s)
-0x42   D3=0x06     D4=FirstPlaceHoldTime (s)
-0x42   D3=0x07     D4=FinishPosition (0|1)
-0x42   D3=0x10     D4=0   D5=left_mask   D6=right_mask
-0x42   D3=0x10     D4=1   D5=left_mask   D6=right_mask
-...
-0x42   D3=0x10     D4=9   D5=left_mask   D6=right_mask</pre>
+<h2>5 &nbsp;运行流程</h2>
 
-<h3>5.2 &nbsp;硬件 → 主服务器（上行）</h3>
-<p>主服务器识别 <code>0x40 / 0x41 / 0x42</code> 后，进入
-<code>ApplyHardwareSettingFrame</code> 流程：</p>
+<h3>5.1 &nbsp;就位前的全量同步（硬件刚连上 / Ready 之前）</h3>
+<pre>0x44 D3=Lanes  D4=PoolLen                                                  // 泳池
+0x41 D3..D10 = ArmNorm/ArmAfter/MBDelay/ResultDisp/Edge/Place|Dir/TPDelay/SBDelay
+0x45 D3=LeftMBNum  D4=RightMBNum                                            // 盲表数量
+0x46 D3..D10 = TP/SB/MB1 启用位流                                            // 设备状态
+0x49 D3..D5 = MB2 启用位流                                                   // 盲表 2 扩展
+0x4A D3..D5 = MB3 启用位流                                                   // 盲表 3 扩展
+0x43 D3=All_Lap D4=RightExp D5=LeftExp D6=LaneOpen0-4 D7=LaneOpen5-9         // 当前组
+0x21                                                                         // 准备就绪</pre>
+<p>每帧之间 <b>20-50ms 间隔</b>（<code>TimingBridge.DelayBetweenFrames</code>），低波特率硬件需要时间消化。</p>
+
+<h3>5.2 &nbsp;比赛过程（硬件 → 主服务器）</h3>
+<table class="cmd-table">
+<tr><th style="width:18%">事件</th><th>命令</th><th>主服务器处理</th></tr>
+<tr><td>滚动时间</td><td class="mono c">0x7F</td><td>更新 _runningTime + 立即广播 RUNNING_TIME_UPDATE</td></tr>
+<tr><td>触板</td><td class="mono c">0x16</td><td>校验该端是 Open（含 FalseStart）→ 写分段；切到 Touched（红）保持 ResultConfirmCloseDelay 秒；期间额外触板写 BackupTouchTimes</td></tr>
+<tr><td>盲表 1/2/3</td><td class="mono c">0x17/0x18/0x19</td><td>逐只盲表独立校验 + 写分段；同 Touched 流程，期间写 BackupBlindTimes</td></tr>
+<tr><td>出发台</td><td class="mono c">0x1A</td><td>写反应时（接力下为 currentTouch − lastTouch）；该端切 Touched 保持 StartBlockCloseDelay 秒，期间写 BackupReactionTimes</td></tr>
+<tr><td>硬件按键 就位</td><td class="mono c">0x21</td><td>调 Ready_Click(null,null) 切到 Ready 状态</td></tr>
+<tr><td>硬件按键 发令</td><td class="mono c">0x1C</td><td>StartRace_Click → 进入 Racing</td></tr>
+<tr><td>硬件按键 复位</td><td class="mono c">0x20</td><td>Restart_Click，并补发 0x7F + 0x43（防止 0x20 清掉缺道位图）</td></tr>
+</table>
+
+<h3>5.3 &nbsp;复位后的二次同步</h3>
+<p>硬件 0x20 会顺带清掉它内部的缺道位图。主服务器无论是本地按 计时复位 还是收到硬件按键还是 HTML/EXE 远端命令，都按以下顺序补帧让硬件恢复："本组缺道"信息：</p>
+<pre>0x20    // 计时清零
+0x7F    // 滚动时间归零
+0x43    // 重发 Set_MatchEvent（含本组缺道位图）</pre>
+
+<h3>5.4 &nbsp;设备测试模式（v2026-06 新增）</h3>
+<p>主服务器/HTML/EXE 任意一端按下 <b>设备测试</b> 按钮：</p>
 <ol>
-  <li>根据 CMD 与 D3 解码参数值；</li>
-  <li>更新 <code>_poolConfig</code> / <code>_laneCloseSettings</code> / <code>_laneDeviceStates</code>；</li>
-  <li>调用 <code>SaveTimingSettings() + AutoSaveData()</code> 持久化；</li>
-  <li>调用 <code>Broadcast()</code>，把新状态同步到全部 EXE / HTML / 显示 / 计时 Web 等 WebSocket 客户端；</li>
-  <li>为避免回环，<code>_applyingHardwareSettings</code> 在本次处理期间为 <code>true</code>，
-  抑制 <code>SendTimingSettingsToHardware</code> / <code>SendDeviceStatusesToHardware</code> 重新下发。</li>
+  <li>本端弹确认框（远端通过 WebSocket <code>DEVICE_TEST_TOGGLE</code> 请求服务器，服务器再切换）</li>
+  <li>主服务器 <code>_testMode = true</code>；清空 _rawTimingLog；所有非损坏/未安装设备置 Open</li>
+  <li>下发 <code>0x1D Test_Command</code> 给硬件 → 硬件进入测试模式：所有 TP/SB/MB 触发都允许并直接上报</li>
+  <li>硬件来事件 → 跳过比赛状态/空泳道过滤 → 写日志"【测试】..."；该端设备点 <b>红闪 500ms 后回绿</b>；姓名栏显示左端事件文字（"触 23.45"），成绩栏显示右端事件文字</li>
+  <li>三端状态徽章覆盖红色"设备测试"</li>
+  <li>测试期间不创建 split / 不计成绩 / 不进 Touched 窗口</li>
+  <li>再点一次按钮退出，所有设备 Closed，可恢复正常比赛</li>
 </ol>
 
-<h3>5.3 &nbsp;时序图</h3>
-<div class="flow">
-  <div class="flow-box">
-    <b>① EXE 本地参数设置确认</b>
-    用户 → SwimmingScoreboard<br>
-    主服 → 硬件：<code>0x40 + 七个 0x42/0x00~0x07</code><br>
-    主服 → Web/显示：Broadcast
-  </div>
-  <div class="flow-box">
-    <b>② 硬件端修改参数</b>
-    硬件 → SwimmingScoreboard：一到多帧<br>
-    主服 → EXE/Web/显示：Broadcast<br>
-    主服不回送硬件（回环抑制）
-  </div>
-  <div class="flow-box">
-    <b>③ 远程客户端修改参数</b>
-    EXE/Web → SwimmingScoreboard（WebSocket）<br>
-    主服 → 硬件：同 ①<br>
-    主服 → 其它客户端：Broadcast
-  </div>
-</div>
-
-<h2 class="page-break">6 &nbsp;实现映射</h2>
+<h2>6 &nbsp;实现映射</h2>
 <table class="cmd-table">
 <tr><th style="width:24%">协议元素</th><th>主服务器代码</th></tr>
-<tr><td>帧编解码</td><td><code>SwimmingScoreboard/TimingBridge.cs</code> <br>• <code>ParseFrame(byte[])</code>、<code>SendCommand</code>、<code>SendFullFrame</code></td></tr>
-<tr><td>设置类帧解码</td><td><code>MainWindow.xaml.cs &nbsp;::&nbsp; ProcessTimingDataFromHardware</code>
-路由到 <code>ApplyHardwareSettingFrame</code></td></tr>
-<tr><td>设备状态解码</td><td><code>ApplyDeviceStatusFromHardware(TimingData)</code></td></tr>
-<tr><td>参数下发</td><td><code>SendTimingSettingsToHardware()</code></td></tr>
-<tr><td>设备状态下发</td><td><code>SendDeviceStatusesToHardware()</code></td></tr>
-<tr><td>回环抑制</td><td><code>_applyingHardwareSettings</code> 标志位</td></tr>
-<tr><td>调试辅助</td><td><code>InstallerApp/ParamDebugBot.cs</code>（硬件端参数调试机器人）<br>
-<code>InstallerApp/TimingSimulator.cs</code>（硬件端计时模拟器）</td></tr>
+<tr><td>帧编解码</td><td><code>SwimmingScoreboard/TimingBridge.cs</code> <br>• <code>ParseFrame(byte[])</code>、<code>SendCommand</code>、<code>SendFullFrame(cmd, d3..d10)</code></td></tr>
+<tr><td>0x41 + 0x44 + 0x45 下发</td><td><code>SendTimingSettingsToHardware()</code></td></tr>
+<tr><td>0x46 + 0x49 + 0x4A 下发</td><td><code>SendDeviceStatusesToHardware()</code></td></tr>
+<tr><td>0x43 Set_MatchEvent 下发</td><td><code>SendSetMatchEventToHardware()</code></td></tr>
+<tr><td>0x10 0x42 Set_SwStartingPosition</td><td><code>SendStartPositionToHardware()</code></td></tr>
+<tr><td>0x21 / 0x1C / 0x20 / 0x1D</td><td><code>Ready_Click</code> / <code>StartRace_Click</code> / <code>Restart_Click</code> / <code>DeviceTest_Click</code></td></tr>
+<tr><td>设置类帧解码</td><td><code>MainWindow.xaml.cs &nbsp;::&nbsp; ProcessTimingDataFromHardware</code> 路由到 <code>ApplyHardwareSettingFrame</code></td></tr>
+<tr><td>设备状态解码（兼容旧 0x42/0x10）</td><td><code>ApplyDeviceStatusFromHardware(TimingData)</code></td></tr>
+<tr><td>回环抑制</td><td><code>_applyingHardwareSettings</code> 标志位（防止收到硬件回报又再下发）</td></tr>
+<tr><td>调试辅助</td><td><code>InstallerApp/ParamDebugBot.cs</code>（参数调试机器人）<br><code>InstallerApp/TimingSimulator.cs</code>（计时模拟器）</td></tr>
+<tr><td>持久化</td><td><code>timing_settings.json</code>（参数）<br><code>timing_connection.json</code>（串口/TCP/UDP 连接）<br><code>device_states.json</code>（损坏/未安装/手动按键）</td></tr>
 </table>
 
 <h2>7 &nbsp;帧示例</h2>
 
-<h3>7.1 &nbsp;设置泳池：10 道 / 50 米</h3>
-<pre>F1 53 40 0A 32 00 00 00 00 00 00 F4
+<h3>7.1 &nbsp;0x44 设置泳池：10 道 / 50 米</h3>
+<pre>F1 53 44 0A 32 00 00 00 00 00 00 F4
   SOH 'S' CMD D3  D4  D5 D6 D7 D8 D9 D10 EOT</pre>
 
-<h3>7.2 &nbsp;设置抢跳阈值 0.10 秒</h3>
-<pre>F1 53 42 04 0A 00 00 00 00 00 00 F4   // D3=0x04, D4=10 → 0.10 秒</pre>
+<h3>7.2 &nbsp;0x41 默认参数（终点左端 / 正序 / 默认延迟）</h3>
+<pre>F1 53 41 14 14 32 05 00 00 03 03 F4
+  CMD=0x41
+  D3 = 0x14 (20)   ArmDelayNormal
+  D4 = 0x14 (20)   ArmDelayAfterStart
+  D5 = 0x32 (50)   MBDelay
+  D6 = 0x05  (5)   ResultDisplay
+  D7 = 0x00        Edge=下降沿
+  D8 = 0x00        发令端=左 / 50米=否 / 道次=正序
+  D9 = 0x03        TPDelay = 3s
+  D10= 0x03        SBDelay = 3s</pre>
 
-<h3>7.3 &nbsp;设置第 3 道左端"触板 + 盲表 1"损坏，右端全部正常</h3>
-<pre>F1 53 42 10 03 03 00 00 00 00 00 F4
-                // D3=0x10 D4=3 (道号)
-                // D5=0x03 = 0b00011 (左端: 触板+盲1)
-                // D6=0x00 (右端: 全部正常)</pre>
+<h3>7.3 &nbsp;0x41 道次逆序 + 50 米从右端发令</h3>
+<pre>D8 = LaneDir(1) <<4 | SP50M(1) <<1 | StartPlace(1)
+   = 0x10 | 0x02 | 0x01 = 0x13</pre>
 
-<h3>7.4 &nbsp;比赛距离：400 米 / 8 趟 / 左端 4 次 右端 4 次</h3>
-<pre>F1 53 42 20 08 04 04 01 90 00 00 F4
-           20  .  08  04 04  .  01 90    .
-           子码0x20 . D4=8 D5=4 D6=4 . D7:D8=0x0190 (400 米)</pre>
+<h3>7.4 &nbsp;0x46 全部 10 道左右两端 TP/SB/MB1 都启用</h3>
+<pre>所有 20 位 = 1 → 0x000FFFFF
+TP_Value = SB_Value = MB1_Value = 0xFFFFF
+State[0]=0xFF State[1]=0xFF State[2]=0x0F
+State[3]=0xFF State[4]=0xFF
+State[5]=0xFF State[6]=0xFF State[7]=0xFF (高4位=SB16-19=0xF, 低4位=MB16-19=0xF)
 
-<h3>7.5 &nbsp;触板：第 5 道终点端，成绩 27.83 秒</h3>
+F1 53 46 FF FF 0F FF FF FF FF FF F4</pre>
+
+<h3>7.5 &nbsp;0x43 100 米 / 50 米池 / 道 0,2,5,8 有运动员</h3>
+<pre>All_Lap = 2，左右各预期 1 次（终点在左端）
+LaneOpen0_4 = 0b00100101 = 0x25  (bit 0,2 = 道 0,2 有人 + bit 5? 不，bit 0..4 = 道 0..4)
+              这里实际：道 0,2 → 0b00000101 = 0x05
+LaneOpen5_9 = 道 5,8 → bit 0,3 → 0b00001001 = 0x09
+
+F1 53 43 02 01 01 05 09 00 00 00 F4</pre>
+
+<h3>7.6 &nbsp;0x16 触板：第 5 道终点端，27.83 秒</h3>
 <pre>F1 53 16 00 05 00 1B 53 00 00 00 F4
-        16  .  05  .  1B 53  .
-        触板 .  D4=5(终点端) . Min=0 Sec=27 Cs=83</pre>
+  CMD=0x16  D3=0  D4=5(终点端)  D5=Min=0  D6=Sec=27=0x1B  D7=Cs=83=0x53</pre>
+
+<h3>7.7 &nbsp;0x1D 设备测试</h3>
+<pre>F1 53 1D 00 00 00 00 00 00 00 00 F4   // 主服 → 硬件，无参数</pre>
 
 <h2>8 &nbsp;版本与兼容</h2>
-<ul>
-  <li><b>2023-11-13：</b>奠定 12 字节帧、0x16~0x21/0x7F、0x40/0x41/0x42 外壳。</li>
-  <li><b>2026-04：</b>在 0x42 下约定子码 0x01~0x07（参数）及 0x10（设备状态），
-    新增双向同步实现；帧长 / 起止 / 命令字节码保持完全兼容。</li>
-  <li><b>2026-04-b：</b>追加 0x42 / 0x20 子码（比赛距离 + 左右触板总次数 + 距离米数 16 位），
-    切换项目/组次时自动下发，使硬件可预知当前项目的触板总数。</li>
-</ul>
-<p>任何旧版硬件只处理 0x16~0x21/0x7F/0x40/0x41 仍可正常收发；
-收到它无法识别的 0x42 子码时应静默忽略而非错误重置。</p>
+<table class="cmd-table">
+<tr><th style="width:14%">版本</th><th>主要变更</th></tr>
+<tr><td>2023-11-13</td><td>奠定 12 字节帧、0x16~0x21/0x7F、0x40/0x41/0x42 外壳</td></tr>
+<tr><td>2026-04</td><td>在 0x42 下约定子码 0x01~0x07（参数）及 0x10（设备状态），+ 0x20 比赛距离子码</td></tr>
+<tr><td><b>2026-06</b></td><td>
+  <b>大幅对齐参考程序：</b>
+  <ul>
+    <li>设置类帧改用 0x41 / 0x43 / 0x44 / 0x45 / 0x46 / 0x47 / 0x48 标准命令编号；废弃 0x42 + 子码用法</li>
+    <li>0x46 一帧打包 60 位 TP/SB/MB1 启用，替代旧 0x42/0x10 逐道帧</li>
+    <li>新增 0x49 / 0x4A 盲表 2 / 盲表 3 启用位扩展</li>
+    <li>0x43 缺道位图位序统一为"位 = 1 表示有运动员"（v2026-04 b 版的反向已纠正）</li>
+    <li>0x1D Test_Command 实装：硬件进入测试模式，主服务器三端 UI 同步</li>
+    <li>0x20 复位后必须补发 0x7F + 0x43（硬件 0x20 清缺道位图）</li>
+    <li>SendFullFrame 扩展 d9 / d10 数据字节，支持 0x41 全 8 字节负载</li>
+  </ul>
+  <b>接收侧仍兼容</b>旧 0x40 / 0x42 帧（如果硬件继续上报这些），不会因不识别而拒绝。
+</td></tr>
+</table>
+
+<div class="info">
+  <b>升级注意：</b>固件方在升级到识别 0x49 / 0x4A 的版本前，主服务器仍会按盲表 1 单一槽位工作（0x46 的 MB 段）。盲表 2 / 盲表 3 启用位虽不被解析，但主服务器持续广播帧已就位 —— 固件升级日即可立即生效，<b>主服务器无需再做任何改动</b>，把本协议文档发给固件方按 0x49 / 0x4A 解析即可。
+</div>
 
 </body>
 </html>
