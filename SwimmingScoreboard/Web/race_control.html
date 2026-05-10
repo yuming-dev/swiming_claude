@@ -73,8 +73,8 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 .device-dot { width: 22px; height: 22px; border-radius: 50%; border: 1px solid #475569; cursor: pointer; flex-shrink: 0; }
 .device-dot.open { background: var(--green); border-color: var(--green); }
 .device-dot.closed { background: #475569; border-color: #64748b; }
-.device-dot.broken { background: var(--red); border-color: var(--red); }
-.device-dot.touched { background: var(--red); border-color: var(--red); }
+.device-dot.broken { background: #000000; border-color: #64748B; }     /* 黑 = 损坏（与 Touched 红色区分）*/
+.device-dot.touched { background: var(--red); border-color: var(--red); } /* 红 = 已触板（窗口期内）*/
 .device-dot.falsestart { background: var(--gold); border-color: var(--gold); }
 .device-dot.notinstalled { background: transparent; border: 2px dashed #334155; }
 .touch-btn { width: 80px; height: 30px; background: #475569; border: 1px solid #64748b; border-radius: 3px; color: white; font-size: 15px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }

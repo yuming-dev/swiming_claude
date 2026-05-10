@@ -1184,6 +1184,7 @@ namespace RemoteTimingControl
         // 画刷缓存
         private static readonly SolidColorBrush _brushGreen = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#22C55E"));
         private static readonly SolidColorBrush _brushRed = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EF4444"));
+        private static readonly SolidColorBrush _brushBlack = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#000000"));
         private static readonly SolidColorBrush _brushAmber = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F59E0B"));
         private static readonly SolidColorBrush _brushSlate = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569"));
         private static readonly SolidColorBrush _brushDark = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E293B"));
@@ -1199,8 +1200,8 @@ namespace RemoteTimingControl
             switch (status)
             {
                 case "open": return _brushGreen;
-                case "broken": return _brushRed;
-                case "touched": return _brushRed;   // 已触板（红）— 与损坏同色，按用户指定
+                case "broken": return _brushBlack;  // 黑色 = 损坏（与 Touched 红色区分）
+                case "touched": return _brushRed;   // 红色 = 已触板（窗口期内）
                 case "falsestart": return _brushAmber;
                 case "notinstalled": return _brushInstalledStroke;
                 default: return _brushSlate;
@@ -1771,8 +1772,8 @@ namespace RemoteTimingControl
             switch (status)
             {
                 case "open": c = (Color)ColorConverter.ConvertFromString("#22C55E"); break;
-                case "broken": c = (Color)ColorConverter.ConvertFromString("#EF4444"); break;
-                case "touched": c = (Color)ColorConverter.ConvertFromString("#EF4444"); break;
+                case "broken": c = (Color)ColorConverter.ConvertFromString("#000000"); break;  // 黑 = 损坏
+                case "touched": c = (Color)ColorConverter.ConvertFromString("#EF4444"); break; // 红 = 已触板
                 case "falsestart": c = (Color)ColorConverter.ConvertFromString("#F59E0B"); break;
                 case "notinstalled": c = (Color)ColorConverter.ConvertFromString("#334155"); break;
                 default: c = (Color)ColorConverter.ConvertFromString("#475569"); break;

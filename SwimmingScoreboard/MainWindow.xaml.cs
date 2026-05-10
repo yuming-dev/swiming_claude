@@ -4627,6 +4627,7 @@ namespace SwimmingScoreboard
         private static readonly SolidColorBrush _brushRed = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EF4444"));
         private static readonly SolidColorBrush _brushAmber = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F59E0B"));
         private static readonly SolidColorBrush _brushSlate = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569"));
+        private static readonly SolidColorBrush _brushBlack = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#000000"));
         private static readonly SolidColorBrush _brushDark = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E293B"));
         private static readonly SolidColorBrush _brushBlue = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6"));
         private static readonly SolidColorBrush _brushSilver = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#C0C0C0"));
@@ -4637,8 +4638,8 @@ namespace SwimmingScoreboard
         private static SolidColorBrush GetDeviceBrush(DeviceStatus status) {
             switch (status) {
                 case DeviceStatus.Open: return _brushGreen;
-                case DeviceStatus.Broken: return _brushRed;
-                case DeviceStatus.Touched: return _brushRed;     // 已触板（红）— 与损坏同色，按用户指定
+                case DeviceStatus.Broken: return _brushBlack;    // 黑色 = 损坏（与活的红色 Touched 区分）
+                case DeviceStatus.Touched: return _brushRed;     // 红色 = 已触板（窗口期内）
                 case DeviceStatus.FalseStart: return _brushAmber;
                 default: return _brushSlate;
             }
