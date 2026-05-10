@@ -590,7 +590,11 @@ function connect() {
 }
 
 function sendCmd(cmd, cmdData) {
-    if (!ws || ws.readyState !== 1) return;
+    if (!ws || ws.readyState !== 1) {
+        addLog('命令未发送(未连接服务器): ' + cmd);
+        alert('未连接到服务器（顶部"服务器"指示灯应为绿色）。\n请先确认服务器在运行，再点 全屏右上角 或 顶部"服务器"附近的连接按钮。');
+        return;
+    }
     ws.send(JSON.stringify({type: 'TIMING_CMD', command: cmd, data: cmdData || null}));
 }
 

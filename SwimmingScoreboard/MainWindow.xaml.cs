@@ -940,6 +940,9 @@ namespace SwimmingScoreboard
             string cmd = msg["command"] != null ? msg["command"].ToString() : "";
             var data = msg["data"];
 
+            // 收到的远端命令统一写日志，便于排查"按了 HTML/EXE 按钮服务器没反应"问题
+            AddLog("远端命令: " + (string.IsNullOrEmpty(cmd) ? "(空)" : cmd));
+
             switch (cmd) {
                 case "READY":
                     if (_timingBridge != null && _timingBridge.IsConnected) _timingBridge.SendCommand(0x21);
