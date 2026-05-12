@@ -175,6 +175,121 @@
                 </Grid>
             </TabItem>
 
+            <TabItem Header="比赛参数">
+                <TabControl Margin="6">
+                    <TabItem Header="项目">
+                        <Grid Margin="6">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            <TextBlock Grid.Row="0" Margin="0,0,0,6" Foreground="#475569"
+                                       Text="编辑项目名称（双击单元格编辑）。完成后点 [保存项目列表] 下发。"/>
+                            <DataGrid x:Name="EventGrid" Grid.Row="1" AutoGenerateColumns="False"
+                                      CanUserAddRows="True" RowHeight="26" FontSize="13"
+                                      AlternatingRowBackground="#F8FAFC">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="项目名" Binding="{Binding Value}" Width="*"/>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                            <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,6,0,0">
+                                <Button Content="新增" Click="EventAdd_Click" Padding="14,4"
+                                        Background="#22C55E" Foreground="White" BorderThickness="0" Margin="0,0,6,0"/>
+                                <Button Content="删除选中" Click="EventDelete_Click" Padding="14,4"
+                                        Background="#EF4444" Foreground="White" BorderThickness="0" Margin="0,0,6,0"/>
+                                <Button Content="↑ 上移" Click="EventUp_Click" Padding="14,4"
+                                        Background="#475569" Foreground="White" BorderThickness="0" Margin="0,0,6,0"/>
+                                <Button Content="↓ 下移" Click="EventDown_Click" Padding="14,4"
+                                        Background="#475569" Foreground="White" BorderThickness="0" Margin="0,0,16,0"/>
+                                <Button Content="保存项目列表" Click="EventSave_Click" Padding="14,4"
+                                        Background="#3B82F6" Foreground="White" BorderThickness="0" FontWeight="Bold"/>
+                            </StackPanel>
+                        </Grid>
+                    </TabItem>
+                    <TabItem Header="组别">
+                        <Grid Margin="6">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            <TextBlock Grid.Row="0" Margin="0,0,0,6" Foreground="#475569"
+                                       Text="组别 = 按年龄分组（如青少年 12-13、成人 18-45）。最小/最大年龄都填整数。"/>
+                            <DataGrid x:Name="AgeGroupGrid" Grid.Row="1" AutoGenerateColumns="False"
+                                      CanUserAddRows="True" RowHeight="26" FontSize="13"
+                                      AlternatingRowBackground="#F8FAFC">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="组别名" Binding="{Binding Name}" Width="*"/>
+                                    <DataGridTextColumn Header="最小年龄" Binding="{Binding MinAge}" Width="100"/>
+                                    <DataGridTextColumn Header="最大年龄" Binding="{Binding MaxAge}" Width="100"/>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                            <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,6,0,0">
+                                <Button Content="新增" Click="AgeGroupAdd_Click" Padding="14,4"
+                                        Background="#22C55E" Foreground="White" BorderThickness="0" Margin="0,0,6,0"/>
+                                <Button Content="删除选中" Click="AgeGroupDelete_Click" Padding="14,4"
+                                        Background="#EF4444" Foreground="White" BorderThickness="0" Margin="0,0,16,0"/>
+                                <Button Content="保存组别列表" Click="AgeGroupSave_Click" Padding="14,4"
+                                        Background="#3B82F6" Foreground="White" BorderThickness="0" FontWeight="Bold"/>
+                            </StackPanel>
+                        </Grid>
+                    </TabItem>
+                    <TabItem Header="性别">
+                        <Grid Margin="6">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            <TextBlock Grid.Row="0" Margin="0,0,0,6" Foreground="#475569"
+                                       Text="一般是 男 / 女 / 混合。"/>
+                            <DataGrid x:Name="GenderGrid" Grid.Row="1" AutoGenerateColumns="False"
+                                      CanUserAddRows="True" RowHeight="26" FontSize="13"
+                                      AlternatingRowBackground="#F8FAFC">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="性别" Binding="{Binding Value}" Width="*"/>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                            <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,6,0,0">
+                                <Button Content="新增" Click="GenderAdd_Click" Padding="14,4"
+                                        Background="#22C55E" Foreground="White" BorderThickness="0" Margin="0,0,6,0"/>
+                                <Button Content="删除选中" Click="GenderDelete_Click" Padding="14,4"
+                                        Background="#EF4444" Foreground="White" BorderThickness="0" Margin="0,0,16,0"/>
+                                <Button Content="保存性别列表" Click="GenderSave_Click" Padding="14,4"
+                                        Background="#3B82F6" Foreground="White" BorderThickness="0" FontWeight="Bold"/>
+                            </StackPanel>
+                        </Grid>
+                    </TabItem>
+                    <TabItem Header="赛次">
+                        <Grid Margin="6">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            <TextBlock Grid.Row="0" Margin="0,0,0,6" Foreground="#475569"
+                                       Text="一般是 预赛 / 半决赛 / 决赛。"/>
+                            <DataGrid x:Name="StageGrid" Grid.Row="1" AutoGenerateColumns="False"
+                                      CanUserAddRows="True" RowHeight="26" FontSize="13"
+                                      AlternatingRowBackground="#F8FAFC">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="赛次" Binding="{Binding Value}" Width="*"/>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                            <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,6,0,0">
+                                <Button Content="新增" Click="StageAdd_Click" Padding="14,4"
+                                        Background="#22C55E" Foreground="White" BorderThickness="0" Margin="0,0,6,0"/>
+                                <Button Content="删除选中" Click="StageDelete_Click" Padding="14,4"
+                                        Background="#EF4444" Foreground="White" BorderThickness="0" Margin="0,0,16,0"/>
+                                <Button Content="保存赛次列表" Click="StageSave_Click" Padding="14,4"
+                                        Background="#3B82F6" Foreground="White" BorderThickness="0" FontWeight="Bold"/>
+                            </StackPanel>
+                        </Grid>
+                    </TabItem>
+                </TabControl>
+            </TabItem>
+
             <TabItem Header="成绩与排名">
                 <Grid Margin="6">
                     <Grid.RowDefinitions>

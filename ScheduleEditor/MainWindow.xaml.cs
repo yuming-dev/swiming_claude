@@ -27,6 +27,11 @@ namespace ScheduleEditor
         public ObservableCollection<RelayRow> Relays { get; set; }
         public ObservableCollection<ResultRow> Results { get; set; }
         public ObservableCollection<DocRow> Documents { get; set; }
+        // 比赛参数 Tab 用 — 项目 / 性别 / 赛次 是字符串列表，组别带 minAge/maxAge
+        public ObservableCollection<StringRow> EventItems { get; set; }
+        public ObservableCollection<StringRow> GenderItems { get; set; }
+        public ObservableCollection<StringRow> StageItems { get; set; }
+        public ObservableCollection<AgeGroupItem> AgeGroupItems { get; set; }
 
         public MainWindow() {
             InitializeComponent();
@@ -34,10 +39,18 @@ namespace ScheduleEditor
             Relays = new ObservableCollection<RelayRow>();
             Results = new ObservableCollection<ResultRow>();
             Documents = new ObservableCollection<DocRow>();
+            EventItems = new ObservableCollection<StringRow>();
+            GenderItems = new ObservableCollection<StringRow>();
+            StageItems = new ObservableCollection<StringRow>();
+            AgeGroupItems = new ObservableCollection<AgeGroupItem>();
             SwimmerGrid.ItemsSource = Swimmers;
             RelayGrid.ItemsSource = Relays;
             ResultGrid.ItemsSource = Results;
             DocGrid.ItemsSource = Documents;
+            EventGrid.ItemsSource = EventItems;
+            GenderGrid.ItemsSource = GenderItems;
+            StageGrid.ItemsSource = StageItems;
+            AgeGroupGrid.ItemsSource = AgeGroupItems;
 
             UserText.Text = "用户: " + CredentialStore.CurrentUser();
 
@@ -148,9 +161,105 @@ namespace ScheduleEditor
             UpdateRelayComboFilters();
             RebuildRelayGrid();
 
-            // 3) 成绩 — 服务器 eventRanking 数组（已含名次 / final time / status 等）
+            // 3) 比赛参数 — 只在没有未保存编辑时刷新，避免覆盖用户正在编辑的内容
+            //    简单策略：每次都重新拉取（用户应"保存"再切换 Tab）
+            RebuildParamGrids();
+
+            // 4) 成绩 — 服务器 eventRanking 数组（已含名次 / final time / status 等）
             UpdateResultComboFilters();
             RebuildResultGrid();
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        // 比赛参数（项目 / 组别 / 性别 / 赛次）
+        // ═══════════════════════════════════════════════════════════════
+        private void RebuildParamGrids() {
+            if (_data == null) return;
+            // 项目
+            EventItems.Clear();
+            JArray evs = _data["eventList"] as JArray;
+            if (evs != null) foreach (var t in evs) EventItems.Add(new StringRow { Value = t.ToString() });
+            // 性别
+            GenderItems.Clear();
+            JArray gs = _data["genderList"] as JArray;
+            if (gs != null) foreach (var t in gs) GenderItems.Add(new StringRow { Value = t.ToString() });
+            // 赛次
+            StageItems.Clear();
+            JArray ss = _data["stageList"] as JArray;
+            if (ss != null) foreach (var t in ss) StageItems.Add(new StringRow { Value = t.ToString() });
+            // 组别 — 优先用 ageGroupsDetail
+            AgeGroupItems.Clear();
+            JArray detail = _data["ageGroupsDetail"] as JArray;
+            if (detail != null) {
+                foreach (JObject o in detail) {
+                    AgeGroupItems.Add(new AgeGroupItem {
+                        Name = o["name"] != null ? o["name"].ToString() : "",
+                        MinAge = o["minAge"] != null ? (int)o["minAge"] : 0,
+                        MaxAge = o["maxAge"] != null ? (int)o["maxAge"] : 200
+                    });
+                }
+            } else {
+                // 兜底：旧 ageGroups 只有名字
+                JArray nameOnly = _data["ageGroups"] as JArray;
+                if (nameOnly != null) foreach (var t in nameOnly)
+                    AgeGroupItems.Add(new AgeGroupItem { Name = t.ToString(), MinAge = 0, MaxAge = 200 });
+            }
+        }
+
+        // 通用 Add / Delete 操作
+        private void EventAdd_Click(object sender, RoutedEventArgs e)  { EventItems.Add(new StringRow { Value = "" }); EventGrid.SelectedItem = EventItems.Last(); EventGrid.ScrollIntoView(EventGrid.SelectedItem); }
+        private void EventDelete_Click(object sender, RoutedEventArgs e) {
+            var sel = EventGrid.SelectedItems.Cast<StringRow>().ToList();
+            foreach (var it in sel) EventItems.Remove(it);
+        }
+        private void EventUp_Click(object sender, RoutedEventArgs e) {
+            int i = EventGrid.SelectedIndex;
+            if (i > 0) { var it = EventItems[i]; EventItems.RemoveAt(i); EventItems.Insert(i - 1, it); EventGrid.SelectedIndex = i - 1; }
+        }
+        private void EventDown_Click(object sender, RoutedEventArgs e) {
+            int i = EventGrid.SelectedIndex;
+            if (i >= 0 && i < EventItems.Count - 1) { var it = EventItems[i]; EventItems.RemoveAt(i); EventItems.Insert(i + 1, it); EventGrid.SelectedIndex = i + 1; }
+        }
+        private void EventSave_Click(object sender, RoutedEventArgs e) {
+            SendListUpdate("UPDATE_EVENT_LIST", EventItems.Select(r => (object)(r.Value ?? "")).Where(s => !string.IsNullOrEmpty(s as string)));
+        }
+
+        private void GenderAdd_Click(object sender, RoutedEventArgs e)  { GenderItems.Add(new StringRow { Value = "" }); GenderGrid.SelectedItem = GenderItems.Last(); }
+        private void GenderDelete_Click(object sender, RoutedEventArgs e) {
+            foreach (var it in GenderGrid.SelectedItems.Cast<StringRow>().ToList()) GenderItems.Remove(it);
+        }
+        private void GenderSave_Click(object sender, RoutedEventArgs e) {
+            SendListUpdate("UPDATE_GENDER_LIST", GenderItems.Select(r => (object)(r.Value ?? "")).Where(s => !string.IsNullOrEmpty(s as string)));
+        }
+
+        private void StageAdd_Click(object sender, RoutedEventArgs e)  { StageItems.Add(new StringRow { Value = "" }); StageGrid.SelectedItem = StageItems.Last(); }
+        private void StageDelete_Click(object sender, RoutedEventArgs e) {
+            foreach (var it in StageGrid.SelectedItems.Cast<StringRow>().ToList()) StageItems.Remove(it);
+        }
+        private void StageSave_Click(object sender, RoutedEventArgs e) {
+            SendListUpdate("UPDATE_STAGE_LIST", StageItems.Select(r => (object)(r.Value ?? "")).Where(s => !string.IsNullOrEmpty(s as string)));
+        }
+
+        private void AgeGroupAdd_Click(object sender, RoutedEventArgs e) { AgeGroupItems.Add(new AgeGroupItem { Name = "", MinAge = 0, MaxAge = 200 }); AgeGroupGrid.SelectedItem = AgeGroupItems.Last(); }
+        private void AgeGroupDelete_Click(object sender, RoutedEventArgs e) {
+            foreach (var it in AgeGroupGrid.SelectedItems.Cast<AgeGroupItem>().ToList()) AgeGroupItems.Remove(it);
+        }
+        private void AgeGroupSave_Click(object sender, RoutedEventArgs e) {
+            var items = AgeGroupItems.Where(g => !string.IsNullOrEmpty(g.Name))
+                .Select(g => (object)new { name = g.Name, minAge = g.MinAge, maxAge = g.MaxAge });
+            SendListUpdate("UPDATE_AGE_GROUP_LIST", items);
+        }
+
+        private void SendListUpdate(string command, System.Collections.Generic.IEnumerable<object> items) {
+            if (_ws == null || !_ws.IsConnected) {
+                MessageBox.Show("未连接到主服务器，请先连接。", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            _ws.Send(JsonConvert.SerializeObject(new {
+                type = "TIMING_CMD",
+                command = command,
+                data = new { items = items.ToList() }
+            }));
         }
 
         // ═══════════════════════════════════════════════════════════════
@@ -741,6 +850,37 @@ namespace ScheduleEditor
         public string Path { get; set; }
         public string Time { get; set; }
         public string Size { get; set; }
+    }
+
+    // 比赛参数 Tab 的简单行 — 单字符串值
+    public class StringRow : System.ComponentModel.INotifyPropertyChanged
+    {
+        private string _value;
+        public string Value {
+            get { return _value; }
+            set { _value = value; if (PropertyChanged != null) PropertyChanged(this, new System.ComponentModel.PropertyChangedEventArgs("Value")); }
+        }
+        public event System.ComponentModel.PropertyChangedEventHandler PropertyChanged;
+    }
+
+    public class AgeGroupItem : System.ComponentModel.INotifyPropertyChanged
+    {
+        private string _name;
+        private int _min, _max;
+        public string Name {
+            get { return _name; }
+            set { _name = value; Fire("Name"); }
+        }
+        public int MinAge {
+            get { return _min; }
+            set { _min = value; Fire("MinAge"); }
+        }
+        public int MaxAge {
+            get { return _max; }
+            set { _max = value; Fire("MaxAge"); }
+        }
+        public event System.ComponentModel.PropertyChangedEventHandler PropertyChanged;
+        private void Fire(string p) { if (PropertyChanged != null) PropertyChanged(this, new System.ComponentModel.PropertyChangedEventArgs(p)); }
     }
 
     public class RelayRow

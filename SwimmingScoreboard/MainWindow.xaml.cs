@@ -998,6 +998,18 @@ namespace SwimmingScoreboard
                 case "DELETE_RELAY":
                     HandleEditorDeleteRelay(data as JObject);
                     break;
+                case "UPDATE_EVENT_LIST":
+                    HandleEditorUpdateEventList(data as JObject);
+                    break;
+                case "UPDATE_AGE_GROUP_LIST":
+                    HandleEditorUpdateAgeGroupList(data as JObject);
+                    break;
+                case "UPDATE_GENDER_LIST":
+                    HandleEditorUpdateGenderList(data as JObject);
+                    break;
+                case "UPDATE_STAGE_LIST":
+                    HandleEditorUpdateStageList(data as JObject);
+                    break;
                 case "EXECUTE_PROMOTION":
                     if (data != null) {
                         string pGender = data["gender"] != null ? data["gender"].ToString() : "";
@@ -1624,6 +1636,8 @@ namespace SwimmingScoreboard
                 resultConfirmed = _resultConfirmed,
                 // 软件设置的组别/项目/性别/赛次列表 — 用于网页报名/检录端动态填充下拉
                 ageGroups = _ageGroups.Select(g => g.Name).ToList(),
+                // ScheduleEditor 编辑端使用：完整组别信息（含 minAge/maxAge），用于配置 Tab 表格
+                ageGroupsDetail = _ageGroups.Select(g => new { name = g.Name, minAge = g.MinAge, maxAge = g.MaxAge }).ToList(),
                 eventList = _events,
                 genderList = _genders,
                 stageList = _stages,
@@ -6111,6 +6125,76 @@ namespace SwimmingScoreboard
             Broadcast();
             AddLog(string.Format("编辑端{0}接力队: {1} {2} {3}（{4} 棒）",
                 isNew ? "新增" : "更新", gender, evName, teamName, existing.Legs.Count));
+        }
+
+        // 编辑端 — 整表替换 项目 / 组别 / 性别 / 赛次 配置
+        private void HandleEditorUpdateEventList(JObject data) {
+            if (data == null) { AddLog("UPDATE_EVENT_LIST 数据为空"); return; }
+            var items = data["items"] as JArray;
+            if (items == null) { AddLog("UPDATE_EVENT_LIST 缺少 items"); return; }
+            var list = new List<string>();
+            foreach (var it in items) {
+                string s = it.ToString().Trim();
+                if (!string.IsNullOrEmpty(s) && !list.Contains(s)) list.Add(s);
+            }
+            _events = list;
+            RefreshEventComboBoxes();
+            RefreshEventsPreview();
+            AutoSaveData();
+            Broadcast();
+            AddLog(string.Format("编辑端更新项目列表: 共 {0} 项", list.Count));
+        }
+
+        private void HandleEditorUpdateAgeGroupList(JObject data) {
+            if (data == null) { AddLog("UPDATE_AGE_GROUP_LIST 数据为空"); return; }
+            var items = data["items"] as JArray;
+            if (items == null) { AddLog("UPDATE_AGE_GROUP_LIST 缺少 items"); return; }
+            var list = new List<AgeGroup>();
+            foreach (JObject o in items) {
+                string name = o["name"] != null ? o["name"].ToString().Trim() : "";
+                if (string.IsNullOrEmpty(name)) continue;
+                int min = o["minAge"] != null ? (int)o["minAge"] : 0;
+                int max = o["maxAge"] != null ? (int)o["maxAge"] : 200;
+                if (list.Any(g => g.Name == name)) continue;
+                list.Add(new AgeGroup { Name = name, MinAge = min, MaxAge = max });
+            }
+            _ageGroups = list;
+            AgeGroupRegistry.Set(_ageGroups);
+            RefreshAgeGroupsPreview();
+            RefreshAllAgeGroupFilterCombos();
+            AutoSaveData();
+            Broadcast();
+            AddLog(string.Format("编辑端更新组别列表: 共 {0} 项", list.Count));
+        }
+
+        private void HandleEditorUpdateGenderList(JObject data) {
+            if (data == null) { AddLog("UPDATE_GENDER_LIST 数据为空"); return; }
+            var items = data["items"] as JArray;
+            if (items == null) { AddLog("UPDATE_GENDER_LIST 缺少 items"); return; }
+            var list = new List<string>();
+            foreach (var it in items) {
+                string s = it.ToString().Trim();
+                if (!string.IsNullOrEmpty(s) && !list.Contains(s)) list.Add(s);
+            }
+            _genders = list;
+            AutoSaveData();
+            Broadcast();
+            AddLog(string.Format("编辑端更新性别列表: 共 {0} 项", list.Count));
+        }
+
+        private void HandleEditorUpdateStageList(JObject data) {
+            if (data == null) { AddLog("UPDATE_STAGE_LIST 数据为空"); return; }
+            var items = data["items"] as JArray;
+            if (items == null) { AddLog("UPDATE_STAGE_LIST 缺少 items"); return; }
+            var list = new List<string>();
+            foreach (var it in items) {
+                string s = it.ToString().Trim();
+                if (!string.IsNullOrEmpty(s) && !list.Contains(s)) list.Add(s);
+            }
+            _stages = list;
+            AutoSaveData();
+            Broadcast();
+            AddLog(string.Format("编辑端更新赛次列表: 共 {0} 项", list.Count));
         }
 
         // 编辑端 — 删除接力队
