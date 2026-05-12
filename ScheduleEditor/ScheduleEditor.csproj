@@ -63,6 +63,7 @@
     <Compile Include="ResultEditDialog.cs" />
     <Compile Include="RelayTeamEditDialog.cs" />
     <Compile Include="ScheduleItemEditDialog.cs" />
+    <Compile Include="RecordEditDialog.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

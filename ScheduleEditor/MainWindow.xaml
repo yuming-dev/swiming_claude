@@ -224,6 +224,59 @@
                 </Grid>
             </TabItem>
 
+            <TabItem Header="纪录">
+                <Grid Margin="6">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,6">
+                        <Button Content="刷新" Click="RefreshRecords_Click"
+                                Padding="14,4" Margin="0,0,6,0"
+                                Background="#3B82F6" Foreground="White" BorderThickness="0"/>
+                        <TextBlock Text="类型:" VerticalAlignment="Center" Margin="6,0,4,0"/>
+                        <ComboBox x:Name="RecordTypeCombo" Width="100"
+                                  SelectionChanged="RecordFilter_Changed"/>
+                        <TextBlock Text="性别:" VerticalAlignment="Center" Margin="12,0,4,0"/>
+                        <ComboBox x:Name="RecordGenderCombo" Width="60"
+                                  SelectionChanged="RecordFilter_Changed"/>
+                        <TextBlock Text="项目:" VerticalAlignment="Center" Margin="12,0,4,0"/>
+                        <ComboBox x:Name="RecordEventCombo" Width="160"
+                                  SelectionChanged="RecordFilter_Changed"/>
+                        <Button Content="新增纪录" Click="AddRecord_Click"
+                                Padding="14,4" Margin="20,0,6,0"
+                                Background="#22C55E" Foreground="White" BorderThickness="0"/>
+                        <Button Content="删除选中" Click="DeleteRecord_Click"
+                                Padding="14,4" Margin="0,0,6,0"
+                                Background="#EF4444" Foreground="White" BorderThickness="0"/>
+                        <TextBlock x:Name="RecordCountText" Text=""
+                                   VerticalAlignment="Center" Margin="20,0,0,0"
+                                   Foreground="#64748B"/>
+                    </StackPanel>
+
+                    <DataGrid x:Name="RecordGrid" Grid.Row="1"
+                              AutoGenerateColumns="False" IsReadOnly="True"
+                              CanUserAddRows="False" SelectionUnit="FullRow" SelectionMode="Extended"
+                              GridLinesVisibility="Horizontal"
+                              AlternatingRowBackground="#F8FAFC"
+                              HeadersVisibility="Column" FontSize="13" RowHeight="28"
+                              MouseDoubleClick="RecordGrid_DoubleClick">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="纪录类型" Binding="{Binding RecordType}" Width="80"/>
+                            <DataGridTextColumn Header="组别" Binding="{Binding AgeGroup}" Width="80"/>
+                            <DataGridTextColumn Header="性别" Binding="{Binding Gender}" Width="55"/>
+                            <DataGridTextColumn Header="项目" Binding="{Binding EventName}" Width="180"/>
+                            <DataGridTextColumn Header="保持人" Binding="{Binding HolderName}" Width="120"/>
+                            <DataGridTextColumn Header="代表队" Binding="{Binding HolderCountry}" Width="120"/>
+                            <DataGridTextColumn Header="成绩" Binding="{Binding TimeDisplay}" Width="100"/>
+                            <DataGridTextColumn Header="日期" Binding="{Binding Date}" Width="100"/>
+                            <DataGridTextColumn Header="地点" Binding="{Binding Location}" Width="140"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </TabItem>
+
             <TabItem Header="比赛参数">
                 <TabControl Margin="6">
                     <TabItem Header="项目">

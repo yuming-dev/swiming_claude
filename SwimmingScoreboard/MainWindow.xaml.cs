@@ -1022,6 +1022,15 @@ namespace SwimmingScoreboard
                 case "GENERATE_REPORT":
                     HandleEditorGenerateReport(data as JObject);
                     break;
+                case "ADD_RECORD":
+                    HandleEditorAddRecord(data as JObject);
+                    break;
+                case "UPDATE_RECORD":
+                    HandleEditorAddRecord(data as JObject);   // find-or-create 语义
+                    break;
+                case "DELETE_RECORD":
+                    HandleEditorDeleteRecord(data as JObject);
+                    break;
                 case "EXECUTE_PROMOTION":
                     if (data != null) {
                         string pGender = data["gender"] != null ? data["gender"].ToString() : "";
@@ -1732,7 +1741,8 @@ namespace SwimmingScoreboard
                 eventRanking = eventRanking,
                 teamScores = teamScoresData,
                 records = _records.Select(r => new {
-                    eventName = r.EventName, gender = r.Gender, recordType = r.RecordType,
+                    eventName = r.EventName, gender = r.Gender, ageGroup = r.AgeGroup ?? "",
+                    recordType = r.RecordType,
                     holderName = r.HolderName, holderCountry = r.HolderCountry,
                     time = TimeFormatter.Format(r.Time), timeInSeconds = r.Time,
                     date = r.Date, location = r.Location
@@ -6137,6 +6147,63 @@ namespace SwimmingScoreboard
             Broadcast();
             AddLog(string.Format("编辑端{0}接力队: {1} {2} {3}（{4} 棒）",
                 isNew ? "新增" : "更新", gender, evName, teamName, existing.Legs.Count));
+        }
+
+        // 编辑端 — 纪录 新增 / 更新 / 删除
+        // 主键 = (eventName, gender, recordType, ageGroup)
+        private void HandleEditorAddRecord(JObject data) {
+            if (data == null) { AddLog("ADD_RECORD 数据为空"); return; }
+            string evName = data["eventName"] != null ? data["eventName"].ToString() : "";
+            string gender = data["gender"] != null ? data["gender"].ToString() : "";
+            string recordType = data["recordType"] != null ? data["recordType"].ToString() : "";
+            string ageGroup = data["ageGroup"] != null ? data["ageGroup"].ToString() : "";
+            if (string.IsNullOrEmpty(evName) || string.IsNullOrEmpty(gender) || string.IsNullOrEmpty(recordType)) {
+                AddLog("ADD_RECORD 缺少 eventName/gender/recordType"); return;
+            }
+            var existing = _records.FirstOrDefault(r =>
+                r.EventName == evName && r.Gender == gender && r.RecordType == recordType
+                && (r.AgeGroup ?? "") == (ageGroup ?? ""));
+            bool isNew = (existing == null);
+            if (existing == null) {
+                existing = new SwimmingRecord {
+                    EventName = evName, Gender = gender, RecordType = recordType, AgeGroup = ageGroup
+                };
+                _records.Add(existing);
+            }
+            existing.HolderName = data["holderName"] != null ? data["holderName"].ToString() : (existing.HolderName ?? "");
+            existing.HolderCountry = data["holderCountry"] != null ? data["holderCountry"].ToString() : (existing.HolderCountry ?? "");
+            if (data["time"] != null) {
+                string t = data["time"].ToString();
+                double sec = TimeFormatter.Parse(t);
+                existing.Time = sec;
+                existing.TimeInSeconds = sec;
+            }
+            existing.Date = data["date"] != null ? data["date"].ToString() : (existing.Date ?? "");
+            existing.Location = data["location"] != null ? data["location"].ToString() : (existing.Location ?? "");
+            AutoSaveData();
+            Broadcast();
+            AddLog(string.Format("编辑端{0}纪录: {1} {2} {3} {4} = {5}",
+                isNew ? "新增" : "更新", ageGroup, gender, evName, recordType,
+                TimeFormatter.Format(existing.Time)));
+        }
+
+        private void HandleEditorDeleteRecord(JObject data) {
+            if (data == null) { AddLog("DELETE_RECORD 数据为空"); return; }
+            string evName = data["eventName"] != null ? data["eventName"].ToString() : "";
+            string gender = data["gender"] != null ? data["gender"].ToString() : "";
+            string recordType = data["recordType"] != null ? data["recordType"].ToString() : "";
+            string ageGroup = data["ageGroup"] != null ? data["ageGroup"].ToString() : "";
+            var target = _records.FirstOrDefault(r =>
+                r.EventName == evName && r.Gender == gender && r.RecordType == recordType
+                && (r.AgeGroup ?? "") == (ageGroup ?? ""));
+            if (target == null) {
+                AddLog(string.Format("DELETE_RECORD 找不到: {0} {1} {2} {3}", ageGroup, gender, evName, recordType));
+                return;
+            }
+            _records.Remove(target);
+            AutoSaveData();
+            Broadcast();
+            AddLog(string.Format("编辑端删除纪录: {0} {1} {2} {3}", ageGroup, gender, evName, recordType));
         }
 
         // 编辑端 — 触发服务器生成 / 打开各种报告（路由到既有 Print*_Click 方法）

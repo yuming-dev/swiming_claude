@@ -33,6 +33,7 @@ namespace ScheduleEditor
         public ObservableCollection<StringRow> StageItems { get; set; }
         public ObservableCollection<AgeGroupItem> AgeGroupItems { get; set; }
         public ObservableCollection<ScheduleRow> Schedules { get; set; }
+        public ObservableCollection<RecordRow> Records { get; set; }
 
         public MainWindow() {
             InitializeComponent();
@@ -45,6 +46,7 @@ namespace ScheduleEditor
             StageItems = new ObservableCollection<StringRow>();
             AgeGroupItems = new ObservableCollection<AgeGroupItem>();
             Schedules = new ObservableCollection<ScheduleRow>();
+            Records = new ObservableCollection<RecordRow>();
             SwimmerGrid.ItemsSource = Swimmers;
             RelayGrid.ItemsSource = Relays;
             ResultGrid.ItemsSource = Results;
@@ -54,6 +56,7 @@ namespace ScheduleEditor
             StageGrid.ItemsSource = StageItems;
             AgeGroupGrid.ItemsSource = AgeGroupItems;
             ScheduleGrid.ItemsSource = Schedules;
+            RecordGrid.ItemsSource = Records;
 
             UserText.Text = "用户: " + CredentialStore.CurrentUser();
 
@@ -171,7 +174,11 @@ namespace ScheduleEditor
             // 4) 赛程
             RebuildScheduleGrid();
 
-            // 5) 成绩 — 服务器 eventRanking 数组（已含名次 / final time / status 等）
+            // 5) 纪录
+            UpdateRecordComboFilters();
+            RebuildRecordGrid();
+
+            // 6) 成绩 — 服务器 eventRanking 数组（已含名次 / final time / status 等）
             UpdateResultComboFilters();
             RebuildResultGrid();
         }
@@ -254,6 +261,105 @@ namespace ScheduleEditor
             var items = AgeGroupItems.Where(g => !string.IsNullOrEmpty(g.Name))
                 .Select(g => (object)new { name = g.Name, minAge = g.MinAge, maxAge = g.MaxAge });
             SendListUpdate("UPDATE_AGE_GROUP_LIST", items);
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        // 纪录管理
+        // ═══════════════════════════════════════════════════════════════
+        private void UpdateRecordComboFilters() {
+            var types = new List<string> { "全部", "WR", "AR", "NR", "CR", "MR" };
+            SetCombo(RecordTypeCombo, types);
+            var genders = new List<string> { "全部" };
+            genders.AddRange(ToStringList(_data["genderList"] as JArray));
+            SetCombo(RecordGenderCombo, genders);
+            var evs = new List<string> { "全部" };
+            evs.AddRange(ToStringList(_data["eventList"] as JArray));
+            SetCombo(RecordEventCombo, evs);
+        }
+
+        private void RebuildRecordGrid() {
+            Records.Clear();
+            if (_data == null) return;
+            JArray rs = _data["records"] as JArray;
+            if (rs == null) { RecordCountText.Text = ""; return; }
+            string tFilter = SelectedOrAll(RecordTypeCombo);
+            string gFilter = SelectedOrAll(RecordGenderCombo);
+            string evFilter = SelectedOrAll(RecordEventCombo);
+
+            foreach (JObject r in rs) {
+                string rtype = Get(r, "recordType");
+                string g = Get(r, "gender");
+                string ev = Get(r, "eventName");
+                if (tFilter != "全部" && rtype != tFilter) continue;
+                if (gFilter != "全部" && g != gFilter) continue;
+                if (evFilter != "全部" && ev != evFilter) continue;
+                Records.Add(new RecordRow {
+                    RecordType = rtype,
+                    AgeGroup = Get(r, "ageGroup"),
+                    Gender = g,
+                    EventName = ev,
+                    HolderName = Get(r, "holderName"),
+                    HolderCountry = Get(r, "holderCountry"),
+                    TimeDisplay = Get(r, "time"),
+                    Date = Get(r, "date"),
+                    Location = Get(r, "location")
+                });
+            }
+            RecordCountText.Text = string.Format("共 {0} 条", Records.Count);
+        }
+
+        private void RefreshRecords_Click(object sender, RoutedEventArgs e) { RebuildRecordGrid(); }
+        private void RecordFilter_Changed(object sender, EventArgs e) { RebuildRecordGrid(); }
+
+        private void AddRecord_Click(object sender, RoutedEventArgs e) {
+            var dlg = new RecordEditDialog(null, _data);
+            dlg.Owner = this;
+            if (dlg.ShowDialog() == true) {
+                _ws.Send(JsonConvert.SerializeObject(new {
+                    type = "TIMING_CMD",
+                    command = "ADD_RECORD",
+                    data = dlg.Result
+                }));
+            }
+        }
+
+        private void DeleteRecord_Click(object sender, RoutedEventArgs e) {
+            var sel = RecordGrid.SelectedItems.Cast<RecordRow>().ToList();
+            if (sel.Count == 0) {
+                MessageBox.Show("请先选中要删除的纪录", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            string preview = string.Join("\n", sel.Take(8)
+                .Select(r => string.Format("· {0} {1} {2} {3} {4}",
+                    r.RecordType, r.AgeGroup, r.Gender, r.EventName, r.TimeDisplay)));
+            if (sel.Count > 8) preview += string.Format("\n... 及其它 {0} 条", sel.Count - 8);
+            var ret = MessageBox.Show(string.Format("确定删除以下 {0} 条纪录？\n\n{1}", sel.Count, preview),
+                "确认删除", MessageBoxButton.YesNo, MessageBoxImage.Question);
+            if (ret != MessageBoxResult.Yes) return;
+            foreach (var r in sel) {
+                _ws.Send(JsonConvert.SerializeObject(new {
+                    type = "TIMING_CMD",
+                    command = "DELETE_RECORD",
+                    data = new {
+                        recordType = r.RecordType, ageGroup = r.AgeGroup,
+                        gender = r.Gender, eventName = r.EventName
+                    }
+                }));
+            }
+        }
+
+        private void RecordGrid_DoubleClick(object sender, MouseButtonEventArgs e) {
+            var row = RecordGrid.SelectedItem as RecordRow;
+            if (row == null) return;
+            var dlg = new RecordEditDialog(row, _data);
+            dlg.Owner = this;
+            if (dlg.ShowDialog() == true) {
+                _ws.Send(JsonConvert.SerializeObject(new {
+                    type = "TIMING_CMD",
+                    command = "UPDATE_RECORD",
+                    data = dlg.Result
+                }));
+            }
         }
 
         // ═══════════════════════════════════════════════════════════════
@@ -1006,6 +1112,19 @@ namespace ScheduleEditor
         }
         public event System.ComponentModel.PropertyChangedEventHandler PropertyChanged;
         private void Fire(string p) { if (PropertyChanged != null) PropertyChanged(this, new System.ComponentModel.PropertyChangedEventArgs(p)); }
+    }
+
+    public class RecordRow
+    {
+        public string RecordType { get; set; }
+        public string AgeGroup { get; set; }
+        public string Gender { get; set; }
+        public string EventName { get; set; }
+        public string HolderName { get; set; }
+        public string HolderCountry { get; set; }
+        public string TimeDisplay { get; set; }
+        public string Date { get; set; }
+        public string Location { get; set; }
     }
 
     public class ScheduleRow
