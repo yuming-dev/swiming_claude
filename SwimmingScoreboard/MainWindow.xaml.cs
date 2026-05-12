@@ -992,6 +992,12 @@ namespace SwimmingScoreboard
                 case "MARK_STATUS":
                     HandleEditorMarkStatus(data as JObject);
                     break;
+                case "UPDATE_RELAY":
+                    HandleEditorUpdateRelay(data as JObject);
+                    break;
+                case "DELETE_RELAY":
+                    HandleEditorDeleteRelay(data as JObject);
+                    break;
                 case "EXECUTE_PROMOTION":
                     if (data != null) {
                         string pGender = data["gender"] != null ? data["gender"].ToString() : "";
@@ -1665,6 +1671,24 @@ namespace SwimmingScoreboard
                     idNumber = sw.IDNumber ?? "",
                     phone = sw.Phone ?? "",
                     notes = sw.Notes ?? ""
+                }).ToList(),
+                // ScheduleEditor 编辑端使用：全量接力队列表（队名 + 项目 + 性别 + 报名成绩 + 4 棒队员）
+                allRelayTeams = _relayTeams.Select(rt => new {
+                    teamName = rt.TeamName ?? "",
+                    eventName = rt.EventName ?? "",
+                    gender = rt.Gender ?? "",
+                    entryTime = rt.EntryTime ?? "",
+                    stage = rt.Stage ?? "",
+                    heat = rt.Heat,
+                    lane = rt.Lane,
+                    status = rt.Status ?? "",
+                    legs = rt.Legs.Select(leg => new {
+                        legOrder = leg.LegOrder,
+                        swimmerName = leg.SwimmerName ?? "",
+                        swimmerBibNumber = leg.SwimmerBibNumber ?? "",
+                        swimmerIDNumber = leg.SwimmerIDNumber ?? "",
+                        swimmerBirthDate = leg.SwimmerBirthDate ?? ""
+                    }).ToList()
                 }).ToList(),
                 laneDevices = _laneDeviceStates.Select(s => new {
                     lane = s.Lane,
@@ -6048,6 +6072,69 @@ namespace SwimmingScoreboard
             AddLog(string.Format("编辑端更新成绩: {0}({1}) {2} {3} → {4}",
                 sw.Name, sw.BibNumber, sw.EventName, stage,
                 !string.IsNullOrEmpty(sw.Status) ? sw.Status : TimeFormatter.Format(result.FinalTime)));
+        }
+
+        // 编辑端 — 新增 / 更新接力队（按 队名+性别+项目 唯一定位）
+        private void HandleEditorUpdateRelay(JObject data) {
+            if (data == null) { AddLog("UPDATE_RELAY 数据为空"); return; }
+            string teamName = data["teamName"] != null ? data["teamName"].ToString() : "";
+            string evName = data["eventName"] != null ? data["eventName"].ToString() : "";
+            string gender = data["gender"] != null ? data["gender"].ToString() : "男";
+            if (string.IsNullOrEmpty(teamName) || string.IsNullOrEmpty(evName)) {
+                AddLog("UPDATE_RELAY 缺少队名或项目"); return;
+            }
+            var existing = _relayTeams.FirstOrDefault(t =>
+                t.TeamName == teamName && t.Gender == gender && t.EventName == evName);
+            bool isNew = (existing == null);
+            if (existing == null) {
+                existing = new RelayTeam { TeamName = teamName, EventName = evName, Gender = gender };
+                _relayTeams.Add(existing);
+            }
+            if (data["entryTime"] != null) {
+                existing.EntryTime = data["entryTime"].ToString();
+                existing.EntryTimeSeconds = TimeFormatter.Parse(existing.EntryTime);
+            }
+            // 棒次替换
+            existing.Legs.Clear();
+            var legs = data["legs"] as JArray;
+            if (legs != null) foreach (JObject leg in legs) {
+                existing.Legs.Add(new RelayLeg {
+                    LegOrder = leg["legOrder"] != null ? (int)leg["legOrder"] : 0,
+                    SwimmerName = leg["swimmerName"] != null ? leg["swimmerName"].ToString() : "",
+                    SwimmerBibNumber = leg["swimmerBibNumber"] != null ? leg["swimmerBibNumber"].ToString() : "",
+                    SwimmerIDNumber = leg["swimmerIDNumber"] != null ? leg["swimmerIDNumber"].ToString() : "",
+                    SwimmerBirthDate = leg["swimmerBirthDate"] != null ? leg["swimmerBirthDate"].ToString() : ""
+                });
+            }
+            RebuildRelayGroupedView();
+            AutoSaveData();
+            Broadcast();
+            AddLog(string.Format("编辑端{0}接力队: {1} {2} {3}（{4} 棒）",
+                isNew ? "新增" : "更新", gender, evName, teamName, existing.Legs.Count));
+        }
+
+        // 编辑端 — 删除接力队
+        private void HandleEditorDeleteRelay(JObject data) {
+            if (data == null) { AddLog("DELETE_RELAY 数据为空"); return; }
+            string teamName = data["teamName"] != null ? data["teamName"].ToString() : "";
+            string evName = data["eventName"] != null ? data["eventName"].ToString() : "";
+            string gender = data["gender"] != null ? data["gender"].ToString() : "";
+            var team = _relayTeams.FirstOrDefault(t =>
+                t.TeamName == teamName && t.Gender == gender && t.EventName == evName);
+            if (team == null) {
+                AddLog(string.Format("DELETE_RELAY 找不到: {0} {1} {2}", gender, evName, teamName));
+                return;
+            }
+            _relayTeams.Remove(team);
+            // 同步清理 _swimmers 中的接力代理条目
+            var proxy = _swimmers.FirstOrDefault(s =>
+                s.Country == teamName && s.Gender == gender && s.EventName == evName
+                && !string.IsNullOrEmpty(s.Notes) && s.Notes.StartsWith("接力队 棒次:"));
+            if (proxy != null) _swimmers.Remove(proxy);
+            RebuildRelayGroupedView();
+            AutoSaveData();
+            Broadcast();
+            AddLog(string.Format("编辑端删除接力队: {0} {1} {2}", gender, evName, teamName));
         }
 
         // 编辑端 — 标记 DNS / DNF / DSQ

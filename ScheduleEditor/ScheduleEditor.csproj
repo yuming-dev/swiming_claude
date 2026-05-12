@@ -61,6 +61,7 @@
     <Compile Include="SwimmerEditDialog.cs" />
     <Compile Include="ChangePasswordWindow.cs" />
     <Compile Include="ResultEditDialog.cs" />
+    <Compile Include="RelayTeamEditDialog.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

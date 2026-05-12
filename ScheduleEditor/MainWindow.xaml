@@ -119,6 +119,62 @@
                 </Grid>
             </TabItem>
 
+            <TabItem Header="接力队">
+                <Grid Margin="6">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,6">
+                        <Button Content="刷新" Click="RefreshRelays_Click"
+                                Padding="14,4" Margin="0,0,6,0"
+                                Background="#3B82F6" Foreground="White" BorderThickness="0"/>
+                        <TextBlock Text="项目:" VerticalAlignment="Center" Margin="6,0,4,0"/>
+                        <ComboBox x:Name="RelayEventCombo" Width="160"
+                                  SelectionChanged="RelayFilter_Changed"/>
+                        <TextBlock Text="性别:" VerticalAlignment="Center" Margin="12,0,4,0"/>
+                        <ComboBox x:Name="RelayGenderCombo" Width="60"
+                                  SelectionChanged="RelayFilter_Changed"/>
+                        <TextBlock Text="搜索:" VerticalAlignment="Center" Margin="12,0,4,0"/>
+                        <TextBox x:Name="RelaySearchBox" Width="140"
+                                 TextChanged="RelayFilter_Changed"/>
+                        <Button Content="新增接力队" Click="AddRelay_Click"
+                                Padding="14,4" Margin="20,0,6,0"
+                                Background="#22C55E" Foreground="White" BorderThickness="0"/>
+                        <Button Content="删除选中" Click="DeleteRelay_Click"
+                                Padding="14,4" Margin="0,0,6,0"
+                                Background="#EF4444" Foreground="White" BorderThickness="0"/>
+                        <TextBlock x:Name="RelayCountText" Text=""
+                                   VerticalAlignment="Center" Margin="20,0,0,0"
+                                   Foreground="#64748B"/>
+                    </StackPanel>
+
+                    <DataGrid x:Name="RelayGrid" Grid.Row="1"
+                              AutoGenerateColumns="False" IsReadOnly="True"
+                              CanUserAddRows="False" SelectionUnit="FullRow" SelectionMode="Extended"
+                              GridLinesVisibility="Horizontal"
+                              AlternatingRowBackground="#F8FAFC"
+                              HeadersVisibility="Column" FontSize="13" RowHeight="28"
+                              MouseDoubleClick="RelayGrid_DoubleClick">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="代表队" Binding="{Binding TeamName}" Width="140"/>
+                            <DataGridTextColumn Header="性别" Binding="{Binding Gender}" Width="55"/>
+                            <DataGridTextColumn Header="项目" Binding="{Binding EventName}" Width="180"/>
+                            <DataGridTextColumn Header="赛次" Binding="{Binding Stage}" Width="70"/>
+                            <DataGridTextColumn Header="组次" Binding="{Binding Heat}" Width="55"/>
+                            <DataGridTextColumn Header="泳道" Binding="{Binding Lane}" Width="55"/>
+                            <DataGridTextColumn Header="第1棒" Binding="{Binding Leg1}" Width="100"/>
+                            <DataGridTextColumn Header="第2棒" Binding="{Binding Leg2}" Width="100"/>
+                            <DataGridTextColumn Header="第3棒" Binding="{Binding Leg3}" Width="100"/>
+                            <DataGridTextColumn Header="第4棒" Binding="{Binding Leg4}" Width="100"/>
+                            <DataGridTextColumn Header="报名成绩" Binding="{Binding EntryTime}" Width="100"/>
+                            <DataGridTextColumn Header="状态" Binding="{Binding Status}" Width="60"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </TabItem>
+
             <TabItem Header="成绩与排名">
                 <Grid Margin="6">
                     <Grid.RowDefinitions>

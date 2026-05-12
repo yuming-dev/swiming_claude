@@ -24,15 +24,18 @@ namespace ScheduleEditor
 
         // 三个 Tab 的数据集合
         public ObservableCollection<SwimmerRow> Swimmers { get; set; }
+        public ObservableCollection<RelayRow> Relays { get; set; }
         public ObservableCollection<ResultRow> Results { get; set; }
         public ObservableCollection<DocRow> Documents { get; set; }
 
         public MainWindow() {
             InitializeComponent();
             Swimmers = new ObservableCollection<SwimmerRow>();
+            Relays = new ObservableCollection<RelayRow>();
             Results = new ObservableCollection<ResultRow>();
             Documents = new ObservableCollection<DocRow>();
             SwimmerGrid.ItemsSource = Swimmers;
+            RelayGrid.ItemsSource = Relays;
             ResultGrid.ItemsSource = Results;
             DocGrid.ItemsSource = Documents;
 
@@ -141,9 +144,126 @@ namespace ScheduleEditor
             UpdateSwimmerComboFilters();
             RebuildSwimmerGrid(all);
 
-            // 2) 成绩 — 服务器 eventRanking 数组（已含名次 / final time / status 等）
+            // 2) 接力队
+            UpdateRelayComboFilters();
+            RebuildRelayGrid();
+
+            // 3) 成绩 — 服务器 eventRanking 数组（已含名次 / final time / status 等）
             UpdateResultComboFilters();
             RebuildResultGrid();
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        // 接力队
+        // ═══════════════════════════════════════════════════════════════
+        private void UpdateRelayComboFilters() {
+            var eventList = new List<string> { "全部" };
+            var rawEvents = ToStringList(_data["eventList"] as JArray);
+            foreach (var ev in rawEvents) {
+                if (ev.IndexOf('×') >= 0 || ev.ToLower().IndexOf('x') >= 0) eventList.Add(ev);
+            }
+            // 兜底：如果服务器没标记接力，给一份默认列表
+            if (eventList.Count == 1) {
+                eventList.AddRange(new[] { "4×50米自由泳接力", "4×100米自由泳接力", "4×200米自由泳接力", "4×100米混合泳接力" });
+            }
+            SetCombo(RelayEventCombo, eventList);
+            var genders = new List<string> { "全部" };
+            genders.AddRange(ToStringList(_data["genderList"] as JArray));
+            SetCombo(RelayGenderCombo, genders);
+        }
+
+        private void RebuildRelayGrid() {
+            Relays.Clear();
+            JArray all = _data["allRelayTeams"] as JArray;
+            if (all == null) { RelayCountText.Text = ""; return; }
+            string evFilter = SelectedOrAll(RelayEventCombo);
+            string gFilter = SelectedOrAll(RelayGenderCombo);
+            string search = (RelaySearchBox.Text ?? "").Trim();
+
+            foreach (JObject t in all) {
+                string ev = Get(t, "eventName");
+                string g = Get(t, "gender");
+                string name = Get(t, "teamName");
+                if (evFilter != "全部" && ev != evFilter) continue;
+                if (gFilter != "全部" && g != gFilter) continue;
+                if (search.Length > 0 && name.IndexOf(search, StringComparison.OrdinalIgnoreCase) < 0) continue;
+
+                var row = new RelayRow {
+                    TeamName = name,
+                    Gender = g,
+                    EventName = ev,
+                    Stage = Get(t, "stage"),
+                    Heat = Get(t, "heat"),
+                    Lane = Get(t, "lane"),
+                    EntryTime = Get(t, "entryTime"),
+                    Status = Get(t, "status")
+                };
+                var legs = t["legs"] as JArray;
+                if (legs != null) foreach (JObject leg in legs) {
+                    int order = leg["legOrder"] != null ? (int)leg["legOrder"] : 0;
+                    string sname = leg["swimmerName"] != null ? leg["swimmerName"].ToString() : "";
+                    string sbib = leg["swimmerBibNumber"] != null ? leg["swimmerBibNumber"].ToString() : "";
+                    string sid  = leg["swimmerIDNumber"] != null ? leg["swimmerIDNumber"].ToString() : "";
+                    string sdob = leg["swimmerBirthDate"] != null ? leg["swimmerBirthDate"].ToString() : "";
+                    if (order == 1) { row.Leg1 = sname; row.Leg1Bib = sbib; row.Leg1Id = sid; row.Leg1Dob = sdob; }
+                    else if (order == 2) { row.Leg2 = sname; row.Leg2Bib = sbib; row.Leg2Id = sid; row.Leg2Dob = sdob; }
+                    else if (order == 3) { row.Leg3 = sname; row.Leg3Bib = sbib; row.Leg3Id = sid; row.Leg3Dob = sdob; }
+                    else if (order == 4) { row.Leg4 = sname; row.Leg4Bib = sbib; row.Leg4Id = sid; row.Leg4Dob = sdob; }
+                }
+                Relays.Add(row);
+            }
+            RelayCountText.Text = string.Format("共 {0} 队", Relays.Count);
+        }
+
+        private void RefreshRelays_Click(object sender, RoutedEventArgs e) { RebuildRelayGrid(); }
+        private void RelayFilter_Changed(object sender, EventArgs e) { RebuildRelayGrid(); }
+
+        private void AddRelay_Click(object sender, RoutedEventArgs e) {
+            var dlg = new RelayTeamEditDialog(null, _data);
+            dlg.Owner = this;
+            if (dlg.ShowDialog() == true) {
+                _ws.Send(JsonConvert.SerializeObject(new {
+                    type = "TIMING_CMD",
+                    command = "UPDATE_RELAY",
+                    data = dlg.Result
+                }));
+            }
+        }
+
+        private void DeleteRelay_Click(object sender, RoutedEventArgs e) {
+            var sel = RelayGrid.SelectedItems.Cast<RelayRow>().ToList();
+            if (sel.Count == 0) {
+                MessageBox.Show("请先选中要删除的接力队（可按住 Ctrl/Shift 多选）", "提示",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            string preview = string.Join("\n", sel.Take(8)
+                .Select(t => string.Format("· {0} {1} {2}", t.Gender, t.EventName, t.TeamName)));
+            if (sel.Count > 8) preview += string.Format("\n... 及其它 {0} 条", sel.Count - 8);
+            var r = MessageBox.Show(string.Format("确定删除以下 {0} 个接力队？\n\n{1}", sel.Count, preview),
+                "确认删除", MessageBoxButton.YesNo, MessageBoxImage.Question);
+            if (r != MessageBoxResult.Yes) return;
+            foreach (var t in sel) {
+                _ws.Send(JsonConvert.SerializeObject(new {
+                    type = "TIMING_CMD",
+                    command = "DELETE_RELAY",
+                    data = new { teamName = t.TeamName, gender = t.Gender, eventName = t.EventName }
+                }));
+            }
+        }
+
+        private void RelayGrid_DoubleClick(object sender, MouseButtonEventArgs e) {
+            var row = RelayGrid.SelectedItem as RelayRow;
+            if (row == null) return;
+            var dlg = new RelayTeamEditDialog(row, _data);
+            dlg.Owner = this;
+            if (dlg.ShowDialog() == true) {
+                _ws.Send(JsonConvert.SerializeObject(new {
+                    type = "TIMING_CMD",
+                    command = "UPDATE_RELAY",
+                    data = dlg.Result
+                }));
+            }
         }
 
         private void ApplyDocList(JArray docs) {
@@ -621,5 +741,33 @@ namespace ScheduleEditor
         public string Path { get; set; }
         public string Time { get; set; }
         public string Size { get; set; }
+    }
+
+    public class RelayRow
+    {
+        public string TeamName { get; set; }
+        public string Gender { get; set; }
+        public string EventName { get; set; }
+        public string Stage { get; set; }
+        public string Heat { get; set; }
+        public string Lane { get; set; }
+        public string EntryTime { get; set; }
+        public string Status { get; set; }
+        public string Leg1 { get; set; }
+        public string Leg2 { get; set; }
+        public string Leg3 { get; set; }
+        public string Leg4 { get; set; }
+        public string Leg1Bib { get; set; }
+        public string Leg2Bib { get; set; }
+        public string Leg3Bib { get; set; }
+        public string Leg4Bib { get; set; }
+        public string Leg1Id { get; set; }
+        public string Leg2Id { get; set; }
+        public string Leg3Id { get; set; }
+        public string Leg4Id { get; set; }
+        public string Leg1Dob { get; set; }
+        public string Leg2Dob { get; set; }
+        public string Leg3Dob { get; set; }
+        public string Leg4Dob { get; set; }
     }
 }
