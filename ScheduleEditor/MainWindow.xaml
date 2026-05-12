@@ -431,10 +431,68 @@
                 <Grid Margin="6">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
 
-                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,6">
+                    <!-- 生成报告（让服务器生成 HTML / Excel 到 Documents 目录） -->
+                    <Border Grid.Row="0" Background="#F1F5F9" CornerRadius="6" Padding="10" Margin="0,0,0,8">
+                        <StackPanel>
+                            <TextBlock Text="生成报告（点击让主服务器生成并打开对应文档）"
+                                       Foreground="#1E40AF" FontWeight="Bold" FontSize="13" Margin="0,0,0,8"/>
+                            <WrapPanel>
+                                <Button Content="秩序册" Click="GenManual_Click" Tag="manual"
+                                        Padding="12,4" Margin="0,0,6,6"
+                                        Background="#2563EB" Foreground="White" BorderThickness="0"/>
+                                <Button Content="日程表" Click="GenReport_Click" Tag="schedule"
+                                        Padding="12,4" Margin="0,0,6,6"
+                                        Background="#3B82F6" Foreground="White" BorderThickness="0"/>
+                                <Button Content="出发表" Click="GenReport_Click" Tag="startList"
+                                        Padding="12,4" Margin="0,0,6,6"
+                                        Background="#1D4ED8" Foreground="White" BorderThickness="0"/>
+                                <Button Content="本组成绩" Click="GenReport_Click" Tag="currentHeat"
+                                        Padding="12,4" Margin="0,0,6,6"
+                                        Background="#059669" Foreground="White" BorderThickness="0"/>
+                                <Button Content="分组成绩" Click="GenReport_Click" Tag="heatResults"
+                                        Padding="12,4" Margin="0,0,6,6"
+                                        Background="#10B981" Foreground="White" BorderThickness="0"/>
+                                <Button Content="项目成绩" Click="GenReport_Click" Tag="eventResults"
+                                        Padding="12,4" Margin="0,0,6,6"
+                                        Background="#34D399" Foreground="White" BorderThickness="0"/>
+                                <Button Content="成绩册" Click="GenReport_Click" Tag="fullResultBook"
+                                        Padding="12,4" Margin="0,0,6,6"
+                                        Background="#047857" Foreground="White" BorderThickness="0"/>
+                                <Button Content="分段计时报告" Click="GenReport_Click" Tag="splitTimeReport"
+                                        Padding="12,4" Margin="0,0,6,6"
+                                        Background="#65A30D" Foreground="White" BorderThickness="0"/>
+                                <Button Content="团体成绩" Click="GenReport_Click" Tag="teamStandings"
+                                        Padding="12,4" Margin="0,0,6,6"
+                                        Background="#D97706" Foreground="White" BorderThickness="0"/>
+                                <Button Content="纪录报告" Click="GenReport_Click" Tag="recordReport"
+                                        Padding="12,4" Margin="0,0,6,6"
+                                        Background="#F59E0B" Foreground="Black" BorderThickness="0"/>
+                                <Button Content="奖状" Click="GenReport_Click" Tag="awardCertificate"
+                                        Padding="12,4" Margin="0,0,6,6"
+                                        Background="#DC2626" Foreground="White" BorderThickness="0"/>
+                                <Button Content="纪录证书" Click="GenReport_Click" Tag="recordCertificate"
+                                        Padding="12,4" Margin="0,0,6,6"
+                                        Background="#E11D48" Foreground="White" BorderThickness="0"/>
+                                <Button Content="日程表 CSV" Click="GenReport_Click" Tag="exportScheduleCSV"
+                                        Padding="12,4" Margin="20,0,6,6"
+                                        Background="#22C55E" Foreground="White" BorderThickness="0"
+                                        ToolTip="导出日程表为 CSV 文件"/>
+                                <Button Content="分组表 Excel" Click="GenReport_Click" Tag="exportHeatAssignExcel"
+                                        Padding="12,4" Margin="0,0,6,6"
+                                        Background="#16A34A" Foreground="White" BorderThickness="0"
+                                        ToolTip="导出分组表为 Excel"/>
+                                <Button Content="分组表 CSV" Click="GenReport_Click" Tag="exportHeatAssignCSV"
+                                        Padding="12,4" Margin="0,0,6,6"
+                                        Background="#15803D" Foreground="White" BorderThickness="0"/>
+                            </WrapPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,6">
                         <Button Content="刷新文档列表" Click="RefreshDocuments_Click"
                                 Padding="14,4" Margin="0,0,6,0"
                                 Background="#3B82F6" Foreground="White" BorderThickness="0"/>
@@ -443,7 +501,7 @@
                                    Foreground="#64748B" FontSize="12"/>
                     </StackPanel>
 
-                    <DataGrid x:Name="DocGrid" Grid.Row="1"
+                    <DataGrid x:Name="DocGrid" Grid.Row="2"
                               AutoGenerateColumns="False" IsReadOnly="True"
                               CanUserAddRows="False" SelectionUnit="FullRow"
                               GridLinesVisibility="Horizontal"

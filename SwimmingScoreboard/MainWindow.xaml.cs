@@ -1019,6 +1019,9 @@ namespace SwimmingScoreboard
                 case "DELETE_SCHEDULE_ITEM":
                     HandleEditorDeleteScheduleItem(data as JObject);
                     break;
+                case "GENERATE_REPORT":
+                    HandleEditorGenerateReport(data as JObject);
+                    break;
                 case "EXECUTE_PROMOTION":
                     if (data != null) {
                         string pGender = data["gender"] != null ? data["gender"].ToString() : "";
@@ -6134,6 +6137,35 @@ namespace SwimmingScoreboard
             Broadcast();
             AddLog(string.Format("编辑端{0}接力队: {1} {2} {3}（{4} 棒）",
                 isNew ? "新增" : "更新", gender, evName, teamName, existing.Legs.Count));
+        }
+
+        // 编辑端 — 触发服务器生成 / 打开各种报告（路由到既有 Print*_Click 方法）
+        private void HandleEditorGenerateReport(JObject data) {
+            if (data == null) { AddLog("GENERATE_REPORT 数据为空"); return; }
+            string type = data["type"] != null ? data["type"].ToString() : "";
+            try {
+                switch (type) {
+                    case "manual":           PrintManual_Click(null, null); break;
+                    case "schedule":         PrintSchedule_Click(null, null); break;
+                    case "startList":        PrintStartList_Click(null, null); break;
+                    case "heatResults":      PrintHeatResults_Click(null, null); break;
+                    case "currentHeat":      PrintCurrentHeatResult_Click(null, null); break;
+                    case "eventResults":     PrintEventResults_Click(null, null); break;
+                    case "fullResultBook":   PrintFullResultBook_Click(null, null); break;
+                    case "teamStandings":    PrintTeamStandings_Click(null, null); break;
+                    case "recordReport":     PrintRecordReport_Click(null, null); break;
+                    case "awardCertificate": PrintAwardCertificate_Click(null, null); break;
+                    case "recordCertificate":PrintRecordCertificate_Click(null, null); break;
+                    case "splitTimeReport":  PrintSplitTimeReport_Click(null, null); break;
+                    case "exportScheduleCSV":     ExportScheduleCSV_Click(null, null); break;
+                    case "exportHeatAssignExcel": ExportHeatAssignmentsExcel_Click(null, null); break;
+                    case "exportHeatAssignCSV":   ExportHeatAssignmentsCSV_Click(null, null); break;
+                    default: AddLog("未识别的报告类型: " + type); break;
+                }
+                AddLog("编辑端触发报告: " + type);
+            } catch (Exception ex) {
+                AddLog("报告生成失败 (" + type + "): " + ex.Message);
+            }
         }
 
         // 编辑端 — 赛程项 新增 / 更新 / 删除

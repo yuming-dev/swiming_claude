@@ -825,6 +825,36 @@ namespace ScheduleEditor
             }));
         }
 
+        // 生成报告 — 让服务器调对应的 Print*_Click / Export*_Click，把文件写到 Documents/，
+        // 完成后让用户点"刷新文档列表"看到新文件，或在主服务器机器直接弹开。
+        private void GenManual_Click(object sender, RoutedEventArgs e) {
+            GenReportInternal("manual", "秩序册");
+        }
+
+        private void GenReport_Click(object sender, RoutedEventArgs e) {
+            var btn = sender as System.Windows.Controls.Button;
+            if (btn == null || btn.Tag == null) return;
+            string type = btn.Tag.ToString();
+            string label = btn.Content != null ? btn.Content.ToString() : type;
+            GenReportInternal(type, label);
+        }
+
+        private void GenReportInternal(string type, string label) {
+            if (_ws == null || !_ws.IsConnected) {
+                MessageBox.Show("未连接到主服务器，请先连接。", "提示",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            _ws.Send(JsonConvert.SerializeObject(new {
+                type = "TIMING_CMD",
+                command = "GENERATE_REPORT",
+                data = new { type = type }
+            }));
+            // 提示用户稍后刷新文档列表查看
+            MessageBox.Show(string.Format("已请求主服务器生成 [{0}]。\n稍等几秒后点 [刷新文档列表] 查看生成的文件。", label),
+                "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+
         private void DocGrid_DoubleClick(object sender, MouseButtonEventArgs e) {
             var d = DocGrid.SelectedItem as DocRow;
             if (d == null || string.IsNullOrEmpty(d.Path)) return;
