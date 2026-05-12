@@ -971,6 +971,15 @@ namespace SwimmingScoreboard
                 case "DEVICE_TEST_TOGGLE":
                     DeviceTest_Click(null, null);
                     break;
+                case "UPDATE_SWIMMER":
+                    HandleEditorUpdateSwimmer(data as JObject);
+                    break;
+                case "DELETE_SWIMMER":
+                    HandleEditorDeleteSwimmer(data as JObject);
+                    break;
+                case "LIST_DOCUMENTS":
+                    HandleEditorListDocuments();
+                    break;
                 case "EXECUTE_PROMOTION":
                     if (data != null) {
                         string pGender = data["gender"] != null ? data["gender"].ToString() : "";
@@ -1616,6 +1625,35 @@ namespace SwimmingScoreboard
                     };
                 }).ToList(),
                 swimmers = swimmerData,
+                // ScheduleEditor 编辑端使用：全量运动员列表（不限当前组），用于赛事管理与报名/成绩与排名/文档打印
+                allSwimmers = _swimmers.Select(sw => new {
+                    bibNumber = sw.BibNumber,
+                    name = sw.Name,
+                    gender = sw.Gender,
+                    birthDate = sw.BirthDate,
+                    age = sw.Age,
+                    ageCategory = sw.AgeCategory,
+                    country = sw.Country,
+                    countryShort = sw.CountryShort ?? "",
+                    eventName = sw.EventName,
+                    currentStage = sw.CurrentStage,
+                    heat = sw.Heat,
+                    lane = sw.Lane,
+                    entryTime = sw.EntryTime,
+                    finalTime = sw.Results.Where(r => r.Stage == sw.CurrentStage)
+                                          .Select(r => r.FinalTimeDisplay).FirstOrDefault() ?? "",
+                    timingSource = sw.Results.Where(r => r.Stage == sw.CurrentStage)
+                                             .Select(r => r.TimingSource).FirstOrDefault() ?? "",
+                    startingBlockTime = sw.Results.Where(r => r.Stage == sw.CurrentStage)
+                                                  .Select(r => r.StartingBlockTime > 0 ? r.StartingBlockTime.ToString("F3") : "").FirstOrDefault() ?? "",
+                    recordNote = sw.Results.Where(r => r.Stage == sw.CurrentStage)
+                                           .Select(r => r.RecordNote ?? "").FirstOrDefault() ?? "",
+                    currentRank = sw.CurrentRank,
+                    status = sw.Status ?? "",
+                    idNumber = sw.IDNumber ?? "",
+                    phone = sw.Phone ?? "",
+                    notes = sw.Notes ?? ""
+                }).ToList(),
                 laneDevices = _laneDeviceStates.Select(s => new {
                     lane = s.Lane,
                     leftTouchpadBroken = s.LeftTouchpadBroken,
@@ -5824,6 +5862,98 @@ namespace SwimmingScoreboard
             UpdateLaneStatusDisplay();        // 立即刷新本地泳道实时状态 UI
             Broadcast();
             SendDeviceStatusesToHardware();   // 同步该泳道的设备状态到硬件
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        // ScheduleEditor 编辑端 — WebSocket 命令处理
+        // ═══════════════════════════════════════════════════════════════
+        private void HandleEditorUpdateSwimmer(JObject data) {
+            if (data == null) { AddLog("UPDATE_SWIMMER 数据为空"); return; }
+            string bib = data["bibNumber"] != null ? data["bibNumber"].ToString() : "";
+            string name = data["name"] != null ? data["name"].ToString() : "";
+            string ev = data["eventName"] != null ? data["eventName"].ToString() : "";
+            // 按 (bibNumber + eventName) 或 (name + eventName) 定位记录
+            var sw = _swimmers.FirstOrDefault(s =>
+                !string.IsNullOrEmpty(bib) && s.BibNumber == bib && s.EventName == ev);
+            if (sw == null) sw = _swimmers.FirstOrDefault(s => s.Name == name && s.EventName == ev);
+            if (sw == null) {
+                AddLog(string.Format("UPDATE_SWIMMER 找不到: {0}({1}) {2}", name, bib, ev));
+                return;
+            }
+            // 应用字段
+            if (data["name"] != null) sw.Name = data["name"].ToString();
+            if (data["gender"] != null) sw.Gender = data["gender"].ToString();
+            if (data["birthDate"] != null) sw.BirthDate = data["birthDate"].ToString();
+            int ageVal;
+            if (data["age"] != null && int.TryParse(data["age"].ToString(), out ageVal)) sw.Age = ageVal;
+            if (data["country"] != null) sw.Country = data["country"].ToString();
+            if (data["currentStage"] != null) sw.CurrentStage = data["currentStage"].ToString();
+            if (data["entryTime"] != null) {
+                sw.EntryTime = data["entryTime"].ToString();
+                sw.EntryTimeSeconds = TimeFormatter.Parse(sw.EntryTime);
+            }
+            if (data["idNumber"] != null) sw.IDNumber = data["idNumber"].ToString();
+            if (data["phone"] != null) sw.Phone = data["phone"].ToString();
+            if (data["notes"] != null) sw.Notes = data["notes"].ToString();
+            AutoSaveData();
+            RefreshOverviewStats();
+            RefreshSwimmerFilter();
+            Broadcast();
+            AddLog(string.Format("编辑端更新运动员: {0}({1}) {2}", sw.Name, sw.BibNumber, sw.EventName));
+        }
+
+        private void HandleEditorDeleteSwimmer(JObject data) {
+            if (data == null) { AddLog("DELETE_SWIMMER 数据为空"); return; }
+            string bib = data["bibNumber"] != null ? data["bibNumber"].ToString() : "";
+            string name = data["name"] != null ? data["name"].ToString() : "";
+            string ev = data["eventName"] != null ? data["eventName"].ToString() : "";
+            var sw = _swimmers.FirstOrDefault(s =>
+                !string.IsNullOrEmpty(bib) && s.BibNumber == bib && s.EventName == ev);
+            if (sw == null) sw = _swimmers.FirstOrDefault(s => s.Name == name && s.EventName == ev);
+            if (sw == null) {
+                AddLog(string.Format("DELETE_SWIMMER 找不到: {0}({1}) {2}", name, bib, ev));
+                return;
+            }
+            _swimmers.Remove(sw);
+            AutoSaveData();
+            RefreshOverviewStats();
+            RefreshSwimmerFilter();
+            Broadcast();
+            AddLog(string.Format("编辑端删除运动员: {0}({1}) {2}", sw.Name, sw.BibNumber, sw.EventName));
+        }
+
+        private void HandleEditorListDocuments() {
+            // 列出 Documents/ 和 Database/RawData/ 下所有报告文件
+            var list = new List<object>();
+            string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+            ScanDocDir(list, IOPath.Combine(baseDir, "Documents"), "Documents");
+            ScanDocDir(list, IOPath.Combine(baseDir, "Database", "RawData"), "原始数据");
+            string json = JsonConvert.SerializeObject(new { type = "DOC_LIST_RESULT", data = list });
+            foreach (var s in _allSockets.ToList()) {
+                try { s.Send(json); } catch { }
+            }
+        }
+
+        private void ScanDocDir(List<object> list, string dir, string category) {
+            try {
+                if (!Directory.Exists(dir)) return;
+                foreach (string path in Directory.GetFiles(dir)) {
+                    var fi = new FileInfo(path);
+                    list.Add(new {
+                        category = category,
+                        fileName = fi.Name,
+                        path = path,
+                        time = fi.LastWriteTime.ToString("yyyy-MM-dd HH:mm:ss"),
+                        size = FormatFileSize(fi.Length)
+                    });
+                }
+            } catch { }
+        }
+
+        private static string FormatFileSize(long bytes) {
+            if (bytes < 1024) return bytes + " B";
+            if (bytes < 1024 * 1024) return (bytes / 1024.0).ToString("F1") + " KB";
+            return (bytes / 1024.0 / 1024.0).ToString("F2") + " MB";
         }
 
         private bool ConfirmMarkStatus(int lane, string status, string desc) {

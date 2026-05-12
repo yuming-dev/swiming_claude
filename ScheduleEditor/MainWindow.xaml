@@ -1,0 +1,199 @@
+<Window x:Class="ScheduleEditor.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="编排记录及成绩处理 - 游泳赛事管理系统"
+        Width="1280" Height="800"
+        WindowStartupLocation="CenterScreen"
+        Background="#F1F5F9">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="48"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- 顶部连接栏：服务器 IP + 连接按钮 + 状态点 + 当前用户 -->
+        <Border Grid.Row="0" Background="#1E40AF">
+            <Grid Margin="12,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Text="编排记录及成绩处理"
+                           Foreground="White" FontWeight="Bold" FontSize="15"
+                           VerticalAlignment="Center"/>
+                <TextBlock Grid.Column="1" Text="主服务器:"
+                           Foreground="#BFDBFE" FontSize="12" Margin="20,0,6,0"
+                           VerticalAlignment="Center"/>
+                <TextBox x:Name="ServerHostBox" Grid.Column="2"
+                         Text="127.0.0.1:3002" Width="160" Padding="4"
+                         Background="#1E3A8A" Foreground="White" BorderBrush="#3B82F6"
+                         FontSize="12" VerticalContentAlignment="Center"/>
+                <Button x:Name="ConnectBtn" Grid.Column="3" Content="连接"
+                        Click="Connect_Click" Padding="14,2" Margin="6,0,0,0"
+                        Background="#3B82F6" Foreground="White" BorderThickness="0"
+                        FontSize="12" FontWeight="Bold"/>
+                <StackPanel Grid.Column="4" Orientation="Horizontal"
+                            VerticalAlignment="Center" Margin="14,0,0,0">
+                    <Ellipse x:Name="ConnDot" Width="10" Height="10" Fill="#EF4444"
+                             Margin="0,0,5,0"/>
+                    <TextBlock x:Name="ConnStatusText" Text="未连接"
+                               Foreground="#BFDBFE" FontSize="12"/>
+                </StackPanel>
+                <TextBlock Grid.Column="6" x:Name="UserText" Text=""
+                           Foreground="#BFDBFE" FontSize="12"
+                           VerticalAlignment="Center" Margin="0,0,8,0"/>
+            </Grid>
+        </Border>
+
+        <!-- 主体：三个 Tab -->
+        <TabControl Grid.Row="1" Margin="6">
+            <TabItem Header="赛事管理与报名">
+                <Grid Margin="6">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- 工具栏：刷新、筛选、新增 -->
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,6">
+                        <Button Content="刷新" Click="RefreshSwimmers_Click"
+                                Padding="14,4" Margin="0,0,6,0"
+                                Background="#3B82F6" Foreground="White" BorderThickness="0"/>
+                        <TextBlock Text="项目:" VerticalAlignment="Center" Margin="6,0,4,0"/>
+                        <ComboBox x:Name="FilterEventCombo" Width="160"
+                                  SelectionChanged="Filter_Changed"/>
+                        <TextBlock Text="性别:" VerticalAlignment="Center" Margin="12,0,4,0"/>
+                        <ComboBox x:Name="FilterGenderCombo" Width="60"
+                                  SelectionChanged="Filter_Changed"/>
+                        <TextBlock Text="代表队:" VerticalAlignment="Center" Margin="12,0,4,0"/>
+                        <ComboBox x:Name="FilterCountryCombo" Width="120"
+                                  SelectionChanged="Filter_Changed"/>
+                        <TextBlock Text="搜索:" VerticalAlignment="Center" Margin="12,0,4,0"/>
+                        <TextBox x:Name="SearchBox" Width="140"
+                                 TextChanged="Filter_Changed"/>
+                        <Button Content="新增运动员" Click="AddSwimmer_Click"
+                                Padding="14,4" Margin="20,0,6,0"
+                                Background="#22C55E" Foreground="White" BorderThickness="0"/>
+                        <Button Content="删除选中" Click="DeleteSwimmer_Click"
+                                Padding="14,4" Margin="0,0,6,0"
+                                Background="#EF4444" Foreground="White" BorderThickness="0"/>
+                        <TextBlock x:Name="SwimmerCountText" Text=""
+                                   VerticalAlignment="Center" Margin="20,0,0,0"
+                                   Foreground="#64748B"/>
+                    </StackPanel>
+
+                    <!-- 运动员表格 -->
+                    <DataGrid x:Name="SwimmerGrid" Grid.Row="1"
+                              AutoGenerateColumns="False" IsReadOnly="False"
+                              CanUserAddRows="False" CanUserDeleteRows="False"
+                              SelectionUnit="FullRow" SelectionMode="Extended"
+                              GridLinesVisibility="Horizontal"
+                              AlternatingRowBackground="#F8FAFC"
+                              HeadersVisibility="Column" FontSize="13" RowHeight="28"
+                              MouseDoubleClick="SwimmerGrid_DoubleClick">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="编号" Binding="{Binding BibNumber}" Width="70"/>
+                            <DataGridTextColumn Header="姓名" Binding="{Binding Name}" Width="100"/>
+                            <DataGridTextColumn Header="性别" Binding="{Binding Gender}" Width="55"/>
+                            <DataGridTextColumn Header="出生年月" Binding="{Binding BirthDate}" Width="100"/>
+                            <DataGridTextColumn Header="年龄组" Binding="{Binding AgeCategory}" Width="80"/>
+                            <DataGridTextColumn Header="代表队" Binding="{Binding Country}" Width="120"/>
+                            <DataGridTextColumn Header="项目" Binding="{Binding EventName}" Width="160"/>
+                            <DataGridTextColumn Header="赛次" Binding="{Binding CurrentStage}" Width="70"/>
+                            <DataGridTextColumn Header="组次" Binding="{Binding Heat}" Width="55"/>
+                            <DataGridTextColumn Header="泳道" Binding="{Binding Lane}" Width="55"/>
+                            <DataGridTextColumn Header="报名成绩" Binding="{Binding EntryTime}" Width="100"/>
+                            <DataGridTextColumn Header="状态" Binding="{Binding Status}" Width="60"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </TabItem>
+
+            <TabItem Header="成绩与排名">
+                <Grid Margin="6">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,6">
+                        <TextBlock Text="项目:" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                        <ComboBox x:Name="ResultEventCombo" Width="160"
+                                  SelectionChanged="ResultFilter_Changed"/>
+                        <TextBlock Text="性别:" VerticalAlignment="Center" Margin="12,0,4,0"/>
+                        <ComboBox x:Name="ResultGenderCombo" Width="60"
+                                  SelectionChanged="ResultFilter_Changed"/>
+                        <TextBlock Text="赛次:" VerticalAlignment="Center" Margin="12,0,4,0"/>
+                        <ComboBox x:Name="ResultStageCombo" Width="80"
+                                  SelectionChanged="ResultFilter_Changed"/>
+                        <Button Content="刷新" Click="RefreshResults_Click"
+                                Padding="14,4" Margin="14,0,0,0"
+                                Background="#3B82F6" Foreground="White" BorderThickness="0"/>
+                        <TextBlock x:Name="ResultCountText" Text=""
+                                   VerticalAlignment="Center" Margin="20,0,0,0"
+                                   Foreground="#64748B"/>
+                    </StackPanel>
+
+                    <DataGrid x:Name="ResultGrid" Grid.Row="1"
+                              AutoGenerateColumns="False" IsReadOnly="True"
+                              CanUserAddRows="False" GridLinesVisibility="Horizontal"
+                              AlternatingRowBackground="#F8FAFC"
+                              HeadersVisibility="Column" FontSize="13" RowHeight="28">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="名次" Binding="{Binding Rank}" Width="55"/>
+                            <DataGridTextColumn Header="编号" Binding="{Binding BibNumber}" Width="70"/>
+                            <DataGridTextColumn Header="姓名" Binding="{Binding Name}" Width="120"/>
+                            <DataGridTextColumn Header="代表队" Binding="{Binding Country}" Width="120"/>
+                            <DataGridTextColumn Header="年龄组" Binding="{Binding AgeCategory}" Width="80"/>
+                            <DataGridTextColumn Header="组次" Binding="{Binding Heat}" Width="55"/>
+                            <DataGridTextColumn Header="泳道" Binding="{Binding Lane}" Width="55"/>
+                            <DataGridTextColumn Header="成绩" Binding="{Binding FinalTime}" Width="100"/>
+                            <DataGridTextColumn Header="计时源" Binding="{Binding TimingSource}" Width="80"/>
+                            <DataGridTextColumn Header="反应时" Binding="{Binding StartingBlockTime}" Width="80"/>
+                            <DataGridTextColumn Header="备注" Binding="{Binding RecordNote}" Width="100"/>
+                            <DataGridTextColumn Header="状态" Binding="{Binding Status}" Width="60"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </TabItem>
+
+            <TabItem Header="文档编辑/输出/打印">
+                <Grid Margin="6">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,6">
+                        <Button Content="刷新文档列表" Click="RefreshDocuments_Click"
+                                Padding="14,4" Margin="0,0,6,0"
+                                Background="#3B82F6" Foreground="White" BorderThickness="0"/>
+                        <TextBlock Text="（双击文件名打开；服务器 Documents/RawData 目录）"
+                                   VerticalAlignment="Center" Margin="14,0,0,0"
+                                   Foreground="#64748B" FontSize="12"/>
+                    </StackPanel>
+
+                    <DataGrid x:Name="DocGrid" Grid.Row="1"
+                              AutoGenerateColumns="False" IsReadOnly="True"
+                              CanUserAddRows="False" SelectionUnit="FullRow"
+                              GridLinesVisibility="Horizontal"
+                              AlternatingRowBackground="#F8FAFC"
+                              HeadersVisibility="Column" FontSize="13" RowHeight="26"
+                              MouseDoubleClick="DocGrid_DoubleClick">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="类别" Binding="{Binding Category}" Width="90"/>
+                            <DataGridTextColumn Header="文件名" Binding="{Binding FileName}" Width="500"/>
+                            <DataGridTextColumn Header="生成时间" Binding="{Binding Time}" Width="160"/>
+                            <DataGridTextColumn Header="大小" Binding="{Binding Size}" Width="80"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </TabItem>
+        </TabControl>
+    </Grid>
+</Window>

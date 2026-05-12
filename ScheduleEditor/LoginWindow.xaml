@@ -1,0 +1,54 @@
+<Window x:Class="ScheduleEditor.LoginWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="登录 - 编排记录及成绩处理"
+        Width="420" Height="320"
+        WindowStartupLocation="CenterScreen"
+        ResizeMode="NoResize"
+        Background="#0F172A">
+    <Grid Margin="24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Margin="0,0,0,18">
+            <TextBlock Text="编排记录及成绩处理" FontSize="20" FontWeight="Bold" Foreground="White"/>
+            <TextBlock Text="Schedule / Records / Results Editor" FontSize="12" Foreground="#94A3B8" Margin="0,2,0,0"/>
+        </StackPanel>
+
+        <Grid Grid.Row="1" Margin="0,0,0,12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="90"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0" Text="用户名" Foreground="#94A3B8" FontSize="14" VerticalAlignment="Center"/>
+            <TextBox x:Name="UserBox" Grid.Column="1" Padding="6" FontSize="14"
+                     Background="#1E293B" Foreground="White" BorderBrush="#475569"/>
+        </Grid>
+
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="90"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0" Text="密码" Foreground="#94A3B8" FontSize="14" VerticalAlignment="Center"/>
+            <PasswordBox x:Name="PasswordBox" Grid.Column="1" Padding="6" FontSize="14"
+                         Background="#1E293B" Foreground="White" BorderBrush="#475569"
+                         KeyDown="PasswordBox_KeyDown"/>
+        </Grid>
+
+        <TextBlock x:Name="StatusText" Grid.Row="3" Foreground="#EF4444" FontSize="13"
+                   Margin="0,12,0,0" TextWrapping="Wrap"/>
+
+        <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
+            <Button Content="修改密码" Click="ChangePassword_Click" Padding="14,6" Margin="0,0,8,0"
+                    Background="#475569" Foreground="White" BorderThickness="0" FontSize="13"/>
+            <Button Content="登录" Click="Login_Click" Padding="24,6" IsDefault="True"
+                    Background="#3B82F6" Foreground="White" BorderThickness="0" FontSize="14" FontWeight="Bold"/>
+        </StackPanel>
+    </Grid>
+</Window>
