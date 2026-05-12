@@ -1010,6 +1010,15 @@ namespace SwimmingScoreboard
                 case "UPDATE_STAGE_LIST":
                     HandleEditorUpdateStageList(data as JObject);
                     break;
+                case "ADD_SCHEDULE_ITEM":
+                    HandleEditorAddScheduleItem(data as JObject);
+                    break;
+                case "UPDATE_SCHEDULE_ITEM":
+                    HandleEditorUpdateScheduleItem(data as JObject);
+                    break;
+                case "DELETE_SCHEDULE_ITEM":
+                    HandleEditorDeleteScheduleItem(data as JObject);
+                    break;
                 case "EXECUTE_PROMOTION":
                     if (data != null) {
                         string pGender = data["gender"] != null ? data["gender"].ToString() : "";
@@ -6125,6 +6134,79 @@ namespace SwimmingScoreboard
             Broadcast();
             AddLog(string.Format("编辑端{0}接力队: {1} {2} {3}（{4} 棒）",
                 isNew ? "新增" : "更新", gender, evName, teamName, existing.Legs.Count));
+        }
+
+        // 编辑端 — 赛程项 新增 / 更新 / 删除
+        private void HandleEditorAddScheduleItem(JObject data) {
+            if (data == null) { AddLog("ADD_SCHEDULE_ITEM 数据为空"); return; }
+            var item = ParseScheduleItem(data);
+            if (item == null) return;
+            // 主键：性别 + 项目 + 赛次 + 组别 唯一（重复则更新而不是新增）
+            var existing = _schedule.FirstOrDefault(s =>
+                s.Gender == item.Gender && s.EventName == item.EventName
+                && s.Stage == item.Stage && (s.AgeGroup ?? "") == (item.AgeGroup ?? ""));
+            if (existing != null) {
+                existing.SessionNumber = item.SessionNumber;
+                existing.SessionName = item.SessionName;
+                existing.Date = item.Date;
+                existing.Time = item.Time;
+                existing.HeatCount = item.HeatCount;
+                existing.IsRelay = item.IsRelay;
+                AddLog(string.Format("编辑端更新赛程: {0} {1} {2} {3}",
+                    item.AgeGroup, item.Gender, item.EventName, item.Stage));
+            } else {
+                if (item.SessionNumber <= 0)
+                    item.SessionNumber = _schedule.Count > 0 ? _schedule.Max(s => s.SessionNumber) + 1 : 1;
+                _schedule.Add(item);
+                AddLog(string.Format("编辑端新增赛程: {0} {1} {2} {3}",
+                    item.AgeGroup, item.Gender, item.EventName, item.Stage));
+            }
+            BuildScheduleTree();
+            AutoSaveData();
+            Broadcast();
+        }
+
+        private void HandleEditorUpdateScheduleItem(JObject data) {
+            HandleEditorAddScheduleItem(data);   // 同一处理路径 — 找到就更新，找不到就新增
+        }
+
+        private void HandleEditorDeleteScheduleItem(JObject data) {
+            if (data == null) { AddLog("DELETE_SCHEDULE_ITEM 数据为空"); return; }
+            string gender = data["gender"] != null ? data["gender"].ToString() : "";
+            string evName = data["eventName"] != null ? data["eventName"].ToString() : "";
+            string stage = data["stage"] != null ? data["stage"].ToString() : "";
+            string ageGroup = data["ageGroup"] != null ? data["ageGroup"].ToString() : "";
+            var toRemove = _schedule.Where(s => s.Gender == gender && s.EventName == evName
+                && s.Stage == stage && (s.AgeGroup ?? "") == (ageGroup ?? "")).ToList();
+            foreach (var s in toRemove) _schedule.Remove(s);
+            BuildScheduleTree();
+            AutoSaveData();
+            Broadcast();
+            AddLog(string.Format("编辑端删除赛程: {0} {1} {2} {3}（共 {4} 条）",
+                ageGroup, gender, evName, stage, toRemove.Count));
+        }
+
+        private ScheduleItem ParseScheduleItem(JObject data) {
+            var item = new ScheduleItem();
+            item.Gender = data["gender"] != null ? data["gender"].ToString() : "";
+            item.EventName = data["eventName"] != null ? data["eventName"].ToString() : "";
+            item.Stage = data["stage"] != null ? data["stage"].ToString() : "";
+            item.AgeGroup = data["ageGroup"] != null ? data["ageGroup"].ToString() : "";
+            item.SessionName = data["sessionName"] != null ? data["sessionName"].ToString() : "";
+            item.Date = data["date"] != null ? data["date"].ToString() : "";
+            item.Time = data["time"] != null ? data["time"].ToString() : "";
+            int n;
+            if (data["sessionNumber"] != null && int.TryParse(data["sessionNumber"].ToString(), out n))
+                item.SessionNumber = n;
+            if (data["heatCount"] != null && int.TryParse(data["heatCount"].ToString(), out n))
+                item.HeatCount = n;
+            if (data["isRelay"] != null) item.IsRelay = (bool)data["isRelay"];
+            if (string.IsNullOrEmpty(item.Gender) || string.IsNullOrEmpty(item.EventName)
+                || string.IsNullOrEmpty(item.Stage)) {
+                AddLog("赛程项缺少 gender/eventName/stage 字段");
+                return null;
+            }
+            return item;
         }
 
         // 编辑端 — 整表替换 项目 / 组别 / 性别 / 赛次 配置

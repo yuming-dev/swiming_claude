@@ -175,6 +175,55 @@
                 </Grid>
             </TabItem>
 
+            <TabItem Header="赛程编排">
+                <Grid Margin="6">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,6">
+                        <Button Content="刷新" Click="RefreshSchedule_Click"
+                                Padding="14,4" Margin="0,0,6,0"
+                                Background="#3B82F6" Foreground="White" BorderThickness="0"/>
+                        <Button Content="新增赛程项" Click="AddSchedule_Click"
+                                Padding="14,4" Margin="0,0,6,0"
+                                Background="#22C55E" Foreground="White" BorderThickness="0"/>
+                        <Button Content="删除选中" Click="DeleteSchedule_Click"
+                                Padding="14,4" Margin="0,0,16,0"
+                                Background="#EF4444" Foreground="White" BorderThickness="0"/>
+                        <Button Content="预赛自动分组" Click="AutoGenerateHeats_Click"
+                                Padding="14,4"
+                                Background="#10B981" Foreground="White" BorderThickness="0"
+                                ToolTip="按报名成绩自动生成各项目预赛的分组（涉及全表所有项目）"/>
+                        <TextBlock x:Name="ScheduleCountText" Text=""
+                                   VerticalAlignment="Center" Margin="20,0,0,0"
+                                   Foreground="#64748B"/>
+                    </StackPanel>
+
+                    <DataGrid x:Name="ScheduleGrid" Grid.Row="1"
+                              AutoGenerateColumns="False" IsReadOnly="True"
+                              CanUserAddRows="False" SelectionUnit="FullRow" SelectionMode="Extended"
+                              GridLinesVisibility="Horizontal"
+                              AlternatingRowBackground="#F8FAFC"
+                              HeadersVisibility="Column" FontSize="13" RowHeight="28"
+                              MouseDoubleClick="ScheduleGrid_DoubleClick">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="单元#" Binding="{Binding SessionNumber}" Width="55"/>
+                            <DataGridTextColumn Header="单元名" Binding="{Binding SessionName}" Width="110"/>
+                            <DataGridTextColumn Header="日期" Binding="{Binding Date}" Width="100"/>
+                            <DataGridTextColumn Header="开始时间" Binding="{Binding Time}" Width="80"/>
+                            <DataGridTextColumn Header="组别" Binding="{Binding AgeGroup}" Width="80"/>
+                            <DataGridTextColumn Header="性别" Binding="{Binding Gender}" Width="55"/>
+                            <DataGridTextColumn Header="项目" Binding="{Binding EventName}" Width="180"/>
+                            <DataGridTextColumn Header="赛次" Binding="{Binding Stage}" Width="70"/>
+                            <DataGridTextColumn Header="组数" Binding="{Binding HeatCount}" Width="60"/>
+                            <DataGridCheckBoxColumn Header="接力" Binding="{Binding IsRelay}" Width="55"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </TabItem>
+
             <TabItem Header="比赛参数">
                 <TabControl Margin="6">
                     <TabItem Header="项目">

@@ -32,6 +32,7 @@ namespace ScheduleEditor
         public ObservableCollection<StringRow> GenderItems { get; set; }
         public ObservableCollection<StringRow> StageItems { get; set; }
         public ObservableCollection<AgeGroupItem> AgeGroupItems { get; set; }
+        public ObservableCollection<ScheduleRow> Schedules { get; set; }
 
         public MainWindow() {
             InitializeComponent();
@@ -43,6 +44,7 @@ namespace ScheduleEditor
             GenderItems = new ObservableCollection<StringRow>();
             StageItems = new ObservableCollection<StringRow>();
             AgeGroupItems = new ObservableCollection<AgeGroupItem>();
+            Schedules = new ObservableCollection<ScheduleRow>();
             SwimmerGrid.ItemsSource = Swimmers;
             RelayGrid.ItemsSource = Relays;
             ResultGrid.ItemsSource = Results;
@@ -51,6 +53,7 @@ namespace ScheduleEditor
             GenderGrid.ItemsSource = GenderItems;
             StageGrid.ItemsSource = StageItems;
             AgeGroupGrid.ItemsSource = AgeGroupItems;
+            ScheduleGrid.ItemsSource = Schedules;
 
             UserText.Text = "用户: " + CredentialStore.CurrentUser();
 
@@ -165,7 +168,10 @@ namespace ScheduleEditor
             //    简单策略：每次都重新拉取（用户应"保存"再切换 Tab）
             RebuildParamGrids();
 
-            // 4) 成绩 — 服务器 eventRanking 数组（已含名次 / final time / status 等）
+            // 4) 赛程
+            RebuildScheduleGrid();
+
+            // 5) 成绩 — 服务器 eventRanking 数组（已含名次 / final time / status 等）
             UpdateResultComboFilters();
             RebuildResultGrid();
         }
@@ -248,6 +254,95 @@ namespace ScheduleEditor
             var items = AgeGroupItems.Where(g => !string.IsNullOrEmpty(g.Name))
                 .Select(g => (object)new { name = g.Name, minAge = g.MinAge, maxAge = g.MaxAge });
             SendListUpdate("UPDATE_AGE_GROUP_LIST", items);
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        // 赛程编排
+        // ═══════════════════════════════════════════════════════════════
+        private void RebuildScheduleGrid() {
+            Schedules.Clear();
+            if (_data == null) return;
+            JArray sch = _data["schedule"] as JArray;
+            if (sch == null) return;
+            foreach (JObject o in sch) {
+                Schedules.Add(new ScheduleRow {
+                    SessionNumber = ParseIntOr(Get(o, "sessionNumber"), 0),
+                    SessionName = Get(o, "sessionName"),
+                    Date = Get(o, "date"),
+                    Time = Get(o, "time"),
+                    AgeGroup = Get(o, "ageGroup"),
+                    Gender = Get(o, "gender"),
+                    EventName = Get(o, "eventName"),
+                    Stage = Get(o, "stage"),
+                    HeatCount = ParseIntOr(Get(o, "heatCount"), 0),
+                    IsRelay = o["isRelay"] != null && (bool)o["isRelay"]
+                });
+            }
+            ScheduleCountText.Text = string.Format("共 {0} 项赛程", Schedules.Count);
+        }
+
+        private void RefreshSchedule_Click(object sender, RoutedEventArgs e) { RebuildScheduleGrid(); }
+
+        private void AddSchedule_Click(object sender, RoutedEventArgs e) {
+            var dlg = new ScheduleItemEditDialog(null, _data);
+            dlg.Owner = this;
+            if (dlg.ShowDialog() == true) {
+                _ws.Send(JsonConvert.SerializeObject(new {
+                    type = "TIMING_CMD",
+                    command = "ADD_SCHEDULE_ITEM",
+                    data = dlg.Result
+                }));
+            }
+        }
+
+        private void DeleteSchedule_Click(object sender, RoutedEventArgs e) {
+            var sel = ScheduleGrid.SelectedItems.Cast<ScheduleRow>().ToList();
+            if (sel.Count == 0) {
+                MessageBox.Show("请先选中要删除的赛程项", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            string preview = string.Join("\n", sel.Take(8)
+                .Select(s => string.Format("· [{0}] {1} {2} {3}", s.AgeGroup, s.Gender, s.EventName, s.Stage)));
+            if (sel.Count > 8) preview += string.Format("\n... 及其它 {0} 条", sel.Count - 8);
+            var r = MessageBox.Show(string.Format("确定删除以下 {0} 项赛程？\n\n{1}", sel.Count, preview),
+                "确认删除", MessageBoxButton.YesNo, MessageBoxImage.Question);
+            if (r != MessageBoxResult.Yes) return;
+            foreach (var s in sel) {
+                _ws.Send(JsonConvert.SerializeObject(new {
+                    type = "TIMING_CMD",
+                    command = "DELETE_SCHEDULE_ITEM",
+                    data = new {
+                        gender = s.Gender,
+                        eventName = s.EventName,
+                        stage = s.Stage,
+                        ageGroup = s.AgeGroup
+                    }
+                }));
+            }
+        }
+
+        private void ScheduleGrid_DoubleClick(object sender, MouseButtonEventArgs e) {
+            var row = ScheduleGrid.SelectedItem as ScheduleRow;
+            if (row == null) return;
+            var dlg = new ScheduleItemEditDialog(row, _data);
+            dlg.Owner = this;
+            if (dlg.ShowDialog() == true) {
+                _ws.Send(JsonConvert.SerializeObject(new {
+                    type = "TIMING_CMD",
+                    command = "UPDATE_SCHEDULE_ITEM",
+                    data = dlg.Result
+                }));
+            }
+        }
+
+        private void AutoGenerateHeats_Click(object sender, RoutedEventArgs e) {
+            var r = MessageBox.Show("确定按报名成绩重新生成各项目的预赛分组？\n\n（已有半决赛/决赛分组不受影响）",
+                "确认", MessageBoxButton.YesNo, MessageBoxImage.Question);
+            if (r != MessageBoxResult.Yes) return;
+            _ws.Send(JsonConvert.SerializeObject(new {
+                type = "TIMING_CMD",
+                command = "AUTO_GENERATE_HEATS"
+            }));
         }
 
         private void SendListUpdate(string command, System.Collections.Generic.IEnumerable<object> items) {
@@ -881,6 +976,20 @@ namespace ScheduleEditor
         }
         public event System.ComponentModel.PropertyChangedEventHandler PropertyChanged;
         private void Fire(string p) { if (PropertyChanged != null) PropertyChanged(this, new System.ComponentModel.PropertyChangedEventArgs(p)); }
+    }
+
+    public class ScheduleRow
+    {
+        public int SessionNumber { get; set; }
+        public string SessionName { get; set; }
+        public string Date { get; set; }
+        public string Time { get; set; }
+        public string AgeGroup { get; set; }
+        public string Gender { get; set; }
+        public string EventName { get; set; }
+        public string Stage { get; set; }
+        public int HeatCount { get; set; }
+        public bool IsRelay { get; set; }
     }
 
     public class RelayRow
