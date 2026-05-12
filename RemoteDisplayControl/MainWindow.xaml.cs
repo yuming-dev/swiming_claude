@@ -49,6 +49,13 @@ namespace RemoteDisplayControl
             }
         }
 
+        // 顶部右上角"修改用户名和密码"按钮 — 弹 ChangePasswordWindow，凭据存 display_credentials.json
+        private void ChangePassword_Click(object sender, RoutedEventArgs e) {
+            var dlg = new ChangePasswordWindow();
+            dlg.Owner = this;
+            dlg.ShowDialog();
+        }
+
         private void SendMode_Click(object sender, RoutedEventArgs e) {
             if (_ws == null || !_ws.IsConnected) {
                 StatusText.Text = "请先连接服务器";

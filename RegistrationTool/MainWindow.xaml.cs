@@ -38,6 +38,13 @@ namespace RegistrationTool
             ConnBtn.Content = btnLabel;
         }
 
+        // 顶部"修改用户名和密码"按钮 — 弹 ChangePasswordWindow，凭据存 register_credentials.json
+        private void ChangePassword_Click(object sender, RoutedEventArgs e) {
+            var dlg = new ChangePasswordWindow();
+            dlg.Owner = this;
+            dlg.ShowDialog();
+        }
+
         private void Connect_Click(object sender, RoutedEventArgs e) {
             if (_ws != null && _ws.IsConnected) {
                 _ws.Close();

@@ -27,6 +27,7 @@
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
+    <Reference Include="System.Security" />
     <Reference Include="System.Xaml"><RequiredTargetFramework>4.0</RequiredTargetFramework></Reference>
     <Reference Include="WindowsBase" />
     <Reference Include="PresentationCore" />
@@ -41,9 +42,16 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </Page>
+    <Page Include="LoginWindow.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
     <Compile Include="App.xaml.cs"><DependentUpon>App.xaml</DependentUpon></Compile>
     <Compile Include="MainWindow.xaml.cs"><DependentUpon>MainWindow.xaml</DependentUpon></Compile>
+    <Compile Include="LoginWindow.xaml.cs"><DependentUpon>LoginWindow.xaml</DependentUpon></Compile>
     <Compile Include="SimpleWebSocketClient.cs" />
+    <Compile Include="CredentialStore.cs" />
+    <Compile Include="ChangePasswordWindow.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>
