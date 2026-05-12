@@ -50,6 +50,17 @@ namespace ScheduleEditor
         }
 
         // ═══════════════════════════════════════════════════════════════
+        // 修改用户名和密码（顶部按钮）
+        // ═══════════════════════════════════════════════════════════════
+        private void ChangePassword_Click(object sender, RoutedEventArgs e) {
+            var dlg = new ChangePasswordWindow();
+            dlg.Owner = this;
+            dlg.ShowDialog();
+            // 改密后顶部用户名同步刷新
+            UserText.Text = "用户: " + CredentialStore.CurrentUser();
+        }
+
+        // ═══════════════════════════════════════════════════════════════
         // 服务器连接
         // ═══════════════════════════════════════════════════════════════
         private void Connect_Click(object sender, RoutedEventArgs e) {

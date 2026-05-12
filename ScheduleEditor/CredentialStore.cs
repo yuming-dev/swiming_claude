@@ -101,5 +101,41 @@ namespace ScheduleEditor
             for (int i = 0; i < r.Length; i++) r[i] = Convert.ToByte(hex.Substring(i * 2, 2), 16);
             return r;
         }
+
+        // ═══════════════════════════════════════════════════════════════
+        // 记住登录名和密码 — 与主服务器 LoginWindow 行为一致：
+        // 用户名明文，密码用当前 Windows 用户的 DPAPI 加密后 Base64 存盘
+        // ═══════════════════════════════════════════════════════════════
+        private static string RememberPath {
+            get { return Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "editor_remember.json"); }
+        }
+
+        public static void SaveRemembered(string username, string password) {
+            try {
+                byte[] enc = ProtectedData.Protect(Encoding.UTF8.GetBytes(password ?? ""), null, DataProtectionScope.CurrentUser);
+                var obj = new JObject();
+                obj["Username"] = username ?? "";
+                obj["EncryptedPassword"] = Convert.ToBase64String(enc);
+                File.WriteAllText(RememberPath, obj.ToString(Newtonsoft.Json.Formatting.None), Encoding.UTF8);
+            } catch { }
+        }
+
+        public static void ClearRemembered() {
+            try { if (File.Exists(RememberPath)) File.Delete(RememberPath); } catch { }
+        }
+
+        public static bool TryLoadRemembered(out string username, out string password) {
+            username = null; password = null;
+            try {
+                if (!File.Exists(RememberPath)) return false;
+                JObject obj = JObject.Parse(File.ReadAllText(RememberPath, Encoding.UTF8));
+                string u = obj["Username"] != null ? obj["Username"].ToString() : "";
+                string enc = obj["EncryptedPassword"] != null ? obj["EncryptedPassword"].ToString() : "";
+                byte[] dec = ProtectedData.Unprotect(Convert.FromBase64String(enc), null, DataProtectionScope.CurrentUser);
+                username = u;
+                password = Encoding.UTF8.GetString(dec);
+                return true;
+            } catch { return false; }
+        }
     }
 }

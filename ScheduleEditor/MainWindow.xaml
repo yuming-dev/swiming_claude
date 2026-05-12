@@ -1,7 +1,7 @@
 <Window x:Class="ScheduleEditor.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="编排记录及成绩处理 - 游泳赛事管理系统"
+        Title="游泳赛事管理系统 — 编排记录及成绩处理"
         Width="1280" Height="800"
         WindowStartupLocation="CenterScreen"
         Background="#F1F5F9">
@@ -44,9 +44,14 @@
                     <TextBlock x:Name="ConnStatusText" Text="未连接"
                                Foreground="#BFDBFE" FontSize="12"/>
                 </StackPanel>
-                <TextBlock Grid.Column="6" x:Name="UserText" Text=""
-                           Foreground="#BFDBFE" FontSize="12"
-                           VerticalAlignment="Center" Margin="0,0,8,0"/>
+                <StackPanel Grid.Column="6" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock x:Name="UserText" Text=""
+                               Foreground="#BFDBFE" FontSize="12"
+                               VerticalAlignment="Center" Margin="0,0,10,0"/>
+                    <Button Content="修改用户名和密码" Click="ChangePassword_Click"
+                            Padding="10,2" Background="#475569" Foreground="White"
+                            BorderThickness="0" FontSize="12"/>
+                </StackPanel>
             </Grid>
         </Border>
 
