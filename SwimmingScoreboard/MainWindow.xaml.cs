@@ -6576,6 +6576,17 @@ namespace SwimmingScoreboard
             orderRow.Children.Add(rbOrderRev);
             sp.Children.Add(orderRow);
 
+            //2026-05-12 新增：泳池触板安装方式（单边/两端）
+            //  HasRightStartBlock=true  -> 两端都有触板
+            //  HasRightStartBlock=false -> 只有一端有触板（单边）
+            var poolTpRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 10, 0, 0) };
+            poolTpRow.Children.Add(new TextBlock { Text = "泳池触板", Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), FontSize = 15, VerticalAlignment = VerticalAlignment.Center, Width = 140 });
+            var rbTpBoth = new RadioButton { Content = "两端安装", Foreground = Brushes.White, FontSize = 14, IsChecked = _poolConfig != null && _poolConfig.HasRightStartBlock, GroupName = "PoolTP", Margin = new Thickness(0, 0, 12, 0) };
+            var rbTpSingle = new RadioButton { Content = "单边安装", Foreground = Brushes.White, FontSize = 14, IsChecked = _poolConfig != null && !_poolConfig.HasRightStartBlock, GroupName = "PoolTP" };
+            poolTpRow.Children.Add(rbTpBoth);
+            poolTpRow.Children.Add(rbTpSingle);
+            sp.Children.Add(poolTpRow);
+
             // 设备状态管理按钮
             var deviceSep = new Border { BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569")), BorderThickness = new Thickness(0, 1, 0, 0), Margin = new Thickness(0, 10, 0, 0), Padding = new Thickness(0, 10, 0, 0) };
             var btnDeviceMgr = new Button { Content = "设备状态管理", Padding = new Thickness(0, 8, 0, 8), FontSize = 14, FontWeight = FontWeights.Bold, Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#8B5CF6")), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
@@ -6622,17 +6633,29 @@ namespace SwimmingScoreboard
                     foreach (var st in _laneDeviceStates) st.ResetForNewRace(_laneCloseSettings.StartPosition);
                 }
                 foreach (var st in _laneDeviceStates) st.LaneCloseTime = 0;
+
+                //2026-05-12 应用并同步新的"泳池触板安装方式"
+                bool newHasRight = rbTpBoth.IsChecked == true;
+                bool poolTpChanged = (_poolConfig != null) && (_poolConfig.HasRightStartBlock != newHasRight);
+                if (_poolConfig != null) _poolConfig.HasRightStartBlock = newHasRight;
+
                 SaveTimingSettings();
                 AutoSaveData();
                 UpdateLaneStatusDisplay();
                 Broadcast();
                 SendTimingSettingsToHardware();   // 同步到硬件计时控制器
-                AddLog(string.Format("参数更新: 关闭{0}s 出发台{1}s 确认{2}s 抢跳{3}s 分段{4}s 终点:{5} 翻屏{6}s 反应时:{7} 道次:{8}",
+                //2026-05-12 把泳池触板安装方式下发到硬件（0x3A Set_PoolSingleOrDoubleTP）
+                if (_timingBridge != null && _timingBridge.IsConnected) {
+                    try { _timingBridge.SendPoolSingleOrDoubleTP(!newHasRight); } catch { }
+                }
+                AddLog(string.Format("参数更新: 关闭{0}s 出发台{1}s 确认{2}s 抢跳{3}s 分段{4}s 终点:{5} 翻屏{6}s 反应时:{7} 道次:{8} 触板:{9}",
                     _laneCloseSettings.LaneCloseTime, _laneCloseSettings.StartBlockCloseDelay,
                     _laneCloseSettings.ResultConfirmCloseDelay, _laneCloseSettings.FalseStartThreshold,
                     _laneCloseSettings.SplitDisplayTime, _laneCloseSettings.FinishPosition == "left" ? "左端" : "右端",
                     _laneCloseSettings.BigDisplayPageInterval, _laneCloseSettings.ReactionTimeEnabled ? "打开" : "关闭",
-                    _laneCloseSettings.LaneOrder == "reverse" ? "逆序9→0" : "正序0→9"));
+                    _laneCloseSettings.LaneOrder == "reverse" ? "逆序9→0" : "正序0→9",
+                    newHasRight ? "两端" : "单边"));
+                if (poolTpChanged) AddLog("泳池触板安装方式已更改并同步到硬件计时器");
             }
         }
 
