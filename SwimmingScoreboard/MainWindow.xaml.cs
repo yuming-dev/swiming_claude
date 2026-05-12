@@ -1697,8 +1697,9 @@ namespace SwimmingScoreboard
                                           .Select(r => r.FinalTimeDisplay).FirstOrDefault() ?? "",
                     timingSource = sw.Results.Where(r => r.Stage == sw.CurrentStage)
                                              .Select(r => r.TimingSource).FirstOrDefault() ?? "",
+                    //2026-05-12 != 0 而非 > 0：允许显示负值（抢跳/犯规时为负数，如 -0.020）
                     startingBlockTime = sw.Results.Where(r => r.Stage == sw.CurrentStage)
-                                                  .Select(r => r.StartingBlockTime > 0 ? r.StartingBlockTime.ToString("F3") : "").FirstOrDefault() ?? "",
+                                                  .Select(r => r.StartingBlockTime != 0 ? r.StartingBlockTime.ToString("F3") : "").FirstOrDefault() ?? "",
                     recordNote = sw.Results.Where(r => r.Stage == sw.CurrentStage)
                                            .Select(r => r.RecordNote ?? "").FirstOrDefault() ?? "",
                     currentRank = sw.CurrentRank,
@@ -1911,10 +1912,19 @@ namespace SwimmingScoreboard
                     UpdateConnectionStatus();
                     // 硬件刚连上时，把当前参数/设备状态/比赛距离/发令点下发一次（以服务器为准）
                     if (_timingBridge != null && _timingBridge.IsConnected) {
+                        //2026-05-12 一上线就发送当前PC的日期+时间，让硬件RTC自动校时
+                        try { _timingBridge.SendDateTimeSync(); } catch { }
                         SendTimingSettingsToHardware();
                         SendDeviceStatusesToHardware();
                         SendSetMatchEventToHardware();   // 0x43 — 总圈数+左右触板次数+空泳道位图
                         SendStartPositionToHardware();   // 0x10 0x42 — 发令点
+                        //2026-05-12 同步当前"泳池单边/两端安装触板"配置到硬件
+                        try {
+                            if (_poolConfig != null) {
+                                bool isSingle = !_poolConfig.HasRightStartBlock;
+                                _timingBridge.SendPoolSingleOrDoubleTP(isSingle);
+                            }
+                        } catch { }
                     }
                 });
             };
@@ -2687,7 +2697,7 @@ namespace SwimmingScoreboard
                             rtParts.Add(string.Format("第{0}棒:{1}", li + 1, rt > 0 ? rt.ToString("F3") : "—"));
                         }
                         reaction = string.Join(" / ", rtParts.ToArray());
-                    } else if (r != null && r.StartingBlockTime > 0) {
+                    } else if (r != null && r.StartingBlockTime != 0) {
                         reaction = r.StartingBlockTime.ToString("F3");
                     }
                     string athletesFr = s.Name ?? "";
@@ -2842,7 +2852,7 @@ namespace SwimmingScoreboard
                         rtParts2.Add(string.Format("第{0}棒:{1}", li + 1, rt2 > 0 ? rt2.ToString("F3") : "—"));
                     }
                     reactionHtml = string.Join("<br>", rtParts2.ToArray());
-                } else if (r != null && r.StartingBlockTime > 0) {
+                } else if (r != null && r.StartingBlockTime != 0) {
                     reactionHtml = r.StartingBlockTime.ToString("F3");
                 }
                 h.AppendFormat("<tr><td style='text-align:center;font-weight:bold;'>{0}</td><td style='text-align:center;'>{1}</td><td>{2}</td><td><b>{3}</b></td>" +
@@ -10497,7 +10507,7 @@ namespace SwimmingScoreboard
                         rtParts.Add(string.Format("第{0}棒:{1}", li + 1, rt > 0 ? rt.ToString("F2") : "—"));
                     }
                     reactionStr = string.Join("  ", rtParts.ToArray());
-                } else if (r != null && r.StartingBlockTime > 0) {
+                } else if (r != null && r.StartingBlockTime != 0) {
                     reactionStr = r.StartingBlockTime.ToString("F2");
                 }
                 return new {
@@ -10615,7 +10625,7 @@ namespace SwimmingScoreboard
                     rank = isDQ ? 0 : (r != null ? r.Rank : 0),
                     status = s.Status ?? "",
                     resultStatus = r != null ? (r.Status ?? "") : "",
-                    reactionTime = r != null && r.StartingBlockTime > 0 ? r.StartingBlockTime.ToString("F2") : ""
+                    reactionTime = r != null && r.StartingBlockTime != 0 ? r.StartingBlockTime.ToString("F2") : ""
                 });
             }
 
@@ -14724,7 +14734,7 @@ namespace SwimmingScoreboard
                         parts.Add(string.Format("第{0}棒:{1}", li + 1, rt > 0 ? rt.ToString("F2") : "—"));
                     }
                     reactionCell = string.Join("<br>", parts.ToArray());
-                } else if (r != null && r.StartingBlockTime > 0) {
+                } else if (r != null && r.StartingBlockTime != 0) {
                     reactionCell = r.StartingBlockTime.ToString("F2");
                 }
                 sb.AppendFormat("<tr><td>{0}</td><td>{1}</td><td>{2}</td><td><b>{3}</b></td><td>{4}</td><td style='font-weight:bold; background:#eff6ff;'>{5}</td><td>{6}</td><td style='font-size:12px;'>{7}</td><td>{8}</td></tr>",
@@ -15064,7 +15074,7 @@ namespace SwimmingScoreboard
                                     rtParts.Add(string.Format("第{0}棒:{1}", li + 1, rt > 0 ? rt.ToString("F2") : "—"));
                                 }
                                 reactionCell = string.Join("<br>", rtParts.ToArray());
-                            } else if (r != null && r.StartingBlockTime > 0) {
+                            } else if (r != null && r.StartingBlockTime != 0) {
                                 reactionCell = r.StartingBlockTime.ToString("F2");
                             }
                             sb.AppendFormat("<tr><td>{0}</td><td>{1}</td><td><b>{2}</b></td><td>{3}</td><td>{4}</td><td style='font-size:12px;'>{5}</td>",

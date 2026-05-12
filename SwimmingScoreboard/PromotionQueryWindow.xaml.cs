@@ -205,7 +205,7 @@ namespace SwimmingScoreboard
                 Country = sr.Swimmer.Country ?? "",
                 Heat = sr.Result.Heat,
                 Time = TimeFormatter.Format(sr.Result.FinalTime),
-                Reaction = sr.Result.StartingBlockTime > 0 ? sr.Result.StartingBlockTime.ToString("F2") : "",
+                Reaction = sr.Result.StartingBlockTime != 0 ? sr.Result.StartingBlockTime.ToString("F2") : "",
                 Method = method,
                 ToStage = _toStage
             };

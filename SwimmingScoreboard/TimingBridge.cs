@@ -41,6 +41,11 @@ namespace SwimmingScoreboard
         public byte Param7 { get; set; }
         /// <summary>D8 原始字节（计时帧为 (hour&lt;&lt;4)|ms1；设置帧作扩展值）</summary>
         public byte Param8 { get; set; }
+        /// <summary>2026-05-12 D10 原始字节（StartingBlock 帧中作为符号位：0=正，非0=负/抢跳）</summary>
+        public byte Param10 { get; set; }
+        /// <summary>2026-05-12 StartingBlock 帧解出来的时间是否为负值（运动员抢跳/犯规）。
+        /// 当为 true 时，TimeInSeconds 已被取反为负数，调用方可直接显示 / 判断 &lt; 0。</summary>
+        public bool IsFalseStart { get; set; }
     }
 
     // 游泳计时通讯协议 2023-11-13  D2命令字节定义
@@ -327,6 +332,16 @@ namespace SwimmingScoreboard
             double timeInSeconds = hour * 3600.0 + minutes * 60.0 + seconds
                                    + centiseconds / 100.0 + ms1 / 1000.0;
 
+            // 2026-05-12 协议扩展：byte10 (D10/SW_Back1_Pos) 用作 StartingBlock 命令的符号位：
+            //   = 0 : 正常出发（运动员晚于发令枪），TimeInSeconds 保持正值
+            //   ≠ 0 : 抢跳/犯规（运动员早于发令枪），TimeInSeconds 取反为负值
+            byte rawD10 = frame[10];
+            bool isFalseStart = false;
+            if (cmd == 0x1A && rawD10 != 0) {
+                isFalseStart = true;
+                timeInSeconds = -timeInSeconds;
+            }
+
             TimingCommandType cmdType;
             switch (cmd) {
                 case 0x16: cmdType = TimingCommandType.Touchpad;      break;  // 触板时间成绩
@@ -362,7 +377,9 @@ namespace SwimmingScoreboard
                 Param5 = frame[5],
                 Param6 = frame[6],
                 Param7 = frame[7],
-                Param8 = frame[8]
+                Param8 = frame[8],
+                Param10 = rawD10,        //2026-05-12 协议扩展：StartingBlock 符号位
+                IsFalseStart = isFalseStart
             };
 
             string endLabel = isFinishEnd ? "终点端" : "另一端";
@@ -430,6 +447,44 @@ namespace SwimmingScoreboard
             } catch (Exception ex) {
                 RaiseLog("发送命令失败: " + ex.Message + "  帧: " + hex);
             }
+        }
+
+        // ───────────────────────────────────────────────────────────────
+        // 2026-05-12 协议扩展：日期/时间自动校时 + 泳池单边/两端触板配置
+        // ───────────────────────────────────────────────────────────────
+
+        /// <summary>把当前PC的日期+时间下发到硬件计时器，使其RTC同步。
+        /// 协议: command=0x39 (Set_DateTime)
+        ///   d3=年低字节  d4=年高字节  d5=月(1-12)  d6=日(1-31)
+        ///   d7=时(0-23)  d8=分(0-59)  d9=秒(0-59)
+        /// 建议在硬件 TCP 连接建立后立即调用一次。</summary>
+        public void SendDateTimeSync() {
+            SendDateTimeSync(DateTime.Now);
+        }
+
+        /// <summary>指定日期/时间下发到硬件计时器（一般用于测试）。</summary>
+        public void SendDateTimeSync(DateTime dt) {
+            byte yearLo = (byte)(dt.Year & 0xFF);
+            byte yearHi = (byte)((dt.Year >> 8) & 0xFF);
+            SendFullFrame(
+                0x39,                       // command = Set_DateTime
+                yearLo, yearHi,
+                (byte)dt.Month,
+                (byte)dt.Day,
+                (byte)dt.Hour,
+                (byte)dt.Minute,
+                (byte)dt.Second,
+                0
+            );
+            RaiseLog(string.Format("发送日期时间同步: {0:yyyy-MM-dd HH:mm:ss}", dt));
+        }
+
+        /// <summary>设置硬件计时器的"泳池单边/两端安装触板"配置。
+        /// 协议: command=0x3A (Set_PoolSingleOrDoubleTP), d3=0(两端) 或 d3=1(单边)。
+        /// 修改后硬件会持久化到 SD 卡。</summary>
+        public void SendPoolSingleOrDoubleTP(bool isSingleSide) {
+            SendFullFrame(0x3A, (byte)(isSingleSide ? 1 : 0), 0);
+            RaiseLog(string.Format("发送泳池触板安装方式: {0}", isSingleSide ? "单边" : "两端"));
         }
 
         private void RaiseStatus(string status) {

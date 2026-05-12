@@ -193,7 +193,7 @@ namespace SwimmingScoreboard
                     }
                     reactionPlain = string.Join("  ", parts.ToArray());
                     reactionHtml = string.Join("<br>", parts.ToArray());
-                } else if (r != null && r.StartingBlockTime > 0) {
+                } else if (r != null && r.StartingBlockTime != 0) {
                     reactionPlain = r.StartingBlockTime.ToString("F2");
                     reactionHtml = reactionPlain;
                 }
