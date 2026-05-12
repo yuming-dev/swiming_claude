@@ -980,6 +980,18 @@ namespace SwimmingScoreboard
                 case "LIST_DOCUMENTS":
                     HandleEditorListDocuments();
                     break;
+                case "CALCULATE_TEAM_SCORES":
+                    HandleEditorCalculateTeamScores();
+                    break;
+                case "CANCEL_PROMOTION":
+                    HandleEditorCancelPromotion(data as JObject);
+                    break;
+                case "UPDATE_RESULT":
+                    HandleEditorUpdateResult(data as JObject);
+                    break;
+                case "MARK_STATUS":
+                    HandleEditorMarkStatus(data as JObject);
+                    break;
                 case "EXECUTE_PROMOTION":
                     if (data != null) {
                         string pGender = data["gender"] != null ? data["gender"].ToString() : "";
@@ -5954,6 +5966,114 @@ namespace SwimmingScoreboard
             if (bytes < 1024) return bytes + " B";
             if (bytes < 1024 * 1024) return (bytes / 1024.0).ToString("F1") + " KB";
             return (bytes / 1024.0 / 1024.0).ToString("F2") + " MB";
+        }
+
+        // 编辑端 — 计算团体计分
+        private void HandleEditorCalculateTeamScores() {
+            try {
+                CalculateTeamScores();
+                Broadcast();
+                AddLog("编辑端请求：团体计分已重新计算");
+            } catch (Exception ex) {
+                AddLog("团体计分计算失败: " + ex.Message);
+            }
+        }
+
+        // 编辑端 — 取消晋级：删除指定 (gender, event, stage) 的 StageAssignment + 赛程项
+        private void HandleEditorCancelPromotion(JObject data) {
+            if (data == null) { AddLog("CANCEL_PROMOTION 数据为空"); return; }
+            string gender = data["gender"] != null ? data["gender"].ToString() : "";
+            string evName = data["eventName"] != null ? data["eventName"].ToString() : "";
+            string stage = data["stage"] != null ? data["stage"].ToString() : "";
+            if (string.IsNullOrEmpty(gender) || string.IsNullOrEmpty(evName) || string.IsNullOrEmpty(stage)) {
+                AddLog("CANCEL_PROMOTION 缺少 gender/eventName/stage"); return;
+            }
+            int removed = 0;
+            foreach (var sw in _swimmers.Where(s => s.Gender == gender && s.EventName == evName)) {
+                if (sw.StageAssignments != null && sw.StageAssignments.ContainsKey(stage)) {
+                    sw.StageAssignments.Remove(stage);
+                    removed++;
+                }
+                // 如果运动员当前 CurrentStage 就是被取消的 stage，回退到上一级
+                if (sw.CurrentStage == stage) {
+                    if (stage == "决赛") sw.CurrentStage = "半决赛";
+                    else if (stage == "半决赛") sw.CurrentStage = "预赛";
+                }
+            }
+            // 删除该 stage 的 schedule item
+            var toRemove = _schedule.Where(s => s.Gender == gender && s.EventName == evName && s.Stage == stage).ToList();
+            foreach (var s in toRemove) _schedule.Remove(s);
+
+            BuildScheduleTree();
+            UpdateResultHeatCombo();
+            RefreshResultGrid();
+            UpdateEditHeatCombo();
+            AutoSaveData();
+            Broadcast();
+            AddLog(string.Format("编辑端取消晋级: {0} {1} {2}（{3} 人 / {4} 组赛程被移除）",
+                gender, evName, stage, removed, toRemove.Count));
+        }
+
+        // 编辑端 — 编辑某个具体成绩（finalTime / status / recordNote）
+        private void HandleEditorUpdateResult(JObject data) {
+            if (data == null) { AddLog("UPDATE_RESULT 数据为空"); return; }
+            string bib = data["bibNumber"] != null ? data["bibNumber"].ToString() : "";
+            string evName = data["eventName"] != null ? data["eventName"].ToString() : "";
+            string stage = data["stage"] != null ? data["stage"].ToString() : "";
+            var sw = _swimmers.FirstOrDefault(s => s.BibNumber == bib && s.EventName == evName);
+            if (sw == null) { AddLog(string.Format("UPDATE_RESULT 找不到: {0} {1}", bib, evName)); return; }
+            int heat = 0;
+            if (data["heat"] != null) int.TryParse(data["heat"].ToString(), out heat);
+            var result = sw.Results.FirstOrDefault(r => r.Stage == stage && (heat == 0 || r.Heat == heat));
+            if (result == null) {
+                // 没成绩记录就建一个空的
+                result = new LaneResult { EventName = evName, Stage = stage, Heat = heat, Lane = sw.Lane };
+                sw.Results.Add(result);
+            }
+            if (data["finalTime"] != null) {
+                string t = data["finalTime"].ToString();
+                double sec = TimeFormatter.Parse(t);
+                result.FinalTime = sec;
+                result.TimeInSeconds = sec;
+            }
+            if (data["status"] != null) {
+                sw.Status = data["status"].ToString();
+                result.Status = sw.Status;
+            }
+            if (data["recordNote"] != null) result.RecordNote = data["recordNote"].ToString();
+
+            UpdateHeatRanking();
+            AutoSaveData();
+            Broadcast();
+            AddLog(string.Format("编辑端更新成绩: {0}({1}) {2} {3} → {4}",
+                sw.Name, sw.BibNumber, sw.EventName, stage,
+                !string.IsNullOrEmpty(sw.Status) ? sw.Status : TimeFormatter.Format(result.FinalTime)));
+        }
+
+        // 编辑端 — 标记 DNS / DNF / DSQ
+        private void HandleEditorMarkStatus(JObject data) {
+            if (data == null) { AddLog("MARK_STATUS 数据为空"); return; }
+            string bib = data["bibNumber"] != null ? data["bibNumber"].ToString() : "";
+            string evName = data["eventName"] != null ? data["eventName"].ToString() : "";
+            string stage = data["stage"] != null ? data["stage"].ToString() : "";
+            string status = data["status"] != null ? data["status"].ToString() : "";
+            var sw = _swimmers.FirstOrDefault(s => s.BibNumber == bib && s.EventName == evName);
+            if (sw == null) { AddLog(string.Format("MARK_STATUS 找不到: {0} {1}", bib, evName)); return; }
+            sw.Status = status;
+            var result = sw.Results.FirstOrDefault(r => r.Stage == stage);
+            if (result != null) {
+                result.Status = status;
+                if (status == "DNS" || status == "DNF" || status == "DSQ") {
+                    result.FinalTime = 0;
+                    result.TimeInSeconds = 0;
+                }
+            }
+            UpdateHeatRanking();
+            AutoSaveData();
+            Broadcast();
+            AddLog(string.Format("编辑端标记: {0}({1}) {2} {3} = {4}",
+                sw.Name, sw.BibNumber, sw.EventName, stage,
+                string.IsNullOrEmpty(status) ? "(清空)" : status));
         }
 
         private bool ConfirmMarkStatus(int lane, string status, string desc) {

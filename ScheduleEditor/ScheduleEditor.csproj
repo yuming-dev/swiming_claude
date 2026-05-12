@@ -60,6 +60,7 @@
     <Compile Include="CredentialStore.cs" />
     <Compile Include="SwimmerEditDialog.cs" />
     <Compile Include="ChangePasswordWindow.cs" />
+    <Compile Include="ResultEditDialog.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

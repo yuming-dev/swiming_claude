@@ -373,6 +373,119 @@ namespace ScheduleEditor
             RebuildResultGrid();
         }
 
+        // 编辑成绩（按钮 + 双击行）
+        private void EditResult_Click(object sender, RoutedEventArgs e) {
+            var row = ResultGrid.SelectedItem as ResultRow;
+            if (row == null) {
+                MessageBox.Show("请先选中要编辑的行", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            string ev = SelectedOrEmpty(ResultEventCombo);
+            string stage = SelectedOrEmpty(ResultStageCombo);
+            var dlg = new ResultEditDialog(row, ev, stage);
+            dlg.Owner = this;
+            if (dlg.ShowDialog() == true) {
+                _ws.Send(JsonConvert.SerializeObject(new {
+                    type = "TIMING_CMD",
+                    command = "UPDATE_RESULT",
+                    data = dlg.Result
+                }));
+            }
+        }
+
+        // 标 DNS / DNF / DSQ / 清除状态
+        private void MarkDNS_Click(object sender, RoutedEventArgs e) { MarkStatus("DNS"); }
+        private void MarkDNF_Click(object sender, RoutedEventArgs e) { MarkStatus("DNF"); }
+        private void MarkDSQ_Click(object sender, RoutedEventArgs e) { MarkStatus("DSQ"); }
+        private void ClearStatus_Click(object sender, RoutedEventArgs e) { MarkStatus(""); }
+
+        private void MarkStatus(string status) {
+            var sel = ResultGrid.SelectedItems.Cast<ResultRow>().ToList();
+            if (sel.Count == 0) {
+                MessageBox.Show("请先选中要标记的行", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            if (!string.IsNullOrEmpty(status)) {
+                var r = MessageBox.Show(string.Format("确定将 {0} 个运动员标为 {1} ？", sel.Count, status),
+                    "确认", MessageBoxButton.YesNo, MessageBoxImage.Question);
+                if (r != MessageBoxResult.Yes) return;
+            }
+            string ev = SelectedOrEmpty(ResultEventCombo);
+            string stage = SelectedOrEmpty(ResultStageCombo);
+            foreach (var row in sel) {
+                _ws.Send(JsonConvert.SerializeObject(new {
+                    type = "TIMING_CMD",
+                    command = "MARK_STATUS",
+                    data = new {
+                        bibNumber = row.BibNumber,
+                        eventName = ev,
+                        stage = stage,
+                        status = status
+                    }
+                }));
+            }
+        }
+
+        // 晋级到下一赛次
+        private void ExecutePromotion_Click(object sender, RoutedEventArgs e) {
+            string ev = SelectedOrEmpty(ResultEventCombo);
+            string g = SelectedOrEmpty(ResultGenderCombo);
+            string fromStage = SelectedOrEmpty(ResultStageCombo);
+            if (string.IsNullOrEmpty(ev) || string.IsNullOrEmpty(g) || string.IsNullOrEmpty(fromStage)) {
+                MessageBox.Show("请先选好项目 / 性别 / 当前赛次", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            var dlg = new PromotionDialog(g, ev, fromStage);
+            dlg.Owner = this;
+            if (dlg.ShowDialog() == true) {
+                _ws.Send(JsonConvert.SerializeObject(new {
+                    type = "TIMING_CMD",
+                    command = "EXECUTE_PROMOTION",
+                    data = new {
+                        gender = g,
+                        eventName = ev,
+                        fromStage = fromStage,
+                        nextStage = dlg.NextStage,
+                        promoCount = dlg.PromoCount
+                    }
+                }));
+            }
+        }
+
+        // 取消晋级（删该 stage 的 StageAssignment + schedule item）
+        private void CancelPromotion_Click(object sender, RoutedEventArgs e) {
+            string ev = SelectedOrEmpty(ResultEventCombo);
+            string g = SelectedOrEmpty(ResultGenderCombo);
+            string stage = SelectedOrEmpty(ResultStageCombo);
+            if (string.IsNullOrEmpty(ev) || string.IsNullOrEmpty(g) || string.IsNullOrEmpty(stage)) {
+                MessageBox.Show("请先选好项目 / 性别 / 要取消的赛次", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            if (stage == "预赛") {
+                MessageBox.Show("预赛是首轮赛次，无法取消晋级。", "提示", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+            var r = MessageBox.Show(string.Format("确定取消 {0} {1} {2} 的所有晋级（移除该赛次的所有 StageAssignment 与赛程项）？",
+                g, ev, stage), "确认取消晋级", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+            if (r != MessageBoxResult.Yes) return;
+            _ws.Send(JsonConvert.SerializeObject(new {
+                type = "TIMING_CMD",
+                command = "CANCEL_PROMOTION",
+                data = new { gender = g, eventName = ev, stage = stage }
+            }));
+        }
+
+        // 计算团体计分
+        private void CalculateTeamScores_Click(object sender, RoutedEventArgs e) {
+            var r = MessageBox.Show("确定按当前已确认的决赛成绩重新计算团体积分？",
+                "确认", MessageBoxButton.YesNo, MessageBoxImage.Question);
+            if (r != MessageBoxResult.Yes) return;
+            _ws.Send(JsonConvert.SerializeObject(new {
+                type = "TIMING_CMD",
+                command = "CALCULATE_TEAM_SCORES"
+            }));
+        }
+
         // ═══════════════════════════════════════════════════════════════
         // 文档编辑/输出/打印
         // ═══════════════════════════════════════════════════════════════

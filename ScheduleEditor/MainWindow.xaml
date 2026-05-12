@@ -126,29 +126,69 @@
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
 
-                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,6">
-                        <TextBlock Text="项目:" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                        <ComboBox x:Name="ResultEventCombo" Width="160"
-                                  SelectionChanged="ResultFilter_Changed"/>
-                        <TextBlock Text="性别:" VerticalAlignment="Center" Margin="12,0,4,0"/>
-                        <ComboBox x:Name="ResultGenderCombo" Width="60"
-                                  SelectionChanged="ResultFilter_Changed"/>
-                        <TextBlock Text="赛次:" VerticalAlignment="Center" Margin="12,0,4,0"/>
-                        <ComboBox x:Name="ResultStageCombo" Width="80"
-                                  SelectionChanged="ResultFilter_Changed"/>
-                        <Button Content="刷新" Click="RefreshResults_Click"
-                                Padding="14,4" Margin="14,0,0,0"
-                                Background="#3B82F6" Foreground="White" BorderThickness="0"/>
-                        <TextBlock x:Name="ResultCountText" Text=""
-                                   VerticalAlignment="Center" Margin="20,0,0,0"
-                                   Foreground="#64748B"/>
+                    <StackPanel Grid.Row="0" Margin="0,0,0,6">
+                        <!-- 第一行：筛选 -->
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="项目:" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                            <ComboBox x:Name="ResultEventCombo" Width="160"
+                                      SelectionChanged="ResultFilter_Changed"/>
+                            <TextBlock Text="性别:" VerticalAlignment="Center" Margin="12,0,4,0"/>
+                            <ComboBox x:Name="ResultGenderCombo" Width="60"
+                                      SelectionChanged="ResultFilter_Changed"/>
+                            <TextBlock Text="赛次:" VerticalAlignment="Center" Margin="12,0,4,0"/>
+                            <ComboBox x:Name="ResultStageCombo" Width="80"
+                                      SelectionChanged="ResultFilter_Changed"/>
+                            <Button Content="刷新" Click="RefreshResults_Click"
+                                    Padding="14,4" Margin="14,0,0,0"
+                                    Background="#3B82F6" Foreground="White" BorderThickness="0"/>
+                            <TextBlock x:Name="ResultCountText" Text=""
+                                       VerticalAlignment="Center" Margin="20,0,0,0"
+                                       Foreground="#64748B"/>
+                        </StackPanel>
+                        <!-- 第二行：操作按钮 -->
+                        <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                            <Button Content="编辑成绩" Click="EditResult_Click"
+                                    Padding="14,4" Margin="0,0,6,0"
+                                    Background="#3B82F6" Foreground="White" BorderThickness="0"
+                                    ToolTip="编辑选中行的成绩 / 状态 / 备注（双击行同效果）"/>
+                            <Button Content="标 DNS" Click="MarkDNS_Click"
+                                    Padding="10,4" Margin="0,0,4,0"
+                                    Background="#64748B" Foreground="White" BorderThickness="0"
+                                    ToolTip="标记选中行为 DNS（缺席未出发）"/>
+                            <Button Content="标 DNF" Click="MarkDNF_Click"
+                                    Padding="10,4" Margin="0,0,4,0"
+                                    Background="#78716C" Foreground="White" BorderThickness="0"
+                                    ToolTip="标记选中行为 DNF（中途退出）"/>
+                            <Button Content="标 DSQ" Click="MarkDSQ_Click"
+                                    Padding="10,4" Margin="0,0,4,0"
+                                    Background="#9CA3AF" Foreground="White" BorderThickness="0"
+                                    ToolTip="标记选中行为 DSQ（犯规取消资格）"/>
+                            <Button Content="清除状态" Click="ClearStatus_Click"
+                                    Padding="10,4" Margin="0,0,16,0"
+                                    Background="#475569" Foreground="White" BorderThickness="0"
+                                    ToolTip="清除选中行的 DNS/DNF/DSQ 状态"/>
+                            <Button Content="晋级到下一赛次..." Click="ExecutePromotion_Click"
+                                    Padding="14,4" Margin="0,0,6,0"
+                                    Background="#10B981" Foreground="White" BorderThickness="0"
+                                    ToolTip="按当前项目/性别+前 N 名晋级到指定的下一赛次"/>
+                            <Button Content="取消晋级" Click="CancelPromotion_Click"
+                                    Padding="14,4" Margin="0,0,16,0"
+                                    Background="#F59E0B" Foreground="Black" BorderThickness="0"
+                                    ToolTip="取消当前 项目/性别/赛次 已晋级的运动员（删除该赛次的 StageAssignment 与赛程项）"/>
+                            <Button Content="计算团体计分" Click="CalculateTeamScores_Click"
+                                    Padding="14,4"
+                                    Background="#8B5CF6" Foreground="White" BorderThickness="0"
+                                    ToolTip="按当前已确认的决赛名次重新计算团体积分（结果广播到大屏）"/>
+                        </StackPanel>
                     </StackPanel>
 
                     <DataGrid x:Name="ResultGrid" Grid.Row="1"
                               AutoGenerateColumns="False" IsReadOnly="True"
                               CanUserAddRows="False" GridLinesVisibility="Horizontal"
                               AlternatingRowBackground="#F8FAFC"
-                              HeadersVisibility="Column" FontSize="13" RowHeight="28">
+                              SelectionUnit="FullRow" SelectionMode="Extended"
+                              HeadersVisibility="Column" FontSize="13" RowHeight="28"
+                              MouseDoubleClick="EditResult_Click">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="名次" Binding="{Binding Rank}" Width="55"/>
                             <DataGridTextColumn Header="编号" Binding="{Binding BibNumber}" Width="70"/>
