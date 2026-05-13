@@ -487,6 +487,22 @@ namespace SwimmingScoreboard
             RaiseLog(string.Format("发送泳池触板安装方式: {0}", isSingleSide ? "单边" : "两端"));
         }
 
+        /// <summary>2026-05-13 强制 全开 / 恢复正常 整道或某道的所有设备(TP/SB/MB)。
+        /// 协议: command=0x3B (Set_LaneDeviceFullOpen)
+        ///   d3 = 0xFF 全部道；0..9 指定单道
+        ///   d4 = 0 恢复正常关闭流程；1 全开（强制打开，接受所有信号不过滤）
+        /// 硬件状态 3(坏)/4(未安装)不会被覆盖。</summary>
+        /// <param name="laneIndex">0..9 单道；传入小于 0 表示"全部道"</param>
+        /// <param name="forceOpen">true=全开 强制打开; false=恢复正常关闭流程</param>
+        public void SendLaneDeviceFullOpen(int laneIndex, bool forceOpen) {
+            byte d3 = (laneIndex < 0 || laneIndex >= 10) ? (byte)0xFF : (byte)laneIndex;
+            byte d4 = (byte)(forceOpen ? 1 : 0);
+            SendFullFrame(0x3B, d3, d4);
+            RaiseLog(string.Format("发送 设备{0} {1}",
+                d3 == 0xFF ? "全部道" : ("第" + laneIndex.ToString() + "道"),
+                forceOpen ? "全开(强制打开)" : "恢复正常关闭流程"));
+        }
+
         private void RaiseStatus(string status) {
             Action<string> h = OnStatusChanged;
             if (h != null) h(status);
