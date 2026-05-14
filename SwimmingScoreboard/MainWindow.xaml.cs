@@ -488,16 +488,27 @@ namespace SwimmingScoreboard
 
         // 2026-05-13 电池电压显示：把 _hwBatteryVoltage 渲染到顶部状态栏 TimingHwConnText 旁
         // 没有专门控件时退到 AddLog 提示；用现成的 TimingStatusText 作为"硬件状态"载体追加电压串
+        //
+        // 2026-05-13(2) 阈值按 硬件实际电池 = 7.4V 标称（2 节锂电串联）调整：
+        //   单节锂电  3.0V (耗尽截止) / 3.5V (低) / 3.7V (标称) / 4.2V (满充)
+        //   2 节合计  6.0V (危险)    / 7.0V (低) / 7.4V (标称) / 8.4V (满充)
+        //   显示阈值：
+        //       < 7.00 V          → 红 (严重低电，请立即更换/充电)
+        //       7.00 V – 7.40 V   → 琥珀色 (偏低，注意监视)
+        //       ≥ 7.40 V          → 绿 (健康)
+        //   旧 11.0V/11.5V 阈值适用于 12V 标称电池组(3 节)，不适配本机 7.4V 包。
+        private const double BATTERY_CRITICAL_V = 7.00;   //红色阈值
+        private const double BATTERY_LOW_V      = 7.40;   //琥珀阈值
+
         private void UpdateBatteryVoltageDisplay() {
             try {
                 if (TimingStatusText == null) return;
                 string baseText = (_timingBridge != null) ? _timingBridge.StatusText : "未连接";
                 if (_hwBatteryVoltage > 0 && (DateTime.Now - _hwBatteryReceivedAt).TotalSeconds < 30) {
                     TimingStatusText.Text = string.Format("{0}  ｜ 电池: {1:F2}V", baseText, _hwBatteryVoltage);
-                    // < 11.0V 红色警示，11.0-11.5V 琥珀色，>=11.5V 绿色
-                    if (_hwBatteryVoltage < 11.0)
+                    if (_hwBatteryVoltage < BATTERY_CRITICAL_V)
                         TimingStatusText.Foreground = new SolidColorBrush(Colors.Red);
-                    else if (_hwBatteryVoltage < 11.5)
+                    else if (_hwBatteryVoltage < BATTERY_LOW_V)
                         TimingStatusText.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F59E0B"));
                     else
                         TimingStatusText.Foreground = new SolidColorBrush(Colors.LimeGreen);
