@@ -883,13 +883,20 @@ namespace SwimmingScoreboard
         private bool _rightBlindWatch1NotInstalled;
         private bool _rightBlindWatch2NotInstalled;
         private bool _rightBlindWatch3NotInstalled;
+        //2026-05-14 触板/出发台也加"未安装"标记位（单端模式下需要把对应端整列标 NotInstalled，
+        // 且不能被 ResetForNewRace / OpenAll / 比赛流程的 _xxStatus 重置覆盖）
+        private bool _leftTouchpadNotInstalled;
+        private bool _rightTouchpadNotInstalled;
+        private bool _leftStartBlockNotInstalled;
+        private bool _rightStartBlockNotInstalled;
 
         public int Lane {
             get { return _lane; }
             set { _lane = value; OnPropertyChanged("Lane"); }
         }
         public DeviceStatus LeftTouchpadStatus {
-            get { return _leftTouchpadBroken ? DeviceStatus.Broken : _leftTouchpadStatus; }
+            get { if (_leftTouchpadNotInstalled) return DeviceStatus.NotInstalled;
+                  return _leftTouchpadBroken ? DeviceStatus.Broken : _leftTouchpadStatus; }
             set { _leftTouchpadStatus = value; OnPropertyChanged("LeftTouchpadStatus"); }
         }
         public DeviceStatus LeftBlindWatch1Status {
@@ -910,6 +917,7 @@ namespace SwimmingScoreboard
         }
         public DeviceStatus LeftStartBlockStatus {
             get {
+                if (_leftStartBlockNotInstalled) return DeviceStatus.NotInstalled;
                 if (_leftStartBlockBroken) return DeviceStatus.Broken;
                 if (_isFalseStart && _startSide == "left") return DeviceStatus.FalseStart;
                 return _leftStartBlockStatus;
@@ -917,7 +925,8 @@ namespace SwimmingScoreboard
             set { _leftStartBlockStatus = value; OnPropertyChanged("LeftStartBlockStatus"); }
         }
         public DeviceStatus RightTouchpadStatus {
-            get { return _rightTouchpadBroken ? DeviceStatus.Broken : _rightTouchpadStatus; }
+            get { if (_rightTouchpadNotInstalled) return DeviceStatus.NotInstalled;
+                  return _rightTouchpadBroken ? DeviceStatus.Broken : _rightTouchpadStatus; }
             set { _rightTouchpadStatus = value; OnPropertyChanged("RightTouchpadStatus"); }
         }
         public DeviceStatus RightBlindWatch1Status {
@@ -934,11 +943,30 @@ namespace SwimmingScoreboard
         }
         public DeviceStatus RightStartBlockStatus {
             get {
+                if (_rightStartBlockNotInstalled) return DeviceStatus.NotInstalled;
                 if (_rightStartBlockBroken) return DeviceStatus.Broken;
                 if (_isFalseStart && _startSide == "right") return DeviceStatus.FalseStart;
                 return _rightStartBlockStatus;
             }
             set { _rightStartBlockStatus = value; OnPropertyChanged("RightStartBlockStatus"); }
+        }
+
+        //2026-05-14 触板/出发台 NotInstalled flag 属性（与盲表 NotInstalled 同口径）
+        public bool LeftTouchpadNotInstalled {
+            get { return _leftTouchpadNotInstalled; }
+            set { _leftTouchpadNotInstalled = value; OnPropertyChanged("LeftTouchpadNotInstalled"); OnPropertyChanged("LeftTouchpadStatus"); }
+        }
+        public bool RightTouchpadNotInstalled {
+            get { return _rightTouchpadNotInstalled; }
+            set { _rightTouchpadNotInstalled = value; OnPropertyChanged("RightTouchpadNotInstalled"); OnPropertyChanged("RightTouchpadStatus"); }
+        }
+        public bool LeftStartBlockNotInstalled {
+            get { return _leftStartBlockNotInstalled; }
+            set { _leftStartBlockNotInstalled = value; OnPropertyChanged("LeftStartBlockNotInstalled"); OnPropertyChanged("LeftStartBlockStatus"); }
+        }
+        public bool RightStartBlockNotInstalled {
+            get { return _rightStartBlockNotInstalled; }
+            set { _rightStartBlockNotInstalled = value; OnPropertyChanged("RightStartBlockNotInstalled"); OnPropertyChanged("RightStartBlockStatus"); }
         }
         public double LaneCloseCountdown {
             get { return _laneCloseCountdown; }
@@ -1203,7 +1231,8 @@ namespace SwimmingScoreboard
             Length = 50;
             LaneCount = 10;
             LaneNumbers = new List<int> { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
-            HasRightStartBlock = false;
+            //2026-05-14 默认两端安装（每条道左右两端都有触板/出发台/盲表）
+            HasRightStartBlock = true;
         }
 
         public void SetLaneCount(int count) {

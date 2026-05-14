@@ -1259,17 +1259,19 @@
                                     </Grid.ColumnDefinitions>
                                     <Grid.RowDefinitions>
                                         <RowDefinition Height="32"/>
+                                        <RowDefinition Height="24"/>
                                     </Grid.RowDefinitions>
-                                    <!-- 连接串口（从顶部移过来） -->
-                                    <Button x:Name="QuickConnectSerialButton" Grid.Row="0" Grid.Column="0" Content="连接串口" Click="QuickConnectSerial_Click"
+                                    <!-- 2026-05-14 连接按钮：硬件改走 TCP 网络连接（沿用既有 QuickConnect 控件名，
+                                         保持代码绑定不变；按钮显示文字改为"网络连接"，Click 处理走 TCP） -->
+                                    <Button x:Name="QuickConnectSerialButton" Grid.Row="0" Grid.Column="0" Content="网络连接" Click="QuickConnectSerial_Click"
                                             Margin="2" BorderThickness="0" Cursor="Hand"
-                                            ToolTip="用上次保存的串口/波特率快速连接硬件计时器；详细配置请到 系统工作状态 → 硬件计时器连接">
+                                            ToolTip="用上次保存的 TCP 主机/端口快速连接硬件计时器；详细配置请到 系统工作状态 → 硬件计时器连接">
                                         <Button.Template>
                                             <ControlTemplate TargetType="Button">
                                                 <Border Background="#22C55E" CornerRadius="6" Padding="4">
                                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
                                                         <TextBlock Text="&#xE839;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="White" VerticalAlignment="Center" Margin="0,0,5,0"/>
-                                                        <TextBlock x:Name="QuickConnectSerialButtonText" Text="连接串口" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                        <TextBlock x:Name="QuickConnectSerialButtonText" Text="网络连接" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
                                                     </StackPanel>
                                                 </Border>
                                             </ControlTemplate>
@@ -1290,6 +1292,13 @@
                                             </ControlTemplate>
                                         </Button.Template>
                                     </Button>
+                                    <!-- 2026-05-14 新增：电池电压（接收 0x4B 上报后实时显示） -->
+                                    <StackPanel Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" Orientation="Horizontal"
+                                                Margin="4,2,0,0" VerticalAlignment="Center">
+                                        <TextBlock Text="电池电压：" FontSize="12" Foreground="#475569" VerticalAlignment="Center"/>
+                                        <TextBlock x:Name="BatteryVoltageText" Text="—" FontSize="12" FontWeight="Bold"
+                                                   Foreground="#94A3B8" VerticalAlignment="Center"/>
+                                    </StackPanel>
                                 </Grid>
                             </Border>
                         </StackPanel>

@@ -519,6 +519,26 @@ namespace SwimmingScoreboard
                 forceOpen ? "全开(强制打开)" : "恢复正常关闭流程"));
         }
 
+        /// <summary>2026-05-14 道次打开/关闭：把指定泳道（或全部泳道）加入/移出比赛。
+        /// 协议: command=0x47 (Set_LaneOpenClose)
+        ///   d3 = 0xFF 全部道；0..9 指定单道
+        ///   d4 = 1 打开（该道纳入比赛，所有设备按正常流程响应）
+        ///       0 关闭（该道完全屏蔽，硬件不接受其任何信号）
+        /// 与 0x4C 区别：
+        ///   0x4C "全开/恢复"是设备状态机覆盖（接收所有信号还是按状态过滤）
+        ///   0x47 "道次开/关"是泳道整体启用/禁用（关闭后该道相当于空泳道）
+        /// </summary>
+        /// <param name="laneIndex">0..9 单道；小于 0 表示"全部道"</param>
+        /// <param name="laneOpen">true=该道纳入比赛；false=该道完全关闭</param>
+        public void SendLaneOpenClose(int laneIndex, bool laneOpen) {
+            byte d3 = (laneIndex < 0 || laneIndex >= 10) ? (byte)0xFF : (byte)laneIndex;
+            byte d4 = (byte)(laneOpen ? 1 : 0);
+            SendFullFrame(0x47, d3, d4);
+            RaiseLog(string.Format("发送 泳道{0} {1} (0x47)",
+                d3 == 0xFF ? "(全部道)" : ("第" + laneIndex.ToString() + "道"),
+                laneOpen ? "打开/纳入比赛" : "关闭/移出比赛"));
+        }
+
         private void RaiseStatus(string status) {
             Action<string> h = OnStatusChanged;
             if (h != null) h(status);
