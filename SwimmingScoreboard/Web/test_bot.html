@@ -285,8 +285,14 @@ function connect() {
 
 function updateStatusBar() {
     if (!data) return;
-    var info = (data.currentGender||'') + '子 ' + (data.currentEvent||'') + ' ' + (data.currentStage||'') + ' 第' + (data.currentHeat||0) + '组';
-    document.getElementById('raceInfo').textContent = info;
+    // 拼接比赛标题：任一字段空 → 该段不显示；全空 → 整段为空字符串
+    var parts = [];
+    var g = data.currentGender || '';
+    if (g) parts.push(g + '子');                       // "男子" / "女子" / "混合子"
+    if (data.currentEvent)  parts.push(data.currentEvent);
+    if (data.currentStage)  parts.push(data.currentStage);
+    if (data.currentHeat && data.currentHeat > 0) parts.push('第' + data.currentHeat + '组');
+    document.getElementById('raceInfo').textContent = parts.join(' ');
     document.getElementById('timerInfo').textContent = '计时: ' + (data.runningTime || '-') + ' [' + (data.raceState || '-') + ']';
 }
 

@@ -46,6 +46,9 @@ namespace SwimmingScoreboard
         /// <summary>2026-05-12 StartingBlock 帧解出来的时间是否为负值（运动员抢跳/犯规）。
         /// 当为 true 时，TimeInSeconds 已被取反为负数，调用方可直接显示 / 判断 &lt; 0。</summary>
         public bool IsFalseStart { get; set; }
+        /// <summary>2026-05-13 当 CommandType==BatteryVoltage 时，把硬件上报的电池电压解析为伏 (V)。
+        /// 帧 d3=mV 低字节, d4=mV 高字节, 已合并 / 1000.0 得到 V 值（例如 12.34）。</summary>
+        public double BatteryVoltage { get; set; }
     }
 
     // 游泳计时通讯协议 2023-11-13  D2命令字节定义
@@ -64,6 +67,7 @@ namespace SwimmingScoreboard
         PoolConfig    = 0x40,   // 设置泳池参数
         RaceConfig    = 0x41,   // 设置比赛距离参数
         SetCommand    = 0x42,   // 设置命令
+        BatteryVoltage = 0x4B,  // 2026-05-13 硬件计时器电池电压 D3:D4 = 高低字节 mV
     }
 
     public enum TimingConnectionMode
@@ -342,6 +346,15 @@ namespace SwimmingScoreboard
                 timeInSeconds = -timeInSeconds;
             }
 
+            // 2026-05-13(2) 协议扩展：0x4B BatteryVoltage 帧，d3:d4 BIG-ENDIAN mV，转 V
+            //   按 通讯协议变更说明_v2026.05.13.pdf：d3 = mV 高字节，d4 = mV 低字节
+            //   (上一版误用 LE；已与硬件 swimplay.c 同步修正)
+            double batteryVolt = 0.0;
+            if (cmd == 0x4B) {
+                int v_mV = (frame[3] << 8) | frame[4];
+                batteryVolt = v_mV / 1000.0;
+            }
+
             TimingCommandType cmdType;
             switch (cmd) {
                 case 0x16: cmdType = TimingCommandType.Touchpad;      break;  // 触板时间成绩
@@ -357,6 +370,7 @@ namespace SwimmingScoreboard
                 case 0x40: cmdType = TimingCommandType.PoolConfig;    break;  // 泳池参数
                 case 0x41: cmdType = TimingCommandType.RaceConfig;    break;  // 比赛距离参数
                 case 0x42: cmdType = TimingCommandType.SetCommand;    break;  // 设置命令
+                case 0x4B: cmdType = TimingCommandType.BatteryVoltage; break; // 2026-05-13 电池电压
                 default:
                     RaiseLog(string.Format("未知命令: 0x{0:X2}", cmd));
                     return;
@@ -379,7 +393,8 @@ namespace SwimmingScoreboard
                 Param7 = frame[7],
                 Param8 = frame[8],
                 Param10 = rawD10,        //2026-05-12 协议扩展：StartingBlock 符号位
-                IsFalseStart = isFalseStart
+                IsFalseStart = isFalseStart,
+                BatteryVoltage = batteryVolt //2026-05-13 当 cmd==0x4B 时已转 V，其它命令保持 0.0
             };
 
             string endLabel = isFinishEnd ? "终点端" : "另一端";
@@ -487,18 +502,19 @@ namespace SwimmingScoreboard
             RaiseLog(string.Format("发送泳池触板安装方式: {0}", isSingleSide ? "单边" : "两端"));
         }
 
-        /// <summary>2026-05-13 强制 全开 / 恢复正常 整道或某道的所有设备(TP/SB/MB)。
-        /// 协议: command=0x3B (Set_LaneDeviceFullOpen)
+        /// <summary>2026-05-13(2) 强制 全开 / 恢复正常 整道或某道的所有设备(TP/SB/MB)。
+        /// 协议: command=0x4C (Set_ForceAllOpen) — 按 v2026.05.13 通讯协议变更说明。
         ///   d3 = 0xFF 全部道；0..9 指定单道
         ///   d4 = 0 恢复正常关闭流程；1 全开（强制打开，接受所有信号不过滤）
-        /// 硬件状态 3(坏)/4(未安装)不会被覆盖。</summary>
+        /// 硬件状态 3(坏)/4(未安装)不会被覆盖。
+        /// 注：上一版用 0x3B (私有)，已修正为官方 0x4C。</summary>
         /// <param name="laneIndex">0..9 单道；传入小于 0 表示"全部道"</param>
         /// <param name="forceOpen">true=全开 强制打开; false=恢复正常关闭流程</param>
         public void SendLaneDeviceFullOpen(int laneIndex, bool forceOpen) {
             byte d3 = (laneIndex < 0 || laneIndex >= 10) ? (byte)0xFF : (byte)laneIndex;
             byte d4 = (byte)(forceOpen ? 1 : 0);
-            SendFullFrame(0x3B, d3, d4);
-            RaiseLog(string.Format("发送 设备{0} {1}",
+            SendFullFrame(0x4C, d3, d4);
+            RaiseLog(string.Format("发送 设备{0} {1} (0x4C)",
                 d3 == 0xFF ? "全部道" : ("第" + laneIndex.ToString() + "道"),
                 forceOpen ? "全开(强制打开)" : "恢复正常关闭流程"));
         }

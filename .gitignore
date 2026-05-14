@@ -13,5 +13,15 @@ Database/
 Documents/
 InstallerBuild/
 游泳赛事管理系统_安装包*.zip
+SwimmingTimingSystem-Setup-*.zip
 packages/
 nuget.exe
+.claude/settings.local.json
+.claude/worktrees/
+editor_credentials.json
+editor_remember.json
+editor_sync.json
+auth_credentials.json
+device_states.json
+timing_settings.json
+timing_connection.json

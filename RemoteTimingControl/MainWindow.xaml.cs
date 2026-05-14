@@ -71,7 +71,9 @@ namespace RemoteTimingControl
             InitializeComponent();
 
             _refreshTimer = new DispatcherTimer();
-            _refreshTimer.Interval = TimeSpan.FromMilliseconds(500);
+            // 2026-05-13 把 500ms 改 100ms：匹配硬件 0.1s 的滚动时间节拍，
+            // 否则计时窗每秒只刷 2 次，肉眼能感觉到"跳跃"
+            _refreshTimer.Interval = TimeSpan.FromMilliseconds(100);
 
             _reconnectTimer = new DispatcherTimer();
             _reconnectTimer.Interval = TimeSpan.FromSeconds(3);
@@ -314,7 +316,9 @@ namespace RemoteTimingControl
         {
             if (_data == null) return;
             string st = _data["raceState"] != null ? _data["raceState"].ToString().ToLower() : "waiting";
-            if (st == "racing" || st == "finished")
+            // 2026-05-13 测试模式也要走 100ms 刷新：让 EXE 里的滚动时间 / 测试事件文字跟硬件节拍同步
+            bool isTestMode = _data["testMode"] != null && (bool)_data["testMode"];
+            if (st == "racing" || st == "finished" || isTestMode)
             {
                 RenderLanes(_data["swimmers"] as JArray);
                 UpdateRunningTimeDisplay();

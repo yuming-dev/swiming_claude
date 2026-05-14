@@ -158,6 +158,7 @@ namespace RemoteTimingControl
                 int min = acc[5], sec = acc[6], cs = acc[7];
                 int hour = (acc[8] >> 4) & 0x0F;
                 int ms1  = acc[8] & 0x0F;
+                byte rawD10 = acc[10];   // 2026-05-12 协议扩展：0x1A 出发台命令的符号位
                 acc.RemoveRange(0, FRAME_LENGTH);
 
                 // D4 拆分：实际泳道号 + 终点端/另一端标识
@@ -165,6 +166,8 @@ namespace RemoteTimingControl
                 int actualLane = isFinishEnd ? rawD4 : rawD4 - 10;
                 int lane = actualLane < 20 ? _moduleToLane[actualLane] : actualLane;
                 double time = hour * 3600.0 + min * 60.0 + sec + cs / 100.0 + ms1 / 1000.0;
+                // 2026-05-12 抢跳：0x1A 出发台命令的 D10≠0 表示运动员早于发令枪，时间取反为负值
+                if (cmd0 == 0x1A && rawD10 != 0) time = -time;
 
                 string cmdType;
                 switch (cmd0) {

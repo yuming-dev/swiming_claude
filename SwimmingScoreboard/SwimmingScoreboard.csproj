@@ -219,6 +219,8 @@
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="ResultBookData.cs" />
+    <Compile Include="AuthHelper.cs" />
+    <Compile Include="EditorSyncClient.cs" />
     <Compile Include="HeatExcelService.cs" />
     <Compile Include="HeatImportPromptWindow.xaml.cs">
       <DependentUpon>HeatImportPromptWindow.xaml</DependentUpon>

@@ -72,6 +72,9 @@ namespace SwimmingScoreboard
         // RaceTimer_Tick 优先用此值 + 自接收以来的本地补偿外推，避免帧间跳动也避免本地时钟偏差
         private double _hwRunningTimeSec = 0;
         private DateTime _hwRunningTimeReceivedAt = DateTime.MinValue;
+        // 2026-05-13 硬件计时器电池电压（0x4B 上报，0 = 未上报）
+        private double _hwBatteryVoltage = 0;
+        private DateTime _hwBatteryReceivedAt = DateTime.MinValue;
         private bool _hwRunningTimeAvailable = false;
         // 上次执行复位（本地或硬件触发）的时刻；用于硬件 0x1C 的去抖，
         // 避免"复位 + 紧接着 0x1C 回弹"导致比赛被自动再次启动
@@ -117,6 +120,37 @@ namespace SwimmingScoreboard
         private List<IWebSocketConnection> _registerSockets = new List<IWebSocketConnection>();
         private List<IWebSocketConnection> _timingExeSockets = new List<IWebSocketConnection>();
         private List<IWebSocketConnection> _timingWebSockets = new List<IWebSocketConnection>();
+        // 编排 EXE 客户端集合（主服务器模式下）— 任何 AutoSaveData 之后把整包 CompetitionPackage 推过去
+        private List<IWebSocketConnection> _editorSockets = new List<IWebSocketConnection>();
+        // 编排 EXE 同步客户端（编排模式下）— 连到主服务器，双向同步整包
+        private EditorSyncClient _editorSyncClient;
+        // 双端共用：true 表示正在应用对端推过来的整包，AutoSaveData 不再回推，避免无限回环
+        private bool _applyingRemoteSync = false;
+
+        // ── 设备"全开"模式（2026-05-13 新增）──
+        // -1 ∈ 集合 → 全部泳道全开；具体泳道号 ∈ 集合 → 该道全开。
+        // 全开时 ProcessTimingData 把所有信号都按 Open 状态处理，不再受软件状态机门槛屏蔽，
+        // 任意触板/盲表/出发台事件都被认可为当前成绩。
+        // 通过 WebSocket 命令 DEVICE_OVERRIDE { lane, mode: "allOpen" | "normal" } 切换。
+        private readonly HashSet<int> _forceAllOpenLanes = new HashSet<int>();
+        private bool IsLaneForceAllOpen(int lane) {
+            return _forceAllOpenLanes.Contains(-1) || _forceAllOpenLanes.Contains(lane);
+        }
+
+        // ── 编辑锁：避免两端同时编辑同一条数据 ──
+        // 主服务器维护全局锁表；编排端通过 LOCK_REQUEST/LOCK_REPLY/LOCK_RELEASE 申请/释放
+        private class EditLock {
+            public IWebSocketConnection HolderSocket;   // null = 主服务器本机持有
+            public string HolderName;                   // 持锁者显示名
+            public DateTime AcquiredAt;
+        }
+        private readonly Dictionary<string, EditLock> _editLocks = new Dictionary<string, EditLock>();
+        // 编排端（客户端）：等待 LOCK_REPLY 的同步信号
+        private readonly object _lockSync = new object();
+        private readonly Dictionary<string, System.Threading.ManualResetEventSlim> _lockWaiters
+            = new Dictionary<string, System.Threading.ManualResetEventSlim>();
+        private readonly Dictionary<string, JObject> _lockReplies = new Dictionary<string, JObject>();
+        private readonly HashSet<string> _heldLocks = new HashSet<string>();   // 编排端当前持有的锁
         private string _scoringControlMode = "local"; // local, remote_exe, remote_web
 
         // ═══════════════════════════════════════════════════════════════
@@ -132,26 +166,261 @@ namespace SwimmingScoreboard
         // ═══════════════════════════════════════════════════════════════
         // 构造函数与初始化
         // ═══════════════════════════════════════════════════════════════
+        // ScheduleEditor 模式：入口程序集名 = "ScheduleEditor" 时，
+        // 跳过 WebSocket 服务/计时硬件初始化，并隐藏与编排/成绩/文档无关的标签页。
+        // 这样同一份 MainWindow XAML/代码两个 EXE 共用，"编排记录及成绩处理"完全照搬主服务器样式。
+        public static bool IsScheduleEditorMode {
+            get {
+                try {
+                    var asm = System.Reflection.Assembly.GetEntryAssembly();
+                    if (asm == null) return false;
+                    return string.Equals(asm.GetName().Name, "ScheduleEditor", StringComparison.OrdinalIgnoreCase);
+                } catch { return false; }
+            }
+        }
+
         public MainWindow() {
             InitializeComponent();
+            bool editorMode = IsScheduleEditorMode;
+            if (editorMode) ApplyScheduleEditorMode();
             InitializeData();
-            InitializeWebSocketServer();
-            InitializeTimingBridge();
+            if (!editorMode) InitializeWebSocketServer();
+            if (!editorMode) InitializeTimingBridge();
             InitializeTimers();
             LoadTimingSettings();
             ApplyPersistedDeviceStates();   // 设备状态（损坏/未安装/手动按键）从 device_states.json 还原
             LoadTimingConnectionConfig();   // 通讯参数从 timing_connection.json 还原
             LoadLastCompetition();
-            PopulateComPorts();
-            ApplyTimingConnectionToUi();    // 把保存的串口/TCP/UDP 还原到 UI 控件
-            TryAutoReconnectTiming();       // 仅当 AutoReconnectOnStartup=true 才尝试
+            if (!editorMode) PopulateComPorts();
+            if (!editorMode) ApplyTimingConnectionToUi();    // 把保存的串口/TCP/UDP 还原到 UI 控件
+            if (!editorMode) TryAutoReconnectTiming();       // 仅当 AutoReconnectOnStartup=true 才尝试
             UpdateConnectionStatus();
             _initialized = true;
             RefreshBackupList();
             UpdateEditHeatCombo();
             UpdateResultHeatCombo();
             RefreshResultGrid();
-            AddLog("系统启动完成");
+            AddLog(editorMode ? "编排记录及成绩处理 启动完成" : "系统启动完成");
+        }
+
+        // ScheduleEditor 模式：把标题和标签页缩到"赛事管理与报名 / 成绩与排名 / 文档编辑/输出/打印"三项
+        private void ApplyScheduleEditorMode() {
+            Title = "游泳赛事管理系统 — 编排记录及成绩处理";
+            if (MainTabControl == null) return;
+            var keep = new System.Collections.Generic.HashSet<string> {
+                "赛事管理与报名", "成绩与排名", "文档编辑/输出/打印"
+            };
+            TabItem firstVisible = null;
+            foreach (var obj in MainTabControl.Items) {
+                var ti = obj as TabItem;
+                if (ti == null) continue;
+                string header = ti.Header == null ? null : ti.Header.ToString();
+                if (keep.Contains(header)) {
+                    if (firstVisible == null) firstVisible = ti;
+                } else {
+                    ti.Visibility = Visibility.Collapsed;
+                }
+            }
+            if (firstVisible != null) MainTabControl.SelectedItem = firstVisible;
+
+            // 在顶部状态栏里注入"主服务器: [IP] [连接/断开] [状态]"控件 + 启动同步客户端
+            InjectEditorSyncToolbar();
+            SetupEditorSyncClient();
+        }
+
+        // ── 编排 EXE 双向同步：UI + 客户端 ─────────────────────────────────
+        private TextBox _editorSyncHostBox;
+        private Button _editorSyncConnectButton;
+        private TextBlock _editorSyncStatusText;
+
+        private void InjectEditorSyncToolbar() {
+            if (ControlModeText == null) return;
+            var parent = ControlModeText.Parent as StackPanel;
+            if (parent == null) return;
+            // 把"控制模式: 本地"这一组替换成"主服务器: [IP] [连接] [状态]"
+            parent.Children.Clear();
+            parent.Children.Add(new TextBlock {
+                Text = "主服务器: ",
+                Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")),
+                FontSize = 12, VerticalAlignment = VerticalAlignment.Center
+            });
+            _editorSyncHostBox = new TextBox {
+                Text = "127.0.0.1", Width = 110, FontSize = 12,
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#334155")),
+                Foreground = Brushes.White,
+                BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569")),
+                Padding = new Thickness(4, 2, 4, 2), Margin = new Thickness(0, 0, 6, 0),
+                VerticalContentAlignment = VerticalAlignment.Center, CaretBrush = Brushes.White
+            };
+            parent.Children.Add(_editorSyncHostBox);
+            _editorSyncConnectButton = new Button {
+                Content = "连接", Padding = new Thickness(10, 2, 10, 2), FontSize = 12,
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6")),
+                Foreground = Brushes.White, BorderThickness = new Thickness(0),
+                Margin = new Thickness(0, 0, 8, 0)
+            };
+            _editorSyncConnectButton.Click += EditorSyncToggle_Click;
+            parent.Children.Add(_editorSyncConnectButton);
+            _editorSyncStatusText = new TextBlock {
+                Text = "离线", FontSize = 12, VerticalAlignment = VerticalAlignment.Center,
+                Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8"))
+            };
+            parent.Children.Add(_editorSyncStatusText);
+
+            // 编排端独立凭据 → 在主服务器自带的"修改密码"按钮之外，单独提供入口，
+            // 这样修改的是编排端的 editor_credentials.json，而不是主服务器的 credentials.json
+            var btnEditorPwd = new Button {
+                Content = "用户名和密码",
+                Padding = new Thickness(10, 2, 10, 2), FontSize = 12,
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#8B5CF6")),
+                Foreground = Brushes.White, BorderThickness = new Thickness(0),
+                Margin = new Thickness(12, 0, 0, 0)
+            };
+            btnEditorPwd.Click += EditorChangePassword_Click;
+            parent.Children.Add(btnEditorPwd);
+        }
+
+        // 反射打开 ScheduleEditor.ChangePasswordWindow（该类在入口程序集 ScheduleEditor 里，
+        // 主服务器代码无法直接 new — 编排端 EXE 启动时此方法能拿到，主服务器 EXE 启动时该类不存在）
+        private void EditorChangePassword_Click(object sender, RoutedEventArgs e) {
+            try {
+                var asm = System.Reflection.Assembly.GetEntryAssembly();
+                if (asm == null) { MessageBox.Show("无法识别入口程序集。"); return; }
+                var t = asm.GetType("ScheduleEditor.ChangePasswordWindow");
+                if (t == null) {
+                    MessageBox.Show("未找到 ScheduleEditor.ChangePasswordWindow 类型。", "提示",
+                        MessageBoxButton.OK, MessageBoxImage.Information);
+                    return;
+                }
+                var win = Activator.CreateInstance(t) as Window;
+                if (win == null) return;
+                win.Owner = this;
+                win.ShowDialog();
+            } catch (Exception ex) {
+                AddLog("打开修改用户名/密码窗口失败: " + ex.Message);
+                MessageBox.Show("打开修改密码窗口失败:\n" + ex.Message, "错误",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void SetupEditorSyncClient() {
+            _editorSyncClient = new EditorSyncClient();
+            _editorSyncClient.OnMessage += delegate(string raw) {
+                // LOCK_REPLY 必须不上 UI 线程，否则 UI 线程在 evt.Wait 上会和 Dispatcher.Invoke 互锁
+                try {
+                    var quick = JObject.Parse(raw);
+                    string qtype = quick["type"] != null ? quick["type"].ToString() : "";
+                    if (qtype == "LOCK_REPLY") {
+                        string corrId = quick["corrId"] != null ? quick["corrId"].ToString() : "";
+                        if (!string.IsNullOrEmpty(corrId)) {
+                            lock (_lockSync) {
+                                _lockReplies[corrId] = quick;
+                                System.Threading.ManualResetEventSlim evt;
+                                if (_lockWaiters.TryGetValue(corrId, out evt)) evt.Set();
+                            }
+                        }
+                        return;
+                    }
+                } catch { }
+                Dispatcher.Invoke((Action)delegate() { HandleEditorSyncMessage(raw); });
+            };
+            _editorSyncClient.OnConnected += delegate() {
+                Dispatcher.Invoke((Action)delegate() { OnEditorSyncConnected(); });
+            };
+            _editorSyncClient.OnDisconnected += delegate() {
+                Dispatcher.Invoke((Action)delegate() { OnEditorSyncDisconnected(); });
+            };
+            _editorSyncClient.OnLog += delegate(string s) {
+                Dispatcher.Invoke((Action)delegate() { AddLog("[同步] " + s); });
+            };
+
+            // 读 editor_sync.json：上次连接地址 + 是否自动重连
+            try {
+                string cfg = IOPath.Combine(AppDomain.CurrentDomain.BaseDirectory, "editor_sync.json");
+                if (File.Exists(cfg)) {
+                    var o = JObject.Parse(File.ReadAllText(cfg, Encoding.UTF8));
+                    if (o["host"] != null && _editorSyncHostBox != null) _editorSyncHostBox.Text = o["host"].ToString();
+                    bool auto = o["autoConnect"] != null && (bool)o["autoConnect"];
+                    if (auto) Dispatcher.BeginInvoke((Action)delegate() { TryEditorSyncConnect(); });
+                }
+            } catch { }
+        }
+
+        private void TryEditorSyncConnect() {
+            if (_editorSyncClient == null) return;
+            try {
+                string host = _editorSyncHostBox != null ? (_editorSyncHostBox.Text ?? "").Trim() : "127.0.0.1";
+                if (string.IsNullOrEmpty(host)) host = "127.0.0.1";
+                UpdateEditorSyncStatus("连接中…", "#F59E0B");
+                _editorSyncClient.Connect(host, 3002);
+                var hello = new JObject();
+                hello["type"] = "EDITOR_IDENTITY";
+                _editorSyncClient.Send(hello.ToString(Formatting.None));
+                SaveEditorSyncConfig(host, true);
+            } catch (Exception ex) {
+                AddLog("连接主服务器失败: " + ex.Message);
+                UpdateEditorSyncStatus("离线", "#94A3B8");
+            }
+        }
+
+        private void SaveEditorSyncConfig(string host, bool autoConnect) {
+            try {
+                var o = new JObject();
+                o["host"] = host;
+                o["autoConnect"] = autoConnect;
+                File.WriteAllText(
+                    IOPath.Combine(AppDomain.CurrentDomain.BaseDirectory, "editor_sync.json"),
+                    o.ToString(Formatting.Indented), Encoding.UTF8);
+            } catch { }
+        }
+
+        private void EditorSyncToggle_Click(object sender, RoutedEventArgs e) {
+            if (_editorSyncClient == null) return;
+            if (_editorSyncClient.IsConnected) {
+                _editorSyncClient.Disconnect();
+                SaveEditorSyncConfig(_editorSyncHostBox != null ? (_editorSyncHostBox.Text ?? "").Trim() : "", false);
+            } else {
+                TryEditorSyncConnect();
+            }
+        }
+
+        private void OnEditorSyncConnected() {
+            UpdateEditorSyncStatus("已连接", "#22C55E");
+            if (_editorSyncConnectButton != null) _editorSyncConnectButton.Content = "断开";
+        }
+
+        private void OnEditorSyncDisconnected() {
+            UpdateEditorSyncStatus("离线", "#94A3B8");
+            if (_editorSyncConnectButton != null) _editorSyncConnectButton.Content = "连接";
+        }
+
+        private void UpdateEditorSyncStatus(string text, string color) {
+            if (_editorSyncStatusText != null) {
+                _editorSyncStatusText.Text = text;
+                try {
+                    _editorSyncStatusText.Foreground =
+                        new SolidColorBrush((Color)ColorConverter.ConvertFromString(color));
+                } catch { }
+            }
+        }
+
+        // 编排端：收到主服务器推过来的 EDITOR_PACKAGE → 覆盖本地（_applyingRemoteSync 防回环）
+        private void HandleEditorSyncMessage(string raw) {
+            try {
+                var msg = JObject.Parse(raw);
+                string type = msg["type"] != null ? msg["type"].ToString() : "";
+                if (type == "EDITOR_PACKAGE") {
+                    var pkgToken = msg["package"];
+                    if (pkgToken == null) return;
+                    var package = pkgToken.ToObject<CompetitionPackage>();
+                    if (package == null) return;
+                    ApplyPackageInMemory(package);
+                    UpdateEditorSyncStatus("已同步", "#22C55E");
+                    AddLog("收到主服务器整包 — 已覆盖本地");
+                }
+            } catch (Exception ex) {
+                AddLog("处理同步消息失败: " + ex.Message);
+            }
         }
 
         private string GetDatePickerText(DatePicker dp) {
@@ -214,6 +483,51 @@ namespace SwimmingScoreboard
             foreach (int lane in _poolConfig.LaneNumbers) {
                 _laneDeviceStates.Add(new LaneDeviceState { Lane = lane });
             }
+            ApplyTouchpadInstallModeToLanes();
+        }
+
+        // 2026-05-13 电池电压显示：把 _hwBatteryVoltage 渲染到顶部状态栏 TimingHwConnText 旁
+        // 没有专门控件时退到 AddLog 提示；用现成的 TimingStatusText 作为"硬件状态"载体追加电压串
+        private void UpdateBatteryVoltageDisplay() {
+            try {
+                if (TimingStatusText == null) return;
+                string baseText = (_timingBridge != null) ? _timingBridge.StatusText : "未连接";
+                if (_hwBatteryVoltage > 0 && (DateTime.Now - _hwBatteryReceivedAt).TotalSeconds < 30) {
+                    TimingStatusText.Text = string.Format("{0}  ｜ 电池: {1:F2}V", baseText, _hwBatteryVoltage);
+                    // < 11.0V 红色警示，11.0-11.5V 琥珀色，>=11.5V 绿色
+                    if (_hwBatteryVoltage < 11.0)
+                        TimingStatusText.Foreground = new SolidColorBrush(Colors.Red);
+                    else if (_hwBatteryVoltage < 11.5)
+                        TimingStatusText.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F59E0B"));
+                    else
+                        TimingStatusText.Foreground = new SolidColorBrush(Colors.LimeGreen);
+                } else {
+                    TimingStatusText.Text = baseText;
+                }
+            } catch { }
+        }
+
+        // 2026-05-13 把"单端 / 两端"安装方式落到每条泳道的右端设备状态。
+        //   两端 (HasRightStartBlock=true)：右端触板/出发台/盲表都是正常 Closed
+        //   单端 (HasRightStartBlock=false)：右端全部置 NotInstalled / 未安装位 = true（虚线框）
+        // 注意：已经被标记为 Broken 的设备不动它，等用户在设备管理里手动恢复
+        private void ApplyTouchpadInstallModeToLanes() {
+            bool dualEnd = _poolConfig != null && _poolConfig.HasRightStartBlock;
+            foreach (var st in _laneDeviceStates) {
+                if (!dualEnd) {
+                    st.RightTouchpadStatus = DeviceStatus.NotInstalled;
+                    st.RightStartBlockStatus = DeviceStatus.NotInstalled;
+                    st.RightBlindWatch1NotInstalled = true;
+                    st.RightBlindWatch2NotInstalled = true;
+                    st.RightBlindWatch3NotInstalled = true;
+                } else {
+                    if (st.RightTouchpadStatus == DeviceStatus.NotInstalled) st.RightTouchpadStatus = DeviceStatus.Closed;
+                    if (st.RightStartBlockStatus == DeviceStatus.NotInstalled) st.RightStartBlockStatus = DeviceStatus.Closed;
+                    st.RightBlindWatch1NotInstalled = false;
+                    st.RightBlindWatch2NotInstalled = false;
+                    st.RightBlindWatch3NotInstalled = false;
+                }
+            }
         }
 
         // ═══════════════════════════════════════════════════════════════
@@ -238,6 +552,9 @@ namespace SwimmingScoreboard
                         _registerSockets.Remove(socket);
                         _timingExeSockets.Remove(socket);
                         _timingWebSockets.Remove(socket);
+                        _editorSockets.Remove(socket);
+                        // 客户端断开 → 释放其持有的所有编辑锁，避免数据被永久锁死
+                        ReleaseLocksHeldBy(socket);
                         Dispatcher.Invoke((Action)delegate() {
                             UpdateScoringControlMode();
                             UpdateConnectionStatus();
@@ -285,6 +602,26 @@ namespace SwimmingScoreboard
                         break;
                     case "CHECKIN_IDENTITY":
                         AddLog("检录台已连接");
+                        break;
+                    case "EDITOR_IDENTITY":
+                        if (!_editorSockets.Contains(socket)) _editorSockets.Add(socket);
+                        AddLog("编排客户端已连接 — 立即推送整包");
+                        SendEditorPackageTo(socket);   // 上线立即喂一次整包，编排端覆盖本地
+                        break;
+                    case "EDITOR_PULL_PACKAGE":
+                        SendEditorPackageTo(socket);
+                        break;
+                    case "EDITOR_PUSH_PACKAGE":
+                        HandleEditorPushPackage(socket, msg);
+                        break;
+                    case "LOCK_REQUEST":
+                        HandleLockRequest(socket, msg);
+                        break;
+                    case "LOCK_RELEASE":
+                        HandleLockRelease(socket, msg);
+                        break;
+                    case "DEVICE_OVERRIDE":
+                        HandleDeviceOverride(msg);
                         break;
                     case "GET_HEAT_SWIMMERS":
                         HandleGetHeatSwimmers(socket, msg);
@@ -1278,7 +1615,11 @@ namespace SwimmingScoreboard
             string cmdType = data["commandType"].ToString();
             double time = (double)data["time"];
             string side = data["side"] != null ? data["side"].ToString() : null;
-            ProcessTimingData(lane, cmdType, time, side);
+            // 远程 TimingBridge 转发的抢跳标志（可选；缺省按时间符号判断）
+            bool isFalseStart = data["isFalseStart"] != null
+                ? (bool)data["isFalseStart"]
+                : (cmdType == "StartingBlock" && time < 0);
+            ProcessTimingData(lane, cmdType, time, side, isFalseStart);
         }
 
         private void HandleConnectHw(JObject msg) {
@@ -1943,6 +2284,16 @@ namespace SwimmingScoreboard
                 ApplyHardwareSettingFrame(data);
                 return;
             }
+            // 2026-05-13 硬件计时器电池电压上报：D3:D4 高低字节 = mV，仅做显示，不进计时路径
+            if (data.CommandType == TimingCommandType.BatteryVoltage) {
+                int mv = (data.Param1 << 8) | data.RawD4;
+                double volts = mv / 1000.0;
+                _hwBatteryVoltage = volts;
+                _hwBatteryReceivedAt = DateTime.Now;
+                UpdateBatteryVoltageDisplay();
+                Broadcast();   // 推给所有客户端（编排端/大屏可同步显示）
+                return;
+            }
 
             string cmdType = data.CommandType.ToString();
             // 根据终点端/另一端标识 + 终点位置设置，映射到 left/right
@@ -1954,7 +2305,8 @@ namespace SwimmingScoreboard
                 side = finishIsLeft ? "left" : "right";
             else
                 side = finishIsLeft ? "right" : "left";
-            ProcessTimingData(data.Lane, cmdType, data.TimeInSeconds, side);
+            // 2026-05-12 协议扩展：StartingBlock 命令 D10≠0 表示抢跳，TimeInSeconds 已被解析器取反为负值
+            ProcessTimingData(data.Lane, cmdType, data.TimeInSeconds, side, data.IsFalseStart);
         }
 
         // ═══════════════════════════════════════════════════════════════
@@ -1990,7 +2342,8 @@ namespace SwimmingScoreboard
                 // ── 0x41 Set_ArmDelay_Time（一帧 8 个数据字节）──
                 byte armNorm   = ByteClamp(_laneCloseSettings.LaneCloseTime);
                 byte armAfter  = ByteClamp(_laneCloseSettings.LaneCloseTime);
-                byte mbDelay   = 50;                                                  // 参考程序默认值
+                //2026-05-13 盲表代替成绩延迟时间（0.1秒单位，5.0秒→50）
+                byte mbDelay   = ByteClamp((int)(_laneCloseSettings.BlindReplaceDelay * 10));
                 byte resultDsp = ByteClamp(_laneCloseSettings.SplitDisplayTime);
                 byte edgeBit   = 0;                                                   // 出发信号边沿 0=下降沿
                 byte laneDir   = (byte)(_laneCloseSettings.LaneOrder == "reverse" ? 1 : 0);
@@ -2136,14 +2489,16 @@ namespace SwimmingScoreboard
                 for (int i = 5; i <= 9; i++) {
                     if (occupiedLanes.Contains(i)) laneOpen5_9 |= (byte)(1 << (i - 5));
                 }
+                // 2026-05-13 D8 = IsRelay 标志：硬件据此判断是否为每棒测接力反应时
+                byte isRelayByte = (byte)(_isRelay ? 1 : 0);
                 _timingBridge.SendFullFrame(0x43,
                     (byte)Math.Min(255, totalLaps),
                     (byte)Math.Min(255, rightTotal),
                     (byte)Math.Min(255, leftTotal),
-                    laneOpen0_4, laneOpen5_9, 0);
+                    laneOpen0_4, laneOpen5_9, isRelayByte);
                 _timingBridge.DelayBetweenFrames(20);     // 给硬件处理本帧的时间，防止下一条命令被吞
-                AddLog(string.Format("Set_MatchEvent 已下发: 总圈{0} 右{1} 左{2} 开0-4=0x{3:X2} 开5-9=0x{4:X2}（bit=1 有运动员）",
-                    totalLaps, rightTotal, leftTotal, laneOpen0_4, laneOpen5_9));
+                AddLog(string.Format("Set_MatchEvent 已下发: 总圈{0} 右{1} 左{2} 开0-4=0x{3:X2} 开5-9=0x{4:X2} 接力={5}",
+                    totalLaps, rightTotal, leftTotal, laneOpen0_4, laneOpen5_9, _isRelay ? "是" : "否"));
             } catch (Exception ex) {
                 AddLog("Set_MatchEvent 下发失败: " + ex.Message);
             }
@@ -2201,10 +2556,16 @@ namespace SwimmingScoreboard
                     if (ln < 0 || ln > 9) continue;
                     int leftBit = 1 << ln;
                     int rightBit = 1 << (ln + 10);
-                    if (!st.LeftTouchpadBroken)   tpVal |= leftBit;
-                    if (!st.RightTouchpadBroken)  tpVal |= rightBit;
-                    if (!st.LeftStartBlockBroken) sbVal |= leftBit;
-                    if (!st.RightStartBlockBroken) sbVal |= rightBit;
+                    // 2026-05-13 触板 / 出发台未安装也视为"硬件无此设备"，位图必须为 0，
+                    // 否则单端模式下硬件仍以为右端触板存在，会持续期待信号。
+                    bool leftTpInstalled = (st.LeftTouchpadStatus != DeviceStatus.NotInstalled);
+                    bool rightTpInstalled = (st.RightTouchpadStatus != DeviceStatus.NotInstalled);
+                    bool leftSbInstalled = (st.LeftStartBlockStatus != DeviceStatus.NotInstalled);
+                    bool rightSbInstalled = (st.RightStartBlockStatus != DeviceStatus.NotInstalled);
+                    if (!st.LeftTouchpadBroken  && leftTpInstalled)  tpVal |= leftBit;
+                    if (!st.RightTouchpadBroken && rightTpInstalled) tpVal |= rightBit;
+                    if (!st.LeftStartBlockBroken  && leftSbInstalled)  sbVal |= leftBit;
+                    if (!st.RightStartBlockBroken && rightSbInstalled) sbVal |= rightBit;
                     // 盲表 1 — 对应硬件 0x46 MB 槽
                     if (!st.LeftBlindWatch1Broken && !st.LeftBlindWatch1NotInstalled)   mb1Val |= leftBit;
                     if (!st.RightBlindWatch1Broken && !st.RightBlindWatch1NotInstalled) mb1Val |= rightBit;
@@ -2227,22 +2588,20 @@ namespace SwimmingScoreboard
                 _timingBridge.SendFullFrame(0x46, s0, s1, s2, s3, s4, s5, s6, s7);
                 _timingBridge.DelayBetweenFrames(50);
 
-                // ── 0x49 扩展：盲表 2 状态（同 20 位编排，固件升级后识别）──
-                _timingBridge.SendFullFrame(0x49,
-                    (byte)(mb2Val & 0xFF),
-                    (byte)((mb2Val >> 8) & 0xFF),
-                    (byte)((mb2Val >> 16) & 0x0F));
-                _timingBridge.DelayBetweenFrames(50);
+                // 2026-05-13(2) 关键 BUG 修复：原 0x49 / 0x4A "盲表 2/3 扩展位图"与硬件
+                // dispatcher 的 D2-0x10 映射冲突 ——
+                //   wire 0x49 → 0x39 = Set_DateTime（被当成日期帧解析，年份越界丢弃）
+                //   wire 0x4A → 0x3A = Set_PoolSingleOrDoubleTP（D3≠0 时切到单端模式）
+                // 同步设备状态时大概率把硬件误切到"单端"→ 屏蔽右端全部信号。
+                // 在硬件正式分配新命令码（建议 ≥0x60 段）之前，PC 端不能再发这两帧。
+                // 盲表 2/3 的"未安装/损坏"软件仍记录在 _laneDeviceStates，等硬件支持后再启用。
+                //
+                // 历史代码（保留供将来恢复时参考）：
+                //   _timingBridge.SendFullFrame(0x49, mb2Val_bytes...);
+                //   _timingBridge.SendFullFrame(0x4A, mb3Val_bytes...);
 
-                // ── 0x4A 扩展：盲表 3 状态 ──
-                _timingBridge.SendFullFrame(0x4A,
-                    (byte)(mb3Val & 0xFF),
-                    (byte)((mb3Val >> 8) & 0xFF),
-                    (byte)((mb3Val >> 16) & 0x0F));
-                _timingBridge.DelayBetweenFrames(50);
-
-                AddLog(string.Format("设备状态已同步到硬件: TP=0x{0:X5} SB=0x{1:X5} MB1=0x{2:X5} MB2=0x{3:X5}(0x49) MB3=0x{4:X5}(0x4A)",
-                    tpVal & 0xFFFFF, sbVal & 0xFFFFF, mb1Val & 0xFFFFF, mb2Val & 0xFFFFF, mb3Val & 0xFFFFF));
+                AddLog(string.Format("设备状态已同步到硬件: TP=0x{0:X5} SB=0x{1:X5} MB1=0x{2:X5}（盲表2/3 状态仅本机保留，等硬件分配新命令码）",
+                    tpVal & 0xFFFFF, sbVal & 0xFFFFF, mb1Val & 0xFFFFF));
             } catch (Exception ex) {
                 AddLog("设备状态下发硬件失败: " + ex.Message);
             }
@@ -2322,6 +2681,8 @@ namespace SwimmingScoreboard
                             case 0x03: vOld = _laneCloseSettings.ResultConfirmCloseDelay; vNew = data.RawD4 / 10.0;    if (Math.Abs(vOld - vNew) > 0.001) { _laneCloseSettings.ResultConfirmCloseDelay = vNew; changed = true; } break;
                             case 0x04: vOld = _laneCloseSettings.FalseStartThreshold;     vNew = data.RawD4 / 100.0;   if (Math.Abs(vOld - vNew) > 0.0001) { _laneCloseSettings.FalseStartThreshold = vNew; changed = true; } break;
                             case 0x05: vOld = _laneCloseSettings.SplitDisplayTime;        vNew = data.RawD4;           if (Math.Abs(vOld - vNew) > 0.001) { _laneCloseSettings.SplitDisplayTime = vNew; changed = true; } break;
+                            //2026-05-13 子码 0x09：盲表代替成绩延迟时间（0.1秒单位）
+                            case 0x09: vOld = _laneCloseSettings.BlindReplaceDelay;       vNew = data.RawD4 / 10.0;    if (Math.Abs(vOld - vNew) > 0.001) { _laneCloseSettings.BlindReplaceDelay = vNew; changed = true; } break;
                             case 0x06: vOld = _laneCloseSettings.FirstPlaceHoldTime;      vNew = data.RawD4;           if (Math.Abs(vOld - vNew) > 0.001) { _laneCloseSettings.FirstPlaceHoldTime = vNew; changed = true; } break;
                             case 0x07: {
                                 string newFin = data.RawD4 == 0 ? "left" : "right";
@@ -2379,7 +2740,7 @@ namespace SwimmingScoreboard
             }
         }
 
-        private void ProcessTimingData(int lane, string cmdType, double timeInSeconds, string side = null) {
+        private void ProcessTimingData(int lane, string cmdType, double timeInSeconds, string side = null, bool isFalseStart = false) {
             // 硬件 0x7F 滚动时间：硬件计时器是【唯一】权威时间源。
             // 软件不再用本地 DateTime 自算时间，也不按 race state 过滤：收到什么显示什么。
             // 这样硬件清零后只要它发 0x7F=0，软件立刻同步；硬件继续走时则软件也跟着；
@@ -2471,6 +2832,17 @@ namespace SwimmingScoreboard
                         }
 
                         bool sbOpen = (sbStatus == DeviceStatus.Open || sbStatus == DeviceStatus.FalseStart);
+                        // 2026-05-13 硬件 D10≠0 已确认抢跳：不论出发台软件状态如何（Closed/Touched/Broken），
+                        // 都强制走主反应时记录路径。否则当出发台还在 Closed 状态时硬件抢跳数据会被丢弃，
+                        // 表现为"测了几十次只显示一次"。
+                        if (isFalseStart) sbOpen = true;
+                        // 2026-05-13 全开模式：该泳道处于"全开"覆盖时，无视状态机直接记录
+                        if (IsLaneForceAllOpen(lane)) sbOpen = true;
+                        // 2026-05-13 正常出发反应时也总是记录：
+                        // 硬件 0x1A 一旦上报就是有效反应时（不论 D10 符号），软件状态机的 Closed 是常态
+                        // （比赛开始前 / 出发台还没切到 Open），不应当作过滤门槛。仅在 Touched 状态下保留
+                        // "已记录过一次 → 走备用"的原语义。
+                        if (sbStatus != DeviceStatus.Touched) sbOpen = true;
                         if (!sbOpen && sbStatus == DeviceStatus.Touched) {
                             RecordBackupReaction(lane, timeInSeconds, sbSideForClose);
                             break;
@@ -2493,7 +2865,8 @@ namespace SwimmingScoreboard
                                 relayRes = EnsureRelayLaneResult(swForLane, lane);
                                 if (relayRes != null && relayRes.Splits.Count > 0) lastTouchTime = relayRes.Splits.Last().CumulativeTime;
                             }
-                            double relayReaction = timeInSeconds - lastTouchTime;
+                            // 2026-05-12 抢跳：硬件以 D10 符号位上报，timeInSeconds 已为负值，直接作为反应时
+                            double relayReaction = isFalseStart ? timeInSeconds : (timeInSeconds - lastTouchTime);
                             laneState.ReactionTime = relayReaction;
                             // 按棒次索引覆盖写入 LegReactionTimes[legIdx]，
                             // 这样即使硬件事件重复/乱序，也只保留每棒最新值，且槽位与棒次对齐
@@ -2503,7 +2876,10 @@ namespace SwimmingScoreboard
                                 if (legIdx >= 0 && legIdx < relayRes.LegReactionTimes.Count)
                                     relayRes.LegReactionTimes[legIdx] = relayReaction;
                             }
-                            if (relayReaction < _laneCloseSettings.FalseStartThreshold) {
+                            if (isFalseStart) {
+                                laneState.IsSuspectFalseStart = true;
+                                AddLog(string.Format("⚠ 接力抢跳（硬件确认）泳道{0} 反应时:{1:F3}s", lane, relayReaction));
+                            } else if (relayReaction < _laneCloseSettings.FalseStartThreshold) {
                                 // 仅作可疑提示（反应时标红），是否判罚由裁判手动决定
                                 laneState.IsSuspectFalseStart = true;
                                 AddLog(string.Format("⚠ 接力起跳可疑（待裁判确认）泳道{0} 出发台:{1:F2}s 触板:{2:F2}s 差值:{3:F3}s", lane, timeInSeconds, lastTouchTime, relayReaction));
@@ -2511,7 +2887,7 @@ namespace SwimmingScoreboard
                                 AddLog(string.Format("泳道{0} 接力交接 出发台:{1:F2}s 差值:{2:F2}s", lane, timeInSeconds, relayReaction));
                             }
                         } else {
-                            // 普通出发：反应时间就是出发台时间
+                            // 普通出发：反应时间就是出发台时间（抢跳时为负）
                             laneState.ReactionTime = timeInSeconds;
                             // 接力第 1 棒：把出发反应时写入 LegReactionTimes[0]（覆盖式，重复触发只保留最近一次）
                             if (_isRelay) {
@@ -2527,7 +2903,11 @@ namespace SwimmingScoreboard
                                     }
                                 }
                             }
-                            if (timeInSeconds <= _laneCloseSettings.FalseStartThreshold) {
+                            if (isFalseStart) {
+                                // 2026-05-12 硬件以 D10 符号位明确上报抢跳：反应时为负
+                                laneState.IsSuspectFalseStart = true;
+                                AddLog(string.Format("⚠ 抢跳（硬件确认）泳道{0} 反应时: {1:F3}s", lane, timeInSeconds));
+                            } else if (timeInSeconds <= _laneCloseSettings.FalseStartThreshold) {
                                 // 仅作可疑提示（反应时标红），是否判罚由裁判手动决定
                                 laneState.IsSuspectFalseStart = true;
                                 AddLog(string.Format("⚠ 起跳可疑（待裁判确认）泳道{0} 反应时: {1:F3}s", lane, timeInSeconds));
@@ -2560,7 +2940,8 @@ namespace SwimmingScoreboard
                             else { tpStatus = laneState.LeftTouchpadStatus; sideForClose = "left"; }
                         }
 
-                        if (tpStatus == DeviceStatus.Open) {
+                        // 2026-05-13 全开模式：所有触板信号都认可为正式成绩，绕过状态机
+                        if (tpStatus == DeviceStatus.Open || IsLaneForceAllOpen(lane)) {
                             ProcessTouchpadHit(lane, timeInSeconds, laneState);
                             // 已记录正式成绩，把该端切到"已触板（红）"，到点再 Closed
                             EnterTouchedThenClose(laneState, sideForClose, lane);
@@ -2597,7 +2978,8 @@ namespace SwimmingScoreboard
                             else { bwStatus = lst; bwSideForClose = "left"; }
                         }
 
-                        if (bwStatus == DeviceStatus.Open) {
+                        // 2026-05-13 全开模式：所有盲表信号都认可为正式分段
+                        if (bwStatus == DeviceStatus.Open || IsLaneForceAllOpen(lane)) {
                             ProcessBlindWatchData(lane, cmdType, timeInSeconds);
                             EnterBlindTouchedThenClose(laneState, bwSideForClose, blindNum, lane);
                         } else if (bwStatus == DeviceStatus.Touched) {
@@ -2612,6 +2994,10 @@ namespace SwimmingScoreboard
 
             UpdateLaneStatusDisplay();
             Broadcast();
+            // 2026-05-13 #6 比赛过程数据（触板/盲表/反应时）也要立刻持久化+同步给编排端。
+            // 滚动时间 0x7F 已在前面 if(cmdType=="RunningTime") return; 提前返回，不会落到这里，
+            // 所以这里调 AutoSaveData 不会被 100ms 节拍拖累 IO。
+            try { AutoSaveData(); } catch (Exception ex) { AddLog("成绩持久化失败: " + ex.Message); }
         }
 
         /// <summary>
@@ -3208,8 +3594,8 @@ namespace SwimmingScoreboard
                 result.PushButton3Time = split.PushButton3Time;
                 result.FinalTime = time;
                 result.TimeInSeconds = time;
-                // 保存反应时间到成绩记录（关闭RT时不写入）
-                if (_laneCloseSettings.ReactionTimeEnabled && laneState.ReactionTime > 0) {
+                // 保存反应时间到成绩记录（关闭RT时不写入；抢跳为负值，0 表示未记录）
+                if (_laneCloseSettings.ReactionTimeEnabled && laneState.ReactionTime != 0) {
                     result.StartingBlockTime = laneState.ReactionTime;
                 }
 
@@ -4825,8 +5211,27 @@ namespace SwimmingScoreboard
             }
         }
 
+        // 2026-05-13 设备圆点统一样式：NotInstalled → 透明填充 + 灰色虚线描边（"未安装"的虚线框），
+        // 其它状态 → 正常实色填充无描边。比赛控制行刷新时调用，所有 RightDots / LeftDots 都用它。
+        private static readonly DoubleCollection _dotDashArray = new DoubleCollection(new double[] { 2, 1.5 });
+        private static void StyleDot(Ellipse dot, DeviceStatus status) {
+            if (dot == null) return;
+            if (status == DeviceStatus.NotInstalled) {
+                dot.Fill = Brushes.Transparent;
+                dot.Stroke = _brushSlate;
+                dot.StrokeThickness = 1.5;
+                dot.StrokeDashArray = _dotDashArray;
+            } else {
+                dot.Fill = GetDeviceBrush(status);
+                dot.Stroke = null;
+                dot.StrokeThickness = 0;
+            }
+        }
+
         private Ellipse MakeLaneDot(DeviceStatus status) {
-            return new Ellipse { Width = 22, Height = 22, Fill = GetDeviceBrush(status), Margin = new Thickness(2, 0, 2, 0) };
+            var e = new Ellipse { Width = 22, Height = 22, Margin = new Thickness(2, 0, 2, 0) };
+            StyleDot(e, status);
+            return e;
         }
 
         // 泳道行UI引用（动态内容增量更新用）
@@ -5205,22 +5610,22 @@ namespace SwimmingScoreboard
                     // 测试模式下按真实状态涂色，正常空道全部置灰
                     if (rowUI.LeftDots != null && ls != null) {
                         if (_testMode) {
-                            rowUI.LeftDots[0].Fill = GetDeviceBrush(ls.LeftBlindWatch3Status);
-                            rowUI.LeftDots[1].Fill = GetDeviceBrush(ls.LeftBlindWatch2Status);
-                            rowUI.LeftDots[2].Fill = GetDeviceBrush(ls.LeftBlindWatch1Status);
-                            rowUI.LeftDots[3].Fill = GetDeviceBrush(ls.LeftStartBlockStatus);
-                            rowUI.LeftDots[4].Fill = GetDeviceBrush(ls.LeftTouchpadStatus);
+                            StyleDot(rowUI.LeftDots[0], ls.LeftBlindWatch3Status);
+                            StyleDot(rowUI.LeftDots[1], ls.LeftBlindWatch2Status);
+                            StyleDot(rowUI.LeftDots[2], ls.LeftBlindWatch1Status);
+                            StyleDot(rowUI.LeftDots[3], ls.LeftStartBlockStatus);
+                            StyleDot(rowUI.LeftDots[4], ls.LeftTouchpadStatus);
                         } else {
                             for (int i = 0; i < rowUI.LeftDots.Length; i++) rowUI.LeftDots[i].Fill = _brushSlate;
                         }
                     }
                     if (rowUI.RightDots != null && ls != null) {
                         if (_testMode) {
-                            rowUI.RightDots[0].Fill = GetDeviceBrush(ls.RightTouchpadStatus);
-                            rowUI.RightDots[1].Fill = GetDeviceBrush(ls.RightStartBlockStatus);
-                            rowUI.RightDots[2].Fill = GetDeviceBrush(ls.RightBlindWatch1Status);
-                            rowUI.RightDots[3].Fill = GetDeviceBrush(ls.RightBlindWatch2Status);
-                            rowUI.RightDots[4].Fill = GetDeviceBrush(ls.RightBlindWatch3Status);
+                            StyleDot(rowUI.RightDots[0], ls.RightTouchpadStatus);
+                            StyleDot(rowUI.RightDots[1], ls.RightStartBlockStatus);
+                            StyleDot(rowUI.RightDots[2], ls.RightBlindWatch1Status);
+                            StyleDot(rowUI.RightDots[3], ls.RightBlindWatch2Status);
+                            StyleDot(rowUI.RightDots[4], ls.RightBlindWatch3Status);
                         } else {
                             for (int i = 0; i < rowUI.RightDots.Length; i++) rowUI.RightDots[i].Fill = _brushSlate;
                         }
@@ -5309,11 +5714,11 @@ namespace SwimmingScoreboard
 
                 // 左设备5个圆点（与右端对称）：盲表3 / 盲表2 / 盲表1 / 出发台 / 触板
                 if (ls != null) {
-                    rowUI.LeftDots[0].Fill = GetDeviceBrush(ls.LeftBlindWatch3Status);
-                    rowUI.LeftDots[1].Fill = GetDeviceBrush(ls.LeftBlindWatch2Status);
-                    rowUI.LeftDots[2].Fill = GetDeviceBrush(ls.LeftBlindWatch1Status);
-                    rowUI.LeftDots[3].Fill = GetDeviceBrush(ls.LeftStartBlockStatus);
-                    rowUI.LeftDots[4].Fill = GetDeviceBrush(ls.LeftTouchpadStatus);
+                    StyleDot(rowUI.LeftDots[0], ls.LeftBlindWatch3Status);
+                    StyleDot(rowUI.LeftDots[1], ls.LeftBlindWatch2Status);
+                    StyleDot(rowUI.LeftDots[2], ls.LeftBlindWatch1Status);
+                    StyleDot(rowUI.LeftDots[3], ls.LeftStartBlockStatus);
+                    StyleDot(rowUI.LeftDots[4], ls.LeftTouchpadStatus);
                 } else {
                     for (int i = 0; i < 5; i++) rowUI.LeftDots[i].Fill = _brushSlate;
                 }
@@ -5341,11 +5746,11 @@ namespace SwimmingScoreboard
 
                 // 右设备5个圆点：Touchpad, StartBlock, BlindWatch1/2/3
                 if (ls != null) {
-                    rowUI.RightDots[0].Fill = GetDeviceBrush(ls.RightTouchpadStatus);
-                    rowUI.RightDots[1].Fill = GetDeviceBrush(ls.RightStartBlockStatus);
-                    rowUI.RightDots[2].Fill = GetDeviceBrush(ls.RightBlindWatch1Status);
-                    rowUI.RightDots[3].Fill = GetDeviceBrush(ls.RightBlindWatch2Status);
-                    rowUI.RightDots[4].Fill = GetDeviceBrush(ls.RightBlindWatch3Status);
+                    StyleDot(rowUI.RightDots[0], ls.RightTouchpadStatus);
+                    StyleDot(rowUI.RightDots[1], ls.RightStartBlockStatus);
+                    StyleDot(rowUI.RightDots[2], ls.RightBlindWatch1Status);
+                    StyleDot(rowUI.RightDots[3], ls.RightBlindWatch2Status);
+                    StyleDot(rowUI.RightDots[4], ls.RightBlindWatch3Status);
                 } else {
                     for (int i = 0; i < 5; i++) rowUI.RightDots[i].Fill = _brushSlate;
                 }
@@ -5462,6 +5867,22 @@ namespace SwimmingScoreboard
                 rowUI.RemarkText.Text = remark;
                 // 破纪录标记用金色高亮提示
                 rowUI.RemarkText.Foreground = (!isDQ && result != null && !string.IsNullOrEmpty(result.RecordNote)) ? _brushAmber : _brushRed;
+
+                // 2026-05-13 设备测试模式：所有泳道（不论是否有运动员）都把每端最近触发的设备时间贴到行上，
+                // 左端事件覆盖到 NameText，右端事件覆盖到 DisplayTimeText（与"空泳道"分支同步），
+                // 让操作员能在主服务器实时看到"哪条道哪个设备在什么时刻被触发"。
+                if (_testMode) {
+                    string lEvt = _testLastEventLeft.ContainsKey(lane) ? _testLastEventLeft[lane] : "";
+                    string rEvt = _testLastEventRight.ContainsKey(lane) ? _testLastEventRight[lane] : "";
+                    if (rowUI.NameText != null && lEvt.Length > 0) {
+                        rowUI.NameText.Text = lEvt;
+                        rowUI.NameText.Foreground = _brushAmber;
+                    }
+                    if (rowUI.DisplayTimeText != null && rEvt.Length > 0) {
+                        rowUI.DisplayTimeText.Text = rEvt;
+                        rowUI.DisplayTimeText.Foreground = _brushAmber;
+                    }
+                }
             }
         }
 
@@ -5907,8 +6328,8 @@ namespace SwimmingScoreboard
 
             var laneState = _laneDeviceStates.FirstOrDefault(s => s.Lane == lane);
             if (laneState != null) {
-                // 保存反应时间到成绩记录（关闭RT时不写入）
-                if (_laneCloseSettings.ReactionTimeEnabled && laneState.ReactionTime > 0) {
+                // 保存反应时间到成绩记录（关闭RT时不写入；抢跳为负值，0 表示未记录）
+                if (_laneCloseSettings.ReactionTimeEnabled && laneState.ReactionTime != 0) {
                     result.StartingBlockTime = laneState.ReactionTime;
                 }
                 laneState.IsFinished = true;
@@ -6529,6 +6950,10 @@ namespace SwimmingScoreboard
         }
 
         private void TimingSettings_Click(object sender, RoutedEventArgs e) {
+            RunWithEditLock("timing-settings", "参数设置", delegate { TimingSettingsCore(); });
+        }
+
+        private void TimingSettingsCore() {
             var dlg = new Window {
                 Title = "参数设置",
                 Width = 420,
@@ -6546,6 +6971,8 @@ namespace SwimmingScoreboard
             var tbConfDelay = AddSettingsRow(sp, "成绩确认关闭延迟", _laneCloseSettings.ResultConfirmCloseDelay.ToString(), "秒");
             var tbFSThresh = AddSettingsRow(sp, "抢跳判定阈值", _laneCloseSettings.FalseStartThreshold.ToString(), "秒");
             var tbSplitDisp = AddSettingsRow(sp, "分段成绩显示时长", _laneCloseSettings.SplitDisplayTime.ToString(), "秒");
+            //2026-05-13 新增：盲表代替成绩延迟时间（与硬件计时器一致；以 0.1秒精度同步到硬件 0x41 帧第3字节 mbDelay）
+            var tbBlindReplace = AddSettingsRow(sp, "盲表代替成绩延迟", _laneCloseSettings.BlindReplaceDelay.ToString("0.0"), "秒");
             var tbFirstHold = AddSettingsRow(sp, "第1名成绩停留时间", _laneCloseSettings.FirstPlaceHoldTime.ToString(), "秒");
             var tbBigPage = AddSettingsRow(sp, "大屏翻屏时间", _laneCloseSettings.BigDisplayPageInterval.ToString(), "秒");
 
@@ -6595,10 +7022,37 @@ namespace SwimmingScoreboard
             btnManualMgr.Click += delegate { dlg.DialogResult = false; OpenManualButtonManager(); };
             var btnBlindMgr = new Button { Content = "左右盲表数量设置", Padding = new Thickness(0, 8, 0, 8), FontSize = 14, FontWeight = FontWeights.Bold, Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F59E0B")), Foreground = Brushes.Black, BorderThickness = new Thickness(0), Margin = new Thickness(0, 6, 0, 0) };
             btnBlindMgr.Click += delegate { dlg.DialogResult = false; OpenBlindWatchCountDialog(); };
+
+            //2026-05-13 新增：全部道设备 全开 / 恢复正常 流程 （触发硬件 0x3B Set_LaneDeviceFullOpen）
+            var btnFullOpen = new Button { Content = "全部道设备：全开（接收所有信号）", Padding = new Thickness(0, 8, 0, 8), FontSize = 14, FontWeight = FontWeights.Bold, Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#10B981")), Foreground = Brushes.White, BorderThickness = new Thickness(0), Margin = new Thickness(0, 6, 0, 0) };
+            btnFullOpen.Click += delegate {
+                try {
+                    if (_timingBridge != null && _timingBridge.IsConnected) {
+                        _timingBridge.SendLaneDeviceFullOpen(-1, true);
+                        AddLog("已发送：全部道设备 全开");
+                    } else {
+                        AddLog("硬件未连接，无法发送 全开");
+                    }
+                } catch (Exception ex) { AddLog("全开命令失败: " + ex.Message); }
+            };
+            var btnFullClose = new Button { Content = "全部道设备：恢复正常关闭流程", Padding = new Thickness(0, 8, 0, 8), FontSize = 14, FontWeight = FontWeights.Bold, Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")), Foreground = Brushes.White, BorderThickness = new Thickness(0), Margin = new Thickness(0, 6, 0, 0) };
+            btnFullClose.Click += delegate {
+                try {
+                    if (_timingBridge != null && _timingBridge.IsConnected) {
+                        _timingBridge.SendLaneDeviceFullOpen(-1, false);
+                        AddLog("已发送：全部道设备 恢复正常关闭流程");
+                    } else {
+                        AddLog("硬件未连接，无法发送 恢复正常");
+                    }
+                } catch (Exception ex) { AddLog("恢复正常命令失败: " + ex.Message); }
+            };
+
             var deviceStack = new StackPanel();
             deviceStack.Children.Add(btnDeviceMgr);
             deviceStack.Children.Add(btnManualMgr);
             deviceStack.Children.Add(btnBlindMgr);
+            deviceStack.Children.Add(btnFullOpen);   //2026-05-13
+            deviceStack.Children.Add(btnFullClose);  //2026-05-13
             deviceSep.Child = deviceStack;
             sp.Children.Add(deviceSep);
 
@@ -6621,6 +7075,7 @@ namespace SwimmingScoreboard
                 if (double.TryParse(tbConfDelay.Text, out v)) _laneCloseSettings.ResultConfirmCloseDelay = v;
                 if (double.TryParse(tbFSThresh.Text, out v)) _laneCloseSettings.FalseStartThreshold = v;
                 if (double.TryParse(tbSplitDisp.Text, out v)) _laneCloseSettings.SplitDisplayTime = v;
+                if (double.TryParse(tbBlindReplace.Text, out v)) _laneCloseSettings.BlindReplaceDelay = v;
                 if (double.TryParse(tbFirstHold.Text, out v)) _laneCloseSettings.FirstPlaceHoldTime = v;
                 if (double.TryParse(tbBigPage.Text, out v)) _laneCloseSettings.BigDisplayPageInterval = v;
                 _laneCloseSettings.ReactionTimeEnabled = rbRtOn.IsChecked == true;
@@ -6638,6 +7093,12 @@ namespace SwimmingScoreboard
                 bool newHasRight = rbTpBoth.IsChecked == true;
                 bool poolTpChanged = (_poolConfig != null) && (_poolConfig.HasRightStartBlock != newHasRight);
                 if (_poolConfig != null) _poolConfig.HasRightStartBlock = newHasRight;
+                //2026-05-13 新增：切换后立即把每条泳道右端触板/出发台/盲表的"未安装"标记翻转，
+                // 否则现场看到的设备图标不会跟着改变；同时立刻下发硬件位图，让硬件不再期待右端信号
+                if (poolTpChanged) {
+                    ApplyTouchpadInstallModeToLanes();
+                    SendDeviceStatusesToHardware();   // 0x46/0x49/0x4A 把"未安装"反映成硬件 bit=0
+                }
 
                 SaveTimingSettings();
                 AutoSaveData();
@@ -6877,19 +7338,30 @@ namespace SwimmingScoreboard
         }
 
         private void AddSwimmer_Click(object sender, RoutedEventArgs e) {
-            // 弹出与"修改选中"一致的对话框，要求一次填齐运动员信息
-            var sw = new Swimmer {
-                BibNumber = GenerateNextBibNumber(),
-                Gender = "男",
-                CurrentStage = "决赛"
-            };
-            if (OpenSwimmerEditor(sw, isNew: true)) {
-                _swimmers.Add(sw);
-                AutoSaveData();
-                RefreshOverviewStats();
-                RefreshSwimmerFilter();
-                Broadcast();
-                AddLog(string.Format("新增运动员: {0}({1}) {2}", sw.Name, sw.BibNumber, sw.EventName));
+            // 新增需要全局唯一参赛号 → 占"新增"位锁，避免两端同时新增冲突
+            string holder;
+            if (!TryAcquireEditLock("swimmer-add", out holder)) {
+                MessageBox.Show(string.Format("{0} 正在新增运动员，请稍后再试。", holder),
+                    "无法新增", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+            try {
+                // 弹出与"修改选中"一致的对话框，要求一次填齐运动员信息
+                var sw = new Swimmer {
+                    BibNumber = GenerateNextBibNumber(),
+                    Gender = "男",
+                    CurrentStage = "决赛"
+                };
+                if (OpenSwimmerEditor(sw, isNew: true)) {
+                    _swimmers.Add(sw);
+                    AutoSaveData();
+                    RefreshOverviewStats();
+                    RefreshSwimmerFilter();
+                    Broadcast();
+                    AddLog(string.Format("新增运动员: {0}({1}) {2}", sw.Name, sw.BibNumber, sw.EventName));
+                }
+            } finally {
+                ReleaseEditLock("swimmer-add");
             }
         }
 
@@ -6923,23 +7395,43 @@ namespace SwimmingScoreboard
             }
             if (MessageBox.Show(confirmMsg, "确认删除", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
 
-            int removed = 0, notFound = 0;
+            // 删除前批量申请锁；任何一条被人占用 → 整批取消
+            var acquired = new List<string>();
             foreach (var sw in toDelete) {
-                if (_swimmers.Remove(sw)) { removed++; continue; }
-                // 兜底：按 (BibNumber + Name + EventName) 查找同一条记录再删（避免引用不对等的极端情况）
-                var alt = _swimmers.FirstOrDefault(s => s.BibNumber == sw.BibNumber && s.Name == sw.Name && s.EventName == sw.EventName);
-                if (alt != null && _swimmers.Remove(alt)) { removed++; AddLog(string.Format("按号码兜底删除: {0}({1}) {2}", alt.Name, alt.BibNumber, alt.EventName)); }
-                else { notFound++; }
+                string k0 = "swimmer:" + (!string.IsNullOrEmpty(sw.IDNumber) ? sw.IDNumber : (sw.BibNumber ?? sw.Name ?? ""));
+                string h0;
+                if (!TryAcquireEditLock(k0, out h0)) {
+                    foreach (var k in acquired) ReleaseEditLock(k);
+                    MessageBox.Show(
+                        string.Format("运动员 [{0} {1}] 正在被 {2} 编辑，无法删除。请稍后再试。",
+                                      sw.BibNumber, sw.Name, h0),
+                        "无法删除", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+                acquired.Add(k0);
             }
 
-            AutoSaveData();
-            RefreshOverviewStats();
-            RefreshSwimmerFilter();
-            Broadcast();
-            AddLog(string.Format("已删除运动员 {0} 条{1}", removed, notFound > 0 ? string.Format("（{0} 条未在列表中找到）", notFound) : ""));
-            if (notFound > 0) {
-                MessageBox.Show(string.Format("已删除 {0} 条。另有 {1} 条未在列表中找到，请检查是否被其他筛选/编辑中的操作修改。",
-                    removed, notFound), "删除结果", MessageBoxButton.OK, MessageBoxImage.Warning);
+            int removed = 0, notFound = 0;
+            try {
+                foreach (var sw in toDelete) {
+                    if (_swimmers.Remove(sw)) { removed++; continue; }
+                    // 兜底：按 (BibNumber + Name + EventName) 查找同一条记录再删（避免引用不对等的极端情况）
+                    var alt = _swimmers.FirstOrDefault(s => s.BibNumber == sw.BibNumber && s.Name == sw.Name && s.EventName == sw.EventName);
+                    if (alt != null && _swimmers.Remove(alt)) { removed++; AddLog(string.Format("按号码兜底删除: {0}({1}) {2}", alt.Name, alt.BibNumber, alt.EventName)); }
+                    else { notFound++; }
+                }
+
+                AutoSaveData();
+                RefreshOverviewStats();
+                RefreshSwimmerFilter();
+                Broadcast();
+                AddLog(string.Format("已删除运动员 {0} 条{1}", removed, notFound > 0 ? string.Format("（{0} 条未在列表中找到）", notFound) : ""));
+                if (notFound > 0) {
+                    MessageBox.Show(string.Format("已删除 {0} 条。另有 {1} 条未在列表中找到，请检查是否被其他筛选/编辑中的操作修改。",
+                        removed, notFound), "删除结果", MessageBoxButton.OK, MessageBoxImage.Warning);
+                }
+            } finally {
+                foreach (var k in acquired) ReleaseEditLock(k);
             }
         }
 
@@ -6953,11 +7445,27 @@ namespace SwimmingScoreboard
         private void EditSwimmer_Click(object sender, RoutedEventArgs e) {
             var selected = SwimmerGrid.SelectedItem as Swimmer;
             if (selected == null) { MessageBox.Show("请先选中要修改的运动员"); return; }
-            if (OpenSwimmerEditor(selected, isNew: false)) {
-                RefreshSwimmerFilter();
-                AutoSaveData();
-                Broadcast();
-                AddLog(string.Format("已修改运动员: {0}({1}) {2}", selected.Name, selected.BibNumber, selected.EventName));
+            // 联机时申请编辑锁；锁键用身份证号优先，没有则参赛号兜底。
+            // 同一运动员被人占用 → 弹窗提示，不打开编辑窗口
+            string lockKey = "swimmer:" + (!string.IsNullOrEmpty(selected.IDNumber) ? selected.IDNumber
+                                                                                    : (selected.BibNumber ?? selected.Name ?? ""));
+            string holder;
+            if (!TryAcquireEditLock(lockKey, out holder)) {
+                MessageBox.Show(
+                    string.Format("此运动员 [{0} {1}] 正在被 {2} 编辑，请稍后再试。",
+                                  selected.BibNumber, selected.Name, holder),
+                    "无法编辑", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+            try {
+                if (OpenSwimmerEditor(selected, isNew: false)) {
+                    RefreshSwimmerFilter();
+                    AutoSaveData();
+                    Broadcast();
+                    AddLog(string.Format("已修改运动员: {0}({1}) {2}", selected.Name, selected.BibNumber, selected.EventName));
+                }
+            } finally {
+                ReleaseEditLock(lockKey);
             }
         }
 
@@ -7158,6 +7666,10 @@ namespace SwimmingScoreboard
 
         // 按代表队配置号码段（如 中国 001-050）
         private void BibRangeConfig_Click(object sender, RoutedEventArgs e) {
+            RunWithEditLock("bib-ranges", "号码区间设置", delegate { BibRangeConfigCore(); });
+        }
+
+        private void BibRangeConfigCore() {
             // 汇总候选代表队列表：已有 BibRanges 中的 + 已注册运动员中出现的
             var countries = new List<string>();
             foreach (var r in _bibRanges) if (!countries.Contains(r.Country) && !string.IsNullOrEmpty(r.Country)) countries.Add(r.Country);
@@ -7426,6 +7938,21 @@ namespace SwimmingScoreboard
         }
 
         private void AddRelay_Click(object sender, RoutedEventArgs e) {
+            // 新增接力队：占"新增"位锁，避免两端同时新增同名队
+            string addHolder;
+            if (!TryAcquireEditLock("relay-add", out addHolder)) {
+                MessageBox.Show(string.Format("{0} 正在新增接力队，请稍后再试。", addHolder),
+                    "无法新增", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+            try {
+                AddRelayCore();
+            } finally {
+                ReleaseEditLock("relay-add");
+            }
+        }
+
+        private void AddRelayCore() {
             // 弹出对话框，让用户填写队名/项目/性别/报名成绩/各棒队员，
             // 确认后完整创建 RelayTeam + _swimmers 代表条目 + 队员子条目
             var relayEvents = _events.Where(ev => ev.Contains("接力")).ToList();
@@ -7599,16 +8126,28 @@ namespace SwimmingScoreboard
         private void DeleteRelay_Click(object sender, RoutedEventArgs e) {
             var selected = _selectedRelayTeam;
             if (selected == null) { MessageBox.Show("请先选中一支接力队"); return; }
-            if (MessageBox.Show(string.Format("确定删除接力队 [{0}] ({1})？", selected.TeamName, selected.EventName), "确认", MessageBoxButton.YesNo) == MessageBoxResult.Yes) {
-                // 同时删除_swimmers中的代表条目
-                var proxy = _swimmers.FirstOrDefault(s => s.Name == selected.TeamName && s.EventName == selected.EventName && s.Gender == selected.Gender && !string.IsNullOrEmpty(s.Notes) && s.Notes.StartsWith("接力队"));
-                if (proxy != null) _swimmers.Remove(proxy);
-                _relayTeams.Remove(selected);
-                _selectedRelayTeam = null;
-                if (RelayLegGrid != null) RelayLegGrid.ItemsSource = null;
-                RelayLegTitle.Text = "棒次安排（请选中一支接力队）";
-                RebuildRelayGroupedView();
-                AutoSaveData();
+            string lockKey = "relay:" + (selected.TeamName ?? "") + "|" + (selected.EventName ?? "");
+            string holder;
+            if (!TryAcquireEditLock(lockKey, out holder)) {
+                MessageBox.Show(
+                    string.Format("接力队 [{0}] 正在被 {1} 编辑，无法删除。请稍后再试。", selected.TeamName, holder),
+                    "无法删除", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+            try {
+                if (MessageBox.Show(string.Format("确定删除接力队 [{0}] ({1})？", selected.TeamName, selected.EventName), "确认", MessageBoxButton.YesNo) == MessageBoxResult.Yes) {
+                    // 同时删除_swimmers中的代表条目
+                    var proxy = _swimmers.FirstOrDefault(s => s.Name == selected.TeamName && s.EventName == selected.EventName && s.Gender == selected.Gender && !string.IsNullOrEmpty(s.Notes) && s.Notes.StartsWith("接力队"));
+                    if (proxy != null) _swimmers.Remove(proxy);
+                    _relayTeams.Remove(selected);
+                    _selectedRelayTeam = null;
+                    if (RelayLegGrid != null) RelayLegGrid.ItemsSource = null;
+                    RelayLegTitle.Text = "棒次安排（请选中一支接力队）";
+                    RebuildRelayGroupedView();
+                    AutoSaveData();
+                }
+            } finally {
+                ReleaseEditLock(lockKey);
             }
         }
 
@@ -7667,6 +8206,22 @@ namespace SwimmingScoreboard
             if (team == null) { MessageBox.Show("请先选中一支接力队"); return; }
             var leg = RelayLegGrid.SelectedItem as RelayLeg;
             if (leg == null) { MessageBox.Show("请在棒次表中选中要更换的队员"); return; }
+            string lockKey = "relay:" + (team.TeamName ?? "") + "|" + (team.EventName ?? "");
+            string holder;
+            if (!TryAcquireEditLock(lockKey, out holder)) {
+                MessageBox.Show(
+                    string.Format("接力队 [{0}] 正在被 {1} 编辑，请稍后再试。", team.TeamName, holder),
+                    "无法编辑", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+            try {
+                RelayLegReplaceCore(team, leg);
+            } finally {
+                ReleaseEditLock(lockKey);
+            }
+        }
+
+        private void RelayLegReplaceCore(RelayTeam team, RelayLeg leg) {
 
             // 确定被更换队员的性别
             string legGender = "";
@@ -7804,6 +8359,22 @@ namespace SwimmingScoreboard
         private void RelayLegSave_Click(object sender, RoutedEventArgs e) {
             var team = _selectedRelayTeam;
             if (team == null) { MessageBox.Show("请先选中一支接力队"); return; }
+            string lockKey = "relay:" + (team.TeamName ?? "") + "|" + (team.EventName ?? "");
+            string holder;
+            if (!TryAcquireEditLock(lockKey, out holder)) {
+                MessageBox.Show(
+                    string.Format("接力队 [{0}] 正在被 {1} 编辑，请稍后再试。", team.TeamName, holder),
+                    "无法保存", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+            try {
+                RelayLegSaveCore(team);
+            } finally {
+                ReleaseEditLock(lockKey);
+            }
+        }
+
+        private void RelayLegSaveCore(RelayTeam team) {
             // 更新_swimmers中代表条目的Notes
             var proxy = _swimmers.FirstOrDefault(s => s.Name == team.TeamName && s.EventName == team.EventName && s.Gender == team.Gender && !string.IsNullOrEmpty(s.Notes) && s.Notes.StartsWith("接力队"));
             if (proxy != null) {
@@ -9108,6 +9679,22 @@ namespace SwimmingScoreboard
         }
 
         private void EditSchedule_Click(object sender, RoutedEventArgs e) {
+            // 赛程是整表编辑，锁键为常量 "schedule"
+            string holder;
+            if (!TryAcquireEditLock("schedule", out holder)) {
+                MessageBox.Show(
+                    string.Format("赛程正在被 {0} 编辑，请稍后再试。", holder),
+                    "无法编辑", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+            try {
+                EditScheduleCore();
+            } finally {
+                ReleaseEditLock("schedule");
+            }
+        }
+
+        private void EditScheduleCore() {
             // 复制一份赛程用于编辑（取消时不影响原数据）
             var editList = new ObservableCollection<ScheduleItem>();
             foreach (var s in _schedule) {
@@ -9567,6 +10154,8 @@ namespace SwimmingScoreboard
                 AddLog(string.Format("  {0}{1} {2} {3}: {4}{5} → {6}组",
                     string.IsNullOrEmpty(ageGroup) ? "" : ("[" + ageGroup + "] "),
                     gender, fullEvent, stage, eventSwimmers.Count, typeLabel, item.HeatCount));
+                // 编排警告（每组 < 3 人、同单位同组无法消除）一并写入日志
+                foreach (var w in HeatScheduler.LastWarnings) AddLog(w);
             }
 
             BuildScheduleTree();
@@ -10689,15 +11278,22 @@ namespace SwimmingScoreboard
         }
 
         private void CalcTeamScore_Click(object sender, RoutedEventArgs e) {
-            CalculateTeamScores();
-            var win = new TeamScoreWindow(_teamScores);
-            win.Owner = this;
-            win.ShowDialog();
+            // 团体计分窗口本身是只读结果，但 CalculateTeamScores 会写 _teamScores → 占锁防并发写
+            RunWithEditLock("team-scores", "团体计分", delegate {
+                CalculateTeamScores();
+                var win = new TeamScoreWindow(_teamScores);
+                win.Owner = this;
+                win.ShowDialog();
+            });
         }
 
         // "名次分设置"对话框：编辑各名次得分（个人/接力）、组别系数、取分人数、破纪录加分。
         // 点击保存后写入 _scoringConfig + 持久化到 CompetitionPackage，并重算团体积分。
         private void ScoringConfig_Click(object sender, RoutedEventArgs e) {
+            RunWithEditLock("scoring-config", "名次分设置", delegate { ScoringConfigCore(); });
+        }
+
+        private void ScoringConfigCore() {
             var dlg = new Window {
                 Title = "名次分设置 — 团体计分",
                 Width = 720, Height = 560,
@@ -10782,7 +11378,7 @@ namespace SwimmingScoreboard
                     _scoringConfig.ResetToDefaults();
                     dlg.DialogResult = false;
                     dlg.Close();
-                    ScoringConfig_Click(null, null);   // 重新打开载入默认值
+                    ScoringConfigCore();   // 重新打开载入默认值（直接 Core 复用外层已占的锁）
                 }
             };
             var btnCancel = new Button { Content = "取消", Padding = new Thickness(20, 6, 20, 6), Margin = new Thickness(0, 0, 8, 0),
@@ -11551,45 +12147,320 @@ namespace SwimmingScoreboard
                     IOPath.Combine(AppDomain.CurrentDomain.BaseDirectory, "last_competition.txt"),
                     _competitionName, Encoding.UTF8);
 
-                var package = new CompetitionPackage {
-                    CompetitionName = _competitionName,
-                    CompetitionMode = _competitionMode,
-                    StartDate = GetDatePickerText(StartDatePicker),
-                    EndDate = GetDatePickerText(EndDatePicker),
-                    Location = LocationBox.Text,
-                    PoolLength = _poolConfig.Length,
-                    LaneCount = _poolConfig.LaneCount,
-                    Organizer = OrganizerBox.Text,
-                    Host = HostBox.Text,
-                    TechnicalDelegate = TechDelegateBox.Text,
-                    Referee = RefereeBox.Text,
-                    Starter = StarterBox.Text,
-                    ChiefJudge = ChiefJudgeBox.Text,
-                    Swimmers = _swimmers.ToList(),
-                    RelayTeams = _relayTeams.ToList(),
-                    Records = _records.ToList(),
-                    TeamScores = _teamScores.ToList(),
-                    Schedule = _schedule.ToList(),
-                    Events = _events,
-                    AgeGroups = _ageGroups,
-                    Genders = _genders,
-                    Stages = _stages,
-                    HeatCounts = _heatCounts,
-                    BibRanges = _bibRanges,
-                    LaneCloseSettings = _laneCloseSettings,
-                    ScoringConfig = _scoringConfig,
-                    ProgramBook = _programBook,
-                    ResultBook = _resultBook,
-                    DisplayRecordLabel = _displayRecordLabel,
-                    DisplayRecordTypeName = _displayRecordTypeName,
-                    DisplayRecordOptions = _displayRecordOptions,
-                    ConfirmedHeats = _confirmedHeats.ToList()
-                };
+                var package = BuildCurrentPackage();
 
                 string json = JsonConvert.SerializeObject(package, Formatting.Indented);
                 File.WriteAllText(IOPath.Combine(dbDir, _competitionName + ".json"), json, Encoding.UTF8);
             } catch (Exception ex) {
                 AddLog("自动保存失败: " + ex.Message);
+            }
+
+            // 联机同步：服务器 → 编排端 / 编排端 → 服务器；_applyingRemoteSync 防回环
+            try { PropagateSyncAfterSave(); } catch (Exception ex) { AddLog("联机同步异常: " + ex.Message); }
+        }
+
+        // 把当前内存状态打包成 CompetitionPackage（AutoSaveData 与同步推送共用）
+        private CompetitionPackage BuildCurrentPackage() {
+            return new CompetitionPackage {
+                CompetitionName = _competitionName,
+                CompetitionMode = _competitionMode,
+                StartDate = GetDatePickerText(StartDatePicker),
+                EndDate = GetDatePickerText(EndDatePicker),
+                Location = LocationBox.Text,
+                PoolLength = _poolConfig.Length,
+                LaneCount = _poolConfig.LaneCount,
+                Organizer = OrganizerBox.Text,
+                Host = HostBox.Text,
+                TechnicalDelegate = TechDelegateBox.Text,
+                Referee = RefereeBox.Text,
+                Starter = StarterBox.Text,
+                ChiefJudge = ChiefJudgeBox.Text,
+                Swimmers = _swimmers.ToList(),
+                RelayTeams = _relayTeams.ToList(),
+                Records = _records.ToList(),
+                TeamScores = _teamScores.ToList(),
+                Schedule = _schedule.ToList(),
+                Events = _events,
+                AgeGroups = _ageGroups,
+                Genders = _genders,
+                Stages = _stages,
+                HeatCounts = _heatCounts,
+                BibRanges = _bibRanges,
+                LaneCloseSettings = _laneCloseSettings,
+                ScoringConfig = _scoringConfig,
+                ProgramBook = _programBook,
+                ResultBook = _resultBook,
+                DisplayRecordLabel = _displayRecordLabel,
+                DisplayRecordTypeName = _displayRecordTypeName,
+                DisplayRecordOptions = _displayRecordOptions,
+                ConfirmedHeats = _confirmedHeats.ToList()
+            };
+        }
+
+        // AutoSaveData 调用：把整包推给对端（编排↔主服务器双向）
+        // _applyingRemoteSync 为 true 时表示当前 Save 正是因为收到了远端推送而触发，不再回推
+        private void PropagateSyncAfterSave() {
+            if (_applyingRemoteSync) return;
+            if (string.IsNullOrEmpty(_competitionName)) return;
+
+            if (IsScheduleEditorMode) {
+                // 编排端：本地刚保存 → 推给主服务器
+                if (_editorSyncClient != null && _editorSyncClient.IsConnected) {
+                    var package = BuildCurrentPackage();
+                    string pkgJson = JsonConvert.SerializeObject(package);
+                    var envelope = new JObject();
+                    envelope["type"] = "EDITOR_PUSH_PACKAGE";
+                    envelope["package"] = JObject.Parse(pkgJson);
+                    _editorSyncClient.Send(envelope.ToString(Formatting.None));
+                }
+            } else {
+                // 主服务器：本地刚保存 → 推给所有在线编排端
+                if (_editorSockets.Count > 0) {
+                    string env = BuildEditorPackageMessage();
+                    foreach (var sock in _editorSockets.ToList()) {
+                        try { sock.Send(env); } catch { }
+                    }
+                }
+            }
+        }
+
+        // 主服务器侧：把当前 CompetitionPackage 包成 EDITOR_PACKAGE 消息
+        private string BuildEditorPackageMessage() {
+            var package = BuildCurrentPackage();
+            string pkgJson = JsonConvert.SerializeObject(package);
+            var env = new JObject();
+            env["type"] = "EDITOR_PACKAGE";
+            env["package"] = JObject.Parse(pkgJson);
+            return env.ToString(Formatting.None);
+        }
+
+        // 主服务器侧：响应 EDITOR_IDENTITY / EDITOR_PULL_PACKAGE，把当前整包发给指定 socket
+        private void SendEditorPackageTo(IWebSocketConnection socket) {
+            try {
+                if (string.IsNullOrEmpty(_competitionName)) return;   // 服务器还没加载比赛，没法推
+                socket.Send(BuildEditorPackageMessage());
+            } catch (Exception ex) {
+                AddLog("推送 EDITOR_PACKAGE 失败: " + ex.Message);
+            }
+        }
+
+        // 主服务器侧：收到编排端 EDITOR_PUSH_PACKAGE，覆盖本地并广播给其它客户端
+        private void HandleEditorPushPackage(IWebSocketConnection sender, JObject msg) {
+            try {
+                var pkgToken = msg["package"];
+                if (pkgToken == null) return;
+                var package = pkgToken.ToObject<CompetitionPackage>();
+                if (package == null) return;
+                ApplyPackageInMemory(package);     // 应用 + 落盘（AutoSaveData 会因 _applyingRemoteSync 跳过回推）
+
+                // 其它在线编排端同步：把刚收到的包转发给除发送方外的编排客户端
+                string env = BuildEditorPackageMessage();
+                foreach (var sock in _editorSockets.ToList()) {
+                    if (sock == sender) continue;
+                    try { sock.Send(env); } catch { }
+                }
+                // 其它端（HTML/EXE 大屏等）一律走标准 Broadcast
+                Broadcast();
+                AddLog("收到编排端推送 EDITOR_PUSH_PACKAGE — 已应用并广播");
+            } catch (Exception ex) {
+                AddLog("应用 EDITOR_PUSH_PACKAGE 失败: " + ex.Message);
+            }
+        }
+
+        // ── 全开/关闭设备覆盖处理 (2026-05-13) ──
+        // 命令格式：{ type:"DEVICE_OVERRIDE", lane: -1|0~9, mode: "allOpen"|"normal" }
+        //   lane = -1 → 全部泳道；其它 → 指定单道
+        //   mode = "allOpen" → 该道(或全道)进入"全开"，任意信号都按正式成绩接收
+        //   mode = "normal"  → 恢复正常状态机过滤
+        private void HandleDeviceOverride(JObject msg) {
+            int lane;
+            try { lane = msg["lane"] != null ? (int)msg["lane"] : -1; } catch { lane = -1; }
+            string mode = msg["mode"] != null ? msg["mode"].ToString() : "";
+            if (mode == "allOpen") {
+                _forceAllOpenLanes.Add(lane);
+                AddLog(lane == -1 ? "全道进入【全开】：所有信号都认可为成绩"
+                                  : string.Format("泳道{0} 进入【全开】", lane));
+            } else if (mode == "normal") {
+                if (lane == -1) { _forceAllOpenLanes.Clear(); AddLog("全道恢复正常状态机过滤"); }
+                else { _forceAllOpenLanes.Remove(lane); AddLog(string.Format("泳道{0} 恢复正常状态机过滤", lane)); }
+            } else {
+                AddLog("DEVICE_OVERRIDE 未知 mode: " + mode);
+                return;
+            }
+            // 2026-05-13 联动下发硬件 0x4C Set_ForceAllOpen：
+            //   D3 = 0xFF 表示全部泳道，0~9 表示单道
+            //   D4 = 1 全开 / 0 关闭
+            if (_timingBridge != null && _timingBridge.IsConnected) {
+                try {
+                    byte laneByte = (byte)(lane == -1 ? 0xFF : (byte)lane);
+                    byte modeByte = (byte)(mode == "allOpen" ? 1 : 0);
+                    _timingBridge.SendFullFrame(0x4C, laneByte, modeByte);
+                    AddLog(string.Format("已下发硬件 0x4C: lane=0x{0:X2} mode={1}", laneByte, modeByte));
+                } catch (Exception ex) {
+                    AddLog("0x4C 下发失败: " + ex.Message);
+                }
+            } else {
+                AddLog("未连接硬件，软件侧已切换但硬件未同步");
+            }
+            UpdateLaneStatusDisplay();
+            Broadcast();
+        }
+
+        // ─── 编辑锁：服务器端命令处理 ───
+        // 编排/主服务器若想编辑某条数据，先 TryAcquireEditLock(key) — 主服务器自己直接占；
+        // 编排端发 LOCK_REQUEST → 服务器查表，若被别人占就回 granted=false+holder，否则记账+回 granted=true。
+        private void HandleLockRequest(IWebSocketConnection socket, JObject msg) {
+            string key = msg["key"] != null ? msg["key"].ToString() : "";
+            string corrId = msg["corrId"] != null ? msg["corrId"].ToString() : "";
+            string clientName = msg["clientName"] != null ? msg["clientName"].ToString() : "未知客户端";
+            if (string.IsNullOrEmpty(key)) return;
+            bool granted;
+            string holder = null;
+            lock (_editLocks) {
+                EditLock existing;
+                if (_editLocks.TryGetValue(key, out existing)) {
+                    if (existing.HolderSocket == socket) {
+                        granted = true;   // 同一连接重复申请视为成功
+                    } else {
+                        granted = false;
+                        holder = existing.HolderName;
+                    }
+                } else {
+                    _editLocks[key] = new EditLock {
+                        HolderSocket = socket, HolderName = clientName, AcquiredAt = DateTime.Now
+                    };
+                    granted = true;
+                }
+            }
+            var reply = new JObject();
+            reply["type"] = "LOCK_REPLY";
+            reply["corrId"] = corrId;
+            reply["key"] = key;
+            reply["granted"] = granted;
+            if (holder != null) reply["holder"] = holder;
+            try { socket.Send(reply.ToString(Formatting.None)); } catch { }
+            if (!granted) AddLog(string.Format("锁拒绝: {0} 想编辑 {1}，但 {2} 正在编辑", clientName, key, holder));
+        }
+
+        private void HandleLockRelease(IWebSocketConnection socket, JObject msg) {
+            string key = msg["key"] != null ? msg["key"].ToString() : "";
+            if (string.IsNullOrEmpty(key)) return;
+            lock (_editLocks) {
+                EditLock existing;
+                if (_editLocks.TryGetValue(key, out existing) && existing.HolderSocket == socket) {
+                    _editLocks.Remove(key);
+                }
+            }
+        }
+
+        private void ReleaseLocksHeldBy(IWebSocketConnection socket) {
+            lock (_editLocks) {
+                var toRemove = new List<string>();
+                foreach (var kv in _editLocks) {
+                    if (kv.Value.HolderSocket == socket) toRemove.Add(kv.Key);
+                }
+                foreach (var k in toRemove) _editLocks.Remove(k);
+            }
+        }
+
+        // ─── 编辑锁：统一 API（两端共用调用点）───
+        // 服务器模式：直接占本机字典；编排模式：发 LOCK_REQUEST 等 LOCK_REPLY（带 2 秒超时，超时按成功放行）
+        // 返回 true = 取到锁；false = 被别人锁住，holder 是对方显示名。离线/未连接也按 true 处理。
+        private bool TryAcquireEditLock(string key, out string holder) {
+            holder = null;
+            if (string.IsNullOrEmpty(key)) return true;
+            if (IsScheduleEditorMode) {
+                if (_editorSyncClient == null || !_editorSyncClient.IsConnected) {
+                    return true;  // 离线 → 直接放行
+                }
+                string corrId = Guid.NewGuid().ToString("N");
+                var evt = new System.Threading.ManualResetEventSlim(false);
+                lock (_lockSync) { _lockWaiters[corrId] = evt; }
+                var req = new JObject();
+                req["type"] = "LOCK_REQUEST";
+                req["key"] = key;
+                req["corrId"] = corrId;
+                req["clientName"] = "编排端 " + Environment.MachineName;
+                _editorSyncClient.Send(req.ToString(Formatting.None));
+                bool gotReply = evt.Wait(2000);
+                JObject reply = null;
+                lock (_lockSync) {
+                    _lockWaiters.Remove(corrId);
+                    if (_lockReplies.TryGetValue(corrId, out reply)) _lockReplies.Remove(corrId);
+                }
+                if (!gotReply || reply == null) return true;   // 超时按成功放行（容错）
+                bool granted = reply["granted"] != null && (bool)reply["granted"];
+                if (!granted) holder = reply["holder"] != null ? reply["holder"].ToString() : "其它客户端";
+                if (granted) lock (_heldLocks) { _heldLocks.Add(key); }
+                return granted;
+            } else {
+                // 主服务器：直接占本机字典；同时同步告知所有在线编排端
+                lock (_editLocks) {
+                    EditLock existing;
+                    if (_editLocks.TryGetValue(key, out existing)) {
+                        if (existing.HolderSocket == null) return true;   // 本机已占，再占视为成功
+                        holder = existing.HolderName;
+                        return false;
+                    }
+                    _editLocks[key] = new EditLock {
+                        HolderSocket = null, HolderName = "主服务器(本机)", AcquiredAt = DateTime.Now
+                    };
+                    return true;
+                }
+            }
+        }
+
+        // 编辑入口统一外壳：占锁 → 执行 body → 释放锁。被锁时弹窗提示，不执行 body。
+        // 用法：RunWithEditLock("record:xxx", "纪录", delegate { /* 原编辑逻辑 */ });
+        private void RunWithEditLock(string key, string entityLabel, Action body) {
+            string holder;
+            if (!TryAcquireEditLock(key, out holder)) {
+                MessageBox.Show(
+                    string.Format("{0} 正在被 {1} 编辑，请稍后再试。", entityLabel, holder),
+                    "无法编辑", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+            try { body(); } finally { ReleaseEditLock(key); }
+        }
+
+        private void ReleaseEditLock(string key) {
+            if (string.IsNullOrEmpty(key)) return;
+            if (IsScheduleEditorMode) {
+                lock (_heldLocks) { if (!_heldLocks.Remove(key)) return; }
+                if (_editorSyncClient == null || !_editorSyncClient.IsConnected) return;
+                var msg = new JObject();
+                msg["type"] = "LOCK_RELEASE";
+                msg["key"] = key;
+                _editorSyncClient.Send(msg.ToString(Formatting.None));
+            } else {
+                lock (_editLocks) {
+                    EditLock existing;
+                    if (_editLocks.TryGetValue(key, out existing) && existing.HolderSocket == null) {
+                        _editLocks.Remove(key);
+                    }
+                }
+            }
+        }
+
+        // 把整包应用到内存 + 落盘。复用 LoadCompetitionFromFile 已有的字段恢复逻辑：
+        // 写一个临时 JSON 文件再走 LoadCompetitionFromFile，避免重复维护两份字段填充代码。
+        private void ApplyPackageInMemory(CompetitionPackage package) {
+            if (package == null) return;
+            _applyingRemoteSync = true;
+            try {
+                string tmpDir = IOPath.Combine(AppDomain.CurrentDomain.BaseDirectory, "Database");
+                if (!Directory.Exists(tmpDir)) Directory.CreateDirectory(tmpDir);
+                // 直接覆盖正式文件即可（编排端、主服务器都把这份 JSON 当作权威数据）
+                string targetName = string.IsNullOrEmpty(package.CompetitionName) ? "_remote_sync" : package.CompetitionName;
+                string targetPath = IOPath.Combine(tmpDir, targetName + ".json");
+                string json = JsonConvert.SerializeObject(package, Formatting.Indented);
+                File.WriteAllText(targetPath, json, Encoding.UTF8);
+                File.WriteAllText(
+                    IOPath.Combine(AppDomain.CurrentDomain.BaseDirectory, "last_competition.txt"),
+                    targetName, Encoding.UTF8);
+                LoadCompetitionFromFile(targetPath);
+            } finally {
+                _applyingRemoteSync = false;
             }
         }
 
@@ -12345,33 +13216,40 @@ namespace SwimmingScoreboard
                 MessageBox.Show("当前没有纪录数据。", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
-            var result = MessageBox.Show(
-                string.Format("确定要删除全部 {0} 条纪录数据吗？\n\n此操作不可撤销！", _records.Count),
-                "删除全部纪录", MessageBoxButton.YesNo, MessageBoxImage.Warning);
-            if (result == MessageBoxResult.Yes) {
-                int count = _records.Count;
-                _records.Clear();
-                AutoSaveData();
-                Broadcast();
-                RefreshRecordFilterCombos();
-                RecordFilterReset_Click(null, null);
-                AddLog(string.Format("已删除全部 {0} 条纪录数据", count));
-            }
+            RunWithEditLock("records-all", "纪录列表", delegate {
+                var result = MessageBox.Show(
+                    string.Format("确定要删除全部 {0} 条纪录数据吗？\n\n此操作不可撤销！", _records.Count),
+                    "删除全部纪录", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+                if (result == MessageBoxResult.Yes) {
+                    int count = _records.Count;
+                    _records.Clear();
+                    AutoSaveData();
+                    Broadcast();
+                    RefreshRecordFilterCombos();
+                    RecordFilterReset_Click(null, null);
+                    AddLog(string.Format("已删除全部 {0} 条纪录数据", count));
+                }
+            });
         }
 
         private void AddRecord_Click(object sender, RoutedEventArgs e) {
-            _records.Add(new SwimmingRecord { RecordType = "赛会纪录", Gender = "男" });
-            RefreshRecordFilterCombos();
+            RunWithEditLock("records-all", "纪录列表", delegate {
+                _records.Add(new SwimmingRecord { RecordType = "赛会纪录", Gender = "男" });
+                RefreshRecordFilterCombos();
+            });
         }
 
         private void DeleteRecord_Click(object sender, RoutedEventArgs e) {
             var selected = RecordGrid.SelectedItem as SwimmingRecord;
-            if (selected != null) {
+            if (selected == null) return;
+            string lockKey = string.Format("record:{0}:{1}:{2}:{3}",
+                selected.RecordType ?? "", selected.EventName ?? "", selected.Gender ?? "", selected.AgeGroup ?? "");
+            RunWithEditLock(lockKey, string.Format("纪录 [{0} {1} {2}]", selected.RecordType, selected.EventName, selected.Gender), delegate {
                 _records.Remove(selected);
                 AutoSaveData();
                 RefreshRecordFilterCombos();
                 ApplyRecordFilter();
-            }
+            });
         }
 
         private void ImportDefaultRecords_Click(object sender, RoutedEventArgs e) {
@@ -12849,10 +13727,12 @@ namespace SwimmingScoreboard
 
         // —— 性别 ——
         private void EditGendersList_Click(object sender, RoutedEventArgs e) {
-            EditStringListDialog("性别编辑", "性别名称", _genders, new[] { "男", "女", "混合" }, list => {
-                _genders = list; RefreshGendersPreview(); AutoSaveData();
-                NotifyMetadataChanged();
-                AddLog(string.Format("已更新性别列表（{0} 条）", _genders.Count));
+            RunWithEditLock("genders-list", "性别列表", delegate {
+                EditStringListDialog("性别编辑", "性别名称", _genders, new[] { "男", "女", "混合" }, list => {
+                    _genders = list; RefreshGendersPreview(); AutoSaveData();
+                    NotifyMetadataChanged();
+                    AddLog(string.Format("已更新性别列表（{0} 条）", _genders.Count));
+                });
             });
         }
         private void ExportGendersCSV_Click(object sender, RoutedEventArgs e) { ExportStringListCsv("导出性别表", "性别表.csv", "性别", _genders); }
@@ -12867,10 +13747,12 @@ namespace SwimmingScoreboard
 
         // —— 赛次 ——
         private void EditStagesList_Click(object sender, RoutedEventArgs e) {
-            EditStringListDialog("赛次编辑", "赛次名称", _stages, new[] { "预赛", "半决赛", "决赛" }, list => {
-                _stages = list; RefreshStagesPreview(); AutoSaveData();
-                NotifyMetadataChanged();
-                AddLog(string.Format("已更新赛次列表（{0} 条）", _stages.Count));
+            RunWithEditLock("stages-list", "赛次列表", delegate {
+                EditStringListDialog("赛次编辑", "赛次名称", _stages, new[] { "预赛", "半决赛", "决赛" }, list => {
+                    _stages = list; RefreshStagesPreview(); AutoSaveData();
+                    NotifyMetadataChanged();
+                    AddLog(string.Format("已更新赛次列表（{0} 条）", _stages.Count));
+                });
             });
         }
         private void ExportStagesCSV_Click(object sender, RoutedEventArgs e) { ExportStringListCsv("导出赛次表", "赛次表.csv", "赛次", _stages); }
@@ -12885,10 +13767,12 @@ namespace SwimmingScoreboard
 
         // —— 组数 ——
         private void EditHeatCountsList_Click(object sender, RoutedEventArgs e) {
-            EditStringListDialog("组数编辑", "组数", _heatCounts, new[] { "1组", "2组", "3组", "4组", "5组", "6组", "7组", "8组" }, list => {
-                _heatCounts = list; RefreshHeatCountsPreview(); AutoSaveData();
-                NotifyMetadataChanged();
-                AddLog(string.Format("已更新组数列表（{0} 条）", _heatCounts.Count));
+            RunWithEditLock("heatcounts-list", "组数列表", delegate {
+                EditStringListDialog("组数编辑", "组数", _heatCounts, new[] { "1组", "2组", "3组", "4组", "5组", "6组", "7组", "8组" }, list => {
+                    _heatCounts = list; RefreshHeatCountsPreview(); AutoSaveData();
+                    NotifyMetadataChanged();
+                    AddLog(string.Format("已更新组数列表（{0} 条）", _heatCounts.Count));
+                });
             });
         }
         private void ExportHeatCountsCSV_Click(object sender, RoutedEventArgs e) { ExportStringListCsv("导出组数表", "组数表.csv", "组数", _heatCounts); }
@@ -12902,6 +13786,10 @@ namespace SwimmingScoreboard
         }
 
         private void EditEventsList_Click(object sender, RoutedEventArgs e) {
+            RunWithEditLock("events-list", "比赛项目列表", delegate { EditEventsListCore(); });
+        }
+
+        private void EditEventsListCore() {
             var working = new System.Collections.ObjectModel.ObservableCollection<EventRow>();
             foreach (var ev in _events) working.Add(new EventRow { Name = ev });
 
@@ -12985,6 +13873,10 @@ namespace SwimmingScoreboard
         }
 
         private void EditAgeGroupsList_Click(object sender, RoutedEventArgs e) {
+            RunWithEditLock("agegroups-list", "组别列表", delegate { EditAgeGroupsListCore(); });
+        }
+
+        private void EditAgeGroupsListCore() {
             var working = new System.Collections.ObjectModel.ObservableCollection<AgeGroup>();
             foreach (var g in _ageGroups) working.Add(new AgeGroup { Name = g.Name, MinAge = g.MinAge, MaxAge = g.MaxAge });
 
@@ -13787,6 +14679,10 @@ namespace SwimmingScoreboard
         private void PrintManual_Click(object sender, RoutedEventArgs e) { GenerateAndOpenDocument("秩序册", BuildManualHtml()); }
 
         private void EditProgramBook_Click(object sender, RoutedEventArgs e) {
+            RunWithEditLock("programbook", "秩序册", delegate { EditProgramBookCore(); });
+        }
+
+        private void EditProgramBookCore() {
             // 预览回调：用窗口当前快照临时替换 _programBook 渲染，再恢复
             ProgramBookData backup = _programBook;
             ProgramBookEditWindow win = null;
@@ -13832,6 +14728,10 @@ namespace SwimmingScoreboard
         private void PrintFullResultBook_Click(object sender, RoutedEventArgs e) { GenerateAndOpenDocument("成绩册", BuildFullResultBookHtml()); }
 
         private void EditResultBook_Click(object sender, RoutedEventArgs e) {
+            RunWithEditLock("resultbook", "成绩册", delegate { EditResultBookCore(); });
+        }
+
+        private void EditResultBookCore() {
             ResultBookData backup = _resultBook;
             ResultBookEditWindow win = null;
             Func<List<ResultBookSwimmerInfo>> swimmerProvider = () =>

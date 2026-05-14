@@ -20,7 +20,30 @@ namespace SwimmingScoreboard
         // 8泳道（道次1-8）：4, 5, 3, 6, 2, 7, 1, 8
         private static readonly int[] LanePriority8 = { 4, 5, 3, 6, 2, 7, 1, 8 };
         // 10泳道（道次0-9）：4, 5, 3, 6, 2, 7, 1, 8, 0, 9
+        // 决赛 8 人只用前 8 个优先级 → 0/9 道闲置，符合 FINA 10 道池决赛规则
         private static readonly int[] LanePriority10 = { 4, 5, 3, 6, 2, 7, 1, 8, 0, 9 };
+
+        // 编排后产生的警告（人数不足 / 同单位同组）— 调用方可读取后写入 UI 日志
+        public static readonly List<string> LastWarnings = new List<string>();
+
+        // FIX-A 抽签用的稳定伪随机：以 (项目+赛次) 为种子。
+        // 同一比赛重复编排得到同样结果；不同项目之间 tiebreak 顺序不固定（避免某选手永远占便宜）。
+        private static int StringHashStable(string s) {
+            unchecked {
+                int hash = 23;
+                if (s == null) return hash;
+                foreach (char c in s) hash = hash * 31 + c;
+                return hash;
+            }
+        }
+        private static Dictionary<T, int> BuildTiebreakLottery<T>(IList<T> items, string seedKey) {
+            var rng = new Random(StringHashStable(seedKey));
+            var dict = new Dictionary<T, int>();
+            // 先按引用打乱一遍，确保相同成绩的项目无姓名字典序偏好
+            var order = items.OrderBy(x => rng.Next()).ToList();
+            for (int i = 0; i < order.Count; i++) dict[order[i]] = i;
+            return dict;
+        }
 
         /// <summary>
         /// 获取泳道分配优先级数组
@@ -66,21 +89,54 @@ namespace SwimmingScoreboard
                 s.Status != "DNS" && s.Status != "DSQ"
             ).ToList();
 
-            // 按报名成绩排序（快→慢，无成绩排最后）
+            // FIX-A 相同成绩按"抽签"序而非字典序（FINA SW 3.1.1 仍相同→抽签）。
+            // 用稳定伪随机（种子 = 项目+赛次）保证同一比赛重复编排结果一致。
+            var lottery = BuildTiebreakLottery(eligible, eventName + "|" + stage);
             eligible.Sort((a, b) => {
                 double ta = a.EntryTimeSeconds > 0 ? a.EntryTimeSeconds : double.MaxValue;
                 double tb = b.EntryTimeSeconds > 0 ? b.EntryTimeSeconds : double.MaxValue;
                 int cmp = ta.CompareTo(tb);
                 if (cmp != 0) return cmp;
-                return string.Compare(a.Name, b.Name, StringComparison.Ordinal);
+                return lottery[a].CompareTo(lottery[b]);
             });
 
+            // FIX-B 同单位轻量微调：扫描相邻名次，若两人来自同单位且在蛇形后会落到同组，
+            // 与前/后一名（不同单位且不引入新冲突）互换，仅做"相邻名次"级别微调。
+            DisperseSameCountryAdjacent(eligible, pool.LaneCount, IsShortDistanceEvent(eventName));
+
             int laneCount = pool.LaneCount;
-            if (eligible.Count == 0) return new List<HeatAssignment>();
+            if (eligible.Count == 0) { LastWarnings.Clear(); return new List<HeatAssignment>(); }
 
             int[] lanePriority = GetLanePriority(pool);
             var heats = AssignFinaSeeding(eligible.Cast<object>().ToList(), laneCount, lanePriority,
                                           isShortDistance: IsShortDistanceEvent(eventName));
+
+            // FIX-C 每组人数底线：FINA SW 3.1.1.4 预赛任何一组应不少于 3 人。
+            // 当前蛇形 + 直接排位算法在 ≥3 人时不会破，但首次编排即 1-2 人也会建出 1 组（决赛流程），
+            // 这里仅对"预赛"组发警告，不阻塞——操作员可手动并组。
+            LastWarnings.Clear();
+            if (stage == "预赛") {
+                for (int h = 0; h < heats.Count; h++) {
+                    int n = heats[h].Count;
+                    if (n > 0 && n < 3) {
+                        LastWarnings.Add(string.Format(
+                            "⚠ {0} {1} 第{2}组仅 {3} 人，少于规则要求的 3 人；请考虑合并或调整。",
+                            eventName, stage, h + 1, n));
+                    }
+                }
+            }
+            // 同单位同组的剩余冲突也提示（微调后还消不掉的）
+            for (int h = 0; h < heats.Count; h++) {
+                var dup = heats[h]
+                    .GroupBy(sl => (((Swimmer)sl.Item1).Country ?? "").Trim())
+                    .Where(g => !string.IsNullOrEmpty(g.Key) && g.Count() >= 2)
+                    .ToList();
+                foreach (var g in dup) {
+                    LastWarnings.Add(string.Format(
+                        "ⓘ {0} {1} 第{2}组：[{3}] 同单位 {4} 人，已尽力分散但仍同组。",
+                        eventName, stage, h + 1, g.Key, g.Count()));
+                }
+            }
 
             var assignments = new List<HeatAssignment>();
             for (int h = 0; h < heats.Count; h++) {
@@ -100,6 +156,64 @@ namespace SwimmingScoreboard
                 }
             }
             return assignments;
+        }
+
+        // FIX-B 同单位分散：在已按成绩排好的 list 中扫一遍，预测蛇形后每个名次会进哪一组；
+        // 若相邻名次同单位且同组，尝试与"距离 1 的另一名次"互换（要求该名次不与新位置造成同单位冲突）。
+        // 仅做相邻名次微调，避免大动排名 → 符合 FINA "尽量"原则。
+        private static void DisperseSameCountryAdjacent(List<Swimmer> sorted, int laneCount, bool isShortDistance) {
+            int total = sorted.Count;
+            if (total < 2) return;
+            int heatCount = (int)Math.Ceiling((double)total / laneCount);
+            if (heatCount <= 1) return;   // 一组就一组，没法分散
+
+            // 预测函数：返回名次 i (0-based) 会进哪一组。复刻 AssignFinaSeeding 的逻辑。
+            int seedHeats = Math.Min(heatCount, isShortDistance ? 3 : 2);
+            int directHeats = heatCount - seedHeats;
+            int seededN = Math.Min(total, seedHeats * laneCount);
+            Func<int, int> heatOf = (idx) => {
+                if (idx < seededN) return heatCount - 1 - (idx % seedHeats);
+                int afterSeed = idx - seededN;
+                // 直接排位：从最快直接组（heatIndex = directHeats - 1）开始填，每组 laneCount 人
+                // 最后剩下的进第一组
+                int hc = directHeats;
+                int cursor = seededN;
+                for (int h = directHeats; h >= 1; h--) {
+                    int isFirst = (h == 1) ? 1 : 0;
+                    int sz = (isFirst == 1) ? (total - cursor) : Math.Min(laneCount, total - cursor);
+                    if (idx >= cursor && idx < cursor + sz) return h - 1;
+                    cursor += sz;
+                }
+                return 0;
+            };
+
+            // 单 pass 邻位互换：i 和 i+1 同单位且同组 → 试 i+1 与 i+2、i 与 i-1 互换
+            for (int i = 0; i < total - 1; i++) {
+                var a = sorted[i];
+                var b = sorted[i + 1];
+                string ca = (a.Country ?? "").Trim();
+                string cb = (b.Country ?? "").Trim();
+                if (string.IsNullOrEmpty(ca) || ca != cb) continue;
+                if (heatOf(i) != heatOf(i + 1)) continue;
+                // 尝试 i+1 ↔ i+2
+                if (i + 2 < total) {
+                    var c = sorted[i + 2];
+                    string cc = (c.Country ?? "").Trim();
+                    if (cc != ca && heatOf(i + 1) != heatOf(i + 2)) {
+                        sorted[i + 1] = c; sorted[i + 2] = b;
+                        continue;
+                    }
+                }
+                // 尝试 i ↔ i-1
+                if (i - 1 >= 0) {
+                    var p = sorted[i - 1];
+                    string cp = (p.Country ?? "").Trim();
+                    if (cp != ca && heatOf(i - 1) != heatOf(i)) {
+                        sorted[i - 1] = a; sorted[i] = p;
+                        // 注意：a 仍在 i-1 位、b 在 i+1，不改 b 后续判断
+                    }
+                }
+            }
         }
 
         /// <summary>
@@ -273,7 +387,9 @@ namespace SwimmingScoreboard
                 ).ToList();
             }
 
-            // 按最终成绩排序（所有小组统一排名）
+            // FIX-A 千分位仍相同 → 抽签（FINA SW 10.10），不能用反应时做 tiebreak。
+            // 用稳定伪随机：同一比赛重复跑结果一致。
+            var lottery = BuildTiebreakLottery(results, "PROMOTE|" + eventName + "|" + fromStage);
             results.Sort((a, b) => {
                 var ra = a.GetResultForStage(fromStage);
                 var rb = b.GetResultForStage(fromStage);
@@ -281,10 +397,7 @@ namespace SwimmingScoreboard
                 double tb = rb != null && rb.FinalTime > 0 ? rb.FinalTime : double.MaxValue;
                 int cmp = ta.CompareTo(tb);
                 if (cmp != 0) return cmp;
-                // 成绩相同，比较反应时间（短者晋级）
-                double reactA = ra != null ? ra.StartingBlockTime : double.MaxValue;
-                double reactB = rb != null ? rb.StartingBlockTime : double.MaxValue;
-                return reactA.CompareTo(reactB);
+                return lottery[a].CompareTo(lottery[b]);
             });
 
             return results.Take(count).ToList();
@@ -337,22 +450,21 @@ namespace SwimmingScoreboard
                 return assignments;
             }
 
-            // 半决赛：交替分组（奇数名次→第1组，偶数名次→第2组，成绩最好者在第2组）
-            // 第1名→第2组，第2名→第1组，第3名→第2组，第4名→第1组...
+            // 半决赛：FINA 蛇形分组（不是简单交替）。
+            // 16人 2组的标准结果：
+            //   快组（最后游）：1, 4, 5, 8, 9, 12, 13, 16
+            //   慢组（先游）  ：2, 3, 6, 7, 10, 11, 14, 15
+            // 通用蛇形公式：每 heatCount 个连号一个"轮"，轮号偶数 → 从快组往慢组递减分配；
+            // 轮号奇数 → 从慢组往快组递增分配，从而形成 1-2-2-1-1-2-2-1 的之字。
             int heatCount = (int)Math.Ceiling((double)promoted.Count / laneCount);
             if (heatCount < 2) heatCount = 2; // 半决赛至少2组
             List<List<Swimmer>> heats = new List<List<Swimmer>>();
             for (int h = 0; h < heatCount; h++) heats.Add(new List<Swimmer>());
 
             for (int i = 0; i < promoted.Count; i++) {
-                // 交替分配：排名1,3,5...→最后一组（快组），排名2,4,6...→第一组
-                int targetHeat = (i % 2 == 0) ? (heatCount - 1) : 0;
-                // 超过2组时用蛇形
-                if (heatCount > 2) {
-                    int round = i / heatCount;
-                    int pos = i % heatCount;
-                    targetHeat = (round % 2 == 0) ? (heatCount - 1 - pos) : pos;
-                }
+                int round = i / heatCount;
+                int pos = i % heatCount;
+                int targetHeat = (round % 2 == 0) ? (heatCount - 1 - pos) : pos;
                 heats[targetHeat].Add(promoted[i]);
             }
 

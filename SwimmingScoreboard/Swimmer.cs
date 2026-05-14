@@ -41,6 +41,8 @@ namespace SwimmingScoreboard
         private double _resultConfirmCloseDelay = 3.0;
         private double _falseStartThreshold = 0.10;
         private double _splitDisplayTime = 5.0;
+        //2026-05-13 盲表代替成绩延迟时间（秒）— 触板未到时盲表读数代替的等待时长
+        private double _blindReplaceDelay = 5.0;
         private string _startPosition = "left";
         private string _finishPosition = "left";  // ���点（触板端）位置，整场比赛固定不变
         private double _firstPlaceHoldTime = 3.0;
@@ -69,6 +71,10 @@ namespace SwimmingScoreboard
         public double SplitDisplayTime {
             get { return _splitDisplayTime; }
             set { _splitDisplayTime = value; OnPropertyChanged("SplitDisplayTime"); }
+        }
+        public double BlindReplaceDelay {
+            get { return _blindReplaceDelay; }
+            set { _blindReplaceDelay = value; OnPropertyChanged("BlindReplaceDelay"); }
         }
         public string StartPosition {
             get { return _startPosition; }

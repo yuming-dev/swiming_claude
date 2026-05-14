@@ -45,9 +45,11 @@ namespace ScheduleEditor
             if (RememberMe.IsChecked == true) CredentialStore.SaveRemembered(user, pwd);
             else CredentialStore.ClearRemembered();
 
-            // 登录成功 → 主窗口
-            var main = new MainWindow();
+            // 登录成功 → 主服务器 MainWindow（编排模式：构造函数自动识别入口程序集名为 ScheduleEditor，
+            // 并隐藏与编排无关的标签页，跳过 WebSocket 服务/计时硬件初始化）
+            var main = new SwimmingScoreboard.MainWindow();
             Application.Current.MainWindow = main;
+            Application.Current.ShutdownMode = ShutdownMode.OnMainWindowClose;
             main.Show();
             this.Close();
         }

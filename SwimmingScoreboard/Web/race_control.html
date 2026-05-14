@@ -669,9 +669,11 @@ function getLocalRunningTime() {
 var _rcRefreshTimer = null;
 function startRcRefresh() {
     if (_rcRefreshTimer) return;
+    // 2026-05-13 把 500ms 改 100ms：与硬件 0.1s 节拍一致，避免计时窗"跳跃"
+    // 测试模式也跟刷，让滚动时间和测试事件文字按硬件节拍跑
     _rcRefreshTimer = setInterval(function() {
         var st = (data.raceState || '').toLowerCase();
-        if (st === 'racing' || st === 'finished') {
+        if (st === 'racing' || st === 'finished' || data.testMode) {
             renderLanes();
             // 滚动时间/第1名成绩交替显示（直接读取服务器数据）
             var rtEl = document.getElementById('runTime');
@@ -683,7 +685,7 @@ function startRcRefresh() {
                 rtEl.style.color = '';
             }
         }
-    }, 500);
+    }, 100);
 }
 
 function render() {
