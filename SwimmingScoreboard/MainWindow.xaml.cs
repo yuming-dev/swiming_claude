@@ -502,42 +502,64 @@ namespace SwimmingScoreboard
 
         private void UpdateBatteryVoltageDisplay() {
             try {
-                if (TimingStatusText == null) return;
-                string baseText = (_timingBridge != null) ? _timingBridge.StatusText : "未连接";
-                if (_hwBatteryVoltage > 0 && (DateTime.Now - _hwBatteryReceivedAt).TotalSeconds < 30) {
-                    TimingStatusText.Text = string.Format("{0}  ｜ 电池: {1:F2}V", baseText, _hwBatteryVoltage);
+                bool fresh = _hwBatteryVoltage > 0 && (DateTime.Now - _hwBatteryReceivedAt).TotalSeconds < 30;
+                SolidColorBrush voltBrush;
+                string voltText;
+                if (fresh) {
+                    voltText = string.Format("{0:F2} V", _hwBatteryVoltage);
                     if (_hwBatteryVoltage < BATTERY_CRITICAL_V)
-                        TimingStatusText.Foreground = new SolidColorBrush(Colors.Red);
+                        voltBrush = new SolidColorBrush(Colors.Red);
                     else if (_hwBatteryVoltage < BATTERY_LOW_V)
-                        TimingStatusText.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F59E0B"));
+                        voltBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F59E0B"));
                     else
-                        TimingStatusText.Foreground = new SolidColorBrush(Colors.LimeGreen);
+                        voltBrush = new SolidColorBrush(Colors.LimeGreen);
                 } else {
-                    TimingStatusText.Text = baseText;
+                    voltText = "—";
+                    voltBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8"));
+                }
+                //2026-05-14 新增"系统硬件"栏专属电压显示控件
+                if (BatteryVoltageText != null) {
+                    BatteryVoltageText.Text = voltText;
+                    BatteryVoltageText.Foreground = voltBrush;
+                }
+                // 同时仍刷一份到 TimingStatusText（系统状态 Tab 的"硬件计时器连接"区显示）
+                if (TimingStatusText != null) {
+                    string baseText = (_timingBridge != null) ? _timingBridge.StatusText : "未连接";
+                    if (fresh) {
+                        TimingStatusText.Text = string.Format("{0}  ｜ 电池: {1}", baseText, voltText);
+                        TimingStatusText.Foreground = voltBrush;
+                    } else {
+                        TimingStatusText.Text = baseText;
+                    }
                 }
             } catch { }
         }
 
-        // 2026-05-13 把"单端 / 两端"安装方式落到每条泳道的右端设备状态。
-        //   两端 (HasRightStartBlock=true)：右端触板/出发台/盲表都是正常 Closed
-        //   单端 (HasRightStartBlock=false)：右端全部置 NotInstalled / 未安装位 = true（虚线框）
-        // 注意：已经被标记为 Broken 的设备不动它，等用户在设备管理里手动恢复
+        // 2026-05-14 把"单端 / 两端"安装方式落到每条泳道的设备状态：
+        //   两端 (HasRightStartBlock=true)：两端所有设备 NotInstalled 标记全部清除
+        //   单端 (HasRightStartBlock=false)：终点端 NotInstalled 清除；非终点端整列设备 NotInstalled=true
+        //         （硬件约定 PoolSingleOrDoubleTPbit=1 时把 1-FinalPlace 端标 4(未安装)，本端代码与之对齐）
+        // 用 NotInstalled flag（而不是直接改 _xxStatus）—— 这样 ResetForNewRace / OpenAll / CloseAll
+        // 等流程把 status 重置为 Closed/Open 时不会覆盖"未安装"语义。
         private void ApplyTouchpadInstallModeToLanes() {
             bool dualEnd = _poolConfig != null && _poolConfig.HasRightStartBlock;
+            bool finishIsLeft = _laneCloseSettings == null || _laneCloseSettings.FinishPosition != "right";
+            // 单端时，非终点端整列未安装
+            bool markRightNotInstalled = !dualEnd && finishIsLeft;
+            bool markLeftNotInstalled  = !dualEnd && !finishIsLeft;
             foreach (var st in _laneDeviceStates) {
-                if (!dualEnd) {
-                    st.RightTouchpadStatus = DeviceStatus.NotInstalled;
-                    st.RightStartBlockStatus = DeviceStatus.NotInstalled;
-                    st.RightBlindWatch1NotInstalled = true;
-                    st.RightBlindWatch2NotInstalled = true;
-                    st.RightBlindWatch3NotInstalled = true;
-                } else {
-                    if (st.RightTouchpadStatus == DeviceStatus.NotInstalled) st.RightTouchpadStatus = DeviceStatus.Closed;
-                    if (st.RightStartBlockStatus == DeviceStatus.NotInstalled) st.RightStartBlockStatus = DeviceStatus.Closed;
-                    st.RightBlindWatch1NotInstalled = false;
-                    st.RightBlindWatch2NotInstalled = false;
-                    st.RightBlindWatch3NotInstalled = false;
-                }
+                // 左端
+                st.LeftTouchpadNotInstalled   = markLeftNotInstalled;
+                st.LeftStartBlockNotInstalled = markLeftNotInstalled;
+                st.LeftBlindWatch1NotInstalled = markLeftNotInstalled;
+                st.LeftBlindWatch2NotInstalled = markLeftNotInstalled;
+                st.LeftBlindWatch3NotInstalled = markLeftNotInstalled;
+                // 右端
+                st.RightTouchpadNotInstalled   = markRightNotInstalled;
+                st.RightStartBlockNotInstalled = markRightNotInstalled;
+                st.RightBlindWatch1NotInstalled = markRightNotInstalled;
+                st.RightBlindWatch2NotInstalled = markRightNotInstalled;
+                st.RightBlindWatch3NotInstalled = markRightNotInstalled;
             }
         }
 
@@ -4380,6 +4402,8 @@ namespace SwimmingScoreboard
             }
             UpdateLaneStatusDisplay();
             AddLog("全部泳道已打开");
+            //2026-05-14 同步下发硬件：0x47 D3=0xFF D4=1 全部泳道纳入比赛
+            try { if (_timingBridge != null && _timingBridge.IsConnected) _timingBridge.SendLaneOpenClose(-1, true); } catch { }
             Broadcast();
         }
 
@@ -4397,6 +4421,8 @@ namespace SwimmingScoreboard
             }
             UpdateLaneStatusDisplay();
             AddLog("全部泳道已关闭");
+            //2026-05-14 同步下发硬件：0x47 D3=0xFF D4=0 全部泳道移出比赛（屏蔽信号）
+            try { if (_timingBridge != null && _timingBridge.IsConnected) _timingBridge.SendLaneOpenClose(-1, false); } catch { }
             Broadcast();
         }
 
@@ -6276,6 +6302,8 @@ namespace SwimmingScoreboard
             s.RightStartBlockStatus = st;
             s.LaneCloseCountdown = 0;
             AddLog(string.Format("泳道{0} 已{1}", lane, open ? "打开" : "关闭"));
+            //2026-05-14 单道也同步下发硬件：0x47 D3=lane D4=1/0
+            try { if (_timingBridge != null && _timingBridge.IsConnected) _timingBridge.SendLaneOpenClose(lane, open); } catch { }
             UpdateLaneStatusDisplay();
             Broadcast();
         }
@@ -6983,7 +7011,11 @@ namespace SwimmingScoreboard
             var tbFSThresh = AddSettingsRow(sp, "抢跳判定阈值", _laneCloseSettings.FalseStartThreshold.ToString(), "秒");
             var tbSplitDisp = AddSettingsRow(sp, "分段成绩显示时长", _laneCloseSettings.SplitDisplayTime.ToString(), "秒");
             //2026-05-13 新增：盲表代替成绩延迟时间（与硬件计时器一致；以 0.1秒精度同步到硬件 0x41 帧第3字节 mbDelay）
-            var tbBlindReplace = AddSettingsRow(sp, "盲表代替成绩延迟", _laneCloseSettings.BlindReplaceDelay.ToString("0.0"), "秒");
+            //2026-05-14 Fix #4: 显示时也 clamp 到 0..9，避免 JSON 残留的旧值（如 50.0）现"多了个 0"。
+            double blindDispl = _laneCloseSettings.BlindReplaceDelay;
+            if (blindDispl < 0) blindDispl = 0;
+            if (blindDispl > 9) blindDispl = 9;
+            var tbBlindReplace = AddSettingsRow(sp, "盲表代替成绩延迟", blindDispl.ToString("0.0"), "秒(0-9)");
             var tbFirstHold = AddSettingsRow(sp, "第1名成绩停留时间", _laneCloseSettings.FirstPlaceHoldTime.ToString(), "秒");
             var tbBigPage = AddSettingsRow(sp, "大屏翻屏时间", _laneCloseSettings.BigDisplayPageInterval.ToString(), "秒");
 
@@ -7034,36 +7066,14 @@ namespace SwimmingScoreboard
             var btnBlindMgr = new Button { Content = "左右盲表数量设置", Padding = new Thickness(0, 8, 0, 8), FontSize = 14, FontWeight = FontWeights.Bold, Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F59E0B")), Foreground = Brushes.Black, BorderThickness = new Thickness(0), Margin = new Thickness(0, 6, 0, 0) };
             btnBlindMgr.Click += delegate { dlg.DialogResult = false; OpenBlindWatchCountDialog(); };
 
-            //2026-05-13 新增：全部道设备 全开 / 恢复正常 流程 （触发硬件 0x3B Set_LaneDeviceFullOpen）
-            var btnFullOpen = new Button { Content = "全部道设备：全开（接收所有信号）", Padding = new Thickness(0, 8, 0, 8), FontSize = 14, FontWeight = FontWeights.Bold, Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#10B981")), Foreground = Brushes.White, BorderThickness = new Thickness(0), Margin = new Thickness(0, 6, 0, 0) };
-            btnFullOpen.Click += delegate {
-                try {
-                    if (_timingBridge != null && _timingBridge.IsConnected) {
-                        _timingBridge.SendLaneDeviceFullOpen(-1, true);
-                        AddLog("已发送：全部道设备 全开");
-                    } else {
-                        AddLog("硬件未连接，无法发送 全开");
-                    }
-                } catch (Exception ex) { AddLog("全开命令失败: " + ex.Message); }
-            };
-            var btnFullClose = new Button { Content = "全部道设备：恢复正常关闭流程", Padding = new Thickness(0, 8, 0, 8), FontSize = 14, FontWeight = FontWeights.Bold, Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")), Foreground = Brushes.White, BorderThickness = new Thickness(0), Margin = new Thickness(0, 6, 0, 0) };
-            btnFullClose.Click += delegate {
-                try {
-                    if (_timingBridge != null && _timingBridge.IsConnected) {
-                        _timingBridge.SendLaneDeviceFullOpen(-1, false);
-                        AddLog("已发送：全部道设备 恢复正常关闭流程");
-                    } else {
-                        AddLog("硬件未连接，无法发送 恢复正常");
-                    }
-                } catch (Exception ex) { AddLog("恢复正常命令失败: " + ex.Message); }
-            };
+            //2026-05-14 删除"全部道设备：全开 / 恢复正常关闭流程"两个按钮 —— 改由
+            // 比赛控制 → 泳道控制 → "全部打开 / 全部关闭" 直接调用同一硬件命令，
+            // 同时增加"道次打开 / 道次关闭"对选定单道的硬件控制（新增 0x47 协议命令）。
 
             var deviceStack = new StackPanel();
             deviceStack.Children.Add(btnDeviceMgr);
             deviceStack.Children.Add(btnManualMgr);
             deviceStack.Children.Add(btnBlindMgr);
-            deviceStack.Children.Add(btnFullOpen);   //2026-05-13
-            deviceStack.Children.Add(btnFullClose);  //2026-05-13
             deviceSep.Child = deviceStack;
             sp.Children.Add(deviceSep);
 
@@ -7086,7 +7096,13 @@ namespace SwimmingScoreboard
                 if (double.TryParse(tbConfDelay.Text, out v)) _laneCloseSettings.ResultConfirmCloseDelay = v;
                 if (double.TryParse(tbFSThresh.Text, out v)) _laneCloseSettings.FalseStartThreshold = v;
                 if (double.TryParse(tbSplitDisp.Text, out v)) _laneCloseSettings.SplitDisplayTime = v;
-                if (double.TryParse(tbBlindReplace.Text, out v)) _laneCloseSettings.BlindReplaceDelay = v;
+                //2026-05-14 Fix #4: 盲表代替成绩延迟限定 0-9 秒（保留一位小数），避免误输入 50 等大值
+                //   旧版未约束，存到 JSON 后再读出会显示"50.0"等"多了个 0"的值。
+                if (double.TryParse(tbBlindReplace.Text, out v)) {
+                    if (v < 0) v = 0;
+                    if (v > 9) v = 9;
+                    _laneCloseSettings.BlindReplaceDelay = Math.Round(v, 1);
+                }
                 if (double.TryParse(tbFirstHold.Text, out v)) _laneCloseSettings.FirstPlaceHoldTime = v;
                 if (double.TryParse(tbBigPage.Text, out v)) _laneCloseSettings.BigDisplayPageInterval = v;
                 _laneCloseSettings.ReactionTimeEnabled = rbRtOn.IsChecked == true;
@@ -12840,6 +12856,8 @@ namespace SwimmingScoreboard
         // "比赛控制"面板上的"连接串口"快捷按钮：
         // - 已连接 → 断开
         // - 未连接 → 用 timing_connection.json 里保存的串口/波特率连接；没保存就提示去 系统工作状态 配
+        // 2026-05-14 顶部"系统硬件"栏的连接按钮改走网络连接（TCP），按钮文字也改为"网络连接"。
+        // 串口连接仍保留在"系统工作状态 → 硬件计时器连接"详细面板里，这里只负责快速 TCP 连/断。
         private void QuickConnectSerial_Click(object sender, RoutedEventArgs e) {
             if (_timingBridge != null && _timingBridge.IsConnected) {
                 _timingBridge.Disconnect();
@@ -12848,21 +12866,21 @@ namespace SwimmingScoreboard
                 AddLog("硬件已断开");
                 return;
             }
-            string portName = _timingConn != null ? _timingConn.SerialPort : null;
-            int baud = _timingConn != null && _timingConn.SerialBaudRate > 0 ? _timingConn.SerialBaudRate : 9600;
-            if (string.IsNullOrEmpty(portName)) {
+            string host = _timingConn != null ? _timingConn.TcpHost : null;
+            int port = _timingConn != null && _timingConn.TcpPort > 0 ? _timingConn.TcpPort : 5000;
+            if (string.IsNullOrEmpty(host)) {
                 MessageBox.Show(
-                    "未保存默认串口。请先到 \"系统工作状态 → 硬件计时器连接\" 选择 COM 端口和波特率，按一次\"连接串口\"使其落盘，下次再用这个快捷键。",
-                    "无默认串口", MessageBoxButton.OK, MessageBoxImage.Information);
+                    "未保存默认网络地址。请先到 \"系统工作状态 → 硬件计时器连接\" 配置 TCP 主机和端口，按一次\"连接TCP\"使其落盘，下次再用此快捷键。",
+                    "无默认网络地址", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
             try {
-                _timingBridge.ConnectSerial(portName, baud);
-                AddLog(string.Format("串口快速连接: {0} @ {1} baud", portName, baud));
-                _timingConn.LastType = "serial";
+                _timingBridge.ConnectTcp(host, port);
+                AddLog(string.Format("网络快速连接: {0}:{1}", host, port));
+                _timingConn.LastType = "tcp";
                 SaveTimingConnectionConfig();
             } catch (Exception ex) {
-                AddLog("串口快速连接失败: " + ex.Message);
+                AddLog("网络快速连接失败: " + ex.Message);
             }
             UpdateConnectionStatus();
             UpdateQuickConnectButton();
@@ -13061,7 +13079,8 @@ namespace SwimmingScoreboard
         private void UpdateQuickConnectButton() {
             if (QuickConnectSerialButton == null) return;
             bool connected = _timingBridge != null && _timingBridge.IsConnected;
-            string label = connected ? "断开" : "连接串口";
+            //2026-05-14 顶栏改走网络连接，未连接时文字为"网络连接"，已连接显示"断开"
+            string label = connected ? "断开" : "网络连接";
             string bgHex = connected ? "#EF4444" : "#22C55E";
             // 模板内的 TextBlock 用 x:Name="QuickConnectSerialButtonText"，
             // 模板里的 Border 是按钮 Template 的根元素 — 通过 VisualTreeHelper 拿到再改 Background
