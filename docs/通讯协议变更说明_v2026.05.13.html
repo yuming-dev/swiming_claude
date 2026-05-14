@@ -89,14 +89,17 @@
   <tr><td class="field">D5–D10</td><td>0</td></tr>
 </table>
 <p><strong>PC 端解析：</strong> <code>mV = (D3 &lt;&lt; 8) | D4</code>，&nbsp; <code>V = mV / 1000.0</code></p>
+<p><strong>硬件电池：</strong>实际为 <strong>7.4V 标称（2 节锂电串联包）</strong>。单节范围
+3.0 V（耗尽截止）/ 3.5 V（低）/ 3.7 V（标称）/ 4.2 V（满充） →
+两节合计 <strong>6.0 V / 7.0 V / 7.4 V / 8.4 V</strong>。</p>
 <table>
-  <tr><th>显示色彩阈值</th><th>电压区间</th></tr>
-  <tr><td>红色（电量低，请充电）</td><td>&lt; 11.0 V</td></tr>
-  <tr><td>琥珀色</td><td>11.0 – 11.5 V</td></tr>
-  <tr><td>绿色</td><td>≥ 11.5 V</td></tr>
+  <tr><th>显示色彩阈值</th><th>电压区间</th><th>含义</th></tr>
+  <tr><td>🔴 红色</td><td>&lt; 7.00 V</td><td>严重低电，请立即更换/充电（接近耗尽截止 6.0V）</td></tr>
+  <tr><td>🟡 琥珀色</td><td>7.00 V – 7.40 V</td><td>偏低，注意监视</td></tr>
+  <tr><td>🟢 绿色</td><td>≥ 7.40 V</td><td>健康（标称 7.4V，满充 8.4V）</td></tr>
 </table>
-<div class="summary"><strong>示例：</strong> 12.34 V → mV = 12340 = 0x3034<br>
-<code>F1 53 4B 30 34 00 00 00 00 00 00 F4</code></div>
+<div class="summary"><strong>示例：</strong> 7.85 V → mV = 7850 = 0x1EAA<br>
+<code>F1 53 4B 1E AA 00 00 00 00 00 00 F4</code></div>
 
 <!-- A4 -->
 <h3>A4. <code>0x4C</code> Set_ForceAllOpen <span class="dir dir-out">PC → 硬件</span></h3>

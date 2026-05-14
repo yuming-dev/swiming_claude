@@ -90,8 +90,9 @@ PC 端顶部状态栏的电压显示永远为空。</p>
 </table>
 
 <div class="frame">
-示例：12.34 V = 12340 mV = 0x3034<br>
-F1 53 4B 30 34 00 00 00 00 00 00 F4
+硬件电池：7.4V 标称（2 节锂电串联包，单节 3.7V）。满充 8.4V / 标称 7.4V / 低 7.0V / 耗尽 6.0V。<br><br>
+示例：7.85 V = 7850 mV = 0x1EAA<br>
+F1 53 4B 1E AA 00 00 00 00 00 00 F4
 </div>
 
 <p><code>USER/swimtime.h</code> 已有定义：<code>#define Report_Voltage_RAW    0x4B</code></p>
@@ -121,10 +122,10 @@ if (HAL_GetTick() - last_volt_send_tick &gt;= 5000) {
 mv = (D3 &lt;&lt; 8) | D4
 V  = mv / 1000.0
 
-// 顶栏显示 + 阈值染色：
-//   &lt; 11.0 V  红色（电量低）
-//   11.0–11.5 琥珀
-//   ≥ 11.5    绿色</pre>
+// 顶栏显示 + 阈值染色（2026-05-13(2) 按硬件 7.4V 包 / 2节锂电对齐）：
+//   &lt; 7.00 V          红色（严重低电，请立即更换/充电；接近耗尽 6.0V）
+//   7.00 V – 7.40 V   琥珀色（偏低，注意监视）
+//   ≥ 7.40 V          绿色（健康；标称 7.4V，满充 8.4V）</pre>
 
 <h2>3. <span class="tag optional">选修</span> 0x42 SetCommand 新增子码 0x09</h2>
 
@@ -188,7 +189,8 @@ case SetCmd_Sub_BlindReplaceDelay:    // 0x09
   <li>PC 启动并连上硬件</li>
   <li>等待 5–10 秒</li>
   <li>顶部状态栏 <code>TimingStatusText</code> 应出现 <code>｜ 电池: X.XX V</code>，
-      色彩按阈值染（&lt;11.0 红 / 11.0-11.5 琥珀 / ≥11.5 绿）</li>
+      色彩按阈值染（&lt;7.00 红 / 7.00-7.40 琥珀 / ≥7.40 绿）<br>
+      <em>2026-05-13(2) 按硬件 7.4V 电池包对齐</em></li>
 </ol>
 
 <h3>子码 0x09（如选做）</h3>
