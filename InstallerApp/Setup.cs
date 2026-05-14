@@ -62,7 +62,7 @@ class SetupForm : Form
                 e.Graphics.DrawString("系统", titleFont, Brushes.White, new RectangleF(0, 210, p.Width, 30), sf);
             // 版本号
             using (var verFont = new Font("Segoe UI", 10))
-                e.Graphics.DrawString("v2026.06.10", verFont, new SolidBrush(Color.FromArgb(180, 255, 255, 255)), new RectangleF(0, 260, p.Width, 22), sf);
+                e.Graphics.DrawString("v2026.05.13", verFont, new SolidBrush(Color.FromArgb(180, 255, 255, 255)), new RectangleF(0, 260, p.Width, 22), sf);
         };
         return p;
     }
@@ -179,9 +179,12 @@ class SetupForm : Form
                    "  Server\\Database\\       赛事数据（JSON）\n" +
                    "  Server\\Documents\\      生成的文档\n" +
                    "  Server\\Records\\        纪录模板\n" +
-                   "  RemoteControl\\         远程控制台",
+                   "  RemoteControl\\         远程计时控制台\n" +
+                   "  RemoteDisplay\\         远程显示控制台\n" +
+                   "  Registration\\          运动员报名工具\n" +
+                   "  ScheduleEditor\\        编排记录及成绩处理",
             Font = new Font("Microsoft YaHei", 9.5f), ForeColor = Color.FromArgb(100, 116, 139),
-            Location = new Point(30, 150), Size = new Size(380, 180)
+            Location = new Point(30, 150), Size = new Size(380, 200)
         };
         content.Controls.Add(info);
 
@@ -225,10 +228,13 @@ class SetupForm : Form
         content.Controls.Add(title);
 
         var info = new Label {
-            Text = "游泳赛事管理与计时系统 v2026.05.10 已成功安装。\n\n" +
+            Text = "游泳赛事管理与计时系统 v2026.05.13 已成功安装。\n\n" +
                    "已创建桌面快捷方式：\n" +
                    "  ★  游泳赛事管理主服务器\n" +
-                   "  ★  远程计时控制台\n\n" +
+                   "  ★  远程计时控制台\n" +
+                   "  ★  远程显示控制台\n" +
+                   "  ★  运动员报名工具\n" +
+                   "  ★  编排记录及成绩处理\n\n" +
                    "Web 客户端地址（主服务器启动后）：\n" +
                    "  比赛控制  http://<server>:3002/race_control.html\n" +
                    "  大屏显示  http://<server>:3002/display.html\n" +
@@ -237,7 +243,7 @@ class SetupForm : Form
                    "  检录台      http://<server>:3002/checkin.html\n\n" +
                    "使用说明书：" + installDir + "\\使用说明书.pdf",
             Font = new Font("Microsoft YaHei", 10), ForeColor = Color.FromArgb(71, 85, 105),
-            Location = new Point(30, 60), Size = new Size(380, 280)
+            Location = new Point(30, 60), Size = new Size(380, 320)
         };
         content.Controls.Add(info);
 
@@ -271,7 +277,10 @@ class SetupForm : Form
             SetProgress(5, "创建安装目录...");
             string[] dirs = { installDir, installDir + @"\Server", installDir + @"\Server\Web",
                 installDir + @"\Server\Records", installDir + @"\Server\Database",
-                installDir + @"\Server\Documents", installDir + @"\RemoteControl" };
+                installDir + @"\Server\Documents", installDir + @"\RemoteControl",
+                installDir + @"\RemoteDisplay", installDir + @"\Registration",
+                installDir + @"\ScheduleEditor", installDir + @"\ScheduleEditor\Records",
+                installDir + @"\ScheduleEditor\Database" };
             foreach (var d in dirs) { if (!Directory.Exists(d)) Directory.CreateDirectory(d); }
 
             SetProgress(15, "复制主服务器程序及依赖库...");
@@ -294,15 +303,40 @@ class SetupForm : Form
                 foreach (var f in Directory.GetFiles(recSrc))
                     File.Copy(f, Path.Combine(installDir, "Server", "Records", Path.GetFileName(f)), true);
 
-            SetProgress(65, "复制远程控制台及依赖库...");
-            // 复制 RemoteTimingControl\ 根目录下所有文件到 RemoteControl\
+            SetProgress(60, "复制远程计时控制台及依赖库...");
             string remoteSrc = Path.Combine(sourceDir, "RemoteTimingControl");
             string remoteDst = Path.Combine(installDir, "RemoteControl");
             if (Directory.Exists(remoteSrc))
                 foreach (var f in Directory.GetFiles(remoteSrc))
                     File.Copy(f, Path.Combine(remoteDst, Path.GetFileName(f)), true);
 
-            SetProgress(70, "复制工具程序（计时模拟器/参数调试）...");
+            SetProgress(64, "复制远程显示控制台及依赖库...");
+            string displaySrc = Path.Combine(sourceDir, "RemoteDisplayControl");
+            string displayDst = Path.Combine(installDir, "RemoteDisplay");
+            if (Directory.Exists(displaySrc))
+                foreach (var f in Directory.GetFiles(displaySrc))
+                    File.Copy(f, Path.Combine(displayDst, Path.GetFileName(f)), true);
+
+            SetProgress(67, "复制运动员报名工具及依赖库...");
+            string regSrc = Path.Combine(sourceDir, "RegistrationTool");
+            string regDst = Path.Combine(installDir, "Registration");
+            if (Directory.Exists(regSrc))
+                foreach (var f in Directory.GetFiles(regSrc))
+                    File.Copy(f, Path.Combine(regDst, Path.GetFileName(f)), true);
+
+            SetProgress(70, "复制编排记录及成绩处理（ScheduleEditor）...");
+            string editorSrc = Path.Combine(sourceDir, "ScheduleEditor");
+            string editorDst = Path.Combine(installDir, "ScheduleEditor");
+            if (Directory.Exists(editorSrc))
+                foreach (var f in Directory.GetFiles(editorSrc))
+                    File.Copy(f, Path.Combine(editorDst, Path.GetFileName(f)), true);
+            // ScheduleEditor 也带 Records 子目录（与主服务器共享纪录模板）
+            string editorRecSrc = Path.Combine(sourceDir, "ScheduleEditor", "Records");
+            if (Directory.Exists(editorRecSrc))
+                foreach (var f in Directory.GetFiles(editorRecSrc))
+                    File.Copy(f, Path.Combine(editorDst, "Records", Path.GetFileName(f)), true);
+
+            SetProgress(75, "复制工具程序（计时模拟器/参数调试）...");
             string toolsDst = Path.Combine(installDir, "Tools");
             if (!Directory.Exists(toolsDst)) Directory.CreateDirectory(toolsDst);
             foreach (string toolName in new[] { "TimingSimulator.exe", "ParamDebugBot.exe" }) {
@@ -318,6 +352,15 @@ class SetupForm : Form
             CreateShortcut(Path.Combine(desktop, "远程计时控制台.lnk"),
                 Path.Combine(installDir, "RemoteControl", "RemoteTimingControl.exe"),
                 Path.Combine(installDir, "RemoteControl"));
+            CreateShortcut(Path.Combine(desktop, "远程显示控制台.lnk"),
+                Path.Combine(installDir, "RemoteDisplay", "RemoteDisplayControl.exe"),
+                Path.Combine(installDir, "RemoteDisplay"));
+            CreateShortcut(Path.Combine(desktop, "运动员报名工具.lnk"),
+                Path.Combine(installDir, "Registration", "RegistrationTool.exe"),
+                Path.Combine(installDir, "Registration"));
+            CreateShortcut(Path.Combine(desktop, "编排记录及成绩处理.lnk"),
+                Path.Combine(installDir, "ScheduleEditor", "ScheduleEditor.exe"),
+                Path.Combine(installDir, "ScheduleEditor"));
 
             SetProgress(90, "创建开始菜单快捷方式...");
             string startMenu = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), "游泳赛事管理系统");
@@ -328,6 +371,15 @@ class SetupForm : Form
             CreateShortcut(Path.Combine(startMenu, "远程计时控制台.lnk"),
                 Path.Combine(installDir, "RemoteControl", "RemoteTimingControl.exe"),
                 Path.Combine(installDir, "RemoteControl"));
+            CreateShortcut(Path.Combine(startMenu, "远程显示控制台.lnk"),
+                Path.Combine(installDir, "RemoteDisplay", "RemoteDisplayControl.exe"),
+                Path.Combine(installDir, "RemoteDisplay"));
+            CreateShortcut(Path.Combine(startMenu, "运动员报名工具.lnk"),
+                Path.Combine(installDir, "Registration", "RegistrationTool.exe"),
+                Path.Combine(installDir, "Registration"));
+            CreateShortcut(Path.Combine(startMenu, "编排记录及成绩处理.lnk"),
+                Path.Combine(installDir, "ScheduleEditor", "ScheduleEditor.exe"),
+                Path.Combine(installDir, "ScheduleEditor"));
 
             // 复制使用说明书（PDF）
             string manualSrc = Path.Combine(sourceDir, "使用说明书.pdf");

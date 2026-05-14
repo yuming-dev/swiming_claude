@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>游泳计时通讯协议变更说明 v2026.05.13</title>
+<style>
+  @page { size: A4; margin: 18mm 16mm; }
+  body { font-family: "Microsoft YaHei", "微软雅黑", sans-serif; font-size: 12pt; color: #1f2937; line-height: 1.55; }
+  h1 { font-size: 22pt; text-align: center; border-bottom: 3px double #1e3a8a; padding-bottom: 12px; color: #1e3a8a; }
+  h2 { font-size: 16pt; color: #1e3a8a; border-left: 6px solid #3b82f6; padding-left: 10px; margin-top: 28px; }
+  h3 { font-size: 13pt; color: #1e3a8a; margin-top: 22px; background:#eff6ff; padding:6px 10px; border-radius:4px;}
+  .dir { display:inline-block; font-size:10pt; padding:2px 8px; border-radius:10px; margin-left:6px; vertical-align:middle; }
+  .dir-out { background:#fee2e2; color:#991b1b; }
+  .dir-in { background:#dcfce7; color:#166534; }
+  .dir-both { background:#e0e7ff; color:#3730a3; }
+  table { border-collapse: collapse; width: 100%; margin: 8px 0 16px; font-size: 11pt; }
+  th, td { border: 1px solid #cbd5e1; padding: 6px 9px; vertical-align: top; }
+  th { background: #f1f5f9; text-align: left; font-weight: bold; }
+  td.field { font-family: Consolas, monospace; white-space: nowrap; background: #fafbfc; }
+  .frame { font-family: Consolas, monospace; background:#0f172a; color:#e2e8f0; padding:10px 14px; border-radius:6px; font-size:11pt; }
+  .new { color: #b91c1c; font-weight: bold; }
+  .note { background:#fef9c3; padding:8px 12px; border-left: 4px solid #ca8a04; border-radius:4px; margin: 8px 0; }
+  ul { margin: 4px 0 10px 24px; }
+  li { margin: 3px 0; }
+  .toc { background:#f8fafc; border:1px solid #e2e8f0; padding: 12px 18px; border-radius:6px; }
+  .toc a { color:#1e3a8a; text-decoration:none; }
+  .summary { background: #ecfdf5; border-left: 4px solid #059669; padding: 8px 14px; border-radius: 4px; margin: 8px 0; }
+  hr { border:0; border-top: 1px dashed #cbd5e1; margin: 18px 0; }
+  .footer { text-align:center; color:#64748b; font-size:10pt; margin-top:30px; padding-top:12px; border-top:1px solid #e2e8f0; }
+</style>
+</head>
+<body>
+
+<h1>游泳计时通讯协议变更说明</h1>
+<p style="text-align:center; color:#64748b; margin-top:-6px;">
+  v2026.05.13 &nbsp;|&nbsp; 基于"游泳计时通讯协议 2023-11-13"的增量修改
+</p>
+
+<div class="frame">
+  <strong>帧格式（不变）：</strong> F1 53 [CMD] [D3] [D4] [D5] [D6] [D7] [D8] [D9] [D10] F4 <br>
+  共 12 字节 &nbsp;·&nbsp; D0=0xF1(SOH) &nbsp;·&nbsp; D1=0x53('S') &nbsp;·&nbsp; D2=命令 &nbsp;·&nbsp; D11=0xF4(EOT)
+</div>
+
+<div class="toc">
+<strong>目录</strong>
+<ul>
+  <li><a href="#A">A. 新增命令</a> — 4 个</li>
+  <li><a href="#B">B. 扩展原有帧</a> — 5 处</li>
+  <li><a href="#C">C. 方向与触发时机汇总</a></li>
+  <li><a href="#D">D. 兼容性建议</a></li>
+</ul>
+</div>
+
+<h2 id="A">A. 新增命令</h2>
+
+<!-- A1 -->
+<h3>A1. <code>0x39</code> Set_DateTime <span class="dir dir-out">PC → 硬件</span></h3>
+<p><strong>触发：</strong>连接建立后 PC 主动一次性下发，让硬件 RTC 对齐计算机时钟。</p>
+<table>
+  <tr><th width="80">字段</th><th>含义</th></tr>
+  <tr><td class="field">D3</td><td>年低字节 <code>year &amp; 0xFF</code></td></tr>
+  <tr><td class="field">D4</td><td>年高字节 <code>(year &gt;&gt; 8) &amp; 0xFF</code></td></tr>
+  <tr><td class="field">D5</td><td>月 (1–12)</td></tr>
+  <tr><td class="field">D6</td><td>日 (1–31)</td></tr>
+  <tr><td class="field">D7</td><td>时 (0–23)</td></tr>
+  <tr><td class="field">D8</td><td>分 (0–59)</td></tr>
+  <tr><td class="field">D9</td><td>秒 (0–59)</td></tr>
+  <tr><td class="field">D10</td><td>0</td></tr>
+</table>
+<div class="summary"><strong>示例：</strong>2026-05-13 14:30:45（0x07EA = 2026）<br>
+<code>F1 53 39 EA 07 05 0D 0E 1E 2D 00 F4</code></div>
+
+<!-- A2 -->
+<h3>A2. <code>0x3A</code> Set_PoolSingleOrDoubleTP <span class="dir dir-out">PC → 硬件</span></h3>
+<p><strong>触发：</strong>用户切换"单边 / 两端安装"时 + 连接建立后同步当前配置。硬件需将本设置持久化到 SD 卡。</p>
+<table>
+  <tr><th width="80">字段</th><th>含义</th></tr>
+  <tr><td class="field">D3</td><td><code>0</code> = 两端安装 &nbsp;|&nbsp; <code>1</code> = 单边安装</td></tr>
+  <tr><td class="field">D4–D10</td><td>保留 0</td></tr>
+</table>
+
+<!-- A3 -->
+<h3>A3. <code>0x4B</code> BatteryVoltage <span class="dir dir-in">硬件 → PC（主动上报）</span></h3>
+<p><strong>触发：</strong>硬件周期性上报（建议每 5–10 秒，或电压跳变超过阈值时）。</p>
+<table>
+  <tr><th width="80">字段</th><th>含义</th></tr>
+  <tr><td class="field">D3</td><td>电压 mV <strong>高</strong>字节</td></tr>
+  <tr><td class="field">D4</td><td>电压 mV <strong>低</strong>字节</td></tr>
+  <tr><td class="field">D5–D10</td><td>0</td></tr>
+</table>
+<p><strong>PC 端解析：</strong> <code>mV = (D3 &lt;&lt; 8) | D4</code>，&nbsp; <code>V = mV / 1000.0</code></p>
+<table>
+  <tr><th>显示色彩阈值</th><th>电压区间</th></tr>
+  <tr><td>红色（电量低，请充电）</td><td>&lt; 11.0 V</td></tr>
+  <tr><td>琥珀色</td><td>11.0 – 11.5 V</td></tr>
+  <tr><td>绿色</td><td>≥ 11.5 V</td></tr>
+</table>
+<div class="summary"><strong>示例：</strong> 12.34 V → mV = 12340 = 0x3034<br>
+<code>F1 53 4B 30 34 00 00 00 00 00 00 F4</code></div>
+
+<!-- A4 -->
+<h3>A4. <code>0x4C</code> Set_ForceAllOpen <span class="dir dir-out">PC → 硬件</span></h3>
+<p><strong>触发：</strong>操作员点击"全开 / 关闭"功能按钮。</p>
+<table>
+  <tr><th width="80">字段</th><th>含义</th></tr>
+  <tr><td class="field">D3</td><td>泳道号 &nbsp;·&nbsp; <code>0xFF</code> = 全部泳道 &nbsp;|&nbsp; <code>0x00 – 0x09</code> = 指定单道</td></tr>
+  <tr><td class="field">D4</td><td><code>1</code> = 进入"全开" &nbsp;|&nbsp; <code>0</code> = 恢复正常状态机</td></tr>
+  <tr><td class="field">D5–D10</td><td>0</td></tr>
+</table>
+<div class="note">
+<strong>语义</strong><br>
+<strong>全开：</strong>硬件无视触板/盲表/出发台内部 Closed/Touched 状态机，任意信号都按"该端处于 Open"上报（仍走原 0x16/0x17/0x18/0x19/0x1A 帧，只是不再被自身状态过滤）。<br>
+<strong>关闭：</strong>恢复正常流程（已 Touched 的设备不重复响应、Closed 不响应等）。
+</div>
+<p><strong>建议：</strong>进入"全开"模式时硬件点亮一个 LED 或屏幕加显标识，让操作员能直观看到特殊模式生效。</p>
+
+<h2 id="B">B. 扩展原有帧</h2>
+
+<!-- B1 -->
+<h3>B1. <code>0x1A</code> StartingBlock — D10 新增"符号位" <span class="dir dir-in">硬件 → PC</span></h3>
+<p>出发反应时数据帧。</p>
+<table>
+  <tr><th width="80">字段</th><th>含义</th></tr>
+  <tr><td class="field">D3</td><td>命令子码（同原协议）</td></tr>
+  <tr><td class="field">D4</td><td>泳道号（0–9 终点端 &nbsp;|&nbsp; 10–19 另一端）</td></tr>
+  <tr><td class="field">D5</td><td>分</td></tr>
+  <tr><td class="field">D6</td><td>秒</td></tr>
+  <tr><td class="field">D7</td><td>1/100 秒</td></tr>
+  <tr><td class="field">D8</td><td>(小时 &lt;&lt; 4) | (1/1000 秒)</td></tr>
+  <tr><td class="field">D9</td><td>0</td></tr>
+  <tr><td class="field"><span class="new">D10 ★</span></td><td><span class="new">0 = 正常出发 &nbsp;|&nbsp; 非 0 = 抢跳 / 犯规</span></td></tr>
+</table>
+<p>PC 端 D10 ≠ 0 时把时间取负显示（例如 -0.020 s）。</p>
+
+<!-- B2 -->
+<h3>B2. <code>0x41</code> Set_ArmDelay_Time — D5 含义明确 <span class="dir dir-out">PC → 硬件</span></h3>
+<p>原帧结构不变，但 D5 字节过去软件写死 50，现在改为可配置的"盲表代替成绩延迟时间"。硬件本来就支持该字节，无协议改动。</p>
+<table>
+  <tr><th width="80">字段</th><th>含义</th><th width="100">单位</th></tr>
+  <tr><td class="field">D3</td><td>触板正常关闭时间</td><td>秒</td></tr>
+  <tr><td class="field">D4</td><td>触板抢跳后关闭时间</td><td>秒</td></tr>
+  <tr><td class="field"><span class="new">D5 ★</span></td><td class="new">盲表代替成绩延迟时间（新增配置入口）</td><td class="new">0.1 秒（50 = 5.0s）</td></tr>
+  <tr><td class="field">D6</td><td>成绩显示时间</td><td>秒</td></tr>
+  <tr><td class="field">D7</td><td>出发信号边沿（0 = 下降沿）</td><td>bool</td></tr>
+  <tr><td class="field">D8</td><td>道次 + 发令位混合字节</td><td>bit</td></tr>
+  <tr><td class="field">D9</td><td>触板关闭延迟</td><td>秒</td></tr>
+  <tr><td class="field">D10</td><td>出发台关闭延迟</td><td>秒</td></tr>
+</table>
+
+<!-- B3 -->
+<h3>B3. <code>0x42</code> SetCommand — 新增子码 <code>0x09</code> <span class="dir dir-both">双向</span></h3>
+<p>0x42 是单项参数读写命令，D3 为子码。</p>
+<table>
+  <tr><th width="80">D3 子码</th><th>参数</th><th width="120">D4 单位</th><th width="80">状态</th></tr>
+  <tr><td class="field">0x01</td><td>LaneCloseTime</td><td>秒</td><td>既有</td></tr>
+  <tr><td class="field">0x02</td><td>StartBlockCloseDelay</td><td>0.1 秒</td><td>既有</td></tr>
+  <tr><td class="field">0x03</td><td>ResultConfirmCloseDelay</td><td>0.1 秒</td><td>既有</td></tr>
+  <tr><td class="field">0x04</td><td>FalseStartThreshold</td><td>0.01 秒</td><td>既有</td></tr>
+  <tr><td class="field">0x05</td><td>SplitDisplayTime</td><td>秒</td><td>既有</td></tr>
+  <tr><td class="field">0x06</td><td>FirstPlaceHoldTime</td><td>秒</td><td>既有</td></tr>
+  <tr><td class="field">0x07</td><td>FinishPosition (0=左, 1=右)</td><td>—</td><td>既有</td></tr>
+  <tr><td class="field">0x08</td><td>BlindWatchCount（高4位左1-3，低4位右1-3）</td><td>—</td><td>既有</td></tr>
+  <tr><td class="field"><span class="new">0x09 ★</span></td><td class="new">BlindReplaceDelay（盲表代替成绩延迟）</td><td class="new">0.1 秒</td><td class="new">新增</td></tr>
+</table>
+
+<!-- B4 -->
+<h3>B4. <code>0x43</code> Set_MatchEvent — D8 新增"接力标志" <span class="dir dir-out">PC → 硬件</span></h3>
+<p><strong>触发：</strong>每次进入新组比赛前下发。</p>
+<table>
+  <tr><th width="80">字段</th><th>含义</th></tr>
+  <tr><td class="field">D3</td><td>总圈数</td></tr>
+  <tr><td class="field">D4</td><td>右端期望触板次数</td></tr>
+  <tr><td class="field">D5</td><td>左端期望触板次数</td></tr>
+  <tr><td class="field">D6</td><td>泳道开关位图 0–4 道（bit = 1 → 有运动员）</td></tr>
+  <tr><td class="field">D7</td><td>泳道开关位图 5–9 道</td></tr>
+  <tr><td class="field"><span class="new">D8 ★</span></td><td class="new"><code>0</code> = 个人项目 &nbsp;|&nbsp; <code>1</code> = 接力项目</td></tr>
+  <tr><td class="field">D9</td><td>0</td></tr>
+  <tr><td class="field">D10</td><td>0</td></tr>
+</table>
+<div class="note">
+<strong>硬件按 D8 决策：</strong><br>
+<strong>D8 = 1</strong> → 为每棒分别测量接力反应时（运动员从出发台离台到上一棒触板的时间差），通过 0x1A 上报，可能多次<br>
+<strong>D8 = 0</strong> → 只测一次起跳反应时
+</div>
+
+<!-- B5 -->
+<h3>B5. <code>0x46</code> Set_TPSBMB_State — 语义澄清 <span class="dir dir-out">PC → 硬件</span></h3>
+<p>帧格式不变（20 位 TP / 20 位 SB / 20 位 MB 位图）。</p>
+<div class="note">
+<strong>★ 语义补充：</strong>bit = 0 表示"硬件无此设备"，原因可以是
+<ul>
+  <li>损坏（Broken）</li>
+  <li>或 未安装（NotInstalled，例如单边模式下右端整列）</li>
+</ul>
+硬件收到 bit = 0 即停止期待该端信号，不必区分这两种原因。
+</div>
+
+<h2 id="C">C. 方向与触发时机汇总</h2>
+<table>
+  <tr><th>命令</th><th>方向</th><th>触发时机</th></tr>
+  <tr><td class="field">0x39 &nbsp; Set_DateTime</td>            <td><span class="dir dir-out">PC → 硬件</span></td>  <td>连接建立后一次</td></tr>
+  <tr><td class="field">0x3A &nbsp; Set_PoolSingleOrDoubleTP</td><td><span class="dir dir-out">PC → 硬件</span></td>  <td>模式切换 + 连接建立</td></tr>
+  <tr><td class="field">0x41 &nbsp; Set_ArmDelay_Time (D5)</td>  <td><span class="dir dir-out">PC → 硬件</span></td>  <td>参数设置 OK 时</td></tr>
+  <tr><td class="field">0x42 &nbsp; 子码 0x09</td>               <td><span class="dir dir-both">双向</span></td>      <td>参数变更回传</td></tr>
+  <tr><td class="field">0x43 &nbsp; Set_MatchEvent (D8)</td>     <td><span class="dir dir-out">PC → 硬件</span></td>  <td>每次比赛 / 换组前</td></tr>
+  <tr><td class="field">0x46 &nbsp; Set_TPSBMB_State (语义)</td> <td><span class="dir dir-out">PC → 硬件</span></td>  <td>模式切换 / 设备状态变更</td></tr>
+  <tr><td class="field">0x4B &nbsp; BatteryVoltage</td>          <td><span class="dir dir-in">硬件 → PC</span></td>   <td>周期性主动上报</td></tr>
+  <tr><td class="field">0x4C &nbsp; Set_ForceAllOpen</td>        <td><span class="dir dir-out">PC → 硬件</span></td>  <td>用户点击全开/关闭按钮</td></tr>
+  <tr><td class="field">0x1A &nbsp; StartingBlock (D10)</td>     <td><span class="dir dir-in">硬件 → PC</span></td>   <td>出发台触发</td></tr>
+</table>
+
+<h2 id="D">D. 兼容性建议</h2>
+<ul>
+  <li>硬件解析时遇到未识别的 D8/D9/D10 扩展字节，应忽略而不丢帧。</li>
+  <li>0x4B 电压上报建议带"上一次发送的时间戳"内部判断，避免短时间内重复刷屏。</li>
+  <li>0x4C 全开命令进入后，硬件点亮 LED 或屏幕加显标识，让操作员看到"特殊模式"在生效。</li>
+  <li>0x39 校时建议硬件收到后用 0x42 子码（自定义子码或日志通道）回传一次时间，方便调试。</li>
+</ul>
+
+<div class="footer">
+  共 4 个新命令 + 5 处帧扩展 &nbsp;·&nbsp; 生成时间：2026-05-13
+</div>
+
+</body>
+</html>

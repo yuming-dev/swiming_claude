@@ -186,6 +186,9 @@ class UninstallForm : Form
             SetProgress(10, "删除桌面快捷方式...");
             SafeDelete(Path.Combine(desktop, "游泳赛事管理主服务器.lnk"));
             SafeDelete(Path.Combine(desktop, "远程计时控制台.lnk"));
+            SafeDelete(Path.Combine(desktop, "远程显示控制台.lnk"));
+            SafeDelete(Path.Combine(desktop, "运动员报名工具.lnk"));
+            SafeDelete(Path.Combine(desktop, "编排记录及成绩处理.lnk"));
 
             SetProgress(20, "删除开始菜单快捷方式...");
             SafeDeleteDir(startMenu);
@@ -195,17 +198,26 @@ class UninstallForm : Form
             SafeDelete(Path.Combine(installDir, "Server", "Fleck.dll"));
             SafeDelete(Path.Combine(installDir, "Server", "Newtonsoft.Json.dll"));
 
-            SetProgress(50, "删除Web页面...");
+            SetProgress(45, "删除Web页面...");
             SafeDeleteDir(Path.Combine(installDir, "Server", "Web"));
 
-            SetProgress(60, "删除纪录模板...");
+            SetProgress(55, "删除纪录模板...");
             SafeDeleteDir(Path.Combine(installDir, "Server", "Records"));
 
-            SetProgress(70, "删除文档目录...");
+            SetProgress(60, "删除文档目录...");
             SafeDeleteDir(Path.Combine(installDir, "Server", "Documents"));
 
-            SetProgress(80, "删除远程控制台...");
+            SetProgress(65, "删除远程计时控制台...");
             SafeDeleteDir(Path.Combine(installDir, "RemoteControl"));
+
+            SetProgress(72, "删除远程显示控制台...");
+            SafeDeleteDir(Path.Combine(installDir, "RemoteDisplay"));
+
+            SetProgress(78, "删除运动员报名工具...");
+            SafeDeleteDir(Path.Combine(installDir, "Registration"));
+
+            SetProgress(85, "删除编排记录及成绩处理...");
+            SafeDeleteDir(Path.Combine(installDir, "ScheduleEditor"));
 
             SetProgress(90, "清理其他文件...");
             SafeDelete(Path.Combine(installDir, "使用说明书.pdf"));

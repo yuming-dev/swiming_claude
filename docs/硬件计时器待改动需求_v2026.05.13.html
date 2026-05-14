@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>硬件计时器待改动需求 v2026.05.13</title>
+<style>
+  @page { size: A4; margin: 18mm 16mm; }
+  body { font-family: "Microsoft YaHei", "微软雅黑", sans-serif; font-size: 12pt; color: #1f2937; line-height: 1.55; }
+  h1 { font-size: 22pt; text-align: center; border-bottom: 3px double #b91c1c; padding-bottom: 12px; color: #b91c1c; }
+  h2 { font-size: 16pt; color: #1e3a8a; border-left: 6px solid #3b82f6; padding-left: 10px; margin-top: 28px; }
+  h3 { font-size: 13pt; color: #1e3a8a; margin-top: 22px; }
+  .tag { display:inline-block; font-size:10pt; padding:2px 10px; border-radius:10px; margin-left:6px; vertical-align:middle; }
+  .must { background:#fee2e2; color:#991b1b; }
+  .optional { background:#fef3c7; color:#92400e; }
+  .info { background:#dbeafe; color:#1e40af; }
+  .done { background:#dcfce7; color:#166534; }
+  pre { background:#0f172a; color:#e2e8f0; padding:14px 18px; border-radius:6px; font-size:11pt; overflow-x:auto; line-height:1.5; }
+  pre.note { background:#fef9c3; color:#713f12; border-left: 4px solid #ca8a04; font-family: "Microsoft YaHei", sans-serif; font-size: 12pt; }
+  code { font-family: Consolas, monospace; background: #e0e7ff; padding: 1px 6px; border-radius: 3px; }
+  table { border-collapse: collapse; width: 100%; margin: 8px 0 16px; font-size: 11pt; }
+  th, td { border: 1px solid #cbd5e1; padding: 6px 9px; vertical-align: top; }
+  th { background: #f1f5f9; text-align: left; font-weight: bold; }
+  .frame { font-family: Consolas, monospace; background:#0f172a; color:#fde047; padding:10px 14px; border-radius:6px; font-size:11pt; }
+  .summary { background: #ecfdf5; border-left: 4px solid #059669; padding: 10px 14px; border-radius: 4px; margin: 12px 0; }
+  .warn { background: #fef2f2; border-left: 4px solid #dc2626; padding: 10px 14px; border-radius: 4px; margin: 12px 0; }
+  ul, ol { margin: 6px 0 10px 24px; }
+  li { margin: 4px 0; }
+  .meta { color:#64748b; font-size: 10pt; text-align: center; margin-top: -4px; }
+  .footer { text-align:center; color:#64748b; font-size:10pt; margin-top:30px; padding-top:12px; border-top:1px solid #e2e8f0; }
+</style>
+</head>
+<body>
+
+<h1>硬件计时器待改动需求</h1>
+<p class="meta">v2026.05.13 &nbsp;|&nbsp; 双向通讯一致性核查结论</p>
+
+<div class="summary">
+<strong>背景：</strong>PC 控制端在 <code>C:\代码\swiming_claude</code>，硬件固件在
+<code>C:\硬件游泳计时器修改程序2026年5月文件夹\H753SWIM2026-5-11</code>。
+我们对二者逐条核对后，发现以下三项需要硬件侧补做。修改后 PC 端**不需要再改任何代码**——
+PC 的解析/显示逻辑均已就位。
+</div>
+
+<div class="warn">
+<strong>PC 端已自行修复一项关键 Bug：</strong>原 PC 发"盲表 2/3 扩展位图"用了
+<code>0x49 / 0x4A</code>，被硬件 dispatcher 当成 <code>Set_DateTime / Set_PoolSingleOrDoubleTP</code>
+误处理。已注释。详见本文末尾"背景信息"。
+</div>
+
+<h2>1. <span class="tag must">必修</span> 0x1A StartingBlock 抢跳符号位</h2>
+
+<h3>现状</h3>
+<p>硬件出发台触发上行 <code>0x1A</code> 帧时，<strong>D10</strong>（SW_Back1_Pos，第 11 字节）始终为 0。<br>
+PC 端按 <code>D10 ≠ 0</code> 判抢跳并把反应时取负显示，因此 PC <strong>永远收不到正确的抢跳标志</strong>，
+反应时永远显示为正值。</p>
+
+<h3>修改</h3>
+<table>
+<tr><th width="120">代码位置</th><td><code>APP/swimplay.c</code> 约 3588 行，发送 <code>0x1A</code> 帧的位置</td></tr>
+<tr><th>触发条件</th><td>检测出运动员抢跳/犯规（出发台离台时刻早于发令枪）</td></tr>
+<tr><th>需做的事</th><td>给 <code>TXD_Buffer[SW_Back1_Pos]</code> 赋非零值</td></tr>
+</table>
+
+<pre>// 在抢跳分支里加一行
+TXD_Buffer[SW_Back1_Pos] = 1;   // 0x01 即可，PC 仅判非 0
+
+// 如果是按"运动员出发时刻 - 发令枪时刻"得到的差值符号判断：
+if (diff &lt; 0)  TXD_Buffer[SW_Back1_Pos] = 1;
+else           TXD_Buffer[SW_Back1_Pos] = 0;</pre>
+
+<h3>PC 端配合（已就位）</h3>
+<pre>// TimingBridge.cs:340
+bool isFalseStart = false;
+if (cmd == 0x1A &amp;&amp; rawD10 != 0) {
+    isFalseStart = true;
+    timeInSeconds = -timeInSeconds;
+}</pre>
+
+<h2>2. <span class="tag must">必修</span> 0x4B BatteryVoltage 周期上报</h2>
+
+<h3>现状</h3>
+<p><code>APP/swimplay.c:1733</code> 仅有一行注释提及，<strong>完全没有实现</strong> ADC 采样和发送代码。
+PC 端顶部状态栏的电压显示永远为空。</p>
+
+<h3>协议规约</h3>
+<table>
+<tr><th width="120">方向</th><td>硬件 → PC（硬件主动周期上报）</td></tr>
+<tr><th>命令字节 D2</th><td><code>0x4B</code>（<strong>直接发送，无 +0x10 偏移</strong>）</td></tr>
+<tr><th>字段</th><td>D3 = mV 高字节，D4 = mV 低字节（大端），D5–D10 = 0</td></tr>
+</table>
+
+<div class="frame">
+示例：12.34 V = 12340 mV = 0x3034<br>
+F1 53 4B 30 34 00 00 00 00 00 00 F4
+</div>
+
+<p><code>USER/swimtime.h</code> 已有定义：<code>#define Report_Voltage_RAW    0x4B</code></p>
+
+<h3>修改建议</h3>
+<p>在 <code>swimplay.c</code> 主循环或定时任务里，按 5–10 秒一次的节拍上报：</p>
+
+<pre>static u32 last_volt_send_tick = 0;
+if (HAL_GetTick() - last_volt_send_tick &gt;= 5000) {
+    last_volt_send_tick = HAL_GetTick();
+    u16 mv = ReadBatteryMV();          // 用户已有的 ADC 接口
+    u8 buf[12];
+    buf[0]  = SOH;                     // 0xF1
+    buf[1]  = 'S';                     // 0x53
+    buf[2]  = Report_Voltage_RAW;      // 0x4B  ← 直接写，不 +0x10
+    buf[3]  = (mv &gt;&gt; 8) &amp; 0xFF;        // mV 高字节
+    buf[4]  = mv &amp; 0xFF;               // mV 低字节
+    buf[5]  = 0; buf[6]  = 0; buf[7]  = 0;
+    buf[8]  = 0; buf[9]  = 0; buf[10] = 0;
+    buf[11] = EOT;                     // 0xF4
+    TCPIP_Send(buf, 12);               // 或者你已有的统一发送函数
+}</pre>
+
+<h3>PC 端配合（已就位）</h3>
+<pre>// TimingBridge.cs case 0x4B → BatteryVoltage
+// MainWindow.xaml.cs ProcessTimingDataFromHardware:
+mv = (D3 &lt;&lt; 8) | D4
+V  = mv / 1000.0
+
+// 顶栏显示 + 阈值染色：
+//   &lt; 11.0 V  红色（电量低）
+//   11.0–11.5 琥珀
+//   ≥ 11.5    绿色</pre>
+
+<h2>3. <span class="tag optional">选修</span> 0x42 SetCommand 新增子码 0x09</h2>
+
+<h3>现状</h3>
+<p>PC → 硬件 已通过 <code>0x41</code> 帧 D5 把"盲表代替成绩延迟"下发，硬件已接收
+（<code>swimplay.c:5447 MBdelay_Time = RXD[5]*10</code>）。<strong>主路径 OK。</strong></p>
+
+<p>USER/swimtime.h 已有定义：<code>#define SetCmd_Sub_BlindReplaceDelay    0x09</code></p>
+
+<h3>缺口</h3>
+<p>硬件想"主动通知 PC 该参数变了"时，需经 0x42 子码路径。当前 <code>case 0x32</code> 的子码 switch 表
+没有 <code>0x09</code> 分支。</p>
+
+<h3>修改（仅当硬件有"GUI 改参数→回传 PC"需求时做）</h3>
+<pre>// 在 case 0x32 的子码 switch 里加：
+case SetCmd_Sub_BlindReplaceDelay:    // 0x09
+    // D4 = 0.1秒单位，例如 50 = 5.0s
+    MBdelay_Time = RXD_Data_Buffer[4] * 10;
+    break;</pre>
+
+<p>PC 端 <code>ApplyHardwareSettingFrame:2323</code> 已就位接收。<br>
+若硬件没有"GUI 改参数后回传 PC"的需求，本项可不做。</p>
+
+<h2>4. <span class="tag info">背景信息</span> PC 端已自行修复的内容</h2>
+
+<h3>Bug 描述</h3>
+<p>PC 同步设备状态时连续发三帧：</p>
+<table>
+<tr><th>PC 发的 wire 字节</th><th>硬件 D2 − 0x10</th><th>硬件 case</th><th>正确？</th></tr>
+<tr><td><code>0x46</code></td><td>0x36</td><td>Set_TPSBMB_State</td><td>✓ 正确</td></tr>
+<tr><td><code>0x49</code></td><td>0x39</td><td><strong>Set_DateTime</strong></td><td>✗ 误改 RTC</td></tr>
+<tr><td><code>0x4A</code></td><td>0x3A</td><td><strong>Set_PoolSingleOrDoubleTP</strong></td><td>✗ 误切单端</td></tr>
+</table>
+
+<p><strong>实际后果</strong>：每次参数设置 OK、触板模式切换、按 Ready 等，硬件都被误切到"单边模式"
+（D3 ≠ 0 时 <code>PoolSingleOrDoubleTPbit = 1</code>）→ 右端信号全部屏蔽 → 触板/出发台/盲表全部失效。
+甚至 RTC 也可能被误改。</p>
+
+<h3>PC 修复方案</h3>
+<p>已注释 <code>MainWindow.xaml.cs:2591-2602</code> 两条 <code>SendFullFrame(0x49…)</code> /
+<code>SendFullFrame(0x4A…)</code>。<strong>硬件侧不用做任何事。</strong></p>
+
+<div class="warn">
+<strong>给硬件团队的提醒：</strong>如果以后硬件想扩展"盲表 2/3 状态位图"功能，<strong>请使用
+<code>≥ 0x60</code> 段的命令码</strong>（避开当前 dispatcher 的 0x30+N 段）。届时通知 PC 端，
+我们会重新启用对应的发送。
+</div>
+
+<h2>5. 测试建议</h2>
+
+<h3>抢跳符号位</h3>
+<ol>
+  <li>PC 上按"准备就绪"按钮，进入 Ready 状态</li>
+  <li>在硬件上模拟"运动员早于发令枪"踩出发台</li>
+  <li>PC 端应显示反应时为<strong>负值</strong>（如 -0.020s），且日志里出现
+      <code>⚠ 抢跳（硬件确认）</code></li>
+</ol>
+
+<h3>电池电压</h3>
+<ol>
+  <li>PC 启动并连上硬件</li>
+  <li>等待 5–10 秒</li>
+  <li>顶部状态栏 <code>TimingStatusText</code> 应出现 <code>｜ 电池: X.XX V</code>，
+      色彩按阈值染（&lt;11.0 红 / 11.0-11.5 琥珀 / ≥11.5 绿）</li>
+</ol>
+
+<h3>子码 0x09（如选做）</h3>
+<ol>
+  <li>硬件 GUI 改"盲表代替成绩延迟"参数</li>
+  <li>硬件发 <code>0x42</code> 帧：D3=0x09 D4=新值*10</li>
+  <li>PC 端 AddLog 应出现 <code>硬件参数回报: D3=0x09 D4=...</code></li>
+</ol>
+
+<h2>问题汇总</h2>
+<table>
+<tr><th>序号</th><th>项目</th><th>必/选</th><th>影响</th></tr>
+<tr><td>1</td><td>0x1A D10 抢跳符号位</td><td><span class="tag must">必修</span></td><td>抢跳无法识别</td></tr>
+<tr><td>2</td><td>0x4B 电压上报</td><td><span class="tag must">必修</span></td><td>电量监控不可用</td></tr>
+<tr><td>3</td><td>0x42 子码 0x09</td><td><span class="tag optional">选修</span></td><td>参数双向同步</td></tr>
+<tr><td>4</td><td>0x49/0x4A 冲突</td><td><span class="tag done">PC 已修</span></td><td>已规避</td></tr>
+</table>
+
+<p>协议手册全文详见同目录下 <code>通讯协议变更说明_v2026.05.13.pdf</code>。</p>
+
+<div class="footer">
+  生成时间：2026-05-13 &nbsp;·&nbsp; PC 端已 build verified
+</div>
+
+</body>
+</html>
