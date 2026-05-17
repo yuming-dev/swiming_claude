@@ -1,4 +1,4 @@
-# build_installer.ps1
+﻿# build_installer.ps1
 # 一次性重新编译并打包游泳赛事管理系统。
 # 流程：
 #   1. MSBuild 重建 SwimmingScoreboard.sln (Release)
@@ -24,13 +24,26 @@ if (-not (Test-Path $installerBuild)) { New-Item -ItemType Directory -Path $inst
 $winFormsRef = "/reference:System.Windows.Forms.dll,System.Drawing.dll"
 $fullRef = "/reference:System.Windows.Forms.dll,System.Drawing.dll,System.dll"
 
-& $csc /target:winexe /out:(Join-Path $installerBuild "Setup.exe") $winFormsRef (Join-Path $root "InstallerApp\Setup.cs")
+# 2026-05-17 修：PowerShell 不会把 "/out:" 后跟 (Join-Path ...) 当成同一个 token，必须先把
+# 输出路径/源文件路径求值到变量再拼，否则 csc 收到 "/out:" 后跟独立参数报 CS2005。
+$outSetup = Join-Path $installerBuild "Setup.exe"
+$srcSetup = Join-Path $root "InstallerApp\Setup.cs"
+& $csc /target:winexe "/out:$outSetup" $winFormsRef $srcSetup
 if ($LASTEXITCODE -ne 0) { throw "Setup.cs 编译失败" }
-& $csc /target:winexe /out:(Join-Path $installerBuild "Uninstall.exe") $winFormsRef (Join-Path $root "InstallerApp\Uninstall.cs")
+
+$outUninst = Join-Path $installerBuild "Uninstall.exe"
+$srcUninst = Join-Path $root "InstallerApp\Uninstall.cs"
+& $csc /target:winexe "/out:$outUninst" $winFormsRef $srcUninst
 if ($LASTEXITCODE -ne 0) { throw "Uninstall.cs 编译失败" }
-& $csc /target:winexe /out:(Join-Path $installerBuild "TimingSimulator.exe") $fullRef (Join-Path $root "InstallerApp\TimingSimulator.cs")
+
+$outSim = Join-Path $installerBuild "TimingSimulator.exe"
+$srcSim = Join-Path $root "InstallerApp\TimingSimulator.cs"
+& $csc /target:winexe "/out:$outSim" $fullRef $srcSim
 if ($LASTEXITCODE -ne 0) { throw "TimingSimulator.cs 编译失败" }
-& $csc /target:winexe /out:(Join-Path $installerBuild "ParamDebugBot.exe") $fullRef (Join-Path $root "InstallerApp\ParamDebugBot.cs")
+
+$outBot = Join-Path $installerBuild "ParamDebugBot.exe"
+$srcBot = Join-Path $root "InstallerApp\ParamDebugBot.cs"
+& $csc /target:winexe "/out:$outBot" $fullRef $srcBot
 if ($LASTEXITCODE -ne 0) { throw "ParamDebugBot.cs 编译失败" }
 
 Write-Host "[3/5] 清理旧的 InstallerBuild 子目录 ..."

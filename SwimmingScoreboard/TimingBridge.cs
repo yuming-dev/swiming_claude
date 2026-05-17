@@ -68,6 +68,8 @@ namespace SwimmingScoreboard
         RaceConfig    = 0x41,   // 设置比赛距离参数
         SetCommand    = 0x42,   // 设置命令
         BatteryVoltage = 0x4B,  // 2026-05-13 硬件计时器电池电压 D3:D4 = 高低字节 mV
+        LaneOpenClose  = 0x47,  // 2026-05-16 硬件→PC 上报: D3=0xFF 全部道/0..9 单道, D4=1 打开/0 关闭
+        PoolSingleOrDouble = 0x3A, // 2026-05-16 硬件→PC 上报: D3=0 两端 / 1 单端
     }
 
     public enum TimingConnectionMode
@@ -371,6 +373,9 @@ namespace SwimmingScoreboard
                 case 0x41: cmdType = TimingCommandType.RaceConfig;    break;  // 比赛距离参数
                 case 0x42: cmdType = TimingCommandType.SetCommand;    break;  // 设置命令
                 case 0x4B: cmdType = TimingCommandType.BatteryVoltage; break; // 2026-05-13 电池电压
+                case 0x47: cmdType = TimingCommandType.LaneOpenClose;  break; // 2026-05-16 硬件→PC 道次开关上报
+                case 0x3A: cmdType = TimingCommandType.PoolSingleOrDouble; break; // 2026-05-16 硬件→PC 单/两端
+                case 0x44: cmdType = TimingCommandType.PoolConfig;     break; // 2026-05-16 新版泳池参数（与 0x40 同语义）
                 default:
                     RaiseLog(string.Format("未知命令: 0x{0:X2}", cmd));
                     return;

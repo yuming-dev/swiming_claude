@@ -159,6 +159,8 @@ namespace SwimmingScoreboard
         private TimingBridge _timingBridge;
         private DispatcherTimer _raceTimer;
         private DispatcherTimer _countdownTimer;
+        //2026-05-16 周期性把 PC 时间下发到硬件 RTC，避免长时间运行后 RTC 漂移
+        private DispatcherTimer _clockSyncTimer;
         private bool _initialized = false;
         private bool _resultConfirmed = false;
         private ObservableCollection<BackupInfo> _savedCompetitions = new ObservableCollection<BackupInfo>();
@@ -2299,6 +2301,11 @@ namespace SwimmingScoreboard
                                 _timingBridge.SendPoolSingleOrDoubleTP(isSingle);
                             }
                         } catch { }
+                        //2026-05-16 启动周期性时间同步定时器（每 30 分钟把 PC 时间再下发一次）
+                        StartClockSyncTimer();
+                    } else {
+                        //2026-05-16 硬件断开 → 停止周期性时间同步
+                        StopClockSyncTimer();
                     }
                 });
             };
@@ -2307,6 +2314,25 @@ namespace SwimmingScoreboard
                     AddLog(msg);
                 });
             };
+        }
+
+        //2026-05-16 周期性把 PC 时间下发到硬件 RTC（30 min）
+        //   触发: 硬件 IsConnected 变 true 时启动；变 false 或退出时停止
+        //   第一次校时已在 OnStatusChanged 内立即调用 SendDateTimeSync()，本定时器只管后续周期触发
+        private void StartClockSyncTimer() {
+            if (_clockSyncTimer == null) {
+                _clockSyncTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(30) };
+                _clockSyncTimer.Tick += delegate {
+                    if (_timingBridge != null && _timingBridge.IsConnected) {
+                        try { _timingBridge.SendDateTimeSync(); } catch { }
+                    }
+                };
+            }
+            if (!_clockSyncTimer.IsEnabled) _clockSyncTimer.Start();
+        }
+
+        private void StopClockSyncTimer() {
+            if (_clockSyncTimer != null && _clockSyncTimer.IsEnabled) _clockSyncTimer.Stop();
         }
 
         private void ProcessTimingDataFromHardware(TimingData data) {
@@ -2325,6 +2351,62 @@ namespace SwimmingScoreboard
                 _hwBatteryReceivedAt = DateTime.Now;
                 UpdateBatteryVoltageDisplay();
                 Broadcast();   // 推给所有客户端（编排端/大屏可同步显示）
+                return;
+            }
+            // 2026-05-16 硬件→PC: 泳池触板安装方式 (0x3A)
+            //   触发场景: 硬件"参数设置→单/两端安装触板"切换后返回主控。
+            //   D3 = 0 两端 (HasRightStartBlock=true) / 1 单端 (HasRightStartBlock=false)
+            //   等价于 PC 自身切换两端/单端按钮的处理，但不回发 0x3A 防回环。
+            if (data.CommandType == TimingCommandType.PoolSingleOrDouble) {
+                bool newHasRight = (data.Param1 == 0);
+                if (_poolConfig != null && _poolConfig.HasRightStartBlock != newHasRight) {
+                    _poolConfig.HasRightStartBlock = newHasRight;
+                    ApplyTouchpadInstallModeToLanes();
+                    UpdateLaneStatusDisplay();
+                    AddLog(string.Format("硬件计时器: 泳池触板安装方式 → {0} (0x3A)", newHasRight ? "两端" : "单端"));
+                    Broadcast();
+                }
+                return;
+            }
+            // 2026-05-16 硬件→PC: 道次开关上报 (0x47)
+            //   触发场景: 硬件计时器在"参数设置→封闭/不封闭TP"切换后返回主控时，
+            //             用此命令把 Open_State 同步给 PC，使主控里"全部打开/全部关闭"按钮状态对齐。
+            //   D3 = 0xFF 全部泳道 / 0..9 单道；D4 = 1 打开 / 0 关闭
+            //   实现等价于 OpenAll_Click / CloseAll_Click 但不回发 0x47（防回环）。
+            if (data.CommandType == TimingCommandType.LaneOpenClose) {
+                byte d3 = data.Param1;
+                bool laneOpen = (data.RawD4 == 1);
+                DeviceStatus ds = laneOpen ? DeviceStatus.Open : DeviceStatus.Closed;
+                if (d3 == 0xFF) {
+                    foreach (var s in _laneDeviceStates) {
+                        s.LeftTouchpadStatus = ds;
+                        s.LeftBlindWatch1Status = ds;
+                        s.LeftBlindWatch2Status = ds;
+                        s.LeftBlindWatch3Status = ds;
+                        s.RightTouchpadStatus = ds;
+                        s.RightBlindWatch1Status = ds;
+                        s.RightBlindWatch2Status = ds;
+                        s.RightBlindWatch3Status = ds;
+                        s.LaneCloseCountdown = 0;
+                    }
+                    UpdateLaneStatusDisplay();
+                    AddLog(laneOpen ? "硬件计时器: 全部泳道已打开 (0x47)" : "硬件计时器: 全部泳道已关闭 (0x47)");
+                    Broadcast();
+                } else if (d3 < 10 && d3 < _laneDeviceStates.Count) {
+                    var s = _laneDeviceStates[d3];
+                    s.LeftTouchpadStatus = ds;
+                    s.LeftBlindWatch1Status = ds;
+                    s.LeftBlindWatch2Status = ds;
+                    s.LeftBlindWatch3Status = ds;
+                    s.RightTouchpadStatus = ds;
+                    s.RightBlindWatch1Status = ds;
+                    s.RightBlindWatch2Status = ds;
+                    s.RightBlindWatch3Status = ds;
+                    s.LaneCloseCountdown = 0;
+                    UpdateLaneStatusDisplay();
+                    AddLog(string.Format("硬件计时器: 第{0}道{1} (0x47)", d3, laneOpen ? "打开" : "关闭"));
+                    Broadcast();
+                }
                 return;
             }
 
