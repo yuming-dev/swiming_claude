@@ -564,6 +564,27 @@ namespace SwimmingScoreboard
             RaiseLog(string.Format("发送 第{0}道 {1} (0x60)", laneIndex, enable ? "启用" : "屏蔽"));
         }
 
+        /// <summary>2026-05-17 同步某道某侧的剩余圈数到硬件（PC 端 +1/-1 按钮触发）
+        /// 协议: command=0x61 (Set_LapRemaining)
+        ///   d3 = 道次 0..9
+        ///   d4 = 端 (0=左 / 1=右)
+        ///   d5 = 剩余圈数 (0..255)
+        /// 硬件 case Set_LapRemaining: laps[d3][d4]=d5，并调 LLaps_diaplay/RLaps_diaplay 重画
+        /// </summary>
+        public void SendLapRemaining(int laneIndex, bool isLeft, int remaining) {
+            if (laneIndex < 0 || laneIndex >= 10) {
+                RaiseLog(string.Format("SendLapRemaining: 非法 lane {0}（仅 0..9）", laneIndex));
+                return;
+            }
+            if (remaining < 0) remaining = 0;
+            if (remaining > 255) remaining = 255;
+            byte d3 = (byte)laneIndex;
+            byte d4 = (byte)(isLeft ? 0 : 1);
+            byte d5 = (byte)remaining;
+            SendFullFrame(0x61, d3, d4, d5);
+            RaiseLog(string.Format("发送 第{0}道 {1}侧剩余圈数={2} (0x61)", laneIndex, isLeft ? "左" : "右", remaining));
+        }
+
         private void RaiseStatus(string status) {
             Action<string> h = OnStatusChanged;
             if (h != null) h(status);

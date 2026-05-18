@@ -3978,6 +3978,8 @@ namespace SwimmingScoreboard
             else        ls.RightLapManualAdjust = newAdj;
             AddLog(string.Format("泳道{0} 手动调整{1}侧圈数显示: {2}→{3}", lane, isLeft ? "左" : "右", curDisp, newDisp));
             UpdateLaneStatusDisplay();
+            //2026-05-17 同步剩余圈数到硬件计时器（协议 0x61 Set_LapRemaining）
+            try { if (_timingBridge != null && _timingBridge.IsConnected) _timingBridge.SendLapRemaining(lane, isLeft, newDisp); } catch { }
             Broadcast();
         }
 
