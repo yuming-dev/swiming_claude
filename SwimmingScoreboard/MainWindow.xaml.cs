@@ -2622,6 +2622,18 @@ namespace SwimmingScoreboard
             }
         }
 
+        // 2026-05-18 把 PC 内部的"实际道次号"转换为硬件期望的"屏幕位置索引"。
+        // 背景：硬件 cmdLbtn[i] / CloseLanebtn[i] 按屏幕第 i 行创建（坐标依 i 算），
+        //       但 PC 内部 swimmer.Lane / _laneDeviceStates.Lane 是"实际道次号 0..9"。
+        //       正序模式两者一致；逆序模式屏幕位置 = 9 - 实际道次，需转换。
+        //       所有单道命令的 D3 在发送前都过这个函数，0x43 位图也按屏幕位置编码。
+        private int LaneToHwIndex(int lane) {
+            if (lane < 0 || lane > 9) return lane;
+            if (_laneCloseSettings != null && _laneCloseSettings.LaneOrder == "reverse")
+                return 9 - lane;
+            return lane;
+        }
+
         // 0x43 Set_MatchEvent: 告诉硬件本场比赛的总圈数 + 左右两侧期望触板次数 + 泳道开关位图。
         // 参考程序（C:\2024年11月2日PM SWIM串口通讯程序Server）每次按"准备就绪"前必发此帧；
         // 否则硬件不知道比赛结构，后续 0x21 / 0x1C 都不会进入 Ready / 开始计时。
@@ -2642,19 +2654,23 @@ namespace SwimmingScoreboard
                 int leftTotal, rightTotal;
                 GetRaceTouchTotals(totalLaps, out leftTotal, out rightTotal);
                 // 泳道开关位图：本组有运动员的泳道置 1，空道置 0
+                //2026-05-18 位图按"硬件屏幕位置"编码（不是按实际道次号）
+                //   硬件 CloseLanebtn[i] / cmdLbtn[i] 是屏幕第 i 行，逆序模式下屏幕第 i 行显示道次 9-i
+                //   所以"屏幕位置 i 是否占用"= "道次 LaneToHwIndex^-1(i) 是否占用"，但 9-(9-x)=x，
+                //   函数自身是反函数，直接用 LaneToHwIndex 即可。
                 var swimmers = GetCurrentHeatSwimmers();
-                var occupiedLanes = new HashSet<int>();
+                var occupiedPositions = new HashSet<int>();
                 foreach (var sw in swimmers) {
                     var sa = sw.GetAssignmentForStage(_currentStage);
                     int ln = sa != null ? sa.Lane : sw.Lane;
-                    if (ln >= 0 && ln <= 9) occupiedLanes.Add(ln);
+                    if (ln >= 0 && ln <= 9) occupiedPositions.Add(LaneToHwIndex(ln));
                 }
                 byte laneOpen0_4 = 0, laneOpen5_9 = 0;
                 for (int i = 0; i <= 4; i++) {
-                    if (occupiedLanes.Contains(i)) laneOpen0_4 |= (byte)(1 << i);
+                    if (occupiedPositions.Contains(i)) laneOpen0_4 |= (byte)(1 << i);
                 }
                 for (int i = 5; i <= 9; i++) {
-                    if (occupiedLanes.Contains(i)) laneOpen5_9 |= (byte)(1 << (i - 5));
+                    if (occupiedPositions.Contains(i)) laneOpen5_9 |= (byte)(1 << (i - 5));
                 }
                 // 2026-05-13 D8 = IsRelay 标志：硬件据此判断是否为每棒测接力反应时
                 byte isRelayByte = (byte)(_isRelay ? 1 : 0);
@@ -4031,7 +4047,8 @@ namespace SwimmingScoreboard
             AddLog(string.Format("泳道{0} 手动调整{1}侧圈数显示: {2}→{3}", lane, isLeft ? "左" : "右", curDisp, newDisp));
             UpdateLaneStatusDisplay();
             //2026-05-17 同步剩余圈数到硬件计时器（协议 0x61 Set_LapRemaining）
-            try { if (_timingBridge != null && _timingBridge.IsConnected) _timingBridge.SendLapRemaining(lane, isLeft, newDisp); } catch { }
+            //2026-05-18 lane 按屏幕位置编码（逆序模式下转换）
+            try { if (_timingBridge != null && _timingBridge.IsConnected) _timingBridge.SendLapRemaining(LaneToHwIndex(lane), isLeft, newDisp); } catch { }
             Broadcast();
         }
 
@@ -6439,7 +6456,8 @@ namespace SwimmingScoreboard
             s.LaneCloseCountdown = 0;
             AddLog(string.Format("泳道{0} 已{1}", lane, open ? "打开" : "关闭"));
             //2026-05-14 单道也同步下发硬件：0x47 D3=lane D4=1/0
-            try { if (_timingBridge != null && _timingBridge.IsConnected) _timingBridge.SendLaneOpenClose(lane, open); } catch { }
+            //2026-05-18 lane 按屏幕位置编码（逆序模式下转换）
+            try { if (_timingBridge != null && _timingBridge.IsConnected) _timingBridge.SendLaneOpenClose(LaneToHwIndex(lane), open); } catch { }
             UpdateLaneStatusDisplay();
             Broadcast();
         }
@@ -7268,6 +7286,8 @@ namespace SwimmingScoreboard
                 UpdateLaneStatusDisplay();
                 Broadcast();
                 SendTimingSettingsToHardware();   // 同步到硬件计时控制器
+                //2026-05-18 LaneOrder 切换后位图编码方向变了，必须重发 0x43 让硬件按新屏幕位置布局显示空泳道
+                try { SendSetMatchEventToHardware(); } catch (Exception ex) { AddLog("Set_MatchEvent 重发失败: " + ex.Message); }
                 //2026-05-12 把泳池触板安装方式下发到硬件（0x3A Set_PoolSingleOrDoubleTP）
                 if (_timingBridge != null && _timingBridge.IsConnected) {
                     try { _timingBridge.SendPoolSingleOrDoubleTP(!newHasRight); } catch { }
