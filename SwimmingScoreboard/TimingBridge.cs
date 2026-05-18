@@ -544,6 +544,26 @@ namespace SwimmingScoreboard
                 laneOpen ? "打开/纳入比赛" : "关闭/移出比赛"));
         }
 
+        /// <summary>2026-05-17 单道屏蔽/启用：仅对单道操作硬件的 CloseLaneState 门控
+        /// 协议: command=0x60 (Set_LaneEnableDisable)
+        ///   d3 = 0..9 指定单道（不支持 0xFF）
+        ///   d4 = 1 启用（该道纳入比赛） / 0 屏蔽（该道任何 TP/SB/MB 信号都不上报）
+        /// 与 0x47 区别：0x47 = "全部打开/关闭 TP/SB/MB"（不动道次按钮）
+        ///              0x60 = "单道整体启用/屏蔽"（动道次按钮，但不动 TP/SB/MB 数组）
+        /// </summary>
+        /// <param name="laneIndex">0..9 单道索引</param>
+        /// <param name="enable">true=启用；false=屏蔽</param>
+        public void SendLaneEnableDisable(int laneIndex, bool enable) {
+            if (laneIndex < 0 || laneIndex >= 10) {
+                RaiseLog(string.Format("SendLaneEnableDisable: 非法 lane {0}（仅 0..9）", laneIndex));
+                return;
+            }
+            byte d3 = (byte)laneIndex;
+            byte d4 = (byte)(enable ? 1 : 0);
+            SendFullFrame(0x60, d3, d4);
+            RaiseLog(string.Format("发送 第{0}道 {1} (0x60)", laneIndex, enable ? "启用" : "屏蔽"));
+        }
+
         private void RaiseStatus(string status) {
             Action<string> h = OnStatusChanged;
             if (h != null) h(status);
