@@ -7243,6 +7243,18 @@ namespace SwimmingScoreboard
             // 高度自适应内容，无滚动条
             dlg.Content = sp;
 
+            //2026-05-18 进入对话框前保存"非参数"状态（IsFinished + 左右剩余圈数手动偏移）
+            //   这些字段会被对话框确定时的 ResetForNewRace(StartPosition) 清零，但它们与参数设置无关
+            //   保存进入前的值，确定后恢复。用户取消时无副作用。
+            var savedLaneSnap = new System.Collections.Generic.List<int[]>();
+            foreach (var st in _laneDeviceStates) {
+                savedLaneSnap.Add(new int[] {
+                    st.IsFinished ? 1 : 0,
+                    st.LeftLapManualAdjust,
+                    st.RightLapManualAdjust
+                });
+            }
+
             if (dlg.ShowDialog() == true) {
                 double v;
                 if (double.TryParse(tbCloseTime.Text, out v)) _laneCloseSettings.LaneCloseTime = v;
@@ -7300,6 +7312,19 @@ namespace SwimmingScoreboard
                     _laneCloseSettings.LaneOrder == "reverse" ? "逆序9→0" : "正序0→9",
                     newHasRight ? "两端" : "单边"));
                 if (poolTpChanged) AddLog("泳池触板安装方式已更改并同步到硬件计时器");
+
+                //2026-05-18 恢复"非参数"状态 + 刷新硬件主控显示
+                //   ResetForNewRace 会清掉 IsFinished / LeftLapManualAdjust / RightLapManualAdjust，
+                //   但这三个字段与参数设置无关，应保留进入对话框前的值。
+                for (int i = 0; i < _laneDeviceStates.Count && i < savedLaneSnap.Count; i++) {
+                    _laneDeviceStates[i].IsFinished           = savedLaneSnap[i][0] != 0;
+                    _laneDeviceStates[i].LeftLapManualAdjust  = savedLaneSnap[i][1];
+                    _laneDeviceStates[i].RightLapManualAdjust = savedLaneSnap[i][2];
+                }
+                UpdateLaneStatusDisplay();
+                //2026-05-18 让硬件主控按新参数完整重画一遍（硬件接收 0x65 时会保存 CloseLaneState/laps，
+                //   调 SwimControl_init，然后恢复并重画，不会丢失"缺道/剩余圈数"等比赛状态）
+                try { if (_timingBridge != null && _timingBridge.IsConnected) _timingBridge.SendRefreshDisplay(); } catch { }
             }
         }
 

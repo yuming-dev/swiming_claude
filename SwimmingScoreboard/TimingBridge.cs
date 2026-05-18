@@ -570,6 +570,16 @@ namespace SwimmingScoreboard
             RaiseLog(string.Format("发送 第{0}道 {1} (0x60)", laneIndex, enable ? "启用" : "屏蔽"));
         }
 
+        /// <summary>2026-05-18 让硬件主控完整重画一次（不丢失"缺道/剩余圈数"等比赛状态）
+        /// 协议: command=0x65 (Set_RefreshDisplay)  d3..d10 全部 0
+        /// 硬件接收时: 保存 CloseLaneState[10]/laps[10][2] → SwimControl_init() → 恢复并重画。
+        /// 用途: PC 端"参数设置"对话框 OK 后下发，让硬件按新参数主动刷一遍主控界面。
+        /// </summary>
+        public void SendRefreshDisplay() {
+            SendFullFrame(0x65, 0, 0);
+            RaiseLog("发送 刷新硬件主控显示 (0x65)");
+        }
+
         /// <summary>2026-05-17 同步某道某侧的剩余圈数到硬件（PC 端 +1/-1 按钮触发）
         /// 协议: command=0x61 (Set_LapRemaining)
         ///   d3 = 道次 0..9
