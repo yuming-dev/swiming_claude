@@ -2353,6 +2353,58 @@ namespace SwimmingScoreboard
                 Broadcast();   // 推给所有客户端（编排端/大屏可同步显示）
                 return;
             }
+            // 2026-05-17 硬件→PC: 5 项时间数据 (0x64)
+            //   触发场景: 硬件 net_test 子界面退出，把 5 个时间编辑框的值刷入硬件变量后
+            //   D3=泳道封闭时间 D4=触板延迟关闭时间 D5=出发台延迟关闭时间 D6=盲表代替延迟时间 D7=成绩显示时间
+            //   单位均为秒（硬件内部 0.1s 单位发送时已经 /10）
+            if (data.CommandType == TimingCommandType.TimingsBundle) {
+                if (_laneCloseSettings != null) {
+                    bool changed = false;
+                    double v;
+                    v = data.Param1;             if (Math.Abs(_laneCloseSettings.LaneCloseTime - v) > 0.001)           { _laneCloseSettings.LaneCloseTime = v; changed = true; }
+                    v = data.RawD4;              if (Math.Abs(_laneCloseSettings.ResultConfirmCloseDelay - v) > 0.001) { _laneCloseSettings.ResultConfirmCloseDelay = v; changed = true; }
+                    v = data.Param5;             if (Math.Abs(_laneCloseSettings.StartBlockCloseDelay - v) > 0.001)    { _laneCloseSettings.StartBlockCloseDelay = v; changed = true; }
+                    v = data.Param6;             if (Math.Abs(_laneCloseSettings.BlindReplaceDelay - v) > 0.001)       { _laneCloseSettings.BlindReplaceDelay = v; changed = true; }
+                    v = data.Param7;             if (Math.Abs(_laneCloseSettings.SplitDisplayTime - v) > 0.001)        { _laneCloseSettings.SplitDisplayTime = v; changed = true; }
+                    if (changed) {
+                        AddLog(string.Format("硬件计时器: 参数 封闭{0}s 触板延迟{1}s 出发台延迟{2}s 盲表代替{3}s 成绩显示{4}s (0x64)",
+                            _laneCloseSettings.LaneCloseTime, _laneCloseSettings.ResultConfirmCloseDelay,
+                            _laneCloseSettings.StartBlockCloseDelay, _laneCloseSettings.BlindReplaceDelay,
+                            _laneCloseSettings.SplitDisplayTime));
+                        UpdateLaneStatusDisplay();
+                        Broadcast();
+                    }
+                }
+                return;
+            }
+            // 2026-05-17 硬件→PC: 道次顺序 (0x62)
+            //   触发场景: 硬件"参数设置→道次顺序"按钮切换后返回主控
+            //   D3 = 0 正向 (forward) / 1 反向 (reverse)
+            if (data.CommandType == TimingCommandType.LaneOrder) {
+                string newOrder = (data.Param1 != 0) ? "reverse" : "forward";
+                if (_laneCloseSettings != null && _laneCloseSettings.LaneOrder != newOrder) {
+                    _laneCloseSettings.LaneOrder = newOrder;
+                    AddLog(string.Format("硬件计时器: 道次顺序 → {0} (0x62)", newOrder == "reverse" ? "反向 9-0" : "正向 0-9"));
+                    UpdateLaneStatusDisplay();
+                    Broadcast();
+                }
+                return;
+            }
+            // 2026-05-17 硬件→PC: 终点位置 (0x63)
+            //   触发场景: 硬件"参数设置→终点位置"按钮切换后返回主控
+            //   D3 = 0 终点左端 (left) / 1 终点右端 (right)
+            if (data.CommandType == TimingCommandType.FinishPosition) {
+                string newFinish = (data.Param1 != 0) ? "right" : "left";
+                if (_laneCloseSettings != null && _laneCloseSettings.FinishPosition != newFinish) {
+                    _laneCloseSettings.FinishPosition = newFinish;
+                    _laneCloseSettings.StartPosition = newFinish;
+                    try { AutoAdjustStartPosition(); } catch { }
+                    AddLog(string.Format("硬件计时器: 终点位置 → {0} (0x63)", newFinish == "left" ? "左端" : "右端"));
+                    UpdateLaneStatusDisplay();
+                    Broadcast();
+                }
+                return;
+            }
             // 2026-05-16 硬件→PC: 泳池触板安装方式 (0x3A)
             //   触发场景: 硬件"参数设置→单/两端安装触板"切换后返回主控。
             //   D3 = 0 两端 (HasRightStartBlock=true) / 1 单端 (HasRightStartBlock=false)

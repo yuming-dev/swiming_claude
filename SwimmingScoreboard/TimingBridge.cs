@@ -70,6 +70,9 @@ namespace SwimmingScoreboard
         BatteryVoltage = 0x4B,  // 2026-05-13 硬件计时器电池电压 D3:D4 = 高低字节 mV
         LaneOpenClose  = 0x47,  // 2026-05-16 硬件→PC 上报: D3=0xFF 全部道/0..9 单道, D4=1 打开/0 关闭
         PoolSingleOrDouble = 0x3A, // 2026-05-16 硬件→PC 上报: D3=0 两端 / 1 单端
+        LaneOrder      = 0x62,  // 2026-05-17 硬件→PC 上报: D3=0 正向道次0-9 / 1 反向9-0
+        FinishPosition = 0x63,  // 2026-05-17 硬件→PC 上报: D3=0 终点左端 / 1 终点右端
+        TimingsBundle  = 0x64,  // 2026-05-17 硬件→PC 上报 5 项时间(秒): D3=Close D4=TPDelay D5=SBDelay D6=MBDelay D7=Display
     }
 
     public enum TimingConnectionMode
@@ -376,6 +379,9 @@ namespace SwimmingScoreboard
                 case 0x47: cmdType = TimingCommandType.LaneOpenClose;  break; // 2026-05-16 硬件→PC 道次开关上报
                 case 0x3A: cmdType = TimingCommandType.PoolSingleOrDouble; break; // 2026-05-16 硬件→PC 单/两端
                 case 0x44: cmdType = TimingCommandType.PoolConfig;     break; // 2026-05-16 新版泳池参数（与 0x40 同语义）
+                case 0x62: cmdType = TimingCommandType.LaneOrder;      break; // 2026-05-17 硬件→PC 道次顺序
+                case 0x63: cmdType = TimingCommandType.FinishPosition; break; // 2026-05-17 硬件→PC 终点位置
+                case 0x64: cmdType = TimingCommandType.TimingsBundle;  break; // 2026-05-17 硬件→PC 5 项时间
                 default:
                     RaiseLog(string.Format("未知命令: 0x{0:X2}", cmd));
                     return;
