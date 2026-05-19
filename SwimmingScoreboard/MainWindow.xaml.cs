@@ -2399,6 +2399,9 @@ namespace SwimmingScoreboard
                     _laneCloseSettings.FinishPosition = newFinish;
                     _laneCloseSettings.StartPosition = newFinish;
                     try { AutoAdjustStartPosition(); } catch { }
+                    //2026-05-18 单端模式下"非终点端"由 FinishPosition 决定；
+                    //   终点位置切换后必须刷新各道 NotInstalled 标记，让原非终点端恢复、新非终点端置位
+                    try { ApplyTouchpadInstallModeToLanes(); } catch { }
                     AddLog(string.Format("硬件计时器: 终点位置 → {0} (0x63)", newFinish == "left" ? "左端" : "右端"));
                     UpdateLaneStatusDisplay();
                     Broadcast();
@@ -7256,6 +7259,8 @@ namespace SwimmingScoreboard
             }
 
             if (dlg.ShowDialog() == true) {
+                //2026-05-18 记下 FinishPosition 的旧值，对话框 OK 后判断是否变化以决定是否刷新 NotInstalled
+                string oldFinishForInstall = _laneCloseSettings != null ? _laneCloseSettings.FinishPosition : "left";
                 double v;
                 if (double.TryParse(tbCloseTime.Text, out v)) _laneCloseSettings.LaneCloseTime = v;
                 if (double.TryParse(tbSBDelay.Text, out v)) _laneCloseSettings.StartBlockCloseDelay = v;
@@ -7288,7 +7293,10 @@ namespace SwimmingScoreboard
                 if (_poolConfig != null) _poolConfig.HasRightStartBlock = newHasRight;
                 //2026-05-13 新增：切换后立即把每条泳道右端触板/出发台/盲表的"未安装"标记翻转，
                 // 否则现场看到的设备图标不会跟着改变；同时立刻下发硬件位图，让硬件不再期待右端信号
-                if (poolTpChanged) {
+                //2026-05-18 扩展: 终点位置切换 (finishChanged) 也要重刷 NotInstalled ——
+                //   单端模式下"非终点端"由 FinishPosition 决定，FinishPosition 变了之后非终点端要跟着翻转
+                bool finishChanged = (oldFinishForInstall != newFinish);
+                if (poolTpChanged || finishChanged) {
                     ApplyTouchpadInstallModeToLanes();
                     SendDeviceStatusesToHardware();   // 0x46/0x49/0x4A 把"未安装"反映成硬件 bit=0
                 }
