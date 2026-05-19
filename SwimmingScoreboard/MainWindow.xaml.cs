@@ -2512,8 +2512,8 @@ namespace SwimmingScoreboard
                 // ── 0x41 Set_ArmDelay_Time（一帧 8 个数据字节）──
                 byte armNorm   = ByteClamp(_laneCloseSettings.LaneCloseTime);
                 byte armAfter  = ByteClamp(_laneCloseSettings.LaneCloseTime);
-                //2026-05-13 盲表代替成绩延迟时间（0.1秒单位，5.0秒→50）
-                byte mbDelay   = ByteClamp((int)(_laneCloseSettings.BlindReplaceDelay * 10));
+                //2026-05-18 盲表代替成绩延迟时间统一为整秒(与 d3/d4/d6/d9/d10 一致)；硬件 case 端 ×10 转 0.1s 单位
+                byte mbDelay   = ByteClamp((int)Math.Round(_laneCloseSettings.BlindReplaceDelay));
                 byte resultDsp = ByteClamp(_laneCloseSettings.SplitDisplayTime);
                 byte edgeBit   = 0;                                                   // 出发信号边沿 0=下降沿
                 byte laneDir   = (byte)(_laneCloseSettings.LaneOrder == "reverse" ? 1 : 0);
@@ -2868,7 +2868,7 @@ namespace SwimmingScoreboard
                             case 0x04: vOld = _laneCloseSettings.FalseStartThreshold;     vNew = data.RawD4 / 100.0;   if (Math.Abs(vOld - vNew) > 0.0001) { _laneCloseSettings.FalseStartThreshold = vNew; changed = true; } break;
                             case 0x05: vOld = _laneCloseSettings.SplitDisplayTime;        vNew = data.RawD4;           if (Math.Abs(vOld - vNew) > 0.001) { _laneCloseSettings.SplitDisplayTime = vNew; changed = true; } break;
                             //2026-05-13 子码 0x09：盲表代替成绩延迟时间（0.1秒单位）
-                            case 0x09: vOld = _laneCloseSettings.BlindReplaceDelay;       vNew = data.RawD4 / 10.0;    if (Math.Abs(vOld - vNew) > 0.001) { _laneCloseSettings.BlindReplaceDelay = vNew; changed = true; } break;
+                            case 0x09: vOld = _laneCloseSettings.BlindReplaceDelay;       vNew = data.RawD4;            if (Math.Abs(vOld - vNew) > 0.001) { _laneCloseSettings.BlindReplaceDelay = vNew; changed = true; } break; //2026-05-18 改为整秒，与 d3/d4/d6/d9/d10 一致
                             case 0x06: vOld = _laneCloseSettings.FirstPlaceHoldTime;      vNew = data.RawD4;           if (Math.Abs(vOld - vNew) > 0.001) { _laneCloseSettings.FirstPlaceHoldTime = vNew; changed = true; } break;
                             case 0x07: {
                                 string newFin = data.RawD4 == 0 ? "left" : "right";
@@ -7167,12 +7167,11 @@ namespace SwimmingScoreboard
             var tbConfDelay = AddSettingsRow(sp, "成绩确认关闭延迟", _laneCloseSettings.ResultConfirmCloseDelay.ToString(), "秒");
             var tbFSThresh = AddSettingsRow(sp, "抢跳判定阈值", _laneCloseSettings.FalseStartThreshold.ToString(), "秒");
             var tbSplitDisp = AddSettingsRow(sp, "分段成绩显示时长", _laneCloseSettings.SplitDisplayTime.ToString(), "秒");
-            //2026-05-13 新增：盲表代替成绩延迟时间（与硬件计时器一致；以 0.1秒精度同步到硬件 0x41 帧第3字节 mbDelay）
-            //2026-05-14 Fix #4: 显示时也 clamp 到 0..9，避免 JSON 残留的旧值（如 50.0）现"多了个 0"。
+            //2026-05-18 盲表代替成绩延迟时间统一为整秒(与其它字段一致)；硬件 case 端 ×10 转 0.1s 单位
             double blindDispl = _laneCloseSettings.BlindReplaceDelay;
             if (blindDispl < 0) blindDispl = 0;
             if (blindDispl > 9) blindDispl = 9;
-            var tbBlindReplace = AddSettingsRow(sp, "盲表代替成绩延迟", blindDispl.ToString("0.0"), "秒(0-9)");
+            var tbBlindReplace = AddSettingsRow(sp, "盲表代替成绩延迟", ((int)Math.Round(blindDispl)).ToString(), "秒(0-9)");
             var tbFirstHold = AddSettingsRow(sp, "第1名成绩停留时间", _laneCloseSettings.FirstPlaceHoldTime.ToString(), "秒");
             var tbBigPage = AddSettingsRow(sp, "大屏翻屏时间", _laneCloseSettings.BigDisplayPageInterval.ToString(), "秒");
 
@@ -7267,12 +7266,11 @@ namespace SwimmingScoreboard
                 if (double.TryParse(tbConfDelay.Text, out v)) _laneCloseSettings.ResultConfirmCloseDelay = v;
                 if (double.TryParse(tbFSThresh.Text, out v)) _laneCloseSettings.FalseStartThreshold = v;
                 if (double.TryParse(tbSplitDisp.Text, out v)) _laneCloseSettings.SplitDisplayTime = v;
-                //2026-05-14 Fix #4: 盲表代替成绩延迟限定 0-9 秒（保留一位小数），避免误输入 50 等大值
-                //   旧版未约束，存到 JSON 后再读出会显示"50.0"等"多了个 0"的值。
+                //2026-05-18 盲表代替成绩延迟统一为整秒（与其它字段一致），限定 0-9
                 if (double.TryParse(tbBlindReplace.Text, out v)) {
                     if (v < 0) v = 0;
                     if (v > 9) v = 9;
-                    _laneCloseSettings.BlindReplaceDelay = Math.Round(v, 1);
+                    _laneCloseSettings.BlindReplaceDelay = Math.Round(v, 0);
                 }
                 if (double.TryParse(tbFirstHold.Text, out v)) _laneCloseSettings.FirstPlaceHoldTime = v;
                 if (double.TryParse(tbBigPage.Text, out v)) _laneCloseSettings.BigDisplayPageInterval = v;
