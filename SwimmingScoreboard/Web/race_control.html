@@ -169,8 +169,11 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
     <span class="current-info" id="currentInfo">未选择比赛</span>
     <div id="stateDot" class="state-dot waiting"></div>
     <span id="stateLabel" class="state-label">等待</span>
-    <span style="margin-left:12px;display:flex;align-items:center;gap:3px;font-size:11px;">
-        <span id="hwConn" class="conn-dot off"></span><span style="color:#94A3B8;">硬件</span>
+    <!--2026-05-19 硬件计时器连接状态：放大字号 + 红/绿背景文字，一看就知道-->
+    <span style="margin-left:12px;display:flex;align-items:center;gap:6px;font-size:13px;">
+        <span id="hwConn" class="conn-dot off"></span>
+        <span style="color:#94A3B8;">硬件计时器:</span>
+        <span id="hwConnText" style="color:#EF4444;font-weight:bold;">未连接</span>
     </span>
     <span id="controlMode" style="font-size:11px;color:#64748B;margin-left:8px;"></span>
     <span style="margin-left:8px;display:flex;align-items:center;gap:3px;font-size:11px;">
@@ -385,8 +388,8 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
     <div class="right-panel">
         <div class="right-col">
             <h3>比赛控制</h3>
-            <button class="action-btn" style="background:#F59E0B;" onclick="readyClick()"><span class="ico">&#xE7C1;</span>就  位</button>
-            <button class="action-btn" style="background:#22C55E;" onclick="sendCmd('START_RACE')"><span class="ico">&#xE768;</span>发  令</button>
+            <button class="action-btn" style="background:#F59E0B;" onclick="readyClick()"><span class="ico">&#xE7C1;</span>准备就绪</button>
+            <button class="action-btn" style="background:#22C55E;" onclick="sendCmd('START_RACE')"><span class="ico">&#xE768;</span>M.发令</button>
             <button class="action-btn" style="background:#EF4444;" onclick="confirmTimerReset()"><span class="ico">&#xE72C;</span>计时复位</button>
             <button class="action-btn" style="background:#3B82F6;" onclick="confirmResult()"><span class="ico">&#xE73E;</span>确认本组成绩</button>
             <div style="border-top:1px solid #334155;margin-top:6px;padding-top:10px;">
@@ -696,7 +699,7 @@ function render() {
     if (state === 'waiting') { laneSplitState = {}; laneReactionState = {}; }
 
     document.getElementById('stateDot').className = 'state-dot ' + state;
-    var labels = {waiting:'等待', ready:'就位', racing:'比赛中', finished:'已完赛'};
+    var labels = {waiting:'等待', ready:'准备就绪', racing:'比赛中', finished:'已完赛'};
     var stateText = labels[state] || state;
     if (data.resultConfirmed) stateText = '已确认 — 请选择下一组';
     var labelEl = document.getElementById('stateLabel');
@@ -794,12 +797,20 @@ function render() {
         try { saveLaneCloseSettingsLocal(data.laneCloseSettings); } catch (er) {}
     }
 
-    // 硬件连接状态指示灯
+    // 硬件连接状态指示灯 + 醒目文字（2026-05-19 增强：绿"已连接"/红"未连接"）
     var hwDot = document.getElementById('hwConn');
     if (hwDot) {
         hwDot.className = data.timingHwConnected ? 'conn-dot on' : 'conn-dot off';
-        var hwSpan = hwDot.nextElementSibling;
-        if (hwSpan) hwSpan.textContent = data.timingHwConnected ? ('硬件: ' + (data.timingHwStatus||'')) : '硬件';
+    }
+    var hwTxt = document.getElementById('hwConnText');
+    if (hwTxt) {
+        if (data.timingHwConnected) {
+            hwTxt.textContent = '已连接' + (data.timingHwStatus ? (' (' + data.timingHwStatus + ')') : '');
+            hwTxt.style.color = '#22C55E';
+        } else {
+            hwTxt.textContent = '未连接';
+            hwTxt.style.color = '#EF4444';
+        }
     }
     // 同步设置弹窗内的硬件状态
     var dlgHwSt = document.getElementById('dlgHwStatus');
@@ -1142,7 +1153,7 @@ function readyClick() {
     var ag = data.currentAgeGroup || '';
     var info = (ag ? ('[' + ag + '] ') : '') + (data.currentGender||'') + ' '
              + (data.currentEvent||'') + ' ' + (data.currentStage||'') + ' 第' + (data.currentHeat||'') + '组';
-    if (!confirm('确定让本组进入【就位】状态？' + info + '\n')) return;
+    if (!confirm('确定让本组进入【准备就绪】状态？' + info + '\n')) return;
     sendCmd('READY');
 }
 

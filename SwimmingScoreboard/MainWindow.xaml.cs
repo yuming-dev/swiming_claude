@@ -1744,6 +1744,13 @@ namespace SwimmingScoreboard
             TimingWebConnText.Foreground = new SolidColorBrush(_timingWebSockets.Count > 0 ? Colors.Green : Colors.Red);
             TimingHwConnText.Text = _timingBridge != null && _timingBridge.IsConnected ? _timingBridge.StatusText : "未连接";
             TimingHwConnText.Foreground = new SolidColorBrush(_timingBridge != null && _timingBridge.IsConnected ? Colors.Green : Colors.Red);
+            //2026-05-19 顶部状态栏右侧的"硬件计时器"指示同步刷新
+            bool _hwOn = _timingBridge != null && _timingBridge.IsConnected;
+            if (HwConnDot != null) HwConnDot.Fill = new SolidColorBrush(_hwOn ? (Color)ColorConverter.ConvertFromString("#22C55E") : (Color)ColorConverter.ConvertFromString("#EF4444"));
+            if (HwConnStatusText != null) {
+                HwConnStatusText.Text = _hwOn ? "已连接" : "未连接";
+                HwConnStatusText.Foreground = new SolidColorBrush(_hwOn ? (Color)ColorConverter.ConvertFromString("#22C55E") : (Color)ColorConverter.ConvertFromString("#EF4444"));
+            }
             // 比赛控制面板上的快捷"连接串口"按钮跟随状态变化
             UpdateQuickConnectButton();
         }
@@ -4466,7 +4473,7 @@ namespace SwimmingScoreboard
             // 立刻刷新泳道状态 UI — 此时 _raceTimer 还没启动（要发令后才启动），
             // 100ms tick 不会自动重绘，必须显式调一次让发令端出发台立即变成打开
             UpdateLaneStatusDisplay();
-            AddLog("就位");
+            AddLog("准备就绪");
             // Set_MatchEvent (0x43) 和 发令点已经在 SetCurrentEvent / SetCurrentHeat 同步过了，
             // 这里只送 0x21 准备就绪，硬件据此打开出发台。
             if (pushToHardware && _timingBridge != null && _timingBridge.IsConnected) {
@@ -6319,7 +6326,7 @@ namespace SwimmingScoreboard
             string bgHex, fgHex;
             switch (_raceState) {
                 case RaceState.Ready:
-                    label = "就位"; bgHex = "#F59E0B"; fgHex = "#000000"; break;
+                    label = "准备就绪"; bgHex = "#F59E0B"; fgHex = "#000000"; break;
                 case RaceState.Racing:
                     label = "比赛中"; bgHex = "#EF4444"; fgHex = "#FFFFFF"; break;
                 case RaceState.Finished:

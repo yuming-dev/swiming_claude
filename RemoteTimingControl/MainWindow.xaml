@@ -183,7 +183,7 @@
                                     <Border Background="#F59E0B" CornerRadius="8">
                                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
                                             <TextBlock Text="&#xE7C1;" FontFamily="Segoe MDL2 Assets" FontSize="16" Foreground="White" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                            <TextBlock Text="就  位" FontSize="15" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
+                                            <TextBlock Text="准备就绪" FontSize="15" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
                                         </StackPanel>
                                     </Border>
                                 </ControlTemplate>
@@ -196,7 +196,7 @@
                                     <Border Background="#22C55E" CornerRadius="8">
                                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
                                             <TextBlock Text="&#xE768;" FontFamily="Segoe MDL2 Assets" FontSize="16" Foreground="White" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                            <TextBlock Text="发  令" FontSize="15" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
+                                            <TextBlock Text="M.发令" FontSize="15" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
                                         </StackPanel>
                                     </Border>
                                 </ControlTemplate>

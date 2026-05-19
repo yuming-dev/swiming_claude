@@ -28,6 +28,10 @@
                 <TextBlock x:Name="ServerAddressText" Grid.Column="1" Foreground="#94A3B8" FontSize="12"
                            HorizontalAlignment="Center" VerticalAlignment="Center"/>
                 <StackPanel Grid.Column="2" Orientation="Horizontal">
+                    <!--2026-05-19 顶部右侧加硬件计时器连接状态：红=未连/绿=已连，颜色醒目-->
+                    <Ellipse x:Name="HwConnDot" Width="10" Height="10" Fill="#EF4444" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                    <TextBlock Text="硬件计时器: " Foreground="#94A3B8" FontSize="12" VerticalAlignment="Center"/>
+                    <TextBlock x:Name="HwConnStatusText" Text="未连接" Foreground="#EF4444" FontSize="12" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,16,0"/>
                     <TextBlock Text="控制模式: " Foreground="#94A3B8" FontSize="12" VerticalAlignment="Center"/>
                     <TextBlock x:Name="ControlModeText" Text="本地" Foreground="#22C55E" FontSize="12" VerticalAlignment="Center"/>
                 </StackPanel>
@@ -926,7 +930,7 @@
                                         <Border Background="#F59E0B" CornerRadius="8">
                                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
                                                 <TextBlock Text="&#xE7C1;" FontFamily="Segoe MDL2 Assets" FontSize="16" Foreground="White" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                                <TextBlock Text="就  位" FontSize="15" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                <TextBlock Text="准备就绪" FontSize="15" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
                                             </StackPanel>
                                         </Border>
                                     </ControlTemplate>
@@ -938,7 +942,7 @@
                                         <Border Background="#22C55E" CornerRadius="8">
                                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
                                                 <TextBlock Text="&#xE768;" FontFamily="Segoe MDL2 Assets" FontSize="16" Foreground="White" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                                <TextBlock Text="发  令" FontSize="15" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                <TextBlock Text="M.发令" FontSize="15" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
                                             </StackPanel>
                                         </Border>
                                     </ControlTemplate>

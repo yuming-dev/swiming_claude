@@ -559,8 +559,8 @@ namespace RemoteTimingControl
 
         private void HandleHwTimingData(int lane, string cmdType, double time) {
             switch (cmdType) {
-                case "TimerReady":   SendCmd("READY"); AddLog("[硬件触发] 就位"); return;
-                case "StartCommand": SendCmd("START_RACE"); AddLog("[硬件触发] 发令"); return;
+                case "TimerReady":   SendCmd("READY"); AddLog("[硬件触发] 准备就绪"); return;
+                case "StartCommand": SendCmd("START_RACE"); AddLog("[硬件触发] M.发令"); return;
                 case "TimerReset":   SendCmd("TIMER_RESET"); AddLog("[硬件触发] 计时复位"); return;
                 case "TestCommand":  AddLog("[硬件] 测试命令"); return;
                 case "RunningTime":  return; // 滚动时间：由本地计时器显示，硬件数据忽略
@@ -656,7 +656,7 @@ namespace RemoteTimingControl
                 stateText = "设备测试"; bgHex = "#EF4444"; fgHex = "#FFFFFF";
             } else switch (state)
             {
-                case "ready":    stateText = "就位";   bgHex = "#F59E0B"; fgHex = "#000000"; break;
+                case "ready":    stateText = "准备就绪"; bgHex = "#F59E0B"; fgHex = "#000000"; break;
                 case "racing":   stateText = "比赛中"; bgHex = "#EF4444"; fgHex = "#FFFFFF"; break;
                 case "finished": stateText = "已完赛"; bgHex = "#475569"; fgHex = "#FFFFFF"; break;
                 default:         stateText = "等待";   bgHex = "#3B82F6"; fgHex = "#FFFFFF"; break;
@@ -2047,20 +2047,20 @@ namespace RemoteTimingControl
             string stage = _data != null && _data["currentStage"] != null ? _data["currentStage"].ToString() : "";
             int heat = _data != null && _data["currentHeat"] != null ? (int)_data["currentHeat"] : 0;
             string info = (string.IsNullOrEmpty(ag) ? "" : ("[" + ag + "] ")) + gender + " " + ev + " " + stage + " 第" + heat + "组";
-            var rR = MessageBox.Show("确定让本组进入【就位】状态？" + info + "\n",
-                "就位确认", MessageBoxButton.YesNo, MessageBoxImage.Question);
+            var rR = MessageBox.Show("确定让本组进入【准备就绪】状态？" + info + "\n",
+                "准备就绪确认", MessageBoxButton.YesNo, MessageBoxImage.Question);
             if (rR != MessageBoxResult.Yes) return;
 
             SendCmd("READY");
             if (_localBridge != null && _localBridge.IsConnected) _localBridge.SendCommand(0x21);
-            AddLog("就位");
+            AddLog("准备就绪");
         }
 
         private void Start_Click(object sender, RoutedEventArgs e)
         {
             SendCmd("START_RACE");
             if (_localBridge != null && _localBridge.IsConnected) _localBridge.SendCommand(0x1C);
-            AddLog("发令");
+            AddLog("M.发令");
         }
 
         private void TimerReset_Click(object sender, RoutedEventArgs e)
