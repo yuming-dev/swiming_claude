@@ -183,7 +183,8 @@
       "PowerShell(try { $w = New-Object -ComObject Word.Application; \"OK\"; $w.Quit\\(\\) } catch { \"FAIL: $_\" })",
       "Bash(grep -E '新增|添加|修复|//|添加.*功能|2026-|设备全开|battery')",
       "Bash(grep -E '//|2026-|0x[0-9A-Fa-f]+|Send[A-Z]')",
-      "Bash(grep -iE '<!--|//|2026|button|battery|force|test')"
+      "Bash(grep -iE '<!--|//|2026|button|battery|force|test')",
+      "Bash(grep -i \"\\\\.zip\\\\|\\\\.pdf$\")"
     ]
   }
 }

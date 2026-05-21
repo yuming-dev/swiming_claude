@@ -55,7 +55,21 @@ foreach ($sub in @("SwimmingScoreboard","RemoteTimingControl","RemoteDisplayCont
 
 Write-Host "[4/5] 拷贝 5 个 WPF EXE 输出 + Web/Records ..."
 
-$excludePats = @('*.pdb','*.xml','*.vshost.exe','*.vshost.exe.config','*.vshost.exe.manifest')
+$excludePats = @(
+    '*.pdb','*.xml','*.vshost.exe','*.vshost.exe.config','*.vshost.exe.manifest',
+    # 2026-05-21 排除开发机运行 EXE 时产生的用户态 JSON（凭据/记住密码/配置）。
+    # 这些是 .gitignore 里的 runtime artifacts，绝不能装到客户机，否则
+    # 客户机管理员密码会变成开发机历史密码（而不是首次启动的 admin/admin）。
+    '*_credentials.json','*_remember.json',
+    'credentials.json','remember.json',          # 主服务器自身凭据 (无前缀)
+    'timing_credentials.json','timing_remember.json',
+    'editor_credentials.json','editor_remember.json','editor_settings.json','editor_sync.json',
+    'register_credentials.json','register_remember.json',
+    'display_credentials.json','display_remember.json',
+    'RemoteTimingHw.json','remote_lane_close_settings.json',
+    'timing_settings.json','timing_connection.json','device_states.json',
+    'last_competition.txt','auth_credentials.json'
+)
 
 # SwimmingScoreboard: 优先 x64\Release
 $ssbBin = Join-Path $root "SwimmingScoreboard\bin\x64\Release"
@@ -63,6 +77,17 @@ if (-not (Test-Path $ssbBin)) { $ssbBin = Join-Path $root "SwimmingScoreboard\bi
 Copy-Item (Join-Path $ssbBin "*") (Join-Path $installerBuild "SwimmingScoreboard\") -Recurse -Force -Exclude $excludePats
 Copy-Item (Join-Path $root "SwimmingScoreboard\Web") (Join-Path $installerBuild "SwimmingScoreboard\Web") -Recurse -Force
 Copy-Item (Join-Path $root "SwimmingScoreboard\Records") (Join-Path $installerBuild "SwimmingScoreboard\Records") -Recurse -Force
+
+# 2026-05-21 删除开发机运行 EXE 时产生的整目录（exclude 模式只过滤文件，不过滤目录）：
+#   Database\    开发机的赛事档案 + RawData 原始数据快照 → 装到客户机会覆盖客户数据
+#   Documents\   开发机生成过的临时 PDF/DOC 文档
+foreach ($strayDir in @("Database","Documents")) {
+    $p = Join-Path $installerBuild "SwimmingScoreboard\$strayDir"
+    if (Test-Path $p) {
+        Remove-Item -Recurse -Force $p
+        Write-Host "  ✂  删除 SwimmingScoreboard\$strayDir (开发机残留数据)"
+    }
+}
 
 foreach ($proj in @("RemoteTimingControl","RemoteDisplayControl","RegistrationTool","ScheduleEditor")) {
     $src = Join-Path $root "$proj\bin\Release"
