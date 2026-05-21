@@ -174,6 +174,8 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
         <span id="hwConn" class="conn-dot off"></span>
         <span style="color:#94A3B8;">硬件计时器:</span>
         <span id="hwConnText" style="color:#EF4444;font-weight:bold;">未连接</span>
+        <!--2026-05-19 硬件电池电压(0x4B 上报)：>4.0V 绿 / 3.5~4.0V 黄 / <3.5V 红 / 无上报留空-->
+        <span id="hwBatteryText" style="margin-left:6px;font-weight:bold;font-size:13px;"></span>
     </span>
     <span id="controlMode" style="font-size:11px;color:#64748B;margin-left:8px;"></span>
     <span style="margin-left:8px;display:flex;align-items:center;gap:3px;font-size:11px;">
@@ -184,6 +186,9 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
             style="margin-left:6px;padding:4px 10px;background:#22C55E;color:white;border:none;border-radius:4px;font-size:12px;font-weight:bold;cursor:pointer;">连接串口</button>
     <button id="navDeviceTestBtn" onclick="toggleDeviceTest()" title="进入设备测试模式：所有触板/出发台/盲表打开，硬件来什么都接收显示，不计入比赛"
             style="margin-left:4px;padding:4px 10px;background:#0EA5E9;color:white;border:none;border-radius:4px;font-size:12px;font-weight:bold;cursor:pointer;">设备测试</button>
+    <!--2026-05-19 设备全开按钮(0x4C): 强制全道(TP/SB/MB)进入全开模式，所有信号都按成绩接收-->
+    <button id="navForceOpenBtn" onclick="toggleForceOpenAll()" title="设备全开：忽略状态机过滤，所有触板/盲表/出发台信号都认作成绩(测试/调试用)"
+            style="margin-left:4px;padding:4px 10px;background:#475569;color:white;border:none;border-radius:4px;font-size:12px;font-weight:bold;cursor:pointer;">设备全开</button>
     <button class="settings-btn" onclick="openSettings()">&#9881; 参数设置</button>
     <button class="fullscreen-btn" onclick="goFullScreen()" style="position:fixed;top:4px;right:8px;z-index:50;padding:4px 10px;background:#3B82F6;color:white;border:none;border-radius:4px;font-size:12px;cursor:pointer;">全屏</button>
 </div>
@@ -218,6 +223,14 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
             <span style="display:flex;gap:12px;">
                 <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="laneOrder" value="forward" id="dlgLaneOrderFwd" checked> 正序 0→9</label>
                 <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="laneOrder" value="reverse" id="dlgLaneOrderRev"> 逆序 9→0</label>
+            </span>
+        </div>
+        <!--2026-05-19 泳池触板安装方式(0x3A): 两端=终点端+发令端都装；单端=只在终点端装-->
+        <div class="param-row" style="margin-top:6px;padding-top:8px;border-top:1px solid #475569;">
+            <label>泳池触板安装</label>
+            <span style="display:flex;gap:12px;">
+                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="poolSide" value="dual"   id="dlgPoolDual" checked> 两端安装</label>
+                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="poolSide" value="single" id="dlgPoolSingle"> 单边安装</label>
             </span>
         </div>
         <div class="param-row" style="margin-top:6px;padding-top:8px;border-top:1px solid #475569;">
@@ -729,6 +742,13 @@ function render() {
         connNav.textContent = hwOn ? '断开串口' : '连接串口';
         connNav.style.background = hwOn ? '#EF4444' : '#22C55E';
     }
+    // 2026-05-19 设备全开按钮颜色：进入全开=红"恢复正常"，否则=灰"设备全开"
+    var foNav = document.getElementById('navForceOpenBtn');
+    if (foNav) {
+        var foOn = !!data.forceAllOpenAll;
+        foNav.textContent = foOn ? '恢复正常' : '设备全开';
+        foNav.style.background = foOn ? '#EF4444' : '#475569';
+    }
 
     // 本地计时器同步：
     // 服务器（主控制）是唯一权威时钟源，由硬件START事件驱动。
@@ -810,6 +830,19 @@ function render() {
         } else {
             hwTxt.textContent = '未连接';
             hwTxt.style.color = '#EF4444';
+        }
+    }
+    // 2026-05-19 硬件电池电压（0x4B 上报，30s 内有效）：>4.0V 绿 / 3.5~4.0V 黄 / <3.5V 红
+    var hwBat = document.getElementById('hwBatteryText');
+    if (hwBat) {
+        var bv = +(data.hwBatteryVoltage || 0);
+        if (bv > 0) {
+            hwBat.textContent = bv.toFixed(2) + ' V';
+            if (bv < 3.5)      hwBat.style.color = '#EF4444'; // 红 紧急
+            else if (bv < 4.0) hwBat.style.color = '#F59E0B'; // 黄 警告
+            else                hwBat.style.color = '#22C55E'; // 绿 正常
+        } else {
+            hwBat.textContent = '';
         }
     }
     // 同步设置弹窗内的硬件状态
@@ -1064,6 +1097,10 @@ function openSettings() {
     document.getElementById('dlgStartRight').checked = (finishPosition === 'right');
     document.getElementById('dlgLaneOrderFwd').checked = (laneOrder !== 'reverse');
     document.getElementById('dlgLaneOrderRev').checked = (laneOrder === 'reverse');
+    // 2026-05-19 泳池触板安装方式: 服务器 poolConfig.hasRightStartBlock = true→两端, false→单端
+    var hasRight = !!(data && data.poolConfig && data.poolConfig.hasRightStartBlock);
+    document.getElementById('dlgPoolDual').checked   = hasRight;
+    document.getElementById('dlgPoolSingle').checked = !hasRight;
     document.getElementById('settingsModal').classList.remove('hidden');
 }
 
@@ -1165,6 +1202,8 @@ function applySettings() {
     if (bigDisplayPageInterval > 60) bigDisplayPageInterval = 60;
     reactionTimeEnabled = document.getElementById('dlgRtOn').checked;
     laneOrder = document.getElementById('dlgLaneOrderRev').checked ? 'reverse' : 'forward';
+    // 2026-05-19 泳池触板单/两端：单端→服务器 hasRightStartBlock=false 并下发硬件 0x3A
+    var poolSingleSide = document.getElementById('dlgPoolSingle').checked;
     var settings = {
         laneCloseTime: parseFloat(document.getElementById('dlgCloseTime').value) || 20,
         startBlockCloseDelay: parseFloat(document.getElementById('dlgSBDelay').value) || 3,
@@ -1178,7 +1217,8 @@ function applySettings() {
         rightBlindWatchCount: rightBlindWatchCount,
         bigDisplayPageInterval: bigDisplayPageInterval,
         reactionTimeEnabled: reactionTimeEnabled,
-        laneOrder: laneOrder
+        laneOrder: laneOrder,
+        poolSingleSide: poolSingleSide
     };
     // 本地落盘 + 推到服务器（服务器再广播给主控/EXE 远程台）
     saveLaneCloseSettingsLocal(settings);
@@ -1845,6 +1885,21 @@ function toggleDeviceTest() {
     if (!inTest && !confirm('确认进入设备测试模式？\n\n所有触板/出发台/盲表都将打开，硬件来什么数据都直接显示但不计入比赛成绩。\n再点同一按钮退出。')) return;
     sendCmd('DEVICE_TEST_TOGGLE');
     addLog(inTest ? '已请求退出设备测试' : '已请求进入设备测试');
+}
+
+// 2026-05-19 设备"全开"切换 — 顶层 DEVICE_OVERRIDE { lane:-1, mode:"allOpen"|"normal" }
+// 进入"全开"后, 硬件 0x4C 联动下发, 主服务器 ProcessTimingData 忽略状态机过滤
+function toggleForceOpenAll() {
+    if (!ws || ws.readyState !== 1) {
+        addLog('设备全开未发送(未连接服务器)');
+        alert('未连接到服务器（顶部"服务器"指示灯应为绿色）');
+        return;
+    }
+    var nowOn = !!(data && data.forceAllOpenAll);
+    var nextMode = nowOn ? 'normal' : 'allOpen';
+    if (!nowOn && !confirm('确认让全部泳道进入【设备全开】模式？\n\n硬件任意触板/盲表/出发台信号都将被认作成绩，状态机过滤被绕过。\n再点一次同按钮恢复正常。')) return;
+    ws.send(JSON.stringify({ type: 'DEVICE_OVERRIDE', lane: -1, mode: nextMode }));
+    addLog(nowOn ? '已请求恢复正常状态机过滤' : '已请求设备全开（全道）');
 }
 
 function statusClass(s) {

@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>游泳计时通讯协议变更说明 v2026.05.20</title>
+<style>
+  @page { size: A4; margin: 18mm 16mm; }
+  body { font-family: "Microsoft YaHei", "微软雅黑", sans-serif; font-size: 12pt; color: #1f2937; line-height: 1.55; }
+  h1 { font-size: 22pt; text-align: center; border-bottom: 3px double #1e3a8a; padding-bottom: 12px; color: #1e3a8a; }
+  h2 { font-size: 16pt; color: #1e3a8a; border-left: 6px solid #3b82f6; padding-left: 10px; margin-top: 28px; }
+  h3 { font-size: 13pt; color: #1e3a8a; margin-top: 22px; background:#eff6ff; padding:6px 10px; border-radius:4px;}
+  .dir { display:inline-block; font-size:10pt; padding:2px 8px; border-radius:10px; margin-left:6px; vertical-align:middle; }
+  .dir-out { background:#fee2e2; color:#991b1b; }
+  .dir-in { background:#dcfce7; color:#166534; }
+  .dir-both { background:#e0e7ff; color:#3730a3; }
+  .badge-new { display:inline-block; font-size:10pt; padding:2px 8px; border-radius:10px; margin-left:6px; vertical-align:middle; background:#fde68a; color:#92400e; }
+  table { border-collapse: collapse; width: 100%; margin: 8px 0 16px; font-size: 11pt; }
+  th, td { border: 1px solid #cbd5e1; padding: 6px 9px; vertical-align: top; }
+  th { background: #f1f5f9; text-align: left; font-weight: bold; }
+  td.field { font-family: Consolas, monospace; white-space: nowrap; background: #fafbfc; }
+  .frame { font-family: Consolas, monospace; background:#0f172a; color:#e2e8f0; padding:10px 14px; border-radius:6px; font-size:11pt; }
+  .new { color: #b91c1c; font-weight: bold; }
+  .note { background:#fef9c3; padding:8px 12px; border-left: 4px solid #ca8a04; border-radius:4px; margin: 8px 0; }
+  ul { margin: 4px 0 10px 24px; }
+  li { margin: 3px 0; }
+  .toc { background:#f8fafc; border:1px solid #e2e8f0; padding: 12px 18px; border-radius:6px; }
+  .toc a { color:#1e3a8a; text-decoration:none; }
+  .summary { background: #ecfdf5; border-left: 4px solid #059669; padding: 8px 14px; border-radius: 4px; margin: 8px 0; }
+  hr { border:0; border-top: 1px dashed #cbd5e1; margin: 18px 0; }
+  .footer { text-align:center; color:#64748b; font-size:10pt; margin-top:30px; padding-top:12px; border-top:1px solid #e2e8f0; }
+  code { background:#f1f5f9; padding:1px 5px; border-radius:3px; font-family: Consolas, monospace; font-size: 11pt; }
+</style>
+</head>
+<body>
+
+<h1>游泳计时通讯协议变更说明</h1>
+<p style="text-align:center; color:#64748b; margin-top:-6px;">
+  v2026.05.20 &nbsp;|&nbsp; 基于 v2026.05.14 的增量补充（2026-05-16 至 2026-05-20）
+</p>
+
+<div class="frame">
+  <strong>帧格式（不变）：</strong> F1 53 [CMD] [D3] [D4] [D5] [D6] [D7] [D8] [D9] [D10] F4 <br>
+  共 12 字节 &nbsp;·&nbsp; D0=0xF1(SOH) &nbsp;·&nbsp; D1=0x53('S') &nbsp;·&nbsp; D2=命令 &nbsp;·&nbsp; D11=0xF4(EOT)
+</div>
+
+<div class="summary">
+<strong>本期变更总览：</strong><br>
+&nbsp;&nbsp;· 新增命令 <strong>6 个</strong>：<code>0x60</code> / <code>0x61</code> / <code>0x62</code> / <code>0x63</code> / <code>0x64</code> / <code>0x65</code><br>
+&nbsp;&nbsp;· 扩展原有 <strong>3 处</strong>：<code>0x3A</code> / <code>0x47</code> 改为双向；<code>0x44</code> 作 <code>0x40</code> 别名<br>
+&nbsp;&nbsp;· 应用层 <strong>3 项</strong>：硬件 BKPSRAM 持久化（含本机 IP）/ 硬件 net_test 加"修改本机IP"弹窗 / 远程 EXE _REPORT 子命令族
+</div>
+
+<div class="toc">
+<strong>目录</strong>
+<ul>
+  <li><a href="#A">A. 新增命令</a> — 6 个</li>
+  <li><a href="#B">B. 扩展原有帧</a> — 3 处</li>
+  <li><a href="#C">C. 应用层变化</a> — 3 项</li>
+  <li><a href="#D">D. 方向与触发时机汇总</a></li>
+  <li><a href="#E">E. 完整命令字节表</a></li>
+  <li><a href="#F">F. 兼容性建议</a></li>
+</ul>
+</div>
+
+<h2 id="A">A. 新增命令</h2>
+
+<!-- A1: 0x60 -->
+<h3>A1. <code>0x60</code> Set_LaneEnableDisable <span class="dir dir-out">PC → 硬件</span><span class="badge-new">2026-05-17 新增</span></h3>
+<p><strong>触发：</strong>操作员手动屏蔽/启用某一道（仅作用于<strong>单道</strong>，不支持 0xFF 全部道）。</p>
+<table>
+  <tr><th width="80">字段</th><th>含义</th></tr>
+  <tr><td class="field">D3</td><td>泳道号 <code>0x00 – 0x09</code>（必须单道）</td></tr>
+  <tr><td class="field">D4</td><td><code>1</code> = 启用（该道纳入比赛） &nbsp;|&nbsp; <code>0</code> = 屏蔽（任何 TP/SB/MB 信号都不上报）</td></tr>
+  <tr><td class="field">D5–D10</td><td>保留 0</td></tr>
+</table>
+<p><strong>硬件 dispatcher：</strong> on-the-wire <code>0x60</code> → hardware case <code>0x50</code><br>
+   <code>USER/swimtime.h: #define Set_LaneEnableDisable 0x50</code></p>
+
+<div class="note">
+<strong>与 0x47 / 0x4C 三命令的语义区分：</strong>
+<ul>
+  <li><code>0x47</code> 道次开/关 — <strong>全部或单道</strong>的 TP/SB/MB 整体启用/禁用（不动道次按钮显示）</li>
+  <li><code>0x60</code> 单道屏蔽 — <strong>仅单道</strong>的整体启用/禁用（同时切换道次按钮显示状态）</li>
+  <li><code>0x4C</code> 设备全开 — 设备状态机覆盖（接受所有信号 vs 按状态过滤）</li>
+</ul>
+</div>
+<div class="summary"><strong>示例：</strong>第 3 道屏蔽 → <code>F1 53 60 03 00 00 00 00 00 00 00 F4</code></div>
+
+<!-- A2: 0x61 -->
+<h3>A2. <code>0x61</code> Set_LapRemaining <span class="dir dir-out">PC → 硬件</span><span class="badge-new">2026-05-17 新增</span></h3>
+<p><strong>触发：</strong>PC 端"剩余圈数 +1 / −1"按钮，把改后的圈数下发硬件。</p>
+<table>
+  <tr><th width="80">字段</th><th>含义</th></tr>
+  <tr><td class="field">D3</td><td>泳道号 <code>0x00 – 0x09</code></td></tr>
+  <tr><td class="field">D4</td><td>端：<code>0</code> = 左侧 / <code>1</code> = 右侧</td></tr>
+  <tr><td class="field">D5</td><td>剩余圈数 <code>0 – 255</code></td></tr>
+  <tr><td class="field">D6–D10</td><td>保留 0</td></tr>
+</table>
+<p><strong>硬件 dispatcher：</strong> on-the-wire <code>0x61</code> → hardware case <code>0x51</code><br>
+   <code>USER/swimtime.h: #define Set_LapRemaining 0x51</code></p>
+<p><strong>硬件接收时：</strong><code>laps[D3][D4] = D5</code>，并立即调 <code>LLaps_diaplay / RLaps_diaplay</code> 重画对应道次的圈数显示。</p>
+<div class="summary"><strong>示例：</strong>第 5 道右侧剩余 3 圈 → <code>F1 53 61 05 01 03 00 00 00 00 00 F4</code></div>
+
+<!-- A3: 0x62 -->
+<h3>A3. <code>0x62</code> Set_LaneOrder <span class="dir dir-both">双向</span><span class="badge-new">2026-05-17 新增</span></h3>
+<p><strong>触发：</strong></p>
+<ul>
+  <li><strong>PC → 硬件：</strong>用户在 PC 端"参数设置→道次顺序"切换正向/反向</li>
+  <li><strong>硬件 → PC：</strong>硬件 net_test 子界面用户切换后返回主控时上报</li>
+</ul>
+<table>
+  <tr><th width="80">字段</th><th>含义</th></tr>
+  <tr><td class="field">D3</td><td><code>0</code> = 正向 (forward, 0→9) &nbsp;|&nbsp; <code>1</code> = 反向 (reverse, 9→0)</td></tr>
+  <tr><td class="field">D4–D10</td><td>保留 0</td></tr>
+</table>
+<p><strong>硬件 dispatcher：</strong> <code>0x62</code> → case <code>0x52</code> &nbsp;·&nbsp; <code>USER/swimtime.h: #define Set_LaneOrder 0x52</code></p>
+<div class="note"><strong>防回环：</strong>硬件→PC 上报时不再触发 PC 回发 0x62（同 0x3A / 0x47 的双向逻辑）。</div>
+
+<!-- A4: 0x63 -->
+<h3>A4. <code>0x63</code> Set_FinishPosition <span class="dir dir-both">双向</span><span class="badge-new">2026-05-17 新增</span></h3>
+<p><strong>触发：</strong></p>
+<ul>
+  <li><strong>PC → 硬件：</strong>用户在 PC 端"参数设置→终点位置"切换</li>
+  <li><strong>硬件 → PC：</strong>硬件 net_test 退出时上报</li>
+</ul>
+<table>
+  <tr><th width="80">字段</th><th>含义</th></tr>
+  <tr><td class="field">D3</td><td><code>0</code> = 终点左端 (left) &nbsp;|&nbsp; <code>1</code> = 终点右端 (right)</td></tr>
+  <tr><td class="field">D4–D10</td><td>保留 0</td></tr>
+</table>
+<p><strong>硬件 dispatcher：</strong> <code>0x63</code> → case <code>0x53</code> &nbsp;·&nbsp; <code>USER/swimtime.h: #define Set_FinishPosition 0x53</code></p>
+<div class="note">
+<strong>PC 端收到后必须同步触发：</strong>
+<ol>
+  <li><code>_laneCloseSettings.FinishPosition</code> / <code>StartPosition</code> 更新</li>
+  <li><code>ApplyTouchpadInstallModeToLanes()</code> 刷新各道 NotInstalled 标记<br>
+     <span style="color:#7c2d12;">单端模式下"非终点端"由 FinishPosition 决定，切换后必须刷</span></li>
+  <li><code>Broadcast()</code> 推给所有客户端</li>
+</ol>
+</div>
+
+<!-- A5: 0x64 -->
+<h3>A5. <code>0x64</code> Set_TimingsBundle <span class="dir dir-in">硬件 → PC</span><span class="badge-new">2026-05-17 新增</span></h3>
+<p><strong>触发：</strong>硬件 net_test 子界面"参数设置"输入完 5 项时间编辑框后退出，把 5 个时间值一次打包上报给 PC，单位均为<strong>秒</strong>。</p>
+<table>
+  <tr><th width="80">字段</th><th>含义</th></tr>
+  <tr><td class="field">D3</td><td>泳道封闭时间 (秒) &nbsp;&nbsp;&nbsp;LaneCloseTime</td></tr>
+  <tr><td class="field">D4</td><td>触板延迟关闭时间 (秒) &nbsp;ResultConfirmCloseDelay</td></tr>
+  <tr><td class="field">D5</td><td>出发台延迟关闭时间 (秒) &nbsp;StartBlockCloseDelay</td></tr>
+  <tr><td class="field">D6</td><td>盲表代替成绩延迟时间 (秒) &nbsp;BlindReplaceDelay</td></tr>
+  <tr><td class="field">D7</td><td>成绩显示时间 (秒) &nbsp;SplitDisplayTime</td></tr>
+  <tr><td class="field">D8–D10</td><td>保留 0</td></tr>
+</table>
+<p><strong>硬件 dispatcher：</strong> <code>0x64</code> → case <code>0x54</code> &nbsp;·&nbsp; <code>USER/swimtime.h: #define Set_TimingsBundle 0x54</code></p>
+<p><strong>PC 端：</strong>更新 <code>_laneCloseSettings</code> 对应字段 + <code>UpdateLaneStatusDisplay()</code> + <code>Broadcast()</code> 全量推送。</p>
+<div class="note">
+<strong>单位说明：</strong><code>BlindReplaceDelay</code> 单位 2026-05-18 起统一为"整数秒"
+（此前 <code>0x41 D5</code> 和 <code>0x42 子码 0x09</code> 为 0.1 秒单位）。<br>
+硬件 swimplay.c 在 <code>case Set_ArmDelay_Time</code> 内部：<code>MBdelay_Time = d5 * 10</code> 做单位放大。
+</div>
+
+<!-- A6: 0x65 -->
+<h3>A6. <code>0x65</code> Set_RefreshDisplay <span class="dir dir-out">PC → 硬件</span><span class="badge-new">2026-05-18 新增</span></h3>
+<p><strong>触发：</strong>PC 端"参数设置"对话框 OK 后下发，让硬件按新参数主动重画一遍主控界面（<strong>不丢失</strong>"缺道 / 剩余圈数"等比赛状态）。</p>
+<table>
+  <tr><th width="80">字段</th><th>含义</th></tr>
+  <tr><td class="field">D3–D10</td><td>全部保留 0</td></tr>
+</table>
+<p><strong>硬件 dispatcher：</strong> <code>0x65</code> → case <code>0x55</code> &nbsp;·&nbsp; <code>USER/swimtime.h: #define Set_RefreshDisplay 0x55</code></p>
+<div class="note">
+<strong>硬件实现要点（必须保状态）：</strong>
+<ol>
+  <li>保存当前 <code>CloseLaneState[10]</code>、<code>laps[10][2]</code>、<code>TP/SB/MB</code> 状态到栈或临时缓冲</li>
+  <li>调 <code>SwimControl_init()</code> 重画整屏</li>
+  <li>从保存值恢复 → 重画各道状态（缺道、剩余圈数等不丢）</li>
+</ol>
+</div>
+<div class="summary"><strong>示例：</strong><code>F1 53 65 00 00 00 00 00 00 00 00 F4</code></div>
+
+
+<h2 id="B">B. 扩展原有帧</h2>
+
+<!-- B1: 0x3A 双向 -->
+<h3>B1. <code>0x3A</code> Set_PoolSingleOrDoubleTP — 改为<strong>双向</strong> <span class="badge-new">2026-05-16</span></h3>
+<p>v2026.05.14 中 <code>0x3A</code> 仅 PC → 硬件单向；现扩展为<strong>双向</strong>：</p>
+<table>
+  <tr><th width="110">方向</th><th>触发场景</th></tr>
+  <tr><td><span class="dir dir-out">PC → 硬件</span></td><td>（同原协议）用户切换"单边/两端"，PC 下发；硬件 SD 卡持久化</td></tr>
+  <tr><td><span class="dir dir-in">硬件 → PC</span></td><td>硬件 net_test 子界面用户切换 <code>PoolSingleOrDoubleTPbtn</code> 后返回主控时上报；
+                                                            PC 同步更新 <code>_poolConfig.HasRightStartBlock</code> +
+                                                            <code>ApplyTouchpadInstallModeToLanes()</code> + <code>Broadcast()</code>。
+                                                            <strong>不回发</strong> <code>0x3A</code> 防回环。</td></tr>
+</table>
+
+<!-- B2: 0x47 双向 -->
+<h3>B2. <code>0x47</code> Set_LaneOpenClose — 改为<strong>双向</strong> <span class="badge-new">2026-05-16</span></h3>
+<p>v2026.05.14 中 <code>0x47</code> 仅 PC → 硬件单向；现扩展为<strong>双向</strong>：</p>
+<table>
+  <tr><th width="110">方向</th><th>触发场景</th></tr>
+  <tr><td><span class="dir dir-out">PC → 硬件</span></td><td>（同原协议）泳道控制 4 按钮</td></tr>
+  <tr><td><span class="dir dir-in">硬件 → PC</span></td><td>硬件 net_test 子界面"封闭/不封闭TP"切换后返回主控时上报当前 <code>Open_State</code>；
+                                                            PC 把所有道的 LeftTouchpad / RightTouchpad / LeftBlindWatch1-3 / RightBlindWatch1-3
+                                                            批量同步为 Open / Closed。<strong>不回发</strong> <code>0x47</code> 防回环。</td></tr>
+</table>
+
+<!-- B3: 0x44 别名 -->
+<h3>B3. <code>0x44</code> Set_PoolConfiguration_Com1 — 别名 <code>0x40</code> <span class="badge-new">2026-05-16</span></h3>
+<p>新版主控 <code>swimtime.h</code> 增加了 <code>0x44</code> 作为"泳池参数设置"的 USER 段命令编号
+（与 <code>0x40</code> PoolConfig <strong>同语义</strong>）。<code>0x44</code> 的字段定义与 <code>0x40</code> 完全相同。</p>
+<p><strong>硬件 dispatcher：</strong> <code>0x44</code> → case <code>0x34</code> &nbsp;·&nbsp; <code>USER/swimtime.h: #define Set_PoolConfiguration_Com1 0x34</code></p>
+<p><strong>PC 端：</strong> <code>TimingBridge</code> / <code>TimingBridgeLocal</code> 在 <code>ParseFrame</code> 里把 <code>0x44</code> 映射为 <code>TimingCommandType.PoolConfig</code>（与 <code>0x40</code> 完全等价处理）。</p>
+
+
+<h2 id="C">C. 应用层变化（非协议字节级，但影响实现）</h2>
+
+<!-- C1: BKPSRAM -->
+<h3>C1. 硬件 BKPSRAM 持久化扩展 <span class="badge-new">2026-05-20</span></h3>
+<p>STM32 H7 Backup SRAM (4KB @ <code>0x38800000</code>, VBAT 备份) 持久化结构 <code>SwimMatchState_t</code> 升级为 v2，<strong>新增字段</strong>：</p>
+<table>
+  <tr><th width="160">字段</th><th>含义</th></tr>
+  <tr><td class="field">u8 local_ip[4]</td><td>用户修改后的本机 IP</td></tr>
+  <tr><td class="field">u8 local_ip_valid</td><td>1=用户改过, 0=未改过用默认</td></tr>
+  <tr><td class="field">u8 _pad6[3]</td><td>对齐保留</td></tr>
+</table>
+<p><strong>SWIM_STATE_VERSION：</strong>1 → 2（升级后第一次开机旧 BKPSRAM 数据失效，下一次 Save 自动重建）</p>
+<p><strong>触发：</strong></p>
+<ul>
+  <li>硬件 net_test 内"修改本机IP"弹窗 OK → <code>bkp_local_ip_valid=1</code> + <code>Save_State_To_BkpSRAM()</code> 立即持久化</li>
+  <li>重启后 <code>swim_play</code> → <code>lwip_comm_init</code> → DHCP → <code>Load_State_From_BkpSRAM</code><br>
+      若 <code>local_ip_valid==1</code> → 覆盖 <code>lwipdev.ip</code> + <code>netif_set_ipaddr</code> 应用</li>
+</ul>
+
+<!-- C2: 修改本机IP 弹窗 -->
+<h3>C2. 硬件 net_test 新增"修改本机IP"按钮 <span class="badge-new">2026-05-20</span></h3>
+<p>不涉及网络协议字节，但影响硬件本地 UI：</p>
+<ul>
+  <li><strong>位置：</strong>参数设置界面，"网络协议选择"按钮的<strong>同列上方</strong>（x = tempx = 100）</li>
+  <li><strong>交互：</strong>按下弹出 <code>sysset_ip_set(...)</code> 模态对话框（仿 <code>sysset_date_set</code> 模式，260×200 窗口）<br>
+                          含 4 段 IP + 段间点号 + 每段 ± 按钮 + OK / Cancel</li>
+  <li><strong>OK 后：</strong>写入 <code>lwipdev.ip</code> + <code>IP4_ADDR</code> + <code>netif_set_ipaddr</code> 实时应用 +
+                              <code>bkp_local_ip_valid=1</code> + <code>Save_State_To_BkpSRAM</code> 持久化</li>
+</ul>
+
+<!-- C3: _REPORT 子命令族 -->
+<h3>C3. 远程 EXE 转发协议（<code>_REPORT</code> 子命令族）<span class="badge-new">2026-05-19</span></h3>
+<p>RemoteTimingControl（远程计时控制 EXE）直接连硬件时，把硬件 → PC 的扩展命令（<code>0x4B / 0x47 / 0x3A / 0x62 / 0x63 / 0x64</code>）拆为具体 <code>TIMING_CMD</code> 子命令转发给主服务器；主服务器侧 <code>HandleHardwareReportForwarded</code> 还原为 <code>TimingData</code> 对象后调 <code>ProcessTimingDataFromHardware</code> 复用原处理路径。</p>
+<table>
+  <tr><th>硬件帧</th><th>WebSocket TIMING_CMD 子命令</th><th>data 字段</th></tr>
+  <tr><td class="field">0x4B BatteryVoltage</td><td><code>BATTERY_REPORT</code></td><td><code>{ voltage }</code></td></tr>
+  <tr><td class="field">0x64 TimingsBundle</td><td><code>TIMINGS_BUNDLE_REPORT</code></td><td><code>{ laneCloseTime, resultConfirmCloseDelay, startBlockCloseDelay, blindReplaceDelay, splitDisplayTime }</code></td></tr>
+  <tr><td class="field">0x62 LaneOrder</td><td><code>LANE_ORDER_REPORT</code></td><td><code>{ order: "forward"|"reverse" }</code></td></tr>
+  <tr><td class="field">0x63 FinishPosition</td><td><code>FINISH_POS_REPORT</code></td><td><code>{ pos: "left"|"right" }</code></td></tr>
+  <tr><td class="field">0x3A PoolSingleOrDouble</td><td><code>POOL_SIDE_REPORT</code></td><td><code>{ single: bool }</code></td></tr>
+  <tr><td class="field">0x47 LaneOpenClose</td><td><code>LANE_OPEN_CLOSE_REPORT</code></td><td><code>{ lane: -1|0..9, open: bool }</code></td></tr>
+</table>
+<div class="note">仅适用于"<strong>远程 EXE 模式</strong>"。主服务器<strong>直连硬件</strong>时走 <code>OnTimingData → ProcessTimingDataFromHardware</code> 原路径，与本子命令族无关。</div>
+
+
+<h2 id="D">D. 方向与触发时机汇总（v2026.05.14 之后）</h2>
+<table>
+  <tr><th>命令</th><th>方向</th><th>触发时机</th></tr>
+  <tr><td class="field">0x60 Set_LaneEnableDisable</td><td><span class="dir dir-out">PC → 硬件</span></td><td>单道屏蔽 / 启用按钮</td></tr>
+  <tr><td class="field">0x61 Set_LapRemaining</td><td><span class="dir dir-out">PC → 硬件</span></td><td>PC 端剩余圈数 ±1</td></tr>
+  <tr><td class="field">0x65 Set_RefreshDisplay</td><td><span class="dir dir-out">PC → 硬件</span></td><td>参数对话框 OK 后</td></tr>
+  <tr><td class="field">0x44 Set_PoolConfig 别名</td><td><span class="dir dir-out">PC → 硬件</span></td><td>与 0x40 同</td></tr>
+  <tr><td class="field">0x62 Set_LaneOrder</td><td><span class="dir dir-both">双向</span></td><td>道次顺序切换</td></tr>
+  <tr><td class="field">0x63 Set_FinishPosition</td><td><span class="dir dir-both">双向</span></td><td>终点位置切换</td></tr>
+  <tr><td class="field">0x64 Set_TimingsBundle</td><td><span class="dir dir-in">硬件 → PC</span></td><td>net_test 退出时上报</td></tr>
+  <tr><td class="field">0x3A Set_PoolSingleOrDoubleTP</td><td><span class="dir dir-both">双向(扩展)</span></td><td>net_test 退出时上报</td></tr>
+  <tr><td class="field">0x47 Set_LaneOpenClose</td><td><span class="dir dir-both">双向(扩展)</span></td><td>net_test 退出时上报</td></tr>
+</table>
+
+
+<h2 id="E">E. 完整命令字节表（含 v2026.05.14 之前 + 本期新增）</h2>
+<p>USER case = 线上字节 − 0x10。硬件 dispatcher 习惯减偏移分发。标 ★ 为本期（v2026.05.20）新增。</p>
+<table>
+  <tr><th>线上字节</th><th>USER case</th><th>命令名</th><th>方向</th><th>版本</th></tr>
+  <tr><td class="field">0x16</td><td class="field">0x06</td><td>Touchpad</td><td><span class="dir dir-in">硬件→PC</span></td><td>原协议</td></tr>
+  <tr><td class="field">0x17</td><td class="field">0x07</td><td>PushButton1</td><td><span class="dir dir-in">硬件→PC</span></td><td>原协议</td></tr>
+  <tr><td class="field">0x18</td><td class="field">0x08</td><td>PushButton2</td><td><span class="dir dir-in">硬件→PC</span></td><td>原协议</td></tr>
+  <tr><td class="field">0x19</td><td class="field">0x09</td><td>PushButton3</td><td><span class="dir dir-in">硬件→PC</span></td><td>原协议</td></tr>
+  <tr><td class="field">0x1A</td><td class="field">0x0A</td><td>StartingBlock (+D10 符号)</td><td><span class="dir dir-in">硬件→PC</span></td><td>v05.13</td></tr>
+  <tr><td class="field">0x1C</td><td class="field">0x0C</td><td>StartCommand</td><td><span class="dir dir-in">硬件→PC</span></td><td>原协议</td></tr>
+  <tr><td class="field">0x1D</td><td class="field">0x0D</td><td>TestCommand</td><td><span class="dir dir-in">硬件→PC</span></td><td>原协议</td></tr>
+  <tr><td class="field">0x20</td><td class="field">0x10</td><td>TimerReset</td><td><span class="dir dir-in">硬件→PC</span></td><td>原协议</td></tr>
+  <tr><td class="field">0x21</td><td class="field">0x11</td><td>TimerReady</td><td><span class="dir dir-in">硬件→PC</span></td><td>原协议</td></tr>
+  <tr><td class="field">0x39</td><td class="field">0x29</td><td>Set_DateTime</td><td><span class="dir dir-out">PC→硬件</span></td><td>v05.13</td></tr>
+  <tr><td class="field">0x3A</td><td class="field">0x2A</td><td>Set_PoolSingleOrDoubleTP</td><td><span class="dir dir-both">双向</span></td><td>v05.16 (扩展)</td></tr>
+  <tr><td class="field">0x40</td><td class="field">0x30</td><td>PoolConfig</td><td><span class="dir dir-in">硬件→PC</span></td><td>原协议</td></tr>
+  <tr><td class="field">0x41</td><td class="field">0x31</td><td>Set_ArmDelay_Time (D5 BlindRpl)</td><td><span class="dir dir-out">PC→硬件</span></td><td>v05.13 (扩展)</td></tr>
+  <tr><td class="field">0x42</td><td class="field">0x32</td><td>SetCommand (子码 0x09)</td><td><span class="dir dir-both">双向</span></td><td>v05.13 (扩展)</td></tr>
+  <tr><td class="field">0x43</td><td class="field">0x33</td><td>Set_MatchEvent (D8 接力)</td><td><span class="dir dir-out">PC→硬件</span></td><td>v05.13 (扩展)</td></tr>
+  <tr><td class="field">0x44</td><td class="field">0x34</td><td>Set_PoolConfiguration_Com1</td><td><span class="dir dir-out">PC→硬件</span></td><td>v05.16 (=0x40)</td></tr>
+  <tr><td class="field">0x46</td><td class="field">0x36</td><td>Set_TPSBMB_State</td><td><span class="dir dir-out">PC→硬件</span></td><td>v05.13 (语义)</td></tr>
+  <tr><td class="field">0x47</td><td class="field">0x37</td><td>Set_LaneOpenClose</td><td><span class="dir dir-both">双向</span></td><td>v05.16 (扩展)</td></tr>
+  <tr><td class="field">0x4B</td><td class="field">0x3B</td><td>BatteryVoltage</td><td><span class="dir dir-in">硬件→PC</span></td><td>v05.13</td></tr>
+  <tr><td class="field">0x4C</td><td class="field">0x3C</td><td>Set_ForceAllOpen</td><td><span class="dir dir-out">PC→硬件</span></td><td>v05.13</td></tr>
+  <tr style="background:#fef3c7"><td class="field">0x60</td><td class="field">0x50</td><td>Set_LaneEnableDisable ★</td><td><span class="dir dir-out">PC→硬件</span></td><td>v05.17</td></tr>
+  <tr style="background:#fef3c7"><td class="field">0x61</td><td class="field">0x51</td><td>Set_LapRemaining ★</td><td><span class="dir dir-out">PC→硬件</span></td><td>v05.17</td></tr>
+  <tr style="background:#fef3c7"><td class="field">0x62</td><td class="field">0x52</td><td>Set_LaneOrder ★</td><td><span class="dir dir-both">双向</span></td><td>v05.17</td></tr>
+  <tr style="background:#fef3c7"><td class="field">0x63</td><td class="field">0x53</td><td>Set_FinishPosition ★</td><td><span class="dir dir-both">双向</span></td><td>v05.17</td></tr>
+  <tr style="background:#fef3c7"><td class="field">0x64</td><td class="field">0x54</td><td>Set_TimingsBundle ★</td><td><span class="dir dir-in">硬件→PC</span></td><td>v05.17</td></tr>
+  <tr style="background:#fef3c7"><td class="field">0x65</td><td class="field">0x55</td><td>Set_RefreshDisplay ★</td><td><span class="dir dir-out">PC→硬件</span></td><td>v05.18</td></tr>
+  <tr><td class="field">0x7F</td><td class="field">0x6F</td><td>RunningTime</td><td><span class="dir dir-in">硬件→PC</span></td><td>原协议</td></tr>
+</table>
+
+
+<h2 id="F">F. 兼容性建议</h2>
+<ul>
+  <li>硬件 net_test 子界面切换参数后退出，必须主动上报对应命令（<code>0x3A / 0x47 / 0x62 / 0x63 / 0x64</code>），让 PC 与硬件持久状态对齐。</li>
+  <li>硬件接收 PC 下发的 <code>0x3A / 0x47 / 0x62 / 0x63</code> 时，处理完后<strong>不必再回上报</strong>同命令（防回环：双方约定只在用户操作时上报）。</li>
+  <li><code>0x44</code> 仅是 <code>0x40</code> 的别名，新版主控统一改用 <code>0x44</code>；PC 端 <code>ParseFrame</code> 把 <code>0x40</code> / <code>0x44</code> 都映射为同一 <code>TimingCommandType.PoolConfig</code> 处理。</li>
+  <li><code>BlindReplaceDelay</code> 单位 2026-05-18 起统一为"整数秒"。硬件 <code>0x41 D5</code> 和 <code>0x42 子码 0x09</code> 接收时仍按 0.1 秒（旧）解析；新协议 <code>0x64 D6</code> 按整秒。
+      PC 端发送时按"整数秒值 × 10"塞入 <code>0x41 D5</code> / <code>0x42 子码 0x09</code> 兼容旧硬件。</li>
+  <li><code>0x65</code> Set_RefreshDisplay 是"<strong>轻量重画</strong>"命令：硬件必须保存比赛状态再调 <code>SwimControl_init</code>，否则用户在比赛进行中改参数会丢失"缺道 / 剩余圈数"等关键数据。</li>
+  <li>远程 EXE 模式的 <code>_REPORT</code> 子命令族（C3）仅在 RemoteTimingControl 直连硬件时使用；主服务器直连硬件时不走此路径。</li>
+</ul>
+
+
+<div class="footer">
+  文档结束 — 共 6 个新命令 + 3 处帧扩展 + 3 项应用层变化<br>
+  本期累计：v2026.05.13 起 11 个新命令 + 8 处帧扩展<br>
+  生成时间：2026-05-20
+</div>
+
+</body>
+</html>

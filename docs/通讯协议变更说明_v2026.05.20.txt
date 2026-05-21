@@ -1,0 +1,336 @@
+═══════════════════════════════════════════════════════════════
+  游泳计时通讯协议变更说明  v2026.05.20
+  （基于 v2026.05.14 的增量补充，2026-05-16 至 2026-05-20 改动汇总）
+═══════════════════════════════════════════════════════════════
+
+帧格式（不变）：
+    F1 53 [CMD] [D3] [D4] [D5] [D6] [D7] [D8] [D9] [D10] F4
+    共 12 字节，D0=0xF1（SOH），D1=0x53（'S'），D2=命令，D11=0xF4（EOT）
+
+本期变更总览：
+    新增命令 4 个：    0x60 / 0x61 / 0x62 / 0x63 / 0x64 / 0x65
+    扩展原有 3 处：    0x3A / 0x47 改为"双向"；0x44 作 0x40 别名
+    应用层 1 项：      硬件 BKPSRAM 持久化（含用户改后的本机 IP）
+
+
+┌──────────────────────────────────────────────────────────────┐
+│ A. 新增命令                                                   │
+└──────────────────────────────────────────────────────────────┘
+
+─────────────────────────────────────────────────────────────────
+A1. 0x60  Set_LaneEnableDisable      方向：PC → 硬件   【2026-05-17】
+─────────────────────────────────────────────────────────────────
+触发：操作员手动屏蔽/启用某一道（与 0x47 的"全部道开关"和 0x4C
+      的"设备全开"区分；0x60 仅作用于单道）。
+
+字段：
+    D3  泳道号  0x00 – 0x09（必须单道，不支持 0xFF）
+    D4  1 = 启用（该道纳入比赛，所有 TP/SB/MB 信号正常响应）
+        0 = 屏蔽（该道任何 TP/SB/MB 信号都不上报）
+    D5–D10  保留 0
+
+硬件 dispatcher：on-the-wire 0x60 → hardware case 0x60 - 0x10 = 0x50
+USER/swimtime.h:  #define Set_LaneEnableDisable    0x50
+
+与 0x47 / 0x4C 三命令的语义区分：
+    0x47 道次开/关  → 全部或单道的 TP/SB/MB 整体启用/禁用（不动道次按钮显示）
+    0x60 单道屏蔽   → 仅单道的整体启用/禁用（同时切换道次按钮显示状态）
+    0x4C 设备全开   → 设备状态机覆盖（接受所有信号 vs 按状态过滤）
+
+示例：第 3 道屏蔽
+    F1 53 60 03 00 00 00 00 00 00 00 F4
+
+
+─────────────────────────────────────────────────────────────────
+A2. 0x61  Set_LapRemaining           方向：PC → 硬件   【2026-05-17】
+─────────────────────────────────────────────────────────────────
+触发：PC 端"剩余圈数 +1 / −1"按钮，把改后的圈数下发硬件。
+
+字段：
+    D3  泳道号  0x00 – 0x09
+    D4  端     0 = 左侧 / 1 = 右侧
+    D5  剩余圈数  0 – 255
+    D6–D10  保留 0
+
+硬件 dispatcher：on-the-wire 0x61 → hardware case 0x51
+USER/swimtime.h:  #define Set_LapRemaining    0x51
+
+硬件接收时：laps[D3][D4] = D5，并立即调 LLaps_diaplay / RLaps_diaplay
+重画对应道次的圈数显示。
+
+示例：第 5 道右侧剩余 3 圈
+    F1 53 61 05 01 03 00 00 00 00 00 F4
+
+
+─────────────────────────────────────────────────────────────────
+A3. 0x62  Set_LaneOrder              方向：双向        【2026-05-17】
+─────────────────────────────────────────────────────────────────
+触发：
+    PC → 硬件：用户在 PC 端"参数设置→道次顺序"切换正向/反向。
+    硬件 → PC：硬件 net_test 子界面用户切换后返回主控时上报。
+
+字段：
+    D3  0 = 正向 (forward, 0→9)
+        1 = 反向 (reverse, 9→0)
+    D4–D10  保留 0
+
+硬件 dispatcher：on-the-wire 0x62 → hardware case 0x52
+USER/swimtime.h:  #define Set_LaneOrder    0x52
+
+防回环：硬件→PC 上报时不再触发 PC 回发 0x62（同 0x3A/0x47 双向逻辑）。
+
+
+─────────────────────────────────────────────────────────────────
+A4. 0x63  Set_FinishPosition         方向：双向        【2026-05-17】
+─────────────────────────────────────────────────────────────────
+触发：
+    PC → 硬件：用户在 PC 端"参数设置→终点位置"切换。
+    硬件 → PC：硬件 net_test 退出时上报。
+
+字段：
+    D3  0 = 终点左端 (left)
+        1 = 终点右端 (right)
+    D4–D10  保留 0
+
+硬件 dispatcher：on-the-wire 0x63 → hardware case 0x53
+USER/swimtime.h:  #define Set_FinishPosition    0x53
+
+PC 端收到后必须同步触发：
+    1. _laneCloseSettings.FinishPosition / StartPosition 更新
+    2. ApplyTouchpadInstallModeToLanes() 刷新各道 NotInstalled 标记
+       （单端模式下"非终点端"由 FinishPosition 决定）
+    3. Broadcast() 推给所有客户端
+
+
+─────────────────────────────────────────────────────────────────
+A5. 0x64  Set_TimingsBundle          方向：硬件 → PC   【2026-05-17】
+─────────────────────────────────────────────────────────────────
+触发：硬件 net_test 子界面"参数设置"输入完 5 项时间编辑框后退出，
+      把 5 个时间编辑框的当前值一次打包上报给 PC，单位均为秒。
+
+字段：
+    D3  泳道封闭时间 (秒)              LaneCloseTime
+    D4  触板延迟关闭时间 (秒)          ResultConfirmCloseDelay
+    D5  出发台延迟关闭时间 (秒)        StartBlockCloseDelay
+    D6  盲表代替成绩延迟时间 (秒)      BlindReplaceDelay
+    D7  成绩显示时间 (秒)              SplitDisplayTime
+    D8–D10  保留 0
+
+硬件 dispatcher：on-the-wire 0x64 → hardware case 0x54
+USER/swimtime.h:  #define Set_TimingsBundle    0x54
+
+PC 端：更新 _laneCloseSettings 对应字段 + UpdateLaneStatusDisplay() +
+      Broadcast() 全量推送。
+
+注意：BlindReplaceDelay 单位 2026-05-18 起统一为"整数秒"
+      （之前 0x41 D5 / 0x42 子码 0x09 为 0.1 秒单位）。
+      硬件 swimplay.c case Set_ArmDelay_Time 内部：MBdelay_Time = d5 * 10。
+
+
+─────────────────────────────────────────────────────────────────
+A6. 0x65  Set_RefreshDisplay         方向：PC → 硬件   【2026-05-18】
+─────────────────────────────────────────────────────────────────
+触发：PC 端"参数设置"对话框 OK 按下后下发，让硬件按新参数主动
+      重画一遍主控界面（不丢失"缺道 / 剩余圈数"等比赛状态）。
+
+字段：
+    D3–D10  全部保留 0
+
+硬件 dispatcher：on-the-wire 0x65 → hardware case 0x55
+USER/swimtime.h:  #define Set_RefreshDisplay    0x55
+
+硬件实现：
+    1. 保存当前 CloseLaneState[10]、laps[10][2]、TP/SB/MB 状态
+    2. 调 SwimControl_init() 重画整屏
+    3. 从保存值恢复 → 重画各道状态
+
+示例：F1 53 65 00 00 00 00 00 00 00 00 F4
+
+
+┌──────────────────────────────────────────────────────────────┐
+│ B. 扩展原有帧                                                 │
+└──────────────────────────────────────────────────────────────┘
+
+─────────────────────────────────────────────────────────────────
+B1. 0x3A  Set_PoolSingleOrDoubleTP — 改为"双向"   【2026-05-16】
+─────────────────────────────────────────────────────────────────
+v2026.05.14 中 0x3A 仅 PC→硬件单向；现扩展为双向：
+
+    PC → 硬件：（同原协议）用户切换"单边/两端"，PC 下发；
+              硬件 SD 卡持久化。
+    硬件 → PC：硬件 net_test 子界面用户切换 PoolSingleOrDoubleTPbtn
+              后返回主控时上报；PC 同步更新 _poolConfig.HasRightStartBlock
+              + ApplyTouchpadInstallModeToLanes() + Broadcast()。
+              不回发 0x3A 防回环。
+
+
+─────────────────────────────────────────────────────────────────
+B2. 0x47  Set_LaneOpenClose — 改为"双向"          【2026-05-16】
+─────────────────────────────────────────────────────────────────
+v2026.05.14 中 0x47 仅 PC→硬件单向；现扩展为双向：
+
+    PC → 硬件：（同原协议）泳道控制 4 按钮。
+    硬件 → PC：硬件 net_test 子界面"封闭/不封闭TP"切换后返回主控
+              时上报当前 Open_State；PC 把所有道的 LeftTouchpad /
+              RightTouchpad / LeftBlindWatch1-3 / RightBlindWatch1-3
+              批量同步为 Open / Closed。
+              不回发 0x47 防回环。
+
+
+─────────────────────────────────────────────────────────────────
+B3. 0x44  Set_PoolConfiguration_Com1 — 别名 0x40   【2026-05-16】
+─────────────────────────────────────────────────────────────────
+新版主控 swimtime.h 增加了 0x44 作为"泳池参数设置"的 USER 段命令编号
+（与 0x40 PoolConfig 同语义）。0x44 的字段定义与 0x40 完全相同。
+
+硬件 dispatcher：on-the-wire 0x44 → hardware case 0x34
+USER/swimtime.h:  #define Set_PoolConfiguration_Com1    0x34
+
+PC 端 TimingBridge / TimingBridgeLocal 在 ParseFrame 里把 0x44 映射为
+TimingCommandType.PoolConfig（与 0x40 完全等价处理）。
+
+
+┌──────────────────────────────────────────────────────────────┐
+│ C. 应用层变化（非协议字节级，但影响实现）                       │
+└──────────────────────────────────────────────────────────────┘
+
+─────────────────────────────────────────────────────────────────
+C1. 硬件 BKPSRAM 持久化扩展                       【2026-05-20】
+─────────────────────────────────────────────────────────────────
+STM32 H7 Backup SRAM (4KB @0x38800000, VBAT 备份) 持久化结构
+SwimMatchState_t 升级为 v2，新增字段：
+
+    u8 local_ip[4];        // 用户修改后的本机 IP
+    u8 local_ip_valid;     // 1=用户改过, 0=未改过用默认
+    u8 _pad6[3];
+
+SWIM_STATE_VERSION：1 → 2（升级后第一次开机旧数据失效，自动重 Save）
+
+触发：
+    硬件 net_test 内"修改本机IP"弹窗 OK → bkp_local_ip_valid=1 +
+    Save_State_To_BkpSRAM() 立即持久化。
+    重启后 swim_play → lwip_comm_init → DHCP → Load_State_From_BkpSRAM
+    若 local_ip_valid==1 → 覆盖 lwipdev.ip + netif_set_ipaddr 应用。
+
+
+─────────────────────────────────────────────────────────────────
+C2. 硬件 net_test 新增"修改本机IP"按钮            【2026-05-20】
+─────────────────────────────────────────────────────────────────
+不涉及网络协议字节，但影响硬件本地 UI：
+
+    位置：参数设置界面，"网络协议选择"按钮的同列上方（x=tempx）
+    交互：按下弹出 sysset_ip_set(...) 模态对话框
+          （仿 sysset_date_set 模式，260×200 窗口）
+          含 4 段 IP + 段间点号 + 每段 ± 按钮 + OK / Cancel
+    OK 后：写入 lwipdev.ip + IP4_ADDR + netif_set_ipaddr 实时应用
+          + bkp_local_ip_valid=1 + Save_State_To_BkpSRAM 持久化
+
+
+─────────────────────────────────────────────────────────────────
+C3. 远程 EXE 转发协议（_REPORT 子命令族）         【2026-05-19】
+─────────────────────────────────────────────────────────────────
+RemoteTimingControl（远程计时控制 EXE）直接连硬件时，把硬件→PC 的
+扩展命令（0x4B/0x47/0x3A/0x62/0x63/0x64）拆为具体 TIMING_CMD 子命令
+转发给主服务器，主服务器侧 HandleHardwareReportForwarded 还原为
+TimingData 对象后调 ProcessTimingDataFromHardware 复用原处理路径。
+
+子命令映射：
+
+    硬件帧              WebSocket TIMING_CMD             data 字段
+    ────────────────  ──────────────────────────────  ──────────────────────────
+    0x4B BatteryVoltage     BATTERY_REPORT            { voltage }
+    0x64 TimingsBundle      TIMINGS_BUNDLE_REPORT     { laneCloseTime, ... 5 项 }
+    0x62 LaneOrder          LANE_ORDER_REPORT         { order: "forward"|"reverse" }
+    0x63 FinishPosition     FINISH_POS_REPORT         { pos: "left"|"right" }
+    0x3A PoolSingleOrDouble POOL_SIDE_REPORT          { single: bool }
+    0x47 LaneOpenClose      LANE_OPEN_CLOSE_REPORT    { lane: -1|0..9, open: bool }
+
+仅适用于"远程 EXE 模式"。主服务器直连硬件时走 OnTimingData →
+ProcessTimingDataFromHardware 原路径，与本子命令族无关。
+
+
+┌──────────────────────────────────────────────────────────────┐
+│ D. 方向与触发时机汇总（5/14 之后）                            │
+└──────────────────────────────────────────────────────────────┘
+
+    命令                              方向          触发时机
+    ────────────────────────────────  ───────────  ────────────────────
+    0x60 Set_LaneEnableDisable        PC → 硬件     单道屏蔽/启用按钮
+    0x61 Set_LapRemaining             PC → 硬件     PC 端剩余圈数 ±1
+    0x65 Set_RefreshDisplay           PC → 硬件     参数对话框 OK 后
+    0x44 Set_PoolConfig 别名          PC → 硬件     与 0x40 同
+    0x62 Set_LaneOrder                双向          道次顺序切换
+    0x63 Set_FinishPosition           双向          终点位置切换
+    0x64 Set_TimingsBundle            硬件 → PC     net_test 退出时上报
+    0x3A Set_PoolSingleOrDoubleTP     双向 (扩展)   net_test 退出时上报
+    0x47 Set_LaneOpenClose            双向 (扩展)   net_test 退出时上报
+
+
+┌──────────────────────────────────────────────────────────────┐
+│ E. 完整命令字节表（含 v2026.05.14 之前 + 本期新增）           │
+└──────────────────────────────────────────────────────────────┘
+
+    线上字节  USER case      命令名                       方向       版本
+    ──────  ────────────  ─────────────────────────────  ───────   ─────
+    0x16    0x06          Touchpad                        硬件→PC   原协议
+    0x17    0x07          PushButton1                     硬件→PC   原协议
+    0x18    0x08          PushButton2                     硬件→PC   原协议
+    0x19    0x09          PushButton3                     硬件→PC   原协议
+    0x1A    0x0A          StartingBlock (+D10 符号)       硬件→PC   v05.13
+    0x1C    0x0C          StartCommand                    硬件→PC   原协议
+    0x1D    0x0D          TestCommand                     硬件→PC   原协议
+    0x20    0x10          TimerReset                      硬件→PC   原协议
+    0x21    0x11          TimerReady                      硬件→PC   原协议
+    0x39    0x29          Set_DateTime                    PC→硬件   v05.13
+    0x3A    0x2A          Set_PoolSingleOrDoubleTP        双向     v05.16(扩展)
+    0x40    0x30          PoolConfig                      硬件→PC   原协议
+    0x41    0x31          Set_ArmDelay_Time (D5 BlindRpl) PC→硬件   v05.13(扩展)
+    0x42    0x32          SetCommand (子码 0x09)          双向     v05.13(扩展)
+    0x43    0x33          Set_MatchEvent (D8 接力)        PC→硬件   v05.13(扩展)
+    0x44    0x34          Set_PoolConfiguration_Com1      PC→硬件   v05.16(=0x40)
+    0x46    0x36          Set_TPSBMB_State                PC→硬件   v05.13(语义)
+    0x47    0x37          Set_LaneOpenClose               双向     v05.16(扩展)
+    0x4B    0x3B          BatteryVoltage                  硬件→PC   v05.13
+    0x4C    0x3C          Set_ForceAllOpen                PC→硬件   v05.13
+    0x60    0x50          Set_LaneEnableDisable           PC→硬件   v05.17 ★
+    0x61    0x51          Set_LapRemaining                PC→硬件   v05.17 ★
+    0x62    0x52          Set_LaneOrder                   双向     v05.17 ★
+    0x63    0x53          Set_FinishPosition              双向     v05.17 ★
+    0x64    0x54          Set_TimingsBundle               硬件→PC   v05.17 ★
+    0x65    0x55          Set_RefreshDisplay              PC→硬件   v05.18 ★
+    0x7F    0x6F          RunningTime                     硬件→PC   原协议
+
+    USER case = 线上字节 − 0x10。硬件 dispatcher 习惯减偏移分发。
+    标 ★ 为本期（v2026.05.20）新增。
+
+
+┌──────────────────────────────────────────────────────────────┐
+│ F. 兼容性建议                                                 │
+└──────────────────────────────────────────────────────────────┘
+
+· 硬件 net_test 子界面切换参数后退出，必须主动上报对应命令
+  （0x3A / 0x47 / 0x62 / 0x63 / 0x64），让 PC 与硬件持久状态对齐。
+
+· 硬件接收 PC 下发的 0x3A / 0x47 / 0x62 / 0x63 时，处理完后不必再回
+  上报同命令（防回环：双方约定只在用户操作时上报）。
+
+· 0x44 仅是 0x40 的别名，新版主控统一改用 0x44；PC 端 ParseFrame
+  把 0x40 / 0x44 都映射为同一 TimingCommandType.PoolConfig 处理。
+
+· BlindReplaceDelay 单位 2026-05-18 起统一为"整数秒"。硬件 0x41 D5
+  和 0x42 子码 0x09 接收时仍按 0.1 秒（旧）解析；新协议 0x64 D6 按整秒。
+  PC 端发送时按"整数秒值 × 10"塞入 0x41 D5 / 0x42 子码 0x09 兼容旧硬件。
+
+· 0x65 Set_RefreshDisplay 是"轻量重画"命令：硬件必须保存比赛状态再
+  调 SwimControl_init，否则用户在比赛进行中改参数会丢失"缺道 / 剩余
+  圈数"等关键数据。
+
+· 远程 EXE 模式的 _REPORT 子命令族（C3）仅在 RemoteTimingControl 直
+  连硬件时使用；主服务器直连硬件时不走此路径。
+
+
+═══════════════════════════════════════════════════════════════
+  文档结束 — 共 6 个新命令 + 3 处帧扩展 + 3 项应用层变化
+  本期累计：v2026.05.13 起 11 个新命令 + 8 处帧扩展
+  生成时间：2026-05-20
+═══════════════════════════════════════════════════════════════

@@ -36,6 +36,13 @@ namespace RemoteTimingControl
         private int _hwUdpSendPort = 5001;
         private int _hwUdpRecvPort = 5002;
 
+        // 2026-05-19 硬件电池电压 (0x4B 上报) + 周期 RTC 同步定时器 — 与主服务器一致
+        private double _hwBatteryVoltage = 0;
+        private DateTime _hwBatteryReceivedAt = DateTime.MinValue;
+        private const double BATTERY_LOW_V      = 4.0;   // 黄色警告阈值
+        private const double BATTERY_CRITICAL_V = 3.5;   // 红色紧急阈值
+        private DispatcherTimer _clockSyncTimer; // 30 分钟把 PC 时间下发到硬件 RTC
+
         // 保存的计时参数（本地缓存，用于设置对话框默认值和持久化）
         private double _laneCloseTime = 20;
         private double _startBlockCloseDelay = 3;
@@ -47,6 +54,8 @@ namespace RemoteTimingControl
         private double _bigDisplayPageInterval = 5;
         private bool _reactionTimeEnabled = true; // 反应时(RT)开关：关闭时所有出发反应时相关处理跳过
         private string _laneOrder = "forward";    // 道次顺序: "forward" 0→9（顶到底）；"reverse" 9→0
+        // 2026-05-19 泳池触板单/两端：true=单端(只在终点端装) / false=两端(终点+发令都装)
+        private bool _poolSingleSide = false;
 
         // Local timer for smooth running time
         private DateTime _localTimerStart = DateTime.MinValue;
@@ -363,6 +372,34 @@ namespace RemoteTimingControl
             AddLog(inTest ? "已请求退出设备测试" : "已请求进入设备测试");
         }
 
+        // 2026-05-19 导航栏 — 设备"全开"切换 (顶层 DEVICE_OVERRIDE { lane:-1, mode:"allOpen"|"normal" })
+        private void NavForceOpen_Click(object sender, RoutedEventArgs e)
+        {
+            bool nowOn = (_data != null && _data["forceAllOpenAll"] != null && (bool)_data["forceAllOpenAll"]);
+            if (!nowOn) {
+                var r = MessageBox.Show("确认让全部泳道进入【设备全开】模式？\n\n硬件任意触板/盲表/出发台信号都将被认作成绩，状态机过滤被绕过。\n再点一次同按钮恢复正常。",
+                    "设备全开", MessageBoxButton.YesNo, MessageBoxImage.Question);
+                if (r != MessageBoxResult.Yes) return;
+            }
+            string nextMode = nowOn ? "normal" : "allOpen";
+            SendDeviceOverride(-1, nextMode);
+            AddLog(nowOn ? "已请求恢复正常状态机过滤" : "已请求设备全开（全道）");
+        }
+
+        // 2026-05-19 单独发顶层 DEVICE_OVERRIDE 命令（不是 TIMING_CMD 子命令）
+        private void SendDeviceOverride(int lane, string mode)
+        {
+            if (_ws == null || !_ws.IsConnected) {
+                AddLog("DEVICE_OVERRIDE 未发送(未连接服务器)");
+                return;
+            }
+            try {
+                _ws.Send(JsonConvert.SerializeObject(new { type = "DEVICE_OVERRIDE", lane = lane, mode = mode }));
+            } catch (Exception ex) {
+                AddLog("DEVICE_OVERRIDE 发送失败: " + ex.Message);
+            }
+        }
+
         private void Connect_Click(object sender, RoutedEventArgs e)
         {
             if (_ws != null && _ws.IsConnected)
@@ -544,12 +581,24 @@ namespace RemoteTimingControl
         // ═══════ 计时硬件直连 ═══════
         private void ConnectHardware(string mode, string serialPort, string udpHost, int udpSend, int udpRecv) {
             if (_localBridge != null) { _localBridge.Dispose(); _localBridge = null; }
+            StopClockSyncTimer();
             if (mode == "none") { UpdateHwStatus(false, "未连接"); return; }
 
             _localBridge = new TimingBridgeLocal();
-            _localBridge.OnStatusChanged += status => Dispatcher.Invoke((Action)(() => UpdateHwStatus(_localBridge.IsConnected, status)));
+            _localBridge.OnStatusChanged += status => Dispatcher.Invoke((Action)(() => {
+                UpdateHwStatus(_localBridge.IsConnected, status);
+                // 2026-05-19 硬件刚连上 → 立即下发当前 PC 时间到硬件 RTC + 启动周期校时
+                if (_localBridge != null && _localBridge.IsConnected) {
+                    try { _localBridge.SendDateTimeSync(); } catch { }
+                    StartClockSyncTimer();
+                } else {
+                    StopClockSyncTimer();
+                }
+            }));
             _localBridge.OnLog += msg => Dispatcher.Invoke((Action)(() => AddLog(msg)));
-            _localBridge.OnTimingData += (lane, cmdType, time) => Dispatcher.Invoke((Action)(() => HandleHwTimingData(lane, cmdType, time)));
+            // 2026-05-19 改用完整 TimingData 事件 — 一处处理所有命令(控制/计时/参数/电池/0x47/0x3A/0x62/0x63/0x64)
+            // 不再订阅旧的 OnTimingData，避免同一帧被处理两次
+            _localBridge.OnTimingDataEx += data => Dispatcher.Invoke((Action)(() => HandleHwTimingDataEx(data)));
 
             if (mode == "serial") _localBridge.ConnectSerial(serialPort);
             else if (mode == "udp") _localBridge.ConnectUdp(udpHost, udpSend, udpRecv);
@@ -557,19 +606,125 @@ namespace RemoteTimingControl
             UpdateHwStatus(_localBridge.IsConnected, _localBridge.StatusText);
         }
 
-        private void HandleHwTimingData(int lane, string cmdType, double time) {
-            switch (cmdType) {
-                case "TimerReady":   SendCmd("READY"); AddLog("[硬件触发] 准备就绪"); return;
-                case "StartCommand": SendCmd("START_RACE"); AddLog("[硬件触发] M.发令"); return;
-                case "TimerReset":   SendCmd("TIMER_RESET"); AddLog("[硬件触发] 计时复位"); return;
-                case "TestCommand":  AddLog("[硬件] 测试命令"); return;
-                case "RunningTime":  return; // 滚动时间：由本地计时器显示，硬件数据忽略
-                case "PoolConfig":
-                case "RaceConfig":
-                case "SetCommand":   AddLog("[硬件] 配置命令 " + cmdType); return;
+        // 2026-05-19 周期性 RTC 同步：硬件连上后每 30 分钟把 PC 时间下发一次
+        private void StartClockSyncTimer() {
+            if (_clockSyncTimer == null) {
+                _clockSyncTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(30) };
+                _clockSyncTimer.Tick += delegate {
+                    if (_localBridge != null && _localBridge.IsConnected) {
+                        try { _localBridge.SendDateTimeSync(); } catch { }
+                    }
+                };
             }
-            // 计时数据 → 转发给主服务器
-            SendCmd("TIMING_DATA", new { lane = lane, commandType = cmdType, time = time });
+            if (!_clockSyncTimer.IsEnabled) _clockSyncTimer.Start();
+        }
+
+        private void StopClockSyncTimer() {
+            if (_clockSyncTimer != null && _clockSyncTimer.IsEnabled) _clockSyncTimer.Stop();
+        }
+
+        // 2026-05-19 完整 TimingData 事件处理 — 与主服务器 ProcessTimingDataFromHardware 等价
+        // 角色: 远程 EXE 充当"硬件 ↔ 主服务器"中转器，把所有硬件→PC 上报命令转发给主服务器
+        // 控制命令(TimerReady/StartCommand/TimerReset) 单独走 TIMING_CMD
+        // 扩展命令(0x4B/0x47/0x3A/0x62/0x63/0x64) 用专用 TIMING_CMD 子命令转发，主服务器会处理
+        // 普通计时数据(0x16/0x17/0x18/0x19/0x1A) 走 TIMING_DATA
+        private void HandleHwTimingDataEx(TimingData data) {
+            var ct = data.CommandType;
+            // ─── 控制类 ───
+            switch (ct) {
+                case TimingCommandType.TimerReady:   SendCmd("READY");        AddLog("[硬件触发] 准备就绪"); return;
+                case TimingCommandType.StartCommand: SendCmd("START_RACE");   AddLog("[硬件触发] M.发令");   return;
+                case TimingCommandType.TimerReset:   SendCmd("TIMER_RESET");  AddLog("[硬件触发] 计时复位"); return;
+                case TimingCommandType.TestCommand:  AddLog("[硬件] 测试命令"); return;
+                case TimingCommandType.RunningTime:  return;
+                case TimingCommandType.PoolConfig:
+                case TimingCommandType.RaceConfig:
+                case TimingCommandType.SetCommand:
+                    AddLog("[硬件] 配置命令 " + ct);
+                    return;
+            }
+            // ─── 2026-05-13 电池电压(0x4B) ─── 仅本地顶栏显示 + 转发给主服务器
+            if (ct == TimingCommandType.BatteryVoltage) {
+                _hwBatteryVoltage = data.BatteryVoltage;
+                _hwBatteryReceivedAt = DateTime.Now;
+                UpdateBatteryVoltageDisplay();
+                SendCmd("BATTERY_REPORT", new { voltage = data.BatteryVoltage });
+                return;
+            }
+            // ─── 2026-05-17 5 项时间数据(0x64) ───
+            if (ct == TimingCommandType.TimingsBundle) {
+                SendCmd("TIMINGS_BUNDLE_REPORT", new {
+                    laneCloseTime              = (int)data.Param1, // d3
+                    resultConfirmCloseDelay    = (int)data.RawD4,  // d4
+                    startBlockCloseDelay       = (int)data.Param5, // d5
+                    blindReplaceDelay          = (int)data.Param6, // d6
+                    splitDisplayTime           = (int)data.Param7  // d7
+                });
+                AddLog(string.Format("[硬件] 5项时间 封闭{0}s 触板延迟{1}s 出发台延迟{2}s 盲表代替{3}s 成绩显示{4}s",
+                    data.Param1, data.RawD4, data.Param5, data.Param6, data.Param7));
+                return;
+            }
+            // ─── 2026-05-17 道次顺序(0x62) ───
+            if (ct == TimingCommandType.LaneOrder) {
+                string newOrder = (data.Param1 != 0) ? "reverse" : "forward";
+                SendCmd("LANE_ORDER_REPORT", new { order = newOrder });
+                AddLog("[硬件] 道次顺序 → " + (newOrder == "reverse" ? "反向 9-0" : "正向 0-9"));
+                return;
+            }
+            // ─── 2026-05-17 终点位置(0x63) ───
+            if (ct == TimingCommandType.FinishPosition) {
+                string newPos = (data.Param1 != 0) ? "right" : "left";
+                SendCmd("FINISH_POS_REPORT", new { pos = newPos });
+                AddLog("[硬件] 终点位置 → " + (newPos == "left" ? "左端" : "右端"));
+                return;
+            }
+            // ─── 2026-05-16 泳池单/两端(0x3A) ───
+            if (ct == TimingCommandType.PoolSingleOrDouble) {
+                bool isSingle = (data.Param1 != 0); // d3=1 单边
+                SendCmd("POOL_SIDE_REPORT", new { single = isSingle });
+                AddLog("[硬件] 泳池触板安装 → " + (isSingle ? "单端" : "两端"));
+                return;
+            }
+            // ─── 2026-05-16 道次开关上报(0x47) ───
+            if (ct == TimingCommandType.LaneOpenClose) {
+                bool laneOpen = (data.RawD4 == 1);
+                if (data.Param1 == 0xFF) {
+                    SendCmd("LANE_OPEN_CLOSE_REPORT", new { lane = -1, open = laneOpen });
+                    AddLog("[硬件] 全部泳道" + (laneOpen ? "打开" : "关闭"));
+                } else if (data.Param1 < 10) {
+                    SendCmd("LANE_OPEN_CLOSE_REPORT", new { lane = (int)data.Param1, open = laneOpen });
+                    AddLog(string.Format("[硬件] 第{0}道{1}", data.Param1, laneOpen ? "打开" : "关闭"));
+                }
+                return;
+            }
+            // ─── 计时数据 ─── 转发给主服务器
+            // FinishPosition 端标识 + 抢跳标志一并带过去，主服务器据此分配 left/right + 处理负值
+            string cmdName = ct.ToString();
+            SendCmd("TIMING_DATA", new {
+                lane = data.Lane,
+                commandType = cmdName,
+                time = data.TimeInSeconds,
+                isFinishEnd = data.IsFinishEnd,
+                isFalseStart = data.IsFalseStart
+            });
+        }
+
+        private void UpdateBatteryVoltageDisplay() {
+            try {
+                bool fresh = _hwBatteryVoltage > 0 && (DateTime.Now - _hwBatteryReceivedAt).TotalSeconds < 30;
+                string text = "";
+                string hex = "#94A3B8";
+                if (fresh) {
+                    text = string.Format("{0:F2} V", _hwBatteryVoltage);
+                    if (_hwBatteryVoltage < BATTERY_CRITICAL_V) hex = "#EF4444";       // 红 紧急
+                    else if (_hwBatteryVoltage < BATTERY_LOW_V) hex = "#F59E0B";       // 黄 警告
+                    else                                         hex = "#22C55E";       // 绿 正常
+                }
+                if (BatteryVoltageText != null) {
+                    BatteryVoltageText.Text = text;
+                    BatteryVoltageText.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex));
+                }
+            } catch { }
         }
 
         private void UpdateHwStatus(bool connected, string text) {
@@ -577,6 +732,11 @@ namespace RemoteTimingControl
                 ? (Color)ColorConverter.ConvertFromString("#22C55E")
                 : (Color)ColorConverter.ConvertFromString("#EF4444"));
             HwConnText.Text = connected ? "硬件: " + text : "硬件";
+            // 2026-05-19 硬件断开时清空电池显示
+            if (!connected) {
+                _hwBatteryVoltage = 0;
+                if (BatteryVoltageText != null) BatteryVoltageText.Text = "";
+            }
         }
 
         private void SendCmd(string cmd, object data)
@@ -649,6 +809,12 @@ namespace RemoteTimingControl
             if (NavQuickConnBtn != null) {
                 NavQuickConnBtn.Content = hwConnected ? "断开串口" : "连接串口";
                 NavQuickConnBtn.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString(hwConnected ? "#EF4444" : "#22C55E"));
+            }
+            // 2026-05-19 设备全开按钮颜色：进入全开=红"恢复正常"，否则=灰"设备全开"
+            bool forceOpenOn = _data["forceAllOpenAll"] != null && (bool)_data["forceAllOpenAll"];
+            if (NavForceOpenBtn != null) {
+                NavForceOpenBtn.Content = forceOpenOn ? "恢复正常" : "设备全开";
+                NavForceOpenBtn.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString(forceOpenOn ? "#EF4444" : "#475569"));
             }
             string stateText;
             string bgHex, fgHex;
@@ -2496,6 +2662,19 @@ namespace RemoteTimingControl
             orderRow.Children.Add(rbOrderRev);
             sp.Children.Add(orderRow);
 
+            // 2026-05-19 泳池触板安装方式：两端 / 单端 (服务器 poolConfig.hasRightStartBlock = true→两端)
+            bool curSingle = _poolSingleSide;
+            if (_data != null && _data["poolConfig"] != null && _data["poolConfig"]["hasRightStartBlock"] != null) {
+                curSingle = !(bool)_data["poolConfig"]["hasRightStartBlock"];
+            }
+            var poolRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 10, 0, 0) };
+            poolRow.Children.Add(new TextBlock { Text = "泳池触板安装", Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), FontSize = 15, VerticalAlignment = VerticalAlignment.Center, Width = 140 });
+            var rbPoolDual   = new RadioButton { Content = "两端安装", Foreground = Brushes.White, FontSize = 14, IsChecked = !curSingle, GroupName = "PoolSideSwitch", Margin = new Thickness(0, 0, 12, 0) };
+            var rbPoolSingle = new RadioButton { Content = "单边安装", Foreground = Brushes.White, FontSize = 14, IsChecked = curSingle,  GroupName = "PoolSideSwitch" };
+            poolRow.Children.Add(rbPoolDual);
+            poolRow.Children.Add(rbPoolSingle);
+            sp.Children.Add(poolRow);
+
             // 服务器地址
             var serverSep = new Border { BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569")), BorderThickness = new Thickness(0, 1, 0, 0), Margin = new Thickness(0, 10, 0, 0), Padding = new Thickness(0, 10, 0, 0) };
             var serverRow = new Grid();
@@ -2709,6 +2888,8 @@ namespace RemoteTimingControl
                 }
                 _reactionTimeEnabled = rbRtOn.IsChecked == true;
                 _laneOrder = rbOrderRev.IsChecked == true ? "reverse" : "forward";
+                // 2026-05-19 泳池单/两端：单端→主服务器把 poolConfig.HasRightStartBlock 改为 false 并下发 0x3A
+                _poolSingleSide = rbPoolSingle.IsChecked == true;
 
                 var settings = new
                 {
@@ -2723,7 +2904,8 @@ namespace RemoteTimingControl
                     rightBlindWatchCount = _rightBlindWatchCount,
                     bigDisplayPageInterval = _bigDisplayPageInterval,
                     reactionTimeEnabled = _reactionTimeEnabled,
-                    laneOrder = _laneOrder
+                    laneOrder = _laneOrder,
+                    poolSingleSide = _poolSingleSide
                 };
                 SendCmd("SET_LANE_CLOSE_SETTINGS", settings);
 
