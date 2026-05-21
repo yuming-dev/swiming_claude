@@ -915,6 +915,7 @@ namespace SwimmingScoreboard
             if (string.IsNullOrEmpty(bibNumber)) bibNumber = GenerateNextBibNumber(batchCountry);
 
             int added = 0;
+            int skipped = 0;
             foreach (JObject ev in eventsArr) {
                 string eventName = ev["eventName"] != null ? ev["eventName"].ToString() : "";
                 string entryTime = ev["entryTime"] != null ? ev["entryTime"].ToString() : "";
@@ -922,7 +923,7 @@ namespace SwimmingScoreboard
                 string idNum = swimmerData["idNumber"] != null ? swimmerData["idNumber"].ToString() : "";
                 string country = swimmerData["country"] != null ? swimmerData["country"].ToString() : "";
                 var dup = FindDuplicate(name, gender, eventName, bibNumber, idNum, country);
-                if (dup != null && !isResubmit) continue;
+                if (dup != null && !isResubmit) { skipped++; continue; }
 
                 var swimmer = new Swimmer {
                     BibNumber = bibNumber,
@@ -946,12 +947,29 @@ namespace SwimmingScoreboard
                 added++;
             }
 
-            AddLog(string.Format("批量注册: {0}({1}) {2}个项目", name, bibNumber, added));
+            AddLog(string.Format("批量注册: {0}({1}) 新增{2}个项目，跳过{3}个已存在",
+                name, bibNumber, added, skipped));
             AutoSaveData();
             RefreshOverviewStats();
             RefreshSwimmerFilter();
             Broadcast();
-            SendRegisterResult(socket, true, "", bibNumber);
+
+            // 2026-05-21：原来无论 added=多少都回 success=true，导致"提交的全是重复项目"
+            // 时 EXE 仍显示"报名成功"，用户去主服务器查看运动员列表却找不到新数据，
+            // 以为"主服务器没收到"。现在分三种情况明确反馈：
+            //   全部重复（added==0 && skipped>0） → success=false，红字提示
+            //   部分重复（added>0  && skipped>0） → success=true，绿字带说明
+            //   全部新增（skipped==0）           → success=true，原行为
+            if (added == 0 && skipped > 0) {
+                SendRegisterResult(socket, false, string.Format(
+                    "提交的 {0} 个项目均已注册过，未新增任何记录。如需修改，请使用网页报名端的\"查询/修改已提交报名\"功能。",
+                    skipped), bibNumber);
+            } else if (skipped > 0) {
+                SendRegisterResult(socket, true, string.Format(
+                    "成功新增 {0} 个项目，跳过 {1} 个已存在的项目。", added, skipped), bibNumber);
+            } else {
+                SendRegisterResult(socket, true, "", bibNumber);
+            }
         }
 
         private void SendRegisterResult(IWebSocketConnection socket, bool success, string message, string bibNumber) {
@@ -1343,6 +1361,15 @@ namespace SwimmingScoreboard
                 case "DEVICE_TEST_TOGGLE":
                     DeviceTest_Click(null, null);
                     break;
+                //2026-05-19 RemoteTimingControl(远程 EXE) 转发的硬件参数上报 — 进入 ProcessTimingDataFromHardware 复用既有逻辑
+                case "BATTERY_REPORT":
+                case "TIMINGS_BUNDLE_REPORT":
+                case "LANE_ORDER_REPORT":
+                case "FINISH_POS_REPORT":
+                case "POOL_SIDE_REPORT":
+                case "LANE_OPEN_CLOSE_REPORT":
+                    HandleHardwareReportForwarded(cmd, data as JObject);
+                    break;
                 case "UPDATE_SWIMMER":
                     HandleEditorUpdateSwimmer(data as JObject);
                     break;
@@ -1551,6 +1578,20 @@ namespace SwimmingScoreboard
                         }
                         if (data["laneOrder"] != null) {
                             _laneCloseSettings.LaneOrder = data["laneOrder"].ToString();
+                        }
+                        //2026-05-19 远程台修改"泳池触板单/两端"安装方式: poolSingleSide=true 单端, false 两端
+                        if (data["poolSingleSide"] != null) {
+                            bool isSingle = (bool)data["poolSingleSide"];
+                            bool newHasRight = !isSingle;
+                            if (_poolConfig != null && _poolConfig.HasRightStartBlock != newHasRight) {
+                                _poolConfig.HasRightStartBlock = newHasRight;
+                                try { ApplyTouchpadInstallModeToLanes(); } catch { }
+                                // 同步给硬件 (0x3A)
+                                if (_timingBridge != null && _timingBridge.IsConnected) {
+                                    try { _timingBridge.SendPoolSingleOrDoubleTP(isSingle); } catch { }
+                                }
+                                AddLog(string.Format("远程台修改 泳池触板安装 → {0}", isSingle ? "单端" : "两端"));
+                            }
                         }
                         AddLog(string.Format("参数更新: 关闭{0}s 出发台{1}s 确认{2}s 抢跳{3}s 分段{4}s 终点:{5} 盲表 左{6}/右{7} 翻屏{8}s 道次:{9}",
                             _laneCloseSettings.LaneCloseTime, _laneCloseSettings.StartBlockCloseDelay,
@@ -2001,8 +2042,13 @@ namespace SwimmingScoreboard
                 poolConfig = new {
                     length = _poolConfig.Length,
                     lanes = _poolConfig.LaneCount,
-                    laneNumbers = _poolConfig.LaneNumbers
+                    laneNumbers = _poolConfig.LaneNumbers,
+                    //2026-05-19 推送泳池触板"两端/单端"安装方式给所有客户端 (race_control/RemoteTimingControl)
+                    hasRightStartBlock = _poolConfig.HasRightStartBlock
                 },
+                //2026-05-19 推送当前"设备全开"集合 (含 -1 表示全道, 0..9 表示单道)
+                forceAllOpenLanes = _forceAllOpenLanes.ToList(),
+                forceAllOpenAll   = _forceAllOpenLanes.Contains(-1),
                 raceState = _raceState.ToString().ToUpper(),
                 runningTime = TimeFormatter.FormatRunning(_runningTime),
                 // 第1名成绩（由ProcessTouchpadHit设置，客户端直接显示）
@@ -2036,6 +2082,9 @@ namespace SwimmingScoreboard
                 displayRecordTypeName = string.IsNullOrEmpty(_displayRecordTypeName) ? "世界纪录" : _displayRecordTypeName,
                 timingHwConnected = _timingBridge != null && _timingBridge.IsConnected,
                 timingHwStatus = _timingBridge != null ? _timingBridge.StatusText : "未连接",
+                //2026-05-19 把硬件电池电压推给客户端 (race_control.html 顶栏显示).
+                // 30 秒内有效, 否则按 0 处理(客户端不显示).
+                hwBatteryVoltage = (_hwBatteryVoltage > 0 && (DateTime.Now - _hwBatteryReceivedAt).TotalSeconds < 30) ? _hwBatteryVoltage : 0.0,
                 scoringControlMode = _scoringControlMode,
                 resultConfirmed = _resultConfirmed,
                 // 软件设置的组别/项目/性别/赛次列表 — 用于网页报名/检录端动态填充下拉
@@ -2484,6 +2533,76 @@ namespace SwimmingScoreboard
                 side = finishIsLeft ? "right" : "left";
             // 2026-05-12 协议扩展：StartingBlock 命令 D10≠0 表示抢跳，TimeInSeconds 已被解析器取反为负值
             ProcessTimingData(data.Lane, cmdType, data.TimeInSeconds, side, data.IsFalseStart);
+        }
+
+        // 2026-05-19 接收 RemoteTimingControl(远程 EXE) 转发的硬件参数上报
+        // 远程 EXE 充当"硬件 ↔ 主服务器"桥, 把硬件→PC 的扩展命令(电池/道次顺序/终点位置/单两端/道次开关/5项时间)
+        // 拆为具体的 *_REPORT TIMING_CMD 子命令转给主服务器, 这里把它们还原为 TimingData 后走 ProcessTimingDataFromHardware
+        // 复用同一套状态更新逻辑(更新 _laneCloseSettings/_poolConfig/_laneDeviceStates + AddLog + Broadcast), 避免代码重复
+        private void HandleHardwareReportForwarded(string cmd, JObject data) {
+            if (data == null) { AddLog(cmd + ": data 为空"); return; }
+            try {
+                var td = new TimingData {
+                    Lane = 0,
+                    Minutes = 0, Seconds = 0, Centiseconds = 0, Milliseconds = 0,
+                    ReceivedAt = DateTime.Now,
+                    IsFinishEnd = false,
+                    IsFalseStart = false
+                };
+                switch (cmd) {
+                    case "BATTERY_REPORT": {
+                        double v = data["voltage"] != null ? (double)data["voltage"] : 0.0;
+                        int mv = (int)Math.Round(v * 1000.0);
+                        td.CommandType = TimingCommandType.BatteryVoltage;
+                        td.Param1 = (byte)((mv >> 8) & 0xFF);  // d3 = mV 高字节 (BIG-ENDIAN)
+                        td.RawD4  = (byte)(mv & 0xFF);          // d4 = mV 低字节
+                        td.BatteryVoltage = v;
+                        break;
+                    }
+                    case "TIMINGS_BUNDLE_REPORT": {
+                        td.CommandType = TimingCommandType.TimingsBundle;
+                        td.Param1 = (byte)(data["laneCloseTime"]            != null ? Math.Min(255, Math.Max(0, (int)data["laneCloseTime"])) : 0);
+                        td.RawD4  = (byte)(data["resultConfirmCloseDelay"] != null ? Math.Min(255, Math.Max(0, (int)data["resultConfirmCloseDelay"])) : 0);
+                        td.Param5 = (byte)(data["startBlockCloseDelay"]    != null ? Math.Min(255, Math.Max(0, (int)data["startBlockCloseDelay"])) : 0);
+                        td.Param6 = (byte)(data["blindReplaceDelay"]       != null ? Math.Min(255, Math.Max(0, (int)data["blindReplaceDelay"])) : 0);
+                        td.Param7 = (byte)(data["splitDisplayTime"]        != null ? Math.Min(255, Math.Max(0, (int)data["splitDisplayTime"])) : 0);
+                        break;
+                    }
+                    case "LANE_ORDER_REPORT": {
+                        string order = data["order"] != null ? data["order"].ToString() : "forward";
+                        td.CommandType = TimingCommandType.LaneOrder;
+                        td.Param1 = (byte)(order == "reverse" ? 1 : 0);
+                        break;
+                    }
+                    case "FINISH_POS_REPORT": {
+                        string pos = data["pos"] != null ? data["pos"].ToString() : "left";
+                        td.CommandType = TimingCommandType.FinishPosition;
+                        td.Param1 = (byte)(pos == "right" ? 1 : 0);
+                        break;
+                    }
+                    case "POOL_SIDE_REPORT": {
+                        bool single = data["single"] != null && (bool)data["single"];
+                        td.CommandType = TimingCommandType.PoolSingleOrDouble;
+                        td.Param1 = (byte)(single ? 1 : 0);   // d3=0 两端 / 1 单端
+                        break;
+                    }
+                    case "LANE_OPEN_CLOSE_REPORT": {
+                        int lane = data["lane"] != null ? (int)data["lane"] : -1;
+                        bool open = data["open"] != null && (bool)data["open"];
+                        td.CommandType = TimingCommandType.LaneOpenClose;
+                        td.Param1 = (byte)(lane < 0 || lane >= 10 ? 0xFF : lane);
+                        td.RawD4  = (byte)(open ? 1 : 0);
+                        break;
+                    }
+                    default:
+                        AddLog("HandleHardwareReportForwarded: 未知命令 " + cmd);
+                        return;
+                }
+                // 复用与"硬件直连模式"完全一致的处理路径
+                ProcessTimingDataFromHardware(td);
+            } catch (Exception ex) {
+                AddLog(string.Format("{0} 处理失败: {1}", cmd, ex.Message));
+            }
         }
 
         // ═══════════════════════════════════════════════════════════════
@@ -7730,7 +7849,8 @@ namespace SwimmingScoreboard
             grid.Children.Add(cbGender);
 
             // Row 1: 出生日期 + 年龄
-            var tbBirth = AddEditField(grid, 1, 0, "出生日期:", target.BirthDate);
+            // 2026-05-21 出生日期改为 DatePicker（与 register.html 一致：可直接输入 yyyy-MM-dd，也可点日历选择）
+            var dpBirth = AddEditDatePicker(grid, 1, 0, "出生日期:", target.BirthDate);
             var tbAge = AddEditField(grid, 1, 2, "年龄:", isNew && target.Age == 0 ? "" : target.Age.ToString());
 
             // Row 2: 身份证号 + 代表队
@@ -7822,7 +7942,10 @@ namespace SwimmingScoreboard
 
             target.Name = (tbName.Text ?? "").Trim();
             target.Gender = cbGender.SelectedItem != null ? cbGender.SelectedItem.ToString() : "男";
-            target.BirthDate = (tbBirth.Text ?? "").Trim();
+            string bdErr;
+            string bdVal = ReadBirthDateFromPicker(dpBirth, out bdErr);
+            if (bdErr != null) { MessageBox.Show(bdErr); return false; }
+            target.BirthDate = bdVal;
             int ageVal; if (int.TryParse((tbAge.Text ?? "").Trim(), out ageVal)) target.Age = ageVal;
             target.IDNumber = (tbID.Text ?? "").Trim();
             target.Country = (tbCountry.Text ?? "").Trim();
@@ -7883,6 +8006,56 @@ namespace SwimmingScoreboard
             var lbl = new TextBlock { Text = text, VerticalAlignment = VerticalAlignment.Center };
             Grid.SetRow(lbl, row); Grid.SetColumn(lbl, col);
             grid.Children.Add(lbl);
+        }
+
+        // 2026-05-21 与 register.html 的 <input type="date"> 行为对齐：
+        //   - 既能直接输入"yyyy-MM-dd"（en-CA 短日期），也能点日历图标选择
+        //   - 初值若是已存储的 "yyyy-MM-dd" 字符串，自动转成 SelectedDate
+        //   - 初值若解析不出来（旧数据格式异常），原样放进 Text 供用户修正
+        private DatePicker AddEditDatePicker(Grid grid, int row, int col, string label, string value) {
+            AddEditLabel(grid, row, col, label);
+            var dp = new DatePicker {
+                VerticalAlignment = VerticalAlignment.Center,
+                SelectedDateFormat = DatePickerFormat.Short
+            };
+            dp.SetValue(System.Windows.FrameworkElement.LanguageProperty,
+                        System.Windows.Markup.XmlLanguage.GetLanguage("en-CA"));
+            dp.ToolTip = "格式：yyyy-MM-dd（4 位年份），可直接输入也可点日历选择";
+            if (!string.IsNullOrEmpty(value)) {
+                DateTime d;
+                if (DateTime.TryParseExact(value.Trim(), "yyyy-MM-dd",
+                        System.Globalization.CultureInfo.InvariantCulture,
+                        System.Globalization.DateTimeStyles.None, out d))
+                    dp.SelectedDate = d;
+                else
+                    dp.Text = value;
+            }
+            Grid.SetRow(dp, row); Grid.SetColumn(dp, col + 1);
+            grid.Children.Add(dp);
+            return dp;
+        }
+
+        // 从 DatePicker 读取出生日期，返回标准化的 "yyyy-MM-dd" 或 ""；
+        // 若用户输入了无法解析的文本，返回 null 并把错误信息写入 error。
+        internal static string ReadBirthDateFromPicker(DatePicker dp, out string error) {
+            error = null;
+            if (dp == null) return "";
+            if (dp.SelectedDate.HasValue)
+                return dp.SelectedDate.Value.ToString("yyyy-MM-dd");
+            string text = (dp.Text ?? "").Trim();
+            if (string.IsNullOrEmpty(text)) return "";
+            DateTime d;
+            // 优先严格 yyyy-MM-dd（与 HTML <input type="date"> 一致）
+            if (DateTime.TryParseExact(text, "yyyy-MM-dd",
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    System.Globalization.DateTimeStyles.None, out d))
+                return d.ToString("yyyy-MM-dd");
+            // 兜底：en-CA 短日期（DatePicker 失焦解析路径），仍输出 yyyy-MM-dd
+            if (DateTime.TryParse(text, System.Globalization.CultureInfo.GetCultureInfo("en-CA"),
+                    System.Globalization.DateTimeStyles.None, out d))
+                return d.ToString("yyyy-MM-dd");
+            error = "出生日期格式不正确，请填 yyyy-MM-dd（4 位年份），或点日历选择：" + text;
+            return null;
         }
 
         // 按代表队配置号码段（如 中国 001-050）
@@ -8247,6 +8420,8 @@ namespace SwimmingScoreboard
                     var dpLegBirth = new DatePicker { Width = 130, Margin = new Thickness(8, 0, 0, 0) };
                     dpLegBirth.SetValue(System.Windows.FrameworkElement.LanguageProperty, System.Windows.Markup.XmlLanguage.GetLanguage("en-CA"));
                     dpLegBirth.SelectedDateFormat = DatePickerFormat.Short;
+                    // 2026-05-21 与 register.html / 其它 EXE 一致：可输入 yyyy-MM-dd 也可点日历
+                    dpLegBirth.ToolTip = "格式：yyyy-MM-dd（4 位年份），可直接输入也可点日历选择";
                     var tbLegBib = new TextBox { Width = 90, Padding = new Thickness(4), Margin = new Thickness(8, 0, 0, 0), ToolTip = "队员号码（可空）" };
                     row.Children.Add(new TextBlock { Text = "姓名", Margin = new Thickness(0, 0, 4, 0), VerticalAlignment = VerticalAlignment.Center });
                     row.Children.Add(tbLegName);
@@ -8296,11 +8471,18 @@ namespace SwimmingScoreboard
                 TeamName = teamName, EventName = eventName, Gender = gender,
                 EntryTime = entryTimeStr, EntryTimeSeconds = entrySec
             };
+            // 2026-05-21 棒次出生日期同样支持手动输入 yyyy-MM-dd（与 HTML 一致）；
+            // 第 N 棒输入无法识别 → 报错而不是静默丢弃后再写入空字符串。
             for (int i = 0; i < legNameBoxes.Count; i++) {
                 string ln = (legNameBoxes[i].Text ?? "").Trim();
                 string lb = (legBibBoxes[i].Text ?? "").Trim();
-                string lbd = legBirthPickers[i].SelectedDate.HasValue
-                    ? legBirthPickers[i].SelectedDate.Value.ToString("yyyy-MM-dd") : "";
+                string lbdErr;
+                string lbd = ReadBirthDateFromPicker(legBirthPickers[i], out lbdErr);
+                if (lbdErr != null) {
+                    MessageBox.Show(string.Format("第{0}棒 {1}", i + 1, lbdErr), "接力队报名",
+                        MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
                 team.Legs.Add(new RelayLeg {
                     LegOrder = i + 1,
                     SwimmerName = ln,
@@ -8782,13 +8964,21 @@ namespace SwimmingScoreboard
             string gender = ((ComboBoxItem)RegGenderCombo.SelectedItem).Content.ToString();
             string bibNumber = GenerateNextBibNumber(RegCountryBox != null ? RegCountryBox.Text.Trim() : "");
 
-            string birthDate = RegBirthDatePicker.SelectedDate.HasValue ? RegBirthDatePicker.SelectedDate.Value.ToString("yyyy-MM-dd") : "";
+            // 2026-05-21 支持手动输入 yyyy-MM-dd（与 HTML <input type="date"> 一致）；
+            // 输入了但解析不出来 → 报错而不是静默清空。
+            string bdErr;
+            string birthDate = ReadBirthDateFromPicker(RegBirthDatePicker, out bdErr);
+            if (bdErr != null) { RegStatusText.Text = bdErr; RegStatusText.Foreground = new SolidColorBrush(Colors.Red); return; }
             int age = 0;
-            if (RegBirthDatePicker.SelectedDate.HasValue) {
-                var today = DateTime.Today;
-                var bd = RegBirthDatePicker.SelectedDate.Value;
-                age = today.Year - bd.Year;
-                if (bd.Date > today.AddYears(-age)) age--;
+            if (!string.IsNullOrEmpty(birthDate)) {
+                DateTime bdDt;
+                if (DateTime.TryParseExact(birthDate, "yyyy-MM-dd",
+                        System.Globalization.CultureInfo.InvariantCulture,
+                        System.Globalization.DateTimeStyles.None, out bdDt)) {
+                    var today = DateTime.Today;
+                    age = today.Year - bdDt.Year;
+                    if (bdDt.Date > today.AddYears(-age)) age--;
+                }
             }
 
             // 报名时直接选择组别；留空则沿用按年龄自动推断

@@ -4,47 +4,53 @@
 <meta charset="UTF-8">
 <title>游泳赛事管理与计时系统 - 系统架构框图</title>
 <style>
-body { margin: 0; padding: 40px; background: white; font-family: "Microsoft YaHei", sans-serif; }
-.page { width: 1100px; margin: 0 auto; }
-h1 { text-align: center; font-size: 28px; color: #1E40AF; margin-bottom: 8px; }
-.subtitle { text-align: center; font-size: 14px; color: #64748B; margin-bottom: 40px; }
+body { margin: 0; padding: 30px; background: white; font-family: "Microsoft YaHei", "Source Han Sans CN", sans-serif; }
+.page { width: 1240px; margin: 0 auto; }
+h1 { text-align: center; font-size: 26px; color: #1E40AF; margin-bottom: 6px; }
+.subtitle { text-align: center; font-size: 13px; color: #64748B; margin-bottom: 20px; }
 
-/* SVG styles */
-svg { display: block; margin: 0 auto; }
-.box { rx: 12; ry: 12; stroke-width: 2; }
-.box-main { fill: #1E40AF; stroke: #1E3A8A; }
-.box-hw { fill: #DC2626; stroke: #991B1B; }
-.box-exe { fill: #059669; stroke: #047857; }
-.box-web { fill: #7C3AED; stroke: #6D28D9; }
-.box-display { fill: #D97706; stroke: #B45309; }
-.box-data { fill: #475569; stroke: #334155; }
-.box-func { fill: #F8FAFC; stroke: #CBD5E1; rx: 8; ry: 8; }
+svg { display: block; margin: 0 auto; background: #fff; }
+.box { rx: 10; ry: 10; stroke-width: 2; }
+.box-hw    { fill: #DC2626; stroke: #991B1B; }
+.box-main  { fill: #1E40AF; stroke: #1E3A8A; }
+.box-exe   { fill: #059669; stroke: #047857; }
+.box-editor{ fill: #0D9488; stroke: #0F766E; }
+.box-web   { fill: #7C3AED; stroke: #6D28D9; }
+.box-disp  { fill: #D97706; stroke: #B45309; }
+.box-data  { fill: #475569; stroke: #334155; }
+.box-tool  { fill: #6B7280; stroke: #4B5563; }
+.box-func  { fill: #F8FAFC; stroke: #CBD5E1; rx: 8; ry: 8; }
+.box-persist{ fill: #FEF3C7; stroke: #D97706; rx: 6; ry: 6; }
 
-.label { fill: white; font-size: 15px; font-weight: bold; text-anchor: middle; dominant-baseline: central; }
-.label-dark { fill: #1E293B; font-size: 12px; text-anchor: middle; dominant-baseline: central; }
-.label-small { fill: #64748B; font-size: 11px; text-anchor: middle; dominant-baseline: central; }
-.label-title { fill: white; font-size: 13px; font-weight: bold; text-anchor: middle; dominant-baseline: central; }
+.label       { fill: white; font-size: 14px; font-weight: bold; text-anchor: middle; dominant-baseline: central; }
+.label-sub   { fill: white; font-size: 10px; opacity: 0.85; text-anchor: middle; dominant-baseline: central; }
+.label-dark  { fill: #1E293B; font-size: 12px; font-weight: bold; text-anchor: middle; dominant-baseline: central; }
+.label-small { fill: #64748B; font-size: 10px; text-anchor: middle; dominant-baseline: central; }
+.label-amber { fill: #92400E; font-size: 11px; text-anchor: middle; dominant-baseline: central; }
 
-.arrow { stroke: #94A3B8; stroke-width: 2; fill: none; marker-end: url(#arrowhead); }
-.arrow-hw { stroke: #DC2626; stroke-width: 2.5; }
-.arrow-ws { stroke: #3B82F6; stroke-width: 2; stroke-dasharray: 6,3; }
-.arrow-data { stroke: #F59E0B; stroke-width: 2; }
+.arrow      { stroke: #94A3B8; stroke-width: 2; fill: none; marker-end: url(#arrowhead); }
+.arrow-hw   { stroke: #DC2626; stroke-width: 2.5; fill: none; marker-end: url(#arrowhead-red); marker-start: url(#arrowstart-red); }
+.arrow-ws   { stroke: #3B82F6; stroke-width: 2; stroke-dasharray: 6,3; fill: none; marker-end: url(#arrowhead-blue); }
+.arrow-sync { stroke: #0D9488; stroke-width: 2; stroke-dasharray: 4,3; fill: none; marker-end: url(#arrowhead-teal); marker-start: url(#arrowstart-teal); }
 
-.group-border { fill: none; stroke: #E2E8F0; stroke-width: 1.5; stroke-dasharray: 8,4; rx: 16; ry: 16; }
-.group-label { fill: #94A3B8; font-size: 12px; font-style: italic; }
+.group-border { fill: none; stroke: #E2E8F0; stroke-width: 1.5; stroke-dasharray: 8,4; rx: 14; ry: 14; }
+.group-label  { fill: #94A3B8; font-size: 12px; font-style: italic; }
 
-.legend { font-size: 12px; fill: #475569; }
-.legend-line { stroke-width: 3; fill: none; }
+.proto-txt { fill: #DC2626; font-size: 11px; }
+.ws-txt    { fill: #3B82F6; font-size: 11px; }
+.sync-txt  { fill: #0F766E; font-size: 11px; }
 
-@media print { body { padding: 20px; } .page { width: 100%; } }
+.legend    { font-size: 11px; fill: #475569; }
+
+@media print { body { padding: 10px; } .page { width: 100%; } }
 </style>
 </head>
 <body>
 <div class="page">
 <h1>游泳赛事管理与计时系统 — 系统架构框图</h1>
-<p class="subtitle">Swimming Event Management &amp; Timing System Architecture v2026.04</p>
+<p class="subtitle">Swimming Event Management &amp; Timing System Architecture · v2026.05.20</p>
 
-<svg width="1100" height="880" viewBox="0 0 1100 880">
+<svg width="1240" height="1080" viewBox="0 0 1240 1080">
 <defs>
   <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
     <polygon points="0 0, 10 3.5, 0 7" fill="#94A3B8"/>
@@ -52,205 +58,306 @@ svg { display: block; margin: 0 auto; }
   <marker id="arrowhead-red" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
     <polygon points="0 0, 10 3.5, 0 7" fill="#DC2626"/>
   </marker>
+  <marker id="arrowstart-red" markerWidth="10" markerHeight="7" refX="0" refY="3.5" orient="auto">
+    <polygon points="10 0, 0 3.5, 10 7" fill="#DC2626"/>
+  </marker>
   <marker id="arrowhead-blue" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
     <polygon points="0 0, 10 3.5, 0 7" fill="#3B82F6"/>
   </marker>
-  <marker id="arrowhead-gold" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
-    <polygon points="0 0, 10 3.5, 0 7" fill="#F59E0B"/>
+  <marker id="arrowhead-teal" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+    <polygon points="0 0, 10 3.5, 0 7" fill="#0D9488"/>
   </marker>
-  <!-- 阴影 -->
+  <marker id="arrowstart-teal" markerWidth="10" markerHeight="7" refX="0" refY="3.5" orient="auto">
+    <polygon points="10 0, 0 3.5, 10 7" fill="#0D9488"/>
+  </marker>
   <filter id="shadow" x="-4%" y="-4%" width="108%" height="112%">
     <feDropShadow dx="2" dy="3" stdDeviation="3" flood-color="#000" flood-opacity="0.15"/>
   </filter>
 </defs>
 
-<!-- ════════ 第一层：计时硬件 ════════ -->
-<rect class="group-border" x="320" y="10" width="460" height="100"/>
-<text class="group-label" x="340" y="30">计时硬件层</text>
+<!-- ══════════════════════════════════════════════════════════ -->
+<!-- 第一层：计时硬件层                                          -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<rect class="group-border" x="350" y="40" width="540" height="120"/>
+<text class="group-label" x="370" y="60">①  计时硬件层</text>
 
-<rect class="box box-hw" x="345" y="38" width="120" height="52" filter="url(#shadow)"/>
-<text class="label" x="405" y="64">触板</text>
+<rect class="box box-hw" x="375" y="76" width="150" height="60" filter="url(#shadow)"/>
+<text class="label" x="450" y="98">触板</text>
+<text class="label-sub" x="450" y="116">Touchpad × 10道 × 双端</text>
 
-<rect class="box box-hw" x="490" y="38" width="120" height="52" filter="url(#shadow)"/>
-<text class="label" x="550" y="64">盲表 ×3</text>
+<rect class="box box-hw" x="545" y="76" width="150" height="60" filter="url(#shadow)"/>
+<text class="label" x="620" y="98">盲表</text>
+<text class="label-sub" x="620" y="116">PushButton 1–3 × 双端</text>
 
-<rect class="box box-hw" x="635" y="38" width="120" height="52" filter="url(#shadow)"/>
-<text class="label" x="695" y="64">出发台</text>
+<rect class="box box-hw" x="715" y="76" width="150" height="60" filter="url(#shadow)"/>
+<text class="label" x="790" y="98">出发台</text>
+<text class="label-sub" x="790" y="116">StartingBlock × 10道</text>
 
-<!-- 硬件到主服务器的连线 -->
-<line x1="550" y1="90" x2="550" y2="148" class="arrow arrow-hw" marker-end="url(#arrowhead-red)"/>
-<text x="570" y="126" style="font-size:11px;fill:#DC2626;">串口 / TCP</text>
+<!-- 硬件协议箭头：双向 -->
+<line x1="620" y1="160" x2="620" y2="240" class="arrow-hw"/>
+<text class="proto-txt" x="640" y="180" style="font-weight:bold;">12 字节帧协议</text>
+<text class="proto-txt" x="640" y="194">F1 53 [CMD] D3..D10 F4</text>
+<text class="proto-txt" x="640" y="208">TCP · UDP · 串口</text>
+<text class="proto-txt" x="640" y="226" style="font-style:italic;">硬件→PC: 0x16触板/0x1A出发台/0x4B电压/0x64时间打包</text>
+<text class="proto-txt" x="640" y="240" style="font-style:italic;">PC→硬件: 0x39校时/0x43比赛准备/0x60-0x65新增/双向0x3A·0x47·0x62·0x63</text>
 
-<!-- ════════ 第二层：主服务器 ════════ -->
-<rect class="group-border" x="80" y="140" width="940" height="310"/>
-<text class="group-label" x="100" y="160">主服务器 SwimmingScoreboard.exe（端口 3002）</text>
+<!-- ══════════════════════════════════════════════════════════ -->
+<!-- 第二层：主服务器                                            -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<rect class="group-border" x="60" y="252" width="1120" height="320"/>
+<text class="group-label" x="80" y="272">②  主服务器层（赛事数据单一来源）</text>
 
-<!-- 主服务器核心 -->
-<rect class="box box-main" x="380" y="168" width="340" height="56" filter="url(#shadow)"/>
-<text class="label" x="550" y="190" style="font-size:18px;">赛事管理主服务器</text>
-<text class="label" x="550" y="208" style="font-size:11px;opacity:0.8;">SwimmingScoreboard.exe</text>
+<!-- 主服务器标题条 -->
+<rect class="box box-main" x="380" y="282" width="480" height="56" filter="url(#shadow)"/>
+<text class="label" x="620" y="304" style="font-size:18px;">赛事管理主服务器</text>
+<text class="label-sub" x="620" y="324">SwimmingScoreboard.exe · WebSocket 服务 :3002 · 直连硬件计时器</text>
 
-<!-- 功能模块 -->
-<rect class="box-func" x="100" y="250" width="140" height="46"/>
-<text class="label-dark" x="170" y="267">赛事管理</text>
-<text class="label-small" x="170" y="282">运动员/接力队/日程</text>
+<!-- 功能模块第一行 -->
+<rect class="box-func" x="80" y="354" width="170" height="44"/>
+<text class="label-dark" x="165" y="370">赛事管理</text>
+<text class="label-small" x="165" y="386">运动员 / 接力队 / 日程</text>
 
-<rect class="box-func" x="260" y="250" width="140" height="46"/>
-<text class="label-dark" x="330" y="267">计时控制</text>
-<text class="label-small" x="330" y="282">就位/发令/复位</text>
+<rect class="box-func" x="262" y="354" width="170" height="44"/>
+<text class="label-dark" x="347" y="370">比赛控制</text>
+<text class="label-small" x="347" y="386">准备就绪 / M.发令 / 计时复位</text>
 
-<rect class="box-func" x="420" y="250" width="140" height="46"/>
-<text class="label-dark" x="490" y="267">泳道管理</text>
-<text class="label-small" x="490" y="282">设备状态/分段/排名</text>
+<rect class="box-func" x="444" y="354" width="170" height="44"/>
+<text class="label-dark" x="529" y="370">泳道实时状态</text>
+<text class="label-small" x="529" y="386">设备五态 / 分段 / 反应时</text>
 
-<rect class="box-func" x="580" y="250" width="140" height="46"/>
-<text class="label-dark" x="650" y="267">成绩处理</text>
-<text class="label-small" x="650" y="282">确认/晋级/纪录检查</text>
+<rect class="box-func" x="626" y="354" width="170" height="44"/>
+<text class="label-dark" x="711" y="370">成绩与排名</text>
+<text class="label-small" x="711" y="386">确认 / 晋级 / 团体计分</text>
 
-<rect class="box-func" x="740" y="250" width="140" height="46"/>
-<text class="label-dark" x="810" y="267">纪录管理</text>
-<text class="label-small" x="810" y="282">WR/CR/导入/查询</text>
+<rect class="box-func" x="808" y="354" width="170" height="44"/>
+<text class="label-dark" x="893" y="370">纪录管理</text>
+<text class="label-small" x="893" y="386">WR/AR/NR/CR · 自动比对</text>
 
-<!-- 第二行功能 -->
-<rect class="box-func" x="100" y="310" width="140" height="46"/>
-<text class="label-dark" x="170" y="327">自动分组</text>
-<text class="label-small" x="170" y="342">蛇形分道/FINA规则</text>
+<rect class="box-func" x="990" y="354" width="170" height="44"/>
+<text class="label-dark" x="1075" y="370">FINA 自动分组</text>
+<text class="label-small" x="1075" y="386">SW 3.1.1.4 · 矛头泳道</text>
 
-<rect class="box-func" x="260" y="310" width="140" height="46"/>
-<text class="label-dark" x="330" y="327">显示控制</text>
-<text class="label-small" x="330" y="342">大屏/排名/颁奖</text>
+<!-- 功能模块第二行 -->
+<rect class="box-func" x="80" y="410" width="170" height="44"/>
+<text class="label-dark" x="165" y="426">参数设置</text>
+<text class="label-small" x="165" y="442">道次顺序 / 终点 / RT / 盲表延迟</text>
 
-<rect class="box-func" x="420" y="310" width="140" height="46"/>
-<text class="label-dark" x="490" y="327">文档打印</text>
-<text class="label-small" x="490" y="342">秩序册/出发表/成绩册</text>
+<rect class="box-func" x="262" y="410" width="170" height="44"/>
+<text class="label-dark" x="347" y="426">系统硬件</text>
+<text class="label-small" x="347" y="442">网络连接 / 设备测试 / 电池电压</text>
 
-<rect class="box-func" x="580" y="310" width="140" height="46"/>
-<text class="label-dark" x="650" y="327">WebSocket 服务</text>
-<text class="label-small" x="650" y="342">实时广播/指令接收</text>
+<rect class="box-func" x="444" y="410" width="170" height="44"/>
+<text class="label-dark" x="529" y="426">显示控制</text>
+<text class="label-small" x="529" y="442">大屏推送 / 颁奖 / 图片视频</text>
 
-<rect class="box-func" x="740" y="310" width="140" height="46"/>
-<text class="label-dark" x="810" y="327">参数设置</text>
-<text class="label-small" x="810" y="342">泳道/抢跳/显示时长</text>
+<rect class="box-func" x="626" y="410" width="170" height="44"/>
+<text class="label-dark" x="711" y="426">文档编辑·输出·打印</text>
+<text class="label-small" x="711" y="442">秩序册 / 成绩册 / 分段报告</text>
 
-<!-- 数据库 -->
-<rect class="box box-data" x="100" y="380" width="160" height="50" filter="url(#shadow)"/>
-<text class="label" x="180" y="400">JSON 数据库</text>
-<text class="label" x="180" y="416" style="font-size:10px;opacity:0.7;">赛事/成绩/纪录</text>
+<rect class="box-func" x="808" y="410" width="170" height="44"/>
+<text class="label-dark" x="893" y="426">EditorSync 服务器</text>
+<text class="label-small" x="893" y="442">EDITOR_PACKAGE 双向整包同步</text>
 
-<rect class="box box-data" x="280" y="380" width="160" height="50" filter="url(#shadow)"/>
-<text class="label" x="360" y="400">Web 资源</text>
-<text class="label" x="360" y="416" style="font-size:10px;opacity:0.7;">HTML/CSS/JS</text>
+<rect class="box-func" x="990" y="410" width="170" height="44"/>
+<text class="label-dark" x="1075" y="426">系统日志</text>
+<text class="label-small" x="1075" y="442">操作 / 状态 / 错误追踪</text>
 
-<rect class="box box-data" x="460" y="380" width="160" height="50" filter="url(#shadow)"/>
-<text class="label" x="540" y="400">纪录 CSV</text>
-<text class="label" x="540" y="416" style="font-size:10px;opacity:0.7;">世界/亚洲/赛会纪录</text>
+<!-- 持久化文件 -->
+<text class="group-label" x="80" y="478" style="font-size:11px;">持久化（JSON / 文件）</text>
+<rect class="box-persist" x="80" y="486" width="200" height="40"/>
+<text class="label-amber" x="180" y="500" style="font-weight:bold;">timing_settings.json</text>
+<text class="label-small" x="180" y="516">参数 + 道次顺序 + 盲表数量</text>
 
-<!-- ════════ WebSocket 连线 ════════ -->
-<!-- 向下的三条WebSocket线 -->
-<line x1="300" y1="450" x2="200" y2="530" class="arrow arrow-ws" marker-end="url(#arrowhead-blue)"/>
-<line x1="550" y1="450" x2="550" y2="530" class="arrow arrow-ws" marker-end="url(#arrowhead-blue)"/>
-<line x1="750" y1="450" x2="900" y2="530" class="arrow arrow-ws" marker-end="url(#arrowhead-blue)"/>
+<rect class="box-persist" x="292" y="486" width="200" height="40"/>
+<text class="label-amber" x="392" y="500" style="font-weight:bold;">device_states.json</text>
+<text class="label-small" x="392" y="516">触板/盲表/出发台 损坏+未安装</text>
 
-<text x="220" y="485" style="font-size:11px;fill:#3B82F6;">WebSocket</text>
-<text x="560" y="485" style="font-size:11px;fill:#3B82F6;">WebSocket</text>
-<text x="810" y="485" style="font-size:11px;fill:#3B82F6;">WebSocket</text>
+<rect class="box-persist" x="504" y="486" width="200" height="40"/>
+<text class="label-amber" x="604" y="500" style="font-weight:bold;">timing_connection.json</text>
+<text class="label-small" x="604" y="516">硬件连接 TCP/UDP/串口配置</text>
 
-<!-- ════════ 第三层：客户端/大屏 ════════ -->
+<rect class="box-persist" x="716" y="486" width="200" height="40"/>
+<text class="label-amber" x="816" y="500" style="font-weight:bold;">Database/&lt;赛事&gt;.json</text>
+<text class="label-small" x="816" y="516">CompetitionPackage 整包</text>
 
-<!-- EXE 控制台 -->
-<rect class="group-border" x="50" y="520" width="310" height="200"/>
-<text class="group-label" x="70" y="540">比赛控制平台 (EXE)</text>
+<rect class="box-persist" x="928" y="486" width="232" height="40"/>
+<text class="label-amber" x="1044" y="500" style="font-weight:bold;">Database/RawData/*.txt+.html</text>
+<text class="label-small" x="1044" y="516">每场比赛原始数据 / 备用成绩</text>
 
-<rect class="box box-exe" x="90" y="555" width="230" height="50" filter="url(#shadow)"/>
-<text class="label" x="205" y="575">远程计时控制台</text>
-<text class="label" x="205" y="592" style="font-size:10px;opacity:0.8;">RemoteTimingControl.exe</text>
+<rect class="box-persist" x="80" y="534" width="412" height="30"/>
+<text class="label-amber" x="286" y="552">credentials.json · remember.json &nbsp;（SHA256 + DPAPI，5 个 EXE 各自一份）</text>
 
-<rect class="box-func" x="90" y="620" width="110" height="36"/>
-<text class="label-dark" x="145" y="638" style="font-size:11px;">比赛控制</text>
+<rect class="box-persist" x="504" y="534" width="412" height="30"/>
+<text class="label-amber" x="710" y="552">last_competition.txt &nbsp;·&nbsp; 纪录预置 CSV &nbsp;·&nbsp; Web 资源（HTML/CSS/JS）</text>
 
-<rect class="box-func" x="210" y="620" width="110" height="36"/>
-<text class="label-dark" x="265" y="638" style="font-size:11px;">泳道状态</text>
+<!-- ══════════════════════════════════════════════════════════ -->
+<!-- 第三层：客户端层 -- 5 大组                                   -->
+<!-- ══════════════════════════════════════════════════════════ -->
 
-<rect class="box-func" x="90" y="664" width="110" height="36"/>
-<text class="label-dark" x="145" y="682" style="font-size:11px;">显示控制</text>
+<!-- WebSocket 主干 -->
+<line x1="620" y1="572" x2="620" y2="612" class="arrow-ws"/>
+<text class="ws-txt" x="640" y="588" style="font-weight:bold;">WebSocket :3002</text>
+<text class="ws-txt" x="640" y="602">实时广播 · 命令上行 · EDITOR_SYNC 专用通道</text>
 
-<rect class="box-func" x="210" y="664" width="110" height="36"/>
-<text class="label-dark" x="265" y="682" style="font-size:11px;">参数设置</text>
+<!-- 横干线 -->
+<line x1="130" y1="612" x2="1110" y2="612" stroke="#3B82F6" stroke-width="2" stroke-dasharray="6,3"/>
 
-<!-- HTML 控制台 -->
-<rect class="group-border" x="395" y="520" width="310" height="200"/>
-<text class="group-label" x="415" y="540">比赛控制平台 (HTML)</text>
+<!-- 五个分组上行竖线 -->
+<line x1="180" y1="612" x2="180" y2="650" class="arrow-ws"/>
+<line x1="420" y1="612" x2="420" y2="650" class="arrow-ws"/>
+<line x1="620" y1="612" x2="620" y2="650" class="arrow-ws"/>
+<line x1="820" y1="612" x2="820" y2="650" class="arrow-ws"/>
+<line x1="1060" y1="612" x2="1060" y2="650" class="arrow-ws"/>
 
-<rect class="box box-web" x="435" y="555" width="230" height="50" filter="url(#shadow)"/>
-<text class="label" x="550" y="575">Web 比赛控制台</text>
-<text class="label" x="550" y="592" style="font-size:10px;opacity:0.8;">race_control.html</text>
+<!-- ───── 组 A：计时控制三端（等价） ───── -->
+<rect class="group-border" x="60" y="652" width="240" height="230"/>
+<text class="group-label" x="80" y="672">A · 比赛计时控制台（三端等价）</text>
 
-<rect class="box-func" x="435" y="620" width="110" height="36"/>
-<text class="label-dark" x="490" y="638" style="font-size:11px;">比赛控制</text>
+<rect class="box box-main" x="80" y="686" width="200" height="40" filter="url(#shadow)"/>
+<text class="label" x="180" y="700">主服务器（主控位）</text>
+<text class="label-sub" x="180" y="716">SwimmingScoreboard.exe</text>
 
-<rect class="box-func" x="555" y="620" width="110" height="36"/>
-<text class="label-dark" x="610" y="638" style="font-size:11px;">泳道状态</text>
+<rect class="box box-exe" x="80" y="734" width="200" height="40" filter="url(#shadow)"/>
+<text class="label" x="180" y="748">远程计时控制台</text>
+<text class="label-sub" x="180" y="764">RemoteTimingControl.exe</text>
 
-<rect class="box-func" x="435" y="664" width="110" height="36"/>
-<text class="label-dark" x="490" y="682" style="font-size:11px;">显示控制</text>
+<rect class="box box-web" x="80" y="782" width="200" height="40" filter="url(#shadow)"/>
+<text class="label" x="180" y="796">HTML 计时控制台</text>
+<text class="label-sub" x="180" y="812">race_control.html</text>
 
-<rect class="box-func" x="555" y="664" width="110" height="36"/>
-<text class="label-dark" x="610" y="682" style="font-size:11px;">参数设置</text>
+<text class="label-small" x="180" y="840" style="font-size:10px;">准备就绪 / M.发令 / 计时复位</text>
+<text class="label-small" x="180" y="854" style="font-size:10px;">网络连接 / 设备测试 / 设备全开</text>
+<text class="label-small" x="180" y="868" style="font-size:10px;">⚙ 参数设置 · 顶部硬件指示灯</text>
 
-<!-- 大屏显示 -->
-<rect class="group-border" x="740" y="520" width="310" height="200"/>
-<text class="group-label" x="760" y="540">大屏显示系统 (HTML)</text>
+<!-- ───── 组 B：编排 / 录入端 ───── -->
+<rect class="group-border" x="316" y="652" width="200" height="230"/>
+<text class="group-label" x="336" y="672">B · 编排 / 录入</text>
 
-<rect class="box box-display" x="780" y="555" width="230" height="50" filter="url(#shadow)"/>
-<text class="label" x="895" y="575">大屏显示</text>
-<text class="label" x="895" y="592" style="font-size:10px;opacity:0.8;">display.html</text>
+<rect class="box box-editor" x="336" y="686" width="160" height="50" filter="url(#shadow)"/>
+<text class="label" x="416" y="702">编排记录及</text>
+<text class="label" x="416" y="718">成绩处理</text>
+<text class="label-sub" x="416" y="731">ScheduleEditor.exe</text>
 
-<rect class="box-func" x="780" y="620" width="110" height="36"/>
-<text class="label-dark" x="835" y="638" style="font-size:11px;">出发表/比赛</text>
+<rect class="box box-exe" x="336" y="746" width="160" height="40" filter="url(#shadow)"/>
+<text class="label" x="416" y="760">桌面注册工具</text>
+<text class="label-sub" x="416" y="776">RegistrationTool.exe</text>
 
-<rect class="box-func" x="900" y="620" width="110" height="36"/>
-<text class="label-dark" x="955" y="638" style="font-size:11px;">成绩/排名</text>
+<rect class="box box-web" x="336" y="794" width="160" height="40" filter="url(#shadow)"/>
+<text class="label" x="416" y="808">在线报名</text>
+<text class="label-sub" x="416" y="824">register.html</text>
 
-<rect class="box-func" x="780" y="664" width="110" height="36"/>
-<text class="label-dark" x="835" y="682" style="font-size:11px;">颁奖/纪录</text>
+<rect class="box box-web" x="336" y="842" width="160" height="34" filter="url(#shadow)"/>
+<text class="label" x="416" y="853">网页检录台</text>
+<text class="label-sub" x="416" y="867">checkin.html</text>
 
-<rect class="box-func" x="900" y="664" width="110" height="36"/>
-<text class="label-dark" x="955" y="682" style="font-size:11px;">欢迎/发布</text>
+<!-- EditorSync 专用通道 -->
+<line x1="416" y1="612" x2="416" y2="686" class="arrow-sync"/>
+<text class="sync-txt" x="438" y="640" style="font-weight:bold;">EditorSync</text>
+<text class="sync-txt" x="438" y="654">整包同步</text>
 
-<!-- ════════ 第四层：其他终端 ════════ -->
-<rect class="group-border" x="200" y="760" width="700" height="100"/>
-<text class="group-label" x="220" y="780">其他终端</text>
+<!-- ───── 组 C：大屏 / 显控 ───── -->
+<rect class="group-border" x="532" y="652" width="200" height="230"/>
+<text class="group-label" x="552" y="672">C · 大屏显示 / 显控</text>
 
-<rect class="box box-web" x="240" y="795" width="180" height="44" filter="url(#shadow)"/>
-<text class="label" x="330" y="812">排名屏</text>
-<text class="label" x="330" y="828" style="font-size:10px;opacity:0.8;">leaderboard.html</text>
+<rect class="box box-disp" x="552" y="686" width="160" height="40" filter="url(#shadow)"/>
+<text class="label" x="632" y="700">比赛实时大屏</text>
+<text class="label-sub" x="632" y="716">display.html</text>
 
-<rect class="box box-web" x="460" y="795" width="180" height="44" filter="url(#shadow)"/>
-<text class="label" x="550" y="812">在线报名</text>
-<text class="label" x="550" y="828" style="font-size:10px;opacity:0.8;">register.html</text>
+<rect class="box box-disp" x="552" y="734" width="160" height="40" filter="url(#shadow)"/>
+<text class="label" x="632" y="748">排名屏</text>
+<text class="label-sub" x="632" y="764">leaderboard.html</text>
 
-<rect class="box box-web" x="680" y="795" width="180" height="44" filter="url(#shadow)"/>
-<text class="label" x="770" y="812">测试机器人</text>
-<text class="label" x="770" y="828" style="font-size:10px;opacity:0.8;">test_bot.html</text>
+<rect class="box box-exe" x="552" y="782" width="160" height="40" filter="url(#shadow)"/>
+<text class="label" x="632" y="796">桌面显示控制</text>
+<text class="label-sub" x="632" y="812">RemoteDisplayControl.exe</text>
 
-<!-- 连线到其他终端 -->
-<line x1="330" y1="720" x2="330" y2="795" class="arrow arrow-ws" marker-end="url(#arrowhead-blue)"/>
-<line x1="550" y1="720" x2="550" y2="795" class="arrow arrow-ws" marker-end="url(#arrowhead-blue)"/>
-<line x1="770" y1="720" x2="770" y2="795" class="arrow arrow-ws" marker-end="url(#arrowhead-blue)"/>
+<rect class="box box-web" x="552" y="830" width="160" height="40" filter="url(#shadow)"/>
+<text class="label" x="632" y="844">网页显示控制</text>
+<text class="label-sub" x="632" y="860">control.html</text>
 
-<!-- ════════ 图例 ════════ -->
-<rect x="30" y="780" width="140" height="80" fill="#F8FAFC" stroke="#E2E8F0" rx="6"/>
-<text x="50" y="798" class="legend" style="font-weight:bold;">图例</text>
-<line x1="44" y1="812" x2="80" y2="812" class="legend-line" stroke="#DC2626"/>
-<text x="88" y="816" class="legend">硬件连接</text>
-<line x1="44" y1="832" x2="80" y2="832" class="legend-line" stroke="#3B82F6" stroke-dasharray="6,3"/>
-<text x="88" y="836" class="legend">WebSocket</text>
-<line x1="44" y1="852" x2="80" y2="852" class="legend-line" stroke="#F59E0B"/>
-<text x="88" y="856" class="legend">数据流</text>
+<!-- ───── 组 D：模拟 / 测试 ───── -->
+<rect class="group-border" x="748" y="652" width="200" height="230"/>
+<text class="group-label" x="768" y="672">D · 模拟 / 测试</text>
+
+<rect class="box box-web" x="768" y="686" width="160" height="40" filter="url(#shadow)"/>
+<text class="label" x="848" y="700">自动化测试机器人</text>
+<text class="label-sub" x="848" y="716">test_bot.html</text>
+
+<rect class="box box-tool" x="768" y="734" width="160" height="40" filter="url(#shadow)"/>
+<text class="label" x="848" y="748">计时模拟器</text>
+<text class="label-sub" x="848" y="764">TimingSimulator.exe</text>
+
+<text class="label-small" x="848" y="800" style="font-size:10px;">演示 / 压测 / 报名仿真</text>
+<text class="label-small" x="848" y="814" style="font-size:10px;">硬件离线时也能跑全流程</text>
+
+<text class="label-small" x="848" y="848" style="font-size:11px;color:#94A3B8;">（与硬件控制器直连）</text>
+
+<!-- ───── 组 E：硬件调试（旁路） ───── -->
+<rect class="group-border" x="964" y="652" width="200" height="230"/>
+<text class="group-label" x="984" y="672">E · 硬件调试（旁路）</text>
+
+<rect class="box box-tool" x="984" y="686" width="160" height="50" filter="url(#shadow)"/>
+<text class="label" x="1064" y="702">硬件参数</text>
+<text class="label" x="1064" y="718">调试机器人</text>
+<text class="label-sub" x="1064" y="731">ParamDebugBot.exe</text>
+
+<text class="label-small" x="1064" y="754" style="font-size:10px;">直连硬件 / 不走主服务器</text>
+<text class="label-small" x="1064" y="768" style="font-size:10px;">逐帧观察 12 字节命令</text>
+
+<text class="label-small" x="1064" y="800" style="font-size:11px;color:#94A3B8;">直连协议：</text>
+<text class="label-small" x="1064" y="816" style="font-size:11px;color:#DC2626;">UDP / TCP / 串口</text>
+<text class="label-small" x="1064" y="832" style="font-size:11px;color:#94A3B8;">硬件协议变更联调</text>
+
+<!-- E 组直连硬件的旁路箭头（不走 WS） -->
+<path d="M 1064 686 Q 1064 600 1000 540 Q 950 480 880 350 Q 850 280 820 200 Q 800 160 790 140"
+      class="arrow-hw" stroke="#DC2626" stroke-width="1.5" stroke-dasharray="5,4" fill="none"
+      marker-end="url(#arrowhead-red)"/>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!-- 登录窗口提示 + 图例                                          -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<rect class="group-border" x="60" y="908" width="780" height="80"/>
+<text class="group-label" x="80" y="928">登录与凭据（4 个桌面 EXE 共享 Suite 深色风格 + DPAPI 记住密码）</text>
+
+<rect class="box box-data" x="80" y="936" width="180" height="40" filter="url(#shadow)"/>
+<text class="label" x="170" y="950" style="font-size:12px;">SwimmingScoreboard</text>
+<text class="label-sub" x="170" y="966">scoreboard_*.json</text>
+
+<rect class="box box-data" x="270" y="936" width="180" height="40" filter="url(#shadow)"/>
+<text class="label" x="360" y="950" style="font-size:12px;">RemoteTimingControl</text>
+<text class="label-sub" x="360" y="966">timing_*.json</text>
+
+<rect class="box box-data" x="460" y="936" width="180" height="40" filter="url(#shadow)"/>
+<text class="label" x="550" y="950" style="font-size:12px;">ScheduleEditor</text>
+<text class="label-sub" x="550" y="966">editor_*.json</text>
+
+<rect class="box box-data" x="650" y="936" width="180" height="40" filter="url(#shadow)"/>
+<text class="label" x="740" y="950" style="font-size:12px;">Registration + Display</text>
+<text class="label-sub" x="740" y="966">register_*.json / display_*.json</text>
+
+<!-- 图例 -->
+<rect class="group-border" x="860" y="908" width="320" height="80"/>
+<text class="group-label" x="880" y="928">图例</text>
+
+<line x1="880" y1="946" x2="916" y2="946" stroke="#DC2626" stroke-width="2.5"/>
+<polygon points="916,943 924,946 916,949" fill="#DC2626"/>
+<polygon points="880,943 872,946 880,949" fill="#DC2626"/>
+<text class="legend" x="930" y="950">硬件 12 字节帧（TCP/UDP/串口，双向）</text>
+
+<line x1="880" y1="966" x2="924" y2="966" stroke="#3B82F6" stroke-width="2" stroke-dasharray="6,3"/>
+<polygon points="924,963 932,966 924,969" fill="#3B82F6"/>
+<text class="legend" x="940" y="970">WebSocket :3002 实时广播</text>
+
+<line x1="1060" y1="946" x2="1100" y2="946" stroke="#0D9488" stroke-width="2" stroke-dasharray="4,3"/>
+<polygon points="1100,943 1108,946 1100,949" fill="#0D9488"/>
+<polygon points="1060,943 1052,946 1060,949" fill="#0D9488"/>
+<text class="legend" x="1112" y="950">EditorSync 整包同步</text>
+
+<text class="legend" x="1060" y="970" style="font-style:italic;">v2026.05.20</text>
 
 </svg>
 
-<p style="text-align:center;color:#94A3B8;font-size:11px;margin-top:20px;">游泳赛事管理与计时系统 2026.04</p>
+<p style="text-align:center;color:#94A3B8;font-size:11px;margin-top:14px;">游泳赛事管理与计时系统 · 系统架构框图 · v2026.05.20</p>
 </div>
 </body>
 </html>
