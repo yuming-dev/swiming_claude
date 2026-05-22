@@ -10257,8 +10257,16 @@ namespace SwimmingScoreboard
             string nameFilter = FilterNameBox != null ? (FilterNameBox.Text ?? "").Trim() : "";
             string bibFilter = FilterBibBox != null ? (FilterBibBox.Text ?? "").Trim() : "";
 
-            // 接力队员个人条目（Notes 以"接力队员"开头）在 接力队管理 里展示，运动员管理里隐藏
-            var visibleSwimmers = _swimmers.Where(s => !(s.Notes != null && s.Notes.StartsWith("接力队员"))).ToList();
+            // 2026-05-22 翻转过滤逻辑（用户明确要求）：
+            //   ★ 接力代表条目（Notes 以"接力队 棒次:"开头，Name=队名）只在「接力队管理」Tab
+            //     展示；运动员管理大表里 *隐藏*，因为它不是一个真实运动员，只是日程/分组/计时
+            //     占位用的聚合条目。
+            //   ★ 接力队员条目（Notes 以"接力队员"开头，Name=队员真名）现在 *显示*，让接力
+            //     棒次队员和个人项目运动员一视同仁——有自己的参赛号、姓名、出生日期、身份证号，
+            //     项目列显示该接力项目名，新增"棒次"列显示"第N棒"。
+            //   旧版正好是反的（隐藏队员、显示代表），导致用户看到的运动员管理里出现 R001-江西
+            //   这种诡异条目（姓名等于队名、单位简称是某队员姓名、组别字段塞了非标准值）。
+            var visibleSwimmers = _swimmers.Where(s => !(s.Notes != null && s.Notes.StartsWith("接力队 棒次:"))).ToList();
 
             // 全部筛选条件都为"默认值"时直接展示（仅去掉接力队员条目）
             bool allDefault = eventFilter == "全部" && genderFilter == "全部"

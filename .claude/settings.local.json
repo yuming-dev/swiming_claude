@@ -187,7 +187,8 @@
       "Bash(grep -i \"\\\\.zip\\\\|\\\\.pdf$\")",
       "Bash(perl -i -pe 's/sb\\\\.Append\\\\\\(.\\\\\\\\uFEFF.\\\\\\);/\\\\/\\\\/ \\(removed: explicit BOM redundant — Encoding.UTF8 自带 BOM\\)/g' SwimmingScoreboard/MainWindow.xaml.cs)",
       "Bash(sed -n '13999p' SwimmingScoreboard/MainWindow.xaml.cs)",
-      "Bash(perl -i -pe 's{sb\\\\.Append\\\\\\(.\\\\\\\\\\\\\\\\uFEFF.\\\\\\);}{// \\(removed: explicit BOM redundant — Encoding.UTF8 自带 BOM\\)}g' SwimmingScoreboard/MainWindow.xaml.cs)"
+      "Bash(perl -i -pe 's{sb\\\\.Append\\\\\\(.\\\\\\\\\\\\\\\\uFEFF.\\\\\\);}{// \\(removed: explicit BOM redundant — Encoding.UTF8 自带 BOM\\)}g' SwimmingScoreboard/MainWindow.xaml.cs)",
+      "PowerShell(Get-ChildItem \"D:\\\\游泳管理软件调试存在问题2026-5文件夹\\\\调试发现问题2026年5月文件夹\\\\\" | Select-Object Name, @{N='KB';E={[math]::Round\\($_.Length/1024,1\\)}} | Format-Table -AutoSize)"
     ]
   }
 }

@@ -338,6 +338,8 @@
                                         <DataGridTextColumn Header="身份证号" Binding="{Binding IDNumber}" Width="130"/>
                                         <DataGridTextColumn Header="电话" Binding="{Binding Phone}" Width="100"/>
                                         <DataGridTextColumn Header="项目" Binding="{Binding EventName}" Width="120"/>
+                                        <!-- 2026-05-22 接力棒次列：仅接力队员条目有值（如"第3棒"），个人项目空 -->
+                                        <DataGridTextColumn Header="棒次" Binding="{Binding LegLabel}" Width="50" IsReadOnly="True"/>
                                         <DataGridTextColumn Header="报名成绩" Binding="{Binding EntryTime}" Width="75"/>
                                         <DataGridTextColumn Header="阶段" Binding="{Binding CurrentStage}" Width="50"/>
                                         <DataGridTextColumn Header="组" Binding="{Binding Heat}" Width="35"/>

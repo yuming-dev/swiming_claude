@@ -435,7 +435,18 @@ namespace SwimmingScoreboard
         }
         public string Notes {
             get { return _notes; }
-            set { _notes = value; OnPropertyChanged("Notes"); }
+            set { _notes = value; OnPropertyChanged("Notes"); OnPropertyChanged("LegLabel"); }
+        }
+
+        // 2026-05-22 接力队员条目的"第N棒"标签 — 只读计算属性，用于运动员管理 SwimmerGrid
+        // 的"棒次"列绑定。Notes 形如 "接力队员 4×100米自由泳接力 第3棒"，抽出"第3棒"。
+        // 个人项目运动员或代表条目返回空串。
+        public string LegLabel {
+            get {
+                if (string.IsNullOrEmpty(_notes) || !_notes.StartsWith("接力队员")) return "";
+                var m = System.Text.RegularExpressions.Regex.Match(_notes, @"第(\d+)棒");
+                return m.Success ? ("第" + m.Groups[1].Value + "棒") : "";
+            }
         }
         public string CSANumber {
             get { return _csaNumber; }
