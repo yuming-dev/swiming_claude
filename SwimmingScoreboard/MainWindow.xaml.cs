@@ -8238,7 +8238,8 @@ namespace SwimmingScoreboard
             if (dlg.ShowDialog() != true) return;
             try {
                 var sb = new StringBuilder();
-                sb.Append('﻿');   // UTF-8 BOM，兼容 Excel/WPS 直接打开
+                // 2026-05-21 已移除显式 sb.Append('﻿'); — Encoding.UTF8 在 File.WriteAllText 时
+                // 自带写入 3 字节 BOM 前导，再加这一行就是双 BOM，会让首字段挂一个 ﻿ 不可见字符
                 sb.AppendLine(string.Join(",", SwimmerCsvHeaders));
                 foreach (var s in rows) {
                     sb.AppendLine(string.Join(",", new[] {
@@ -8274,7 +8275,7 @@ namespace SwimmingScoreboard
             if (dlg.ShowDialog() != true) return;
             try {
                 var sb = new StringBuilder();
-                sb.Append('﻿');   // UTF-8 BOM
+                // 2026-05-21 已移除显式 sb.Append('﻿'); 详见同期注释，Encoding.UTF8 自带 BOM
                 sb.AppendLine(string.Join(",", SwimmerCsvHeaders));
                 // 两条示例行（Excel/WPS 打开即看到格式说明）
                 sb.AppendLine(string.Join(",", new[] {
@@ -8303,42 +8304,104 @@ namespace SwimmingScoreboard
                     // 切断字段、后续所有列向左挪一格（铁证：组别变成"看是否错位\""、单位简称
                     // 变成"成年"）。ReadCsvLines 已内置 UTF-8 BOM 检测 + 引号转义。
                     var rows = ReadCsvLines(dlg.FileName);
-                    int imported = 0, skipped = 0;
+                    // 2026-05-21 增加 Upsert 语义：身份证号 + 项目 双匹配 → 覆盖现有记录的所有字段
+                    // （队伍/报名成绩/电话/备注等），允许教练通过"导出 → 在 Excel 改 → 再导入"
+                    // 来批量刷新数据。仅当 ID 不匹配再走原有 dup 检查（号码牌冲突 / 同名无 ID）。
+                    int imported = 0, updated = 0, skipped = 0;
+                    var skipReasons = new List<string>();
                     for (int i = 1; i < rows.Count; i++) {
                         string[] cols = rows[i];
                         if (cols.Length < 5) continue;
-                        // CSV格式: 号码,姓名,性别,代表队,项目,报名成绩,年龄,出生日期,身份证号,电话,备注
-                        string bibNum = cols[0].Trim();
-                        if (string.IsNullOrEmpty(bibNum)) bibNum = GenerateNextBibNumber(cols[3].Trim());
-                        var sw = new Swimmer {
-                            BibNumber = bibNum,
-                            Name = cols[1].Trim(),
-                            Gender = cols[2].Trim(),
-                            Country = cols[3].Trim(),
-                            EventName = cols[4].Trim()
-                        };
-                        if (cols.Length > 5) sw.EntryTime = cols[5].Trim();
-                        if (cols.Length > 6) { int age; if (int.TryParse(cols[6].Trim(), out age)) sw.Age = age; }
-                        if (cols.Length > 7) sw.BirthDate = cols[7].Trim();
-                        if (cols.Length > 8) sw.IDNumber = cols[8].Trim();
-                        if (cols.Length > 9) sw.Phone = cols[9].Trim();
-                        if (cols.Length > 10) sw.Notes = cols[10].Trim();
-                        if (cols.Length > 11) sw.AgeCategory = cols[11].Trim();
-                        if (cols.Length > 12) sw.CountryShort = cols[12].Trim();
-                        sw.EntryTimeSeconds = TimeFormatter.Parse(sw.EntryTime);
-                        var dup = FindDuplicate(sw.Name, sw.Gender, sw.EventName, sw.BibNumber, sw.IDNumber, sw.Country);
-                        if (dup != null) {
+                        // CSV格式: 号码,姓名,性别,代表队,项目,报名成绩,年龄,出生日期,身份证号,电话,备注,组别,单位简称
+                        string bibNum       = cols[0].Trim();
+                        string name         = cols[1].Trim();
+                        string gender       = cols[2].Trim();
+                        string country      = cols[3].Trim();
+                        string eventName    = cols[4].Trim();
+                        string entryTime    = cols.Length >  5 ? cols[5].Trim()  : "";
+                        int    age          = 0; if (cols.Length > 6) int.TryParse(cols[6].Trim(), out age);
+                        string birthDate    = cols.Length >  7 ? cols[7].Trim()  : "";
+                        string idNumber     = cols.Length >  8 ? cols[8].Trim()  : "";
+                        string phone        = cols.Length >  9 ? cols[9].Trim()  : "";
+                        string notes        = cols.Length > 10 ? cols[10].Trim() : "";
+                        string ageCategory  = cols.Length > 11 ? cols[11].Trim() : "";
+                        string countryShort = cols.Length > 12 ? cols[12].Trim() : "";
+                        double entrySec     = TimeFormatter.Parse(entryTime);
+
+                        // ★ Upsert 路径：身份证号 + 项目 双匹配 → 更新现有记录
+                        if (!string.IsNullOrEmpty(idNumber)) {
+                            var existing = _swimmers.FirstOrDefault(s =>
+                                !string.IsNullOrEmpty(s.IDNumber)
+                                && s.IDNumber == idNumber
+                                && s.EventName == eventName);
+                            if (existing != null) {
+                                existing.Name             = name;
+                                existing.Gender           = gender;
+                                existing.Country          = country;
+                                existing.CountryShort     = countryShort;
+                                existing.EntryTime        = entryTime;
+                                existing.EntryTimeSeconds = entrySec;
+                                if (age > 0)                              existing.Age = age;
+                                existing.BirthDate        = birthDate;
+                                existing.Phone            = phone;
+                                existing.Notes            = notes;
+                                if (!string.IsNullOrEmpty(ageCategory))   existing.AgeCategory = ageCategory;
+                                if (!string.IsNullOrEmpty(bibNum))        existing.BibNumber   = bibNum;
+                                updated++;
+                                continue;
+                            }
+                        }
+
+                        // ID 不匹配 → 走 FindDuplicate 检查其它冲突（号码牌 / 同名无 ID）
+                        var dupOther = FindDuplicate(name, gender, eventName, bibNum, idNumber, country);
+                        if (dupOther != null) {
                             skipped++;
+                            string reason = !string.IsNullOrEmpty(dupOther.BibNumber)
+                                ? string.Format("第{0}行 {1} ({2}): 与号码 {3} 的现有记录冲突", i + 1, name, eventName, dupOther.BibNumber)
+                                : string.Format("第{0}行 {1} ({2}): 与现有记录冲突", i + 1, name, eventName);
+                            if (skipReasons.Count < 20) skipReasons.Add(reason);   // 弹窗最多展示 20 条
                             continue;
                         }
+
+                        // 既不更新也不冲突 → 全新条目
+                        if (string.IsNullOrEmpty(bibNum)) bibNum = GenerateNextBibNumber(country);
+                        var sw = new Swimmer {
+                            BibNumber    = bibNum,
+                            Name         = name,
+                            Gender       = gender,
+                            Country      = country,
+                            CountryShort = countryShort,
+                            EventName    = eventName,
+                            EntryTime    = entryTime,
+                            EntryTimeSeconds = entrySec,
+                            Age          = age,
+                            BirthDate    = birthDate,
+                            IDNumber     = idNumber,
+                            Phone        = phone,
+                            Notes        = notes,
+                        };
+                        if (!string.IsNullOrEmpty(ageCategory)) sw.AgeCategory = ageCategory;
                         _swimmers.Add(sw);
                         imported++;
                     }
-                    AddLog(string.Format("CSV导入完成: {0}名运动员, {1}名重复跳过", imported, skipped));
+
+                    AddLog(string.Format("CSV导入完成: 新增 {0} 条 / 更新 {1} 条 / 跳过 {2} 条",
+                        imported, updated, skipped));
                     AutoSaveData();
                     RefreshOverviewStats();
                     RefreshSwimmerFilter();
                     Broadcast();
+
+                    // 汇总弹窗 — 让操作员清楚知道发生了什么
+                    string summary = string.Format(
+                        "CSV 导入完成：\n\n  ✅ 新增 {0} 条\n  🔄 更新 {1} 条（身份证号 + 项目 匹配，已覆盖队伍/成绩/电话等字段）\n  ⏭ 跳过 {2} 条（号码牌或同名无身份证号冲突）",
+                        imported, updated, skipped);
+                    if (skipReasons.Count > 0) {
+                        summary += "\n\n跳过原因（前 " + skipReasons.Count + " 条）：\n  " + string.Join("\n  ", skipReasons);
+                    }
+                    MessageBox.Show(summary, "导入运动员 CSV 完成",
+                        MessageBoxButton.OK,
+                        skipped > 0 ? MessageBoxImage.Warning : MessageBoxImage.Information);
                 } catch (Exception ex) {
                     AddLog("CSV导入失败: " + ex.Message);
                 }
@@ -8976,7 +9039,18 @@ namespace SwimmingScoreboard
             if (_regEventList.Count == 0) { RegStatusText.Text = "请至少添加一个参赛项目"; return; }
 
             string gender = ((ComboBoxItem)RegGenderCombo.SelectedItem).Content.ToString();
-            string bibNumber = GenerateNextBibNumber(RegCountryBox != null ? RegCountryBox.Text.Trim() : "");
+            string regIdNumber = RegIDNumberBox.Text.Trim();
+            string regCountry = RegCountryBox != null ? RegCountryBox.Text.Trim() : "";
+
+            // 2026-05-21 Upsert：若同身份证号已在 DB 中 → 复用其 bib，避免一个人因为
+            // 多次报名拿到多个不同号码牌；否则按代表队号码段生成新号。
+            string bibNumber = null;
+            if (!string.IsNullOrEmpty(regIdNumber)) {
+                var anyExisting = _swimmers.FirstOrDefault(s =>
+                    !string.IsNullOrEmpty(s.IDNumber) && s.IDNumber == regIdNumber);
+                if (anyExisting != null) bibNumber = anyExisting.BibNumber;
+            }
+            if (string.IsNullOrEmpty(bibNumber)) bibNumber = GenerateNextBibNumber(regCountry);
 
             // 2026-05-21 支持手动输入 yyyy-MM-dd（与 HTML <input type="date"> 一致）；
             // 输入了但解析不出来 → 报错而不是静默清空。
@@ -9002,39 +9076,82 @@ namespace SwimmingScoreboard
                     : (RegGroupCombo.Text ?? "").Trim())
                 : "";
             string regCountryShort = RegCountryShortBox != null ? RegCountryShortBox.Text.Trim() : "";
+            string regPhone = RegPhoneBox.Text.Trim();
+            string regCSA = RegCSABox != null ? RegCSABox.Text.Trim() : "";
+            string regNotes = RegNotesBox.Text.Trim();
 
-            int added = 0;
+            // 2026-05-21 Upsert：身份证号 + 项目 双匹配 → 覆盖现有记录；
+            // 否则走原 dup check；其余情况新增。
+            int added = 0, updated = 0, skipped = 0;
             foreach (var ev in _regEventList) {
-                string regIdNumber = RegIDNumberBox.Text.Trim();
-                string regCountry = RegCountryBox.Text.Trim();
-                var dup = FindDuplicate(name, gender, ev.Item1, bibNumber, regIdNumber, regCountry);
-                if (dup != null) continue;
+                string eventName = ev.Item1;
+                string entryTime = ev.Item2;
+                double entrySec = TimeFormatter.Parse(entryTime);
+
+                // ★ Upsert 路径
+                if (!string.IsNullOrEmpty(regIdNumber)) {
+                    var existing = _swimmers.FirstOrDefault(s =>
+                        !string.IsNullOrEmpty(s.IDNumber)
+                        && s.IDNumber == regIdNumber
+                        && s.EventName == eventName);
+                    if (existing != null) {
+                        existing.Name             = name;
+                        existing.Gender           = gender;
+                        existing.Country          = regCountry;
+                        existing.CountryShort     = regCountryShort;
+                        existing.Phone            = regPhone;
+                        existing.CSANumber        = regCSA;
+                        existing.BirthDate        = birthDate;
+                        if (age > 0)                            existing.Age = age;
+                        existing.EntryTime        = entryTime;
+                        existing.EntryTimeSeconds = entrySec;
+                        existing.Notes            = regNotes;
+                        if (!string.IsNullOrEmpty(regGroup))    existing.AgeCategory = regGroup;
+                        updated++;
+                        continue;
+                    }
+                }
+
+                var dup = FindDuplicate(name, gender, eventName, bibNumber, regIdNumber, regCountry);
+                if (dup != null) { skipped++; continue; }
 
                 var sw = new Swimmer {
-                    BibNumber = bibNumber,
-                    Name = name,
-                    Gender = gender,
-                    Country = regCountry,
+                    BibNumber    = bibNumber,
+                    Name         = name,
+                    Gender       = gender,
+                    Country      = regCountry,
                     CountryShort = regCountryShort,
-                    IDNumber = regIdNumber,
-                    Phone = RegPhoneBox.Text.Trim(),
-                    CSANumber = RegCSABox != null ? RegCSABox.Text.Trim() : "",
-                    EventName = ev.Item1,
-                    EntryTime = ev.Item2,
-                    BirthDate = birthDate,
-                    Age = age,
-                    Notes = RegNotesBox.Text.Trim()
+                    IDNumber     = regIdNumber,
+                    Phone        = regPhone,
+                    CSANumber    = regCSA,
+                    EventName    = eventName,
+                    EntryTime    = entryTime,
+                    EntryTimeSeconds = entrySec,
+                    BirthDate    = birthDate,
+                    Age          = age,
+                    Notes        = regNotes
                 };
-                sw.EntryTimeSeconds = TimeFormatter.Parse(sw.EntryTime);
                 // 手动组别优先于 AgeGroupRegistry 自动推断
                 if (!string.IsNullOrEmpty(regGroup)) sw.AgeCategory = regGroup;
                 _swimmers.Add(sw);
                 added++;
             }
 
-            AddLog(string.Format("注册运动员: {0}({1}) {2}个项目", name, bibNumber, added));
-            RegStatusText.Text = string.Format("注册成功！参赛号: {0}，共{1}个项目", bibNumber, added);
-            RegStatusText.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#22C55E"));
+            AddLog(string.Format("注册运动员: {0}({1}) 新增 {2} 项 / 更新 {3} 项 / 跳过 {4} 项",
+                name, bibNumber, added, updated, skipped));
+            if (added > 0 || updated > 0) {
+                string text = string.Format("处理完成！参赛号: {0}，新增 {1} 项", bibNumber, added);
+                if (updated > 0) text += string.Format("，更新 {0} 项", updated);
+                if (skipped > 0) text += string.Format("，跳过 {0} 项冲突", skipped);
+                RegStatusText.Text = text;
+                RegStatusText.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#22C55E"));
+            } else if (skipped > 0) {
+                RegStatusText.Text = string.Format("全部 {0} 项均与现有记录冲突，未入库", skipped);
+                RegStatusText.Foreground = new SolidColorBrush(Colors.Red);
+            } else {
+                RegStatusText.Text = "未处理任何项目";
+                RegStatusText.Foreground = new SolidColorBrush(Colors.Gray);
+            }
 
             // 清空表单准备下一位
             RegNameBox.Clear();
@@ -13878,8 +13995,8 @@ namespace SwimmingScoreboard
                 var recordTypes = new[] { "世界纪录", "奥运会纪录", "亚洲纪录", "亚洲青年纪录", "全国纪录", "省运会纪录", "赛会纪录" };
 
                 var sb = new System.Text.StringBuilder();
-                // BOM + 表头
-                sb.Append('\uFEFF');
+                // 2026-05-21 已移除显式 BOM；Encoding.UTF8 自带 BOM 前导（删除下行 sb.Append）
+                // (removed: explicit BOM redundant — Encoding.UTF8 自带 BOM)
                 sb.AppendLine("组别,性别,项目,类型,保持者,代表队,成绩,日期,地点");
 
                 // 已有的纪录数据先填入对应位置
@@ -14103,7 +14220,7 @@ namespace SwimmingScoreboard
             if (dlg.ShowDialog() != true) return;
             try {
                 var sb = new StringBuilder();
-                sb.Append('﻿');
+                // 2026-05-21 已移除显式 BOM；Encoding.UTF8 自带 3 字节 BOM 前导
                 sb.AppendLine(headerName);
                 foreach (var v in source) sb.AppendLine(CsvEscape(v));
                 File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
@@ -14145,7 +14262,7 @@ namespace SwimmingScoreboard
             if (dlg.ShowDialog() != true) return;
             try {
                 var sb = new StringBuilder();
-                sb.Append('﻿');
+                // 2026-05-21 已移除显式 BOM；Encoding.UTF8 自带 3 字节 BOM 前导
                 sb.AppendLine(headerName + "名称");
                 foreach (var s in sampleRows) sb.AppendLine(s);
                 File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
@@ -14394,7 +14511,7 @@ namespace SwimmingScoreboard
             if (dlg.ShowDialog() != true) return;
             try {
                 var sb = new StringBuilder();
-                sb.Append('﻿');
+                // 2026-05-21 已移除显式 BOM；Encoding.UTF8 自带 3 字节 BOM 前导
                 sb.AppendLine("比赛项目");
                 foreach (var ev in _events) sb.AppendLine(CsvEscape(ev));
                 File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
@@ -14444,7 +14561,7 @@ namespace SwimmingScoreboard
             if (dlg.ShowDialog() != true) return;
             try {
                 var sb = new StringBuilder();
-                sb.Append('﻿');
+                // 2026-05-21 已移除显式 BOM；Encoding.UTF8 自带 3 字节 BOM 前导
                 sb.AppendLine("比赛项目");
                 sb.AppendLine("50米自由泳");
                 sb.AppendLine("100米自由泳");
@@ -14461,7 +14578,7 @@ namespace SwimmingScoreboard
             if (dlg.ShowDialog() != true) return;
             try {
                 var sb = new StringBuilder();
-                sb.Append('﻿');
+                // 2026-05-21 已移除显式 BOM；Encoding.UTF8 自带 3 字节 BOM 前导
                 sb.AppendLine("组别名称");
                 foreach (var g in _ageGroups) sb.AppendLine(CsvEscape(g.Name));
                 File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
@@ -14519,7 +14636,7 @@ namespace SwimmingScoreboard
             if (dlg.ShowDialog() != true) return;
             try {
                 var sb = new StringBuilder();
-                sb.Append('﻿');
+                // 2026-05-21 已移除显式 BOM；Encoding.UTF8 自带 3 字节 BOM 前导
                 sb.AppendLine("组别名称");
                 sb.AppendLine("甲组");
                 sb.AppendLine("乙组");
@@ -14546,10 +14663,31 @@ namespace SwimmingScoreboard
         }
 
         private static List<string[]> ReadCsvLines(string path) {
-            Encoding enc = Encoding.Default;
             byte[] raw = File.ReadAllBytes(path);
-            if (raw.Length >= 3 && raw[0] == 0xEF && raw[1] == 0xBB && raw[2] == 0xBF) enc = Encoding.UTF8;
-            var text = File.ReadAllText(path, enc);
+
+            // 2026-05-21 智能编码嗅探（修"UTF-8 无 BOM 文件被当 GBK 读出乱码"的 bug）：
+            //   1. BOM 优先：UTF-8 BOM / UTF-16 LE BOM / UTF-16 BE BOM 直接用对应编码
+            //   2. 无 BOM 时：先用 UTF-8 严格解码（new UTF8Encoding(false, true) 遇非法
+            //      字节会抛 DecoderFallbackException），成功 → 当 UTF-8；
+            //      抛异常 → 退化到 Encoding.Default（中文 Windows = GBK），向后兼容旧
+            //      版 Excel "另存为 CSV" 输出的 GBK 文件。
+            //   这样 VS Code / WPS / Mac 工具 / 任何 UTF-8-no-BOM 来源的 CSV 都能正确读。
+            string text;
+            if (raw.Length >= 3 && raw[0] == 0xEF && raw[1] == 0xBB && raw[2] == 0xBF) {
+                text = Encoding.UTF8.GetString(raw, 3, raw.Length - 3);
+            } else if (raw.Length >= 2 && raw[0] == 0xFF && raw[1] == 0xFE) {
+                text = Encoding.Unicode.GetString(raw, 2, raw.Length - 2);            // UTF-16 LE
+            } else if (raw.Length >= 2 && raw[0] == 0xFE && raw[1] == 0xFF) {
+                text = Encoding.BigEndianUnicode.GetString(raw, 2, raw.Length - 2);   // UTF-16 BE
+            } else {
+                try {
+                    var strictUtf8 = new UTF8Encoding(false, true);   // throwOnInvalidBytes
+                    text = strictUtf8.GetString(raw);
+                } catch (DecoderFallbackException) {
+                    text = Encoding.Default.GetString(raw);            // 旧版 GBK CSV 兜底
+                }
+            }
+
             var rows = new List<string[]>();
             var row = new List<string>();
             var cur = new StringBuilder();
@@ -14582,7 +14720,7 @@ namespace SwimmingScoreboard
             if (dlg.ShowDialog() != true) return;
             try {
                 var sb = new StringBuilder();
-                sb.Append('﻿'); // UTF-8 BOM so Excel recognizes encoding
+                // 2026-05-21 已移除显式 BOM，Encoding.UTF8 在写入时自带 BOM
                 sb.AppendLine("单元,日期,时间,组别,性别,项目,阶段,组数");
                 foreach (var s in _schedule) {
                     sb.AppendLine(string.Format("{0},{1},{2},{3},{4},{5},{6},{7}",
@@ -14673,7 +14811,7 @@ namespace SwimmingScoreboard
             if (dlg.ShowDialog() != true) return;
             try {
                 var sb = new StringBuilder();
-                sb.Append('﻿');
+                // 2026-05-21 已移除显式 BOM；Encoding.UTF8 自带 3 字节 BOM 前导
                 sb.AppendLine("单元,日期,时间,组别,性别,项目,阶段,组数");
                 sb.AppendLine("1,2026-04-20,09:00,少年,男,50米自由泳,预赛,4");
                 sb.AppendLine("1,2026-04-20,09:15,少年,女,50米自由泳,预赛,4");
@@ -14935,7 +15073,7 @@ namespace SwimmingScoreboard
             if (dlg.ShowDialog() != true) return;
             try {
                 var sb = new StringBuilder();
-                sb.Append('﻿');
+                // 2026-05-21 已移除显式 BOM；Encoding.UTF8 自带 3 字节 BOM 前导
                 sb.AppendLine("组别,性别,项目,阶段,组号,道次,参赛号,姓名,代表队,报名成绩");
                 // 按赛程顺序输出，保证与日程表对应
                 foreach (var schedItem in _schedule) {
@@ -15086,7 +15224,7 @@ namespace SwimmingScoreboard
             if (dlg.ShowDialog() != true) return;
             try {
                 var sb = new StringBuilder();
-                sb.Append('﻿');
+                // 2026-05-21 已移除显式 BOM；Encoding.UTF8 自带 3 字节 BOM 前导
                 sb.AppendLine("组别,性别,项目,阶段,组号,道次,参赛号,姓名,代表队,报名成绩");
                 sb.AppendLine("少年,男,50米自由泳,预赛,1,4,001,张三,北京,0:23.45");
                 sb.AppendLine("少年,男,50米自由泳,预赛,1,5,002,李四,上海,0:23.60");

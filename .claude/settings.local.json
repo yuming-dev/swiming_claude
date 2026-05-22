@@ -184,7 +184,10 @@
       "Bash(grep -E '新增|添加|修复|//|添加.*功能|2026-|设备全开|battery')",
       "Bash(grep -E '//|2026-|0x[0-9A-Fa-f]+|Send[A-Z]')",
       "Bash(grep -iE '<!--|//|2026|button|battery|force|test')",
-      "Bash(grep -i \"\\\\.zip\\\\|\\\\.pdf$\")"
+      "Bash(grep -i \"\\\\.zip\\\\|\\\\.pdf$\")",
+      "Bash(perl -i -pe 's/sb\\\\.Append\\\\\\(.\\\\\\\\uFEFF.\\\\\\);/\\\\/\\\\/ \\(removed: explicit BOM redundant — Encoding.UTF8 自带 BOM\\)/g' SwimmingScoreboard/MainWindow.xaml.cs)",
+      "Bash(sed -n '13999p' SwimmingScoreboard/MainWindow.xaml.cs)",
+      "Bash(perl -i -pe 's{sb\\\\.Append\\\\\\(.\\\\\\\\\\\\\\\\uFEFF.\\\\\\);}{// \\(removed: explicit BOM redundant — Encoding.UTF8 自带 BOM\\)}g' SwimmingScoreboard/MainWindow.xaml.cs)"
     ]
   }
 }
