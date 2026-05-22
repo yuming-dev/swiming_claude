@@ -91,8 +91,12 @@ input[readonly] { background: #f1f5f9; }
         <h1 style="margin:0;">运动员注册</h1>
         <button class="fullscreen-btn" onclick="goFullScreen()" style="padding:6px 14px;background:#3B82F6;color:white;border:none;border-radius:6px;font-size:13px;cursor:pointer;">全屏</button>
     </div>
-    <div id="connStatus">连接中...
-        <button onclick="changeServerHost()" style="margin-left:8px;padding:2px 8px;background:#64748B;color:white;border:none;border-radius:3px;font-size:11px;cursor:pointer;">设置服务器IP</button>
+    <!-- 2026-05-21 拆为两段：左侧文字 span 单独更新，右侧按钮常驻不被 textContent 清掉。
+         按钮文案 "🔄 切换服务器IP" 明示可在已连接状态下随时改 IP — 不必先断开。 -->
+    <div id="connStatus">
+        <span id="connStatusText">连接中...</span>
+        <button onclick="changeServerHost()" title="点此随时切换到另一台主服务器（无需先断开）"
+                style="margin-left:8px;padding:3px 10px;background:#3B82F6;color:white;border:none;border-radius:4px;font-size:12px;font-weight:bold;cursor:pointer;">🔄 切换服务器IP</button>
     </div>
     <div id="statusMsg" class="status"></div>
 
@@ -233,12 +237,16 @@ document.addEventListener('webkitfullscreenchange', function() { var btns=docume
 
 var _connFailCount = 0;
 function getServerHost(forceAsk) {
+    // 2026-05-21 修：forceAsk=true (用户主动点"切换服务器IP"按钮) 时必须弹 prompt；
+    // 之前 URL ?host=xxx 优先级最高会直接 return，导致用 ?host= 链接打开的用户
+    // 按按钮也无法改 IP。现把 URL ?host= 和 location.hostname 早返回都用
+    // !forceAsk 守卫，仅"自动连接首次取地址"时生效，用户主动切换时一律走 prompt。
     var params = new URLSearchParams(window.location.search);
-    if (params.get('host')) return params.get('host');
+    if (!forceAsk && params.get('host')) return params.get('host');
     if (!forceAsk && location.hostname && location.hostname !== '' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') return location.hostname;
     var saved = localStorage.getItem('swimServerHost');
     if (!forceAsk && saved) return saved;
-    var def = saved || '192.168.1.100';
+    var def = saved || params.get('host') || location.hostname || '192.168.1.100';
     var ip = prompt('请输入服务器IP地址:', def);
     if (ip) { localStorage.setItem('swimServerHost', ip); return ip; }
     return saved || 'localhost';
@@ -250,11 +258,13 @@ function connect() {
     ws.onopen = function() {
         _connFailCount = 0;
         ws.send(JSON.stringify({type: 'REGISTER_TERMINAL_IDENTITY'}));
-        document.getElementById('connStatus').textContent = '已连接服务器 ' + host;
+        // 2026-05-21 只改 span 文字 + 颜色；切勿对 connStatus 用 textContent，
+        // 否则会把"切换服务器IP"按钮一起抹掉
+        document.getElementById('connStatusText').textContent = '已连接服务器 ' + host;
         document.getElementById('connStatus').style.color = '#22c55e';
     };
     ws.onclose = function() {
-        document.getElementById('connStatus').textContent = '连接断开，重连中...';
+        document.getElementById('connStatusText').textContent = '连接断开，重连中...';
         document.getElementById('connStatus').style.color = '#ef4444';
         _connFailCount++;
         if (_connFailCount >= 3) { _connFailCount = 0; if (confirm('连接失败，是否重新设置服务器地址？')) { changeServerHost(); return; } }

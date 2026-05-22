@@ -8274,18 +8274,48 @@ namespace SwimmingScoreboard
             };
             if (dlg.ShowDialog() != true) return;
             try {
+                // 2026-05-21 升级为"多项目"模板：一名运动员一行，最多 8 个个人项目并列填。
+                // 旧 13 列单项目格式（"项目","报名成绩"）仍受 ImportCSV 兼容支持，导入时
+                // 按表头自动识别走老路径。接力项目（含"接力"二字）建议在「接力队管理」
+                // Tab 集中报名（那边能指定棒次顺序与队级报名成绩），本模板**仅个人项目**。
+                const int eventSlots = 8;
+                var headers = new List<string> {
+                    "号码","姓名","性别","代表队","年龄","出生日期","身份证号","电话","备注","组别","单位简称"
+                };
+                for (int n = 1; n <= eventSlots; n++) {
+                    headers.Add("项目" + n);
+                    headers.Add("成绩" + n);
+                }
                 var sb = new StringBuilder();
-                // 2026-05-21 已移除显式 sb.Append('﻿'); 详见同期注释，Encoding.UTF8 自带 BOM
-                sb.AppendLine(string.Join(",", SwimmerCsvHeaders));
-                // 两条示例行（Excel/WPS 打开即看到格式说明）
-                sb.AppendLine(string.Join(",", new[] {
-                    "001","张三","男","北京队","100米自由泳","52.30","18","2007-05-12","110101200705120011","13800000001","","青年",""
-                }));
-                sb.AppendLine(string.Join(",", new[] {
-                    "002","李四","女","上海队","50米蛙泳","34.85","22","2003-08-21","310101200308210022","13800000002","","成年","沪"
-                }));
+                sb.AppendLine(string.Join(",", headers));
+
+                // 示例 1：张三 报 3 个个人项目
+                var ex1 = new List<string> {
+                    "001","张三","男","北京队","18","2007-05-12","110101200705120011","13800000001","","青年","京"
+                };
+                ex1.Add("100米自由泳"); ex1.Add("52.30");
+                ex1.Add("200米自由泳"); ex1.Add("1:55.00");
+                ex1.Add("100米仰泳");   ex1.Add("1:00.50");
+                for (int n = 4; n <= eventSlots; n++) { ex1.Add(""); ex1.Add(""); }
+                sb.AppendLine(string.Join(",", ex1.ConvertAll<string>(CsvEscape)));
+
+                // 示例 2：李四 报 1 个个人项目
+                var ex2 = new List<string> {
+                    "002","李四","女","上海队","22","2003-08-21","310101200308210022","13800000002","","成年","沪"
+                };
+                ex2.Add("50米蛙泳"); ex2.Add("34.85");
+                for (int n = 2; n <= eventSlots; n++) { ex2.Add(""); ex2.Add(""); }
+                sb.AppendLine(string.Join(",", ex2.ConvertAll<string>(CsvEscape)));
+
                 File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
-                MessageBox.Show("运动员报名模板已保存。\n\n用 Excel/WPS 打开编辑后，可用『导入CSV』按钮回灌。\n（号码列留空时，导入时由系统自动按号码段分配）", "完成");
+                MessageBox.Show(
+                    "运动员报名模板已保存（多项目格式）。\n\n" +
+                    "● 一名运动员填一行，最多 8 个个人项目并列填在 \"项目1/成绩1\" 到 \"项目8/成绩8\" 列对中\n" +
+                    "● 项目列为空 → 该列对忽略；用户用不到的项目列对可全部留空\n" +
+                    "● 号码列留空 → 导入时由系统按代表队号码段自动分配\n" +
+                    "● 接力项目请在「接力队管理」Tab 集中报名（需指定棒次与队级成绩）\n" +
+                    "● 旧版 13 列单项目模板仍兼容，导入时自动识别格式",
+                    "完成");
             } catch (Exception ex) {
                 MessageBox.Show("保存失败: " + ex.Message, "错误");
             }
@@ -8296,116 +8326,207 @@ namespace SwimmingScoreboard
                 Filter = "CSV文件|*.csv|所有文件|*.*",
                 Title = "导入运动员CSV"
             };
-            if (dlg.ShowDialog() == true) {
-                try {
-                    // 2026-05-21 改用 ReadCsvLines (RFC 4180 状态机解析) 替换 String.Split(',')。
-                    // 旧版用 split(',') 切，遇到含英文逗号或双引号的字段（典型场景：备注里有
-                    // "英文逗号测试,看是否错位"，export 端用 CsvEscape 加了引号包裹）会拦腰
-                    // 切断字段、后续所有列向左挪一格（铁证：组别变成"看是否错位\""、单位简称
-                    // 变成"成年"）。ReadCsvLines 已内置 UTF-8 BOM 检测 + 引号转义。
-                    var rows = ReadCsvLines(dlg.FileName);
-                    // 2026-05-21 增加 Upsert 语义：身份证号 + 项目 双匹配 → 覆盖现有记录的所有字段
-                    // （队伍/报名成绩/电话/备注等），允许教练通过"导出 → 在 Excel 改 → 再导入"
-                    // 来批量刷新数据。仅当 ID 不匹配再走原有 dup 检查（号码牌冲突 / 同名无 ID）。
-                    int imported = 0, updated = 0, skipped = 0;
-                    var skipReasons = new List<string>();
+            if (dlg.ShowDialog() != true) return;
+            try {
+                // 2026-05-21 综合改进：
+                //   ① ReadCsvLines (RFC 4180 状态机) 替换 split(',') — 不再被字段内英文逗号撕裂
+                //   ② Upsert：身份证号 + 项目 双匹配 → 覆盖现有记录所有字段
+                //   ③ 自动识别新版"多项目"模板（表头含 "项目1"）vs 旧版单项目模板
+                //      新版：一名运动员一行，项目1..N + 成绩1..N 多列并排（仅个人项目；
+                //            接力项目仍在「接力队管理」Tab 报名以指定棒次和队级成绩）
+                var rows = ReadCsvLines(dlg.FileName);
+                if (rows.Count < 2) {
+                    MessageBox.Show("CSV 文件没有数据行（只有表头或为空）。", "导入失败",
+                        MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                string[] header = rows[0];
+                bool isMultiEventFormat = false;
+                for (int hi = 0; hi < header.Length; hi++) {
+                    if ((header[hi] ?? "").Trim() == "项目1") { isMultiEventFormat = true; break; }
+                }
+
+                int imported = 0, updated = 0, skipped = 0;
+                var skipReasons = new List<string>();
+
+                if (isMultiEventFormat) {
+                    // ── 新版多项目格式：按表头名查找列；一行多项目 ──
+                    var colIdx = new Dictionary<string, int>();
+                    for (int hi = 0; hi < header.Length; hi++) {
+                        string h = (header[hi] ?? "").Trim();
+                        if (!string.IsNullOrEmpty(h) && !colIdx.ContainsKey(h)) colIdx[h] = hi;
+                    }
+
+                    // 找连续编号的 项目N / 成绩N 列对（最多 50 列）
+                    var pairs = new List<int[]>();   // {项目idx, 成绩idx 或 -1}
+                    for (int n = 1; n <= 50; n++) {
+                        int evIdx;
+                        if (!colIdx.TryGetValue("项目" + n, out evIdx)) break;
+                        int etIdx;
+                        bool hasEt = colIdx.TryGetValue("成绩" + n, out etIdx);
+                        pairs.Add(new int[] { evIdx, hasEt ? etIdx : -1 });
+                    }
+
+                    for (int i = 1; i < rows.Count; i++) {
+                        string[] cols = rows[i];
+                        string name = ReadCsvCol(cols, colIdx, "姓名");
+                        if (string.IsNullOrEmpty(name)) continue;  // 跳过空行
+
+                        string bibFromRow   = ReadCsvCol(cols, colIdx, "号码");
+                        string gender       = ReadCsvCol(cols, colIdx, "性别");
+                        string country      = ReadCsvCol(cols, colIdx, "代表队");
+                        string countryShort = ReadCsvCol(cols, colIdx, "单位简称");
+                        int    age          = ParseIntOr0(ReadCsvCol(cols, colIdx, "年龄"));
+                        string birthDate    = ReadCsvCol(cols, colIdx, "出生日期");
+                        string idNumber     = ReadCsvCol(cols, colIdx, "身份证号");
+                        string phone        = ReadCsvCol(cols, colIdx, "电话");
+                        string notes        = ReadCsvCol(cols, colIdx, "备注");
+                        string ageCategory  = ReadCsvCol(cols, colIdx, "组别");
+
+                        foreach (var pair in pairs) {
+                            string eventName = (pair[0] < cols.Length) ? cols[pair[0]].Trim() : "";
+                            if (string.IsNullOrEmpty(eventName)) continue;   // 空项目列跳过
+                            string entryTime = (pair[1] >= 0 && pair[1] < cols.Length) ? cols[pair[1]].Trim() : "";
+                            ImportOneSwimmerEvent(bibFromRow, name, gender, country, countryShort,
+                                eventName, entryTime, age, birthDate, idNumber, phone, notes, ageCategory,
+                                i + 1, ref imported, ref updated, ref skipped, skipReasons);
+                        }
+                    }
+                } else {
+                    // ── 旧版单项目格式：每行一项目，固定列位（向后兼容）──
+                    // CSV格式: 号码,姓名,性别,代表队,项目,报名成绩,年龄,出生日期,身份证号,电话,备注,组别,单位简称
                     for (int i = 1; i < rows.Count; i++) {
                         string[] cols = rows[i];
                         if (cols.Length < 5) continue;
-                        // CSV格式: 号码,姓名,性别,代表队,项目,报名成绩,年龄,出生日期,身份证号,电话,备注,组别,单位简称
-                        string bibNum       = cols[0].Trim();
-                        string name         = cols[1].Trim();
-                        string gender       = cols[2].Trim();
-                        string country      = cols[3].Trim();
-                        string eventName    = cols[4].Trim();
-                        string entryTime    = cols.Length >  5 ? cols[5].Trim()  : "";
-                        int    age          = 0; if (cols.Length > 6) int.TryParse(cols[6].Trim(), out age);
-                        string birthDate    = cols.Length >  7 ? cols[7].Trim()  : "";
-                        string idNumber     = cols.Length >  8 ? cols[8].Trim()  : "";
-                        string phone        = cols.Length >  9 ? cols[9].Trim()  : "";
-                        string notes        = cols.Length > 10 ? cols[10].Trim() : "";
-                        string ageCategory  = cols.Length > 11 ? cols[11].Trim() : "";
-                        string countryShort = cols.Length > 12 ? cols[12].Trim() : "";
-                        double entrySec     = TimeFormatter.Parse(entryTime);
-
-                        // ★ Upsert 路径：身份证号 + 项目 双匹配 → 更新现有记录
-                        if (!string.IsNullOrEmpty(idNumber)) {
-                            var existing = _swimmers.FirstOrDefault(s =>
-                                !string.IsNullOrEmpty(s.IDNumber)
-                                && s.IDNumber == idNumber
-                                && s.EventName == eventName);
-                            if (existing != null) {
-                                existing.Name             = name;
-                                existing.Gender           = gender;
-                                existing.Country          = country;
-                                existing.CountryShort     = countryShort;
-                                existing.EntryTime        = entryTime;
-                                existing.EntryTimeSeconds = entrySec;
-                                if (age > 0)                              existing.Age = age;
-                                existing.BirthDate        = birthDate;
-                                existing.Phone            = phone;
-                                existing.Notes            = notes;
-                                if (!string.IsNullOrEmpty(ageCategory))   existing.AgeCategory = ageCategory;
-                                if (!string.IsNullOrEmpty(bibNum))        existing.BibNumber   = bibNum;
-                                updated++;
-                                continue;
-                            }
-                        }
-
-                        // ID 不匹配 → 走 FindDuplicate 检查其它冲突（号码牌 / 同名无 ID）
-                        var dupOther = FindDuplicate(name, gender, eventName, bibNum, idNumber, country);
-                        if (dupOther != null) {
-                            skipped++;
-                            string reason = !string.IsNullOrEmpty(dupOther.BibNumber)
-                                ? string.Format("第{0}行 {1} ({2}): 与号码 {3} 的现有记录冲突", i + 1, name, eventName, dupOther.BibNumber)
-                                : string.Format("第{0}行 {1} ({2}): 与现有记录冲突", i + 1, name, eventName);
-                            if (skipReasons.Count < 20) skipReasons.Add(reason);   // 弹窗最多展示 20 条
-                            continue;
-                        }
-
-                        // 既不更新也不冲突 → 全新条目
-                        if (string.IsNullOrEmpty(bibNum)) bibNum = GenerateNextBibNumber(country);
-                        var sw = new Swimmer {
-                            BibNumber    = bibNum,
-                            Name         = name,
-                            Gender       = gender,
-                            Country      = country,
-                            CountryShort = countryShort,
-                            EventName    = eventName,
-                            EntryTime    = entryTime,
-                            EntryTimeSeconds = entrySec,
-                            Age          = age,
-                            BirthDate    = birthDate,
-                            IDNumber     = idNumber,
-                            Phone        = phone,
-                            Notes        = notes,
-                        };
-                        if (!string.IsNullOrEmpty(ageCategory)) sw.AgeCategory = ageCategory;
-                        _swimmers.Add(sw);
-                        imported++;
+                        ImportOneSwimmerEvent(
+                            cols[0].Trim(),                                                  // bibNum
+                            cols[1].Trim(),                                                  // name
+                            cols[2].Trim(),                                                  // gender
+                            cols[3].Trim(),                                                  // country
+                            cols.Length > 12 ? cols[12].Trim() : "",                         // countryShort
+                            cols[4].Trim(),                                                  // eventName
+                            cols.Length >  5 ? cols[5].Trim()  : "",                         // entryTime
+                            cols.Length >  6 ? ParseIntOr0(cols[6].Trim()) : 0,              // age
+                            cols.Length >  7 ? cols[7].Trim()  : "",                         // birthDate
+                            cols.Length >  8 ? cols[8].Trim()  : "",                         // idNumber
+                            cols.Length >  9 ? cols[9].Trim()  : "",                         // phone
+                            cols.Length > 10 ? cols[10].Trim() : "",                         // notes
+                            cols.Length > 11 ? cols[11].Trim() : "",                         // ageCategory
+                            i + 1, ref imported, ref updated, ref skipped, skipReasons);
                     }
+                }
 
-                    AddLog(string.Format("CSV导入完成: 新增 {0} 条 / 更新 {1} 条 / 跳过 {2} 条",
-                        imported, updated, skipped));
-                    AutoSaveData();
-                    RefreshOverviewStats();
-                    RefreshSwimmerFilter();
-                    Broadcast();
+                AddLog(string.Format("CSV导入完成({0}): 新增 {1} 条 / 更新 {2} 条 / 跳过 {3} 条",
+                    isMultiEventFormat ? "多项目格式" : "单项目格式", imported, updated, skipped));
+                AutoSaveData();
+                RefreshOverviewStats();
+                RefreshSwimmerFilter();
+                Broadcast();
 
-                    // 汇总弹窗 — 让操作员清楚知道发生了什么
-                    string summary = string.Format(
-                        "CSV 导入完成：\n\n  ✅ 新增 {0} 条\n  🔄 更新 {1} 条（身份证号 + 项目 匹配，已覆盖队伍/成绩/电话等字段）\n  ⏭ 跳过 {2} 条（号码牌或同名无身份证号冲突）",
-                        imported, updated, skipped);
-                    if (skipReasons.Count > 0) {
-                        summary += "\n\n跳过原因（前 " + skipReasons.Count + " 条）：\n  " + string.Join("\n  ", skipReasons);
-                    }
-                    MessageBox.Show(summary, "导入运动员 CSV 完成",
-                        MessageBoxButton.OK,
-                        skipped > 0 ? MessageBoxImage.Warning : MessageBoxImage.Information);
-                } catch (Exception ex) {
-                    AddLog("CSV导入失败: " + ex.Message);
+                // 汇总弹窗
+                string formatLabel = isMultiEventFormat ? "多项目格式（一人一行）" : "单项目格式（一项一行）";
+                string summary = string.Format(
+                    "CSV 导入完成（{0}）：\n\n  ✅ 新增 {1} 条\n  🔄 更新 {2} 条（身份证号 + 项目 匹配，已覆盖队伍/成绩/电话等字段）\n  ⏭ 跳过 {3} 条（号码牌或同名无身份证号冲突）",
+                    formatLabel, imported, updated, skipped);
+                if (skipReasons.Count > 0) {
+                    summary += "\n\n跳过原因（前 " + skipReasons.Count + " 条）：\n  " + string.Join("\n  ", skipReasons);
+                }
+                MessageBox.Show(summary, "导入运动员 CSV 完成",
+                    MessageBoxButton.OK,
+                    skipped > 0 ? MessageBoxImage.Warning : MessageBoxImage.Information);
+            } catch (Exception ex) {
+                AddLog("CSV导入失败: " + ex.Message);
+                MessageBox.Show("CSV 导入失败: " + ex.Message, "导入失败",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        // 辅助：按表头名取列；列不存在或行不够长 → 返回 ""
+        private static string ReadCsvCol(string[] cols, Dictionary<string, int> colIdx, string headerName) {
+            int idx;
+            if (!colIdx.TryGetValue(headerName, out idx)) return "";
+            return (idx >= 0 && idx < cols.Length) ? cols[idx].Trim() : "";
+        }
+
+        // 辅助：null / 非数字 → 0
+        private static int ParseIntOr0(string s) {
+            int n;
+            return int.TryParse(s, out n) ? n : 0;
+        }
+
+        // 辅助：导入一名运动员的一个项目（共用 Upsert 逻辑给新老两种 CSV 格式）
+        // 同一人多项目时，第 2 个起会从已生成的 Swimmer 复用 bib（按身份证号匹配），
+        // 避免一人多号。
+        private void ImportOneSwimmerEvent(
+            string bibNum, string name, string gender, string country, string countryShort,
+            string eventName, string entryTime, int age, string birthDate, string idNumber,
+            string phone, string notes, string ageCategory,
+            int rowIdx, ref int imported, ref int updated, ref int skipped, List<string> skipReasons) {
+            double entrySec = TimeFormatter.Parse(entryTime);
+
+            // ★ Upsert：身份证号 + 项目 双匹配 → 覆盖现有记录
+            if (!string.IsNullOrEmpty(idNumber)) {
+                var existing = _swimmers.FirstOrDefault(s =>
+                    !string.IsNullOrEmpty(s.IDNumber)
+                    && s.IDNumber == idNumber
+                    && s.EventName == eventName);
+                if (existing != null) {
+                    existing.Name             = name;
+                    existing.Gender           = gender;
+                    existing.Country          = country;
+                    existing.CountryShort     = countryShort;
+                    existing.EntryTime        = entryTime;
+                    existing.EntryTimeSeconds = entrySec;
+                    if (age > 0)                            existing.Age = age;
+                    existing.BirthDate        = birthDate;
+                    existing.Phone            = phone;
+                    existing.Notes            = notes;
+                    if (!string.IsNullOrEmpty(ageCategory)) existing.AgeCategory = ageCategory;
+                    if (!string.IsNullOrEmpty(bibNum))      existing.BibNumber   = bibNum;
+                    updated++;
+                    return;
                 }
             }
+
+            // ID 不匹配 → 走 FindDuplicate 检查号码牌/同名无 ID 冲突
+            var dupOther = FindDuplicate(name, gender, eventName, bibNum, idNumber, country);
+            if (dupOther != null) {
+                skipped++;
+                string reason = !string.IsNullOrEmpty(dupOther.BibNumber)
+                    ? string.Format("第{0}行 {1} ({2}): 与号码 {3} 的现有记录冲突", rowIdx, name, eventName, dupOther.BibNumber)
+                    : string.Format("第{0}行 {1} ({2}): 与现有记录冲突", rowIdx, name, eventName);
+                if (skipReasons.Count < 20) skipReasons.Add(reason);
+                return;
+            }
+
+            // 全新条目：同一人多项目时复用已生成的 bib
+            string actualBib = bibNum;
+            if (string.IsNullOrEmpty(actualBib) && !string.IsNullOrEmpty(idNumber)) {
+                var any = _swimmers.FirstOrDefault(s =>
+                    !string.IsNullOrEmpty(s.IDNumber) && s.IDNumber == idNumber);
+                if (any != null) actualBib = any.BibNumber;
+            }
+            if (string.IsNullOrEmpty(actualBib)) actualBib = GenerateNextBibNumber(country);
+
+            var sw = new Swimmer {
+                BibNumber    = actualBib,
+                Name         = name,
+                Gender       = gender,
+                Country      = country,
+                CountryShort = countryShort,
+                EventName    = eventName,
+                EntryTime    = entryTime,
+                EntryTimeSeconds = entrySec,
+                Age          = age,
+                BirthDate    = birthDate,
+                IDNumber     = idNumber,
+                Phone        = phone,
+                Notes        = notes,
+            };
+            if (!string.IsNullOrEmpty(ageCategory)) sw.AgeCategory = ageCategory;
+            _swimmers.Add(sw);
+            imported++;
         }
 
         private void AddRelay_Click(object sender, RoutedEventArgs e) {
