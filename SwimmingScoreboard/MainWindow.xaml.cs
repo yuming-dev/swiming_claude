@@ -8283,15 +8283,15 @@ namespace SwimmingScoreboard
             };
             if (dlg.ShowDialog() == true) {
                 try {
-                    // 自动检测编码：有UTF-8 BOM用UTF-8，否则用系统默认编码（中文Windows为GBK）
-                    Encoding csvEncoding = Encoding.Default;
-                    byte[] rawBytes = File.ReadAllBytes(dlg.FileName);
-                    if (rawBytes.Length >= 3 && rawBytes[0] == 0xEF && rawBytes[1] == 0xBB && rawBytes[2] == 0xBF)
-                        csvEncoding = Encoding.UTF8;
-                    string[] lines = File.ReadAllLines(dlg.FileName, csvEncoding);
+                    // 2026-05-21 改用 ReadCsvLines (RFC 4180 状态机解析) 替换 String.Split(',')。
+                    // 旧版用 split(',') 切，遇到含英文逗号或双引号的字段（典型场景：备注里有
+                    // "英文逗号测试,看是否错位"，export 端用 CsvEscape 加了引号包裹）会拦腰
+                    // 切断字段、后续所有列向左挪一格（铁证：组别变成"看是否错位\""、单位简称
+                    // 变成"成年"）。ReadCsvLines 已内置 UTF-8 BOM 检测 + 引号转义。
+                    var rows = ReadCsvLines(dlg.FileName);
                     int imported = 0, skipped = 0;
-                    for (int i = 1; i < lines.Length; i++) {
-                        string[] cols = lines[i].Split(',');
+                    for (int i = 1; i < rows.Count; i++) {
+                        string[] cols = rows[i];
                         if (cols.Length < 5) continue;
                         // CSV格式: 号码,姓名,性别,代表队,项目,报名成绩,年龄,出生日期,身份证号,电话,备注
                         string bibNum = cols[0].Trim();
