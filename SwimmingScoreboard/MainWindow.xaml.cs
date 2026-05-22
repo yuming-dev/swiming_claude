@@ -1025,10 +1025,18 @@ namespace SwimmingScoreboard
                 string gd = sw["gender"] != null ? sw["gender"].ToString() : "男";
                 string ct = sw["country"] != null ? sw["country"].ToString().Trim() : "";
 
-                // 批内重复（同名+性别+代表队）
-                string key = nm + "|" + gd + "|" + ct;
+                // 批内重复：2026-05-21 改为 ID 优先 — 与 FindDuplicate 哲学保持一致：
+                //   • 有身份证号 → 用 "ID:身份证号" 做唯一键（同名不同 ID 不再误杀）
+                //   • 无身份证号 → 退化到 "NA:姓名+性别+代表队"（保留无 ID 时的去重）
+                string idNum = sw["idNumber"] != null ? sw["idNumber"].ToString().Trim() : "";
+                string key = !string.IsNullOrEmpty(idNum)
+                    ? ("ID:" + idNum)
+                    : ("NA:" + nm + "|" + gd + "|" + ct);
                 if (batchKeys.Contains(key)) {
-                    perEntry.Add(new { ok = false, message = nm + ": 与本批内其他条目重复（同姓名+性别+代表队）", bibNumber = "" });
+                    string dupReason = !string.IsNullOrEmpty(idNum)
+                        ? (nm + ": 与本批内其他条目重复（身份证号同 " + idNum + "）")
+                        : (nm + ": 与本批内其他条目重复（同姓名+性别+代表队，且双方均未填身份证号）");
+                    perEntry.Add(new { ok = false, message = dupReason, bibNumber = "" });
                     anyFail = true; normalized.Add(null);
                     continue;
                 }
@@ -7641,12 +7649,18 @@ namespace SwimmingScoreboard
         /// </summary>
         private Swimmer FindDuplicate(string name, string gender, string eventName, string bibNumber, string idNumber = "", string country = "") {
             foreach (var s in _swimmers) {
-                // 1. 身份证号相同且非空 + 同项目 = 重复（最高优先级）
+                // 1. 身份证号相同且非空 + 同项目 = 重复（最高优先级 — 唯一权威标识）
                 if (!string.IsNullOrEmpty(idNumber) && !string.IsNullOrEmpty(s.IDNumber) && s.IDNumber == idNumber && s.EventName == eventName) return s;
                 // 2. 号码牌相同且非空 + 同项目 = 重复
                 if (!string.IsNullOrEmpty(bibNumber) && !string.IsNullOrEmpty(s.BibNumber) && s.BibNumber == bibNumber && s.EventName == eventName) return s;
                 // 3. 同姓名 + 同性别 + 同代表队 + 同项目 = 重复
-                if (!string.IsNullOrEmpty(name) && s.Name == name && s.Gender == gender
+                //    2026-05-21 修复"同名同姓不同人被错误拦截"：当任一方有身份证号时，
+                //    规则 1 已做过权威判定（命中即返回；未命中即 ID 不同 → 不同人），
+                //    规则 3 必须收紧为"双方都无 ID 时"才退化到姓名匹配，否则会把同名
+                //    但不同 ID 的真不同人误判为重复，导致无法导入。
+                //    接力队调用 FindDuplicate(idNumber="")，规则 3 仍按队名+性别+项目正常生效。
+                bool bothMissId = string.IsNullOrEmpty(idNumber) && string.IsNullOrEmpty(s.IDNumber);
+                if (bothMissId && !string.IsNullOrEmpty(name) && s.Name == name && s.Gender == gender
                     && (s.Country ?? "") == (country ?? "") && s.EventName == eventName) return s;
             }
             return null;
