@@ -103,6 +103,7 @@
     <Reference Include="WindowsBase" />
     <Reference Include="PresentationCore" />
     <Reference Include="PresentationFramework" />
+    <Reference Include="System.Windows.Forms" />
   </ItemGroup>
 
   <!-- ── 本项目独占文件（App / LoginWindow / 凭据） ── -->
@@ -204,6 +205,46 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </Page>
+    <Page Include="..\SwimmingScoreboard\FinalsStatusWindow.xaml">
+      <Link>FinalsStatusWindow.xaml</Link>
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="..\SwimmingScoreboard\IndividualRankingWindow.xaml">
+      <Link>IndividualRankingWindow.xaml</Link>
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="..\SwimmingScoreboard\EventTop8Window.xaml">
+      <Link>EventTop8Window.xaml</Link>
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="..\SwimmingScoreboard\DepartmentBulletinWindow.xaml">
+      <Link>DepartmentBulletinWindow.xaml</Link>
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="..\SwimmingScoreboard\EventDurationConfigWindow.xaml">
+      <Link>EventDurationConfigWindow.xaml</Link>
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="..\SwimmingScoreboard\OneClickParamsWindow.xaml">
+      <Link>OneClickParamsWindow.xaml</Link>
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="..\SwimmingScoreboard\UnitManageWindow.xaml">
+      <Link>UnitManageWindow.xaml</Link>
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="..\SwimmingScoreboard\StaffManageWindow.xaml">
+      <Link>StaffManageWindow.xaml</Link>
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
     <Compile Include="..\SwimmingScoreboard\MainWindow.xaml.cs">
       <Link>MainWindow.xaml.cs</Link>
       <DependentUpon>MainWindow.xaml</DependentUpon>
@@ -257,6 +298,46 @@
     <Compile Include="..\SwimmingScoreboard\EventResultPrintWindow.xaml.cs">
       <Link>EventResultPrintWindow.xaml.cs</Link>
       <DependentUpon>EventResultPrintWindow.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="..\SwimmingScoreboard\FinalsStatusWindow.xaml.cs">
+      <Link>FinalsStatusWindow.xaml.cs</Link>
+      <DependentUpon>FinalsStatusWindow.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="..\SwimmingScoreboard\IndividualRankingWindow.xaml.cs">
+      <Link>IndividualRankingWindow.xaml.cs</Link>
+      <DependentUpon>IndividualRankingWindow.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="..\SwimmingScoreboard\EventTop8Window.xaml.cs">
+      <Link>EventTop8Window.xaml.cs</Link>
+      <DependentUpon>EventTop8Window.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="..\SwimmingScoreboard\DepartmentBulletinWindow.xaml.cs">
+      <Link>DepartmentBulletinWindow.xaml.cs</Link>
+      <DependentUpon>DepartmentBulletinWindow.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="..\SwimmingScoreboard\EventDurationConfigWindow.xaml.cs">
+      <Link>EventDurationConfigWindow.xaml.cs</Link>
+      <DependentUpon>EventDurationConfigWindow.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="..\SwimmingScoreboard\OneClickParamsWindow.xaml.cs">
+      <Link>OneClickParamsWindow.xaml.cs</Link>
+      <DependentUpon>OneClickParamsWindow.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="..\SwimmingScoreboard\UnitManageWindow.xaml.cs">
+      <Link>UnitManageWindow.xaml.cs</Link>
+      <DependentUpon>UnitManageWindow.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="..\SwimmingScoreboard\StaffManageWindow.xaml.cs">
+      <Link>StaffManageWindow.xaml.cs</Link>
+      <DependentUpon>StaffManageWindow.xaml</DependentUpon>
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="..\SwimmingScoreboard\ProgramBookEditWindow.xaml.cs">

@@ -37,6 +37,10 @@ namespace SwimmingScoreboard
         private List<string> _stages = new List<string> { "预赛", "半决赛", "决赛" };
         private List<string> _heatCounts = new List<string> { "1组", "2组", "3组", "4组", "5组", "6组", "7组", "8组" };
         private List<BibRange> _bibRanges = new List<BibRange>();
+        // 2026-05-24 P0-3 参赛单位实体表（领队/教练/联系电话）
+        private System.Collections.ObjectModel.ObservableCollection<Unit> _units = new System.Collections.ObjectModel.ObservableCollection<Unit>();
+        // 2026-05-24 P0-D 工作人员表（5 组）
+        private System.Collections.ObjectModel.ObservableCollection<StaffMember> _staff = new System.Collections.ObjectModel.ObservableCollection<StaffMember>();
         // 已"确认本组成绩"并锁定的组次，key = "<组别>|<性别>|<项目>|<赛次>|<组次>"
         // 一旦加入永不自动移除，确保赛程导航中的"已完赛"标志稳定
         private HashSet<string> _confirmedHeats = new HashSet<string>();
@@ -66,6 +70,8 @@ namespace SwimmingScoreboard
         private LaneCloseSettings _laneCloseSettings = new LaneCloseSettings();
         // 团体计分配置（持久化在 CompetitionPackage.ScoringConfig）
         private ScoringConfig _scoringConfig = new ScoringConfig();
+        // 2026-05-24 项目用时配置（持久化在 CompetitionPackage.DurationConfig）— 一键秩序册排日程用
+        private EventDurationConfig _durationConfig = new EventDurationConfig();
         // 计时硬件通讯参数（串口 / TCP / UDP）— 独立 JSON 持久化，下次运行自动恢复
         private TimingConnectionConfig _timingConn = new TimingConnectionConfig();
         // 硬件滚动时间锚点：收到 0x7F 帧时记录 (硬件秒数, 本地接收时刻)；
@@ -470,6 +476,7 @@ namespace SwimmingScoreboard
             RefreshAgeGroupsPreview();
             RefreshAllAgeGroupFilterCombos();
             RefreshDisplayRecordLabelText();
+            RefreshUnitComboBox();
             if (RegEventCombo != null && RegEventCombo.Items.Count > 0) RegEventCombo.SelectedIndex = 0;
 
             // 初始化泳道设备状态
@@ -8077,6 +8084,52 @@ namespace SwimmingScoreboard
             RunWithEditLock("bib-ranges", "号码区间设置", delegate { BibRangeConfigCore(); });
         }
 
+        // 2026-05-24 P0-3 参赛单位管理
+        private void UnitManage_Click(object sender, RoutedEventArgs e) {
+            RunWithEditLock("unit-manage", "参赛单位管理", delegate {
+                var wnd = new UnitManageWindow(_units, _swimmers) { Owner = this };
+                if (wnd.ShowDialog() == true) {
+                    RefreshUnitComboBox();
+                    AutoSaveData();
+                    AddLog(string.Format("参赛单位元信息已保存（{0} 个单位）", _units.Count));
+                }
+            });
+        }
+
+        // 2026-05-24 P0-D 工作人员管理
+        private void StaffManage_Click(object sender, RoutedEventArgs e) {
+            RunWithEditLock("staff-manage", "工作人员管理", delegate {
+                var wnd = new StaffManageWindow(_staff) { Owner = this };
+                if (wnd.ShowDialog() == true) {
+                    AutoSaveData();
+                    AddLog(string.Format("工作人员名单已保存（共 {0} 人）", _staff.Count));
+                }
+            });
+        }
+
+        // 把 _units 的名称灌进报名界面的"代表队"下拉
+        private void RefreshUnitComboBox() {
+            if (RegCountryBox == null) return;
+            string prev = RegCountryBox.Text;
+            RegCountryBox.Items.Clear();
+            var distinctNames = new HashSet<string>();
+            foreach (var u in _units) if (u != null && !string.IsNullOrEmpty(u.Name)) distinctNames.Add(u.Name);
+            foreach (var s in _swimmers) if (!string.IsNullOrEmpty(s.Country)) distinctNames.Add(s.Country);
+            foreach (var n in distinctNames.OrderBy(x => x)) RegCountryBox.Items.Add(n);
+            RegCountryBox.Text = prev ?? "";
+        }
+
+        // 选中已知单位时自动带出"简称"字段
+        private void RegCountryBox_SelectionChanged(object sender, SelectionChangedEventArgs e) {
+            string name = RegCountryBox.SelectedItem as string;
+            if (string.IsNullOrEmpty(name)) return;
+            var u = _units.FirstOrDefault(x => x != null && x.Name == name);
+            if (u != null && !string.IsNullOrEmpty(u.ShortName) && RegCountryShortBox != null
+                && string.IsNullOrEmpty(RegCountryShortBox.Text.Trim())) {
+                RegCountryShortBox.Text = u.ShortName;
+            }
+        }
+
         private void BibRangeConfigCore() {
             // 汇总候选代表队列表：已有 BibRanges 中的 + 已注册运动员中出现的
             var countries = new List<string>();
@@ -9163,6 +9216,14 @@ namespace SwimmingScoreboard
             string regIdNumber = RegIDNumberBox.Text.Trim();
             string regCountry = RegCountryBox != null ? RegCountryBox.Text.Trim() : "";
 
+            // 2026-05-24 自动把新代表队加进 Unit 列表（用户在下拉里手输新单位时）
+            if (!string.IsNullOrEmpty(regCountry) && !_units.Any(u => u != null && u.Name == regCountry)) {
+                string shortName = RegCountryShortBox != null ? RegCountryShortBox.Text.Trim() : "";
+                _units.Add(new Unit { Name = regCountry, ShortName = shortName });
+                RefreshUnitComboBox();
+                AddLog(string.Format("已自动添加新参赛单位: {0}", regCountry));
+            }
+
             // 2026-05-21 Upsert：若同身份证号已在 DB 中 → 复用其 bib，避免一个人因为
             // 多次报名拿到多个不同号码牌；否则按代表队号码段生成新号。
             string bibNumber = null;
@@ -9277,7 +9338,7 @@ namespace SwimmingScoreboard
             // 清空表单准备下一位
             RegNameBox.Clear();
             RegIDNumberBox.Clear();
-            RegCountryBox.Clear();
+            RegCountryBox.Text = ""; RegCountryBox.SelectedItem = null;
             if (RegCountryShortBox != null) RegCountryShortBox.Clear();
             if (RegGroupCombo != null) RegGroupCombo.SelectedItem = null;
             RegPhoneBox.Clear();
@@ -10720,7 +10781,7 @@ namespace SwimmingScoreboard
         // ═══════════════════════════════════════════════════════════════
         // 2026-05-24 秩序册生成向导入口（索美式 5 步工作流）
         private void OpenSchedulingWizard_Click(object sender, RoutedEventArgs e) {
-            var wnd = new SchedulingWizardWindow(_swimmers, _events, _ageGroups, _genders, _poolConfig, _scoringConfig) {
+            var wnd = new SchedulingWizardWindow(_swimmers, _events, _ageGroups, _genders, _poolConfig, _scoringConfig, _durationConfig, _units, _staff) {
                 Owner = this
             };
             bool? ok = wnd.ShowDialog();
@@ -10734,9 +10795,11 @@ namespace SwimmingScoreboard
                 int sessionNum = 1;
                 foreach (var grp in bySession) {
                     foreach (var a in grp.OrderBy(x => x.Time)) {
+                        // 2026-05-24 C5 长距离快慢组：SessionName 标注 · 慢组 / · 快组
+                        string sessionTag = string.IsNullOrEmpty(a.HeatRange) ? "" : (" · " + a.HeatRange);
                         _schedule.Add(new ScheduleItem {
                             SessionNumber = sessionNum,
-                            SessionName = string.Format("第{0}单元（{1} {2}）", sessionNum, a.Date, a.Session),
+                            SessionName = string.Format("第{0}单元（{1} {2}{3}）", sessionNum, a.Date, a.Session, sessionTag),
                             Date = a.Date,
                             Time = a.Time,
                             AgeGroup = a.AgeGroup,
@@ -11992,6 +12055,28 @@ namespace SwimmingScoreboard
             Broadcast();
         }
 
+        // 2026-05-24 赛后报表四件套
+        private void FinalsStatus_Click(object sender, RoutedEventArgs e) {
+            var win = new FinalsStatusWindow(_swimmers, _ageGroups, _genders, _events, _confirmedHeats);
+            win.Owner = this;
+            win.ShowDialog();
+        }
+        private void EventTop8_Click(object sender, RoutedEventArgs e) {
+            var win = new EventTop8Window(_swimmers, _ageGroups, _genders, _events);
+            win.Owner = this;
+            win.ShowDialog();
+        }
+        private void DepartmentBulletin_Click(object sender, RoutedEventArgs e) {
+            var win = new DepartmentBulletinWindow(_swimmers, _ageGroups, _scoringConfig, _units);
+            win.Owner = this;
+            win.ShowDialog();
+        }
+        private void IndividualRanking_Click(object sender, RoutedEventArgs e) {
+            var win = new IndividualRankingWindow(_swimmers, _ageGroups, _scoringConfig);
+            win.Owner = this;
+            win.ShowDialog();
+        }
+
         private void CalcTeamScore_Click(object sender, RoutedEventArgs e) {
             // 团体计分窗口本身是只读结果，但 CalculateTeamScores 会写 _teamScores → 占锁防并发写
             RunWithEditLock("team-scores", "团体计分", delegate {
@@ -12006,6 +12091,15 @@ namespace SwimmingScoreboard
         // 点击保存后写入 _scoringConfig + 持久化到 CompetitionPackage，并重算团体积分。
         private void ScoringConfig_Click(object sender, RoutedEventArgs e) {
             RunWithEditLock("scoring-config", "名次分设置", delegate { ScoringConfigCore(); });
+        }
+
+        // 2026-05-24 项目用时设置
+        private void DurationConfig_Click(object sender, RoutedEventArgs e) {
+            var wnd = new EventDurationConfigWindow(_durationConfig) { Owner = this };
+            if (wnd.ShowDialog() == true) {
+                AutoSaveData();
+                AddLog("项目用时配置已更新");
+            }
         }
 
         private void ScoringConfigCore() {
@@ -12933,8 +13027,11 @@ namespace SwimmingScoreboard
                 Stages = _stages,
                 HeatCounts = _heatCounts,
                 BibRanges = _bibRanges,
+                Units = _units.ToList(),
+                StaffList = _staff.ToList(),
                 LaneCloseSettings = _laneCloseSettings,
                 ScoringConfig = _scoringConfig,
+                DurationConfig = _durationConfig,
                 ProgramBook = _programBook,
                 ResultBook = _resultBook,
                 DisplayRecordLabel = _displayRecordLabel,
@@ -13264,6 +13361,13 @@ namespace SwimmingScoreboard
                         _scoringConfig.ResetToDefaults();
                     }
                 }
+                // 项目用时配置：旧档案没有就保留默认；空字段补默认值
+                if (package.DurationConfig != null) {
+                    _durationConfig = package.DurationConfig;
+                    if (_durationConfig.IndividualMinutesPerHeat == null || _durationConfig.IndividualMinutesPerHeat.Count == 0) {
+                        _durationConfig.ResetToDefaults();
+                    }
+                }
                 if (package.Events != null && package.Events.Count > 0) _events = package.Events;
                 if (package.AgeGroups != null && package.AgeGroups.Count > 0) _ageGroups = package.AgeGroups;
                 if (package.Genders != null && package.Genders.Count > 0) _genders = package.Genders;
@@ -13279,6 +13383,12 @@ namespace SwimmingScoreboard
                 RefreshHeatCountsPreview();
                 RefreshAllAgeGroupFilterCombos();
                 _bibRanges = package.BibRanges ?? new List<BibRange>();
+                // 2026-05-24 P0-3 参赛单位
+                _units.Clear();
+                if (package.Units != null) foreach (var u in package.Units) _units.Add(u);
+                // 2026-05-24 P0-D 工作人员
+                _staff.Clear();
+                if (package.StaffList != null) foreach (var s in package.StaffList) _staff.Add(s);
                 _programBook = package.ProgramBook ?? new ProgramBookData();
                 _resultBook = package.ResultBook ?? new ResultBookData();
                 if (!string.IsNullOrEmpty(package.DisplayRecordLabel)) _displayRecordLabel = package.DisplayRecordLabel;

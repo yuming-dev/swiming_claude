@@ -297,6 +297,10 @@
                                     <Border Width="1" Background="#CBD5E1" Margin="6,4,6,4"/>
                                     <Button Content="号码区间设置" Click="BibRangeConfig_Click" Padding="12,6" Background="#0EA5E9" Foreground="White" BorderThickness="0"
                                             ToolTip="按代表队设置参赛号号码段（如 中国 001-050）。新注册的运动员将在所属代表队的号码段内自动取号。"/>
+                                    <Button Content="参赛单位管理" Click="UnitManage_Click" Padding="12,6" Margin="6,0,0,0" Background="#0EA5E9" Foreground="White" BorderThickness="0"
+                                            ToolTip="管理参赛单位元信息（领队 / 教练 / 队医 / 基础分 / 联系电话），公告/秩序册 header 会用到"/>
+                                    <Button Content="工作人员管理" Click="StaffManage_Click" Padding="12,6" Margin="6,0,0,0" Background="#0EA5E9" Foreground="White" BorderThickness="0"
+                                            ToolTip="管理主席团 / 组委会 / 大会工作机构 / 技术官员 / 赛后控制中心 5 组工作人员（含发令主裁判等游泳赛事专属岗位）"/>
                                 </StackPanel>
                                 <!-- 第二行：筛选条件 -->
                                 <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
@@ -610,6 +614,19 @@
                                             </StackPanel>
                                         </StackPanel>
                                     </Border>
+
+                                    <!-- 2026-05-24 项目用时配置（一键秩序册排日程用） -->
+                                    <Border Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,0,0,10">
+                                        <StackPanel>
+                                            <TextBlock Text="项目用时（分钟/组）" FontSize="13" FontWeight="Bold" Foreground="#1E40AF" Margin="0,0,0,6"/>
+                                            <TextBlock Text="一键生成秩序册排日程时用的每组用时；按距离设置（50→2、100→3、200→5、400→8、800→15、1500→25），单条可在 Tab 3 「分/组」列覆盖。"
+                                                       FontSize="12" Foreground="#64748B" Margin="0,0,0,8" TextWrapping="Wrap"/>
+                                            <StackPanel Orientation="Horizontal">
+                                                <Button Content="项目用时设置" Click="DurationConfig_Click" Padding="12,6" Background="#0EA5E9" Foreground="White" BorderThickness="0" Margin="0,0,8,0"
+                                                        ToolTip="编辑每个距离的分钟/组、项目间空隙、兜底用时"/>
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </Border>
                                 </StackPanel>
                             </ScrollViewer>
                         </TabItem>
@@ -716,7 +733,10 @@
                                     <TextBlock Grid.Row="4" Text="身份证号:" VerticalAlignment="Center"/>
                                     <TextBox x:Name="RegIDNumberBox" Grid.Row="4" Grid.Column="1" Padding="3"/>
                                     <TextBlock Grid.Row="5" Text="代表队:" VerticalAlignment="Center"/>
-                                    <TextBox x:Name="RegCountryBox" Grid.Row="5" Grid.Column="1" Padding="3"/>
+                                    <ComboBox x:Name="RegCountryBox" Grid.Row="5" Grid.Column="1" Padding="3"
+                                              IsEditable="True" IsTextSearchEnabled="True" StaysOpenOnEdit="True"
+                                              SelectionChanged="RegCountryBox_SelectionChanged"
+                                              ToolTip="从「参赛单位管理」下拉选；也可直接输入新单位名（提交时如果不存在会自动添加到单位列表）"/>
                                     <TextBlock Grid.Row="6" Text="单位简称:" VerticalAlignment="Center"/>
                                     <TextBox x:Name="RegCountryShortBox" Grid.Row="6" Grid.Column="1" Padding="3"
                                              ToolTip="大屏/成绩表显示时使用的简短单位名，如 绵阳蓝鲸 → 蓝鲸"/>
@@ -1351,6 +1371,19 @@
                                 Background="#22C55E" Foreground="White" BorderThickness="0"/>
                         <Button Content="查询原始数据" Click="ViewRawData_Click" Padding="12,4" Margin="8,0,0,0"
                                 Background="#64748B" Foreground="White" BorderThickness="0"/>
+                        <Separator Margin="8,0,8,0" Background="#94A3B8" Width="1"/>
+                        <Button Content="📋 决赛状态" Click="FinalsStatus_Click" Padding="10,4" Margin="0,0,4,0"
+                                Background="#0EA5E9" Foreground="White" BorderThickness="0"
+                                ToolTip="决赛项目状态总览"/>
+                        <Button Content="🏆 各项前 8 名" Click="EventTop8_Click" Padding="10,4" Margin="0,0,4,0"
+                                Background="#0EA5E9" Foreground="White" BorderThickness="0"
+                                ToolTip="项目成绩统计 — 各项目第 1-8 名"/>
+                        <Button Content="🏢 部门公告" Click="DepartmentBulletin_Click" Padding="10,4" Margin="0,0,4,0"
+                                Background="#0EA5E9" Foreground="White" BorderThickness="0"
+                                ToolTip="各部门成绩公告 (HTML 输出)"/>
+                        <Button Content="🥇 个人总分排名" Click="IndividualRanking_Click" Padding="10,4" Margin="0,0,0,0"
+                                Background="#0EA5E9" Foreground="White" BorderThickness="0"
+                                ToolTip="运动员个人总分排名 (Top N)"/>
                     </StackPanel>
                     <!-- 姓名列 / 反应时间列加宽并允许换行：接力赛"姓名"为 4 名队员（逗号分隔），
                          "反应时间"按棒展开为"第1棒:0.45 第2棒:0.30 ..."；列宽不够时 TextWrapping 自动换行 -->

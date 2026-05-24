@@ -111,14 +111,18 @@ namespace SwimmingScoreboard
             if (eligible.Count == 0) { LastWarnings.Clear(); return new List<HeatAssignment>(); }
 
             int[] lanePriority = GetLanePriority(pool);
-            var heats = AssignFinaSeeding(eligible.Cast<object>().ToList(), laneCount, lanePriority,
+            var sortedList = eligible.Cast<object>().ToList();
+            var heats = AssignFinaSeeding(sortedList, laneCount, lanePriority,
                                           isShortDistance: IsShortDistanceEvent(eventName),
                                           seedHeatsShort: seedHeatsShort, seedHeatsLong: seedHeatsLong);
 
+            // 2026-05-24 C7 强制 ≥3 人约束（FINA SW 3.1.1.4）：当 heat[0] (最慢组) < 3 人，
+            // 从 heat[1] 借最慢者补齐，前提是 heat[1] 借完仍 ≥3；调整后重排两组的泳道。
+            string mergeNote = EnforceMinHeatSizeByBorrowing(heats, lanePriority, sortedList, minSize: 3);
+
             // FIX-C 每组人数底线：FINA SW 3.1.1.4 预赛任何一组应不少于 3 人。
-            // 当前蛇形 + 直接排位算法在 ≥3 人时不会破，但首次编排即 1-2 人也会建出 1 组（决赛流程），
-            // 这里仅对"预赛"组发警告，不阻塞——操作员可手动并组。
             LastWarnings.Clear();
+            if (!string.IsNullOrEmpty(mergeNote)) LastWarnings.Add(mergeNote);
             // 2026-05-23 C4-UI：把本次抽签所用的种子写入日志，便于裁判向公众公示
             // 可重现性 (Q4 抉择 A)：seed = StringHashStable(eventName + "|" + stage)
             string seedKey = eventName + "|" + stage;
@@ -298,6 +302,46 @@ namespace SwimmingScoreboard
         ///    第1组放最慢若干人（不满则中央泳道用满，最外侧空着）；后续组每组 laneCount 人，
         ///    组内按报名成绩快→慢用 lanePriority 分道。
         /// </summary>
+        // 2026-05-24 C7 自动并组：若 heat[0] < minSize 且 heat[1] 借完仍 ≥ minSize，
+        // 把 heat[1] 中最慢的 (minSize - heat[0].Count) 名借给 heat[0]，并对两组按速度重排泳道。
+        // 速度比较通过在 sortedFastFirst 中的索引（值越小越快）。
+        // 返回的日志字符串供调用方写到 LastWarnings；无调整时返回 null。
+        private static string EnforceMinHeatSizeByBorrowing(
+                List<List<Tuple<object, int>>> heats, int[] lanePriority,
+                List<object> sortedFastFirst, int minSize) {
+            if (heats == null || heats.Count < 2) return null;
+            if (heats[0].Count >= minSize || heats[0].Count == 0) return null;
+            int need = minSize - heats[0].Count;
+            int canBorrow = heats[1].Count - minSize;
+            if (canBorrow <= 0) return null;
+            int borrow = Math.Min(need, canBorrow);
+            if (borrow <= 0) return null;
+
+            // 找 heat[1] 中最慢的 `borrow` 名 — 按 sortedFastFirst 索引降序（越大越慢）
+            var heat1Sorted = heats[1].OrderByDescending(t => sortedFastFirst.IndexOf(t.Item1)).ToList();
+            var toMove = heat1Sorted.Take(borrow).ToList();
+            foreach (var t in toMove) heats[1].Remove(t);
+            foreach (var t in toMove) heats[0].Add(t);
+
+            // 两个 heat 都是 "direct" 慢组（heat[0] 一定是；heat[1] 大概率是）— 按速度
+            // 升序重排（最快 j=0 → 中道）。这里统一按速度重排，对 seeded 组也安全。
+            ReseatHeatByLanePriority(heats[0], lanePriority, sortedFastFirst);
+            ReseatHeatByLanePriority(heats[1], lanePriority, sortedFastFirst);
+
+            return string.Format("🔧 C7 自动并组：第 1 组人数不足 3，已从第 2 组借 {0} 名慢者补齐（FINA SW 3.1.1.4）", borrow);
+        }
+
+        // 按速度（在 sortedFastFirst 中的索引，越小越快）从 j=0 起重新分配泳道
+        private static void ReseatHeatByLanePriority(
+                List<Tuple<object, int>> heat, int[] lanePriority, List<object> sortedFastFirst) {
+            var ordered = heat.OrderBy(t => sortedFastFirst.IndexOf(t.Item1)).ToList();
+            heat.Clear();
+            for (int j = 0; j < ordered.Count; j++) {
+                int lane = j < lanePriority.Length ? lanePriority[j] : lanePriority[lanePriority.Length - 1];
+                heat.Add(Tuple.Create(ordered[j].Item1, lane));
+            }
+        }
+
         private static List<List<Tuple<object, int>>> AssignFinaSeeding(
                 List<object> sortedFastFirst, int laneCount, int[] lanePriority, bool isShortDistance,
                 int seedHeatsShort = 3, int seedHeatsLong = 2) {

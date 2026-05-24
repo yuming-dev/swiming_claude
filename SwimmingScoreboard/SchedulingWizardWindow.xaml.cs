@@ -25,6 +25,11 @@ namespace SwimmingScoreboard
         private readonly List<string> _genders;
         private readonly PoolConfig _poolConfig;
         private readonly ScoringConfig _scoringConfig;
+        private readonly EventDurationConfig _durationConfig;
+        // 2026-05-24 参赛单位元信息（领队/教练/联系电话）— 秩序册章节中显示
+        private readonly List<Unit> _units;
+        // 2026-05-24 P0-D 工作人员（5 组）— 秩序册章节 3-6 用
+        private readonly List<StaffMember> _staff;
 
         // Tab 1 数据
         private ObservableCollection<SchedulingPlanEntry> _planRows = new ObservableCollection<SchedulingPlanEntry>();
@@ -37,7 +42,10 @@ namespace SwimmingScoreboard
             List<AgeGroup> ageGroups,
             List<string> genders,
             PoolConfig poolConfig,
-            ScoringConfig scoringConfig) {
+            ScoringConfig scoringConfig,
+            EventDurationConfig durationConfig,
+            IEnumerable<Unit> units,
+            IEnumerable<StaffMember> staff) {
 
             InitializeComponent();
             _swimmers = swimmers;
@@ -46,6 +54,9 @@ namespace SwimmingScoreboard
             _genders = genders ?? new List<string> { "男", "女" };
             _poolConfig = poolConfig ?? new PoolConfig();
             _scoringConfig = scoringConfig ?? new ScoringConfig();
+            _durationConfig = durationConfig ?? new EventDurationConfig();
+            _units = units != null ? units.ToList() : new List<Unit>();
+            _staff = staff != null ? staff.ToList() : new List<StaffMember>();
 
             StagePlanGrid.ItemsSource = _planRows;
             NavList.SelectedIndex = 0;   // 默认进入 Tab 1
@@ -187,6 +198,134 @@ namespace SwimmingScoreboard
             };
         }
 
+        // 2026-05-24 P0-1 一键全自动：参数对话框 → 自动统计赛次 → 派生待分配 → 多天分配时段 → 跳转 Tab 3
+        private void OneClickGenerate_Click(object sender, RoutedEventArgs e) {
+            // 默认起始日期 = 今天；天数沿用上次的 _availableDates 数量（兜底 3）
+            DateTime defaultDate = DateTime.Today;
+            int defaultDays = _availableDates != null && _availableDates.Count > 0 ? _availableDates.Count : 3;
+
+            var dlg = new OneClickParamsWindow(defaultDate, defaultDays) { Owner = this };
+            if (dlg.ShowDialog() != true) return;
+
+            // 1) 自动统计赛次
+            AutoComputeStages_Click(null, null);
+
+            // 把用户配的时段起始时间存进来，供 RecomputeAssignedTimes 后续微调使用
+            _sessionStartMin[0] = dlg.ParamMorningStartMin;
+            _sessionStartMin[1] = dlg.ParamAfternoonStartMin;
+            _sessionStartMin[2] = dlg.ParamEveningStartMin;
+
+            // 2) 准备 _availableDates / 派生待分配
+            _availableDates = new List<string>();
+            for (int i = 0; i < dlg.ParamDays; i++)
+                _availableDates.Add(dlg.ParamStartDate.AddDays(i).ToString("yyyy-MM-dd"));
+
+            _distAssigned.Clear();
+            _distPending.Clear();
+            BuildDistPendingFromPlan();
+
+            // 3) 多天 × 时段分配
+            DistributeAcrossDays(dlg);
+
+            // 4) 切到 Tab 3 显示结果，刷新 day combo
+            NavList.SelectedIndex = 2;   // Tab 3
+            DistDayCombo.ItemsSource = null;
+            DistDayCombo.ItemsSource = _availableDates;
+            DistDayCombo.SelectedIndex = 0;
+            DistPendingGrid.ItemsSource = _distPending;
+            DistAssignedGrid.ItemsSource = _distVisible;
+            RefreshDistVisible();
+            UpdateDistCounters();
+
+            int leftPending = _distPending.Count;
+            string summary;
+            if (leftPending == 0) {
+                summary = string.Format("✅ 已编排 {0} 项，分配到 {1} 天。\n\n是否进入「秩序册可选文档」生成 .xlsx？",
+                    _distAssigned.Count, dlg.ParamDays);
+            } else {
+                summary = string.Format("⚠ 已编排 {0} 项，但仍有 {1} 项未排上（容量不足）。\n建议：增加比赛天数、放宽每场最长，或手动微调。\n\n是否仍进入「生成 xlsx」？",
+                    _distAssigned.Count, leftPending);
+            }
+            if (MessageBox.Show(summary, "一键全自动完成", MessageBoxButton.YesNo, MessageBoxImage.Information) == MessageBoxResult.Yes) {
+                NavList.SelectedIndex = 3;   // Tab 4
+            }
+        }
+
+        private void DistributeAcrossDays(OneClickParamsWindow p) {
+            // 排序：FINA 项目顺序 → stage (预赛优先)
+            var ordered = _distPending.OrderBy(d => EventOrder(d.EventName))
+                                       .ThenBy(d => StageOrder(d.Stage))
+                                       .ThenBy(d => d.AgeGroup ?? "")
+                                       .ThenBy(d => d.Gender ?? "")
+                                       .ToList();
+
+            // 时段容量表：(day, session) → 已用分钟数 / 起始分钟数
+            int dayCount = p.ParamDays;
+            // sessionSlots[d][0=AM,1=PM,2=EVE] = 已用分钟
+            var used = new int[dayCount, 3];
+
+            foreach (var d in ordered) {
+                // 选时段
+                int sessionIdx;
+                if (p.ParamStrategyFinalOnly) {
+                    sessionIdx = 2;   // 全部按晚上决赛
+                } else if (d.HeatRange == "慢组") {
+                    // 2026-05-24 C5 长距离慢组 → 白天（上午优先；上午满则下午）
+                    sessionIdx = 0;
+                } else if (d.HeatRange == "快组") {
+                    sessionIdx = 2;   // 长距离快组 → 晚间
+                } else if (d.Stage == "决赛" || d.Stage == "B组决赛") {
+                    sessionIdx = 2;
+                } else if (d.Stage == "半决赛") {
+                    sessionIdx = 1;
+                } else {
+                    sessionIdx = 0;
+                }
+
+                int duration = Math.Max(1, d.Heats) * Math.Max(1, d.MinPerHeat) + _durationConfig.InterEventGapMinutes;
+
+                // 在该时段从前往后找有空的天 — 严格按预赛在决赛之前的原则放
+                int chosenDay = -1;
+                int chosenSession = sessionIdx;
+                for (int day = 0; day < dayCount; day++) {
+                    if (p.ParamFirstDayMorningSkip && day == 0 && sessionIdx == 0) continue;
+                    if (p.ParamLastDayAfternoonSkip && day == dayCount - 1 && sessionIdx == 1) continue;
+                    if (used[day, sessionIdx] + duration <= p.ParamMaxSessionMinutes) {
+                        chosenDay = day; chosenSession = sessionIdx;
+                        break;
+                    }
+                }
+                // 该时段全满 → 尝试相邻时段（晚上→下午→上午 / 上午→下午→晚上）
+                if (chosenDay < 0) {
+                    int[] order = sessionIdx == 2 ? new[] { 1, 0 } : sessionIdx == 1 ? new[] { 2, 0 } : new[] { 1, 2 };
+                    foreach (var sIdx in order) {
+                        for (int day = 0; day < dayCount; day++) {
+                            if (p.ParamFirstDayMorningSkip && day == 0 && sIdx == 0) continue;
+                            if (p.ParamLastDayAfternoonSkip && day == dayCount - 1 && sIdx == 1) continue;
+                            if (used[day, sIdx] + duration <= p.ParamMaxSessionMinutes) {
+                                chosenDay = day; chosenSession = sIdx;
+                                break;
+                            }
+                        }
+                        if (chosenDay >= 0) break;
+                    }
+                }
+                if (chosenDay < 0) continue;   // 真的排不下，留在 pending
+
+                int sessStart = chosenSession == 0 ? p.ParamMorningStartMin :
+                                chosenSession == 1 ? p.ParamAfternoonStartMin : p.ParamEveningStartMin;
+                int t = sessStart + used[chosenDay, chosenSession];
+                d.AssignedDate = _availableDates[chosenDay];
+                d.AssignedSession = chosenSession == 0 ? "上午" : chosenSession == 1 ? "下午" : "晚上";
+                d.AssignedTime = string.Format("{0:D2}:{1:D2}", t / 60, t % 60);
+                d.AssignedSortKey = t;
+                used[chosenDay, chosenSession] += duration;
+                _distAssigned.Add(d);
+            }
+            // 把已分配的从 pending 移除
+            foreach (var d in _distAssigned.ToList()) _distPending.Remove(d);
+        }
+
         private void ResetEdits_Click(object sender, RoutedEventArgs e) {
             if (_autoBaseline.Count == 0) {
                 MessageBox.Show("还没有自动统计数据，请先点 「🔄 自动统计赛次」", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
@@ -275,25 +414,28 @@ namespace SwimmingScoreboard
                     _distPending.Add(new DistEntry { AgeGroup = r.AgeGroup, Gender = r.Gender, EventName = r.EventName,
                         Participants = r.Participants, Heats = r.SemiHeats, Cutoff = r.SemiCutoff,
                         Stage = "半决赛", MinPerHeat = EstimateMinutesPerHeat(r.EventName) });
-                if (r.FinalHeats > 0)
-                    _distPending.Add(new DistEntry { AgeGroup = r.AgeGroup, Gender = r.Gender, EventName = r.EventName,
-                        Participants = r.Participants, Heats = r.FinalHeats, Cutoff = r.FinalCutoff,
-                        Stage = "决赛", MinPerHeat = EstimateMinutesPerHeat(r.EventName) });
+                if (r.FinalHeats > 0) {
+                    // 2026-05-24 C5 长距离快慢组：800/1500 米决赛 FinalHeats≥2 → 拆成 慢组(白天) + 快组(晚间)
+                    if (HeatScheduler.IsLongDistanceFastSlowEvent(r.EventName) && r.FinalHeats >= 2) {
+                        _distPending.Add(new DistEntry { AgeGroup = r.AgeGroup, Gender = r.Gender, EventName = r.EventName,
+                            Participants = r.Participants, Heats = r.FinalHeats - 1, Cutoff = r.FinalCutoff,
+                            Stage = "决赛", HeatRange = "慢组", MinPerHeat = EstimateMinutesPerHeat(r.EventName) });
+                        _distPending.Add(new DistEntry { AgeGroup = r.AgeGroup, Gender = r.Gender, EventName = r.EventName,
+                            Participants = r.Participants, Heats = 1, Cutoff = r.FinalCutoff,
+                            Stage = "决赛", HeatRange = "快组", MinPerHeat = EstimateMinutesPerHeat(r.EventName) });
+                    } else {
+                        _distPending.Add(new DistEntry { AgeGroup = r.AgeGroup, Gender = r.Gender, EventName = r.EventName,
+                            Participants = r.Participants, Heats = r.FinalHeats, Cutoff = r.FinalCutoff,
+                            Stage = "决赛", MinPerHeat = EstimateMinutesPerHeat(r.EventName) });
+                    }
+                }
             }
             ApplyDistSort();
         }
 
-        // 粗估每组用时（分钟），可在右面板手动调整
-        private static int EstimateMinutesPerHeat(string ev) {
-            if (string.IsNullOrEmpty(ev)) return 5;
-            if (ev.Contains("1500")) return 25;
-            if (ev.Contains("800")) return 15;
-            if (ev.Contains("400")) return 8;
-            if (ev.Contains("200")) return 5;
-            if (ev.Contains("100")) return 3;
-            if (ev.Contains("50")) return 2;
-            if (ev.Contains("接力")) return 8;
-            return 5;
+        // 每组用时（分钟）— 从 DurationConfig 取（用户可在 "项目用时设置" 编辑、持久化）
+        private int EstimateMinutesPerHeat(string ev) {
+            return _durationConfig.GetMinutesPerHeat(ev);
         }
 
         private void ApplyDistSort() {
@@ -393,7 +535,7 @@ namespace SwimmingScoreboard
                 d.AssignedSession = session;
                 d.AssignedTime = string.Format("{0:D2}:{1:D2}", (sessionStartMin + curMin) / 60, (sessionStartMin + curMin) % 60);
                 d.AssignedSortKey = sessionStartMin + curMin;
-                curMin += Math.Max(1, d.Heats) * Math.Max(1, d.MinPerHeat) + 2; // +2min 项目间隔
+                curMin += Math.Max(1, d.Heats) * Math.Max(1, d.MinPerHeat) + _durationConfig.InterEventGapMinutes; // +2min 项目间隔
                 _distAssigned.Add(d);
                 _distPending.Remove(d);
             }
@@ -405,20 +547,23 @@ namespace SwimmingScoreboard
             int sessionStart = GetSessionStartMin(session);
             int maxOffset = 0;
             foreach (var d in _distAssigned.Where(x => x.AssignedDate == day && x.AssignedSession == session)) {
-                int duration = Math.Max(1, d.Heats) * Math.Max(1, d.MinPerHeat) + 2;
+                int duration = Math.Max(1, d.Heats) * Math.Max(1, d.MinPerHeat) + _durationConfig.InterEventGapMinutes;
                 int endOffset = (d.AssignedSortKey - sessionStart) + duration;
                 if (endOffset > maxOffset) maxOffset = endOffset;
             }
             return maxOffset;
         }
 
-        private static int GetSessionStartMin(string session) {
+        private int GetSessionStartMin(string session) {
             // 与主程序 AutoBuildSchedule 默认时段保持一致
-            if (session == "上午") return 9 * 60;          // 09:00
-            if (session == "下午") return 14 * 60 + 30;    // 14:30
-            if (session == "晚上") return 19 * 60 + 30;    // 19:30
-            return 9 * 60;
+            if (session == "上午") return _sessionStartMin[0];
+            if (session == "下午") return _sessionStartMin[1];
+            if (session == "晚上") return _sessionStartMin[2];
+            return _sessionStartMin[0];
         }
+
+        // 默认 09:00 / 14:30 / 19:30；一键全自动会覆盖
+        private int[] _sessionStartMin = new[] { 9 * 60, 14 * 60 + 30, 19 * 60 + 30 };
 
         private void DistAuto_Click(object sender, RoutedEventArgs e) {
             if (_distPending.Count == 0) {
@@ -459,7 +604,7 @@ namespace SwimmingScoreboard
 
                 int sessionStart = GetSessionStartMin(session);
                 int used = session == "上午" ? morningUsed : session == "下午" ? afternoonUsed : eveningUsed;
-                int duration = Math.Max(1, d.Heats) * Math.Max(1, d.MinPerHeat) + 2;
+                int duration = Math.Max(1, d.Heats) * Math.Max(1, d.MinPerHeat) + _durationConfig.InterEventGapMinutes;
 
                 d.AssignedDate = day;
                 d.AssignedSession = session;
@@ -528,7 +673,7 @@ namespace SwimmingScoreboard
                 foreach (var d in inSession) {
                     d.AssignedTime = string.Format("{0:D2}:{1:D2}", (start + used) / 60, (start + used) % 60);
                     d.AssignedSortKey = start + used;
-                    used += Math.Max(1, d.Heats) * Math.Max(1, d.MinPerHeat) + 2;
+                    used += Math.Max(1, d.Heats) * Math.Max(1, d.MinPerHeat) + _durationConfig.InterEventGapMinutes;
                 }
             }
             RefreshDistVisible();
@@ -544,7 +689,7 @@ namespace SwimmingScoreboard
             AssignedItems = _distAssigned.Select(d => new AssignedScheduleItem {
                 Date = d.AssignedDate, Session = d.AssignedSession, Time = d.AssignedTime,
                 AgeGroup = d.AgeGroup, Gender = d.Gender, EventName = d.EventName,
-                Stage = d.Stage, HeatCount = d.Heats
+                Stage = d.Stage, HeatCount = d.Heats, HeatRange = d.HeatRange
             }).ToList();
             if (MessageBox.Show(string.Format("将 {0} 项编排写回主程序赛程？\n（旧赛程会被清除）", _distAssigned.Count),
                 "确认", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
@@ -655,6 +800,74 @@ namespace SwimmingScoreboard
                         rr.CreateCell(2).SetCellValue(parts.Length > 1 ? parts[1] : "");
                         rr.CreateCell(3).SetCellValue(men);
                         rr.CreateCell(4).SetCellValue(women);
+                    }
+
+                    // 2026-05-24 在统计表下方追加单位元信息（领队/教练/联系电话）
+                    var unitsByName = _units.Where(u => u != null && !string.IsNullOrEmpty(u.Name))
+                                            .GroupBy(u => u.Name).ToDictionary(g => g.Key, g => g.First());
+                    var allUnits = _swimmers.Where(s => s.Notes == null || !s.Notes.StartsWith("接力队员"))
+                                            .Select(s => s.Country ?? "").Where(c => !string.IsNullOrEmpty(c))
+                                            .Distinct().OrderBy(c => c).ToList();
+                    if (allUnits.Count > 0) {
+                        r++; // 空行分隔
+                        var titleRow = sheet.CreateRow(r++);
+                        titleRow.CreateCell(0).SetCellValue("【单位元信息】（来自 参赛单位管理）");
+                        var headerRow2 = sheet.CreateRow(r++);
+                        headerRow2.CreateCell(0).SetCellValue("序号");
+                        headerRow2.CreateCell(1).SetCellValue("参赛单位");
+                        headerRow2.CreateCell(2).SetCellValue("简称");
+                        headerRow2.CreateCell(3).SetCellValue("领队");
+                        headerRow2.CreateCell(4).SetCellValue("教练");
+                        headerRow2.CreateCell(5).SetCellValue("队医");
+                        headerRow2.CreateCell(6).SetCellValue("基础分");
+                        headerRow2.CreateCell(7).SetCellValue("联系电话");
+                        headerRow2.CreateCell(8).SetCellValue("地址");
+                        headerRow2.CreateCell(9).SetCellValue("备注");
+                        int ui = 1;
+                        foreach (var uname in allUnits) {
+                            Unit u; unitsByName.TryGetValue(uname, out u);
+                            var rr2 = sheet.CreateRow(r++);
+                            rr2.CreateCell(0).SetCellValue(ui++);
+                            rr2.CreateCell(1).SetCellValue(uname);
+                            rr2.CreateCell(2).SetCellValue(u != null ? (u.ShortName ?? "") : "");
+                            rr2.CreateCell(3).SetCellValue(u != null ? (u.Leader ?? "") : "");
+                            rr2.CreateCell(4).SetCellValue(u != null ? (u.Coach ?? "") : "");
+                            rr2.CreateCell(5).SetCellValue(u != null ? (u.Doctor ?? "") : "");
+                            rr2.CreateCell(6).SetCellValue(u != null ? u.BasePoints : 0);
+                            rr2.CreateCell(7).SetCellValue(u != null ? (u.Phone ?? "") : "");
+                            rr2.CreateCell(8).SetCellValue(u != null ? (u.Address ?? "") : "");
+                            rr2.CreateCell(9).SetCellValue(u != null ? (u.Note ?? "") : "");
+                        }
+                    }
+                } else if (sectionTitle.Contains("主席团名单") || sectionTitle.Contains("组织委员会")
+                           || sectionTitle.Contains("大会工作机构") || sectionTitle.Contains("技术官员")
+                           || sectionTitle.Contains("裁判员名单")) {
+                    // 2026-05-24 P0-D 拉 _staff 列表对应分组
+                    string group;
+                    if (sectionTitle.Contains("主席团")) group = StaffGroups.Presidium;
+                    else if (sectionTitle.Contains("组织委员会")) group = StaffGroups.OrgCommittee;
+                    else if (sectionTitle.Contains("大会工作机构")) group = StaffGroups.WorkOrg;
+                    else group = StaffGroups.TechnicalOfficials;   // 涵盖技术代表/仲裁/裁判员
+
+                    var hr = sheet.CreateRow(r++);
+                    hr.CreateCell(0).SetCellValue("序号"); hr.CreateCell(1).SetCellValue("岗位/职务");
+                    hr.CreateCell(2).SetCellValue("姓名"); hr.CreateCell(3).SetCellValue("所属单位");
+                    hr.CreateCell(4).SetCellValue("联系电话"); hr.CreateCell(5).SetCellValue("备注");
+                    int si = 1;
+                    var groupStaff = _staff.Where(s => (s.Group ?? "") == group).ToList();
+                    if (groupStaff.Count == 0) {
+                        var note = sheet.CreateRow(r++);
+                        note.CreateCell(0).SetCellValue("（暂无人员，请在主程序「工作人员管理」中录入此组人员）");
+                    } else {
+                        foreach (var s in groupStaff) {
+                            var rr = sheet.CreateRow(r++);
+                            rr.CreateCell(0).SetCellValue(si++);
+                            rr.CreateCell(1).SetCellValue(s.Title ?? "");
+                            rr.CreateCell(2).SetCellValue(s.Name ?? "");
+                            rr.CreateCell(3).SetCellValue(s.Country ?? "");
+                            rr.CreateCell(4).SetCellValue(s.Phone ?? "");
+                            rr.CreateCell(5).SetCellValue(s.Note ?? "");
+                        }
                     }
                 } else if (sectionTitle.Contains("运动员姓名号码对照表")) {
                     var hr = sheet.CreateRow(r++);
@@ -770,6 +983,11 @@ namespace SwimmingScoreboard
         public int Heats { get; set; }
         public int Cutoff { get; set; }
         public string Stage { get; set; }
+        // 2026-05-24 C5 长距离快慢组：可选值 "慢组" / "快组" / null（普通项目）
+        public string HeatRange { get; set; }
+        public string StageDisplay {
+            get { return string.IsNullOrEmpty(HeatRange) ? Stage : Stage + "(" + HeatRange + ")"; }
+        }
         private int _minPerHeat = 5;
         public int MinPerHeat { get { return _minPerHeat; } set { _minPerHeat = value; Notify("MinPerHeat"); } }
 
@@ -799,6 +1017,8 @@ namespace SwimmingScoreboard
         public string EventName { get; set; }
         public string Stage { get; set; }
         public int HeatCount { get; set; }
+        // 2026-05-24 C5 长距离快慢组：可选值 "慢组" / "快组" / null
+        public string HeatRange { get; set; }
     }
 
     // Tab 5 行模型

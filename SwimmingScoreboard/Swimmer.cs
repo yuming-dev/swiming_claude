@@ -1298,6 +1298,71 @@ namespace SwimmingScoreboard
         }
     }
 
+    // 2026-05-24 P0-3 参赛单位实体（代表队/俱乐部/学校 ...）
+    // 与 Swimmer.Country 是同一对外名称；这里携带额外元信息（领队/教练/联系电话等）
+    public class Unit
+    {
+        public string Name { get; set; }          // 全称，对应 Swimmer.Country
+        public string ShortName { get; set; }     // 简称，对应 Swimmer.CountryShort
+        public string Leader { get; set; }        // 领队
+        public string Coach { get; set; }         // 教练
+        public string Doctor { get; set; }        // 队医（2026-05-24 P0-E 补）
+        public string Phone { get; set; }         // 联系电话
+        public string Address { get; set; }       // 地址
+        public double BasePoints { get; set; }    // 基础分（参与分，与名次得分无关；2026-05-24 P0-E 补）
+        public string Note { get; set; }          // 备注
+
+        public Unit() { }
+        public Unit(string name) { Name = name; }
+    }
+
+    // 2026-05-24 P0-D 工作人员实体 — 主席团 / 组委会 / 大会工作机构 / 技术官员 / 赛后控制中心
+    // 5 组岗位，含游泳赛事专属岗位（发令主裁判 / 总裁判长 / 检录长 / 终点裁判 / 计时长 / ...）
+    public class StaffMember
+    {
+        public string Name { get; set; }          // 姓名
+        public string Title { get; set; }         // 职务/岗位（如 总裁判长、发令主裁判、检录长）
+        public string Group { get; set; }         // 所在组：主席团 / 组委会 / 大会工作机构 / 技术官员 / 赛后控制中心
+        public string Country { get; set; }       // 所属单位（可选）
+        public string Phone { get; set; }         // 联系电话
+        public string Note { get; set; }          // 备注
+
+        public StaffMember() { }
+    }
+
+    // 工作人员分组常量
+    public static class StaffGroups
+    {
+        public const string Presidium = "主席团";
+        public const string OrgCommittee = "组委会";
+        public const string WorkOrg = "大会工作机构";
+        public const string TechnicalOfficials = "技术官员";
+        public const string RaceControl = "赛后控制中心";
+
+        public static readonly string[] All = { Presidium, OrgCommittee, WorkOrg, TechnicalOfficials, RaceControl };
+
+        // 各组默认岗位（用户新增条目时下拉给默认值，可自由编辑）
+        public static readonly Dictionary<string, string[]> DefaultTitles = new Dictionary<string, string[]> {
+            { Presidium, new[] { "主席", "副主席", "委员", "秘书长" } },
+            { OrgCommittee, new[] { "主任", "副主任", "委员", "办公室主任", "联络员" } },
+            { WorkOrg, new[] { "竞赛部部长", "竞赛部副部长", "竞赛官员", "新闻部部长", "医务部部长", "后勤保障部部长", "安保部部长" } },
+            { TechnicalOfficials, new[] {
+                "技术代表", "技术副代表", "仲裁委员会主任", "仲裁委员",
+                "总裁判长", "副总裁判长", "发令主裁判", "发令副裁判",
+                "检录长", "副检录长", "检录员",
+                "终点主裁判", "终点裁判员", "计时长", "副计时长", "计时员",
+                "司线主裁判", "司线员", "记录主裁判", "记录员",
+                "新泳道裁判长", "新泳道裁判员", "成绩处理长", "成绩处理员",
+                "宣告长", "宣告员", "颁奖长", "颁奖员"
+            } },
+            { RaceControl, new[] {
+                "赛后控制中心主任", "赛后控制中心副主任",
+                "成绩管理员", "公告管理员", "视频回放裁判", "OVR 操作员", "TIC 操作员",
+                "数据校对员", "兴奋剂检查官", "运动员服务专员"
+            } }
+        };
+    }
+
     // 代表队号码段：每个代表队设置一个数字区间（如 中国 001-050）
     public class BibRange
     {
@@ -1401,6 +1466,78 @@ namespace SwimmingScoreboard
         }
     }
 
+    // 2026-05-24 P0-2 项目用时配置 — 用户可编辑每个 (距离米, 是否接力) 的"分钟/组"
+    // 写到 CompetitionPackage 持久化；旧档无字段时构造器 ResetToDefaults 兜底
+    public class EventDurationConfig
+    {
+        // 按距离米数存（覆盖所有泳姿）
+        public Dictionary<int, int> IndividualMinutesPerHeat { get; set; }
+        public Dictionary<int, int> RelayMinutesPerHeat { get; set; }
+        // 项目间空隙（分钟）
+        public int InterEventGapMinutes { get; set; }
+        // 未匹配的距离的兜底
+        public int DefaultIndividualMinutes { get; set; }
+        public int DefaultRelayMinutes { get; set; }
+
+        public EventDurationConfig() { ResetToDefaults(); }
+
+        public void ResetToDefaults() {
+            IndividualMinutesPerHeat = new Dictionary<int, int> {
+                { 50, 2 }, { 100, 3 }, { 200, 5 }, { 400, 8 }, { 800, 15 }, { 1500, 25 }
+            };
+            RelayMinutesPerHeat = new Dictionary<int, int> {
+                { 200, 5 }, { 400, 8 }, { 800, 15 }
+            };
+            InterEventGapMinutes = 2;
+            DefaultIndividualMinutes = 5;
+            DefaultRelayMinutes = 8;
+        }
+
+        public int GetMinutesPerHeat(string eventName) {
+            if (string.IsNullOrEmpty(eventName)) return DefaultIndividualMinutes;
+            bool isRelay = eventName.Contains("接力");
+            int dist = ParseDistance(eventName);
+            if (isRelay) {
+                if (RelayMinutesPerHeat != null && dist > 0) {
+                    int v;
+                    // 接力总距离 = 棒数 × 单棒距离；优先按显式 "4x100" → 400 计；否则按 "100米" 单棒原距离查个人表
+                    if (RelayMinutesPerHeat.TryGetValue(dist, out v)) return v;
+                    if (IndividualMinutesPerHeat != null && IndividualMinutesPerHeat.TryGetValue(dist, out v)) return v + 3; // 接力多 3 min 切换
+                }
+                return DefaultRelayMinutes;
+            } else {
+                if (IndividualMinutesPerHeat != null && dist > 0) {
+                    int v;
+                    if (IndividualMinutesPerHeat.TryGetValue(dist, out v)) return v;
+                }
+                return DefaultIndividualMinutes;
+            }
+        }
+
+        private static int ParseDistance(string ev) {
+            // 形如 "4x100米自由泳接力" → 400；"100米自由泳" → 100
+            // 先抓 "数字x数字" 模式（接力）
+            int idx = ev.IndexOf('x');
+            if (idx < 0) idx = ev.IndexOf('X');
+            if (idx < 0) idx = ev.IndexOf('×');
+            if (idx > 0 && idx < ev.Length - 1) {
+                int legs = 0, perLeg = 0;
+                int i = idx - 1;
+                while (i >= 0 && char.IsDigit(ev[i])) i--;
+                int.TryParse(ev.Substring(i + 1, idx - i - 1), out legs);
+                int j = idx + 1;
+                while (j < ev.Length && char.IsDigit(ev[j])) j++;
+                int.TryParse(ev.Substring(idx + 1, j - idx - 1), out perLeg);
+                if (legs > 0 && perLeg > 0) return legs * perLeg;
+            }
+            // 否则抓"数字米"
+            foreach (var d in new[] { 1500, 800, 400, 200, 100, 50 }) {
+                if (ev.Contains(d + "米")) return d;
+            }
+            return 0;
+        }
+    }
+
     public class CompetitionPackage
     {
         public string CompetitionName { get; set; }
@@ -1428,6 +1565,10 @@ namespace SwimmingScoreboard
         public List<string> Stages { get; set; }
         public List<string> HeatCounts { get; set; }
         public List<BibRange> BibRanges { get; set; }
+        // 2026-05-24 参赛单位实体表（领队/教练/联系电话等元信息）
+        public List<Unit> Units { get; set; }
+        // 2026-05-24 P0-D 工作人员表（5 组 + 游泳赛事专属岗位）
+        public List<StaffMember> StaffList { get; set; }
         public LaneCloseSettings LaneCloseSettings { get; set; }
         public Dictionary<string, List<string>> DisputeLog { get; set; }
         public ProgramBookData ProgramBook { get; set; }
@@ -1440,6 +1581,8 @@ namespace SwimmingScoreboard
         public List<string> ConfirmedHeats { get; set; }
         // 团体计分配置（名次分 / 接力倍率 / 组别系数 / 取分人数 / 破纪录加分）
         public ScoringConfig ScoringConfig { get; set; }
+        // 2026-05-24 项目用时配置（一键全自动排日程时用）
+        public EventDurationConfig DurationConfig { get; set; }
 
         public CompetitionPackage() {
             CompetitionMode = "domestic";
@@ -1454,9 +1597,12 @@ namespace SwimmingScoreboard
             Events = new List<string>();
             AgeGroups = new List<AgeGroup>();
             BibRanges = new List<BibRange>();
+            Units = new List<Unit>();
+            StaffList = new List<StaffMember>();
             LaneCloseSettings = new LaneCloseSettings();
             DisputeLog = new Dictionary<string, List<string>>();
             ScoringConfig = new ScoringConfig();
+            DurationConfig = new EventDurationConfig();
         }
     }
 

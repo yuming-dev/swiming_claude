@@ -83,6 +83,10 @@
                         <Button x:Name="ResetEditsBtn" Content="撤销手动改动" Click="ResetEdits_Click"
                                 Padding="10,6" Margin="8,0,0,0" Background="#64748B" Foreground="White" BorderThickness="0"
                                 ToolTip="恢复到自动统计后的原始值"/>
+                        <Border Width="1" Background="#94A3B8" Margin="14,2,14,2"/>
+                        <Button x:Name="OneClickBtn" Content="⚡ 一键全自动生成秩序册" Click="OneClickGenerate_Click"
+                                Padding="16,7" Background="#7C3AED" Foreground="White" FontWeight="Bold" FontSize="13" BorderThickness="0"
+                                ToolTip="自动统计赛次 → 多天时段编排 → 写回主程序赛程 → 跳转到生成 xlsx"/>
                     </StackPanel>
 
                     <DataGrid x:Name="StagePlanGrid" Grid.Row="1" AutoGenerateColumns="False" CanUserAddRows="False"
@@ -236,7 +240,7 @@
                                 <DataGridTextColumn Header="项目" Binding="{Binding EventName}" Width="*"/>
                                 <DataGridTextColumn Header="人数" Binding="{Binding ParticipantsLabel}" Width="55"/>
                                 <DataGridTextColumn Header="组数" Binding="{Binding Heats}" Width="40"/>
-                                <DataGridTextColumn Header="赛次" Binding="{Binding Stage}" Width="60"/>
+                                <DataGridTextColumn Header="赛次" Binding="{Binding StageDisplay}" Width="80"/>
                             </DataGrid.Columns>
                         </DataGrid>
 
@@ -270,7 +274,7 @@
                                 <DataGridTextColumn Header="项目" Binding="{Binding EventName}" Width="*" IsReadOnly="True"/>
                                 <DataGridTextColumn Header="人数" Binding="{Binding ParticipantsLabel}" Width="55" IsReadOnly="True"/>
                                 <DataGridTextColumn Header="组数" Binding="{Binding Heats}" Width="40" IsReadOnly="True"/>
-                                <DataGridTextColumn Header="赛次" Binding="{Binding Stage}" Width="60" IsReadOnly="True"/>
+                                <DataGridTextColumn Header="赛次" Binding="{Binding StageDisplay}" Width="80" IsReadOnly="True"/>
                                 <DataGridTextColumn Header="分/组" Binding="{Binding MinPerHeat}" Width="50"/>
                                 <DataGridTextColumn Header="比赛时间" Binding="{Binding AssignedTime}" Width="75" IsReadOnly="True"/>
                             </DataGrid.Columns>
