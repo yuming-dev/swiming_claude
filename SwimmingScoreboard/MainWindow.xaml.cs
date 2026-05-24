@@ -10723,7 +10723,36 @@ namespace SwimmingScoreboard
             var wnd = new SchedulingWizardWindow(_swimmers, _events, _ageGroups, _genders, _poolConfig, _scoringConfig) {
                 Owner = this
             };
-            wnd.ShowDialog();
+            bool? ok = wnd.ShowDialog();
+            // Tab 3 "应用编排到主程序赛程" 后写回 _schedule
+            if (wnd.ApplyToMainSchedule && wnd.AssignedItems != null && wnd.AssignedItems.Count > 0) {
+                _schedule.Clear();
+                // 按日期+时段重新分配 SessionNumber
+                var bySession = wnd.AssignedItems
+                    .GroupBy(a => (a.Date ?? "") + "|" + (a.Session ?? ""))
+                    .OrderBy(g => g.Key).ToList();
+                int sessionNum = 1;
+                foreach (var grp in bySession) {
+                    foreach (var a in grp.OrderBy(x => x.Time)) {
+                        _schedule.Add(new ScheduleItem {
+                            SessionNumber = sessionNum,
+                            SessionName = string.Format("第{0}单元（{1} {2}）", sessionNum, a.Date, a.Session),
+                            Date = a.Date,
+                            Time = a.Time,
+                            AgeGroup = a.AgeGroup,
+                            EventName = a.EventName,
+                            Gender = a.Gender,
+                            Stage = a.Stage,
+                            HeatCount = a.HeatCount,
+                            IsRelay = a.EventName != null && a.EventName.Contains("接力")
+                        });
+                    }
+                    sessionNum++;
+                }
+                AutoSaveData();
+                AddLog(string.Format("✅ 秩序册向导：已写回赛程 {0} 项，共 {1} 个单元", wnd.AssignedItems.Count, sessionNum - 1));
+                MessageBox.Show(string.Format("已把 {0} 项编排写回主程序赛程。\n请到 '赛程与分组' Tab 查看。", wnd.AssignedItems.Count), "完成");
+            }
         }
 
         private void AutoBuildSchedule_Click(object sender, RoutedEventArgs e) {

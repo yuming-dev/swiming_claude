@@ -181,24 +181,185 @@
                     </ScrollViewer>
                 </Grid>
 
-                <!-- ═══ Tab 3-5: 占位 ═══ -->
-                <Grid x:Name="Tab3Panel" Visibility="Collapsed" Margin="20">
-                    <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
-                        <TextBlock Text="🚧 编排比赛日程表" FontSize="20" FontWeight="Bold" Foreground="#475569"/>
-                        <TextBlock Text="(待实现 — 双面板可视化日程编排器，下个冲刺交付)" FontSize="13" Foreground="#94A3B8" Margin="0,8,0,0"/>
-                    </StackPanel>
+                <!-- ═══ Tab 3: 双面板日程编排器 ═══ -->
+                <Grid x:Name="Tab3Panel" Visibility="Collapsed" Margin="10">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- 顶部状态行 -->
+                    <Grid Grid.Row="0" Margin="0,0,0,8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" Orientation="Horizontal">
+                            <TextBlock Text="待分配项目: " VerticalAlignment="Center" FontWeight="Bold"/>
+                            <TextBlock x:Name="DistPendingText" Text="0" VerticalAlignment="Center" FontWeight="Bold" Foreground="#EF4444" Margin="2,0,12,0"/>
+                            <TextBlock Text="排序方式:" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                            <ComboBox x:Name="DistSortCombo" Width="120" VerticalAlignment="Center" SelectionChanged="DistSort_Changed">
+                                <ComboBoxItem Content="按比赛项目" IsSelected="True"/>
+                                <ComboBoxItem Content="按比赛组别"/>
+                                <ComboBoxItem Content="按赛次"/>
+                            </ComboBox>
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal">
+                            <TextBlock Text="已分配项目: " VerticalAlignment="Center" FontWeight="Bold"/>
+                            <TextBlock x:Name="DistAssignedText" Text="0" VerticalAlignment="Center" FontWeight="Bold" Foreground="#22C55E" Margin="2,0,12,0"/>
+                            <TextBlock Text="日期:" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                            <ComboBox x:Name="DistDayCombo" Width="120" VerticalAlignment="Center" SelectionChanged="DistDay_Changed"/>
+                            <TextBlock Text="时段:" VerticalAlignment="Center" Margin="8,0,4,0"/>
+                            <ComboBox x:Name="DistSessionCombo" Width="80" VerticalAlignment="Center" SelectionChanged="DistSession_Changed">
+                                <ComboBoxItem Content="上午" IsSelected="True"/>
+                                <ComboBoxItem Content="下午"/>
+                                <ComboBoxItem Content="晚上"/>
+                            </ComboBox>
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- 主区：左面板 + 中间按钮 + 右面板 -->
+                    <Grid Grid.Row="1">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="60"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <!-- 左面板：待分配 -->
+                        <DataGrid x:Name="DistPendingGrid" Grid.Column="0" AutoGenerateColumns="False" CanUserAddRows="False"
+                                  IsReadOnly="True" SelectionMode="Extended" AlternatingRowBackground="#F8FAFC">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="组别" Binding="{Binding AgeGroup}" Width="60"/>
+                                <DataGridTextColumn Header="性别" Binding="{Binding Gender}" Width="40"/>
+                                <DataGridTextColumn Header="项目" Binding="{Binding EventName}" Width="*"/>
+                                <DataGridTextColumn Header="人数" Binding="{Binding ParticipantsLabel}" Width="55"/>
+                                <DataGridTextColumn Header="组数" Binding="{Binding Heats}" Width="40"/>
+                                <DataGridTextColumn Header="赛次" Binding="{Binding Stage}" Width="60"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+
+                        <!-- 中间按钮组 -->
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="6,0">
+                            <Button Content="▲" Click="DistMoveUp_Click" Margin="0,4" Padding="0,8"
+                                    Background="#22C55E" Foreground="White" BorderThickness="0" FontWeight="Bold"
+                                    ToolTip="添加左边选中项目至右表选中行的上一行"/>
+                            <Button Content="▼" Click="DistMoveDown_Click" Margin="0,4" Padding="0,8"
+                                    Background="#22C55E" Foreground="White" BorderThickness="0" FontWeight="Bold"
+                                    ToolTip="添加左边选中项目至右表选中行的下一行（或追加到末尾）"/>
+                            <Button Content="自动" Click="DistAuto_Click" Margin="0,12,0,4" Padding="0,8"
+                                    Background="#3B82F6" Foreground="White" BorderThickness="0" FontWeight="Bold"
+                                    ToolTip="按默认时段/用时一次性自动分配全部待分配项目"/>
+                            <Button Content="←" Click="DistMoveBack_Click" Margin="0,12,0,4" Padding="0,8"
+                                    Background="#F59E0B" Foreground="White" BorderThickness="0" FontWeight="Bold"
+                                    ToolTip="删除右表选中行的已分配项目（移回待分配）"/>
+                            <Button Content="←←" Click="DistMoveBackAll_Click" Margin="0,4" Padding="0,8"
+                                    Background="#EF4444" Foreground="White" BorderThickness="0" FontWeight="Bold"
+                                    ToolTip="清空全部已分配项目（移回待分配）"/>
+                        </StackPanel>
+
+                        <!-- 右面板：已分配（当前日期+时段内的项目） -->
+                        <DataGrid x:Name="DistAssignedGrid" Grid.Column="2" AutoGenerateColumns="False" CanUserAddRows="False"
+                                  IsReadOnly="False" SelectionMode="Extended" AlternatingRowBackground="#F8FAFC"
+                                  CellEditEnding="DistAssignedGrid_CellEditEnding">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="序号" Binding="{Binding SeqInSession}" Width="40" IsReadOnly="True"/>
+                                <DataGridTextColumn Header="组别" Binding="{Binding AgeGroup}" Width="60" IsReadOnly="True"/>
+                                <DataGridTextColumn Header="性别" Binding="{Binding Gender}" Width="40" IsReadOnly="True"/>
+                                <DataGridTextColumn Header="项目" Binding="{Binding EventName}" Width="*" IsReadOnly="True"/>
+                                <DataGridTextColumn Header="人数" Binding="{Binding ParticipantsLabel}" Width="55" IsReadOnly="True"/>
+                                <DataGridTextColumn Header="组数" Binding="{Binding Heats}" Width="40" IsReadOnly="True"/>
+                                <DataGridTextColumn Header="赛次" Binding="{Binding Stage}" Width="60" IsReadOnly="True"/>
+                                <DataGridTextColumn Header="分/组" Binding="{Binding MinPerHeat}" Width="50"/>
+                                <DataGridTextColumn Header="比赛时间" Binding="{Binding AssignedTime}" Width="75" IsReadOnly="True"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </Grid>
+
+                    <!-- 底部模式选择 + 生成秩序册 -->
+                    <Grid Grid.Row="2" Margin="0,8,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" Orientation="Horizontal">
+                            <TextBlock Text="编排模式:" VerticalAlignment="Center" FontWeight="Bold" Margin="0,0,8,0"/>
+                            <RadioButton x:Name="DistModeAuto" Content="自动区分快决赛" IsChecked="True" VerticalAlignment="Center" Margin="0,0,12,0"
+                                         ToolTip="预赛上午、半决赛下午、决赛晚上（推荐）"/>
+                            <RadioButton x:Name="DistModeStrictTime" Content="强制时段模式" VerticalAlignment="Center" Margin="0,0,12,0"
+                                         ToolTip="按手动指定的时段强制排列，不区分赛次"/>
+                            <RadioButton x:Name="DistModeFinalOnly" Content="强制直接决赛(无预赛)" VerticalAlignment="Center"
+                                         ToolTip="把所有项目统一按决赛处理，跳过预赛/半决赛"/>
+                        </StackPanel>
+                        <Button x:Name="DistApplyBtn" Grid.Column="1" Content="✓ 应用编排到主程序赛程" Click="DistApply_Click"
+                                Padding="14,8" Background="#22C55E" Foreground="White" FontWeight="Bold" BorderThickness="0"
+                                ToolTip="把当前编排写回主程序的 _schedule，关闭向导后可在 '赛程与分组' Tab 查看"/>
+                    </Grid>
                 </Grid>
+
+                <!-- ═══ Tab 4: 秩序册可选文档 15 项 ═══ -->
                 <Grid x:Name="Tab4Panel" Visibility="Collapsed" Margin="20">
-                    <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
-                        <TextBlock Text="📑 秩序册可选文档" FontSize="20" FontWeight="Bold" Foreground="#475569"/>
-                        <TextBlock Text="(待实现 — 15 项可选文档清单 + 输出 .xlsx 6-Sheet 模板，下个冲刺交付)" FontSize="13" Foreground="#94A3B8" Margin="0,8,0,0"/>
-                    </StackPanel>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <TextBlock Grid.Row="0" Text="勾选要生成的秩序册章节（参考 World Aquatics + 中国体育竞赛传统格式）：" FontSize="13" Margin="0,0,0,10"/>
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                        <StackPanel x:Name="DocSectionsPanel">
+                            <!-- 15 CheckBoxes 由 .cs 在构造时填充 -->
+                        </StackPanel>
+                    </ScrollViewer>
+                    <Grid Grid.Row="2" Margin="0,10,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" Orientation="Horizontal">
+                            <Button Content="全选" Click="DocSelectAll_Click" Padding="10,5" Background="#64748B" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
+                            <Button Content="全不选" Click="DocSelectNone_Click" Padding="10,5" Background="#94A3B8" Foreground="White" BorderThickness="0"/>
+                        </StackPanel>
+                        <Button Grid.Column="1" Content="📥 生成秩序册 (.xlsx)" Click="DocGenerate_Click"
+                                Padding="14,8" Background="#7C3AED" Foreground="White" FontWeight="Bold" BorderThickness="0"
+                                ToolTip="按勾选章节生成 Excel 秩序册（参考索美 6-Sheet 模板）"/>
+                    </Grid>
                 </Grid>
+
+                <!-- ═══ Tab 5: 运动员兼项统计 ═══ -->
                 <Grid x:Name="Tab5Panel" Visibility="Collapsed" Margin="20">
-                    <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
-                        <TextBlock Text="📊 运动员兼项统计" FontSize="20" FontWeight="Bold" Foreground="#475569"/>
-                        <TextBlock Text="(待实现 — 按比赛组分析兼项分布，下个冲刺交付)" FontSize="13" Foreground="#94A3B8" Margin="0,8,0,0"/>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8">
+                        <TextBlock Text="比赛组别:" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                        <ComboBox x:Name="MultiEventAgeCombo" Width="120" VerticalAlignment="Center"/>
+                        <Button Content="🔍 统计兼项分布" Click="MultiEventCompute_Click"
+                                Padding="14,6" Margin="12,0,0,0" Background="#3B82F6" Foreground="White" FontWeight="Bold" BorderThickness="0"/>
+                        <TextBlock x:Name="MultiEventSummaryText" Text="" VerticalAlignment="Center" Margin="16,0,0,0" Foreground="#475569"/>
                     </StackPanel>
+                    <DataGrid x:Name="MultiEventGrid" Grid.Row="1" AutoGenerateColumns="False" CanUserAddRows="False"
+                              IsReadOnly="True" AlternatingRowBackground="#F8FAFC">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="号码" Binding="{Binding BibNumber}" Width="70"/>
+                            <DataGridTextColumn Header="姓名" Binding="{Binding Name}" Width="100"/>
+                            <DataGridTextColumn Header="性别" Binding="{Binding Gender}" Width="50"/>
+                            <DataGridTextColumn Header="代表队" Binding="{Binding Country}" Width="100"/>
+                            <DataGridTextColumn Header="个人项目数" Binding="{Binding IndividualCount}" Width="80"/>
+                            <DataGridTextColumn Header="接力项目数" Binding="{Binding RelayCount}" Width="80"/>
+                            <DataGridTextColumn Header="兼项详情" Binding="{Binding EventList}" Width="*"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                    <Grid Grid.Row="2" Margin="0,8,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <Button Grid.Column="1" Content="📤 导出 CSV" Click="MultiEventExport_Click"
+                                Padding="14,6" Background="#0EA5E9" Foreground="White" FontWeight="Bold" BorderThickness="0"/>
+                    </Grid>
                 </Grid>
 
             </Grid>
