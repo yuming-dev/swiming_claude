@@ -11527,12 +11527,15 @@ namespace SwimmingScoreboard
                     sessionNum++;
                 }
 
-                // 下午场：半决赛（14:00开始）
+                // 下午场：半决赛（14:30 开始）
+                // 2026-05-23 起调整为 14:30，与世界泳联 + 中国泳协赛事日程惯例对齐
+                int afternoonStartMin = 14 * 60 + 30;   // 14:30
                 if (semisByDay.ContainsKey(day)) {
                     offsetMin = 0;
                     foreach (var item in semisByDay[day]) {
+                        int t = afternoonStartMin + offsetMin;
                         item.Date = dateStr;
-                        item.Time = string.Format("{0:D2}:{1:D2}", 14 + offsetMin / 60, offsetMin % 60);
+                        item.Time = string.Format("{0:D2}:{1:D2}", t / 60, t % 60);
                         item.SessionNumber = sessionNum;
                         item.SessionName = string.Format("第{0}单元（{1}下午）", sessionNum, dateStr);
                         _schedule.Add(item);
@@ -11542,9 +11545,10 @@ namespace SwimmingScoreboard
                     sessionNum++;
                 }
 
-                // 晚上场：决赛（17:30开始）
+                // 晚上场：决赛（19:30 开始；18:30 热身预留 60 分钟）
+                // 2026-05-23 起按世界泳联标准从 17:30 调整为 19:30；操作员可在赛程表手动改时间
                 bool hasEvening = false;
-                int eveningStartMin = 17 * 60 + 30;   // 17:30
+                int eveningStartMin = 19 * 60 + 30;   // 19:30（建议 18:30 热身）
                 offsetMin = 0;
 
                 // 直接决赛
