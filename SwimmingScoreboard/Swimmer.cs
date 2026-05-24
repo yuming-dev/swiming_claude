@@ -1363,6 +1363,12 @@ namespace SwimmingScoreboard
         public int RankCutoff { get; set; }
         // 破纪录加分（每破 1 项纪录额外加分）；0 = 不加分
         public double RecordBreakBonus { get; set; }
+        // 2026-05-23 编排种子组数（FINA SW 3.1.1.4/3.1.1.5）— 用户可配置
+        //   短距离 50/100/200 米：默认 3（FINA 标准）
+        //   中长距离 400+ 米 / 接力：默认 2（当前实现；改为 3 即可切换 FINA 严格模式）
+        // 旧版赛事档案 JSON 不含此字段 → 反序列化时构造器先 ResetToDefaults 兜底
+        public int SeedHeatsCountShort { get; set; }
+        public int SeedHeatsCountLong { get; set; }
 
         public ScoringConfig() { ResetToDefaults(); }
 
@@ -1374,6 +1380,8 @@ namespace SwimmingScoreboard
             };
             RankCutoff = 8;
             RecordBreakBonus = 0;
+            SeedHeatsCountShort = 3;
+            SeedHeatsCountLong  = 2;
         }
 
         public double GetIndividualPoint(int rank) {

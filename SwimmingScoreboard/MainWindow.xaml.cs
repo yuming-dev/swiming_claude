@@ -10818,7 +10818,10 @@ namespace SwimmingScoreboard
 
                 if (eventSwimmers.Count == 0) continue;
 
-                var assignments = HeatScheduler.GenerateHeats(eventSwimmers, _poolConfig, fullEvent, stage);
+                // 2026-05-23 传入用户配置的种子组数（默认 3 短 / 2 长；可在 名次分设置 改）
+                int seedS = _scoringConfig != null && _scoringConfig.SeedHeatsCountShort > 0 ? _scoringConfig.SeedHeatsCountShort : 3;
+                int seedL = _scoringConfig != null && _scoringConfig.SeedHeatsCountLong  > 0 ? _scoringConfig.SeedHeatsCountLong  : 2;
+                var assignments = HeatScheduler.GenerateHeats(eventSwimmers, _poolConfig, fullEvent, stage, seedS, seedL);
                 item.HeatCount = assignments.Count > 0 ? assignments.Max(a => a.Heat) : 0;
                 generated += assignments.Count;
                 string typeLabel = fullEvent.Contains("接力") ? "队" : "人";
@@ -11995,6 +11998,30 @@ namespace SwimmingScoreboard
             topRow.Children.Add(bonusBox);
             sp.Children.Add(topRow);
 
+            // 2026-05-23 编排种子组数（FINA SW 3.1.1.4/3.1.1.5）— 用户可配置
+            sp.Children.Add(new TextBlock {
+                Text = "▌编排参数（预赛分组规则）",
+                FontSize = 14, FontWeight = FontWeights.Bold,
+                Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E40AF")),
+                Margin = new Thickness(0, 4, 0, 4)
+            });
+            var seedHintBox = new TextBlock {
+                Text = "FINA 标准：所有距离最后 3 组按种子循环排位；中长距离/接力可改为 2 组（当前默认）。",
+                FontSize = 11, Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")),
+                TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 4)
+            };
+            sp.Children.Add(seedHintBox);
+            var seedRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 12) };
+            seedRow.Children.Add(new TextBlock { Text = "短距离 (50/100/200 米) 种子组数：", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 6, 0) });
+            int sShort = _scoringConfig.SeedHeatsCountShort > 0 ? _scoringConfig.SeedHeatsCountShort : 3;
+            var seedShortBox = new TextBox { Text = sShort.ToString(), Width = 50, VerticalAlignment = VerticalAlignment.Center };
+            seedRow.Children.Add(seedShortBox);
+            seedRow.Children.Add(new TextBlock { Text = "    中长距离 (400+) / 接力 种子组数：", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(20, 0, 6, 0) });
+            int sLong = _scoringConfig.SeedHeatsCountLong > 0 ? _scoringConfig.SeedHeatsCountLong : 2;
+            var seedLongBox = new TextBox { Text = sLong.ToString(), Width = 50, VerticalAlignment = VerticalAlignment.Center };
+            seedRow.Children.Add(seedLongBox);
+            sp.Children.Add(seedRow);
+
             // 个人项目名次分（每名次一个 TextBox，按取分人数限定个数；多于 cutoff 时仍允许编辑保留历史值）
             sp.Children.Add(new TextBlock { Text = "个人项目 — 名次得分", FontSize = 14, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 8, 0, 4) });
             var indPanel = new WrapPanel { Margin = new Thickness(0, 0, 0, 12) };
@@ -12048,7 +12075,7 @@ namespace SwimmingScoreboard
             var btnReset = new Button { Content = "恢复默认", Padding = new Thickness(16, 6, 16, 6), Margin = new Thickness(0, 0, 8, 0),
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
             btnReset.Click += delegate {
-                if (MessageBox.Show("将所有数值恢复为系统默认（个人 12/10/8/7/6/5/4/3，接力 24/20/16/14/12/10/8/6，青少年/少年=0.8、大师=0.7，取分前 8 名）。继续？",
+                if (MessageBox.Show("将所有数值恢复为系统默认（个人 12/10/8/7/6/5/4/3，接力 24/20/16/14/12/10/8/6，青少年/少年=0.8、大师=0.7，取分前 8 名；种子组数 短3/长2）。继续？",
                     "恢复默认", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes) {
                     _scoringConfig.ResetToDefaults();
                     dlg.DialogResult = false;
@@ -12077,16 +12104,24 @@ namespace SwimmingScoreboard
                 var coeffs = new Dictionary<string, double>();
                 foreach (var kv in coeffBoxes) { double c; if (double.TryParse(kv.Value.Text.Trim(), out c) && c > 0) coeffs[kv.Key] = c; }
 
+                // 2026-05-23 种子组数（FINA SW 3.1.1.4）— 1..10 范围安全保护
+                int seedSh, seedLo;
+                if (!int.TryParse(seedShortBox.Text.Trim(), out seedSh) || seedSh < 1 || seedSh > 10) seedSh = 3;
+                if (!int.TryParse(seedLongBox.Text.Trim(), out seedLo)  || seedLo < 1 || seedLo > 10) seedLo = 2;
+
                 _scoringConfig.RankCutoff = cutoff;
                 _scoringConfig.RecordBreakBonus = bonus;
                 _scoringConfig.IndividualPoints = indPoints;
                 _scoringConfig.RelayPoints = relayPoints;
                 _scoringConfig.AgeGroupCoefficients = coeffs;
+                _scoringConfig.SeedHeatsCountShort = seedSh;
+                _scoringConfig.SeedHeatsCountLong  = seedLo;
 
                 CalculateTeamScores();
                 AutoSaveData();
-                AddLog(string.Format("名次分设置已更新：取分前 {0} 名，个人 [{1}]，接力 [{2}]",
-                    cutoff, string.Join(",", indPoints.Take(cutoff).ToArray()), string.Join(",", relayPoints.Take(cutoff).ToArray())));
+                AddLog(string.Format("名次分设置已更新：取分前 {0} 名，个人 [{1}]，接力 [{2}]，种子组 短{3}/长{4}",
+                    cutoff, string.Join(",", indPoints.Take(cutoff).ToArray()), string.Join(",", relayPoints.Take(cutoff).ToArray()),
+                    seedSh, seedLo));
                 dlg.DialogResult = true;
             };
             btnRow.Children.Add(btnReset); btnRow.Children.Add(btnCancel); btnRow.Children.Add(btnOK);

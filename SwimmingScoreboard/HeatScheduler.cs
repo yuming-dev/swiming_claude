@@ -81,7 +81,10 @@ namespace SwimmingScoreboard
         ///
         /// 蛇形顺序：组2→组1→组1→组2→组2→组1→...
         /// </summary>
-        public static List<HeatAssignment> GenerateHeats(List<Swimmer> swimmers, PoolConfig pool, string eventName, string stage) {
+        // 2026-05-23 新增 seedHeatsShort/Long 可选参数（默认 3/2 保持向后兼容；调用方传
+        // _scoringConfig.SeedHeatsCountShort/Long 即可启用用户配置）。详见 ScoringConfig。
+        public static List<HeatAssignment> GenerateHeats(List<Swimmer> swimmers, PoolConfig pool, string eventName, string stage,
+            int seedHeatsShort = 3, int seedHeatsLong = 2) {
             var eligible = swimmers.Where(s =>
                 s.EventName == eventName &&
                 s.CurrentStage == stage &&
@@ -102,19 +105,38 @@ namespace SwimmingScoreboard
 
             // FIX-B 同单位轻量微调：扫描相邻名次，若两人来自同单位且在蛇形后会落到同组，
             // 与前/后一名（不同单位且不引入新冲突）互换，仅做"相邻名次"级别微调。
-            DisperseSameCountryAdjacent(eligible, pool.LaneCount, IsShortDistanceEvent(eventName));
+            DisperseSameCountryAdjacent(eligible, pool.LaneCount, IsShortDistanceEvent(eventName), seedHeatsShort, seedHeatsLong);
 
             int laneCount = pool.LaneCount;
             if (eligible.Count == 0) { LastWarnings.Clear(); return new List<HeatAssignment>(); }
 
             int[] lanePriority = GetLanePriority(pool);
             var heats = AssignFinaSeeding(eligible.Cast<object>().ToList(), laneCount, lanePriority,
-                                          isShortDistance: IsShortDistanceEvent(eventName));
+                                          isShortDistance: IsShortDistanceEvent(eventName),
+                                          seedHeatsShort: seedHeatsShort, seedHeatsLong: seedHeatsLong);
 
             // FIX-C 每组人数底线：FINA SW 3.1.1.4 预赛任何一组应不少于 3 人。
             // 当前蛇形 + 直接排位算法在 ≥3 人时不会破，但首次编排即 1-2 人也会建出 1 组（决赛流程），
             // 这里仅对"预赛"组发警告，不阻塞——操作员可手动并组。
             LastWarnings.Clear();
+            // 2026-05-23 C4-UI：把本次抽签所用的种子写入日志，便于裁判向公众公示
+            // 可重现性 (Q4 抉择 A)：seed = StringHashStable(eventName + "|" + stage)
+            string seedKey = eventName + "|" + stage;
+            int seedHash = StringHashStable(seedKey);
+            LastWarnings.Add(string.Format(
+                "🎲 抽签种子: \"{0}\" → Hash={1}（相同种子可重现同一编排）",
+                seedKey, seedHash));
+
+            // 2026-05-23 C5：长距离快慢组合并决赛 — 提醒操作员手动把快组（最后一组）
+            // 安排到晚间，慢组（前面组）安排到白天；FINA SW 3.1.1.6
+            if (stage == "决赛" && IsLongDistanceFastSlowEvent(eventName) && heats.Count >= 2) {
+                int fastHeatNum = heats.Count;   // AssignFinaSeeding 返回中，最快组在末尾
+                int fastSize = heats[heats.Count - 1].Count;
+                LastWarnings.Add(string.Format(
+                    "🏊 长距离快慢组：项目 {0} 决赛共 {1} 组，快组=第 {2} 组（{3} 人），" +
+                    "请在赛程编排里把快组放到晚间决赛时段、其余组放到白天；FINA 规定合并排名。",
+                    eventName, heats.Count, fastHeatNum, fastSize));
+            }
             if (stage == "预赛") {
                 for (int h = 0; h < heats.Count; h++) {
                     int n = heats[h].Count;
@@ -161,14 +183,15 @@ namespace SwimmingScoreboard
         // FIX-B 同单位分散：在已按成绩排好的 list 中扫一遍，预测蛇形后每个名次会进哪一组；
         // 若相邻名次同单位且同组，尝试与"距离 1 的另一名次"互换（要求该名次不与新位置造成同单位冲突）。
         // 仅做相邻名次微调，避免大动排名 → 符合 FINA "尽量"原则。
-        private static void DisperseSameCountryAdjacent(List<Swimmer> sorted, int laneCount, bool isShortDistance) {
+        private static void DisperseSameCountryAdjacent(List<Swimmer> sorted, int laneCount, bool isShortDistance,
+                int seedHeatsShort = 3, int seedHeatsLong = 2) {
             int total = sorted.Count;
             if (total < 2) return;
             int heatCount = (int)Math.Ceiling((double)total / laneCount);
             if (heatCount <= 1) return;   // 一组就一组，没法分散
 
             // 预测函数：返回名次 i (0-based) 会进哪一组。复刻 AssignFinaSeeding 的逻辑。
-            int seedHeats = Math.Min(heatCount, isShortDistance ? 3 : 2);
+            int seedHeats = Math.Min(heatCount, isShortDistance ? seedHeatsShort : seedHeatsLong);
             int directHeats = heatCount - seedHeats;
             int seededN = Math.Min(total, seedHeats * laneCount);
             Func<int, int> heatOf = (idx) => {
@@ -219,7 +242,8 @@ namespace SwimmingScoreboard
         /// <summary>
         /// 接力队分组（按 FINA SW 3.1.1.5：最后两组循环排位，前面组直接排位由慢到快）
         /// </summary>
-        public static List<RelayHeatAssignment> GenerateRelayHeats(List<RelayTeam> teams, PoolConfig pool, string eventName, string stage) {
+        public static List<RelayHeatAssignment> GenerateRelayHeats(List<RelayTeam> teams, PoolConfig pool, string eventName, string stage,
+            int seedHeatsLong = 2) {
             var eligible = teams.Where(t =>
                 t.EventName == eventName &&
                 t.Stage == stage &&
@@ -236,9 +260,10 @@ namespace SwimmingScoreboard
             if (eligible.Count == 0) return new List<RelayHeatAssignment>();
 
             int[] lanePriority = GetLanePriority(pool);
-            // 接力按"长距离"规则：最后2组循环排位
+            // 接力按"长距离"规则：用 seedHeatsLong（用户配置；默认 2，改 3 即 FINA 严格）
             var heats = AssignFinaSeeding(eligible.Cast<object>().ToList(), laneCount, lanePriority,
-                                          isShortDistance: false);
+                                          isShortDistance: false,
+                                          seedHeatsShort: seedHeatsLong, seedHeatsLong: seedHeatsLong);
 
             var assignments = new List<RelayHeatAssignment>();
             for (int h = 0; h < heats.Count; h++) {
@@ -274,12 +299,13 @@ namespace SwimmingScoreboard
         ///    组内按报名成绩快→慢用 lanePriority 分道。
         /// </summary>
         private static List<List<Tuple<object, int>>> AssignFinaSeeding(
-                List<object> sortedFastFirst, int laneCount, int[] lanePriority, bool isShortDistance) {
+                List<object> sortedFastFirst, int laneCount, int[] lanePriority, bool isShortDistance,
+                int seedHeatsShort = 3, int seedHeatsLong = 2) {
             int total = sortedFastFirst.Count;
             int heatCount = (int)Math.Ceiling((double)total / laneCount);
             if (heatCount < 1) heatCount = 1;
 
-            int seedHeats = Math.Min(heatCount, isShortDistance ? 3 : 2);
+            int seedHeats = Math.Min(heatCount, isShortDistance ? seedHeatsShort : seedHeatsLong);
             int directHeats = heatCount - seedHeats;
             int seededN = Math.Min(total, seedHeats * laneCount);
 
@@ -330,6 +356,10 @@ namespace SwimmingScoreboard
         ///   ≤8人  → 直接决赛
         /// </summary>
         public static List<string> GetStages(int participantCount, string eventName = "") {
+            // 2026-05-23 长距离快慢组（800/1500米自由泳）：FINA SW 3.1.1.6 — 不设预赛，
+            // 所有报名者直接进入决赛阶段，按成绩切分快组（晚间）+ 慢组（白天），合并排名
+            if (IsLongDistanceFastSlowEvent(eventName)) return new List<string> { "决赛" };
+
             bool isShortDistance = IsShortDistanceEvent(eventName);
 
             if (isShortDistance) {
@@ -338,7 +368,7 @@ namespace SwimmingScoreboard
                 if (participantCount > 8) return new List<string> { "预赛", "决赛" };
                 return new List<string> { "决赛" };
             } else {
-                // 400米及以上、接力：无半决赛，无论人数多少
+                // 400米：无半决赛，无论人数多少（接力也走此路径）
                 if (participantCount > 8) return new List<string> { "预赛", "决赛" };
                 return new List<string> { "决赛" };
             }
@@ -351,6 +381,18 @@ namespace SwimmingScoreboard
             if (string.IsNullOrEmpty(eventName)) return false;
             if (eventName.Contains("接力")) return false;
             if (eventName.Contains("50米") || eventName.Contains("100米") || eventName.Contains("200米")) return true;
+            return false;
+        }
+
+        /// <summary>
+        /// 2026-05-23 判断是否为"长距离快慢组合并决赛"项目：800 米/1500 米自由泳（非接力）。
+        /// FINA SW 3.1.1.6 + 中国泳协 2019-2022 规则：这两项不设预赛，所有报名者直接进
+        /// 决赛阶段，按报名成绩切分快组（前 N 名，晚间）+ 慢组（其余，白天），名次合并算。
+        /// </summary>
+        public static bool IsLongDistanceFastSlowEvent(string eventName) {
+            if (string.IsNullOrEmpty(eventName)) return false;
+            if (eventName.Contains("接力")) return false;
+            if (eventName.Contains("800米") || eventName.Contains("1500米")) return true;
             return false;
         }
 

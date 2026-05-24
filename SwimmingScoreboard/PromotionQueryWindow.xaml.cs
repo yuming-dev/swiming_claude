@@ -211,6 +211,19 @@ namespace SwimmingScoreboard
             };
         }
 
+        // 2026-05-23 C3：B 组决赛复选框变化时自动同步晋级人数为 16
+        private void EnableBFinal_Changed(object sender, RoutedEventArgs e) {
+            if (EnableBFinalCheck == null || CountBox == null) return;
+            if (EnableBFinalCheck.IsChecked == true) {
+                CountBox.Text = "16";   // A 组 8 + B 组 8
+                if (InfoText != null) {
+                    InfoText.Text = "已启用 B 组决赛：第 1-8 名 → 决赛（A 组）；第 9-16 名 → B组决赛（独立排名）。";
+                    InfoText.Foreground = new System.Windows.Media.SolidColorBrush(
+                        (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#1E40AF"));
+                }
+            }
+        }
+
         // ═══════ 执行晋级 ═══════
         private void Execute_Click(object sender, RoutedEventArgs e) {
             if (_promoted.Count == 0) { MessageBox.Show("请先点击\"查询晋级名单\""); return; }
@@ -218,16 +231,38 @@ namespace SwimmingScoreboard
 
             string eventName = GetEventName();
             string fromStage = GetFromStage();
+            // 2026-05-23 C3：仅在 预赛/半决赛 → 决赛 且选手 ≥9 时才允许 B 组决赛
+            bool enableBFinal = EnableBFinalCheck != null && EnableBFinalCheck.IsChecked == true
+                                && _toStage == "决赛" && _promoted.Count >= 9;
 
-            if (MessageBox.Show(
-                string.Format("确认将 {0} 名运动员从 {1} 晋级到 {2}？\n将按{1}成绩蛇形分组。", _promoted.Count, fromStage, _toStage),
-                "确认晋级", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+            string promptMsg;
+            if (enableBFinal) {
+                int aCnt = Math.Min(8, _promoted.Count);
+                int bCnt = _promoted.Count - aCnt;
+                promptMsg = string.Format(
+                    "确认晋级（启用 B 组决赛）？\n  A 组决赛（决赛阶段）：第 1-{0} 名共 {0} 人；\n  B 组决赛（B组决赛阶段）：第 {1}-{2} 名共 {3} 人。\nB 组单独排名、不与 A 组合并；分别颁奖。",
+                    aCnt, aCnt + 1, aCnt + bCnt, bCnt);
+            } else {
+                promptMsg = string.Format(
+                    "确认将 {0} 名运动员从 {1} 晋级到 {2}？\n将按{1}成绩蛇形分组。", _promoted.Count, fromStage, _toStage);
+            }
+            if (MessageBox.Show(promptMsg, "确认晋级", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
 
-            var assignments = HeatScheduler.GenerateHeatsFromResults(_promoted, _poolConfig, eventName, _toStage, fromStage);
-            int heatCount = assignments.Count > 0 ? assignments.Max(a => a.Heat) : 0;
-
-            ResultText.Text = string.Format("已晋级 {0} 人到{1}，{2}组", _promoted.Count, _toStage, heatCount);
-            MessageBox.Show(string.Format("已将 {0} 名运动员晋级到 {1}，分为 {2} 组。\n请在赛程树中选择{1}的组次。", _promoted.Count, _toStage, heatCount), "晋级完成");
+            if (enableBFinal) {
+                var aGroup = _promoted.Take(8).ToList();
+                var bGroup = _promoted.Skip(8).Take(8).ToList();
+                HeatScheduler.GenerateHeatsFromResults(aGroup, _poolConfig, eventName, "决赛", fromStage);
+                HeatScheduler.GenerateHeatsFromResults(bGroup, _poolConfig, eventName, "B组决赛", fromStage);
+                ResultText.Text = string.Format("已晋级 A 组 {0} 人 + B 组 {1} 人", aGroup.Count, bGroup.Count);
+                MessageBox.Show(string.Format(
+                    "✅ A 组决赛：{0} 人，1 组（决赛 阶段）\n✅ B 组决赛：{1} 人，1 组（B组决赛 阶段）\n\nA/B 两组单独排名、单独颁奖。请在赛程树中分别选择两个阶段的组次。",
+                    aGroup.Count, bGroup.Count), "晋级完成（B 组决赛）");
+            } else {
+                var assignments = HeatScheduler.GenerateHeatsFromResults(_promoted, _poolConfig, eventName, _toStage, fromStage);
+                int heatCount = assignments.Count > 0 ? assignments.Max(a => a.Heat) : 0;
+                ResultText.Text = string.Format("已晋级 {0} 人到{1}，{2}组", _promoted.Count, _toStage, heatCount);
+                MessageBox.Show(string.Format("已将 {0} 名运动员晋级到 {1}，分为 {2} 组。\n请在赛程树中选择{1}的组次。", _promoted.Count, _toStage, heatCount), "晋级完成");
+            }
         }
 
         private void Close_Click(object sender, RoutedEventArgs e) { Close(); }

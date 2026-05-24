@@ -35,6 +35,10 @@
                     <TextBlock Text="晋级方式: 按成绩总排名" VerticalAlignment="Center" Margin="0,0,12,0" FontWeight="Bold" Foreground="#1E40AF"/>
                     <TextBlock Text="晋级人数:" VerticalAlignment="Center" Margin="0,0,4,0"/>
                     <TextBox x:Name="CountBox" Width="50" Text="16" Padding="4" VerticalAlignment="Center"/>
+                    <!-- 2026-05-23 C3: 启用 B 组决赛（仅在 预赛→决赛 阶段；勾选后晋级人数自动设 16） -->
+                    <CheckBox x:Name="EnableBFinalCheck" Content="启用 B 组决赛 (9-16 名)" Margin="20,0,0,0" VerticalAlignment="Center"
+                              Checked="EnableBFinal_Changed" Unchecked="EnableBFinal_Changed"
+                              ToolTip="勾选后：第 1-8 名 → A 组决赛（决赛阶段）；第 9-16 名 → B 组决赛（B组决赛阶段，单独排名）"/>
                 </StackPanel>
             </StackPanel>
         </Border>
