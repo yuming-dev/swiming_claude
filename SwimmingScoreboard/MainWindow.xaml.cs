@@ -10718,6 +10718,14 @@ namespace SwimmingScoreboard
         // ═══════════════════════════════════════════════════════════════
         // 一键生成日程（只生成赛程安排和预估组数，不分配具体运动员）
         // ═══════════════════════════════════════════════════════════════
+        // 2026-05-24 秩序册生成向导入口（索美式 5 步工作流）
+        private void OpenSchedulingWizard_Click(object sender, RoutedEventArgs e) {
+            var wnd = new SchedulingWizardWindow(_swimmers, _events, _ageGroups, _genders, _poolConfig, _scoringConfig) {
+                Owner = this
+            };
+            wnd.ShowDialog();
+        }
+
         private void AutoBuildSchedule_Click(object sender, RoutedEventArgs e) {
             if (_swimmers.Count == 0) {
                 MessageBox.Show("没有已注册的运动员/接力队，请先注册再生成日程。", "提示", MessageBoxButton.OK, MessageBoxImage.Information);

@@ -139,6 +139,11 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </Page>
+    <Page Include="..\SwimmingScoreboard\SchedulingWizardWindow.xaml">
+      <Link>SchedulingWizardWindow.xaml</Link>
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
     <Page Include="..\SwimmingScoreboard\AwardQueryWindow.xaml">
       <Link>AwardQueryWindow.xaml</Link>
       <Generator>MSBuild:Compile</Generator>
@@ -202,6 +207,11 @@
     <Compile Include="..\SwimmingScoreboard\MainWindow.xaml.cs">
       <Link>MainWindow.xaml.cs</Link>
       <DependentUpon>MainWindow.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="..\SwimmingScoreboard\SchedulingWizardWindow.xaml.cs">
+      <Link>SchedulingWizardWindow.xaml.cs</Link>
+      <DependentUpon>SchedulingWizardWindow.xaml</DependentUpon>
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="..\SwimmingScoreboard\PromotionQueryWindow.xaml.cs">

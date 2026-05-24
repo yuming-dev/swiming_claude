@@ -471,6 +471,9 @@
                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                                         <Button Content="修改赛程" Click="EditSchedule_Click" Padding="15,5" Background="#3B82F6" Foreground="White" FontWeight="Bold" BorderThickness="0" Margin="0,0,8,0"/>
                                         <Button Content="一键生成日程" Click="AutoBuildSchedule_Click" Padding="15,5" Background="#F59E0B" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
+                                        <!-- 2026-05-24 秩序册生成向导：索美式 5 步工作流（赛次开设计划 → 引导 → 日程编排 → 文档选择 → 兼项统计） -->
+                                        <Button Content="🪄 秩序册生成向导" Click="OpenSchedulingWizard_Click" Padding="15,5" Background="#7C3AED" Foreground="White" FontWeight="Bold" BorderThickness="0" Margin="0,0,8,0"
+                                                ToolTip="打开秩序册生成向导：按 World Aquatics + 中国泳协规则自动统计赛次 → 编排日程 → 输出秩序册（5 步导航）"/>
                                         <Button Content="预赛自动分组" Click="AutoGenerateHeats_Click" Padding="15,5" Background="#22C55E" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
                                         <Button Content="手动分组" Click="ManualHeatAssign_Click" Padding="15,5" Background="#D97706" Foreground="White" BorderThickness="0" Margin="0,0,8,0"
                                                 ToolTip="按项目选人员 → 可一键均分到 N 组，或直接在表格里修改 组/道次"/>
