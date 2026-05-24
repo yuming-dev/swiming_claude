@@ -70,6 +70,10 @@
         <!-- 操作按钮 -->
         <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right">
             <TextBlock x:Name="ResultText" Text="" Foreground="#22C55E" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,16,0"/>
+            <!-- 2026-05-23 C6: 决赛弃权递补 (FINA SW: 弃权者由原排名下一名递补) -->
+            <Button Content="查决赛弃权 &amp; 递补" Click="CheckSubstitutes_Click" Padding="14,8" Margin="0,0,8,0"
+                    Background="#F59E0B" Foreground="White" FontWeight="Bold" BorderThickness="0"
+                    ToolTip="扫描决赛/B组决赛阶段被标 DSQ/DNS/DNF 的弃权者，按原排名下一名自动找候选递补；弹窗确认后执行替换"/>
             <Button Content="执行晋级并分组" Click="Execute_Click" Padding="20,8"
                     Background="#22C55E" Foreground="White" FontWeight="Bold" BorderThickness="0" Margin="0,0,8,0"/>
             <Button Content="关闭" Click="Close_Click" Padding="20,8"

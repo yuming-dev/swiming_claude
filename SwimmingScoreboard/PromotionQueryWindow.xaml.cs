@@ -267,6 +267,108 @@ namespace SwimmingScoreboard
 
         private void Close_Click(object sender, RoutedEventArgs e) { Close(); }
 
+        // 2026-05-23 C6 决赛弃权递补 (FINA SW + 中国泳协规则)
+        // 流程: 扫描 决赛/B组决赛 阶段已分组但 Status ∈ {DSQ,DNS,DNF} 的运动员视为弃权
+        //       按原 fromStage 排名找下一位不在 decisive stage 的运动员作为递补
+        //       弹窗显示 弃权者 → 递补者 对照表，确认后批量替换 StageAssignment
+        // 注: 30 分钟倒计时未实现，由裁判按业务节奏手动按"查决赛弃权 & 递补"即可
+        private void CheckSubstitutes_Click(object sender, RoutedEventArgs e) {
+            string eventName = GetEventName();
+            string fromStage = GetFromStage();
+            string gender = GetGender();
+            string ageFilter = GetAgeGroup();
+            if (string.IsNullOrEmpty(eventName) || string.IsNullOrEmpty(fromStage)) {
+                MessageBox.Show("请先选择项目和\"上一轮\"赛次"); return;
+            }
+
+            // 全员预赛排名（用于找候选）
+            var rankings = _swimmers
+                .Where(s => s.Gender == gender && s.EventName == eventName && MatchesAgeFilter(s, ageFilter))
+                .Select(s => new SwimmerResult { Swimmer = s, Result = s.GetResultForStage(fromStage) })
+                .Where(sr => sr.Result != null && sr.Result.FinalTime > 0)
+                .OrderBy(sr => sr.Result.FinalTime)
+                .ThenBy(sr => sr.Result.StartingBlockTime)
+                .ToList();
+
+            // 决赛 & B 组决赛 两个阶段都查
+            var decisiveStages = new[] { "决赛", "B组决赛" };
+            // 已在 decisive stage 中（任一）的运动员（含弃权者本身）
+            var alreadyDecisive = new HashSet<Swimmer>(
+                _swimmers.Where(s => decisiveStages.Any(st => s.GetAssignmentForStage(st) != null)));
+
+            var swaps = new List<SubstitutionPair>();
+            foreach (var stage in decisiveStages) {
+                var giveups = _swimmers
+                    .Where(s => s.Gender == gender && s.EventName == eventName && MatchesAgeFilter(s, ageFilter))
+                    .Where(s => s.GetAssignmentForStage(stage) != null)
+                    .Where(s => s.Status == "DSQ" || s.Status == "DNS" || s.Status == "DNF")
+                    .ToList();
+                if (giveups.Count == 0) continue;
+
+                // 候选 = 排名表中不在任一 decisive stage 的运动员，按预赛排名递补
+                var candQueue = new Queue<Swimmer>(rankings.Select(sr => sr.Swimmer).Where(s => !alreadyDecisive.Contains(s)));
+                foreach (var giveup in giveups) {
+                    if (candQueue.Count == 0) break;
+                    var subin = candQueue.Dequeue();
+                    var a = giveup.GetAssignmentForStage(stage);
+                    swaps.Add(new SubstitutionPair {
+                        Giveup = giveup, SubIn = subin, Stage = stage,
+                        Heat = a.Heat, Lane = a.Lane
+                    });
+                    alreadyDecisive.Add(subin);   // 避免一人占多个空位
+                }
+            }
+
+            if (swaps.Count == 0) {
+                MessageBox.Show("当前 决赛/B组决赛 阶段没有需要递补的弃权者。\n（仅识别 Status=DSQ/DNS/DNF 的已分组运动员）",
+                    "无弃权", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            // 预览
+            var preview = new System.Text.StringBuilder();
+            preview.AppendLine(string.Format("找到 {0} 项弃权递补:", swaps.Count));
+            preview.AppendLine();
+            foreach (var sw in swaps) {
+                preview.AppendLine(string.Format(
+                    "  [{0}] 弃权: {1} ({2})  →  递补: {3}  (第{4}组 {5}道)",
+                    sw.Stage, sw.Giveup.Name, sw.Giveup.Status,
+                    sw.SubIn.Name, sw.Heat, sw.Lane));
+            }
+            preview.AppendLine();
+            preview.AppendLine("确认执行替换？(原弃权者的决赛分组将被清除)");
+
+            if (MessageBox.Show(preview.ToString(), "弃权递补确认",
+                MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+
+            // 执行
+            foreach (var sw in swaps) {
+                var rs = sw.SubIn.GetResultForStage(fromStage);
+                double t = (rs != null && rs.FinalTime > 0) ? rs.FinalTime : 0;
+                string tStr = t > 0 ? TimeFormatter.Format(t) : "";
+                sw.SubIn.SetStageAssignment(sw.Stage, sw.Heat, sw.Lane, t, tStr);
+                sw.SubIn.CurrentStage = sw.Stage;
+                // 清弃权者本阶段的 assignment
+                if (sw.Giveup.StageAssignments != null && sw.Giveup.StageAssignments.ContainsKey(sw.Stage))
+                    sw.Giveup.StageAssignments.Remove(sw.Stage);
+            }
+
+            ResultText.Text = string.Format("已完成 {0} 项弃权递补", swaps.Count);
+            ResultText.Foreground = new System.Windows.Media.SolidColorBrush(
+                (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#22C55E"));
+            MessageBox.Show(string.Format("已替换 {0} 个决赛位次。\n请回到主界面赛程树查看更新后的组次。",
+                swaps.Count), "递补完成");
+        }
+
+        // C6 辅助：递补对照条目
+        private class SubstitutionPair {
+            public Swimmer Giveup { get; set; }
+            public Swimmer SubIn { get; set; }
+            public string Stage { get; set; }
+            public int Heat { get; set; }
+            public int Lane { get; set; }
+        }
+
         // ═══════ 工具方法 ═══════
         private string GetGender() {
             return GenderCombo != null && GenderCombo.SelectedItem != null ? ((ComboBoxItem)GenderCombo.SelectedItem).Content.ToString() : "男";
