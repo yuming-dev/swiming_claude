@@ -24,6 +24,9 @@
                     Background="#64748B" Foreground="White" BorderThickness="0"/>
             <Button Content="📥 导入 CSV" Click="ImportCsv_Click" Padding="10,4" Margin="6,0,0,0"
                     Background="#64748B" Foreground="White" BorderThickness="0"/>
+            <Button Content="📊 用 Excel/WPS 编辑" Click="EditInExcel_Click" Padding="10,4" Margin="14,0,0,0"
+                    Background="#16A34A" Foreground="White" FontWeight="Bold" BorderThickness="0"
+                    ToolTip="导出临时 .xlsx 用 Excel/WPS 打开编辑；编辑保存后点回灌按钮重读"/>
         </StackPanel>
 
         <DataGrid x:Name="UnitGrid" Grid.Row="1" AutoGenerateColumns="False" CanUserAddRows="False"

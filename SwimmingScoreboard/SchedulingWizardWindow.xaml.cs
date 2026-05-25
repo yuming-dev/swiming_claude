@@ -351,9 +351,19 @@ namespace SwimmingScoreboard
                 (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#3B82F6"));
         }
 
+        // 2026-05-25 Tab1 任何 赛次/录取 单元改完 → 标 _planDirty=true
+        // EnterTab3 会据此刷新待分配列表，避免 Tab1 改动丢失
+        private bool _planDirty;
+
         private void StagePlanGrid_CellEditEnding(object sender, DataGridCellEditEndingEventArgs e) {
             // CellEditEnding 触发时绑定还没刷回 source；用 Dispatcher 延迟更新计数文字
-            Dispatcher.BeginInvoke(new Action(UpdateTab1CountText));
+            Dispatcher.BeginInvoke(new Action(() => {
+                UpdateTab1CountText();
+                _planDirty = true;
+                StatusText.Text = "✓ 已自动保存（切到 Tab3 编排时会按最新值刷新待分配）";
+                StatusText.Foreground = new System.Windows.Media.SolidColorBrush(
+                    (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#22C55E"));
+            }));
         }
 
         private void UpdateTab1CountText() {
@@ -379,7 +389,13 @@ namespace SwimmingScoreboard
 
         private void EnterTab3() {
             // 第一次进入时从 Tab 1 派生待分配条目（如果还没有）
-            if (_distPending.Count == 0 && _distAssigned.Count == 0) {
+            // 2026-05-25 _planDirty=true (用户改过 Tab1) → 清掉旧待分配重新构建，让 Tab1 改动生效
+            if (_planDirty) {
+                _distPending.Clear();
+                _distAssigned.Clear();
+                BuildDistPendingFromPlan();
+                _planDirty = false;
+            } else if (_distPending.Count == 0 && _distAssigned.Count == 0) {
                 BuildDistPendingFromPlan();
             }
             // 填充日期下拉（从 _swimmers 找现有比赛日期，或者默认今天）
@@ -840,19 +856,29 @@ namespace SwimmingScoreboard
                         }
                     }
                 } else if (sectionTitle.Contains("主席团名单") || sectionTitle.Contains("组织委员会")
-                           || sectionTitle.Contains("大会工作机构") || sectionTitle.Contains("技术官员")
+                           || sectionTitle.Contains("工作机构") || sectionTitle.Contains("大会工作机构")
+                           || sectionTitle.Contains("技术") || sectionTitle.Contains("仲裁")
                            || sectionTitle.Contains("裁判员名单")) {
-                    // 2026-05-24 P0-D 拉 _staff 列表对应分组
+                    // 2026-05-25 P0-D 拉 _staff 列表对应分组（5 组 + 裁判员特殊列）
                     string group;
                     if (sectionTitle.Contains("主席团")) group = StaffGroups.Presidium;
                     else if (sectionTitle.Contains("组织委员会")) group = StaffGroups.OrgCommittee;
-                    else if (sectionTitle.Contains("大会工作机构")) group = StaffGroups.WorkOrg;
-                    else group = StaffGroups.TechnicalOfficials;   // 涵盖技术代表/仲裁/裁判员
+                    else if (sectionTitle.Contains("工作机构") || sectionTitle.Contains("大会工作机构")) group = StaffGroups.WorkOrg;
+                    else if (sectionTitle.Contains("裁判员")) group = StaffGroups.Referees;
+                    else group = StaffGroups.TechArbitration;   // 技术代表 + 仲裁
 
+                    bool isRefereesGrp = (group == StaffGroups.Referees);
                     var hr = sheet.CreateRow(r++);
-                    hr.CreateCell(0).SetCellValue("序号"); hr.CreateCell(1).SetCellValue("岗位/职务");
-                    hr.CreateCell(2).SetCellValue("姓名"); hr.CreateCell(3).SetCellValue("所属单位");
-                    hr.CreateCell(4).SetCellValue("联系电话"); hr.CreateCell(5).SetCellValue("备注");
+                    hr.CreateCell(0).SetCellValue("序号"); hr.CreateCell(1).SetCellValue("工作岗位");
+                    hr.CreateCell(2).SetCellValue("姓名"); hr.CreateCell(3).SetCellValue("性别");
+                    if (isRefereesGrp) {
+                        hr.CreateCell(4).SetCellValue("裁判等级");
+                        hr.CreateCell(5).SetCellValue("电话");
+                    } else {
+                        hr.CreateCell(4).SetCellValue("电话");
+                        hr.CreateCell(5).SetCellValue("工作单位");
+                    }
+                    hr.CreateCell(6).SetCellValue("备注");
                     int si = 1;
                     var groupStaff = _staff.Where(s => (s.Group ?? "") == group).ToList();
                     if (groupStaff.Count == 0) {
@@ -864,9 +890,15 @@ namespace SwimmingScoreboard
                             rr.CreateCell(0).SetCellValue(si++);
                             rr.CreateCell(1).SetCellValue(s.Title ?? "");
                             rr.CreateCell(2).SetCellValue(s.Name ?? "");
-                            rr.CreateCell(3).SetCellValue(s.Country ?? "");
-                            rr.CreateCell(4).SetCellValue(s.Phone ?? "");
-                            rr.CreateCell(5).SetCellValue(s.Note ?? "");
+                            rr.CreateCell(3).SetCellValue(s.Gender ?? "");
+                            if (isRefereesGrp) {
+                                rr.CreateCell(4).SetCellValue(s.RefereeLevel ?? "");
+                                rr.CreateCell(5).SetCellValue(s.Phone ?? "");
+                            } else {
+                                rr.CreateCell(4).SetCellValue(s.Phone ?? "");
+                                rr.CreateCell(5).SetCellValue(s.Country ?? "");
+                            }
+                            rr.CreateCell(6).SetCellValue(s.Note ?? "");
                         }
                     }
                 } else if (sectionTitle.Contains("运动员姓名号码对照表")) {

@@ -7,6 +7,8 @@ using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
+using NPOI.SS.UserModel;
+using NPOI.XSSF.UserModel;
 
 namespace SwimmingScoreboard
 {
@@ -20,11 +22,25 @@ namespace SwimmingScoreboard
         public StaffManageWindow(ObservableCollection<StaffMember> staff) {
             InitializeComponent();
             _staff = staff;
+            // 2026-05-25 旧分组名迁移（'组委会'→'组织委员会' 等）
+            foreach (var s in _staff) s.Group = StaffGroups.Migrate(s.Group);
+            // 2026-05-25 _staff 空 → 按 5 组默认岗位骨架自动播种（姓名留空）
+            if (_staff.Count == 0) SeedDefaults();
             _backup = _staff.Select(Clone).ToList();
             StaffGrid.ItemsSource = _staff;
             _view = (CollectionView)CollectionViewSource.GetDefaultView(_staff);
             _view.Filter = FilterPredicate;
             RefreshCountText();
+        }
+
+        private void SeedDefaults() {
+            foreach (var g in StaffGroups.All) {
+                string[] titles;
+                if (!StaffGroups.DefaultTitles.TryGetValue(g, out titles)) continue;
+                foreach (var t in titles) {
+                    _staff.Add(new StaffMember { Group = g, Title = t });
+                }
+            }
         }
 
         private bool FilterPredicate(object item) {
@@ -43,9 +59,9 @@ namespace SwimmingScoreboard
 
         private void RefreshCountText() {
             var counts = StaffGroups.All.ToDictionary(g => g, g => _staff.Count(s => (s.Group ?? "") == g));
-            CountText.Text = string.Format("总 {0} 人 / 主席团 {1} / 组委会 {2} / 工作机构 {3} / 技术官员 {4} / 赛后控制中心 {5}",
+            CountText.Text = string.Format("总 {0} 人 / 主席团 {1} / 组织委员会 {2} / 工作机构 {3} / 技术及仲裁 {4} / 裁判员 {5}",
                 _staff.Count, counts[StaffGroups.Presidium], counts[StaffGroups.OrgCommittee],
-                counts[StaffGroups.WorkOrg], counts[StaffGroups.TechnicalOfficials], counts[StaffGroups.RaceControl]);
+                counts[StaffGroups.WorkOrg], counts[StaffGroups.TechArbitration], counts[StaffGroups.Referees]);
         }
 
         private void GroupFilter_Changed(object sender, SelectionChangedEventArgs e) {
@@ -58,7 +74,7 @@ namespace SwimmingScoreboard
         private string CurrentGroupSelection() {
             string g = GroupFilterCombo.SelectedItem != null
                 ? ((ComboBoxItem)GroupFilterCombo.SelectedItem).Content.ToString() : "全部";
-            return g == "全部" ? StaffGroups.TechnicalOfficials : g;   // 默认新增到技术官员
+            return g == "全部" ? StaffGroups.Referees : g;   // 默认新增到 裁判员 (最常用)
         }
 
         private void Add_Click(object sender, RoutedEventArgs e) {
@@ -108,10 +124,11 @@ namespace SwimmingScoreboard
             };
             if (dlg.ShowDialog() != true) return;
             var sb = new StringBuilder();
-            sb.AppendLine("分组,岗位,姓名,所属单位,联系电话,备注");
+            sb.AppendLine("分组,工作岗位,姓名,性别,裁判等级,工作单位,电话,备注");
             foreach (var s in _staff) {
                 sb.AppendLine(string.Join(",", new[] {
-                    Esc(s.Group), Esc(s.Title), Esc(s.Name), Esc(s.Country), Esc(s.Phone), Esc(s.Note)
+                    Esc(s.Group), Esc(s.Title), Esc(s.Name), Esc(s.Gender), Esc(s.RefereeLevel),
+                    Esc(s.Country), Esc(s.Phone), Esc(s.Note)
                 }));
             }
             File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
@@ -129,12 +146,14 @@ namespace SwimmingScoreboard
                     if (parts.Length < 2) continue;
                     if (string.IsNullOrEmpty(parts[0]) && string.IsNullOrEmpty(parts[1])) continue;
                     _staff.Add(new StaffMember {
-                        Group = parts[0],
+                        Group = StaffGroups.Migrate(parts[0]),
                         Title = parts.Length > 1 ? parts[1] : "",
                         Name = parts.Length > 2 ? parts[2] : "",
-                        Country = parts.Length > 3 ? parts[3] : "",
-                        Phone = parts.Length > 4 ? parts[4] : "",
-                        Note = parts.Length > 5 ? parts[5] : ""
+                        Gender = parts.Length > 3 ? parts[3] : "",
+                        RefereeLevel = parts.Length > 4 ? parts[4] : "",
+                        Country = parts.Length > 5 ? parts[5] : "",
+                        Phone = parts.Length > 6 ? parts[6] : "",
+                        Note = parts.Length > 7 ? parts[7] : ""
                     });
                     added++;
                 }
@@ -142,6 +161,63 @@ namespace SwimmingScoreboard
                 MessageBox.Show(string.Format("✔ 已导入 {0} 名", added), "完成");
             } catch (Exception ex) {
                 MessageBox.Show("导入失败: " + ex.Message, "错误");
+            }
+        }
+
+        // 2026-05-25 导出花名册 (Excel) — 每组一个 Sheet，裁判员组含 裁判等级 列
+        private void ExportRoster_Click(object sender, RoutedEventArgs e) {
+            int perPage = StylePerPage8.IsChecked == true ? 8 : (StylePerPage6.IsChecked == true ? 6 : 4);
+            var dlg = new Microsoft.Win32.SaveFileDialog {
+                Filter = "Excel 工作簿|*.xlsx",
+                FileName = "工作人员花名册_" + DateTime.Now.ToString("yyyyMMdd_HHmm") + ".xlsx"
+            };
+            if (dlg.ShowDialog() != true) return;
+            try {
+                var wb = new XSSFWorkbook();
+                foreach (var grp in StaffGroups.All) {
+                    var members = _staff.Where(s => (s.Group ?? "") == grp).ToList();
+                    string safeName = grp;
+                    if (safeName.Length > 31) safeName = safeName.Substring(0, 31);
+                    var sheet = wb.CreateSheet(safeName);
+                    int r = 0;
+                    var titleRow = sheet.CreateRow(r++);
+                    titleRow.CreateCell(0).SetCellValue("工作人员管理 < 可选 >  ·  " + grp + "   (样式: " + perPage + " 张/页)");
+                    bool isReferees = grp == StaffGroups.Referees;
+                    var hr = sheet.CreateRow(r++);
+                    hr.CreateCell(0).SetCellValue("序号");
+                    hr.CreateCell(1).SetCellValue("工作岗位");
+                    hr.CreateCell(2).SetCellValue("姓名");
+                    hr.CreateCell(3).SetCellValue("性别");
+                    if (isReferees) {
+                        hr.CreateCell(4).SetCellValue("裁判等级");
+                        hr.CreateCell(5).SetCellValue("电话");
+                    } else {
+                        hr.CreateCell(4).SetCellValue("电话");
+                        hr.CreateCell(5).SetCellValue("工作单位");
+                    }
+                    hr.CreateCell(6).SetCellValue("备注");
+                    int idx = 1;
+                    foreach (var s in members) {
+                        var row = sheet.CreateRow(r++);
+                        row.CreateCell(0).SetCellValue(idx++);
+                        row.CreateCell(1).SetCellValue(s.Title ?? "");
+                        row.CreateCell(2).SetCellValue(s.Name ?? "");
+                        row.CreateCell(3).SetCellValue(s.Gender ?? "");
+                        if (isReferees) {
+                            row.CreateCell(4).SetCellValue(s.RefereeLevel ?? "");
+                            row.CreateCell(5).SetCellValue(s.Phone ?? "");
+                        } else {
+                            row.CreateCell(4).SetCellValue(s.Phone ?? "");
+                            row.CreateCell(5).SetCellValue(s.Country ?? "");
+                        }
+                        row.CreateCell(6).SetCellValue(s.Note ?? "");
+                    }
+                    for (int c = 0; c < 7; c++) sheet.AutoSizeColumn(c);
+                }
+                using (var fs = new FileStream(dlg.FileName, FileMode.Create, FileAccess.Write)) wb.Write(fs);
+                MessageBox.Show("已导出: " + dlg.FileName + "\n样式: " + perPage + " 张/页", "完成");
+            } catch (Exception ex) {
+                MessageBox.Show("导出失败: " + ex.Message, "错误");
             }
         }
 
@@ -166,6 +242,7 @@ namespace SwimmingScoreboard
         private static StaffMember Clone(StaffMember s) {
             return new StaffMember {
                 Name = s.Name, Title = s.Title, Group = s.Group,
+                Gender = s.Gender, RefereeLevel = s.RefereeLevel,
                 Country = s.Country, Phone = s.Phone, Note = s.Note
             };
         }

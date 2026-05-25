@@ -381,7 +381,8 @@ namespace SwimmingScoreboard
 
         public Swimmer() {
             _gender = "男";
-            _currentStage = "预赛";
+            // 2026-05-25 阶段默认空 — 日程生成后由 RefreshSwimmerStages 填充
+            _currentStage = "";
             _isQualified = true;
             _status = "";
             _results = new ObservableCollection<LaneResult>();
@@ -602,6 +603,10 @@ namespace SwimmingScoreboard
         private string _stage;
         private string _status;
         private ObservableCollection<SplitTime> _legSplits;
+        // 2026-05-24 CSV 导入校验：4 棒生日缺失时标 true；UI 高亮黄色; 编排时让管理员补录解除
+        private bool _ageCategoryPending;
+        // 2026-05-24 接力队所属单位（与 TeamName 可能不同，如 队名="绵阳蓝鲸 A 队", 单位="绵阳蓝鲸俱乐部"）；旧数据 null → 视为 == TeamName
+        private string _country;
 
         public RelayTeam() {
             _members = new ObservableCollection<Swimmer>();
@@ -609,6 +614,15 @@ namespace SwimmingScoreboard
             _legSplits = new ObservableCollection<SplitTime>();
             _stage = "预赛";
             _status = "";
+        }
+
+        public bool AgeCategoryPending {
+            get { return _ageCategoryPending; }
+            set { _ageCategoryPending = value; OnPropertyChanged("AgeCategoryPending"); }
+        }
+        public string Country {
+            get { return string.IsNullOrEmpty(_country) ? _teamName : _country; }
+            set { _country = value; OnPropertyChanged("Country"); }
         }
 
         public string TeamName {
@@ -1316,51 +1330,136 @@ namespace SwimmingScoreboard
         public Unit(string name) { Name = name; }
     }
 
-    // 2026-05-24 P0-D 工作人员实体 — 主席团 / 组委会 / 大会工作机构 / 技术官员 / 赛后控制中心
-    // 5 组岗位，含游泳赛事专属岗位（发令主裁判 / 总裁判长 / 检录长 / 终点裁判 / 计时长 / ...）
+    // 2026-05-25 P0-D 工作人员实体 — 5 组：主席团 / 组织委员会 / 工作机构 / 技术及仲裁 / 裁判员
+    // 裁判员组特有 RefereeLevel 字段；其他组用 Country (工作单位)
     public class StaffMember
     {
         public string Name { get; set; }          // 姓名
-        public string Title { get; set; }         // 职务/岗位（如 总裁判长、发令主裁判、检录长）
-        public string Group { get; set; }         // 所在组：主席团 / 组委会 / 大会工作机构 / 技术官员 / 赛后控制中心
-        public string Country { get; set; }       // 所属单位（可选）
-        public string Phone { get; set; }         // 联系电话
+        public string Title { get; set; }         // 工作岗位（如 总裁判长 / 发令主裁判 / 委员）
+        public string Group { get; set; }         // 5 组之一
+        public string Gender { get; set; }        // 性别（2026-05-25 加）
+        public string RefereeLevel { get; set; }  // 裁判等级（仅 裁判员 组用；2026-05-25 加）
+        public string Country { get; set; }       // 工作单位
+        public string Phone { get; set; }         // 电话
         public string Note { get; set; }          // 备注
 
         public StaffMember() { }
     }
 
-    // 工作人员分组常量
+    // 工作人员分组常量（按索美参考样式 2026-05-25 重写）
     public static class StaffGroups
     {
         public const string Presidium = "主席团";
-        public const string OrgCommittee = "组委会";
-        public const string WorkOrg = "大会工作机构";
-        public const string TechnicalOfficials = "技术官员";
-        public const string RaceControl = "赛后控制中心";
+        public const string OrgCommittee = "组织委员会";
+        public const string WorkOrg = "工作机构";
+        public const string TechArbitration = "技术及仲裁";
+        public const string Referees = "裁判员";
 
-        public static readonly string[] All = { Presidium, OrgCommittee, WorkOrg, TechnicalOfficials, RaceControl };
+        public static readonly string[] All = { Presidium, OrgCommittee, WorkOrg, TechArbitration, Referees };
 
-        // 各组默认岗位（用户新增条目时下拉给默认值，可自由编辑）
+        // 旧 → 新 组名映射 (升级数据时用)
+        public static string Migrate(string oldName) {
+            if (string.IsNullOrEmpty(oldName)) return Presidium;
+            switch (oldName) {
+                case "主席团": return Presidium;
+                case "组委会":
+                case "组织委员会": return OrgCommittee;
+                case "大会工作机构":
+                case "工作机构": return WorkOrg;
+                case "技术官员":
+                case "技术及仲裁": return TechArbitration;
+                case "赛后控制中心":   // 并入裁判员
+                case "裁判员": return Referees;
+                default: return oldName;   // 自定义组名保留
+            }
+        }
+
+        // 各组默认岗位（首次进入时自动播种；可在窗口里增删改）
         public static readonly Dictionary<string, string[]> DefaultTitles = new Dictionary<string, string[]> {
-            { Presidium, new[] { "主席", "副主席", "委员", "秘书长" } },
-            { OrgCommittee, new[] { "主任", "副主任", "委员", "办公室主任", "联络员" } },
-            { WorkOrg, new[] { "竞赛部部长", "竞赛部副部长", "竞赛官员", "新闻部部长", "医务部部长", "后勤保障部部长", "安保部部长" } },
-            { TechnicalOfficials, new[] {
-                "技术代表", "技术副代表", "仲裁委员会主任", "仲裁委员",
-                "总裁判长", "副总裁判长", "发令主裁判", "发令副裁判",
-                "检录长", "副检录长", "检录员",
-                "终点主裁判", "终点裁判员", "计时长", "副计时长", "计时员",
-                "司线主裁判", "司线员", "记录主裁判", "记录员",
-                "新泳道裁判长", "新泳道裁判员", "成绩处理长", "成绩处理员",
-                "宣告长", "宣告员", "颁奖长", "颁奖员"
-            } },
-            { RaceControl, new[] {
-                "赛后控制中心主任", "赛后控制中心副主任",
-                "成绩管理员", "公告管理员", "视频回放裁判", "OVR 操作员", "TIC 操作员",
-                "数据校对员", "兴奋剂检查官", "运动员服务专员"
-            } }
+            { Presidium, BuildPresidiumDefaults() },
+            { OrgCommittee, BuildOrgCommitteeDefaults() },
+            { WorkOrg, BuildWorkOrgDefaults() },
+            { TechArbitration, BuildTechArbitrationDefaults() },
+            { Referees, BuildRefereesDefaults() }
         };
+
+        private static string[] BuildPresidiumDefaults() {
+            // 主席 1 + 副主席 N + 秘书长 1 + 成员 N
+            var list = new List<string> { "主席", "副主席", "副主席", "副主席", "秘书长" };
+            for (int i = 0; i < 17; i++) list.Add("成员");
+            return list.ToArray();
+        }
+
+        private static string[] BuildOrgCommitteeDefaults() {
+            var list = new List<string> { "名誉主任", "主任", "副主任", "副主任", "副主任", "秘书长", "副秘书长", "副秘书长" };
+            for (int i = 0; i < 15; i++) list.Add("委员");
+            return list.ToArray();
+        }
+
+        private static string[] BuildWorkOrgDefaults() {
+            var list = new List<string>();
+            // 办公室
+            for (int i = 0; i < 4; i++) list.Add("办公室 工作人员");
+            // 竞赛处 / 宣传广告处 / 后勤处 / 安全保卫处
+            string[] depts = { "竞赛处", "宣传广告处", "后勤处", "安全保卫处" };
+            foreach (var d in depts) {
+                list.Add(d + " 处长");
+                list.Add(d + " 副处长");
+                for (int i = 0; i < 5; i++) list.Add(d + " 工作人员");
+            }
+            return list.ToArray();
+        }
+
+        private static string[] BuildTechArbitrationDefaults() {
+            var list = new List<string>();
+            for (int i = 0; i < 6; i++) list.Add("技术代表");
+            for (int i = 0; i < 5; i++) list.Add("技术官员");
+            for (int i = 0; i < 6; i++) list.Add("仲裁委员");
+            return list.ToArray();
+        }
+
+        private static string[] BuildRefereesDefaults() {
+            var list = new List<string>();
+            // 总/副总裁判长
+            list.Add("总裁判长"); list.Add("副总裁判长");
+            // 检录
+            list.Add("检录主裁判");
+            for (int i = 0; i < 8; i++) list.Add("检录裁判员");
+            // 赛后控制中心
+            list.Add("赛后控制中心主裁判");
+            for (int i = 0; i < 7; i++) list.Add("赛后控制中心裁判员");
+            // 发令 / 召回
+            list.Add("发令主裁判");
+            list.Add("召回主裁判");
+            for (int i = 0; i < 4; i++) list.Add("助理发令员");
+            // 起点
+            for (int i = 0; i < 4; i++) list.Add("起点服务员");
+            // 终点摄影计时
+            list.Add("终点摄影计时主裁判");
+            for (int i = 0; i < 5; i++) list.Add("终点摄影计时裁判员");
+            // 计时
+            list.Add("计时主裁判");
+            for (int i = 0; i < 10; i++) list.Add("计时裁判员");
+            // 终点
+            list.Add("终点主裁判");
+            for (int i = 0; i < 8; i++) list.Add("终点裁判员");
+            // 检查
+            list.Add("检查主裁判");
+            for (int i = 0; i < 3; i++) list.Add("检查裁判员");
+            // 终点记录
+            list.Add("终点记录员");
+            // 广播宣告
+            for (int i = 0; i < 3; i++) list.Add("广播宣告员");
+            // 编排记录公告
+            list.Add("编排记录公告主裁判");
+            for (int i = 0; i < 7; i++) list.Add("编排记录公告裁判员");
+            // 场地器材
+            list.Add("场地器材主裁判");
+            for (int i = 0; i < 11; i++) list.Add("场地器材裁判员");
+            // 兴奋剂检测
+            for (int i = 0; i < 5; i++) list.Add("兴奋剂检测员");
+            return list.ToArray();
+        }
     }
 
     // 代表队号码段：每个代表队设置一个数字区间（如 中国 001-050）

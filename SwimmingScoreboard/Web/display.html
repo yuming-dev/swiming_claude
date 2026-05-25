@@ -244,7 +244,15 @@ function connect() {
     var _pendingMode = null;
     var _pendingData = null;
     var _renderScheduled = false;
-    function _scheduleRender(mode, payload) {
+    // 2026-05-25 操作员主动锁定的"非比赛"显示模式 — 收到不带 modeExplicit 的 SHOW_LIVE_RACE
+    // 心跳时不会切回 LIVE_RACE，避免总排名/团体/纪录/颁奖等翻页中途被服务器心跳打断
+    var LOCKABLE_MODES = {
+        'SHOW_EVENT_RANKING': 1, 'SHOW_TEAM_STANDINGS': 1, 'SHOW_RECORDS': 1,
+        'SHOW_AWARDS': 1, 'SHOW_WELCOME': 1, 'SHOW_PAUSE': 1,
+        'SHOW_START_LIST': 1, 'SHOW_HEAT_RESULT': 1,
+        'SHOW_EVENT_LIST': 1, 'SHOW_PROMOTION_LIST': 1
+    };
+    function _scheduleRender(mode, payload, modeExplicit) {
         _pendingMode = mode;
         _pendingData = payload || {};
         if (_renderScheduled) return;
@@ -252,7 +260,12 @@ function connect() {
         var doIt = function() {
             _renderScheduled = false;
             if (_pendingMode) {
-                modeLocked = false;
+                // 操作员显式切到非比赛模式 → 锁定，让后续 LIVE_RACE 心跳无法夺权
+                if (modeExplicit && LOCKABLE_MODES[_pendingMode]) modeLocked = true;
+                // 操作员显式切回 LIVE_RACE → 解锁
+                else if (modeExplicit && _pendingMode === 'SHOW_LIVE_RACE') modeLocked = false;
+                // 心跳类（非 explicit）默认不改 modeLocked
+                else if (!modeExplicit) { /* keep current modeLocked */ }
                 currentMode = _pendingMode;
                 data = _pendingData;
                 _pendingMode = null;
@@ -296,13 +309,14 @@ function connect() {
             renderMedia(msg.data || {});
             return;
         }
-        if (modeLocked && msg.type === 'SHOW_LIVE_RACE') {
-            // 锁定时仍更新 data 以备解锁后立即拿到最新状态
+        // 2026-05-25 修复 #N：非显式 SHOW_LIVE_RACE 心跳 + 已锁定 → 只更新 data 不切视图
+        // (修复总排名翻到第 3 页时被服务器心跳广播打回比赛视图的 bug)
+        if (msg.type === 'SHOW_LIVE_RACE' && modeLocked && !msg.modeExplicit) {
             data = msg.data || {};
             return;
         }
-        // 其它消息走帧合并
-        _scheduleRender(msg.type, msg.data);
+        // 其它消息走帧合并；modeExplicit 由 _scheduleRender 决定是否锁/解锁
+        _scheduleRender(msg.type, msg.data, !!msg.modeExplicit);
     };
     ws.onclose = function() {
         stopRefreshTimer();

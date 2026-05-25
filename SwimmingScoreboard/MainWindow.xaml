@@ -292,8 +292,8 @@
                                             ToolTip="从 CSV 导入运动员报名信息（支持 Excel/WPS 另存为 CSV）"/>
                                     <Button Content="导出CSV" Click="ExportSwimmersCSV_Click" Padding="12,6" Background="#10B981" Foreground="White" BorderThickness="0" Margin="0,0,6,0"
                                             ToolTip="将当前所有报名运动员的数据导出为 CSV"/>
-                                    <Button Content="导出报名模板" Click="DownloadSwimmersTemplateCSV_Click" Padding="12,6" Background="#F97316" Foreground="White" BorderThickness="0" Margin="0,0,6,0"
-                                            ToolTip="导出空白报名 CSV 模板（带表头与示例行），用 Excel/WPS 编辑后可用'导入CSV'回灌"/>
+                                    <Button Content="导出个人报名模板" Click="DownloadSwimmersTemplateCSV_Click" Padding="12,6" Background="#F97316" Foreground="White" BorderThickness="0" Margin="0,0,6,0"
+                                            ToolTip="导出空白个人报名 CSV 模板（带表头与示例行），用 Excel/WPS 编辑后可用'导入CSV'回灌（导入会严格校验表头与本模板一致）"/>
                                     <Border Width="1" Background="#CBD5E1" Margin="6,4,6,4"/>
                                     <Button Content="号码区间设置" Click="BibRangeConfig_Click" Padding="12,6" Background="#0EA5E9" Foreground="White" BorderThickness="0"
                                             ToolTip="按代表队设置参赛号号码段（如 中国 001-050）。新注册的运动员将在所属代表队的号码段内自动取号。"/>
@@ -365,8 +365,17 @@
                                 <!-- 顶部操作栏 -->
                                 <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8">
                                     <Button Content="添加接力队" Click="AddRelay_Click" Padding="12,6" FontSize="13" Background="#3B82F6" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
+                                    <Button Content="✏️ 编辑队伍信息" Click="EditRelay_Click" Padding="12,6" FontSize="13" Background="#F59E0B" Foreground="White" BorderThickness="0" Margin="0,0,8,0"
+                                            ToolTip="编辑当前选中接力队的 队名/单位/项目/性别/4棒姓名/报名成绩，含必填校验和二次确认"/>
                                     <Button Content="删除选中队伍" Click="DeleteRelay_Click" Padding="12,6" FontSize="13" Background="#EF4444" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
                                     <Button Content="同步分组信息" Click="SyncRelayHeatInfo_Click" Padding="12,6" FontSize="13" Background="#22C55E" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
+                                    <Border Width="1" Background="#CBD5E1" Margin="6,4,6,4"/>
+                                    <Button Content="导入CSV" Click="ImportRelayCSV_Click" Padding="12,6" FontSize="13" Background="#8B5CF6" Foreground="White" BorderThickness="0" Margin="0,0,6,0"
+                                            ToolTip="导入接力队 CSV (表头必须与「导出接力报名模板」一致；格式错误的行跳过并汇总)"/>
+                                    <Button Content="导出CSV" Click="ExportRelayCSV_Click" Padding="12,6" FontSize="13" Background="#10B981" Foreground="White" BorderThickness="0" Margin="0,0,6,0"
+                                            ToolTip="把当前所有接力队导出为 CSV"/>
+                                    <Button Content="导出接力报名模板" Click="ExportRelayTemplate_Click" Padding="12,6" FontSize="13" Background="#F97316" Foreground="White" BorderThickness="0"
+                                            ToolTip="导出空白模板（带表头与示例行），编辑后用「导入CSV」回灌"/>
                                 </StackPanel>
                                 <!-- 按项目分组的接力队列表 -->
                                 <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
@@ -393,7 +402,7 @@
                                         </TextBlock>
                                     </Border>
                                 </StackPanel>
-                                <!-- 棒次详情表格（列序与HTML报名表一致：棒次 / 姓名 / 身份证号 / 参赛号） -->
+                                <!-- 棒次详情表格（列序与HTML报名表一致：棒次 / 姓名 / 身份证号 / 参赛号 / 生日） -->
                                 <DataGrid x:Name="RelayLegGrid" Grid.Row="3" AutoGenerateColumns="False" CanUserAddRows="False"
                                           SelectionMode="Single" IsReadOnly="False" AlternatingRowBackground="#F0F7FF">
                                     <DataGrid.Columns>
@@ -401,8 +410,68 @@
                                         <DataGridTextColumn Header="姓名" Binding="{Binding SwimmerName}" Width="110"/>
                                         <DataGridTextColumn Header="身份证号" Binding="{Binding SwimmerIDNumber}" Width="190"/>
                                         <DataGridTextColumn Header="参赛号" Binding="{Binding SwimmerBibNumber}" Width="90"/>
+                                        <DataGridTextColumn Header="生日" Binding="{Binding SwimmerBirthDate}" Width="110"/>
                                     </DataGrid.Columns>
                                 </DataGrid>
+                            </Grid>
+                        </TabItem>
+                        <TabItem Header="赛程管理">
+                            <Grid Margin="10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="290"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+                                <!-- 2026-05-24 左侧 赛程导航 (3 级: 项目→组别→该场开始时间) -->
+                                <Border Grid.Row="0" Grid.RowSpan="2" Grid.Column="0" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="6" Background="White" Margin="0,0,8,0">
+                                    <DockPanel Margin="8">
+                                        <TextBlock DockPanel.Dock="Top" Text="🧭 赛程导航" FontSize="14" FontWeight="Bold" Foreground="#1E40AF" Margin="0,0,0,6"/>
+                                        <TextBox DockPanel.Dock="Top" x:Name="NavSchedSearchBox" Padding="4" Margin="0,0,0,6"
+                                                 ToolTip="输入项目/组别/赛次关键字,自动展开匹配分支并高亮"
+                                                 TextChanged="NavSchedSearch_TextChanged"/>
+                                        <WrapPanel DockPanel.Dock="Top" Margin="0,0,0,6">
+                                            <Button x:Name="NavSchedFilterAll" Content="全部" Click="NavSchedFilter_Click" Tag="all" Padding="6,3" FontSize="11" Background="#1E40AF" Foreground="White" BorderThickness="0" Margin="0,0,4,4"/>
+                                            <Button Content="未开始" Click="NavSchedFilter_Click" Tag="pending" Padding="6,3" FontSize="11" Background="#94A3B8" Foreground="White" BorderThickness="0" Margin="0,0,4,4"/>
+                                            <Button Content="进行中" Click="NavSchedFilter_Click" Tag="running" Padding="6,3" FontSize="11" Background="#3B82F6" Foreground="White" BorderThickness="0" Margin="0,0,4,4"/>
+                                            <Button Content="已结束" Click="NavSchedFilter_Click" Tag="done" Padding="6,3" FontSize="11" Background="#22C55E" Foreground="White" BorderThickness="0" Margin="0,0,4,4"/>
+                                            <Button Content="已取消" Click="NavSchedFilter_Click" Tag="cancelled" Padding="6,3" FontSize="11" Background="#EF4444" Foreground="White" BorderThickness="0" Margin="0,0,4,4"/>
+                                        </WrapPanel>
+                                        <TreeView x:Name="NavSchedTree" BorderThickness="0" SelectedItemChanged="NavSchedTree_Selected"/>
+                                    </DockPanel>
+                                </Border>
+                                <ScrollViewer Grid.Row="0" Grid.Column="1" VerticalScrollBarVisibility="Auto">
+                                    <StackPanel x:Name="ScheduleGroupedPanel"/>
+                                </ScrollViewer>
+                                <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Vertical" HorizontalAlignment="Right" Margin="0,10,0,0">
+                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                        <!-- 2026-05-25 秩序册生成向导移到 修改赛程 左边；移除"一键生成日程"(与向导功能重复且存在问题) -->
+                                        <Button Content="🪄 秩序册生成向导" Click="OpenSchedulingWizard_Click" Padding="15,5" Background="#7C3AED" Foreground="White" FontWeight="Bold" BorderThickness="0" Margin="0,0,8,0"
+                                                ToolTip="打开秩序册生成向导：按 World Aquatics + 中国泳协规则自动统计赛次 → 编排日程 → 输出秩序册（5 步导航，含一键全自动）"/>
+                                        <Button Content="修改赛程" Click="EditSchedule_Click" Padding="15,5" Background="#3B82F6" Foreground="White" FontWeight="Bold" BorderThickness="0" Margin="0,0,8,0"/>
+                                        <Button Content="预赛自动分组" Click="AutoGenerateHeats_Click" Padding="15,5" Background="#22C55E" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
+                                        <Button Content="手动分组" Click="ManualHeatAssign_Click" Padding="15,5" Background="#D97706" Foreground="White" BorderThickness="0" Margin="0,0,8,0"
+                                                ToolTip="按项目选人员 → 可一键均分到 N 组，或直接在表格里修改 组/道次"/>
+                                        <Button Content="追加分组" Click="SupplementHeats_Click" Padding="15,5" Background="#0EA5E9" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
+                                        <Button Content="打印日程表" Click="PrintSchedule_Click" Padding="15,5" Background="#8B5CF6" Foreground="White" BorderThickness="0" Margin="0,0,8,0"
+                                                ToolTip="生成 HTML 文档可直接打印"/>
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,6,0,0">
+                                        <Button Content="导入日程表" Click="ImportScheduleCSV_Click" Padding="15,5" Background="#3B82F6" Foreground="White" BorderThickness="0" Margin="0,0,8,0"
+                                                ToolTip="从 CSV 读取日程（Excel/WPS 可另存为 CSV UTF-8）"/>
+                                        <Button Content="导出日程表" Click="ExportScheduleCSV_Click" Padding="15,5" Background="#22C55E" Foreground="White" BorderThickness="0" Margin="0,0,8,0"
+                                                ToolTip="导出为 CSV（Excel/WPS 可直接打开）"/>
+                                        <Button Content="下载日程表模板" Click="DownloadScheduleTemplate_Click" Padding="15,5" Background="#F59E0B" Foreground="White" BorderThickness="0" Margin="0,0,16,0"/>
+                                        <Separator Width="1" Background="#94A3B8" Margin="0,0,16,0"/>
+                                        <Button Content="导入分组表 (Excel)" Click="ImportHeatAssignmentsExcel_Click" Padding="15,5" Background="#0EA5E9" Foreground="White" BorderThickness="0" Margin="0,0,8,0"
+                                                ToolTip="从 Excel (.xlsx) 读取各项目各组的运动员分道，可在 WPS / Excel / Word 中编辑"/>
+                                        <Button Content="导出分组表 (Excel)" Click="ExportHeatAssignmentsExcel_Click" Padding="15,5" Background="#16A34A" Foreground="White" BorderThickness="0" Margin="0,0,8,0"
+                                                ToolTip="导出 Excel：含「分组明细」「分组表(网格)」「填写说明」3 个工作表"/>
+                                        <Button Content="下载分组表 Excel 模板" Click="DownloadHeatAssignmentsExcelTemplate_Click" Padding="15,5" Background="#D97706" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
+                                    </StackPanel>
+                                </StackPanel>
                             </Grid>
                         </TabItem>
                         <TabItem Header="出场编排微调">
@@ -461,45 +530,6 @@
                                     <StackPanel x:Name="EditAllGroupsPanel"/>
                                 </ScrollViewer>
                             </DockPanel>
-                        </TabItem>
-                        <TabItem Header="赛程管理">
-                            <Grid Margin="10">
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="*"/>
-                                    <RowDefinition Height="Auto"/>
-                                </Grid.RowDefinitions>
-                                <ScrollViewer VerticalScrollBarVisibility="Auto">
-                                    <StackPanel x:Name="ScheduleGroupedPanel"/>
-                                </ScrollViewer>
-                                <StackPanel Grid.Row="1" Orientation="Vertical" HorizontalAlignment="Right" Margin="0,10,0,0">
-                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                                        <Button Content="修改赛程" Click="EditSchedule_Click" Padding="15,5" Background="#3B82F6" Foreground="White" FontWeight="Bold" BorderThickness="0" Margin="0,0,8,0"/>
-                                        <Button Content="一键生成日程" Click="AutoBuildSchedule_Click" Padding="15,5" Background="#F59E0B" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
-                                        <!-- 2026-05-24 秩序册生成向导：索美式 5 步工作流（赛次开设计划 → 引导 → 日程编排 → 文档选择 → 兼项统计） -->
-                                        <Button Content="🪄 秩序册生成向导" Click="OpenSchedulingWizard_Click" Padding="15,5" Background="#7C3AED" Foreground="White" FontWeight="Bold" BorderThickness="0" Margin="0,0,8,0"
-                                                ToolTip="打开秩序册生成向导：按 World Aquatics + 中国泳协规则自动统计赛次 → 编排日程 → 输出秩序册（5 步导航）"/>
-                                        <Button Content="预赛自动分组" Click="AutoGenerateHeats_Click" Padding="15,5" Background="#22C55E" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
-                                        <Button Content="手动分组" Click="ManualHeatAssign_Click" Padding="15,5" Background="#D97706" Foreground="White" BorderThickness="0" Margin="0,0,8,0"
-                                                ToolTip="按项目选人员 → 可一键均分到 N 组，或直接在表格里修改 组/道次"/>
-                                        <Button Content="追加分组" Click="SupplementHeats_Click" Padding="15,5" Background="#0EA5E9" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
-                                        <Button Content="打印日程表" Click="PrintSchedule_Click" Padding="15,5" Background="#8B5CF6" Foreground="White" BorderThickness="0" Margin="0,0,8,0"
-                                                ToolTip="生成 HTML 文档可直接打印"/>
-                                    </StackPanel>
-                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,6,0,0">
-                                        <Button Content="导入日程表" Click="ImportScheduleCSV_Click" Padding="15,5" Background="#3B82F6" Foreground="White" BorderThickness="0" Margin="0,0,8,0"
-                                                ToolTip="从 CSV 读取日程（Excel/WPS 可另存为 CSV UTF-8）"/>
-                                        <Button Content="导出日程表" Click="ExportScheduleCSV_Click" Padding="15,5" Background="#22C55E" Foreground="White" BorderThickness="0" Margin="0,0,8,0"
-                                                ToolTip="导出为 CSV（Excel/WPS 可直接打开）"/>
-                                        <Button Content="下载日程表模板" Click="DownloadScheduleTemplate_Click" Padding="15,5" Background="#F59E0B" Foreground="White" BorderThickness="0" Margin="0,0,16,0"/>
-                                        <Separator Width="1" Background="#94A3B8" Margin="0,0,16,0"/>
-                                        <Button Content="导入分组表 (Excel)" Click="ImportHeatAssignmentsExcel_Click" Padding="15,5" Background="#0EA5E9" Foreground="White" BorderThickness="0" Margin="0,0,8,0"
-                                                ToolTip="从 Excel (.xlsx) 读取各项目各组的运动员分道，可在 WPS / Excel / Word 中编辑"/>
-                                        <Button Content="导出分组表 (Excel)" Click="ExportHeatAssignmentsExcel_Click" Padding="15,5" Background="#16A34A" Foreground="White" BorderThickness="0" Margin="0,0,8,0"
-                                                ToolTip="导出 Excel：含「分组明细」「分组表(网格)」「填写说明」3 个工作表"/>
-                                        <Button Content="下载分组表 Excel 模板" Click="DownloadHeatAssignmentsExcelTemplate_Click" Padding="15,5" Background="#D97706" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
-                                    </StackPanel>
-                                </StackPanel>
-                            </Grid>
                         </TabItem>
                         <TabItem Header="比赛参数设置管理">
                             <ScrollViewer Margin="10" VerticalScrollBarVisibility="Auto">
@@ -1339,11 +1369,32 @@
             <!-- ═══ 成绩与排名 ═══ -->
             <TabItem Header="成绩与排名">
                 <Grid Margin="10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="290"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
-                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8">
+                    <!-- 2026-05-24 左侧 赛程导航 (3 级) -->
+                    <Border Grid.Row="0" Grid.RowSpan="2" Grid.Column="0" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="6" Background="White" Margin="0,0,8,0">
+                        <DockPanel Margin="8">
+                            <TextBlock DockPanel.Dock="Top" Text="🧭 赛程导航" FontSize="14" FontWeight="Bold" Foreground="#1E40AF" Margin="0,0,0,6"/>
+                            <TextBox DockPanel.Dock="Top" x:Name="NavResultSearchBox" Padding="4" Margin="0,0,0,6"
+                                     ToolTip="输入项目/组别/赛次关键字,自动展开匹配分支并高亮"
+                                     TextChanged="NavResultSearch_TextChanged"/>
+                            <WrapPanel DockPanel.Dock="Top" Margin="0,0,0,6">
+                                <Button x:Name="NavResultFilterAll" Content="全部" Click="NavResultFilter_Click" Tag="all" Padding="6,3" FontSize="11" Background="#1E40AF" Foreground="White" BorderThickness="0" Margin="0,0,4,4"/>
+                                <Button Content="未开始" Click="NavResultFilter_Click" Tag="pending" Padding="6,3" FontSize="11" Background="#94A3B8" Foreground="White" BorderThickness="0" Margin="0,0,4,4"/>
+                                <Button Content="进行中" Click="NavResultFilter_Click" Tag="running" Padding="6,3" FontSize="11" Background="#3B82F6" Foreground="White" BorderThickness="0" Margin="0,0,4,4"/>
+                                <Button Content="已结束" Click="NavResultFilter_Click" Tag="done" Padding="6,3" FontSize="11" Background="#22C55E" Foreground="White" BorderThickness="0" Margin="0,0,4,4"/>
+                                <Button Content="已取消" Click="NavResultFilter_Click" Tag="cancelled" Padding="6,3" FontSize="11" Background="#EF4444" Foreground="White" BorderThickness="0" Margin="0,0,4,4"/>
+                            </WrapPanel>
+                            <TreeView x:Name="NavResultTree" BorderThickness="0" SelectedItemChanged="NavResultTree_Selected"/>
+                        </DockPanel>
+                    </Border>
+                    <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Margin="0,0,0,8">
                         <TextBlock Text="组别:" VerticalAlignment="Center" Margin="0,0,4,0"/>
                         <ComboBox x:Name="ResultAgeGroupCombo" Width="90" Margin="0,0,8,0" SelectionChanged="ResultAgeGroup_Changed"
                                   ToolTip="选择“全部”表示不按组别过滤"/>
@@ -1387,7 +1438,7 @@
                     </StackPanel>
                     <!-- 姓名列 / 反应时间列加宽并允许换行：接力赛"姓名"为 4 名队员（逗号分隔），
                          "反应时间"按棒展开为"第1棒:0.45 第2棒:0.30 ..."；列宽不够时 TextWrapping 自动换行 -->
-                    <DataGrid x:Name="ResultGrid" Grid.Row="1" AutoGenerateColumns="False" CanUserAddRows="False"
+                    <DataGrid x:Name="ResultGrid" Grid.Row="1" Grid.Column="1" AutoGenerateColumns="False" CanUserAddRows="False"
                               IsReadOnly="True" AlternatingRowBackground="#F8FAFC">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="名次" Binding="{Binding Rank}" Width="50"/>

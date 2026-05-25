@@ -245,6 +245,11 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </Page>
+    <Page Include="..\SwimmingScoreboard\EditRelayTeamWindow.xaml">
+      <Link>EditRelayTeamWindow.xaml</Link>
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
     <Compile Include="..\SwimmingScoreboard\MainWindow.xaml.cs">
       <Link>MainWindow.xaml.cs</Link>
       <DependentUpon>MainWindow.xaml</DependentUpon>
@@ -338,6 +343,11 @@
     <Compile Include="..\SwimmingScoreboard\StaffManageWindow.xaml.cs">
       <Link>StaffManageWindow.xaml.cs</Link>
       <DependentUpon>StaffManageWindow.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="..\SwimmingScoreboard\EditRelayTeamWindow.xaml.cs">
+      <Link>EditRelayTeamWindow.xaml.cs</Link>
+      <DependentUpon>EditRelayTeamWindow.xaml</DependentUpon>
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="..\SwimmingScoreboard\ProgramBookEditWindow.xaml.cs">

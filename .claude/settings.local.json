@@ -194,7 +194,9 @@
       "Bash(\"/c/Program Files/Microsoft Visual Studio/2022/Community/MSBuild/Current/Bin/MSBuild.exe\" SwimmingScoreboard.sln -p:Configuration=Release -p:Platform=\"Mixed Platforms\" -m -nologo -clp:Summary)",
       "Bash(\"/c/Program Files/Microsoft Visual Studio/2022/Community/MSBuild/Current/Bin/MSBuild.exe\" SwimmingScoreboard.sln -p:Configuration=Release -m -nologo -clp:Summary)",
       "Bash(\"/c/Program Files/Microsoft Visual Studio/2022/Community/MSBuild/Current/Bin/MSBuild.exe\" SwimmingScoreboard.sln -p:Configuration=Release -m -nologo -clp:ErrorsOnly)",
-      "Bash(\"/c/Program Files/Microsoft Visual Studio/2022/Community/MSBuild/Current/Bin/MSBuild.exe\" SwimmingScoreboard.sln -p:Configuration=Release -m -nologo)"
+      "Bash(\"/c/Program Files/Microsoft Visual Studio/2022/Community/MSBuild/Current/Bin/MSBuild.exe\" SwimmingScoreboard.sln -p:Configuration=Release -m -nologo)",
+      "Bash(awk -F: '$1>=11448 && NR{print}')",
+      "Bash(awk 'NR==12060,/^        }$/{print NR\": \"$0; if\\(/^        }$/ && NR>12060\\) exit}' /c/代码/swiming_claude/SwimmingScoreboard/MainWindow.xaml.cs)"
     ]
   }
 }

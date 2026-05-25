@@ -1835,7 +1835,11 @@ namespace SwimmingScoreboard
 
         private void BroadcastDisplayMode(string mode) {
             try {
-                var msg = new { type = mode, data = GetStatusData() };
+                // 2026-05-25 modeExplicit=true 区分"操作员主动切显示模式"(此函数) 与
+                // "服务器状态心跳"(Broadcast() 同样发 SHOW_LIVE_RACE 但不带这标记)。
+                // 大屏在排名/团体/纪录/颁奖等"用户锁定模式"下，遇到不带 modeExplicit 的
+                // SHOW_LIVE_RACE 心跳只更新 data 不切回比赛视图，否则翻页中途会被打断。
+                var msg = new { type = mode, data = GetStatusData(), modeExplicit = true };
                 string json = JsonConvert.SerializeObject(msg);
                 foreach (var s in _allSockets.ToList()) {
                     try { s.Send(json); } catch { }
@@ -5381,6 +5385,303 @@ namespace SwimmingScoreboard
                 ScheduleTree.Items.Add(sessionItem);
             }
             RebuildScheduleGroupedView();
+
+            // 2026-05-24 同步刷新赛程管理+成绩与排名两个 Tab 的左侧 3 级导航
+            RebuildBothNavTrees();
+            // 2026-05-25 阶段列刷新：日程生成后 → 按 _schedule 填回每位运动员的 CurrentStage
+            RefreshSwimmerStages();
+        }
+
+        // 2026-05-25 按当前 _schedule 给每个 swimmer 填阶段:
+        //   有对应 (event+gender+ageGroup) 的 ScheduleItem → 取项目最早赛次 (预赛 > 半决赛 > 决赛)
+        //   没匹配的 ScheduleItem → 阶段清空（新报名/未生成日程时显示为空）
+        //   已晋级到非预赛的 swimmer (StageAssignments 含 半决赛/决赛) → 不回退
+        private void RefreshSwimmerStages() {
+            if (_schedule == null) return;
+            foreach (var sw in _swimmers) {
+                if (string.IsNullOrEmpty(sw.EventName)) { sw.CurrentStage = ""; continue; }
+                if (sw.Notes != null && sw.Notes.StartsWith("接力队员")) continue;   // 队员条目跟随队伍
+                if (sw.StageAssignments != null) {
+                    bool hasAdvanced = false;
+                    foreach (var k in sw.StageAssignments.Keys) {
+                        if (k == "半决赛" || k == "决赛" || k == "次复赛" || k == "B组决赛") { hasAdvanced = true; break; }
+                    }
+                    if (hasAdvanced) continue;
+                }
+                var stages = _schedule.Where(s => s.EventName == sw.EventName && s.Gender == sw.Gender
+                                                  && MatchesAgeGroup(sw, s.AgeGroup ?? ""))
+                                       .Select(s => s.Stage ?? "").Distinct().ToList();
+                if (stages.Count == 0) { sw.CurrentStage = ""; continue; }
+                string firstStage;
+                if (stages.Contains("预赛")) firstStage = "预赛";
+                else if (stages.Contains("次复赛")) firstStage = "次复赛";
+                else if (stages.Contains("半决赛")) firstStage = "半决赛";
+                else if (stages.Contains("决赛")) firstStage = "决赛";
+                else firstStage = stages[0] ?? "";
+                sw.CurrentStage = firstStage;
+            }
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        // 2026-05-24 左侧赛程导航 (3 级: 项目 → 组别 → 该场开始时间)
+        // 用于 赛程管理 / 成绩与排名 两个 Tab
+        // ═══════════════════════════════════════════════════════════════
+        // 当前 status 筛选 (per-tree)
+        private string _navSchedFilter = "all";
+        private string _navResultFilter = "all";
+
+        private void RebuildBothNavTrees() {
+            if (NavSchedTree != null) RebuildNavTree(NavSchedTree, NavSchedSearchBox != null ? NavSchedSearchBox.Text : "", _navSchedFilter);
+            if (NavResultTree != null) RebuildNavTree(NavResultTree, NavResultSearchBox != null ? NavResultSearchBox.Text : "", _navResultFilter);
+        }
+
+        // 一个 leaf 节点的状态：未开始 / 进行中 / 已结束 / 已取消
+        private string HeatStatus(string ageGroup, string gender, string eventName, string stage, int heat) {
+            if (IsHeatConfirmed(ageGroup, gender, eventName, stage, heat)) return "done";
+            bool isRelay = eventName != null && eventName.Contains("接力");
+            var heatSwimmers = _swimmers.Where(s =>
+                s.Gender == gender && s.EventName == eventName &&
+                MatchesAgeGroup(s, ageGroup) &&
+                !(isRelay && s.Notes != null && s.Notes.StartsWith("接力队员"))
+            ).ToList();
+            var inHeat = new List<Swimmer>();
+            foreach (var s in heatSwimmers) {
+                var sa = s.GetAssignmentForStage(stage);
+                if (sa != null && sa.Heat == heat) { inHeat.Add(s); continue; }
+                if (s.CurrentStage == stage && s.Heat == heat) inHeat.Add(s);
+            }
+            if (inHeat.Count == 0) return "pending";
+            // 全部 DNS/DNF/DSQ → 已取消
+            bool allCancelled = inHeat.All(s => s.Status == "DNS" || s.Status == "DNF" || s.Status == "DSQ" || s.Status == "SCR");
+            if (allCancelled) return "cancelled";
+            int withResult = inHeat.Count(s => s.Results.Any(r => r.Stage == stage && r.Heat == heat && r.FinalTime > 0));
+            if (withResult == 0) {
+                if (ageGroup == _currentAgeGroup && gender == _currentGender && eventName == _currentEvent && stage == _currentStage && heat == _currentHeat) return "running";
+                return "pending";
+            }
+            if (withResult < inHeat.Count) return "running";
+            return "done";   // 全有成绩(理论上 IsHeatConfirmed 已经覆盖,这是兜底)
+        }
+
+        // 节点级聚合：所有子节点的最小活跃度 (running > pending > done > cancelled)
+        private static string AggregateStatus(IEnumerable<string> children) {
+            var list = children.ToList();
+            if (list.Count == 0) return "pending";
+            if (list.Contains("running")) return "running";
+            if (list.Contains("pending")) return "pending";
+            if (list.All(x => x == "done")) return "done";
+            if (list.All(x => x == "cancelled")) return "cancelled";
+            return list[0];
+        }
+
+        private static string StatusLabel(string s) {
+            switch (s) {
+                case "done": return "[已结束]";
+                case "running": return "[进行中]";
+                case "cancelled": return "[已取消]";
+                default: return "[未开始]";
+            }
+        }
+        private static SolidColorBrush StatusBrush(string s) {
+            switch (s) {
+                case "done": return new SolidColorBrush((Color)ColorConverter.ConvertFromString("#22C55E"));
+                case "running": return new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6"));
+                case "cancelled": return new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EF4444"));
+                default: return new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8"));
+            }
+        }
+
+        // Tag 格式: "nav:AgeGroup|Gender|Event|Stage|Heat"  (level-3 = heat 节点)
+        // 上级节点 Tag 用 "navL2:Event|AgeGroup" 和 "navL1:Event"
+        private void RebuildNavTree(TreeView tv, string searchText, string statusFilter) {
+            tv.Items.Clear();
+            string q = (searchText ?? "").Trim().ToLower();
+            // 拆出每个 heat 的状态(用于 leaf 节点+聚合)
+            // 数据来源: _schedule + ScheduleItem.HeatCount
+            var leaves = new List<NavLeaf>();
+            foreach (var si in _schedule) {
+                int hc = si.HeatCount > 0 ? si.HeatCount : 1;
+                for (int h = 1; h <= hc; h++) {
+                    leaves.Add(new NavLeaf {
+                        EventName = si.EventName ?? "",
+                        AgeGroup = si.AgeGroup ?? "",
+                        Gender = si.Gender ?? "",
+                        Stage = si.Stage ?? "",
+                        Heat = h,
+                        Date = si.Date ?? "",
+                        Time = si.Time ?? "",
+                        SessionName = si.SessionName ?? "",
+                        Status = HeatStatus(si.AgeGroup ?? "", si.Gender ?? "", si.EventName ?? "", si.Stage ?? "", h)
+                    });
+                }
+            }
+
+            // L1: 项目 -> L2: 组别 -> L3: heat
+            var byEvent = leaves.GroupBy(x => x.EventName).OrderBy(g => EventDisplayOrder(g.Key));
+            foreach (var evGrp in byEvent) {
+                var l1Children = new List<TreeViewItem>();
+                var l1ChildStatuses = new List<string>();
+                var byAge = evGrp.GroupBy(x => x.AgeGroup ?? "").OrderBy(g => g.Key);
+                foreach (var agGrp in byAge) {
+                    var l2Children = new List<TreeViewItem>();
+                    var l2ChildStatuses = new List<string>();
+                    var ordered = agGrp.OrderBy(x => x.Date).ThenBy(x => x.Time).ThenBy(x => StageOrder(x.Stage)).ThenBy(x => x.Heat).ToList();
+                    foreach (var lf in ordered) {
+                        if (statusFilter != "all" && lf.Status != statusFilter) continue;
+                        string when = (lf.Date ?? "") + " " + (lf.Time ?? "");
+                        string heatLabel = string.Format("{0} {1} 第{2}组 {3}", when.Trim(), lf.Stage ?? "", lf.Heat, StatusLabel(lf.Status));
+                        var l3 = new TreeViewItem {
+                            Header = heatLabel,
+                            Foreground = StatusBrush(lf.Status),
+                            Tag = string.Format("nav:{0}|{1}|{2}|{3}|{4}", lf.AgeGroup, lf.Gender, lf.EventName, lf.Stage, lf.Heat)
+                        };
+                        ApplySearchHighlight(l3, heatLabel, q);
+                        l2Children.Add(l3);
+                        l2ChildStatuses.Add(lf.Status);
+                    }
+                    if (l2Children.Count == 0) continue;
+                    string agStatus = AggregateStatus(l2ChildStatuses);
+                    string agName = string.IsNullOrEmpty(agGrp.Key) ? "(不限组别)" : agGrp.Key;
+                    var l2 = new TreeViewItem {
+                        Header = string.Format("{0} {1}", agName, StatusLabel(agStatus)),
+                        Foreground = StatusBrush(agStatus),
+                        Tag = "navL2:" + (evGrp.Key ?? "") + "|" + agGrp.Key,
+                        IsExpanded = (!string.IsNullOrEmpty(q) && (agName.ToLower().Contains(q) || evGrp.Key.ToLower().Contains(q))) || agStatus == "running"
+                    };
+                    foreach (var c in l2Children) l2.Items.Add(c);
+                    ApplySearchHighlight(l2, agName, q);
+                    l1Children.Add(l2);
+                    l1ChildStatuses.Add(agStatus);
+                }
+                if (l1Children.Count == 0) continue;
+                string evStatus = AggregateStatus(l1ChildStatuses);
+                var l1 = new TreeViewItem {
+                    Header = string.Format("{0} {1}", evGrp.Key, StatusLabel(evStatus)),
+                    Foreground = StatusBrush(evStatus),
+                    FontWeight = FontWeights.Bold,
+                    Tag = "navL1:" + (evGrp.Key ?? ""),
+                    IsExpanded = (!string.IsNullOrEmpty(q) && evGrp.Key.ToLower().Contains(q)) || evStatus == "running"
+                };
+                foreach (var c in l1Children) l1.Items.Add(c);
+                ApplySearchHighlight(l1, evGrp.Key, q);
+                tv.Items.Add(l1);
+            }
+
+            if (tv.Items.Count == 0) {
+                tv.Items.Add(new TreeViewItem {
+                    Header = string.IsNullOrEmpty(q) ? "(无符合筛选的赛程节点)" : "(搜索无匹配)",
+                    Foreground = new SolidColorBrush(Colors.Gray)
+                });
+            }
+        }
+
+        // 搜索匹配高亮: 命中时把 Header 包装成 TextBlock + 黄色背景
+        private static void ApplySearchHighlight(TreeViewItem item, string text, string q) {
+            if (string.IsNullOrEmpty(q)) return;
+            if (text == null || !text.ToLower().Contains(q)) return;
+            item.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FEF3C7"));
+        }
+
+        // FINA 项目顺序：50 自/100 自/...
+        private static int EventDisplayOrder(string ev) {
+            if (string.IsNullOrEmpty(ev)) return 99999;
+            int strokeOrder = 99;
+            if (ev.Contains("自由泳")) strokeOrder = 1;
+            else if (ev.Contains("仰泳")) strokeOrder = 2;
+            else if (ev.Contains("蛙泳")) strokeOrder = 3;
+            else if (ev.Contains("蝶泳")) strokeOrder = 4;
+            else if (ev.Contains("混合泳") || ev.Contains("个人混")) strokeOrder = 5;
+            if (ev.Contains("接力")) strokeOrder = 6;
+            int dist = 0;
+            foreach (var d in new[] { 50, 100, 200, 400, 800, 1500 }) {
+                if (ev.Contains(d + "米")) { dist = d; break; }
+            }
+            return strokeOrder * 10000 + dist;
+        }
+        private static int StageOrder(string st) {
+            if (st == "预赛") return 1;
+            if (st == "次复赛") return 2;
+            if (st == "半决赛") return 3;
+            if (st == "决赛") return 4;
+            if (st == "B组决赛") return 5;
+            return 9;
+        }
+
+        // 状态筛选按钮点击
+        private void NavSchedFilter_Click(object sender, RoutedEventArgs e) {
+            var btn = sender as Button;
+            _navSchedFilter = btn != null ? (btn.Tag as string ?? "all") : "all";
+            RebuildNavTree(NavSchedTree, NavSchedSearchBox != null ? NavSchedSearchBox.Text : "", _navSchedFilter);
+        }
+        private void NavResultFilter_Click(object sender, RoutedEventArgs e) {
+            var btn = sender as Button;
+            _navResultFilter = btn != null ? (btn.Tag as string ?? "all") : "all";
+            RebuildNavTree(NavResultTree, NavResultSearchBox != null ? NavResultSearchBox.Text : "", _navResultFilter);
+        }
+        // 搜索框文字变化
+        private void NavSchedSearch_TextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e) {
+            RebuildNavTree(NavSchedTree, NavSchedSearchBox.Text, _navSchedFilter);
+        }
+        private void NavResultSearch_TextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e) {
+            RebuildNavTree(NavResultTree, NavResultSearchBox.Text, _navResultFilter);
+        }
+        // 树节点选中
+        private void NavSchedTree_Selected(object sender, RoutedPropertyChangedEventArgs<object> e) {
+            var item = e.NewValue as TreeViewItem;
+            if (item == null || !(item.Tag is string)) return;
+            string tag = item.Tag as string;
+            // leaf 节点 → 触发 ScheduleGroupedPanel 滚动到该项目
+            if (tag.StartsWith("nav:")) {
+                ScrollScheduleGroupedToHeat(tag.Substring(4));
+            }
+        }
+        private void NavResultTree_Selected(object sender, RoutedPropertyChangedEventArgs<object> e) {
+            var item = e.NewValue as TreeViewItem;
+            if (item == null || !(item.Tag is string)) return;
+            string tag = item.Tag as string;
+            if (!tag.StartsWith("nav:")) return;
+            // 拆 tag: nav:AgeGroup|Gender|Event|Stage|Heat → 同步成绩与排名筛选条件
+            var parts = tag.Substring(4).Split('|');
+            if (parts.Length < 5) return;
+            string ag = parts[0], gd = parts[1], ev = parts[2], st = parts[3];
+            int heat; int.TryParse(parts[4], out heat);
+            SetComboValue(ResultAgeGroupCombo, ag);
+            SetComboValue(ResultGenderCombo, gd);
+            SetComboValue(ResultEventCombo, ev);
+            SetComboValue(ResultStageCombo, st);
+            SetComboValue(ResultHeatCombo, heat.ToString());
+        }
+        private static void SetComboValue(System.Windows.Controls.ComboBox cb, string val) {
+            if (cb == null) return;
+            for (int i = 0; i < cb.Items.Count; i++) {
+                var it = cb.Items[i];
+                string content = it is ComboBoxItem ? ((ComboBoxItem)it).Content as string : it as string;
+                if ((content ?? "") == (val ?? "")) { cb.SelectedIndex = i; return; }
+            }
+        }
+        private void ScrollScheduleGroupedToHeat(string tagPayload) {
+            // 简单兜底：暂时只把焦点切到对应那张子表的位置（数据已绑定在 ScheduleGroupedPanel 内）
+            // 后续可以增加更精细的高亮
+            if (ScheduleGroupedPanel == null) return;
+            try {
+                // 找标题含 EventName 的子元素并滚动可见
+                var parts = tagPayload.Split('|');
+                if (parts.Length < 3) return;
+                string ev = parts[2];
+                foreach (var child in ScheduleGroupedPanel.Children) {
+                    var fe = child as FrameworkElement;
+                    if (fe == null) continue;
+                    if (fe is TextBlock && (((TextBlock)fe).Text ?? "").Contains(ev)) {
+                        fe.BringIntoView();
+                        return;
+                    }
+                }
+            } catch { }
+        }
+
+        private class NavLeaf {
+            public string EventName, AgeGroup, Gender, Stage, Date, Time, SessionName, Status;
+            public int Heat;
         }
 
         /// <summary>
@@ -8319,26 +8620,27 @@ namespace SwimmingScoreboard
             }
         }
 
+        // 2026-05-24 个人报名 CSV 模板表头 — 严格匹配 (27 列 = 11 基础 + 8 × 2 项目成绩对)
+        private static readonly string[] SwimmerCsvTemplateHeader = BuildSwimmerCsvTemplateHeader();
+        private const int SwimmerCsvEventSlots = 8;
+        private static string[] BuildSwimmerCsvTemplateHeader() {
+            var list = new List<string> { "号码","姓名","性别","代表队","年龄","出生日期","身份证号","电话","备注","组别","单位简称" };
+            for (int n = 1; n <= 8; n++) { list.Add("项目" + n); list.Add("成绩" + n); }
+            return list.ToArray();
+        }
+
         private void DownloadSwimmersTemplateCSV_Click(object sender, RoutedEventArgs e) {
             var dlg = new Microsoft.Win32.SaveFileDialog {
                 Filter = "CSV文件|*.csv",
-                Title = "保存运动员报名模板",
-                FileName = "运动员报名模板.csv"
+                Title = "保存个人报名模板",
+                FileName = "个人报名模板.csv"
             };
             if (dlg.ShowDialog() != true) return;
             try {
                 // 2026-05-21 升级为"多项目"模板：一名运动员一行，最多 8 个个人项目并列填。
-                // 旧 13 列单项目格式（"项目","报名成绩"）仍受 ImportCSV 兼容支持，导入时
-                // 按表头自动识别走老路径。接力项目（含"接力"二字）建议在「接力队管理」
-                // Tab 集中报名（那边能指定棒次顺序与队级报名成绩），本模板**仅个人项目**。
-                const int eventSlots = 8;
-                var headers = new List<string> {
-                    "号码","姓名","性别","代表队","年龄","出生日期","身份证号","电话","备注","组别","单位简称"
-                };
-                for (int n = 1; n <= eventSlots; n++) {
-                    headers.Add("项目" + n);
-                    headers.Add("成绩" + n);
-                }
+                // 2026-05-24 「导入CSV」严格按本模板表头校验，不匹配的整文件拒绝；逐行校验失败的跳过并汇总。
+                int eventSlots = SwimmerCsvEventSlots;
+                var headers = new List<string>(SwimmerCsvTemplateHeader);
                 var sb = new StringBuilder();
                 sb.AppendLine(string.Join(",", headers));
 
@@ -8362,12 +8664,12 @@ namespace SwimmingScoreboard
 
                 File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
                 MessageBox.Show(
-                    "运动员报名模板已保存（多项目格式）。\n\n" +
+                    "个人报名模板已保存（27 列）。\n\n" +
                     "● 一名运动员填一行，最多 8 个个人项目并列填在 \"项目1/成绩1\" 到 \"项目8/成绩8\" 列对中\n" +
                     "● 项目列为空 → 该列对忽略；用户用不到的项目列对可全部留空\n" +
                     "● 号码列留空 → 导入时由系统按代表队号码段自动分配\n" +
                     "● 接力项目请在「接力队管理」Tab 集中报名（需指定棒次与队级成绩）\n" +
-                    "● 旧版 13 列单项目模板仍兼容，导入时自动识别格式",
+                    "● 「导入CSV」严格按本模板表头校验，列名/列序不一致整文件拒绝",
                     "完成");
             } catch (Exception ex) {
                 MessageBox.Show("保存失败: " + ex.Message, "错误");
@@ -8381,12 +8683,10 @@ namespace SwimmingScoreboard
             };
             if (dlg.ShowDialog() != true) return;
             try {
-                // 2026-05-21 综合改进：
-                //   ① ReadCsvLines (RFC 4180 状态机) 替换 split(',') — 不再被字段内英文逗号撕裂
-                //   ② Upsert：身份证号 + 项目 双匹配 → 覆盖现有记录所有字段
-                //   ③ 自动识别新版"多项目"模板（表头含 "项目1"）vs 旧版单项目模板
-                //      新版：一名运动员一行，项目1..N + 成绩1..N 多列并排（仅个人项目；
-                //            接力项目仍在「接力队管理」Tab 报名以指定棒次和队级成绩）
+                // 2026-05-24 严格按「导出个人报名模板」表头校验。
+                //   表头列数/列名/列序与模板任意不符 → 整文件拒绝并提示偏差列
+                //   逐行校验：姓名必填 / 性别男女混合 / 出生日期 yyyy-MM-dd / 项目非接力 / 至少 1 个项目
+                //   失败行跳过+理由汇总；接力项目仍走「接力队管理」Tab
                 var rows = ReadCsvLines(dlg.FileName);
                 if (rows.Count < 2) {
                     MessageBox.Show("CSV 文件没有数据行（只有表头或为空）。", "导入失败",
@@ -8395,99 +8695,113 @@ namespace SwimmingScoreboard
                 }
 
                 string[] header = rows[0];
-                bool isMultiEventFormat = false;
-                for (int hi = 0; hi < header.Length; hi++) {
-                    if ((header[hi] ?? "").Trim() == "项目1") { isMultiEventFormat = true; break; }
+                // ── 严格表头校验 ──
+                if (header.Length != SwimmerCsvTemplateHeader.Length) {
+                    MessageBox.Show(string.Format(
+                        "❌ CSV 表头列数不对：模板要求 {0} 列，实际 {1} 列。\n\n请用「导出个人报名模板」按钮重新导出模板编辑后再导入。",
+                        SwimmerCsvTemplateHeader.Length, header.Length), "格式错误",
+                        MessageBoxButton.OK, MessageBoxImage.Error);
+                    return;
+                }
+                for (int hi = 0; hi < SwimmerCsvTemplateHeader.Length; hi++) {
+                    string expected = SwimmerCsvTemplateHeader[hi];
+                    string actual = (header[hi] ?? "").Trim();
+                    if (actual != expected) {
+                        MessageBox.Show(string.Format(
+                            "❌ CSV 表头第 {0} 列不匹配：\n   期望「{1}」\n   实际「{2}」\n\n请用「导出个人报名模板」按钮重新导出模板编辑后再导入。",
+                            hi + 1, expected, actual), "格式错误",
+                            MessageBoxButton.OK, MessageBoxImage.Error);
+                        return;
+                    }
+                }
+
+                // 表头通过 → 按列名建索引
+                var colIdx = new Dictionary<string, int>();
+                for (int hi = 0; hi < header.Length; hi++) colIdx[header[hi].Trim()] = hi;
+                var pairs = new List<int[]>();
+                for (int n = 1; n <= SwimmerCsvEventSlots; n++) {
+                    pairs.Add(new int[] { colIdx["项目" + n], colIdx["成绩" + n] });
                 }
 
                 int imported = 0, updated = 0, skipped = 0;
                 var skipReasons = new List<string>();
 
-                if (isMultiEventFormat) {
-                    // ── 新版多项目格式：按表头名查找列；一行多项目 ──
-                    var colIdx = new Dictionary<string, int>();
-                    for (int hi = 0; hi < header.Length; hi++) {
-                        string h = (header[hi] ?? "").Trim();
-                        if (!string.IsNullOrEmpty(h) && !colIdx.ContainsKey(h)) colIdx[h] = hi;
-                    }
+                for (int i = 1; i < rows.Count; i++) {
+                    string[] cols = rows[i];
+                    // 空行跳过（不计入 skipped）
+                    bool blank = true;
+                    for (int k = 0; k < cols.Length; k++) if (!string.IsNullOrWhiteSpace(cols[k])) { blank = false; break; }
+                    if (blank) continue;
 
-                    // 找连续编号的 项目N / 成绩N 列对（最多 50 列）
-                    var pairs = new List<int[]>();   // {项目idx, 成绩idx 或 -1}
-                    for (int n = 1; n <= 50; n++) {
-                        int evIdx;
-                        if (!colIdx.TryGetValue("项目" + n, out evIdx)) break;
-                        int etIdx;
-                        bool hasEt = colIdx.TryGetValue("成绩" + n, out etIdx);
-                        pairs.Add(new int[] { evIdx, hasEt ? etIdx : -1 });
-                    }
+                    string name = ReadCsvCol(cols, colIdx, "姓名");
+                    string gender = ReadCsvCol(cols, colIdx, "性别");
+                    string birthDate = ReadCsvCol(cols, colIdx, "出生日期");
+                    string idNumber = ReadCsvCol(cols, colIdx, "身份证号");
+                    string country = ReadCsvCol(cols, colIdx, "代表队");
+                    string countryShort = ReadCsvCol(cols, colIdx, "单位简称");
+                    int age = ParseIntOr0(ReadCsvCol(cols, colIdx, "年龄"));
+                    string phone = ReadCsvCol(cols, colIdx, "电话");
+                    string notes = ReadCsvCol(cols, colIdx, "备注");
+                    string ageCategory = ReadCsvCol(cols, colIdx, "组别");
+                    string bibFromRow = ReadCsvCol(cols, colIdx, "号码");
 
-                    for (int i = 1; i < rows.Count; i++) {
-                        string[] cols = rows[i];
-                        string name = ReadCsvCol(cols, colIdx, "姓名");
-                        if (string.IsNullOrEmpty(name)) continue;  // 跳过空行
+                    // 行级必填校验
+                    var rowErr = new List<string>();
+                    if (string.IsNullOrEmpty(name)) rowErr.Add("姓名");
+                    if (gender != "男" && gender != "女" && gender != "混合") rowErr.Add("性别须为 男/女/混合");
+                    if (!string.IsNullOrEmpty(birthDate) && !System.Text.RegularExpressions.Regex.IsMatch(birthDate, @"^\d{4}-\d{2}-\d{2}$"))
+                        rowErr.Add("出生日期应为 yyyy-MM-dd");
+                    if (!string.IsNullOrEmpty(idNumber) && idNumber.Length != 15 && idNumber.Length != 18)
+                        rowErr.Add("身份证号长度应为 15 或 18");
 
-                        string bibFromRow   = ReadCsvCol(cols, colIdx, "号码");
-                        string gender       = ReadCsvCol(cols, colIdx, "性别");
-                        string country      = ReadCsvCol(cols, colIdx, "代表队");
-                        string countryShort = ReadCsvCol(cols, colIdx, "单位简称");
-                        int    age          = ParseIntOr0(ReadCsvCol(cols, colIdx, "年龄"));
-                        string birthDate    = ReadCsvCol(cols, colIdx, "出生日期");
-                        string idNumber     = ReadCsvCol(cols, colIdx, "身份证号");
-                        string phone        = ReadCsvCol(cols, colIdx, "电话");
-                        string notes        = ReadCsvCol(cols, colIdx, "备注");
-                        string ageCategory  = ReadCsvCol(cols, colIdx, "组别");
-
-                        foreach (var pair in pairs) {
-                            string eventName = (pair[0] < cols.Length) ? cols[pair[0]].Trim() : "";
-                            if (string.IsNullOrEmpty(eventName)) continue;   // 空项目列跳过
-                            string entryTime = (pair[1] >= 0 && pair[1] < cols.Length) ? cols[pair[1]].Trim() : "";
-                            ImportOneSwimmerEvent(bibFromRow, name, gender, country, countryShort,
-                                eventName, entryTime, age, birthDate, idNumber, phone, notes, ageCategory,
-                                i + 1, ref imported, ref updated, ref skipped, skipReasons);
+                    // 收集本行的有效项目对（并过滤接力）
+                    var validPairs = new List<string[]>();   // {eventName, entryTime}
+                    foreach (var pair in pairs) {
+                        string evName = (pair[0] < cols.Length) ? (cols[pair[0]] ?? "").Trim() : "";
+                        if (string.IsNullOrEmpty(evName)) continue;
+                        if (evName.Contains("接力")) {
+                            rowErr.Add(string.Format("项目「{0}」属于接力，请改在「接力队管理」报名", evName));
+                            continue;
                         }
+                        string et = (pair[1] < cols.Length) ? (cols[pair[1]] ?? "").Trim() : "";
+                        validPairs.Add(new[] { evName, et });
                     }
-                } else {
-                    // ── 旧版单项目格式：每行一项目，固定列位（向后兼容）──
-                    // CSV格式: 号码,姓名,性别,代表队,项目,报名成绩,年龄,出生日期,身份证号,电话,备注,组别,单位简称
-                    for (int i = 1; i < rows.Count; i++) {
-                        string[] cols = rows[i];
-                        if (cols.Length < 5) continue;
-                        ImportOneSwimmerEvent(
-                            cols[0].Trim(),                                                  // bibNum
-                            cols[1].Trim(),                                                  // name
-                            cols[2].Trim(),                                                  // gender
-                            cols[3].Trim(),                                                  // country
-                            cols.Length > 12 ? cols[12].Trim() : "",                         // countryShort
-                            cols[4].Trim(),                                                  // eventName
-                            cols.Length >  5 ? cols[5].Trim()  : "",                         // entryTime
-                            cols.Length >  6 ? ParseIntOr0(cols[6].Trim()) : 0,              // age
-                            cols.Length >  7 ? cols[7].Trim()  : "",                         // birthDate
-                            cols.Length >  8 ? cols[8].Trim()  : "",                         // idNumber
-                            cols.Length >  9 ? cols[9].Trim()  : "",                         // phone
-                            cols.Length > 10 ? cols[10].Trim() : "",                         // notes
-                            cols.Length > 11 ? cols[11].Trim() : "",                         // ageCategory
+                    if (rowErr.Count == 0 && validPairs.Count == 0) rowErr.Add("至少需填写 1 个项目");
+
+                    if (rowErr.Count > 0) {
+                        skipped++;
+                        skipReasons.Add(string.Format("第 {0} 行 [{1}]: {2}",
+                            i + 1, string.IsNullOrEmpty(name) ? "(无姓名)" : name, string.Join("; ", rowErr)));
+                        continue;
+                    }
+
+                    // 通过 → 写入(每项目一条 Upsert)
+                    foreach (var p in validPairs) {
+                        ImportOneSwimmerEvent(bibFromRow, name, gender, country, countryShort,
+                            p[0], p[1], age, birthDate, idNumber, phone, notes, ageCategory,
                             i + 1, ref imported, ref updated, ref skipped, skipReasons);
                     }
                 }
 
-                AddLog(string.Format("CSV导入完成({0}): 新增 {1} 条 / 更新 {2} 条 / 跳过 {3} 条",
-                    isMultiEventFormat ? "多项目格式" : "单项目格式", imported, updated, skipped));
+                AddLog(string.Format("CSV 导入完成: 新增 {0} 条 / 更新 {1} 条 / 跳过 {2} 行",
+                    imported, updated, skipped));
                 AutoSaveData();
                 RefreshOverviewStats();
                 RefreshSwimmerFilter();
                 Broadcast();
 
-                // 汇总弹窗
-                string formatLabel = isMultiEventFormat ? "多项目格式（一人一行）" : "单项目格式（一项一行）";
-                string summary = string.Format(
-                    "CSV 导入完成（{0}）：\n\n  ✅ 新增 {1} 条\n  🔄 更新 {2} 条（身份证号 + 项目 匹配，已覆盖队伍/成绩/电话等字段）\n  ⏭ 跳过 {3} 条（号码牌或同名无身份证号冲突）",
-                    formatLabel, imported, updated, skipped);
+                // 汇总弹窗 — 全量列出便于管理员定位
+                var sb = new StringBuilder();
+                sb.AppendFormat("CSV 导入完成（个人报名模板）：\n\n  ✅ 新增 {0} 条\n  🔄 更新 {1} 条 (按身份证号+项目匹配)\n  ⏭ 跳过 {2} 行\n",
+                    imported, updated, skipped);
                 if (skipReasons.Count > 0) {
-                    summary += "\n\n跳过原因（前 " + skipReasons.Count + " 条）：\n  " + string.Join("\n  ", skipReasons);
+                    sb.AppendLine("\n--- 跳过明细 ---");
+                    int show = Math.Min(skipReasons.Count, 100);
+                    for (int k = 0; k < show; k++) sb.AppendLine("• " + skipReasons[k]);
+                    if (skipReasons.Count > show) sb.AppendFormat("... 还有 {0} 条未显示\n", skipReasons.Count - show);
                 }
-                MessageBox.Show(summary, "导入运动员 CSV 完成",
-                    MessageBoxButton.OK,
-                    skipped > 0 ? MessageBoxImage.Warning : MessageBoxImage.Information);
+                MessageBox.Show(sb.ToString(), "导入运动员 CSV 完成",
+                    MessageBoxButton.OK, skipped > 0 ? MessageBoxImage.Warning : MessageBoxImage.Information);
             } catch (Exception ex) {
                 AddLog("CSV导入失败: " + ex.Message);
                 MessageBox.Show("CSV 导入失败: " + ex.Message, "导入失败",
@@ -8777,6 +9091,318 @@ namespace SwimmingScoreboard
             AddLog(string.Format("手动添加接力队: {0} ({1} {2}) {3}棒", teamName, gender, eventName, team.Legs.Count));
         }
 
+        // 2026-05-24 接力队 CSV 模板表头 — 导出/导入必须严格匹配
+        private static readonly string[] RelayCsvHeader = new[] {
+            "队名", "项目", "性别", "报名成绩",
+            "第1棒姓名", "第1棒身份证", "第1棒生日",
+            "第2棒姓名", "第2棒身份证", "第2棒生日",
+            "第3棒姓名", "第3棒身份证", "第3棒生日",
+            "第4棒姓名", "第4棒身份证", "第4棒生日",
+            "备注"
+        };
+
+        private void ExportRelayTemplate_Click(object sender, RoutedEventArgs e) {
+            var dlg = new Microsoft.Win32.SaveFileDialog {
+                Filter = "CSV 文件|*.csv", Title = "导出接力报名模板",
+                FileName = "接力报名模板_" + DateTime.Now.ToString("yyyyMMdd_HHmm") + ".csv"
+            };
+            if (dlg.ShowDialog() != true) return;
+            var sb = new StringBuilder();
+            sb.AppendLine(string.Join(",", RelayCsvHeader));
+            // 1 行示例（用户编辑前可参考）
+            sb.AppendLine("绵阳蓝鲸A队,4x100米自由泳接力,男,3:42.50," +
+                          "张三,510102200505010001,2005-05-01," +
+                          "李四,510102200505010002,2005-05-02," +
+                          "王五,510102200505010003,2005-05-03," +
+                          "赵六,510102200505010004,2005-05-04,示例（删除本行后填真数据）");
+            File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
+            MessageBox.Show("已导出接力报名模板:\n" + dlg.FileName +
+                "\n\n表头共 17 列，编辑后用「导入CSV」回灌；生日格式 yyyy-MM-dd，报名成绩格式 mm:ss.ff 或 ss.ff。",
+                "完成");
+        }
+
+        private void ExportRelayCSV_Click(object sender, RoutedEventArgs e) {
+            if (_relayTeams.Count == 0) {
+                MessageBox.Show("当前没有接力队可导出", "提示"); return;
+            }
+            var dlg = new Microsoft.Win32.SaveFileDialog {
+                Filter = "CSV 文件|*.csv", Title = "导出接力队",
+                FileName = "接力队_" + DateTime.Now.ToString("yyyyMMdd_HHmm") + ".csv"
+            };
+            if (dlg.ShowDialog() != true) return;
+            var sb = new StringBuilder();
+            sb.AppendLine(string.Join(",", RelayCsvHeader));
+            foreach (var t in _relayTeams) {
+                var legs = new RelayLeg[4];
+                for (int i = 0; i < t.Legs.Count && i < 4; i++) legs[i] = t.Legs[i];
+                sb.AppendLine(string.Join(",", new[] {
+                    CsvEsc(t.TeamName), CsvEsc(t.EventName), CsvEsc(t.Gender), CsvEsc(t.EntryTime),
+                    CsvEsc(legs[0] != null ? legs[0].SwimmerName : ""), CsvEsc(legs[0] != null ? legs[0].SwimmerIDNumber : ""), CsvEsc(legs[0] != null ? legs[0].SwimmerBirthDate : ""),
+                    CsvEsc(legs[1] != null ? legs[1].SwimmerName : ""), CsvEsc(legs[1] != null ? legs[1].SwimmerIDNumber : ""), CsvEsc(legs[1] != null ? legs[1].SwimmerBirthDate : ""),
+                    CsvEsc(legs[2] != null ? legs[2].SwimmerName : ""), CsvEsc(legs[2] != null ? legs[2].SwimmerIDNumber : ""), CsvEsc(legs[2] != null ? legs[2].SwimmerBirthDate : ""),
+                    CsvEsc(legs[3] != null ? legs[3].SwimmerName : ""), CsvEsc(legs[3] != null ? legs[3].SwimmerIDNumber : ""), CsvEsc(legs[3] != null ? legs[3].SwimmerBirthDate : ""),
+                    CsvEsc(t.AgeCategoryPending ? "组别待确认" : "")
+                }));
+            }
+            File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
+            MessageBox.Show(string.Format("已导出 {0} 支接力队到:\n{1}", _relayTeams.Count, dlg.FileName), "完成");
+        }
+
+        private void ImportRelayCSV_Click(object sender, RoutedEventArgs e) {
+            var dlg = new Microsoft.Win32.OpenFileDialog {
+                Filter = "CSV 文件|*.csv", Title = "导入接力队 CSV"
+            };
+            if (dlg.ShowDialog() != true) return;
+
+            string[] lines;
+            try { lines = File.ReadAllLines(dlg.FileName, Encoding.UTF8); }
+            catch (Exception ex) { MessageBox.Show("读取失败: " + ex.Message, "错误"); return; }
+
+            if (lines.Length < 1) { MessageBox.Show("文件为空", "提示"); return; }
+
+            // 表头校验
+            var headerCols = ParseCsvLine(lines[0]);
+            if (headerCols.Length != RelayCsvHeader.Length) {
+                MessageBox.Show(string.Format(
+                    "❌ 表头列数不对：期望 {0} 列，实际 {1} 列。请用「导出接力报名模板」导出新模板后重试。",
+                    RelayCsvHeader.Length, headerCols.Length), "格式错误");
+                return;
+            }
+            for (int i = 0; i < RelayCsvHeader.Length; i++) {
+                if ((headerCols[i] ?? "").Trim() != RelayCsvHeader[i]) {
+                    MessageBox.Show(string.Format(
+                        "❌ 表头第 {0} 列不匹配：期望「{1}」，实际「{2}」。请用「导出接力报名模板」导出新模板后重试。",
+                        i + 1, RelayCsvHeader[i], headerCols[i] ?? ""), "格式错误");
+                    return;
+                }
+            }
+
+            // 接力项目名单
+            var relayEvents = new HashSet<string>(_events.Where(ev => ev != null && ev.Contains("接力")));
+            // 现有队伍 (避免重复)
+            var existingKeys = new HashSet<string>();
+            foreach (var t in _relayTeams) existingKeys.Add((t.TeamName ?? "") + "|" + (t.EventName ?? "") + "|" + (t.Gender ?? ""));
+
+            int importedCount = 0, pendingCount = 0;
+            var skipped = new List<string>();
+
+            for (int li = 1; li < lines.Length; li++) {
+                string raw = lines[li];
+                if (string.IsNullOrWhiteSpace(raw)) continue;
+                var c = ParseCsvLine(raw);
+                if (c.Length < RelayCsvHeader.Length) {
+                    skipped.Add(string.Format("第 {0} 行: 列数不足 ({1} < {2})", li + 1, c.Length, RelayCsvHeader.Length));
+                    continue;
+                }
+                string teamName = (c[0] ?? "").Trim();
+                string evName   = (c[1] ?? "").Trim();
+                string gender   = (c[2] ?? "").Trim();
+                string entryTime = (c[3] ?? "").Trim();
+
+                if (string.IsNullOrEmpty(teamName)) { skipped.Add(string.Format("第 {0} 行: 缺少队名", li + 1)); continue; }
+                if (string.IsNullOrEmpty(evName))   { skipped.Add(string.Format("第 {0} 行 [{1}]: 缺少项目", li + 1, teamName)); continue; }
+                if (!evName.Contains("接力"))       { skipped.Add(string.Format("第 {0} 行 [{1}]: 项目「{2}」不是接力项目", li + 1, teamName, evName)); continue; }
+                if (relayEvents.Count > 0 && !relayEvents.Contains(evName)) {
+                    skipped.Add(string.Format("第 {0} 行 [{1}]: 项目「{2}」不在当前赛事项目列表内", li + 1, teamName, evName));
+                    continue;
+                }
+                if (gender != "男" && gender != "女" && gender != "混合") {
+                    skipped.Add(string.Format("第 {0} 行 [{1}]: 性别「{2}」无效 (应为 男/女/混合)", li + 1, teamName, gender));
+                    continue;
+                }
+                string dedupKey = teamName + "|" + evName + "|" + gender;
+                if (existingKeys.Contains(dedupKey)) {
+                    skipped.Add(string.Format("第 {0} 行 [{1}]: 同队名+项目+性别已存在", li + 1, teamName));
+                    continue;
+                }
+
+                // 4 棒
+                var legNames = new string[4];
+                var legIds = new string[4];
+                var legBirths = new string[4];
+                bool missingLegName = false;
+                int legBirthMissing = 0;
+                for (int k = 0; k < 4; k++) {
+                    legNames[k] = (c[4 + k * 3] ?? "").Trim();
+                    legIds[k]   = (c[5 + k * 3] ?? "").Trim();
+                    legBirths[k]= (c[6 + k * 3] ?? "").Trim();
+                    if (string.IsNullOrEmpty(legNames[k])) missingLegName = true;
+                    if (string.IsNullOrEmpty(legBirths[k])) legBirthMissing++;
+                }
+                if (missingLegName) {
+                    skipped.Add(string.Format("第 {0} 行 [{1}]: 4 棒姓名缺失，跳过（请补齐再导入）", li + 1, teamName));
+                    continue;
+                }
+
+                // 通过校验，建队
+                var team = new RelayTeam {
+                    TeamName = teamName, EventName = evName, Gender = gender,
+                    EntryTime = entryTime,
+                    EntryTimeSeconds = string.IsNullOrEmpty(entryTime) ? 0 : TimeFormatter.Parse(entryTime),
+                    AgeCategoryPending = legBirthMissing > 0
+                };
+                for (int k = 0; k < 4; k++) {
+                    team.Legs.Add(new RelayLeg {
+                        LegOrder = k + 1,
+                        SwimmerName = legNames[k],
+                        SwimmerIDNumber = legIds[k],
+                        SwimmerBirthDate = legBirths[k],
+                        SwimmerBibNumber = ""
+                    });
+                }
+                _relayTeams.Add(team);
+                existingKeys.Add(dedupKey);
+                if (team.AgeCategoryPending) pendingCount++;
+                importedCount++;
+
+                // 写代表条目 + 队员条目（与 AddRelayCore 一致）
+                string legNamesStr = string.Join(",", legNames);
+                string teamBib = "R" + _relayTeams.Count.ToString("D3");
+                while (_swimmers.Any(s => s.BibNumber == teamBib)) teamBib = "R" + DateTime.Now.Ticks.ToString().Substring(10);
+                _swimmers.Add(new Swimmer {
+                    BibNumber = teamBib, Name = teamName, Gender = gender, Country = teamName,
+                    EventName = evName, EntryTime = entryTime, EntryTimeSeconds = team.EntryTimeSeconds,
+                    Notes = string.Format("接力队 棒次:{0}", legNamesStr)
+                });
+                for (int k = 0; k < 4; k++) {
+                    string memBib = teamBib + "-" + (k + 1);
+                    if (_swimmers.Any(s => s.BibNumber == memBib)) continue;
+                    _swimmers.Add(new Swimmer {
+                        BibNumber = memBib, Name = legNames[k],
+                        Gender = gender == "混合" ? "男" : gender, Country = teamName,
+                        IDNumber = legIds[k] ?? "",
+                        BirthDate = legBirths[k] ?? "",
+                        EventName = evName,
+                        Notes = string.Format("接力队员 {0} 第{1}棒", evName, k + 1)
+                    });
+                }
+            }
+
+            AutoSaveData();
+            RebuildRelayGroupedView();
+            AddLog(string.Format("接力 CSV 导入: 新增 {0} 队 / 跳过 {1} 行 / 待确认 {2} 队",
+                importedCount, skipped.Count, pendingCount));
+
+            // 汇总弹窗
+            var sb = new StringBuilder();
+            sb.AppendFormat("✔ 导入完成\n\n  新增接力队: {0}\n  跳过: {1}\n  组别待确认: {2} (高亮显示在列表中, 请在赛程管理窗口补录生日并锁定分组)\n",
+                importedCount, skipped.Count, pendingCount);
+            if (skipped.Count > 0) {
+                sb.AppendLine("\n--- 跳过的记录 ---");
+                int show = Math.Min(skipped.Count, 30);
+                for (int i = 0; i < show; i++) sb.AppendLine("• " + skipped[i]);
+                if (skipped.Count > show) sb.AppendFormat("... 还有 {0} 条未显示\n", skipped.Count - show);
+            }
+            MessageBox.Show(sb.ToString(), "接力 CSV 导入结果", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+
+        // CSV 工具
+        private static string CsvEsc(string s) {
+            if (s == null) return "";
+            if (s.IndexOfAny(new[] { ',', '"', '\n', '\r' }) >= 0) return "\"" + s.Replace("\"", "\"\"") + "\"";
+            return s;
+        }
+        private static string[] ParseCsvLine(string line) {
+            var result = new List<string>();
+            var sb = new StringBuilder();
+            bool inQuotes = false;
+            for (int i = 0; i < line.Length; i++) {
+                char c = line[i];
+                if (inQuotes) {
+                    if (c == '"') {
+                        if (i + 1 < line.Length && line[i + 1] == '"') { sb.Append('"'); i++; }
+                        else inQuotes = false;
+                    } else sb.Append(c);
+                } else {
+                    if (c == ',') { result.Add(sb.ToString()); sb.Length = 0; }
+                    else if (c == '"') inQuotes = true;
+                    else sb.Append(c);
+                }
+            }
+            result.Add(sb.ToString());
+            return result.ToArray();
+        }
+
+        // 2026-05-24 编辑接力队（队名/单位/项目/性别/4 棒姓名/报名成绩）+ 二次确认 + 校验
+        private void EditRelay_Click(object sender, RoutedEventArgs e) {
+            var sel = _selectedRelayTeam;
+            if (sel == null) {
+                MessageBox.Show("请先在接力队列表中选中要编辑的队伍。", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            string lockKey = "relay:" + (sel.TeamName ?? "") + "|" + (sel.EventName ?? "");
+            string holder;
+            if (!TryAcquireEditLock(lockKey, out holder)) {
+                MessageBox.Show(string.Format("接力队 [{0}] 正在被 {1} 编辑，请稍后再试。", sel.TeamName, holder),
+                    "无法编辑", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+            try {
+                // 旧标识用于在 _swimmers 中找代表/队员条目
+                string oldTeamName = sel.TeamName;
+                string oldEvent = sel.EventName;
+                string oldGender = sel.Gender;
+                string oldCountry = sel.Country;
+                var oldLegNames = sel.Legs.Select(l => l.SwimmerName ?? "").ToList();
+
+                var dlg = new EditRelayTeamWindow(sel, _events, _units) { Owner = this };
+                bool? r = dlg.ShowDialog();
+                if (r != true || !dlg.Confirmed) return;
+
+                // 同步到 _swimmers：代表条目 + 队员子条目
+                // 代表条目：按旧 队名/项目/性别 三键定位
+                var proxy = _swimmers.FirstOrDefault(s =>
+                    !string.IsNullOrEmpty(s.Notes) && s.Notes.StartsWith("接力队 棒次:")
+                    && s.Name == oldTeamName && s.EventName == oldEvent && s.Gender == oldGender);
+                if (proxy != null) {
+                    proxy.Name = sel.TeamName;
+                    proxy.Country = sel.Country;
+                    proxy.EventName = sel.EventName;
+                    proxy.Gender = sel.Gender;
+                    proxy.EntryTime = sel.EntryTime;
+                    proxy.EntryTimeSeconds = sel.EntryTimeSeconds;
+                    string legNamesStr = string.Join(",", sel.Legs.Select(l => l.SwimmerName ?? "").ToArray());
+                    proxy.Notes = "接力队 棒次:" + legNamesStr;
+                }
+
+                // 队员子条目：按 (旧队名 + 旧项目 + 旧姓名) 三键定位老条目；找到一一更新
+                for (int i = 0; i < Math.Min(4, sel.Legs.Count); i++) {
+                    string oldLegName = i < oldLegNames.Count ? oldLegNames[i] : "";
+                    string newLegName = sel.Legs[i].SwimmerName ?? "";
+                    if (string.IsNullOrEmpty(oldLegName) && string.IsNullOrEmpty(newLegName)) continue;
+                    var memEntry = _swimmers.FirstOrDefault(s =>
+                        s.Notes != null && s.Notes.StartsWith("接力队员")
+                        && s.Country == oldTeamName && s.EventName == oldEvent
+                        && s.Name == oldLegName);
+                    if (memEntry != null) {
+                        memEntry.Name = newLegName;
+                        memEntry.Country = sel.TeamName;   // 队员的 Country 用 TeamName 标识所属队
+                        memEntry.EventName = sel.EventName;
+                        memEntry.Gender = sel.Gender == "混合" ? memEntry.Gender : sel.Gender;
+                        memEntry.Notes = string.Format("接力队员 {0} 第{1}棒", sel.EventName, i + 1);
+                    } else if (!string.IsNullOrEmpty(newLegName)) {
+                        // 旧条目找不到（可能首次编辑前没建好）— 新建一个子条目
+                        string memBib = (proxy != null ? proxy.BibNumber : "R???") + "-" + (i + 1);
+                        if (!_swimmers.Any(s => s.BibNumber == memBib)) {
+                            _swimmers.Add(new Swimmer {
+                                BibNumber = memBib, Name = newLegName,
+                                Gender = sel.Gender == "混合" ? "男" : sel.Gender,
+                                Country = sel.TeamName, EventName = sel.EventName,
+                                Notes = string.Format("接力队员 {0} 第{1}棒", sel.EventName, i + 1)
+                            });
+                        }
+                    }
+                }
+
+                AutoSaveData();
+                RebuildRelayGroupedView();
+                Broadcast();
+                AddLog(string.Format("接力队信息已修改: {0} ({1} {2})", sel.TeamName, sel.Gender, sel.EventName));
+            } finally {
+                ReleaseEditLock(lockKey);
+            }
+        }
+
         private void DeleteRelay_Click(object sender, RoutedEventArgs e) {
             var selected = _selectedRelayTeam;
             if (selected == null) { MessageBox.Show("请先选中一支接力队"); return; }
@@ -9061,6 +9687,26 @@ namespace SwimmingScoreboard
                     });
                 }
             }
+            // 同步队员条目的生日（管理员补录后写回 Swimmer.BirthDate）
+            foreach (var leg in team.Legs) {
+                if (string.IsNullOrEmpty(leg.SwimmerName) || string.IsNullOrEmpty(leg.SwimmerBirthDate)) continue;
+                var memEntry = _swimmers.FirstOrDefault(s =>
+                    s.Notes != null && s.Notes.StartsWith("接力队员")
+                    && s.EventName == team.EventName && s.Country == team.TeamName
+                    && s.Name == leg.SwimmerName);
+                if (memEntry != null) memEntry.BirthDate = leg.SwimmerBirthDate;
+            }
+
+            // 2026-05-24 CSV 导入校验联动：4 棒生日补全后自动锁定分组（清除 AgeCategoryPending）
+            if (team.AgeCategoryPending) {
+                bool allFilled = team.Legs.Count >= 4
+                    && team.Legs.All(l => !string.IsNullOrEmpty(l.SwimmerBirthDate));
+                if (allFilled) {
+                    team.AgeCategoryPending = false;
+                    AddLog(string.Format("接力队 [{0}] 4 棒生日补全，分组待确认状态已解除", team.TeamName));
+                }
+            }
+
             // 刷新上方分组视图
             RebuildRelayGroupedView();
             AutoSaveData();
@@ -9148,6 +9794,19 @@ namespace SwimmingScoreboard
                 grid.Columns.Add(new DataGridTextColumn { Header = "组", Binding = new System.Windows.Data.Binding("Heat"), Width = new DataGridLength(35) });
                 grid.Columns.Add(new DataGridTextColumn { Header = "道", Binding = new System.Windows.Data.Binding("Lane"), Width = new DataGridLength(35) });
                 grid.Columns.Add(new DataGridTextColumn { Header = "状态", Binding = new System.Windows.Data.Binding("Status"), Width = new DataGridLength(50) });
+
+                // 2026-05-24 CSV 导入校验 — AgeCategoryPending 高亮黄色 + 弹出提示气泡
+                var rowStyle = new Style(typeof(DataGridRow));
+                var trigger = new System.Windows.DataTrigger {
+                    Binding = new System.Windows.Data.Binding("AgeCategoryPending"),
+                    Value = true
+                };
+                trigger.Setters.Add(new Setter(DataGridRow.BackgroundProperty,
+                    new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FEF3C7"))));
+                trigger.Setters.Add(new Setter(DataGridRow.ToolTipProperty,
+                    (object)"⚠ 组别待确认 — 部分队员生日缺失，请在棒次详情或赛程管理窗口补录"));
+                rowStyle.Triggers.Add(trigger);
+                grid.RowStyle = rowStyle;
 
                 var teamList = group.OrderBy(t => t.Heat).ThenBy(t => t.Lane).ToList();
                 grid.ItemsSource = teamList;
@@ -10818,66 +11477,10 @@ namespace SwimmingScoreboard
             }
         }
 
-        private void AutoBuildSchedule_Click(object sender, RoutedEventArgs e) {
-            if (_swimmers.Count == 0) {
-                MessageBox.Show("没有已注册的运动员/接力队，请先注册再生成日程。", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
-                return;
-            }
-            // 检查是否有有效赛程（忽略空条目）
-            int validScheduleCount = _schedule.Count(s => !string.IsNullOrEmpty(s.EventName));
-            if (validScheduleCount > 0) {
-                if (MessageBox.Show(string.Format("已有{0}条赛程数据，是否清除并重新生成？", validScheduleCount), "确认", MessageBoxButton.YesNo) != MessageBoxResult.Yes)
-                    return;
-            }
-
-            // 手动选择赛次方案（默认 "只决赛"），生效于本次生成的全部项目
-            List<string> stagePlan;
-            if (!PromptStagePlan(out stagePlan)) return;   // 用户取消
-
-            _schedule.Clear();
-            AutoBuildSchedule(stagePlan);
-            BuildScheduleTree();
-            AutoSaveData();
-            Broadcast();
-            MessageBox.Show(string.Format("日程生成完成！\n共{0}条赛程项（赛次：{1}）。\n\n可在\"修改赛程\"里进一步调整，或用\"预赛自动分组\"/\"手动分组\"分配道次。",
-                _schedule.Count, string.Join(" → ", stagePlan.ToArray())),
-                "日程安排完成", MessageBoxButton.OK, MessageBoxImage.Information);
-        }
-
-        // 弹窗让操作员手动选本次日程要包含哪些赛次（决赛 / 预赛+决赛 / 预赛+半决赛+决赛）
-        private bool PromptStagePlan(out List<string> plan) {
-            plan = new List<string> { "决赛" };
-            var dlg = new Window {
-                Title = "选择赛次方案", Width = 420, Height = 260,
-                WindowStartupLocation = WindowStartupLocation.CenterOwner, Owner = this, ResizeMode = ResizeMode.NoResize
-            };
-            var sp = new StackPanel { Margin = new Thickness(18) };
-            sp.Children.Add(new TextBlock {
-                Text = "本次日程中所有项目使用的赛次方案（手动选择，不再按人数自动判定）：",
-                TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 12), FontSize = 13
-            });
-            var rb1 = new RadioButton { Content = "只决赛（推荐，适合中小型赛事）", IsChecked = true, Margin = new Thickness(0, 6, 0, 6), FontSize = 13 };
-            var rb2 = new RadioButton { Content = "预赛 → 决赛", Margin = new Thickness(0, 6, 0, 6), FontSize = 13 };
-            var rb3 = new RadioButton { Content = "预赛 → 半决赛 → 决赛", Margin = new Thickness(0, 6, 0, 6), FontSize = 13 };
-            sp.Children.Add(rb1); sp.Children.Add(rb2); sp.Children.Add(rb3);
-
-            var btnRow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 16, 0, 0) };
-            var btnOk = new Button { Content = "确定", Padding = new Thickness(20, 6, 20, 6), Margin = new Thickness(0, 0, 8, 0),
-                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#22C55E")),
-                Foreground = Brushes.White, FontWeight = FontWeights.Bold, BorderThickness = new Thickness(0) };
-            btnOk.Click += delegate { dlg.DialogResult = true; };
-            var btnCancel = new Button { Content = "取消", Padding = new Thickness(20, 6, 20, 6) };
-            btnCancel.Click += delegate { dlg.DialogResult = false; };
-            btnRow.Children.Add(btnOk); btnRow.Children.Add(btnCancel);
-            sp.Children.Add(btnRow);
-            dlg.Content = sp;
-            if (dlg.ShowDialog() != true) { plan = null; return false; }
-
-            if (rb3.IsChecked == true) plan = new List<string> { "预赛", "半决赛", "决赛" };
-            else if (rb2.IsChecked == true) plan = new List<string> { "预赛", "决赛" };
-            else plan = new List<string> { "决赛" };
-            return true;
-        }
+        // 2026-05-25 「一键生成日程」按钮 + AutoBuildSchedule_Click + PromptStagePlan 已删除
+        // 与「秩序册生成向导」功能重复且有问题（按 _swimmers 字符串匹配项目；时段硬编码 09:00/14:30/19:30；
+        // 不写入项目用时配置；不支持长距离快慢组拆场次）。改用 OpenSchedulingWizard_Click → 一键全自动。
+        // AutoBuildSchedule(List<string>) 核心函数也已删除，无其它调用方
 
         // ═══════════════════════════════════════════════════════════════
         // 预赛自动分组（只对第一赛次的运动员进行蛇形分组）
@@ -11015,7 +11618,18 @@ namespace SwimmingScoreboard
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EF4444")),
                 Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0), Margin = new Thickness(0, 0, 8, 0) };
             btnRow.Children.Add(btnClear);
-            btnRow.Children.Add(new TextBlock { Text = "  表格里可直接修改 [组] [道]，再按\"确认保存\"；空白表示未分配。",
+            // 2026-05-24 分组结果导出
+            var btnExportXlsx = new Button { Content = "📤 导出分组表 (Excel)", Padding = new Thickness(12, 5, 12, 5),
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#16A34A")),
+                Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0), Margin = new Thickness(0, 0, 8, 0),
+                ToolTip = "导出全部已分组结果到 Excel (.xlsx, 3 个 Sheet: 分组明细 / 分组表网格 / 填写说明)" };
+            btnRow.Children.Add(btnExportXlsx);
+            var btnExportCsv = new Button { Content = "📤 导出 CSV", Padding = new Thickness(12, 5, 12, 5),
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#0EA5E9")),
+                Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0), Margin = new Thickness(0, 0, 8, 0),
+                ToolTip = "导出当前项目+阶段表格里的分组结果到 CSV" };
+            btnRow.Children.Add(btnExportCsv);
+            btnRow.Children.Add(new TextBlock { Text = "  表格里可直接修改 [组] [道]，再按\"确认保存\"；0 表示未分配。",
                 VerticalAlignment = VerticalAlignment.Center,
                 Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")) });
             Grid.SetRow(btnRow, 1);
@@ -11167,8 +11781,39 @@ namespace SwimmingScoreboard
             };
 
             btnClear.Click += delegate {
-                foreach (var r in rowSource) { r.Heat = ""; r.Lane = ""; }
+                foreach (var r in rowSource) { r.Heat = "0"; r.Lane = "0"; }
                 grid.Items.Refresh();
+            };
+
+            // 2026-05-24 导出全量分组结果 (Excel)
+            btnExportXlsx.Click += delegate {
+                try { grid.CommitEdit(DataGridEditingUnit.Cell, true); grid.CommitEdit(DataGridEditingUnit.Row, true); } catch { }
+                ExportHeatAssignmentsExcel_Click(null, null);
+            };
+            // 2026-05-24 导出当前表格的分组 (CSV)
+            btnExportCsv.Click += delegate {
+                try { grid.CommitEdit(DataGridEditingUnit.Cell, true); grid.CommitEdit(DataGridEditingUnit.Row, true); } catch { }
+                if (cbEvent.SelectedIndex < 0) { MessageBox.Show("请先选择项目"); return; }
+                var combo = combos[cbEvent.SelectedIndex];
+                string stage = cbStage.SelectedItem as string ?? "预赛";
+                var saveDlg = new Microsoft.Win32.SaveFileDialog {
+                    Filter = "CSV 文件|*.csv",
+                    FileName = string.Format("分组_{0}_{1}_{2}_{3}.csv",
+                        string.IsNullOrEmpty(combo.AgeGroup) ? "不限" : combo.AgeGroup,
+                        combo.Gender, combo.EventName, stage)
+                };
+                if (saveDlg.ShowDialog() != true) return;
+                var sb = new System.Text.StringBuilder();
+                sb.AppendLine("组别,性别,项目,阶段,组,道,号码,姓名,代表队,种子成绩");
+                foreach (var r in rowSource) {
+                    sb.AppendLine(string.Join(",", new[] {
+                        CsvEsc(combo.AgeGroup ?? ""), CsvEsc(combo.Gender ?? ""), CsvEsc(combo.EventName ?? ""), CsvEsc(stage),
+                        r.Heat ?? "0", r.Lane ?? "0",
+                        CsvEsc(r.BibNumber), CsvEsc(r.Name), CsvEsc(r.Country), CsvEsc(r.SeedTime)
+                    }));
+                }
+                System.IO.File.WriteAllText(saveDlg.FileName, sb.ToString(), System.Text.Encoding.UTF8);
+                MessageBox.Show("已导出: " + saveDlg.FileName, "完成");
             };
 
             btnOk.Click += delegate {
@@ -11249,7 +11894,8 @@ namespace SwimmingScoreboard
             public string Lane { get { return _lane; } set { _lane = value; Raise("Lane"); } }
             public ManualHeatRow(Swimmer s, int h, int l) : this(s, h, l, "预赛", "") { }
             public ManualHeatRow(Swimmer s, int h, int l, string stage, string prevStage) {
-                Swimmer = s; _heat = h > 0 ? h.ToString() : ""; _lane = l > 0 ? l.ToString() : "";
+                // 2026-05-24 道次/组次为 0 也显式显示 '0'，避免与空白混淆
+                Swimmer = s; _heat = h.ToString(); _lane = l.ToString();
                 _stage = stage ?? "预赛"; _prevStage = prevStage ?? "";
             }
             public event PropertyChangedEventHandler PropertyChanged;
@@ -11443,253 +12089,6 @@ namespace SwimmingScoreboard
         /// 根据报名人数确定赛次和预估组数，按游泳比赛惯例安排时间
         /// 上午预赛，下午半决赛，晚上决赛
         /// </summary>
-        private void AutoBuildSchedule(List<string> stagePlan = null) {
-            // stagePlan 为 null 时回退到"只决赛"——手动默认
-            if (stagePlan == null || stagePlan.Count == 0) stagePlan = new List<string> { "决赛" };
-            string startDateStr = GetDatePickerText(StartDatePicker);
-            string endDateStr = GetDatePickerText(EndDatePicker);
-            DateTime startDate, endDate;
-            if (!DateTime.TryParse(startDateStr, out startDate)) startDate = DateTime.Today;
-            if (!DateTime.TryParse(endDateStr, out endDate)) endDate = startDate;
-            if (endDate < startDate) endDate = startDate;
-            int totalDays = (int)(endDate - startDate).TotalDays + 1;
-
-            // 收集所有项目（过滤掉无效数据和个人接力队员条目）
-            var validSwimmers = _swimmers.Where(s =>
-                !string.IsNullOrEmpty(s.Gender) && !string.IsNullOrEmpty(s.EventName) &&
-                !(s.Notes != null && s.Notes.StartsWith("接力队员"))
-            ).ToList();
-            // 按 (组别, 性别, 项目) 分组；组别为空时视作 "" 字符串，仍然单独成组
-            var eventGroups = validSwimmers
-                .GroupBy(s => new { AgeGroup = s.AgeCategory ?? "", s.Gender, s.EventName })
-                .OrderBy(g => g.Key.AgeGroup).ThenBy(g => g.Key.Gender).ThenBy(g => g.Key.EventName).ToList();
-
-            var allItems = new List<ScheduleItem>();
-            int laneCount = _poolConfig.LaneCount;
-
-            foreach (var group in eventGroups) {
-                string ageGroup = group.Key.AgeGroup;
-                string gender = group.Key.Gender;
-                string eventName = group.Key.EventName;
-                bool isRelay = eventName.Contains("接力");
-                int count = group.Count();
-                // 不再按人数自动判定赛次，完全按用户选择的方案生成
-                var stages = new List<string>(stagePlan);
-                // 特例：接力项目没有半决赛，自动剔除
-                if (isRelay) stages.RemoveAll(s => s == "半决赛");
-                if (stages.Count == 0) stages.Add("决赛");
-                string firstStage = stages[0];
-
-                foreach (var sw in group) sw.CurrentStage = firstStage;
-
-                foreach (string stage in stages) {
-                    int estimatedCount = count;
-                    if (stage == "半决赛") estimatedCount = Math.Min(count, 16);
-                    else if (stage == "决赛" && stages.Count > 1) estimatedCount = Math.Min(count, 8);
-                    int estimatedHeats = (int)Math.Ceiling((double)estimatedCount / laneCount);
-                    if (estimatedHeats < 1) estimatedHeats = 1;
-
-                    allItems.Add(new ScheduleItem {
-                        AgeGroup = ageGroup,
-                        Gender = gender, EventName = eventName, Stage = stage,
-                        IsRelay = isRelay, HeatCount = estimatedHeats
-                    });
-                }
-                string typeLabel = isRelay ? "(接力)" : "";
-                AddLog(string.Format("  {0}{1} {2}{3}: {4}{5} → {6}",
-                    string.IsNullOrEmpty(ageGroup) ? "" : ("[" + ageGroup + "] "),
-                    gender, eventName, typeLabel, count, isRelay ? "队" : "人", string.Join("→", stages.ToArray())));
-            }
-
-            // ====== 按依赖关系分配日程 ======
-            // 核心原则：同一项目的赛次必须严格按 预赛→半决赛→决赛 的时间顺序，且至少间隔一天
-            // 每个项目的半决赛日 = 预赛日+1，决赛日 = 半决赛日+1（或预赛日+1）
-
-            var prelims = allItems.Where(s => s.Stage == "预赛").OrderBy(s => s.IsRelay ? 1 : 0).ThenBy(s => s.EventName).ToList();
-            var semis = allItems.Where(s => s.Stage == "半决赛").OrderBy(s => s.IsRelay ? 1 : 0).ThenBy(s => s.EventName).ToList();
-            var directFinals = allItems.Where(s => s.Stage == "决赛" && !allItems.Any(p => p.EventName == s.EventName && p.Gender == s.Gender && p.Stage == "预赛"))
-                .OrderBy(s => s.IsRelay ? 1 : 0).ThenBy(s => s.EventName).ToList();
-            var linkedFinals = allItems.Where(s => s.Stage == "决赛" && allItems.Any(p => p.EventName == s.EventName && p.Gender == s.Gender && p.Stage == "预赛"))
-                .OrderBy(s => s.IsRelay ? 1 : 0).ThenBy(s => s.EventName).ToList();
-
-            // 标识有半决赛的项目（三阶段：预赛→半决赛→决赛）
-            var threeStageKeys = new HashSet<string>();
-            foreach (var semi in semis)
-                threeStageKeys.Add(semi.Gender + "|" + semi.EventName);
-
-            // ---- 第一步：分配预赛到各天上午 ----
-            // 三阶段项目的预赛必须在 day 0 ~ totalDays-3（留2天给半决赛和决赛）
-            // 两阶段项目的预赛必须在 day 0 ~ totalDays-2（留1天给决赛）
-            var prelimDayMap = new Dictionary<string, int>();
-
-            var threeStgPrelims = prelims.Where(p => threeStageKeys.Contains(p.Gender + "|" + p.EventName)).ToList();
-            var twoStgPrelims = prelims.Where(p => !threeStageKeys.Contains(p.Gender + "|" + p.EventName)).ToList();
-
-            int availDays3 = Math.Max(1, totalDays - 2);
-            int availDays2 = Math.Max(1, totalDays - 1);
-            if (availDays2 < 1) availDays2 = 1;
-
-            int perDay3 = threeStgPrelims.Count > 0 ? (int)Math.Ceiling((double)threeStgPrelims.Count / availDays3) : 0;
-            int pIdx = 0;
-            for (int d = 0; d < availDays3 && pIdx < threeStgPrelims.Count; d++) {
-                for (int i = 0; i < perDay3 && pIdx < threeStgPrelims.Count; i++, pIdx++)
-                    prelimDayMap[threeStgPrelims[pIdx].Gender + "|" + threeStgPrelims[pIdx].EventName] = d;
-            }
-
-            int perDay2 = twoStgPrelims.Count > 0 ? (int)Math.Ceiling((double)twoStgPrelims.Count / availDays2) : 0;
-            pIdx = 0;
-            for (int d = 0; d < availDays2 && pIdx < twoStgPrelims.Count; d++) {
-                for (int i = 0; i < perDay2 && pIdx < twoStgPrelims.Count; i++, pIdx++)
-                    prelimDayMap[twoStgPrelims[pIdx].Gender + "|" + twoStgPrelims[pIdx].EventName] = d;
-            }
-
-            // ---- 第二步：半决赛日 = 预赛日+1（下午场） ----
-            var semiDayMap = new Dictionary<string, int>();
-            foreach (var semi in semis) {
-                string key = semi.Gender + "|" + semi.EventName;
-                int pDay = prelimDayMap.ContainsKey(key) ? prelimDayMap[key] : 0;
-                semiDayMap[key] = Math.Min(pDay + 1, totalDays - 1);
-            }
-
-            // ---- 第三步：关联决赛日 ----
-            // 有半决赛的：决赛日 = 半决赛日+1（晚上场）
-            // 无半决赛的：决赛日 = 预赛日+1（晚上场）
-            var linkedFinalDayMap = new Dictionary<string, int>();
-            foreach (var lf in linkedFinals) {
-                string key = lf.Gender + "|" + lf.EventName;
-                int fDay;
-                if (semiDayMap.ContainsKey(key))
-                    fDay = semiDayMap[key] + 1;
-                else if (prelimDayMap.ContainsKey(key))
-                    fDay = prelimDayMap[key] + 1;
-                else
-                    fDay = totalDays - 1;
-                linkedFinalDayMap[key] = Math.Min(fDay, totalDays - 1);
-            }
-
-            // ---- 第四步：直接决赛均匀分配到各天晚上 ----
-            var directFinalDayMap = new Dictionary<string, int>();
-            int dfPerDay = directFinals.Count > 0 ? (int)Math.Ceiling((double)directFinals.Count / totalDays) : 0;
-            if (dfPerDay < 1 && directFinals.Count > 0) dfPerDay = directFinals.Count;
-            int dfIdx = 0;
-            for (int d = 0; d < totalDays && dfIdx < directFinals.Count; d++) {
-                for (int i = 0; i < dfPerDay && dfIdx < directFinals.Count; i++, dfIdx++)
-                    directFinalDayMap[directFinals[dfIdx].Gender + "|" + directFinals[dfIdx].EventName] = d;
-            }
-
-            // ---- 第五步：按天分组 ----
-            var prelimsByDay = new Dictionary<int, List<ScheduleItem>>();
-            foreach (var p in prelims) {
-                string key = p.Gender + "|" + p.EventName;
-                int d = prelimDayMap.ContainsKey(key) ? prelimDayMap[key] : 0;
-                if (!prelimsByDay.ContainsKey(d)) prelimsByDay[d] = new List<ScheduleItem>();
-                prelimsByDay[d].Add(p);
-            }
-            var semisByDay = new Dictionary<int, List<ScheduleItem>>();
-            foreach (var s in semis) {
-                string key = s.Gender + "|" + s.EventName;
-                int d = semiDayMap.ContainsKey(key) ? semiDayMap[key] : 1;
-                if (!semisByDay.ContainsKey(d)) semisByDay[d] = new List<ScheduleItem>();
-                semisByDay[d].Add(s);
-            }
-            var dfByDay = new Dictionary<int, List<ScheduleItem>>();
-            foreach (var df in directFinals) {
-                string key = df.Gender + "|" + df.EventName;
-                int d = directFinalDayMap.ContainsKey(key) ? directFinalDayMap[key] : 0;
-                if (!dfByDay.ContainsKey(d)) dfByDay[d] = new List<ScheduleItem>();
-                dfByDay[d].Add(df);
-            }
-            var lfByDay = new Dictionary<int, List<ScheduleItem>>();
-            foreach (var lf in linkedFinals) {
-                string key = lf.Gender + "|" + lf.EventName;
-                int d = linkedFinalDayMap.ContainsKey(key) ? linkedFinalDayMap[key] : totalDays - 1;
-                if (!lfByDay.ContainsKey(d)) lfByDay[d] = new List<ScheduleItem>();
-                lfByDay[d].Add(lf);
-            }
-
-            // ---- 第六步：逐天分配日期和时间 ----
-            // 每个项目的时间间隔 = 组数 × 每组预估用时（根据比赛距离计算）
-            int sessionNum = 1;
-
-            for (int day = 0; day < totalDays; day++) {
-                string dateStr = startDate.AddDays(day).ToString("yyyy-MM-dd");
-                int offsetMin; // 从场次开始时间算起的分钟偏移
-
-                // 上午场：预赛（09:00开始）
-                if (prelimsByDay.ContainsKey(day)) {
-                    offsetMin = 0;
-                    foreach (var item in prelimsByDay[day]) {
-                        item.Date = dateStr;
-                        item.Time = string.Format("{0:D2}:{1:D2}", 9 + offsetMin / 60, offsetMin % 60);
-                        item.SessionNumber = sessionNum;
-                        item.SessionName = string.Format("第{0}单元（{1}上午）", sessionNum, dateStr);
-                        _schedule.Add(item);
-                        int duration = Math.Max(1, item.HeatCount) * EstimateMinutesPerHeat(item.EventName);
-                        offsetMin += duration;
-                    }
-                    sessionNum++;
-                }
-
-                // 下午场：半决赛（14:30 开始）
-                // 2026-05-23 起调整为 14:30，与世界泳联 + 中国泳协赛事日程惯例对齐
-                int afternoonStartMin = 14 * 60 + 30;   // 14:30
-                if (semisByDay.ContainsKey(day)) {
-                    offsetMin = 0;
-                    foreach (var item in semisByDay[day]) {
-                        int t = afternoonStartMin + offsetMin;
-                        item.Date = dateStr;
-                        item.Time = string.Format("{0:D2}:{1:D2}", t / 60, t % 60);
-                        item.SessionNumber = sessionNum;
-                        item.SessionName = string.Format("第{0}单元（{1}下午）", sessionNum, dateStr);
-                        _schedule.Add(item);
-                        int duration = Math.Max(1, item.HeatCount) * EstimateMinutesPerHeat(item.EventName);
-                        offsetMin += duration;
-                    }
-                    sessionNum++;
-                }
-
-                // 晚上场：决赛（19:30 开始；18:30 热身预留 60 分钟）
-                // 2026-05-23 起按世界泳联标准从 17:30 调整为 19:30；操作员可在赛程表手动改时间
-                bool hasEvening = false;
-                int eveningStartMin = 19 * 60 + 30;   // 19:30（建议 18:30 热身）
-                offsetMin = 0;
-
-                // 直接决赛
-                if (dfByDay.ContainsKey(day)) {
-                    foreach (var item in dfByDay[day]) {
-                        int t = eveningStartMin + offsetMin;
-                        item.Date = dateStr;
-                        item.Time = string.Format("{0:D2}:{1:D2}", t / 60, t % 60);
-                        item.SessionNumber = sessionNum;
-                        item.SessionName = string.Format("第{0}单元（{1}晚上）", sessionNum, dateStr);
-                        _schedule.Add(item);
-                        int duration = Math.Max(1, item.HeatCount) * EstimateMinutesPerHeat(item.EventName);
-                        offsetMin += duration;
-                        hasEvening = true;
-                    }
-                }
-
-                // 关联决赛（有预赛/半决赛的项目的决赛）
-                if (lfByDay.ContainsKey(day)) {
-                    foreach (var item in lfByDay[day]) {
-                        int t = eveningStartMin + offsetMin;
-                        item.Date = dateStr;
-                        item.Time = string.Format("{0:D2}:{1:D2}", t / 60, t % 60);
-                        item.SessionNumber = sessionNum;
-                        item.SessionName = string.Format("第{0}单元（{1}晚上）", sessionNum, dateStr);
-                        _schedule.Add(item);
-                        int duration = Math.Max(1, item.HeatCount) * EstimateMinutesPerHeat(item.EventName);
-                        offsetMin += duration;
-                        hasEvening = true;
-                    }
-                }
-
-                if (hasEvening) sessionNum++;
-            }
-
-            AddLog(string.Format("自动日程安排完成: {0}条赛程, {1}天, 上午预赛/下午半决赛/晚上决赛",
-                _schedule.Count, totalDays));
-        }
 
         /// <summary>
         /// 根据项目名称估算每组比赛所需分钟数（含运动员检录出场、上道准备、比赛、间歇）
@@ -13386,9 +13785,14 @@ namespace SwimmingScoreboard
                 // 2026-05-24 P0-3 参赛单位
                 _units.Clear();
                 if (package.Units != null) foreach (var u in package.Units) _units.Add(u);
-                // 2026-05-24 P0-D 工作人员
+                // 2026-05-24 P0-D 工作人员（2026-05-25 旧分组名自动迁移）
                 _staff.Clear();
-                if (package.StaffList != null) foreach (var s in package.StaffList) _staff.Add(s);
+                if (package.StaffList != null) {
+                    foreach (var s in package.StaffList) {
+                        s.Group = StaffGroups.Migrate(s.Group);
+                        _staff.Add(s);
+                    }
+                }
                 _programBook = package.ProgramBook ?? new ProgramBookData();
                 _resultBook = package.ResultBook ?? new ResultBookData();
                 if (!string.IsNullOrEmpty(package.DisplayRecordLabel)) _displayRecordLabel = package.DisplayRecordLabel;

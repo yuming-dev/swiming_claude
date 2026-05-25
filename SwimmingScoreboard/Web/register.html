@@ -14,6 +14,14 @@ h1 { text-align: center; color: #1e293b; margin-bottom: 20px; }
 label { display: block; font-size: 13px; color: #64748b; margin: 8px 0 4px; }
 input, select { width: 100%; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 14px; }
 input[readonly] { background: #f1f5f9; }
+/* 必填字段红星 + 红框 + 字段错误文案 */
+.req::after { content: " *"; color: #EF4444; font-weight: bold; }
+input.invalid, select.invalid { border-color: #EF4444 !important; background: #FEF2F2; box-shadow: 0 0 0 2px rgba(239,68,68,0.15); }
+.field-error { font-size: 12px; color: #EF4444; margin-top: 2px; display: none; line-height: 1.4; }
+.field-error.show { display: block; }
+.form-summary-err { background: #FEE2E2; color: #991B1B; border: 1px solid #FCA5A5; padding: 10px 12px; border-radius: 4px; margin: 8px 0; font-size: 13px; display: none; }
+.form-summary-err.show { display: block; }
+.form-summary-err ul { margin: 6px 0 0 18px; }
 .row { display: flex; gap: 12px; }
 .row > div { flex: 1; }
 .btn { display: inline-block; padding: 10px 20px; border: none; border-radius: 6px; font-size: 14px; font-weight: bold; cursor: pointer; }
@@ -125,18 +133,18 @@ input[readonly] { background: #f1f5f9; }
     </div>
 
     <div class="card" id="personalCard">
-        <h2>个人项目报名</h2>
+        <h2>个人项目报名 <span style="font-size:12px;font-weight:normal;color:#64748b;">（带 <span style="color:#EF4444;font-weight:bold;">*</span> 为必填）</span></h2>
         <!-- 运动员基本信息 -->
         <div class="row">
-            <div><label>姓名</label><input id="name" placeholder="张三"></div>
+            <div><label class="req">姓名</label><input id="name" placeholder="张三"><div id="err_name" class="field-error"></div></div>
             <div><label>性别</label><select id="gender"><option>男</option><option>女</option><option>混合</option></select></div>
         </div>
         <div class="row">
-            <div><label>出生日期</label><input id="birthDate" type="date" min="1900-01-01" max="2099-12-31" placeholder="yyyy-MM-dd" title="格式：yyyy-MM-dd（4 位年份）"></div>
+            <div><label class="req">出生日期</label><input id="birthDate" type="date" min="1900-01-01" max="2099-12-31" placeholder="yyyy-MM-dd" title="格式：yyyy-MM-dd（4 位年份）"><div id="err_birthDate" class="field-error"></div></div>
             <div><label>身份证号</label><input id="idNumber" placeholder=""></div>
         </div>
         <div class="row">
-            <div><label>代表队</label><input id="country" placeholder="北京队"></div>
+            <div><label class="req">代表队</label><input id="country" placeholder="北京队"><div id="err_country" class="field-error"></div></div>
             <div><label>联系电话</label><input id="phone" placeholder=""></div>
         </div>
         <div class="row">
@@ -155,8 +163,12 @@ input[readonly] { background: #f1f5f9; }
         <hr class="sep">
 
         <!-- 参赛项目列表 -->
-        <h2>参赛项目</h2>
+        <h2>参赛项目 <span style="font-size:12px;font-weight:normal;color:#EF4444;">*（至少 1 项）</span></h2>
         <div class="event-list" id="eventList"></div>
+        <div id="err_events" class="field-error"></div>
+
+        <!-- 整表错误汇总 -->
+        <div id="personalFormErr" class="form-summary-err"></div>
 
         <!-- 添加项目 -->
         <div style="background:#f8fafc;border:1px dashed #cbd5e1;border-radius:4px;padding:12px;margin-top:8px;">
@@ -194,9 +206,9 @@ input[readonly] { background: #f1f5f9; }
     </div>
 
     <div class="card">
-        <h2>接力队报名</h2>
+        <h2>接力队报名 <span style="font-size:12px;font-weight:normal;color:#64748b;">（带 <span style="color:#EF4444;font-weight:bold;">*</span> 为必填）</span></h2>
         <div class="row">
-            <div><label>队名</label><input id="relayTeam" placeholder="北京队"></div>
+            <div><label class="req">队名</label><input id="relayTeam" placeholder="北京队"><div id="err_relayTeam" class="field-error"></div></div>
             <div><label>性别</label><select id="relayGender"><option>男</option><option>女</option><option>混合</option></select></div>
         </div>
         <div class="row">
@@ -207,16 +219,19 @@ input[readonly] { background: #f1f5f9; }
             </div>
             <div><label>单位简称</label><input id="relayCountryShort" placeholder="（可选）"></div>
         </div>
-        <label>项目</label>
+        <label class="req">项目</label>
         <select id="relayEvent"></select>
+        <div id="err_relayEvent" class="field-error"></div>
         <label>报名成绩</label>
         <input id="relayEntryTime" placeholder="3:20.00">
         <hr class="sep">
-        <label style="font-weight:bold;color:#1e293b;">棒次安排</label>
-        <div class="leg-row"><span class="leg-num">第1棒</span><input id="leg1Name" placeholder="姓名" style="flex:1;"><input id="leg1Birth" type="date" min="1900-01-01" max="2099-12-31" title="出生日期 yyyy-MM-dd" style="width:155px;flex:none;"><input id="leg1ID" placeholder="身份证号" style="width:170px;flex:none;"><input id="leg1Bib" placeholder="参赛号" style="width:75px;flex:none;"></div>
-        <div class="leg-row"><span class="leg-num">第2棒</span><input id="leg2Name" placeholder="姓名" style="flex:1;"><input id="leg2Birth" type="date" min="1900-01-01" max="2099-12-31" title="出生日期 yyyy-MM-dd" style="width:155px;flex:none;"><input id="leg2ID" placeholder="身份证号" style="width:170px;flex:none;"><input id="leg2Bib" placeholder="参赛号" style="width:75px;flex:none;"></div>
-        <div class="leg-row"><span class="leg-num">第3棒</span><input id="leg3Name" placeholder="姓名" style="flex:1;"><input id="leg3Birth" type="date" min="1900-01-01" max="2099-12-31" title="出生日期 yyyy-MM-dd" style="width:155px;flex:none;"><input id="leg3ID" placeholder="身份证号" style="width:170px;flex:none;"><input id="leg3Bib" placeholder="参赛号" style="width:75px;flex:none;"></div>
-        <div class="leg-row"><span class="leg-num">第4棒</span><input id="leg4Name" placeholder="姓名" style="flex:1;"><input id="leg4Birth" type="date" min="1900-01-01" max="2099-12-31" title="出生日期 yyyy-MM-dd" style="width:155px;flex:none;"><input id="leg4ID" placeholder="身份证号" style="width:170px;flex:none;"><input id="leg4Bib" placeholder="参赛号" style="width:75px;flex:none;"></div>
+        <label style="font-weight:bold;color:#1e293b;" class="req">棒次安排（4 棒姓名必填）</label>
+        <div class="leg-row"><span class="leg-num">第1棒</span><input id="leg1Name" placeholder="姓名 *" style="flex:1;"><input id="leg1Birth" type="date" min="1900-01-01" max="2099-12-31" title="出生日期 yyyy-MM-dd" style="width:155px;flex:none;"><input id="leg1ID" placeholder="身份证号" style="width:170px;flex:none;"><input id="leg1Bib" placeholder="参赛号" style="width:75px;flex:none;"></div>
+        <div class="leg-row"><span class="leg-num">第2棒</span><input id="leg2Name" placeholder="姓名 *" style="flex:1;"><input id="leg2Birth" type="date" min="1900-01-01" max="2099-12-31" title="出生日期 yyyy-MM-dd" style="width:155px;flex:none;"><input id="leg2ID" placeholder="身份证号" style="width:170px;flex:none;"><input id="leg2Bib" placeholder="参赛号" style="width:75px;flex:none;"></div>
+        <div class="leg-row"><span class="leg-num">第3棒</span><input id="leg3Name" placeholder="姓名 *" style="flex:1;"><input id="leg3Birth" type="date" min="1900-01-01" max="2099-12-31" title="出生日期 yyyy-MM-dd" style="width:155px;flex:none;"><input id="leg3ID" placeholder="身份证号" style="width:170px;flex:none;"><input id="leg3Bib" placeholder="参赛号" style="width:75px;flex:none;"></div>
+        <div class="leg-row"><span class="leg-num">第4棒</span><input id="leg4Name" placeholder="姓名 *" style="flex:1;"><input id="leg4Birth" type="date" min="1900-01-01" max="2099-12-31" title="出生日期 yyyy-MM-dd" style="width:155px;flex:none;"><input id="leg4ID" placeholder="身份证号" style="width:170px;flex:none;"><input id="leg4Bib" placeholder="参赛号" style="width:75px;flex:none;"></div>
+        <div id="err_relayLegs" class="field-error"></div>
+        <div id="relayFormErr" class="form-summary-err"></div>
         <button class="btn btn-green btn-block" style="margin-top:12px;" onclick="registerRelay()">提交接力报名</button>
     </div>
 </div>
@@ -464,6 +479,11 @@ function addEvent() {
     }
     events.push({eventName: ev, entryTime: time});
     document.getElementById('entryTime').value = '';
+    // 至少 1 项目的错误清除
+    var er = document.getElementById('err_events');
+    if (er) { er.textContent = ''; er.classList.remove('show'); }
+    var p = document.getElementById('personalFormErr');
+    if (p && p.classList.contains('show')) { p.classList.remove('show'); p.innerHTML = ''; }
     renderEvents();
 }
 
@@ -490,14 +510,74 @@ function renderEvents() {
     el.innerHTML = html;
 }
 
+// ═══════ 必填字段实时校验 helpers ═══════
+function markInvalid(inputId, msg) {
+    var el = document.getElementById(inputId); if (el) el.classList.add('invalid');
+    var er = document.getElementById('err_' + inputId);
+    if (er) { er.textContent = msg; er.classList.add('show'); }
+}
+function clearInvalid(inputId) {
+    var el = document.getElementById(inputId); if (el) el.classList.remove('invalid');
+    var er = document.getElementById('err_' + inputId);
+    if (er) { er.textContent = ''; er.classList.remove('show'); }
+}
+function clearAllInvalid(ids) {
+    for (var i = 0; i < ids.length; i++) clearInvalid(ids[i]);
+    var p = document.getElementById('personalFormErr'); if (p) { p.classList.remove('show'); p.innerHTML = ''; }
+    var r = document.getElementById('relayFormErr'); if (r) { r.classList.remove('show'); r.innerHTML = ''; }
+}
+function showFormSummary(panelId, errors) {
+    var p = document.getElementById(panelId); if (!p) return;
+    var html = '<strong>表单未通过校验，请补全以下字段：</strong><ul>';
+    for (var i = 0; i < errors.length; i++) html += '<li>' + errors[i] + '</li>';
+    html += '</ul>';
+    p.innerHTML = html;
+    p.classList.add('show');
+}
+// 用户键入时实时清错（一次绑定，绑定后续也兼容动态加载）
+document.addEventListener('DOMContentLoaded', function() {
+    var ids = ['name', 'birthDate', 'country', 'relayTeam', 'relayEvent',
+               'leg1Name', 'leg2Name', 'leg3Name', 'leg4Name'];
+    for (var i = 0; i < ids.length; i++) {
+        var el = document.getElementById(ids[i]); if (!el) continue;
+        (function(id, el) {
+            el.addEventListener('input', function() { clearInvalid(id); });
+            el.addEventListener('change', function() { clearInvalid(id); });
+        })(ids[i], el);
+    }
+});
+
 // ═══════ 多人报名：表单 → 队列 → 一次性提交 ═══════
 function buildSwimmerFromForm() {
+    // 收集所有必填错误，一次性高亮（不再走"早返"模式）
+    clearAllInvalid(['name', 'birthDate', 'country', 'events']);
+    var errors = [];
+    var firstErr = null;
+
     var name = document.getElementById('name').value.trim();
-    if (!name) { showStatus('请输入姓名', false); return null; }
-    if (events.length === 0) { showStatus('请至少添加一个参赛项目', false); return null; }
+    if (!name) { markInvalid('name', '请填写姓名'); errors.push('请填写姓名'); if (!firstErr) firstErr = 'name'; }
+
     var bd = document.getElementById('birthDate').value;
-    // 出生日期格式校验（HTML date input 已限制 yyyy-MM-dd，但仍兜底校验）
-    if (bd && !/^\d{4}-\d{2}-\d{2}$/.test(bd)) { showStatus('出生日期格式应为 yyyy-MM-dd', false); return null; }
+    if (!bd) { markInvalid('birthDate', '请填写出生日期'); errors.push('请填写出生日期'); if (!firstErr) firstErr = 'birthDate'; }
+    else if (!/^\d{4}-\d{2}-\d{2}$/.test(bd)) { markInvalid('birthDate', '出生日期格式应为 yyyy-MM-dd'); errors.push('出生日期格式应为 yyyy-MM-dd'); if (!firstErr) firstErr = 'birthDate'; }
+
+    var country = document.getElementById('country').value.trim();
+    if (!country) { markInvalid('country', '请填写代表队'); errors.push('请填写代表队'); if (!firstErr) firstErr = 'country'; }
+
+    if (events.length === 0) {
+        var er = document.getElementById('err_events');
+        if (er) { er.textContent = '请至少添加一个参赛项目'; er.classList.add('show'); }
+        errors.push('请至少添加一个参赛项目');
+        if (!firstErr) firstErr = 'event';
+    }
+
+    if (errors.length > 0) {
+        showFormSummary('personalFormErr', errors);
+        showStatus(errors[0], false);
+        var f = document.getElementById(firstErr); if (f && f.focus) { f.focus(); f.scrollIntoView({behavior:'smooth', block:'center'}); }
+        return null;
+    }
+
     var age = 0;
     if (bd) {
         var today = new Date();
@@ -615,6 +695,7 @@ function clearForm() {
     assignedBib = '';
     submitted = false;
     editingQueueIdx = null;
+    clearAllInvalid(['name','birthDate','country','events']);
 }
 
 function submitQueue() {
@@ -720,26 +801,49 @@ try {
 // ═══════ 接力 ═══════
 function registerRelay() {
     if (!ws || ws.readyState !== 1) { showStatus('未连接服务器', false); return; }
+
+    // 一次性收集所有必填错误并高亮
+    clearAllInvalid(['relayTeam', 'relayEvent', 'leg1Name', 'leg2Name', 'leg3Name', 'leg4Name']);
+    var errors = [];
+    var firstErr = null;
+
     var team = document.getElementById('relayTeam').value.trim();
-    if (!team) { showStatus('请输入队名', false); return; }
+    if (!team) { markInvalid('relayTeam', '请填写队名'); errors.push('请填写队名'); if (!firstErr) firstErr = 'relayTeam'; }
+
+    var ev = document.getElementById('relayEvent').value;
+    if (!ev) { markInvalid('relayEvent', '请选择接力项目'); errors.push('请选择接力项目'); if (!firstErr) firstErr = 'relayEvent'; }
+
     var legs = [];
+    var legBirthFormatErr = false;
     for (var i = 1; i <= 4; i++) {
-        var legName = document.getElementById('leg' + i + 'Name').value.trim();
+        var legId = 'leg' + i + 'Name';
+        var legName = document.getElementById(legId).value.trim();
         var legBib = document.getElementById('leg' + i + 'Bib').value.trim();
         var legID = document.getElementById('leg' + i + 'ID').value.trim();
-        var legBirth = document.getElementById('leg' + i + 'Birth').value;   // yyyy-MM-dd
+        var legBirth = document.getElementById('leg' + i + 'Birth').value;
+        if (!legName) {
+            markInvalid(legId, '请填写第' + i + '棒姓名');
+            errors.push('请填写第' + i + '棒姓名');
+            if (!firstErr) firstErr = legId;
+        }
         if (legBirth && !/^\d{4}-\d{2}-\d{2}$/.test(legBirth)) {
-            showStatus('第' + i + '棒出生日期格式应为 yyyy-MM-dd', false); return;
+            legBirthFormatErr = true;
+            errors.push('第' + i + '棒出生日期格式应为 yyyy-MM-dd');
+            if (!firstErr) firstErr = 'leg' + i + 'Birth';
         }
         if (legName) legs.push({
-            legOrder: i,
-            swimmerName: legName,
-            swimmerBibNumber: legBib,
-            swimmerIDNumber: legID,
+            legOrder: i, swimmerName: legName,
+            swimmerBibNumber: legBib, swimmerIDNumber: legID,
             swimmerBirthDate: legBirth
         });
     }
-    if (legs.length === 0) { showStatus('请至少填写 1 棒队员姓名', false); return; }
+
+    if (errors.length > 0) {
+        showFormSummary('relayFormErr', errors);
+        showStatus(errors[0], false);
+        var f = document.getElementById(firstErr); if (f && f.focus) { f.focus(); f.scrollIntoView({behavior:'smooth', block:'center'}); }
+        return;
+    }
     ws.send(JSON.stringify({
         type: 'REGISTER_RELAY',
         data: {
@@ -785,6 +889,7 @@ function resetRelayForm() {
             if (el) el.value = '';
         });
     }
+    clearAllInvalid(['relayTeam','relayEvent','leg1Name','leg2Name','leg3Name','leg4Name']);
 }
 
 connect();
