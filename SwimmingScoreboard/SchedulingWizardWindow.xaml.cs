@@ -253,9 +253,19 @@ namespace SwimmingScoreboard
 
         // 2026-05-24 P0-1 一键全自动：参数对话框 → 自动统计赛次 → 派生待分配 → 多天分配时段 → 跳转 Tab 3
         private void OneClickGenerate_Click(object sender, RoutedEventArgs e) {
-            // 默认起始日期 = 今天；天数沿用上次的 _availableDates 数量（兜底 3）
-            DateTime defaultDate = DateTime.Today;
-            int defaultDays = _availableDates != null && _availableDates.Count > 0 ? _availableDates.Count : 3;
+            // 2026-05-26 默认起始日期 = 赛事概览的开始日期 (没填回退到今天)
+            // 天数: 优先用赛事概览 (开始/结束日期) 推断, 其次沿用上次 _availableDates, 兜底 3
+            DateTime defaultDate;
+            if (!DateTime.TryParse(CompetitionStartDate ?? "", out defaultDate)) defaultDate = DateTime.Today;
+            int defaultDays;
+            DateTime endDate;
+            if (DateTime.TryParse(CompetitionStartDate ?? "", out defaultDate)
+                && DateTime.TryParse(CompetitionEndDate ?? "", out endDate) && endDate >= defaultDate) {
+                defaultDays = (int)(endDate - defaultDate).TotalDays + 1;
+                if (defaultDays > 14) defaultDays = 14;
+            } else {
+                defaultDays = _availableDates != null && _availableDates.Count > 0 ? _availableDates.Count : 3;
+            }
 
             var dlg = new OneClickParamsWindow(defaultDate, defaultDays) { Owner = this };
             if (dlg.ShowDialog() != true) return;
@@ -451,11 +461,9 @@ namespace SwimmingScoreboard
             } else if (_distPending.Count == 0 && _distAssigned.Count == 0) {
                 BuildDistPendingFromPlan();
             }
-            // 填充日期下拉（从 _swimmers 找现有比赛日期，或者默认今天）
-            if (_availableDates.Count == 0) {
-                var today = DateTime.Today.ToString("yyyy-MM-dd");
-                _availableDates.Add(today);
-            }
+            // 2026-05-26 修复: 进 Tab3 时按「赛事概览」开始/结束日期生成日期列表，
+            //              一键全自动若已填好 _availableDates 则尊重已有值
+            EnsureAvailableDatesFromCompetition();
             DistDayCombo.ItemsSource = null;
             DistDayCombo.ItemsSource = _availableDates;
             if (DistDayCombo.SelectedIndex < 0 && _availableDates.Count > 0) DistDayCombo.SelectedIndex = 0;
@@ -465,6 +473,32 @@ namespace SwimmingScoreboard
             RefreshDistVisible();
             UpdateDistCounters();
             SyncStartTimeBoxToCurrentSession();
+        }
+
+        // 2026-05-26 BUG 修复: 自动分配会把所有项目堆到一天。
+        //   原因: _availableDates 在非「一键全自动」路径下只塞了 DateTime.Today 一项，
+        //         结果 DistAuto_Click 只能选到那一天。
+        //   修复: 进 Tab3 前用「赛事概览」开始日期/结束日期生成完整日期列表。
+        private void EnsureAvailableDatesFromCompetition() {
+            // 已有多于 1 天的列表 (一键全自动建好) → 不动
+            if (_availableDates != null && _availableDates.Count > 1) return;
+            DateTime start, end;
+            bool hasStart = DateTime.TryParse(CompetitionStartDate ?? "", out start);
+            bool hasEnd = DateTime.TryParse(CompetitionEndDate ?? "", out end);
+            // 都没填 → 退回默认今天
+            if (!hasStart && !hasEnd) {
+                _availableDates = new List<string> { DateTime.Today.ToString("yyyy-MM-dd") };
+                return;
+            }
+            if (!hasStart) start = end;
+            if (!hasEnd) end = start;
+            if (end < start) { var tmp = start; start = end; end = tmp; }
+            // 上限 14 天兜底，防止用户把日期填错
+            int days = (int)(end - start).TotalDays + 1;
+            if (days > 14) days = 14;
+            var list = new List<string>();
+            for (int i = 0; i < days; i++) list.Add(start.AddDays(i).ToString("yyyy-MM-dd"));
+            _availableDates = list;
         }
 
         private void BuildDistPendingFromPlan() {
@@ -646,11 +680,22 @@ namespace SwimmingScoreboard
         // 默认 09:00 / 14:30 / 19:30；一键全自动会覆盖
         private int[] _sessionStartMin = new[] { 9 * 60, 14 * 60 + 30, 19 * 60 + 30 };
 
+        // 2026-05-26 修复: 原实现把所有项目都堆到 DistDayCombo 选中的那一天，
+        //              且 _availableDates 在非「一键全自动」路径下只塞了 DateTime.Today
+        //              → 全部项目都挤到今天。
+        //              改为按 _availableDates 多天平铺，每个时段满了 (>= 240 分钟) 自动滚到下一天。
+        //              「强制时段」模式仍然只用单一时段，但会跨多天。
         private void DistAuto_Click(object sender, RoutedEventArgs e) {
             if (_distPending.Count == 0) {
                 MessageBox.Show("已无待分配项目", "提示"); return;
             }
-            // 自动算法：按 FINA 项目顺序 → 把预赛放上午、半决赛放下午、决赛放晚上（除非编排模式覆盖）
+            EnsureAvailableDatesFromCompetition();
+            if (_availableDates == null || _availableDates.Count == 0) {
+                MessageBox.Show("没有可用日期。请先到「赛事管理与报名 → 赛事概览」填好开始/结束日期。",
+                    "提示", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
             string mode = DistModeAuto.IsChecked == true ? "自动" :
                           DistModeStrictTime.IsChecked == true ? "强制时段" :
                           DistModeFinalOnly.IsChecked == true ? "强制决赛" : "自动";
@@ -662,47 +707,79 @@ namespace SwimmingScoreboard
                                        .ThenBy(d => d.Gender ?? "")
                                        .ToList();
 
-            string day = DistDayCombo.SelectedItem as string;
-            if (string.IsNullOrEmpty(day)) day = DateTime.Today.ToString("yyyy-MM-dd");
+            int dayCount = _availableDates.Count;
+            const int MAX_SESSION_MIN = 240;   // 每时段上限 240 分钟，与 OneClickParamsWindow 默认一致
 
-            int morningUsed = ComputeSessionUsedMinutes(day, "上午");
-            int afternoonUsed = ComputeSessionUsedMinutes(day, "下午");
-            int eveningUsed = ComputeSessionUsedMinutes(day, "晚上");
+            // 初始化每 (day, session) 已用分钟数 — 把已分配的也算进去
+            var used = new int[dayCount, 3];
+            for (int i = 0; i < dayCount; i++) {
+                used[i, 0] = ComputeSessionUsedMinutes(_availableDates[i], "上午");
+                used[i, 1] = ComputeSessionUsedMinutes(_availableDates[i], "下午");
+                used[i, 2] = ComputeSessionUsedMinutes(_availableDates[i], "晚上");
+            }
 
+            int unplaced = 0;
             foreach (var d in ordered) {
-                string session;
+                int sessionIdx;
                 if (mode == "强制决赛") {
-                    session = "晚上";
+                    sessionIdx = 2;   // 晚上
                 } else if (mode == "强制时段") {
-                    // 强制按当前选择的时段
-                    session = DistSessionCombo.SelectedItem != null ? ((ComboBoxItem)DistSessionCombo.SelectedItem).Content.ToString() : "上午";
+                    string sel = DistSessionCombo.SelectedItem != null
+                        ? ((ComboBoxItem)DistSessionCombo.SelectedItem).Content.ToString() : "上午";
+                    sessionIdx = sel == "晚上" ? 2 : sel == "下午" ? 1 : 0;
                 } else {
-                    // 自动：预赛/次复赛 → 上午；半决赛 → 下午；决赛 → 晚上
-                    if (d.Stage == "决赛" || d.Stage == "B组决赛") session = "晚上";
-                    else if (d.Stage == "半决赛") session = "下午";
-                    else session = "上午";
+                    if (d.Stage == "决赛" || d.Stage == "B组决赛") sessionIdx = 2;
+                    else if (d.Stage == "半决赛") sessionIdx = 1;
+                    else sessionIdx = 0;
                 }
 
-                int sessionStart = GetSessionStartMin(session);
-                int used = session == "上午" ? morningUsed : session == "下午" ? afternoonUsed : eveningUsed;
                 int duration = Math.Max(1, d.Heats) * Math.Max(1, d.MinPerHeat) + _durationConfig.InterEventGapMinutes;
 
-                d.AssignedDate = day;
-                d.AssignedSession = session;
-                d.AssignedTime = string.Format("{0:D2}:{1:D2}", (sessionStart + used) / 60, (sessionStart + used) % 60);
-                d.AssignedSortKey = sessionStart + used;
+                // 在目标时段从第 1 天找空位
+                int chosenDay = -1, chosenSession = sessionIdx;
+                for (int day = 0; day < dayCount; day++) {
+                    if (used[day, sessionIdx] + duration <= MAX_SESSION_MIN) {
+                        chosenDay = day; break;
+                    }
+                }
+                // 目标时段全满 → 自动/强制决赛模式尝试相邻时段；强制时段保持原时段
+                if (chosenDay < 0 && mode != "强制时段") {
+                    int[] altOrder = sessionIdx == 2 ? new[] { 1, 0 } : sessionIdx == 1 ? new[] { 2, 0 } : new[] { 1, 2 };
+                    foreach (var sIdx in altOrder) {
+                        for (int day = 0; day < dayCount; day++) {
+                            if (used[day, sIdx] + duration <= MAX_SESSION_MIN) {
+                                chosenDay = day; chosenSession = sIdx; break;
+                            }
+                        }
+                        if (chosenDay >= 0) break;
+                    }
+                }
+                if (chosenDay < 0) { unplaced++; continue; }
 
-                if (session == "上午") morningUsed += duration;
-                else if (session == "下午") afternoonUsed += duration;
-                else eveningUsed += duration;
+                string sessName = chosenSession == 0 ? "上午" : chosenSession == 1 ? "下午" : "晚上";
+                int sessStart = GetSessionStartMin(sessName);
+                int t = sessStart + used[chosenDay, chosenSession];
 
+                d.AssignedDate = _availableDates[chosenDay];
+                d.AssignedSession = sessName;
+                d.AssignedTime = string.Format("{0:D2}:{1:D2}", t / 60, t % 60);
+                d.AssignedSortKey = t;
+
+                used[chosenDay, chosenSession] += duration;
                 _distAssigned.Add(d);
             }
-            _distPending.Clear();
+            // 已分配的从 pending 移除
+            foreach (var d in _distAssigned.ToList()) _distPending.Remove(d);
+
             RefreshDistVisible();
             UpdateDistCounters();
-            MessageBox.Show(string.Format("已自动分配 {0} 项到 {1} ({2} 模式)。\n您可以手动微调每项的「分/组」时长或拖回左侧重排。",
-                _distAssigned.Count, day, mode), "自动分配完成");
+
+            int dayUsedCount = _distAssigned.Select(x => x.AssignedDate).Distinct().Count();
+            string msg = string.Format("已自动分配 {0} 项到 {1} 天 ({2} 模式)。",
+                _distAssigned.Count, dayUsedCount, mode);
+            if (unplaced > 0) msg += string.Format("\n⚠ 仍有 {0} 项未排上（容量不足，建议增加比赛天数或拖回左侧重排）。", unplaced);
+            else msg += "\n您可以手动微调每项的「分/组」时长或拖回左侧重排。";
+            MessageBox.Show(msg, "自动分配完成");
         }
 
         private void DistMoveBack_Click(object sender, RoutedEventArgs e) {

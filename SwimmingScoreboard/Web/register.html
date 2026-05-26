@@ -22,6 +22,13 @@ input.invalid, select.invalid { border-color: #EF4444 !important; background: #F
 .form-summary-err { background: #FEE2E2; color: #991B1B; border: 1px solid #FCA5A5; padding: 10px 12px; border-radius: 4px; margin: 8px 0; font-size: 13px; display: none; }
 .form-summary-err.show { display: block; }
 .form-summary-err ul { margin: 6px 0 0 18px; }
+/* 2026-05-25 顶部 Tab 切换 个人项目 / 接力队 */
+.top-tabs { display: flex; gap: 0; background: white; border-radius: 8px 8px 0 0; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 0; }
+.top-tab { flex: 1; padding: 14px 12px; text-align: center; font-size: 15px; font-weight: bold; cursor: pointer; color: #64748b; background: #f1f5f9; border-bottom: 3px solid transparent; user-select: none; transition: background .15s; }
+.top-tab:hover { background: #e2e8f0; }
+.top-tab.active { color: #1e40af; background: white; border-bottom-color: #1e40af; }
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
 .row { display: flex; gap: 12px; }
 .row > div { flex: 1; }
 .btn { display: inline-block; padding: 10px 20px; border: none; border-radius: 6px; font-size: 14px; font-weight: bold; cursor: pointer; }
@@ -114,6 +121,15 @@ input.invalid, select.invalid { border-color: #EF4444 !important; background: #F
         <button class="btn btn-gray" onclick="enableEdit()">修改本次报名</button>
     </div>
 
+    <!-- 2026-05-25 顶部 tab 切换: 减少滚动 -->
+    <div class="top-tabs">
+        <div class="top-tab active" id="tabBtnPersonal" onclick="switchRegTab('personal')">👤 个人项目报名</div>
+        <div class="top-tab" id="tabBtnRelay" onclick="switchRegTab('relay')">👥 接力队报名</div>
+    </div>
+
+    <!-- ═══ 个人项目报名 tab ═══ -->
+    <div class="tab-panel active" id="tabPersonal">
+
     <!-- 查询 / 修改我已经提交的报名 -->
     <div class="card" id="queryCard" style="background:#FEFCE8;border:1px solid #FACC15;">
         <h2 style="color:#92400E;">查询 / 修改我已经提交的报名</h2>
@@ -137,11 +153,11 @@ input.invalid, select.invalid { border-color: #EF4444 !important; background: #F
         <!-- 运动员基本信息 -->
         <div class="row">
             <div><label class="req">姓名</label><input id="name" placeholder="张三"><div id="err_name" class="field-error"></div></div>
-            <div><label>性别</label><select id="gender"><option>男</option><option>女</option><option>混合</option></select></div>
+            <div><label class="req">性别</label><select id="gender"><option value="">请选择性别</option><option>男</option><option>女</option><option>混合</option></select><div id="err_gender" class="field-error"></div></div>
         </div>
         <div class="row">
             <div><label class="req">出生日期</label><input id="birthDate" type="date" min="1900-01-01" max="2099-12-31" placeholder="yyyy-MM-dd" title="格式：yyyy-MM-dd（4 位年份）"><div id="err_birthDate" class="field-error"></div></div>
-            <div><label>身份证号</label><input id="idNumber" placeholder=""></div>
+            <div><label class="req">身份证号</label><input id="idNumber" placeholder="15 或 18 位"><div id="err_idNumber" class="field-error"></div></div>
         </div>
         <div class="row">
             <div><label class="req">代表队</label><input id="country" placeholder="北京队"><div id="err_country" class="field-error"></div></div>
@@ -152,10 +168,11 @@ input.invalid, select.invalid { border-color: #EF4444 !important; background: #F
             <div><label>备注</label><input id="notes" placeholder=""></div>
         </div>
         <div class="row">
-            <div><label>组别</label>
-                <select id="ageGroup" title="组别由服务器同步，可在主控软件“比赛参数设置管理→组别”里维护">
-                    <option value="">不指定</option>
+            <div><label class="req">组别</label>
+                <select id="ageGroup" title="组别由服务器同步，可在主控软件「比赛参数设置管理→组别」里维护">
+                    <option value="">请选择组别</option>
                 </select>
+                <div id="err_ageGroup" class="field-error"></div>
             </div>
             <div><label>单位简称</label><input id="countryShort" placeholder="（可选）"></div>
         </div>
@@ -205,17 +222,34 @@ input.invalid, select.invalid { border-color: #EF4444 !important; background: #F
         </div>
     </div>
 
+    </div><!-- /tabPersonal -->
+
+    <!-- ═══ 接力队报名 tab ═══ -->
+    <div class="tab-panel" id="tabRelay">
+
     <div class="card">
         <h2>接力队报名 <span style="font-size:12px;font-weight:normal;color:#64748b;">（带 <span style="color:#EF4444;font-weight:bold;">*</span> 为必填）</span></h2>
+
+        <!-- 2026-05-25 接力查询：输入队名 → 服务器查到现有 4 棒回填到表单, 便于修改 -->
+        <div style="background:#FEF3C7;border:1px solid #F59E0B;border-radius:4px;padding:10px;margin-bottom:12px;">
+            <label style="color:#92400E;font-weight:bold;margin-bottom:4px;">查询已报名接力队（改棒次用）</label>
+            <div style="display:flex;gap:8px;align-items:center;">
+                <input id="queryRelayTeam" placeholder="输入队名，如 北京队A" style="flex:1;">
+                <button class="btn btn-primary" style="padding:6px 16px;" onclick="queryMyRelay()">查询并回填</button>
+            </div>
+            <div id="queryRelayStatus" style="font-size:12px;color:#475569;margin-top:6px;"></div>
+        </div>
+
         <div class="row">
             <div><label class="req">队名</label><input id="relayTeam" placeholder="北京队"><div id="err_relayTeam" class="field-error"></div></div>
-            <div><label>性别</label><select id="relayGender"><option>男</option><option>女</option><option>混合</option></select></div>
+            <div><label class="req">性别</label><select id="relayGender"><option value="">请选择性别</option><option>男</option><option>女</option><option>混合</option></select><div id="err_relayGender" class="field-error"></div></div>
         </div>
         <div class="row">
-            <div><label>组别</label>
+            <div><label class="req">组别</label>
                 <select id="relayAgeGroup" title="组别由服务器同步">
-                    <option value="">不指定</option>
+                    <option value="">请选择组别</option>
                 </select>
+                <div id="err_relayAgeGroup" class="field-error"></div>
             </div>
             <div><label>单位简称</label><input id="relayCountryShort" placeholder="（可选）"></div>
         </div>
@@ -234,9 +268,24 @@ input.invalid, select.invalid { border-color: #EF4444 !important; background: #F
         <div id="relayFormErr" class="form-summary-err"></div>
         <button class="btn btn-green btn-block" style="margin-top:12px;" onclick="registerRelay()">提交接力报名</button>
     </div>
+
+    </div><!-- /tabRelay -->
 </div>
 
 <script>
+// 2026-05-25 顶部 tab 切换函数
+function switchRegTab(tab) {
+    var panels = ['tabPersonal', 'tabRelay'];
+    var btns = ['tabBtnPersonal', 'tabBtnRelay'];
+    for (var i = 0; i < panels.length; i++) {
+        var p = document.getElementById(panels[i]);
+        if (p) p.classList.toggle('active', panels[i] === 'tab' + (tab === 'personal' ? 'Personal' : 'Relay'));
+    }
+    for (var j = 0; j < btns.length; j++) {
+        var b = document.getElementById(btns[j]);
+        if (b) b.classList.toggle('active', btns[j] === 'tabBtn' + (tab === 'personal' ? 'Personal' : 'Relay'));
+    }
+}
 var ws, events = [], submitted = false, assignedBib = '';
 // 多人报名队列：每个元素 = { swimmer:{...}, events:[...], isResubmit:bool, error:'', editingIndex:int(when re-edited) }
 var pendingRegs = [];
@@ -315,6 +364,8 @@ function connect() {
                 handleRelayResult(msg.data);
             } else if (msg.type === 'REGISTER_QUERY_RESULT') {
                 handleQueryResult(msg.data);
+            } else if (msg.type === 'RELAY_QUERY_RESULT') {
+                handleRelayQueryResult(msg.data);
             } else if (msg.type === 'SHOW_LIVE_RACE' && msg.data) {
                 applyServerConfig(msg.data);
             }
@@ -334,17 +385,18 @@ function applyServerConfig(data) {
         if (rel.length > 0) fillSelect('relayEvent', rel, false);
     }
     if (Array.isArray(data.genderList) && data.genderList.length > 0) {
-        fillSelect('gender', data.genderList, false);
-        fillSelect('relayGender', data.genderList, false);
+        // 2026-05-26 性别也设为必填，加占位项强制用户主动选 (避免默认"男"误填)
+        fillSelect('gender', data.genderList, true, '请选择性别');
+        fillSelect('relayGender', data.genderList, true, '请选择性别');
     }
 }
 
-function fillSelect(id, items, withBlank) {
+function fillSelect(id, items, withBlank, blankText) {
     var sel = document.getElementById(id);
     if (!sel || !Array.isArray(items)) return;
     var prev = sel.value;
     sel.innerHTML = '';
-    if (withBlank) sel.appendChild(new Option('不指定', ''));
+    if (withBlank) sel.appendChild(new Option(blankText || '不指定', ''));
     for (var i = 0; i < items.length; i++) {
         if (!items[i]) continue;
         sel.appendChild(new Option(items[i], items[i]));
@@ -421,6 +473,55 @@ function showQueryStatus(text, color) {
     if (!st) return;
     st.textContent = text;
     st.style.color = color || '#92400E';
+}
+
+// 2026-05-25 接力队查询: 按队名查到现有 4 棒回填到接力表单
+function queryMyRelay() {
+    var team = document.getElementById('queryRelayTeam').value.trim();
+    if (!team) {
+        document.getElementById('queryRelayStatus').textContent = '请输入队名';
+        document.getElementById('queryRelayStatus').style.color = '#EF4444';
+        return;
+    }
+    if (!ws || ws.readyState !== 1) {
+        document.getElementById('queryRelayStatus').textContent = '未连接服务器';
+        document.getElementById('queryRelayStatus').style.color = '#EF4444';
+        return;
+    }
+    document.getElementById('queryRelayStatus').textContent = '查询中…';
+    document.getElementById('queryRelayStatus').style.color = '#92400E';
+    ws.send(JSON.stringify({ type: 'RELAY_QUERY', data: { teamName: team } }));
+}
+
+// 服务器返回接力查询结果, 回填表单
+function handleRelayQueryResult(data) {
+    var st = document.getElementById('queryRelayStatus');
+    if (!data || data.success === false) {
+        st.textContent = (data && data.message) ? data.message : '未找到该队';
+        st.style.color = '#EF4444';
+        return;
+    }
+    var t = data.team || {};
+    function setVal(id, v) { var el = document.getElementById(id); if (el) el.value = (v == null ? '' : v); }
+    setVal('relayTeam', t.teamName);
+    setVal('relayEntryTime', t.entryTime);
+    setVal('relayCountryShort', t.countryShort);
+    var rg = document.getElementById('relayGender');
+    if (rg) for (var i = 0; i < rg.options.length; i++) if (rg.options[i].value === t.gender) { rg.selectedIndex = i; break; }
+    var rag = document.getElementById('relayAgeGroup');
+    if (rag) for (var j = 0; j < rag.options.length; j++) if (rag.options[j].value === (t.ageGroup||'')) { rag.selectedIndex = j; break; }
+    var re = document.getElementById('relayEvent');
+    if (re) for (var k = 0; k < re.options.length; k++) if (re.options[k].value === t.eventName) { re.selectedIndex = k; break; }
+    var legs = t.legs || [];
+    for (var n = 1; n <= 4; n++) {
+        var leg = legs[n - 1] || {};
+        setVal('leg' + n + 'Name', leg.swimmerName);
+        setVal('leg' + n + 'Birth', leg.swimmerBirthDate);
+        setVal('leg' + n + 'ID', leg.swimmerIDNumber);
+        setVal('leg' + n + 'Bib', leg.swimmerBibNumber);
+    }
+    st.textContent = '✔ 已回填: ' + (t.teamName || '') + ' (' + (legs.length || 0) + ' 棒)，修改后点「提交接力报名」服务器会覆盖更新';
+    st.style.color = '#16A34A';
 }
 
 // 服务器返回查询结果：把数据回填到注册表单，进入"修改模式"
@@ -536,7 +637,8 @@ function showFormSummary(panelId, errors) {
 }
 // 用户键入时实时清错（一次绑定，绑定后续也兼容动态加载）
 document.addEventListener('DOMContentLoaded', function() {
-    var ids = ['name', 'birthDate', 'country', 'relayTeam', 'relayEvent',
+    var ids = ['name', 'gender', 'birthDate', 'idNumber', 'ageGroup', 'country',
+               'relayTeam', 'relayGender', 'relayEvent', 'relayAgeGroup',
                'leg1Name', 'leg2Name', 'leg3Name', 'leg4Name'];
     for (var i = 0; i < ids.length; i++) {
         var el = document.getElementById(ids[i]); if (!el) continue;
@@ -550,16 +652,29 @@ document.addEventListener('DOMContentLoaded', function() {
 // ═══════ 多人报名：表单 → 队列 → 一次性提交 ═══════
 function buildSwimmerFromForm() {
     // 收集所有必填错误，一次性高亮（不再走"早返"模式）
-    clearAllInvalid(['name', 'birthDate', 'country', 'events']);
+    clearAllInvalid(['name', 'gender', 'birthDate', 'idNumber', 'ageGroup', 'country', 'events']);
     var errors = [];
     var firstErr = null;
 
     var name = document.getElementById('name').value.trim();
     if (!name) { markInvalid('name', '请填写姓名'); errors.push('请填写姓名'); if (!firstErr) firstErr = 'name'; }
 
+    // 2026-05-26 性别 必填
+    var gd = document.getElementById('gender').value;
+    if (!gd) { markInvalid('gender', '请选择性别'); errors.push('请选择性别'); if (!firstErr) firstErr = 'gender'; }
+
     var bd = document.getElementById('birthDate').value;
     if (!bd) { markInvalid('birthDate', '请填写出生日期'); errors.push('请填写出生日期'); if (!firstErr) firstErr = 'birthDate'; }
     else if (!/^\d{4}-\d{2}-\d{2}$/.test(bd)) { markInvalid('birthDate', '出生日期格式应为 yyyy-MM-dd'); errors.push('出生日期格式应为 yyyy-MM-dd'); if (!firstErr) firstErr = 'birthDate'; }
+
+    // 2026-05-25 身份证号 必填 + 15/18 位校验
+    var idn = document.getElementById('idNumber').value.trim();
+    if (!idn) { markInvalid('idNumber', '请填写身份证号'); errors.push('请填写身份证号'); if (!firstErr) firstErr = 'idNumber'; }
+    else if (idn.length !== 15 && idn.length !== 18) { markInvalid('idNumber', '身份证号应为 15 或 18 位'); errors.push('身份证号应为 15 或 18 位'); if (!firstErr) firstErr = 'idNumber'; }
+
+    // 2026-05-25 组别 必填
+    var ag = document.getElementById('ageGroup').value;
+    if (!ag) { markInvalid('ageGroup', '请选择组别'); errors.push('请选择组别'); if (!firstErr) firstErr = 'ageGroup'; }
 
     var country = document.getElementById('country').value.trim();
     if (!country) { markInvalid('country', '请填写代表队'); errors.push('请填写代表队'); if (!firstErr) firstErr = 'country'; }
@@ -803,15 +918,23 @@ function registerRelay() {
     if (!ws || ws.readyState !== 1) { showStatus('未连接服务器', false); return; }
 
     // 一次性收集所有必填错误并高亮
-    clearAllInvalid(['relayTeam', 'relayEvent', 'leg1Name', 'leg2Name', 'leg3Name', 'leg4Name']);
+    clearAllInvalid(['relayTeam', 'relayGender', 'relayEvent', 'relayAgeGroup', 'leg1Name', 'leg2Name', 'leg3Name', 'leg4Name']);
     var errors = [];
     var firstErr = null;
 
     var team = document.getElementById('relayTeam').value.trim();
     if (!team) { markInvalid('relayTeam', '请填写队名'); errors.push('请填写队名'); if (!firstErr) firstErr = 'relayTeam'; }
 
+    // 2026-05-26 接力性别必填
+    var rgd = document.getElementById('relayGender').value;
+    if (!rgd) { markInvalid('relayGender', '请选择性别'); errors.push('请选择性别'); if (!firstErr) firstErr = 'relayGender'; }
+
     var ev = document.getElementById('relayEvent').value;
     if (!ev) { markInvalid('relayEvent', '请选择接力项目'); errors.push('请选择接力项目'); if (!firstErr) firstErr = 'relayEvent'; }
+
+    // 2026-05-25 接力组别必填
+    var rag = document.getElementById('relayAgeGroup').value;
+    if (!rag) { markInvalid('relayAgeGroup', '请选择组别'); errors.push('请选择组别'); if (!firstErr) firstErr = 'relayAgeGroup'; }
 
     var legs = [];
     var legBirthFormatErr = false;

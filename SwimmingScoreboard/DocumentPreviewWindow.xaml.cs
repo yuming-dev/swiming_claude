@@ -41,8 +41,7 @@ namespace SwimmingScoreboard
             return tmp;
         }
 
-        private void Refresh_Click(object sender, RoutedEventArgs e) { RenderPreview(); }
-
+        // 2026-05-25 删除「编辑源码 (HTML)」Tab; Refresh_Click 也不再需要 (XAML 不再引用)
         private void OpenBrowser_Click(object sender, RoutedEventArgs e) {
             try {
                 string p = WriteToTemp("html");

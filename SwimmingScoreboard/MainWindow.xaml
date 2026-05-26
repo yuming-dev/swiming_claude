@@ -198,6 +198,9 @@
                                                     <ColumnDefinition Width="*"/>
                                                     <ColumnDefinition Width="90"/>
                                                     <ColumnDefinition Width="*"/>
+                                                    <!-- 2026-05-26 加 2 列以便 技术代表/仲裁委员/总裁判长 排同一行 -->
+                                                    <ColumnDefinition Width="90"/>
+                                                    <ColumnDefinition Width="*"/>
                                                 </Grid.ColumnDefinitions>
                                                 <Grid.RowDefinitions>
                                                     <RowDefinition Height="34"/>
@@ -208,10 +211,9 @@
                                                     <RowDefinition Height="34"/>
                                                     <RowDefinition Height="34"/>
                                                     <RowDefinition Height="34"/>
-                                                    <RowDefinition Height="34"/>
                                                 </Grid.RowDefinitions>
                                                 <TextBlock Grid.Row="0" Grid.Column="0" Text="赛事名称:" VerticalAlignment="Center" Foreground="#475569"/>
-                                                <TextBox x:Name="CompNameBox" Grid.Row="0" Grid.Column="1" Grid.ColumnSpan="3" Padding="4" VerticalAlignment="Center"/>
+                                                <TextBox x:Name="CompNameBox" Grid.Row="0" Grid.Column="1" Grid.ColumnSpan="5" Padding="4" VerticalAlignment="Center"/>
                                                 <TextBlock Grid.Row="1" Grid.Column="0" Text="比赛模式:" VerticalAlignment="Center" Foreground="#475569"/>
                                                 <ComboBox x:Name="CompModeCombo" Grid.Row="1" Grid.Column="1" VerticalAlignment="Center" SelectedIndex="0">
                                                     <ComboBoxItem Content="国内（中国游泳协会）"/>
@@ -235,24 +237,31 @@
                                                 <DatePicker x:Name="EndDatePicker" Grid.Row="3" Grid.Column="3" VerticalAlignment="Center"
                                                             Language="en-CA" SelectedDateFormat="Short"/>
                                                 <TextBlock Grid.Row="4" Grid.Column="0" Text="比赛地点:" VerticalAlignment="Center" Foreground="#475569"/>
-                                                <TextBox x:Name="LocationBox" Grid.Row="4" Grid.Column="1" Grid.ColumnSpan="3" Padding="4" VerticalAlignment="Center"/>
+                                                <TextBox x:Name="LocationBox" Grid.Row="4" Grid.Column="1" Grid.ColumnSpan="5" Padding="4" VerticalAlignment="Center"/>
                                                 <TextBlock Grid.Row="5" Grid.Column="0" Text="主办方:" VerticalAlignment="Center" Foreground="#475569"/>
-                                                <TextBox x:Name="OrganizerBox" Grid.Row="5" Grid.Column="1" Grid.ColumnSpan="3" Padding="4" VerticalAlignment="Center"/>
+                                                <TextBox x:Name="OrganizerBox" Grid.Row="5" Grid.Column="1" Grid.ColumnSpan="5" Padding="4" VerticalAlignment="Center"/>
                                                 <TextBlock Grid.Row="6" Grid.Column="0" Text="承办方:" VerticalAlignment="Center" Foreground="#475569"/>
-                                                <TextBox x:Name="HostBox" Grid.Row="6" Grid.Column="1" Grid.ColumnSpan="3" Padding="4" VerticalAlignment="Center"/>
+                                                <TextBox x:Name="HostBox" Grid.Row="6" Grid.Column="1" Grid.ColumnSpan="5" Padding="4" VerticalAlignment="Center"/>
+                                                <!-- 2026-05-26 同一行排 技术代表 / 仲裁委员 / 总裁判长 (原第 8 行 含编排长 整行删除) -->
                                                 <TextBlock Grid.Row="7" Grid.Column="0" Text="技术代表:" VerticalAlignment="Center" Foreground="#475569"/>
                                                 <TextBox x:Name="TechDelegateBox" Grid.Row="7" Grid.Column="1" Padding="4" VerticalAlignment="Center"/>
-                                                <TextBlock Grid.Row="7" Grid.Column="2" Text="总裁判长:" VerticalAlignment="Center" Foreground="#475569"/>
-                                                <TextBox x:Name="RefereeBox" Grid.Row="7" Grid.Column="3" Padding="4" VerticalAlignment="Center"/>
-                                                <TextBlock Grid.Row="8" Grid.Column="0" Text="发令员:" VerticalAlignment="Center" Foreground="#475569"/>
-                                                <TextBox x:Name="StarterBox" Grid.Row="8" Grid.Column="1" Padding="4" VerticalAlignment="Center"/>
-                                                <TextBlock Grid.Row="8" Grid.Column="2" Text="编排长:" VerticalAlignment="Center" Foreground="#475569"/>
-                                                <TextBox x:Name="ChiefJudgeBox" Grid.Row="8" Grid.Column="3" Padding="4" VerticalAlignment="Center"/>
+                                                <TextBlock Grid.Row="7" Grid.Column="2" Text="仲裁委员:" VerticalAlignment="Center" Foreground="#475569"/>
+                                                <TextBox x:Name="ArbiterBox" Grid.Row="7" Grid.Column="3" Padding="4" VerticalAlignment="Center"
+                                                         ToolTip="多人逗号分隔"/>
+                                                <TextBlock Grid.Row="7" Grid.Column="4" Text="总裁判长:" VerticalAlignment="Center" Foreground="#475569"/>
+                                                <TextBox x:Name="RefereeBox" Grid.Row="7" Grid.Column="5" Padding="4" VerticalAlignment="Center"/>
+                                                <!-- 2026-05-26 编排长字段已从 UI 删除. ChiefJudgeBox 保留为隐藏控件以兼容现有 .csproj / .cs 引用 (保存/加载/秩序册/封面签字栏等仍读它); 数据=空字符串 -->
+                                                <TextBox x:Name="ChiefJudgeBox" Grid.Row="7" Width="0" Height="0" Visibility="Collapsed"/>
                                             </Grid>
                                             <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
                                                 <Button Content=" 保存赛事信息" Click="SaveCompetitionInfo_Click" Padding="16,7" FontSize="13" Background="#3B82F6" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
                                                 <Button Content=" 加载赛事" Click="LoadCompetition_Click" Padding="16,7" FontSize="13" Background="#64748B" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
-                                                <Button Content=" 新建赛事" Click="NewCompetition_Click" Padding="16,7" FontSize="13" Background="#22C55E" Foreground="White" BorderThickness="0"/>
+                                                <Button Content=" 新建赛事" Click="NewCompetition_Click" Padding="16,7" FontSize="13" Background="#22C55E" Foreground="White" BorderThickness="0" Margin="0,0,16,0"/>
+                                                <!-- 2026-05-25 移过来 (原在「运动员管理」工具栏)，方便建赛事时一气填好 -->
+                                                <Button Content="参赛单位管理" Click="UnitManage_Click" Padding="16,7" FontSize="13" Background="#0EA5E9" Foreground="White" BorderThickness="0" Margin="0,0,8,0"
+                                                        ToolTip="管理参赛单位元信息（领队 / 教练 / 队医 / 基础分 / 联系电话）"/>
+                                                <Button Content="工作人员管理" Click="StaffManage_Click" Padding="16,7" FontSize="13" Background="#0EA5E9" Foreground="White" BorderThickness="0"
+                                                        ToolTip="管理 5 组工作人员（主席团 / 组织委员会 / 工作机构 / 技术及仲裁 / 裁判员）"/>
                                             </StackPanel>
                                         </StackPanel>
                                     </Border>
@@ -297,10 +306,7 @@
                                     <Border Width="1" Background="#CBD5E1" Margin="6,4,6,4"/>
                                     <Button Content="号码区间设置" Click="BibRangeConfig_Click" Padding="12,6" Background="#0EA5E9" Foreground="White" BorderThickness="0"
                                             ToolTip="按代表队设置参赛号号码段（如 中国 001-050）。新注册的运动员将在所属代表队的号码段内自动取号。"/>
-                                    <Button Content="参赛单位管理" Click="UnitManage_Click" Padding="12,6" Margin="6,0,0,0" Background="#0EA5E9" Foreground="White" BorderThickness="0"
-                                            ToolTip="管理参赛单位元信息（领队 / 教练 / 队医 / 基础分 / 联系电话），公告/秩序册 header 会用到"/>
-                                    <Button Content="工作人员管理" Click="StaffManage_Click" Padding="12,6" Margin="6,0,0,0" Background="#0EA5E9" Foreground="White" BorderThickness="0"
-                                            ToolTip="管理主席团 / 组委会 / 大会工作机构 / 技术官员 / 赛后控制中心 5 组工作人员（含发令主裁判等游泳赛事专属岗位）"/>
+                                    <!-- 2026-05-26 「参赛单位管理」、「工作人员管理」已迁移到 赛事概览 → 新建赛事 右边 -->
                                 </StackPanel>
                                 <!-- 第二行：筛选条件 -->
                                 <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">

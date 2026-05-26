@@ -498,7 +498,8 @@ function renderRace() {
         _dspTimerStart = Date.now() - svrSec * 1000;
         _dspTimerSynced = true;
     }
-    _dspFirstHoldSec = (data.laneCloseSettings && data.laneCloseSettings.splitDisplayTime) ? data.laneCloseSettings.splitDisplayTime : 3;
+    // 2026-05-26 滚动时间区"1 名成绩停留时长"改用 firstPlaceHoldTime (= 参数:第1名成绩显示时间), 与主控 RaceTimer_Tick 同一参数, 不再用 splitDisplayTime (那是每泳道分段成绩显示时长, 性质不同)
+    _dspFirstHoldSec = (data.laneCloseSettings && data.laneCloseSettings.firstPlaceHoldTime) ? data.laneCloseSettings.firstPlaceHoldTime : 3;
 
     // ── 计算 leader 与第1名成绩（仅在真实分段计数变化时更新）──
     var dspSwimmers = data.swimmers || [];
@@ -660,6 +661,15 @@ function _ensureRaceRowsDom() {
     }
     var key = keyParts.join('|');
     if (key === _raceRowsBuiltKey) return;
+
+    // 2026-05-26 修复 display 端不显示每泳道分段成绩:
+    //   laneDisplayState 之前只在 rState==='waiting' 时清空。但比赛切组常走
+    //   Finished → Ready → Racing 而不经过 Waiting, 上一组遗留的 splitCount
+    //   (例如 200m=4 段) 会卡住新组判断: realSplitCount(1) > ls.splitCount(4) 为假
+    //   → showTime 不更新 → 分段成绩永远不进入 5s 显示窗口。
+    //   DOM key 变 (heat/event/swimmer 任一变化) 即整体清空, 与 PC 端
+    //   Restart_Click 清 _laneSplitCount 对称。
+    laneDisplayState = {};
 
     // 表头
     var hdr1 = relay ? '代表队' : '姓名';

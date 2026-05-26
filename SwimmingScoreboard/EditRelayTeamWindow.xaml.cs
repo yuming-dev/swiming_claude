@@ -20,7 +20,8 @@ namespace SwimmingScoreboard
         // 留给外部读取的"用户最终确认"标志
         public bool Confirmed { get; private set; }
 
-        public EditRelayTeamWindow(RelayTeam team, IEnumerable<string> events, IEnumerable<Unit> units) {
+        public EditRelayTeamWindow(RelayTeam team, IEnumerable<string> events, IEnumerable<Unit> units,
+                                    IEnumerable<string> ageGroups) {
             InitializeComponent();
             _team = team;
             _backup = Snapshot.Capture(team);
@@ -41,10 +42,17 @@ namespace SwimmingScoreboard
                 .Select(u => u.Name).Distinct().OrderBy(n => n).ToList();
             foreach (var n in unitNames) CountryBox.Items.Add(n);
 
+            // 2026-05-25 组别下拉
+            var ageList = (ageGroups ?? new string[0]).Where(g => !string.IsNullOrEmpty(g)).Distinct().ToList();
+            foreach (var g in ageList) AgeGroupBox.Items.Add(g);
+            if (!string.IsNullOrEmpty(team.AgeGroup) && !AgeGroupBox.Items.Contains(team.AgeGroup))
+                AgeGroupBox.Items.Add(team.AgeGroup);
+
             _suppressValidate = true;
             TeamNameBox.Text = team.TeamName ?? "";
             CountryBox.Text = team.Country ?? team.TeamName ?? "";
             EventBox.SelectedItem = team.EventName;
+            AgeGroupBox.SelectedItem = team.AgeGroup ?? "";
             foreach (ComboBoxItem item in GenderBox.Items) {
                 if ((item.Content as string) == team.Gender) { GenderBox.SelectedItem = item; break; }
             }
@@ -86,6 +94,11 @@ namespace SwimmingScoreboard
             EventBox.BorderThickness = evOk ? new Thickness(1) : new Thickness(2);
             if (!evOk) errors.Add("项目");
 
+            bool ageOk = AgeGroupBox.SelectedItem != null && !string.IsNullOrEmpty(AgeGroupBox.SelectedItem as string);
+            AgeGroupBox.BorderBrush = ageOk ? _normalBorder : ErrorBorder;
+            AgeGroupBox.BorderThickness = ageOk ? new Thickness(1) : new Thickness(2);
+            if (!ageOk) errors.Add("组别");
+
             var legBoxes = new[] { Leg1Box, Leg2Box, Leg3Box, Leg4Box };
             for (int i = 0; i < 4; i++) {
                 bool ok = !string.IsNullOrWhiteSpace(legBoxes[i].Text);
@@ -110,6 +123,7 @@ namespace SwimmingScoreboard
             string newName = TeamNameBox.Text.Trim();
             string newCountry = CountryBox.Text.Trim();
             string newEvent = EventBox.SelectedItem as string;
+            string newAgeGroup = AgeGroupBox.SelectedItem as string;
             string newGender = (GenderBox.SelectedItem as ComboBoxItem) != null
                 ? (GenderBox.SelectedItem as ComboBoxItem).Content.ToString() : _backup.Gender;
             string newEntryTime = EntryTimeBox.Text.Trim();
@@ -118,6 +132,7 @@ namespace SwimmingScoreboard
             if (newName != (_backup.TeamName ?? "")) changes.Add(string.Format("队名: {0} → {1}", _backup.TeamName, newName));
             if (newCountry != (_backup.Country ?? "")) changes.Add(string.Format("单位: {0} → {1}", _backup.Country, newCountry));
             if (newEvent != (_backup.EventName ?? "")) changes.Add(string.Format("项目: {0} → {1}", _backup.EventName, newEvent));
+            if ((newAgeGroup ?? "") != (_backup.AgeGroup ?? "")) changes.Add(string.Format("组别: {0} → {1}", _backup.AgeGroup, newAgeGroup));
             if (newGender != (_backup.Gender ?? "")) changes.Add(string.Format("性别: {0} → {1}", _backup.Gender, newGender));
             if (newEntryTime != (_backup.EntryTime ?? "")) changes.Add(string.Format("报名成绩: {0} → {1}", _backup.EntryTime, newEntryTime));
             for (int i = 0; i < 4; i++) {
@@ -139,6 +154,7 @@ namespace SwimmingScoreboard
             _team.TeamName = newName;
             _team.Country = newCountry;
             _team.EventName = newEvent;
+            _team.AgeGroup = newAgeGroup;
             _team.Gender = newGender;
             _team.EntryTime = newEntryTime;
             _team.EntryTimeSeconds = string.IsNullOrEmpty(newEntryTime) ? 0 : TimeFormatter.Parse(newEntryTime);
@@ -174,12 +190,12 @@ namespace SwimmingScoreboard
         // 旧值快照
         private class Snapshot
         {
-            public string TeamName, Country, EventName, Gender, EntryTime;
+            public string TeamName, Country, EventName, AgeGroup, Gender, EntryTime;
             public string[] LegNames = new string[0];
             public static Snapshot Capture(RelayTeam t) {
                 var s = new Snapshot {
                     TeamName = t.TeamName, Country = t.Country,
-                    EventName = t.EventName, Gender = t.Gender,
+                    EventName = t.EventName, AgeGroup = t.AgeGroup, Gender = t.Gender,
                     EntryTime = t.EntryTime
                 };
                 var legs = t.Legs ?? new ObservableCollection<RelayLeg>();

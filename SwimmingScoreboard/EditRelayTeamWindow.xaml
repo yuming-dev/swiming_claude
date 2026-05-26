@@ -30,6 +30,7 @@
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
                         <TextBlock Grid.Row="0" Grid.Column="0" Text="队名 *:" VerticalAlignment="Center" Margin="0,4,0,4"/>
                         <TextBox Grid.Row="0" Grid.Column="1" x:Name="TeamNameBox" Padding="4" Margin="0,4,0,4"
@@ -42,14 +43,18 @@
                         <ComboBox Grid.Row="2" Grid.Column="1" x:Name="EventBox" Padding="4" Margin="0,4,0,4"
                                   SelectionChanged="ValidateAll"
                                   ToolTip="只列出含「接力」的赛事项目"/>
-                        <TextBlock Grid.Row="3" Grid.Column="0" Text="性别:" VerticalAlignment="Center" Margin="0,4,0,4"/>
-                        <ComboBox Grid.Row="3" Grid.Column="1" x:Name="GenderBox" Padding="4" Margin="0,4,0,4">
+                        <TextBlock Grid.Row="3" Grid.Column="0" Text="组别 *:" VerticalAlignment="Center" Margin="0,4,0,4"/>
+                        <ComboBox Grid.Row="3" Grid.Column="1" x:Name="AgeGroupBox" Padding="4" Margin="0,4,0,4"
+                                  SelectionChanged="ValidateAll"
+                                  ToolTip="组别来自主程序 比赛参数设置 → 组别"/>
+                        <TextBlock Grid.Row="4" Grid.Column="0" Text="性别:" VerticalAlignment="Center" Margin="0,4,0,4"/>
+                        <ComboBox Grid.Row="4" Grid.Column="1" x:Name="GenderBox" Padding="4" Margin="0,4,0,4">
                             <ComboBoxItem Content="男"/>
                             <ComboBoxItem Content="女"/>
                             <ComboBoxItem Content="混合"/>
                         </ComboBox>
-                        <TextBlock Grid.Row="4" Grid.Column="0" Text="报名成绩:" VerticalAlignment="Center" Margin="0,4,0,4"/>
-                        <TextBox Grid.Row="4" Grid.Column="1" x:Name="EntryTimeBox" Padding="4" Margin="0,4,0,4"
+                        <TextBlock Grid.Row="5" Grid.Column="0" Text="报名成绩:" VerticalAlignment="Center" Margin="0,4,0,4"/>
+                        <TextBox Grid.Row="5" Grid.Column="1" x:Name="EntryTimeBox" Padding="4" Margin="0,4,0,4"
                                  ToolTip="如 3:42.50 或 222.50"/>
                     </Grid>
                 </Border>

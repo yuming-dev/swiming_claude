@@ -84,10 +84,9 @@ namespace SwimmingScoreboard
         private double _hwBatteryVoltage = 0;
         private DateTime _hwBatteryReceivedAt = DateTime.MinValue;
         private bool _hwRunningTimeAvailable = false;
-        // 上次执行复位（本地或硬件触发）的时刻；用于硬件 0x1C 的去抖，
-        // 避免"复位 + 紧接着 0x1C 回弹"导致比赛被自动再次启动
-        private DateTime _lastResetAt = DateTime.MinValue;
-        private const int ResetDebounceMs = 1000;
+        // 2026-05-25 删除 _lastResetAt / ResetDebounceMs: PDF 必修 #2 硬件修复完成后,
+        //   0x20 case 入口立即清 timer_bit + 发 0x7F=0, 不会再出现"1-2 秒残余非零 0x7F"现象,
+        //   PC 端 1.5 秒抑制窗口不再需要。ResetDebounceMs 常量从未被读取, 一并删除。
 
         // "设备测试"模式：等同于参考程序的 Test_System_Bit。
         // 进入后所有触板/出发台/盲表都强制视为打开，并跳过"空泳道/未参赛"过滤，
@@ -112,6 +111,9 @@ namespace SwimmingScoreboard
         private int _lastTsSplitCount = -1;
         private string _firstPlaceFinishTime = "";
         private DateTime _firstPlaceShowStart = DateTime.MinValue;
+        // 2026-05-26 mirror display.html: 跟踪 1 名运动员"有效分段计数"(finished=9999),
+        //   计数变化即触发右上角滚动时间区显示其最新累计时间, 停留 FirstPlaceHoldTime 秒.
+        private int _lastLeaderSplitCount = 0;
         // 泳��设备状态
         private List<LaneDeviceState> _laneDeviceStates = new List<LaneDeviceState>();
 
@@ -688,6 +690,9 @@ namespace SwimmingScoreboard
                     case "REGISTER_RELAY":
                         HandleRegisterRelay(socket, msg);
                         break;
+                    case "RELAY_QUERY":
+                        HandleRelayQuery(socket, msg);
+                        break;
                     case "CONNECT_HW":
                         HandleConnectHw(msg);
                         break;
@@ -1216,6 +1221,53 @@ namespace SwimmingScoreboard
             } catch { }
         }
 
+        // 2026-05-25 按队名查询接力队 (注册页面用), 返回首个匹配的整队信息便于回填修改
+        private void HandleRelayQuery(IWebSocketConnection socket, JObject msg) {
+            try {
+                var data = msg["data"];
+                string teamName = data != null && data["teamName"] != null ? data["teamName"].ToString().Trim() : "";
+                if (string.IsNullOrEmpty(teamName)) {
+                    var miss = new { type = "RELAY_QUERY_RESULT", data = new { success = false, message = "请输入队名" } };
+                    socket.Send(JsonConvert.SerializeObject(miss));
+                    return;
+                }
+                var t = _relayTeams.FirstOrDefault(x => string.Equals(x.TeamName ?? "", teamName, StringComparison.OrdinalIgnoreCase));
+                if (t == null) {
+                    var miss = new { type = "RELAY_QUERY_RESULT", data = new { success = false, message = "未找到队名为 \"" + teamName + "\" 的接力队" } };
+                    socket.Send(JsonConvert.SerializeObject(miss));
+                    return;
+                }
+                var legs = new List<object>();
+                foreach (var leg in t.Legs.OrderBy(l => l.LegOrder)) {
+                    legs.Add(new {
+                        legOrder = leg.LegOrder,
+                        swimmerName = leg.SwimmerName ?? "",
+                        swimmerBibNumber = leg.SwimmerBibNumber ?? "",
+                        swimmerIDNumber = leg.SwimmerIDNumber ?? "",
+                        swimmerBirthDate = leg.SwimmerBirthDate ?? ""
+                    });
+                }
+                var result = new {
+                    type = "RELAY_QUERY_RESULT",
+                    data = new {
+                        success = true,
+                        team = new {
+                            teamName = t.TeamName ?? "",
+                            eventName = t.EventName ?? "",
+                            gender = t.Gender ?? "",
+                            ageGroup = t.AgeGroup ?? "",
+                            entryTime = t.EntryTime ?? "",
+                            countryShort = "",
+                            legs = legs
+                        }
+                    }
+                };
+                socket.Send(JsonConvert.SerializeObject(result));
+            } catch (Exception ex) {
+                AddLog("RELAY_QUERY 处理异常: " + ex.Message);
+            }
+        }
+
         private void HandleRegisterRelay(IWebSocketConnection socket, JObject msg) {
             var data = msg["data"];
             if (data == null) { SendRelayResult(socket, false, "数据不完整", "", "", 0, false); return; }
@@ -1223,10 +1275,12 @@ namespace SwimmingScoreboard
                 TeamName = data["teamName"] != null ? data["teamName"].ToString() : "",
                 EventName = data["eventName"] != null ? data["eventName"].ToString() : "",
                 Gender = data["gender"] != null ? data["gender"].ToString() : "男",
+                AgeGroup = data["ageGroup"] != null ? data["ageGroup"].ToString() : "",
                 EntryTime = data["entryTime"] != null ? data["entryTime"].ToString() : ""
             };
             if (string.IsNullOrEmpty(team.TeamName)) { SendRelayResult(socket, false, "队名不能为空", "", "", 0, false); return; }
             if (string.IsNullOrEmpty(team.EventName)) { SendRelayResult(socket, false, "请选择项目", team.TeamName, "", 0, false); return; }
+            if (string.IsNullOrEmpty(team.AgeGroup)) { SendRelayResult(socket, false, "请选择组别", team.TeamName, "", 0, false); return; }
             team.EntryTimeSeconds = TimeFormatter.Parse(team.EntryTime);
             var legs = data["legs"] as JArray;
             if (legs != null) {
@@ -1254,13 +1308,15 @@ namespace SwimmingScoreboard
 
             if (team.Legs.Count == 0) { SendRelayResult(socket, false, "请至少填写 1 棒队员姓名", team.TeamName, "", 0, false); return; }
 
-            // 防止同一接力队重复注册（队名+性别+项目唯一）
+            // 防止同一接力队重复注册（队名+性别+项目+组别 四键唯一）
             var existingTeam = _relayTeams.FirstOrDefault(t =>
-                t.TeamName == team.TeamName && t.Gender == team.Gender && t.EventName == team.EventName);
+                t.TeamName == team.TeamName && t.Gender == team.Gender && t.EventName == team.EventName
+                && (t.AgeGroup ?? "") == (team.AgeGroup ?? ""));
             if (existingTeam != null) {
                 // 重复注册：用最新数据覆盖现有队伍（更新报名成绩与棒次）
                 existingTeam.EntryTime = team.EntryTime;
                 existingTeam.EntryTimeSeconds = team.EntryTimeSeconds;
+                existingTeam.AgeGroup = team.AgeGroup;
                 existingTeam.Legs.Clear();
                 foreach (var leg in team.Legs) existingTeam.Legs.Add(leg);
                 AddLog(string.Format("更新接力队: {0} ({1}) {2}人", team.TeamName, team.EventName, team.Legs.Count));
@@ -3079,23 +3135,17 @@ namespace SwimmingScoreboard
             // 这样硬件清零后只要它发 0x7F=0，软件立刻同步；硬件继续走时则软件也跟着；
             // 唯一保留 0 的场景是从未连接到硬件 / 硬件未发任何 0x7F。
             if (cmdType == "RunningTime") {
-                // 2026-05-25 修复 #6: 计时复位后 1.5 秒内硬件可能还在发非零的 0x7F 残余帧
-                // (硬件 0x20 处理有延迟), 这些帧会覆盖刚刚被复位为 0 的 _runningTime, 导致
-                // 大屏/计时控制台显示不归零。窗口期内强制保持 0 并广播 0 给所有客户端。
-                if (_lastResetAt != DateTime.MinValue && (DateTime.Now - _lastResetAt).TotalSeconds < 1.5) {
-                    _runningTime = 0;
-                    _hwRunningTimeSec = 0;
-                    _hwRunningTimeReceivedAt = DateTime.Now;
-                    _hwRunningTimeAvailable = true;
-                    if (RunningTimeText != null) RunningTimeText.Text = "0.00";
-                    BroadcastRunningTime();
-                    return;
-                }
+                // 2026-05-25 移除 1.5 秒抑制窗口 (原修复 #6):
+                //   硬件 PDF 必修 #2 修复完成 - case Timer_Reset_Command 入口立即清 timer_bit
+                //   并发 0x7F=0, 不会再有 1-2 秒残余非零 0x7F。PC 端可直接信任硬件 0x7F 值。
                 _hwRunningTimeSec = timeInSeconds;
                 _hwRunningTimeReceivedAt = DateTime.Now;
                 _hwRunningTimeAvailable = true;
                 _runningTime = timeInSeconds;
-                if (RunningTimeText != null) RunningTimeText.Text = TimeFormatter.FormatRunning(_runningTime);
+                // 2026-05-26 移除此处对 RunningTimeText.Text 的直接覆盖: 它每 100ms 触发,
+                //   会无视"1 名成绩停留显示"窗口直接抹掉 _firstPlaceFinishTime, 表现为用户报告的
+                //   "停留时间被冲掉/每次触板都闪一下"。统一由 RaceTimer_Tick (同样 100ms 节拍)
+                //   按 _firstPlaceShowStart + FirstPlaceHoldTime 窗口决定显示 leader 成绩还是 _runningTime.
                 // 立刻把硬件时间转发给大屏 / EXE / HTML 计时控制台 — 硬件 100ms 节拍
                 BroadcastRunningTime();
                 return;
@@ -3286,6 +3336,9 @@ namespace SwimmingScoreboard
                         }
 
                         // 2026-05-13 全开模式：所有触板信号都认可为正式成绩，绕过状态机
+                        // 2026-05-26 撤回上一版 Closed-accept 改动: 该改动导致段间的杂散触板帧被
+                        //   误记为新分段 → 触发 Direction flip → 倒计时结束后开错端设备.
+                        //   保留原 Open→记录 / Touched→备用 / 其它→丢弃 的状态机 (与硬件期望一致).
                         if (tpStatus == DeviceStatus.Open || IsLaneForceAllOpen(lane)) {
                             ProcessTouchpadHit(lane, timeInSeconds, laneState);
                             // 已记录正式成绩，把该端切到"已触板（红）"，到点再 Closed
@@ -3324,6 +3377,7 @@ namespace SwimmingScoreboard
                         }
 
                         // 2026-05-13 全开模式：所有盲表信号都认可为正式分段
+                        // 2026-05-26 撤回 Closed-accept 改动 (副作用见 Touchpad 分支注释)
                         if (bwStatus == DeviceStatus.Open || IsLaneForceAllOpen(lane)) {
                             ProcessBlindWatchData(lane, cmdType, timeInSeconds);
                             EnterBlindTouchedThenClose(laneState, bwSideForClose, blindNum, lane);
@@ -3974,7 +4028,11 @@ namespace SwimmingScoreboard
             } else {
                 // 分段触碰 — 切换方向和开始新倒计时
                 laneState.Direction = laneState.Direction == "→" ? "←" : "→";
-                laneState.LaneCloseCountdown = laneState.LaneCloseTime > 0 ? laneState.LaneCloseTime : _laneCloseSettings.LaneCloseTime;
+                // 2026-05-25 修复时间漂移: 用 DateTime 锚点
+                double targetSec = laneState.LaneCloseTime > 0 ? laneState.LaneCloseTime : _laneCloseSettings.LaneCloseTime;
+                laneState.LaneCloseCountdown = targetSec;
+                laneState.CountdownStartedAt = DateTime.Now;
+                laneState.CountdownTargetSec = targetSec;
 
                 // 接力项目：交接棒触板触碰后，延迟关闭出发台
                 if (_isRelay) {
@@ -4025,36 +4083,50 @@ namespace SwimmingScoreboard
                 closeTimer.Start();
             }
 
-            // 2026-05-25 修复 #7: 只有 当前 lane 在本次触板后是【1 名】时, 才把它的时间打到滚动时间区显示+保持
-            // 1 名判定: 在所有当前组运动员里 → 各自最新已完成 split → 取 (最大已完成 lap, 最小累计时间) 的那位
-            // 若 lane 不是这个 1 名 → 不动 _firstPlaceShowStart, 让显示继续滚动或继续显示上次 1 名的时间
+            // 2026-05-26 v3 修复: 用户明确"只有第1名运动员触板，其成绩才要停留显示".
+            //   1 名判定: count desc + finished=9999 + rank 小 tiebreak + lastCum 小兜底 (与 display.html 同算).
+            //   触发条件: 触板这条道 == 1 名 swimmer 所在道 → 更新, 显示该 1 名自己的最新累计时间.
+            //   非 1 名触板 → 不动 _firstPlaceShowStart, 让 RaceTimer_Tick 继续按 holdSec 窗口显示上次 1 名时间 / 滚动时间.
+            //   停留时长 = FirstPlaceHoldTime (参数: 第 1 名成绩显示时间).
             try {
-                if (time > 0) {
-                    int leaderLane = -1;
-                    int leaderMaxLap = -1;
-                    double leaderMinCumulative = double.MaxValue;
-                    foreach (var sw in GetCurrentHeatSwimmers()) {
-                        var saS = sw.GetAssignmentForStage(_currentStage);
-                        int laneNum = (saS != null && saS.Lane > 0) ? saS.Lane : sw.Lane;
-                        if (laneNum <= 0) continue;
-                        if (sw.Status == "DSQ" || sw.Status == "DNS" || sw.Status == "DNF") continue;
-                        var rs = sw.Results.FirstOrDefault(r => r.Stage == _currentStage && r.Heat == _currentHeat);
-                        if (rs == null) continue;
-                        // 找该 swimmer 最新已完成的 split (有触板时间)
-                        SplitTime lastSp = null;
-                        foreach (var sp in rs.Splits) {
-                            if (sp.CumulativeTime > 0 && (lastSp == null || sp.Lap > lastSp.Lap)) lastSp = sp;
-                        }
-                        if (lastSp == null) continue;
-                        // 比较: 更高 lap 优先, 同 lap 则比累计时间
-                        if (lastSp.Lap > leaderMaxLap || (lastSp.Lap == leaderMaxLap && lastSp.CumulativeTime < leaderMinCumulative)) {
-                            leaderMaxLap = lastSp.Lap;
-                            leaderMinCumulative = lastSp.CumulativeTime;
-                            leaderLane = laneNum;
-                        }
+                Swimmer leaderSw = null;
+                int leaderCount = 0;
+                double leaderLastCum = 0;
+                int leaderRank = int.MaxValue;
+                foreach (var sw in GetCurrentHeatSwimmers()) {
+                    if (sw.Status == "DSQ" || sw.Status == "DNS" || sw.Status == "DNF") continue;
+                    var rs = sw.Results.FirstOrDefault(r => r.Stage == _currentStage && r.Heat == _currentHeat);
+                    if (rs == null) continue;
+                    int cnt = 0;
+                    double lastCum = 0;
+                    foreach (var sp in rs.Splits) {
+                        if (sp.CumulativeTime > 0) { cnt++; if (sp.CumulativeTime > lastCum) lastCum = sp.CumulativeTime; }
                     }
-                    if (leaderLane == lane) {
-                        _firstPlaceFinishTime = TimeFormatter.Format(time);
+                    if (cnt == 0) continue;
+                    bool isFinished = rs.FinalTime > 0;
+                    int effCount = isFinished ? 9999 : cnt;
+                    int rk = rs.Rank > 0 ? rs.Rank : int.MaxValue;
+                    bool better;
+                    if (leaderSw == null) better = true;
+                    else if (effCount > leaderCount) better = true;
+                    else if (effCount == leaderCount) {
+                        if (rk < leaderRank) better = true;
+                        else if (rk == leaderRank && lastCum > 0 && (leaderLastCum == 0 || lastCum < leaderLastCum)) better = true;
+                        else better = false;
+                    } else better = false;
+                    if (better) {
+                        leaderSw = sw;
+                        leaderCount = effCount;
+                        leaderLastCum = isFinished ? rs.FinalTime : lastCum;
+                        leaderRank = rk;
+                    }
+                }
+                if (leaderSw != null && leaderLastCum > 0) {
+                    var saLeader = leaderSw.GetAssignmentForStage(_currentStage);
+                    int leaderLaneNum = (saLeader != null && saLeader.Lane > 0) ? saLeader.Lane : leaderSw.Lane;
+                    // 只有 1 名触板才更新; 非 1 名触板完全不动滚动时间区
+                    if (leaderLaneNum == lane) {
+                        _firstPlaceFinishTime = TimeFormatter.Format(leaderLastCum);
                         _firstPlaceShowStart = DateTime.Now;
                         if (RunningTimeText != null) {
                             RunningTimeText.Text = _firstPlaceFinishTime;
@@ -4553,14 +4625,33 @@ namespace SwimmingScoreboard
 
         private void CountdownTimer_Tick(object sender, EventArgs e) {
             bool changed = false;
+            DateTime now = DateTime.Now;
             foreach (var state in _laneDeviceStates) {
-                if (state.LaneCloseCountdown > 0 && !state.IsFinished) {
-                    state.LaneCloseCountdown -= 0.1;
-                    if (state.LaneCloseCountdown <= 0) {
-                        state.LaneCloseCountdown = 0;
-                        // 空泳道或 DNS/DNF 运动员：不自动打开任何设备；
-                        // 抢跳 DSQ 仍继续比赛，下一段触板/盲表照常打开以接收原始数据
-                        if (!IsLaneReceivingData(state.Lane)) { changed = true; continue; }
+                // 2026-05-26 修复"封闭时间到了泳道不开"BUG:
+                //   旧版用 state.LaneCloseCountdown > 0 当唯一开关, 而 Math.Round(remaining*10)/10
+                //   在 remaining<0.05 时会把 LaneCloseCountdown 提前**四舍五入为 0**, 此时下次 tick
+                //   外层 `> 0` 为 false → 整个分支被跳过, else 里的"开设备"逻辑永远不执行.
+                //   新版改用 CountdownStartedAt + CountdownTargetSec 作真正的时间锚, LaneCloseCountdown
+                //   降级为纯 UI 显示值; 倒计时一过, 锚点清空防止重复打开.
+                if (state.IsFinished) continue;
+                if (state.CountdownStartedAt == default(DateTime)) continue;   // 没有正在跑的倒计时
+                if (state.CountdownTargetSec <= 0) continue;                   // 目标 <=0 视为没有倒计时
+                double elapsed = (now - state.CountdownStartedAt).TotalSeconds;
+                double remaining = state.CountdownTargetSec - elapsed;
+                if (remaining > 0) {
+                    // 显示剩余 (保持 0.1 步进的视觉效果, 避免 UI 文本快速抖动);
+                    // 即便 rounded 提前落到 0 也不会影响开门判断 (因为已不用它当 gate)
+                    double rounded = Math.Round(remaining * 10) / 10.0;
+                    if (rounded != state.LaneCloseCountdown) state.LaneCloseCountdown = rounded;
+                    changed = true;
+                } else {
+                    // 倒计时跨过 0 → 开到达端设备 (一次性, 然后清锚防止重入)
+                    state.LaneCloseCountdown = 0;
+                    state.CountdownStartedAt = default(DateTime);
+                    state.CountdownTargetSec = 0;
+                    // 空泳道或 DNS/DNF 运动员：不自动打开任何设备；
+                    // 抢跳 DSQ 仍继续比赛，下一段触板/盲表照常打开以接收原始数据
+                    if (!IsLaneReceivingData(state.Lane)) { changed = true; continue; }
                         // 打开运动员即将到达端的触板和盲表
                         bool arriveRight = state.Direction == "→";
                         if (arriveRight) {
@@ -4603,9 +4694,8 @@ namespace SwimmingScoreboard
                             }
                         }
 
-                        AddLog(string.Format("泳道{0} 倒计时结束，{1}端设备已打开{2}", state.Lane, arriveRight ? "右" : "左",
-                            relayStartBlockOpened ? "（含出发台-交接棒检测）" : ""));
-                    }
+                    AddLog(string.Format("泳道{0} 倒计时结束，{1}端设备已打开{2}", state.Lane, arriveRight ? "右" : "左",
+                        relayStartBlockOpened ? "（含出发台-交接棒检测）" : ""));
                     changed = true;
                 }
             }
@@ -4702,7 +4792,11 @@ namespace SwimmingScoreboard
                 // 出发端的出发台打开
                 state.LeftStartBlockStatus = startLeft ? DeviceStatus.Open : DeviceStatus.Closed;
                 state.RightStartBlockStatus = startLeft ? DeviceStatus.Closed : DeviceStatus.Open;
-                state.LaneCloseCountdown = state.LaneCloseTime > 0 ? state.LaneCloseTime : _laneCloseSettings.LaneCloseTime;
+                // 2026-05-25 修复时间漂移: 用 DateTime 锚点
+                double targetSec2 = state.LaneCloseTime > 0 ? state.LaneCloseTime : _laneCloseSettings.LaneCloseTime;
+                state.LaneCloseCountdown = targetSec2;
+                state.CountdownStartedAt = DateTime.Now;
+                state.CountdownTargetSec = targetSec2;
             }
 
             // 延迟关闭出发台
@@ -4784,7 +4878,7 @@ namespace SwimmingScoreboard
                 _hwRunningTimeAvailable = false;
                 _hwRunningTimeReceivedAt = DateTime.MinValue;
                 _hwRunningTimeSec = 0;
-                _lastResetAt = DateTime.Now;   // 2026-05-25 修复 #6: 同样标记, 让 ProcessTimingData 抑制硬件残余帧
+                // 2026-05-25 移除 _lastResetAt 标记 (原修复 #6): 硬件 PDF 必修 #2 修复完成
                 if (RunningTimeText != null) RunningTimeText.Text = "0.00";
                 try { UpdateRaceStateDisplay(); } catch { }
                 if (sender == null) {
@@ -4822,12 +4916,12 @@ namespace SwimmingScoreboard
             _hwRunningTimeAvailable = false;
             _hwRunningTimeReceivedAt = DateTime.MinValue;
             _hwRunningTimeSec = 0;
-            // 标记本次复位时刻 — 接下来 1 秒内到达的硬件 0x1C 当作回弹忽略
-            _lastResetAt = DateTime.Now;
+            // 2026-05-25 移除 _lastResetAt 标记 (原修复 #6 - 1.5 秒抑制窗口): 硬件 PDF 必修 #2 修复完成
             _resultConfirmed = false;
 
             _firstPlaceFinishTime = "";
             _firstPlaceShowStart = DateTime.MinValue;
+            _lastLeaderSplitCount = 0;   // 2026-05-26 与 display.html 的 _dspFirstDetected 对应
             _laneSplitCount.Clear();
             _laneSplitShowTime.Clear();
             _laneReactionLastValue.Clear();
@@ -5119,15 +5213,22 @@ namespace SwimmingScoreboard
                 try { UpdateResultHeatCombo(); } catch { }
                 try { RefreshResultGrid(); } catch { }
             }
-            // 2026-05-25 修复 #5: 进入「比赛控制」Tab 时, 若硬件已连接, 自动把当前已加载的
-            // 计时参数 + 发令点 推给硬件并广播给所有客户端,
-            // 免去用户每次都要手动打开「参数设置」对话框点保存才能让设置生效
+            // 2026-05-25 修复 #5 + 需求 #17: 进入「比赛控制」Tab 时, 若硬件已连接, 自动把当前已加载的
+            //   完整参数包推给硬件 + 广播给所有客户端, 免去用户每次都要手动打开「参数设置」对话框点保存才能生效。
+            //   2026-05-25 (需求 #17) 完整对齐 OnStatusChanged 段: 加入 SetMatchEvent / DeviceStatuses /
+            //   PoolSingleOrDoubleTP, 让"重启 + 进比赛控制"等价于硬件初次连接的完整初始化, 不再遗漏任一字段
             if (header == "比赛控制" && _timingBridge != null && _timingBridge.IsConnected) {
                 try {
-                    SendTimingSettingsToHardware();
-                    SendStartPositionToHardware();
+                    SendTimingSettingsToHardware();            // 0x41 / 0x44 / 0x45
+                    SendDeviceStatusesToHardware();            // 0x46 / 0x49 / 0x4A
+                    SendSetMatchEventToHardware();             // 0x43 — 总圈数+左右触板次数+泳道位图+接力标志
+                    SendStartPositionToHardware();             // 0x10 0x42 — 发令点
+                    if (_poolConfig != null) {
+                        bool isSingle = !_poolConfig.HasRightStartBlock;
+                        try { _timingBridge.SendPoolSingleOrDoubleTP(isSingle); } catch { }
+                    }
                     Broadcast();
-                    AddLog("进入比赛控制 → 已自动推送参数到硬件 + 广播给客户端 (无需手动打开参数设置)");
+                    AddLog("进入比赛控制 → 已自动推送完整参数包到硬件 + 广播给客户端 (无需手动打开参数设置)");
                 } catch (Exception ex) {
                     AddLog("自动推送参数失败: " + ex.Message);
                 }
@@ -5288,6 +5389,7 @@ namespace SwimmingScoreboard
             _laneReactionShowTime.Clear();
             _firstPlaceFinishTime = "";
             _firstPlaceShowStart = DateTime.MinValue;
+            _lastLeaderSplitCount = 0;   // 2026-05-26 切组时 1 名 split-count 跟踪同步清零
             // 切换组次 = 复位计时器
             _runningTime = 0;
             _raceStartTime = DateTime.MinValue;
@@ -6039,9 +6141,13 @@ namespace SwimmingScoreboard
             if (_laneCloseSettings.LaneOrder == "reverse") allPoolLanes.Reverse();
 
             // 构造本次数据的key（运动员列表或泳道集合变化时需要重建UI；盲表数量变更也要重建）
+            // 2026-05-26 修复: 发令位置 (StartPosition) 加入 key, 否则
+            //   AutoAdjustStartPosition (50米发令切到终点对面) 或参数面板改发令位置后,
+            //   PoolHeader 顶部左右"发令位置"绿色徽章 + 空泳道行的左右指示灯不刷新.
             string key = _currentGender + "|" + _currentEvent + "|" + _currentStage + "|" + _currentHeat
                 + "|" + allPoolLanes.Count + "|" + currentSwimmers.Count
-                + "|bw:" + _laneCloseSettings.LeftBlindWatchCount + "/" + _laneCloseSettings.RightBlindWatchCount;
+                + "|bw:" + _laneCloseSettings.LeftBlindWatchCount + "/" + _laneCloseSettings.RightBlindWatchCount
+                + "|sp:" + (_laneCloseSettings.StartPosition ?? "");
             foreach (int ln in allPoolLanes) {
                 Swimmer lsw;
                 laneSwimmerMap.TryGetValue(ln, out lsw);
@@ -6353,6 +6459,9 @@ namespace SwimmingScoreboard
                     if (rowUI.TrackText != null) rowUI.TrackText.Text = "";
                     if (rowUI.TouchL != null) { rowUI.TouchL.Background = _brushDark; rowUI.TouchL.Foreground = _brushSlate; }
                     if (rowUI.TouchR != null) { rowUI.TouchR.Background = _brushDark; rowUI.TouchR.Foreground = _brushSlate; }
+                    // 2026-05-26 空泳道也要按当前 StartPosition 更新左右发令指示灯 (此前只占用 lane 的行会更新, 空道会停在 BuildLaneRows 时的初值)
+                    if (rowUI.LeftSignalInd != null) rowUI.LeftSignalInd.Background = leftStart ? (Brush)_brushGreen : Brushes.Transparent;
+                    if (rowUI.RightSignalInd != null) rowUI.RightSignalInd.Background = !leftStart ? (Brush)_brushGreen : Brushes.Transparent;
                     continue;
                 }
                 var result = sw.Results.FirstOrDefault(r => r.Stage == _currentStage && r.Heat == _currentHeat);
@@ -7826,8 +7935,11 @@ namespace SwimmingScoreboard
                     _laneDeviceStates[i].RightLapManualAdjust = savedLaneSnap[i][2];
                 }
                 UpdateLaneStatusDisplay();
-                //2026-05-18 让硬件主控按新参数完整重画一遍（硬件接收 0x65 时会保存 CloseLaneState/laps，
-                //   调 SwimControl_init，然后恢复并重画，不会丢失"缺道/剩余圈数"等比赛状态）
+                //2026-05-18 让硬件主控按新参数完整重画一遍。
+                //2026-05-25 硬件 PDF 必修 #1 修复完成: 0x65 case 不再调 SwimControl_init,
+                //   改为只做局部 UI 重画, 所有业务字段保留, 不会丢失 race distance / All_Lap /
+                //   LAll_Lap / RAll_Lap / RelayBit / Pool50mOr25mbit 等。
+                //   ＊原"RefreshDisplay 后补发 RaceDistance"补救已移除＊
                 try { if (_timingBridge != null && _timingBridge.IsConnected) _timingBridge.SendRefreshDisplay(); } catch { }
             }
         }
@@ -9000,6 +9112,16 @@ namespace SwimmingScoreboard
             rowGender.Children.Add(cbGender);
             sp.Children.Add(rowGender);
 
+            // 2026-05-25 组别 (来自主程序 _ageGroups, 用户报名时必选)
+            var rowAge = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 0) };
+            rowAge.Children.Add(new TextBlock { Text = "组别:", Width = 80, VerticalAlignment = VerticalAlignment.Center });
+            var cbAge = new ComboBox { Width = 320 };
+            cbAge.Items.Add("");   // 允许不指定 (向后兼容旧数据)
+            foreach (var g in _ageGroups) cbAge.Items.Add(g.Name);
+            cbAge.SelectedIndex = _ageGroups.Count > 0 ? 1 : 0;
+            rowAge.Children.Add(cbAge);
+            sp.Children.Add(rowAge);
+
             // 队名
             var rowTeam = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 0) };
             rowTeam.Children.Add(new TextBlock { Text = "队名:", Width = 80, VerticalAlignment = VerticalAlignment.Center });
@@ -9076,20 +9198,23 @@ namespace SwimmingScoreboard
 
             string eventName = cbEvent.SelectedItem != null ? cbEvent.SelectedItem.ToString() : "";
             string gender = cbGender.SelectedItem != null ? cbGender.SelectedItem.ToString() : "男";
+            string ageGroup = cbAge.SelectedItem != null ? cbAge.SelectedItem.ToString() : "";
             string teamName = (tbTeam.Text ?? "").Trim();
             string entryTimeStr = (tbEntryTime.Text ?? "").Trim();
 
             if (string.IsNullOrEmpty(eventName)) { MessageBox.Show("请选择接力项目"); return; }
             if (string.IsNullOrEmpty(teamName)) { MessageBox.Show("队名不能为空"); return; }
-            if (_relayTeams.Any(t => t.EventName == eventName && t.TeamName == teamName && t.Gender == gender)) {
-                MessageBox.Show(string.Format("代表队 \"{0}\" 已在该项目（{1} {2}）报名过接力队。", teamName, gender, eventName)); return;
+            if (_relayTeams.Any(t => t.EventName == eventName && t.TeamName == teamName
+                                    && t.Gender == gender && (t.AgeGroup ?? "") == ageGroup)) {
+                MessageBox.Show(string.Format("代表队 \"{0}\" 已在该项目（{1} {2} {3}）报名过接力队。",
+                    teamName, ageGroup, gender, eventName)); return;
             }
 
             double entrySec = 0;
             if (!string.IsNullOrEmpty(entryTimeStr)) entrySec = TimeFormatter.Parse(entryTimeStr);
 
             var team = new RelayTeam {
-                TeamName = teamName, EventName = eventName, Gender = gender,
+                TeamName = teamName, EventName = eventName, Gender = gender, AgeGroup = ageGroup,
                 EntryTime = entryTimeStr, EntryTimeSeconds = entrySec
             };
             // 2026-05-21 棒次出生日期同样支持手动输入 yyyy-MM-dd（与 HTML 一致）；
@@ -9120,9 +9245,10 @@ namespace SwimmingScoreboard
             string teamBib = "R" + (_relayTeams.Count).ToString("D3");
             while (_swimmers.Any(s => s.BibNumber == teamBib)) teamBib = "R" + DateTime.Now.Ticks.ToString().Substring(10);
 
+            // 2026-05-25 代表条目带上 AgeCategory, 否则秩序册向导按组别×性别×项目筛 _swimmers 时接力项目漏出
             _swimmers.Add(new Swimmer {
                 BibNumber = teamBib, Name = teamName, Gender = gender, Country = teamName,
-                EventName = eventName,
+                EventName = eventName, AgeCategory = ageGroup,
                 EntryTime = entryTimeStr, EntryTimeSeconds = entrySec,
                 Notes = string.Format("接力队 棒次:{0}", legNames)
             });
@@ -9148,8 +9274,9 @@ namespace SwimmingScoreboard
         }
 
         // 2026-05-24 接力队 CSV 模板表头 — 导出/导入必须严格匹配
+        // 2026-05-25 增加「组别」列, 总列数 17→18
         private static readonly string[] RelayCsvHeader = new[] {
-            "队名", "项目", "性别", "报名成绩",
+            "队名", "组别", "项目", "性别", "报名成绩",
             "第1棒姓名", "第1棒身份证", "第1棒生日",
             "第2棒姓名", "第2棒身份证", "第2棒生日",
             "第3棒姓名", "第3棒身份证", "第3棒生日",
@@ -9166,14 +9293,14 @@ namespace SwimmingScoreboard
             var sb = new StringBuilder();
             sb.AppendLine(string.Join(",", RelayCsvHeader));
             // 1 行示例（用户编辑前可参考）
-            sb.AppendLine("绵阳蓝鲸A队,4x100米自由泳接力,男,3:42.50," +
+            sb.AppendLine("绵阳蓝鲸A队,少年组,4x100米自由泳接力,男,3:42.50," +
                           "张三,510102200505010001,2005-05-01," +
                           "李四,510102200505010002,2005-05-02," +
                           "王五,510102200505010003,2005-05-03," +
                           "赵六,510102200505010004,2005-05-04,示例（删除本行后填真数据）");
             File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
             MessageBox.Show("已导出接力报名模板:\n" + dlg.FileName +
-                "\n\n表头共 17 列，编辑后用「导入CSV」回灌；生日格式 yyyy-MM-dd，报名成绩格式 mm:ss.ff 或 ss.ff。",
+                "\n\n表头共 18 列（含组别），编辑后用「导入CSV」回灌；生日格式 yyyy-MM-dd，报名成绩格式 mm:ss.ff 或 ss.ff。",
                 "完成");
         }
 
@@ -9192,7 +9319,7 @@ namespace SwimmingScoreboard
                 var legs = new RelayLeg[4];
                 for (int i = 0; i < t.Legs.Count && i < 4; i++) legs[i] = t.Legs[i];
                 sb.AppendLine(string.Join(",", new[] {
-                    CsvEsc(t.TeamName), CsvEsc(t.EventName), CsvEsc(t.Gender), CsvEsc(t.EntryTime),
+                    CsvEsc(t.TeamName), CsvEsc(t.AgeGroup ?? ""), CsvEsc(t.EventName), CsvEsc(t.Gender), CsvEsc(t.EntryTime),
                     CsvEsc(legs[0] != null ? legs[0].SwimmerName : ""), CsvEsc(legs[0] != null ? legs[0].SwimmerIDNumber : ""), CsvEsc(legs[0] != null ? legs[0].SwimmerBirthDate : ""),
                     CsvEsc(legs[1] != null ? legs[1].SwimmerName : ""), CsvEsc(legs[1] != null ? legs[1].SwimmerIDNumber : ""), CsvEsc(legs[1] != null ? legs[1].SwimmerBirthDate : ""),
                     CsvEsc(legs[2] != null ? legs[2].SwimmerName : ""), CsvEsc(legs[2] != null ? legs[2].SwimmerIDNumber : ""), CsvEsc(legs[2] != null ? legs[2].SwimmerBirthDate : ""),
@@ -9237,7 +9364,7 @@ namespace SwimmingScoreboard
             var relayEvents = new HashSet<string>(_events.Where(ev => ev != null && ev.Contains("接力")));
             // 现有队伍 (避免重复)
             var existingKeys = new HashSet<string>();
-            foreach (var t in _relayTeams) existingKeys.Add((t.TeamName ?? "") + "|" + (t.EventName ?? "") + "|" + (t.Gender ?? ""));
+            foreach (var t in _relayTeams) existingKeys.Add((t.TeamName ?? "") + "|" + (t.EventName ?? "") + "|" + (t.Gender ?? "") + "|" + (t.AgeGroup ?? ""));
 
             int importedCount = 0, pendingCount = 0;
             var skipped = new List<string>();
@@ -9251,9 +9378,10 @@ namespace SwimmingScoreboard
                     continue;
                 }
                 string teamName = (c[0] ?? "").Trim();
-                string evName   = (c[1] ?? "").Trim();
-                string gender   = (c[2] ?? "").Trim();
-                string entryTime = (c[3] ?? "").Trim();
+                string ageGrp   = (c[1] ?? "").Trim();   // 2026-05-25 新增组别列
+                string evName   = (c[2] ?? "").Trim();
+                string gender   = (c[3] ?? "").Trim();
+                string entryTime = (c[4] ?? "").Trim();
 
                 if (string.IsNullOrEmpty(teamName)) { skipped.Add(string.Format("第 {0} 行: 缺少队名", li + 1)); continue; }
                 if (string.IsNullOrEmpty(evName))   { skipped.Add(string.Format("第 {0} 行 [{1}]: 缺少项目", li + 1, teamName)); continue; }
@@ -9266,22 +9394,22 @@ namespace SwimmingScoreboard
                     skipped.Add(string.Format("第 {0} 行 [{1}]: 性别「{2}」无效 (应为 男/女/混合)", li + 1, teamName, gender));
                     continue;
                 }
-                string dedupKey = teamName + "|" + evName + "|" + gender;
+                string dedupKey = teamName + "|" + evName + "|" + gender + "|" + ageGrp;
                 if (existingKeys.Contains(dedupKey)) {
-                    skipped.Add(string.Format("第 {0} 行 [{1}]: 同队名+项目+性别已存在", li + 1, teamName));
+                    skipped.Add(string.Format("第 {0} 行 [{1}]: 同队名+项目+性别+组别已存在", li + 1, teamName));
                     continue;
                 }
 
-                // 4 棒
+                // 4 棒 (列起始位移 +1 因为组别插入)
                 var legNames = new string[4];
                 var legIds = new string[4];
                 var legBirths = new string[4];
                 bool missingLegName = false;
                 int legBirthMissing = 0;
                 for (int k = 0; k < 4; k++) {
-                    legNames[k] = (c[4 + k * 3] ?? "").Trim();
-                    legIds[k]   = (c[5 + k * 3] ?? "").Trim();
-                    legBirths[k]= (c[6 + k * 3] ?? "").Trim();
+                    legNames[k] = (c[5 + k * 3] ?? "").Trim();
+                    legIds[k]   = (c[6 + k * 3] ?? "").Trim();
+                    legBirths[k]= (c[7 + k * 3] ?? "").Trim();
                     if (string.IsNullOrEmpty(legNames[k])) missingLegName = true;
                     if (string.IsNullOrEmpty(legBirths[k])) legBirthMissing++;
                 }
@@ -9292,7 +9420,7 @@ namespace SwimmingScoreboard
 
                 // 通过校验，建队
                 var team = new RelayTeam {
-                    TeamName = teamName, EventName = evName, Gender = gender,
+                    TeamName = teamName, EventName = evName, Gender = gender, AgeGroup = ageGrp,
                     EntryTime = entryTime,
                     EntryTimeSeconds = string.IsNullOrEmpty(entryTime) ? 0 : TimeFormatter.Parse(entryTime),
                     AgeCategoryPending = legBirthMissing > 0
@@ -9317,7 +9445,8 @@ namespace SwimmingScoreboard
                 while (_swimmers.Any(s => s.BibNumber == teamBib)) teamBib = "R" + DateTime.Now.Ticks.ToString().Substring(10);
                 _swimmers.Add(new Swimmer {
                     BibNumber = teamBib, Name = teamName, Gender = gender, Country = teamName,
-                    EventName = evName, EntryTime = entryTime, EntryTimeSeconds = team.EntryTimeSeconds,
+                    EventName = evName, AgeCategory = ageGrp,
+                    EntryTime = entryTime, EntryTimeSeconds = team.EntryTimeSeconds,
                     Notes = string.Format("接力队 棒次:{0}", legNamesStr)
                 });
                 for (int k = 0; k < 4; k++) {
@@ -9401,7 +9530,7 @@ namespace SwimmingScoreboard
                 string oldCountry = sel.Country;
                 var oldLegNames = sel.Legs.Select(l => l.SwimmerName ?? "").ToList();
 
-                var dlg = new EditRelayTeamWindow(sel, _events, _units) { Owner = this };
+                var dlg = new EditRelayTeamWindow(sel, _events, _units, _ageGroups.Select(g => g.Name)) { Owner = this };
                 bool? r = dlg.ShowDialog();
                 if (r != true || !dlg.Confirmed) return;
 
@@ -9815,13 +9944,13 @@ namespace SwimmingScoreboard
                 return;
             }
 
-            // 按 性别+项目 分组
-            var groups = _relayTeams.GroupBy(t => new { t.Gender, t.EventName })
-                .OrderBy(g => g.Key.Gender).ThenBy(g => g.Key.EventName);
+            // 2026-05-25 按 组别+性别+项目 三键分组 (原只按 性别+项目, 不同组别会合并到同一面板)
+            var groups = _relayTeams.GroupBy(t => new { AgeGroup = t.AgeGroup ?? "", t.Gender, t.EventName })
+                .OrderBy(g => g.Key.AgeGroup).ThenBy(g => g.Key.Gender).ThenBy(g => g.Key.EventName);
 
             foreach (var group in groups) {
-                // 项目标题（蓝底）
-                string title = string.Format("{0} {1}（{2}队）", group.Key.Gender, group.Key.EventName, group.Count());
+                string ageTag = string.IsNullOrEmpty(group.Key.AgeGroup) ? "" : "[" + group.Key.AgeGroup + "] ";
+                string title = string.Format("{0}{1} {2}（{3}队）", ageTag, group.Key.Gender, group.Key.EventName, group.Count());
                 var header = new TextBlock {
                     Text = title,
                     FontWeight = FontWeights.Bold, FontSize = 15,
@@ -9844,6 +9973,7 @@ namespace SwimmingScoreboard
                     BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#E2E8F0"))
                 };
                 grid.Columns.Add(new DataGridTextColumn { Header = "队名", Binding = new System.Windows.Data.Binding("TeamName"), Width = new DataGridLength(100) });
+                grid.Columns.Add(new DataGridTextColumn { Header = "组别", Binding = new System.Windows.Data.Binding("AgeGroup"), Width = new DataGridLength(60) });
                 grid.Columns.Add(new DataGridTextColumn { Header = "报名成绩", Binding = new System.Windows.Data.Binding("EntryTime"), Width = new DataGridLength(80) });
                 grid.Columns.Add(new DataGridTextColumn { Header = "棒次", Binding = new System.Windows.Data.Binding("LegOrderDisplay"), Width = new DataGridLength(1, DataGridLengthUnitType.Star) });
                 grid.Columns.Add(new DataGridTextColumn { Header = "阶段", Binding = new System.Windows.Data.Binding("Stage"), Width = new DataGridLength(50) });
@@ -13242,7 +13372,7 @@ namespace SwimmingScoreboard
             if (HostBox != null) HostBox.Text = "";
             if (TechDelegateBox != null) TechDelegateBox.Text = "";
             if (RefereeBox != null) RefereeBox.Text = "";
-            if (StarterBox != null) StarterBox.Text = "";
+            if (ArbiterBox != null) ArbiterBox.Text = "";   // 2026-05-26 取代了 StarterBox
             if (ChiefJudgeBox != null) ChiefJudgeBox.Text = "";
             if (PoolLengthCombo != null) PoolLengthCombo.SelectedIndex = 0;
             if (LaneCountCombo != null) LaneCountCombo.SelectedIndex = 0;
@@ -13491,7 +13621,8 @@ namespace SwimmingScoreboard
                 Host = HostBox.Text,
                 TechnicalDelegate = TechDelegateBox.Text,
                 Referee = RefereeBox.Text,
-                Starter = StarterBox.Text,
+                Starter = "",                 // 2026-05-26 UI 已删除发令员
+                Arbiter = ArbiterBox.Text,    // 2026-05-26 仲裁委员（多人逗号分隔）
                 ChiefJudge = ChiefJudgeBox.Text,
                 Swimmers = _swimmers.ToList(),
                 RelayTeams = _relayTeams.ToList(),
@@ -13817,7 +13948,9 @@ namespace SwimmingScoreboard
                 HostBox.Text = package.Host ?? "";
                 TechDelegateBox.Text = package.TechnicalDelegate ?? "";
                 RefereeBox.Text = package.Referee ?? "";
-                StarterBox.Text = package.Starter ?? "";
+                // 2026-05-26 UI 已删发令员，旧存档的 Starter 合并到仲裁委员展示前缀避免数据丢失
+                ArbiterBox.Text = package.Arbiter
+                    ?? (string.IsNullOrEmpty(package.Starter) ? "" : "(原发令员: " + package.Starter + ")");
                 ChiefJudgeBox.Text = package.ChiefJudge ?? "";
 
                 _poolConfig.Length = package.PoolLength > 0 ? package.PoolLength : 50;
@@ -13919,6 +14052,7 @@ namespace SwimmingScoreboard
                                     Gender = rt.Gender,
                                     Country = rt.TeamName,
                                     EventName = rt.EventName,
+                                    AgeCategory = rt.AgeGroup,    // 2026-05-25 接力组别同步
                                     EntryTime = rt.EntryTime,
                                     EntryTimeSeconds = rt.EntryTimeSeconds,
                                     CurrentStage = rt.Stage ?? "预赛",
@@ -14317,6 +14451,7 @@ namespace SwimmingScoreboard
                 _runningTime = 0;
                 _firstPlaceFinishTime = "";
                 _firstPlaceShowStart = DateTime.MinValue;
+                _lastLeaderSplitCount = 0;   // 2026-05-26 测试模式入口也清 1 名 split-count 跟踪
                 if (RunningTimeText != null) {
                     RunningTimeText.Text = "0.00";
                     RunningTimeText.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F59E0B"));
@@ -16087,7 +16222,7 @@ namespace SwimmingScoreboard
         }
         private void PrintEventResults_Click(object sender, RoutedEventArgs e) {
             var win = new EventResultPrintWindow(_swimmers, _schedule, _competitionName,
-                LocationBox.Text, RefereeBox.Text, ChiefJudgeBox.Text, StarterBox.Text);
+                LocationBox.Text, RefereeBox.Text, ChiefJudgeBox.Text, ArbiterBox.Text);  // 2026-05-26 末参数原为 StarterBox，UI 删发令员后改传 ArbiterBox
             win.Owner = this;
             win.ShowDialog();
         }
@@ -16422,9 +16557,9 @@ namespace SwimmingScoreboard
         }
 
         private string DocSignatureRow() {
+            // 2026-05-26 删除"编排长"签字行 (历史代码里这里的"裁判长"实际填的是 ChiefJudgeBox / 即编排长数据)
             return string.Format("<div class='signature-row'>"
-                + "<p>裁判长：{0}</p><p>裁判：{1}</p><p>记录长：__________________</p></div>",
-                !string.IsNullOrEmpty(ChiefJudgeBox.Text) ? ChiefJudgeBox.Text + "___________" : "__________________",
+                + "<p>裁判：{0}</p><p>记录长：__________________</p></div>",
                 !string.IsNullOrEmpty(RefereeBox.Text) ? RefereeBox.Text + "___________" : "__________________");
         }
 
@@ -16503,8 +16638,8 @@ namespace SwimmingScoreboard
             string host = HostBox.Text ?? "";
             string techDel = TechDelegateBox.Text ?? "";
             string referee = RefereeBox.Text ?? "";
-            string starter = StarterBox.Text ?? "";
-            string chiefJ = ChiefJudgeBox.Text ?? "";
+            string arbiter = ArbiterBox.Text ?? "";   // 2026-05-26 取代 starter
+            // 2026-05-26 已删"编排长"字段 (ChiefJudgeBox 仅作隐藏占位以兼容 .csproj)
             string compName = string.IsNullOrEmpty(_competitionName) ? "游泳比赛" : _competitionName;
             var pb = _programBook ?? new ProgramBookData();
 
@@ -16607,8 +16742,8 @@ namespace SwimmingScoreboard
             sb.Append("<table>");
             sb.AppendFormat("<tr><th width='130'>技术代表</th><td>{0}</td><th width='130'>总裁判长</th><td>{1}</td></tr>",
                 Hyphen(techDel), Hyphen(referee));
-            sb.AppendFormat("<tr><th>发令员</th><td>{0}</td><th>编排长</th><td>{1}</td></tr>",
-                Hyphen(starter), Hyphen(chiefJ));
+            // 2026-05-26 删除"编排长"行；仲裁委员独占一行 (colspan 占满)
+            sb.AppendFormat("<tr><th>仲裁委员</th><td colspan='3'>{0}</td></tr>", Hyphen(arbiter));
             sb.Append("</table>");
             if (pb.Officials != null && pb.Officials.Count > 0) {
                 sb.Append("<h4>技术官员名单</h4>");
@@ -17620,7 +17755,7 @@ namespace SwimmingScoreboard
                     sb.Append("</div></div>");
                     sb.Append("<div class='cert-fields'>");
                     sb.AppendFormat("<div class='cert-field'><span class='field-label'>参赛单位：</span><span class='field-value'>{0}</span></div>", sw.Country ?? "");
-                    sb.AppendFormat("<div class='cert-field'><span class='field-label'>裁判长签字：</span><span class='field-value'>{0}</span></div>", ChiefJudgeBox.Text ?? "");
+                    // 2026-05-26 删除"裁判长签字"行 (该字段历史用 ChiefJudgeBox 即编排长数据)
                     sb.Append("<div class='cert-field'><span class='field-label'>赛事组委会盖章：</span><span class='field-blank'>&nbsp;</span></div>");
                     string dateStr = GetDatePickerText(StartDatePicker);
                     DateTime dt;
@@ -17678,7 +17813,7 @@ namespace SwimmingScoreboard
             sb.Append("特发此证，以表彰其杰出成就。");
             sb.Append("</div></div>");
             sb.Append("<div class='cert-fields'>");
-            sb.AppendFormat("<div class='cert-field'><span class='field-label'>裁判长签字：</span><span class='field-value'>{0}</span></div>", ChiefJudgeBox.Text ?? "");
+            // 2026-05-26 删除"裁判长签字"行 (该字段历史用 ChiefJudgeBox 即编排长数据)
             sb.Append("<div class='cert-field'><span class='field-label'>赛事组委会盖章：</span><span class='field-blank'>&nbsp;</span></div>");
             string dateStr = GetDatePickerText(StartDatePicker);
             DateTime dt;

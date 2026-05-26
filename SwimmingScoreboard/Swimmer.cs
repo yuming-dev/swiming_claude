@@ -624,6 +624,12 @@ namespace SwimmingScoreboard
             get { return string.IsNullOrEmpty(_country) ? _teamName : _country; }
             set { _country = value; OnPropertyChanged("Country"); }
         }
+        // 2026-05-25 接力队组别 (与运动员 AgeCategory 对应) - 用于秩序册按组别分类显示接力项目
+        private string _ageGroup;
+        public string AgeGroup {
+            get { return _ageGroup; }
+            set { _ageGroup = value; OnPropertyChanged("AgeGroup"); }
+        }
 
         public string TeamName {
             get { return _teamName; }
@@ -997,6 +1003,14 @@ namespace SwimmingScoreboard
             get { return _laneCloseCountdown; }
             set { _laneCloseCountdown = value; OnPropertyChanged("LaneCloseCountdown"); }
         }
+        // 2026-05-25 修复倒计时漂移: 用 DateTime 锚点替代每 100ms -=0.1 累减
+        // (DispatcherTimer 在 UI 繁忙时漂移 15-18%; 设 5s→实际 5.9s, 20s→23.2s)
+        // 触板时设 = DateTime.Now; Tick 用 (Now-CountdownStartedAt).TotalSeconds 判断到时
+        // 不参与 JSON 序列化也不广播 (运行时计算用)
+        [Newtonsoft.Json.JsonIgnore]
+        public DateTime CountdownStartedAt { get; set; }
+        [Newtonsoft.Json.JsonIgnore]
+        public double CountdownTargetSec { get; set; }
         public double LaneCloseTime {
             get { return _laneCloseTime; }
             set { _laneCloseTime = value; OnPropertyChanged("LaneCloseTime"); }
@@ -1497,7 +1511,11 @@ namespace SwimmingScoreboard
         // UDP 发送目标
         public string UdpSendHost { get; set; }
         public int UdpSendPort { get; set; }
-        // 启动时是否自动按 LastType 重连（默认 false，避免硬件未上电时反复尝试）
+        // 启动时是否自动按 LastType 重连
+        // 2026-05-25 默认改为 true (需求 #17)：用户希望"重启软件以后自动恢复所有
+        //   设置 (含硬件计时器连接)"，不需要每次手动点连接。OnStatusChanged 在硬件
+        //   连接成功后会自动下发 SendTimingSettingsToHardware 等完整参数包给硬件。
+        //   如要手动控制连接，仍可在"参数设置→连接"对话框关闭该开关。
         public bool AutoReconnectOnStartup { get; set; }
 
         public TimingConnectionConfig() {
@@ -1509,7 +1527,7 @@ namespace SwimmingScoreboard
             UdpListenPort = 5001;
             UdpSendHost = "127.0.0.1";
             UdpSendPort = 5002;
-            AutoReconnectOnStartup = false;
+            AutoReconnectOnStartup = true;
         }
     }
 
@@ -1650,7 +1668,9 @@ namespace SwimmingScoreboard
         public string Host { get; set; }
         public string TechnicalDelegate { get; set; }
         public string Referee { get; set; }
-        public string Starter { get; set; }
+        public string Starter { get; set; }   // 2026-05-26 已从 UI 移除（保留字段以兼容旧存档）
+        // 2026-05-26 仲裁委员（多人逗号分隔）— 在 UI 上替代了「发令员」位置
+        public string Arbiter { get; set; }
         public string ChiefJudge { get; set; }
         public List<string> Officials { get; set; }
         public List<Swimmer> Swimmers { get; set; }

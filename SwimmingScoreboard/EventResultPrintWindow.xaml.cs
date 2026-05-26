@@ -349,10 +349,8 @@ namespace SwimmingScoreboard
             }
             sb.Append("</table>");
 
-            // 签名栏
+            // 签名栏 (2026-05-26 删除"编排长"签字行)
             sb.Append("<div class='signature-row'>");
-            sb.AppendFormat("<p>裁判长：{0}</p>",
-                !string.IsNullOrEmpty(_chiefJudge) ? _chiefJudge + "___________" : "__________________");
             sb.AppendFormat("<p>裁判：{0}</p>",
                 !string.IsNullOrEmpty(_referee) ? _referee + "___________" : "__________________");
             sb.Append("<p>记录长：__________________</p>");

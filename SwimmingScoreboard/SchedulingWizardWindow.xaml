@@ -326,7 +326,7 @@
                                     ToolTip="添加左边选中项目至右表选中行的下一行（或追加到末尾）"/>
                             <Button Content="自动" Click="DistAuto_Click" Margin="0,12,0,4" Padding="0,8"
                                     Background="#3B82F6" Foreground="White" BorderThickness="0" FontWeight="Bold"
-                                    ToolTip="按默认时段/用时一次性自动分配全部待分配项目"/>
+                                    ToolTip="按「赛事概览」开始/结束日期一次性多天平铺分配，每时段满 240 分钟自动滚到下一天"/>
                             <Button Content="←" Click="DistMoveBack_Click" Margin="0,12,0,4" Padding="0,8"
                                     Background="#F59E0B" Foreground="White" BorderThickness="0" FontWeight="Bold"
                                     ToolTip="删除右表选中行的已分配项目（移回待分配）"/>
