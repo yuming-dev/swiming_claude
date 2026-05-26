@@ -41,6 +41,8 @@ namespace SwimmingScoreboard
         private System.Collections.ObjectModel.ObservableCollection<Unit> _units = new System.Collections.ObjectModel.ObservableCollection<Unit>();
         // 2026-05-24 P0-D 工作人员表（5 组）
         private System.Collections.ObjectModel.ObservableCollection<StaffMember> _staff = new System.Collections.ObjectModel.ObservableCollection<StaffMember>();
+        // 2026-05-25 秩序册向导草稿（中途修改未确认时保存, 下次打开恢复）
+        private WizardDraft _wizardDraft;
         // 已"确认本组成绩"并锁定的组次，key = "<组别>|<性别>|<项目>|<赛次>|<组次>"
         // 一旦加入永不自动移除，确保赛程导航中的"已完赛"标志稳定
         private HashSet<string> _confirmedHeats = new HashSet<string>();
@@ -3077,6 +3079,18 @@ namespace SwimmingScoreboard
             // 这样硬件清零后只要它发 0x7F=0，软件立刻同步；硬件继续走时则软件也跟着；
             // 唯一保留 0 的场景是从未连接到硬件 / 硬件未发任何 0x7F。
             if (cmdType == "RunningTime") {
+                // 2026-05-25 修复 #6: 计时复位后 1.5 秒内硬件可能还在发非零的 0x7F 残余帧
+                // (硬件 0x20 处理有延迟), 这些帧会覆盖刚刚被复位为 0 的 _runningTime, 导致
+                // 大屏/计时控制台显示不归零。窗口期内强制保持 0 并广播 0 给所有客户端。
+                if (_lastResetAt != DateTime.MinValue && (DateTime.Now - _lastResetAt).TotalSeconds < 1.5) {
+                    _runningTime = 0;
+                    _hwRunningTimeSec = 0;
+                    _hwRunningTimeReceivedAt = DateTime.Now;
+                    _hwRunningTimeAvailable = true;
+                    if (RunningTimeText != null) RunningTimeText.Text = "0.00";
+                    BroadcastRunningTime();
+                    return;
+                }
                 _hwRunningTimeSec = timeInSeconds;
                 _hwRunningTimeReceivedAt = DateTime.Now;
                 _hwRunningTimeAvailable = true;
@@ -3833,21 +3847,8 @@ namespace SwimmingScoreboard
         }
 
         private void ProcessTouchpadHit(int lane, double time, LaneDeviceState laneState) {
-            // 第1名成绩检测：不管哪个泳道，hold时间过期后最先收到的触板就是新的第1名
-            if (time > 0) {
-                double holdSec = _laneCloseSettings.FirstPlaceHoldTime > 0 ? _laneCloseSettings.FirstPlaceHoldTime : 3;
-                bool holdExpired = _firstPlaceShowStart == DateTime.MinValue ||
-                                   (DateTime.Now - _firstPlaceShowStart).TotalSeconds >= holdSec;
-                if (holdExpired) {
-                    _firstPlaceFinishTime = TimeFormatter.Format(time);
-                    _firstPlaceShowStart = DateTime.Now;
-                    // 立即更新滚动时间显示（不等下一个timer tick）
-                    if (RunningTimeText != null) {
-                        RunningTimeText.Text = _firstPlaceFinishTime;
-                        RunningTimeText.Foreground = _firstPlaceBrush;
-                    }
-                }
-            }
+            // 2026-05-25 修复 #7: 移除"hold 过期就当新的 1 名"逻辑(会把 2/3 名触板时间也显示).
+            // 1 名检测改到 split 保存后做 (见本函数末尾): 只在此泳道触板后是 当前 lap 最快 才更新滚动时间.
 
             // 获取当前运动员（优先StageAssignment泳道号，兼容sw.Lane）
             var swimmer = GetCurrentHeatSwimmers().FirstOrDefault(s => {
@@ -4023,6 +4024,45 @@ namespace SwimmingScoreboard
                 };
                 closeTimer.Start();
             }
+
+            // 2026-05-25 修复 #7: 只有 当前 lane 在本次触板后是【1 名】时, 才把它的时间打到滚动时间区显示+保持
+            // 1 名判定: 在所有当前组运动员里 → 各自最新已完成 split → 取 (最大已完成 lap, 最小累计时间) 的那位
+            // 若 lane 不是这个 1 名 → 不动 _firstPlaceShowStart, 让显示继续滚动或继续显示上次 1 名的时间
+            try {
+                if (time > 0) {
+                    int leaderLane = -1;
+                    int leaderMaxLap = -1;
+                    double leaderMinCumulative = double.MaxValue;
+                    foreach (var sw in GetCurrentHeatSwimmers()) {
+                        var saS = sw.GetAssignmentForStage(_currentStage);
+                        int laneNum = (saS != null && saS.Lane > 0) ? saS.Lane : sw.Lane;
+                        if (laneNum <= 0) continue;
+                        if (sw.Status == "DSQ" || sw.Status == "DNS" || sw.Status == "DNF") continue;
+                        var rs = sw.Results.FirstOrDefault(r => r.Stage == _currentStage && r.Heat == _currentHeat);
+                        if (rs == null) continue;
+                        // 找该 swimmer 最新已完成的 split (有触板时间)
+                        SplitTime lastSp = null;
+                        foreach (var sp in rs.Splits) {
+                            if (sp.CumulativeTime > 0 && (lastSp == null || sp.Lap > lastSp.Lap)) lastSp = sp;
+                        }
+                        if (lastSp == null) continue;
+                        // 比较: 更高 lap 优先, 同 lap 则比累计时间
+                        if (lastSp.Lap > leaderMaxLap || (lastSp.Lap == leaderMaxLap && lastSp.CumulativeTime < leaderMinCumulative)) {
+                            leaderMaxLap = lastSp.Lap;
+                            leaderMinCumulative = lastSp.CumulativeTime;
+                            leaderLane = laneNum;
+                        }
+                    }
+                    if (leaderLane == lane) {
+                        _firstPlaceFinishTime = TimeFormatter.Format(time);
+                        _firstPlaceShowStart = DateTime.Now;
+                        if (RunningTimeText != null) {
+                            RunningTimeText.Text = _firstPlaceFinishTime;
+                            RunningTimeText.Foreground = _firstPlaceBrush;
+                        }
+                    }
+                }
+            } catch { }
         }
 
         /// <summary>
@@ -4744,6 +4784,7 @@ namespace SwimmingScoreboard
                 _hwRunningTimeAvailable = false;
                 _hwRunningTimeReceivedAt = DateTime.MinValue;
                 _hwRunningTimeSec = 0;
+                _lastResetAt = DateTime.Now;   // 2026-05-25 修复 #6: 同样标记, 让 ProcessTimingData 抑制硬件残余帧
                 if (RunningTimeText != null) RunningTimeText.Text = "0.00";
                 try { UpdateRaceStateDisplay(); } catch { }
                 if (sender == null) {
@@ -5071,10 +5112,25 @@ namespace SwimmingScoreboard
             if (!_initialized) return;
             if (e.OriginalSource != MainTabControl) return;   // 仅顶层 Tab 切换才处理（跳过子标签事件冒泡）
             var selected = MainTabControl.SelectedItem as TabItem;
-            if (selected != null && selected.Header != null && selected.Header.ToString() == "成绩与排名") {
+            if (selected == null || selected.Header == null) return;
+            string header = selected.Header.ToString();
+            if (header == "成绩与排名") {
                 try { RefreshAllAgeGroupFilterCombos(); } catch { }
                 try { UpdateResultHeatCombo(); } catch { }
                 try { RefreshResultGrid(); } catch { }
+            }
+            // 2026-05-25 修复 #5: 进入「比赛控制」Tab 时, 若硬件已连接, 自动把当前已加载的
+            // 计时参数 + 发令点 推给硬件并广播给所有客户端,
+            // 免去用户每次都要手动打开「参数设置」对话框点保存才能让设置生效
+            if (header == "比赛控制" && _timingBridge != null && _timingBridge.IsConnected) {
+                try {
+                    SendTimingSettingsToHardware();
+                    SendStartPositionToHardware();
+                    Broadcast();
+                    AddLog("进入比赛控制 → 已自动推送参数到硬件 + 广播给客户端 (无需手动打开参数设置)");
+                } catch (Exception ex) {
+                    AddLog("自动推送参数失败: " + ex.Message);
+                }
             }
         }
 
@@ -11443,14 +11499,29 @@ namespace SwimmingScoreboard
             var wnd = new SchedulingWizardWindow(_swimmers, _events, _ageGroups, _genders, _poolConfig, _scoringConfig, _durationConfig, _units, _staff) {
                 Owner = this
             };
+            // 2026-05-25 草稿: 中途关窗时存到 _wizardDraft, 下次再打开自动恢复
+            wnd.InitialDraft = _wizardDraft;
+            wnd.SaveDraftCallback = draft => { _wizardDraft = draft; AutoSaveData(); };
+            wnd.HasExistingScheduleProbe = () => _schedule != null && _schedule.Any(s => !string.IsNullOrEmpty(s.EventName));
+            // 2026-05-25 提供比赛元信息给「编辑/打印 封面 / 仲裁裁判员名单」等模板用
+            wnd.CompetitionNameInfo = _competitionName;
+            wnd.CompetitionLocation = LocationBox != null ? LocationBox.Text : "";
+            wnd.CompetitionStartDate = GetDatePickerText(StartDatePicker);
+            wnd.CompetitionEndDate = GetDatePickerText(EndDatePicker);
+            wnd.CompetitionOrganizer = OrganizerBox != null ? OrganizerBox.Text : "";
+            wnd.ExistingSchedule = _schedule;
             bool? ok = wnd.ShowDialog();
             // Tab 3 "应用编排到主程序赛程" 后写回 _schedule
             if (wnd.ApplyToMainSchedule && wnd.AssignedItems != null && wnd.AssignedItems.Count > 0) {
                 _schedule.Clear();
-                // 按日期+时段重新分配 SessionNumber
+                // 2026-05-25 按日期+时段重新分配 SessionNumber
+                // 修复: 中文 OrderBy 默认按拼音排序 (s<w<x → 上午<晚上<下午), 必须用显式数值序避免错位
+                Func<string, int> sessionRank = s => s == "上午" ? 0 : s == "下午" ? 1 : s == "晚上" ? 2 : 9;
                 var bySession = wnd.AssignedItems
                     .GroupBy(a => (a.Date ?? "") + "|" + (a.Session ?? ""))
-                    .OrderBy(g => g.Key).ToList();
+                    .OrderBy(g => g.First().Date ?? "")
+                    .ThenBy(g => sessionRank(g.First().Session ?? ""))
+                    .ToList();
                 int sessionNum = 1;
                 foreach (var grp in bySession) {
                     foreach (var a in grp.OrderBy(x => x.Time)) {
@@ -11472,8 +11543,15 @@ namespace SwimmingScoreboard
                     sessionNum++;
                 }
                 AutoSaveData();
-                AddLog(string.Format("✅ 秩序册向导：已写回赛程 {0} 项，共 {1} 个单元", wnd.AssignedItems.Count, sessionNum - 1));
-                MessageBox.Show(string.Format("已把 {0} 项编排写回主程序赛程。\n请到 '赛程与分组' Tab 查看。", wnd.AssignedItems.Count), "完成");
+                // 2026-05-25 存盘后立刻刷新整个系统的 UI: 赛程树 / 3 级导航 / 各 Tab combo / 大屏广播
+                BuildScheduleTree();         // 同时触发 RebuildBothNavTrees + RefreshSwimmerStages
+                UpdateResultHeatCombo();
+                RefreshResultGrid();
+                UpdateEditHeatCombo();
+                RefreshEventComboBoxes();
+                Broadcast();
+                AddLog(string.Format("✅ 秩序册向导：已写回赛程 {0} 项，共 {1} 个单元（UI 已全量刷新）", wnd.AssignedItems.Count, sessionNum - 1));
+                MessageBox.Show(string.Format("已把 {0} 项编排写回主程序赛程，整个系统已立即更新。", wnd.AssignedItems.Count), "完成");
             }
         }
 
@@ -13428,6 +13506,7 @@ namespace SwimmingScoreboard
                 BibRanges = _bibRanges,
                 Units = _units.ToList(),
                 StaffList = _staff.ToList(),
+                WizardDraft = _wizardDraft,
                 LaneCloseSettings = _laneCloseSettings,
                 ScoringConfig = _scoringConfig,
                 DurationConfig = _durationConfig,
@@ -13793,6 +13872,8 @@ namespace SwimmingScoreboard
                         _staff.Add(s);
                     }
                 }
+                // 2026-05-25 秩序册向导草稿
+                _wizardDraft = package.WizardDraft;
                 _programBook = package.ProgramBook ?? new ProgramBookData();
                 _resultBook = package.ResultBook ?? new ResultBookData();
                 if (!string.IsNullOrEmpty(package.DisplayRecordLabel)) _displayRecordLabel = package.DisplayRecordLabel;

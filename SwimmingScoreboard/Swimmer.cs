@@ -1668,6 +1668,8 @@ namespace SwimmingScoreboard
         public List<Unit> Units { get; set; }
         // 2026-05-24 P0-D 工作人员表（5 组 + 游泳赛事专属岗位）
         public List<StaffMember> StaffList { get; set; }
+        // 2026-05-25 秩序册向导草稿（用户中途关闭未确认时保存, 下次自动恢复）
+        public WizardDraft WizardDraft { get; set; }
         public LaneCloseSettings LaneCloseSettings { get; set; }
         public Dictionary<string, List<string>> DisputeLog { get; set; }
         public ProgramBookData ProgramBook { get; set; }

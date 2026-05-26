@@ -61,8 +61,58 @@ namespace SwimmingScoreboard
             StagePlanGrid.ItemsSource = _planRows;
             NavList.SelectedIndex = 0;   // 默认进入 Tab 1
 
-            // 初始自动统计一次，免得用户首次进来看到空表
-            AutoComputeStages_Click(null, null);
+            // 2026-05-25 草稿恢复或自动统计一次
+            // (InitialDraft 在 Loaded 事件里加载, 因为 caller 设置 InitialDraft 在构造之后)
+            Loaded += delegate { RestoreDraftIfAny(); };
+            Closing += delegate { SaveDraftIfNotApplied(); };
+        }
+
+        private void RestoreDraftIfAny() {
+            if (InitialDraft != null && InitialDraft.HasData) {
+                _planRows.Clear();
+                foreach (var r in InitialDraft.PlanRows) _planRows.Add(CloneRow(r));
+                _distPending.Clear();
+                foreach (var d in InitialDraft.DistPending) _distPending.Add(CloneDistEntry(d));
+                _distAssigned.Clear();
+                foreach (var d in InitialDraft.DistAssigned) _distAssigned.Add(CloneDistEntry(d));
+                _availableDates = InitialDraft.AvailableDates != null ? new List<string>(InitialDraft.AvailableDates) : new List<string>();
+                if (InitialDraft.SessionStartMin != null && InitialDraft.SessionStartMin.Length == 3)
+                    _sessionStartMin = (int[])InitialDraft.SessionStartMin.Clone();
+                UpdateTab1CountText();
+                StatusText.Text = "📂 已恢复上次未保存的草稿（可继续编辑或重新自动统计）";
+                StatusText.Foreground = new System.Windows.Media.SolidColorBrush(
+                    (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#7C3AED"));
+            } else {
+                AutoComputeStages_Click(null, null);
+            }
+        }
+
+        private void SaveDraftIfNotApplied() {
+            if (_draftWillClear) {
+                // 已确认存盘 → 清空草稿
+                if (SaveDraftCallback != null) SaveDraftCallback(new WizardDraft());
+                return;
+            }
+            if (SaveDraftCallback == null) return;
+            var d = new WizardDraft {
+                PlanRows = _planRows.Select(r => CloneRow(r)).ToList(),
+                DistPending = _distPending.Select(x => CloneDistEntry(x)).ToList(),
+                DistAssigned = _distAssigned.Select(x => CloneDistEntry(x)).ToList(),
+                AvailableDates = new List<string>(_availableDates),
+                SessionStartMin = (int[])_sessionStartMin.Clone()
+            };
+            try { SaveDraftCallback(d); } catch { }
+        }
+
+        private static DistEntry CloneDistEntry(DistEntry s) {
+            return new DistEntry {
+                AgeGroup = s.AgeGroup, Gender = s.Gender, EventName = s.EventName,
+                Participants = s.Participants, Heats = s.Heats, Cutoff = s.Cutoff,
+                Stage = s.Stage, HeatRange = s.HeatRange, MinPerHeat = s.MinPerHeat,
+                AssignedDate = s.AssignedDate, AssignedSession = s.AssignedSession,
+                AssignedTime = s.AssignedTime, AssignedSortKey = s.AssignedSortKey,
+                SeqInSession = s.SeqInSession
+            };
         }
 
         // ═══════════════════════════════════════════════════════════════
@@ -81,7 +131,7 @@ namespace SwimmingScoreboard
                 "秩序册 < 一键生成 > — 赛次开设计划",
                 "赛次设置方法（World Aquatics SW 3.1.1）",
                 "编排比赛日程表 — 双面板可视化",
-                "秩序册可选文档（15 项）",
+                "秩序册制作 < 可选文档 >",
                 "运动员兼项统计"
             };
             if (idx < titles.Length) TitleText.Text = titles[idx];
@@ -129,6 +179,9 @@ namespace SwimmingScoreboard
                             s.Gender == gender &&
                             (string.IsNullOrEmpty(ag) || s.AgeCategory == ag) &&
                             (s.Notes == null || !s.Notes.StartsWith("接力队员")));
+
+                        // 2026-05-25 只列有报名的项目（0 人不进表）
+                        if (count <= 0) continue;
 
                         var row = ComputeOneRow(ag, gender, ev, count, laneCount);
                         _planRows.Add(row);
@@ -411,6 +464,7 @@ namespace SwimmingScoreboard
             DistAssignedGrid.ItemsSource = _distVisible;
             RefreshDistVisible();
             UpdateDistCounters();
+            SyncStartTimeBoxToCurrentSession();
         }
 
         private void BuildDistPendingFromPlan() {
@@ -502,9 +556,20 @@ namespace SwimmingScoreboard
         }
         private void DistDay_Changed(object sender, SelectionChangedEventArgs e) {
             RefreshDistVisible();
+            SyncStartTimeBoxToCurrentSession();
         }
         private void DistSession_Changed(object sender, SelectionChangedEventArgs e) {
             RefreshDistVisible();
+            SyncStartTimeBoxToCurrentSession();
+        }
+        // 2026-05-25 切换时段/日期时, 顶部 开始时间 TextBox 显示该时段当前生效的起始时间
+        private void SyncStartTimeBoxToCurrentSession() {
+            if (DistStartTimeBox == null || DistSessionCombo == null) return;
+            string session = DistSessionCombo.SelectedItem != null
+                ? ((ComboBoxItem)DistSessionCombo.SelectedItem).Content.ToString() : "上午";
+            int idx = session == "下午" ? 1 : (session == "晚上" ? 2 : 0);
+            int m = _sessionStartMin[idx];
+            DistStartTimeBox.Text = string.Format("{0:D2}:{1:D2}", m / 60, m % 60);
         }
 
         private void RefreshDistVisible() {
@@ -674,8 +739,69 @@ namespace SwimmingScoreboard
         }
 
         private void DistAssignedGrid_CellEditEnding(object sender, DataGridCellEditEndingEventArgs e) {
-            // 用户改了 分/组 → 重新计算该时段后续项目的时间
-            Dispatcher.BeginInvoke(new Action(RecomputeAssignedTimes));
+            // 2026-05-25 当用户编辑了 "比赛时间" 列 → 以该行新时间为锚, 重排同时段后续项目时间
+            // 编辑 "分/组" → 重新计算该时段后续项目的时间
+            var col = e.Column;
+            var row = e.Row != null ? e.Row.Item as DistEntry : null;
+            string header = col != null ? (col.Header as string ?? "") : "";
+            if (row != null && header.Contains("比赛时间")) {
+                Dispatcher.BeginInvoke(new Action(() => RecomputeAssignedTimesFromAnchor(row)));
+            } else {
+                Dispatcher.BeginInvoke(new Action(RecomputeAssignedTimes));
+            }
+        }
+
+        // 2026-05-25 用户改了某行比赛时间 → 用它当 anchor, 同时段后续行时间按 (分/组 × 组数 + 间隔) 累加
+        private void RecomputeAssignedTimesFromAnchor(DistEntry anchor) {
+            if (anchor == null || string.IsNullOrEmpty(anchor.AssignedSession)) return;
+            int anchorMin = ParseHhMm(anchor.AssignedTime, -1);
+            if (anchorMin < 0) { RecomputeAssignedTimes(); return; }
+            anchor.AssignedSortKey = anchorMin;
+
+            // 同 day+session 的所有条目, 按 AssignedSortKey 排序, 把 anchor 之后的全部重排
+            var sameSession = _distAssigned.Where(x => x.AssignedDate == anchor.AssignedDate
+                                                    && x.AssignedSession == anchor.AssignedSession)
+                                            .OrderBy(x => x.AssignedSortKey).ToList();
+            int idx = sameSession.IndexOf(anchor);
+            if (idx < 0) { RecomputeAssignedTimes(); return; }
+            int t = anchorMin + Math.Max(1, anchor.Heats) * Math.Max(1, anchor.MinPerHeat) + _durationConfig.InterEventGapMinutes;
+            for (int i = idx + 1; i < sameSession.Count; i++) {
+                var d = sameSession[i];
+                d.AssignedTime = string.Format("{0:D2}:{1:D2}", t / 60, t % 60);
+                d.AssignedSortKey = t;
+                t += Math.Max(1, d.Heats) * Math.Max(1, d.MinPerHeat) + _durationConfig.InterEventGapMinutes;
+            }
+            RefreshDistVisible();
+        }
+        private static int ParseHhMm(string s, int fallback) {
+            if (string.IsNullOrEmpty(s)) return fallback;
+            var parts = s.Trim().Split(':');
+            int h, m;
+            if (parts.Length == 2 && int.TryParse(parts[0], out h) && int.TryParse(parts[1], out m)
+                && h >= 0 && h <= 23 && m >= 0 && m <= 59) return h * 60 + m;
+            return fallback;
+        }
+
+        // 2026-05-25 顶部 "开始时间" TextBox: 回车 / 失焦后用新时间替换当前时段的起始,
+        //   该时段全部条目重算时间
+        private void DistStartTime_KeyDown(object sender, System.Windows.Input.KeyEventArgs e) {
+            if (e.Key == System.Windows.Input.Key.Enter || e.Key == System.Windows.Input.Key.Return) {
+                ApplyStartTimeOverride();
+                e.Handled = true;
+            }
+        }
+        private void DistStartTime_LostFocus(object sender, RoutedEventArgs e) {
+            ApplyStartTimeOverride();
+        }
+        private void ApplyStartTimeOverride() {
+            int newStart = ParseHhMm(DistStartTimeBox.Text, -1);
+            if (newStart < 0) return;
+            // 把当前选中时段的起始时间替换为 newStart
+            string session = DistSessionCombo.SelectedItem != null
+                ? ((ComboBoxItem)DistSessionCombo.SelectedItem).Content.ToString() : "上午";
+            int idx = session == "下午" ? 1 : (session == "晚上" ? 2 : 0);
+            _sessionStartMin[idx] = newStart;
+            RecomputeAssignedTimes();
         }
 
         private void RecomputeAssignedTimes() {
@@ -707,12 +833,40 @@ namespace SwimmingScoreboard
                 AgeGroup = d.AgeGroup, Gender = d.Gender, EventName = d.EventName,
                 Stage = d.Stage, HeatCount = d.Heats, HeatRange = d.HeatRange
             }).ToList();
-            if (MessageBox.Show(string.Format("将 {0} 项编排写回主程序赛程？\n（旧赛程会被清除）", _distAssigned.Count),
-                "确认", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+            // 2026-05-25 已有赛程时弹覆盖确认
+            string warning = string.Format("即将存盘 {0} 项编排到主程序赛程。", _distAssigned.Count);
+            if (HasExistingSchedule()) {
+                warning += "\n\n⚠ 主程序已有赛程数据，本次操作将 [覆盖] 旧赛程！\n\n确认存盘？";
+            } else {
+                warning += "\n\n确认存盘？";
+            }
+            if (MessageBox.Show(warning, "确认赛程存盘", MessageBoxButton.OKCancel, MessageBoxImage.Warning) != MessageBoxResult.OK) return;
             ApplyToMainSchedule = true;
+            // 存盘成功 → 清除草稿 (避免下次打开看到已应用的旧草稿)
+            _draftWillClear = true;
             DialogResult = true;
             Close();
         }
+
+        // 调用方设置：判断主程序当前是否已有赛程
+        public Func<bool> HasExistingScheduleProbe { get; set; }
+        private bool HasExistingSchedule() {
+            try { return HasExistingScheduleProbe != null && HasExistingScheduleProbe(); } catch { return false; }
+        }
+
+        // 2026-05-25 草稿: 关窗时序列化整个向导状态供下次打开恢复
+        private bool _draftWillClear;
+        public Action<WizardDraft> SaveDraftCallback { get; set; }
+        public WizardDraft InitialDraft { get; set; }
+
+        // 2026-05-25 编辑/打印 用 — 由 MainWindow 注入比赛元信息, 用于封面/裁判名单等 RTF 模板填充
+        public string CompetitionNameInfo { get; set; }
+        public string CompetitionLocation { get; set; }
+        public string CompetitionStartDate { get; set; }
+        public string CompetitionEndDate { get; set; }
+        public string CompetitionOrganizer { get; set; }
+        // 2026-05-25 主程序当前赛程 (用于生成秩序册第 13/15 章): 若向导内 _distAssigned 为空时回退使用
+        public IEnumerable<ScheduleItem> ExistingSchedule { get; set; }
 
         // 调用方读取这些字段把数据写回 _schedule
         public bool ApplyToMainSchedule { get; private set; }
@@ -721,7 +875,8 @@ namespace SwimmingScoreboard
         // ═══════════════════════════════════════════════════════════════
         // Tab 4: 秩序册可选文档（15 项 CheckList）
         // ═══════════════════════════════════════════════════════════════
-        private List<CheckBox> _docCheckBoxes = new List<CheckBox>();
+        // 2026-05-25 改为 RadioButton 单选 — 「编辑/打印」一次只针对 1 个章节
+        private List<RadioButton> _docCheckBoxes = new List<RadioButton>();
         private static readonly string[] DocSections = new[] {
             "1. 封面（运动会名称 + 副标题 + 主办承办）",
             "2. 目录",
@@ -743,43 +898,416 @@ namespace SwimmingScoreboard
         private void EnterTab4() {
             if (_docCheckBoxes.Count == 0) {
                 DocSectionsPanel.Children.Clear();
-                foreach (var name in DocSections) {
-                    var cb = new CheckBox {
-                        Content = name, IsChecked = true,
+                for (int i = 0; i < DocSections.Length; i++) {
+                    var rb = new RadioButton {
+                        Content = DocSections[i],
+                        IsChecked = (i == 0),   // 默认选中第 1 条
+                        GroupName = "DocSectionGroup",
                         Margin = new Thickness(0, 4, 0, 4), FontSize = 13
                     };
-                    _docCheckBoxes.Add(cb);
-                    DocSectionsPanel.Children.Add(cb);
+                    _docCheckBoxes.Add(rb);
+                    DocSectionsPanel.Children.Add(rb);
                 }
             }
         }
 
+        // 兼容旧 XAML 引用 — 全选/全不选 在 RadioButton 单选模式下意义不大, 但保留以免 XAML 出错
         private void DocSelectAll_Click(object sender, RoutedEventArgs e) {
-            foreach (var cb in _docCheckBoxes) cb.IsChecked = true;
+            if (_docCheckBoxes.Count > 0) _docCheckBoxes[0].IsChecked = true;
         }
         private void DocSelectNone_Click(object sender, RoutedEventArgs e) {
-            foreach (var cb in _docCheckBoxes) cb.IsChecked = false;
+            foreach (var rb in _docCheckBoxes) rb.IsChecked = false;
+        }
+
+        // 2026-05-25 章节文件持久化文件夹: MyDocuments\swim_orderbook\<比赛名>\NN_章节.{rtf|xlsx}
+        // 编辑/打印 总是重生覆盖；全本秩序册按钮直接打开此文件夹
+        private string GetOrderBookFolder() {
+            string baseDir = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+            string compName = string.IsNullOrEmpty(CompetitionNameInfo) ? "未命名比赛" : CompetitionNameInfo;
+            foreach (var ch in System.IO.Path.GetInvalidFileNameChars()) compName = compName.Replace(ch, '_');
+            string dir = System.IO.Path.Combine(baseDir, "swim_orderbook", compName);
+            if (!System.IO.Directory.Exists(dir)) System.IO.Directory.CreateDirectory(dir);
+            return dir;
+        }
+
+        // 章节文件路径: 01_封面.rtf / 02_目录.xlsx / 06_仲裁裁判员名单.rtf / ...
+        private string GetSectionFilePath(string sectionTitle) {
+            // 从 "13. 竞赛日程表" 取 "13" 编号 + 取章节名
+            int dot = sectionTitle.IndexOf('.');
+            string idx = dot > 0 ? sectionTitle.Substring(0, dot).Trim() : "00";
+            string namePart = dot > 0 ? sectionTitle.Substring(dot + 1).Trim() : sectionTitle;
+            int idxNum; int.TryParse(idx, out idxNum);
+            string safeName = namePart;
+            foreach (var ch in System.IO.Path.GetInvalidFileNameChars()) safeName = safeName.Replace(ch, '_');
+            if (safeName.Length > 30) safeName = safeName.Substring(0, 30);
+            // 2026-05-25 仅章节 13 (竞赛日程表) 和 15 (各项分组名单) 用 .xlsx (表格密集), 其他全部 .rtf
+            string ext = (sectionTitle.StartsWith("13.") || sectionTitle.StartsWith("15.")) ? ".xlsx" : ".rtf";
+            return System.IO.Path.Combine(GetOrderBookFolder(), idxNum.ToString("D2") + "_" + safeName + ext);
+        }
+
+        // 生成单个章节到指定路径（按文件扩展名分发到 RTF / Xlsx 生成器）
+        private void WriteSectionFile(string sectionTitle, string path) {
+            string ext = System.IO.Path.GetExtension(path).ToLower();
+            if (ext == ".rtf") {
+                string rtf = BuildSectionRtf(sectionTitle);
+                System.IO.File.WriteAllText(path, rtf, System.Text.Encoding.GetEncoding("GB2312"));
+            } else {
+                GenerateOrderBookXlsx(path, new List<string> { sectionTitle });
+            }
+        }
+
+        // 2026-05-25 通用章节 RTF 分派器
+        private string BuildSectionRtf(string sectionTitle) {
+            if (sectionTitle.StartsWith("1.")) return BuildCoverRtf();
+            if (sectionTitle.StartsWith("2.")) return BuildTocRtf();
+            if (sectionTitle.StartsWith("3.")) return BuildStaffGroupRtf("3. 主席团名单", StaffGroups.Presidium);
+            if (sectionTitle.StartsWith("4.")) return BuildStaffGroupRtf("4. 组织委员会名单", StaffGroups.OrgCommittee);
+            if (sectionTitle.StartsWith("5.")) return BuildStaffGroupRtf("5. 大会工作机构名单", StaffGroups.WorkOrg);
+            if (sectionTitle.StartsWith("6.")) return BuildRefereeListRtf();
+            if (sectionTitle.StartsWith("7.")) return BuildSimpleTextRtf("7. 竞赛规程",
+                "（请操作员手动编辑此章节内容，例如：）\n\n一、主办单位\n二、承办单位\n三、比赛时间和地点\n四、参赛单位\n五、参赛办法\n六、竞赛项目\n七、参赛规定\n八、录取名次及奖励办法\n九、报名及报到\n十、未尽事宜，另行通知");
+            if (sectionTitle.StartsWith("8.")) return BuildSimpleTextRtf("8. 体育道德风尚奖评选方法",
+                "（请操作员手动编辑此章节内容）");
+            if (sectionTitle.StartsWith("9.")) return BuildSimpleTextRtf("9. 开幕式、闭幕式程序",
+                "开幕式程序：\n\n1. 升国旗、奏国歌\n2. 运动员入场\n3. 主办单位领导致辞\n4. 运动员代表宣誓\n5. 裁判员代表宣誓\n6. 宣布比赛开始\n\n闭幕式程序：\n\n1. 颁奖典礼\n2. 总裁判长报告比赛成绩\n3. 主办单位领导讲话\n4. 宣布比赛闭幕");
+            if (sectionTitle.StartsWith("10.")) return BuildSimpleTextRtf("10. 比赛场地平面图",
+                "（请操作员在 WPS / Word 中插入比赛场地平面图图片）");
+            if (sectionTitle.StartsWith("11.")) return BuildParticipantsStatsRtf();
+            if (sectionTitle.StartsWith("12.")) return BuildBibNameTableRtf();
+            if (sectionTitle.StartsWith("14.")) return BuildSimpleTextRtf("14. 比赛记录（最高纪录）",
+                "（请到主程序「记录管理」Tab 编辑记录后再生成此章节，或在此手动列出）");
+            // 默认占位
+            return BuildSimpleTextRtf(sectionTitle, "（请操作员手动填写此章节内容）");
+        }
+
+        // 通用 RTF 头 + 字体表（黑体标题、宋体正文）
+        private static string RtfHeader() {
+            var sb = new StringBuilder();
+            sb.Append("{\\rtf1\\ansi\\ansicpg936\\fcharset134\\deff0\n");
+            sb.Append("{\\fonttbl{\\f0\\fnil\\fcharset134 ");
+            sb.Append(RtfEscape("黑体")); sb.Append(";}{\\f1\\fnil\\fcharset134 ");
+            sb.Append(RtfEscape("宋体")); sb.Append(";}}\n");
+            sb.Append("\\paperw11906\\paperh16838\\margl1440\\margr1440\\margt1440\\margb1440\n");
+            return sb.ToString();
+        }
+
+        // 大标题（黑体居中粗体）
+        private static string RtfTitle(string title, int fs) {
+            return "\\pard\\qc\\sa400\\f0\\fs" + fs + "\\b " + RtfEscape(title) + "\\b0\\par\n";
+        }
+        // 正文段落
+        private static string RtfPara(string text, int fs) {
+            return "\\pard\\sa120\\f1\\fs" + fs + " " + RtfEscape(text) + "\\par\n";
+        }
+
+        // 2. 目录
+        private string BuildTocRtf() {
+            var sb = new StringBuilder(RtfHeader());
+            sb.Append(RtfTitle("秩 序 册 目 录", 44));
+            for (int i = 0; i < DocSections.Length; i++) {
+                sb.Append(RtfPara("    " + DocSections[i], 28));
+            }
+            sb.Append("}\n");
+            return sb.ToString();
+        }
+
+        // 主席团 / 组委会 / 工作机构 通用人员名单 — 表格形式
+        private string BuildStaffGroupRtf(string title, string group) {
+            var sb = new StringBuilder(RtfHeader());
+            sb.Append(RtfTitle(title, 44));
+            var members = _staff.Where(s => (s.Group ?? "") == group).ToList();
+            if (members.Count == 0) {
+                sb.Append(RtfPara("（暂无人员；请在主程序「工作人员管理」录入）", 24));
+            } else {
+                // 简单两列输出: 岗位\t姓名
+                sb.Append("\\pard\\f1\\fs28\n");
+                foreach (var m in members) {
+                    string title2 = m.Title ?? "";
+                    string name = string.IsNullOrEmpty(m.Name) ? "                " : m.Name;
+                    string country = string.IsNullOrEmpty(m.Country) ? "" : " （" + m.Country + "）";
+                    sb.Append(RtfEscape(title2 + "：" + name + country) + "\\par\n");
+                }
+            }
+            sb.Append("}\n");
+            return sb.ToString();
+        }
+
+        // 7-10 简单文本章节
+        private static string BuildSimpleTextRtf(string title, string body) {
+            var sb = new StringBuilder(RtfHeader());
+            sb.Append(RtfTitle(title, 44));
+            foreach (var line in body.Split('\n')) sb.Append(RtfPara(line, 26));
+            sb.Append("}\n");
+            return sb.ToString();
+        }
+
+        // 11. 参赛人员统计表 — 按 (代表队, 组别) 汇总男/女人数
+        private string BuildParticipantsStatsRtf() {
+            var sb = new StringBuilder(RtfHeader());
+            sb.Append(RtfTitle("11. 参赛人员统计表", 44));
+            var grouped = _swimmers
+                .Where(s => s.Notes == null || !s.Notes.StartsWith("接力队员"))
+                .GroupBy(s => (s.Country ?? "") + "|" + (s.AgeCategory ?? ""))
+                .OrderBy(g => g.Key).ToList();
+            if (grouped.Count == 0) {
+                sb.Append(RtfPara("（暂无报名运动员）", 24));
+            } else {
+                sb.Append("\\pard\\f1\\fs24\n");
+                sb.Append(RtfEscape("序号\t参赛单位\t组别\t男\t女\t合计") + "\\par\n");
+                int idx = 1;
+                foreach (var g in grouped) {
+                    var parts = g.Key.Split('|');
+                    int men = g.Count(s => s.Gender == "男");
+                    int women = g.Count(s => s.Gender == "女");
+                    sb.Append(RtfEscape(idx + "\t" + parts[0] + "\t" + (parts.Length > 1 ? parts[1] : "") + "\t" + men + "\t" + women + "\t" + (men + women)) + "\\par\n");
+                    idx++;
+                }
+            }
+            sb.Append("}\n");
+            return sb.ToString();
+        }
+
+        // 12. 运动员姓名号码对照表
+        private string BuildBibNameTableRtf() {
+            var sb = new StringBuilder(RtfHeader());
+            sb.Append(RtfTitle("12. 运动员姓名号码对照表", 44));
+            var distinctSw = _swimmers
+                .Where(s => s.Notes == null || (!s.Notes.StartsWith("接力队员") && !s.Notes.StartsWith("接力队 棒次:")))
+                .GroupBy(s => s.BibNumber ?? "").Select(g => g.First())
+                .OrderBy(s => s.BibNumber).ToList();
+            if (distinctSw.Count == 0) {
+                sb.Append(RtfPara("（暂无报名运动员）", 24));
+            } else {
+                sb.Append("\\pard\\f1\\fs24\n");
+                sb.Append(RtfEscape("号码\t姓名\t性别\t代表队\t组别") + "\\par\n");
+                foreach (var s in distinctSw) {
+                    sb.Append(RtfEscape((s.BibNumber ?? "") + "\t" + (s.Name ?? "") + "\t" + (s.Gender ?? "") + "\t" + (s.Country ?? "") + "\t" + (s.AgeCategory ?? "")) + "\\par\n");
+                }
+            }
+            sb.Append("}\n");
+            return sb.ToString();
+        }
+
+        private void DocEditPrint_Click(object sender, RoutedEventArgs e) {
+            string section = null;
+            for (int i = 0; i < _docCheckBoxes.Count; i++) {
+                if (_docCheckBoxes[i].IsChecked == true) { section = DocSections[i]; break; }
+            }
+            if (string.IsNullOrEmpty(section)) {
+                MessageBox.Show("请先在左侧选中 1 个章节再点 编辑/打印", "提示"); return;
+            }
+            string path = GetSectionFilePath(section);
+            bool willOverwrite = System.IO.File.Exists(path);
+            // 总是重生覆盖（用户选择的方案 B）
+            try {
+                WriteSectionFile(section, path);
+            } catch (Exception ex) {
+                MessageBox.Show("生成文件失败: " + ex.Message, "错误");
+                return;
+            }
+            try {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(path) { UseShellExecute = true });
+                string warn = willOverwrite ? "\n\n⚠ 上次编辑的内容已被最新系统数据覆盖" : "";
+                MessageBox.Show("已用 WPS / Office 打开章节:\n  " + section +
+                    "\n\n文件位置 (将持久保留):\n  " + path +
+                    "\n\n编辑保存后请勿再点本按钮 (会被覆盖)；点「全本秩序册」可打开整个文件夹合订查看。" + warn,
+                    "编辑/打印", MessageBoxButton.OK, MessageBoxImage.Information);
+            } catch (Exception ex) {
+                MessageBox.Show("无法启动外部应用: " + ex.Message +
+                    "\n\n文件已保存到:\n" + path + "\n请手动打开。", "提示");
+            }
+        }
+
+        // 2026-05-25 封面模板 RTF (居中大字, A4)
+        // 文本: 比赛名称 / 举办单位 / 地点 / 时间; 仿索美 游泳比赛封面模版.doc
+        private string BuildCoverRtf() {
+            string compName = string.IsNullOrEmpty(CompetitionNameInfo) ? "（请填写比赛名称）" : CompetitionNameInfo;
+            string organizer = string.IsNullOrEmpty(CompetitionOrganizer) ? "（举办单位）" : CompetitionOrganizer;
+            string location = string.IsNullOrEmpty(CompetitionLocation) ? "XXXX 游泳馆" : CompetitionLocation;
+            string dateRange;
+            if (!string.IsNullOrEmpty(CompetitionStartDate) && !string.IsNullOrEmpty(CompetitionEndDate)
+                && CompetitionStartDate != CompetitionEndDate) {
+                dateRange = CompetitionStartDate + " ~ " + CompetitionEndDate;
+            } else if (!string.IsNullOrEmpty(CompetitionStartDate)) {
+                dateRange = CompetitionStartDate;
+            } else {
+                dateRange = "XXXX 年 XX 月 XX 日";
+            }
+            var sb = new StringBuilder();
+            sb.Append("{\\rtf1\\ansi\\ansicpg936\\fcharset134\\deff0\n");
+            sb.Append("{\\fonttbl{\\f0\\fnil\\fcharset134 ");
+            sb.Append(RtfEscape("黑体")); sb.Append(";}{\\f1\\fnil\\fcharset134 ");
+            sb.Append(RtfEscape("宋体")); sb.Append(";}}\n");
+            sb.Append("\\paperw11906\\paperh16838\\margl1440\\margr1440\\margt2880\\margb1440\n");
+            // 顶部留白
+            sb.Append("\\pard\\sb2400\\sa0\\par\n");
+            // 比赛名称 - 居中大字
+            sb.Append("\\pard\\qc\\sa600\\f0\\fs72\\b ");
+            sb.Append(RtfEscape(compName));
+            sb.Append("\\b0\\par\n");
+            // 举办单位
+            sb.Append("\\pard\\qc\\sa1200\\f0\\fs32 ");
+            sb.Append(RtfEscape("主 办 单 位 ：" + organizer));
+            sb.Append("\\par\n");
+            // 留白 + 标志位
+            sb.Append("\\pard\\qc\\sa1200\\f1\\fs24 ");
+            sb.Append(RtfEscape("（举办单位标志图片）"));
+            sb.Append("\\par\n");
+            // 地点 + 时间 — 底部
+            sb.Append("\\pard\\qc\\sa200\\f1\\fs28 ");
+            sb.Append(RtfEscape("地点：" + location));
+            sb.Append("\\par\n");
+            sb.Append("\\pard\\qc\\sa200\\f1\\fs28 ");
+            sb.Append(RtfEscape("时间：" + dateRange));
+            sb.Append("\\par\n");
+            sb.Append("}\n");
+            return sb.ToString();
+        }
+
+        // 2026-05-25 仲裁委员 + 裁判员名单 RTF; 按 _staff 5 组结构渲染
+        // 仲裁委员: 技术及仲裁 组中 Title 含"仲裁"的成员
+        // 裁判员各岗位: 裁判员 组按 Title 分类
+        private string BuildRefereeListRtf() {
+            // 仲裁委员
+            var arbiters = _staff.Where(s => (s.Group ?? "") == StaffGroups.TechArbitration
+                                            && (s.Title ?? "").Contains("仲裁")
+                                            && !string.IsNullOrEmpty(s.Name)).ToList();
+            // 裁判员各岗位
+            var refs = _staff.Where(s => (s.Group ?? "") == StaffGroups.Referees && !string.IsNullOrEmpty(s.Title)).ToList();
+            // 按 Title 分组, 保持原顺序
+            var byTitle = new List<KeyValuePair<string, List<StaffMember>>>();
+            foreach (var s in refs) {
+                var ex = byTitle.FirstOrDefault(p => p.Key == s.Title);
+                if (ex.Key == null) {
+                    var list = new List<StaffMember> { s };
+                    byTitle.Add(new KeyValuePair<string, List<StaffMember>>(s.Title, list));
+                } else {
+                    ex.Value.Add(s);
+                }
+            }
+
+            var sb = new StringBuilder();
+            sb.Append("{\\rtf1\\ansi\\ansicpg936\\fcharset134\\deff0\n");
+            sb.Append("{\\fonttbl{\\f0\\fnil\\fcharset134 ");
+            sb.Append(RtfEscape("黑体")); sb.Append(";}{\\f1\\fnil\\fcharset134 ");
+            sb.Append(RtfEscape("宋体")); sb.Append(";}}\n");
+            sb.Append("\\paperw11906\\paperh16838\\margl1440\\margr1440\\margt1440\\margb1440\n");
+
+            // 标题 - 仲裁委员
+            sb.Append("\\pard\\qc\\sa300\\f0\\fs44\\b ");
+            sb.Append(RtfEscape("仲 裁 委 员"));
+            sb.Append("\\b0\\par\n");
+            // 横排显示 5 个（不够留空）
+            sb.Append("\\pard\\qc\\sa600\\f1\\fs28 ");
+            var arbNames = new List<string>();
+            for (int i = 0; i < 5; i++) {
+                arbNames.Add(i < arbiters.Count ? arbiters[i].Name : "AAAA");
+            }
+            sb.Append(RtfEscape(string.Join("    ", arbNames.ToArray())));
+            sb.Append("\\par\n");
+
+            // 标题 - 裁判员名单
+            sb.Append("\\pard\\qc\\sa400\\f0\\fs44\\b ");
+            sb.Append(RtfEscape("裁  判  员  名  单"));
+            sb.Append("\\b0\\par\n");
+
+            // 各岗位: 左对齐 "岗位：名字 名字 ..."
+            // 单人岗位: 把名字直接接在冒号后; 多人: 用逗号分隔
+            if (byTitle.Count == 0) {
+                sb.Append("\\pard\\sa200\\f1\\fs24 ");
+                sb.Append(RtfEscape("（裁判员名单为空, 请在「工作人员管理」中录入）"));
+                sb.Append("\\par\n");
+            } else {
+                foreach (var kv in byTitle) {
+                    sb.Append("\\pard\\sa120\\f1\\fs28 ");
+                    string names = string.Join("、", kv.Value.Select(s => s.Name ?? "").Where(n => !string.IsNullOrEmpty(n)).ToArray());
+                    string line = kv.Key + "：" + names;
+                    sb.Append(RtfEscape(line));
+                    sb.Append("\\par\n");
+                }
+            }
+            sb.Append("}\n");
+            return sb.ToString();
+        }
+
+        // RTF 转义: 反斜杠/花括号; 非 ASCII 字符按 \uN? 形式输出（GB2312 编码也可, 但 \u 更通用）
+        private static string RtfEscape(string s) {
+            if (string.IsNullOrEmpty(s)) return "";
+            var sb = new StringBuilder();
+            foreach (var c in s) {
+                if (c == '\\') sb.Append("\\\\");
+                else if (c == '{') sb.Append("\\{");
+                else if (c == '}') sb.Append("\\}");
+                else if (c == '\n') sb.Append("\\line ");
+                else if (c < 128) sb.Append(c);
+                else {
+                    // RTF Unicode 转义: \uN? (N 是有符号 16 位整数; ? 是 fallback char)
+                    int code = (int)c;
+                    if (code > 32767) code -= 65536;
+                    sb.Append("\\u" + code + "?");
+                }
+            }
+            return sb.ToString();
         }
 
         private void DocGenerate_Click(object sender, RoutedEventArgs e) {
-            var sel = new List<string>();
-            for (int i = 0; i < _docCheckBoxes.Count; i++)
-                if (_docCheckBoxes[i].IsChecked == true) sel.Add(DocSections[i]);
-            if (sel.Count == 0) {
-                MessageBox.Show("请至少勾选一项", "提示"); return;
+            // 2026-05-25 全本秩序册 = 文件夹模式
+            //  扫描 MyDocuments\swim_orderbook\<比赛名>\: 缺哪个章节文件就自动生成, 已存在的(用户可能编辑过)保留
+            //  完成后用 Explorer 打开文件夹便于用户逐章查看/打印
+            string folder = GetOrderBookFolder();
+            int generated = 0, preserved = 0;
+            var failures = new List<string>();
+            foreach (var section in DocSections) {
+                string path = GetSectionFilePath(section);
+                if (System.IO.File.Exists(path)) {
+                    preserved++;
+                    continue;
+                }
+                try {
+                    WriteSectionFile(section, path);
+                    generated++;
+                } catch (Exception ex) {
+                    failures.Add(section + " ← " + ex.Message);
+                }
             }
-            // MVP 版：写 .xlsx 用 NPOI，按勾选章节生成单一工作簿
-            var dlg = new Microsoft.Win32.SaveFileDialog {
-                Filter = "Excel 工作簿|*.xlsx", Title = "保存秩序册",
-                FileName = "秩序册_" + DateTime.Now.ToString("yyyyMMdd_HHmm") + ".xlsx"
-            };
-            if (dlg.ShowDialog() != true) return;
+            try { System.Diagnostics.Process.Start("explorer.exe", "\"" + folder + "\""); } catch { }
+            var sb = new StringBuilder();
+            sb.AppendFormat("✔ 秩序册文件夹已就绪 (共 {0} 章节)\n\n", DocSections.Length);
+            sb.AppendFormat("  • 系统自动生成: {0} 章\n", generated);
+            sb.AppendFormat("  • 用户已编辑保留: {0} 章\n", preserved);
+            if (failures.Count > 0) {
+                sb.AppendFormat("  • 生成失败: {0} 章\n", failures.Count);
+                foreach (var f in failures) sb.AppendLine("    - " + f);
+            }
+            sb.AppendLine();
+            sb.AppendLine("文件夹路径:");
+            sb.AppendLine("  " + folder);
+            sb.AppendLine();
+            sb.AppendLine("每章一个文件 (NN_章节名.rtf 或 .xlsx), 可用 WPS/Word/Excel 单独编辑并打印。");
+            sb.AppendLine("「编辑/打印」按钮会强制覆盖该章节为最新系统数据，请慎用。");
+            MessageBox.Show(sb.ToString(), "全本秩序册", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+
+        // 强制重新生成当前选中章节（用最新系统数据覆盖文件夹里的已编辑版本）
+        private void DocForceRegen_Click(object sender, RoutedEventArgs e) {
+            string section = null;
+            for (int i = 0; i < _docCheckBoxes.Count; i++) {
+                if (_docCheckBoxes[i].IsChecked == true) { section = DocSections[i]; break; }
+            }
+            if (string.IsNullOrEmpty(section)) {
+                MessageBox.Show("请先选中要重生的章节", "提示"); return;
+            }
+            string path = GetSectionFilePath(section);
+            bool exists = System.IO.File.Exists(path);
+            string msg = exists
+                ? "确认用最新系统数据覆盖以下章节文件？\n\n" + section + "\n→ " + path + "\n\n（手工编辑会丢失！）"
+                : "确认按最新系统数据生成本章节文件？\n\n" + section + "\n→ " + path;
+            if (MessageBox.Show(msg, "强制重生", MessageBoxButton.OKCancel, MessageBoxImage.Warning) != MessageBoxResult.OK) return;
             try {
-                GenerateOrderBookXlsx(dlg.FileName, sel);
-                MessageBox.Show(string.Format("秩序册已生成：\n{0}\n\n含 {1} 个章节。", dlg.FileName, sel.Count),
-                    "完成", MessageBoxButton.OK, MessageBoxImage.Information);
+                WriteSectionFile(section, path);
+                MessageBox.Show("已重生:\n  " + path, "完成");
             } catch (Exception ex) {
-                MessageBox.Show("生成失败: " + ex.Message, "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show("重生失败: " + ex.Message, "错误");
             }
         }
 
@@ -920,9 +1448,109 @@ namespace SwimmingScoreboard
                 } else if (sectionTitle.Contains("比赛记录")) {
                     var hr = sheet.CreateRow(r++);
                     hr.CreateCell(0).SetCellValue("（请到主程序「纪录管理」Tab 编辑后再导出）");
-                } else if (sectionTitle.Contains("各项运动员竞赛分组名单")) {
+                } else if (sectionTitle.Contains("竞赛日程表")) {
+                    // 2026-05-25 章节 13: 优先用向导内编排 _distAssigned, 没有就用主程序 _schedule
                     var hr = sheet.CreateRow(r++);
-                    hr.CreateCell(0).SetCellValue("（请先在「赛程与分组」完成分组，再导出）");
+                    hr.CreateCell(0).SetCellValue("序号"); hr.CreateCell(1).SetCellValue("日期");
+                    hr.CreateCell(2).SetCellValue("时段"); hr.CreateCell(3).SetCellValue("时间");
+                    hr.CreateCell(4).SetCellValue("组别"); hr.CreateCell(5).SetCellValue("性别");
+                    hr.CreateCell(6).SetCellValue("比赛项目"); hr.CreateCell(7).SetCellValue("赛次");
+                    hr.CreateCell(8).SetCellValue("组数"); hr.CreateCell(9).SetCellValue("备注");
+
+                    Func<string, int> sessionRank = s => s == "上午" ? 0 : s == "下午" ? 1 : s == "晚上" ? 2 : 9;
+                    int rowNo = 1;
+                    if (_distAssigned != null && _distAssigned.Count > 0) {
+                        var ordered = _distAssigned.OrderBy(x => x.AssignedDate ?? "")
+                                                    .ThenBy(x => sessionRank(x.AssignedSession ?? ""))
+                                                    .ThenBy(x => x.AssignedSortKey).ToList();
+                        foreach (var d in ordered) {
+                            var rr = sheet.CreateRow(r++);
+                            rr.CreateCell(0).SetCellValue(rowNo++);
+                            rr.CreateCell(1).SetCellValue(d.AssignedDate ?? "");
+                            rr.CreateCell(2).SetCellValue(d.AssignedSession ?? "");
+                            rr.CreateCell(3).SetCellValue(d.AssignedTime ?? "");
+                            rr.CreateCell(4).SetCellValue(d.AgeGroup ?? "");
+                            rr.CreateCell(5).SetCellValue(d.Gender ?? "");
+                            rr.CreateCell(6).SetCellValue(d.EventName ?? "");
+                            rr.CreateCell(7).SetCellValue(d.Stage ?? "");
+                            rr.CreateCell(8).SetCellValue(d.Heats);
+                            rr.CreateCell(9).SetCellValue(d.HeatRange ?? "");
+                        }
+                    } else if (ExistingSchedule != null) {
+                        var schedList = ExistingSchedule.ToList();
+                        foreach (var si in schedList.OrderBy(s => s.SessionNumber).ThenBy(s => s.Time ?? "")) {
+                            var rr = sheet.CreateRow(r++);
+                            rr.CreateCell(0).SetCellValue(rowNo++);
+                            rr.CreateCell(1).SetCellValue(si.Date ?? "");
+                            rr.CreateCell(2).SetCellValue(si.SessionName ?? "");
+                            rr.CreateCell(3).SetCellValue(si.Time ?? "");
+                            rr.CreateCell(4).SetCellValue(si.AgeGroup ?? "");
+                            rr.CreateCell(5).SetCellValue(si.Gender ?? "");
+                            rr.CreateCell(6).SetCellValue(si.EventName ?? "");
+                            rr.CreateCell(7).SetCellValue(si.Stage ?? "");
+                            rr.CreateCell(8).SetCellValue(si.HeatCount);
+                            rr.CreateCell(9).SetCellValue("");
+                        }
+                    } else {
+                        var rr = sheet.CreateRow(r++);
+                        rr.CreateCell(0).SetCellValue("（暂无赛程；请在 Tab 3 编排或返回主程序生成日程后再导出）");
+                    }
+                } else if (sectionTitle.Contains("各项运动员竞赛分组名单")) {
+                    // 2026-05-25 章节 15: 列出每个 项目+组别+性别+赛次 的每组泳道分配
+                    int rowNo = 0;
+                    // 按 FINA 项目顺序 + 组别 + 性别 + 赛次 分组
+                    var indi = _swimmers.Where(s => s.Notes == null || !s.Notes.StartsWith("接力队员")).ToList();
+                    var byGroup = indi.GroupBy(s => new {
+                        Event = s.EventName ?? "",
+                        Age = s.AgeCategory ?? "",
+                        Gender = s.Gender ?? "",
+                        Stage = s.CurrentStage ?? "预赛"
+                    }).Where(g => !string.IsNullOrEmpty(g.Key.Event))
+                       .OrderBy(g => g.Key.Event)
+                       .ThenBy(g => g.Key.Age)
+                       .ThenBy(g => g.Key.Gender)
+                       .ToList();
+                    if (byGroup.Count == 0) {
+                        var rr0 = sheet.CreateRow(r++);
+                        rr0.CreateCell(0).SetCellValue("（暂无分组数据；请先在「赛程管理 / 项目自动分组」完成分组）");
+                    }
+                    foreach (var g in byGroup) {
+                        // 项目标题行
+                        var titleRow = sheet.CreateRow(r++);
+                        string title = string.Format("{0}{1} {2} {3}",
+                            string.IsNullOrEmpty(g.Key.Age) ? "" : g.Key.Age + " ",
+                            g.Key.Gender, g.Key.Event, g.Key.Stage);
+                        titleRow.CreateCell(0).SetCellValue(title);
+
+                        // 表头
+                        var hdr = sheet.CreateRow(r++);
+                        hdr.CreateCell(0).SetCellValue("组");
+                        hdr.CreateCell(1).SetCellValue("道");
+                        hdr.CreateCell(2).SetCellValue("号码");
+                        hdr.CreateCell(3).SetCellValue("姓名");
+                        hdr.CreateCell(4).SetCellValue("代表队");
+                        hdr.CreateCell(5).SetCellValue("报名成绩");
+
+                        // 各 heat 排序: heat → lane
+                        var assigned = g.Where(s => s.Heat > 0).OrderBy(s => s.Heat).ThenBy(s => s.Lane).ToList();
+                        if (assigned.Count == 0) {
+                            var rr1 = sheet.CreateRow(r++);
+                            rr1.CreateCell(0).SetCellValue("（未分组）");
+                        } else {
+                            foreach (var s in assigned) {
+                                var rr = sheet.CreateRow(r++);
+                                rr.CreateCell(0).SetCellValue(s.Heat);
+                                rr.CreateCell(1).SetCellValue(s.Lane);
+                                rr.CreateCell(2).SetCellValue(s.BibNumber ?? "");
+                                rr.CreateCell(3).SetCellValue(s.Name ?? "");
+                                rr.CreateCell(4).SetCellValue(s.Country ?? "");
+                                rr.CreateCell(5).SetCellValue(s.EntryTime ?? "");
+                            }
+                        }
+                        // 项目间空行分隔
+                        r++;
+                        rowNo++;
+                    }
                 } else {
                     // 其它章节留空表给操作员手动填
                     var rr = sheet.CreateRow(r++);
@@ -1038,6 +1666,24 @@ namespace SwimmingScoreboard
         }
     }
 
+    // 2026-05-25 向导草稿: 中途关闭/修改未确认时的状态快照, 下次打开恢复
+    public class WizardDraft
+    {
+        public List<SchedulingPlanEntry> PlanRows { get; set; }
+        public List<DistEntry> DistPending { get; set; }
+        public List<DistEntry> DistAssigned { get; set; }
+        public List<string> AvailableDates { get; set; }
+        public int[] SessionStartMin { get; set; }
+        public bool HasData { get { return (PlanRows != null && PlanRows.Count > 0) || (DistAssigned != null && DistAssigned.Count > 0); } }
+        public WizardDraft() {
+            PlanRows = new List<SchedulingPlanEntry>();
+            DistPending = new List<DistEntry>();
+            DistAssigned = new List<DistEntry>();
+            AvailableDates = new List<string>();
+            SessionStartMin = new[] { 9 * 60, 14 * 60 + 30, 19 * 60 + 30 };
+        }
+    }
+
     // 提供给主程序的已分配条目（持久化用）
     public class AssignedScheduleItem
     {
@@ -1080,7 +1726,8 @@ namespace SwimmingScoreboard
         public string AgeGroup { get { return _ageGroup; } set { _ageGroup = value; Notify("AgeGroup"); } }
         public string Gender { get { return _gender; } set { _gender = value; Notify("Gender"); } }
         public string EventName { get { return _eventName; } set { _eventName = value; Notify("EventName"); } }
-        public int Participants { get { return _participants; } set { _participants = value; Notify("Participants"); } }
+        public int Participants { get { return _participants; } set { _participants = value; Notify("Participants"); Notify("ParticipantsLabel"); } }
+        public string ParticipantsLabel { get { return _participants + "人"; } }
         public int PrelimHeats { get { return _prelimHeats; } set { _prelimHeats = value; Notify("PrelimHeats"); } }
         public int PrelimCutoff { get { return _prelimCutoff; } set { _prelimCutoff = value; Notify("PrelimCutoff"); } }
         public int QuarterHeats { get { return _quarterHeats; } set { _quarterHeats = value; Notify("QuarterHeats"); } }
