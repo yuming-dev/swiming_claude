@@ -207,7 +207,9 @@
       "PowerShell(& \"C:\\\\Program Files\\\\Microsoft Visual Studio\\\\2022\\\\Community\\\\MSBuild\\\\Current\\\\Bin\\\\MSBuild.exe\" \"SwimmingScoreboard\\\\SwimmingScoreboard.csproj\" /p:Configuration=Release /p:Platform=x64 /v:m /nologo 2>&1 | Select-Object -Last 15)",
       "PowerShell(& \"C:\\\\Program Files\\\\Microsoft Visual Studio\\\\2022\\\\Community\\\\MSBuild\\\\Current\\\\Bin\\\\MSBuild.exe\" \"SwimmingScoreboard\\\\SwimmingScoreboard.csproj\" /p:Configuration=Release /p:Platform=x64 /v:m /nologo 2>&1 | Select-Object -Last 20)",
       "PowerShell(& \"C:\\\\Program Files\\\\Microsoft Visual Studio\\\\2022\\\\Community\\\\MSBuild\\\\Current\\\\Bin\\\\MSBuild.exe\" \"SwimmingScoreboard\\\\SwimmingScoreboard.csproj\" /p:Configuration=Release /p:Platform=x64 /v:m /nologo 2>&1 | Select-Object -Last 10)",
-      "PowerShell(powershell -ExecutionPolicy Bypass -File .\\\\build_installer.ps1 2>&1 | Select-Object -Last 60)"
+      "PowerShell(powershell -ExecutionPolicy Bypass -File .\\\\build_installer.ps1 2>&1 | Select-Object -Last 60)",
+      "PowerShell(& \"C:\\\\Program Files\\\\Microsoft Visual Studio\\\\2022\\\\Community\\\\MSBuild\\\\Current\\\\Bin\\\\MSBuild.exe\" \"SwimmingScoreboard\\\\SwimmingScoreboard.csproj\" /p:Configuration=Release /p:Platform=x64 /v:m /nologo 2>&1 | Select-Object -Last 8)",
+      "PowerShell(powershell -ExecutionPolicy Bypass -File .\\\\build_installer.ps1 2>&1 | Select-Object -Last 30)"
     ]
   }
 }

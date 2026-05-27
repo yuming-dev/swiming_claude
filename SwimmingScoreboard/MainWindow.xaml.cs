@@ -203,6 +203,9 @@ namespace SwimmingScoreboard
             ApplyPersistedDeviceStates();   // 设备状态（损坏/未安装/手动按键）从 device_states.json 还原
             LoadTimingConnectionConfig();   // 通讯参数从 timing_connection.json 还原
             LoadLastCompetition();
+            // 2026-05-26 不在此处再调 ApplyTouchpadInstallModeToLanes — 它会覆盖 ApplyPersistedDeviceStates
+            //   刚还原的 NotInstalled 标志. 所有"计算后状态"已在 (设置变更 / 硬件 0x3A / 0x42) 时
+            //   通过 SaveDeviceStates 落盘, 开机只需读回即可.
             if (!editorMode) PopulateComPorts();
             if (!editorMode) ApplyTimingConnectionToUi();    // 把保存的串口/TCP/UDP 还原到 UI 控件
             if (!editorMode) TryAutoReconnectTiming();       // 仅当 AutoReconnectOnStartup=true 才尝试
@@ -1658,7 +1661,9 @@ namespace SwimmingScoreboard
                             bool newHasRight = !isSingle;
                             if (_poolConfig != null && _poolConfig.HasRightStartBlock != newHasRight) {
                                 _poolConfig.HasRightStartBlock = newHasRight;
+                                _laneCloseSettings.HasRightStartBlock = newHasRight;   // 2026-05-26 持久化
                                 try { ApplyTouchpadInstallModeToLanes(); } catch { }
+                                try { SaveDeviceStates(); } catch { }                  // 计算后状态落盘
                                 // 同步给硬件 (0x3A)
                                 if (_timingBridge != null && _timingBridge.IsConnected) {
                                     try { _timingBridge.SendPoolSingleOrDoubleTP(isSingle); } catch { }
@@ -2535,6 +2540,9 @@ namespace SwimmingScoreboard
                     //2026-05-18 单端模式下"非终点端"由 FinishPosition 决定；
                     //   终点位置切换后必须刷新各道 NotInstalled 标记，让原非终点端恢复、新非终点端置位
                     try { ApplyTouchpadInstallModeToLanes(); } catch { }
+                    // 2026-05-26 计算后的 NotInstalled 落盘 + 参数本身落盘
+                    try { SaveDeviceStates(); } catch { }
+                    try { SaveTimingSettings(); } catch { }
                     AddLog(string.Format("硬件计时器: 终点位置 → {0} (0x63)", newFinish == "left" ? "左端" : "右端"));
                     UpdateLaneStatusDisplay();
                     Broadcast();
@@ -2549,7 +2557,11 @@ namespace SwimmingScoreboard
                 bool newHasRight = (data.Param1 == 0);
                 if (_poolConfig != null && _poolConfig.HasRightStartBlock != newHasRight) {
                     _poolConfig.HasRightStartBlock = newHasRight;
+                    _laneCloseSettings.HasRightStartBlock = newHasRight;   // 2026-05-26 持久化
                     ApplyTouchpadInstallModeToLanes();
+                    // 2026-05-26 计算后的 NotInstalled 落盘 + 参数本身落盘
+                    try { SaveDeviceStates(); } catch { }
+                    try { SaveTimingSettings(); } catch { }
                     UpdateLaneStatusDisplay();
                     AddLog(string.Format("硬件计时器: 泳池触板安装方式 → {0} (0x3A)", newHasRight ? "两端" : "单端"));
                     Broadcast();
@@ -7896,6 +7908,7 @@ namespace SwimmingScoreboard
                 bool newHasRight = rbTpBoth.IsChecked == true;
                 bool poolTpChanged = (_poolConfig != null) && (_poolConfig.HasRightStartBlock != newHasRight);
                 if (_poolConfig != null) _poolConfig.HasRightStartBlock = newHasRight;
+                _laneCloseSettings.HasRightStartBlock = newHasRight;   // 2026-05-26 持久化到 timing_settings.json
                 //2026-05-13 新增：切换后立即把每条泳道右端触板/出发台/盲表的"未安装"标记翻转，
                 // 否则现场看到的设备图标不会跟着改变；同时立刻下发硬件位图，让硬件不再期待右端信号
                 //2026-05-18 扩展: 终点位置切换 (finishChanged) 也要重刷 NotInstalled ——
@@ -7904,6 +7917,7 @@ namespace SwimmingScoreboard
                 if (poolTpChanged || finishChanged) {
                     ApplyTouchpadInstallModeToLanes();
                     SendDeviceStatusesToHardware();   // 0x46/0x49/0x4A 把"未安装"反映成硬件 bit=0
+                    try { SaveDeviceStates(); } catch { }   // 2026-05-26 计算后的 NotInstalled 立即落盘
                 }
 
                 SaveTimingSettings();
@@ -8006,10 +8020,11 @@ namespace SwimmingScoreboard
                 bool changed = (_laneCloseSettings.LeftBlindWatchCount != newLeft) || (_laneCloseSettings.RightBlindWatchCount != newRight);
                 _laneCloseSettings.LeftBlindWatchCount = newLeft;
                 _laneCloseSettings.RightBlindWatchCount = newRight;
+                // 2026-05-26 用户要求"点确认就存", 不再用 if(changed) 跳过 IO
+                SaveTimingSettings();
+                AutoSaveData();
+                UpdateLaneStatusDisplay();
                 if (changed) {
-                    SaveTimingSettings();
-                    AutoSaveData();
-                    UpdateLaneStatusDisplay();
                     Broadcast();                       // 同步到 Web/Remote 控制台
                     SendBlindWatchCountToHardware();   // 0x42 / 0x08 子码
                     AddLog(string.Format("盲表数量更新：左 {0}，右 {1}（已同步到三端与硬件）", newLeft, newRight));
@@ -13401,11 +13416,14 @@ namespace SwimmingScoreboard
                     var loaded = JsonConvert.DeserializeObject<LaneCloseSettings>(json);
                     if (loaded != null) {
                         _laneCloseSettings = loaded;
-                        AddLog(string.Format("已加载计时参数: 关闭{0}s 出发台{1}s 确认{2}s 抢跳{3}s 分段{4}s 第1名停留{5}s 终点:{6}",
+                        // 2026-05-26 把持久化的 HasRightStartBlock 同步回 _poolConfig (运行时主存源)
+                        if (_poolConfig != null) _poolConfig.HasRightStartBlock = _laneCloseSettings.HasRightStartBlock;
+                        AddLog(string.Format("已加载计时参数: 关闭{0}s 出发台{1}s 确认{2}s 抢跳{3}s 分段{4}s 第1名停留{5}s 终点:{6} 触板:{7}",
                             _laneCloseSettings.LaneCloseTime, _laneCloseSettings.StartBlockCloseDelay,
                             _laneCloseSettings.ResultConfirmCloseDelay, _laneCloseSettings.FalseStartThreshold,
                             _laneCloseSettings.SplitDisplayTime, _laneCloseSettings.FirstPlaceHoldTime,
-                            _laneCloseSettings.FinishPosition == "left" ? "左端" : "右端"));
+                            _laneCloseSettings.FinishPosition == "left" ? "左端" : "右端",
+                            _laneCloseSettings.HasRightStartBlock ? "两端" : "单端"));
                     }
                 }
             } catch { }
@@ -13436,6 +13454,13 @@ namespace SwimmingScoreboard
                     o["rightBlindWatch2Broken"] = st.RightBlindWatch2Broken;
                     o["rightBlindWatch3Broken"] = st.RightBlindWatch3Broken;
                     o["rightStartBlockBroken"]  = st.RightStartBlockBroken;
+                    // 2026-05-26 持久化所有"计算后"的 NotInstalled 标志 (12 个 = 触板2 + 出发台2 + 盲表6):
+                    //   每次 ApplyTouchpadInstallModeToLanes 跑完都 SaveDeviceStates, 开机后直接读盘还原,
+                    //   不再依赖开机时根据 HasRightStartBlock + FinishPosition 即时重算.
+                    o["leftTouchpadNotInstalled"]   = st.LeftTouchpadNotInstalled;
+                    o["rightTouchpadNotInstalled"]  = st.RightTouchpadNotInstalled;
+                    o["leftStartBlockNotInstalled"] = st.LeftStartBlockNotInstalled;
+                    o["rightStartBlockNotInstalled"] = st.RightStartBlockNotInstalled;
                     o["leftBlindWatch1NotInstalled"] = st.LeftBlindWatch1NotInstalled;
                     o["leftBlindWatch2NotInstalled"] = st.LeftBlindWatch2NotInstalled;
                     o["leftBlindWatch3NotInstalled"] = st.LeftBlindWatch3NotInstalled;
@@ -13475,6 +13500,12 @@ namespace SwimmingScoreboard
                     if (o["rightBlindWatch2Broken"] != null) st.RightBlindWatch2Broken = (bool)o["rightBlindWatch2Broken"];
                     if (o["rightBlindWatch3Broken"] != null) st.RightBlindWatch3Broken = (bool)o["rightBlindWatch3Broken"];
                     if (o["rightStartBlockBroken"]  != null) st.RightStartBlockBroken  = (bool)o["rightStartBlockBroken"];
+                    // 2026-05-26 还原所有"计算后"的 NotInstalled 标志 (含触板/出发台/盲表 12 个).
+                    //   旧版本只持久化盲表 6 个 → 新版本统一持久化全部 → 这里都还原以保持完整.
+                    if (o["leftTouchpadNotInstalled"]    != null) st.LeftTouchpadNotInstalled    = (bool)o["leftTouchpadNotInstalled"];
+                    if (o["rightTouchpadNotInstalled"]   != null) st.RightTouchpadNotInstalled   = (bool)o["rightTouchpadNotInstalled"];
+                    if (o["leftStartBlockNotInstalled"]  != null) st.LeftStartBlockNotInstalled  = (bool)o["leftStartBlockNotInstalled"];
+                    if (o["rightStartBlockNotInstalled"] != null) st.RightStartBlockNotInstalled = (bool)o["rightStartBlockNotInstalled"];
                     if (o["leftBlindWatch1NotInstalled"]  != null) st.LeftBlindWatch1NotInstalled  = (bool)o["leftBlindWatch1NotInstalled"];
                     if (o["leftBlindWatch2NotInstalled"]  != null) st.LeftBlindWatch2NotInstalled  = (bool)o["leftBlindWatch2NotInstalled"];
                     if (o["leftBlindWatch3NotInstalled"]  != null) st.LeftBlindWatch3NotInstalled  = (bool)o["leftBlindWatch3NotInstalled"];

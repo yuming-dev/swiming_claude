@@ -51,6 +51,10 @@ namespace SwimmingScoreboard
         private double _bigDisplayPageInterval = 5.0; // 大屏翻屏时间（秒）— 总排名等多页内容自动翻页周期
         private bool _reactionTimeEnabled = true;     // 是否启用出发反应时检测：关闭时，所有出发反应时相关处理跳过
         private string _laneOrder = "forward";        // 道次显示顺序: "forward"=0→9（顶到底）；"reverse"=9→0（顶到底）
+        // 2026-05-26 泳池触板安装方式 (true=两端 / false=单端). 之前只在 PoolConfig 持有, 不持久化,
+        //   导致重启后默认两端, 老 device_states.json 里残留的"单端时算出的左侧未安装"无法被正确刷掉.
+        //   现持久化到 timing_settings.json, 开机加载后同步回 _poolConfig.HasRightStartBlock.
+        private bool _hasRightStartBlock = true;
 
         public double LaneCloseTime {
             get { return _laneCloseTime; }
@@ -119,6 +123,11 @@ namespace SwimmingScoreboard
                 string v = (value == "reverse") ? "reverse" : "forward";
                 if (_laneOrder != v) { _laneOrder = v; OnPropertyChanged("LaneOrder"); }
             }
+        }
+        // 2026-05-26 镜像 PoolConfig.HasRightStartBlock 以便持久化到 timing_settings.json
+        public bool HasRightStartBlock {
+            get { return _hasRightStartBlock; }
+            set { if (_hasRightStartBlock != value) { _hasRightStartBlock = value; OnPropertyChanged("HasRightStartBlock"); } }
         }
 
         public event PropertyChangedEventHandler PropertyChanged;
