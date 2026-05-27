@@ -886,7 +886,11 @@ namespace SwimmingScoreboard
         private DeviceStatus _rightBlindWatch3Status = DeviceStatus.Closed;
         private DeviceStatus _rightStartBlockStatus = DeviceStatus.Closed;
         private double _laneCloseCountdown;
-        private double _laneCloseTime = 20.0;
+        // 2026-05-26 默认 0 = "用全局 _laneCloseSettings.LaneCloseTime". 原默认 20 会在
+        //   StartRace_Click 的 (state.LaneCloseTime > 0 ? state.LaneCloseTime : 全局) 判断里覆盖
+        //   全局设置 — 用户改成全局 10s 也没用, 倒计时一直 20s. 改默认 0 后表现正确.
+        //   per-lane 的非零值仅由硬件/远程台明确写入时生效.
+        private double _laneCloseTime = 0.0;
         private string _direction = "→";
         private int _currentLap;
         private bool _isFinished;

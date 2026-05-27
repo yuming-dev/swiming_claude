@@ -4744,6 +4744,39 @@ namespace SwimmingScoreboard
         // - StartRace_Click 自动就位时调用（pushToHardware=true，让硬件先收到 0x43+0x21 进入 Ready，
         //   随后的 0x1C 才会被硬件接受），不弹对话框（用户按发令已明确表示要开始）。
         private void EnterReadyStateInternal(bool pushToHardware) {
+            // 2026-05-26 在进 Ready 状态前先把"计时复位"的关键复位动作做一遍, 兼容
+            //   用户跳过"计时复位"直接按"准备就绪"的场景 — 此时旧组的滚动时间/leader 显示/
+            //   分段跟踪/硬件锚点都可能残留, 后续比赛参数会不对.
+            //   注意: 不删除任何 Swimmer.Results (那是"丢弃成绩"语义, 属于 Restart_Click 的
+            //   非确认重赛分支, 不应该在 Ready 路径上做).
+            _raceTimer.Stop();
+            _countdownTimer.Stop();
+            _runningTime = 0;
+            _raceStartTime = DateTime.MinValue;
+            _hwRunningTimeAvailable = false;
+            _hwRunningTimeReceivedAt = DateTime.MinValue;
+            _hwRunningTimeSec = 0;
+            _resultConfirmed = false;
+            _firstPlaceFinishTime = "";
+            _firstPlaceShowStart = DateTime.MinValue;
+            _lastLeaderSplitCount = 0;
+            _laneSplitCount.Clear();
+            _laneSplitShowTime.Clear();
+            _laneReactionLastValue.Clear();
+            _laneReactionShowTime.Clear();
+            if (RunningTimeText != null) RunningTimeText.Text = "0.00";
+            if (_rawTimingLog != null) _rawTimingLog.Clear();
+            // 把硬件也复位到 0 时间, 否则硬件仍在跑上一组的滚动时间; 同时重发 Set_MatchEvent
+            // 让硬件用本组的"缺道位图 / 总圈数"重新初始化 (与 Restart_Click 的硬件复位段一致).
+            if (pushToHardware && _timingBridge != null && _timingBridge.IsConnected) {
+                try { _timingBridge.SendCommand(0x20); } catch { }
+                _timingBridge.DelayBetweenFrames(20);
+                try { _timingBridge.SendCommand(0x7F); } catch { }
+                _timingBridge.DelayBetweenFrames(20);
+                try { SendSetMatchEventToHardware(); } catch (Exception ex) { AddLog("Set_MatchEvent 重发失败: " + ex.Message); }
+                _timingBridge.DelayBetweenFrames(20);
+            }
+
             _raceState = RaceState.Ready;
             UpdateRaceStateDisplay();
             // ResetForNewRace 把发令端出发台打开（"准备就绪"语义），其它端关闭
@@ -5291,9 +5324,13 @@ namespace SwimmingScoreboard
             // 选项目时把比赛配置 / 发令点同步给硬件（出发台仍由 0x21 Ready 控制是否打开）：
             //   1) Set_MatchEvent (0x43) — 总圈数、左右预期触板次数、泳道开关位图
             //   2) Set_SwStartingPosition (0x10 0x42 [pos]) — 发令点
+            //   3) Set_ArmDelay_Time (0x41) — d8 的 SP50M 位 (50米发令在终点对面) ← 2026-05-26 修复:
+            //      之前不发 0x41, 硬件用上一帧的 sp50m=0 当 50m 项目处理, 0x21 Ready 时打开的出发台
+            //      落在终点端而非对面, 后续触板/盲表方向都跟着错位.
             if (_timingBridge != null && _timingBridge.IsConnected) {
                 try { SendSetMatchEventToHardware(); } catch (Exception ex) { AddLog("Set_MatchEvent 同步失败: " + ex.Message); }
                 try { SendStartPositionToHardware(); } catch (Exception ex) { AddLog("发令点同步失败: " + ex.Message); }
+                try { SendTimingSettingsToHardware(); } catch (Exception ex) { AddLog("参数同步失败 (sp50m): " + ex.Message); }
             }
         }
 
@@ -5439,10 +5476,13 @@ namespace SwimmingScoreboard
             UpdateLaneStatusDisplay();
             UpdateRecordDisplay();
             Broadcast();
-            // 组次变更 → 重新同步 0x43（不同组的空泳道位图不同）+ 发令点
+            // 组次变更 → 重新同步 0x43（不同组的空泳道位图不同）+ 发令点 + 0x41(含 sp50m)
+            // 2026-05-26 补 SendTimingSettingsToHardware: AutoAdjustStartPosition 把 StartPosition 切到对面后,
+            //   sp50m 位 (= StartPosition != FinishPosition) 必须通过 0x41 帧告诉硬件, 否则 50m 出发台开错端.
             if (_timingBridge != null && _timingBridge.IsConnected) {
                 try { SendSetMatchEventToHardware(); } catch (Exception ex) { AddLog("Set_MatchEvent 同步失败: " + ex.Message); }
                 try { SendStartPositionToHardware(); } catch (Exception ex) { AddLog("发令点同步失败: " + ex.Message); }
+                try { SendTimingSettingsToHardware(); } catch (Exception ex) { AddLog("参数同步失败 (sp50m): " + ex.Message); }
             }
         }
 
