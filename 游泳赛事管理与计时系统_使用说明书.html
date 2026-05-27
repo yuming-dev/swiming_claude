@@ -1,9 +1,125 @@
 ﻿<!DOCTYPE html><html lang="zh"><head><meta charset="utf-8"><title>游泳赛事管理与计时系统 使用说明书</title><style>body{font-family:'Microsoft YaHei','Source Han Sans CN',sans-serif;max-width:960px;margin:30px auto;padding:0 20px;line-height:1.7;color:#1f2937;background:#fff;}h1{color:#1e3a8a;font-size:28px;border-bottom:3px solid #3b82f6;padding-bottom:12px;margin-top:30px;}h2{color:#1e40af;font-size:22px;border-bottom:1px solid #cbd5e1;padding-bottom:6px;margin-top:30px;}h3{color:#1e3a8a;font-size:18px;margin-top:24px;}h4{color:#334155;font-size:16px;margin-top:18px;}h5,h6{color:#475569;font-size:14px;}p{margin:8px 0;}table{border-collapse:collapse;margin:12px 0;width:100%;font-size:14px;}th,td{border:1px solid #cbd5e1;padding:8px 12px;text-align:left;vertical-align:top;}th{background:#eff6ff;color:#1e40af;font-weight:bold;}tr:nth-child(even) td{background:#f8fafc;}code{background:#f1f5f9;padding:1px 6px;border-radius:3px;color:#be185d;font-family:Consolas,monospace;font-size:90%;}pre{background:#0f172a;color:#e2e8f0;padding:14px 16px;border-radius:6px;overflow-x:auto;font-family:Consolas,monospace;font-size:13px;}ul,ol{margin:8px 0 8px 28px;}li{margin:4px 0;}blockquote{border-left:4px solid #3b82f6;background:#eff6ff;padding:6px 14px;margin:10px 0;color:#1e3a8a;}hr{border:none;border-top:2px solid #e2e8f0;margin:30px 0;}a{color:#2563eb;text-decoration:none;}a:hover{text-decoration:underline;}strong{color:#1e293b;}@media print{body{font-size:11pt;max-width:100%;}h1{page-break-before:always;}h1:first-child{page-break-before:auto;}table,pre,blockquote{page-break-inside:avoid;}pre{background:#f8fafc;color:#1f2937;}}</style></head><body><h1>游泳赛事管理与计时系统 使用说明书</h1>
-<p><strong>版本</strong>：v2026.05.20</p>
+<p><strong>版本</strong>：v2026.05.26</p>
 <p><strong>适用平台</strong>：Windows 10 / 11（x64）</p>
 <p><strong>主要分发文件</strong>：<code>游泳赛事管理系统_安装包_&lt;日期&gt;.zip</code> / <code>SwimmingTimingSystem-Setup-v&lt;日期&gt;.zip</code></p>
 <hr>
-<h2>本版主要变更（v2026.05.13 → v2026.05.20 汇总）</h2>
+<h2>本版主要变更（v2026.05.20 → v2026.05.26 汇总）</h2>
+<p>本期重点：<strong>比赛控制状态机三个回归 + 50m 比赛 PC 协议解读纠正 + 设备状态全套持久化 + 赛事概览面板改造</strong>。</p>
+<h3>一、比赛控制三个关键回归修复</h3>
+<h4>1.1 泳道封闭倒计时到 0 后设备不打开（必修）</h4>
+<p><strong>现象</strong>：开机后选项目 → 准备就绪 → M.发令 → 泳道关闭时间倒计时到 0，但触板 / 盲表都没自动打开。</p>
+<p><strong>根因</strong>：<code>CountdownTimer_Tick</code> 用 <code>state.LaneCloseCountdown &gt; 0</code> 作为外层 gate；显示用 <code>Math.Round(remaining*10)/10</code> 在 <code>remaining&lt;0.05</code> 时会把 <code>LaneCloseCountdown</code> 提前四舍五入为 0 → 下次 tick 外层 gate 失败 → "开设备"分支永远不进。</p>
+<p><strong>修复</strong>：gate 改用真正的时间锚 <code>CountdownStartedAt</code> + <code>CountdownTargetSec</code>，<code>LaneCloseCountdown</code> 降级为纯 UI 显示值。倒计时跨过 0 后清空锚点防止重复打开。</p>
+<h4>1.2 LaneCloseTime 设 10s 但实际倒计时 20s</h4>
+<p><strong>现象</strong>：参数设置里"泳道关闭时间"改成 10 秒并保存，但发令后倒计时从 20 秒开始。</p>
+<p><strong>根因</strong>：<code>LaneDeviceState._laneCloseTime</code> 默认 20.0，而 <code>StartRace_Click</code> 用 <code>state.LaneCloseTime &gt; 0 ? state.LaneCloseTime : 全局</code>。<code>20 &gt; 0</code> 永远成立，每泳道默认值压全局值。</p>
+<p><strong>修复</strong>：<code>LaneDeviceState._laneCloseTime</code> 默认改为 <code>0.0</code>（= "用全局"语义）。Per-lane 非零值仅由硬件 / 远程台明确写入时生效。</p>
+<h4>1.3 跳过"计时复位"直接按"准备就绪"参数残留</h4>
+<p><strong>现象</strong>：用户跳过计时复位直接按准备就绪后，旧组的滚动时间 / leader 显示 / 分段跟踪 / 硬件状态都残留。</p>
+<p><strong>修复</strong>：<code>EnterReadyStateInternal</code> 入口补"复位类清场"段（从 Restart_Click 移植）：</p>
+<ul>
+<li>停 <code>_raceTimer</code> / <code>_countdownTimer</code></li>
+<li>清 <code>_runningTime</code> / <code>_hwRunningTime*</code> / <code>_firstPlaceShowStart</code> / <code>_lastLeaderSplitCount</code></li>
+<li>清 4 个分段反应时跟踪字典 + <code>_rawTimingLog</code></li>
+<li>硬件发 <code>0x20</code> + <code>0x7F</code> + 重发 <code>Set_MatchEvent</code></li>
+<li><strong>不</strong>删 <code>Swimmer.Results</code>（那是 Restart 的"丢弃成绩"语义，Ready 路径不应碰已有成绩）</li>
+</ul>
+<p>行为：现在不管用户走 复位 → 就绪、直接就绪、或者多次切换，PC 和硬件都进入干净状态再开始。</p>
+<h3>二、50m 比赛 PC 端协议解读纠正</h3>
+<p><strong>现象</strong>：PC 选 50m 项目后，硬件 LED 发令点 + 圈数正确，但出发台开错端、游泳方向错、后续触板/盲表也错位。硬件 +1/-1 按键设置 50m 完全正确。</p>
+<p><strong>根因</strong>：<code>0x41 Set_ArmDelay_Time</code> 帧 d8 bit 0 在硬件代码里叫 <code>FinalPlace</code>（终点端，0=左/1=右），PC 端之前误当 <code>StartPlace</code>（起点端）发送。</p>
+<ul>
+<li>100m+ 比赛 <code>sp50m=0</code> → <code>StartPosition == FinishPosition</code> → 两个字段值相同 → 编码一样 → 误打误撞对了</li>
+<li>50m 比赛 <code>sp50m=1</code> → <code>Start ≠ Finish</code> → 编码不一样 → 出发台开错端</li>
+</ul>
+<p><strong>修复</strong>：d8 bit 0 改发 <code>FinishPosition</code>：</p>
+<pre>
+byte finalPl = (FinishPosition == "right" ? 1 : 0);
+byte placeDir = (laneDir &lt;&lt; 4) | (sp50m &lt;&lt; 1) | finalPl;
+</pre>
+<p><strong>注意</strong>：硬件端<strong>不需要任何改动</strong> —— 是 PC 端协议字段误读，硬件代码本来就一直读 FinalPlace。</p>
+<h3>三、SetCurrentEvent / SetCurrentHeat 切换时补发 0x41</h3>
+<p><strong>配套修复</strong>：之前 PC 切项目/切组次时只发 <code>0x43</code> + <code>0x10 0x42</code>，漏发 <code>0x41</code>。硬件就用上一帧的 sp50m 处理。</p>
+<ul>
+<li>现已在 <code>SetCurrentEvent</code>（line 5294）和 <code>SetCurrentHeat</code>（line 5443）的硬件同步块都补发 <code>SendTimingSettingsToHardware()</code>（0x41 + 0x44 + 0x45），保证每次切项目/组次都更新 sp50m 位。</li>
+</ul>
+<h3>四、滚动时间显示"只有 1 名运动员触板才停留"</h3>
+<p><strong>镜像 display.html <code>_dspFirstDetected</code> 逻辑</strong>：</p>
+<ul>
+<li>1 名判定：count desc（finished=9999）+ rank 小并列 + lastCum 兜底</li>
+<li>触发条件：触板的那道 == 1 名所在道</li>
+<li>显示：1 名运动员自己的最新累计时间</li>
+<li>停留时长：<code>FirstPlaceHoldTime</code>（参数"第 1 名成绩显示时间"，display.html 也同步用此参数）</li>
+<li>2/3 名追触板不动 <code>_firstPlaceShowStart</code>，让滚动时间继续 / 保持上次 1 名时间</li>
+</ul>
+<p><strong>配套</strong>：移除 <code>ProcessTimingData</code> 0x7F 分支对 <code>RunningTimeText.Text</code> 的直接覆盖（与 <code>RaceTimer_Tick</code> 双写打架）。UI 写入收敛到 <code>RaceTimer_Tick</code> 单一来源。</p>
+<h3>五、display 端每泳道分段成绩切组后不显示</h3>
+<p><strong>根因</strong>：<code>laneDisplayState</code> 只在 <code>rState==='waiting'</code> 时清空。比赛切组常走 Finished→Ready→Racing 不经过 Waiting，残留的 <code>splitCount</code>（比如 200m=4 段）卡死新组判断：<code>realSplitCount(1) &gt; ls.splitCount(4)</code> 为假 → <code>showTime</code> 不更新 → 分段成绩永远进不了 5 秒显示窗口。</p>
+<p><strong>修复</strong>：display.html <code>_ensureRaceRowsDom</code> 重建 DOM 时（heat / event / 运动员任一变化）整体清空 <code>laneDisplayState</code>，与主控 <code>Restart_Click</code> 清 <code>_laneSplitCount</code> 对称。</p>
+<h3>六、发令位置变化时左右指示灯不刷新</h3>
+<p><strong>根因</strong>：</p>
+<ol>
+<li><code>UpdateLaneStatusDisplay</code> 的 UI 重建 key 没包含 <code>StartPosition</code> → 50m 自动切对岸 / 参数面板改发令位置时 <code>RenderPoolHeader</code> 不重建 → 顶部绿色发令位置徽章不刷新。</li>
+<li><code>RefreshLaneRows</code> 里占用泳道每 tick 刷新 <code>LeftSignalInd/RightSignalInd</code>，空泳道的行 <code>continue</code> 跳过了 → 空道指示灯停在 <code>BuildLaneRows</code> 初值。</li>
+</ol>
+<p><strong>修复</strong>：</p>
+<ol>
+<li>UI key 加 <code>|sp:{StartPosition}</code></li>
+<li>空泳道分支也设置 <code>LeftSignalInd.Background / RightSignalInd.Background</code></li>
+</ol>
+<h3>七、设备状态全套持久化</h3>
+<p><strong>之前</strong>：<code>Left/RightBlindWatch{1,2,3}NotInstalled</code> 是 <code>ApplyTouchpadInstallModeToLanes</code> 按 <code>HasRightStartBlock + FinishPosition</code> 算出来的"计算态"，但 <code>device_states.json</code> 只持久化盲表 6 个 NotInstalled，且 <code>HasRightStartBlock</code> 完全没存盘 → 重启后 <code>HasRightStartBlock</code> 回到默认 true，老 JSON 里残留的"单端时算出的左侧 NotInstalled=true"被读回 → 开机左侧盲表显示未安装。</p>
+<p><strong>修复</strong>（按 "所有参数 + 计算后状态全部存盘，开机初始化 + 读盘覆盖" 思路）：</p>
+<ol>
+<li><strong><code>LaneCloseSettings</code> 新增 <code>HasRightStartBlock</code></strong> 属性，进 <code>timing_settings.json</code> 持久化；<code>LoadTimingSettings</code> 装载后同步回 <code>_poolConfig.HasRightStartBlock</code>。</li>
+<li><strong><code>device_states.json</code> 扩到 12 个 NotInstalled 标志</strong>：触板 2 + 出发台 2 + 盲表 6（之前只 6 个）。加上原 10 个 Broken + 2 个 ManualEnabled = 24 字段/道。</li>
+<li><strong>3 处改 HasRightStartBlock 的入口</strong>（远程台 / 硬件 0x3A / 设置对话框）都同步写 <code>_laneCloseSettings.HasRightStartBlock</code> + <code>SaveDeviceStates</code> + <code>SaveTimingSettings</code>。</li>
+<li><strong>硬件 0x63 终点位置上报</strong>同步 <code>SaveDeviceStates</code> + <code>SaveTimingSettings</code>。</li>
+<li><strong>盲表数量对话框</strong> "点确认就存"（去掉 <code>if (changed)</code> 优化）。</li>
+</ol>
+<h3>八、赛事概览面板改造</h3>
+<h4>8.1 仲裁委员字段 + 删除发令员 / 编排长</h4>
+<ul>
+<li>增加"仲裁委员"字段（多人逗号分隔）</li>
+<li>删除"发令员"和"编排长"两行</li>
+<li>技术代表 / 仲裁委员 / 总裁判长 排同一行（网格扩到 6 列）</li>
+<li>"参赛单位管理"、"工作人员管理"按钮移到"新建赛事"右边</li>
+</ul>
+<h4>8.2 编排长签字位置全部删除</h4>
+<p>历史代码里"裁判长签字"那行实际填的是 <code>ChiefJudgeBox</code>（即编排长数据），全部删除：</p>
+<ul>
+<li>通用文档底部签名行（<code>DocSignatureRow</code>）</li>
+<li><code>EventResultPrintWindow</code> 签名栏</li>
+<li>秩序册"竞赛人员"表（仲裁委员改 <code>colspan='3'</code> 独占一行）</li>
+<li>奖状证书底部</li>
+<li>破纪录证书底部</li>
+</ul>
+<p><code>ChiefJudgeBox</code> 保留为隐藏控件以兼容 <code>.cs</code> 引用。</p>
+<h3>九、接力队 AgeGroup 字段全链路</h3>
+<ul>
+<li><code>RelayTeam.AgeGroup</code> 新增</li>
+<li>建队 / 编辑接力 / CSV 导出 / 秩序册按组别分组都加 AgeGroup</li>
+<li>接力队唯一键由"队名+性别+项目" → "队名+性别+项目+组别" 四键</li>
+</ul>
+<h3>十、秩序册生成向导多天平铺</h3>
+<ul>
+<li>进 Tab3 时按"赛事概览"开始/结束日期生成完整日期列表（原仅塞 <code>DateTime.Today</code>）</li>
+<li>"自动"按钮多天平铺：240 分钟/时段满即滚下一天，不再全堆到当天</li>
+<li>一键全自动默认起始日期/天数从赛事概览推断</li>
+</ul>
+<h3>十一、报名 register.html 改造</h3>
+<ul>
+<li>个人项目报名 / 接力项目报名 改为顶部 tab 切换布局</li>
+<li><strong>必填字段</strong>：姓名 / 出生日期 / 身份证号(15 或 18 位) / 代表队 / 组别 / 性别</li>
+<li>接力按队名查询 → 回填修改</li>
+<li>接力队组别必填，与个人组别同一下拉源</li>
+</ul>
+<h3>十二、display 端滚动时间停留时长统一</h3>
+<ul>
+<li>display.html <code>_dspFirstHoldSec</code> 从 <code>splitDisplayTime</code> 改成 <code>firstPlaceHoldTime</code>，和主控 <code>RaceTimer_Tick</code> 同一参数。"分段成绩显示时长" 和 "第 1 名成绩显示时间"语义彻底分开。</li>
+</ul>
+<hr>
+<h2>历史变更（v2026.05.13 → v2026.05.20 汇总）</h2>
 <p>本期以"硬件通讯协议大改 + 套件化重构 + 三端协同细化"为主线。</p>
 <h3>一、硬件计时器通讯协议大幅扩展</h3>
 <p>参见 <code>docs/通讯协议变更说明_v2026.05.20.txt</code>（权威协议规范）。</p>
