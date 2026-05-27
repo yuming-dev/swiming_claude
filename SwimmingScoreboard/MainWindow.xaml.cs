@@ -2706,7 +2706,10 @@ namespace SwimmingScoreboard
         //   d5  MBDelayTime              盲表等待时间(s)            ← 50（参考默认值）
         //   d6  Result_Display_Time      成绩显示时间(s)            ← SplitDisplayTime
         //   d7  StartboxEdgeBit          出发信号边沿(0=下降,1=上升) ← 0
-        //   d8  LaneDir<<4 | SP50M<<1 | StartPlace                  ← 道次方向 + 50米发令位 + 发令端
+        //   d8  LaneDir<<4 | SP50M<<1 | FinalPlace                  ← 道次方向 + 50米单程位 + 终点端(硬件称 FinalPlace, 0=左/1=右)
+        //   注意 d8 bit 0 语义是"终点位置"而非"起点位置"(2026-05-26 修复)
+        //   硬件 swimplay.c line 1081 注释明确: FinalPlace=0 终点在左, =1 终点在右
+        //   sp50m=0 时 StartPosition==FinishPosition, 两种发法逐位相同, 100m+ 比赛行为不变
         //   d9  TPDelayTime              触板延迟(s)                ← ResultConfirmCloseDelay
         //   d10 SBDelayTime              出发台延迟(s)              ← StartBlockCloseDelay
         //
@@ -2732,9 +2735,12 @@ namespace SwimmingScoreboard
                 byte resultDsp = ByteClamp(_laneCloseSettings.SplitDisplayTime);
                 byte edgeBit   = 0;                                                   // 出发信号边沿 0=下降沿
                 byte laneDir   = (byte)(_laneCloseSettings.LaneOrder == "reverse" ? 1 : 0);
-                byte startPl   = (byte)(_laneCloseSettings.StartPosition == "right" ? 1 : 0);
+                //2026-05-26 修复: d8 bit 0 硬件端语义是 FinalPlace(终点位置) 而非 StartPlace(起点位置)
+                //  之前发 StartPosition, 50m 单程比赛 (sp50m=1, Start≠Finish) 时出发台开错端
+                //  100m+ 双程 (sp50m=0, Start==Finish) 时两种算法值相同, 行为不退化
+                byte finalPl   = (byte)(_laneCloseSettings.FinishPosition == "right" ? 1 : 0);
                 byte sp50m     = (byte)(_laneCloseSettings.StartPosition != _laneCloseSettings.FinishPosition ? 1 : 0);
-                byte placeDir  = (byte)(((laneDir & 0x01) << 4) | ((sp50m & 0x01) << 1) | (startPl & 0x01));
+                byte placeDir  = (byte)(((laneDir & 0x01) << 4) | ((sp50m & 0x01) << 1) | (finalPl & 0x01));
                 byte tpDelay   = ByteClamp(_laneCloseSettings.ResultConfirmCloseDelay);
                 byte sbDelay   = ByteClamp(_laneCloseSettings.StartBlockCloseDelay);
                 _timingBridge.SendFullFrame(0x41, armNorm, armAfter, mbDelay, resultDsp, edgeBit, placeDir, tpDelay, sbDelay);
