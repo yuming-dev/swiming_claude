@@ -62,6 +62,8 @@ tr:hover { background: rgba(59,130,246,0.05); }
     <div id="bgGridSolid" class="bg-swatch-grid"></div>
     <div style="font-size:1.5vh;color:#94a3b8;margin:1.2vh 0 0.5vh;font-weight:bold;letter-spacing:1px;">渐变 (层次感)</div>
     <div id="bgGridGradient" class="bg-swatch-grid"></div>
+    <div style="font-size:1.5vh;color:#94a3b8;margin:1.2vh 0 0.5vh;font-weight:bold;letter-spacing:1px;">高级混合 (深度感)</div>
+    <div id="bgGridMesh" class="bg-swatch-grid"></div>
     <div style="font-size:1.5vh;color:#94a3b8;margin:1.2vh 0 0.5vh;font-weight:bold;letter-spacing:1px;">灰度</div>
     <div id="bgGridGray" class="bg-swatch-grid"></div>
     <div style="font-size:1.5vh;color:#94a3b8;margin:1.2vh 0 0.5vh;font-weight:bold;letter-spacing:1px;">图案</div>
@@ -163,6 +165,21 @@ var BG_PRESETS_GRADIENT = [
     { name: '暗夜紫', value: 'linear-gradient(180deg, #000000 0%, #1e1b4b 60%, #4338ca 100%)' },
     { name: '翡翠', value: 'linear-gradient(135deg, #064e3b 0%, #047857 55%, #10b981 100%)' }
 ];
+// 高级混合: mesh-style 多层 radial-gradient 叠加 + conic-gradient, 模拟"网格渐变"那种深度感.
+var BG_PRESETS_MESH = [
+    { name: '极光', value: 'radial-gradient(at 10% 20%, #4338ca 0%, transparent 50%), radial-gradient(at 90% 10%, #ec4899 0%, transparent 45%), radial-gradient(at 50% 100%, #06b6d4 0%, transparent 55%), #0f172a' },
+    { name: '日落海湾', value: 'radial-gradient(at 20% 25%, #f59e0b 0%, transparent 50%), radial-gradient(at 80% 35%, #ec4899 0%, transparent 50%), radial-gradient(at 50% 95%, #1e3a8a 0%, transparent 60%), #0c4a6e' },
+    { name: '星云紫', value: 'radial-gradient(at 30% 20%, #7c3aed 0%, transparent 55%), radial-gradient(at 70% 65%, #2563eb 0%, transparent 50%), radial-gradient(at 40% 90%, #db2777 0%, transparent 50%), #1e1b4b' },
+    { name: '翠湖晨光', value: 'radial-gradient(at 10% 30%, #14b8a6 0%, transparent 55%), radial-gradient(at 80% 15%, #fbbf24 0%, transparent 40%), radial-gradient(at 60% 85%, #06b6d4 0%, transparent 55%), #064e3b' },
+    { name: '玫瑰金', value: 'radial-gradient(at 25% 50%, #f43f5e 0%, transparent 50%), radial-gradient(at 80% 30%, #fbbf24 0%, transparent 40%), radial-gradient(at 50% 90%, #831843 0%, transparent 60%), #4c0519' },
+    { name: '北极光', value: 'radial-gradient(at 30% 5%, #06b6d4 0%, transparent 50%), radial-gradient(at 80% 45%, #22d3ee 0%, transparent 45%), radial-gradient(at 20% 85%, #4338ca 0%, transparent 55%), #082f49' },
+    { name: '火山岩', value: 'radial-gradient(at 50% 0%, #b91c1c 0%, transparent 45%), radial-gradient(at 20% 55%, #f59e0b 0%, transparent 38%), radial-gradient(at 80% 85%, #7c2d12 0%, transparent 55%), #0a0a0a' },
+    { name: '薄雾蓝紫', value: 'radial-gradient(at 25% 25%, #a78bfa 0%, transparent 55%), radial-gradient(at 75% 60%, #60a5fa 0%, transparent 55%), radial-gradient(at 50% 95%, #5b21b6 0%, transparent 55%), #1e1b4b' },
+    { name: '霓虹夜', value: 'radial-gradient(at 15% 20%, #f0abfc 0%, transparent 40%), radial-gradient(at 85% 30%, #38bdf8 0%, transparent 45%), radial-gradient(at 50% 90%, #a855f7 0%, transparent 50%), #0a0a0a' },
+    { name: '海岛日落', value: 'radial-gradient(at 30% 10%, #fb923c 0%, transparent 45%), radial-gradient(at 70% 30%, #f472b6 0%, transparent 50%), radial-gradient(at 50% 90%, #0c4a6e 0%, transparent 60%), #082f49' },
+    { name: '色环转盘', value: 'conic-gradient(from 45deg at 50% 50%, #0c4a6e, #7c3aed, #ec4899, #f59e0b, #14b8a6, #0c4a6e)' },
+    { name: '光圈聚焦', value: 'radial-gradient(circle at 50% 50%, #3b82f6 0%, #1e40af 25%, #0c4a6e 55%, #0a1929 100%)' }
+];
 var BG_PRESETS_GRAY = [
     { name: '纯黑', value: '#000000' },
     { name: '深灰', value: '#1a1a1a' },
@@ -221,7 +238,7 @@ function loadCustomBgImage(file) {
 }
 
 function _refreshBgSwatchSelection(active) {
-    var ids = ['bgGridSolid','bgGridGradient','bgGridGray','bgGridPattern'];
+    var ids = ['bgGridSolid','bgGridGradient','bgGridMesh','bgGridGray','bgGridPattern'];
     for (var g = 0; g < ids.length; g++) {
         var grid = document.getElementById(ids[g]);
         if (!grid) continue;
@@ -254,6 +271,7 @@ function _fillBgGrid(gridId, presets) {
 function _initBgSwatches() {
     _fillBgGrid('bgGridSolid', BG_PRESETS_SOLID);
     _fillBgGrid('bgGridGradient', BG_PRESETS_GRADIENT);
+    _fillBgGrid('bgGridMesh', BG_PRESETS_MESH);
     _fillBgGrid('bgGridGray', BG_PRESETS_GRAY);
     _fillBgGrid('bgGridPattern', BG_PRESETS_PATTERN);
 }
