@@ -4327,11 +4327,29 @@ namespace SwimmingScoreboard
             if (newDisp < 0) newDisp = 0;
             if (newDisp > maxDisp) newDisp = maxDisp;
             if (newDisp == curDisp) return; // 已经在边界
-            int baseVal = GetTouchRemain(ls, isLeft);
-            int newAdj = newDisp - baseVal;
-            if (isLeft) ls.LeftLapManualAdjust = newAdj;
-            else        ls.RightLapManualAdjust = newAdj;
-            AddLog(string.Format("泳道{0} 手动调整{1}侧圈数显示: {2}→{3}", lane, isLeft ? "左" : "右", curDisp, newDisp));
+            int actualDelta = newDisp - curDisp;   // 钳过的真实变化量, 不一定等于 delta
+
+            // 2026-05-27 把手动调整"落地"到 laneState.CurrentLap, 让下一次触板按新 lap 触发,
+            //   并更新成绩 / 实时排名 (ComputeLiveRanks 用 split.Lap 排序, 下次触板创建的 split.Lap
+            //   就用更新后的 CurrentLap+1).
+            //   语义:
+            //     delta = -1 (▼ 减剩余 = 手动确认一次触板) → CurrentLap += 1, Direction 翻转
+            //     delta = +1 (▲ 加剩余 = 撤回一次触板)     → CurrentLap -= 1, Direction 翻转
+            //   每次手动调整都看作"一次额外触板事件 (或撤回)", 因此:
+            //     CurrentLap   减 actualDelta
+            //     Direction    翻转一次 (与 ProcessTouchpadHit 段间分支同步)
+            //   LapManualAdjust 重新归零 (新状态已直接体现在 CurrentLap 上, 显示偏移不再需要)
+            int totalLaps = GetTotalLaps();
+            int newCur = ls.CurrentLap - actualDelta;
+            if (newCur < 0) newCur = 0;
+            if (newCur > totalLaps) newCur = totalLaps;
+            ls.CurrentLap = newCur;
+            ls.Direction = ls.Direction == "→" ? "←" : "→";
+            ls.LeftLapManualAdjust = 0;
+            ls.RightLapManualAdjust = 0;
+
+            AddLog(string.Format("泳道{0} 手动调整{1}侧圈数: 剩余 {2}→{3}, CurrentLap→{4}, Direction→{5}",
+                lane, isLeft ? "左" : "右", curDisp, newDisp, newCur, ls.Direction));
             UpdateLaneStatusDisplay();
             //2026-05-17 同步剩余圈数到硬件计时器（协议 0x61 Set_LapRemaining）
             //2026-05-18 lane 按屏幕位置编码（逆序模式下转换）

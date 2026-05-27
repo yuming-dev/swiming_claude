@@ -219,7 +219,8 @@
       "Bash(command -v python3)",
       "Bash(command -v node)",
       "Bash(command -v npx)",
-      "PowerShell(& \"C:\\\\����\\\\swiming_claude\\\\md2html.ps1\" -mdPath \"C:\\\\����\\\\swiming_claude\\\\��Ӿ���¹������ʱϵͳ_ʹ��˵����.md\" -htmlPath \"C:\\\\����\\\\swiming_claude\\\\��Ӿ���¹������ʱϵͳ_ʹ��˵����.html\" -title \"��Ӿ���¹������ʱϵͳ ʹ��˵����\")"
+      "PowerShell(& \"C:\\\\����\\\\swiming_claude\\\\md2html.ps1\" -mdPath \"C:\\\\����\\\\swiming_claude\\\\��Ӿ���¹������ʱϵͳ_ʹ��˵����.md\" -htmlPath \"C:\\\\����\\\\swiming_claude\\\\��Ӿ���¹������ʱϵͳ_ʹ��˵����.html\" -title \"��Ӿ���¹������ʱϵͳ ʹ��˵����\")",
+      "Bash(git rm *)"
     ]
   }
 }
