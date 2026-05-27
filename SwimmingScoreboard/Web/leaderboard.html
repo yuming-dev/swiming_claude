@@ -22,6 +22,15 @@ tr:hover { background: rgba(59,130,246,0.05); }
 .tabs { display: flex; gap: 1vw; margin-bottom: 2vh; }
 .tab { padding: 0.8vh 2vw; background: var(--card); border-radius: 4px; cursor: pointer; font-size: 1.8vh; }
 .tab.active { background: var(--accent); }
+/* 2026-05-27 底色设置色板 */
+.bg-swatch-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:0.7vh; }
+.bg-swatch { height:5.2vh; border-radius:5px; cursor:pointer; border:1px solid #334155;
+             display:flex; align-items:flex-end; justify-content:center; padding-bottom:0.25vh;
+             font-size:1.25vh; color:rgba(248,250,252,0.85); text-shadow:0 1px 2px rgba(0,0,0,0.6);
+             transition:transform .12s; }
+.bg-swatch:hover { transform:scale(1.06); }
+.bg-swatch.sel { outline:2px solid #3b82f6; outline-offset:1px; }
+.hidden { display:none; }
 </style>
 </head>
 <body>
@@ -38,6 +47,40 @@ tr:hover { background: rgba(59,130,246,0.05); }
     <div id="rankingView"></div>
     <div id="teamView" style="display:none"></div>
     <div id="recordsView" style="display:none"></div>
+</div>
+
+<!-- 2026-05-27 排名屏底色设置: 右下角齿轮按钮 → 弹出选色面板. 数据保存在 localStorage('swimLeaderboardBg'), 与大屏 display.html 独立. -->
+<button id="bgSettingsBtn" onclick="toggleBgSettings()" title="排名屏底色设置"
+        style="position:fixed;right:1.2vw;bottom:1.2vh;width:5.5vh;height:5.5vh;border-radius:50%;background:rgba(30,41,59,0.55);color:#94a3b8;border:1px solid rgba(148,163,184,0.35);font-size:2.6vh;cursor:pointer;z-index:9998;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);transition:opacity .2s;opacity:0.45;"
+        onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.45'">⚙</button>
+<div id="bgSettingsPanel" class="hidden" style="position:fixed;right:1.2vw;bottom:8vh;width:46vh;max-height:82vh;overflow-y:auto;background:#1e293b;color:#f8fafc;border-radius:10px;padding:2vh 2.2vh;box-shadow:0 8px 36px rgba(0,0,0,.55);z-index:9998;font-family:'Microsoft YaHei',sans-serif;font-size:1.7vh;border:1px solid #334155;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.2vh;">
+        <div style="font-size:2vh;font-weight:bold;color:#3b82f6;">🎨 排名屏底色</div>
+        <button onclick="toggleBgSettings()" style="background:none;border:none;color:#94a3b8;font-size:2.4vh;cursor:pointer;padding:0 0.6vh;">×</button>
+    </div>
+    <div style="font-size:1.5vh;color:#94a3b8;margin-bottom:0.5vh;font-weight:bold;letter-spacing:1px;">纯色</div>
+    <div id="bgGridSolid" class="bg-swatch-grid"></div>
+    <div style="font-size:1.5vh;color:#94a3b8;margin:1.2vh 0 0.5vh;font-weight:bold;letter-spacing:1px;">渐变 (层次感)</div>
+    <div id="bgGridGradient" class="bg-swatch-grid"></div>
+    <div style="font-size:1.5vh;color:#94a3b8;margin:1.2vh 0 0.5vh;font-weight:bold;letter-spacing:1px;">灰度</div>
+    <div id="bgGridGray" class="bg-swatch-grid"></div>
+    <div style="font-size:1.5vh;color:#94a3b8;margin:1.2vh 0 0.5vh;font-weight:bold;letter-spacing:1px;">图案</div>
+    <div id="bgGridPattern" class="bg-swatch-grid"></div>
+    <div style="font-size:1.5vh;color:#94a3b8;margin:1.2vh 0 0.5vh;font-weight:bold;letter-spacing:1px;">自定义</div>
+    <div style="display:flex;align-items:center;gap:0.8vh;margin-bottom:0.8vh;">
+        <span style="color:#94a3b8;font-size:1.5vh;">颜色:</span>
+        <input id="bgCustomPicker" type="color" value="#0f172a" onchange="applyDisplayBg(this.value, true)"
+               style="width:4.5vh;height:3.2vh;padding:0;border:1px solid #334155;border-radius:4px;background:transparent;cursor:pointer;"/>
+        <input id="bgCustomHex" type="text" maxlength="7" placeholder="#0f172a" onchange="applyDisplayBg(this.value, true)"
+               style="flex:1;padding:0.5vh 0.8vh;background:#0f172a;color:#f8fafc;border:1px solid #334155;border-radius:4px;font-family:Consolas,monospace;font-size:1.5vh;"/>
+    </div>
+    <div style="display:flex;align-items:center;gap:0.8vh;margin-bottom:1vh;">
+        <span style="color:#94a3b8;font-size:1.5vh;">图片:</span>
+        <input id="bgImageFile" type="file" accept="image/*" onchange="loadCustomBgImage(this.files[0])"
+               style="flex:1;font-size:1.4vh;color:#cbd5e1;"/>
+    </div>
+    <button onclick="applyDisplayBg('#0f172a', true)"
+            style="width:100%;padding:0.8vh;background:#475569;color:#f8fafc;border:none;border-radius:4px;cursor:pointer;font-size:1.6vh;">恢复默认 (深邃蓝)</button>
 </div>
 
 <!-- 连接服务器遮罩：启动即显示，连接成功才消隐 -->
@@ -97,6 +140,152 @@ function overlayConnect() {
     showConnectOverlay('连接中… ' + ip + ':3002', '#f59e0b');
     connect();
 }
+
+// ═══════ 排名屏底色设置 (2026-05-27) ═══════
+// 与 display.html 同套预设/逻辑, 用独立 localStorage key 'swimLeaderboardBg' 避免冲突.
+var BG_PRESETS_SOLID = [
+    { name: '深邃蓝', value: '#0f172a' },
+    { name: '泳池青', value: '#0c4a6e' },
+    { name: '深海蓝', value: '#082f49' },
+    { name: '森林绿', value: '#14532d' },
+    { name: '紫罗兰', value: '#312e81' },
+    { name: '暗紫红', value: '#581c87' },
+    { name: '炭墨黑', value: '#0a0a0a' },
+    { name: '青灰', value: '#1e293b' }
+];
+var BG_PRESETS_GRADIENT = [
+    { name: '深海到天空', value: 'linear-gradient(180deg, #082f49 0%, #0284c7 70%, #38bdf8 100%)' },
+    { name: '朝霞', value: 'linear-gradient(135deg, #1e1b4b 0%, #be185d 55%, #f97316 100%)' },
+    { name: '极光绿', value: 'linear-gradient(180deg, #022c22 0%, #047857 60%, #5eead4 100%)' },
+    { name: '紫水晶', value: 'linear-gradient(135deg, #2e1065 0%, #7c3aed 55%, #c084fc 100%)' },
+    { name: '落日余晖', value: 'linear-gradient(180deg, #581c87 0%, #be123c 55%, #f59e0b 100%)' },
+    { name: '海底聚光', value: 'radial-gradient(circle at 50% 35%, #0ea5e9 0%, #0c4a6e 45%, #0a1929 100%)' },
+    { name: '暗夜紫', value: 'linear-gradient(180deg, #000000 0%, #1e1b4b 60%, #4338ca 100%)' },
+    { name: '翡翠', value: 'linear-gradient(135deg, #064e3b 0%, #047857 55%, #10b981 100%)' }
+];
+var BG_PRESETS_GRAY = [
+    { name: '纯黑', value: '#000000' },
+    { name: '深灰', value: '#1a1a1a' },
+    { name: '石板灰', value: '#3f3f46' },
+    { name: '中性灰', value: '#525252' },
+    { name: '灰阶渐变', value: 'linear-gradient(180deg, #000000 0%, #404040 100%)' },
+    { name: '雾灰', value: 'radial-gradient(circle at 50% 30%, #525252 0%, #1a1a1a 70%)' },
+    { name: '炭墨亮顶', value: 'linear-gradient(180deg, #404040 0%, #0a0a0a 100%)' },
+    { name: '银暗光', value: 'linear-gradient(135deg, #1f2937 0%, #4b5563 100%)' }
+];
+var BG_PRESETS_PATTERN = [
+    { name: '斜条纹', value: 'repeating-linear-gradient(45deg, #0f172a 0, #0f172a 14px, #1e293b 14px, #1e293b 28px)' },
+    { name: '网点', value: 'radial-gradient(rgba(148,163,184,0.14) 1.5px, transparent 2px) 0 0 / 24px 24px, #0f172a' },
+    { name: '网格', value: 'linear-gradient(rgba(148,163,184,0.10) 1px, transparent 1px) 0 0 / 32px 32px, linear-gradient(90deg, rgba(148,163,184,0.10) 1px, transparent 1px) 0 0 / 32px 32px, #0f172a' },
+    { name: '细横纹', value: 'repeating-linear-gradient(0deg, #0f172a 0, #0f172a 3px, #1e293b 3px, #1e293b 4px)' },
+    { name: '气泡', value: 'radial-gradient(circle at 20% 30%, rgba(56,189,248,0.18) 0, transparent 12vh), radial-gradient(circle at 75% 75%, rgba(34,197,94,0.14) 0, transparent 14vh), #0c4a6e' },
+    { name: '波纹', value: 'repeating-radial-gradient(circle at 50% 50%, #0c4a6e 0, #0c4a6e 12px, #082f49 12px, #082f49 24px)' },
+    { name: '泳道线', value: 'repeating-linear-gradient(180deg, #0c4a6e 0, #0c4a6e 50px, #1e3a5f 50px, #1e3a5f 52px)' },
+    { name: '光晕中心', value: 'radial-gradient(ellipse at 50% 40%, #1e40af 0, #0c4a6e 35%, #0a1929 100%)' }
+];
+
+function applyDisplayBg(value, persist) {
+    if (typeof value !== 'string') return;
+    var v = value.trim();
+    if (!v) return;
+    if (/javascript:/i.test(v) || /expression\s*\(/i.test(v)) return;
+    document.documentElement.style.setProperty('--bg', v);
+    if (persist) {
+        try { localStorage.setItem('swimLeaderboardBg', v); }
+        catch(e) { alert('保存失败: 图片/数据太大无法存入 localStorage. 请用更小的图片.'); }
+    }
+    var isHex = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(v);
+    var picker = document.getElementById('bgCustomPicker');
+    var hex = document.getElementById('bgCustomHex');
+    if (isHex) {
+        if (picker && v.length === 7) picker.value = v;
+        if (hex) hex.value = v;
+    }
+    _refreshBgSwatchSelection(v);
+}
+
+function loadCustomBgImage(file) {
+    if (!file) return;
+    if (!/^image\//.test(file.type)) { alert('请选择图片文件'); return; }
+    if (file.size > 2 * 1024 * 1024) {
+        if (!confirm('图片较大 (' + Math.round(file.size/1024) + 'KB), 可能因 localStorage 限制(~5MB)存不下. 继续?')) return;
+    }
+    var reader = new FileReader();
+    reader.onload = function(e) {
+        var dataUri = e.target.result;
+        var bgValue = "url('" + dataUri + "') center center / cover no-repeat fixed, #0f172a";
+        applyDisplayBg(bgValue, true);
+    };
+    reader.onerror = function() { alert('读取图片失败'); };
+    reader.readAsDataURL(file);
+}
+
+function _refreshBgSwatchSelection(active) {
+    var ids = ['bgGridSolid','bgGridGradient','bgGridGray','bgGridPattern'];
+    for (var g = 0; g < ids.length; g++) {
+        var grid = document.getElementById(ids[g]);
+        if (!grid) continue;
+        var nodes = grid.children;
+        for (var i = 0; i < nodes.length; i++) {
+            var n = nodes[i];
+            if (n.getAttribute('data-value') === active) n.classList.add('sel');
+            else n.classList.remove('sel');
+        }
+    }
+}
+
+function _fillBgGrid(gridId, presets) {
+    var grid = document.getElementById(gridId);
+    if (!grid) return;
+    grid.innerHTML = '';
+    for (var i = 0; i < presets.length; i++) {
+        var p = presets[i];
+        var sw = document.createElement('div');
+        sw.className = 'bg-swatch';
+        sw.setAttribute('data-value', p.value);
+        sw.title = p.name;
+        sw.style.background = p.value;
+        sw.textContent = p.name;
+        (function(v){ sw.onclick = function(){ applyDisplayBg(v, true); }; })(p.value);
+        grid.appendChild(sw);
+    }
+}
+
+function _initBgSwatches() {
+    _fillBgGrid('bgGridSolid', BG_PRESETS_SOLID);
+    _fillBgGrid('bgGridGradient', BG_PRESETS_GRADIENT);
+    _fillBgGrid('bgGridGray', BG_PRESETS_GRAY);
+    _fillBgGrid('bgGridPattern', BG_PRESETS_PATTERN);
+}
+
+function toggleBgSettings() {
+    var panel = document.getElementById('bgSettingsPanel');
+    if (!panel) return;
+    if (panel.classList.contains('hidden')) {
+        _initBgSwatches();
+        var current = localStorage.getItem('swimLeaderboardBg') || '#0f172a';
+        _refreshBgSwatchSelection(current);
+        if (/^#[0-9a-fA-F]{6}$/.test(current)) {
+            var picker = document.getElementById('bgCustomPicker');
+            var hex = document.getElementById('bgCustomHex');
+            if (picker) picker.value = current;
+            if (hex) hex.value = current;
+        }
+        panel.classList.remove('hidden');
+    } else {
+        panel.classList.add('hidden');
+    }
+}
+
+// 启动时应用上次保存的底色 (任意 CSS background 值)
+(function() {
+    try {
+        var saved = localStorage.getItem('swimLeaderboardBg');
+        if (saved && saved.trim() && !/javascript:/i.test(saved)) {
+            document.documentElement.style.setProperty('--bg', saved);
+        }
+    } catch(e) {}
+})();
 
 // 兼容旧版：保留 prompt() 形式询问 IP，外部代码或特殊场景仍可调用
 function getServerHost(forceAsk) {
