@@ -1420,13 +1420,21 @@ namespace SwimmingScoreboard
                     break;
                 case "RESTART":
                 case "TIMER_RESET":
-                    // 与本地"计时复位"一致：0x20 → 0x7F → 0x43（重发缺道，因为硬件 0x20 会清掉缺道位图）
+                    // 与本地"计时复位"一致：0x20 → 0x7F → 0x43（重发缺道）
+                    // 2026-05-26 (revised): 旧推断"0x20 清 0x41 d8 配置位"已证伪 —
+                    //   硬件 swimplay.c Reset_Timer 不清 FinalPlace/StartFinalPlace/StartPlace/SwimmingPool_Arrage.
+                    //   真正根因是 PC 端 D4→side 映射错位 (line 2619-2628 已修).
+                    //   此补发保留为双保险, 防止将来 0x20 路径出现新副作用 — 无害.
                     if (_timingBridge != null && _timingBridge.IsConnected) {
                         _timingBridge.SendCommand(0x20);
                         _timingBridge.DelayBetweenFrames(20);
                         _timingBridge.SendCommand(0x7F);
                         _timingBridge.DelayBetweenFrames(20);
                         try { SendSetMatchEventToHardware(); } catch (Exception ex) { AddLog("Set_MatchEvent 重发失败: " + ex.Message); }
+                        _timingBridge.DelayBetweenFrames(20);
+                        try { SendTimingSettingsToHardware(); } catch (Exception ex) { AddLog("参数重发失败 (双保险): " + ex.Message); }
+                        _timingBridge.DelayBetweenFrames(20);
+                        try { SendStartPositionToHardware(); } catch (Exception ex) { AddLog("发令点重发失败: " + ex.Message); }
                     }
                     Restart_Click(null, null);
                     break;
@@ -2611,15 +2619,16 @@ namespace SwimmingScoreboard
             }
 
             string cmdType = data.CommandType.ToString();
-            // 根据终点端/另一端标识 + 终点位置设置，映射到 left/right
-            // FinishPosition="left" → 终点端=left, 另一端=right
-            // FinishPosition="right" → 终点端=right, 另一端=left
-            bool finishIsLeft = _laneCloseSettings.FinishPosition != "right";
-            string side;
-            if (data.IsFinishEnd)
-                side = finishIsLeft ? "left" : "right";
-            else
-                side = finishIsLeft ? "right" : "left";
+            //2026-05-26 修复: 硬件 D4 字段是物理硬编码 (swimplay.c Lane_NoTbl 表):
+            //   D4 0-9   = 物理【左端】泳道号 (Lane_NoTbl[i],   i=0-9)
+            //   D4 10-19 = 物理【右端】泳道号 (Lane_NoTbl[i+10], 实际道次 = D4-10)
+            //   LaneDir 正/逆序只翻转值的排列, 不改变"低段属左端、高段属右端"的物理映射.
+            //   与 FinalPlace / FinishPosition 完全无关.
+            // 原代码用 FinishPosition 做翻转是历史错位: 默认 FinishPosition=left 时左端恰好=finish端,
+            //   两层错位互相抵消才看起来对. FinishPosition=right 时 50m+100m 完赛触板查错 side
+            //   → 数据被 LeftTouchpadStatus=Closed 丢弃, PC 端无显示 (PDF v2026.05.26 §1 报告的现象).
+            // 注: TimingBridge.cs 里 IsFinishEnd 这个字段名是历史遗留, 真实语义是"物理左端"(D4<10).
+            string side = data.IsFinishEnd ? "left" : "right";
             // 2026-05-12 协议扩展：StartingBlock 命令 D10≠0 表示抢跳，TimeInSeconds 已被解析器取反为负值
             ProcessTimingData(data.Lane, cmdType, data.TimeInSeconds, side, data.IsFalseStart);
         }
@@ -4781,6 +4790,15 @@ namespace SwimmingScoreboard
                 _timingBridge.DelayBetweenFrames(20);
                 try { SendSetMatchEventToHardware(); } catch (Exception ex) { AddLog("Set_MatchEvent 重发失败: " + ex.Message); }
                 _timingBridge.DelayBetweenFrames(20);
+                // 2026-05-26 (revised): 上一版"0x20 清 d8 配置位"推断已证伪 —
+                //   硬件源码 swimplay.c Reset_Timer (line 4663-4854) / case Timer_Reset_Command (line 5754-5768)
+                //   完整调查显示不清 StartFinalPlace/FinalPlace/StartPlace/SwimmingPool_Arrage.
+                //   真正根因: PC 端 D4→side 映射错位 (TimingBridge.cs IsFinishEnd 历史命名误导, 应是 isLeftEnd).
+                //   已在 line 2619-2628 改成固定物理映射, 此补发保留为双保险, 防止将来 0x20 出新副作用 — 无害.
+                try { SendTimingSettingsToHardware(); } catch (Exception ex) { AddLog("参数重发失败 (双保险): " + ex.Message); }
+                _timingBridge.DelayBetweenFrames(20);
+                try { SendStartPositionToHardware(); } catch (Exception ex) { AddLog("发令点重发失败: " + ex.Message); }
+                _timingBridge.DelayBetweenFrames(20);
             }
 
             _raceState = RaceState.Ready;
@@ -4942,6 +4960,12 @@ namespace SwimmingScoreboard
                     // 与主服务器实际的本组运动员名单不一致
                     _timingBridge.DelayBetweenFrames(20);
                     try { SendSetMatchEventToHardware(); } catch (Exception ex) { AddLog("Set_MatchEvent 重发失败: " + ex.Message); }
+                    // 2026-05-26 双保险: "0x20 清 0x41 d8" 推断已证伪 (真正根因是 line 2619-2628 D4→side 映射错位, 已修).
+                    //   此补发保留, 防止将来 0x20 路径出现新副作用 — 无害.
+                    _timingBridge.DelayBetweenFrames(20);
+                    try { SendTimingSettingsToHardware(); } catch (Exception ex) { AddLog("参数重发失败 (双保险): " + ex.Message); }
+                    _timingBridge.DelayBetweenFrames(20);
+                    try { SendStartPositionToHardware(); } catch (Exception ex) { AddLog("发令点重发失败: " + ex.Message); }
                 }
                 return;
             }
@@ -5028,12 +5052,18 @@ namespace SwimmingScoreboard
             // 仅在用户本地点击复位（sender != null）时把 0x20 + 0x7F 推给硬件，
             // 之后再补发一次 0x43 Set_MatchEvent —— 硬件 0x20 复位会顺带清掉"缺道"位图，
             // 不重发的话主服务器的本组缺道与硬件就不一致了
+            // 2026-05-26 双保险: "0x20 清 0x41 d8" 推断已证伪 (真正根因是 line 2619-2628 D4→side 映射错位, 已修).
+            //   此补发保留, 防止将来 0x20 路径出现新副作用 — 无害.
             if (sender != null && _timingBridge != null && _timingBridge.IsConnected) {
                 _timingBridge.SendCommand(0x20);
                 _timingBridge.DelayBetweenFrames(20);
                 _timingBridge.SendCommand(0x7F);
                 _timingBridge.DelayBetweenFrames(20);
                 try { SendSetMatchEventToHardware(); } catch (Exception ex) { AddLog("Set_MatchEvent 重发失败: " + ex.Message); }
+                _timingBridge.DelayBetweenFrames(20);
+                try { SendTimingSettingsToHardware(); } catch (Exception ex) { AddLog("参数重发失败 (双保险): " + ex.Message); }
+                _timingBridge.DelayBetweenFrames(20);
+                try { SendStartPositionToHardware(); } catch (Exception ex) { AddLog("发令点重发失败: " + ex.Message); }
             }
             try { BuildScheduleTree(); } catch { }
             // 最后一次广播：若赛次已结束就直接发 SHOW_WELCOME（包含本次 GetStatusData），

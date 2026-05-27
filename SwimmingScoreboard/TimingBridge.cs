@@ -325,14 +325,20 @@ namespace SwimmingScoreboard
             // D5=分  D6=秒  D7=1/100秒  D8=(小时<<4)|(1/1000秒)  D9=备用  D10=备用  D11=0xF4(EOT)
             byte cmd  = frame[2];
             byte cmd1 = frame[3];
-            byte rawD4 = frame[4];   // D4: 0-9=终点端泳道号, 10-19=另一端泳道号(实际泳道=D4-10)
+            //2026-05-26 修正注释: D4 是物理硬编码 (swimplay.c Lane_NoTbl):
+            //   D4 0-9  = 物理【左端】泳道号
+            //   D4 ≥ 10 = 物理【右端】泳道号 (实际道次 = D4-10)
+            // 与 FinalPlace / FinishPosition 完全无关. 旧注释"终点端/另一端"误导, 真实是"左端/右端".
+            byte rawD4 = frame[4];
             int minutes      = frame[5];
             int seconds      = frame[6];
             int centiseconds = frame[7];
             int hour         = (frame[8] >> 4) & 0x0F;
             int ms1          = frame[8] & 0x0F;   // 1/1000秒个位
 
-            // D4 拆分：实际泳道号 + 终点端/另一端标识
+            // D4 拆分: 实际泳道号 + 左端/右端物理标识
+            // 历史字段名 isFinishEnd 保留 (避免动多个文件), 真实语义是"D4<10 即物理左端".
+            // 上层 (MainWindow.xaml.cs) 应直接按 isFinishEnd=true → side="left" 映射, 不要再用 FinishPosition 翻转.
             bool isFinishEnd = rawD4 < 10;
             int actualLane = isFinishEnd ? rawD4 : rawD4 - 10;
             int laneIndex = actualLane < 20 ? _moduleToLane[actualLane] : actualLane;

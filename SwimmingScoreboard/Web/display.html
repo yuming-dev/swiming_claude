@@ -40,6 +40,8 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 .lane-row.finished { border-left: 4px solid var(--green); }
 .lane-row.dns { opacity: 0.4; }
 .lane-row.dsq { border-left: 4px solid var(--red); }
+/* 2026-05-27 空道(本组无运动员): 半透明显示, 保留道次号让屏幕道数齐整 */
+.lane-row.empty { opacity: 0.28; }
 .lane-row .lane-num { width: 5vw; font-size: 2.5vh; font-weight: bold; color: var(--dim); text-align: center; margin-right: 1vw; }
 .lane-row .swimmer-name { width: 14vw; font-size: 2.9vh; font-weight: bold; white-space: nowrap; overflow: hidden; margin-right: 1.5vw; text-align: center; }
 .lane-row .swimmer-team { width: 12vw; font-size: 2.9vh; color: var(--dim); white-space: nowrap; overflow: hidden; margin-right: 1.5vw; text-align: center; }
@@ -124,6 +126,27 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
     <video id="mediaVideo" style="display:none;max-width:100vw;max-height:100vh;background:#000;" playsinline></video>
 </div>
 
+<!-- 2026-05-27 大屏底色设置: 右下角齿轮按钮 → 弹出选色面板. 数据保存在 localStorage('swimDisplayBg'). -->
+<button id="bgSettingsBtn" onclick="toggleBgSettings()" title="大屏底色设置"
+        style="position:fixed;right:1.2vw;bottom:1.2vh;width:5.5vh;height:5.5vh;border-radius:50%;background:rgba(30,41,59,0.55);color:#94a3b8;border:1px solid rgba(148,163,184,0.35);font-size:2.6vh;cursor:pointer;z-index:9998;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);transition:opacity .2s;opacity:0.45;"
+        onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.45'">⚙</button>
+<div id="bgSettingsPanel" class="hidden" style="position:fixed;right:1.2vw;bottom:8vh;width:34vh;background:#1e293b;color:#f8fafc;border-radius:8px;padding:2vh 2vh;box-shadow:0 8px 30px rgba(0,0,0,.5);z-index:9998;font-family:'Microsoft YaHei',sans-serif;font-size:1.7vh;border:1px solid #334155;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5vh;">
+        <div style="font-size:2vh;font-weight:bold;color:#3b82f6;">🎨 大屏底色</div>
+        <button onclick="toggleBgSettings()" style="background:none;border:none;color:#94a3b8;font-size:2.2vh;cursor:pointer;padding:0 0.6vh;">×</button>
+    </div>
+    <div id="bgSwatchGrid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:0.8vh;margin-bottom:1.5vh;"></div>
+    <div style="display:flex;align-items:center;gap:1vh;margin-bottom:1.2vh;">
+        <span style="color:#94a3b8;">自定义:</span>
+        <input id="bgCustomPicker" type="color" value="#0f172a" onchange="applyDisplayBg(this.value, true)"
+               style="width:5vh;height:3.5vh;padding:0;border:1px solid #334155;border-radius:4px;background:transparent;cursor:pointer;"/>
+        <input id="bgCustomHex" type="text" maxlength="7" placeholder="#0f172a" onchange="applyDisplayBg(this.value, true)"
+               style="flex:1;padding:0.5vh 0.8vh;background:#0f172a;color:#f8fafc;border:1px solid #334155;border-radius:4px;font-family:Consolas,monospace;font-size:1.6vh;"/>
+    </div>
+    <button onclick="applyDisplayBg('#0f172a', true)"
+            style="width:100%;padding:0.8vh;background:#475569;color:#f8fafc;border:none;border-radius:4px;cursor:pointer;font-size:1.6vh;">恢复默认 (深邃蓝)</button>
+</div>
+
 <!-- 连接服务器遮罩：启动即显示，连接成功才消隐 -->
 <div id="connectOverlay" style="position:fixed;left:0;top:0;width:100vw;height:100vh;background:#0f172aF2;z-index:10000;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#f8fafc;font-family:'Microsoft YaHei',sans-serif;">
     <div style="background:#1e293b;border-radius:12px;padding:5vh 6vw;min-width:420px;box-shadow:0 8px 30px rgba(0,0,0,.4);">
@@ -201,6 +224,85 @@ function overlayConnect() {
     showConnectOverlay('连接中… ' + ip + ':3002', '#f59e0b');
     connect();
 }
+
+// ═══════ 大屏底色设置 (2026-05-27) ═══════
+// 预设色板: 8 个常用底色 + 自定义。选好后保存到 localStorage 下次打开自动应用。
+var BG_PRESETS = [
+    { name: '深邃蓝', color: '#0f172a' },   // 默认
+    { name: '泳池青', color: '#0c4a6e' },
+    { name: '深海蓝', color: '#082f49' },
+    { name: '森林绿', color: '#14532d' },
+    { name: '紫罗兰', color: '#312e81' },
+    { name: '暗紫红', color: '#581c87' },
+    { name: '炭墨黑', color: '#0a0a0a' },
+    { name: '青灰', '_dim': true, color: '#1e293b' }
+];
+function applyDisplayBg(color, persist) {
+    if (typeof color !== 'string') return;
+    // 简单校验 #RRGGBB / #RGB
+    var c = color.trim();
+    if (!/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(c)) return;
+    document.documentElement.style.setProperty('--bg', c);
+    // 自定义输入框同步显示当前值
+    var picker = document.getElementById('bgCustomPicker');
+    var hex = document.getElementById('bgCustomHex');
+    if (picker && c.length === 7) picker.value = c;
+    if (hex) hex.value = c;
+    if (persist) {
+        try { localStorage.setItem('swimDisplayBg', c); } catch(e) {}
+    }
+    _refreshBgSwatchSelection(c);
+}
+function _refreshBgSwatchSelection(active) {
+    var grid = document.getElementById('bgSwatchGrid');
+    if (!grid) return;
+    var nodes = grid.children;
+    for (var i = 0; i < nodes.length; i++) {
+        var n = nodes[i];
+        n.style.outline = (n.getAttribute('data-color') === active) ? '2px solid #3b82f6' : 'none';
+    }
+}
+function _initBgSwatches() {
+    var grid = document.getElementById('bgSwatchGrid');
+    if (!grid) return;
+    grid.innerHTML = '';
+    for (var i = 0; i < BG_PRESETS.length; i++) {
+        var p = BG_PRESETS[i];
+        var sw = document.createElement('div');
+        sw.setAttribute('data-color', p.color);
+        sw.title = p.name + ' ' + p.color;
+        sw.style.cssText = 'height:5vh;border-radius:5px;background:' + p.color
+            + ';cursor:pointer;border:1px solid #334155;display:flex;align-items:flex-end;justify-content:center;padding-bottom:0.3vh;font-size:1.3vh;color:rgba(248,250,252,0.78);';
+        sw.textContent = p.name;
+        (function(c){ sw.onclick = function(){ applyDisplayBg(c, true); }; })(p.color);
+        grid.appendChild(sw);
+    }
+}
+function toggleBgSettings() {
+    var panel = document.getElementById('bgSettingsPanel');
+    if (!panel) return;
+    if (panel.classList.contains('hidden')) {
+        _initBgSwatches();
+        var current = localStorage.getItem('swimDisplayBg') || '#0f172a';
+        _refreshBgSwatchSelection(current);
+        var picker = document.getElementById('bgCustomPicker');
+        var hex = document.getElementById('bgCustomHex');
+        if (picker) picker.value = current;
+        if (hex) hex.value = current;
+        panel.classList.remove('hidden');
+    } else {
+        panel.classList.add('hidden');
+    }
+}
+// 启动时应用上次保存的底色
+(function() {
+    try {
+        var saved = localStorage.getItem('swimDisplayBg');
+        if (saved && /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(saved)) {
+            document.documentElement.style.setProperty('--bg', saved);
+        }
+    } catch(e) {}
+})();
 
 // 兼容旧版：如果某些场景仍以 prompt() 方式询问 IP（如 URL 直连后又断开等），这里仍可调用
 function getServerHost(forceAsk) {
@@ -626,21 +728,33 @@ function getRelayCurrentLegName(sw) {
     return '第' + (currentLeg + 1) + '棒: ' + legName;
 }
 
-// 过滤掉"空泳道占位"——大屏上不显示无运动员的泳道，让画面更简洁
-// 后端会为空道送 { status: 'EMPTY', name: '', ... }，这里直接剔除
+// 2026-05-27 改: 按场地配置的泳道数显示全部泳道, 没有运动员的也显示空白行
+// 后端会为每条池中道下发占位 (status='EMPTY' 或 name+bib 都空), 这里全部保留, 在
+// _refreshRaceRows 里通过 status==='EMPTY' 判定渲染成空行。
 function _activeSwimmersForDisplay() {
     var arr = data.swimmers || [];
+    var poolLanes = (data.poolConfig && Array.isArray(data.poolConfig.laneNumbers))
+        ? data.poolConfig.laneNumbers : null;
     var out = [];
+    var seenLanes = {};
     for (var i = 0; i < arr.length; i++) {
         var s = arr[i];
-        if (!s) continue;
-        if (s.status === 'EMPTY') continue;             // 后端显式空道占位
-        var hasName = (s.name && String(s.name).trim() !== '');
-        var hasBib  = (s.bibNumber && String(s.bibNumber).trim() !== '');
-        if (!hasName && !hasBib) continue;              // 无姓名+无号码：视为空道
+        if (!s || s.lane == null) continue;
+        // 只保留池中道的占位; 池外的脏数据剔除
+        if (poolLanes && poolLanes.indexOf(s.lane) < 0) continue;
         out.push(s);
+        seenLanes[s.lane] = true;
     }
-    // 按"参数设置 → 道次顺序"排序：正序=升序 0→9（顶到底）；逆序=降序 9→0
+    // 兜底: 池中道但后端漏发占位 → 这里补一条 EMPTY 占位, 保证渲染时空道数齐
+    if (poolLanes) {
+        for (var pi = 0; pi < poolLanes.length; pi++) {
+            var ln = poolLanes[pi];
+            if (!seenLanes[ln]) {
+                out.push({ lane: ln, name: '', country: '', countryShort: '', status: 'EMPTY', splits: [], finalTime: '', rank: 0 });
+            }
+        }
+    }
+    // 按"参数设置 → 道次顺序"排序: 正序 0→9 (顶到底); 逆序 9→0
     var lo = (data.laneCloseSettings && data.laneCloseSettings.laneOrder === 'reverse') ? 'reverse' : 'forward';
     out.sort(function(a, b) {
         var d = (a.lane || 0) - (b.lane || 0);
@@ -774,6 +888,7 @@ function _refreshRaceRows() {
         if (sw.isFinished) classes += ' finished';
         if (sw.status === 'DNS') classes += ' dns';
         if (sw.status === 'DSQ') classes += ' dsq';
+        if (sw.status === 'EMPTY') classes += ' empty';   // 2026-05-27 空道淡显
         if (ui.lastClass !== classes) { ui.row.className = classes; ui.lastClass = classes; }
 
         // 道次
