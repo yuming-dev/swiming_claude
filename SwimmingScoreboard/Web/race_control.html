@@ -593,14 +593,17 @@ function connect() {
             return;
         }
         if (msg.type === 'STAGE_COMPLETE') {
+            // 2026-05-27 加 ageGroup 字段, 确认晋级时回传以区分甲/乙组
+            var ag = msg.ageGroup || '';
             var g = msg.gender, ev = msg.eventName, from = msg.fromStage, next = msg.nextStage;
             var total = msg.totalSwimmers, promo = msg.promoCount;
-            var answer = confirm(g + ' ' + ev + ' ' + from + ' 全部' + total + '人已完赛！\n\n'
+            var agLabel = ag ? ('[' + ag + '] ') : '';
+            var answer = confirm(agLabel + g + ' ' + ev + ' ' + from + ' 全部' + total + '人已完赛！\n\n'
                 + '是否自动晋级前' + promo + '名到' + next + '？\n（按成绩总排名）');
             if (answer) {
                 ws.send(JSON.stringify({type:'TIMING_CMD', command:'EXECUTE_PROMOTION',
-                    data:{gender:g, eventName:ev, fromStage:from, nextStage:next, promoCount:promo}}));
-                addLog('已确认晋级：' + g + ' ' + ev + ' → ' + next);
+                    data:{ageGroup:ag, gender:g, eventName:ev, fromStage:from, nextStage:next, promoCount:promo}}));
+                addLog('已确认晋级：' + agLabel + g + ' ' + ev + ' → ' + next);
             } else {
                 addLog('已取消自动晋级，可在"成绩与排名→晋级处理"中手动操作');
             }

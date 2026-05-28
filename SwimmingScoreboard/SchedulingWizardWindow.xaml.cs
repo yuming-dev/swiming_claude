@@ -315,17 +315,23 @@ namespace SwimmingScoreboard
         }
 
         private void DistributeAcrossDays(OneClickParamsWindow p) {
-            // 排序：FINA 项目顺序 → stage (预赛优先)
+            // 2026-05-27 排序: 同一 (组别+性别+项目) 内部按 stage (预赛/次复赛/半决赛/决赛) 顺序入队;
+            //   不同项目之间按 FINA 项目顺序. 配合下面 stageDayFloor 严格保证同项目后置 stage 不会跑到前置 stage 之前.
             var ordered = _distPending.OrderBy(d => EventOrder(d.EventName))
-                                       .ThenBy(d => StageOrder(d.Stage))
                                        .ThenBy(d => d.AgeGroup ?? "")
                                        .ThenBy(d => d.Gender ?? "")
+                                       .ThenBy(d => StageOrder(d.Stage))
                                        .ToList();
 
             // 时段容量表：(day, session) → 已用分钟数 / 起始分钟数
             int dayCount = p.ParamDays;
             // sessionSlots[d][0=AM,1=PM,2=EVE] = 已用分钟
             var used = new int[dayCount, 3];
+
+            // 2026-05-27 BUG 修复: 同一 (组别+性别+项目) 的下一 stage 必须排在已分配的最高日 (含) 之后.
+            //   旧版 day 循环从 0 开始, 导致预赛因前几天满了被推到 day 2 时, 决赛仍能塞回 day 0 evening → 时序错乱.
+            //   stageDayFloor[key] = 该项目目前已经占用的最大日 (含, 允许同天 — 预赛上午+决赛同天晚上是合法的).
+            var stageDayFloor = new Dictionary<string, int>();
 
             foreach (var d in ordered) {
                 // 选时段
@@ -347,10 +353,14 @@ namespace SwimmingScoreboard
 
                 int duration = Math.Max(1, d.Heats) * Math.Max(1, d.MinPerHeat) + _durationConfig.InterEventGapMinutes;
 
+                // 2026-05-27 day 循环最早起点 = 该 (组别+性别+项目) 已占用的最大日 (确保后置 stage 不会跑到前置 stage 之前)
+                string evtKey = (d.AgeGroup ?? "") + "|" + (d.Gender ?? "") + "|" + (d.EventName ?? "");
+                int minDay = stageDayFloor.ContainsKey(evtKey) ? stageDayFloor[evtKey] : 0;
+
                 // 在该时段从前往后找有空的天 — 严格按预赛在决赛之前的原则放
                 int chosenDay = -1;
                 int chosenSession = sessionIdx;
-                for (int day = 0; day < dayCount; day++) {
+                for (int day = minDay; day < dayCount; day++) {
                     if (p.ParamFirstDayMorningSkip && day == 0 && sessionIdx == 0) continue;
                     if (p.ParamLastDayAfternoonSkip && day == dayCount - 1 && sessionIdx == 1) continue;
                     if (used[day, sessionIdx] + duration <= p.ParamMaxSessionMinutes) {
@@ -358,11 +368,11 @@ namespace SwimmingScoreboard
                         break;
                     }
                 }
-                // 该时段全满 → 尝试相邻时段（晚上→下午→上午 / 上午→下午→晚上）
+                // 该时段全满 → 尝试相邻时段（晚上→下午→上午 / 上午→下午→晚上）, 同样受 minDay 约束
                 if (chosenDay < 0) {
                     int[] order = sessionIdx == 2 ? new[] { 1, 0 } : sessionIdx == 1 ? new[] { 2, 0 } : new[] { 1, 2 };
                     foreach (var sIdx in order) {
-                        for (int day = 0; day < dayCount; day++) {
+                        for (int day = minDay; day < dayCount; day++) {
                             if (p.ParamFirstDayMorningSkip && day == 0 && sIdx == 0) continue;
                             if (p.ParamLastDayAfternoonSkip && day == dayCount - 1 && sIdx == 1) continue;
                             if (used[day, sIdx] + duration <= p.ParamMaxSessionMinutes) {
@@ -384,6 +394,8 @@ namespace SwimmingScoreboard
                 d.AssignedSortKey = t;
                 used[chosenDay, chosenSession] += duration;
                 _distAssigned.Add(d);
+                // 更新该 (组别+性别+项目) 的"下次 stage 最早允许日" = 当前已分配日
+                stageDayFloor[evtKey] = Math.Max(minDay, chosenDay);
             }
             // 把已分配的从 pending 移除
             foreach (var d in _distAssigned.ToList()) _distPending.Remove(d);

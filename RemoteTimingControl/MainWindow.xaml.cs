@@ -554,6 +554,8 @@ namespace RemoteTimingControl
 
         private void HandleStageComplete(JObject msg)
         {
+            // 2026-05-27 加 ageGroup, 区分同项目甲/乙组的晋级
+            string ag = msg["ageGroup"] != null ? msg["ageGroup"].ToString() : "";
             string g = msg["gender"] != null ? msg["gender"].ToString() : "";
             string ev = msg["eventName"] != null ? msg["eventName"].ToString() : "";
             string from = msg["fromStage"] != null ? msg["fromStage"].ToString() : "";
@@ -561,13 +563,14 @@ namespace RemoteTimingControl
             int total = msg["totalSwimmers"] != null ? (int)msg["totalSwimmers"] : 0;
             int promo = msg["promoCount"] != null ? (int)msg["promoCount"] : 0;
 
-            string question = string.Format("{0} {1} {2} 全部{3}人已完赛！\n\n是否自动晋级前{4}名到{5}？\n（按成绩总排名）",
-                g, ev, from, total, promo, next);
+            string agLabel = string.IsNullOrEmpty(ag) ? "" : ("[" + ag + "] ");
+            string question = string.Format("{0}{1} {2} {3} 全部{4}人已完赛！\n\n是否自动晋级前{5}名到{6}？\n（按成绩总排名）",
+                agLabel, g, ev, from, total, promo, next);
             MessageBoxResult answer = MessageBox.Show(question, "赛次完赛", MessageBoxButton.YesNo, MessageBoxImage.Question);
             if (answer == MessageBoxResult.Yes)
             {
-                SendCmd("EXECUTE_PROMOTION", new { gender = g, eventName = ev, fromStage = from, nextStage = next, promoCount = promo });
-                AddLog("已确认晋级：" + g + " " + ev + " → " + next);
+                SendCmd("EXECUTE_PROMOTION", new { ageGroup = ag, gender = g, eventName = ev, fromStage = from, nextStage = next, promoCount = promo });
+                AddLog("已确认晋级：" + agLabel + g + " " + ev + " → " + next);
             }
             else
             {

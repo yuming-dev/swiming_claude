@@ -1526,12 +1526,14 @@ namespace SwimmingScoreboard
                     break;
                 case "EXECUTE_PROMOTION":
                     if (data != null) {
+                        // 2026-05-27 加 ageGroup 字段 (旧客户端不带则当不限组别处理 = 兼容)
+                        string pAge = data["ageGroup"] != null ? data["ageGroup"].ToString() : "";
                         string pGender = data["gender"] != null ? data["gender"].ToString() : "";
                         string pEvent = data["eventName"] != null ? data["eventName"].ToString() : "";
                         string pFrom = data["fromStage"] != null ? data["fromStage"].ToString() : "";
                         string pNext = data["nextStage"] != null ? data["nextStage"].ToString() : "";
                         int pCount = data["promoCount"] != null ? (int)data["promoCount"] : 8;
-                        ExecutePromotion(pGender, pEvent, pFrom, pNext, pCount);
+                        ExecutePromotion(pAge, pGender, pEvent, pFrom, pNext, pCount);
                     }
                     break;
                 case "PUBLISH_RESULT":
@@ -2349,24 +2351,33 @@ namespace SwimmingScoreboard
             }).ToList();
         }
 
+        // 2026-05-27 BUG 修复 #3: 加 ageGroup 维度. 之前只按 gender + eventName 排名,
+        //   导致 (甲) 男 50m 自由泳 和 (乙) 男 50m 自由泳 的总排名混到一起.
+        //   旧 2-arg 签名保留为转发, 默认按 _currentAgeGroup 过滤.
         private List<object> GetEventRanking(string eventName, string gender) {
+            return GetEventRanking(_currentAgeGroup, eventName, gender);
+        }
+        private List<object> GetEventRanking(string ageGroup, string eventName, string gender) {
             if (string.IsNullOrEmpty(eventName)) return new List<object>();
             bool rankRelay = eventName.Contains("接力");
 
-            // 获取当前赛次的总组数
-            var schedItem = _schedule.FirstOrDefault(s => s.Gender == gender && s.EventName == eventName && s.Stage == _currentStage);
+            // 获取当前赛次的总组数 (按 ageGroup 过滤)
+            var schedItem = _schedule.FirstOrDefault(s => s.Gender == gender && s.EventName == eventName
+                                                          && s.Stage == _currentStage
+                                                          && (s.AgeGroup ?? "") == (ageGroup ?? ""));
             int heatCount = schedItem != null && schedItem.HeatCount > 0 ? schedItem.HeatCount : _totalHeats;
 
             // 收集已确认成绩的各组中被分配到该赛次的运动员
             var stageSwimmers = new List<Swimmer>();
             for (int h = 1; h <= Math.Max(heatCount, _currentHeat); h++) {
-                // 判断该组是否已确认成绩
-                bool confirmed = IsHeatConfirmed(gender, eventName, _currentStage, h);
+                // 判断该组是否已确认成绩 (用带 ageGroup 的重载)
+                bool confirmed = IsHeatConfirmed(ageGroup, gender, eventName, _currentStage, h);
                 if (!confirmed && h == _currentHeat && _resultConfirmed) confirmed = true;
                 if (!confirmed) continue;
 
                 foreach (var s in _swimmers) {
                     if (s.EventName != eventName || s.Gender != gender) continue;
+                    if (!MatchesAgeGroup(s, ageGroup)) continue;   // 2026-05-27 按组别过滤
                     if (s.Notes != null && s.Notes.StartsWith("接力队员")) continue;
                     // 必须通过StageAssignment确认在该组
                     var sa = s.GetAssignmentForStage(_currentStage);
@@ -5273,8 +5284,12 @@ namespace SwimmingScoreboard
             if (string.IsNullOrEmpty(_currentEvent) || string.IsNullOrEmpty(_currentStage)) return;
             if (_currentStage == "决赛") return;
 
+            // 2026-05-27 BUG 修复 #3: 之前 stageSwimmers 只按 Gender + EventName 过滤,
+            //   导致 (甲) 男 50m 自由泳 预赛全部完赛后 allDone=false (要等 (乙) 也全部完赛),
+            //   总排名 + 自动晋级都把 甲乙 混在一起处理. 加 MatchesAgeGroup 过滤后, 甲组独立判定/晋级.
             var stageSwimmers = _swimmers.Where(s =>
                 s.EventName == _currentEvent && s.Gender == _currentGender && s.CurrentStage == _currentStage &&
+                MatchesAgeGroup(s, _currentAgeGroup) &&
                 !(_isRelay && s.Notes != null && s.Notes.StartsWith("接力队员"))
             ).ToList();
             if (stageSwimmers.Count == 0) return;
@@ -5289,7 +5304,9 @@ namespace SwimmingScoreboard
 
             string nextStage = null;
             if (_currentStage == "预赛") {
-                if (_schedule.Any(s => s.Gender == _currentGender && s.EventName == _currentEvent && s.Stage == "半决赛"))
+                // 2026-05-27 半决赛存在性也要按 AgeGroup 过滤; 否则 (甲) 没排半决赛但 (乙) 排了, (甲) 也被误认要走半决赛
+                if (_schedule.Any(s => s.Gender == _currentGender && s.EventName == _currentEvent && s.Stage == "半决赛"
+                                       && (s.AgeGroup ?? "") == (_currentAgeGroup ?? "")))
                     nextStage = "半决赛";
                 else
                     nextStage = "决赛";
@@ -5299,13 +5316,14 @@ namespace SwimmingScoreboard
             if (nextStage == null) return;
 
             int promoCount = HeatScheduler.GetPromotionCount(_currentStage, nextStage);
+            string agLabel = string.IsNullOrEmpty(_currentAgeGroup) ? "" : ("[" + _currentAgeGroup + "] ");
             var answer = MessageBox.Show(
-                string.Format("{0} {1} {2} 全部{3}人已完赛！\n\n是否自动晋级前{4}名到{5}？\n（按成绩总排名）",
-                    _currentGender, _currentEvent, _currentStage, stageSwimmers.Count, promoCount, nextStage),
+                string.Format("{0}{1} {2} {3} 全部{4}人已完赛！\n\n是否自动晋级前{5}名到{6}？\n（按成绩总排名）",
+                    agLabel, _currentGender, _currentEvent, _currentStage, stageSwimmers.Count, promoCount, nextStage),
                 "自动晋级", MessageBoxButton.YesNo, MessageBoxImage.Question);
 
             if (answer == MessageBoxResult.Yes) {
-                ExecutePromotion(_currentGender, _currentEvent, _currentStage, nextStage, promoCount);
+                ExecutePromotion(_currentAgeGroup, _currentGender, _currentEvent, _currentStage, nextStage, promoCount);
             }
         }
 
@@ -5313,10 +5331,12 @@ namespace SwimmingScoreboard
             if (string.IsNullOrEmpty(_currentEvent) || string.IsNullOrEmpty(_currentStage)) return;
             if (_currentStage == "决赛") return;
 
+            // 2026-05-27 BUG 修复 #3: 加 AgeGroup 过滤, 甲/乙 组独立检测 stage-complete + 广播 STAGE_COMPLETE
             var stageSwimmers = _swimmers.Where(s =>
                 s.EventName == _currentEvent &&
                 s.Gender == _currentGender &&
                 s.CurrentStage == _currentStage &&
+                MatchesAgeGroup(s, _currentAgeGroup) &&
                 !(_isRelay && s.Notes != null && s.Notes.StartsWith("接力队员"))
             ).ToList();
 
@@ -5332,7 +5352,8 @@ namespace SwimmingScoreboard
             if (allDone) {
                 string nextStage = null;
                 if (_currentStage == "预赛") {
-                    if (_schedule.Any(s => s.Gender == _currentGender && s.EventName == _currentEvent && s.Stage == "半决赛"))
+                    if (_schedule.Any(s => s.Gender == _currentGender && s.EventName == _currentEvent && s.Stage == "半决赛"
+                                           && (s.AgeGroup ?? "") == (_currentAgeGroup ?? "")))
                         nextStage = "半决赛";
                     else
                         nextStage = "决赛";
@@ -5342,11 +5363,13 @@ namespace SwimmingScoreboard
 
                 if (nextStage != null) {
                     int promoCount = HeatScheduler.GetPromotionCount(_currentStage, nextStage);
-                    AddLog(string.Format("★ {0}{1} {2}全部完赛！可晋级{3}人到{4}", _currentGender, _currentEvent, _currentStage, promoCount, nextStage));
+                    string agLog = string.IsNullOrEmpty(_currentAgeGroup) ? "" : ("[" + _currentAgeGroup + "] ");
+                    AddLog(string.Format("★ {0}{1}{2} {3}全部完赛！可晋级{4}人到{5}", agLog, _currentGender, _currentEvent, _currentStage, promoCount, nextStage));
 
                     // 向所有控制端广播赛次完成通知（控制端弹出晋级确认）
                     var stageCompleteData = new {
                         type = "STAGE_COMPLETE",
+                        ageGroup = _currentAgeGroup ?? "",   // 2026-05-27 加 ageGroup 字段, 客户端确认晋级时回传
                         gender = _currentGender,
                         eventName = _currentEvent,
                         fromStage = _currentStage,
@@ -5366,9 +5389,11 @@ namespace SwimmingScoreboard
 
         /// <summary>
         /// 执行晋级处理（由控制端确认后调用）
+        /// 2026-05-27 加 ageGroup 参数, 只晋级该组的运动员; 之前混合所有组的 bug 已修.
         /// </summary>
-        private void ExecutePromotion(string gender, string eventName, string fromStage, string nextStage, int promoCount) {
-            var filtered = _swimmers.Where(s => s.Gender == gender && s.EventName == eventName).ToList();
+        private void ExecutePromotion(string ageGroup, string gender, string eventName, string fromStage, string nextStage, int promoCount) {
+            var filtered = _swimmers.Where(s => s.Gender == gender && s.EventName == eventName
+                                                && MatchesAgeGroup(s, ageGroup)).ToList();
             var promoted = HeatScheduler.GetPromotedSwimmers(filtered, eventName, fromStage, promoCount);
 
             if (promoted.Count > 0) {
@@ -11498,11 +11523,14 @@ namespace SwimmingScoreboard
 
         private void EditScheduleCore() {
             // 复制一份赛程用于编辑（取消时不影响原数据）
+            // 2026-05-27 修复: 之前漏复制 AgeGroup, 导致打开"修改赛程"时所有项的组别都显示为空,
+            //   "确认修改"后写回 _schedule 会覆盖掉原本的组别 → 所有项变"不限组别".
             var editList = new ObservableCollection<ScheduleItem>();
             foreach (var s in _schedule) {
                 editList.Add(new ScheduleItem {
                     SessionNumber = s.SessionNumber, SessionName = s.SessionName,
                     Date = s.Date, Time = s.Time,
+                    AgeGroup = s.AgeGroup,
                     Gender = s.Gender, EventName = s.EventName,
                     Stage = s.Stage, HeatCount = s.HeatCount,
                     IsRelay = s.IsRelay
