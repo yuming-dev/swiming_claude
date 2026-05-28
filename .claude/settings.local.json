@@ -220,7 +220,8 @@
       "Bash(command -v node)",
       "Bash(command -v npx)",
       "PowerShell(& \"C:\\\\����\\\\swiming_claude\\\\md2html.ps1\" -mdPath \"C:\\\\����\\\\swiming_claude\\\\��Ӿ���¹������ʱϵͳ_ʹ��˵����.md\" -htmlPath \"C:\\\\����\\\\swiming_claude\\\\��Ӿ���¹������ʱϵͳ_ʹ��˵����.html\" -title \"��Ӿ���¹������ʱϵͳ ʹ��˵����\")",
-      "Bash(git rm *)"
+      "Bash(git rm *)",
+      "PowerShell(powershell -ExecutionPolicy Bypass -File .\\\\build_installer.ps1 2>&1 | Select-Object -Last 18)"
     ]
   }
 }
