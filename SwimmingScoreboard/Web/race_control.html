@@ -401,9 +401,10 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
     <div class="right-panel">
         <div class="right-col">
             <h3>比赛控制</h3>
+            <!-- 2026-05-27 计时复位移到准备就绪上方 (3 端同步) -->
+            <button class="action-btn" style="background:#EF4444;" onclick="confirmTimerReset()"><span class="ico">&#xE72C;</span>计时复位</button>
             <button class="action-btn" style="background:#F59E0B;" onclick="readyClick()"><span class="ico">&#xE7C1;</span>准备就绪</button>
             <button class="action-btn" style="background:#22C55E;" onclick="sendCmd('START_RACE')"><span class="ico">&#xE768;</span>M.发令</button>
-            <button class="action-btn" style="background:#EF4444;" onclick="confirmTimerReset()"><span class="ico">&#xE72C;</span>计时复位</button>
             <!-- 2026-05-27 停表: 切换 PC/EXE/HTML/大屏的滚动时间显示冻结, 硬件不受影响 -->
             <button id="pauseClockBtn" class="action-btn" style="background:#8B5CF6;" onclick="sendCmd('PAUSE_CLOCK_TOGGLE')"><span class="ico">&#xE769;</span><span id="pauseClockBtnText">停表</span></button>
             <button class="action-btn" style="background:#3B82F6;" onclick="confirmResult()"><span class="ico">&#xE73E;</span>确认本组成绩</button>

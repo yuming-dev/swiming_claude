@@ -985,7 +985,20 @@
                                 </StackPanel>
                             </Grid>
 
-                            <!-- 核心操作按钮（压缩高度以容纳新增的泳道操作行） -->
+                            <!-- 核心操作按钮（压缩高度以容纳新增的泳道操作行）
+                                 2026-05-27 计时复位移到准备就绪上方 (3 端同步: PC / EXE / HTML) -->
+                            <Button Click="Restart_Click" Height="30" Margin="0,0,0,4" BorderThickness="0" Cursor="Hand">
+                                <Button.Template>
+                                    <ControlTemplate TargetType="Button">
+                                        <Border Background="#EF4444" CornerRadius="8">
+                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                <TextBlock Text="&#xE72C;" FontFamily="Segoe MDL2 Assets" FontSize="16" Foreground="White" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                                <TextBlock Text="计时复位" FontSize="15" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </Border>
+                                    </ControlTemplate>
+                                </Button.Template>
+                            </Button>
                             <Button Click="Ready_Click" Height="30" Margin="0,0,0,4" BorderThickness="0" Cursor="Hand">
                                 <Button.Template>
                                     <ControlTemplate TargetType="Button">
@@ -1005,18 +1018,6 @@
                                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
                                                 <TextBlock Text="&#xE768;" FontFamily="Segoe MDL2 Assets" FontSize="16" Foreground="White" VerticalAlignment="Center" Margin="0,0,8,0"/>
                                                 <TextBlock Text="M.发令" FontSize="15" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
-                                            </StackPanel>
-                                        </Border>
-                                    </ControlTemplate>
-                                </Button.Template>
-                            </Button>
-                            <Button Click="Restart_Click" Height="30" Margin="0,0,0,4" BorderThickness="0" Cursor="Hand">
-                                <Button.Template>
-                                    <ControlTemplate TargetType="Button">
-                                        <Border Background="#EF4444" CornerRadius="8">
-                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                                <TextBlock Text="&#xE72C;" FontFamily="Segoe MDL2 Assets" FontSize="16" Foreground="White" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                                <TextBlock Text="计时复位" FontSize="15" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
                                             </StackPanel>
                                         </Border>
                                     </ControlTemplate>
