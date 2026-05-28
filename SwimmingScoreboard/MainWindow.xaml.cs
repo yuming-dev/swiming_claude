@@ -119,6 +119,9 @@ namespace SwimmingScoreboard
         //   继续走表 → _clockPaused=false, 立刻同步回硬件当前 _runningTime (不补偿暂停期间).
         private bool _clockPaused = false;
         private double _pausedRunningTime = 0;
+        // 2026-05-27 比赛日志 tab: 每泳道当前组事件缓冲 (出发反应时 / 触板 / 盲表 / 手动).
+        //   切换泳道号时调出该道历史; 计时复位 / 准备就绪时清空.
+        private Dictionary<int, StringBuilder> _laneEventLog = new Dictionary<int, StringBuilder>();
         // 泳��设备状态
         private List<LaneDeviceState> _laneDeviceStates = new List<LaneDeviceState>();
 
@@ -2156,6 +2159,8 @@ namespace SwimmingScoreboard
                 // 2026-05-27 停表状态: clockPaused=true 时所有客户端冻结滚动时间显示 (硬件不受影响)
                 clockPaused = _clockPaused,
                 pausedRunningTime = _clockPaused ? TimeFormatter.FormatRunning(_pausedRunningTime) : "",
+                // 2026-05-27 "比赛日志" tab 数据: per-lane 累积事件文本, EXE/HTML 按选定道次显示
+                laneEventLogs = _laneEventLog.ToDictionary(kv => kv.Key.ToString(), kv => kv.Value.ToString()),
                 // 第1名成绩（由ProcessTouchpadHit设置，客户端直接显示）
                 firstPlaceFinishTime = _firstPlaceFinishTime ?? "",
                 firstPlaceActive = (_firstPlaceShowStart != DateTime.MinValue &&
@@ -3459,6 +3464,65 @@ namespace SwimmingScoreboard
             _rawTimingLog.AppendFormat("{0}\t道{1}\t{2}\t{3}\t{4}\r\n",
                 DateTime.Now.ToString("HH:mm:ss.fff"), lane, cmdType,
                 TimeFormatter.Format(time), swimmerName);
+
+            // 2026-05-27 同步追加到"比赛日志" tab 的 per-lane 缓冲
+            AppendToLaneEventLog(lane, cmdType, time, swimmerName);
+        }
+
+        // 2026-05-27 "比赛日志" tab: 按 per-lane 累积事件 (出发反应时 / 触板 / 盲表 / 手动触板).
+        //   只挑跟运动员"成绩相关"的事件类型, 跳过 RunningTime/TimerReady/StartCommand 等控制帧.
+        //   缓冲存活范围 = 一组比赛 (Restart/Ready 时清空).
+        private void AppendToLaneEventLog(int lane, string cmdType, double time, string swimmerName) {
+            // 2026-05-27 用户要求简化显示文字
+            string label;
+            switch (cmdType) {
+                case "StartingBlock":     label = "出";   break;
+                case "Touchpad":          label = "触";   break;
+                case "PushButton1":       label = "盲1";  break;
+                case "PushButton2":       label = "盲2";  break;
+                case "PushButton3":       label = "盲3";  break;
+                case "ManualTouchLeft":   label = "手左"; break;
+                case "ManualTouchRight":  label = "手右"; break;
+                default: return;   // 其它类型跳过
+            }
+            if (!_laneEventLog.ContainsKey(lane)) _laneEventLog[lane] = new StringBuilder();
+            string elapsed = _raceStartTime > DateTime.MinValue
+                ? ((DateTime.Now - _raceStartTime).TotalSeconds).ToString("F2")
+                : "—";
+            _laneEventLog[lane].AppendFormat("[T={0,7}] 道{1} {2} = {3}{4}\r\n",
+                elapsed, lane, label, TimeFormatter.Format(time),
+                string.IsNullOrEmpty(swimmerName) ? "" : (" (" + swimmerName + ")"));
+            // 若当前显示的就是这道, 立刻刷新可见 TextBox
+            if (lane == _selectedLane) RefreshLaneEventLogView();
+        }
+
+        // 切换当前选中道次时调一次, 把 _laneEventLog[lane] 完整刷到 TextBox
+        private void RefreshLaneEventLogView() {
+            if (LaneEventLogText == null) return;
+            string content;
+            if (_selectedLane < 0) {
+                content = "(请先点击或输入泳道号)";
+            } else if (!_laneEventLog.ContainsKey(_selectedLane) || _laneEventLog[_selectedLane].Length == 0) {
+                content = string.Format("道{0}: 本组暂无事件记录", _selectedLane);
+            } else {
+                content = _laneEventLog[_selectedLane].ToString();
+            }
+            LaneEventLogText.Text = content;
+            try { if (LaneEventLogScroller != null) LaneEventLogScroller.ScrollToEnd(); } catch { }
+        }
+
+        // 用户在"泳道操作"输入框改泳道号 → 立即切换"比赛日志"显示的道次
+        private void LaneInputBox_TextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e) {
+            if (LaneInputBox == null) return;
+            int lane;
+            if (int.TryParse(LaneInputBox.Text, out lane)) {
+                if (_selectedLane != lane) {
+                    _selectedLane = lane;
+                    _lastTsSplitCount = -1;
+                    try { UpdateTimingSourceInfo(); } catch { }
+                    try { RefreshLaneEventLogView(); } catch { }
+                }
+            }
         }
 
         /// <summary>
@@ -4814,6 +4878,9 @@ namespace SwimmingScoreboard
             _laneSplitShowTime.Clear();
             _laneReactionLastValue.Clear();
             _laneReactionShowTime.Clear();
+            // 2026-05-27 "比赛日志" tab: 进 Ready 也清掉 per-lane 事件缓冲 (与 Restart_Click 对称)
+            _laneEventLog.Clear();
+            try { RefreshLaneEventLogView(); } catch { }
             if (RunningTimeText != null) RunningTimeText.Text = "0.00";
             if (_rawTimingLog != null) _rawTimingLog.Clear();
             // 把硬件也复位到 0 时间, 否则硬件仍在跑上一组的滚动时间; 同时重发 Set_MatchEvent
@@ -5040,6 +5107,9 @@ namespace SwimmingScoreboard
             _laneSplitShowTime.Clear();
             _laneReactionLastValue.Clear();
             _laneReactionShowTime.Clear();
+            // 2026-05-27 "比赛日志" tab: 清掉所有 per-lane 事件缓冲, 准备下一组接收新数据
+            _laneEventLog.Clear();
+            try { RefreshLaneEventLogView(); } catch { }
             if (RunningTimeText != null) RunningTimeText.Text = "0.00";
 
             if (_rawTimingLog != null) _rawTimingLog.Clear();
@@ -6471,6 +6541,7 @@ namespace SwimmingScoreboard
                     if (LaneInputBox != null) LaneInputBox.Text = clickLane.ToString();
                     UpdateTimingSourceInfo();
                     RefreshLaneRows(GetCurrentHeatSwimmers());
+                    try { RefreshLaneEventLogView(); } catch { }   // 2026-05-27 同步"比赛日志" tab
                 };
                 LanePanel.Children.Add(row);
                 _laneRowUIs.Add(rowUI);

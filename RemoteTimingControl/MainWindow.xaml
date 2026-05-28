@@ -94,21 +94,35 @@
                                   BorderThickness="0" SelectedItemChanged="ScheduleTree_Selected" Margin="4,4,4,4"/>
                     </DockPanel>
 
-                    <!-- 计时源对比（从右栏下方移过来） -->
+                    <!-- 2026-05-27 计时源对比 + 比赛日志 Tab -->
                     <Border Grid.Row="1" BorderBrush="#334155" BorderThickness="0,1,0,0" Background="#1E293B">
-                        <DockPanel Margin="10,8">
-                            <TextBlock DockPanel.Dock="Top" Text="计时源对比" Foreground="#3B82F6" FontSize="13" FontWeight="Bold" Margin="0,0,0,6"/>
-                            <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,6">
-                                <TextBlock Text="分段:" Foreground="#94A3B8" FontSize="12" VerticalAlignment="Center"/>
-                                <ComboBox x:Name="SplitSelectCombo" Width="110" FontSize="12" Margin="6,0,0,0"
-                                          BorderBrush="#475569" SelectionChanged="SplitSelect_Changed" SelectedIndex="0">
-                                    <sys:String xmlns:sys="clr-namespace:System;assembly=mscorlib">终点</sys:String>
-                                </ComboBox>
-                            </StackPanel>
-                            <ScrollViewer VerticalScrollBarVisibility="Auto">
-                                <TextBlock x:Name="TimingSourceInfo" Text="点击泳道行查看计时源" Foreground="#94A3B8" FontSize="13" TextWrapping="Wrap"/>
-                            </ScrollViewer>
-                        </DockPanel>
+                        <TabControl Background="Transparent" BorderThickness="0" Padding="0" Margin="6,4">
+                            <TabItem Header="计时源对比">
+                                <DockPanel Margin="6,4">
+                                    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,4,0,4">
+                                        <TextBlock Text="分段:" Foreground="#94A3B8" FontSize="12" VerticalAlignment="Center"/>
+                                        <ComboBox x:Name="SplitSelectCombo" Width="110" FontSize="12" Margin="6,0,0,0"
+                                                  BorderBrush="#475569" SelectionChanged="SplitSelect_Changed" SelectedIndex="0">
+                                            <sys:String xmlns:sys="clr-namespace:System;assembly=mscorlib">终点</sys:String>
+                                        </ComboBox>
+                                    </StackPanel>
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                        <TextBlock x:Name="TimingSourceInfo" Text="点击泳道行查看计时源" Foreground="#94A3B8" FontSize="13" TextWrapping="Wrap"/>
+                                    </ScrollViewer>
+                                </DockPanel>
+                            </TabItem>
+                            <TabItem Header="比赛日志">
+                                <DockPanel Margin="6,4">
+                                    <TextBlock DockPanel.Dock="Top" Foreground="#94A3B8" FontSize="11" Margin="0,4,0,4"
+                                               Text="本组所选道次的实时事件 — 出发反应时 / 触板 / 盲表 (切道次可调出该道历史)"/>
+                                    <ScrollViewer x:Name="LaneEventLogScroller" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
+                                        <TextBox x:Name="LaneEventLogText" IsReadOnly="True" Background="Transparent"
+                                                 BorderThickness="0" Foreground="#E2E8F0" FontFamily="Consolas"
+                                                 FontSize="12" TextWrapping="NoWrap" AcceptsReturn="True"/>
+                                    </ScrollViewer>
+                                </DockPanel>
+                            </TabItem>
+                        </TabControl>
                     </Border>
                 </Grid>
             </Border>
@@ -251,7 +265,8 @@
                                 <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
                                     <TextBlock Text="泳道操作" Foreground="#3B82F6" FontSize="14" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,8,0"/>
                                     <TextBox x:Name="LaneInput" Text="4" Width="46" Padding="4" FontSize="14" TextAlignment="Center"
-                                             Background="#0F172A" Foreground="White" BorderBrush="#475569"/>
+                                             Background="#0F172A" Foreground="White" BorderBrush="#475569"
+                                             TextChanged="LaneInput_TextChanged"/>
                                     <TextBlock Text="道" Foreground="#94A3B8" FontSize="12" VerticalAlignment="Center" Margin="4,0,0,0"/>
                                 </StackPanel>
                                 <Grid Margin="0,0,0,0">

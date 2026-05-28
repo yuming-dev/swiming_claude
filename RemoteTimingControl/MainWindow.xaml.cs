@@ -986,6 +986,8 @@ namespace RemoteTimingControl
             // 更新计时源对比（刷新分段下拉列表和数据）
             UpdateTimingSourceInfo();
             UpdateRecordDisplay();
+            // 2026-05-27 "比赛日志" tab 同步刷新 (服务器 laneEventLogs 字段更新)
+            try { RefreshLaneEventLogView(); } catch { }
         }
 
         // ═══════ Pool Header ═══════
@@ -1646,6 +1648,7 @@ namespace RemoteTimingControl
                     LaneInput.Text = capturedLane.ToString();
                     UpdateTimingSourceInfo();
                     RefreshLaneRows(_data != null ? _data["swimmers"] as JArray : null, isRelay);
+                    try { RefreshLaneEventLogView(); } catch { }   // 2026-05-27 同步"比赛日志" tab
                 };
                 LanePanel.Children.Add(row);
                 _laneRowUIs.Add(rowUI);
@@ -2033,6 +2036,43 @@ namespace RemoteTimingControl
         {
             if (TimingSourceInfo == null) return;
             ShowTimingSourceData();
+        }
+
+        // 2026-05-27 "比赛日志" tab: 切道次时调出该道的累积事件 (服务器 laneEventLogs 字典送过来)
+        private void LaneInput_TextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
+        {
+            if (LaneInput == null) return;
+            int lane;
+            if (!int.TryParse(LaneInput.Text, out lane)) return;
+            if (_selectedLane != lane) {
+                _selectedLane = lane;
+                _lastSplitCount = -1;
+                try { ShowTimingSourceData(); } catch { }
+                try { RefreshLaneEventLogView(); } catch { }
+            } else {
+                try { RefreshLaneEventLogView(); } catch { }
+            }
+        }
+
+        // 把 _data["laneEventLogs"][选定lane] 的文本写到 TextBox
+        private void RefreshLaneEventLogView()
+        {
+            if (LaneEventLogText == null) return;
+            string content;
+            if (_selectedLane < 0) {
+                content = "(请先点击或输入泳道号)";
+            } else if (_data == null) {
+                content = "(未连接主服务器)";
+            } else {
+                var logs = _data["laneEventLogs"] as JObject;
+                JToken txtTok = logs != null ? logs[_selectedLane.ToString()] : null;
+                string txt = txtTok != null ? txtTok.ToString() : "";
+                content = string.IsNullOrEmpty(txt) ? string.Format("道{0}: 本组暂无事件记录", _selectedLane) : txt;
+            }
+            if (LaneEventLogText.Text != content) {
+                LaneEventLogText.Text = content;
+                try { if (LaneEventLogScroller != null) LaneEventLogScroller.ScrollToEnd(); } catch { }
+            }
         }
 
         private void UpdateTimingSourceInfo()
