@@ -1022,6 +1022,18 @@
                                     </ControlTemplate>
                                 </Button.Template>
                             </Button>
+                            <!-- 2026-05-27 停表: 仅冻结 PC/EXE/HTML/大屏的滚动时间显示, 硬件计时器不受影响继续计时.
+                                 再按一次切到"继续走表" → 滚动时间立即同步到硬件当前时间.
+                                 注意: 用 Button.Content (而不是 ControlTemplate) 装 StackPanel,
+                                 这样 x:Name="PauseClockBtnText" 在 code-behind 可访问 (模板内 x:Name 是模板私有的, 拿不到). -->
+                            <Button x:Name="PauseClockBtn" Click="PauseClock_Click" Height="30" Margin="0,0,0,4" BorderThickness="0" Cursor="Hand" Background="Transparent" Padding="0">
+                                <Border Background="#8B5CF6" CornerRadius="8" Padding="0" Width="200">
+                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                        <TextBlock Text="&#xE769;" FontFamily="Segoe MDL2 Assets" FontSize="16" Foreground="White" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                        <TextBlock x:Name="PauseClockBtnText" Text="停表" FontSize="15" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </Border>
+                            </Button>
                             <Button Click="ConfirmResult_Click" Height="30" Margin="0,0,0,8" BorderThickness="0" Cursor="Hand">
                                 <Button.Template>
                                     <ControlTemplate TargetType="Button">

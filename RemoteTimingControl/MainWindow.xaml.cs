@@ -316,9 +316,10 @@ namespace RemoteTimingControl
 
         private string GetLocalRunningTime()
         {
-            if (_localTimerStart == DateTime.MinValue) return _data != null && _data["runningTime"] != null ? _data["runningTime"].ToString() : "0.00";
-            double elapsed = (DateTime.Now - _localTimerStart).TotalSeconds;
-            return FormatLocalTime(elapsed);
+            // 2026-05-27 改: 硬件 0x7F 是唯一时间源, 服务器 100ms 节拍 RUNNING_TIME_UPDATE 下发,
+            //   直接返回 _data["runningTime"], 不再本地 DateTime.Now 插值 (避免与硬件真值漂移).
+            //   _localTimerStart / FormatLocalTime 保留不再使用, 仅为兼容历史代码.
+            return (_data != null && _data["runningTime"] != null) ? _data["runningTime"].ToString() : "0.00";
         }
 
         private void RefreshTimer_Tick(object sender, EventArgs e)
@@ -515,6 +516,9 @@ namespace RemoteTimingControl
                         var rtMsg = msg["data"] as JObject;
                         if (rtMsg != null && rtMsg["runningTime"] != null)
                             _data["runningTime"] = rtMsg["runningTime"].ToString();
+                        // 2026-05-27 高频帧也带 clockPaused, 同步更新让本地 GetLocalRunningTime 立刻冻结
+                        if (rtMsg != null && rtMsg["clockPaused"] != null)
+                            _data["clockPaused"] = (bool)rtMsg["clockPaused"];
                         return;
                     }
 
@@ -844,13 +848,17 @@ namespace RemoteTimingControl
                 _localTimerStart = DateTime.MinValue;
                 _localTimerSynced = false;
             }
-            if ((state == "racing" || state == "finished") && _data["runningTime"] != null)
-            {
-                double serverSec = ParseServerTime(_data["runningTime"].ToString());
-                // 每次服务器广播都重新同步本地起点（消除时钟漂移）
-                _localTimerStart = DateTime.Now.AddSeconds(-serverSec);
-                _localTimerSynced = true;
-            }
+            // 2026-05-27 移除本地计时器同步: GetLocalRunningTime 直接读 _data["runningTime"], 无需 _localTimerStart.
+            // 2026-05-27 停表按钮文字/颜色同步
+            try {
+                bool pausedBtn = _data["clockPaused"] != null && (bool)_data["clockPaused"];
+                if (PauseClockBtnText != null) PauseClockBtnText.Text = pausedBtn ? "继续走表" : "停表";
+                if (PauseClockBtn != null) {
+                    var border = (PauseClockBtn.Content as System.Windows.Controls.Border);
+                    if (border != null) border.Background = new System.Windows.Media.SolidColorBrush(
+                        (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString(pausedBtn ? "#22C55E" : "#8B5CF6"));
+                }
+            } catch { }
 
             // First place detection
             if (state == "waiting")
@@ -2243,6 +2251,15 @@ namespace RemoteTimingControl
                 }
                 AddLog(currentHeatConfirmed ? "计时复位（保留已确认成绩，自动切下一组）" : "计时复位（重新发令）");
             }
+        }
+
+        // 2026-05-27 停表: 远程端按钮 → 发 PAUSE_CLOCK_TOGGLE 给主服务器, 主服务器 PauseClock_Click 切换
+        //   _clockPaused 后通过 GetStatusData / RUNNING_TIME_UPDATE 把 clockPaused 广播回所有客户端,
+        //   本端 render 里检测 clockPaused 跳过本地插值, 按钮文字同步切换.
+        private void PauseClock_Click(object sender, RoutedEventArgs e)
+        {
+            SendCmd("PAUSE_CLOCK_TOGGLE");
+            AddLog("已发送 停表/继续走表 切换 (硬件计时不受影响)");
         }
 
         private void Confirm_Click(object sender, RoutedEventArgs e)

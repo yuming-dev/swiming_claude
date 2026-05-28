@@ -404,6 +404,8 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
             <button class="action-btn" style="background:#F59E0B;" onclick="readyClick()"><span class="ico">&#xE7C1;</span>准备就绪</button>
             <button class="action-btn" style="background:#22C55E;" onclick="sendCmd('START_RACE')"><span class="ico">&#xE768;</span>M.发令</button>
             <button class="action-btn" style="background:#EF4444;" onclick="confirmTimerReset()"><span class="ico">&#xE72C;</span>计时复位</button>
+            <!-- 2026-05-27 停表: 切换 PC/EXE/HTML/大屏的滚动时间显示冻结, 硬件不受影响 -->
+            <button id="pauseClockBtn" class="action-btn" style="background:#8B5CF6;" onclick="sendCmd('PAUSE_CLOCK_TOGGLE')"><span class="ico">&#xE769;</span><span id="pauseClockBtnText">停表</span></button>
             <button class="action-btn" style="background:#3B82F6;" onclick="confirmResult()"><span class="ico">&#xE73E;</span>确认本组成绩</button>
             <div style="border-top:1px solid #334155;margin-top:6px;padding-top:10px;">
                 <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;">
@@ -570,8 +572,11 @@ function connect() {
         if (msg.type === 'RUNNING_TIME_UPDATE') {
             if (msg.data && typeof msg.data.runningTime === 'string' && data) {
                 data.runningTime = msg.data.runningTime;
+                if (typeof msg.data.clockPaused === 'boolean') data.clockPaused = msg.data.clockPaused;
                 var rtEl = document.getElementById('runningTime');
                 if (rtEl) rtEl.textContent = msg.data.runningTime;
+                // 2026-05-27 同步停表按钮文字
+                _refreshPauseClockBtnText();
             }
             return;
         }
@@ -677,9 +682,20 @@ function formatLocalTime(total) {
 }
 
 function getLocalRunningTime() {
-    if (_localTimerStart <= 0) return data.runningTime || '0.00';
-    var elapsed = (Date.now() - _localTimerStart) / 1000;
-    return formatLocalTime(elapsed);
+    // 2026-05-27 改: 硬件 0x7F 是唯一时间源, 服务器 100ms 节拍 RUNNING_TIME_UPDATE 下发,
+    //   直接读 data.runningTime, 不再本地 Date.now() 插值 (避免与硬件真值漂移).
+    //   _localTimerStart / _localTimerSynced / formatLocalTime 保留不再使用, 仅为兼容历史代码.
+    return (data && data.runningTime) ? data.runningTime : '0.00';
+}
+
+// 2026-05-27 停表按钮文字 / 颜色根据 data.clockPaused 切换
+function _refreshPauseClockBtnText() {
+    var btn = document.getElementById('pauseClockBtn');
+    var txt = document.getElementById('pauseClockBtnText');
+    if (!btn || !txt) return;
+    var paused = !!(data && data.clockPaused);
+    txt.textContent = paused ? '继续走表' : '停表';
+    btn.style.background = paused ? '#22C55E' : '#8B5CF6';
 }
 
 var _rcRefreshTimer = null;
@@ -759,12 +775,8 @@ function render() {
         var rtReset = document.getElementById('runTime');
         if (rtReset) { rtReset.textContent = '0.00'; rtReset.style.color = ''; }
     }
-    if ((state === 'racing' || state === 'finished') && data.runningTime) {
-        var serverSec = parseServerTime(data.runningTime);
-        // 每次服务器广播都重新同步本地起点（消除时钟漂移）
-        _localTimerStart = Date.now() - serverSec * 1000;
-        _localTimerSynced = true;
-    }
+    // 2026-05-27 移除本地计时器同步: getLocalRunningTime 直接读 data.runningTime, 无需 _localTimerStart.
+    _refreshPauseClockBtnText();   // 2026-05-27 每次 render 同步按钮文字
     // 右下角：第1名成绩直接读取服务器数据（由服务器端 ProcessTouchpadHit 设置）
     var runTimeEl = document.getElementById('runTime');
     if (data.firstPlaceActive && data.firstPlaceFinishTime) {

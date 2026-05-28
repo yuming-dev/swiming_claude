@@ -221,6 +221,16 @@
                                 </ControlTemplate>
                             </Button.Template>
                         </Button>
+                        <!-- 2026-05-27 停表: 切换 PC/EXE/HTML/大屏滚动时间显示冻结, 硬件不受影响.
+                             用 Button.Content 而非 ControlTemplate 以便 x:Name 在 code-behind 可访问 -->
+                        <Button x:Name="PauseClockBtn" Click="PauseClock_Click" Height="30" Margin="0,0,0,4" Background="Transparent" Padding="0" BorderThickness="0">
+                            <Border Background="#8B5CF6" CornerRadius="8" Width="200">
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                    <TextBlock Text="&#xE769;" FontFamily="Segoe MDL2 Assets" FontSize="16" Foreground="White" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                    <TextBlock x:Name="PauseClockBtnText" Text="停表" FontSize="15" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </Border>
+                        </Button>
                         <!-- 确认本组成绩 -->
                         <Button Click="Confirm_Click" Height="30" Margin="0,0,0,8">
                             <Button.Template>

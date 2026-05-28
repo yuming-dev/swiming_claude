@@ -500,13 +500,9 @@ function connect() {
         if (msg.type === 'RUNNING_TIME_UPDATE') {
             if (msg.data && typeof msg.data.runningTime === 'string') {
                 data.runningTime = msg.data.runningTime;
-                // 重锚本地插值起点；100ms ticker 之间用本地补，每帧到达再校准
-                var rt = msg.data.runningTime, svrSec = 0, rp = rt.split(':');
-                if (rp.length === 3) svrSec = parseFloat(rp[0])*3600 + parseFloat(rp[1])*60 + parseFloat(rp[2]);
-                else if (rp.length === 2) svrSec = parseFloat(rp[0])*60 + parseFloat(rp[1]);
-                else svrSec = parseFloat(rp[0]) || 0;
-                _dspTimerStart = Date.now() - svrSec * 1000;
-                _dspTimerSynced = true;
+                if (typeof msg.data.clockPaused === 'boolean') data.clockPaused = msg.data.clockPaused;
+                // 2026-05-27 不再本地插值: 直接拿服务器 (= 硬件 0x7F 派生) 的 runningTime 显示.
+                //   _dspTimerStart/_dspTimerSynced 字段已不再使用, 留着只为兼容历史代码.
                 try { _updateRunningTimeOnly(); } catch (er2) {}
             }
             return;
@@ -697,21 +693,12 @@ function renderRace() {
     var sh = document.getElementById('stageHeat');
     if (sh && sh.textContent !== stageText) sh.textContent = stageText;
 
-    // ── 本地计时器同步 / 显示窗口参数 ──
+    // ── 显示窗口参数复位 ──
+    // 2026-05-27 移除本地计时器同步逻辑: 硬件 0x7F 是唯一时间源, 服务器 100ms 节拍广播,
+    //   直接显示 data.runningTime, 不再 Date.now() 本地插值. _dspTimerStart 字段保留不再使用.
     var rState = (data.raceState||'').toLowerCase();
     if (rState === 'waiting' || rState === 'ready') {
-        _dspTimerStart = 0; _dspTimerSynced = false;
         _dspFirstDetected = 0; _dspFirstShowStart = 0; _dspFirstTime = '';
-    }
-    if ((rState === 'racing' || rState === 'finished') && data.runningTime) {
-        // 每次广播都重新对齐：服务器现在用硬件 0x7F 滚动时间作为权威时间源，
-        // 大屏只对齐一次会导致漂移；改为每广播重锚 _dspTimerStart 跟着服务器走。
-        var svrSec = 0, rp = data.runningTime.split(':');
-        if (rp.length === 3) svrSec = parseFloat(rp[0])*3600 + parseFloat(rp[1])*60 + parseFloat(rp[2]);
-        else if (rp.length === 2) svrSec = parseFloat(rp[0])*60 + parseFloat(rp[1]);
-        else svrSec = parseFloat(rp[0]) || 0;
-        _dspTimerStart = Date.now() - svrSec * 1000;
-        _dspTimerSynced = true;
     }
     // 2026-05-26 滚动时间区"1 名成绩停留时长"改用 firstPlaceHoldTime (= 参数:第1名成绩显示时间), 与主控 RaceTimer_Tick 同一参数, 不再用 splitDisplayTime (那是每泳道分段成绩显示时长, 性质不同)
     _dspFirstHoldSec = (data.laneCloseSettings && data.laneCloseSettings.firstPlaceHoldTime) ? data.laneCloseSettings.firstPlaceHoldTime : 3;
@@ -789,15 +776,10 @@ function _updateRunningTimeOnly() {
         if (runEl.style.color !== '') runEl.style.color = '';
         return;
     }
+    // 2026-05-27 改: 硬件计时器是唯一时间源, 不再本地插值 (旧 _dspTimerStart + Date.now()
+    //   本地推进会与硬件 0x7F 真值有 ±100ms 漂移, 服务器 RUNNING_TIME_UPDATE 已 100ms 节拍下发,
+    //   直接显示 data.runningTime 即可. 停表也自然 work — 服务器送快照值过来.
     var localRunTime = data.runningTime || '0.0';
-    if (_dspTimerStart > 0) {
-        var elapsed = (Date.now() - _dspTimerStart) / 1000;
-        var ts = Math.floor(elapsed) % 60, tm = Math.floor(elapsed / 60) % 60, th = Math.floor(elapsed / 3600);
-        var tt = Math.floor(elapsed * 10) % 10;
-        if (th > 0) localRunTime = th + ':' + tm.toString().padStart(2,'0') + ':' + ts.toString().padStart(2,'0') + '.' + tt;
-        else if (tm > 0) localRunTime = tm + ':' + ts.toString().padStart(2,'0') + '.' + tt;
-        else localRunTime = ts + '.' + tt;
-    }
     var dspHoldMs = _dspFirstHoldSec * 1000;
     var showLeader = (_dspFirstShowStart > 0 && (Date.now() - _dspFirstShowStart) < dspHoldMs && _dspFirstTime);
     var newText = showLeader ? _dspFirstTime : localRunTime;

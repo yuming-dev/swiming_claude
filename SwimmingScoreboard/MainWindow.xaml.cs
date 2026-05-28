@@ -114,6 +114,11 @@ namespace SwimmingScoreboard
         // 2026-05-26 mirror display.html: 跟踪 1 名运动员"有效分段计数"(finished=9999),
         //   计数变化即触发右上角滚动时间区显示其最新累计时间, 停留 FirstPlaceHoldTime 秒.
         private int _lastLeaderSplitCount = 0;
+        // 2026-05-27 "停表"功能: 仅冻结 PC/EXE/HTML/大屏滚动时间显示, 硬件不受影响继续计时.
+        //   暂停瞬间快照 _runningTime 到 _pausedRunningTime, RaceTimer_Tick 显示快照而非真实值.
+        //   继续走表 → _clockPaused=false, 立刻同步回硬件当前 _runningTime (不补偿暂停期间).
+        private bool _clockPaused = false;
+        private double _pausedRunningTime = 0;
         // 泳��设备状态
         private List<LaneDeviceState> _laneDeviceStates = new List<LaneDeviceState>();
 
@@ -1439,6 +1444,8 @@ namespace SwimmingScoreboard
                     Restart_Click(null, null);
                     break;
                 case "CONFIRM_RESULT": ConfirmResult_Click(null, null); break;
+                // 2026-05-27 远程台 (EXE/HTML) 触发"停表"切换
+                case "PAUSE_CLOCK_TOGGLE": PauseClock_Click(null, null); break;
                 case "QUICK_CONNECT_SERIAL":
                     QuickConnectSerial_Click(null, null);
                     break;
@@ -1924,9 +1931,14 @@ namespace SwimmingScoreboard
         private void BroadcastRunningTime() {
             if (!_initialized || _allSockets.Count == 0) return;
             try {
+                // 2026-05-27 停表期间高频转发也用快照值, 防止冻结画面被 100ms 频率的真实时间覆盖
+                double t = _clockPaused ? _pausedRunningTime : _runningTime;
                 var msg = new {
                     type = "RUNNING_TIME_UPDATE",
-                    data = new { runningTime = TimeFormatter.FormatRunning(_runningTime) }
+                    data = new {
+                        runningTime = TimeFormatter.FormatRunning(t),
+                        clockPaused = _clockPaused
+                    }
                 };
                 string json = JsonConvert.SerializeObject(msg);
                 foreach (var s in _allSockets.ToList()) {
@@ -2140,7 +2152,10 @@ namespace SwimmingScoreboard
                 forceAllOpenLanes = _forceAllOpenLanes.ToList(),
                 forceAllOpenAll   = _forceAllOpenLanes.Contains(-1),
                 raceState = _raceState.ToString().ToUpper(),
-                runningTime = TimeFormatter.FormatRunning(_runningTime),
+                runningTime = TimeFormatter.FormatRunning(_clockPaused ? _pausedRunningTime : _runningTime),
+                // 2026-05-27 停表状态: clockPaused=true 时所有客户端冻结滚动时间显示 (硬件不受影响)
+                clockPaused = _clockPaused,
+                pausedRunningTime = _clockPaused ? TimeFormatter.FormatRunning(_pausedRunningTime) : "",
                 // 第1名成绩（由ProcessTouchpadHit设置，客户端直接显示）
                 firstPlaceFinishTime = _firstPlaceFinishTime ?? "",
                 firstPlaceActive = (_firstPlaceShowStart != DateTime.MinValue &&
@@ -4653,7 +4668,9 @@ namespace SwimmingScoreboard
                     }
                 } else {
                     if (RunningTimeText != null) {
-                        RunningTimeText.Text = TimeFormatter.FormatRunning(_runningTime);
+                        // 2026-05-27 停表: 显示冻结快照, 硬件继续走 _runningTime 内部仍更新但不显示.
+                        double showT = _clockPaused ? _pausedRunningTime : _runningTime;
+                        RunningTimeText.Text = TimeFormatter.FormatRunning(showT);
                         RunningTimeText.Foreground = _runningTimeBrush;
                     }
                 }
@@ -5015,6 +5032,10 @@ namespace SwimmingScoreboard
             _firstPlaceFinishTime = "";
             _firstPlaceShowStart = DateTime.MinValue;
             _lastLeaderSplitCount = 0;   // 2026-05-26 与 display.html 的 _dspFirstDetected 对应
+            // 2026-05-27 计时复位时清除"停表"状态, 按钮文字也复位
+            _clockPaused = false;
+            _pausedRunningTime = 0;
+            if (PauseClockBtnText != null) PauseClockBtnText.Text = "停表";
             _laneSplitCount.Clear();
             _laneSplitShowTime.Clear();
             _laneReactionLastValue.Clear();
@@ -5091,6 +5112,30 @@ namespace SwimmingScoreboard
             } else {
                 Broadcast();
             }
+        }
+
+        // 2026-05-27 "停表" 按钮 - 切换 _clockPaused 状态:
+        //   关 → 开: 快照当前 _runningTime, 之后 RaceTimer_Tick 显示快照值;
+        //              GetStatusData 广播 clockPaused=true + pausedRunningTime, EXE/HTML/大屏冻结显示.
+        //   开 → 关: 清快照, 显示恢复实时. 硬件全程不受影响(没发任何命令给硬件).
+        private void PauseClock_Click(object sender, RoutedEventArgs e) {
+            _clockPaused = !_clockPaused;
+            if (_clockPaused) {
+                _pausedRunningTime = _runningTime;
+                if (PauseClockBtnText != null) PauseClockBtnText.Text = "继续走表";
+                AddLog(string.Format("停表 — 显示冻结在 {0} (硬件计时继续)", TimeFormatter.FormatRunning(_pausedRunningTime)));
+            } else {
+                if (PauseClockBtnText != null) PauseClockBtnText.Text = "停表";
+                AddLog(string.Format("继续走表 — 同步到硬件当前时间 {0}", TimeFormatter.FormatRunning(_runningTime)));
+            }
+            // 立刻刷新 RunningTimeText 一次, 不等下个 100ms tick
+            try {
+                if (RunningTimeText != null) {
+                    double showT = _clockPaused ? _pausedRunningTime : _runningTime;
+                    RunningTimeText.Text = TimeFormatter.FormatRunning(showT);
+                }
+            } catch { }
+            Broadcast();
         }
 
         private void ConfirmResult_Click(object sender, RoutedEventArgs e) {
