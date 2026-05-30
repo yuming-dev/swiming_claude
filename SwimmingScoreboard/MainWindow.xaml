@@ -1820,7 +1820,7 @@
                             <TextBox x:Name="UdpSendBox" Grid.Row="3" Grid.Column="1" Text="127.0.0.1:5002" Padding="4" VerticalAlignment="Center"/>
                             <TextBlock Grid.Row="4" Grid.Column="0" Text="状态:" VerticalAlignment="Center"/>
                             <TextBlock x:Name="TimingStatusText" Grid.Row="4" Grid.Column="1" Text="未连接" VerticalAlignment="Center" Foreground="#EF4444"/>
-                            <Button Grid.Row="4" Grid.Column="2" Content="断开" Click="DisconnectTiming_Click" Padding="12,4" Margin="8,0,0,0"/>
+                            <Button x:Name="DisconnectTimingButton" Grid.Row="4" Grid.Column="2" Content="断开" Click="DisconnectTiming_Click" Padding="12,4" Margin="8,0,0,0"/>
                         </Grid>
 
                     </StackPanel>

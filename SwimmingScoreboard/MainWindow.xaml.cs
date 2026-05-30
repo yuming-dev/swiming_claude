@@ -2660,6 +2660,76 @@ namespace SwimmingScoreboard
                 return;
             }
 
+            // 2026-05-30 触板/盲表状态变化上报 (cmd=0x1E/0x1F):
+            //   硬件 swimplay.c Process_TPStateChange / Process_MBStateChange 扫描比较快照, 变化即上报
+            //   D4 解码: lane 0-9 / IsFinishEnd (D4<10 = 物理左端)
+            //   D5 = newState (0=关/1=开/2=延时/3=坏/4=未装)
+            //   D6 (Param6) = mb_idx (= MB 帧专用, 盲表 1/2/3)
+            //   映射 newState → DeviceStatus: 0→Closed, 1/2→Open, 3→Broken, 4→NotInstalled
+            if (data.CommandType == TimingCommandType.TPStateChange ||
+                data.CommandType == TimingCommandType.MBStateChange) {
+                int devLane = data.Lane;
+                if (devLane >= 0 && devLane < _laneDeviceStates.Count) {
+                    byte ns = data.Param5;
+                    DeviceStatus newSt;
+                    switch (ns) {
+                        case 0: newSt = DeviceStatus.Closed; break;
+                        case 1: newSt = DeviceStatus.Open; break;
+                        case 2: newSt = DeviceStatus.Open; break;
+                        case 3: newSt = DeviceStatus.Broken; break;
+                        case 4: newSt = DeviceStatus.NotInstalled; break;
+                        default: newSt = DeviceStatus.Closed; break;
+                    }
+                    var devLs = _laneDeviceStates[devLane];
+                    bool devIsLeft = data.IsFinishEnd;
+                    if (data.CommandType == TimingCommandType.TPStateChange) {
+                        if (devIsLeft) {
+                            if (devLs.LeftTouchpadStatus != newSt) {
+                                devLs.LeftTouchpadStatus = newSt;
+                                AddLog(string.Format("硬件 TP 变化: 泳道{0} 左 → {1}", devLs.Lane, newSt));
+                                Broadcast();
+                            }
+                        } else {
+                            if (devLs.RightTouchpadStatus != newSt) {
+                                devLs.RightTouchpadStatus = newSt;
+                                AddLog(string.Format("硬件 TP 变化: 泳道{0} 右 → {1}", devLs.Lane, newSt));
+                                Broadcast();
+                            }
+                        }
+                    } else {
+                        // MB: data.Param6 = mb_idx (0/1/2 → BlindWatch1/2/3)
+                        int mbIdx = data.Param6;
+                        if (mbIdx >= 0 && mbIdx <= 2) {
+                            DeviceStatus oldSt;
+                            if (devIsLeft) {
+                                oldSt = mbIdx == 0 ? devLs.LeftBlindWatch1Status :
+                                        mbIdx == 1 ? devLs.LeftBlindWatch2Status :
+                                                     devLs.LeftBlindWatch3Status;
+                                if (oldSt != newSt) {
+                                    if (mbIdx == 0) devLs.LeftBlindWatch1Status = newSt;
+                                    else if (mbIdx == 1) devLs.LeftBlindWatch2Status = newSt;
+                                    else devLs.LeftBlindWatch3Status = newSt;
+                                    AddLog(string.Format("硬件 MB{0} 变化: 泳道{1} 左 → {2}", mbIdx + 1, devLs.Lane, newSt));
+                                    Broadcast();
+                                }
+                            } else {
+                                oldSt = mbIdx == 0 ? devLs.RightBlindWatch1Status :
+                                        mbIdx == 1 ? devLs.RightBlindWatch2Status :
+                                                     devLs.RightBlindWatch3Status;
+                                if (oldSt != newSt) {
+                                    if (mbIdx == 0) devLs.RightBlindWatch1Status = newSt;
+                                    else if (mbIdx == 1) devLs.RightBlindWatch2Status = newSt;
+                                    else devLs.RightBlindWatch3Status = newSt;
+                                    AddLog(string.Format("硬件 MB{0} 变化: 泳道{1} 右 → {2}", mbIdx + 1, devLs.Lane, newSt));
+                                    Broadcast();
+                                }
+                            }
+                        }
+                    }
+                }
+                return;
+            }
+
             if (data.CommandType == TimingCommandType.LaneOpenClose) {
                 byte d3 = data.Param1;
                 bool laneOpen = (data.RawD4 == 1);
@@ -7690,6 +7760,15 @@ namespace SwimmingScoreboard
 
             CompModeText.Text = _competitionMode == "domestic" ? "国内" : "国际";
             PoolInfoText.Text = string.Format("{0}米 {1}道", _poolConfig.Length, _poolConfig.LaneCount);
+
+            // 2026-05-30 比赛准备就绪/进行中: 断开 / 设备测试 / 网络连接(=断开切换) 按钮直接禁用 (灰色, 不可点)
+            //   防止误操作丢失实时数据 (用户要求)
+            bool blockHwOps = (_raceState == RaceState.Ready || _raceState == RaceState.Racing);
+            try {
+                if (DisconnectTimingButton != null) DisconnectTimingButton.IsEnabled = !blockHwOps;
+                if (QuickConnectSerialButton != null) QuickConnectSerialButton.IsEnabled = !blockHwOps;
+                if (DeviceTestButton != null) DeviceTestButton.IsEnabled = !blockHwOps;
+            } catch { }
         }
 
         // ═══════════════════════════════════════════════════════════════
@@ -15077,16 +15156,10 @@ namespace SwimmingScoreboard
         // 串口连接仍保留在"系统工作状态 → 硬件计时器连接"详细面板里，这里只负责快速 TCP 连/断。
         private void QuickConnectSerial_Click(object sender, RoutedEventArgs e) {
             if (_timingBridge != null && _timingBridge.IsConnected) {
-                // 2026-05-30 比赛中按"快速断开" 加 YesNo 强制确认
-                if (_raceState == RaceState.Racing) {
-                    var r = MessageBox.Show(
-                        "⚠ 比赛进行中!\n\n断开硬件将让 PC 无法继续收实时数据, 比赛成绩可能丢失.\n\n确认要断开吗?",
-                        "比赛中断开硬件", MessageBoxButton.YesNo, MessageBoxImage.Warning);
-                    if (r != MessageBoxResult.Yes) {
-                        AddLog("快速断开被用户取消 (比赛进行中)");
-                        return;
-                    }
-                    AddLog("⚠ 用户在比赛中强制断开硬件, 实时数据可能丢失");
+                // 2026-05-30 v2: 比赛准备/进行中"断开"分支直接 return (按钮已禁用, 这里 backup guard)
+                if (_raceState == RaceState.Ready || _raceState == RaceState.Racing) {
+                    AddLog("快速断开被忽略: 比赛准备/进行中");
+                    return;
                 }
                 _timingBridge.Disconnect();
                 UpdateConnectionStatus();
@@ -15204,22 +15277,10 @@ namespace SwimmingScoreboard
             // 2026-05-30 本地点击 (sender!=null) 时检查硬件连接
             if (sender != null && !EnsureHardwareConnected("设备测试")) return;
             if (!_testMode) {
-                // 2026-05-30 比赛中按"设备测试" 改为 YesNo 强制确认 (= 让按钮"能用"),
-                //   远端命令 (sender==null) 仍走拒绝路径 (操作员不在本机, 弹窗也没人点)
-                if (_raceState == RaceState.Racing) {
-                    if (sender != null) {
-                        var r = MessageBox.Show(
-                            "⚠ 比赛进行中!\n\n进入设备测试将中止当前比赛, 已有的实时数据可能丢失.\n\n确认要进入设备测试吗?",
-                            "比赛中设备测试", MessageBoxButton.YesNo, MessageBoxImage.Warning);
-                        if (r != MessageBoxResult.Yes) {
-                            AddLog("设备测试操作被用户取消 (比赛进行中)");
-                            return;
-                        }
-                        AddLog("⚠ 用户在比赛中强制进入设备测试, 比赛成绩可能丢失");
-                    } else {
-                        AddLog("远端请求设备测试被拒：当前正在比赛");
-                        return;
-                    }
+                // 2026-05-30 v2: 比赛准备/进行中直接 return (按钮已禁用, 这里 backup guard)
+                if (_raceState == RaceState.Ready || _raceState == RaceState.Racing) {
+                    AddLog("设备测试被忽略: 比赛准备/进行中");
+                    return;
                 }
                 if (sender != null) {
                     var r = MessageBox.Show(
@@ -15392,17 +15453,11 @@ namespace SwimmingScoreboard
         }
 
         private void DisconnectTiming_Click(object sender, RoutedEventArgs e) {
-            // 2026-05-30 比赛中按"断开" 改为 YesNo 强制确认, 避免误按导致数据丢失,
-            //   也让按钮在比赛中"能用" (用户确认后照样断开).
-            if (_raceState == RaceState.Racing) {
-                var r = MessageBox.Show(
-                    "⚠ 比赛进行中!\n\n断开硬件将让 PC 无法继续收实时数据, 比赛成绩可能丢失.\n\n确认要断开吗?",
-                    "比赛中断开硬件", MessageBoxButton.YesNo, MessageBoxImage.Warning);
-                if (r != MessageBoxResult.Yes) {
-                    AddLog("断开硬件操作被用户取消 (比赛进行中)");
-                    return;
-                }
-                AddLog("⚠ 用户在比赛中强制断开硬件, 实时数据可能丢失");
+            // 2026-05-30 v2: 比赛准备/进行中直接 return (按钮已在 UpdateRaceStateDisplay 里 IsEnabled=false 禁用,
+            //   这里是 backup guard 防 远程命令 / 异步事件触发)
+            if (_raceState == RaceState.Ready || _raceState == RaceState.Racing) {
+                AddLog("断开硬件被忽略: 比赛准备/进行中");
+                return;
             }
             _timingBridge.Disconnect();
             UpdateConnectionStatus();
