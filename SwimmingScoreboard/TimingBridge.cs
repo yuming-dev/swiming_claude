@@ -587,13 +587,16 @@ namespace SwimmingScoreboard
         }
 
         /// <summary>2026-05-17 同步某道某侧的剩余圈数到硬件（PC 端 +1/-1 按钮触发）
+        /// 2026-05-29 扩展 d6 / d7 用于接力 +/- 容错版 D
         /// 协议: command=0x61 (Set_LapRemaining)
         ///   d3 = 道次 0..9
         ///   d4 = 端 (0=左 / 1=右)
         ///   d5 = 剩余圈数 (0..255)
-        /// 硬件 case Set_LapRemaining: laps[d3][d4]=d5，并调 LLaps_diaplay/RLaps_diaplay 重画
+        ///   d6 = openAction: 0=只动 laps 不动设备; 1=漏触补救 (关本端 TP+MB, 开对面);
+        ///                    2=误触回退 (开本端 TP+MB, 关对面)
+        ///   d7 = sbOpenSide: 0=不动 SB; 1=开左 SB 关右; 2=开右 SB 关左 (仅接力切换点用)
         /// </summary>
-        public void SendLapRemaining(int laneIndex, bool isLeft, int remaining) {
+        public void SendLapRemaining(int laneIndex, bool isLeft, int remaining, byte openAction = 0, byte sbOpenSide = 0) {
             if (laneIndex < 0 || laneIndex >= 10) {
                 RaiseLog(string.Format("SendLapRemaining: 非法 lane {0}（仅 0..9）", laneIndex));
                 return;
@@ -603,8 +606,12 @@ namespace SwimmingScoreboard
             byte d3 = (byte)laneIndex;
             byte d4 = (byte)(isLeft ? 0 : 1);
             byte d5 = (byte)remaining;
-            SendFullFrame(0x61, d3, d4, d5);
-            RaiseLog(string.Format("发送 第{0}道 {1}侧剩余圈数={2} (0x61)", laneIndex, isLeft ? "左" : "右", remaining));
+            byte d6 = openAction;
+            byte d7 = sbOpenSide;
+            SendFullFrame(0x61, d3, d4, d5, d6, d7);
+            string actDesc = openAction == 1 ? " 漏触" : openAction == 2 ? " 误触" : "";
+            string sbDesc = sbOpenSide == 1 ? " SB开左" : sbOpenSide == 2 ? " SB开右" : "";
+            RaiseLog(string.Format("发送 第{0}道 {1}侧剩余={2}{3}{4} (0x61)", laneIndex, isLeft ? "左" : "右", remaining, actDesc, sbDesc));
         }
 
         private void RaiseStatus(string status) {

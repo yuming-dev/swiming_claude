@@ -192,6 +192,18 @@ namespace SwimmingScoreboard
             get { return _timingSource; }
             set { _timingSource = value; OnPropertyChanged("TimingSource"); }
         }
+        //2026-05-29 手工补段成绩 (操作员通过"📝 手工补段"对话框输入), 区别于触板/盲表自动记录
+        private bool _isManual;
+        public bool IsManual {
+            get { return _isManual; }
+            set { _isManual = value; OnPropertyChanged("IsManual"); }
+        }
+        //2026-05-29 软删 (▲ 误触回退时), 保留留痕但不参与排名/广播
+        private bool _isDeleted;
+        public bool IsDeleted {
+            get { return _isDeleted; }
+            set { _isDeleted = value; OnPropertyChanged("IsDeleted"); }
+        }
 
         public string TimeDisplay { get { return TimeFormatter.Format(_time); } }
         public string CumulativeTimeDisplay { get { return TimeFormatter.Format(_cumulativeTime); } }

@@ -33,3 +33,13 @@ build_*.log
 # 2026-05-23 安全检查点备份目录（在动大改前的物理回滚副本）
 _备份_*/
 _backup_*/
+
+# 2026-05-30 测试运行日志 + 本地完整备份目录 + 装机压缩包
+.test_logs/
+_备份_v2026.05.*-stable/
+游泳计时更新包_*.zip
+HwLapRemainingTest/*.log
+HwLapRemainingTest/*.obj
+HwLapRemainingTest/*.exe
+HwLapRemainingTest/build_out.txt
+LapAdjust_TestReport.csv

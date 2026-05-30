@@ -317,6 +317,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Swimmer.cs" />
+    <Compile Include="LapAdjustLogic.cs" />
     <Compile Include="TimingBridge.cs" />
     <Compile Include="HeatScheduler.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

@@ -122,6 +122,8 @@ namespace SwimmingScoreboard
         // 2026-05-27 比赛日志 tab: 每泳道当前组事件缓冲 (出发反应时 / 触板 / 盲表 / 手动).
         //   切换泳道号时调出该道历史; 计时复位 / 准备就绪时清空.
         private Dictionary<int, StringBuilder> _laneEventLog = new Dictionary<int, StringBuilder>();
+        // 2026-05-30 lane → 活跃 DispatcherTimer 列表 (finishCloseTimer / sbCloseTimer). +/- 撤销时 Stop 防 fire
+        private Dictionary<int, List<DispatcherTimer>> _laneCloseTimers = new Dictionary<int, List<DispatcherTimer>>();
         // 泳��设备状态
         private List<LaneDeviceState> _laneDeviceStates = new List<LaneDeviceState>();
 
@@ -4021,6 +4023,16 @@ namespace SwimmingScoreboard
             // 2026-05-25 修复 #7: 移除"hold 过期就当新的 1 名"逻辑(会把 2/3 名触板时间也显示).
             // 1 名检测改到 split 保存后做 (见本函数末尾): 只在此泳道触板后是 当前 lap 最快 才更新滚动时间.
 
+            // 2026-05-30 漂移补丁: 物理触板入口处清前一次 +/- 残留的 SB
+            //   场景: 用户按 R▲ 让 SB=Open, 然后做物理触板, 物理触板路径不动 SB → SB 残留打开
+            //   修法: 触板时立即关两端 SB. 后续 LaneCloseCountdown tick (5170+) 在交接点会重开 startPosition SB
+            if (laneState != null) {
+                if (laneState.LeftStartBlockStatus != DeviceStatus.Broken && laneState.LeftStartBlockStatus != DeviceStatus.NotInstalled)
+                    laneState.LeftStartBlockStatus = DeviceStatus.Closed;
+                if (laneState.RightStartBlockStatus != DeviceStatus.Broken && laneState.RightStartBlockStatus != DeviceStatus.NotInstalled)
+                    laneState.RightStartBlockStatus = DeviceStatus.Closed;
+            }
+
             // 获取当前运动员（优先StageAssignment泳道号，兼容sw.Lane）
             var swimmer = GetCurrentHeatSwimmers().FirstOrDefault(s => {
                 var sa = s.GetAssignmentForStage(_currentStage);
@@ -4130,6 +4142,7 @@ namespace SwimmingScoreboard
                     Broadcast();
                 };
                 finishCloseTimer.Start();
+                RegisterLaneCloseTimer(lane, finishCloseTimer);   // 2026-05-30 +/- 撤销时可取消
 
                 AddLog(string.Format("泳道{0} 完赛: {1} (来源:{2})", lane, TimeFormatter.Format(result.FinalTime), result.TimingSource));
                 UpdateHeatRanking();
@@ -4176,6 +4189,7 @@ namespace SwimmingScoreboard
                             Broadcast();
                         };
                         sbCloseTimer.Start();
+                        RegisterLaneCloseTimer(lane, sbCloseTimer);   // 2026-05-30 +/- 撤销时可取消
                         AddLog(string.Format("泳道{0} 交接棒触板，出发台将在{1}秒后关闭", lane, _laneCloseSettings.StartBlockCloseDelay));
                     }
                 }
@@ -4406,44 +4420,398 @@ namespace SwimmingScoreboard
             return isLeft ? farSideTotal : startSideTotal;
         }
 
-        // 手动调整某道圈数显示：左/右独立，钳到 [0, 该侧触板总次数]。
-        // 仅修改对应侧的人工偏移量；不直接动 CurrentLap，所以左侧按键只改左侧显示，右侧按键只改右侧显示。
+        //2026-05-29 手动调整某道圈数 — 容错版 D (4 道防线 + 接力 SB 推算)
+        //  规则:
+        //   ▼ (delta=-1, 剩余 -1) = 模拟一次触板 (漏触补救): 物理上 = 完成第 newCur 圈触板
+        //   ▲ (delta=+1, 剩余 +1) = 撤销一次触板 (误触回退): 物理上 = 撤销第 oldCur 圈触板
+        //  4 道防线 (任一失败 → 弹窗 + 拒绝执行, 保证状态永远跟物理一致):
+        //   防线 1: 该侧剩余范围 [0, maxDisp]
+        //   防线 2: CurrentLap 范围 [0, totalLaps]
+        //   防线 3: isLeft 一致性 (用户按的 spinner 端 = 物理触板端 = (StartPosition + 圈号奇偶) 推算)
+        //   防线 4: 比赛进行中圈数清零二次确认
+        //  通过后:
+        //   - 5/27 落地: CurrentLap += -actualDelta, Direction 翻转, LapManualAdjust 归零
+        //   - TP+MB+T:  ▼ 关 userSide / 开 otherSide;  ▲ 开 userSide / 关 otherSide  (T 不动 — 用户要求)
+        //   - SB:  接力 + newCur 是棒次切换点 → 开 isLeft 侧 (已 verify = 物理触板端);  否则不动
+        //   - Split: ▲ 软删最近
+        //   - 倒计时清零
+        //   - 发硬件 0x61 (d3/d4/d5 + d6=1/2 + d7=0/1/2)
         private void AdjustLapDisplay(int lane, bool isLeft, int delta) {
             var ls = _laneDeviceStates.FirstOrDefault(s => s.Lane == lane);
             if (ls == null) return;
-            int maxDisp = GetLapDisplayMaxForSide(isLeft);
-            int curDisp = GetDisplayedLapCount(ls, isLeft);
-            int newDisp = curDisp + delta;
-            if (newDisp < 0) newDisp = 0;
-            if (newDisp > maxDisp) newDisp = maxDisp;
-            if (newDisp == curDisp) return; // 已经在边界
-            int actualDelta = newDisp - curDisp;   // 钳过的真实变化量, 不一定等于 delta
 
-            // 2026-05-27 把手动调整"落地"到 laneState.CurrentLap, 让下一次触板按新 lap 触发,
-            //   并更新成绩 / 实时排名 (ComputeLiveRanks 用 split.Lap 排序, 下次触板创建的 split.Lap
-            //   就用更新后的 CurrentLap+1).
-            //   语义:
-            //     delta = -1 (▼ 减剩余 = 手动确认一次触板) → CurrentLap += 1, Direction 翻转
-            //     delta = +1 (▲ 加剩余 = 撤回一次触板)     → CurrentLap -= 1, Direction 翻转
-            //   每次手动调整都看作"一次额外触板事件 (或撤回)", 因此:
-            //     CurrentLap   减 actualDelta
-            //     Direction    翻转一次 (与 ProcessTouchpadHit 段间分支同步)
-            //   LapManualAdjust 重新归零 (新状态已直接体现在 CurrentLap 上, 显示偏移不再需要)
+            // 2026-05-29 重构: 防线 1-4 / SB / TP+MB / direction 推算全部下放给 LapAdjustLogic.Compute,
+            // 跟 LapTestSim 测试程序同源. 这里只负责: 收集输入 → 弹窗 / 落地 UI / 发硬件.
             int totalLaps = GetTotalLaps();
-            int newCur = ls.CurrentLap - actualDelta;
-            if (newCur < 0) newCur = 0;
-            if (newCur > totalLaps) newCur = totalLaps;
-            ls.CurrentLap = newCur;
-            ls.Direction = ls.Direction == "→" ? "←" : "→";
+            var input = new LapAdjustInput {
+                TotalLaps = totalLaps,
+                StartPosition = _laneCloseSettings.StartPosition,
+                IsRelay = _isRelay,
+                LapsPerLeg = _isRelay ? (totalLaps / 4) : 0,
+                RaceIsRacing = (_raceState == RaceState.Racing),
+                OldCurrentLap = ls.CurrentLap,
+                OldLeftRemain = GetDisplayedLapCount(ls, true),
+                OldRightRemain = GetDisplayedLapCount(ls, false),
+                LeftMaxDisp = GetLapDisplayMaxForSide(true),
+                RightMaxDisp = GetLapDisplayMaxForSide(false),
+                IsLeft = isLeft,
+                Delta = delta,
+                ConfirmAfterRacingZero = false,
+            };
+            var result = LapAdjustLogic.Compute(input);
+
+            // 防线 4: 弹 YesNo, 通过则用 ConfirmAfterRacingZero=true 重算
+            if (result.Verdict == LapAdjustVerdict.Defense4_NeedConfirm) {
+                int oldCur = ls.CurrentLap;
+                var r = MessageBox.Show(
+                    string.Format("泳道{0}\n\n{1}", lane, result.ErrorMessage),
+                    result.ErrorTitle,
+                    MessageBoxButton.YesNo, MessageBoxImage.Warning);
+                if (r != MessageBoxResult.Yes) {
+                    AddLog(string.Format("泳道{0} 比赛中圈数清零操作被用户取消 ({1}→0)", lane, oldCur));
+                    return;
+                }
+                AddLog(string.Format("泳道{0} 比赛中圈数清零操作被二次确认通过 ({1}→0)", lane, oldCur));
+                input.ConfirmAfterRacingZero = true;
+                result = LapAdjustLogic.Compute(input);
+            }
+
+            // 防线 1/2/3: 弹窗 + 日志 + 取消
+            if (result.Verdict == LapAdjustVerdict.Defense1_DispOutOfRange
+                || result.Verdict == LapAdjustVerdict.Defense2_LapOutOfRange
+                || result.Verdict == LapAdjustVerdict.Defense3_WrongSpinner) {
+                MessageBox.Show(
+                    string.Format("泳道{0}\n\n{1}", lane, result.ErrorMessage),
+                    result.ErrorTitle,
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                AddLog(string.Format("泳道{0} {1}", lane, result.LogMessage));
+                return;
+            }
+            if (result.Verdict == LapAdjustVerdict.NoChange) return;
+
+            // ===== Ok: 落地 =====
+            int oldCurForRollback = ls.CurrentLap;
+            ls.CurrentLap = result.NewCurrentLap;
+            ls.Direction = result.Direction;   // 2026-05-30: 派生于 open_side (= 物理游动方向, 跟 web sw.direction 一致, 跟硬件 ">>>/<<<" 反向)
             ls.LeftLapManualAdjust = 0;
             ls.RightLapManualAdjust = 0;
 
-            AddLog(string.Format("泳道{0} 手动调整{1}侧圈数: 剩余 {2}→{3}, CurrentLap→{4}, Direction→{5}",
-                lane, isLeft ? "左" : "右", curDisp, newDisp, newCur, ls.Direction));
+            ForceOpenSideTpMb(ls, result.OpenTpMbSide);
+            ForceCloseSideTpMb(ls, result.CloseTpMbSide);
+
+            // SB: result.SbOpenSide 0=都关 / 1=开左 / 2=开右 (个人赛恒 0)
+            if (result.SbOpenSide == 1) {
+                SetSideStartBlock(ls, "left",  DeviceStatus.Open);
+                SetSideStartBlock(ls, "right", DeviceStatus.Closed);
+            } else if (result.SbOpenSide == 2) {
+                SetSideStartBlock(ls, "right", DeviceStatus.Open);
+                SetSideStartBlock(ls, "left",  DeviceStatus.Closed);
+            } else {
+                SetSideStartBlock(ls, "left",  DeviceStatus.Closed);
+                SetSideStartBlock(ls, "right", DeviceStatus.Closed);
+            }
+
+            if (result.ShouldDeleteLastSplit) MarkLastSplitDeleted(lane);
+
+            ls.LaneCloseCountdown = 0;
+            ls.CountdownStartedAt = default(DateTime);
+            ls.CountdownTargetSec = 0;
+
+            //2026-05-30 漂移补丁:
+            //   #5 Cancel finishCloseTimer / sbCloseTimer 防 fire 关掉刚 open 的设备
+            //   #3 清 PendingBlind1/2/3Time 跟硬件 MB_Result 清同源 (case Set_LapRemaining 6422-6429)
+            //   #1 IsFinished 回退 (▲ 撤销 oldCur=totalLaps 时), 同步把 _raceState 拉回 Racing
+            //   #4 ReactionTime 清 (newCur=0 起跑前)
+            CancelLaneCloseTimers(lane);
+            ls.PendingBlind1Time = 0;
+            ls.PendingBlind2Time = 0;
+            ls.PendingBlind3Time = 0;
+            if (oldCurForRollback == input.TotalLaps && result.NewCurrentLap < input.TotalLaps) {
+                if (ls.IsFinished) {
+                    ls.IsFinished = false;
+                    AddLog(string.Format("泳道{0} 撤销完赛状态 (oldCur={1}→newCur={2})", lane, oldCurForRollback, result.NewCurrentLap));
+                }
+                if (_raceState == RaceState.Finished) {
+                    _raceState = RaceState.Racing;
+                    UpdateRaceStateDisplay();
+                    AddLog("撤销完赛, 比赛状态回 Racing");
+                }
+            }
+            if (result.NewCurrentLap == 0) {
+                ls.ReactionTime = 0;
+                ls.IsSuspectFalseStart = false;
+                ls.IsFalseStart = false;
+            }
+
+            AddLog(string.Format("泳道{0} {1}", lane, result.LogMessage));
             UpdateLaneStatusDisplay();
-            //2026-05-17 同步剩余圈数到硬件计时器（协议 0x61 Set_LapRemaining）
-            //2026-05-18 lane 按屏幕位置编码（逆序模式下转换）
-            try { if (_timingBridge != null && _timingBridge.IsConnected) _timingBridge.SendLapRemaining(LaneToHwIndex(lane), isLeft, newDisp); } catch { }
+            try {
+                if (_timingBridge != null && _timingBridge.IsConnected)
+                    _timingBridge.SendLapRemaining(LaneToHwIndex(lane), isLeft, result.NewDispThis, result.OpenAction, result.SbOpenSide);
+            } catch { }
+            Broadcast();
+        }
+
+        //2026-05-29 强制打开某端 TP + 盲表 1/2/3 (跳过 Broken/NotInstalled), 不动 T 手动按键, 不动 SB
+        private void ForceOpenSideTpMb(LaneDeviceState ls, string side) {
+            if (ls == null || string.IsNullOrEmpty(side)) return;
+            System.Action<System.Func<DeviceStatus>, System.Action<DeviceStatus>> setOpen = (getter, setter) => {
+                var s = getter();
+                if (s != DeviceStatus.Broken && s != DeviceStatus.NotInstalled) setter(DeviceStatus.Open);
+            };
+            if (side == "left") {
+                setOpen(() => ls.LeftTouchpadStatus,    v => ls.LeftTouchpadStatus = v);
+                setOpen(() => ls.LeftBlindWatch1Status, v => ls.LeftBlindWatch1Status = v);
+                setOpen(() => ls.LeftBlindWatch2Status, v => ls.LeftBlindWatch2Status = v);
+                setOpen(() => ls.LeftBlindWatch3Status, v => ls.LeftBlindWatch3Status = v);
+                // LeftManualStatus / LeftStartBlockStatus 不动
+            } else if (side == "right") {
+                setOpen(() => ls.RightTouchpadStatus,    v => ls.RightTouchpadStatus = v);
+                setOpen(() => ls.RightBlindWatch1Status, v => ls.RightBlindWatch1Status = v);
+                setOpen(() => ls.RightBlindWatch2Status, v => ls.RightBlindWatch2Status = v);
+                setOpen(() => ls.RightBlindWatch3Status, v => ls.RightBlindWatch3Status = v);
+                // RightManualStatus / RightStartBlockStatus 不动
+            }
+        }
+
+        //2026-05-29 强制关闭某端 TP + 盲表 1/2/3 (跳过 Broken/NotInstalled), 不动 T, 不动 SB
+        private void ForceCloseSideTpMb(LaneDeviceState ls, string side) {
+            if (ls == null || string.IsNullOrEmpty(side)) return;
+            System.Action<System.Func<DeviceStatus>, System.Action<DeviceStatus>> setClosed = (getter, setter) => {
+                var s = getter();
+                if (s != DeviceStatus.Broken && s != DeviceStatus.NotInstalled) setter(DeviceStatus.Closed);
+            };
+            if (side == "left") {
+                setClosed(() => ls.LeftTouchpadStatus,    v => ls.LeftTouchpadStatus = v);
+                setClosed(() => ls.LeftBlindWatch1Status, v => ls.LeftBlindWatch1Status = v);
+                setClosed(() => ls.LeftBlindWatch2Status, v => ls.LeftBlindWatch2Status = v);
+                setClosed(() => ls.LeftBlindWatch3Status, v => ls.LeftBlindWatch3Status = v);
+            } else if (side == "right") {
+                setClosed(() => ls.RightTouchpadStatus,    v => ls.RightTouchpadStatus = v);
+                setClosed(() => ls.RightBlindWatch1Status, v => ls.RightBlindWatch1Status = v);
+                setClosed(() => ls.RightBlindWatch2Status, v => ls.RightBlindWatch2Status = v);
+                setClosed(() => ls.RightBlindWatch3Status, v => ls.RightBlindWatch3Status = v);
+            }
+        }
+
+        //2026-05-29 单独设某侧 StartBlock 状态 (Open / Closed), 跳过 Broken / NotInstalled
+        private void SetSideStartBlock(LaneDeviceState ls, string side, DeviceStatus status) {
+            if (ls == null || string.IsNullOrEmpty(side)) return;
+            if (side == "left") {
+                if (ls.LeftStartBlockStatus != DeviceStatus.Broken && ls.LeftStartBlockStatus != DeviceStatus.NotInstalled)
+                    ls.LeftStartBlockStatus = status;
+            } else if (side == "right") {
+                if (ls.RightStartBlockStatus != DeviceStatus.Broken && ls.RightStartBlockStatus != DeviceStatus.NotInstalled)
+                    ls.RightStartBlockStatus = status;
+            }
+        }
+
+        //2026-05-30 注册 / 取消该 lane 上活跃的 DispatcherTimer (finishCloseTimer / sbCloseTimer)
+        //   解决 +/- 后旧 timer 还会 fire 关掉刚 open 的设备的问题
+        private void RegisterLaneCloseTimer(int lane, DispatcherTimer timer) {
+            if (!_laneCloseTimers.ContainsKey(lane)) _laneCloseTimers[lane] = new List<DispatcherTimer>();
+            _laneCloseTimers[lane].Add(timer);
+        }
+        private void CancelLaneCloseTimers(int lane) {
+            List<DispatcherTimer> list;
+            if (_laneCloseTimers.TryGetValue(lane, out list)) {
+                foreach (var t in list) try { t.Stop(); } catch { }
+                list.Clear();
+            }
+        }
+
+        //2026-05-29 软删该道最近一个未删的分段 (IsDeleted=true, 保留留痕)
+        //  用于 ▲ 误触回退: 清除被误触自动写入的错段
+        private void MarkLastSplitDeleted(int lane) {
+            var swimmer = GetCurrentHeatSwimmers().FirstOrDefault(s => {
+                var sa = s.GetAssignmentForStage(_currentStage);
+                return (sa != null ? sa.Lane : s.Lane) == lane;
+            });
+            if (swimmer == null) return;
+            var result = swimmer.Results.FirstOrDefault(r => r.Stage == _currentStage && r.Heat == _currentHeat);
+            if (result == null || result.Splits == null || result.Splits.Count == 0) return;
+            for (int k = result.Splits.Count - 1; k >= 0; k--) {
+                var sp = result.Splits[k];
+                if (sp.IsDeleted) continue;
+                sp.IsDeleted = true;
+                AddLog(string.Format("泳道{0} 软删最近分段 (第{1}段, 累计 {2}, 标 IsDeleted=true)",
+                    lane, sp.Lap, sp.CumulativeTimeDisplay));
+                return;
+            }
+        }
+
+        //2026-05-29 "📝 手工补段成绩"按钮 click handler — 弹对话框输入道次/段次/累计时间
+        private void ManualSplit_Click(object sender, RoutedEventArgs e) {
+            if (string.IsNullOrEmpty(_currentEvent) || _currentHeat <= 0) {
+                MessageBox.Show("请先选择当前比赛组次。", "手工补段", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            var swimmers = GetCurrentHeatSwimmers()
+                .Where(s => !(s.Status == "DSQ" || s.Status == "DNS" || s.Status == "DNF"))
+                .ToList();
+            if (swimmers.Count == 0) {
+                MessageBox.Show("当前组次无可补段运动员。", "手工补段", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            int totalLaps = GetTotalLaps();
+            if (totalLaps <= 0) totalLaps = 1;
+            ShowManualSplitDialog(totalLaps, swimmers);
+        }
+
+        //2026-05-29 手工补段对话框: 道次下拉 + 段次输入 (1..totalLaps) + 累计时间 mm:ss.xxx
+        //  分段时间 = 从出发到此段触板的累计时间 (200m: 50m/100m/150m/200m 时刻)
+        //  接力赛: 补的是某一棒终点时刻, 不动 LegReactionTimes
+        private void ShowManualSplitDialog(int totalLaps, List<Swimmer> swimmers) {
+            var dlg = new Window {
+                Title = "手工补段成绩",
+                Width = 480,
+                Height = 340,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                Owner = this,
+                ResizeMode = ResizeMode.NoResize,
+                Background = new SolidColorBrush(Color.FromRgb(0xF8, 0xFA, 0xFC))
+            };
+            var grid = new Grid { Margin = new Thickness(20) };
+            for (int rr = 0; rr < 6; rr++) grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            grid.RowDefinitions[4].Height = new GridLength(8);
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(140) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+            var tip = new TextBlock {
+                Text = "📌 分段时间 = 累计时间 (从出发到此段触板, 例: 200m 比赛第 2 段 = 100m 触板时刻)",
+                FontSize = 12,
+                Foreground = new SolidColorBrush(Color.FromRgb(0x64, 0x74, 0x8B)),
+                Margin = new Thickness(0, 0, 0, 16),
+                TextWrapping = TextWrapping.Wrap
+            };
+            Grid.SetColumnSpan(tip, 2);
+            Grid.SetRow(tip, 0);
+            grid.Children.Add(tip);
+
+            var laneLabel = new TextBlock { Text = "道次:", FontSize = 14, VerticalAlignment = VerticalAlignment.Center };
+            var laneCombo = new ComboBox { Height = 28, Margin = new Thickness(0, 0, 0, 8) };
+            foreach (var s in swimmers) laneCombo.Items.Add(string.Format("第 {0} 道 - {1}", s.Lane, s.Name));
+            laneCombo.SelectedIndex = 0;
+            Grid.SetRow(laneLabel, 1); Grid.SetColumn(laneLabel, 0);
+            Grid.SetRow(laneCombo, 1); Grid.SetColumn(laneCombo, 1);
+            grid.Children.Add(laneLabel); grid.Children.Add(laneCombo);
+
+            var segLabel = new TextBlock { Text = string.Format("段次 (1-{0}):", totalLaps), FontSize = 14, VerticalAlignment = VerticalAlignment.Center };
+            var segBox = new TextBox { Height = 28, Margin = new Thickness(0, 0, 0, 8), Text = "1", FontSize = 14 };
+            Grid.SetRow(segLabel, 2); Grid.SetColumn(segLabel, 0);
+            Grid.SetRow(segBox, 2);   Grid.SetColumn(segBox, 1);
+            grid.Children.Add(segLabel); grid.Children.Add(segBox);
+
+            var timeLabel = new TextBlock { Text = "累计时间:", FontSize = 14, VerticalAlignment = VerticalAlignment.Center };
+            var timePanel = new StackPanel { Orientation = Orientation.Vertical, Margin = new Thickness(0, 0, 0, 8) };
+            var timeBox = new TextBox { Height = 28, Text = "0:00.000", FontSize = 14 };
+            var timeHint = new TextBlock {
+                Text = "格式: mm:ss.xxx (例 1:23.456) 或 ss.xxx (例 23.456)",
+                FontSize = 11, Foreground = new SolidColorBrush(Color.FromRgb(0x94, 0xA3, 0xB8)),
+                Margin = new Thickness(0, 4, 0, 0)
+            };
+            timePanel.Children.Add(timeBox);
+            timePanel.Children.Add(timeHint);
+            Grid.SetRow(timeLabel, 3); Grid.SetColumn(timeLabel, 0);
+            Grid.SetRow(timePanel, 3); Grid.SetColumn(timePanel, 1);
+            grid.Children.Add(timeLabel); grid.Children.Add(timePanel);
+
+            var btnPanel = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
+            var okBtn = new Button {
+                Content = "✓ 确定补段", Width = 110, Height = 36, Margin = new Thickness(0, 0, 8, 0),
+                Background = new SolidColorBrush(Color.FromRgb(0x06, 0xB6, 0xD4)),
+                Foreground = Brushes.White, FontWeight = FontWeights.Bold, BorderThickness = new Thickness(0), FontSize = 14
+            };
+            var cancelBtn = new Button {
+                Content = "取消", Width = 80, Height = 36,
+                Background = new SolidColorBrush(Color.FromRgb(0xCB, 0xD5, 0xE1)),
+                BorderThickness = new Thickness(0), FontSize = 14
+            };
+            btnPanel.Children.Add(okBtn); btnPanel.Children.Add(cancelBtn);
+            Grid.SetRow(btnPanel, 5); Grid.SetColumnSpan(btnPanel, 2);
+            grid.Children.Add(btnPanel);
+
+            okBtn.Click += (s, ea) => {
+                int segNum;
+                if (!int.TryParse(segBox.Text.Trim(), out segNum) || segNum < 1 || segNum > totalLaps) {
+                    MessageBox.Show("段次必须是 1-" + totalLaps + " 之间的整数。", "格式错误", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+                double cumSec;
+                if (!ParseMmSsXxx(timeBox.Text.Trim(), out cumSec) || cumSec <= 0) {
+                    MessageBox.Show("时间格式应为 m:ss.xxx 或 mm:ss.xxx (例: 1:23.456 或 23.456), 且需大于 0。", "格式错误", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+                if (laneCombo.SelectedIndex < 0 || laneCombo.SelectedIndex >= swimmers.Count) {
+                    MessageBox.Show("请选择道次。", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                    return;
+                }
+                var swimmer = swimmers[laneCombo.SelectedIndex];
+                ApplyManualSplit(swimmer, segNum, cumSec);
+                dlg.DialogResult = true;
+                dlg.Close();
+            };
+            cancelBtn.Click += (s, ea) => { dlg.DialogResult = false; dlg.Close(); };
+            dlg.Content = grid;
+            dlg.ShowDialog();
+        }
+
+        //2026-05-29 解析时间字符串 "mm:ss.xxx" / "m:ss.xxx" / "ss.xxx" → 总秒数 (double)
+        private bool ParseMmSsXxx(string text, out double seconds) {
+            seconds = 0;
+            if (string.IsNullOrWhiteSpace(text)) return false;
+            text = text.Trim();
+            int colon = text.IndexOf(':');
+            try {
+                if (colon < 0) {
+                    seconds = double.Parse(text, System.Globalization.CultureInfo.InvariantCulture);
+                } else {
+                    int minutes = int.Parse(text.Substring(0, colon), System.Globalization.CultureInfo.InvariantCulture);
+                    double secPart = double.Parse(text.Substring(colon + 1), System.Globalization.CultureInfo.InvariantCulture);
+                    seconds = minutes * 60 + secPart;
+                }
+                return seconds >= 0;
+            } catch { return false; }
+        }
+
+        //2026-05-29 应用手工补段: 写到 LaneResult.Splits[Lap=segNum] (CumulativeTime + IsManual=true)
+        private void ApplyManualSplit(Swimmer swimmer, int segNum, double cumSec) {
+            var result = swimmer.Results.FirstOrDefault(r => r.Stage == _currentStage && r.Heat == _currentHeat);
+            if (result == null) {
+                result = new LaneResult {
+                    EventName = _currentEvent,
+                    Stage = _currentStage,
+                    Heat = _currentHeat,
+                    Lane = swimmer.Lane
+                };
+                swimmer.Results.Add(result);
+            }
+            SplitTime sp = null;
+            foreach (var s2 in result.Splits) {
+                if (s2.Lap == segNum) { sp = s2; break; }
+            }
+            if (sp == null) {
+                int poolLen = _poolConfig != null ? _poolConfig.Length : 50;
+                sp = new SplitTime { Lap = segNum, Distance = poolLen * segNum };
+                result.Splits.Add(sp);
+                var sorted = result.Splits.OrderBy(x => x.Lap).ToList();
+                result.Splits.Clear();
+                foreach (var x in sorted) result.Splits.Add(x);
+            }
+            sp.CumulativeTime = cumSec;
+            sp.IsManual = true;
+            sp.IsDeleted = false;
+            SplitTime prev = null;
+            foreach (var s2 in result.Splits) {
+                if (s2.Lap < segNum && !s2.IsDeleted && s2.CumulativeTime > 0
+                    && (prev == null || s2.Lap > prev.Lap)) prev = s2;
+            }
+            sp.Time = (prev != null) ? (cumSec - prev.CumulativeTime) : cumSec;
+            sp.TimingSource = "Manual";
+            AddLog(string.Format("📝 手工补段: 第 {0} 道 ({1}) 第 {2} 段 累计 {3:F3}s, 差值 {4:F3}s, IsManual=true",
+                swimmer.Lane, swimmer.Name, segNum, cumSec, sp.Time));
+            AutoSaveData();
+            UpdateLaneStatusDisplay();
             Broadcast();
         }
 
