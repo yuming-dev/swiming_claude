@@ -2456,13 +2456,18 @@ namespace SwimmingScoreboard
         // ═══════════════════════════════════════════════════════════════
         private void InitializeTimingBridge() {
             _timingBridge = new TimingBridge();
+            // 2026-05-30 步骤 1: Dispatcher.Invoke → BeginInvoke 异步派发
+            //   原同步 Invoke 让 SerialReceiveLoop/TcpReceiveLoop 接收线程在 UI 线程忙时整段阻塞,
+            //   导致硬件→PC 延迟可达秒级 (UI 重绘 / Broadcast / AddLog 慢时).
+            //   改 BeginInvoke 后: 接收线程 raise 事件 → 排队后立刻返回继续读下一帧,
+            //   UI 线程空闲时按 FIFO 顺序消费. 帧间顺序保留, 接收线程不再被 UI 拖慢.
             _timingBridge.OnTimingData += delegate(TimingData data) {
-                Dispatcher.Invoke((Action)delegate() {
+                Dispatcher.BeginInvoke((Action)delegate() {
                     ProcessTimingDataFromHardware(data);
                 });
             };
             _timingBridge.OnStatusChanged += delegate(string status) {
-                Dispatcher.Invoke((Action)delegate() {
+                Dispatcher.BeginInvoke((Action)delegate() {
                     TimingStatusText.Text = status;
                     UpdateConnectionStatus();
                     // 硬件刚连上时，把当前参数/设备状态/比赛距离/发令点下发一次（以服务器为准）
@@ -2489,7 +2494,7 @@ namespace SwimmingScoreboard
                 });
             };
             _timingBridge.OnLog += delegate(string msg) {
-                Dispatcher.Invoke((Action)delegate() {
+                Dispatcher.BeginInvoke((Action)delegate() {
                     AddLog(msg);
                 });
             };

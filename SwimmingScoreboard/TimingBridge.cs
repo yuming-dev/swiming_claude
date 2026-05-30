@@ -113,6 +113,11 @@ namespace SwimmingScoreboard
         public event Action<string> OnStatusChanged;
         public event Action<string> OnLog;
 
+        // 2026-05-30 步骤 3: 收帧 raw hex 日志开关. 默认关 (减 UI 负担),
+        //   开后每帧多 1 条 AddLog (列表滚动 + ScrollIntoView, 是 UI 线程最大常规负担).
+        //   只在调试时打开 (设为 true 临时验证某个硬件帧字节内容).
+        public bool EnableRawHexLog = false;
+
         public TimingBridge() {
             ConnectionMode = TimingConnectionMode.None;
             StatusText = "未连接";
@@ -308,12 +313,15 @@ namespace SwimmingScoreboard
                 for (int i = 0; i < FRAME_LENGTH; i++) frame[i] = acc[i];
                 acc.RemoveRange(0, FRAME_LENGTH);
 
-                // 与"发帧"日志对称的"收帧"逐字节十六进制日志，方便对照硬件实际行为
-                try {
-                    var sb = new System.Text.StringBuilder("收帧[原始]: ");
-                    for (int i = 0; i < frame.Length; i++) sb.AppendFormat("{0:X2} ", frame[i]);
-                    RaiseLog(sb.ToString().TrimEnd());
-                } catch { }
+                // 与"发帧"日志对称的"收帧"逐字节十六进制日志, 方便对照硬件实际行为.
+                // 2026-05-30 步骤 3: 默认关 (减 UI 负担), 设 EnableRawHexLog=true 开启
+                if (EnableRawHexLog) {
+                    try {
+                        var sb = new System.Text.StringBuilder("收帧[原始]: ");
+                        for (int i = 0; i < frame.Length; i++) sb.AppendFormat("{0:X2} ", frame[i]);
+                        RaiseLog(sb.ToString().TrimEnd());
+                    } catch { }
+                }
 
                 ParseFrame(frame);
             }
