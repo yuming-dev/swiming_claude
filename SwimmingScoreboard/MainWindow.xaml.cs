@@ -15041,6 +15041,17 @@ namespace SwimmingScoreboard
         // 串口连接仍保留在"系统工作状态 → 硬件计时器连接"详细面板里，这里只负责快速 TCP 连/断。
         private void QuickConnectSerial_Click(object sender, RoutedEventArgs e) {
             if (_timingBridge != null && _timingBridge.IsConnected) {
+                // 2026-05-30 比赛中按"快速断开" 加 YesNo 强制确认
+                if (_raceState == RaceState.Racing) {
+                    var r = MessageBox.Show(
+                        "⚠ 比赛进行中!\n\n断开硬件将让 PC 无法继续收实时数据, 比赛成绩可能丢失.\n\n确认要断开吗?",
+                        "比赛中断开硬件", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+                    if (r != MessageBoxResult.Yes) {
+                        AddLog("快速断开被用户取消 (比赛进行中)");
+                        return;
+                    }
+                    AddLog("⚠ 用户在比赛中强制断开硬件, 实时数据可能丢失");
+                }
                 _timingBridge.Disconnect();
                 UpdateConnectionStatus();
                 UpdateQuickConnectButton();
@@ -15157,15 +15168,22 @@ namespace SwimmingScoreboard
             // 2026-05-30 本地点击 (sender!=null) 时检查硬件连接
             if (sender != null && !EnsureHardwareConnected("设备测试")) return;
             if (!_testMode) {
+                // 2026-05-30 比赛中按"设备测试" 改为 YesNo 强制确认 (= 让按钮"能用"),
+                //   远端命令 (sender==null) 仍走拒绝路径 (操作员不在本机, 弹窗也没人点)
                 if (_raceState == RaceState.Racing) {
-                    // 远端命令也会走这里，没必要弹本地框 — 直接拒绝并写日志
                     if (sender != null) {
-                        MessageBox.Show("当前正在比赛，请先按下\"计时复位\"再进入设备测试。", "提示",
-                            MessageBoxButton.OK, MessageBoxImage.Information);
+                        var r = MessageBox.Show(
+                            "⚠ 比赛进行中!\n\n进入设备测试将中止当前比赛, 已有的实时数据可能丢失.\n\n确认要进入设备测试吗?",
+                            "比赛中设备测试", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+                        if (r != MessageBoxResult.Yes) {
+                            AddLog("设备测试操作被用户取消 (比赛进行中)");
+                            return;
+                        }
+                        AddLog("⚠ 用户在比赛中强制进入设备测试, 比赛成绩可能丢失");
                     } else {
                         AddLog("远端请求设备测试被拒：当前正在比赛");
+                        return;
                     }
-                    return;
                 }
                 if (sender != null) {
                     var r = MessageBox.Show(
@@ -15338,8 +15356,23 @@ namespace SwimmingScoreboard
         }
 
         private void DisconnectTiming_Click(object sender, RoutedEventArgs e) {
+            // 2026-05-30 比赛中按"断开" 改为 YesNo 强制确认, 避免误按导致数据丢失,
+            //   也让按钮在比赛中"能用" (用户确认后照样断开).
+            if (_raceState == RaceState.Racing) {
+                var r = MessageBox.Show(
+                    "⚠ 比赛进行中!\n\n断开硬件将让 PC 无法继续收实时数据, 比赛成绩可能丢失.\n\n确认要断开吗?",
+                    "比赛中断开硬件", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+                if (r != MessageBoxResult.Yes) {
+                    AddLog("断开硬件操作被用户取消 (比赛进行中)");
+                    return;
+                }
+                AddLog("⚠ 用户在比赛中强制断开硬件, 实时数据可能丢失");
+            }
             _timingBridge.Disconnect();
             UpdateConnectionStatus();
+            try { UpdateQuickConnectButton(); } catch { }
+            AddLog("硬件已断开");
+            try { Broadcast(); } catch { }
         }
 
         // ═══════════════════════════════════════════════════════════════
