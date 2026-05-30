@@ -2624,6 +2624,42 @@ namespace SwimmingScoreboard
             //             用此命令把 Open_State 同步给 PC，使主控里"全部打开/全部关闭"按钮状态对齐。
             //   D3 = 0xFF 全部泳道 / 0..9 单道；D4 = 1 打开 / 0 关闭
             //   实现等价于 OpenAll_Click / CloseAll_Click 但不回发 0x47（防回环）。
+            // 2026-05-30 出发台状态变化上报 (cmd=0x1B):
+            //   硬件 swimplay.c Process_StartboxStateChange 检测到 Startbox_Open_Close_State 变化即上报
+            //   D4=Lane_NoTbl[i+side*10] (PC 端解码: data.Lane=lane 0-9, data.IsFinishEnd=D4<10=物理左端)
+            //   D5=newState: 0=关 / 1=开 / 2=延时关 / 3=损坏 / 4=未装
+            if (data.CommandType == TimingCommandType.StartblockStateChange) {
+                int sbLane = data.Lane;
+                if (sbLane >= 0 && sbLane < _laneDeviceStates.Count) {
+                    byte newState = data.Param5;
+                    DeviceStatus newStatus;
+                    switch (newState) {
+                        case 0: newStatus = DeviceStatus.Closed; break;
+                        case 1: newStatus = DeviceStatus.Open; break;
+                        case 2: newStatus = DeviceStatus.Open; break;  // 硬件 Delay 状态在 PC 上当 Open 显示
+                        case 3: newStatus = DeviceStatus.Broken; break;
+                        case 4: newStatus = DeviceStatus.NotInstalled; break;
+                        default: newStatus = DeviceStatus.Closed; break;
+                    }
+                    var sbLs = _laneDeviceStates[sbLane];
+                    bool sbIsLeft = data.IsFinishEnd;  // IsFinishEnd 字段实际语义是 "D4<10 = 物理左端"
+                    if (sbIsLeft) {
+                        if (sbLs.LeftStartBlockStatus != newStatus) {
+                            sbLs.LeftStartBlockStatus = newStatus;
+                            AddLog(string.Format("硬件 SB 变化: 泳道{0} 左 → {1}", sbLs.Lane, newStatus));
+                            Broadcast();
+                        }
+                    } else {
+                        if (sbLs.RightStartBlockStatus != newStatus) {
+                            sbLs.RightStartBlockStatus = newStatus;
+                            AddLog(string.Format("硬件 SB 变化: 泳道{0} 右 → {1}", sbLs.Lane, newStatus));
+                            Broadcast();
+                        }
+                    }
+                }
+                return;
+            }
+
             if (data.CommandType == TimingCommandType.LaneOpenClose) {
                 byte d3 = data.Param1;
                 bool laneOpen = (data.RawD4 == 1);
