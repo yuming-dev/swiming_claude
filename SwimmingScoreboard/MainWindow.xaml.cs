@@ -4445,6 +4445,9 @@ namespace SwimmingScoreboard
             var ls = _laneDeviceStates.FirstOrDefault(s => s.Lane == lane);
             if (ls == null) return;
 
+            // 2026-05-30 硬件未连接弹窗 (圈数 +/- spinner)
+            if (!EnsureHardwareConnected(string.Format("泳道{0} 圈数{1}1", lane, delta > 0 ? "+" : "-"))) return;
+
             // 2026-05-29 重构: 防线 1-4 / SB / TP+MB / direction 推算全部下放给 LapAdjustLogic.Compute,
             // 跟 LapTestSim 测试程序同源. 这里只负责: 收集输入 → 弹窗 / 落地 UI / 发硬件.
             int totalLaps = GetTotalLaps();
@@ -4609,6 +4612,23 @@ namespace SwimmingScoreboard
                 if (ls.RightStartBlockStatus != DeviceStatus.Broken && ls.RightStartBlockStatus != DeviceStatus.NotInstalled)
                     ls.RightStartBlockStatus = status;
             }
+        }
+
+        //2026-05-30 硬件未连接时弹窗提示 (用户主动操作时调用)
+        //   没连接 → MessageBox 警告 + 日志 + 返回 false (调用方可选择继续 PC 本地或中止)
+        //   已连接 → 静默返回 true
+        //   只在 A 类 (= 用户主动按按钮) 路径调; B 类 (= OnStatusChanged/定时器/远程命令) 不调,
+        //   它们已有 if(IsConnected) 静默守卫.
+        private bool EnsureHardwareConnected(string actionName) {
+            if (_timingBridge != null && _timingBridge.IsConnected) return true;
+            try {
+                MessageBox.Show(
+                    string.Format("硬件计时器未连接, 无法执行 \"{0}\".\n\n本次操作在 PC 端不会生效, 硬件不会收到指令.\n请先连接硬件计时器再操作.", actionName),
+                    "⚠ 硬件未连接",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+            } catch { }
+            AddLog(string.Format("⚠ \"{0}\" 时硬件未连接, 操作已取消", actionName));
+            return false;
         }
 
         //2026-05-30 注册 / 取消该 lane 上活跃的 DispatcherTimer (finishCloseTimer / sbCloseTimer)
@@ -5217,6 +5237,8 @@ namespace SwimmingScoreboard
         // ═══════════════════════════════════════════════════════════════
         private void Ready_Click(object sender, RoutedEventArgs e) {
             // 状态守卫 → 改本地状态 → 送 0x21；硬件参数在每次 Ready 时由 SendSetMatchEventToHardware 一同下发
+            // 2026-05-30 本地点击 (sender!=null) 时检查硬件连接; 硬件回报/WebSocket 远程 (sender==null) 跳过弹窗
+            if (sender != null && !EnsureHardwareConnected("准备就绪")) return;
             if (_raceState != RaceState.Waiting) return;
             // 已确认成绩的组：禁止再次开始比赛
             if (!string.IsNullOrEmpty(_currentEvent) && _currentHeat > 0
@@ -5310,6 +5332,8 @@ namespace SwimmingScoreboard
             // 计时复位后状态会回到 Waiting；点"发令"前用户可能没点"就位"，此时自动先就位再发令。
             // 走 EnterReadyStateInternal 跳过 Ready_Click 的确认对话框（用户按"发令"已明确开始意图），
             // 同时仍把 0x43+0x21 推给硬件，让硬件先进 Ready 再接受 0x1C。
+            // 2026-05-30 本地点击 (sender!=null) 时检查硬件连接
+            if (sender != null && !EnsureHardwareConnected("发令")) return;
             if (_raceState == RaceState.Waiting) {
                 // 已确认组守卫
                 if (!string.IsNullOrEmpty(_currentEvent) && _currentHeat > 0
@@ -5379,6 +5403,8 @@ namespace SwimmingScoreboard
         }
 
         private void OpenAll_Click(object sender, RoutedEventArgs e) {
+            // 2026-05-30 硬件未连接弹窗
+            if (!EnsureHardwareConnected("全部泳道打开")) return;
             foreach (var s in _laneDeviceStates) {
                 s.LeftTouchpadStatus = DeviceStatus.Open;
                 s.LeftBlindWatch1Status = DeviceStatus.Open;
@@ -5398,6 +5424,8 @@ namespace SwimmingScoreboard
         }
 
         private void CloseAll_Click(object sender, RoutedEventArgs e) {
+            // 2026-05-30 硬件未连接弹窗
+            if (!EnsureHardwareConnected("全部泳道关闭")) return;
             foreach (var s in _laneDeviceStates) {
                 s.LeftTouchpadStatus = DeviceStatus.Closed;
                 s.LeftBlindWatch1Status = DeviceStatus.Closed;
@@ -5419,6 +5447,8 @@ namespace SwimmingScoreboard
         private void Restart_Click(object sender, RoutedEventArgs e) {
             // 本地点击"计时复位"先弹确认，避免误按导致丢失计时数据；
             // 硬件触发或 WebSocket 远程调用（sender==null）跳过对话框
+            // 2026-05-30 本地点击 (sender!=null) 时检查硬件连接
+            if (sender != null && !EnsureHardwareConnected("计时复位")) return;
             if (sender != null) {
                 var r = MessageBox.Show("确定计时复位？", "计时复位确认", MessageBoxButton.YesNo, MessageBoxImage.Warning);
                 if (r != MessageBoxResult.Yes) return;
@@ -8324,14 +8354,18 @@ namespace SwimmingScoreboard
         }
 
         private void LaneOpen_Click(object sender, RoutedEventArgs e) {
+            // 2026-05-30 硬件未连接弹窗
             int lane;
             if (!int.TryParse(LaneInputBox.Text, out lane)) { AddLog("请输入泳道号"); return; }
+            if (!EnsureHardwareConnected(string.Format("泳道{0} 打开", lane))) return;
             SetSingleLaneOpen(lane, true);
         }
 
         private void LaneClose_Click(object sender, RoutedEventArgs e) {
+            // 2026-05-30 硬件未连接弹窗
             int lane;
             if (!int.TryParse(LaneInputBox.Text, out lane)) { AddLog("请输入泳道号"); return; }
+            if (!EnsureHardwareConnected(string.Format("泳道{0} 关闭", lane))) return;
             SetSingleLaneOpen(lane, false);
         }
 
@@ -15064,6 +15098,8 @@ namespace SwimmingScoreboard
         // 进入测试：发 0x1D 给硬件、所有触板/出发台/盲表强制 Open、_testMode=true、状态条改字提示。
         // 退出测试：再次点击恢复正常 — 关掉 _testMode，所有设备重置为 Closed（用户可重新开比赛）。
         private void DeviceTest_Click(object sender, RoutedEventArgs e) {
+            // 2026-05-30 本地点击 (sender!=null) 时检查硬件连接
+            if (sender != null && !EnsureHardwareConnected("设备测试")) return;
             if (!_testMode) {
                 if (_raceState == RaceState.Racing) {
                     // 远端命令也会走这里，没必要弹本地框 — 直接拒绝并写日志
