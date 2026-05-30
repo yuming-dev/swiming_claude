@@ -2472,6 +2472,11 @@ namespace SwimmingScoreboard
                     UpdateConnectionStatus();
                     // 硬件刚连上时，把当前参数/设备状态/比赛距离/发令点下发一次（以服务器为准）
                     if (_timingBridge != null && _timingBridge.IsConnected) {
+                        // 2026-05-30 v2: 重连后清"不再提醒" 抑制标志, 让用户重新收到通知
+                        if (_suppressHwDisconnectWarning) {
+                            _suppressHwDisconnectWarning = false;
+                            AddLog("✓ 硬件重新连接, \"不再提醒\" 抑制已清除");
+                        }
                         //2026-05-12 一上线就发送当前PC的日期+时间，让硬件RTC自动校时
                         try { _timingBridge.SendDateTimeSync(); } catch { }
                         SendTimingSettingsToHardware();
@@ -4614,21 +4619,70 @@ namespace SwimmingScoreboard
             }
         }
 
-        //2026-05-30 硬件未连接时弹窗提示 (用户主动操作时调用)
-        //   没连接 → MessageBox 警告 + 日志 + 返回 false (调用方可选择继续 PC 本地或中止)
-        //   已连接 → 静默返回 true
-        //   只在 A 类 (= 用户主动按按钮) 路径调; B 类 (= OnStatusChanged/定时器/远程命令) 不调,
-        //   它们已有 if(IsConnected) 静默守卫.
+        //2026-05-30 硬件未连接弹窗提示 (用户主动操作时调用)
+        //   v2: 加 "本次会话不再提醒" CheckBox, 重连后自动清抑制
+        //   严格版 EnsureHardwareConnected: 没连接 → 返回 false (调用方 return) — 用于 A 类比赛控制按钮
+        //   软版 WarnIfHardwareNotConnected: 没连接 → 弹软警告, 不影响流程 — 用于 TimingSettings 等可离线场景
+        private bool _suppressHwDisconnectWarning = false;
+
+        //2026-05-30 v2 自定义弹窗, 含 "不再提醒" CheckBox
+        //   抑制标志 _suppressHwDisconnectWarning = true 时不再弹窗 (但 EnsureHardwareConnected 仍返回 false)
+        //   OnStatusChanged 检测硬件重连时清抑制 (= 用户重新需要看到提醒)
+        private void ShowHwDisconnectWarning(string actionName, bool isStrict) {
+            if (_suppressHwDisconnectWarning) return;
+            try {
+                var win = new Window {
+                    Title = "⚠ 硬件未连接",
+                    Width = 480, Height = 220,
+                    WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                    Owner = this,
+                    ResizeMode = ResizeMode.NoResize,
+                    ShowInTaskbar = false
+                };
+                var panel = new System.Windows.Controls.StackPanel { Margin = new Thickness(16) };
+                panel.Children.Add(new System.Windows.Controls.TextBlock {
+                    Text = string.Format("硬件计时器未连接, 无法执行 \"{0}\".\n\n{1}", actionName,
+                        isStrict
+                            ? "本次操作在 PC 端不会生效, 硬件不会收到指令.\n请先连接硬件计时器再操作."
+                            : "本次操作只在 PC 本地生效, 硬件不会同步.\n建议连接硬件后再次保存以同步."),
+                    TextWrapping = TextWrapping.Wrap,
+                    Margin = new Thickness(0, 0, 0, 12)
+                });
+                var cb = new System.Windows.Controls.CheckBox {
+                    Content = "本次会话不再提醒 (重连硬件后自动恢复)",
+                    Margin = new Thickness(0, 0, 0, 12)
+                };
+                panel.Children.Add(cb);
+                var btnOk = new System.Windows.Controls.Button {
+                    Content = "确定", Width = 80, Height = 28,
+                    HorizontalAlignment = HorizontalAlignment.Right,
+                    IsDefault = true
+                };
+                btnOk.Click += delegate { win.DialogResult = true; };
+                panel.Children.Add(btnOk);
+                win.Content = panel;
+                win.ShowDialog();
+                if (cb.IsChecked == true) {
+                    _suppressHwDisconnectWarning = true;
+                    AddLog("⚠ 用户勾选 \"本次会话不再提醒\", 后续硬件未连接弹窗已抑制 (重连后恢复)");
+                }
+            } catch { }
+        }
+
+        //2026-05-30 严格版: 比赛控制按钮 (Ready/Start/Reset/圈数等)
         private bool EnsureHardwareConnected(string actionName) {
             if (_timingBridge != null && _timingBridge.IsConnected) return true;
-            try {
-                MessageBox.Show(
-                    string.Format("硬件计时器未连接, 无法执行 \"{0}\".\n\n本次操作在 PC 端不会生效, 硬件不会收到指令.\n请先连接硬件计时器再操作.", actionName),
-                    "⚠ 硬件未连接",
-                    MessageBoxButton.OK, MessageBoxImage.Warning);
-            } catch { }
+            ShowHwDisconnectWarning(actionName, true);
             AddLog(string.Format("⚠ \"{0}\" 时硬件未连接, 操作已取消", actionName));
             return false;
+        }
+
+        //2026-05-30 软版: TimingSettings 等可离线场景 (= 警告但允许保存 PC 本地)
+        //   不返回 bool, 调用方继续往下走 PC 本地逻辑
+        private void WarnIfHardwareNotConnected(string actionName) {
+            if (_timingBridge != null && _timingBridge.IsConnected) return;
+            ShowHwDisconnectWarning(actionName, false);
+            AddLog(string.Format("⚠ \"{0}\" 时硬件未连接, 设置只在 PC 本地生效", actionName));
         }
 
         //2026-05-30 注册 / 取消该 lane 上活跃的 DispatcherTimer (finishCloseTimer / sbCloseTimer)
@@ -8407,6 +8461,8 @@ namespace SwimmingScoreboard
         }
 
         private void TimingSettings_Click(object sender, RoutedEventArgs e) {
+            // 2026-05-30 v2: 软警告 (没连允许保存 PC 本地, 弹窗提示硬件不会同步)
+            WarnIfHardwareNotConnected("参数设置");
             RunWithEditLock("timing-settings", "参数设置", delegate { TimingSettingsCore(); });
         }
 
