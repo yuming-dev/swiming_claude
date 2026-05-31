@@ -1433,6 +1433,8 @@ namespace RemoteTimingControl
             if (businessStatus == "broken") return _brushBlack;
             if (businessStatus == "touched") return _brushRed;
             if (businessStatus == "falsestart") return _brushAmber;
+            //2026-05-31 业务 Closed 优先, PC 业务关 → UI 立即灰
+            if (businessStatus == "closed") return _brushSlate;
             switch (hwColor) {
                 case 0: return _brushSlate;                                              // Close 灰
                 case 1: return (deviceType == "sb") ? _brushGreen : _brushAmber;         // Open: SB 绿 / TP-MB 黄

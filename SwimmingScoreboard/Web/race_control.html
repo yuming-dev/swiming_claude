@@ -1953,6 +1953,8 @@ function hwColorClass(hw, businessStatus, deviceType) {
     if (businessStatus === 'broken') return 'broken';
     if (businessStatus === 'touched') return 'touched';
     if (businessStatus === 'falsestart') return 'falsestart';
+    // 2026-05-31 业务 Closed 优先于 Hw (= PC 业务关 → UI 立即灰, 不等 0x52 上报延迟)
+    if (businessStatus === 'closed') return 'closed';
     if (hw === undefined || hw === null) return 'closed';
     switch (hw | 0) {
         case 0: return 'closed';                                                 // 灰

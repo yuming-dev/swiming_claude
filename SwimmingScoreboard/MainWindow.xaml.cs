@@ -1747,35 +1747,32 @@ namespace SwimmingScoreboard
                     }
                     break;
                 case "MANUAL_TOUCH_LEFT":
+                    //2026-05-31 应急按键: 比赛中 (Racing/Finished) + LeftManualEnabled 就生效, 不看 LeftManualStatus
                     if (data != null && (_raceState == RaceState.Racing || _raceState == RaceState.Finished)) {
                         int laneNum = (int)data["lane"];
                         var lState = _laneDeviceStates.FirstOrDefault(s => s.Lane == laneNum);
-                        // 检查：启用且打开状态才记录
-                        if (lState != null && lState.LeftManualEnabled && lState.LeftManualStatus == DeviceStatus.Open) {
+                        if (lState != null && lState.LeftManualEnabled) {
                             lState.LeftManualTouchTime = _runningTime;
                             SaveManualTouchToSplit(laneNum, _runningTime);
                             LogRawTimingData(laneNum, "ManualTouchLeft", _runningTime);
                             AddLog(string.Format("泳道{0} 左端手动触板: {1}", laneNum, TimeFormatter.Format(_runningTime)));
-                        } else if (lState != null && !lState.LeftManualEnabled) {
+                        } else if (lState != null) {
                             AddLog(string.Format("泳道{0} 左端手动触板(未启用)", laneNum));
-                        } else if (lState != null && lState.LeftManualStatus != DeviceStatus.Open) {
-                            AddLog(string.Format("泳道{0} 左端手动触板(未打开)", laneNum));
                         }
                     }
                     break;
                 case "MANUAL_TOUCH_RIGHT":
+                    //2026-05-31 应急按键: 同上
                     if (data != null && (_raceState == RaceState.Racing || _raceState == RaceState.Finished)) {
                         int laneNum = (int)data["lane"];
                         var lState = _laneDeviceStates.FirstOrDefault(s => s.Lane == laneNum);
-                        if (lState != null && lState.RightManualEnabled && lState.RightManualStatus == DeviceStatus.Open) {
+                        if (lState != null && lState.RightManualEnabled) {
                             lState.RightManualTouchTime = _runningTime;
                             SaveManualTouchToSplit(laneNum, _runningTime);
                             LogRawTimingData(laneNum, "ManualTouchRight", _runningTime);
                             AddLog(string.Format("泳道{0} 右端手动触板: {1}", laneNum, TimeFormatter.Format(_runningTime)));
-                        } else if (lState != null && !lState.RightManualEnabled) {
+                        } else if (lState != null) {
                             AddLog(string.Format("泳道{0} 右端手动触板(未启用)", laneNum));
-                        } else if (lState != null && lState.RightManualStatus != DeviceStatus.Open) {
-                            AddLog(string.Format("泳道{0} 右端手动触板(未打开)", laneNum));
                         }
                     }
                     break;
@@ -2735,8 +2732,10 @@ namespace SwimmingScoreboard
             //   → 数据被 LeftTouchpadStatus=Closed 丢弃, PC 端无显示 (PDF v2026.05.26 §1 报告的现象).
             // 注: TimingBridge.cs 里 IsFinishEnd 这个字段名是历史遗留, 真实语义是"物理左端"(D4<10).
             string side = data.IsFinishEnd ? "left" : "right";
+            //2026-05-31 cmd=0x16 (Touchpad) 且 d3=Pushbutton_Result(=1) 表示"硬件用盲表代替触板", PC 强制接受
+            bool isMbSubstitute = (data.CommandType == TimingCommandType.Touchpad && data.Param1 == 1);
             // 2026-05-12 协议扩展：StartingBlock 命令 D10≠0 表示抢跳，TimeInSeconds 已被解析器取反为负值
-            ProcessTimingData(data.Lane, cmdType, data.TimeInSeconds, side, data.IsFalseStart);
+            ProcessTimingData(data.Lane, cmdType, data.TimeInSeconds, side, data.IsFalseStart, isMbSubstitute);
         }
 
         // 2026-05-19 接收 RemoteTimingControl(远程 EXE) 转发的硬件参数上报
@@ -3262,7 +3261,8 @@ namespace SwimmingScoreboard
             }
         }
 
-        private void ProcessTimingData(int lane, string cmdType, double timeInSeconds, string side = null, bool isFalseStart = false) {
+        //2026-05-31 isMbSubstitute: 硬件用盲表成绩代替触板成绩 (= cmd=0x16 d3=Pushbutton_Result=1) 时强制接受, 跳过 TP 状态守卫
+        private void ProcessTimingData(int lane, string cmdType, double timeInSeconds, string side = null, bool isFalseStart = false, bool isMbSubstitute = false) {
             // 硬件 0x7F 滚动时间：硬件计时器是【唯一】权威时间源。
             // 软件不再用本地 DateTime 自算时间，也不按 race state 过滤：收到什么显示什么。
             // 这样硬件清零后只要它发 0x7F=0，软件立刻同步；硬件继续走时则软件也跟着；
@@ -3472,7 +3472,7 @@ namespace SwimmingScoreboard
                         // 2026-05-26 撤回上一版 Closed-accept 改动: 该改动导致段间的杂散触板帧被
                         //   误记为新分段 → 触发 Direction flip → 倒计时结束后开错端设备.
                         //   保留原 Open→记录 / Touched→备用 / 其它→丢弃 的状态机 (与硬件期望一致).
-                        if (tpStatus == DeviceStatus.Open || IsLaneForceAllOpen(lane)) {
+                        if (tpStatus == DeviceStatus.Open || IsLaneForceAllOpen(lane) || isMbSubstitute) {
                             ProcessTouchpadHit(lane, timeInSeconds, laneState);
                             // 已记录正式成绩，把该端切到"已触板（红）"，到点再 Closed
                             EnterTouchedThenClose(laneState, sideForClose, lane);
@@ -6823,6 +6823,8 @@ namespace SwimmingScoreboard
             if (businessStatus == DeviceStatus.Broken) { dot.Fill = _brushBlack; return; }
             if (businessStatus == DeviceStatus.Touched) { dot.Fill = _brushRed; return; }
             if (businessStatus == DeviceStatus.FalseStart) { dot.Fill = _brushAmber; return; }
+            //2026-05-31 业务 Closed 优先于 Hw*Color (= PC 业务关 → UI 立即变灰, 不等 0x52 上报的 100-200ms)
+            if (businessStatus == DeviceStatus.Closed) { dot.Fill = _brushSlate; return; }
             // 否则按 hwColor 渲染 (= 硬件 LCD 颜色)
             switch (hwColor) {
                 case 0: dot.Fill = _brushSlate; break;                                   // Close 灰 (= 硬件 Close_Color=GRAY)
@@ -7017,7 +7019,12 @@ namespace SwimmingScoreboard
                 var leftDev = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(2, 0, 0, 0) };
                 var touchL = new Button { Content = "T", Width = 80, Height = 26, FontSize = 14, BorderThickness = new Thickness(0) };
                 int capLane = lane;
-                touchL.PreviewMouseLeftButtonDown += delegate(object s1, System.Windows.Input.MouseButtonEventArgs e1) { e1.Handled = true; HandleTimingCommand(Newtonsoft.Json.Linq.JObject.FromObject(new { command = "MANUAL_TOUCH_LEFT", data = new { lane = capLane } })); };
+                touchL.PreviewMouseLeftButtonDown += delegate(object s1, System.Windows.Input.MouseButtonEventArgs e1) {
+                    e1.Handled = true;
+                    //2026-05-31 应急按键守卫: 仅看 LeftManualEnabled (参数设置), 不受 TP 状态/比赛流程影响
+                    if (capLane >= 0 && capLane < _laneDeviceStates.Count && !_laneDeviceStates[capLane].LeftManualEnabled) return;
+                    HandleTimingCommand(Newtonsoft.Json.Linq.JObject.FromObject(new { command = "MANUAL_TOUCH_LEFT", data = new { lane = capLane } }));
+                };
                 leftDev.Children.Add(touchL);
                 rowUI.TouchL = touchL;
 
@@ -7096,7 +7103,12 @@ namespace SwimmingScoreboard
                 }
 
                 var touchR = new Button { Content = "T", Width = 80, Height = 26, FontSize = 14, BorderThickness = new Thickness(0) };
-                touchR.PreviewMouseLeftButtonDown += delegate(object s2, System.Windows.Input.MouseButtonEventArgs e2) { e2.Handled = true; HandleTimingCommand(Newtonsoft.Json.Linq.JObject.FromObject(new { command = "MANUAL_TOUCH_RIGHT", data = new { lane = capLane } })); };
+                touchR.PreviewMouseLeftButtonDown += delegate(object s2, System.Windows.Input.MouseButtonEventArgs e2) {
+                    e2.Handled = true;
+                    //2026-05-31 应急按键守卫: 仅看 RightManualEnabled
+                    if (capLane >= 0 && capLane < _laneDeviceStates.Count && !_laneDeviceStates[capLane].RightManualEnabled) return;
+                    HandleTimingCommand(Newtonsoft.Json.Linq.JObject.FromObject(new { command = "MANUAL_TOUCH_RIGHT", data = new { lane = capLane } }));
+                };
                 rightDev.Children.Add(touchR);
                 rowUI.TouchR = touchR;
                 Grid.SetColumn(rightDev, 4); grid.Children.Add(rightDev);
@@ -7318,10 +7330,12 @@ namespace SwimmingScoreboard
                 rowUI.LeftSignalInd.Background = leftStart ? (Brush)_brushGreen : Brushes.Transparent;
                 rowUI.RightSignalInd.Background = !leftStart ? (Brush)_brushGreen : Brushes.Transparent;
 
-                // 左T按钮
+                // 左T按钮 — 2026-05-31 应急按键设计:
+                //   "参数设置" LeftManualEnabled=true  → 始终绿, 始终可点 (应急用, 不受 TP 状态/比赛流程影响)
+                //   LeftManualEnabled=false → 始终灰禁用
                 bool leftManualOn = ls == null || ls.LeftManualEnabled;
                 if (leftManualOn) {
-                    rowUI.TouchL.Background = (ls != null && ls.LeftManualStatus == DeviceStatus.Open) ? (Brush)_brushGreen : (Brush)_brushSlate;
+                    rowUI.TouchL.Background = _brushGreen;
                     rowUI.TouchL.Foreground = Brushes.White;
                 } else {
                     rowUI.TouchL.Background = _brushDark;
@@ -7352,9 +7366,10 @@ namespace SwimmingScoreboard
                 rowUI.LeftRemainText.Foreground = leftRemain > 0 ? (Brush)_brushAmber : (Brush)_brushSlate;
 
                 // 右T按钮
+                // 右T按钮 — 应急按键, 同左
                 bool rightManualOn = ls == null || ls.RightManualEnabled;
                 if (rightManualOn) {
-                    rowUI.TouchR.Background = (ls != null && ls.RightManualStatus == DeviceStatus.Open) ? (Brush)_brushGreen : (Brush)_brushSlate;
+                    rowUI.TouchR.Background = _brushGreen;
                     rowUI.TouchR.Foreground = Brushes.White;
                 } else {
                     rowUI.TouchR.Background = _brushDark;
