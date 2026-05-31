@@ -948,7 +948,9 @@ namespace SwimmingScoreboard
 
         //2026-05-31 硬件颜色字段 (= 0x50/0x51/0x52 协议上报的 newState, 0-5)
         //   独立于业务 Status 字段, 仅用于"硬件 LCD 颜色 → PC UI 颜色同步" 显示, 不参与业务状态机.
-        //   值域: 0=黑 Close, 1=黄 Open, 2=灰 Delay, 3=红 Bad, 4=白 NotInstalled, 5=红 Pressed (= 按键按下中)
+        //   值域 (跟硬件 swimplay.c 第 305-313 LCD 颜色定义一致):
+        //     0=灰 Close, 1=Open (SB 绿/TP-MB 黄), 2=暗红 Delay, 3=黑 Bad, 4=黑 UnInstall, 5=红 Pressed (按键按下中)
+        //   ResetForNewRace 同步重置 (= PC 发"全关闭"指令后立即同步, 不等硬件推送)
         public byte HwLeftTouchpadColor { get; set; }
         public byte HwRightTouchpadColor { get; set; }
         public byte HwLeftStartBlockColor { get; set; }
@@ -1203,6 +1205,20 @@ namespace SwimmingScoreboard
             LeftManualStatus = LeftManualEnabled ? DeviceStatus.Closed : DeviceStatus.Closed;
             RightManualStatus = RightManualEnabled ? DeviceStatus.Closed : DeviceStatus.Closed;
             _rightManualTouchTime = 0;
+            // 2026-05-31 同步重置硬件颜色字段, 跟业务 Status 一致:
+            //   TP/MB 全关 (hw=0 灰); 发令侧 SB Open (hw=1, UI 渲染时 deviceType=sb 出绿) / 另一侧 Close (hw=0 灰)
+            //   理由: PC 发"准备就绪/复位"指令后, 硬件 LCD 颜色已经变, 但 Process_*StateChange 上报可能漏掉,
+            //         所以 PC 主动同步 Hw*Color, 不等硬件推送. (后续硬件推送来的 newState 会再覆盖, 最终一致)
+            HwLeftTouchpadColor = 0;
+            HwRightTouchpadColor = 0;
+            HwLeftBlindWatch1Color = 0;
+            HwLeftBlindWatch2Color = 0;
+            HwLeftBlindWatch3Color = 0;
+            HwRightBlindWatch1Color = 0;
+            HwRightBlindWatch2Color = 0;
+            HwRightBlindWatch3Color = 0;
+            HwLeftStartBlockColor = (byte)(startLeft ? 1 : 0);
+            HwRightStartBlockColor = (byte)(startLeft ? 0 : 1);
             NotifyAll();
         }
 

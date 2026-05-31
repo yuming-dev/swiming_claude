@@ -5653,6 +5653,9 @@ namespace SwimmingScoreboard
                 state.ResetForNewRace(_laneCloseSettings.StartPosition);
                 state.LeftStartBlockStatus = DeviceStatus.Closed;
                 state.RightStartBlockStatus = DeviceStatus.Closed;
+                //2026-05-31 SB 业务两侧都 Closed, 硬件颜色也跟着清 0 (= 灰), 覆盖 ResetForNewRace 里发令侧 SB Hw=1
+                state.HwLeftStartBlockColor = 0;
+                state.HwRightStartBlockColor = 0;
             }
 
             bool stageDoneSwitchToWelcome = false;
@@ -6171,6 +6174,9 @@ namespace SwimmingScoreboard
                 state.ResetForNewRace(_laneCloseSettings.StartPosition);
                 state.LeftStartBlockStatus = DeviceStatus.Closed;
                 state.RightStartBlockStatus = DeviceStatus.Closed;
+                //2026-05-31 SB 业务两侧都 Closed, 硬件颜色也跟着清 0 (= 灰), 覆盖 ResetForNewRace 里发令侧 SB Hw=1
+                state.HwLeftStartBlockColor = 0;
+                state.HwRightStartBlockColor = 0;
             }
             // 若该组已确认成绩：把每位完赛运动员对应泳道的 IsFinished 置回 true，
             // 让广播/UI 把对应运动员显示为已完赛（保留 finalTime 显示）
