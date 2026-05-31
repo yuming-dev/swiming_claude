@@ -73,9 +73,11 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 .right-devices { width: 240px; }
 .device-dot { width: 22px; height: 22px; border-radius: 50%; border: 1px solid #475569; cursor: pointer; flex-shrink: 0; }
 .device-dot.open { background: var(--green); border-color: var(--green); }
-.device-dot.closed { background: #475569; border-color: #64748b; }
-.device-dot.broken { background: #000000; border-color: #64748B; }     /* 黑 = 损坏（与 Touched 红色区分）*/
-.device-dot.touched { background: var(--red); border-color: var(--red); } /* 红 = 已触板（窗口期内）*/
+.device-dot.open-yellow { background: var(--gold); border-color: var(--gold); } /* 2026-05-31 硬件 Open_TP/MB_Color=YELLOW */
+.device-dot.closed { background: #475569; border-color: #64748b; }              /* 灰 = 硬件 Close_Color=GRAY */
+.device-dot.broken { background: #000000; border-color: #64748B; }              /* 黑 = 硬件 Bad/UnInstall_Color=BLACK */
+.device-dot.delay { background: #D00000; border-color: #D00000; }               /* 暗红 = 硬件 Delay_Color=0xD000 */
+.device-dot.touched { background: var(--red); border-color: var(--red); }       /* 红 = 已触板/按键按下中 (Valid_Color=RED) */
 .device-dot.falsestart { background: var(--gold); border-color: var(--gold); }
 .device-dot.notinstalled { background: transparent; border: 2px dashed #334155; }
 .touch-btn { width: 80px; height: 30px; background: #475569; border: 1px solid #64748b; border-radius: 3px; color: white; font-size: 15px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
@@ -1759,11 +1761,11 @@ function refreshLaneRows(swimmers, rcRelay) {
 
         // 左设备5圆点（与右端对称）：盲3 / 盲2 / 盲1 / 出发台 / 触板
         // 2026-05-31 改用 hwColorClass: 优先业务 NotInstalled/Broken, 否则按硬件颜色 (hwLeft*)
-        rowUI.leftDots[0].className = 'device-dot lr-ld-0 ' + hwColorClass(ds.hwLeftBlindWatch3, ds.leftBlindWatch3);
-        rowUI.leftDots[1].className = 'device-dot lr-ld-1 ' + hwColorClass(ds.hwLeftBlindWatch2, ds.leftBlindWatch2);
-        rowUI.leftDots[2].className = 'device-dot lr-ld-2 ' + hwColorClass(ds.hwLeftBlindWatch1, ds.leftBlindWatch1);
-        rowUI.leftDots[3].className = 'device-dot lr-ld-3 ' + hwColorClass(ds.hwLeftStartBlock, ds.leftStartBlock);
-        rowUI.leftDots[4].className = 'device-dot lr-ld-4 ' + hwColorClass(ds.hwLeftTouchpad, ds.leftTouchpad);
+        rowUI.leftDots[0].className = 'device-dot lr-ld-0 ' + hwColorClass(ds.hwLeftBlindWatch3, ds.leftBlindWatch3, 'mb');
+        rowUI.leftDots[1].className = 'device-dot lr-ld-1 ' + hwColorClass(ds.hwLeftBlindWatch2, ds.leftBlindWatch2, 'mb');
+        rowUI.leftDots[2].className = 'device-dot lr-ld-2 ' + hwColorClass(ds.hwLeftBlindWatch1, ds.leftBlindWatch1, 'mb');
+        rowUI.leftDots[3].className = 'device-dot lr-ld-3 ' + hwColorClass(ds.hwLeftStartBlock, ds.leftStartBlock, 'sb');
+        rowUI.leftDots[4].className = 'device-dot lr-ld-4 ' + hwColorClass(ds.hwLeftTouchpad, ds.leftTouchpad, 'tp');
 
         // 左剩余秒数
         var leftRemain = (sw.leftTouchRemain != null && sw.leftTouchRemain > 0) ? sw.leftTouchRemain : '';
@@ -1779,11 +1781,11 @@ function refreshLaneRows(swimmers, rcRelay) {
 
         // 右设备5圆点
         // 2026-05-31 改用 hwColorClass
-        rowUI.rightDots[0].className = 'device-dot lr-rd-0 ' + hwColorClass(ds.hwRightTouchpad, ds.rightTouchpad);
-        rowUI.rightDots[1].className = 'device-dot lr-rd-1 ' + hwColorClass(ds.hwRightStartBlock, ds.rightStartBlock);
-        rowUI.rightDots[2].className = 'device-dot lr-rd-2 ' + hwColorClass(ds.hwRightBlindWatch1, ds.rightBlindWatch1);
-        rowUI.rightDots[3].className = 'device-dot lr-rd-3 ' + hwColorClass(ds.hwRightBlindWatch2, ds.rightBlindWatch2);
-        rowUI.rightDots[4].className = 'device-dot lr-rd-4 ' + hwColorClass(ds.hwRightBlindWatch3, ds.rightBlindWatch3);
+        rowUI.rightDots[0].className = 'device-dot lr-rd-0 ' + hwColorClass(ds.hwRightTouchpad, ds.rightTouchpad, 'tp');
+        rowUI.rightDots[1].className = 'device-dot lr-rd-1 ' + hwColorClass(ds.hwRightStartBlock, ds.rightStartBlock, 'sb');
+        rowUI.rightDots[2].className = 'device-dot lr-rd-2 ' + hwColorClass(ds.hwRightBlindWatch1, ds.rightBlindWatch1, 'mb');
+        rowUI.rightDots[3].className = 'device-dot lr-rd-3 ' + hwColorClass(ds.hwRightBlindWatch2, ds.rightBlindWatch2, 'mb');
+        rowUI.rightDots[4].className = 'device-dot lr-rd-4 ' + hwColorClass(ds.hwRightBlindWatch3, ds.rightBlindWatch3, 'mb');
 
         // 右剩余秒数
         var rightRemain = (sw.rightTouchRemain != null && sw.rightTouchRemain > 0) ? sw.rightTouchRemain : '';
@@ -1942,23 +1944,23 @@ function statusClass(s) {
     return 'closed';
 }
 
-// 2026-05-31 硬件颜色 → CSS class 映射 (= 跟 PC 控制端 StyleDotMixed 同源)
-//   hw: 0=黑 Close / 1=黄 Open / 2=灰 Delay / 3=红 Bad / 4=白 NotInstalled / 5=红 Pressed
+// 2026-05-31 硬件颜色 → CSS class 映射 (= 跟 PC 控制端 StyleDotMixed 同源, 跟硬件 swimplay.c LCD 颜色一致)
+//   hw: 0=灰 Close / 1=Open (SB 绿, TP/MB 黄) / 2=暗红 Delay (0xD000) / 3=黑 Bad / 4=黑 UnInstall (2025-1-6) / 5=红 Pressed
 //   businessStatus 优先: notinstalled / broken / touched / falsestart
-//   否则按 hw 渲染
-function hwColorClass(hw, businessStatus) {
+//   否则按 hw + deviceType ('tp'/'sb'/'mb') 渲染
+function hwColorClass(hw, businessStatus, deviceType) {
     if (businessStatus === 'notinstalled') return 'notinstalled';
     if (businessStatus === 'broken') return 'broken';
     if (businessStatus === 'touched') return 'touched';
     if (businessStatus === 'falsestart') return 'falsestart';
     if (hw === undefined || hw === null) return 'closed';
     switch (hw | 0) {
-        case 0: return 'closed';
-        case 1: return 'open';
-        case 2: return 'closed';
-        case 3: return 'broken';
-        case 4: return 'notinstalled';
-        case 5: return 'touched';
+        case 0: return 'closed';                                                 // 灰
+        case 1: return (deviceType === 'sb') ? 'open' : 'open-yellow';           // SB 绿, TP/MB 黄
+        case 2: return 'delay';                                                  // 暗红
+        case 3: return 'broken';                                                 // 黑
+        case 4: return 'broken';                                                 // 黑 (硬件 UnInstall_Color 2025-1-6 改成 BLACK)
+        case 5: return 'touched';                                                // 红 (按键按下中)
         default: return 'closed';
     }
 }

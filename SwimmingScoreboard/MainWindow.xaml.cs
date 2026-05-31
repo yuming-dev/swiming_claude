@@ -6753,6 +6753,8 @@ namespace SwimmingScoreboard
         private static readonly SolidColorBrush _brushAmber = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F59E0B"));
         private static readonly SolidColorBrush _brushSlate = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569"));
         private static readonly SolidColorBrush _brushBlack = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#000000"));
+        //2026-05-31 暗红 = 硬件 Delay_Color RGB565 0xD000 (= R=26/31, G=0, B=0 ≈ #D00000)
+        private static readonly SolidColorBrush _brushDarkRed = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#D00000"));
         private static readonly SolidColorBrush _brushDark = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E293B"));
         private static readonly SolidColorBrush _brushBlue = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6"));
         private static readonly SolidColorBrush _brushSilver = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#C0C0C0"));
@@ -6787,17 +6789,20 @@ namespace SwimmingScoreboard
             }
         }
 
-        //2026-05-31 硬件颜色 (= 0x50/0x51/0x52 协议 newState 0-5) → Brush 映射, 跟硬件 LCD 颜色一致:
-        //   0=黑 Close, 1=黄 Open, 2=灰 Delay, 3=红 Bad, 4=白 NotInstalled (透明+虚线), 5=红 Pressed (按键按下)
+        //2026-05-31 硬件颜色 (= 0x50/0x51/0x52 协议 newState 0-5) → Brush 映射, 跟硬件 swimplay.c LCD 颜色一致:
+        //   swimplay.c 第 305-313: Close_Color=GRAY(灰), Open_TP_Color=YELLOW, Open_SB_Color=GREEN, Open_MB_Color=YELLOW,
+        //                          Delay_Color=0xD000(暗红), Bad_Color=BLACK, UnInstall_Color=BLACK (2025-1-6), Valid_Color=RED
+        //   newState: 0=Close 灰 / 1=Open (TP/MB 黄, SB 绿) / 2=Delay 暗红 / 3=Bad 黑 / 4=UnInstall 黑 / 5=Pressed 红
         //   PC 端业务字段优先于硬件颜色 (保留现有视觉, 业务驱动):
-        //     - 业务 NotInstalled → 透明虚线
+        //     - 业务 NotInstalled → 透明虚线 (PC 特殊视觉, 跟硬件黑色 UnInstall_Color 区分)
         //     - 业务 Broken → 黑
         //     - 业务 Touched → 红 (= 触板红色窗口期, 跟之前 GetDeviceBrush 一致)
         //     - 业务 FalseStart → 黄
-        //     - 否则 → 用 Hw*Color 渲染 (= 反映硬件 LCD 实时颜色)
+        //     - 否则 → 用 Hw*Color 渲染 (= 反映硬件 LCD 实时颜色, 含 SB Open=绿 vs TP/MB Open=黄 的区分)
         //   注: 硬件 newState=5 (Pressed 红色按下) 待 swimplay.c Process_*StateChange 扩展 KeyState
         //       综合后才会真上报; 当前未上报时 PC UI 触板红色仍由业务 Touched 触发, 视觉跟之前一致.
-        private static void StyleDotMixed(Ellipse dot, byte hwColor, DeviceStatus businessStatus) {
+        private enum DotDeviceType { Tp, Sb, Mb }
+        private static void StyleDotMixed(Ellipse dot, byte hwColor, DeviceStatus businessStatus, DotDeviceType deviceType) {
             if (dot == null) return;
             // 业务字段优先
             if (businessStatus == DeviceStatus.NotInstalled) {
@@ -6812,19 +6817,14 @@ namespace SwimmingScoreboard
             if (businessStatus == DeviceStatus.Broken) { dot.Fill = _brushBlack; return; }
             if (businessStatus == DeviceStatus.Touched) { dot.Fill = _brushRed; return; }
             if (businessStatus == DeviceStatus.FalseStart) { dot.Fill = _brushAmber; return; }
-            // 否则按 hwColor 渲染
+            // 否则按 hwColor 渲染 (= 硬件 LCD 颜色)
             switch (hwColor) {
-                case 0: dot.Fill = _brushBlack; break;
-                case 1: dot.Fill = _brushAmber; break;   // Open 黄, 跟硬件 LCD 一致
-                case 2: dot.Fill = _brushSlate; break;   // Delay 灰
-                case 3: dot.Fill = _brushRed; break;     // Bad 红
-                case 4:
-                    dot.Fill = Brushes.Transparent;
-                    dot.Stroke = _brushSlate;
-                    dot.StrokeThickness = 1.5;
-                    dot.StrokeDashArray = _dotDashArray;
-                    break;
-                case 5: dot.Fill = _brushRed; break;     // Pressed 红
+                case 0: dot.Fill = _brushSlate; break;                                   // Close 灰 (= 硬件 Close_Color=GRAY)
+                case 1: dot.Fill = (deviceType == DotDeviceType.Sb) ? _brushGreen : _brushAmber; break;  // Open: SB=绿 / TP-MB=黄
+                case 2: dot.Fill = _brushDarkRed; break;                                 // Delay 暗红 (= 硬件 Delay_Color=0xD000)
+                case 3: dot.Fill = _brushBlack; break;                                   // Bad 黑 (= 硬件 Bad_Color=BLACK)
+                case 4: dot.Fill = _brushBlack; break;                                   // UnInstall 黑 (= 硬件 UnInstall_Color=BLACK, 2025-1-6)
+                case 5: dot.Fill = _brushRed; break;                                     // Pressed 红 (= 硬件 Valid_Color=RED)
                 default: dot.Fill = _brushSlate; break;
             }
         }
@@ -7217,22 +7217,22 @@ namespace SwimmingScoreboard
                     if (rowUI.LeftDots != null && ls != null) {
                         if (_testMode) {
                             // 2026-05-31 改用 StyleDotMixed: 业务 NotInstalled/Broken 优先, 否则 Hw*Color 渲染
-                            StyleDotMixed(rowUI.LeftDots[0], ls.HwLeftBlindWatch3Color, ls.LeftBlindWatch3Status);
-                            StyleDotMixed(rowUI.LeftDots[1], ls.HwLeftBlindWatch2Color, ls.LeftBlindWatch2Status);
-                            StyleDotMixed(rowUI.LeftDots[2], ls.HwLeftBlindWatch1Color, ls.LeftBlindWatch1Status);
-                            StyleDotMixed(rowUI.LeftDots[3], ls.HwLeftStartBlockColor, ls.LeftStartBlockStatus);
-                            StyleDotMixed(rowUI.LeftDots[4], ls.HwLeftTouchpadColor, ls.LeftTouchpadStatus);
+                            StyleDotMixed(rowUI.LeftDots[0], ls.HwLeftBlindWatch3Color, ls.LeftBlindWatch3Status, DotDeviceType.Mb);
+                            StyleDotMixed(rowUI.LeftDots[1], ls.HwLeftBlindWatch2Color, ls.LeftBlindWatch2Status, DotDeviceType.Mb);
+                            StyleDotMixed(rowUI.LeftDots[2], ls.HwLeftBlindWatch1Color, ls.LeftBlindWatch1Status, DotDeviceType.Mb);
+                            StyleDotMixed(rowUI.LeftDots[3], ls.HwLeftStartBlockColor, ls.LeftStartBlockStatus, DotDeviceType.Sb);
+                            StyleDotMixed(rowUI.LeftDots[4], ls.HwLeftTouchpadColor, ls.LeftTouchpadStatus, DotDeviceType.Tp);
                         } else {
                             for (int i = 0; i < rowUI.LeftDots.Length; i++) rowUI.LeftDots[i].Fill = _brushSlate;
                         }
                     }
                     if (rowUI.RightDots != null && ls != null) {
                         if (_testMode) {
-                            StyleDotMixed(rowUI.RightDots[0], ls.HwRightTouchpadColor, ls.RightTouchpadStatus);
-                            StyleDotMixed(rowUI.RightDots[1], ls.HwRightStartBlockColor, ls.RightStartBlockStatus);
-                            StyleDotMixed(rowUI.RightDots[2], ls.HwRightBlindWatch1Color, ls.RightBlindWatch1Status);
-                            StyleDotMixed(rowUI.RightDots[3], ls.HwRightBlindWatch2Color, ls.RightBlindWatch2Status);
-                            StyleDotMixed(rowUI.RightDots[4], ls.HwRightBlindWatch3Color, ls.RightBlindWatch3Status);
+                            StyleDotMixed(rowUI.RightDots[0], ls.HwRightTouchpadColor, ls.RightTouchpadStatus, DotDeviceType.Tp);
+                            StyleDotMixed(rowUI.RightDots[1], ls.HwRightStartBlockColor, ls.RightStartBlockStatus, DotDeviceType.Sb);
+                            StyleDotMixed(rowUI.RightDots[2], ls.HwRightBlindWatch1Color, ls.RightBlindWatch1Status, DotDeviceType.Mb);
+                            StyleDotMixed(rowUI.RightDots[3], ls.HwRightBlindWatch2Color, ls.RightBlindWatch2Status, DotDeviceType.Mb);
+                            StyleDotMixed(rowUI.RightDots[4], ls.HwRightBlindWatch3Color, ls.RightBlindWatch3Status, DotDeviceType.Mb);
                         } else {
                             for (int i = 0; i < rowUI.RightDots.Length; i++) rowUI.RightDots[i].Fill = _brushSlate;
                         }
@@ -7325,11 +7325,11 @@ namespace SwimmingScoreboard
                 // 左设备5个圆点（与右端对称）：盲表3 / 盲表2 / 盲表1 / 出发台 / 触板
                 if (ls != null) {
                     // 2026-05-31 正常行渲染也改用 StyleDotMixed
-                    StyleDotMixed(rowUI.LeftDots[0], ls.HwLeftBlindWatch3Color, ls.LeftBlindWatch3Status);
-                    StyleDotMixed(rowUI.LeftDots[1], ls.HwLeftBlindWatch2Color, ls.LeftBlindWatch2Status);
-                    StyleDotMixed(rowUI.LeftDots[2], ls.HwLeftBlindWatch1Color, ls.LeftBlindWatch1Status);
-                    StyleDotMixed(rowUI.LeftDots[3], ls.HwLeftStartBlockColor, ls.LeftStartBlockStatus);
-                    StyleDotMixed(rowUI.LeftDots[4], ls.HwLeftTouchpadColor, ls.LeftTouchpadStatus);
+                    StyleDotMixed(rowUI.LeftDots[0], ls.HwLeftBlindWatch3Color, ls.LeftBlindWatch3Status, DotDeviceType.Mb);
+                    StyleDotMixed(rowUI.LeftDots[1], ls.HwLeftBlindWatch2Color, ls.LeftBlindWatch2Status, DotDeviceType.Mb);
+                    StyleDotMixed(rowUI.LeftDots[2], ls.HwLeftBlindWatch1Color, ls.LeftBlindWatch1Status, DotDeviceType.Mb);
+                    StyleDotMixed(rowUI.LeftDots[3], ls.HwLeftStartBlockColor, ls.LeftStartBlockStatus, DotDeviceType.Sb);
+                    StyleDotMixed(rowUI.LeftDots[4], ls.HwLeftTouchpadColor, ls.LeftTouchpadStatus, DotDeviceType.Tp);
                 } else {
                     for (int i = 0; i < 5; i++) rowUI.LeftDots[i].Fill = _brushSlate;
                 }
@@ -7357,11 +7357,11 @@ namespace SwimmingScoreboard
 
                 // 右设备5个圆点：Touchpad, StartBlock, BlindWatch1/2/3
                 if (ls != null) {
-                    StyleDotMixed(rowUI.RightDots[0], ls.HwRightTouchpadColor, ls.RightTouchpadStatus);
-                    StyleDotMixed(rowUI.RightDots[1], ls.HwRightStartBlockColor, ls.RightStartBlockStatus);
-                    StyleDotMixed(rowUI.RightDots[2], ls.HwRightBlindWatch1Color, ls.RightBlindWatch1Status);
-                    StyleDotMixed(rowUI.RightDots[3], ls.HwRightBlindWatch2Color, ls.RightBlindWatch2Status);
-                    StyleDotMixed(rowUI.RightDots[4], ls.HwRightBlindWatch3Color, ls.RightBlindWatch3Status);
+                    StyleDotMixed(rowUI.RightDots[0], ls.HwRightTouchpadColor, ls.RightTouchpadStatus, DotDeviceType.Tp);
+                    StyleDotMixed(rowUI.RightDots[1], ls.HwRightStartBlockColor, ls.RightStartBlockStatus, DotDeviceType.Sb);
+                    StyleDotMixed(rowUI.RightDots[2], ls.HwRightBlindWatch1Color, ls.RightBlindWatch1Status, DotDeviceType.Mb);
+                    StyleDotMixed(rowUI.RightDots[3], ls.HwRightBlindWatch2Color, ls.RightBlindWatch2Status, DotDeviceType.Mb);
+                    StyleDotMixed(rowUI.RightDots[4], ls.HwRightBlindWatch3Color, ls.RightBlindWatch3Status, DotDeviceType.Mb);
                 } else {
                     for (int i = 0; i < 5; i++) rowUI.RightDots[i].Fill = _brushSlate;
                 }
