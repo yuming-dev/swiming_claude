@@ -2004,7 +2004,18 @@ namespace SwimmingScoreboard
                         rightBlindWatch1Broken = laneState != null && laneState.RightBlindWatch1Broken,
                         rightBlindWatch2Broken = laneState != null && laneState.RightBlindWatch2Broken,
                         rightBlindWatch3Broken = laneState != null && laneState.RightBlindWatch3Broken,
-                        rightStartBlockBroken = laneState != null && laneState.RightStartBlockBroken
+                        rightStartBlockBroken = laneState != null && laneState.RightStartBlockBroken,
+                        // 2026-05-31 硬件颜色 (= 0x50/0x51/0x52 协议 newState 0-5), 跟 PC 控制端 StyleDotMixed 同源
+                        hwLeftTouchpad = laneState != null ? laneState.HwLeftTouchpadColor : (byte)0,
+                        hwLeftStartBlock = laneState != null ? laneState.HwLeftStartBlockColor : (byte)0,
+                        hwLeftBlindWatch1 = laneState != null ? laneState.HwLeftBlindWatch1Color : (byte)0,
+                        hwLeftBlindWatch2 = laneState != null ? laneState.HwLeftBlindWatch2Color : (byte)0,
+                        hwLeftBlindWatch3 = laneState != null ? laneState.HwLeftBlindWatch3Color : (byte)0,
+                        hwRightTouchpad = laneState != null ? laneState.HwRightTouchpadColor : (byte)0,
+                        hwRightStartBlock = laneState != null ? laneState.HwRightStartBlockColor : (byte)0,
+                        hwRightBlindWatch1 = laneState != null ? laneState.HwRightBlindWatch1Color : (byte)0,
+                        hwRightBlindWatch2 = laneState != null ? laneState.HwRightBlindWatch2Color : (byte)0,
+                        hwRightBlindWatch3 = laneState != null ? laneState.HwRightBlindWatch3Color : (byte)0
                     },
                     manualButton = new {
                         leftEnabled = laneState != null && laneState.LeftManualEnabled,
@@ -2097,7 +2108,18 @@ namespace SwimmingScoreboard
                             rightBlindWatch1Broken = ls != null && ls.RightBlindWatch1Broken,
                             rightBlindWatch2Broken = ls != null && ls.RightBlindWatch2Broken,
                             rightBlindWatch3Broken = ls != null && ls.RightBlindWatch3Broken,
-                            rightStartBlockBroken  = ls != null && ls.RightStartBlockBroken
+                            rightStartBlockBroken  = ls != null && ls.RightStartBlockBroken,
+                            // 2026-05-31 硬件颜色 (= 0x50/0x51/0x52 协议)
+                            hwLeftTouchpad = ls != null ? ls.HwLeftTouchpadColor : (byte)0,
+                            hwLeftStartBlock = ls != null ? ls.HwLeftStartBlockColor : (byte)0,
+                            hwLeftBlindWatch1 = ls != null ? ls.HwLeftBlindWatch1Color : (byte)0,
+                            hwLeftBlindWatch2 = ls != null ? ls.HwLeftBlindWatch2Color : (byte)0,
+                            hwLeftBlindWatch3 = ls != null ? ls.HwLeftBlindWatch3Color : (byte)0,
+                            hwRightTouchpad = ls != null ? ls.HwRightTouchpadColor : (byte)0,
+                            hwRightStartBlock = ls != null ? ls.HwRightStartBlockColor : (byte)0,
+                            hwRightBlindWatch1 = ls != null ? ls.HwRightBlindWatch1Color : (byte)0,
+                            hwRightBlindWatch2 = ls != null ? ls.HwRightBlindWatch2Color : (byte)0,
+                            hwRightBlindWatch3 = ls != null ? ls.HwRightBlindWatch3Color : (byte)0
                         },
                         manualButton = new {
                             leftEnabled = ls != null && ls.LeftManualEnabled,
@@ -2624,15 +2646,44 @@ namespace SwimmingScoreboard
             //             用此命令把 Open_State 同步给 PC，使主控里"全部打开/全部关闭"按钮状态对齐。
             //   D3 = 0xFF 全部泳道 / 0..9 单道；D4 = 1 打开 / 0 关闭
             //   实现等价于 OpenAll_Click / CloseAll_Click 但不回发 0x47（防回环）。
-            // 2026-05-30 完全撤销 0x1B/0x1E/0x1F 对 PC 业务字段的修改 — 用户反馈这覆盖了 PC 内部
-            //   Touched 状态机, 导致同侧连触被错认 N+1 圈. 用户明确要求"业务按以前的逻辑运行, 不改动".
-            //   现在 PC 收到这 3 个命令直接静默丢弃 (= 不动 ls.LeftTouchpadStatus 等业务字段).
-            //   硬件继续上报无害 (协议字节流过); PC UI 颜色仍由 0x16/0x17/0x18/0x19/0x1A 等事件命令
-            //   驱动业务 Status 字段, 跟之前行为完全一致.
-            //   注: 若未来需要"硬件颜色直传 UI", 应加独立 Hw*Color 字段 + UI 重绑, 不影响业务.
+            // 2026-05-31 硬件颜色 → PC Hw*Color 字段同步 (= 0x50/0x51/0x52 协议)
+            //   协议: D3=side (0=左/1=右), D4=lane (0-9), D5=newState (0-5), D6=mb_idx (MB only)
+            //   只更新独立的 Hw*Color 字段, **不动业务 Status 字段** (= LeftTouchpadStatus 等),
+            //   防止再次污染 PC 内部 Open→Touched→Closed 状态机 (= 之前的 N+1 圈 bug 根因).
+            //   PC UI 控制端"泳道实时状态" 圆点 StyleDot 改用 Hw*Color 渲染, 反映硬件实际 LCD 颜色.
             if (data.CommandType == TimingCommandType.StartblockStateChange ||
                 data.CommandType == TimingCommandType.TPStateChange ||
                 data.CommandType == TimingCommandType.MBStateChange) {
+                int hwLane = data.Lane;
+                if (hwLane < 0 || hwLane >= _laneDeviceStates.Count) return;
+                byte hwSide = data.Param1;   // D3: 0=左 / 1=右 (硬件新约定独立字段)
+                byte hwNewState = data.Param5; // D5: 0-5
+                byte hwMbIdx = data.Param6;  // D6: MB 0/1/2 (= BlindWatch 1/2/3)
+                var hwLs = _laneDeviceStates[hwLane];
+                bool hwIsLeft = (hwSide == 0);
+                switch (data.CommandType) {
+                    case TimingCommandType.StartblockStateChange:
+                        if (hwIsLeft) hwLs.HwLeftStartBlockColor = hwNewState;
+                        else hwLs.HwRightStartBlockColor = hwNewState;
+                        break;
+                    case TimingCommandType.TPStateChange:
+                        if (hwIsLeft) hwLs.HwLeftTouchpadColor = hwNewState;
+                        else hwLs.HwRightTouchpadColor = hwNewState;
+                        break;
+                    case TimingCommandType.MBStateChange:
+                        if (hwIsLeft) {
+                            if (hwMbIdx == 0) hwLs.HwLeftBlindWatch1Color = hwNewState;
+                            else if (hwMbIdx == 1) hwLs.HwLeftBlindWatch2Color = hwNewState;
+                            else if (hwMbIdx == 2) hwLs.HwLeftBlindWatch3Color = hwNewState;
+                        } else {
+                            if (hwMbIdx == 0) hwLs.HwRightBlindWatch1Color = hwNewState;
+                            else if (hwMbIdx == 1) hwLs.HwRightBlindWatch2Color = hwNewState;
+                            else if (hwMbIdx == 2) hwLs.HwRightBlindWatch3Color = hwNewState;
+                        }
+                        break;
+                }
+                UpdateLaneStatusDisplay();   // 触发 UI 重绘
+                Broadcast();                  // JSON 同步给 web 端
                 return;
             }
 
@@ -6736,6 +6787,48 @@ namespace SwimmingScoreboard
             }
         }
 
+        //2026-05-31 硬件颜色 (= 0x50/0x51/0x52 协议 newState 0-5) → Brush 映射, 跟硬件 LCD 颜色一致:
+        //   0=黑 Close, 1=黄 Open, 2=灰 Delay, 3=红 Bad, 4=白 NotInstalled (透明+虚线), 5=红 Pressed (按键按下)
+        //   PC 端业务字段优先于硬件颜色 (保留现有视觉, 业务驱动):
+        //     - 业务 NotInstalled → 透明虚线
+        //     - 业务 Broken → 黑
+        //     - 业务 Touched → 红 (= 触板红色窗口期, 跟之前 GetDeviceBrush 一致)
+        //     - 业务 FalseStart → 黄
+        //     - 否则 → 用 Hw*Color 渲染 (= 反映硬件 LCD 实时颜色)
+        //   注: 硬件 newState=5 (Pressed 红色按下) 待 swimplay.c Process_*StateChange 扩展 KeyState
+        //       综合后才会真上报; 当前未上报时 PC UI 触板红色仍由业务 Touched 触发, 视觉跟之前一致.
+        private static void StyleDotMixed(Ellipse dot, byte hwColor, DeviceStatus businessStatus) {
+            if (dot == null) return;
+            // 业务字段优先
+            if (businessStatus == DeviceStatus.NotInstalled) {
+                dot.Fill = Brushes.Transparent;
+                dot.Stroke = _brushSlate;
+                dot.StrokeThickness = 1.5;
+                dot.StrokeDashArray = _dotDashArray;
+                return;
+            }
+            dot.Stroke = null;
+            dot.StrokeThickness = 0;
+            if (businessStatus == DeviceStatus.Broken) { dot.Fill = _brushBlack; return; }
+            if (businessStatus == DeviceStatus.Touched) { dot.Fill = _brushRed; return; }
+            if (businessStatus == DeviceStatus.FalseStart) { dot.Fill = _brushAmber; return; }
+            // 否则按 hwColor 渲染
+            switch (hwColor) {
+                case 0: dot.Fill = _brushBlack; break;
+                case 1: dot.Fill = _brushAmber; break;   // Open 黄, 跟硬件 LCD 一致
+                case 2: dot.Fill = _brushSlate; break;   // Delay 灰
+                case 3: dot.Fill = _brushRed; break;     // Bad 红
+                case 4:
+                    dot.Fill = Brushes.Transparent;
+                    dot.Stroke = _brushSlate;
+                    dot.StrokeThickness = 1.5;
+                    dot.StrokeDashArray = _dotDashArray;
+                    break;
+                case 5: dot.Fill = _brushRed; break;     // Pressed 红
+                default: dot.Fill = _brushSlate; break;
+            }
+        }
+
         private Ellipse MakeLaneDot(DeviceStatus status) {
             var e = new Ellipse { Width = 22, Height = 22, Margin = new Thickness(2, 0, 2, 0) };
             StyleDot(e, status);
@@ -7123,22 +7216,23 @@ namespace SwimmingScoreboard
                     // 测试模式下按真实状态涂色，正常空道全部置灰
                     if (rowUI.LeftDots != null && ls != null) {
                         if (_testMode) {
-                            StyleDot(rowUI.LeftDots[0], ls.LeftBlindWatch3Status);
-                            StyleDot(rowUI.LeftDots[1], ls.LeftBlindWatch2Status);
-                            StyleDot(rowUI.LeftDots[2], ls.LeftBlindWatch1Status);
-                            StyleDot(rowUI.LeftDots[3], ls.LeftStartBlockStatus);
-                            StyleDot(rowUI.LeftDots[4], ls.LeftTouchpadStatus);
+                            // 2026-05-31 改用 StyleDotMixed: 业务 NotInstalled/Broken 优先, 否则 Hw*Color 渲染
+                            StyleDotMixed(rowUI.LeftDots[0], ls.HwLeftBlindWatch3Color, ls.LeftBlindWatch3Status);
+                            StyleDotMixed(rowUI.LeftDots[1], ls.HwLeftBlindWatch2Color, ls.LeftBlindWatch2Status);
+                            StyleDotMixed(rowUI.LeftDots[2], ls.HwLeftBlindWatch1Color, ls.LeftBlindWatch1Status);
+                            StyleDotMixed(rowUI.LeftDots[3], ls.HwLeftStartBlockColor, ls.LeftStartBlockStatus);
+                            StyleDotMixed(rowUI.LeftDots[4], ls.HwLeftTouchpadColor, ls.LeftTouchpadStatus);
                         } else {
                             for (int i = 0; i < rowUI.LeftDots.Length; i++) rowUI.LeftDots[i].Fill = _brushSlate;
                         }
                     }
                     if (rowUI.RightDots != null && ls != null) {
                         if (_testMode) {
-                            StyleDot(rowUI.RightDots[0], ls.RightTouchpadStatus);
-                            StyleDot(rowUI.RightDots[1], ls.RightStartBlockStatus);
-                            StyleDot(rowUI.RightDots[2], ls.RightBlindWatch1Status);
-                            StyleDot(rowUI.RightDots[3], ls.RightBlindWatch2Status);
-                            StyleDot(rowUI.RightDots[4], ls.RightBlindWatch3Status);
+                            StyleDotMixed(rowUI.RightDots[0], ls.HwRightTouchpadColor, ls.RightTouchpadStatus);
+                            StyleDotMixed(rowUI.RightDots[1], ls.HwRightStartBlockColor, ls.RightStartBlockStatus);
+                            StyleDotMixed(rowUI.RightDots[2], ls.HwRightBlindWatch1Color, ls.RightBlindWatch1Status);
+                            StyleDotMixed(rowUI.RightDots[3], ls.HwRightBlindWatch2Color, ls.RightBlindWatch2Status);
+                            StyleDotMixed(rowUI.RightDots[4], ls.HwRightBlindWatch3Color, ls.RightBlindWatch3Status);
                         } else {
                             for (int i = 0; i < rowUI.RightDots.Length; i++) rowUI.RightDots[i].Fill = _brushSlate;
                         }
@@ -7230,11 +7324,12 @@ namespace SwimmingScoreboard
 
                 // 左设备5个圆点（与右端对称）：盲表3 / 盲表2 / 盲表1 / 出发台 / 触板
                 if (ls != null) {
-                    StyleDot(rowUI.LeftDots[0], ls.LeftBlindWatch3Status);
-                    StyleDot(rowUI.LeftDots[1], ls.LeftBlindWatch2Status);
-                    StyleDot(rowUI.LeftDots[2], ls.LeftBlindWatch1Status);
-                    StyleDot(rowUI.LeftDots[3], ls.LeftStartBlockStatus);
-                    StyleDot(rowUI.LeftDots[4], ls.LeftTouchpadStatus);
+                    // 2026-05-31 正常行渲染也改用 StyleDotMixed
+                    StyleDotMixed(rowUI.LeftDots[0], ls.HwLeftBlindWatch3Color, ls.LeftBlindWatch3Status);
+                    StyleDotMixed(rowUI.LeftDots[1], ls.HwLeftBlindWatch2Color, ls.LeftBlindWatch2Status);
+                    StyleDotMixed(rowUI.LeftDots[2], ls.HwLeftBlindWatch1Color, ls.LeftBlindWatch1Status);
+                    StyleDotMixed(rowUI.LeftDots[3], ls.HwLeftStartBlockColor, ls.LeftStartBlockStatus);
+                    StyleDotMixed(rowUI.LeftDots[4], ls.HwLeftTouchpadColor, ls.LeftTouchpadStatus);
                 } else {
                     for (int i = 0; i < 5; i++) rowUI.LeftDots[i].Fill = _brushSlate;
                 }
@@ -7262,11 +7357,11 @@ namespace SwimmingScoreboard
 
                 // 右设备5个圆点：Touchpad, StartBlock, BlindWatch1/2/3
                 if (ls != null) {
-                    StyleDot(rowUI.RightDots[0], ls.RightTouchpadStatus);
-                    StyleDot(rowUI.RightDots[1], ls.RightStartBlockStatus);
-                    StyleDot(rowUI.RightDots[2], ls.RightBlindWatch1Status);
-                    StyleDot(rowUI.RightDots[3], ls.RightBlindWatch2Status);
-                    StyleDot(rowUI.RightDots[4], ls.RightBlindWatch3Status);
+                    StyleDotMixed(rowUI.RightDots[0], ls.HwRightTouchpadColor, ls.RightTouchpadStatus);
+                    StyleDotMixed(rowUI.RightDots[1], ls.HwRightStartBlockColor, ls.RightStartBlockStatus);
+                    StyleDotMixed(rowUI.RightDots[2], ls.HwRightBlindWatch1Color, ls.RightBlindWatch1Status);
+                    StyleDotMixed(rowUI.RightDots[3], ls.HwRightBlindWatch2Color, ls.RightBlindWatch2Status);
+                    StyleDotMixed(rowUI.RightDots[4], ls.HwRightBlindWatch3Color, ls.RightBlindWatch3Status);
                 } else {
                     for (int i = 0; i < 5; i++) rowUI.RightDots[i].Fill = _brushSlate;
                 }

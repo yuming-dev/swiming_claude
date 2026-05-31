@@ -1758,11 +1758,12 @@ function refreshLaneRows(swimmers, rcRelay) {
         rowUI.touchL.disabled = !leftMbEnabled;
 
         // 左设备5圆点（与右端对称）：盲3 / 盲2 / 盲1 / 出发台 / 触板
-        rowUI.leftDots[0].className = 'device-dot lr-ld-0 ' + statusClass(ds.leftBlindWatch3);
-        rowUI.leftDots[1].className = 'device-dot lr-ld-1 ' + statusClass(ds.leftBlindWatch2);
-        rowUI.leftDots[2].className = 'device-dot lr-ld-2 ' + statusClass(ds.leftBlindWatch1);
-        rowUI.leftDots[3].className = 'device-dot lr-ld-3 ' + statusClass(ds.leftStartBlock);
-        rowUI.leftDots[4].className = 'device-dot lr-ld-4 ' + statusClass(ds.leftTouchpad);
+        // 2026-05-31 改用 hwColorClass: 优先业务 NotInstalled/Broken, 否则按硬件颜色 (hwLeft*)
+        rowUI.leftDots[0].className = 'device-dot lr-ld-0 ' + hwColorClass(ds.hwLeftBlindWatch3, ds.leftBlindWatch3);
+        rowUI.leftDots[1].className = 'device-dot lr-ld-1 ' + hwColorClass(ds.hwLeftBlindWatch2, ds.leftBlindWatch2);
+        rowUI.leftDots[2].className = 'device-dot lr-ld-2 ' + hwColorClass(ds.hwLeftBlindWatch1, ds.leftBlindWatch1);
+        rowUI.leftDots[3].className = 'device-dot lr-ld-3 ' + hwColorClass(ds.hwLeftStartBlock, ds.leftStartBlock);
+        rowUI.leftDots[4].className = 'device-dot lr-ld-4 ' + hwColorClass(ds.hwLeftTouchpad, ds.leftTouchpad);
 
         // 左剩余秒数
         var leftRemain = (sw.leftTouchRemain != null && sw.leftTouchRemain > 0) ? sw.leftTouchRemain : '';
@@ -1777,11 +1778,12 @@ function refreshLaneRows(swimmers, rcRelay) {
         rowUI.touchR.disabled = !rightMbEnabled;
 
         // 右设备5圆点
-        rowUI.rightDots[0].className = 'device-dot lr-rd-0 ' + statusClass(ds.rightTouchpad);
-        rowUI.rightDots[1].className = 'device-dot lr-rd-1 ' + statusClass(ds.rightStartBlock);
-        rowUI.rightDots[2].className = 'device-dot lr-rd-2 ' + statusClass(ds.rightBlindWatch1);
-        rowUI.rightDots[3].className = 'device-dot lr-rd-3 ' + statusClass(ds.rightBlindWatch2);
-        rowUI.rightDots[4].className = 'device-dot lr-rd-4 ' + statusClass(ds.rightBlindWatch3);
+        // 2026-05-31 改用 hwColorClass
+        rowUI.rightDots[0].className = 'device-dot lr-rd-0 ' + hwColorClass(ds.hwRightTouchpad, ds.rightTouchpad);
+        rowUI.rightDots[1].className = 'device-dot lr-rd-1 ' + hwColorClass(ds.hwRightStartBlock, ds.rightStartBlock);
+        rowUI.rightDots[2].className = 'device-dot lr-rd-2 ' + hwColorClass(ds.hwRightBlindWatch1, ds.rightBlindWatch1);
+        rowUI.rightDots[3].className = 'device-dot lr-rd-3 ' + hwColorClass(ds.hwRightBlindWatch2, ds.rightBlindWatch2);
+        rowUI.rightDots[4].className = 'device-dot lr-rd-4 ' + hwColorClass(ds.hwRightBlindWatch3, ds.rightBlindWatch3);
 
         // 右剩余秒数
         var rightRemain = (sw.rightTouchRemain != null && sw.rightTouchRemain > 0) ? sw.rightTouchRemain : '';
@@ -1938,6 +1940,27 @@ function statusClass(s) {
     if (s === 'falsestart') return 'falsestart';
     if (s === 'notinstalled') return 'notinstalled';
     return 'closed';
+}
+
+// 2026-05-31 硬件颜色 → CSS class 映射 (= 跟 PC 控制端 StyleDotMixed 同源)
+//   hw: 0=黑 Close / 1=黄 Open / 2=灰 Delay / 3=红 Bad / 4=白 NotInstalled / 5=红 Pressed
+//   businessStatus 优先: notinstalled / broken / touched / falsestart
+//   否则按 hw 渲染
+function hwColorClass(hw, businessStatus) {
+    if (businessStatus === 'notinstalled') return 'notinstalled';
+    if (businessStatus === 'broken') return 'broken';
+    if (businessStatus === 'touched') return 'touched';
+    if (businessStatus === 'falsestart') return 'falsestart';
+    if (hw === undefined || hw === null) return 'closed';
+    switch (hw | 0) {
+        case 0: return 'closed';
+        case 1: return 'open';
+        case 2: return 'closed';
+        case 3: return 'broken';
+        case 4: return 'notinstalled';
+        case 5: return 'touched';
+        default: return 'closed';
+    }
 }
 
 var _lastTsSplitCount = -1;

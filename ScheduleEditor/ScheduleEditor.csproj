@@ -388,6 +388,9 @@
     <Compile Include="..\SwimmingScoreboard\Swimmer.cs">
       <Link>Swimmer.cs</Link>
     </Compile>
+    <Compile Include="..\SwimmingScoreboard\LapAdjustLogic.cs">
+      <Link>LapAdjustLogic.cs</Link>
+    </Compile>
     <Compile Include="..\SwimmingScoreboard\TimingBridge.cs">
       <Link>TimingBridge.cs</Link>
     </Compile>

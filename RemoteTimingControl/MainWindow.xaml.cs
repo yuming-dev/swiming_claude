@@ -1420,6 +1420,34 @@ namespace RemoteTimingControl
             }
         }
 
+        // 2026-05-31 硬件颜色 (= 0x50/0x51/0x52 协议 newState 0-5) → Brush, 跟主程序 StyleDotMixed 同源
+        //   0=黑 Close / 1=黄 Open / 2=灰 Delay / 3=红 Bad / 4=未装 / 5=红 Pressed
+        //   业务字段优先: notinstalled / broken / touched / falsestart
+        private static SolidColorBrush GetDeviceBrushMixed(int hwColor, string businessStatus)
+        {
+            if (businessStatus == "notinstalled") return _brushInstalledStroke;
+            if (businessStatus == "broken") return _brushBlack;
+            if (businessStatus == "touched") return _brushRed;
+            if (businessStatus == "falsestart") return _brushAmber;
+            switch (hwColor) {
+                case 0: return _brushBlack;   // Close
+                case 1: return _brushAmber;   // Open (黄, 跟硬件 LCD 一致)
+                case 2: return _brushSlate;   // Delay
+                case 3: return _brushRed;     // Bad
+                case 4: return _brushInstalledStroke;  // NotInstalled
+                case 5: return _brushRed;     // Pressed
+                default: return _brushSlate;
+            }
+        }
+
+        // 2026-05-31 从 ds JSON 拿 hw*Color 字段 (默认 0)
+        private static int GetHwColor(JObject ds, string key)
+        {
+            if (ds == null || ds[key] == null) return 0;
+            int v;
+            return int.TryParse(ds[key].ToString(), out v) ? v : 0;
+        }
+
         // 泳道行UI引用
         private class LaneRowUI
         {
@@ -1705,15 +1733,16 @@ namespace RemoteTimingControl
                 }
 
                 // 左设备5个圆点（与右端对称）：盲表3 / 盲表2 / 盲表1 / 出发台 / 触板
-                rowUI.LeftDots[0].Fill = GetDeviceBrush(GetDeviceStatus(ds, "leftBlindWatch3"));
-                rowUI.LeftDots[1].Fill = GetDeviceBrush(GetDeviceStatus(ds, "leftBlindWatch2"));
-                rowUI.LeftDots[2].Fill = GetDeviceBrush(GetDeviceStatus(ds, "leftBlindWatch1"));
+                // 2026-05-31 改用 GetDeviceBrushMixed: 业务 NotInstalled/Broken 优先, 否则按硬件颜色 (hw*) 渲染
+                rowUI.LeftDots[0].Fill = GetDeviceBrushMixed(GetHwColor(ds, "hwLeftBlindWatch3"), GetDeviceStatus(ds, "leftBlindWatch3"));
+                rowUI.LeftDots[1].Fill = GetDeviceBrushMixed(GetHwColor(ds, "hwLeftBlindWatch2"), GetDeviceStatus(ds, "leftBlindWatch2"));
+                rowUI.LeftDots[2].Fill = GetDeviceBrushMixed(GetHwColor(ds, "hwLeftBlindWatch1"), GetDeviceStatus(ds, "leftBlindWatch1"));
                 // 用 Hidden 保留位置，不让盲1 / 出发台 / 触板因数量变化而移动
                 rowUI.LeftDots[0].Visibility = _leftBlindWatchCount >= 3 ? Visibility.Visible : Visibility.Hidden; // 盲3
                 rowUI.LeftDots[1].Visibility = _leftBlindWatchCount >= 2 ? Visibility.Visible : Visibility.Hidden; // 盲2
                 rowUI.LeftDots[2].Visibility = _leftBlindWatchCount >= 1 ? Visibility.Visible : Visibility.Hidden; // 盲1
-                rowUI.LeftDots[3].Fill = GetDeviceBrush(GetDeviceStatus(ds, "leftStartBlock"));
-                rowUI.LeftDots[4].Fill = GetDeviceBrush(GetDeviceStatus(ds, "leftTouchpad"));
+                rowUI.LeftDots[3].Fill = GetDeviceBrushMixed(GetHwColor(ds, "hwLeftStartBlock"), GetDeviceStatus(ds, "leftStartBlock"));
+                rowUI.LeftDots[4].Fill = GetDeviceBrushMixed(GetHwColor(ds, "hwLeftTouchpad"), GetDeviceStatus(ds, "leftTouchpad"));
 
                 // 左剩余秒数
                 string leftRemainStr = sw["leftTouchRemain"] != null ? sw["leftTouchRemain"].ToString() : "";
@@ -1735,11 +1764,11 @@ namespace RemoteTimingControl
                 }
 
                 // 右设备5个圆点
-                rowUI.RightDots[0].Fill = GetDeviceBrush(GetDeviceStatus(ds, "rightTouchpad"));
-                rowUI.RightDots[1].Fill = GetDeviceBrush(GetDeviceStatus(ds, "rightStartBlock"));
-                rowUI.RightDots[2].Fill = GetDeviceBrush(GetDeviceStatus(ds, "rightBlindWatch1"));
-                rowUI.RightDots[3].Fill = GetDeviceBrush(GetDeviceStatus(ds, "rightBlindWatch2"));
-                rowUI.RightDots[4].Fill = GetDeviceBrush(GetDeviceStatus(ds, "rightBlindWatch3"));
+                rowUI.RightDots[0].Fill = GetDeviceBrushMixed(GetHwColor(ds, "hwRightTouchpad"), GetDeviceStatus(ds, "rightTouchpad"));
+                rowUI.RightDots[1].Fill = GetDeviceBrushMixed(GetHwColor(ds, "hwRightStartBlock"), GetDeviceStatus(ds, "rightStartBlock"));
+                rowUI.RightDots[2].Fill = GetDeviceBrushMixed(GetHwColor(ds, "hwRightBlindWatch1"), GetDeviceStatus(ds, "rightBlindWatch1"));
+                rowUI.RightDots[3].Fill = GetDeviceBrushMixed(GetHwColor(ds, "hwRightBlindWatch2"), GetDeviceStatus(ds, "rightBlindWatch2"));
+                rowUI.RightDots[4].Fill = GetDeviceBrushMixed(GetHwColor(ds, "hwRightBlindWatch3"), GetDeviceStatus(ds, "rightBlindWatch3"));
                 rowUI.RightDots[2].Visibility = _rightBlindWatchCount >= 1 ? Visibility.Visible : Visibility.Hidden;
                 rowUI.RightDots[3].Visibility = _rightBlindWatchCount >= 2 ? Visibility.Visible : Visibility.Hidden;
                 rowUI.RightDots[4].Visibility = _rightBlindWatchCount >= 3 ? Visibility.Visible : Visibility.Hidden;

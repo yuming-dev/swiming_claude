@@ -946,6 +946,20 @@ namespace SwimmingScoreboard
         private bool _leftStartBlockNotInstalled;
         private bool _rightStartBlockNotInstalled;
 
+        //2026-05-31 硬件颜色字段 (= 0x50/0x51/0x52 协议上报的 newState, 0-5)
+        //   独立于业务 Status 字段, 仅用于"硬件 LCD 颜色 → PC UI 颜色同步" 显示, 不参与业务状态机.
+        //   值域: 0=黑 Close, 1=黄 Open, 2=灰 Delay, 3=红 Bad, 4=白 NotInstalled, 5=红 Pressed (= 按键按下中)
+        public byte HwLeftTouchpadColor { get; set; }
+        public byte HwRightTouchpadColor { get; set; }
+        public byte HwLeftStartBlockColor { get; set; }
+        public byte HwRightStartBlockColor { get; set; }
+        public byte HwLeftBlindWatch1Color { get; set; }
+        public byte HwLeftBlindWatch2Color { get; set; }
+        public byte HwLeftBlindWatch3Color { get; set; }
+        public byte HwRightBlindWatch1Color { get; set; }
+        public byte HwRightBlindWatch2Color { get; set; }
+        public byte HwRightBlindWatch3Color { get; set; }
+
         public int Lane {
             get { return _lane; }
             set { _lane = value; OnPropertyChanged("Lane"); }
