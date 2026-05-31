@@ -2624,109 +2624,15 @@ namespace SwimmingScoreboard
             //             用此命令把 Open_State 同步给 PC，使主控里"全部打开/全部关闭"按钮状态对齐。
             //   D3 = 0xFF 全部泳道 / 0..9 单道；D4 = 1 打开 / 0 关闭
             //   实现等价于 OpenAll_Click / CloseAll_Click 但不回发 0x47（防回环）。
-            // 2026-05-30 出发台状态变化上报 (cmd=0x1B):
-            //   硬件 swimplay.c Process_StartboxStateChange 检测到 Startbox_Open_Close_State 变化即上报
-            //   D4=Lane_NoTbl[i+side*10] (PC 端解码: data.Lane=lane 0-9, data.IsFinishEnd=D4<10=物理左端)
-            //   D5=newState: 0=关 / 1=开 / 2=延时关 / 3=损坏 / 4=未装
-            if (data.CommandType == TimingCommandType.StartblockStateChange) {
-                int sbLane = data.Lane;
-                if (sbLane >= 0 && sbLane < _laneDeviceStates.Count) {
-                    byte newState = data.Param5;
-                    DeviceStatus newStatus;
-                    switch (newState) {
-                        case 0: newStatus = DeviceStatus.Closed; break;
-                        case 1: newStatus = DeviceStatus.Open; break;
-                        case 2: newStatus = DeviceStatus.Open; break;  // 硬件 Delay 状态在 PC 上当 Open 显示
-                        case 3: newStatus = DeviceStatus.Broken; break;
-                        case 4: newStatus = DeviceStatus.NotInstalled; break;
-                        default: newStatus = DeviceStatus.Closed; break;
-                    }
-                    var sbLs = _laneDeviceStates[sbLane];
-                    bool sbIsLeft = data.IsFinishEnd;  // IsFinishEnd 字段实际语义是 "D4<10 = 物理左端"
-                    if (sbIsLeft) {
-                        if (sbLs.LeftStartBlockStatus != newStatus) {
-                            sbLs.LeftStartBlockStatus = newStatus;
-                            AddLog(string.Format("硬件 SB 变化: 泳道{0} 左 → {1}", sbLs.Lane, newStatus));
-                            Broadcast();
-                        }
-                    } else {
-                        if (sbLs.RightStartBlockStatus != newStatus) {
-                            sbLs.RightStartBlockStatus = newStatus;
-                            AddLog(string.Format("硬件 SB 变化: 泳道{0} 右 → {1}", sbLs.Lane, newStatus));
-                            Broadcast();
-                        }
-                    }
-                }
-                return;
-            }
-
-            // 2026-05-30 触板/盲表状态变化上报 (cmd=0x1E/0x1F):
-            //   硬件 swimplay.c Process_TPStateChange / Process_MBStateChange 扫描比较快照, 变化即上报
-            //   D4 解码: lane 0-9 / IsFinishEnd (D4<10 = 物理左端)
-            //   D5 = newState (0=关/1=开/2=延时/3=坏/4=未装)
-            //   D6 (Param6) = mb_idx (= MB 帧专用, 盲表 1/2/3)
-            //   映射 newState → DeviceStatus: 0→Closed, 1/2→Open, 3→Broken, 4→NotInstalled
-            if (data.CommandType == TimingCommandType.TPStateChange ||
+            // 2026-05-30 完全撤销 0x1B/0x1E/0x1F 对 PC 业务字段的修改 — 用户反馈这覆盖了 PC 内部
+            //   Touched 状态机, 导致同侧连触被错认 N+1 圈. 用户明确要求"业务按以前的逻辑运行, 不改动".
+            //   现在 PC 收到这 3 个命令直接静默丢弃 (= 不动 ls.LeftTouchpadStatus 等业务字段).
+            //   硬件继续上报无害 (协议字节流过); PC UI 颜色仍由 0x16/0x17/0x18/0x19/0x1A 等事件命令
+            //   驱动业务 Status 字段, 跟之前行为完全一致.
+            //   注: 若未来需要"硬件颜色直传 UI", 应加独立 Hw*Color 字段 + UI 重绑, 不影响业务.
+            if (data.CommandType == TimingCommandType.StartblockStateChange ||
+                data.CommandType == TimingCommandType.TPStateChange ||
                 data.CommandType == TimingCommandType.MBStateChange) {
-                int devLane = data.Lane;
-                if (devLane >= 0 && devLane < _laneDeviceStates.Count) {
-                    byte ns = data.Param5;
-                    DeviceStatus newSt;
-                    switch (ns) {
-                        case 0: newSt = DeviceStatus.Closed; break;
-                        case 1: newSt = DeviceStatus.Open; break;
-                        case 2: newSt = DeviceStatus.Open; break;
-                        case 3: newSt = DeviceStatus.Broken; break;
-                        case 4: newSt = DeviceStatus.NotInstalled; break;
-                        default: newSt = DeviceStatus.Closed; break;
-                    }
-                    var devLs = _laneDeviceStates[devLane];
-                    bool devIsLeft = data.IsFinishEnd;
-                    if (data.CommandType == TimingCommandType.TPStateChange) {
-                        if (devIsLeft) {
-                            if (devLs.LeftTouchpadStatus != newSt) {
-                                devLs.LeftTouchpadStatus = newSt;
-                                AddLog(string.Format("硬件 TP 变化: 泳道{0} 左 → {1}", devLs.Lane, newSt));
-                                Broadcast();
-                            }
-                        } else {
-                            if (devLs.RightTouchpadStatus != newSt) {
-                                devLs.RightTouchpadStatus = newSt;
-                                AddLog(string.Format("硬件 TP 变化: 泳道{0} 右 → {1}", devLs.Lane, newSt));
-                                Broadcast();
-                            }
-                        }
-                    } else {
-                        // MB: data.Param6 = mb_idx (0/1/2 → BlindWatch1/2/3)
-                        int mbIdx = data.Param6;
-                        if (mbIdx >= 0 && mbIdx <= 2) {
-                            DeviceStatus oldSt;
-                            if (devIsLeft) {
-                                oldSt = mbIdx == 0 ? devLs.LeftBlindWatch1Status :
-                                        mbIdx == 1 ? devLs.LeftBlindWatch2Status :
-                                                     devLs.LeftBlindWatch3Status;
-                                if (oldSt != newSt) {
-                                    if (mbIdx == 0) devLs.LeftBlindWatch1Status = newSt;
-                                    else if (mbIdx == 1) devLs.LeftBlindWatch2Status = newSt;
-                                    else devLs.LeftBlindWatch3Status = newSt;
-                                    AddLog(string.Format("硬件 MB{0} 变化: 泳道{1} 左 → {2}", mbIdx + 1, devLs.Lane, newSt));
-                                    Broadcast();
-                                }
-                            } else {
-                                oldSt = mbIdx == 0 ? devLs.RightBlindWatch1Status :
-                                        mbIdx == 1 ? devLs.RightBlindWatch2Status :
-                                                     devLs.RightBlindWatch3Status;
-                                if (oldSt != newSt) {
-                                    if (mbIdx == 0) devLs.RightBlindWatch1Status = newSt;
-                                    else if (mbIdx == 1) devLs.RightBlindWatch2Status = newSt;
-                                    else devLs.RightBlindWatch3Status = newSt;
-                                    AddLog(string.Format("硬件 MB{0} 变化: 泳道{1} 右 → {2}", mbIdx + 1, devLs.Lane, newSt));
-                                    Broadcast();
-                                }
-                            }
-                        }
-                    }
-                }
                 return;
             }
 

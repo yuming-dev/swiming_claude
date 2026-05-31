@@ -59,11 +59,12 @@ namespace SwimmingScoreboard
         PushButton2   = 0x18,   // 盲表2时间成绩  D4=泳道号
         PushButton3   = 0x19,   // 盲表3时间成绩  D4=泳道号
         StartingBlock = 0x1A,   // 出发台出发时间 D4=泳道号
-        StartblockStateChange = 0x1B,  // 2026-05-30 出发台状态变化上报 D4=lane(0-9终点/10-19远端) D5=newState(0关/1开/2延时/3坏/4未装)
         StartCommand  = 0x1C,   // 发令开始计时
         TestCommand   = 0x1D,   // 测试设备
-        TPStateChange = 0x1E,   // 2026-05-30 触板状态变化上报 D4=lane D5=newState
-        MBStateChange = 0x1F,   // 2026-05-30 盲表状态变化上报 D4=lane D5=newState D6=mb_idx(0/1/2)
+        // 2026-05-30 状态变化上报命令字 — 原 0x1B/0x1E/0x1F 跟周边事件命令太近, 移到 0x50+ 空闲区防混淆
+        StartblockStateChange = 0x50,  // 出发台状态变化 D4=lane(0-9终点/10-19远端) D5=newState(0关/1开/2延时/3坏/4未装)
+        TPStateChange = 0x51,   // 触板状态变化 D4=lane D5=newState
+        MBStateChange = 0x52,   // 盲表状态变化 D4=lane D5=newState D6=mb_idx(0/1/2)
         TimerReset    = 0x20,   // 计时清零
         TimerReady    = 0x21,   // 准备就绪
         RunningTime   = 0x7F,   // 滚动时间
@@ -384,11 +385,12 @@ namespace SwimmingScoreboard
                 case 0x18: cmdType = TimingCommandType.PushButton2;   break;  // 盲表2
                 case 0x19: cmdType = TimingCommandType.PushButton3;   break;  // 盲表3
                 case 0x1A: cmdType = TimingCommandType.StartingBlock; break;  // 出发台出发时间
-                case 0x1B: cmdType = TimingCommandType.StartblockStateChange; break;  // 2026-05-30 出发台状态变化上报
                 case 0x1C: cmdType = TimingCommandType.StartCommand;  break;  // 发令开始计时
                 case 0x1D: cmdType = TimingCommandType.TestCommand;   break;  // 测试设备
-                case 0x1E: cmdType = TimingCommandType.TPStateChange; break;  // 2026-05-30 触板状态变化
-                case 0x1F: cmdType = TimingCommandType.MBStateChange; break;  // 2026-05-30 盲表状态变化
+                // 2026-05-30 状态变化上报 — 移到 0x50+ 防跟周边事件命令混淆
+                case 0x50: cmdType = TimingCommandType.StartblockStateChange; break;  // 出发台状态变化
+                case 0x51: cmdType = TimingCommandType.TPStateChange; break;  // 触板状态变化
+                case 0x52: cmdType = TimingCommandType.MBStateChange; break;  // 盲表状态变化
                 case 0x20: cmdType = TimingCommandType.TimerReset;    break;  // 计时清零
                 case 0x21: cmdType = TimingCommandType.TimerReady;    break;  // 准备就绪
                 case 0x7F: cmdType = TimingCommandType.RunningTime;   break;  // 滚动时间
