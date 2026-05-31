@@ -7761,9 +7761,10 @@ namespace SwimmingScoreboard
             CompModeText.Text = _competitionMode == "domestic" ? "国内" : "国际";
             PoolInfoText.Text = string.Format("{0}米 {1}道", _poolConfig.Length, _poolConfig.LaneCount);
 
-            // 2026-05-30 比赛准备就绪/进行中: 断开 / 设备测试 / 网络连接(=断开切换) 按钮直接禁用 (灰色, 不可点)
-            //   防止误操作丢失实时数据 (用户要求)
-            bool blockHwOps = (_raceState == RaceState.Ready || _raceState == RaceState.Racing);
+            // 2026-05-30 v2: 只有 Waiting 状态 (= 按"计时复位" 后) 才允许这些操作
+            //   Ready / Racing / Finished 都禁用 (= 灰色, 不可点)
+            //   防止误操作丢失实时数据; 比完赛后也必须按计时复位才能再断开/测试 (用户要求)
+            bool blockHwOps = (_raceState != RaceState.Waiting);
             try {
                 if (DisconnectTimingButton != null) DisconnectTimingButton.IsEnabled = !blockHwOps;
                 if (QuickConnectSerialButton != null) QuickConnectSerialButton.IsEnabled = !blockHwOps;
@@ -15156,9 +15157,9 @@ namespace SwimmingScoreboard
         // 串口连接仍保留在"系统工作状态 → 硬件计时器连接"详细面板里，这里只负责快速 TCP 连/断。
         private void QuickConnectSerial_Click(object sender, RoutedEventArgs e) {
             if (_timingBridge != null && _timingBridge.IsConnected) {
-                // 2026-05-30 v2: 比赛准备/进行中"断开"分支直接 return (按钮已禁用, 这里 backup guard)
-                if (_raceState == RaceState.Ready || _raceState == RaceState.Racing) {
-                    AddLog("快速断开被忽略: 比赛准备/进行中");
+                // 2026-05-30 v2: 只有 Waiting 状态允许; Ready/Racing/Finished 直接 return
+                if (_raceState != RaceState.Waiting) {
+                    AddLog("快速断开被忽略: 非 Waiting 状态 (= 请先按计时复位)");
                     return;
                 }
                 _timingBridge.Disconnect();
@@ -15277,9 +15278,9 @@ namespace SwimmingScoreboard
             // 2026-05-30 本地点击 (sender!=null) 时检查硬件连接
             if (sender != null && !EnsureHardwareConnected("设备测试")) return;
             if (!_testMode) {
-                // 2026-05-30 v2: 比赛准备/进行中直接 return (按钮已禁用, 这里 backup guard)
-                if (_raceState == RaceState.Ready || _raceState == RaceState.Racing) {
-                    AddLog("设备测试被忽略: 比赛准备/进行中");
+                // 2026-05-30 v2: 只有 Waiting 状态允许; Ready/Racing/Finished 直接 return
+                if (_raceState != RaceState.Waiting) {
+                    AddLog("设备测试被忽略: 非 Waiting 状态 (= 请先按计时复位)");
                     return;
                 }
                 if (sender != null) {
@@ -15453,10 +15454,10 @@ namespace SwimmingScoreboard
         }
 
         private void DisconnectTiming_Click(object sender, RoutedEventArgs e) {
-            // 2026-05-30 v2: 比赛准备/进行中直接 return (按钮已在 UpdateRaceStateDisplay 里 IsEnabled=false 禁用,
-            //   这里是 backup guard 防 远程命令 / 异步事件触发)
-            if (_raceState == RaceState.Ready || _raceState == RaceState.Racing) {
-                AddLog("断开硬件被忽略: 比赛准备/进行中");
+            // 2026-05-30 v2: 只有 Waiting 状态允许; Ready/Racing/Finished 直接 return
+            //   (按钮已在 UpdateRaceStateDisplay 里 IsEnabled=false 禁用, 这里是 backup guard)
+            if (_raceState != RaceState.Waiting) {
+                AddLog("断开硬件被忽略: 非 Waiting 状态 (= 请先按计时复位)");
                 return;
             }
             _timingBridge.Disconnect();
