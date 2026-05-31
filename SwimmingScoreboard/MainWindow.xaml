@@ -1376,12 +1376,20 @@
                                             ToolTip="用上次保存的 TCP 主机/端口快速连接硬件计时器；详细配置请到 系统工作状态 → 硬件计时器连接">
                                         <Button.Template>
                                             <ControlTemplate TargetType="Button">
-                                                <Border Background="#22C55E" CornerRadius="6" Padding="4">
+                                                <Border x:Name="QuickConnBorder" Background="#22C55E" CornerRadius="6" Padding="4">
                                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
                                                         <TextBlock Text="&#xE839;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="White" VerticalAlignment="Center" Margin="0,0,5,0"/>
                                                         <TextBlock x:Name="QuickConnectSerialButtonText" Text="网络连接" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
                                                     </StackPanel>
                                                 </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <!-- 2026-05-30 IsEnabled=false 时灰化 (Ready/Racing 状态用) -->
+                                                    <Trigger Property="IsEnabled" Value="False">
+                                                        <Setter TargetName="QuickConnBorder" Property="Background" Value="#94A3B8"/>
+                                                        <Setter TargetName="QuickConnBorder" Property="Opacity" Value="0.5"/>
+                                                        <Setter Property="Cursor" Value="No"/>
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
                                             </ControlTemplate>
                                         </Button.Template>
                                     </Button>
@@ -1391,12 +1399,20 @@
                                             ToolTip="所有触板/出发台/盲表都打开，硬件发来的任何数据都接收显示（用于联调）。再点一次退出测试。">
                                         <Button.Template>
                                             <ControlTemplate TargetType="Button">
-                                                <Border Background="#0EA5E9" CornerRadius="6" Padding="4">
+                                                <Border x:Name="DeviceTestBorder" Background="#0EA5E9" CornerRadius="6" Padding="4">
                                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
                                                         <TextBlock Text="&#xE9F5;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="White" VerticalAlignment="Center" Margin="0,0,5,0"/>
                                                         <TextBlock x:Name="DeviceTestButtonText" Text="设备测试" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
                                                     </StackPanel>
                                                 </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <!-- 2026-05-30 IsEnabled=false 时灰化 -->
+                                                    <Trigger Property="IsEnabled" Value="False">
+                                                        <Setter TargetName="DeviceTestBorder" Property="Background" Value="#94A3B8"/>
+                                                        <Setter TargetName="DeviceTestBorder" Property="Opacity" Value="0.5"/>
+                                                        <Setter Property="Cursor" Value="No"/>
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
                                             </ControlTemplate>
                                         </Button.Template>
                                     </Button>
