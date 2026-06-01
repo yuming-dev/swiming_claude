@@ -5,22 +5,34 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>排名显示</title>
 <style>
-:root { --bg: #0f172a; --card: #1e293b; --text: #f8fafc; --dim: #94a3b8; --accent: #3b82f6; --gold: #f59e0b; }
+:root {
+    --bg: #0f172a; --card: #1e293b; --text: #f8fafc; --dim: #94a3b8; --accent: #3b82f6; --gold: #f59e0b;
+    /* 2026-06-01 字号缩放 + 5 处文字 (颜色 + 字体) 单独可调
+       localStorage('swimLeaderboardFs')        字号倍数
+       localStorage('swimLeaderboardTextStyle') {key:{c,f}} JSON */
+    --fs: 1;
+    --c-title:   #f8fafc;  --ff-title:   'Microsoft YaHei', sans-serif;
+    --c-section: #3b82f6;  --ff-section: 'Microsoft YaHei', sans-serif;
+    --c-th:      #f8fafc;  --ff-th:      'Microsoft YaHei', sans-serif;
+    --c-td:      #f8fafc;  --ff-td:      'Microsoft YaHei', sans-serif;
+    --c-remark:  #ef4444;  --ff-remark:  'Microsoft YaHei', sans-serif;
+}
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei', sans-serif; height: 100vh; overflow: hidden; }
 .header { height: 10vh; display: flex; align-items: center; justify-content: center; border-bottom: 3px solid var(--accent); }
-.header h1 { font-size: 3vh; }
+.header h1 { font-size: calc(3vh * var(--fs)); color: var(--c-title); font-family: var(--ff-title); }
 .content { height: 90vh; padding: 2vh 3vw; overflow-y: auto; }
-.section-title { font-size: 2.5vh; font-weight: bold; margin: 2vh 0 1vh; color: var(--accent); }
+.section-title { font-size: calc(2.5vh * var(--fs)); font-weight: bold; margin: 2vh 0 1vh; color: var(--c-section); font-family: var(--ff-section); }
 table { width: 100%; border-collapse: collapse; margin-bottom: 2vh; }
-th { background: var(--card); padding: 1vh 1vw; text-align: left; font-size: 1.8vh; border-bottom: 2px solid var(--accent); }
-td { padding: 0.8vh 1vw; font-size: 1.8vh; border-bottom: 1px solid #334155; }
+th { background: var(--card); padding: 1vh 1vw; text-align: left; font-size: calc(1.8vh * var(--fs)); border-bottom: 2px solid var(--accent); color: var(--c-th); font-family: var(--ff-th); }
+td { padding: 0.8vh 1vw; font-size: calc(1.8vh * var(--fs)); border-bottom: 1px solid #334155; color: var(--c-td); font-family: var(--ff-td); }
 tr:hover { background: rgba(59,130,246,0.05); }
 .rank-1 { color: var(--gold); font-weight: bold; }
 .rank-2 { color: #c0c0c0; font-weight: bold; }
 .rank-3 { color: #cd7f32; font-weight: bold; }
+td.lb-remark { color: var(--c-remark); font-family: var(--ff-remark); font-weight: bold; }
 .tabs { display: flex; gap: 1vw; margin-bottom: 2vh; }
-.tab { padding: 0.8vh 2vw; background: var(--card); border-radius: 4px; cursor: pointer; font-size: 1.8vh; }
+.tab { padding: 0.8vh 2vw; background: var(--card); border-radius: 4px; cursor: pointer; font-size: calc(1.8vh * var(--fs)); }
 .tab.active { background: var(--accent); }
 /* 2026-05-27 底色设置色板 */
 .bg-swatch-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:0.7vh; }
@@ -83,6 +95,37 @@ tr:hover { background: rgba(59,130,246,0.05); }
     </div>
     <button onclick="applyDisplayBg('#0f172a', true)"
             style="width:100%;padding:0.8vh;background:#475569;color:#f8fafc;border:none;border-radius:4px;cursor:pointer;font-size:1.6vh;">恢复默认 (深邃蓝)</button>
+</div>
+
+<!-- 2026-06-01 字号缩放: 0.8x ~ 3.0x. 数据保存在 localStorage('swimLeaderboardFs'). -->
+<button id="fsSettingsBtn" onclick="toggleFsSettings()" title="字号 (Ctrl + / Ctrl -)"
+        style="position:fixed;right:1.2vw;bottom:7.6vh;width:5.5vh;height:5.5vh;border-radius:50%;background:rgba(30,41,59,0.55);color:#94a3b8;border:1px solid rgba(148,163,184,0.35);font-size:2.4vh;cursor:pointer;z-index:9998;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);transition:opacity .2s;opacity:0.45;font-family:'Microsoft YaHei',sans-serif;font-weight:bold;"
+        onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.45'">字</button>
+<div id="fsSettingsPanel" class="hidden" style="position:fixed;right:1.2vw;bottom:14.4vh;width:36vh;background:#1e293b;color:#f8fafc;border-radius:10px;padding:2vh 2.2vh;box-shadow:0 8px 36px rgba(0,0,0,.55);z-index:9998;font-family:'Microsoft YaHei',sans-serif;font-size:1.7vh;border:1px solid #334155;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.2vh;">
+        <div style="font-size:2vh;font-weight:bold;color:#3b82f6;">🔤 字号</div>
+        <button onclick="toggleFsSettings()" style="background:none;border:none;color:#94a3b8;font-size:2.4vh;cursor:pointer;padding:0 0.6vh;">×</button>
+    </div>
+    <div style="display:flex;align-items:center;gap:1.2vh;margin-bottom:1.4vh;">
+        <button onclick="bumpFontScale(-0.1)" style="flex:0 0 5.5vh;height:5.5vh;background:#475569;color:#f8fafc;border:none;border-radius:6px;font-size:2.8vh;font-weight:bold;cursor:pointer;">−</button>
+        <div id="fsScaleLabel" style="flex:1;text-align:center;font-size:3vh;font-weight:bold;color:#f59e0b;font-family:Consolas,monospace;">1.0x</div>
+        <button onclick="bumpFontScale(0.1)" style="flex:0 0 5.5vh;height:5.5vh;background:#475569;color:#f8fafc;border:none;border-radius:6px;font-size:2.8vh;font-weight:bold;cursor:pointer;">+</button>
+    </div>
+    <button onclick="setFontScale(1.0)" style="width:100%;padding:0.8vh;background:#475569;color:#f8fafc;border:none;border-radius:4px;cursor:pointer;font-size:1.6vh;margin-bottom:0.6vh;">恢复 1.0x</button>
+    <div style="font-size:1.4vh;color:#94a3b8;text-align:center;line-height:1.5;">快捷键: <b style="color:#cbd5e1;">Ctrl +</b> / <b style="color:#cbd5e1;">Ctrl −</b> / <b style="color:#cbd5e1;">Ctrl 0</b><br>范围 0.8x ~ 3.0x</div>
+</div>
+
+<!-- 2026-06-01 文字样式: 5 处单独调颜色 + 字体. 数据保存在 localStorage('swimLeaderboardTextStyle'). -->
+<button id="textStyleBtn" onclick="toggleTextStyle()" title="文字样式 (颜色/字体)"
+        style="position:fixed;right:1.2vw;bottom:14vh;width:5.5vh;height:5.5vh;border-radius:50%;background:rgba(30,41,59,0.55);color:#94a3b8;border:1px solid rgba(148,163,184,0.35);font-size:2.4vh;cursor:pointer;z-index:9998;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);transition:opacity .2s;opacity:0.45;font-family:'Microsoft YaHei',sans-serif;font-weight:bold;"
+        onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.45'">文</button>
+<div id="textStylePanel" class="hidden" style="position:fixed;right:1.2vw;bottom:20.4vh;width:62vh;max-height:70vh;overflow-y:auto;background:#1e293b;color:#f8fafc;border-radius:10px;padding:2vh 2.2vh;box-shadow:0 8px 36px rgba(0,0,0,.55);z-index:9998;font-family:'Microsoft YaHei',sans-serif;font-size:1.6vh;border:1px solid #334155;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.2vh;">
+        <div style="font-size:2vh;font-weight:bold;color:#3b82f6;">📝 文字样式 (颜色 / 字体)</div>
+        <button onclick="toggleTextStyle()" style="background:none;border:none;color:#94a3b8;font-size:2.4vh;cursor:pointer;padding:0 0.6vh;">×</button>
+    </div>
+    <div id="textStyleRows"></div>
+    <button onclick="resetAllTextStyle()" style="width:100%;padding:0.8vh;background:#475569;color:#f8fafc;border:none;border-radius:4px;cursor:pointer;font-size:1.5vh;margin-top:1vh;">全部恢复默认</button>
 </div>
 
 <!-- 连接服务器遮罩：启动即显示，连接成功才消隐 -->
@@ -305,6 +348,162 @@ function toggleBgSettings() {
     } catch(e) {}
 })();
 
+// ═══════ 2026-06-01 字号缩放 (0.8x ~ 3.0x) ═══════
+// localStorage('swimLeaderboardFs') 持久化; 快捷键 Ctrl+/Ctrl-/Ctrl0
+var FS_MIN = 0.8, FS_MAX = 3.0, FS_STEP = 0.1;
+function _clampFs(v) { v = Math.round(v * 10) / 10; return Math.max(FS_MIN, Math.min(FS_MAX, v)); }
+function getFontScale() {
+    try {
+        var v = parseFloat(localStorage.getItem('swimLeaderboardFs') || '1');
+        if (isNaN(v) || v <= 0) v = 1;
+        return _clampFs(v);
+    } catch(e) { return 1; }
+}
+function setFontScale(v) {
+    v = _clampFs(v);
+    try { localStorage.setItem('swimLeaderboardFs', String(v)); } catch(e) {}
+    document.documentElement.style.setProperty('--fs', v);
+    var lab = document.getElementById('fsScaleLabel');
+    if (lab) lab.textContent = v.toFixed(1) + 'x';
+}
+function bumpFontScale(delta) { setFontScale(getFontScale() + delta); }
+function toggleFsSettings() {
+    var panel = document.getElementById('fsSettingsPanel');
+    if (!panel) return;
+    if (panel.classList.contains('hidden')) {
+        var lab = document.getElementById('fsScaleLabel');
+        if (lab) lab.textContent = getFontScale().toFixed(1) + 'x';
+        panel.classList.remove('hidden');
+    } else {
+        panel.classList.add('hidden');
+    }
+}
+(function() { setFontScale(getFontScale()); })();
+document.addEventListener('keydown', function(e) {
+    if (!e.ctrlKey) return;
+    if (e.key === '+' || e.key === '=' || e.code === 'NumpadAdd') { e.preventDefault(); bumpFontScale(FS_STEP); }
+    else if (e.key === '-' || e.code === 'NumpadSubtract') { e.preventDefault(); bumpFontScale(-FS_STEP); }
+    else if (e.key === '0' || e.code === 'Numpad0') { e.preventDefault(); setFontScale(1.0); }
+});
+
+// ═══════ 2026-06-01 5 处文字 (颜色 + 字体) 独立配置 ═══════
+// localStorage('swimLeaderboardTextStyle') = {key:{c:'#..',f:'..'}}
+var TEXT_KEYS = [
+    {k:'title',   label:'比赛名称', dC:'#f8fafc', dF:"'Microsoft YaHei', sans-serif"},
+    {k:'section', label:'项目标题', dC:'#3b82f6', dF:"'Microsoft YaHei', sans-serif"},
+    {k:'th',      label:'表头',     dC:'#f8fafc', dF:"'Microsoft YaHei', sans-serif"},
+    {k:'td',      label:'表内容',   dC:'#f8fafc', dF:"'Microsoft YaHei', sans-serif"},
+    {k:'remark',  label:'备注',     dC:'#ef4444', dF:"'Microsoft YaHei', sans-serif"}
+];
+var FONT_OPTIONS = [
+    {label:'微软雅黑', value:"'Microsoft YaHei', sans-serif"},
+    {label:'黑体',     value:"SimHei, sans-serif"},
+    {label:'宋体',     value:"SimSun, serif"},
+    {label:'楷体',     value:"KaiTi, serif"},
+    {label:'仿宋',     value:"FangSong, serif"},
+    {label:'隶书',     value:"LiSu, serif"},
+    {label:'幼圆',     value:"YouYuan, sans-serif"},
+    {label:'Arial',    value:"Arial, sans-serif"},
+    {label:'Consolas (等宽)', value:"Consolas, monospace"},
+    {label:'Impact',   value:"Impact, sans-serif"}
+];
+function _getTextStyleState() {
+    try { return JSON.parse(localStorage.getItem('swimLeaderboardTextStyle') || '{}') || {}; }
+    catch(e) { return {}; }
+}
+function _saveTextStyleState(s) {
+    try { localStorage.setItem('swimLeaderboardTextStyle', JSON.stringify(s)); } catch(e) {}
+}
+function setTextColor(key, color, persist) {
+    if (!color) return;
+    color = String(color).trim();
+    if (!/^#[0-9a-fA-F]{3}([0-9a-fA-F]{3})?$/.test(color)) return;
+    document.documentElement.style.setProperty('--c-' + key, color);
+    if (persist) {
+        var s = _getTextStyleState();
+        if (!s[key]) s[key] = {};
+        s[key].c = color;
+        _saveTextStyleState(s);
+    }
+    var picker = document.getElementById('tsColor-' + key);
+    var hex = document.getElementById('tsHex-' + key);
+    if (picker && /^#[0-9a-fA-F]{6}$/.test(color)) picker.value = color;
+    if (hex) hex.value = color;
+}
+function setTextFont(key, fontValue, persist) {
+    if (!fontValue) return;
+    document.documentElement.style.setProperty('--ff-' + key, fontValue);
+    if (persist) {
+        var s = _getTextStyleState();
+        if (!s[key]) s[key] = {};
+        s[key].f = fontValue;
+        _saveTextStyleState(s);
+    }
+    var sel = document.getElementById('tsFont-' + key);
+    if (sel) sel.value = fontValue;
+}
+function resetTextStyle(key) {
+    var def = null;
+    for (var i = 0; i < TEXT_KEYS.length; i++) if (TEXT_KEYS[i].k === key) { def = TEXT_KEYS[i]; break; }
+    if (!def) return;
+    setTextColor(key, def.dC, true);
+    setTextFont(key, def.dF, true);
+}
+function resetAllTextStyle() {
+    if (!confirm('确定恢复全部 5 处文字 (颜色+字体) 为默认?')) return;
+    for (var i = 0; i < TEXT_KEYS.length; i++) resetTextStyle(TEXT_KEYS[i].k);
+}
+function _buildTextStylePanelRows() {
+    var host = document.getElementById('textStyleRows');
+    if (!host || host.dataset.built === '1') return;
+    var s = _getTextStyleState();
+    var html = '';
+    for (var i = 0; i < TEXT_KEYS.length; i++) {
+        var def = TEXT_KEYS[i];
+        var saved = s[def.k] || {};
+        var c = saved.c || def.dC;
+        var f = saved.f || def.dF;
+        var fontOpts = '';
+        var matchedFont = false;
+        for (var j = 0; j < FONT_OPTIONS.length; j++) {
+            var fo = FONT_OPTIONS[j];
+            var sel = (fo.value === f) ? ' selected' : '';
+            if (sel) matchedFont = true;
+            fontOpts += '<option value="' + fo.value.replace(/"/g,'&quot;') + '"' + sel + '>' + fo.label + '</option>';
+        }
+        if (!matchedFont) fontOpts = '<option value="' + f.replace(/"/g,'&quot;') + '" selected>自定义</option>' + fontOpts;
+        html +=
+            '<div style="display:flex;align-items:center;gap:0.7vh;margin-bottom:0.7vh;padding:0.6vh 0.4vh;border-bottom:1px solid #334155;">' +
+                '<span style="flex:0 0 8vh;color:#cbd5e1;font-size:1.6vh;">' + def.label + '</span>' +
+                '<input id="tsColor-' + def.k + '" type="color" value="' + (/^#[0-9a-fA-F]{6}$/.test(c)?c:'#f8fafc') + '" onchange="setTextColor(\'' + def.k + '\', this.value, true)" style="flex:0 0 4vh;height:3vh;padding:0;border:1px solid #334155;border-radius:4px;background:transparent;cursor:pointer;"/>' +
+                '<input id="tsHex-' + def.k + '" type="text" maxlength="7" value="' + c + '" onchange="setTextColor(\'' + def.k + '\', this.value, true)" style="flex:0 0 8vh;padding:0.3vh 0.5vh;background:#0f172a;color:#f8fafc;border:1px solid #334155;border-radius:4px;font-family:Consolas,monospace;font-size:1.4vh;text-align:center;"/>' +
+                '<select id="tsFont-' + def.k + '" onchange="setTextFont(\'' + def.k + '\', this.value, true)" style="flex:1;min-width:0;padding:0.4vh 0.5vh;background:#0f172a;color:#f8fafc;border:1px solid #334155;border-radius:4px;font-size:1.5vh;cursor:pointer;">' + fontOpts + '</select>' +
+                '<button onclick="resetTextStyle(\'' + def.k + '\')" title="恢复默认" style="flex:0 0 3.5vh;height:3vh;background:#334155;color:#cbd5e1;border:none;border-radius:4px;cursor:pointer;font-size:1.5vh;">↺</button>' +
+            '</div>';
+    }
+    host.innerHTML = html;
+    host.dataset.built = '1';
+}
+function toggleTextStyle() {
+    var panel = document.getElementById('textStylePanel');
+    if (!panel) return;
+    if (panel.classList.contains('hidden')) {
+        _buildTextStylePanelRows();
+        panel.classList.remove('hidden');
+    } else {
+        panel.classList.add('hidden');
+    }
+}
+(function() {
+    var s = _getTextStyleState();
+    for (var i = 0; i < TEXT_KEYS.length; i++) {
+        var def = TEXT_KEYS[i];
+        var saved = s[def.k] || {};
+        if (saved.c) document.documentElement.style.setProperty('--c-' + def.k, saved.c);
+        if (saved.f) document.documentElement.style.setProperty('--ff-' + def.k, saved.f);
+    }
+})();
+
 // 兼容旧版：保留 prompt() 形式询问 IP，外部代码或特殊场景仍可调用
 function getServerHost(forceAsk) {
     var params = new URLSearchParams(window.location.search);
@@ -393,7 +592,7 @@ function render() {
         var c2 = lbRelay ? (er[i].name||'') : (er[i].country||'');
         var remark = er[i].resultStatus || er[i].status || '';
         var rankText = er[i].rank > 0 ? er[i].rank : '-';
-        html += '<tr' + rc + '><td>' + rankText + '</td><td>' + c1 + '</td><td>' + c2 + '</td><td>' + (er[i].finalTime||'') + '</td><td style="color:#ef4444;font-weight:bold;">' + remark + '</td></tr>';
+        html += '<tr' + rc + '><td>' + rankText + '</td><td>' + c1 + '</td><td>' + c2 + '</td><td>' + (er[i].finalTime||'') + '</td><td class="lb-remark">' + remark + '</td></tr>';
     }
     html += '</table>';
     document.getElementById('rankingView').innerHTML = html;
