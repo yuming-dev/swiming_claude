@@ -1004,7 +1004,10 @@ function _updateRunningTimeOnly() {
     if (!runEl) return;
     // 计时控制端确认本组成绩后，大屏切换到本组成绩榜，滚动时间不再显示
     // （否则 100ms ticker 会把 renderHeatResult 设的空文本反复覆盖回去）
-    if (data && data.resultConfirmed) {
+    // 2026-06-01 修复: 非"比赛主视图"也不更新. 计时复位后 _resultConfirmed=false 但大屏
+    //   仍锁在 SHOW_HEAT_RESULT (modeLocked), 此函数还会被 RUNNING_TIME_UPDATE 调用.
+    //   若不拦, 硬件残留的旧 0x7F 值会通过此处写回 runEl, 大屏右上角错显上组时间.
+    if ((data && data.resultConfirmed) || currentMode !== 'SHOW_LIVE_RACE') {
         if (runEl.textContent !== '') runEl.textContent = '';
         if (runEl.style.color !== '') runEl.style.color = '';
         return;
