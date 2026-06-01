@@ -11,6 +11,17 @@
     --gold: #f59e0b; --accent: #3b82f6; --red: #ef4444; --green: #22c55e;
     /* 2026-05-31 大屏字号缩放: localStorage('swimDisplayFs') 持久化; UI/快捷键 Ctrl+/- 调节 */
     --fs: 1;
+    /* 2026-06-01 9 处文字 (比赛名称/比赛项目/滚动时间/道次/名次/姓名/代表队/成绩/备注)
+       颜色 + 字体单独可调; localStorage('swimDisplayTextStyle') 持久化为 {key:{c,f}} JSON */
+    --c-title: #f8fafc;    --ff-title: 'Microsoft YaHei', sans-serif;
+    --c-event: #f8fafc;    --ff-event: 'Microsoft YaHei', sans-serif;
+    --c-time:  #f59e0b;    --ff-time:  'Consolas', monospace;
+    --c-lane:  #94a3b8;    --ff-lane:  'Microsoft YaHei', sans-serif;
+    --c-rank:  #f8fafc;    --ff-rank:  'Microsoft YaHei', sans-serif;
+    --c-name:  #f8fafc;    --ff-name:  'Microsoft YaHei', sans-serif;
+    --c-team:  #94a3b8;    --ff-team:  'Microsoft YaHei', sans-serif;
+    --c-result:#f8fafc;    --ff-result:'Consolas', monospace;
+    --c-remark:#ef4444;    --ff-remark:'Microsoft YaHei', sans-serif;
 }
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei', sans-serif; overflow: hidden; height: 100vh; }
@@ -20,7 +31,7 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
     padding: 0 3vw; position: relative;
     background: linear-gradient(135deg, #1e293b, #0f172a);
 }
-.page-header .title { font-size: calc(3.5vh * var(--fs)); font-weight: bold; }
+.page-header .title { font-size: calc(3.5vh * var(--fs)); font-weight: bold; color: var(--c-title); font-family: var(--ff-title); }
 .header-records { position: absolute; right: 3vw; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; align-items: flex-end; gap: 0.3vh; }
 .record-item { font-size: calc(2.6vh * var(--fs)); font-family: 'Consolas', monospace; color: var(--dim); }
 .rec-label { color: var(--gold); font-weight: bold; margin-right: 0.5vw; }
@@ -30,29 +41,46 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 .race-info { display: flex; justify-content: space-between; align-items: center; height: 6vh; margin-bottom: 0.5vh; border-bottom: 3px solid var(--accent); padding-bottom: 0.5vh; }
 .lanes-header { display: flex; align-items: center; padding: 0 1.5vw; height: 3.5vh; color: var(--dim); font-size: calc(2.9vh * var(--fs)); }
 .race-info .event-left { display: flex; align-items: baseline; gap: 1.5vw; }
-.race-info .event-name { font-size: calc(2.8vh * var(--fs)); font-weight: bold; }
+.race-info .event-name { font-size: calc(2.8vh * var(--fs)); font-weight: bold; color: var(--c-event); font-family: var(--ff-event); }
 .race-info .stage-heat { font-size: calc(2.8vh * var(--fs)); color: var(--dim); }
-.race-info .running-time { font-size: calc(4vh * var(--fs)); font-weight: bold; color: var(--gold); font-family: 'Consolas', monospace; }
+.race-info .running-time { font-size: calc(4vh * var(--fs)); font-weight: bold; color: var(--c-time); font-family: var(--ff-time); }
 
-.lanes-container { flex: 1; display: flex; flex-direction: column; gap: 0.4vh; }
+.lanes-container { flex: 1; display: flex; flex-direction: column; gap: 0; }
+/* 2026-05-31 取消每道卡片底色, 改用细横线分隔 (与总排名 list-table 一致), 让大屏底色/背景图直接透出来 */
 .lane-row {
-    flex: 1; display: flex; align-items: center; background: var(--card); border-radius: 0.5vh;
+    flex: 1; display: flex; align-items: center; background: transparent;
     padding: 0 1.5vw; position: relative; overflow: hidden; min-height: 0;
+    border-bottom: 1px solid #334155;
 }
-.lane-row.finished { border-left: 4px solid var(--green); }
+.lane-row.finished { border-bottom-color: var(--green); }
 .lane-row.dns { opacity: 0.4; }
-.lane-row.dsq { border-left: 4px solid var(--red); }
+.lane-row.dsq { border-bottom-color: var(--red); }
 /* 2026-05-27 空道(本组无运动员): 半透明显示, 保留道次号让屏幕道数齐整 */
 .lane-row.empty { opacity: 0.28; }
-.lane-row .lane-num { width: 5vw; font-size: calc(2.5vh * var(--fs)); font-weight: bold; color: var(--dim); text-align: center; margin-right: 1vw; }
-.lane-row .swimmer-name { width: 14vw; font-size: calc(2.9vh * var(--fs)); font-weight: bold; white-space: nowrap; overflow: hidden; margin-right: 1.5vw; text-align: center; }
-.lane-row .swimmer-team { width: 12vw; font-size: calc(2.9vh * var(--fs)); color: var(--dim); white-space: nowrap; overflow: hidden; margin-right: 1.5vw; text-align: center; }
-.lane-row .result-time { width: 14vw; font-size: calc(2.9vh * var(--fs)); font-weight: bold; text-align: center; font-family: 'Consolas', monospace; margin-right: 1.5vw; }
-.lane-row .rank { width: 5vw; font-size: calc(2.9vh * var(--fs)); font-weight: bold; text-align: center; margin-right: 1vw; }
+/* 2026-05-31 列宽改 flex 比例自动撑满整行 (原 vw 固定宽度只能覆盖 ~60% 屏宽).
+   比例: 个人项 5 : 5 : 14 : 12 : 14 : 8 (道/名次/姓名/代表队/成绩/备注)
+        接力项 5 : 5 : 8(代表队窄) : 36(姓名宽 同列 4 棒) : 14 : 8 */
+.lane-row .lane-num { flex: 5; min-width: 0; font-size: calc(2.5vh * var(--fs)); font-weight: bold; color: var(--c-lane); font-family: var(--ff-lane); text-align: center; margin-right: 1vw; }
+.lane-row .swimmer-name { flex: 14; min-width: 0; font-size: calc(2.9vh * var(--fs)); font-weight: bold; color: var(--c-name); font-family: var(--ff-name); white-space: nowrap; overflow: hidden; margin-right: 1.5vw; text-align: center; }
+.lane-row .swimmer-team { flex: 12; min-width: 0; font-size: calc(2.9vh * var(--fs)); color: var(--c-team); font-family: var(--ff-team); white-space: nowrap; overflow: hidden; margin-right: 1.5vw; text-align: center; }
+.lane-row .result-time { flex: 14; min-width: 0; font-size: calc(2.9vh * var(--fs)); font-weight: bold; text-align: center; color: var(--c-result); font-family: var(--ff-result); margin-right: 1.5vw; }
+.lane-row .rank { flex: 5; min-width: 0; font-size: calc(2.9vh * var(--fs)); font-weight: bold; text-align: center; color: var(--c-rank); font-family: var(--ff-rank); margin-right: 1vw; }
 .lane-row .rank.gold { color: var(--gold); }
 .lane-row .rank.silver { color: #c0c0c0; }
 .lane-row .rank.bronze { color: #cd7f32; }
-.lane-row .remark { width: 8vw; font-size: calc(2.9vh * var(--fs)); color: var(--red); text-align: center; }
+.lane-row .remark { flex: 8; min-width: 0; font-size: calc(2.9vh * var(--fs)); color: var(--c-remark); font-family: var(--ff-remark); text-align: center; }
+
+/* 比赛视图列序:
+   个人项: 道次 → 名次 → 姓名 → 代表队 → 成绩 → 备注
+   接力项: 道次 → 名次 → 代表队(窄) → 姓名(宽, 4 棒名同列) → 成绩 → 备注 */
+.lane-row .lane-num     { order: 1; }
+.lane-row .rank         { order: 2; }
+.lane-row .swimmer-name { order: 3; }
+.lane-row .swimmer-team { order: 4; }
+.lane-row .result-time  { order: 5; }
+.lane-row .remark       { order: 6; }
+.lane-row.relay .swimmer-name { flex: 8; }   /* relay 时 swimmer-name DOM 实际承载代表队 (窄) */
+.lane-row.relay .swimmer-team { flex: 36; white-space: normal; line-height: 1.25; text-align: center; }   /* relay 时 swimmer-team DOM 承载 4 棒+姓名, 居中 */
 
 /* 列表视图 */
 .list-container { height: 89vh; padding: 2vh 3vw; overflow: hidden; position: relative; }
@@ -149,6 +177,19 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
     </div>
     <button onclick="setFontScale(1.0)" style="width:100%;padding:0.8vh;background:#475569;color:#f8fafc;border:none;border-radius:4px;cursor:pointer;font-size:1.6vh;margin-bottom:0.6vh;">恢复 1.0x</button>
     <div style="font-size:1.4vh;color:#94a3b8;text-align:center;line-height:1.5;">快捷键: <b style="color:#cbd5e1;">Ctrl +</b> / <b style="color:#cbd5e1;">Ctrl −</b> / <b style="color:#cbd5e1;">Ctrl 0</b><br>范围 0.8x ~ 3.0x</div>
+</div>
+
+<!-- 2026-06-01 文字样式: 9 处单独调颜色 + 字体. 数据保存在 localStorage('swimDisplayTextStyle'). -->
+<button id="textStyleBtn" onclick="toggleTextStyle()" title="文字样式 (颜色/字体)"
+        style="position:fixed;right:1.2vw;bottom:14vh;width:5.5vh;height:5.5vh;border-radius:50%;background:rgba(30,41,59,0.55);color:#94a3b8;border:1px solid rgba(148,163,184,0.35);font-size:2.4vh;cursor:pointer;z-index:9998;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);transition:opacity .2s;opacity:0.45;font-family:'Microsoft YaHei',sans-serif;font-weight:bold;"
+        onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.45'">文</button>
+<div id="textStylePanel" class="hidden" style="position:fixed;right:1.2vw;bottom:20.4vh;width:62vh;max-height:78vh;overflow-y:auto;background:#1e293b;color:#f8fafc;border-radius:10px;padding:2vh 2.2vh;box-shadow:0 8px 36px rgba(0,0,0,.55);z-index:9998;font-family:'Microsoft YaHei',sans-serif;font-size:1.6vh;border:1px solid #334155;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.2vh;">
+        <div style="font-size:2vh;font-weight:bold;color:#3b82f6;">📝 文字样式 (颜色 / 字体)</div>
+        <button onclick="toggleTextStyle()" style="background:none;border:none;color:#94a3b8;font-size:2.4vh;cursor:pointer;padding:0 0.6vh;">×</button>
+    </div>
+    <div id="textStyleRows"></div>
+    <button onclick="resetAllTextStyle()" style="width:100%;padding:0.8vh;background:#475569;color:#f8fafc;border:none;border-radius:4px;cursor:pointer;font-size:1.5vh;margin-top:1vh;">全部恢复默认</button>
 </div>
 <div id="bgSettingsPanel" class="hidden" style="position:fixed;right:1.2vw;bottom:8vh;width:46vh;max-height:82vh;overflow-y:auto;background:#1e293b;color:#f8fafc;border-radius:10px;padding:2vh 2.2vh;box-shadow:0 8px 36px rgba(0,0,0,.55);z-index:9998;font-family:'Microsoft YaHei',sans-serif;font-size:1.7vh;border:1px solid #334155;">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.2vh;">
@@ -434,6 +475,135 @@ function toggleBgSettings() {
         if (saved && saved.trim() && !/javascript:/i.test(saved)) {
             document.documentElement.style.setProperty('--bg', saved);
         }
+    } catch(e) {}
+})();
+
+// 2026-06-01 9 处文字 (颜色 + 字体) 独立配置. localStorage('swimDisplayTextStyle') = {key:{c:'#..',f:'..'}}.
+// 与 .lane-row/.race-info/.page-header 的 CSS 变量 --c-<key> / --ff-<key> 绑定.
+var TEXT_KEYS = [
+    {k:'title',  label:'比赛名称', dC:'#f8fafc', dF:"'Microsoft YaHei', sans-serif"},
+    {k:'event',  label:'比赛项目', dC:'#f8fafc', dF:"'Microsoft YaHei', sans-serif"},
+    {k:'time',   label:'滚动时间', dC:'#f59e0b', dF:"'Consolas', monospace"},
+    {k:'lane',   label:'道次',     dC:'#94a3b8', dF:"'Microsoft YaHei', sans-serif"},
+    {k:'rank',   label:'名次',     dC:'#f8fafc', dF:"'Microsoft YaHei', sans-serif"},
+    {k:'name',   label:'姓名',     dC:'#f8fafc', dF:"'Microsoft YaHei', sans-serif"},
+    {k:'team',   label:'代表队',   dC:'#94a3b8', dF:"'Microsoft YaHei', sans-serif"},
+    {k:'result', label:'成绩',     dC:'#f8fafc', dF:"'Consolas', monospace"},
+    {k:'remark', label:'备注',     dC:'#ef4444', dF:"'Microsoft YaHei', sans-serif"}
+];
+var FONT_OPTIONS = [
+    {label:'微软雅黑', value:"'Microsoft YaHei', sans-serif"},
+    {label:'黑体',     value:"SimHei, sans-serif"},
+    {label:'宋体',     value:"SimSun, serif"},
+    {label:'楷体',     value:"KaiTi, serif"},
+    {label:'仿宋',     value:"FangSong, serif"},
+    {label:'隶书',     value:"LiSu, serif"},
+    {label:'幼圆',     value:"YouYuan, sans-serif"},
+    {label:'Arial',    value:"Arial, sans-serif"},
+    {label:'Consolas (等宽)', value:"Consolas, monospace"},
+    {label:'Impact',   value:"Impact, sans-serif"}
+];
+function _getTextStyleState() {
+    try { return JSON.parse(localStorage.getItem('swimDisplayTextStyle') || '{}') || {}; }
+    catch(e) { return {}; }
+}
+function _saveTextStyleState(s) {
+    try { localStorage.setItem('swimDisplayTextStyle', JSON.stringify(s)); } catch(e) {}
+}
+function setTextColor(key, color, persist) {
+    if (!color) return;
+    color = String(color).trim();
+    if (!/^#[0-9a-fA-F]{3}([0-9a-fA-F]{3})?$/.test(color)) return;
+    document.documentElement.style.setProperty('--c-' + key, color);
+    if (persist) {
+        var s = _getTextStyleState();
+        if (!s[key]) s[key] = {};
+        s[key].c = color;
+        _saveTextStyleState(s);
+    }
+    var picker = document.getElementById('tsColor-' + key);
+    var hex = document.getElementById('tsHex-' + key);
+    if (picker && /^#[0-9a-fA-F]{6}$/.test(color)) picker.value = color;
+    if (hex) hex.value = color;
+}
+function setTextFont(key, fontValue, persist) {
+    if (!fontValue) return;
+    document.documentElement.style.setProperty('--ff-' + key, fontValue);
+    if (persist) {
+        var s = _getTextStyleState();
+        if (!s[key]) s[key] = {};
+        s[key].f = fontValue;
+        _saveTextStyleState(s);
+    }
+    var sel = document.getElementById('tsFont-' + key);
+    if (sel) sel.value = fontValue;
+}
+function resetTextStyle(key) {
+    var def = null;
+    for (var i = 0; i < TEXT_KEYS.length; i++) if (TEXT_KEYS[i].k === key) { def = TEXT_KEYS[i]; break; }
+    if (!def) return;
+    setTextColor(key, def.dC, true);
+    setTextFont(key, def.dF, true);
+}
+function resetAllTextStyle() {
+    if (!confirm('确定恢复全部 9 处文字 (颜色+字体) 为默认?')) return;
+    for (var i = 0; i < TEXT_KEYS.length; i++) resetTextStyle(TEXT_KEYS[i].k);
+}
+function _buildTextStylePanelRows() {
+    var host = document.getElementById('textStyleRows');
+    if (!host || host.dataset.built === '1') return;
+    var s = _getTextStyleState();
+    var html = '';
+    for (var i = 0; i < TEXT_KEYS.length; i++) {
+        var def = TEXT_KEYS[i];
+        var saved = s[def.k] || {};
+        var c = saved.c || def.dC;
+        var f = saved.f || def.dF;
+        var fontOpts = '';
+        var matchedFont = false;
+        for (var j = 0; j < FONT_OPTIONS.length; j++) {
+            var fo = FONT_OPTIONS[j];
+            var sel = (fo.value === f) ? ' selected' : '';
+            if (sel) matchedFont = true;
+            fontOpts += '<option value="' + fo.value.replace(/"/g,'&quot;') + '"' + sel + '>' + fo.label + '</option>';
+        }
+        // 如果保存的字体不在预设选项里 (老版本/手改的), 显示为 "自定义"
+        if (!matchedFont) fontOpts = '<option value="' + f.replace(/"/g,'&quot;') + '" selected>自定义</option>' + fontOpts;
+        html +=
+            '<div style="display:flex;align-items:center;gap:0.7vh;margin-bottom:0.7vh;padding:0.6vh 0.4vh;border-bottom:1px solid #334155;">' +
+                '<span style="flex:0 0 8vh;color:#cbd5e1;font-size:1.6vh;">' + def.label + '</span>' +
+                '<input id="tsColor-' + def.k + '" type="color" value="' + (/^#[0-9a-fA-F]{6}$/.test(c)?c:'#f8fafc') + '" onchange="setTextColor(\'' + def.k + '\', this.value, true)" style="flex:0 0 4vh;height:3vh;padding:0;border:1px solid #334155;border-radius:4px;background:transparent;cursor:pointer;"/>' +
+                '<input id="tsHex-' + def.k + '" type="text" maxlength="7" value="' + c + '" onchange="setTextColor(\'' + def.k + '\', this.value, true)" style="flex:0 0 8vh;padding:0.3vh 0.5vh;background:#0f172a;color:#f8fafc;border:1px solid #334155;border-radius:4px;font-family:Consolas,monospace;font-size:1.4vh;text-align:center;"/>' +
+                '<select id="tsFont-' + def.k + '" onchange="setTextFont(\'' + def.k + '\', this.value, true)" style="flex:1;min-width:0;padding:0.4vh 0.5vh;background:#0f172a;color:#f8fafc;border:1px solid #334155;border-radius:4px;font-size:1.5vh;cursor:pointer;">' + fontOpts + '</select>' +
+                '<button onclick="resetTextStyle(\'' + def.k + '\')" title="恢复默认" style="flex:0 0 3.5vh;height:3vh;background:#334155;color:#cbd5e1;border:none;border-radius:4px;cursor:pointer;font-size:1.5vh;">↺</button>' +
+            '</div>';
+    }
+    host.innerHTML = html;
+    host.dataset.built = '1';
+}
+function toggleTextStyle() {
+    var panel = document.getElementById('textStylePanel');
+    if (!panel) return;
+    if (panel.classList.contains('hidden')) {
+        _buildTextStylePanelRows();
+        panel.classList.remove('hidden');
+    } else {
+        panel.classList.add('hidden');
+    }
+}
+// 启动时把保存的 9 处颜色/字体应用到 CSS 变量
+(function() {
+    var s = _getTextStyleState();
+    for (var i = 0; i < TEXT_KEYS.length; i++) {
+        var def = TEXT_KEYS[i];
+        var saved = s[def.k] || {};
+        if (saved.c) document.documentElement.style.setProperty('--c-' + def.k, saved.c);
+        if (saved.f) document.documentElement.style.setProperty('--ff-' + def.k, saved.f);
+    }
+    // 一次性兼容: 把旧版 swimDisplayTitleColor 迁移到新 textStyle.title.c
+    try {
+        var legacy = localStorage.getItem('swimDisplayTitleColor');
+        if (legacy && !s.title) { setTextColor('title', legacy, true); localStorage.removeItem('swimDisplayTitleColor'); }
     } catch(e) {}
 })();
 
@@ -886,6 +1056,34 @@ function getRelayCurrentLegName(sw) {
     return '第' + (currentLeg + 1) + '棒: ' + legName;
 }
 
+// 2026-05-31 比赛视图接力行: 同列显示 4 棒+姓名, 当前棒高亮金色.
+function getRelayAllLegNames(sw) {
+    var names = (sw.name||'').split(',');
+    if (names.length <= 1) return (sw.name || '').trim();
+    var currentLap = (typeof sw.displayedCurrentLap === 'number') ? sw.displayedCurrentLap : (sw.currentLap || 0);
+    var ev = data.currentEvent || '';
+    var m = ev.match(/(\d+)\s*[x×]\s*(\d+)/);
+    var legCount = m ? parseInt(m[1]) : 4;
+    var legDist = m ? parseInt(m[2]) : 100;
+    var poolLen = (data.poolConfig && data.poolConfig.length) ? data.poolConfig.length : 50;
+    var lapsPerLeg = Math.max(1, Math.floor(legDist / poolLen));
+    var currentLeg = Math.floor(currentLap / lapsPerLeg);
+    if (currentLeg >= legCount) currentLeg = legCount - 1;
+    if (currentLeg < 0) currentLeg = 0;
+    var html = '';
+    for (var i = 0; i < legCount; i++) {
+        var nm = (i < names.length) ? names[i].trim() : '';
+        var isCur = (i === currentLeg && !sw.isFinished);
+        var seg = (i+1) + '棒:' + nm;
+        if (isCur) {
+            html += '<span style="color:#f59e0b;font-weight:bold;margin-right:1vw;">' + seg + '</span>';
+        } else {
+            html += '<span style="color:#cbd5e1;margin-right:1vw;">' + seg + '</span>';
+        }
+    }
+    return html;
+}
+
 // 2026-05-27 改: 按场地配置的泳道数显示全部泳道, 没有运动员的也显示空白行
 // 后端会为每条池中道下发占位 (status='EMPTY' 或 name+bib 都空), 这里全部保留, 在
 // _refreshRaceRows 里通过 status==='EMPTY' 判定渲染成空行。
@@ -944,17 +1142,29 @@ function _ensureRaceRowsDom() {
     laneDisplayState = {};
 
     // 表头
-    var hdr1 = relay ? '代表队' : '姓名';
-    var hdr2 = relay ? '姓名' : '代表队';
+    // 2026-05-31 列序: 名次 移到代表队左侧.
+    //   个人: 道次 / 姓名 / 名次 / 代表队 / 成绩 / 备注
+    //   接力: 道次 / 名次 / 代表队(窄8vw) / 姓名(宽36vw, 同列显 4 棒+姓名) / 成绩 / 备注
     var header = document.querySelector('.lanes-header');
     if (header) {
-        header.innerHTML =
-            '<div style="width:5vw;text-align:center;margin-right:1vw;font-size:'+fs+';">道次</div>' +
-            '<div style="width:14vw;text-align:center;margin-right:1.5vw;font-size:'+fs+';">' + hdr1 + '</div>' +
-            '<div style="width:12vw;text-align:center;margin-right:1.5vw;font-size:'+fs+';">' + hdr2 + '</div>' +
-            '<div style="width:14vw;text-align:center;margin-right:1.5vw;font-size:'+fs+';">成绩</div>' +
-            '<div style="width:5vw;text-align:center;margin-right:1vw;font-size:'+fs+';">名次</div>' +
-            '<div style="width:8vw;text-align:center;">备注</div>';
+        // 2026-05-31 flex 比例与下方 .lane-row 保持一致, 撑满整行, 列居中
+        if (relay) {
+            header.innerHTML =
+                '<div style="flex:5;min-width:0;text-align:center;margin-right:1vw;font-size:'+fs+';">道次</div>' +
+                '<div style="flex:5;min-width:0;text-align:center;margin-right:1vw;font-size:'+fs+';">名次</div>' +
+                '<div style="flex:8;min-width:0;text-align:center;margin-right:1.5vw;font-size:'+fs+';">代表队</div>' +
+                '<div style="flex:36;min-width:0;text-align:center;margin-right:1.5vw;font-size:'+fs+';">姓名(棒次)</div>' +
+                '<div style="flex:14;min-width:0;text-align:center;margin-right:1.5vw;font-size:'+fs+';">成绩</div>' +
+                '<div style="flex:8;min-width:0;text-align:center;font-size:'+fs+';">备注</div>';
+        } else {
+            header.innerHTML =
+                '<div style="flex:5;min-width:0;text-align:center;margin-right:1vw;font-size:'+fs+';">道次</div>' +
+                '<div style="flex:5;min-width:0;text-align:center;margin-right:1vw;font-size:'+fs+';">名次</div>' +
+                '<div style="flex:14;min-width:0;text-align:center;margin-right:1.5vw;font-size:'+fs+';">姓名</div>' +
+                '<div style="flex:12;min-width:0;text-align:center;margin-right:1.5vw;font-size:'+fs+';">代表队</div>' +
+                '<div style="flex:14;min-width:0;text-align:center;margin-right:1.5vw;font-size:'+fs+';">成绩</div>' +
+                '<div style="flex:8;min-width:0;text-align:center;font-size:'+fs+';">备注</div>';
+        }
     }
 
     var container = document.getElementById('lanesContainer');
@@ -966,7 +1176,7 @@ function _ensureRaceRowsDom() {
     for (var i = 0; i < swimmers.length; i++) {
         var sw = swimmers[i];
         var row = document.createElement('div');
-        row.className = 'lane-row';
+        row.className = relay ? 'lane-row relay' : 'lane-row';
         // 子节点采用与原模板一致的 class，便于现有 CSS 继续生效
         row.innerHTML =
             '<div class="lane-num"></div>' +
@@ -1043,6 +1253,7 @@ function _refreshRaceRows() {
 
         // 行类名
         var classes = 'lane-row';
+        if (relay) classes += ' relay';   // 2026-05-31 与 _ensureRaceRowsDom 创建时一致, 触发接力专用列宽/顺序
         if (sw.isFinished) classes += ' finished';
         if (sw.status === 'DNS') classes += ' dns';
         if (sw.status === 'DSQ') classes += ' dsq';
@@ -1054,12 +1265,12 @@ function _refreshRaceRows() {
         if (ui.lastLaneNum !== laneStr) { ui.laneNum.textContent = laneStr; ui.lastLaneNum = laneStr; }
 
         // 姓名 / 代表队列
-        // 接力：左列=代表队，右列="第N棒: 队员姓名"（按当前圈数动态推算，跟随加减圈刷新）
+        // 接力：左列=代表队(窄)，右列= 4 棒+姓名同列显示, 当前棒高亮金色 (按当前圈数推算, 跟随加减圈刷新)
         var teamDisplay = sw.countryShort || sw.country || '';
         var col1Html, col2Html;
         if (relay) {
             col1Html = teamDisplay;
-            col2Html = getRelayCurrentLegName(sw);
+            col2Html = getRelayAllLegNames(sw);
         } else {
             col1Html = sw.name || '';
             col2Html = teamDisplay;

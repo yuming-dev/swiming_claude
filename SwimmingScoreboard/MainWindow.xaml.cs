@@ -3573,7 +3573,7 @@ namespace SwimmingScoreboard
             string label;
             switch (cmdType) {
                 case "StartingBlock":     label = "出";   break;
-                case "StartingBlockTimeout": label = "出---"; break;   //2026-05-31 接力 SB 超时无 TP/MB (d10=2)
+                case "StartingBlockTimeout": label = "出";   break;   //2026-05-31 接力 SB 超时无 TP/MB (d10=2), time 字段统一显示 "---"
                 case "Touchpad":          label = "触";   break;
                 case "TouchpadMb":        label = "触代"; break;   //2026-05-31 硬件用盲表成绩代替触板 (cmd=0x16 D3=Pushbutton_Result)
                 case "PushButton1":       label = "盲1";  break;
@@ -3590,8 +3590,14 @@ namespace SwimmingScoreboard
             //2026-05-31 加左/右标志 + 圈数 [N] 标注 (N = 该侧剩余触板次数, 跟 PC UI 一致)
             string sideLabel = side == "left" ? "左" : (side == "right" ? "右" : "");
             string lapLabel = lapRemain >= 0 ? string.Format("[{0}]", lapRemain) : "";
+            //2026-05-31 v2: 没数据 (= 接力 SB 超时 d10=2) 显示 "---"; 其他场景 0/正/负 都显示数值 (= 0 → "0.00", 负 → "-X.XX")
+            string timeStr;
+            if (cmdType == "StartingBlockTimeout") timeStr = "---";
+            else if (time == 0) timeStr = "0.00";
+            else if (time < 0) timeStr = "-" + TimeFormatter.Format(-time);   // TimeFormatter 对 <=0 返空, 用 abs+前缀
+            else timeStr = TimeFormatter.Format(time);
             _laneEventLog[lane].AppendFormat("[T={0,7}] 道{1}{2} {3}{4} = {5}{6}\r\n",
-                elapsed, lane, sideLabel, label, lapLabel, TimeFormatter.Format(time),
+                elapsed, lane, sideLabel, label, lapLabel, timeStr,
                 string.IsNullOrEmpty(swimmerName) ? "" : (" (" + swimmerName + ")"));
             // 若当前显示的就是这道, 立刻刷新可见 TextBox
             if (lane == _selectedLane) RefreshLaneEventLogView();
