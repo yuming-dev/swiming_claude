@@ -46,6 +46,8 @@ namespace SwimmingScoreboard
         /// <summary>2026-05-12 StartingBlock 帧解出来的时间是否为负值（运动员抢跳/犯规）。
         /// 当为 true 时，TimeInSeconds 已被取反为负数，调用方可直接显示 / 判断 &lt; 0。</summary>
         public bool IsFalseStart { get; set; }
+        /// <summary>2026-05-31 StartingBlock 帧 d10=2 表示"接力 SB 超时 5s 无 TP/MB", PC 端显示 "---" 不参与反应时计算</summary>
+        public bool IsTimeoutNoReaction { get; set; }
         /// <summary>2026-05-13 当 CommandType==BatteryVoltage 时，把硬件上报的电池电压解析为伏 (V)。
         /// 帧 d3=mV 低字节, d4=mV 高字节, 已合并 / 1000.0 得到 V 值（例如 12.34）。</summary>
         public double BatteryVoltage { get; set; }
@@ -364,10 +366,12 @@ namespace SwimmingScoreboard
             //   ≠ 0 : 抢跳/犯规（运动员早于发令枪），TimeInSeconds 取反为负值
             byte rawD10 = frame[10];
             bool isFalseStart = false;
-            if (cmd == 0x1A && rawD10 != 0) {
+            // 2026-05-31 协议 d10: 0=正常, 1=抢跳, 2=接力 SB 超时无 TP/MB (= placeholder)
+            if (cmd == 0x1A && rawD10 == 1) {
                 isFalseStart = true;
                 timeInSeconds = -timeInSeconds;
             }
+            bool isTimeoutNoReaction = (cmd == 0x1A && rawD10 == 2);
 
             // 2026-05-13(2) 协议扩展：0x4B BatteryVoltage 帧，d3:d4 BIG-ENDIAN mV，转 V
             //   按 通讯协议变更说明_v2026.05.13.pdf：d3 = mV 高字节，d4 = mV 低字节
@@ -427,6 +431,7 @@ namespace SwimmingScoreboard
                 Param8 = frame[8],
                 Param10 = rawD10,        //2026-05-12 协议扩展：StartingBlock 符号位
                 IsFalseStart = isFalseStart,
+                IsTimeoutNoReaction = isTimeoutNoReaction,
                 BatteryVoltage = batteryVolt //2026-05-13 当 cmd==0x4B 时已转 V，其它命令保持 0.0
             };
 

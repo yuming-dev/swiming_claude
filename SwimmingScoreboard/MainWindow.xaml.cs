@@ -1754,7 +1754,7 @@ namespace SwimmingScoreboard
                         if (lState != null && lState.LeftManualEnabled) {
                             lState.LeftManualTouchTime = _runningTime;
                             SaveManualTouchToSplit(laneNum, _runningTime);
-                            LogRawTimingData(laneNum, "ManualTouchLeft", _runningTime);
+                            LogRawTimingData(laneNum, "ManualTouchLeft", _runningTime, "left");
                             AddLog(string.Format("泳道{0} 左端手动触板: {1}", laneNum, TimeFormatter.Format(_runningTime)));
                         } else if (lState != null) {
                             AddLog(string.Format("泳道{0} 左端手动触板(未启用)", laneNum));
@@ -1769,7 +1769,7 @@ namespace SwimmingScoreboard
                         if (lState != null && lState.RightManualEnabled) {
                             lState.RightManualTouchTime = _runningTime;
                             SaveManualTouchToSplit(laneNum, _runningTime);
-                            LogRawTimingData(laneNum, "ManualTouchRight", _runningTime);
+                            LogRawTimingData(laneNum, "ManualTouchRight", _runningTime, "right");
                             AddLog(string.Format("泳道{0} 右端手动触板: {1}", laneNum, TimeFormatter.Format(_runningTime)));
                         } else if (lState != null) {
                             AddLog(string.Format("泳道{0} 右端手动触板(未启用)", laneNum));
@@ -2734,6 +2734,8 @@ namespace SwimmingScoreboard
             string side = data.IsFinishEnd ? "left" : "right";
             //2026-05-31 cmd=0x16 (Touchpad) 且 d3=Pushbutton_Result(=1) 表示"硬件用盲表代替触板", PC 强制接受
             bool isMbSubstitute = (data.CommandType == TimingCommandType.Touchpad && data.Param1 == 1);
+            //2026-05-31 cmd=0x1A d10=2 表示"接力 SB 超时无 TP/MB", cmdType 改 "StartingBlockTimeout", 日志显示 "出---"
+            if (data.IsTimeoutNoReaction) cmdType = "StartingBlockTimeout";
             // 2026-05-12 协议扩展：StartingBlock 命令 D10≠0 表示抢跳，TimeInSeconds 已被解析器取反为负值
             ProcessTimingData(data.Lane, cmdType, data.TimeInSeconds, side, data.IsFalseStart, isMbSubstitute);
         }
@@ -3328,7 +3330,7 @@ namespace SwimmingScoreboard
             }
 
             // 记录原始数据 (2026-05-31: 硬件用盲表代替触板成绩 → log 标 "TouchpadMb" → 比赛日志显示"触代")
-            LogRawTimingData(lane, (cmdType == "Touchpad" && isMbSubstitute) ? "TouchpadMb" : cmdType, timeInSeconds);
+            LogRawTimingData(lane, (cmdType == "Touchpad" && isMbSubstitute) ? "TouchpadMb" : cmdType, timeInSeconds, side);
 
             var laneState = _laneDeviceStates.FirstOrDefault(s => s.Lane == lane);
             if (laneState == null) return;
@@ -3394,7 +3396,8 @@ namespace SwimmingScoreboard
                                 if (relayRes != null && relayRes.Splits.Count > 0) lastTouchTime = relayRes.Splits.Last().CumulativeTime;
                             }
                             // 2026-05-12 抢跳：硬件以 D10 符号位上报，timeInSeconds 已为负值，直接作为反应时
-                            double relayReaction = isFalseStart ? timeInSeconds : (timeInSeconds - lastTouchTime);
+                            // 2026-05-31 硬件已在 StartBox_RecordSignal 内算 delta = swim_now - LastTouchTime, timeInSeconds 已经是 reaction, PC 直接用不再减
+                            double relayReaction = timeInSeconds;
                             laneState.ReactionTime = relayReaction;
                             // 按棒次索引覆盖写入 LegReactionTimes[legIdx]，
                             // 这样即使硬件事件重复/乱序，也只保留每棒最新值，且槽位与棒次对齐
@@ -3535,7 +3538,7 @@ namespace SwimmingScoreboard
         /// <summary>
         /// 记录原始计时数据到当前比赛日志
         /// </summary>
-        private void LogRawTimingData(int lane, string cmdType, double time) {
+        private void LogRawTimingData(int lane, string cmdType, double time, string side = null) {
             string elapsed = _raceStartTime > DateTime.MinValue
                 ? (DateTime.Now - _raceStartTime).TotalSeconds.ToString("F3")
                 : "0.000";
@@ -3547,22 +3550,30 @@ namespace SwimmingScoreboard
             });
             if (sw != null) swimmerName = sw.Name ?? "";
 
+            //2026-05-31 lookup laneState 算"剩余触板次数" 给日志加 [N] 标注
+            var ls = _laneDeviceStates.FirstOrDefault(s => s.Lane == lane);
+            int lapRemain = -1;
+            if (ls != null && side != null) {
+                lapRemain = GetTouchRemain(ls, side == "left");
+            }
+
             _rawTimingLog.AppendFormat("{0}\t道{1}\t{2}\t{3}\t{4}\r\n",
                 DateTime.Now.ToString("HH:mm:ss.fff"), lane, cmdType,
                 TimeFormatter.Format(time), swimmerName);
 
             // 2026-05-27 同步追加到"比赛日志" tab 的 per-lane 缓冲
-            AppendToLaneEventLog(lane, cmdType, time, swimmerName);
+            AppendToLaneEventLog(lane, cmdType, time, swimmerName, side, lapRemain);
         }
 
         // 2026-05-27 "比赛日志" tab: 按 per-lane 累积事件 (出发反应时 / 触板 / 盲表 / 手动触板).
         //   只挑跟运动员"成绩相关"的事件类型, 跳过 RunningTime/TimerReady/StartCommand 等控制帧.
         //   缓冲存活范围 = 一组比赛 (Restart/Ready 时清空).
-        private void AppendToLaneEventLog(int lane, string cmdType, double time, string swimmerName) {
+        private void AppendToLaneEventLog(int lane, string cmdType, double time, string swimmerName, string side = null, int lapRemain = -1) {
             // 2026-05-27 用户要求简化显示文字
             string label;
             switch (cmdType) {
                 case "StartingBlock":     label = "出";   break;
+                case "StartingBlockTimeout": label = "出---"; break;   //2026-05-31 接力 SB 超时无 TP/MB (d10=2)
                 case "Touchpad":          label = "触";   break;
                 case "TouchpadMb":        label = "触代"; break;   //2026-05-31 硬件用盲表成绩代替触板 (cmd=0x16 D3=Pushbutton_Result)
                 case "PushButton1":       label = "盲1";  break;
@@ -3576,8 +3587,11 @@ namespace SwimmingScoreboard
             string elapsed = _raceStartTime > DateTime.MinValue
                 ? ((DateTime.Now - _raceStartTime).TotalSeconds).ToString("F2")
                 : "—";
-            _laneEventLog[lane].AppendFormat("[T={0,7}] 道{1} {2} = {3}{4}\r\n",
-                elapsed, lane, label, TimeFormatter.Format(time),
+            //2026-05-31 加左/右标志 + 圈数 [N] 标注 (N = 该侧剩余触板次数, 跟 PC UI 一致)
+            string sideLabel = side == "left" ? "左" : (side == "right" ? "右" : "");
+            string lapLabel = lapRemain >= 0 ? string.Format("[{0}]", lapRemain) : "";
+            _laneEventLog[lane].AppendFormat("[T={0,7}] 道{1}{2} {3}{4} = {5}{6}\r\n",
+                elapsed, lane, sideLabel, label, lapLabel, TimeFormatter.Format(time),
                 string.IsNullOrEmpty(swimmerName) ? "" : (" (" + swimmerName + ")"));
             // 若当前显示的就是这道, 立刻刷新可见 TextBox
             if (lane == _selectedLane) RefreshLaneEventLogView();
