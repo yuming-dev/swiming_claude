@@ -467,6 +467,9 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 </div>
 
 <script>
+// 2026-06-01 性别显示规范: 男→"男子", 女→"女子", 混合→"混合" (不加子)
+function fmtGender(g) { g = g || ''; if (g === '男' || g === '女') return g + '子'; return g; }
+
 var ws, data = {}, selectedLane = -1;
 // 本地计时器：独立于服务器广播，保证滚动时间不间断
 var _localTimerStart = 0;    // 本地记录的比赛开始时刻（Date.now()）
@@ -810,7 +813,7 @@ function render() {
 
     // 当前比赛信息
     var curAg = data.currentAgeGroup || '';
-    var info = (curAg ? ('[' + curAg + '] ') : '') + (data.currentGender||'') + '子 ' + (data.currentEvent||'') + ' ' + (data.currentStage||'') + ' 第' + (data.currentHeat||0) + '/' + (data.totalHeats||0) + '组';
+    var info = (curAg ? ('[' + curAg + '] ') : '') + fmtGender(data.currentGender) + ' ' + (data.currentEvent||'') + ' ' + (data.currentStage||'') + ' 第' + (data.currentHeat||0) + '/' + (data.totalHeats||0) + '组';
     document.getElementById('currentInfo').textContent = info;
 
     // 先同步参数（发令位置等），再渲染界面
@@ -1194,7 +1197,7 @@ function isCurrentHeatConfirmed() {
 
 function confirmResult() {
     var ag = data.currentAgeGroup || '';
-    var info = (ag ? ('[' + ag + '] ') : '') + (data.currentGender||'') + '子 ' + (data.currentEvent||'') + ' ' + (data.currentStage||'') + ' 第' + (data.currentHeat||'') + '组';
+    var info = (ag ? ('[' + ag + '] ') : '') + fmtGender(data.currentGender) + ' ' + (data.currentEvent||'') + ' ' + (data.currentStage||'') + ' 第' + (data.currentHeat||'') + '组';
     if (confirm('确认本组成绩？\n\n' + info + '\n\n确认后成绩将锁定保存。')) {
         sendCmd('CONFIRM_RESULT');
         addLog('已确认本组成绩');

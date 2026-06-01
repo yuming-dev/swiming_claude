@@ -912,6 +912,14 @@ function renderMedia(d) {
 
 function isRelayEvent() { return (data.currentEvent||'').indexOf('接力') >= 0; }
 
+// 2026-06-01 性别显示规范: 男 → "男子", 女 → "女子", 混合 → "混合" (不加子),
+//   修复混合性别接力赛标题里显示"混合子"的 bug. 数据层保留 "男"/"女"/"混合" 不变.
+function fmtGender(g) {
+    g = g || '';
+    if (g === '男' || g === '女') return g + '子';
+    return g;   // 混合 / 已经是 男子/女子 / 空串 都原样返回
+}
+
 function getLaneCount() {
     return (data.poolConfig && data.poolConfig.lanes) ? data.poolConfig.lanes : 10;
 }
@@ -931,7 +939,7 @@ function renderRace() {
     document.getElementById('raceView').classList.remove('hidden');
 
     // ── 1) 顶部静态文字（仅变化才写入） ──
-    var titleText = ((data.currentAgeGroup||'') ? (data.currentAgeGroup+' ') : '') + (data.currentGender||'') + '子 ' + (data.currentEvent||'');
+    var titleText = ((data.currentAgeGroup||'') ? (data.currentAgeGroup+' ') : '') + fmtGender(data.currentGender) + ' ' + (data.currentEvent||'');
     var stageText = (data.currentStage||'') + ' 第' + (data.currentHeat||0) + '/' + (data.totalHeats||0) + '组';
     var en = document.getElementById('eventName');
     if (en && en.textContent !== titleText) en.textContent = titleText;
@@ -1347,7 +1355,7 @@ function _refreshRaceRows() {
 function renderStartList() {
     document.getElementById('listView').classList.remove('hidden');
     var lv = document.getElementById('listView');
-    var html = '<h2 style="margin-bottom:2vh;font-size:calc(3vh * var(--fs));">' + ((data.currentAgeGroup||'') ? (data.currentAgeGroup+' ') : '') + (data.currentGender||'') + '子 ' + (data.currentEvent||'') + ' ' + (data.currentStage||'') + ' 第' + (data.currentHeat||'') + '组 出发表</h2>';
+    var html = '<h2 style="margin-bottom:2vh;font-size:calc(3vh * var(--fs));">' + ((data.currentAgeGroup||'') ? (data.currentAgeGroup+' ') : '') + fmtGender(data.currentGender) + ' ' + (data.currentEvent||'') + ' ' + (data.currentStage||'') + ' 第' + (data.currentHeat||'') + '组 出发表</h2>';
     var slRelay = isRelayEvent();
     var slH1 = slRelay ? '代表队' : '姓名';
     var slH2 = slRelay ? '姓名' : '代表队';
@@ -1632,7 +1640,7 @@ function showRankingPage(er, erRelay) {
     var erH1 = erRelay ? '代表队' : '姓名';
     var erH2 = erRelay ? '姓名' : '代表队';
 
-    var html = '<h2 style="margin-bottom:1.5vh;font-size:calc(3vh * var(--fs));">' + ((data.currentAgeGroup||'') ? (data.currentAgeGroup+' ') : '') + (data.currentGender||'') + '子 ' + (data.currentEvent||'') + ' ' + (data.currentStage||'') + ' 总排名</h2>';
+    var html = '<h2 style="margin-bottom:1.5vh;font-size:calc(3vh * var(--fs));">' + ((data.currentAgeGroup||'') ? (data.currentAgeGroup+' ') : '') + fmtGender(data.currentGender) + ' ' + (data.currentEvent||'') + ' ' + (data.currentStage||'') + ' 总排名</h2>';
     // 2026-06-01 总排名: 去掉"号码"栏, 加"备注"栏 (Q 晋级 + WR/CR/...破纪录, 用 ' \ ' 隔开)
     html += '<table class="list-table"><thead><tr><th>名次</th><th>' + erH1 + '</th><th>' + erH2 + '</th><th>成绩</th><th>备注</th></tr></thead><tbody>';
 
@@ -1682,7 +1690,7 @@ function renderRecords() {
 
 function renderAwards() {
     document.getElementById('awardView').classList.remove('hidden');
-    document.getElementById('awardTitle').textContent = ((data.currentAgeGroup||'') ? (data.currentAgeGroup+' ') : '') + (data.currentGender||'') + '子 ' + (data.currentEvent||'') + ' 颁奖典礼';
+    document.getElementById('awardTitle').textContent = ((data.currentAgeGroup||'') ? (data.currentAgeGroup+' ') : '') + fmtGender(data.currentGender) + ' ' + (data.currentEvent||'') + ' 颁奖典礼';
     var container = document.getElementById('awardContainer');
     container.innerHTML = '';
     var er = data.eventRanking || [];
