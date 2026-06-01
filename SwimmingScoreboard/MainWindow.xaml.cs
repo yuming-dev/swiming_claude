@@ -5186,6 +5186,33 @@ namespace SwimmingScoreboard
         // 仅本组最快成绩（含并列）的 LaneResult.RecordNote 保留；其它人 RecordNote 清空。
         // 用于"一组多人破纪录只显示第 1 名记录"的展示+持久化逻辑。
         // 对 DSQ/DNS/DNF：成绩无效，本就不参与"最快"判定（也不会有 RecordNote 留存）。
+        // 2026-06-01 DSQ/DNS/DNF 后, 老的本组第1名 RecordNote 已清空, 新晋第1名 (原#2/#3)
+        //   在之前作为非 leader 时被 EnforceOnlyLeader 也清掉了 RecordNote, 现在需要重比纪录库
+        //   把它的破/平纪录标识"补回来"; EnforceOnlyLeader 只做减法 (清非 leader), 不会做加法.
+        //   适用场景: 前 3 名都破纪录, #1 判罚 DSQ → WR 标识应自动转到 #2; #1 #2 都 DSQ → 转到 #3.
+        private void RecheckHeatRecordsForNewLeader() {
+            var heatSwimmers = GetCurrentHeatSwimmers();
+            double leaderTime = double.MaxValue;
+            foreach (var sw in heatSwimmers) {
+                if (sw.Status == "DSQ" || sw.Status == "DNS" || sw.Status == "DNF") continue;
+                var r = sw.Results.FirstOrDefault(lr => lr.Stage == _currentStage && lr.Heat == _currentHeat);
+                if (r == null || r.FinalTime <= 0) continue;
+                if (r.FinalTime < leaderTime) leaderTime = r.FinalTime;
+            }
+            if (leaderTime == double.MaxValue) return;
+            long leaderH = (long)Math.Round(leaderTime * 100.0, MidpointRounding.AwayFromZero);
+            // 给所有 leader (含并列) 重新比对; CheckRecords 末尾会触发 EnforceOnlyLeader, 非 leader 自然被清
+            foreach (var sw in heatSwimmers) {
+                if (sw.Status == "DSQ" || sw.Status == "DNS" || sw.Status == "DNF") continue;
+                var r = sw.Results.FirstOrDefault(lr => lr.Stage == _currentStage && lr.Heat == _currentHeat);
+                if (r == null || r.FinalTime <= 0) continue;
+                long curH = (long)Math.Round(r.FinalTime * 100.0, MidpointRounding.AwayFromZero);
+                if (curH == leaderH) {
+                    try { CheckRecords(sw, r); } catch { }
+                }
+            }
+        }
+
         private void EnforceOnlyLeaderRecordNote() {
             var swimmers = GetCurrentHeatSwimmers();
             double leaderTime = double.MaxValue;
@@ -7978,6 +8005,11 @@ namespace SwimmingScoreboard
                 if (laneState != null) laneState.IsFinished = true;
                 // 重新计算本组排名（被取消的运动员让出名次）
                 try { UpdateHeatRanking(); } catch { }
+                // 2026-06-01 DSQ/DNS/DNF 后, 给新晋 leader 重新比对纪录库, 让 WR/CR 等
+                //   标识自动转到新的本组第 1 名 (UpdateHeatRanking → EnforceOnlyLeader 只清不补)
+                if (status == "DSQ" || status == "DNS" || status == "DNF") {
+                    try { RecheckHeatRecordsForNewLeader(); } catch { }
+                }
                 UpdateLaneStatusDisplay();
                 AutoSaveData();
                 Broadcast();
