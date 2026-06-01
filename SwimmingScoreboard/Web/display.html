@@ -1336,12 +1336,13 @@ function renderStartList() {
     var slRelay = isRelayEvent();
     var slH1 = slRelay ? '代表队' : '姓名';
     var slH2 = slRelay ? '姓名' : '代表队';
-    html += '<table class="list-table"><thead><tr><th>道</th><th>号码</th><th>' + slH1 + '</th><th>' + slH2 + '</th></tr></thead><tbody>';
+    // 2026-06-01 出发表去掉"号码"栏
+    html += '<table class="list-table"><thead><tr><th>道</th><th>' + slH1 + '</th><th>' + slH2 + '</th></tr></thead><tbody>';
     var sw = data.swimmers || [];
     for (var i = 0; i < sw.length; i++) {
         var sc1 = slRelay ? (sw[i].country||'') : (sw[i].name||'');
         var sc2 = slRelay ? (sw[i].name||'') : (sw[i].country||'');
-        html += '<tr><td>' + sw[i].lane + '</td><td>' + (sw[i].bibNumber||'') + '</td><td>' + sc1 + '</td><td>' + sc2 + '</td></tr>';
+        html += '<tr><td>' + sw[i].lane + '</td><td>' + sc1 + '</td><td>' + sc2 + '</td></tr>';
     }
     html += '</tbody></table>';
     lv.innerHTML = html;
@@ -1548,13 +1549,32 @@ function renderEventRanking() {
     }
 }
 
+// 2026-06-01 总排名"备注"列拼装: 状态(DSQ/DNS/DNF 红) > 晋级 Q (绿) + 破纪录 WR/CR/... (金), 多个用 ' \ ' 隔开
+function buildEventRankingRemarkHtml(item) {
+    var status = (item && (item.resultStatus || item.status)) || '';
+    if (status === 'DSQ' || status === 'DNS' || status === 'DNF' || status === 'DQ') {
+        return '<span style="color:#ef4444;font-weight:bold;">' + status + '</span>';
+    }
+    var parts = [];
+    if (item && item.qualifiedToNext) parts.push('<span style="color:#22c55e;font-weight:bold;">Q</span>');
+    var rn = (item && item.recordNote) ? String(item.recordNote).trim() : '';
+    if (rn) {
+        var tags = rn.split(/[\/、,，\s]+/);
+        for (var j = 0; j < tags.length; j++) {
+            if (tags[j]) parts.push('<span style="color:#fbbf24;font-weight:bold;">' + tags[j] + '</span>');
+        }
+    }
+    return parts.length ? parts.join(' \\ ') : '';
+}
+
 function showRankingPage(er, erRelay) {
     var lv = document.getElementById('listView');
     var erH1 = erRelay ? '代表队' : '姓名';
     var erH2 = erRelay ? '姓名' : '代表队';
 
     var html = '<h2 style="margin-bottom:1.5vh;font-size:calc(3vh * var(--fs));">' + ((data.currentAgeGroup||'') ? (data.currentAgeGroup+' ') : '') + (data.currentGender||'') + '子 ' + (data.currentEvent||'') + ' ' + (data.currentStage||'') + ' 总排名</h2>';
-    html += '<table class="list-table"><thead><tr><th>名次</th><th>号码</th><th>' + erH1 + '</th><th>' + erH2 + '</th><th>成绩</th></tr></thead><tbody>';
+    // 2026-06-01 总排名: 去掉"号码"栏, 加"备注"栏 (Q 晋级 + WR/CR/...破纪录, 用 ' \ ' 隔开)
+    html += '<table class="list-table"><thead><tr><th>名次</th><th>' + erH1 + '</th><th>' + erH2 + '</th><th>成绩</th><th>备注</th></tr></thead><tbody>';
 
     var start = _rankingCurrentPage * _rankingRowsPerPage;
     var end = Math.min(start + _rankingRowsPerPage, er.length);
@@ -1563,7 +1583,8 @@ function showRankingPage(er, erRelay) {
         var erc2 = erRelay ? (er[i].name||'') : (er[i].country||'');
         var erkText = er[i].rank > 0 ? er[i].rank : '-';
         var erStatus = er[i].resultStatus || er[i].status || '';
-        html += '<tr><td>' + erkText + '</td><td>' + (er[i].bibNumber||'') + '</td><td>' + erc1 + '</td><td>' + erc2 + '</td><td>' + (er[i].finalTime || erStatus || '') + '</td></tr>';
+        var remarkHtml = buildEventRankingRemarkHtml(er[i]);
+        html += '<tr><td>' + erkText + '</td><td>' + erc1 + '</td><td>' + erc2 + '</td><td>' + (er[i].finalTime || erStatus || '') + '</td><td>' + remarkHtml + '</td></tr>';
     }
     html += '</tbody></table>';
 

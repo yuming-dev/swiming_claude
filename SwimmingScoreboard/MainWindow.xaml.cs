@@ -2440,7 +2440,10 @@ namespace SwimmingScoreboard
                     finalTime = r != null ? TimeFormatter.Format(r.FinalTime) : "",
                     timingSource = r != null ? r.TimingSource : "",
                     status = sw.Status ?? "",
-                    resultStatus = r != null ? (r.Status ?? "") : ""
+                    resultStatus = r != null ? (r.Status ?? "") : "",
+                    // 2026-06-01 总排名加备注: 晋级 Q + 破纪录 WR/CR/... (大屏 display.html 用)
+                    recordNote = r != null ? (r.RecordNote ?? "") : "",
+                    qualifiedToNext = IsQualifiedToNext(sw, _currentStage)
                 });
             }
 
@@ -2464,7 +2467,9 @@ namespace SwimmingScoreboard
                     finalTime = "",
                     timingSource = "",
                     status = remark,
-                    resultStatus = remark
+                    resultStatus = remark,
+                    recordNote = "",
+                    qualifiedToNext = false
                 });
             }
             return ranked;
