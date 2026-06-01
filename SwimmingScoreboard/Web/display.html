@@ -759,6 +759,11 @@ function connect() {
             data = msg.data || {};
             return;
         }
+        // 2026-06-01 修复: 服务器发给 EXE/HTML race_control 的通知类消息 (STAGE_COMPLETE /
+        //   PROMOTION_DONE / REGISTER_* 等) 不应进入 _scheduleRender — 否则会被当成视图模式
+        //   设到 currentMode, 走默认 renderRace() + data={} 路径, 大屏闪一下空比赛视图.
+        //   只放行 SHOW_* 视图切换消息; RUNNING_TIME_UPDATE 已在上面处理.
+        if (typeof msg.type !== 'string' || msg.type.indexOf('SHOW_') !== 0) return;
         // 其它消息走帧合并；modeExplicit 由 _scheduleRender 决定是否锁/解锁
         _scheduleRender(msg.type, msg.data, !!msg.modeExplicit);
     };
