@@ -1797,7 +1797,8 @@ namespace SwimmingScoreboard
         /// 3.45（秒<60）, 1:23.45（分>0）, 1:02:03.45（时>0）
         /// </summary>
         public static string Format(double seconds) {
-            if (seconds <= 0) return "";
+            //2026-05-31 改 <=0 → ==0, 让负值反应时 (= 接力抢跳) 显示"-X.XX" 而非空白
+            if (seconds == 0) return "";
             bool negative = seconds < 0;
             double abs = Math.Abs(seconds);
 

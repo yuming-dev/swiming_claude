@@ -9,6 +9,8 @@
 :root {
     --bg: #0f172a; --card: #1e293b; --text: #f8fafc; --dim: #94a3b8;
     --gold: #f59e0b; --accent: #3b82f6; --red: #ef4444; --green: #22c55e;
+    /* 2026-05-31 大屏字号缩放: localStorage('swimDisplayFs') 持久化; UI/快捷键 Ctrl+/- 调节 */
+    --fs: 1;
 }
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei', sans-serif; overflow: hidden; height: 100vh; }
@@ -18,19 +20,19 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
     padding: 0 3vw; position: relative;
     background: linear-gradient(135deg, #1e293b, #0f172a);
 }
-.page-header .title { font-size: 3.5vh; font-weight: bold; }
+.page-header .title { font-size: calc(3.5vh * var(--fs)); font-weight: bold; }
 .header-records { position: absolute; right: 3vw; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; align-items: flex-end; gap: 0.3vh; }
-.record-item { font-size: 2.6vh; font-family: 'Consolas', monospace; color: var(--dim); }
+.record-item { font-size: calc(2.6vh * var(--fs)); font-family: 'Consolas', monospace; color: var(--dim); }
 .rec-label { color: var(--gold); font-weight: bold; margin-right: 0.5vw; }
 
 /* 比赛视图 */
 .race-view { height: 89vh; padding: 1vh 2vw; display: flex; flex-direction: column; }
 .race-info { display: flex; justify-content: space-between; align-items: center; height: 6vh; margin-bottom: 0.5vh; border-bottom: 3px solid var(--accent); padding-bottom: 0.5vh; }
-.lanes-header { display: flex; align-items: center; padding: 0 1.5vw; height: 3.5vh; color: var(--dim); font-size: 2.9vh; }
+.lanes-header { display: flex; align-items: center; padding: 0 1.5vw; height: 3.5vh; color: var(--dim); font-size: calc(2.9vh * var(--fs)); }
 .race-info .event-left { display: flex; align-items: baseline; gap: 1.5vw; }
-.race-info .event-name { font-size: 2.8vh; font-weight: bold; }
-.race-info .stage-heat { font-size: 2.8vh; color: var(--dim); }
-.race-info .running-time { font-size: 4vh; font-weight: bold; color: var(--gold); font-family: 'Consolas', monospace; }
+.race-info .event-name { font-size: calc(2.8vh * var(--fs)); font-weight: bold; }
+.race-info .stage-heat { font-size: calc(2.8vh * var(--fs)); color: var(--dim); }
+.race-info .running-time { font-size: calc(4vh * var(--fs)); font-weight: bold; color: var(--gold); font-family: 'Consolas', monospace; }
 
 .lanes-container { flex: 1; display: flex; flex-direction: column; gap: 0.4vh; }
 .lane-row {
@@ -42,28 +44,28 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 .lane-row.dsq { border-left: 4px solid var(--red); }
 /* 2026-05-27 空道(本组无运动员): 半透明显示, 保留道次号让屏幕道数齐整 */
 .lane-row.empty { opacity: 0.28; }
-.lane-row .lane-num { width: 5vw; font-size: 2.5vh; font-weight: bold; color: var(--dim); text-align: center; margin-right: 1vw; }
-.lane-row .swimmer-name { width: 14vw; font-size: 2.9vh; font-weight: bold; white-space: nowrap; overflow: hidden; margin-right: 1.5vw; text-align: center; }
-.lane-row .swimmer-team { width: 12vw; font-size: 2.9vh; color: var(--dim); white-space: nowrap; overflow: hidden; margin-right: 1.5vw; text-align: center; }
-.lane-row .result-time { width: 14vw; font-size: 2.9vh; font-weight: bold; text-align: center; font-family: 'Consolas', monospace; margin-right: 1.5vw; }
-.lane-row .rank { width: 5vw; font-size: 2.9vh; font-weight: bold; text-align: center; margin-right: 1vw; }
+.lane-row .lane-num { width: 5vw; font-size: calc(2.5vh * var(--fs)); font-weight: bold; color: var(--dim); text-align: center; margin-right: 1vw; }
+.lane-row .swimmer-name { width: 14vw; font-size: calc(2.9vh * var(--fs)); font-weight: bold; white-space: nowrap; overflow: hidden; margin-right: 1.5vw; text-align: center; }
+.lane-row .swimmer-team { width: 12vw; font-size: calc(2.9vh * var(--fs)); color: var(--dim); white-space: nowrap; overflow: hidden; margin-right: 1.5vw; text-align: center; }
+.lane-row .result-time { width: 14vw; font-size: calc(2.9vh * var(--fs)); font-weight: bold; text-align: center; font-family: 'Consolas', monospace; margin-right: 1.5vw; }
+.lane-row .rank { width: 5vw; font-size: calc(2.9vh * var(--fs)); font-weight: bold; text-align: center; margin-right: 1vw; }
 .lane-row .rank.gold { color: var(--gold); }
 .lane-row .rank.silver { color: #c0c0c0; }
 .lane-row .rank.bronze { color: #cd7f32; }
-.lane-row .remark { width: 8vw; font-size: 2.9vh; color: var(--red); text-align: center; }
+.lane-row .remark { width: 8vw; font-size: calc(2.9vh * var(--fs)); color: var(--red); text-align: center; }
 
 /* 列表视图 */
 .list-container { height: 89vh; padding: 2vh 3vw; overflow: hidden; position: relative; }
-.page-indicator { position: absolute; bottom: 1vh; right: 3vw; font-size: 1.8vh; color: var(--dim); }
+.page-indicator { position: absolute; bottom: 1vh; right: 3vw; font-size: calc(1.8vh * var(--fs)); color: var(--dim); }
 .list-table { width: 100%; border-collapse: collapse; }
-.list-table th { background: var(--card); padding: 1.8vh 1.5vw; text-align: left; font-size: 3vh; border-bottom: 2px solid var(--accent); }
-.list-table td { padding: 1.5vh 1.5vw; font-size: 3vh; border-bottom: 1px solid #334155; }
+.list-table th { background: var(--card); padding: 1.8vh 1.5vw; text-align: left; font-size: calc(3vh * var(--fs)); border-bottom: 2px solid var(--accent); }
+.list-table td { padding: 1.5vh 1.5vw; font-size: calc(3vh * var(--fs)); border-bottom: 1px solid #334155; }
 .list-table tr:hover { background: rgba(59,130,246,0.1); }
 
 /* 欢迎画面 */
 .center-msg { height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-.hero-text { font-size: 6vh; font-weight: bold; margin-bottom: 2vh; }
-.sub-text { font-size: 3vh; color: var(--dim); }
+.hero-text { font-size: calc(6vh * var(--fs)); font-weight: bold; margin-bottom: 2vh; }
+.sub-text { font-size: calc(3vh * var(--fs)); color: var(--dim); }
 
 /* 颁奖 */
 .award-container { height: 89vh; display: flex; align-items: flex-end; justify-content: center; gap: 3vw; padding-bottom: 5vh; }
@@ -71,10 +73,10 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 .podium-card.gold { background: linear-gradient(180deg, #f59e0b22, #f59e0b11); border: 2px solid var(--gold); height: 55vh; animation-delay: 2.5s; }
 .podium-card.silver { background: linear-gradient(180deg, #c0c0c022, #c0c0c011); border: 2px solid #c0c0c0; height: 45vh; animation-delay: 1.2s; }
 .podium-card.bronze { background: linear-gradient(180deg, #cd7f3222, #cd7f3211); border: 2px solid #cd7f32; height: 40vh; animation-delay: 0.2s; }
-.podium-card .medal { font-size: 5vh; margin-bottom: 1vh; }
-.podium-card .name { font-size: 3vh; font-weight: bold; margin-bottom: 0.5vh; }
-.podium-card .team { font-size: 2vh; color: var(--dim); margin-bottom: 1vh; }
-.podium-card .time { font-size: 2.5vh; font-family: 'Consolas', monospace; }
+.podium-card .medal { font-size: calc(5vh * var(--fs)); margin-bottom: 1vh; }
+.podium-card .name { font-size: calc(3vh * var(--fs)); font-weight: bold; margin-bottom: 0.5vh; }
+.podium-card .team { font-size: calc(2vh * var(--fs)); color: var(--dim); margin-bottom: 1vh; }
+.podium-card .time { font-size: calc(2.5vh * var(--fs)); font-family: 'Consolas', monospace; }
 
 @keyframes reveal { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
@@ -130,6 +132,24 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 <button id="bgSettingsBtn" onclick="toggleBgSettings()" title="大屏底色设置"
         style="position:fixed;right:1.2vw;bottom:1.2vh;width:5.5vh;height:5.5vh;border-radius:50%;background:rgba(30,41,59,0.55);color:#94a3b8;border:1px solid rgba(148,163,184,0.35);font-size:2.6vh;cursor:pointer;z-index:9998;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);transition:opacity .2s;opacity:0.45;"
         onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.45'">⚙</button>
+
+<!-- 2026-05-31 大屏字号缩放: 字号按钮在齿轮按钮上方 (相同样式风格). LED 屏极宽极扁导致 vh 算出来字小, 这里允许 0.8x~3.0x 调节. 数据保存在 localStorage('swimDisplayFs'). -->
+<button id="fsSettingsBtn" onclick="toggleFsSettings()" title="大屏字号 (Ctrl + / Ctrl -)"
+        style="position:fixed;right:1.2vw;bottom:7.6vh;width:5.5vh;height:5.5vh;border-radius:50%;background:rgba(30,41,59,0.55);color:#94a3b8;border:1px solid rgba(148,163,184,0.35);font-size:2.4vh;cursor:pointer;z-index:9998;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);transition:opacity .2s;opacity:0.45;font-family:'Microsoft YaHei',sans-serif;font-weight:bold;"
+        onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.45'">字</button>
+<div id="fsSettingsPanel" class="hidden" style="position:fixed;right:1.2vw;bottom:14.4vh;width:36vh;background:#1e293b;color:#f8fafc;border-radius:10px;padding:2vh 2.2vh;box-shadow:0 8px 36px rgba(0,0,0,.55);z-index:9998;font-family:'Microsoft YaHei',sans-serif;font-size:1.7vh;border:1px solid #334155;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.2vh;">
+        <div style="font-size:2vh;font-weight:bold;color:#3b82f6;">🔤 大屏字号</div>
+        <button onclick="toggleFsSettings()" style="background:none;border:none;color:#94a3b8;font-size:2.4vh;cursor:pointer;padding:0 0.6vh;">×</button>
+    </div>
+    <div style="display:flex;align-items:center;gap:1.2vh;margin-bottom:1.4vh;">
+        <button onclick="bumpFontScale(-0.1)" style="flex:0 0 5.5vh;height:5.5vh;background:#475569;color:#f8fafc;border:none;border-radius:6px;font-size:2.8vh;font-weight:bold;cursor:pointer;">−</button>
+        <div id="fsScaleLabel" style="flex:1;text-align:center;font-size:3vh;font-weight:bold;color:#f59e0b;font-family:Consolas,monospace;">1.0x</div>
+        <button onclick="bumpFontScale(0.1)" style="flex:0 0 5.5vh;height:5.5vh;background:#475569;color:#f8fafc;border:none;border-radius:6px;font-size:2.8vh;font-weight:bold;cursor:pointer;">+</button>
+    </div>
+    <button onclick="setFontScale(1.0)" style="width:100%;padding:0.8vh;background:#475569;color:#f8fafc;border:none;border-radius:4px;cursor:pointer;font-size:1.6vh;margin-bottom:0.6vh;">恢复 1.0x</button>
+    <div style="font-size:1.4vh;color:#94a3b8;text-align:center;line-height:1.5;">快捷键: <b style="color:#cbd5e1;">Ctrl +</b> / <b style="color:#cbd5e1;">Ctrl −</b> / <b style="color:#cbd5e1;">Ctrl 0</b><br>范围 0.8x ~ 3.0x</div>
+</div>
 <div id="bgSettingsPanel" class="hidden" style="position:fixed;right:1.2vw;bottom:8vh;width:46vh;max-height:82vh;overflow-y:auto;background:#1e293b;color:#f8fafc;border-radius:10px;padding:2vh 2.2vh;box-shadow:0 8px 36px rgba(0,0,0,.55);z-index:9998;font-family:'Microsoft YaHei',sans-serif;font-size:1.7vh;border:1px solid #334155;">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.2vh;">
         <div style="font-size:2vh;font-weight:bold;color:#3b82f6;">🎨 大屏底色</div>
@@ -416,6 +436,49 @@ function toggleBgSettings() {
         }
     } catch(e) {}
 })();
+
+// 2026-05-31 大屏字号缩放: 写入 --fs CSS 变量, 0.8x ~ 3.0x, 持久化 localStorage('swimDisplayFs').
+var FS_MIN = 0.8, FS_MAX = 3.0, FS_STEP = 0.1;
+function _clampFs(v) { v = Math.round(v * 10) / 10; return Math.max(FS_MIN, Math.min(FS_MAX, v)); }
+function getFontScale() {
+    try {
+        var v = parseFloat(localStorage.getItem('swimDisplayFs') || '1');
+        if (isNaN(v) || v <= 0) v = 1;
+        return _clampFs(v);
+    } catch(e) { return 1; }
+}
+function setFontScale(v) {
+    v = _clampFs(v);
+    try { localStorage.setItem('swimDisplayFs', String(v)); } catch(e) {}
+    document.documentElement.style.setProperty('--fs', v);
+    var lab = document.getElementById('fsScaleLabel');
+    if (lab) lab.textContent = v.toFixed(1) + 'x';
+}
+function bumpFontScale(delta) { setFontScale(getFontScale() + delta); }
+function toggleFsSettings() {
+    var panel = document.getElementById('fsSettingsPanel');
+    if (!panel) return;
+    if (panel.classList.contains('hidden')) {
+        var lab = document.getElementById('fsScaleLabel');
+        if (lab) lab.textContent = getFontScale().toFixed(1) + 'x';
+        panel.classList.remove('hidden');
+    } else {
+        panel.classList.add('hidden');
+    }
+}
+// 启动时应用上次保存的字号
+(function() { setFontScale(getFontScale()); })();
+// 快捷键: Ctrl + / Ctrl - / Ctrl 0 (浏览器原生缩放被覆盖)
+document.addEventListener('keydown', function(e) {
+    if (!e.ctrlKey) return;
+    if (e.key === '+' || e.key === '=' || e.code === 'NumpadAdd') {
+        e.preventDefault(); bumpFontScale(FS_STEP);
+    } else if (e.key === '-' || e.code === 'NumpadSubtract') {
+        e.preventDefault(); bumpFontScale(-FS_STEP);
+    } else if (e.key === '0' || e.code === 'Numpad0') {
+        e.preventDefault(); setFontScale(1.0);
+    }
+});
 
 // 兼容旧版：如果某些场景仍以 prompt() 方式询问 IP（如 URL 直连后又断开等），这里仍可调用
 function getServerHost(forceAsk) {
@@ -861,7 +924,7 @@ function _activeSwimmersForDisplay() {
 // DOM 构建：仅在 buildKey 变化时执行（运动员名单/泳道布局/接力切换/泳道数）
 function _ensureRaceRowsDom() {
     var lc = getLaneCount();
-    var fs = lc <= 8 ? '3.5vh' : '2.9vh';
+    var fs = lc <= 8 ? 'calc(3.5vh * var(--fs))' : 'calc(2.9vh * var(--fs))';
     var relay = isRelayEvent();
     var swimmers = _activeSwimmersForDisplay();
     var keyParts = [data.currentEvent||'', data.currentHeat||0, lc, relay?1:0, swimmers.length];
@@ -1058,7 +1121,7 @@ function _refreshRaceRows() {
 function renderStartList() {
     document.getElementById('listView').classList.remove('hidden');
     var lv = document.getElementById('listView');
-    var html = '<h2 style="margin-bottom:2vh;font-size:3vh;">' + ((data.currentAgeGroup||'') ? (data.currentAgeGroup+' ') : '') + (data.currentGender||'') + '子 ' + (data.currentEvent||'') + ' ' + (data.currentStage||'') + ' 第' + (data.currentHeat||'') + '组 出发表</h2>';
+    var html = '<h2 style="margin-bottom:2vh;font-size:calc(3vh * var(--fs));">' + ((data.currentAgeGroup||'') ? (data.currentAgeGroup+' ') : '') + (data.currentGender||'') + '子 ' + (data.currentEvent||'') + ' ' + (data.currentStage||'') + ' 第' + (data.currentHeat||'') + '组 出发表</h2>';
     var slRelay = isRelayEvent();
     var slH1 = slRelay ? '代表队' : '姓名';
     var slH2 = slRelay ? '姓名' : '代表队';
@@ -1189,12 +1252,12 @@ function renderPublishedResult(pubData) {
     var header = document.querySelector('.lanes-header');
     if (header) {
         header.innerHTML =
-            '<div style="width:5vw;text-align:center;margin-right:1vw;font-size:' + fontSize + 'vh;">名次</div>' +
-            '<div style="width:' + pc1Width + ';text-align:center;margin-right:1.5vw;font-size:' + fontSize + 'vh;">' + ph1 + '</div>' +
-            '<div style="width:' + pc2Width + ';text-align:center;margin-right:1.5vw;font-size:' + fontSize + 'vh;">' + ph2 + '</div>' +
-            '<div style="width:5vw;text-align:center;margin-right:1vw;font-size:' + fontSize + 'vh;">道次</div>' +
-            '<div style="width:14vw;text-align:center;margin-right:1.5vw;font-size:' + fontSize + 'vh;">成绩</div>' +
-            '<div style="width:8vw;text-align:center;font-size:' + fontSize + 'vh;">备注</div>';
+            '<div style="width:5vw;text-align:center;margin-right:1vw;font-size:calc(' + fontSize + 'vh * var(--fs));">名次</div>' +
+            '<div style="width:' + pc1Width + ';text-align:center;margin-right:1.5vw;font-size:calc(' + fontSize + 'vh * var(--fs));">' + ph1 + '</div>' +
+            '<div style="width:' + pc2Width + ';text-align:center;margin-right:1.5vw;font-size:calc(' + fontSize + 'vh * var(--fs));">' + ph2 + '</div>' +
+            '<div style="width:5vw;text-align:center;margin-right:1vw;font-size:calc(' + fontSize + 'vh * var(--fs));">道次</div>' +
+            '<div style="width:14vw;text-align:center;margin-right:1.5vw;font-size:calc(' + fontSize + 'vh * var(--fs));">成绩</div>' +
+            '<div style="width:8vw;text-align:center;font-size:calc(' + fontSize + 'vh * var(--fs));">备注</div>';
     }
 
     // 同样过滤掉空泳道占位条目
@@ -1223,13 +1286,13 @@ function renderPublishedResult(pubData) {
 
         var pc1 = pubRelay ? (s.country||'') : (s.name||'');
         var pc2 = pubRelay ? (s.name||'') : (s.country||'');
-        var pubRemarkStyle = ' style="font-size:' + fontSize + 'vh;' + (remarkColor ? ('color:' + remarkColor + ';') : '') + '"';
+        var pubRemarkStyle = ' style="font-size:calc(' + fontSize + 'vh * var(--fs));' + (remarkColor ? ('color:' + remarkColor + ';') : '') + '"';
         row.innerHTML =
-            '<div class="rank ' + rankClass + '" style="font-size:' + rankSize + 'vh;">' + rankText + '</div>' +
-            '<div class="swimmer-name" style="width:' + pc1Width + ';font-size:' + fontSize + 'vh;">' + pc1 + '</div>' +
-            '<div class="swimmer-team" style="width:' + pc2Width + ';font-size:' + fontSize + 'vh;' + pc2WrapStyle + '">' + pc2 + '</div>' +
-            '<div class="lane-num" style="font-size:' + laneNumSize + 'vh;">' + s.lane + '</div>' +
-            '<div class="result-time" style="font-size:' + fontSize + 'vh;">' + pubResultText + '</div>' +
+            '<div class="rank ' + rankClass + '" style="font-size:calc(' + rankSize + 'vh * var(--fs));">' + rankText + '</div>' +
+            '<div class="swimmer-name" style="width:' + pc1Width + ';font-size:calc(' + fontSize + 'vh * var(--fs));">' + pc1 + '</div>' +
+            '<div class="swimmer-team" style="width:' + pc2Width + ';font-size:calc(' + fontSize + 'vh * var(--fs));' + pc2WrapStyle + '">' + pc2 + '</div>' +
+            '<div class="lane-num" style="font-size:calc(' + laneNumSize + 'vh * var(--fs));">' + s.lane + '</div>' +
+            '<div class="result-time" style="font-size:calc(' + fontSize + 'vh * var(--fs));">' + pubResultText + '</div>' +
             '<div class="remark"' + pubRemarkStyle + '>' + remarkText + '</div>';
         container.appendChild(row);
     }
@@ -1279,7 +1342,7 @@ function showRankingPage(er, erRelay) {
     var erH1 = erRelay ? '代表队' : '姓名';
     var erH2 = erRelay ? '姓名' : '代表队';
 
-    var html = '<h2 style="margin-bottom:1.5vh;font-size:3vh;">' + ((data.currentAgeGroup||'') ? (data.currentAgeGroup+' ') : '') + (data.currentGender||'') + '子 ' + (data.currentEvent||'') + ' ' + (data.currentStage||'') + ' 总排名</h2>';
+    var html = '<h2 style="margin-bottom:1.5vh;font-size:calc(3vh * var(--fs));">' + ((data.currentAgeGroup||'') ? (data.currentAgeGroup+' ') : '') + (data.currentGender||'') + '子 ' + (data.currentEvent||'') + ' ' + (data.currentStage||'') + ' 总排名</h2>';
     html += '<table class="list-table"><thead><tr><th>名次</th><th>号码</th><th>' + erH1 + '</th><th>' + erH2 + '</th><th>成绩</th></tr></thead><tbody>';
 
     var start = _rankingCurrentPage * _rankingRowsPerPage;
@@ -1302,7 +1365,7 @@ function showRankingPage(er, erRelay) {
 function renderTeamStandings() {
     document.getElementById('listView').classList.remove('hidden');
     var lv = document.getElementById('listView');
-    var html = '<h2 style="margin-bottom:2vh;font-size:3vh;">团体积分排名</h2>';
+    var html = '<h2 style="margin-bottom:2vh;font-size:calc(3vh * var(--fs));">团体积分排名</h2>';
     html += '<table class="list-table"><thead><tr><th>名次</th><th>代表队</th><th>总分</th><th>金</th><th>银</th><th>铜</th></tr></thead><tbody>';
     var ts = data.teamScores || [];
     for (var i = 0; i < ts.length; i++) {
@@ -1315,7 +1378,7 @@ function renderTeamStandings() {
 function renderRecords() {
     document.getElementById('listView').classList.remove('hidden');
     var lv = document.getElementById('listView');
-    var html = '<h2 style="margin-bottom:2vh;font-size:3vh;">纪录榜</h2>';
+    var html = '<h2 style="margin-bottom:2vh;font-size:calc(3vh * var(--fs));">纪录榜</h2>';
     html += '<table class="list-table"><thead><tr><th>项目</th><th>类型</th><th>保持者</th><th>代表队</th><th>成绩</th><th>日期</th></tr></thead><tbody>';
     var rs = data.records || [];
     for (var i = 0; i < rs.length; i++) {
