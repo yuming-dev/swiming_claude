@@ -7209,13 +7209,23 @@ namespace SwimmingScoreboard
                 if (c != 0) return c;
                 return a.Item3.CompareTo(b.Item3);               // 累计时间升序
             });
-            // 并列名次（competition ranking 1-2-2-4）：仅对已完赛运动员按相同 FinalTime 并列
+            // 并列名次（competition ranking 1-2-2-4 标准）:
+            //   已完赛 vs 已完赛: FinalTime 相同则并列
+            //   未完赛 vs 未完赛: 同样分段数且累计时间相同则并列 (2026-06-01 新增, 之前只判完赛)
+            //   一完一未完: 永不并列
             int rank = 1;
             for (int i = 0; i < rankables.Count; i++) {
                 if (i > 0) {
                     var prev = rankables[i - 1];
                     var cur = rankables[i];
-                    bool tieEligible = prev.Item4 && cur.Item4 && IsTieTime(prev.Item3, cur.Item3);
+                    bool tieEligible;
+                    if (prev.Item4 && cur.Item4) {
+                        tieEligible = IsTieTime(prev.Item3, cur.Item3);
+                    } else if (!prev.Item4 && !cur.Item4) {
+                        tieEligible = (prev.Item2 == cur.Item2) && IsTieTime(prev.Item3, cur.Item3);
+                    } else {
+                        tieEligible = false;
+                    }
                     if (!tieEligible) rank = i + 1;
                 }
                 liveRanks[rankables[i].Item1] = rank;
