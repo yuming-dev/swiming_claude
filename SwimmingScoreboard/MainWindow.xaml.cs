@@ -3327,8 +3327,8 @@ namespace SwimmingScoreboard
                 return;
             }
 
-            // 记录原始数据
-            LogRawTimingData(lane, cmdType, timeInSeconds);
+            // 记录原始数据 (2026-05-31: 硬件用盲表代替触板成绩 → log 标 "TouchpadMb" → 比赛日志显示"触代")
+            LogRawTimingData(lane, (cmdType == "Touchpad" && isMbSubstitute) ? "TouchpadMb" : cmdType, timeInSeconds);
 
             var laneState = _laneDeviceStates.FirstOrDefault(s => s.Lane == lane);
             if (laneState == null) return;
@@ -3564,6 +3564,7 @@ namespace SwimmingScoreboard
             switch (cmdType) {
                 case "StartingBlock":     label = "出";   break;
                 case "Touchpad":          label = "触";   break;
+                case "TouchpadMb":        label = "触代"; break;   //2026-05-31 硬件用盲表成绩代替触板 (cmd=0x16 D3=Pushbutton_Result)
                 case "PushButton1":       label = "盲1";  break;
                 case "PushButton2":       label = "盲2";  break;
                 case "PushButton3":       label = "盲3";  break;
