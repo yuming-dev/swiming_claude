@@ -163,10 +163,20 @@ namespace SwimmingScoreboard
 
             int laneCount = _poolConfig.LaneCount > 0 ? _poolConfig.LaneCount : 8;
 
-            // 三维遍历 组别 × 性别 × 项目（全部组合都出一行，0 报名也显示）
-            var ageGroupNames = _ageGroups.Count > 0
-                ? _ageGroups.Select(g => g.Name).ToList()
-                : new List<string> { "" };
+            // 三维遍历 组别 × 性别 × 项目
+            // 2026-06-02 组别集合 = _ageGroups 配置 ∪ _swimmers 实际报名的 AgeCategory
+            //   修复: test_bot 选了"青少年"等 _ageGroups 没列的组别时, 整张表会因 count=0 跳过.
+            //   把已报名运动员的 AgeCategory 也并入, 让 100/200/800/接力 不再因组别不匹配漏出.
+            var ageGroupNames = new List<string>();
+            if (_ageGroups.Count > 0) ageGroupNames.AddRange(_ageGroups.Select(g => g.Name));
+            var swimmerAges = _swimmers
+                .Where(s => (s.Notes == null || !s.Notes.StartsWith("接力队员")))
+                .Select(s => s.AgeCategory ?? "")
+                .Distinct();
+            foreach (var ag in swimmerAges) {
+                if (!ageGroupNames.Contains(ag)) ageGroupNames.Add(ag);
+            }
+            if (ageGroupNames.Count == 0) ageGroupNames.Add("");
 
             foreach (var ag in ageGroupNames) {
                 foreach (var gender in _genders) {

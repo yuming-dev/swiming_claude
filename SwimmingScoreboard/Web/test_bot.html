@@ -55,33 +55,12 @@ label { color: #94a3b8; font-size: 12px; }
     <div class="row">
         <label>数量:</label><input id="regCount" type="number" value="16" style="width:60px">
         <label>项目:</label>
-        <select id="regEvent">
-            <option>50米自由泳</option><option>100米自由泳</option><option>200米自由泳</option>
-            <option>400米自由泳</option><option>800米自由泳</option><option>1500米自由泳</option>
-            <option>50米仰泳</option><option>100米仰泳</option><option>200米仰泳</option>
-            <option>50米蛙泳</option><option>100米蛙泳</option><option>200米蛙泳</option>
-            <option>50米蝶泳</option><option>100米蝶泳</option><option>200米蝶泳</option>
-            <option>200米个人混合泳</option><option>400米个人混合泳</option>
-            <option>4x100米自由泳接力</option><option>4x200米自由泳接力</option><option>4x100米混合泳接力</option>
-        </select>
+        <!-- 2026-06-02 项目/性别/组别 下拉全部改为动态从服务器 data.eventList/data.genderList/data.ageGroups 拉取, 杜绝与现场比赛档案不匹配的报错 -->
+        <select id="regEvent" title="自动从当前比赛档案的项目列表拉取"></select>
         <label>性别:</label>
-        <select id="regGender"><option>男</option><option>女</option><option>混合</option></select>
+        <select id="regGender" title="自动从当前比赛档案的性别列表拉取"></select>
         <label>组别:</label>
-        <select id="regAgeGroup" title="直接发送到服务器作为 ageGroup 字段（覆盖按年龄自动推断）">
-            <option value="">不指定</option>
-            <option value="甲组">甲组</option>
-            <option value="乙组">乙组</option>
-            <option value="丙组">丙组</option>
-            <option value="丁组">丁组</option>
-            <option value="戊组">戊组</option>
-            <option value="己组">己组</option>
-            <option value="青少年">青少年</option>
-            <option value="少年">少年</option>
-            <option value="青年">青年</option>
-            <option value="成年">成年</option>
-            <option value="大师">大师</option>
-            <option value="老年">老年</option>
-        </select>
+        <select id="regAgeGroup" title="自动从当前比赛档案的组别列表拉取 (与 _ageGroups 严格一致, 避免下游 Tab 漏出)"></select>
     </div>
     <div class="row">
         <label>代表队:</label>
@@ -97,13 +76,10 @@ label { color: #94a3b8; font-size: 12px; }
         <button class="btn-purple" onclick="autoGenerateHeats()">自动生成分组</button>
     </div>
     <div class="row">
-        <button class="btn-gold" onclick="batchRegisterMixedGroups()" title="生成 N 人 × 选中的多个组别（甲/乙/丙等），每组各 N 人，便于演示多组别赛程">多组别一键样本（甲/乙/丙各 N 人）</button>
-        <label style="margin-left:8px;font-size:11px;color:#64748B">勾选要批量注册的组别：</label>
-        <label><input type="checkbox" id="mgGroupA" checked> 甲组</label>
-        <label><input type="checkbox" id="mgGroupB" checked> 乙组</label>
-        <label><input type="checkbox" id="mgGroupC"> 丙组</label>
-        <label><input type="checkbox" id="mgGroupD"> 丁组</label>
-        <label><input type="checkbox" id="mgGroupE"> 戊组</label>
+        <button class="btn-gold" onclick="batchRegisterMixedGroups()" title="生成 N 人 × 选中的多个组别 (与当前比赛档案的组别一致), 每组各 N 人">多组别一键样本（各组各 N 人）</button>
+        <label style="margin-left:8px;font-size:11px;color:#64748B">勾选要批量注册的组别 (动态拉取):</label>
+        <!-- 2026-06-02 多组别 checkbox 改为动态生成, 来自 data.ageGroups -->
+        <span id="mgGroupBoxes"></span>
     </div>
 </div>
 
@@ -141,27 +117,11 @@ label { color: #94a3b8; font-size: 12px; }
     <div class="row">
         <label>队伍数:</label><input id="relayTeamCount" type="number" value="8" style="width:60px">
         <label>项目:</label>
-        <select id="relayEvent" onchange="updateRelayButtons()">
-            <option>4x100米自由泳接力</option><option>4x200米自由泳接力</option><option>4x100米混合泳接力</option>
-        </select>
+        <select id="relayEvent" onchange="updateRelayButtons()" title="自动只显示含'接力'的项目"></select>
         <label>性别:</label>
-        <select id="relayGender"><option>男</option><option>女</option><option>混合</option></select>
+        <select id="relayGender" title="自动从当前比赛档案的性别列表拉取"></select>
         <label>组别:</label>
-        <select id="relayAgeGroup" title="作为 ageGroup 字段一同发送给服务器">
-            <option value="">不指定</option>
-            <option value="甲组">甲组</option>
-            <option value="乙组">乙组</option>
-            <option value="丙组">丙组</option>
-            <option value="丁组">丁组</option>
-            <option value="戊组">戊组</option>
-            <option value="己组">己组</option>
-            <option value="青少年">青少年</option>
-            <option value="少年">少年</option>
-            <option value="青年">青年</option>
-            <option value="成年">成年</option>
-            <option value="大师">大师</option>
-            <option value="老年">老年</option>
-        </select>
+        <select id="relayAgeGroup" title="自动从当前比赛档案的组别列表拉取"></select>
         <input id="relayCountryShort" placeholder="单位简称（可选）" style="width:160px">
         <button class="btn-blue" onclick="batchRegisterRelay()">注册接力队</button>
     </div>
@@ -279,8 +239,89 @@ function connect() {
             var msg = JSON.parse(e.data);
             if (msg.data) data = msg.data;
             updateStatusBar();
+            // 2026-06-02 收到任意服务器广播 → 同步动态填充下拉 (eventList/genderList/ageGroups)
+            //   _lastDropdownSig 防止每条 100ms 帧都重画 (除非内容变化)
+            try { syncBotDropdowns(); } catch(ex2) {}
         } catch(ex) {}
     };
+}
+
+// ═══════ 2026-06-02 动态拉取当前比赛档案的项目/性别/组别 ═══════
+var _lastDropdownSig = '';
+function syncBotDropdowns() {
+    if (!data) return;
+    var events = (data.eventList && data.eventList.length > 0) ? data.eventList : [];
+    var genders = (data.genderList && data.genderList.length > 0) ? data.genderList : ['男','女','混合'];
+    var ages = (data.ageGroups && data.ageGroups.length > 0) ? data.ageGroups : [];
+    var sig = JSON.stringify({e: events, g: genders, a: ages});
+    if (sig === _lastDropdownSig) return;   // 内容没变就跳过
+    _lastDropdownSig = sig;
+
+    // 个人项目下拉 (排除接力)
+    var indEvents = [];
+    var relayEvents = [];
+    for (var i = 0; i < events.length; i++) {
+        if (events[i].indexOf('接力') >= 0) relayEvents.push(events[i]);
+        else indEvents.push(events[i]);
+    }
+    _fillSelect('regEvent', indEvents);
+    _fillSelect('regGender', genders);
+    _fillSelect('regAgeGroup', ['(不指定)'].concat(ages), '不指定 = 空字符串, 不传 ageGroup');
+    _fillSelect('relayEvent', relayEvents.length > 0 ? relayEvents : ['(无接力项目)']);
+    _fillSelect('relayGender', genders);
+    _fillSelect('relayAgeGroup', ['(不指定)'].concat(ages));
+
+    // 多组别 checkbox 动态生成 (与 ageGroups 完全一致)
+    var box = document.getElementById('mgGroupBoxes');
+    if (box) {
+        // 先记住之前的勾选状态
+        var prev = {};
+        var existing = box.querySelectorAll('input[type=checkbox]');
+        for (var j = 0; j < existing.length; j++) prev[existing[j].value] = existing[j].checked;
+        box.innerHTML = '';
+        if (ages.length === 0) {
+            box.innerHTML = '<span style="color:#94a3b8;font-size:11px;">(当前比赛未配置组别)</span>';
+        } else {
+            for (var k = 0; k < ages.length; k++) {
+                var ag = ages[k];
+                var lab = document.createElement('label');
+                lab.style.marginRight = '6px';
+                var chk = document.createElement('input');
+                chk.type = 'checkbox';
+                chk.className = 'mg-group-chk';
+                chk.value = ag;
+                // 之前勾过的保持; 默认头 2 个勾选
+                chk.checked = (prev[ag] !== undefined) ? prev[ag] : (k < 2);
+                lab.appendChild(chk);
+                lab.appendChild(document.createTextNode(' ' + ag));
+                box.appendChild(lab);
+            }
+        }
+    }
+
+    if (typeof updateRelayButtons === 'function') {
+        try { updateRelayButtons(); } catch(e) {}
+    }
+}
+
+function _fillSelect(id, options, title) {
+    var sel = document.getElementById(id);
+    if (!sel) return;
+    var prev = sel.value;
+    sel.innerHTML = '';
+    for (var i = 0; i < options.length; i++) {
+        var op = document.createElement('option');
+        op.value = (options[i] === '(不指定)' || options[i] === '(无接力项目)') ? '' : options[i];
+        op.textContent = options[i];
+        sel.appendChild(op);
+    }
+    // 尝试还原之前选择
+    var matched = false;
+    for (var j = 0; j < sel.options.length; j++) {
+        if (sel.options[j].value === prev) { sel.selectedIndex = j; matched = true; break; }
+    }
+    if (!matched && sel.options.length > 0) sel.selectedIndex = 0;
+    if (title) sel.title = title;
 }
 
 function updateStatusBar() {
@@ -376,8 +417,20 @@ function randomBirthDate() {
 function randomPhone() { return '138' + Math.floor(Math.random() * 100000000).toString().padStart(8, '0'); }
 function randomID() { return '110101' + (1990 + Math.floor(Math.random()*15)) + (1+Math.floor(Math.random()*12)).toString().padStart(2,'0') + (1+Math.floor(Math.random()*28)).toString().padStart(2,'0') + Math.floor(Math.random()*10000).toString().padStart(4,'0'); }
 
-// 根据组别返回 [minAge, maxAge]；为空或未识别则回退默认 18-29
+// 根据组别返回 [minAge, maxAge]
+// 2026-06-02 优先用服务器 data.ageGroupsDetail (含 minAge/maxAge), 回退到硬编码常见命名, 再回退默认 18-29
 function ageRangeFor(ageGroup) {
+    // 服务器配置优先
+    if (data && data.ageGroupsDetail && data.ageGroupsDetail.length > 0 && ageGroup) {
+        for (var i = 0; i < data.ageGroupsDetail.length; i++) {
+            var ag = data.ageGroupsDetail[i];
+            if (ag.name === ageGroup) {
+                var min = parseInt(ag.minAge), max = parseInt(ag.maxAge);
+                if (!isNaN(min) && !isNaN(max) && max >= min && max > 0) return [min, max];
+            }
+        }
+    }
+    // 硬编码后备
     switch (ageGroup) {
         case '青少年': return [12, 13];
         case '少年':   return [14, 17];
@@ -521,19 +574,13 @@ function batchRegisterMixedGroups() {
     var countryShort = (document.getElementById('regCountryShort').value || '').trim();
     var notes = (document.getElementById('regNotes').value || '').trim();
 
-    var checks = [
-        { id: 'mgGroupA', name: '甲组' },
-        { id: 'mgGroupB', name: '乙组' },
-        { id: 'mgGroupC', name: '丙组' },
-        { id: 'mgGroupD', name: '丁组' },
-        { id: 'mgGroupE', name: '戊组' }
-    ];
+    // 2026-06-02 多组别 checkbox 改为从动态生成的 .mg-group-chk 元素读取 (与 data.ageGroups 一致)
     var picked = [];
-    for (var k = 0; k < checks.length; k++) {
-        var box = document.getElementById(checks[k].id);
-        if (box && box.checked) picked.push(checks[k].name);
+    var chks = document.querySelectorAll('#mgGroupBoxes .mg-group-chk');
+    for (var k = 0; k < chks.length; k++) {
+        if (chks[k].checked && chks[k].value) picked.push(chks[k].value);
     }
-    if (picked.length === 0) { log('请至少勾选一个组别'); return; }
+    if (picked.length === 0) { log('请至少勾选一个组别 (当前比赛档案的组别会自动列在上方; 没勾就不批量)'); return; }
 
     var isRelay = ev.indexOf('接力') >= 0;
     var distMatch = ev.match(/(\d+)/);
