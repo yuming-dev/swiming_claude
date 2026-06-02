@@ -43,3 +43,10 @@ HwLapRemainingTest/*.obj
 HwLapRemainingTest/*.exe
 HwLapRemainingTest/build_out.txt
 LapAdjust_TestReport.csv
+
+# 2026-06-02 VS IDE 缓存目录 (含 .suo / FileContentIndex 等) 不入库
+.vs/
+
+# 2026-06-02 比赛档案包: 含选手 PII (姓名/出生日期/单位等), 离线分发 - 任何 比赛档案包 命名的目录 / zip 都不入库
+*比赛档案包*/
+*比赛档案包*.zip
