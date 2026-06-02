@@ -25,12 +25,14 @@ namespace SwimmingScoreboard
         public string SelectedGender { get; private set; }
         public string SelectedEvent { get; private set; }
         public string SelectedStage { get; private set; }
+        public string SelectedAgeGroup { get; private set; }
         public int SelectedHeat { get; private set; }
 
         public EventResultPrintWindow(ObservableCollection<Swimmer> swimmers,
             ObservableCollection<ScheduleItem> schedule,
             string competitionName, string location,
-            string referee, string chiefJudge, string starter)
+            string referee, string chiefJudge, string starter,
+            IList<AgeGroup> ageGroups = null)
         {
             InitializeComponent();
             _swimmers = swimmers;
@@ -40,28 +42,67 @@ namespace SwimmingScoreboard
             _referee = referee;
             _chiefJudge = chiefJudge;
             _starter = starter;
+            PopulateAgeGroupCombo(ageGroups);
             PopulateEventCombo();
             _initialized = true;
             UpdateHeatCombo();
         }
 
+        // 2026-06-01 加 AgeGroup 下拉, 解决决赛-only 比赛多年龄组共用 EventName 时按 Heat 误叠的 bug
+        private void PopulateAgeGroupCombo(IList<AgeGroup> ageGroups) {
+            AgeGroupCombo.Items.Add("全部");
+            // 优先用配置的 AgeGroups; 否则从 _swimmers.AgeCategory 自动收集
+            var names = new List<string>();
+            if (ageGroups != null && ageGroups.Count > 0) {
+                foreach (var ag in ageGroups) {
+                    if (!string.IsNullOrEmpty(ag.Name)) names.Add(ag.Name);
+                }
+            } else {
+                var set = new HashSet<string>();
+                foreach (var s in _swimmers) {
+                    if (!string.IsNullOrEmpty(s.AgeCategory)) set.Add(s.AgeCategory);
+                }
+                names.AddRange(set.OrderBy(x => x));
+            }
+            foreach (var n in names) AgeGroupCombo.Items.Add(n);
+            AgeGroupCombo.SelectedIndex = 0;
+        }
+
+        // 组别匹配: 空/"全部"/"不限" = 全选; 否则严格相等
+        private static bool MatchesAge(string swimmerAge, string filterAge) {
+            if (string.IsNullOrEmpty(filterAge) || filterAge == "全部" || filterAge == "不限") return true;
+            return (swimmerAge ?? "") == filterAge;
+        }
+
         private void PopulateEventCombo()
         {
+            // 2026-06-01 按当前组别+性别过滤可选项目
+            string ageFilter = AgeGroupCombo != null && AgeGroupCombo.SelectedItem != null ? AgeGroupCombo.SelectedItem.ToString() : "全部";
+            string gender = GetComboText(GenderCombo);
+            string prev = EventCombo.SelectedItem != null ? EventCombo.SelectedItem.ToString() : "";
+            EventCombo.Items.Clear();
             var events = new HashSet<string>();
             foreach (var s in _swimmers)
             {
-                if (!string.IsNullOrEmpty(s.EventName)) events.Add(s.EventName);
+                if (string.IsNullOrEmpty(s.EventName)) continue;
+                if (!string.IsNullOrEmpty(gender) && s.Gender != gender && s.Gender != "混合") continue;
+                if (!MatchesAge(s.AgeCategory, ageFilter)) continue;
+                if (s.Notes != null && s.Notes.StartsWith("接力队员")) continue;
+                events.Add(s.EventName);
             }
-            foreach (string ev in events.OrderBy(x => x))
-            {
-                EventCombo.Items.Add(ev);
-            }
-            if (EventCombo.Items.Count > 0) EventCombo.SelectedIndex = 0;
+            foreach (string ev in events.OrderBy(x => x)) EventCombo.Items.Add(ev);
+            if (!string.IsNullOrEmpty(prev) && EventCombo.Items.Contains(prev))
+                EventCombo.SelectedItem = prev;
+            else if (EventCombo.Items.Count > 0) EventCombo.SelectedIndex = 0;
         }
 
         private void Filter_Changed(object sender, SelectionChangedEventArgs e)
         {
             if (!_initialized) return;
+            // 当组别/性别变化时重建项目列表
+            if (sender == AgeGroupCombo || sender == GenderCombo) {
+                PopulateEventCombo();
+            }
             UpdateHeatCombo();
         }
 
@@ -70,6 +111,7 @@ namespace SwimmingScoreboard
         private void UpdateHeatCombo()
         {
             if (HeatCombo == null) return;
+            string ageFilter = AgeGroupCombo != null && AgeGroupCombo.SelectedItem != null ? AgeGroupCombo.SelectedItem.ToString() : "全部";
             string gender = GetComboText(GenderCombo);
             string eventName = EventCombo.SelectedItem != null ? EventCombo.SelectedItem.ToString() : "";
             string stage = GetComboText(StageCombo);
@@ -78,9 +120,12 @@ namespace SwimmingScoreboard
             HeatCombo.Items.Add(new ComboBoxItem { Content = "全部" });
 
             var heats = new HashSet<int>();
+            // 2026-06-01 加 AgeGroup 过滤, 避免决赛-only 比赛多年龄组共用 EventName 时 Heat 数字重叠
             foreach (var s in _swimmers)
             {
-                if (s.Gender != gender || s.EventName != eventName) continue;
+                if (s.Gender != gender && s.Gender != "混合") continue;
+                if (s.EventName != eventName) continue;
+                if (!MatchesAge(s.AgeCategory, ageFilter)) continue;
                 foreach (var r in s.Results)
                 {
                     if (r.Stage == stage && r.Heat > 0) heats.Add(r.Heat);
@@ -96,13 +141,14 @@ namespace SwimmingScoreboard
             HeatCombo.SelectedIndex = 0;
 
             PreviewGrid.ItemsSource = null;
-            PrintButton.IsEnabled = false;
+            SetActionButtonsEnabled(false);
             StatusText.Text = "请选择条件后点击查询";
             StatusText.Foreground = System.Windows.Media.Brushes.SlateGray;
         }
 
         private void Query_Click(object sender, RoutedEventArgs e)
         {
+            string ageFilter = AgeGroupCombo != null && AgeGroupCombo.SelectedItem != null ? AgeGroupCombo.SelectedItem.ToString() : "全部";
             string gender = GetComboText(GenderCombo);
             string eventName = EventCombo.SelectedItem != null ? EventCombo.SelectedItem.ToString() : "";
             string stage = GetComboText(StageCombo);
@@ -121,8 +167,11 @@ namespace SwimmingScoreboard
                 return;
             }
 
+            // 2026-06-01 加 AgeGroup 过滤; 男/女 也包含混合性别接力
             var matched = _swimmers.Where(s =>
-                s.Gender == gender && s.EventName == eventName &&
+                (s.Gender == gender || s.Gender == "混合") &&
+                s.EventName == eventName &&
+                MatchesAge(s.AgeCategory, ageFilter) &&
                 s.GetResultForStage(stage) != null
             ).ToList();
 
@@ -147,7 +196,7 @@ namespace SwimmingScoreboard
                     gender, eventName, stage, filterHeat > 0 ? " 第" + filterHeat + "组" : "");
                 StatusText.Foreground = System.Windows.Media.Brushes.OrangeRed;
                 PreviewGrid.ItemsSource = null;
-                PrintButton.IsEnabled = false;
+                SetActionButtonsEnabled(false);
                 return;
             }
 
@@ -259,26 +308,41 @@ namespace SwimmingScoreboard
             }
 
             PreviewGrid.ItemsSource = _currentResults;
-            PrintButton.IsEnabled = true;
+            SetActionButtonsEnabled(true);
 
             SelectedGender = gender;
             SelectedEvent = eventName;
             SelectedStage = stage;
+            SelectedAgeGroup = ageFilter;
             SelectedHeat = filterHeat;
 
+            string ageHead = (string.IsNullOrEmpty(ageFilter) || ageFilter == "全部") ? "" : (ageFilter + " ");
             string heatDesc = filterHeat > 0 ? " 第" + filterHeat + "组" : " 总排名";
-            StatusText.Text = string.Format("{0} {1} {2}{3} — 共{4}人有成绩",
-                gender, eventName, stage, heatDesc, withResults.Count);
+            StatusText.Text = string.Format("{0}{1} {2} {3}{4} — 共{5}人有成绩",
+                ageHead, gender, eventName, stage, heatDesc, withResults.Count);
             StatusText.Foreground = System.Windows.Media.Brushes.Green;
         }
 
-        private void Print_Click(object sender, RoutedEventArgs e)
-        {
-            if (_currentResults.Count == 0) return;
+        // 2026-06-01 集中开关 5 个动作按钮 (查询出结果后才启用)
+        private void SetActionButtonsEnabled(bool enabled) {
+            if (OpenBrowserButton != null) OpenBrowserButton.IsEnabled = enabled;
+            if (ExportPdfButton != null) ExportPdfButton.IsEnabled = enabled;
+            if (ExportDocButton != null) ExportDocButton.IsEnabled = enabled;
+            if (ExportHtmlButton != null) ExportHtmlButton.IsEnabled = enabled;
+            if (PrintButton != null) PrintButton.IsEnabled = enabled;
+        }
+
+        // 2026-06-01 5 个动作按钮共用的 HTML 构造 (原 Print_Click 文件输出主体抽出来)
+        private string BuildPrintHtml(out string suggestedFileName) {
+            suggestedFileName = "";
+            if (_currentResults.Count == 0) return "";
 
             // 组号显示逻辑：决赛只有1组时不显示，预赛/半决赛即使1组也显示
+            // 2026-06-01 totalHeats 也要带 AgeGroup 过滤, 不然跨组别会把别人的 Heat 也算进来
             int totalHeats = _swimmers.Where(s =>
-                s.Gender == SelectedGender && s.EventName == SelectedEvent &&
+                (s.Gender == SelectedGender || s.Gender == "混合") &&
+                s.EventName == SelectedEvent &&
+                MatchesAge(s.AgeCategory, SelectedAgeGroup) &&
                 s.GetResultForStage(SelectedStage) != null
             ).Select(s => s.GetResultForStage(SelectedStage).Heat).Distinct().Count();
 
@@ -286,15 +350,18 @@ namespace SwimmingScoreboard
                 ((totalHeats > 1) || SelectedStage.Contains("预赛") || SelectedStage.Contains("半决赛"));
             string heatDisplay = showHeat ? string.Format(" 第 {0} 组", SelectedHeat) : "";
 
-            string eventTitle = string.Format("{0} {1} {2}{3}",
-                SelectedGender, SelectedEvent, SelectedStage, heatDisplay);
+            // 2026-06-01 标题加组别前缀
+            string ageHead = (string.IsNullOrEmpty(SelectedAgeGroup) || SelectedAgeGroup == "全部") ? "" : (SelectedAgeGroup + " ");
+            string eventTitle = string.Format("{0}{1} {2} {3}{4}",
+                ageHead, SelectedGender, SelectedEvent, SelectedStage, heatDisplay);
 
             // 匹配赛程获取日期时间
             string dateTimeInfo = "（时间待定）";
             if (_schedule != null)
             {
                 var sch = _schedule.FirstOrDefault(s =>
-                    s.Gender == SelectedGender && s.EventName == SelectedEvent && s.Stage == SelectedStage);
+                    s.Gender == SelectedGender && s.EventName == SelectedEvent && s.Stage == SelectedStage &&
+                    ((s.AgeGroup ?? "") == (SelectedAgeGroup == "全部" ? (s.AgeGroup ?? "") : (SelectedAgeGroup ?? ""))));
                 if (sch != null)
                     dateTimeInfo = string.Format("{0} {1}", sch.Date, !string.IsNullOrEmpty(sch.Time) ? sch.Time : "").Trim();
             }
@@ -361,22 +428,73 @@ namespace SwimmingScoreboard
                 DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
             sb.Append("</body></html>");
 
-            // 输出文件
-            try
-            {
-                string dir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Documents");
-                if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
-                string safeEvent = SelectedGender + SelectedEvent;
-                string heatSuffix = showHeat ? "_第" + SelectedHeat + "组" : "";
-                string fileName = string.Format("成绩单_{0}_{1}{2}.html", safeEvent, SelectedStage, heatSuffix);
-                string filePath = Path.Combine(dir, fileName);
-                File.WriteAllText(filePath, sb.ToString(), Encoding.UTF8);
-                Process.Start(filePath);
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show("文档生成失败: " + ex.Message, "错误");
-            }
+            // 推荐的文件名 (5 个按钮共用)
+            string ageNamePart = (string.IsNullOrEmpty(SelectedAgeGroup) || SelectedAgeGroup == "全部") ? "" : (SelectedAgeGroup + "_");
+            string safeEvent2 = ageNamePart + SelectedGender + SelectedEvent;
+            string heatSuffix2 = showHeat ? "_第" + SelectedHeat + "组" : "";
+            suggestedFileName = string.Format("成绩单_{0}_{1}{2}", safeEvent2, SelectedStage, heatSuffix2);
+            foreach (char c in Path.GetInvalidFileNameChars()) suggestedFileName = suggestedFileName.Replace(c, '_');
+
+            return sb.ToString();
+        }
+
+        // 2026-06-01 5 个动作按钮: 在浏览器打开 / 导出 PDF / 导出 DOC / 导出 HTML / 打印
+        //   同步行为与"成绩册/分段计时报告"使用的 DocumentPreviewWindow 一致.
+        private string WriteTempHtml(string html, string suggested) {
+            string tmp = Path.Combine(Path.GetTempPath(), suggested + ".html");
+            File.WriteAllText(tmp, html, Encoding.UTF8);
+            return tmp;
+        }
+
+        private void OpenBrowser_Click(object sender, RoutedEventArgs e) {
+            try {
+                string suggested; var html = BuildPrintHtml(out suggested);
+                if (string.IsNullOrEmpty(html)) return;
+                var p = WriteTempHtml(html, suggested);
+                Process.Start(p);
+            } catch (Exception ex) { MessageBox.Show("打开失败：" + ex.Message); }
+        }
+
+        private void ExportPdf_Click(object sender, RoutedEventArgs e) {
+            try {
+                string suggested; var html = BuildPrintHtml(out suggested);
+                if (string.IsNullOrEmpty(html)) return;
+                var p = WriteTempHtml(html, suggested);
+                Process.Start(p);
+                MessageBox.Show("已在浏览器中打开。\n请按 Ctrl+P 打印，选择 \"Microsoft Print to PDF\" 打印机另存为 PDF。",
+                    "导出 PDF", MessageBoxButton.OK, MessageBoxImage.Information);
+            } catch (Exception ex) { MessageBox.Show("导出 PDF 失败：" + ex.Message); }
+        }
+
+        private void ExportDoc_Click(object sender, RoutedEventArgs e) { SaveAs(".doc", "Word 文档|*.doc|所有文件|*.*"); }
+        private void ExportHtml_Click(object sender, RoutedEventArgs e) { SaveAs(".html", "HTML 文件|*.html|所有文件|*.*"); }
+
+        private void SaveAs(string ext, string filter) {
+            string suggested; var html = BuildPrintHtml(out suggested);
+            if (string.IsNullOrEmpty(html)) return;
+            var dlg = new Microsoft.Win32.SaveFileDialog {
+                Filter = filter,
+                FileName = suggested + ext,
+                Title = "导出 " + ext.TrimStart('.').ToUpper()
+            };
+            if (dlg.ShowDialog() != true) return;
+            try {
+                File.WriteAllText(dlg.FileName, html, Encoding.UTF8);
+                if (MessageBox.Show("导出完成：\n" + dlg.FileName + "\n\n是否立即打开？", "导出成功",
+                                    MessageBoxButton.YesNo, MessageBoxImage.Information) == MessageBoxResult.Yes) {
+                    Process.Start(dlg.FileName);
+                }
+            } catch (Exception ex) { MessageBox.Show("导出失败：" + ex.Message); }
+        }
+
+        // "打印"按钮: 复用 DocumentPreviewWindow (含 WebBrowser, execCommand 打印更可靠)
+        private void Print_Click(object sender, RoutedEventArgs e) {
+            try {
+                string suggested; var html = BuildPrintHtml(out suggested);
+                if (string.IsNullOrEmpty(html)) return;
+                var prevWin = new DocumentPreviewWindow("项目成绩 - " + suggested, html) { Owner = this };
+                prevWin.Show();
+            } catch (Exception ex) { MessageBox.Show("打印失败：" + ex.Message); }
         }
 
         private void Close_Click(object sender, RoutedEventArgs e)

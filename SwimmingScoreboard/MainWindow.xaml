@@ -1660,6 +1660,17 @@
                                             </StackPanel>
                                         </StackPanel>
                                     </Border>
+                                    <!-- 2026-06-02 按组别批量公布: 选项目+性别+赛次, 一键输出该项目下所有组别的成绩单 (含完整 5+1 操作按钮) -->
+                                    <Border Style="{StaticResource DocCardBorder}">
+                                        <StackPanel>
+                                            <TextBlock Text="按组别批量公布" Style="{StaticResource DocTitle}"/>
+                                            <TextBlock Style="{StaticResource DocSub}"
+                                                       Text="选项目+性别+赛次, 一键生成该项目下各组别成绩单 (整体文档含每组分页)。"/>
+                                            <StackPanel Orientation="Horizontal">
+                                                <Button Content="输出 / 打印" Click="BatchByAgeGroupPrint_Click" Background="#EA580C" Style="{StaticResource DocActionBtn}"/>
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </Border>
                                     <Border Style="{StaticResource DocCardBorder}">
                                         <StackPanel>
                                             <TextBlock Text="分段计时报告" Style="{StaticResource DocTitle}"/>

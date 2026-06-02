@@ -400,6 +400,16 @@
     <Compile Include="..\SwimmingScoreboard\DisplayStyleWindow.cs">
       <Link>DisplayStyleWindow.cs</Link>
     </Compile>
+    <Page Include="..\SwimmingScoreboard\BatchByAgeGroupPrintWindow.xaml">
+      <Link>BatchByAgeGroupPrintWindow.xaml</Link>
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Compile Include="..\SwimmingScoreboard\BatchByAgeGroupPrintWindow.xaml.cs">
+      <Link>BatchByAgeGroupPrintWindow.xaml.cs</Link>
+      <DependentUpon>BatchByAgeGroupPrintWindow.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Compile>
   </ItemGroup>
 
   <!-- ── 资源拷贝：纪录基础表（成绩与排名/破纪录核对需要） ── -->

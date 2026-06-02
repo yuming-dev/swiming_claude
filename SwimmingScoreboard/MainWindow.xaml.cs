@@ -3368,19 +3368,14 @@ namespace SwimmingScoreboard
                     //   Touched           → 已记录正式反应时；本次记日志并写入"备用反应时"
                     //   其它              → 仅记日志
                     {
+                        // 2026-06-02 协议规约: side 必须由硬件发来, PC 不自判. side 缺失 = 协议错误, 跳过
                         DeviceStatus sbStatus;
                         string sbSideForClose = side;
                         if (side == "left") sbStatus = laneState.LeftStartBlockStatus;
                         else if (side == "right") sbStatus = laneState.RightStartBlockStatus;
                         else {
-                            // side 缺失：先选 Open/FalseStart 一端，否则 Touched 一端，否则左端
-                            DeviceStatus lst = laneState.LeftStartBlockStatus;
-                            DeviceStatus rst = laneState.RightStartBlockStatus;
-                            if (lst == DeviceStatus.Open || lst == DeviceStatus.FalseStart) { sbStatus = lst; sbSideForClose = "left"; }
-                            else if (rst == DeviceStatus.Open || rst == DeviceStatus.FalseStart) { sbStatus = rst; sbSideForClose = "right"; }
-                            else if (lst == DeviceStatus.Touched) { sbStatus = lst; sbSideForClose = "left"; }
-                            else if (rst == DeviceStatus.Touched) { sbStatus = rst; sbSideForClose = "right"; }
-                            else { sbStatus = lst; sbSideForClose = "left"; }
+                            AddLog(string.Format("泳道{0} 出发台 cmd side 字段缺失 (= 协议错误), 跳过处理", lane));
+                            break;
                         }
 
                         bool sbOpen = (sbStatus == DeviceStatus.Open || sbStatus == DeviceStatus.FalseStart);
@@ -3418,8 +3413,12 @@ namespace SwimmingScoreboard
                                 if (relayRes != null && relayRes.Splits.Count > 0) lastTouchTime = relayRes.Splits.Last().CumulativeTime;
                             }
                             // 2026-05-12 抢跳：硬件以 D10 符号位上报，timeInSeconds 已为负值，直接作为反应时
-                            // 2026-05-31 硬件已在 StartBox_RecordSignal 内算 delta = swim_now - LastTouchTime, timeInSeconds 已经是 reaction, PC 直接用不再减
-                            double relayReaction = timeInSeconds;
+                            // 2026-06-02 Phase 2: 硬件 SB cmd 改回发 absolute swim_now (= 跟发令累计的当前时刻), PC 端减上棒触板时刻算 reaction
+                            //   reaction = SB_swim - 上次触板 swim
+                            //     > 0 = 正常反应时 (= 选手在上棒触板后起跳)
+                            //     < 0 = 抢跳 (= 选手早于上棒触板起跳)
+                            //   抢跳场景下 lastTouchTime 可能是上次右触 (= MB 5s 延迟未到时 PC 还没收到左触 cmd), reaction 会偏大. 真实比赛抢跳 0.1-0.3s 内, 当前 lastTouchTime 应该是正确的上棒左触.
+                            double relayReaction = timeInSeconds - lastTouchTime;
                             laneState.ReactionTime = relayReaction;
                             // 按棒次索引覆盖写入 LegReactionTimes[legIdx]，
                             // 这样即使硬件事件重复/乱序，也只保留每棒最新值，且槽位与棒次对齐
@@ -3429,9 +3428,11 @@ namespace SwimmingScoreboard
                                 if (legIdx >= 0 && legIdx < relayRes.LegReactionTimes.Count)
                                     relayRes.LegReactionTimes[legIdx] = relayReaction;
                             }
+                            // 2026-06-02 Phase 2: 硬件 d10=0 (= 不再判抢跳), PC 端通过 reaction<0 自判
+                            if (relayReaction < 0) isFalseStart = true;
                             if (isFalseStart) {
                                 laneState.IsSuspectFalseStart = true;
-                                AddLog(string.Format("⚠ 接力抢跳（硬件确认）泳道{0} 反应时:{1:F3}s", lane, relayReaction));
+                                AddLog(string.Format("⚠ 接力抢跳（reaction<0）泳道{0} 反应时:{1:F3}s", lane, relayReaction));
                             } else if (relayReaction < _laneCloseSettings.FalseStartThreshold) {
                                 // 仅作可疑提示（反应时标红），是否判罚由裁判手动决定
                                 laneState.IsSuspectFalseStart = true;
@@ -3480,17 +3481,14 @@ namespace SwimmingScoreboard
                     //   Touched    → 已有正式成绩；本次记日志并写入"备用成绩"（争议时使用）
                     //   其它（Closed/Broken/NotInstalled）→ 仅记日志，不作为成绩
                     {
+                        // 2026-06-02 协议规约: side 必须由硬件 frame[4]=Lane_NoTbl 解析得来, PC 不自判. side 缺失 = 协议错误, 跳过
                         DeviceStatus tpStatus;
                         string sideForClose = side;
                         if (side == "left") tpStatus = laneState.LeftTouchpadStatus;
                         else if (side == "right") tpStatus = laneState.RightTouchpadStatus;
                         else {
-                            // 兼容旧路径（side 缺失）：优先选 Open 的一端，否则左端
-                            if (laneState.LeftTouchpadStatus == DeviceStatus.Open) { tpStatus = DeviceStatus.Open; sideForClose = "left"; }
-                            else if (laneState.RightTouchpadStatus == DeviceStatus.Open) { tpStatus = DeviceStatus.Open; sideForClose = "right"; }
-                            else if (laneState.LeftTouchpadStatus == DeviceStatus.Touched) { tpStatus = DeviceStatus.Touched; sideForClose = "left"; }
-                            else if (laneState.RightTouchpadStatus == DeviceStatus.Touched) { tpStatus = DeviceStatus.Touched; sideForClose = "right"; }
-                            else { tpStatus = laneState.LeftTouchpadStatus; sideForClose = "left"; }
+                            AddLog(string.Format("泳道{0} 触板 cmd side 字段缺失 (= 协议错误), 跳过处理", lane));
+                            break;
                         }
 
                         // 2026-05-13 全开模式：所有触板信号都认可为正式成绩，绕过状态机
@@ -13518,12 +13516,15 @@ namespace SwimmingScoreboard
             var completedLabels = new List<string>();
             foreach (var schedItem in _schedule) {
                 int hc = schedItem.HeatCount > 0 ? schedItem.HeatCount : 1;
+                // 2026-06-01 IsHeatConfirmed 必须带 AgeGroup, 否则跨年龄组同 Heat# 会误判 (本次决赛-only 多组别共用 EventName 时尤甚)
+                string ageG = schedItem.AgeGroup ?? "";
                 for (int h = 1; h <= hc; h++) {
-                    if (IsHeatConfirmed(schedItem.Gender, schedItem.EventName, schedItem.Stage, h)) {
-                        completedHeats.Add(new { Gender = schedItem.Gender, EventName = schedItem.EventName, Stage = schedItem.Stage, Heat = h, HeatCount = hc });
+                    if (IsHeatConfirmed(ageG, schedItem.Gender, schedItem.EventName, schedItem.Stage, h)) {
+                        completedHeats.Add(new { AgeGroup = ageG, Gender = schedItem.Gender, EventName = schedItem.EventName, Stage = schedItem.Stage, Heat = h, HeatCount = hc });
                         bool showHeat = (hc > 1) || schedItem.Stage.Contains("预赛") || schedItem.Stage.Contains("半决赛");
                         string heatLabel = showHeat ? string.Format(" 第{0}组", h) : "";
-                        completedLabels.Add(string.Format("{0} {1} {2}{3}", schedItem.Gender, schedItem.EventName, schedItem.Stage, heatLabel));
+                        string ageHead = string.IsNullOrEmpty(ageG) ? "" : (ageG + " ");
+                        completedLabels.Add(string.Format("{0}{1} {2} {3}{4}", ageHead, schedItem.Gender, schedItem.EventName, schedItem.Stage, heatLabel));
                     }
                 }
             }
@@ -17370,8 +17371,17 @@ namespace SwimmingScoreboard
             GenerateAndOpenDocument("分组成绩", BuildHeatResultsHtml());
         }
         private void PrintEventResults_Click(object sender, RoutedEventArgs e) {
+            // 2026-06-01 传 _ageGroups 给窗口构造组别下拉
             var win = new EventResultPrintWindow(_swimmers, _schedule, _competitionName,
-                LocationBox.Text, RefereeBox.Text, ChiefJudgeBox.Text, ArbiterBox.Text);  // 2026-05-26 末参数原为 StarterBox，UI 删发令员后改传 ArbiterBox
+                LocationBox.Text, RefereeBox.Text, ChiefJudgeBox.Text, ArbiterBox.Text, _ageGroups);
+            win.Owner = this;
+            win.ShowDialog();
+        }
+
+        // 2026-06-02 按组别批量公布: 选项目+性别+赛次, 一键生成各组别成绩单
+        private void BatchByAgeGroupPrint_Click(object sender, RoutedEventArgs e) {
+            var win = new BatchByAgeGroupPrintWindow(_swimmers, _schedule, _competitionName,
+                LocationBox.Text, RefereeBox.Text, _ageGroups);
             win.Owner = this;
             win.ShowDialog();
         }
@@ -18179,11 +18189,16 @@ namespace SwimmingScoreboard
                 string gender = schedItem.Gender;
                 string eventName = schedItem.EventName;
                 string stage = schedItem.Stage;
+                string schedAge = schedItem.AgeGroup;
 
                 // 从StageAssignments和当前赛次获取该项目该赛次所有有分组的运动员
+                // 2026-06-01 必须按 AgeCategory 过滤: 该比赛只有决赛, Excel 组号(Heat) 按 项次 重置,
+                //   多项次共用 EventName+Gender+Stage (如多个年龄组的"男 50米自由泳 决赛"),
+                //   不带 AgeCategory 过滤就会把不同年龄组的"第1组"全部叠到一起.
                 var assigned = new List<Tuple<Swimmer, int, int, string>>();  // (swimmer, heat, lane, seedTime)
                 foreach (var s in _swimmers) {
                     if (s.Gender != gender || s.EventName != eventName) continue;
+                    if (!MatchesAgeGroup(s, schedAge)) continue;
                     // 优先从StageAssignments获取
                     var sa = s.GetAssignmentForStage(stage);
                     if (sa != null && sa.Heat > 0) {
@@ -18207,7 +18222,9 @@ namespace SwimmingScoreboard
                     if (heatSwimmers.Count == 0) continue;
 
                     string heatDisplay = showHeat ? string.Format(" 第 {0} 组", heat) : "";
-                    string eventTitle = string.Format("{0} {1} {2}{3}", gender, eventName, stage, heatDisplay);
+                    // 2026-06-01 标题加 AgeGroup 前缀, 同一项目跨年龄组时区分清楚
+                    string ageHead = string.IsNullOrEmpty(schedAge) || schedAge == "全部" || schedAge == "不限" ? "" : (schedAge + " ");
+                    string eventTitle = string.Format("{0}{1} {2} {3}{4}", ageHead, gender, eventName, stage, heatDisplay);
 
                     if (hasContent) sb.Append("<div class='page-break'></div>");
                     sb.Append("<div class='page'>");
@@ -18493,13 +18510,16 @@ namespace SwimmingScoreboard
                 bool anyFinals = false;
                 var teamCoachMap = BuildTeamCoachMap();
                 foreach (var schedItem in _schedule.Where(s => s.Stage == "决赛")) {
-                    var topList = GetEventFinalRanking(schedItem.Gender, schedItem.EventName);
+                    // 2026-06-01 名次按 AgeGroup 分别排, 不再跨年龄组混在一起
+                    string schedAge = schedItem.AgeGroup ?? "";
+                    var topList = GetEventFinalRanking(schedAge, schedItem.Gender, schedItem.EventName);
                     if (topList.Count == 0) continue;
                     anyFinals = true;
                     bool nrRelay = (schedItem.EventName ?? "").IndexOf("接力", StringComparison.Ordinal) >= 0;
                     sb.Append("<div style='margin-top:18px; page-break-inside:avoid;'>");
                     sb.Append("<div class='event-meta'>");
-                    sb.AppendFormat("<div><b>游泳</b>　　{0} {1}</div>", schedItem.Gender, schedItem.EventName);
+                    string ageHead0 = string.IsNullOrEmpty(schedAge) ? "" : (schedAge + " ");
+                    sb.AppendFormat("<div><b>游泳</b>　　{0}{1} {2}</div>", ageHead0, schedItem.Gender, schedItem.EventName);
                     sb.AppendFormat("<div>{0} {1}　　{2}</div>", schedItem.Date ?? "", schedItem.Time ?? "", location);
                     sb.Append("</div>");
                     sb.Append("<table><tr><th width='60'>名次</th><th width='110'>单位</th><th width='180'>姓名</th><th width='150'>联合培养单位</th><th width='90'>成绩</th><th>教练员</th></tr>");
@@ -18552,10 +18572,12 @@ namespace SwimmingScoreboard
                     string gender = schedItem.Gender;
                     string eventName = schedItem.EventName;
                     string stage = schedItem.Stage;
+                    string schedAge = schedItem.AgeGroup ?? "";   // 2026-06-01 同年龄组过滤
                     bool ffRelay = (eventName ?? "").IndexOf("接力", StringComparison.Ordinal) >= 0;
 
                     var matched = _swimmers.Where(s =>
                         s.Gender == gender && s.EventName == eventName &&
+                        MatchesAgeGroup(s, schedAge) &&
                         !IsRelayMemberNote(s.Notes) &&
                         s.GetResultForStage(stage) != null
                     ).ToList();
@@ -18567,7 +18589,8 @@ namespace SwimmingScoreboard
                     eventBlock++;
                     if (eventBlock > 1) sb.Append("<div class='page-break'></div><div class='page'>");
                     sb.Append("<div class='event-meta'>");
-                    sb.AppendFormat("<div><b>游泳</b>　　{0} {1}　　{2}</div>", gender, eventName, stage);
+                    string ageHeadFR = string.IsNullOrEmpty(schedAge) ? "" : (schedAge + " ");   // 2026-06-01
+                    sb.AppendFormat("<div><b>游泳</b>　　{0}{1} {2}　　{3}</div>", ageHeadFR, gender, eventName, stage);
                     sb.AppendFormat("<div>{0} {1}　　{2}</div>", schedItem.Date ?? "", schedItem.Time ?? "", location);
                     sb.Append("</div>");
 
@@ -18764,8 +18787,15 @@ namespace SwimmingScoreboard
             public Swimmer Swimmer; public int Rank; public bool IsTie; public string TimeText;
         }
         private List<RankRow> GetEventFinalRanking(string gender, string eventName) {
+            return GetEventFinalRanking("", gender, eventName);
+        }
+
+        // 2026-06-01 加 AgeGroup 重载: 本次决赛-only 比赛多年龄组共用 EventName, 不带 AgeGroup
+        //   过滤会把不同年龄组的决赛运动员混在一起排名.
+        private List<RankRow> GetEventFinalRanking(string ageGroup, string gender, string eventName) {
             var list = _swimmers
-                .Where(s => s.Gender == gender && s.EventName == eventName && !IsRelayMemberNote(s.Notes))
+                .Where(s => s.Gender == gender && s.EventName == eventName && !IsRelayMemberNote(s.Notes)
+                            && MatchesAgeGroup(s, ageGroup))
                 .Select(s => new { Swimmer = s, R = s.GetResultForStage("决赛") })
                 .Where(x => x.R != null && x.R.FinalTime > 0
                     && string.IsNullOrEmpty(x.R.Status)

@@ -150,6 +150,10 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </Page>
+    <Page Include="BatchByAgeGroupPrintWindow.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
     <Page Include="ProgramBookEditWindow.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
@@ -252,6 +256,10 @@
     </Compile>
     <Compile Include="EventResultPrintWindow.xaml.cs">
       <DependentUpon>EventResultPrintWindow.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="BatchByAgeGroupPrintWindow.xaml.cs">
+      <DependentUpon>BatchByAgeGroupPrintWindow.xaml</DependentUpon>
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="FinalsStatusWindow.xaml.cs">

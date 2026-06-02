@@ -14,6 +14,9 @@
         <!-- 选择条件 -->
         <Border Grid.Row="0" Background="White" CornerRadius="6" Padding="12" Margin="0,0,0,8">
             <StackPanel Orientation="Horizontal">
+                <TextBlock Text="组别:" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                <ComboBox x:Name="AgeGroupCombo" Width="110" SelectionChanged="Filter_Changed" Margin="0,0,12,0"
+                          ToolTip="选择&quot;全部&quot;表示不按组别过滤"/>
                 <TextBlock Text="性别:" VerticalAlignment="Center" Margin="0,0,4,0"/>
                 <ComboBox x:Name="GenderCombo" Width="70" SelectionChanged="Filter_Changed" Margin="0,0,12,0">
                     <ComboBoxItem Content="男" IsSelected="True"/>
@@ -71,11 +74,23 @@
             </DataGrid.Columns>
         </DataGrid>
 
-        <!-- 操作按钮 -->
+        <!-- 操作按钮 (与"成绩册/分段计时报告"预览窗一致的 5 个功能键 + 关闭) -->
         <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right">
-            <Button Content="打印输出" Click="Print_Click" Padding="20,8"
-                    Background="#22C55E" Foreground="White" FontWeight="Bold" BorderThickness="0" Margin="0,0,8,0"
-                    x:Name="PrintButton" IsEnabled="False"/>
+            <Button Content="在浏览器中打开" Click="OpenBrowser_Click" Padding="14,8" Margin="0,0,4,0"
+                    Background="#0EA5E9" Foreground="White" BorderThickness="0" x:Name="OpenBrowserButton" IsEnabled="False"
+                    ToolTip="在系统默认浏览器中打开当前文档（可在浏览器中按 Ctrl+P 打印或另存为 PDF）"/>
+            <Button Content="导出 PDF" Click="ExportPdf_Click" Padding="14,8" Margin="0,0,4,0"
+                    Background="#DC2626" Foreground="White" BorderThickness="0" x:Name="ExportPdfButton" IsEnabled="False"
+                    ToolTip="在浏览器中打开后选择 Microsoft Print to PDF 打印机即可保存为 PDF"/>
+            <Button Content="导出 DOC" Click="ExportDoc_Click" Padding="14,8" Margin="0,0,4,0"
+                    Background="#2563EB" Foreground="White" BorderThickness="0" x:Name="ExportDocButton" IsEnabled="False"
+                    ToolTip="保存为 Microsoft Word 兼容的 .doc 文件"/>
+            <Button Content="导出 HTML" Click="ExportHtml_Click" Padding="14,8" Margin="0,0,4,0"
+                    Background="#7C3AED" Foreground="White" BorderThickness="0" x:Name="ExportHtmlButton" IsEnabled="False"
+                    ToolTip="保存为 .html 文件"/>
+            <Button Content="打印" Click="Print_Click" Padding="14,8" Margin="0,0,8,0"
+                    Background="#22C55E" Foreground="White" FontWeight="Bold" BorderThickness="0" x:Name="PrintButton" IsEnabled="False"
+                    ToolTip="打开预览窗口并调用系统打印机"/>
             <Button Content="关闭" Click="Close_Click" Padding="20,8"
                     Background="#475569" Foreground="White" BorderThickness="0"/>
         </StackPanel>
