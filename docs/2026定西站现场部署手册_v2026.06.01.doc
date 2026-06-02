@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>2026 定西站现场部署手册 v2026.06.01</title>
+<style>
+  @page { size: A4; margin: 18mm 16mm; }
+  body { font-family: "Microsoft YaHei", "微软雅黑", sans-serif; font-size: 11pt; color: #1f2937; line-height: 1.6; }
+  h1 { font-size: 22pt; text-align: center; border-bottom: 3px double #1e3a8a; padding-bottom: 12px; color: #1e3a8a; margin-bottom: 4px; }
+  h2 { font-size: 15pt; color: #1e3a8a; border-left: 6px solid #3b82f6; padding-left: 10px; margin-top: 24px; }
+  h3 { font-size: 12.5pt; color: #1e3a8a; margin-top: 18px; background:#eff6ff; padding:5px 10px; border-radius:4px; }
+  table { border-collapse: collapse; width: 100%; margin: 6px 0 14px; font-size: 10pt; }
+  th, td { border: 1px solid #cbd5e1; padding: 5px 8px; vertical-align: top; }
+  th { background: #f1f5f9; text-align: left; font-weight: bold; }
+  .info { background: #ecfdf5; border-left: 4px solid #059669; padding: 8px 12px; border-radius: 4px; margin: 8px 0; }
+  .warn { background:#fef9c3; padding:8px 12px; border-left: 4px solid #ca8a04; border-radius:4px; margin: 8px 0; }
+  .danger { background: #fee2e2; padding:8px 12px; border-left: 4px solid #b91c1c; border-radius:4px; margin: 8px 0; }
+  .layout { font-family: Consolas, monospace; background:#0f172a; color:#e2e8f0; padding:10px 14px; border-radius:6px; font-size:9.5pt; white-space:pre; overflow-x:auto; }
+  ul, ol { margin: 4px 0 10px 22px; }
+  li { margin: 2px 0; }
+  code { background:#f1f5f9; padding:1px 5px; border-radius:3px; font-family: Consolas, monospace; font-size: 10pt; }
+  .checklist { background:#fffbeb; border:1px solid #fde68a; border-radius:6px; padding:10px 14px; }
+  .checklist ul { list-style: none; margin-left: 0; padding-left: 0; }
+  .checklist li::before { content: "☐ "; color: #b91c1c; font-weight: bold; }
+  .footer { text-align:center; color:#64748b; font-size:9pt; margin-top:24px; padding-top:10px; border-top:1px solid #e2e8f0; }
+  .badge-key { display:inline-block; background:#dbeafe; color:#1e40af; padding:1px 7px; border-radius:8px; font-size:9pt; font-weight:bold; }
+  .badge-warn { display:inline-block; background:#fee2e2; color:#991b1b; padding:1px 7px; border-radius:8px; font-size:9pt; font-weight:bold; }
+</style>
+</head>
+<body>
+
+<h1>2026 甘肃省浩沙杯 U 系列青少年游泳俱乐部联赛（定西站）</h1>
+<p style="text-align:center; color:#64748b; font-size:14pt; margin-top:0;">
+  现场部署手册 &nbsp;|&nbsp; v2026.06.01
+</p>
+
+<div class="info">
+<b>比赛信息</b><br>
+<b>名称</b>：2026 甘肃省浩沙杯 U 系列青少年游泳俱乐部联赛（定西站）<br>
+<b>日期</b>：2026 年 6 月 5 日 – 6 月 7 日<br>
+<b>地点</b>：定西市全民健身中心<br>
+<b>主办</b>：甘肃省游泳协会 &nbsp;<b>承办</b>：定西市体育运动中心<br>
+<b>报到</b>：2026-06-05 13:00–16:30 &nbsp;<b>技术会议</b>：2026-06-05 17:00<br>
+<b>规模</b>：<span class="badge-key">1120 名运动员</span>
+        <span class="badge-key">82 项日程</span>
+        <span class="badge-key">27 个参赛单位</span>
+        <span class="badge-key">13 个比赛项目</span>
+</div>
+
+<h2>一、概述</h2>
+<p>本手册指导操作员把已在开发机预先导入好的比赛档案，部署到现场赛事服务器（主控 PC）+ 多块大屏 + 副控 + 报名台，并完整跑通一场比赛。</p>
+
+<p><b>系统组件 (已全部装在安装包里)：</b></p>
+<table>
+<thead><tr><th>组件</th><th>用途</th></tr></thead>
+<tbody>
+<tr><td><code>SwimmingScoreboard.exe</code></td><td>主控（计时主服务器 / 数据中枢）</td></tr>
+<tr><td><code>RemoteTimingControl.exe</code></td><td>远程计时控制 (副控)</td></tr>
+<tr><td><code>RemoteDisplayControl.exe</code></td><td>远程显示控制</td></tr>
+<tr><td><code>RegistrationTool.exe</code></td><td>报名台</td></tr>
+<tr><td><code>ScheduleEditor.exe</code></td><td>赛程编排端</td></tr>
+<tr><td><code>Web/display.html</code></td><td>大屏 (LED / 投影)</td></tr>
+<tr><td><code>Web/control.html</code></td><td>显示模式控制（网页）</td></tr>
+<tr><td><code>Web/leaderboard.html</code></td><td>排名屏</td></tr>
+<tr><td><code>Web/race_control.html</code></td><td>计时控制（网页）</td></tr>
+</tbody>
+</table>
+<p>所有副控 / 大屏 / 浏览器端通过 <b>WebSocket（端口 3002）</b>连到主控 PC。</p>
+
+<h2>二、机器角色（单机模式 vs 多机模式）</h2>
+
+<h3>单机模式 (最简单)</h3>
+<p>一台 PC 跑所有：SwimmingScoreboard.exe + 同机浏览器 display.html / leaderboard.html。</p>
+
+<h3>多机模式（推荐生产部署）</h3>
+<div class="layout">┌────────────────────────────────────────────────────────────┐
+│  PC 1 (主控)          IP 固定 192.168.1.100                │
+│  ├─ SwimmingScoreboard.exe                                 │
+│  ├─ 接硬件计时器 (USB串口/网线)                            │
+│  └─ 大屏 / 副控的数据中枢                                  │
+│                                                              │
+│  PC 2 (大屏主机)      IP 192.168.1.101                     │
+│  └─ 浏览器全屏 display.html?host=192.168.1.100             │
+│                                                              │
+│  PC 3 (排名屏主机)    IP 192.168.1.102                     │
+│  └─ 浏览器全屏 leaderboard.html?host=192.168.1.100         │
+│                                                              │
+│  PC 4 (计时台 / 副控) IP 192.168.1.103                     │
+│  └─ RemoteTimingControl.exe / race_control.html            │
+│                                                              │
+│  PC 5 (检录 / 报名)   IP 192.168.1.104                     │
+│  └─ RegistrationTool.exe / register.html                   │
+└────────────────────────────────────────────────────────────┘</div>
+<p>所有机器接同一台路由器/交换机，<b>主控 PC IP 必须固定</b>。</p>
+
+<h2>三、安装步骤</h2>
+<ol>
+<li>把 <code>SwimmingTimingSystem-Setup-v2026.06.01.zip</code> 拷到目标机器（U 盘 / 微信 / QQ / 共享文件夹）</li>
+<li>解压 zip → 双击 <code>Setup.exe</code></li>
+<li>选安装目录（默认 <code>C:\Program Files\SwimmingScoreboard\</code>）</li>
+<li>安装完成后桌面会有 5 个快捷方式：SwimmingScoreboard / RemoteTimingControl / RemoteDisplayControl / RegistrationTool / ScheduleEditor</li>
+<li>（可选）大屏 / 排名屏机器可建直达 .html 的快捷方式，加 <code>--kiosk</code> 参数让 Chrome 启动即全屏：<br>
+<code>start chrome --kiosk "file:///安装路径/SwimmingScoreboard/Web/display.html"</code></li>
+</ol>
+
+<h2>四、比赛档案部署（仅主控 PC）</h2>
+<div class="info">副控 / 大屏不需要拷比赛档案 — 会自动从主控 WebSocket 拉数据。</div>
+<ol>
+<li>从开发机 / U 盘准备 2 个文件：
+  <ul>
+    <li><code>2026甘肃省浩沙杯U系列青少年游泳俱乐部联赛（定西站）.json</code> (2.2 MB)</li>
+    <li><code>last_competition.txt</code></li>
+  </ul>
+</li>
+<li>找到主控 PC 安装目录的 <code>Database\</code> 子目录，例如：<br>
+<code>C:\Program Files\SwimmingScoreboard\Database\</code></li>
+<li>放置：
+  <ul>
+    <li><code>.json</code> → <code>Database\</code> 里</li>
+    <li><code>last_competition.txt</code> → <code>Database\</code> 上一级（与 <code>SwimmingScoreboard.exe</code> 同目录）</li>
+  </ul>
+</li>
+<li>启动 <code>SwimmingScoreboard.exe</code> → 应自动加载比赛档案</li>
+</ol>
+
+<h3>验证清单</h3>
+<table>
+<thead><tr><th>Tab</th><th>应看到</th></tr></thead>
+<tbody>
+<tr><td>赛事管理</td><td>比赛名称 / 起止日期 / 场地 / 主办承办全部正确</td></tr>
+<tr><td>报名管理</td><td>1120 条运动员注册 + 27 个参赛单位</td></tr>
+<tr><td>赛程</td><td>82 项 (第 1 场 28 项 + 第 2 场 26 项 + 第 3 场 28 项)<br>开赛时间符合 PDF (09:00 / 09:05 / 09:10 / ...)</td></tr>
+<tr><td>比赛控制</td><td>左侧赛程导航树展开 = 7 个组别 × 13 项目</td></tr>
+</tbody>
+</table>
+
+<h2>五、硬件计时器连接（仅主控 PC）</h2>
+<ol>
+<li>物理连接：USB 串口（插 USB 线）/ 网线（交叉网线或经交换机）</li>
+<li>SwimmingScoreboard 主控 → 比赛控制 → 系统硬件 区域</li>
+<li>设串口/网络参数 → 点 "连接硬件" → 状态绿色 = 已连</li>
+<li>点 "设备测试"，跑一遍：
+  <ul>
+    <li>每道触板 → 单击触板，对应道格颜色变化</li>
+    <li>出发台 → 跳板按一下，蜂鸣指示</li>
+    <li>盲表 → 按一下盲表按键</li>
+    <li>计时清零、起跑信号</li>
+  </ul>
+</li>
+<li>"比赛参数设置管理" Tab 配齐：泳道数 / 池长 / 触板安装 / 出发台位置 / 关闭时间 等</li>
+</ol>
+
+<h2>六、网络配置 + 副控/大屏连接</h2>
+
+<h3>主控 PC</h3>
+<table>
+<thead><tr><th>项</th><th>设置</th></tr></thead>
+<tbody>
+<tr><td>IP</td><td>固定 192.168.1.100 / 掩码 255.255.255.0</td></tr>
+<tr><td>防火墙</td><td>允许 <code>SwimmingScoreboard.exe</code> 入站 (TCP 3002)</td></tr>
+<tr><td>电源</td><td>永不进入睡眠 + 永不关闭显示器</td></tr>
+<tr><td>系统</td><td><span class="badge-warn">关闭 Windows 自动更新</span> 避免比赛中重启</td></tr>
+</tbody>
+</table>
+
+<h3>副控 / 大屏 / 排名屏端</h3>
+<ol>
+<li>启动 EXE 或浏览器打开 .html</li>
+<li>弹出"连接主服务器"对话框 → 输入 <code>192.168.1.100</code> → 连接</li>
+<li>成功后状态指示"已连接"（绿色）</li>
+</ol>
+
+<h3>大屏样式远程统一调整 <span class="badge-key">v2026.06.01 新功能</span></h3>
+<div class="info">
+任一控制端（主控 / control.html / RemoteDisplayControl）都可以通过 <b>"🎨 大屏样式"</b> 按钮远程调整：
+<ul>
+<li>底色（8 预设 + 自定义 hex）</li>
+<li>字号 0.8x ~ 3.0x（LED 屏推荐 <b>1.8x ~ 2.5x</b>）</li>
+<li>9 处文字颜色 + 字体</li>
+</ul>
+改动实时推送到所有大屏，服务器持久化保存（改完不必每台屏单独再设）。
+</div>
+
+<h2>七、赛前预演（强烈建议提前 1 天做）</h2>
+<ol>
+<li>所有机器开机 + 联网 + 软件启动 + 状态绿色"已连接"</li>
+<li>主控 → 比赛控制 → 选第 1 场第 1 项（女子 12-13 岁组 200米自由泳）
+  <ul>
+    <li>选择第 1 组 → 各道运动员姓名 / 单位应自动加载</li>
+    <li>点"准备就绪" → 各道出发台变绿</li>
+    <li>点"发令" 或硬件按发令按钮</li>
+    <li>模拟运动员触板（设备测试或人工敲）</li>
+    <li>滚动时间正常计时, 触板出成绩，名次自动出</li>
+    <li>点"确认本组成绩" → 大屏切到"本组成绩"视图</li>
+  </ul>
+</li>
+<li><b>大屏检查</b>：比赛名称 / 项目 / 滚动时间 / 名次 / 姓名 / 代表队 / 成绩 都正常；字号合适；接力 4 棒同列显示；颁奖典礼测试</li>
+<li><b>排名屏检查</b>：项目排名 / 团体积分 / 纪录榜 3 个 Tab 切换正常</li>
+<li>计时复位 + 切到第 2 组 → 数据清零</li>
+<li>模拟打印：出发表 / 成绩单 / 颁奖证书</li>
+<li>测试断网重连：拔副控网线 5 秒插回 → 副控应自动重连并恢复数据</li>
+</ol>
+
+<h2>八、赛中操作流程</h2>
+<div class="info">每一组的标准流程：</div>
+<ol>
+<li>主控 → 比赛控制 → 从"赛程导航"选当前项目<br>
+(例: 第1场 项次1 女 200米自由泳 决赛 第1组)</li>
+<li>检查各道运动员是否齐 (检录后某些道可能 DNS)；DNS 的道 → 点该道"标记 DNS"按钮</li>
+<li>点 <b>"准备就绪"</b> → 各道出发台变绿，硬件等待</li>
+<li>点 <b>"发令"</b>（或硬件按发令按钮 → 自动同步）</li>
+<li>比赛进行中：大屏滚动时间走动；每道触板自动捕获分段；名次实时更新 (1-2-2-4 标准并列)</li>
+<li>比赛结束（所有运动员完赛）：名次锁定，第 1 名成绩高亮停留 N 秒；大屏自动切到本组成绩榜</li>
+<li>裁判判罚 (如有 DSQ / DNS / DNF) → 主控 → 该道"判罚"按钮 → 选 DSQ → 大屏备注栏立即变红显示；<span class="badge-key">破纪录标识自动转给新晋第 1 名</span></li>
+<li>点 <b>"确认本组成绩"</b> → 成绩锁定入档</li>
+<li>点 <b>"计时复位"</b> → 进下一组</li>
+</ol>
+
+<h2>九、应急方案</h2>
+
+<h3>硬件计时器断连</h3>
+<div class="warn">
+<b>现象</b>：大屏滚动时间停留 / 各道触板无反应<br>
+<b>处理</b>：
+<ol>
+<li>主控 → 比赛控制 → 查"硬件计时器"连接状态</li>
+<li>状态变灰 → 点"重新连接"</li>
+<li>仍失败 → 检查 USB / 网线物理连接</li>
+<li>实在不行 → 立即切到手动计时 (盲表 + 手工输入)；该组成绩用裁判秒表，主控"手工输入成绩"</li>
+</ol>
+</div>
+
+<h3>主控 PC 蓝屏 / 重启</h3>
+<div class="danger">
+比赛档案在 Database\ 已落盘，绝大多数情况数据不丢。<br>
+<b>处理</b>：
+<ol>
+<li>PC 重启完成 → 启动 SwimmingScoreboard.exe</li>
+<li>应自动加载 last_competition.txt 指定的比赛档案</li>
+<li>重连硬件计时器</li>
+<li>副控 / 大屏会自动重连主服务器</li>
+<li>当前正在进行的那一组可能丢失：从赛程选到该组重打</li>
+</ol>
+<b>防御</b>：<span class="badge-warn">每天比赛结束都备份比赛档案到 U 盘！</span>
+</div>
+
+<h3>大屏死机 / 浏览器卡顿</h3>
+<p>关闭浏览器 → 重开 → 输入服务器 IP 重连。大屏样式（底色 / 字号 / 9 处文字）会从服务器自动同步回来。</p>
+
+<h3>副控 / 计时台死机</h3>
+<p>跟大屏一样，关掉重启即可，会自动重连。</p>
+
+<h3>主服务器 IP 变了 / 网络故障</h3>
+<ol>
+<li>主控 PC 重新设固定 IP，例 192.168.1.100</li>
+<li>副控 / 大屏 重新打开连接对话框输入新 IP</li>
+</ol>
+
+<h2>十、赛后处理</h2>
+<ol>
+<li><b>成绩与排名</b> Tab → 各项目排名核对 → 团体积分自动累加（按规程 1-8 名 13/11/10/9/8/7/6/5，9-12 名各 3 分，13+ 各 1 分）</li>
+<li><b>打印 / 导出</b>：各项目成绩单 / 团体积分表 / 纪录榜 / 颁奖证书 / 整本秩序册+成绩册 PDF</li>
+<li><b>比赛档案备份</b>：把 <code>Database\2026甘肃省浩沙杯U系列青少年游泳俱乐部联赛（定西站）.json</code> 拷到 U 盘 + 云盘（多重备份）</li>
+<li><b>关机</b>：所有副控 / 大屏 / 排名屏正常断开 → 主控 SwimmingScoreboard 安全关闭 → 主控 PC 正常关机</li>
+</ol>
+
+<h2>十一、关键检查清单</h2>
+
+<h3>赛前 (D-1 天)</h3>
+<div class="checklist">
+<ul>
+<li>安装版本 v2026.06.01 在所有机器</li>
+<li>比赛档案 JSON + last_competition.txt 在主控 Database\</li>
+<li>硬件计时器物理连通 + 软件连接绿色</li>
+<li>设备测试全道触板 / 出发台 / 盲表都响应</li>
+<li>比赛参数 (泳道数 / 池长 / 关闭时间 等) 已配</li>
+<li>所有副控 / 大屏 / 排名屏能连主服务器 (绿色"已连接")</li>
+<li>大屏样式 (底色 / 字号 / 文字) 已远程统一调整完</li>
+<li>主控 PC IP 固定 + 防火墙允许 3002 + 不睡眠 + 关自动更新</li>
+<li>模拟跑过 1 组（含计时复位 / 切组次 / 大屏切换）</li>
+<li>打印机就绪, 试打过出发表</li>
+<li>U 盘 2 个用于备份（一备一用）</li>
+</ul>
+</div>
+
+<h3>比赛日 (开赛前 1 小时)</h3>
+<div class="checklist">
+<ul>
+<li>所有设备开机 + 联网 + 软件启动</li>
+<li>硬件计时器重新连接确认</li>
+<li>各副控 / 大屏 / 排名屏状态全绿</li>
+<li>选第 1 场第 1 项，验证运动员名单与编排表一致</li>
+<li>大屏显示"欢迎"画面，等开赛</li>
+</ul>
+</div>
+
+<h3>每场结束</h3>
+<div class="checklist">
+<ul>
+<li>该场所有成绩已确认本组成绩</li>
+<li>检查"成绩与排名"Tab 该场数据完整</li>
+<li>打印该场成绩单（如需要）</li>
+<li>比赛档案另存到 U 盘</li>
+</ul>
+</div>
+
+<h3>全部比赛结束</h3>
+<div class="checklist">
+<ul>
+<li>团体积分核对</li>
+<li>颁奖证书生成 + 打印</li>
+<li>整本秩序册 / 成绩册导出 PDF</li>
+<li>比赛档案 JSON 双重备份 (U 盘 + 云盘)</li>
+<li>所有机器有序关机</li>
+</ul>
+</div>
+
+<h2>十二、紧急联系</h2>
+<table>
+<thead><tr><th>联系类型</th><th>信息</th></tr></thead>
+<tbody>
+<tr><td>比赛联系人</td><td>李 琳 &nbsp; 13893279812</td></tr>
+<tr><td>组委会</td><td>定西市体育运动中心 (现场)</td></tr>
+<tr><td>技术支持</td><td>(您团队的技术联络人)</td></tr>
+</tbody>
+</table>
+
+<div class="footer">
+  2026 甘肃省浩沙杯 U 系列青少年游泳俱乐部联赛（定西站）现场部署手册 &nbsp;|&nbsp; v2026.06.01
+</div>
+
+</body>
+</html>
