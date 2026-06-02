@@ -66,6 +66,8 @@ Write-Host "    Excel: $rowCount 行 x $($rng.Columns.Count) 列"
 Write-Host "[2/4] 解析 + 构造 Swimmer / Schedule"
 $startDt = [datetime]::Parse($StartDate)
 $swimmers = New-Object System.Collections.Generic.List[object]
+$relayTeams = New-Object System.Collections.Generic.List[object]   # 2026-06-01: 同时填 RelayTeams 集合, 接力队管理 Tab 才能看到
+$relayCounter = 0
 $relayRows = New-Object System.Collections.Generic.List[object]
 $unitSet = New-Object System.Collections.Generic.HashSet[string]
 $eventSet = New-Object System.Collections.Generic.HashSet[string]
@@ -93,7 +95,7 @@ for ($r = 2; $r -le $rowCount; $r++) {
     $athAge    = "$($data[$r, 18])"
     $entryT    = "$($data[$r, 19])"
 
-    if (-not $session -or -not $name -or -not $dist) { continue }
+    if (-not $session -or -not $dist) { continue }
 
     # 标准化
     $genderNorm = switch ($gender) { '男子' { '男' } '女子' { '女' } '男女' { '混合' } default { '混合' } }
@@ -101,6 +103,16 @@ for ($r = 2; $r -le $rowCount; $r++) {
     $isRelay = ($dist -match 'X' -or $dist -match 'x')
     $distNorm = $dist -replace 'X','x'
     $eventName = "$distNorm$stroke"
+    # 2026-06-01: 接力行 Excel 用 & 分隔 4 名队员名 (e.g. "张三&李四&王五&赵六"),
+    #   display.html 的 getRelayAllLegNames 按 , 拆分, 这里统一替换为 , 让大屏正确分棒.
+    if ($isRelay) {
+        $name = ($name -replace '\s*&\s*', ',') -replace '\s+', ''
+        # 接力如果 Name 空 (主办方漏填队员名), 用单位名补占位, 避免被 filter 删掉整条
+        if (-not $name) { $name = "$unitShort 队" }
+    } else {
+        # 个人项 Name 仍是必填, 空跳过
+        if (-not $name) { continue }
+    }
 
     [void]$unitSet.Add($unitShort)
     [void]$eventSet.Add($eventName)
@@ -129,43 +141,118 @@ for ($r = 2; $r -le $rowCount; $r++) {
     if ([int]$heatNum -gt $evtAgg[$aggKey].MaxHeat) { $evtAgg[$aggKey].MaxHeat = [int]$heatNum }
     $evtAgg[$aggKey].EntryCount++
 
-    $swimmer = [ordered]@{
-        Name = $name
-        BibNumber = ''
-        BirthDate = $birthFmt
-        Age = $calcAge
-        Gender = $genderNorm
-        Country = $unitShort
-        CountryShort = $unitShort
-        IDNumber = $idNum
-        Phone = $phone
-        Notes = if ($isRelay) { '接力队员' } else { '' }
-        LegLabel = ''
-        CSANumber = ''
-        FINANumber = $null
-        HealthCertDate = $null
-        EventName = $eventName
-        CurrentStage = $stage
-        Heat = [int]$heatNum
-        Lane = [int]$laneNum
-        EntryTime = $entryFmt
-        EntryTimeSeconds = $entrySec
-        IsQualified = $true
-        Status = ''
-        CurrentRank = 0
-        AgeCategory = $age
-        Results = @()
-        StageAssignments = @{
-            $stage = @{
-                Stage = $stage
-                Heat = [int]$heatNum
-                Lane = [int]$laneNum
-                EntryTimeSeconds = $entrySec
-                EntryTime = $entryFmt
+    # ─── 接力 vs 个人 走不同 Swimmer 形状 ──────────────────────────
+    #   接力: Name=单位名 (= TeamName), Notes="接力队 棒次:张三,李四,王五,赵六"
+    #         GetEventRanking / 大屏 等服务器代码会从 Notes 抽出 4 棒名当 sw.name 广播
+    #         同时往 RelayTeams 集合塞一条 RelayTeam (接力队管理 Tab 才能看到)
+    #   个人: Name=运动员名
+    if ($isRelay) {
+        $relayCounter++
+        $teamBib = ('R' + $relayCounter.ToString('D3'))
+        $teamName = $unitShort
+        $legNames = $name   # 已经在上面把 & 替换成了 ,
+        $swimmer = [ordered]@{
+            Name = $teamName
+            BibNumber = $teamBib
+            BirthDate = ''
+            Age = 0
+            Gender = $genderNorm
+            Country = $teamName
+            CountryShort = $teamName
+            IDNumber = ''
+            Phone = ''
+            Notes = "接力队 棒次:$legNames"
+            LegLabel = ''
+            CSANumber = ''
+            FINANumber = $null
+            HealthCertDate = $null
+            EventName = $eventName
+            CurrentStage = $stage
+            Heat = [int]$heatNum
+            Lane = [int]$laneNum
+            EntryTime = $entryFmt
+            EntryTimeSeconds = $entrySec
+            IsQualified = $true
+            Status = ''
+            CurrentRank = 0
+            AgeCategory = $age
+            Results = @()
+            StageAssignments = @{
+                $stage = @{ Stage = $stage; Heat = [int]$heatNum; Lane = [int]$laneNum;
+                           EntryTimeSeconds = $entrySec; EntryTime = $entryFmt }
             }
         }
+        $swimmers.Add([pscustomobject]$swimmer)
+
+        # 同步加 RelayTeam 实体
+        $legs = New-Object System.Collections.Generic.List[object]
+        $legParts = $legNames -split ','
+        for ($i = 0; $i -lt 4; $i++) {
+            $legNm = if ($i -lt $legParts.Count) { $legParts[$i].Trim() } else { '' }
+            $legs.Add([pscustomobject]@{
+                LegOrder = $i + 1
+                SwimmerName = $legNm
+                SwimmerBibNumber = ''
+                SwimmerIDNumber = ''
+                SwimmerBirthDate = ''
+                ReactionTime = 0.0
+                LegTimeSeconds = 0.0
+            })
+        }
+        $team = [ordered]@{
+            TeamName = $teamName
+            EventName = $eventName
+            Gender = $genderNorm
+            AgeGroup = $age
+            Country = $teamName
+            Members = @()
+            Legs = $legs
+            EntryTime = $entryFmt
+            EntryTimeSeconds = $entrySec
+            Heat = [int]$heatNum
+            Lane = [int]$laneNum
+            FinalTime = 0.0
+            Rank = 0
+            Stage = $stage
+            Status = ''
+            LegSplits = @()
+            AgeCategoryPending = $false
+        }
+        $relayTeams.Add([pscustomobject]$team)
+    } else {
+        $swimmer = [ordered]@{
+            Name = $name
+            BibNumber = ''
+            BirthDate = $birthFmt
+            Age = $calcAge
+            Gender = $genderNorm
+            Country = $unitShort
+            CountryShort = $unitShort
+            IDNumber = $idNum
+            Phone = $phone
+            Notes = ''
+            LegLabel = ''
+            CSANumber = ''
+            FINANumber = $null
+            HealthCertDate = $null
+            EventName = $eventName
+            CurrentStage = $stage
+            Heat = [int]$heatNum
+            Lane = [int]$laneNum
+            EntryTime = $entryFmt
+            EntryTimeSeconds = $entrySec
+            IsQualified = $true
+            Status = ''
+            CurrentRank = 0
+            AgeCategory = $age
+            Results = @()
+            StageAssignments = @{
+                $stage = @{ Stage = $stage; Heat = [int]$heatNum; Lane = [int]$laneNum;
+                           EntryTimeSeconds = $entrySec; EntryTime = $entryFmt }
+            }
+        }
+        $swimmers.Add([pscustomobject]$swimmer)
     }
-    $swimmers.Add([pscustomobject]$swimmer)
 }
 Write-Host "    Swimmer 记录 $($swimmers.Count) 条, 项目 $($evtAgg.Count) 项, 单位 $($unitSet.Count), 组别 $($ageSet.Count)"
 
@@ -266,7 +353,7 @@ $package = [ordered]@{
     ChiefJudge = ''
     Officials = @()
     Swimmers = $swimmers
-    RelayTeams = @()
+    RelayTeams = $relayTeams
     Records = @()
     TeamScores = @()
     Schedule = $schedule

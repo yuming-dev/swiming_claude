@@ -1215,8 +1215,8 @@ function _ensureRaceRowsDom() {
     laneDisplayState = {};
 
     // 表头
-    // 2026-05-31 列序: 名次 移到代表队左侧.
-    //   个人: 道次 / 姓名 / 名次 / 代表队 / 成绩 / 备注
+    // 2026-06-01 列序与正文 lane-row 一致 (名次 紧跟 道次):
+    //   个人: 道次 / 名次 / 姓名 / 代表队 / 成绩 / 备注
     //   接力: 道次 / 名次 / 代表队(窄8vw) / 姓名(宽36vw, 同列显 4 棒+姓名) / 成绩 / 备注
     var header = document.querySelector('.lanes-header');
     if (header) {
@@ -1439,20 +1439,22 @@ function renderHeatResult() {
     document.getElementById('stageHeat').textContent = (data.currentStage||'') + ' 第' + (data.currentHeat||0) + '组 成绩';
     document.getElementById('runningTime').textContent = '';
 
-    // 成绩排名表头（接力：代表队在前）
+    // 成绩排名表头
+    // 2026-06-01 列序与正文 lane-row 一致:
+    //   个人项: 道次 / 名次 / 姓名 / 代表队 / 成绩 / 备注
+    //   接力项: 道次 / 名次 / 代表队(窄) / 姓名(宽) / 成绩 / 备注
     _heatResultRelay = isRelayEvent();
+    var c1Width = _heatResultRelay ? '8vw' : '14vw';   // 接力=代表队 8vw / 个人=姓名 14vw
+    var c2Width = _heatResultRelay ? '36vw' : '12vw';  // 接力=姓名 36vw / 个人=代表队 12vw
     var hdr1 = _heatResultRelay ? '代表队' : '姓名';
-    var hdr2 = _heatResultRelay ? '姓名' : '代表队';
-    // 接力赛 col2 为 4 个队员姓名（逗号分隔）— 加宽到 36vw 并允许换行；对应 col1（代表队）压到 8vw
-    var c1Width = _heatResultRelay ? '8vw' : '14vw';
-    var c2Width = _heatResultRelay ? '36vw' : '12vw';
+    var hdr2 = _heatResultRelay ? '姓名(棒次)' : '代表队';
     var header = document.querySelector('.lanes-header');
     if (header) {
         header.innerHTML =
+            '<div style="width:5vw;text-align:center;margin-right:1vw;">道次</div>' +
             '<div style="width:5vw;text-align:center;margin-right:1vw;">名次</div>' +
             '<div style="width:' + c1Width + ';text-align:center;margin-right:1.5vw;">' + hdr1 + '</div>' +
             '<div style="width:' + c2Width + ';text-align:center;margin-right:1.5vw;">' + hdr2 + '</div>' +
-            '<div style="width:5vw;text-align:center;margin-right:1vw;">道次</div>' +
             '<div style="width:14vw;text-align:center;margin-right:1.5vw;">成绩</div>' +
             '<div style="width:8vw;text-align:center;">备注</div>';
     }
@@ -1571,21 +1573,21 @@ function renderPublishedResult(pubData) {
     var laneNumSize = laneCount <= 8 ? 3.0 : 2.5;
     var rankSize = laneCount <= 8 ? 3.5 : 2.9;
 
-    // 成绩排名表头（接力：代表队在前）
+    // 成绩排名表头
+    // 2026-06-01 列序与正文 lane-row 一致 (同 renderHeatResult)
     var pubRelay = (pubData.eventName||'').indexOf('接力') >= 0;
-    var ph1 = pubRelay ? '代表队' : '姓名';
-    var ph2 = pubRelay ? '姓名' : '代表队';
-    // 接力 col2 为 4 个队员姓名（逗号分隔）— 加宽到 36vw 并允许换行，对应 col1（代表队）压到 8vw
     var pc1Width = pubRelay ? '8vw' : '14vw';
     var pc2Width = pubRelay ? '36vw' : '12vw';
     var pc2WrapStyle = pubRelay ? 'white-space:normal;overflow:visible;line-height:1.3;' : '';
+    var ph1 = pubRelay ? '代表队' : '姓名';
+    var ph2 = pubRelay ? '姓名(棒次)' : '代表队';
     var header = document.querySelector('.lanes-header');
     if (header) {
         header.innerHTML =
+            '<div style="width:5vw;text-align:center;margin-right:1vw;font-size:calc(' + fontSize + 'vh * var(--fs));">道次</div>' +
             '<div style="width:5vw;text-align:center;margin-right:1vw;font-size:calc(' + fontSize + 'vh * var(--fs));">名次</div>' +
             '<div style="width:' + pc1Width + ';text-align:center;margin-right:1.5vw;font-size:calc(' + fontSize + 'vh * var(--fs));">' + ph1 + '</div>' +
             '<div style="width:' + pc2Width + ';text-align:center;margin-right:1.5vw;font-size:calc(' + fontSize + 'vh * var(--fs));">' + ph2 + '</div>' +
-            '<div style="width:5vw;text-align:center;margin-right:1vw;font-size:calc(' + fontSize + 'vh * var(--fs));">道次</div>' +
             '<div style="width:14vw;text-align:center;margin-right:1.5vw;font-size:calc(' + fontSize + 'vh * var(--fs));">成绩</div>' +
             '<div style="width:8vw;text-align:center;font-size:calc(' + fontSize + 'vh * var(--fs));">备注</div>';
     }

@@ -11166,11 +11166,14 @@ namespace SwimmingScoreboard
                 string gender = EditGenderCombo.SelectedItem != null ? ((ComboBoxItem)EditGenderCombo.SelectedItem).Content.ToString() : "男";
 
                 // 按当前性别+组别过滤项目列表（排除接力队员个人条目）
+                // 2026-06-01 男/女 选择时也包含"混合"性别项目 (接力混合赛 FINA 惯例都对男女开放),
+                //   不然组别=全部 + 性别=男 时 项目下拉看不到 4x50米接力, 用户找不到接力项目编排
                 string prevEvent = EditEventCombo.SelectedItem != null ? EditEventCombo.SelectedItem.ToString() : "";
                 EditEventCombo.Items.Clear();
                 var evSet = new HashSet<string>();
                 foreach (var s in _swimmers) {
-                    if (string.IsNullOrEmpty(s.EventName) || s.Gender != gender) continue;
+                    if (string.IsNullOrEmpty(s.EventName)) continue;
+                    if (!GenderMatchesIncludingMixed(s.Gender, gender)) continue;
                     if (!MatchesAgeGroup(s, ageGroup)) continue;
                     if (s.Notes != null && s.Notes.StartsWith("接力队员")) continue;
                     evSet.Add(s.EventName);
@@ -11191,7 +11194,8 @@ namespace SwimmingScoreboard
                 bool isRelayEv = eventName.Contains("接力");
                 var heatNumbers = new HashSet<int>();
                 foreach (var s in _swimmers) {
-                    if (s.Gender != gender || s.EventName != eventName) continue;
+                    if (s.EventName != eventName) continue;
+                    if (!GenderMatchesIncludingMixed(s.Gender, gender)) continue;   // 2026-06-01 接力混合性别也算
                     if (!MatchesAgeGroup(s, ageGroup)) continue;
                     if (isRelayEv && !string.IsNullOrEmpty(s.Notes) && s.Notes.StartsWith("接力队员")) continue;
                     // 当前赛次匹配
@@ -11380,7 +11384,8 @@ namespace SwimmingScoreboard
             bool isRelay = eventName.Contains("接力");
             var matchedSwimmers = new List<Tuple<Swimmer, int, int>>();
             foreach (var s in _swimmers) {
-                if (s.Gender != gender || s.EventName != eventName) continue;
+                if (s.EventName != eventName) continue;
+                if (!GenderMatchesIncludingMixed(s.Gender, gender)) continue;   // 2026-06-01 男/女 也包含混合
                 if (!MatchesAgeGroup(s, ageGroup)) continue;
                 // 接力项目：跳过个人队员条目（Notes以"接力队员"开头），只保留代表队条目
                 if (isRelay && !string.IsNullOrEmpty(s.Notes) && s.Notes.StartsWith("接力队员")) continue;
@@ -11411,13 +11416,31 @@ namespace SwimmingScoreboard
                 EditAllGroupsScroll.Visibility = System.Windows.Visibility.Visible;
                 EditAllGroupsPanel.Children.Clear();
 
-                var groups = matchedSwimmers.GroupBy(t => t.Item2).OrderBy(g => g.Key);
+                // 2026-06-01 组别=全部 时按 (AgeCategory, Heat) 分组, 否则不同组别的"第1组"会被合并到一张表
+                //   ageGroup 选了具体值时仍按单一 Heat 分组 (原行为)
+                bool splitByAge = (string.IsNullOrEmpty(ageGroup) || ageGroup == "全部" || ageGroup == "不限");
+                // 按 CompetitionPackage.AgeGroups 的顺序排; 不在列表中的组别按字符串排到最后
+                var ageOrder = new Dictionary<string, int>();
+                for (int i = 0; i < _ageGroups.Count; i++) ageOrder[_ageGroups[i].Name] = i;
+                var groupsKeyed = matchedSwimmers
+                    .GroupBy(t => splitByAge ? ((t.Item1.AgeCategory ?? "") + "|" + t.Item2.ToString("D3")) : ("|" + t.Item2.ToString("D3")))
+                    .OrderBy(g => {
+                        var first = g.First();
+                        string ag = first.Item1.AgeCategory ?? "";
+                        int agi; if (!ageOrder.TryGetValue(ag, out agi)) agi = 999;
+                        return agi * 10000 + first.Item2;
+                    });
                 string seedColHeader = stage == "预赛" ? "报名成绩" : (prevStage + "成绩");
 
-                foreach (var grp in groups) {
+                foreach (var grp in groupsKeyed) {
+                    var first = grp.First();
+                    string ageLabel = first.Item1.AgeCategory ?? "";
+                    string headerText = splitByAge && !string.IsNullOrEmpty(ageLabel)
+                        ? string.Format("{0}  第{1}组（{2}人）", ageLabel, first.Item2, grp.Count())
+                        : string.Format("第{0}组（{1}人）", first.Item2, grp.Count());
                     // 组标题
                     var header = new TextBlock {
-                        Text = string.Format("第{0}组（{1}人）", grp.Key, grp.Count()),
+                        Text = headerText,
                         FontWeight = FontWeights.Bold,
                         FontSize = 15,
                         Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E40AF")),
@@ -13291,8 +13314,9 @@ namespace SwimmingScoreboard
             string gender = ResultGenderCombo.SelectedItem != null ? ((ComboBoxItem)ResultGenderCombo.SelectedItem).Content.ToString() : "男";
             ResultEventCombo.Items.Clear();
             var eventSet = new HashSet<string>();
+            // 2026-06-01 男/女 选择时也包含混合性别接力项目, 与"出场编排微调"逻辑一致
             foreach (var s in _swimmers) {
-                if (s.Gender == gender && !string.IsNullOrEmpty(s.EventName) &&
+                if (GenderMatchesIncludingMixed(s.Gender, gender) && !string.IsNullOrEmpty(s.EventName) &&
                     MatchesAgeGroup(s, ageFilter) &&
                     !(s.Notes != null && s.Notes.StartsWith("接力队员")))
                     eventSet.Add(s.EventName);
@@ -13315,7 +13339,7 @@ namespace SwimmingScoreboard
             string agForCheck = ageFilter == "全部" ? "" : ageFilter;
             foreach (var s in _swimmers) {
                 if (!string.IsNullOrEmpty(eventName) && s.EventName != eventName) continue;
-                if (s.Gender != gender) continue;
+                if (!GenderMatchesIncludingMixed(s.Gender, gender)) continue;   // 2026-06-01 含混合
                 if (!MatchesAgeGroup(s, ageFilter)) continue;
                 if (s.Notes != null && s.Notes.StartsWith("接力队员")) continue;
                 int candHeat = 0;
@@ -13364,8 +13388,9 @@ namespace SwimmingScoreboard
             }
 
             // 按组别/性别和项目筛选（接力项目只查代表队，不查个人队员）
+            // 2026-06-01 男/女 选择时也匹配混合性别接力项目
             var allMatched = _swimmers.Where(s =>
-                s.EventName == eventName && s.Gender == gender &&
+                s.EventName == eventName && GenderMatchesIncludingMixed(s.Gender, gender) &&
                 MatchesAgeGroup(s, ageFilter) &&
                 !(s.Notes != null && s.Notes.StartsWith("接力队员"))
             ).ToList();
@@ -16114,6 +16139,17 @@ namespace SwimmingScoreboard
         private bool MatchesAgeGroup(Swimmer s, string ageGroup) {
             if (string.IsNullOrEmpty(ageGroup) || ageGroup == "全部" || ageGroup == "不限") return true;
             return (s.AgeCategory ?? "") == ageGroup;
+        }
+
+        // 2026-06-01 性别匹配 (含混合): 选 男 时 男 + 混合 都算; 选 女 时 女 + 混合 都算; 选 混合 严格只含 混合.
+        //   FINA 惯例: 男女混合接力项目对 男/女 单性别筛选 应可见, 避免用户在"出场编排微调"等界面找不到接力.
+        private static bool GenderMatchesIncludingMixed(string swimmerGender, string filterGender) {
+            if (string.IsNullOrEmpty(filterGender)) return true;
+            if (filterGender == "全部" || filterGender == "不限") return true;
+            string sg = swimmerGender ?? "";
+            if (filterGender == "混合") return sg == "混合";
+            // 选 男 或 女 时, 同性别 + 混合 都算
+            return sg == filterGender || sg == "混合";
         }
 
         private void RefreshEventComboBoxes() {
