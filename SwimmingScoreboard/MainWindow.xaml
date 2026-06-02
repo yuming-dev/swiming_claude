@@ -1226,6 +1226,7 @@
                                         <RowDefinition Height="32"/>
                                         <RowDefinition Height="32"/>
                                         <RowDefinition Height="32"/>
+                                        <RowDefinition Height="32"/>
                                     </Grid.RowDefinitions>
                                     <!-- 赛中显示 -->
                                     <Button Grid.Row="0" Grid.Column="0" Click="ShowStartList_Click" Margin="2" BorderThickness="0" Cursor="Hand">
@@ -1349,6 +1350,20 @@
                                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
                                                         <TextBlock Text="&#xE8B9;" FontFamily="Segoe MDL2 Assets" FontSize="15" Foreground="White" VerticalAlignment="Center" Margin="0,0,5,0"/>
                                                         <TextBlock Text="图片 / 视频" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                    </StackPanel>
+                                                </Border>
+                                            </ControlTemplate>
+                                        </Button.Template>
+                                    </Button>
+                                    <!-- 2026-06-01 大屏样式远程控制: 底色 / 字号 / 9 处文字颜色字体 -->
+                                    <Button Grid.Row="6" Grid.Column="0" Grid.ColumnSpan="2" Click="OpenDisplayStyle_Click" Margin="2" BorderThickness="0" Cursor="Hand"
+                                            ToolTip="底色 / 字号 / 9 处文字颜色和字体, 实时推送到所有大屏 display.html">
+                                        <Button.Template>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border Background="#7C3AED" CornerRadius="6" Padding="4">
+                                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                        <TextBlock Text="&#xE790;" FontFamily="Segoe MDL2 Assets" FontSize="15" Foreground="White" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                                                        <TextBlock Text="大屏样式 (底色/字号/文字)" FontSize="13" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
                                                     </StackPanel>
                                                 </Border>
                                             </ControlTemplate>

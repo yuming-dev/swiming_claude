@@ -320,6 +320,7 @@
     <Compile Include="LapAdjustLogic.cs" />
     <Compile Include="TimingBridge.cs" />
     <Compile Include="HeatScheduler.cs" />
+    <Compile Include="DisplayStyleWindow.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>

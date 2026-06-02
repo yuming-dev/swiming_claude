@@ -183,6 +183,12 @@ namespace SwimmingScoreboard
         private DispatcherTimer _clockSyncTimer;
         private bool _initialized = false;
         private bool _resultConfirmed = false;
+        // 2026-06-01 大屏样式集中托管: bg / fs / textStyle 由服务器存储 + 广播,
+        //   多端 (control.html / RemoteDisplayControl.exe / 主控 PC) 都能修改, 实时推送到所有 display.html
+        private string _displayStyleBg = "#0f172a";
+        private double _displayStyleFs = 1.0;
+        private string _displayStyleTextStyleJson = "{}";   // JSON 字符串 {key:{c:'#..',f:'..'}}
+        private DisplayStyleWindow _displayStyleWin;        // 当前打开的"大屏样式"窗口 (主控 PC 端)
         private ObservableCollection<BackupInfo> _savedCompetitions = new ObservableCollection<BackupInfo>();
 
         // ═══════════════════════════════════════════════════════════════
@@ -210,6 +216,7 @@ namespace SwimmingScoreboard
             if (!editorMode) InitializeTimingBridge();
             InitializeTimers();
             LoadTimingSettings();
+            LoadDisplayStyleFromDisk();      // 2026-06-01 大屏样式持久化还原
             ApplyPersistedDeviceStates();   // 设备状态（损坏/未安装/手动按键）从 device_states.json 还原
             LoadTimingConnectionConfig();   // 通讯参数从 timing_connection.json 还原
             LoadLastCompetition();
@@ -640,6 +647,16 @@ namespace SwimmingScoreboard
                     case "DISPLAY_IDENTITY":
                         if (!_displaySockets.Contains(socket)) _displaySockets.Add(socket);
                         AddLog("大屏显示已连接");
+                        // 2026-06-01 新连接的大屏立即收到服务器侧最新样式 (bg/fs/textStyle), 不依赖本地 localStorage
+                        try { SendDisplayStyleTo(socket); } catch { }
+                        break;
+                    case "SET_DISPLAY_STYLE":
+                        // 2026-06-01 任意控制端 (control.html / RemoteDisplayControl / 主控 PC / 大屏自身) 推送新样式
+                        try { HandleSetDisplayStyle(msg); } catch (Exception ex) { AddLog("大屏样式设置失败: " + ex.Message); }
+                        break;
+                    case "GET_DISPLAY_STYLE":
+                        // 2026-06-01 控制端打开"大屏样式"面板时主动拉一次当前值, 让 UI 同步
+                        try { SendDisplayStyleTo(socket); } catch { }
                         break;
                     case "LEADERBOARD_IDENTITY":
                         if (!_leaderboardSockets.Contains(socket)) _leaderboardSockets.Add(socket);
@@ -13952,6 +13969,34 @@ namespace SwimmingScoreboard
         private void ShowRecords_Click(object sender, RoutedEventArgs e) { BroadcastDisplayMode("SHOW_RECORDS"); }
         private void ShowWelcome_Click(object sender, RoutedEventArgs e) { BroadcastDisplayMode("SHOW_WELCOME"); }
 
+        // 2026-06-01 打开"大屏样式"远程控制窗口 (底色/字号/9 处文字), 改动实时推送到所有客户端
+        private void OpenDisplayStyle_Click(object sender, RoutedEventArgs e) {
+            if (_displayStyleWin != null && _displayStyleWin.IsLoaded) {
+                _displayStyleWin.Activate();
+                return;
+            }
+            _displayStyleWin = new DisplayStyleWindow(
+                applyStyle: (Action<JObject>)((partial) => {
+                    // 把局部更新塞到 SET_DISPLAY_STYLE 走的同一个入口, 持久化 + 广播
+                    try {
+                        var fake = new JObject { ["type"] = "SET_DISPLAY_STYLE", ["data"] = partial };
+                        HandleSetDisplayStyle(fake);
+                    } catch (Exception ex) { AddLog("应用大屏样式失败: " + ex.Message); }
+                }),
+                getCurrentStyle: (Func<JObject>)(() => {
+                    JObject ts;
+                    try { ts = JObject.Parse(_displayStyleTextStyleJson); } catch { ts = new JObject(); }
+                    return new JObject {
+                        ["bg"] = _displayStyleBg,
+                        ["fs"] = _displayStyleFs,
+                        ["textStyle"] = ts
+                    };
+                })
+            );
+            _displayStyleWin.Owner = this;
+            _displayStyleWin.Show();
+        }
+
         // —— 图片 / 视频 显示控制 ——
         private string _lastMediaPath = "";
         private void ShowMedia_Click(object sender, RoutedEventArgs e) {
@@ -14300,6 +14345,125 @@ namespace SwimmingScoreboard
             if (LaneCountCombo != null) LaneCountCombo.SelectedIndex = 0;
             if (CompModeText != null) CompModeText.Text = "";
             if (PoolInfoText != null) PoolInfoText.Text = "";
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        // 2026-06-01 大屏样式持久化 + WebSocket 集中托管
+        //   存 bg (CSS background) / fs (字号倍数 0.8~3.0) / textStyle (9 处颜色+字体 JSON map)
+        //   任意控制端 SET_DISPLAY_STYLE 推送 → 服务器合并 → DISPLAY_STYLE_PUSH 广播给所有连接
+        // ═══════════════════════════════════════════════════════════════
+        private string DisplayStylePath {
+            get { return IOPath.Combine(AppDomain.CurrentDomain.BaseDirectory, "display_style.json"); }
+        }
+
+        private void LoadDisplayStyleFromDisk() {
+            try {
+                if (File.Exists(DisplayStylePath)) {
+                    var j = JObject.Parse(File.ReadAllText(DisplayStylePath, Encoding.UTF8));
+                    if (j["bg"] != null) _displayStyleBg = j["bg"].ToString();
+                    if (j["fs"] != null) {
+                        double v;
+                        if (double.TryParse(j["fs"].ToString(), out v) && v > 0) _displayStyleFs = v;
+                    }
+                    if (j["textStyle"] != null) _displayStyleTextStyleJson = j["textStyle"].ToString(Newtonsoft.Json.Formatting.None);
+                }
+            } catch (Exception ex) { AddLog("加载大屏样式失败: " + ex.Message); }
+        }
+
+        private void SaveDisplayStyleToDisk() {
+            try {
+                JObject ts;
+                try { ts = JObject.Parse(_displayStyleTextStyleJson); } catch { ts = new JObject(); }
+                var j = new JObject {
+                    ["bg"] = _displayStyleBg,
+                    ["fs"] = _displayStyleFs,
+                    ["textStyle"] = ts
+                };
+                File.WriteAllText(DisplayStylePath, j.ToString(Newtonsoft.Json.Formatting.Indented), Encoding.UTF8);
+            } catch (Exception ex) { AddLog("保存大屏样式失败: " + ex.Message); }
+        }
+
+        private void HandleSetDisplayStyle(JObject msg) {
+            var data = msg["data"] as JObject;
+            if (data == null) return;
+            bool changed = false;
+            if (data["bg"] != null) {
+                var v = data["bg"].ToString();
+                if (!string.IsNullOrEmpty(v) && v.IndexOf("javascript:", StringComparison.OrdinalIgnoreCase) < 0
+                    && v.IndexOf("expression(", StringComparison.OrdinalIgnoreCase) < 0) {
+                    _displayStyleBg = v;
+                    changed = true;
+                }
+            }
+            if (data["fs"] != null) {
+                double v;
+                if (double.TryParse(data["fs"].ToString(), out v) && v >= 0.5 && v <= 5.0) {
+                    _displayStyleFs = Math.Round(v * 10) / 10.0;
+                    changed = true;
+                }
+            }
+            if (data["textStyle"] != null) {
+                // textStyle 可以是完整替换或局部合并 (data.textStyleMerge=true)
+                var newTs = data["textStyle"];
+                bool merge = data["textStyleMerge"] != null && (bool)data["textStyleMerge"];
+                if (merge) {
+                    JObject cur;
+                    try { cur = JObject.Parse(_displayStyleTextStyleJson); } catch { cur = new JObject(); }
+                    var add = newTs as JObject;
+                    if (add != null) {
+                        foreach (var kv in add) {
+                            cur[kv.Key] = kv.Value;
+                        }
+                        _displayStyleTextStyleJson = cur.ToString(Newtonsoft.Json.Formatting.None);
+                        changed = true;
+                    }
+                } else {
+                    _displayStyleTextStyleJson = newTs.ToString(Newtonsoft.Json.Formatting.None);
+                    changed = true;
+                }
+            }
+            if (changed) {
+                SaveDisplayStyleToDisk();
+                BroadcastDisplayStyle();
+            }
+        }
+
+        private string BuildDisplayStyleJson() {
+            JObject ts;
+            try { ts = JObject.Parse(_displayStyleTextStyleJson); } catch { ts = new JObject(); }
+            var msg = new JObject {
+                ["type"] = "DISPLAY_STYLE_PUSH",
+                ["data"] = new JObject {
+                    ["bg"] = _displayStyleBg,
+                    ["fs"] = _displayStyleFs,
+                    ["textStyle"] = ts
+                }
+            };
+            return msg.ToString(Newtonsoft.Json.Formatting.None);
+        }
+
+        private void BroadcastDisplayStyle() {
+            string json = BuildDisplayStyleJson();
+            foreach (var s in _allSockets.ToList()) {
+                try { s.Send(json); } catch { }
+            }
+            // 主控 PC 端打开的"大屏样式"窗口同步 UI (其它客户端通过 WebSocket 推送同步)
+            if (_displayStyleWin != null && _displayStyleWin.IsLoaded) {
+                try {
+                    JObject ts;
+                    try { ts = JObject.Parse(_displayStyleTextStyleJson); } catch { ts = new JObject(); }
+                    var data = new JObject {
+                        ["bg"] = _displayStyleBg,
+                        ["fs"] = _displayStyleFs,
+                        ["textStyle"] = ts
+                    };
+                    _displayStyleWin.ApplyRemoteStyle(data);
+                } catch { }
+            }
+        }
+
+        private void SendDisplayStyleTo(IWebSocketConnection sock) {
+            try { sock.Send(BuildDisplayStyleJson()); } catch { }
         }
 
         // ═══════════════════════════════════════════════════════════════

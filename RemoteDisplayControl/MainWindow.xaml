@@ -45,6 +45,8 @@
             <Button Content="纪录榜" Click="SendMode_Click" Tag="SHOW_RECORDS" Width="100" Height="40" Margin="4" Background="#EF4444" Foreground="White" BorderThickness="0"/>
             <Button Content="欢迎画面" Click="SendMode_Click" Tag="SHOW_WELCOME" Width="100" Height="40" Margin="4" Background="#64748B" Foreground="White" BorderThickness="0"/>
             <Button Content="暂停" Click="SendMode_Click" Tag="SHOW_PAUSE" Width="100" Height="40" Margin="4" Background="#475569" Foreground="White" BorderThickness="0"/>
+            <!-- 2026-06-01 远程控制大屏样式 -->
+            <Button Content="🎨 大屏样式" Click="OpenDisplayStyle_Click" Width="210" Height="40" Margin="4" Background="#0EA5E9" Foreground="White" BorderThickness="0" FontWeight="Bold"/>
         </WrapPanel>
 
         <TextBlock x:Name="StatusText" Grid.Row="3" Text="未连接" Foreground="#EF4444"

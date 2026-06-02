@@ -16,6 +16,7 @@
   .note { background:#fef9c3; padding:8px 12px; border-left: 4px solid #ca8a04; border-radius:4px; margin: 8px 0; }
   .summary { background: #ecfdf5; border-left: 4px solid #059669; padding: 8px 14px; border-radius: 4px; margin: 8px 0; }
   .danger { background: #fee2e2; padding:8px 12px; border-left: 4px solid #b91c1c; border-radius:4px; margin: 8px 0; }
+  .new { background:#fff7ed; padding:8px 12px; border-left:4px solid #ea580c; border-radius:4px; margin:8px 0; }
   ul { margin: 4px 0 10px 24px; }
   li { margin: 3px 0; }
   code { background:#f1f5f9; padding:1px 5px; border-radius:3px; font-family: Consolas, monospace; font-size: 10pt; }
@@ -24,6 +25,7 @@
   .footer { text-align:center; color:#64748b; font-size:10pt; margin-top:30px; padding-top:12px; border-top:1px solid #e2e8f0; }
   .toc { background:#f8fafc; border:1px solid #e2e8f0; padding: 10px 18px; border-radius:6px; }
   .toc a { color:#1e3a8a; text-decoration:none; }
+  .badge-new { display:inline-block; background:#fef3c7; color:#92400e; padding:1px 8px; border-radius:10px; font-size:10pt; font-weight:bold; }
   hr { border:0; border-top:1px dashed #cbd5e1; margin: 18px 0; }
 </style>
 </head>
@@ -31,71 +33,86 @@
 
 <h1>display.html 大屏使用说明书</h1>
 <p style="text-align:center; color:#64748b; margin-top:-6px;">
-  v2026.06.01 &nbsp;|&nbsp; 适用于 LED 显示墙 / 投影 / 教练台 / 任意浏览器场景
+  v2026.06.01 &nbsp;|&nbsp; 含 6 月 1 日批次新功能 + 4 端远程样式控制
 </p>
 
 <div class="toc">
   <b>目录</b><br>
   <a href="#s1">一、概述</a> &nbsp;|&nbsp;
-  <a href="#s2">二、启动与连接服务器</a> &nbsp;|&nbsp;
-  <a href="#s3">三、主要显示视图</a> &nbsp;|&nbsp;
+  <a href="#s2">二、启动与连接</a> &nbsp;|&nbsp;
+  <a href="#s3">三、显示视图</a> &nbsp;|&nbsp;
   <a href="#s4">四、比赛视图列布局</a> &nbsp;|&nbsp;
-  <a href="#s5">五、右下角设置按钮</a> &nbsp;|&nbsp;
-  <a href="#s6">六、断线重连</a> &nbsp;|&nbsp;
-  <a href="#s7">七、常见问题排查</a> &nbsp;|&nbsp;
-  <a href="#s8">八、localStorage 键一览</a> &nbsp;|&nbsp;
-  <a href="#s9">九、版本历史</a>
+  <a href="#s5">五、本组成绩视图</a> &nbsp;|&nbsp;
+  <a href="#s6">六、本地设置按钮</a> &nbsp;|&nbsp;
+  <a href="#s7">七、远程样式控制</a> &nbsp;|&nbsp;
+  <a href="#s8">八、断线重连</a> &nbsp;|&nbsp;
+  <a href="#s9">九、FAQ</a> &nbsp;|&nbsp;
+  <a href="#s10">十、文件存储</a> &nbsp;|&nbsp;
+  <a href="#s11">十一、版本历史</a>
 </div>
 
 <h2 id="s1">一、概述</h2>
-<p>display.html 是游泳赛事管理系统的"观众/裁判席大屏"前端：连上主服务器(比赛控制端 <code>SwimmingScoreboard.exe</code>) 后，自动接收比赛实时数据并渲染，无需任何本地配置，不储存比赛数据。</p>
+<p>display.html 是游泳赛事管理系统的"观众/裁判席大屏"前端，连上主服务器 <code>SwimmingScoreboard.exe</code> 后自动接收比赛实时数据并渲染。前端不做任何重算、不缓存比赛数据，纯渲染层。</p>
 
 <div class="summary">
-  <b>数据来源原则：</b>所有名次、反应时、分段、运动员信息都由主服务器统一计算后广播过来，display.html 只负责渲染，不做任何本地推算或插值。滚动时间也来自硬件 0x7F 派生的服务器值，禁本地时钟插值。
+  <b>数据来源原则：</b>所有名次、反应时、分段、运动员信息、破纪录标识、滚动时间均由主服务器统一计算后广播。display.html 只渲染，不重算，不本地推算。滚动时间直接显示硬件 0x7F 派生的服务器值。
 </div>
 
-<p><b>技术栈：</b>纯 HTML + CSS + JavaScript（无依赖），WebSocket 接收数据。可在任何现代浏览器(Edge / Chrome / Firefox) 直接打开。</p>
+<p><b>技术栈：</b>纯 HTML + CSS + JavaScript（无依赖），WebSocket 收数据。可在任何现代浏览器(Edge / Chrome / Firefox) 直接打开。</p>
+<p><b>部署形态：</b>通常 LED 显示墙连一台机器，浏览器全屏运行 display.html。多块屏并存也支持 — v2026.06.01 起样式由服务器集中托管，所有大屏共享一套样式。</p>
 
 <h2 id="s2">二、启动与连接服务器</h2>
 
 <h3>启动方式</h3>
 <ul>
-  <li>方式 1：双击 <code>display.html</code> 文件</li>
-  <li>方式 2：浏览器地址栏输入 <code>file:///安装路径/SwimmingScoreboard/Web/display.html</code></li>
-  <li>方式 3：URL 加参数直连 — <code>display.html?host=192.168.1.100</code></li>
+  <li>双击 <code>display.html</code> 文件</li>
+  <li>浏览器地址栏输入 <code>file:///安装路径/SwimmingScoreboard/Web/display.html</code></li>
+  <li>URL 加参数直连 — <code>display.html?host=192.168.1.100</code></li>
 </ul>
 
 <h3>首次打开</h3>
-<p>显示"连接主服务器"遮罩 → 输入主服务器 IP → 点"连接"。成功后遮罩消失，进入欢迎页 / 比赛画面。服务器 IP 被记到 localStorage，下次自动复用。</p>
+<p>显示"连接主服务器"遮罩 → 输入主服务器 IP → 点"连接"。成功后遮罩消失，进入欢迎页 / 比赛画面。服务器 IP 记到 localStorage，下次自动复用。</p>
 
 <h3>全屏</h3>
 <p>点击页面任意位置触发全屏 (<span class="kbd">F11</span> 也可)。</p>
-<div class="note">
-  <b>提示：</b>LED 大屏部署时务必全屏，否则浏览器标题栏/任务栏会挤占空间，导致 vh 字号算出来偏小。
-</div>
+<div class="note"><b>提示：</b>LED 大屏务必全屏，否则浏览器标题栏挤占空间，vh 字号算出来偏小。</div>
 
-<h3>关闭</h3>
-<p>刷新或关闭页面会有"确定要关闭大屏幕显示？"提示，防误关。</p>
+<h3>自动重连</h3>
+<p>WebSocket 断开 → 自动重连 + 显示遮罩。重连成功后画面立即恢复，所有数据由服务器重发 snapshot（含当前样式），不会丢任何状态。</p>
 
-<h2 id="s3">三、主要显示视图</h2>
-<p>顶部标题栏始终显示比赛名称 + WR / CR 纪录（右上角）。下方主区域按主控发来的"视图指令"切换 9 种状态：</p>
+<h2 id="s3">三、主要显示视图（9 种）</h2>
 
 <table>
   <thead><tr><th>编号</th><th>视图</th><th>说明</th></tr></thead>
   <tbody>
-    <tr><td>1</td><td>欢迎页 (welcome)</td><td>居中显示比赛名称 / 副标题 / Logo, 比赛未开始时常驻。</td></tr>
+    <tr><td>1</td><td>欢迎页 (welcome)</td><td>居中显示比赛名称 / 副标题 / Logo，比赛未开始时常驻。</td></tr>
     <tr><td>2</td><td>比赛中 (race)</td><td>实时显示当前组各道运动员、分段成绩、名次、滚动时间。<b>最常用</b>，详见 §四。</td></tr>
-    <tr><td>3</td><td>出发表 (start list)</td><td>当前组所有运动员的报名信息表（道次 / 号码 / 姓名 / 代表队）。</td></tr>
-    <tr><td>4</td><td>总排名 (event ranking)</td><td>本项目全部小组完赛后, 按成绩排序的最终名次。超过 10 行自动翻页（间隔参数从主控"大屏翻屏时间"读）。</td></tr>
-    <tr><td>5</td><td>公布成绩 (published)</td><td>某一组成绩"公布"后的展示画面（与比赛中视图同布局，但行已按名次排序固定不动 + 显示破纪录标记）。</td></tr>
+    <tr><td>3</td><td>出发表 (start list)</td><td>当前组报名信息表。列：道次 / 姓名 / 代表队。<span class="badge-new">v2026.06.01 移除"号码"列</span></td></tr>
+    <tr><td>4</td><td>总排名 (event ranking)</td><td>本项目全部小组完赛后, 按成绩排序的最终名次。<span class="badge-new">v2026.06.01 移除"号码"列, 新增"备注"列 (Q / WR / CR / DSQ ...)</span> 超过 10 行自动翻页。</td></tr>
+    <tr><td>5</td><td>公布成绩 (published)</td><td>某一组成绩"公布"后的展示画面。</td></tr>
     <tr><td>6</td><td>团体积分 (team)</td><td>各代表队累计积分排名（金 / 银 / 铜数 + 总分）。</td></tr>
     <tr><td>7</td><td>纪录榜 (records)</td><td>项目 / 类型 / 保持者 / 代表队 / 成绩 / 日期 全列表。</td></tr>
-    <tr><td>8</td><td>颁奖典礼 (awards)</td><td>三人领奖台：金牌居中、银牌左、铜牌右，依次淡入显示。</td></tr>
-    <tr><td>9</td><td>媒体播放 (media)</td><td>由主控推送的图片 / 视频, 占满全屏播放。</td></tr>
+    <tr><td>8</td><td>颁奖典礼 (awards)</td><td>三人领奖台：金牌居中、银牌左、铜牌右，依次淡入。</td></tr>
+    <tr><td>9</td><td>媒体播放 (media)</td><td>由主控推送的图片 / 视频，占满全屏播放。</td></tr>
   </tbody>
 </table>
 
-<h2 id="s4">四、比赛视图列布局 (race view) 详解</h2>
+<h3>总排名备注列规则 <span class="badge-new">v2026.06.01</span></h3>
+<table>
+  <thead><tr><th>优先级</th><th>内容</th><th>颜色</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>DSQ / DNS / DNF (独占)</td><td><b style="color:#ef4444;">红</b></td></tr>
+    <tr><td>2</td><td>Q 晋级标记</td><td><b style="color:#22c55e;">绿</b></td></tr>
+    <tr><td>3</td><td>破/平纪录 WR / OR / AR / NR / CR / =WR ...</td><td><b style="color:#f59e0b;">金</b></td></tr>
+  </tbody>
+</table>
+<p>多项同时出现用 <code> \ </code> 隔开。例如：<code>Q \ WR \ CR</code>。</p>
+
+<h2 id="s4">四、比赛视图列布局（重点）</h2>
+
+<div class="new">
+  v2026.06.01 列序与布局做了重要调整：6 列居中、flex 比例自动撑满整行、每道用细横线分隔（与总排名风格统一）。
+</div>
 
 <h3>个人项 (50 自 / 100 蛙 / 200 蝶 等)</h3>
 <div class="layout">┌─────┬─────┬─────────────┬──────────┬─────────┬───────┐
@@ -105,59 +122,91 @@
 │  5  │  2  │   李四      │  长沙队  │ 28.10   │  CR   │
 │  6  │  3  │   王五      │  北京队  │ 28.55   │       │
 └─────┴─────┴─────────────┴──────────┴─────────┴───────┘
-列宽比例 5 : 5 : 14 : 12 : 14 : 8 (按当前可用宽度自动撑满)</div>
+列宽比例 5 : 5 : 14 : 12 : 14 : 8 (按可用宽度自动撑满)</div>
 
 <h3>接力项 (4×50 / 4×100 等)</h3>
 <div class="layout">┌─────┬─────┬────────┬─────────────────────────────────────┬─────────┬───────┐
 │ 道次│ 名次│ 代表队 │ 1棒:张三 2棒:李四 3棒:王五 4棒:赵六│  成绩   │ 备注  │
 └─────┴─────┴────────┴─────────────────────────────────────┴─────────┴───────┘
 列宽比例 5 : 5 : 8 : 36 : 14 : 8</div>
-<p>姓名列同列显 4 棒 + 队员姓名，<b style="color:#f59e0b;">当前正在游的棒次高亮金色</b>，随圈数自动切换 (跟主控加减圈同步)。</p>
+<p>姓名列同列显 4 棒 + 队员姓名，<b style="color:#f59e0b;">当前正在游的棒次高亮金色</b>，跟主控加减圈同步切换。</p>
 
-<h3>行内容刷新规则</h3>
-<table>
-  <thead><tr><th>列</th><th>刷新逻辑</th></tr></thead>
-  <tbody>
-    <tr><td>成绩</td><td>完赛后显示终点成绩；比赛中显示最新分段成绩 (5 秒后自动消失, 时长参数为主控"分段成绩显示时间", 默认 5 秒)。</td></tr>
-    <tr><td>名次</td><td>完赛后 1 金 / 2 银 / 3 铜 / 其余白；比赛中按服务器 <code>ComputeLiveRanks</code> 实时分段名次, 并列处理 1-2-2-4。</td></tr>
-    <tr><td>备注</td><td>优先级 (高→低)：<br>1) 判罚 DSQ / DNS / DNF (红)<br>2) 破/平纪录 CR / NR / AR / WR (金)<br>3) 反应时（最近一次抢跳秒数, 抢跳可疑标红）</td></tr>
-  </tbody>
-</table>
-
-<h3>行状态视觉标识</h3>
+<h3>视觉风格</h3>
 <table>
   <thead><tr><th>状态</th><th>视觉</th></tr></thead>
   <tbody>
+    <tr><td>每道分隔</td><td>细横线，无卡片底色，大屏底色 / 背景图直接透出来</td></tr>
     <tr><td>完赛</td><td>下边框变<b style="color:#22c55e;">绿</b></td></tr>
-    <tr><td>DSQ</td><td>下边框变<b style="color:#ef4444;">红</b> (取消成绩)</td></tr>
-    <tr><td>DNS</td><td>整行半透明 (40%)</td></tr>
-    <tr><td>EMPTY</td><td>整行更淡 (28%, 该道无运动员的占位)</td></tr>
+    <tr><td>DSQ</td><td>下边框变<b style="color:#ef4444;">红</b> (成绩取消)</td></tr>
+    <tr><td>DNS</td><td>整行半透明 40%</td></tr>
+    <tr><td>EMPTY</td><td>整行更淡 28% (空泳道占位)</td></tr>
   </tbody>
 </table>
 
-<h2 id="s5">五、右下角设置按钮 (3 个)</h2>
-<p>右下角从下到上 3 个圆形按钮，平时半透明 (45%), 鼠标悬停变亮 (100%)：</p>
+<h3>性别显示规范 <span class="badge-new">v2026.06.01 修复</span></h3>
+<table>
+  <thead><tr><th>原始</th><th>显示</th></tr></thead>
+  <tbody>
+    <tr><td>男</td><td>男子</td></tr>
+    <tr><td>女</td><td>女子</td></tr>
+    <tr><td>混合</td><td>混合 (不再追加"子")</td></tr>
+  </tbody>
+</table>
+
+<h3>DSQ 后破纪录标识自动转移 <span class="badge-new">v2026.06.01</span></h3>
+<div class="summary">
+  场景：前 3 名都破 WR，裁判判 #1 DSQ。<br>
+  自动行为：服务器重新比对纪录库，WR 标识从 #1 转到 #2；再 DSQ #2 → WR 再转到 #3；直到出现合法第 1 名。<br>
+  "确认本组成绩"后服务器才把仍有 RecordNote 且非 DSQ 的成绩入库到纪录管理库。
+</div>
+
+<h3>备注列内容（比赛中）</h3>
+<table>
+  <thead><tr><th>优先级</th><th>内容</th><th>颜色</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>判罚 DSQ / DNS / DNF</td><td><b style="color:#ef4444;">红</b></td></tr>
+    <tr><td>2</td><td>破/平纪录 (recordNote)</td><td><b style="color:#f59e0b;">金</b></td></tr>
+    <tr><td>3</td><td>反应时（最近抢跳秒数，抢跳可疑标红）</td><td>白/红</td></tr>
+  </tbody>
+</table>
+
+<h2 id="s5">五、本组成绩视图（v2026.06.01 新规则）</h2>
+<div class="new">
+  确认本组成绩后大屏切换到本组成绩榜，使用新的固定行高 + 翻页规则：
+</div>
 <ul>
-  <li><span class="btn-tag">⚙</span> &nbsp; 大屏底色 (打开"底色"面板)</li>
-  <li><span class="btn-tag">字</span> &nbsp; 大屏字号 (打开"字号"面板)</li>
-  <li><span class="btn-tag">文</span> &nbsp; 文字样式 颜色/字体 (打开"文字"面板)</li>
+  <li>每行固定 <b>7.5vh</b>，不再随道数自动拉伸</li>
+  <li>每屏最多显示 <b>10 行</b></li>
+  <li>超过 10 人 → 自动翻页，间隔 = "大屏翻屏时间"（默认 5s）</li>
+  <li>右下角显示 <code>1 / 2</code> 翻页指示</li>
+  <li>少人比赛（如 6 道）行高不再被拉伸到视觉失真</li>
 </ul>
 
-<h3>⚙ &nbsp; 大屏底色 (Background)</h3>
-<p>提供 5 类预设 + 1 类自定义：</p>
+<h3>右上角滚动时间 <span class="badge-new">v2026.06.01 修复</span></h3>
+<p>本组成绩 / 总排名 / 公布成绩 / 颁奖等视图不显示走时；确认成绩后<b>计时复位</b>不再让右上角错显上组比赛时间（硬件 0x7F 残留值在非比赛主视图下被忽略）。</p>
+
+<h2 id="s6">六、本地设置按钮（display.html 自身右下角）</h2>
+<p>从下到上 3 个圆形按钮（平时半透明 45%，鼠标悬停 100%）：</p>
 <ul>
-  <li><b>纯色：</b>8 个色板 (深蓝/黑/灰/卡其/酒红/松绿/海蓝 等)</li>
+  <li><span class="btn-tag">⚙</span> &nbsp; 大屏底色</li>
+  <li><span class="btn-tag">字</span> &nbsp; 大屏字号</li>
+  <li><span class="btn-tag">文</span> &nbsp; 文字样式（颜色 + 字体）</li>
+</ul>
+<p>本地面板修改 = <b>同步推送服务器</b>，其它客户端也立即跟着变。</p>
+
+<h3>⚙ 大屏底色</h3>
+<p>5 类预设 + 1 类自定义：</p>
+<ul>
+  <li><b>纯色：</b>8 个色板 (深邃蓝 / 泳池青 / 深海蓝 / 森林绿 / 紫罗兰 / 暗紫红 / 炭墨黑 / 青灰)</li>
   <li><b>渐变：</b>8 个层次感渐变</li>
-  <li><b>高级混合：</b>8 个深度感网格状底色</li>
-  <li><b>灰度：</b>6 档不同灰度</li>
-  <li><b>图案：</b>6 种横纹 / 格纹 / 光晕等</li>
-  <li><b>自定义：</b>颜色拾色器 + 16 进制输入 + 上传本地图片做底</li>
+  <li><b>高级混合：</b>12 个深度感 mesh 底色</li>
+  <li><b>灰度：</b>8 档不同灰度</li>
+  <li><b>图案：</b>8 种横纹 / 格纹 / 光晕等</li>
+  <li><b>自定义：</b>颜色拾色器 + 16 进制 + 上传本地图片做底</li>
 </ul>
-<p>底部"恢复默认 (深邃蓝)"还原为 <code>#0f172a</code>。数据持久化：<code>localStorage('swimDisplayBg')</code>。</p>
 
-<h3>字 &nbsp; 大屏字号 (Font Scale)</h3>
-<p>LED 屏宽高比往往很扁，CSS 默认用 vh 算出来的字号偏小看不清。此面板允许全局缩放所有"比赛内容"区字号 (<b>0.8x ~ 3.0x</b>, 步进 0.1)。</p>
-
+<h3>字 大屏字号 (Font Scale)</h3>
+<p>全局缩放所有比赛内容字号 (<b>0.8x ~ 3.0x</b>, 步进 0.1)。</p>
 <table>
   <thead><tr><th>控件 / 快捷键</th><th>动作</th></tr></thead>
   <tbody>
@@ -169,15 +218,7 @@
   </tbody>
 </table>
 
-<div class="note">已 <code>preventDefault</code> 覆盖浏览器原生缩放, 避免冲突。</div>
-
-<p><b>作用范围 (会被缩放)：</b>顶部标题 / 比赛项目 / 滚动时间 / 道次 / 名次 / 姓名 / 代表队 / 成绩 / 备注 / 总排名 / 出发表 / 团体 / 纪录 / 颁奖。</p>
-<p><b>不缩放 (保持固定可点)：</b>右下角设置按钮、3 个设置面板内部、连接服务器遮罩。</p>
-<p>数据持久化：<code>localStorage('swimDisplayFs')</code>。</p>
-
-<h3>文 &nbsp; 文字样式 (Text Style：颜色 + 字体)</h3>
-<p>9 处文字可以独立配置颜色和字体。面板呈表格状，每行：<code>[标签] [取色器] [16 进制] [字体下拉] [↺]</code></p>
-
+<h3>文 文字样式 (9 处)</h3>
 <table>
   <thead><tr><th>标签</th><th>默认色</th><th>默认字体</th></tr></thead>
   <tbody>
@@ -192,62 +233,109 @@
     <tr><td>备注</td><td><b style="color:#ef4444;">红</b></td><td>微软雅黑</td></tr>
   </tbody>
 </table>
-
-<p><b>可选字体 (10 种)：</b>微软雅黑 / 黑体 / 宋体 / 楷体 / 仿宋 / 隶书 / 幼圆 / Arial / Consolas (等宽) / Impact。</p>
-
-<p><b>按钮：</b></p>
-<ul>
-  <li><b>↺</b> 单行恢复默认 (该元素颜色 + 字体)</li>
-  <li><b>全部恢复默认</b> 一键全部 9 处复位 (有确认弹窗)</li>
-</ul>
+<p><b>可选字体（10 种）：</b>微软雅黑 / 黑体 / 宋体 / 楷体 / 仿宋 / 隶书 / 幼圆 / Arial / Consolas / Impact。</p>
 
 <div class="danger">
-  <b>颜色优先级 (高 → 低)：</b><br>
-  1. <b>判罚色</b> (DSQ 红 / 破纪录 金) — JS 内联色, 强制不可被覆盖。<br>
-  2. <b>奖牌色</b> (1 金 / 2 银 / 3 铜) — 名次为 1/2/3 时强制显示, 不受用户"名次"颜色影响, 4+ 名次才用用户色。<br>
-  3. <b>用户在文字样式面板里的自定义色</b> — 其他场景生效。
+  <b>颜色优先级（高 → 低）：</b><br>
+  1. <b>判罚色</b> (DSQ 红 / 破纪录 金) — JS 内联色, 强制不可被覆盖<br>
+  2. <b>奖牌色</b> (1 金 / 2 银 / 3 铜) — 名次 1/2/3 时强制显示, 不受用户"名次"颜色影响, 4+ 名次才用用户色<br>
+  3. <b>用户自定义色</b> — 其他场景生效
 </div>
 
-<p>数据持久化：<code>localStorage('swimDisplayTextStyle')</code>, 存储格式 <code>{key:{c:'#..', f:'..'}, ...}</code> JSON。旧版 <code>swimDisplayTitleColor</code> (只配比赛名称色) 启动时自动迁移到本表 <code>title.c</code> 字段后被删除。</p>
+<h2 id="s7">七、远程样式控制（v2026.06.01 新增，重点）</h2>
 
-<h2 id="s6">六、断线重连</h2>
-<p>WebSocket 断开后 display.html 会自动尝试重连。连续重连失败会弹出"连接主服务器"遮罩, 用户可重新输入 IP。重连成功后画面立即恢复, 不会丢任何数据 (服务器会重发 snapshot)。</p>
+<div class="new">
+  <b>核心设计：</b>底色、字号、9 处文字配置由<b>主服务器集中托管</b>，持久化到 <code>display_style.json</code>。多个 display.html 共享同一套样式；任意控制端改动 → 服务器广播 → 所有 display.html / 控制端实时同步。服务器重启后样式自动恢复。
+</div>
 
-<h2 id="s7">七、常见问题排查</h2>
+<h3>可控端（4 个）</h3>
+<table>
+  <thead><tr><th>端</th><th>入口</th></tr></thead>
+  <tbody>
+    <tr><td><b>display.html 自己</b></td><td>右下角 ⚙ / 字 / 文 三按钮；本地改动也自动推送服务器</td></tr>
+    <tr><td><b>control.html</b><br>(显示模式控制网页)</td><td>底部新按钮"🎨 大屏样式 (底色 / 字号 / 文字)" → 弹出对话框</td></tr>
+    <tr><td><b>RemoteDisplayControl.exe</b><br>(远程显示控制 WPF)</td><td>底部新按钮"🎨 大屏样式" → 独立窗口</td></tr>
+    <tr><td><b>主控 PC</b><br>(SwimmingScoreboard.exe)</td><td>"比赛控制 → 显示控制"区块紫色按钮"🎨 大屏样式 (底色/字号/文字)" → 对话框</td></tr>
+  </tbody>
+</table>
 
+<h3>WebSocket 协议</h3>
+<table>
+  <thead><tr><th>方向</th><th>类型</th><th>说明</th></tr></thead>
+  <tbody>
+    <tr><td>控制端 → 服务器</td><td><code>SET_DISPLAY_STYLE</code></td><td>data: <code>{bg?, fs?, textStyle?, textStyleMerge?}</code></td></tr>
+    <tr><td>控制端 → 服务器</td><td><code>GET_DISPLAY_STYLE</code></td><td>打开面板时拉取当前值</td></tr>
+    <tr><td>服务器 → 所有客户端</td><td><code>DISPLAY_STYLE_PUSH</code></td><td>data: <code>{bg, fs, textStyle}</code></td></tr>
+  </tbody>
+</table>
+<p><code>textStyleMerge=true</code> 表示局部合并（只更新指定字段）；<code>false</code> / 未设 表示完整替换。</p>
+
+<h3>典型用法</h3>
+<ul>
+  <li><b>场景 A</b>: 操作员想把字号调大 → control.html → "🎨 大屏样式" → 字号 [+] → 大屏立即放大</li>
+  <li><b>场景 B</b>: 裁判长统一改比赛名称颜色为金色 → 主控 PC → 比赛控制 → 显示控制 → "🎨 大屏样式" → 文字样式 → 比赛名称改色 → 所有大屏同步</li>
+  <li><b>场景 C</b>: 远程统一改底色为极光蓝 → RemoteDisplayControl.exe → "🎨 大屏样式" → 底色填 linear-gradient → 所有大屏底色统一切换</li>
+</ul>
+
+<h2 id="s8">八、断线重连</h2>
+<p>WebSocket 断开后 display.html 自动尝试重连。连续重连失败会弹出"连接主服务器"遮罩, 用户可重新输入 IP。重连成功后画面立即恢复, 不会丢任何数据（服务器重发 snapshot + 当前样式）。</p>
+
+<h2 id="s9">九、常见问题排查</h2>
 <table>
   <thead><tr><th>问题</th><th>解决方案</th></tr></thead>
   <tbody>
-    <tr><td>LED 屏上字太小看不清</td><td>点右下角 <span class="btn-tag">字</span> 按钮 → 按 [+] 调到 2.0x ~ 3.0x。或者按 <span class="kbd">Ctrl +</span> 多按几次。每加 0.1 即时生效。</td></tr>
-    <tr><td>字号调过头, 一行装不下</td><td><span class="kbd">Ctrl 0</span> 一键回到 1.0x, 重新调到合适倍数。</td></tr>
-    <tr><td>比赛项目/滚动时间/名次的颜色不显眼</td><td>右下角 <span class="btn-tag">文</span> 按钮 → 文字样式面板 → 找到对应行 → 改色。比如把"比赛项目"改成金色 (<code>#f59e0b</code>), 跟时间一样醒目。</td></tr>
-    <tr><td>接力比赛只想看当前棒, 不想看全部 4 棒</td><td>当前版本只支持全部 4 棒同列显示, 当前棒已经高亮金色用于强调。如需"只显当前棒"模式, 请联系开发者加开关。</td></tr>
-    <tr><td>字号或颜色改完后, 换一台机器没生效</td><td>这些参数存在浏览器本地 localStorage, 每台显示终端独立保存。需要在每台 LED 显示机上重新配置一次, 或将整个用户数据目录复制过去 (路径因浏览器而异)。</td></tr>
-    <tr><td>浏览器 Ctrl+/- 失效</td><td>display.html 已主动拦截这两个组合键用于字号缩放。这是设计行为, 避免与浏览器原生缩放冲突。如需浏览器原生缩放, 请关闭 display.html 切到其他标签页。</td></tr>
-    <tr><td>全屏退出后还能再进去吗?</td><td>按 <span class="kbd">ESC</span> 后, 再次点击页面任意位置即可重新进入全屏。</td></tr>
-    <tr><td>想用自己的图片做大屏底色</td><td>右下角 <span class="btn-tag">⚙</span> → 自定义 → 图片 → 选择本地图片 → 自动转 base64 存入 localStorage。注意图片不要超过几 MB, 否则刷新加载会慢。</td></tr>
+    <tr><td>LED 屏上字太小看不清</td><td>右下角 <span class="btn-tag">字</span> → [+] 调到 2.0x ~ 3.0x，或 <span class="kbd">Ctrl +</span>。更佳：用 control.html / 主控 PC / RemoteDisplayControl 远程统一调整。</td></tr>
+    <tr><td>字号调过头, 一行装不下</td><td><span class="kbd">Ctrl 0</span> 一键回到 1.0x。</td></tr>
+    <tr><td>多个大屏样式不一致</td><td>v2026.06.01 起样式由服务器集中托管, 应自动同步。检查各显示终端是否都连同一台服务器。</td></tr>
+    <tr><td>在 RemoteDisplayControl 改了字号, 大屏没反应</td><td>确认两端都连接到服务器（绿色"已连接"）。服务器收到 SET_DISPLAY_STYLE 后会立即广播 DISPLAY_STYLE_PUSH。</td></tr>
+    <tr><td>计时复位后滚动时间还显示上组时间</td><td>v2026.06.01 已修复。非比赛主视图下不再被硬件残留 0x7F 帧覆盖。</td></tr>
+    <tr><td>自动晋级确认后大屏闪烁</td><td>v2026.06.01 已修复。display.html 忽略所有非 SHOW_* 的控制通知消息。</td></tr>
+    <tr><td>接力 "混合子" 错显</td><td>v2026.06.01 已修复。混合性别显示为"混合"。</td></tr>
+    <tr><td>接力比赛只想看当前棒</td><td>当前版本只支持 4 棒同列显示, 当前棒已经高亮金色。如需"只显当前棒"模式联系开发者。</td></tr>
+    <tr><td>用自己的图片做大屏底色</td><td>⚙ → 自定义 → 图片 → 选择本地图片 → 自动转 base64 存 localStorage。图片不要超几 MB。</td></tr>
+    <tr><td>浏览器 Ctrl+/- 失效</td><td>display.html 主动拦截这两个组合键用于字号缩放。这是设计行为。</td></tr>
   </tbody>
 </table>
 
-<h2 id="s8">八、localStorage 键一览</h2>
+<h2 id="s10">十、文件存储位置</h2>
+
+<h3>服务器端持久化</h3>
+<table>
+  <thead><tr><th>文件</th><th>含义</th></tr></thead>
+  <tbody>
+    <tr><td><code>SwimmingScoreboard\display_style.json</code></td><td><b>集中保存大屏样式</b> (bg / fs / textStyle), 重启自动恢复</td></tr>
+  </tbody>
+</table>
+
+<h3>浏览器 localStorage 键（display.html 端本地兜底）</h3>
 <table>
   <thead><tr><th>键名</th><th>含义</th></tr></thead>
   <tbody>
-    <tr><td><code>swimServerHost</code></td><td>主服务器 IP (字符串)</td></tr>
-    <tr><td><code>swimDisplayBg</code></td><td>大屏底色 (CSS background 值)</td></tr>
-    <tr><td><code>swimDisplayFs</code></td><td>字号倍数 (0.8 ~ 3.0)</td></tr>
-    <tr><td><code>swimDisplayTextStyle</code></td><td>9 处文字颜色 + 字体 JSON</td></tr>
+    <tr><td><code>swimServerHost</code></td><td>主服务器 IP</td></tr>
+    <tr><td><code>swimDisplayBg</code></td><td>本地兜底底色 (服务器推送优先)</td></tr>
+    <tr><td><code>swimDisplayFs</code></td><td>本地兜底字号倍数</td></tr>
+    <tr><td><code>swimDisplayTextStyle</code></td><td>本地兜底文字样式 JSON</td></tr>
     <tr><td><code>swimDisplayTitleColor</code></td><td>⚠ 旧版残留 (启动自动迁移后删除)</td></tr>
   </tbody>
 </table>
-<p><b>清理：</b>浏览器开发者工具 → Application → Local Storage → 删除对应键。全部清空可一键回到出厂默认。</p>
+<p>清理：浏览器开发者工具 → Application → Local Storage → 删除对应键。</p>
 
-<h2 id="s9">九、版本历史 (display.html 相关)</h2>
+<h2 id="s11">十一、版本历史</h2>
 <table>
   <thead><tr><th>版本</th><th>主要变更</th></tr></thead>
   <tbody>
-    <tr><td>v2026.06.01</td><td>9 处文字颜色+字体独立配置, 旧 titleColor 自动迁移</td></tr>
-    <tr><td>v2026.05.31</td><td>字号 0.8x~3.0x 全局缩放 + Ctrl+/- 快捷键; 比赛视图列序改: 名次→姓名→代表队; 接力姓名列同列显 4 棒, 当前棒高亮金; 6 列居中, flex 比例自动撑满整行; 取消每道卡片底色, 改细横线分隔; 比赛名称颜色可改 (后被 v2026.06.01 9 处文字配置覆盖)</td></tr>
+    <tr><td>v2026.06.01</td><td>
+        + <b>大屏样式 4 端远程控制</b> (display.html / control.html / RemoteDisplayControl.exe / 主控 PC) + 服务器集中托管持久化到 display_style.json, 多屏实时同步<br>
+        + 出发表 / 总排名: 移除"号码"列<br>
+        + 总排名加"备注"列: Q 晋级 + 破纪录标识, " \ " 隔开<br>
+        + 本组成绩定高 7.5vh + 10 行翻页<br>
+        * 修复 DSQ 后 WR/CR 标识自动转新晋第 1 名<br>
+        * 修复"混合"性别接力赛"混合子"错显<br>
+        * 修复确认成绩 + 计时复位后右上角错显上组时间<br>
+        * 修复自动晋级确认后大屏闪烁<br>
+        * ComputeLiveRanks 未完赛分段并列 1-2-2-4 修复
+    </td></tr>
+    <tr><td>v2026.05.31</td><td>字号 0.8x~3.0x 全局缩放 + Ctrl+/- 快捷键; 比赛视图列序改: 名次 → 姓名 → 代表队; 接力姓名列同列显 4 棒, 当前棒高亮金; 6 列居中, flex 比例自动撑满整行; 取消每道卡片底色, 改细横线分隔; 9 处文字颜色 + 字体独立配置 (后被 v2026.06.01 升级为远程)</td></tr>
     <tr><td>v2026.05.27</td><td>大屏底色面板 (5 类预设 + 自定义); 4 端统一只显硬件 0x7F 时间, 禁本地插值; 空泳道占位淡显</td></tr>
     <tr><td>v2026.05.26</td><td>每泳道分段成绩 5 秒窗口显示</td></tr>
     <tr><td>v2026.05.20</td><td>连接服务器遮罩 + 自动重连</td></tr>

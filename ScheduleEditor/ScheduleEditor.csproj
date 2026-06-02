@@ -397,6 +397,9 @@
     <Compile Include="..\SwimmingScoreboard\HeatScheduler.cs">
       <Link>HeatScheduler.cs</Link>
     </Compile>
+    <Compile Include="..\SwimmingScoreboard\DisplayStyleWindow.cs">
+      <Link>DisplayStyleWindow.cs</Link>
+    </Compile>
   </ItemGroup>
 
   <!-- ── 资源拷贝：纪录基础表（成绩与排名/破纪录核对需要） ── -->

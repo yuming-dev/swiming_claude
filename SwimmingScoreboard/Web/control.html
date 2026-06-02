@@ -59,6 +59,8 @@ h1 { text-align: center; margin-bottom: 20px; font-size: 20px; }
     <button class="btn btn-welcome" onclick="send('SHOW_WELCOME')">欢迎画面</button>
     <button class="btn btn-pause" onclick="send('SHOW_PAUSE')">暂停画面</button>
     <button class="btn" style="background:#F59E0B;color:#000;grid-column:span 3;" onclick="openPublishDialog()">成绩发布（选择已完赛项目发布到大屏）</button>
+    <!-- 2026-06-01 远程控制大屏样式: 底色 / 字号 / 9 处文字颜色字体 -->
+    <button class="btn" style="background:#0ea5e9;color:white;grid-column:span 3;" onclick="openDisplayStyleDialog()">🎨 大屏样式 (底色 / 字号 / 文字)</button>
 </div>
 <div class="status" id="status"></div>
 
@@ -70,6 +72,53 @@ h1 { text-align: center; margin-bottom: 20px; font-size: 20px; }
         <div id="publishList" style="max-height:50vh;overflow-y:auto;"></div>
         <div style="display:flex;gap:8px;margin-top:12px;justify-content:flex-end;">
             <button class="btn" style="background:#64748b;color:white;padding:10px 20px;" onclick="closePublishDialog()">关闭</button>
+        </div>
+    </div>
+</div>
+
+<!-- 2026-06-01 大屏样式远程控制弹窗 -->
+<div id="displayStyleModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:100;">
+    <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:#1e293b;border-radius:12px;padding:20px;width:95%;max-width:640px;max-height:90vh;overflow-y:auto;color:#f8fafc;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+            <h2 style="font-size:18px;color:#0ea5e9;">🎨 大屏样式远程控制</h2>
+            <button onclick="closeDisplayStyleDialog()" style="background:none;border:none;color:#94a3b8;font-size:22px;cursor:pointer;">×</button>
+        </div>
+        <p style="font-size:12px;color:#94a3b8;margin-bottom:10px;">改动立刻推送到所有大屏 display.html, 服务器持久化保存.</p>
+
+        <!-- 底色 -->
+        <div style="margin-bottom:14px;padding:10px;background:#0f172a;border-radius:8px;border:1px solid #334155;">
+            <div style="font-weight:bold;color:#0ea5e9;margin-bottom:6px;">底色</div>
+            <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;">
+                <input id="cs_bgPicker" type="color" value="#0f172a" onchange="cs_setBg(this.value)" style="width:36px;height:30px;padding:0;border:1px solid #334155;border-radius:4px;background:transparent;cursor:pointer;"/>
+                <input id="cs_bgHex" type="text" maxlength="60" placeholder="#0f172a 或 linear-gradient(...)" onchange="cs_setBg(this.value)" style="flex:1;padding:4px 8px;background:#1e293b;color:#f8fafc;border:1px solid #334155;border-radius:4px;font-family:Consolas,monospace;font-size:12px;"/>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(8,1fr);gap:4px;">
+                <div onclick="cs_setBg('#0f172a')" title="深邃蓝" style="height:28px;border-radius:4px;cursor:pointer;background:#0f172a;border:1px solid #334155;"></div>
+                <div onclick="cs_setBg('#0c4a6e')" title="泳池青" style="height:28px;border-radius:4px;cursor:pointer;background:#0c4a6e;border:1px solid #334155;"></div>
+                <div onclick="cs_setBg('#082f49')" title="深海蓝" style="height:28px;border-radius:4px;cursor:pointer;background:#082f49;border:1px solid #334155;"></div>
+                <div onclick="cs_setBg('#14532d')" title="森林绿" style="height:28px;border-radius:4px;cursor:pointer;background:#14532d;border:1px solid #334155;"></div>
+                <div onclick="cs_setBg('#312e81')" title="紫罗兰" style="height:28px;border-radius:4px;cursor:pointer;background:#312e81;border:1px solid #334155;"></div>
+                <div onclick="cs_setBg('#0a0a0a')" title="炭墨黑" style="height:28px;border-radius:4px;cursor:pointer;background:#0a0a0a;border:1px solid #334155;"></div>
+                <div onclick="cs_setBg('linear-gradient(180deg, #082f49 0%, #0284c7 70%, #38bdf8 100%)')" title="深海到天空" style="height:28px;border-radius:4px;cursor:pointer;background:linear-gradient(180deg, #082f49 0%, #0284c7 70%, #38bdf8 100%);border:1px solid #334155;"></div>
+                <div onclick="cs_setBg('linear-gradient(180deg, #581c87 0%, #be123c 55%, #f59e0b 100%)')" title="落日余晖" style="height:28px;border-radius:4px;cursor:pointer;background:linear-gradient(180deg, #581c87 0%, #be123c 55%, #f59e0b 100%);border:1px solid #334155;"></div>
+            </div>
+        </div>
+
+        <!-- 字号 -->
+        <div style="margin-bottom:14px;padding:10px;background:#0f172a;border-radius:8px;border:1px solid #334155;">
+            <div style="font-weight:bold;color:#0ea5e9;margin-bottom:6px;">字号 (0.8x ~ 3.0x)</div>
+            <div style="display:flex;align-items:center;gap:10px;">
+                <button onclick="cs_bumpFs(-0.1)" style="padding:6px 14px;background:#475569;color:#f8fafc;border:none;border-radius:4px;cursor:pointer;font-size:16px;font-weight:bold;">−</button>
+                <div id="cs_fsLabel" style="flex:1;text-align:center;font-size:20px;font-weight:bold;color:#f59e0b;font-family:Consolas,monospace;">1.0x</div>
+                <button onclick="cs_bumpFs(0.1)" style="padding:6px 14px;background:#475569;color:#f8fafc;border:none;border-radius:4px;cursor:pointer;font-size:16px;font-weight:bold;">+</button>
+                <button onclick="cs_setFs(1.0)" style="padding:6px 12px;background:#64748b;color:#f8fafc;border:none;border-radius:4px;cursor:pointer;font-size:12px;">复位</button>
+            </div>
+        </div>
+
+        <!-- 9 处文字 -->
+        <div style="padding:10px;background:#0f172a;border-radius:8px;border:1px solid #334155;">
+            <div style="font-weight:bold;color:#0ea5e9;margin-bottom:6px;">文字颜色 / 字体</div>
+            <div id="cs_textStyleRows"></div>
         </div>
     </div>
 </div>
@@ -140,6 +189,8 @@ function connect() {
     ws.onmessage = function(e) {
         try {
             var msg = JSON.parse(e.data);
+            // 2026-06-01 大屏样式推送 → 同步 UI
+            if (msg.type === 'DISPLAY_STYLE_PUSH') { _cs_applyToUi(msg.data || {}); return; }
             // 只更新含赛程数据的广播消息，跳过晋级通知等特殊消息
             if (msg.data && msg.data.schedule) serverData = msg.data;
         } catch(ex) {}
@@ -150,6 +201,138 @@ function send(cmd) {
         ws.send(JSON.stringify({type: 'REMOTE_CONTROL', command: cmd}));
         document.getElementById('status').textContent = '已发送: ' + cmd;
     }
+}
+
+// ═══════ 2026-06-01 大屏样式远程控制 ═══════
+// 改动通过 SET_DISPLAY_STYLE 推给服务器, 服务器持久化 + 广播 DISPLAY_STYLE_PUSH 给所有客户端
+var CS_TEXT_KEYS = [
+    {k:'title',  label:'比赛名称', dC:'#f8fafc', dF:"'Microsoft YaHei', sans-serif"},
+    {k:'event',  label:'比赛项目', dC:'#f8fafc', dF:"'Microsoft YaHei', sans-serif"},
+    {k:'time',   label:'滚动时间', dC:'#f59e0b', dF:"'Consolas', monospace"},
+    {k:'lane',   label:'道次',     dC:'#94a3b8', dF:"'Microsoft YaHei', sans-serif"},
+    {k:'rank',   label:'名次',     dC:'#f8fafc', dF:"'Microsoft YaHei', sans-serif"},
+    {k:'name',   label:'姓名',     dC:'#f8fafc', dF:"'Microsoft YaHei', sans-serif"},
+    {k:'team',   label:'代表队',   dC:'#94a3b8', dF:"'Microsoft YaHei', sans-serif"},
+    {k:'result', label:'成绩',     dC:'#f8fafc', dF:"'Consolas', monospace"},
+    {k:'remark', label:'备注',     dC:'#ef4444', dF:"'Microsoft YaHei', sans-serif"}
+];
+var CS_FONT_OPTIONS = [
+    {label:'微软雅黑', value:"'Microsoft YaHei', sans-serif"},
+    {label:'黑体',     value:"SimHei, sans-serif"},
+    {label:'宋体',     value:"SimSun, serif"},
+    {label:'楷体',     value:"KaiTi, serif"},
+    {label:'仿宋',     value:"FangSong, serif"},
+    {label:'隶书',     value:"LiSu, serif"},
+    {label:'幼圆',     value:"YouYuan, sans-serif"},
+    {label:'Arial',    value:"Arial, sans-serif"},
+    {label:'Consolas (等宽)', value:"Consolas, monospace"},
+    {label:'Impact',   value:"Impact, sans-serif"}
+];
+var _cs_currentStyle = { bg:'#0f172a', fs:1.0, textStyle:{} };
+
+function _cs_sendStyle(payload) {
+    if (ws && ws.readyState === 1) {
+        ws.send(JSON.stringify({ type: 'SET_DISPLAY_STYLE', data: payload }));
+    }
+}
+function cs_setBg(v) {
+    if (!v) return;
+    _cs_currentStyle.bg = v;
+    if (/^#[0-9a-fA-F]{6}$/.test(v)) document.getElementById('cs_bgPicker').value = v;
+    document.getElementById('cs_bgHex').value = v;
+    _cs_sendStyle({ bg: v });
+}
+function cs_clampFs(v) { v = Math.round(v * 10) / 10; return Math.max(0.8, Math.min(3.0, v)); }
+function cs_setFs(v) {
+    v = cs_clampFs(v);
+    _cs_currentStyle.fs = v;
+    document.getElementById('cs_fsLabel').textContent = v.toFixed(1) + 'x';
+    _cs_sendStyle({ fs: v });
+}
+function cs_bumpFs(d) { cs_setFs((_cs_currentStyle.fs || 1.0) + d); }
+
+function cs_setTextColor(k, c) {
+    if (!/^#[0-9a-fA-F]{6}$/.test(c)) return;
+    if (!_cs_currentStyle.textStyle[k]) _cs_currentStyle.textStyle[k] = {};
+    _cs_currentStyle.textStyle[k].c = c;
+    var add = {}; add[k] = { c: c };
+    _cs_sendStyle({ textStyle: add, textStyleMerge: true });
+}
+function cs_setTextFont(k, f) {
+    if (!f) return;
+    if (!_cs_currentStyle.textStyle[k]) _cs_currentStyle.textStyle[k] = {};
+    _cs_currentStyle.textStyle[k].f = f;
+    var add = {}; add[k] = { f: f };
+    _cs_sendStyle({ textStyle: add, textStyleMerge: true });
+}
+function cs_resetText(k) {
+    var def = null;
+    for (var i = 0; i < CS_TEXT_KEYS.length; i++) if (CS_TEXT_KEYS[i].k === k) { def = CS_TEXT_KEYS[i]; break; }
+    if (!def) return;
+    cs_setTextColor(k, def.dC);
+    cs_setTextFont(k, def.dF);
+    _cs_buildTextRows();   // 重画 UI 同步默认值
+}
+
+function _cs_buildTextRows() {
+    var host = document.getElementById('cs_textStyleRows');
+    if (!host) return;
+    var html = '';
+    for (var i = 0; i < CS_TEXT_KEYS.length; i++) {
+        var def = CS_TEXT_KEYS[i];
+        var saved = (_cs_currentStyle.textStyle || {})[def.k] || {};
+        var c = saved.c || def.dC;
+        var f = saved.f || def.dF;
+        var fontOpts = '';
+        var matched = false;
+        for (var j = 0; j < CS_FONT_OPTIONS.length; j++) {
+            var fo = CS_FONT_OPTIONS[j];
+            var sel = (fo.value === f) ? ' selected' : '';
+            if (sel) matched = true;
+            fontOpts += '<option value="' + fo.value.replace(/"/g,'&quot;') + '"' + sel + '>' + fo.label + '</option>';
+        }
+        if (!matched) fontOpts = '<option value="' + f.replace(/"/g,'&quot;') + '" selected>自定义</option>' + fontOpts;
+        html +=
+            '<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;padding:4px 0;border-bottom:1px solid #334155;">' +
+                '<span style="flex:0 0 70px;color:#cbd5e1;font-size:12px;">' + def.label + '</span>' +
+                '<input type="color" value="' + (/^#[0-9a-fA-F]{6}$/.test(c)?c:'#f8fafc') + '" onchange="cs_setTextColor(\'' + def.k + '\', this.value)" style="flex:0 0 32px;height:24px;padding:0;border:1px solid #334155;border-radius:4px;background:transparent;cursor:pointer;"/>' +
+                '<input type="text" maxlength="7" value="' + c + '" onchange="cs_setTextColor(\'' + def.k + '\', this.value)" style="flex:0 0 70px;padding:3px 4px;background:#1e293b;color:#f8fafc;border:1px solid #334155;border-radius:4px;font-family:Consolas,monospace;font-size:11px;text-align:center;"/>' +
+                '<select onchange="cs_setTextFont(\'' + def.k + '\', this.value)" style="flex:1;min-width:0;padding:3px 4px;background:#1e293b;color:#f8fafc;border:1px solid #334155;border-radius:4px;font-size:12px;cursor:pointer;">' + fontOpts + '</select>' +
+                '<button onclick="cs_resetText(\'' + def.k + '\')" title="复位" style="flex:0 0 28px;height:24px;background:#334155;color:#cbd5e1;border:none;border-radius:4px;cursor:pointer;font-size:13px;">↺</button>' +
+            '</div>';
+    }
+    host.innerHTML = html;
+}
+
+function _cs_applyToUi(data) {
+    if (!data) return;
+    if (typeof data.bg === 'string' && data.bg) {
+        _cs_currentStyle.bg = data.bg;
+        if (/^#[0-9a-fA-F]{6}$/.test(data.bg)) {
+            try { document.getElementById('cs_bgPicker').value = data.bg; } catch(e) {}
+        }
+        try { document.getElementById('cs_bgHex').value = data.bg; } catch(e) {}
+    }
+    if (typeof data.fs === 'number' && data.fs > 0) {
+        _cs_currentStyle.fs = data.fs;
+        try { document.getElementById('cs_fsLabel').textContent = data.fs.toFixed(1) + 'x'; } catch(e) {}
+    }
+    if (data.textStyle && typeof data.textStyle === 'object') {
+        _cs_currentStyle.textStyle = data.textStyle;
+        _cs_buildTextRows();
+    }
+}
+
+function openDisplayStyleDialog() {
+    document.getElementById('displayStyleModal').style.display = 'block';
+    _cs_buildTextRows();
+    // 主动拉一次当前值, 防止旧 UI 状态
+    if (ws && ws.readyState === 1) {
+        ws.send(JSON.stringify({ type: 'GET_DISPLAY_STYLE' }));
+    }
+}
+function closeDisplayStyleDialog() {
+    document.getElementById('displayStyleModal').style.display = 'none';
 }
 
 function openPublishDialog() {

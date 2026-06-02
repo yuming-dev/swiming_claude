@@ -386,6 +386,8 @@ function applyDisplayBg(value, persist) {
     if (persist) {
         try { localStorage.setItem('swimDisplayBg', v); }
         catch(e) { alert('保存失败: 图片/数据太大无法存入 localStorage. 请用更小的图片.'); }
+        // 2026-06-01 同步推送到服务器, 让其它 display.html / 控制端实时跟上
+        _pushStyleToServer({ bg: v });
     }
     // 自定义输入框同步 (仅当是简单 hex 时)
     var isHex = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(v);
@@ -525,6 +527,9 @@ function setTextColor(key, color, persist) {
         if (!s[key]) s[key] = {};
         s[key].c = color;
         _saveTextStyleState(s);
+        // 2026-06-01 推服务器, 部分更新 (textStyleMerge=true), 其它端实时跟上
+        var add = {}; add[key] = { c: color };
+        _pushStyleToServer({ textStyle: add, textStyleMerge: true });
     }
     var picker = document.getElementById('tsColor-' + key);
     var hex = document.getElementById('tsHex-' + key);
@@ -539,6 +544,8 @@ function setTextFont(key, fontValue, persist) {
         if (!s[key]) s[key] = {};
         s[key].f = fontValue;
         _saveTextStyleState(s);
+        var add = {}; add[key] = { f: fontValue };
+        _pushStyleToServer({ textStyle: add, textStyleMerge: true });
     }
     var sel = document.getElementById('tsFont-' + key);
     if (sel) sel.value = fontValue;
@@ -626,6 +633,8 @@ function setFontScale(v) {
     v = _clampFs(v);
     try { localStorage.setItem('swimDisplayFs', String(v)); } catch(e) {}
     document.documentElement.style.setProperty('--fs', v);
+    // 2026-06-01 推服务器, 让其它 display.html / 控制端实时跟上
+    _pushStyleToServer({ fs: v });
     var lab = document.getElementById('fsScaleLabel');
     if (lab) lab.textContent = v.toFixed(1) + 'x';
 }
@@ -756,6 +765,12 @@ function connect() {
             currentMode = 'SHOW_MEDIA';
             modeLocked = true;
             renderMedia(msg.data || {});
+            return;
+        }
+        // 2026-06-01 大屏样式远程推送: 服务器广播最新 bg / fs / textStyle, 立即应用 (不持久化到本地 localStorage,
+        //   服务器是唯一权威源; 本地 localStorage 只在没收到服务器推送时作为初始默认)
+        if (msg.type === 'DISPLAY_STYLE_PUSH') {
+            try { applyRemoteDisplayStyle(msg.data || {}); } catch (er3) {}
             return;
         }
         // 2026-05-25 修复 #N：非显式 SHOW_LIVE_RACE 心跳 + 已锁定 → 只更新 data 不切视图
@@ -918,6 +933,41 @@ function fmtGender(g) {
     g = g || '';
     if (g === '男' || g === '女') return g + '子';
     return g;   // 混合 / 已经是 男子/女子 / 空串 都原样返回
+}
+
+// 2026-06-01 大屏样式远程推送应用: 服务器广播 DISPLAY_STYLE_PUSH → 本地立即应用 bg/fs/textStyle.
+//   服务器是权威源; 本地 localStorage 只作为初始默认 (无服务器/未连接时).
+//   _suppressStylePush 在收到推送应用过程中临时为 true, 防止 setFontScale/applyDisplayBg/setTextColor
+//   等本地 setter 又把同一个值再推送回服务器形成回环.
+var _suppressStylePush = false;
+function applyRemoteDisplayStyle(d) {
+    if (!d) return;
+    _suppressStylePush = true;
+    try {
+        if (typeof d.bg === 'string' && d.bg) {
+            try { applyDisplayBg(d.bg, true); } catch(e) {}
+        }
+        if (typeof d.fs === 'number' && d.fs > 0) {
+            try { setFontScale(d.fs); } catch(e) {}
+        }
+        if (d.textStyle && typeof d.textStyle === 'object') {
+            for (var k in d.textStyle) {
+                if (!d.textStyle.hasOwnProperty(k)) continue;
+                var v = d.textStyle[k] || {};
+                if (v.c) { try { setTextColor(k, v.c, true); } catch(e) {} }
+                if (v.f) { try { setTextFont(k, v.f, true); } catch(e) {} }
+            }
+        }
+    } finally {
+        _suppressStylePush = false;
+    }
+}
+
+// 把本地修改通过 WebSocket 推给服务器 → 服务器合并后再广播给其它客户端
+function _pushStyleToServer(payload) {
+    if (_suppressStylePush) return;
+    if (!ws || ws.readyState !== 1) return;
+    try { ws.send(JSON.stringify({ type: 'SET_DISPLAY_STYLE', data: payload })); } catch(e) {}
 }
 
 function getLaneCount() {

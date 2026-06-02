@@ -2,12 +2,14 @@ using System;
 using System.Windows;
 using System.Windows.Controls;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 
 namespace RemoteDisplayControl
 {
     public partial class MainWindow : Window
     {
         private SimpleWebSocketClient _ws;
+        private DisplayStyleWindow _displayStyleWin;   // 2026-06-01 大屏样式远程控制窗口
 
         public MainWindow() {
             InitializeComponent();
@@ -30,8 +32,17 @@ namespace RemoteDisplayControl
 
             try {
                 _ws = new SimpleWebSocketClient();
-                _ws.OnMessage += delegate(string msg) {
-                    // 接收但不处理
+                _ws.OnMessage += delegate(string raw) {
+                    // 2026-06-01 转发 DISPLAY_STYLE_PUSH 到当前打开的样式窗口同步 UI
+                    try {
+                        var msg = JObject.Parse(raw);
+                        if (msg["type"] != null && msg["type"].ToString() == "DISPLAY_STYLE_PUSH") {
+                            var data = msg["data"] as JObject;
+                            Dispatcher.Invoke((Action)delegate() {
+                                if (_displayStyleWin != null && _displayStyleWin.IsLoaded) _displayStyleWin.ApplyRemoteStyle(data);
+                            });
+                        }
+                    } catch { }
                 };
                 _ws.OnDisconnected += delegate() {
                     Dispatcher.Invoke((Action)delegate() {
@@ -66,8 +77,24 @@ namespace RemoteDisplayControl
             StatusText.Text = "已发送: " + mode;
         }
 
+        // 2026-06-01 打开大屏样式远程控制窗口
+        private void OpenDisplayStyle_Click(object sender, RoutedEventArgs e) {
+            if (_ws == null || !_ws.IsConnected) {
+                MessageBox.Show("请先连接服务器", "未连接", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+            if (_displayStyleWin != null && _displayStyleWin.IsLoaded) {
+                _displayStyleWin.Activate();
+                return;
+            }
+            _displayStyleWin = new DisplayStyleWindow(_ws);
+            _displayStyleWin.Owner = this;
+            _displayStyleWin.Show();
+        }
+
         protected override void OnClosed(EventArgs e) {
             base.OnClosed(e);
+            if (_displayStyleWin != null) { try { _displayStyleWin.Close(); } catch { } }
             if (_ws != null) _ws.Close();
         }
     }

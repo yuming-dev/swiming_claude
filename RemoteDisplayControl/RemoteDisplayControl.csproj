@@ -59,6 +59,7 @@
     <Compile Include="SimpleWebSocketClient.cs" />
     <Compile Include="CredentialStore.cs" />
     <Compile Include="ChangePasswordWindow.cs" />
+    <Compile Include="DisplayStyleWindow.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>
