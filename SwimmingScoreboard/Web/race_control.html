@@ -421,6 +421,8 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
             <!-- 2026-05-27 停表: 切换 PC/EXE/HTML/大屏的滚动时间显示冻结, 硬件不受影响 -->
             <button id="pauseClockBtn" class="action-btn" style="background:#8B5CF6;" onclick="sendCmd('PAUSE_CLOCK_TOGGLE')"><span class="ico">&#xE769;</span><span id="pauseClockBtnText">停表</span></button>
             <button class="action-btn" style="background:#3B82F6;" onclick="confirmResult()"><span class="ico">&#xE73E;</span>确认本组成绩</button>
+            <!-- 2026-06-02 远程打印本组成绩, 与桌面"比赛控制"面板"打印成绩"按钮等效, 服务器侧用 BuildHeatResultsHtml() 生成 → 推回本浏览器窗口打印 -->
+            <button class="action-btn" style="background:#0EA5E9;" onclick="printCurrentHeatResult()"><span class="ico">&#xE749;</span>打印成绩</button>
             <div style="border-top:1px solid #334155;margin-top:6px;padding-top:10px;">
                 <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;">
                     <h3 style="margin:0;">泳道操作</h3>
@@ -585,13 +587,29 @@ function connect() {
     ws.onmessage = function(e) {
         var msg;
         try { msg = JSON.parse(e.data); } catch (er) { return; }
+        // 2026-06-02 远程"打印成绩"回包: 服务器把 BuildHeatResultsHtml 生成的 HTML 推回这里, 新窗口打印
+        if (msg.type === 'PRINT_HEAT_RESULT_HTML') {
+            if (msg.html) _openHtmlAndPrint(msg.html, msg.title || '本组成绩');
+            else if (msg.error) { alert('打印失败: ' + msg.error); addLog('远程打印失败: ' + msg.error); }
+            return;
+        }
         // 硬件 0.1s 节拍的轻量滚动时间帧 — 只更新顶部时间显示，不重渲染整页
         if (msg.type === 'RUNNING_TIME_UPDATE') {
             if (msg.data && typeof msg.data.runningTime === 'string' && data) {
                 data.runningTime = msg.data.runningTime;
                 if (typeof msg.data.clockPaused === 'boolean') data.clockPaused = msg.data.clockPaused;
-                var rtEl = document.getElementById('runningTime');
-                if (rtEl) rtEl.textContent = msg.data.runningTime;
+                // 2026-06-02 修复: 顶部时间显示元素实际 id 是 #runTime (旧代码写 #runningTime
+                //   不存在, 长期失效). 同时加 raceState/resultConfirmed 守卫: 计时复位后硬件
+                //   残留 0x7F 还会让 PC 推一帧旧值, Waiting/Ready/已确认 都直接显 0.00,
+                //   防止 control 端"再点一次计时复位才清零"的现象.
+                var rtEl = document.getElementById('runTime');
+                if (rtEl) {
+                    var st = (data.raceState || '').toLowerCase();
+                    var idleOrDone = (st === 'waiting' || st === 'ready' || data.resultConfirmed);
+                    if (!data.firstPlaceActive) {   // 1 名成绩停留窗口期不要覆盖
+                        rtEl.textContent = idleOrDone ? '0.00' : msg.data.runningTime;
+                    }
+                }
                 // 2026-05-27 同步停表按钮文字
                 _refreshPauseClockBtnText();
             }
@@ -746,6 +764,17 @@ function render() {
     if (state === 'racing' || state === 'finished') startRcRefresh();
     // 等待/就位 重置分段跟踪
     if (state === 'waiting') { laneSplitState = {}; laneReactionState = {}; }
+
+    // 2026-06-02 计时复位后 _rcRefreshTimer 不再跑 (条件是 racing/finished/testMode), 顶部 #runTime
+    //   不会被刷到 0.00. 这里在 render 里按状态强制更新一次, 保证 control.html 计时窗与服务器一致.
+    var rtElTop = document.getElementById('runTime');
+    if (rtElTop && !data.firstPlaceActive) {
+        var idleOrDoneTop = (state === 'waiting' || state === 'ready' || data.resultConfirmed);
+        if (idleOrDoneTop) {
+            rtElTop.textContent = '0.00';
+            rtElTop.style.color = '';
+        }
+    }
 
     document.getElementById('stateDot').className = 'state-dot ' + state;
     var labels = {waiting:'等待', ready:'准备就绪', racing:'比赛中', finished:'已完赛'};
@@ -1202,6 +1231,32 @@ function confirmResult() {
         sendCmd('CONFIRM_RESULT');
         addLog('已确认本组成绩');
     }
+}
+
+// 2026-06-02 远程打印本组成绩: 必须先确认成绩才可用. 服务器端用 BuildHeatResultsHtml 生成 HTML
+//   推回 PRINT_HEAT_RESULT_HTML 消息, 这里 window.open 写入 HTML 用浏览器打印 / 另存 PDF.
+function printCurrentHeatResult() {
+    var ag = data.currentAgeGroup || '';
+    var info = (ag ? ('[' + ag + '] ') : '') + fmtGender(data.currentGender) + ' ' + (data.currentEvent||'') + ' ' + (data.currentStage||'') + ' 第' + (data.currentHeat||'') + '组';
+    if (!isCurrentHeatConfirmed()) {
+        alert('当前组成绩未确认, 请先点 "确认本组成绩".');
+        return;
+    }
+    addLog('请求远程打印: ' + info);
+    sendCmd('PRINT_HEAT_RESULT');
+}
+// 收到服务端推送的 HTML → 新窗口写入并自动调起打印
+function _openHtmlAndPrint(html, title) {
+    try {
+        var w = window.open('', '_blank');
+        if (!w) { alert('浏览器拦截了弹窗, 请允许此页面弹窗后再试.'); return; }
+        w.document.open();
+        w.document.write(html);
+        w.document.close();
+        // 等待 DOM 渲染, 然后自动呼起浏览器打印对话框
+        setTimeout(function() { try { w.focus(); w.print(); } catch(e) {} }, 600);
+        addLog('远程打印窗口已打开: ' + (title || ''));
+    } catch (e) { alert('打开打印窗口失败: ' + e.message); }
 }
 
 function confirmTimerReset() {

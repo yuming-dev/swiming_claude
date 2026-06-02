@@ -55,6 +55,9 @@ namespace SwimmingScoreboard
         //   导致重启后默认两端, 老 device_states.json 里残留的"单端时算出的左侧未安装"无法被正确刷掉.
         //   现持久化到 timing_settings.json, 开机加载后同步回 _poolConfig.HasRightStartBlock.
         private bool _hasRightStartBlock = true;
+        // 2026-06-02 调试用: 硬件 TP/SB/MB 按键路径"一直处于打开状态"(忽略 *_Open_Close_State==0 关闭判定),
+        //   只跳过 ==3 (坏) / ==4 (未装). 用于在硬件时序复杂时让 PC 端拿到所有按键事件做判断
+        private bool _hardwareAlwaysOpen = false;
 
         public double LaneCloseTime {
             get { return _laneCloseTime; }
@@ -128,6 +131,10 @@ namespace SwimmingScoreboard
         public bool HasRightStartBlock {
             get { return _hasRightStartBlock; }
             set { if (_hasRightStartBlock != value) { _hasRightStartBlock = value; OnPropertyChanged("HasRightStartBlock"); } }
+        }
+        public bool HardwareAlwaysOpen {
+            get { return _hardwareAlwaysOpen; }
+            set { if (_hardwareAlwaysOpen != value) { _hardwareAlwaysOpen = value; OnPropertyChanged("HardwareAlwaysOpen"); } }
         }
 
         public event PropertyChangedEventHandler PropertyChanged;

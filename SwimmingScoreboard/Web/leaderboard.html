@@ -23,9 +23,19 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 .header h1 { font-size: calc(3vh * var(--fs)); color: var(--c-title); font-family: var(--ff-title); }
 .content { height: 90vh; padding: 2vh 3vw; overflow-y: auto; }
 .section-title { font-size: calc(2.5vh * var(--fs)); font-weight: bold; margin: 2vh 0 1vh; color: var(--c-section); font-family: var(--ff-section); }
-table { width: 100%; border-collapse: collapse; margin-bottom: 2vh; }
-th { background: var(--card); padding: 1vh 1vw; text-align: left; font-size: calc(1.8vh * var(--fs)); border-bottom: 2px solid var(--accent); color: var(--c-th); font-family: var(--ff-th); }
-td { padding: 0.8vh 1vw; font-size: calc(1.8vh * var(--fs)); border-bottom: 1px solid #334155; color: var(--c-td); font-family: var(--ff-td); }
+/* 2026-06-02 排名屏 表格: 行高固定不随字号膨胀 (与 display.html .list-table 一致) */
+table { width: 100%; border-collapse: collapse; margin-bottom: 2vh; table-layout: fixed; }
+th {
+    background: var(--card); padding: 0.4vh 1vw; text-align: left;
+    font-size: calc(1.8vh * var(--fs)); border-bottom: 2px solid var(--accent);
+    color: var(--c-th); font-family: var(--ff-th);
+    height: 5vh; line-height: 1; overflow: hidden; white-space: nowrap;
+}
+td {
+    padding: 0.4vh 1vw; font-size: calc(1.8vh * var(--fs));
+    border-bottom: 1px solid #334155; color: var(--c-td); font-family: var(--ff-td);
+    height: 5vh; line-height: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+}
 tr:hover { background: rgba(59,130,246,0.05); }
 .rank-1 { color: var(--gold); font-weight: bold; }
 .rank-2 { color: #c0c0c0; font-weight: bold; }

@@ -90,9 +90,21 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 /* 列表视图 */
 .list-container { height: 89vh; padding: 2vh 3vw; overflow: hidden; position: relative; }
 .page-indicator { position: absolute; bottom: 1vh; right: 3vw; font-size: calc(1.8vh * var(--fs)); color: var(--dim); }
-.list-table { width: 100%; border-collapse: collapse; }
-.list-table th { background: var(--card); padding: 1.8vh 1.5vw; text-align: left; font-size: calc(3vh * var(--fs)); border-bottom: 2px solid var(--accent); }
-.list-table td { padding: 1.5vh 1.5vw; font-size: calc(3vh * var(--fs)); border-bottom: 1px solid #334155; }
+/* 2026-06-02 总排名 / 出发表 / 团体 / 纪录 表格: 行高固定不随字号膨胀.
+   原 padding 1.5vh*2 + font-size 3vh = ~6.3vh; 字号 2x/3x 后行高翻倍, 10 行越界
+   89vh 容器导致底部丢失. 现在固定 height: 7vh + line-height: 1 — 字号在格内贴边
+   放大 (与比赛视图 .lane-row + .fixed-row 一致), 行数稳定. */
+.list-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.list-table th {
+    background: var(--card); padding: 0.4vh 1.5vw; text-align: left;
+    font-size: calc(3vh * var(--fs)); border-bottom: 2px solid var(--accent);
+    height: 7vh; line-height: 1; overflow: hidden; white-space: nowrap;
+}
+.list-table td {
+    padding: 0.4vh 1.5vw; font-size: calc(3vh * var(--fs));
+    border-bottom: 1px solid #334155;
+    height: 7vh; line-height: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+}
 .list-table tr:hover { background: rgba(59,130,246,0.1); }
 
 /* 欢迎画面 */
@@ -1702,9 +1714,9 @@ function showRankingPage(er, erRelay) {
         var erc1 = erRelay ? (er[i].country||'') : (er[i].name||'');
         var erc2 = erRelay ? (er[i].name||'') : (er[i].country||'');
         var erkText = er[i].rank > 0 ? er[i].rank : '-';
-        var erStatus = er[i].resultStatus || er[i].status || '';
         var remarkHtml = buildEventRankingRemarkHtml(er[i]);
-        html += '<tr><td>' + erkText + '</td><td>' + erc1 + '</td><td>' + erc2 + '</td><td>' + (er[i].finalTime || erStatus || '') + '</td><td>' + remarkHtml + '</td></tr>';
+        // 2026-06-02 DSQ/DNS/DNF 不再回退到成绩栏 (已由 备注 栏显示, 避免重复)
+        html += '<tr><td>' + erkText + '</td><td>' + erc1 + '</td><td>' + erc2 + '</td><td>' + (er[i].finalTime || '') + '</td><td>' + remarkHtml + '</td></tr>';
     }
     html += '</tbody></table>';
 

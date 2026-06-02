@@ -804,6 +804,21 @@ namespace RemoteTimingControl
                 _laneSplitState.Clear();
             }
 
+            // 2026-06-02 计时复位后 RefreshTimer 不再跑 (条件是 racing/finished/testMode), RunningTime
+            //   不会被刷到 0.00. 这里在 RenderAll 里按状态强制更新一次, 保证 EXE 计时窗与服务器一致,
+            //   避免"再点一次计时复位才清零"的现象.
+            bool fpActiveRA = _data["firstPlaceActive"] != null && (bool)_data["firstPlaceActive"];
+            bool resultConfirmedRA = _data["resultConfirmed"] != null && (bool)_data["resultConfirmed"];
+            if (RunningTime != null && !fpActiveRA)
+            {
+                bool idleOrDone = (state == "waiting" || state == "ready" || resultConfirmedRA);
+                if (idleOrDone)
+                {
+                    RunningTime.Text = "0.00";
+                    RunningTime.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F59E0B"));
+                }
+            }
+
             // 状态徽章：等待蓝 / 就位黄 / 比赛中红 / 已完赛灰；与主服务器一致
             // 设备测试模式覆盖所有比赛状态，显示红底"设备测试"
             bool inTestMode = _data["testMode"] != null && (bool)_data["testMode"];

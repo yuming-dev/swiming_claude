@@ -727,7 +727,7 @@ namespace SwimmingScoreboard
                         HandleConnectHw(msg);
                         break;
                     case "TIMING_CMD":
-                        HandleTimingCommand(msg);
+                        HandleTimingCommand(msg, socket);
                         break;
                     case "TIMING_DATA":
                         HandleTimingData(msg);
@@ -1429,7 +1429,7 @@ namespace SwimmingScoreboard
             SendRelayResult(socket, true, "接力队报名成功", team.TeamName, bibNumber, team.Legs.Count, false);
         }
 
-        private void HandleTimingCommand(JObject msg) {
+        private void HandleTimingCommand(JObject msg, IWebSocketConnection socket = null) {
             string cmd = msg["command"] != null ? msg["command"].ToString() : "";
             var data = msg["data"];
 
@@ -1466,6 +1466,26 @@ namespace SwimmingScoreboard
                     Restart_Click(null, null);
                     break;
                 case "CONFIRM_RESULT": ConfirmResult_Click(null, null); break;
+                // 2026-06-02 race_control.html "打印成绩" 远程触发 -> 生成本组成绩 HTML 回送给请求端打印
+                case "PRINT_HEAT_RESULT": {
+                    if (socket == null) break;
+                    try {
+                        bool confirmed = _resultConfirmed
+                            || _confirmedHeats.Contains(ConfirmedHeatKey(_currentAgeGroup, _currentGender, _currentEvent, _currentStage, _currentHeat));
+                        if (!confirmed) {
+                            socket.Send(JsonConvert.SerializeObject(new { type = "PRINT_HEAT_RESULT_HTML", error = "当前组成绩未确认" }));
+                            AddLog("远端打印请求被拒: 当前组成绩未确认");
+                        } else {
+                            string html = BuildHeatResultsHtml();
+                            socket.Send(JsonConvert.SerializeObject(new { type = "PRINT_HEAT_RESULT_HTML", html = html, title = "分组成绩" }));
+                            AddLog("已回送本组成绩 HTML 给远端打印.");
+                        }
+                    } catch (Exception ex) {
+                        try { socket.Send(JsonConvert.SerializeObject(new { type = "PRINT_HEAT_RESULT_HTML", error = ex.Message })); } catch { }
+                        AddLog("远端打印生成 HTML 失败: " + ex.Message);
+                    }
+                    break;
+                }
                 // 2026-05-27 远程台 (EXE/HTML) 触发"停表"切换
                 case "PAUSE_CLOCK_TOGGLE": PauseClock_Click(null, null); break;
                 case "QUICK_CONNECT_SERIAL":
@@ -3036,14 +3056,16 @@ namespace SwimmingScoreboard
                 }
                 // 2026-05-13 D8 = IsRelay 标志：硬件据此判断是否为每棒测接力反应时
                 byte isRelayByte = (byte)(_isRelay ? 1 : 0);
+                // 2026-06-02 D9 = HardwareAlwaysOpen 标志: 硬件 TP/SB/MB 按键路径"一直处于打开状态"模式 (=1: 忽略关闭判定, 只跳过 ==3 坏 / ==4 未装; =0: 原比赛流程)
+                byte hwAlwaysOpenByte = (byte)(_laneCloseSettings.HardwareAlwaysOpen ? 1 : 0);
                 _timingBridge.SendFullFrame(0x43,
                     (byte)Math.Min(255, totalLaps),
                     (byte)Math.Min(255, rightTotal),
                     (byte)Math.Min(255, leftTotal),
-                    laneOpen0_4, laneOpen5_9, isRelayByte);
+                    laneOpen0_4, laneOpen5_9, isRelayByte, hwAlwaysOpenByte);
                 _timingBridge.DelayBetweenFrames(20);     // 给硬件处理本帧的时间，防止下一条命令被吞
-                AddLog(string.Format("Set_MatchEvent 已下发: 总圈{0} 右{1} 左{2} 开0-4=0x{3:X2} 开5-9=0x{4:X2} 接力={5}",
-                    totalLaps, rightTotal, leftTotal, laneOpen0_4, laneOpen5_9, _isRelay ? "是" : "否"));
+                AddLog(string.Format("Set_MatchEvent 已下发: 总圈{0} 右{1} 左{2} 开0-4=0x{3:X2} 开5-9=0x{4:X2} 接力={5} 硬件一直打开={6}",
+                    totalLaps, rightTotal, leftTotal, laneOpen0_4, laneOpen5_9, _isRelay ? "是" : "否", _laneCloseSettings.HardwareAlwaysOpen ? "是" : "否"));
             } catch (Exception ex) {
                 AddLog("Set_MatchEvent 下发失败: " + ex.Message);
             }
@@ -8731,6 +8753,17 @@ namespace SwimmingScoreboard
             rtRow.Children.Add(rbRtOff);
             sp.Children.Add(rtRow);
 
+            // 2026-06-02 硬件设备状态: 一直打开 / 按比赛流程
+            //   "一直打开" = 硬件 TP/SB/MB 按键路径忽略 *_Open_Close_State 关闭状态, 只跳过 ==3 坏 / ==4 未装. 让 PC 端拿到所有按键事件
+            //   "按流程"   = 原行为 (硬件按比赛流程时序自动开/关设备)
+            var hwOpenRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 10, 0, 0) };
+            hwOpenRow.Children.Add(new TextBlock { Text = "硬件设备", Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), FontSize = 15, VerticalAlignment = VerticalAlignment.Center, Width = 140 });
+            var rbHwAlwaysOpen = new RadioButton { Content = "一直打开", Foreground = Brushes.White, FontSize = 14, IsChecked = _laneCloseSettings.HardwareAlwaysOpen, GroupName = "HwOpenMode", Margin = new Thickness(0, 0, 12, 0) };
+            var rbHwFlow = new RadioButton { Content = "按比赛流程", Foreground = Brushes.White, FontSize = 14, IsChecked = !_laneCloseSettings.HardwareAlwaysOpen, GroupName = "HwOpenMode" };
+            hwOpenRow.Children.Add(rbHwAlwaysOpen);
+            hwOpenRow.Children.Add(rbHwFlow);
+            sp.Children.Add(hwOpenRow);
+
             // 道次显示顺序：正序=顶到底为 0→9；逆序=顶到底为 9→0（同步给硬件计时器及所有 UI）
             var orderRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 10, 0, 0) };
             orderRow.Children.Add(new TextBlock { Text = "道次顺序", Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), FontSize = 15, VerticalAlignment = VerticalAlignment.Center, Width = 140 });
@@ -8813,6 +8846,7 @@ namespace SwimmingScoreboard
                 if (double.TryParse(tbFirstHold.Text, out v)) _laneCloseSettings.FirstPlaceHoldTime = v;
                 if (double.TryParse(tbBigPage.Text, out v)) _laneCloseSettings.BigDisplayPageInterval = v;
                 _laneCloseSettings.ReactionTimeEnabled = rbRtOn.IsChecked == true;
+                _laneCloseSettings.HardwareAlwaysOpen = rbHwAlwaysOpen.IsChecked == true;
                 _laneCloseSettings.LaneOrder = rbOrderRev.IsChecked == true ? "reverse" : "forward";
                 string newFinish = rbRight.IsChecked == true ? "right" : "left";
                 _laneCloseSettings.FinishPosition = newFinish;
