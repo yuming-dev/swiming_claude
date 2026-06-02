@@ -851,6 +851,7 @@ function render() {
         if (data.laneCloseSettings.finishPosition) finishPosition = data.laneCloseSettings.finishPosition;
         if (data.laneCloseSettings.firstPlaceHoldTime) firstPlaceHoldTime = data.laneCloseSettings.firstPlaceHoldTime;
         if (typeof data.laneCloseSettings.reactionTimeEnabled !== 'undefined') reactionTimeEnabled = !!data.laneCloseSettings.reactionTimeEnabled;
+        if (typeof data.laneCloseSettings.hardwareAlwaysOpen !== 'undefined') window._hardwareAlwaysOpen = !!data.laneCloseSettings.hardwareAlwaysOpen;
         if (typeof data.laneCloseSettings.laneOrder !== 'undefined') laneOrder = (data.laneCloseSettings.laneOrder === 'reverse') ? 'reverse' : 'forward';
         var lbcNew = parseInt(data.laneCloseSettings.leftBlindWatchCount);
         var rbcNew = parseInt(data.laneCloseSettings.rightBlindWatchCount);
@@ -2013,6 +2014,11 @@ function hwColorClass(hw, businessStatus, deviceType) {
     if (businessStatus === 'falsestart') return 'falsestart';
     // 2026-05-31 业务 Closed 优先于 Hw (= PC 业务关 → UI 立即灰, 不等 0x52 上报延迟)
     if (businessStatus === 'closed') return 'closed';
+    // 2026-06-02 HardwareAlwaysOpen 模式: hwColor 失效, 完全用业务字段
+    if (window._hardwareAlwaysOpen) {
+        if (businessStatus === 'open') return (deviceType === 'sb') ? 'open' : 'open-yellow';
+        return 'closed';
+    }
     if (hw === undefined || hw === null) return 'closed';
     switch (hw | 0) {
         case 0: return 'closed';                                                 // 灰

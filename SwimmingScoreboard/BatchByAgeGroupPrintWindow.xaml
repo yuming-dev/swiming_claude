@@ -15,8 +15,9 @@
         <Border Grid.Row="0" Background="White" CornerRadius="6" Padding="12" Margin="0,0,0,8">
             <StackPanel Orientation="Horizontal">
                 <TextBlock Text="性别:" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                <ComboBox x:Name="GenderCombo" Width="70" SelectionChanged="Filter_Changed" Margin="0,0,12,0">
-                    <ComboBoxItem Content="男" IsSelected="True"/>
+                <ComboBox x:Name="GenderCombo" Width="80" SelectionChanged="Filter_Changed" Margin="0,0,12,0">
+                    <ComboBoxItem Content="全部" IsSelected="True"/>
+                    <ComboBoxItem Content="男"/>
                     <ComboBoxItem Content="女"/>
                     <ComboBoxItem Content="混合"/>
                 </ComboBox>

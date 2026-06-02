@@ -188,6 +188,8 @@ namespace SwimmingScoreboard
         private string _displayStyleBg = "#0f172a";
         private double _displayStyleFs = 1.0;
         private string _displayStyleTextStyleJson = "{}";   // JSON 字符串 {key:{c:'#..',f:'..'}}
+        // 2026-06-02 字号 4 类独立缩放 (title/event/time/info), 与全局 fs 相乘. JSON {title:1,event:1,time:1,info:1}
+        private string _displayStyleFsPartsJson = "{\"title\":1,\"event\":1,\"time\":1,\"info\":1}";
         private DisplayStyleWindow _displayStyleWin;        // 当前打开的"大屏样式"窗口 (主控 PC 端)
         private ObservableCollection<BackupInfo> _savedCompetitions = new ObservableCollection<BackupInfo>();
 
@@ -2187,6 +2189,8 @@ namespace SwimmingScoreboard
 
             // 项目总排名
             var eventRanking = GetEventRanking(_currentEvent, _currentGender);
+            // 2026-06-02 并项拆分: 按 (性别, 实际年龄) 切多张子表, 大屏 总排名 视图按子表翻页
+            var eventRankingSplit = GetEventRankingsSplit(_currentAgeGroup, _currentEvent, _currentGender);
             var teamScoresData = _teamScores.OrderBy(t => t.Rank).Select(t => new {
                 teamName = t.TeamName, totalPoints = t.TotalPoints,
                 individualPoints = t.IndividualPoints, relayPoints = t.RelayPoints,
@@ -2246,7 +2250,8 @@ namespace SwimmingScoreboard
                     rightBlindWatchCount = _laneCloseSettings.RightBlindWatchCount,
                     bigDisplayPageInterval = _laneCloseSettings.BigDisplayPageInterval,
                     reactionTimeEnabled = _laneCloseSettings.ReactionTimeEnabled,
-                    laneOrder = _laneCloseSettings.LaneOrder
+                    laneOrder = _laneCloseSettings.LaneOrder,
+                    hardwareAlwaysOpen = _laneCloseSettings.HardwareAlwaysOpen
                 },
                 displayRecordLabel = string.IsNullOrEmpty(_displayRecordLabel) ? "WR" : _displayRecordLabel,
                 displayRecordTypeName = string.IsNullOrEmpty(_displayRecordTypeName) ? "世界纪录" : _displayRecordTypeName,
@@ -2342,6 +2347,7 @@ namespace SwimmingScoreboard
                     rightBlindWatch3Broken = s.RightBlindWatch3Broken
                 }).ToList(),
                 eventRanking = eventRanking,
+                eventRankingSplit = eventRankingSplit,
                 teamScores = teamScoresData,
                 records = _records.Select(r => new {
                     eventName = r.EventName, gender = r.Gender, ageGroup = r.AgeGroup ?? "",
@@ -2415,6 +2421,114 @@ namespace SwimmingScoreboard
         private List<object> GetEventRanking(string eventName, string gender) {
             return GetEventRanking(_currentAgeGroup, eventName, gender);
         }
+
+        // 2026-06-02 并项拆分: 一个赛程项目可能跨"性别+实际年龄" (例: "男女 9-11岁 50米自由泳"),
+        // 总排名 / 批量公布 要按 (实际性别, 实际年龄) 各出一张子表. 此方法返回 List< {gender, age, title, items[]} >,
+        // 每个 sub-ranking 内部用 1-2-2-4 并列名次, 与原 GetEventRanking 同款. 接力赛 (无个人 Age) 只按 gender 拆.
+        private List<object> GetEventRankingsSplit(string ageGroup, string eventName, string gender) {
+            var result = new List<object>();
+            if (string.IsNullOrEmpty(eventName)) return result;
+            bool rankRelay = eventName.Contains("接力");
+
+            // 收集所有候选 swimmers (与 GetEventRanking 同源, 但放宽 gender 过滤到 "GenderMatchesIncludingMixed",
+            //   并按 "已确认 heat" 逐 heat 拉取). 接力运动员行 (Notes 以 "接力队员" 开头) 排除.
+            var schedItem = _schedule.FirstOrDefault(s => s.Gender == gender && s.EventName == eventName
+                                                          && s.Stage == _currentStage
+                                                          && (s.AgeGroup ?? "") == (ageGroup ?? ""));
+            int heatCount = schedItem != null && schedItem.HeatCount > 0 ? schedItem.HeatCount : _totalHeats;
+
+            var stageSwimmers = new List<Swimmer>();
+            for (int h = 1; h <= Math.Max(heatCount, _currentHeat); h++) {
+                bool confirmed = IsHeatConfirmed(ageGroup, gender, eventName, _currentStage, h);
+                if (!confirmed && h == _currentHeat && _resultConfirmed) confirmed = true;
+                if (!confirmed) continue;
+                foreach (var s in _swimmers) {
+                    if (s.EventName != eventName) continue;
+                    if (!GenderMatchesIncludingMixed(s.Gender, gender)) continue;
+                    if (!MatchesAgeGroup(s, ageGroup)) continue;
+                    if (s.Notes != null && s.Notes.StartsWith("接力队员")) continue;
+                    var sa = s.GetAssignmentForStage(_currentStage);
+                    if (sa != null && sa.Heat == h) { stageSwimmers.Add(s); continue; }
+                    if (sa == null && s.CurrentStage == _currentStage && s.Heat == h) stageSwimmers.Add(s);
+                }
+            }
+            if (stageSwimmers.Count == 0) return result;
+
+            // 按 (实际性别, 实际年龄) 分组; 接力赛只按 性别
+            var groups = stageSwimmers.GroupBy(s => rankRelay
+                    ? new { G = s.Gender ?? "", A = 0 }
+                    : new { G = s.Gender ?? "", A = s.Age })
+                .OrderBy(g => g.Key.G == "男" ? 0 : g.Key.G == "女" ? 1 : 2)
+                .ThenBy(g => g.Key.A);
+
+            foreach (var grp in groups) {
+                string subGender = grp.Key.G;
+                int subAge = grp.Key.A;
+                var subList = grp.ToList();
+
+                var withTimes = subList.Where(s => {
+                    if (s.Status == "DSQ" || s.Status == "DNS" || s.Status == "DNF") return false;
+                    var rr = s.GetResultForStage(_currentStage);
+                    return rr != null && rr.FinalTime > 0;
+                }).OrderBy(s => s.GetResultForStage(_currentStage).FinalTime).ToList();
+
+                var items = new List<object>();
+                int idx = 0, rank = 1;
+                double prevT = -1;
+                foreach (var sw in withTimes) {
+                    var r = sw.GetResultForStage(_currentStage);
+                    idx++;
+                    double curT = r != null ? r.FinalTime : 0;
+                    if (idx == 1 || !IsTieTime(curT, prevT)) rank = idx;
+                    prevT = curT;
+                    string rkName = sw.Name;
+                    if (rankRelay && !string.IsNullOrEmpty(sw.Notes) && sw.Notes.StartsWith("接力队 棒次:"))
+                        rkName = sw.Notes.Substring("接力队 棒次:".Length);
+                    var sa = sw.GetAssignmentForStage(_currentStage);
+                    int heatR = (sa != null && sa.Heat > 0) ? sa.Heat : sw.Heat;
+                    items.Add(new {
+                        rank = rank, heat = heatR, lane = sw.Lane,
+                        bibNumber = sw.BibNumber, name = rkName, country = sw.Country,
+                        gender = sw.Gender ?? "", age = sw.Age,
+                        finalTime = r != null ? TimeFormatter.Format(r.FinalTime) : "",
+                        status = sw.Status ?? "",
+                        resultStatus = r != null ? (r.Status ?? "") : "",
+                        recordNote = r != null ? (r.RecordNote ?? "") : "",
+                        qualifiedToNext = IsQualifiedToNext(sw, _currentStage)
+                    });
+                }
+                // DSQ/DNS/DNF/无成绩 追加, 无名次
+                foreach (var sw in subList.Where(s => !withTimes.Contains(s))) {
+                    var r = sw.GetResultForStage(_currentStage);
+                    string rkName = sw.Name;
+                    if (rankRelay && !string.IsNullOrEmpty(sw.Notes) && sw.Notes.StartsWith("接力队 棒次:"))
+                        rkName = sw.Notes.Substring("接力队 棒次:".Length);
+                    string remark = "";
+                    if (r != null && !string.IsNullOrEmpty(r.Status)) remark = r.Status;
+                    else if (!string.IsNullOrEmpty(sw.Status)) remark = sw.Status;
+                    var sa = sw.GetAssignmentForStage(_currentStage);
+                    int heatO = (sa != null && sa.Heat > 0) ? sa.Heat : sw.Heat;
+                    items.Add(new {
+                        rank = 0, heat = heatO, lane = sw.Lane,
+                        bibNumber = sw.BibNumber, name = rkName, country = sw.Country,
+                        gender = sw.Gender ?? "", age = sw.Age,
+                        finalTime = "", status = remark, resultStatus = remark,
+                        recordNote = "", qualifiedToNext = false
+                    });
+                }
+
+                // 子分组标题: "9岁 男子" / "10岁 女子" / 接力则只 "男子" 等
+                string genderLabel = (subGender == "男" || subGender == "女") ? (subGender + "子") : subGender;
+                string title = rankRelay
+                    ? genderLabel
+                    : string.Format("{0}岁 {1}", subAge, genderLabel);
+                result.Add(new {
+                    gender = subGender, age = subAge, title = title, items = items
+                });
+            }
+            return result;
+        }
+
         private List<object> GetEventRanking(string ageGroup, string eventName, string gender) {
             if (string.IsNullOrEmpty(eventName)) return new List<object>();
             bool rankRelay = eventName.Contains("接力");
@@ -2467,8 +2581,12 @@ namespace SwimmingScoreboard
                 string rkName = sw.Name;
                 if (rankRelay && !string.IsNullOrEmpty(sw.Notes) && sw.Notes.StartsWith("接力队 棒次:"))
                     rkName = sw.Notes.Substring("接力队 棒次:".Length);
+                // 2026-06-02 总排名加 "组/道" 字段: heat 取 StageAssignment.Heat, 兜底用 sw.Heat
+                var saR = sw.GetAssignmentForStage(_currentStage);
+                int heatR = (saR != null && saR.Heat > 0) ? saR.Heat : sw.Heat;
                 ranked.Add(new {
                     rank = rank,
+                    heat = heatR,
                     lane = sw.Lane,
                     bibNumber = sw.BibNumber,
                     name = rkName,
@@ -2494,8 +2612,12 @@ namespace SwimmingScoreboard
                 string remark = "";
                 if (r != null && !string.IsNullOrEmpty(r.Status)) remark = r.Status;
                 else if (!string.IsNullOrEmpty(sw.Status)) remark = sw.Status;
+                // 2026-06-02 同样加 "组/道" 字段
+                var saO = sw.GetAssignmentForStage(_currentStage);
+                int heatO = (saO != null && saO.Heat > 0) ? saO.Heat : sw.Heat;
                 ranked.Add(new {
                     rank = 0,
+                    heat = heatO,
                     lane = sw.Lane,
                     bibNumber = sw.BibNumber,
                     name = rkName,
@@ -6898,7 +7020,7 @@ namespace SwimmingScoreboard
         //   注: 硬件 newState=5 (Pressed 红色按下) 待 swimplay.c Process_*StateChange 扩展 KeyState
         //       综合后才会真上报; 当前未上报时 PC UI 触板红色仍由业务 Touched 触发, 视觉跟之前一致.
         private enum DotDeviceType { Tp, Sb, Mb }
-        private static void StyleDotMixed(Ellipse dot, byte hwColor, DeviceStatus businessStatus, DotDeviceType deviceType) {
+        private void StyleDotMixed(Ellipse dot, byte hwColor, DeviceStatus businessStatus, DotDeviceType deviceType) {
             if (dot == null) return;
             // 业务字段优先
             if (businessStatus == DeviceStatus.NotInstalled) {
@@ -6915,6 +7037,15 @@ namespace SwimmingScoreboard
             if (businessStatus == DeviceStatus.FalseStart) { dot.Fill = _brushAmber; return; }
             //2026-05-31 业务 Closed 优先于 Hw*Color (= PC 业务关 → UI 立即变灰, 不等 0x52 上报的 100-200ms)
             if (businessStatus == DeviceStatus.Closed) { dot.Fill = _brushSlate; return; }
+            //2026-06-02 HardwareAlwaysOpen 模式: 硬件 cmd 0x50/0x51/0x52 不发, 完全靠业务字段; hwColor 字段失效
+            if (_laneCloseSettings != null && _laneCloseSettings.HardwareAlwaysOpen) {
+                if (businessStatus == DeviceStatus.Open) {
+                    dot.Fill = (deviceType == DotDeviceType.Sb) ? _brushGreen : _brushAmber;
+                } else {
+                    dot.Fill = _brushSlate;
+                }
+                return;
+            }
             // 否则按 hwColor 渲染 (= 硬件 LCD 颜色)
             switch (hwColor) {
                 case 0: dot.Fill = _brushSlate; break;                                   // Close 灰 (= 硬件 Close_Color=GRAY)
@@ -14426,6 +14557,7 @@ namespace SwimmingScoreboard
                         if (double.TryParse(j["fs"].ToString(), out v) && v > 0) _displayStyleFs = v;
                     }
                     if (j["textStyle"] != null) _displayStyleTextStyleJson = j["textStyle"].ToString(Newtonsoft.Json.Formatting.None);
+                    if (j["fsParts"] != null) _displayStyleFsPartsJson = j["fsParts"].ToString(Newtonsoft.Json.Formatting.None);
                 }
             } catch (Exception ex) { AddLog("加载大屏样式失败: " + ex.Message); }
         }
@@ -14434,10 +14566,13 @@ namespace SwimmingScoreboard
             try {
                 JObject ts;
                 try { ts = JObject.Parse(_displayStyleTextStyleJson); } catch { ts = new JObject(); }
+                JObject fp;
+                try { fp = JObject.Parse(_displayStyleFsPartsJson); } catch { fp = new JObject(); }
                 var j = new JObject {
                     ["bg"] = _displayStyleBg,
                     ["fs"] = _displayStyleFs,
-                    ["textStyle"] = ts
+                    ["textStyle"] = ts,
+                    ["fsParts"] = fp
                 };
                 File.WriteAllText(DisplayStylePath, j.ToString(Newtonsoft.Json.Formatting.Indented), Encoding.UTF8);
             } catch (Exception ex) { AddLog("保存大屏样式失败: " + ex.Message); }
@@ -14482,6 +14617,26 @@ namespace SwimmingScoreboard
                     changed = true;
                 }
             }
+            // 2026-06-02 fsParts: 4 类独立字号. 同样支持局部合并 (fsPartsMerge=true) 或整体替换
+            if (data["fsParts"] != null) {
+                var newFp = data["fsParts"];
+                bool mergeFp = data["fsPartsMerge"] != null && (bool)data["fsPartsMerge"];
+                if (mergeFp) {
+                    JObject cur;
+                    try { cur = JObject.Parse(_displayStyleFsPartsJson); } catch { cur = new JObject(); }
+                    var add = newFp as JObject;
+                    if (add != null) {
+                        foreach (var kv in add) {
+                            cur[kv.Key] = kv.Value;
+                        }
+                        _displayStyleFsPartsJson = cur.ToString(Newtonsoft.Json.Formatting.None);
+                        changed = true;
+                    }
+                } else {
+                    _displayStyleFsPartsJson = newFp.ToString(Newtonsoft.Json.Formatting.None);
+                    changed = true;
+                }
+            }
             if (changed) {
                 SaveDisplayStyleToDisk();
                 BroadcastDisplayStyle();
@@ -14491,12 +14646,15 @@ namespace SwimmingScoreboard
         private string BuildDisplayStyleJson() {
             JObject ts;
             try { ts = JObject.Parse(_displayStyleTextStyleJson); } catch { ts = new JObject(); }
+            JObject fp;
+            try { fp = JObject.Parse(_displayStyleFsPartsJson); } catch { fp = new JObject(); }
             var msg = new JObject {
                 ["type"] = "DISPLAY_STYLE_PUSH",
                 ["data"] = new JObject {
                     ["bg"] = _displayStyleBg,
                     ["fs"] = _displayStyleFs,
-                    ["textStyle"] = ts
+                    ["textStyle"] = ts,
+                    ["fsParts"] = fp
                 }
             };
             return msg.ToString(Newtonsoft.Json.Formatting.None);
@@ -18315,7 +18473,8 @@ namespace SwimmingScoreboard
             sb.AppendFormat("<h4>比赛时间：{0} &nbsp;&nbsp;&nbsp;&nbsp; 地点：{1}</h4>", dateTimeInfo, LocationBox.Text);
 
             bool printRelay = _currentEvent.Contains("接力");
-            sb.AppendFormat("<table><tr><th width='50'>名次</th><th width='40'>道</th><th width='60'>号码</th><th width='100'>{0}</th><th width='100'>{1}</th><th width='90'>成绩</th><th width='70'>成绩差</th><th width='70'>反应时间</th><th width='50'>备注</th></tr>",
+            // 2026-06-02 去掉"号码"列 (评判员不需要), 改为更宽的姓名/代表队列
+            sb.AppendFormat("<table><tr><th width='50'>名次</th><th width='40'>道</th><th width='120'>{0}</th><th width='120'>{1}</th><th width='90'>成绩</th><th width='70'>成绩差</th><th width='70'>反应时间</th><th width='50'>备注</th></tr>",
                 RelayCol1Header(printRelay), RelayCol2Header(printRelay));
             var swimmers = GetCurrentHeatSwimmers().OrderBy(s => s.CurrentRank > 0 ? s.CurrentRank : int.MaxValue).ToList();
             // 计算第1名成绩（用于"成绩差"列）：取本组中有有效成绩且非 DSQ/DNS/DNF 的最快者
@@ -18361,15 +18520,21 @@ namespace SwimmingScoreboard
                 } else if (r != null && r.StartingBlockTime != 0) {
                     reactionCell = r.StartingBlockTime.ToString("F2");
                 }
-                sb.AppendFormat("<tr><td>{0}</td><td>{1}</td><td>{2}</td><td><b>{3}</b></td><td>{4}</td><td style='font-weight:bold; background:#eff6ff;'>{5}</td><td>{6}</td><td style='font-size:12px;'>{7}</td><td>{8}</td></tr>",
+                // 2026-06-02 去掉"号码"列 (sw.BibNumber 不再输出)
+                sb.AppendFormat("<tr><td>{0}</td><td>{1}</td><td><b>{2}</b></td><td>{3}</td><td style='font-weight:bold; background:#eff6ff;'>{4}</td><td>{5}</td><td style='font-size:12px;'>{6}</td><td>{7}</td></tr>",
                     r != null && r.Rank > 0 ? r.Rank.ToString() : "-",
-                    sw.Lane, sw.BibNumber, RelayCol1(printRelay, pName, pCountry), RelayCol2(printRelay, pName, pCountry),
+                    sw.Lane, RelayCol1(printRelay, pName, pCountry), RelayCol2(printRelay, pName, pCountry),
                     timeText,
                     diffText,
                     reactionCell,
                     remarkHtml);
             }
             sb.Append("</table>");
+
+            // 2026-06-02 追加"分段成绩"表 (复用成绩册的合并分段表): 每位运动员一行, 每段距离一列, 上行累计/下行本段
+            sb.Append("<h4 style='margin-top:18px;'>分段成绩</h4>");
+            sb.Append(BuildMergedSplitsTableHtml(swimmers, _currentStage, _currentHeat, printRelay));
+
             sb.Append(DocSignatureRow());
             sb.Append(DocFooter());
             sb.Append("</body></html>");

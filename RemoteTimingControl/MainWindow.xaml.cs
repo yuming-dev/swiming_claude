@@ -54,6 +54,8 @@ namespace RemoteTimingControl
         private double _bigDisplayPageInterval = 5;
         private bool _reactionTimeEnabled = true; // 反应时(RT)开关：关闭时所有出发反应时相关处理跳过
         private string _laneOrder = "forward";    // 道次顺序: "forward" 0→9（顶到底）；"reverse" 9→0
+        // 2026-06-02 硬件设备一直打开模式: GetDeviceBrushMixed 跳过 hwColor, 完全用业务字段渲染
+        private static bool _hardwareAlwaysOpen = false;
         // 2026-05-19 泳池触板单/两端：true=单端(只在终点端装) / false=两端(终点+发令都装)
         private bool _poolSingleSide = false;
 
@@ -232,6 +234,7 @@ namespace RemoteTimingControl
                     }
                     if (j["bigDisplayPageInterval"] != null) _bigDisplayPageInterval = (double)j["bigDisplayPageInterval"];
                     if (j["reactionTimeEnabled"] != null) _reactionTimeEnabled = (bool)j["reactionTimeEnabled"];
+                    if (j["hardwareAlwaysOpen"] != null) _hardwareAlwaysOpen = (bool)j["hardwareAlwaysOpen"];
                     if (j["laneOrder"] != null) {
                         string lv = j["laneOrder"].ToString();
                         _laneOrder = (lv == "reverse") ? "reverse" : "forward";
@@ -1450,6 +1453,13 @@ namespace RemoteTimingControl
             if (businessStatus == "falsestart") return _brushAmber;
             //2026-05-31 业务 Closed 优先, PC 业务关 → UI 立即灰
             if (businessStatus == "closed") return _brushSlate;
+            //2026-06-02 HardwareAlwaysOpen 模式: 硬件不上报 0x50/0x51/0x52, hwColor 失效, 完全靠业务字段
+            if (_hardwareAlwaysOpen) {
+                if (businessStatus == "open") {
+                    return (deviceType == "sb") ? _brushGreen : _brushAmber;
+                }
+                return _brushSlate;
+            }
             switch (hwColor) {
                 case 0: return _brushSlate;                                              // Close 灰
                 case 1: return (deviceType == "sb") ? _brushGreen : _brushAmber;         // Open: SB 绿 / TP-MB 黄
