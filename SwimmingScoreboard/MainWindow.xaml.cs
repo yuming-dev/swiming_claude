@@ -4279,7 +4279,7 @@ namespace SwimmingScoreboard
                 result.FinalTime > 0 ? TimeFormatter.Format(result.FinalTime) : "—"));
         }
 
-        private void ProcessTouchpadHit(int lane, double time, LaneDeviceState laneState) {
+        private void ProcessTouchpadHit(int lane, double time, LaneDeviceState laneState, bool isMbSubstitute = false) {
             // 2026-05-25 修复 #7: 移除"hold 过期就当新的 1 名"逻辑(会把 2/3 名触板时间也显示).
             // 1 名检测改到 split 保存后做 (见本函数末尾): 只在此泳道触板后是 当前 lap 最快 才更新滚动时间.
 
@@ -4335,10 +4335,22 @@ namespace SwimmingScoreboard
                 if (sp.Lap == currentLap - 1) { prevCumulative = sp.CumulativeTime; break; }
             }
 
+            // 2026-06-03 优先级守卫: TP > MB > Manual > Input
+            //   TP 来 → 总覆盖 (= 最高优先级)
+            //   MB final 来 (isMbSubstitute=true) → 仅当 TimingSource != "TP" 时覆盖, 否则只存 MbFinalTime 留痕 + 回退 CurrentLap (= 防双增)
+            if (isMbSubstitute && split.TimingSource == "TP") {
+                // 已有 TP 主成绩, MB final 仅留痕到 MbFinalTime 字段
+                split.MbFinalTime = time;
+                laneState.CurrentLap = currentLap - 1;  // reverse 4319 行的 ++ (= 同段不再 increment)
+                AddLog(string.Format("泳道{0} 第{1}段 MB final={2} 到达, 但已有 TP 成绩, 保持 TP (MB 留痕到 MbFinalTime)", lane, currentLap, TimeFormatter.Format(time)));
+                return;
+            }
             // 填入触板数据到预创建的split中（盲表和手动可能已经写入了）
             split.Time = time - prevCumulative;
             split.CumulativeTime = time;
             split.TouchpadTime = time;
+            split.TimingSource = isMbSubstitute ? "MB" : "TP";
+            if (isMbSubstitute) split.MbFinalTime = time;
             // 如果手动/盲表还没写入split（在触板之前存到了laneState），补充写入
             if (split.ManualTouchTime <= 0) {
                 double manualTime = Math.Max(laneState.LeftManualTouchTime, laneState.RightManualTouchTime);
@@ -12114,15 +12126,18 @@ namespace SwimmingScoreboard
                     MessageBox.Show("只能在同一组内交换泳道位置。", "提示");
                     return;
                 }
-                int tmpLane = sw1.Item3;
+                int lane1 = sw1.Item3, lane2 = sw2.Item3;
                 var sa1 = sw1.Item1.GetAssignmentForStage(stage);
                 var sa2 = sw2.Item1.GetAssignmentForStage(stage);
-                if (sa1 != null && sa2 != null) {
-                    sa1.Lane = sw2.Item3;
-                    sa2.Lane = tmpLane;
-                }
-                if (sw1.Item1.CurrentStage == stage) sw1.Item1.Lane = sw2.Item3;
-                if (sw2.Item1.CurrentStage == stage) sw2.Item1.Lane = tmpLane;
+                // 2026-06-03 修复: 旧逻辑要求 sa1+sa2 同时非空 才换 assignment, 一端为 null 则跳过.
+                //   现在各侧独立处理: 有 sa 改 sa, 没 sa 现场补一条; CurrentStage 独立判断同步 live.
+                int swapHeat = sw1.Item2;
+                if (sa1 != null) sa1.Lane = lane2;
+                else sw1.Item1.SetStageAssignment(stage, swapHeat, lane2, sw1.Item1.EntryTimeSeconds, sw1.Item1.EntryTime);
+                if (sa2 != null) sa2.Lane = lane1;
+                else sw2.Item1.SetStageAssignment(stage, swapHeat, lane1, sw2.Item1.EntryTimeSeconds, sw2.Item1.EntryTime);
+                if (sw1.Item1.CurrentStage == stage) sw1.Item1.Lane = lane2;
+                if (sw2.Item1.CurrentStage == stage) sw2.Item1.Lane = lane1;
                 AutoSaveData();
                 RefreshEditPreview();
             }

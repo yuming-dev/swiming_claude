@@ -209,6 +209,12 @@ namespace SwimmingScoreboard
             get { return _timingSource; }
             set { _timingSource = value; OnPropertyChanged("TimingSource"); }
         }
+        // 2026-06-03 MB final 算出时间 (= 区别于真 TP 触板). 优先级 TP > MB > Manual > Input, MB final 不主动覆盖 TP, 仅留痕
+        private double _mbFinalTime;
+        public double MbFinalTime {
+            get { return _mbFinalTime; }
+            set { _mbFinalTime = value; OnPropertyChanged("MbFinalTime"); }
+        }
         //2026-05-29 手工补段成绩 (操作员通过"📝 手工补段"对话框输入), 区别于触板/盲表自动记录
         private bool _isManual;
         public bool IsManual {
