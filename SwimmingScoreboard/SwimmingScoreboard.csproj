@@ -324,6 +324,7 @@
     <None Include="app.manifest" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="RelayReactionCalculator.cs" />
     <Compile Include="Swimmer.cs" />
     <Compile Include="LapAdjustLogic.cs" />
     <Compile Include="TimingBridge.cs" />

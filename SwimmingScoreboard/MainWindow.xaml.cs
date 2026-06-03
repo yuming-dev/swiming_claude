@@ -70,6 +70,9 @@ namespace SwimmingScoreboard
         private string _competitionMode = "domestic";
         private PoolConfig _poolConfig = new PoolConfig();
         private LaneCloseSettings _laneCloseSettings = new LaneCloseSettings();
+        // 2026-06-03 接力 SB reaction 计算器 (= 14 条规则). 每 (lane, side) 一个窗口, TP/SB/MB/手动 TP 喂入, 窗口超时算 reaction
+        private RelayReactionCalculator _relayReactionCalc;
+        private DispatcherTimer _relayReactionTickTimer;
         // 团体计分配置（持久化在 CompetitionPackage.ScoringConfig）
         private ScoringConfig _scoringConfig = new ScoringConfig();
         // 2026-05-24 项目用时配置（持久化在 CompetitionPackage.DurationConfig）— 一键秩序册排日程用
@@ -1795,6 +1798,10 @@ namespace SwimmingScoreboard
                             SaveManualTouchToSplit(laneNum, _runningTime);
                             LogRawTimingData(laneNum, "ManualTouchLeft", _runningTime, "left");
                             AddLog(string.Format("泳道{0} 左端手动触板: {1}", laneNum, TimeFormatter.Format(_runningTime)));
+                            // 2026-06-03 喂入 RelayReactionCalculator (= 接力 SB reaction 14 条规则)
+                            if (_relayReactionCalc != null && _isRelay) {
+                                _relayReactionCalc.OnEvent(laneNum, "left", RelayReactionCalculator.EventKind.ManualTP, _runningTime);
+                            }
                         } else if (lState != null) {
                             AddLog(string.Format("泳道{0} 左端手动触板(未启用)", laneNum));
                         }
@@ -1810,6 +1817,10 @@ namespace SwimmingScoreboard
                             SaveManualTouchToSplit(laneNum, _runningTime);
                             LogRawTimingData(laneNum, "ManualTouchRight", _runningTime, "right");
                             AddLog(string.Format("泳道{0} 右端手动触板: {1}", laneNum, TimeFormatter.Format(_runningTime)));
+                            // 2026-06-03 喂入 RelayReactionCalculator
+                            if (_relayReactionCalc != null && _isRelay) {
+                                _relayReactionCalc.OnEvent(laneNum, "right", RelayReactionCalculator.EventKind.ManualTP, _runningTime);
+                            }
                         } else if (lState != null) {
                             AddLog(string.Format("泳道{0} 右端手动触板(未启用)", laneNum));
                         }
@@ -3507,6 +3518,20 @@ namespace SwimmingScoreboard
             // 记录原始数据 (2026-05-31: 硬件用盲表代替触板成绩 → log 标 "TouchpadMb" → 比赛日志显示"触代")
             LogRawTimingData(lane, (cmdType == "Touchpad" && isMbSubstitute) ? "TouchpadMb" : cmdType, timeInSeconds, side);
 
+            // 2026-06-03 喂事件到 RelayReactionCalculator (= 接力 SB reaction 14 条规则). 第 1 棒发令不喂 (= 不算接力交接)
+            if (_relayReactionCalc != null && _isRelay && !string.IsNullOrEmpty(side)) {
+                if (cmdType == "Touchpad") {
+                    if (isMbSubstitute) {
+                        _relayReactionCalc.OnEvent(lane, side, RelayReactionCalculator.EventKind.MB_Final, timeInSeconds);
+                    } else {
+                        _relayReactionCalc.OnEvent(lane, side, RelayReactionCalculator.EventKind.TP, timeInSeconds);
+                    }
+                } else if (cmdType == "PushButton1" || cmdType == "PushButton2" || cmdType == "PushButton3") {
+                    _relayReactionCalc.OnEvent(lane, side, RelayReactionCalculator.EventKind.MB_FirstPress, timeInSeconds);
+                }
+                // SB 在 case "StartingBlock" 接力分支内单独喂 (= 因为发令第 1 棒 SB 不喂)
+            }
+
             var laneState = _laneDeviceStates.FirstOrDefault(s => s.Lane == lane);
             if (laneState == null) return;
 
@@ -3553,45 +3578,10 @@ namespace SwimmingScoreboard
                             // 关闭RT：不进行反应时/抢跳判定，仅记录出发台动作日志
                             AddLog(string.Format("泳道{0} 出发台触发（已关闭反应时检测）", lane));
                         } else if (_isRelay && laneState.CurrentLap > 0) {
-                            // 接力交接：出发台时间是绝对时间，与上次触板时间比较
-                            // 获取上次触板累计时间
-                            var swForLane = GetCurrentHeatSwimmers().FirstOrDefault(s2 => {
-                                var sa2 = s2.GetAssignmentForStage(_currentStage);
-                                return (sa2 != null ? sa2.Lane : s2.Lane) == lane;
-                            });
-                            double lastTouchTime = 0;
-                            LaneResult relayRes = null;
-                            if (swForLane != null) {
-                                relayRes = EnsureRelayLaneResult(swForLane, lane);
-                                if (relayRes != null && relayRes.Splits.Count > 0) lastTouchTime = relayRes.Splits.Last().CumulativeTime;
-                            }
-                            // 2026-05-12 抢跳：硬件以 D10 符号位上报，timeInSeconds 已为负值，直接作为反应时
-                            // 2026-06-02 Phase 2: 硬件 SB cmd 改回发 absolute swim_now (= 跟发令累计的当前时刻), PC 端减上棒触板时刻算 reaction
-                            //   reaction = SB_swim - 上次触板 swim
-                            //     > 0 = 正常反应时 (= 选手在上棒触板后起跳)
-                            //     < 0 = 抢跳 (= 选手早于上棒触板起跳)
-                            //   抢跳场景下 lastTouchTime 可能是上次右触 (= MB 5s 延迟未到时 PC 还没收到左触 cmd), reaction 会偏大. 真实比赛抢跳 0.1-0.3s 内, 当前 lastTouchTime 应该是正确的上棒左触.
-                            double relayReaction = timeInSeconds - lastTouchTime;
-                            laneState.ReactionTime = relayReaction;
-                            // 按棒次索引覆盖写入 LegReactionTimes[legIdx]，
-                            // 这样即使硬件事件重复/乱序，也只保留每棒最新值，且槽位与棒次对齐
-                            if (relayRes != null) {
-                                int legIdx = ComputeRelayLegIndex(laneState.CurrentLap);
-                                EnsureLegReactionSlots(relayRes);
-                                if (legIdx >= 0 && legIdx < relayRes.LegReactionTimes.Count)
-                                    relayRes.LegReactionTimes[legIdx] = relayReaction;
-                            }
-                            // 2026-06-02 Phase 2: 硬件 d10=0 (= 不再判抢跳), PC 端通过 reaction<0 自判
-                            if (relayReaction < 0) isFalseStart = true;
-                            if (isFalseStart) {
-                                laneState.IsSuspectFalseStart = true;
-                                AddLog(string.Format("⚠ 接力抢跳（reaction<0）泳道{0} 反应时:{1:F3}s", lane, relayReaction));
-                            } else if (relayReaction < _laneCloseSettings.FalseStartThreshold) {
-                                // 仅作可疑提示（反应时标红），是否判罚由裁判手动决定
-                                laneState.IsSuspectFalseStart = true;
-                                AddLog(string.Format("⚠ 接力起跳可疑（待裁判确认）泳道{0} 出发台:{1:F2}s 触板:{2:F2}s 差值:{3:F3}s", lane, timeInSeconds, lastTouchTime, relayReaction));
-                            } else {
-                                AddLog(string.Format("泳道{0} 接力交接 出发台:{1:F2}s 差值:{2:F2}s", lane, timeInSeconds, relayReaction));
+                            // 2026-06-03 接力交接 SB: 喂入 RelayReactionCalculator (= 14 条规则). reaction 由 calculator window 超时后通过 callback 输出
+                            //   不再在这里直接算 reaction (= 之前 Phase 2 的 timeInSeconds - lastTouchTime 改用 calculator 完整规则)
+                            if (_relayReactionCalc != null && !string.IsNullOrEmpty(side)) {
+                                _relayReactionCalc.OnEvent(lane, side, RelayReactionCalculator.EventKind.SB, timeInSeconds);
                             }
                         } else {
                             // 普通出发：反应时间就是出发台时间（抢跳时为负）
@@ -5449,6 +5439,96 @@ namespace SwimmingScoreboard
             _countdownTimer = new DispatcherTimer();
             _countdownTimer.Interval = TimeSpan.FromMilliseconds(100);
             _countdownTimer.Tick += CountdownTimer_Tick;
+
+            // 2026-06-03 接力 SB reaction 计算器 + 100ms tick (= 检查 window 超时)
+            _relayReactionCalc = new RelayReactionCalculator(
+                windowSecGetter: () => _laneCloseSettings != null ? _laneCloseSettings.ReactionEventWindowSec : 3.0,
+                onReaction: OnRelayReactionReady,
+                onNoReaction: OnRelayReactionNone);
+            _relayReactionTickTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
+            _relayReactionTickTimer.Tick += RelayReactionTick;
+            _relayReactionTickTimer.Start();
+        }
+
+        private void RelayReactionTick(object sender, EventArgs e) {
+            if (_relayReactionCalc == null) return;
+            _relayReactionCalc.Tick(_runningTime);
+        }
+
+        // 2026-06-03 RelayReactionCalculator 输出回调: window 算出 reaction
+        private void OnRelayReactionReady(int lane, string side, double reaction, string basisKind) {
+            var laneState = _laneDeviceStates.FirstOrDefault(s => s.Lane == lane);
+            if (laneState == null) return;
+            laneState.ReactionTime = reaction;
+            // 写比赛日志 — 用"出"标签 + 加 basisKind 注释
+            string label = "出";
+            string sideLabel = side == "left" ? "左" : (side == "right" ? "右" : "");
+            int lapRemain = GetTouchRemain(laneState, side == "left");
+            string lapLabel = lapRemain >= 0 ? string.Format("[{0}]", lapRemain) : "";
+            string timeStr;
+            if (reaction == 0) timeStr = "0.00";
+            else if (reaction < 0) timeStr = "-" + TimeFormatter.Format(-reaction);
+            else timeStr = TimeFormatter.Format(reaction);
+            // 加 basis 注释 (= TP / MB / HandTP)
+            string basisNote = basisKind == "TP" ? "" : (basisKind == "MB" ? " (基准:MB)" : (basisKind == "HandTP" ? " (基准:手动)" : ""));
+            string elapsed = _raceStartTime > DateTime.MinValue
+                ? ((DateTime.Now - _raceStartTime).TotalSeconds).ToString("F2")
+                : "—";
+            string swimmerName = "";
+            var sw2 = GetCurrentHeatSwimmers().FirstOrDefault(s2 => {
+                var sa2 = s2.GetAssignmentForStage(_currentStage);
+                return (sa2 != null ? sa2.Lane : s2.Lane) == lane;
+            });
+            if (sw2 != null) swimmerName = sw2.Name ?? "";
+            if (!_laneEventLog.ContainsKey(lane)) _laneEventLog[lane] = new StringBuilder();
+            _laneEventLog[lane].AppendFormat("[T={0,7}] 道{1}{2} {3}{4} = {5}{6}{7}\r\n",
+                elapsed, lane, sideLabel, label, lapLabel, timeStr, basisNote,
+                string.IsNullOrEmpty(swimmerName) ? "" : (" (" + swimmerName + ")"));
+            if (lane == _selectedLane) RefreshLaneEventLogView();
+            // 写到接力 LegReactionTimes (= 棒次反应时表)
+            if (_isRelay) {
+                var swForLane = GetCurrentHeatSwimmers().FirstOrDefault(s2 => {
+                    var sa2 = s2.GetAssignmentForStage(_currentStage);
+                    return (sa2 != null ? sa2.Lane : s2.Lane) == lane;
+                });
+                if (swForLane != null) {
+                    var relayRes = EnsureRelayLaneResult(swForLane, lane);
+                    if (relayRes != null) {
+                        int legIdx = ComputeRelayLegIndex(laneState.CurrentLap);
+                        EnsureLegReactionSlots(relayRes);
+                        if (legIdx >= 0 && legIdx < relayRes.LegReactionTimes.Count)
+                            relayRes.LegReactionTimes[legIdx] = reaction;
+                    }
+                }
+            }
+            // 抢跳标记
+            if (reaction < 0) {
+                laneState.IsSuspectFalseStart = true;
+                AddLog(string.Format("⚠ 接力抢跳(reaction<0) 道{0}{1} reaction:{2:F3}s{3}", lane, sideLabel, reaction, basisNote));
+            }
+        }
+
+        private void OnRelayReactionNone(int lane, string side) {
+            // window 内没 SB 或没基准 → "---"
+            string label = "出";
+            string sideLabel = side == "left" ? "左" : (side == "right" ? "右" : "");
+            var ls2 = _laneDeviceStates.FirstOrDefault(s => s.Lane == lane);
+            int lapRemain = ls2 != null ? GetTouchRemain(ls2, side == "left") : -1;
+            string lapLabel = lapRemain >= 0 ? string.Format("[{0}]", lapRemain) : "";
+            string elapsed = _raceStartTime > DateTime.MinValue
+                ? ((DateTime.Now - _raceStartTime).TotalSeconds).ToString("F2")
+                : "—";
+            string swimmerName = "";
+            var sw2 = GetCurrentHeatSwimmers().FirstOrDefault(s2 => {
+                var sa2 = s2.GetAssignmentForStage(_currentStage);
+                return (sa2 != null ? sa2.Lane : s2.Lane) == lane;
+            });
+            if (sw2 != null) swimmerName = sw2.Name ?? "";
+            if (!_laneEventLog.ContainsKey(lane)) _laneEventLog[lane] = new StringBuilder();
+            _laneEventLog[lane].AppendFormat("[T={0,7}] 道{1}{2} {3}{4} = ---{5}\r\n",
+                elapsed, lane, sideLabel, label, lapLabel,
+                string.IsNullOrEmpty(swimmerName) ? "" : (" (" + swimmerName + ")"));
+            if (lane == _selectedLane) RefreshLaneEventLogView();
         }
 
 
@@ -5787,6 +5867,8 @@ namespace SwimmingScoreboard
             // 硬件触发或 WebSocket 远程调用（sender==null）跳过对话框
             // 2026-05-30 本地点击 (sender!=null) 时检查硬件连接
             if (sender != null && !EnsureHardwareConnected("计时复位")) return;
+            // 2026-06-03 比赛复位 → 清接力 reaction window (= 防上场残留)
+            if (_relayReactionCalc != null) _relayReactionCalc.Reset();
             if (sender != null) {
                 var r = MessageBox.Show("确定计时复位？", "计时复位确认", MessageBoxButton.YesNo, MessageBoxImage.Warning);
                 if (r != MessageBoxResult.Yes) return;
@@ -8872,6 +8954,8 @@ namespace SwimmingScoreboard
             if (blindDispl < 0) blindDispl = 0;
             if (blindDispl > 9) blindDispl = 9;
             var tbBlindReplace = AddSettingsRow(sp, "盲表代替成绩延迟", ((int)Math.Round(blindDispl)).ToString(), "秒(0-9)");
+            // 2026-06-03 接力 reaction 事件窗口 — 第一个事件 (TP/SB/MB/手动 TP) 到达起 N 秒倒计时, 收集相关事件算 SB 反应时
+            var tbReactionWin = AddSettingsRow(sp, "接力反应时事件窗口", _laneCloseSettings.ReactionEventWindowSec.ToString("F1"), "秒(1-10)");
             var tbFirstHold = AddSettingsRow(sp, "第1名成绩停留时间", _laneCloseSettings.FirstPlaceHoldTime.ToString(), "秒");
             var tbBigPage = AddSettingsRow(sp, "大屏翻屏时间", _laneCloseSettings.BigDisplayPageInterval.ToString(), "秒");
 
@@ -8982,6 +9066,11 @@ namespace SwimmingScoreboard
                     if (v < 0) v = 0;
                     if (v > 9) v = 9;
                     _laneCloseSettings.BlindReplaceDelay = Math.Round(v, 0);
+                }
+                if (double.TryParse(tbReactionWin.Text, out v)) {
+                    if (v < 1.0) v = 1.0;
+                    if (v > 10.0) v = 10.0;
+                    _laneCloseSettings.ReactionEventWindowSec = v;
                 }
                 if (double.TryParse(tbFirstHold.Text, out v)) _laneCloseSettings.FirstPlaceHoldTime = v;
                 if (double.TryParse(tbBigPage.Text, out v)) _laneCloseSettings.BigDisplayPageInterval = v;

@@ -58,6 +58,9 @@ namespace SwimmingScoreboard
         // 2026-06-02 调试用: 硬件 TP/SB/MB 按键路径"一直处于打开状态"(忽略 *_Open_Close_State==0 关闭判定),
         //   只跳过 ==3 (坏) / ==4 (未装). 用于在硬件时序复杂时让 PC 端拿到所有按键事件做判断
         private bool _hardwareAlwaysOpen = false;
+        // 2026-06-03 接力 reaction 事件窗口 (秒). 第一个事件到达起 N 秒倒计时, 收集 TP/SB/MB/手动 TP 算 reaction
+        //   3 秒为默认 (= 选手反应时通常 0.x s, 加上传输/处理延迟, 3s 足够)
+        private double _reactionEventWindowSec = 3.0;
 
         public double LaneCloseTime {
             get { return _laneCloseTime; }
@@ -135,6 +138,13 @@ namespace SwimmingScoreboard
         public bool HardwareAlwaysOpen {
             get { return _hardwareAlwaysOpen; }
             set { if (_hardwareAlwaysOpen != value) { _hardwareAlwaysOpen = value; OnPropertyChanged("HardwareAlwaysOpen"); } }
+        }
+        public double ReactionEventWindowSec {
+            get { return _reactionEventWindowSec; }
+            set {
+                double v = value < 1.0 ? 1.0 : (value > 10.0 ? 10.0 : value);
+                if (_reactionEventWindowSec != v) { _reactionEventWindowSec = v; OnPropertyChanged("ReactionEventWindowSec"); }
+            }
         }
 
         public event PropertyChangedEventHandler PropertyChanged;
