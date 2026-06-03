@@ -60,6 +60,8 @@ h1 { text-align: center; margin-bottom: 20px; font-size: 20px; }
     <button class="btn btn-welcome" onclick="send('SHOW_WELCOME')">欢迎画面</button>
     <button class="btn btn-pause" onclick="send('SHOW_PAUSE')">暂停画面</button>
     <button class="btn" style="background:#F59E0B;color:#000;grid-column:span 3;" onclick="openPublishDialog()">成绩发布（选择已完赛项目发布到大屏）</button>
+    <!-- 2026-06-03 大屏右上角 WR/CR 横条 显示/隐藏 切换 -->
+    <button id="recordsHiddenBtn" class="btn" style="background:#475569;color:white;grid-column:span 3;" onclick="toggleRecordsHidden()">记录显示 (点击隐藏 WR/CR)</button>
     <!-- 2026-06-01 远程控制大屏样式: 底色 / 字号 / 9 处文字颜色字体 -->
     <button class="btn" style="background:#0ea5e9;color:white;grid-column:span 3;" onclick="openDisplayStyleDialog()">🎨 大屏样式 (底色 / 字号 / 文字)</button>
 </div>
@@ -322,6 +324,17 @@ function _cs_applyToUi(data) {
         _cs_currentStyle.textStyle = data.textStyle;
         _cs_buildTextRows();
     }
+    // 2026-06-03 记录显隐 同步按钮文字
+    if (typeof data.recordsHidden === 'boolean') {
+        _csRecordsHidden = data.recordsHidden;
+        var b = document.getElementById('recordsHiddenBtn');
+        if (b) b.textContent = data.recordsHidden ? '记录已隐藏 (点击显示 WR/CR)' : '记录显示 (点击隐藏 WR/CR)';
+    }
+}
+var _csRecordsHidden = false;
+function toggleRecordsHidden() {
+    if (!ws || ws.readyState !== 1) { alert('未连接服务器'); return; }
+    ws.send(JSON.stringify({type: 'SET_DISPLAY_STYLE', data: { recordsHidden: !_csRecordsHidden }}));
 }
 
 function openDisplayStyleDialog() {

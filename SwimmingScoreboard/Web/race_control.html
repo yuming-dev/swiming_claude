@@ -458,6 +458,8 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
                     <button class="action-btn small" style="background:#DC2626;margin:0;" onclick="sendDisplay('SHOW_REFEREES')"><span class="ico">&#xE716;</span>裁判介绍</button>
                     <button class="action-btn small" style="background:#8B5CF6;margin:0;" onclick="sendDisplay('SHOW_WELCOME')"><span class="ico">&#xE80F;</span>欢  迎</button>
                 </div>
+                <!-- 2026-06-03 切换大屏右上角 WR/CR 横条 显示/隐藏 (走 SET_DISPLAY_STYLE 通道) -->
+                <button id="recordsHiddenBtn" class="action-btn small" style="background:#475569;margin-top:6px;" onclick="toggleRecordsHidden()"><span class="ico">&#xED1A;</span><span id="recordsHiddenBtnText">记录显示</span></button>
                 <button class="action-btn small" style="background:#F59E0B;margin-top:6px;" onclick="publishResult()"><span class="ico">&#xE8A5;</span>成绩发布</button>
             </div>
         </div>
@@ -588,6 +590,11 @@ function connect() {
     ws.onmessage = function(e) {
         var msg;
         try { msg = JSON.parse(e.data); } catch (er) { return; }
+        // 2026-06-03 大屏样式同步 (服务器持久化的 recordsHidden 等) - 用来更新本端按钮文字状态
+        if (msg.type === 'DISPLAY_STYLE_PUSH') {
+            if (msg.data && typeof msg.data.recordsHidden === 'boolean') _rcApplyRecordsHidden(msg.data.recordsHidden);
+            return;
+        }
         // 2026-06-02 远程"打印成绩"回包: 服务器把 BuildHeatResultsHtml 生成的 HTML 推回这里, 新窗口打印
         if (msg.type === 'PRINT_HEAT_RESULT_HTML') {
             if (msg.html) _openHtmlAndPrint(msg.html, msg.title || '本组成绩');
@@ -661,6 +668,20 @@ function sendCmd(cmd, cmdData) {
 function sendDisplay(mode) {
     if (!ws || ws.readyState !== 1) return;
     ws.send(JSON.stringify({type: 'REMOTE_CONTROL', command: mode}));
+}
+
+// 2026-06-03 大屏右上角 WR/CR 横条 显示/隐藏 切换 (走 SET_DISPLAY_STYLE 通道, 服务器持久化 + 推所有客户端)
+var _rcRecordsHidden = false;
+function toggleRecordsHidden() {
+    if (!ws || ws.readyState !== 1) { alert('未连接服务器'); return; }
+    var next = !_rcRecordsHidden;
+    ws.send(JSON.stringify({type: 'SET_DISPLAY_STYLE', data: { recordsHidden: next }}));
+    addLog('请求大屏 WR/CR 横条 ' + (next ? '隐藏' : '显示'));
+}
+function _rcApplyRecordsHidden(b) {
+    _rcRecordsHidden = !!b;
+    var t = document.getElementById('recordsHiddenBtnText');
+    if (t) t.textContent = _rcRecordsHidden ? '记录已隐藏 (点击显示)' : '记录显示 (点击隐藏)';
 }
 
 function publishResult() {

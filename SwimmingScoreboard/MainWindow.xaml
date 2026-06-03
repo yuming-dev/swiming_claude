@@ -1227,6 +1227,7 @@
                                         <RowDefinition Height="32"/>
                                         <RowDefinition Height="32"/>
                                         <RowDefinition Height="32"/>
+                                        <RowDefinition Height="32"/>
                                     </Grid.RowDefinitions>
                                     <!-- 赛中显示 -->
                                     <Button Grid.Row="0" Grid.Column="0" Click="ShowStartList_Click" Margin="2" BorderThickness="0" Cursor="Hand">
@@ -1368,6 +1369,18 @@
                                                 </Border>
                                             </ControlTemplate>
                                         </Button.Template>
+                                    </Button>
+                                    <!-- 2026-06-03 记录显示/隐藏: 切换 display.html 右上角 WR/CR 横条可见性.
+                                         用 Button.Content (而不是 ControlTemplate) 装 StackPanel,
+                                         这样 x:Name="RecordsHiddenBtnText" 在 code-behind 可访问 -->
+                                    <Button Grid.Row="7" Grid.Column="0" Grid.ColumnSpan="2" x:Name="RecordsHiddenBtn" Click="ToggleRecordsHidden_Click" Margin="2" Padding="0" BorderThickness="0" Cursor="Hand" Background="Transparent"
+                                            ToolTip="切换大屏右上角 WR/CR 纪录指示条的显示/隐藏">
+                                        <Border Background="#475569" CornerRadius="6" Padding="4">
+                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                <TextBlock Text="&#xED1A;" FontFamily="Segoe MDL2 Assets" FontSize="15" Foreground="White" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                                                <TextBlock x:Name="RecordsHiddenBtnText" Text="记录显示" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </Border>
                                     </Button>
                                 </Grid>
                             </Border>

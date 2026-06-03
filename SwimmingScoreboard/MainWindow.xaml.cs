@@ -193,6 +193,8 @@ namespace SwimmingScoreboard
         private string _displayStyleTextStyleJson = "{}";   // JSON 字符串 {key:{c:'#..',f:'..'}}
         // 2026-06-02 字号 4 类独立缩放 (title/event/time/info), 与全局 fs 相乘. JSON {title:1,event:1,time:1,info:1}
         private string _displayStyleFsPartsJson = "{\"title\":1,\"event\":1,\"time\":1,\"info\":1}";
+        // 2026-06-03 大屏右上角 WR/CR 横条 显示/隐藏 (= display.html .header-records visibility)
+        private bool _displayStyleRecordsHidden = false;
         private DisplayStyleWindow _displayStyleWin;        // 当前打开的"大屏样式"窗口 (主控 PC 端)
         private ObservableCollection<BackupInfo> _savedCompetitions = new ObservableCollection<BackupInfo>();
 
@@ -222,6 +224,7 @@ namespace SwimmingScoreboard
             InitializeTimers();
             LoadTimingSettings();
             LoadDisplayStyleFromDisk();      // 2026-06-01 大屏样式持久化还原
+            RefreshRecordsHiddenBtn();       // 2026-06-03 同步 "记录显示/隐藏" 按钮初始文字
             ApplyPersistedDeviceStates();   // 设备状态（损坏/未安装/手动按键）从 device_states.json 还原
             LoadTimingConnectionConfig();   // 通讯参数从 timing_connection.json 还原
             LoadLastCompetition();
@@ -14260,6 +14263,20 @@ namespace SwimmingScoreboard
         private void ShowReferees_Click(object sender, RoutedEventArgs e) { BroadcastDisplayMode("SHOW_REFEREES"); }
         private void ShowWelcome_Click(object sender, RoutedEventArgs e) { BroadcastDisplayMode("SHOW_WELCOME"); }
 
+        // 2026-06-03 切换大屏右上角 WR/CR 横条 显示/隐藏; 走 display style 通道, 持久化 + DISPLAY_STYLE_PUSH 广播
+        private void ToggleRecordsHidden_Click(object sender, RoutedEventArgs e) {
+            _displayStyleRecordsHidden = !_displayStyleRecordsHidden;
+            SaveDisplayStyleToDisk();
+            BroadcastDisplayStyle();
+            RefreshRecordsHiddenBtn();
+            AddLog("大屏 WR/CR 横条 " + (_displayStyleRecordsHidden ? "已隐藏" : "已显示"));
+        }
+        private void RefreshRecordsHiddenBtn() {
+            if (RecordsHiddenBtnText != null) {
+                RecordsHiddenBtnText.Text = _displayStyleRecordsHidden ? "记录已隐藏 (点击显示)" : "记录显示 (点击隐藏)";
+            }
+        }
+
         // 2026-06-01 打开"大屏样式"远程控制窗口 (底色/字号/9 处文字), 改动实时推送到所有客户端
         private void OpenDisplayStyle_Click(object sender, RoutedEventArgs e) {
             if (_displayStyleWin != null && _displayStyleWin.IsLoaded) {
@@ -14658,6 +14675,7 @@ namespace SwimmingScoreboard
                     }
                     if (j["textStyle"] != null) _displayStyleTextStyleJson = j["textStyle"].ToString(Newtonsoft.Json.Formatting.None);
                     if (j["fsParts"] != null) _displayStyleFsPartsJson = j["fsParts"].ToString(Newtonsoft.Json.Formatting.None);
+                    if (j["recordsHidden"] != null) _displayStyleRecordsHidden = (bool)j["recordsHidden"];
                 }
             } catch (Exception ex) { AddLog("加载大屏样式失败: " + ex.Message); }
         }
@@ -14672,7 +14690,8 @@ namespace SwimmingScoreboard
                     ["bg"] = _displayStyleBg,
                     ["fs"] = _displayStyleFs,
                     ["textStyle"] = ts,
-                    ["fsParts"] = fp
+                    ["fsParts"] = fp,
+                    ["recordsHidden"] = _displayStyleRecordsHidden
                 };
                 File.WriteAllText(DisplayStylePath, j.ToString(Newtonsoft.Json.Formatting.Indented), Encoding.UTF8);
             } catch (Exception ex) { AddLog("保存大屏样式失败: " + ex.Message); }
@@ -14737,6 +14756,11 @@ namespace SwimmingScoreboard
                     changed = true;
                 }
             }
+            // 2026-06-03 recordsHidden (= 大屏右上角 WR/CR 横条 显示/隐藏 开关)
+            if (data["recordsHidden"] != null) {
+                bool v = (bool)data["recordsHidden"];
+                if (_displayStyleRecordsHidden != v) { _displayStyleRecordsHidden = v; changed = true; }
+            }
             if (changed) {
                 SaveDisplayStyleToDisk();
                 BroadcastDisplayStyle();
@@ -14754,7 +14778,8 @@ namespace SwimmingScoreboard
                     ["bg"] = _displayStyleBg,
                     ["fs"] = _displayStyleFs,
                     ["textStyle"] = ts,
-                    ["fsParts"] = fp
+                    ["fsParts"] = fp,
+                    ["recordsHidden"] = _displayStyleRecordsHidden
                 }
             };
             return msg.ToString(Newtonsoft.Json.Formatting.None);

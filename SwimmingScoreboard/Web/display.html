@@ -1140,6 +1140,11 @@ function applyRemoteDisplayStyle(d) {
                 if (!isNaN(fv) && fv > 0) { try { setFsPart(fk, fv, true); } catch(e) {} }
             }
         }
+        // 2026-06-03 大屏右上角 WR/CR 横条 显示/隐藏 同步
+        if (typeof d.recordsHidden === 'boolean') {
+            var hr = document.querySelector('.header-records');
+            if (hr) hr.style.display = d.recordsHidden ? 'none' : '';
+        }
         if (d.textStyle && typeof d.textStyle === 'object') {
             for (var k in d.textStyle) {
                 if (!d.textStyle.hasOwnProperty(k)) continue;
