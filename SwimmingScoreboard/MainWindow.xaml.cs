@@ -4279,7 +4279,7 @@ namespace SwimmingScoreboard
                 result.FinalTime > 0 ? TimeFormatter.Format(result.FinalTime) : "—"));
         }
 
-        private void ProcessTouchpadHit(int lane, double time, LaneDeviceState laneState, bool isMbSubstitute = false) {
+        private void ProcessTouchpadHit(int lane, double time, LaneDeviceState laneState, bool isMbSubstitute = false, string forceSource = null) {
             // 2026-05-25 修复 #7: 移除"hold 过期就当新的 1 名"逻辑(会把 2/3 名触板时间也显示).
             // 1 名检测改到 split 保存后做 (见本函数末尾): 只在此泳道触板后是 当前 lap 最快 才更新滚动时间.
 
@@ -4349,7 +4349,8 @@ namespace SwimmingScoreboard
             split.Time = time - prevCumulative;
             split.CumulativeTime = time;
             split.TouchpadTime = time;
-            split.TimingSource = isMbSubstitute ? "MB" : "TP";
+            // 2026-06-03 forceSource 优先 (= 手动 TP 当主成绩走此路径, 标 "Manual" 而非 "TP")
+            split.TimingSource = forceSource ?? (isMbSubstitute ? "MB" : "TP");
             if (isMbSubstitute) split.MbFinalTime = time;
             // 如果手动/盲表还没写入split（在触板之前存到了laneState），补充写入
             if (split.ManualTouchTime <= 0) {
@@ -4565,38 +4566,27 @@ namespace SwimmingScoreboard
         }
 
         private void SaveManualTouchToSplit(int lane, double time) {
-            // 查找当前段的预创建split（触板打开时已创建）
-            var split = FindCurrentSplit(lane);
-            if (split != null) {
-                split.ManualTouchTime = time;
-                // 2026-06-03 优先级守卫: TP > MB > Manual. 仅当没 TP/MB 主成绩时, 手动 TP 才当主成绩 (= 填 CumulativeTime + TouchpadTime + TimingSource)
-                if (string.IsNullOrEmpty(split.TimingSource) || (split.TimingSource != "TP" && split.TimingSource != "MB")) {
-                    // 计算分段时间 (= 取上一段 cumulative)
-                    double prevCumulative = 0;
-                    var laneState = _laneDeviceStates.FirstOrDefault(s => s.Lane == lane);
-                    if (laneState != null) {
-                        var swimmer = GetCurrentHeatSwimmers().FirstOrDefault(s => {
-                            var sa = s.GetAssignmentForStage(_currentStage);
-                            return (sa != null ? sa.Lane : s.Lane) == lane;
-                        });
-                        if (swimmer != null) {
-                            var result = swimmer.Results.FirstOrDefault(r => r.Stage == _currentStage && r.Heat == _currentHeat);
-                            if (result != null) {
-                                foreach (var sp in result.Splits) {
-                                    if (sp.Lap == split.Lap - 1) { prevCumulative = sp.CumulativeTime; break; }
-                                }
-                            }
-                        }
-                    }
-                    split.Time = time - prevCumulative;
-                    split.CumulativeTime = time;
-                    split.TouchpadTime = time;
-                    split.TimingSource = "Manual";
-                    AddLog(string.Format("泳道{0} 第{1}段 手动 TP 当主成绩: {2}", lane, split.Lap, TimeFormatter.Format(time)));
-                }
-                // 如果已完赛，同步到result终点汇总（触板先到达时result已设置，手动后到需要补充）
-                SyncSplitToResultIfFinished(lane, split);
+            // 2026-06-03 手动 TP 应急规则:
+            //   - 当前段已有 TP/MB → 仅记 split.ManualTouchTime 备份, 不动主成绩
+            //   - 当前段没 TP/MB → 走 ProcessTouchpadHit 完整流程 (= 推 currentLap + 减 laps + 完赛检查 + 切 Lane_Display_State), 让比赛进行下去
+            var existingSplit = FindCurrentSplit(lane);
+            bool alreadyHasMainResult = existingSplit != null && !string.IsNullOrEmpty(existingSplit.TimingSource)
+                && (existingSplit.TimingSource == "TP" || existingSplit.TimingSource == "MB");
+            if (alreadyHasMainResult) {
+                // 已有 TP/MB 主成绩, 手动 TP 仅记备份
+                existingSplit.ManualTouchTime = time;
+                SyncSplitToResultIfFinished(lane, existingSplit);
                 return;
+            }
+            // 没 TP/MB → 走完整触板流程, 让比赛进行
+            var laneState = _laneDeviceStates.FirstOrDefault(s => s.Lane == lane);
+            if (laneState == null) return;
+            ProcessTouchpadHit(lane, time, laneState, false, "Manual");
+            // ManualTouchTime 也存 (= 兼容现有 UI 显示)
+            var newSplit = FindCurrentSplit(lane);
+            if (newSplit != null) {
+                newSplit.ManualTouchTime = time;
+                SyncSplitToResultIfFinished(lane, newSplit);
             }
         }
 
