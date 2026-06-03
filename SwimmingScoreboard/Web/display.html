@@ -31,18 +31,19 @@
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei', sans-serif; overflow: hidden; height: 100vh; }
 
+/* 2026-06-03 取消顶栏黑色渐变, 改用页面底色透出 (与其它区域一致); 高度加到 13vh 给 标题/项目名/表头 留更宽松的呼吸空间 */
 .page-header {
-    height: 11vh; display: flex; align-items: center; justify-content: center;
+    height: 13vh; display: flex; align-items: center; justify-content: center;
     padding: 0 3vw; position: relative;
-    background: linear-gradient(135deg, #1e293b, #0f172a);
+    background: transparent;
 }
 .page-header .title { font-size: calc(3.5vh * var(--fs) * var(--fs-title)); font-weight: bold; color: var(--c-title); font-family: var(--ff-title); }
 .header-records { position: absolute; right: 3vw; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; align-items: flex-end; gap: 0.3vh; }
 .record-item { font-size: calc(2.6vh * var(--fs) * var(--fs-info)); font-family: 'Consolas', monospace; color: var(--dim); }
 .rec-label { color: var(--gold); font-weight: bold; margin-right: 0.5vw; }
 
-/* 比赛视图 */
-.race-view { height: 89vh; padding: 1vh 2vw; display: flex; flex-direction: column; }
+/* 比赛视图 - 2026-06-03 page-header 加到 13vh 后, race-view 跟着减到 87vh, 总高仍 100vh */
+.race-view { height: 87vh; padding: 1vh 2vw; display: flex; flex-direction: column; }
 .race-info { display: flex; justify-content: space-between; align-items: center; height: 6vh; margin-bottom: 0.5vh; border-bottom: 3px solid var(--accent); padding-bottom: 0.5vh; }
 /* 2026-06-02 lanes-header 用 --c-header / --ff-header (可独立调) + --fs-info 字号 */
 .lanes-header { display: flex; align-items: center; padding: 0 1.5vw; height: 3.5vh; color: var(--c-header); font-family: var(--ff-header); font-size: calc(2.9vh * var(--fs) * var(--fs-info)); }
@@ -94,20 +95,21 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
    覆盖 .lane-row 默认的 flex:1, 强制定高. */
 .lane-row.fixed-row { flex: 0 0 7.5vh; min-height: 7.5vh; max-height: 7.5vh; }
 
-/* 列表视图 */
-.list-container { height: 89vh; padding: 2vh 3vw; overflow: hidden; position: relative; }
+/* 列表视图 - 2026-06-03 page-header 加到 13vh 后, list-container 跟着减到 87vh */
+.list-container { height: 87vh; padding: 2vh 3vw; overflow: hidden; position: relative; }
 .page-indicator { position: absolute; bottom: 1vh; right: 3vw; font-size: calc(1.8vh * var(--fs)); color: var(--dim); }
 /* 2026-06-02 总排名 / 出发表 / 团体 / 纪录 表格: 行高固定不随字号膨胀.
    原 padding 1.5vh*2 + font-size 3vh = ~6.3vh; 字号 2x/3x 后行高翻倍, 10 行越界
    89vh 容器导致底部丢失. 现在固定 height: 7vh + line-height: 1 — 字号在格内贴边
    放大 (与比赛视图 .lane-row + .fixed-row 一致), 行数稳定. */
 .list-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-/* 2026-06-02 表头 (th) 颜色/字体走 --c-header / --ff-header 独立可调; 字号跟随 运动员信息 */
+/* 2026-06-02 表头 (th) 颜色/字体走 --c-header / --ff-header 独立可调; 字号跟随 运动员信息
+   2026-06-03 取消 card 黑色底, 用页面底色透出; 行高 7vh → 8vh 让 标题/项目名/表头 三行不再挤 */
 .list-table th {
-    background: var(--card); padding: 0.4vh 1.5vw; text-align: left;
+    background: transparent; padding: 0.6vh 1.5vw; text-align: left;
     font-size: calc(3vh * var(--fs) * var(--fs-info)); border-bottom: 2px solid var(--accent);
     color: var(--c-header); font-family: var(--ff-header);
-    height: 7vh; line-height: 1; overflow: hidden; white-space: nowrap;
+    height: 8vh; line-height: 1; overflow: hidden; white-space: nowrap;
 }
 .list-table td {
     padding: 0.4vh 1.5vw; font-size: calc(3vh * var(--fs) * var(--fs-info));
@@ -122,7 +124,7 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 .sub-text { font-size: calc(3vh * var(--fs) * var(--fs-event)); color: var(--dim); text-align: center; }
 
 /* 颁奖 */
-.award-container { height: 89vh; display: flex; align-items: flex-end; justify-content: center; gap: 3vw; padding-bottom: 5vh; }
+.award-container { height: 87vh; display: flex; align-items: flex-end; justify-content: center; gap: 3vw; padding-bottom: 5vh; }
 .podium-card { display: flex; flex-direction: column; align-items: center; padding: 3vh 2vw; border-radius: 1vh; animation: reveal 0.8s ease-out forwards; opacity: 0; }
 .podium-card.gold { background: linear-gradient(180deg, #f59e0b22, #f59e0b11); border: 2px solid var(--gold); height: 55vh; animation-delay: 2.5s; }
 .podium-card.silver { background: linear-gradient(180deg, #c0c0c022, #c0c0c011); border: 2px solid #c0c0c0; height: 45vh; animation-delay: 1.2s; }
@@ -1530,7 +1532,8 @@ function _refreshRaceRows() {
 function renderStartList() {
     document.getElementById('listView').classList.remove('hidden');
     var lv = document.getElementById('listView');
-    var html = '<h2 style="margin-bottom:2vh;font-size:calc(3vh * var(--fs));">' + ((data.currentAgeGroup||'') ? (data.currentAgeGroup+' ') : '') + fmtGender(data.currentGender) + ' ' + (data.currentEvent||'') + ' ' + (data.currentStage||'') + ' 第' + (data.currentHeat||'') + '组 出发表</h2>';
+    // 2026-06-03 标题加 margin-top + 增大 margin-bottom, 让 运动会名/项目名次/表头 三行不再挤
+    var html = '<h2 style="margin:1.5vh 0 3vh 0;font-size:calc(3vh * var(--fs) * var(--fs-event));color:var(--c-event);font-family:var(--ff-event);">' + ((data.currentAgeGroup||'') ? (data.currentAgeGroup+' ') : '') + fmtGender(data.currentGender) + ' ' + (data.currentEvent||'') + ' ' + (data.currentStage||'') + ' 第' + (data.currentHeat||'') + '组 出发表</h2>';
     var slRelay = isRelayEvent();
     var slH1 = slRelay ? '代表队' : '姓名';
     var slH2 = slRelay ? '姓名' : '代表队';
@@ -1832,7 +1835,8 @@ function showRankingPageSplit() {
     var erH2 = erRelay ? '姓名' : '代表队';
     // 大标题: 把原 currentGender 替换为 子表的 gender, 拼上 子表 title (e.g. "9岁 男子")
     var ag = data.currentAgeGroup ? (data.currentAgeGroup + ' ') : '';
-    var html = '<h2 style="margin-bottom:1.5vh;font-size:calc(3vh * var(--fs) * var(--fs-event));color:var(--c-event);font-family:var(--ff-event);">'
+    // 2026-06-03 标题加 margin-top + 增大 margin-bottom, 让 运动会名/项目名次/表头 三行不再挤
+    var html = '<h2 style="margin:1.5vh 0 3vh 0;font-size:calc(3vh * var(--fs) * var(--fs-event));color:var(--c-event);font-family:var(--ff-event);">'
         + ag + (sub.title || '') + ' ' + (data.currentEvent || '') + ' ' + (data.currentStage || '') + ' 总排名</h2>';
     html += '<table class="list-table"><thead><tr><th style="width:10%;">名次</th><th style="width:14%;">组/道</th><th>' + erH1 + '</th><th>' + erH2 + '</th><th style="width:16%;">成绩</th><th style="width:14%;">备注</th></tr></thead><tbody>';
     var start = cur.p * _rankingRowsPerPage;
@@ -1843,7 +1847,8 @@ function showRankingPageSplit() {
         var c2 = erRelay ? (it.name || '') : (it.country || '');
         var rkText = it.rank > 0 ? it.rank : '-';
         var remarkHtml = buildEventRankingRemarkHtml(it);
-        var hlText = ((it.heat || 0) > 0 ? it.heat : '-') + ' / ' + ((it.lane || 0) > 0 ? it.lane : '-');
+        // 2026-06-03 lane=0 是 10 道泳池的合法道号 (lanes 0-9), 不能当缺失处理. 用 != null 区分 "未提供" 和 "实际是 0"
+        var hlText = ((it.heat || 0) > 0 ? it.heat : '-') + ' / ' + (it.lane != null && it.lane !== '' ? it.lane : '-');
         html += '<tr><td>' + rkText + '</td><td>' + hlText + '</td><td>' + c1 + '</td><td>' + c2 + '</td><td>' + (it.finalTime || '') + '</td><td>' + remarkHtml + '</td></tr>';
     }
     html += '</tbody></table>';
@@ -1881,7 +1886,8 @@ function showRankingPage(er, erRelay) {
     var erH1 = erRelay ? '代表队' : '姓名';
     var erH2 = erRelay ? '姓名' : '代表队';
 
-    var html = '<h2 style="margin-bottom:1.5vh;font-size:calc(3vh * var(--fs) * var(--fs-event));color:var(--c-event);font-family:var(--ff-event);">' + ((data.currentAgeGroup||'') ? (data.currentAgeGroup+' ') : '') + fmtGender(data.currentGender) + ' ' + (data.currentEvent||'') + ' ' + (data.currentStage||'') + ' 总排名</h2>';
+    // 2026-06-03 标题加 margin-top + 增大 margin-bottom, 让 运动会名/项目名次/表头 三行不再挤
+    var html = '<h2 style="margin:1.5vh 0 3vh 0;font-size:calc(3vh * var(--fs) * var(--fs-event));color:var(--c-event);font-family:var(--ff-event);">' + ((data.currentAgeGroup||'') ? (data.currentAgeGroup+' ') : '') + fmtGender(data.currentGender) + ' ' + (data.currentEvent||'') + ' ' + (data.currentStage||'') + ' 总排名</h2>';
     // 2026-06-01 总排名: 去掉"号码"栏, 加"备注"栏 (Q 晋级 + WR/CR/...破纪录, 用 ' \ ' 隔开)
     // 2026-06-02 名次后加 "组/道" 栏 (heat/lane), 让选手一眼看出在哪组哪道游的
     html += '<table class="list-table"><thead><tr><th style="width:10%;">名次</th><th style="width:14%;">组/道</th><th>' + erH1 + '</th><th>' + erH2 + '</th><th style="width:16%;">成绩</th><th style="width:14%;">备注</th></tr></thead><tbody>';
@@ -1893,7 +1899,8 @@ function showRankingPage(er, erRelay) {
         var erc2 = erRelay ? (er[i].name||'') : (er[i].country||'');
         var erkText = er[i].rank > 0 ? er[i].rank : '-';
         var remarkHtml = buildEventRankingRemarkHtml(er[i]);
-        var hlText = ((er[i].heat||0) > 0 ? er[i].heat : '-') + ' / ' + ((er[i].lane||0) > 0 ? er[i].lane : '-');
+        // 2026-06-03 lane=0 是 10 道泳池的合法道号 (lanes 0-9), 不能当缺失处理
+        var hlText = ((er[i].heat||0) > 0 ? er[i].heat : '-') + ' / ' + (er[i].lane != null && er[i].lane !== '' ? er[i].lane : '-');
         // 2026-06-02 DSQ/DNS/DNF 不再回退到成绩栏 (已由 备注 栏显示, 避免重复)
         html += '<tr><td>' + erkText + '</td><td>' + hlText + '</td><td>' + erc1 + '</td><td>' + erc2 + '</td><td>' + (er[i].finalTime || '') + '</td><td>' + remarkHtml + '</td></tr>';
     }
@@ -1908,7 +1915,7 @@ function showRankingPage(er, erRelay) {
 function renderTeamStandings() {
     document.getElementById('listView').classList.remove('hidden');
     var lv = document.getElementById('listView');
-    var html = '<h2 style="margin-bottom:2vh;font-size:calc(3vh * var(--fs));">团体积分排名</h2>';
+    var html = '<h2 style="margin:1.5vh 0 3vh 0;font-size:calc(3vh * var(--fs) * var(--fs-event));color:var(--c-event);font-family:var(--ff-event);">团体积分排名</h2>';
     html += '<table class="list-table"><thead><tr><th>名次</th><th>代表队</th><th>总分</th><th>金</th><th>银</th><th>铜</th></tr></thead><tbody>';
     var ts = data.teamScores || [];
     for (var i = 0; i < ts.length; i++) {
@@ -1921,7 +1928,7 @@ function renderTeamStandings() {
 function renderRecords() {
     document.getElementById('listView').classList.remove('hidden');
     var lv = document.getElementById('listView');
-    var html = '<h2 style="margin-bottom:2vh;font-size:calc(3vh * var(--fs));">纪录榜</h2>';
+    var html = '<h2 style="margin:1.5vh 0 3vh 0;font-size:calc(3vh * var(--fs) * var(--fs-event));color:var(--c-event);font-family:var(--ff-event);">纪录榜</h2>';
     html += '<table class="list-table"><thead><tr><th>项目</th><th>类型</th><th>保持者</th><th>代表队</th><th>成绩</th><th>日期</th></tr></thead><tbody>';
     var rs = data.records || [];
     for (var i = 0; i < rs.length; i++) {
