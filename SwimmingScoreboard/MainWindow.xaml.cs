@@ -11968,20 +11968,24 @@ namespace SwimmingScoreboard
                     AddLog(string.Format("移动到空道: {0}(第{1}组{2}道) → 第{3}组{4}道", sw1.Name, heat1, lane1, newHeat, newLane));
                 } else {
                     var sa2 = sw2.GetAssignmentForStage(stage);
-                    // 交换 Heat 和 Lane
-                    if (sa1 != null && sa2 != null) {
-                        int tmpH = sa1.Heat; int tmpL = sa1.Lane;
-                        sa1.Heat = sa2.Heat; sa1.Lane = sa2.Lane;
-                        sa2.Heat = tmpH; sa2.Lane = tmpL;
-                    }
-                    if (sw1.CurrentStage == stage && sw2.CurrentStage == stage) {
-                        int tmpH = sw1.Heat; int tmpL = sw1.Lane;
-                        sw1.Heat = sw2.Heat; sw1.Lane = sw2.Lane;
-                        sw2.Heat = tmpH; sw2.Lane = tmpL;
-                    }
+                    // 2026-06-03 修复: 旧逻辑要求 sa1+sa2 同时非空 才换 assignment;
+                    //   sw1.CurrentStage 和 sw2.CurrentStage 都 == stage 才换 live 字段.
+                    //   导致 一端 sa==null 或 CurrentStage 不一致 时 全分支 skip — 用户看就是 "确认了没反应".
+                    //   现在改成: 各自独立判断, 用对方的 (sa优先, sw兜底) 值作为目标.
+                    int h1 = sa1 != null ? sa1.Heat : sw1.Heat;
+                    int l1 = sa1 != null ? sa1.Lane : sw1.Lane;
+                    int h2 = sa2 != null ? sa2.Heat : sw2.Heat;
+                    int l2 = sa2 != null ? sa2.Lane : sw2.Lane;
+                    // 任一侧 没 assignment 给它现场补一个, 保证 这个 stage 下两人都有 sa 记录可被后续读到
+                    if (sa1 != null) { sa1.Heat = h2; sa1.Lane = l2; }
+                    else sw1.SetStageAssignment(stage, h2, l2, sw1.EntryTimeSeconds, sw1.EntryTime);
+                    if (sa2 != null) { sa2.Heat = h1; sa2.Lane = l1; }
+                    else sw2.SetStageAssignment(stage, h1, l1, sw2.EntryTimeSeconds, sw2.EntryTime);
+                    if (sw1.CurrentStage == stage) { sw1.Heat = h2; sw1.Lane = l2; }
+                    if (sw2.CurrentStage == stage) { sw2.Heat = h1; sw2.Lane = l1; }
                     AutoSaveData();
                     RefreshEditPreview();
-                    AddLog(string.Format("泳道交换: {0}(第{1}组{2}道) ↔ {3}(第{4}组{5}道)", sw1.Name, target.Item2, target.Item3, sw2.Name, heat1, lane1));
+                    AddLog(string.Format("泳道交换: {0}(第{1}组{2}道) ↔ {3}(第{4}组{5}道)", sw1.Name, h2, l2, sw2.Name, h1, l1));
                 }
             }
         }
