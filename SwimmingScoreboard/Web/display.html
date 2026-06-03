@@ -92,8 +92,9 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 
 /* 2026-06-01 本组成绩视图行高固定: 少人比赛时不再把每行拉得过高失真.
    单行 ~7.5vh, 10 行可一屏显示; 超过 10 行 renderHeatResult 自动翻页 (复用 getBigDisplayPageIntervalMs).
-   覆盖 .lane-row 默认的 flex:1, 强制定高. */
-.lane-row.fixed-row { flex: 0 0 7.5vh; min-height: 7.5vh; max-height: 7.5vh; }
+   覆盖 .lane-row 默认的 flex:1, 强制定高.
+   2026-06-03 行高同样跟 --fs-info 缩放, 字号放大时单元格高度同步增大 */
+.lane-row.fixed-row { flex: 0 0 calc(7.5vh * var(--fs-info)); min-height: calc(7.5vh * var(--fs-info)); max-height: calc(7.5vh * var(--fs-info)); }
 
 /* 列表视图 - 2026-06-03 page-header 加到 13vh 后, list-container 跟着减到 87vh */
 .list-container { height: 87vh; padding: 2vh 3vw; overflow: hidden; position: relative; }
@@ -104,17 +105,19 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
    放大 (与比赛视图 .lane-row + .fixed-row 一致), 行数稳定. */
 .list-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
 /* 2026-06-02 表头 (th) 颜色/字体走 --c-header / --ff-header 独立可调; 字号跟随 运动员信息
-   2026-06-03 取消 card 黑色底, 用页面底色透出; 行高 7vh → 8vh 让 标题/项目名/表头 三行不再挤 */
+   2026-06-03 取消 card 黑色底, 用页面底色透出; 行高 7vh → 8vh 让 标题/项目名/表头 三行不再挤
+   2026-06-03 行高(height) 也跟着 --fs-info 缩放, 字号放大时单元格高度同步增大避免文字被裁
+   (原固定 7/8vh 设计是为了"10 行稳定显示", 但调大 字号 时文字溢出超出可视高度) */
 .list-table th {
     background: transparent; padding: 0.6vh 1.5vw; text-align: left;
     font-size: calc(3vh * var(--fs) * var(--fs-info)); border-bottom: 2px solid var(--accent);
     color: var(--c-header); font-family: var(--ff-header);
-    height: 8vh; line-height: 1; overflow: hidden; white-space: nowrap;
+    height: calc(8vh * var(--fs-info)); line-height: 1; overflow: hidden; white-space: nowrap;
 }
 .list-table td {
     padding: 0.4vh 1.5vw; font-size: calc(3vh * var(--fs) * var(--fs-info));
     border-bottom: 1px solid #334155;
-    height: 7vh; line-height: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+    height: calc(7vh * var(--fs-info)); line-height: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
 }
 .list-table tr:hover { background: rgba(59,130,246,0.1); }
 
@@ -1322,7 +1325,9 @@ function _activeSwimmersForDisplay() {
 // DOM 构建：仅在 buildKey 变化时执行（运动员名单/泳道布局/接力切换/泳道数）
 function _ensureRaceRowsDom() {
     var lc = getLaneCount();
-    var fs = lc <= 8 ? 'calc(3.5vh * var(--fs))' : 'calc(2.9vh * var(--fs))';
+    // 2026-06-03 加 * var(--fs-info), 让 '运动员信息' 字号调节同步到 比赛视图 表头
+    //   (此处把 fs 作为内联 style 写到表头 6 个格子, 会覆盖 .lanes-header CSS 的字号规则, 必须自带 --fs-info)
+    var fs = lc <= 8 ? 'calc(3.5vh * var(--fs) * var(--fs-info))' : 'calc(2.9vh * var(--fs) * var(--fs-info))';
     var relay = isRelayEvent();
     var swimmers = _activeSwimmersForDisplay();
     var keyParts = [data.currentEvent||'', data.currentHeat||0, lc, relay?1:0, swimmers.length];
@@ -1533,7 +1538,7 @@ function renderStartList() {
     document.getElementById('listView').classList.remove('hidden');
     var lv = document.getElementById('listView');
     // 2026-06-03 标题加 margin-top + 增大 margin-bottom, 让 运动会名/项目名次/表头 三行不再挤
-    var html = '<h2 style="margin:1.5vh 0 3vh 0;font-size:calc(3vh * var(--fs) * var(--fs-event));color:var(--c-event);font-family:var(--ff-event);">' + ((data.currentAgeGroup||'') ? (data.currentAgeGroup+' ') : '') + fmtGender(data.currentGender) + ' ' + (data.currentEvent||'') + ' ' + (data.currentStage||'') + ' 第' + (data.currentHeat||'') + '组 出发表</h2>';
+    var html = '<h2 style="margin:0 0 6vh 0;font-size:calc(3vh * var(--fs) * var(--fs-event));color:var(--c-event);font-family:var(--ff-event);">' + ((data.currentAgeGroup||'') ? (data.currentAgeGroup+' ') : '') + fmtGender(data.currentGender) + ' ' + (data.currentEvent||'') + ' ' + (data.currentStage||'') + ' 第' + (data.currentHeat||'') + '组 出发表</h2>';
     var slRelay = isRelayEvent();
     var slH1 = slRelay ? '代表队' : '姓名';
     var slH2 = slRelay ? '姓名' : '代表队';
@@ -1836,7 +1841,7 @@ function showRankingPageSplit() {
     // 大标题: 把原 currentGender 替换为 子表的 gender, 拼上 子表 title (e.g. "9岁 男子")
     var ag = data.currentAgeGroup ? (data.currentAgeGroup + ' ') : '';
     // 2026-06-03 标题加 margin-top + 增大 margin-bottom, 让 运动会名/项目名次/表头 三行不再挤
-    var html = '<h2 style="margin:1.5vh 0 3vh 0;font-size:calc(3vh * var(--fs) * var(--fs-event));color:var(--c-event);font-family:var(--ff-event);">'
+    var html = '<h2 style="margin:0 0 6vh 0;font-size:calc(3vh * var(--fs) * var(--fs-event));color:var(--c-event);font-family:var(--ff-event);">'
         + ag + (sub.title || '') + ' ' + (data.currentEvent || '') + ' ' + (data.currentStage || '') + ' 总排名</h2>';
     html += '<table class="list-table"><thead><tr><th style="width:10%;">名次</th><th style="width:14%;">组/道</th><th>' + erH1 + '</th><th>' + erH2 + '</th><th style="width:16%;">成绩</th><th style="width:14%;">备注</th></tr></thead><tbody>';
     var start = cur.p * _rankingRowsPerPage;
@@ -1887,7 +1892,7 @@ function showRankingPage(er, erRelay) {
     var erH2 = erRelay ? '姓名' : '代表队';
 
     // 2026-06-03 标题加 margin-top + 增大 margin-bottom, 让 运动会名/项目名次/表头 三行不再挤
-    var html = '<h2 style="margin:1.5vh 0 3vh 0;font-size:calc(3vh * var(--fs) * var(--fs-event));color:var(--c-event);font-family:var(--ff-event);">' + ((data.currentAgeGroup||'') ? (data.currentAgeGroup+' ') : '') + fmtGender(data.currentGender) + ' ' + (data.currentEvent||'') + ' ' + (data.currentStage||'') + ' 总排名</h2>';
+    var html = '<h2 style="margin:0 0 6vh 0;font-size:calc(3vh * var(--fs) * var(--fs-event));color:var(--c-event);font-family:var(--ff-event);">' + ((data.currentAgeGroup||'') ? (data.currentAgeGroup+' ') : '') + fmtGender(data.currentGender) + ' ' + (data.currentEvent||'') + ' ' + (data.currentStage||'') + ' 总排名</h2>';
     // 2026-06-01 总排名: 去掉"号码"栏, 加"备注"栏 (Q 晋级 + WR/CR/...破纪录, 用 ' \ ' 隔开)
     // 2026-06-02 名次后加 "组/道" 栏 (heat/lane), 让选手一眼看出在哪组哪道游的
     html += '<table class="list-table"><thead><tr><th style="width:10%;">名次</th><th style="width:14%;">组/道</th><th>' + erH1 + '</th><th>' + erH2 + '</th><th style="width:16%;">成绩</th><th style="width:14%;">备注</th></tr></thead><tbody>';
@@ -1915,7 +1920,7 @@ function showRankingPage(er, erRelay) {
 function renderTeamStandings() {
     document.getElementById('listView').classList.remove('hidden');
     var lv = document.getElementById('listView');
-    var html = '<h2 style="margin:1.5vh 0 3vh 0;font-size:calc(3vh * var(--fs) * var(--fs-event));color:var(--c-event);font-family:var(--ff-event);">团体积分排名</h2>';
+    var html = '<h2 style="margin:0 0 6vh 0;font-size:calc(3vh * var(--fs) * var(--fs-event));color:var(--c-event);font-family:var(--ff-event);">团体积分排名</h2>';
     html += '<table class="list-table"><thead><tr><th>名次</th><th>代表队</th><th>总分</th><th>金</th><th>银</th><th>铜</th></tr></thead><tbody>';
     var ts = data.teamScores || [];
     for (var i = 0; i < ts.length; i++) {
@@ -1928,7 +1933,7 @@ function renderTeamStandings() {
 function renderRecords() {
     document.getElementById('listView').classList.remove('hidden');
     var lv = document.getElementById('listView');
-    var html = '<h2 style="margin:1.5vh 0 3vh 0;font-size:calc(3vh * var(--fs) * var(--fs-event));color:var(--c-event);font-family:var(--ff-event);">纪录榜</h2>';
+    var html = '<h2 style="margin:0 0 6vh 0;font-size:calc(3vh * var(--fs) * var(--fs-event));color:var(--c-event);font-family:var(--ff-event);">纪录榜</h2>';
     html += '<table class="list-table"><thead><tr><th>项目</th><th>类型</th><th>保持者</th><th>代表队</th><th>成绩</th><th>日期</th></tr></thead><tbody>';
     var rs = data.records || [];
     for (var i = 0; i < rs.length; i++) {
