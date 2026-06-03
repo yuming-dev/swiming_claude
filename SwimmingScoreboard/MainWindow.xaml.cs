@@ -3642,7 +3642,7 @@ namespace SwimmingScoreboard
                         //   误记为新分段 → 触发 Direction flip → 倒计时结束后开错端设备.
                         //   保留原 Open→记录 / Touched→备用 / 其它→丢弃 的状态机 (与硬件期望一致).
                         if (tpStatus == DeviceStatus.Open || IsLaneForceAllOpen(lane) || isMbSubstitute) {
-                            ProcessTouchpadHit(lane, timeInSeconds, laneState);
+                            ProcessTouchpadHit(lane, timeInSeconds, laneState, isMbSubstitute);
                             // 已记录正式成绩，把该端切到"已触板（红）"，到点再 Closed
                             EnterTouchedThenClose(laneState, sideForClose, lane);
                         } else if (tpStatus == DeviceStatus.Touched) {
@@ -4569,6 +4569,31 @@ namespace SwimmingScoreboard
             var split = FindCurrentSplit(lane);
             if (split != null) {
                 split.ManualTouchTime = time;
+                // 2026-06-03 优先级守卫: TP > MB > Manual. 仅当没 TP/MB 主成绩时, 手动 TP 才当主成绩 (= 填 CumulativeTime + TouchpadTime + TimingSource)
+                if (string.IsNullOrEmpty(split.TimingSource) || (split.TimingSource != "TP" && split.TimingSource != "MB")) {
+                    // 计算分段时间 (= 取上一段 cumulative)
+                    double prevCumulative = 0;
+                    var laneState = _laneDeviceStates.FirstOrDefault(s => s.Lane == lane);
+                    if (laneState != null) {
+                        var swimmer = GetCurrentHeatSwimmers().FirstOrDefault(s => {
+                            var sa = s.GetAssignmentForStage(_currentStage);
+                            return (sa != null ? sa.Lane : s.Lane) == lane;
+                        });
+                        if (swimmer != null) {
+                            var result = swimmer.Results.FirstOrDefault(r => r.Stage == _currentStage && r.Heat == _currentHeat);
+                            if (result != null) {
+                                foreach (var sp in result.Splits) {
+                                    if (sp.Lap == split.Lap - 1) { prevCumulative = sp.CumulativeTime; break; }
+                                }
+                            }
+                        }
+                    }
+                    split.Time = time - prevCumulative;
+                    split.CumulativeTime = time;
+                    split.TouchpadTime = time;
+                    split.TimingSource = "Manual";
+                    AddLog(string.Format("泳道{0} 第{1}段 手动 TP 当主成绩: {2}", lane, split.Lap, TimeFormatter.Format(time)));
+                }
                 // 如果已完赛，同步到result终点汇总（触板先到达时result已设置，手动后到需要补充）
                 SyncSplitToResultIfFinished(lane, split);
                 return;
@@ -5139,6 +5164,17 @@ namespace SwimmingScoreboard
                 result.Splits.Clear();
                 foreach (var x in sorted) result.Splits.Add(x);
             }
+            // 2026-06-03 优先级守卫: 手工输入是最低优先级, 已有 TP/MB/Manual 时弹确认对话框
+            if (!string.IsNullOrEmpty(sp.TimingSource) && (sp.TimingSource == "TP" || sp.TimingSource == "MB" || sp.TimingSource == "Manual")) {
+                string srcLabel = sp.TimingSource == "TP" ? "触板(TP)" : (sp.TimingSource == "MB" ? "盲表代替(MB)" : "手动 TP");
+                var confirm = MessageBox.Show(
+                    string.Format("第{0}道 第{1}段 已有【{2}】成绩 ({3:F3}s)\n手工输入会覆盖, 确定?", swimmer.Lane, segNum, srcLabel, sp.CumulativeTime),
+                    "覆盖确认", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+                if (confirm != MessageBoxResult.Yes) {
+                    AddLog(string.Format("📝 手工补段已取消 (第{0}道 第{1}段 保留原 {2} 成绩)", swimmer.Lane, segNum, srcLabel));
+                    return;
+                }
+            }
             sp.CumulativeTime = cumSec;
             sp.IsManual = true;
             sp.IsDeleted = false;
@@ -5148,8 +5184,9 @@ namespace SwimmingScoreboard
                     && (prev == null || s2.Lap > prev.Lap)) prev = s2;
             }
             sp.Time = (prev != null) ? (cumSec - prev.CumulativeTime) : cumSec;
-            sp.TimingSource = "Manual";
-            AddLog(string.Format("📝 手工补段: 第 {0} 道 ({1}) 第 {2} 段 累计 {3:F3}s, 差值 {4:F3}s, IsManual=true",
+            // 2026-06-03 TimingSource="Input" 表示用户手工输入 (= 最低优先级), 区别 "Manual" (= 手动 T 按钮)
+            sp.TimingSource = "Input";
+            AddLog(string.Format("📝 手工补段: 第 {0} 道 ({1}) 第 {2} 段 累计 {3:F3}s, 差值 {4:F3}s, TimingSource=Input",
                 swimmer.Lane, swimmer.Name, segNum, cumSec, sp.Time));
             AutoSaveData();
             UpdateLaneStatusDisplay();
