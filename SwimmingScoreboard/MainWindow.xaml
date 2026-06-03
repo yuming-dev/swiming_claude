@@ -1303,14 +1303,14 @@
                                             </ControlTemplate>
                                         </Button.Template>
                                     </Button>
-                                    <!-- 其他 -->
-                                    <Button Grid.Row="3" Grid.Column="0" Click="ShowRecords_Click" Margin="2" BorderThickness="0" Cursor="Hand">
+                                    <!-- 其他 — 2026-06-03 "纪录" 按钮替换为 "裁判介绍" (调用 _staff 里 Group=裁判员 的成员渲染) -->
+                                    <Button Grid.Row="3" Grid.Column="0" Click="ShowReferees_Click" Margin="2" BorderThickness="0" Cursor="Hand">
                                         <Button.Template>
                                             <ControlTemplate TargetType="Button">
                                                 <Border Background="#DC2626" CornerRadius="6" Padding="4">
                                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                                        <TextBlock Text="&#xEDB3;" FontFamily="Segoe MDL2 Assets" FontSize="15" Foreground="White" VerticalAlignment="Center" Margin="0,0,5,0"/>
-                                                        <TextBlock Text="纪录" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                        <TextBlock Text="&#xE716;" FontFamily="Segoe MDL2 Assets" FontSize="15" Foreground="White" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                                                        <TextBlock Text="裁判介绍" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
                                                     </StackPanel>
                                                 </Border>
                                             </ControlTemplate>

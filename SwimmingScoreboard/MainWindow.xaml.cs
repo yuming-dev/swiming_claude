@@ -1866,6 +1866,7 @@ namespace SwimmingScoreboard
                 case "SHOW_EVENT_RANKING": BroadcastDisplayMode("SHOW_EVENT_RANKING"); break;
                 case "SHOW_TEAM_STANDINGS": BroadcastDisplayMode("SHOW_TEAM_STANDINGS"); break;
                 case "SHOW_RECORDS": BroadcastDisplayMode("SHOW_RECORDS"); break;
+                case "SHOW_REFEREES": BroadcastDisplayMode("SHOW_REFEREES"); break;
                 case "SHOW_AWARDS": BroadcastDisplayMode("SHOW_AWARDS"); break;
                 case "SHOW_WELCOME": BroadcastDisplayMode("SHOW_WELCOME"); break;
                 case "SHOW_PAUSE": BroadcastDisplayMode("SHOW_PAUSE"); break;
@@ -2355,7 +2356,15 @@ namespace SwimmingScoreboard
                     holderName = r.HolderName, holderCountry = r.HolderCountry,
                     time = TimeFormatter.Format(r.Time), timeInSeconds = r.Time,
                     date = r.Date, location = r.Location
-                }).ToList()
+                }).ToList(),
+                // 2026-06-03 裁判员名单 (大屏 "裁判介绍" 视图): 从 _staff 里挑 Group=裁判员 的成员
+                refereeList = _staff
+                    .Where(m => m != null && (m.Group ?? "") == StaffGroups.Referees)
+                    .Select(m => new {
+                        title = m.Title ?? "", name = m.Name ?? "",
+                        country = m.Country ?? "", refereeLevel = m.RefereeLevel ?? "",
+                        gender = m.Gender ?? ""
+                    }).ToList()
             };
         }
 
@@ -14158,6 +14167,8 @@ namespace SwimmingScoreboard
         private void ShowTeamStandings_Click(object sender, RoutedEventArgs e) { BroadcastDisplayMode("SHOW_TEAM_STANDINGS"); }
         private void ShowAwards_Click(object sender, RoutedEventArgs e) { BroadcastDisplayMode("SHOW_AWARDS"); }
         private void ShowRecords_Click(object sender, RoutedEventArgs e) { BroadcastDisplayMode("SHOW_RECORDS"); }
+        // 2026-06-03 替换"纪录"按钮为"裁判介绍": 推 SHOW_REFEREES, 大屏渲染 _staff 里 Group=裁判员 的成员列表
+        private void ShowReferees_Click(object sender, RoutedEventArgs e) { BroadcastDisplayMode("SHOW_REFEREES"); }
         private void ShowWelcome_Click(object sender, RoutedEventArgs e) { BroadcastDisplayMode("SHOW_WELCOME"); }
 
         // 2026-06-01 打开"大屏样式"远程控制窗口 (底色/字号/9 处文字), 改动实时推送到所有客户端

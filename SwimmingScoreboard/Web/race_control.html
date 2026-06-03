@@ -454,7 +454,8 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
                     <button class="action-btn small" style="background:#10B981;margin:0;" onclick="sendDisplay('SHOW_EVENT_RANKING')"><span class="ico">&#xE8CB;</span>总排名</button>
                     <button class="action-btn small" style="background:#D97706;margin:0;" onclick="sendDisplay('SHOW_TEAM_STANDINGS')"><span class="ico">&#xE8D1;</span>团  体</button>
                     <button class="action-btn small" style="background:#F59E0B;margin:0;" onclick="sendDisplay('SHOW_AWARDS')"><span class="ico">&#xE8A0;</span>颁  奖</button>
-                    <button class="action-btn small" style="background:#DC2626;margin:0;" onclick="sendDisplay('SHOW_RECORDS')"><span class="ico">&#xEDB3;</span>纪  录</button>
+                    <!-- 2026-06-03 "纪 录" → "裁判介绍" (推 SHOW_REFEREES, 大屏渲染 _staff Group=裁判员 名单) -->
+                    <button class="action-btn small" style="background:#DC2626;margin:0;" onclick="sendDisplay('SHOW_REFEREES')"><span class="ico">&#xE716;</span>裁判介绍</button>
                     <button class="action-btn small" style="background:#8B5CF6;margin:0;" onclick="sendDisplay('SHOW_WELCOME')"><span class="ico">&#xE80F;</span>欢  迎</button>
                 </div>
                 <button class="action-btn small" style="background:#F59E0B;margin-top:6px;" onclick="publishResult()"><span class="ico">&#xE8A5;</span>成绩发布</button>

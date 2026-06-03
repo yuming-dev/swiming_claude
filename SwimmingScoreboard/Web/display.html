@@ -104,21 +104,34 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
    89vh 容器导致底部丢失. 现在固定 height: 7vh + line-height: 1 — 字号在格内贴边
    放大 (与比赛视图 .lane-row + .fixed-row 一致), 行数稳定. */
 .list-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-/* 2026-06-02 表头 (th) 颜色/字体走 --c-header / --ff-header 独立可调; 字号跟随 运动员信息
-   2026-06-03 取消 card 黑色底, 用页面底色透出; 行高 7vh → 8vh 让 标题/项目名/表头 三行不再挤
-   2026-06-03 行高(height) 也跟着 --fs-info 缩放, 字号放大时单元格高度同步增大避免文字被裁
-   (原固定 7/8vh 设计是为了"10 行稳定显示", 但调大 字号 时文字溢出超出可视高度) */
+/* 2026-06-03 总排名 表格参数与 比赛视图 / 组成绩 (.lane-row + .fixed-row) 完全对齐:
+   - font-size 2.9vh (= 比赛视图 swimmer-name/team/result/rank/remark 同款; 之前是 3vh)
+   - height calc(7.5vh * --fs-info) (= .lane-row.fixed-row 同款; 之前 8/7vh)
+   - padding 0 1.5vw (= .lane-row 同款; 之前 0.6/0.4vh)
+   - text-align center (= 比赛视图 lane-row 各 cell 同款; 之前 left)
+   字号 / 间距 / 行高 三视图统一 */
 .list-table th {
-    background: transparent; padding: 0.6vh 1.5vw; text-align: left;
-    font-size: calc(3vh * var(--fs) * var(--fs-info)); border-bottom: 2px solid var(--accent);
+    background: transparent; padding: 0 1.5vw; text-align: center;
+    font-size: calc(2.9vh * var(--fs) * var(--fs-info)); border-bottom: 2px solid var(--accent);
     color: var(--c-header); font-family: var(--ff-header);
-    height: calc(8vh * var(--fs-info)); line-height: 1; overflow: hidden; white-space: nowrap;
+    height: calc(7.5vh * var(--fs-info)); line-height: 1; overflow: hidden; white-space: nowrap;
 }
 .list-table td {
-    padding: 0.4vh 1.5vw; font-size: calc(3vh * var(--fs) * var(--fs-info));
+    padding: 0 1.5vw; font-size: calc(2.9vh * var(--fs) * var(--fs-info)); text-align: center;
     border-bottom: 1px solid #334155;
-    height: calc(7vh * var(--fs-info)); line-height: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+    height: calc(7.5vh * var(--fs-info)); line-height: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
 }
+/* 2026-06-03 每列 td 对应 比赛视图 同款颜色/字体 (运动员管理→文字样式 改一处, 比赛视图+组成绩+总排名 三处同步生效)
+   show* 函数在 td 上加 class="t-rank"/"t-lane"/"t-name"/"t-team"/"t-result"/"t-remark" */
+.list-table td.t-rank   { color: var(--c-rank);   font-family: var(--ff-rank);   font-weight: bold; }
+.list-table td.t-lane   { color: var(--c-lane);   font-family: var(--ff-lane);   font-weight: bold; }
+.list-table td.t-name   { color: var(--c-name);   font-family: var(--ff-name);   font-weight: bold; }
+.list-table td.t-team   { color: var(--c-team);   font-family: var(--ff-team); }
+.list-table td.t-result { color: var(--c-result); font-family: var(--ff-result); font-weight: bold; }
+.list-table td.t-remark { color: var(--c-remark); font-family: var(--ff-remark); }
+.list-table td.t-rank.gold   { color: var(--gold); }
+.list-table td.t-rank.silver { color: #c0c0c0; }
+.list-table td.t-rank.bronze { color: #cd7f32; }
 .list-table tr:hover { background: rgba(59,130,246,0.1); }
 
 /* 欢迎画面 — 2026-06-02 文字内容居中显示 (text-align:center): 长比赛名换行时居中, 而不是默认 left */
@@ -821,6 +834,7 @@ function connect() {
     // 心跳时不会切回 LIVE_RACE，避免总排名/团体/纪录/颁奖等翻页中途被服务器心跳打断
     var LOCKABLE_MODES = {
         'SHOW_EVENT_RANKING': 1, 'SHOW_TEAM_STANDINGS': 1, 'SHOW_RECORDS': 1,
+        'SHOW_REFEREES': 1,
         'SHOW_AWARDS': 1, 'SHOW_WELCOME': 1, 'SHOW_PAUSE': 1,
         'SHOW_START_LIST': 1, 'SHOW_HEAT_RESULT': 1,
         'SHOW_EVENT_LIST': 1, 'SHOW_PROMOTION_LIST': 1
@@ -980,6 +994,7 @@ function render() {
         case 'SHOW_TEAM_STANDINGS': renderTeamStandings(); break;
         case 'SHOW_AWARDS': renderAwards(); break;
         case 'SHOW_RECORDS': renderRecords(); break;
+        case 'SHOW_REFEREES': renderReferees(); break;
         case 'SHOW_WELCOME': case 'SHOW_PAUSE':
             renderWelcome(); break;
         default: renderRace();
@@ -1854,7 +1869,11 @@ function showRankingPageSplit() {
         var remarkHtml = buildEventRankingRemarkHtml(it);
         // 2026-06-03 lane=0 是 10 道泳池的合法道号 (lanes 0-9), 不能当缺失处理. 用 != null 区分 "未提供" 和 "实际是 0"
         var hlText = ((it.heat || 0) > 0 ? it.heat : '-') + ' / ' + (it.lane != null && it.lane !== '' ? it.lane : '-');
-        html += '<tr><td>' + rkText + '</td><td>' + hlText + '</td><td>' + c1 + '</td><td>' + c2 + '</td><td>' + (it.finalTime || '') + '</td><td>' + remarkHtml + '</td></tr>';
+        // 2026-06-03 td 加 t-rank/t-lane/t-name/t-team/t-result/t-remark class, 让颜色/字体 = 比赛视图 同款
+        var rkClass = it.rank === 1 ? 't-rank gold' : it.rank === 2 ? 't-rank silver' : it.rank === 3 ? 't-rank bronze' : 't-rank';
+        var c1Class = erRelay ? 't-team' : 't-name';
+        var c2Class = erRelay ? 't-name' : 't-team';
+        html += '<tr><td class="' + rkClass + '">' + rkText + '</td><td class="t-lane">' + hlText + '</td><td class="' + c1Class + '">' + c1 + '</td><td class="' + c2Class + '">' + c2 + '</td><td class="t-result">' + (it.finalTime || '') + '</td><td class="t-remark">' + remarkHtml + '</td></tr>';
     }
     html += '</tbody></table>';
     if (_rankingTotalPages > 1) {
@@ -1906,8 +1925,12 @@ function showRankingPage(er, erRelay) {
         var remarkHtml = buildEventRankingRemarkHtml(er[i]);
         // 2026-06-03 lane=0 是 10 道泳池的合法道号 (lanes 0-9), 不能当缺失处理
         var hlText = ((er[i].heat||0) > 0 ? er[i].heat : '-') + ' / ' + (er[i].lane != null && er[i].lane !== '' ? er[i].lane : '-');
+        // 2026-06-03 td 加 t-rank/t-lane/t-name/t-team/t-result/t-remark class, 颜色/字体 = 比赛视图 同款
+        var rkCls = er[i].rank === 1 ? 't-rank gold' : er[i].rank === 2 ? 't-rank silver' : er[i].rank === 3 ? 't-rank bronze' : 't-rank';
+        var c1Cls = erRelay ? 't-team' : 't-name';
+        var c2Cls = erRelay ? 't-name' : 't-team';
         // 2026-06-02 DSQ/DNS/DNF 不再回退到成绩栏 (已由 备注 栏显示, 避免重复)
-        html += '<tr><td>' + erkText + '</td><td>' + hlText + '</td><td>' + erc1 + '</td><td>' + erc2 + '</td><td>' + (er[i].finalTime || '') + '</td><td>' + remarkHtml + '</td></tr>';
+        html += '<tr><td class="' + rkCls + '">' + erkText + '</td><td class="t-lane">' + hlText + '</td><td class="' + c1Cls + '">' + erc1 + '</td><td class="' + c2Cls + '">' + erc2 + '</td><td class="t-result">' + (er[i].finalTime || '') + '</td><td class="t-remark">' + remarkHtml + '</td></tr>';
     }
     html += '</tbody></table>';
 
@@ -1938,6 +1961,29 @@ function renderRecords() {
     var rs = data.records || [];
     for (var i = 0; i < rs.length; i++) {
         html += '<tr><td>' + rs[i].eventName + '</td><td>' + rs[i].recordType + '</td><td>' + rs[i].holderName + '</td><td>' + rs[i].holderCountry + '</td><td>' + rs[i].time + '</td><td>' + rs[i].date + '</td></tr>';
+    }
+    html += '</tbody></table>';
+    lv.innerHTML = html;
+}
+
+// 2026-06-03 裁判介绍 视图: 渲染 data.refereeList (= 服务器 _staff 里 Group=裁判员 的成员)
+function renderReferees() {
+    document.getElementById('listView').classList.remove('hidden');
+    var lv = document.getElementById('listView');
+    var html = '<h2 style="margin:0 0 6vh 0;font-size:calc(3vh * var(--fs) * var(--fs-event));color:var(--c-event);font-family:var(--ff-event);">裁判员介绍</h2>';
+    html += '<table class="list-table"><thead><tr><th style="width:30%;">岗位</th><th style="width:18%;">姓名</th><th style="width:30%;">工作单位</th><th style="width:22%;">裁判等级</th></tr></thead><tbody>';
+    var rf = data.refereeList || [];
+    if (rf.length === 0) {
+        html += '<tr><td colspan="4" style="text-align:center;color:var(--dim);">暂无裁判员数据 (请在 "工作人员管理 → 裁判员" 添加)</td></tr>';
+    } else {
+        for (var i = 0; i < rf.length; i++) {
+            html += '<tr>'
+                + '<td>' + (rf[i].title || '') + '</td>'
+                + '<td>' + (rf[i].name || '') + '</td>'
+                + '<td>' + (rf[i].country || '') + '</td>'
+                + '<td>' + (rf[i].refereeLevel || '') + '</td>'
+                + '</tr>';
+        }
     }
     html += '</tbody></table>';
     lv.innerHTML = html;
