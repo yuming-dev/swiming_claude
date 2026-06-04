@@ -331,6 +331,10 @@ var _dspFirstDetected = 0;
 var _dspFirstTime = '';
 var _dspFirstShowStart = 0;
 var _dspFirstHoldSec = 3;
+// 2026-06-04 1 名到达终点后, 右上角滚动时间 永久冻结 在 1 名 finalTime, 直到计时复位
+//   (= 与之前的 _dspFirstShowStart + holdSec 短暂窗口期不同, 这是永久 latch)
+var _dspFinalLatched = false;
+var _dspFinalLatchedTime = '';
 // 本地计时器（独立于服务器广播，保证滚动时间不间断）
 var _dspTimerStart = 0;
 var _dspTimerSynced = false;
@@ -1244,6 +1248,12 @@ function renderRace() {
             }
             if (_dspFirstTime) _dspFirstShowStart = Date.now();
         }
+        // 2026-06-04 1 名实际到达终点 (isFinished=true) → 永久锁定 finalTime 到右上角
+        //   首次锁定后不再更新, 即使后续 2/3 名也完赛; 直到 计时复位 (waiting/ready) 清掉
+        if (!_dspFinalLatched && dspLeader.isFinished && dspLeader.finalTime) {
+            _dspFinalLatched = true;
+            _dspFinalLatchedTime = dspLeader.finalTime;
+        }
     }
 
     // ── 滚动时间（首次/状态切换写一次；100ms ticker 持续更新） ──
@@ -1305,6 +1315,14 @@ function _updateRunningTimeOnly() {
         if (runEl.style.color !== '') runEl.style.color = '';
         // 2026-06-03 复位后清掉本地插值锚点, 下一组 racing 前等服务器送第一个新锚点, 不沿用上组残留
         _rtSrvAt = 0; _rtSrvSec = 0;
+        // 2026-06-04 计时复位 → 解锁 1 名 finalTime 锁定, 下一组重头开始
+        _dspFinalLatched = false; _dspFinalLatchedTime = '';
+        return;
+    }
+    // 2026-06-04 1 名已到终点 → 永久冻结显示 finalTime, 优先级高于 interp 和 leader 短暂窗口
+    if (_dspFinalLatched && _dspFinalLatchedTime) {
+        if (runEl.textContent !== _dspFinalLatchedTime) runEl.textContent = _dspFinalLatchedTime;
+        if (runEl.style.color !== '#22c55e') runEl.style.color = '#22c55e';
         return;
     }
     // 2026-06-03 重新打开本地插值 (有界 1.5s 上限). 之前去掉本地插值因为 ±100ms 漂移, 但服务器
