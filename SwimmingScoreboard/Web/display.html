@@ -1609,20 +1609,24 @@ function _refreshRaceRows() {
         if (ui.lastTeamHtml !== col2Html) { ui.teamEl.innerHTML = col2Html; ui.lastTeamHtml = col2Html; }
 
         // 成绩 / 名次
+        // 2026-06-04 TRI 同 DSQ 一样接收硬件数据 + 显成绩, 但 名次列 始终为空 (不参与排名)
         var resultText = '', rankText = '', rankClass = '';
-        if (sw.status === 'DNS' || sw.status === 'DNF' || sw.status === 'DSQ' || sw.status === 'TRI') {
-            // DNS/DNF/DSQ/TRI 不显示成绩
+        var isTri = sw.status === 'TRI';
+        if (sw.status === 'DNS' || sw.status === 'DNF' || sw.status === 'DSQ') {
+            // DNS/DNF/DSQ 不显示成绩
         } else if (sw.isFinished && sw.finalTime) {
             resultText = sw.finalTime;
-            if (sw.rank === 1) { rankClass = 'gold'; rankText = sw.rank; }
-            else if (sw.rank === 2) { rankClass = 'silver'; rankText = sw.rank; }
-            else if (sw.rank === 3) { rankClass = 'bronze'; rankText = sw.rank; }
-            else if (sw.rank > 0) { rankText = sw.rank; }
+            if (!isTri) {     // TRI 不显名次
+                if (sw.rank === 1) { rankClass = 'gold'; rankText = sw.rank; }
+                else if (sw.rank === 2) { rankClass = 'silver'; rankText = sw.rank; }
+                else if (sw.rank === 3) { rankClass = 'bronze'; rankText = sw.rank; }
+                else if (sw.rank > 0) { rankText = sw.rank; }
+            }
         } else {
             var elapsed = now - ls.showTime;
             if (ls.showTime > 0 && elapsed < displayMs && realSplitCount > 0) {
                 resultText = lastRealSplitStr;
-                if (splitRanks[lane]) {
+                if (splitRanks[lane] && !isTri) {     // TRI 不显分段名次
                     rankText = splitRanks[lane];
                     // 与终点态保持一致的奖牌色
                     if (rankText === 1) rankClass = 'gold';
@@ -1769,11 +1773,14 @@ function showHeatResultPage() {
         // 2026-06-02 row 加 'relay' 类 (走 .lane-row.relay flex 比例), 去掉内联 width 覆盖, 跟表头一致
         row.className = 'lane-row finished fixed-row' + (relay ? ' relay' : '');
 
+        // 2026-06-04 TRI 名次列 留空 (仅展示, 不参与排名)
         var rankText = '', rankClass = '';
-        if (s.rank === 1) { rankClass = 'gold'; rankText = '1'; }
-        else if (s.rank === 2) { rankClass = 'silver'; rankText = '2'; }
-        else if (s.rank === 3) { rankClass = 'bronze'; rankText = '3'; }
-        else if (s.rank > 0) { rankText = s.rank; }
+        if (s.status !== 'TRI') {
+            if (s.rank === 1) { rankClass = 'gold'; rankText = '1'; }
+            else if (s.rank === 2) { rankClass = 'silver'; rankText = '2'; }
+            else if (s.rank === 3) { rankClass = 'bronze'; rankText = '3'; }
+            else if (s.rank > 0) { rankText = s.rank; }
+        }
 
         // 备注栏优先级（确认成绩后的本组成绩榜）：DSQ/DNS/DNF/TRI（红）> 破/平纪录 recordNote（金）
         var remarkText = '', remarkColor = '';
@@ -1782,7 +1789,8 @@ function showHeatResultPage() {
         else if (s.status === 'DNF') remarkText = 'DNF';
         else if (s.status === 'TRI') remarkText = 'TRI';
         if (!remarkText && s.recordNote) { remarkText = s.recordNote; remarkColor = '#fbbf24'; }
-        var resultText = (s.status === 'DSQ' || s.status === 'DNS' || s.status === 'DNF' || s.status === 'TRI') ? '' : (s.finalTime || '');
+        // 2026-06-04 TRI 正常显成绩 (与 DSQ/DNS/DNF 不同, TRI 是试游, 时间正常显)
+        var resultText = (s.status === 'DSQ' || s.status === 'DNS' || s.status === 'DNF') ? '' : (s.finalTime || '');
 
         var c1 = relay ? (s.country||'') : (s.name||'');
         var c2 = relay ? (s.name||'') : (s.country||'');
@@ -1875,11 +1883,14 @@ function renderPublishedResult(pubData) {
         var row = document.createElement('div');
         row.className = 'lane-row finished' + (pubRelay ? ' relay' : '');
 
+        // 2026-06-04 TRI 名次列 留空 (仅展示, 不参与排名), 但 finalTime 正常显
         var rankText = '', rankClass = '';
-        if (s.rank === 1) { rankClass = 'gold'; rankText = '1'; }
-        else if (s.rank === 2) { rankClass = 'silver'; rankText = '2'; }
-        else if (s.rank === 3) { rankClass = 'bronze'; rankText = '3'; }
-        else if (s.rank > 0) { rankText = s.rank; }
+        if (s.status !== 'TRI') {
+            if (s.rank === 1) { rankClass = 'gold'; rankText = '1'; }
+            else if (s.rank === 2) { rankClass = 'silver'; rankText = '2'; }
+            else if (s.rank === 3) { rankClass = 'bronze'; rankText = '3'; }
+            else if (s.rank > 0) { rankText = s.rank; }
+        }
 
         // 备注栏优先级（公布成绩）：DSQ/DNS/DNF/TRI（红）> 破/平纪录 recordNote（金）
         var remarkText = '', remarkColor = '';
@@ -1888,7 +1899,7 @@ function renderPublishedResult(pubData) {
         else if (s.status === 'DNF') remarkText = 'DNF';
         else if (s.status === 'TRI') remarkText = 'TRI';
         if (!remarkText && s.recordNote) { remarkText = s.recordNote; remarkColor = '#fbbf24'; }
-        var pubResultText = (s.status === 'DSQ' || s.status === 'DNS' || s.status === 'DNF' || s.status === 'TRI' || s.resultStatus === 'DSQ') ? '' : (s.finalTime || '');
+        var pubResultText = (s.status === 'DSQ' || s.status === 'DNS' || s.status === 'DNF' || s.resultStatus === 'DSQ') ? '' : (s.finalTime || '');
 
         var pc1 = pubRelay ? (s.country||'') : (s.name||'');
         var pc2 = pubRelay ? (s.name||'') : (s.country||'');

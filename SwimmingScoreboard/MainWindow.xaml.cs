@@ -2137,9 +2137,10 @@ namespace SwimmingScoreboard
                         blind1 = TimeFormatter.Format(sp.PushButton1Time), blind2 = TimeFormatter.Format(sp.PushButton2Time), blind3 = TimeFormatter.Format(sp.PushButton3Time),
                         manual = TimeFormatter.Format(sp.ManualTouchTime), source = sp.TimingSource
                     }).ToList<object>() : new List<object>(),
+                    // 2026-06-04 TRI 正常显成绩 (finalTime), 但 rank=0 (= 不参与排名, 客户端按 0 渲染空白)
                     finalTime = (sw.Status == "DSQ" || sw.Status == "DNS" || sw.Status == "DNF") ? "" : (result != null ? TimeFormatter.Format(result.FinalTime) : ""),
-                    // 实时分段名次：有则用 liveRank，否则回退到 result.Rank
-                    rank = (sw.Status == "DSQ" || sw.Status == "DNS" || sw.Status == "DNF") ? 0
+                    // 实时分段名次：有则用 liveRank，否则回退到 result.Rank; TRI 强制 0
+                    rank = (sw.Status == "DSQ" || sw.Status == "DNS" || sw.Status == "DNF" || sw.Status == "TRI") ? 0
                         : (liveRanksForBroadcast.ContainsKey(sw) ? liveRanksForBroadcast[sw]
                            : (result != null ? result.Rank : 0)),
                     status = sw.Status ?? "",
@@ -2578,8 +2579,8 @@ namespace SwimmingScoreboard
                         qualifiedToNext = IsQualifiedToNext(sw, _currentStage)
                     });
                 }
-                // DSQ/DNS/DNF/无成绩 追加, 无名次
-                foreach (var sw in subList.Where(s => !withTimes.Contains(s))) {
+                // DSQ/DNS/DNF/无成绩 追加, 无名次. TRI 不进总排名 (= 仅展示)
+                foreach (var sw in subList.Where(s => !withTimes.Contains(s) && s.Status != "TRI")) {
                     var r = sw.GetResultForStage(_currentStage);
                     string rkName = sw.Name;
                     if (rankRelay && !string.IsNullOrEmpty(sw.Notes) && sw.Notes.StartsWith("接力队 棒次:"))
@@ -2684,7 +2685,8 @@ namespace SwimmingScoreboard
             }
 
             // 其余运动员（DSQ/DNS/DNF/无成绩）追加到末尾，无名次
-            var others = stageSwimmers.Where(s => !withTimes.Contains(s)).ToList();
+            // 2026-06-04 TRI 不进总排名 (= 仅展示, 与 DSQ/DNS/DNF 不同, TRI 直接被剔除而非追加无名次)
+            var others = stageSwimmers.Where(s => !withTimes.Contains(s) && s.Status != "TRI").ToList();
             foreach (var sw in others) {
                 var r = sw.GetResultForStage(_currentStage);
                 string rkName = sw.Name;
@@ -5416,7 +5418,8 @@ namespace SwimmingScoreboard
 
             var withResults = swimmers.Where(s => {
                 var r = s.Results.FirstOrDefault(lr => lr.Stage == _currentStage && lr.Heat == _currentHeat);
-                return r != null && r.FinalTime > 0 && s.Status != "DSQ" && s.Status != "DNS" && s.Status != "DNF";
+                // 2026-06-04 TRI 不参与本组排名 (= 与 DSQ/DNS/DNF 同款排除)
+                return r != null && r.FinalTime > 0 && s.Status != "DSQ" && s.Status != "DNS" && s.Status != "DNF" && s.Status != "TRI";
             }).OrderBy(s => {
                 var r = s.Results.FirstOrDefault(lr => lr.Stage == _currentStage && lr.Heat == _currentHeat);
                 return r.FinalTime;
@@ -7690,7 +7693,8 @@ namespace SwimmingScoreboard
             var rankables = new List<Tuple<Swimmer, int, double, bool>>(); // (swimmer, splitCount, cumTime/FinalTime, finished)
             foreach (var sw2 in swimmers) {
                 string st = sw2.Status ?? "";
-                if (st == "DSQ" || st == "DNS" || st == "DNF") continue;
+                // 2026-06-04 TRI 不参与排名 (= 不进 rankables, 也不影响其他人 rank)
+                if (st == "DSQ" || st == "DNS" || st == "DNF" || st == "TRI") continue;
                 var r2 = sw2.Results.FirstOrDefault(lr => lr.Stage == _currentStage && lr.Heat == _currentHeat);
                 if (r2 == null) continue;
 
