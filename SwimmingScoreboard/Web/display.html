@@ -78,9 +78,11 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 .lane-row .swimmer-team { flex: 12; min-width: 0; font-size: calc(2.9vh * var(--fs) * var(--fs-info)); color: var(--c-team); font-family: var(--ff-team); white-space: nowrap; overflow: hidden; margin-right: 1.5vw; text-align: center; }
 .lane-row .result-time { flex: 14; min-width: 0; font-size: calc(2.9vh * var(--fs) * var(--fs-info)); font-weight: bold; text-align: center; color: var(--c-result); font-family: var(--ff-result); margin-right: 1.5vw; }
 .lane-row .rank { flex: 5; min-width: 0; font-size: calc(2.9vh * var(--fs) * var(--fs-info)); font-weight: bold; text-align: center; color: var(--c-rank); font-family: var(--ff-rank); margin-right: 1vw; }
-.lane-row .rank.gold { color: var(--gold); }
-.lane-row .rank.silver { color: #c0c0c0; }
-.lane-row .rank.bronze { color: #cd7f32; }
+/* 2026-06-04 1/2/3 名 不再用 金/银/铜 色, 与 4+ 同色 (= var(--c-rank)).
+   .gold/.silver/.bronze class 仍由 JS 写入, 但 CSS 这里强制覆盖为统一色 */
+.lane-row .rank.gold,
+.lane-row .rank.silver,
+.lane-row .rank.bronze { color: var(--c-rank); }
 .lane-row .remark { flex: 8; min-width: 0; font-size: calc(2.9vh * var(--fs) * var(--fs-info)); color: var(--c-remark); font-family: var(--ff-remark); text-align: center; }
 
 /* 比赛视图列序:
@@ -139,9 +141,11 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 .list-table td.t-team   { color: var(--c-team);   font-family: var(--ff-team); }
 .list-table td.t-result { color: var(--c-result); font-family: var(--ff-result); font-weight: bold; }
 .list-table td.t-remark { color: var(--c-remark); font-family: var(--ff-remark); }
-.list-table td.t-rank.gold   { color: var(--gold); }
-.list-table td.t-rank.silver { color: #c0c0c0; }
-.list-table td.t-rank.bronze { color: #cd7f32; }
+/* 2026-06-04 总排名 1/2/3 名 不再金银铜, 与 4+ 同色 (= var(--c-rank)).
+   class 仍由 JS 写入, CSS 这里覆盖颜色为统一色 */
+.list-table td.t-rank.gold,
+.list-table td.t-rank.silver,
+.list-table td.t-rank.bronze { color: var(--c-rank); }
 .list-table tr:hover { background: rgba(59,130,246,0.1); }
 
 /* 欢迎画面 — 2026-06-02 文字内容居中显示 (text-align:center): 长比赛名换行时居中, 而不是默认 left */
@@ -1664,20 +1668,27 @@ function renderStartList() {
     var slH2 = slRelay ? '姓名' : '代表队';
     // 2026-06-01 出发表去掉"号码"栏
     // 2026-06-04 td 加 t-lane/t-name/t-team class, 颜色/字体 = 比赛视图/组成绩/总排名 同款 CSS 变量
-    //   行高 / 间距 通过 .list-table th/td 全局规则与 三视图 一致 (7.5vh 固定行高, 2.9vh 字号, 0 1.5vw padding)
+    //   接力 出发表: 姓名列 允许换行 + 单元格高度自适应, 4 棒姓名全部显示 (default td 是 nowrap+ellipsis)
     html += '<table class="list-table"><thead><tr><th style="width:14%;">道</th><th>' + slH1 + '</th><th>' + slH2 + '</th></tr></thead><tbody>';
     var sw = data.swimmers || [];
     for (var i = 0; i < sw.length; i++) {
         // 过滤空泳道 (与 组成绩 isOccupiedLane 同款语义, status===EMPTY 占位条目不入出发表)
         if (sw[i] && sw[i].status === 'EMPTY') continue;
         var sc1 = slRelay ? (sw[i].country||'') : (sw[i].name||'');
-        var sc2 = slRelay ? (sw[i].name||'') : (sw[i].country||'');
+        var sc2Raw = slRelay ? (sw[i].name||'') : (sw[i].country||'');
         // 道号: lane=0 是 10 道泳池合法首道, 用 != null 区分缺失
         var laneText = sw[i].lane != null && sw[i].lane !== '' ? sw[i].lane : '-';
         // c1/c2 列 class 按 relay 与否互换 (与 showRankingPage / showRankingPageSplit 同款)
         var c1Cls = slRelay ? 't-team' : 't-name';
         var c2Cls = slRelay ? 't-name' : 't-team';
-        html += '<tr><td class="t-lane">' + laneText + '</td><td class="' + c1Cls + '">' + sc1 + '</td><td class="' + c2Cls + '">' + sc2 + '</td></tr>';
+        // 接力 姓名列 (sc2 = sw.name = '名1,名2,名3,名4'): 转 "名1, 名2, 名3, 名4" + 允许换行 + 行高自适应
+        var sc2 = sc2Raw;
+        var c2Style = '';
+        if (slRelay && sc2Raw.indexOf(',') >= 0) {
+            sc2 = sc2Raw.split(',').map(function(s){ return s.trim(); }).filter(function(s){ return s; }).join(', ');
+            c2Style = ' style="white-space:normal;overflow:visible;text-overflow:clip;line-height:1.25;height:auto;padding:0.5vh 1.5vw;"';
+        }
+        html += '<tr><td class="t-lane">' + laneText + '</td><td class="' + c1Cls + '">' + sc1 + '</td><td class="' + c2Cls + '"' + c2Style + '>' + sc2 + '</td></tr>';
     }
     html += '</tbody></table>';
     lv.innerHTML = html;
