@@ -227,7 +227,8 @@
       "PowerShell(& 'C:\\\\代码\\\\swiming_claude\\\\build_installer.ps1' 2>&1 | Select-Object -Last 25)",
       "PowerShell(& 'C:\\\\代码\\\\swiming_claude\\\\build_installer.ps1' 2>&1 | Select-Object -Last 22)",
       "PowerShell(& 'C:\\\\代码\\\\swiming_claude\\\\tools\\\\import_competition.ps1' 2>&1 | Select-Object -Last 30)",
-      "PowerShell(& 'C:\\\\代码\\\\swiming_claude\\\\tools\\\\import_competition.ps1' 2>&1 | Select-Object -Last 25)"
+      "PowerShell(& 'C:\\\\代码\\\\swiming_claude\\\\tools\\\\import_competition.ps1' 2>&1 | Select-Object -Last 25)",
+      "PowerShell(Get-Process *)"
     ]
   }
 }
