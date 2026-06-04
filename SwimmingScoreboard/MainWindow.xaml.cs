@@ -5141,7 +5141,18 @@ namespace SwimmingScoreboard
 
             var laneLabel = new TextBlock { Text = "道次:", FontSize = 14, VerticalAlignment = VerticalAlignment.Center };
             var laneCombo = new ComboBox { Height = 28, Margin = new Thickness(0, 0, 0, 8) };
-            foreach (var s in swimmers) laneCombo.Items.Add(string.Format("第 {0} 道 - {1}", s.Lane, s.Name));
+            // 2026-06-04 按场地道次列 (= 8 道场地 8 项, 10 道场地 10 项), 不基于 swimmer, 不去重.
+            //   每道显示对应运动员/接力队名, 空道显示 "(空)"
+            int laneCount = _poolConfig != null && _poolConfig.LaneCount > 0 ? _poolConfig.LaneCount : 10;
+            Func<Swimmer, int> getLane = s => {
+                var sa = s.GetAssignmentForStage(_currentStage);
+                return sa != null ? sa.Lane : s.Lane;
+            };
+            for (int laneNo = 1; laneNo <= laneCount; laneNo++) {
+                var swInLane = swimmers.FirstOrDefault(s => getLane(s) == laneNo);
+                string laneName = swInLane != null ? (swInLane.Name ?? "") : "(空)";
+                laneCombo.Items.Add(string.Format("第 {0} 道 - {1}", laneNo, laneName));
+            }
             laneCombo.SelectedIndex = 0;
             Grid.SetRow(laneLabel, 1); Grid.SetColumn(laneLabel, 0);
             Grid.SetRow(laneCombo, 1); Grid.SetColumn(laneCombo, 1);
@@ -5193,11 +5204,16 @@ namespace SwimmingScoreboard
                     MessageBox.Show("时间格式应为 m:ss.xxx 或 mm:ss.xxx (例: 1:23.456 或 23.456), 且需大于 0。", "格式错误", MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
-                if (laneCombo.SelectedIndex < 0 || laneCombo.SelectedIndex >= swimmers.Count) {
+                if (laneCombo.SelectedIndex < 0 || laneCombo.SelectedIndex >= laneCount) {
                     MessageBox.Show("请选择道次。", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
                     return;
                 }
-                var swimmer = swimmers[laneCombo.SelectedIndex];
+                int selectedLane = laneCombo.SelectedIndex + 1;
+                var swimmer = swimmers.FirstOrDefault(x => getLane(x) == selectedLane);
+                if (swimmer == null) {
+                    MessageBox.Show(string.Format("第 {0} 道无运动员/接力队, 不能补段。", selectedLane), "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                    return;
+                }
                 ApplyManualSplit(swimmer, segNum, cumSec);
                 dlg.DialogResult = true;
                 dlg.Close();
