@@ -164,6 +164,8 @@ label { color: #94a3b8; font-size: 12px; }
 
 <script>
 var ws, data = {}, autoRunning = false;
+// 2026-06-03 sim* 函数道间延时 (ms), 防止 8 道 burst send 一次性触发 32 次 SHOW_LIVE_RACE 全量广播
+var _SIM_LANE_GAP_MS = 15;
 
 window.onbeforeunload = function(e) { e.preventDefault(); e.returnValue = ''; return '确定要关闭测试机器人？'; };
 
@@ -356,12 +358,22 @@ function sendDisplay(mode) {
     log('显示模式: ' + mode);
 }
 
+// 2026-06-03 log() 改 createTextNode 增量追加 + requestAnimationFrame 批量刷 scroll, 防止
+//   一次性 8 道触板 +24 盲表 32 条 send 时 innerHTML+= 重新解析全部 log 内容 导致 test_bot 闪
+var _logScrollScheduled = false;
 function log(msg) {
     var el = document.getElementById('log');
+    if (!el) return;
     var now = new Date();
     var time = now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0') + ':' + now.getSeconds().toString().padStart(2,'0');
-    el.innerHTML += '[' + time + '] ' + msg + '\n';
-    el.scrollTop = el.scrollHeight;
+    el.appendChild(document.createTextNode('[' + time + '] ' + msg + '\n'));
+    if (!_logScrollScheduled) {
+        _logScrollScheduled = true;
+        requestAnimationFrame(function() {
+            _logScrollScheduled = false;
+            el.scrollTop = el.scrollHeight;
+        });
+    }
 }
 
 function parseRunningTime() {
@@ -663,8 +675,11 @@ function simStartBlock(side) {
     var fsLow2Idx = indices.length > 2 ? indices[2] : -1;
 
     log('=== 模拟'+side+'出发台 (阈值:'+threshold+'s) ===');
+    // 2026-06-03 道间延时分散广播 (同 simTouchpad)
     var fsLanes = [];
-    for (var i = 0; i < lanes.length; i++) {
+    var i = 0;
+    function next() {
+        if (i >= lanes.length) { log('抢跳泳道: ['+fsLanes.join(',')+']'); return; }
         var lane = lanes[i];
         var rt;
         if (i === fsNegIdx) {
@@ -687,35 +702,41 @@ function simStartBlock(side) {
             send('TIMING_DATA', {lane: lane, commandType: 'StartingBlock', time: rt, side: side});
             log('  道'+lane+'('+side+') 正常出发 '+rt.toFixed(2)+'s');
         }
+        i++;
+        setTimeout(next, _SIM_LANE_GAP_MS);
     }
-    log('抢跳泳道: ['+fsLanes.join(',')+']');
+    next();
 }
 
 // 记录每道触板历史，用于计算下一段的合理时间
 var _lastTouchpadTime = {};  // 每道最近一次触板的绝对时间
 var _touchpadLapCount = {};  // 每道已触板的段数
 
+// 2026-06-03 sim* 函数道间小延时 (= _SIM_LANE_GAP_MS, 顶上声明), 让 server 处理 + broadcast 排空,
+//   减轻 display.html / 主控 同时收 8 帧 SHOW_LIVE_RACE 全量状态导致的画面闪烁;
+//   实际"同时触板"语义上没意义 (硬件本来就有 µs 级时差)
 function simTouchpad(side) {
     var lanes = getLanes();
     var currentServerTime = parseRunningTime();
     var segTime = 26;
-
     log('=== 模拟'+side+'触板 ===');
-    for (var i = 0; i < lanes.length; i++) {
+    var i = 0;
+    function next() {
+        if (i >= lanes.length) return;
         var lane = lanes[i];
         if (!_touchpadLapCount[lane]) _touchpadLapCount[lane] = 0;
         if (!_lastTouchpadTime[lane]) _lastTouchpadTime[lane] = 0;
-
         _touchpadLapCount[lane]++;
         var lapNum = _touchpadLapCount[lane];
-
         var t = currentServerTime + (Math.random() - 0.3) * 0.5;
         if (t < 1) t = segTime * lapNum;
-
         _lastTouchpadTime[lane] = t;
         send('TIMING_DATA', {lane: lane, commandType: 'Touchpad', time: t, side: side});
         log('  道'+lane+'('+side+') 第'+lapNum+'段 触板: '+t.toFixed(2)+'s');
+        i++;
+        setTimeout(next, _SIM_LANE_GAP_MS);
     }
+    next();
 }
 
 function simBlindWatch(side) {
@@ -726,7 +747,9 @@ function simBlindWatch(side) {
         return;
     }
     log('=== 模拟'+side+'盲表 (当前时间:'+currentServerTime.toFixed(2)+'s) ===');
-    for (var i = 0; i < lanes.length; i++) {
+    var i = 0;
+    function next() {
+        if (i >= lanes.length) return;
         var lane = lanes[i];
         for (var b = 1; b <= 3; b++) {
             var t = currentServerTime + (Math.random() - 0.5) * 0.30;
@@ -734,7 +757,10 @@ function simBlindWatch(side) {
             send('TIMING_DATA', {lane: lane, commandType: 'PushButton' + b, time: t, side: side});
         }
         log('  道'+lane+'('+side+') 盲表x3 基准:'+currentServerTime.toFixed(2)+'s');
+        i++;
+        setTimeout(next, _SIM_LANE_GAP_MS);
     }
+    next();
 }
 
 function simConfirm() {
@@ -849,26 +875,33 @@ function updateRelayButtons() {
 function simRelayStartBlock(legNum) {
     var lanes = getLanes();
     var threshold = (data && data.laneCloseSettings) ? data.laneCloseSettings.falseStartThreshold || 0.10 : 0.10;
-
+    // 2026-06-03 道间延时分散广播 (同 simTouchpad)
     if (legNum === 1) {
-        // 第1棒：正常出发台反应时间
         log('=== 第1棒出发 ===');
-        for (var i = 0; i < lanes.length; i++) {
+        var i = 0;
+        function next1() {
+            if (i >= lanes.length) return;
             var rt = 0.50 + Math.random() * 0.35;
             rt = parseFloat(rt.toFixed(2));
             send('TIMING_DATA', {lane: lanes[i], commandType: 'StartingBlock', time: rt});
             log('  道' + lanes[i] + ' 反应: ' + rt.toFixed(2) + 's');
+            i++;
+            setTimeout(next1, _SIM_LANE_GAP_MS);
         }
+        next1();
     } else {
-        // 第2-4棒：接力出发台检测（在交接触板后出发）
         log('=== 第' + legNum + '棒出发台检测 ===');
-        for (var i = 0; i < lanes.length; i++) {
+        var i = 0;
+        function next2() {
+            if (i >= lanes.length) return;
             var refTime = _relayStepTime[lanes[i]] || parseRunningTime();
-            // 接力出发台反应时间：相对于交接触板时间的偏差
             var rt = refTime + 0.05 + Math.random() * 0.3;
             send('TIMING_DATA', {lane: lanes[i], commandType: 'StartingBlock', time: rt});
             log('  道' + lanes[i] + ' 出发台: ' + rt.toFixed(2) + 's');
+            i++;
+            setTimeout(next2, _SIM_LANE_GAP_MS);
         }
+        next2();
     }
 }
 
@@ -886,22 +919,25 @@ function simRelayTouchpad(legNum, lapInLeg, globalLap) {
     log('=== ' + desc + ' (全局第' + globalLap + '段) ===');
 
     var currentServerTime = parseRunningTime();
-    for (var i = 0; i < lanes.length; i++) {
+    // 2026-06-03 加 道间延时 (= _SIM_LANE_GAP_MS), 防止 8 道 × 4 帧 (TP+3 PB) 同时发 32 条
+    //   触发 32 次 SHOW_LIVE_RACE 全量广播, 让 display.html / 主控 画面闪
+    var i = 0;
+    function next() {
+        if (i >= lanes.length) return;
         var lane = lanes[i];
-
-        // 始终基于当前服务器实时时间
         var t = currentServerTime + (Math.random() - 0.3) * 0.5;
         if (t < 1) t = segTime * globalLap;
-
         _relayStepTime[lane] = t;
         send('TIMING_DATA', {lane: lane, commandType: 'Touchpad', time: t});
-
         // 盲表基于触板时间
         for (var b = 1; b <= 3; b++) {
             send('TIMING_DATA', {lane: lane, commandType: 'PushButton' + b, time: t + (Math.random() - 0.5) * 0.3});
         }
         log('  道' + lane + ' 触板: ' + t.toFixed(2) + 's');
+        i++;
+        setTimeout(next, _SIM_LANE_GAP_MS);
     }
+    next();
 }
 
 // 页面加载后初始化接力按钮
