@@ -1732,6 +1732,17 @@
                                             </StackPanel>
                                         </StackPanel>
                                     </Border>
+                                    <!-- 2026-06-04 成绩 txt 输出: 按 场号-项号-组号.txt 命名, 道次行 (LL final 8段 4反应), 10 道全显示 -->
+                                    <Border Style="{StaticResource DocCardBorder}">
+                                        <StackPanel>
+                                            <TextBlock Text="成绩 txt 输出" Style="{StaticResource DocTitle}"/>
+                                            <TextBlock Style="{StaticResource DocSub}"
+                                                       Text="选项目 → 场号-项号-组号.txt 文本输出 (10 道 / 8 段累计 / 4 棒反应时)。"/>
+                                            <StackPanel Orientation="Horizontal">
+                                                <Button Content="输出" Click="ExportResultTxt_Click" Background="#0EA5E9" Style="{StaticResource DocActionBtn}"/>
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </Border>
                                 </WrapPanel>
                             </StackPanel>
                         </Border>

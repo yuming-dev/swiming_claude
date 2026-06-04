@@ -18197,6 +18197,127 @@ namespace SwimmingScoreboard
                 BuildSplitTimeReportHtmlFor(picked.AgeGroup, picked.Gender, picked.EventName, picked.Stage, picked.Heat));
         }
 
+        // 2026-06-04 成绩 txt 输出: 按 场号-项号-组号.txt 命名, 每行 道次 + final + 8 段累计 + 4 棒反应时, 全部 10 道
+        private void ExportResultTxt_Click(object sender, RoutedEventArgs e) {
+            var picked = ShowConfirmedHeatPicker("选择已完赛组次 — 成绩 txt 输出");
+            if (picked == null) return;
+            try {
+                // 文件名: 场号-项号-组号 (各 2 位补 0)
+                var sched = _schedule.FirstOrDefault(s => s.Gender == picked.Gender && s.EventName == picked.EventName
+                    && s.Stage == picked.Stage && (s.AgeGroup ?? "") == (picked.AgeGroup ?? ""));
+                int session = sched != null ? sched.SessionNumber : 0;
+                var evtMap = BuildEventNumberMap();
+                int eventNo = 0;
+                evtMap.TryGetValue((picked.Gender ?? "") + "|" + (picked.EventName ?? ""), out eventNo);
+                string fileName = string.Format("{0:D2}-{1:D2}-{2:D2}.txt", session, eventNo, picked.Heat);
+
+                // 默认目录: AppDomain/Documents/成绩txt; 让用户改路径
+                string defaultDir = IOPath.Combine(AppDomain.CurrentDomain.BaseDirectory, "Documents", "成绩txt");
+                if (!Directory.Exists(defaultDir)) Directory.CreateDirectory(defaultDir);
+                var sfd = new Microsoft.Win32.SaveFileDialog {
+                    Title = "保存成绩 txt 文件", Filter = "文本文件 (*.txt)|*.txt|所有文件 (*.*)|*.*",
+                    InitialDirectory = defaultDir, FileName = fileName
+                };
+                if (sfd.ShowDialog() != true) return;
+
+                string text = BuildResultTxtContent(picked.AgeGroup, picked.Gender, picked.EventName, picked.Stage, picked.Heat);
+                File.WriteAllText(sfd.FileName, text, new UTF8Encoding(false));     // 不带 BOM, 兼容旧解析器
+                AddLog("成绩 txt 已导出: " + sfd.FileName);
+                MessageBox.Show("已导出:\n" + sfd.FileName, "完成", MessageBoxButton.OK, MessageBoxImage.Information);
+            } catch (Exception ex) {
+                MessageBox.Show("导出失败: " + ex.Message, "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                AddLog("成绩 txt 导出失败: " + ex.Message);
+            }
+        }
+
+        // 文件格式 (每行, 14 列, 空格分隔):
+        //   LL  FFFF  S1  S2  S3  S4  S5  S6  S7  S8  R1  R2  R3  R4
+        //   LL    = 道号 2 位补 0
+        //   FFFF  = 最终成绩 MM:SS.cc (0 → 00:00.00)
+        //   S1-S8 = 50/100/.../400m 累计时间 MM:SS.cc (无 = 00:00.00)
+        //   R1-R4 = 1-4 棒反应时 RRRR.cc (个人项只填 R1, R2-R4 = 0000.00)
+        // 10 道全部输出, 缺人的道全 00:00.00 / 0000.00
+        private string BuildResultTxtContent(string ageGroup, string gender, string eventName, string stage, int heat) {
+            bool isRelay = (eventName ?? "").Contains("接力");
+
+            // 收集该组运动员 (lane → swimmer)
+            var lanesData = new Dictionary<int, Swimmer>();
+            foreach (var s in _swimmers) {
+                if (s.EventName != eventName) continue;
+                if (s.Gender != gender) continue;
+                if (!MatchesAgeGroup(s, ageGroup)) continue;
+                if (isRelay && s.Notes != null && s.Notes.StartsWith("接力队员")) continue;
+                var sa = s.GetAssignmentForStage(stage);
+                int swHeat = sa != null && sa.Heat > 0 ? sa.Heat : s.Heat;
+                int swLane = sa != null && sa.Heat > 0 ? sa.Lane : s.Lane;
+                if (swHeat != heat) continue;
+                lanesData[swLane] = s;
+            }
+
+            // 用 _poolConfig.LaneNumbers (10 道泳池 0-9, 8 道泳池 1-8 等)
+            var poolLanes = (_poolConfig != null && _poolConfig.LaneNumbers != null && _poolConfig.LaneNumbers.Count > 0)
+                ? _poolConfig.LaneNumbers : new List<int> { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+
+            var sb = new StringBuilder();
+            foreach (int lane in poolLanes) {
+                sb.AppendFormat("{0:D2}", lane);
+                Swimmer sw = lanesData.ContainsKey(lane) ? lanesData[lane] : null;
+                LaneResult r = sw != null ? sw.Results.FirstOrDefault(x => x.Stage == stage && x.Heat == heat) : null;
+
+                // Final time
+                double finalSec = r != null ? r.FinalTime : 0;
+                sb.Append(" " + FormatTimeMSCC(finalSec));
+
+                // 8 split cumulative times (50m, 100m, ..., 400m)
+                for (int si = 0; si < 8; si++) {
+                    int distAt = (si + 1) * 50;
+                    double cum = 0;
+                    if (r != null) {
+                        var sp = r.Splits.FirstOrDefault(x => x.Distance == distAt);
+                        if (sp != null) cum = sp.CumulativeTime;
+                    }
+                    sb.Append(" " + FormatTimeMSCC(cum));
+                }
+
+                // 4 reaction times (个人项: R1 = StartingBlockTime, R2-R4 = 0; 接力: LegReactionTimes[0..3])
+                for (int li = 0; li < 4; li++) {
+                    double rt = 0;
+                    if (r != null) {
+                        if (isRelay && r.LegReactionTimes != null && li < r.LegReactionTimes.Count) {
+                            rt = r.LegReactionTimes[li];
+                        } else if (!isRelay && li == 0) {
+                            rt = r.StartingBlockTime;
+                        }
+                        if (rt < 0) rt = 0;     // 抢跳 (负值) 不输出, 统一 0
+                    }
+                    sb.Append(" " + FormatReactionRRRRCC(rt));
+                }
+                sb.Append("\r\n");
+            }
+            return sb.ToString();
+        }
+
+        // 时间格式 MM:SS.cc (= 2-digit 分钟 : 2-digit 秒 . 2-digit 百分秒)
+        private static string FormatTimeMSCC(double seconds) {
+            if (seconds < 0 || double.IsNaN(seconds) || double.IsInfinity(seconds)) seconds = 0;
+            long totalCc = (long)Math.Round(seconds * 100);
+            long cc = totalCc % 100;
+            long totalSec = totalCc / 100;
+            long s = totalSec % 60;
+            long m = totalSec / 60;
+            return string.Format("{0:D2}:{1:D2}.{2:D2}", m, s, cc);
+        }
+
+        // 反应时格式 RRRR.cc (= 4-digit 整秒 . 2-digit 百分秒, 例: 1.01s → 0001.01)
+        private static string FormatReactionRRRRCC(double seconds) {
+            if (seconds < 0 || double.IsNaN(seconds) || double.IsInfinity(seconds)) seconds = 0;
+            long totalCc = (long)Math.Round(seconds * 100);
+            long cc = totalCc % 100;
+            long rrrr = totalCc / 100;
+            if (rrrr > 9999) rrrr = 9999;
+            return string.Format("{0:D4}.{1:D2}", rrrr, cc);
+        }
+
         private class ConfirmedHeatPick {
             public string AgeGroup; public string Gender; public string EventName; public string Stage; public int Heat;
         }
