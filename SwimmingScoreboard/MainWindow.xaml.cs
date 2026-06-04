@@ -3730,6 +3730,24 @@ namespace SwimmingScoreboard
                             break;
                         }
 
+                        // 2026-06-04 接力赛: TP 和 MB substitute 必须在当前棒预期完成侧 (= 防右 MB 误代替左 TP 导致错位).
+                        //   棒次完成侧 = StartPosition if afterLap 偶 else 另一侧 (4×50m perLeg=1 棒次交替, 4×100m 不变).
+                        if (_isRelay && _laneCloseSettings != null) {
+                            int afterLapTp = laneState.CurrentLap + 1;
+                            string startSideTpG = _laneCloseSettings.StartPosition;
+                            string expectedSideTpG = (afterLapTp % 2 == 0)
+                                ? startSideTpG
+                                : (startSideTpG == "left" ? "right" : "left");
+                            if (side != expectedSideTpG) {
+                                AddLog(string.Format("泳道{0} {1}侧 {2} 忽略 (= 当前棒应在{3}侧完成, 接力 side 守卫)",
+                                    lane,
+                                    side == "left" ? "左" : "右",
+                                    isMbSubstitute ? "MB代替" : "触板",
+                                    expectedSideTpG == "left" ? "左" : "右"));
+                                break;
+                            }
+                        }
+
                         // 2026-05-13 全开模式：所有触板信号都认可为正式成绩，绕过状态机
                         // 2026-05-26 撤回上一版 Closed-accept 改动: 该改动导致段间的杂散触板帧被
                         //   误记为新分段 → 触发 Direction flip → 倒计时结束后开错端设备.
