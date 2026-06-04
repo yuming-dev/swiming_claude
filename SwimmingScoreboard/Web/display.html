@@ -73,31 +73,35 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 /* 2026-05-27 空道(本组无运动员): 半透明显示, 保留道次号让屏幕道数齐整 */
 .lane-row.empty { opacity: 0.28; }
 /* 2026-05-31 列宽改 flex 比例自动撑满整行 (原 vw 固定宽度只能覆盖 ~60% 屏宽).
-   比例: 个人项 5 : 5 : 14 : 12 : 14 : 8 (道/名次/姓名/代表队/成绩/备注)
-        接力项 5 : 5 : 8(代表队窄) : 36(姓名宽 同列 4 棒) : 14 : 8 */
-.lane-row .lane-num { flex: 5; min-width: 0; font-size: calc(2.5vh * var(--fs) * var(--fs-info)); font-weight: bold; color: var(--c-lane); font-family: var(--ff-lane); text-align: center; margin-right: 1vw; }
-.lane-row .swimmer-name { flex: 14; min-width: 0; font-size: calc(2.9vh * var(--fs) * var(--fs-info)); font-weight: bold; color: var(--c-name); font-family: var(--ff-name); white-space: nowrap; overflow: hidden; margin-right: 1.5vw; text-align: center; }
-.lane-row .swimmer-team { flex: 12; min-width: 0; font-size: calc(2.9vh * var(--fs) * var(--fs-info)); color: var(--c-team); font-family: var(--ff-team); white-space: nowrap; overflow: hidden; margin-right: 1.5vw; text-align: center; }
-.lane-row .result-time { flex: 14; min-width: 0; font-size: calc(2.9vh * var(--fs) * var(--fs-info)); font-weight: bold; text-align: center; color: var(--c-result); font-family: var(--ff-result); margin-right: 1.5vw; }
-.lane-row .rank { flex: 5; min-width: 0; font-size: calc(2.9vh * var(--fs) * var(--fs-info)); font-weight: bold; text-align: center; color: var(--c-rank); font-family: var(--ff-rank); margin-right: 1vw; }
+   2026-06-04 加 '组别' 列 (区分并组中 不同 AgeCategory), 7 列重新调比例
+   比例: 个人项 4 : 4 : 11 : 9 : 8 : 13 : 7 (道/名次/姓名/代表队/组别/成绩/备注)
+        接力项 4 : 4 : 6(代表队窄) : 28(姓名宽 同列 4 棒) : 8 : 13 : 7 */
+.lane-row .lane-num { flex: 4; min-width: 0; font-size: calc(2.5vh * var(--fs) * var(--fs-info)); font-weight: bold; color: var(--c-lane); font-family: var(--ff-lane); text-align: center; margin-right: 1vw; }
+.lane-row .swimmer-name { flex: 11; min-width: 0; font-size: calc(2.9vh * var(--fs) * var(--fs-info)); font-weight: bold; color: var(--c-name); font-family: var(--ff-name); white-space: nowrap; overflow: hidden; margin-right: 1vw; text-align: center; }
+.lane-row .swimmer-team { flex: 9; min-width: 0; font-size: calc(2.9vh * var(--fs) * var(--fs-info)); color: var(--c-team); font-family: var(--ff-team); white-space: nowrap; overflow: hidden; margin-right: 1vw; text-align: center; }
+/* 2026-06-04 组别列: 字号略小 (2.4vh, "9-11岁组" 也能放下), 用 --c-team / --ff-team (可独立调) */
+.lane-row .age-group { flex: 8; min-width: 0; font-size: calc(2.4vh * var(--fs) * var(--fs-info)); color: var(--c-team); font-family: var(--ff-team); white-space: nowrap; overflow: hidden; margin-right: 1vw; text-align: center; }
+.lane-row .result-time { flex: 13; min-width: 0; font-size: calc(2.9vh * var(--fs) * var(--fs-info)); font-weight: bold; text-align: center; color: var(--c-result); font-family: var(--ff-result); margin-right: 1vw; }
+.lane-row .rank { flex: 4; min-width: 0; font-size: calc(2.9vh * var(--fs) * var(--fs-info)); font-weight: bold; text-align: center; color: var(--c-rank); font-family: var(--ff-rank); margin-right: 1vw; }
 /* 2026-06-04 1/2/3 名 不再用 金/银/铜 色, 与 4+ 同色 (= var(--c-rank)).
    .gold/.silver/.bronze class 仍由 JS 写入, 但 CSS 这里强制覆盖为统一色 */
 .lane-row .rank.gold,
 .lane-row .rank.silver,
 .lane-row .rank.bronze { color: var(--c-rank); }
-.lane-row .remark { flex: 8; min-width: 0; font-size: calc(2.9vh * var(--fs) * var(--fs-info)); color: var(--c-remark); font-family: var(--ff-remark); text-align: center; }
+.lane-row .remark { flex: 7; min-width: 0; font-size: calc(2.9vh * var(--fs) * var(--fs-info)); color: var(--c-remark); font-family: var(--ff-remark); text-align: center; }
 
-/* 比赛视图列序:
-   个人项: 道次 → 名次 → 姓名 → 代表队 → 成绩 → 备注
-   接力项: 道次 → 名次 → 代表队(窄) → 姓名(宽, 4 棒名同列) → 成绩 → 备注 */
+/* 比赛视图列序 (= flex order):
+   个人项: 道次 → 名次 → 姓名 → 代表队 → 组别 → 成绩 → 备注
+   接力项: 道次 → 名次 → 代表队(窄) → 姓名(宽, 4 棒名同列) → 组别 → 成绩 → 备注 */
 .lane-row .lane-num     { order: 1; }
 .lane-row .rank         { order: 2; }
 .lane-row .swimmer-name { order: 3; }
 .lane-row .swimmer-team { order: 4; }
-.lane-row .result-time  { order: 5; }
-.lane-row .remark       { order: 6; }
-.lane-row.relay .swimmer-name { flex: 8; }   /* relay 时 swimmer-name DOM 实际承载代表队 (窄) */
-.lane-row.relay .swimmer-team { flex: 36; white-space: normal; line-height: 1.25; text-align: center; }   /* relay 时 swimmer-team DOM 承载 4 棒+姓名, 居中 */
+.lane-row .age-group    { order: 5; }
+.lane-row .result-time  { order: 6; }
+.lane-row .remark       { order: 7; }
+.lane-row.relay .swimmer-name { flex: 6; }   /* relay 时 swimmer-name DOM 实际承载代表队 (窄) */
+.lane-row.relay .swimmer-team { flex: 28; white-space: normal; line-height: 1.25; text-align: center; }   /* relay 时 swimmer-team DOM 承载 4 棒+姓名, 居中 */
 
 /* 2026-06-01 本组成绩视图行高固定: 少人比赛时不再把每行拉得过高失真.
    单行 ~7.5vh, 10 行可一屏显示; 超过 10 行 renderHeatResult 自动翻页 (复用 getBigDisplayPageIntervalMs).
@@ -189,14 +193,15 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
         </div>
         <div class="running-time" id="runningTime">0.0</div>
     </div>
-    <!-- 2026-06-02 静态表头改用 flex 比例 + 列序 (与 .lane-row order:1..6 一致): 道次/名次/姓名/代表队/成绩/备注 -->
+    <!-- 2026-06-04 静态表头改 7 列 (加 组别), 与 .lane-row 同款 order/flex 比例 -->
     <div class="lanes-header">
-        <div style="flex:5;min-width:0;text-align:center;margin-right:1vw;">道次</div>
-        <div style="flex:5;min-width:0;text-align:center;margin-right:1vw;">名次</div>
-        <div style="flex:14;min-width:0;text-align:center;margin-right:1.5vw;">姓名</div>
-        <div style="flex:12;min-width:0;text-align:center;margin-right:1.5vw;">代表队</div>
-        <div style="flex:14;min-width:0;text-align:center;margin-right:1.5vw;">成绩</div>
-        <div style="flex:8;min-width:0;text-align:center;">备注</div>
+        <div style="flex:4;min-width:0;text-align:center;margin-right:1vw;">道次</div>
+        <div style="flex:4;min-width:0;text-align:center;margin-right:1vw;">名次</div>
+        <div style="flex:11;min-width:0;text-align:center;margin-right:1vw;">姓名</div>
+        <div style="flex:9;min-width:0;text-align:center;margin-right:1vw;">代表队</div>
+        <div style="flex:8;min-width:0;text-align:center;margin-right:1vw;">组别</div>
+        <div style="flex:13;min-width:0;text-align:center;margin-right:1vw;">成绩</div>
+        <div style="flex:7;min-width:0;text-align:center;">备注</div>
     </div>
     <div class="lanes-container" id="lanesContainer"></div>
 </div>
@@ -1471,28 +1476,29 @@ function _ensureRaceRowsDom() {
     laneDisplayState = {};
 
     // 表头
-    // 2026-06-01 列序与正文 lane-row 一致 (名次 紧跟 道次):
-    //   个人: 道次 / 名次 / 姓名 / 代表队 / 成绩 / 备注
-    //   接力: 道次 / 名次 / 代表队(窄8vw) / 姓名(宽36vw, 同列显 4 棒+姓名) / 成绩 / 备注
+    // 2026-06-04 加 "组别" 列 (区分并组中 不同 AgeCategory); 7 列重新调比例 (与下方 .lane-row 同步)
+    //   个人: 道次4 / 名次4 / 姓名11 / 代表队9 / 组别8 / 成绩13 / 备注7
+    //   接力: 道次4 / 名次4 / 代表队6 / 姓名(4棒)28 / 组别8 / 成绩13 / 备注7
     var header = document.querySelector('.lanes-header');
     if (header) {
-        // 2026-05-31 flex 比例与下方 .lane-row 保持一致, 撑满整行, 列居中
         if (relay) {
             header.innerHTML =
-                '<div style="flex:5;min-width:0;text-align:center;margin-right:1vw;font-size:'+fs+';">道次</div>' +
-                '<div style="flex:5;min-width:0;text-align:center;margin-right:1vw;font-size:'+fs+';">名次</div>' +
-                '<div style="flex:8;min-width:0;text-align:center;margin-right:1.5vw;font-size:'+fs+';">代表队</div>' +
-                '<div style="flex:36;min-width:0;text-align:center;margin-right:1.5vw;font-size:'+fs+';">姓名</div>' +
-                '<div style="flex:14;min-width:0;text-align:center;margin-right:1.5vw;font-size:'+fs+';">成绩</div>' +
-                '<div style="flex:8;min-width:0;text-align:center;font-size:'+fs+';">备注</div>';
+                '<div style="flex:4;min-width:0;text-align:center;margin-right:1vw;font-size:'+fs+';">道次</div>' +
+                '<div style="flex:4;min-width:0;text-align:center;margin-right:1vw;font-size:'+fs+';">名次</div>' +
+                '<div style="flex:6;min-width:0;text-align:center;margin-right:1vw;font-size:'+fs+';">代表队</div>' +
+                '<div style="flex:28;min-width:0;text-align:center;margin-right:1vw;font-size:'+fs+';">姓名</div>' +
+                '<div style="flex:8;min-width:0;text-align:center;margin-right:1vw;font-size:'+fs+';">组别</div>' +
+                '<div style="flex:13;min-width:0;text-align:center;margin-right:1vw;font-size:'+fs+';">成绩</div>' +
+                '<div style="flex:7;min-width:0;text-align:center;font-size:'+fs+';">备注</div>';
         } else {
             header.innerHTML =
-                '<div style="flex:5;min-width:0;text-align:center;margin-right:1vw;font-size:'+fs+';">道次</div>' +
-                '<div style="flex:5;min-width:0;text-align:center;margin-right:1vw;font-size:'+fs+';">名次</div>' +
-                '<div style="flex:14;min-width:0;text-align:center;margin-right:1.5vw;font-size:'+fs+';">姓名</div>' +
-                '<div style="flex:12;min-width:0;text-align:center;margin-right:1.5vw;font-size:'+fs+';">代表队</div>' +
-                '<div style="flex:14;min-width:0;text-align:center;margin-right:1.5vw;font-size:'+fs+';">成绩</div>' +
-                '<div style="flex:8;min-width:0;text-align:center;font-size:'+fs+';">备注</div>';
+                '<div style="flex:4;min-width:0;text-align:center;margin-right:1vw;font-size:'+fs+';">道次</div>' +
+                '<div style="flex:4;min-width:0;text-align:center;margin-right:1vw;font-size:'+fs+';">名次</div>' +
+                '<div style="flex:11;min-width:0;text-align:center;margin-right:1vw;font-size:'+fs+';">姓名</div>' +
+                '<div style="flex:9;min-width:0;text-align:center;margin-right:1vw;font-size:'+fs+';">代表队</div>' +
+                '<div style="flex:8;min-width:0;text-align:center;margin-right:1vw;font-size:'+fs+';">组别</div>' +
+                '<div style="flex:13;min-width:0;text-align:center;margin-right:1vw;font-size:'+fs+';">成绩</div>' +
+                '<div style="flex:7;min-width:0;text-align:center;font-size:'+fs+';">备注</div>';
         }
     }
 
@@ -1511,6 +1517,7 @@ function _ensureRaceRowsDom() {
             '<div class="lane-num"></div>' +
             '<div class="swimmer-name"></div>' +
             '<div class="swimmer-team"></div>' +
+            '<div class="age-group"></div>' +     // 2026-06-04 加 组别 列
             '<div class="result-time"></div>' +
             '<div class="rank"></div>' +
             '<div class="remark"></div>';
@@ -1521,12 +1528,14 @@ function _ensureRaceRowsDom() {
             laneNum: row.children[0],
             nameEl: row.children[1],
             teamEl: row.children[2],
-            resultEl: row.children[3],
-            rankEl: row.children[4],
-            remarkEl: row.children[5],
+            ageGroupEl: row.children[3],         // 2026-06-04 新增 ref
+            resultEl: row.children[4],
+            rankEl: row.children[5],
+            remarkEl: row.children[6],
             lastClass: '', lastResult: null, lastResultColor: '', lastRank: null, lastRankClass: '',
             lastRemark: null, lastRemarkColor: '',
             lastNameHtml: null, lastTeamHtml: null,
+            lastAgeGroup: null,
             lastLaneNum: null
         });
     }
@@ -1607,6 +1616,9 @@ function _refreshRaceRows() {
         }
         if (ui.lastNameHtml !== col1Html) { ui.nameEl.innerHTML = col1Html; ui.lastNameHtml = col1Html; }
         if (ui.lastTeamHtml !== col2Html) { ui.teamEl.innerHTML = col2Html; ui.lastTeamHtml = col2Html; }
+        // 2026-06-04 组别列: 显 swimmer.ageGroup (= 服务器 sw.AgeCategory). 并组时区分不同组别
+        var ageStr = sw.ageGroup || '';
+        if (ui.lastAgeGroup !== ageStr && ui.ageGroupEl) { ui.ageGroupEl.textContent = ageStr; ui.lastAgeGroup = ageStr; }
 
         // 成绩 / 名次
         // 2026-06-04 TRI 同 DSQ 一样接收硬件数据 + 显成绩, 但 名次列 始终为空 (不参与排名)
@@ -1721,23 +1733,22 @@ function renderHeatResult() {
     document.getElementById('runningTime').textContent = '';
 
     // 成绩排名表头
-    // 2026-06-02 改用 flex 比例 (与 .lane-row 一致), 不再用 width:vw, 确保表头跟数据列完全对齐
-    //   个人项: 道次5 / 名次5 / 姓名14 / 代表队12 / 成绩14 / 备注8
-    //   接力项: 道次5 / 名次5 / 代表队8 / 姓名36 / 成绩14 / 备注8
+    // 2026-06-04 与 比赛视图 同款 7 列 flex 比例 (加 组别 列)
     _heatResultRelay = isRelayEvent();
-    var hf1 = _heatResultRelay ? 8 : 14;
-    var hf2 = _heatResultRelay ? 36 : 12;
+    var hf1 = _heatResultRelay ? 6 : 11;
+    var hf2 = _heatResultRelay ? 28 : 9;
     var hdr1 = _heatResultRelay ? '代表队' : '姓名';
     var hdr2 = _heatResultRelay ? '姓名' : '代表队';
     var header = document.querySelector('.lanes-header');
     if (header) {
         header.innerHTML =
-            '<div style="flex:5;min-width:0;text-align:center;margin-right:1vw;">道次</div>' +
-            '<div style="flex:5;min-width:0;text-align:center;margin-right:1vw;">名次</div>' +
-            '<div style="flex:' + hf1 + ';min-width:0;text-align:center;margin-right:1.5vw;">' + hdr1 + '</div>' +
-            '<div style="flex:' + hf2 + ';min-width:0;text-align:center;margin-right:1.5vw;">' + hdr2 + '</div>' +
-            '<div style="flex:14;min-width:0;text-align:center;margin-right:1.5vw;">成绩</div>' +
-            '<div style="flex:8;min-width:0;text-align:center;">备注</div>';
+            '<div style="flex:4;min-width:0;text-align:center;margin-right:1vw;">道次</div>' +
+            '<div style="flex:4;min-width:0;text-align:center;margin-right:1vw;">名次</div>' +
+            '<div style="flex:' + hf1 + ';min-width:0;text-align:center;margin-right:1vw;">' + hdr1 + '</div>' +
+            '<div style="flex:' + hf2 + ';min-width:0;text-align:center;margin-right:1vw;">' + hdr2 + '</div>' +
+            '<div style="flex:8;min-width:0;text-align:center;margin-right:1vw;">组别</div>' +
+            '<div style="flex:13;min-width:0;text-align:center;margin-right:1vw;">成绩</div>' +
+            '<div style="flex:7;min-width:0;text-align:center;">备注</div>';
     }
 
     // 仅保留有运动员的泳道（空泳道占位条目不进成绩榜）
@@ -1795,10 +1806,12 @@ function showHeatResultPage() {
         var c1 = relay ? (s.country||'') : (s.name||'');
         var c2 = relay ? (s.name||'') : (s.country||'');
         var remarkStyle = remarkColor ? (' style="color:' + remarkColor + ';"') : '';
+        // 2026-06-04 加 age-group 列, 与 比赛视图 7 列布局一致
         row.innerHTML =
             '<div class="rank ' + rankClass + '">' + rankText + '</div>' +
             '<div class="swimmer-name">' + c1 + '</div>' +
             '<div class="swimmer-team">' + c2 + '</div>' +
+            '<div class="age-group">' + (s.ageGroup || '') + '</div>' +
             '<div class="lane-num">' + s.lane + '</div>' +
             '<div class="result-time">' + resultText + '</div>' +
             '<div class="remark"' + remarkStyle + '>' + remarkText + '</div>';
@@ -1855,22 +1868,22 @@ function renderPublishedResult(pubData) {
     var rankSize = laneCount <= 8 ? 3.5 : 2.9;
 
     // 成绩排名表头
-    // 2026-06-02 改用 flex 比例 (与 .lane-row 一致), 与 renderHeatResult 同款.
-    //   字号由 CSS --fs * --fs-info 控制, 不再每格单独写 fontSize, 避免与表头错位.
+    // 2026-06-04 与 比赛视图 同款 7 列 flex (加 组别), 与 renderHeatResult 同款
     var pubRelay = (pubData.eventName||'').indexOf('接力') >= 0;
-    var pf1 = pubRelay ? 8 : 14;
-    var pf2 = pubRelay ? 36 : 12;
+    var pf1 = pubRelay ? 6 : 11;
+    var pf2 = pubRelay ? 28 : 9;
     var ph1 = pubRelay ? '代表队' : '姓名';
     var ph2 = pubRelay ? '姓名' : '代表队';
     var header = document.querySelector('.lanes-header');
     if (header) {
         header.innerHTML =
-            '<div style="flex:5;min-width:0;text-align:center;margin-right:1vw;">道次</div>' +
-            '<div style="flex:5;min-width:0;text-align:center;margin-right:1vw;">名次</div>' +
-            '<div style="flex:' + pf1 + ';min-width:0;text-align:center;margin-right:1.5vw;">' + ph1 + '</div>' +
-            '<div style="flex:' + pf2 + ';min-width:0;text-align:center;margin-right:1.5vw;">' + ph2 + '</div>' +
-            '<div style="flex:14;min-width:0;text-align:center;margin-right:1.5vw;">成绩</div>' +
-            '<div style="flex:8;min-width:0;text-align:center;">备注</div>';
+            '<div style="flex:4;min-width:0;text-align:center;margin-right:1vw;">道次</div>' +
+            '<div style="flex:4;min-width:0;text-align:center;margin-right:1vw;">名次</div>' +
+            '<div style="flex:' + pf1 + ';min-width:0;text-align:center;margin-right:1vw;">' + ph1 + '</div>' +
+            '<div style="flex:' + pf2 + ';min-width:0;text-align:center;margin-right:1vw;">' + ph2 + '</div>' +
+            '<div style="flex:8;min-width:0;text-align:center;margin-right:1vw;">组别</div>' +
+            '<div style="flex:13;min-width:0;text-align:center;margin-right:1vw;">成绩</div>' +
+            '<div style="flex:7;min-width:0;text-align:center;">备注</div>';
     }
 
     // 同样过滤掉空泳道占位条目
@@ -1904,10 +1917,12 @@ function renderPublishedResult(pubData) {
         var pc1 = pubRelay ? (s.country||'') : (s.name||'');
         var pc2 = pubRelay ? (s.name||'') : (s.country||'');
         var pubRemarkStyle = remarkColor ? (' style="color:' + remarkColor + ';"') : '';
+        // 2026-06-04 加 age-group 列, 与 比赛视图 7 列布局一致
         row.innerHTML =
             '<div class="rank ' + rankClass + '">' + rankText + '</div>' +
             '<div class="swimmer-name">' + pc1 + '</div>' +
             '<div class="swimmer-team">' + pc2 + '</div>' +
+            '<div class="age-group">' + (s.ageGroup || '') + '</div>' +
             '<div class="lane-num">' + s.lane + '</div>' +
             '<div class="result-time">' + pubResultText + '</div>' +
             '<div class="remark"' + pubRemarkStyle + '>' + remarkText + '</div>';
