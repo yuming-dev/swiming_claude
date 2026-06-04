@@ -1922,6 +1922,11 @@ namespace SwimmingScoreboard
                 case "SHOW_RECORDS": BroadcastDisplayMode("SHOW_RECORDS"); break;
                 case "SHOW_REFEREES": BroadcastDisplayMode("SHOW_REFEREES"); break;
                 case "SHOW_AWARDS": BroadcastDisplayMode("SHOW_AWARDS"); break;
+                // 2026-06-04 PPT 播放: 远端触发主控 PC 上弹 文件选择框 + 启动 PowerPoint /s 放映
+                //   注意: 文件对话框只能在 UI 线程弹, 这里 Dispatcher.Invoke 切回 UI 线程
+                case "PLAY_PPT":
+                    Dispatcher.Invoke(new Action(() => { try { PlayPpt_Click(null, null); } catch (Exception ex) { AddLog("远端 PPT 播放失败: " + ex.Message); } }));
+                    break;
                 case "SHOW_WELCOME": BroadcastDisplayMode("SHOW_WELCOME"); break;
                 case "SHOW_PAUSE": BroadcastDisplayMode("SHOW_PAUSE"); break;
                 case "SHOW_EVENT_LIST": BroadcastDisplayMode("SHOW_EVENT_LIST"); break;
@@ -14509,6 +14514,136 @@ namespace SwimmingScoreboard
             if (RecordsHiddenBtnText != null) {
                 RecordsHiddenBtnText.Text = _displayStyleRecordsHidden ? "记录已隐藏 (点击显示)" : "记录显示 (点击隐藏)";
             }
+        }
+
+        // 2026-06-04 PPT 播放 (推送到 display.html):
+        //   1. 弹文件选择框
+        //   2. PowerPoint COM (后台) 把每张幻灯片导出为 PNG (1920×1080)
+        //   3. 弹一个"PPT 控制"小窗 (上一页/下一页/自动 5s/关闭), 每翻一页就用现有 SHOW_MEDIA
+        //      通道把那张 PNG 推到 display.html, 操作员控翻页节奏
+        //   PowerPoint 没装 → 弹错误提示 (不再走旧版 主控 PC 本地放映 兜底)
+        private void PlayPpt_Click(object sender, RoutedEventArgs e) {
+            var dlg = new Microsoft.Win32.OpenFileDialog {
+                Title = "选择 PPT 文件 (将逐页推送到大屏 display.html)",
+                Filter = "PowerPoint 文件 (*.ppt;*.pptx;*.pps;*.ppsx)|*.ppt;*.pptx;*.pps;*.ppsx|所有文件 (*.*)|*.*"
+            };
+            if (dlg.ShowDialog() != true) return;
+            string path = dlg.FileName;
+            if (!File.Exists(path)) { MessageBox.Show("文件不存在: " + path, "错误"); return; }
+
+            string outDir = IOPath.Combine(IOPath.GetTempPath(), "swim_ppt_" + DateTime.Now.Ticks);
+            try { Directory.CreateDirectory(outDir); } catch { }
+            AddLog("PPT 转换中: " + IOPath.GetFileName(path));
+
+            List<string> slides;
+            try {
+                slides = ConvertPptToPngSlides(path, outDir);
+            } catch (Exception ex) {
+                MessageBox.Show("PPT 转换失败 (主控 PC 需要安装 Microsoft PowerPoint):\n" + ex.Message,
+                    "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                AddLog("PPT 转换失败: " + ex.Message);
+                return;
+            }
+            if (slides == null || slides.Count == 0) {
+                MessageBox.Show("没有从 PPT 中提取出任何幻灯片", "错误");
+                return;
+            }
+            AddLog(string.Format("PPT 转换完成: {0} 页 → {1}", slides.Count, outDir));
+            OpenPptSlideControlWindow(slides, IOPath.GetFileName(path));
+        }
+
+        private List<string> ConvertPptToPngSlides(string pptPath, string outDir) {
+            var result = new List<string>();
+            Type pptType = Type.GetTypeFromProgID("PowerPoint.Application");
+            if (pptType == null) throw new InvalidOperationException("未注册 PowerPoint.Application COM (PowerPoint 未安装)");
+            dynamic ppt = Activator.CreateInstance(pptType);
+            try {
+                // MsoTriState: msoTrue=-1, msoFalse=0; 不引 Office.Interop 程序集, 直接用 int
+                // PowerPoint.Application.Visible 不能强行设 False, 这里用 WithWindow=False 让 Presentation 自身窗口隐藏
+                dynamic pres = ppt.Presentations.Open(pptPath,
+                    /*ReadOnly*/    -1,   // msoTrue
+                    /*Untitled*/     0,   // msoFalse
+                    /*WithWindow*/   0);  // msoFalse — 隐藏 Presentation 窗口
+                try {
+                    int count = (int)pres.Slides.Count;
+                    for (int i = 1; i <= count; i++) {
+                        string png = IOPath.Combine(outDir, "slide_" + i.ToString("D3") + ".png");
+                        pres.Slides[i].Export(png, "PNG", 1920, 1080);
+                        if (File.Exists(png)) result.Add(png);
+                    }
+                } finally {
+                    try { pres.Close(); } catch { }
+                }
+            } finally {
+                try { ppt.Quit(); } catch { }
+            }
+            return result;
+        }
+
+        private void OpenPptSlideControlWindow(List<string> slides, string fileName) {
+            int idx = 0;
+            System.Windows.Threading.DispatcherTimer autoTimer = null;
+
+            var win = new Window {
+                Title = "PPT 放映控制 — " + fileName,
+                Width = 520, Height = 180,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner, Owner = this, ResizeMode = ResizeMode.NoResize,
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F8FAFC"))
+            };
+            var sp = new StackPanel { Margin = new Thickness(16) };
+            var status = new TextBlock {
+                Text = string.Format("第 1 / {0} 页 — {1}", slides.Count, fileName),
+                FontSize = 15, FontWeight = FontWeights.Bold,
+                Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E40AF")),
+                Margin = new Thickness(0, 0, 0, 12)
+            };
+            sp.Children.Add(status);
+
+            Action pushCurrent = () => {
+                BroadcastMediaToDisplay(slides[idx], "image", "image/png", "contain", false, false, true);
+                status.Text = string.Format("第 {0} / {1} 页 — {2}", idx + 1, slides.Count, fileName);
+            };
+
+            var row = new StackPanel { Orientation = Orientation.Horizontal };
+            var prev = new Button { Content = "← 上一页", Padding = new Thickness(14, 6, 14, 6), Margin = new Thickness(0, 0, 8, 0),
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
+            var next = new Button { Content = "下一页 →", Padding = new Thickness(14, 6, 14, 6), Margin = new Thickness(0, 0, 8, 0),
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6")), Foreground = Brushes.White, FontWeight = FontWeights.Bold, BorderThickness = new Thickness(0) };
+            var auto = new Button { Content = "▶ 自动 5s", Padding = new Thickness(14, 6, 14, 6), Margin = new Thickness(0, 0, 8, 0),
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#22C55E")), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
+            var close = new Button { Content = "结束放映", Padding = new Thickness(14, 6, 14, 6),
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#DC2626")), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
+
+            prev.Click += (s, e) => { if (idx > 0) { idx--; pushCurrent(); } };
+            next.Click += (s, e) => { if (idx < slides.Count - 1) { idx++; pushCurrent(); } };
+            auto.Click += (s, e) => {
+                if (autoTimer == null) {
+                    autoTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
+                    autoTimer.Tick += (s2, e2) => {
+                        if (idx < slides.Count - 1) { idx++; pushCurrent(); }
+                        else { autoTimer.Stop(); autoTimer = null; auto.Content = "▶ 自动 5s"; }
+                    };
+                    autoTimer.Start();
+                    auto.Content = "■ 停止自动";
+                } else {
+                    autoTimer.Stop(); autoTimer = null;
+                    auto.Content = "▶ 自动 5s";
+                }
+            };
+            close.Click += (s, e) => {
+                if (autoTimer != null) { autoTimer.Stop(); autoTimer = null; }
+                // 切回比赛视图 (display.html 收到任意 SHOW_* 会自动隐藏 media 层)
+                try { BroadcastDisplayMode("SHOW_LIVE_RACE"); } catch { }
+                AddLog("PPT 放映结束: " + fileName);
+                win.Close();
+            };
+
+            row.Children.Add(prev); row.Children.Add(next); row.Children.Add(auto); row.Children.Add(close);
+            sp.Children.Add(row);
+            win.Content = sp;
+
+            pushCurrent();    // 推第 1 页
+            win.Show();       // 非模态: 操作员可在 PPT 控制和主窗口之间切
         }
 
         // 2026-06-01 打开"大屏样式"远程控制窗口 (底色/字号/9 处文字), 改动实时推送到所有客户端

@@ -460,6 +460,8 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
                 </div>
                 <!-- 2026-06-03 切换大屏右上角 WR/CR 横条 显示/隐藏 (走 SET_DISPLAY_STYLE 通道) -->
                 <button id="recordsHiddenBtn" class="action-btn small" style="background:#475569;margin-top:6px;" onclick="toggleRecordsHidden()"><span class="ico">&#xED1A;</span><span id="recordsHiddenBtnText">记录显示</span></button>
+                <!-- 2026-06-04 PPT 播放 (远程触发主控 PC 上弹 文件选择框 + 启动 PowerPoint /s 放映) -->
+                <button class="action-btn small" style="background:#FB923C;margin-top:6px;" onclick="sendDisplay('PLAY_PPT')"><span class="ico">&#xE786;</span>PPT 播放</button>
                 <button class="action-btn small" style="background:#F59E0B;margin-top:6px;" onclick="publishResult()"><span class="ico">&#xE8A5;</span>成绩发布</button>
             </div>
         </div>

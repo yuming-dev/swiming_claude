@@ -62,6 +62,8 @@ h1 { text-align: center; margin-bottom: 20px; font-size: 20px; }
     <button class="btn" style="background:#F59E0B;color:#000;grid-column:span 3;" onclick="openPublishDialog()">成绩发布（选择已完赛项目发布到大屏）</button>
     <!-- 2026-06-03 大屏右上角 WR/CR 横条 显示/隐藏 切换 -->
     <button id="recordsHiddenBtn" class="btn" style="background:#475569;color:white;grid-column:span 3;" onclick="toggleRecordsHidden()">记录显示 (点击隐藏 WR/CR)</button>
+    <!-- 2026-06-04 PPT 播放 (远程触发主控 PC 上弹 文件选择框 + 启动 PowerPoint /s 放映) -->
+    <button class="btn" style="background:#FB923C;color:white;grid-column:span 3;" onclick="send('PLAY_PPT')">📊 PPT 播放 (主控 PC 选文件)</button>
     <!-- 2026-06-01 远程控制大屏样式: 底色 / 字号 / 9 处文字颜色字体 -->
     <button class="btn" style="background:#0ea5e9;color:white;grid-column:span 3;" onclick="openDisplayStyleDialog()">🎨 大屏样式 (底色 / 字号 / 文字)</button>
 </div>

@@ -228,7 +228,8 @@
       "PowerShell(& 'C:\\\\代码\\\\swiming_claude\\\\build_installer.ps1' 2>&1 | Select-Object -Last 22)",
       "PowerShell(& 'C:\\\\代码\\\\swiming_claude\\\\tools\\\\import_competition.ps1' 2>&1 | Select-Object -Last 30)",
       "PowerShell(& 'C:\\\\代码\\\\swiming_claude\\\\tools\\\\import_competition.ps1' 2>&1 | Select-Object -Last 25)",
-      "PowerShell(Get-Process *)"
+      "PowerShell(Get-Process *)",
+      "Bash(\"/c/Program Files/Microsoft Visual Studio/2022/Community/MSBuild/Current/Bin/MSBuild.exe\" //nologo //v:m //p:Configuration=Release //p:Platform=x64 SwimmingScoreboard/SwimmingScoreboard.csproj)"
     ]
   }
 }
