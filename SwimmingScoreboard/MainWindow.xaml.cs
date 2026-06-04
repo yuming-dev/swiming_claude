@@ -8046,14 +8046,17 @@ namespace SwimmingScoreboard
                 rowUI.ReactionText.Foreground = rtRed ? _brushRed : Brushes.White;
 
                 // 备注
-                // 备注栏：DSQ/DNS/DNF 优先显示；否则显示破/平纪录标识（如 WR / =AR / WR/NR）
+                // 备注栏：DSQ/DNS/DNF 优先显示；TRI 试游 同款显示；否则显示破/平纪录标识（如 WR / =AR / WR/NR）
+                // 2026-06-04 TRI 状态下 备注栏显 "TRI" (红色, 与 DSQ 同款); 但 TRI 不进 isDQ, swimmer 仍正常显成绩
                 string remark;
                 if (isDQ) remark = status;
+                else if (status == "TRI") remark = "TRI";
                 else if (result != null && !string.IsNullOrEmpty(result.RecordNote)) remark = result.RecordNote;
                 else remark = "";
                 rowUI.RemarkText.Text = remark;
-                // 破纪录标记用金色高亮提示
-                rowUI.RemarkText.Foreground = (!isDQ && result != null && !string.IsNullOrEmpty(result.RecordNote)) ? _brushAmber : _brushRed;
+                // 破纪录金色高亮; 其它 (DSQ/DNS/DNF/TRI) 红色
+                bool hasRecordNote = !isDQ && status != "TRI" && result != null && !string.IsNullOrEmpty(result.RecordNote);
+                rowUI.RemarkText.Foreground = hasRecordNote ? _brushAmber : _brushRed;
 
                 // 2026-05-13 设备测试模式：所有泳道（不论是否有运动员）都把每端最近触发的设备时间贴到行上，
                 // 左端事件覆盖到 NameText，右端事件覆盖到 DisplayTimeText（与"空泳道"分支同步），
