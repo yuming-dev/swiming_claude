@@ -1799,6 +1799,16 @@ namespace SwimmingScoreboard
                         int laneNum = (int)data["lane"];
                         var lState = _laneDeviceStates.FirstOrDefault(s => s.Lane == laneNum);
                         if (lState != null && lState.LeftManualEnabled) {
+                            // 2026-06-04 接力: 左手动 TP 只在当前棒预期完成侧=左时推进 (= 防误推进, 与硬件 TP/MB 守卫对齐)
+                            if (_isRelay && _laneCloseSettings != null) {
+                                int afterLapMl = lState.CurrentLap + 1;
+                                string startMl = _laneCloseSettings.StartPosition;
+                                string expectedSideMl = (afterLapMl % 2 == 0) ? startMl : (startMl == "left" ? "right" : "left");
+                                if (expectedSideMl != "left") {
+                                    AddLog(string.Format("泳道{0} 左手动触板忽略 (= 当前棒应在{1}侧完成, 接力 side 守卫)", laneNum, expectedSideMl == "left" ? "左" : "右"));
+                                    break;
+                                }
+                            }
                             lState.LeftManualTouchTime = _runningTime;
                             SaveManualTouchToSplit(laneNum, _runningTime);
                             LogRawTimingData(laneNum, "ManualTouchLeft", _runningTime, "left");
@@ -1828,6 +1838,16 @@ namespace SwimmingScoreboard
                         int laneNum = (int)data["lane"];
                         var lState = _laneDeviceStates.FirstOrDefault(s => s.Lane == laneNum);
                         if (lState != null && lState.RightManualEnabled) {
+                            // 2026-06-04 接力: 右手动 TP 只在当前棒预期完成侧=右时推进
+                            if (_isRelay && _laneCloseSettings != null) {
+                                int afterLapMr = lState.CurrentLap + 1;
+                                string startMr = _laneCloseSettings.StartPosition;
+                                string expectedSideMr = (afterLapMr % 2 == 0) ? startMr : (startMr == "left" ? "right" : "left");
+                                if (expectedSideMr != "right") {
+                                    AddLog(string.Format("泳道{0} 右手动触板忽略 (= 当前棒应在{1}侧完成, 接力 side 守卫)", laneNum, expectedSideMr == "left" ? "左" : "右"));
+                                    break;
+                                }
+                            }
                             lState.RightManualTouchTime = _runningTime;
                             SaveManualTouchToSplit(laneNum, _runningTime);
                             LogRawTimingData(laneNum, "ManualTouchRight", _runningTime, "right");
