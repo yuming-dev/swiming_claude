@@ -3617,6 +3617,28 @@ namespace SwimmingScoreboard
                         // "已记录过一次 → 走备用"的原语义。
                         if (sbStatus != DeviceStatus.Touched) sbOpen = true;
                         if (!sbOpen && sbStatus == DeviceStatus.Touched) {
+                            // 2026-06-03 接力赛多次 SB (= Touched 状态下又按) 也喂 calculator — LastSbSwim 取最近一次.
+                            //   同主路径用 side 反推 handoffLap. 允许 currentLap=0 + 非 StartPosition (= 4×50m 棒 2 抢跳).
+                            if (_isRelay && _laneCloseSettings != null && _laneCloseSettings.ReactionTimeEnabled
+                                && (laneState.CurrentLap > 0 || side != _laneCloseSettings.StartPosition)
+                                && _relayReactionCalc != null && !string.IsNullOrEmpty(side)) {
+                                int totalLapsSbB = GetTotalLaps();
+                                int perLegLapsSbB = totalLapsSbB > 0 ? totalLapsSbB / 4 : 0;
+                                string startSideSbB = _laneCloseSettings.StartPosition;
+                                bool sideIsStartB = (side == startSideSbB);
+                                int handoffLapB = -1;
+                                if (perLegLapsSbB > 0 && laneState.CurrentLap % perLegLapsSbB == 0
+                                    && ((laneState.CurrentLap % 2 == 0) == sideIsStartB)) {
+                                    handoffLapB = laneState.CurrentLap;
+                                }
+                                else if (perLegLapsSbB > 0 && (laneState.CurrentLap + 1) % perLegLapsSbB == 0
+                                         && (((laneState.CurrentLap + 1) % 2 == 0) == sideIsStartB)) {
+                                    handoffLapB = laneState.CurrentLap + 1;
+                                }
+                                if (handoffLapB > 0 && handoffLapB < totalLapsSbB) {
+                                    _relayReactionCalc.OnEvent(lane, side, RelayReactionCalculator.EventKind.SB, timeInSeconds);
+                                }
+                            }
                             RecordBackupReaction(lane, timeInSeconds, sbSideForClose);
                             break;
                         }
@@ -3625,23 +3647,30 @@ namespace SwimmingScoreboard
                         if (!_laneCloseSettings.ReactionTimeEnabled) {
                             // 关闭RT：不进行反应时/抢跳判定，仅记录出发台动作日志
                             AddLog(string.Format("泳道{0} 出发台触发（已关闭反应时检测）", lane));
-                        } else if (_isRelay && laneState.CurrentLap > 0) {
-                            // 2026-06-03 接力交接 SB: 喂入 RelayReactionCalculator (= 14 条规则). reaction 由 calculator window 超时后通过 callback 输出
-                            //   守卫: 标准交接 (currentLap=N*perLegLaps) 或抢跳 (currentLap+1=N*perLegLaps).
-                            //   棒次起跳侧 = StartPosition if handoffLap 偶 else 另一侧 (= 4×50m perLeg=1 时棒次交替, 4×100m perLeg=2 时不变).
-                            //   4 棒都测反应时 → 上限 currentLap < totalLaps (= 棒 4 起跳 currentLap=3*perLeg 也算)
+                        } else if (_isRelay && _laneCloseSettings != null
+                                   && (laneState.CurrentLap > 0 || side != _laneCloseSettings.StartPosition)) {
+                            // 2026-06-03 接力交接 SB: 喂入 RelayReactionCalculator. 抢跳时 SB 在棒 K-1 TP 之前来,
+                            //   currentLap=(K-1)*perLeg-1. 4×50m perLeg=1 棒 2 抢跳 currentLap=0 + side != StartPosition.
+                            //   用 side 反推 handoffLap: 偶=StartPosition / 奇=另一侧. 标准 handoffLap=currentLap, 抢跳=currentLap+1.
+                            //   handoffLap > 0 (= 不是棒 1 发令) && handoffLap < totalLaps (= 棒 4 也算, 不超棒 N).
                             if (_relayReactionCalc != null && !string.IsNullOrEmpty(side)) {
                                 int totalLapsSb = GetTotalLaps();
                                 int perLegLapsSb = totalLapsSb > 0 ? totalLapsSb / 4 : 0;
-                                bool isStandardSb = perLegLapsSb > 0 && laneState.CurrentLap % perLegLapsSb == 0;
-                                bool isAdvanceSb = perLegLapsSb > 0 && (laneState.CurrentLap + 1) % perLegLapsSb == 0;
-                                bool isHandoffSb = (isStandardSb || isAdvanceSb) && laneState.CurrentLap < totalLapsSb;
-                                int handoffLap = isStandardSb ? laneState.CurrentLap : (laneState.CurrentLap + 1);
-                                string startSideSb = _laneCloseSettings != null ? _laneCloseSettings.StartPosition : null;
-                                string expectedSideSb = (handoffLap % 2 == 0)
-                                    ? startSideSb
-                                    : (startSideSb == "left" ? "right" : "left");
-                                if (isHandoffSb && side == expectedSideSb) {
+                                string startSideSb = _laneCloseSettings.StartPosition;
+                                bool sideIsStart = (side == startSideSb);
+                                int handoffLap = -1;
+                                // 标准 SB: currentLap=handoffLap, 奇偶要匹配 side
+                                if (perLegLapsSb > 0 && laneState.CurrentLap % perLegLapsSb == 0
+                                    && ((laneState.CurrentLap % 2 == 0) == sideIsStart)) {
+                                    handoffLap = laneState.CurrentLap;
+                                }
+                                // 抢跳 SB: currentLap+1=handoffLap, 奇偶要匹配 side
+                                else if (perLegLapsSb > 0 && (laneState.CurrentLap + 1) % perLegLapsSb == 0
+                                         && (((laneState.CurrentLap + 1) % 2 == 0) == sideIsStart)) {
+                                    handoffLap = laneState.CurrentLap + 1;
+                                }
+                                bool isHandoffSb = handoffLap > 0 && handoffLap < totalLapsSb;
+                                if (isHandoffSb) {
                                     _relayReactionCalc.OnEvent(lane, side, RelayReactionCalculator.EventKind.SB, timeInSeconds);
                                 }
                             }
@@ -5730,8 +5759,11 @@ namespace SwimmingScoreboard
 
                         // 接力项目：只在交接棒段打开出发端出发台
                         // 交接棒 = 每棒最后一段（运动员游回出发端触板）
+                        //   2026-06-03 去掉 state.CurrentLap > 0 守卫: 对 4×50m perLeg=1 时, 棒 1 第 1 段 currentLap=0
+                        //   也是交接段, 之前守卫拦下导致棒 2 SB 没打开. 4×100m perLeg=2 时棒 1 第 1 段 nextLap=1, 1%2=1
+                        //   自然 isNextExchange=false, 不进分支, 守卫冗余, 去掉无害.
                         bool relayStartBlockOpened = false;
-                        if (_isRelay && state.CurrentLap > 0) {
+                        if (_isRelay) {
                             int totalLapsVal = GetTotalLaps();
                             int legCnt = 4;
                             var rlMatch = System.Text.RegularExpressions.Regex.Match(_currentEvent, @"(\d+)\s*[x×]");
