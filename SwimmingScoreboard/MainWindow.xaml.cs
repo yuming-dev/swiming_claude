@@ -3535,6 +3535,10 @@ namespace SwimmingScoreboard
             // 记录原始数据 (2026-05-31: 硬件用盲表代替触板成绩 → log 标 "TouchpadMb" → 比赛日志显示"触代")
             LogRawTimingData(lane, (cmdType == "Touchpad" && isMbSubstitute) ? "TouchpadMb" : cmdType, timeInSeconds, side);
 
+            // 2026-06-03 比完赛 (_raceState==Finished) 后, 硬件再有数据只记录 (= 上面 LogRaw 含比赛日志) 不处理
+            //   = 不喂 calculator, 不动 SplitTime / 状态机 / 反应时, 不刷 UI 状态
+            if (_raceState == RaceState.Finished) return;
+
             // 2026-06-03 喂事件到 RelayReactionCalculator (= 接力 SB reaction 14 条规则). 第 1 棒发令不喂 (= 不算接力交接)
             // 守卫: 只对"接力交接段触板"喂入 (= TP/MB/MB_FirstPress 触发后 currentLap 变成 N×perLegLaps). 非交接段普通触板不算 SB reaction
             //   2026-06-03 排除"终点 TP (= 棒 4 完成)" — 终点后无下棒 SB, 不该启动 calculator window
