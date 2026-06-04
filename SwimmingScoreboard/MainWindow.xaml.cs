@@ -196,6 +196,8 @@ namespace SwimmingScoreboard
         private string _displayStyleFsPartsJson = "{\"title\":1,\"event\":1,\"time\":1,\"info\":1,\"header\":1}";
         // 2026-06-03 大屏右上角 WR/CR 横条 显示/隐藏 (= display.html .header-records visibility)
         private bool _displayStyleRecordsHidden = false;
+        // 2026-06-04 备注 栏是否显示 出发反应时 (= display.html lane-row .remark, 默认 true = 旧行为, 显示窗口期内 SB 反应时落到备注栏)
+        private bool _displayStyleRemarkShowReaction = true;
         private DisplayStyleWindow _displayStyleWin;        // 当前打开的"大屏样式"窗口 (主控 PC 端)
         private ObservableCollection<BackupInfo> _savedCompetitions = new ObservableCollection<BackupInfo>();
 
@@ -226,6 +228,7 @@ namespace SwimmingScoreboard
             LoadTimingSettings();
             LoadDisplayStyleFromDisk();      // 2026-06-01 大屏样式持久化还原
             RefreshRecordsHiddenBtn();       // 2026-06-03 同步 "记录显示/隐藏" 按钮初始文字
+            RefreshRemarkReactionBtn();      // 2026-06-04 同步 "备注: 显/不显反应时" 按钮初始文字
             ApplyPersistedDeviceStates();   // 设备状态（损坏/未安装/手动按键）从 device_states.json 还原
             LoadTimingConnectionConfig();   // 通讯参数从 timing_connection.json 还原
             LoadLastCompetition();
@@ -14517,6 +14520,20 @@ namespace SwimmingScoreboard
             }
         }
 
+        // 2026-06-04 切换 备注栏 是否显示 出发反应时
+        private void ToggleRemarkReaction_Click(object sender, RoutedEventArgs e) {
+            _displayStyleRemarkShowReaction = !_displayStyleRemarkShowReaction;
+            SaveDisplayStyleToDisk();
+            BroadcastDisplayStyle();
+            RefreshRemarkReactionBtn();
+            AddLog("大屏 备注栏 出发反应时 " + (_displayStyleRemarkShowReaction ? "已显示" : "已隐藏"));
+        }
+        private void RefreshRemarkReactionBtn() {
+            if (RemarkReactionBtnText != null) {
+                RemarkReactionBtnText.Text = _displayStyleRemarkShowReaction ? "备注: 显反应时 (点击关闭)" : "备注: 不显反应时 (点击打开)";
+            }
+        }
+
         // 2026-06-04 PPT 播放 (推送到 display.html):
         //   1. 弹文件选择框
         //   2. PowerPoint COM (后台) 把每张幻灯片导出为 PNG (1920×1080)
@@ -15046,6 +15063,7 @@ namespace SwimmingScoreboard
                     if (j["textStyle"] != null) _displayStyleTextStyleJson = j["textStyle"].ToString(Newtonsoft.Json.Formatting.None);
                     if (j["fsParts"] != null) _displayStyleFsPartsJson = j["fsParts"].ToString(Newtonsoft.Json.Formatting.None);
                     if (j["recordsHidden"] != null) _displayStyleRecordsHidden = (bool)j["recordsHidden"];
+                    if (j["remarkShowReaction"] != null) _displayStyleRemarkShowReaction = (bool)j["remarkShowReaction"];
                 }
             } catch (Exception ex) { AddLog("加载大屏样式失败: " + ex.Message); }
         }
@@ -15061,7 +15079,8 @@ namespace SwimmingScoreboard
                     ["fs"] = _displayStyleFs,
                     ["textStyle"] = ts,
                     ["fsParts"] = fp,
-                    ["recordsHidden"] = _displayStyleRecordsHidden
+                    ["recordsHidden"] = _displayStyleRecordsHidden,
+                    ["remarkShowReaction"] = _displayStyleRemarkShowReaction
                 };
                 File.WriteAllText(DisplayStylePath, j.ToString(Newtonsoft.Json.Formatting.Indented), Encoding.UTF8);
             } catch (Exception ex) { AddLog("保存大屏样式失败: " + ex.Message); }
@@ -15131,6 +15150,11 @@ namespace SwimmingScoreboard
                 bool v = (bool)data["recordsHidden"];
                 if (_displayStyleRecordsHidden != v) { _displayStyleRecordsHidden = v; changed = true; }
             }
+            // 2026-06-04 remarkShowReaction (= 备注栏 是否显示 出发反应时, 默认 true)
+            if (data["remarkShowReaction"] != null) {
+                bool v = (bool)data["remarkShowReaction"];
+                if (_displayStyleRemarkShowReaction != v) { _displayStyleRemarkShowReaction = v; changed = true; }
+            }
             if (changed) {
                 SaveDisplayStyleToDisk();
                 BroadcastDisplayStyle();
@@ -15149,7 +15173,8 @@ namespace SwimmingScoreboard
                     ["fs"] = _displayStyleFs,
                     ["textStyle"] = ts,
                     ["fsParts"] = fp,
-                    ["recordsHidden"] = _displayStyleRecordsHidden
+                    ["recordsHidden"] = _displayStyleRecordsHidden,
+                    ["remarkShowReaction"] = _displayStyleRemarkShowReaction
                 }
             };
             return msg.ToString(Newtonsoft.Json.Formatting.None);

@@ -324,6 +324,8 @@ var ws, data = {}, reconnectTimer;
 var currentMode = 'SHOW_LIVE_RACE';
 var publishedData = null;
 var modeLocked = false;  // 成绩发布时锁定模式，不被广播覆盖
+// 2026-06-04 备注栏 是否显示 出发反应时 (默认 true; 由 control / 主控 经 SET_DISPLAY_STYLE 推 false 关掉)
+var _remarkShowReaction = true;
 // 第1名分段成绩显示
 var _dspFirstDetected = 0;
 var _dspFirstTime = '';
@@ -1156,6 +1158,10 @@ function applyRemoteDisplayStyle(d) {
             var hr = document.querySelector('.header-records');
             if (hr) hr.style.display = d.recordsHidden ? 'none' : '';
         }
+        // 2026-06-04 备注栏 是否显示 出发反应时 同步 (默认 true)
+        if (typeof d.remarkShowReaction === 'boolean') {
+            _remarkShowReaction = d.remarkShowReaction;
+        }
         if (d.textStyle && typeof d.textStyle === 'object') {
             for (var k in d.textStyle) {
                 if (!d.textStyle.hasOwnProperty(k)) continue;
@@ -1619,7 +1625,9 @@ function _refreshRaceRows() {
         else if (sw.status === 'DNS') { remarkText = 'DNS'; remarkColor = ''; }
         else if (sw.status === 'DNF') { remarkText = 'DNF'; remarkColor = ''; }
         if (!remarkText && sw.recordNote) { remarkText = sw.recordNote; remarkColor = '#fbbf24'; }
-        if (!remarkText && hasReaction && ls.reactionShowAt > 0 && (now - ls.reactionShowAt) < displayMs) {
+        // 2026-06-04 备注栏 是否显示 出发反应时 由 control 端开关 (_remarkShowReaction, 默认 true).
+        //   关掉后 反应时不进备注栏 (但 sw.reactionTime 数据仍在, 只是 UI 隐藏)
+        if (!remarkText && hasReaction && ls.reactionShowAt > 0 && (now - ls.reactionShowAt) < displayMs && _remarkShowReaction) {
             remarkText = sw.reactionTime;
             remarkColor = (sw.isSuspectFalseStart || sw.isFalseStart) ? '#ef4444' : '#f8fafc';
         }

@@ -1229,6 +1229,7 @@
                                         <RowDefinition Height="32"/>
                                         <RowDefinition Height="32"/>
                                         <RowDefinition Height="32"/>
+                                        <RowDefinition Height="32"/>
                                     </Grid.RowDefinitions>
                                     <!-- 赛中显示 -->
                                     <Button Grid.Row="0" Grid.Column="0" Click="ShowStartList_Click" Margin="2" BorderThickness="0" Cursor="Hand">
@@ -1383,8 +1384,18 @@
                                             </StackPanel>
                                         </Border>
                                     </Button>
+                                    <!-- 2026-06-04 备注栏 是否显示 出发反应时 切换 (= display.html lane-row .remark 反应时窗口期内显示) -->
+                                    <Button Grid.Row="8" Grid.Column="0" Grid.ColumnSpan="2" x:Name="RemarkReactionBtn" Click="ToggleRemarkReaction_Click" Margin="2" Padding="0" BorderThickness="0" Cursor="Hand" Background="Transparent"
+                                            ToolTip="切换大屏 备注 栏是否显示 出发反应时 (短暂窗口期内). 关 = 不显, 开 = 显">
+                                        <Border Background="#475569" CornerRadius="6" Padding="4">
+                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                <TextBlock Text="&#xE91F;" FontFamily="Segoe MDL2 Assets" FontSize="15" Foreground="White" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                                                <TextBlock x:Name="RemarkReactionBtnText" Text="备注: 显反应时" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </Border>
+                                    </Button>
                                     <!-- 2026-06-04 PPT 播放: 弹文件选择框, 用 PowerPoint /s 直接进幻灯片放映模式 -->
-                                    <Button Grid.Row="8" Grid.Column="0" Grid.ColumnSpan="2" Click="PlayPpt_Click" Margin="2" BorderThickness="0" Cursor="Hand"
+                                    <Button Grid.Row="9" Grid.Column="0" Grid.ColumnSpan="2" Click="PlayPpt_Click" Margin="2" BorderThickness="0" Cursor="Hand"
                                             ToolTip="选择 PPT/PPTX 文件, 自动以幻灯片放映模式打开 (需安装 PowerPoint; 未装时用默认关联程序兜底)">
                                         <Button.Template>
                                             <ControlTemplate TargetType="Button">

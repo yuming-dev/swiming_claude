@@ -62,6 +62,8 @@ h1 { text-align: center; margin-bottom: 20px; font-size: 20px; }
     <button class="btn" style="background:#F59E0B;color:#000;grid-column:span 3;" onclick="openPublishDialog()">成绩发布（选择已完赛项目发布到大屏）</button>
     <!-- 2026-06-03 大屏右上角 WR/CR 横条 显示/隐藏 切换 -->
     <button id="recordsHiddenBtn" class="btn" style="background:#475569;color:white;grid-column:span 3;" onclick="toggleRecordsHidden()">记录显示 (点击隐藏 WR/CR)</button>
+    <!-- 2026-06-04 备注栏 是否显示 出发反应时 切换 -->
+    <button id="remarkReactionBtn" class="btn" style="background:#475569;color:white;grid-column:span 3;" onclick="toggleRemarkReaction()">备注: 显反应时 (点击关)</button>
     <!-- 2026-06-04 PPT 播放 (远程触发主控 PC 上弹 文件选择框 + 启动 PowerPoint /s 放映) -->
     <button class="btn" style="background:#FB923C;color:white;grid-column:span 3;" onclick="send('PLAY_PPT')">📊 PPT 播放 (主控 PC 选文件)</button>
     <!-- 2026-06-01 远程控制大屏样式: 底色 / 字号 / 9 处文字颜色字体 -->
@@ -332,11 +334,22 @@ function _cs_applyToUi(data) {
         var b = document.getElementById('recordsHiddenBtn');
         if (b) b.textContent = data.recordsHidden ? '记录已隐藏 (点击显示 WR/CR)' : '记录显示 (点击隐藏 WR/CR)';
     }
+    // 2026-06-04 备注栏 反应时 同步按钮文字
+    if (typeof data.remarkShowReaction === 'boolean') {
+        _csRemarkShowReaction = data.remarkShowReaction;
+        var b2 = document.getElementById('remarkReactionBtn');
+        if (b2) b2.textContent = data.remarkShowReaction ? '备注: 显反应时 (点击关)' : '备注: 不显反应时 (点击开)';
+    }
 }
 var _csRecordsHidden = false;
 function toggleRecordsHidden() {
     if (!ws || ws.readyState !== 1) { alert('未连接服务器'); return; }
     ws.send(JSON.stringify({type: 'SET_DISPLAY_STYLE', data: { recordsHidden: !_csRecordsHidden }}));
+}
+var _csRemarkShowReaction = true;
+function toggleRemarkReaction() {
+    if (!ws || ws.readyState !== 1) { alert('未连接服务器'); return; }
+    ws.send(JSON.stringify({type: 'SET_DISPLAY_STYLE', data: { remarkShowReaction: !_csRemarkShowReaction }}));
 }
 
 function openDisplayStyleDialog() {
