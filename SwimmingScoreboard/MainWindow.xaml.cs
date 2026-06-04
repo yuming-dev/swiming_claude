@@ -2254,6 +2254,16 @@ namespace SwimmingScoreboard
             // 按泳道号排序（空泳道正确插入对应位置）
             swimmerData = swimmerData.OrderBy(o => { try { return (int)((dynamic)o).lane; } catch { return 0; } }).ToList();
 
+            // 2026-06-04 当前项目的 项次 (= 赛程顺序号, 0=未查到/无项目)
+            int currentEventNumber = 0;
+            if (!string.IsNullOrEmpty(_currentEvent)) {
+                try {
+                    var evtMap = BuildEventNumberMap();
+                    int no;
+                    if (evtMap.TryGetValue((_currentGender ?? "") + "|" + _currentEvent, out no)) currentEventNumber = no;
+                } catch { }
+            }
+
             // 项目总排名
             var eventRanking = GetEventRanking(_currentEvent, _currentGender);
             // 2026-06-02 并项拆分: 按 (性别, 实际年龄) 切多张子表, 大屏 总排名 视图按子表翻页
@@ -2269,6 +2279,7 @@ namespace SwimmingScoreboard
                 competitionName = _competitionName,
                 competitionMode = _competitionMode,
                 currentEvent = _currentEvent,
+                currentEventNumber = currentEventNumber,    // 2026-06-04 项次 (= BuildEventNumberMap 顺序号)
                 currentGender = _currentGender,
                 currentAgeGroup = _currentAgeGroup ?? "",
                 currentStage = _currentStage,

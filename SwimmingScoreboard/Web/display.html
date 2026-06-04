@@ -1216,7 +1216,11 @@ function renderRace() {
     document.getElementById('raceView').classList.remove('hidden');
 
     // ── 1) 顶部静态文字（仅变化才写入） ──
-    var titleText = ((data.currentAgeGroup||'') ? (data.currentAgeGroup+' ') : '') + fmtGender(data.currentGender) + ' ' + (data.currentEvent||'');
+    // 2026-06-04 标题最前加 项次 '第N项 ' (= 服务器 currentEventNumber, 0 时为空)
+    var evNo = data.currentEventNumber || 0;
+    var titleText = (evNo > 0 ? ('第' + evNo + '项 ') : '')
+        + ((data.currentAgeGroup||'') ? (data.currentAgeGroup+' ') : '')
+        + fmtGender(data.currentGender) + ' ' + (data.currentEvent||'');
     var stageText = (data.currentStage||'') + ' 第' + (data.currentHeat||0) + '/' + (data.totalHeats||0) + '组';
     var en = document.getElementById('eventName');
     if (en && en.textContent !== titleText) en.textContent = titleText;
