@@ -1631,12 +1631,21 @@ function renderStartList() {
     var slH1 = slRelay ? '代表队' : '姓名';
     var slH2 = slRelay ? '姓名' : '代表队';
     // 2026-06-01 出发表去掉"号码"栏
-    html += '<table class="list-table"><thead><tr><th>道</th><th>' + slH1 + '</th><th>' + slH2 + '</th></tr></thead><tbody>';
+    // 2026-06-04 td 加 t-lane/t-name/t-team class, 颜色/字体 = 比赛视图/组成绩/总排名 同款 CSS 变量
+    //   行高 / 间距 通过 .list-table th/td 全局规则与 三视图 一致 (7.5vh 固定行高, 2.9vh 字号, 0 1.5vw padding)
+    html += '<table class="list-table"><thead><tr><th style="width:14%;">道</th><th>' + slH1 + '</th><th>' + slH2 + '</th></tr></thead><tbody>';
     var sw = data.swimmers || [];
     for (var i = 0; i < sw.length; i++) {
+        // 过滤空泳道 (与 组成绩 isOccupiedLane 同款语义, status===EMPTY 占位条目不入出发表)
+        if (sw[i] && sw[i].status === 'EMPTY') continue;
         var sc1 = slRelay ? (sw[i].country||'') : (sw[i].name||'');
         var sc2 = slRelay ? (sw[i].name||'') : (sw[i].country||'');
-        html += '<tr><td>' + sw[i].lane + '</td><td>' + sc1 + '</td><td>' + sc2 + '</td></tr>';
+        // 道号: lane=0 是 10 道泳池合法首道, 用 != null 区分缺失
+        var laneText = sw[i].lane != null && sw[i].lane !== '' ? sw[i].lane : '-';
+        // c1/c2 列 class 按 relay 与否互换 (与 showRankingPage / showRankingPageSplit 同款)
+        var c1Cls = slRelay ? 't-team' : 't-name';
+        var c2Cls = slRelay ? 't-name' : 't-team';
+        html += '<tr><td class="t-lane">' + laneText + '</td><td class="' + c1Cls + '">' + sc1 + '</td><td class="' + c2Cls + '">' + sc2 + '</td></tr>';
     }
     html += '</tbody></table>';
     lv.innerHTML = html;
