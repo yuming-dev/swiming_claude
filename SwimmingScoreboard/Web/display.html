@@ -873,7 +873,12 @@ function connect() {
     var host = getServerHost();
     document.title = '大屏幕 - ' + host;
     try { ws = new WebSocket('ws://' + host + ':3002'); }
-    catch (ex) { showConnectOverlay('连接失败：' + ex.message, '#ef4444'); return; }
+    catch (ex) {
+        // 2026-06-04 new WebSocket 构造异常 (= host 格式错 / 浏览器限制) 也要 2s 后重试, 不能卡死
+        showConnectOverlay('连接失败：' + ex.message + ' (2 秒后重试)', '#ef4444');
+        setTimeout(connect, 2000);
+        return;
+    }
     ws.onopen = function() {
         _connFailCount = 0;
         ws.send(JSON.stringify({type: 'DISPLAY_IDENTITY'}));
@@ -971,18 +976,16 @@ function connect() {
     ws.onclose = function() {
         stopRefreshTimer();
         _connFailCount++;
-        // 连接断开 → 显示遮罩，让操作员看到状态/可改IP
-        showConnectOverlay('未连接 / 连接断开（已尝试 ' + _connFailCount + ' 次），3 秒后自动重连…', '#ef4444');
-        // 与旧版兼容：每 3 次失败后再用 confirm() 兜底询问一次（操作员若不便看遮罩仍能改地址）
-        if (_connFailCount >= 3) {
-            _connFailCount = 0;
-            var retry = confirm('连接服务器失败，是否重新设置服务器地址？');
-            if (retry) { changeServerHost(); return; }
-        }
-        setTimeout(connect, 3000);
+        // 2026-06-04 改: 不再每 3 次失败 confirm() 卡住, 大屏需要 24×7 无人值守 自动重连.
+        //   断开后 2s 自动按 上次 IP (localStorage.swimServerHost 或 URL ?host=) 重连, 直到连上.
+        //   操作员仍可点 遮罩内 "重设 IP" 链接手动改地址. (旧版每 3 次 confirm 在投影机/无键盘场景下死锁画面)
+        var host = getServerHost();
+        showConnectOverlay('未连接 / 连接断开（已尝试 ' + _connFailCount + ' 次，' + host + '），2 秒后自动重连…', '#ef4444');
+        setTimeout(connect, 2000);
     };
     ws.onerror = function() {
-        showConnectOverlay('连接错误，请检查服务器IP是否正确', '#ef4444');
+        var host = getServerHost();
+        showConnectOverlay('连接错误（' + host + '），2 秒后自动重试…', '#ef4444');
     };
 }
 

@@ -10,7 +10,8 @@ $ErrorActionPreference = "Stop"
 $root = "C:\代码\swiming_claude"
 $installerBuild = Join-Path $root "InstallerBuild"
 
-$msbuild = "C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Current\Bin\MSBuild.exe"
+$msbuild = "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Current\Bin\MSBuild.exe"
+if (-not (Test-Path $msbuild)) { $msbuild = "C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Current\Bin\MSBuild.exe" }
 $csc = "C:\Windows\Microsoft.NET\Framework\v4.0.30319\csc.exe"
 if (-not (Test-Path $msbuild)) { throw "未找到 MSBuild: $msbuild" }
 if (-not (Test-Path $csc)) { throw "未找到 csc.exe: $csc" }
