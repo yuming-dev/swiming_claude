@@ -3915,11 +3915,11 @@ namespace SwimmingScoreboard
                     string finalTime = r != null && r.FinalTime > 0 ? TimeFormatter.Format(r.FinalTime) : "";
                     string source = r != null ? (r.TimingSource ?? "") : "";
                     // 接力赛反应时按棒展开"第1棒:0.45 / 第2棒:0.30 ..."；个人赛仍是 StartingBlockTime 单值
-                    //   2026-06-03 4 棒都显反应时 (= 棒 1 发令 + 棒 2/3/4 交接, 每棒都测)
+                    //   2026-06-03 最终成绩列不显最后一棒反应时 (= calculator 算的 emit 在比赛日志保留, 但成绩表棒 N 不显)
                     string reaction = "";
                     if (_isRelay && r != null && r.LegReactionTimes != null && r.LegReactionTimes.Count > 0) {
                         var rtParts = new List<string>();
-                        for (int li = 0; li < r.LegReactionTimes.Count; li++) {
+                        for (int li = 0; li < r.LegReactionTimes.Count - 1; li++) {
                             double rt = r.LegReactionTimes[li];
                             rtParts.Add(string.Format("第{0}棒:{1}", li + 1, rt > 0 ? rt.ToString("F3") : "—"));
                         }
@@ -4071,11 +4071,11 @@ namespace SwimmingScoreboard
                 if (_isRelay && !string.IsNullOrEmpty(s.Notes) && s.Notes.StartsWith("接力队 棒次:"))
                     athletesFh = s.Notes.Substring("接力队 棒次:".Length);
                 // 反应时单元：接力按棒展开（<br> 分行），个人为单值
-                //   2026-06-03 4 棒都显反应时
+                //   2026-06-03 最终成绩列不显最后一棒反应时
                 string reactionHtml = "";
                 if (_isRelay && r != null && r.LegReactionTimes != null && r.LegReactionTimes.Count > 0) {
                     var rtParts2 = new List<string>();
-                    for (int li = 0; li < r.LegReactionTimes.Count; li++) {
+                    for (int li = 0; li < r.LegReactionTimes.Count - 1; li++) {
                         double rt2 = r.LegReactionTimes[li];
                         rtParts2.Add(string.Format("第{0}棒:{1}", li + 1, rt2 > 0 ? rt2.ToString("F3") : "—"));
                     }
@@ -4512,16 +4512,17 @@ namespace SwimmingScoreboard
 
                     if (isExchange) {
                         // 交接棒触板已触碰，延迟后关闭出发台
-                        bool startLeft2 = _laneCloseSettings.StartPosition != "right";
+                        //   2026-06-03 关哪侧 SB: 触板后 Direction 已反转, 用反转后判 (= "→" 表示刚到 left, 即下棒在 left 起跳, 关 LeftSB).
+                        //   适用 4×50m 棒次交替, 4×100m 时到达侧总=StartPosition 行为不变.
+                        bool capCloseLeft = laneState.Direction == "→";
                         int capLane2 = lane;
-                        bool capStartLeft2 = startLeft2;
                         var sbCloseTimer = new DispatcherTimer();
                         sbCloseTimer.Interval = TimeSpan.FromSeconds(_laneCloseSettings.StartBlockCloseDelay);
                         sbCloseTimer.Tick += delegate(object s4, EventArgs a4) {
                             sbCloseTimer.Stop();
                             var ls2 = _laneDeviceStates.FirstOrDefault(st => st.Lane == capLane2);
                             if (ls2 == null || ls2.IsFinished) return;
-                            if (capStartLeft2) ls2.LeftStartBlockStatus = DeviceStatus.Closed;
+                            if (capCloseLeft) ls2.LeftStartBlockStatus = DeviceStatus.Closed;
                             else ls2.RightStartBlockStatus = DeviceStatus.Closed;
                             Broadcast();
                         };
@@ -5740,11 +5741,13 @@ namespace SwimmingScoreboard
                             int nextLap = state.CurrentLap + 1;
                             bool isNextExchange = (lapsPerLegVal > 0) && (nextLap % lapsPerLegVal == 0) && (nextLap < totalLapsVal);
                             if (isNextExchange) {
-                                bool startLeft = _laneCloseSettings.StartPosition != "right";
-                                if (startLeft) {
-                                    if (!state.LeftStartBlockBroken) state.LeftStartBlockStatus = DeviceStatus.Open;
-                                } else {
+                                // 2026-06-03 SB 打开侧 = 选手即将到达侧 (= 棒次终点侧 = 下棒起跳侧).
+                                //   适用于 4×50m perLeg=1 棒次交替 (棒 1 右终 → 棒 2 左起; 棒 2 左终 → 棒 3 右起 ...).
+                                //   4×100m perLeg=2 时到达侧总等于 StartPosition, 行为不变.
+                                if (arriveRight) {
                                     if (!state.RightStartBlockBroken) state.RightStartBlockStatus = DeviceStatus.Open;
+                                } else {
+                                    if (!state.LeftStartBlockBroken) state.LeftStartBlockStatus = DeviceStatus.Open;
                                 }
                                 relayStartBlockOpened = true;
                             }
@@ -13847,11 +13850,11 @@ namespace SwimmingScoreboard
                 if (r != null && !string.IsNullOrEmpty(r.Status)) remark = r.Status;
                 else if (isDQ) remark = s.Status;
                 // 反应时：接力按棒展开 "第N棒:0.45  第N棒:..."（双空格分隔，DataGrid TextWrapping=Wrap 自动换行）
-                //   2026-06-03 4 棒都显反应时
+                //   2026-06-03 最终成绩列不显最后一棒反应时
                 string reactionStr = "";
                 if (isRelayEvent) {
                     var rtParts = new List<string>();
-                    for (int li = 0; li < rgLegCount; li++) {
+                    for (int li = 0; li < rgLegCount - 1; li++) {
                         double rt = (r != null && r.LegReactionTimes != null && li < r.LegReactionTimes.Count) ? r.LegReactionTimes[li] : 0;
                         rtParts.Add(string.Format("第{0}棒:{1}", li + 1, rt > 0 ? rt.ToString("F2") : "—"));
                     }
@@ -18756,7 +18759,7 @@ namespace SwimmingScoreboard
                 }
                 // 反应时单元：接力赛固定展开为 N 棒（N 由项目名"4×100"解析），未记录到的棒次显示"—"。
                 // 这样即便硬件事件丢失或顺序错乱，打印行数始终与棒次数对齐。
-                //   2026-06-03 4 棒都显反应时
+                //   2026-06-03 最终成绩列不显最后一棒反应时
                 string reactionCell = "";
                 if (printRelay) {
                     int legCount = 4;
@@ -18765,7 +18768,7 @@ namespace SwimmingScoreboard
                         int n; if (int.TryParse(mLeg.Groups[1].Value, out n) && n > 0 && n <= 10) legCount = n;
                     }
                     var parts = new List<string>();
-                    for (int li = 0; li < legCount; li++) {
+                    for (int li = 0; li < legCount - 1; li++) {
                         double rt = (r != null && r.LegReactionTimes != null && li < r.LegReactionTimes.Count) ? r.LegReactionTimes[li] : 0;
                         parts.Add(string.Format("第{0}棒:{1}", li + 1, rt > 0 ? rt.ToString("F2") : "—"));
                     }
@@ -19109,7 +19112,7 @@ namespace SwimmingScoreboard
                                 }
                             }
                             // 反应时单元：接力赛展开 N 棒（"第N棒:0.45<br>..."），未记录到的棒显示"—"
-                            //   2026-06-03 4 棒都显反应时
+                            //   2026-06-03 最终成绩列不显最后一棒反应时
                             string reactionCell = "";
                             if (ffRelay) {
                                 int legCnt = 4;
@@ -19118,7 +19121,7 @@ namespace SwimmingScoreboard
                                     int n2; if (int.TryParse(mLeg2.Groups[1].Value, out n2) && n2 > 0 && n2 <= 10) legCnt = n2;
                                 }
                                 var rtParts = new List<string>();
-                                for (int li = 0; li < legCnt; li++) {
+                                for (int li = 0; li < legCnt - 1; li++) {
                                     double rt = (r != null && r.LegReactionTimes != null && li < r.LegReactionTimes.Count) ? r.LegReactionTimes[li] : 0;
                                     rtParts.Add(string.Format("第{0}棒:{1}", li + 1, rt > 0 ? rt.ToString("F2") : "—"));
                                 }
