@@ -48,10 +48,9 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 .race-view { height: 87vh; padding: 1vh 2vw; display: flex; flex-direction: column; }
 .race-info { display: flex; justify-content: space-between; align-items: center; height: 6vh; margin-bottom: 0.5vh; border-bottom: 3px solid var(--accent); padding-bottom: 0.5vh; }
 /* 2026-06-02 lanes-header 用 --c-header / --ff-header (可独立调) + --fs-info 字号
-   2026-06-03 height 固定 3.5vh (不再 * --fs-info), 与 比赛视图 .lane-row flex:1 行为对齐:
-   字号放大时只是文字溢出, 行数 (10 行) 保持不变 */
-/* 2026-06-04 表头字号 改用 --fs-header (与 运动员信息 解耦, 可单独调) */
-.lanes-header { display: flex; align-items: center; padding: 0 1.5vw; height: 3.5vh; color: var(--c-header); font-family: var(--ff-header); font-size: calc(2.9vh * var(--fs) * var(--fs-header)); }
+   2026-06-04 整个第三行 (表头) 用 --fs-header 控: 字号 + 行高 + 内边距 都跟着缩放,
+              表头单一行不存在 "10 行越界" 问题, 行高放大就放大. */
+.lanes-header { display: flex; align-items: center; padding: 0 1.5vw; height: calc(3.5vh * var(--fs-header)); color: var(--c-header); font-family: var(--ff-header); font-size: calc(2.9vh * var(--fs) * var(--fs-header)); }
 .race-info .event-left { display: flex; align-items: baseline; gap: 1.5vw; }
 .race-info .event-name { font-size: calc(2.8vh * var(--fs) * var(--fs-event)); font-weight: bold; color: var(--c-event); font-family: var(--ff-event); }
 /* 2026-06-02 赛次/组别 用 --c-stage / --ff-stage (可独立调), 字号跟随 比赛项目 */
@@ -128,10 +127,10 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
    10 行 永远 10 行 (之前 height * fs-info 导致 字号 1.2x 时 总排名/组成绩 只能装 9 行) */
 .list-table th {
     background: transparent; padding: 0 1.5vw; text-align: center;
-    /* 2026-06-04 表头字号 用 --fs-header (与 td 的 --fs-info 解耦) */
+    /* 2026-06-04 表头字号 + 行高 都用 --fs-header (整个第 3 行 单独调; 表头单一行无 '10 行越界' 问题) */
     font-size: calc(2.9vh * var(--fs) * var(--fs-header)); border-bottom: 2px solid var(--accent);
     color: var(--c-header); font-family: var(--ff-header);
-    height: 3.5vh; line-height: 1; overflow: hidden; white-space: nowrap;
+    height: calc(3.5vh * var(--fs-header)); line-height: 1; overflow: hidden; white-space: nowrap;
 }
 .list-table td {
     padding: 0 1.5vw; font-size: calc(2.9vh * var(--fs) * var(--fs-info)); text-align: center;
