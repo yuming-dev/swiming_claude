@@ -1804,11 +1804,12 @@ namespace SwimmingScoreboard
                             LogRawTimingData(laneNum, "ManualTouchLeft", _runningTime, "left");
                             AddLog(string.Format("泳道{0} 左端手动触板: {1}", laneNum, TimeFormatter.Format(_runningTime)));
                             // 2026-06-03 喂入 RelayReactionCalculator (= 接力 SB reaction 14 条规则)
-                            //   守卫: 只在接力交接段触发 (= 触发后 currentLap 是 N×perLegLaps)
+                            //   守卫: 接力交接段触发 (= currentLap+1 是 N×perLegLaps) 且不是终点 (= afterLap<totalLaps)
                             if (_relayReactionCalc != null && _isRelay) {
                                 int tt = GetTotalLaps();
                                 int pl = tt > 0 ? tt / 4 : 0;
-                                if (pl > 0 && (lState.CurrentLap + 1) % pl == 0) {
+                                int afterLap = lState.CurrentLap + 1;
+                                if (pl > 0 && afterLap % pl == 0 && afterLap < tt) {
                                     _relayReactionCalc.OnEvent(laneNum, "left", RelayReactionCalculator.EventKind.ManualTP, _runningTime);
                                 }
                             }
@@ -1827,11 +1828,12 @@ namespace SwimmingScoreboard
                             SaveManualTouchToSplit(laneNum, _runningTime);
                             LogRawTimingData(laneNum, "ManualTouchRight", _runningTime, "right");
                             AddLog(string.Format("泳道{0} 右端手动触板: {1}", laneNum, TimeFormatter.Format(_runningTime)));
-                            // 2026-06-03 喂入 RelayReactionCalculator (= 同上, 加交接段守卫)
+                            // 2026-06-03 喂入 RelayReactionCalculator (= 同上, 加交接段守卫 + 排除终点)
                             if (_relayReactionCalc != null && _isRelay) {
                                 int tt = GetTotalLaps();
                                 int pl = tt > 0 ? tt / 4 : 0;
-                                if (pl > 0 && (lState.CurrentLap + 1) % pl == 0) {
+                                int afterLap = lState.CurrentLap + 1;
+                                if (pl > 0 && afterLap % pl == 0 && afterLap < tt) {
                                     _relayReactionCalc.OnEvent(laneNum, "right", RelayReactionCalculator.EventKind.ManualTP, _runningTime);
                                 }
                             }
@@ -3534,7 +3536,8 @@ namespace SwimmingScoreboard
             LogRawTimingData(lane, (cmdType == "Touchpad" && isMbSubstitute) ? "TouchpadMb" : cmdType, timeInSeconds, side);
 
             // 2026-06-03 喂事件到 RelayReactionCalculator (= 接力 SB reaction 14 条规则). 第 1 棒发令不喂 (= 不算接力交接)
-            // 守卫: 只对"接力交接段触板"喂入 (= TP/MB/MB_FirstPress 触发后 currentLap 变成 N×perLegLaps). 非交接段普通触板不算 SB reaction (= 用户不期望 "---" 占位)
+            // 守卫: 只对"接力交接段触板"喂入 (= TP/MB/MB_FirstPress 触发后 currentLap 变成 N×perLegLaps). 非交接段普通触板不算 SB reaction
+            //   2026-06-03 排除"终点 TP (= 棒 4 完成)" — 终点后无下棒 SB, 不该启动 calculator window
             if (_relayReactionCalc != null && _isRelay && !string.IsNullOrEmpty(side)) {
                 var lsForHook = _laneDeviceStates.FirstOrDefault(s => s.Lane == lane);
                 int totalLapsForHook = GetTotalLaps();
@@ -3542,7 +3545,8 @@ namespace SwimmingScoreboard
                 bool isHandoffTpSeg = false;
                 if (perLegLapsForHook > 0 && lsForHook != null) {
                     int afterLap = lsForHook.CurrentLap + 1;
-                    isHandoffTpSeg = (afterLap % perLegLapsForHook == 0);
+                    isHandoffTpSeg = (afterLap % perLegLapsForHook == 0)
+                                  && (afterLap < totalLapsForHook);  // 排除终点 TP
                 }
                 if (isHandoffTpSeg) {
                     if (cmdType == "Touchpad") {
@@ -3605,11 +3609,14 @@ namespace SwimmingScoreboard
                             AddLog(string.Format("泳道{0} 出发台触发（已关闭反应时检测）", lane));
                         } else if (_isRelay && laneState.CurrentLap > 0) {
                             // 2026-06-03 接力交接 SB: 喂入 RelayReactionCalculator (= 14 条规则). reaction 由 calculator window 超时后通过 callback 输出
-                            //   守卫: 只在交接段触发 (= currentLap 是 N×perLegLaps), 防非交接时机触发 "---" 占位
+                            //   守卫: 标准交接 (currentLap=N*perLegLaps) 或抢跳 (currentLap+1=N*perLegLaps, 上棒 TP 未到). 不超过棒 4 (= 终点后无下棒)
                             if (_relayReactionCalc != null && !string.IsNullOrEmpty(side)) {
                                 int totalLapsSb = GetTotalLaps();
                                 int perLegLapsSb = totalLapsSb > 0 ? totalLapsSb / 4 : 0;
-                                bool isHandoffSb = perLegLapsSb > 0 && laneState.CurrentLap % perLegLapsSb == 0;
+                                bool isHandoffSb = perLegLapsSb > 0
+                                    && laneState.CurrentLap <= totalLapsSb - perLegLapsSb   // 棒 4 之前 (即不超过棒 4 交接段)
+                                    && (laneState.CurrentLap % perLegLapsSb == 0
+                                        || (laneState.CurrentLap + 1) % perLegLapsSb == 0);  // 标准 OR 抢跳
                                 if (isHandoffSb) {
                                     _relayReactionCalc.OnEvent(lane, side, RelayReactionCalculator.EventKind.SB, timeInSeconds);
                                 }
@@ -14922,12 +14929,15 @@ namespace SwimmingScoreboard
                         _laneCloseSettings = loaded;
                         // 2026-05-26 把持久化的 HasRightStartBlock 同步回 _poolConfig (运行时主存源)
                         if (_poolConfig != null) _poolConfig.HasRightStartBlock = _laneCloseSettings.HasRightStartBlock;
-                        AddLog(string.Format("已加载计时参数: 关闭{0}s 出发台{1}s 确认{2}s 抢跳{3}s 分段{4}s 第1名停留{5}s 终点:{6} 触板:{7}",
+                        AddLog(string.Format("已加载计时参数: 关闭{0}s 出发台{1}s 确认{2}s 抢跳{3}s 分段{4}s 第1名停留{5}s 终点:{6} 触板:{7} 直通:{8} 反应窗口:{9}s 边沿:{10}",
                             _laneCloseSettings.LaneCloseTime, _laneCloseSettings.StartBlockCloseDelay,
                             _laneCloseSettings.ResultConfirmCloseDelay, _laneCloseSettings.FalseStartThreshold,
                             _laneCloseSettings.SplitDisplayTime, _laneCloseSettings.FirstPlaceHoldTime,
                             _laneCloseSettings.FinishPosition == "left" ? "左端" : "右端",
-                            _laneCloseSettings.HasRightStartBlock ? "两端" : "单端"));
+                            _laneCloseSettings.HasRightStartBlock ? "两端" : "单端",
+                            _laneCloseSettings.HardwareAlwaysOpen ? "打开" : "比赛流程",
+                            _laneCloseSettings.ReactionEventWindowSec.ToString("F1"),
+                            _laneCloseSettings.StartBoxEdgeFalling ? "下降沿" : "上升沿"));
                     }
                 }
             } catch { }
