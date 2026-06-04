@@ -4418,7 +4418,9 @@ namespace SwimmingScoreboard
             // 2026-05-30 漂移补丁: 物理触板入口处清前一次 +/- 残留的 SB
             //   场景: 用户按 R▲ 让 SB=Open, 然后做物理触板, 物理触板路径不动 SB → SB 残留打开
             //   修法: 触板时立即关两端 SB. 后续 LaneCloseCountdown tick (5170+) 在交接点会重开 startPosition SB
-            if (laneState != null) {
+            //   2026-06-04 接力赛跳过该补丁: 棒次倒计时 5743 已打开下棒 SB (= 绿),
+            //     若触板时强制关会让交接前 SB 短暂变灰; 个人赛保留补丁.
+            if (laneState != null && !_isRelay) {
                 if (laneState.LeftStartBlockStatus != DeviceStatus.Broken && laneState.LeftStartBlockStatus != DeviceStatus.NotInstalled)
                     laneState.LeftStartBlockStatus = DeviceStatus.Closed;
                 if (laneState.RightStartBlockStatus != DeviceStatus.Broken && laneState.RightStartBlockStatus != DeviceStatus.NotInstalled)
