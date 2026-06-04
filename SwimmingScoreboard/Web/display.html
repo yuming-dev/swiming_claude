@@ -14,6 +14,8 @@
     /* 2026-06-02 字号 4 类独立缩放 (比赛名称 / 比赛项目 / 比赛时间 / 运动员信息),
        与全局 --fs 相乘. localStorage('swimDisplayFsParts') 持久化为 {title,event,time,info}. */
     --fs-title: 1; --fs-event: 1; --fs-time: 1; --fs-info: 1;
+    /* 2026-06-04 第 3 行 表头 单独可调字号 (与 运动员信息 解耦), localStorage('swimDisplayFsParts') 同源 */
+    --fs-header: 1;
     /* 2026-06-01 文字 颜色 + 字体单独可调; localStorage('swimDisplayTextStyle') 持久化为 {key:{c,f}} JSON
        2026-06-02 加 stage (赛次/组别) + header (表头) 两个独立可调项, 共 11 处 */
     --c-title: #f8fafc;    --ff-title: 'Microsoft YaHei', sans-serif;
@@ -48,7 +50,8 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 /* 2026-06-02 lanes-header 用 --c-header / --ff-header (可独立调) + --fs-info 字号
    2026-06-03 height 固定 3.5vh (不再 * --fs-info), 与 比赛视图 .lane-row flex:1 行为对齐:
    字号放大时只是文字溢出, 行数 (10 行) 保持不变 */
-.lanes-header { display: flex; align-items: center; padding: 0 1.5vw; height: 3.5vh; color: var(--c-header); font-family: var(--ff-header); font-size: calc(2.9vh * var(--fs) * var(--fs-info)); }
+/* 2026-06-04 表头字号 改用 --fs-header (与 运动员信息 解耦, 可单独调) */
+.lanes-header { display: flex; align-items: center; padding: 0 1.5vw; height: 3.5vh; color: var(--c-header); font-family: var(--ff-header); font-size: calc(2.9vh * var(--fs) * var(--fs-header)); }
 .race-info .event-left { display: flex; align-items: baseline; gap: 1.5vw; }
 .race-info .event-name { font-size: calc(2.8vh * var(--fs) * var(--fs-event)); font-weight: bold; color: var(--c-event); font-family: var(--ff-event); }
 /* 2026-06-02 赛次/组别 用 --c-stage / --ff-stage (可独立调), 字号跟随 比赛项目 */
@@ -117,7 +120,8 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
    10 行 永远 10 行 (之前 height * fs-info 导致 字号 1.2x 时 总排名/组成绩 只能装 9 行) */
 .list-table th {
     background: transparent; padding: 0 1.5vw; text-align: center;
-    font-size: calc(2.9vh * var(--fs) * var(--fs-info)); border-bottom: 2px solid var(--accent);
+    /* 2026-06-04 表头字号 用 --fs-header (与 td 的 --fs-info 解耦) */
+    font-size: calc(2.9vh * var(--fs) * var(--fs-header)); border-bottom: 2px solid var(--accent);
     color: var(--c-header); font-family: var(--ff-header);
     height: 3.5vh; line-height: 1; overflow: hidden; white-space: nowrap;
 }
@@ -747,14 +751,17 @@ function setFontScale(v) {
 function bumpFontScale(delta) { setFontScale(getFontScale() + delta); }
 
 // 2026-06-02 字号 4 类独立缩放 (title/event/time/info), 与全局 --fs 相乘; 持久化 localStorage('swimDisplayFsParts').
+// 2026-06-04 加 'header' (第 3 行 表头) 独立缩放, 与 info 解耦
 var FS_PARTS_KEYS = [
-    {k:'title', label:'比赛名称'},
-    {k:'event', label:'比赛项目 / 赛次组别'},
-    {k:'time',  label:'比赛时间 (滚动时间)'},
-    {k:'info',  label:'运动员信息 (表头/道次/姓名/成绩…)'}
+    {k:'title',  label:'比赛名称'},
+    {k:'event',  label:'比赛项目 / 赛次组别'},
+    {k:'time',   label:'比赛时间 (滚动时间)'},
+    {k:'header', label:'表头 (道/名次/姓名/代表队/成绩/备注)'},
+    {k:'info',   label:'运动员信息 (道次/姓名/成绩…)'}
 ];
 function _getFsParts() {
-    var s = { title:1, event:1, time:1, info:1 };
+    // 2026-06-04 加 header (= 第 3 行表头 单独缩放)
+    var s = { title:1, event:1, time:1, info:1, header:1 };
     try {
         var raw = JSON.parse(localStorage.getItem('swimDisplayFsParts') || '{}') || {};
         for (var k in s) if (raw[k] != null) {
@@ -765,10 +772,11 @@ function _getFsParts() {
 }
 function _saveFsParts(s) { try { localStorage.setItem('swimDisplayFsParts', JSON.stringify(s)); } catch(e) {} }
 function applyFsParts(s) {
-    document.documentElement.style.setProperty('--fs-title', s.title);
-    document.documentElement.style.setProperty('--fs-event', s.event);
-    document.documentElement.style.setProperty('--fs-time',  s.time);
-    document.documentElement.style.setProperty('--fs-info',  s.info);
+    document.documentElement.style.setProperty('--fs-title',  s.title);
+    document.documentElement.style.setProperty('--fs-event',  s.event);
+    document.documentElement.style.setProperty('--fs-time',   s.time);
+    document.documentElement.style.setProperty('--fs-info',   s.info);
+    document.documentElement.style.setProperty('--fs-header', s.header);
 }
 function setFsPart(k, v, persist) {
     v = _clampFs(parseFloat(v));
@@ -1361,16 +1369,14 @@ function getRelayAllLegNames(sw) {
     var currentLeg = Math.floor(currentLap / lapsPerLeg);
     if (currentLeg >= legCount) currentLeg = legCount - 1;
     if (currentLeg < 0) currentLeg = 0;
+    // 2026-06-04 去掉 "N棒:" 前缀, 改逗号分隔; 当前游的棒次仍金色高亮 (无前缀, 仅靠颜色区分)
     var html = '';
     for (var i = 0; i < legCount; i++) {
         var nm = (i < names.length) ? names[i].trim() : '';
         var isCur = (i === currentLeg && !sw.isFinished);
-        var seg = (i+1) + '棒:' + nm;
-        if (isCur) {
-            html += '<span style="color:#f59e0b;font-weight:bold;margin-right:1vw;">' + seg + '</span>';
-        } else {
-            html += '<span style="color:#cbd5e1;margin-right:1vw;">' + seg + '</span>';
-        }
+        if (i > 0) html += '<span style="color:#cbd5e1;">, </span>';
+        if (isCur) html += '<span style="color:#f59e0b;font-weight:bold;">' + nm + '</span>';
+        else html += '<span style="color:#cbd5e1;">' + nm + '</span>';
     }
     return html;
 }
@@ -1413,9 +1419,9 @@ function _activeSwimmersForDisplay() {
 // DOM 构建：仅在 buildKey 变化时执行（运动员名单/泳道布局/接力切换/泳道数）
 function _ensureRaceRowsDom() {
     var lc = getLaneCount();
-    // 2026-06-03 加 * var(--fs-info), 让 '运动员信息' 字号调节同步到 比赛视图 表头
-    //   (此处把 fs 作为内联 style 写到表头 6 个格子, 会覆盖 .lanes-header CSS 的字号规则, 必须自带 --fs-info)
-    var fs = lc <= 8 ? 'calc(3.5vh * var(--fs) * var(--fs-info))' : 'calc(2.9vh * var(--fs) * var(--fs-info))';
+    // 2026-06-03 内联 style 会覆盖 .lanes-header CSS, 必须自带 fs 缩放变量
+    // 2026-06-04 表头改用 --fs-header (与 td 的 --fs-info 解耦), 让 第3行 单独调
+    var fs = lc <= 8 ? 'calc(3.5vh * var(--fs) * var(--fs-header))' : 'calc(2.9vh * var(--fs) * var(--fs-header))';
     var relay = isRelayEvent();
     var swimmers = _activeSwimmersForDisplay();
     var keyParts = [data.currentEvent||'', data.currentHeat||0, lc, relay?1:0, swimmers.length];
@@ -1446,7 +1452,7 @@ function _ensureRaceRowsDom() {
                 '<div style="flex:5;min-width:0;text-align:center;margin-right:1vw;font-size:'+fs+';">道次</div>' +
                 '<div style="flex:5;min-width:0;text-align:center;margin-right:1vw;font-size:'+fs+';">名次</div>' +
                 '<div style="flex:8;min-width:0;text-align:center;margin-right:1.5vw;font-size:'+fs+';">代表队</div>' +
-                '<div style="flex:36;min-width:0;text-align:center;margin-right:1.5vw;font-size:'+fs+';">姓名(棒次)</div>' +
+                '<div style="flex:36;min-width:0;text-align:center;margin-right:1.5vw;font-size:'+fs+';">姓名</div>' +
                 '<div style="flex:14;min-width:0;text-align:center;margin-right:1.5vw;font-size:'+fs+';">成绩</div>' +
                 '<div style="flex:8;min-width:0;text-align:center;font-size:'+fs+';">备注</div>';
         } else {
@@ -1672,12 +1678,12 @@ function renderHeatResult() {
     // 成绩排名表头
     // 2026-06-02 改用 flex 比例 (与 .lane-row 一致), 不再用 width:vw, 确保表头跟数据列完全对齐
     //   个人项: 道次5 / 名次5 / 姓名14 / 代表队12 / 成绩14 / 备注8
-    //   接力项: 道次5 / 名次5 / 代表队8 / 姓名(棒次)36 / 成绩14 / 备注8
+    //   接力项: 道次5 / 名次5 / 代表队8 / 姓名36 / 成绩14 / 备注8
     _heatResultRelay = isRelayEvent();
     var hf1 = _heatResultRelay ? 8 : 14;
     var hf2 = _heatResultRelay ? 36 : 12;
     var hdr1 = _heatResultRelay ? '代表队' : '姓名';
-    var hdr2 = _heatResultRelay ? '姓名(棒次)' : '代表队';
+    var hdr2 = _heatResultRelay ? '姓名' : '代表队';
     var header = document.querySelector('.lanes-header');
     if (header) {
         header.innerHTML =
@@ -1805,7 +1811,7 @@ function renderPublishedResult(pubData) {
     var pf1 = pubRelay ? 8 : 14;
     var pf2 = pubRelay ? 36 : 12;
     var ph1 = pubRelay ? '代表队' : '姓名';
-    var ph2 = pubRelay ? '姓名(棒次)' : '代表队';
+    var ph2 = pubRelay ? '姓名' : '代表队';
     var header = document.querySelector('.lanes-header');
     if (header) {
         header.innerHTML =

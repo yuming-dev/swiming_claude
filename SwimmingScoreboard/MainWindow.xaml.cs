@@ -192,7 +192,8 @@ namespace SwimmingScoreboard
         private double _displayStyleFs = 1.0;
         private string _displayStyleTextStyleJson = "{}";   // JSON 字符串 {key:{c:'#..',f:'..'}}
         // 2026-06-02 字号 4 类独立缩放 (title/event/time/info), 与全局 fs 相乘. JSON {title:1,event:1,time:1,info:1}
-        private string _displayStyleFsPartsJson = "{\"title\":1,\"event\":1,\"time\":1,\"info\":1}";
+        // 2026-06-04 加 header (= 第 3 行 表头 单独缩放, display.html 独立可调)
+        private string _displayStyleFsPartsJson = "{\"title\":1,\"event\":1,\"time\":1,\"info\":1,\"header\":1}";
         // 2026-06-03 大屏右上角 WR/CR 横条 显示/隐藏 (= display.html .header-records visibility)
         private bool _displayStyleRecordsHidden = false;
         private DisplayStyleWindow _displayStyleWin;        // 当前打开的"大屏样式"窗口 (主控 PC 端)
