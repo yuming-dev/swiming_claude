@@ -61,6 +61,9 @@ namespace SwimmingScoreboard
         // 2026-06-03 接力 reaction 事件窗口 (秒). 第一个事件到达起 N 秒倒计时, 收集 TP/SB/MB/手动 TP 算 reaction
         //   3 秒为默认 (= 选手反应时通常 0.x s, 加上传输/处理延迟, 3s 足够)
         private double _reactionEventWindowSec = 3.0;
+        // 2026-06-03 出发信号边沿. true=下降沿 (= 硬件 StartBox_Edge_Bit=1, 默认), false=上升沿 (=0).
+        //   PC 0x41 帧 d7 直接发该值, 硬件 RXD_Data_Buffer[7] 接收
+        private bool _startBoxEdgeFalling = true;
 
         public double LaneCloseTime {
             get { return _laneCloseTime; }
@@ -145,6 +148,10 @@ namespace SwimmingScoreboard
                 double v = value < 1.0 ? 1.0 : (value > 10.0 ? 10.0 : value);
                 if (_reactionEventWindowSec != v) { _reactionEventWindowSec = v; OnPropertyChanged("ReactionEventWindowSec"); }
             }
+        }
+        public bool StartBoxEdgeFalling {
+            get { return _startBoxEdgeFalling; }
+            set { if (_startBoxEdgeFalling != value) { _startBoxEdgeFalling = value; OnPropertyChanged("StartBoxEdgeFalling"); } }
         }
 
         public event PropertyChangedEventHandler PropertyChanged;

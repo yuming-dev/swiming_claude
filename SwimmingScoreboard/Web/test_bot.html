@@ -137,6 +137,12 @@ label { color: #94a3b8; font-size: 12px; }
     <div class="row" style="font-size:11px;color:#64748B;" id="relayStepInfo">
         选择项目后显示操作步骤
     </div>
+    <!-- 2026-06-03 接力 一键完整自动测试 (4×100 等任意 X×Y, 自动注册队伍/分组/出发台/逐棒触板/确认) -->
+    <div class="row">
+        <button class="btn-green" onclick="fullAutoTestRelay()">完整自动测试 (接力)</button>
+        <button class="btn-red" onclick="stopAutoTest()">停止</button>
+        <label>注册接力队→分组→就位→发令→逐棒(出发台+触板+盲表)→确认</label>
+    </div>
 </div>
 
 <div class="panel">
@@ -499,7 +505,7 @@ function batchRegister() {
     var isRelay = ev.indexOf('接力') >= 0;
 
     if (isRelay) {
-        var relayMatch = ev.match(/(\d+)x(\d+)/);
+        var relayMatch = ev.match(/(\d+)\s*[xX×]\s*(\d+)/);  // 2026-06-03 兼容 4x50 / 4×50 (Chinese ×) / 4 X 50 多种写法
         var legCount = relayMatch ? parseInt(relayMatch[1]) : 4;
         var legDist = relayMatch ? parseInt(relayMatch[2]) : 100;
         var totalDist = legCount * legDist;
@@ -585,7 +591,7 @@ function batchRegisterMixedGroups() {
     var isRelay = ev.indexOf('接力') >= 0;
     var distMatch = ev.match(/(\d+)/);
     var dist = distMatch ? parseInt(distMatch[1]) : 100;
-    var relayMatch = ev.match(/(\d+)x(\d+)/);
+    var relayMatch = ev.match(/(\d+)\s*[xX×]\s*(\d+)/);  // 2026-06-03 兼容 4x50 / 4×50 (Chinese ×) / 4 X 50 多种写法
     var legCount = relayMatch ? parseInt(relayMatch[1]) : 4;
     var legDist = relayMatch ? parseInt(relayMatch[2]) : 100;
     var totalDist = legCount * legDist;
@@ -752,7 +758,7 @@ function batchRegisterRelay() {
     var ageGroup = document.getElementById('relayAgeGroup').value || '';
     var countryShort = (document.getElementById('relayCountryShort').value || '').trim();
 
-    var relayMatch = ev.match(/(\d+)x(\d+)/);
+    var relayMatch = ev.match(/(\d+)\s*[xX×]\s*(\d+)/);  // 2026-06-03 兼容 4x50 / 4×50 (Chinese ×) / 4 X 50 多种写法
     var legCount = relayMatch ? parseInt(relayMatch[1]) : 4;
     var legDist = relayMatch ? parseInt(relayMatch[2]) : 100;
     var totalDist = legCount * legDist;
@@ -984,6 +990,102 @@ function fullAutoTest() {
             }, 2000);
         }, 2000);
     }, 1000);
+}
+
+// 2026-06-03 接力 完整自动测试 (4×100 等任意 X×Y 项目)
+//   流程: 注册接力队 → 自动分组 → 就位 → 发令 → 逐棒(出发台 → 每段触板+盲表) → 确认
+//   时序: 各棒之间不再额外等待"泳道关闭", 因为接力触板间隔 = legDist 实际泳速 (50m≈28s), 不会触发关闭窗口
+function fullAutoTestRelay() {
+    autoRunning = true;
+    var ev = document.getElementById('relayEvent').value;
+    if (!ev || ev.indexOf('接力') < 0) {
+        log('错误: 当前 relayEvent 不是接力项目, 请先选择 (如 4x100米自由泳接力)');
+        autoRunning = false;
+        return;
+    }
+    var p = getRelayParams();
+    var teamCount = parseInt(document.getElementById('relayTeamCount').value) || 8;
+    var totalLaps = p.legCount * p.lapsPerLeg;
+    var closeTime = (data && data.laneCloseSettings) ? data.laneCloseSettings.laneCloseTime || 20 : 20;
+    var legSwimMs = p.segTime * p.lapsPerLeg * 1000;   // 每棒模拟泳进时间 (50m ≈ 28s × lapsPerLeg)
+
+    log('=== 接力 完整自动测试: ' + ev + ' (' + p.legCount + '×' + p.legDist + 'm), 队伍数: ' + teamCount + ', 共 ' + totalLaps + ' 段 ===');
+
+    // Step 1: 注册接力队
+    batchRegisterRelay();
+    log('[1/7] 注册 ' + teamCount + ' 支接力队');
+
+    setTimeout(function() {
+        if (!autoRunning) return;
+        // Step 2: 自动分组
+        autoGenerateHeats();
+        log('[2/7] 自动分组完成');
+
+        setTimeout(function() {
+            if (!autoRunning) return;
+            // Step 3: 就位
+            simReady();
+            log('[3/7] 就位');
+
+            setTimeout(function() {
+                if (!autoRunning) return;
+                // Step 4: 发令
+                simStart();
+                log('[4/7] 发令');
+
+                setTimeout(function() {
+                    if (!autoRunning) return;
+                    // Step 5: 第 1 棒出发 (常规出发台反应时)
+                    simRelayStartBlock(1);
+                    log('[5/7] 第 1 棒 出发台');
+
+                    // Step 6: 逐棒 / 逐段触板
+                    var leg = 1, lap = 1;
+                    function nextStep() {
+                        if (!autoRunning) return;
+                        var globalLap = (leg - 1) * p.lapsPerLeg + lap;
+                        var isLegEnd = (lap === p.lapsPerLeg);
+                        var isFinal = (leg === p.legCount && isLegEnd);
+
+                        // 模拟一段泳进时间后触板
+                        var swimWait = p.segTime * 1000;
+                        log('  泳进 ' + p.legDist / p.lapsPerLeg + 'm... (' + p.segTime + 's)');
+                        setTimeout(function() {
+                            if (!autoRunning) return;
+                            log('[6/7] 第' + leg + '棒 第' + lap + '/' + p.lapsPerLeg + '段 (全局' + globalLap + '/' + totalLaps + ') 触板');
+                            simRelayTouchpad(leg, lap, globalLap);
+
+                            // 如果是 leg 末段且不是最后一棒, 下一棒出发台 (= 交接)
+                            if (isLegEnd && !isFinal) {
+                                setTimeout(function() {
+                                    if (!autoRunning) return;
+                                    leg++;
+                                    lap = 1;
+                                    log('  → 第 ' + leg + ' 棒 出发台 (交接)');
+                                    simRelayStartBlock(leg);
+                                    setTimeout(nextStep, 800);
+                                }, 600);
+                            } else if (!isFinal) {
+                                // 同棒内下一段
+                                lap++;
+                                setTimeout(nextStep, 800);
+                            } else {
+                                // 终点触板, 全部完成
+                                setTimeout(function() {
+                                    if (!autoRunning) return;
+                                    simConfirm();
+                                    log('[7/7] 确认成绩');
+                                    log('=== 接力 完整自动测试 结束 ===');
+                                    autoRunning = false;
+                                }, 2000);
+                            }
+                        }, swimWait);
+                    }
+                    setTimeout(nextStep, 600);
+                }, 1000);
+            }, 2000);
+        }, 2000);
+    }, 1500);
 }
 
 // 启动：把已知/默认 IP 填入遮罩输入框，等用户点击"连接"按钮才真的发起 WebSocket

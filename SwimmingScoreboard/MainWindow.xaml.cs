@@ -493,6 +493,8 @@ namespace SwimmingScoreboard
                 "50米蛙泳", "100米蛙泳", "200米蛙泳",
                 "50米蝶泳", "100米蝶泳", "200米蝶泳",
                 "200米个人混合泳", "400米个人混合泳",
+                // 2026-06-03 加 4x50 接力 (青少年/儿童常用, 25/50m 泳池都可)
+                "4x50米自由泳接力", "4x50米混合泳接力",
                 "4x100米自由泳接力", "4x200米自由泳接力",
                 "4x100米混合泳接力"
             };
@@ -3045,7 +3047,8 @@ namespace SwimmingScoreboard
                 //2026-05-18 盲表代替成绩延迟时间统一为整秒(与 d3/d4/d6/d9/d10 一致)；硬件 case 端 ×10 转 0.1s 单位
                 byte mbDelay   = ByteClamp((int)Math.Round(_laneCloseSettings.BlindReplaceDelay));
                 byte resultDsp = ByteClamp(_laneCloseSettings.SplitDisplayTime);
-                byte edgeBit   = 0;                                                   // 出发信号边沿 0=下降沿
+                // 2026-06-03 出发信号边沿: 硬件定义 1=下降沿 / 0=上升沿 (= swimplay.c L37 StartBox_Edge_Bit), PC 从 setting 读
+                byte edgeBit   = _laneCloseSettings.StartBoxEdgeFalling ? (byte)1 : (byte)0;
                 byte laneDir   = (byte)(_laneCloseSettings.LaneOrder == "reverse" ? 1 : 0);
                 //2026-05-26 修复: d8 bit 0 硬件端语义是 FinalPlace(终点位置) 而非 StartPlace(起点位置)
                 //  之前发 StartPosition, 50m 单程比赛 (sp50m=1, Start≠Finish) 时出发台开错端
@@ -3611,8 +3614,11 @@ namespace SwimmingScoreboard
                                     _relayReactionCalc.OnEvent(lane, side, RelayReactionCalculator.EventKind.SB, timeInSeconds);
                                 }
                             }
+                        } else if (laneState.CurrentLap > 0) {
+                            // 2026-06-03 非接力 + 已起跳 (CurrentLap>0): 比赛进行中的 SB 数据, 不算反应时, 仅记日志
+                            AddLog(string.Format("泳道{0} 出发台触发(已起跳后, 不算反应时, 仅日志)", lane));
                         } else {
-                            // 普通出发：反应时间就是出发台时间（抢跳时为负）
+                            // 比赛发令出发 (= CurrentLap==0, 个人赛起跳 OR 接力第 1 棒): 反应时间就是出发台时间(抢跳时为负)
                             laneState.ReactionTime = timeInSeconds;
                             // 接力第 1 棒：把出发反应时写入 LegReactionTimes[0]（覆盖式，重复触发只保留最近一次）
                             if (_isRelay) {
@@ -5548,7 +5554,8 @@ namespace SwimmingScoreboard
             });
             if (sw2 != null) swimmerName = sw2.Name ?? "";
             if (!_laneEventLog.ContainsKey(lane)) _laneEventLog[lane] = new StringBuilder();
-            _laneEventLog[lane].AppendFormat("[T={0,7}] 道{1}{2} {3}{4} = {5}{6}{7}\r\n",
+            // 2026-06-03 计算数据 (= 14 条规则算出) time 后加 "*" 与原始 SB 数据区分
+            _laneEventLog[lane].AppendFormat("[T={0,7}] 道{1}{2} {3}{4} = {5}*{6}{7}\r\n",
                 elapsed, lane, sideLabel, label, lapLabel, timeStr, basisNote,
                 string.IsNullOrEmpty(swimmerName) ? "" : (" (" + swimmerName + ")"));
             if (lane == _selectedLane) RefreshLaneEventLogView();
@@ -5592,7 +5599,8 @@ namespace SwimmingScoreboard
             });
             if (sw2 != null) swimmerName = sw2.Name ?? "";
             if (!_laneEventLog.ContainsKey(lane)) _laneEventLog[lane] = new StringBuilder();
-            _laneEventLog[lane].AppendFormat("[T={0,7}] 道{1}{2} {3}{4} = ---{5}\r\n",
+            // 2026-06-03 计算数据 (= 14 条规则算出) time 后加 "*" 与原始 SB 数据区分
+            _laneEventLog[lane].AppendFormat("[T={0,7}] 道{1}{2} {3}{4} = ---*{5}\r\n",
                 elapsed, lane, sideLabel, label, lapLabel,
                 string.IsNullOrEmpty(swimmerName) ? "" : (" (" + swimmerName + ")"));
             if (lane == _selectedLane) RefreshLaneEventLogView();
@@ -9055,6 +9063,15 @@ namespace SwimmingScoreboard
             hwOpenRow.Children.Add(rbHwFlow);
             sp.Children.Add(hwOpenRow);
 
+            // 2026-06-03 出发信号边沿 — 硬件 SB 按键有效边沿 (下降沿 / 上升沿), 0x41 帧 d7 下发硬件
+            var edgeRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 10, 0, 0) };
+            edgeRow.Children.Add(new TextBlock { Text = "出发信号边沿", Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), FontSize = 15, VerticalAlignment = VerticalAlignment.Center, Width = 140 });
+            var rbEdgeFall = new RadioButton { Content = "下降沿", Foreground = Brushes.White, FontSize = 14, IsChecked = _laneCloseSettings.StartBoxEdgeFalling, GroupName = "SBEdge", Margin = new Thickness(0, 0, 12, 0) };
+            var rbEdgeRise = new RadioButton { Content = "上升沿", Foreground = Brushes.White, FontSize = 14, IsChecked = !_laneCloseSettings.StartBoxEdgeFalling, GroupName = "SBEdge" };
+            edgeRow.Children.Add(rbEdgeFall);
+            edgeRow.Children.Add(rbEdgeRise);
+            sp.Children.Add(edgeRow);
+
             // 道次显示顺序：正序=顶到底为 0→9；逆序=顶到底为 9→0（同步给硬件计时器及所有 UI）
             var orderRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 10, 0, 0) };
             orderRow.Children.Add(new TextBlock { Text = "道次顺序", Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), FontSize = 15, VerticalAlignment = VerticalAlignment.Center, Width = 140 });
@@ -9143,6 +9160,7 @@ namespace SwimmingScoreboard
                 if (double.TryParse(tbBigPage.Text, out v)) _laneCloseSettings.BigDisplayPageInterval = v;
                 _laneCloseSettings.ReactionTimeEnabled = rbRtOn.IsChecked == true;
                 _laneCloseSettings.HardwareAlwaysOpen = rbHwAlwaysOpen.IsChecked == true;
+                _laneCloseSettings.StartBoxEdgeFalling = rbEdgeFall.IsChecked == true;
                 _laneCloseSettings.LaneOrder = rbOrderRev.IsChecked == true ? "reverse" : "forward";
                 string newFinish = rbRight.IsChecked == true ? "right" : "left";
                 _laneCloseSettings.FinishPosition = newFinish;
@@ -9180,13 +9198,14 @@ namespace SwimmingScoreboard
                 if (_timingBridge != null && _timingBridge.IsConnected) {
                     try { _timingBridge.SendPoolSingleOrDoubleTP(!newHasRight); } catch { }
                 }
-                AddLog(string.Format("参数更新: 关闭{0}s 出发台{1}s 确认{2}s 抢跳{3}s 分段{4}s 终点:{5} 翻屏{6}s 反应时:{7} 道次:{8} 触板:{9}",
+                AddLog(string.Format("参数更新: 关闭{0}s 出发台{1}s 确认{2}s 抢跳{3}s 分段{4}s 终点:{5} 翻屏{6}s 反应时:{7} 道次:{8} 触板:{9} 边沿:{10}",
                     _laneCloseSettings.LaneCloseTime, _laneCloseSettings.StartBlockCloseDelay,
                     _laneCloseSettings.ResultConfirmCloseDelay, _laneCloseSettings.FalseStartThreshold,
                     _laneCloseSettings.SplitDisplayTime, _laneCloseSettings.FinishPosition == "left" ? "左端" : "右端",
                     _laneCloseSettings.BigDisplayPageInterval, _laneCloseSettings.ReactionTimeEnabled ? "打开" : "关闭",
                     _laneCloseSettings.LaneOrder == "reverse" ? "逆序9→0" : "正序0→9",
-                    newHasRight ? "两端" : "单边"));
+                    newHasRight ? "两端" : "单边",
+                    _laneCloseSettings.StartBoxEdgeFalling ? "下降沿" : "上升沿"));
                 if (poolTpChanged) AddLog("泳池触板安装方式已更改并同步到硬件计时器");
 
                 //2026-05-18 恢复"非参数"状态 + 刷新硬件主控显示
