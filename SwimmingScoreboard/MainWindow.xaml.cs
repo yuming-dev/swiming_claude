@@ -1802,8 +1802,13 @@ namespace SwimmingScoreboard
                             LogRawTimingData(laneNum, "ManualTouchLeft", _runningTime, "left");
                             AddLog(string.Format("泳道{0} 左端手动触板: {1}", laneNum, TimeFormatter.Format(_runningTime)));
                             // 2026-06-03 喂入 RelayReactionCalculator (= 接力 SB reaction 14 条规则)
+                            //   守卫: 只在接力交接段触发 (= 触发后 currentLap 是 N×perLegLaps)
                             if (_relayReactionCalc != null && _isRelay) {
-                                _relayReactionCalc.OnEvent(laneNum, "left", RelayReactionCalculator.EventKind.ManualTP, _runningTime);
+                                int tt = GetTotalLaps();
+                                int pl = tt > 0 ? tt / 4 : 0;
+                                if (pl > 0 && (lState.CurrentLap + 1) % pl == 0) {
+                                    _relayReactionCalc.OnEvent(laneNum, "left", RelayReactionCalculator.EventKind.ManualTP, _runningTime);
+                                }
                             }
                         } else if (lState != null) {
                             AddLog(string.Format("泳道{0} 左端手动触板(未启用)", laneNum));
@@ -1820,9 +1825,13 @@ namespace SwimmingScoreboard
                             SaveManualTouchToSplit(laneNum, _runningTime);
                             LogRawTimingData(laneNum, "ManualTouchRight", _runningTime, "right");
                             AddLog(string.Format("泳道{0} 右端手动触板: {1}", laneNum, TimeFormatter.Format(_runningTime)));
-                            // 2026-06-03 喂入 RelayReactionCalculator
+                            // 2026-06-03 喂入 RelayReactionCalculator (= 同上, 加交接段守卫)
                             if (_relayReactionCalc != null && _isRelay) {
-                                _relayReactionCalc.OnEvent(laneNum, "right", RelayReactionCalculator.EventKind.ManualTP, _runningTime);
+                                int tt = GetTotalLaps();
+                                int pl = tt > 0 ? tt / 4 : 0;
+                                if (pl > 0 && (lState.CurrentLap + 1) % pl == 0) {
+                                    _relayReactionCalc.OnEvent(laneNum, "right", RelayReactionCalculator.EventKind.ManualTP, _runningTime);
+                                }
                             }
                         } else if (lState != null) {
                             AddLog(string.Format("泳道{0} 右端手动触板(未启用)", laneNum));
@@ -3522,15 +3531,26 @@ namespace SwimmingScoreboard
             LogRawTimingData(lane, (cmdType == "Touchpad" && isMbSubstitute) ? "TouchpadMb" : cmdType, timeInSeconds, side);
 
             // 2026-06-03 喂事件到 RelayReactionCalculator (= 接力 SB reaction 14 条规则). 第 1 棒发令不喂 (= 不算接力交接)
+            // 守卫: 只对"接力交接段触板"喂入 (= TP/MB/MB_FirstPress 触发后 currentLap 变成 N×perLegLaps). 非交接段普通触板不算 SB reaction (= 用户不期望 "---" 占位)
             if (_relayReactionCalc != null && _isRelay && !string.IsNullOrEmpty(side)) {
-                if (cmdType == "Touchpad") {
-                    if (isMbSubstitute) {
-                        _relayReactionCalc.OnEvent(lane, side, RelayReactionCalculator.EventKind.MB_Final, timeInSeconds);
-                    } else {
-                        _relayReactionCalc.OnEvent(lane, side, RelayReactionCalculator.EventKind.TP, timeInSeconds);
+                var lsForHook = _laneDeviceStates.FirstOrDefault(s => s.Lane == lane);
+                int totalLapsForHook = GetTotalLaps();
+                int perLegLapsForHook = totalLapsForHook > 0 ? totalLapsForHook / 4 : 0;
+                bool isHandoffTpSeg = false;
+                if (perLegLapsForHook > 0 && lsForHook != null) {
+                    int afterLap = lsForHook.CurrentLap + 1;
+                    isHandoffTpSeg = (afterLap % perLegLapsForHook == 0);
+                }
+                if (isHandoffTpSeg) {
+                    if (cmdType == "Touchpad") {
+                        if (isMbSubstitute) {
+                            _relayReactionCalc.OnEvent(lane, side, RelayReactionCalculator.EventKind.MB_Final, timeInSeconds);
+                        } else {
+                            _relayReactionCalc.OnEvent(lane, side, RelayReactionCalculator.EventKind.TP, timeInSeconds);
+                        }
+                    } else if (cmdType == "PushButton1" || cmdType == "PushButton2" || cmdType == "PushButton3") {
+                        _relayReactionCalc.OnEvent(lane, side, RelayReactionCalculator.EventKind.MB_FirstPress, timeInSeconds);
                     }
-                } else if (cmdType == "PushButton1" || cmdType == "PushButton2" || cmdType == "PushButton3") {
-                    _relayReactionCalc.OnEvent(lane, side, RelayReactionCalculator.EventKind.MB_FirstPress, timeInSeconds);
                 }
                 // SB 在 case "StartingBlock" 接力分支内单独喂 (= 因为发令第 1 棒 SB 不喂)
             }
@@ -3582,9 +3602,14 @@ namespace SwimmingScoreboard
                             AddLog(string.Format("泳道{0} 出发台触发（已关闭反应时检测）", lane));
                         } else if (_isRelay && laneState.CurrentLap > 0) {
                             // 2026-06-03 接力交接 SB: 喂入 RelayReactionCalculator (= 14 条规则). reaction 由 calculator window 超时后通过 callback 输出
-                            //   不再在这里直接算 reaction (= 之前 Phase 2 的 timeInSeconds - lastTouchTime 改用 calculator 完整规则)
+                            //   守卫: 只在交接段触发 (= currentLap 是 N×perLegLaps), 防非交接时机触发 "---" 占位
                             if (_relayReactionCalc != null && !string.IsNullOrEmpty(side)) {
-                                _relayReactionCalc.OnEvent(lane, side, RelayReactionCalculator.EventKind.SB, timeInSeconds);
+                                int totalLapsSb = GetTotalLaps();
+                                int perLegLapsSb = totalLapsSb > 0 ? totalLapsSb / 4 : 0;
+                                bool isHandoffSb = perLegLapsSb > 0 && laneState.CurrentLap % perLegLapsSb == 0;
+                                if (isHandoffSb) {
+                                    _relayReactionCalc.OnEvent(lane, side, RelayReactionCalculator.EventKind.SB, timeInSeconds);
+                                }
                             }
                         } else {
                             // 普通出发：反应时间就是出发台时间（抢跳时为负）
