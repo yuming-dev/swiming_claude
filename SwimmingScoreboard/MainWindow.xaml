@@ -1094,6 +1094,7 @@
                                     <RowDefinition Height="32"/>
                                     <RowDefinition Height="32"/>
                                     <RowDefinition Height="32"/>
+                                    <RowDefinition Height="32"/>
                                 </Grid.RowDefinitions>
                                 <Button Grid.Row="0" Grid.Column="0" Click="MarkDNS_Click" Margin="2" BorderThickness="0" Cursor="Hand">
                                     <Button.Template>
@@ -1206,6 +1207,17 @@
                                                     <TextBlock Text="&#xE70F;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="White" VerticalAlignment="Center" Margin="0,0,4,0"/>
                                                     <TextBlock Text="手工补段" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
                                                 </StackPanel>
+                                            </Border>
+                                        </ControlTemplate>
+                                    </Button.Template>
+                                </Button>
+                                <!-- 2026-06-04 TRI: 试游 / 不计排名状态 (= DNS/DSQ 同款 无成绩 + 备注栏显示) -->
+                                <Button Grid.Row="6" Grid.Column="0" Grid.ColumnSpan="2" Click="MarkTri_Click" Margin="2" BorderThickness="0" Cursor="Hand"
+                                        ToolTip="标记本道为 TRI (试游 / 不计成绩 / 不参与排名), 备注栏显示 'TRI'">
+                                    <Button.Template>
+                                        <ControlTemplate TargetType="Button">
+                                            <Border Background="#7C3AED" CornerRadius="6">
+                                                <TextBlock Text="TRI" FontSize="14" Foreground="White" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                             </Border>
                                         </ControlTemplate>
                                     </Button.Template>

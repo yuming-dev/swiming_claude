@@ -66,8 +66,10 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
     border-bottom: 1px solid #334155;
 }
 .lane-row.finished { border-bottom-color: var(--green); }
-.lane-row.dns { opacity: 0.4; }
-.lane-row.dsq { border-bottom-color: var(--red); }
+/* 2026-06-04 DNS / DSQ / TRI 同款显示 (红色下边框) */
+.lane-row.dns,
+.lane-row.dsq,
+.lane-row.tri { border-bottom-color: var(--red); }
 /* 2026-05-27 空道(本组无运动员): 半透明显示, 保留道次号让屏幕道数齐整 */
 .lane-row.empty { opacity: 0.28; }
 /* 2026-05-31 列宽改 flex 比例自动撑满整行 (原 vw 固定宽度只能覆盖 ~60% 屏宽).
@@ -1584,6 +1586,7 @@ function _refreshRaceRows() {
         if (sw.isFinished) classes += ' finished';
         if (sw.status === 'DNS') classes += ' dns';
         if (sw.status === 'DSQ') classes += ' dsq';
+        if (sw.status === 'TRI') classes += ' tri';   // 2026-06-04 试游, 红色下边框 (与 dns/dsq 同款)
         if (sw.status === 'EMPTY') classes += ' empty';   // 2026-05-27 空道淡显
         if (ui.lastClass !== classes) { ui.row.className = classes; ui.lastClass = classes; }
 
@@ -1607,8 +1610,8 @@ function _refreshRaceRows() {
 
         // 成绩 / 名次
         var resultText = '', rankText = '', rankClass = '';
-        if (sw.status === 'DNS' || sw.status === 'DNF' || sw.status === 'DSQ') {
-            // DNS/DNF/DSQ 不显示成绩
+        if (sw.status === 'DNS' || sw.status === 'DNF' || sw.status === 'DSQ' || sw.status === 'TRI') {
+            // DNS/DNF/DSQ/TRI 不显示成绩
         } else if (sw.isFinished && sw.finalTime) {
             resultText = sw.finalTime;
             if (sw.rank === 1) { rankClass = 'gold'; rankText = sw.rank; }
@@ -1646,6 +1649,7 @@ function _refreshRaceRows() {
         if (sw.status === 'DSQ' || sw.status === 'DQ') { remarkText = 'DSQ'; remarkColor = ''; }     // 默认红（CSS .remark）
         else if (sw.status === 'DNS') { remarkText = 'DNS'; remarkColor = ''; }
         else if (sw.status === 'DNF') { remarkText = 'DNF'; remarkColor = ''; }
+        else if (sw.status === 'TRI') { remarkText = 'TRI'; remarkColor = ''; }   // 2026-06-04 试游, 与 DSQ/DNS 同款显示
         if (!remarkText && sw.recordNote) { remarkText = sw.recordNote; remarkColor = '#fbbf24'; }
         // 2026-06-04 备注栏 是否显示 出发反应时 由 control 端开关 (_remarkShowReaction, 默认 true).
         //   关掉后 反应时不进备注栏 (但 sw.reactionTime 数据仍在, 只是 UI 隐藏)
@@ -1771,13 +1775,14 @@ function showHeatResultPage() {
         else if (s.rank === 3) { rankClass = 'bronze'; rankText = '3'; }
         else if (s.rank > 0) { rankText = s.rank; }
 
-        // 备注栏优先级（确认成绩后的本组成绩榜）：DSQ/DNS/DNF（红）> 破/平纪录 recordNote（金）
+        // 备注栏优先级（确认成绩后的本组成绩榜）：DSQ/DNS/DNF/TRI（红）> 破/平纪录 recordNote（金）
         var remarkText = '', remarkColor = '';
         if (s.status === 'DSQ') remarkText = 'DSQ';
         else if (s.status === 'DNS') remarkText = 'DNS';
         else if (s.status === 'DNF') remarkText = 'DNF';
+        else if (s.status === 'TRI') remarkText = 'TRI';
         if (!remarkText && s.recordNote) { remarkText = s.recordNote; remarkColor = '#fbbf24'; }
-        var resultText = (s.status === 'DSQ' || s.status === 'DNS' || s.status === 'DNF') ? '' : (s.finalTime || '');
+        var resultText = (s.status === 'DSQ' || s.status === 'DNS' || s.status === 'DNF' || s.status === 'TRI') ? '' : (s.finalTime || '');
 
         var c1 = relay ? (s.country||'') : (s.name||'');
         var c2 = relay ? (s.name||'') : (s.country||'');
@@ -1876,13 +1881,14 @@ function renderPublishedResult(pubData) {
         else if (s.rank === 3) { rankClass = 'bronze'; rankText = '3'; }
         else if (s.rank > 0) { rankText = s.rank; }
 
-        // 备注栏优先级（公布成绩）：DSQ/DNS/DNF（红）> 破/平纪录 recordNote（金）
+        // 备注栏优先级（公布成绩）：DSQ/DNS/DNF/TRI（红）> 破/平纪录 recordNote（金）
         var remarkText = '', remarkColor = '';
         if (s.status === 'DSQ' || s.resultStatus === 'DSQ') remarkText = 'DSQ';
         else if (s.status === 'DNS') remarkText = 'DNS';
         else if (s.status === 'DNF') remarkText = 'DNF';
+        else if (s.status === 'TRI') remarkText = 'TRI';
         if (!remarkText && s.recordNote) { remarkText = s.recordNote; remarkColor = '#fbbf24'; }
-        var pubResultText = (s.status === 'DSQ' || s.status === 'DNS' || s.status === 'DNF' || s.resultStatus === 'DSQ') ? '' : (s.finalTime || '');
+        var pubResultText = (s.status === 'DSQ' || s.status === 'DNS' || s.status === 'DNF' || s.status === 'TRI' || s.resultStatus === 'DSQ') ? '' : (s.finalTime || '');
 
         var pc1 = pubRelay ? (s.country||'') : (s.name||'');
         var pc2 = pubRelay ? (s.name||'') : (s.country||'');
@@ -2012,10 +2018,10 @@ function showRankingPageSplit() {
     lv.innerHTML = html;
 }
 
-// 2026-06-01 总排名"备注"列拼装: 状态(DSQ/DNS/DNF 红) > 晋级 Q (绿) + 破纪录 WR/CR/... (金), 多个用 ' \ ' 隔开
+// 2026-06-01 总排名"备注"列拼装: 状态(DSQ/DNS/DNF/TRI 红) > 晋级 Q (绿) + 破纪录 WR/CR/... (金), 多个用 ' \ ' 隔开
 function buildEventRankingRemarkHtml(item) {
     var status = (item && (item.resultStatus || item.status)) || '';
-    if (status === 'DSQ' || status === 'DNS' || status === 'DNF' || status === 'DQ') {
+    if (status === 'DSQ' || status === 'DNS' || status === 'DNF' || status === 'DQ' || status === 'TRI') {
         return '<span style="color:#ef4444;font-weight:bold;">' + status + '</span>';
     }
     var parts = [];

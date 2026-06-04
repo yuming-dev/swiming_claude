@@ -2528,20 +2528,27 @@ namespace SwimmingScoreboard
             }
             if (stageSwimmers.Count == 0) return result;
 
-            // 按 (实际性别, 实际年龄) 分组; 接力赛只按 性别
+            // 2026-06-04 改: 按 (性别, 注册组别 AgeCategory) 分组, 不再按 实际年龄 逐岁切.
+            //   例: "9-11岁" 组 不再拆 9/10/11 三张子表, 一张表显示全部. 接力赛只按 性别.
+            //   注册组别 取 swimmer.AgeCategory (与 _ageGroups 注册名一致, 比赛档案配置).
+            var ageOrderMap = new Dictionary<string, int>();
+            for (int aoi = 0; aoi < _ageGroups.Count; aoi++) ageOrderMap[_ageGroups[aoi].Name] = aoi;
             var groups = stageSwimmers.GroupBy(s => rankRelay
-                    ? new { G = s.Gender ?? "", A = 0 }
-                    : new { G = s.Gender ?? "", A = s.Age })
+                    ? new { G = s.Gender ?? "", AG = "" }
+                    : new { G = s.Gender ?? "", AG = s.AgeCategory ?? "" })
                 .OrderBy(g => g.Key.G == "男" ? 0 : g.Key.G == "女" ? 1 : 2)
-                .ThenBy(g => g.Key.A);
+                .ThenBy(g => {
+                    int o; return ageOrderMap.TryGetValue(g.Key.AG, out o) ? o : 9999;
+                });
 
             foreach (var grp in groups) {
                 string subGender = grp.Key.G;
-                int subAge = grp.Key.A;
+                string subAgeGroup = grp.Key.AG;
                 var subList = grp.ToList();
 
                 var withTimes = subList.Where(s => {
-                    if (s.Status == "DSQ" || s.Status == "DNS" || s.Status == "DNF") return false;
+                    // 2026-06-04 TRI 同 DSQ/DNS/DNF, 不进 withTimes (= 不参与排名)
+                    if (s.Status == "DSQ" || s.Status == "DNS" || s.Status == "DNF" || s.Status == "TRI") return false;
                     var rr = s.GetResultForStage(_currentStage);
                     return rr != null && rr.FinalTime > 0;
                 }).OrderBy(s => s.GetResultForStage(_currentStage).FinalTime).ToList();
@@ -2563,7 +2570,7 @@ namespace SwimmingScoreboard
                     items.Add(new {
                         rank = rank, heat = heatR, lane = sw.Lane,
                         bibNumber = sw.BibNumber, name = rkName, country = sw.Country,
-                        gender = sw.Gender ?? "", age = sw.Age,
+                        gender = sw.Gender ?? "", ageGroup = sw.AgeCategory ?? "",
                         finalTime = r != null ? TimeFormatter.Format(r.FinalTime) : "",
                         status = sw.Status ?? "",
                         resultStatus = r != null ? (r.Status ?? "") : "",
@@ -2585,19 +2592,19 @@ namespace SwimmingScoreboard
                     items.Add(new {
                         rank = 0, heat = heatO, lane = sw.Lane,
                         bibNumber = sw.BibNumber, name = rkName, country = sw.Country,
-                        gender = sw.Gender ?? "", age = sw.Age,
+                        gender = sw.Gender ?? "", ageGroup = sw.AgeCategory ?? "",
                         finalTime = "", status = remark, resultStatus = remark,
                         recordNote = "", qualifiedToNext = false
                     });
                 }
 
-                // 子分组标题: "9岁 男子" / "10岁 女子" / 接力则只 "男子" 等
+                // 子分组标题: "9-11岁 男子" / "12-13岁 女子" / 接力则只 "男子" 等
                 string genderLabel = (subGender == "男" || subGender == "女") ? (subGender + "子") : subGender;
-                string title = rankRelay
+                string title = rankRelay || string.IsNullOrEmpty(subAgeGroup)
                     ? genderLabel
-                    : string.Format("{0}岁 {1}", subAge, genderLabel);
+                    : string.Format("{0} {1}", subAgeGroup, genderLabel);
                 result.Add(new {
-                    gender = subGender, age = subAge, title = title, items = items
+                    gender = subGender, ageGroup = subAgeGroup, title = title, items = items
                 });
             }
             return result;
@@ -2635,9 +2642,9 @@ namespace SwimmingScoreboard
 
             var ranked = new List<object>();
 
-            // 有有效成绩且非DSQ/DNS/DNF的运动员按成绩排名
+            // 有有效成绩且非DSQ/DNS/DNF/TRI的运动员按成绩排名 (TRI 试游 同款排除)
             var withTimes = stageSwimmers.Where(s => {
-                if (s.Status == "DSQ" || s.Status == "DNS" || s.Status == "DNF") return false;
+                if (s.Status == "DSQ" || s.Status == "DNS" || s.Status == "DNF" || s.Status == "TRI") return false;
                 var r = s.GetResultForStage(_currentStage);
                 return r != null && r.FinalTime > 0;
             }).OrderBy(s => s.GetResultForStage(_currentStage).FinalTime).ToList();
@@ -9069,6 +9076,14 @@ namespace SwimmingScoreboard
             if (!int.TryParse(LaneInputBox.Text, out lane)) { AddLog("请输入泳道号"); return; }
             if (!ConfirmMarkStatus(lane, "DSQ", "犯规取消资格")) return;
             MarkLaneStatus(lane, "DSQ");
+        }
+
+        // 2026-06-04 TRI 试游: 不计成绩、不参与排名, 备注栏显 'TRI' (与 DSQ/DNS 同款处理)
+        private void MarkTri_Click(object sender, RoutedEventArgs e) {
+            int lane;
+            if (!int.TryParse(LaneInputBox.Text, out lane)) { AddLog("请输入泳道号"); return; }
+            if (!ConfirmMarkStatus(lane, "TRI", "试游 / 不计排名")) return;
+            MarkLaneStatus(lane, "TRI");
         }
 
         private void CancelNote_Click(object sender, RoutedEventArgs e) {
@@ -18344,14 +18359,20 @@ namespace SwimmingScoreboard
                     dispLane,
                     System.Net.WebUtility.HtmlEncode(col1),
                     System.Net.WebUtility.HtmlEncode(col2));
+                // 2026-06-04 本段时间 不再读 split.Time (= 服务器写入时可能因上一段缺失而错算),
+                //   改用 当前累计 - 上一段有效累计; 首段 prevCum=0 等价 减发令时间.
+                //   缺失段 不更新 prevCum, 让下一段直接跟最近一次有数据的段比 (= 任务 9/10 要求)
+                double prevCum = 0;
                 foreach (var d in dists) {
                     var split = result.Splits.FirstOrDefault(sp => sp.Distance == d);
                     if (split == null) {
                         sb.Append("<td style='text-align:center;color:#cbd5e1;'>—</td>");
                     } else {
-                        // 累计时间（粗体上行）+ 本段时间（小字下行带括号）
+                        double segTime = split.CumulativeTime - prevCum;
+                        if (segTime < 0) segTime = 0;
                         sb.AppendFormat("<td style='text-align:center;font-family:Consolas,monospace;'><b>{0}</b><br><span style='font-size:10px;color:#64748b;'>({1})</span></td>",
-                            TimeFormatter.Format(split.CumulativeTime), TimeFormatter.Format(split.Time));
+                            TimeFormatter.Format(split.CumulativeTime), TimeFormatter.Format(segTime));
+                        prevCum = split.CumulativeTime;   // 只在有效段更新, 缺失段保留上一次值
                     }
                 }
                 sb.AppendFormat("<td style='text-align:center;font-weight:bold;background:#eff6ff;font-family:Consolas,monospace;'>{0}</td>",
