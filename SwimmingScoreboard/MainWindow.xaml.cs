@@ -58,7 +58,7 @@ namespace SwimmingScoreboard
             new DisplayRecordOption { Label = "WR", TypeName = "世界纪录" },
             new DisplayRecordOption { Label = "AR", TypeName = "亚洲纪录" },
             new DisplayRecordOption { Label = "NR", TypeName = "全国纪录" },
-            new DisplayRecordOption { Label = "省R", TypeName = "省运会纪录" },
+            new DisplayRecordOption { Label = "MR", TypeName = "省运会纪录" },
             new DisplayRecordOption { Label = "市R", TypeName = "市纪录" },
             new DisplayRecordOption { Label = "CR", TypeName = "赛会纪录" }
         };
@@ -5550,7 +5550,7 @@ namespace SwimmingScoreboard
             if (t.Contains("亚洲青年")) return "AJR";
             if (t.Contains("亚洲")) return "AR";
             if (t.Contains("全国")) return "NR";
-            if (t.Contains("省")) return "省R";
+            if (t.Contains("省")) return "MR";
             if (t.Contains("市")) return "市R";
             if (t.Contains("赛会") || t.Contains("大会")) return "CR";
             // 兜底：取首字母
@@ -5591,8 +5591,8 @@ namespace SwimmingScoreboard
                         TimeFormatter.Format(result.FinalTime), TimeFormatter.Format(record.Time)));
                 }
             }
-            // 去重并按 WR > OR > AR > AJR > NR > 省R > 市R > CR 的顺序排序展示
-            var order = new Dictionary<string, int> { {"WR",1},{"OR",2},{"AR",3},{"AJR",4},{"NR",5},{"省R",6},{"市R",7},{"CR",8} };
+            // 去重并按 WR > OR > AR > AJR > NR > MR > 市R > CR 的顺序排序展示 (MR = 省级 Meet Record)
+            var order = new Dictionary<string, int> { {"WR",1},{"OR",2},{"AR",3},{"AJR",4},{"NR",5},{"MR",6},{"市R",7},{"CR",8} };
             tags = tags.Distinct().OrderBy(s => {
                 string key = s.StartsWith("=") ? s.Substring(1) : s;
                 int v;
