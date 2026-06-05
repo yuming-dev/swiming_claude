@@ -259,6 +259,9 @@ namespace SwimmingScoreboard
             ).ToList();
             var withResults = matched.Where(s => {
                 var r = s.GetResultForStage(stage);
+                // 2026-06-04 TRI 不进 总排名性质 表 (按组别批量公布 = 总排名表)
+                if (s.Status == "TRI") return false;
+                if (r != null && r.Status == "TRI") return false;
                 return r != null && (r.FinalTime > 0 || !string.IsNullOrEmpty(s.Status));
             }).ToList();
             if (withResults.Count == 0) return new List<RowVm>();

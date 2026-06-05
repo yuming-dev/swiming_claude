@@ -5540,8 +5540,9 @@ namespace SwimmingScoreboard
         private string RenderRemarkCellHtml(Swimmer sw, LaneResult r, string fromStage) {
             string status = "";
             if (r != null && !string.IsNullOrEmpty(r.Status)) status = r.Status;
+            // 2026-06-04 TRI 也要在备注栏显 'TRI' (= 试游, 与 DSQ/DNS/DNF 同款标签, 但 TRI 仍显成绩)
             else if (sw != null && !string.IsNullOrEmpty(sw.Status) &&
-                     (sw.Status == "DNS" || sw.Status == "DNF" || sw.Status == "DSQ" || sw.Status == "DQ"))
+                     (sw.Status == "DNS" || sw.Status == "DNF" || sw.Status == "DSQ" || sw.Status == "DQ" || sw.Status == "TRI"))
                 status = sw.Status;
             if (!string.IsNullOrEmpty(status))
                 return string.Format("<span style='color:#dc2626;'>{0}</span>", status);
@@ -19171,18 +19172,21 @@ namespace SwimmingScoreboard
             }
             foreach (var sw in swimmers) {
                 var r = sw.Results.FirstOrDefault(lr => lr.Stage == _currentStage && lr.Heat == _currentHeat);
+                // remark 用作内部判断 (DSQ/DNS/DNF 不显成绩+不参与成绩差). 2026-06-04 TRI 不进 remark, 因为 TRI 要正常显成绩
                 string remark = "";
-                if (r != null && !string.IsNullOrEmpty(r.Status)) remark = r.Status;
+                if (r != null && !string.IsNullOrEmpty(r.Status) && r.Status != "TRI") remark = r.Status;
                 else if (!string.IsNullOrEmpty(sw.Status) && (sw.Status == "DNS" || sw.Status == "DNF" || sw.Status == "DSQ" || sw.Status == "DQ")) remark = sw.Status;
-                // 备注列 HTML：判罚红色 / 晋级 Q 绿色 / 其它空白；timeText/diffText 下面仍按 remark（纯文本）判断
+                bool isTri = (sw.Status == "TRI") || (r != null && r.Status == "TRI");
+                // 备注列 HTML: DSQ/DNS/DNF/TRI 红色; RenderRemarkCellHtml 已加 TRI 分支
                 string remarkHtml = RenderRemarkCellHtml(sw, r, _currentStage);
                 string pName = sw.Name; string pCountry = sw.Country ?? "";
                 if (printRelay && !string.IsNullOrEmpty(sw.Notes) && sw.Notes.StartsWith("接力队 棒次:"))
                     pName = sw.Notes.Substring("接力队 棒次:".Length);
+                // TRI 正常显成绩 (= 与个人项目同款), 只不参与名次和成绩差
                 string timeText = string.IsNullOrEmpty(remark) && r != null && r.FinalTime > 0 ? TimeFormatter.Format(r.FinalTime) : "";
-                // 成绩差：当前道成绩 - 第1名成绩；第1名留空
+                // 成绩差: 当前道成绩 - 第1名成绩; 第1名留空; TRI 不参与排名 → 不显成绩差
                 string diffText = "";
-                if (string.IsNullOrEmpty(remark) && r != null && r.FinalTime > 0 && leaderTime > 0 && r.FinalTime > leaderTime) {
+                if (string.IsNullOrEmpty(remark) && !isTri && r != null && r.FinalTime > 0 && leaderTime > 0 && r.FinalTime > leaderTime) {
                     diffText = (r.FinalTime - leaderTime).ToString("F2");
                 }
                 // 2026-06-04 D 最终成绩打印 显 1-4 棒
@@ -19203,8 +19207,10 @@ namespace SwimmingScoreboard
                     reactionCell = r.StartingBlockTime.ToString("F2");
                 }
                 // 2026-06-02 去掉"号码"列 (sw.BibNumber 不再输出)
+                // 2026-06-04 TRI 名次列 留空 (与 spec '保持为空' 一致, 其它无名次仍用 '-' 占位)
+                string rankCell = isTri ? "" : (r != null && r.Rank > 0 ? r.Rank.ToString() : "-");
                 sb.AppendFormat("<tr><td>{0}</td><td>{1}</td><td><b>{2}</b></td><td>{3}</td><td style='font-weight:bold; background:#eff6ff;'>{4}</td><td>{5}</td><td style='font-size:12px;'>{6}</td><td>{7}</td></tr>",
-                    r != null && r.Rank > 0 ? r.Rank.ToString() : "-",
+                    rankCell,
                     sw.Lane, RelayCol1(printRelay, pName, pCountry), RelayCol2(printRelay, pName, pCountry),
                     timeText,
                     diffText,

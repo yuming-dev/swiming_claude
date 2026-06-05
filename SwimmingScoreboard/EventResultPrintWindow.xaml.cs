@@ -187,6 +187,9 @@ namespace SwimmingScoreboard
             var withResults = matched.Where(s =>
             {
                 var r = s.GetResultForStage(stage);
+                // 2026-06-04 TRI 不进项目成绩 (= 总排名性质) 表, spec: '总排名列表中不显示 TRI'
+                if (s.Status == "TRI") return false;
+                if (r != null && r.Status == "TRI") return false;
                 return r != null && r.FinalTime > 0;
             }).ToList();
 
