@@ -5,9 +5,9 @@
 
 param(
     [string[]]$ExcelPaths = @(
-        'C:\甘肃游泳比赛2026文件夹\2026甘肃U系列定西站竞赛秩序(01Other).xls',
-        'C:\甘肃游泳比赛2026文件夹\2026甘肃U系列定西站竞赛秩序(02Other).xls',
-        'C:\甘肃游泳比赛2026文件夹\2026甘肃U系列定西站竞赛秩序(03Other).xls'
+        'C:\2026年5月甘肃定西游泳比赛文件夹\比赛定西\2026甘肃U系列定西站竞赛秩序(01Other).xls',
+        'C:\2026年5月甘肃定西游泳比赛文件夹\比赛定西\2026甘肃U系列定西站竞赛秩序(02Other).xls',
+        'C:\2026年5月甘肃定西游泳比赛文件夹\比赛定西\2026甘肃U系列定西站竞赛秩序(03Other).xls'
     ),
     [string]$CompetitionName = '2026甘肃省浩沙杯U系列青少年游泳俱乐部联赛（定西站）',
     [string]$StartDate = '2026-06-06',
@@ -47,7 +47,16 @@ function Calc-AgeFromBirth([string]$birth, [datetime]$ref) {
     } catch { return 0 }
 }
 function Normalize-Gender([string]$g) {
-    switch ($g) { '男子' { '男' } '女子' { '女' } '男女' { '混合' } default { if ($g) { $g } else { '混合' } } }
+    switch ($g) { '男子' { '男' } '女子' { '女' } '男女' { '男女' } default { if ($g) { $g } else { '混合' } } }
+}
+# 2026-06-05 schedule.Gender 应从 title (col 4) 解析, 不是 col 7 (col 7 是个人性别).
+#   "男女16-18岁组..." → '男女';  "男子8-9岁组..." → '男';  "女子7岁组..." → '女'
+function Parse-TitleGender([string]$title) {
+    if (-not $title) { return $null }
+    if ($title.StartsWith('男女')) { return '男女' }
+    if ($title.StartsWith('男子')) { return '男' }
+    if ($title.StartsWith('女子')) { return '女' }
+    return $null
 }
 
 # ─── 读 Excel + 解析 ─────────────────────────────────────────
@@ -111,11 +120,14 @@ try {
             $entrySec = Parse-EntryTime $entryT
             $entryFmt = if ($entrySec -gt 0) { Format-EntryTime $entrySec } else { '' }
 
+            # 2026-06-05 schedule-level gender: 优先从 title 解析 (= 男女并项 用), 否则 用 col 7 单人性别
+            $schedGender = Parse-TitleGender $title
+            if (-not $schedGender) { $schedGender = $genderNorm }
             $aggKey = "$session|$eventSeq"
             if (-not $evtAgg.ContainsKey($aggKey)) {
                 $evtAgg[$aggKey] = @{
                     Session = [int]$session; EventSeq = [int]$eventSeq
-                    Gender = $genderNorm; AgeGroup = $age
+                    Gender = $schedGender; AgeGroup = $age
                     EventName = $eventName; Stage = $stage
                     IsRelay = $isRelay; MaxHeat = 0
                 }
@@ -302,7 +314,7 @@ $heatCounts = @('1组','2组','3组','4组','5组','6组','7组','8组','9组','
 # ─── 构建 CompetitionPackage ─────────────────────────────────
 Write-Host "[4/4] 写 JSON"
 $package = [ordered]@{
-    CompetitionName = $CompetitionName; CompetitionMode = 'domestic'
+    CompetitionName = $CompetitionName; CompetitionMode = 'domestic'; CompetitionRule = 'U系列青少年游泳比赛'
     StartDate = $StartDate; EndDate = $EndDate; Location = $Location
     PoolLength = 50; LaneCount = 10
     Organizer = $Organizer; Host = $HostOrg
@@ -312,7 +324,7 @@ $package = [ordered]@{
     Records = $recordsList.ToArray()
     TeamScores = @()
     Schedule = $schedule; Events = $events; AgeGroups = $ageGroups
-    Genders = @('男','女','混合'); Stages = @('预赛','半决赛','决赛')
+    Genders = @('男','女','混合','男女'); Stages = @('预赛','半决赛','决赛')
     HeatCounts = $heatCounts; BibRanges = @()
     Units = $units; StaffList = @()
     WizardDraft = $null; LaneCloseSettings = $null; DisputeLog = @{}
