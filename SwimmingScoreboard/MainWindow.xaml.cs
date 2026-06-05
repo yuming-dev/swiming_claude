@@ -73,6 +73,8 @@ namespace SwimmingScoreboard
         private string _competitionRule = "U系列青少年游泳比赛";
         private PoolConfig _poolConfig = new PoolConfig();
         private LaneCloseSettings _laneCloseSettings = new LaneCloseSettings();
+        // 2026-06-05 确认本组成绩 后 自动保存 成绩 txt 到此目录 (空 = 不自动保存; 默认 AppDomain/Documents/成绩txt)
+        private string _autoSaveTxtPath = "";
         // 2026-06-03 接力 SB reaction 计算器 (= 14 条规则). 每 (lane, side) 一个窗口, TP/SB/MB/手动 TP 喂入, 窗口超时算 reaction
         private RelayReactionCalculator _relayReactionCalc;
         private DispatcherTimer _relayReactionTickTimer;
@@ -232,6 +234,7 @@ namespace SwimmingScoreboard
             LoadDisplayStyleFromDisk();      // 2026-06-01 大屏样式持久化还原
             RefreshRecordsHiddenBtn();       // 2026-06-03 同步 "记录显示/隐藏" 按钮初始文字
             RefreshRemarkReactionBtn();      // 2026-06-04 同步 "备注: 显/不显反应时" 按钮初始文字
+            LoadAutoSaveTxtPath();           // 2026-06-05 加载 成绩 txt 自动存盘路径
             ApplyPersistedDeviceStates();   // 设备状态（损坏/未安装/手动按键）从 device_states.json 还原
             LoadTimingConnectionConfig();   // 通讯参数从 timing_connection.json 还原
             LoadLastCompetition();
@@ -2342,6 +2345,8 @@ namespace SwimmingScoreboard
             var eventRanking = GetEventRanking(_currentEvent, _currentGender);
             // 2026-06-02 并项拆分: 按 (性别, 实际年龄) 切多张子表, 大屏 总排名 视图按子表翻页
             var eventRankingSplit = GetEventRankingsSplit(_currentAgeGroup, _currentEvent, _currentGender);
+            // 2026-06-05 项目名称下 一行 显示 本项目所有组别 纪录 (大屏 比赛视图/组成绩/总排名 用)
+            var applicableRecords = BuildApplicableRecords(_currentEvent, _currentGender);
             var teamScoresData = _teamScores.OrderBy(t => t.Rank).Select(t => new {
                 teamName = t.TeamName, totalPoints = t.TotalPoints,
                 individualPoints = t.IndividualPoints, relayPoints = t.RelayPoints,
@@ -2500,6 +2505,7 @@ namespace SwimmingScoreboard
                 }).ToList(),
                 eventRanking = eventRanking,
                 eventRankingSplit = eventRankingSplit,
+                applicableRecords = applicableRecords,   // 2026-06-05 大屏 项目名称下 inline 纪录行
                 teamScores = teamScoresData,
                 records = _records.Select(r => new {
                     eventName = r.EventName, gender = r.Gender, ageGroup = r.AgeGroup ?? "",
@@ -6421,6 +6427,9 @@ namespace SwimmingScoreboard
 
             // 确认成绩后大屏自动从"比赛视图"切换到"本组成绩"
             try { BroadcastDisplayMode("SHOW_HEAT_RESULT"); } catch (Exception ex) { AddLog("切换大屏到本组成绩失败: " + ex.Message); }
+
+            // 2026-06-05 全部 UI/数据/广播 流程完成后, 自动写本组成绩 txt 到配置目录
+            try { AutoSaveCurrentHeatTxt(); } catch (Exception ex) { AddLog("自动保存成绩 txt 失败: " + ex.Message); }
         }
 
         /// <summary>
@@ -8613,6 +8622,78 @@ namespace SwimmingScoreboard
             Broadcast();
         }
 
+        // 2026-06-05 大屏 项目名称下 inline 纪录行 数据源 (本 event + gender 匹配的纪录, 按组别罗列):
+        //   gender="男女" → 男 + 女 + 男女 三类记录都列
+        //   返回 [{tag, ageGroup, time}, ...] 按 RecordType 优先级 + 年龄组顺序
+        private List<object> BuildApplicableRecords(string eventName, string gender) {
+            var list = new List<object>();
+            if (string.IsNullOrEmpty(eventName) || _records == null || _records.Count == 0) return list;
+            Func<string, bool> gOk;
+            if (gender == "男女") gOk = g => g == "男" || g == "女" || g == "男女";
+            else if (string.IsNullOrEmpty(gender)) gOk = g => true;
+            else gOk = g => g == gender;
+            // 年龄顺序 (按 _ageGroups 注册顺序)
+            var ageOrder = new Dictionary<string, int>();
+            for (int i = 0; i < _ageGroups.Count; i++) ageOrder[_ageGroups[i].Name] = i;
+            // RecordType 优先级
+            var typeOrder = new Dictionary<string, int> { {"世界纪录",1},{"奥运纪录",2},{"亚洲纪录",3},{"亚洲青年纪录",4},{"全国纪录",5},{"甘肃省纪录",6},{"省纪录",6} };
+            var filtered = _records.Where(r => r != null && r.Time > 0 && r.EventName == eventName && gOk(r.Gender ?? "")).ToList();
+            // 排序: 按 RecordType 优先级 + 年龄组顺序
+            filtered.Sort((a, b) => {
+                int ta = 99, tb = 99;
+                typeOrder.TryGetValue(a.RecordType ?? "", out ta);
+                typeOrder.TryGetValue(b.RecordType ?? "", out tb);
+                if (ta != tb) return ta - tb;
+                int aa = 99, ab = 99;
+                ageOrder.TryGetValue(a.AgeGroup ?? "", out aa);
+                ageOrder.TryGetValue(b.AgeGroup ?? "", out ab);
+                if (aa != ab) return aa - ab;
+                return string.Compare(a.Gender ?? "", b.Gender ?? "", StringComparison.Ordinal);
+            });
+            foreach (var r in filtered) {
+                list.Add(new {
+                    tag = RecordTypeToTag(r.RecordType),
+                    ageGroup = r.AgeGroup ?? "",
+                    gender = r.Gender ?? "",
+                    time = TimeFormatter.Format(r.Time),
+                    holderName = r.HolderName ?? ""
+                });
+            }
+            return list;
+        }
+
+        // 2026-06-05 接力 DSQ 时 弹窗问 犯规棒次 (1..legCount; 0 = 用户取消, 不打 DSQ)
+        private int AskRelayViolationLeg(int lane, string swimmerName, int legCount) {
+            int chosen = 0;
+            var dlg = new Window {
+                Title = string.Format("接力 DSQ — 道{0} {1}", lane, swimmerName),
+                Width = 380, Height = 200,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner, Owner = this, ResizeMode = ResizeMode.NoResize
+            };
+            var sp = new StackPanel { Margin = new Thickness(20) };
+            sp.Children.Add(new TextBlock {
+                Text = "犯规发生在第几棒? (保留犯规之前的分段, 清犯规棒次起的成绩)",
+                TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 12)
+            });
+            var legRow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
+            for (int i = 1; i <= legCount; i++) {
+                int leg = i;
+                var b = new Button { Content = "第" + leg + "棒", Padding = new Thickness(14, 6, 14, 6), Margin = new Thickness(4),
+                    Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EF4444")), Foreground = Brushes.White, BorderThickness = new Thickness(0), FontSize = 13 };
+                b.Click += delegate { chosen = leg; dlg.DialogResult = true; };
+                legRow.Children.Add(b);
+            }
+            sp.Children.Add(legRow);
+            var btnCancel = new Button { Content = "取消 (不打 DSQ)", Padding = new Thickness(14, 5, 14, 5), Margin = new Thickness(0, 12, 0, 0),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
+            btnCancel.Click += delegate { chosen = 0; dlg.DialogResult = false; };
+            sp.Children.Add(btnCancel);
+            dlg.Content = sp;
+            dlg.ShowDialog();
+            return chosen;
+        }
+
         private void MarkLaneStatus(int lane, string status) {
             var swimmer = GetCurrentHeatSwimmers().FirstOrDefault(s => {
                 var sa = s.GetAssignmentForStage(_currentStage);
@@ -8620,6 +8701,20 @@ namespace SwimmingScoreboard
             });
             if (swimmer == null) swimmer = GetCurrentHeatSwimmers().FirstOrDefault(s => s.Lane == lane);
             if (swimmer != null) {
+                // 2026-06-05 DSQ 接力: 先弹窗问犯规棒次, 取消则完全不打 DSQ (不改任何状态)
+                int relayViolationLeg = 0;
+                if (status == "DSQ") {
+                    bool isRelay = !string.IsNullOrEmpty(_currentEvent) && _currentEvent.Contains("接力");
+                    if (isRelay) {
+                        int legCount = GetLegCountForEvent(_currentEvent);
+                        relayViolationLeg = AskRelayViolationLeg(lane, swimmer.Name, legCount);
+                        if (relayViolationLeg <= 0) {
+                            AddLog(string.Format("泳道{0} {1} 接力 DSQ 取消 (未选犯规棒次)", lane, swimmer.Name));
+                            return;
+                        }
+                    }
+                }
+
                 swimmer.Status = status;
                 // DSQ/DNS/DNF：成绩无效，必须清除 RecordNote（否则破/平纪录标识仍残留），
                 // 同时重新计算本组排名 + 复算其它运动员的破/平纪录（被取消的人不再占名次/不再当纪录候选）
@@ -8632,6 +8727,36 @@ namespace SwimmingScoreboard
                         }
                         res.Status = status;
                         res.Rank = 0;
+                        // 2026-06-05 DSQ 分类清除规则:
+                        //   个人项目 DSQ → 清 最终成绩 + 所有分段 + 反应时
+                        //   接力项目 DSQ → 保留 1~(N-1) 棒分段, 清 第N棒起的分段 + FinalTime
+                        if (status == "DSQ") {
+                            if (relayViolationLeg > 0) {
+                                // 解析每棒距离 (e.g. "4x50米..." → 50)
+                                var mLeg = System.Text.RegularExpressions.Regex.Match(_currentEvent ?? "", @"\d+\s*[xX×]\s*(\d+)\s*米");
+                                int perLegMeters;
+                                if (!mLeg.Success || !int.TryParse(mLeg.Groups[1].Value, out perLegMeters)) perLegMeters = 50;
+                                int keepDist = (relayViolationLeg - 1) * perLegMeters;
+                                var toRemove = res.Splits.Where(sp => sp.Distance > keepDist).ToList();
+                                foreach (var sp in toRemove) res.Splits.Remove(sp);
+                                if (res.LegReactionTimes != null && res.LegReactionTimes.Count > relayViolationLeg - 1) {
+                                    for (int li = relayViolationLeg - 1; li < res.LegReactionTimes.Count; li++) {
+                                        res.LegReactionTimes[li] = 0;
+                                    }
+                                }
+                                res.FinalTime = 0;
+                                res.TimeInSeconds = 0;
+                                AddLog(string.Format("  接力 DSQ 在第{0}棒 — 保留 1~{1}棒分段, 清第{0}棒之后的分段 + 最终成绩",
+                                    relayViolationLeg, relayViolationLeg - 1));
+                            } else {
+                                // 个人项目: 全清
+                                res.Splits.Clear();
+                                res.FinalTime = 0;
+                                res.TimeInSeconds = 0;
+                                res.StartingBlockTime = 0;
+                                AddLog("  个人 DSQ — 清最终成绩 + 所有分段 + 反应时");
+                            }
+                        }
                     }
                     swimmer.CurrentRank = 0;
                 }
@@ -9307,6 +9432,94 @@ namespace SwimmingScoreboard
                     "确认手动输入", MessageBoxButton.YesNo, MessageBoxImage.Question);
                 if (r != MessageBoxResult.Yes) return;
                 OverrideLaneTime(lane, time);
+            }
+        }
+
+        // 2026-06-05 成绩存盘路径 配置 (确认本组成绩 后 自动写 成绩 txt 到此目录)
+        private string GetAutoSaveTxtDir() {
+            if (!string.IsNullOrWhiteSpace(_autoSaveTxtPath)) return _autoSaveTxtPath;
+            return IOPath.Combine(AppDomain.CurrentDomain.BaseDirectory, "Documents", "成绩txt");
+        }
+        private void LoadAutoSaveTxtPath() {
+            try {
+                string cfgFile = IOPath.Combine(AppDomain.CurrentDomain.BaseDirectory, "Documents", "autosave_path.txt");
+                if (File.Exists(cfgFile)) _autoSaveTxtPath = File.ReadAllText(cfgFile, new UTF8Encoding(false)).Trim();
+            } catch { }
+        }
+        private void SaveAutoSaveTxtPath() {
+            try {
+                string docDir = IOPath.Combine(AppDomain.CurrentDomain.BaseDirectory, "Documents");
+                if (!Directory.Exists(docDir)) Directory.CreateDirectory(docDir);
+                string cfgFile = IOPath.Combine(docDir, "autosave_path.txt");
+                File.WriteAllText(cfgFile, _autoSaveTxtPath ?? "", new UTF8Encoding(false));
+            } catch (Exception ex) { AddLog("保存 自动存盘路径 失败: " + ex.Message); }
+        }
+        private void AutoSaveTxtPathConfig_Click(object sender, RoutedEventArgs e) {
+            var dlg = new Window {
+                Title = "成绩 txt 自动存盘路径", Width = 560, Height = 220,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner, Owner = this, ResizeMode = ResizeMode.NoResize
+            };
+            var sp = new StackPanel { Margin = new Thickness(20) };
+            sp.Children.Add(new TextBlock {
+                Text = "确认本组成绩 后, 自动保存 成绩 txt 到下面目录 (文件名 场号-项号-组号.txt). 留空则不自动保存.",
+                TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 10)
+            });
+            var pathRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 10) };
+            var tbPath = new TextBox {
+                Text = (string.IsNullOrWhiteSpace(_autoSaveTxtPath) ? GetAutoSaveTxtDir() : _autoSaveTxtPath),
+                Width = 400, Padding = new Thickness(4), FontSize = 13, Margin = new Thickness(0, 0, 6, 0)
+            };
+            var btnBrowse = new Button { Content = "浏览…", Padding = new Thickness(12, 4, 12, 4), FontSize = 12 };
+            btnBrowse.Click += delegate {
+                var fbd = new System.Windows.Forms.FolderBrowserDialog {
+                    Description = "选择 成绩 txt 自动存盘目录",
+                    SelectedPath = (Directory.Exists(tbPath.Text) ? tbPath.Text : AppDomain.CurrentDomain.BaseDirectory)
+                };
+                if (fbd.ShowDialog() == System.Windows.Forms.DialogResult.OK) tbPath.Text = fbd.SelectedPath;
+            };
+            pathRow.Children.Add(tbPath); pathRow.Children.Add(btnBrowse);
+            sp.Children.Add(pathRow);
+            var btnRow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
+            var btnOk = new Button { Content = "保存", Padding = new Thickness(18, 5, 18, 5), Margin = new Thickness(0, 0, 8, 0),
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#10B981")), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
+            var btnClear = new Button { Content = "清空 (不自动保存)", Padding = new Thickness(12, 5, 12, 5), Margin = new Thickness(0, 0, 8, 0),
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
+            var btnCancel = new Button { Content = "取消", Padding = new Thickness(18, 5, 18, 5),
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
+            btnOk.Click += delegate {
+                _autoSaveTxtPath = tbPath.Text.Trim();
+                try { if (!string.IsNullOrEmpty(_autoSaveTxtPath) && !Directory.Exists(_autoSaveTxtPath)) Directory.CreateDirectory(_autoSaveTxtPath); } catch { }
+                SaveAutoSaveTxtPath();
+                AddLog("成绩 txt 自动存盘路径: " + (string.IsNullOrEmpty(_autoSaveTxtPath) ? "(关闭)" : _autoSaveTxtPath));
+                dlg.DialogResult = true;
+            };
+            btnClear.Click += delegate { _autoSaveTxtPath = ""; SaveAutoSaveTxtPath(); AddLog("成绩 txt 自动存盘已关闭"); dlg.DialogResult = true; };
+            btnCancel.Click += delegate { dlg.DialogResult = false; };
+            btnRow.Children.Add(btnOk); btnRow.Children.Add(btnClear); btnRow.Children.Add(btnCancel);
+            sp.Children.Add(btnRow);
+            dlg.Content = sp;
+            dlg.ShowDialog();
+        }
+
+        // 2026-06-05 确认本组成绩 完成后 调用: 自动写当前组的成绩 txt (与 ExportResultTxt_Click 文件名/内容一致)
+        private void AutoSaveCurrentHeatTxt() {
+            try {
+                if (string.IsNullOrEmpty(_currentEvent) || _currentHeat <= 0) return;
+                string dir = GetAutoSaveTxtDir();
+                if (string.IsNullOrWhiteSpace(dir)) return;
+                if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
+                var sched = _schedule.FirstOrDefault(s => s.Gender == _currentGender && s.EventName == _currentEvent
+                    && s.Stage == _currentStage && (s.AgeGroup ?? "") == (_currentAgeGroup ?? ""));
+                int session = sched != null ? sched.SessionNumber : 0;
+                var evtMap = BuildEventNumberMap();
+                int eventNo = 0; evtMap.TryGetValue((_currentGender ?? "") + "|" + (_currentEvent ?? ""), out eventNo);
+                string fileName = string.Format("{0:D2}-{1:D2}-{2:D2}.txt", session, eventNo, _currentHeat);
+                string fullPath = IOPath.Combine(dir, fileName);
+                string text = BuildResultTxtContent(_currentAgeGroup, _currentGender, _currentEvent, _currentStage, _currentHeat);
+                File.WriteAllText(fullPath, text, new UTF8Encoding(false));
+                AddLog("✓ 自动保存 成绩 txt: " + fullPath);
+            } catch (Exception ex) {
+                AddLog("自动保存 成绩 txt 失败: " + ex.Message);
             }
         }
 
@@ -14307,7 +14520,8 @@ namespace SwimmingScoreboard
                     heat = heat,
                     heatDisplay = heatDisplay,
                     swimmers = heatSwimmers,
-                    poolConfig = new { lanes = _poolConfig.LaneCount }
+                    poolConfig = new { lanes = _poolConfig.LaneCount },
+                    applicableRecords = BuildApplicableRecords(eventName, gender)   // 2026-06-05 项目名称下 纪录行
                 }
             };
             string json = Newtonsoft.Json.JsonConvert.SerializeObject(publishData);

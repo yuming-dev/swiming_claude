@@ -1011,6 +1011,10 @@
                                     <!-- 连接串口按钮已移到下方"系统硬件"栏 -->
                                     <Button Content="&#9881; 参数设置" Click="TimingSettings_Click"
                                             Padding="8,2" Background="#475569" Foreground="White" BorderThickness="0"
+                                            FontSize="12" VerticalAlignment="Center" Cursor="Hand" Margin="0,0,6,0"/>
+                                    <!-- 2026-06-05 自动保存 成绩 txt 的路径设置 (确认本组成绩后自动写入此目录) -->
+                                    <Button Content="&#128193; 成绩存盘路径" Click="AutoSaveTxtPathConfig_Click"
+                                            Padding="8,2" Background="#10B981" Foreground="White" BorderThickness="0"
                                             FontSize="12" VerticalAlignment="Center" Cursor="Hand"/>
                                 </StackPanel>
                             </Grid>

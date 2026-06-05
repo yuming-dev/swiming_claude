@@ -55,6 +55,13 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 .race-info .event-name { font-size: calc(2.8vh * var(--fs) * var(--fs-event)); font-weight: bold; color: var(--c-event); font-family: var(--ff-event); }
 /* 2026-06-02 赛次/组别 用 --c-stage / --ff-stage (可独立调), 字号跟随 比赛项目 */
 .race-info .stage-heat { font-size: calc(2.8vh * var(--fs) * var(--fs-event)); color: var(--c-stage); font-family: var(--ff-stage); }
+/* 2026-06-05 项目名称下 一行 显示 本项目所有组别 纪录 (横排空格分隔, "省R12-13岁 25.88" 等) */
+.applicable-records { display: flex; flex-wrap: wrap; gap: 1.6vw 2.4vw; padding: 0.4vh 0.5vw; margin-bottom: 0.5vh;
+    font-size: calc(1.6vh * var(--fs) * var(--fs-info)); color: #FBBF24; font-family: var(--ff-info); font-weight: bold;
+    border-bottom: 1px dashed rgba(251,191,36,0.4); }
+.applicable-records .ar-item { white-space: nowrap; }
+.applicable-records .ar-tag { color: #FCD34D; margin-right: 0.3vw; }
+.applicable-records .ar-time { color: #FEF3C7; font-family: 'Consolas', monospace; }
 .race-info .running-time { font-size: calc(4vh * var(--fs) * var(--fs-time)); font-weight: bold; color: var(--c-time); font-family: var(--ff-time); }
 
 .lanes-container { flex: 1; display: flex; flex-direction: column; gap: 0; }
@@ -192,6 +199,8 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
         </div>
         <div class="running-time" id="runningTime">0.0</div>
     </div>
+    <!-- 2026-06-05 项目名称下 新加一行: 本项目所有组别的纪录列表 (MR/省R/CR 等) -->
+    <div id="applicableRecordsRow" class="applicable-records" style="display:none;"></div>
     <!-- 2026-06-04 静态表头改 7 列 (加 组别), 与 .lane-row 同款 order/flex 比例 -->
     <div class="lanes-header">
         <div style="flex:4;min-width:0;text-align:center;margin-right:1vw;">道次</div>
@@ -1225,6 +1234,8 @@ function renderRace() {
     var stageText = (data.currentStage||'') + ' 第' + (data.currentHeat||0) + '/' + (data.totalHeats||0) + '组';
     var en = document.getElementById('eventName');
     if (en && en.textContent !== titleText) en.textContent = titleText;
+    // 2026-06-05 项目名称下 一行 显示 本项目所有组别 纪录 (= server applicableRecords)
+    _renderApplicableRecords(data.applicableRecords);
     var sh = document.getElementById('stageHeat');
     if (sh && sh.textContent !== stageText) sh.textContent = stageText;
 
@@ -1737,6 +1748,8 @@ function renderHeatResult() {
     document.getElementById('raceView').classList.remove('hidden');
     // 2026-06-04 顺序统一: 性别 组别 项目
     document.getElementById('eventName').textContent = (data.currentGender||'') + ' ' + ((data.currentAgeGroup||'') ? (data.currentAgeGroup+' ') : '') + (data.currentEvent||'');
+    // 2026-06-05 项目名称下 显示 本项目所有组别 纪录
+    _renderApplicableRecords(data.applicableRecords);
     document.getElementById('stageHeat').textContent = (data.currentStage||'') + ' 第' + (data.currentHeat||0) + '组 成绩';
     document.getElementById('runningTime').textContent = '';
 
@@ -1840,6 +1853,22 @@ function showHeatResultPage() {
     }
 }
 
+// 2026-06-05 项目名称下 渲染 本项目所有组别 纪录
+// records: [{tag, ageGroup, time}, ...]  (server 端 GetStatusData 提供)
+function _renderApplicableRecords(records) {
+    var row = document.getElementById('applicableRecordsRow');
+    if (!row) return;
+    if (!records || records.length === 0) { row.style.display = 'none'; row.innerHTML = ''; return; }
+    var html = '';
+    for (var i = 0; i < records.length; i++) {
+        var r = records[i];
+        var label = (r.tag || '') + (r.ageGroup ? r.ageGroup.replace('岁组','') : '');
+        html += '<span class="ar-item"><span class="ar-tag">' + label + '</span><span class="ar-time">' + (r.time || '') + '</span></span>';
+    }
+    row.innerHTML = html;
+    row.style.display = '';
+}
+
 // 判断该泳道占位记录是否真有运动员
 // 空泳道占位记录由后端用 status === 'EMPTY' 显式标识，必须先排除
 // （以前误把 status='EMPTY' 当作"非空状态"而保留 0 道空行）
@@ -1873,6 +1902,8 @@ function renderPublishedResult(pubData) {
     document.getElementById('eventName').textContent = eventTitle;
     document.getElementById('stageHeat').textContent = stageTitle;
     document.getElementById('runningTime').textContent = '';
+    // 2026-06-05 项目名称下 显示 本项目所有组别 纪录 (公布成绩 携带 applicableRecords)
+    _renderApplicableRecords(pubData.applicableRecords);
 
     // 根据泳道数调整字体
     var laneCount = (pubData.poolConfig && pubData.poolConfig.lanes) ? pubData.poolConfig.lanes : 10;
@@ -2086,6 +2117,16 @@ function showRankingPage(er, erRelay) {
     // 2026-06-03 标题加 margin-top + 增大 margin-bottom, 让 运动会名/项目名次/表头 三行不再挤
     // 2026-06-04 顺序统一: 性别 组别 项目 赛次
     var html = '<h2 style="margin:0 0 0.5vh 0;padding-bottom:0.5vh;border-bottom:3px solid var(--accent);font-size:calc(2.8vh * var(--fs) * var(--fs-event));color:var(--c-event);font-family:var(--ff-event);font-weight:bold;">' + fmtGender(data.currentGender) + ' ' + ((data.currentAgeGroup||'') ? (data.currentAgeGroup+' ') : '') + (data.currentEvent||'') + ' ' + (data.currentStage||'') + ' 总排名</h2>';
+    // 2026-06-05 项目名称下 显示 本项目所有组别 纪录 (inline 行)
+    if (data.applicableRecords && data.applicableRecords.length > 0) {
+        html += '<div style="display:flex;flex-wrap:wrap;gap:0.4vh 2.4vw;padding:0.4vh 0.5vw;margin-bottom:0.4vh;font-size:calc(1.6vh * var(--fs) * var(--fs-info));color:#FBBF24;font-family:var(--ff-info);font-weight:bold;border-bottom:1px dashed rgba(251,191,36,0.4);">';
+        for (var ri = 0; ri < data.applicableRecords.length; ri++) {
+            var rec = data.applicableRecords[ri];
+            var lab = (rec.tag||'') + (rec.ageGroup ? rec.ageGroup.replace('岁组','') : '');
+            html += '<span style="white-space:nowrap;"><span style="color:#FCD34D;margin-right:0.3vw;">' + lab + '</span><span style="color:#FEF3C7;font-family:Consolas,monospace;">' + (rec.time||'') + '</span></span>';
+        }
+        html += '</div>';
+    }
     // 2026-06-01 总排名: 去掉"号码"栏, 加"备注"栏 (Q 晋级 + WR/CR/...破纪录, 用 ' \ ' 隔开)
     // 2026-06-02 名次后加 "组/道" 栏 (heat/lane), 让选手一眼看出在哪组哪道游的
     html += '<table class="list-table"><thead><tr><th style="width:10%;">名次</th><th style="width:14%;">组/道</th><th>' + erH1 + '</th><th>' + erH2 + '</th><th style="width:16%;">成绩</th><th style="width:14%;">备注</th></tr></thead><tbody>';
