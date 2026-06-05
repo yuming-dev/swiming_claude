@@ -1760,14 +1760,9 @@ function renderHeatResult() {
     }
 
     // 仅保留有运动员的泳道（空泳道占位条目不进成绩榜）
-    // 2026-06-04 男女 并项: 先按性别 (男 在前), 再按本性别内 rank
-    _heatResultMixed = (data.currentGender === '男女');
+    // 2026-06-05 U 系列规则: 组内只按时间排单一名次, 不再按性别拆段; 总排名才按 性别×组别 拆
+    _heatResultMixed = false;
     _heatResultData = (data.swimmers || []).filter(isOccupiedLane).slice().sort(function(a,b) {
-        if (_heatResultMixed) {
-            var ga = (a.gender === '女') ? 1 : 0;
-            var gb = (b.gender === '女') ? 1 : 0;
-            if (ga !== gb) return ga - gb;
-        }
         return (a.rank||99) - (b.rank||99);
     });
     _heatResultRowsPerPage = 10;
@@ -1795,17 +1790,9 @@ function showHeatResultPage() {
 
     var start = _heatResultCurrentPage * _heatResultRowsPerPage;
     var end = Math.min(start + _heatResultRowsPerPage, sw.length);
-    // 2026-06-04 男女 并项: 性别变化处插入分段标签 (男子 / 女子)
-    var lastGender = null;
+    // 2026-06-05 U 系列规则: 组内单一名次, 不再按性别插分段标签
     for (var i = start; i < end; i++) {
         var s = sw[i];
-        if (_heatResultMixed && s.gender && s.gender !== lastGender) {
-            var sep = document.createElement('div');
-            sep.style.cssText = 'flex:0 0 auto;height:0.6vh;width:100%;text-align:center;font-size:calc(1.4vh * var(--fs) * var(--fs-event));font-weight:bold;background:' + (s.gender==='男'?'rgba(37,99,235,0.18)':'rgba(236,72,153,0.18)') + ';color:var(--c-event);font-family:var(--ff-event);padding:0.3vh 0.8vw;margin:0.2vh 0;border-radius:0.4vh;';
-            sep.textContent = s.gender === '男' ? '男 子' : '女 子';
-            container.appendChild(sep);
-            lastGender = s.gender;
-        }
         var row = document.createElement('div');
         // 2026-06-02 row 加 'relay' 类 (走 .lane-row.relay flex 比例), 去掉内联 width 覆盖, 跟表头一致
         row.className = 'lane-row finished fixed-row' + (relay ? ' relay' : '');
@@ -1913,29 +1900,15 @@ function renderPublishedResult(pubData) {
     }
 
     // 同样过滤掉空泳道占位条目
-    // 2026-06-04 男女 并项: 先按性别 (男 在前), 再按本性别内 rank
-    var _pubMixed = (pubData.gender === '男女');
+    // 2026-06-05 U 系列规则: 组内单一名次, 不再按性别拆段; 总排名才按 性别×组别 拆
     var sw = (pubData.swimmers || []).filter(isOccupiedLane).slice().sort(function(a,b) {
-        if (_pubMixed) {
-            var ga = (a.gender === '女') ? 1 : 0;
-            var gb = (b.gender === '女') ? 1 : 0;
-            if (ga !== gb) return ga - gb;
-        }
         return (a.rank||99) - (b.rank||99);
     });
     var container = document.getElementById('lanesContainer');
     container.innerHTML = '';
 
-    var pubLastGender = null;
     for (var i = 0; i < sw.length; i++) {
         var s = sw[i];
-        if (_pubMixed && s.gender && s.gender !== pubLastGender) {
-            var psep = document.createElement('div');
-            psep.style.cssText = 'flex:0 0 auto;height:0.6vh;width:100%;text-align:center;font-size:calc(1.4vh * var(--fs) * var(--fs-event));font-weight:bold;background:' + (s.gender==='男'?'rgba(37,99,235,0.18)':'rgba(236,72,153,0.18)') + ';color:var(--c-event);font-family:var(--ff-event);padding:0.3vh 0.8vw;margin:0.2vh 0;border-radius:0.4vh;';
-            psep.textContent = s.gender === '男' ? '男 子' : '女 子';
-            container.appendChild(psep);
-            pubLastGender = s.gender;
-        }
         var row = document.createElement('div');
         row.className = 'lane-row finished' + (pubRelay ? ' relay' : '');
 

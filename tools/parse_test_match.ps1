@@ -187,7 +187,7 @@ foreach ($e in $eventsOrdered) { if ($eventSet.Contains($e)) { $evList.Add($e) }
 foreach ($e in ($eventSet | Sort-Object)) { if (-not $evList.Contains($e)) { $evList.Add($e) } }
 
 $package = [ordered]@{
-    CompetitionName = $CompetitionName; CompetitionMode = 'domestic'
+    CompetitionName = $CompetitionName; CompetitionMode = 'domestic'; CompetitionRule = 'U系列青少年游泳比赛'
     StartDate = $Date; EndDate = $Date; Location = $Location
     PoolLength = 50; LaneCount = 10
     Organizer = '甘肃省游泳协会'; Host = ''

@@ -68,6 +68,9 @@ namespace SwimmingScoreboard
         // ═══════════════════════════════════════════════════════════════
         private string _competitionName = "";
         private string _competitionMode = "domestic";
+        // 2026-06-05 比赛规则: '国际比赛'(FINA) / '国内大赛'(中国游协) / 'U系列青少年游泳比赛'.
+        //   U 系列允许 男女并项, 跨年龄组并项, TRI 参赛, 多组直接决赛, 组内按时间排单一名次, 项目后按 性别×组别 拆总排名
+        private string _competitionRule = "U系列青少年游泳比赛";
         private PoolConfig _poolConfig = new PoolConfig();
         private LaneCloseSettings _laneCloseSettings = new LaneCloseSettings();
         // 2026-06-03 接力 SB reaction 计算器 (= 14 条规则). 每 (lane, side) 一个窗口, TP/SB/MB/手动 TP 喂入, 窗口超时算 reaction
@@ -5502,19 +5505,14 @@ namespace SwimmingScoreboard
                 if (r != null) r.Rank = 0;
             }
 
-            // 2026-06-04 男女 并项: 男/女 各自独立排名 (同组里男第1 + 女第1 共存)
-            if (_currentGender == "男女") {
-                RankHeatGroup(swimmers.Where(s => s != null && s.Gender == "男"));
-                RankHeatGroup(swimmers.Where(s => s != null && s.Gender == "女"));
-            } else {
-                RankHeatGroup(swimmers);
-            }
+            // 2026-06-05 U 系列规则: 组内只按时间排单一名次 (不分性别 / 组别)
+            RankHeatGroup(swimmers);
             // 名次重算后同步处理"只有本组第 1 名保留破/平纪录标识"，
             // 覆盖 DSQ 取消/晋级把更慢成绩拽到第 1 等场景
             EnforceOnlyLeaderRecordNote();
         }
 
-        // 2026-06-04 提出 UpdateHeatRanking 内的核心排名循环, 供男女并项单独按性别调用
+        // 2026-06-04 提出 UpdateHeatRanking 内的核心排名循环
         private void RankHeatGroup(IEnumerable<Swimmer> swimmers) {
             var withResults = swimmers.Where(s => {
                 var r = s.Results.FirstOrDefault(lr => lr.Stage == _currentStage && lr.Heat == _currentHeat);
@@ -7795,21 +7793,9 @@ namespace SwimmingScoreboard
         /// 计算当前组运动员的实时分段名次
         /// 规则：DSQ/DNS/DNF 无名次；已完赛按 FinalTime；未完赛按 (有效分段数 DESC, 最后累计时间 ASC)
         /// </summary>
+        // 2026-06-05 U 系列规则: 组内只按时间排单一名次 (不再按性别拆), 总排名才按 性别×组别 拆.
+        // (回退 2026-06-04 同组双 1 名次的设计, 避免 大屏出现 两个第1名 / 两个第2名)
         private Dictionary<Swimmer, int> ComputeLiveRanks(IEnumerable<Swimmer> swimmers) {
-            // 2026-06-04 男女 并项: 同一组里 男 / 女 各自独立排名 (男1,女1 同组共存)
-            if (_currentGender == "男女") {
-                var swList = swimmers.ToList();
-                var merged = new Dictionary<Swimmer, int>();
-                foreach (var g in new[] { "男", "女" }) {
-                    var sub = ComputeLiveRanksImpl(swList.Where(s => s != null && s.Gender == g));
-                    foreach (var kv in sub) merged[kv.Key] = kv.Value;
-                }
-                return merged;
-            }
-            return ComputeLiveRanksImpl(swimmers);
-        }
-
-        private Dictionary<Swimmer, int> ComputeLiveRanksImpl(IEnumerable<Swimmer> swimmers) {
             var liveRanks = new Dictionary<Swimmer, int>();
             var rankables = new List<Tuple<Swimmer, int, double, bool>>(); // (swimmer, splitCount, cumTime/FinalTime, finished)
             foreach (var sw2 in swimmers) {
@@ -11765,6 +11751,23 @@ namespace SwimmingScoreboard
 
         private void FilterEvent_Changed(object sender, SelectionChangedEventArgs e) { if (_initialized) RefreshSwimmerFilter(); }
 
+        // 2026-06-05 比赛规则 选择: 写入 _competitionRule + 描述提示
+        private void CompRuleCombo_Changed(object sender, SelectionChangedEventArgs e) {
+            if (CompRuleCombo == null || CompRuleCombo.SelectedIndex < 0) return;
+            string[] rules = { "国际比赛", "国内大赛", "U系列青少年游泳比赛" };
+            string[] descs = {
+                "国际比赛 (FINA): 男/女 分项, 同年龄组同组, 单组排名按时间, 总排名按 性别×组别",
+                "国内大赛 (中国游协): 同 FINA, 国内执行差异由本地规程补充",
+                "U系列: 允许 男女并项 / 跨年龄并项 / TRI 参赛 / 直接决赛多组 / 组内单一名次 / 总排名按 性别×组别 拆"
+            };
+            int i = CompRuleCombo.SelectedIndex;
+            if (i >= 0 && i < rules.Length) {
+                _competitionRule = rules[i];
+                if (CompRuleDescText != null) CompRuleDescText.Text = descs[i];
+                if (_initialized) AddLog("比赛规则切换为: " + _competitionRule);
+            }
+        }
+
         // ═══════════════════════════════════════════════════════════════
         // 出场编排微调
         // ═══════════════════════════════════════════════════════════════
@@ -15602,6 +15605,7 @@ namespace SwimmingScoreboard
             return new CompetitionPackage {
                 CompetitionName = _competitionName,
                 CompetitionMode = _competitionMode,
+                CompetitionRule = _competitionRule,
                 StartDate = GetDatePickerText(StartDatePicker),
                 EndDate = GetDatePickerText(EndDatePicker),
                 Location = LocationBox.Text,
@@ -15929,8 +15933,14 @@ namespace SwimmingScoreboard
 
                 _competitionName = package.CompetitionName ?? "";
                 _competitionMode = package.CompetitionMode ?? "domestic";
+                _competitionRule = package.CompetitionRule ?? "U系列青少年游泳比赛";
                 CompNameBox.Text = _competitionName;
                 CompModeCombo.SelectedIndex = _competitionMode == "domestic" ? 0 : 1;
+                if (CompRuleCombo != null) {
+                    if (_competitionRule == "国际比赛") CompRuleCombo.SelectedIndex = 0;
+                    else if (_competitionRule == "国内大赛") CompRuleCombo.SelectedIndex = 1;
+                    else CompRuleCombo.SelectedIndex = 2;
+                }
                 SetDatePicker(StartDatePicker, package.StartDate);
                 SetDatePicker(EndDatePicker, package.EndDate);
                 LocationBox.Text = package.Location ?? "";
@@ -19344,30 +19354,8 @@ namespace SwimmingScoreboard
             bool printRelay = _currentEvent.Contains("接力");
             var swimmers = GetCurrentHeatSwimmers().OrderBy(s => s.CurrentRank > 0 ? s.CurrentRank : int.MaxValue).ToList();
 
-            // 2026-06-04 男女 并项: 男 / 女 各一张子表, 分段成绩 各一张
-            if (_currentGender == "男女") {
-                var maleSw = swimmers.Where(s => s != null && s.Gender == "男").ToList();
-                var femaleSw = swimmers.Where(s => s != null && s.Gender == "女").ToList();
-                if (maleSw.Count > 0) {
-                    sb.Append("<h4 style='margin-top:18px;background:#dbeafe;padding:8px 12px;border-left:5px solid #2563eb;'>男 子</h4>");
-                    RenderHeatResultsTable(sb, maleSw, printRelay);
-                    sb.Append("<h5 style='margin-top:12px;'>分段成绩</h5>");
-                    sb.Append(BuildMergedSplitsTableHtml(maleSw, _currentStage, _currentHeat, printRelay));
-                }
-                if (femaleSw.Count > 0) {
-                    sb.Append("<h4 style='margin-top:24px;background:#fce7f3;padding:8px 12px;border-left:5px solid #ec4899;'>女 子</h4>");
-                    RenderHeatResultsTable(sb, femaleSw, printRelay);
-                    sb.Append("<h5 style='margin-top:12px;'>分段成绩</h5>");
-                    sb.Append(BuildMergedSplitsTableHtml(femaleSw, _currentStage, _currentHeat, printRelay));
-                }
-                sb.Append(DocSignatureRow());
-                sb.Append(DocFooter());
-                sb.Append("</body></html>");
-                return sb.ToString();
-            }
-
+            // 2026-06-05 U 系列规则: 单组成绩单 单表 (不再按男女拆) — 总排名才按 性别×组别 拆
             RenderHeatResultsTable(sb, swimmers, printRelay);
-            // 2026-06-02 追加"分段成绩"表
             sb.Append("<h4 style='margin-top:18px;'>分段成绩</h4>");
             sb.Append(BuildMergedSplitsTableHtml(swimmers, _currentStage, _currentHeat, printRelay));
 

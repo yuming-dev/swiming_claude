@@ -1744,6 +1744,8 @@ namespace SwimmingScoreboard
     {
         public string CompetitionName { get; set; }
         public string CompetitionMode { get; set; }
+        // 2026-06-05 比赛规则: '国际比赛' / '国内大赛' / 'U系列青少年游泳比赛'
+        public string CompetitionRule { get; set; }
         public string StartDate { get; set; }
         public string EndDate { get; set; }
         public string Location { get; set; }
@@ -1792,6 +1794,7 @@ namespace SwimmingScoreboard
 
         public CompetitionPackage() {
             CompetitionMode = "domestic";
+            CompetitionRule = "U系列青少年游泳比赛";
             PoolLength = 50;
             LaneCount = 10;
             Officials = new List<string>();

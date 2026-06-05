@@ -541,6 +541,21 @@
                         <TabItem Header="比赛参数设置管理">
                             <ScrollViewer Margin="10" VerticalScrollBarVisibility="Auto">
                                 <StackPanel>
+                                    <!-- 2026-06-05 比赛规则: 国际/国内/U系列, 决定 编排+成绩 是否允许男女并项/跨年龄并项/TRI 等 -->
+                                    <Border Background="#FEF3C7" BorderBrush="#F59E0B" BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,0,0,12">
+                                        <StackPanel>
+                                            <TextBlock Text="比赛规则" FontSize="14" FontWeight="Bold" Foreground="#92400E" Margin="0,0,0,6"/>
+                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                <ComboBox x:Name="CompRuleCombo" Width="240" SelectedIndex="2" VerticalAlignment="Center" SelectionChanged="CompRuleCombo_Changed">
+                                                    <ComboBoxItem Content="国际比赛 (FINA)"/>
+                                                    <ComboBoxItem Content="国内大赛 (中国游协)"/>
+                                                    <ComboBoxItem Content="U系列青少年游泳比赛"/>
+                                                </ComboBox>
+                                                <TextBlock x:Name="CompRuleDescText" Margin="14,0,0,0" VerticalAlignment="Center" Foreground="#475569" FontSize="12"
+                                                           Text="U系列: 允许 男女并项 / 跨年龄并项 / TRI 参赛 / 直接决赛多组 / 组内单一名次 / 总排名按 性别×组别 拆"/>
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </Border>
                                     <TextBlock Text="比赛项目 / 组别配置（数据库持久化，支持手动编辑、导入、导出）"
                                                FontSize="14" FontWeight="Bold" Foreground="#1E293B" Margin="0,0,0,8"/>
                                     <!-- 操作栏：上行比赛项目，下行组别 -->
