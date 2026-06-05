@@ -6430,6 +6430,8 @@ namespace SwimmingScoreboard
 
             // 2026-06-05 全部 UI/数据/广播 流程完成后, 自动写本组成绩 txt 到配置目录
             try { AutoSaveCurrentHeatTxt(); } catch (Exception ex) { AddLog("自动保存成绩 txt 失败: " + ex.Message); }
+            // 2026-06-05 自动写本组 比赛日志 PDF (HTML + Edge headless 转 PDF; 失败保留 HTML)
+            try { AutoSaveCurrentHeatLog(); } catch (Exception ex) { AddLog("自动保存比赛日志失败: " + ex.Message); }
         }
 
         /// <summary>
@@ -8662,6 +8664,63 @@ namespace SwimmingScoreboard
             return list;
         }
 
+        // 2026-06-05 一键公布项目总排名: 大屏切 SHOW_EVENT_RANKING + 按 性别×组别 拆 txt 写到 存盘路径
+        private void PublishEventRanking_Click(object sender, RoutedEventArgs e) {
+            if (string.IsNullOrEmpty(_currentEvent) || string.IsNullOrEmpty(_currentStage)) {
+                MessageBox.Show("请先在赛程树选定项目", "操作提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            // 验证至少有一组已确认
+            var subList = GetEventRankingsSplit(_currentAgeGroup, _currentEvent, _currentGender);
+            if (subList == null || subList.Count == 0) {
+                MessageBox.Show("本项目还没有任何已确认成绩 (请先确认至少一组成绩)", "操作提示", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+            // 1) 大屏切 总排名
+            try { BroadcastDisplayMode("SHOW_EVENT_RANKING"); AddLog("✓ 大屏切到 项目总排名"); }
+            catch (Exception ex) { AddLog("切换大屏失败: " + ex.Message); }
+
+            // 2) 自动写 txt (按 性别×组别 一文件)
+            string dir = GetAutoSaveTxtDir();
+            if (string.IsNullOrWhiteSpace(dir)) {
+                AddLog("成绩存盘路径未配置 — 跳过 txt 自动保存 (大屏已切总排名)");
+                return;
+            }
+            try {
+                if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
+                var sched = _schedule.FirstOrDefault(s => s.Gender == _currentGender && s.EventName == _currentEvent
+                    && s.Stage == _currentStage && (s.AgeGroup ?? "") == (_currentAgeGroup ?? ""));
+                int session = sched != null ? sched.SessionNumber : 0;
+                var evtMap = BuildEventNumberMap();
+                int eventNo = 0; evtMap.TryGetValue((_currentGender ?? "") + "|" + (_currentEvent ?? ""), out eventNo);
+                int saved = 0;
+                foreach (dynamic sub in subList) {
+                    string subGender = sub.gender; string subAge = sub.ageGroup;
+                    var items = sub.items as System.Collections.IEnumerable;
+                    if (items == null) continue;
+                    var sb = new StringBuilder();
+                    sb.AppendFormat("{0} {1} {2} {3} 总排名\r\n",
+                        subGender, string.IsNullOrEmpty(subAge) ? "" : subAge, _currentEvent, _currentStage);
+                    sb.Append("排名 道 姓名 代表队 最终成绩\r\n");
+                    foreach (dynamic it in items) {
+                        sb.AppendFormat("{0} {1} {2} {3} {4}\r\n",
+                            it.rank, it.lane, it.name ?? "", it.country ?? "",
+                            it.finalTime ?? "");
+                    }
+                    string safeAge = (subAge ?? "").Replace('/', '_').Replace('\\', '_').Replace('岁', 'y');
+                    string fileName = string.Format("{0:D2}-{1:D2}-总排名-{2}-{3}.txt", session, eventNo, subGender, safeAge);
+                    foreach (char c in IOPath.GetInvalidFileNameChars()) fileName = fileName.Replace(c, '_');
+                    string fullPath = IOPath.Combine(dir, fileName);
+                    File.WriteAllText(fullPath, sb.ToString(), new UTF8Encoding(false));
+                    saved++;
+                }
+                AddLog(string.Format("✓ 项目总排名已写 {0} 个 txt 到: {1}", saved, dir));
+                AddLog("    打印: 文档编辑/输出/打印 → 项目成绩 打印 (男女并项会自动拆 蓝/粉 子表)");
+            } catch (Exception ex) {
+                AddLog("项目总排名 txt 写入失败: " + ex.Message);
+            }
+        }
+
         // 2026-06-05 接力 DSQ 时 弹窗问 犯规棒次 (1..legCount; 0 = 用户取消, 不打 DSQ)
         private int AskRelayViolationLeg(int lane, string swimmerName, int legCount) {
             int chosen = 0;
@@ -9499,6 +9558,118 @@ namespace SwimmingScoreboard
             sp.Children.Add(btnRow);
             dlg.Content = sp;
             dlg.ShowDialog();
+        }
+
+        // 2026-06-05 简易 HTML 转义 (& < > " ')
+        private static string HtmlEnc(string s) {
+            if (string.IsNullOrEmpty(s)) return "";
+            return s.Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;").Replace("\"", "&quot;").Replace("'", "&#39;");
+        }
+
+        // 2026-06-05 确认本组成绩 完成后 调用: 写本组 比赛日志 HTML + 尝试用 Edge 转 PDF
+        //   文件名: "{比赛项目+赛次+组号}+比赛日志.pdf" (失败时仅保留 .html)
+        //   内容: 项目 + 日期 + 时间 + 地点 + per-lane 比赛日志全部内容
+        private void AutoSaveCurrentHeatLog() {
+            try {
+                if (string.IsNullOrEmpty(_currentEvent) || _currentHeat <= 0) return;
+                string dir = GetAutoSaveTxtDir();
+                if (string.IsNullOrWhiteSpace(dir)) return;
+                if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
+
+                // 项目 + 日期 + 时间 + 地点
+                string projectFull = string.Format("{0}{1}{2} {3} 第{4}组",
+                    _currentGender ?? "",
+                    string.IsNullOrEmpty(_currentAgeGroup) ? " " : (" " + _currentAgeGroup + " "),
+                    _currentEvent ?? "", _currentStage ?? "", _currentHeat);
+                var sched = _schedule.FirstOrDefault(s => s.Gender == _currentGender && s.EventName == _currentEvent
+                    && s.Stage == _currentStage && (s.AgeGroup ?? "") == (_currentAgeGroup ?? ""));
+                string dateStr = sched != null ? (sched.Date ?? "") : "";
+                string timeStr = sched != null ? (sched.Time ?? "") : "";
+                string location = (LocationBox != null && !string.IsNullOrEmpty(LocationBox.Text)) ? LocationBox.Text : "";
+
+                var sb = new StringBuilder();
+                sb.Append("<html><head><meta charset='UTF-8'><style>");
+                sb.Append("body{font-family:'SimSun','Microsoft YaHei',sans-serif;padding:30px;color:#1e293b;}");
+                sb.Append("h1{font-size:22px;text-align:center;margin:0 0 10px 0;}");
+                sb.Append("h2{font-size:16px;text-align:center;margin:0 0 4px 0;font-weight:normal;color:#475569;}");
+                sb.Append(".info{margin:15px 0;padding:10px;background:#f1f5f9;border-left:4px solid #3b82f6;font-size:14px;}");
+                sb.Append(".info span{margin-right:24px;}");
+                sb.Append(".lane-block{margin:15px 0;padding:10px;border:1px solid #cbd5e1;border-radius:6px;page-break-inside:avoid;}");
+                sb.Append(".lane-title{font-weight:bold;color:#1e40af;font-size:15px;margin-bottom:6px;border-bottom:1px solid #cbd5e1;padding-bottom:4px;}");
+                sb.Append(".lane-log{font-family:'Consolas','Courier New',monospace;font-size:12px;white-space:pre-wrap;color:#334155;line-height:1.5;}");
+                sb.Append(".empty{color:#94a3b8;font-style:italic;}");
+                sb.Append("@page{size:A4;margin:1.5cm;}");
+                sb.Append("</style></head><body>");
+                sb.AppendFormat("<h1>{0}</h1>", HtmlEnc(_competitionName ?? ""));
+                sb.Append("<h2>比赛日志</h2>");
+                sb.AppendFormat("<div class='info'><span>项目: <b>{0}</b></span><span>日期: <b>{1}</b></span><span>时间: <b>{2}</b></span><span>地点: <b>{3}</b></span></div>",
+                    HtmlEnc(projectFull), HtmlEnc(dateStr), HtmlEnc(timeStr), HtmlEnc(location));
+
+                // per-lane 日志
+                var lanes = _laneEventLog.Keys.OrderBy(k => k).ToList();
+                if (lanes.Count == 0) {
+                    sb.Append("<div class='empty'>(本组无任何记录事件)</div>");
+                } else {
+                    foreach (int ln in lanes) {
+                        var sw = GetCurrentHeatSwimmers().FirstOrDefault(s => {
+                            var sa = s.GetAssignmentForStage(_currentStage);
+                            return (sa != null ? sa.Lane : s.Lane) == ln;
+                        });
+                        string swInfo = sw != null ? string.Format("{0} ({1})", sw.Name ?? "", sw.Country ?? "") : "";
+                        sb.AppendFormat("<div class='lane-block'><div class='lane-title'>道 {0} {1}</div><div class='lane-log'>{2}</div></div>",
+                            ln, HtmlEnc(swInfo), HtmlEnc(_laneEventLog[ln].ToString()));
+                    }
+                }
+                sb.AppendFormat("<p style='text-align:right;color:#94a3b8;font-size:11px;margin-top:30px;'>导出: {0}</p>",
+                    DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
+                sb.Append("</body></html>");
+
+                // 写文件
+                string baseName = projectFull + "+比赛日志";
+                foreach (char c in IOPath.GetInvalidFileNameChars()) baseName = baseName.Replace(c, '_');
+                string htmlPath = IOPath.Combine(dir, baseName + ".html");
+                File.WriteAllText(htmlPath, sb.ToString(), new UTF8Encoding(false));
+
+                // 尝试用 Edge headless 转 PDF
+                string pdfPath = IOPath.Combine(dir, baseName + ".pdf");
+                bool pdfOk = TryHtmlToPdf(htmlPath, pdfPath);
+                if (pdfOk) {
+                    AddLog("✓ 自动保存 比赛日志 PDF: " + pdfPath);
+                    try { File.Delete(htmlPath); } catch { }   // PDF 转成功删 HTML 中间文件
+                } else {
+                    AddLog("✓ 自动保存 比赛日志 HTML (PDF 转换失败, 浏览器打开后 Ctrl+P 可转 PDF): " + htmlPath);
+                }
+            } catch (Exception ex) {
+                AddLog("自动保存 比赛日志 失败: " + ex.Message);
+            }
+        }
+
+        // 2026-06-05 用 Edge / Chrome headless 把 HTML 转 PDF; 失败返回 false
+        private bool TryHtmlToPdf(string htmlPath, string pdfPath) {
+            var candidates = new[] {
+                IOPath.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), @"Microsoft\Edge\Application\msedge.exe"),
+                IOPath.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),    @"Microsoft\Edge\Application\msedge.exe"),
+                IOPath.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), @"Microsoft\Edge\Application\msedge.exe"),
+                IOPath.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),    @"Google\Chrome\Application\chrome.exe"),
+                IOPath.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), @"Google\Chrome\Application\chrome.exe")
+            };
+            string exe = null;
+            foreach (var p in candidates) { if (!string.IsNullOrEmpty(p) && File.Exists(p)) { exe = p; break; } }
+            if (exe == null) return false;
+            try {
+                var psi = new System.Diagnostics.ProcessStartInfo {
+                    FileName = exe,
+                    Arguments = string.Format(
+                        "--headless --disable-gpu --no-margins --print-to-pdf=\"{0}\" \"file:///{1}\"",
+                        pdfPath, htmlPath.Replace('\\', '/')),
+                    UseShellExecute = false, CreateNoWindow = true, RedirectStandardError = true, RedirectStandardOutput = true
+                };
+                using (var proc = System.Diagnostics.Process.Start(psi)) {
+                    if (proc == null) return false;
+                    if (!proc.WaitForExit(15000)) { try { proc.Kill(); } catch { } return false; }
+                    return File.Exists(pdfPath) && new FileInfo(pdfPath).Length > 0;
+                }
+            } catch { return false; }
         }
 
         // 2026-06-05 确认本组成绩 完成后 调用: 自动写当前组的成绩 txt (与 ExportResultTxt_Click 文件名/内容一致)
