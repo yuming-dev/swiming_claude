@@ -5559,10 +5559,13 @@ namespace SwimmingScoreboard
                 return false;
             }
             string ageGroup = swimmer.AgeCategory ?? "";
+            // 2026-06-05 男女并项 修复: 用 swimmer.Gender (单一性别) 对比 record.Gender,
+            //   不是 _currentGender (= "男女" 时永远不匹配任何 男/女 record)
+            string swGender = swimmer.Gender ?? "";
             var tags = new List<string>();
             foreach (var record in _records) {
                 if (record == null || record.Time <= 0) continue;                      // 记录库无数据则不比较
-                if (record.Gender != _currentGender) continue;
+                if (record.Gender != swGender) continue;
                 if (record.EventName != _currentEvent) continue;
                 // 组别：记录条目 AgeGroup 为空表示不限组别；否则需匹配
                 string rg = record.AgeGroup ?? "";
@@ -5713,8 +5716,9 @@ namespace SwimmingScoreboard
                 if (string.IsNullOrEmpty(res.RecordNote)) continue;
                 if (sw.Status == "DSQ" || sw.Status == "DNS" || sw.Status == "DNF") continue;
                 string ageGroup = sw.AgeCategory ?? "";
-                // 找出所有应"破"的记录（仅破，不刷新平纪录）
-                foreach (var record in _records.Where(r => r.Time > 0 && r.Gender == _currentGender && r.EventName == _currentEvent).ToList()) {
+                // 2026-06-05 男女并项 修复: 用 sw.Gender 单一性别 对比 record.Gender, 不是 _currentGender
+                string swGender = sw.Gender ?? "";
+                foreach (var record in _records.Where(r => r.Time > 0 && r.Gender == swGender && r.EventName == _currentEvent).ToList()) {
                     string rg = record.AgeGroup ?? "";
                     if (!string.IsNullOrEmpty(rg) && rg != ageGroup) continue;
                     if (res.FinalTime < record.Time) {
@@ -6898,6 +6902,16 @@ namespace SwimmingScoreboard
             ScheduleTree.Items.Clear();
             var sessions = _schedule.GroupBy(s => s.SessionNumber).OrderBy(g => g.Key);
 
+            // 2026-06-05 性能: 1122 人 × 78 项 时 BuildScheduleTree 每次 BuildScheduleTree O(N×M),
+            //   预构建 swimmer by EventName 索引, IsHeatConfirmedFast / IsStageAllConfirmedFast 用此索引
+            var swIdx = new Dictionary<string, List<Swimmer>>(StringComparer.Ordinal);
+            foreach (var s in _swimmers) {
+                if (string.IsNullOrEmpty(s.EventName)) continue;
+                List<Swimmer> lst;
+                if (!swIdx.TryGetValue(s.EventName, out lst)) { lst = new List<Swimmer>(); swIdx[s.EventName] = lst; }
+                lst.Add(s);
+            }
+
             foreach (var session in sessions) {
                 bool sessionAllDone = true;
                 var sessionItem = new TreeViewItem {
@@ -6908,7 +6922,7 @@ namespace SwimmingScoreboard
                     string ag = ev.AgeGroup ?? "";
                     string header = (string.IsNullOrEmpty(ag) ? "" : ("[" + ag + "] "))
                                   + string.Format("{0} {1} {2}", ev.Gender, ev.EventName, ev.Stage);
-                    bool allHeatsConfirmed = IsStageAllConfirmed(ag, ev.Gender, ev.EventName, ev.Stage);
+                    bool allHeatsConfirmed = IsStageAllConfirmedFast(ag, ev.Gender, ev.EventName, ev.Stage, swIdx);
                     if (!allHeatsConfirmed) sessionAllDone = false;
 
                     // Tag 扩展：event:AgeGroup|Gender|Event|Stage  或  heat/done:AgeGroup|Gender|Event|Stage|Heat
@@ -6921,7 +6935,7 @@ namespace SwimmingScoreboard
 
                     int heatCount = ev.HeatCount > 0 ? ev.HeatCount : 1;
                     for (int h = 1; h <= heatCount; h++) {
-                        bool heatConfirmed = IsHeatConfirmed(ag, ev.Gender, ev.EventName, ev.Stage, h);
+                        bool heatConfirmed = IsHeatConfirmedFast(ag, ev.Gender, ev.EventName, ev.Stage, h, swIdx);
                         var heatItem = new TreeViewItem {
                             Tag = string.Format("{0}:{1}|{2}|{3}|{4}|{5}", heatConfirmed ? "done" : "heat", ag, ev.Gender, ev.EventName, ev.Stage, h),
                             Header = heatConfirmed ? string.Format("第{0}组 [已完赛]", h) : string.Format("第{0}组 (共{1}组)", h, heatCount),
@@ -6955,6 +6969,14 @@ namespace SwimmingScoreboard
         //   已晋级到非预赛的 swimmer (StageAssignments 含 半决赛/决赛) → 不回退
         private void RefreshSwimmerStages() {
             if (_schedule == null) return;
+            // 2026-06-05 性能: 1122 人 × 78 项 → 87K 次 schedule 扫. 预构建 schedule by EventName 索引
+            var schedIdx = new Dictionary<string, List<ScheduleItem>>(StringComparer.Ordinal);
+            foreach (var s in _schedule) {
+                if (string.IsNullOrEmpty(s.EventName)) continue;
+                List<ScheduleItem> lst;
+                if (!schedIdx.TryGetValue(s.EventName, out lst)) { lst = new List<ScheduleItem>(); schedIdx[s.EventName] = lst; }
+                lst.Add(s);
+            }
             foreach (var sw in _swimmers) {
                 if (string.IsNullOrEmpty(sw.EventName)) { sw.CurrentStage = ""; continue; }
                 if (sw.Notes != null && sw.Notes.StartsWith("接力队员")) continue;   // 队员条目跟随队伍
@@ -6965,9 +6987,14 @@ namespace SwimmingScoreboard
                     }
                     if (hasAdvanced) continue;
                 }
-                var stages = _schedule.Where(s => s.EventName == sw.EventName && SgMatch(sw.Gender, s.Gender)
-                                                  && MatchesAgeGroup(sw, s.AgeGroup ?? ""))
-                                       .Select(s => s.Stage ?? "").Distinct().ToList();
+                List<ScheduleItem> evSched;
+                if (!schedIdx.TryGetValue(sw.EventName, out evSched)) { sw.CurrentStage = ""; continue; }
+                var stages = new List<string>();
+                foreach (var s in evSched) {
+                    if (!SgMatch(sw.Gender, s.Gender)) continue;
+                    if (!MatchesAgeGroup(sw, s.AgeGroup ?? "")) continue;
+                    if (!stages.Contains(s.Stage ?? "")) stages.Add(s.Stage ?? "");
+                }
                 if (stages.Count == 0) { sw.CurrentStage = ""; continue; }
                 string firstStage;
                 if (stages.Contains("预赛")) firstStage = "预赛";
@@ -7249,12 +7276,24 @@ namespace SwimmingScoreboard
         }
 
         private bool IsHeatConfirmed(string ageGroup, string gender, string eventName, string stage, int heat) {
-            // 权威依据：操作员按下"确认本组成绩"时已写入 _confirmedHeats 的组永远视为已完赛，
-            // 不会因后续数据变化（晋级、编排调整等）而失效
+            return IsHeatConfirmedFast(ageGroup, gender, eventName, stage, heat, null);
+        }
+
+        // 2026-06-05 性能优化重载: idx 是预构建的 swimmer-by-EventName 索引 (传 null 时回退到 _swimmers 全扫)
+        private bool IsHeatConfirmedFast(string ageGroup, string gender, string eventName, string stage, int heat,
+                                          Dictionary<string, List<Swimmer>> idx) {
             if (_confirmedHeats.Contains(ConfirmedHeatKey(ageGroup, gender, eventName, stage, heat))) return true;
 
             bool isRelay = eventName.Contains("接力");
-            var heatSwimmers = _swimmers.Where(s =>
+            IEnumerable<Swimmer> source;
+            if (idx != null) {
+                List<Swimmer> lst;
+                if (!idx.TryGetValue(eventName, out lst) || lst == null) return false;
+                source = lst;
+            } else {
+                source = _swimmers;
+            }
+            var heatSwimmers = source.Where(s =>
                 SgMatch(s.Gender, gender) && s.EventName == eventName &&
                 MatchesAgeGroup(s, ageGroup) &&
                 !(isRelay && s.Notes != null && s.Notes.StartsWith("接力队员"))
@@ -7287,14 +7326,19 @@ namespace SwimmingScoreboard
         }
 
         private bool IsStageAllConfirmed(string ageGroup, string gender, string eventName, string stage) {
+            return IsStageAllConfirmedFast(ageGroup, gender, eventName, stage, null);
+        }
+
+        // 2026-06-05 性能优化重载: idx 是预构建的 swimmer-by-EventName 索引
+        private bool IsStageAllConfirmedFast(string ageGroup, string gender, string eventName, string stage,
+                                              Dictionary<string, List<Swimmer>> idx) {
             var schedItem = _schedule.FirstOrDefault(s =>
                 (s.AgeGroup ?? "") == (ageGroup ?? "") &&
                 SgMatch(s.Gender, gender) && s.EventName == eventName && s.Stage == stage);
             int heatCount = schedItem != null && schedItem.HeatCount > 0 ? schedItem.HeatCount : 0;
             if (heatCount == 0) return false;
-
             for (int h = 1; h <= heatCount; h++) {
-                if (!IsHeatConfirmed(ageGroup, gender, eventName, stage, h)) return false;
+                if (!IsHeatConfirmedFast(ageGroup, gender, eventName, stage, h, idx)) return false;
             }
             return true;
         }
@@ -19826,7 +19870,11 @@ namespace SwimmingScoreboard
         private List<RecordReference> LookupRecordReferences(string gender, string eventName, string ageGroup) {
             var list = new List<RecordReference>();
             if (_records == null) return list;
-            foreach (var rec in _records.Where(r => r.Gender == gender && r.EventName == eventName)) {
+            // 2026-06-05 男女并项: schedule.Gender="男女" 时, 列出 男 + 女 + 男女 三类记录
+            Func<string, bool> genderOk;
+            if (gender == "男女") genderOk = g => g == "男" || g == "女" || g == "男女";
+            else genderOk = g => g == gender;
+            foreach (var rec in _records.Where(r => genderOk(r.Gender) && r.EventName == eventName)) {
                 if (!string.IsNullOrEmpty(ageGroup) && !string.IsNullOrEmpty(rec.AgeGroup) && rec.AgeGroup != ageGroup) continue;
                 string holder = rec.HolderName ?? "";
                 if (!string.IsNullOrEmpty(rec.HolderCountry)) holder += " (" + rec.HolderCountry + ")";
