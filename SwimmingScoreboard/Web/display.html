@@ -1216,10 +1216,12 @@ function renderRace() {
 
     // ── 1) 顶部静态文字（仅变化才写入） ──
     // 2026-06-04 标题最前加 项次 '第N项 ' (= 服务器 currentEventNumber, 0 时为空)
+    // 2026-06-04 顺序统一改为 性别 组别 项目 (= 性别 在前)
     var evNo = data.currentEventNumber || 0;
     var titleText = (evNo > 0 ? ('第' + evNo + '项 ') : '')
+        + fmtGender(data.currentGender) + ' '
         + ((data.currentAgeGroup||'') ? (data.currentAgeGroup+' ') : '')
-        + fmtGender(data.currentGender) + ' ' + (data.currentEvent||'');
+        + (data.currentEvent||'');
     var stageText = (data.currentStage||'') + ' 第' + (data.currentHeat||0) + '/' + (data.totalHeats||0) + '组';
     var en = document.getElementById('eventName');
     if (en && en.textContent !== titleText) en.textContent = titleText;
@@ -1685,7 +1687,8 @@ function renderStartList() {
     document.getElementById('listView').classList.remove('hidden');
     var lv = document.getElementById('listView');
     // 2026-06-03 标题加 margin-top + 增大 margin-bottom, 让 运动会名/项目名次/表头 三行不再挤
-    var html = '<h2 style="margin:0 0 0.5vh 0;padding-bottom:0.5vh;border-bottom:3px solid var(--accent);font-size:calc(2.8vh * var(--fs) * var(--fs-event));color:var(--c-event);font-family:var(--ff-event);font-weight:bold;">' + ((data.currentAgeGroup||'') ? (data.currentAgeGroup+' ') : '') + fmtGender(data.currentGender) + ' ' + (data.currentEvent||'') + ' ' + (data.currentStage||'') + ' 第' + (data.currentHeat||'') + '组 出发表</h2>';
+    // 2026-06-04 顺序统一: 性别 组别 项目 赛次 组数
+    var html = '<h2 style="margin:0 0 0.5vh 0;padding-bottom:0.5vh;border-bottom:3px solid var(--accent);font-size:calc(2.8vh * var(--fs) * var(--fs-event));color:var(--c-event);font-family:var(--ff-event);font-weight:bold;">' + fmtGender(data.currentGender) + ' ' + ((data.currentAgeGroup||'') ? (data.currentAgeGroup+' ') : '') + (data.currentEvent||'') + ' ' + (data.currentStage||'') + ' 第' + (data.currentHeat||'') + '组 出发表</h2>';
     var slRelay = isRelayEvent();
     var slH1 = slRelay ? '代表队' : '姓名';
     var slH2 = slRelay ? '姓名' : '代表队';
@@ -1731,7 +1734,8 @@ function renderHeatResult() {
 
     // 使用和比赛视图相同的布局和字体
     document.getElementById('raceView').classList.remove('hidden');
-    document.getElementById('eventName').textContent = ((data.currentAgeGroup||'') ? (data.currentAgeGroup+' ') : '') + (data.currentGender||'') + ' ' + (data.currentEvent||'');
+    // 2026-06-04 顺序统一: 性别 组别 项目
+    document.getElementById('eventName').textContent = (data.currentGender||'') + ' ' + ((data.currentAgeGroup||'') ? (data.currentAgeGroup+' ') : '') + (data.currentEvent||'');
     document.getElementById('stageHeat').textContent = (data.currentStage||'') + ' 第' + (data.currentHeat||0) + '组 成绩';
     document.getElementById('runningTime').textContent = '';
 
@@ -2071,7 +2075,8 @@ function showRankingPage(er, erRelay) {
     var erH2 = erRelay ? '姓名' : '代表队';
 
     // 2026-06-03 标题加 margin-top + 增大 margin-bottom, 让 运动会名/项目名次/表头 三行不再挤
-    var html = '<h2 style="margin:0 0 0.5vh 0;padding-bottom:0.5vh;border-bottom:3px solid var(--accent);font-size:calc(2.8vh * var(--fs) * var(--fs-event));color:var(--c-event);font-family:var(--ff-event);font-weight:bold;">' + ((data.currentAgeGroup||'') ? (data.currentAgeGroup+' ') : '') + fmtGender(data.currentGender) + ' ' + (data.currentEvent||'') + ' ' + (data.currentStage||'') + ' 总排名</h2>';
+    // 2026-06-04 顺序统一: 性别 组别 项目 赛次
+    var html = '<h2 style="margin:0 0 0.5vh 0;padding-bottom:0.5vh;border-bottom:3px solid var(--accent);font-size:calc(2.8vh * var(--fs) * var(--fs-event));color:var(--c-event);font-family:var(--ff-event);font-weight:bold;">' + fmtGender(data.currentGender) + ' ' + ((data.currentAgeGroup||'') ? (data.currentAgeGroup+' ') : '') + (data.currentEvent||'') + ' ' + (data.currentStage||'') + ' 总排名</h2>';
     // 2026-06-01 总排名: 去掉"号码"栏, 加"备注"栏 (Q 晋级 + WR/CR/...破纪录, 用 ' \ ' 隔开)
     // 2026-06-02 名次后加 "组/道" 栏 (heat/lane), 让选手一眼看出在哪组哪道游的
     html += '<table class="list-table"><thead><tr><th style="width:10%;">名次</th><th style="width:14%;">组/道</th><th>' + erH1 + '</th><th>' + erH2 + '</th><th style="width:16%;">成绩</th><th style="width:14%;">备注</th></tr></thead><tbody>';
@@ -2151,7 +2156,8 @@ function renderReferees() {
 
 function renderAwards() {
     document.getElementById('awardView').classList.remove('hidden');
-    document.getElementById('awardTitle').textContent = ((data.currentAgeGroup||'') ? (data.currentAgeGroup+' ') : '') + fmtGender(data.currentGender) + ' ' + (data.currentEvent||'') + ' 颁奖典礼';
+    // 2026-06-04 顺序统一: 性别 组别 项目
+    document.getElementById('awardTitle').textContent = fmtGender(data.currentGender) + ' ' + ((data.currentAgeGroup||'') ? (data.currentAgeGroup+' ') : '') + (data.currentEvent||'') + ' 颁奖典礼';
     var container = document.getElementById('awardContainer');
     container.innerHTML = '';
     var er = data.eventRanking || [];

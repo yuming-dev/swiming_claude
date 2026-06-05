@@ -353,10 +353,10 @@ namespace SwimmingScoreboard
                 ((totalHeats > 1) || SelectedStage.Contains("预赛") || SelectedStage.Contains("半决赛"));
             string heatDisplay = showHeat ? string.Format(" 第 {0} 组", SelectedHeat) : "";
 
-            // 2026-06-01 标题加组别前缀
+            // 2026-06-04 顺序统一: 性别 组别 项目 赛次 (= 性别 前)
             string ageHead = (string.IsNullOrEmpty(SelectedAgeGroup) || SelectedAgeGroup == "全部") ? "" : (SelectedAgeGroup + " ");
-            string eventTitle = string.Format("{0}{1} {2} {3}{4}",
-                ageHead, SelectedGender, SelectedEvent, SelectedStage, heatDisplay);
+            string eventTitle = string.Format("{0} {1}{2} {3}{4}",
+                SelectedGender, ageHead, SelectedEvent, SelectedStage, heatDisplay);
 
             // 匹配赛程获取日期时间
             string dateTimeInfo = "（时间待定）";

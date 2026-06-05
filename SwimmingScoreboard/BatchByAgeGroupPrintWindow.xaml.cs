@@ -164,9 +164,10 @@ namespace SwimmingScoreboard
             string genderLabel = (gender == "男" || gender == "女") ? (gender + "子") : gender;
             if (isRelay) {
                 // 接力不按年龄切
+                // 2026-06-04 顺序统一: 性别 在前, 组别 在后
                 output.Add(new AgeBlock {
                     AgeGroup = ageGroup, SubAge = 0,
-                    Title = string.Format("{0} {1}", ageGroup, genderLabel),
+                    Title = string.Format("{0} {1}", genderLabel, ageGroup),
                     Rows = allRows
                 });
                 return output;
@@ -192,10 +193,11 @@ namespace SwimmingScoreboard
                 bucket[a].Add(vm);
             }
             // 单一年龄 → 不拆, 标题用 ageGroup 原名 (例 "9岁组" 已经语义清楚)
+            // 2026-06-04 顺序统一: 性别 在前, 组别 在后
             if (bucket.Count <= 1) {
                 output.Add(new AgeBlock {
                     AgeGroup = ageGroup, SubAge = bucket.Count == 1 ? bucket.First().Key : 0,
-                    Title = string.Format("{0} {1}", ageGroup, genderLabel),
+                    Title = string.Format("{0} {1}", genderLabel, ageGroup),
                     Rows = allRows
                 });
                 return output;
@@ -217,7 +219,8 @@ namespace SwimmingScoreboard
                 }
                 output.Add(new AgeBlock {
                     AgeGroup = ageGroup, SubAge = a,
-                    Title = string.Format("{0} ({1}岁) {2}", ageGroup, a, genderLabel),
+                    // 2026-06-04 顺序统一: 性别 在前, 组别 + 子年龄 在后
+                    Title = string.Format("{0} {1} ({2}岁)", genderLabel, ageGroup, a),
                     Rows = rebuilt
                 });
             }

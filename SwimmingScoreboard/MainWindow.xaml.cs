@@ -2610,11 +2610,12 @@ namespace SwimmingScoreboard
                     });
                 }
 
-                // 子分组标题: "9-11岁 男子" / "12-13岁 女子" / 接力则只 "男子" 等
+                // 子分组标题: "男子 9-11岁" / "女子 12-13岁" / 接力则只 "男子" 等
+                // 2026-06-04 顺序统一: 性别 在前, 组别 在后
                 string genderLabel = (subGender == "男" || subGender == "女") ? (subGender + "子") : subGender;
                 string title = rankRelay || string.IsNullOrEmpty(subAgeGroup)
                     ? genderLabel
-                    : string.Format("{0} {1}", subAgeGroup, genderLabel);
+                    : string.Format("{0} {1}", genderLabel, subAgeGroup);
                 result.Add(new {
                     gender = subGender, ageGroup = subAgeGroup, title = title, items = items
                 });
@@ -6205,9 +6206,11 @@ namespace SwimmingScoreboard
                     int oldHeat = _currentHeat;
                     _currentHeat = 0;        // 让 GetCurrentHeatSwimmers 返回空，泳道行整体置为"（空泳道）"
                     if (CurrentHeatText != null) CurrentHeatText.Text = string.Format("第{0}组已完赛 / 共{1}组", oldHeat, totalHeats);
-                    if (PoolCurrentEventText != null) PoolCurrentEventText.Text = string.Format("{0}{1} {2} {3} 已完赛",
+                    // 2026-06-04 顺序统一: 性别 组别 项目 赛次
+                    if (PoolCurrentEventText != null) PoolCurrentEventText.Text = string.Format("{0} {1}{2} {3} 已完赛",
+                        _currentGender,
                         string.IsNullOrEmpty(_currentAgeGroup) ? "" : ("[" + _currentAgeGroup + "] "),
-                        _currentGender, _currentEvent, _currentStage);
+                        _currentEvent, _currentStage);
                     UpdateRaceStateDisplay();
                     UpdateLaneStatusDisplay();
                     stageDoneSwitchToWelcome = true;   // 末尾用 SHOW_WELCOME 取代 SHOW_LIVE_RACE，避免被覆盖
@@ -6570,7 +6573,8 @@ namespace SwimmingScoreboard
                 _currentEvent = eventName;
             }
             _isRelay = _currentEvent.Contains("接力");
-            CurrentEventText.Text = (string.IsNullOrEmpty(_currentAgeGroup) ? "" : ("[" + _currentAgeGroup + "] ")) + _currentGender + " " + _currentEvent;
+            // 2026-06-04 顺序统一: 性别 组别 项目
+            CurrentEventText.Text = _currentGender + (string.IsNullOrEmpty(_currentAgeGroup) ? " " : (" [" + _currentAgeGroup + "] ")) + _currentEvent;
             UpdateRecordDisplay();
             UpdateLaneStatusDisplay();   // 主服务器本机泳道占用显示
             // 选项目时把比赛配置 / 发令点同步给硬件（出发台仍由 0x21 Ready 控制是否打开）：
@@ -6673,10 +6677,12 @@ namespace SwimmingScoreboard
         private void SetCurrentHeat(int heat) {
             _currentHeat = heat;
             CurrentHeatText.Text = string.Format("第{0}组 / 共{1}组", heat, _totalHeats);
+            // 2026-06-04 顺序统一: 性别 组别 项目 赛次 第N组
             if (PoolCurrentEventText != null)
-                PoolCurrentEventText.Text = string.Format("{0}{1} {2} {3} 第{4}组",
+                PoolCurrentEventText.Text = string.Format("{0} {1}{2} {3} 第{4}组",
+                    _currentGender,
                     string.IsNullOrEmpty(_currentAgeGroup) ? "" : ("[" + _currentAgeGroup + "] "),
-                    _currentGender, _currentEvent, _currentStage, heat);
+                    _currentEvent, _currentStage, heat);
 
             // 判断该组是否已有确认成绩；若是则保留 Finished 状态，避免覆盖已确认的成绩显示
             bool heatAlreadyConfirmed = !string.IsNullOrEmpty(_currentEvent) && _currentHeat > 0
@@ -6775,7 +6781,8 @@ namespace SwimmingScoreboard
                     _isRelay = _currentEvent.Contains("接力");
 
                     _totalHeats = CountHeatsForEvent(_currentAgeGroup, _currentGender, _currentEvent, _currentStage);
-                    CurrentEventText.Text = (string.IsNullOrEmpty(_currentAgeGroup) ? "" : ("[" + _currentAgeGroup + "] ")) + _currentGender + _currentEvent;
+                    // 2026-06-04 顺序统一: 性别 组别 项目
+                    CurrentEventText.Text = _currentGender + (string.IsNullOrEmpty(_currentAgeGroup) ? " " : (" [" + _currentAgeGroup + "] ")) + _currentEvent;
                     CurrentStageText.Text = _currentStage;
                     SetCurrentHeat(heat);
                 }
@@ -18621,13 +18628,16 @@ namespace SwimmingScoreboard
                 sb.AppendFormat("<h3>第{0}场 {1} {2}</h3>", session.Key,
                     !string.IsNullOrEmpty(first.Date) ? first.Date : "",
                     ComputeSessionTimeRange(session));
-                sb.Append("<table><tr><th width='60'>时间</th><th width='70'>编号</th><th width='70'>组别</th><th>项目</th><th width='70'>赛次</th><th width='50'>组数</th></tr>");
+                // 2026-06-04 顺序统一: 时间 / 编号 / 性别 / 组别 / 项目 / 赛次 / 组数 (性别 在 组别 前)
+                sb.Append("<table><tr><th width='60'>时间</th><th width='70'>编号</th><th width='50'>性别</th><th width='70'>组别</th><th>项目</th><th width='70'>赛次</th><th width='50'>组数</th></tr>");
                 foreach (var s in session) {
-                    sb.AppendFormat("<tr><td>{0}</td><td><b>{1}</b></td><td>{2}</td><td style='text-align:left;'>{3} {4}</td><td>{5}</td><td>{6}</td></tr>",
+                    sb.AppendFormat("<tr><td>{0}</td><td><b>{1}</b></td><td>{2}</td><td>{3}</td><td style='text-align:left;'>{4}</td><td>{5}</td><td>{6}</td></tr>",
                         s.Time,
                         EventNumberLabel(evtMap, s.Gender, s.EventName),
+                        s.Gender,
                         s.AgeGroup ?? "",
-                        s.Gender, s.EventName, s.Stage,
+                        s.EventName,
+                        s.Stage,
                         s.HeatCount > 0 ? s.HeatCount.ToString() : "");
                 }
                 sb.Append("</table>");
@@ -19151,7 +19161,9 @@ namespace SwimmingScoreboard
             sb.AppendFormat("<html><head><meta charset='UTF-8'><style>{0}</style></head><body>", DocCss());
             sb.Append(DocHeader("成 绩 单"));
 
-            string eventTitle = string.Format("{0} {1} {2} 第 {3} 组", _currentGender, _currentEvent, _currentStage, _currentHeat);
+            // 2026-06-04 顺序统一: 性别 组别 项目 赛次 第N组
+            string ageGroupSpace = string.IsNullOrEmpty(_currentAgeGroup) ? "" : (_currentAgeGroup + " ");
+            string eventTitle = string.Format("{0} {1}{2} {3} 第 {4} 组", _currentGender, ageGroupSpace, _currentEvent, _currentStage, _currentHeat);
             sb.AppendFormat("<h3>项目：{0}</h3>", eventTitle);
 
             var sch = _schedule.FirstOrDefault(s => s.Gender == _currentGender && s.EventName == _currentEvent && s.Stage == _currentStage);
@@ -19236,7 +19248,9 @@ namespace SwimmingScoreboard
             var sb = new StringBuilder();
             sb.AppendFormat("<html><head><meta charset='UTF-8'><style>{0}</style></head><body>", DocCss());
             sb.Append(DocHeader("成 绩 单"));
-            sb.AppendFormat("<h3>项目：{0} {1} {2}</h3>", _currentGender, _currentEvent, _currentStage);
+            // 2026-06-04 顺序统一: 性别 组别 项目 赛次
+            string ageGroupSpaceE = string.IsNullOrEmpty(_currentAgeGroup) ? "" : (_currentAgeGroup + " ");
+            sb.AppendFormat("<h3>项目：{0} {1}{2} {3}</h3>", _currentGender, ageGroupSpaceE, _currentEvent, _currentStage);
             sb.Append("<table><tr><th>名次</th><th>号码</th><th>姓名</th><th>代表队</th><th>最终成绩</th></tr>");
             var ranking = GetEventRanking(_currentEvent, _currentGender);
             foreach (dynamic item in ranking) {
@@ -19897,7 +19911,9 @@ namespace SwimmingScoreboard
             sb.AppendFormat("<html><head><meta charset='UTF-8'><style>{0}</style></head><body>", DocCss());
             sb.Append(DocHeader("分 段 计 时 报 告"));
 
-            string eventTitle = string.Format("{0} {1} {2} 第 {3} 组", _currentGender, _currentEvent, _currentStage, _currentHeat);
+            // 2026-06-04 顺序统一: 性别 组别 项目 赛次 第N组
+            string ageGroupSpaceS = string.IsNullOrEmpty(_currentAgeGroup) ? "" : (_currentAgeGroup + " ");
+            string eventTitle = string.Format("{0} {1}{2} {3} 第 {4} 组", _currentGender, ageGroupSpaceS, _currentEvent, _currentStage, _currentHeat);
             sb.AppendFormat("<h3>项目：{0}</h3>", eventTitle);
 
             var sch = _schedule.FirstOrDefault(s => s.Gender == _currentGender && s.EventName == _currentEvent && s.Stage == _currentStage);
