@@ -68,8 +68,22 @@ h1 { text-align: center; margin-bottom: 20px; font-size: 20px; }
     <button class="btn" style="background:#FB923C;color:white;grid-column:span 3;" onclick="send('PLAY_PPT')">📊 PPT 播放 (主控 PC 选文件)</button>
     <!-- 2026-06-01 远程控制大屏样式: 底色 / 字号 / 9 处文字颜色字体 -->
     <button class="btn" style="background:#0ea5e9;color:white;grid-column:span 3;" onclick="openDisplayStyleDialog()">🎨 大屏样式 (底色 / 字号 / 文字)</button>
+    <!-- 2026-06-05 成绩 txt 输出 (远程: 主控 PC 上的 BuildResultTxtContent 回送给浏览器下载) -->
+    <button class="btn" style="background:#10b981;color:white;grid-column:span 3;" onclick="openTxtExportDialog()">📄 成绩 txt 输出 (选择已完赛组下载)</button>
 </div>
 <div class="status" id="status"></div>
+
+<!-- 2026-06-05 成绩 txt 输出 弹窗 -->
+<div id="txtExportModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:100;">
+    <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:#1e293b;border-radius:12px;padding:20px;width:90%;max-width:520px;max-height:80vh;overflow-y:auto;">
+        <h2 style="margin-bottom:12px;font-size:18px;color:#10b981;">📄 成绩 txt 输出</h2>
+        <p style="margin-bottom:8px;font-size:13px;color:#94a3b8;">选择已完赛组次, 点击即下载 (文件名: 场号-项号-组号.txt):</p>
+        <div id="txtExportList" style="max-height:50vh;overflow-y:auto;"></div>
+        <div style="display:flex;gap:8px;margin-top:12px;justify-content:flex-end;">
+            <button class="btn" style="background:#64748b;color:white;padding:10px 20px;" onclick="closeTxtExportDialog()">关闭</button>
+        </div>
+    </div>
+</div>
 
 <!-- 成绩发布弹窗 -->
 <div id="publishModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:100;">
@@ -198,6 +212,14 @@ function connect() {
             var msg = JSON.parse(e.data);
             // 2026-06-01 大屏样式推送 → 同步 UI
             if (msg.type === 'DISPLAY_STYLE_PUSH') { _cs_applyToUi(msg.data || {}); return; }
+            // 2026-06-05 成绩 txt 输出 列表 / 文件 返回
+            if (msg.type === 'EXPORT_RESULT_TXT_LIST_RESP') { _txtRenderList(msg.heats || []); return; }
+            if (msg.type === 'EXPORT_RESULT_TXT_FILE') {
+                if (msg.error) { alert('生成失败: ' + msg.error); document.getElementById('status').textContent = '生成失败: ' + msg.error; return; }
+                _txtDownload(msg.content || '', msg.fileName || 'result.txt');
+                document.getElementById('status').textContent = '已下载 ' + (msg.fileName || 'result.txt');
+                return;
+            }
             // 只更新含赛程数据的广播消息，跳过晋级通知等特殊消息
             if (msg.data && msg.data.schedule) serverData = msg.data;
         } catch(ex) {}
@@ -402,6 +424,58 @@ function openPublishDialog() {
 
 function closePublishDialog() {
     document.getElementById('publishModal').style.display = 'none';
+}
+
+// 2026-06-05 成绩 txt 输出: 远程拉已完赛组列表 -> 选定 -> 服务器构建 txt 内容回送 -> 浏览器 Blob 下载
+function openTxtExportDialog() {
+    if (!ws || ws.readyState !== 1) { alert('未连接服务器, 无法获取已完赛列表'); return; }
+    var listEl = document.getElementById('txtExportList');
+    listEl.innerHTML = '<p style="color:#94a3b8;padding:20px;text-align:center;">正在加载已完赛列表...</p>';
+    document.getElementById('txtExportModal').style.display = 'block';
+    ws.send(JSON.stringify({ type: 'REMOTE_CONTROL', command: 'EXPORT_RESULT_TXT_LIST' }));
+}
+function closeTxtExportDialog() {
+    document.getElementById('txtExportModal').style.display = 'none';
+}
+function _txtRenderList(heats) {
+    var listEl = document.getElementById('txtExportList');
+    if (!heats || heats.length === 0) {
+        listEl.innerHTML = '<p style="color:#94a3b8;padding:20px;text-align:center;">暂无已完赛组次</p>';
+        return;
+    }
+    // 按 (场次, 项次, 组号) 升序
+    heats.sort(function(a,b) {
+        if ((a.session||0) !== (b.session||0)) return (a.session||0) - (b.session||0);
+        if ((a.eventNo||0) !== (b.eventNo||0)) return (a.eventNo||0) - (b.eventNo||0);
+        return (a.heat||0) - (b.heat||0);
+    });
+    var html = '';
+    for (var i = 0; i < heats.length; i++) {
+        var h = heats[i];
+        var pl = h.title || ((h.gender||'') + ' ' + (h.eventName||'') + ' ' + (h.stage||'') + ' 第' + h.heat + '组');
+        html += '<button style="display:block;width:100%;text-align:left;padding:10px 12px;margin-bottom:4px;' +
+                'background:#334155;color:white;border:none;border-radius:6px;font-size:14px;cursor:pointer;" ' +
+                'onclick="_txtRequestBuild(' + JSON.stringify(h).replace(/"/g, '&quot;') + ')">' +
+                '<span style="color:#10b981;font-family:Consolas,monospace;font-size:12px;">[' + h.fileName + ']</span> ' + pl +
+                '</button>';
+    }
+    listEl.innerHTML = html;
+}
+function _txtRequestBuild(h) {
+    if (!ws || ws.readyState !== 1) { alert('连接已断'); return; }
+    ws.send(JSON.stringify({
+        type: 'REMOTE_CONTROL', command: 'EXPORT_RESULT_TXT_BUILD',
+        data: { ageGroup: h.ageGroup||'', gender: h.gender||'', eventName: h.eventName||'', stage: h.stage||'', heat: h.heat||0 }
+    }));
+    document.getElementById('status').textContent = '正在请求生成 ' + h.fileName + ' ...';
+}
+function _txtDownload(content, fileName) {
+    var blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = fileName || 'result.txt';
+    document.body.appendChild(a); a.click();
+    setTimeout(function() { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
 }
 
 function publishResult(gender, eventName, stage, heat, heatCount) {

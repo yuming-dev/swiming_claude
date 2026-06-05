@@ -71,7 +71,33 @@ namespace SwimmingScoreboard
         // 组别匹配: 空/"全部"/"不限" = 全选; 否则严格相等
         private static bool MatchesAge(string swimmerAge, string filterAge) {
             if (string.IsNullOrEmpty(filterAge) || filterAge == "全部" || filterAge == "不限") return true;
-            return (swimmerAge ?? "") == filterAge;
+            string sg = swimmerAge ?? "";
+            if (sg == filterAge) return true;
+            // 2026-06-04 并项组别 (e.g. "12-15岁组" ⊇ "12-13岁组" + "14-15岁组")
+            int sLo, sHi, gLo, gHi;
+            if (TryParseAgeRangeS(filterAge, out gLo, out gHi) && TryParseAgeRangeS(sg, out sLo, out sHi)) {
+                return gLo <= sLo && sHi <= gHi;
+            }
+            return false;
+        }
+
+        private static bool TryParseAgeRangeS(string s, out int lo, out int hi) {
+            lo = hi = 0;
+            if (string.IsNullOrEmpty(s)) return false;
+            var m = System.Text.RegularExpressions.Regex.Match(s, @"(\d+)\s*-\s*(\d+)\s*岁组");
+            if (!m.Success) {
+                var m2 = System.Text.RegularExpressions.Regex.Match(s, @"(\d+)\s*岁组");
+                if (m2.Success) { int a; if (int.TryParse(m2.Groups[1].Value, out a)) { lo = hi = a; return true; } }
+                return false;
+            }
+            return int.TryParse(m.Groups[1].Value, out lo) && int.TryParse(m.Groups[2].Value, out hi) && lo <= hi;
+        }
+
+        // 2026-06-04 男女并项: 选 男女 时 男 + 女 + 混合 都过; 其他单性别保持原 (含混合) 兼容逻辑
+        private static bool SgMatchPrint(string sg, string fg) {
+            if (string.IsNullOrEmpty(fg)) return true;
+            if (fg == "男女") return sg == "男" || sg == "女" || sg == "混合";
+            return sg == fg || sg == "混合";
         }
 
         private void PopulateEventCombo()
@@ -85,7 +111,7 @@ namespace SwimmingScoreboard
             foreach (var s in _swimmers)
             {
                 if (string.IsNullOrEmpty(s.EventName)) continue;
-                if (!string.IsNullOrEmpty(gender) && s.Gender != gender && s.Gender != "混合") continue;
+                if (!string.IsNullOrEmpty(gender) && !SgMatchPrint(s.Gender, gender)) continue;
                 if (!MatchesAge(s.AgeCategory, ageFilter)) continue;
                 if (s.Notes != null && s.Notes.StartsWith("接力队员")) continue;
                 events.Add(s.EventName);
@@ -123,7 +149,7 @@ namespace SwimmingScoreboard
             // 2026-06-01 加 AgeGroup 过滤, 避免决赛-only 比赛多年龄组共用 EventName 时 Heat 数字重叠
             foreach (var s in _swimmers)
             {
-                if (s.Gender != gender && s.Gender != "混合") continue;
+                if (!SgMatchPrint(s.Gender, gender)) continue;
                 if (s.EventName != eventName) continue;
                 if (!MatchesAge(s.AgeCategory, ageFilter)) continue;
                 foreach (var r in s.Results)
@@ -169,7 +195,7 @@ namespace SwimmingScoreboard
 
             // 2026-06-01 加 AgeGroup 过滤; 男/女 也包含混合性别接力
             var matched = _swimmers.Where(s =>
-                (s.Gender == gender || s.Gender == "混合") &&
+                SgMatchPrint(s.Gender, gender) &&
                 s.EventName == eventName &&
                 MatchesAge(s.AgeCategory, ageFilter) &&
                 s.GetResultForStage(stage) != null
@@ -260,24 +286,37 @@ namespace SwimmingScoreboard
                     BibNumber = s.BibNumber ?? "",
                     Name = epName,
                     Country = s.Country ?? "",
+                    Gender = s.Gender ?? "",   // 2026-06-04 男女并项: 排名/输出 用
                     FinalTime = isDQ ? "" : (r.FinalTime > 0 ? TimeFormatter.Format(r.FinalTime) : ""),
                     ReactionTime = reactionPlain,        // DataGrid 预览用：空格分隔，TextWrapping=Wrap 自动换行
                     ReactionTimeHtml = reactionHtml,     // 打印 HTML 用：<br> 强制每棒一行
                     Remark = remark,
                     Qualified = qualified
                 };
-            }).OrderBy(x => x.SortTime).ToList();
+            // 2026-06-04 男女并项: 先按 性别 (男前女后) 再按 时间
+            }).OrderBy(x => gender == "男女" ? (x.Gender == "女" ? 1 : 0) : 0).ThenBy(x => x.SortTime).ToList();
 
-            // 计算第1名成绩 = 排序后的第一个非 DQ 项
-            double leaderTime = 0;
-            foreach (var d in displayData) {
-                if (!d.IsDQ && d.RawFinalTime > 0) { leaderTime = d.RawFinalTime; break; }
+            // 2026-06-04 男女并项: 按性别分两个 leader + 各自 rank
+            bool isMixed = (gender == "男女");
+            var leaderMap = new Dictionary<string, double>();
+            if (isMixed) {
+                foreach (var gKey in new[] { "男", "女" }) {
+                    foreach (var d in displayData) {
+                        if (d.Gender == gKey && !d.IsDQ && d.RawFinalTime > 0) { leaderMap[gKey] = d.RawFinalTime; break; }
+                    }
+                }
+            } else {
+                foreach (var d in displayData) {
+                    if (!d.IsDQ && d.RawFinalTime > 0) { leaderMap["_all"] = d.RawFinalTime; break; }
+                }
             }
 
             _currentResults = new List<object>();
-            int rank = 1;
+            var rankMap = new Dictionary<string, int> { {"男", 1}, {"女", 1}, {"_all", 1} };
             foreach (var item in displayData)
             {
+                string rkKey = isMixed ? item.Gender : "_all";
+                double leaderTime; leaderMap.TryGetValue(rkKey, out leaderTime);
                 string diffText = "";
                 if (!item.IsDQ && item.RawFinalTime > 0 && leaderTime > 0 && item.RawFinalTime > leaderTime) {
                     diffText = (item.RawFinalTime - leaderTime).ToString("F2");
@@ -293,13 +332,15 @@ namespace SwimmingScoreboard
                 } else {
                     remarkHtml = "";
                 }
+                int curRank = rankMap[rkKey];
                 _currentResults.Add(new
                 {
-                    Rank = item.IsDQ ? "-" : rank.ToString(),
+                    Rank = item.IsDQ ? "-" : curRank.ToString(),
                     item.Lane,
                     item.BibNumber,
                     item.Name,
                     item.Country,
+                    item.Gender,
                     item.FinalTime,
                     Diff = diffText,
                     item.ReactionTime,
@@ -307,7 +348,7 @@ namespace SwimmingScoreboard
                     Remark = remarkPlain,
                     RemarkHtml = remarkHtml
                 });
-                if (!item.IsDQ) rank++;
+                if (!item.IsDQ) rankMap[rkKey] = curRank + 1;
             }
 
             PreviewGrid.ItemsSource = _currentResults;
@@ -343,7 +384,7 @@ namespace SwimmingScoreboard
             // 组号显示逻辑：决赛只有1组时不显示，预赛/半决赛即使1组也显示
             // 2026-06-01 totalHeats 也要带 AgeGroup 过滤, 不然跨组别会把别人的 Heat 也算进来
             int totalHeats = _swimmers.Where(s =>
-                (s.Gender == SelectedGender || s.Gender == "混合") &&
+                SgMatchPrint(s.Gender, SelectedGender) &&
                 s.EventName == SelectedEvent &&
                 MatchesAge(s.AgeCategory, SelectedAgeGroup) &&
                 s.GetResultForStage(SelectedStage) != null
@@ -398,26 +439,58 @@ namespace SwimmingScoreboard
             bool epRelay = SelectedEvent.Contains("接力");
             string epH1 = epRelay ? "代表队" : "姓名";
             string epH2 = epRelay ? "姓名" : "代表队";
-            sb.Append("<table><tr>");
-            sb.AppendFormat("<th width='50'>名次</th><th width='40'>道</th><th width='60'>号码</th>");
-            sb.AppendFormat("<th width='100'>{0}</th><th width='100'>{1}</th>", epH1, epH2);
-            // 接力赛反应时分 4 棒，宽度加大以容纳"第N棒:0.45"换行展示
             int reactionWidth = epRelay ? 110 : 70;
-            sb.AppendFormat("<th width='90'>最终成绩</th><th width='70'>成绩差</th><th width='{0}'>反应时间</th><th width='50'>备注</th>", reactionWidth);
-            sb.Append("</tr>");
-            foreach (dynamic item in _currentResults)
-            {
-                string c1 = epRelay ? item.Country : item.Name;
-                string c2 = epRelay ? item.Name : item.Country;
-                sb.Append("<tr>");
-                sb.AppendFormat("<td>{0}</td><td>{1}</td><td>{2}</td>", item.Rank, item.Lane, item.BibNumber);
-                sb.AppendFormat("<td><b>{0}</b></td><td>{1}</td>", c1, c2);
-                sb.AppendFormat("<td style='font-weight:bold; background:#eff6ff;'>{0}</td>", item.FinalTime);
-                sb.AppendFormat("<td>{0}</td>", item.Diff);
-                sb.AppendFormat("<td style='font-size:12px;'>{0}</td><td>{1}</td>", item.ReactionTimeHtml, item.RemarkHtml);
+
+            // 2026-06-04 男女并项: 拆 男 / 女 两张子表
+            bool printMixed = (SelectedGender == "男女");
+            if (printMixed) {
+                foreach (var gKey in new[] { "男", "女" }) {
+                    var subResults = new List<dynamic>();
+                    foreach (dynamic it in _currentResults) {
+                        if ((string)it.Gender == gKey) subResults.Add(it);
+                    }
+                    if (subResults.Count == 0) continue;
+                    string bg = (gKey == "男") ? "#dbeafe" : "#fce7f3";
+                    string brd = (gKey == "男") ? "#2563eb" : "#ec4899";
+                    sb.AppendFormat("<h4 style='background:{0};border-left:5px solid {1};padding:8px 12px;'>{2} 子</h4>", bg, brd, gKey);
+                    sb.Append("<table><tr>");
+                    sb.AppendFormat("<th width='50'>名次</th><th width='40'>道</th><th width='60'>号码</th>");
+                    sb.AppendFormat("<th width='100'>{0}</th><th width='100'>{1}</th>", epH1, epH2);
+                    sb.AppendFormat("<th width='90'>最终成绩</th><th width='70'>成绩差</th><th width='{0}'>反应时间</th><th width='50'>备注</th>", reactionWidth);
+                    sb.Append("</tr>");
+                    foreach (dynamic item in subResults) {
+                        string c1 = epRelay ? item.Country : item.Name;
+                        string c2 = epRelay ? item.Name : item.Country;
+                        sb.Append("<tr>");
+                        sb.AppendFormat("<td>{0}</td><td>{1}</td><td>{2}</td>", item.Rank, item.Lane, item.BibNumber);
+                        sb.AppendFormat("<td><b>{0}</b></td><td>{1}</td>", c1, c2);
+                        sb.AppendFormat("<td style='font-weight:bold; background:#eff6ff;'>{0}</td>", item.FinalTime);
+                        sb.AppendFormat("<td>{0}</td>", item.Diff);
+                        sb.AppendFormat("<td style='font-size:12px;'>{0}</td><td>{1}</td>", item.ReactionTimeHtml, item.RemarkHtml);
+                        sb.Append("</tr>");
+                    }
+                    sb.Append("</table>");
+                }
+            } else {
+                sb.Append("<table><tr>");
+                sb.AppendFormat("<th width='50'>名次</th><th width='40'>道</th><th width='60'>号码</th>");
+                sb.AppendFormat("<th width='100'>{0}</th><th width='100'>{1}</th>", epH1, epH2);
+                sb.AppendFormat("<th width='90'>最终成绩</th><th width='70'>成绩差</th><th width='{0}'>反应时间</th><th width='50'>备注</th>", reactionWidth);
                 sb.Append("</tr>");
+                foreach (dynamic item in _currentResults)
+                {
+                    string c1 = epRelay ? item.Country : item.Name;
+                    string c2 = epRelay ? item.Name : item.Country;
+                    sb.Append("<tr>");
+                    sb.AppendFormat("<td>{0}</td><td>{1}</td><td>{2}</td>", item.Rank, item.Lane, item.BibNumber);
+                    sb.AppendFormat("<td><b>{0}</b></td><td>{1}</td>", c1, c2);
+                    sb.AppendFormat("<td style='font-weight:bold; background:#eff6ff;'>{0}</td>", item.FinalTime);
+                    sb.AppendFormat("<td>{0}</td>", item.Diff);
+                    sb.AppendFormat("<td style='font-size:12px;'>{0}</td><td>{1}</td>", item.ReactionTimeHtml, item.RemarkHtml);
+                    sb.Append("</tr>");
+                }
+                sb.Append("</table>");
             }
-            sb.Append("</table>");
 
             // 签名栏 (2026-05-26 删除"编排长"签字行)
             sb.Append("<div class='signature-row'>");

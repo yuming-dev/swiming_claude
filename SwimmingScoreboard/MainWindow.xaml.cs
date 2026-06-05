@@ -1502,6 +1502,58 @@ namespace SwimmingScoreboard
                 }
                 // 2026-05-27 远程台 (EXE/HTML) 触发"停表"切换
                 case "PAUSE_CLOCK_TOGGLE": PauseClock_Click(null, null); break;
+                // 2026-06-05 control.html "成绩 txt 输出" → 1) 拉已完赛列表 2) 选定后构建 txt 内容返回 (浏览器下载)
+                case "EXPORT_RESULT_TXT_LIST": {
+                    if (socket == null) break;
+                    var heats = new List<object>();
+                    foreach (var key in _confirmedHeats) {
+                        var parts = key.Split('|');
+                        if (parts.Length < 5) continue;
+                        int hh; if (!int.TryParse(parts[4], out hh)) continue;
+                        var sched = _schedule.FirstOrDefault(s =>
+                            (s.AgeGroup ?? "") == parts[0] && s.Gender == parts[1]
+                            && s.EventName == parts[2] && s.Stage == parts[3]);
+                        int session = sched != null ? sched.SessionNumber : 0;
+                        var evtMap2 = BuildEventNumberMap();
+                        int eventNo2; evtMap2.TryGetValue(parts[1] + "|" + parts[2], out eventNo2);
+                        string title = string.Format("{0}{1} {2} {3} 第{4}组",
+                            string.IsNullOrEmpty(parts[0]) ? "" : (parts[0] + " "),
+                            parts[1], parts[2], parts[3], hh);
+                        heats.Add(new {
+                            ageGroup = parts[0], gender = parts[1], eventName = parts[2], stage = parts[3], heat = hh,
+                            session = session, eventNo = eventNo2,
+                            fileName = string.Format("{0:D2}-{1:D2}-{2:D2}.txt", session, eventNo2, hh),
+                            title = title
+                        });
+                    }
+                    try { socket.Send(JsonConvert.SerializeObject(new { type = "EXPORT_RESULT_TXT_LIST_RESP", heats = heats })); } catch { }
+                    break;
+                }
+                case "EXPORT_RESULT_TXT_BUILD": {
+                    if (socket == null) break;
+                    try {
+                        var txtData = msg["data"];
+                        string ag = txtData["ageGroup"] != null ? txtData["ageGroup"].ToString() : "";
+                        string g = txtData["gender"] != null ? txtData["gender"].ToString() : "";
+                        string ev = txtData["eventName"] != null ? txtData["eventName"].ToString() : "";
+                        string st = txtData["stage"] != null ? txtData["stage"].ToString() : "";
+                        int h = txtData["heat"] != null ? (int)txtData["heat"] : 0;
+                        var sched = _schedule.FirstOrDefault(s => (s.AgeGroup ?? "") == ag && s.Gender == g && s.EventName == ev && s.Stage == st);
+                        int session = sched != null ? sched.SessionNumber : 0;
+                        var evtMap3 = BuildEventNumberMap();
+                        int eventNo3; evtMap3.TryGetValue(g + "|" + ev, out eventNo3);
+                        string content = BuildResultTxtContent(ag, g, ev, st, h);
+                        string fileName = string.Format("{0:D2}-{1:D2}-{2:D2}.txt", session, eventNo3, h);
+                        socket.Send(JsonConvert.SerializeObject(new {
+                            type = "EXPORT_RESULT_TXT_FILE", content = content, fileName = fileName
+                        }));
+                        AddLog("远端成绩 txt 已回送: " + fileName);
+                    } catch (Exception ex) {
+                        try { socket.Send(JsonConvert.SerializeObject(new { type = "EXPORT_RESULT_TXT_FILE", error = ex.Message })); } catch { }
+                        AddLog("远端成绩 txt 生成失败: " + ex.Message);
+                    }
+                    break;
+                }
                 case "QUICK_CONNECT_SERIAL":
                     QuickConnectSerial_Click(null, null);
                     break;
@@ -18310,15 +18362,21 @@ namespace SwimmingScoreboard
             }
         }
 
-        // 文件格式 (每行, 14 列, 空格分隔):
-        //   LL  FFFF  S1  S2  S3  S4  S5  S6  S7  S8  R1  R2  R3  R4
-        //   LL    = 道号 2 位补 0
-        //   FFFF  = 最终成绩 MM:SS.cc (0 → 00:00.00)
-        //   S1-S8 = 50/100/.../400m 累计时间 MM:SS.cc (无 = 00:00.00)
-        //   R1-R4 = 1-4 棒反应时 RRRR.cc (个人项只填 R1, R2-R4 = 0000.00)
+        // 2026-06-05 新格式 (每行 N 列, 空格分隔), N = 2 + 分段数 + 反应时数:
+        //   LL  FFFF  S1  S2  ...  Sn  R1  [R2 R3 ... Rm]
+        //   LL   = 道号 2 位补 0
+        //   FFFF = 最终成绩 MM:SS.cc
+        //   S1-Sn = 所有分段累计时间 (n = 总距离 / 泳池长度, 例 200米 50米泳池 → 4 段; 4x100 50米 → 8 段)
+        //          最后一段 Sn ≡ FFFF (= 用户要求)
+        //   R1-Rm = 反应时 RRRR.cc (个人 1 个; 接力 m = 棒次数)
         // 10 道全部输出, 缺人的道全 00:00.00 / 0000.00
         private string BuildResultTxtContent(string ageGroup, string gender, string eventName, string stage, int heat) {
             bool isRelay = (eventName ?? "").Contains("接力");
+
+            // 解析项目总距离 + 棒次
+            int splitCount = GetSplitCountForEvent(eventName);
+            int legCount = GetLegCountForEvent(eventName);
+            int rtCount = isRelay ? legCount : 1;
 
             // 收集该组运动员 (lane → swimmer)
             var lanesData = new Dictionary<int, Swimmer>();
@@ -18334,9 +18392,9 @@ namespace SwimmingScoreboard
                 lanesData[swLane] = s;
             }
 
-            // 用 _poolConfig.LaneNumbers (10 道泳池 0-9, 8 道泳池 1-8 等)
             var poolLanes = (_poolConfig != null && _poolConfig.LaneNumbers != null && _poolConfig.LaneNumbers.Count > 0)
                 ? _poolConfig.LaneNumbers : new List<int> { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+            int poolLen = (_poolConfig != null && _poolConfig.Length > 0) ? _poolConfig.Length : 50;
 
             var sb = new StringBuilder();
             foreach (int lane in poolLanes) {
@@ -18344,23 +18402,24 @@ namespace SwimmingScoreboard
                 Swimmer sw = lanesData.ContainsKey(lane) ? lanesData[lane] : null;
                 LaneResult r = sw != null ? sw.Results.FirstOrDefault(x => x.Stage == stage && x.Heat == heat) : null;
 
-                // Final time
                 double finalSec = r != null ? r.FinalTime : 0;
                 sb.Append(" " + FormatTimeMSCC(finalSec));
 
-                // 8 split cumulative times (50m, 100m, ..., 400m)
-                for (int si = 0; si < 8; si++) {
-                    int distAt = (si + 1) * 50;
+                // 分段累计时间: 1..splitCount, 距离 = i * poolLen
+                for (int si = 0; si < splitCount; si++) {
+                    int distAt = (si + 1) * poolLen;
                     double cum = 0;
                     if (r != null) {
                         var sp = r.Splits.FirstOrDefault(x => x.Distance == distAt);
                         if (sp != null) cum = sp.CumulativeTime;
+                        // 最后一段无分段记录 → 用 FinalTime (用户要求 Sn ≡ FFFF)
+                        if (cum <= 0 && si == splitCount - 1 && finalSec > 0) cum = finalSec;
                     }
                     sb.Append(" " + FormatTimeMSCC(cum));
                 }
 
-                // 4 reaction times (个人项: R1 = StartingBlockTime, R2-R4 = 0; 接力: LegReactionTimes[0..3])
-                for (int li = 0; li < 4; li++) {
+                // 反应时
+                for (int li = 0; li < rtCount; li++) {
                     double rt = 0;
                     if (r != null) {
                         if (isRelay && r.LegReactionTimes != null && li < r.LegReactionTimes.Count) {
@@ -18368,13 +18427,40 @@ namespace SwimmingScoreboard
                         } else if (!isRelay && li == 0) {
                             rt = r.StartingBlockTime;
                         }
-                        if (rt < 0) rt = 0;     // 抢跳 (负值) 不输出, 统一 0
+                        if (rt < 0) rt = 0;
                     }
                     sb.Append(" " + FormatReactionRRRRCC(rt));
                 }
                 sb.Append("\r\n");
             }
             return sb.ToString();
+        }
+
+        // 2026-06-05 项目分段数: 总距离 / 泳池长度 (例 "200米" 50米泳池 → 4; "4x100米" → 400/50 = 8)
+        private int GetSplitCountForEvent(string eventName) {
+            if (string.IsNullOrEmpty(eventName)) return 1;
+            int totalDist = 0;
+            var mRelay = System.Text.RegularExpressions.Regex.Match(eventName, @"(\d+)\s*[x×Xﾗ]\s*(\d+)\s*米");
+            if (mRelay.Success) {
+                int legs, per;
+                if (int.TryParse(mRelay.Groups[1].Value, out legs) && int.TryParse(mRelay.Groups[2].Value, out per)) totalDist = legs * per;
+            } else {
+                var mInd = System.Text.RegularExpressions.Regex.Match(eventName, @"(\d+)\s*米");
+                if (mInd.Success) int.TryParse(mInd.Groups[1].Value, out totalDist);
+            }
+            int poolLen = (_poolConfig != null && _poolConfig.Length > 0) ? _poolConfig.Length : 50;
+            if (totalDist <= 0 || poolLen <= 0) return 1;
+            return Math.Max(1, totalDist / poolLen);
+        }
+
+        // 2026-06-05 接力棒次: "4x100米接力" → 4; 个人项目 → 1
+        private static int GetLegCountForEvent(string eventName) {
+            if (string.IsNullOrEmpty(eventName) || !eventName.Contains("接力")) return 1;
+            var m = System.Text.RegularExpressions.Regex.Match(eventName, @"(\d+)\s*[x×Xﾗ]\s*\d+");
+            if (m.Success) {
+                int n; if (int.TryParse(m.Groups[1].Value, out n) && n > 0 && n <= 10) return n;
+            }
+            return 4;
         }
 
         // 时间格式 MM:SS.cc (= 2-digit 分钟 : 2-digit 秒 . 2-digit 百分秒)
