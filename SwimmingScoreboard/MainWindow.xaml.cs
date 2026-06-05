@@ -6213,10 +6213,11 @@ namespace SwimmingScoreboard
                     stageDoneSwitchToWelcome = true;   // 末尾用 SHOW_WELCOME 取代 SHOW_LIVE_RACE，避免被覆盖
                 }
             } else {
-                // B) 未确认（抢跳重赛）：清当前组的时间/分段数据，保留备注（DSQ/DNS/DNF）；停留在当前组
+                // B) 未确认（抢跳重赛）：清当前组的时间/分段数据，保留备注（DSQ/DNS/DNF/TRI）；停留在当前组
+                // 2026-06-04 TRI 加入 keepStatus, 计时复位 不再清掉 TRI 标记 (用户要求: 只 取消备注 能清)
                 var currentSwimmers = GetCurrentHeatSwimmers();
                 foreach (var sw in currentSwimmers) {
-                    bool keepStatus = sw.Status == "DSQ" || sw.Status == "DNS" || sw.Status == "DNF";
+                    bool keepStatus = sw.Status == "DSQ" || sw.Status == "DNS" || sw.Status == "DNF" || sw.Status == "TRI";
                     var result = sw.Results.FirstOrDefault(r => r.Stage == _currentStage && r.Heat == _currentHeat);
                     if (result != null) sw.Results.Remove(result);
                     if (!keepStatus) sw.Status = "";
@@ -8369,10 +8370,11 @@ namespace SwimmingScoreboard
             string oldStatus = swimmer.Status ?? "";
             swimmer.Status = "";
             var laneState = _laneDeviceStates.FirstOrDefault(s => s.Lane == lane);
-            // 取消 DSQ/DNS/DNF 后：若该运动员有有效成绩，按需重新比对纪录 + 更新本组排名
+            // 取消 DSQ/DNS/DNF/TRI 后：若该运动员有有效成绩，按需重新比对纪录 + 更新本组排名
             var resCN = swimmer.Results.FirstOrDefault(r => r.Stage == _currentStage && r.Heat == _currentHeat);
             if (resCN != null) {
-                bool wasDQ = (oldStatus == "DSQ" || oldStatus == "DNS" || oldStatus == "DNF");
+                // 2026-06-04 TRI 也走 wasDQ 路径: 取消后 r.Status 清掉, finalTime 仍在 → 重新评纪录
+                bool wasDQ = (oldStatus == "DSQ" || oldStatus == "DNS" || oldStatus == "DNF" || oldStatus == "TRI");
                 if (wasDQ) {
                     if (resCN.Status == oldStatus) resCN.Status = "";
                     if (resCN.FinalTime > 0) {
