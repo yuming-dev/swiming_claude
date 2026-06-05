@@ -9,7 +9,7 @@ param(
         'C:\2026年5月甘肃定西游泳比赛文件夹\比赛定西\2026甘肃U系列定西站竞赛秩序(02Other).xls',
         'C:\2026年5月甘肃定西游泳比赛文件夹\比赛定西\2026甘肃U系列定西站竞赛秩序(03Other).xls'
     ),
-    [string]$CompetitionName = '2026甘肃省浩沙杯U系列青少年游泳俱乐部联赛（定西站）',
+    [string]$CompetitionName = '2026年甘肃省浩沙FAFA杯U系列青少年游泳俱乐部联赛（定西站）',
     [string]$StartDate = '2026-06-06',
     [string]$EndDate = '2026-06-07',
     [string]$Location = '定西市全民健身中心',
