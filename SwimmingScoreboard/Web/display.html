@@ -1727,6 +1727,7 @@ var _heatResultTotalPages = 1;
 var _heatResultRowsPerPage = 10;
 var _heatResultData = [];
 var _heatResultRelay = false;
+var _heatResultMixed = false;   // 2026-06-05 男女并项 (= showHeatResultPage 用) — 必须 module 级否则 renderHeatResult 里 var 后 showHeatResultPage 看不到
 
 function renderHeatResult() {
     // 清掉旧翻页定时器, 避免上一组的 timer 还在跑
@@ -1760,7 +1761,7 @@ function renderHeatResult() {
 
     // 仅保留有运动员的泳道（空泳道占位条目不进成绩榜）
     // 2026-06-04 男女 并项: 先按性别 (男 在前), 再按本性别内 rank
-    var _heatResultMixed = (data.currentGender === '男女');
+    _heatResultMixed = (data.currentGender === '男女');
     _heatResultData = (data.swimmers || []).filter(isOccupiedLane).slice().sort(function(a,b) {
         if (_heatResultMixed) {
             var ga = (a.gender === '女') ? 1 : 0;

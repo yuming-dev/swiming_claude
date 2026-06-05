@@ -1972,7 +1972,25 @@ namespace SwimmingScoreboard
             switch (cmd) {
                 case "SHOW_LIVE_RACE": BroadcastDisplayMode("SHOW_LIVE_RACE"); break;
                 case "SHOW_START_LIST": BroadcastDisplayMode("SHOW_START_LIST"); break;
-                case "SHOW_HEAT_RESULT": BroadcastDisplayMode("SHOW_HEAT_RESULT"); break;
+                case "SHOW_HEAT_RESULT": {
+                    // 2026-06-05 计时复位 (=赛次结束) 把 _currentHeat 置 0 → GetCurrentHeatSwimmers 返回空 → 大屏组成绩页空
+                    // 修复: 广播前临时回填最近一次已确认的 heat (取 _confirmedHeats 中匹配当前 event/age/gender/stage 的最大 heat)
+                    int savedHeat = _currentHeat;
+                    if (_currentHeat <= 0 && !string.IsNullOrEmpty(_currentEvent) && !string.IsNullOrEmpty(_currentStage)) {
+                        int bestHeat = 0;
+                        string ag = _currentAgeGroup ?? "", g = _currentGender ?? "", ev = _currentEvent, st = _currentStage;
+                        foreach (var key in _confirmedHeats) {
+                            var parts = key.Split('|');
+                            if (parts.Length < 5) continue;
+                            if (parts[0] != ag || parts[1] != g || parts[2] != ev || parts[3] != st) continue;
+                            int hh; if (int.TryParse(parts[4], out hh) && hh > bestHeat) bestHeat = hh;
+                        }
+                        if (bestHeat > 0) _currentHeat = bestHeat;
+                    }
+                    BroadcastDisplayMode("SHOW_HEAT_RESULT");
+                    _currentHeat = savedHeat;
+                    break;
+                }
                 case "SHOW_EVENT_RANKING": BroadcastDisplayMode("SHOW_EVENT_RANKING"); break;
                 case "SHOW_TEAM_STANDINGS": BroadcastDisplayMode("SHOW_TEAM_STANDINGS"); break;
                 case "SHOW_RECORDS": BroadcastDisplayMode("SHOW_RECORDS"); break;
