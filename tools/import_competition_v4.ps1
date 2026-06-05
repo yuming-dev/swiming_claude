@@ -411,9 +411,30 @@ foreach ($pe in $events) {
                 AgeCategory = $age; Results = @()
                 StageAssignments = @{ $pe.Stage = @{ Stage = $pe.Stage; Heat = $ln.Heat; Lane = $ln.Lane; EntryTimeSeconds = 0.0; EntryTime = '' } }
             })) | Out-Null
+            # 棒次 → Legs (RelayLeg 对象); Members 留空 (C# 类型 ObservableCollection<Swimmer>, 不能塞字符串)
+            $legObjs = @()
+            for ($li = 0; $li -lt $ln.Members.Count; $li++) {
+                $legObjs += [pscustomobject]@{
+                    LegOrder = $li + 1
+                    SwimmerName = $ln.Members[$li]
+                    SwimmerBibNumber = ''
+                    SwimmerIDNumber = ''
+                    SwimmerBirthDate = ''
+                    ReactionTime = 0.0
+                    LegTimeSeconds = 0.0
+                }
+            }
+            # 不够 4 棒补空
+            for ($li = $legObjs.Count; $li -lt 4; $li++) {
+                $legObjs += [pscustomobject]@{
+                    LegOrder = $li + 1; SwimmerName = ''
+                    SwimmerBibNumber = ''; SwimmerIDNumber = ''; SwimmerBirthDate = ''
+                    ReactionTime = 0.0; LegTimeSeconds = 0.0
+                }
+            }
             $relayTeams.Add([pscustomobject]([ordered]@{
                 TeamName = $teamName; EventName = $evName; Gender = $schedGenderNorm; AgeGroup = $age
-                Country = $teamName; Members = $ln.Members; Legs = @()
+                Country = $teamName; Members = @(); Legs = $legObjs
                 EntryTime = ''; EntryTimeSeconds = 0.0
                 Heat = $ln.Heat; Lane = $ln.Lane
                 FinalTime = 0.0; Rank = 0; Stage = $pe.Stage; Status = ''; LegSplits = @()
