@@ -15,7 +15,9 @@ param(
     [string]$Location = '定西市全民健身中心',
     [string]$Organizer = '甘肃省游泳协会',
     [string]$HostOrg = '定西市体育运动中心',
-    [string]$OutDir = 'C:\代码\swiming_claude\SwimmingScoreboard\bin\x64\Release\Database'
+    [string]$OutDir = 'C:\代码\swiming_claude\SwimmingScoreboard\bin\x64\Release\Database',
+    # 2026-06-05 甘肃省纪录表 (赛会.xls) — 可选, 不填则跳过
+    [string]$RecordsXls = 'C:\2026年5月甘肃定西游泳比赛文件夹\比赛定西\赛会(2026-04-30).xls'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -57,6 +59,41 @@ function Parse-TitleGender([string]$title) {
     if ($title.StartsWith('男子')) { return '男' }
     if ($title.StartsWith('女子')) { return '女' }
     return $null
+}
+# 2026-06-05 赛会.xls 的 纪录 列编码:
+#   整数 MSScc / MMSScc (4-5 位): cc=末2位, ss=次2位, mm=剩余
+#     2588 → 25.88s; 5731 → 57.31s; 10972 → 1:09.72; 20969 → 2:09.69; 44478 → 4:44.78
+#   字符串 "M:SS.cc" / "MM:SS.cc": 直接解析
+function Parse-RecordTime($v) {
+    if ($null -eq $v) { return 0.0 }
+    $s = "$v".Trim()
+    if (-not $s) { return 0.0 }
+    if ($s -match '^(\d+):(\d+(\.\d+)?)$') { return [double]$matches[1] * 60.0 + [double]$matches[2] }
+    if ($s -match '^(\d+(\.\d+)?)$') {
+        # 整数 MMSScc 编码: 用 字符串切片 避开 PowerShell 的 [int] 四舍五入
+        # 例 2588 → cc=88 ss=25 mm=0 → 25.88s;  20969 → cc=69 ss=09 mm=2 → 129.69s
+        $n = "$([int][double]$s)"   # 标准化到整数字符串
+        if ($n.Length -le 2) { return [double]$n / 100.0 }
+        $cc = [int]$n.Substring($n.Length - 2)
+        $rest = $n.Substring(0, $n.Length - 2)
+        if ($rest.Length -le 2) { $ss = [int]$rest; $mm = 0 }
+        else {
+            $ss = [int]$rest.Substring($rest.Length - 2)
+            $mm = [int]$rest.Substring(0, $rest.Length - 2)
+        }
+        return $mm * 60.0 + $ss + $cc / 100.0
+    }
+    return 0.0
+}
+function Excel-DateSerialToIso($v) {
+    if ($null -eq $v) { return '' }
+    $s = "$v".Trim()
+    if (-not $s) { return '' }
+    if ($s -match '^\d{4}-\d{2}-\d{2}') { return $s.Substring(0,10) }
+    if ($s -match '^\d+(\.\d+)?$') {
+        try { return ([datetime]::FromOADate([double]$s)).ToString('yyyy-MM-dd') } catch { return '' }
+    }
+    return ''
 }
 
 # ─── 读 Excel + 解析 ─────────────────────────────────────────
@@ -245,6 +282,51 @@ try {
             }
         }
         Write-Host "    累计: Swimmer $($swimmers.Count), 项目聚合 $($evtAgg.Count), 单位 $($unitSet.Count), 组别 $($ageSet.Count), 纪录 $($recordsList.Count)"
+    }
+
+    # 2026-06-05 导入 赛会.xls (甘肃省纪录表)
+    if ($RecordsXls -and (Test-Path $RecordsXls)) {
+        Write-Host ""
+        Write-Host "[1.5/4] 读 赛会.xls (甘肃省纪录)"
+        $wbR = $excel.Workbooks.Open($RecordsXls, 0, $true)
+        $shR = $wbR.Sheets.Item(1)
+        $rngR = $shR.UsedRange
+        $dataR = $rngR.Value2
+        $rowsR = $rngR.Rows.Count
+        $wbR.Close($false)
+        $added = 0
+        # 表头在 R2 (R1 是标题 + 纪录代码), 数据从 R3 开始
+        for ($r = 3; $r -le $rowsR; $r++) {
+            $g     = "$($dataR[$r, 1])".Trim()
+            $age   = "$($dataR[$r, 2])".Trim()
+            $dist  = "$($dataR[$r, 3])".Trim()
+            $stroke= "$($dataR[$r, 4])".Trim()
+            $rec   = $dataR[$r, 6]
+            $nm    = "$($dataR[$r, 7])".Trim()
+            $unit  = "$($dataR[$r, 8])".Trim()
+            $meet  = "$($dataR[$r, 9])".Trim()
+            $dt    = $dataR[$r, 10]
+            $loc   = "$($dataR[$r, 11])".Trim()
+            if (-not $dist -or -not $stroke -or -not $age) { continue }
+            $distN = $dist -replace 'X','x'
+            $eventName = "$distN$stroke"
+            $genderN = Normalize-Gender $g
+            $recSec = Parse-RecordTime $rec
+            if ($recSec -le 0) { continue }
+            $dtIso = Excel-DateSerialToIso $dt
+            $rkey = "$eventName|$genderN|$age|甘肃省纪录|$nm"
+            if ($recordSeen.Add($rkey)) {
+                $recordsList.Add([pscustomobject]@{
+                    EventName = $eventName; Gender = $genderN; AgeGroup = $age
+                    RecordType = '甘肃省纪录'
+                    HolderName = $nm; HolderCountry = $unit
+                    Time = $recSec; Date = $dtIso; Location = $loc
+                    Notes = $meet
+                })
+                $added++
+            }
+        }
+        Write-Host "    甘肃省纪录入库: +$added 条 (累计 $($recordsList.Count))"
     }
 } finally {
     $excel.Quit()
