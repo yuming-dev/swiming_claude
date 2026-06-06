@@ -143,6 +143,12 @@ namespace SwimmingScoreboard
         //   key = lane*2 + (左0/右1), value = 抑制截止时刻 (= 收 0x16 d3=1 后 +1s, 足够覆盖紧跟的 0x51).
         private Dictionary<int, DateTime> _mbSubTpSuppressUntil = new Dictionary<int, DateTime>();
 
+        // 2026-06-06 跳圈: 硬件无 TP/MB 时操作员按硬件控制盒"手动 TP"键 → 硬件推进 + 发普通 0x16. 协议无法区分
+        //   "手动按键" 与 "真触板", 所以走 PC 端右键跳圈: PC 立刻推进 (CurrentLap++, Direction 翻转, 无时间),
+        //   并设 10s 抑制窗口让随后到达的硬件 0x16 不再二次推进. key=lane, value=抑制截止时刻.
+        private Dictionary<int, DateTime> _skipNextHwTpUntil = new Dictionary<int, DateTime>();
+        private const int SKIP_HW_TP_WINDOW_SEC = 10;
+
         // 2026-06-06 P0: 长时间运行防膨胀 — 日志/事件缓冲上限. 超出后保留尾部 (= 最近一半).
         //   _rawTimingLog 10Hz 写 → 6h ≈ 13MB; _laneEventLog 每泳道每事件 ~70B, 复杂比赛 1000+ 事件后影响 GC.
         //   触发上限时只丢早期数据, 不影响最近 ~30 分钟可读性.
@@ -3182,6 +3188,15 @@ namespace SwimmingScoreboard
                 _mbSubTpSuppressUntil[data.Lane * 2 + (dropIsLeft ? 0 : 1)] = DateTime.Now.AddSeconds(1);
                 return;
             }
+            // 2026-06-06 跳圈抑制: PC 右键 T 已推进 lap, 紧跟操作员按硬件手动 TP 键发的 0x16 在窗口内丢, 避免二次推进.
+            if (data.CommandType == TimingCommandType.Touchpad) {
+                DateTime skipUntil;
+                if (_skipNextHwTpUntil.TryGetValue(data.Lane, out skipUntil) && skipUntil > DateTime.Now) {
+                    AddLog(string.Format("泳道{0} 硬件 TP 在跳圈抑制窗口内 → 丢弃 (避免二次推进)", data.Lane));
+                    _skipNextHwTpUntil.Remove(data.Lane);
+                    return;
+                }
+            }
             //2026-05-31 cmd=0x1A d10=2 表示"接力 SB 超时无 TP/MB", cmdType 改 "StartingBlockTimeout", 日志显示 "出---"
             if (data.IsTimeoutNoReaction) cmdType = "StartingBlockTimeout";
             // 2026-05-12 协议扩展：StartingBlock 命令 D10≠0 表示抢跳，TimeInSeconds 已被解析器取反为负值
@@ -4630,6 +4645,69 @@ namespace SwimmingScoreboard
             AddLog(string.Format("泳道{0} {1} 触板【备用成绩】{2}（争议时使用，正式成绩 {3}）",
                 lane, swimmer.Name ?? "", TimeFormatter.Format(time),
                 result.FinalTime > 0 ? TimeFormatter.Format(result.FinalTime) : "—"));
+        }
+
+        // 2026-06-06 跳圈 (= 操作员按 T 按钮右键): PC 立即推进 lap + 翻转 Direction, 不记任何时间.
+        //   场景: 硬件无 TP/MB 信号 卡住状态机, 操作员按硬件控制盒手动 TP 按钮把硬件推进, 但 PC 不应记这"无成绩".
+        //   行为: split.Time/CumulativeTime/TouchpadTime/ManualTouchTime 全 0, TimingSource = "Skipped".
+        //         随后 10s 内到达的硬件 0x16 Touchpad 会被 ProcessTimingDataFromHardware 入口处丢弃 (=
+        //         避免硬件控制盒手动键发的 0x16 再二次推进 PC).
+        //         末段跳圈则 IsFinished=true 但 FinalTime=0, 等用户手工到 成绩与排名 页面补时间.
+        private void ProcessSkipLapAdvanceOnly(int lane) {
+            var laneState = _laneDeviceStates.FirstOrDefault(s => s.Lane == lane);
+            if (laneState == null) return;
+            if (laneState.IsFinished) {
+                AddLog(string.Format("泳道{0} 已完赛, 跳圈忽略", lane));
+                return;
+            }
+            var swimmer = GetCurrentHeatSwimmers().FirstOrDefault(s => {
+                var sa = s.GetAssignmentForStage(_currentStage);
+                return (sa != null ? sa.Lane : s.Lane) == lane;
+            });
+            if (swimmer == null) swimmer = GetCurrentHeatSwimmers().FirstOrDefault(s => s.Lane == lane);
+            if (swimmer == null) { AddLog(string.Format("泳道{0} 无运动员, 跳圈忽略", lane)); return; }
+
+            var result = swimmer.Results.FirstOrDefault(r => r.Stage == _currentStage && r.Heat == _currentHeat);
+            if (result == null) {
+                result = new LaneResult { EventName = _currentEvent, Stage = _currentStage, Heat = _currentHeat, Lane = lane };
+                swimmer.Results.Add(result);
+            }
+            int totalLaps = GetTotalLaps();
+            int currentLap = laneState.CurrentLap + 1;
+            laneState.CurrentLap = currentLap;
+
+            SplitTime split = null;
+            foreach (var sp in result.Splits) { if (sp.Lap == currentLap) { split = sp; break; } }
+            if (split == null) {
+                split = new SplitTime { Lap = currentLap, Distance = currentLap * _poolConfig.Length };
+                result.Splits.Add(split);
+            }
+            split.Time = 0; split.CumulativeTime = 0;
+            split.TouchpadTime = 0; split.ManualTouchTime = 0;
+            split.PushButton1Time = 0; split.PushButton2Time = 0; split.PushButton3Time = 0;
+            split.TimingSource = "Skipped";   // UI/导出 据此识别 "等手工输入"
+
+            // 切方向 (= 分段触板逻辑一致)
+            laneState.Direction = laneState.Direction == "→" ? "←" : "→";
+
+            if (currentLap >= totalLaps) {
+                laneState.IsFinished = true;
+                result.FinalTime = 0; result.TimeInSeconds = 0; result.TimingSource = "Skipped";
+                AddLog(string.Format("⏭ 泳道{0} 跳圈完赛 (FinalTime=0, 等手工输入)", lane));
+            } else {
+                // 启动 LaneClose 倒计时 (= 分段触板路径一致)
+                double targetSec = laneState.LaneCloseTime > 0 ? laneState.LaneCloseTime : _laneCloseSettings.LaneCloseTime;
+                laneState.LaneCloseCountdown = targetSec;
+                laneState.CountdownStartedAt = DateTime.Now;
+                laneState.CountdownTargetSec = targetSec;
+                AddLog(string.Format("⏭ 泳道{0} 跳圈 (第{1}段无时间, 等手工输入)", lane, currentLap));
+            }
+
+            // 抑制窗口: 操作员紧跟按硬件手动 TP → 硬件发 0x16 → 在窗口内丢, 不二次推进 PC
+            _skipNextHwTpUntil[lane] = DateTime.Now.AddSeconds(SKIP_HW_TP_WINDOW_SEC);
+
+            UpdateLaneStatusDisplay();
+            Broadcast();
         }
 
         // 2026-06-06 终点 TP/MB 差异检测: 末段 TouchpadTime 与 PushButton1/2/3 中位数 差 > 0.5s 时,
@@ -7928,13 +8006,19 @@ namespace SwimmingScoreboard
 
                 // Col 2: 左设备（T按钮 + 5圆点 + 剩余秒数）
                 var leftDev = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(2, 0, 0, 0) };
-                var touchL = new Button { Content = "T", Width = 80, Height = 26, FontSize = 14, BorderThickness = new Thickness(0) };
+                var touchL = new Button { Content = "T", Width = 80, Height = 26, FontSize = 14, BorderThickness = new Thickness(0),
+                    ToolTip = "左键: 手动 TP (记当前时间)\n右键: 跳圈 (减圈+换向, 不记时, 等手工输入; 10s 内硬件 TP 自动丢弃)" };
                 int capLane = lane;
                 touchL.PreviewMouseLeftButtonDown += delegate(object s1, System.Windows.Input.MouseButtonEventArgs e1) {
                     e1.Handled = true;
                     //2026-05-31 应急按键守卫: 仅看 LeftManualEnabled (参数设置), 不受 TP 状态/比赛流程影响
                     if (capLane >= 0 && capLane < _laneDeviceStates.Count && !_laneDeviceStates[capLane].LeftManualEnabled) return;
                     HandleTimingCommand(Newtonsoft.Json.Linq.JObject.FromObject(new { command = "MANUAL_TOUCH_LEFT", data = new { lane = capLane } }));
+                };
+                // 2026-06-06 右键跳圈: 硬件无 TP/MB 卡死时用. PC 立即推进, 不记时间, 10s 抑制窗口防硬件 0x16 二次推进
+                touchL.PreviewMouseRightButtonDown += delegate(object sR1, System.Windows.Input.MouseButtonEventArgs eR1) {
+                    eR1.Handled = true;
+                    ProcessSkipLapAdvanceOnly(capLane);
                 };
                 leftDev.Children.Add(touchL);
                 rowUI.TouchL = touchL;
@@ -8013,12 +8097,18 @@ namespace SwimmingScoreboard
                     rightDev.Children.Add(dot);
                 }
 
-                var touchR = new Button { Content = "T", Width = 80, Height = 26, FontSize = 14, BorderThickness = new Thickness(0) };
+                var touchR = new Button { Content = "T", Width = 80, Height = 26, FontSize = 14, BorderThickness = new Thickness(0),
+                    ToolTip = "左键: 手动 TP (记当前时间)\n右键: 跳圈 (减圈+换向, 不记时, 等手工输入; 10s 内硬件 TP 自动丢弃)" };
                 touchR.PreviewMouseLeftButtonDown += delegate(object s2, System.Windows.Input.MouseButtonEventArgs e2) {
                     e2.Handled = true;
                     //2026-05-31 应急按键守卫: 仅看 RightManualEnabled
                     if (capLane >= 0 && capLane < _laneDeviceStates.Count && !_laneDeviceStates[capLane].RightManualEnabled) return;
                     HandleTimingCommand(Newtonsoft.Json.Linq.JObject.FromObject(new { command = "MANUAL_TOUCH_RIGHT", data = new { lane = capLane } }));
+                };
+                // 2026-06-06 右键跳圈: 同左 T
+                touchR.PreviewMouseRightButtonDown += delegate(object sR2, System.Windows.Input.MouseButtonEventArgs eR2) {
+                    eR2.Handled = true;
+                    ProcessSkipLapAdvanceOnly(capLane);
                 };
                 rightDev.Children.Add(touchR);
                 rowUI.TouchR = touchR;
