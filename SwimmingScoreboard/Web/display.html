@@ -109,12 +109,10 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 .lane-row.relay .swimmer-name { flex: 6; }   /* relay 时 swimmer-name DOM 实际承载代表队 (窄) */
 .lane-row.relay .swimmer-team { flex: 28; white-space: normal; line-height: 1.25; text-align: center; }   /* relay 时 swimmer-team DOM 承载 4 棒+姓名, 居中 */
 
-/* 2026-06-01 本组成绩视图行高固定: 少人比赛时不再把每行拉得过高失真.
-   单行 ~7.5vh, 10 行可一屏显示; 超过 10 行 renderHeatResult 自动翻页 (复用 getBigDisplayPageIntervalMs).
-   覆盖 .lane-row 默认的 flex:1, 强制定高.
-   2026-06-03 高度固定 7.5vh (不再 * --fs-info): 与 比赛视图 .lane-row flex:1 等价行为 — 字号放大时
-   只是文字溢出, 行数 (10 行) 保持. 之前 * fs-info 导致 字号 1.2x 时 10 行变 9 行 */
-.lane-row.fixed-row { flex: 0 0 7.5vh; min-height: 7.5vh; max-height: 7.5vh; }
+/* 2026-06-06 组排名 行高/间距 与 比赛视图 .lane-row (flex:1) 完全一致, 不再固定 7.5vh.
+   原 7.5vh 是为了在少人比赛时避免行拉太高, 但导致 组排名 视觉上与 比赛视图 不一致 (行更挤).
+   现 flex:1 撑满容器, 10 行平均分配. 超过 10 行 仍 renderHeatResult 自动翻页. */
+.lane-row.fixed-row { flex: 1; min-height: 0; }
 
 /* 列表视图 - 2026-06-03 page-header 加到 13vh 后, list-container 跟着减到 87vh
    2026-06-03 padding-top 2vh → 1vh (= .race-view 同款), 让 总排名 row1↔row2 间距 = 比赛视图 */
