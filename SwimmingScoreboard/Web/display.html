@@ -120,16 +120,14 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 .page-indicator { position: absolute; bottom: 1vh; right: 3vw; font-size: calc(1.8vh * var(--fs)); color: var(--dim); }
 /* 2026-06-02 总排名 / 出发表 / 团体 / 纪录 表格: 行高固定不随字号膨胀.
    原 padding 1.5vh*2 + font-size 3vh = ~6.3vh; 字号 2x/3x 后行高翻倍, 10 行越界
-   89vh 容器导致底部丢失. 现在固定 height: 7vh + line-height: 1 — 字号在格内贴边
-   放大 (与比赛视图 .lane-row + .fixed-row 一致), 行数稳定. */
+   89vh 容器导致底部丢失. 现在固定 height (calc) + line-height: 1 — 字号在格内贴边
+   放大, 行数稳定. */
 .list-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-/* 2026-06-03 总排名 表格参数与 比赛视图 / 组成绩 (.lane-row + .fixed-row + .lanes-header) 完全对齐:
-   - th font-size 2.9vh + height 3.5vh (= .lanes-header 同款)
-   - td font-size 2.9vh + height 7.5vh (= .lane-row.fixed-row 同款)
-   - padding 0 1.5vw (= .lane-row 同款)
-   - text-align center
-   高度 固定不随 --fs-info 缩放: 与 比赛视图 .lane-row flex:1 等价行为, 字号放大时只是文字溢出,
-   10 行 永远 10 行 (之前 height * fs-info 导致 字号 1.2x 时 总排名/组成绩 只能装 9 行) */
+/* 2026-06-06 总排名 行高 与 比赛视图 .lane-row (flex:1 撑满 lanes-container) 数学等价:
+   比赛视图 lanes-container = 87vh (race-view) - 2vh padding - 7vh race-info - 3vh applicable-records
+                               - 3.5vh lanes-header = 71.5vh, 10 行平分 = 每行 7.15vh.
+   按 "比赛视图 有 records bar" 对齐 — 数据库通常每项目都配 MR/CR/AR 等纪录, 此为用户高频场景.
+   无 records bar 时 比赛视图 行高 = 7.45vh, 与本值差 0.3vh (≈ 3px @1080p), 视觉接受范围内. */
 .list-table th {
     background: transparent; padding: 0 1.5vw; text-align: center;
     /* 2026-06-04 表头字号 + 行高 都用 --fs-header (整个第 3 行 单独调; 表头单一行无 '10 行越界' 问题) */
@@ -140,7 +138,7 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 .list-table td {
     padding: 0 1.5vw; font-size: calc(2.9vh * var(--fs) * var(--fs-info)); text-align: center;
     border-bottom: 1px solid #334155;
-    height: 7.5vh; line-height: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+    height: calc((87vh - 2vh - 7vh - 3vh - 3.5vh) / 10); line-height: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
 }
 /* 2026-06-03 每列 td 对应 比赛视图 同款颜色/字体 (运动员管理→文字样式 改一处, 比赛视图+组成绩+总排名 三处同步生效)
    show* 函数在 td 上加 class="t-rank"/"t-lane"/"t-name"/"t-team"/"t-result"/"t-remark"
