@@ -235,7 +235,6 @@ namespace SwimmingScoreboard
             RefreshRecordsHiddenBtn();       // 2026-06-03 同步 "记录显示/隐藏" 按钮初始文字
             RefreshRemarkReactionBtn();      // 2026-06-04 同步 "备注: 显/不显反应时" 按钮初始文字
             LoadAutoSaveTxtPath();           // 2026-06-05 加载 成绩 txt 自动存盘路径
-            RefreshAutoBlindReplaceBtn();    // 2026-06-06 同步 "盲表代触板" 按钮初始状态
             ApplyPersistedDeviceStates();   // 设备状态（损坏/未安装/手动按键）从 device_states.json 还原
             LoadTimingConnectionConfig();   // 通讯参数从 timing_connection.json 还原
             LoadLastCompetition();
@@ -9549,20 +9548,6 @@ namespace SwimmingScoreboard
             }
         }
 
-        // 2026-06-06 盲表代替触板 toggle (PC 端自动用盲表中位数补当前段缺失的触板成绩)
-        private void AutoBlindReplaceToggle_Click(object sender, RoutedEventArgs e) {
-            _laneCloseSettings.AutoBlindReplaceTouchpad = !_laneCloseSettings.AutoBlindReplaceTouchpad;
-            RefreshAutoBlindReplaceBtn();
-            try { SaveTimingSettings(); } catch { }
-            AddLog("盲表代触板: " + (_laneCloseSettings.AutoBlindReplaceTouchpad ? "开 (盲表中位数自动补缺失触板)" : "关 (仅手动按钮)"));
-        }
-        private void RefreshAutoBlindReplaceBtn() {
-            if (AutoBlindReplaceBtn == null) return;
-            bool on = _laneCloseSettings != null && _laneCloseSettings.AutoBlindReplaceTouchpad;
-            AutoBlindReplaceBtn.Content = "📊 盲表代触板: " + (on ? "开" : "关");
-            AutoBlindReplaceBtn.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString(on ? "#0EA5E9" : "#6B7280"));
-        }
-
         // 2026-06-05 成绩存盘路径 配置 (确认本组成绩 后 自动写 成绩 txt 到此目录)
         private string GetAutoSaveTxtDir() {
             if (!string.IsNullOrWhiteSpace(_autoSaveTxtPath)) return _autoSaveTxtPath;
@@ -9818,6 +9803,15 @@ namespace SwimmingScoreboard
             rtRow.Children.Add(rbRtOff);
             sp.Children.Add(rtRow);
 
+            // 2026-06-06 盲表代替触板 (PC 端自动用盲表中位数补当前段缺失的触板成绩)
+            var blindRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 10, 0, 0) };
+            blindRow.Children.Add(new TextBlock { Text = "盲表代触板", Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), FontSize = 15, VerticalAlignment = VerticalAlignment.Center, Width = 140 });
+            var rbBlindOn = new RadioButton { Content = "开 (盲表中位数自动代替)", Foreground = Brushes.White, FontSize = 14, IsChecked = _laneCloseSettings.AutoBlindReplaceTouchpad, GroupName = "BlindReplace", Margin = new Thickness(0, 0, 12, 0) };
+            var rbBlindOff = new RadioButton { Content = "关 (仅手动按钮)", Foreground = Brushes.White, FontSize = 14, IsChecked = !_laneCloseSettings.AutoBlindReplaceTouchpad, GroupName = "BlindReplace" };
+            blindRow.Children.Add(rbBlindOn);
+            blindRow.Children.Add(rbBlindOff);
+            sp.Children.Add(blindRow);
+
             // 2026-06-02 硬件设备状态: 一直打开 / 按比赛流程
             //   "一直打开" = 硬件 TP/SB/MB 按键路径忽略 *_Open_Close_State 关闭状态, 只跳过 ==3 坏 / ==4 未装. 让 PC 端拿到所有按键事件
             //   "按流程"   = 原行为 (硬件按比赛流程时序自动开/关设备)
@@ -9925,6 +9919,7 @@ namespace SwimmingScoreboard
                 if (double.TryParse(tbFirstHold.Text, out v)) _laneCloseSettings.FirstPlaceHoldTime = v;
                 if (double.TryParse(tbBigPage.Text, out v)) _laneCloseSettings.BigDisplayPageInterval = v;
                 _laneCloseSettings.ReactionTimeEnabled = rbRtOn.IsChecked == true;
+                _laneCloseSettings.AutoBlindReplaceTouchpad = rbBlindOn.IsChecked == true;   // 2026-06-06
                 _laneCloseSettings.HardwareAlwaysOpen = rbHwAlwaysOpen.IsChecked == true;
                 _laneCloseSettings.StartBoxEdgeFalling = rbEdgeFall.IsChecked == true;
                 _laneCloseSettings.LaneOrder = rbOrderRev.IsChecked == true ? "reverse" : "forward";

@@ -1015,12 +1015,7 @@
                                     <!-- 2026-06-05 自动保存 成绩 txt 的路径设置 (确认本组成绩后自动写入此目录) -->
                                     <Button Content="&#128193; 成绩存盘路径" Click="AutoSaveTxtPathConfig_Click"
                                             Padding="8,2" Background="#10B981" Foreground="White" BorderThickness="0"
-                                            FontSize="12" VerticalAlignment="Center" Cursor="Hand" Margin="0,0,6,0"/>
-                                    <!-- 2026-06-06 PC 盲表代替触板 开关 (Toggle, 开时盲表中位数补当前段触板缺失) -->
-                                    <Button x:Name="AutoBlindReplaceBtn" Click="AutoBlindReplaceToggle_Click"
-                                            Padding="8,2" Background="#6B7280" Foreground="White" BorderThickness="0"
-                                            FontSize="12" VerticalAlignment="Center" Cursor="Hand"
-                                            Content="&#128202; 盲表代触板: 关"/>
+                                            FontSize="12" VerticalAlignment="Center" Cursor="Hand"/>
                                 </StackPanel>
                             </Grid>
 
