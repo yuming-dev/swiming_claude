@@ -908,7 +908,10 @@ function connect() {
     try { ws = new WebSocket('ws://' + host + ':3002'); }
     catch (ex) {
         // 2026-06-04 new WebSocket 构造异常 (= host 格式错 / 浏览器限制) 也要 2s 后重试, 不能卡死
-        showConnectOverlay('连接失败：' + ex.message + ' (2 秒后重试)', '#ef4444');
+        // 2026-06-06 静默重连: 已连过则保留画面, 仅首次失败显 overlay
+        if (!data || Object.keys(data).length === 0) {
+            showConnectOverlay('请输入服务器IP并点击连接', '#f59e0b');
+        }
         setTimeout(connect, 2000);
         return;
     }
@@ -1011,14 +1014,23 @@ function connect() {
         _connFailCount++;
         // 2026-06-04 改: 不再每 3 次失败 confirm() 卡住, 大屏需要 24×7 无人值守 自动重连.
         //   断开后 2s 自动按 上次 IP (localStorage.swimServerHost 或 URL ?host=) 重连, 直到连上.
-        //   操作员仍可点 遮罩内 "重设 IP" 链接手动改地址. (旧版每 3 次 confirm 在投影机/无键盘场景下死锁画面)
-        var host = getServerHost();
-        showConnectOverlay('未连接 / 连接断开（已尝试 ' + _connFailCount + ' 次，' + host + '），2 秒后自动重连…', '#ef4444');
+        // 2026-06-06 改: 曾连成功过 (data 非空) 时, 保留断开前画面, 不弹 overlay, 后台静默重连;
+        //   仅首次连接失败 (data 还空) 才显 overlay 让操作员输入 IP.
+        if (data && Object.keys(data).length > 0) {
+            // 静默重连 — 大屏继续显示最后一帧, 隐藏所有连接提示
+            hideConnectOverlay();
+        } else {
+            var host = getServerHost();
+            showConnectOverlay('请输入服务器IP并点击连接', '#f59e0b');
+        }
         setTimeout(connect, 2000);
     };
     ws.onerror = function() {
-        var host = getServerHost();
-        showConnectOverlay('连接错误（' + host + '），2 秒后自动重试…', '#ef4444');
+        // 2026-06-06 静默重连, 不弹 overlay (除非首次连接)
+        if (!data || Object.keys(data).length === 0) {
+            var host = getServerHost();
+            showConnectOverlay('请输入服务器IP并点击连接', '#f59e0b');
+        }
     };
 }
 
