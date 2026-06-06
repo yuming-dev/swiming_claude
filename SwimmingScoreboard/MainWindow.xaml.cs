@@ -138,6 +138,11 @@ namespace SwimmingScoreboard
         // 原始计时数据记录
         private StringBuilder _rawTimingLog = new StringBuilder();
 
+        // 2026-06-06 "盲表代触板"开关=关 时, PC 丢硬件 cmd=0x16 d3=1 Touchpad 包后,
+        //   还要压制紧随其后的 TPStateChange (0x51) 颜色变更帧 (硬件 LCD 已被自动变色 → 否则 PC UI 圆点跟着变红).
+        //   key = lane*2 + (左0/右1), value = 抑制截止时刻 (= 收 0x16 d3=1 后 +1s, 足够覆盖紧跟的 0x51).
+        private Dictionary<int, DateTime> _mbSubTpSuppressUntil = new Dictionary<int, DateTime>();
+
         // 2026-06-06 P0: 长时间运行防膨胀 — 日志/事件缓冲上限. 超出后保留尾部 (= 最近一半).
         //   _rawTimingLog 10Hz 写 → 6h ≈ 13MB; _laneEventLog 每泳道每事件 ~70B, 复杂比赛 1000+ 事件后影响 GC.
         //   触发上限时只丢早期数据, 不影响最近 ~30 分钟可读性.
@@ -3045,10 +3050,19 @@ namespace SwimmingScoreboard
                         if (hwIsLeft) hwLs.HwLeftStartBlockColor = hwNewState;
                         else hwLs.HwRightStartBlockColor = hwNewState;
                         break;
-                    case TimingCommandType.TPStateChange:
+                    case TimingCommandType.TPStateChange: {
+                        // 2026-06-06 配套 PC 端 MB 代触拦截: 若 1s 内刚因开关=关 丢过该侧 MB 代触 Touchpad 包,
+                        //   紧跟到达的 TP 颜色变更也压制 — 否则硬件 LCD 自动变红会通过 Hw*Color 传到 PC UI 圆点.
+                        DateTime supUntil;
+                        int supKey = hwLane * 2 + (hwIsLeft ? 0 : 1);
+                        if (_mbSubTpSuppressUntil.TryGetValue(supKey, out supUntil) && supUntil > DateTime.Now) {
+                            AddLog(string.Format("泳道{0}{1} TP色变更 → 已按开关压制 (MB 代触关联)", hwLane, hwIsLeft ? "左" : "右"));
+                            break;
+                        }
                         if (hwIsLeft) hwLs.HwLeftTouchpadColor = hwNewState;
                         else hwLs.HwRightTouchpadColor = hwNewState;
                         break;
+                    }
                     case TimingCommandType.MBStateChange:
                         if (hwIsLeft) {
                             if (hwMbIdx == 0) hwLs.HwLeftBlindWatch1Color = hwNewState;
@@ -3116,6 +3130,16 @@ namespace SwimmingScoreboard
             string side = data.IsFinishEnd ? "left" : "right";
             //2026-05-31 cmd=0x16 (Touchpad) 且 d3=Pushbutton_Result(=1) 表示"硬件用盲表代替触板", PC 强制接受
             bool isMbSubstitute = (data.CommandType == TimingCommandType.Touchpad && data.Param1 == 1);
+            // 2026-06-06 修复 "开关=关 但盲表仍代替触板" — 硬件按 BlindReplaceDelay 超时后会自行发 cmd=0x16 d3=1 代触,
+            //   PC 之前不论开关都强制接受 (3651 处守卫旁路). 现按开关在 PC 接收侧拦截: 盲表自身的 PushButton 帧
+            //   已被其他路径记录, 丢弃这一包不丢盲表数据, 只是拒绝把它转成 Touchpad. 硬件 mbDelay 不变 (按用户要求).
+            //   同时标记 1s 抑制窗口: 紧跟的 TPStateChange (0x51) 颜色变更帧也丢, 否则 PC UI 圆点会跟着变红.
+            if (isMbSubstitute && _laneCloseSettings != null && !_laneCloseSettings.AutoBlindReplaceTouchpad) {
+                AddLog(string.Format("泳道{0} 硬件盲表代触 → 已按开关丢弃 (Touchpad/TP色 不接受)", data.Lane));
+                bool dropIsLeft = (side == "left");
+                _mbSubTpSuppressUntil[data.Lane * 2 + (dropIsLeft ? 0 : 1)] = DateTime.Now.AddSeconds(1);
+                return;
+            }
             //2026-05-31 cmd=0x1A d10=2 表示"接力 SB 超时无 TP/MB", cmdType 改 "StartingBlockTimeout", 日志显示 "出---"
             if (data.IsTimeoutNoReaction) cmdType = "StartingBlockTimeout";
             // 2026-05-12 协议扩展：StartingBlock 命令 D10≠0 表示抢跳，TimeInSeconds 已被解析器取反为负值
@@ -4566,6 +4590,48 @@ namespace SwimmingScoreboard
                 result.FinalTime > 0 ? TimeFormatter.Format(result.FinalTime) : "—"));
         }
 
+        // 2026-06-06 终点 TP/MB 差异检测: 末段 TouchpadTime 与 PushButton1/2/3 中位数 差 > 0.5s 时,
+        //   置 LaneDeviceState.FinishTpMbDispute=true → 终点端 TP + 3 MB 圆点全部标红, 直到 计时复位
+        //   (ResetForNewRace) 才清. 该检测在 TP 入或 MB 入 后都要重复调用 (= 两边都到齐才能比较).
+        //   Helper 自身幂等: 已经判定过 dispute 直接返回, 不重复刷日志.
+        private const double FINISH_TP_MB_DISPUTE_THRESHOLD = 0.5;
+        private void CheckFinalTpMbDispute(int lane) {
+            try {
+                var laneState = _laneDeviceStates.FirstOrDefault(s => s.Lane == lane);
+                if (laneState == null || !laneState.IsFinished) return;
+                if (laneState.FinishTpMbDispute) return;
+                var swimmer = GetCurrentHeatSwimmers().FirstOrDefault(s => {
+                    var sa = s.GetAssignmentForStage(_currentStage);
+                    return (sa != null ? sa.Lane : s.Lane) == lane;
+                });
+                if (swimmer == null) swimmer = GetCurrentHeatSwimmers().FirstOrDefault(s => s.Lane == lane);
+                if (swimmer == null) return;
+                var result = swimmer.Results.FirstOrDefault(r => r.Stage == _currentStage && r.Heat == _currentHeat);
+                if (result == null) return;
+                int totalLaps = GetTotalLaps();
+                SplitTime finalSplit = null;
+                foreach (var sp in result.Splits) {
+                    if (sp.Lap == totalLaps) { finalSplit = sp; break; }
+                }
+                if (finalSplit == null || finalSplit.TouchpadTime <= 0) return;
+                var blinds = new List<double>();
+                if (finalSplit.PushButton1Time > 0) blinds.Add(finalSplit.PushButton1Time);
+                if (finalSplit.PushButton2Time > 0) blinds.Add(finalSplit.PushButton2Time);
+                if (finalSplit.PushButton3Time > 0) blinds.Add(finalSplit.PushButton3Time);
+                if (blinds.Count == 0) return;
+                blinds.Sort();
+                double mb = blinds[blinds.Count / 2];
+                double diff = Math.Abs(finalSplit.TouchpadTime - mb);
+                if (diff > FINISH_TP_MB_DISPUTE_THRESHOLD) {
+                    laneState.FinishTpMbDispute = true;
+                    AddLog(string.Format("⚠ 泳道{0} 终点 TP={1} MB中位={2} 差 {3:F3}s > {4}s — 标红警示 (复位后清)",
+                        lane, TimeFormatter.Format(finalSplit.TouchpadTime), TimeFormatter.Format(mb), diff, FINISH_TP_MB_DISPUTE_THRESHOLD));
+                    UpdateLaneStatusDisplay();
+                    Broadcast();
+                }
+            } catch (Exception ex) { AddLog("终点 TP/MB 差异检测失败: " + ex.Message); }
+        }
+
         private void ProcessTouchpadHit(int lane, double time, LaneDeviceState laneState, bool isMbSubstitute = false, string forceSource = null) {
             // 2026-05-25 修复 #7: 移除"hold 过期就当新的 1 名"逻辑(会把 2/3 名触板时间也显示).
             // 1 名检测改到 split 保存后做 (见本函数末尾): 只在此泳道触板后是 当前 lap 最快 才更新滚动时间.
@@ -4710,6 +4776,9 @@ namespace SwimmingScoreboard
                 UpdateHeatRanking();
                 CheckRecords(swimmer, result);
                 // 注意：仅在 ConfirmResult_Click 才落盘，让裁判有机会修改/取消成绩
+
+                // 2026-06-06 终点 TP/MB 差异检测 (TP 已到 → 若已收 MB 立刻标红; 没收齐 MB 时, 后续 ProcessBlindWatchData 再检)
+                CheckFinalTpMbDispute(lane);
 
                 // 检查是否所有泳道都完赛
                 if (_laneDeviceStates.All(s => s.IsFinished || GetCurrentHeatSwimmers().All(sw => sw.Lane != s.Lane || sw.Status == "DNS"))) {
@@ -4940,6 +5009,8 @@ namespace SwimmingScoreboard
                 }
                 // 如果已完赛，同步到result终点汇总
                 SyncSplitToResultIfFinished(lane, targetSplit);
+                // 2026-06-06 终点 TP/MB 差异检测 (MB 后到的场景: TP 先到时还无 MB, 此处补检)
+                CheckFinalTpMbDispute(lane);
             } else {
                 // 备用：预创建split不存在时暂存到laneState
                 var laneState = _laneDeviceStates.FirstOrDefault(s => s.Lane == lane);
@@ -8123,6 +8194,13 @@ namespace SwimmingScoreboard
                     StyleDotMixed(rowUI.LeftDots[2], ls.HwLeftBlindWatch1Color, ls.LeftBlindWatch1Status, DotDeviceType.Mb);
                     StyleDotMixed(rowUI.LeftDots[3], ls.HwLeftStartBlockColor, ls.LeftStartBlockStatus, DotDeviceType.Sb);
                     StyleDotMixed(rowUI.LeftDots[4], ls.HwLeftTouchpadColor, ls.LeftTouchpadStatus, DotDeviceType.Tp);
+                    // 2026-06-06 终点 TP/MB 差 > 0.5s — 终点端 TP + 3 MB 强制涂红 (索引 0/1/2 = MB3/2/1, 4 = TP)
+                    if (ls.FinishTpMbDispute && _laneCloseSettings != null && _laneCloseSettings.FinishPosition == "left") {
+                        rowUI.LeftDots[0].Fill = _brushRed;
+                        rowUI.LeftDots[1].Fill = _brushRed;
+                        rowUI.LeftDots[2].Fill = _brushRed;
+                        rowUI.LeftDots[4].Fill = _brushRed;
+                    }
                 } else {
                     for (int i = 0; i < 5; i++) rowUI.LeftDots[i].Fill = _brushSlate;
                 }
@@ -8156,6 +8234,13 @@ namespace SwimmingScoreboard
                     StyleDotMixed(rowUI.RightDots[2], ls.HwRightBlindWatch1Color, ls.RightBlindWatch1Status, DotDeviceType.Mb);
                     StyleDotMixed(rowUI.RightDots[3], ls.HwRightBlindWatch2Color, ls.RightBlindWatch2Status, DotDeviceType.Mb);
                     StyleDotMixed(rowUI.RightDots[4], ls.HwRightBlindWatch3Color, ls.RightBlindWatch3Status, DotDeviceType.Mb);
+                    // 2026-06-06 终点 TP/MB 差 > 0.5s — 终点端 TP + 3 MB 强制涂红 (索引 0 = TP, 2/3/4 = MB1/2/3)
+                    if (ls.FinishTpMbDispute && _laneCloseSettings != null && _laneCloseSettings.FinishPosition == "right") {
+                        rowUI.RightDots[0].Fill = _brushRed;
+                        rowUI.RightDots[2].Fill = _brushRed;
+                        rowUI.RightDots[3].Fill = _brushRed;
+                        rowUI.RightDots[4].Fill = _brushRed;
+                    }
                 } else {
                     for (int i = 0; i < 5; i++) rowUI.RightDots[i].Fill = _brushSlate;
                 }

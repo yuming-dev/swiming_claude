@@ -999,6 +999,14 @@ namespace SwimmingScoreboard
         public byte HwRightBlindWatch2Color { get; set; }
         public byte HwRightBlindWatch3Color { get; set; }
 
+        // 2026-06-06 终点 TP 与 MB 中位数 差 > 0.5s 时, 该道终点端 TP+3 MB 圆点全部标红, 直到 计时复位
+        //   (ResetForNewRace) 才清. PC + race_control / display 端均按该字段渲染统一标红效果.
+        private bool _finishTpMbDispute = false;
+        public bool FinishTpMbDispute {
+            get { return _finishTpMbDispute; }
+            set { if (_finishTpMbDispute != value) { _finishTpMbDispute = value; OnPropertyChanged("FinishTpMbDispute"); } }
+        }
+
         public int Lane {
             get { return _lane; }
             set { _lane = value; OnPropertyChanged("Lane"); }
@@ -1256,6 +1264,8 @@ namespace SwimmingScoreboard
             HwRightBlindWatch3Color = 0;
             HwLeftStartBlockColor = (byte)(startLeft ? 1 : 0);
             HwRightStartBlockColor = (byte)(startLeft ? 0 : 1);
+            // 2026-06-06 计时复位 时清"终点 TP/MB 差异警示"标志, 让下一组比赛能重新检测.
+            _finishTpMbDispute = false;
             NotifyAll();
         }
 
