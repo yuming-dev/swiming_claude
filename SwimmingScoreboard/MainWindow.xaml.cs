@@ -138,6 +138,36 @@ namespace SwimmingScoreboard
         // 原始计时数据记录
         private StringBuilder _rawTimingLog = new StringBuilder();
 
+        // 2026-06-06 P0: 长时间运行防膨胀 — 日志/事件缓冲上限. 超出后保留尾部 (= 最近一半).
+        //   _rawTimingLog 10Hz 写 → 6h ≈ 13MB; _laneEventLog 每泳道每事件 ~70B, 复杂比赛 1000+ 事件后影响 GC.
+        //   触发上限时只丢早期数据, 不影响最近 ~30 分钟可读性.
+        private const int MAX_RAW_TIMING_LOG = 256 * 1024;
+        private const int MAX_LANE_EVENT_LOG = 64 * 1024;
+        private static void TrimSbIfOver(StringBuilder sb, int maxLen) {
+            if (sb == null || sb.Length <= maxLen) return;
+            int keep = maxLen / 2;
+            sb.Remove(0, sb.Length - keep);
+        }
+
+        // 2026-06-06 P0: 把 File.WriteAllText 扔到后台线程, 避免阻塞 UI (单次落盘 50-200ms,
+        //   "确认本组成绩" 串行写 txt + html + PDF 总耗时可达 15s; 改异步后用户立刻能继续操作).
+        //   日志反馈通过 Dispatcher 回 UI 线程, 保持原同步行为下的可见反馈.
+        private void WriteFileAsync(string path, string content, Encoding encoding, string successLog = null, string failLogPrefix = null) {
+            System.Threading.Tasks.Task.Run(() => {
+                try {
+                    File.WriteAllText(path, content, encoding);
+                    if (!string.IsNullOrEmpty(successLog)) {
+                        try { Dispatcher.BeginInvoke(new Action(() => AddLog(successLog))); } catch { }
+                    }
+                } catch (Exception ex) {
+                    if (!string.IsNullOrEmpty(failLogPrefix)) {
+                        string msg = failLogPrefix + ex.Message;
+                        try { Dispatcher.BeginInvoke(new Action(() => AddLog(msg))); } catch { }
+                    }
+                }
+            });
+        }
+
         // ═══════════════════════════════════════════════════════════════
         // WebSocket 服务器
         // ═══════════════════════════════════════════════════════════════
@@ -3980,6 +4010,7 @@ namespace SwimmingScoreboard
             _rawTimingLog.AppendFormat("{0}\t道{1}\t{2}\t{3}\t{4}\r\n",
                 DateTime.Now.ToString("HH:mm:ss.fff"), lane, cmdType,
                 TimeFormatter.Format(time), swimmerName);
+            TrimSbIfOver(_rawTimingLog, MAX_RAW_TIMING_LOG);
 
             // 2026-05-27 同步追加到"比赛日志" tab 的 per-lane 缓冲
             AppendToLaneEventLog(lane, cmdType, time, swimmerName, side, lapRemain);
@@ -4019,6 +4050,7 @@ namespace SwimmingScoreboard
             _laneEventLog[lane].AppendFormat("[T={0,7}] 道{1}{2} {3}{4} = {5}{6}\r\n",
                 elapsed, lane, sideLabel, label, lapLabel, timeStr,
                 string.IsNullOrEmpty(swimmerName) ? "" : (" (" + swimmerName + ")"));
+            TrimSbIfOver(_laneEventLog[lane], MAX_LANE_EVENT_LOG);
             // 若当前显示的就是这道, 立刻刷新可见 TextBox
             if (lane == _selectedLane) RefreshLaneEventLogView();
         }
@@ -4171,7 +4203,7 @@ namespace SwimmingScoreboard
                 }
 
                 sb.AppendFormat("\r\n保存时间: {0}\r\n", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff"));
-                File.WriteAllText(path, sb.ToString(), Encoding.UTF8);
+                WriteFileAsync(path, sb.ToString(), Encoding.UTF8, null, "保存 原始计时 txt 失败: ");
 
                 // 同时生成HTML版本（可用浏览器打印为PDF，不可编辑）
                 string htmlPath = IOPath.Combine(dir, safeName + ".html");
@@ -4330,7 +4362,7 @@ namespace SwimmingScoreboard
             h.Append("<div class='watermark'>本文档由竞赛管理系统自动生成 - 请使用浏览器 打印-另存为PDF 导出只读PDF文件</div>");
             h.Append("</body></html>");
 
-            File.WriteAllText(htmlPath, h.ToString(), Encoding.UTF8);
+            WriteFileAsync(htmlPath, h.ToString(), Encoding.UTF8, null, "保存 原始计时 html 失败: ");
         }
 
         /// <summary>
@@ -5836,6 +5868,7 @@ namespace SwimmingScoreboard
             _laneEventLog[lane].AppendFormat("[T={0,7}] 道{1}{2} {3}{4} = {5}*{6}{7}\r\n",
                 elapsed, lane, sideLabel, label, lapLabel, timeStr, basisNote,
                 string.IsNullOrEmpty(swimmerName) ? "" : (" (" + swimmerName + ")"));
+            TrimSbIfOver(_laneEventLog[lane], MAX_LANE_EVENT_LOG);
             if (lane == _selectedLane) RefreshLaneEventLogView();
             // 写到接力 LegReactionTimes (= 棒次反应时表)
             if (_isRelay) {
@@ -5881,6 +5914,7 @@ namespace SwimmingScoreboard
             _laneEventLog[lane].AppendFormat("[T={0,7}] 道{1}{2} {3}{4} = ---*{5}\r\n",
                 elapsed, lane, sideLabel, label, lapLabel,
                 string.IsNullOrEmpty(swimmerName) ? "" : (" (" + swimmerName + ")"));
+            TrimSbIfOver(_laneEventLog[lane], MAX_LANE_EVENT_LOG);
             if (lane == _selectedLane) RefreshLaneEventLogView();
         }
 
@@ -8765,7 +8799,7 @@ namespace SwimmingScoreboard
                     string fileName = string.Format("{0:D2}-{1:D2}-总排名-{2}-{3}.txt", session, eventNo, subGender, safeAge);
                     foreach (char c in IOPath.GetInvalidFileNameChars()) fileName = fileName.Replace(c, '_');
                     string fullPath = IOPath.Combine(dir, fileName);
-                    File.WriteAllText(fullPath, sb.ToString(), new UTF8Encoding(false));
+                    WriteFileAsync(fullPath, sb.ToString(), new UTF8Encoding(false), null, "项目总排名 txt 写入失败: ");
                     saved++;
                 }
                 AddLog(string.Format("✓ 项目总排名已写 {0} 个 txt 到: {1}", saved, dir));
@@ -9564,7 +9598,7 @@ namespace SwimmingScoreboard
                 string docDir = IOPath.Combine(AppDomain.CurrentDomain.BaseDirectory, "Documents");
                 if (!Directory.Exists(docDir)) Directory.CreateDirectory(docDir);
                 string cfgFile = IOPath.Combine(docDir, "autosave_path.txt");
-                File.WriteAllText(cfgFile, _autoSaveTxtPath ?? "", new UTF8Encoding(false));
+                WriteFileAsync(cfgFile, _autoSaveTxtPath ?? "", new UTF8Encoding(false), null, "保存 自动存盘路径 失败: ");
             } catch (Exception ex) { AddLog("保存 自动存盘路径 失败: " + ex.Message); }
         }
         private void AutoSaveTxtPathConfig_Click(object sender, RoutedEventArgs e) {
@@ -9682,17 +9716,25 @@ namespace SwimmingScoreboard
                 string baseName = projectFull + "+比赛日志";
                 foreach (char c in IOPath.GetInvalidFileNameChars()) baseName = baseName.Replace(c, '_');
                 string htmlPath = IOPath.Combine(dir, baseName + ".html");
-                File.WriteAllText(htmlPath, sb.ToString(), new UTF8Encoding(false));
-
-                // 尝试用 Edge headless 转 PDF
                 string pdfPath = IOPath.Combine(dir, baseName + ".pdf");
-                bool pdfOk = TryHtmlToPdf(htmlPath, pdfPath);
-                if (pdfOk) {
-                    AddLog("✓ 自动保存 比赛日志 PDF: " + pdfPath);
-                    try { File.Delete(htmlPath); } catch { }   // PDF 转成功删 HTML 中间文件
-                } else {
-                    AddLog("✓ 自动保存 比赛日志 HTML (PDF 转换失败, 浏览器打开后 Ctrl+P 可转 PDF): " + htmlPath);
-                }
+
+                // 2026-06-06 P0: 写 HTML + Edge headless 转 PDF (~15s) 全部扔后台线程,
+                //   原同步调用会阻塞"确认本组成绩"的 UI 线程, 是用户感知到 "卡死" 的主因.
+                //   sb.ToString() 在 UI 线程上立刻快照, 后台 task 内已无 UI 字段依赖.
+                string htmlSnap = sb.ToString();
+                System.Threading.Tasks.Task.Run(() => {
+                    try {
+                        File.WriteAllText(htmlPath, htmlSnap, new UTF8Encoding(false));
+                        bool pdfOk = TryHtmlToPdf(htmlPath, pdfPath);
+                        string okMsg = pdfOk
+                            ? ("✓ 自动保存 比赛日志 PDF: " + pdfPath)
+                            : ("✓ 自动保存 比赛日志 HTML (PDF 转换失败, 浏览器打开后 Ctrl+P 可转 PDF): " + htmlPath);
+                        if (pdfOk) { try { File.Delete(htmlPath); } catch { } }
+                        try { Dispatcher.BeginInvoke(new Action(() => AddLog(okMsg))); } catch { }
+                    } catch (Exception ex) {
+                        try { Dispatcher.BeginInvoke(new Action(() => AddLog("自动保存 比赛日志 失败: " + ex.Message))); } catch { }
+                    }
+                });
             } catch (Exception ex) {
                 AddLog("自动保存 比赛日志 失败: " + ex.Message);
             }
@@ -9744,8 +9786,7 @@ namespace SwimmingScoreboard
                 string fileName = string.Format("{0:D2}-{1:D2}-{2:D2}.txt", session, eventNo, _currentHeat);
                 string fullPath = IOPath.Combine(dir, fileName);
                 string text = BuildResultTxtContent(_currentAgeGroup, _currentGender, _currentEvent, _currentStage, _currentHeat);
-                File.WriteAllText(fullPath, text, new UTF8Encoding(false));
-                AddLog("✓ 自动保存 成绩 txt: " + fullPath);
+                WriteFileAsync(fullPath, text, new UTF8Encoding(false), "✓ 自动保存 成绩 txt: " + fullPath, "自动保存 成绩 txt 失败: ");
             } catch (Exception ex) {
                 AddLog("自动保存 成绩 txt 失败: " + ex.Message);
             }
@@ -20645,12 +20686,14 @@ namespace SwimmingScoreboard
             if (LogListBox == null) return;
             string entry = string.Format("[{0}] {1}", DateTime.Now.ToString("HH:mm:ss"), msg);
             LogListBox.Items.Add(entry);
-            if (LogListBox.Items.Count > 500) LogListBox.Items.RemoveAt(0);
+            // 2026-06-06 P0: 500→200 / 1000→300 — ListBox.Insert(0) 和 RemoveAt(0) 都是 O(N),
+            //   长时间运行下 Insert × N entry 累积 O(N²); 上限收紧后 GC/UI 压力都明显降低.
+            if (LogListBox.Items.Count > 200) LogListBox.Items.RemoveAt(0);
             LogListBox.ScrollIntoView(entry);
             // 同步到系统日志页
             if (SystemLogListBox != null) {
                 SystemLogListBox.Items.Insert(0, entry);
-                if (SystemLogListBox.Items.Count > 1000) SystemLogListBox.Items.RemoveAt(SystemLogListBox.Items.Count - 1);
+                if (SystemLogListBox.Items.Count > 300) SystemLogListBox.Items.RemoveAt(SystemLogListBox.Items.Count - 1);
             }
         }
 
