@@ -1073,14 +1073,15 @@
                                     </ControlTemplate>
                                 </Button.Template>
                             </Button>
-                            <!-- 2026-06-05 一键公布项目总排名: 大屏切总排名 + 自动按 性别×组别 拆子表写 txt -->
+                            <!-- 2026-06-05 一键公布项目总排名: 按 性别×组别 拆子表写 txt
+                                 2026-06-06 用户要求: 只存盘, 不再切大屏 -->
                             <Button Click="PublishEventRanking_Click" Height="30" Margin="0,0,0,8" BorderThickness="0" Cursor="Hand">
                                 <Button.Template>
                                     <ControlTemplate TargetType="Button">
                                         <Border Background="#F59E0B" CornerRadius="8">
                                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
                                                 <TextBlock Text="&#xE9D9;" FontFamily="Segoe MDL2 Assets" FontSize="16" Foreground="White" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                                <TextBlock Text="公布项目总排名 (大屏+存盘)" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                <TextBlock Text="公布项目总排名 (存盘)" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
                                             </StackPanel>
                                         </Border>
                                     </ControlTemplate>

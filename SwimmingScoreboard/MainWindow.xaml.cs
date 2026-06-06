@@ -8890,7 +8890,9 @@ namespace SwimmingScoreboard
             return list;
         }
 
-        // 2026-06-05 一键公布项目总排名: 大屏切 SHOW_EVENT_RANKING + 按 性别×组别 拆 txt 写到 存盘路径
+        // 2026-06-05 一键公布项目总排名: 按 性别×组别 拆 txt 写到 存盘路径
+        // 2026-06-06 用户要求: 仅存盘, 不再切大屏 (原 BroadcastDisplayMode("SHOW_EVENT_RANKING") 已删).
+        //   要大屏切总排名 → race_control.html "总排名" 按钮 / 比赛控制界面 ShowEventRanking_Click 单独触发.
         private void PublishEventRanking_Click(object sender, RoutedEventArgs e) {
             if (string.IsNullOrEmpty(_currentEvent) || string.IsNullOrEmpty(_currentStage)) {
                 MessageBox.Show("请先在赛程树选定项目", "操作提示", MessageBoxButton.OK, MessageBoxImage.Information);
@@ -8902,9 +8904,6 @@ namespace SwimmingScoreboard
                 MessageBox.Show("本项目还没有任何已确认成绩 (请先确认至少一组成绩)", "操作提示", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
-            // 1) 大屏切 总排名
-            try { BroadcastDisplayMode("SHOW_EVENT_RANKING"); AddLog("✓ 大屏切到 项目总排名"); }
-            catch (Exception ex) { AddLog("切换大屏失败: " + ex.Message); }
 
             // 2) 自动写 txt (按 性别×组别 一文件)
             string dir = GetAutoSaveTxtDir();
