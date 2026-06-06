@@ -149,6 +149,53 @@ namespace SwimmingScoreboard
         private Dictionary<int, DateTime> _skipNextHwTpUntil = new Dictionary<int, DateTime>();
         private const int SKIP_HW_TP_WINDOW_SEC = 10;
 
+        // 2026-06-06 T 按钮 防误操作 — 左键完全禁用; 右键 单击 = 跳圈, 右键 1s 内 2+ 连击 = 手动 TP.
+        //   计数 + 1s 定时器: 每次右键 ++count + 重置 timer; timer 到期判 count == 1 跳圈 / >= 2 手动 TP.
+        //   key = lane*2 + (左0/右1)
+        private Dictionary<int, int> _tpRightClickCount = new Dictionary<int, int>();
+        private Dictionary<int, DispatcherTimer> _tpRightClickTimer = new Dictionary<int, DispatcherTimer>();
+        private const int TP_RIGHT_CLICK_WINDOW_MS = 1000;
+
+        private void OnTButtonRightClick(int lane, bool isLeftSide) {
+            int key = lane * 2 + (isLeftSide ? 0 : 1);
+            if (_tpRightClickCount.ContainsKey(key)) _tpRightClickCount[key]++;
+            else _tpRightClickCount[key] = 1;
+            DispatcherTimer existing;
+            if (_tpRightClickTimer.TryGetValue(key, out existing)) {
+                try { existing.Stop(); } catch { }
+            }
+            var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(TP_RIGHT_CLICK_WINDOW_MS) };
+            int keyCap = key; int laneCap = lane; bool leftCap = isLeftSide;
+            timer.Tick += delegate(object s, EventArgs e) {
+                timer.Stop();
+                int cnt; _tpRightClickCount.TryGetValue(keyCap, out cnt);
+                _tpRightClickCount.Remove(keyCap);
+                _tpRightClickTimer.Remove(keyCap);
+                if (cnt <= 1) {
+                    // 单击 = 跳圈
+                    ProcessSkipLapAdvanceOnly(laneCap);
+                } else {
+                    // 2+ 连击 = 手动 TP (= 记当前时间)
+                    if (laneCap < 0 || laneCap >= _laneDeviceStates.Count) return;
+                    if (leftCap) {
+                        if (!_laneDeviceStates[laneCap].LeftManualEnabled) {
+                            AddLog(string.Format("泳道{0} 左手动 TP 未启用 (参数设置中开启)", laneCap));
+                            return;
+                        }
+                        HandleTimingCommand(Newtonsoft.Json.Linq.JObject.FromObject(new { command = "MANUAL_TOUCH_LEFT", data = new { lane = laneCap } }));
+                    } else {
+                        if (!_laneDeviceStates[laneCap].RightManualEnabled) {
+                            AddLog(string.Format("泳道{0} 右手动 TP 未启用 (参数设置中开启)", laneCap));
+                            return;
+                        }
+                        HandleTimingCommand(Newtonsoft.Json.Linq.JObject.FromObject(new { command = "MANUAL_TOUCH_RIGHT", data = new { lane = laneCap } }));
+                    }
+                }
+            };
+            _tpRightClickTimer[key] = timer;
+            timer.Start();
+        }
+
         // 2026-06-06 P0: 长时间运行防膨胀 — 日志/事件缓冲上限. 超出后保留尾部 (= 最近一半).
         //   _rawTimingLog 10Hz 写 → 6h ≈ 13MB; _laneEventLog 每泳道每事件 ~70B, 复杂比赛 1000+ 事件后影响 GC.
         //   触发上限时只丢早期数据, 不影响最近 ~30 分钟可读性.
@@ -8007,18 +8054,16 @@ namespace SwimmingScoreboard
                 // Col 2: 左设备（T按钮 + 5圆点 + 剩余秒数）
                 var leftDev = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(2, 0, 0, 0) };
                 var touchL = new Button { Content = "T", Width = 80, Height = 26, FontSize = 14, BorderThickness = new Thickness(0),
-                    ToolTip = "左键: 手动 TP (记当前时间)\n右键: 跳圈 (减圈+换向, 不记时, 等手工输入; 10s 内硬件 TP 自动丢弃)" };
+                    ToolTip = "防误操作: 左键已禁用\n右键单击: 跳圈 (减圈+换向, 不记时, 等手工输入; 10s 内硬件 TP 自动丢弃)\n右键 1 秒内连击 2+ 次: 手动 TP (记当前时间)" };
                 int capLane = lane;
+                // 2026-06-06 防误操作: 左键禁用 (= 原 MANUAL_TOUCH_LEFT 路径移到 右键 2+ 连击).
                 touchL.PreviewMouseLeftButtonDown += delegate(object s1, System.Windows.Input.MouseButtonEventArgs e1) {
                     e1.Handled = true;
-                    //2026-05-31 应急按键守卫: 仅看 LeftManualEnabled (参数设置), 不受 TP 状态/比赛流程影响
-                    if (capLane >= 0 && capLane < _laneDeviceStates.Count && !_laneDeviceStates[capLane].LeftManualEnabled) return;
-                    HandleTimingCommand(Newtonsoft.Json.Linq.JObject.FromObject(new { command = "MANUAL_TOUCH_LEFT", data = new { lane = capLane } }));
                 };
-                // 2026-06-06 右键跳圈: 硬件无 TP/MB 卡死时用. PC 立即推进, 不记时间, 10s 抑制窗口防硬件 0x16 二次推进
+                // 2026-06-06 右键单击 = 跳圈; 右键 1s 内 2+ 连击 = 手动 TP. 由 OnTButtonRightClick 区分.
                 touchL.PreviewMouseRightButtonDown += delegate(object sR1, System.Windows.Input.MouseButtonEventArgs eR1) {
                     eR1.Handled = true;
-                    ProcessSkipLapAdvanceOnly(capLane);
+                    OnTButtonRightClick(capLane, true);
                 };
                 leftDev.Children.Add(touchL);
                 rowUI.TouchL = touchL;
@@ -8098,17 +8143,15 @@ namespace SwimmingScoreboard
                 }
 
                 var touchR = new Button { Content = "T", Width = 80, Height = 26, FontSize = 14, BorderThickness = new Thickness(0),
-                    ToolTip = "左键: 手动 TP (记当前时间)\n右键: 跳圈 (减圈+换向, 不记时, 等手工输入; 10s 内硬件 TP 自动丢弃)" };
+                    ToolTip = "防误操作: 左键已禁用\n右键单击: 跳圈 (减圈+换向, 不记时, 等手工输入; 10s 内硬件 TP 自动丢弃)\n右键 1 秒内连击 2+ 次: 手动 TP (记当前时间)" };
+                // 2026-06-06 防误操作: 左键禁用 (= 原 MANUAL_TOUCH_RIGHT 路径移到 右键 2+ 连击).
                 touchR.PreviewMouseLeftButtonDown += delegate(object s2, System.Windows.Input.MouseButtonEventArgs e2) {
                     e2.Handled = true;
-                    //2026-05-31 应急按键守卫: 仅看 RightManualEnabled
-                    if (capLane >= 0 && capLane < _laneDeviceStates.Count && !_laneDeviceStates[capLane].RightManualEnabled) return;
-                    HandleTimingCommand(Newtonsoft.Json.Linq.JObject.FromObject(new { command = "MANUAL_TOUCH_RIGHT", data = new { lane = capLane } }));
                 };
-                // 2026-06-06 右键跳圈: 同左 T
+                // 2026-06-06 右键单击 = 跳圈; 右键 1s 内 2+ 连击 = 手动 TP. 由 OnTButtonRightClick 区分.
                 touchR.PreviewMouseRightButtonDown += delegate(object sR2, System.Windows.Input.MouseButtonEventArgs eR2) {
                     eR2.Handled = true;
-                    ProcessSkipLapAdvanceOnly(capLane);
+                    OnTButtonRightClick(capLane, false);
                 };
                 rightDev.Children.Add(touchR);
                 rowUI.TouchR = touchR;
