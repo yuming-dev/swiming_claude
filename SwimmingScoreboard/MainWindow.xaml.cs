@@ -2595,8 +2595,25 @@ namespace SwimmingScoreboard
             return st != "DNS" && st != "DNF";
         }
 
+        // 2026-06-06 P1-C: 50ms 单帧缓存 — 调用密集 (Broadcast / RefreshLaneRows / ProcessTouchpadHit etc.),
+        //   每次都 foreach _swimmers + OrderBy().ToList() 分配 list. 缓存复用同一 list 显著降 GC 压力.
+        //   注意: 返回的 List 是共享引用, 调用方不要 .Add/.Remove (= 当前只读使用 ok).
+        private List<Swimmer> _currentHeatSwimmersCache = null;
+        private DateTime _currentHeatSwimmersCacheAt = DateTime.MinValue;
+        private string _currentHeatSwimmersCacheKey = null;
         private List<Swimmer> GetCurrentHeatSwimmers() {
-            if (string.IsNullOrEmpty(_currentEvent) || _currentHeat <= 0) return new List<Swimmer>();
+            string key = (_currentEvent ?? "") + "|" + (_currentGender ?? "") + "|" + (_currentAgeGroup ?? "") + "|" + _currentStage + "|" + _currentHeat;
+            if (_currentHeatSwimmersCache != null
+                && _currentHeatSwimmersCacheKey == key
+                && (DateTime.Now - _currentHeatSwimmersCacheAt).TotalMilliseconds < 50) {
+                return _currentHeatSwimmersCache;
+            }
+            if (string.IsNullOrEmpty(_currentEvent) || _currentHeat <= 0) {
+                _currentHeatSwimmersCache = new List<Swimmer>();
+                _currentHeatSwimmersCacheKey = key;
+                _currentHeatSwimmersCacheAt = DateTime.Now;
+                return _currentHeatSwimmersCache;
+            }
             bool isRelay = _currentEvent.Contains("接力");
             var result = new List<Swimmer>();
             foreach (var s in _swimmers) {
@@ -2623,10 +2640,14 @@ namespace SwimmingScoreboard
                     result.Add(s);
                 }
             }
-            return result.OrderBy(s => {
+            var ordered = result.OrderBy(s => {
                 var sa = s.GetAssignmentForStage(_currentStage);
                 return sa != null ? sa.Lane : s.Lane;
             }).ToList();
+            _currentHeatSwimmersCache = ordered;
+            _currentHeatSwimmersCacheKey = key;
+            _currentHeatSwimmersCacheAt = DateTime.Now;
+            return ordered;
         }
 
         // 2026-05-27 BUG 修复 #3: 加 ageGroup 维度. 之前只按 gender + eventName 排名,
@@ -5350,9 +5371,20 @@ namespace SwimmingScoreboard
 
         //2026-05-30 注册 / 取消该 lane 上活跃的 DispatcherTimer (finishCloseTimer / sbCloseTimer)
         //   解决 +/- 后旧 timer 还会 fire 关掉刚 open 的设备的问题
+        // 2026-06-06 P1-A: Tick 后自动从字典移除 (= 已失活的 timer 不再被引用, delegate 闭包能被 GC).
+        //   长跑下 _laneCloseTimers 不再单调增长. 这些都是 "一次性 fire" timer (Tick 第一行 .Stop()).
         private void RegisterLaneCloseTimer(int lane, DispatcherTimer timer) {
             if (!_laneCloseTimers.ContainsKey(lane)) _laneCloseTimers[lane] = new List<DispatcherTimer>();
             _laneCloseTimers[lane].Add(timer);
+            DispatcherTimer cap = timer;
+            int capLane = lane;
+            EventHandler cleanup = null;
+            cleanup = delegate(object s, EventArgs e) {
+                cap.Tick -= cleanup;
+                List<DispatcherTimer> list2;
+                if (_laneCloseTimers.TryGetValue(capLane, out list2)) list2.Remove(cap);
+            };
+            timer.Tick += cleanup;
         }
         private void CancelLaneCloseTimers(int lane) {
             List<DispatcherTimer> list;
@@ -5360,6 +5392,14 @@ namespace SwimmingScoreboard
                 foreach (var t in list) try { t.Stop(); } catch { }
                 list.Clear();
             }
+        }
+        // 2026-06-06 P1-A: 进程退出前全局停止所有 lane 关闭 timer, 防止 Window_Closing 路径上还有 Tick 跑.
+        private void CancelAllLaneCloseTimers() {
+            foreach (var kv in _laneCloseTimers) {
+                foreach (var t in kv.Value) try { t.Stop(); } catch { }
+                kv.Value.Clear();
+            }
+            _laneCloseTimers.Clear();
         }
 
         //2026-05-29 软删该道最近一个未删的分段 (IsDeleted=true, 保留留痕)
@@ -7590,6 +7630,11 @@ namespace SwimmingScoreboard
         private static readonly SolidColorBrush _brushGray = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B"));
         private static readonly SolidColorBrush _brushMutedText = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8"));
 
+        // 2026-06-06 P1-D: 热路径 (RefreshLaneRows 每 100ms × 8 道) 反复 new Thickness 是 Gen0 压力源.
+        //   复用 immutable Thickness 单例.
+        private static readonly Thickness _thickness0 = new Thickness(0);
+        private static readonly Thickness _thickness2 = new Thickness(2);
+
         private static SolidColorBrush GetDeviceBrush(DeviceStatus status) {
             switch (status) {
                 case DeviceStatus.Open: return _brushGreen;
@@ -7990,7 +8035,15 @@ namespace SwimmingScoreboard
         /// </summary>
         // 2026-06-05 U 系列规则: 组内只按时间排单一名次 (不再按性别拆), 总排名才按 性别×组别 拆.
         // (回退 2026-06-04 同组双 1 名次的设计, 避免 大屏出现 两个第1名 / 两个第2名)
+        // 2026-06-06 P1-B: 50ms 单帧缓存 — RefreshLaneRows + GetStatusData 同一 Tick 都调一次,
+        //   两次入参 swimmers 实际相同, 复用结果可少一次 O(N log N) 排序 + List<Tuple> 分配.
+        private Dictionary<Swimmer, int> _liveRanksCache = null;
+        private DateTime _liveRanksCacheAt = DateTime.MinValue;
+        private const int LIVE_RANKS_CACHE_TTL_MS = 50;
         private Dictionary<Swimmer, int> ComputeLiveRanks(IEnumerable<Swimmer> swimmers) {
+            if (_liveRanksCache != null && (DateTime.Now - _liveRanksCacheAt).TotalMilliseconds < LIVE_RANKS_CACHE_TTL_MS) {
+                return _liveRanksCache;
+            }
             var liveRanks = new Dictionary<Swimmer, int>();
             var rankables = new List<Tuple<Swimmer, int, double, bool>>(); // (swimmer, splitCount, cumTime/FinalTime, finished)
             foreach (var sw2 in swimmers) {
@@ -8043,6 +8096,8 @@ namespace SwimmingScoreboard
                 }
                 liveRanks[rankables[i].Item1] = rank;
             }
+            _liveRanksCache = liveRanks;
+            _liveRanksCacheAt = DateTime.Now;
             return liveRanks;
         }
 
@@ -8060,7 +8115,7 @@ namespace SwimmingScoreboard
                 // 空泳道：仅保留淡化效果，所有状态/成绩字段清空
                 // 例外：设备测试模式下要按真实设备状态涂色，否则用户看不到 Open / Touched
                 if (sw == null) {
-                    rowUI.Row.BorderThickness = new Thickness(0);
+                    rowUI.Row.BorderThickness = _thickness0;
                     // 测试模式：左端事件贴到姓名栏，右端事件贴到成绩栏（比 Remain 框宽很多）
                     if (_testMode) {
                         string leftEvtName = _testLastEventLeft.ContainsKey(lane) ? _testLastEventLeft[lane] : "";
@@ -8159,15 +8214,15 @@ namespace SwimmingScoreboard
                 // 行边框（已判罚抢跳=DSQ高亮，疑似抢跳=琥珀色提示，选中=蓝色）
                 if (ls != null && ls.IsFalseStart) {
                     rowUI.Row.BorderBrush = _brushAmber;
-                    rowUI.Row.BorderThickness = new Thickness(2);
+                    rowUI.Row.BorderThickness = _thickness2;
                 } else if (ls != null && ls.IsSuspectFalseStart) {
                     rowUI.Row.BorderBrush = _brushAmber;
-                    rowUI.Row.BorderThickness = new Thickness(2);
+                    rowUI.Row.BorderThickness = _thickness2;
                 } else if (lane == _selectedLane) {
                     rowUI.Row.BorderBrush = _brushBlue;
-                    rowUI.Row.BorderThickness = new Thickness(2);
+                    rowUI.Row.BorderThickness = _thickness2;
                 } else {
-                    rowUI.Row.BorderThickness = new Thickness(0);
+                    rowUI.Row.BorderThickness = _thickness0;
                 }
 
                 // 左右发令指示
@@ -20802,6 +20857,7 @@ namespace SwimmingScoreboard
             AutoSaveData();
             _raceTimer.Stop();
             _countdownTimer.Stop();
+            try { CancelAllLaneCloseTimers(); } catch { }
             if (_timingBridge != null) _timingBridge.Dispose();
             if (_server != null) _server.Dispose();
         }
