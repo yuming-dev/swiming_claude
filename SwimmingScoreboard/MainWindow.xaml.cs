@@ -235,6 +235,7 @@ namespace SwimmingScoreboard
             RefreshRecordsHiddenBtn();       // 2026-06-03 同步 "记录显示/隐藏" 按钮初始文字
             RefreshRemarkReactionBtn();      // 2026-06-04 同步 "备注: 显/不显反应时" 按钮初始文字
             LoadAutoSaveTxtPath();           // 2026-06-05 加载 成绩 txt 自动存盘路径
+            RefreshAutoBlindReplaceBtn();    // 2026-06-06 同步 "盲表代触板" 按钮初始状态
             ApplyPersistedDeviceStates();   // 设备状态（损坏/未安装/手动按键）从 device_states.json 还原
             LoadTimingConnectionConfig();   // 通讯参数从 timing_connection.json 还原
             LoadLastCompetition();
@@ -4920,6 +4921,31 @@ namespace SwimmingScoreboard
                 }
             }
             AddLog(string.Format("泳道{0} {1}: {2}", lane, cmdType, TimeFormatter.Format(time)));
+
+            // 2026-06-06 PC 端 "盲表代替触板" 开关:
+            //   开启 + 当前段触板还没成绩 + 至少 1 个盲表时间 → 取盲表 中位数 自动当作触板成绩, 标 MB 代替
+            if (_laneCloseSettings != null && _laneCloseSettings.AutoBlindReplaceTouchpad) {
+                try {
+                    var stateA = _laneDeviceStates.FirstOrDefault(s => s.Lane == lane);
+                    if (stateA != null && !stateA.IsFinished) {
+                        var splitA = FindCurrentSplit(lane);
+                        // 仅当 split 还没触板时间 时才补; 收齐 ≥1 盲表 (Pushbutton1/2/3) 中位数当 TouchpadTime
+                        if (splitA != null && splitA.TouchpadTime <= 0) {
+                            var blinds = new List<double>();
+                            if (splitA.PushButton1Time > 0) blinds.Add(splitA.PushButton1Time);
+                            if (splitA.PushButton2Time > 0) blinds.Add(splitA.PushButton2Time);
+                            if (splitA.PushButton3Time > 0) blinds.Add(splitA.PushButton3Time);
+                            if (blinds.Count > 0) {
+                                blinds.Sort();
+                                double med = blinds[blinds.Count / 2];   // 单/双 都取中位
+                                AddLog(string.Format("泳道{0} 自动用盲表代触板: 中位 {1} (源 {2} 个)", lane, TimeFormatter.Format(med), blinds.Count));
+                                // 按 "硬件已用盲表代触板" 路径处理 (跳过 TP 状态守卫)
+                                ProcessTouchpadHit(lane, med, stateA, true);
+                            }
+                        }
+                    }
+                } catch (Exception exA) { AddLog("盲表代触板自动补失败: " + exA.Message); }
+            }
         }
 
         private int GetTotalLaps() {
@@ -9521,6 +9547,20 @@ namespace SwimmingScoreboard
                 if (r != MessageBoxResult.Yes) return;
                 OverrideLaneTime(lane, time);
             }
+        }
+
+        // 2026-06-06 盲表代替触板 toggle (PC 端自动用盲表中位数补当前段缺失的触板成绩)
+        private void AutoBlindReplaceToggle_Click(object sender, RoutedEventArgs e) {
+            _laneCloseSettings.AutoBlindReplaceTouchpad = !_laneCloseSettings.AutoBlindReplaceTouchpad;
+            RefreshAutoBlindReplaceBtn();
+            try { SaveTimingSettings(); } catch { }
+            AddLog("盲表代触板: " + (_laneCloseSettings.AutoBlindReplaceTouchpad ? "开 (盲表中位数自动补缺失触板)" : "关 (仅手动按钮)"));
+        }
+        private void RefreshAutoBlindReplaceBtn() {
+            if (AutoBlindReplaceBtn == null) return;
+            bool on = _laneCloseSettings != null && _laneCloseSettings.AutoBlindReplaceTouchpad;
+            AutoBlindReplaceBtn.Content = "📊 盲表代触板: " + (on ? "开" : "关");
+            AutoBlindReplaceBtn.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString(on ? "#0EA5E9" : "#6B7280"));
         }
 
         // 2026-06-05 成绩存盘路径 配置 (确认本组成绩 后 自动写 成绩 txt 到此目录)
