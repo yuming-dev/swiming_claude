@@ -50,7 +50,6 @@
                     </Grid.ColumnDefinitions>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
 
                     <!-- 当前比赛信息 -->
@@ -149,26 +148,6 @@
                         </StackPanel>
                     </Border>
 
-                    <!-- 比赛日志 -->
-                    <Border Grid.Column="0" Grid.ColumnSpan="2" Grid.Row="1" CornerRadius="10" Padding="20"
-                            BorderBrush="#E2E8F0" BorderThickness="1">
-                        <Border.Background>
-                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                                <GradientStop Color="#FFFFFF" Offset="0"/>
-                                <GradientStop Color="#FEFCE8" Offset="1"/>
-                            </LinearGradientBrush>
-                        </Border.Background>
-                        <DockPanel>
-                            <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,12">
-                                <Border Background="#D97706" CornerRadius="4" Padding="6,3" Margin="0,0,10,0">
-                                    <TextBlock Text="&#xE7C5;" FontFamily="Segoe MDL2 Assets" FontSize="16" Foreground="White" VerticalAlignment="Center"/>
-                                </Border>
-                                <TextBlock Text="比赛日志" FontSize="18" FontWeight="Bold" Foreground="#1E293B" VerticalAlignment="Center"/>
-                            </StackPanel>
-                            <ListBox x:Name="LogListBox" FontFamily="Consolas" FontSize="13" BorderThickness="0"
-                                     Background="Transparent" ScrollViewer.VerticalScrollBarVisibility="Auto"/>
-                        </DockPanel>
-                    </Border>
                 </Grid>
             </TabItem>
 

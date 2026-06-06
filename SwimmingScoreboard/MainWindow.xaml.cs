@@ -20823,18 +20823,12 @@ namespace SwimmingScoreboard
         // 工具方法
         // ═══════════════════════════════════════════════════════════════
         private void AddLog(string msg) {
-            if (LogListBox == null) return;
+            // 2026-06-06 系统工作状态 → 比赛日志 (LogListBox) 已下线 (= 与 系统日志与数据 → 运行日志
+            //   SystemLogListBox 同内容, 用户要求精简, 只保留后者). AddLog 现只写 SystemLogListBox.
+            if (SystemLogListBox == null) return;
             string entry = string.Format("[{0}] {1}", DateTime.Now.ToString("HH:mm:ss"), msg);
-            LogListBox.Items.Add(entry);
-            // 2026-06-06 P0: 500→200 / 1000→300 — ListBox.Insert(0) 和 RemoveAt(0) 都是 O(N),
-            //   长时间运行下 Insert × N entry 累积 O(N²); 上限收紧后 GC/UI 压力都明显降低.
-            if (LogListBox.Items.Count > 200) LogListBox.Items.RemoveAt(0);
-            LogListBox.ScrollIntoView(entry);
-            // 同步到系统日志页
-            if (SystemLogListBox != null) {
-                SystemLogListBox.Items.Insert(0, entry);
-                if (SystemLogListBox.Items.Count > 300) SystemLogListBox.Items.RemoveAt(SystemLogListBox.Items.Count - 1);
-            }
+            SystemLogListBox.Items.Insert(0, entry);
+            if (SystemLogListBox.Items.Count > 300) SystemLogListBox.Items.RemoveAt(SystemLogListBox.Items.Count - 1);
         }
 
         private string GetLocalIP() {
@@ -20881,10 +20875,7 @@ namespace SwimmingScoreboard
         }
 
         private void SyncSystemLog() {
-            // 将主日志同步到系统日志页
-            if (SystemLogListBox != null && LogListBox != null) {
-                SystemLogListBox.ItemsSource = LogListBox.Items;
-            }
+            // 2026-06-06 LogListBox 已下线, 此方法保留空体兼容旧调用点 (不再做同步).
         }
 
         private void LoadBackup_Click(object sender, RoutedEventArgs e) {
