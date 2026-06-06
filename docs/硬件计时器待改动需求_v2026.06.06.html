@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>硬件计时器待改动需求 v2026.06.06</title>
+<style>
+  @page { size: A4; margin: 18mm 16mm; }
+  body { font-family: "Microsoft YaHei", "微软雅黑", sans-serif; font-size: 12pt; color: #1f2937; line-height: 1.55; }
+  h1 { font-size: 22pt; text-align: center; border-bottom: 3px double #b91c1c; padding-bottom: 12px; color: #b91c1c; }
+  h2 { font-size: 16pt; color: #1e3a8a; border-left: 6px solid #3b82f6; padding-left: 10px; margin-top: 28px; }
+  h3 { font-size: 13pt; color: #1e3a8a; margin-top: 22px; }
+  .tag { display:inline-block; font-size:10pt; padding:2px 10px; border-radius:10px; margin-left:6px; vertical-align:middle; }
+  .must { background:#fee2e2; color:#991b1b; }
+  .optional { background:#fef3c7; color:#92400e; }
+  .info { background:#dbeafe; color:#1e40af; }
+  .done { background:#dcfce7; color:#166534; }
+  pre { background:#0f172a; color:#e2e8f0; padding:14px 18px; border-radius:6px; font-size:11pt; overflow-x:auto; line-height:1.5; }
+  pre.note { background:#fef9c3; color:#713f12; border-left: 4px solid #ca8a04; font-family: "Microsoft YaHei", sans-serif; font-size: 12pt; }
+  code { font-family: Consolas, monospace; background: #e0e7ff; padding: 1px 6px; border-radius: 3px; }
+  table { border-collapse: collapse; width: 100%; margin: 8px 0 16px; font-size: 11pt; }
+  th, td { border: 1px solid #cbd5e1; padding: 6px 9px; vertical-align: top; }
+  th { background: #f1f5f9; text-align: left; font-weight: bold; }
+  .frame { font-family: Consolas, monospace; background:#0f172a; color:#fde047; padding:10px 14px; border-radius:6px; font-size:11pt; }
+  .summary { background: #ecfdf5; border-left: 4px solid #059669; padding: 10px 14px; border-radius: 4px; margin: 12px 0; }
+  .warn { background: #fef2f2; border-left: 4px solid #dc2626; padding: 10px 14px; border-radius: 4px; margin: 12px 0; }
+  .note { background: #fef9c3; border-left: 4px solid #ca8a04; padding: 10px 14px; border-radius: 4px; margin: 12px 0; }
+  ul, ol { margin: 6px 0 10px 24px; }
+  li { margin: 4px 0; }
+  .meta { color:#64748b; font-size: 10pt; text-align: center; margin-top: -4px; }
+  .footer { text-align:center; color:#64748b; font-size:10pt; margin-top:30px; padding-top:12px; border-top:1px solid #e2e8f0; }
+</style>
+</head>
+<body>
+
+<h1>硬件计时器待改动需求</h1>
+<p class="meta">v2026.06.06 &nbsp;|&nbsp; 0x16 触板帧 D3 扩展 — 硬件控制盒手动 TP 按钮源标识</p>
+
+<div class="summary">
+<strong>背景：</strong>2026 年甘肃 U 系列定西站现场实测发现，在某些极端场景下，硬件控制盒
+的状态机会卡住等待 TP / MB 信号而不主动换向。临时应急流程已在 PC 端实现（操作员右键
+点 PC 该泳道的 T 按钮跳圈，10s 抑制窗口内丢弃硬件随后发的 0x16），但<strong>需要操作员
+精确按"先点 PC 再按硬件"的顺序操作，且 PC 上的"手动 TP"和"跳圈"两种动作必须通过
+"右键单击 vs 1 秒内 2+ 连击" 区分</strong>，UX 复杂、易错。<br><br>
+最干净的方案：<strong>协议层加一个值</strong>区分硬件控制盒的"手动 TP 按钮按下"和"运动员
+真实触板"。PC 端按协议自动判断，删掉抑制窗口和右键连击区分。
+</div>
+
+<h2>1. <span class="tag must">必修</span> 0x16 Touchpad 帧 D3 字段扩展 — 加 D3=2 表示"硬件手动 TP 按钮"</h2>
+
+<h3>现状</h3>
+<p>0x16 触板帧的 D3 字段当前只用两个值：</p>
+<table>
+<tr><th width="80">D3 值</th><th>含义</th><th>当前来源</th></tr>
+<tr><td><code>0</code></td><td>正常触板信号</td><td>运动员手 / 脚真实触碰 TP 设备</td></tr>
+<tr><td><code>1</code></td><td>盲表代替触板 (MB final / Pushbutton_Result)</td><td>硬件 <code>BlindReplaceDelay</code> 超时后内部合成</td></tr>
+</table>
+
+<p>硬件控制盒上有一个<strong>"手动 TP"按钮</strong>，操作员按下后硬件状态机推进（换向 + 倒计时启动）
+并通过 <code>0x16</code> 帧上报。但这种按键产生的 <code>0x16</code> 帧 <code>D3</code> 仍是 <code>0</code>，
+PC 端<strong>无法区分</strong>"真触板"和"手动按键"，把手动按键得到的"无意义时间"也当成正式触板成绩记录下来。</p>
+
+<div class="warn">
+<strong>现场后果：</strong>无 TP / MB 卡住时操作员被迫按硬件手动 TP 键应急 → PC 把当前
+<code>_runningTime</code> 记成该圈触板时间 → 大屏出现错误成绩 → 必须事后手工编辑撤销。
+影响正式比赛公信力。
+</div>
+
+<h3>修改请求</h3>
+<table>
+<tr><th width="120">方向</th><td>硬件 → PC</td></tr>
+<tr><th>命令字节 D2</th><td><code>0x16</code> (维持)</td></tr>
+<tr><th>D3 新增值</th><td><code>2</code> = <strong>硬件控制盒"手动 TP"按钮</strong>触发 <span class="tag must">本次新增</span></td></tr>
+<tr><th>D4 – D10</th><td>同现有协议: D4=泳道, D5–D8=时间编码, D9–D10=0</td></tr>
+</table>
+
+<p>完整 D3 取值表（含新增）：</p>
+<table>
+<tr><th width="80">D3</th><th>含义</th><th>PC 端动作</th></tr>
+<tr><td><code>0</code></td><td>正常触板</td><td>正常记 TouchpadTime, 推进状态机</td></tr>
+<tr><td><code>1</code></td><td>盲表代替触板 (MB final)</td><td>记为 MB final 主成绩 (或按 PC 端 "盲表代触板" 开关决定收/丢)</td></tr>
+<tr><td><code>2</code> <span class="tag must">新增</span></td><td>硬件控制盒手动 TP 按钮</td><td><strong>只推进状态机, 不记任何时间</strong> (split 空, 等手工补)</td></tr>
+</table>
+
+<h3>修改建议</h3>
+<table>
+<tr><th width="120">代码位置</th><td><code>APP/swimplay.c</code> 发送 <code>0x16</code> 帧的位置 (现有触板上报路径)</td></tr>
+<tr><th>触发条件</th><td>检测到本次 <code>0x16</code> 上报源于"硬件控制盒手动 TP 按钮"按下，<strong>而非</strong>真触板 / MB final 超时</td></tr>
+<tr><th>需做的事</th><td>给 <code>TXD_Buffer[3]</code> (D3 字节) 赋 <code>2</code> 而非 <code>0</code></td></tr>
+</table>
+
+<pre>// 硬件控制盒手动 TP 按钮按下分支:
+TXD_Buffer[3] = 2;   // D3 = 硬件手动按键源标识
+TXD_Buffer[4] = lane;
+// D5..D8 时间编码同正常 (= 当前 RunningTime, 哪怕 PC 不记也保留留痕)
+SendFrame_0x16(...);
+
+// 真触板 (TP 设备物理触发) 分支保持现有逻辑:
+TXD_Buffer[3] = 0;
+
+// MB final 代替分支保持现有逻辑:
+TXD_Buffer[3] = 1;</pre>
+
+<div class="note">
+<strong>时间字段 D5–D8 仍要填：</strong>即使 PC 不会把这个时间作为成绩，仍建议硬件填入按键时刻
+的 <code>RunningTime</code>，便于<strong>调试/留痕</strong>（PC 会把它写入原始计时日志，标 "TouchpadHwManual"，
+但不计入 split.TouchpadTime）。
+</div>
+
+<h3>PC 端配合</h3>
+<p>固件修复后，PC 端做以下小改 (= 删除应急方案 + 加 D3=2 分支)：</p>
+<table>
+<tr><th width="40%">改动</th><th>当前应急方案</th><th>固件支持 D3=2 后</th></tr>
+<tr><td>区分"手动 TP"和"跳圈"</td><td>T 按钮 右键单击 vs 1 秒内 2+ 连击</td><td>恢复 T 按钮 左键 = 手动 TP, 删掉右键单/连击区分</td></tr>
+<tr><td>抑制硬件后续 0x16</td><td>PC 跳圈后 <code>_skipNextHwTpUntil</code> 设 10 秒窗口</td><td>不需要窗口, 硬件直接发 D3=2 自描述</td></tr>
+<tr><td>跳圈触发源</td><td>操作员先 PC 右键 → 再按硬件键</td><td>操作员只按硬件键, PC 收到 D3=2 自动跳圈</td></tr>
+</table>
+
+<pre>// MainWindow.xaml.cs ProcessTimingDataFromHardware 入口加分支:
+if (data.CommandType == TimingCommandType.Touchpad &amp;&amp; data.Param1 == 2) {
+    AddLog(string.Format("泳道{0} 硬件手动 TP 按钮 → 跳圈 (不记时间)", data.Lane));
+    LogRawTimingData(data.Lane, "TouchpadHwManual", data.TimeInSeconds, side);
+    ProcessSkipLapAdvanceOnly(data.Lane);   // = 现有跳圈函数
+    return;
+}
+
+// 删除:
+//   _skipNextHwTpUntil 字典 + 抑制窗口检查
+//   _tpRightClickCount / _tpRightClickTimer + OnTButtonRightClick
+//   T 按钮 PreviewMouseRightButtonDown 注册
+// 恢复:
+//   T 按钮 PreviewMouseLeftButtonDown 走原 MANUAL_TOUCH_LEFT/RIGHT 路径</pre>
+
+<h2>2. <span class="tag info">兼容性</span> 旧硬件 / 新硬件 共存</h2>
+
+<table>
+<tr><th width="35%">硬件版本</th><th>0x16 帧 D3</th><th>PC 端行为</th></tr>
+<tr><td>旧固件 (本次改动前)</td><td>只发 0 或 1</td><td>D3=0 正常 TP, D3=1 MB final — 与现有逻辑相同, 不影响</td></tr>
+<tr><td>新固件 (本次改动后)</td><td>0 / 1 / 2 三种</td><td>D3=0/1 同前, D3=2 走 ProcessSkipLapAdvanceOnly</td></tr>
+</table>
+
+<p>PC 端只需<strong>新增 D3=2 分支</strong>，<strong>D3=0/1 路径完全不变</strong>。旧硬件升级前一直按现有逻辑工作，
+升级后自动启用新流程，<strong>零迁移成本</strong>。</p>
+
+<h2>3. <span class="tag info">协议版本号</span> 文档更新</h2>
+
+<p>修改完成后请同步更新 <code>docs/游泳计时系统通讯协议_v2026.xx.html</code> 4.1 节
+(0x16 / 0x17 / 0x18 / 0x19 触板与盲表) 的 D3 字段说明:</p>
+
+<pre>原:
+  D3   子码（保留 0）
+
+改:
+  D3   子码: 0=正常触板 / 1=盲表代替 (MB final) / 2=硬件控制盒手动 TP 按钮 (PC 不记时间)</pre>
+
+<h2>4. 测试建议</h2>
+
+<h3>测试 1: 手动 TP 按键正确产生 D3=2</h3>
+<ol>
+  <li>PC 进入比赛 Ready 状态, 启动计时</li>
+  <li>在硬件控制盒上按"手动 TP"按钮 (针对某一泳道)</li>
+  <li>用 wireshark 或 PC 串口日志看捕获的帧, 应为:<br>
+      <code>F1 53 16 02 LL DD DD DD DD 00 00 F4</code> (D3=0x02)</li>
+  <li>PC 端日志应出现 <code>泳道N 硬件手动 TP 按钮 → 跳圈 (不记时间)</code></li>
+  <li>该泳道在 PC UI / 大屏上: 圈数减 1, 方向翻转, 该段 split 显示空白</li>
+  <li>到"成绩与排名"页面 → 该段时间为空, 等手工输入</li>
+</ol>
+
+<h3>测试 2: 真触板仍走 D3=0 路径</h3>
+<ol>
+  <li>运动员真实触碰 TP 设备 → 硬件应发 D3=0 (= 维持原行为)</li>
+  <li>PC 端 split.TouchpadTime 应正常记录</li>
+  <li>大屏正常显示成绩</li>
+</ol>
+
+<h3>测试 3: MB final 仍走 D3=1 路径</h3>
+<ol>
+  <li>运动员未触 TP 但盲表有按下 → 硬件 BlindReplaceDelay 超时后发 D3=1</li>
+  <li>PC 端按 "盲表代触板" 开关决定收 / 丢 (现有逻辑)</li>
+  <li>不应误判为 D3=2</li>
+</ol>
+
+<h2>5. <span class="tag info">背景信息</span> 当前 PC 端应急方案</h2>
+
+<p>固件修复前, PC 端 (v2026-06-06) 已部署应急方案:</p>
+<table>
+<tr><th width="35%">机制</th><th>说明</th><th>位置</th></tr>
+<tr><td>右键单击 T 跳圈</td><td>操作员主动告知 PC "我要跳圈"</td><td><code>OnTButtonRightClick</code>, count == 1</td></tr>
+<tr><td>右键 1s 内 2+ 连击 = 手动 TP</td><td>区分跳圈和真"手动 TP 记当前时间"</td><td><code>OnTButtonRightClick</code>, count &gt;= 2</td></tr>
+<tr><td>左键禁用</td><td>防误操作 (= 比赛中误碰 T 不再触发 TP)</td><td><code>touchL/R.PreviewMouseLeftButtonDown</code></td></tr>
+<tr><td>10s 硬件 0x16 抑制窗口</td><td>操作员按 PC 跳圈后, 紧跟按硬件键产生的 0x16 自动丢</td><td><code>_skipNextHwTpUntil</code> 字典</td></tr>
+</table>
+
+<p>应急方案的<strong>缺点</strong> (= 本协议改动后可全部消除):</p>
+<ul>
+  <li>操作员必须严格"先 PC 右键、后硬件键"顺序, 反向时 PC 仍记错时间</li>
+  <li>右键单击有 1 秒延迟才推进 (= 等待是否续击区分)</li>
+  <li>左键被禁用, 手动 TP 必须双击右键, 紧急情况下操作慢</li>
+  <li>10s 抑制窗口是经验值, 若硬件 0x16 在 11s 后才到则误记</li>
+</ul>
+
+<div class="summary">
+<strong>固件支持 D3=2 后, PC 端只保留:</strong>
+<ul>
+  <li>T 按钮 <strong>左键</strong> = 手动 TP (记当前时间) — 恢复直观操作</li>
+  <li>硬件按 D3=2 自报 → PC 自动跳圈, <strong>不需要操作员任何配合点击</strong></li>
+  <li>删掉 <code>_skipNextHwTpUntil</code> / <code>_tpRightClickCount</code> / <code>_tpRightClickTimer</code> / <code>OnTButtonRightClick</code> 全部应急代码</li>
+</ul>
+</div>
+
+<div class="footer">
+游泳计时系统硬件改动需求 · v2026.06.06 · 2026-06-06 起草
+</div>
+
+</body>
+</html>
