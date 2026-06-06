@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>游泳计时系统使用说明书 v2026.06.06</title>
+<style>
+  @page { size: A4; margin: 18mm 16mm; }
+  body { font-family: "Microsoft YaHei", "微软雅黑", sans-serif; font-size: 11pt; color: #1f2937; line-height: 1.55; }
+  h1 { font-size: 22pt; text-align: center; border-bottom: 3px double #1e3a8a; padding-bottom: 12px; color: #1e3a8a; margin-bottom: 6pt; }
+  h1 + p { text-align:center; color:#64748b; margin-top: 0; font-size: 11pt; }
+  h2 { font-size: 15pt; color: #1e3a8a; border-left: 6px solid #3b82f6; padding-left: 10px; margin-top: 24px; page-break-after: avoid; }
+  h3 { font-size: 12.5pt; color: #1e3a8a; margin-top: 18px; background:#eff6ff; padding:5px 10px; border-radius:4px; page-break-after: avoid; }
+  h4 { font-size: 11.5pt; color: #334155; margin: 14px 0 6px 0; page-break-after: avoid; }
+  table { border-collapse: collapse; width: 100%; margin: 6px 0 14px; font-size: 10pt; }
+  th, td { border: 1px solid #cbd5e1; padding: 5px 8px; vertical-align: top; }
+  th { background: #f1f5f9; text-align: left; font-weight: bold; }
+  .note { background:#fef9c3; padding:7px 11px; border-left: 4px solid #ca8a04; border-radius:4px; margin: 6px 0; }
+  .summary { background: #ecfdf5; border-left: 4px solid #059669; padding: 7px 12px; border-radius: 4px; margin: 6px 0; }
+  .new { background:#fff7ed; padding:7px 12px; border-left:4px solid #ea580c; border-radius:4px; margin:6px 0; }
+  .danger { background: #fee2e2; padding:7px 11px; border-left: 4px solid #b91c1c; border-radius:4px; margin: 6px 0; }
+  ul { margin: 3px 0 8px 22px; } li { margin: 2px 0; }
+  ol { margin: 3px 0 8px 22px; }
+  code { background:#f1f5f9; padding:1px 5px; border-radius:3px; font-family: Consolas, monospace; font-size: 10pt; }
+  .kbd { display:inline-block; padding:1px 7px; border:1px solid #94a3b8; border-radius:4px; background:#f1f5f9; font-family: Consolas, monospace; font-size:10pt; }
+  .toc { background:#f8fafc; border:1px solid #e2e8f0; padding: 8px 16px; border-radius:6px; margin: 8px 0 16px; font-size: 10.5pt; }
+  .toc a { color:#1e3a8a; text-decoration:none; }
+  .badge-new { display:inline-block; background:#fef3c7; color:#92400e; padding:1px 8px; border-radius:10px; font-size:9pt; font-weight:bold; }
+  .footer { text-align:center; color:#64748b; font-size:9.5pt; margin-top:24px; padding-top:10px; border-top:1px solid #e2e8f0; }
+  hr { border:0; border-top:1px dashed #cbd5e1; margin: 14px 0; }
+</style>
+</head>
+<body>
+
+<h1>游泳计时系统使用说明书</h1>
+<p>v2026.06.06 &nbsp;|&nbsp; 含 U系列青少年游泳比赛规则 + 男女并项全栈支持</p>
+
+<div class="toc">
+<b>目录</b>
+<a href="#s1">一、系统概览</a>
+<a href="#s2">二、安装与启动</a>
+<a href="#s3">三、比赛规则 (新)</a>
+<a href="#s4">四、赛事管理与报名</a>
+<a href="#s5">五、比赛控制 (临场)</a>
+<a href="#s6">六、显示控制 (大屏)</a>
+<a href="#s7">七、男女并项 (新)</a>
+<a href="#s8">八、TRI / DSQ / DNS / DNF</a>
+<a href="#s9">九、成绩与排名</a>
+<a href="#s10">十、文档/输出/打印</a>
+<a href="#s11">十一、远程控制 (race_control / control)</a>
+<a href="#s12">十二、本期变更</a>
+</div>
+
+<h2 id="s1">一、系统概览</h2>
+
+<h3>组成</h3>
+<table>
+  <tr><th>程序</th><th>用途</th><th>部署</th></tr>
+  <tr><td><code>SwimmingScoreboard.exe</code></td><td>主控 — 赛事管理、计时、显示推送</td><td>主控 PC（1 台）</td></tr>
+  <tr><td><code>RemoteTimingControl.exe</code></td><td>远程计时台 — 与主控同步, 显示道次实时</td><td>计时席（按需）</td></tr>
+  <tr><td><code>RemoteDisplayControl.exe</code></td><td>远程显示控制 — 主控大屏切换的备份</td><td>裁判席（按需）</td></tr>
+  <tr><td><code>RegistrationTool.exe</code></td><td>报名工具 — 远程录入运动员/接力</td><td>报名席（按需）</td></tr>
+  <tr><td><code>ScheduleEditor.exe</code></td><td>赛程编辑器 — 离线规划赛程</td><td>办公席（按需）</td></tr>
+  <tr><td><code>display.html</code></td><td>观众大屏 — 浏览器渲染</td><td>LED 显示墙</td></tr>
+  <tr><td><code>race_control.html</code></td><td>计时控制 网页端 — 浏览器操作</td><td>裁判席手机/平板</td></tr>
+  <tr><td><code>control.html</code></td><td>大屏控制 网页端 — 切视图 + 样式</td><td>主控席手机/平板</td></tr>
+</table>
+
+<h3>4 端联动</h3>
+<p>主控 PC + RemoteTimingControl.exe + race_control.html + display.html 通过 <b>WebSocket (端口 3002)</b> 实时同步。主控是唯一的数据源 — 名次/分段/反应时/破纪录/滚动时间都由主控计算后广播，其它 3 端只渲染。</p>
+
+<div class="summary"><b>数据流原则：</b>大屏与文档数据来自主控，前端不重算、不缓存比赛数据。这避免了"客户端推算 vs 服务器结果"不一致的隐患。</div>
+
+<h2 id="s2">二、安装与启动</h2>
+
+<h3>安装</h3>
+<ol>
+  <li>解压 <code>SwimmingTimingSystem-Setup-v2026.06.xx.zip</code></li>
+  <li>双击 <code>Setup.exe</code> → 按提示一键安装到默认目录</li>
+  <li>桌面/开始菜单出现快捷方式</li>
+</ol>
+
+<h3>启动顺序</h3>
+<ol>
+  <li>主控 PC 先开 <code>SwimmingScoreboard.exe</code></li>
+  <li>大屏机 PC 开浏览器 → 双击 <code>display.html</code> → 输入主控 IP → 全屏</li>
+  <li>其它端按需启动（计时席 / 裁判席）</li>
+</ol>
+
+<h3>加载赛事</h3>
+<p>主控启动会自动加载上次打开的赛事（<code>last_competition.txt</code> 记忆）。手动加载：<b>赛事管理与报名</b> → <code>加载赛事</code> 按钮 → 选 JSON 文件。</p>
+
+<h2 id="s3">三、比赛规则 <span class="badge-new">新</span></h2>
+
+<p>在 <b>赛事管理与报名 → 比赛参数设置管理</b> 顶部黄底卡片选择：</p>
+
+<table>
+  <tr><th>规则</th><th>说明</th></tr>
+  <tr><td>国际比赛 (FINA)</td><td>男/女 分项, 同年龄组同组, 单组排名按时间, 总排名按 性别×组别</td></tr>
+  <tr><td>国内大赛 (中国游协)</td><td>同 FINA, 国内执行差异由本地规程补充</td></tr>
+  <tr><td><b>U系列青少年游泳比赛</b> (默认)</td><td>允许 男女并项 / 跨年龄并项 / TRI 参赛 / 直接决赛多组 / 组内单一名次 / 总排名按 性别×组别 拆</td></tr>
+</table>
+
+<p>规则保存到比赛档案 (<code>CompetitionRule</code> 字段)。U 系列规则下，系统允许：</p>
+<ul>
+  <li><b>男女同组比赛</b>: schedule.Gender = "男女", swimmer.Gender 仍是真实的男/女</li>
+  <li><b>不同组别同组</b>: schedule.AgeGroup = "12~15岁组" 区间, swimmer 实际是 12-13/14-15</li>
+  <li><b>TRI 运动员参赛</b>: 试游, 不入排名, 时间正常显示</li>
+  <li><b>直接决赛多组</b>: 不必跑预赛, 直接按报名时间排多组决赛</li>
+  <li><b>组内单一名次</b>: 同组按时间 1-N 排, 不分男女拆</li>
+  <li><b>总排名按性别×组别拆</b>: 项目完赛后, 各性别×组别 各出一张子排名</li>
+</ul>
+
+<h2 id="s4">四、赛事管理与报名</h2>
+
+<h3>赛事信息</h3>
+<p>顶部填赛事名称、日期、地点、组织方、裁判等。<b>保存赛事信息</b> 按钮持久化到 JSON 档案。</p>
+
+<h3>运动员管理</h3>
+<ul>
+  <li><b>添加运动员</b> — 单个录入</li>
+  <li><b>修改选中</b> — 临场修改 (名字拼错、改代表队等)</li>
+  <li><b>删除选中</b> — 撤报名</li>
+  <li><b>导入 CSV / 导出 CSV / 导出模板</b> — 批量</li>
+  <li><b>号码区间设置</b> — 自动分配比赛号</li>
+</ul>
+
+<h3>接力队管理</h3>
+<p>支持 4 棒接力 (4×50 / 4×100)。<b>棒次上移/下移/更换队员</b> 临场调整。</p>
+
+<h3>赛程</h3>
+<ul>
+  <li><b>秩序册生成向导</b> — 自动按 项目 × 组别 × 性别 排日程</li>
+  <li><b>项目自动分组</b> — 按报名成绩 seed 入组</li>
+  <li><b>手动分组</b> — 操作员逐道指定</li>
+  <li><b>追加分组</b> — 临场加道</li>
+  <li><b>打印日程表 / 导入/导出/下载 (Excel)</b></li>
+</ul>
+
+<h3>出场编排</h3>
+<p>左侧选项目→性别→组别→赛次, 右侧表格显示该组所有道位。底部 8 个按钮：</p>
+<ul>
+  <li><b>上移 / 下移</b> — 调整道次顺序</li>
+  <li><b>交换泳道</b> — 选中 + 弹窗选目标</li>
+  <li><b>增加到本组</b> — 加入空道</li>
+  <li><b>移出本组</b> — 临时退赛</li>
+  <li><b>临时加人</b> — 弹窗录入新选手并放入本组</li>
+  <li><b>保存修改</b></li>
+</ul>
+
+<h2 id="s5">五、比赛控制 (临场)</h2>
+
+<h3>核心按钮 (顶部 Bar)</h3>
+<ul>
+  <li><span class="kbd">⚙ 参数设置</span> — 关闭时间、出发台延迟、抢跳阈值、盲表数量等</li>
+  <li><span class="kbd">📁 成绩存盘路径</span> <span class="badge-new">新</span> — 自动保存成绩 txt 到指定目录</li>
+</ul>
+
+<h3>核心动作按钮 (中部)</h3>
+<table>
+  <tr><th>按钮</th><th>颜色</th><th>动作</th></tr>
+  <tr><td>计时复位</td><td>红</td><td>清空当前组计时, 准备新组. 末组确认+复位会切大屏到欢迎页</td></tr>
+  <tr><td>开始比赛</td><td>绿</td><td>软件触发发令 (硬件出发台为主)</td></tr>
+  <tr><td>停表</td><td>紫</td><td>4 端冻结滚动时间显示, 硬件继续计时</td></tr>
+  <tr><td>确认本组成绩</td><td>蓝</td><td>锁定成绩 + 自动公布到大屏 + 自动保存 txt + 自动写比赛日志 PDF <span class="badge-new">新</span></td></tr>
+  <tr><td>打印成绩</td><td>深绿</td><td>本组成绩单 (新窗口浏览器打印)</td></tr>
+  <tr><td>📊 公布项目总排名</td><td>橙</td><td><span class="badge-new">新</span> 大屏切总排名 + 按 性别×组别 拆 txt 写到存盘路径</td></tr>
+</table>
+
+<h3>泳道操作 (按选道)</h3>
+<p>输入道次 (左上 LaneInput), 然后点：</p>
+<ul>
+  <li><b>DNS</b> — 弃权</li>
+  <li><b>DNF</b> — 未完成</li>
+  <li><b>DSQ</b> — 犯规取消 <span class="badge-new">新规则</span>:
+    <ul>
+      <li>个人项目: 清 最终成绩 + 所有分段 + 反应时</li>
+      <li>接力项目: 弹窗问"犯规棒次 N" → 保留 1~N-1 棒分段, 清 第N棒起的分段 + 最终成绩</li>
+    </ul>
+  </li>
+  <li><b>TRI</b> — 试游 (备注栏显 TRI, 成绩正常显, 不入排名)</li>
+  <li><b>取消备注</b> — 撤销 DSQ/DNS/DNF/TRI 标记, 恢复参赛状态</li>
+  <li><b>盲表成绩</b> — 用盲表时间补当前分段</li>
+  <li><b>手动输入</b> — 弹窗输入成绩 (硬件失灵兜底)</li>
+</ul>
+
+<h3>成绩存盘路径 <span class="badge-new">新</span></h3>
+<p>点击顶部 <b>📁 成绩存盘路径</b> 按钮:</p>
+<ul>
+  <li>输入目录 (默认 <code>安装目录/Documents/成绩txt</code>)</li>
+  <li>"浏览..." 选目录</li>
+  <li>"保存" 持久化 / "清空" 关闭自动保存 / "取消"</li>
+</ul>
+
+<p>每次"确认本组成绩"后自动写入两个文件到此目录：</p>
+<ol>
+  <li><b>成绩 txt</b>: <code>{场号}-{项号}-{组号}.txt</code> (变列格式: 道次 + 最终 + 分段×n + 反应时×m)</li>
+  <li><b>比赛日志 PDF</b>: <code>{比赛项目+赛次+组号}+比赛日志.pdf</code> (含项目/日期/时间/地点/per-lane 完整事件流, Edge headless 转 PDF; 失败保留 HTML)</li>
+</ol>
+
+<h2 id="s6">六、显示控制 (大屏)</h2>
+
+<p>右侧 "显示控制" 面板按钮直接切换 display.html 视图:</p>
+<table>
+  <tr><th>视图</th><th>触发</th><th>说明</th></tr>
+  <tr><td>比赛视图</td><td>SHOW_LIVE_RACE</td><td>10 道实时, 滚动时间, 第1名锁定, 项目名称下 MR 行 <span class="badge-new">新</span></td></tr>
+  <tr><td>出发表</td><td>SHOW_START_LIST</td><td>本组所有道选手</td></tr>
+  <tr><td>组成绩</td><td>SHOW_HEAT_RESULT</td><td>本组比赛结果. 末组复位后能回放最近一组 <span class="badge-new">新</span></td></tr>
+  <tr><td>总排名</td><td>SHOW_EVENT_RANKING</td><td>项目级排名, 按 性别×组别 自动拆子表 + 翻页</td></tr>
+  <tr><td>团体积分</td><td>SHOW_TEAM_STANDINGS</td><td>代表队总分排序</td></tr>
+  <tr><td>颁奖典礼</td><td>SHOW_AWARDS</td><td>1/2/3 名照片墙 (可上传)</td></tr>
+  <tr><td>裁判介绍</td><td>SHOW_REFEREES</td><td>裁判员名册</td></tr>
+  <tr><td>赛程表 / 晋级名单 / 欢迎 / 暂停画面</td><td>各对应 SHOW_*</td><td>—</td></tr>
+</table>
+
+<h3>大屏样式远程控制 <span class="badge-new">新</span></h3>
+<p>点击 <b>🎨 大屏样式</b> 按钮弹窗调:</p>
+<ul>
+  <li>底色 (8 预设 + 自定义 hex / linear-gradient)</li>
+  <li>字号 (0.8x–3.0x; 5 个细分: 比赛名/项目/滚动时间/运动员信息/表头)</li>
+  <li>9 处文字颜色 + 字体 (比赛名/项目/时间/道次/名次/姓名/代表队/成绩/备注)</li>
+</ul>
+<p>改动通过 SET_DISPLAY_STYLE 推到服务器, 服务器持久化 + 广播到所有 display.html.</p>
+
+<h3>项目名称下 MR 行 <span class="badge-new">新</span></h3>
+<p>大屏 比赛视图 / 组成绩 / 公布成绩 / 总排名 4 个视图, 项目名称行下加金色虚线分隔的 MR 行, 显当前事件组别匹配的纪录:</p>
+<p style="text-align:center;font-family:'Microsoft YaHei';color:#FBBF24;font-weight:bold;background:#0F172A;padding:6px;">MR14-15 33.01 &nbsp;&nbsp; MR14-15 32.45</p>
+<p>男女并项时同时显男+女两条 MR. 跨年龄并项 (12~15) 时显所有覆盖子区间的 MR.</p>
+
+<h2 id="s7">七、男女并项 <span class="badge-new">新</span></h2>
+
+<h3>核心规则</h3>
+<ul>
+  <li><b>schedule.Gender = "男女"</b> — 项目允许男女同组比赛</li>
+  <li><b>swimmer.Gender = "男" / "女"</b> — 个人仍是真实性别</li>
+  <li><b>组内排名: 单一 1-N 按时间</b>, 不分男女拆 (大屏不出现两个第1名)</li>
+  <li><b>总排名: 按 性别×组别 拆子表</b>, 每个性别各自第1名</li>
+  <li><b>跨年龄并项</b>: schedule.AgeGroup = "12~15岁组" 区间, swimmer.AgeCategory 是真实子组 (12-13 / 14-15)</li>
+</ul>
+
+<h3>数据流支持</h3>
+<table>
+  <tr><th>函数</th><th>男女并项支持</th></tr>
+  <tr><td>GetCurrentHeatSwimmers</td><td>_currentGender == "男女" 时 男+女+男女 都过</td></tr>
+  <tr><td>MatchesAgeGroup</td><td>支持区间 "12~15岁组" ⊇ "12-13岁组" + "14-15岁组" (含半角/全角 ~)</td></tr>
+  <tr><td>BuildEventNumberMap</td><td>按 (Gender, EventName, AgeGroup) 3 维 keying, 同性别同项目 但不同年龄组 有独立项次</td></tr>
+  <tr><td>GetEventRankingsSplit</td><td>总排名按 (实际性别, 实际年龄组) 拆</td></tr>
+  <tr><td>CheckRecords</td><td>用 swimmer.Gender (单一) 对比 record.Gender, 不再因 _currentGender = "男女" 漏检破纪录</td></tr>
+</table>
+
+<h2 id="s8">八、TRI / DSQ / DNS / DNF</h2>
+
+<h3>TRI (试游)</h3>
+<ul>
+  <li>道次按 TRI 按钮 → 备注栏显 "TRI"</li>
+  <li>finalTime 正常显示 (与 DSQ/DNS/DNF 不同)</li>
+  <li>不参与排名 (与 DSQ/DNS/DNF 同款排除)</li>
+  <li>不影响其他人的名次</li>
+  <li>"计时复位" 不清 TRI (用户要求: 只 "取消备注" 能清)</li>
+</ul>
+
+<h3>DSQ (取消资格)</h3>
+<ul>
+  <li><b>个人项目</b>: 清 最终成绩 + 所有分段 + 反应时</li>
+  <li><b>接力项目</b>: 弹窗问"犯规棒次 N", 保留 1~N-1 棒分段, 清 第N棒起的分段 + 最终成绩 <span class="badge-new">新</span></li>
+  <li>备注栏显 "DSQ" (红色)</li>
+  <li>不入排名</li>
+</ul>
+
+<h3>DNS (弃权) / DNF (未完成)</h3>
+<ul>
+  <li>备注栏显 "DNS" / "DNF" (红色)</li>
+  <li>不入排名</li>
+</ul>
+
+<h3>抢跳判罚</h3>
+<p>硬件检测到抢跳 → 反应时单元格标红 (state.IsSuspectFalseStart). 裁判可手动 DSQ. 不自动 DSQ.</p>
+
+<h2 id="s9">九、成绩与排名</h2>
+
+<p>左侧 3 级导航 (项目 → 组别 → 该场开始时间). 右侧 DataGrid 显本组结果.</p>
+
+<h3>过滤器</h3>
+<p>顶部下拉: 性别 / 组别 / 项目 / 赛次 / 组次. 选定后查询本组成绩.</p>
+
+<h3>导出</h3>
+<ul>
+  <li>导出 Excel — 全表</li>
+  <li>导出 PDF — 单组成绩单 (男女并项时 蓝/粉 拆子表)</li>
+  <li>导出 HTML / Word</li>
+</ul>
+
+<h2 id="s10">十、文档/输出/打印</h2>
+
+<table>
+  <tr><th>功能</th><th>说明</th></tr>
+  <tr><td>秩序册</td><td>含赛程/报名表/裁判名册的完整 PDF</td></tr>
+  <tr><td>成绩册</td><td>所有已完成成绩的合订 PDF</td></tr>
+  <tr><td>分段计时报告</td><td>每组所有道的逐段时间</td></tr>
+  <tr><td>项目成绩 打印</td><td>单项目结果, 男女并项拆 蓝/粉 子表 <span class="badge-new">新</span></td></tr>
+  <tr><td>按组别批量公布</td><td>所有项目一键批打印 (按组别拆)</td></tr>
+  <tr><td>成绩 txt 输出</td><td>选已完赛组, 变列格式 (道次/最终/分段/反应时)</td></tr>
+</table>
+
+<h2 id="s11">十一、远程控制</h2>
+
+<h3>race_control.html</h3>
+<p>计时控制网页端. 浏览器打开, 输入主控 IP 连接. 功能: 道次操作 / 开始比赛 / 停表 / 确认成绩 / 设备状态管理 / 盲表成绩 / 手动输入 / 打印成绩 / 等同步.</p>
+
+<h3>control.html</h3>
+<p>大屏控制网页端. 主要功能:</p>
+<ul>
+  <li>大屏视图切换 (12 个按钮)</li>
+  <li>成绩发布到大屏 (选已完赛项目)</li>
+  <li>记录显示/隐藏 4 端切换</li>
+  <li>备注栏 显反应时/不显 4 端切换</li>
+  <li>PPT 播放 (主控 PC 选文件)</li>
+  <li>大屏样式 远程控制</li>
+  <li>📄 成绩 txt 输出 <span class="badge-new">新</span> (选已完赛组下载到本机)</li>
+</ul>
+
+<h2 id="s12">十二、本期变更 (v2026.06.06)</h2>
+
+<h3>新功能</h3>
+<ul>
+  <li><b>比赛规则</b> 选项 — 国际/国内/U系列 三选一, 持久化</li>
+  <li><b>男女并项</b> 全栈支持 — 数据/查询/广播/打印/大屏全套</li>
+  <li><b>跨年龄并项</b> — 12~15岁组 区间 schedule</li>
+  <li><b>项次按场重置</b> — 各场 1-N, 不再跨场连续</li>
+  <li><b>成绩存盘路径</b> 按钮 — 持久化路径 + 自动 txt</li>
+  <li><b>一键公布项目总排名</b> 按钮 — 大屏切总排名 + 自动 按性别×组别 拆 txt</li>
+  <li><b>比赛日志 PDF</b> — ConfirmResult 后自动写 PDF (Edge headless)</li>
+  <li><b>大屏 MR 行</b> — 项目名称下显本组别纪录</li>
+  <li><b>DSQ 分类清除</b> — 个人全清 / 接力按犯规棒次保留</li>
+  <li><b>control.html 成绩 txt 输出</b> — 远程触发 + Blob 下载</li>
+</ul>
+
+<h3>修复</h3>
+<ul>
+  <li>男女并项破纪录漏检 (CheckRecords 用 _currentGender 不对, 改用 swimmer.Gender)</li>
+  <li>跨年龄并项 swimmer 找不到 (TryParseAgeRange 加 ~ 支持)</li>
+  <li>接力 team 调不出来 (5 处 男女 filter 加 swimmer.Gender == "男女")</li>
+  <li>RelayTeam.Members 类型 (字符串 → Legs 对象)</li>
+  <li>项次跨场连号 (BuildEventNumberMap 加 EvNum 优先 + 3-part key)</li>
+  <li>大屏 MR 显全年龄组 (BuildApplicableRecords 加 ageGroup 过滤)</li>
+  <li>display.html 代表队列显短码 (优先级反转: country > countryShort)</li>
+  <li>组成绩 计时复位后空 (SHOW_HEAT_RESULT fallback 到最近一组)</li>
+  <li>项目成绩打印 男女拆 + 加 "男女" 选项</li>
+  <li>BuildScheduleTree 80× 加速 / RefreshSwimmerStages 13× 加速</li>
+  <li>"省R" → "MR" 全统一</li>
+  <li>比赛名称改为 "2026年甘肃省浩沙FAFA杯U系列..."</li>
+</ul>
+
+<div class="footer">
+游泳计时系统 v2026.06.06 &nbsp;|&nbsp; 编译: 2026-06-06
+</div>
+
+</body>
+</html>

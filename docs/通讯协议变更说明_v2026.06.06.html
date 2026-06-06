@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>游泳计时通讯协议变更说明 v2026.06.06</title>
+<style>
+  @page { size: A4; margin: 18mm 16mm; }
+  body { font-family: "Microsoft YaHei", "微软雅黑", sans-serif; font-size: 11pt; color: #1f2937; line-height: 1.55; }
+  h1 { font-size: 20pt; text-align: center; border-bottom: 3px double #1e3a8a; padding-bottom: 10px; color: #1e3a8a; margin-bottom: 6pt; }
+  h1 + p { text-align:center; color:#64748b; margin-top: 0; font-size: 10.5pt; }
+  h2 { font-size: 14pt; color: #1e3a8a; border-left: 6px solid #3b82f6; padding-left: 10px; margin-top: 22px; page-break-after: avoid; }
+  h3 { font-size: 12pt; color: #1e3a8a; margin-top: 16px; background:#eff6ff; padding:5px 10px; border-radius:4px; page-break-after: avoid; }
+  table { border-collapse: collapse; width: 100%; margin: 6px 0 14px; font-size: 10pt; }
+  th, td { border: 1px solid #cbd5e1; padding: 5px 8px; vertical-align: top; }
+  th { background: #f1f5f9; text-align: left; font-weight: bold; }
+  pre { background:#0f172a; color:#e2e8f0; padding:8px 12px; border-radius:6px; font-size:9.5pt; font-family: Consolas, monospace; overflow-x:auto; }
+  code { background:#f1f5f9; padding:1px 5px; border-radius:3px; font-family: Consolas, monospace; font-size: 10pt; }
+  .note { background:#fef9c3; padding:7px 11px; border-left: 4px solid #ca8a04; border-radius:4px; margin: 6px 0; }
+  .new { background:#fff7ed; padding:7px 12px; border-left:4px solid #ea580c; border-radius:4px; margin:6px 0; }
+  .fix { background: #fee2e2; padding:7px 11px; border-left: 4px solid #b91c1c; border-radius:4px; margin: 6px 0; }
+  ul { margin: 3px 0 8px 22px; } li { margin: 2px 0; }
+  .badge-new { display:inline-block; background:#fef3c7; color:#92400e; padding:1px 8px; border-radius:10px; font-size:9pt; font-weight:bold; }
+  .footer { text-align:center; color:#64748b; font-size:9.5pt; margin-top:24px; padding-top:10px; border-top:1px solid #e2e8f0; }
+  hr { border:0; border-top:1px dashed #cbd5e1; margin: 14px 0; }
+</style>
+</head>
+<body>
+
+<h1>游泳计时通讯协议变更说明</h1>
+<p>v2026.06.06 (相对 v2026.05.20 增量)</p>
+
+<h2>本期变更总览</h2>
+
+<table>
+  <tr><th>类别</th><th>项</th><th>类型</th></tr>
+  <tr><td>WebSocket 命令</td><td>EXPORT_RESULT_TXT_LIST / EXPORT_RESULT_TXT_BUILD</td><td>新增 (control.html ↔ 服务器)</td></tr>
+  <tr><td>WebSocket 响应</td><td>EXPORT_RESULT_TXT_LIST_RESP / EXPORT_RESULT_TXT_FILE</td><td>新增 (服务器 → control.html)</td></tr>
+  <tr><td>广播数据字段</td><td>applicableRecords (项目纪录数组)</td><td>新增 (SHOW_LIVE_RACE / SHOW_PUBLISHED_RESULT 携带)</td></tr>
+  <tr><td>广播数据字段</td><td>swimmer.gender / swimmer.ageGroup / swimmer.recordNote</td><td>新增 (公布成绩广播)</td></tr>
+  <tr><td>JSON Schema</td><td>CompetitionRule / ScheduleItem.EvNum</td><td>新增字段</td></tr>
+  <tr><td>硬件协议</td><td>无变更</td><td>—</td></tr>
+</table>
+
+<h2>一、新增 WebSocket 命令</h2>
+
+<h3>1. EXPORT_RESULT_TXT_LIST <span class="badge-new">新</span></h3>
+<p>方向: control.html → 服务器</p>
+<pre>{
+  "type": "REMOTE_CONTROL",
+  "command": "EXPORT_RESULT_TXT_LIST"
+}</pre>
+<p>请求已完赛组次列表 (用于浏览器侧弹窗展示)。</p>
+
+<h3>2. EXPORT_RESULT_TXT_LIST_RESP <span class="badge-new">新</span></h3>
+<p>方向: 服务器 → control.html (响应 #1)</p>
+<pre>{
+  "type": "EXPORT_RESULT_TXT_LIST_RESP",
+  "heats": [
+    {
+      "ageGroup": "12-13岁组",
+      "gender": "男",
+      "eventName": "50米自由泳",
+      "stage": "决赛",
+      "heat": 1,
+      "session": 2,
+      "eventNo": 8,
+      "fileName": "02-08-01.txt",
+      "title": "12-13岁组 男 50米自由泳 决赛 第1组"
+    },
+    ...
+  ]
+}</pre>
+<p>遍历 <code>_confirmedHeats</code> 集合, 每条 key 解析回 (ageGroup|gender|event|stage|heat)。</p>
+
+<h3>3. EXPORT_RESULT_TXT_BUILD <span class="badge-new">新</span></h3>
+<p>方向: control.html → 服务器 (用户在弹窗点击某组次后)</p>
+<pre>{
+  "type": "REMOTE_CONTROL",
+  "command": "EXPORT_RESULT_TXT_BUILD",
+  "data": {
+    "ageGroup": "12-13岁组",
+    "gender": "男",
+    "eventName": "50米自由泳",
+    "stage": "决赛",
+    "heat": 1
+  }
+}</pre>
+<p>请求构建该组成绩 txt 文件内容并下发给浏览器。</p>
+
+<h3>4. EXPORT_RESULT_TXT_FILE <span class="badge-new">新</span></h3>
+<p>方向: 服务器 → control.html (响应 #3)</p>
+<pre>{
+  "type": "EXPORT_RESULT_TXT_FILE",
+  "content": "01 00:00.00 ...\n02 00:25.88 00:25.88 0001.05\n...",
+  "fileName": "02-08-01.txt"
+}</pre>
+<p>或失败:</p>
+<pre>{
+  "type": "EXPORT_RESULT_TXT_FILE",
+  "error": "异常消息"
+}</pre>
+<p>浏览器收到后 Blob.download 触发文件下载。</p>
+
+<h2>二、广播数据扩展</h2>
+
+<h3>1. applicableRecords <span class="badge-new">新</span></h3>
+<p>携带场景: 主广播 <code>GetStatusData()</code> (SHOW_LIVE_RACE 等) + <code>PublishResultToDisplay()</code> (SHOW_PUBLISHED_RESULT)</p>
+<pre>"applicableRecords": [
+  {
+    "tag": "MR",                  // 由 RecordTypeToTag 转: 甘肃省纪录 → MR
+    "ageGroup": "14-15岁组",
+    "gender": "男",
+    "time": "00:33.01",
+    "holderName": "张某某"
+  },
+  { "tag": "MR", "ageGroup": "14-15岁组", "gender": "女", "time": "00:35.22", "holderName": "李某" }
+]</pre>
+<p><b>过滤逻辑</b>: 按 (eventName, gender, ageGroup) 三维过滤:</p>
+<ul>
+  <li>gender = "男女" → 同时包含 男 / 女 / 男女 三类记录</li>
+  <li>ageGroup 非空 → 用 MatchesAgeGroup 区间匹配 (含 "12~15" ⊇ "12-13"+"14-15")</li>
+  <li>排序: RecordType 优先级 (WR > OR > AR > AJR > NR > <b>MR</b> > 市R > CR) + 年龄组注册顺序</li>
+</ul>
+<p>display.html 在 比赛视图 / 组成绩 / 公布成绩 / 总排名 4 个视图的项目名称下渲染 inline 金色虚线行。</p>
+
+<h3>2. swimmer.gender <span class="badge-new">新</span></h3>
+<p>per-swimmer 字段添加, 用于 display.html 大屏分段标签 (虽然 U 系列规则下组内单一排名后已不再需要分段)。</p>
+
+<h3>3. swimmer.ageGroup <span class="badge-new">新</span></h3>
+<p>per-swimmer (= swimmer.AgeCategory) 携带, 公布成绩广播之前 缺失, 现补齐。</p>
+
+<h3>4. swimmer.recordNote <span class="badge-new">新</span></h3>
+<p>per-swimmer 的破/平纪录标识 ("MR" / "=MR" / "WR/MR" 等), 公布成绩广播之前缺失, 现补齐。</p>
+
+<h2>三、JSON Schema 扩展</h2>
+
+<h3>1. CompetitionPackage.CompetitionRule <span class="badge-new">新</span></h3>
+<pre>"CompetitionRule": "U系列青少年游泳比赛"</pre>
+<p>取值: "国际比赛" / "国内大赛" / <b>"U系列青少年游泳比赛"</b> (默认)</p>
+
+<h3>2. ScheduleItem.EvNum <span class="badge-new">新</span></h3>
+<pre>{
+  "SessionNumber": 2,
+  "EvNum": 11,                  // 项次 (按场重置 1-N)
+  "AgeGroup": "16-18岁组",
+  "EventName": "50米蛙泳",
+  "Gender": "男女",
+  "Stage": "决赛",
+  ...
+}</pre>
+<p>从原始 .xls 秩序单的 "N . XXX" 直接读取, 按场重置。如缺失 (EvNum=0), BuildEventNumberMap 回退到跨场连续编号。</p>
+
+<h3>3. RelayTeam.Members 类型保持兼容</h3>
+<div class="fix"><b>修复</b>: import_v4 之前误写为 string[], 与 C# <code>ObservableCollection&lt;Swimmer&gt;</code> 不兼容, 导致加载赛事崩溃。现 Members 留空 <code>[]</code>, 4 棒姓名转 <code>Legs: [RelayLeg]</code> 对象。</div>
+
+<h2>四、男女并项 (U系列规则) 影响</h2>
+
+<h3>schedule.Gender = "男女"</h3>
+<p>schedule 项目 Gender 可为 "男女" (除原有 "男" / "女" / "混合" 外)。表示该项目允许男女在同组比赛。</p>
+
+<h3>swimmer.Gender 不变</h3>
+<p>个人 swimmer 的 Gender 仍是真实的 "男" / "女"。仅接力队 TEAM swimmer 条目 Gender 可为 "男女" (整队作一条 swimmer)。</p>
+
+<h3>SgMatch / GenderMatchesIncludingMixed 助手</h3>
+<p>新增 <code>SgMatch(swimmerGender, filterGender)</code>:</p>
+<ul>
+  <li>filterGender == "男女" → swimmerGender ∈ {"男", "女", "男女"} 都过</li>
+  <li>其它 → 严格相等</li>
+</ul>
+<p>用于 30+ 个原本严格相等的 lookup 点 (出发表, 组成绩, 总排名, heat 切换, 报名查询 等)。</p>
+
+<h3>MatchesAgeGroup 区间</h3>
+<p>schedule.AgeGroup 可为区间 "12~15岁组" (含半角 ~ / 全角 ～):</p>
+<pre>// 通过 swimmer.AgeCategory ∈ {12-13岁组, 14-15岁组} 都算属于 "12~15岁组"
+TryParseAgeRange("12~15岁组")  → [12, 15]
+TryParseAgeRange("12-13岁组")  → [12, 13]
+gLo (12) ≤ sLo (12) && sHi (13) ≤ gHi (15) → match</pre>
+
+<h2>五、CheckRecords 修复 (关键)</h2>
+
+<div class="fix"><b>重要</b>: 男女并项事件下破纪录之前漏检。</div>
+
+<p><b>旧</b>: <code>record.Gender != _currentGender</code> — 男女并项时 _currentGender = "男女", 永远不匹配 "男" / "女" 记录, 19 个并项项目的所有破纪录都不被识别。</p>
+
+<p><b>新</b>: 用 <code>swimmer.Gender</code> (单一性别) 对比 record.Gender:</p>
+<pre>string swGender = swimmer.Gender ?? "";
+foreach (var record in _records) {
+    if (record.Gender != swGender) continue;
+    ...
+}</pre>
+
+<p>同款修复:</p>
+<ul>
+  <li><code>UpdateRecordsAfterConfirm</code> (line 5717)</li>
+  <li><code>LookupRecordReferences</code> (line 19866): gender=="男女" 时返回 男+女+男女 三类</li>
+</ul>
+
+<h2>六、DSQ 分类清除 (新规则) <span class="badge-new">新</span></h2>
+
+<p><b>个人项目 DSQ</b>:</p>
+<pre>res.Splits.Clear();
+res.FinalTime = 0;
+res.TimeInSeconds = 0;
+res.StartingBlockTime = 0;</pre>
+
+<p><b>接力项目 DSQ</b> (需要弹窗选犯规棒次 N):</p>
+<pre>// 解析 perLegMeters from EventName (4x50米 → 50; 4x100米 → 100)
+int keepDist = (violationLeg - 1) * perLegMeters;
+// 保留 Distance ≤ keepDist 的分段, 清其余
+res.Splits.RemoveAll(sp => sp.Distance > keepDist);
+// 清第 N 棒及之后的反应时
+res.LegReactionTimes[N-1..] = 0;
+res.FinalTime = 0;</pre>
+
+<h2>七、BuildEventNumberMap 改进</h2>
+
+<p>之前 keyed by <code>(Gender|EventName)</code> 2 维 + 跨场连续编号。</p>
+<p>新: 优先 <code>ScheduleItem.EvNum</code>, fallback 才计数:</p>
+<pre>foreach (var s in _schedule) {
+    string key3 = $"{s.Gender}|{s.EventName}|{s.AgeGroup}";  // 3 维
+    int num = (s.EvNum > 0) ? s.EvNum : ++fallbackN;
+    map[key3] = num;
+    // 兼容旧 2-part key (调用方可能用)
+    string key2 = $"{s.Gender}|{s.EventName}";
+    if (!map.ContainsKey(key2)) map[key2] = num;
+}</pre>
+
+<p>9 处 lookup 点更新, 先查 3-part 再退 2-part:</p>
+<ul>
+  <li>GetStatusData currentEventNumber</li>
+  <li>AutoSaveCurrentHeatTxt / AutoSaveCurrentHeatLog 文件名</li>
+  <li>PublishEventRanking_Click 文件名</li>
+  <li>ExportResultTxt_Click 文件名</li>
+  <li>EXPORT_RESULT_TXT_LIST/BUILD (control.html 远程)</li>
+  <li>CollectHeatRowsForExport / CollectEventInfoForExport (Excel)</li>
+  <li>BuildScheduleHtml (竞赛日程打印)</li>
+  <li>报名表 (BuildManualHtml): 只用 3-part keys 避免重复</li>
+  <li>EventNumberLabel helper 加 4-arg 重载</li>
+</ul>
+
+<h2>八、性能优化</h2>
+
+<h3>BuildScheduleTree</h3>
+<p>1122 swimmer × 78 项目 时 <code>IsHeatConfirmed</code> 每次都对全部 _swimmers 做 Where 遍历, 234 次 heat check = 262K 次迭代。</p>
+<p>新增 <code>IsHeatConfirmedFast(..., Dictionary&lt;string, List&lt;Swimmer&gt;&gt; idx)</code> 重载, 函数开头一次性构建 EventName → swimmers 索引。<b>80× 加速</b>。</p>
+
+<h3>RefreshSwimmerStages</h3>
+<p>同款: 1122 × 78 = 87K → 6.7K。<b>13× 加速</b>。</p>
+
+<h2>九、display.html 渲染兼容</h2>
+
+<h3>男女并项 不再拆段</h3>
+<p>之前组内按 (性别, 时间) 二级排序, 显蓝/粉分段标签。现按 U 系列规则: 组内单一排名按时间。display.html 的 <code>renderHeatResult / renderPublishedResult / showHeatResultPage</code> 均回退到 <code>(a.rank||99) - (b.rank||99)</code> 单键排序, 无分段。</p>
+
+<h3>项目名称下 MR 行</h3>
+<p>新增 <code>#applicableRecordsRow</code> div 在 raceView 内, 由 <code>_renderApplicableRecords(records)</code> 渲染:</p>
+<pre>&lt;div class="ar-item"&gt;
+  &lt;span class="ar-tag"&gt;MR14-15&lt;/span&gt;
+  &lt;span class="ar-time"&gt;00:33.01&lt;/span&gt;
+&lt;/div&gt;</pre>
+
+<h3>代表队列显中文全名</h3>
+<div class="fix"><b>修复</b>: <code>_refreshRaceRows</code> 之前 <code>sw.countryShort || sw.country</code> 优先英文短码 (TTYYD); 现 <code>sw.country || sw.countryShort</code> 优先中文 (天体游泳队)。</div>
+
+<h2>十、版本兼容性</h2>
+
+<table>
+  <tr><th>客户端</th><th>v2026.05.20 服务器</th><th>v2026.06.06 服务器</th></tr>
+  <tr><td>v2026.05.20 display.html</td><td>正常</td><td>正常 (新字段忽略)</td></tr>
+  <tr><td>v2026.06.06 display.html</td><td>正常 (MR行/applicableRecords 缺失, 不显)</td><td>正常</td></tr>
+  <tr><td>v2026.05.20 race_control</td><td>正常</td><td>正常 (新命令未用)</td></tr>
+  <tr><td>v2026.06.06 control.html</td><td>正常 (EXPORT_RESULT_TXT 命令在旧服务器无响应)</td><td>正常</td></tr>
+</table>
+
+<p><b>建议</b>: 4 端统一升级到 v2026.06.06 以使用全部新功能。</p>
+
+<div class="footer">
+游泳计时系统通讯协议变更说明 v2026.06.06 &nbsp;|&nbsp; 2026-06-06
+</div>
+
+</body>
+</html>
