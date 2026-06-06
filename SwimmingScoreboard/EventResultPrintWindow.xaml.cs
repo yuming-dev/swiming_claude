@@ -84,7 +84,8 @@ namespace SwimmingScoreboard
         private static bool TryParseAgeRangeS(string s, out int lo, out int hi) {
             lo = hi = 0;
             if (string.IsNullOrEmpty(s)) return false;
-            var m = System.Text.RegularExpressions.Regex.Match(s, @"(\d+)\s*-\s*(\d+)\s*岁组");
+            // 2026-06-05 加 全角 ~ (跨年龄并项 '12~15岁组') 和 半角 ~
+            var m = System.Text.RegularExpressions.Regex.Match(s, @"(\d+)\s*[-~~]\s*(\d+)\s*岁组");
             if (!m.Success) {
                 var m2 = System.Text.RegularExpressions.Regex.Match(s, @"(\d+)\s*岁组");
                 if (m2.Success) { int a; if (int.TryParse(m2.Groups[1].Value, out a)) { lo = hi = a; return true; } }

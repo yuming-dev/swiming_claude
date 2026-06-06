@@ -387,6 +387,7 @@ foreach ($pe in $events) {
         Date = $pe.SessionDate; Time = $pe.SessionTime
         AgeGroup = $age; EventName = $evName; Gender = $schedGenderNorm
         Stage = $pe.Stage; HeatCount = $pe.HeatCount; IsRelay = ($evName -like '*接力*')
+        EvNum = $pe.EvNum   # 2026-06-05 项次 (= .xls 'N . XXX' 的 N, 按场重置 1)
         DisplayText = "$schedGenderNorm $age $evName $($pe.Stage)"
     })) | Out-Null
 

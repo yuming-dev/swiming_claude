@@ -1621,7 +1621,8 @@ function _refreshRaceRows() {
 
         // 姓名 / 代表队列
         // 接力：左列=代表队(窄)，右列= 4 棒+姓名同列显示, 当前棒高亮金色 (按当前圈数推算, 跟随加减圈刷新)
-        var teamDisplay = sw.countryShort || sw.country || '';
+        // 2026-06-05 代表队 显中文全名 (country), 不再用 countryShort (TTYYD 等英文码)
+        var teamDisplay = sw.country || sw.countryShort || '';
         var col1Html, col2Html;
         if (relay) {
             col1Html = teamDisplay;

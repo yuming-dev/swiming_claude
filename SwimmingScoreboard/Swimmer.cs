@@ -1286,10 +1286,16 @@ namespace SwimmingScoreboard
         private string _stage;
         private int _heatCount;
         private bool _isRelay;
+        // 2026-06-05 项次 (= 原始 .xls 秩序单里 'N . 男女...' 的 N, 按场次重置 1)
+        private int _evNum;
 
         public int SessionNumber {
             get { return _sessionNumber; }
             set { _sessionNumber = value; OnPropertyChanged("SessionNumber"); }
+        }
+        public int EvNum {
+            get { return _evNum; }
+            set { _evNum = value; OnPropertyChanged("EvNum"); }
         }
         public string SessionName {
             get { return _sessionName; }

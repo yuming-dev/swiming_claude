@@ -1521,7 +1521,9 @@ namespace SwimmingScoreboard
                             && s.EventName == parts[2] && s.Stage == parts[3]);
                         int session = sched != null ? sched.SessionNumber : 0;
                         var evtMap2 = BuildEventNumberMap();
-                        int eventNo2; evtMap2.TryGetValue(parts[1] + "|" + parts[2], out eventNo2);
+                        int eventNo2;
+                        if (!evtMap2.TryGetValue(parts[1] + "|" + parts[2] + "|" + parts[0], out eventNo2))
+                            evtMap2.TryGetValue(parts[1] + "|" + parts[2], out eventNo2);
                         string title = string.Format("{0}{1} {2} {3} 第{4}组",
                             string.IsNullOrEmpty(parts[0]) ? "" : (parts[0] + " "),
                             parts[1], parts[2], parts[3], hh);
@@ -1547,7 +1549,9 @@ namespace SwimmingScoreboard
                         var sched = _schedule.FirstOrDefault(s => (s.AgeGroup ?? "") == ag && s.Gender == g && s.EventName == ev && s.Stage == st);
                         int session = sched != null ? sched.SessionNumber : 0;
                         var evtMap3 = BuildEventNumberMap();
-                        int eventNo3; evtMap3.TryGetValue(g + "|" + ev, out eventNo3);
+                        int eventNo3;
+                        if (!evtMap3.TryGetValue(g + "|" + ev + "|" + ag, out eventNo3))
+                            evtMap3.TryGetValue(g + "|" + ev, out eventNo3);
                         string content = BuildResultTxtContent(ag, g, ev, st, h);
                         string fileName = string.Format("{0:D2}-{1:D2}-{2:D2}.txt", session, eventNo3, h);
                         socket.Send(JsonConvert.SerializeObject(new {
@@ -2337,7 +2341,11 @@ namespace SwimmingScoreboard
                 try {
                     var evtMap = BuildEventNumberMap();
                     int no;
-                    if (evtMap.TryGetValue((_currentGender ?? "") + "|" + _currentEvent, out no)) currentEventNumber = no;
+                    // 2026-06-05 先按 性别|项目|年龄组 三部分 查, 找不到再降级到 性别|项目
+                    string k3 = (_currentGender ?? "") + "|" + _currentEvent + "|" + (_currentAgeGroup ?? "");
+                    string k2 = (_currentGender ?? "") + "|" + _currentEvent;
+                    if (evtMap.TryGetValue(k3, out no)) currentEventNumber = no;
+                    else if (evtMap.TryGetValue(k2, out no)) currentEventNumber = no;
                 } catch { }
             }
 
@@ -2558,9 +2566,11 @@ namespace SwimmingScoreboard
             var result = new List<Swimmer>();
             foreach (var s in _swimmers) {
                 if (s.EventName != _currentEvent) continue;
-                // 性别匹配：兼容"男"/"男子"等格式; 2026-06-04 加 男女 并项: 男 + 女 都过
+                // 性别匹配：兼容"男"/"男子"等格式;
+                // 2026-06-04 加 男女 并项: 男 + 女 都过
+                // 2026-06-05 修复 接力 男女: swimmer.Gender 本身 = "男女" (接力 TEAM swimmer 条目) 也要过
                 bool genderOk;
-                if (_currentGender == "男女") genderOk = (s.Gender == "男" || s.Gender == "女");
+                if (_currentGender == "男女") genderOk = (s.Gender == "男" || s.Gender == "女" || s.Gender == "男女");
                 else genderOk = s.Gender == _currentGender || s.Gender.StartsWith(_currentGender) || _currentGender.StartsWith(s.Gender);
                 if (!genderOk) continue;
                 // 组别匹配：当前赛程项有指定组别时只取该组的运动员（避免男甲+男乙并在同一个第1组里）
@@ -6697,7 +6707,7 @@ namespace SwimmingScoreboard
             // 计算该阶段总组数
             _totalHeats = _swimmers.Count(s =>
                 s.EventName == _currentEvent &&
-                (_currentGender == "男女" ? (s.Gender == "男" || s.Gender == "女") : s.Gender.StartsWith(_currentGender)) &&
+                (_currentGender == "男女" ? (s.Gender == "男" || s.Gender == "女" || s.Gender == "男女") : s.Gender.StartsWith(_currentGender)) &&
                 s.CurrentStage == _currentStage
             );
             if (_totalHeats > 0 && _poolConfig.LaneCount > 0) {
@@ -6902,7 +6912,7 @@ namespace SwimmingScoreboard
 
             var q = _swimmers.Where(s =>
                 s.EventName == eventName &&
-                (gender == "男女" ? (s.Gender == "男" || s.Gender == "女") : s.Gender.StartsWith(gender)) &&
+                (gender == "男女" ? (s.Gender == "男" || s.Gender == "女" || s.Gender == "男女") : s.Gender.StartsWith(gender)) &&
                 MatchesAgeGroup(s, ageGroup) &&
                 s.CurrentStage == stage &&
                 s.Heat > 0);
@@ -8624,22 +8634,39 @@ namespace SwimmingScoreboard
             Broadcast();
         }
 
-        // 2026-06-05 大屏 项目名称下 inline 纪录行 数据源 (本 event + gender 匹配的纪录, 按组别罗列):
+        // 2026-06-05 大屏 项目名称下 inline 纪录行 数据源 (本 event + gender 匹配的纪录):
         //   gender="男女" → 男 + 女 + 男女 三类记录都列
-        //   返回 [{tag, ageGroup, time}, ...] 按 RecordType 优先级 + 年龄组顺序
+        //   ageGroup 非空 → 只列对应组别 (含子区间, 如 schedule '12~15岁组' 覆盖 12-13 + 14-15)
+        //   返回 [{tag, ageGroup, gender, time, holderName}, ...] 按 RecordType 优先级 + 年龄组顺序
+        // 2026-06-05 默认无 ageGroup 限制 (兼容调用): 用 _currentAgeGroup
         private List<object> BuildApplicableRecords(string eventName, string gender) {
+            return BuildApplicableRecords(eventName, gender, _currentAgeGroup);
+        }
+        private List<object> BuildApplicableRecords(string eventName, string gender, string ageGroup) {
             var list = new List<object>();
             if (string.IsNullOrEmpty(eventName) || _records == null || _records.Count == 0) return list;
             Func<string, bool> gOk;
             if (gender == "男女") gOk = g => g == "男" || g == "女" || g == "男女";
             else if (string.IsNullOrEmpty(gender)) gOk = g => true;
             else gOk = g => g == gender;
+            // 年龄过滤: 优先用 ageGroup, 用 MatchesAgeGroup 处理区间 (12~15 覆盖 12-13 + 14-15);
+            //   ageGroup 为空 / "全部" / "不限" → 不限
+            Func<string, bool> aOk;
+            if (string.IsNullOrEmpty(ageGroup) || ageGroup == "全部" || ageGroup == "不限") aOk = a => true;
+            else aOk = a => {
+                if (string.IsNullOrEmpty(a)) return false;
+                if (a == ageGroup) return true;
+                int sLo, sHi, gLo, gHi;
+                if (TryParseAgeRange(ageGroup, out gLo, out gHi) && TryParseAgeRange(a, out sLo, out sHi))
+                    return gLo <= sLo && sHi <= gHi;
+                return false;
+            };
             // 年龄顺序 (按 _ageGroups 注册顺序)
             var ageOrder = new Dictionary<string, int>();
             for (int i = 0; i < _ageGroups.Count; i++) ageOrder[_ageGroups[i].Name] = i;
             // RecordType 优先级
             var typeOrder = new Dictionary<string, int> { {"世界纪录",1},{"奥运纪录",2},{"亚洲纪录",3},{"亚洲青年纪录",4},{"全国纪录",5},{"甘肃省纪录",6},{"省纪录",6} };
-            var filtered = _records.Where(r => r != null && r.Time > 0 && r.EventName == eventName && gOk(r.Gender ?? "")).ToList();
+            var filtered = _records.Where(r => r != null && r.Time > 0 && r.EventName == eventName && gOk(r.Gender ?? "") && aOk(r.AgeGroup ?? "")).ToList();
             // 排序: 按 RecordType 优先级 + 年龄组顺序
             filtered.Sort((a, b) => {
                 int ta = 99, tb = 99;
@@ -8692,7 +8719,9 @@ namespace SwimmingScoreboard
                     && s.Stage == _currentStage && (s.AgeGroup ?? "") == (_currentAgeGroup ?? ""));
                 int session = sched != null ? sched.SessionNumber : 0;
                 var evtMap = BuildEventNumberMap();
-                int eventNo = 0; evtMap.TryGetValue((_currentGender ?? "") + "|" + (_currentEvent ?? ""), out eventNo);
+                int eventNo = 0;
+                if (!evtMap.TryGetValue((_currentGender ?? "") + "|" + (_currentEvent ?? "") + "|" + (_currentAgeGroup ?? ""), out eventNo))
+                    evtMap.TryGetValue((_currentGender ?? "") + "|" + (_currentEvent ?? ""), out eventNo);
                 int saved = 0;
                 foreach (dynamic sub in subList) {
                     string subGender = sub.gender; string subAge = sub.ageGroup;
@@ -9683,7 +9712,10 @@ namespace SwimmingScoreboard
                     && s.Stage == _currentStage && (s.AgeGroup ?? "") == (_currentAgeGroup ?? ""));
                 int session = sched != null ? sched.SessionNumber : 0;
                 var evtMap = BuildEventNumberMap();
-                int eventNo = 0; evtMap.TryGetValue((_currentGender ?? "") + "|" + (_currentEvent ?? ""), out eventNo);
+                // 2026-06-05 先查 3-part key (含年龄组), 再降级 2-part
+                int eventNo = 0;
+                if (!evtMap.TryGetValue((_currentGender ?? "") + "|" + (_currentEvent ?? "") + "|" + (_currentAgeGroup ?? ""), out eventNo))
+                    evtMap.TryGetValue((_currentGender ?? "") + "|" + (_currentEvent ?? ""), out eventNo);
                 string fileName = string.Format("{0:D2}-{1:D2}-{2:D2}.txt", session, eventNo, _currentHeat);
                 string fullPath = IOPath.Combine(dir, fileName);
                 string text = BuildResultTxtContent(_currentAgeGroup, _currentGender, _currentEvent, _currentStage, _currentHeat);
@@ -14692,7 +14724,7 @@ namespace SwimmingScoreboard
                     heatDisplay = heatDisplay,
                     swimmers = heatSwimmers,
                     poolConfig = new { lanes = _poolConfig.LaneCount },
-                    applicableRecords = BuildApplicableRecords(eventName, gender)   // 2026-06-05 项目名称下 纪录行
+                    applicableRecords = BuildApplicableRecords(eventName, gender, schedItem != null ? schedItem.AgeGroup : null)   // 2026-06-05 项目名称下 纪录行 (按当前 schedule 组别过滤, 只显本组的 MR)
                 }
             };
             string json = Newtonsoft.Json.JsonConvert.SerializeObject(publishData);
@@ -17454,9 +17486,9 @@ namespace SwimmingScoreboard
         private static bool TryParseAgeRange(string s, out int lo, out int hi) {
             lo = hi = 0;
             if (string.IsNullOrEmpty(s)) return false;
-            var m = System.Text.RegularExpressions.Regex.Match(s, @"(\d+)\s*-\s*(\d+)\s*岁组");
+            // 2026-06-05 加 全角波浪号 ~ (.xls 跨年龄并项写法 '12~15岁组') 和 半角 ~ 支持
+            var m = System.Text.RegularExpressions.Regex.Match(s, @"(\d+)\s*[-~~]\s*(\d+)\s*岁组");
             if (!m.Success) {
-                // 兼容 "X岁组" 单年龄
                 var m2 = System.Text.RegularExpressions.Regex.Match(s, @"(\d+)\s*岁组");
                 if (m2.Success) {
                     int a; if (int.TryParse(m2.Groups[1].Value, out a)) { lo = hi = a; return true; }
@@ -17474,7 +17506,8 @@ namespace SwimmingScoreboard
             string sg = swimmerGender ?? "";
             if (filterGender == "混合") return sg == "混合";
             // 2026-06-04 男女 并项: 选 男女 时, 男 + 女 都算 (青少年并项个人项目)
-            if (filterGender == "男女") return sg == "男" || sg == "女";
+            // 2026-06-05 加 男女: 接力 TEAM swimmer 条目 Gender 本身就是 '男女'
+            if (filterGender == "男女") return sg == "男" || sg == "女" || sg == "男女";
             // 选 男 或 女 时, 同性别 + 混合 都算
             return sg == filterGender || sg == "混合";
         }
@@ -17483,7 +17516,8 @@ namespace SwimmingScoreboard
         //   gender == "男女" 时, swimmer 是 男 或 女 都匹配 (并项项目)
         //   其它情况: 严格相等 (维持旧行为)
         private static bool SgMatch(string swimmerGender, string filterGender) {
-            if (filterGender == "男女") return swimmerGender == "男" || swimmerGender == "女";
+            // 2026-06-05 加 男女: 接力 TEAM swimmer 条目 Gender 本身就是 '男女'
+            if (filterGender == "男女") return swimmerGender == "男" || swimmerGender == "女" || swimmerGender == "男女";
             return swimmerGender == filterGender;
         }
 
@@ -18412,7 +18446,8 @@ namespace SwimmingScoreboard
                 string gender = schedItem.Gender, ev = schedItem.EventName, stage = schedItem.Stage;
                 bool isRelay = ev.Contains("接力");
                 int evNo;
-                evtMap.TryGetValue((gender ?? "") + "|" + (ev ?? ""), out evNo);
+                if (!evtMap.TryGetValue((gender ?? "") + "|" + (ev ?? "") + "|" + (ageGroup ?? ""), out evNo))
+                    evtMap.TryGetValue((gender ?? "") + "|" + (ev ?? ""), out evNo);
                 string period = ParseSessionPeriod(schedItem.Time);
                 foreach (var s in _swimmers) {
                     if (!SgMatch(s.Gender, gender) || s.EventName != ev) continue;
@@ -18462,7 +18497,8 @@ namespace SwimmingScoreboard
             var list = new List<HeatExcelService.EventInfo>();
             foreach (var s in _schedule) {
                 int n;
-                evtMap.TryGetValue((s.Gender ?? "") + "|" + (s.EventName ?? ""), out n);
+                if (!evtMap.TryGetValue((s.Gender ?? "") + "|" + (s.EventName ?? "") + "|" + (s.AgeGroup ?? ""), out n))
+                    evtMap.TryGetValue((s.Gender ?? "") + "|" + (s.EventName ?? ""), out n);
                 list.Add(new HeatExcelService.EventInfo {
                     Number = n, AgeGroup = s.AgeGroup ?? "", Gender = s.Gender ?? "",
                     EventName = s.EventName ?? "", Stage = s.Stage ?? "",
@@ -18797,7 +18833,8 @@ namespace SwimmingScoreboard
                 int session = sched != null ? sched.SessionNumber : 0;
                 var evtMap = BuildEventNumberMap();
                 int eventNo = 0;
-                evtMap.TryGetValue((picked.Gender ?? "") + "|" + (picked.EventName ?? ""), out eventNo);
+                if (!evtMap.TryGetValue((picked.Gender ?? "") + "|" + (picked.EventName ?? "") + "|" + (picked.AgeGroup ?? ""), out eventNo))
+                    evtMap.TryGetValue((picked.Gender ?? "") + "|" + (picked.EventName ?? ""), out eventNo);
                 string fileName = string.Format("{0:D2}-{1:D2}-{2:D2}.txt", session, eventNo, picked.Heat);
 
                 // 默认目录: AppDomain/Documents/成绩txt; 让用户改路径
@@ -19243,7 +19280,7 @@ namespace SwimmingScoreboard
                 foreach (var s in session) {
                     sb.AppendFormat("<tr><td>{0}</td><td><b>{1}</b></td><td>{2}</td><td>{3}</td><td style='text-align:left;'>{4}</td><td>{5}</td><td>{6}</td></tr>",
                         s.Time,
-                        EventNumberLabel(evtMap, s.Gender, s.EventName),
+                        EventNumberLabel(evtMap, s.Gender, s.EventName, s.AgeGroup),
                         s.Gender,
                         s.AgeGroup ?? "",
                         s.EventName,
@@ -19259,12 +19296,20 @@ namespace SwimmingScoreboard
         }
 
         // 项目编号：基于赛程顺序为每个 (性别, 项目) 分配唯一编号；不在赛程内的项目按字典序排在末尾
+        // 2026-06-05 项次映射: 优先用 ScheduleItem.EvNum (从原 .xls 秩序单读, 按场重置 1);
+        //   keyed by (Gender|EventName|AgeGroup) — 不同年龄组同性别/项目 应有不同项次;
+        //   fallback (EvNum=0 或没 schedule): 跨场连续编号
         private Dictionary<string, int> BuildEventNumberMap() {
             var map = new Dictionary<string, int>();
-            int n = 0;
+            int fallbackN = 0;
             foreach (var s in _schedule) {
-                string key = (s.Gender ?? "") + "|" + (s.EventName ?? "");
-                if (!map.ContainsKey(key)) map[key] = ++n;
+                string key = (s.Gender ?? "") + "|" + (s.EventName ?? "") + "|" + (s.AgeGroup ?? "");
+                if (map.ContainsKey(key)) continue;
+                int num = (s.EvNum > 0) ? s.EvNum : ++fallbackN;
+                map[key] = num;
+                // 兼容旧 keying (没 AgeGroup), 调用方可能用 'Gender|EventName' 查
+                string keyOld = (s.Gender ?? "") + "|" + (s.EventName ?? "");
+                if (!map.ContainsKey(keyOld)) map[keyOld] = num;
             }
             // 报名表中存在但赛程未列出的项目
             var extras = _swimmers
@@ -19274,14 +19319,22 @@ namespace SwimmingScoreboard
                 .Select(x => x.G + "|" + x.E)
                 .Where(k => !map.ContainsKey(k))
                 .OrderBy(k => k);
-            foreach (var k in extras) map[k] = ++n;
+            foreach (var k in extras) map[k] = ++fallbackN;
             return map;
         }
 
+        // 2026-06-05 优先 3-part key (含年龄组), 退到 2-part (兼容旧调用)
         private static string EventNumberLabel(Dictionary<string, int> map, string gender, string eventName) {
-            string k = (gender ?? "") + "|" + (eventName ?? "");
+            return EventNumberLabel(map, gender, eventName, null);
+        }
+        private static string EventNumberLabel(Dictionary<string, int> map, string gender, string eventName, string ageGroup) {
             int no;
-            return map.TryGetValue(k, out no) ? no.ToString() : "-";
+            if (!string.IsNullOrEmpty(ageGroup)) {
+                string k3 = (gender ?? "") + "|" + (eventName ?? "") + "|" + ageGroup;
+                if (map.TryGetValue(k3, out no)) return no.ToString();
+            }
+            string k2 = (gender ?? "") + "|" + (eventName ?? "");
+            return map.TryGetValue(k2, out no) ? no.ToString() : "-";
         }
 
         private string BuildManualHtml() {
@@ -19569,23 +19622,26 @@ namespace SwimmingScoreboard
             sb.AppendFormat("<h1>{0}</h1>", compName);
             sb.AppendFormat("<h3><span class='section-tag'>{0}</span>各项目报名表</h3>", CnNum(++sectN));
             // 按项目编号排序展示
-            var sortedKeys = evtMap.OrderBy(kv => kv.Value).ToList();
+            // 2026-06-05 只用 3-part keys (Gender|EventName|AgeGroup) 避免与 2-part 兼容键 双显
+            var sortedKeys = evtMap.Where(kv => kv.Key.Split('|').Length == 3).OrderBy(kv => kv.Value).ToList();
             int blockIdx = 0;
             foreach (var kv in sortedKeys) {
                 var parts = kv.Key.Split('|');
                 string evGender = parts[0];
                 string evName = parts[1];
+                string evAge = parts.Length > 2 ? parts[2] : "";
                 bool manRelay = evName.IndexOf("接力", StringComparison.Ordinal) >= 0;
                 var entries = _swimmers
                     .Where(s => s.Gender == evGender && s.EventName == evName)
+                    .Where(s => string.IsNullOrEmpty(evAge) || (s.AgeCategory ?? "") == evAge)
                     .Where(s => !manRelay || !IsRelayMemberNote(s.Notes)) // 接力只显示队伍代表
                     .ToList();
                 if (entries.Count == 0) continue;
 
                 blockIdx++;
                 if (blockIdx > 1 && blockIdx % 4 == 1) sb.Append("<div class='page-break'></div><div class='page'>");
-                sb.AppendFormat("<h4>项目 {0}：{1} {2}　<span style='font-weight:normal; font-size:14px; color:#64748b;'>报名 {3} 人{4}</span></h4>",
-                    kv.Value, evGender, evName, entries.Count, manRelay ? "/队" : "");
+                sb.AppendFormat("<h4>项目 {0}：{1} {2} {3}　<span style='font-weight:normal; font-size:14px; color:#64748b;'>报名 {4} 人{5}</span></h4>",
+                    kv.Value, evGender, evAge, evName, entries.Count, manRelay ? "/队" : "");
                 sb.AppendFormat("<table><tr><th width='50'>序号</th><th width='70'>号码</th><th width='110'>{0}</th><th width='110'>{1}</th><th width='80'>报名成绩</th><th width='80'>组别</th></tr>",
                     RelayCol1Header(manRelay), RelayCol2Header(manRelay));
                 int rowI = 0;
