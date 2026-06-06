@@ -109,10 +109,16 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 .lane-row.relay .swimmer-name { flex: 6; }   /* relay 时 swimmer-name DOM 实际承载代表队 (窄) */
 .lane-row.relay .swimmer-team { flex: 28; white-space: normal; line-height: 1.25; text-align: center; }   /* relay 时 swimmer-team DOM 承载 4 棒+姓名, 居中 */
 
-/* 2026-06-06 组排名 行高/间距 与 比赛视图 .lane-row (flex:1) 完全一致, 不再固定 7.5vh.
-   原 7.5vh 是为了在少人比赛时避免行拉太高, 但导致 组排名 视觉上与 比赛视图 不一致 (行更挤).
-   现 flex:1 撑满容器, 10 行平均分配. 超过 10 行 仍 renderHeatResult 自动翻页. */
-.lane-row.fixed-row { flex: 1; min-height: 0; }
+/* 2026-06-06 组成绩 (showHeatResultPage) 行高: 跟 比赛视图 .lane-row 实际像素高一致, 而不是
+   "flex:1 撑满". 原因: 比赛视图 总是 10 行 (空泳道也占位), flex:1 平分 = 每行 7.15vh; 而
+   组成绩 可能只有 3-5 行参赛者, flex:1 会把每行拉得很高 (1/3 容器 = ~25vh), 跟 比赛视图 不一致.
+   正确做法: 固定每行高度 = 比赛视图 单行高 (7.15vh 含 records bar / 7.45vh 不含), 行数少时
+   下方留空白. 与 .list-table td (总排名) calc 公式同款. */
+.lane-row.fixed-row {
+    flex: 0 0 auto;
+    height: calc((87vh - 2vh - 7vh - 3vh - 3.5vh) / 10);   /* = 7.15vh, 同 比赛视图 lane-row */
+    min-height: 0;
+}
 
 /* 列表视图 - 2026-06-03 page-header 加到 13vh 后, list-container 跟着减到 87vh
    2026-06-03 padding-top 2vh → 1vh (= .race-view 同款), 让 总排名 row1↔row2 间距 = 比赛视图 */
