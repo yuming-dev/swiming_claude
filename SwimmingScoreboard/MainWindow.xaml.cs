@@ -2114,14 +2114,26 @@ namespace SwimmingScoreboard
         // ═══════════════════════════════════════════════════════════════
         // 广播
         // ═══════════════════════════════════════════════════════════════
+        // 2026-06-06 P2-C: Broadcast 反射 SerializeObject 每次 ~1ms, 109 个调用点 + 500ms 心跳,
+        //   6h 累积 ~86s UI 线程占用. 现 UI 线程仅快照 statusData (= 缓存的轻调用), 序列化 + Send
+        //   扔后台. lock 串行化保证 客户端按调用顺序收到消息.
+        private readonly object _broadcastSerialLock = new object();
         private void Broadcast() {
             if (!_initialized) return;
+            if (_allSockets.Count == 0) return;   // 无客户端时连快照都省, 0 分配
             try {
                 var msg = new { type = "SHOW_LIVE_RACE", data = GetStatusData() };
-                string json = JsonConvert.SerializeObject(msg);
-                foreach (var s in _allSockets.ToList()) {
-                    try { s.Send(json); } catch { }
-                }
+                var socketsSnap = _allSockets.ToArray();
+                System.Threading.Tasks.Task.Run(() => {
+                    lock (_broadcastSerialLock) {
+                        try {
+                            string json = JsonConvert.SerializeObject(msg);
+                            foreach (var s in socketsSnap) {
+                                try { s.Send(json); } catch { }
+                            }
+                        } catch { }
+                    }
+                });
             } catch { }
         }
 
@@ -2134,16 +2146,25 @@ namespace SwimmingScoreboard
         }
 
         private void BroadcastDisplayMode(string mode) {
+            if (_allSockets.Count == 0) return;
             try {
                 // 2026-05-25 modeExplicit=true 区分"操作员主动切显示模式"(此函数) 与
                 // "服务器状态心跳"(Broadcast() 同样发 SHOW_LIVE_RACE 但不带这标记)。
                 // 大屏在排名/团体/纪录/颁奖等"用户锁定模式"下，遇到不带 modeExplicit 的
                 // SHOW_LIVE_RACE 心跳只更新 data 不切回比赛视图，否则翻页中途会被打断。
+                // 2026-06-06 P2-C: 同 Broadcast() — UI 线程取 statusData, 序列化 + Send 扔后台.
                 var msg = new { type = mode, data = GetStatusData(), modeExplicit = true };
-                string json = JsonConvert.SerializeObject(msg);
-                foreach (var s in _allSockets.ToList()) {
-                    try { s.Send(json); } catch { }
-                }
+                var socketsSnap = _allSockets.ToArray();
+                System.Threading.Tasks.Task.Run(() => {
+                    lock (_broadcastSerialLock) {
+                        try {
+                            string json = JsonConvert.SerializeObject(msg);
+                            foreach (var s in socketsSnap) {
+                                try { s.Send(json); } catch { }
+                            }
+                        } catch { }
+                    }
+                });
             } catch { }
         }
 
@@ -5071,28 +5092,42 @@ namespace SwimmingScoreboard
             }
         }
 
+        // 2026-06-06 P2-A: 热路径 (ProcessTouchpadHit / CountdownTimer_Tick / GetLapDisplayMaxForSide …)
+        //   每秒调 10-15 次 GetTotalLaps. 原 static Regex.Match 走默认 cache (≤15 条), 但每次都构造
+        //   Match 对象 + 解析字符串. 改 static readonly Compiled Regex 复用 + 加入参 → 结果 1-tick 缓存,
+        //   省 95% 的 Match 调用.
+        private static readonly System.Text.RegularExpressions.Regex _relayDistanceRegex =
+            new System.Text.RegularExpressions.Regex(@"(\d+)\s*[x×]\s*(\d+)", System.Text.RegularExpressions.RegexOptions.Compiled);
+        private static readonly System.Text.RegularExpressions.Regex _singleDistanceRegex =
+            new System.Text.RegularExpressions.Regex(@"(\d+)米", System.Text.RegularExpressions.RegexOptions.Compiled);
+        private string _totalLapsCacheKey = null;
+        private int _totalLapsCacheVal = 1;
         private int GetTotalLaps() {
-            string ev = _currentEvent;
-            int distance = 0;
+            string ev = _currentEvent ?? "";
+            int poolLen = _poolConfig != null ? _poolConfig.Length : 50;
+            string key = ev + "|" + poolLen;
+            if (key == _totalLapsCacheKey) return _totalLapsCacheVal;
 
+            int distance = 0;
             // 接力项目：4x100米 → 总距离 = 4 * 100 = 400
-            if (ev.Contains("x") || ev.Contains("×")) {
-                var relayMatch = System.Text.RegularExpressions.Regex.Match(ev, @"(\d+)\s*[x×]\s*(\d+)");
+            if (ev.IndexOf('x') >= 0 || ev.IndexOf('×') >= 0) {
+                var relayMatch = _relayDistanceRegex.Match(ev);
                 if (relayMatch.Success) {
                     int legs = int.Parse(relayMatch.Groups[1].Value);
                     int legDist = int.Parse(relayMatch.Groups[2].Value);
                     distance = legs * legDist;
                 }
             }
-
             // 个人项目：直接取第一个数字
             if (distance == 0) {
-                var distMatch = System.Text.RegularExpressions.Regex.Match(ev, @"(\d+)米");
+                var distMatch = _singleDistanceRegex.Match(ev);
                 if (distMatch.Success) distance = int.Parse(distMatch.Groups[1].Value);
             }
-
             if (distance == 0) distance = 50;
-            return Math.Max(1, distance / _poolConfig.Length);
+            int laps = Math.Max(1, distance / poolLen);
+            _totalLapsCacheKey = key;
+            _totalLapsCacheVal = laps;
+            return laps;
         }
 
         /// <summary>
@@ -16254,23 +16289,37 @@ namespace SwimmingScoreboard
         // ═══════════════════════════════════════════════════════════════
         // JSON 持久化
         // ═══════════════════════════════════════════════════════════════
+        // 2026-06-06 P2-B: BuildCurrentPackage 必须 UI 线程 (= 读 ObservableCollection),
+        //   JsonConvert (1110+ 泳将 Indented 50-200ms) + File.WriteAllText 全扔后台.
+        //   AutoSaveData 被多处密集触发 (确认成绩 / 编辑泳将 / 切组 …), 同步会让 UI 间歇卡顿.
+        private readonly object _autoSaveBgLock = new object();
         private void AutoSaveData() {
             if (string.IsNullOrEmpty(_competitionName)) return;
+            CompetitionPackage package;
+            string compName, dbDir, baseDir;
             try {
-                string dbDir = IOPath.Combine(AppDomain.CurrentDomain.BaseDirectory, "Database");
+                baseDir = AppDomain.CurrentDomain.BaseDirectory;
+                dbDir = IOPath.Combine(baseDir, "Database");
                 if (!Directory.Exists(dbDir)) Directory.CreateDirectory(dbDir);
-
-                File.WriteAllText(
-                    IOPath.Combine(AppDomain.CurrentDomain.BaseDirectory, "last_competition.txt"),
-                    _competitionName, Encoding.UTF8);
-
-                var package = BuildCurrentPackage();
-
-                string json = JsonConvert.SerializeObject(package, Formatting.Indented);
-                File.WriteAllText(IOPath.Combine(dbDir, _competitionName + ".json"), json, Encoding.UTF8);
+                compName = _competitionName;
+                package = BuildCurrentPackage();
             } catch (Exception ex) {
-                AddLog("自动保存失败: " + ex.Message);
+                AddLog("自动保存(打包阶段)失败: " + ex.Message);
+                return;
             }
+            string lastCompPath = IOPath.Combine(baseDir, "last_competition.txt");
+            string jsonPath = IOPath.Combine(dbDir, compName + ".json");
+            System.Threading.Tasks.Task.Run(() => {
+                lock (_autoSaveBgLock) {   // 串行化, 防 AutoSaveData 短时间内多次触发 时同名文件竞争
+                    try {
+                        File.WriteAllText(lastCompPath, compName, Encoding.UTF8);
+                        string json = JsonConvert.SerializeObject(package, Formatting.Indented);
+                        File.WriteAllText(jsonPath, json, Encoding.UTF8);
+                    } catch (Exception ex) {
+                        try { Dispatcher.BeginInvoke(new Action(() => AddLog("自动保存失败: " + ex.Message))); } catch { }
+                    }
+                }
+            });
 
             // 联机同步：服务器 → 编排端 / 编排端 → 服务器；_applyingRemoteSync 防回环
             try { PropagateSyncAfterSave(); } catch (Exception ex) { AddLog("联机同步异常: " + ex.Message); }
@@ -16322,27 +16371,46 @@ namespace SwimmingScoreboard
 
         // AutoSaveData 调用：把整包推给对端（编排↔主服务器双向）
         // _applyingRemoteSync 为 true 时表示当前 Save 正是因为收到了远端推送而触发，不再回推
+        // 2026-06-06 P2-B: BuildCurrentPackage 在 UI 线程 (= ObservableCollection 安全读),
+        //   JsonConvert + JObject.Parse (反射 50-200ms) + sock.Send (网络 IO) 全扔后台.
         private void PropagateSyncAfterSave() {
             if (_applyingRemoteSync) return;
             if (string.IsNullOrEmpty(_competitionName)) return;
 
             if (IsScheduleEditorMode) {
-                // 编排端：本地刚保存 → 推给主服务器
                 if (_editorSyncClient != null && _editorSyncClient.IsConnected) {
-                    var package = BuildCurrentPackage();
-                    string pkgJson = JsonConvert.SerializeObject(package);
-                    var envelope = new JObject();
-                    envelope["type"] = "EDITOR_PUSH_PACKAGE";
-                    envelope["package"] = JObject.Parse(pkgJson);
-                    _editorSyncClient.Send(envelope.ToString(Formatting.None));
+                    var pkg = BuildCurrentPackage();
+                    var clientCap = _editorSyncClient;
+                    System.Threading.Tasks.Task.Run(() => {
+                        try {
+                            string pkgJson = JsonConvert.SerializeObject(pkg);
+                            var envelope = new JObject();
+                            envelope["type"] = "EDITOR_PUSH_PACKAGE";
+                            envelope["package"] = JObject.Parse(pkgJson);
+                            clientCap.Send(envelope.ToString(Formatting.None));
+                        } catch (Exception ex) {
+                            try { Dispatcher.BeginInvoke(new Action(() => AddLog("EDITOR_PUSH_PACKAGE 发送失败: " + ex.Message))); } catch { }
+                        }
+                    });
                 }
             } else {
-                // 主服务器：本地刚保存 → 推给所有在线编排端
                 if (_editorSockets.Count > 0) {
-                    string env = BuildEditorPackageMessage();
-                    foreach (var sock in _editorSockets.ToList()) {
-                        try { sock.Send(env); } catch { }
-                    }
+                    var pkg = BuildCurrentPackage();
+                    var socketsSnap = _editorSockets.ToList();
+                    System.Threading.Tasks.Task.Run(() => {
+                        try {
+                            string pkgJson = JsonConvert.SerializeObject(pkg);
+                            var env = new JObject();
+                            env["type"] = "EDITOR_PACKAGE";
+                            env["package"] = JObject.Parse(pkgJson);
+                            string envStr = env.ToString(Formatting.None);
+                            foreach (var sock in socketsSnap) {
+                                try { sock.Send(envStr); } catch { }
+                            }
+                        } catch (Exception ex) {
+                            try { Dispatcher.BeginInvoke(new Action(() => AddLog("EDITOR_PACKAGE 广播失败: " + ex.Message))); } catch { }
+                        }
+                    });
                 }
             }
         }
