@@ -15915,6 +15915,10 @@ namespace SwimmingScoreboard
             _schedule.Clear();
             _records.Clear();
             _confirmedHeats.Clear();
+            // 2026-06-08 P3: 新建/切换赛事时同步清 per-lane 事件日志与原始计时日志, 避免上届比赛的
+            //   尾部数据残留 (Ready_Click / Restart_Click 只在同场比赛内换组时清, 跨赛事场景需在此清).
+            _laneEventLog.Clear();
+            if (_rawTimingLog != null) _rawTimingLog.Clear();
 
             // 运动员管理
             if (SwimmerGrid != null) SwimmerGrid.ItemsSource = _swimmers;
@@ -16863,6 +16867,10 @@ namespace SwimmingScoreboard
                 if (!string.IsNullOrEmpty(package.DisplayRecordTypeName)) _displayRecordTypeName = package.DisplayRecordTypeName;
                 if (package.DisplayRecordOptions != null && package.DisplayRecordOptions.Count > 0) _displayRecordOptions = package.DisplayRecordOptions;
                 _confirmedHeats = new HashSet<string>(package.ConfirmedHeats ?? new List<string>());
+                // 2026-06-08 P3: 加载赛事档案时同步清 per-lane 事件日志与原始计时日志 (防御性 — 跨档案切换
+                //   时, 上一档的尾部日志缓冲不应残留. Ready/Restart 路径已在同场比赛换组时清, 加载档案是另一入口.)
+                _laneEventLog.Clear();
+                if (_rawTimingLog != null) _rawTimingLog.Clear();
 
                 _swimmers.Clear();
                 if (package.Swimmers != null) {
