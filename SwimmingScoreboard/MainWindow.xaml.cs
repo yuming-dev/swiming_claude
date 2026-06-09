@@ -294,7 +294,43 @@ namespace SwimmingScoreboard
             RefreshResultGrid();
             // 2026-06-06 Ctrl+0..9 全局键盘快捷键: 跳第 N 道圈 (= 应急用, 替代鼠标点击触发跳圈)
             this.PreviewKeyDown += MainWindow_PreviewKeyDown_SkipLapShortcut;
+            // 2026-06-08 P3-B/C: 顶栏内存监控 10s 一次刷新 + 5 分钟一次兜底轻量 GC (Optimized 模式, 非阻塞)
+            StartMemoryMonitorAndPeriodicGc();
             AddLog(editorMode ? "编排记录及成绩处理 启动完成" : "系统启动完成");
+        }
+
+        // 2026-06-08 P3-B/C: 顶栏内存监控 + 后台 5 分钟兜底 GC
+        //   B: 每 10 秒读 Working Set, 显示 MB. 用户能实时看长跑下内存有没有持续涨 (= 是否漏)
+        //   C: 每 5 分钟 GC.Collect(2, Optimized) — 即使用户不确认成绩 (= 比赛中长时间未到 ConfirmResult_Click)
+        //      也能定期回收 可回收对象, 防止 Gen2 累计触发大停顿.
+        private DispatcherTimer _memoryMonitorTimer;
+        private DispatcherTimer _periodicGcTimer;
+        private void StartMemoryMonitorAndPeriodicGc() {
+            try {
+                _memoryMonitorTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(10) };
+                _memoryMonitorTimer.Tick += delegate {
+                    try {
+                        if (MemoryStatusText == null) return;
+                        long ws = System.Diagnostics.Process.GetCurrentProcess().WorkingSet64;
+                        int gen2 = GC.CollectionCount(2);
+                        MemoryStatusText.Text = string.Format("{0:F0} MB / G2:{1}", ws / 1048576.0, gen2);
+                        // 颜色提示: <500MB 绿, 500-1000MB 琥珀, >1000MB 红 (= 该重启)
+                        double mb = ws / 1048576.0;
+                        if (mb < 500) MemoryStatusText.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#22C55E"));
+                        else if (mb < 1000) MemoryStatusText.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F59E0B"));
+                        else MemoryStatusText.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EF4444"));
+                    } catch { }
+                };
+                _memoryMonitorTimer.Start();
+
+                _periodicGcTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(5) };
+                _periodicGcTimer.Tick += delegate {
+                    try {
+                        GC.Collect(2, GCCollectionMode.Optimized, blocking: false);
+                    } catch { }
+                };
+                _periodicGcTimer.Start();
+            } catch { }
         }
 
         // 2026-06-06 Ctrl+0..9 全局快捷键 = 跳第 0..9 道圈. PreviewKeyDown 保证比 TextBox 等元素先收到事件
@@ -6743,6 +6779,16 @@ namespace SwimmingScoreboard
             try { AutoSaveCurrentHeatTxt(); } catch (Exception ex) { AddLog("自动保存成绩 txt 失败: " + ex.Message); }
             // 2026-06-05 自动写本组 比赛日志 PDF (HTML + Edge headless 转 PDF; 失败保留 HTML)
             try { AutoSaveCurrentHeatLog(); } catch (Exception ex) { AddLog("自动保存比赛日志失败: " + ex.Message); }
+            // 2026-06-08 P3-A: 每组确认成绩后强制 Gen2 GC. 这是长时间运行 30+ 组后变慢的兜底:
+            //   不管是 WPF 视觉树残留 / Newtonsoft 反射缓存 / Fleck 队列 / ObservableCollection 订阅链,
+            //   只要理论上可回收, 这里都能扫掉. 用户此刻正在等下一组准备, 200ms GC 暂停可接受.
+            try {
+                GC.Collect(2, GCCollectionMode.Forced, blocking: true);
+                GC.WaitForPendingFinalizers();
+                GC.Collect(2, GCCollectionMode.Forced, blocking: true);
+                AddLog(string.Format("✓ 已回收内存 (Gen2 GC), 当前 Working Set: {0:F1} MB",
+                    System.Diagnostics.Process.GetCurrentProcess().WorkingSet64 / 1048576.0));
+            } catch { }
         }
 
         /// <summary>

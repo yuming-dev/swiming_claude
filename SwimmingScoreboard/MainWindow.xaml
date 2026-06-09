@@ -28,6 +28,9 @@
                 <TextBlock x:Name="ServerAddressText" Grid.Column="1" Foreground="#94A3B8" FontSize="12"
                            HorizontalAlignment="Center" VerticalAlignment="Center"/>
                 <StackPanel Grid.Column="2" Orientation="Horizontal">
+                    <!--2026-06-08 内存监控显示: Working Set MB + Gen2 GC 次数. 长跑下若 MB 持续涨 = 有泄漏-->
+                    <TextBlock Text="内存: " Foreground="#94A3B8" FontSize="12" VerticalAlignment="Center"/>
+                    <TextBlock x:Name="MemoryStatusText" Text="-" Foreground="#22C55E" FontSize="12" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,16,0"/>
                     <!--2026-05-19 顶部右侧加硬件计时器连接状态：红=未连/绿=已连，颜色醒目-->
                     <Ellipse x:Name="HwConnDot" Width="10" Height="10" Fill="#EF4444" Margin="0,0,6,0" VerticalAlignment="Center"/>
                     <TextBlock Text="硬件计时器: " Foreground="#94A3B8" FontSize="12" VerticalAlignment="Center"/>
