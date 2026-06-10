@@ -7869,6 +7869,11 @@ namespace SwimmingScoreboard
             if (businessStatus == DeviceStatus.FalseStart) { dot.Fill = _brushAmber; return; }
             //2026-05-31 业务 Closed 优先于 Hw*Color (= PC 业务关 → UI 立即变灰, 不等 0x52 上报的 100-200ms)
             if (businessStatus == DeviceStatus.Closed) { dot.Fill = _brushSlate; return; }
+            //2026-06-09 业务 Open 也优先 (= 跟 Closed 对称): 比赛开始前硬件未报 0x51, hwColor=0 灰, PC 该按业务 Open 显绿 (SB) / 黄 (TP/MB)
+            if (businessStatus == DeviceStatus.Open) {
+                dot.Fill = (deviceType == DotDeviceType.Sb) ? _brushGreen : _brushAmber;
+                return;
+            }
             //2026-06-02 HardwareAlwaysOpen 模式: 硬件 cmd 0x50/0x51/0x52 不发, 完全靠业务字段; hwColor 字段失效
             if (_laneCloseSettings != null && _laneCloseSettings.HardwareAlwaysOpen) {
                 if (businessStatus == DeviceStatus.Open) {
