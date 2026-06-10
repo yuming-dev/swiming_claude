@@ -4012,6 +4012,8 @@ void  Test_ManualBut_Process(u8 line,u8 L_MB_Con_State,u8 R_MB_Con_State)
 //   side: 0=左 1=右
 static void StartBox_RecordSignal(u8 i,u8 j,u8 side)
 {
+	// 2026-06-09 防误按/干扰: 非直通模式下 SB Closed (==0) 时不发反应时数据 (4054/4081 守卫的双保险)
+	if (!HardwareAlwaysOpenBit && Startbox_Open_Close_State[i][side] == 0) return;
 	if(Ready_timer_bit==1 && GunFired_PostOpenDoneBit==0)
 	{
 		//在窗口内：仅缓存，不显示/不发送
@@ -4493,8 +4495,8 @@ void TouchPad_Process(u8 line)
 						if(((RelayLaps==2)&&((laps[i][1]%RelayLaps)==0))||(RelayLaps==1))			//4*100m接力 和4*200米接力 时 打开起点出发台  2024-11-24
 						{
 							Relay_SB_DelayClose_Time[i]=0;						//在接力比赛中，运动员触板后，出发台可以打开延迟一定时间 2024-11-26
-							Startbox_Open_Close_State[i][0]=1;  // 2026-06-09 棒次交接立即 Open (= 不走延迟态)																			//出发台打开延迟
-							Display_Startbox_State(Startboxsx[0],Startboxsy[0]+j*btnhy+8,24,24,Open_SB_Color);//2024-11-24 Close_Color);//左边出发台显示
+							Startbox_Open_Close_State[i][0]=2;	// 2026-06-09 撤回到 5-29-1 ==2 启动延迟关 (= PC 同语义)
+							Display_Startbox_State(Startboxsx[0],Startboxsy[0]+j*btnhy+8,24,24,Delay_Color);//2024-11-24 Close_Color);//左边出发台显示
 						}
 					}
 				}
@@ -4584,8 +4586,8 @@ void TouchPad_Process(u8 line)
 						if(((RelayLaps==2)&&((laps[i][0]%RelayLaps)==0))||(RelayLaps==1))			//4*100m接力 和4*200米接力 时 打开起点出发台  2024-11-24
 						{
 							Relay_SB_DelayClose_Time[i]=0;						//在接力比赛中，运动员触板后，出发台可以打开延迟一定时间 2024-11-26
-							Startbox_Open_Close_State[i][1]=1;  // 2026-06-09 棒次交接立即 Open																			//出发台打开延迟
-							Display_Startbox_State(Startboxsx[1],Startboxsy[1]+j*btnhy+8,24,24,Open_SB_Color);//2024-11-24 Close_Color);//右边出发台显示
+							Startbox_Open_Close_State[i][1]=2;	// 2026-06-09 撤回到 5-29-1 ==2 启动延迟关 (= PC 同语义)
+							Display_Startbox_State(Startboxsx[1],Startboxsy[1]+j*btnhy+8,24,24,Delay_Color);//2024-11-24 Close_Color);//右边出发台显示
 						}
 					}
 				}
