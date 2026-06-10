@@ -1,0 +1,33 @@
+发令点在,左边 (PC端 4x50 接力, 50m 池, 5道示意),,,,,,,,,,,,,,,,,
+时序编号,事件描述,MB1_左,MB2_左,MB3_左,SB_左,TP_左,名次,成绩_左,圈数_左,方向,圈数_右,成绩_右,TP_右,SB_右,MB1_右,MB2_右,MB3_右,PC 与 硬件 差异
+T0,Ready (准备 / 发令前),Closed(灰),Closed(灰),Closed(灰),Open(绿),Closed(灰),空,空,2,不显,2,空,Closed(灰),Closed(灰),Closed(灰),Closed(灰),Closed(灰),一致
+T1.1,棒1 SB 按下 (左 SB 触发),Closed(灰),Closed(灰),Closed(灰),Touched(红),Closed(灰),空,空,2,→,2,空,Closed(灰),Closed(灰),Closed(灰),Closed(灰),Closed(灰),"PC 同时设 laneState.ReactionTime 字段, 检查 < FalseStartThreshold 标 IsSuspectFalseStart=true (Hw 无此中间状态)"
+T1.2,棒1 SB 延迟关 (StartBlockCloseDelay 后),Closed(灰),Closed(灰),Closed(灰),Closed(灰),Closed(灰),空, 棒1反应时,2,→,2,空,Closed(灰),Closed(灰),Closed(灰),Closed(灰),Closed(灰),"PC 通过 EnterStartBlockTouchedThenClose 一次性 DispatcherTimer 自动转 Closed"
+T1.3,棒1 泳道打开 (LaneCloseTime=0 触发右端各设备 Open),Closed(灰),Closed(灰),Closed(灰),Closed(灰),Closed(灰),空,空,2,→,2,空,Open(黄),Open(绿),Open(黄),Open(黄),Open(黄),一致 (CountdownTimer Tick 把右端打开)
+T1.4,棒1 完成 TP (右 TP 触发 50m),Closed(灰),Closed(灰),Closed(灰),Closed(灰),Closed(灰),数字(=1),空,2,→,1,棒1成绩 (split.TouchpadTime),Touched(红),Open(绿),Touched(红),Touched(红),Touched(红),"PC 在 ProcessTouchpadHit 里: CurrentLap=1, Direction 翻转 → ""←"", PreCreateSplit 给棒2, 触发 FirstPlaceHold 显示窗口, 接力棒次记 split.TimingSource=""TP"". (Hw 不分概念上的 TP/MB/Manual 来源)"
+T2.1,棒2 SB 按下 (右 SB 触发 50m 处),Closed(灰),Closed(灰),Closed(灰),Closed(灰),Closed(灰),数字保持,空,2,←,1,棒1成绩保持,Closed(灰),Touched(红),Closed(灰),Closed(灰),Closed(灰),"PC 在交接棒后 capCloseLeft 算下棒侧, 启动 sbCloseTimer (StartBlockCloseDelay)"
+T2.2,棒2 SB 延迟关,Closed(灰),Closed(灰),Closed(灰),Closed(灰),Closed(灰),空,空,2,←,1, 棒2反应时,Closed(灰),Closed(灰),Closed(灰),Closed(灰),Closed(灰),一致
+T2.3,棒2 泳道打开 (LaneCloseTime=0 触发左端各设备 Open),Open(黄),Open(黄),Open(黄),Open(绿),Open(黄),空,空,2,←,1,空,Closed(灰),Closed(灰),Closed(灰),Closed(灰),Closed(灰),一致
+T2.4,棒2 完成 TP (左 TP 触发 100m),Touched(红),Touched(红),Touched(红),Open(绿),Touched(红),数字(=1),棒2成绩 (split.TouchpadTime),1,←,1,空,Closed(灰),Closed(灰),Closed(灰),Closed(灰),Closed(灰),"PC: CurrentLap=2, Direction 翻 → ""→"". 接力 ReactionCalculator (= 棒次 reaction 14 条规则) 此处对 TP 算下棒 SB reaction 基准"
+T3.1,棒3 SB 按下 (左 SB 触发 100m 处),Closed(灰),Closed(灰),Closed(灰),Touched(红),Closed(灰),数字保持,空,1,→,1,空,Closed(灰),Closed(灰),Closed(灰),Closed(灰),Closed(灰),"一致 (与 T1.1 同款 但 Lap/Direction 已变)"
+T3.2,棒3 SB 延迟关,Closed(灰),Closed(灰),Closed(灰),Closed(灰),Closed(灰),空, 棒3反应时,1,→,1,空,Closed(灰),Closed(灰),Closed(灰),Closed(灰),Closed(灰),一致
+T3.3,棒3 泳道打开 (LaneCloseTime=0 触发右端各设备 Open),Closed(灰),Closed(灰),Closed(灰),Closed(灰),Closed(灰),空,空,1,→,1,空,Open(黄),Open(绿),Open(黄),Open(黄),Open(黄),一致
+T3.4,棒3 完成 TP (右 TP 触发 150m),Closed(灰),Closed(灰),Closed(灰),Closed(灰),Closed(灰),数字(=1),空,1,→,0,棒3成绩 (split.TouchpadTime),Touched(红),Open(绿),Touched(红),Touched(红),Touched(红),"PC: CurrentLap=3, Direction 翻 → ""←"""
+T4.1,棒4 SB 按下 (右 SB 触发 150m 处),Closed(灰),Closed(灰),Closed(灰),Closed(灰),Closed(灰),数字保持,空,1,←,0,空,Closed(灰),Touched(红),Closed(灰),Closed(灰),Closed(灰),一致
+T4.2,棒4 SB 延迟关,Closed(灰),Closed(灰),Closed(灰),Closed(灰),Closed(灰),空,空,1,←,0, 棒4反应时,Closed(灰),Closed(灰),Closed(灰),Closed(灰),Closed(灰),一致
+T4.3,棒4 泳道打开 (LaneCloseTime=0 触发左端各设备 Open 准备末段终点),Open(黄),Open(黄),Open(黄),Closed(灰),Open(黄),空,空,1,←,0,空,Closed(灰),Closed(灰),Closed(灰),Closed(灰),Closed(灰),一致
+T4.4,棒4 完成 TP (左 TP 触发 200m 终点),Touched(红),Touched(红),Touched(红),Closed(灰),Touched(红),数字(=1),棒4成绩 = FinalTime,0,不显,0,空,Closed(灰),Closed(灰),Closed(灰),Closed(灰),Closed(灰),"PC: laneState.IsFinished=true, result.FinalTime=time, 触发 CheckRecords / UpdateHeatRanking / 完赛检测 — Hw 仅设备色变, 没有""完赛""标志"
+Tend,比赛结束 (= 棒4 完成 TP 后保持),Closed(灰),Closed(灰),Closed(灰),Closed(灰),Touched(红)→延迟Closed(灰),数字(保持),数字(FinalTime),0,不显,0,空,Closed(灰),Closed(灰),Closed(灰),Closed(灰),Closed(灰),"PC: 末段触板 Touched 后 ResultConfirmCloseDelay 秒由 finishCloseTimer 自动转 Closed; FirstPlaceHold 窗口控制名次/成绩显示停留时间. Hw 保持显示直到 Reset"
+Treset,Reset / 切下一组 (Restart_Click 或 Ready_Click),Closed(灰),Closed(灰),Closed(灰),Open(绿),Closed(灰),空,空,2,不显→→,2,空,Closed(灰),Closed(灰),Closed(灰),Closed(灰),Closed(灰),"PC: ResetForNewRace 把 CurrentLap=0, IsFinished=false, 清 ReactionTime 等, SB Open 在 startPosition 侧. 还清 _laneEventLog / _rawTimingLog / _laneSplitCount 等"
+,,,,,,,,,,,,,,,,,,
+=== 关键差异汇总 ===,,,,,,,,,,,,,,,,,,
+1,IsSuspectFalseStart / IsFalseStart 状态机,,,,,,,,,,,,,,,,,"PC 在 SB 按下时立刻判 ReactionTime < FalseStartThreshold 把出发台标琥珀色 (FalseStart). Hw 仅按按下时刻显示红, 不区分""疑似抢跳"""
+2,FirstPlaceHold 窗口,,,,,,,,,,,,,,,,,"PC 第一名完赛后 FirstPlaceHoldTime 秒名次/成绩固定显示. Hw 直接刷新"
+3,TimingSource (TP/MB/Manual/Skipped),,,,,,,,,,,,,,,,,"PC 每段 split 标 主成绩来源 (TP=触板/MB=盲表代/Manual=手动/Skipped=跳圈无时间). Hw 仅按触发设备本身色变, 不主动选定哪个为""主成绩"""
+4,Split / SplitTime / ManualTouchTime / PushButton1/2/3Time 多源记录,,,,,,,,,,,,,,,,,"PC 同段最多保留 5 个时间 (TP/Manual/3 个 MB) 留痕 + 备用成绩 BackupTouchTimes 列表. Hw 每个设备独立显示, 不汇总"
+5,LeftManualEnabled / RightManualEnabled 手动 TP 入口,,,,,,,,,,,,,,,,,"PC 提供 T 按钮 (右键) 触发软件手动 TP, 走 ProcessTouchpadHit 路径走完整状态机. Hw 也有但发的是 0x16 D3=0 普通触板, PC 看不出真实 vs 手动按键 (需协议改 D3=2)"
+6,跳圈快捷键 Ctrl+0..9,,,,,,,,,,,,,,,,,"PC 应急: Ctrl+N 让该道 lap++ + Direction 翻 + 空 split + 10s 抑制窗口丢硬件 0x16. Hw 无对应概念"
+7,LaneCloseCountdown 倒计时显示,,,,,,,,,,,,,,,,,"PC 在 T1.2 / T1.3 之间显示一个秒级倒计时 (剩余封闭时间). Hw 不显示数字"
+8,接力 ReactionCalculator 14 条规则,,,,,,,,,,,,,,,,,"PC 用 RelayReactionCalculator 把 SB / TP / MB 多源组合算出最终交接反应时, 标 basis=TP/MB/HandTP. Hw 只用本设备触发时刻"
+9,显示停留 SplitDisplayTime,,,,,,,,,,,,,,,,,"PC 中段(T2.4/T3.4)的成绩在右上角 ""成绩显示"" 区域停留 SplitDisplayTime 秒. Hw 不主动停"
+10,HwLeftTouchpadColor / HwRightTouchpadColor 等同步字段,,,,,,,,,,,,,,,,,"PC 通过 0x50/0x51/0x52 收 Hw LCD 实际色, 镜像到 UI 圆点 (= 这张表的 ""灰/绿/黄/红"" 列). PC 自己的业务 Status 字段也参与 StyleDotMixed, 二者优先级: 业务 NotInstalled/Broken 优先, 否则按 Hw 色渲染"
