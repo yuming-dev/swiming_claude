@@ -978,32 +978,29 @@
                         </Border.Resources>
                         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                         <StackPanel>
-                            <Grid Margin="0,0,0,12">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-                                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                                    <Border Background="#DC2626" CornerRadius="4" Padding="5,3" Margin="0,0,8,0">
-                                        <TextBlock Text="&#xE7FC;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="White" VerticalAlignment="Center"/>
-                                    </Border>
-                                    <TextBlock Text="比赛控制" FontSize="16" FontWeight="Bold" Foreground="#1E293B" VerticalAlignment="Center"/>
-                                </StackPanel>
-                                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                                    <!-- 连接串口按钮已移到下方"系统硬件"栏 -->
-                                    <Button Content="&#9881; 参数设置" Click="TimingSettings_Click"
-                                            Padding="8,2" Background="#475569" Foreground="White" BorderThickness="0"
-                                            FontSize="12" VerticalAlignment="Center" Cursor="Hand" Margin="0,0,6,0"/>
-                                    <!-- 2026-06-05 自动保存 成绩 txt 的路径设置 (确认本组成绩后自动写入此目录) -->
-                                    <Button Content="&#128193; 成绩存盘路径" Click="AutoSaveTxtPathConfig_Click"
-                                            Padding="8,2" Background="#10B981" Foreground="White" BorderThickness="0"
-                                            FontSize="12" VerticalAlignment="Center" Cursor="Hand"/>
-                                    <!-- 2026-06-12 USB 热敏打印机: 实时打印收到的 TP/SB/MB 数据 -->
-                                    <Button Content="&#128424; 热敏打印" Click="ThermalPrinterConfig_Click"
-                                            Padding="8,2" Background="#3B82F6" Foreground="White" BorderThickness="0"
-                                            FontSize="12" VerticalAlignment="Center" Cursor="Hand" Margin="6,0,0,0"/>
-                                </StackPanel>
-                            </Grid>
+                            <!-- 2026-06-12 标题 + 操作按钮: 本面板仅 240px 宽, 3 个按钮一行放不下会被右侧裁切
+                                 (ScrollViewer 关了横向滚动). 改为标题单独一行 + 按钮用 WrapPanel 自动换行,
+                                 保证 热敏打印 等按钮始终可见可点. -->
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,0,8">
+                                <Border Background="#DC2626" CornerRadius="4" Padding="5,3" Margin="0,0,8,0">
+                                    <TextBlock Text="&#xE7FC;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="White" VerticalAlignment="Center"/>
+                                </Border>
+                                <TextBlock Text="比赛控制" FontSize="16" FontWeight="Bold" Foreground="#1E293B" VerticalAlignment="Center"/>
+                            </StackPanel>
+                            <WrapPanel Orientation="Horizontal" Margin="0,0,0,12">
+                                <!-- 连接串口按钮已移到下方"系统硬件"栏 -->
+                                <Button Content="&#9881; 参数设置" Click="TimingSettings_Click"
+                                        Padding="8,2" Background="#475569" Foreground="White" BorderThickness="0"
+                                        FontSize="12" VerticalAlignment="Center" Cursor="Hand" Margin="0,0,6,6"/>
+                                <!-- 2026-06-05 自动保存 成绩 txt 的路径设置 (确认本组成绩后自动写入此目录) -->
+                                <Button Content="&#128193; 成绩存盘路径" Click="AutoSaveTxtPathConfig_Click"
+                                        Padding="8,2" Background="#10B981" Foreground="White" BorderThickness="0"
+                                        FontSize="12" VerticalAlignment="Center" Cursor="Hand" Margin="0,0,6,6"/>
+                                <!-- 2026-06-12 USB 热敏打印机: 实时打印收到的 TP/SB/MB 数据 -->
+                                <Button Content="&#128424; 热敏打印" Click="ThermalPrinterConfig_Click"
+                                        Padding="8,2" Background="#3B82F6" Foreground="White" BorderThickness="0"
+                                        FontSize="12" VerticalAlignment="Center" Cursor="Hand" Margin="0,0,6,6"/>
+                            </WrapPanel>
 
                             <!-- 核心操作按钮（压缩高度以容纳新增的泳道操作行）
                                  2026-05-27 计时复位移到准备就绪上方 (3 端同步: PC / EXE / HTML) -->
