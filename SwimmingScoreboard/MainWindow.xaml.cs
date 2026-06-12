@@ -15919,6 +15919,67 @@ namespace SwimmingScoreboard
         private void ShowReferees_Click(object sender, RoutedEventArgs e) { BroadcastDisplayMode("SHOW_REFEREES"); }
         private void ShowWelcome_Click(object sender, RoutedEventArgs e) { BroadcastDisplayMode("SHOW_WELCOME"); }
 
+        // 2026-06-12 显示比赛日程: 选场次(或全部) → 大屏翻页显示该场次/全部日程
+        private void ShowSchedule_Click(object sender, RoutedEventArgs e) {
+            if (_schedule == null || _schedule.Count == 0) { MessageBox.Show("当前没有赛程数据", "显示比赛日程"); return; }
+            var dlg = new Window {
+                Title = "显示比赛日程", Width = 420, SizeToContent = SizeToContent.Height,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner, Owner = this, ResizeMode = ResizeMode.NoResize,
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E293B"))
+            };
+            var sp = new StackPanel { Margin = new Thickness(20) };
+            sp.Children.Add(new TextBlock { Text = "显示比赛日程", FontSize = 17, FontWeight = FontWeights.Bold, Foreground = Brushes.White, Margin = new Thickness(0, 0, 0, 6) });
+            sp.Children.Add(new TextBlock { Text = "选择要在大屏显示日程的比赛场次 (超过一页自动翻页):", Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), FontSize = 13, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 12) });
+            var combo = new ComboBox { FontSize = 14, Margin = new Thickness(0, 0, 0, 6) };
+            combo.Items.Add(new ComboBoxItem { Content = "全部场次", Tag = -1 });
+            foreach (var sn in _schedule.Select(s => s.SessionNumber).Distinct().OrderBy(n => n)) {
+                var first = _schedule.FirstOrDefault(s => s.SessionNumber == sn);
+                string nm = (first != null && !string.IsNullOrWhiteSpace(first.SessionName)) ? (" " + first.SessionName) : "";
+                string dt = (first != null && !string.IsNullOrWhiteSpace(first.Date)) ? ("  " + first.Date) : "";
+                combo.Items.Add(new ComboBoxItem { Content = string.Format("第{0}场{1}{2}", sn, nm, dt), Tag = sn });
+            }
+            combo.SelectedIndex = 0;
+            sp.Children.Add(combo);
+            var btnPanel = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 14, 0, 0) };
+            var btnCancel = new Button { Content = "取消", Padding = new Thickness(16, 6, 16, 6), Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569")), Foreground = Brushes.White, BorderThickness = new Thickness(0), Margin = new Thickness(0, 0, 8, 0) };
+            btnCancel.Click += delegate { dlg.DialogResult = false; };
+            var btnOk = new Button { Content = "确认", Padding = new Thickness(16, 6, 16, 6), Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6")), Foreground = Brushes.White, BorderThickness = new Thickness(0), FontWeight = FontWeights.Bold };
+            btnOk.Click += delegate { dlg.DialogResult = true; };
+            btnPanel.Children.Add(btnCancel); btnPanel.Children.Add(btnOk);
+            sp.Children.Add(btnPanel);
+            dlg.Content = sp;
+            if (dlg.ShowDialog() == true) {
+                int sessionFilter = -1;
+                var item = combo.SelectedItem as ComboBoxItem;
+                if (item != null && item.Tag is int) sessionFilter = (int)item.Tag;
+                BroadcastSchedule(sessionFilter);
+                AddLog(sessionFilter < 0 ? "大屏显示比赛日程: 全部场次" : string.Format("大屏显示比赛日程: 第{0}场", sessionFilter));
+            }
+        }
+
+        // 2026-06-12 把赛程(按场次过滤或全部)推给大屏 (SHOW_SCHEDULE 模式, 独立负载, 不进常规心跳)
+        private void BroadcastSchedule(int sessionFilter) {
+            if (_allSockets.Count == 0) { MessageBox.Show("没有已连接的大屏", "显示比赛日程"); return; }
+            try {
+                var items = _schedule.OrderBy(s => s.SessionNumber).ThenBy(s => s.EvNum).Select(s => new {
+                    session = s.SessionNumber, sessionName = s.SessionName ?? "", date = s.Date ?? "", time = s.Time ?? "",
+                    evNum = s.EvNum, gender = s.Gender ?? "", ageGroup = s.AgeGroup ?? "", eventName = s.EventName ?? "",
+                    stage = s.Stage ?? "", heatCount = s.HeatCount, isRelay = s.IsRelay
+                }).ToList();
+                var payload = new { competitionName = _competitionName ?? "", session = sessionFilter, items = items };
+                var msg = new { type = "SHOW_SCHEDULE", data = payload, modeExplicit = true };
+                var socketsSnap = _allSockets.ToArray();
+                System.Threading.Tasks.Task.Run(() => {
+                    lock (_broadcastSerialLock) {
+                        try {
+                            string json = JsonConvert.SerializeObject(msg);
+                            foreach (var s in socketsSnap) { try { s.Send(json); } catch { } }
+                        } catch { }
+                    }
+                });
+            } catch (Exception ex) { AddLog("显示比赛日程失败: " + ex.Message); }
+        }
+
         // 2026-06-03 切换大屏右上角 WR/CR 横条 显示/隐藏; 走 display style 通道, 持久化 + DISPLAY_STYLE_PUSH 广播
         private void ToggleRecordsHidden_Click(object sender, RoutedEventArgs e) {
             _displayStyleRecordsHidden = !_displayStyleRecordsHidden;

@@ -1252,6 +1252,7 @@
                                         <RowDefinition Height="32"/>
                                         <RowDefinition Height="32"/>
                                         <RowDefinition Height="32"/>
+                                        <RowDefinition Height="32"/>
                                     </Grid.RowDefinitions>
                                     <!-- 赛中显示 -->
                                     <Button Grid.Row="0" Grid.Column="0" Click="ShowStartList_Click" Margin="2" BorderThickness="0" Cursor="Hand">
@@ -1425,6 +1426,20 @@
                                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
                                                         <TextBlock Text="&#xE786;" FontFamily="Segoe MDL2 Assets" FontSize="15" Foreground="White" VerticalAlignment="Center" Margin="0,0,5,0"/>
                                                         <TextBlock Text="PPT 播放" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                    </StackPanel>
+                                                </Border>
+                                            </ControlTemplate>
+                                        </Button.Template>
+                                    </Button>
+                                    <!-- 2026-06-12 显示比赛日程: 选场次(或全部) → 大屏翻页显示日程 -->
+                                    <Button Grid.Row="10" Grid.Column="0" Grid.ColumnSpan="2" Click="ShowSchedule_Click" Margin="2" BorderThickness="0" Cursor="Hand"
+                                            ToolTip="选择比赛场次(或全部), 大屏翻页显示该场次/全部比赛日程">
+                                        <Button.Template>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border Background="#0D9488" CornerRadius="6" Padding="4">
+                                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                        <TextBlock Text="&#xE787;" FontFamily="Segoe MDL2 Assets" FontSize="15" Foreground="White" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                                                        <TextBlock Text="显示比赛日程" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
                                                     </StackPanel>
                                                 </Border>
                                             </ControlTemplate>
