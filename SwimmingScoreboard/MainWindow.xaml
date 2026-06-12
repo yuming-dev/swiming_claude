@@ -978,22 +978,23 @@
                         </Border.Resources>
                         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                         <StackPanel>
-                            <!-- 2026-06-12 标题 + 操作按钮: 本面板仅 240px 宽, 3 个按钮一行放不下会被右侧裁切
-                                 (ScrollViewer 关了横向滚动). 改为标题单独一行 + 按钮用 WrapPanel 自动换行,
-                                 保证 热敏打印 等按钮始终可见可点. -->
-                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,0,8">
-                                <Border Background="#DC2626" CornerRadius="4" Padding="5,3" Margin="0,0,8,0">
-                                    <TextBlock Text="&#xE7FC;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="White" VerticalAlignment="Center"/>
-                                </Border>
-                                <TextBlock Text="比赛控制" FontSize="16" FontWeight="Bold" Foreground="#1E293B" VerticalAlignment="Center"/>
-                            </StackPanel>
-                            <WrapPanel Orientation="Horizontal" Margin="0,0,0,12">
-                                <!-- 连接串口按钮已移到下方"系统硬件"栏 -->
-                                <!-- 2026-06-12 成绩存盘路径 / 热敏打印 已移入 参数设置 窗口, 标题栏只留 参数设置 -->
-                                <Button Content="&#9881; 参数设置" Click="TimingSettings_Click"
+                            <!-- 2026-06-12 标题 + 参数设置: 单行布局, "比赛控制"标题在左, "参数设置"按钮在右上角
+                                 (成绩存盘路径/热敏打印 已移入 参数设置 窗口, 标题栏只剩一个按钮, 不再溢出裁切). -->
+                            <Grid Margin="0,0,0,12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <Border Background="#DC2626" CornerRadius="4" Padding="5,3" Margin="0,0,8,0">
+                                        <TextBlock Text="&#xE7FC;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="White" VerticalAlignment="Center"/>
+                                    </Border>
+                                    <TextBlock Text="比赛控制" FontSize="16" FontWeight="Bold" Foreground="#1E293B" VerticalAlignment="Center"/>
+                                </StackPanel>
+                                <Button Grid.Column="1" Content="&#9881; 参数设置" Click="TimingSettings_Click"
                                         Padding="8,2" Background="#475569" Foreground="White" BorderThickness="0"
-                                        FontSize="12" VerticalAlignment="Center" Cursor="Hand" Margin="0,0,6,6"/>
-                            </WrapPanel>
+                                        FontSize="12" VerticalAlignment="Center" Cursor="Hand"/>
+                            </Grid>
 
                             <!-- 核心操作按钮（压缩高度以容纳新增的泳道操作行）
                                  2026-05-27 计时复位移到准备就绪上方 (3 端同步: PC / EXE / HTML) -->
