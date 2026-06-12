@@ -4396,9 +4396,9 @@ namespace SwimmingScoreboard
                     || cmdType == "Touchpad"
                     || cmdType == "PushButton1" || cmdType == "PushButton2" || cmdType == "PushButton3";
                 if (printable) {
-                    _thermalPrinter.PrintLine(string.Format("[T={0}] 道{1}{2} {3}{4} = {5}{6}",
-                        (elapsed ?? "").Trim(), lane, sideLabel, label, lapLabel, timeStr,
-                        string.IsNullOrEmpty(swimmerName) ? "" : (" (" + swimmerName + ")")));
+                    // 2026-06-12 格式: 道4左 触[1] = 23.43 (无 T= 前缀, 无姓名)
+                    _thermalPrinter.PrintLine(string.Format("道{0}{1} {2}{3} = {4}",
+                        lane, sideLabel, label, lapLabel, timeStr));
                 }
             }
             // 若当前显示的就是这道, 立刻刷新可见 TextBox
@@ -6622,6 +6622,7 @@ namespace SwimmingScoreboard
             // 100ms tick 不会自动重绘，必须显式调一次让发令端出发台立即变成打开
             UpdateLaneStatusDisplay();
             AddLog("准备就绪");
+            PrintRaceHeaderToThermal();   // 2026-06-12 热敏小票表头: 当前项目 + 比赛日期/当前时间 + 分隔线
             // Set_MatchEvent (0x43) 和 发令点已经在 SetCurrentEvent / SetCurrentHeat 同步过了，
             // 这里只送 0x21 准备就绪，硬件据此打开出发台。
             if (pushToHardware && _timingBridge != null && _timingBridge.IsConnected) {
@@ -10278,6 +10279,24 @@ namespace SwimmingScoreboard
             sp.Children.Add(btnRow);
             dlg.Content = sp;
             dlg.ShowDialog();
+        }
+
+        // 2026-06-12 准备就绪时 打印 热敏小票表头: 当前比赛项目 + 比赛日期/当前时间 + 分隔线
+        //   (按用户要求: 项目 换行 / 日期 当前时间 换行 / 一行分隔线 换行)
+        private void PrintRaceHeaderToThermal() {
+            if (_thermalPrinter == null || !_thermalPrinter.Enabled) return;
+            var sb = new StringBuilder();
+            if (!string.IsNullOrWhiteSpace(_currentAgeGroup)) sb.Append(_currentAgeGroup).Append(" ");
+            if (!string.IsNullOrWhiteSpace(_currentGender))   sb.Append(_currentGender).Append(" ");
+            if (!string.IsNullOrWhiteSpace(_currentEvent))    sb.Append(_currentEvent).Append(" ");
+            if (!string.IsNullOrWhiteSpace(_currentStage))    sb.Append(_currentStage).Append(" ");
+            if (_currentHeat > 0)                             sb.Append("第").Append(_currentHeat).Append("组");
+            string eventDesc = sb.ToString().Trim();
+            if (eventDesc.Length == 0) eventDesc = "(未选择项目)";
+            var now = DateTime.Now;
+            _thermalPrinter.PrintLine(eventDesc);                                                  // 全部比赛项目
+            _thermalPrinter.PrintLine(now.ToString("yyyy-MM-dd") + "  " + now.ToString("HH:mm:ss")); // 比赛日期 当前时间
+            _thermalPrinter.PrintLine("--------------------------------");                          // 分隔线
         }
 
         // 2026-06-05 简易 HTML 转义 (& < > " ')
