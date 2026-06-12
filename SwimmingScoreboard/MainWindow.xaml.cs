@@ -10472,6 +10472,13 @@ namespace SwimmingScoreboard
             var btnManualCat = new Button { Content = "手动按键管理", Padding = new Thickness(0, 12, 0, 12), FontSize = 15, FontWeight = FontWeights.Bold, Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#0EA5E9")), Foreground = Brushes.White, BorderThickness = new Thickness(0), Margin = new Thickness(0, 0, 0, 10) };
             btnManualCat.Click += delegate { OpenManualButtonManager(); };
             sp.Children.Add(btnManualCat);
+            // 2026-06-12 成绩存盘路径 / 热敏打印 从 比赛控制 标题栏 移入 参数设置 窗口
+            var btnAutoSaveCat = new Button { Content = "成绩存盘路径", Padding = new Thickness(0, 12, 0, 12), FontSize = 15, FontWeight = FontWeights.Bold, Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#10B981")), Foreground = Brushes.White, BorderThickness = new Thickness(0), Margin = new Thickness(0, 0, 0, 10) };
+            btnAutoSaveCat.Click += delegate { AutoSaveTxtPathConfig_Click(null, null); };
+            sp.Children.Add(btnAutoSaveCat);
+            var btnThermalCat = new Button { Content = "热敏打印", Padding = new Thickness(0, 12, 0, 12), FontSize = 15, FontWeight = FontWeights.Bold, Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6")), Foreground = Brushes.White, BorderThickness = new Thickness(0), Margin = new Thickness(0, 0, 0, 10) };
+            btnThermalCat.Click += delegate { ThermalPrinterConfig_Click(null, null); };
+            sp.Children.Add(btnThermalCat);
             var hubBtnPanel = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 6, 0, 0) };
             var hubClose = new Button { Content = "关闭", Padding = new Thickness(16, 6, 16, 6), Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569")), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
             hubClose.Click += delegate { dlg.DialogResult = true; };
