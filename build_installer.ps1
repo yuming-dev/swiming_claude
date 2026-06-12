@@ -76,8 +76,14 @@ $excludePats = @(
 $ssbBin = Join-Path $root "SwimmingScoreboard\bin\x64\Release"
 if (-not (Test-Path $ssbBin)) { $ssbBin = Join-Path $root "SwimmingScoreboard\bin\Release" }
 Copy-Item (Join-Path $ssbBin "*") (Join-Path $installerBuild "SwimmingScoreboard\") -Recurse -Force -Exclude $excludePats
-Copy-Item (Join-Path $root "SwimmingScoreboard\Web") (Join-Path $installerBuild "SwimmingScoreboard\Web") -Recurse -Force
-Copy-Item (Join-Path $root "SwimmingScoreboard\Records") (Join-Path $installerBuild "SwimmingScoreboard\Records") -Recurse -Force
+# 2026-06-12 Web/Records: Release 输出里已带这两个目录, 若直接 Copy-Item 源\Web 目标\Web 会因目标已存在而
+#   嵌套成 Web\Web. 故先删目标再从源拷一份干净的; 拷后清掉开发残留备份 (*.bak_* 等).
+foreach ($sub in @("Web","Records")) {
+    $dstSub = Join-Path $installerBuild "SwimmingScoreboard\$sub"
+    if (Test-Path $dstSub) { Remove-Item -Recurse -Force $dstSub }
+    Copy-Item (Join-Path $root "SwimmingScoreboard\$sub") $dstSub -Recurse -Force
+    Get-ChildItem $dstSub -Recurse -File -Include '*.bak_*','*.bak','*~' | Remove-Item -Force
+}
 
 # 2026-05-21 删除开发机运行 EXE 时产生的整目录（exclude 模式只过滤文件，不过滤目录）：
 #   Database\    开发机的赛事档案 + RawData 原始数据快照 → 装到客户机会覆盖客户数据
