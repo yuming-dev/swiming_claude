@@ -998,6 +998,10 @@
                                     <Button Content="&#128193; 成绩存盘路径" Click="AutoSaveTxtPathConfig_Click"
                                             Padding="8,2" Background="#10B981" Foreground="White" BorderThickness="0"
                                             FontSize="12" VerticalAlignment="Center" Cursor="Hand"/>
+                                    <!-- 2026-06-12 USB 热敏打印机: 实时打印收到的 TP/SB/MB 数据 -->
+                                    <Button Content="&#128424; 热敏打印" Click="ThermalPrinterConfig_Click"
+                                            Padding="8,2" Background="#3B82F6" Foreground="White" BorderThickness="0"
+                                            FontSize="12" VerticalAlignment="Center" Cursor="Hand" Margin="6,0,0,0"/>
                                 </StackPanel>
                             </Grid>
 

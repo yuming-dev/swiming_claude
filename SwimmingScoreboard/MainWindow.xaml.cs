@@ -75,6 +75,10 @@ namespace SwimmingScoreboard
         private LaneCloseSettings _laneCloseSettings = new LaneCloseSettings();
         // 2026-06-05 确认本组成绩 后 自动保存 成绩 txt 到此目录 (空 = 不自动保存; 默认 AppDomain/Documents/成绩txt)
         private string _autoSaveTxtPath = "";
+        // 2026-06-12 USB 热敏打印机: PC 收到 TP/SB/MB 数据写比赛日志的同时, 实时打印同一行 (Windows 打印机驱动 + ESC/POS RAW)
+        private ThermalPrinterService _thermalPrinter = new ThermalPrinterService();
+        private bool _thermalPrintEnabled = false;
+        private string _thermalPrinterName = "";
         // 2026-06-03 接力 SB reaction 计算器 (= 14 条规则). 每 (lane, side) 一个窗口, TP/SB/MB/手动 TP 喂入, 窗口超时算 reaction
         private RelayReactionCalculator _relayReactionCalc;
         private DispatcherTimer _relayReactionTickTimer;
@@ -279,6 +283,7 @@ namespace SwimmingScoreboard
             RefreshRecordsHiddenBtn();       // 2026-06-03 同步 "记录显示/隐藏" 按钮初始文字
             RefreshRemarkReactionBtn();      // 2026-06-04 同步 "备注: 显/不显反应时" 按钮初始文字
             LoadAutoSaveTxtPath();           // 2026-06-05 加载 成绩 txt 自动存盘路径
+            LoadThermalPrinterConfig();      // 2026-06-12 加载 USB 热敏打印机 配置 (实时打印 TP/SB/MB)
             ApplyPersistedDeviceStates();   // 设备状态（损坏/未安装/手动按键）从 device_states.json 还原
             LoadTimingConnectionConfig();   // 通讯参数从 timing_connection.json 还原
             LoadLastCompetition();
@@ -4384,6 +4389,18 @@ namespace SwimmingScoreboard
                 elapsed, lane, sideLabel, label, lapLabel, timeStr,
                 string.IsNullOrEmpty(swimmerName) ? "" : (" (" + swimmerName + ")"));
             TrimSbIfOver(_laneEventLog[lane], MAX_LANE_EVENT_LOG);
+            // 2026-06-12 USB 热敏打印机 实时打印: 仅 TP/SB/MB 三类 (出/触/盲1-3), 不含 手动触板/触代.
+            //   打印同一行 = 跟比赛日志一致 (现场纸质流水留底). 入队即返回, 不阻塞 UI.
+            if (_thermalPrinter != null && _thermalPrinter.Enabled) {
+                bool printable = cmdType == "StartingBlock" || cmdType == "StartingBlockTimeout"
+                    || cmdType == "Touchpad"
+                    || cmdType == "PushButton1" || cmdType == "PushButton2" || cmdType == "PushButton3";
+                if (printable) {
+                    _thermalPrinter.PrintLine(string.Format("[T={0}] 道{1}{2} {3}{4} = {5}{6}",
+                        (elapsed ?? "").Trim(), lane, sideLabel, label, lapLabel, timeStr,
+                        string.IsNullOrEmpty(swimmerName) ? "" : (" (" + swimmerName + ")")));
+                }
+            }
             // 若当前显示的就是这道, 立刻刷新可见 TextBox
             if (lane == _selectedLane) RefreshLaneEventLogView();
         }
@@ -10172,6 +10189,92 @@ namespace SwimmingScoreboard
             btnClear.Click += delegate { _autoSaveTxtPath = ""; SaveAutoSaveTxtPath(); AddLog("成绩 txt 自动存盘已关闭"); dlg.DialogResult = true; };
             btnCancel.Click += delegate { dlg.DialogResult = false; };
             btnRow.Children.Add(btnOk); btnRow.Children.Add(btnClear); btnRow.Children.Add(btnCancel);
+            sp.Children.Add(btnRow);
+            dlg.Content = sp;
+            dlg.ShowDialog();
+        }
+
+        // ═══ 2026-06-12 USB 热敏打印机 (实时打印 TP/SB/MB) ═══
+        //   配置存 Documents/thermal_printer.txt: 第1行 1/0=启用, 第2行 打印机名 (沿用 autosave_path 风格)
+        private void LoadThermalPrinterConfig() {
+            try {
+                string cfgFile = IOPath.Combine(AppDomain.CurrentDomain.BaseDirectory, "Documents", "thermal_printer.txt");
+                if (File.Exists(cfgFile)) {
+                    var ls = File.ReadAllLines(cfgFile, new UTF8Encoding(false));
+                    if (ls.Length >= 1) _thermalPrintEnabled = ls[0].Trim() == "1";
+                    if (ls.Length >= 2) _thermalPrinterName = ls[1].Trim();
+                }
+            } catch { }
+            if (_thermalPrinter != null) {
+                _thermalPrinter.OnLog += delegate(string m) { Dispatcher.BeginInvoke((Action)delegate() { AddLog(m); }); };
+                _thermalPrinter.Enabled = _thermalPrintEnabled;
+                _thermalPrinter.PrinterName = _thermalPrinterName;
+                if (_thermalPrintEnabled && !string.IsNullOrEmpty(_thermalPrinterName)) _thermalPrinter.Start();
+            }
+        }
+        private void SaveThermalPrinterConfig() {
+            try {
+                string docDir = IOPath.Combine(AppDomain.CurrentDomain.BaseDirectory, "Documents");
+                if (!Directory.Exists(docDir)) Directory.CreateDirectory(docDir);
+                string cfgFile = IOPath.Combine(docDir, "thermal_printer.txt");
+                string content = (_thermalPrintEnabled ? "1" : "0") + "\r\n" + (_thermalPrinterName ?? "");
+                WriteFileAsync(cfgFile, content, new UTF8Encoding(false), null, "保存 热敏打印 配置 失败: ");
+            } catch (Exception ex) { AddLog("保存 热敏打印 配置 失败: " + ex.Message); }
+        }
+        private void ThermalPrinterConfig_Click(object sender, RoutedEventArgs e) {
+            var dlg = new Window {
+                Title = "USB 热敏打印机 (实时打印 TP/SB/MB)", Width = 540, Height = 300,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner, Owner = this, ResizeMode = ResizeMode.NoResize
+            };
+            var sp = new StackPanel { Margin = new Thickness(20) };
+            sp.Children.Add(new TextBlock {
+                Text = "启用后, PC 每收到一条 TP/SB/MB (出/触/盲1-3) 硬件数据, 在写比赛日志的同时打印同一行. 打印机须已在 Windows 安装驱动. (不打印 手动触板/触代)",
+                TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 12)
+            });
+            var chkEnable = new CheckBox { Content = "启用实时打印", IsChecked = _thermalPrintEnabled, FontSize = 14, Margin = new Thickness(0, 0, 0, 12) };
+            sp.Children.Add(chkEnable);
+            var pRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 12) };
+            pRow.Children.Add(new TextBlock { Text = "打印机:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0), FontSize = 13 });
+            var combo = new ComboBox { Width = 320, FontSize = 13 };
+            Action fill = delegate {
+                combo.Items.Clear();
+                foreach (var p in ThermalPrinterService.GetInstalledPrinters()) combo.Items.Add(p);
+                if (!string.IsNullOrEmpty(_thermalPrinterName) && combo.Items.Contains(_thermalPrinterName)) combo.SelectedItem = _thermalPrinterName;
+                else if (combo.Items.Count > 0 && combo.SelectedIndex < 0) combo.SelectedIndex = 0;
+            };
+            fill();
+            pRow.Children.Add(combo);
+            var btnRefresh = new Button { Content = "刷新", Padding = new Thickness(10, 3, 10, 3), Margin = new Thickness(8, 0, 0, 0), FontSize = 12 };
+            btnRefresh.Click += delegate { fill(); };
+            pRow.Children.Add(btnRefresh);
+            sp.Children.Add(pRow);
+
+            var btnRow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 8, 0, 0) };
+            var btnTest = new Button { Content = "测试打印", Padding = new Thickness(14, 5, 14, 5), Margin = new Thickness(0, 0, 8, 0),
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6")), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
+            btnTest.Click += delegate {
+                var name = combo.SelectedItem as string;
+                if (string.IsNullOrEmpty(name)) { MessageBox.Show("请先选择打印机"); return; }
+                _thermalPrinter.PrinterName = name;
+                _thermalPrinter.TestPrint();
+            };
+            var btnOk = new Button { Content = "保存", Padding = new Thickness(18, 5, 18, 5), Margin = new Thickness(0, 0, 8, 0),
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#10B981")), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
+            var btnCancel = new Button { Content = "取消", Padding = new Thickness(18, 5, 18, 5),
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
+            btnOk.Click += delegate {
+                _thermalPrintEnabled = chkEnable.IsChecked == true;
+                _thermalPrinterName = combo.SelectedItem as string ?? "";
+                _thermalPrinter.Enabled = _thermalPrintEnabled;
+                _thermalPrinter.PrinterName = _thermalPrinterName;
+                if (_thermalPrintEnabled && !string.IsNullOrEmpty(_thermalPrinterName)) _thermalPrinter.Start();
+                SaveThermalPrinterConfig();
+                AddLog(string.Format("热敏打印: {0}{1}", _thermalPrintEnabled ? "启用" : "关闭",
+                    string.IsNullOrEmpty(_thermalPrinterName) ? "" : (" → " + _thermalPrinterName)));
+                dlg.DialogResult = true;
+            };
+            btnCancel.Click += delegate { dlg.DialogResult = false; };
+            btnRow.Children.Add(btnTest); btnRow.Children.Add(btnOk); btnRow.Children.Add(btnCancel);
             sp.Children.Add(btnRow);
             dlg.Content = sp;
             dlg.ShowDialog();

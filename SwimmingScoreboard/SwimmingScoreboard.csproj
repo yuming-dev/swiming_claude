@@ -96,6 +96,7 @@
     <Reference Include="PresentationCore" />
     <Reference Include="PresentationFramework" />
     <Reference Include="System.Windows.Forms" />
+    <Reference Include="System.Drawing" />
   </ItemGroup>
   <ItemGroup>
     <ApplicationDefinition Include="App.xaml">
@@ -328,6 +329,7 @@
     <Compile Include="Swimmer.cs" />
     <Compile Include="LapAdjustLogic.cs" />
     <Compile Include="TimingBridge.cs" />
+    <Compile Include="ThermalPrinterService.cs" />
     <Compile Include="HeatScheduler.cs" />
     <Compile Include="DisplayStyleWindow.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
