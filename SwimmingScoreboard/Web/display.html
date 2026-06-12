@@ -1140,11 +1140,13 @@ function renderSchedule(sd) {
     var sessionFilter = (sd && typeof sd.session === 'number') ? sd.session : -1;
     var PER = 10;   // 每页日程行数 (同比赛视图 10 道)
     // 按场次分组, 每场内部按 PER 分页 → 同一场的多页 抬头不变, 只翻日程行
-    var groups = [], curSess = null, curGrp = null;
+    var groups = [], curSess = null, curGrp = null, seqInSess = 0;
     for (var i = 0; i < items.length; i++) {
         var it = items[i];
         if (sessionFilter >= 0 && it.session !== sessionFilter) continue;
-        if (it.session !== curSess) { curSess = it.session; curGrp = { sess: it, items: [] }; groups.push(curGrp); }
+        if (it.session !== curSess) { curSess = it.session; curGrp = { sess: it, items: [] }; groups.push(curGrp); seqInSess = 0; }
+        seqInSess++;
+        it._seq = (it.evNum && it.evNum > 0) ? it.evNum : seqInSess;   // 序号: 有项次用项次, 否则场内顺序号(按场次重置1)
         curGrp.items.push(it);
     }
     _schedPages = [];
@@ -1189,7 +1191,7 @@ function showSchedPage() {
         var it = pg.rows[i];
         var grp = (it.gender || '') + (it.ageGroup || '');
         html += '<div class="lane-row fixed-row">'
-            + '<span style="flex:0 0 8%;text-align:right;font-size:' + infoFs + ';font-weight:bold;color:var(--c-lane);font-family:var(--ff-info);">' + (it.evNum || '') + '.</span>'
+            + '<span style="flex:0 0 8%;text-align:right;font-size:' + infoFs + ';font-weight:bold;color:var(--c-lane);font-family:var(--ff-info);">' + (it._seq || '') + '.</span>'
             + '<span style="flex:0 0 26%;padding-left:1.5vw;font-size:' + infoFs + ';color:var(--c-team);font-family:var(--ff-info);">' + _e(grp) + '</span>'
             + '<span style="flex:1 1 auto;padding-left:1vw;font-size:' + infoFs + ';font-weight:bold;color:var(--c-name);font-family:var(--ff-name);">' + _e(it.eventName || '') + '</span>'
             + '<span style="flex:0 0 16%;text-align:center;font-size:' + infoFs + ';color:var(--c-team);font-family:var(--ff-info);">' + _e(it.stage || '') + '</span>'
