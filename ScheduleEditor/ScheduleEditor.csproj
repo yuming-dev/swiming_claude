@@ -104,6 +104,7 @@
     <Reference Include="PresentationCore" />
     <Reference Include="PresentationFramework" />
     <Reference Include="System.Windows.Forms" />
+    <Reference Include="System.Drawing" />
   </ItemGroup>
 
   <!-- ── 本项目独占文件（App / LoginWindow / 凭据） ── -->
@@ -403,6 +404,10 @@
     <!-- 2026-06-03 接力 Reaction PC 端算 (MainWindow.xaml.cs 引用), 也加到 ScheduleEditor 共享编译 -->
     <Compile Include="..\SwimmingScoreboard\RelayReactionCalculator.cs">
       <Link>RelayReactionCalculator.cs</Link>
+    </Compile>
+    <!-- 2026-06-12 USB 热敏打印机 (MainWindow.xaml.cs 引用), 也加到 ScheduleEditor 共享编译 -->
+    <Compile Include="..\SwimmingScoreboard\ThermalPrinterService.cs">
+      <Link>ThermalPrinterService.cs</Link>
     </Compile>
     <Page Include="..\SwimmingScoreboard\BatchByAgeGroupPrintWindow.xaml">
       <Link>BatchByAgeGroupPrintWindow.xaml</Link>

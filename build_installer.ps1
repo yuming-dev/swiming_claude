@@ -7,7 +7,7 @@
 # 运行：powershell -ExecutionPolicy Bypass -File .\build_installer.ps1
 
 $ErrorActionPreference = "Stop"
-$root = "C:\代码\swiming_claude"
+$root = "C:\游泳2026\swiming_claude"
 $installerBuild = Join-Path $root "InstallerBuild"
 
 $msbuild = "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Current\Bin\MSBuild.exe"
