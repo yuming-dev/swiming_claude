@@ -14,6 +14,48 @@ namespace SwimmingScoreboard
     // 协议帧: SOH(0xF1) | 'S' | CMD0 | CMD1 | 端口/泳道 | 分 | 秒 | 百毫秒 | 毫秒 | ... | EOT(0xF4)
     // ═══════════════════════════════════════════════════════════════
 
+    // 2026-06-10 备份事件 (从硬件 cmd=0x67 解析). evt_type: 0/1=SB按下/松开, 2/3=TP, 4/5=MB1, 6/7=MB2, 8/9=MB3. dev_state=触发时硬件设备状态(0关/1开/2延迟/3坏/4没装)
+    public class BackupEventInfo
+    {
+        public byte EvtType { get; set; }
+        public int  Lane    { get; set; }   // 0-9
+        public int  Side    { get; set; }   // 0=左 1=右
+        public byte Hour    { get; set; }
+        public byte Minute  { get; set; }
+        public byte Second  { get; set; }
+        public byte Msecond { get; set; }
+        public byte DevState{ get; set; }
+        public double TimeInSeconds { get; set; }
+        public string DeviceLabel {
+            get {
+                switch (EvtType / 2) {
+                    case 0: return "SB";
+                    case 1: return "TP";
+                    case 2: return "MB1";
+                    case 3: return "MB2";
+                    case 4: return "MB3";
+                    default: return "?";
+                }
+            }
+        }
+        public string ActionLabel { get { return (EvtType % 2 == 0) ? "按下" : "松开"; } }
+        public string SideLabel   { get { return Side == 0 ? "左" : "右"; } }
+        // 2026-06-10 跟主比赛日志事件 label 风格一致: 出/触/盲N
+        public string EventLabel {
+            get {
+                switch (EvtType / 2) {
+                    case 0: return "出";  // SB → 出发台
+                    case 1: return "触";  // TP → 触板
+                    case 2: return "盲1"; // MB1
+                    case 3: return "盲2"; // MB2
+                    case 4: return "盲3"; // MB3
+                    default: return "?";
+                }
+            }
+        }
+        public bool IsPress { get { return (EvtType % 2) == 0; } }
+    }
+
     public class TimingData
     {
         public int Lane { get; set; }
@@ -118,6 +160,9 @@ namespace SwimmingScoreboard
         public event Action<TimingData> OnTimingData;
         public event Action<string> OnStatusChanged;
         public event Action<string> OnLog;
+        // 2026-06-10 事件备份查询: 每条事件触发 OnBackupEvent, 末帧 (D3=0xFF) 触发 OnBackupQueryComplete
+        public event Action<BackupEventInfo> OnBackupEvent;
+        public event Action OnBackupQueryComplete;
 
         // 2026-05-30 步骤 3: 收帧 raw hex 日志开关. 默认关 (减 UI 负担),
         //   开后每帧多 1 条 AddLog (列表滚动 + ScrollIntoView, 是 UI 线程最大常规负担).
@@ -408,6 +453,33 @@ namespace SwimmingScoreboard
                 case 0x62: cmdType = TimingCommandType.LaneOrder;      break; // 2026-05-17 硬件→PC 道次顺序
                 case 0x63: cmdType = TimingCommandType.FinishPosition; break; // 2026-05-17 硬件→PC 终点位置
                 case 0x64: cmdType = TimingCommandType.TimingsBundle;  break; // 2026-05-17 硬件→PC 5 项时间
+                case 0x67: {
+                    // 2026-06-10 备份事件回应 (硬件→PC). D3=evt_type (0xFF=末帧), D4=lane, D5=side, D6=hour, D7=min, D8=sec, D9=msec, D10=dev_state
+                    byte evtType = frame[3];
+                    if (evtType == 0xFF) {
+                        // 末帧: 触发 BackupQueryComplete
+                        Action complete = OnBackupQueryComplete;
+                        if (complete != null) complete();
+                    } else {
+                        // 2026-06-10 用 _moduleToLane 转 PC 逻辑道次 (= 跟主比赛日志 ProcessTimingData 一致)
+                        int rawLane = frame[4];   // 硬件 0-9
+                        int logicalLane = rawLane < 20 ? _moduleToLane[rawLane] : rawLane;
+                        var evt = new BackupEventInfo {
+                            EvtType  = evtType,
+                            Lane     = logicalLane,   // = 逻辑道次, 跟主比赛日志道N对齐 (= 1-based 由上层 +1 显示前已 +0 经映射)
+                            Side     = frame[5],
+                            Hour     = frame[6],
+                            Minute   = frame[7],
+                            Second   = frame[8],
+                            Msecond  = frame[9],
+                            DevState = frame[10]
+                        };
+                        evt.TimeInSeconds = evt.Hour * 3600.0 + evt.Minute * 60.0 + evt.Second + evt.Msecond / 100.0;
+                        Action<BackupEventInfo> bh = OnBackupEvent;
+                        if (bh != null) bh(evt);
+                    }
+                    return;
+                }
                 default:
                     RaiseLog(string.Format("未知命令: 0x{0:X2}", cmd));
                     return;

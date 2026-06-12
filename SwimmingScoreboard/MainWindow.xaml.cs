@@ -227,6 +227,8 @@ namespace SwimmingScoreboard
         // 计时硬件
         // ═══════════════════════════════════════════════════════════════
         private TimingBridge _timingBridge;
+        // 2026-06-10 事件备份接收缓冲: 查询时累积, 末帧弹窗后清空
+        private List<BackupEventInfo> _pendingBackupEvents = new List<BackupEventInfo>();
         private DispatcherTimer _raceTimer;
         private DispatcherTimer _countdownTimer;
         //2026-05-16 周期性把 PC 时间下发到硬件 RTC，避免长时间运行后 RTC 漂移
@@ -294,6 +296,7 @@ namespace SwimmingScoreboard
             RefreshResultGrid();
             // 2026-06-06 Ctrl+0..9 全局键盘快捷键: 跳第 N 道圈 (= 应急用, 替代鼠标点击触发跳圈)
             this.PreviewKeyDown += MainWindow_PreviewKeyDown_SkipLapShortcut;
+            this.PreviewKeyDown += MainWindow_PreviewKeyDown_BackupShortcut;   // 2026-06-10 Ctrl+Shift+B 查事件备份 / Ctrl+Shift+L 清空
             // 2026-06-08 P3-B/C: 顶栏内存监控 10s 一次刷新 + 5 分钟一次兜底轻量 GC (Optimized 模式, 非阻塞)
             StartMemoryMonitorAndPeriodicGc();
             AddLog(editorMode ? "编排记录及成绩处理 启动完成" : "系统启动完成");
@@ -331,6 +334,14 @@ namespace SwimmingScoreboard
                 };
                 _periodicGcTimer.Start();
             } catch { }
+        }
+
+        // 2026-06-10 Ctrl+Shift+B 查事件备份 / Ctrl+Shift+L 清空事件备份
+        private void MainWindow_PreviewKeyDown_BackupShortcut(object sender, System.Windows.Input.KeyEventArgs e) {
+            var mods = System.Windows.Input.Keyboard.Modifiers;
+            if (mods != (System.Windows.Input.ModifierKeys.Control | System.Windows.Input.ModifierKeys.Shift)) return;
+            if (e.Key == System.Windows.Input.Key.B) { e.Handled = true; QueryBackupLog(); }
+            else if (e.Key == System.Windows.Input.Key.L) { e.Handled = true; ClearBackupLog(); }
         }
 
         // 2026-06-06 Ctrl+0..9 全局快捷键 = 跳第 0..9 道圈. PreviewKeyDown 保证比 TextBox 等元素先收到事件
@@ -3011,6 +3022,18 @@ namespace SwimmingScoreboard
                     AddLog(msg);
                 });
             };
+            // 2026-06-10 事件备份接收: 累积到 _pendingBackupEvents, 末帧弹窗显示
+            _timingBridge.OnBackupEvent += delegate(BackupEventInfo evt) {
+                Dispatcher.BeginInvoke((Action)delegate() {
+                    _pendingBackupEvents.Add(evt);
+                });
+            };
+            _timingBridge.OnBackupQueryComplete += delegate() {
+                Dispatcher.BeginInvoke((Action)delegate() {
+                    AddLog(string.Format("事件备份查询完成: {0} 条事件", _pendingBackupEvents.Count));
+                    ShowBackupEventDialog();
+                });
+            };
         }
 
         //2026-05-16 周期性把 PC 时间下发到硬件 RTC（30 min）
@@ -3030,6 +3053,181 @@ namespace SwimmingScoreboard
 
         private void StopClockSyncTimer() {
             if (_clockSyncTimer != null && _clockSyncTimer.IsEnabled) _clockSyncTimer.Stop();
+        }
+
+        // 2026-06-10 事件备份功能 (= 跟硬件 EventBackup ring buffer + NAND eventlog.bin 配合)
+        //   裁判/操作员发现成绩争议时 → 查备份 → 找到漏掉的按键时间补录
+        //   比赛结束确认无问题后 → 清空备份
+        public void QueryBackupLog() {
+            if (_timingBridge == null || !_timingBridge.IsConnected) {
+                MessageBox.Show("硬件未连接", "查事件备份");
+                return;
+            }
+            _pendingBackupEvents.Clear();
+            _timingBridge.SendCommand(0x66);   // Query_BackupLog_Command (0x56) + 0x10
+            AddLog("已发查事件备份请求 (0x66), 等硬件回应...");
+        }
+
+        public void ClearBackupLog() {
+            if (_timingBridge == null || !_timingBridge.IsConnected) {
+                MessageBox.Show("硬件未连接", "清空事件备份");
+                return;
+            }
+            var r = MessageBox.Show("确定清空硬件事件备份? (= 比赛结束并确认无问题后)", "清空确认",
+                MessageBoxButton.YesNo, MessageBoxImage.Question);
+            if (r != MessageBoxResult.Yes) return;
+            _timingBridge.SendCommand(0x68);   // Clear_BackupLog_Command (0x58) + 0x10
+            AddLog("已发清空事件备份 (0x68)");
+        }
+
+        private void ShowBackupEventDialog() {
+            if (_pendingBackupEvents.Count == 0) {
+                MessageBox.Show("事件备份: 无事件", "事件备份");
+                return;
+            }
+            // 2026-06-10 格式: 道N侧 出/触/盲X = 设备按下瞬间硬件时间 (= 跟比赛日志 = 后 SB/TP/MB 成绩同源)
+            // 按键电路上拉到 1, 按下变 0 → 1→0 下降沿 = 按下 = 成绩瞬间. 硬件 OnSendSWData 帧也在此时刻发
+            // 2026-06-10 lines 按当前泳道筛选动态生成. laneFilter = -1 表示全部, 0..9 表示只看道N
+            //   存盘/打印/复制 均使用当前筛选后的 lines, 故反复重赋值 (闭包按引用捕获 lines 变量)
+            var lines = new List<string>();
+            Func<int, List<string>> buildLines = delegate(int laneFilter) {
+                var ls = new List<string>();
+                int pc = 0;
+                foreach (var e in _pendingBackupEvents) if (e.IsPress && (laneFilter < 0 || e.Lane == laneFilter)) pc++;
+                string scope = laneFilter < 0 ? "全部道次" : ("道" + laneFilter);
+                ls.Add(string.Format("==== 事件备份 [{0}] ({1} 条按下 = 成绩瞬间, 共 {2} 条原始) ====", scope, pc, _pendingBackupEvents.Count));
+                ls.Add("说明: = 后是设备按下 (= 下降沿, 成绩触发) 瞬间的硬件比赛运行时间, 跟比赛日志 '= XX.XX' 同源");
+                ls.Add("");
+                foreach (var evt in _pendingBackupEvents) {
+                    if (!evt.IsPress) continue;  // 跳过松开, 只显示按下 (= 比赛日志成绩瞬间)
+                    if (laneFilter >= 0 && evt.Lane != laneFilter) continue;  // 2026-06-10 泳道筛选
+                    string ts;
+                    if (evt.Hour > 0)        ts = string.Format("{0}:{1:00}:{2:00}.{3:00}", evt.Hour, evt.Minute, evt.Second, evt.Msecond);
+                    else if (evt.Minute > 0) ts = string.Format("{0}:{1:00}.{2:00}", evt.Minute, evt.Second, evt.Msecond);
+                    else                     ts = string.Format("{0}.{1:00}", evt.Second, evt.Msecond);
+                    ls.Add(string.Format("道{0}{1} {2} = {3,8} 硬件状态={4}",
+                        evt.Lane, evt.SideLabel, evt.EventLabel, ts, evt.DevState));
+                }
+                if (pc == 0) ls.Add(laneFilter < 0 ? "(无按下事件)" : string.Format("(道{0} 无按下事件)", laneFilter));
+                return ls;
+            };
+
+            // 滚动窗口
+            var wnd = new Window {
+                Title = string.Format("事件备份 ({0} 条) - Ctrl+S 存盘 / Ctrl+P 打印", _pendingBackupEvents.Count),
+                Width = 900, Height = 600,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                Owner = this
+            };
+            var grid = new Grid();
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });                       // 行0: 泳道查询
+            grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });  // 行1: 滚动列表
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });                       // 行2: 按钮
+
+            // 2026-06-10 泳道查询: 选 道0..道9 只看该道, 选 全部 看所有道
+            var filterPanel = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(10, 8, 10, 0), VerticalAlignment = VerticalAlignment.Center };
+            filterPanel.Children.Add(new TextBlock { Text = "泳道查询:", VerticalAlignment = VerticalAlignment.Center, FontSize = 13, Margin = new Thickness(0, 0, 8, 0) });
+            var laneCombo = new ComboBox { Width = 120, FontSize = 13 };
+            laneCombo.Items.Add("全部");
+            for (int i = 0; i <= 9; i++) laneCombo.Items.Add("道" + i);
+            laneCombo.SelectedIndex = 0;
+            filterPanel.Children.Add(laneCombo);
+            Grid.SetRow(filterPanel, 0);
+            grid.Children.Add(filterPanel);
+
+            var listBox = new ListBox {
+                FontFamily = new System.Windows.Media.FontFamily("Consolas"),
+                FontSize = 13
+            };
+            ScrollViewer.SetHorizontalScrollBarVisibility(listBox, ScrollBarVisibility.Auto);
+            ScrollViewer.SetVerticalScrollBarVisibility(listBox, ScrollBarVisibility.Auto);
+            Grid.SetRow(listBox, 1);
+            grid.Children.Add(listBox);
+
+            // 2026-06-10 按下拉选择重建列表. SelectedIndex: 0=全部, 1..10 → 道0..道9
+            Action refreshList = delegate {
+                int sel = laneCombo.SelectedIndex;
+                int laneFilter = sel <= 0 ? -1 : sel - 1;
+                lines = buildLines(laneFilter);
+                listBox.Items.Clear();
+                foreach (var line in lines) listBox.Items.Add(line);
+            };
+            laneCombo.SelectionChanged += delegate { refreshList(); };
+            refreshList();   // 初始显示 全部
+
+            // 按钮: 存盘 / 打印 / 复制 / 关闭
+            var btnPanel = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(10) };
+
+            var btnSave = new Button { Content = "存盘", Width = 80, Height = 30, Margin = new Thickness(5) };
+            btnSave.Click += delegate(object s, RoutedEventArgs e) {
+                var dlg = new Microsoft.Win32.SaveFileDialog {
+                    FileName = string.Format("事件备份_{0:yyyyMMdd_HHmmss}.txt", DateTime.Now),
+                    Filter = "文本文件 (*.txt)|*.txt|所有文件 (*.*)|*.*"
+                };
+                if (dlg.ShowDialog() == true) {
+                    try {
+                        System.IO.File.WriteAllLines(dlg.FileName, lines, System.Text.Encoding.UTF8);
+                        MessageBox.Show("已保存: " + dlg.FileName, "存盘", MessageBoxButton.OK, MessageBoxImage.Information);
+                    } catch (Exception ex) {
+                        MessageBox.Show("保存失败: " + ex.Message, "存盘", MessageBoxButton.OK, MessageBoxImage.Error);
+                    }
+                }
+            };
+            btnPanel.Children.Add(btnSave);
+
+            var btnPrint = new Button { Content = "打印", Width = 80, Height = 30, Margin = new Thickness(5) };
+            btnPrint.Click += delegate(object s, RoutedEventArgs e) {
+                try {
+                    var pd = new System.Windows.Controls.PrintDialog();
+                    if (pd.ShowDialog() == true) {
+                        var flowDoc = new System.Windows.Documents.FlowDocument();
+                        flowDoc.FontFamily = new System.Windows.Media.FontFamily("Consolas");
+                        flowDoc.FontSize = 11;
+                        flowDoc.PageWidth = pd.PrintableAreaWidth;
+                        flowDoc.PagePadding = new Thickness(40);
+                        foreach (var line in lines) {
+                            flowDoc.Blocks.Add(new System.Windows.Documents.Paragraph(new System.Windows.Documents.Run(line)) { Margin = new Thickness(0) });
+                        }
+                        var paginator = ((System.Windows.Documents.IDocumentPaginatorSource)flowDoc).DocumentPaginator;
+                        pd.PrintDocument(paginator, "事件备份");
+                    }
+                } catch (Exception ex) {
+                    MessageBox.Show("打印失败: " + ex.Message, "打印", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+            };
+            btnPanel.Children.Add(btnPrint);
+
+            var btnCopy = new Button { Content = "复制", Width = 80, Height = 30, Margin = new Thickness(5) };
+            btnCopy.Click += delegate(object s, RoutedEventArgs e) {
+                try {
+                    System.Windows.Clipboard.SetText(string.Join("\r\n", lines));
+                    MessageBox.Show("已复制到剪贴板", "复制");
+                } catch (Exception ex) {
+                    MessageBox.Show("复制失败: " + ex.Message);
+                }
+            };
+            btnPanel.Children.Add(btnCopy);
+
+            var btnClose = new Button { Content = "关闭", Width = 80, Height = 30, Margin = new Thickness(5) };
+            btnClose.Click += delegate(object s, RoutedEventArgs e) { wnd.Close(); };
+            btnPanel.Children.Add(btnClose);
+
+            Grid.SetRow(btnPanel, 2);
+            grid.Children.Add(btnPanel);
+
+            // 快捷键: Ctrl+S 存盘, Ctrl+P 打印, Ctrl+C 复制, Esc 关闭
+            wnd.PreviewKeyDown += delegate(object s, System.Windows.Input.KeyEventArgs e) {
+                bool ctrl = (System.Windows.Input.Keyboard.Modifiers & System.Windows.Input.ModifierKeys.Control) != 0;
+                if (ctrl && e.Key == System.Windows.Input.Key.S) { btnSave.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); e.Handled = true; }
+                else if (ctrl && e.Key == System.Windows.Input.Key.P) { btnPrint.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); e.Handled = true; }
+                else if (ctrl && e.Key == System.Windows.Input.Key.C) { btnCopy.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); e.Handled = true; }
+                else if (e.Key == System.Windows.Input.Key.Escape) { wnd.Close(); e.Handled = true; }
+            };
+
+            wnd.Content = grid;
+            wnd.ShowDialog();
+
+            _pendingBackupEvents.Clear();
         }
 
         private void ProcessTimingDataFromHardware(TimingData data) {
@@ -4171,7 +4369,7 @@ namespace SwimmingScoreboard
             }
             if (!_laneEventLog.ContainsKey(lane)) _laneEventLog[lane] = new StringBuilder();
             string elapsed = _raceStartTime > DateTime.MinValue
-                ? ((DateTime.Now - _raceStartTime).TotalSeconds).ToString("F2")
+                ? FormatElapsedMSS((DateTime.Now - _raceStartTime).TotalSeconds)
                 : "—";
             //2026-05-31 加左/右标志 + 圈数 [N] 标注 (N = 该侧剩余触板次数, 跟 PC UI 一致)
             string sideLabel = side == "left" ? "左" : (side == "right" ? "右" : "");
@@ -4182,7 +4380,7 @@ namespace SwimmingScoreboard
             else if (time == 0) timeStr = "0.00";
             else if (time < 0) timeStr = "-" + TimeFormatter.Format(-time);   // TimeFormatter 对 <=0 返空, 用 abs+前缀
             else timeStr = TimeFormatter.Format(time);
-            _laneEventLog[lane].AppendFormat("[T={0,7}] 道{1}{2} {3}{4} = {5}{6}\r\n",
+            _laneEventLog[lane].AppendFormat("[T={0,8}] 道{1}{2} {3}{4} = {5}{6}\r\n",
                 elapsed, lane, sideLabel, label, lapLabel, timeStr,
                 string.IsNullOrEmpty(swimmerName) ? "" : (" (" + swimmerName + ")"));
             TrimSbIfOver(_laneEventLog[lane], MAX_LANE_EVENT_LOG);
@@ -6133,7 +6331,7 @@ namespace SwimmingScoreboard
             // 加 basis 注释 (= TP / MB / HandTP)
             string basisNote = basisKind == "TP" ? "" : (basisKind == "MB" ? " (基准:MB)" : (basisKind == "HandTP" ? " (基准:手动)" : ""));
             string elapsed = _raceStartTime > DateTime.MinValue
-                ? ((DateTime.Now - _raceStartTime).TotalSeconds).ToString("F2")
+                ? FormatElapsedMSS((DateTime.Now - _raceStartTime).TotalSeconds)
                 : "—";
             string swimmerName = "";
             var sw2 = GetCurrentHeatSwimmers().FirstOrDefault(s2 => {
@@ -6143,7 +6341,7 @@ namespace SwimmingScoreboard
             if (sw2 != null) swimmerName = sw2.Name ?? "";
             if (!_laneEventLog.ContainsKey(lane)) _laneEventLog[lane] = new StringBuilder();
             // 2026-06-03 计算数据 (= 14 条规则算出) time 后加 "*" 与原始 SB 数据区分
-            _laneEventLog[lane].AppendFormat("[T={0,7}] 道{1}{2} {3}{4} = {5}*{6}{7}\r\n",
+            _laneEventLog[lane].AppendFormat("[T={0,8}] 道{1}{2} {3}{4} = {5}*{6}{7}\r\n",
                 elapsed, lane, sideLabel, label, lapLabel, timeStr, basisNote,
                 string.IsNullOrEmpty(swimmerName) ? "" : (" (" + swimmerName + ")"));
             TrimSbIfOver(_laneEventLog[lane], MAX_LANE_EVENT_LOG);
@@ -6179,7 +6377,7 @@ namespace SwimmingScoreboard
             int lapRemain = ls2 != null ? GetTouchRemain(ls2, side == "left") : -1;
             string lapLabel = lapRemain >= 0 ? string.Format("[{0}]", lapRemain) : "";
             string elapsed = _raceStartTime > DateTime.MinValue
-                ? ((DateTime.Now - _raceStartTime).TotalSeconds).ToString("F2")
+                ? FormatElapsedMSS((DateTime.Now - _raceStartTime).TotalSeconds)
                 : "—";
             string swimmerName = "";
             var sw2 = GetCurrentHeatSwimmers().FirstOrDefault(s2 => {
@@ -6189,7 +6387,7 @@ namespace SwimmingScoreboard
             if (sw2 != null) swimmerName = sw2.Name ?? "";
             if (!_laneEventLog.ContainsKey(lane)) _laneEventLog[lane] = new StringBuilder();
             // 2026-06-03 计算数据 (= 14 条规则算出) time 后加 "*" 与原始 SB 数据区分
-            _laneEventLog[lane].AppendFormat("[T={0,7}] 道{1}{2} {3}{4} = ---*{5}\r\n",
+            _laneEventLog[lane].AppendFormat("[T={0,8}] 道{1}{2} {3}{4} = ---*{5}\r\n",
                 elapsed, lane, sideLabel, label, lapLabel,
                 string.IsNullOrEmpty(swimmerName) ? "" : (" (" + swimmerName + ")"));
             TrimSbIfOver(_laneEventLog[lane], MAX_LANE_EVENT_LOG);
@@ -21054,6 +21252,15 @@ namespace SwimmingScoreboard
         // ═══════════════════════════════════════════════════════════════
         // 工具方法
         // ═══════════════════════════════════════════════════════════════
+        // 2026-06-10 Helper: 秒数转 "M:SS.CC" 或 "SS.CC" 格式 (= 比赛日志 [T=...] 显示用)
+        private static string FormatElapsedMSS(double sec) {
+            if (sec < 0) return "—";
+            int m = (int)(sec / 60);
+            double s = sec - m * 60;
+            if (m > 0) return string.Format("{0}:{1:00.00}", m, s);
+            return s.ToString("F2");
+        }
+
         private void AddLog(string msg) {
             // 2026-06-06 系统工作状态 → 比赛日志 (LogListBox) 已下线 (= 与 系统日志与数据 → 运行日志
             //   SystemLogListBox 同内容, 用户要求精简, 只保留后者). AddLog 现只写 SystemLogListBox.
