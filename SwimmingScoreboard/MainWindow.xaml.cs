@@ -10449,18 +10449,50 @@ namespace SwimmingScoreboard
             RunWithEditLock("timing-settings", "参数设置", delegate { TimingSettingsCore(); });
         }
 
+        // 2026-06-12 参数设置 改为分类中枢: "时间参数设置" / "比赛泳池、设备状态设置" 两个子窗口, 各自确认/取消独立生效
         private void TimingSettingsCore() {
             var dlg = new Window {
                 Title = "参数设置",
-                Width = 420,
-                SizeToContent = SizeToContent.Height, // 高度自适应内容，无滚动条
+                Width = 360,
+                SizeToContent = SizeToContent.Height,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner,
                 Owner = this, ResizeMode = ResizeMode.NoResize,
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E293B"))
             };
-
             var sp = new StackPanel { Margin = new Thickness(20) };
-            sp.Children.Add(new TextBlock { Text = "参数设置", FontSize = 17, FontWeight = FontWeights.Bold, Foreground = Brushes.White, Margin = new Thickness(0, 0, 0, 14) });
+            sp.Children.Add(new TextBlock { Text = "参数设置", FontSize = 17, FontWeight = FontWeights.Bold, Foreground = Brushes.White, Margin = new Thickness(0, 0, 0, 6) });
+            sp.Children.Add(new TextBlock { Text = "选择要设置的分类:", Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), FontSize = 13, Margin = new Thickness(0, 0, 0, 14) });
+            var btnTimeCat = new Button { Content = "时间参数设置", Padding = new Thickness(0, 12, 0, 12), FontSize = 15, FontWeight = FontWeights.Bold, Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6")), Foreground = Brushes.White, BorderThickness = new Thickness(0), Margin = new Thickness(0, 0, 0, 10) };
+            btnTimeCat.Click += delegate { ShowTimeParamsDialog(); };
+            sp.Children.Add(btnTimeCat);
+            var btnPoolCat = new Button { Content = "比赛泳池、设备状态设置", Padding = new Thickness(0, 12, 0, 12), FontSize = 15, FontWeight = FontWeights.Bold, Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#10B981")), Foreground = Brushes.White, BorderThickness = new Thickness(0), Margin = new Thickness(0, 0, 0, 10) };
+            btnPoolCat.Click += delegate { ShowPoolDeviceSettingsDialog(); };
+            sp.Children.Add(btnPoolCat);
+            // 2026-06-12 手动按键管理 保留在 参数设置 (中枢) 窗口, 不并入泳池设备子窗口
+            var btnManualCat = new Button { Content = "手动按键管理", Padding = new Thickness(0, 12, 0, 12), FontSize = 15, FontWeight = FontWeights.Bold, Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#0EA5E9")), Foreground = Brushes.White, BorderThickness = new Thickness(0), Margin = new Thickness(0, 0, 0, 10) };
+            btnManualCat.Click += delegate { OpenManualButtonManager(); };
+            sp.Children.Add(btnManualCat);
+            var hubBtnPanel = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 6, 0, 0) };
+            var hubClose = new Button { Content = "关闭", Padding = new Thickness(16, 6, 16, 6), Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569")), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
+            hubClose.Click += delegate { dlg.DialogResult = true; };
+            hubBtnPanel.Children.Add(hubClose);
+            sp.Children.Add(hubBtnPanel);
+            dlg.Content = sp;
+            dlg.ShowDialog();
+        }
+
+        // 2026-06-12 时间参数设置 子窗口 (从 参数设置 拆出 9 个时间参数). 确认=应用并同步硬件; 取消=不改.
+        private void ShowTimeParamsDialog() {
+            var dlg = new Window {
+                Title = "时间参数设置",
+                Width = 420,
+                SizeToContent = SizeToContent.Height,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                Owner = this, ResizeMode = ResizeMode.NoResize,
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E293B"))
+            };
+            var sp = new StackPanel { Margin = new Thickness(20) };
+            sp.Children.Add(new TextBlock { Text = "时间参数设置", FontSize = 17, FontWeight = FontWeights.Bold, Foreground = Brushes.White, Margin = new Thickness(0, 0, 0, 14) });
 
             var tbCloseTime = AddSettingsRow(sp, "泳道关闭时间", _laneCloseSettings.LaneCloseTime.ToString(), "秒");
             var tbSBDelay = AddSettingsRow(sp, "出发台关闭延迟", _laneCloseSettings.StartBlockCloseDelay.ToString(), "秒");
@@ -10476,6 +10508,64 @@ namespace SwimmingScoreboard
             var tbReactionWin = AddSettingsRow(sp, "接力反应时事件窗口", _laneCloseSettings.ReactionEventWindowSec.ToString("F1"), "秒(1-10)");
             var tbFirstHold = AddSettingsRow(sp, "第1名成绩停留时间", _laneCloseSettings.FirstPlaceHoldTime.ToString(), "秒");
             var tbBigPage = AddSettingsRow(sp, "大屏翻屏时间", _laneCloseSettings.BigDisplayPageInterval.ToString(), "秒");
+
+            var timeBtnPanel = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 16, 0, 0) };
+            var timeCancel = new Button { Content = "取消", Padding = new Thickness(16, 6, 16, 6), Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569")), Foreground = Brushes.White, BorderThickness = new Thickness(0), Margin = new Thickness(0, 0, 8, 0) };
+            timeCancel.Click += delegate { dlg.DialogResult = false; };
+            var timeOk = new Button { Content = "确认", Padding = new Thickness(16, 6, 16, 6), Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6")), Foreground = Brushes.White, BorderThickness = new Thickness(0), FontWeight = FontWeights.Bold };
+            timeOk.Click += delegate { dlg.DialogResult = true; };
+            timeBtnPanel.Children.Add(timeCancel);
+            timeBtnPanel.Children.Add(timeOk);
+            sp.Children.Add(timeBtnPanel);
+            dlg.Content = sp;
+
+            if (dlg.ShowDialog() == true) {
+                double v;
+                if (double.TryParse(tbCloseTime.Text, out v)) _laneCloseSettings.LaneCloseTime = v;
+                if (double.TryParse(tbSBDelay.Text, out v)) _laneCloseSettings.StartBlockCloseDelay = v;
+                if (double.TryParse(tbConfDelay.Text, out v)) _laneCloseSettings.ResultConfirmCloseDelay = v;
+                if (double.TryParse(tbFSThresh.Text, out v)) _laneCloseSettings.FalseStartThreshold = v;
+                if (double.TryParse(tbSplitDisp.Text, out v)) _laneCloseSettings.SplitDisplayTime = v;
+                //2026-05-18 盲表代替成绩延迟统一为整秒, 限定 0-9
+                if (double.TryParse(tbBlindReplace.Text, out v)) {
+                    if (v < 0) v = 0;
+                    if (v > 9) v = 9;
+                    _laneCloseSettings.BlindReplaceDelay = Math.Round(v, 0);
+                }
+                if (double.TryParse(tbReactionWin.Text, out v)) {
+                    if (v < 1.0) v = 1.0;
+                    if (v > 10.0) v = 10.0;
+                    _laneCloseSettings.ReactionEventWindowSec = v;
+                }
+                if (double.TryParse(tbFirstHold.Text, out v)) _laneCloseSettings.FirstPlaceHoldTime = v;
+                if (double.TryParse(tbBigPage.Text, out v)) _laneCloseSettings.BigDisplayPageInterval = v;
+                foreach (var st in _laneDeviceStates) st.LaneCloseTime = 0;
+                SaveTimingSettings();
+                AutoSaveData();
+                UpdateLaneStatusDisplay();
+                Broadcast();
+                SendTimingSettingsToHardware();   // 同步时间参数到硬件计时器
+                AddLog(string.Format("时间参数更新: 关闭{0}s 出发台{1}s 确认{2}s 抢跳{3}s 分段{4}s 盲代{5}s 反应窗{6}s 停留{7}s 翻屏{8}s",
+                    _laneCloseSettings.LaneCloseTime, _laneCloseSettings.StartBlockCloseDelay,
+                    _laneCloseSettings.ResultConfirmCloseDelay, _laneCloseSettings.FalseStartThreshold,
+                    _laneCloseSettings.SplitDisplayTime, _laneCloseSettings.BlindReplaceDelay,
+                    _laneCloseSettings.ReactionEventWindowSec, _laneCloseSettings.FirstPlaceHoldTime,
+                    _laneCloseSettings.BigDisplayPageInterval));
+            }
+        }
+
+        // 2026-06-12 比赛泳池、设备状态设置 子窗口 (从 参数设置 拆出 终点位置/反应时/盲表代触板/硬件设备/出发边沿/道次顺序/泳池触板 + 设备管理按钮). 确认=应用并同步; 取消=不改.
+        private void ShowPoolDeviceSettingsDialog() {
+            var dlg = new Window {
+                Title = "比赛泳池、设备状态设置",
+                Width = 440,
+                SizeToContent = SizeToContent.Height,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                Owner = this, ResizeMode = ResizeMode.NoResize,
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E293B"))
+            };
+            var sp = new StackPanel { Margin = new Thickness(20) };
+            sp.Children.Add(new TextBlock { Text = "比赛泳池、设备状态设置", FontSize = 17, FontWeight = FontWeights.Bold, Foreground = Brushes.White, Margin = new Thickness(0, 0, 0, 14) });
 
             // 终点位置
             var finishRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 10, 0, 0) };
@@ -10548,8 +10638,6 @@ namespace SwimmingScoreboard
             var deviceSep = new Border { BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569")), BorderThickness = new Thickness(0, 1, 0, 0), Margin = new Thickness(0, 10, 0, 0), Padding = new Thickness(0, 10, 0, 0) };
             var btnDeviceMgr = new Button { Content = "设备状态管理", Padding = new Thickness(0, 8, 0, 8), FontSize = 14, FontWeight = FontWeights.Bold, Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#8B5CF6")), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
             btnDeviceMgr.Click += delegate { dlg.DialogResult = false; DeviceStatus_Click(null, null); };
-            var btnManualMgr = new Button { Content = "手动按键管理", Padding = new Thickness(0, 8, 0, 8), FontSize = 14, FontWeight = FontWeights.Bold, Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#0EA5E9")), Foreground = Brushes.White, BorderThickness = new Thickness(0), Margin = new Thickness(0, 6, 0, 0) };
-            btnManualMgr.Click += delegate { dlg.DialogResult = false; OpenManualButtonManager(); };
             var btnBlindMgr = new Button { Content = "左右盲表数量设置", Padding = new Thickness(0, 8, 0, 8), FontSize = 14, FontWeight = FontWeights.Bold, Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F59E0B")), Foreground = Brushes.Black, BorderThickness = new Thickness(0), Margin = new Thickness(0, 6, 0, 0) };
             btnBlindMgr.Click += delegate { dlg.DialogResult = false; OpenBlindWatchCountDialog(); };
 
@@ -10559,7 +10647,6 @@ namespace SwimmingScoreboard
 
             var deviceStack = new StackPanel();
             deviceStack.Children.Add(btnDeviceMgr);
-            deviceStack.Children.Add(btnManualMgr);
             deviceStack.Children.Add(btnBlindMgr);
             deviceSep.Child = deviceStack;
             sp.Children.Add(deviceSep);
@@ -10567,7 +10654,7 @@ namespace SwimmingScoreboard
             var btnPanel = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 16, 0, 0) };
             var btnCancel = new Button { Content = "取消", Padding = new Thickness(16, 6, 16, 6), Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569")), Foreground = Brushes.White, BorderThickness = new Thickness(0), Margin = new Thickness(0, 0, 8, 0) };
             btnCancel.Click += delegate { dlg.DialogResult = false; };
-            var btnOk = new Button { Content = "确定", Padding = new Thickness(16, 6, 16, 6), Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6")), Foreground = Brushes.White, BorderThickness = new Thickness(0), FontWeight = FontWeights.Bold };
+            var btnOk = new Button { Content = "确认", Padding = new Thickness(16, 6, 16, 6), Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6")), Foreground = Brushes.White, BorderThickness = new Thickness(0), FontWeight = FontWeights.Bold };
             btnOk.Click += delegate { dlg.DialogResult = true; };
             btnPanel.Children.Add(btnCancel);
             btnPanel.Children.Add(btnOk);
@@ -10591,25 +10678,6 @@ namespace SwimmingScoreboard
             if (dlg.ShowDialog() == true) {
                 //2026-05-18 记下 FinishPosition 的旧值，对话框 OK 后判断是否变化以决定是否刷新 NotInstalled
                 string oldFinishForInstall = _laneCloseSettings != null ? _laneCloseSettings.FinishPosition : "left";
-                double v;
-                if (double.TryParse(tbCloseTime.Text, out v)) _laneCloseSettings.LaneCloseTime = v;
-                if (double.TryParse(tbSBDelay.Text, out v)) _laneCloseSettings.StartBlockCloseDelay = v;
-                if (double.TryParse(tbConfDelay.Text, out v)) _laneCloseSettings.ResultConfirmCloseDelay = v;
-                if (double.TryParse(tbFSThresh.Text, out v)) _laneCloseSettings.FalseStartThreshold = v;
-                if (double.TryParse(tbSplitDisp.Text, out v)) _laneCloseSettings.SplitDisplayTime = v;
-                //2026-05-18 盲表代替成绩延迟统一为整秒（与其它字段一致），限定 0-9
-                if (double.TryParse(tbBlindReplace.Text, out v)) {
-                    if (v < 0) v = 0;
-                    if (v > 9) v = 9;
-                    _laneCloseSettings.BlindReplaceDelay = Math.Round(v, 0);
-                }
-                if (double.TryParse(tbReactionWin.Text, out v)) {
-                    if (v < 1.0) v = 1.0;
-                    if (v > 10.0) v = 10.0;
-                    _laneCloseSettings.ReactionEventWindowSec = v;
-                }
-                if (double.TryParse(tbFirstHold.Text, out v)) _laneCloseSettings.FirstPlaceHoldTime = v;
-                if (double.TryParse(tbBigPage.Text, out v)) _laneCloseSettings.BigDisplayPageInterval = v;
                 _laneCloseSettings.ReactionTimeEnabled = rbRtOn.IsChecked == true;
                 _laneCloseSettings.AutoBlindReplaceTouchpad = rbBlindOn.IsChecked == true;   // 2026-06-06
                 _laneCloseSettings.HardwareAlwaysOpen = rbHwAlwaysOpen.IsChecked == true;
@@ -10651,14 +10719,14 @@ namespace SwimmingScoreboard
                 if (_timingBridge != null && _timingBridge.IsConnected) {
                     try { _timingBridge.SendPoolSingleOrDoubleTP(!newHasRight); } catch { }
                 }
-                AddLog(string.Format("参数更新: 关闭{0}s 出发台{1}s 确认{2}s 抢跳{3}s 分段{4}s 终点:{5} 翻屏{6}s 反应时:{7} 道次:{8} 触板:{9} 边沿:{10}",
-                    _laneCloseSettings.LaneCloseTime, _laneCloseSettings.StartBlockCloseDelay,
-                    _laneCloseSettings.ResultConfirmCloseDelay, _laneCloseSettings.FalseStartThreshold,
-                    _laneCloseSettings.SplitDisplayTime, _laneCloseSettings.FinishPosition == "left" ? "左端" : "右端",
-                    _laneCloseSettings.BigDisplayPageInterval, _laneCloseSettings.ReactionTimeEnabled ? "打开" : "关闭",
+                AddLog(string.Format("泳池/设备参数更新: 终点:{0} 反应时:{1} 道次:{2} 触板:{3} 边沿:{4} 盲代触板:{5} 硬件:{6}",
+                    _laneCloseSettings.FinishPosition == "left" ? "左端" : "右端",
+                    _laneCloseSettings.ReactionTimeEnabled ? "打开" : "关闭",
                     _laneCloseSettings.LaneOrder == "reverse" ? "逆序9→0" : "正序0→9",
                     newHasRight ? "两端" : "单边",
-                    _laneCloseSettings.StartBoxEdgeFalling ? "下降沿" : "上升沿"));
+                    _laneCloseSettings.StartBoxEdgeFalling ? "下降沿" : "上升沿",
+                    _laneCloseSettings.AutoBlindReplaceTouchpad ? "开" : "关",
+                    _laneCloseSettings.HardwareAlwaysOpen ? "一直打开" : "按流程"));
                 if (poolTpChanged) AddLog("泳池触板安装方式已更改并同步到硬件计时器");
 
                 //2026-05-18 恢复"非参数"状态 + 刷新硬件主控显示
