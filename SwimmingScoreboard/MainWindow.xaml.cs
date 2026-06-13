@@ -7670,73 +7670,62 @@ namespace SwimmingScoreboard
             string q = (searchText ?? "").Trim().ToLower();
             // 拆出每个 heat 的状态(用于 leaf 节点+聚合)
             // 数据来源: _schedule + ScheduleItem.HeatCount
-            var leaves = new List<NavLeaf>();
-            foreach (var si in _schedule) {
-                int hc = si.HeatCount > 0 ? si.HeatCount : 1;
-                for (int h = 1; h <= hc; h++) {
-                    leaves.Add(new NavLeaf {
-                        EventName = si.EventName ?? "",
-                        AgeGroup = si.AgeGroup ?? "",
-                        Gender = si.Gender ?? "",
-                        Stage = si.Stage ?? "",
-                        Heat = h,
-                        Date = si.Date ?? "",
-                        Time = si.Time ?? "",
-                        SessionName = si.SessionName ?? "",
-                        Status = HeatStatus(si.AgeGroup ?? "", si.Gender ?? "", si.EventName ?? "", si.Stage ?? "", h)
-                    });
-                }
-            }
-
-            // L1: 项目 -> L2: 组别 -> L3: heat
-            var byEvent = leaves.GroupBy(x => x.EventName).OrderBy(g => EventDisplayOrder(g.Key));
-            foreach (var evGrp in byEvent) {
-                var l1Children = new List<TreeViewItem>();
-                var l1ChildStatuses = new List<string>();
-                var byAge = evGrp.GroupBy(x => x.AgeGroup ?? "").OrderBy(g => g.Key);
-                foreach (var agGrp in byAge) {
-                    var l2Children = new List<TreeViewItem>();
-                    var l2ChildStatuses = new List<string>();
-                    var ordered = agGrp.OrderBy(x => x.Date).ThenBy(x => x.Time).ThenBy(x => StageOrder(x.Stage)).ThenBy(x => x.Heat).ToList();
-                    foreach (var lf in ordered) {
-                        if (statusFilter != "all" && lf.Status != statusFilter) continue;
-                        string when = (lf.Date ?? "") + " " + (lf.Time ?? "");
-                        string heatLabel = string.Format("{0} {1} 第{2}组 {3}", when.Trim(), lf.Stage ?? "", lf.Heat, StatusLabel(lf.Status));
+            // 2026-06-12 改为 场次(单元) → 项目(序号) → 组 结构 (同 比赛控制 ScheduleTree),
+            //   保留 状态筛选(statusFilter) / 搜索高亮(q) / 状态标签颜色 / leaf nav: Tag (供选中处理)
+            var sessions = _schedule.GroupBy(s => s.SessionNumber).OrderBy(g => g.Key);
+            foreach (var session in sessions) {
+                var sessChildren = new List<TreeViewItem>();
+                var sessChildStatuses = new List<string>();
+                int evSeq = 0;
+                foreach (var ev in session) {
+                    evSeq++;
+                    int seqNum = (ev.EvNum > 0) ? ev.EvNum : evSeq;   // 项目序号: 有项次用项次, 否则按单元顺序号
+                    string ag = ev.AgeGroup ?? "";
+                    int hc = ev.HeatCount > 0 ? ev.HeatCount : 1;
+                    var heatItems = new List<TreeViewItem>();
+                    var heatStatuses = new List<string>();
+                    for (int h = 1; h <= hc; h++) {
+                        string status = HeatStatus(ag, ev.Gender ?? "", ev.EventName ?? "", ev.Stage ?? "", h);
+                        if (statusFilter != "all" && status != statusFilter) continue;
+                        string when = ((ev.Date ?? "") + " " + (ev.Time ?? "")).Trim();
+                        string heatLabel = string.Format("{0} {1} 第{2}组 {3}", when, ev.Stage ?? "", h, StatusLabel(status));
                         var l3 = new TreeViewItem {
                             Header = heatLabel,
-                            Foreground = StatusBrush(lf.Status),
-                            Tag = string.Format("nav:{0}|{1}|{2}|{3}|{4}", lf.AgeGroup, lf.Gender, lf.EventName, lf.Stage, lf.Heat)
+                            Foreground = StatusBrush(status),
+                            Tag = string.Format("nav:{0}|{1}|{2}|{3}|{4}", ag, ev.Gender, ev.EventName, ev.Stage, h)
                         };
                         ApplySearchHighlight(l3, heatLabel, q);
-                        l2Children.Add(l3);
-                        l2ChildStatuses.Add(lf.Status);
+                        heatItems.Add(l3);
+                        heatStatuses.Add(status);
                     }
-                    if (l2Children.Count == 0) continue;
-                    string agStatus = AggregateStatus(l2ChildStatuses);
-                    string agName = string.IsNullOrEmpty(agGrp.Key) ? "(不限组别)" : agGrp.Key;
-                    var l2 = new TreeViewItem {
-                        Header = string.Format("{0} {1}", agName, StatusLabel(agStatus)),
-                        Foreground = StatusBrush(agStatus),
-                        Tag = "navL2:" + (evGrp.Key ?? "") + "|" + agGrp.Key,
-                        IsExpanded = (!string.IsNullOrEmpty(q) && (agName.ToLower().Contains(q) || evGrp.Key.ToLower().Contains(q))) || agStatus == "running"
+                    if (heatItems.Count == 0) continue;
+                    string evStatus = AggregateStatus(heatStatuses);
+                    string evHeader = string.Format("{0}. ", seqNum)
+                                    + (string.IsNullOrEmpty(ag) ? "" : ("[" + ag + "] "))
+                                    + string.Format("{0} {1} {2} {3}", ev.Gender, ev.EventName, ev.Stage, StatusLabel(evStatus));
+                    var evNode = new TreeViewItem {
+                        Header = evHeader,
+                        Foreground = StatusBrush(evStatus),
+                        Tag = string.Format("event:{0}|{1}|{2}|{3}", ag, ev.Gender, ev.EventName, ev.Stage),
+                        IsExpanded = (!string.IsNullOrEmpty(q) && (((ev.EventName ?? "").ToLower().Contains(q)) || ag.ToLower().Contains(q))) || evStatus == "running"
                     };
-                    foreach (var c in l2Children) l2.Items.Add(c);
-                    ApplySearchHighlight(l2, agName, q);
-                    l1Children.Add(l2);
-                    l1ChildStatuses.Add(agStatus);
+                    foreach (var c in heatItems) evNode.Items.Add(c);
+                    ApplySearchHighlight(evNode, evHeader, q);
+                    sessChildren.Add(evNode);
+                    sessChildStatuses.Add(evStatus);
                 }
-                if (l1Children.Count == 0) continue;
-                string evStatus = AggregateStatus(l1ChildStatuses);
-                var l1 = new TreeViewItem {
-                    Header = string.Format("{0} {1}", evGrp.Key, StatusLabel(evStatus)),
-                    Foreground = StatusBrush(evStatus),
+                if (sessChildren.Count == 0) continue;
+                string sessStatus = AggregateStatus(sessChildStatuses);
+                string sessName = session.First().SessionName ?? string.Format("第{0}单元", session.Key);
+                var sessNode = new TreeViewItem {
+                    Header = string.Format("{0} {1}", sessName, StatusLabel(sessStatus)),
+                    Foreground = StatusBrush(sessStatus),
                     FontWeight = FontWeights.Bold,
-                    Tag = "navL1:" + (evGrp.Key ?? ""),
-                    IsExpanded = (!string.IsNullOrEmpty(q) && evGrp.Key.ToLower().Contains(q)) || evStatus == "running"
+                    Tag = "navSession:" + session.Key,
+                    IsExpanded = !string.IsNullOrEmpty(q) || sessStatus == "running"
                 };
-                foreach (var c in l1Children) l1.Items.Add(c);
-                ApplySearchHighlight(l1, evGrp.Key, q);
-                tv.Items.Add(l1);
+                foreach (var c in sessChildren) sessNode.Items.Add(c);
+                tv.Items.Add(sessNode);
             }
 
             if (tv.Items.Count == 0) {
