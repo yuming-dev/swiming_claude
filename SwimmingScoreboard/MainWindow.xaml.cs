@@ -7502,9 +7502,13 @@ namespace SwimmingScoreboard
                     Header = session.First().SessionName ?? string.Format("第{0}单元", session.Key)
                 };
 
+                int evSeq = 0;
                 foreach (var ev in session) {
+                    evSeq++;
+                    int seqNum = (ev.EvNum > 0) ? ev.EvNum : evSeq;   // 2026-06-12 比赛项目序号: 有项次用项次, 否则按单元顺序号(重置1)
                     string ag = ev.AgeGroup ?? "";
-                    string header = (string.IsNullOrEmpty(ag) ? "" : ("[" + ag + "] "))
+                    string header = string.Format("{0}. ", seqNum)
+                                  + (string.IsNullOrEmpty(ag) ? "" : ("[" + ag + "] "))
                                   + string.Format("{0} {1} {2}", ev.Gender, ev.EventName, ev.Stage);
                     bool allHeatsConfirmed = IsStageAllConfirmedFast(ag, ev.Gender, ev.EventName, ev.Stage, swIdx);
                     if (!allHeatsConfirmed) sessionAllDone = false;
