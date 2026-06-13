@@ -9126,6 +9126,25 @@ namespace SwimmingScoreboard
             if (swimmer == null) swimmer = GetCurrentHeatSwimmers().FirstOrDefault(s => s.Lane == lane);
             if (swimmer == null) { AddLog(string.Format("泳道{0} 未找到运动员", lane)); return; }
 
+            // 2026-06-12 空道试游 占位运动员: 取消备注 = 整条移除 (无报名信息, 不应残留空行)
+            if (swimmer.Notes == EmptyTriMarker) {
+                _swimmers.Remove(swimmer);
+                _currentHeatSwimmersCacheAt = DateTime.MinValue;
+                var lsTri = _laneDeviceStates.FirstOrDefault(s => s.Lane == lane);
+                if (lsTri != null) lsTri.IsFinished = false;
+                if (_timingBridge != null && _timingBridge.IsConnected) {
+                    try { SendSetMatchEventToHardware(); } catch { }
+                }
+                LogRawTimingData(lane, "CANCEL_EMPTY_TRI", 0);
+                AddLog(string.Format("泳道{0} 取消空道试游 — 已移除该临时试游道", lane));
+                try { UpdateHeatRanking(); } catch { }
+                UpdateLaneStatusDisplay();
+                try { RefreshResultGrid(); } catch { }
+                AutoSaveData();
+                Broadcast();
+                return;
+            }
+
             string oldStatus = swimmer.Status ?? "";
             swimmer.Status = "";
             var laneState = _laneDeviceStates.FirstOrDefault(s => s.Lane == lane);
@@ -10050,11 +10069,62 @@ namespace SwimmingScoreboard
         }
 
         // 2026-06-04 TRI 试游: 不计成绩、不参与排名, 备注栏显 'TRI' (与 DSQ/DNS 同款处理)
+        // 2026-06-12 扩展: 若该道当前无运动员(空道), 改为创建 空道试游 占位运动员 (报名信息全空)
+        private const string EmptyTriMarker = "空道试游";
         private void MarkTri_Click(object sender, RoutedEventArgs e) {
             int lane;
             if (!int.TryParse(LaneInputBox.Text, out lane)) { AddLog("请输入泳道号"); return; }
+            // 2026-06-12 该道当前无运动员 → 空道试游 (临时占位); 有运动员 → 原 TRI 标注
+            bool hasSwimmer = GetCurrentHeatSwimmers().Any(s => {
+                var sa = s.GetAssignmentForStage(_currentStage);
+                return (sa != null ? sa.Lane : s.Lane) == lane;
+            });
+            if (!hasSwimmer) { CreateEmptyLaneTriSwimmer(lane); return; }
             if (!ConfirmMarkStatus(lane, "TRI", "试游 / 不计排名")) return;
             MarkLaneStatus(lane, "TRI");
+        }
+
+        // 2026-06-12 空道试游(TRI): 赛前把某空道临时标 TRI. 该道无报名信息, 在其上创建一个 Status=TRI 的
+        //   占位运动员(信息全空, Notes=EmptyTriMarker). 之后 计时记成绩 / 大屏显示 / 成绩单打印 走既有管线,
+        //   TRI 本身不参与名次. 取消备注时整条移除 (见 CancelLaneNote).
+        private void CreateEmptyLaneTriSwimmer(int lane) {
+            if (string.IsNullOrEmpty(_currentEvent) || _currentHeat <= 0) {
+                MessageBox.Show("请先选择具体的比赛项目和组次, 再标注空道试游", "空道试游(TRI)", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+            var r = MessageBox.Show(
+                string.Format("泳道{0} 当前无运动员。\n确定标注为【空道试游(TRI)】?\n无报名信息, 仅记录成绩并在大屏/成绩单显示, 不参与名次。", lane),
+                "空道试游(TRI)", MessageBoxButton.YesNo, MessageBoxImage.Question);
+            if (r != MessageBoxResult.Yes) return;
+
+            var sw = new Swimmer {
+                Name = "",
+                Gender = string.IsNullOrEmpty(_currentGender) ? "男女" : _currentGender,
+                EventName = _currentEvent,
+                AgeCategory = _currentAgeGroup ?? "",
+                CurrentStage = _currentStage,
+                Heat = _currentHeat,
+                Lane = lane,
+                Status = "TRI",
+                Notes = EmptyTriMarker
+            };
+            sw.SetStageAssignment(_currentStage, _currentHeat, lane, 0, "");
+            _swimmers.Add(sw);
+            _currentHeatSwimmersCacheAt = DateTime.MinValue;   // 失效 50ms 缓存, 让显示/计时立即包含新道
+
+            var laneState = _laneDeviceStates.FirstOrDefault(s => s.Lane == lane);
+            if (laneState != null) laneState.IsFinished = false;
+            // 更新硬件 空泳道位图 (0x43), 让硬件不再把该道当空道, 接收其计时
+            if (_timingBridge != null && _timingBridge.IsConnected) {
+                try { SendSetMatchEventToHardware(); } catch (Exception ex) { AddLog("空道试游 同步硬件失败: " + ex.Message); }
+            }
+            LogRawTimingData(lane, "EMPTY_TRI", 0);
+            AddLog(string.Format("泳道{0} 标注为 空道试游(TRI) — 无报名信息, 记成绩/显示/打印, 不计名次", lane));
+            try { UpdateHeatRanking(); } catch { }
+            UpdateLaneStatusDisplay();
+            try { RefreshResultGrid(); } catch { }
+            AutoSaveData();
+            Broadcast();
         }
 
         private void CancelNote_Click(object sender, RoutedEventArgs e) {
