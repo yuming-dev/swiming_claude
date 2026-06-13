@@ -1886,11 +1886,11 @@ namespace SwimmingScoreboard
                         // 左右盲表数量（来自远程台）
                         if (data["leftBlindWatchCount"] != null) {
                             int v = (int)data["leftBlindWatchCount"];
-                            if (v >= 1 && v <= 3) _laneCloseSettings.LeftBlindWatchCount = v;
+                            if (v >= 0 && v <= 3) _laneCloseSettings.LeftBlindWatchCount = v;
                         }
                         if (data["rightBlindWatchCount"] != null) {
                             int v = (int)data["rightBlindWatchCount"];
-                            if (v >= 1 && v <= 3) _laneCloseSettings.RightBlindWatchCount = v;
+                            if (v >= 0 && v <= 3) _laneCloseSettings.RightBlindWatchCount = v;
                         }
                         if (data["bigDisplayPageInterval"] != null) {
                             _laneCloseSettings.BigDisplayPageInterval = (double)data["bigDisplayPageInterval"];
@@ -3591,8 +3591,8 @@ namespace SwimmingScoreboard
 
                 // ── 0x45 Set_MB_Num ──
                 int lc = _laneCloseSettings.LeftBlindWatchCount, rc = _laneCloseSettings.RightBlindWatchCount;
-                if (lc < 1) lc = 1; if (lc > 3) lc = 3;
-                if (rc < 1) rc = 1; if (rc > 3) rc = 3;
+                if (lc < 0) lc = 0; if (lc > 3) lc = 3;
+                if (rc < 0) rc = 0; if (rc > 3) rc = 3;
                 _timingBridge.SendFullFrame(0x45, (byte)lc, (byte)rc);
                 _timingBridge.DelayBetweenFrames(50);
 
@@ -3615,8 +3615,8 @@ namespace SwimmingScoreboard
             if (_timingBridge == null || !_timingBridge.IsConnected) return;
             try {
                 int lc = _laneCloseSettings.LeftBlindWatchCount, rc = _laneCloseSettings.RightBlindWatchCount;
-                if (lc < 1) lc = 1; if (lc > 3) lc = 3;
-                if (rc < 1) rc = 1; if (rc > 3) rc = 3;
+                if (lc < 0) lc = 0; if (lc > 3) lc = 3;
+                if (rc < 0) rc = 0; if (rc > 3) rc = 3;
                 _timingBridge.SendFullFrame(0x45, (byte)lc, (byte)rc);
                 AddLog(string.Format("盲表数量已同步到硬件：左 {0}，右 {1}（0x45）", lc, rc));
             } catch (Exception ex) {
@@ -3944,10 +3944,10 @@ namespace SwimmingScoreboard
                                 break;
                             }
                             case 0x08: {
-                                // 盲表数量（D4 高 4 位=左 1-3，低 4 位=右 1-3）
+                                // 盲表数量（D4 高 4 位=左 0-3，低 4 位=右 0-3）
                                 int newLeft = (data.RawD4 >> 4) & 0x0F;
                                 int newRight = data.RawD4 & 0x0F;
-                                if (newLeft >= 1 && newLeft <= 3 && newRight >= 1 && newRight <= 3) {
+                                if (newLeft >= 0 && newLeft <= 3 && newRight >= 0 && newRight <= 3) {
                                     if (_laneCloseSettings.LeftBlindWatchCount != newLeft) {
                                         _laneCloseSettings.LeftBlindWatchCount = newLeft; changed = true;
                                     }
@@ -10828,7 +10828,7 @@ namespace SwimmingScoreboard
             var sp = new StackPanel { Margin = new Thickness(20) };
             sp.Children.Add(new TextBlock { Text = "左右盲表数量设置", FontSize = 17, FontWeight = FontWeights.Bold, Foreground = Brushes.White, Margin = new Thickness(0, 0, 0, 6) });
             sp.Children.Add(new TextBlock {
-                Text = "每道使用的盲表数量（1-3）。修改后将同步到三个计时控制台和硬件计时控制器。",
+                Text = "每道使用的盲表数量（0-3, 0=该侧无盲表）。修改后将同步到三个计时控制台和硬件计时控制器。",
                 Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")),
                 FontSize = 12, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 14)
             });
@@ -10845,8 +10845,8 @@ namespace SwimmingScoreboard
                     Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#334155")),
                     Foreground = Brushes.Black, FontSize = 15, FontWeight = FontWeights.Bold
                 };
-                cb.Items.Add("1"); cb.Items.Add("2"); cb.Items.Add("3");
-                cb.SelectedIndex = (sel < 1 ? 1 : (sel > 3 ? 3 : sel)) - 1;
+                cb.Items.Add("0"); cb.Items.Add("1"); cb.Items.Add("2"); cb.Items.Add("3");
+                cb.SelectedIndex = (sel < 0 ? 0 : (sel > 3 ? 3 : sel));   // 2026-06-13 0-3 (索引=数量)
                 Grid.SetColumn(cb, 1);
                 row.Children.Add(cb);
                 sp.Children.Add(row);
@@ -10874,8 +10874,8 @@ namespace SwimmingScoreboard
 
             dlg.Content = sp;
             if (dlg.ShowDialog() == true) {
-                int newLeft = cbLeft.SelectedIndex + 1;
-                int newRight = cbRight.SelectedIndex + 1;
+                int newLeft = cbLeft.SelectedIndex;      // 2026-06-13 0-3: 索引即数量
+                int newRight = cbRight.SelectedIndex;
                 bool changed = (_laneCloseSettings.LeftBlindWatchCount != newLeft) || (_laneCloseSettings.RightBlindWatchCount != newRight);
                 _laneCloseSettings.LeftBlindWatchCount = newLeft;
                 _laneCloseSettings.RightBlindWatchCount = newRight;
