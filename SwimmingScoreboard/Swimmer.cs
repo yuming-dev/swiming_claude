@@ -46,8 +46,8 @@ namespace SwimmingScoreboard
         private string _startPosition = "left";
         private string _finishPosition = "left";  // ���点（触板端）位置，整场比赛固定不变
         private double _firstPlaceHoldTime = 3.0;
-        private int _leftBlindWatchCount = 3;   // 左端每道盲表数量（1-3）
-        private int _rightBlindWatchCount = 3;  // 右端每道盲表数量（1-3）
+        private int _leftBlindWatchCount = 3;   // 左端每道盲表数量（0-3, 0=该侧无盲表）
+        private int _rightBlindWatchCount = 3;  // 右端每道盲表数量（0-3, 0=该侧无盲表）
         private double _bigDisplayPageInterval = 5.0; // 大屏翻屏时间（秒）— 总排名等多页内容自动翻页周期
         private bool _reactionTimeEnabled = true;     // 是否启用出发反应时检测：关闭时，所有出发反应时相关处理跳过
         private string _laneOrder = "forward";        // 道次显示顺序: "forward"=0→9（顶到底）；"reverse"=9→0（顶到底）
@@ -106,14 +106,14 @@ namespace SwimmingScoreboard
         public int LeftBlindWatchCount {
             get { return _leftBlindWatchCount; }
             set {
-                int v = value < 1 ? 1 : (value > 3 ? 3 : value);
+                int v = value < 0 ? 0 : (value > 3 ? 3 : value);   // 2026-06-13 允许 0 (该侧无盲表)
                 if (_leftBlindWatchCount != v) { _leftBlindWatchCount = v; OnPropertyChanged("LeftBlindWatchCount"); }
             }
         }
         public int RightBlindWatchCount {
             get { return _rightBlindWatchCount; }
             set {
-                int v = value < 1 ? 1 : (value > 3 ? 3 : value);
+                int v = value < 0 ? 0 : (value > 3 ? 3 : value);   // 2026-06-13 允许 0 (该侧无盲表)
                 if (_rightBlindWatchCount != v) { _rightBlindWatchCount = v; OnPropertyChanged("RightBlindWatchCount"); }
             }
         }
