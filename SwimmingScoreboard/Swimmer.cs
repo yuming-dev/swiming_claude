@@ -1236,20 +1236,28 @@ namespace SwimmingScoreboard
             }
         }
 
-        public void ResetForNewRace() { ResetForNewRace("left"); }
+        public void ResetForNewRace() { ResetForNewRace("left", false); }
+        public void ResetForNewRace(string startPosition) { ResetForNewRace(startPosition, false); }
 
-        public void ResetForNewRace(string startPosition) {
+        // 2026-06-14 仰泳: 运动员脚踩触板等枪响, 不站出发台. 出发端 TP→Open / SB→Closed (= 跟普通泳姿对调).
+        //   isBackstroke 由调用方按 _currentEvent.Contains("仰泳") 推导. 固件侧 BackstrokeBit 通过 0x43 D10 同步推到硬件.
+        public void ResetForNewRace(string startPosition, bool isBackstroke) {
             bool startLeft = startPosition != "right";
-            _leftTouchpadStatus = DeviceStatus.Closed;
+            // 仰泳出发端的"Open" 给触板, 普通泳姿给出发台. 用一个布尔门控两边的 Status 赋值.
+            bool tpOpenLeft = isBackstroke && startLeft;
+            bool tpOpenRight = isBackstroke && !startLeft;
+            bool sbOpenLeft = !isBackstroke && startLeft;
+            bool sbOpenRight = !isBackstroke && !startLeft;
+            _leftTouchpadStatus = tpOpenLeft ? DeviceStatus.Open : DeviceStatus.Closed;
             _leftBlindWatch1Status = DeviceStatus.Closed;
             _leftBlindWatch2Status = DeviceStatus.Closed;
             _leftBlindWatch3Status = DeviceStatus.Closed;
-            _leftStartBlockStatus = startLeft ? DeviceStatus.Open : DeviceStatus.Closed;
-            _rightTouchpadStatus = DeviceStatus.Closed;
+            _leftStartBlockStatus = sbOpenLeft ? DeviceStatus.Open : DeviceStatus.Closed;
+            _rightTouchpadStatus = tpOpenRight ? DeviceStatus.Open : DeviceStatus.Closed;
             _rightBlindWatch1Status = DeviceStatus.Closed;
             _rightBlindWatch2Status = DeviceStatus.Closed;
             _rightBlindWatch3Status = DeviceStatus.Closed;
-            _rightStartBlockStatus = startLeft ? DeviceStatus.Closed : DeviceStatus.Open;
+            _rightStartBlockStatus = sbOpenRight ? DeviceStatus.Open : DeviceStatus.Closed;
             _laneCloseCountdown = 0;
             _direction = startPosition == "right" ? "←" : "→";
             _currentLap = 0;
@@ -1282,8 +1290,11 @@ namespace SwimmingScoreboard
             HwRightBlindWatch1Color = 0;
             HwRightBlindWatch2Color = 0;
             HwRightBlindWatch3Color = 0;
-            HwLeftStartBlockColor = (byte)(startLeft ? 1 : 0);
-            HwRightStartBlockColor = (byte)(startLeft ? 0 : 1);
+            // 2026-06-14 仰泳: 出发端 TP=Open(hw=1) / SB=Closed(hw=0); 普通: 出发端 SB=Open(hw=1) / TP=Closed(hw=0).
+            HwLeftTouchpadColor = (byte)(tpOpenLeft ? 1 : 0);
+            HwRightTouchpadColor = (byte)(tpOpenRight ? 1 : 0);
+            HwLeftStartBlockColor = (byte)(sbOpenLeft ? 1 : 0);
+            HwRightStartBlockColor = (byte)(sbOpenRight ? 1 : 0);
             // 2026-06-06 计时复位 时清"终点 TP/MB 差异警示"标志, 让下一组比赛能重新检测.
             _finishTpMbDispute = false;
             NotifyAll();

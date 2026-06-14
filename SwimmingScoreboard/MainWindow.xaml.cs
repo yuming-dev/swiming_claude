@@ -143,6 +143,9 @@ namespace SwimmingScoreboard
         private Dictionary<int, StringBuilder> _laneEventLog = new Dictionary<int, StringBuilder>();
         // 2026-05-30 lane → 活跃 DispatcherTimer 列表 (finishCloseTimer / sbCloseTimer). +/- 撤销时 Stop 防 fire
         private Dictionary<int, List<DispatcherTimer>> _laneCloseTimers = new Dictionary<int, List<DispatcherTimer>>();
+        // 2026-06-14 成绩以触板为准: MB 到达后启动"成绩确认关闭延迟"宽限计时, 期间 TP 到达取消之 (TP 优先);
+        //   到期仍无 TP 才用盲表中位代替。每道至多一个待决代替计时。
+        private Dictionary<int, DispatcherTimer> _pendingMbSubTimers = new Dictionary<int, DispatcherTimer>();
         // 泳��设备状态
         private List<LaneDeviceState> _laneDeviceStates = new List<LaneDeviceState>();
 
@@ -1891,9 +1894,10 @@ namespace SwimmingScoreboard
                             _laneCloseSettings.FinishPosition = pos;  // 参数设置的是终点位置（固定）
                             _laneCloseSettings.StartPosition = pos;   // 默认发令位置=终点位置（非50米时）
                             AutoAdjustStartPosition();                // 根据当前项目自动调整
-                            // 重置出发台状态到正确一端
+                            // 重置出发台状态到正确一端 (2026-06-14 仰泳改开触板)
                             if (_raceState == RaceState.Waiting || _raceState == RaceState.Ready) {
-                                foreach (var st in _laneDeviceStates) st.ResetForNewRace(_laneCloseSettings.StartPosition);
+                                bool isBack1 = !string.IsNullOrEmpty(_currentEvent) && _currentEvent.Contains("仰泳");
+                                foreach (var st in _laneDeviceStates) st.ResetForNewRace(_laneCloseSettings.StartPosition, isBack1);
                             }
                         }
                         // 同步全局设置到所有泳道（清除每道独立值，使用全局值）
@@ -3958,7 +3962,8 @@ namespace SwimmingScoreboard
                                     _laneCloseSettings.StartPosition = newFin;
                                     AutoAdjustStartPosition();
                                     if (_raceState == RaceState.Waiting || _raceState == RaceState.Ready) {
-                                        foreach (var st in _laneDeviceStates) st.ResetForNewRace(_laneCloseSettings.StartPosition);
+                                        bool isBack2 = !string.IsNullOrEmpty(_currentEvent) && _currentEvent.Contains("仰泳");
+                                        foreach (var st in _laneDeviceStates) st.ResetForNewRace(_laneCloseSettings.StartPosition, isBack2);
                                     }
                                     changed = true;
                                 }
@@ -5108,6 +5113,9 @@ namespace SwimmingScoreboard
                 swimmer.Results.Add(result);
             }
 
+            // 2026-06-14 成绩以触板为准: 真 TP 进入处理 → 取消该道待决的"盲表代替"宽限计时 (TP 优先于 MB)
+            if (!isMbSubstitute) CancelPendingMbSubstitute(lane);
+
             // 计算分段
             int totalLaps = GetTotalLaps();
             // 2026-06-14 先定本次触板侧(不改状态), 用于封闭时间去抖. side 缺失(手动/盲代)按"下一段"奇偶推算.
@@ -5122,6 +5130,34 @@ namespace SwimmingScoreboard
             double prevSideT = (touchSide == "left") ? laneState.LeftLastTouchTime : laneState.RightLastTouchTime;
             if (LapSideLogic.IsRepeatWithinClose(time, prevSideT, closeWin)) {
                 RecordBackupTouch(lane, time);
+                // 2026-06-14 成绩以触板为准: 真 TP 落在去抖窗口内, 若当前段成绩源是 MB(自动盲表代替先占住),
+                //   则用 TP 覆盖该段成绩(同段, 不推进圈数=不多计圈)。坏TP 同侧重复(段已是 TP)仍丢弃。
+                if (!isMbSubstitute && laneState.CurrentLap > 0) {
+                    SplitTime curSp = null;
+                    foreach (var sp in result.Splits) { if (sp.Lap == laneState.CurrentLap) { curSp = sp; break; } }
+                    if (curSp != null && curSp.TimingSource == "MB") {
+                        double prevCumU = 0;
+                        foreach (var sp in result.Splits) { if (sp.Lap == laneState.CurrentLap - 1) { prevCumU = sp.CumulativeTime; break; } }
+                        curSp.TouchpadTime = time;
+                        curSp.Time = time - prevCumU;
+                        curSp.CumulativeTime = time;
+                        curSp.TimingSource = "TP";
+                        AddLog(string.Format("泳道{0} 第{1}段 TP={2} 覆盖原 MB 代替成绩 (成绩以触板为准, 不计新圈)",
+                            lane, laneState.CurrentLap, TimeFormatter.Format(time)));
+                        if (laneState.IsFinished && laneState.CurrentLap >= totalLaps) {
+                            result.TouchpadTime = time;
+                            result.FinalTime = time;
+                            result.TimeInSeconds = time;
+                            result.TimingSource = "TP";
+                            AddLog(string.Format("泳道{0} 终点成绩改用 TP: {1}", lane, TimeFormatter.Format(time)));
+                            UpdateHeatRanking();
+                            CheckFinalTpMbDispute(lane);
+                        }
+                        UpdateLaneStatusDisplay();
+                        Broadcast();
+                        return;
+                    }
+                }
                 AddLog(string.Format("泳道{0} {1}侧 重复触板 (距上次 {2:F2}s < 封闭 {3:F1}s) 记备份不计圈",
                     lane, touchSide == "left" ? "左" : "右", time - prevSideT, closeWin));
                 return;
@@ -5486,30 +5522,69 @@ namespace SwimmingScoreboard
             }
             AddLog(string.Format("泳道{0} {1}: {2}", lane, cmdType, TimeFormatter.Format(time)));
 
-            // 2026-06-06 PC 端 "盲表代替触板" 开关:
-            //   开启 + 当前段触板还没成绩 + 至少 1 个盲表时间 → 取盲表 中位数 自动当作触板成绩, 标 MB 代替
+            // 2026-06-14 PC 端 "盲表代替触板" 开关 — 按硬件模型: 成绩以触板为准。
+            //   MB 到达不立即代替, 而是启动"成绩确认关闭延迟"宽限计时; 窗口内 TP 到达 → 记 TP 并取消代替(TP 优先);
+            //   窗口到期仍无 TP → 用盲表中位数代替。延迟=0 时近乎立即代替。(旧版 MB 一到就立即代替, 会抢在 TP 前面)
             if (_laneCloseSettings != null && _laneCloseSettings.AutoBlindReplaceTouchpad) {
                 try {
                     var stateA = _laneDeviceStates.FirstOrDefault(s => s.Lane == lane);
-                    if (stateA != null && !stateA.IsFinished) {
-                        var splitA = FindCurrentSplit(lane);
-                        // 仅当 split 还没触板时间 时才补; 收齐 ≥1 盲表 (Pushbutton1/2/3) 中位数当 TouchpadTime
-                        if (splitA != null && splitA.TouchpadTime <= 0) {
-                            var blinds = new List<double>();
-                            if (splitA.PushButton1Time > 0) blinds.Add(splitA.PushButton1Time);
-                            if (splitA.PushButton2Time > 0) blinds.Add(splitA.PushButton2Time);
-                            if (splitA.PushButton3Time > 0) blinds.Add(splitA.PushButton3Time);
-                            if (blinds.Count > 0) {
-                                blinds.Sort();
-                                double med = blinds[blinds.Count / 2];   // 单/双 都取中位
-                                AddLog(string.Format("泳道{0} 自动用盲表代触板: 中位 {1} (源 {2} 个)", lane, TimeFormatter.Format(med), blinds.Count));
-                                // 按 "硬件已用盲表代触板" 路径处理 (跳过 TP 状态守卫); 2026-06-14 传 MB 侧, 按侧计圈
-                                ProcessTouchpadHit(lane, med, stateA, side, true);
-                            }
+                    var splitA = FindCurrentSplit(lane);
+                    if (stateA != null && !stateA.IsFinished && splitA != null && splitA.TouchpadTime <= 0
+                        && (splitA.PushButton1Time > 0 || splitA.PushButton2Time > 0 || splitA.PushButton3Time > 0)) {
+                        // 2026-06-14 接力: 仅在当前棒预期完成侧才安排代替 (= 与 Touchpad case 4297 守卫一致, 防右 MB 误代替左棒)
+                        bool relaySideOk = true;
+                        if (_isRelay && _laneCloseSettings != null && (side == "left" || side == "right")) {
+                            int afterLapMb = stateA.CurrentLap + 1;
+                            string startSideMb = _laneCloseSettings.StartPosition;
+                            string expectedSideMb = (afterLapMb % 2 == 0) ? startSideMb : (startSideMb == "left" ? "right" : "left");
+                            relaySideOk = (side == expectedSideMb);
                         }
+                        if (relaySideOk) ScheduleMbSubstitute(lane, side);
                     }
                 } catch (Exception exA) { AddLog("盲表代触板自动补失败: " + exA.Message); }
             }
+        }
+
+        // 2026-06-14 成绩以触板为准 — "盲表代替触板"宽限计时 (= 硬件"成绩确认关闭延迟"模型):
+        //   首个盲表(或SB)到达即起计时 (谁先到谁起, 已在计时则不重启); 窗口内 TP 到达由 ProcessTouchpadHit
+        //   取消本计时 → 以 TP 为准; 到期仍无 TP 才用盲表中位代替。延迟参数=0 时近乎立即代替。
+        private void ScheduleMbSubstitute(int lane, string side) {
+            if (_pendingMbSubTimers.ContainsKey(lane)) return;   // 已在计时 → 以首个信号为起点, 不重启
+            double grace = _laneCloseSettings != null ? _laneCloseSettings.ResultConfirmCloseDelay : 3;
+            if (grace < 0) grace = 0;
+            var t = new DispatcherTimer { Interval = TimeSpan.FromSeconds(grace) };
+            string capSide = side;
+            int capLane = lane;
+            t.Tick += delegate(object s, EventArgs e) {
+                t.Stop();
+                _pendingMbSubTimers.Remove(capLane);
+                try { DoMbSubstitute(capLane, capSide); } catch (Exception ex) { AddLog("盲表代替失败: " + ex.Message); }
+            };
+            _pendingMbSubTimers[lane] = t;
+            t.Start();
+        }
+
+        // 取消该道待决的"盲表代替"宽限计时 (= 该道真 TP 已到, TP 优先)
+        private void CancelPendingMbSubstitute(int lane) {
+            DispatcherTimer t;
+            if (_pendingMbSubTimers.TryGetValue(lane, out t)) { try { t.Stop(); } catch { } _pendingMbSubTimers.Remove(lane); }
+        }
+
+        // 宽限到期回调: 若该段仍无 TP 且有盲表 → 取盲表中位数代替触板 (标 MB)。期间 TP 已到则不代替。
+        private void DoMbSubstitute(int lane, string side) {
+            var state = _laneDeviceStates.FirstOrDefault(s => s.Lane == lane);
+            if (state == null || state.IsFinished) return;
+            var split = FindCurrentSplit(lane);
+            if (split == null || split.TouchpadTime > 0) return;   // 期间 TP 已到 → 不代替 (TP 优先)
+            var blinds = new List<double>();
+            if (split.PushButton1Time > 0) blinds.Add(split.PushButton1Time);
+            if (split.PushButton2Time > 0) blinds.Add(split.PushButton2Time);
+            if (split.PushButton3Time > 0) blinds.Add(split.PushButton3Time);
+            if (blinds.Count == 0) return;
+            blinds.Sort();
+            double med = blinds[blinds.Count / 2];   // 单/双/三 都取中位索引
+            AddLog(string.Format("泳道{0} 成绩确认延迟到期仍无 TP, 用盲表中位 {1} 代替 (源 {2} 个)", lane, TimeFormatter.Format(med), blinds.Count));
+            ProcessTouchpadHit(lane, med, state, side, true);   // isMbSubstitute=true, 标 MB
         }
 
         // 2026-06-06 P2-A: 热路径 (ProcessTouchpadHit / CountdownTimer_Tick / GetLapDisplayMaxForSide …)
@@ -5852,6 +5927,7 @@ namespace SwimmingScoreboard
                 foreach (var t in list) try { t.Stop(); } catch { }
                 list.Clear();
             }
+            CancelPendingMbSubstitute(lane);   // 2026-06-14 同时取消待决的盲表代替宽限计时
         }
         // 2026-06-06 P1-A: 进程退出前全局停止所有 lane 关闭 timer, 防止 Window_Closing 路径上还有 Tick 跑.
         private void CancelAllLaneCloseTimers() {
@@ -5860,6 +5936,9 @@ namespace SwimmingScoreboard
                 kv.Value.Clear();
             }
             _laneCloseTimers.Clear();
+            // 2026-06-14 一并停止所有待决的盲表代替宽限计时
+            foreach (var kv in _pendingMbSubTimers) try { kv.Value.Stop(); } catch { }
+            _pendingMbSubTimers.Clear();
         }
 
         //2026-05-29 软删该道最近一个未删的分段 (IsDeleted=true, 保留留痕)
@@ -6676,9 +6755,12 @@ namespace SwimmingScoreboard
 
             _raceState = RaceState.Ready;
             UpdateRaceStateDisplay();
-            // ResetForNewRace 把发令端出发台打开（"准备就绪"语义），其它端关闭
+            // ResetForNewRace 把"出发端"的 Open 状态给对应设备:
+            //   普通泳姿: 出发台 Open (= 运动员站台等枪响)
+            //   仰泳    : 触板 Open  (= 运动员脚踩触板等枪响)
+            bool isBack3 = !string.IsNullOrEmpty(_currentEvent) && _currentEvent.Contains("仰泳");
             foreach (var state in _laneDeviceStates) {
-                state.ResetForNewRace(_laneCloseSettings.StartPosition);
+                state.ResetForNewRace(_laneCloseSettings.StartPosition, isBack3);
             }
             // 立刻刷新泳道状态 UI — 此时 _raceTimer 还没启动（要发令后才启动），
             // 100ms tick 不会自动重绘，必须显式调一次让发令端出发台立即变成打开
@@ -10857,7 +10939,8 @@ namespace SwimmingScoreboard
                 _laneCloseSettings.StartPosition = newFinish;
                 AutoAdjustStartPosition();
                 if (_raceState == RaceState.Waiting || _raceState == RaceState.Ready) {
-                    foreach (var st in _laneDeviceStates) st.ResetForNewRace(_laneCloseSettings.StartPosition);
+                    bool isBack4 = !string.IsNullOrEmpty(_currentEvent) && _currentEvent.Contains("仰泳");
+                    foreach (var st in _laneDeviceStates) st.ResetForNewRace(_laneCloseSettings.StartPosition, isBack4);
                 }
                 foreach (var st in _laneDeviceStates) st.LaneCloseTime = 0;
 
