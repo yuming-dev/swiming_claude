@@ -20102,12 +20102,12 @@ namespace SwimmingScoreboard
             var dists = distSet.ToList();
 
             sb.Append("<table style='margin-top:20px;'>");
-            sb.Append("<tr>");
-            sb.Append("<th width='40'>道</th>");
-            sb.AppendFormat("<th width='110'>{0}</th>", isRelay ? "代表队" : "姓名");
-            sb.AppendFormat("<th width='110'>{0}</th>", isRelay ? "队员" : "代表队");
-            foreach (var d in dists) sb.AppendFormat("<th width='80'>{0}m</th>", d);
-            sb.Append("<th width='90'>最终成绩</th></tr>");
+            sb.Append("<tr align='center'>");
+            sb.Append("<th width='40' align='center'>道</th>");
+            sb.AppendFormat("<th width='110' align='center'>{0}</th>", isRelay ? "代表队" : "姓名");
+            sb.AppendFormat("<th width='110' align='center'>{0}</th>", isRelay ? "队员" : "代表队");
+            foreach (var d in dists) sb.AppendFormat("<th width='80' align='center'>{0}m</th>", d);
+            sb.Append("<th width='90' align='center'>最终成绩</th></tr>");
 
             foreach (var pair in rowData) {
                 var sw = pair.Item1;
@@ -20819,7 +20819,7 @@ namespace SwimmingScoreboard
 
         // 2026-06-04 单组成绩表 (无分段); 提出来给男女并项做两次调用
         private void RenderHeatResultsTable(StringBuilder sb, List<Swimmer> swimmers, bool printRelay) {
-            sb.AppendFormat("<table><tr><th width='50'>名次</th><th width='40'>道</th><th width='120'>{0}</th><th width='120'>{1}</th><th width='90'>成绩</th><th width='70'>成绩差</th><th width='70'>反应时间</th><th width='50'>备注</th></tr>",
+            sb.AppendFormat("<table><tr align='center'><th width='50' align='center'>名次</th><th width='40' align='center'>道</th><th width='120' align='center'>{0}</th><th width='120' align='center'>{1}</th><th width='90' align='center'>成绩</th><th width='70' align='center'>成绩差</th><th width='70' align='center'>反应时间</th><th width='50' align='center'>备注</th></tr>",
                 RelayCol1Header(printRelay), RelayCol2Header(printRelay));
             // 本表内 leader (男女并项时只比本性别); 排除 DSQ/DNS/DNF/DQ/TRI
             double leaderTime = 0;
