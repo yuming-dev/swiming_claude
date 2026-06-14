@@ -107,6 +107,8 @@ namespace SwimmingScoreboard
         PushButton3   = 0x19,   // 盲表3时间成绩  D4=泳道号
         StartingBlock = 0x1A,   // 出发台出发时间 D4=泳道号
         StartCommand  = 0x1C,   // 发令开始计时
+        // 2026-06-14 PreStart 重设计：固件发令瞬间广播此命令, D5-D8 为枪响时刻 PreStart 计数器快照 (= PC 算个人/接力第1棒反应时的减数). 无道次 (Zigbee_Port=0).
+        GunPreStart   = 0x22,   // 枪响时 PreStart 计数器值 (固件→PC, 一次性广播)
         TestCommand   = 0x1D,   // 测试设备
         // 2026-05-30 状态变化上报命令字 — 原 0x1B/0x1E/0x1F 跟周边事件命令太近, 移到 0x50+ 空闲区防混淆
         StartblockStateChange = 0x50,  // 出发台状态变化 D4=lane(0-9终点/10-19远端) D5=newState(0关/1开/2延时/3坏/4未装)
@@ -441,6 +443,7 @@ namespace SwimmingScoreboard
                 case 0x19: cmdType = TimingCommandType.PushButton3;   break;  // 盲表3
                 case 0x1A: cmdType = TimingCommandType.StartingBlock; break;  // 出发台出发时间
                 case 0x1C: cmdType = TimingCommandType.StartCommand;  break;  // 发令开始计时
+                case 0x22: cmdType = TimingCommandType.GunPreStart;   break;  // 2026-06-14 枪响 PreStart 计数器快照 (D5-D8 = Gun_PreStart_*)
                 case 0x1D: cmdType = TimingCommandType.TestCommand;   break;  // 测试设备
                 // 2026-05-30 状态变化上报 — 移到 0x50+ 防跟周边事件命令混淆
                 case 0x50: cmdType = TimingCommandType.StartblockStateChange; break;  // 出发台状态变化

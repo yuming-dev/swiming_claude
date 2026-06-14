@@ -92,6 +92,13 @@ namespace SwimmingScoreboard
         // RaceTimer_Tick 优先用此值 + 自接收以来的本地补偿外推，避免帧间跳动也避免本地时钟偏差
         private double _hwRunningTimeSec = 0;
         private DateTime _hwRunningTimeReceivedAt = DateTime.MinValue;
+        // 2026-06-14 PreStart 重设计：硬件 0x22 广播枪响时刻 PreStart 计数器快照 (秒).
+        //   个人/接力第1棒的反应时 = 出发台/触板的 PreStart 时间 - _gunPreStartSec.
+        //   null = 本场比赛尚未收到 0x22 (= 枪还没响). 收到 TimerReset (0x20) 时清回 null.
+        //   抢跳 SB: 固件延迟到 GunFired_PostOpenDoneBit=1 才送, 故必然在 0x22 之后, 直接算.
+        //   抢跳 TP: 固件即触即送, 可能在 0x22 之前, 暂存到 _pendingPreStartReactions 等 0x22 来后回算.
+        private double? _gunPreStartSec = null;
+        private readonly List<PendingPreStartReaction> _pendingPreStartReactions = new List<PendingPreStartReaction>();
         // 2026-05-13 硬件计时器电池电压（0x4B 上报，0 = 未上报）
         private double _hwBatteryVoltage = 0;
         private DateTime _hwBatteryReceivedAt = DateTime.MinValue;
@@ -209,6 +216,15 @@ namespace SwimmingScoreboard
         private readonly HashSet<int> _forceAllOpenLanes = new HashSet<int>();
         private bool IsLaneForceAllOpen(int lane) {
             return _forceAllOpenLanes.Contains(-1) || _forceAllOpenLanes.Contains(lane);
+        }
+
+        // 2026-06-14 PreStart 待算反应时缓存项：抢跳 TP/SB 在 0x22 之前到达时暂存原始 PreStart 时间, 等 0x22 到来后回算反应时.
+        private class PendingPreStartReaction {
+            public int Lane;
+            public string DeviceKind;   // "SB" 或 "TP"
+            public string Side;         // "left"/"right"/null
+            public double RawPreStartSec;
+            public bool IsRelayLeg1;    // 接力第1棒需要也写入 LegReactionTimes[0]
         }
 
         // ── 编辑锁：避免两端同时编辑同一条数据 ──
@@ -4024,8 +4040,18 @@ namespace SwimmingScoreboard
                     if (_raceState == RaceState.Waiting) Ready_Click(null, null);
                     StartRace_Click(null, null);
                     return;
+                case "GunPreStart":
+                    // 2026-06-14 PreStart 重设计: 固件发令瞬间广播枪响时刻 PreStart 计数器值
+                    //   = 个人/接力第1棒反应时的减数. 暂存到 _gunPreStartSec, 抢跳 TP/SB 等待此值后回算反应时.
+                    _gunPreStartSec = timeInSeconds;
+                    AddLog(string.Format("硬件触发: 枪响 PreStart = {0:F3}s", timeInSeconds));
+                    FlushPendingPreStartReactions();
+                    return;
                 case "TimerReset":
                     AddLog("硬件触发: 计时清零");
+                    // 2026-06-14 新一场比赛: 清掉枪响 PreStart 锚点和待算反应时缓存
+                    _gunPreStartSec = null;
+                    _pendingPreStartReactions.Clear();
                     Restart_Click(null, null);
                     return;
             }
@@ -4196,8 +4222,24 @@ namespace SwimmingScoreboard
                             // 2026-06-03 非接力 + 已起跳 (CurrentLap>0): 比赛进行中的 SB 数据, 不算反应时, 仅记日志
                             AddLog(string.Format("泳道{0} 出发台触发(已起跳后, 不算反应时, 仅日志)", lane));
                         } else {
-                            // 比赛发令出发 (= CurrentLap==0, 个人赛起跳 OR 接力第 1 棒): 反应时间就是出发台时间(抢跳时为负)
-                            laneState.ReactionTime = timeInSeconds;
+                            // 比赛发令出发 (= CurrentLap==0, 个人赛起跳 OR 接力第 1 棒).
+                            // 2026-06-14 PreStart 重设计: 固件送来的 timeInSeconds 是 SB 触发时刻的 PreStart 计数器值(不是反应时),
+                            //   PC 这里减去枪响时刻 PreStart (= _gunPreStartSec) 得到反应时. 抢跳时为负.
+                            //   _gunPreStartSec == null 说明枪还没响 (= 抢跳 SB 早于 0x22), 暂存待算.
+                            double reactionTime;
+                            if (_gunPreStartSec.HasValue) {
+                                reactionTime = timeInSeconds - _gunPreStartSec.Value;
+                            } else {
+                                _pendingPreStartReactions.Add(new PendingPreStartReaction {
+                                    Lane = lane, DeviceKind = "SB", Side = side,
+                                    RawPreStartSec = timeInSeconds, IsRelayLeg1 = _isRelay
+                                });
+                                AddLog(string.Format("泳道{0} SB 触发于枪响前 (抢跳 PreStart={1:F3}s), 暂存待 0x22 回算反应时", lane, timeInSeconds));
+                                // 反应时未知, 暂不更新 laneState.ReactionTime / LegReactionTimes (留待 Flush 回填)
+                                EnterStartBlockTouchedThenClose(laneState, sbSideForClose, lane);
+                                break;
+                            }
+                            laneState.ReactionTime = reactionTime;
                             // 接力第 1 棒：把出发反应时写入 LegReactionTimes[0]（覆盖式，重复触发只保留最近一次）
                             if (_isRelay) {
                                 var swForLane0 = GetCurrentHeatSwimmers().FirstOrDefault(s2 => {
@@ -4208,20 +4250,20 @@ namespace SwimmingScoreboard
                                     var res0 = EnsureRelayLaneResult(swForLane0, lane);
                                     if (res0 != null) {
                                         EnsureLegReactionSlots(res0);
-                                        if (res0.LegReactionTimes.Count > 0) res0.LegReactionTimes[0] = timeInSeconds;
+                                        if (res0.LegReactionTimes.Count > 0) res0.LegReactionTimes[0] = reactionTime;
                                     }
                                 }
                             }
-                            if (isFalseStart) {
-                                // 2026-05-12 硬件以 D10 符号位明确上报抢跳：反应时为负
+                            if (isFalseStart || reactionTime < 0) {
+                                // 2026-05-12 硬件以 D10 符号位明确上报抢跳; 2026-06-14 PC 端 reaction<0 (SB 早于枪响) 也算抢跳
                                 laneState.IsSuspectFalseStart = true;
-                                AddLog(string.Format("⚠ 抢跳（硬件确认）泳道{0} 反应时: {1:F3}s", lane, timeInSeconds));
-                            } else if (timeInSeconds <= _laneCloseSettings.FalseStartThreshold) {
+                                AddLog(string.Format("⚠ 抢跳（硬件确认）泳道{0} 反应时: {1:F3}s", lane, reactionTime));
+                            } else if (reactionTime <= _laneCloseSettings.FalseStartThreshold) {
                                 // 仅作可疑提示（反应时标红），是否判罚由裁判手动决定
                                 laneState.IsSuspectFalseStart = true;
-                                AddLog(string.Format("⚠ 起跳可疑（待裁判确认）泳道{0} 反应时: {1:F3}s", lane, timeInSeconds));
+                                AddLog(string.Format("⚠ 起跳可疑（待裁判确认）泳道{0} 反应时: {1:F3}s", lane, reactionTime));
                             } else {
-                                AddLog(string.Format("泳道{0} 反应时间: {1:F2}s", lane, timeInSeconds));
+                                AddLog(string.Format("泳道{0} 反应时间: {1:F2}s", lane, reactionTime));
                             }
                         }
                         // 正式反应时已记录，把该端出发台切到"已触板（红）"，StartBlockCloseDelay 秒后转 Closed
@@ -6775,6 +6817,9 @@ namespace SwimmingScoreboard
             if (sender != null && !EnsureHardwareConnected("计时复位")) return;
             // 2026-06-03 比赛复位 → 清接力 reaction window (= 防上场残留)
             if (_relayReactionCalc != null) _relayReactionCalc.Reset();
+            // 2026-06-14 PreStart 重设计: 复位也清掉枪响 PreStart 锚点和待算反应时缓存 (= 新一场比赛干净状态)
+            _gunPreStartSec = null;
+            _pendingPreStartReactions.Clear();
             if (sender != null) {
                 var r = MessageBox.Show("确定计时复位？", "计时复位确认", MessageBoxButton.YesNo, MessageBoxImage.Warning);
                 if (r != MessageBoxResult.Yes) return;
@@ -8224,6 +8269,40 @@ namespace SwimmingScoreboard
             ParseRelayLayout(out legCount, out lapsPerLeg);
             if (res.LegReactionTimes == null) res.LegReactionTimes = new List<double>();
             while (res.LegReactionTimes.Count < legCount) res.LegReactionTimes.Add(0);
+        }
+
+        // 2026-06-14 PreStart 重设计: 收到 0x22 (GunPreStart) 后回算所有抢跳事件的反应时.
+        //   抢跳 SB: 固件已延迟到 GunFired_PostOpenDoneBit=1 才发, 故几乎不会进这里; 留作健壮性兜底.
+        //   抢跳 TP (= 触板按下早于枪响): 固件 keyscan 即触即送, 必然先到, 用本表回算.
+        private void FlushPendingPreStartReactions() {
+            if (!_gunPreStartSec.HasValue) return;
+            double gun = _gunPreStartSec.Value;
+            foreach (var pr in _pendingPreStartReactions) {
+                double reactionTime = pr.RawPreStartSec - gun;
+                var laneState = _laneDeviceStates.FirstOrDefault(s => s.Lane == pr.Lane);
+                if (laneState == null) continue;
+                if (pr.DeviceKind == "SB") {
+                    laneState.ReactionTime = reactionTime;
+                    if (pr.IsRelayLeg1) {
+                        var swForLane0 = GetCurrentHeatSwimmers().FirstOrDefault(s2 => {
+                            var sa2 = s2.GetAssignmentForStage(_currentStage);
+                            return (sa2 != null ? sa2.Lane : s2.Lane) == pr.Lane;
+                        });
+                        if (swForLane0 != null) {
+                            var res0 = EnsureRelayLaneResult(swForLane0, pr.Lane);
+                            if (res0 != null) {
+                                EnsureLegReactionSlots(res0);
+                                if (res0.LegReactionTimes.Count > 0) res0.LegReactionTimes[0] = reactionTime;
+                            }
+                        }
+                    }
+                    laneState.IsSuspectFalseStart = (reactionTime < 0);
+                    AddLog(string.Format("回算: 泳道{0} SB 反应时 = {1:F3}s (枪响前抢跳, PreStart 差值){2}",
+                        pr.Lane, reactionTime, reactionTime < 0 ? " ⚠抢跳" : ""));
+                }
+                // TP 抢跳: 主线 ProcessTouchpadHit 已按 PreStart 计入 lap 0 → 1 分段; 反应时显示交后续完善
+            }
+            _pendingPreStartReactions.Clear();
         }
 
         private void UpdateLaneStatusDisplay() {
