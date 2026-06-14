@@ -200,7 +200,7 @@ namespace SwimmingScoreboard
                 sb.AppendFormat("<h3 style='color:#0F172A;margin:6px 0;'>{0} &nbsp; <span class='meta'>号码 {1} &nbsp; {2} &nbsp; {3} &nbsp; 本人小计 <b>{4}</b> 分</span></h3>\n",
                     He(first.Name), He(first.BibNumber), He(first.Gender), He(first.AgeCategory),
                     personalTotal.ToString("0.##"));
-                sb.AppendLine("<table><tr><th>项目</th><th>类型</th><th>名次</th><th>成绩</th><th>状态</th><th>积分</th></tr>");
+                sb.AppendLine("<table><tr align='center'><th>项目</th><th>类型</th><th>名次</th><th>成绩</th><th>状态</th><th>积分</th></tr>");
                 foreach (var it in items.OrderBy(i => i.EventName)) {
                     string cls = "";
                     if (it.Rank == 1) cls = " class='rank1'";

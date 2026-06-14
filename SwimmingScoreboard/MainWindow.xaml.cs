@@ -4606,7 +4606,7 @@ namespace SwimmingScoreboard
 
             // 出场名单 — 接力赛 s.Name 是队名，队员姓名在 s.Notes("接力队 棒次:...") 里
             h.Append("<div class='section'>出场名单</div>");
-            h.Append("<table class='data'><tr><th>道次</th><th>代表队</th><th>运动员姓名</th><th>报名成绩</th></tr>");
+            h.Append("<table class='data'><tr align='center'><th>道次</th><th>代表队</th><th>运动员姓名</th><th>报名成绩</th></tr>");
             foreach (var s in GetCurrentHeatSwimmers()) {
                 var sa = s.GetAssignmentForStage(_currentStage);
                 int sLane = sa != null ? sa.Lane : s.Lane;
@@ -4620,7 +4620,7 @@ namespace SwimmingScoreboard
 
             // 原始数据流
             h.Append("<div class='section'>原始计时数据</div>");
-            h.Append("<table class='data'><tr><th>时刻</th><th>泳道</th><th>类型</th><th>时间</th><th>运动员</th></tr>");
+            h.Append("<table class='data'><tr align='center'><th>时刻</th><th>泳道</th><th>类型</th><th>时间</th><th>运动员</th></tr>");
             string[] rawLines = _rawTimingLog.ToString().Split(new[] { "\r\n" }, StringSplitOptions.RemoveEmptyEntries);
             foreach (string line in rawLines) {
                 string[] cols = line.Split('\t');
@@ -4633,7 +4633,7 @@ namespace SwimmingScoreboard
 
             // 最终成绩 — 接力赛分别给"代表队"和"运动员姓名"列；反应时按棒展开
             h.Append("<div class='section'>最终成绩</div>");
-            h.Append("<table class='data'><tr><th>名次</th><th>道</th><th>代表队</th><th>运动员姓名</th><th>成绩</th><th>计时源</th><th>反应时间</th><th>触板</th><th>盲表1</th><th>盲表2</th><th>盲表3</th><th>状态</th></tr>");
+            h.Append("<table class='data'><tr align='center'><th>名次</th><th>道</th><th>代表队</th><th>运动员姓名</th><th>成绩</th><th>计时源</th><th>反应时间</th><th>触板</th><th>盲表1</th><th>盲表2</th><th>盲表3</th><th>状态</th></tr>");
             foreach (var s in GetCurrentHeatSwimmers().OrderBy(s2 => s2.CurrentRank > 0 ? s2.CurrentRank : int.MaxValue)) {
                 var r = s.Results.FirstOrDefault(lr => lr.Stage == _currentStage && lr.Heat == _currentHeat);
                 var sa = s.GetAssignmentForStage(_currentStage);
@@ -20243,7 +20243,7 @@ namespace SwimmingScoreboard
                     !string.IsNullOrEmpty(first.Date) ? first.Date : "",
                     ComputeSessionTimeRange(session));
                 // 2026-06-04 顺序统一: 时间 / 编号 / 性别 / 组别 / 项目 / 赛次 / 组数 (性别 在 组别 前)
-                sb.Append("<table><tr><th width='60'>时间</th><th width='70'>编号</th><th width='50'>性别</th><th width='70'>组别</th><th>项目</th><th width='70'>赛次</th><th width='50'>组数</th></tr>");
+                sb.Append("<table><tr align='center'><th width='60'>时间</th><th width='70'>编号</th><th width='50'>性别</th><th width='70'>组别</th><th>项目</th><th width='70'>赛次</th><th width='50'>组数</th></tr>");
                 foreach (var s in session) {
                     sb.AppendFormat("<tr><td>{0}</td><td><b>{1}</b></td><td>{2}</td><td>{3}</td><td style='text-align:left;'>{4}</td><td>{5}</td><td>{6}</td></tr>",
                         s.Time,
@@ -20385,19 +20385,19 @@ namespace SwimmingScoreboard
             sb.AppendFormat("<h1>{0}</h1>", compName);
             sb.AppendFormat("<h3><span class='section-tag'>{0}</span>赛事概况</h3>", CnNum(++sectN));
             sb.Append("<table>");
-            sb.AppendFormat("<tr><th width='130'>赛事名称</th><td colspan='3' style='text-align:left;'>{0}</td></tr>", compName);
-            sb.AppendFormat("<tr><th>主办单位</th><td colspan='3' style='text-align:left;'>{0}</td></tr>", string.IsNullOrEmpty(organizer) ? "&nbsp;" : organizer);
-            sb.AppendFormat("<tr><th>承办单位</th><td colspan='3' style='text-align:left;'>{0}</td></tr>", string.IsNullOrEmpty(host) ? "&nbsp;" : host);
-            sb.AppendFormat("<tr><th>比赛时间</th><td>{0} 至 {1}</td><th width='80'>比赛地点</th><td>{2}</td></tr>",
+            sb.AppendFormat("<tr align='center'><th width='130'>赛事名称</th><td colspan='3' style='text-align:left;'>{0}</td></tr>", compName);
+            sb.AppendFormat("<tr align='center'><th>主办单位</th><td colspan='3' style='text-align:left;'>{0}</td></tr>", string.IsNullOrEmpty(organizer) ? "&nbsp;" : organizer);
+            sb.AppendFormat("<tr align='center'><th>承办单位</th><td colspan='3' style='text-align:left;'>{0}</td></tr>", string.IsNullOrEmpty(host) ? "&nbsp;" : host);
+            sb.AppendFormat("<tr align='center'><th>比赛时间</th><td>{0} 至 {1}</td><th width='80'>比赛地点</th><td>{2}</td></tr>",
                 startDate, string.IsNullOrEmpty(endDate) ? startDate : endDate, location);
-            sb.AppendFormat("<tr><th>泳池规格</th><td>{0} 米 / {1} 道</td><th>赛事天数</th><td>{2} 天</td></tr>",
+            sb.AppendFormat("<tr align='center'><th>泳池规格</th><td>{0} 米 / {1} 道</td><th>赛事天数</th><td>{2} 天</td></tr>",
                 _poolConfig.Length, _poolConfig.LaneCount, ComputeDays(startDate, endDate));
             int totalSwimmers = _swimmers.Count(s => !IsRelayMemberNote(s.Notes));
             int totalTeams = _swimmers.Select(s => s.Country ?? "").Where(c => !string.IsNullOrEmpty(c)).Distinct().Count();
             int totalRelays = _relayTeams.Count;
             int totalEvents = evtMap.Count;
-            sb.AppendFormat("<tr><th>参赛队伍</th><td>{0} 支</td><th>报名人次</th><td>{1}</td></tr>", totalTeams, totalSwimmers);
-            sb.AppendFormat("<tr><th>设置项目</th><td>{0} 项</td><th>接力队伍</th><td>{1} 支</td></tr>", totalEvents, totalRelays);
+            sb.AppendFormat("<tr align='center'><th>参赛队伍</th><td>{0} 支</td><th>报名人次</th><td>{1}</td></tr>", totalTeams, totalSwimmers);
+            sb.AppendFormat("<tr align='center'><th>设置项目</th><td>{0} 项</td><th>接力队伍</th><td>{1} 支</td></tr>", totalEvents, totalRelays);
             sb.Append("</table>");
 
             sb.Append("</div>");
@@ -20417,14 +20417,14 @@ namespace SwimmingScoreboard
             sb.AppendFormat("<h1>{0}</h1>", compName);
             sb.AppendFormat("<h3><span class='section-tag'>{0}</span>竞赛人员</h3>", CnNum(++sectN));
             sb.Append("<table>");
-            sb.AppendFormat("<tr><th width='130'>技术代表</th><td>{0}</td><th width='130'>总裁判长</th><td>{1}</td></tr>",
+            sb.AppendFormat("<tr align='center'><th width='130'>技术代表</th><td>{0}</td><th width='130'>总裁判长</th><td>{1}</td></tr>",
                 Hyphen(techDel), Hyphen(referee));
             // 2026-05-26 删除"编排长"行；仲裁委员独占一行 (colspan 占满)
-            sb.AppendFormat("<tr><th>仲裁委员</th><td colspan='3'>{0}</td></tr>", Hyphen(arbiter));
+            sb.AppendFormat("<tr align='center'><th>仲裁委员</th><td colspan='3'>{0}</td></tr>", Hyphen(arbiter));
             sb.Append("</table>");
             if (pb.Officials != null && pb.Officials.Count > 0) {
                 sb.Append("<h4>技术官员名单</h4>");
-                sb.Append("<table><tr><th width='200'>职务</th><th>姓名</th></tr>");
+                sb.Append("<table><tr align='center'><th width='200'>职务</th><th>姓名</th></tr>");
                 foreach (var o in pb.Officials) {
                     sb.AppendFormat("<tr><td>{0}</td><td style='text-align:left;'>{1}</td></tr>",
                         System.Net.WebUtility.HtmlEncode(o.Title ?? ""),
@@ -20439,7 +20439,7 @@ namespace SwimmingScoreboard
                 sb.Append("<div class='page-break'></div><div class='page'>");
                 sb.AppendFormat("<h1>{0}</h1>", compName);
                 sb.AppendFormat("<h3><span class='section-tag'>{0}</span>重要活动日程</h3>", CnNum(++sectN));
-                sb.Append("<table><tr><th width='110'>日期</th><th width='110'>时间</th><th>活动内容</th><th width='140'>参与人员</th><th width='160'>地点</th></tr>");
+                sb.Append("<table><tr align='center'><th width='110'>日期</th><th width='110'>时间</th><th>活动内容</th><th width='140'>参与人员</th><th width='160'>地点</th></tr>");
                 foreach (var a in pb.KeyActivities) {
                     sb.AppendFormat("<tr><td>{0}</td><td>{1}</td><td style='text-align:left;'>{2}</td><td>{3}</td><td>{4}</td></tr>",
                         System.Net.WebUtility.HtmlEncode(a.Date ?? ""),
@@ -20456,7 +20456,7 @@ namespace SwimmingScoreboard
             sb.Append("<div class='page-break'></div><div class='page'>");
             sb.AppendFormat("<h1>{0}</h1>", compName);
             sb.AppendFormat("<h3><span class='section-tag'>{0}</span>小项设置</h3>", CnNum(++sectN));
-            sb.Append("<table><tr><th width='80'>性别</th><th>小项</th><th width='80'>项数</th></tr>");
+            sb.Append("<table><tr align='center'><th width='80'>性别</th><th>小项</th><th width='80'>项数</th></tr>");
             foreach (var gp in evtMap.Keys.GroupBy(k => k.Split('|')[0])) {
                 var events = gp.Select(k => k.Split('|')[1]).OrderBy(e => evtMap[gp.Key + "|" + e]).ToList();
                 sb.AppendFormat("<tr><td><b>{0}子</b></td><td style='text-align:left;'>{1}</td><td>{2} 项</td></tr>",
@@ -20475,7 +20475,7 @@ namespace SwimmingScoreboard
             if (_schedule.Count == 0) {
                 sb.Append("<p style='text-align:center; color:#94a3b8;'>暂未编排日程，请在【赛事管理与报名】中维护。</p>");
             } else {
-                sb.Append("<table><tr><th width='95'>日期</th><th width='70'>场次</th><th width='110'>时间</th><th width='70'>项目编号</th><th>内容</th></tr>");
+                sb.Append("<table><tr align='center'><th width='95'>日期</th><th width='70'>场次</th><th width='110'>时间</th><th width='70'>项目编号</th><th>内容</th></tr>");
                 var sessions = _schedule.GroupBy(s => s.SessionNumber).OrderBy(g => g.Key);
                 foreach (var session in sessions) {
                     var first = session.First();
@@ -20507,7 +20507,7 @@ namespace SwimmingScoreboard
                 sb.Append("<div class='page-break'></div><div class='page'>");
                 sb.AppendFormat("<h1>{0}</h1>", compName);
                 sb.AppendFormat("<h3><span class='section-tag'>{0}</span>训练日程</h3>", CnNum(++sectN));
-                sb.Append("<table><tr><th width='160'>日期</th><th width='200'>时间</th><th>地点</th></tr>");
+                sb.Append("<table><tr align='center'><th width='160'>日期</th><th width='200'>时间</th><th>地点</th></tr>");
                 foreach (var t in pb.TrainingSchedule) {
                     sb.AppendFormat("<tr><td>{0}</td><td>{1}</td><td>{2}</td></tr>",
                         System.Net.WebUtility.HtmlEncode(t.Date ?? ""),
@@ -20522,7 +20522,7 @@ namespace SwimmingScoreboard
             sb.Append("<div class='page-break'></div><div class='page'>");
             sb.AppendFormat("<h1>{0}</h1>", compName);
             sb.AppendFormat("<h3><span class='section-tag'>{0}</span>运动队人数统计</h3>", CnNum(++sectN));
-            sb.Append("<table><tr><th width='50'>序号</th><th>代表队</th><th width='70'>男</th><th width='70'>女</th><th width='70'>合计</th><th width='70'>接力队</th></tr>");
+            sb.Append("<table><tr align='center'><th width='50'>序号</th><th>代表队</th><th width='70'>男</th><th width='70'>女</th><th width='70'>合计</th><th width='70'>接力队</th></tr>");
             var teamRows = _swimmers
                 .Where(s => !IsRelayMemberNote(s.Notes))
                 .GroupBy(s => s.Country ?? "")
@@ -20609,7 +20609,7 @@ namespace SwimmingScoreboard
                 if (blockIdx > 1 && blockIdx % 4 == 1) sb.Append("<div class='page-break'></div><div class='page'>");
                 sb.AppendFormat("<h4>项目 {0}：{1} {2} {3}　<span style='font-weight:normal; font-size:14px; color:#64748b;'>报名 {4} 人{5}</span></h4>",
                     kv.Value, evGender, evAge, evName, entries.Count, manRelay ? "/队" : "");
-                sb.AppendFormat("<table><tr><th width='50'>序号</th><th width='70'>号码</th><th width='110'>{0}</th><th width='110'>{1}</th><th width='80'>报名成绩</th><th width='80'>组别</th></tr>",
+                sb.AppendFormat("<table><tr align='center'><th width='50'>序号</th><th width='70'>号码</th><th width='110'>{0}</th><th width='110'>{1}</th><th width='80'>报名成绩</th><th width='80'>组别</th></tr>",
                     RelayCol1Header(manRelay), RelayCol2Header(manRelay));
                 int rowI = 0;
                 foreach (var sw in entries.OrderBy(s => s.EntryTimeSeconds <= 0 ? double.MaxValue : s.EntryTimeSeconds).ThenBy(s => s.BibNumber ?? "")) {
@@ -20759,7 +20759,7 @@ namespace SwimmingScoreboard
                     sb.AppendFormat("<h4>比赛时间：{0} &nbsp;&nbsp;&nbsp;&nbsp; 地点：{1}</h4>", dateTimeInfo.Trim(), LocationBox.Text);
 
                     bool slRelay = eventName.Contains("接力");
-                    sb.AppendFormat("<table><tr><th width='50'>道</th><th width='60'>号码</th><th width='100'>{0}</th><th width='40'>性别</th><th width='100'>{1}</th><th width='80'>备注</th></tr>",
+                    sb.AppendFormat("<table><tr align='center'><th width='50'>道</th><th width='60'>号码</th><th width='100'>{0}</th><th width='40'>性别</th><th width='100'>{1}</th><th width='80'>备注</th></tr>",
                         RelayCol1Header(slRelay), RelayCol2Header(slRelay));
                     foreach (var t in heatSwimmers) {
                         var s = t.Item1;
@@ -20888,7 +20888,7 @@ namespace SwimmingScoreboard
             // 2026-06-04 顺序统一: 性别 组别 项目 赛次
             string ageGroupSpaceE = string.IsNullOrEmpty(_currentAgeGroup) ? "" : (_currentAgeGroup + " ");
             sb.AppendFormat("<h3>项目：{0} {1}{2} {3}</h3>", _currentGender, ageGroupSpaceE, _currentEvent, _currentStage);
-            sb.Append("<table><tr><th>名次</th><th>号码</th><th>姓名</th><th>代表队</th><th>最终成绩</th></tr>");
+            sb.Append("<table><tr align='center'><th>名次</th><th>号码</th><th>姓名</th><th>代表队</th><th>最终成绩</th></tr>");
             var ranking = GetEventRanking(_currentEvent, _currentGender);
             foreach (dynamic item in ranking) {
                 sb.AppendFormat("<tr><td>{0}</td><td>{1}</td><td><b>{2}</b></td><td>{3}</td><td style='font-weight:bold;'>{4}</td></tr>",
@@ -20974,7 +20974,7 @@ namespace SwimmingScoreboard
                 sb.Append("<div class='page-break'></div><div class='page'>");
                 sb.AppendFormat("<h1>{0}</h1>", compName);
                 sb.AppendFormat("<h3><span class='section-tag'>{0}</span>奖牌榜统计</h3>", CnNum(++sectN));
-                sb.Append("<table><tr><th width='60'>排名</th><th>代表队</th><th width='80'>金牌</th><th width='80'>银牌</th><th width='80'>铜牌</th><th width='80'>总计</th></tr>");
+                sb.Append("<table><tr align='center'><th width='60'>排名</th><th>代表队</th><th width='80'>金牌</th><th width='80'>银牌</th><th width='80'>铜牌</th><th width='80'>总计</th></tr>");
                 var medalTable = new Dictionary<string, int[]>();
                 var medalEventGroups = _swimmers.Where(s => !IsRelayMemberNote(s.Notes)).GroupBy(s => new { s.Gender, s.EventName });
                 foreach (var ev in medalEventGroups) {
@@ -21032,7 +21032,7 @@ namespace SwimmingScoreboard
                     sb.Append("<p style='text-align:center; color:#94a3b8; margin-top:40px;'>本次比赛暂无破纪录记录。</p>");
                 } else {
                     sb.AppendFormat("<p style='text-align:right; color:#475569;'>截至 {0}</p>", DateTime.Now.ToString("yyyy-MM-dd"));
-                    sb.Append("<table><tr><th width='100'>日期</th><th>项目</th><th width='80'>赛次</th><th width='110'>运动员</th><th width='100'>单位</th><th width='100'>成绩</th><th width='110'>纪录类型</th></tr>");
+                    sb.Append("<table><tr align='center'><th width='100'>日期</th><th>项目</th><th width='80'>赛次</th><th width='110'>运动员</th><th width='100'>单位</th><th width='100'>成绩</th><th width='110'>纪录类型</th></tr>");
                     foreach (var r in brokenRows) {
                         sb.AppendFormat("<tr><td>{0}</td><td style='text-align:left;'>{1} {2}</td><td>{3}</td><td>{4}</td><td>{5}</td><td style='font-weight:bold;'>{6}</td><td>{7}</td></tr>",
                             r.Date, r.Gender, r.EventName, r.Stage, r.Athlete, r.Country, r.Time, r.RecordType);
@@ -21062,7 +21062,7 @@ namespace SwimmingScoreboard
                     sb.AppendFormat("<div><b>游泳</b>　　{0}{1} {2}</div>", ageHead0, schedItem.Gender, schedItem.EventName);
                     sb.AppendFormat("<div>{0} {1}　　{2}</div>", schedItem.Date ?? "", schedItem.Time ?? "", location);
                     sb.Append("</div>");
-                    sb.Append("<table><tr><th width='60'>名次</th><th width='110'>单位</th><th width='180'>姓名</th><th width='150'>联合培养单位</th><th width='90'>成绩</th><th>教练员</th></tr>");
+                    sb.Append("<table><tr align='center'><th width='60'>名次</th><th width='110'>单位</th><th width='180'>姓名</th><th width='150'>联合培养单位</th><th width='90'>成绩</th><th>教练员</th></tr>");
                     foreach (var row in topList) {
                         var sw = row.Swimmer;
                         ResultBookSwimmerInfo info = null;
@@ -21167,7 +21167,7 @@ namespace SwimmingScoreboard
 
                         // 反应时列：接力赛展开 N 棒，宽度加大
                         int rtColW = ffRelay ? 110 : 60;
-                        sb.AppendFormat("<table><tr><th width='50'>名次</th><th width='40'>道次</th><th width='110'>运动员</th><th width='80'>单位</th><th width='100'>出生日期</th><th width='{0}'>反应时</th>", rtColW);
+                        sb.AppendFormat("<table><tr align='center'><th width='50'>名次</th><th width='40'>道次</th><th width='110'>运动员</th><th width='80'>单位</th><th width='100'>出生日期</th><th width='{0}'>反应时</th>", rtColW);
                         foreach (var sm in splitMarks) sb.AppendFormat("<th width='60'>{0}m</th>", sm);
                         sb.Append("<th width='80'>成绩</th>");
                         if (rb.ShowTimeDifference) sb.Append("<th width='70'>成绩差</th>");
@@ -21386,7 +21386,7 @@ namespace SwimmingScoreboard
             sb.AppendFormat("<h4>日期：{0} - {1} &nbsp;&nbsp;&nbsp;&nbsp; 地点：{2}</h4>",
                 GetDatePickerText(StartDatePicker), GetDatePickerText(EndDatePicker), LocationBox.Text);
 
-            sb.Append("<table><tr><th width='50'>名次</th><th width='100'>代表队</th><th width='70'>总分</th><th width='70'>个人分</th><th width='70'>接力分</th><th width='80'>破纪录加分</th><th width='40'>金</th><th width='40'>银</th><th width='40'>铜</th></tr>");
+            sb.Append("<table><tr align='center'><th width='50'>名次</th><th width='100'>代表队</th><th width='70'>总分</th><th width='70'>个人分</th><th width='70'>接力分</th><th width='80'>破纪录加分</th><th width='40'>金</th><th width='40'>银</th><th width='40'>铜</th></tr>");
             foreach (var ts in _teamScores.OrderBy(t => t.Rank)) {
                 string medalStyle = "";
                 if (ts.Rank == 1) medalStyle = " style='background:#fef3c7;'";
@@ -21410,7 +21410,7 @@ namespace SwimmingScoreboard
             sb.AppendFormat("<h4>日期：{0} - {1} &nbsp;&nbsp;&nbsp;&nbsp; 地点：{2}</h4>",
                 GetDatePickerText(StartDatePicker), GetDatePickerText(EndDatePicker), LocationBox.Text);
 
-            sb.Append("<table><tr><th>项目</th><th>类型</th><th>保持者</th><th>代表队</th><th>成绩</th><th>日期</th><th>地点</th></tr>");
+            sb.Append("<table><tr align='center'><th>项目</th><th>类型</th><th>保持者</th><th>代表队</th><th>成绩</th><th>日期</th><th>地点</th></tr>");
             foreach (var r in _records) {
                 sb.AppendFormat("<tr><td>{0}</td><td>{1}</td><td><b>{2}</b></td><td>{3}</td><td style='font-weight:bold;'>{4}</td><td>{5}</td><td>{6}</td></tr>",
                     r.EventName, r.RecordType, r.HolderName, r.HolderCountry, TimeFormatter.Format(r.Time), r.Date, r.Location);

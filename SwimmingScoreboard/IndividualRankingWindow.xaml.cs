@@ -121,7 +121,7 @@ namespace SwimmingScoreboard
             sb.AppendLine("th,td{border:1px solid #ddd;padding:6px 10px;text-align:left;}th{background:#1E40AF;color:white;text-align:center;vertical-align:middle;}");
             sb.AppendLine("tr:nth-child(even){background:#F8FAFC;}h1{color:#1E40AF;}</style></head><body>");
             sb.AppendLine("<h1>运动员个人总分排名</h1>");
-            sb.AppendLine("<table><tr><th>名次</th><th>号码</th><th>姓名</th><th>性别</th><th>代表队</th><th>组别</th><th>总积分</th><th>个人</th><th>接力</th><th>明细</th></tr>");
+            sb.AppendLine("<table><tr align='center'><th>名次</th><th>号码</th><th>姓名</th><th>性别</th><th>代表队</th><th>组别</th><th>总积分</th><th>个人</th><th>接力</th><th>明细</th></tr>");
             foreach (var r in _lastResult) {
                 sb.AppendFormat("<tr><td>{0}</td><td>{1}</td><td>{2}</td><td>{3}</td><td>{4}</td><td>{5}</td><td><b>{6}</b></td><td>{7}</td><td>{8}</td><td>{9}</td></tr>\n",
                     r.Rank, He(r.BibNumber), He(r.Name), He(r.Gender), He(r.Country), He(r.AgeCategory),

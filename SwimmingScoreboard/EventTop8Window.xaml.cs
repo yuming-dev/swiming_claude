@@ -149,7 +149,7 @@ namespace SwimmingScoreboard
             sb.AppendLine("th{background:#1E40AF;color:white;text-align:center;vertical-align:middle;}tr:nth-child(even){background:#F8FAFC;}");
             sb.AppendLine("h1{color:#1E40AF;}td.gold{background:#FEF3C7;font-weight:bold;}td.silver{background:#E5E7EB;}td.bronze{background:#FED7AA;}</style></head><body>");
             sb.AppendLine("<h1>项目成绩统计 — 各项目第 1-8 名</h1>");
-            sb.AppendLine("<table><tr><th>组别</th><th>性别</th><th>项目</th><th>第1名</th><th>第2名</th><th>第3名</th><th>第4名</th><th>第5名</th><th>第6名</th><th>第7名</th><th>第8名</th></tr>");
+            sb.AppendLine("<table><tr align='center'><th>组别</th><th>性别</th><th>项目</th><th>第1名</th><th>第2名</th><th>第3名</th><th>第4名</th><th>第5名</th><th>第6名</th><th>第7名</th><th>第8名</th></tr>");
             foreach (var r in _lastResult) {
                 sb.AppendFormat("<tr><td>{0}</td><td>{1}</td><td>{2}</td><td class='gold'>{3}</td><td class='silver'>{4}</td><td class='bronze'>{5}</td><td>{6}</td><td>{7}</td><td>{8}</td><td>{9}</td><td>{10}</td></tr>\n",
                     He(r.AgeGroup), He(r.Gender), He(r.EventName),

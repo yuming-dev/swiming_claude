@@ -363,7 +363,7 @@ namespace SwimmingScoreboard
                 // 2026-06-02 标题用 AgeBlock.Title (含性别 + 注册组别 + 可选实际年龄), 不再单独拼 _selectedGender
                 sb.AppendFormat("<h3>{0}  {1} {2}　（{3}人）</h3>",
                     HtmlEnc(b.Title ?? b.AgeGroup), HtmlEnc(_selectedEvent), HtmlEnc(_selectedStage), b.Rows.Count);
-                sb.Append("<table><tr>");
+                sb.Append("<table><tr align='center'>");
                 sb.Append("<th width='50'>名次</th><th width='40'>道</th><th width='60'>号码</th>");
                 sb.AppendFormat("<th width='180'>{0}</th><th width='110'>{1}</th>", c1H, c2H);
                 sb.AppendFormat("<th width='80'>成绩</th><th width='{0}'>反应时间</th><th width='50'>备注</th></tr>", rxW);
