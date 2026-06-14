@@ -455,9 +455,9 @@ namespace SwimmingScoreboard
                     string brd = (gKey == "男") ? "#2563eb" : "#ec4899";
                     sb.AppendFormat("<h4 style='background:{0};border-left:5px solid {1};padding:8px 12px;'>{2} 子</h4>", bg, brd, gKey);
                     sb.Append("<table><tr>");
-                    sb.AppendFormat("<th width='50'>名次</th><th width='40'>道</th><th width='60'>号码</th>");
-                    sb.AppendFormat("<th width='100'>{0}</th><th width='100'>{1}</th>", epH1, epH2);
-                    sb.AppendFormat("<th width='90'>最终成绩</th><th width='70'>成绩差</th><th width='{0}'>反应时间</th><th width='50'>备注</th>", reactionWidth);
+                    sb.AppendFormat("<th width='50' align='center'>名次</th><th width='40' align='center'>道</th><th width='60' align='center'>号码</th>");
+                    sb.AppendFormat("<th width='100' align='center'>{0}</th><th width='100' align='center'>{1}</th>", epH1, epH2);
+                    sb.AppendFormat("<th width='90' align='center'>最终成绩</th><th width='70' align='center'>成绩差</th><th width='{0}' align='center'>反应时间</th><th width='50' align='center'>备注</th>", reactionWidth);
                     sb.Append("</tr>");
                     foreach (dynamic item in subResults) {
                         string c1 = epRelay ? item.Country : item.Name;
