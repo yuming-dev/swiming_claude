@@ -3737,14 +3737,17 @@ namespace SwimmingScoreboard
                 byte isRelayByte = (byte)(_isRelay ? 1 : 0);
                 // 2026-06-02 D9 = HardwareAlwaysOpen 标志: 硬件 TP/SB/MB 按键路径"一直处于打开状态"模式 (=1: 忽略关闭判定, 只跳过 ==3 坏 / ==4 未装; =0: 原比赛流程)
                 byte hwAlwaysOpenByte = (byte)(_laneCloseSettings.HardwareAlwaysOpen ? 1 : 0);
+                // 2026-06-14 D10 = Backstroke 标志: 仰泳项目时硬件 EventBackup 把 TP 松开也存 (用于算反应时, 因为仰泳运动员踩 TP 等发令, 松开 TP 是出发瞬间)
+                bool isBackstroke = !string.IsNullOrEmpty(_currentEvent) && _currentEvent.Contains("仰泳");
+                byte backstrokeByte = (byte)(isBackstroke ? 1 : 0);
                 _timingBridge.SendFullFrame(0x43,
                     (byte)Math.Min(255, totalLaps),
                     (byte)Math.Min(255, rightTotal),
                     (byte)Math.Min(255, leftTotal),
-                    laneOpen0_4, laneOpen5_9, isRelayByte, hwAlwaysOpenByte);
+                    laneOpen0_4, laneOpen5_9, isRelayByte, hwAlwaysOpenByte, backstrokeByte);
                 _timingBridge.DelayBetweenFrames(20);     // 给硬件处理本帧的时间，防止下一条命令被吞
-                AddLog(string.Format("Set_MatchEvent 已下发: 总圈{0} 右{1} 左{2} 开0-4=0x{3:X2} 开5-9=0x{4:X2} 接力={5} 硬件一直打开={6}",
-                    totalLaps, rightTotal, leftTotal, laneOpen0_4, laneOpen5_9, _isRelay ? "是" : "否", _laneCloseSettings.HardwareAlwaysOpen ? "是" : "否"));
+                AddLog(string.Format("Set_MatchEvent 已下发: 总圈{0} 右{1} 左{2} 开0-4=0x{3:X2} 开5-9=0x{4:X2} 接力={5} 硬件一直打开={6} 仰泳={7}",
+                    totalLaps, rightTotal, leftTotal, laneOpen0_4, laneOpen5_9, _isRelay ? "是" : "否", _laneCloseSettings.HardwareAlwaysOpen ? "是" : "否", isBackstroke ? "是" : "否"));
             } catch (Exception ex) {
                 AddLog("Set_MatchEvent 下发失败: " + ex.Message);
             }
