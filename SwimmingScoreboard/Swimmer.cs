@@ -942,6 +942,10 @@ namespace SwimmingScoreboard
         private double _laneCloseTime = 0.0;
         private string _direction = "→";
         private int _currentLap;
+        // 2026-06-14 严格按左/右侧计圈: 每侧实际已触次数 (= 与硬件按侧计数一致, 不再用 CurrentLap 奇偶推算).
+        //   CurrentLap 仍保留 = LeftTouchDone + RightTouchDone (分段距离/接力/显示沿用).
+        private int _leftTouchDone;
+        private int _rightTouchDone;
         private bool _isFinished;
         private double _reactionTime;
         private bool _isFalseStart;
@@ -1109,6 +1113,15 @@ namespace SwimmingScoreboard
             get { return _currentLap; }
             set { _currentLap = value; OnPropertyChanged("CurrentLap"); }
         }
+        // 2026-06-14 每侧实际已触次数 (严格按侧计圈)
+        public int LeftTouchDone {
+            get { return _leftTouchDone; }
+            set { _leftTouchDone = value; OnPropertyChanged("LeftTouchDone"); }
+        }
+        public int RightTouchDone {
+            get { return _rightTouchDone; }
+            set { _rightTouchDone = value; OnPropertyChanged("RightTouchDone"); }
+        }
         public bool IsFinished {
             get { return _isFinished; }
             set { _isFinished = value; OnPropertyChanged("IsFinished"); }
@@ -1237,6 +1250,8 @@ namespace SwimmingScoreboard
             _laneCloseCountdown = 0;
             _direction = startPosition == "right" ? "←" : "→";
             _currentLap = 0;
+            _leftTouchDone = 0;   // 2026-06-14 按侧计圈复位
+            _rightTouchDone = 0;
             _isFinished = false;
             _reactionTime = 0;
             _isFalseStart = false;

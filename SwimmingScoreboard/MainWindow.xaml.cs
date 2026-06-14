@@ -1987,7 +1987,7 @@ namespace SwimmingScoreboard
                                 }
                             }
                             lState.LeftManualTouchTime = _runningTime;
-                            SaveManualTouchToSplit(laneNum, _runningTime);
+                            SaveManualTouchToSplit(laneNum, _runningTime, "left");
                             LogRawTimingData(laneNum, "ManualTouchLeft", _runningTime, "left");
                             AddLog(string.Format("泳道{0} 左端手动触板: {1}", laneNum, TimeFormatter.Format(_runningTime)));
                             // 2026-06-03 喂入 RelayReactionCalculator (= 接力 SB reaction 14 条规则)
@@ -2026,7 +2026,7 @@ namespace SwimmingScoreboard
                                 }
                             }
                             lState.RightManualTouchTime = _runningTime;
-                            SaveManualTouchToSplit(laneNum, _runningTime);
+                            SaveManualTouchToSplit(laneNum, _runningTime, "right");
                             LogRawTimingData(laneNum, "ManualTouchRight", _runningTime, "right");
                             AddLog(string.Format("泳道{0} 右端手动触板: {1}", laneNum, TimeFormatter.Format(_runningTime)));
                             // 2026-06-03 喂入 RelayReactionCalculator (= 同上, 棒次完成侧由 afterLap 奇偶决定)
@@ -4267,7 +4267,7 @@ namespace SwimmingScoreboard
                         //   误记为新分段 → 触发 Direction flip → 倒计时结束后开错端设备.
                         //   保留原 Open→记录 / Touched→备用 / 其它→丢弃 的状态机 (与硬件期望一致).
                         if (tpStatus == DeviceStatus.Open || IsLaneForceAllOpen(lane) || isMbSubstitute) {
-                            ProcessTouchpadHit(lane, timeInSeconds, laneState, isMbSubstitute);
+                            ProcessTouchpadHit(lane, timeInSeconds, laneState, side, isMbSubstitute);
                             // 已记录正式成绩，把该端切到"已触板（红）"，到点再 Closed
                             EnterTouchedThenClose(laneState, sideForClose, lane);
                         } else if (tpStatus == DeviceStatus.Touched) {
@@ -4306,7 +4306,7 @@ namespace SwimmingScoreboard
                         // 2026-05-13 全开模式：所有盲表信号都认可为正式分段
                         // 2026-05-26 撤回 Closed-accept 改动 (副作用见 Touchpad 分支注释)
                         if (bwStatus == DeviceStatus.Open || IsLaneForceAllOpen(lane)) {
-                            ProcessBlindWatchData(lane, cmdType, timeInSeconds);
+                            ProcessBlindWatchData(lane, cmdType, timeInSeconds, bwSideForClose);
                             EnterBlindTouchedThenClose(laneState, bwSideForClose, blindNum, lane);
                         } else if (bwStatus == DeviceStatus.Touched) {
                             RecordBackupBlind(lane, blindNum, timeInSeconds);
@@ -4947,6 +4947,11 @@ namespace SwimmingScoreboard
             int totalLaps = GetTotalLaps();
             int currentLap = laneState.CurrentLap + 1;
             laneState.CurrentLap = currentLap;
+            // 2026-06-14 跳圈也按侧计圈: 按本段奇偶推断该侧并 +1 (无硬件 side), 方向由该侧决定
+            bool startFromLeftSk = _laneCloseSettings.StartPosition != "right";
+            bool atStartSk = (currentLap % 2 == 0);
+            string skSide = (atStartSk == startFromLeftSk) ? "left" : "right";
+            if (skSide == "left") laneState.LeftTouchDone++; else laneState.RightTouchDone++;
 
             SplitTime split = null;
             foreach (var sp in result.Splits) { if (sp.Lap == currentLap) { split = sp; break; } }
@@ -4959,8 +4964,8 @@ namespace SwimmingScoreboard
             split.PushButton1Time = 0; split.PushButton2Time = 0; split.PushButton3Time = 0;
             split.TimingSource = "Skipped";   // UI/导出 据此识别 "等手工输入"
 
-            // 切方向 (= 分段触板逻辑一致)
-            laneState.Direction = laneState.Direction == "→" ? "←" : "→";
+            // 切方向 (= 由该侧决定, 与分段触板逻辑一致)
+            laneState.Direction = (skSide == "left") ? "→" : "←";
 
             if (currentLap >= totalLaps) {
                 laneState.IsFinished = true;
@@ -5024,7 +5029,7 @@ namespace SwimmingScoreboard
             } catch (Exception ex) { AddLog("终点 TP/MB 差异检测失败: " + ex.Message); }
         }
 
-        private void ProcessTouchpadHit(int lane, double time, LaneDeviceState laneState, bool isMbSubstitute = false, string forceSource = null) {
+        private void ProcessTouchpadHit(int lane, double time, LaneDeviceState laneState, string side = null, bool isMbSubstitute = false, string forceSource = null) {
             // 2026-05-25 修复 #7: 移除"hold 过期就当新的 1 名"逻辑(会把 2/3 名触板时间也显示).
             // 1 名检测改到 split 保存后做 (见本函数末尾): 只在此泳道触板后是 当前 lap 最快 才更新滚动时间.
 
@@ -5064,6 +5069,14 @@ namespace SwimmingScoreboard
             int totalLaps = GetTotalLaps();
             int currentLap = laneState.CurrentLap + 1;
             laneState.CurrentLap = currentLap;
+            // 2026-06-14 严格按侧计圈: 优先用硬件实际 side; 缺失(手动/盲代等)按本段奇偶推算 (偶段=出发端, 奇段=到达端)
+            string touchSide = side;
+            if (touchSide != "left" && touchSide != "right") {
+                bool startFromLeftT = _laneCloseSettings.StartPosition != "right";
+                bool atStartSideT = (currentLap % 2 == 0);
+                touchSide = (atStartSideT == startFromLeftT) ? "left" : "right";
+            }
+            if (touchSide == "left") laneState.LeftTouchDone++; else laneState.RightTouchDone++;
 
             // 查找预创建的split（由PreCreateSplit在触板打开时创建）
             SplitTime split = null;
@@ -5089,6 +5102,7 @@ namespace SwimmingScoreboard
                 // 已有 TP 主成绩, MB final 仅留痕到 MbFinalTime 字段
                 split.MbFinalTime = time;
                 laneState.CurrentLap = currentLap - 1;  // reverse 4319 行的 ++ (= 同段不再 increment)
+                if (touchSide == "left") laneState.LeftTouchDone--; else laneState.RightTouchDone--;   // 2026-06-14 撤销按侧 ++
                 AddLog(string.Format("泳道{0} 第{1}段 MB final={2} 到达, 但已有 TP 成绩, 保持 TP (MB 留痕到 MbFinalTime)", lane, currentLap, TimeFormatter.Format(time)));
                 return;
             }
@@ -5179,8 +5193,8 @@ namespace SwimmingScoreboard
                     AddLog("本组比赛结束");
                 }
             } else {
-                // 分段触碰 — 切换方向和开始新倒计时
-                laneState.Direction = laneState.Direction == "→" ? "←" : "→";
+                // 分段触碰 — 方向由实际触板侧决定 (触左→朝右"→" / 触右→朝左"←"), 不再盲翻转; 开始新倒计时
+                laneState.Direction = (touchSide == "left") ? "→" : "←";
                 // 2026-05-25 修复时间漂移: 用 DateTime 锚点
                 double targetSec = laneState.LaneCloseTime > 0 ? laneState.LaneCloseTime : _laneCloseSettings.LaneCloseTime;
                 laneState.LaneCloseCountdown = targetSec;
@@ -5220,7 +5234,7 @@ namespace SwimmingScoreboard
 
                 // 触板：由调用方 EnterTouchedThenClose 把到达端切到"已触板（红）"，
                 // 到点 ResultConfirmCloseDelay 后再转 Closed。这里只处理"该端的盲表/手动按钮"延迟关闭。
-                string arrivedEnd = laneState.Direction == "→" ? "left" : "right";
+                string arrivedEnd = touchSide;   // 2026-06-14 用实际触板侧 (= 关该侧盲表/手动)
                 var closeTimer = new DispatcherTimer();
                 closeTimer.Interval = TimeSpan.FromSeconds(_laneCloseSettings.ResultConfirmCloseDelay);
                 closeTimer.Tick += delegate(object s2, EventArgs a2) {
@@ -5316,7 +5330,7 @@ namespace SwimmingScoreboard
             return result.Splits.Last();
         }
 
-        private void SaveManualTouchToSplit(int lane, double time) {
+        private void SaveManualTouchToSplit(int lane, double time, string side = null) {
             // 2026-06-03 手动 TP 应急规则:
             //   - 当前段已有 TP/MB → 仅记 split.ManualTouchTime 备份, 不动主成绩
             //   - 当前段没 TP/MB → 走 ProcessTouchpadHit 完整流程 (= 推 currentLap + 减 laps + 完赛检查 + 切 Lane_Display_State), 让比赛进行下去
@@ -5332,7 +5346,7 @@ namespace SwimmingScoreboard
             // 没 TP/MB → 走完整触板流程, 让比赛进行
             var laneState = _laneDeviceStates.FirstOrDefault(s => s.Lane == lane);
             if (laneState == null) return;
-            ProcessTouchpadHit(lane, time, laneState, false, "Manual");
+            ProcessTouchpadHit(lane, time, laneState, side, false, "Manual");   // 2026-06-14 手动应急: 传真实左/右侧按侧计圈
             // ManualTouchTime 也存 (= 兼容现有 UI 显示)
             var newSplit = FindCurrentSplit(lane);
             if (newSplit != null) {
@@ -5365,7 +5379,7 @@ namespace SwimmingScoreboard
             if (split.PushButton3Time > 0) result.PushButton3Time = split.PushButton3Time;
         }
 
-        private void ProcessBlindWatchData(int lane, string cmdType, double time) {
+        private void ProcessBlindWatchData(int lane, string cmdType, double time, string side = null) {
             var swimmer = GetCurrentHeatSwimmers().FirstOrDefault(s => {
                 var sa = s.GetAssignmentForStage(_currentStage);
                 return (sa != null ? sa.Lane : s.Lane) == lane;
@@ -5433,8 +5447,8 @@ namespace SwimmingScoreboard
                                 blinds.Sort();
                                 double med = blinds[blinds.Count / 2];   // 单/双 都取中位
                                 AddLog(string.Format("泳道{0} 自动用盲表代触板: 中位 {1} (源 {2} 个)", lane, TimeFormatter.Format(med), blinds.Count));
-                                // 按 "硬件已用盲表代触板" 路径处理 (跳过 TP 状态守卫)
-                                ProcessTouchpadHit(lane, med, stateA, true);
+                                // 按 "硬件已用盲表代触板" 路径处理 (跳过 TP 状态守卫); 2026-06-14 传 MB 侧, 按侧计圈
+                                ProcessTouchpadHit(lane, med, stateA, side, true);
                             }
                         }
                     }
@@ -5574,6 +5588,11 @@ namespace SwimmingScoreboard
             // ===== Ok: 落地 =====
             int oldCurForRollback = ls.CurrentLap;
             ls.CurrentLap = result.NewCurrentLap;
+            // 2026-06-14 同步按侧计数: 该侧已触次数 -= actualDelta (剩余变化=actualDelta → 已触变化=-actualDelta), 保持与按侧剩余一致
+            if (isLeft) ls.LeftTouchDone -= result.ActualDelta;
+            else ls.RightTouchDone -= result.ActualDelta;
+            if (ls.LeftTouchDone < 0) ls.LeftTouchDone = 0;
+            if (ls.RightTouchDone < 0) ls.RightTouchDone = 0;
             ls.Direction = result.Direction;   // 2026-05-30: 派生于 open_side (= 物理游动方向, 跟 web sw.direction 一致, 跟硬件 ">>>/<<<" 反向)
             ls.LeftLapManualAdjust = 0;
             ls.RightLapManualAdjust = 0;
@@ -6036,32 +6055,24 @@ namespace SwimmingScoreboard
             return v;
         }
 
-        private int GetTouchRemain(LaneDeviceState laneState, bool isLeft) {
+        // 2026-06-14 该侧总触板次数 (出发端=偶数段触=totalLaps/2; 到达端=奇数段触=(totalLaps+1)/2; 50m 出发端0/到达端1)
+        private int GetSideTouchTotal(bool isLeft) {
             int totalLaps = GetTotalLaps();
-            int currentLap = laneState != null ? laneState.CurrentLap : 0;
             bool startFromLeft = _laneCloseSettings.StartPosition != "right";
-
-            // 总触板次数：出发端 = totalLaps/2（偶数段触），到达端 = (totalLaps+1)/2（奇数段触）
             int startSideTotal, farSideTotal;
-            if (totalLaps == 1) {
-                startSideTotal = 0; farSideTotal = 1;  // 50米：出发端0次，到达端1次
-            } else {
-                startSideTotal = totalLaps / 2;
-                farSideTotal = (totalLaps + 1) / 2;
-            }
+            if (totalLaps == 1) { startSideTotal = 0; farSideTotal = 1; }
+            else { startSideTotal = totalLaps / 2; farSideTotal = (totalLaps + 1) / 2; }
+            if (startFromLeft) return isLeft ? startSideTotal : farSideTotal;
+            return isLeft ? farSideTotal : startSideTotal;
+        }
 
-            // 已完成的触板次数
-            int startSideDone = currentLap / 2;           // 偶数段在出发端触板
-            int farSideDone = (currentLap + 1) / 2;       // 奇数段在到达端触板
-
-            int startRemain = Math.Max(0, startSideTotal - startSideDone);
-            int farRemain = Math.Max(0, farSideTotal - farSideDone);
-
-            if (startFromLeft) {
-                return isLeft ? startRemain : farRemain;
-            } else {
-                return isLeft ? farRemain : startRemain;
-            }
+        // 2026-06-14 严格按侧: 该侧剩余 = 该侧总次数 − 该侧实际已触次数 (LeftTouchDone/RightTouchDone),
+        //   两侧完全独立, 不再用单 CurrentLap 奇偶推算 → 某侧多/少触板不会牵连另一侧 (与硬件按侧一致).
+        private int GetTouchRemain(LaneDeviceState laneState, bool isLeft) {
+            int sideTotal = GetSideTouchTotal(isLeft);
+            int done = laneState == null ? 0 : (isLeft ? laneState.LeftTouchDone : laneState.RightTouchDone);
+            int remain = sideTotal - done;
+            return remain < 0 ? 0 : remain;
         }
 
         private void UpdateHeatRanking() {
