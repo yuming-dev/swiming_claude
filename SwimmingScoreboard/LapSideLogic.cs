@@ -41,5 +41,21 @@ namespace SwimmingScoreboard
         {
             return touchSide == "left";
         }
+
+        // 2026-06-14 封闭时间去抖 (学习硬件 Close_Time): 同侧上次计圈时刻 lastSideTime 之后 closeWin 秒内的
+        //   同侧触板 = 重复(抖动/坏TP重发), 返回 true 表示应忽略不计圈. (物理上同侧两圈相隔数十秒, 不会误杀真实圈)
+        public static bool IsRepeatWithinClose(double touchTime, double lastSideTime, double closeWin)
+        {
+            return lastSideTime > 0 && touchTime > 0 && (touchTime - lastSideTime) < closeWin;
+        }
+
+        // 去抖窗口 = 泳道封闭时间, 钳到 [2,10]s (防误配过小漏抖动 / 过大误杀真实圈).
+        public static double ClampCloseWin(double laneCloseTime)
+        {
+            double w = laneCloseTime;
+            if (w < 2) w = 2;
+            if (w > 10) w = 10;
+            return w;
+        }
     }
 }

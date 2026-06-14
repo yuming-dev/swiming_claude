@@ -1122,6 +1122,9 @@ namespace SwimmingScoreboard
             get { return _rightTouchDone; }
             set { _rightTouchDone = value; OnPropertyChanged("RightTouchDone"); }
         }
+        // 2026-06-14 每侧上次"计圈"的比赛时刻(秒): 用于封闭时间去抖 (学习硬件 Close_Time), 同侧窗口内重复触板不计圈
+        public double LeftLastTouchTime { get; set; }
+        public double RightLastTouchTime { get; set; }
         public bool IsFinished {
             get { return _isFinished; }
             set { _isFinished = value; OnPropertyChanged("IsFinished"); }
@@ -1252,6 +1255,8 @@ namespace SwimmingScoreboard
             _currentLap = 0;
             _leftTouchDone = 0;   // 2026-06-14 按侧计圈复位
             _rightTouchDone = 0;
+            LeftLastTouchTime = 0;   // 2026-06-14 去抖时刻复位
+            RightLastTouchTime = 0;
             _isFinished = false;
             _reactionTime = 0;
             _isFalseStart = false;

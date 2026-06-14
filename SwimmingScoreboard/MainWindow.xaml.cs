@@ -5068,12 +5068,24 @@ namespace SwimmingScoreboard
 
             // 计算分段
             int totalLaps = GetTotalLaps();
+            // 2026-06-14 先定本次触板侧(不改状态), 用于封闭时间去抖. side 缺失(手动/盲代)按"下一段"奇偶推算.
+            string touchSide = (side == "left" || side == "right") ? side
+                : LapSideLogic.InferSide(laneState.CurrentLap + 1, _laneCloseSettings.StartPosition != "right");
+            // 2026-06-14 封闭时间去抖 (学习硬件 Close_Time): 同侧在封闭窗口内的重复触板(抖动/坏TP重发) 记备份, 不计圈.
+            //   物理上同侧两圈相隔 ≥ 一个来回(数十秒), 窗口取 [2,10]s 既挡抖动又绝不误杀真实圈 (防误配钳上限).
+            double closeWin = LapSideLogic.ClampCloseWin(laneState.LaneCloseTime > 0 ? laneState.LaneCloseTime : _laneCloseSettings.LaneCloseTime);
+            double prevSideT = (touchSide == "left") ? laneState.LeftLastTouchTime : laneState.RightLastTouchTime;
+            if (LapSideLogic.IsRepeatWithinClose(time, prevSideT, closeWin)) {
+                RecordBackupTouch(lane, time);
+                AddLog(string.Format("泳道{0} {1}侧 重复触板 (距上次 {2:F2}s < 封闭 {3:F1}s) 记备份不计圈",
+                    lane, touchSide == "left" ? "左" : "右", time - prevSideT, closeWin));
+                return;
+            }
             int currentLap = laneState.CurrentLap + 1;
             laneState.CurrentLap = currentLap;
-            // 2026-06-14 严格按侧计圈: 优先用硬件实际 side; 缺失(手动/盲代等)按本段奇偶推算 (LapSideLogic, 与测试同源)
-            string touchSide = (side == "left" || side == "right") ? side
-                : LapSideLogic.InferSide(currentLap, _laneCloseSettings.StartPosition != "right");
-            if (touchSide == "left") laneState.LeftTouchDone++; else laneState.RightTouchDone++;
+            // 严格按侧计圈: 只给本次实际触板侧 +1, 并记本侧计圈时刻(去抖用)
+            if (touchSide == "left") { laneState.LeftTouchDone++; laneState.LeftLastTouchTime = time; }
+            else { laneState.RightTouchDone++; laneState.RightLastTouchTime = time; }
 
             // 查找预创建的split（由PreCreateSplit在触板打开时创建）
             SplitTime split = null;
@@ -5099,7 +5111,9 @@ namespace SwimmingScoreboard
                 // 已有 TP 主成绩, MB final 仅留痕到 MbFinalTime 字段
                 split.MbFinalTime = time;
                 laneState.CurrentLap = currentLap - 1;  // reverse 4319 行的 ++ (= 同段不再 increment)
-                if (touchSide == "left") laneState.LeftTouchDone--; else laneState.RightTouchDone--;   // 2026-06-14 撤销按侧 ++
+                // 2026-06-14 撤销按侧 ++ 与去抖时刻 (本次未真正计圈)
+                if (touchSide == "left") { laneState.LeftTouchDone--; laneState.LeftLastTouchTime = prevSideT; }
+                else { laneState.RightTouchDone--; laneState.RightLastTouchTime = prevSideT; }
                 AddLog(string.Format("泳道{0} 第{1}段 MB final={2} 到达, 但已有 TP 成绩, 保持 TP (MB 留痕到 MbFinalTime)", lane, currentLap, TimeFormatter.Format(time)));
                 return;
             }

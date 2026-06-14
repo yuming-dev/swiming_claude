@@ -64,6 +64,7 @@ namespace LapCountTest
             ScenarioExtraSameSide(30, true, "1500m 坏TP多发(已关侧)");
             ScenarioExtraOnOpenSide(30, true, "1500m 同侧连发(开侧重发)");
             ScenarioCrossSideIndependence();
+            ScenarioCloseDebounce();
             ScenarioOldModelWouldFail();
 
             Console.WriteLine();
@@ -140,6 +141,23 @@ namespace LapCountTest
                 if (beforeOther != afterOther) { ok = false; break; }
             }
             Check(ok, "随机/非交替序列下, 触一侧时另一侧剩余始终不变 (接收 " + n + " 次)");
+            Console.WriteLine();
+        }
+
+        // 封闭去抖: 同侧抖动/坏TP重发 (学习硬件 Close_Time), 用用户实测右侧时间序列, 验证只计真实圈
+        static void ScenarioCloseDebounce() {
+            Console.WriteLine("场景: 封闭去抖 (同侧抖动/坏TP重发)");
+            double win = LapSideLogic.ClampCloseWin(6);   // 封闭时间 6s (硬件 Close_Time 默认)
+            // 实测右侧序列(秒): 1 次真实触板 + 多次抖动重发(秒内), 之后下一来回真实触板(~70s后)
+            double[] rightTouches = { 161.08, 161.16, 161.38, 161.77, 162.45, 162.72, 230.00, 230.06 };
+            int counted = 0; double last = 0;
+            foreach (var t in rightTouches) {
+                if (!LapSideLogic.IsRepeatWithinClose(t, last, win)) { counted++; last = t; }
+            }
+            Check(counted == 2, "8 次同侧帧(含抖动) → 只计 2 圈 (161.08 与 230.0), 实计 " + counted + " (旧无去抖会全计 8 → 多减圈)");
+            // 边界: 恰好等于窗口的不算重复(>=win 才计)
+            Check(!LapSideLogic.IsRepeatWithinClose(10.0, 4.0, 6.0), "间隔==窗口(6s) 视为新圈, 不去抖");
+            Check(LapSideLogic.IsRepeatWithinClose(9.99, 4.0, 6.0), "间隔<窗口(5.99s) 视为抖动, 去抖");
             Console.WriteLine();
         }
 
