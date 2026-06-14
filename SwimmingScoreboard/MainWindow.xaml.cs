@@ -20181,7 +20181,7 @@ namespace SwimmingScoreboard
                 + "h3{font-size:22px; font-family:'SimHei'; border-bottom:3px solid #1e40af; padding-bottom:8px; margin-top:40px; color:#1e40af;} "
                 + "h4{font-size:18px; font-weight:bold; margin-top:20px; border-left:5px solid #1e40af; padding-left:10px;} "
                 + "table{border-collapse:collapse; width:100%; margin:15px 0; background:#fff;} "
-                + "th{border:1px solid #333; background:#dbeafe; padding:10px; font-weight:bold; font-size:14px;} "
+                + "th{border:1px solid #333; background:#dbeafe; padding:10px; font-weight:bold; font-size:14px; text-align:center; vertical-align:middle;} "
                 + "td{border:1px solid #333; padding:8px; text-align:center; font-size:14px;} "
                 + "tr:nth-child(even){background:#f0f7ff;} "
                 + ".signature-row{margin-top:60px; display:flex; justify-content:space-between; font-size:15px; font-weight:bold;} "

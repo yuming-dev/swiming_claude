@@ -339,7 +339,7 @@ namespace SwimmingScoreboard
             sb.Append("h3{font-size:20px; font-family:'SimHei'; border-bottom:3px solid #1e40af; padding-bottom:6px; margin-top:24px; color:#1e40af;} ");
             sb.Append("h4{font-size:14px; font-weight:normal; color:#475569; margin-top:6px;} ");
             sb.Append("table{border-collapse:collapse; width:100%; margin:10px 0 20px; background:#fff;} ");
-            sb.Append("th{border:1px solid #333; background:#dbeafe; padding:8px; font-weight:bold; font-size:13px;} ");
+            sb.Append("th{border:1px solid #333; background:#dbeafe; padding:8px; font-weight:bold; font-size:13px; text-align:center; vertical-align:middle;} ");
             sb.Append("td{border:1px solid #333; padding:6px; text-align:center; font-size:13px;} ");
             sb.Append("tr:nth-child(even){background:#f0f7ff;} ");
             sb.Append(".signature-row{margin-top:30px; display:flex; justify-content:space-between; font-size:14px; font-weight:bold;} ");
