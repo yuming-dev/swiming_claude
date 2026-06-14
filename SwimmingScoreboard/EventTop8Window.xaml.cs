@@ -146,7 +146,7 @@ namespace SwimmingScoreboard
             sb.AppendLine("<!DOCTYPE html><html><head><meta charset='UTF-8'><title>项目成绩统计</title>");
             sb.AppendLine("<style>body{font-family:'Microsoft YaHei',sans-serif;margin:20px;font-size:12px;}");
             sb.AppendLine("table{border-collapse:collapse;width:100%;}th,td{border:1px solid #ddd;padding:5px 8px;text-align:center;}");
-            sb.AppendLine("th{background:#1E40AF;color:white;}tr:nth-child(even){background:#F8FAFC;}");
+            sb.AppendLine("th{background:#1E40AF;color:white;text-align:center;vertical-align:middle;}tr:nth-child(even){background:#F8FAFC;}");
             sb.AppendLine("h1{color:#1E40AF;}td.gold{background:#FEF3C7;font-weight:bold;}td.silver{background:#E5E7EB;}td.bronze{background:#FED7AA;}</style></head><body>");
             sb.AppendLine("<h1>项目成绩统计 — 各项目第 1-8 名</h1>");
             sb.AppendLine("<table><tr><th>组别</th><th>性别</th><th>项目</th><th>第1名</th><th>第2名</th><th>第3名</th><th>第4名</th><th>第5名</th><th>第6名</th><th>第7名</th><th>第8名</th></tr>");

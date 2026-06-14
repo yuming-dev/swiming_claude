@@ -120,7 +120,7 @@ namespace SwimmingScoreboard
             sb.AppendLine(".total{background:#FEF3C7;padding:12px;border-radius:6px;font-size:16px;font-weight:bold;margin:12px 0;}");
             sb.AppendLine("table{border-collapse:collapse;width:100%;margin:8px 0;}");
             sb.AppendLine("th,td{border:1px solid #ddd;padding:6px 10px;text-align:left;font-size:13px;}");
-            sb.AppendLine("th{background:#1E40AF;color:white;}tr:nth-child(even){background:#F8FAFC;}");
+            sb.AppendLine("th{background:#1E40AF;color:white;text-align:center;vertical-align:middle;}tr:nth-child(even){background:#F8FAFC;}");
             sb.AppendLine(".rank1{background:#FEF3C7;font-weight:bold;}.rank2{background:#E5E7EB;}.rank3{background:#FED7AA;}");
             sb.AppendLine(".dsq{color:#DC2626;}.athlete{margin-bottom:20px;}");
             sb.AppendLine(".meta{color:#475569;font-size:12px;}");

@@ -118,7 +118,7 @@ namespace SwimmingScoreboard
             var sb = new StringBuilder();
             sb.AppendLine("<!DOCTYPE html><html><head><meta charset='UTF-8'><title>运动员个人总分排名</title>");
             sb.AppendLine("<style>body{font-family:'Microsoft YaHei',sans-serif;margin:20px;}table{border-collapse:collapse;width:100%;}");
-            sb.AppendLine("th,td{border:1px solid #ddd;padding:6px 10px;text-align:left;}th{background:#1E40AF;color:white;}");
+            sb.AppendLine("th,td{border:1px solid #ddd;padding:6px 10px;text-align:left;}th{background:#1E40AF;color:white;text-align:center;vertical-align:middle;}");
             sb.AppendLine("tr:nth-child(even){background:#F8FAFC;}h1{color:#1E40AF;}</style></head><body>");
             sb.AppendLine("<h1>运动员个人总分排名</h1>");
             sb.AppendLine("<table><tr><th>名次</th><th>号码</th><th>姓名</th><th>性别</th><th>代表队</th><th>组别</th><th>总积分</th><th>个人</th><th>接力</th><th>明细</th></tr>");
