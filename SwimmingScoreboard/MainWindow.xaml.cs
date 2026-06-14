@@ -5071,9 +5071,12 @@ namespace SwimmingScoreboard
             // 2026-06-14 先定本次触板侧(不改状态), 用于封闭时间去抖. side 缺失(手动/盲代)按"下一段"奇偶推算.
             string touchSide = (side == "left" || side == "right") ? side
                 : LapSideLogic.InferSide(laneState.CurrentLap + 1, _laneCloseSettings.StartPosition != "right");
-            // 2026-06-14 封闭时间去抖 (学习硬件 Close_Time): 同侧在封闭窗口内的重复触板(抖动/坏TP重发) 记备份, 不计圈.
-            //   物理上同侧两圈相隔 ≥ 一个来回(数十秒), 窗口取 [2,10]s 既挡抖动又绝不误杀真实圈 (防误配钳上限).
-            double closeWin = LapSideLogic.ClampCloseWin(laneState.LaneCloseTime > 0 ? laneState.LaneCloseTime : _laneCloseSettings.LaneCloseTime);
+            // 2026-06-14 同侧去抖 (学习硬件): 硬件对"串板/坏TP"(TP_Open_Close_State==3) 要求同侧距上次触板 ≥ Close_Time
+            //   才算有效 (swimplay.c L2599/L2656); 正常触板则靠"已触板保持 ResultConfirmCloseDelay 秒"期间重复=备份.
+            //   PC 用现有这两个参数(泳道关闭时间 / 成绩确认关闭延迟)取较大者作窗口: 窗口内同侧重复触板记备份不计圈.
+            double closeWin = LapSideLogic.DebounceWindow(
+                laneState.LaneCloseTime > 0 ? laneState.LaneCloseTime : _laneCloseSettings.LaneCloseTime,
+                _laneCloseSettings.ResultConfirmCloseDelay);
             double prevSideT = (touchSide == "left") ? laneState.LeftLastTouchTime : laneState.RightLastTouchTime;
             if (LapSideLogic.IsRepeatWithinClose(time, prevSideT, closeWin)) {
                 RecordBackupTouch(lane, time);

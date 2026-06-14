@@ -144,17 +144,21 @@ namespace LapCountTest
             Console.WriteLine();
         }
 
-        // 封闭去抖: 同侧抖动/坏TP重发 (学习硬件 Close_Time), 用用户实测右侧时间序列, 验证只计真实圈
+        // 同侧去抖: 用现有两参数(泳道关闭时间/成绩确认关闭延迟)取窗口, 验证抖动/坏TP重发只计真实圈
         static void ScenarioCloseDebounce() {
-            Console.WriteLine("场景: 封闭去抖 (同侧抖动/坏TP重发)");
-            double win = LapSideLogic.ClampCloseWin(6);   // 封闭时间 6s (硬件 Close_Time 默认)
+            Console.WriteLine("场景: 同侧去抖 (泳道关闭时间/成绩确认关闭延迟)");
+            // 窗口直接来自现有参数 (无任意钳制): 硬件同步后 Close_Time=6 → max(6,3)=6; PC 默认 20 → max(20,3)=20
+            Check(LapSideLogic.DebounceWindow(6, 3) == 6, "硬件Close_Time=6,确认延迟=3 → 窗口6s");
+            Check(LapSideLogic.DebounceWindow(20, 3) == 20, "PC默认 泳道关闭=20,确认延迟=3 → 窗口20s");
+            Check(LapSideLogic.DebounceWindow(0, 0) == 3, "两参数皆0 → 兜底3s");
+            double win = LapSideLogic.DebounceWindow(6, 3);   // 硬件 Close_Time 同步后
             // 实测右侧序列(秒): 1 次真实触板 + 多次抖动重发(秒内), 之后下一来回真实触板(~70s后)
             double[] rightTouches = { 161.08, 161.16, 161.38, 161.77, 162.45, 162.72, 230.00, 230.06 };
             int counted = 0; double last = 0;
             foreach (var t in rightTouches) {
                 if (!LapSideLogic.IsRepeatWithinClose(t, last, win)) { counted++; last = t; }
             }
-            Check(counted == 2, "8 次同侧帧(含抖动) → 只计 2 圈 (161.08 与 230.0), 实计 " + counted + " (旧无去抖会全计 8 → 多减圈)");
+            Check(counted == 2, "8 次同侧帧(含抖动,窗口6s) → 只计 2 圈 (161.08 与 230.0), 实计 " + counted + " (旧无去抖会全计 8 → 多减圈)");
             // 边界: 恰好等于窗口的不算重复(>=win 才计)
             Check(!LapSideLogic.IsRepeatWithinClose(10.0, 4.0, 6.0), "间隔==窗口(6s) 视为新圈, 不去抖");
             Check(LapSideLogic.IsRepeatWithinClose(9.99, 4.0, 6.0), "间隔<窗口(5.99s) 视为抖动, 去抖");

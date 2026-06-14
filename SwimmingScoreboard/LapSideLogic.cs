@@ -49,13 +49,14 @@ namespace SwimmingScoreboard
             return lastSideTime > 0 && touchTime > 0 && (touchTime - lastSideTime) < closeWin;
         }
 
-        // 去抖窗口 = 泳道封闭时间, 钳到 [2,10]s (防误配过小漏抖动 / 过大误杀真实圈).
-        public static double ClampCloseWin(double laneCloseTime)
+        // 同侧去抖窗口 = 现有两个参数取较大者 (不再凭空钳 [2,10]):
+        //   laneCloseTime = 泳道关闭时间 (硬件 Close_Time, 对"串板/坏TP"同侧最小有效间隔, 见 swimplay.c L2599/L2656);
+        //   resultConfirmCloseDelay = 成绩确认关闭延迟 (硬件 TP_DelayClose, 触板后该侧保持"已触板"期间重复=备份).
+        //   取较大者 → 覆盖两层去抖; 物理上同侧两圈相隔 ≥ 一个来回(数十秒), 绝不误杀真实圈. 两者皆 ≤0 时兜底 3s.
+        public static double DebounceWindow(double laneCloseTime, double resultConfirmCloseDelay)
         {
-            double w = laneCloseTime;
-            if (w < 2) w = 2;
-            if (w > 10) w = 10;
-            return w;
+            double w = laneCloseTime > resultConfirmCloseDelay ? laneCloseTime : resultConfirmCloseDelay;
+            return w > 0 ? w : 3;
         }
     }
 }
