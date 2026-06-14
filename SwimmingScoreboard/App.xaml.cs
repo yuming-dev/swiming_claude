@@ -14,6 +14,7 @@ namespace SwimmingScoreboard
         }
 
         private void App_Startup(object sender, StartupEventArgs e) {
+            TrySetWebBrowserIE11();   // 2026-06-13 内嵌 WebBrowser(文档预览)用 IE11 标准模式渲染, 否则默认 IE7 quirks 下表头等 CSS 不生效
             ShutdownMode = ShutdownMode.OnExplicitShutdown;
             AuthHelper.EnsureDefaultCredentials();
             var loginWin = new LoginWindow();
@@ -31,6 +32,24 @@ namespace SwimmingScoreboard
                 MessageBox.Show("启动失败:\n" + ex.ToString(), "错误", MessageBoxButton.OK, MessageBoxImage.Error);
                 Shutdown();
             }
+        }
+
+        // 2026-06-13 让本程序内嵌的 WPF WebBrowser(文档预览/输出) 用 IE11 标准模式渲染.
+        //   默认 hosted WebBrowser 跑 IE7 quirks, 导致 th 等 CSS/居中 在预览与"打印"里不生效.
+        //   写 HKCU FEATURE_BROWSER_EMULATION (无需管理员), 在创建任何 WebBrowser 前设好即可.
+        private static void TrySetWebBrowserIE11() {
+            try {
+                string exeName = System.IO.Path.GetFileName(
+                    System.Reflection.Assembly.GetEntryAssembly().Location);
+                if (string.IsNullOrEmpty(exeName)) return;
+                using (var key = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(
+                    @"Software\Microsoft\Internet Explorer\Main\FeatureControl\FEATURE_BROWSER_EMULATION")) {
+                    if (key != null) {
+                        // 11001 = IE11 edge 模式(忽略 !DOCTYPE, 强制标准模式渲染)
+                        key.SetValue(exeName, 11001, Microsoft.Win32.RegistryValueKind.DWord);
+                    }
+                }
+            } catch { }
         }
 
         private void App_DispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e) {
