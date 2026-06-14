@@ -3098,22 +3098,22 @@ namespace SwimmingScoreboard
             Func<int, List<string>> buildLines = delegate(int laneFilter) {
                 var ls = new List<string>();
                 int pc = 0;
-                foreach (var e in _pendingBackupEvents) if (e.IsPress && (laneFilter < 0 || e.Lane == laneFilter)) pc++;
+                // 2026-06-13 (晚) 调试用: 显示全部事件 (按下+松开), 不再过滤. 用于诊断"前 17 秒缺数据"等问题
+                foreach (var e in _pendingBackupEvents) if (laneFilter < 0 || e.Lane == laneFilter) pc++;
                 string scope = laneFilter < 0 ? "全部道次" : ("道" + laneFilter);
-                ls.Add(string.Format("==== 事件备份 [{0}] ({1} 条按下 = 成绩瞬间, 共 {2} 条原始) ====", scope, pc, _pendingBackupEvents.Count));
-                ls.Add("说明: = 后是设备按下 (= 下降沿, 成绩触发) 瞬间的硬件比赛运行时间, 跟比赛日志 '= XX.XX' 同源");
+                ls.Add(string.Format("==== 事件备份 [{0}] ({1} 条 [按下+松开 全部], 共 {2} 条原始) ====", scope, pc, _pendingBackupEvents.Count));
+                ls.Add("说明: '按下' = 下降沿 (= 成绩瞬间, 跟比赛日志 '= XX.XX' 同源); '松开' = 上升沿");
                 ls.Add("");
                 foreach (var evt in _pendingBackupEvents) {
-                    if (!evt.IsPress) continue;  // 跳过松开, 只显示按下 (= 比赛日志成绩瞬间)
                     if (laneFilter >= 0 && evt.Lane != laneFilter) continue;  // 2026-06-10 泳道筛选
                     string ts;
                     if (evt.Hour > 0)        ts = string.Format("{0}:{1:00}:{2:00}.{3:00}", evt.Hour, evt.Minute, evt.Second, evt.Msecond);
                     else if (evt.Minute > 0) ts = string.Format("{0}:{1:00}.{2:00}", evt.Minute, evt.Second, evt.Msecond);
                     else                     ts = string.Format("{0}.{1:00}", evt.Second, evt.Msecond);
-                    ls.Add(string.Format("道{0}{1} {2} = {3,8} 硬件状态={4}",
-                        evt.Lane, evt.SideLabel, evt.EventLabel, ts, evt.DevState));
+                    ls.Add(string.Format("道{0}{1} {2} {3} = {4,8} 硬件状态={5}",
+                        evt.Lane, evt.SideLabel, evt.EventLabel, evt.ActionLabel, ts, evt.DevState));
                 }
-                if (pc == 0) ls.Add(laneFilter < 0 ? "(无按下事件)" : string.Format("(道{0} 无按下事件)", laneFilter));
+                if (pc == 0) ls.Add(laneFilter < 0 ? "(无事件)" : string.Format("(道{0} 无事件)", laneFilter));
                 return ls;
             };
 
