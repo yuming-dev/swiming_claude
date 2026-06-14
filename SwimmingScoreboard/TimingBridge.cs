@@ -98,7 +98,10 @@ namespace SwimmingScoreboard
     // 游泳计时通讯协议 2023-11-13  D2命令字节定义
     public enum TimingCommandType
     {
-        Touchpad      = 0x16,   // 触板时间成绩   D4=泳道号(0-9终点,10-19另一端)
+        Touchpad      = 0x16,   // 触板时间成绩 (真触板硬件信号, D3=Touchpad_Result=0) D4=泳道号(0-9终点,10-19另一端)
+        // 2026-06-14 合成枚举值: 实际 wire 仍是 0x16, 但 D3=Pushbutton_Result=1 (= 手动 TP 键/盲表代替触板). PC 端区分为独立类型避免下游误把"手动 TP"当真触板处理.
+        // 高字节 0x1 是 PC 端合成位, 不会跟任何真实 wire 命令冲突 (wire 命令单字节 0-0xFF).
+        ManualTouchpad = 0x116, // 手动 TP 键 / 盲表代替触板 (= 真实 wire 0x16 + D3=1, 合成区分)
         PushButton1   = 0x17,   // 盲表1时间成绩  D4=泳道号
         PushButton2   = 0x18,   // 盲表2时间成绩  D4=泳道号
         PushButton3   = 0x19,   // 盲表3时间成绩  D4=泳道号
@@ -429,7 +432,10 @@ namespace SwimmingScoreboard
 
             TimingCommandType cmdType;
             switch (cmd) {
-                case 0x16: cmdType = TimingCommandType.Touchpad;      break;  // 触板时间成绩
+                case 0x16:
+                    // 2026-06-14 D3 区分: 0=真触板 (Touchpad_Result), 1=手动 TP 键/盲表代替触板 (Pushbutton_Result)
+                    cmdType = (frame[3] == 1) ? TimingCommandType.ManualTouchpad : TimingCommandType.Touchpad;
+                    break;
                 case 0x17: cmdType = TimingCommandType.PushButton1;   break;  // 盲表1
                 case 0x18: cmdType = TimingCommandType.PushButton2;   break;  // 盲表2
                 case 0x19: cmdType = TimingCommandType.PushButton3;   break;  // 盲表3

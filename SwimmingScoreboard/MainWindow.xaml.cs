@@ -3434,7 +3434,8 @@ namespace SwimmingScoreboard
             // 注: TimingBridge.cs 里 IsFinishEnd 这个字段名是历史遗留, 真实语义是"物理左端"(D4<10).
             string side = data.IsFinishEnd ? "left" : "right";
             //2026-05-31 cmd=0x16 (Touchpad) 且 d3=Pushbutton_Result(=1) 表示"硬件用盲表代替触板", PC 强制接受
-            bool isMbSubstitute = (data.CommandType == TimingCommandType.Touchpad && data.Param1 == 1);
+            //2026-06-14 重构: 区分由 TimingBridge 解析时完成, ManualTouchpad 枚举值已合成了 0x16+Param1==1 这一情况
+            bool isMbSubstitute = (data.CommandType == TimingCommandType.ManualTouchpad);
             // 2026-06-06 修复 "开关=关 但盲表仍代替触板" — 硬件按 BlindReplaceDelay 超时后会自行发 cmd=0x16 d3=1 代触,
             //   PC 之前不论开关都强制接受 (3651 处守卫旁路). 现按开关在 PC 接收侧拦截: 盲表自身的 PushButton 帧
             //   已被其他路径记录, 丢弃这一包不丢盲表数据, 只是拒绝把它转成 Touchpad. 硬件 mbDelay 不变 (按用户要求).
@@ -3446,7 +3447,8 @@ namespace SwimmingScoreboard
                 return;
             }
             // 2026-06-06 跳圈抑制: PC 右键 T 已推进 lap, 紧跟操作员按硬件手动 TP 键发的 0x16 在窗口内丢, 避免二次推进.
-            if (data.CommandType == TimingCommandType.Touchpad) {
+            // 2026-06-14 真触板和手动 TP 键(MB 代触)两种都要应用抑制窗口 (注释说的"操作员按硬件手动 TP 键" 主要就是 MB 代触场景).
+            if (data.CommandType == TimingCommandType.Touchpad || data.CommandType == TimingCommandType.ManualTouchpad) {
                 DateTime skipUntil;
                 if (_skipNextHwTpUntil.TryGetValue(data.Lane, out skipUntil) && skipUntil > DateTime.Now) {
                     AddLog(string.Format("泳道{0} 硬件 TP 在跳圈抑制窗口内 → 丢弃 (避免二次推进)", data.Lane));
@@ -4055,8 +4057,9 @@ namespace SwimmingScoreboard
                 return;
             }
 
-            // 记录原始数据 (2026-05-31: 硬件用盲表代替触板成绩 → log 标 "TouchpadMb" → 比赛日志显示"触代")
-            LogRawTimingData(lane, (cmdType == "Touchpad" && isMbSubstitute) ? "TouchpadMb" : cmdType, timeInSeconds, side);
+            // 记录原始数据 (2026-05-31: 硬件用盲表代替触板成绩 → 比赛日志显示"触代")
+            // 2026-06-14 cmdType 已经在 TimingBridge.cs 里区分: "Touchpad"=真触板, "ManualTouchpad"=MB 代触. 不需要这里再合成 "TouchpadMb" 字符串.
+            LogRawTimingData(lane, cmdType, timeInSeconds, side);
 
             // 2026-06-03 比完赛 (_raceState==Finished) 后, 硬件再有数据只记录 (= 上面 LogRaw 含比赛日志) 不处理
             //   = 不喂 calculator, 不动 SplitTime / 状态机 / 反应时, 不刷 UI 状态
@@ -4083,12 +4086,11 @@ namespace SwimmingScoreboard
                 }
                 if (side != expectedSideTp) isHandoffTpSeg = false;
                 if (isHandoffTpSeg) {
+                    // 2026-06-14 重构: cmdType 已区分, 真触板 = "Touchpad", MB 代触 = "ManualTouchpad", 不再依赖 isMbSubstitute 内嵌分支
                     if (cmdType == "Touchpad") {
-                        if (isMbSubstitute) {
-                            _relayReactionCalc.OnEvent(lane, side, RelayReactionCalculator.EventKind.MB_Final, timeInSeconds);
-                        } else {
-                            _relayReactionCalc.OnEvent(lane, side, RelayReactionCalculator.EventKind.TP, timeInSeconds);
-                        }
+                        _relayReactionCalc.OnEvent(lane, side, RelayReactionCalculator.EventKind.TP, timeInSeconds);
+                    } else if (cmdType == "ManualTouchpad") {
+                        _relayReactionCalc.OnEvent(lane, side, RelayReactionCalculator.EventKind.MB_Final, timeInSeconds);
                     } else if (cmdType == "PushButton1" || cmdType == "PushButton2" || cmdType == "PushButton3") {
                         _relayReactionCalc.OnEvent(lane, side, RelayReactionCalculator.EventKind.MB_FirstPress, timeInSeconds);
                     }
@@ -4229,6 +4231,7 @@ namespace SwimmingScoreboard
                     break;
 
                 case "Touchpad":
+                case "ManualTouchpad":   // 2026-06-14 MB 代触 (硬件 d3=Pushbutton_Result=1) 走同一处理路径, 内部仍用 isMbSubstitute 区分细节
                     // 触板状态机：
                     //   Open       → 作为正式成绩送进 ProcessTouchpadHit，再把该端切到 Touched（红）保持 ResultConfirmCloseDelay 秒
                     //   Touched    → 已有正式成绩；本次记日志并写入"备用成绩"（争议时使用）
@@ -4367,7 +4370,7 @@ namespace SwimmingScoreboard
                 case "StartingBlock":     label = "出";   break;
                 case "StartingBlockTimeout": label = "出";   break;   //2026-05-31 接力 SB 超时无 TP/MB (d10=2), time 字段统一显示 "---"
                 case "Touchpad":          label = "触";   break;
-                case "TouchpadMb":        label = "触代"; break;   //2026-05-31 硬件用盲表成绩代替触板 (cmd=0x16 D3=Pushbutton_Result)
+                case "ManualTouchpad":    label = "触代"; break;   //2026-05-31 硬件用盲表成绩代替触板 (cmd=0x16 D3=Pushbutton_Result=1); 2026-06-14 cmdType 由 "TouchpadMb" 改为 "ManualTouchpad" (= 跟 enum 一致)
                 case "PushButton1":       label = "盲1";  break;
                 case "PushButton2":       label = "盲2";  break;
                 case "PushButton3":       label = "盲3";  break;
@@ -4396,7 +4399,7 @@ namespace SwimmingScoreboard
             //   打印同一行 = 跟比赛日志一致 (现场纸质流水留底). 入队即返回, 不阻塞 UI.
             if (_thermalPrinter != null && _thermalPrinter.Enabled) {
                 bool printable = cmdType == "StartingBlock" || cmdType == "StartingBlockTimeout"
-                    || cmdType == "Touchpad"
+                    || cmdType == "Touchpad" || cmdType == "ManualTouchpad"    // 2026-06-14 真触板 + MB 代触都要打小票
                     || cmdType == "PushButton1" || cmdType == "PushButton2" || cmdType == "PushButton3";
                 if (printable) {
                     // 2026-06-12 格式: 道4左 触[1] = 23.43 (无 T= 前缀, 无姓名)
@@ -17771,7 +17774,9 @@ namespace SwimmingScoreboard
         // 测试模式下事件类型简短名（用于贴到 Remain 框，长字符串会撑破布局）
         private static string TestModeShortName(string cmdType) {
             switch (cmdType) {
-                case "Touchpad": return "触";
+                case "Touchpad":
+                case "ManualTouchpad":    // 2026-06-14 MB 代触显示同 "触"
+                    return "触";
                 case "StartingBlock": return "出发";
                 case "PushButton1": return "盲1";
                 case "PushButton2": return "盲2";
@@ -17790,6 +17795,7 @@ namespace SwimmingScoreboard
             // 设置目标设备点为 Touched
             switch (cmdType) {
                 case "Touchpad":
+                case "ManualTouchpad":   // 2026-06-14 MB 代触在测试模式下也闪 TP 指示灯
                     if (isLeft) ls.LeftTouchpadStatus = DeviceStatus.Touched;
                     else        ls.RightTouchpadStatus = DeviceStatus.Touched;
                     break;
@@ -17825,6 +17831,7 @@ namespace SwimmingScoreboard
                 if (ls2 == null) return;
                 switch (capCmd) {
                     case "Touchpad":
+                    case "ManualTouchpad":   // 2026-06-14 MB 代触跟真触板恢复 Open 共用同一定时器
                         if (capLeft) { if (!ls2.LeftTouchpadBroken) ls2.LeftTouchpadStatus = DeviceStatus.Open; }
                         else          { if (!ls2.RightTouchpadBroken) ls2.RightTouchpadStatus = DeviceStatus.Open; }
                         break;
