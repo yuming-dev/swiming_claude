@@ -328,6 +328,7 @@
     <Compile Include="RelayReactionCalculator.cs" />
     <Compile Include="Swimmer.cs" />
     <Compile Include="LapAdjustLogic.cs" />
+    <Compile Include="LapSideLogic.cs" />
     <Compile Include="TimingBridge.cs" />
     <Compile Include="ThermalPrinterService.cs" />
     <Compile Include="HeatScheduler.cs" />

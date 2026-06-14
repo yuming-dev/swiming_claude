@@ -405,6 +405,10 @@
     <Compile Include="..\SwimmingScoreboard\RelayReactionCalculator.cs">
       <Link>RelayReactionCalculator.cs</Link>
     </Compile>
+    <!-- 2026-06-14 按侧计圈纯逻辑 (MainWindow.xaml.cs 引用), 也加到 ScheduleEditor 共享编译 -->
+    <Compile Include="..\SwimmingScoreboard\LapSideLogic.cs">
+      <Link>LapSideLogic.cs</Link>
+    </Compile>
     <!-- 2026-06-12 USB 热敏打印机 (MainWindow.xaml.cs 引用), 也加到 ScheduleEditor 共享编译 -->
     <Compile Include="..\SwimmingScoreboard\ThermalPrinterService.cs">
       <Link>ThermalPrinterService.cs</Link>

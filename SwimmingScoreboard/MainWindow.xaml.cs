@@ -4947,10 +4947,8 @@ namespace SwimmingScoreboard
             int totalLaps = GetTotalLaps();
             int currentLap = laneState.CurrentLap + 1;
             laneState.CurrentLap = currentLap;
-            // 2026-06-14 跳圈也按侧计圈: 按本段奇偶推断该侧并 +1 (无硬件 side), 方向由该侧决定
-            bool startFromLeftSk = _laneCloseSettings.StartPosition != "right";
-            bool atStartSk = (currentLap % 2 == 0);
-            string skSide = (atStartSk == startFromLeftSk) ? "left" : "right";
+            // 2026-06-14 跳圈也按侧计圈: 按本段奇偶推断该侧并 +1 (无硬件 side), 方向由该侧决定 (LapSideLogic)
+            string skSide = LapSideLogic.InferSide(currentLap, _laneCloseSettings.StartPosition != "right");
             if (skSide == "left") laneState.LeftTouchDone++; else laneState.RightTouchDone++;
 
             SplitTime split = null;
@@ -4965,7 +4963,7 @@ namespace SwimmingScoreboard
             split.TimingSource = "Skipped";   // UI/导出 据此识别 "等手工输入"
 
             // 切方向 (= 由该侧决定, 与分段触板逻辑一致)
-            laneState.Direction = (skSide == "left") ? "→" : "←";
+            laneState.Direction = LapSideLogic.DirectionFor(skSide);
 
             if (currentLap >= totalLaps) {
                 laneState.IsFinished = true;
@@ -5069,13 +5067,9 @@ namespace SwimmingScoreboard
             int totalLaps = GetTotalLaps();
             int currentLap = laneState.CurrentLap + 1;
             laneState.CurrentLap = currentLap;
-            // 2026-06-14 严格按侧计圈: 优先用硬件实际 side; 缺失(手动/盲代等)按本段奇偶推算 (偶段=出发端, 奇段=到达端)
-            string touchSide = side;
-            if (touchSide != "left" && touchSide != "right") {
-                bool startFromLeftT = _laneCloseSettings.StartPosition != "right";
-                bool atStartSideT = (currentLap % 2 == 0);
-                touchSide = (atStartSideT == startFromLeftT) ? "left" : "right";
-            }
+            // 2026-06-14 严格按侧计圈: 优先用硬件实际 side; 缺失(手动/盲代等)按本段奇偶推算 (LapSideLogic, 与测试同源)
+            string touchSide = (side == "left" || side == "right") ? side
+                : LapSideLogic.InferSide(currentLap, _laneCloseSettings.StartPosition != "right");
             if (touchSide == "left") laneState.LeftTouchDone++; else laneState.RightTouchDone++;
 
             // 查找预创建的split（由PreCreateSplit在触板打开时创建）
@@ -5194,7 +5188,7 @@ namespace SwimmingScoreboard
                 }
             } else {
                 // 分段触碰 — 方向由实际触板侧决定 (触左→朝右"→" / 触右→朝左"←"), 不再盲翻转; 开始新倒计时
-                laneState.Direction = (touchSide == "left") ? "→" : "←";
+                laneState.Direction = LapSideLogic.DirectionFor(touchSide);
                 // 2026-05-25 修复时间漂移: 用 DateTime 锚点
                 double targetSec = laneState.LaneCloseTime > 0 ? laneState.LaneCloseTime : _laneCloseSettings.LaneCloseTime;
                 laneState.LaneCloseCountdown = targetSec;
@@ -6055,24 +6049,16 @@ namespace SwimmingScoreboard
             return v;
         }
 
-        // 2026-06-14 该侧总触板次数 (出发端=偶数段触=totalLaps/2; 到达端=奇数段触=(totalLaps+1)/2; 50m 出发端0/到达端1)
+        // 2026-06-14 该侧总触板次数 (→ LapSideLogic 纯逻辑, 与自动化测试同源)
         private int GetSideTouchTotal(bool isLeft) {
-            int totalLaps = GetTotalLaps();
-            bool startFromLeft = _laneCloseSettings.StartPosition != "right";
-            int startSideTotal, farSideTotal;
-            if (totalLaps == 1) { startSideTotal = 0; farSideTotal = 1; }
-            else { startSideTotal = totalLaps / 2; farSideTotal = (totalLaps + 1) / 2; }
-            if (startFromLeft) return isLeft ? startSideTotal : farSideTotal;
-            return isLeft ? farSideTotal : startSideTotal;
+            return LapSideLogic.SideTouchTotal(GetTotalLaps(), _laneCloseSettings.StartPosition != "right", isLeft);
         }
 
         // 2026-06-14 严格按侧: 该侧剩余 = 该侧总次数 − 该侧实际已触次数 (LeftTouchDone/RightTouchDone),
         //   两侧完全独立, 不再用单 CurrentLap 奇偶推算 → 某侧多/少触板不会牵连另一侧 (与硬件按侧一致).
         private int GetTouchRemain(LaneDeviceState laneState, bool isLeft) {
-            int sideTotal = GetSideTouchTotal(isLeft);
             int done = laneState == null ? 0 : (isLeft ? laneState.LeftTouchDone : laneState.RightTouchDone);
-            int remain = sideTotal - done;
-            return remain < 0 ? 0 : remain;
+            return LapSideLogic.Remain(GetTotalLaps(), _laneCloseSettings.StartPosition != "right", isLeft, done);
         }
 
         private void UpdateHeatRanking() {
