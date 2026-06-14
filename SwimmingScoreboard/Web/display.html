@@ -16,6 +16,8 @@
     --fs-title: 1; --fs-event: 1; --fs-time: 1; --fs-info: 1;
     /* 2026-06-04 第 3 行 表头 单独可调字号 (与 运动员信息 解耦), localStorage('swimDisplayFsParts') 同源 */
     --fs-header: 1;
+    /* 2026-06-13 第3行 比赛纪录(本项目纪录列表) 单独可调字号 */
+    --fs-record: 1;
     /* 2026-06-01 文字 颜色 + 字体单独可调; localStorage('swimDisplayTextStyle') 持久化为 {key:{c,f}} JSON
        2026-06-02 加 stage (赛次/组别) + header (表头) 两个独立可调项, 共 11 处 */
     --c-title: #f8fafc;    --ff-title: 'Microsoft YaHei', sans-serif;
@@ -29,6 +31,8 @@
     --c-team:  #94a3b8;    --ff-team:  'Microsoft YaHei', sans-serif;
     --c-result:#f8fafc;    --ff-result:'Consolas', monospace;
     --c-remark:#ef4444;    --ff-remark:'Microsoft YaHei', sans-serif;
+    /* 2026-06-13 第3行 比赛纪录(本项目纪录列表) 独立颜色/字体 (与第2行项目一样可调) */
+    --c-record:#FBBF24;    --ff-record:'Microsoft YaHei', sans-serif;
 }
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei', sans-serif; overflow: hidden; height: 100vh; }
@@ -57,11 +61,11 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 .race-info .stage-heat { font-size: calc(2.8vh * var(--fs) * var(--fs-event)); color: var(--c-stage); font-family: var(--ff-stage); }
 /* 2026-06-05 项目名称下 一行 显示 本项目所有组别 纪录 (横排空格分隔, "省R12-13岁 25.88" 等) */
 .applicable-records { display: flex; flex-wrap: wrap; gap: 1.6vw 2.4vw; padding: 0.4vh 0.5vw; margin-bottom: 0.5vh;
-    font-size: calc(1.6vh * var(--fs) * var(--fs-info)); color: #FBBF24; font-family: var(--ff-info); font-weight: bold;
+    font-size: calc(1.6vh * var(--fs) * var(--fs-record)); color: var(--c-record); font-family: var(--ff-record); font-weight: bold;
     border-bottom: 1px dashed rgba(251,191,36,0.4); }
 .applicable-records .ar-item { white-space: nowrap; }
-.applicable-records .ar-tag { color: #FCD34D; margin-right: 0.3vw; }
-.applicable-records .ar-time { color: #FEF3C7; font-family: 'Consolas', monospace; }
+.applicable-records .ar-tag { color: inherit; opacity: 0.9; margin-right: 0.3vw; }
+.applicable-records .ar-time { color: inherit; font-family: inherit; }
 .race-info .running-time { font-size: calc(4vh * var(--fs) * var(--fs-time)); font-weight: bold; color: var(--c-time); font-family: var(--ff-time); }
 
 .lanes-container { flex: 1; display: flex; flex-direction: column; gap: 0; }
@@ -633,7 +637,8 @@ var TEXT_KEYS = [
     {k:'name',   label:'姓名',       dC:'#f8fafc', dF:"'Microsoft YaHei', sans-serif"},
     {k:'team',   label:'代表队',     dC:'#94a3b8', dF:"'Microsoft YaHei', sans-serif"},
     {k:'result', label:'成绩',       dC:'#f8fafc', dF:"'Consolas', monospace"},
-    {k:'remark', label:'备注',       dC:'#ef4444', dF:"'Microsoft YaHei', sans-serif"}
+    {k:'remark', label:'备注',       dC:'#ef4444', dF:"'Microsoft YaHei', sans-serif"},
+    {k:'record', label:'比赛纪录(第3行)', dC:'#FBBF24', dF:"'Microsoft YaHei', sans-serif"}
 ];
 var FONT_OPTIONS = [
     {label:'微软雅黑', value:"'Microsoft YaHei', sans-serif"},
@@ -784,11 +789,12 @@ var FS_PARTS_KEYS = [
     {k:'event',  label:'比赛项目 / 赛次组别'},
     {k:'time',   label:'比赛时间 (滚动时间)'},
     {k:'header', label:'表头 (道/名次/姓名/代表队/成绩/备注)'},
-    {k:'info',   label:'运动员信息 (道次/姓名/成绩…)'}
+    {k:'info',   label:'运动员信息 (道次/姓名/成绩…)'},
+    {k:'record', label:'比赛纪录 (第3行)'}
 ];
 function _getFsParts() {
     // 2026-06-04 加 header (= 第 3 行表头 单独缩放)
-    var s = { title:1, event:1, time:1, info:1, header:1 };
+    var s = { title:1, event:1, time:1, info:1, header:1, record:1 };
     try {
         var raw = JSON.parse(localStorage.getItem('swimDisplayFsParts') || '{}') || {};
         for (var k in s) if (raw[k] != null) {
@@ -804,6 +810,7 @@ function applyFsParts(s) {
     document.documentElement.style.setProperty('--fs-time',   s.time);
     document.documentElement.style.setProperty('--fs-info',   s.info);
     document.documentElement.style.setProperty('--fs-header', s.header);
+    document.documentElement.style.setProperty('--fs-record', s.record);
 }
 function setFsPart(k, v, persist) {
     v = _clampFs(parseFloat(v));
