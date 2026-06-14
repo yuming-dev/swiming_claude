@@ -60,7 +60,7 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 /* 2026-06-02 赛次/组别 用 --c-stage / --ff-stage (可独立调), 字号跟随 比赛项目 */
 .race-info .stage-heat { font-size: calc(2.8vh * var(--fs) * var(--fs-event)); color: var(--c-stage); font-family: var(--ff-stage); }
 /* 2026-06-05 项目名称下 一行 显示 本项目所有组别 纪录 (横排空格分隔, "省R12-13岁 25.88" 等) */
-.applicable-records { display: flex; flex-wrap: wrap; gap: 1.6vw 2.4vw; padding: 0.4vh 0.5vw; margin-bottom: 0.5vh;
+.applicable-records { display: flex; flex-wrap: wrap; align-items: center; gap: 1.6vw 2.4vw; padding: 1.1vh 0.5vw; margin-bottom: 0.8vh; line-height: 1.6;
     font-size: calc(1.6vh * var(--fs) * var(--fs-record)); color: var(--c-record); font-family: var(--ff-record); font-weight: bold;
     border-bottom: 1px dashed rgba(251,191,36,0.4); }
 .applicable-records .ar-item { white-space: nowrap; }
