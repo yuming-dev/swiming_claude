@@ -2061,7 +2061,9 @@ function renderPublishedResult(pubData) {
     for (var i = 0; i < sw.length; i++) {
         var s = sw[i];
         var row = document.createElement('div');
-        row.className = 'lane-row finished' + (pubRelay ? ' relay' : '');
+        // 2026-06-14 加 fixed-row: 成绩发布 行高/行距 = 比赛视图 单行高 (7.15vh), 不再随行数 flex 拉伸;
+        //   字体大小/颜色/字间距 因复用 .lane-row 同款 CSS 本就与比赛视图一致。
+        row.className = 'lane-row finished fixed-row' + (pubRelay ? ' relay' : '');
 
         // 2026-06-04 TRI 名次列 留空 (仅展示, 不参与排名), 但 finalTime 正常显
         var rankText = '', rankClass = '';
