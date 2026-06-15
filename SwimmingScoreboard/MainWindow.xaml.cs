@@ -3051,6 +3051,11 @@ namespace SwimmingScoreboard
             _timingBridge.OnBackupEvent += delegate(BackupEventInfo evt) {
                 Dispatcher.BeginInvoke((Action)delegate() {
                     _pendingBackupEvents.Add(evt);
+                    // 2026-06-14 发令事件诊断: 收到 EvtType=10 时立即 log, 让用户看到固件 v6 push 的发令时刻确实到了 PC
+                    if (evt.IsGunEvent) {
+                        AddLog(string.Format("收到发令时刻备份: Gun_PreStart = {0}:{1:00}.{2:00} (s/cs), EvtType={3}, Lane={4}, Side={5}",
+                            evt.Minute, evt.Second, evt.Msecond, evt.EvtType, evt.Lane, evt.Side));
+                    }
                 });
             };
             _timingBridge.OnBackupQueryComplete += delegate() {
@@ -3119,19 +3124,59 @@ namespace SwimmingScoreboard
                 var ls = new List<string>();
                 int pc = 0;
                 // 2026-06-13 (晚) 调试用: 显示全部事件 (按下+松开), 不再过滤. 用于诊断"前 17 秒缺数据"等问题
-                foreach (var e in _pendingBackupEvents) if (laneFilter < 0 || e.Lane == laneFilter) pc++;
+                // 2026-06-14 发令事件 (IsGunEvent) 不受泳道筛选影响, 永远计入
+                foreach (var e in _pendingBackupEvents) if (laneFilter < 0 || e.IsGunEvent || e.Lane == laneFilter) pc++;
                 string scope = laneFilter < 0 ? "全部道次" : ("道" + laneFilter);
-                ls.Add(string.Format("==== 事件备份 [{0}] ({1} 条 [按下+松开 全部], 共 {2} 条原始) ====", scope, pc, _pendingBackupEvents.Count));
+                // 2026-06-14 加发令事件统计: 让用户立即知道固件 v6 (EventBackup 发令 push) 是否生效
+                int gunCount = 0;
+                foreach (var e in _pendingBackupEvents) if (e.IsGunEvent) gunCount++;
+                ls.Add(string.Format("==== 事件备份 [{0}] ({1} 条 [按下+松开 全部], 共 {2} 条原始, 含 {3} 条发令时刻) ====", scope, pc, _pendingBackupEvents.Count, gunCount));
                 ls.Add("说明: '按下' = 下降沿 (= 成绩瞬间, 跟比赛日志 '= XX.XX' 同源); '松开' = 上升沿");
+                if (gunCount == 0) {
+                    ls.Add("⚠ 未收到发令时刻记录: 确认固件已烧录 2026-06-14 v6 版本 (StartTiming 末尾应有 EvtType=10 push); 或本场未真正按发令键");
+                } else {
+                    // 2026-06-14 把所有发令时刻汇总在顶部, 方便用户对比反应时
+                    ls.Add("---- 发令时刻摘要 ----");
+                    foreach (var e in _pendingBackupEvents) {
+                        if (!e.IsGunEvent) continue;
+                        string tsG;
+                        if (e.Hour > 0)        tsG = string.Format("{0}:{1:00}:{2:00}.{3:00}", e.Hour, e.Minute, e.Second, e.Msecond);
+                        else if (e.Minute > 0) tsG = string.Format("{0}:{1:00}.{2:00}", e.Minute, e.Second, e.Msecond);
+                        else                   tsG = string.Format("{0}.{1:00}", e.Second, e.Msecond);
+                        ls.Add(string.Format("  [发令] PreStart 计数器 = {0}", tsG));
+                    }
+                }
                 ls.Add("");
                 foreach (var evt in _pendingBackupEvents) {
-                    if (laneFilter >= 0 && evt.Lane != laneFilter) continue;  // 2026-06-10 泳道筛选
+                    // 2026-06-14 发令事件 (EvtType=10) lane/side=0xFF 表全场, 不受泳道筛选过滤
+                    if (laneFilter >= 0 && !evt.IsGunEvent && evt.Lane != laneFilter) continue;
                     string ts;
                     if (evt.Hour > 0)        ts = string.Format("{0}:{1:00}:{2:00}.{3:00}", evt.Hour, evt.Minute, evt.Second, evt.Msecond);
                     else if (evt.Minute > 0) ts = string.Format("{0}:{1:00}.{2:00}", evt.Minute, evt.Second, evt.Msecond);
                     else                     ts = string.Format("{0}.{1:00}", evt.Second, evt.Msecond);
-                    ls.Add(string.Format("道{0}{1} {2} {3} = {4,8} 硬件状态={5}",
-                        evt.Lane, evt.SideLabel, evt.EventLabel, evt.ActionLabel, ts, evt.DevState));
+                    if (evt.IsGunEvent) {
+                        // 2026-06-14 发令时刻特殊格式: 时间是 Gun_PreStart_* (= 反应时核对参考点)
+                        ls.Add(string.Format("[发令时刻] = {0,8} (PreStart 计数器值, 后续 TP/SB 反应时 = 该 TP 时间 - 此处)", ts));
+                    } else {
+                        // 2026-06-14 IsPreStartTime: 固件设了 EvtType bit7 表示时间字段是 PreStart 计数器值 (= 发令前/开门窗口内事件),
+                        //   不是 race timer. 加 " (P)" 标志, 避免操作员把出发反应时段的时间当成 race timer 比较.
+                        // 2026-06-15 PreStart 事件附加 Δ (差值) = PreStart 时间 - 发令时刻 PreStart, 直接读出反应时, 跟硬件 LCD 显示一致
+                        string pFlag = "";
+                        if (evt.IsPreStartTime) {
+                            double gunPs = 0.0;
+                            foreach (var g in _pendingBackupEvents) {
+                                if (g.IsGunEvent) {
+                                    gunPs = g.Hour * 3600.0 + g.Minute * 60.0 + g.Second + g.Msecond / 100.0;
+                                    break;
+                                }
+                            }
+                            double evtPs = evt.Hour * 3600.0 + evt.Minute * 60.0 + evt.Second + evt.Msecond / 100.0;
+                            double delta = evtPs - gunPs;
+                            pFlag = string.Format(" (P, Δ={0:+0.00;-0.00}s)", delta);
+                        }
+                        ls.Add(string.Format("道{0}{1} {2} {3} = {4,8}{5} 硬件状态={6}",
+                            evt.Lane, evt.SideLabel, evt.EventLabel, evt.ActionLabel, ts, pFlag, evt.DevState));
+                    }
                 }
                 if (pc == 0) ls.Add(laneFilter < 0 ? "(无事件)" : string.Format("(道{0} 无事件)", laneFilter));
                 return ls;
@@ -4079,7 +4124,8 @@ namespace SwimmingScoreboard
             }
 
             // Racing状态或Finished状态（延迟关闭期内盲表/手动仍有效）都接收数据
-            if (_raceState != RaceState.Racing && _raceState != RaceState.Finished && cmdType != "StartCommand") return;
+            // 2026-06-14 BackstrokeRelease 跟 StartCommand 一样豁免: 仰泳松开可能略早于 PC 切到 Racing (固件 0x16 D3=3 帧紧跟 0x1C 发送, PC 处理顺序不保证), 不应被 Ready 状态丢弃
+            if (_raceState != RaceState.Racing && _raceState != RaceState.Finished && cmdType != "StartCommand" && cmdType != "BackstrokeRelease") return;
 
             // 空泳道或 DNS/DNF：整条泳道关闭，不记录也不处理任何计时数据。
             // 抢跳 DSQ 运动员仍在水中继续比赛，触板/盲表/分段数据应继续接收并保存（仅大屏不显示成绩）。
@@ -4090,7 +4136,11 @@ namespace SwimmingScoreboard
 
             // 记录原始数据 (2026-05-31: 硬件用盲表代替触板成绩 → 比赛日志显示"触代")
             // 2026-06-14 cmdType 已经在 TimingBridge.cs 里区分: "Touchpad"=真触板, "ManualTouchpad"=MB 代触. 不需要这里再合成 "TouchpadMb" 字符串.
-            LogRawTimingData(lane, cmdType, timeInSeconds, side);
+            // 2026-06-15 仰泳松开 (BackstrokeRelease): timeInSeconds 是 PreStart 计数器绝对值 (= 9.13), 比赛日志显示反应时 = release_PreStart - Gun_PreStart (= 1.37s) 跟硬件 LCD 显示一致
+            double timeForLog = (cmdType == "BackstrokeRelease" && _gunPreStartSec.HasValue)
+                ? timeInSeconds - _gunPreStartSec.Value
+                : timeInSeconds;
+            LogRawTimingData(lane, cmdType, timeForLog, side);
 
             // 2026-06-03 比完赛 (_raceState==Finished) 后, 硬件再有数据只记录 (= 上面 LogRaw 含比赛日志) 不处理
             //   = 不喂 calculator, 不动 SplitTime / 状态机 / 反应时, 不刷 UI 状态
@@ -4458,6 +4508,7 @@ namespace SwimmingScoreboard
                 case "StartingBlockTimeout": label = "出";   break;   //2026-05-31 接力 SB 超时无 TP/MB (d10=2), time 字段统一显示 "---"
                 case "Touchpad":          label = "触";   break;
                 case "ManualTouchpad":    label = "触代"; break;   //2026-05-31 硬件用盲表成绩代替触板 (cmd=0x16 D3=Pushbutton_Result=1); 2026-06-14 cmdType 由 "TouchpadMb" 改为 "ManualTouchpad" (= 跟 enum 一致)
+                case "BackstrokeRelease": label = "触放"; break;   //2026-06-14 仰泳出发松开 TP (= 反应时锚点, 时间字段为 PreStart 计数器值)
                 case "PushButton1":       label = "盲1";  break;
                 case "PushButton2":       label = "盲2";  break;
                 case "PushButton3":       label = "盲3";  break;
@@ -6919,6 +6970,29 @@ namespace SwimmingScoreboard
             if (sender != null && _timingBridge != null && _timingBridge.IsConnected) {
                 _timingBridge.SendCommand(0x1C);
                 AddLog("已向硬件发送 0x1C 发令");
+            }
+            // 2026-06-14 手动发令也算发令: PC 端本地补一条"发令时刻" EventBackup 记录
+            //   sender != null = 用户本地按发令键 (含硬件回流走的 sender=null 路径排除, 避免双条)
+            //   时间用 _gunPreStartSec (若已收到固件 0x22) 或 PC 端 _runningTime (= 0 刚发令)
+            //   即使硬件不在线 / 固件版本没烧 v6 / 0x67 查询路径绕过, 本地都有一条发令时刻可对照
+            if (sender != null) {
+                double gunSec = _gunPreStartSec.HasValue ? _gunPreStartSec.Value : 0.0;
+                int gunMin = (int)(gunSec / 60);
+                int gunS   = (int)(gunSec % 60);
+                int gunCs  = (int)((gunSec - Math.Floor(gunSec)) * 100);
+                var gunEvt = new BackupEventInfo {
+                    EvtType  = 10,    // 跟固件 v6 push 用同一 EvtType, IsGunEvent=true
+                    Lane     = 0xFF,
+                    Side     = 0xFF,
+                    Hour     = 0,
+                    Minute   = (byte)gunMin,
+                    Second   = (byte)gunS,
+                    Msecond  = (byte)gunCs,
+                    DevState = 0,
+                    TimeInSeconds = gunSec
+                };
+                _pendingBackupEvents.Add(gunEvt);
+                AddLog(string.Format("PC 端补录发令时刻 EventBackup (手动发令): 时间={0:F2}s ({1}:{2:00}.{3:00})", gunSec, gunMin, gunS, gunCs));
             }
             Broadcast();
         }

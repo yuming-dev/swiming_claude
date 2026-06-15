@@ -26,9 +26,13 @@ namespace SwimmingScoreboard
         public byte Msecond { get; set; }
         public byte DevState{ get; set; }
         public double TimeInSeconds { get; set; }
+        // 2026-06-14 EvtType bit7: 1 = 时间字段是 PreStart 计数器值 (发令前/开门窗口), 0 = race timer (窗口外).
+        //   低7位 (EvtType & 0x7F) 才是真实事件类型: 0/1 SB, 2/3 TP, 4-9 MB, 10 = 发令时刻
+        private int BaseType { get { return EvtType & 0x7F; } }
         public string DeviceLabel {
             get {
-                switch (EvtType / 2) {
+                if (BaseType == 10) return "GUN";  // 2026-06-14 全场发令事件 (固件 StartTiming 末插入, 时间字段填 Gun_PreStart 值)
+                switch (BaseType / 2) {
                     case 0: return "SB";
                     case 1: return "TP";
                     case 2: return "MB1";
@@ -38,12 +42,24 @@ namespace SwimmingScoreboard
                 }
             }
         }
-        public string ActionLabel { get { return (EvtType % 2 == 0) ? "按下" : "松开"; } }
-        public string SideLabel   { get { return Side == 0 ? "左" : "右"; } }
+        public string ActionLabel {
+            get {
+                if (BaseType == 10) return "";  // 发令事件无按下/松开语义
+                return (BaseType % 2 == 0) ? "按下" : "松开";
+            }
+        }
+        // 2026-06-14 发令事件 Lane/Side 都填 0xFF (= 全场事件), SideLabel 返回空串方便上层用模板拼字符串
+        public string SideLabel {
+            get {
+                if (BaseType == 10 || Lane == 0xFF) return "";
+                return Side == 0 ? "左" : "右";
+            }
+        }
         // 2026-06-10 跟主比赛日志事件 label 风格一致: 出/触/盲N
         public string EventLabel {
             get {
-                switch (EvtType / 2) {
+                if (BaseType == 10) return "发";  // 2026-06-14 发令时刻 (时间字段 = Gun_PreStart_*)
+                switch (BaseType / 2) {
                     case 0: return "出";  // SB → 出发台
                     case 1: return "触";  // TP → 触板
                     case 2: return "盲1"; // MB1
@@ -53,7 +69,11 @@ namespace SwimmingScoreboard
                 }
             }
         }
-        public bool IsPress { get { return (EvtType % 2) == 0; } }
+        public bool IsPress { get { return (BaseType % 2) == 0; } }
+        public bool IsGunEvent { get { return BaseType == 10; } }    // 2026-06-14 上层方便判断
+        // 2026-06-14 PreStart 时间源标志: 固件在 Ready_timer_bit==1 && GunFired_PostOpenDoneBit==0 时设 EvtType bit7
+        //   PC 显示时间后追加 "(P)" 提示, 避免跟 race timer 时间混淆
+        public bool IsPreStartTime { get { return (EvtType & 0x80) != 0 && EvtType != 0xFF; } }
     }
 
     public class TimingData
