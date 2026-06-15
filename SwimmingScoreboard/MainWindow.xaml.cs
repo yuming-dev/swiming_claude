@@ -4137,6 +4137,46 @@ namespace SwimmingScoreboard
                     // 发令信号（兼容旧协议）
                     break;
 
+                case "BackstrokeRelease":
+                    // 2026-06-14 仰泳出发松开 TP: 固件已在开门窗口内发 D3=3 + PreStart 计数器值
+                    //   反应时 = 松开时刻 PreStart - 枪响时刻 PreStart, 负值=抢跳. 不进 ProcessTouchpadHit (不动圈数, 这事件是出发反应时, 不是 lap split).
+                    //   仰泳预备脚踩 TP press 固件不发 (BackstrokeBit + 开门窗口内 press 守卫), 所以这里收到的一定是真正的出发松开瞬间.
+                    {
+                        double reactionTime;
+                        if (_gunPreStartSec.HasValue) {
+                            reactionTime = timeInSeconds - _gunPreStartSec.Value;
+                        } else {
+                            // 枪还没响就收到 release (理论上不会, 因为运动员只在听到枪响后才松开 TP), 暂存兜底
+                            _pendingPreStartReactions.Add(new PendingPreStartReaction {
+                                Lane = lane, DeviceKind = "TP", Side = side,
+                                RawPreStartSec = timeInSeconds, IsRelayLeg1 = _isRelay
+                            });
+                            AddLog(string.Format("泳道{0} 仰泳松开 TP 早于枪响 (异常), 暂存待 0x22 回算", lane));
+                            break;
+                        }
+                        laneState.ReactionTime = reactionTime;
+                        if (_isRelay) {
+                            var swForLane0 = GetCurrentHeatSwimmers().FirstOrDefault(s2 => {
+                                var sa2 = s2.GetAssignmentForStage(_currentStage);
+                                return (sa2 != null ? sa2.Lane : s2.Lane) == lane;
+                            });
+                            if (swForLane0 != null) {
+                                var res0 = EnsureRelayLaneResult(swForLane0, lane);
+                                if (res0 != null) {
+                                    EnsureLegReactionSlots(res0);
+                                    if (res0.LegReactionTimes.Count > 0) res0.LegReactionTimes[0] = reactionTime;
+                                }
+                            }
+                        }
+                        if (reactionTime < 0) {
+                            laneState.IsSuspectFalseStart = true;
+                            AddLog(string.Format("⚠ 仰泳抢跳 泳道{0} 反应时: {1:F3}s", lane, reactionTime));
+                        } else {
+                            AddLog(string.Format("泳道{0} 仰泳出发反应时: {1:F3}s", lane, reactionTime));
+                        }
+                    }
+                    break;
+
                 case "StartingBlock":
                     // 出发台状态机（与触板对称）：
                     //   Open / FalseStart → 作为正式反应时处理，再切到 Touched（红）保持 StartBlockCloseDelay 秒
@@ -8382,7 +8422,26 @@ namespace SwimmingScoreboard
                     AddLog(string.Format("回算: 泳道{0} SB 反应时 = {1:F3}s (枪响前抢跳, PreStart 差值){2}",
                         pr.Lane, reactionTime, reactionTime < 0 ? " ⚠抢跳" : ""));
                 }
-                // TP 抢跳: 主线 ProcessTouchpadHit 已按 PreStart 计入 lap 0 → 1 分段; 反应时显示交后续完善
+                else if (pr.DeviceKind == "TP") {
+                    // 2026-06-14 仰泳 TP 松开抢跳兜底: 实际不应到这里 (release 必晚于枪响), 留作健壮性处理
+                    laneState.ReactionTime = reactionTime;
+                    if (pr.IsRelayLeg1) {
+                        var swForLane0 = GetCurrentHeatSwimmers().FirstOrDefault(s2 => {
+                            var sa2 = s2.GetAssignmentForStage(_currentStage);
+                            return (sa2 != null ? sa2.Lane : s2.Lane) == pr.Lane;
+                        });
+                        if (swForLane0 != null) {
+                            var res0 = EnsureRelayLaneResult(swForLane0, pr.Lane);
+                            if (res0 != null) {
+                                EnsureLegReactionSlots(res0);
+                                if (res0.LegReactionTimes.Count > 0) res0.LegReactionTimes[0] = reactionTime;
+                            }
+                        }
+                    }
+                    laneState.IsSuspectFalseStart = (reactionTime < 0);
+                    AddLog(string.Format("回算: 泳道{0} 仰泳 TP 反应时 = {1:F3}s{2}",
+                        pr.Lane, reactionTime, reactionTime < 0 ? " ⚠抢跳" : ""));
+                }
             }
             _pendingPreStartReactions.Clear();
         }
