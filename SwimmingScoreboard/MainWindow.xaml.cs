@@ -5466,7 +5466,40 @@ namespace SwimmingScoreboard
             // 2026-06-03 手动 TP 应急规则:
             //   - 当前段已有 TP/MB → 仅记 split.ManualTouchTime 备份, 不动主成绩
             //   - 当前段没 TP/MB → 走 ProcessTouchpadHit 完整流程 (= 推 currentLap + 减 laps + 完赛检查 + 切 Lane_Display_State), 让比赛进行下去
+            // 2026-06-14 "手动TP代替真TP"开关(ManualTpReplaceTp): 开 → 即使该段已有真 TP, 手动 TP 也覆盖之 (用手动时间改写该段主成绩为 TP);
+            //   关(默认) → 维持上述应急规则 (已有 TP/MB 时手动 TP 只记备份)。
             var existingSplit = FindCurrentSplit(lane);
+            bool manualReplaceTp = _laneCloseSettings != null && _laneCloseSettings.ManualTpReplaceTp;
+            // 开关开启 且 该段已是真 TP 主成绩 → 用手动 TP 覆盖该段 (同段, 不推进圈数)
+            if (manualReplaceTp && existingSplit != null && existingSplit.TimingSource == "TP") {
+                double prevCum = 0;
+                var swR = GetCurrentHeatSwimmers().FirstOrDefault(s => {
+                    var sa = s.GetAssignmentForStage(_currentStage);
+                    return (sa != null ? sa.Lane : s.Lane) == lane;
+                });
+                if (swR == null) swR = GetCurrentHeatSwimmers().FirstOrDefault(s => s.Lane == lane);
+                var resR = swR != null ? swR.Results.FirstOrDefault(r => r.Stage == _currentStage && r.Heat == _currentHeat) : null;
+                if (resR != null) {
+                    foreach (var sp in resR.Splits) { if (sp.Lap == existingSplit.Lap - 1) { prevCum = sp.CumulativeTime; break; } }
+                }
+                existingSplit.TouchpadTime = time;
+                existingSplit.ManualTouchTime = time;
+                existingSplit.Time = time - prevCum;
+                existingSplit.CumulativeTime = time;
+                existingSplit.TimingSource = "Manual";
+                AddLog(string.Format("泳道{0} 第{1}段 手动TP={2} 代替真TP (开关开, 覆盖该段主成绩)", lane, existingSplit.Lap, TimeFormatter.Format(time)));
+                var lsR = _laneDeviceStates.FirstOrDefault(s => s.Lane == lane);
+                if (lsR != null && lsR.IsFinished && resR != null) {
+                    int totalLapsR = GetTotalLaps();
+                    if (existingSplit.Lap >= totalLapsR) {
+                        resR.TouchpadTime = time; resR.FinalTime = time; resR.TimeInSeconds = time; resR.TimingSource = "Manual";
+                        UpdateHeatRanking();
+                    }
+                }
+                UpdateLaneStatusDisplay();
+                Broadcast();
+                return;
+            }
             bool alreadyHasMainResult = existingSplit != null && !string.IsNullOrEmpty(existingSplit.TimingSource)
                 && (existingSplit.TimingSource == "TP" || existingSplit.TimingSource == "MB");
             if (alreadyHasMainResult) {
@@ -10904,6 +10937,15 @@ namespace SwimmingScoreboard
             blindRow.Children.Add(rbBlindOff);
             sp.Children.Add(blindRow);
 
+            // 2026-06-14 手动 TP 代替真 TP: 开=手动 TP 即使该段已有真触板也覆盖; 关=仅无 TP 时应急, 已有真 TP 只记备份
+            var manualTpRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 10, 0, 0) };
+            manualTpRow.Children.Add(new TextBlock { Text = "手动TP代替真TP", Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), FontSize = 15, VerticalAlignment = VerticalAlignment.Center, Width = 140 });
+            var rbManualTpOn = new RadioButton { Content = "开 (覆盖真触板)", Foreground = Brushes.White, FontSize = 14, IsChecked = _laneCloseSettings.ManualTpReplaceTp, GroupName = "ManualTpReplace", Margin = new Thickness(0, 0, 12, 0) };
+            var rbManualTpOff = new RadioButton { Content = "关 (仅无TP时应急)", Foreground = Brushes.White, FontSize = 14, IsChecked = !_laneCloseSettings.ManualTpReplaceTp, GroupName = "ManualTpReplace" };
+            manualTpRow.Children.Add(rbManualTpOn);
+            manualTpRow.Children.Add(rbManualTpOff);
+            sp.Children.Add(manualTpRow);
+
             // 2026-06-02 硬件设备状态: 一直打开 / 按比赛流程
             //   "一直打开" = 硬件 TP/SB/MB 按键路径忽略 *_Open_Close_State 关闭状态, 只跳过 ==3 坏 / ==4 未装. 让 PC 端拿到所有按键事件
             //   "按流程"   = 原行为 (硬件按比赛流程时序自动开/关设备)
@@ -10990,6 +11032,7 @@ namespace SwimmingScoreboard
                 string oldFinishForInstall = _laneCloseSettings != null ? _laneCloseSettings.FinishPosition : "left";
                 _laneCloseSettings.ReactionTimeEnabled = rbRtOn.IsChecked == true;
                 _laneCloseSettings.AutoBlindReplaceTouchpad = rbBlindOn.IsChecked == true;   // 2026-06-06
+                _laneCloseSettings.ManualTpReplaceTp = rbManualTpOn.IsChecked == true;       // 2026-06-14 手动TP代替真TP
                 _laneCloseSettings.HardwareAlwaysOpen = rbHwAlwaysOpen.IsChecked == true;
                 _laneCloseSettings.StartBoxEdgeFalling = rbEdgeFall.IsChecked == true;
                 _laneCloseSettings.LaneOrder = rbOrderRev.IsChecked == true ? "reverse" : "forward";
@@ -11030,14 +11073,15 @@ namespace SwimmingScoreboard
                 if (_timingBridge != null && _timingBridge.IsConnected) {
                     try { _timingBridge.SendPoolSingleOrDoubleTP(!newHasRight); } catch { }
                 }
-                AddLog(string.Format("泳池/设备参数更新: 终点:{0} 反应时:{1} 道次:{2} 触板:{3} 边沿:{4} 盲代触板:{5} 硬件:{6}",
+                AddLog(string.Format("泳池/设备参数更新: 终点:{0} 反应时:{1} 道次:{2} 触板:{3} 边沿:{4} 盲代触板:{5} 硬件:{6} 手动TP代替真TP:{7}",
                     _laneCloseSettings.FinishPosition == "left" ? "左端" : "右端",
                     _laneCloseSettings.ReactionTimeEnabled ? "打开" : "关闭",
                     _laneCloseSettings.LaneOrder == "reverse" ? "逆序9→0" : "正序0→9",
                     newHasRight ? "两端" : "单边",
                     _laneCloseSettings.StartBoxEdgeFalling ? "下降沿" : "上升沿",
                     _laneCloseSettings.AutoBlindReplaceTouchpad ? "开" : "关",
-                    _laneCloseSettings.HardwareAlwaysOpen ? "一直打开" : "按流程"));
+                    _laneCloseSettings.HardwareAlwaysOpen ? "一直打开" : "按流程",
+                    _laneCloseSettings.ManualTpReplaceTp ? "开" : "关"));
                 if (poolTpChanged) AddLog("泳池触板安装方式已更改并同步到硬件计时器");
 
                 //2026-05-18 恢复"非参数"状态 + 刷新硬件主控显示
