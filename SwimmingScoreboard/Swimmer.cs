@@ -60,6 +60,8 @@ namespace SwimmingScoreboard
         private bool _hardwareAlwaysOpen = false;
         // 2026-06-06 盲表代替触板 — true 时, PC 在 ProcessBlindWatchData 后自动用盲表中位数补当前段触板成绩
         private bool _autoBlindReplaceTouchpad = false;
+        // 2026-06-14 手动 TP 代替真 TP: =true 手动 TP 即使该段已有真触板成绩也覆盖之; =false(默认) 手动 TP 仅在无 TP 时应急, 已有真 TP 时只记备份
+        private bool _manualTpReplaceTp = false;
         // 2026-06-03 接力 reaction 事件窗口 (秒). 第一个事件到达起 N 秒倒计时, 收集 TP/SB/MB/手动 TP 算 reaction
         //   3 秒为默认 (= 选手反应时通常 0.x s, 加上传输/处理延迟, 3s 足够)
         private double _reactionEventWindowSec = 3.0;
@@ -148,6 +150,11 @@ namespace SwimmingScoreboard
         public bool AutoBlindReplaceTouchpad {
             get { return _autoBlindReplaceTouchpad; }
             set { if (_autoBlindReplaceTouchpad != value) { _autoBlindReplaceTouchpad = value; OnPropertyChanged("AutoBlindReplaceTouchpad"); } }
+        }
+        // 2026-06-14 手动 TP 是否代替真 TP (见字段注释)
+        public bool ManualTpReplaceTp {
+            get { return _manualTpReplaceTp; }
+            set { if (_manualTpReplaceTp != value) { _manualTpReplaceTp = value; OnPropertyChanged("ManualTpReplaceTp"); } }
         }
         public double ReactionEventWindowSec {
             get { return _reactionEventWindowSec; }
