@@ -4196,12 +4196,15 @@ namespace SwimmingScoreboard
                         if (_gunPreStartSec.HasValue) {
                             reactionTime = timeInSeconds - _gunPreStartSec.Value;
                         } else {
-                            // 枪还没响就收到 release (理论上不会, 因为运动员只在听到枪响后才松开 TP), 暂存兜底
+                            // 2026-06-15 仰泳抢跳: release 早于 gun → _gunPreStartSec 还是 null. 暂存到 pending 等 0x22 回算精确反应时.
+                            //   抢跳预警: 立即在 UI 标 IsSuspectFalseStart=true (= 反应时字段红色), 让操作员**立刻**看到有运动员抢跳, 不必等发令瞬间.
+                            //   ReactionTime 暂时设 0 占位, gun 到达后 FlushPendingPreStartReactions 会覆盖为真实负值.
                             _pendingPreStartReactions.Add(new PendingPreStartReaction {
                                 Lane = lane, DeviceKind = "TP", Side = side,
                                 RawPreStartSec = timeInSeconds, IsRelayLeg1 = _isRelay
                             });
-                            AddLog(string.Format("泳道{0} 仰泳松开 TP 早于枪响 (异常), 暂存待 0x22 回算", lane));
+                            laneState.IsSuspectFalseStart = true;   // UI 立即标红抢跳预警, ReactionTime 暂不动, 等发令后 Flush 算出真实负值
+                            AddLog(string.Format("⚠ 仰泳抢跳预警 泳道{0} TP 松开早于发令枪响 (PreStart={1:F3}s), 反应时待发令后回算", lane, timeInSeconds));
                             break;
                         }
                         laneState.ReactionTime = reactionTime;
