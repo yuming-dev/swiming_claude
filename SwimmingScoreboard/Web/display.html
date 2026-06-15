@@ -112,6 +112,15 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 .lane-row .remark       { order: 7; }
 .lane-row.relay .swimmer-name { flex: 6; }   /* relay 时 swimmer-name DOM 实际承载代表队 (窄) */
 .lane-row.relay .swimmer-team { flex: 28; white-space: normal; line-height: 1.25; text-align: center; }   /* relay 时 swimmer-team DOM 承载 4 棒+姓名, 居中 */
+/* 2026-06-14 成绩发布 列序: 名次在最前, 其余同比赛视图 — 仅 .pubresult 行覆盖 flex order, 不影响比赛视图(道次在前).
+   顺序: 名次 → 道次 → 姓名 → 代表队 → 组别 → 成绩 → 备注 */
+.lane-row.pubresult .rank         { order: 1; }
+.lane-row.pubresult .lane-num     { order: 2; }
+.lane-row.pubresult .swimmer-name { order: 3; }
+.lane-row.pubresult .swimmer-team { order: 4; }
+.lane-row.pubresult .age-group    { order: 5; }
+.lane-row.pubresult .result-time  { order: 6; }
+.lane-row.pubresult .remark       { order: 7; }
 
 /* 2026-06-06 组成绩 (showHeatResultPage) 行高: 跟 比赛视图 .lane-row 实际像素高一致, 而不是
    "flex:1 撑满". 原因: 比赛视图 总是 10 行 (空泳道也占位), flex:1 平分 = 每行 7.15vh; 而
@@ -348,6 +357,8 @@ function goFullScreen() {
 var ws, data = {}, reconnectTimer;
 var currentMode = 'SHOW_LIVE_RACE';
 var publishedData = null;
+// 2026-06-14 保存比赛视图静态表头(道次在前), 成绩发布会改写表头为"名次在前", 切回比赛视图时还原
+var _raceHeaderHtmlSaved = (document.querySelector('.lanes-header') ? document.querySelector('.lanes-header').innerHTML : '');
 var modeLocked = false;  // 成绩发布时锁定模式，不被广播覆盖
 // 2026-06-04 备注栏 是否显示 出发反应时 (默认 true; 由 control / 主控 经 SET_DISPLAY_STYLE 推 false 关掉)
 var _remarkShowReaction = true;
@@ -1341,6 +1352,9 @@ var _raceHeaderRelay = null;
 
 function renderRace() {
     document.getElementById('raceView').classList.remove('hidden');
+    // 2026-06-14 还原比赛视图静态表头(道次在前) — 成绩发布会把表头改成"名次在前", 切回需还原
+    var _rh = document.querySelector('.lanes-header');
+    if (_rh && _raceHeaderHtmlSaved && _rh.innerHTML !== _raceHeaderHtmlSaved) _rh.innerHTML = _raceHeaderHtmlSaved;
 
     // ── 1) 顶部静态文字（仅变化才写入） ──
     // 2026-06-04 标题最前加 项次 '第N项 ' (= 服务器 currentEventNumber, 0 时为空)
@@ -2040,9 +2054,10 @@ function renderPublishedResult(pubData) {
     var ph2 = pubRelay ? '姓名' : '代表队';
     var header = document.querySelector('.lanes-header');
     if (header) {
+        // 2026-06-14 成绩发布 表头: 名次在最前, 其余同比赛视图: 名次 → 道次 → 姓名 → 代表队 → 组别 → 成绩 → 备注
         header.innerHTML =
-            '<div style="flex:4;min-width:0;text-align:center;margin-right:1vw;">道次</div>' +
             '<div style="flex:4;min-width:0;text-align:center;margin-right:1vw;">名次</div>' +
+            '<div style="flex:4;min-width:0;text-align:center;margin-right:1vw;">道次</div>' +
             '<div style="flex:' + pf1 + ';min-width:0;text-align:center;margin-right:1vw;">' + ph1 + '</div>' +
             '<div style="flex:' + pf2 + ';min-width:0;text-align:center;margin-right:1vw;">' + ph2 + '</div>' +
             '<div style="flex:8;min-width:0;text-align:center;margin-right:1vw;">组别</div>' +
@@ -2063,7 +2078,7 @@ function renderPublishedResult(pubData) {
         var row = document.createElement('div');
         // 2026-06-14 加 fixed-row: 成绩发布 行高/行距 = 比赛视图 单行高 (7.15vh), 不再随行数 flex 拉伸;
         //   字体大小/颜色/字间距 因复用 .lane-row 同款 CSS 本就与比赛视图一致。
-        row.className = 'lane-row finished fixed-row' + (pubRelay ? ' relay' : '');
+        row.className = 'lane-row finished fixed-row pubresult' + (pubRelay ? ' relay' : '');
 
         // 2026-06-04 TRI 名次列 留空 (仅展示, 不参与排名), 但 finalTime 正常显
         var rankText = '', rankClass = '';
