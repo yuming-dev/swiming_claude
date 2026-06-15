@@ -102,6 +102,8 @@ namespace SwimmingScoreboard
         // 2026-06-14 合成枚举值: 实际 wire 仍是 0x16, 但 D3=Pushbutton_Result=1 (= 手动 TP 键/盲表代替触板). PC 端区分为独立类型避免下游误把"手动 TP"当真触板处理.
         // 高字节 0x1 是 PC 端合成位, 不会跟任何真实 wire 命令冲突 (wire 命令单字节 0-0xFF).
         ManualTouchpad = 0x116, // 手动 TP 键 / 盲表代替触板 (= 真实 wire 0x16 + D3=1, 合成区分)
+        // 2026-06-14 仰泳出发松开 TP: 固件 D3=3 (BackstrokeRelease_Result=0x3), 时间为 PreStart 计数器值. PC 算反应时 = timeInSeconds - _gunPreStartSec, 不进 ProcessTouchpadHit (不动圈数)
+        BackstrokeRelease = 0x316, // 仰泳松开 TP (= 真实 wire 0x16 + D3=3, 合成区分; 高字节 0x3 不冲突真实 wire)
         PushButton1   = 0x17,   // 盲表1时间成绩  D4=泳道号
         PushButton2   = 0x18,   // 盲表2时间成绩  D4=泳道号
         PushButton3   = 0x19,   // 盲表3时间成绩  D4=泳道号
@@ -435,8 +437,11 @@ namespace SwimmingScoreboard
             TimingCommandType cmdType;
             switch (cmd) {
                 case 0x16:
-                    // 2026-06-14 D3 区分: 0=真触板 (Touchpad_Result), 1=手动 TP 键/盲表代替触板 (Pushbutton_Result)
-                    cmdType = (frame[3] == 1) ? TimingCommandType.ManualTouchpad : TimingCommandType.Touchpad;
+                    // 2026-06-14 D3 区分: 0=真触板, 1=盲表代触, 3=仰泳松开 TP, 4=手动 TP 键 (其他默认按真触板)
+                    if (frame[3] == 1) cmdType = TimingCommandType.ManualTouchpad;        // 盲表代触
+                    else if (frame[3] == 3) cmdType = TimingCommandType.BackstrokeRelease; // 仰泳出发松开 TP
+                    else if (frame[3] == 4) cmdType = TimingCommandType.ManualTouchpad;    // 手动 TP 键 (跟盲表代触共用下游路径)
+                    else cmdType = TimingCommandType.Touchpad;
                     break;
                 case 0x17: cmdType = TimingCommandType.PushButton1;   break;  // 盲表1
                 case 0x18: cmdType = TimingCommandType.PushButton2;   break;  // 盲表2
