@@ -665,7 +665,11 @@ namespace SwimmingScoreboard
             int curMin = ComputeSessionUsedMinutes(day, session);
             // 找右面板选中位置：若指定 insertAtEnd=false 且有选中，插到选中前；否则追加到末尾
             DistEntry insertBefore = null;
-            if (!insertAtEnd && DistAssignedGrid.SelectedItem is DistEntry sel) insertBefore = sel;
+            // 2026-06-16 改成 C# 6 兼容写法 (原 `is X sel` 模式匹配要 C# 7+)
+            {
+                DistEntry sel = DistAssignedGrid.SelectedItem as DistEntry;
+                if (!insertAtEnd && sel != null) insertBefore = sel;
+            }
 
             foreach (var d in selected) {
                 d.AssignedDate = day;
