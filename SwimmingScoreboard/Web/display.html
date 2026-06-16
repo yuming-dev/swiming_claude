@@ -357,8 +357,6 @@ function goFullScreen() {
 var ws, data = {}, reconnectTimer;
 var currentMode = 'SHOW_LIVE_RACE';
 var publishedData = null;
-// 2026-06-14 保存比赛视图静态表头(道次在前), 成绩发布会改写表头为"名次在前", 切回比赛视图时还原
-var _raceHeaderHtmlSaved = (document.querySelector('.lanes-header') ? document.querySelector('.lanes-header').innerHTML : '');
 var modeLocked = false;  // 成绩发布时锁定模式，不被广播覆盖
 // 2026-06-04 备注栏 是否显示 出发反应时 (默认 true; 由 control / 主控 经 SET_DISPLAY_STYLE 推 false 关掉)
 var _remarkShowReaction = true;
@@ -1350,11 +1348,32 @@ var _raceRowsBuiltKey = '';
 var _raceRowDOM = [];   // [{lane, row, laneNum, nameEl, teamEl, resultEl, rankEl, remarkEl, lastClass, lastResult, lastResultColor, lastRank, lastRankClass, lastRemark, lastRemarkColor, lastNameHtml, lastTeamHtml, lastLaneNum}]
 var _raceHeaderRelay = null;
 
+// 2026-06-14 比赛视图表头(接力感知) — 与运动员行顺序对齐:
+//   个人: 道次 名次 姓名 代表队 组别 成绩 备注
+//   接力: 道次 名次 代表队(窄) 姓名(宽,4棒同列) 组别 成绩 备注  (= 行内 .lane-row.relay swimmer-name 实承载代表队 / swimmer-team 承载姓名)
+//   每次 renderRace 都设, 兼修"成绩发布(名次在前)切回比赛视图"的表头泄漏。
+function _setRaceHeader() {
+    var header = document.querySelector('.lanes-header');
+    if (!header) return;
+    var lc = getLaneCount();
+    var fs = lc <= 8 ? 'calc(3.5vh * var(--fs) * var(--fs-header))' : 'calc(2.9vh * var(--fs) * var(--fs-header))';
+    var relay = isRelayEvent();
+    var c1 = relay ? '代表队' : '姓名', f1 = relay ? 6 : 11;
+    var c2 = relay ? '姓名' : '代表队', f2 = relay ? 28 : 9;
+    var html =
+        '<div style="flex:4;min-width:0;text-align:center;margin-right:1vw;font-size:'+fs+';">道次</div>' +
+        '<div style="flex:4;min-width:0;text-align:center;margin-right:1vw;font-size:'+fs+';">名次</div>' +
+        '<div style="flex:'+f1+';min-width:0;text-align:center;margin-right:1vw;font-size:'+fs+';">'+c1+'</div>' +
+        '<div style="flex:'+f2+';min-width:0;text-align:center;margin-right:1vw;font-size:'+fs+';">'+c2+'</div>' +
+        '<div style="flex:8;min-width:0;text-align:center;margin-right:1vw;font-size:'+fs+';">组别</div>' +
+        '<div style="flex:13;min-width:0;text-align:center;margin-right:1vw;font-size:'+fs+';">成绩</div>' +
+        '<div style="flex:7;min-width:0;text-align:center;font-size:'+fs+';">备注</div>';
+    if (header.innerHTML !== html) header.innerHTML = html;
+}
+
 function renderRace() {
     document.getElementById('raceView').classList.remove('hidden');
-    // 2026-06-14 还原比赛视图静态表头(道次在前) — 成绩发布会把表头改成"名次在前", 切回需还原
-    var _rh = document.querySelector('.lanes-header');
-    if (_rh && _raceHeaderHtmlSaved && _rh.innerHTML !== _raceHeaderHtmlSaved) _rh.innerHTML = _raceHeaderHtmlSaved;
+    _setRaceHeader();   // 2026-06-14 接力感知表头 + 修发布态表头泄漏
 
     // ── 1) 顶部静态文字（仅变化才写入） ──
     // 2026-06-04 标题最前加 项次 '第N项 ' (= 服务器 currentEventNumber, 0 时为空)
@@ -1628,28 +1647,7 @@ function _ensureRaceRowsDom() {
     // 2026-06-04 加 "组别" 列 (区分并组中 不同 AgeCategory); 7 列重新调比例 (与下方 .lane-row 同步)
     //   个人: 道次4 / 名次4 / 姓名11 / 代表队9 / 组别8 / 成绩13 / 备注7
     //   接力: 道次4 / 名次4 / 代表队6 / 姓名(4棒)28 / 组别8 / 成绩13 / 备注7
-    var header = document.querySelector('.lanes-header');
-    if (header) {
-        if (relay) {
-            header.innerHTML =
-                '<div style="flex:4;min-width:0;text-align:center;margin-right:1vw;font-size:'+fs+';">道次</div>' +
-                '<div style="flex:4;min-width:0;text-align:center;margin-right:1vw;font-size:'+fs+';">名次</div>' +
-                '<div style="flex:6;min-width:0;text-align:center;margin-right:1vw;font-size:'+fs+';">代表队</div>' +
-                '<div style="flex:28;min-width:0;text-align:center;margin-right:1vw;font-size:'+fs+';">姓名</div>' +
-                '<div style="flex:8;min-width:0;text-align:center;margin-right:1vw;font-size:'+fs+';">组别</div>' +
-                '<div style="flex:13;min-width:0;text-align:center;margin-right:1vw;font-size:'+fs+';">成绩</div>' +
-                '<div style="flex:7;min-width:0;text-align:center;font-size:'+fs+';">备注</div>';
-        } else {
-            header.innerHTML =
-                '<div style="flex:4;min-width:0;text-align:center;margin-right:1vw;font-size:'+fs+';">道次</div>' +
-                '<div style="flex:4;min-width:0;text-align:center;margin-right:1vw;font-size:'+fs+';">名次</div>' +
-                '<div style="flex:11;min-width:0;text-align:center;margin-right:1vw;font-size:'+fs+';">姓名</div>' +
-                '<div style="flex:9;min-width:0;text-align:center;margin-right:1vw;font-size:'+fs+';">代表队</div>' +
-                '<div style="flex:8;min-width:0;text-align:center;margin-right:1vw;font-size:'+fs+';">组别</div>' +
-                '<div style="flex:13;min-width:0;text-align:center;margin-right:1vw;font-size:'+fs+';">成绩</div>' +
-                '<div style="flex:7;min-width:0;text-align:center;font-size:'+fs+';">备注</div>';
-        }
-    }
+    _setRaceHeader();   // 2026-06-14 表头(接力感知)统一走 _setRaceHeader, 与 renderRace 同源
 
     var container = document.getElementById('lanesContainer');
     if (!container) return;
