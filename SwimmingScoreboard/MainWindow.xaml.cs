@@ -11330,14 +11330,35 @@ namespace SwimmingScoreboard
                 bool changed = (_laneCloseSettings.LeftBlindWatchCount != newLeft) || (_laneCloseSettings.RightBlindWatchCount != newRight);
                 _laneCloseSettings.LeftBlindWatchCount = newLeft;
                 _laneCloseSettings.RightBlindWatchCount = newRight;
+                // 2026-06-16 (方案 C) 改盲表数量同时重置每道 LaneDeviceState 的 Broken/NotInstalled 状态:
+                //   < newLeft → 安装好 (NotInstalled=false, Broken=false); >= newLeft → 未装 (NotInstalled=true).
+                //   用户既然把数量改成 N, 意味着这 N 个现在可用 — 清掉之前的 Broken/NotInstalled 标记.
+                //   跟硬件 Set_MB_Num case 重置 Bad(=3)→Close(=0) 语义一致, 防止 0x46 把旧 Broken 状态发回硬件覆盖.
+                foreach (var st in _laneDeviceStates) {
+                    st.LeftBlindWatch1Broken = false;
+                    st.LeftBlindWatch2Broken = false;
+                    st.LeftBlindWatch3Broken = false;
+                    st.LeftBlindWatch1NotInstalled = (newLeft < 1);
+                    st.LeftBlindWatch2NotInstalled = (newLeft < 2);
+                    st.LeftBlindWatch3NotInstalled = (newLeft < 3);
+                    st.RightBlindWatch1Broken = false;
+                    st.RightBlindWatch2Broken = false;
+                    st.RightBlindWatch3Broken = false;
+                    st.RightBlindWatch1NotInstalled = (newRight < 1);
+                    st.RightBlindWatch2NotInstalled = (newRight < 2);
+                    st.RightBlindWatch3NotInstalled = (newRight < 3);
+                }
                 // 2026-05-26 用户要求"点确认就存", 不再用 if(changed) 跳过 IO
                 SaveTimingSettings();
                 AutoSaveData();
                 UpdateLaneStatusDisplay();
                 if (changed) {
                     Broadcast();                       // 同步到 Web/Remote 控制台
-                    SendBlindWatchCountToHardware();   // 0x42 / 0x08 子码
-                    AddLog(string.Format("盲表数量更新：左 {0}，右 {1}（已同步到三端与硬件）", newLeft, newRight));
+                    SendBlindWatchCountToHardware();   // 0x45 Set_MB_Num
+                    // 2026-06-16 (方案 B) 跟 0x45 一起发 0x46 同步 MB1 状态. 之前只发 0x45 不发 0x46, 硬件 MB[0][i]=Bad
+                    // 状态保留 → UI 显示黑色. 现在先重置 LaneDeviceState (上面 foreach), 再发 0x46 → 硬件清掉 Bad.
+                    SendDeviceStatusesToHardware();    // 0x46 把"非 Broken/NotInstalled"状态推到硬件
+                    AddLog(string.Format("盲表数量更新：左 {0}，右 {1}（已同步到三端与硬件, MB Broken/NotInstalled 已重置）", newLeft, newRight));
                 }
             }
         }
