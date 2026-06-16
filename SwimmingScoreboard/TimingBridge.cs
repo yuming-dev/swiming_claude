@@ -646,6 +646,16 @@ namespace SwimmingScoreboard
             RaiseLog(string.Format("发送泳池触板安装方式: {0}", isSingleSide ? "单边" : "两端"));
         }
 
+        /// <summary>2026-06-15 设置硬件 UI 显示的泳姿类型 (第 2 行 "+1" 键左侧显示)。
+        /// 协议: command=0x46 (Set_StrokeType_Command), d3=泳姿编码
+        ///   0=自由泳, 1=蝶泳, 2=蛙泳, 3=仰泳, 4=混合泳, 5+=空白 (硬件不显示)</summary>
+        public void SendSetStrokeType(byte strokeType) {
+            SendFullFrame(0x46, strokeType, 0);
+            string[] names = { "自由泳", "蝶泳", "蛙泳", "仰泳", "混合泳" };
+            string name = (strokeType < names.Length) ? names[strokeType] : "空白";
+            RaiseLog(string.Format("发送 泳姿类型: {0} (= {1})", strokeType, name));
+        }
+
         /// <summary>2026-05-13(2) 强制 全开 / 恢复正常 整道或某道的所有设备(TP/SB/MB)。
         /// 协议: command=0x4C (Set_ForceAllOpen) — 按 v2026.05.13 通讯协议变更说明。
         ///   d3 = 0xFF 全部道；0..9 指定单道

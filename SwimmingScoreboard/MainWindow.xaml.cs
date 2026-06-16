@@ -3815,9 +3815,26 @@ namespace SwimmingScoreboard
                 _timingBridge.DelayBetweenFrames(20);     // 给硬件处理本帧的时间，防止下一条命令被吞
                 AddLog(string.Format("Set_MatchEvent 已下发: 总圈{0} 右{1} 左{2} 开0-4=0x{3:X2} 开5-9=0x{4:X2} 接力={5} 硬件一直打开={6} 仰泳={7}",
                     totalLaps, rightTotal, leftTotal, laneOpen0_4, laneOpen5_9, _isRelay ? "是" : "否", _laneCloseSettings.HardwareAlwaysOpen ? "是" : "否", isBackstroke ? "是" : "否"));
+
+                // 2026-06-15 跟 0x43 一起发 0x46 Set_StrokeType: 硬件 UI 第 2 行 +1 键左侧显示泳姿名称
+                byte strokeTypeByte = GetStrokeTypeFromEventName(_currentEvent);
+                _timingBridge.SendSetStrokeType(strokeTypeByte);
+                _timingBridge.DelayBetweenFrames(20);
             } catch (Exception ex) {
                 AddLog("Set_MatchEvent 下发失败: " + ex.Message);
             }
+        }
+
+        // 2026-06-15 把项目名映射到硬件 StrokeType 编码 (0=自由 1=蝶 2=蛙 3=仰 4=混合 5=空白/未知)
+        // 注意顺序: "混合泳"必须在"蝶/蛙/仰/自由"之前判断, 否则混合接力会被误判.
+        private byte GetStrokeTypeFromEventName(string eventName) {
+            if (string.IsNullOrEmpty(eventName)) return 5;
+            if (eventName.Contains("混合")) return 4;   // 混合泳 / 混合接力
+            if (eventName.Contains("仰泳")) return 3;
+            if (eventName.Contains("蛙泳")) return 2;
+            if (eventName.Contains("蝶泳")) return 1;
+            if (eventName.Contains("自由泳")) return 0;
+            return 5;   // 未知项目 → 硬件显示空白
         }
 
         private void SendRaceDistanceToHardware() {
