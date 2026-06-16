@@ -1415,7 +1415,15 @@ function renderScheduleTree() {
     for (var i = 0; i < schedule.length; i++) {
         var s = schedule[i];
         var sn = s.session || 1;
-        if (!sessions[sn]) sessions[sn] = { name: s.sessionName || ('第'+sn+'场'), events: [] };
+        // 2026-06-16 SessionName 持久化可能含 "第N场" 或旧版 "第N单元" 前缀, 强制 "第X场" + 剥 sname 前缀避免重复 / 显示旧"单元"字样
+        if (!sessions[sn]) {
+            var _sname = '';
+            if (s.sessionName) {
+                var _t = String(s.sessionName).replace(/^\s*第\d+(场|单元)\s*/, '');
+                if (_t.trim()) _sname = ' ' + _t;
+            }
+            sessions[sn] = { name: '第' + sn + '场' + _sname, events: [] };
+        }
         sessions[sn].events.push(s);
     }
 

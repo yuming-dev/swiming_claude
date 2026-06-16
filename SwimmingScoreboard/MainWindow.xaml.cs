@@ -16469,7 +16469,12 @@ namespace SwimmingScoreboard
             combo.Items.Add(new ComboBoxItem { Content = "全部场次", Tag = -1 });
             foreach (var sn in _schedule.Select(s => s.SessionNumber).Distinct().OrderBy(n => n)) {
                 var first = _schedule.FirstOrDefault(s => s.SessionNumber == sn);
-                string nm = (first != null && !string.IsNullOrWhiteSpace(first.SessionName)) ? (" " + first.SessionName) : "";
+                string nm = "";
+                if (first != null && !string.IsNullOrWhiteSpace(first.SessionName)) {
+                    // 2026-06-16 SessionName 持久化可能含 "第N场" 或旧版 "第N单元" 前缀, 跟此处 "第{0}场" 重复 → 去掉前缀, 只保留附加部分
+                    string sname = System.Text.RegularExpressions.Regex.Replace(first.SessionName.Trim(), @"^\s*第\d+(场|单元)\s*", "");
+                    if (!string.IsNullOrWhiteSpace(sname)) nm = " " + sname;
+                }
                 string dt = (first != null && !string.IsNullOrWhiteSpace(first.Date)) ? ("  " + first.Date) : "";
                 combo.Items.Add(new ComboBoxItem { Content = string.Format("第{0}场{1}{2}", sn, nm, dt), Tag = sn });
             }

@@ -1195,7 +1195,12 @@ function showSchedPage() {
     // 固定场次抬头 (同一场多页时保持不变)
     if (pg.sess) {
         var it0 = pg.sess;
-        var sname = it0.sessionName ? ('  ' + it0.sessionName) : '';
+        // 2026-06-16 SessionName 持久化可能含 "第N场" 或旧版 "第N单元" 前缀, 跟此处 "第X场" 重复 → 剥前缀, 只保留附加
+        var sname = '';
+        if (it0.sessionName) {
+            var _sn = String(it0.sessionName).replace(/^\s*第\d+(场|单元)\s*/, '');
+            if (_sn.trim()) sname = '  ' + _sn;
+        }
         var sdate = it0.date ? ('  ' + it0.date) : '';
         var stime = it0.time ? ('  ' + it0.time) : '';
         html += '<div style="padding:0.6vh 1.5vw 0.5vh 1.5vw;border-bottom:3px solid var(--accent);'
