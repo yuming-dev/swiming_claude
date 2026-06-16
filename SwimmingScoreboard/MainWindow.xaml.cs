@@ -6867,6 +6867,12 @@ namespace SwimmingScoreboard
             _hwRunningTimeAvailable = false;
             _hwRunningTimeReceivedAt = DateTime.MinValue;
             _hwRunningTimeSec = 0;
+            // 2026-06-15 防御性: 清接力 reaction window + 枪响 PreStart 锚点 + pending 反应时缓存
+            //   (跟 Restart_Click 7071-7074 对称, 防上场未 Emitted 窗口跨场触发污染新一场比赛日志).
+            //   场景: 用户跳过"计时复位"直接按"准备就绪" → calc 残留 → 新一场 OnEvent 复用旧窗口 → 异常 elapsed → 误 Emit.
+            if (_relayReactionCalc != null) _relayReactionCalc.Reset();
+            _gunPreStartSec = null;
+            _pendingPreStartReactions.Clear();
             _resultConfirmed = false;
             _firstPlaceFinishTime = "";
             _firstPlaceShowStart = DateTime.MinValue;
