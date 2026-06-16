@@ -227,12 +227,12 @@ function renderScheduleTree() {
         container.innerHTML = '<div style="padding:10px;color:var(--dim);font-size:12px;">暂无赛程</div>';
         return;
     }
-    // 按单元分组
+    // 按场分组
     var sessions = {};
     for (var i = 0; i < schedule.length; i++) {
         var s = schedule[i];
         var sn = s.session || 1;
-        if (!sessions[sn]) sessions[sn] = { name: s.sessionName || ('第' + sn + '单元'), events: [] };
+        if (!sessions[sn]) sessions[sn] = { name: s.sessionName || ('第' + sn + '场'), events: [] };
         sessions[sn].events.push(s);
     }
     var html = '';

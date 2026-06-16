@@ -1410,24 +1410,24 @@ function renderScheduleTree() {
     var schedule = data.schedule || [];
     if (schedule.length === 0) { container.innerHTML = '<div style="padding:10px;color:var(--dim);font-size:11px;">暂无赛程</div>'; return; }
 
-    // 按单元分组
+    // 按场分组
     var sessions = {};
     for (var i = 0; i < schedule.length; i++) {
         var s = schedule[i];
         var sn = s.session || 1;
-        if (!sessions[sn]) sessions[sn] = { name: s.sessionName || ('第'+sn+'单元'), events: [] };
+        if (!sessions[sn]) sessions[sn] = { name: s.sessionName || ('第'+sn+'场'), events: [] };
         sessions[sn].events.push(s);
     }
 
     var html = '';
     for (var sn in sessions) {
         var sess = sessions[sn];
-        // 检查单元内是否全部完赛
+        // 检查场内是否全部完赛
         var sessionAllDone = true;
         for (var j2 = 0; j2 < sess.events.length; j2++) {
             if (sess.events[j2].allConfirmed !== true) { sessionAllDone = false; break; }
         }
-        // 已完赛单元自动收起（除非用户手动展开过）
+        // 已完赛场自动收起（除非用户手动展开过）
         if (sessionAllDone && treeCollapsed[sn] === undefined) treeCollapsed[sn] = true;
         var collapsed = treeCollapsed[sn] === true;
 

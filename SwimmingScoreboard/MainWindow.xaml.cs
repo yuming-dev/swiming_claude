@@ -7867,13 +7867,13 @@ namespace SwimmingScoreboard
             foreach (var session in sessions) {
                 bool sessionAllDone = true;
                 var sessionItem = new TreeViewItem {
-                    Header = session.First().SessionName ?? string.Format("第{0}单元", session.Key)
+                    Header = session.First().SessionName ?? string.Format("第{0}场", session.Key)
                 };
 
                 int evSeq = 0;
                 foreach (var ev in session) {
                     evSeq++;
-                    int seqNum = (ev.EvNum > 0) ? ev.EvNum : evSeq;   // 2026-06-12 比赛项目序号: 有项次用项次, 否则按单元顺序号(重置1)
+                    int seqNum = (ev.EvNum > 0) ? ev.EvNum : evSeq;   // 2026-06-12 比赛项目序号: 有项次用项次, 否则按场顺序号(重置1)
                     string ag = ev.AgeGroup ?? "";
                     string header = string.Format("{0}. ", seqNum)
                                   + (string.IsNullOrEmpty(ag) ? "" : ("[" + ag + "] "))
@@ -7902,10 +7902,10 @@ namespace SwimmingScoreboard
                     sessionItem.Items.Add(eventItem);
                 }
 
-                // 单元内所有项目都完赛时收起，否则展开
+                // 场内所有项目都完赛时收起，否则展开
                 sessionItem.IsExpanded = !sessionAllDone;
                 if (sessionAllDone) {
-                    sessionItem.Header = (session.First().SessionName ?? string.Format("第{0}单元", session.Key)) + " [已完赛]";
+                    sessionItem.Header = (session.First().SessionName ?? string.Format("第{0}场", session.Key)) + " [已完赛]";
                     sessionItem.Foreground = new SolidColorBrush(Colors.Gray);
                 }
 
@@ -8038,7 +8038,7 @@ namespace SwimmingScoreboard
             string q = (searchText ?? "").Trim().ToLower();
             // 拆出每个 heat 的状态(用于 leaf 节点+聚合)
             // 数据来源: _schedule + ScheduleItem.HeatCount
-            // 2026-06-12 改为 场次(单元) → 项目(序号) → 组 结构 (同 比赛控制 ScheduleTree),
+            // 2026-06-12 改为 场次(场) → 项目(序号) → 组 结构 (同 比赛控制 ScheduleTree),
             //   保留 状态筛选(statusFilter) / 搜索高亮(q) / 状态标签颜色 / leaf nav: Tag (供选中处理)
             var sessions = _schedule.GroupBy(s => s.SessionNumber).OrderBy(g => g.Key);
             foreach (var session in sessions) {
@@ -8047,7 +8047,7 @@ namespace SwimmingScoreboard
                 int evSeq = 0;
                 foreach (var ev in session) {
                     evSeq++;
-                    int seqNum = (ev.EvNum > 0) ? ev.EvNum : evSeq;   // 项目序号: 有项次用项次, 否则按单元顺序号
+                    int seqNum = (ev.EvNum > 0) ? ev.EvNum : evSeq;   // 项目序号: 有项次用项次, 否则按场顺序号
                     string ag = ev.AgeGroup ?? "";
                     int hc = ev.HeatCount > 0 ? ev.HeatCount : 1;
                     var heatItems = new List<TreeViewItem>();
@@ -8084,7 +8084,7 @@ namespace SwimmingScoreboard
                 }
                 if (sessChildren.Count == 0) continue;
                 string sessStatus = AggregateStatus(sessChildStatuses);
-                string sessName = session.First().SessionName ?? string.Format("第{0}单元", session.Key);
+                string sessName = session.First().SessionName ?? string.Format("第{0}场", session.Key);
                 var sessNode = new TreeViewItem {
                     Header = string.Format("{0} {1}", sessName, StatusLabel(sessStatus)),
                     Foreground = StatusBrush(sessStatus),
@@ -13276,7 +13276,7 @@ namespace SwimmingScoreboard
         private RelayTeam _selectedRelayTeam;
 
         /// <summary>
-        /// 按接力项目分组显示接力队列表（类似赛程管理的单元分组）
+        /// 按接力项目分组显示接力队列表（类似赛程管理的场分组）
         /// </summary>
         private void RebuildRelayGroupedView() {
             if (RelayGroupedPanel == null) return;
@@ -14596,7 +14596,7 @@ namespace SwimmingScoreboard
         private void AddSchedule_Click(object sender, RoutedEventArgs e) {
             if (MessageBox.Show("确定要添加一条新的赛程项？\n（将插入到选中行后面，未选中则添加到末尾）", "确认", MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
 
-            // 根据选中行确定插入位置和单元号
+            // 根据选中行确定插入位置和场号
             int insertIndex = _schedule.Count;
             int sessionNum = _schedule.Count > 0 ? _schedule.Max(s => s.SessionNumber) : 1;
             string date = GetDatePickerText(StartDatePicker);
@@ -14638,7 +14638,7 @@ namespace SwimmingScoreboard
 
             var newItem = new ScheduleItem {
                 SessionNumber = sessionNum,
-                SessionName = string.Format("第{0}单元", sessionNum),
+                SessionName = string.Format("第{0}场", sessionNum),
                 Date = date,
                 Time = time
             };
@@ -14689,7 +14689,7 @@ namespace SwimmingScoreboard
             mainGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
             mainGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
 
-            // 按单元分组显示（可编辑），和主界面风格一致
+            // 按场分组显示（可编辑），和主界面风格一致
             var scrollViewer = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
             var editPanel = new StackPanel();
             ScheduleItem _editSelected = null;
@@ -14702,7 +14702,7 @@ namespace SwimmingScoreboard
                     it.Date = NormalizeDate(it.Date);
                     it.Time = NormalizeTime(it.Time);
                 }
-                // 推断单元：按 editList 自然顺序遍历，首次出现的 (日期+时段) 组合分配新单元号
+                // 推断场：按 editList 自然顺序遍历，首次出现的 (日期+时段) 组合分配新场号
                 var sMap = new Dictionary<string, int>();
                 int sNum = 1;
                 foreach (var it in editList) {
@@ -14710,12 +14710,12 @@ namespace SwimmingScoreboard
                     string k = (it.Date ?? "") + "|" + per;
                     if (!sMap.ContainsKey(k)) { sMap[k] = sNum; sNum++; }
                     it.SessionNumber = sMap[k];
-                    it.SessionName = string.Format("第{0}单元（{1}{2}）", sMap[k], it.Date ?? "", per);
+                    it.SessionName = string.Format("第{0}场（{1}{2}）", sMap[k], it.Date ?? "", per);
                 }
                 var grps = editList.GroupBy(s2 => s2.SessionNumber).OrderBy(g2 => g2.Key);
                 foreach (var grp in grps) {
                     var hdr = new TextBlock {
-                        Text = grp.First().SessionName ?? string.Format("第{0}单元", grp.Key),
+                        Text = grp.First().SessionName ?? string.Format("第{0}场", grp.Key),
                         FontWeight = FontWeights.Bold, FontSize = 15,
                         Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1A5FB4")),
                         Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#E8F0FE")),
@@ -14876,7 +14876,7 @@ namespace SwimmingScoreboard
             dlg.Content = mainGrid;
 
             if (dlg.ShowDialog() == true) {
-                // 根据最终的 editList 顺序，重新推断单元编号（日期+时段 首次出现分配新单元号）
+                // 根据最终的 editList 顺序，重新推断场编号（日期+时段 首次出现分配新场号）
                 var sMap2 = new Dictionary<string, int>();
                 int sNum2 = 1;
                 foreach (var it in editList) {
@@ -14884,7 +14884,7 @@ namespace SwimmingScoreboard
                     string k = (it.Date ?? "") + "|" + per;
                     if (!sMap2.ContainsKey(k)) { sMap2[k] = sNum2; sNum2++; }
                     it.SessionNumber = sMap2[k];
-                    it.SessionName = string.Format("第{0}单元（{1}{2}）", sMap2[k], it.Date ?? "", per);
+                    it.SessionName = string.Format("第{0}场（{1}{2}）", sMap2[k], it.Date ?? "", per);
                 }
                 // 用编辑后的数据替换原赛程（保留用户自定义顺序）
                 _schedule.Clear();
@@ -14959,7 +14959,7 @@ namespace SwimmingScoreboard
                 item.Time = NormalizeTime(item.Time);
             }
 
-            // 自动推断单元编号：按 _schedule 自然顺序遍历，首次出现的(日期+时段)分配新单元号
+            // 自动推断场编号：按 _schedule 自然顺序遍历，首次出现的(日期+时段)分配新场号
             var sessionMap = new Dictionary<string, int>();
             int sessionNum = 1;
             foreach (var item in _schedule) {
@@ -14970,13 +14970,13 @@ namespace SwimmingScoreboard
                     sessionNum++;
                 }
                 item.SessionNumber = sessionMap[key];
-                item.SessionName = string.Format("第{0}单元（{1}{2}）", sessionMap[key], item.Date ?? "", period);
+                item.SessionName = string.Format("第{0}场（{1}{2}）", sessionMap[key], item.Date ?? "", period);
             }
 
-            // 按单元分组只读显示
+            // 按场分组只读显示
             var groups = _schedule.GroupBy(s => s.SessionNumber).OrderBy(g => g.Key);
             foreach (var group in groups) {
-                string label = group.First().SessionName ?? string.Format("第{0}单元", group.Key);
+                string label = group.First().SessionName ?? string.Format("第{0}场", group.Key);
 
                 var header = new TextBlock {
                     Text = label,
@@ -15055,7 +15055,7 @@ namespace SwimmingScoreboard
                         string sessionTag = string.IsNullOrEmpty(a.HeatRange) ? "" : (" · " + a.HeatRange);
                         _schedule.Add(new ScheduleItem {
                             SessionNumber = sessionNum,
-                            SessionName = string.Format("第{0}单元（{1} {2}{3}）", sessionNum, a.Date, a.Session, sessionTag),
+                            SessionName = string.Format("第{0}场（{1} {2}{3}）", sessionNum, a.Date, a.Session, sessionTag),
                             Date = a.Date,
                             Time = a.Time,
                             AgeGroup = a.AgeGroup,
@@ -15076,7 +15076,7 @@ namespace SwimmingScoreboard
                 UpdateEditHeatCombo();
                 RefreshEventComboBoxes();
                 Broadcast();
-                AddLog(string.Format("✅ 秩序册向导：已写回赛程 {0} 项，共 {1} 个单元（UI 已全量刷新）", wnd.AssignedItems.Count, sessionNum - 1));
+                AddLog(string.Format("✅ 秩序册向导：已写回赛程 {0} 项，共 {1} 个场（UI 已全量刷新）", wnd.AssignedItems.Count, sessionNum - 1));
                 MessageBox.Show(string.Format("已把 {0} 项编排写回主程序赛程，整个系统已立即更新。", wnd.AssignedItems.Count), "完成");
             }
         }
@@ -15299,7 +15299,7 @@ namespace SwimmingScoreboard
             reloadRows();
 
             btnEvenSplit.Click += delegate {
-                // 提交正在编辑的单元
+                // 提交正在编辑的场
                 try { grid.CommitEdit(DataGridEditingUnit.Cell, true); grid.CommitEdit(DataGridEditingUnit.Row, true); } catch { }
 
                 int perHeat = 0;
@@ -19550,7 +19550,7 @@ namespace SwimmingScoreboard
         // ═══════════════════════════════════════════════════════════════
 
         // —— 日程表 CSV ——
-        // 列: 单元,日期,时间,性别,项目,阶段,组数
+        // 列: 场,日期,时间,性别,项目,阶段,组数
         private static string CsvEscape(string s) {
             if (s == null) return "";
             if (s.IndexOfAny(new[] { ',', '"', '\n', '\r' }) >= 0)
@@ -19617,7 +19617,7 @@ namespace SwimmingScoreboard
             try {
                 var sb = new StringBuilder();
                 // 2026-05-21 已移除显式 BOM，Encoding.UTF8 在写入时自带 BOM
-                sb.AppendLine("单元,日期,时间,组别,性别,项目,阶段,组数");
+                sb.AppendLine("场,日期,时间,组别,性别,项目,阶段,组数");
                 foreach (var s in _schedule) {
                     sb.AppendLine(string.Format("{0},{1},{2},{3},{4},{5},{6},{7}",
                         s.SessionNumber,
@@ -19640,7 +19640,7 @@ namespace SwimmingScoreboard
         private void ImportScheduleCSV_Click(object sender, RoutedEventArgs e) {
             var dlg = new Microsoft.Win32.OpenFileDialog {
                 Filter = "CSV文件|*.csv|文本文件|*.txt|所有文件|*.*",
-                Title = "导入日程表（表头: 单元,日期,时间,组别,性别,项目,阶段,组数）"
+                Title = "导入日程表（表头: 场,日期,时间,组别,性别,项目,阶段,组数）"
             };
             if (dlg.ShowDialog() != true) return;
             string ext = IOPath.GetExtension(dlg.FileName).ToLower();
@@ -19708,7 +19708,7 @@ namespace SwimmingScoreboard
             try {
                 var sb = new StringBuilder();
                 // 2026-05-21 已移除显式 BOM；Encoding.UTF8 自带 3 字节 BOM 前导
-                sb.AppendLine("单元,日期,时间,组别,性别,项目,阶段,组数");
+                sb.AppendLine("场,日期,时间,组别,性别,项目,阶段,组数");
                 sb.AppendLine("1,2026-04-20,09:00,少年,男,50米自由泳,预赛,4");
                 sb.AppendLine("1,2026-04-20,09:15,少年,女,50米自由泳,预赛,4");
                 sb.AppendLine("1,2026-04-20,09:30,成人,男,50米自由泳,预赛,4");
@@ -20426,7 +20426,7 @@ namespace SwimmingScoreboard
         }
 
         private ConfirmedHeatPick ShowConfirmedHeatPicker(string title) {
-            // 构造仅含已完赛组的 TreeView（结构与"赛程导航"一致：单元 → 项目 → 第N组）
+            // 构造仅含已完赛组的 TreeView（结构与"赛程导航"一致：场 → 项目 → 第N组）
             ConfirmedHeatPick selected = null;
             var dlg = new Window {
                 Title = title, Width = 500, Height = 560,
@@ -20475,7 +20475,7 @@ namespace SwimmingScoreboard
                 }
                 if (sessionEvents.Count == 0) continue;
                 var sessionItem = new TreeViewItem {
-                    Header = session.First().SessionName ?? string.Format("第{0}单元", session.Key),
+                    Header = session.First().SessionName ?? string.Format("第{0}场", session.Key),
                     IsExpanded = true,
                     Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#0F172A")),
                     FontWeight = FontWeights.Bold
