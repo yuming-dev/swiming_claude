@@ -647,10 +647,12 @@ namespace SwimmingScoreboard
         }
 
         /// <summary>2026-06-15 设置硬件 UI 显示的泳姿类型 (第 2 行 "+1" 键左侧显示)。
-        /// 协议: command=0x46 (Set_StrokeType_Command), d3=泳姿编码
-        ///   0=自由泳, 1=蝶泳, 2=蛙泳, 3=仰泳, 4=混合泳, 5+=空白 (硬件不显示)</summary>
+        /// 协议: wire command=0x69 (硬件内部 Set_StrokeType_Command=0x59, wire=0x59+0x10), d3=泳姿编码
+        ///   0=自由泳, 1=蝶泳, 2=蛙泳, 3=仰泳, 4=混合泳, 5+=空白 (硬件不显示)
+        /// v2 修复: 之前用 wire 0x46 跟 Set_TPSBMB_State 冲突, 且硬件 Receive_Button_Command_Value = wire-0x10
+        /// 导致 case 永远不匹配. 改用 wire 0x69 (= 内部 0x59 + 0x10), 0x69 未占用.</summary>
         public void SendSetStrokeType(byte strokeType) {
-            SendFullFrame(0x46, strokeType, 0);
+            SendFullFrame(0x69, strokeType, 0);
             string[] names = { "自由泳", "蝶泳", "蛙泳", "仰泳", "混合泳" };
             string name = (strokeType < names.Length) ? names[strokeType] : "空白";
             RaiseLog(string.Format("发送 泳姿类型: {0} (= {1})", strokeType, name));
