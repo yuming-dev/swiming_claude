@@ -332,6 +332,26 @@ namespace SwimmingScoreboard
         //      也能定期回收 可回收对象, 防止 Gen2 累计触发大停顿.
         private DispatcherTimer _memoryMonitorTimer;
         private DispatcherTimer _periodicGcTimer;
+        // 2026-06-15 取系统内存占用率(% 0-100) — GlobalMemoryStatusEx.dwMemoryLoad, 供"内存占用到80%红色提示"
+        [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+        private struct MEMORYSTATUSEX {
+            public uint dwLength; public uint dwMemoryLoad;
+            public ulong ullTotalPhys; public ulong ullAvailPhys;
+            public ulong ullTotalPageFile; public ulong ullAvailPageFile;
+            public ulong ullTotalVirtual; public ulong ullAvailVirtual; public ulong ullAvailExtendedVirtual;
+        }
+        [System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true)]
+        [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
+        private static extern bool GlobalMemoryStatusEx(ref MEMORYSTATUSEX lpBuffer);
+        private static int GetSystemMemoryLoadPercent() {
+            try {
+                var m = new MEMORYSTATUSEX();
+                m.dwLength = (uint)System.Runtime.InteropServices.Marshal.SizeOf(typeof(MEMORYSTATUSEX));
+                if (GlobalMemoryStatusEx(ref m)) return (int)m.dwMemoryLoad;
+            } catch { }
+            return -1;
+        }
+
         private void StartMemoryMonitorAndPeriodicGc() {
             try {
                 _memoryMonitorTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(10) };
@@ -340,12 +360,17 @@ namespace SwimmingScoreboard
                         if (MemoryStatusText == null) return;
                         long ws = System.Diagnostics.Process.GetCurrentProcess().WorkingSet64;
                         int gen2 = GC.CollectionCount(2);
-                        MemoryStatusText.Text = string.Format("{0:F0} MB / G2:{1}", ws / 1048576.0, gen2);
-                        // 颜色提示: <500MB 绿, 500-1000MB 琥珀, >1000MB 红 (= 该重启)
                         double mb = ws / 1048576.0;
-                        if (mb < 500) MemoryStatusText.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#22C55E"));
-                        else if (mb < 1000) MemoryStatusText.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F59E0B"));
-                        else MemoryStatusText.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EF4444"));
+                        int load = GetSystemMemoryLoadPercent();   // 系统内存占用率 %
+                        // 2026-06-15 显示 本进程MB + 系统内存占用% (G2 仍留作泄漏观测)
+                        MemoryStatusText.Text = load >= 0
+                            ? string.Format("{0:F0}MB 占用{1}% G2:{2}", mb, load, gen2)
+                            : string.Format("{0:F0} MB / G2:{1}", mb, gen2);
+                        // 颜色提示(按系统内存占用率): >=80% 红(吃紧提示), 60-80% 琥珀, <60% 绿; 取不到则退回按 MB
+                        string memCol;
+                        if (load >= 0) memCol = load >= 80 ? "#EF4444" : (load >= 60 ? "#F59E0B" : "#22C55E");
+                        else memCol = mb >= 1000 ? "#EF4444" : (mb >= 500 ? "#F59E0B" : "#22C55E");
+                        MemoryStatusText.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString(memCol));
                     } catch { }
                 };
                 _memoryMonitorTimer.Start();
@@ -2198,10 +2223,13 @@ namespace SwimmingScoreboard
             TimingHwConnText.Foreground = new SolidColorBrush(_timingBridge != null && _timingBridge.IsConnected ? Colors.Green : Colors.Red);
             //2026-05-19 顶部状态栏右侧的"硬件计时器"指示同步刷新
             bool _hwOn = _timingBridge != null && _timingBridge.IsConnected;
-            if (HwConnDot != null) HwConnDot.Fill = new SolidColorBrush(_hwOn ? (Color)ColorConverter.ConvertFromString("#22C55E") : (Color)ColorConverter.ConvertFromString("#EF4444"));
+            // 2026-06-15 已连接 = 鲜艳红色(醒目, 比赛中一眼确认硬件在线); 未连接 = 橙色告警(与红区分)
+            var _hwOnCol = (Color)ColorConverter.ConvertFromString("#FF1744");   // 鲜艳红
+            var _hwOffCol = (Color)ColorConverter.ConvertFromString("#FF9800");  // 橙色告警
+            if (HwConnDot != null) HwConnDot.Fill = new SolidColorBrush(_hwOn ? _hwOnCol : _hwOffCol);
             if (HwConnStatusText != null) {
                 HwConnStatusText.Text = _hwOn ? "已连接" : "未连接";
-                HwConnStatusText.Foreground = new SolidColorBrush(_hwOn ? (Color)ColorConverter.ConvertFromString("#22C55E") : (Color)ColorConverter.ConvertFromString("#EF4444"));
+                HwConnStatusText.Foreground = new SolidColorBrush(_hwOn ? _hwOnCol : _hwOffCol);
             }
             // 比赛控制面板上的快捷"连接串口"按钮跟随状态变化
             UpdateQuickConnectButton();
