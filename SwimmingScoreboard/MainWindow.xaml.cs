@@ -4227,6 +4227,15 @@ namespace SwimmingScoreboard
                         } else {
                             AddLog(string.Format("泳道{0} 仰泳出发反应时: {1:F3}s", lane, reactionTime));
                         }
+                        // 2026-06-15 主动写比赛日志: 显示计算后的反应时 (= release_PreStart - _gunPreStartSec), 不是原始 PreStart 数据
+                        {
+                            var sw_br_log = GetCurrentHeatSwimmers().FirstOrDefault(s2 => {
+                                var sa2 = s2.GetAssignmentForStage(_currentStage);
+                                return (sa2 != null ? sa2.Lane : s2.Lane) == lane;
+                            });
+                            string swName_br_log = sw_br_log != null ? (sw_br_log.Name ?? "") : "";
+                            AppendToLaneEventLog(lane, "BackstrokeRelease", reactionTime, swName_br_log, side, -1);
+                        }
                     }
                     break;
 
@@ -4363,6 +4372,15 @@ namespace SwimmingScoreboard
                             } else {
                                 AddLog(string.Format("泳道{0} 反应时间: {1:F2}s", lane, reactionTime));
                             }
+                            // 2026-06-15 主动写比赛日志: 显示计算后的反应时 (= sb_PreStart - _gunPreStartSec), 不是原始 PreStart 数据
+                            {
+                                var sw_sb_log = GetCurrentHeatSwimmers().FirstOrDefault(s2 => {
+                                    var sa2 = s2.GetAssignmentForStage(_currentStage);
+                                    return (sa2 != null ? sa2.Lane : s2.Lane) == lane;
+                                });
+                                string swName_sb_log = sw_sb_log != null ? (sw_sb_log.Name ?? "") : "";
+                                AppendToLaneEventLog(lane, "StartingBlock", reactionTime, swName_sb_log, side, -1);
+                            }
                         }
                         // 正式反应时已记录，把该端出发台切到"已触板（红）"，StartBlockCloseDelay 秒后转 Closed
                         EnterStartBlockTouchedThenClose(laneState, sbSideForClose, lane);
@@ -4497,6 +4515,8 @@ namespace SwimmingScoreboard
             TrimSbIfOver(_rawTimingLog, MAX_RAW_TIMING_LOG);
 
             // 2026-05-27 同步追加到"比赛日志" tab 的 per-lane 缓冲
+            // 2026-06-15 反应时类事件 (StartingBlock / BackstrokeRelease) 跳过这里, 由反应时计算路径 (case "StartingBlock"/"BackstrokeRelease" / FlushPendingPreStartReactions / OnRelayReactionReady) 主动写计算后的反应时, 避免比赛日志显示原始 PreStart 数据.
+            if (cmdType == "StartingBlock" || cmdType == "BackstrokeRelease") return;
             AppendToLaneEventLog(lane, cmdType, time, swimmerName, side, lapRemain);
         }
 
@@ -8531,6 +8551,15 @@ namespace SwimmingScoreboard
                     laneState.IsSuspectFalseStart = (reactionTime < 0);
                     AddLog(string.Format("回算: 泳道{0} SB 反应时 = {1:F3}s (枪响前抢跳, PreStart 差值){2}",
                         pr.Lane, reactionTime, reactionTime < 0 ? " ⚠抢跳" : ""));
+                    // 2026-06-15 Flush 回算后主动写比赛日志 (计算后的反应时, 替代 LogRawTimingData 跳过的那次)
+                    {
+                        var sw_flush_sb = GetCurrentHeatSwimmers().FirstOrDefault(s2 => {
+                            var sa2 = s2.GetAssignmentForStage(_currentStage);
+                            return (sa2 != null ? sa2.Lane : s2.Lane) == pr.Lane;
+                        });
+                        string swName_flush_sb = sw_flush_sb != null ? (sw_flush_sb.Name ?? "") : "";
+                        AppendToLaneEventLog(pr.Lane, "StartingBlock", reactionTime, swName_flush_sb, pr.Side, -1);
+                    }
                 }
                 else if (pr.DeviceKind == "TP") {
                     // 2026-06-14 仰泳 TP 松开抢跳兜底: 实际不应到这里 (release 必晚于枪响), 留作健壮性处理
@@ -8551,6 +8580,15 @@ namespace SwimmingScoreboard
                     laneState.IsSuspectFalseStart = (reactionTime < 0);
                     AddLog(string.Format("回算: 泳道{0} 仰泳 TP 反应时 = {1:F3}s{2}",
                         pr.Lane, reactionTime, reactionTime < 0 ? " ⚠抢跳" : ""));
+                    // 2026-06-15 Flush 回算后主动写比赛日志 (仰泳抢跳计算后的反应时)
+                    {
+                        var sw_flush_tp = GetCurrentHeatSwimmers().FirstOrDefault(s2 => {
+                            var sa2 = s2.GetAssignmentForStage(_currentStage);
+                            return (sa2 != null ? sa2.Lane : s2.Lane) == pr.Lane;
+                        });
+                        string swName_flush_tp = sw_flush_tp != null ? (sw_flush_tp.Name ?? "") : "";
+                        AppendToLaneEventLog(pr.Lane, "BackstrokeRelease", reactionTime, swName_flush_tp, pr.Side, -1);
+                    }
                 }
             }
             _pendingPreStartReactions.Clear();
