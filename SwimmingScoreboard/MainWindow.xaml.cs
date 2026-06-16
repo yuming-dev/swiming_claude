@@ -4597,7 +4597,8 @@ namespace SwimmingScoreboard
             else if (time == 0) timeStr = "0.00";
             else if (time < 0) timeStr = "-" + TimeFormatter.Format(-time);   // TimeFormatter 对 <=0 返空, 用 abs+前缀
             else timeStr = TimeFormatter.Format(time);
-            _laneEventLog[lane].AppendFormat("[T={0,8}] 道{1}{2} {3}{4} = {5}{6}\r\n",
+            // 2026-06-16 简化日志格式: 去掉 "[T=" 和 "]", 直接显示时间值. 原 `[T=    3.06]` → `   3.06`
+            _laneEventLog[lane].AppendFormat("{0,8} 道{1}{2} {3}{4}={5}{6}\r\n",
                 elapsed, lane, sideLabel, label, lapLabel, timeStr,
                 string.IsNullOrEmpty(swimmerName) ? "" : (" (" + swimmerName + ")"));
             TrimSbIfOver(_laneEventLog[lane], MAX_LANE_EVENT_LOG);
@@ -6691,7 +6692,8 @@ namespace SwimmingScoreboard
             if (sw2 != null) swimmerName = sw2.Name ?? "";
             if (!_laneEventLog.ContainsKey(lane)) _laneEventLog[lane] = new StringBuilder();
             // 2026-06-03 计算数据 (= 14 条规则算出) time 后加 "*" 与原始 SB 数据区分
-            _laneEventLog[lane].AppendFormat("[T={0,8}] 道{1}{2} {3}{4} = {5}*{6}{7}\r\n",
+            // 2026-06-16 简化日志格式: 去掉 "[T=" 和 "]"
+            _laneEventLog[lane].AppendFormat("{0,8} 道{1}{2} {3}{4}={5}*{6}{7}\r\n",
                 elapsed, lane, sideLabel, label, lapLabel, timeStr, basisNote,
                 string.IsNullOrEmpty(swimmerName) ? "" : (" (" + swimmerName + ")"));
             TrimSbIfOver(_laneEventLog[lane], MAX_LANE_EVENT_LOG);
@@ -6737,7 +6739,8 @@ namespace SwimmingScoreboard
             if (sw2 != null) swimmerName = sw2.Name ?? "";
             if (!_laneEventLog.ContainsKey(lane)) _laneEventLog[lane] = new StringBuilder();
             // 2026-06-03 计算数据 (= 14 条规则算出) time 后加 "*" 与原始 SB 数据区分
-            _laneEventLog[lane].AppendFormat("[T={0,8}] 道{1}{2} {3}{4} = ---*{5}\r\n",
+            // 2026-06-16 简化日志格式: 去掉 "[T=" 和 "]"
+            _laneEventLog[lane].AppendFormat("{0,8} 道{1}{2} {3}{4}=---*{5}\r\n",
                 elapsed, lane, sideLabel, label, lapLabel,
                 string.IsNullOrEmpty(swimmerName) ? "" : (" (" + swimmerName + ")"));
             TrimSbIfOver(_laneEventLog[lane], MAX_LANE_EVENT_LOG);
