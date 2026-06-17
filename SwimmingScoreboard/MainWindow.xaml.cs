@@ -8325,7 +8325,7 @@ namespace SwimmingScoreboard
             PoolHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) }); // 姓名+进度
             PoolHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(264) });  // 右设备（+24，容纳圈数 spinner）
             PoolHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(8) });    // 右发令
-            PoolHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(249) });  // 成绩信息
+            PoolHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(284) });  // 成绩信息 (反应时/盲表 列加宽到 90 容纳 1:25:42.78)
 
             Action<int, string, double> addLabel = (col, text, width) => {
                 var tb = new TextBlock { Text = text, Width = width, Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")), FontSize = 12, TextAlignment = TextAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
@@ -8385,8 +8385,8 @@ namespace SwimmingScoreboard
             Grid.SetColumn(rightHdrInd, 5); PoolHeader.Children.Add(rightHdrInd);
 
             var infoLabels = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-            // 2026-06-16 "反应" 列改成两行 "反应/盲表" 跟下方上下两行对齐
-            foreach (string s in new[] { "反应\n盲表:55", "成绩:110", "名次:44", "备注:40" }) {
+            // 2026-06-16 "反应" 列改成两行 "反应/盲表" 跟下方上下两行对齐. 宽度 55→90 容纳 "1:25:42.78"
+            foreach (string s in new[] { "反应\n盲表:90", "成绩:110", "名次:44", "备注:40" }) {
                 string[] p = s.Split(':');
                 var tb = new TextBlock { Text = p[0], Width = double.Parse(p[1]), Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")), FontSize = 12, TextAlignment = TextAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
                 if (p[0].Contains("\n")) { tb.TextWrapping = TextWrapping.Wrap; tb.FontSize = 10; tb.LineHeight = 13; }
@@ -8528,7 +8528,18 @@ namespace SwimmingScoreboard
         private class BlindResultEntry {
             public double TimeSeconds;
             public DateTime ArriveAt;
-            public override string ToString() { return TimeSeconds.ToString("F2"); }
+            // 2026-06-16 格式 时:分:秒.1/100秒, 左零自动消隐
+            //   34.78s → "34.78"; 105.78s → "1:45.78"; 5045.78s → "1:24:05.78"
+            public override string ToString() {
+                double t = TimeSeconds;
+                if (t < 0) t = 0;
+                int h = (int)(t / 3600);
+                int m = (int)((t - h * 3600) / 60);
+                double remSec = t - h * 3600 - m * 60;
+                if (h > 0) return string.Format("{0}:{1:00}:{2:00.00}", h, m, remSec);
+                if (m > 0) return string.Format("{0}:{1:00.00}", m, remSec);
+                return remSec.ToString("0.00");
+            }
         }
         private Dictionary<int, List<BlindResultEntry>> _laneBlindHistory = new Dictionary<int, List<BlindResultEntry>>();
 
@@ -8767,7 +8778,7 @@ namespace SwimmingScoreboard
                 grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
                 grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(264) });
                 grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(8) });
-                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(249) });
+                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(284) });
 
                 // Col 0: 道次（静态）
                 var laneNum = new TextBlock { Text = lane.ToString(), FontSize = 18, FontWeight = FontWeights.Bold, Foreground = _brushGray, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
@@ -8916,7 +8927,8 @@ namespace SwimmingScoreboard
                 // Col 6: 成绩信息（反应时/盲表 + 成绩 + 名次 + 备注）
                 var infoArea = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
                 // 2026-06-16 反应时改上下两行: 上行反应时(保留) + 下行盲表历史 ComboBox(最新在顶)
-                var reactionStack = new StackPanel { Orientation = Orientation.Vertical, Width = 55, VerticalAlignment = VerticalAlignment.Center };
+                // 宽度 55→90 容纳盲表时分秒格式 "1:25:42.78"
+                var reactionStack = new StackPanel { Orientation = Orientation.Vertical, Width = 90, VerticalAlignment = VerticalAlignment.Center };
                 var reactionText = new TextBlock { FontSize = 13, Foreground = Brushes.White, TextAlignment = TextAlignment.Center, FontFamily = new FontFamily("Consolas"), Height = 20 };
                 reactionStack.Children.Add(reactionText);
                 // 2026-06-16 淡蓝背景 + 深色字, 跟 dark 行底色形成对比, 文字可读
