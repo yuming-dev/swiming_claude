@@ -8324,14 +8324,16 @@ namespace SwimmingScoreboard
             Grid.SetColumn(leftHdrInd, 1); PoolHeader.Children.Add(leftHdrInd);
 
             // 左端表头与右端对称：[T] 盲3 盲2 盲1 出发 触板 圈
-            // 当 LeftBlindWatchCount<3 时，最外侧的 盲3/盲2 标签使用 Hidden 保留位置，
-            // 这样 盲1 / 出发 / 触板 的位置固定不动
+            // 2026-06-16 列宽与下方指示灯一致 + 5 个设备标签都两行显示
+            // 当 LeftBlindWatchCount<3 时，最外侧的 盲3/盲2 标签使用 Hidden 保留位置
             var leftLabels = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-            string[] leftLabelDefs = new[] { "[T]:80", "盲3:26", "盲2:26", "盲1:26", "出发:26", "触板:26", "圈:50" };
+            string[] leftLabelDefs = new[] { "[T]:80", "盲\n3:22", "盲\n2:22", "盲\n1:22", "出\n发:26", "触\n板:11", "圈:50" };
             int leftBwc = _laneCloseSettings.LeftBlindWatchCount;
             for (int li = 0; li < leftLabelDefs.Length; li++) {
                 string[] p = leftLabelDefs[li].Split(':');
                 var tb = new TextBlock { Text = p[0], Width = double.Parse(p[1]), Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")), FontSize = 12, TextAlignment = TextAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+                // 设备标签 (含 \n 换行符) 统一两行显示, 字号小一号
+                if (p[0].Contains("\n")) { tb.TextWrapping = TextWrapping.Wrap; tb.FontSize = 10; tb.LineHeight = 13; }
                 // li=1 是 盲3（数量>=3 才显示），li=2 是 盲2（数量>=2），li=3 是 盲1（数量>=1）
                 if (li == 1) tb.Visibility = leftBwc >= 3 ? Visibility.Visible : Visibility.Hidden;
                 else if (li == 2) tb.Visibility = leftBwc >= 2 ? Visibility.Visible : Visibility.Hidden;
@@ -8346,12 +8348,15 @@ namespace SwimmingScoreboard
             Grid.SetColumn(midLabels, 3); PoolHeader.Children.Add(midLabels);
 
             // 右端表头：圈 触板 出发 盲1 盲2 盲3 [T]（盲表数量减少时盲2/盲3 用 Hidden 保留位置）
+            // 2026-06-16 列宽与下方指示灯一致 + 5 个设备标签都两行显示
             var rightLabels = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-            string[] rightLabelDefs = new[] { "圈:50", "触板:26", "出发:26", "盲1:26", "盲2:26", "盲3:26", "[T]:80" };
+            string[] rightLabelDefs = new[] { "圈:50", "触\n板:11", "出\n发:26", "盲\n1:22", "盲\n2:22", "盲\n3:22", "[T]:80" };
             int rightBwc = _laneCloseSettings.RightBlindWatchCount;
             for (int ri = 0; ri < rightLabelDefs.Length; ri++) {
                 string[] p = rightLabelDefs[ri].Split(':');
                 var tb = new TextBlock { Text = p[0], Width = double.Parse(p[1]), Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")), FontSize = 12, TextAlignment = TextAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+                // 设备标签 (含 \n 换行符) 统一两行显示, 字号小一号
+                if (p[0].Contains("\n")) { tb.TextWrapping = TextWrapping.Wrap; tb.FontSize = 10; tb.LineHeight = 13; }
                 // ri=3 是 盲1（数量>=1），ri=4 是 盲2（数量>=2），ri=5 是 盲3（数量>=3）
                 if (ri == 3) tb.Visibility = rightBwc >= 1 ? Visibility.Visible : Visibility.Hidden;
                 else if (ri == 4) tb.Visibility = rightBwc >= 2 ? Visibility.Visible : Visibility.Hidden;
@@ -8405,7 +8410,8 @@ namespace SwimmingScoreboard
         // 2026-05-13 设备圆点统一样式：NotInstalled → 透明填充 + 灰色虚线描边（"未安装"的虚线框），
         // 其它状态 → 正常实色填充无描边。比赛控制行刷新时调用，所有 RightDots / LeftDots 都用它。
         private static readonly DoubleCollection _dotDashArray = new DoubleCollection(new double[] { 2, 1.5 });
-        private static void StyleDot(Ellipse dot, DeviceStatus status) {
+        // 2026-06-16 dot shape: Ellipse → Shape 基类, 支持 Rectangle (出发台正方形 + 触板长条)
+        private static void StyleDot(Shape dot, DeviceStatus status) {
             if (dot == null) return;
             if (status == DeviceStatus.NotInstalled) {
                 dot.Fill = Brushes.Transparent;
@@ -8432,7 +8438,7 @@ namespace SwimmingScoreboard
         //   注: 硬件 newState=5 (Pressed 红色按下) 待 swimplay.c Process_*StateChange 扩展 KeyState
         //       综合后才会真上报; 当前未上报时 PC UI 触板红色仍由业务 Touched 触发, 视觉跟之前一致.
         private enum DotDeviceType { Tp, Sb, Mb }
-        private void StyleDotMixed(Ellipse dot, byte hwColor, DeviceStatus businessStatus, DotDeviceType deviceType) {
+        private void StyleDotMixed(Shape dot, byte hwColor, DeviceStatus businessStatus, DotDeviceType deviceType) {
             if (dot == null) return;
             // 业务字段优先
             if (businessStatus == DeviceStatus.NotInstalled) {
@@ -8487,8 +8493,9 @@ namespace SwimmingScoreboard
             public Swimmer Swimmer;
             public Border Row;
             public Button TouchL, TouchR;
-            public Ellipse[] LeftDots;  // [BlindWatch1, BlindWatch2, BlindWatch3, StartBlock, Touchpad]
-            public Ellipse[] RightDots; // [Touchpad, StartBlock, BlindWatch1, BlindWatch2, BlindWatch3]
+            // 2026-06-16 dot shape: Ellipse[] → Shape[] 以容纳 Rectangle (出发台正方形 + 触板长条)
+            public Shape[] LeftDots;  // [BlindWatch1, BlindWatch2, BlindWatch3, StartBlock, Touchpad]
+            public Shape[] RightDots; // [Touchpad, StartBlock, BlindWatch1, BlindWatch2, BlindWatch3]
             public TextBlock LeftRemainText, RightRemainText;
             public TextBlock TrackText;
             public TextBlock NameText, TeamText;
@@ -8742,12 +8749,23 @@ namespace SwimmingScoreboard
                 leftDev.Children.Add(touchL);
                 rowUI.TouchL = touchL;
 
-                // 左端 5 圆点：[0]=盲3, [1]=盲2, [2]=盲1, [3]=出发, [4]=触板（与右端对称）
+                // 左端 5 指示灯：[0]=盲3, [1]=盲2, [2]=盲1, [3]=出发, [4]=触板（与右端对称）
+                // 2026-06-16 形状区分: 盲表=圆 (18), 出发台=正方形 (22x22 圆角4), 触板=竖向窄条 (7x36)
                 // 创建时即按当前 LeftBlindWatchCount 设置 Visibility，避免初始一闪而过
                 int initLbc = _laneCloseSettings.LeftBlindWatchCount;
-                rowUI.LeftDots = new Ellipse[5];
+                rowUI.LeftDots = new Shape[5];
                 for (int i = 0; i < 5; i++) {
-                    var dot = new Ellipse { Width = 22, Height = 22, Margin = new Thickness(2, 0, 2, 0) };
+                    Shape dot;
+                    if (i == 3) {
+                        // 出发台: 22x22 圆角正方形
+                        dot = new Rectangle { Width = 22, Height = 22, RadiusX = 4, RadiusY = 4, Margin = new Thickness(2, 0, 2, 0) };
+                    } else if (i == 4) {
+                        // 触板: 7x36 竖向窄条
+                        dot = new Rectangle { Width = 7, Height = 36, Margin = new Thickness(2, 0, 2, 0) };
+                    } else {
+                        // 盲表: 直径 18 圆形
+                        dot = new Ellipse { Width = 18, Height = 18, Margin = new Thickness(2, 0, 2, 0) };
+                    }
                     if (i == 0) dot.Visibility = initLbc >= 3 ? Visibility.Visible : Visibility.Hidden;
                     else if (i == 1) dot.Visibility = initLbc >= 2 ? Visibility.Visible : Visibility.Hidden;
                     else if (i == 2) dot.Visibility = initLbc >= 1 ? Visibility.Visible : Visibility.Hidden;
@@ -8804,11 +8822,22 @@ namespace SwimmingScoreboard
                 rightDev.Children.Add(rightRemainText);
                 rowUI.RightRemainText = rightRemainText;
 
-                // 右端 5 圆点：[0]=触板, [1]=出发, [2]=盲1, [3]=盲2, [4]=盲3
+                // 右端 5 指示灯：[0]=触板, [1]=出发, [2]=盲1, [3]=盲2, [4]=盲3
+                // 2026-06-16 形状区分: 触板=竖向窄条 (7x36), 出发台=正方形 (22x22 圆角4), 盲表=圆 (18)
                 int initRbc = _laneCloseSettings.RightBlindWatchCount;
-                rowUI.RightDots = new Ellipse[5];
+                rowUI.RightDots = new Shape[5];
                 for (int i = 0; i < 5; i++) {
-                    var dot = new Ellipse { Width = 22, Height = 22, Margin = new Thickness(2, 0, 2, 0) };
+                    Shape dot;
+                    if (i == 0) {
+                        // 触板: 7x36 竖向窄条
+                        dot = new Rectangle { Width = 7, Height = 36, Margin = new Thickness(2, 0, 2, 0) };
+                    } else if (i == 1) {
+                        // 出发台: 22x22 圆角正方形
+                        dot = new Rectangle { Width = 22, Height = 22, RadiusX = 4, RadiusY = 4, Margin = new Thickness(2, 0, 2, 0) };
+                    } else {
+                        // 盲表: 直径 18 圆形
+                        dot = new Ellipse { Width = 18, Height = 18, Margin = new Thickness(2, 0, 2, 0) };
+                    }
                     if (i == 2) dot.Visibility = initRbc >= 1 ? Visibility.Visible : Visibility.Hidden;
                     else if (i == 3) dot.Visibility = initRbc >= 2 ? Visibility.Visible : Visibility.Hidden;
                     else if (i == 4) dot.Visibility = initRbc >= 3 ? Visibility.Visible : Visibility.Hidden;
