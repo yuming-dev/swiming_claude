@@ -254,13 +254,15 @@ function renderScheduleTree() {
         if (!collapsed) {
             for (var j = 0; j < sess.events.length; j++) {
                 var ev = sess.events[j];
-                var label = (ev.gender || '') + ' ' + (ev.eventName || '') + ' ' + (ev.stage || '');
+                // 2026-06-16 显示 ageGroup 前缀, key 含 ageGroup 修跨组别污染
+                var ageHead = ev.ageGroup ? (ev.ageGroup + ' ') : '';
+                var label = ageHead + (ev.gender || '') + ' ' + (ev.eventName || '') + ' ' + (ev.stage || '');
                 html += '<div class="tree-event">' + escHtml(label) + '</div>';
                 var hc = ev.heatCount || 1;
                 for (var h = 1; h <= hc; h++) {
-                    var key = (ev.gender || '') + '|' + (ev.eventName || '') + '|' + (ev.stage || '') + '|' + h;
+                    var key = (ev.ageGroup || '') + '|' + (ev.gender || '') + '|' + (ev.eventName || '') + '|' + (ev.stage || '') + '|' + h;
                     var active = '';
-                    if (currentHeat && currentHeat.gender === ev.gender && currentHeat.eventName === ev.eventName
+                    if (currentHeat && currentHeat.ageGroup === (ev.ageGroup || '') && currentHeat.gender === ev.gender && currentHeat.eventName === ev.eventName
                         && currentHeat.stage === ev.stage && currentHeat.heat === h) active = ' active';
                     var confirmed = (ev.heatConfirmed && ev.heatConfirmed[h - 1]) ? ' checked' : '';
                     html += '<div class="tree-heat' + active + confirmed + '" onclick="selectHeat(\'' + key.replace(/\\/g, '\\\\').replace(/\'/g, "\\'") + '\')">第' + h + '组（共' + hc + '组）'
@@ -277,8 +279,9 @@ function toggleSession(sn) { treeCollapsed[sn] = !(treeCollapsed[sn] === true); 
 function selectHeat(key) {
     if (dirty && !confirm('当前组有未保存的备注修改，切换后将丢失。确定切换？')) return;
     var parts = key.split('|');
-    if (parts.length < 4) return;
-    currentHeat = { gender: parts[0], eventName: parts[1], stage: parts[2], heat: parseInt(parts[3]) };
+    // 2026-06-16 key 含 ageGroup, 5 部分: ageGroup|gender|eventName|stage|heat
+    if (parts.length < 5) return;
+    currentHeat = { ageGroup: parts[0], gender: parts[1], eventName: parts[2], stage: parts[3], heat: parseInt(parts[4]) };
     dirty = false;
     if (ws && ws.readyState === 1) {
         ws.send(JSON.stringify({ type: 'GET_HEAT_SWIMMERS', data: currentHeat }));
@@ -460,6 +463,7 @@ function confirmCheckin() {
     ws.send(JSON.stringify({
         type: 'SAVE_CHECKIN',
         data: {
+            ageGroup: currentHeat.ageGroup || '',  // 2026-06-16 加 ageGroup 防跨组别撞 bibNumber
             gender: currentHeat.gender, eventName: currentHeat.eventName,
             stage: currentHeat.stage, heat: currentHeat.heat,
             statuses: statuses

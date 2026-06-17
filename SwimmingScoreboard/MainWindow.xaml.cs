@@ -927,9 +927,12 @@ namespace SwimmingScoreboard
         // ═══════════════════════════════════════════════════════════════
 
         // 查询指定组运动员（不改变服务器当前组状态；只回复给请求者）
+        // 2026-06-16 加 ageGroup 参数: 修跨组别污染 bug (跟 PublishResultToDisplay 同类) -
+        //   多组别共用 (gender, event, stage) 时, 漏 ageGroup 会返回所有组别的运动员到检录台.
         private void HandleGetHeatSwimmers(IWebSocketConnection socket, JObject msg) {
             var data = msg["data"];
             if (data == null) return;
+            string ageGroup = data["ageGroup"] != null ? data["ageGroup"].ToString() : "";
             string gender = data["gender"] != null ? data["gender"].ToString() : "";
             string eventName = data["eventName"] != null ? data["eventName"].ToString() : "";
             string stage = data["stage"] != null ? data["stage"].ToString() : "";
@@ -938,6 +941,7 @@ namespace SwimmingScoreboard
             bool isRelay = eventName.Contains("接力");
             var heatSwimmers = _swimmers.Where(s =>
                 SgMatch(s.Gender, gender) && s.EventName == eventName &&
+                (string.IsNullOrEmpty(ageGroup) || (s.AgeCategory ?? "") == ageGroup) &&
                 !(isRelay && s.Notes != null && s.Notes.StartsWith("接力队员"))
             ).ToList();
 
@@ -1013,7 +1017,7 @@ namespace SwimmingScoreboard
             try {
                 var reply = new {
                     type = "HEAT_SWIMMERS",
-                    data = new { gender, eventName, stage, heat, isRelay, swimmers = list }
+                    data = new { ageGroup, gender, eventName, stage, heat, isRelay, swimmers = list }
                 };
                 socket.Send(JsonConvert.SerializeObject(reply));
             } catch { }
@@ -1024,6 +1028,8 @@ namespace SwimmingScoreboard
         private void HandleSaveCheckin(JObject msg) {
             var data = msg["data"];
             if (data == null) return;
+            // 2026-06-16 加 ageGroup: 防跨组别 bibNumber 撞号 (虽然 bibNumber 一般全局唯一, 兜底)
+            string ageGroup = data["ageGroup"] != null ? data["ageGroup"].ToString() : "";
             string gender = data["gender"] != null ? data["gender"].ToString() : "";
             string eventName = data["eventName"] != null ? data["eventName"].ToString() : "";
             string stage = data["stage"] != null ? data["stage"].ToString() : "";
@@ -1039,14 +1045,17 @@ namespace SwimmingScoreboard
 
                 Swimmer target = null;
                 // 首选按 bibNumber 精准匹配（个人 + 接力队员通用）
+                // 2026-06-16 加 ageGroup 兜底, 防跨组别撞 bib
                 if (!string.IsNullOrEmpty(bib)) {
                     target = _swimmers.FirstOrDefault(s =>
-                        s.BibNumber == bib && s.EventName == eventName && SgMatch(s.Gender, gender));
+                        s.BibNumber == bib && s.EventName == eventName && SgMatch(s.Gender, gender)
+                        && (string.IsNullOrEmpty(ageGroup) || (s.AgeCategory ?? "") == ageGroup));
                 }
                 // 回退按泳道匹配（仅针对当前组的非接力队员代表条目）
                 if (target == null && lane > 0) {
                     target = _swimmers.FirstOrDefault(s => {
                         if (!SgMatch(s.Gender, gender) || s.EventName != eventName) return false;
+                        if (!string.IsNullOrEmpty(ageGroup) && (s.AgeCategory ?? "") != ageGroup) return false;
                         if (s.Notes != null && s.Notes.StartsWith("接力队员")) return false;
                         var sa = s.GetAssignmentForStage(stage);
                         if (sa != null && sa.Heat == heat && sa.Lane == lane) return true;
@@ -1809,11 +1818,13 @@ namespace SwimmingScoreboard
                 case "PUBLISH_RESULT":
                     AddLog("收到PUBLISH_RESULT命令");
                     if (data != null) {
+                        // 2026-06-16 加 ageGroup 字段 (race_control.html 同步加 send) 修跨组别污染
+                        string prAgeGroup = data["ageGroup"] != null ? data["ageGroup"].ToString() : "";
                         string prGender = data["gender"] != null ? data["gender"].ToString() : "";
                         string prEvent = data["eventName"] != null ? data["eventName"].ToString() : "";
                         string prStage = data["stage"] != null ? data["stage"].ToString() : "";
                         int prHeat = data["heat"] != null ? (int)data["heat"] : 1;
-                        PublishResultToDisplay(prGender, prEvent, prStage, prHeat);
+                        PublishResultToDisplay(prAgeGroup, prGender, prEvent, prStage, prHeat);
                     }
                     break;
                 case "AUTO_GENERATE_HEATS": AutoGenerateHeats_Click(null, null); break;
@@ -10203,9 +10214,11 @@ namespace SwimmingScoreboard
             }
         }
 
-        // 编辑端 — 取消晋级：删除指定 (gender, event, stage) 的 StageAssignment + 赛程项
+        // 编辑端 — 取消晋级：删除指定 (ageGroup, gender, event, stage) 的 StageAssignment + 赛程项
+        // 2026-06-16 加 ageGroup 筛选: 跨组别共用 (gender, event, stage) 时不会全删
         private void HandleEditorCancelPromotion(JObject data) {
             if (data == null) { AddLog("CANCEL_PROMOTION 数据为空"); return; }
+            string ageGroup = data["ageGroup"] != null ? data["ageGroup"].ToString() : "";
             string gender = data["gender"] != null ? data["gender"].ToString() : "";
             string evName = data["eventName"] != null ? data["eventName"].ToString() : "";
             string stage = data["stage"] != null ? data["stage"].ToString() : "";
@@ -10213,7 +10226,8 @@ namespace SwimmingScoreboard
                 AddLog("CANCEL_PROMOTION 缺少 gender/eventName/stage"); return;
             }
             int removed = 0;
-            foreach (var sw in _swimmers.Where(s => SgMatch(s.Gender, gender) && s.EventName == evName)) {
+            foreach (var sw in _swimmers.Where(s => SgMatch(s.Gender, gender) && s.EventName == evName
+                    && (string.IsNullOrEmpty(ageGroup) || (s.AgeCategory ?? "") == ageGroup))) {
                 if (sw.StageAssignments != null && sw.StageAssignments.ContainsKey(stage)) {
                     sw.StageAssignments.Remove(stage);
                     removed++;
@@ -10224,8 +10238,9 @@ namespace SwimmingScoreboard
                     else if (stage == "半决赛") sw.CurrentStage = "预赛";
                 }
             }
-            // 删除该 stage 的 schedule item
-            var toRemove = _schedule.Where(s => SgMatch(s.Gender, gender) && s.EventName == evName && s.Stage == stage).ToList();
+            // 删除该 (ageGroup, gender, event, stage) 的 schedule item
+            var toRemove = _schedule.Where(s => SgMatch(s.Gender, gender) && s.EventName == evName && s.Stage == stage
+                && (string.IsNullOrEmpty(ageGroup) || (s.AgeGroup ?? "") == ageGroup)).ToList();
             foreach (var s in toRemove) _schedule.Remove(s);
 
             BuildScheduleTree();
@@ -15631,7 +15646,8 @@ namespace SwimmingScoreboard
             }
 
             // 收集所有未分组的运动员（按项目分组）
-            var unassigned = new Dictionary<string, List<Swimmer>>(); // key: "gender|eventName|stage"
+            // 2026-06-16 key 加 ageGroup, 修跨组别污染 bug — 不同组别同 (gender,event,stage) 不应混分到同一组
+            var unassigned = new Dictionary<string, List<Swimmer>>(); // key: "ageGroup|gender|eventName|stage"
             foreach (var s in _swimmers) {
                 if (string.IsNullOrEmpty(s.EventName) || string.IsNullOrEmpty(s.Gender)) continue;
                 if (s.Notes != null && s.Notes.StartsWith("接力队员")) continue;
@@ -15639,7 +15655,7 @@ namespace SwimmingScoreboard
                 var sa = s.GetAssignmentForStage(stage);
                 bool assigned = (sa != null && sa.Heat > 0) || (s.Heat > 0 && s.CurrentStage == stage);
                 if (!assigned) {
-                    string key = s.Gender + "|" + s.EventName + "|" + stage;
+                    string key = (s.AgeCategory ?? "") + "|" + s.Gender + "|" + s.EventName + "|" + stage;
                     if (!unassigned.ContainsKey(key)) unassigned[key] = new List<Swimmer>();
                     unassigned[key].Add(s);
                 }
@@ -15712,9 +15728,11 @@ namespace SwimmingScoreboard
 
             foreach (var kv in unassigned) {
                 var parts = kv.Key.Split('|');
-                string gender = parts[0];
-                string eventName = parts[1];
-                string stage = parts[2];
+                // 2026-06-16 key 是 ageGroup|gender|eventName|stage (4 段, 上面同步改)
+                string ageGroup = parts[0];
+                string gender = parts[1];
+                string eventName = parts[2];
+                string stage = parts[3];
                 var newSwimmers = kv.Value;
 
                 // 找该项目当前最大组号
@@ -15778,19 +15796,22 @@ namespace SwimmingScoreboard
                 }
 
                 // 更新赛程表中的组数（不存在则新建）
-                var schedItem = _schedule.FirstOrDefault(s => SgMatch(s.Gender, gender) && s.EventName == eventName && s.Stage == stage);
+                // 2026-06-16 加 AgeGroup 筛选, 不再误改其他组别的 HeatCount
+                var schedItem = _schedule.FirstOrDefault(s => SgMatch(s.Gender, gender) && s.EventName == eventName
+                    && s.Stage == stage && (s.AgeGroup ?? "") == ageGroup);
                 if (schedItem != null) {
                     if (maxHeat > schedItem.HeatCount) schedItem.HeatCount = maxHeat;
                 } else {
                     // 新项目：在赛程表中新建条目
                     _schedule.Add(new ScheduleItem {
                         SessionNumber = _schedule.Count > 0 ? _schedule.Max(s => s.SessionNumber) : 1,
+                        AgeGroup = ageGroup,
                         Gender = gender,
                         EventName = eventName,
                         Stage = stage,
                         HeatCount = maxHeat
                     });
-                    AddLog(string.Format("  新建赛程: {0} {1} {2}（{3}组）", gender, eventName, stage, maxHeat));
+                    AddLog(string.Format("  新建赛程: {0} {1} {2} {3}（{4}组）", ageGroup, gender, eventName, stage, maxHeat));
                 }
             }
 
@@ -16104,7 +16125,8 @@ namespace SwimmingScoreboard
 
             if (dlg.ShowDialog() == true && listBox.SelectedIndex >= 0 && listBox.SelectedIndex < completedHeats.Count) {
                 dynamic sel = completedHeats[listBox.SelectedIndex];
-                PublishResultToDisplay((string)sel.Gender, (string)sel.EventName, (string)sel.Stage, (int)sel.Heat);
+                // 2026-06-16 fix: 传 AgeGroup 修跨组别污染
+                PublishResultToDisplay((string)sel.AgeGroup, (string)sel.Gender, (string)sel.EventName, (string)sel.Stage, (int)sel.Heat);
             }
         }
 
@@ -16127,13 +16149,20 @@ namespace SwimmingScoreboard
         /// <summary>
         /// 将指定组的成绩发布到大屏（供EXE按钮和HTML远程调用）
         /// </summary>
-        private void PublishResultToDisplay(string gender, string eventName, string stage, int heat) {
+        // 2026-06-16 加 ageGroup 参数: 修发布成绩跨组别污染 bug (PublishResult_Click 选中明明是某组别,
+        //   但调用 PublishResultToDisplay 漏传 → 内部按 gender+eventName+stage+heat 筛选会命中所有 AgeGroup,
+        //   导致 display.html 显示超过 8/10 个运动员且部分不属于本组).
+        //   传 ageGroup="" 时退回兼容 (不按组别过滤, 用于不分组的赛事).
+        private void PublishResultToDisplay(string ageGroup, string gender, string eventName, string stage, int heat) {
             var heatSwimmers = new List<object>();
-            var schedItem = _schedule.FirstOrDefault(s => SgMatch(s.Gender, gender) && s.EventName == eventName && s.Stage == stage);
+            var schedItem = _schedule.FirstOrDefault(s => SgMatch(s.Gender, gender) && s.EventName == eventName && s.Stage == stage
+                && (string.IsNullOrEmpty(ageGroup) || (s.AgeGroup ?? "") == ageGroup));
             int heatCount = schedItem != null ? schedItem.HeatCount : 1;
 
             foreach (var s in _swimmers) {
                 if (!SgMatch(s.Gender, gender) || s.EventName != eventName) continue;
+                // 2026-06-16 按组别筛选 — 跨组别同 (gender,event,stage,heat) 不应混在一起
+                if (!string.IsNullOrEmpty(ageGroup) && (s.AgeCategory ?? "") != ageGroup) continue;
                 var sa = s.GetAssignmentForStage(stage);
                 bool inHeat = (sa != null && sa.Heat == heat) || (s.CurrentStage == stage && s.Heat == heat);
                 if (!inHeat) continue;
@@ -16177,7 +16206,7 @@ namespace SwimmingScoreboard
                     heatDisplay = heatDisplay,
                     swimmers = heatSwimmers,
                     poolConfig = new { lanes = _poolConfig.LaneCount },
-                    applicableRecords = BuildApplicableRecords(eventName, gender, schedItem != null ? schedItem.AgeGroup : null)   // 2026-06-05 项目名称下 纪录行 (按当前 schedule 组别过滤, 只显本组的 MR)
+                    applicableRecords = BuildApplicableRecords(eventName, gender, !string.IsNullOrEmpty(ageGroup) ? ageGroup : (schedItem != null ? schedItem.AgeGroup : null))   // 2026-06-16 按传入 ageGroup 过滤纪录, 兜底用 schedItem.AgeGroup
                 }
             };
             string json = Newtonsoft.Json.JsonConvert.SerializeObject(publishData);
@@ -21396,7 +21425,9 @@ namespace SwimmingScoreboard
             string eventTitle = string.Format("{0} {1}{2} {3} 第 {4} 组", _currentGender, ageGroupSpace, _currentEvent, _currentStage, _currentHeat);
             sb.AppendFormat("<h3>项目：{0}</h3>", eventTitle);
 
-            var sch = _schedule.FirstOrDefault(s => s.Gender == _currentGender && s.EventName == _currentEvent && s.Stage == _currentStage);
+            // 2026-06-16 加 _currentAgeGroup 筛选, 跨组别共用 (gender,event,stage) 不会拿错 Date/Time
+            var sch = _schedule.FirstOrDefault(s => s.Gender == _currentGender && s.EventName == _currentEvent && s.Stage == _currentStage
+                && (string.IsNullOrEmpty(_currentAgeGroup) || (s.AgeGroup ?? "") == _currentAgeGroup));
             string dateTimeInfo = sch != null ? string.Format("{0} {1}", sch.Date, sch.Time).Trim() : "（时间待定）";
             sb.AppendFormat("<h4>比赛时间：{0} &nbsp;&nbsp;&nbsp;&nbsp; 地点：{1}</h4>", dateTimeInfo, LocationBox.Text);
 
@@ -22154,7 +22185,9 @@ namespace SwimmingScoreboard
             string eventTitle = string.Format("{0} {1}{2} {3} 第 {4} 组", _currentGender, ageGroupSpaceS, _currentEvent, _currentStage, _currentHeat);
             sb.AppendFormat("<h3>项目：{0}</h3>", eventTitle);
 
-            var sch = _schedule.FirstOrDefault(s => s.Gender == _currentGender && s.EventName == _currentEvent && s.Stage == _currentStage);
+            // 2026-06-16 加 _currentAgeGroup 筛选, 跨组别共用 (gender,event,stage) 不会拿错 Date/Time
+            var sch = _schedule.FirstOrDefault(s => s.Gender == _currentGender && s.EventName == _currentEvent && s.Stage == _currentStage
+                && (string.IsNullOrEmpty(_currentAgeGroup) || (s.AgeGroup ?? "") == _currentAgeGroup));
             string dateTimeInfo = sch != null ? string.Format("{0} {1}", sch.Date, sch.Time).Trim() : "（时间待定）";
             sb.AppendFormat("<h4>比赛时间：{0} &nbsp;&nbsp;&nbsp;&nbsp; 地点：{1}</h4>", dateTimeInfo, LocationBox.Text);
 

@@ -714,8 +714,10 @@ function publishResult() {
         for (var h = 0; h < confirmed.length; h++) {
             if (confirmed[h]) {
                 var showHeat = (confirmed.length > 1) || (s.stage||'').indexOf('预赛') >= 0 || (s.stage||'').indexOf('半决赛') >= 0;
-                var label = (s.gender||'') + ' ' + (s.eventName||'') + ' ' + (s.stage||'') + (showHeat ? ' 第' + (h+1) + '组' : '');
-                items.push({label: label, gender: s.gender, eventName: s.eventName, stage: s.stage, heat: h+1});
+                var ageHead = s.ageGroup ? (s.ageGroup + ' ') : '';
+                var label = ageHead + (s.gender||'') + ' ' + (s.eventName||'') + ' ' + (s.stage||'') + (showHeat ? ' 第' + (h+1) + '组' : '');
+                // 2026-06-16 加 ageGroup 字段, 修发布成绩跨组别污染 bug
+                items.push({label: label, ageGroup: s.ageGroup||'', gender: s.gender, eventName: s.eventName, stage: s.stage, heat: h+1});
             }
         }
     }
@@ -736,7 +738,7 @@ function publishResult() {
     document.getElementById('pubOkBtn').onclick = function() {
         var idx = parseInt(document.getElementById('pubSelect').value);
         var it = items[idx];
-        sendCmd('PUBLISH_RESULT', {gender: it.gender, eventName: it.eventName, stage: it.stage, heat: it.heat});
+        sendCmd('PUBLISH_RESULT', {ageGroup: it.ageGroup, gender: it.gender, eventName: it.eventName, stage: it.stage, heat: it.heat});
         dlg.remove();
     };
 }
