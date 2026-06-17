@@ -400,8 +400,13 @@ namespace SwimmingScoreboard
         ///   ≤8人  → 直接决赛
         /// </summary>
         // 2026-06-16 群众赛/U系列规则: 取消预赛, 所有项目一次性多组直接决赛(无预赛/多组/跨组按时间排名)
+        // 匹配范围: 比赛规则名包含 "U系列" / "群众" / "业余" / "多组直接决赛" 任一关键词均触发
         public static bool IsDirectFinalRule(string competitionRule) {
-            return !string.IsNullOrEmpty(competitionRule) && competitionRule.Contains("U系列");
+            if (string.IsNullOrEmpty(competitionRule)) return false;
+            return competitionRule.Contains("U系列")
+                || competitionRule.Contains("群众")
+                || competitionRule.Contains("业余")
+                || competitionRule.Contains("多组直接决赛");
         }
 
         public static List<string> GetStages(int participantCount, string eventName = "", string competitionRule = "") {

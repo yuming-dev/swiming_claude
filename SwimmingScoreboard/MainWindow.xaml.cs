@@ -15133,6 +15133,8 @@ namespace SwimmingScoreboard
             wnd.HasExistingScheduleProbe = () => _schedule != null && _schedule.Any(s => !string.IsNullOrEmpty(s.EventName));
             // 2026-05-25 提供比赛元信息给「编辑/打印 封面 / 仲裁裁判员名单」等模板用
             wnd.CompetitionNameInfo = _competitionName;
+            // 2026-06-16 注入比赛规则 — 群众赛/U系列触发"决赛多组直接录取"分支 (HeatScheduler.IsDirectFinalRule)
+            wnd.CompetitionRule = _competitionRule ?? "";
             wnd.CompetitionLocation = LocationBox != null ? LocationBox.Text : "";
             wnd.CompetitionStartDate = GetDatePickerText(StartDatePicker);
             wnd.CompetitionEndDate = GetDatePickerText(EndDatePicker);
