@@ -31,6 +31,9 @@ namespace SwimmingScoreboard
         // 2026-05-24 P0-D 工作人员（5 组）— 秩序册章节 3-6 用
         private readonly List<StaffMember> _staff;
 
+        // 2026-06-16 比赛规则(由 MainWindow 在打开向导前设置) — U系列时所有项目按"一次性多组直接决赛"
+        public string CompetitionRule = "";
+
         // Tab 1 数据
         private ObservableCollection<SchedulingPlanEntry> _planRows = new ObservableCollection<SchedulingPlanEntry>();
         // 记录每行的"自动统计基线"快照，用户手改后可一键撤销
@@ -216,7 +219,7 @@ namespace SwimmingScoreboard
             };
             if (participants <= 0) return row;   // 全 0 留空，用户手动开设也行
 
-            var stages = HeatScheduler.GetStages(participants, eventName);
+            var stages = HeatScheduler.GetStages(participants, eventName, CompetitionRule);
             int prelimsHeats = (int)Math.Ceiling((double)participants / laneCount);
 
             foreach (var stage in stages) {
@@ -230,13 +233,17 @@ namespace SwimmingScoreboard
                     row.SemiHeats = 2;
                     row.SemiCutoff = 8;
                 } else if (stage == "决赛") {
-                    // 长距离快慢组：多组决赛；其余 1 组
-                    if (IsLongDistance(eventName) && participants > laneCount) {
-                        row.FinalHeats = prelimsHeats;
+                    // 2026-06-16 一次性多组直接决赛(U系列群众赛 / 长距离快慢组): 无预赛 → 按人数分多组, 全部录取(跨组按时间排名)
+                    bool directFinal = !stages.Contains("预赛") && !stages.Contains("半决赛") && !stages.Contains("次复赛");
+                    bool longMulti = IsLongDistance(eventName) && participants > laneCount;
+                    if (directFinal || longMulti) {
+                        row.FinalHeats = prelimsHeats;       // 多组 = ceil(人数/道数)
+                        row.FinalCutoff = participants;       // 全部录取/跨组按时间排名, 不再限 8
                     } else {
+                        // 预赛→决赛: 传统取前 8 进 1 组
                         row.FinalHeats = 1;
+                        row.FinalCutoff = Math.Min(8, participants);
                     }
-                    row.FinalCutoff = Math.Min(8, participants);
                 } else if (stage == "B组决赛") {
                     // 当前 GetStages 不会返回这个；裁判勾选 B 组决赛时另外加。这里预留。
                 }

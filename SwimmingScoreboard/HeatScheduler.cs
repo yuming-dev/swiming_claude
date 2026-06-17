@@ -399,7 +399,14 @@ namespace SwimmingScoreboard
         ///   ≥9人  → 预赛→决赛（两步制，无半决赛）
         ///   ≤8人  → 直接决赛
         /// </summary>
-        public static List<string> GetStages(int participantCount, string eventName = "") {
+        // 2026-06-16 群众赛/U系列规则: 取消预赛, 所有项目一次性多组直接决赛(无预赛/多组/跨组按时间排名)
+        public static bool IsDirectFinalRule(string competitionRule) {
+            return !string.IsNullOrEmpty(competitionRule) && competitionRule.Contains("U系列");
+        }
+
+        public static List<string> GetStages(int participantCount, string eventName = "", string competitionRule = "") {
+            // 2026-06-16 U系列(群众赛): 一律一次性直接决赛(无预赛), 由分组按人数自动拆多组, 跨组按时间排名
+            if (IsDirectFinalRule(competitionRule)) return new List<string> { "决赛" };
             // 2026-05-23 长距离快慢组（800/1500米自由泳）：FINA SW 3.1.1.6 — 不设预赛，
             // 所有报名者直接进入决赛阶段，按成绩切分快组（晚间）+ 慢组（白天），合并排名
             if (IsLongDistanceFastSlowEvent(eventName)) return new List<string> { "决赛" };
