@@ -8351,9 +8351,10 @@ namespace SwimmingScoreboard
 
             // 左端表头与右端对称：[T] 盲3 盲2 盲1 出发 触板 圈
             // 2026-06-16 列宽与下方指示灯一致 + 5 个设备标签都两行显示
+            // 2026-06-16 加 Margin(2,0,0,0) 跟下方 leftDev 对齐. 圈 50→44 = leftRemainText(26)+leftSpinner(18)
             // 当 LeftBlindWatchCount<3 时，最外侧的 盲3/盲2 标签使用 Hidden 保留位置
-            var leftLabels = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-            string[] leftLabelDefs = new[] { "[T]:80", "盲\n3:22", "盲\n2:22", "盲\n1:22", "出\n发:26", "触\n板:11", "圈:50" };
+            var leftLabels = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(2, 0, 0, 0) };
+            string[] leftLabelDefs = new[] { "[T]:80", "盲\n3:22", "盲\n2:22", "盲\n1:22", "出\n发:26", "触\n板:11", "圈:44" };
             int leftBwc = _laneCloseSettings.LeftBlindWatchCount;
             for (int li = 0; li < leftLabelDefs.Length; li++) {
                 string[] p = leftLabelDefs[li].Split(':');
@@ -8375,8 +8376,9 @@ namespace SwimmingScoreboard
 
             // 右端表头：圈 触板 出发 盲1 盲2 盲3 [T]（盲表数量减少时盲2/盲3 用 Hidden 保留位置）
             // 2026-06-16 列宽与下方指示灯一致 + 5 个设备标签都两行显示
+            // 2026-06-16 圈 50→44 = rightSpinner(18)+rightRemainText(26), 跟下方 rightDev 对齐
             var rightLabels = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-            string[] rightLabelDefs = new[] { "圈:50", "触\n板:11", "出\n发:26", "盲\n1:22", "盲\n2:22", "盲\n3:22", "[T]:80" };
+            string[] rightLabelDefs = new[] { "圈:44", "触\n板:11", "出\n发:26", "盲\n1:22", "盲\n2:22", "盲\n3:22", "[T]:80" };
             int rightBwc = _laneCloseSettings.RightBlindWatchCount;
             for (int ri = 0; ri < rightLabelDefs.Length; ri++) {
                 string[] p = rightLabelDefs[ri].Split(':');
