@@ -4473,6 +4473,8 @@ namespace SwimmingScoreboard
                         //   误记为新分段 → 触发 Direction flip → 倒计时结束后开错端设备.
                         //   保留原 Open→记录 / Touched→备用 / 其它→丢弃 的状态机 (与硬件期望一致).
                         if (tpStatus == DeviceStatus.Open || IsLaneForceAllOpen(lane) || isMbSubstitute) {
+                            // 2026-06-16 盲表成绩历史: isMbSubstitute=true (= 真盲表代触) 即时 append + 刷下拉
+                            if (isMbSubstitute) AppendBlindResult(lane, timeInSeconds);
                             ProcessTouchpadHit(lane, timeInSeconds, laneState, side, isMbSubstitute);
                             // 已记录正式成绩，把该端切到"已触板（红）"，到点再 Closed
                             EnterTouchedThenClose(laneState, sideForClose, lane);
@@ -4512,9 +4514,13 @@ namespace SwimmingScoreboard
                         // 2026-05-13 全开模式：所有盲表信号都认可为正式分段
                         // 2026-05-26 撤回 Closed-accept 改动 (副作用见 Touchpad 分支注释)
                         if (bwStatus == DeviceStatus.Open || IsLaneForceAllOpen(lane)) {
+                            // 2026-06-16 盲表成绩历史 (PushButton1/2/3 = 真盲表分段事件) → 即时 append + 刷下拉
+                            AppendBlindResult(lane, timeInSeconds);
                             ProcessBlindWatchData(lane, cmdType, timeInSeconds, bwSideForClose);
                             EnterBlindTouchedThenClose(laneState, bwSideForClose, blindNum, lane);
                         } else if (bwStatus == DeviceStatus.Touched) {
+                            // 备用盲表也一起加入历史 (Touched 状态下重复的盲表)
+                            AppendBlindResult(lane, timeInSeconds);
                             RecordBackupBlind(lane, blindNum, timeInSeconds);
                         } else {
                             AddLog(string.Format("泳道{0} 盲表{1} 数据已记录但不作为成绩（{2}状态:{3}）",
@@ -7126,6 +7132,15 @@ namespace SwimmingScoreboard
             // 2026-06-14 PreStart 重设计: 复位也清掉枪响 PreStart 锚点和待算反应时缓存 (= 新一场比赛干净状态)
             _gunPreStartSec = null;
             _pendingPreStartReactions.Clear();
+            // 2026-06-16 盲表成绩历史清空 (每组开始干净状态) + 刷各泳道 ComboBox
+            _laneBlindHistory.Clear();
+            foreach (var rowUI in _laneRowUIs) {
+                if (rowUI.BlindCombo != null) {
+                    rowUI.BlindCombo.Items.Clear();
+                    rowUI.BlindCombo.SelectedItem = null;
+                    rowUI.BlindCombo.Text = "";
+                }
+            }
             if (sender != null) {
                 var r = MessageBox.Show("确定计时复位？", "计时复位确认", MessageBoxButton.YesNo, MessageBoxImage.Warning);
                 if (r != MessageBoxResult.Yes) return;
@@ -8370,9 +8385,12 @@ namespace SwimmingScoreboard
             Grid.SetColumn(rightHdrInd, 5); PoolHeader.Children.Add(rightHdrInd);
 
             var infoLabels = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-            foreach (string s in new[] { "反应:55", "成绩:110", "名次:44", "备注:40" }) {
+            // 2026-06-16 "反应" 列改成两行 "反应/盲表" 跟下方上下两行对齐
+            foreach (string s in new[] { "反应\n盲表:55", "成绩:110", "名次:44", "备注:40" }) {
                 string[] p = s.Split(':');
-                infoLabels.Children.Add(new TextBlock { Text = p[0], Width = double.Parse(p[1]), Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")), FontSize = 12, TextAlignment = TextAlignment.Center, VerticalAlignment = VerticalAlignment.Center });
+                var tb = new TextBlock { Text = p[0], Width = double.Parse(p[1]), Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")), FontSize = 12, TextAlignment = TextAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+                if (p[0].Contains("\n")) { tb.TextWrapping = TextWrapping.Wrap; tb.FontSize = 10; tb.LineHeight = 13; }
+                infoLabels.Children.Add(tb);
             }
             Grid.SetColumn(infoLabels, 6); PoolHeader.Children.Add(infoLabels);
         }
@@ -8501,9 +8519,38 @@ namespace SwimmingScoreboard
             public TextBlock NameText, TeamText;
             public TextBlock ReactionText, DisplayTimeText, RankText, RemarkText;
             public Border LeftSignalInd, RightSignalInd;
+            public ComboBox BlindCombo;  // 2026-06-16 盲表历史下拉框: 平时显最新, 下拉看全部 (降序)
         }
 
         private List<LaneRowUI> _laneRowUIs = new List<LaneRowUI>();
+
+        // 2026-06-16 盲表成绩历史: 每泳道一条 List, 时间降序 (最新在 [0]). 容量按 1500m x 6 设备估算 (~180 条/道).
+        private class BlindResultEntry {
+            public double TimeSeconds;
+            public DateTime ArriveAt;
+            public override string ToString() { return TimeSeconds.ToString("F2"); }
+        }
+        private Dictionary<int, List<BlindResultEntry>> _laneBlindHistory = new Dictionary<int, List<BlindResultEntry>>();
+
+        // 2026-06-16 盲表事件到达: append per-lane history (降序 Insert 到 [0]) + 刷该泳道 ComboBox
+        //   下拉打开时不强制刷 SelectedIndex, 避免操作员看历史时被新数据强制跳转.
+        private void AppendBlindResult(int lane, double timeSec) {
+            List<BlindResultEntry> hist;
+            if (!_laneBlindHistory.TryGetValue(lane, out hist)) {
+                hist = new List<BlindResultEntry>();
+                _laneBlindHistory[lane] = hist;
+            }
+            var entry = new BlindResultEntry { TimeSeconds = timeSec, ArriveAt = DateTime.Now };
+            hist.Insert(0, entry);
+            LaneRowUI rowUI = null;
+            foreach (var r in _laneRowUIs) { if (r.Lane == lane) { rowUI = r; break; } }
+            if (rowUI != null && rowUI.BlindCombo != null) {
+                var combo = rowUI.BlindCombo;
+                bool wasOpen = combo.IsDropDownOpen;
+                combo.Items.Insert(0, entry);
+                if (!wasOpen) combo.SelectedIndex = 0;
+            }
+        }
         private string _laneRowsBuiltKey = "";
 
         // 接力项目：根据当前段数计算正在游的棒次，返回 "第N棒: 队员姓名"。
@@ -8866,11 +8913,34 @@ namespace SwimmingScoreboard
                 Grid.SetColumn(rightInd, 5); grid.Children.Add(rightInd);
                 rowUI.RightSignalInd = rightInd;
 
-                // Col 6: 成绩信息（反应时 + 成绩 + 名次 + 备注）
+                // Col 6: 成绩信息（反应时/盲表 + 成绩 + 名次 + 备注）
                 var infoArea = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-                var reactionText = new TextBlock { Width = 55, FontSize = 15, Foreground = Brushes.White, TextAlignment = TextAlignment.Center, FontFamily = new FontFamily("Consolas") };
-                infoArea.Children.Add(reactionText);
+                // 2026-06-16 反应时改上下两行: 上行反应时(保留) + 下行盲表历史 ComboBox(最新在顶)
+                var reactionStack = new StackPanel { Orientation = Orientation.Vertical, Width = 55, VerticalAlignment = VerticalAlignment.Center };
+                var reactionText = new TextBlock { FontSize = 13, Foreground = Brushes.White, TextAlignment = TextAlignment.Center, FontFamily = new FontFamily("Consolas"), Height = 20 };
+                reactionStack.Children.Add(reactionText);
+                // 2026-06-16 淡蓝背景 + 深色字, 跟 dark 行底色形成对比, 文字可读
+                var _brushLightBlue = (Brush)new SolidColorBrush((Color)ColorConverter.ConvertFromString("#BFDBFE"));
+                var _brushDarkText = (Brush)new SolidColorBrush((Color)ColorConverter.ConvertFromString("#0F172A"));
+                var blindCombo = new ComboBox { Height = 20, FontSize = 11, FontFamily = new FontFamily("Consolas"), Foreground = _brushDarkText, BorderThickness = new Thickness(0), Padding = new Thickness(0), Margin = new Thickness(0), HorizontalContentAlignment = HorizontalAlignment.Center, Background = _brushLightBlue };
+                {
+                    var itemDt = new DataTemplate();
+                    var tbFactory = new FrameworkElementFactory(typeof(TextBlock));
+                    tbFactory.SetBinding(TextBlock.TextProperty, new System.Windows.Data.Binding("."));
+                    tbFactory.SetValue(TextBlock.ForegroundProperty, _brushDarkText);
+                    tbFactory.SetValue(TextBlock.HorizontalAlignmentProperty, HorizontalAlignment.Center);
+                    itemDt.VisualTree = tbFactory;
+                    blindCombo.ItemTemplate = itemDt;
+                    var itemStyle = new Style(typeof(ComboBoxItem));
+                    itemStyle.Setters.Add(new Setter(ComboBoxItem.ForegroundProperty, _brushDarkText));
+                    itemStyle.Setters.Add(new Setter(ComboBoxItem.BackgroundProperty, _brushLightBlue));
+                    itemStyle.Setters.Add(new Setter(ComboBoxItem.PaddingProperty, new Thickness(4, 1, 4, 1)));
+                    blindCombo.ItemContainerStyle = itemStyle;
+                }
+                reactionStack.Children.Add(blindCombo);
+                infoArea.Children.Add(reactionStack);
                 rowUI.ReactionText = reactionText;
+                rowUI.BlindCombo = blindCombo;
 
                 var displayTimeText = new TextBlock { Width = 110, FontSize = 17, FontWeight = FontWeights.Bold, Foreground = Brushes.White, TextAlignment = TextAlignment.Center, FontFamily = new FontFamily("Consolas") };
                 infoArea.Children.Add(displayTimeText);
