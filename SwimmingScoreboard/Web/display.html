@@ -48,8 +48,18 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 .record-item { font-size: calc(2.6vh * var(--fs) * var(--fs-info)); font-family: 'Consolas', monospace; color: var(--dim); }
 .rec-label { color: var(--gold); font-weight: bold; margin-right: 0.5vw; }
 
-/* 比赛视图 - 2026-06-03 page-header 加到 13vh 后, race-view 跟着减到 87vh, 总高仍 100vh */
-.race-view { height: 87vh; padding: 1vh 2vw; display: flex; flex-direction: column; }
+/* 比赛视图 - 2026-06-03 page-header 加到 13vh 后, race-view 跟着减到 87vh, 总高仍 100vh
+   2026-06-18 把所有水平条带的高度集中到 CSS 变量, 方便 lane-row 用 calc 反推固定行高 */
+:root {
+    --rv-h: 87vh;
+    --rv-pad-v: 1vh;       /* race-view 上下 padding (单边) */
+    --race-info-h: 7vh;    /* race-info 内 6vh + margin/padding 共 1vh */
+    --records-h: 5vh;      /* applicable-records 固定高度, 增大字号让文字看清 */
+    --lanes-header-h: calc(3.5vh * var(--fs-header));
+    /* 单行 lane-row 固定高度 — 10 道 必须放得下. 比赛视图 + 组成绩 共用 */
+    --lane-row-h: calc((var(--rv-h) - var(--rv-pad-v) * 2 - var(--race-info-h) - var(--records-h) - var(--lanes-header-h)) / 10);
+}
+.race-view { height: var(--rv-h); padding: var(--rv-pad-v) 2vw; display: flex; flex-direction: column; }
 .race-info { display: flex; justify-content: space-between; align-items: center; height: 6vh; margin-bottom: 0.5vh; border-bottom: 3px solid var(--accent); padding-bottom: 0.5vh; }
 /* 2026-06-02 lanes-header 用 --c-header / --ff-header (可独立调) + --fs-info 字号
    2026-06-04 整个第三行 (表头) 用 --fs-header 控: 字号 + 行高 + 内边距 都跟着缩放,
@@ -59,19 +69,28 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 .race-info .event-name { font-size: calc(2.8vh * var(--fs) * var(--fs-event)); font-weight: bold; color: var(--c-event); font-family: var(--ff-event); }
 /* 2026-06-02 赛次/组别 用 --c-stage / --ff-stage (可独立调), 字号跟随 比赛项目 */
 .race-info .stage-heat { font-size: calc(2.8vh * var(--fs) * var(--fs-event)); color: var(--c-stage); font-family: var(--ff-stage); }
-/* 2026-06-05 项目名称下 一行 显示 本项目所有组别 纪录 (横排空格分隔, "省R12-13岁 25.88" 等) */
-.applicable-records { display: flex; flex-wrap: wrap; align-items: center; gap: 1.6vw 2.4vw; padding: 1.1vh 0.5vw; margin-bottom: 0.8vh; line-height: 1.6;
-    font-size: calc(1.6vh * var(--fs) * var(--fs-record)); color: var(--c-record); font-family: var(--ff-record); font-weight: bold;
-    border-bottom: 1px dashed rgba(251,191,36,0.4); }
+/* 2026-06-05 项目名称下 一行 显示 本项目所有组别 纪录 (横排空格分隔, "省R12-13岁 25.88" 等)
+   2026-06-18 字号增大 (1.6vh → 2.6vh) + 行高固定 (5vh), 文字超出隐藏 — 让用户看清纪录 */
+.applicable-records {
+    display: flex; flex-wrap: nowrap; align-items: center; gap: 0 2vw; padding: 0 0.5vw; margin-bottom: 0;
+    height: var(--records-h); line-height: 1.1; overflow: hidden; white-space: nowrap;
+    font-size: calc(2.6vh * var(--fs) * var(--fs-record)); color: var(--c-record); font-family: var(--ff-record); font-weight: bold;
+    border-bottom: 1px dashed rgba(251,191,36,0.4);
+}
 .applicable-records .ar-item { white-space: nowrap; }
 .applicable-records .ar-tag { color: inherit; opacity: 0.9; margin-right: 0.3vw; }
 .applicable-records .ar-time { color: inherit; font-family: inherit; }
 .race-info .running-time { font-size: calc(4vh * var(--fs) * var(--fs-time)); font-weight: bold; color: var(--c-time); font-family: var(--ff-time); }
 
 .lanes-container { flex: 1; display: flex; flex-direction: column; gap: 0; }
-/* 2026-05-31 取消每道卡片底色, 改用细横线分隔 (与总排名 list-table 一致), 让大屏底色/背景图直接透出来 */
+/* 2026-05-31 取消每道卡片底色, 改用细横线分隔 (与总排名 list-table 一致), 让大屏底色/背景图直接透出来
+   2026-06-18 改 flex:1 自适应 → 固定高度 var(--lane-row-h) (= 5.86vh @ 1080p):
+   - 比赛视图: 即使 records 行不显示, 10 道也保持固定行高 (底部留白)
+   - 组成绩: 与比赛视图同高 (fixed-row 不再需要单独 height)
+   - 字号在固定高度内通过 --fs / --fs-info 调节, 超出 overflow hidden */
 .lane-row {
-    flex: 1; display: flex; align-items: center; background: transparent;
+    flex: 0 0 var(--lane-row-h); height: var(--lane-row-h);
+    display: flex; align-items: center; background: transparent;
     padding: 0 1.5vw; position: relative; overflow: hidden; min-height: 0;
     border-bottom: 1px solid #334155;
 }
@@ -122,16 +141,9 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 .lane-row.pubresult .result-time  { order: 6; }
 .lane-row.pubresult .remark       { order: 7; }
 
-/* 2026-06-06 组成绩 (showHeatResultPage) 行高: 跟 比赛视图 .lane-row 实际像素高一致, 而不是
-   "flex:1 撑满". 原因: 比赛视图 总是 10 行 (空泳道也占位), flex:1 平分 = 每行 7.15vh; 而
-   组成绩 可能只有 3-5 行参赛者, flex:1 会把每行拉得很高 (1/3 容器 = ~25vh), 跟 比赛视图 不一致.
-   正确做法: 固定每行高度 = 比赛视图 单行高 (7.15vh 含 records bar / 7.45vh 不含), 行数少时
-   下方留空白. 与 .list-table td (总排名) calc 公式同款. */
-.lane-row.fixed-row {
-    flex: 0 0 auto;
-    height: calc((87vh - 2vh - 7vh - 3vh - 3.5vh) / 10);   /* = 7.15vh, 同 比赛视图 lane-row */
-    min-height: 0;
-}
+/* 2026-06-18 .lane-row 本身已固定 height: var(--lane-row-h), 组成绩用的 .fixed-row 已不需要单独高度.
+   保留 .fixed-row class 仅为兼容历史 JS (showHeatResultPage 仍写入此类), 实际样式继承 .lane-row. */
+.lane-row.fixed-row { /* no-op, 继承 .lane-row 固定高度 */ }
 
 /* 列表视图 - 2026-06-03 page-header 加到 13vh 后, list-container 跟着减到 87vh
    2026-06-03 padding-top 2vh → 1vh (= .race-view 同款), 让 总排名 row1↔row2 间距 = 比赛视图 */
@@ -1900,24 +1912,10 @@ function renderHeatResult() {
     document.getElementById('stageHeat').textContent = (data.currentStage||'') + ' 第' + (data.currentHeat||0) + '组 成绩';
     document.getElementById('runningTime').textContent = '';
 
-    // 成绩排名表头
-    // 2026-06-04 与 比赛视图 同款 7 列 flex 比例 (加 组别 列)
+    // 2026-06-18 表头统一用 _setRaceHeader (跟比赛视图同源, 含 font-size 自适应),
+    //   修原行内 inline 重写漏 font-size 导致字号与比赛视图不一致.
     _heatResultRelay = isRelayEvent();
-    var hf1 = _heatResultRelay ? 6 : 11;
-    var hf2 = _heatResultRelay ? 28 : 9;
-    var hdr1 = _heatResultRelay ? '代表队' : '姓名';
-    var hdr2 = _heatResultRelay ? '姓名' : '代表队';
-    var header = document.querySelector('.lanes-header');
-    if (header) {
-        header.innerHTML =
-            '<div style="flex:4;min-width:0;text-align:center;margin-right:1vw;">道次</div>' +
-            '<div style="flex:4;min-width:0;text-align:center;margin-right:1vw;">名次</div>' +
-            '<div style="flex:' + hf1 + ';min-width:0;text-align:center;margin-right:1vw;">' + hdr1 + '</div>' +
-            '<div style="flex:' + hf2 + ';min-width:0;text-align:center;margin-right:1vw;">' + hdr2 + '</div>' +
-            '<div style="flex:8;min-width:0;text-align:center;margin-right:1vw;">组别</div>' +
-            '<div style="flex:13;min-width:0;text-align:center;margin-right:1vw;">成绩</div>' +
-            '<div style="flex:7;min-width:0;text-align:center;">备注</div>';
-    }
+    _setRaceHeader();
 
     // 仅保留有运动员的泳道（空泳道占位条目不进成绩榜）
     // 2026-06-05 U 系列规则: 组内只按时间排单一名次, 不再按性别拆段; 总排名才按 性别×组别 拆
@@ -2011,6 +2009,23 @@ function showHeatResultPage() {
             '<div class="result-time">' + resultText + '</div>' +
             '<div class="remark"' + remarkStyle + '>' + remarkText + '</div>';
         container.appendChild(row);
+    }
+
+    // 2026-06-18 补足空白占位行让总行数 = _heatResultRowsPerPage (10), 与比赛视图 10 行均匀布局一致.
+    //   原版只渲染 N 行 (N < 10) 集中在上方, 视觉与比赛视图差异明显.
+    var renderedCount = end - start;
+    for (var blank = renderedCount; blank < _heatResultRowsPerPage; blank++) {
+        var emptyRow = document.createElement('div');
+        emptyRow.className = 'lane-row fixed-row empty';
+        emptyRow.innerHTML =
+            '<div class="rank"></div>' +
+            '<div class="swimmer-name"></div>' +
+            '<div class="swimmer-team"></div>' +
+            '<div class="age-group"></div>' +
+            '<div class="lane-num"></div>' +
+            '<div class="result-time"></div>' +
+            '<div class="remark"></div>';
+        container.appendChild(emptyRow);
     }
 
     // 多页时右下角显示页码 (与总排名同款 .page-indicator)

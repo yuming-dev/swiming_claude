@@ -24,13 +24,6 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 
 /* 主体 */
 .main-area { flex: 1; display: flex; overflow: hidden; }
-/* 2026-06-18 左上角大屏预览 (iframe 嵌 display.html, 大小可调 1/8 ~ 1/2 viewport 宽) */
-#bigPreview { position: fixed; top: 44px; left: 230px; background: #000; border: 2px solid #475569; z-index: 9999; overflow: hidden; box-shadow: 0 4px 16px rgba(0,0,0,0.5); border-radius: 4px; }
-#bigPreviewInner { position: relative; overflow: hidden; }
-#bigPreviewIframe { position: absolute; top: 0; left: 0; width: 1920px; height: 1080px; border: none; transform-origin: top left; }
-#bigPreviewBar { background: rgba(0,0,0,0.85); padding: 3px 6px; display: flex; align-items: center; gap: 6px; font-size: 11px; color: #cbd5e1; }
-#bigPreviewBar input[type=range] { flex: 1; min-width: 60px; }
-#bigPreviewBar button { background:#475569;color:white;border:0;border-radius:3px;padding:2px 6px;font-size:10px;cursor:pointer; }
 /* 2026-06-18 末段 TP/MB 差异检测 (finishTpMbDispute=true) 时圆点标红 */
 .device-dot.dispute { background: #DC2626 !important; box-shadow: 0 0 6px #DC2626; border-color: #FCA5A5 !important; }
 /* 盲表 ComboBox 历史 (黑底白字, 与 PC 端一致) */
@@ -123,28 +116,45 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 .info-area .rank.r3 { color: #cd7f32; }
 
 /* 右侧操作面板 */
-.right-panel { width: 220px; background: var(--card); padding: 10px; border-left: 1px solid #334155; overflow-y: auto; }
-.right-col { display: flex; flex-direction: column; gap: 6px; }
-.right-col h3 { font-size: 14px; margin: 0 0 2px 0; color: #3B82F6; font-weight: bold; }
-.right-col h3:first-child { margin-top: 0; }
+.right-panel { width: 230px; background: var(--card); padding: 12px; border-left: 1px solid #334155; overflow-y: auto; }
+.right-col { display: flex; flex-direction: column; }
+.section-group { margin-bottom: 14px; padding-bottom: 14px; border-bottom: 1px solid #334155; }
+.section-group:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+.section-title {
+    font-size: 11px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase;
+    color: #64748B; margin-bottom: 8px; display: flex; align-items: center; gap: 8px;
+}
+.section-title::before {
+    content: ''; display: inline-block; width: 4px; height: 12px; border-radius: 2px;
+    background: linear-gradient(180deg, #3B82F6, #6366F1);
+}
+.btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.btn-grid.cols-1 { grid-template-columns: 1fr; }
+.btn-grid > .span2 { grid-column: 1 / -1; }
 /* 按钮统一样式：圆角 + 图标 + 文字 + 悬停反馈 */
 .action-btn {
-    width: 100%; height: 30px; padding: 0 6px;
+    width: 100%; height: 34px; padding: 0 8px;
     border: none; border-radius: 8px;
-    font-size: 14px; font-weight: bold; color: white; cursor: pointer;
+    font-size: 13px; font-weight: 600; color: white; cursor: pointer;
     display: flex; align-items: center; justify-content: center; gap: 6px;
-    transition: opacity 0.1s;
+    transition: transform 0.08s, opacity 0.1s, box-shadow 0.15s;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.3);
 }
-.action-btn + .action-btn { margin-top: 4px; }
-.action-btn:hover { opacity: 0.85; }
-.action-btn:active { opacity: 0.7; }
+.action-btn:hover { opacity: 0.92; transform: translateY(-1px); box-shadow: 0 3px 8px rgba(0,0,0,0.4); }
+.action-btn:active { transform: translateY(0); opacity: 0.82; box-shadow: 0 1px 2px rgba(0,0,0,0.2); }
 .action-btn .ico {
     font-family: "Segoe MDL2 Assets", "Segoe UI Symbol", sans-serif;
-    font-size: 15px; font-weight: normal; line-height: 1;
+    font-size: 14px; font-weight: normal; line-height: 1;
 }
-/* 小圆角用于工具按钮 */
-.action-btn.small { border-radius: 6px; font-size: 13px; height: 28px; }
+/* 大按钮 (比赛控制主要操作) */
+.action-btn.big { height: 38px; font-size: 14px; }
+.action-btn.big .ico { font-size: 15px; }
+/* 小工具按钮 */
+.action-btn.small { font-size: 12px; height: 30px; padding: 0 6px; }
 .action-btn.small .ico { font-size: 13px; }
+.lane-input-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; padding: 6px 10px; background: rgba(15,23,42,0.5); border-radius: 8px; }
+.lane-input-row label { font-size: 12px; color: #94A3B8; }
+.lane-input-row input { width: 50px; padding: 5px; border: 1px solid #475569; border-radius: 6px; background: #0F172A; color: white; text-align: center; font-size: 14px; font-weight: bold; }
 
 /* 底部信息（已移到左侧面板和顶部栏） */
 .bottom-bar { display: none; }
@@ -156,6 +166,18 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 .readonly-overlay span { background: var(--gold); color: #000; padding: 8px 20px; border-radius: 6px; font-weight: bold; }
 .hidden { display: none !important; }
 
+/* 2026-06-18 参数设置 hub 大按钮 (仿 RTC TimingSettingsCore 风格) */
+.hub-btn {
+    display: block; width: 100%; padding: 12px 14px;
+    margin-bottom: 10px;
+    border: none; border-radius: 8px;
+    color: white; font-size: 15px; font-weight: 700;
+    cursor: pointer; text-align: center;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+    transition: opacity 0.1s, transform 0.08s, box-shadow 0.15s;
+}
+.hub-btn:hover { opacity: 0.92; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.4); }
+.hub-btn:active { transform: translateY(0); opacity: 0.82; }
 /* 参数设置对话框 */
 .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 200; }
 .modal-dialog { background: var(--card); border: 1px solid #475569; border-radius: 8px; padding: 20px 24px; min-width: 340px; }
@@ -179,64 +201,6 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 </style>
 </head>
 <body>
-<!-- 2026-06-18 左上角大屏预览 -->
-<div id="bigPreview">
-    <div id="bigPreviewInner">
-        <iframe id="bigPreviewIframe" src="display.html"></iframe>
-    </div>
-    <div id="bigPreviewBar">
-        <button onclick="toggleBigPreview()" title="折叠/展开" id="bigPreviewToggle">▼</button>
-        <span>大屏</span>
-        <input id="bigPreviewSize" type="range" min="12.5" max="50" step="0.5" value="20" oninput="updateBigPreviewSize(this.value)"/>
-        <span id="bigPreviewPct" style="width:36px;text-align:right;">20%</span>
-    </div>
-</div>
-<script>
-function updateBigPreviewSize(vw) {
-    var box = document.getElementById('bigPreview');
-    var inner = document.getElementById('bigPreviewInner');
-    var ifr = document.getElementById('bigPreviewIframe');
-    var pct = document.getElementById('bigPreviewPct');
-    if (!box || !inner || !ifr) return;
-    var widthPx = Math.round(window.innerWidth * vw / 100);
-    var scale = widthPx / 1920;
-    var heightPx = Math.round(1080 * scale);
-    box.style.width = widthPx + 'px';
-    inner.style.width = widthPx + 'px';
-    inner.style.height = heightPx + 'px';
-    ifr.style.transform = 'scale(' + scale + ')';
-    pct.textContent = (Math.round(vw * 10) / 10) + '%';
-    try { localStorage.setItem('rcBigPreviewVw', vw); } catch (e) {}
-}
-function toggleBigPreview() {
-    var inner = document.getElementById('bigPreviewInner');
-    var btn = document.getElementById('bigPreviewToggle');
-    if (!inner) return;
-    var hidden = inner.style.display === 'none';
-    inner.style.display = hidden ? '' : 'none';
-    btn.textContent = hidden ? '▼' : '▲';
-    try { localStorage.setItem('rcBigPreviewHidden', hidden ? '0' : '1'); } catch (e) {}
-}
-window.addEventListener('load', function() {
-    var v = 20;
-    try { var s = localStorage.getItem('rcBigPreviewVw'); if (s) v = parseFloat(s); } catch (e) {}
-    if (v < 12.5) v = 12.5; if (v > 50) v = 50;
-    var slider = document.getElementById('bigPreviewSize');
-    if (slider) { slider.value = v; updateBigPreviewSize(v); }
-    try {
-        if (localStorage.getItem('rcBigPreviewHidden') === '1') {
-            var inner = document.getElementById('bigPreviewInner');
-            var btn = document.getElementById('bigPreviewToggle');
-            if (inner) { inner.style.display = 'none'; if (btn) btn.textContent = '▲'; }
-        }
-    } catch (e) {}
-});
-window.addEventListener('resize', function() {
-    var slider = document.getElementById('bigPreviewSize');
-    if (slider) updateBigPreviewSize(slider.value);
-});
-</script>
-
 <!-- 区域1: 导航栏 -->
 <div class="nav-bar">
     <span class="current-info" id="currentInfo">未选择比赛</span>
@@ -266,103 +230,165 @@ window.addEventListener('resize', function() {
     <button class="fullscreen-btn" onclick="goFullScreen()" style="position:fixed;top:4px;right:8px;z-index:50;padding:4px 10px;background:#3B82F6;color:white;border:none;border-radius:4px;font-size:12px;cursor:pointer;">全屏</button>
 </div>
 
-<!-- 参数设置对话框 -->
+<!-- 2026-06-18 参数设置 hub (仿 RTC 风格): 服务器地址 + 7 个分类按钮 -->
 <div id="settingsModal" class="modal-overlay hidden" onclick="if(event.target===this)closeSettings()">
-    <div class="modal-dialog">
+    <div class="modal-dialog" style="max-width:420px;">
         <h2>参数设置</h2>
+        <div style="color:#94A3B8;font-size:13px;margin-bottom:14px;">选择要设置的分类:</div>
+
+        <!-- 服务器地址 (保留, race_control 浏览器独有) -->
+        <div style="background:rgba(15,23,42,0.6);border-radius:8px;padding:10px 12px;margin-bottom:14px;">
+            <div style="color:#38BDF8;font-size:12px;font-weight:bold;margin-bottom:6px;">服务器地址</div>
+            <div style="display:flex;gap:6px;align-items:center;">
+                <input id="dlgServerHost" value="" placeholder="如 192.168.1.100"
+                    style="flex:1;padding:6px 10px;background:#0F172A;color:white;border:1px solid #475569;border-radius:6px;font-size:13px;">
+                <button style="padding:6px 14px;background:#3B82F6;color:white;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-weight:bold;" onclick="applyServerHost()">连接</button>
+            </div>
+        </div>
+
+        <!-- 7 个 hub 分类按钮 (顺序+配色与 RTC 一致) -->
+        <button class="hub-btn" style="background:#3B82F6;" onclick="closeSettings();openTimeParams()">时间参数设置</button>
+        <button class="hub-btn" style="background:#10B981;" onclick="closeSettings();openPoolDevice()">比赛泳池、设备状态设置</button>
+        <button class="hub-btn" style="background:#0EA5E9;" onclick="closeSettings();openManualButtonManager()">手动按键管理</button>
+        <button class="hub-btn" style="background:#10B981;" onclick="closeSettings();sendDisplay('OPEN_AUTOSAVE_PATH_DIALOG');addLog('已请求 PC 端弹成绩存盘路径配置窗口')">成绩存盘路径</button>
+        <button class="hub-btn" style="background:#3B82F6;" onclick="closeSettings();sendDisplay('OPEN_THERMAL_PRINTER_DIALOG');addLog('已请求 PC 端弹热敏打印配置窗口')">热敏打印</button>
+        <button class="hub-btn" style="background:#DC2626;" onclick="closeSettings();openHwConn()">硬件计时器连接</button>
+        <button class="hub-btn" style="background:#8B5CF6;" onclick="closeSettings();sendDisplay('OPEN_CHANGE_PASSWORD_DIALOG');addLog('已请求 PC 端弹用户名/密码修改窗口')">用户名和密码</button>
+
+        <div class="modal-btns">
+            <button class="btn-cancel" onclick="closeSettings()">关闭</button>
+        </div>
+    </div>
+</div>
+
+<!-- 时间参数设置 子弹窗 -->
+<div id="timeParamsModal" class="modal-overlay hidden" onclick="if(event.target===this)closeTimeParams()">
+    <div class="modal-dialog">
+        <h2 style="color:#3B82F6;">时间参数设置</h2>
         <div class="param-row"><label>泳道关闭时间</label><input id="dlgCloseTime" value="20"><span class="unit">秒</span></div>
         <div class="param-row"><label>出发台关闭延迟</label><input id="dlgSBDelay" value="3"><span class="unit">秒</span></div>
         <div class="param-row"><label>成绩确认关闭延迟</label><input id="dlgConfDelay" value="3"><span class="unit">秒</span></div>
         <div class="param-row"><label>抢跳判定阈值</label><input id="dlgFSThresh" value="0.10"><span class="unit">秒</span></div>
         <div class="param-row"><label>分段成绩显示时长</label><input id="dlgSplitDisp" value="5"><span class="unit">秒</span></div>
+        <div class="param-row"><label>盲表代替成绩延迟</label><input id="dlgBlindReplaceDelay" value="5"><span class="unit">秒(0-9)</span></div>
+        <div class="param-row"><label>接力反应时事件窗口</label><input id="dlgReactionEventWindow" value="3"><span class="unit">秒(1-10)</span></div>
         <div class="param-row"><label>第1名成绩停留时间</label><input id="dlgFirstPlaceHold" value="3"><span class="unit">秒</span></div>
         <div class="param-row"><label>大屏翻屏时间</label><input id="dlgBigDisplayPageInterval" value="5"><span class="unit">秒</span></div>
-        <div class="param-row" style="margin-top:6px;padding-top:8px;border-top:1px solid #475569;">
-            <label>反应时(RT)</label>
+        <div class="modal-btns">
+            <button class="btn-cancel" onclick="closeTimeParams()">取消</button>
+            <button class="btn-ok" onclick="applyTimeParams()">确认</button>
+        </div>
+    </div>
+</div>
+
+<!-- 比赛泳池、设备状态设置 子弹窗 -->
+<div id="poolDeviceModal" class="modal-overlay hidden" onclick="if(event.target===this)closePoolDevice()">
+    <div class="modal-dialog">
+        <h2 style="color:#10B981;">比赛泳池、设备状态设置</h2>
+        <div class="param-row"><label>终点位置</label>
             <span style="display:flex;gap:12px;">
-                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="rtSwitch" value="on" id="dlgRtOn" checked> 打开</label>
-                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="rtSwitch" value="off" id="dlgRtOff"> 关闭</label>
+                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="startPos" id="dlgStartLeft" checked> 左端</label>
+                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="startPos" id="dlgStartRight"> 右端</label>
             </span>
         </div>
-        <div class="param-row" style="margin-top:6px;padding-top:8px;border-top:1px solid #475569;">
-            <label>终点位置</label>
+        <div class="param-row"><label>反应时(RT)</label>
             <span style="display:flex;gap:12px;">
-                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="startPos" value="left" id="dlgStartLeft" checked> 左端</label>
-                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="startPos" value="right" id="dlgStartRight"> 右端</label>
+                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="rtSwitch" id="dlgRtOn" checked> 打开</label>
+                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="rtSwitch" id="dlgRtOff"> 关闭</label>
             </span>
         </div>
-        <div class="param-row" style="margin-top:6px;padding-top:8px;border-top:1px solid #475569;">
-            <label>道次顺序</label>
+        <div class="param-row"><label>盲表代触板</label>
             <span style="display:flex;gap:12px;">
-                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="laneOrder" value="forward" id="dlgLaneOrderFwd" checked> 正序 0→9</label>
-                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="laneOrder" value="reverse" id="dlgLaneOrderRev"> 逆序 9→0</label>
+                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="autoBlindRepl" id="dlgAutoBlindReplOn"> 开</label>
+                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="autoBlindRepl" id="dlgAutoBlindReplOff" checked> 关</label>
             </span>
         </div>
-        <!--2026-05-19 泳池触板安装方式(0x3A): 两端=终点端+发令端都装；单端=只在终点端装-->
-        <div class="param-row" style="margin-top:6px;padding-top:8px;border-top:1px solid #475569;">
-            <label>泳池触板安装</label>
+        <div class="param-row"><label>手动TP代替真TP</label>
             <span style="display:flex;gap:12px;">
-                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="poolSide" value="dual"   id="dlgPoolDual" checked> 两端安装</label>
-                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="poolSide" value="single" id="dlgPoolSingle"> 单边安装</label>
+                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="manualTpRepl" id="dlgManualTpReplOn"> 开</label>
+                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="manualTpRepl" id="dlgManualTpReplOff" checked> 关</label>
             </span>
         </div>
-        <div class="param-row" style="margin-top:6px;padding-top:8px;border-top:1px solid #475569;">
-            <label>服务器地址</label>
-            <input id="dlgServerHost" value="" style="flex:1;">
-            <button style="padding:4px 12px;background:#3B82F6;color:white;border:none;border-radius:4px;cursor:pointer;font-size:12px;margin-left:4px;" onclick="applyServerHost()">连接</button>
+        <div class="param-row"><label>硬件设备</label>
+            <span style="display:flex;gap:12px;">
+                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="hwOpenMode" id="dlgHwAlwaysOpen"> 一直打开</label>
+                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="hwOpenMode" id="dlgHwFlow" checked> 按比赛流程</label>
+            </span>
         </div>
-        <!-- 计时硬件连接 -->
-        <div style="margin-top:10px;padding-top:10px;border-top:1px solid #475569;">
-            <div style="color:#38BDF8;font-size:14px;font-weight:bold;margin-bottom:8px;">计时硬件连接（由服务器代理）</div>
-            <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;">
-                <label style="color:#94A3B8;font-size:13px;width:60px;">连接方式</label>
-                <select id="dlgHwMode" style="background:#334155;color:white;border:1px solid #475569;padding:3px 6px;font-size:13px;" onchange="toggleHwPanels()">
-                    <option value="none">不连接</option>
-                    <option value="serial">串口</option>
-                    <option value="udp">UDP</option>
-                    <option value="tcp">TCP客户端</option>
-                </select>
-            </div>
-            <div id="hwSerialPanel" style="display:none;align-items:center;gap:6px;margin-bottom:6px;">
-                <label style="color:#94A3B8;font-size:13px;width:60px;">串口</label>
-                <input id="dlgHwPort" value="COM3" style="background:#334155;color:white;border:1px solid #475569;padding:3px 6px;font-size:13px;width:80px;">
-            </div>
-            <div id="hwUdpPanel" style="display:none;flex-direction:column;gap:4px;margin-bottom:6px;">
-                <div style="display:flex;align-items:center;gap:6px;">
-                    <label style="color:#94A3B8;font-size:13px;width:60px;">接收端口</label>
-                    <input id="dlgHwUdpPort" value="5002" style="background:#334155;color:white;border:1px solid #475569;padding:3px 6px;font-size:13px;width:70px;">
-                </div>
-            </div>
-            <div id="hwTcpPanel" style="display:none;flex-direction:column;gap:4px;margin-bottom:6px;">
-                <div style="display:flex;align-items:center;gap:6px;">
-                    <label style="color:#94A3B8;font-size:13px;width:60px;">TCP地址</label>
-                    <input id="dlgHwTcpHost" value="127.0.0.1" style="background:#334155;color:white;border:1px solid #475569;padding:3px 6px;font-size:13px;width:110px;">
-                    <input id="dlgHwTcpPort" value="5555" style="background:#334155;color:white;border:1px solid #475569;padding:3px 6px;font-size:13px;width:60px;">
-                </div>
-            </div>
-            <div style="display:flex;gap:8px;align-items:center;">
-                <button style="padding:5px 14px;background:#22C55E;color:white;border:none;border-radius:4px;cursor:pointer;font-size:13px;font-weight:bold;" onclick="connectHwFromDialog()">连接硬件</button>
-                <button style="padding:5px 12px;background:#EF4444;color:white;border:none;border-radius:4px;cursor:pointer;font-size:13px;" onclick="disconnectHw()">断开</button>
-                <span id="dlgHwStatus" style="color:#94A3B8;font-size:12px;">● 未连接</span>
-            </div>
+        <div class="param-row"><label>出发信号边沿</label>
+            <span style="display:flex;gap:12px;">
+                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="sbEdge" id="dlgSbEdgeFall" checked> 下降沿</label>
+                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="sbEdge" id="dlgSbEdgeRise"> 上升沿</label>
+            </span>
         </div>
-        <div style="margin-top:10px;padding-top:10px;border-top:1px solid #475569;">
-            <button style="width:100%;padding:8px;background:#8B5CF6;color:white;border:none;border-radius:6px;cursor:pointer;font-size:14px;font-weight:bold;" onclick="closeSettings();openDeviceManager();">设备状态管理</button>
-            <button style="width:100%;padding:8px;background:#0EA5E9;color:white;border:none;border-radius:6px;cursor:pointer;font-size:14px;font-weight:bold;margin-top:6px;" onmousedown="closeSettings();openManualButtonManager();">手动按键管理</button>
-            <button style="width:100%;padding:8px;background:#F59E0B;color:black;border:none;border-radius:6px;cursor:pointer;font-size:14px;font-weight:bold;margin-top:6px;" onclick="closeSettings();openBlindWatchCountDialog();">左右盲表数量设置</button>
+        <div class="param-row"><label>道次顺序</label>
+            <span style="display:flex;gap:12px;">
+                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="laneOrder" id="dlgLaneOrderFwd" checked> 正序 0→9</label>
+                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="laneOrder" id="dlgLaneOrderRev"> 逆序 9→0</label>
+            </span>
         </div>
-        <div style="margin-top:10px;padding-top:10px;border-top:1px solid #475569;">
-            <div style="color:#38BDF8;font-size:13px;font-weight:bold;margin-bottom:6px;">系统硬件</div>
-            <div style="display:flex;gap:6px;">
-                <button style="flex:1;padding:8px;background:#22C55E;color:white;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:bold;"
-                        onclick="closeSettings();sendCmd('QUICK_CONNECT_SERIAL');addLog('已请求服务器连接/断开串口');">连接串口</button>
-                <button id="btnDeviceTest" style="flex:1;padding:8px;background:#0EA5E9;color:white;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:bold;"
-                        onclick="toggleDeviceTest()">设备测试</button>
-            </div>
+        <div class="param-row"><label>泳池触板</label>
+            <span style="display:flex;gap:12px;">
+                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="poolSide" id="dlgPoolDual" checked> 两端安装</label>
+                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="poolSide" id="dlgPoolSingle"> 单边安装</label>
+            </span>
+        </div>
+        <div style="border-top:1px solid #475569;margin-top:12px;padding-top:12px;display:flex;gap:8px;">
+            <button style="flex:1;padding:9px;background:#8B5CF6;color:white;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:bold;" onclick="closePoolDevice();openDeviceManager()">设备状态管理</button>
+            <button style="flex:1;padding:9px;background:#F59E0B;color:black;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:bold;" onclick="closePoolDevice();openBlindWatchCountDialog()">左右盲表数量设置</button>
         </div>
         <div class="modal-btns">
-            <button class="btn-cancel" onclick="closeSettings()">取消</button>
-            <button class="btn-ok" onclick="applySettings()">确定</button>
+            <button class="btn-cancel" onclick="closePoolDevice()">取消</button>
+            <button class="btn-ok" onclick="applyPoolDevice()">确认</button>
+        </div>
+    </div>
+</div>
+
+<!-- 硬件计时器连接 子弹窗 (从原嵌入式拆出) -->
+<div id="hwConnModal" class="modal-overlay hidden" onclick="if(event.target===this)closeHwConn()">
+    <div class="modal-dialog">
+        <h2 style="color:#DC2626;">硬件计时器连接</h2>
+        <div style="color:#94A3B8;font-size:12px;margin-bottom:12px;">由服务器代理连接 (PC 端的 RTC/主服务器实际持有硬件链路)</div>
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">
+            <label style="color:#94A3B8;font-size:13px;width:70px;">连接方式</label>
+            <select id="dlgHwMode" style="flex:1;background:#0F172A;color:white;border:1px solid #475569;padding:6px 10px;border-radius:6px;font-size:13px;" onchange="toggleHwPanels()">
+                <option value="none">不连接</option>
+                <option value="serial">串口</option>
+                <option value="udp">UDP</option>
+                <option value="tcp">TCP 客户端</option>
+            </select>
+        </div>
+        <div id="hwSerialPanel" style="display:none;align-items:center;gap:6px;margin-bottom:10px;">
+            <label style="color:#94A3B8;font-size:13px;width:70px;">串口</label>
+            <input id="dlgHwPort" value="COM3" style="flex:1;background:#0F172A;color:white;border:1px solid #475569;padding:6px 10px;border-radius:6px;font-size:13px;">
+        </div>
+        <div id="hwUdpPanel" style="display:none;flex-direction:column;gap:6px;margin-bottom:10px;">
+            <div style="display:flex;align-items:center;gap:6px;">
+                <label style="color:#94A3B8;font-size:13px;width:70px;">接收端口</label>
+                <input id="dlgHwUdpPort" value="5002" style="flex:1;background:#0F172A;color:white;border:1px solid #475569;padding:6px 10px;border-radius:6px;font-size:13px;">
+            </div>
+        </div>
+        <div id="hwTcpPanel" style="display:none;flex-direction:column;gap:6px;margin-bottom:10px;">
+            <div style="display:flex;align-items:center;gap:6px;">
+                <label style="color:#94A3B8;font-size:13px;width:70px;">TCP 主机</label>
+                <input id="dlgHwTcpHost" value="127.0.0.1" style="flex:1;background:#0F172A;color:white;border:1px solid #475569;padding:6px 10px;border-radius:6px;font-size:13px;">
+            </div>
+            <div style="display:flex;align-items:center;gap:6px;">
+                <label style="color:#94A3B8;font-size:13px;width:70px;">TCP 端口</label>
+                <input id="dlgHwTcpPort" value="5555" style="flex:1;background:#0F172A;color:white;border:1px solid #475569;padding:6px 10px;border-radius:6px;font-size:13px;">
+            </div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;margin-top:6px;">
+            <button style="padding:7px 16px;background:#22C55E;color:white;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:bold;" onclick="connectHwFromDialog()">连接硬件</button>
+            <button style="padding:7px 14px;background:#EF4444;color:white;border:none;border-radius:6px;cursor:pointer;font-size:13px;" onclick="disconnectHw()">断开</button>
+            <span id="dlgHwStatus" style="color:#94A3B8;font-size:12px;">● 未连接</span>
+        </div>
+        <div style="border-top:1px solid #475569;margin-top:12px;padding-top:12px;display:flex;gap:8px;">
+            <button style="flex:1;padding:9px;background:#22C55E;color:white;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:bold;" onclick="closeHwConn();sendCmd('QUICK_CONNECT_SERIAL');addLog('已请求 PC 端连接/断开串口');">快连串口</button>
+            <button id="btnDeviceTest" style="flex:1;padding:9px;background:#0EA5E9;color:white;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:bold;" onclick="toggleDeviceTest()">设备测试</button>
+        </div>
+        <div class="modal-btns">
+            <button class="btn-cancel" onclick="closeHwConn()">关闭</button>
         </div>
     </div>
 </div>
@@ -481,62 +507,67 @@ window.addEventListener('resize', function() {
         </div>
     </div>
 
-    <!-- 右侧操作面板 -->
+    <!-- 右侧操作面板 (2026-06-18 与 PC 端 比赛控制 按钮顺序完全统一) -->
     <div class="right-panel">
         <div class="right-col">
-            <h3>比赛控制</h3>
-            <!-- 2026-05-27 计时复位移到准备就绪上方 (3 端同步) -->
-            <button class="action-btn" style="background:#EF4444;" onclick="confirmTimerReset()"><span class="ico">&#xE72C;</span>计时复位</button>
-            <button class="action-btn" style="background:#F59E0B;" onclick="readyClick()"><span class="ico">&#xE7C1;</span>准备就绪</button>
-            <button class="action-btn" style="background:#22C55E;" onclick="sendCmd('START_RACE')"><span class="ico">&#xE768;</span>M.发令</button>
-            <!-- 2026-05-27 停表: 切换 PC/EXE/HTML/大屏的滚动时间显示冻结, 硬件不受影响 -->
-            <button id="pauseClockBtn" class="action-btn" style="background:#8B5CF6;" onclick="sendCmd('PAUSE_CLOCK_TOGGLE')"><span class="ico">&#xE769;</span><span id="pauseClockBtnText">停表</span></button>
-            <button class="action-btn" style="background:#3B82F6;" onclick="confirmResult()"><span class="ico">&#xE73E;</span>确认本组成绩</button>
-            <!-- 2026-06-02 远程打印本组成绩, 与桌面"比赛控制"面板"打印成绩"按钮等效, 服务器侧用 BuildHeatResultsHtml() 生成 → 推回本浏览器窗口打印 -->
-            <button class="action-btn" style="background:#0EA5E9;" onclick="printCurrentHeatResult()"><span class="ico">&#xE749;</span>打印成绩</button>
-            <div style="border-top:1px solid #334155;margin-top:6px;padding-top:10px;">
-                <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;">
-                    <h3 style="margin:0;">泳道操作</h3>
-                    <input type="number" id="laneInput" min="0" max="9" value="4" style="width:46px;padding:4px;border:1px solid #475569;border-radius:4px;background:#0F172A;color:white;text-align:center;font-size:14px;">
-                    <span style="color:#94A3B8;font-size:12px;">道</span>
-                </div>
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;">
-                    <button class="action-btn small" style="background:#64748B;margin:0;" onclick="markLane('DNS')">DNS</button>
-                    <button class="action-btn small" style="background:#78716C;margin:0;" onclick="markLane('DNF')">DNF</button>
-                    <button class="action-btn small" style="background:#9CA3AF;margin:0;" onclick="markLane('DSQ')">DSQ</button>
-                    <button class="action-btn small" style="background:#7C3AED;margin:0;" onclick="markLane('TRI')">TRI</button>
-                    <button class="action-btn small" style="background:#D97706;margin:0;" onclick="manualTimeInput()"><span class="ico">&#xE932;</span>手动输入</button>
-                    <!-- 取消备注 / 盲表成绩 -->
-                    <button class="action-btn small" style="background:#0EA5E9;margin:0;" onclick="cancelNote()">取消备注</button>
-                    <button class="action-btn small" style="background:#8B5CF6;margin:0;" onclick="useBlindResult()">盲表成绩</button>
-                    <!-- 道次打开 / 道次关闭（仅当前泳道） -->
-                    <button class="action-btn small" style="background:#10B981;margin:0;" onclick="laneOpen()">道次打开</button>
-                    <button class="action-btn small" style="background:#94A3B8;margin:0;" onclick="laneClose()">道次关闭</button>
-                    <!-- 全部打开 / 全部关闭 -->
-                    <button class="action-btn small" style="background:#22C55E;margin:0;" onclick="sendCmd('OPEN_ALL_LANES')"><span class="ico">&#xE8FB;</span>全部打开</button>
-                    <button class="action-btn small" style="background:#64748B;margin:0;" onclick="sendCmd('CLOSE_ALL_LANES')"><span class="ico">&#xE711;</span>全部关闭</button>
+            <!-- ═══ 比赛控制 ═══ -->
+            <div class="section-group">
+                <div class="section-title">比赛控制</div>
+                <div class="btn-grid cols-1" style="gap:4px;">
+                    <button class="action-btn big" style="background:#EF4444;" onclick="confirmTimerReset()"><span class="ico">&#xE72C;</span>计时复位</button>
+                    <button class="action-btn big" style="background:#F59E0B;" onclick="readyClick()"><span class="ico">&#xE7C1;</span>准备就绪</button>
+                    <button class="action-btn big" style="background:#22C55E;" onclick="sendCmd('START_RACE')"><span class="ico">&#xE768;</span>M.发令</button>
+                    <button id="pauseClockBtn" class="action-btn" style="background:#8B5CF6;" onclick="sendCmd('PAUSE_CLOCK_TOGGLE')"><span class="ico">&#xE769;</span><span id="pauseClockBtnText">停表</span></button>
+                    <button class="action-btn big" style="background:#3B82F6;" onclick="confirmResult()"><span class="ico">&#xE73E;</span>确认本组成绩</button>
+                    <button class="action-btn" style="background:#0EA5E9;" onclick="printCurrentHeatResult()"><span class="ico">&#xE749;</span>打印成绩</button>
+                    <button class="action-btn" style="background:#F59E0B;color:black;" onclick="publishEventRanking()"><span class="ico">&#xE9D9;</span>公布项目总排名 (存盘)</button>
                 </div>
             </div>
-            <div style="border-top:1px solid #334155;margin-top:6px;padding-top:10px;">
-                <h3 style="margin:0 0 8px 0;">显示控制</h3>
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
-                    <button class="action-btn small" style="background:#3B82F6;margin:0;" onclick="sendDisplay('SHOW_START_LIST')"><span class="ico">&#xE8F1;</span>出发表</button>
-                    <button class="action-btn small" style="background:#2563EB;margin:0;" onclick="sendDisplay('SHOW_LIVE_RACE')"><span class="ico">&#xE768;</span>比赛视图</button>
-                    <button class="action-btn small" style="background:#059669;margin:0;" onclick="sendDisplay('SHOW_HEAT_RESULT')"><span class="ico">&#xE9D5;</span>组成绩</button>
-                    <button class="action-btn small" style="background:#10B981;margin:0;" onclick="sendDisplay('SHOW_EVENT_RANKING')"><span class="ico">&#xE8CB;</span>总排名</button>
-                    <button class="action-btn small" style="background:#D97706;margin:0;" onclick="sendDisplay('SHOW_TEAM_STANDINGS')"><span class="ico">&#xE8D1;</span>团  体</button>
-                    <button class="action-btn small" style="background:#F59E0B;margin:0;" onclick="sendDisplay('SHOW_AWARDS')"><span class="ico">&#xE8A0;</span>颁  奖</button>
-                    <!-- 2026-06-03 "纪 录" → "裁判介绍" (推 SHOW_REFEREES, 大屏渲染 _staff Group=裁判员 名单) -->
-                    <button class="action-btn small" style="background:#DC2626;margin:0;" onclick="sendDisplay('SHOW_REFEREES')"><span class="ico">&#xE716;</span>裁判介绍</button>
-                    <button class="action-btn small" style="background:#8B5CF6;margin:0;" onclick="sendDisplay('SHOW_WELCOME')"><span class="ico">&#xE80F;</span>欢  迎</button>
+
+            <!-- ═══ 泳道操作 (顺序与 PC 端 一致) ═══ -->
+            <div class="section-group">
+                <div class="section-title">泳道操作</div>
+                <div class="lane-input-row">
+                    <label>道次</label>
+                    <input type="number" id="laneInput" min="0" max="9" value="4">
+                    <span style="color:#94A3B8;font-size:11px;">(0-9)</span>
                 </div>
-                <!-- 2026-06-03 切换大屏右上角 WR/CR 横条 显示/隐藏 (走 SET_DISPLAY_STYLE 通道) -->
-                <button id="recordsHiddenBtn" class="action-btn small" style="background:#475569;margin-top:6px;" onclick="toggleRecordsHidden()"><span class="ico">&#xED1A;</span><span id="recordsHiddenBtnText">记录显示</span></button>
-                <!-- 2026-06-04 备注栏 出发反应时 显隐切换 -->
-                <button id="remarkReactionBtn" class="action-btn small" style="background:#475569;margin-top:6px;" onclick="toggleRemarkReaction()"><span class="ico">&#xE91F;</span><span id="remarkReactionBtnText">备注: 显反应时</span></button>
-                <!-- 2026-06-04 PPT 播放 (远程触发主控 PC 上弹 文件选择框 + 启动 PowerPoint /s 放映) -->
-                <button class="action-btn small" style="background:#FB923C;margin-top:6px;" onclick="sendDisplay('PLAY_PPT')"><span class="ico">&#xE786;</span>PPT 播放</button>
-                <button class="action-btn small" style="background:#F59E0B;margin-top:6px;" onclick="publishResult()"><span class="ico">&#xE8A5;</span>成绩发布</button>
+                <div class="btn-grid">
+                    <button class="action-btn small" style="background:#64748B;" onclick="markLane('DNS')">DNS</button>
+                    <button class="action-btn small" style="background:#78716C;" onclick="markLane('DNF')">DNF</button>
+                    <button class="action-btn small" style="background:#9CA3AF;" onclick="markLane('DSQ')">DSQ</button>
+                    <button class="action-btn small" style="background:#D97706;" onclick="manualTimeInput()"><span class="ico">&#xE932;</span>手动输入</button>
+                    <button class="action-btn small" style="background:#0EA5E9;" onclick="cancelNote()">取消备注</button>
+                    <button class="action-btn small" style="background:#8B5CF6;" onclick="useBlindResult()">盲表成绩</button>
+                    <button class="action-btn small" style="background:#10B981;" onclick="laneOpen()">道次打开</button>
+                    <button class="action-btn small" style="background:#94A3B8;" onclick="laneClose()">道次关闭</button>
+                    <button class="action-btn small" style="background:#22C55E;" onclick="sendCmd('OPEN_ALL_LANES')"><span class="ico">&#xE8FB;</span>全部打开</button>
+                    <button class="action-btn small" style="background:#64748B;" onclick="sendCmd('CLOSE_ALL_LANES')"><span class="ico">&#xE711;</span>全部关闭</button>
+                    <button class="action-btn small span2" style="background:#06B6D4;" onclick="manualSplitInput()"><span class="ico">&#xE70F;</span>手工补段</button>
+                    <button class="action-btn small span2" style="background:#7C3AED;" onclick="markLane('TRI')">TRI</button>
+                </div>
+            </div>
+
+            <!-- ═══ 显示控制 (顺序与 PC 端 一致) ═══ -->
+            <div class="section-group">
+                <div class="section-title">显示控制</div>
+                <div class="btn-grid">
+                    <button class="action-btn small" style="background:#3B82F6;" onclick="sendDisplay('SHOW_START_LIST')"><span class="ico">&#xE8F1;</span>出发表</button>
+                    <button class="action-btn small" style="background:#2563EB;" onclick="sendDisplay('SHOW_LIVE_RACE')"><span class="ico">&#xE768;</span>比赛视图</button>
+                    <button class="action-btn small" style="background:#059669;" onclick="sendDisplay('SHOW_HEAT_RESULT')"><span class="ico">&#xE9D5;</span>组成绩</button>
+                    <button class="action-btn small" style="background:#10B981;" onclick="sendDisplay('SHOW_EVENT_RANKING')"><span class="ico">&#xE8CB;</span>总排名</button>
+                    <button class="action-btn small" style="background:#D97706;" onclick="sendDisplay('SHOW_TEAM_STANDINGS')"><span class="ico">&#xE8D1;</span>团 体</button>
+                    <button class="action-btn small" style="background:#F59E0B;" onclick="sendDisplay('SHOW_AWARDS')"><span class="ico">&#xE8A0;</span>颁 奖</button>
+                    <button class="action-btn small" style="background:#DC2626;" onclick="sendDisplay('SHOW_REFEREES')"><span class="ico">&#xE716;</span>裁判介绍</button>
+                    <button class="action-btn small" style="background:#8B5CF6;" onclick="sendDisplay('SHOW_WELCOME')"><span class="ico">&#xE80F;</span>欢 迎</button>
+                    <button class="action-btn small span2" style="background:#0D9488;" onclick="showSchedule()"><span class="ico">&#xE787;</span>显示比赛日程</button>
+                    <button class="action-btn small span2" style="background:#FB923C;" onclick="sendDisplay('PLAY_PPT')"><span class="ico">&#xE786;</span>PPT 播放</button>
+                    <button class="action-btn small span2" style="background:#0EA5E9;" onclick="sendDisplay('LIST_MEDIA_FILES');addLog('已请求 PC 端弹媒体文件列表')"><span class="ico">&#xE722;</span>图片 / 视频</button>
+                    <button class="action-btn small span2" style="background:#7C3AED;" onclick="sendDisplay('OPEN_DISPLAY_STYLE');addLog('已请求 PC 端弹大屏样式窗口')"><span class="ico">&#xE790;</span>大屏样式</button>
+                    <button id="recordsHiddenBtn" class="action-btn small span2" style="background:#475569;" onclick="toggleRecordsHidden()"><span class="ico">&#xED1A;</span><span id="recordsHiddenBtnText">记录显示</span></button>
+                    <button id="remarkReactionBtn" class="action-btn small span2" style="background:#475569;" onclick="toggleRemarkReaction()"><span class="ico">&#xE91F;</span><span id="remarkReactionBtnText">备注: 显反应时</span></button>
+                    <button class="action-btn small span2" style="background:#F59E0B;color:black;" onclick="publishResult()"><span class="ico">&#xE8A5;</span>成绩发布</button>
+                </div>
             </div>
         </div>
     </div>
@@ -1255,36 +1286,109 @@ function applyManualBtnSettings() {
 }
 
 // ═══════ 参数设置对话框 ═══════
+// 2026-06-18 参数设置 hub: 只需服务器地址栏初始化
 function openSettings() {
-    if (data.laneCloseSettings) {
-        document.getElementById('dlgCloseTime').value = data.laneCloseSettings.laneCloseTime;
-        document.getElementById('dlgSBDelay').value = data.laneCloseSettings.startBlockCloseDelay;
-        document.getElementById('dlgConfDelay').value = data.laneCloseSettings.resultConfirmCloseDelay;
-        document.getElementById('dlgFSThresh').value = data.laneCloseSettings.falseStartThreshold;
-        document.getElementById('dlgSplitDisp').value = data.laneCloseSettings.splitDisplayTime;
-        if (typeof data.laneCloseSettings.bigDisplayPageInterval !== 'undefined')
-            document.getElementById('dlgBigDisplayPageInterval').value = data.laneCloseSettings.bigDisplayPageInterval;
-        if (typeof data.laneCloseSettings.reactionTimeEnabled !== 'undefined')
-            reactionTimeEnabled = !!data.laneCloseSettings.reactionTimeEnabled;
-    }
-    document.getElementById('dlgRtOn').checked = reactionTimeEnabled;
-    document.getElementById('dlgRtOff').checked = !reactionTimeEnabled;
-    document.getElementById('dlgFirstPlaceHold').value = firstPlaceHoldTime;
     document.getElementById('dlgServerHost').value = localStorage.getItem('swimServerHost') || getServerHost();
-    document.getElementById('dlgStartLeft').checked = (finishPosition === 'left');
-    document.getElementById('dlgStartRight').checked = (finishPosition === 'right');
-    document.getElementById('dlgLaneOrderFwd').checked = (laneOrder !== 'reverse');
-    document.getElementById('dlgLaneOrderRev').checked = (laneOrder === 'reverse');
-    // 2026-05-19 泳池触板安装方式: 服务器 poolConfig.hasRightStartBlock = true→两端, false→单端
-    var hasRight = !!(data && data.poolConfig && data.poolConfig.hasRightStartBlock);
-    document.getElementById('dlgPoolDual').checked   = hasRight;
-    document.getElementById('dlgPoolSingle').checked = !hasRight;
     document.getElementById('settingsModal').classList.remove('hidden');
 }
-
 function closeSettings() {
     document.getElementById('settingsModal').classList.add('hidden');
 }
+
+// ─── 子弹窗 1: 时间参数设置 ───
+function openTimeParams() {
+    var lcs = data.laneCloseSettings || {};
+    document.getElementById('dlgCloseTime').value = lcs.laneCloseTime || 20;
+    document.getElementById('dlgSBDelay').value = lcs.startBlockCloseDelay || 3;
+    document.getElementById('dlgConfDelay').value = lcs.resultConfirmCloseDelay || 3;
+    document.getElementById('dlgFSThresh').value = (lcs.falseStartThreshold != null) ? lcs.falseStartThreshold : 0.10;
+    document.getElementById('dlgSplitDisp').value = lcs.splitDisplayTime || 5;
+    document.getElementById('dlgBlindReplaceDelay').value = (lcs.blindReplaceDelay != null) ? lcs.blindReplaceDelay : 5;
+    document.getElementById('dlgReactionEventWindow').value = (lcs.reactionEventWindowSec != null) ? lcs.reactionEventWindowSec : 3;
+    document.getElementById('dlgFirstPlaceHold').value = (lcs.firstPlaceHoldTime != null) ? lcs.firstPlaceHoldTime : firstPlaceHoldTime;
+    document.getElementById('dlgBigDisplayPageInterval').value = lcs.bigDisplayPageInterval || 5;
+    document.getElementById('timeParamsModal').classList.remove('hidden');
+}
+function closeTimeParams() { document.getElementById('timeParamsModal').classList.add('hidden'); }
+function applyTimeParams() {
+    var blindReplaceDelay = parseFloat(document.getElementById('dlgBlindReplaceDelay').value);
+    if (isNaN(blindReplaceDelay)) blindReplaceDelay = 5;
+    if (blindReplaceDelay < 0) blindReplaceDelay = 0;
+    if (blindReplaceDelay > 9) blindReplaceDelay = 9;
+    blindReplaceDelay = Math.round(blindReplaceDelay);
+    var reactionEventWindow = parseFloat(document.getElementById('dlgReactionEventWindow').value);
+    if (isNaN(reactionEventWindow)) reactionEventWindow = 3;
+    if (reactionEventWindow < 1) reactionEventWindow = 1;
+    if (reactionEventWindow > 10) reactionEventWindow = 10;
+    var bigDisp = parseFloat(document.getElementById('dlgBigDisplayPageInterval').value) || 5;
+    if (bigDisp < 1) bigDisp = 1; if (bigDisp > 60) bigDisp = 60;
+    firstPlaceHoldTime = parseFloat(document.getElementById('dlgFirstPlaceHold').value) || 3;
+    var settings = {
+        laneCloseTime: parseFloat(document.getElementById('dlgCloseTime').value) || 20,
+        startBlockCloseDelay: parseFloat(document.getElementById('dlgSBDelay').value) || 3,
+        resultConfirmCloseDelay: parseFloat(document.getElementById('dlgConfDelay').value) || 3,
+        falseStartThreshold: parseFloat(document.getElementById('dlgFSThresh').value) || 0.10,
+        splitDisplayTime: parseFloat(document.getElementById('dlgSplitDisp').value) || 5,
+        blindReplaceDelay: blindReplaceDelay,
+        reactionEventWindowSec: reactionEventWindow,
+        firstPlaceHoldTime: firstPlaceHoldTime,
+        bigDisplayPageInterval: bigDisp
+    };
+    saveLaneCloseSettingsLocal(settings);
+    sendCmd('SET_LANE_CLOSE_SETTINGS', settings);
+    addLog('时间参数已更新');
+    closeTimeParams();
+}
+
+// ─── 子弹窗 2: 比赛泳池、设备状态设置 ───
+function openPoolDevice() {
+    var lcs = data.laneCloseSettings || {};
+    if (typeof lcs.reactionTimeEnabled !== 'undefined') reactionTimeEnabled = !!lcs.reactionTimeEnabled;
+    document.getElementById('dlgStartLeft').checked = (finishPosition === 'left');
+    document.getElementById('dlgStartRight').checked = (finishPosition === 'right');
+    document.getElementById('dlgRtOn').checked = reactionTimeEnabled;
+    document.getElementById('dlgRtOff').checked = !reactionTimeEnabled;
+    document.getElementById('dlgAutoBlindReplOn').checked = !!lcs.autoBlindReplaceTouchpad;
+    document.getElementById('dlgAutoBlindReplOff').checked = !lcs.autoBlindReplaceTouchpad;
+    document.getElementById('dlgManualTpReplOn').checked = !!lcs.manualTpReplaceTp;
+    document.getElementById('dlgManualTpReplOff').checked = !lcs.manualTpReplaceTp;
+    document.getElementById('dlgHwAlwaysOpen').checked = !!lcs.hardwareAlwaysOpen;
+    document.getElementById('dlgHwFlow').checked = !lcs.hardwareAlwaysOpen;
+    var sbf = (lcs.startBoxEdgeFalling != null) ? !!lcs.startBoxEdgeFalling : true;
+    document.getElementById('dlgSbEdgeFall').checked = sbf;
+    document.getElementById('dlgSbEdgeRise').checked = !sbf;
+    document.getElementById('dlgLaneOrderFwd').checked = (laneOrder !== 'reverse');
+    document.getElementById('dlgLaneOrderRev').checked = (laneOrder === 'reverse');
+    var hasRight = !!(data && data.poolConfig && data.poolConfig.hasRightStartBlock);
+    document.getElementById('dlgPoolDual').checked = hasRight;
+    document.getElementById('dlgPoolSingle').checked = !hasRight;
+    document.getElementById('poolDeviceModal').classList.remove('hidden');
+}
+function closePoolDevice() { document.getElementById('poolDeviceModal').classList.add('hidden'); }
+function applyPoolDevice() {
+    finishPosition = document.getElementById('dlgStartRight').checked ? 'right' : 'left';
+    reactionTimeEnabled = document.getElementById('dlgRtOn').checked;
+    laneOrder = document.getElementById('dlgLaneOrderRev').checked ? 'reverse' : 'forward';
+    var poolSingleSide = document.getElementById('dlgPoolSingle').checked;
+    var settings = {
+        startPosition: finishPosition, finishPosition: finishPosition,
+        reactionTimeEnabled: reactionTimeEnabled,
+        autoBlindReplaceTouchpad: document.getElementById('dlgAutoBlindReplOn').checked,
+        manualTpReplaceTp: document.getElementById('dlgManualTpReplOn').checked,
+        hardwareAlwaysOpen: document.getElementById('dlgHwAlwaysOpen').checked,
+        startBoxEdgeFalling: document.getElementById('dlgSbEdgeFall').checked,
+        laneOrder: laneOrder,
+        poolSingleSide: poolSingleSide
+    };
+    saveLaneCloseSettingsLocal(settings);
+    sendCmd('SET_LANE_CLOSE_SETTINGS', settings);
+    addLog('泳池/设备参数已更新');
+    closePoolDevice();
+}
+
+// ─── 子弹窗 3: 硬件计时器连接 ───
+function openHwConn() { document.getElementById('hwConnModal').classList.remove('hidden'); }
+function closeHwConn() { document.getElementById('hwConnModal').classList.add('hidden'); }
 
 function toggleHwPanels() {
     var mode = document.getElementById('dlgHwMode').value;
@@ -1375,6 +1479,40 @@ function _openHtmlAndPrint(html, title) {
     } catch (e) { alert('打开打印窗口失败: ' + e.message); }
 }
 
+// 2026-06-18 显示比赛日程 — 发 SHOW_SCHEDULE_SESSION 全部场次 (session=-1)
+function showSchedule() {
+    if (!ws || ws.readyState !== 1) { alert('请先连接服务器'); return; }
+    ws.send(JSON.stringify({type:'REMOTE_CONTROL', command:'SHOW_SCHEDULE_SESSION', session:-1}));
+    addLog('已请求大屏显示比赛日程 (全部场次)');
+}
+
+// 2026-06-18 公布项目总排名 (存盘) — 远程触发 PC 端 PublishEventRanking_Click
+function publishEventRanking() {
+    var info = (data.currentAgeGroup ? '[' + data.currentAgeGroup + '] ' : '')
+             + fmtGender(data.currentGender) + ' ' + (data.currentEvent||'') + ' ' + (data.currentStage||'');
+    if (!data.currentEvent) { alert('请先在赛程导航中选择项目'); return; }
+    if (!confirm('确定公布并存盘本项目总排名?\n\n' + info)) return;
+    sendCmd('PUBLISH_EVENT_RANKING_STORE', {
+        ageGroup: data.currentAgeGroup||'', gender: data.currentGender||'',
+        eventName: data.currentEvent||'', stage: data.currentStage||''
+    });
+    addLog('已请求公布项目总排名: ' + info);
+}
+
+// 2026-06-18 手工补段 — 弹输入框 (段号+累计时间), 发到 PC 端 ManualSplit_Click
+function manualSplitInput() {
+    var lane = parseInt(document.getElementById('laneInput').value);
+    if (isNaN(lane) || lane < 0) { alert('请先选择泳道'); return; }
+    var seg = prompt('泳道 ' + lane + ' 补哪一段? (段号, 1=第1段)', '1');
+    if (!seg) return;
+    var segN = parseInt(seg);
+    if (isNaN(segN) || segN < 1) { alert('段号必须是 ≥1 的整数'); return; }
+    var t = prompt('该段累计时间? (格式 m:ss.xx 或 ss.xx, 如 1:25.43 或 85.43)', '');
+    if (!t) return;
+    sendCmd('MANUAL_SPLIT', { lane: lane, segNum: segN, cumTime: t.trim() });
+    addLog('已请求手工补段 道' + lane + ' 第' + segN + '段 累计' + t);
+}
+
 function confirmTimerReset() {
     // 与主服务器一致：简短确认，避免误按
     if (confirm('确定计时复位？')) {
@@ -1398,38 +1536,7 @@ function readyClick() {
     sendCmd('READY');
 }
 
-function applySettings() {
-    finishPosition = document.getElementById('dlgStartRight').checked ? 'right' : 'left';
-    firstPlaceHoldTime = parseFloat(document.getElementById('dlgFirstPlaceHold').value) || 3;
-    var bigDisplayPageInterval = parseFloat(document.getElementById('dlgBigDisplayPageInterval').value) || 5;
-    if (bigDisplayPageInterval < 1) bigDisplayPageInterval = 1;
-    if (bigDisplayPageInterval > 60) bigDisplayPageInterval = 60;
-    reactionTimeEnabled = document.getElementById('dlgRtOn').checked;
-    laneOrder = document.getElementById('dlgLaneOrderRev').checked ? 'reverse' : 'forward';
-    // 2026-05-19 泳池触板单/两端：单端→服务器 hasRightStartBlock=false 并下发硬件 0x3A
-    var poolSingleSide = document.getElementById('dlgPoolSingle').checked;
-    var settings = {
-        laneCloseTime: parseFloat(document.getElementById('dlgCloseTime').value) || 20,
-        startBlockCloseDelay: parseFloat(document.getElementById('dlgSBDelay').value) || 3,
-        resultConfirmCloseDelay: parseFloat(document.getElementById('dlgConfDelay').value) || 3,
-        falseStartThreshold: parseFloat(document.getElementById('dlgFSThresh').value) || 0.10,
-        splitDisplayTime: parseFloat(document.getElementById('dlgSplitDisp').value) || 5,
-        startPosition: finishPosition,  // 发送终点位置，服务器根据项目自动计算发令位置
-        finishPosition: finishPosition,
-        firstPlaceHoldTime: firstPlaceHoldTime,
-        leftBlindWatchCount: leftBlindWatchCount,
-        rightBlindWatchCount: rightBlindWatchCount,
-        bigDisplayPageInterval: bigDisplayPageInterval,
-        reactionTimeEnabled: reactionTimeEnabled,
-        laneOrder: laneOrder,
-        poolSingleSide: poolSingleSide
-    };
-    // 本地落盘 + 推到服务器（服务器再广播给主控/EXE 远程台）
-    saveLaneCloseSettingsLocal(settings);
-    sendCmd('SET_LANE_CLOSE_SETTINGS', settings);
-    addLog('参数已更新（本地保存 + 同步主服务器），第1名停留: ' + firstPlaceHoldTime + 's，终点位置: ' + (finishPosition === 'left' ? '左端' : '右端') + '，大屏翻屏: ' + bigDisplayPageInterval + 's，反应时: ' + (reactionTimeEnabled ? '打开' : '关闭') + '，道次: ' + (laneOrder === 'reverse' ? '逆序9→0' : '正序0→9'));
-    closeSettings();
-}
+// 2026-06-18 applySettings 已拆分为 applyTimeParams / applyPoolDevice (上面定义)
 
 // ═══════ 左右盲表数量设置对话框 ═══════
 function openBlindWatchCountDialog() {

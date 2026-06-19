@@ -1983,6 +1983,33 @@ namespace SwimmingScoreboard
                     Restart_Click(null, null);
                     break;
                 case "CONFIRM_RESULT": ConfirmResult_Click(null, null); break;
+                // 2026-06-18 race_control.html "公布项目总排名 (存盘)" — 远程触发 PC 端 PublishEventRanking_Click
+                case "PUBLISH_EVENT_RANKING_STORE":
+                    try { PublishEventRanking_Click(null, null); }
+                    catch (Exception ex) { AddLog("远程公布项目总排名失败: " + ex.Message); }
+                    break;
+                // 2026-06-18 race_control.html "手工补段" — data: lane (int), segNum (int), cumTime (string)
+                case "MANUAL_SPLIT":
+                    if (data != null) {
+                        try {
+                            int laneMs = data["lane"] != null ? (int)data["lane"] : -1;
+                            int segMs = data["segNum"] != null ? (int)data["segNum"] : 0;
+                            string cumMs = data["cumTime"] != null ? data["cumTime"].ToString() : "";
+                            if (laneMs < 0 || segMs <= 0 || string.IsNullOrEmpty(cumMs)) {
+                                AddLog("MANUAL_SPLIT 参数无效: lane=" + laneMs + " seg=" + segMs + " cum=" + cumMs); break;
+                            }
+                            double cumSec = TimeFormatter.Parse(cumMs);
+                            if (cumSec <= 0) { AddLog("MANUAL_SPLIT 时间解析失败: " + cumMs); break; }
+                            var sw = GetCurrentHeatSwimmers().FirstOrDefault(s2 => {
+                                var sa2 = s2.GetAssignmentForStage(_currentStage);
+                                return (sa2 != null ? sa2.Lane : s2.Lane) == laneMs;
+                            });
+                            if (sw == null) { AddLog("MANUAL_SPLIT 找不到泳道 " + laneMs + " 运动员"); break; }
+                            ApplyManualSplit(sw, segMs, cumSec);
+                            AddLog(string.Format("远程手工补段: 道{0} 第{1}段 累计{2}s", laneMs, segMs, cumSec));
+                        } catch (Exception ex) { AddLog("MANUAL_SPLIT 处理失败: " + ex.Message); }
+                    }
+                    break;
                 // 2026-06-02 race_control.html "打印成绩" 远程触发 -> 生成本组成绩 HTML 回送给请求端打印
                 case "PRINT_HEAT_RESULT": {
                     if (socket == null) break;
@@ -2290,6 +2317,21 @@ namespace SwimmingScoreboard
                         if (data["laneOrder"] != null) {
                             _laneCloseSettings.LaneOrder = data["laneOrder"].ToString();
                         }
+                        // 2026-06-18 race_control.html 远程修改 6 个新参数 (与 PC 端 ShowTimeParamsDialog / ShowPoolDeviceSettingsDialog 同步)
+                        if (data["blindReplaceDelay"] != null) {
+                            double v = (double)data["blindReplaceDelay"];
+                            if (v < 0) v = 0; if (v > 9) v = 9;
+                            _laneCloseSettings.BlindReplaceDelay = Math.Round(v, 0);
+                        }
+                        if (data["reactionEventWindowSec"] != null) {
+                            double v = (double)data["reactionEventWindowSec"];
+                            if (v < 1) v = 1; if (v > 10) v = 10;
+                            _laneCloseSettings.ReactionEventWindowSec = v;
+                        }
+                        if (data["autoBlindReplaceTouchpad"] != null) _laneCloseSettings.AutoBlindReplaceTouchpad = (bool)data["autoBlindReplaceTouchpad"];
+                        if (data["manualTpReplaceTp"] != null) _laneCloseSettings.ManualTpReplaceTp = (bool)data["manualTpReplaceTp"];
+                        if (data["hardwareAlwaysOpen"] != null) _laneCloseSettings.HardwareAlwaysOpen = (bool)data["hardwareAlwaysOpen"];
+                        if (data["startBoxEdgeFalling"] != null) _laneCloseSettings.StartBoxEdgeFalling = (bool)data["startBoxEdgeFalling"];
                         //2026-05-19 远程台修改"泳池触板单/两端"安装方式: poolSingleSide=true 单端, false 两端
                         if (data["poolSingleSide"] != null) {
                             bool isSingle = (bool)data["poolSingleSide"];
@@ -2510,6 +2552,20 @@ namespace SwimmingScoreboard
                 //   注意: 文件对话框只能在 UI 线程弹, 这里 Dispatcher.Invoke 切回 UI 线程
                 case "PLAY_PPT":
                     Dispatcher.Invoke(new Action(() => { try { PlayPpt_Click(null, null); } catch (Exception ex) { AddLog("远端 PPT 播放失败: " + ex.Message); } }));
+                    break;
+                // 2026-06-18 race_control.html "大屏样式" — 在 PC 端弹大屏样式控制窗口
+                case "OPEN_DISPLAY_STYLE":
+                    Dispatcher.Invoke(new Action(() => { try { OpenDisplayStyle_Click(null, null); } catch (Exception ex) { AddLog("远端 大屏样式 弹框失败: " + ex.Message); } }));
+                    break;
+                // 2026-06-18 race_control.html 参数设置 hub 三项 — 远程触发 PC 端本机对话框
+                case "OPEN_AUTOSAVE_PATH_DIALOG":
+                    Dispatcher.Invoke(new Action(() => { try { AutoSaveTxtPathConfig_Click(null, null); } catch (Exception ex) { AddLog("远端 成绩存盘路径 弹框失败: " + ex.Message); } }));
+                    break;
+                case "OPEN_THERMAL_PRINTER_DIALOG":
+                    Dispatcher.Invoke(new Action(() => { try { ThermalPrinterConfig_Click(null, null); } catch (Exception ex) { AddLog("远端 热敏打印 弹框失败: " + ex.Message); } }));
+                    break;
+                case "OPEN_CHANGE_PASSWORD_DIALOG":
+                    Dispatcher.Invoke(new Action(() => { try { EditorChangePassword_Click(null, null); } catch (Exception ex) { AddLog("远端 用户名/密码 弹框失败: " + ex.Message); } }));
                     break;
                 // 2026-06-17 RDC/control.html 完全远程化: list/play 模式 (主控 PC 不弹框)
                 // 文件目录: Media/ (图片视频) 和 Documents/PPT/ (PPT 文件), 相对 exe 路径或绝对路径
@@ -3081,7 +3137,13 @@ namespace SwimmingScoreboard
                     bigDisplayPageInterval = _laneCloseSettings.BigDisplayPageInterval,
                     reactionTimeEnabled = _laneCloseSettings.ReactionTimeEnabled,
                     laneOrder = _laneCloseSettings.LaneOrder,
-                    hardwareAlwaysOpen = _laneCloseSettings.HardwareAlwaysOpen
+                    hardwareAlwaysOpen = _laneCloseSettings.HardwareAlwaysOpen,
+                    // 2026-06-18 race_control.html 参数设置弹窗用 (与 PC 端同步)
+                    blindReplaceDelay = _laneCloseSettings.BlindReplaceDelay,
+                    reactionEventWindowSec = _laneCloseSettings.ReactionEventWindowSec,
+                    autoBlindReplaceTouchpad = _laneCloseSettings.AutoBlindReplaceTouchpad,
+                    manualTpReplaceTp = _laneCloseSettings.ManualTpReplaceTp,
+                    startBoxEdgeFalling = _laneCloseSettings.StartBoxEdgeFalling
                 },
                 displayRecordLabel = string.IsNullOrEmpty(_displayRecordLabel) ? "WR" : _displayRecordLabel,
                 displayRecordTypeName = string.IsNullOrEmpty(_displayRecordTypeName) ? "世界纪录" : _displayRecordTypeName,
