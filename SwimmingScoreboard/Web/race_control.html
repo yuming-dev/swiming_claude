@@ -24,6 +24,19 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 
 /* 主体 */
 .main-area { flex: 1; display: flex; overflow: hidden; }
+/* 2026-06-18 左上角大屏预览 (iframe 嵌 display.html, 大小可调 1/8 ~ 1/2 viewport 宽) */
+#bigPreview { position: fixed; top: 44px; left: 230px; background: #000; border: 2px solid #475569; z-index: 9999; overflow: hidden; box-shadow: 0 4px 16px rgba(0,0,0,0.5); border-radius: 4px; }
+#bigPreviewInner { position: relative; overflow: hidden; }
+#bigPreviewIframe { position: absolute; top: 0; left: 0; width: 1920px; height: 1080px; border: none; transform-origin: top left; }
+#bigPreviewBar { background: rgba(0,0,0,0.85); padding: 3px 6px; display: flex; align-items: center; gap: 6px; font-size: 11px; color: #cbd5e1; }
+#bigPreviewBar input[type=range] { flex: 1; min-width: 60px; }
+#bigPreviewBar button { background:#475569;color:white;border:0;border-radius:3px;padding:2px 6px;font-size:10px;cursor:pointer; }
+/* 2026-06-18 末段 TP/MB 差异检测 (finishTpMbDispute=true) 时圆点标红 */
+.device-dot.dispute { background: #DC2626 !important; box-shadow: 0 0 6px #DC2626; border-color: #FCA5A5 !important; }
+/* 盲表 ComboBox 历史 (黑底白字, 与 PC 端一致) */
+.lr-blind-combo { background: #000; color: white; border: 1px solid #475569; border-radius: 3px;
+    font-family: Consolas, monospace; font-size: 11px; height: 20px; padding: 0 4px; margin-left: 4px; min-width: 70px; }
+.lr-blind-combo option { background: #000; color: white; }
 
 /* 赛程树面板（左侧）：赛程导航(6) + 计时源对比(4)，与主服务器比例一致 */
 .schedule-tree-panel { width: 220px; background: var(--card); border-right: 1px solid #334155; display: flex; flex-direction: column; overflow: hidden; }
@@ -166,6 +179,64 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 </style>
 </head>
 <body>
+<!-- 2026-06-18 左上角大屏预览 -->
+<div id="bigPreview">
+    <div id="bigPreviewInner">
+        <iframe id="bigPreviewIframe" src="display.html"></iframe>
+    </div>
+    <div id="bigPreviewBar">
+        <button onclick="toggleBigPreview()" title="折叠/展开" id="bigPreviewToggle">▼</button>
+        <span>大屏</span>
+        <input id="bigPreviewSize" type="range" min="12.5" max="50" step="0.5" value="20" oninput="updateBigPreviewSize(this.value)"/>
+        <span id="bigPreviewPct" style="width:36px;text-align:right;">20%</span>
+    </div>
+</div>
+<script>
+function updateBigPreviewSize(vw) {
+    var box = document.getElementById('bigPreview');
+    var inner = document.getElementById('bigPreviewInner');
+    var ifr = document.getElementById('bigPreviewIframe');
+    var pct = document.getElementById('bigPreviewPct');
+    if (!box || !inner || !ifr) return;
+    var widthPx = Math.round(window.innerWidth * vw / 100);
+    var scale = widthPx / 1920;
+    var heightPx = Math.round(1080 * scale);
+    box.style.width = widthPx + 'px';
+    inner.style.width = widthPx + 'px';
+    inner.style.height = heightPx + 'px';
+    ifr.style.transform = 'scale(' + scale + ')';
+    pct.textContent = (Math.round(vw * 10) / 10) + '%';
+    try { localStorage.setItem('rcBigPreviewVw', vw); } catch (e) {}
+}
+function toggleBigPreview() {
+    var inner = document.getElementById('bigPreviewInner');
+    var btn = document.getElementById('bigPreviewToggle');
+    if (!inner) return;
+    var hidden = inner.style.display === 'none';
+    inner.style.display = hidden ? '' : 'none';
+    btn.textContent = hidden ? '▼' : '▲';
+    try { localStorage.setItem('rcBigPreviewHidden', hidden ? '0' : '1'); } catch (e) {}
+}
+window.addEventListener('load', function() {
+    var v = 20;
+    try { var s = localStorage.getItem('rcBigPreviewVw'); if (s) v = parseFloat(s); } catch (e) {}
+    if (v < 12.5) v = 12.5; if (v > 50) v = 50;
+    var slider = document.getElementById('bigPreviewSize');
+    if (slider) { slider.value = v; updateBigPreviewSize(v); }
+    try {
+        if (localStorage.getItem('rcBigPreviewHidden') === '1') {
+            var inner = document.getElementById('bigPreviewInner');
+            var btn = document.getElementById('bigPreviewToggle');
+            if (inner) { inner.style.display = 'none'; if (btn) btn.textContent = '▲'; }
+        }
+    } catch (e) {}
+});
+window.addEventListener('resize', function() {
+    var slider = document.getElementById('bigPreviewSize');
+    if (slider) updateBigPreviewSize(slider.value);
+});
+</script>
+
 <!-- 区域1: 导航栏 -->
 <div class="nav-bar">
     <span class="current-info" id="currentInfo">未选择比赛</span>
@@ -433,6 +504,7 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
                     <button class="action-btn small" style="background:#64748B;margin:0;" onclick="markLane('DNS')">DNS</button>
                     <button class="action-btn small" style="background:#78716C;margin:0;" onclick="markLane('DNF')">DNF</button>
                     <button class="action-btn small" style="background:#9CA3AF;margin:0;" onclick="markLane('DSQ')">DSQ</button>
+                    <button class="action-btn small" style="background:#7C3AED;margin:0;" onclick="markLane('TRI')">TRI</button>
                     <button class="action-btn small" style="background:#D97706;margin:0;" onclick="manualTimeInput()"><span class="ico">&#xE932;</span>手动输入</button>
                     <!-- 取消备注 / 盲表成绩 -->
                     <button class="action-btn small" style="background:#0EA5E9;margin:0;" onclick="cancelNote()">取消备注</button>
@@ -1599,6 +1671,17 @@ function renderHeader() {
 // ═══════ 泳道渲染 ═══════
 function getReactionDisplay(sw) {
     if (!reactionTimeEnabled) return '';
+    // 2026-06-18 接力赛: 显示每棒反应时 (LegReactionTimes) 用 | 分隔, 直到比赛 Finished
+    var isRcRelay = (data.currentEvent || '').indexOf('接力') >= 0
+                 || (data.currentEvent || '').match(/\d+\s*[x×]/) != null;
+    if (isRcRelay && sw.legReactionTimes && sw.legReactionTimes.length > 0) {
+        var legParts = [];
+        for (var i = 0; i < sw.legReactionTimes.length; i++) {
+            var v = parseFloat(sw.legReactionTimes[i]);
+            if (!isNaN(v) && v !== 0) legParts.push(sw.legReactionTimes[i]);
+        }
+        if (legParts.length > 0) return legParts.join('|');
+    }
     var rt = sw.reactionTime || '';
     if (!rt) return '';
     var lane = sw.lane;
@@ -1799,7 +1882,10 @@ function buildLaneRows(container, swimmers, rcRelay) {
             '</div>' +
             '<div class="start-ind lr-right-ind"></div>' +
             '<div class="info-area">' +
-                '<div class="reaction lr-reaction"></div>' +
+                '<div style="display:flex;flex-direction:column;">' +
+                    '<div class="reaction lr-reaction"></div>' +
+                    '<select class="lr-blind-combo" title="盲表成绩历史 (最新)" onmousedown="event.stopPropagation();" onchange="event.stopPropagation();"></select>' +
+                '</div>' +
                 '<div class="final-time lr-final"></div>' +
                 '<div class="rank lr-rank"></div>' +
                 '<div class="lr-remark" style="width:40px;text-align:center;font-size:13px;font-weight:bold;color:#EF4444;margin-left:8px;"></div>' +
@@ -1833,7 +1919,9 @@ function buildLaneRows(container, swimmers, rcRelay) {
             reactionEl: row.querySelector('.lr-reaction'),
             finalTimeEl: row.querySelector('.lr-final'),
             rankEl: row.querySelector('.lr-rank'),
-            remarkEl: row.querySelector('.lr-remark')
+            remarkEl: row.querySelector('.lr-remark'),
+            blindComboEl: row.querySelector('.lr-blind-combo'),
+            lastBlindHistKey: ''
         });
     }
     applyBlindWatchVisibility();
@@ -1964,6 +2052,33 @@ function refreshLaneRows(swimmers, rcRelay) {
         // 破纪录金色高亮，DSQ/DNS/DNF 红色
         var newRemarkColor = (!isStatusDQ && rec) ? '#F59E0B' : '';
         if (rowUI.remarkEl.style.color !== newRemarkColor) rowUI.remarkEl.style.color = newRemarkColor;
+
+        // 2026-06-18 末段 TP/MB 差异 (finishTpMbDispute): 给末段触板+三盲表圆点加 .dispute 红色
+        // PC 端 CheckFinalTpMbDispute 判定: 末段 TouchpadTime 与 PushButton1/2/3 中位数差 > 0.5s
+        var disputeCls = sw.finishTpMbDispute ? ' dispute' : '';
+        if (sw.finishTpMbDispute) {
+            // 在已有 className 后追加 dispute (终点端两边都标, 简化处理)
+            for (var di = 0; di < 5; di++) {
+                if (di === 3) continue;   // 跳过出发台 (index 3)
+                if (rowUI.leftDots[di].className.indexOf('dispute') < 0) rowUI.leftDots[di].className += ' dispute';
+                if (rowUI.rightDots[di].className.indexOf('dispute') < 0) rowUI.rightDots[di].className += ' dispute';
+            }
+        }
+
+        // 2026-06-18 盲表 ComboBox 历史 (黑底白字, 最新在顶, 仅在数据变化时重建)
+        if (rowUI.blindComboEl) {
+            var bh = sw.blindHistory || [];
+            var bhKey = bh.length + '|' + (bh[0]||'') + '|' + (bh[bh.length-1]||'');
+            if (bhKey !== rowUI.lastBlindHistKey) {
+                rowUI.lastBlindHistKey = bhKey;
+                var bhHtml = '';
+                for (var bi = 0; bi < bh.length; bi++) {
+                    bhHtml += '<option value="' + bh[bi] + '">' + bh[bi] + '</option>';
+                }
+                rowUI.blindComboEl.innerHTML = bhHtml || '<option></option>';
+                rowUI.blindComboEl.selectedIndex = 0;
+            }
+        }
     }
 }
 

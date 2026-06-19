@@ -2901,6 +2901,14 @@ namespace SwimmingScoreboard
                     isSuspectFalseStart = laneState != null && laneState.IsSuspectFalseStart,
                     isNewRecord = result != null && !string.IsNullOrEmpty(result.RecordNote),
                     recordNote = result != null ? (result.RecordNote ?? "") : "",
+                    // 2026-06-18 同步 PC 端 UI 关键字段给 race_control.html (HTML 端可显示同款信息)
+                    finishTpMbDispute = laneState != null && laneState.FinishTpMbDispute,
+                    legReactionTimes = (_isRelay && result != null && result.LegReactionTimes != null)
+                        ? result.LegReactionTimes.Select(rt => rt.ToString("F2")).ToList<object>()
+                        : new List<object>(),
+                    blindHistory = (_laneBlindHistory.ContainsKey(displayLane) && _laneBlindHistory[displayLane] != null)
+                        ? _laneBlindHistory[displayLane].Take(20).Select(be => TimeFormatter.Format(be.TimeSeconds)).ToList<object>()
+                        : new List<object>(),
                     currentLap = laneState != null ? laneState.CurrentLap : 0,
                     // 含 spinner 人工偏移的"显示用当前圈数" = 总圈数 − 左剩余显示 − 右剩余显示。
                     // 接力赛大屏 / 三端控制台据此推算"第N棒"，让加圈/减圈即时切换棒次显示。
