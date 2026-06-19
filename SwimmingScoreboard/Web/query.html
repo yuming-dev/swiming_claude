@@ -730,8 +730,12 @@ function connect() {
             applyEditorPackage(msg.package);
             return;
         }
-        // SHOW_LIVE_RACE / 其他: 接 data 字段 (含 allSwimmers / schedule 等)
-        if (msg.data) {
+        // 2026-06-19 严格白名单: 只接 SHOW_LIVE_RACE 全量状态包.
+        //   PC 端比赛时高频推 RUNNING_TIME_UPDATE (10Hz) payload 只有 {runningTime, clockPaused}.
+        //   旧代码 `if (msg.data) { data = msg.data }` 会把整个 data 替换成 stub,
+        //   schedule / allSwimmers 全丢, 导致整页闪烁 + 选不到组次/成绩.
+        //   查询页不需要滚动时间, 也不用 STAGE_COMPLETE / PROMOTION_DONE 等局部消息, 全忽略.
+        if (msg.type === 'SHOW_LIVE_RACE' && msg.data) {
             data = msg.data;
             applyStatusData(data);
         }
