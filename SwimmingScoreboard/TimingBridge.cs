@@ -542,8 +542,12 @@ namespace SwimmingScoreboard
             };
 
             string endLabel = isFinishEnd ? "终点端" : "另一端";
-            RaiseLog(string.Format("收帧: CMD=0x{0:X2} D4={1} 泳道{2}({3}) {4} {5}",
-                cmd, rawD4, laneIndex, endLabel, cmdType, TimeFormatter.Format(timeInSeconds)));
+            // 2026-06-19 0x7F (RunningTime) 硬件 100ms 一帧, 收帧日志没价值还压 UI 线程 (10Hz 列表插入+排版+滚动),
+            //   下游 OnTimingData / ProcessTimingData / BroadcastRunningTime 全部保留, 只压日志.
+            if (cmd != 0x7F) {
+                RaiseLog(string.Format("收帧: CMD=0x{0:X2} D4={1} 泳道{2}({3}) {4} {5}",
+                    cmd, rawD4, laneIndex, endLabel, cmdType, TimeFormatter.Format(timeInSeconds)));
+            }
 
             Action<TimingData> handler = OnTimingData;
             if (handler != null) handler(data);
