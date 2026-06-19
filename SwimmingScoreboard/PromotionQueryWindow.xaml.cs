@@ -103,12 +103,18 @@ namespace SwimmingScoreboard
                 return;
             }
 
+            // 2026-06-18 提前取 ageFilter, 用于半决赛检查 (修跨组别误判)
+            string ageFilter = GetAgeGroup();
+
             // 确定下一阶段并设置默认晋级人数
             if (fromStage == "预赛") {
-                // 预赛晋级：检查赛程表是否有半决赛
+                // 预赛晋级：检查赛程表是否有半决赛 — 按 ageGroup 过滤防跨年龄段污染
                 bool hasSemis = false;
                 foreach (var sch in _schedule) {
-                    if (sch.Gender == gender && sch.EventName == eventName && sch.Stage == "半决赛") { hasSemis = true; break; }
+                    if (sch.Gender == gender && sch.EventName == eventName && sch.Stage == "半决赛"
+                        && (ageFilter == "全部" || (sch.AgeGroup ?? "") == ageFilter)) {
+                        hasSemis = true; break;
+                    }
                 }
                 _toStage = hasSemis ? "半决赛" : "决赛";
             }
@@ -118,8 +124,6 @@ namespace SwimmingScoreboard
             // 晋级到半决赛→16人，晋级到决赛→8人
             int defaultPromo = (_toStage == "半决赛") ? 16 : 8;
             CountBox.Text = defaultPromo.ToString();
-
-            string ageFilter = GetAgeGroup();
             int total = 0, withResults = 0;
             var heats = new HashSet<int>();
             foreach (var s in _swimmers) {

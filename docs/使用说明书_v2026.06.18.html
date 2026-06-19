@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>游泳赛事管理系统使用说明书 v2026.06.18</title>
+<style>
+  @page { size: A4; margin: 18mm 16mm; }
+  body { font-family: "Microsoft YaHei","微软雅黑",sans-serif; font-size: 11pt; color: #1f2937; line-height: 1.6; }
+  h1 { font-size: 24pt; text-align: center; border-bottom: 3px double #1e3a8a; padding-bottom: 12px; color: #1e3a8a; margin-bottom: 6pt; }
+  h1 + p { text-align: center; color: #64748b; margin-top: 0; font-size: 11pt; }
+  h2 { font-size: 16pt; color: #1e3a8a; border-left: 6px solid #3b82f6; padding-left: 10px; margin-top: 28px; page-break-after: avoid; }
+  h3 { font-size: 13pt; color: #1e3a8a; margin-top: 18px; background: #eff6ff; padding: 5px 10px; border-radius: 4px; page-break-after: avoid; }
+  h4 { font-size: 11.5pt; color: #334155; margin: 14px 0 6px 0; page-break-after: avoid; }
+  table { border-collapse: collapse; width: 100%; margin: 6px 0 14px; font-size: 10pt; }
+  th, td { border: 1px solid #cbd5e1; padding: 5px 8px; vertical-align: top; }
+  th { background: #f1f5f9; text-align: left; font-weight: bold; }
+  .note { background: #fef9c3; padding: 7px 11px; border-left: 4px solid #ca8a04; border-radius: 4px; margin: 6px 0; }
+  .summary { background: #ecfdf5; border-left: 4px solid #059669; padding: 7px 12px; border-radius: 4px; margin: 6px 0; }
+  .new { background: #fff7ed; padding: 7px 12px; border-left: 4px solid #ea580c; border-radius: 4px; margin: 6px 0; }
+  .danger { background: #fee2e2; padding: 7px 11px; border-left: 4px solid #b91c1c; border-radius: 4px; margin: 6px 0; }
+  ul { margin: 3px 0 8px 22px; } li { margin: 2px 0; }
+  ol { margin: 3px 0 8px 22px; }
+  code { background: #f1f5f9; padding: 1px 5px; border-radius: 3px; font-family: Consolas, monospace; font-size: 10pt; }
+  .kbd { display: inline-block; padding: 1px 7px; border: 1px solid #94a3b8; border-radius: 4px; background: #f1f5f9; font-family: Consolas, monospace; font-size: 10pt; }
+  .toc { background: #f8fafc; border: 1px solid #e2e8f0; padding: 10px 18px; border-radius: 6px; margin: 8px 0 16px; font-size: 10.5pt; }
+  .toc a { color: #1e3a8a; text-decoration: none; }
+  .toc div { margin: 2px 0; }
+  .badge-new { display: inline-block; background: #fef3c7; color: #92400e; padding: 1px 8px; border-radius: 10px; font-size: 9pt; font-weight: bold; }
+  .footer { text-align: center; color: #64748b; font-size: 9.5pt; margin-top: 24px; padding-top: 10px; border-top: 1px solid #e2e8f0; }
+  hr { border: 0; border-top: 1px dashed #cbd5e1; margin: 14px 0; }
+  .arch { background: #0f172a; color: #f1f5f9; padding: 12px 14px; border-radius: 6px; font-family: Consolas, monospace; font-size: 10pt; white-space: pre; line-height: 1.4; }
+</style>
+</head>
+<body>
+
+<h1>游泳赛事管理系统使用说明书</h1>
+<p>v2026.06.18 &nbsp;|&nbsp; 含 RTC 独立计时主控 + 大屏预览 + 接力抢跳反应时修正</p>
+
+<div class="toc">
+<b>目录</b>
+<div><a href="#s1">一、系统概览</a></div>
+<div><a href="#s2">二、安装与启动</a></div>
+<div><a href="#s3">三、网络架构与端口</a></div>
+<div><a href="#s4">四、赛事管理与报名 (ScheduleEditor)</a></div>
+<div><a href="#s5">五、比赛控制 (主服务器 / RTC)</a></div>
+<div><a href="#s6">六、显示控制 (大屏 / 远程)</a></div>
+<div><a href="#s7">七、比赛规则 (U系列 / 男女并项)</a></div>
+<div><a href="#s8">八、接力比赛与反应时</a></div>
+<div><a href="#s9">九、TRI / DSQ / DNS / DNF / 抢跳</a></div>
+<div><a href="#s10">十、成绩处理与发布</a></div>
+<div><a href="#s11">十一、远程客户端 (control.html / RDC.exe / race_control.html)</a></div>
+<div><a href="#s12">十二、参数设置</a></div>
+<div><a href="#s13">十三、故障排查</a></div>
+<div><a href="#s14">十四、v2026.06.18 版本变更</a></div>
+</div>
+
+<h2 id="s1">一、系统概览</h2>
+
+<h3>1.1 系统组成</h3>
+<table>
+  <tr><th>程序</th><th>角色</th><th>典型部署</th><th>关键功能</th></tr>
+  <tr><td><code>SwimmingScoreboard.exe</code></td><td>主服务器</td><td>主控 PC (1 台)</td><td>赛事管理 / 编排 / 计时控制 / 大屏推送 / 消息总线</td></tr>
+  <tr><td><code>RemoteTimingControl.exe</code> (RTC)</td><td>远程计时控制</td><td>计时席 PC</td><td>直连硬件计时器 / 经主服务器中转大屏</td></tr>
+  <tr><td><code>RemoteDisplayControl.exe</code> (RDC)</td><td>远程显示控制</td><td>裁判席 PC</td><td>切换大屏显示模式 / 内嵌大屏预览</td></tr>
+  <tr><td><code>ScheduleEditor.exe</code></td><td>赛事编排端</td><td>编排席 PC</td><td>赛程 / 运动员录入 / 同步主服务器</td></tr>
+  <tr><td><code>RegistrationTool.exe</code></td><td>报名工具</td><td>报名席 PC</td><td>批量导入运动员 / 单位 / 编号</td></tr>
+  <tr><td><code>display.html</code></td><td>大屏页面</td><td>大屏 PC (浏览器)</td><td>显示当前比赛 / 成绩 / 排名 / 颁奖等</td></tr>
+  <tr><td><code>control.html</code></td><td>显示控制 (Web)</td><td>裁判席浏览器</td><td>RDC.exe 的 Web 版</td></tr>
+  <tr><td><code>race_control.html</code></td><td>比赛控制 (Web)</td><td>裁判席浏览器</td><td>RTC.exe 的 Web 版</td></tr>
+  <tr><td><code>checkin.html</code></td><td>检录终端</td><td>检录席</td><td>检录运动员状态</td></tr>
+  <tr><td><code>register.html</code></td><td>报名 Web 终端</td><td>报名席浏览器</td><td>Web 版报名</td></tr>
+  <tr><td><code>leaderboard.html</code></td><td>排行榜大屏</td><td>排行榜显示器</td><td>主项目实时排名</td></tr>
+</table>
+
+<h3>1.2 三种工作模式 <span class="badge-new">v2026.06.18 重要</span></h3>
+
+<div class="summary">
+<b>核心规则</b>：三个"计时控制端"(主服务器 / RTC.exe / race_control.html) 哪个直连硬件计时器，
+哪个就是<b>计时主控</b>，其他端只能<b>观察</b>，不能反控。
+</div>
+
+<table>
+  <tr><th>主控选择</th><th>典型场景</th><th>消息流</th></tr>
+  <tr><td>主服务器直连硬件</td><td>小型比赛, 单 PC 部署</td><td>硬件 ←→ 主服务器 → display.html (直接)</td></tr>
+  <tr><td>RTC.exe 直连硬件</td><td>大型比赛, 计时席与编排席分开</td><td>硬件 ←→ RTC → 主服务器 → display.html</td></tr>
+</table>
+
+<h3>1.3 部署架构示意 <span class="badge-new">v2026.06.18</span></h3>
+<div class="arch">主服务器 PC (SwimmingScoreboard.exe)              计时席 PC (RemoteTimingControl.exe)
+   ├─ WebSocket Server :3002                         ├─ EditorSyncClient → 主服务器 :3002
+   ├─ HTTP 文件服务 :8080 (Web/)                     ├─ 连硬件 (TCP/UDP/串口)
+   ├─ 编排数据 / 赛程 / 成绩 / 纪录                  └─ 发 RTC_FORWARD 包装 SHOW_LIVE_RACE 推主服务器
+   └─ 转发 RTC_FORWARD payload 给所有 display
+            │
+            ↓
+   裁判席 PC (RemoteDisplayControl.exe)            大屏 PC (浏览器 display.html)
+   ├─ WebView2 预览 (file:/// + ?host=主服务器IP)   ├─ 连主服务器 WS:3002
+   └─ WS Client 连主服务器 :3002                    └─ 接收 SHOW_LIVE_RACE / SHOW_HEAT_RESULT 等</div>
+
+<h2 id="s2">二、安装与启动</h2>
+
+<h3>2.1 安装包内容</h3>
+<table>
+  <tr><th>文件</th><th>用途</th></tr>
+  <tr><td><code>Setup.exe</code></td><td>安装入口 — 选择安装位置, 复制对应程序到目标目录</td></tr>
+  <tr><td><code>Uninstall.exe</code></td><td>卸载工具</td></tr>
+  <tr><td><code>SwimmingScoreboard/</code></td><td>主服务器程序及 Web/ 文件夹</td></tr>
+  <tr><td><code>RemoteTimingControl/</code></td><td>RTC 计时端</td></tr>
+  <tr><td><code>RemoteDisplayControl/</code></td><td>RDC 显示控制端 (含 WebView2 + display.html 本地副本)</td></tr>
+  <tr><td><code>ScheduleEditor/</code></td><td>编排端</td></tr>
+  <tr><td><code>RegistrationTool/</code></td><td>报名端</td></tr>
+  <tr><td><code>TimingSimulator.exe</code></td><td>调试用 — 模拟硬件计时器 TCP 帧</td></tr>
+  <tr><td><code>ParamDebugBot.exe</code></td><td>调试用 — 主服务器参数自动化测试</td></tr>
+</table>
+
+<h3>2.2 启动顺序 (强烈建议)</h3>
+
+<ol>
+  <li><b>主服务器 PC</b>：管理员身份运行 <code>SwimmingScoreboard.exe</code> (首次需 admin 给 HTTP 8080 注册 URL ACL)</li>
+  <li>主服务器登录 (admin/admin 默认), 在"赛事管理"载入比赛档案 (.json)</li>
+  <li><b>RTC PC</b>：运行 <code>RemoteTimingControl.exe</code>, 顶栏填主服务器 IP, 点"连接"</li>
+  <li>RTC 通过"参数设置 → 硬件计时器连接"配置硬件 (TCP/UDP/串口)</li>
+  <li><b>RDC PC</b>：运行 <code>RemoteDisplayControl.exe</code>, 填主服务器 IP, 点"连接", 左侧 WebView2 自动加载大屏预览</li>
+  <li><b>大屏 PC</b>：浏览器打开 <code>http://主服务器IP:8080/display.html</code></li>
+  <li><b>其他客户端</b>：<code>control.html</code> / <code>race_control.html</code> / <code>checkin.html</code> 同样从主服务器 8080 取</li>
+</ol>
+
+<div class="note">
+<b>注意</b>：主服务器和 RTC.exe <b>不能在同一台 PC 上运行</b> (3002 端口冲突)。RTC 启动时会探测 3002,
+若被占自动弹框提示"端口冲突 — 请关闭主服务器或将 RTC 部署到另一台 PC"。
+</div>
+
+<h3>2.3 凭据管理</h3>
+<p>各程序首次启动用 admin/admin 登录, 之后通过"参数设置 → 用户名和密码"修改。各客户端凭据独立存储:</p>
+<table>
+  <tr><th>程序</th><th>凭据文件</th></tr>
+  <tr><td>主服务器</td><td><code>credentials.json</code></td></tr>
+  <tr><td>RTC</td><td><code>timing_credentials.json</code></td></tr>
+  <tr><td>RDC</td><td><code>display_credentials.json</code></td></tr>
+  <tr><td>ScheduleEditor</td><td><code>editor_credentials.json</code></td></tr>
+  <tr><td>RegistrationTool</td><td><code>register_credentials.json</code></td></tr>
+</table>
+
+<h2 id="s3">三、网络架构与端口</h2>
+
+<h3>3.1 端口使用</h3>
+<table>
+  <tr><th>端口</th><th>用途</th><th>提供方</th></tr>
+  <tr><td>3002 (TCP, WebSocket)</td><td>消息总线 / 实时数据广播</td><td>主服务器 (主控模式) — RTC 不开</td></tr>
+  <tr><td>8080 (HTTP)</td><td>Web 文件服务 — 提供 display.html / control.html / race_control.html 等</td><td>主服务器</td></tr>
+  <tr><td>硬件 TCP 5555 / UDP 5002 / 串口</td><td>与硬件计时器通信</td><td>主控 (主服务器或 RTC)</td></tr>
+</table>
+
+<h3>3.2 防火墙</h3>
+<p>主服务器需放行 TCP 3002 和 TCP 8080 入站。首次以管理员启动会自动尝试注册 URL ACL,
+失败时降级到 <code>localhost:8080</code> 仅本机访问。</p>
+
+<h3>3.3 多机部署</h3>
+<p>典型部署: 主服务器 1 台 + RTC 1 台 + RDC 多台 + 大屏 1-N 台。所有客户端都连主服务器的 3002 端口。
+RTC 是唯一连硬件计时器的端点。</p>
+
+<h2 id="s4">四、赛事管理与报名 (ScheduleEditor)</h2>
+
+<h3>4.1 创建比赛档案</h3>
+<p>主服务器或 ScheduleEditor 中"新建比赛":</p>
+<ul>
+  <li>填写比赛名称 / 日期 / 场馆 / 泳池配置 (25m/50m, 道数)</li>
+  <li>选择适用规则 (U系列 / 标准 / 自定义)</li>
+  <li>保存为 <code>.json</code> 比赛档案到 <code>Database/</code></li>
+</ul>
+
+<h3>4.2 项目编排</h3>
+<p>在"项目管理"中:</p>
+<ul>
+  <li>添加项目: 男子/女子, 距离, 泳姿, 阶段 (预赛/半决赛/决赛/A组/B组)</li>
+  <li>设置项目顺序 (SessionNumber / EvNum)</li>
+  <li>关联接力 (4×50 / 4×100 / 4×200 等)</li>
+  <li>批量导入: 从 Excel 模板粘贴</li>
+</ul>
+
+<h3>4.3 运动员报名</h3>
+<p>三种方式:</p>
+<ol>
+  <li><b>主服务器</b>: 报名 tab 单条录入</li>
+  <li><b>RegistrationTool.exe</b>: 批量导入运动员 (CSV / 模板)</li>
+  <li><b>register.html</b>: Web 端报名 (远程报名)</li>
+</ol>
+
+<h3>4.4 赛程编排</h3>
+<p>"赛程编排" tab:</p>
+<ul>
+  <li>按项目自动分组 (HeatScheduler 算法)</li>
+  <li>道次自动分配 (蛇形 / 中间向外)</li>
+  <li>手动调整道次 + 撤销 / 重排</li>
+</ul>
+
+<h3>4.5 同步到主服务器</h3>
+<p>ScheduleEditor 顶栏填主服务器 IP, 点"连接":</p>
+<ul>
+  <li>连接成功后, 主服务器自动推送整包 (EDITOR_PACKAGE) 给编排端</li>
+  <li>编排端修改后自动回推主服务器 (EDITOR_PUSH_PACKAGE)</li>
+  <li>主服务器侧推回各客户端时, RTC 端有 1.5s 去抖, 避免频繁全量重建</li>
+</ul>
+
+<h2 id="s5">五、比赛控制 (主服务器 / RTC)</h2>
+
+<h3>5.1 顶端栏 <span class="badge-new">v2026.06.18</span></h3>
+<table>
+  <tr><th>区域</th><th>显示内容</th></tr>
+  <tr><td>左侧</td><td>● 服务运行中 (绿点)</td></tr>
+  <tr><td>中央</td><td>主服务器: ws://IP:3002 | Web 页面: http://IP:8080<br>RTC: 远程计时控制 — 直连硬件, 经主服务器中转大屏</td></tr>
+  <tr><td>右侧</td><td>内存: XX% | 硬件计时器: ● 状态 | [硬件连接按钮 — 仅 RTC] | 主服务器: [IP] [连接] [状态]</td></tr>
+</table>
+
+<h3>5.2 比赛状态机</h3>
+<table>
+  <tr><th>状态</th><th>触发</th><th>含义</th></tr>
+  <tr><td>Idle</td><td>开机 / 复位</td><td>未开始, 等"就位"</td></tr>
+  <tr><td>Waiting</td><td>"就位"按下</td><td>等发令 (Ready)</td></tr>
+  <tr><td>Racing</td><td>发令枪响 / "开始"</td><td>比赛中, 接收触板 / 盲表 / 出发台数据</td></tr>
+  <tr><td>Finished</td><td>所有泳道完赛</td><td>不再处理新触板 / SB; PushButton (盲表) 仍存储 <span class="badge-new">v2026.06.18</span></td></tr>
+</table>
+
+<h3>5.3 计时数据接收</h3>
+<p>三类设备数据按状态机过滤:</p>
+<table>
+  <tr><th>设备</th><th>正常分段</th><th>完赛后</th></tr>
+  <tr><td>触板 (Touchpad)</td><td>记录分段时间</td><td>不接受 (避免误算成新分段)</td></tr>
+  <tr><td>盲表 (PushButton1/2/3)</td><td>记录分段盲表 + 备用</td><td><b>继续存储到 result.PushButtonNTime</b> <span class="badge-new">v2026.06.18</span></td></tr>
+  <tr><td>出发台 (StartingBlock)</td><td>反应时计算</td><td>不接受</td></tr>
+</table>
+
+<div class="summary">
+<b>v2026.06.18 修复</b>: 最后一名 TP 先到 → 比赛立即 Finished → MB 后到不再被丢弃, UI 盲表 ComboBox 仍显示并存入 result。
+</div>
+
+<h3>5.4 盲表 ComboBox 显示</h3>
+<p>每泳道盲表数据按时间倒序累积到 ComboBox (黑底白字 <span class="badge-new">v2026.06.18</span>):</p>
+<ul>
+  <li>下拉框平时显示最新一条</li>
+  <li>展开可看历史 (从新到旧)</li>
+  <li>真盲表 (PushButton1/2/3) + 备用盲表 + 代触板都加入</li>
+</ul>
+
+<h3>5.5 UI 中部 — 实时控制区</h3>
+<p>包含:</p>
+<ul>
+  <li>滚动时间显示 (硬件 0x7F 帧驱动, 100ms 节拍)</li>
+  <li>10 道泳道实时状态 (触板 / 盲表 / 出发台 / 手动 状态灯)</li>
+  <li>当前赛事 / 当前组 / 选手列表 / 反应时 / 名次</li>
+  <li>"就位" "开始" "暂停" "复位" 比赛控制按钮</li>
+  <li>"确认成绩" "印小条" "存盘"</li>
+</ul>
+
+<h2 id="s6">六、显示控制 (大屏 / 远程)</h2>
+
+<h3>6.1 大屏页面 (display.html)</h3>
+<p>浏览器打开 <code>http://主服务器IP:8080/display.html</code>, 自动连 <code>ws://主服务器IP:3002</code>。
+支持 URL 参数 <code>?host=IP</code> 指定 WebSocket 服务器 (RDC 用此机制)。</p>
+
+<h3>6.2 显示模式</h3>
+<table>
+  <tr><th>模式</th><th>命令</th><th>显示内容</th></tr>
+  <tr><td>比赛视图</td><td><code>SHOW_LIVE_RACE</code></td><td>当前组运动员 + 实时计时 + 滚动时间</td></tr>
+  <tr><td>出发表</td><td><code>SHOW_START_LIST</code></td><td>当前组运动员名单</td></tr>
+  <tr><td>组成绩</td><td><code>SHOW_HEAT_RESULT</code></td><td>该组完赛成绩 + 排名</td></tr>
+  <tr><td>总排名</td><td><code>SHOW_EVENT_RANKING</code></td><td>整个项目总成绩</td></tr>
+  <tr><td>团体</td><td><code>SHOW_TEAM_STANDINGS</code></td><td>团体积分</td></tr>
+  <tr><td>颁奖</td><td><code>SHOW_AWARDS</code></td><td>颁奖名单 + 音效</td></tr>
+  <tr><td>裁判介绍</td><td><code>SHOW_REFEREES</code></td><td>裁判名单</td></tr>
+  <tr><td>欢迎</td><td><code>SHOW_WELCOME</code></td><td>欢迎页 + 横幅</td></tr>
+  <tr><td>比赛日程</td><td><code>SHOW_SCHEDULE</code></td><td>整场赛程</td></tr>
+  <tr><td>纪录</td><td><code>SHOW_RECORDS</code></td><td>所有 WR/CR 等纪录</td></tr>
+  <tr><td>图片/视频</td><td><code>SHOW_MEDIA</code></td><td>主控 Media/ 或客户端上传</td></tr>
+  <tr><td>PPT</td><td>(本地翻页 + 远程触发)</td><td>PowerPoint 转 PNG 后逐页推送</td></tr>
+</table>
+
+<h3>6.3 大屏样式</h3>
+<p>"参数设置 → 大屏样式" / RDC "🎨 大屏样式" 按钮:</p>
+<ul>
+  <li>底色 (常规 / 渐变)</li>
+  <li>整体字号 / 4 类独立字号 (标题 / 项目 / 时间 / 信息)</li>
+  <li>9 处文字颜色 + 字体</li>
+  <li>WR/CR 横条显隐 (<code>TOGGLE_RECORDS_HIDDEN</code>)</li>
+  <li>备注栏反应时显隐 (<code>TOGGLE_REMARK_REACTION</code>)</li>
+</ul>
+
+<h2 id="s7">七、比赛规则 (U系列 / 男女并项)</h2>
+
+<h3>7.1 U系列规则</h3>
+<p>U10 / U12 / U14 / U16 等青少年组别:</p>
+<ul>
+  <li>按出生年份自动分组</li>
+  <li>支持 U 全级别混合 / 跨级别预决合并</li>
+  <li>报名时输入"年龄组"字段, 系统自动按规则归类</li>
+</ul>
+
+<h3>7.2 男女并项</h3>
+<p>同一项目可设男女并项 (混合编排成绩仍分开统计):</p>
+<ul>
+  <li>分配道次时男女合一</li>
+  <li>比赛中显示 M/F 标识</li>
+  <li>成绩页和颁奖分别处理</li>
+</ul>
+
+<h2 id="s8">八、接力比赛与反应时</h2>
+
+<h3>8.1 接力项目编排</h3>
+<p>项目名包含 "4×50" / "4×100" 即识别为接力:</p>
+<ul>
+  <li>每队 4 名队员, 按棒次填写</li>
+  <li>每棒长度 = 总距离 ÷ 4 (= perLegLaps × 泳池长度)</li>
+</ul>
+
+<h3>8.2 第 1 棒反应时 (个人出发反应)</h3>
+<p>枪响 (0x22 PreStart) → 出发台离开 (0x1A SB) → 反应时 = SB_PreStart - Gun_PreStart。负值 = 抢跳。</p>
+
+<h3>8.3 第 2/3/4 棒反应时 (接力交接) <span class="badge-new">v2026.06.18 修复</span></h3>
+<p>新算法 (<code>RelayReactionCalculator</code>):</p>
+<ol>
+  <li>每 (lane, side) 一个独立窗口, 窗口时长 = <code>ResultConfirmCloseDelay</code> (默认 3s)</li>
+  <li>窗口由<b>基准事件</b> (TP / MB_FirstPress / MB_Final / 手动 TP) 触发</li>
+  <li>SB 单独到时若无窗口, 暂存到 <code>_pendingSbs</code>, 等基准事件触发窗口后取出</li>
+  <li>窗口到期: <code>reaction = LastSbSwim - basis</code>, basis 优先级 TP > MB_Final > 手动 TP</li>
+  <li>reaction &gt; 0 = 正常反应时, reaction &lt; 0 = 抢跳 (标记 <code>IsSuspectFalseStart</code>)</li>
+</ol>
+<div class="summary">
+<b>修复点</b>: 抢跳场景 (SB 早于 TP) 不再因 SB 先触发窗口而丢失 TP 基准, 反应时正确计算为负值。
+</div>
+
+<h3>8.4 接力交接犯规</h3>
+<p>反应时 &lt; <code>FalseStartThreshold</code> (默认 0s) 即视为可疑抢跳, 标红字段, 等裁判确认。</p>
+
+<h2 id="s9">九、TRI / DSQ / DNS / DNF / 抢跳</h2>
+
+<h3>9.1 状态标记</h3>
+<table>
+  <tr><th>标记</th><th>含义</th><th>处理</th></tr>
+  <tr><td>TRI</td><td>三项标记 (人工标记)</td><td>导出三项标识</td></tr>
+  <tr><td>DSQ</td><td>取消比赛资格 (规则违反)</td><td>仍记录成绩, 大屏不显示, 排名跳过</td></tr>
+  <tr><td>DNS</td><td>未起跳 (Did Not Start)</td><td>整道关闭, 不接收数据</td></tr>
+  <tr><td>DNF</td><td>未完赛 (Did Not Finish)</td><td>记录已完成分段, 大屏标 DNF</td></tr>
+  <tr><td>抢跳 DSQ</td><td>反应时为负 + 裁判判罚</td><td>水中仍接收数据 (保留分段记录)</td></tr>
+</table>
+
+<h3>9.2 抢跳处理流程</h3>
+<ol>
+  <li>反应时 &lt; 阈值 → 自动标 <code>IsSuspectFalseStart=true</code> (反应时红字)</li>
+  <li>UI 提示 "⚠ 起跳可疑"</li>
+  <li>运动员继续比赛, 触板 / 盲表数据照常记录</li>
+  <li>赛后裁判通过 "标 DSQ" 按钮确认是否判罚</li>
+</ol>
+
+<h2 id="s10">十、成绩处理与发布</h2>
+
+<h3>10.1 成绩确认 (ConfirmResult)</h3>
+<p>比赛 Finished 后:</p>
+<ul>
+  <li>各泳道成绩按"计时源裁定" (TP > MB > 手动) 算出 FinalTime</li>
+  <li>裁判可手动调整 / 标记 / 撤销</li>
+  <li>"确认成绩"按钮触发: <code>_confirmedHeats</code> 添加该组, 落盘比赛档案, 印小条</li>
+</ul>
+
+<h3>10.2 成绩发布到大屏</h3>
+<p>"成绩发布"按钮 (主服务器 / RDC / control.html):</p>
+<ul>
+  <li>列出所有已确认完赛的组 (按 ageGroup | gender | event | stage | heat 筛选)</li>
+  <li>选定后发 <code>PUBLISH_RESULT</code> 命令, 主服务器构建数据后广播给所有 display</li>
+  <li>v2026.06.18 加 <code>ageGroup</code> 字段, 修跨年龄段污染</li>
+</ul>
+
+<h3>10.3 排名 / 团体 / 颁奖</h3>
+<ul>
+  <li><b>组成绩 (Heat Result)</b>: 该组完赛排名</li>
+  <li><b>总排名 (Event Ranking)</b>: 整个项目所有组的总排名</li>
+  <li><b>团体积分</b>: 按总排名 ×积分表 累计单位</li>
+  <li><b>颁奖</b>: 前 N 名 + 音效 + 大屏</li>
+</ul>
+
+<h3>10.4 文档输出</h3>
+<table>
+  <tr><th>类型</th><th>位置</th><th>触发</th></tr>
+  <tr><td>原始计时数据 .txt</td><td><code>Database/RawData/</code></td><td>每帧自动追加</td></tr>
+  <tr><td>组成绩 HTML</td><td>客户端打印 / 弹框</td><td>"印小条" / <code>PRINT_HEAT_RESULT_HTML</code></td></tr>
+  <tr><td>项目成绩 .csv</td><td>主控弹文件保存框</td><td>"导出成绩"</td></tr>
+  <tr><td>团体积分 PDF</td><td><code>Documents/</code></td><td>"导出团体"</td></tr>
+</table>
+
+<h2 id="s11">十一、远程客户端</h2>
+
+<h3>11.1 RemoteDisplayControl.exe (RDC) <span class="badge-new">v2026.06.18 重设计</span></h3>
+<p>启动后界面分两栏:</p>
+<ul>
+  <li><b>左栏</b>: WebView2 嵌入式大屏预览 (file:/// 加载本地 <code>Web/display.html?host=主服务器IP</code>)</li>
+  <li><b>右栏</b>: 控制按钮 (分 4 组)
+    <ul>
+      <li>比赛视图: 出发表 / 比赛视图 / 组成绩 / 总排名</li>
+      <li>荣誉与介绍: 团体 / 颁奖 / 裁判介绍 / 欢迎</li>
+      <li>资源 / 弹框: 成绩发布 / 比赛日程 / 图片视频 / PPT 播放</li>
+      <li>大屏样式 / 切换: 大屏样式 / 记录显示 / 反应时显示</li>
+    </ul>
+  </li>
+  <li>顶端: 服务器 IP 输入 + 连接按钮 + 预览大小滑块 (12.5% ~ 50%)</li>
+  <li>服务器地址持久化 (<code>rdc_server.json</code>), 下次启动自动填入</li>
+</ul>
+
+<h3>11.2 control.html (Web 版 RDC) <span class="badge-new">v2026.06.18 重设计</span></h3>
+<p>浏览器打开 <code>http://主服务器IP:8080/control.html</code>:</p>
+<ul>
+  <li>左 = 大屏预览 iframe (display.html), 右 = 4 分组按钮</li>
+  <li>服务器 IP 通过 <code>localStorage.swimServerHost</code> 持久化</li>
+  <li>预览大小滑块 12.5% ~ 50%</li>
+  <li>所有按钮渐变色 + emoji 图标</li>
+</ul>
+
+<h3>11.3 race_control.html (Web 版 RTC)</h3>
+<p>比赛流程控制 (就位/开始/暂停/复位/确认成绩等)。与 RTC.exe 功能等价, 但**不直连硬件**, 只通过主服务器观察+下发命令。</p>
+
+<h3>11.4 主控权约定</h3>
+<div class="danger">
+<b>禁忌</b>: 同一时刻只能有一个端连硬件 (主服务器 OR RTC.exe)。
+race_control.html 是观察+命令端, 永远不能反控硬件。
+</div>
+
+<h2 id="s12">十二、参数设置</h2>
+
+<h3>12.1 主入口</h3>
+<p>顶部菜单 / 比赛控制区 → "参数设置"按钮 (<code>TimingSettingsCore</code>):</p>
+<ul>
+  <li>时间参数设置 (各类延迟 / 窗口期)</li>
+  <li>比赛泳池、设备状态设置 (道数 / 触板安装方式 / 盲表数 / 出发台)</li>
+  <li>手动按键管理</li>
+  <li>成绩存盘路径</li>
+  <li>热敏打印</li>
+  <li>硬件计时器连接 (TCP / UDP / 串口) <span class="badge-new">v2026.06.18</span></li>
+  <li>用户名和密码 <span class="badge-new">v2026.06.18 从顶端移入</span></li>
+</ul>
+
+<h3>12.2 关键时间参数</h3>
+<table>
+  <tr><th>参数</th><th>默认</th><th>含义</th></tr>
+  <tr><td>LaneCloseTime</td><td>5s</td><td>分段触板后泳道倒计时, 0 到期开下一段设备</td></tr>
+  <tr><td>StartBlockCloseDelay</td><td>3s</td><td>出发台触发后, 多少秒切 Closed</td></tr>
+  <tr><td>ResultConfirmCloseDelay</td><td>3s</td><td>成绩确认 / TP 到达后多少秒关盲表 + 接力反应时窗口</td></tr>
+  <tr><td>SplitDisplayTime</td><td>2s</td><td>分段成绩显示停留</td></tr>
+  <tr><td>FirstPlaceHoldTime</td><td>3s</td><td>第一名成绩在滚动时间区停留</td></tr>
+  <tr><td>FalseStartThreshold</td><td>0s</td><td>反应时小于此值算可疑抢跳</td></tr>
+  <tr><td>ReactionEventWindowSec</td><td>3s</td><td>(已废, v2026.06.18 接力反应时改用 ResultConfirmCloseDelay)</td></tr>
+</table>
+
+<h2 id="s13">十三、故障排查</h2>
+
+<h3>13.1 RTC 启动报"端口冲突" <span class="badge-new">v2026.06.18</span></h3>
+<p>原因: 同一台 PC 跑了主服务器 (占 3002)。解决:</p>
+<ul>
+  <li>关闭本机已运行的 SwimmingScoreboard.exe; 或</li>
+  <li>把 RTC 部署到另一台 PC</li>
+</ul>
+
+<h3>13.2 RDC 预览"无法访问页面"</h3>
+<p>v2026.06.18 默认用 file:/// 本地加载 display.html, 不依赖 8080。若仍失败:</p>
+<ul>
+  <li>检查 RDC 安装目录有 <code>Web/display.html</code> 文件</li>
+  <li>检查客户机已装 WebView2 Runtime (Edge 装了就有, Win10/11 多数预装)</li>
+  <li>右下"未连接": 顶端"服务器"框填主服务器 IP 重连</li>
+</ul>
+
+<h3>13.3 接力反应时显示"---"</h3>
+<p>v2026.06.18 前: 抢跳时 SB 先到, TP 在 3s 窗口外才到, 反应时算不出。v2026.06.18 已修复 (基准事件触发窗口)。
+若新版本仍出现 "---", 检查:</p>
+<ul>
+  <li>"反应时间检测"参数是否开启 (<code>ReactionTimeEnabled</code>)</li>
+  <li>该泳道是否被标 DNS / DNF</li>
+  <li>硬件 SB 是否真发出 (查比赛日志 "出发台" 条目)</li>
+</ul>
+
+<h3>13.4 主服务器修改后 RTC 没同步</h3>
+<p>v2026.06.18 加了 1.5s 去抖 (合并多次推送), 等 1.5s 即可。
+若超过 1.5s 仍未变化, 检查 RTC 顶端"主服务器"状态是否"已连接" (绿)。</p>
+
+<h3>13.5 滚动时间跳跃 / UI 卡顿</h3>
+<p>v2026.06.18 加了 100ms 节流, 大幅减少 UI 线程压力。若仍卡顿:</p>
+<ul>
+  <li>检查内存监控 (顶端右侧), &gt; 80% 可能 GC 频繁</li>
+  <li>关闭无用客户端 (display.html / race_control.html 多个窗口同时连)</li>
+  <li>检查网络 — 无线弱信号会导致 WebSocket 包延迟</li>
+</ul>
+
+<h3>13.6 display.html 不显示运动员</h3>
+<ul>
+  <li>RTC 模式下: 检查 RTC 是否选中某组 (左侧赛程导航)</li>
+  <li>新连接的 display 应该立即收到最近一帧快照 (主服务器 <code>_lastRtcSnapshot</code>)</li>
+  <li>若 RTC 未发过任何状态, 主服务器无快照可发, 选组后即恢复</li>
+</ul>
+
+<h2 id="s14">十四、v2026.06.18 版本变更</h2>
+
+<h3>14.1 架构变更</h3>
+<table>
+  <tr><th>变更</th><th>影响</th></tr>
+  <tr><td>RTC 独立计时主控</td><td>RTC 直连硬件 + 通过主服务器中转大屏数据</td></tr>
+  <tr><td>方案 B: 比赛状态经主服务器中转</td><td>display.html / race_control.html 都连主服务器, 不再连 RTC</td></tr>
+  <tr><td>EditorSync 1.5s 去抖</td><td>主服务器改赛程 → RTC 1.5s 后应用最新一份, 避免频繁重建</td></tr>
+  <tr><td>Broadcast 100ms 节流</td><td>事件密集时合并广播, UI 不卡顿</td></tr>
+  <tr><td>BroadcastJsonToClients 统一出口</td><td>PUBLISH_RESULT / SHOW_SCHEDULE / SHOW_MEDIA / STAGE_COMPLETE / PROMOTION_DONE 都经统一转发链</td></tr>
+</table>
+
+<h3>14.2 UI 改进</h3>
+<ul>
+  <li>RDC.exe 重设计: WebView2 大屏预览 + 4 分组按钮 + 圆角 + emoji 图标 + 服务器持久化</li>
+  <li>control.html 重设计: 左预览 + 右按钮 (仿 RDC) + 分组渐变色</li>
+  <li>盲表 ComboBox 黑底白字 (自定义 ControlTemplate)</li>
+  <li>顶端"用户名和密码"按钮移入"参数设置"</li>
+  <li>RTC 顶端加"硬件连接"按钮 + 保留内存/硬件状态显示</li>
+  <li>ServerAddressText 按模式区分 (主服务器 / RTC / Editor)</li>
+</ul>
+
+<h3>14.3 Bug 修复</h3>
+<ul>
+  <li>接力 2/3/4 棒抢跳反应时算不出 (基准事件触发窗口)</li>
+  <li>最后一名 TP 先到, MB 后到丢失 (PushButton 完赛后仍存)</li>
+  <li>control.html PUBLISH_RESULT 漏传 ageGroup (跨年龄段污染)</li>
+  <li>RTC 顶端 InjectEditorSyncToolbar 清空 StackPanel 导致内存 / 硬件状态丢失</li>
+  <li>RDC 客户机无 HTTP 8080 访问权限 → file:/// 本地加载兜底</li>
+</ul>
+
+<h3>14.4 新增协议消息</h3>
+<table>
+  <tr><th>消息</th><th>方向</th><th>用途</th></tr>
+  <tr><td><code>RTC_FORWARD</code></td><td>RTC → 主服务器</td><td>包装 payload 透传给主服务器所有客户端</td></tr>
+  <tr><td><code>TIMING_EXE_IDENTITY</code></td><td>RTC → 主服务器</td><td>声明自己为计时 EXE (主服务器工作状态显示)</td></tr>
+  <tr><td><code>UPLOAD_AND_PLAY_MEDIA</code></td><td>客户端 → 主服务器</td><td>base64 上传媒体并立即播放</td></tr>
+  <tr><td><code>UPLOAD_AND_PLAY_PPT</code></td><td>客户端 → 主服务器</td><td>base64 上传 PPT, 转 PNG 后翻页推送</td></tr>
+  <tr><td><code>PUBLISH_RESULT</code></td><td>客户端 → 主服务器</td><td>加 ageGroup 字段, 修跨年龄段污染</td></tr>
+  <tr><td><code>display.html ?host=IP</code></td><td>URL 参数</td><td>display.html 从 URL 取 WebSocket 服务器地址</td></tr>
+</table>
+
+<div class="footer">
+游泳赛事管理系统 — v2026.06.18 &nbsp;|&nbsp; 详细协议请参阅《游泳计时系统通讯协议 v2026.06.18》<br>
+2026 © Swim Timing System
+</div>
+
+</body>
+</html>

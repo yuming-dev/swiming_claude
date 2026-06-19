@@ -45,9 +45,11 @@ namespace RemoteTimingControl
             if (RememberMe.IsChecked == true) CredentialStore.SaveRemembered(user, pwd);
             else CredentialStore.ClearRemembered();
 
-            // 登录成功 → 主窗口
-            var main = new MainWindow();
+            // 2026-06-17 路径 A: 登录成功 → 主服务器 MainWindow (RTC 模式: 构造函数自动识别入口程序集名为
+            // RemoteTimingControl, 隐藏除"比赛控制"外其他 tab, 跳过 WebSocket Server + 硬件直连初始化)
+            var main = new SwimmingScoreboard.MainWindow();
             Application.Current.MainWindow = main;
+            Application.Current.ShutdownMode = ShutdownMode.OnMainWindowClose;
             main.Show();
             this.Close();
         }

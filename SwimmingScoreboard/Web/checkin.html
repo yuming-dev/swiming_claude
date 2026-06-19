@@ -292,6 +292,14 @@ function selectHeat(key) {
 // ═══════ 运动员表格 ═══════
 function renderSwimmers(d) {
     currentSwimmers = d.swimmers || [];
+    // 2026-06-17 临时调试: 把每个 swimmer 的 country / countryShort 打到 console, 定位单位栏显示问题
+    if (currentSwimmers.length > 0) {
+        console.log('[checkin debug] swimmer 单位字段对比:');
+        for (var _i = 0; _i < Math.min(3, currentSwimmers.length); _i++) {
+            var _s = currentSwimmers[_i];
+            console.log('  [' + (_i+1) + '] name=' + _s.name + ' / team=' + JSON.stringify(_s.team) + ' / country=' + JSON.stringify(_s.country) + ' / countryShort=' + JSON.stringify(_s.countryShort));
+        }
+    }
     var title = (d.gender || '') + ' ' + (d.eventName || '') + ' ' + (d.stage || '') + ' 第' + d.heat + '组';
     document.getElementById('heatTitle').textContent = title;
     document.getElementById('heatSub').textContent =

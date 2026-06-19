@@ -244,7 +244,10 @@ namespace SwimmingScoreboard
             // 预赛 → 半决赛（若 schedule 含）/ 决赛；半决赛 → 决赛；决赛无下一赛次
             string nextStageQ = null;
             if (stage == "预赛") {
-                bool hasSemi = _schedule != null && _schedule.Any(s => s.Gender == gender && s.EventName == eventName && s.Stage == "半决赛");
+                // 2026-06-18 按 ageGroup 过滤, 修跨年龄段污染 (甲组无半决但乙组有时, 甲组误判)
+                bool hasSemi = _schedule != null && _schedule.Any(s =>
+                    s.Gender == gender && s.EventName == eventName && s.Stage == "半决赛"
+                    && (s.AgeGroup ?? "") == (ageFilter == "全部" ? (s.AgeGroup ?? "") : ageFilter));
                 nextStageQ = hasSemi ? "半决赛" : "决赛";
             } else if (stage == "半决赛") {
                 nextStageQ = "决赛";

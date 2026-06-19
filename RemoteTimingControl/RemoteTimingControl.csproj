@@ -1,17 +1,49 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  RemoteTimingControl.csproj
+  ─────────────────────────────────────────────────────────────────────────
+  2026-06-17 路径 A 改造: 本项目复用 SwimmingScoreboard 主服务器的所有 .xaml/.cs
+  (通过 Link 引用), 以保证 "比赛控制" 标签页与主服务器一字不差.
+  · 唯一独立的入口: 本目录下的 App.xaml + LoginWindow.xaml + CredentialStore.cs
+    + ChangePasswordWindow.cs + SimpleWebSocketClient.cs + TimingBridgeLocal.cs
+  · 运行时 SwimmingScoreboard.MainWindow 检测入口程序集名为 "RemoteTimingControl",
+    自动隐藏与计时控制无关的标签页 + 跳过 WebSocket Server 启动 + 跳过本地硬件直连初始化.
+  · csproj 参考 ScheduleEditor.csproj 的 Link 引用方式
+-->
 <Project ToolsVersion="4.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
-    <Platform Condition=" '$(Platform)' == '' ">x86</Platform>
+    <Platform Condition=" '$(Platform)' == '' ">x64</Platform>
     <ProductVersion>8.0.30703</ProductVersion>
     <SchemaVersion>2.0</SchemaVersion>
     <ProjectGuid>{D3E4F5A6-B7C8-4D9E-0F1A-2B3C4D5E6F7A}</ProjectGuid>
     <OutputType>WinExe</OutputType>
+    <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>RemoteTimingControl</RootNamespace>
     <AssemblyName>RemoteTimingControl</AssemblyName>
-    <TargetFrameworkVersion>v4.0</TargetFrameworkVersion>
-    <TargetFrameworkProfile>Client</TargetFrameworkProfile>
+    <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
+    <TargetFrameworkProfile></TargetFrameworkProfile>
+    <FileAlignment>512</FileAlignment>
     <ProjectTypeGuids>{60dc8134-eba5-43b8-bcc9-bb4bc16c2548};{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}</ProjectTypeGuids>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|x64' ">
+    <PlatformTarget>x64</PlatformTarget>
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>bin\x64\Debug\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|x64' ">
+    <PlatformTarget>x64</PlatformTarget>
+    <OutputPath>bin\x64\Release\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <Optimize>true</Optimize>
+    <DebugType>pdbonly</DebugType>
+    <ErrorReport>prompt</ErrorReport>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|x86' ">
     <PlatformTarget>x86</PlatformTarget>
@@ -23,49 +55,398 @@
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|x86' ">
     <PlatformTarget>x86</PlatformTarget>
-    <DebugType>pdbonly</DebugType>
-    <Optimize>true</Optimize>
     <OutputPath>bin\Release\</OutputPath>
     <DefineConstants>TRACE</DefineConstants>
+    <Optimize>true</Optimize>
+    <DebugType>pdbonly</DebugType>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>bin\Debug\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
-    <DebugType>pdbonly</DebugType>
-    <Optimize>true</Optimize>
+    <PlatformTarget>AnyCPU</PlatformTarget>
     <OutputPath>bin\Release\</OutputPath>
     <DefineConstants>TRACE</DefineConstants>
+    <Optimize>true</Optimize>
+    <DebugType>pdbonly</DebugType>
   </PropertyGroup>
+
+  <!-- ── 第三方 DLL: 与 SwimmingScoreboard 共用 libs 目录 ── -->
   <ItemGroup>
+    <Reference Include="Fleck">
+      <HintPath>..\SwimmingScoreboard\libs\Fleck.dll</HintPath>
+    </Reference>
     <Reference Include="Newtonsoft.Json">
       <HintPath>..\SwimmingScoreboard\libs\Newtonsoft.Json.dll</HintPath>
     </Reference>
+    <Reference Include="NPOI">
+      <HintPath>..\SwimmingScoreboard\libs\NPOI.dll</HintPath>
+    </Reference>
+    <Reference Include="NPOI.OOXML">
+      <HintPath>..\SwimmingScoreboard\libs\NPOI.OOXML.dll</HintPath>
+    </Reference>
+    <Reference Include="NPOI.OpenXml4Net">
+      <HintPath>..\SwimmingScoreboard\libs\NPOI.OpenXml4Net.dll</HintPath>
+    </Reference>
+    <Reference Include="NPOI.OpenXmlFormats">
+      <HintPath>..\SwimmingScoreboard\libs\NPOI.OpenXmlFormats.dll</HintPath>
+    </Reference>
+    <Reference Include="ICSharpCode.SharpZipLib">
+      <HintPath>..\SwimmingScoreboard\libs\ICSharpCode.SharpZipLib.dll</HintPath>
+    </Reference>
+    <Reference Include="BouncyCastle.Crypto">
+      <HintPath>..\SwimmingScoreboard\libs\BouncyCastle.Crypto.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Configuration" />
+    <Reference Include="System.IO.Compression" />
+    <Reference Include="System.IO.Compression.FileSystem" />
     <Reference Include="System" />
-    <Reference Include="System.Core" />
     <Reference Include="System.Security" />
-    <Reference Include="System.Xaml"><RequiredTargetFramework>4.0</RequiredTargetFramework></Reference>
+    <Reference Include="System.Data" />
+    <Reference Include="System.Xml" />
+    <Reference Include="Microsoft.CSharp" />
+    <Reference Include="System.Core" />
+    <Reference Include="System.Xml.Linq" />
+    <Reference Include="System.Data.DataSetExtensions" />
+    <Reference Include="System.Xaml">
+      <RequiredTargetFramework>4.0</RequiredTargetFramework>
+    </Reference>
     <Reference Include="WindowsBase" />
     <Reference Include="PresentationCore" />
     <Reference Include="PresentationFramework" />
+    <Reference Include="System.Windows.Forms" />
+    <Reference Include="System.Drawing" />
   </ItemGroup>
+
+  <!-- ── 本项目独占文件 (App / LoginWindow / 凭据 / 本地硬件桥 / WebSocket Client) ── -->
   <ItemGroup>
     <ApplicationDefinition Include="App.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </ApplicationDefinition>
-    <Page Include="MainWindow.xaml">
-      <Generator>MSBuild:Compile</Generator>
-      <SubType>Designer</SubType>
-    </Page>
     <Page Include="LoginWindow.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </Page>
-    <Compile Include="App.xaml.cs"><DependentUpon>App.xaml</DependentUpon></Compile>
-    <Compile Include="MainWindow.xaml.cs"><DependentUpon>MainWindow.xaml</DependentUpon></Compile>
-    <Compile Include="LoginWindow.xaml.cs"><DependentUpon>LoginWindow.xaml</DependentUpon></Compile>
-    <Compile Include="SimpleWebSocketClient.cs" />
-    <Compile Include="TimingBridgeLocal.cs" />
+    <Compile Include="App.xaml.cs">
+      <DependentUpon>App.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="LoginWindow.xaml.cs">
+      <DependentUpon>LoginWindow.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Include="CredentialStore.cs" />
     <Compile Include="ChangePasswordWindow.cs" />
+    <Compile Include="SimpleWebSocketClient.cs" />
+    <Compile Include="TimingBridgeLocal.cs" />
   </ItemGroup>
+
+  <!-- ── 链接: 复用主服务器 MainWindow 及所有支撑窗口/类 (一字不改) ── -->
+  <ItemGroup>
+    <Page Include="..\SwimmingScoreboard\MainWindow.xaml">
+      <Link>MainWindow.xaml</Link>
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="..\SwimmingScoreboard\PromotionQueryWindow.xaml">
+      <Link>PromotionQueryWindow.xaml</Link>
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="..\SwimmingScoreboard\SchedulingWizardWindow.xaml">
+      <Link>SchedulingWizardWindow.xaml</Link>
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="..\SwimmingScoreboard\AwardQueryWindow.xaml">
+      <Link>AwardQueryWindow.xaml</Link>
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="..\SwimmingScoreboard\AwardCertificateWindow.xaml">
+      <Link>AwardCertificateWindow.xaml</Link>
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="..\SwimmingScoreboard\RecordCertificateWindow.xaml">
+      <Link>RecordCertificateWindow.xaml</Link>
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="..\SwimmingScoreboard\HeatEditWindow.xaml">
+      <Link>HeatEditWindow.xaml</Link>
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="..\SwimmingScoreboard\DeviceStatusWindow.xaml">
+      <Link>DeviceStatusWindow.xaml</Link>
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="..\SwimmingScoreboard\TeamScoreWindow.xaml">
+      <Link>TeamScoreWindow.xaml</Link>
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="..\SwimmingScoreboard\ChangePasswordWindow.xaml">
+      <Link>SswChangePasswordWindow.xaml</Link>
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="..\SwimmingScoreboard\EventResultPrintWindow.xaml">
+      <Link>EventResultPrintWindow.xaml</Link>
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="..\SwimmingScoreboard\ProgramBookEditWindow.xaml">
+      <Link>ProgramBookEditWindow.xaml</Link>
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="..\SwimmingScoreboard\ResultBookEditWindow.xaml">
+      <Link>ResultBookEditWindow.xaml</Link>
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="..\SwimmingScoreboard\DocumentPreviewWindow.xaml">
+      <Link>DocumentPreviewWindow.xaml</Link>
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="..\SwimmingScoreboard\HeatImportPromptWindow.xaml">
+      <Link>HeatImportPromptWindow.xaml</Link>
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="..\SwimmingScoreboard\FinalsStatusWindow.xaml">
+      <Link>FinalsStatusWindow.xaml</Link>
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="..\SwimmingScoreboard\IndividualRankingWindow.xaml">
+      <Link>IndividualRankingWindow.xaml</Link>
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="..\SwimmingScoreboard\EventTop8Window.xaml">
+      <Link>EventTop8Window.xaml</Link>
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="..\SwimmingScoreboard\DepartmentBulletinWindow.xaml">
+      <Link>DepartmentBulletinWindow.xaml</Link>
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="..\SwimmingScoreboard\EventDurationConfigWindow.xaml">
+      <Link>EventDurationConfigWindow.xaml</Link>
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="..\SwimmingScoreboard\OneClickParamsWindow.xaml">
+      <Link>OneClickParamsWindow.xaml</Link>
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="..\SwimmingScoreboard\UnitManageWindow.xaml">
+      <Link>UnitManageWindow.xaml</Link>
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="..\SwimmingScoreboard\StaffManageWindow.xaml">
+      <Link>StaffManageWindow.xaml</Link>
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="..\SwimmingScoreboard\EditRelayTeamWindow.xaml">
+      <Link>EditRelayTeamWindow.xaml</Link>
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Compile Include="..\SwimmingScoreboard\MainWindow.xaml.cs">
+      <Link>MainWindow.xaml.cs</Link>
+      <DependentUpon>MainWindow.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="..\SwimmingScoreboard\SchedulingWizardWindow.xaml.cs">
+      <Link>SchedulingWizardWindow.xaml.cs</Link>
+      <DependentUpon>SchedulingWizardWindow.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="..\SwimmingScoreboard\PromotionQueryWindow.xaml.cs">
+      <Link>PromotionQueryWindow.xaml.cs</Link>
+      <DependentUpon>PromotionQueryWindow.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="..\SwimmingScoreboard\AwardQueryWindow.xaml.cs">
+      <Link>AwardQueryWindow.xaml.cs</Link>
+      <DependentUpon>AwardQueryWindow.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="..\SwimmingScoreboard\AwardCertificateWindow.xaml.cs">
+      <Link>AwardCertificateWindow.xaml.cs</Link>
+      <DependentUpon>AwardCertificateWindow.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="..\SwimmingScoreboard\RecordCertificateWindow.xaml.cs">
+      <Link>RecordCertificateWindow.xaml.cs</Link>
+      <DependentUpon>RecordCertificateWindow.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="..\SwimmingScoreboard\HeatEditWindow.xaml.cs">
+      <Link>HeatEditWindow.xaml.cs</Link>
+      <DependentUpon>HeatEditWindow.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="..\SwimmingScoreboard\DeviceStatusWindow.xaml.cs">
+      <Link>DeviceStatusWindow.xaml.cs</Link>
+      <DependentUpon>DeviceStatusWindow.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="..\SwimmingScoreboard\TeamScoreWindow.xaml.cs">
+      <Link>TeamScoreWindow.xaml.cs</Link>
+      <DependentUpon>TeamScoreWindow.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="..\SwimmingScoreboard\ChangePasswordWindow.xaml.cs">
+      <Link>SswChangePasswordWindow.xaml.cs</Link>
+      <DependentUpon>SswChangePasswordWindow.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="..\SwimmingScoreboard\EventResultPrintWindow.xaml.cs">
+      <Link>EventResultPrintWindow.xaml.cs</Link>
+      <DependentUpon>EventResultPrintWindow.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="..\SwimmingScoreboard\FinalsStatusWindow.xaml.cs">
+      <Link>FinalsStatusWindow.xaml.cs</Link>
+      <DependentUpon>FinalsStatusWindow.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="..\SwimmingScoreboard\IndividualRankingWindow.xaml.cs">
+      <Link>IndividualRankingWindow.xaml.cs</Link>
+      <DependentUpon>IndividualRankingWindow.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="..\SwimmingScoreboard\EventTop8Window.xaml.cs">
+      <Link>EventTop8Window.xaml.cs</Link>
+      <DependentUpon>EventTop8Window.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="..\SwimmingScoreboard\DepartmentBulletinWindow.xaml.cs">
+      <Link>DepartmentBulletinWindow.xaml.cs</Link>
+      <DependentUpon>DepartmentBulletinWindow.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="..\SwimmingScoreboard\EventDurationConfigWindow.xaml.cs">
+      <Link>EventDurationConfigWindow.xaml.cs</Link>
+      <DependentUpon>EventDurationConfigWindow.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="..\SwimmingScoreboard\OneClickParamsWindow.xaml.cs">
+      <Link>OneClickParamsWindow.xaml.cs</Link>
+      <DependentUpon>OneClickParamsWindow.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="..\SwimmingScoreboard\UnitManageWindow.xaml.cs">
+      <Link>UnitManageWindow.xaml.cs</Link>
+      <DependentUpon>UnitManageWindow.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="..\SwimmingScoreboard\StaffManageWindow.xaml.cs">
+      <Link>StaffManageWindow.xaml.cs</Link>
+      <DependentUpon>StaffManageWindow.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="..\SwimmingScoreboard\EditRelayTeamWindow.xaml.cs">
+      <Link>EditRelayTeamWindow.xaml.cs</Link>
+      <DependentUpon>EditRelayTeamWindow.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="..\SwimmingScoreboard\ProgramBookEditWindow.xaml.cs">
+      <Link>ProgramBookEditWindow.xaml.cs</Link>
+      <DependentUpon>ProgramBookEditWindow.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="..\SwimmingScoreboard\ProgramBookData.cs">
+      <Link>ProgramBookData.cs</Link>
+    </Compile>
+    <Compile Include="..\SwimmingScoreboard\ResultBookEditWindow.xaml.cs">
+      <Link>ResultBookEditWindow.xaml.cs</Link>
+      <DependentUpon>ResultBookEditWindow.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="..\SwimmingScoreboard\ResultBookData.cs">
+      <Link>ResultBookData.cs</Link>
+    </Compile>
+    <Compile Include="..\SwimmingScoreboard\HeatExcelService.cs">
+      <Link>HeatExcelService.cs</Link>
+    </Compile>
+    <Compile Include="..\SwimmingScoreboard\HeatImportPromptWindow.xaml.cs">
+      <Link>HeatImportPromptWindow.xaml.cs</Link>
+      <DependentUpon>HeatImportPromptWindow.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="..\SwimmingScoreboard\DocumentPreviewWindow.xaml.cs">
+      <Link>DocumentPreviewWindow.xaml.cs</Link>
+      <DependentUpon>DocumentPreviewWindow.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="..\SwimmingScoreboard\AuthHelper.cs">
+      <Link>AuthHelper.cs</Link>
+    </Compile>
+    <Compile Include="..\SwimmingScoreboard\EditorSyncClient.cs">
+      <Link>EditorSyncClient.cs</Link>
+    </Compile>
+    <Compile Include="..\SwimmingScoreboard\Swimmer.cs">
+      <Link>Swimmer.cs</Link>
+    </Compile>
+    <Compile Include="..\SwimmingScoreboard\LapAdjustLogic.cs">
+      <Link>LapAdjustLogic.cs</Link>
+    </Compile>
+    <Compile Include="..\SwimmingScoreboard\TimingBridge.cs">
+      <Link>TimingBridge.cs</Link>
+    </Compile>
+    <Compile Include="..\SwimmingScoreboard\HeatScheduler.cs">
+      <Link>HeatScheduler.cs</Link>
+    </Compile>
+    <Compile Include="..\SwimmingScoreboard\DisplayStyleWindow.cs">
+      <Link>DisplayStyleWindow.cs</Link>
+    </Compile>
+    <Compile Include="..\SwimmingScoreboard\RelayReactionCalculator.cs">
+      <Link>RelayReactionCalculator.cs</Link>
+    </Compile>
+    <Compile Include="..\SwimmingScoreboard\LapSideLogic.cs">
+      <Link>LapSideLogic.cs</Link>
+    </Compile>
+    <Compile Include="..\SwimmingScoreboard\ThermalPrinterService.cs">
+      <Link>ThermalPrinterService.cs</Link>
+    </Compile>
+    <Page Include="..\SwimmingScoreboard\BatchByAgeGroupPrintWindow.xaml">
+      <Link>BatchByAgeGroupPrintWindow.xaml</Link>
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Compile Include="..\SwimmingScoreboard\BatchByAgeGroupPrintWindow.xaml.cs">
+      <Link>BatchByAgeGroupPrintWindow.xaml.cs</Link>
+      <DependentUpon>BatchByAgeGroupPrintWindow.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Compile>
+  </ItemGroup>
+
+  <!-- ── 资源拷贝: 纪录基础表 (成绩与排名/破纪录核对需要) ── -->
+  <ItemGroup>
+    <Content Include="..\SwimmingScoreboard\Records\swimming_records.csv">
+      <Link>Records\swimming_records.csv</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

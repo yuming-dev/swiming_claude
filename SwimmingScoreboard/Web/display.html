@@ -401,7 +401,15 @@ function _rtFmt(sec) {
 function _rtAnchor(srvStr) {
     var parsed = _rtParse(srvStr);
     if (parsed == null) return;
-    // 2026-06-03 防回跳: 服务器帧可能因 TCP 缓冲晚到 (= 此 parsed 值比当前 interp 小),
+    // 2026-06-18 复位/计时清零信号 (parsed < 0.05) 强制接受, 不被防回跳吞掉.
+    //   场景: RTC 复位后推送 RUNNING_TIME_UPDATE = 0, 但 SHOW_LIVE_RACE (raceState=waiting) 帧
+    //   可能晚到 (节流 100ms + 网络). 此时若 0 帧被防回跳当 TCP 旧帧拒绝 → 大屏继续从本地推算走表.
+    if (parsed < 0.05) {
+        _rtSrvSec = 0;
+        _rtSrvAt = Date.now();
+        return;
+    }
+    // 2026-06-03 防回跳: 服务器帧因 TCP 缓冲晚到 (= 此 parsed 值比当前 interp 小),
     //   旧逻辑会直接把锚点拉回 → display 出现 "0,1,2,1,2,3" 倒退. 这里检测到旧帧时
     //   保留当前 interp 值, 只刷新 _rtSrvAt, 让 display 继续往前推进; 真正的 race 复位
     //   走 waiting/ready 分支清 _rtSrvAt=0, 不会落到这条防回跳里.
@@ -1450,9 +1458,12 @@ function renderRace() {
     var records = data.records || [];
     var curGender = data.currentGender || '';
     var curEventName = data.currentEvent || '';
+    var curAgeGroup = data.currentAgeGroup || '';
+    // 2026-06-18 加 ageGroup 精确过滤, 修跨年龄段纪录混显
     for (var r = 0; r < records.length; r++) {
         var rec = records[r];
-        if (rec.gender === curGender && rec.eventName === curEventName) {
+        if (rec.gender === curGender && rec.eventName === curEventName
+            && (rec.ageGroup || '') === curAgeGroup) {
             var rt = rec.recordType || '';
             if (rt === mainTypeName || rt.indexOf(mainTypeName) >= 0) wrText = rec.time || '-';
             else if (rt === '赛会纪录') crText = rec.time || '-';
@@ -1876,11 +1887,10 @@ var _heatResultRowsPerPage = 10;
 var _heatResultData = [];
 var _heatResultRelay = false;
 var _heatResultMixed = false;   // 2026-06-05 男女并项 (= showHeatResultPage 用) — 必须 module 级否则 renderHeatResult 里 var 后 showHeatResultPage 看不到
+// 2026-06-18 DOM 重建缓存: 数据无变化时跳过 container.innerHTML = '' 全量重建, 修"成绩页闪烁"bug
+var _heatResultBuiltKey = '';
 
 function renderHeatResult() {
-    // 清掉旧翻页定时器, 避免上一组的 timer 还在跑
-    if (_heatResultPageTimer) { clearInterval(_heatResultPageTimer); _heatResultPageTimer = null; }
-
     // 使用和比赛视图相同的布局和字体
     document.getElementById('raceView').classList.remove('hidden');
     // 2026-06-04 顺序统一: 性别 组别 项目
@@ -1915,6 +1925,28 @@ function renderHeatResult() {
     _heatResultData = (data.swimmers || []).filter(isOccupiedLane).slice().sort(function(a,b) {
         return (a.rank||99) - (b.rank||99);
     });
+
+    // 2026-06-18 DOM 重建 key: 数据无实质变化时跳过 (修闪烁). 涵盖每行的 rank/finalTime/status/recordNote
+    var hrKeyParts = [
+        data.currentEvent||'', data.currentHeat||0, data.currentStage||'',
+        _heatResultRelay ? 1 : 0, _heatResultData.length
+    ];
+    for (var hk = 0; hk < _heatResultData.length; hk++) {
+        var hs = _heatResultData[hk];
+        hrKeyParts.push(
+            (hs.lane != null ? hs.lane : -1) + ':' +
+            (hs.name||'') + ':' + (hs.country||'') + ':' +
+            (hs.rank||0) + ':' + (hs.finalTime||'') + ':' +
+            (hs.status||'') + ':' + (hs.recordNote||'')
+        );
+    }
+    var hrKey = hrKeyParts.join('|');
+    if (hrKey === _heatResultBuiltKey) return;   // 无变化, 不重建 DOM, 避免闪烁
+    _heatResultBuiltKey = hrKey;
+
+    // 清掉旧翻页定时器 (新数据才清, 不变时不清, 翻页周期不被打断)
+    if (_heatResultPageTimer) { clearInterval(_heatResultPageTimer); _heatResultPageTimer = null; }
+
     _heatResultRowsPerPage = 10;
     _heatResultTotalPages = Math.max(1, Math.ceil(_heatResultData.length / _heatResultRowsPerPage));
     _heatResultCurrentPage = 0;

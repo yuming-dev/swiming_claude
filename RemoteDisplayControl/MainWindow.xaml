@@ -1,55 +1,156 @@
 <Window x:Class="RemoteDisplayControl.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="游泳赛事管理系统 — 显示控制" Width="400" Height="500"
-        WindowStartupLocation="CenterScreen" Background="#1E293B">
-    <Grid Margin="16">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
-            <RowDefinition Height="Auto"/>
-        </Grid.RowDefinitions>
+        xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
+        Title="游泳赛事管理系统 — 显示控制" Width="940" Height="680"
+        WindowStartupLocation="CenterScreen" Background="#0F172A"
+        SizeChanged="Window_SizeChanged">
+    <Window.Resources>
+        <!-- 2026-06-18 圆角按钮统一样式 -->
+        <Style x:Key="RoundBtn" TargetType="Button">
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="10,6"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bd" Background="{TemplateBinding Background}" CornerRadius="8" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Opacity" Value="0.88"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="bd" Property="Opacity" Value="0.76"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="SectionTitle" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#64748B"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="Margin" Value="2,0,0,6"/>
+        </Style>
+    </Window.Resources>
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="460"/>
+        </Grid.ColumnDefinitions>
 
-        <Grid Grid.Row="0" Margin="0,0,0,12">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="Auto"/>
-            </Grid.ColumnDefinitions>
-            <TextBlock Grid.Column="0" Text="远程显示控制" FontSize="18" FontWeight="Bold" Foreground="White"
-                       VerticalAlignment="Center"/>
-            <Button Grid.Column="1" Content="修改用户名和密码" Click="ChangePassword_Click"
-                    Padding="8,2" Background="#334155" Foreground="White" BorderThickness="0" FontSize="11"/>
+        <!-- 左列: 大屏预览 (slider 移到右列控制区顶部) -->
+        <Grid Grid.Column="0" Margin="12" VerticalAlignment="Top">
+            <Border x:Name="BigPreviewBorder" BorderBrush="#1E293B" BorderThickness="2" Background="#000" CornerRadius="6"
+                    HorizontalAlignment="Left" VerticalAlignment="Top">
+                <wv2:WebView2 x:Name="BigPreviewWebView"/>
+            </Border>
         </Grid>
 
-        <Grid Grid.Row="1" Margin="0,0,0,12">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="60"/>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="Auto"/>
-            </Grid.ColumnDefinitions>
-            <TextBlock Text="地址:" Foreground="#CBD5E1" VerticalAlignment="Center"/>
-            <TextBox x:Name="AddressBox" Grid.Column="1" Text="127.0.0.1:3002" Padding="6,4"
-                     Background="#334155" Foreground="White" BorderBrush="#475569"/>
-            <Button x:Name="ConnectBtn" Grid.Column="2" Content="连接" Click="Connect_Click"
-                    Padding="12,4" Margin="8,0,0,0" Background="#3B82F6" Foreground="White" BorderThickness="0"/>
-        </Grid>
+        <!-- 右列: 控件 -->
+        <Border Grid.Column="1" Background="#1E293B" CornerRadius="10" Margin="0,12,12,12" Padding="16">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
 
-        <WrapPanel Grid.Row="2">
-            <Button Content="比赛视图" Click="SendMode_Click" Tag="SHOW_LIVE_RACE" Width="100" Height="40" Margin="4" Background="#22C55E" Foreground="White" BorderThickness="0"/>
-            <Button Content="出发表" Click="SendMode_Click" Tag="SHOW_START_LIST" Width="100" Height="40" Margin="4" Background="#3B82F6" Foreground="White" BorderThickness="0"/>
-            <Button Content="组成绩" Click="SendMode_Click" Tag="SHOW_HEAT_RESULT" Width="100" Height="40" Margin="4" Background="#8B5CF6" Foreground="White" BorderThickness="0"/>
-            <Button Content="总排名" Click="SendMode_Click" Tag="SHOW_EVENT_RANKING" Width="100" Height="40" Margin="4" Background="#F59E0B" Foreground="White" BorderThickness="0"/>
-            <Button Content="团体积分" Click="SendMode_Click" Tag="SHOW_TEAM_STANDINGS" Width="100" Height="40" Margin="4" Background="#06B6D4" Foreground="White" BorderThickness="0"/>
-            <Button Content="颁奖典礼" Click="SendMode_Click" Tag="SHOW_AWARDS" Width="100" Height="40" Margin="4" Background="#EC4899" Foreground="White" BorderThickness="0"/>
-            <Button Content="纪录榜" Click="SendMode_Click" Tag="SHOW_RECORDS" Width="100" Height="40" Margin="4" Background="#EF4444" Foreground="White" BorderThickness="0"/>
-            <Button Content="欢迎画面" Click="SendMode_Click" Tag="SHOW_WELCOME" Width="100" Height="40" Margin="4" Background="#64748B" Foreground="White" BorderThickness="0"/>
-            <Button Content="暂停" Click="SendMode_Click" Tag="SHOW_PAUSE" Width="100" Height="40" Margin="4" Background="#475569" Foreground="White" BorderThickness="0"/>
-            <!-- 2026-06-01 远程控制大屏样式 -->
-            <Button Content="🎨 大屏样式" Click="OpenDisplayStyle_Click" Width="210" Height="40" Margin="4" Background="#0EA5E9" Foreground="White" BorderThickness="0" FontWeight="Bold"/>
-        </WrapPanel>
+                <!-- 标题栏 -->
+                <Grid Grid.Row="0" Margin="0,0,0,12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="远程显示控制" FontSize="20" FontWeight="Bold" Foreground="White"
+                               VerticalAlignment="Center"/>
+                    <Button Grid.Column="1" Content="🔑 密码" Click="ChangePassword_Click"
+                            Style="{StaticResource RoundBtn}" Background="#475569" FontSize="12" Padding="10,4"/>
+                </Grid>
 
-        <TextBlock x:Name="StatusText" Grid.Row="3" Text="未连接" Foreground="#EF4444"
-                   HorizontalAlignment="Center" Margin="0,8,0,0"/>
+                <!-- 连接栏 -->
+                <StackPanel Grid.Row="1" Margin="0,0,0,12">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="服务器:" Foreground="#94A3B8" VerticalAlignment="Center" Margin="0,0,8,0" FontSize="13"/>
+                        <TextBox x:Name="AddressBox" Grid.Column="1" Text="127.0.0.1:3002" Padding="8,6" FontSize="13"
+                                 Background="#0F172A" Foreground="White" BorderBrush="#334155" BorderThickness="1"/>
+                        <Button x:Name="ConnectBtn" Grid.Column="2" Content="连接" Click="Connect_Click"
+                                Style="{StaticResource RoundBtn}" Padding="16,6" Margin="8,0,0,0" Background="#3B82F6"/>
+                    </Grid>
+                    <!-- 大屏预览大小调节 (移自预览框下方; 范围 12.5%~50% = 窗口宽度 1/8~1/2) -->
+                    <Grid Margin="0,10,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="预览大小:" Foreground="#94A3B8" VerticalAlignment="Center" Margin="0,0,8,0" FontSize="12"/>
+                        <Slider Grid.Column="1" x:Name="PreviewSizeSlider" Minimum="12.5" Maximum="50" Value="35"
+                                TickFrequency="12.5" TickPlacement="BottomRight"
+                                ValueChanged="PreviewSizeSlider_ValueChanged" VerticalAlignment="Center"/>
+                        <TextBlock Grid.Column="2" x:Name="PreviewPctText" Text="35%"
+                                   Foreground="#94A3B8" Margin="8,0,0,0" VerticalAlignment="Center" FontSize="12" Width="42"/>
+                    </Grid>
+                </StackPanel>
+
+                <!-- 按钮区: 分组 -->
+                <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel>
+                        <TextBlock Text="比赛视图" Style="{StaticResource SectionTitle}"/>
+                        <Grid Margin="0,0,0,14">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions><RowDefinition Height="44"/><RowDefinition Height="44"/></Grid.RowDefinitions>
+                            <Button Grid.Row="0" Grid.Column="0" Content="📋 出发表" Click="SendMode_Click" Tag="SHOW_START_LIST" Margin="0,0,4,4" Style="{StaticResource RoundBtn}" Background="#3B82F6"/>
+                            <Button Grid.Row="0" Grid.Column="1" Content="🏊 比赛视图" Click="SendMode_Click" Tag="SHOW_LIVE_RACE" Margin="4,0,0,4" Style="{StaticResource RoundBtn}" Background="#2563EB"/>
+                            <Button Grid.Row="1" Grid.Column="0" Content="🏁 组成绩" Click="SendMode_Click" Tag="SHOW_HEAT_RESULT" Margin="0,4,4,0" Style="{StaticResource RoundBtn}" Background="#10B981"/>
+                            <Button Grid.Row="1" Grid.Column="1" Content="🏆 总排名" Click="SendMode_Click" Tag="SHOW_EVENT_RANKING" Margin="4,4,0,0" Style="{StaticResource RoundBtn}" Background="#059669"/>
+                        </Grid>
+
+                        <TextBlock Text="荣誉与介绍" Style="{StaticResource SectionTitle}"/>
+                        <Grid Margin="0,0,0,14">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions><RowDefinition Height="44"/><RowDefinition Height="44"/></Grid.RowDefinitions>
+                            <Button Grid.Row="0" Grid.Column="0" Content="👥 团体" Click="SendMode_Click" Tag="SHOW_TEAM_STANDINGS" Margin="0,0,4,4" Style="{StaticResource RoundBtn}" Background="#F59E0B"/>
+                            <Button Grid.Row="0" Grid.Column="1" Content="🥇 颁奖" Click="SendMode_Click" Tag="SHOW_AWARDS" Margin="4,0,0,4" Style="{StaticResource RoundBtn}" Background="#EC4899"/>
+                            <Button Grid.Row="1" Grid.Column="0" Content="👨‍⚖️ 裁判介绍" Click="SendMode_Click" Tag="SHOW_REFEREES" Margin="0,4,4,0" Style="{StaticResource RoundBtn}" Background="#06B6D4"/>
+                            <Button Grid.Row="1" Grid.Column="1" Content="🎉 欢迎" Click="SendMode_Click" Tag="SHOW_WELCOME" Margin="4,4,0,0" Style="{StaticResource RoundBtn}" Background="#8B5CF6"/>
+                        </Grid>
+
+                        <TextBlock Text="资源 / 弹框" Style="{StaticResource SectionTitle}"/>
+                        <Grid Margin="0,0,0,14">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions><RowDefinition Height="44"/><RowDefinition Height="44"/></Grid.RowDefinitions>
+                            <Button Grid.Row="0" Grid.Column="0" Content="📢 成绩发布" Click="OpenPublishDialog_Click" Margin="0,0,4,4" Style="{StaticResource RoundBtn}" Background="#F59E0B"/>
+                            <Button Grid.Row="0" Grid.Column="1" Content="📅 比赛日程" Click="OpenScheduleDialog_Click" Margin="4,0,0,4" Style="{StaticResource RoundBtn}" Background="#0D9488"/>
+                            <Button Grid.Row="1" Grid.Column="0" Content="🖼️ 图片 / 视频" Click="OpenMediaDialog_Click" Margin="0,4,4,0" Style="{StaticResource RoundBtn}" Background="#0EA5E9"/>
+                            <Button Grid.Row="1" Grid.Column="1" Content="📊 PPT 播放" Click="OpenPptDialog_Click" Margin="4,4,0,0" Style="{StaticResource RoundBtn}" Background="#FB923C"/>
+                        </Grid>
+
+                        <TextBlock Text="大屏样式 / 切换" Style="{StaticResource SectionTitle}"/>
+                        <Grid>
+                            <Grid.RowDefinitions><RowDefinition Height="44"/><RowDefinition Height="44"/><RowDefinition Height="44"/></Grid.RowDefinitions>
+                            <Button Grid.Row="0" Content="🎨 大屏样式 (底色 / 字号 / 文字)" Click="OpenDisplayStyle_Click" Margin="0,0,0,8" Style="{StaticResource RoundBtn}" Background="#7C3AED"/>
+                            <Button Grid.Row="1" Content="🥇 记录显示 (切换 WR/CR)" Click="SendMode_Click" Tag="TOGGLE_RECORDS_HIDDEN" Margin="0,0,0,8" Style="{StaticResource RoundBtn}" Background="#475569"/>
+                            <Button Grid.Row="2" Content="⏱ 备注: 切换反应时显隐" Click="SendMode_Click" Tag="TOGGLE_REMARK_REACTION" Style="{StaticResource RoundBtn}" Background="#475569"/>
+                        </Grid>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <TextBlock x:Name="StatusText" Grid.Row="3" Text="未连接" Foreground="#EF4444"
+                           HorizontalAlignment="Center" Margin="0,10,0,0" FontSize="12"/>
+            </Grid>
+        </Border>
     </Grid>
 </Window>

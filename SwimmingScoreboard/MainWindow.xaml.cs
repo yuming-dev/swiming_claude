@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
@@ -9,6 +10,8 @@ using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -289,13 +292,33 @@ namespace SwimmingScoreboard
             }
         }
 
+        // 2026-06-17 RemoteTimingControl 模式: 入口程序集名 = "RemoteTimingControl" 时,
+        // 跳过 WebSocket Server 启动, 跳过本地硬件直连. 只保留"比赛控制"标签页.
+        public static bool IsRemoteTimingControlMode {
+            get {
+                try {
+                    var asm = System.Reflection.Assembly.GetEntryAssembly();
+                    if (asm == null) return false;
+                    return string.Equals(asm.GetName().Name, "RemoteTimingControl", StringComparison.OrdinalIgnoreCase);
+                } catch { return false; }
+            }
+        }
+
         public MainWindow() {
             InitializeComponent();
             bool editorMode = IsScheduleEditorMode;
+            bool rtcMode = IsRemoteTimingControlMode;
+            // 2026-06-17 模式角色:
+            //   编辑端 (ScheduleEditor): 跳过 Server + 硬件 + 自动连接 (只管数据编辑)
+            //   RTC (RemoteTimingControl): 跳过 Server 但开硬件 (直连硬件计时器, 当 Client 连主服务器拉数据/推成绩)
             if (editorMode) ApplyScheduleEditorMode();
+            if (rtcMode) ApplyRemoteTimingControlMode();
             InitializeData();
+            // 2026-06-17 RTC 也开 Server (RTC 连硬件 = 主控, 大屏直接连 RTC).
+            //   主服务器和 RTC 不应同时跑同一台机器, 否则 3002 端口冲突.
             if (!editorMode) InitializeWebSocketServer();
-            if (!editorMode) InitializeTimingBridge();
+            if (!editorMode) InitializeHttpFileServer();                // 2026-06-17 HTTP 文件服务 (大屏 display.html 用)
+            if (!editorMode) InitializeTimingBridge();                  // 硬件: 主控 + RTC 都连
             InitializeTimers();
             LoadTimingSettings();
             LoadDisplayStyleFromDisk();      // 2026-06-01 大屏样式持久化还原
@@ -309,9 +332,9 @@ namespace SwimmingScoreboard
             // 2026-05-26 不在此处再调 ApplyTouchpadInstallModeToLanes — 它会覆盖 ApplyPersistedDeviceStates
             //   刚还原的 NotInstalled 标志. 所有"计算后状态"已在 (设置变更 / 硬件 0x3A / 0x42) 时
             //   通过 SaveDeviceStates 落盘, 开机只需读回即可.
-            if (!editorMode) PopulateComPorts();
-            if (!editorMode) ApplyTimingConnectionToUi();    // 把保存的串口/TCP/UDP 还原到 UI 控件
-            if (!editorMode) TryAutoReconnectTiming();       // 仅当 AutoReconnectOnStartup=true 才尝试
+            if (!editorMode) PopulateComPorts();              // RTC 也要选串口
+            if (!editorMode) ApplyTimingConnectionToUi();     // RTC 也要还原 UI
+            if (!editorMode) TryAutoReconnectTiming();        // RTC 也要尝试自动连硬件
             UpdateConnectionStatus();
             _initialized = true;
             RefreshBackupList();
@@ -323,7 +346,36 @@ namespace SwimmingScoreboard
             this.PreviewKeyDown += MainWindow_PreviewKeyDown_BackupShortcut;   // 2026-06-10 Ctrl+Shift+B 查事件备份 / Ctrl+Shift+L 清空
             // 2026-06-08 P3-B/C: 顶栏内存监控 10s 一次刷新 + 5 分钟一次兜底轻量 GC (Optimized 模式, 非阻塞)
             StartMemoryMonitorAndPeriodicGc();
-            AddLog(editorMode ? "编排记录及成绩处理 启动完成" : "系统启动完成");
+            AddLog(editorMode ? "编排记录及成绩处理 启动完成"
+                  : rtcMode ? "远程计时控制 启动完成"
+                  : "系统启动完成");
+        }
+
+        // 2026-06-17 RemoteTimingControl 模式: 只显示"比赛控制" tab, 隐藏其他 tab. RTC 专心做计时.
+        //   RTC 角色 = 现场计时操作端: 直接连本地硬件计时器, 当 Client 连主服务器 同步赛程/运动员/推送成绩.
+        //   不开 WebSocket Server (现场 RTC 不需要给大屏推数据, 那是主服务器的事).
+        //   硬件连接在"比赛控制" tab 右下方"系统硬件"区操作 (网络连接 / 设备测试 / 设备全开).
+        private void ApplyRemoteTimingControlMode() {
+            Title = "游泳赛事管理系统 — 远程计时控制";
+            if (MainTabControl == null) return;
+            var keep = new System.Collections.Generic.HashSet<string> { "比赛控制" };
+            TabItem firstVisible = null;
+            foreach (var obj in MainTabControl.Items) {
+                var ti = obj as TabItem;
+                if (ti == null) continue;
+                string header = ti.Header == null ? null : ti.Header.ToString();
+                if (keep.Contains(header)) {
+                    if (firstVisible == null) firstVisible = ti;
+                } else {
+                    ti.Visibility = Visibility.Collapsed;
+                }
+            }
+            if (firstVisible != null) MainTabControl.SelectedItem = firstVisible;
+
+            // 顶部状态栏注入"主服务器: [IP] [连接/断开] [状态]"控件 + 启动 EditorSyncClient
+            // (复用 ScheduleEditor 同套同步机制 — 拉赛程/运动员, 推改动)
+            InjectEditorSyncToolbar();
+            SetupEditorSyncClient();
         }
 
         // 2026-06-08 P3-B/C: 顶栏内存监控 + 后台 5 分钟兜底 GC
@@ -442,8 +494,30 @@ namespace SwimmingScoreboard
             if (ControlModeText == null) return;
             var parent = ControlModeText.Parent as StackPanel;
             if (parent == null) return;
-            // 把"控制模式: 本地"这一组替换成"主服务器: [IP] [连接] [状态]"
-            parent.Children.Clear();
+            // 2026-06-17 不清空整个 StackPanel (会丢失 内存监控 MemoryStatusText / 硬件计时器灯 HwConnDot+HwConnStatusText);
+            //   只移除"控制模式: ..." (= label + ControlModeText) 两个控件, 再追加"硬件连接"按钮 + "主服务器: [IP] [连接] [状态]"
+            int idx = parent.Children.IndexOf(ControlModeText);
+            if (idx >= 0) {
+                parent.Children.RemoveAt(idx);
+                if (idx > 0) {
+                    var prev = parent.Children[idx - 1] as TextBlock;
+                    if (prev != null && prev.Text != null && prev.Text.IndexOf("控制模式") >= 0) {
+                        parent.Children.RemoveAt(idx - 1);
+                    }
+                }
+            }
+            // 2026-06-17 顶端右侧加"硬件连接"按钮 (RTC 上方便, 主服务器有原入口也可加)
+            if (IsRemoteTimingControlMode) {
+                var btnHwConn = new Button {
+                    Content = "硬件连接",
+                    Padding = new Thickness(10, 2, 10, 2), FontSize = 12,
+                    Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#DC2626")),
+                    Foreground = Brushes.White, BorderThickness = new Thickness(0),
+                    Margin = new Thickness(8, 0, 12, 0)
+                };
+                btnHwConn.Click += delegate { ShowHardwareConnectionDialog(); };
+                parent.Children.Add(btnHwConn);
+            }
             parent.Children.Add(new TextBlock {
                 Text = "主服务器: ",
                 Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")),
@@ -472,28 +546,23 @@ namespace SwimmingScoreboard
             };
             parent.Children.Add(_editorSyncStatusText);
 
-            // 编排端独立凭据 → 在主服务器自带的"修改密码"按钮之外，单独提供入口，
-            // 这样修改的是编排端的 editor_credentials.json，而不是主服务器的 credentials.json
-            var btnEditorPwd = new Button {
-                Content = "用户名和密码",
-                Padding = new Thickness(10, 2, 10, 2), FontSize = 12,
-                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#8B5CF6")),
-                Foreground = Brushes.White, BorderThickness = new Thickness(0),
-                Margin = new Thickness(12, 0, 0, 0)
-            };
-            btnEditorPwd.Click += EditorChangePassword_Click;
-            parent.Children.Add(btnEditorPwd);
+            // 2026-06-17 "用户名和密码"按钮已从顶端移出, 改入"参数设置"窗口 (TimingSettingsCore 内追加).
+            //   入口程序集独立凭据 (editor_credentials.json / display_credentials.json 等) 通过反射打开
+            //   各自入口程序集的 ChangePasswordWindow, 跟之前一致.
         }
 
-        // 反射打开 ScheduleEditor.ChangePasswordWindow（该类在入口程序集 ScheduleEditor 里，
-        // 主服务器代码无法直接 new — 编排端 EXE 启动时此方法能拿到，主服务器 EXE 启动时该类不存在）
+        // 反射打开入口程序集的 ChangePasswordWindow (该类在入口程序集里, 主服务器代码无法直接 new).
+        // 2026-06-17 通用化: 支持 ScheduleEditor / RemoteTimingControl 等多个入口程序集
         private void EditorChangePassword_Click(object sender, RoutedEventArgs e) {
             try {
                 var asm = System.Reflection.Assembly.GetEntryAssembly();
                 if (asm == null) { MessageBox.Show("无法识别入口程序集。"); return; }
-                var t = asm.GetType("ScheduleEditor.ChangePasswordWindow");
+                // 用入口程序集的 RootNamespace + .ChangePasswordWindow
+                string asmName = asm.GetName().Name;
+                string typeName = asmName + ".ChangePasswordWindow";
+                var t = asm.GetType(typeName);
                 if (t == null) {
-                    MessageBox.Show("未找到 ScheduleEditor.ChangePasswordWindow 类型。", "提示",
+                    MessageBox.Show("未找到 " + typeName + " 类型。", "提示",
                         MessageBoxButton.OK, MessageBoxImage.Information);
                     return;
                 }
@@ -527,16 +596,19 @@ namespace SwimmingScoreboard
                         return;
                     }
                 } catch { }
-                Dispatcher.Invoke((Action)delegate() { HandleEditorSyncMessage(raw); });
+                // 2026-06-17 性能修复: 改 BeginInvoke (异步), 不再阻塞 IO 线程.
+                // 同步 Invoke 在 UI 线程忙 (硬件 0x7F 帧 / RaceTimer_Tick) 时会让 EditorSync IO 线程跟着卡死,
+                // 间接导致硬件计时帧 backlog → 中间面板触板成绩/状态灯刷新不及时.
+                Dispatcher.BeginInvoke((Action)delegate() { HandleEditorSyncMessage(raw); });
             };
             _editorSyncClient.OnConnected += delegate() {
-                Dispatcher.Invoke((Action)delegate() { OnEditorSyncConnected(); });
+                Dispatcher.BeginInvoke((Action)delegate() { OnEditorSyncConnected(); });
             };
             _editorSyncClient.OnDisconnected += delegate() {
-                Dispatcher.Invoke((Action)delegate() { OnEditorSyncDisconnected(); });
+                Dispatcher.BeginInvoke((Action)delegate() { OnEditorSyncDisconnected(); });
             };
             _editorSyncClient.OnLog += delegate(string s) {
-                Dispatcher.Invoke((Action)delegate() { AddLog("[同步] " + s); });
+                Dispatcher.BeginInvoke((Action)delegate() { AddLog("[同步] " + s); });
             };
 
             // 读 editor_sync.json：上次连接地址 + 是否自动重连
@@ -561,6 +633,12 @@ namespace SwimmingScoreboard
                 var hello = new JObject();
                 hello["type"] = "EDITOR_IDENTITY";
                 _editorSyncClient.Send(hello.ToString(Formatting.None));
+                // 2026-06-17 RTC 模式: 额外发 TIMING_EXE_IDENTITY 让主服务器"系统工作状态" tab 显示 RTC 已连
+                if (IsRemoteTimingControlMode) {
+                    var rtcHello = new JObject();
+                    rtcHello["type"] = "TIMING_EXE_IDENTITY";
+                    _editorSyncClient.Send(rtcHello.ToString(Formatting.None));
+                }
                 SaveEditorSyncConfig(host, true);
             } catch (Exception ex) {
                 AddLog("连接主服务器失败: " + ex.Message);
@@ -609,6 +687,14 @@ namespace SwimmingScoreboard
             }
         }
 
+        // 2026-06-17 EDITOR_PACKAGE 节流 (去抖):
+        //   主服务器有任何风吹草动就推一次整包, RTC 收到立即 ApplyPackageInMemory 会做"序列化 → 写盘 → LoadCompetitionFromFile"
+        //   全量重建, 极其昂贵, 在 UI 线程上跑 → 硬件 0x7F 帧排队. 这里改成:
+        //   收到 package 缓存到 _pendingPackage, 启动 1500ms 计时器; 期间又来新包替换 _pendingPackage 重置计时器;
+        //   计时器 Tick 时才真正应用最新一份. 用户感觉是"最后一次主服务器改动 1.5s 后生效", 完全可接受.
+        private CompetitionPackage _pendingPackage;
+        private DispatcherTimer _packageApplyDebounceTimer;
+
         // 编排端：收到主服务器推过来的 EDITOR_PACKAGE → 覆盖本地（_applyingRemoteSync 防回环）
         private void HandleEditorSyncMessage(string raw) {
             try {
@@ -619,12 +705,31 @@ namespace SwimmingScoreboard
                     if (pkgToken == null) return;
                     var package = pkgToken.ToObject<CompetitionPackage>();
                     if (package == null) return;
-                    ApplyPackageInMemory(package);
-                    UpdateEditorSyncStatus("已同步", "#22C55E");
-                    AddLog("收到主服务器整包 — 已覆盖本地");
+                    _pendingPackage = package;
+                    UpdateEditorSyncStatus("收包中…", "#F59E0B");
+                    if (_packageApplyDebounceTimer == null) {
+                        _packageApplyDebounceTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1500) };
+                        _packageApplyDebounceTimer.Tick += PackageApplyDebounceTick;
+                    }
+                    _packageApplyDebounceTimer.Stop();
+                    _packageApplyDebounceTimer.Start();
                 }
             } catch (Exception ex) {
                 AddLog("处理同步消息失败: " + ex.Message);
+            }
+        }
+
+        private void PackageApplyDebounceTick(object sender, EventArgs e) {
+            _packageApplyDebounceTimer.Stop();
+            var pkg = _pendingPackage;
+            _pendingPackage = null;
+            if (pkg == null) return;
+            try {
+                ApplyPackageInMemory(pkg);
+                UpdateEditorSyncStatus("已同步", "#22C55E");
+                AddLog("收到主服务器整包 — 已覆盖本地 (节流后应用)");
+            } catch (Exception ex) {
+                AddLog("应用同步包失败: " + ex.Message);
             }
         }
 
@@ -681,9 +786,15 @@ namespace SwimmingScoreboard
             // 初始化泳道设备状态
             InitLaneDeviceStates();
 
-            // 显示服务器地址
+            // 显示服务器地址 (RTC / ScheduleEditor 是客户端, 不开服务, 改为显示角色而不是 ws/http URL)
             string ip = GetLocalIP();
-            ServerAddressText.Text = string.Format("服务器地址: ws://{0}:3002  |  Web页面: http://{0}:3002", ip);
+            if (IsRemoteTimingControlMode) {
+                ServerAddressText.Text = "远程计时控制 — 直连硬件计时器, 比赛状态经主服务器中转给大屏";
+            } else if (IsScheduleEditorMode) {
+                ServerAddressText.Text = "赛事编排端 — 连主服务器同步赛程/运动员";
+            } else {
+                ServerAddressText.Text = string.Format("服务器地址: ws://{0}:3002  |  Web页面: http://{0}:8080", ip);
+            }
         }
 
         private void InitLaneDeviceStates() {
@@ -774,19 +885,148 @@ namespace SwimmingScoreboard
         // ═══════════════════════════════════════════════════════════════
         // WebSocket 服务器
         // ═══════════════════════════════════════════════════════════════
+        // 2026-06-17 启动前先探测 3002 端口是否被占 (常见于主服务器 + RTC 跑在同一台机器):
+        //   被占则 Fleck 仍会"启动成功"但无法接受连接, 大屏静默拿不到数据, 极难排查.
+        //   主动 TcpListener 试绑能立刻发现冲突, RTC 模式下弹框提示用户.
+        private static bool IsPort3002Occupied() {
+            System.Net.Sockets.TcpListener probe = null;
+            try {
+                probe = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Any, 3002);
+                probe.Start();
+                return false;
+            } catch (System.Net.Sockets.SocketException) {
+                return true;
+            } catch { return false; } finally {
+                try { if (probe != null) probe.Stop(); } catch { }
+            }
+        }
+
+        // 2026-06-18 每客户端独立发送队列 + 后台 worker, 防止慢 socket (弱 Wi-Fi) 拖累整体广播链.
+        //   旧版用 lock _broadcastSerialLock + foreach s.Send 同步串行 → 1 个慢 socket 阻塞 200ms,
+        //   N 帧 × M 客户端 → 10Hz 帧累积排队几秒到十几秒 → 大屏延迟清零.
+        //   新版每 socket 一个 ConcurrentQueue + Task worker: 慢的自己堵, 不影响其他 socket;
+        //   队列深度 >100 时丢最旧的, SHOW_LIVE_RACE 是全量快照丢中间无影响.
+        private class SocketSender {
+            public IWebSocketConnection Socket;
+            public ConcurrentQueue<string> Queue = new ConcurrentQueue<string>();
+            public ManualResetEventSlim Signal = new ManualResetEventSlim(false);
+            public CancellationTokenSource Cts = new CancellationTokenSource();
+            public Task Worker;
+            public const int MaxQueueDepth = 100;
+        }
+        private readonly Dictionary<IWebSocketConnection, SocketSender> _socketSenders =
+            new Dictionary<IWebSocketConnection, SocketSender>();
+        private readonly object _socketSendersLock = new object();
+
+        private void RegisterSocketSender(IWebSocketConnection socket) {
+            var sender = new SocketSender { Socket = socket };
+            lock (_socketSendersLock) _socketSenders[socket] = sender;
+            sender.Worker = Task.Run(() => SenderLoop(sender));
+        }
+
+        private void UnregisterSocketSender(IWebSocketConnection socket) {
+            SocketSender sender;
+            lock (_socketSendersLock) {
+                if (!_socketSenders.TryGetValue(socket, out sender)) return;
+                _socketSenders.Remove(socket);
+            }
+            try { sender.Cts.Cancel(); sender.Signal.Set(); } catch { }
+        }
+
+        private void SenderLoop(SocketSender sender) {
+            try {
+                while (!sender.Cts.IsCancellationRequested) {
+                    string msg;
+                    if (!sender.Queue.TryDequeue(out msg)) {
+                        try { sender.Signal.Wait(500, sender.Cts.Token); } catch { }
+                        try { sender.Signal.Reset(); } catch { }
+                        continue;
+                    }
+                    try { sender.Socket.Send(msg); } catch { break; }   // 发送失败 → 退出, OnClose 会清理
+                }
+            } catch { }
+        }
+
+        // 把消息入队到所有已连接的 socket. 主线程 microsec 级返回, 各 socket worker 异步发送.
+        private void EnqueueToAll(string json) {
+            if (string.IsNullOrEmpty(json)) return;
+            lock (_socketSendersLock) {
+                foreach (var sender in _socketSenders.Values) {
+                    // 队列超深 → 丢最旧的, 避免慢 socket 无限积压
+                    if (sender.Queue.Count >= SocketSender.MaxQueueDepth) {
+                        string discard;
+                        sender.Queue.TryDequeue(out discard);
+                    }
+                    sender.Queue.Enqueue(json);
+                    try { sender.Signal.Set(); } catch { }
+                }
+            }
+        }
+
+        // 入队到指定 socket. OnOpen 喂初始快照 / BroadcastSingle 用此.
+        private void EnqueueToSocket(IWebSocketConnection socket, string json) {
+            if (socket == null || string.IsNullOrEmpty(json)) return;
+            SocketSender sender;
+            lock (_socketSendersLock) { _socketSenders.TryGetValue(socket, out sender); }
+            if (sender == null) { try { socket.Send(json); } catch { } return; }
+            if (sender.Queue.Count >= SocketSender.MaxQueueDepth) {
+                string discard;
+                sender.Queue.TryDequeue(out discard);
+            }
+            sender.Queue.Enqueue(json);
+            try { sender.Signal.Set(); } catch { }
+        }
+
         private void InitializeWebSocketServer() {
+            // 2026-06-17 方案 B: RTC 模式不再开 WebSocket Server.
+            //   display.html / race_control.html 改为连主服务器, RTC 通过 EditorSyncClient
+            //   把比赛状态 (SHOW_LIVE_RACE 等) 推给主服务器, 主服务器再分发给 display 客户端.
+            //   这样 RTC UI 线程不必处理 display.html 的高频 WebSocket 消息, 大幅降负载.
+            if (IsRemoteTimingControlMode) {
+                AddLog("RTC 模式: 不开本机 WebSocket Server (3002), 比赛状态将通过主服务器转发给大屏");
+                return;
+            }
+            if (IsPort3002Occupied()) {
+                string msg = "WebSocket 端口 3002 已被占用。\r\n\r\n"
+                    + "常见原因：本机已经在运行 主服务器(SwimmingScoreboard.exe) 或另一份 RemoteTimingControl.exe，\r\n"
+                    + "两个程序都监听 3002 端口会冲突。\r\n\r\n"
+                    + "后果：display.html / race_control.html 等大屏页面将无法接收本程序推送的数据 (黑屏 / 无运动员)。\r\n\r\n"
+                    + "解决方法：\r\n"
+                    + "  1) 关闭本机已经在运行的另一个程序后再启动；或\r\n"
+                    + "  2) 将本程序部署到另一台 PC 上运行 (推荐生产部署方式)。";
+                AddLog("[严重] " + msg.Replace("\r\n", " "));
+                if (IsRemoteTimingControlMode) {
+                    try {
+                        Dispatcher.BeginInvoke((Action)delegate() {
+                            MessageBox.Show(this, msg, "端口冲突 — 大屏将无法接收数据",
+                                MessageBoxButton.OK, MessageBoxImage.Warning);
+                        });
+                    } catch { }
+                }
+                return;
+            }
             try {
                 _server = new WebSocketServer("ws://0.0.0.0:3002");
                 _server.Start(delegate(IWebSocketConnection socket) {
                     socket.OnOpen = delegate() {
                         _allSockets.Add(socket);
+                        // 2026-06-18 per-socket 发送队列, 防慢 socket 拖累整体
+                        RegisterSocketSender(socket);
                         Dispatcher.Invoke((Action)delegate() {
                             AddLog("客户端连接: " + socket.ConnectionInfo.ClientIpAddress);
                             UpdateConnectionStatus();
                         });
-                        BroadcastSingle(socket);
+                        // 2026-06-17 方案 B: 若有 RTC 主控推过来的完整快照, 优先发给新客户端,
+                        //   避免显示空白等待下次事件触发. 没有快照时回退到本机 BroadcastSingle.
+                        string snap = _lastRtcSnapshot;
+                        if (!string.IsNullOrEmpty(snap)) {
+                            EnqueueToSocket(socket, snap);
+                        } else {
+                            BroadcastSingle(socket);
+                        }
                     };
                     socket.OnClose = delegate() {
+                        UnregisterSocketSender(socket);   // 2026-06-18 停 sender worker
                         _allSockets.Remove(socket);
                         _displaySockets.Remove(socket);
                         _leaderboardSockets.Remove(socket);
@@ -810,6 +1050,82 @@ namespace SwimmingScoreboard
                 AddLog("WebSocket服务器已启动: ws://0.0.0.0:3002");
             } catch (Exception ex) {
                 AddLog("WebSocket启动失败: " + ex.Message);
+            }
+        }
+
+        // 2026-06-17 HTTP 文件服务: 主服务器 / RTC 模式下都开, 服务 Web/ 子目录下的 display.html / race_control.html 等
+        //   端口 8080. 浏览器访问 http://<主控IP>:8080/display.html 即可看大屏.
+        //   注: HttpListener "http://+:port/" 在 Windows 需要 URL ACL (netsh http add urlacl) 或管理员权限.
+        //   失败时回退到 http://localhost:8080/ (只本机能访问).
+        private System.Net.HttpListener _httpFileServer;
+        private System.Threading.Thread _httpFileServerThread;
+        private void InitializeHttpFileServer() {
+            // 2026-06-17 方案 B: RTC 模式不再开 HTTP 文件服务.
+            //   display.html / race_control.html 改为从主服务器 http://主服务器IP:8080/display.html 取.
+            if (IsRemoteTimingControlMode) {
+                AddLog("RTC 模式: 不开本机 HTTP 文件服务 (8080), 大屏页面由主服务器提供");
+                return;
+            }
+            try {
+                _httpFileServer = new System.Net.HttpListener();
+                _httpFileServer.Prefixes.Add("http://+:8080/");
+                _httpFileServer.Start();
+                AddLog("HTTP 文件服务已启动: http://0.0.0.0:8080 (服务 Web/ 目录)");
+            } catch (Exception ex1) {
+                AddLog("HTTP 8080 远程绑定失败 (需管理员或 netsh urlacl): " + ex1.Message);
+                try {
+                    _httpFileServer = new System.Net.HttpListener();
+                    _httpFileServer.Prefixes.Add("http://localhost:8080/");
+                    _httpFileServer.Start();
+                    AddLog("HTTP 文件服务已降级为本机: http://localhost:8080 (远程访问需 netsh http add urlacl url=http://+:8080/ user=Everyone)");
+                } catch (Exception ex2) {
+                    AddLog("HTTP 文件服务启动失败: " + ex2.Message);
+                    _httpFileServer = null;
+                    return;
+                }
+            }
+            _httpFileServerThread = new System.Threading.Thread(HttpFileServerLoop);
+            _httpFileServerThread.IsBackground = true;
+            _httpFileServerThread.Start();
+        }
+        private void HttpFileServerLoop() {
+            string webRoot = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Web");
+            while (_httpFileServer != null && _httpFileServer.IsListening) {
+                System.Net.HttpListenerContext ctx = null;
+                try { ctx = _httpFileServer.GetContext(); }
+                catch { break; }
+                try {
+                    string urlPath = ctx.Request.Url.AbsolutePath.TrimStart('/');
+                    if (string.IsNullOrEmpty(urlPath)) urlPath = "display.html";
+                    urlPath = urlPath.Replace("..", "").Replace("\\", "/");
+                    string fullPath = System.IO.Path.Combine(webRoot, urlPath.Replace("/", System.IO.Path.DirectorySeparatorChar.ToString()));
+                    if (System.IO.File.Exists(fullPath)) {
+                        byte[] bytes = System.IO.File.ReadAllBytes(fullPath);
+                        string ext = (System.IO.Path.GetExtension(fullPath) ?? "").ToLower();
+                        ctx.Response.ContentType =
+                              ext == ".html" || ext == ".htm" ? "text/html; charset=utf-8"
+                            : ext == ".css"  ? "text/css; charset=utf-8"
+                            : ext == ".js"   ? "application/javascript; charset=utf-8"
+                            : ext == ".json" ? "application/json; charset=utf-8"
+                            : ext == ".png"  ? "image/png"
+                            : ext == ".jpg" || ext == ".jpeg" ? "image/jpeg"
+                            : ext == ".gif"  ? "image/gif"
+                            : ext == ".svg"  ? "image/svg+xml; charset=utf-8"
+                            : ext == ".ico"  ? "image/x-icon"
+                            : ext == ".woff" ? "font/woff" : ext == ".woff2" ? "font/woff2"
+                            : ext == ".ttf"  ? "font/ttf"  : ext == ".otf"   ? "font/otf"
+                            : ext == ".mp4"  ? "video/mp4" : ext == ".webm" ? "video/webm"
+                            : "application/octet-stream";
+                        ctx.Response.ContentLength64 = bytes.Length;
+                        ctx.Response.OutputStream.Write(bytes, 0, bytes.Length);
+                    } else {
+                        ctx.Response.StatusCode = 404;
+                        byte[] body = System.Text.Encoding.UTF8.GetBytes("404 Not Found: " + urlPath);
+                        ctx.Response.ContentLength64 = body.Length;
+                        ctx.Response.OutputStream.Write(body, 0, body.Length);
+                    }
+                    ctx.Response.Close();
+                } catch { try { if (ctx != null) ctx.Response.Close(); } catch { } }
             }
         }
 
@@ -858,6 +1174,21 @@ namespace SwimmingScoreboard
                         if (!_editorSockets.Contains(socket)) _editorSockets.Add(socket);
                         AddLog("编排客户端已连接 — 立即推送整包");
                         SendEditorPackageTo(socket);   // 上线立即喂一次整包，编排端覆盖本地
+                        break;
+                    // 2026-06-17 方案 B: RTC 把比赛状态 (SHOW_LIVE_RACE / RUNNING_TIME_UPDATE 等) 经此连接
+                    //   推给主服务器, 主服务器透传给所有本机 _allSockets (display.html / race_control.html ...).
+                    //   RTC 是计时主控, 它的状态才是真实状态, 主服务器在此场景下纯当消息总线.
+                    case "RTC_FORWARD":
+                        try {
+                            var payload = msg["payload"];
+                            if (payload == null) break;
+                            string json = payload.ToString(Newtonsoft.Json.Formatting.None);
+                            // 2026-06-17 缓存最近一次 SHOW_LIVE_RACE 完整快照, 新连接的 display 通过 OnOpen 直接发它
+                            string ptype = payload["type"] != null ? payload["type"].ToString() : "";
+                            if (ptype == "SHOW_LIVE_RACE") _lastRtcSnapshot = json;
+                            // 2026-06-18 per-socket 队列, 不再 lock 串行 send
+                            EnqueueToAll(json);
+                        } catch { }
                         break;
                     case "EDITOR_PULL_PACKAGE":
                         SendEditorPackageTo(socket);
@@ -908,7 +1239,7 @@ namespace SwimmingScoreboard
                         HandleTimingData(msg);
                         break;
                     case "REMOTE_CONTROL":
-                        HandleRemoteControl(msg);
+                        HandleRemoteControl(msg, socket);
                         break;
                     case "FALSE_START_DETECTED":
                         HandleFalseStartDetected(msg);
@@ -1002,8 +1333,10 @@ namespace SwimmingScoreboard
                     bibNumber = s.BibNumber ?? "",
                     name = s.Name ?? "",
                     idNumber = s.IDNumber ?? "",
+                    // 2026-06-17 显式分开 country (单位全名) 和 countryShort (简称), 方便前端区分
                     country = s.Country ?? "",
-                    team = s.Country ?? "",
+                    countryShort = s.CountryShort ?? "",
+                    team = s.Country ?? "",     // 兼容: team = Country 全名
                     age = s.Age,
                     ageCategory = s.AgeCategory ?? "",
                     entryTime = entryTime,
@@ -2144,7 +2477,7 @@ namespace SwimmingScoreboard
             Broadcast();
         }
 
-        private void HandleRemoteControl(JObject msg) {
+        private void HandleRemoteControl(JObject msg, IWebSocketConnection socket) {
             string cmd = msg["command"] != null ? msg["command"].ToString() : "";
             switch (cmd) {
                 case "SHOW_LIVE_RACE": BroadcastDisplayMode("SHOW_LIVE_RACE"); break;
@@ -2177,6 +2510,42 @@ namespace SwimmingScoreboard
                 //   注意: 文件对话框只能在 UI 线程弹, 这里 Dispatcher.Invoke 切回 UI 线程
                 case "PLAY_PPT":
                     Dispatcher.Invoke(new Action(() => { try { PlayPpt_Click(null, null); } catch (Exception ex) { AddLog("远端 PPT 播放失败: " + ex.Message); } }));
+                    break;
+                // 2026-06-17 RDC/control.html 完全远程化: list/play 模式 (主控 PC 不弹框)
+                // 文件目录: Media/ (图片视频) 和 Documents/PPT/ (PPT 文件), 相对 exe 路径或绝对路径
+                case "TOGGLE_RECORDS_HIDDEN":
+                    Dispatcher.Invoke(new Action(() => { try { ToggleRecordsHidden_Click(null, null); } catch (Exception ex) { AddLog("远端 切换记录显示 失败: " + ex.Message); } }));
+                    break;
+                case "TOGGLE_REMARK_REACTION":
+                    Dispatcher.Invoke(new Action(() => { try { ToggleRemarkReaction_Click(null, null); } catch (Exception ex) { AddLog("远端 切换备注反应时 失败: " + ex.Message); } }));
+                    break;
+                case "LIST_MEDIA_FILES":
+                    SendMediaFileListToClient(socket);
+                    break;
+                case "PLAY_MEDIA_FILE":
+                    Dispatcher.Invoke(new Action(() => { try { RemotePlayMediaFile(msg); } catch (Exception ex) { AddLog("远端 播放媒体 失败: " + ex.Message); } }));
+                    break;
+                case "STOP_MEDIA":
+                    Dispatcher.Invoke(new Action(() => { try { BroadcastDisplayMode("SHOW_LIVE_RACE"); AddLog("远端 停止媒体显示"); } catch { } }));
+                    break;
+                case "LIST_PPT_FILES":
+                    SendPptFileListToClient(socket);
+                    break;
+                case "PLAY_PPT_FILE":
+                    Dispatcher.Invoke(new Action(() => { try { RemotePlayPptFile(msg); } catch (Exception ex) { AddLog("远端 PPT 播放 失败: " + ex.Message); } }));
+                    break;
+                case "LIST_SCHEDULE_SESSIONS":
+                    SendScheduleSessionListToClient(socket);
+                    break;
+                case "SHOW_SCHEDULE_SESSION":
+                    Dispatcher.Invoke(new Action(() => { try { RemoteShowScheduleSession(msg); } catch (Exception ex) { AddLog("远端 显示日程 失败: " + ex.Message); } }));
+                    break;
+                // 2026-06-17 双模式: 本机上传 — 客户端把文件 base64 后上传, 主控转发或保存临播
+                case "UPLOAD_AND_PLAY_MEDIA":
+                    Dispatcher.Invoke(new Action(() => { try { RemoteUploadAndPlayMedia(msg); } catch (Exception ex) { AddLog("远端 上传媒体 失败: " + ex.Message); } }));
+                    break;
+                case "UPLOAD_AND_PLAY_PPT":
+                    Dispatcher.Invoke(new Action(() => { try { RemoteUploadAndPlayPpt(msg); } catch (Exception ex) { AddLog("远端 上传 PPT 失败: " + ex.Message); } }));
                     break;
                 case "SHOW_WELCOME": BroadcastDisplayMode("SHOW_WELCOME"); break;
                 case "SHOW_PAUSE": BroadcastDisplayMode("SHOW_PAUSE"); break;
@@ -2253,61 +2622,160 @@ namespace SwimmingScoreboard
         //   6h 累积 ~86s UI 线程占用. 现 UI 线程仅快照 statusData (= 缓存的轻调用), 序列化 + Send
         //   扔后台. lock 串行化保证 客户端按调用顺序收到消息.
         private readonly object _broadcastSerialLock = new object();
+        // 2026-06-17 方案 B: 主服务器缓存最近一次 RTC 推过来的完整 SHOW_LIVE_RACE 快照,
+        //   新连接的 display/control 客户端 OnOpen 时直接 Send 这份, 避免显示空白等待下次事件.
+        private string _lastRtcSnapshot;
+
+        // 2026-06-17 方案 D: Broadcast 节流 — 100ms 内多次 Broadcast() 调用合并为 1 次真正执行.
+        //   原因: 发令瞬间事件密集 (StartRace_Click 触发数次 Broadcast), 每次都在 UI 线程跑 GetStatusData
+        //   (10 泳道 + 分段名次 + LINQ 查询, 单次 50-200ms), 串行 → UI 线程被卡 0.5-2s →
+        //   硬件 0x7F 帧 BeginInvoke 排队等不到执行 → _runningTime 不更新 → 滚动时间跳跃.
+        //   每帧 SHOW_LIVE_RACE 是全量快照, 100ms 内只看最后一帧已经足够正确, 人眼对 100ms 无感.
+        private bool _broadcastPending;
+        private DispatcherTimer _broadcastBatchTimer;
+
+        // 2026-06-17 方案 B 统一出口: 已有 JSON 字符串的广播 (PUBLISH_RESULT / SHOW_SCHEDULE / SHOW_MEDIA 等).
+        //   RTC 模式: 解析回 JToken 装入 RTC_FORWARD wrapper, 经 EditorSyncClient 推主服务器
+        //   主服务器模式: 走原本地 _allSockets 分发 (后台线程串行化)
+        private void BroadcastJsonToClients(string json) {
+            if (IsRemoteTimingControlMode) {
+                try {
+                    JToken payloadObj = JToken.Parse(json);
+                    var wrapper = new JObject { ["type"] = "RTC_FORWARD", ["payload"] = payloadObj };
+                    string wrapped = wrapper.ToString(Newtonsoft.Json.Formatting.None);
+                    System.Threading.Tasks.Task.Run(() => {
+                        try {
+                            if (_editorSyncClient != null && _editorSyncClient.IsConnected) {
+                                _editorSyncClient.Send(wrapped);
+                            }
+                        } catch { }
+                    });
+                } catch { }
+                return;
+            }
+            // 2026-06-18 per-socket 队列, 慢 socket 自己堵, 不拖快 socket
+            EnqueueToAll(json);
+        }
+
+        // 2026-06-17 方案 B 核心: RTC 模式下不发本地 _allSockets, 改通过 EditorSyncClient 推给主服务器,
+        //   主服务器收到 RTC_FORWARD 后再分发给所有 display/control 客户端.
+        //   返回 true = 已交给主服务器转发链, 调用者无需再走本地分发; false = 非 RTC 模式, 走本地分发.
+        private bool TryForwardToMainServer(object payload) {
+            if (!IsRemoteTimingControlMode) return false;
+            try {
+                if (_editorSyncClient != null && _editorSyncClient.IsConnected) {
+                    var wrapper = new { type = "RTC_FORWARD", payload };
+                    System.Threading.Tasks.Task.Run(() => {
+                        try {
+                            string json = JsonConvert.SerializeObject(wrapper);
+                            _editorSyncClient.Send(json);
+                        } catch { }
+                    });
+                }
+            } catch { }
+            return true;
+        }
+
+        // 2026-06-17 节流入口: 所有调用方调 Broadcast() — 只设 flag + 启 100ms 计时器.
+        //   真正执行在 BroadcastImmediate(), 由 BroadcastBatchTick 触发.
         private void Broadcast() {
             if (!_initialized) return;
+            _broadcastPending = true;
+            if (_broadcastBatchTimer == null) {
+                _broadcastBatchTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
+                _broadcastBatchTimer.Tick += BroadcastBatchTick;
+            }
+            if (!_broadcastBatchTimer.IsEnabled) _broadcastBatchTimer.Start();
+        }
+
+        private void BroadcastBatchTick(object sender, EventArgs e) {
+            _broadcastBatchTimer.Stop();
+            if (!_broadcastPending) return;
+            _broadcastPending = false;
+            BroadcastImmediate();
+        }
+
+        private void BroadcastImmediate() {
+            if (!_initialized) return;
+            // RTC 模式: GetStatusData 在 UI 线程取快照, 通过主服务器转发
+            if (IsRemoteTimingControlMode) {
+                try {
+                    var msg = new { type = "SHOW_LIVE_RACE", data = GetStatusData() };
+                    TryForwardToMainServer(msg);
+                } catch { }
+                return;
+            }
             if (_allSockets.Count == 0) return;   // 无客户端时连快照都省, 0 分配
             try {
                 var msg = new { type = "SHOW_LIVE_RACE", data = GetStatusData() };
-                var socketsSnap = _allSockets.ToArray();
-                System.Threading.Tasks.Task.Run(() => {
-                    lock (_broadcastSerialLock) {
-                        try {
-                            string json = JsonConvert.SerializeObject(msg);
-                            foreach (var s in socketsSnap) {
-                                try { s.Send(json); } catch { }
-                            }
-                        } catch { }
-                    }
-                });
+                // 2026-06-18 per-socket 队列, 序列化在主线程做一次, 入队 microsec 级
+                string json = JsonConvert.SerializeObject(msg);
+                EnqueueToAll(json);
             } catch { }
         }
 
         private void BroadcastSingle(IWebSocketConnection socket) {
             if (!_initialized) return;
+            if (IsRemoteTimingControlMode) return;   // RTC 无本地 socket 列表, 不存在 "Single" 概念
             try {
                 var msg = new { type = "SHOW_LIVE_RACE", data = GetStatusData() };
-                socket.Send(JsonConvert.SerializeObject(msg));
+                EnqueueToSocket(socket, JsonConvert.SerializeObject(msg));
             } catch { }
         }
 
         private void BroadcastDisplayMode(string mode) {
+            // 2026-06-17 方案 B: RTC 模式通过主服务器转发, 不开本地 Server.
+            if (IsRemoteTimingControlMode) {
+                try {
+                    var msg = new { type = mode, data = GetStatusData(), modeExplicit = true };
+                    TryForwardToMainServer(msg);
+                } catch { }
+                return;
+            }
             if (_allSockets.Count == 0) return;
             try {
-                // 2026-05-25 modeExplicit=true 区分"操作员主动切显示模式"(此函数) 与
-                // "服务器状态心跳"(Broadcast() 同样发 SHOW_LIVE_RACE 但不带这标记)。
-                // 大屏在排名/团体/纪录/颁奖等"用户锁定模式"下，遇到不带 modeExplicit 的
-                // SHOW_LIVE_RACE 心跳只更新 data 不切回比赛视图，否则翻页中途会被打断。
-                // 2026-06-06 P2-C: 同 Broadcast() — UI 线程取 statusData, 序列化 + Send 扔后台.
+                // 2026-05-25 modeExplicit=true 区分"操作员主动切显示模式" 与 "服务器状态心跳"
+                // 2026-06-18 per-socket 队列, 主线程序列化 + 入队后立即返回
                 var msg = new { type = mode, data = GetStatusData(), modeExplicit = true };
-                var socketsSnap = _allSockets.ToArray();
-                System.Threading.Tasks.Task.Run(() => {
-                    lock (_broadcastSerialLock) {
-                        try {
-                            string json = JsonConvert.SerializeObject(msg);
-                            foreach (var s in socketsSnap) {
-                                try { s.Send(json); } catch { }
-                            }
-                        } catch { }
-                    }
-                });
+                EnqueueToAll(JsonConvert.SerializeObject(msg));
             } catch { }
         }
 
         // 轻量级滚动时间广播：硬件每 100ms 发一帧 0x7F，主服务器收到后立刻把当前
         // _runningTime 发给所有客户端（大屏 / 计时控制台）。只送 type+runningTime 两个字段，
         // 比 Broadcast() 全量状态轻得多，适合 10Hz 高频转发。
+        // 2026-06-18 复位后阻断非零 RUNNING_TIME 广播标志:
+        //   Reset_Click 设 true → 后续硬件残帧 (= 已在 TCP 缓冲 / 硬件 0x20 处理延迟内) 触发的
+        //   BroadcastRunningTime 全部被拒, 大屏不再收到非零滚动时间;
+        //   直到 ProcessTimingData 收到硬件真发 0x7F ≈ 0 时, BroadcastRunningTime 内自动解锁继续正常发送.
+        //   Ready_Click 也清此标志, 避免上场残留影响新比赛.
+        private bool _broadcastSuppressing = false;
+
         private void BroadcastRunningTime() {
-            if (!_initialized || _allSockets.Count == 0) return;
+            if (!_initialized) return;
+            // 复位抑制窗口: 仅放行 ≈0 的帧, 拒发非零硬件残帧
+            double _tt = _clockPaused ? _pausedRunningTime : _runningTime;
+            if (_broadcastSuppressing) {
+                if (_tt > 0.05) return;
+                _broadcastSuppressing = false;   // 0 来了, 解锁后正常发送
+            }
+            // 2026-06-17 方案 B: RTC 模式通过主服务器转发. 这条 10Hz 高频帧不能阻塞 UI,
+            //   TryForwardToMainServer 内部已经 Task.Run 后台发送.
+            if (IsRemoteTimingControlMode) {
+                try {
+                    double tt = _clockPaused ? _pausedRunningTime : _runningTime;
+                    var msg = new {
+                        type = "RUNNING_TIME_UPDATE",
+                        data = new {
+                            runningTime = TimeFormatter.FormatRunning(tt),
+                            clockPaused = _clockPaused
+                        }
+                    };
+                    TryForwardToMainServer(msg);
+                } catch { }
+                return;
+            }
+            if (_allSockets.Count == 0) return;
             try {
                 // 2026-05-27 停表期间高频转发也用快照值, 防止冻结画面被 100ms 频率的真实时间覆盖
                 double t = _clockPaused ? _pausedRunningTime : _runningTime;
@@ -2319,9 +2787,7 @@ namespace SwimmingScoreboard
                     }
                 };
                 string json = JsonConvert.SerializeObject(msg);
-                foreach (var s in _allSockets.ToList()) {
-                    try { s.Send(json); } catch { }
-                }
+                EnqueueToAll(json);   // 2026-06-18 per-socket 队列
             } catch { }
         }
 
@@ -4200,7 +4666,12 @@ namespace SwimmingScoreboard
 
             // 2026-06-03 比完赛 (_raceState==Finished) 后, 硬件再有数据只记录 (= 上面 LogRaw 含比赛日志) 不处理
             //   = 不喂 calculator, 不动 SplitTime / 状态机 / 反应时, 不刷 UI 状态
-            if (_raceState == RaceState.Finished) return;
+            // 2026-06-17 例外: PushButton1/2/3 (盲表) 完赛后仍要进 ProcessBlindWatchData 存储,
+            //   场景: 最后一名 TP 先到 → _raceState 立即变 Finished → MB 后到被 4595 丢掉, 用户在 UI 看不到也存不进 result.
+            //   盲表自身仍有 bwStatus(Open/Touched/Closed) ResultConfirmCloseDelay 秒窗口控制, 窗口过期 bwStatus=Closed
+            //   走 RecordBackupBlind 备用记录; 状态机副作用安全 (ScheduleMbSubstitute 有 !IsFinished 守卫).
+            if (_raceState == RaceState.Finished
+                && cmdType != "PushButton1" && cmdType != "PushButton2" && cmdType != "PushButton3") return;
 
             // 2026-06-03 喂事件到 RelayReactionCalculator (= 接力 SB reaction 14 条规则). 第 1 棒发令不喂 (= 不算接力交接)
             // 守卫: 只对"接力交接段 + 棒次完成侧 TP"喂入. 非交接段 / 非棒完成侧 (= 中点 TP) 都不算 SB reaction
@@ -6519,9 +6990,11 @@ namespace SwimmingScoreboard
 
         // 判断该项目从 fromStage 出发的下一赛次（"预赛" → "半决赛"或"决赛"，"半决赛" → "决赛"）
         // 用于打印预赛/半决赛成绩单时给晋级者标 Q
-        private string GetNextStageFor(string gender, string eventName, string fromStage) {
+        // 2026-06-18 加 ageGroup 参数: 修跨年龄段半决赛误判 (甲组无半决但乙组有 → 甲组也错认有)
+        private string GetNextStageFor(string ageGroup, string gender, string eventName, string fromStage) {
             if (fromStage == "预赛") {
-                if (_schedule.Any(s => SgMatch(s.Gender, gender) && s.EventName == eventName && s.Stage == "半决赛"))
+                if (_schedule.Any(s => SgMatch(s.Gender, gender) && s.EventName == eventName && s.Stage == "半决赛"
+                    && (string.IsNullOrEmpty(ageGroup) || (s.AgeGroup ?? "") == ageGroup)))
                     return "半决赛";
                 return "决赛";
             }
@@ -6532,7 +7005,7 @@ namespace SwimmingScoreboard
         // 该运动员是否已晋级到下一赛次（StageAssignments 含下一赛次 → 已被分组）
         private bool IsQualifiedToNext(Swimmer sw, string fromStage) {
             if (sw == null) return false;
-            string next = GetNextStageFor(sw.Gender, sw.EventName, fromStage);
+            string next = GetNextStageFor(sw.AgeCategory ?? "", sw.Gender, sw.EventName, fromStage);
             if (string.IsNullOrEmpty(next)) return false;
             return sw.GetAssignmentForStage(next) != null;
         }
@@ -6669,7 +7142,8 @@ namespace SwimmingScoreboard
 
             // 2026-06-03 接力 SB reaction 计算器 + 100ms tick (= 检查 window 超时)
             _relayReactionCalc = new RelayReactionCalculator(
-                windowSecGetter: () => _laneCloseSettings != null ? _laneCloseSettings.ReactionEventWindowSec : 3.0,
+                // 2026-06-18 改用 ResultConfirmCloseDelay 作窗口时长 + 抢跳 SB 暂存等基准事件触发 (修复抢跳 SB<TP 算不出 bug)
+                windowSecGetter: () => _laneCloseSettings != null ? _laneCloseSettings.ResultConfirmCloseDelay : 3.0,
                 onReaction: OnRelayReactionReady,
                 onNoReaction: OnRelayReactionNone);
             _relayReactionTickTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
@@ -6797,10 +7271,12 @@ namespace SwimmingScoreboard
                 // 每100ms刷新泳道动态内容（增量更新，不重建UI）
                 UpdateLaneStatusDisplay();
 
-                // 广播降频为每500ms一次（WebSocket序列化/网络发送开销大）
-                if (_raceTickCount % 5 == 0) {
-                    Broadcast();
-                }
+                // 2026-06-17 删除 500ms 心跳 Broadcast: 改纯事件驱动.
+                //   - 触板成绩 / 状态灯 / 倒计时 / 选组 / 比赛开始结束等真实变化都各自调 Broadcast()
+                //   - 滚动时间另有 BroadcastRunningTime 10Hz 高频帧 (极小, 不阻塞 UI)
+                //   - 新连客户端在 OnOpen 时 BroadcastSingle (主服务器侧还会优先送 _lastRtcSnapshot)
+                //   原 500ms 心跳是冗余兜底, 在 RTC 模式下尤其昂贵 (GetStatusData + 转发主服务器).
+                // if (_raceTickCount % 5 == 0) Broadcast();
             }
         }
 
@@ -6896,6 +7372,8 @@ namespace SwimmingScoreboard
             // 2026-05-30 本地点击 (sender!=null) 时检查硬件连接; 硬件回报/WebSocket 远程 (sender==null) 跳过弹窗
             if (sender != null && !EnsureHardwareConnected("准备就绪")) return;
             if (_raceState != RaceState.Waiting) return;
+            // 2026-06-18 新组就位, 清复位抑制 (上一场可能残留)
+            _broadcastSuppressing = false;
             // 已确认成绩的组：禁止再次开始比赛
             if (!string.IsNullOrEmpty(_currentEvent) && _currentHeat > 0
                 && IsHeatConfirmed(_currentAgeGroup, _currentGender, _currentEvent, _currentStage, _currentHeat)) {
@@ -7186,6 +7664,9 @@ namespace SwimmingScoreboard
                     _timingBridge.DelayBetweenFrames(20);
                     try { SendStartPositionToHardware(); } catch (Exception ex) { AddLog("发令点重发失败: " + ex.Message); }
                 }
+                // 2026-06-18 (_currentHeat<=0 分支) 同样推 0 + 阻断硬件残帧
+                try { BroadcastRunningTime(); } catch { }
+                _broadcastSuppressing = true;
                 return;
             }
 
@@ -7305,6 +7786,11 @@ namespace SwimmingScoreboard
             } else {
                 Broadcast();
             }
+            // 2026-06-18 复位结束: 立即推 RUNNING_TIME = 0 给大屏 (绕过 100ms 节流), 配合 display _rtAnchor < 0.05 强制清零;
+            //   再设阻断标志, 后续硬件 TCP 缓冲里的非零 0x7F 残帧不再推送给大屏 (= 修"大屏 11 秒才清零"bug).
+            //   等下次 ProcessTimingData 收到硬件真发 0x7F ≈ 0 时自动解锁.
+            try { BroadcastRunningTime(); } catch { }
+            _broadcastSuppressing = true;
         }
 
         // 2026-05-27 "停表" 按钮 - 切换 _clockPaused 状态:
@@ -7505,9 +7991,7 @@ namespace SwimmingScoreboard
                         promoCount = promoCount
                     };
                     string json = Newtonsoft.Json.JsonConvert.SerializeObject(stageCompleteData);
-                    foreach (var conn in _allSockets) {
-                        try { conn.Send(json); } catch { }
-                    }
+                    BroadcastJsonToClients(json);
                 }
             } else {
                 AddLog("请选择下一组比赛");
@@ -7527,17 +8011,21 @@ namespace SwimmingScoreboard
                 var assignments = HeatScheduler.GenerateHeatsFromResults(promoted, _poolConfig, eventName, nextStage, fromStage);
                 int heatCount = assignments.Count > 0 ? assignments.Max(a => a.Heat) : 0;
 
-                bool scheduleExists = _schedule.Any(s => SgMatch(s.Gender, gender) && s.EventName == eventName && s.Stage == nextStage);
+                // 2026-06-18 加 ageGroup 过滤, 修晋级后跨年龄段误更 HeatCount 的 bug
+                bool scheduleExists = _schedule.Any(s => SgMatch(s.Gender, gender) && s.EventName == eventName && s.Stage == nextStage
+                    && (string.IsNullOrEmpty(ageGroup) || (s.AgeGroup ?? "") == ageGroup));
                 if (!scheduleExists) {
                     _schedule.Add(new ScheduleItem {
                         SessionNumber = _schedule.Count > 0 ? _schedule.Max(s => s.SessionNumber) + 1 : 1,
+                        AgeGroup = ageGroup ?? "",
                         Gender = gender,
                         EventName = eventName,
                         Stage = nextStage,
                         HeatCount = heatCount
                     });
                 } else {
-                    var schedItem = _schedule.FirstOrDefault(s => SgMatch(s.Gender, gender) && s.EventName == eventName && s.Stage == nextStage);
+                    var schedItem = _schedule.FirstOrDefault(s => SgMatch(s.Gender, gender) && s.EventName == eventName && s.Stage == nextStage
+                        && (string.IsNullOrEmpty(ageGroup) || (s.AgeGroup ?? "") == ageGroup));
                     if (schedItem != null) schedItem.HeatCount = heatCount;
                 }
 
@@ -7559,9 +8047,7 @@ namespace SwimmingScoreboard
                     heatCount = heatCount
                 };
                 string json = Newtonsoft.Json.JsonConvert.SerializeObject(resultData);
-                foreach (var conn in _allSockets) {
-                    try { conn.Send(json); } catch { }
-                }
+                BroadcastJsonToClients(json);
                 Broadcast();
             }
         }
@@ -8944,21 +9430,40 @@ namespace SwimmingScoreboard
                 var reactionStack = new StackPanel { Orientation = Orientation.Vertical, Width = 90, VerticalAlignment = VerticalAlignment.Center };
                 var reactionText = new TextBlock { FontSize = 13, Foreground = Brushes.White, TextAlignment = TextAlignment.Center, FontFamily = new FontFamily("Consolas"), Height = 20 };
                 reactionStack.Children.Add(reactionText);
-                // 2026-06-16 淡蓝背景 + 深色字, 跟 dark 行底色形成对比, 文字可读
-                var _brushLightBlue = (Brush)new SolidColorBrush((Color)ColorConverter.ConvertFromString("#BFDBFE"));
-                var _brushDarkText = (Brush)new SolidColorBrush((Color)ColorConverter.ConvertFromString("#0F172A"));
-                var blindCombo = new ComboBox { Height = 20, FontSize = 11, FontFamily = new FontFamily("Consolas"), Foreground = _brushDarkText, BorderThickness = new Thickness(0), Padding = new Thickness(0), Margin = new Thickness(0), HorizontalContentAlignment = HorizontalAlignment.Center, Background = _brushLightBlue };
+                // 2026-06-18 黑底 + 白字 (用户指定)
+                //   WPF Aero ComboBox 默认 Template 会覆盖 Background, 这里注入极简自定义 Template:
+                //     主体 = 黑 Border + ToggleButton (覆盖打开/关闭), 显示选中项 = ContentPresenter,
+                //     下拉 = Popup 黑底 ScrollViewer 包 ItemsHost
+                var _brushBlindBg = (Brush)Brushes.Black;
+                var _brushBlindFg = (Brush)Brushes.White;
+                var blindCombo = new ComboBox { Height = 20, FontSize = 11, FontFamily = new FontFamily("Consolas"), Foreground = _brushBlindFg, BorderThickness = new Thickness(0), Padding = new Thickness(0), Margin = new Thickness(0), HorizontalContentAlignment = HorizontalAlignment.Center, Background = _brushBlindBg };
+                try {
+                    string tplXaml = "<ControlTemplate TargetType='ComboBox' xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation' xmlns:x='http://schemas.microsoft.com/winfx/2006/xaml'>"
+                        + "<Grid>"
+                        + "<ToggleButton x:Name='Tb' Focusable='False' ClickMode='Press' Background='Black' IsChecked='{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}'>"
+                            + "<ToggleButton.Template><ControlTemplate TargetType='ToggleButton'><Border Background='Black' BorderThickness='0'/></ControlTemplate></ToggleButton.Template>"
+                        + "</ToggleButton>"
+                        + "<ContentPresenter IsHitTestVisible='False' HorizontalAlignment='Center' VerticalAlignment='Center' Margin='4,1,4,1' Content='{TemplateBinding SelectionBoxItem}' ContentTemplate='{TemplateBinding SelectionBoxItemTemplate}' ContentTemplateSelector='{TemplateBinding ItemTemplateSelector}' TextBlock.Foreground='White'/>"
+                        + "<Popup IsOpen='{TemplateBinding IsDropDownOpen}' Placement='Bottom' Focusable='False' AllowsTransparency='True' PopupAnimation='Slide'>"
+                            + "<Border Background='Black' BorderBrush='#475569' BorderThickness='1' MinWidth='{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}' MaxHeight='{TemplateBinding MaxDropDownHeight}'>"
+                                + "<ScrollViewer><StackPanel IsItemsHost='True' Background='Black'/></ScrollViewer>"
+                            + "</Border>"
+                        + "</Popup>"
+                        + "</Grid>"
+                        + "</ControlTemplate>";
+                    blindCombo.Template = (ControlTemplate)System.Windows.Markup.XamlReader.Parse(tplXaml);
+                } catch { }
                 {
                     var itemDt = new DataTemplate();
                     var tbFactory = new FrameworkElementFactory(typeof(TextBlock));
                     tbFactory.SetBinding(TextBlock.TextProperty, new System.Windows.Data.Binding("."));
-                    tbFactory.SetValue(TextBlock.ForegroundProperty, _brushDarkText);
+                    tbFactory.SetValue(TextBlock.ForegroundProperty, _brushBlindFg);
                     tbFactory.SetValue(TextBlock.HorizontalAlignmentProperty, HorizontalAlignment.Center);
                     itemDt.VisualTree = tbFactory;
                     blindCombo.ItemTemplate = itemDt;
                     var itemStyle = new Style(typeof(ComboBoxItem));
-                    itemStyle.Setters.Add(new Setter(ComboBoxItem.ForegroundProperty, _brushDarkText));
-                    itemStyle.Setters.Add(new Setter(ComboBoxItem.BackgroundProperty, _brushLightBlue));
+                    itemStyle.Setters.Add(new Setter(ComboBoxItem.ForegroundProperty, _brushBlindFg));
+                    itemStyle.Setters.Add(new Setter(ComboBoxItem.BackgroundProperty, _brushBlindBg));
                     itemStyle.Setters.Add(new Setter(ComboBoxItem.PaddingProperty, new Thickness(4, 1, 4, 1)));
                     blindCombo.ItemContainerStyle = itemStyle;
                 }
@@ -10178,9 +10683,7 @@ namespace SwimmingScoreboard
             ScanDocDir(list, IOPath.Combine(baseDir, "Documents"), "Documents");
             ScanDocDir(list, IOPath.Combine(baseDir, "Database", "RawData"), "原始数据");
             string json = JsonConvert.SerializeObject(new { type = "DOC_LIST_RESULT", data = list });
-            foreach (var s in _allSockets.ToList()) {
-                try { s.Send(json); } catch { }
-            }
+            BroadcastJsonToClients(json);
         }
 
         private void ScanDocDir(List<object> list, string dir, string category) {
@@ -10560,21 +11063,25 @@ namespace SwimmingScoreboard
         }
 
         // 编辑端 — 删除接力队
+        // 2026-06-18 加 ageGroup 过滤, 修跨年龄段同 (teamName, gender, eventName) 误删的 bug
         private void HandleEditorDeleteRelay(JObject data) {
             if (data == null) { AddLog("DELETE_RELAY 数据为空"); return; }
             string teamName = data["teamName"] != null ? data["teamName"].ToString() : "";
             string evName = data["eventName"] != null ? data["eventName"].ToString() : "";
             string gender = data["gender"] != null ? data["gender"].ToString() : "";
+            string ageGroup = data["ageGroup"] != null ? data["ageGroup"].ToString() : "";
             var team = _relayTeams.FirstOrDefault(t =>
-                t.TeamName == teamName && t.Gender == gender && t.EventName == evName);
+                t.TeamName == teamName && t.Gender == gender && t.EventName == evName
+                && (string.IsNullOrEmpty(ageGroup) || (t.AgeGroup ?? "") == ageGroup));
             if (team == null) {
-                AddLog(string.Format("DELETE_RELAY 找不到: {0} {1} {2}", gender, evName, teamName));
+                AddLog(string.Format("DELETE_RELAY 找不到: {0} {1} {2} {3}", ageGroup, gender, evName, teamName));
                 return;
             }
             _relayTeams.Remove(team);
-            // 同步清理 _swimmers 中的接力代理条目
+            // 同步清理 _swimmers 中的接力代理条目 (同样按 AgeCategory 过滤)
             var proxy = _swimmers.FirstOrDefault(s =>
                 s.Country == teamName && SgMatch(s.Gender, gender) && s.EventName == evName
+                && (string.IsNullOrEmpty(ageGroup) || (s.AgeCategory ?? "") == ageGroup)
                 && !string.IsNullOrEmpty(s.Notes) && s.Notes.StartsWith("接力队 棒次:"));
             if (proxy != null) _swimmers.Remove(proxy);
             RebuildRelayGroupedView();
@@ -11112,11 +11619,155 @@ namespace SwimmingScoreboard
             var btnThermalCat = new Button { Content = "热敏打印", Padding = new Thickness(0, 12, 0, 12), FontSize = 15, FontWeight = FontWeights.Bold, Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6")), Foreground = Brushes.White, BorderThickness = new Thickness(0), Margin = new Thickness(0, 0, 0, 10) };
             btnThermalCat.Click += delegate { ThermalPrinterConfig_Click(null, null); };
             sp.Children.Add(btnThermalCat);
+            // 2026-06-17 硬件计时器连接 (串口/TCP/UDP) — 主服务器 + RTC 都通过参数设置进入
+            var btnHwConnCat = new Button { Content = "硬件计时器连接", Padding = new Thickness(0, 12, 0, 12), FontSize = 15, FontWeight = FontWeights.Bold, Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#DC2626")), Foreground = Brushes.White, BorderThickness = new Thickness(0), Margin = new Thickness(0, 0, 0, 10) };
+            btnHwConnCat.Click += delegate { ShowHardwareConnectionDialog(); };
+            sp.Children.Add(btnHwConnCat);
+            // 2026-06-17 用户名和密码 — 从顶端右上角移入参数设置. 反射打开各入口程序集的 ChangePasswordWindow
+            //   主服务器 → SwimmingScoreboard.ChangePasswordWindow (credentials.json)
+            //   RTC → RemoteTimingControl.ChangePasswordWindow (timing_credentials.json)
+            //   ScheduleEditor → ScheduleEditor.ChangePasswordWindow (editor_credentials.json)
+            var btnPwdCat = new Button { Content = "用户名和密码", Padding = new Thickness(0, 12, 0, 12), FontSize = 15, FontWeight = FontWeights.Bold, Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#8B5CF6")), Foreground = Brushes.White, BorderThickness = new Thickness(0), Margin = new Thickness(0, 0, 0, 10) };
+            btnPwdCat.Click += delegate { EditorChangePassword_Click(null, null); };
+            sp.Children.Add(btnPwdCat);
             var hubBtnPanel = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 6, 0, 0) };
             var hubClose = new Button { Content = "关闭", Padding = new Thickness(16, 6, 16, 6), Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569")), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
             hubClose.Click += delegate { dlg.DialogResult = true; };
             hubBtnPanel.Children.Add(hubClose);
             sp.Children.Add(hubBtnPanel);
+            dlg.Content = sp;
+            dlg.ShowDialog();
+        }
+
+        // 2026-06-17 硬件计时器连接 子窗口 — 从"系统工作状态 → 设置 tab"独立出来的弹框入口.
+        //   场景: ScheduleEditor/RTC 模式下"设置" tab 被隐藏, 通过"参数设置 → 硬件计时器连接"访问.
+        //   功能: 串口/TCP/UDP 三种连接方式 + 状态显示 + 断开按钮. 不复用 xaml ComPortCombo, 独立控件.
+        private void ShowHardwareConnectionDialog() {
+            var dlg = new Window {
+                Title = "硬件计时器连接", Width = 520, SizeToContent = SizeToContent.Height,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner, Owner = this, ResizeMode = ResizeMode.NoResize,
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E293B"))
+            };
+            var sp = new StackPanel { Margin = new Thickness(20) };
+            sp.Children.Add(new TextBlock { Text = "硬件计时器连接", FontSize = 17, FontWeight = FontWeights.Bold, Foreground = Brushes.White, Margin = new Thickness(0, 0, 0, 10) });
+            // 当前状态行
+            var statusRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 14) };
+            statusRow.Children.Add(new TextBlock { Text = "当前状态: ", Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), VerticalAlignment = VerticalAlignment.Center });
+            var statusText = new TextBlock { FontSize = 14, FontWeight = FontWeights.Bold, VerticalAlignment = VerticalAlignment.Center };
+            Action refreshStatus = delegate {
+                bool conn = _timingBridge != null && _timingBridge.IsConnected;
+                statusText.Text = conn ? "已连接" : "未连接";
+                statusText.Foreground = new SolidColorBrush(conn ? Colors.LimeGreen : Colors.OrangeRed);
+            };
+            refreshStatus();
+            statusRow.Children.Add(statusText);
+            sp.Children.Add(statusRow);
+            // 通用 Grid
+            var grid = new Grid();
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(70) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            for (int i = 0; i < 4; i++) grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(38) });
+            Brush brushLabel = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8"));
+            Brush brushBoxBg = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#334155"));
+            Brush brushBoxBorder = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569"));
+            // Row 0: 串口
+            var lblSerial = new TextBlock { Text = "串口:", Foreground = brushLabel, VerticalAlignment = VerticalAlignment.Center };
+            Grid.SetRow(lblSerial, 0); Grid.SetColumn(lblSerial, 0); grid.Children.Add(lblSerial);
+            var serialRow = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+            var cbCom = new ComboBox { Width = 120, Background = brushBoxBg, Foreground = Brushes.White, BorderBrush = brushBoxBorder };
+            foreach (var p in System.IO.Ports.SerialPort.GetPortNames()) cbCom.Items.Add(p);
+            if (_timingConn != null && !string.IsNullOrEmpty(_timingConn.SerialPort) && cbCom.Items.Contains(_timingConn.SerialPort)) cbCom.SelectedItem = _timingConn.SerialPort;
+            else if (cbCom.Items.Count > 0) cbCom.SelectedIndex = 0;
+            serialRow.Children.Add(cbCom);
+            serialRow.Children.Add(new TextBlock { Text = " 波特率: ", Foreground = brushLabel, VerticalAlignment = VerticalAlignment.Center });
+            var cbBaud = new ComboBox { Width = 90, Background = brushBoxBg, Foreground = Brushes.White, BorderBrush = brushBoxBorder };
+            foreach (var b in new[] { "9600", "19200", "38400", "57600", "115200" }) cbBaud.Items.Add(b);
+            int curBaud = (_timingConn != null && _timingConn.SerialBaudRate > 0) ? _timingConn.SerialBaudRate : 9600;
+            cbBaud.SelectedItem = curBaud.ToString();
+            if (cbBaud.SelectedItem == null) cbBaud.SelectedIndex = 0;
+            serialRow.Children.Add(cbBaud);
+            Grid.SetRow(serialRow, 0); Grid.SetColumn(serialRow, 1); grid.Children.Add(serialRow);
+            var btnSerial = new Button { Content = "连接串口", Padding = new Thickness(12, 4, 12, 4), Margin = new Thickness(8, 0, 0, 0), Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6")), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
+            btnSerial.Click += delegate {
+                if (cbCom.SelectedItem == null) { AddLog("请选择串口"); return; }
+                string port = cbCom.SelectedItem.ToString();
+                int baud; if (!int.TryParse((cbBaud.SelectedItem ?? "9600").ToString(), out baud)) baud = 9600;
+                if (_timingBridge == null) { AddLog("_timingBridge 未初始化"); return; }
+                _timingBridge.ConnectSerial(port, baud);
+                if (_timingConn != null) { _timingConn.SerialPort = port; _timingConn.SerialBaudRate = baud; _timingConn.LastType = "serial"; SaveTimingConnectionConfig(); }
+                UpdateConnectionStatus();
+                AddLog(string.Format("串口连接: {0} @ {1} baud", port, baud));
+                refreshStatus();
+            };
+            Grid.SetRow(btnSerial, 0); Grid.SetColumn(btnSerial, 2); grid.Children.Add(btnSerial);
+            // Row 1: TCP
+            var lblTcp = new TextBlock { Text = "TCP地址:", Foreground = brushLabel, VerticalAlignment = VerticalAlignment.Center };
+            Grid.SetRow(lblTcp, 1); Grid.SetColumn(lblTcp, 0); grid.Children.Add(lblTcp);
+            string tcpDefault = (_timingConn != null && !string.IsNullOrEmpty(_timingConn.TcpHost)) ? (_timingConn.TcpHost + ":" + (_timingConn.TcpPort > 0 ? _timingConn.TcpPort : 5000)) : "127.0.0.1:5000";
+            var tbTcp = new TextBox { Text = tcpDefault, Padding = new Thickness(4), Background = brushBoxBg, Foreground = Brushes.White, BorderBrush = brushBoxBorder, VerticalContentAlignment = VerticalAlignment.Center };
+            Grid.SetRow(tbTcp, 1); Grid.SetColumn(tbTcp, 1); grid.Children.Add(tbTcp);
+            var btnTcp = new Button { Content = "连接TCP", Padding = new Thickness(12, 4, 12, 4), Margin = new Thickness(8, 0, 0, 0), Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#22C55E")), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
+            btnTcp.Click += delegate {
+                string addr = tbTcp.Text.Trim();
+                string[] parts = addr.Split(':');
+                string host = parts[0]; int port = 5000;
+                if (parts.Length > 1) int.TryParse(parts[1], out port);
+                if (_timingBridge == null) { AddLog("_timingBridge 未初始化"); return; }
+                _timingBridge.ConnectTcp(host, port);
+                if (_timingConn != null) { _timingConn.TcpHost = host; _timingConn.TcpPort = port; _timingConn.LastType = "tcp"; SaveTimingConnectionConfig(); }
+                UpdateConnectionStatus();
+                AddLog(string.Format("TCP连接: {0}:{1}", host, port));
+                refreshStatus();
+            };
+            Grid.SetRow(btnTcp, 1); Grid.SetColumn(btnTcp, 2); grid.Children.Add(btnTcp);
+            // Row 2: UDP 监听
+            var lblUdp = new TextBlock { Text = "UDP收端口:", Foreground = brushLabel, VerticalAlignment = VerticalAlignment.Center };
+            Grid.SetRow(lblUdp, 2); Grid.SetColumn(lblUdp, 0); grid.Children.Add(lblUdp);
+            string udpDefault = (_timingConn != null && _timingConn.UdpListenPort > 0) ? _timingConn.UdpListenPort.ToString() : "5001";
+            var tbUdp = new TextBox { Text = udpDefault, Padding = new Thickness(4), Background = brushBoxBg, Foreground = Brushes.White, BorderBrush = brushBoxBorder, VerticalContentAlignment = VerticalAlignment.Center };
+            Grid.SetRow(tbUdp, 2); Grid.SetColumn(tbUdp, 1); grid.Children.Add(tbUdp);
+            var btnUdp = new Button { Content = "监听UDP", Padding = new Thickness(12, 4, 12, 4), Margin = new Thickness(8, 0, 0, 0), Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F59E0B")), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
+            // Row 3: UDP 发送 (放下面)
+            var lblUdpSend = new TextBlock { Text = "UDP发送:", Foreground = brushLabel, VerticalAlignment = VerticalAlignment.Center };
+            Grid.SetRow(lblUdpSend, 3); Grid.SetColumn(lblUdpSend, 0); grid.Children.Add(lblUdpSend);
+            string udpSendDefault = (_timingConn != null && !string.IsNullOrEmpty(_timingConn.UdpSendHost)) ? (_timingConn.UdpSendHost + ":" + _timingConn.UdpSendPort) : "127.0.0.1:5002";
+            var tbUdpSend = new TextBox { Text = udpSendDefault, Padding = new Thickness(4), Background = brushBoxBg, Foreground = Brushes.White, BorderBrush = brushBoxBorder, VerticalContentAlignment = VerticalAlignment.Center };
+            Grid.SetRow(tbUdpSend, 3); Grid.SetColumn(tbUdpSend, 1); grid.Children.Add(tbUdpSend);
+            btnUdp.Click += delegate {
+                int listenPort; if (!int.TryParse(tbUdp.Text.Trim(), out listenPort)) listenPort = 5001;
+                string sendHost = null; int sendPort = 0;
+                string sendText = tbUdpSend.Text.Trim();
+                if (!string.IsNullOrEmpty(sendText)) {
+                    var ps = sendText.Split(':');
+                    if (ps.Length == 2) { sendHost = ps[0]; int.TryParse(ps[1], out sendPort); }
+                }
+                if (_timingBridge == null) { AddLog("_timingBridge 未初始化"); return; }
+                _timingBridge.ConnectUdp(listenPort, sendHost, sendPort);
+                if (_timingConn != null) { _timingConn.UdpListenPort = listenPort; _timingConn.UdpSendHost = sendHost ?? ""; _timingConn.UdpSendPort = sendPort; _timingConn.LastType = "udp"; SaveTimingConnectionConfig(); }
+                UpdateConnectionStatus();
+                AddLog(string.Format("UDP监听: {0} 发送: {1}:{2}", listenPort, sendHost ?? "-", sendPort));
+                refreshStatus();
+            };
+            Grid.SetRow(btnUdp, 2); Grid.SetColumn(btnUdp, 2); grid.Children.Add(btnUdp);
+            sp.Children.Add(grid);
+            // 底部按钮: 断开 / 关闭
+            var btnRow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 16, 0, 0) };
+            var btnDisc = new Button { Content = "断开硬件", Padding = new Thickness(14, 6, 14, 6), Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EF4444")), Foreground = Brushes.White, BorderThickness = new Thickness(0), Margin = new Thickness(0, 0, 8, 0) };
+            btnDisc.Click += delegate {
+                if (_raceState != RaceState.Waiting) { MessageBox.Show("非 Waiting 状态不能断开 (请先按计时复位)", "提示"); return; }
+                if (_timingBridge != null) _timingBridge.Disconnect();
+                UpdateConnectionStatus();
+                try { UpdateQuickConnectButton(); } catch { }
+                AddLog("硬件已断开");
+                try { Broadcast(); } catch { }
+                refreshStatus();
+            };
+            btnRow.Children.Add(btnDisc);
+            var btnClose = new Button { Content = "关闭", Padding = new Thickness(14, 6, 14, 6), Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569")), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
+            btnClose.Click += delegate { dlg.DialogResult = true; };
+            btnRow.Children.Add(btnClose);
+            sp.Children.Add(btnRow);
             dlg.Content = sp;
             dlg.ShowDialog();
         }
@@ -14455,16 +15106,18 @@ namespace SwimmingScoreboard
             string gender = EditGenderCombo != null && EditGenderCombo.SelectedItem != null ? ((ComboBoxItem)EditGenderCombo.SelectedItem).Content.ToString() : "";
             string eventName = EditEventCombo != null && EditEventCombo.SelectedItem != null ? EditEventCombo.SelectedItem.ToString() : "";
             string stage = EditStageCombo != null && EditStageCombo.SelectedItem != null ? ((ComboBoxItem)EditStageCombo.SelectedItem).Content.ToString() : "";
+            // 2026-06-18 加"组别"传递, 修临时加人 AgeCategory 丢失
+            string ageGroup = EditAgeGroupCombo != null && EditAgeGroupCombo.SelectedItem != null ? EditAgeGroupCombo.SelectedItem.ToString() : "";
             if (string.IsNullOrEmpty(gender) || string.IsNullOrEmpty(eventName) || string.IsNullOrEmpty(stage)) {
                 MessageBox.Show("请先在上方选择性别、项目、赛次后再临时加人。", "提示"); return;
             }
 
             bool isRelay = eventName.Contains("接力");
-            if (isRelay) AddTempRelayTeam(gender, eventName, stage);
-            else AddTempIndividualSwimmer(gender, eventName, stage);
+            if (isRelay) AddTempRelayTeam(ageGroup, gender, eventName, stage);
+            else AddTempIndividualSwimmer(ageGroup, gender, eventName, stage);
         }
 
-        private void AddTempIndividualSwimmer(string gender, string eventName, string stage) {
+        private void AddTempIndividualSwimmer(string ageGroup, string gender, string eventName, string stage) {
             var dlg = new Window {
                 Title = string.Format("临时加人 — {0} {1} {2}", gender, eventName, stage),
                 Width = 420, Height = 400, WindowStartupLocation = WindowStartupLocation.CenterOwner, Owner = this, ResizeMode = ResizeMode.NoResize
@@ -14525,6 +15178,7 @@ namespace SwimmingScoreboard
 
             var sw = new Swimmer {
                 Name = name, BibNumber = bib, Gender = gender, Country = country, Age = ageVal,
+                AgeCategory = ageGroup ?? "",   // 2026-06-18 修临时加人 AgeCategory 丢失
                 EventName = eventName, CurrentStage = stage,
                 EntryTime = entryTimeStr, EntryTimeSeconds = entrySec,
                 Heat = 0, Lane = 0, Notes = "临时加人"
@@ -14537,7 +15191,7 @@ namespace SwimmingScoreboard
             MessageBox.Show(string.Format("已添加 {0}。\n请使用“增加到本组”或“交换泳道→空道”将其放入具体组/道。", name), "临时加人完成");
         }
 
-        private void AddTempRelayTeam(string gender, string eventName, string stage) {
+        private void AddTempRelayTeam(string ageGroup, string gender, string eventName, string stage) {
             // 从项目名解析棒数（如 "4×100米自由泳接力" → 4 棒），解析失败默认 4
             int legCount = 4;
             var mm = System.Text.RegularExpressions.Regex.Match(eventName, @"(\d+)\s*[x×*]");
@@ -14612,8 +15266,10 @@ namespace SwimmingScoreboard
             if (!string.IsNullOrEmpty(entryTimeStr)) entrySec = TimeFormatter.Parse(entryTimeStr);
 
             // 构造 RelayTeam
+            // 2026-06-18 加 AgeGroup 字段, 修临时加接力队 跨年龄段污染
             var team = new RelayTeam {
                 TeamName = teamName, EventName = eventName, Gender = gender,
+                AgeGroup = ageGroup ?? "",
                 EntryTime = entryTimeStr, EntryTimeSeconds = entrySec
             };
             for (int i = 0; i < legCount; i++) {
@@ -14631,6 +15287,7 @@ namespace SwimmingScoreboard
 
             _swimmers.Add(new Swimmer {
                 BibNumber = teamBib, Name = teamName, Gender = gender, Country = teamName,
+                AgeCategory = ageGroup ?? "",   // 2026-06-18 接力代理条目也带 AgeCategory
                 EventName = eventName, CurrentStage = stage,
                 EntryTime = entryTimeStr, EntryTimeSeconds = entrySec,
                 Heat = 0, Lane = 0,
@@ -16212,10 +16869,10 @@ namespace SwimmingScoreboard
                 }
             };
             string json = Newtonsoft.Json.JsonConvert.SerializeObject(publishData);
-            AddLog(string.Format("发布成绩: {0} {1} {2}{3}, {4}人, 发送到{5}个连接", gender, eventName, stage, heatDisplay, heatSwimmers.Count, _allSockets.Count));
-            foreach (var conn in _allSockets.ToList()) {
-                try { conn.Send(json); } catch { }
-            }
+            AddLog(string.Format("发布成绩: {0} {1} {2}{3}, {4}人{5}",
+                gender, eventName, stage, heatDisplay, heatSwimmers.Count,
+                IsRemoteTimingControlMode ? " (经主服务器转发)" : (", 发送到" + _allSockets.Count + "个连接")));
+            BroadcastJsonToClients(json);
         }
 
         private void Promotion_Click(object sender, RoutedEventArgs e) {
@@ -16655,16 +17312,144 @@ namespace SwimmingScoreboard
                 }).ToList();
                 var payload = new { competitionName = _competitionName ?? "", session = sessionFilter, items = items };
                 var msg = new { type = "SHOW_SCHEDULE", data = payload, modeExplicit = true };
-                var socketsSnap = _allSockets.ToArray();
-                System.Threading.Tasks.Task.Run(() => {
-                    lock (_broadcastSerialLock) {
-                        try {
-                            string json = JsonConvert.SerializeObject(msg);
-                            foreach (var s in socketsSnap) { try { s.Send(json); } catch { } }
-                        } catch { }
-                    }
-                });
+                BroadcastJsonToClients(JsonConvert.SerializeObject(msg));
             } catch (Exception ex) { AddLog("显示比赛日程失败: " + ex.Message); }
+        }
+
+        // 2026-06-17 远程化辅助: 列文件 / 触发播放, 让 RDC/control.html 完全独立控制大屏 (不用主控 PC 弹框)
+        //   媒体目录: <exe>\Media\ (创建于第一次启动); PPT 目录: <exe>\Documents\PPT\
+        private string GetRemoteMediaDir() {
+            string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+            string dir = IOPath.Combine(baseDir, "Media");
+            try { if (!Directory.Exists(dir)) Directory.CreateDirectory(dir); } catch { }
+            return dir;
+        }
+        private string GetRemotePptDir() {
+            string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+            string dir = IOPath.Combine(baseDir, "Documents", "PPT");
+            try { if (!Directory.Exists(dir)) Directory.CreateDirectory(dir); } catch { }
+            return dir;
+        }
+        private void SendMediaFileListToClient(IWebSocketConnection socket) {
+            try {
+                var dir = GetRemoteMediaDir();
+                var exts = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ".png", ".jpg", ".jpeg", ".bmp", ".gif", ".webp", ".mp4", ".webm", ".ogg", ".m4v" };
+                var files = Directory.EnumerateFiles(dir).Where(f => exts.Contains(IOPath.GetExtension(f) ?? ""))
+                    .Select(f => new { name = IOPath.GetFileName(f), sizeMB = Math.Round(new FileInfo(f).Length / 1048576.0, 2) }).ToList();
+                var reply = new { type = "MEDIA_FILE_LIST", data = new { dir = dir, files = files } };
+                socket.Send(JsonConvert.SerializeObject(reply));
+            } catch (Exception ex) { AddLog("LIST_MEDIA_FILES 失败: " + ex.Message); }
+        }
+        private void RemotePlayMediaFile(JObject message) {
+            string fileName = message["fileName"] != null ? message["fileName"].ToString() : "";
+            string fit = message["fit"] != null ? message["fit"].ToString() : "contain";
+            bool loop = message["loop"] != null ? (bool)message["loop"] : true;
+            bool muted = message["muted"] != null ? (bool)message["muted"] : false;
+            bool autoplay = message["autoplay"] != null ? (bool)message["autoplay"] : true;
+            if (string.IsNullOrEmpty(fileName)) { AddLog("PLAY_MEDIA_FILE: 缺 fileName"); return; }
+            string full = IOPath.Combine(GetRemoteMediaDir(), fileName);
+            if (!File.Exists(full)) { AddLog("PLAY_MEDIA_FILE: 文件不存在 " + full); return; }
+            string ext = (IOPath.GetExtension(full) ?? "").ToLower();
+            string kind, mime;
+            if (ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".bmp" || ext == ".gif" || ext == ".webp") {
+                kind = "image";
+                mime = ext == ".jpg" || ext == ".jpeg" ? "image/jpeg" : ext == ".bmp" ? "image/bmp" : ext == ".gif" ? "image/gif" : ext == ".webp" ? "image/webp" : "image/png";
+            } else if (ext == ".mp4" || ext == ".webm" || ext == ".ogg" || ext == ".m4v") {
+                kind = "video";
+                mime = ext == ".webm" ? "video/webm" : ext == ".ogg" ? "video/ogg" : "video/mp4";
+            } else { AddLog("PLAY_MEDIA_FILE: 不支持的类型 " + ext); return; }
+            BroadcastMediaToDisplay(full, kind, mime, fit, loop, muted, autoplay);
+        }
+        private void SendPptFileListToClient(IWebSocketConnection socket) {
+            try {
+                var dir = GetRemotePptDir();
+                var exts = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ".ppt", ".pptx", ".pps", ".ppsx" };
+                var files = Directory.EnumerateFiles(dir).Where(f => exts.Contains(IOPath.GetExtension(f) ?? ""))
+                    .Select(f => new { name = IOPath.GetFileName(f) }).ToList();
+                var reply = new { type = "PPT_FILE_LIST", data = new { dir = dir, files = files } };
+                socket.Send(JsonConvert.SerializeObject(reply));
+            } catch (Exception ex) { AddLog("LIST_PPT_FILES 失败: " + ex.Message); }
+        }
+        private void RemotePlayPptFile(JObject message) {
+            string fileName = message["fileName"] != null ? message["fileName"].ToString() : "";
+            if (string.IsNullOrEmpty(fileName)) { AddLog("PLAY_PPT_FILE: 缺 fileName"); return; }
+            string full = IOPath.Combine(GetRemotePptDir(), fileName);
+            if (!File.Exists(full)) { AddLog("PLAY_PPT_FILE: 文件不存在 " + full); return; }
+            // 调原 PPT 转换 + 翻页 Window. 翻页控制只能在主控 PC. RDC/control.html 只能选文件 + 触发.
+            string outDir = IOPath.Combine(IOPath.GetTempPath(), "swim_ppt_" + DateTime.Now.Ticks);
+            try { Directory.CreateDirectory(outDir); } catch { }
+            List<string> slides;
+            try { slides = ConvertPptToPngSlides(full, outDir); }
+            catch (Exception ex) { AddLog("PPT 转换失败: " + ex.Message); return; }
+            if (slides == null || slides.Count == 0) { AddLog("PPT 没有提取到幻灯片"); return; }
+            AddLog(string.Format("远程 PPT 转换完成: {0} 页 (翻页控制在主控 PC)", slides.Count));
+            OpenPptSlideControlWindow(slides, fileName);
+        }
+        private void SendScheduleSessionListToClient(IWebSocketConnection socket) {
+            try {
+                var sessions = _schedule.Select(s => s.SessionNumber).Distinct().OrderBy(n => n)
+                    .Select(sn => {
+                        var first = _schedule.FirstOrDefault(s => s.SessionNumber == sn);
+                        string nm = "";
+                        if (first != null && !string.IsNullOrWhiteSpace(first.SessionName)) {
+                            string sname = System.Text.RegularExpressions.Regex.Replace(first.SessionName.Trim(), @"^\s*第\d+(场|单元)\s*", "");
+                            if (!string.IsNullOrWhiteSpace(sname)) nm = " " + sname;
+                        }
+                        string dt = (first != null && !string.IsNullOrWhiteSpace(first.Date)) ? ("  " + first.Date) : "";
+                        return new { session = sn, label = string.Format("第{0}场{1}{2}", sn, nm, dt) };
+                    }).ToList();
+                var reply = new { type = "SCHEDULE_SESSION_LIST", data = new { sessions = sessions } };
+                socket.Send(JsonConvert.SerializeObject(reply));
+            } catch (Exception ex) { AddLog("LIST_SCHEDULE_SESSIONS 失败: " + ex.Message); }
+        }
+        private void RemoteShowScheduleSession(JObject message) {
+            int sessionFilter = message["session"] != null ? (int)message["session"] : -1;
+            BroadcastSchedule(sessionFilter);
+            AddLog(sessionFilter < 0 ? "远端 显示日程: 全部场次" : string.Format("远端 显示日程: 第{0}场", sessionFilter));
+        }
+        // 2026-06-17 双模式 — 本机上传媒体 (客户端已 base64, 主控只转发给大屏, 不落盘)
+        //   message 字段: fileName, kind ("image"|"video"), mime, dataUrl, fit, loop, muted, autoplay
+        private void RemoteUploadAndPlayMedia(JObject message) {
+            string fileName = message["fileName"] != null ? message["fileName"].ToString() : "uploaded";
+            string kind = message["kind"] != null ? message["kind"].ToString() : "";
+            string mime = message["mime"] != null ? message["mime"].ToString() : "";
+            string dataUrl = message["dataUrl"] != null ? message["dataUrl"].ToString() : "";
+            string fit = message["fit"] != null ? message["fit"].ToString() : "contain";
+            bool loop = message["loop"] != null ? (bool)message["loop"] : true;
+            bool muted = message["muted"] != null ? (bool)message["muted"] : false;
+            bool autoplay = message["autoplay"] != null ? (bool)message["autoplay"] : true;
+            if (string.IsNullOrEmpty(dataUrl) || string.IsNullOrEmpty(kind)) { AddLog("UPLOAD_AND_PLAY_MEDIA: 缺 dataUrl/kind"); return; }
+            // 直接转发 dataUrl 给大屏 (跟 BroadcastMediaToDisplay 同 payload, 但跳过读文件)
+            var payload = new {
+                type = "SHOW_MEDIA",
+                data = new { kind = kind, mime = mime, fileName = fileName, dataUrl = dataUrl, fit = fit, loop = loop, muted = muted, autoplay = autoplay, sizeBytes = (long)dataUrl.Length }
+            };
+            string json = JsonConvert.SerializeObject(payload);
+            BroadcastJsonToClients(json);
+            AddLog(string.Format("远端上传媒体已转发: {0} ({1}{2})", fileName, kind,
+                IsRemoteTimingControlMode ? ", 经主服务器" : ", " + _allSockets.Count + " 个客户端"));
+        }
+        // 2026-06-17 双模式 — 本机上传 PPT (客户端 base64 后写临时文件, 转换 + 翻页 Window 仍在主控)
+        //   message 字段: fileName, base64
+        private void RemoteUploadAndPlayPpt(JObject message) {
+            string fileName = message["fileName"] != null ? message["fileName"].ToString() : "uploaded.ppt";
+            string base64 = message["base64"] != null ? message["base64"].ToString() : "";
+            if (string.IsNullOrEmpty(base64)) { AddLog("UPLOAD_AND_PLAY_PPT: 缺 base64"); return; }
+            string tmpDir = IOPath.Combine(IOPath.GetTempPath(), "swim_ppt_upload_" + DateTime.Now.Ticks);
+            try { Directory.CreateDirectory(tmpDir); } catch { }
+            string tmpFile = IOPath.Combine(tmpDir, fileName);
+            try {
+                byte[] bytes = Convert.FromBase64String(base64);
+                File.WriteAllBytes(tmpFile, bytes);
+            } catch (Exception ex) { AddLog("PPT 保存临时文件失败: " + ex.Message); return; }
+            string outDir = IOPath.Combine(tmpDir, "slides");
+            try { Directory.CreateDirectory(outDir); } catch { }
+            List<string> slides;
+            try { slides = ConvertPptToPngSlides(tmpFile, outDir); }
+            catch (Exception ex) { AddLog("PPT 转换失败: " + ex.Message); return; }
+            if (slides == null || slides.Count == 0) { AddLog("PPT 没有提取到幻灯片"); return; }
+            AddLog(string.Format("远端上传 PPT 转换完成: {0} 页 (翻页控制在主控 PC)", slides.Count));
+            OpenPptSlideControlWindow(slides, fileName);
         }
 
         // 2026-06-03 切换大屏右上角 WR/CR 横条 显示/隐藏; 走 display style 通道, 持久化 + DISPLAY_STYLE_PUSH 广播
@@ -17019,12 +17804,10 @@ namespace SwimmingScoreboard
                     }
                 };
                 string json = JsonConvert.SerializeObject(payload);
-                int sent = 0;
-                foreach (var s in _allSockets.ToList()) {
-                    try { s.Send(json); sent++; } catch { }
-                }
-                AddLog(string.Format("已发送{0}到大屏：{1}（{2:F2} MB），客户端 {3} 个",
-                    kind == "image" ? "图片" : "视频", IOPath.GetFileName(path), bytes.Length / 1048576.0, sent));
+                BroadcastJsonToClients(json);
+                AddLog(string.Format("已发送{0}到大屏：{1}（{2:F2} MB）{3}",
+                    kind == "image" ? "图片" : "视频", IOPath.GetFileName(path), bytes.Length / 1048576.0,
+                    IsRemoteTimingControlMode ? "（经主服务器转发）" : "（客户端 " + _allSockets.Count + " 个）"));
             } catch (Exception ex) {
                 MessageBox.Show("发送失败：" + ex.Message);
                 AddLog("媒体发送失败: " + ex.Message);
@@ -17346,10 +18129,28 @@ namespace SwimmingScoreboard
         }
 
         private void BroadcastDisplayStyle() {
-            string json = BuildDisplayStyleJson();
-            foreach (var s in _allSockets.ToList()) {
-                try { s.Send(json); } catch { }
+            // 2026-06-17 方案 B: RTC 模式无本机 _allSockets, 经主服务器转发给 display
+            if (IsRemoteTimingControlMode) {
+                try {
+                    JObject ts2; try { ts2 = JObject.Parse(_displayStyleTextStyleJson); } catch { ts2 = new JObject(); }
+                    JObject fp2; try { fp2 = JObject.Parse(_displayStyleFsPartsJson); } catch { fp2 = new JObject(); }
+                    var payload = new JObject {
+                        ["type"] = "DISPLAY_STYLE_PUSH",
+                        ["data"] = new JObject {
+                            ["bg"] = _displayStyleBg,
+                            ["fs"] = _displayStyleFs,
+                            ["textStyle"] = ts2,
+                            ["fsParts"] = fp2,
+                            ["recordsHidden"] = _displayStyleRecordsHidden,
+                            ["remarkShowReaction"] = _displayStyleRemarkShowReaction
+                        }
+                    };
+                    TryForwardToMainServer(payload);
+                } catch { }
+                return;
             }
+            string json = BuildDisplayStyleJson();
+            EnqueueToAll(json);   // 2026-06-18 per-socket 队列
             // 主控 PC 端打开的"大屏样式"窗口同步 UI (其它客户端通过 WebSocket 推送同步)
             if (_displayStyleWin != null && _displayStyleWin.IsLoaded) {
                 try {
@@ -17699,22 +18500,20 @@ namespace SwimmingScoreboard
                 }
             } else {
                 if (_editorSockets.Count > 0) {
-                    var pkg = BuildCurrentPackage();
-                    var socketsSnap = _editorSockets.ToList();
-                    System.Threading.Tasks.Task.Run(() => {
-                        try {
-                            string pkgJson = JsonConvert.SerializeObject(pkg);
-                            var env = new JObject();
-                            env["type"] = "EDITOR_PACKAGE";
-                            env["package"] = JObject.Parse(pkgJson);
-                            string envStr = env.ToString(Formatting.None);
-                            foreach (var sock in socketsSnap) {
-                                try { sock.Send(envStr); } catch { }
-                            }
-                        } catch (Exception ex) {
-                            try { Dispatcher.BeginInvoke(new Action(() => AddLog("EDITOR_PACKAGE 广播失败: " + ex.Message))); } catch { }
+                    try {
+                        var pkg = BuildCurrentPackage();
+                        string pkgJson = JsonConvert.SerializeObject(pkg);
+                        var env = new JObject();
+                        env["type"] = "EDITOR_PACKAGE";
+                        env["package"] = JObject.Parse(pkgJson);
+                        string envStr = env.ToString(Formatting.None);
+                        // 2026-06-18 per-socket 队列, 不再 Task.Run + 同步 send 串行
+                        foreach (var sock in _editorSockets.ToList()) {
+                            EnqueueToSocket(sock, envStr);
                         }
-                    });
+                    } catch (Exception ex) {
+                        AddLog("EDITOR_PACKAGE 广播失败: " + ex.Message);
+                    }
                 }
             }
         }
@@ -17733,7 +18532,7 @@ namespace SwimmingScoreboard
         private void SendEditorPackageTo(IWebSocketConnection socket) {
             try {
                 if (string.IsNullOrEmpty(_competitionName)) return;   // 服务器还没加载比赛，没法推
-                socket.Send(BuildEditorPackageMessage());
+                EnqueueToSocket(socket, BuildEditorPackageMessage());   // 2026-06-18 per-socket 队列
             } catch (Exception ex) {
                 AddLog("推送 EDITOR_PACKAGE 失败: " + ex.Message);
             }
@@ -17752,7 +18551,7 @@ namespace SwimmingScoreboard
                 string env = BuildEditorPackageMessage();
                 foreach (var sock in _editorSockets.ToList()) {
                     if (sock == sender) continue;
-                    try { sock.Send(env); } catch { }
+                    EnqueueToSocket(sock, env);   // 2026-06-18 per-socket 队列
                 }
                 // 其它端（HTML/EXE 大屏等）一律走标准 Broadcast
                 Broadcast();
@@ -18093,7 +18892,9 @@ namespace SwimmingScoreboard
                         if (!string.IsNullOrEmpty(rt.EventName)) {
                             bool exists = false;
                             foreach (var s in _swimmers) {
-                                if (s.Name == rt.TeamName && s.EventName == rt.EventName && s.Gender == rt.Gender) { exists = true; break; }
+                                // 2026-06-18 加 AgeCategory 比较, 修跨年龄段同代表队同项目误判 exists
+                                if (s.Name == rt.TeamName && s.EventName == rt.EventName && s.Gender == rt.Gender
+                                    && (s.AgeCategory ?? "") == (rt.AgeGroup ?? "")) { exists = true; break; }
                             }
                             if (!exists) {
                                 string legNames = "";

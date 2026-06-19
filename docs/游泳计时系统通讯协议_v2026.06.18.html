@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>游泳计时系统通讯协议 v2026.06.18</title>
+<style>
+  @page { size: A4; margin: 18mm 16mm; }
+  body { font-family: "Microsoft YaHei","微软雅黑",sans-serif; font-size: 11pt; color: #1f2937; line-height: 1.55; }
+  h1 { font-size: 22pt; text-align: center; border-bottom: 3px double #1e3a8a; padding-bottom: 12px; color: #1e3a8a; margin-bottom: 6pt; }
+  h1 + p { text-align: center; color: #64748b; margin-top: 0; font-size: 11pt; }
+  h2 { font-size: 15pt; color: #1e3a8a; border-left: 6px solid #3b82f6; padding-left: 10px; margin-top: 24px; page-break-after: avoid; }
+  h3 { font-size: 12.5pt; color: #1e3a8a; margin-top: 18px; background: #eff6ff; padding: 5px 10px; border-radius: 4px; page-break-after: avoid; }
+  h4 { font-size: 11.5pt; color: #334155; margin: 14px 0 6px 0; page-break-after: avoid; }
+  table { border-collapse: collapse; width: 100%; margin: 6px 0 14px; font-size: 10pt; }
+  th, td { border: 1px solid #cbd5e1; padding: 5px 8px; vertical-align: top; }
+  th { background: #f1f5f9; text-align: left; font-weight: bold; }
+  code { background: #f1f5f9; padding: 1px 5px; border-radius: 3px; font-family: Consolas, monospace; font-size: 10pt; }
+  pre { background: #0f172a; color: #f1f5f9; padding: 10px 14px; border-radius: 6px; font-family: Consolas, monospace; font-size: 9.5pt; overflow-x: auto; line-height: 1.4; }
+  .note { background: #fef9c3; padding: 7px 11px; border-left: 4px solid #ca8a04; border-radius: 4px; margin: 6px 0; }
+  .summary { background: #ecfdf5; border-left: 4px solid #059669; padding: 7px 12px; border-radius: 4px; margin: 6px 0; }
+  .new { background: #fff7ed; padding: 7px 12px; border-left: 4px solid #ea580c; border-radius: 4px; margin: 6px 0; }
+  .danger { background: #fee2e2; padding: 7px 11px; border-left: 4px solid #b91c1c; border-radius: 4px; margin: 6px 0; }
+  ul { margin: 3px 0 8px 22px; } li { margin: 2px 0; }
+  .toc { background: #f8fafc; border: 1px solid #e2e8f0; padding: 10px 18px; border-radius: 6px; margin: 8px 0 16px; font-size: 10.5pt; }
+  .toc a { color: #1e3a8a; text-decoration: none; }
+  .toc div { margin: 2px 0; }
+  .badge-new { display: inline-block; background: #fef3c7; color: #92400e; padding: 1px 8px; border-radius: 10px; font-size: 9pt; font-weight: bold; }
+  .footer { text-align: center; color: #64748b; font-size: 9.5pt; margin-top: 24px; padding-top: 10px; border-top: 1px solid #e2e8f0; }
+</style>
+</head>
+<body>
+
+<h1>游泳计时系统通讯协议</h1>
+<p>v2026.06.18 &nbsp;|&nbsp; WebSocket / HTTP / 硬件 TCP / UART 完整协议规范</p>
+
+<div class="toc">
+<b>目录</b>
+<div><a href="#p1">一、协议总览</a></div>
+<div><a href="#p2">二、客户端身份声明</a></div>
+<div><a href="#p3">三、显示模式控制 (REMOTE_CONTROL)</a></div>
+<div><a href="#p4">四、计时命令 (TIMING_CMD)</a></div>
+<div><a href="#p5">五、RTC 转发链 (RTC_FORWARD)</a></div>
+<div><a href="#p6">六、编排同步 (EDITOR_*)</a></div>
+<div><a href="#p7">七、大屏样式 (DISPLAY_STYLE_*)</a></div>
+<div><a href="#p8">八、媒体 / PPT 上传</a></div>
+<div><a href="#p9">九、锁机制 (LOCK_*)</a></div>
+<div><a href="#p10">十、数据查询与响应</a></div>
+<div><a href="#p11">十一、大屏推送消息 (SHOW_*)</a></div>
+<div><a href="#p12">十二、硬件计时器协议</a></div>
+<div><a href="#p13">十三、HTTP 文件服务</a></div>
+<div><a href="#p14">十四、v2026.06.18 协议变更</a></div>
+</div>
+
+<h2 id="p1">一、协议总览</h2>
+
+<h3>1.1 通信层次</h3>
+<table>
+  <tr><th>层</th><th>协议</th><th>用途</th></tr>
+  <tr><td>消息总线</td><td>WebSocket :3002</td><td>主服务器 ↔ 所有客户端 (display / RDC / RTC / Editor / register / 等)</td></tr>
+  <tr><td>Web 文件服务</td><td>HTTP :8080</td><td>主服务器提供 display.html / control.html / race_control.html 等</td></tr>
+  <tr><td>硬件计时器</td><td>TCP :5555 / UDP :5002 / 串口</td><td>主控 (主服务器或 RTC) 与硬件 STM32 通信</td></tr>
+</table>
+
+<h3>1.2 WebSocket 消息格式</h3>
+<p>所有消息均为 UTF-8 JSON 文本帧, 至少包含 <code>type</code> 字段:</p>
+<pre>{
+  "type": "REMOTE_CONTROL",
+  "command": "SHOW_LIVE_RACE",
+  ...其他字段
+}</pre>
+
+<h3>1.3 主服务器消息路由 (HandleMessage)</h3>
+<table>
+  <tr><th>type</th><th>处理</th></tr>
+  <tr><td>*_IDENTITY</td><td>将 socket 注册到对应客户端集合 (_displaySockets / _editorSockets 等)</td></tr>
+  <tr><td>REMOTE_CONTROL</td><td>HandleRemoteControl — 显示模式 / 媒体 / PPT 等</td></tr>
+  <tr><td>TIMING_CMD</td><td>HandleTimingCommand — 计时控制 / 比赛流程 / 成绩发布</td></tr>
+  <tr><td>RTC_FORWARD <span class="badge-new">新</span></td><td>透传 payload 给所有 _allSockets, 缓存到 _lastRtcSnapshot</td></tr>
+  <tr><td>EDITOR_PUSH_PACKAGE</td><td>HandleEditorPushPackage — 编排端整包推送</td></tr>
+  <tr><td>SET_DISPLAY_STYLE / GET_DISPLAY_STYLE</td><td>大屏样式设置 / 查询</td></tr>
+  <tr><td>LOCK_REQUEST / LOCK_RELEASE</td><td>编辑锁请求 / 释放</td></tr>
+  <tr><td>GET_HEAT_SWIMMERS / SAVE_CHECKIN / REGISTER_SWIMMER...</td><td>数据查询与变更</td></tr>
+</table>
+
+<h2 id="p2">二、客户端身份声明</h2>
+
+<p>客户端连接后, <b>首条消息</b>必须声明身份, 主服务器据此分组:</p>
+
+<table>
+  <tr><th>消息</th><th>客户端</th><th>主服务器动作</th></tr>
+  <tr><td><code>{"type":"DISPLAY_IDENTITY"}</code></td><td>display.html (大屏)</td><td>加入 _displaySockets, 推送 DISPLAY_STYLE_PUSH</td></tr>
+  <tr><td><code>{"type":"LEADERBOARD_IDENTITY"}</code></td><td>leaderboard.html</td><td>加入 _leaderboardSockets</td></tr>
+  <tr><td><code>{"type":"REGISTER_TERMINAL_IDENTITY"}</code></td><td>register.html / RegistrationTool</td><td>加入 _registerSockets</td></tr>
+  <tr><td><code>{"type":"TIMING_EXE_IDENTITY"}</code> <span class="badge-new">v2026.06.18</span></td><td>RTC.exe</td><td>加入 _timingExeSockets, 工作状态显示"计时 EXE 已连"</td></tr>
+  <tr><td><code>{"type":"TIMING_WEB_IDENTITY"}</code></td><td>race_control.html</td><td>加入 _timingWebSockets</td></tr>
+  <tr><td><code>{"type":"CHECKIN_IDENTITY"}</code></td><td>checkin.html</td><td>(日志记录)</td></tr>
+  <tr><td><code>{"type":"EDITOR_IDENTITY"}</code></td><td>ScheduleEditor / RTC (双重)</td><td>加入 _editorSockets, 立即推送 EDITOR_PACKAGE 整包</td></tr>
+</table>
+
+<h2 id="p3">三、显示模式控制 (REMOTE_CONTROL)</h2>
+
+<p>RDC.exe / control.html / race_control.html 通过 <code>type:"REMOTE_CONTROL"</code> + <code>command</code> 字段触发大屏显示模式切换:</p>
+
+<h3>3.1 基础显示模式</h3>
+<table>
+  <tr><th>command</th><th>主服务器动作</th></tr>
+  <tr><td><code>SHOW_LIVE_RACE</code></td><td>广播比赛视图 (10 道实时)</td></tr>
+  <tr><td><code>SHOW_START_LIST</code></td><td>广播出发表</td></tr>
+  <tr><td><code>SHOW_HEAT_RESULT</code></td><td>广播当前组成绩</td></tr>
+  <tr><td><code>SHOW_EVENT_RANKING</code></td><td>广播项目总排名</td></tr>
+  <tr><td><code>SHOW_TEAM_STANDINGS</code></td><td>广播团体积分</td></tr>
+  <tr><td><code>SHOW_AWARDS</code></td><td>广播颁奖名单 + 音效</td></tr>
+  <tr><td><code>SHOW_REFEREES</code></td><td>广播裁判介绍</td></tr>
+  <tr><td><code>SHOW_WELCOME</code></td><td>广播欢迎页</td></tr>
+  <tr><td><code>SHOW_PAUSE</code></td><td>广播暂停页</td></tr>
+  <tr><td><code>SHOW_EVENT_LIST</code></td><td>广播项目列表</td></tr>
+  <tr><td><code>SHOW_PROMOTION_LIST</code></td><td>广播晋级列表</td></tr>
+  <tr><td><code>SHOW_RECORDS</code></td><td>广播所有 WR/CR 纪录</td></tr>
+</table>
+
+<h3>3.2 切换类</h3>
+<table>
+  <tr><th>command</th><th>动作</th></tr>
+  <tr><td><code>TOGGLE_RECORDS_HIDDEN</code></td><td>切换大屏 WR/CR 横条显隐</td></tr>
+  <tr><td><code>TOGGLE_REMARK_REACTION</code></td><td>切换备注栏反应时显隐</td></tr>
+</table>
+
+<h3>3.3 媒体 / PPT (远程化)</h3>
+<table>
+  <tr><th>command</th><th>动作</th></tr>
+  <tr><td><code>LIST_MEDIA_FILES</code></td><td>返回主控 <code>Media/</code> 目录文件列表 (<code>MEDIA_FILE_LIST</code>)</td></tr>
+  <tr><td><code>PLAY_MEDIA_FILE</code></td><td>触发主控播放指定媒体 (fileName 字段)</td></tr>
+  <tr><td><code>STOP_MEDIA</code></td><td>停止媒体, 恢复 SHOW_LIVE_RACE</td></tr>
+  <tr><td><code>UPLOAD_AND_PLAY_MEDIA</code> <span class="badge-new">v2026.06.18</span></td><td>客户端 base64 上传, 主控立即播放 (跳过本地文件)</td></tr>
+  <tr><td><code>LIST_PPT_FILES</code></td><td>返回 <code>Documents/PPT/</code> 目录</td></tr>
+  <tr><td><code>PLAY_PPT_FILE</code></td><td>主控播放指定 PPT</td></tr>
+  <tr><td><code>UPLOAD_AND_PLAY_PPT</code> <span class="badge-new">v2026.06.18</span></td><td>客户端 base64 上传 PPT, 主控转 PNG 后翻页</td></tr>
+  <tr><td><code>LIST_SCHEDULE_SESSIONS</code></td><td>返回比赛日程场次列表</td></tr>
+  <tr><td><code>SHOW_SCHEDULE_SESSION</code></td><td>显示指定场次 (session 字段)</td></tr>
+</table>
+
+<h2 id="p4">四、计时命令 (TIMING_CMD)</h2>
+
+<p>race_control.html / 主服务器内部 通过 <code>type:"TIMING_CMD"</code> + <code>command</code> 触发比赛流程:</p>
+
+<table>
+  <tr><th>command</th><th>动作</th></tr>
+  <tr><td><code>READY</code></td><td>就位</td></tr>
+  <tr><td><code>START</code></td><td>发令</td></tr>
+  <tr><td><code>PAUSE</code></td><td>暂停</td></tr>
+  <tr><td><code>RESUME</code></td><td>继续</td></tr>
+  <tr><td><code>RESET</code></td><td>复位</td></tr>
+  <tr><td><code>CONFIRM_RESULT</code></td><td>确认成绩 (落盘 + 印小条)</td></tr>
+  <tr><td><code>MANUAL_TOUCH_LEFT</code> / <code>MANUAL_TOUCH_RIGHT</code></td><td>手动触发左/右触板 (lane 字段)</td></tr>
+  <tr><td><code>HW_TIMING</code></td><td>硬件计时数据中继 (TimingBridge 内部用)</td></tr>
+  <tr><td><code>PUBLISH_RESULT</code> <span class="badge-new">v2026.06.18 加 ageGroup</span></td><td>发布成绩到大屏: <code>{gender, eventName, stage, heat, ageGroup}</code></td></tr>
+</table>
+
+<h2 id="p5">五、RTC 转发链 (RTC_FORWARD) <span class="badge-new">v2026.06.18 新增</span></h2>
+
+<h3>5.1 设计目的</h3>
+<div class="summary">
+RTC 模式下, RTC 直连硬件计时器, 但<b>不开自己的 WebSocket Server</b> (避免与主服务器端口冲突)。
+RTC 通过已建立的 EditorSyncClient 连接, 把比赛状态包装成 <code>RTC_FORWARD</code> 发给主服务器,
+主服务器解包 payload 后透传给所有 display.html / race_control.html 客户端。
+</div>
+
+<h3>5.2 消息格式</h3>
+<pre>RTC → 主服务器:
+{
+  "type": "RTC_FORWARD",
+  "payload": {
+    "type": "SHOW_LIVE_RACE",     // 或 RUNNING_TIME_UPDATE / SHOW_HEAT_RESULT / DISPLAY_STYLE_PUSH...
+    "data": { ... 实际数据 ... },
+    "modeExplicit": true          // (可选, BroadcastDisplayMode 加此标记)
+  }
+}
+
+主服务器 → 所有 _allSockets:
+(直接发 payload 内容)
+{
+  "type": "SHOW_LIVE_RACE",
+  "data": { ... },
+  "modeExplicit": true
+}</pre>
+
+<h3>5.3 主服务器 RTC_FORWARD 处理</h3>
+<pre>case "RTC_FORWARD":
+  string json = payload.ToString(Formatting.None);
+  string ptype = payload["type"].ToString();
+  if (ptype == "SHOW_LIVE_RACE") _lastRtcSnapshot = json;  // 缓存最新快照
+  // 后台 Task.Run + lock _broadcastSerialLock 保证顺序
+  foreach (s in _allSockets.ToArray()) s.Send(json);</pre>
+
+<h3>5.4 新连接 display 的初始化</h3>
+<p>主服务器在 OnOpen 时:</p>
+<pre>if (_lastRtcSnapshot != null) socket.Send(_lastRtcSnapshot);  // 立即喂完整快照
+else BroadcastSingle(socket);                                    // 否则发主服务器自己的状态</pre>
+
+<h3>5.5 RTC 端节流</h3>
+<p>RTC 端 <code>Broadcast()</code> 100ms 节流 (BroadcastImmediate via DispatcherTimer), 避免事件密集时
+连续 <code>GetStatusData()</code> 拖慢 UI 线程。100ms 内多次调用合并为 1 次真正广播。</p>
+
+<h2 id="p6">六、编排同步 (EDITOR_*)</h2>
+
+<h3>6.1 整包推送</h3>
+<table>
+  <tr><th>消息</th><th>方向</th><th>用途</th></tr>
+  <tr><td><code>EDITOR_PACKAGE</code></td><td>主服务器 → Editor</td><td>整包数据 (赛事/项目/运动员/赛程/纪录)</td></tr>
+  <tr><td><code>EDITOR_PULL_PACKAGE</code></td><td>Editor → 主服务器</td><td>请求拉取整包</td></tr>
+  <tr><td><code>EDITOR_PUSH_PACKAGE</code></td><td>Editor → 主服务器</td><td>推送修改后的整包</td></tr>
+</table>
+
+<h3>6.2 RTC 1.5s 去抖 <span class="badge-new">v2026.06.18</span></h3>
+<p>主服务器有任何变更 → 推送 <code>EDITOR_PACKAGE</code> → RTC 收到后<b>不立即应用</b>:</p>
+<pre>RTC 端:
+  收到 EDITOR_PACKAGE → _pendingPackage = package → 启动 1.5s DispatcherTimer
+  期间又来新包 → 替换 _pendingPackage, 重置 Timer
+  Timer 触发 → 应用最新一份包 (ApplyPackageInMemory)</pre>
+
+<h3>6.3 编排端身份</h3>
+<p>Editor 客户端连接后发 <code>{type: "EDITOR_IDENTITY"}</code>, 主服务器立即推一次整包。
+RTC 也发此身份 (复用同步链路), 但<b>额外</b>发 <code>TIMING_EXE_IDENTITY</code>。</p>
+
+<h2 id="p7">七、大屏样式 (DISPLAY_STYLE_*)</h2>
+
+<h3>7.1 消息</h3>
+<table>
+  <tr><th>消息</th><th>方向</th></tr>
+  <tr><td><code>GET_DISPLAY_STYLE</code></td><td>客户端 → 主服务器</td></tr>
+  <tr><td><code>SET_DISPLAY_STYLE</code></td><td>客户端 → 主服务器 (更新样式)</td></tr>
+  <tr><td><code>DISPLAY_STYLE_PUSH</code></td><td>主服务器 → 所有客户端 (推送当前样式)</td></tr>
+</table>
+
+<h3>7.2 SET_DISPLAY_STYLE 数据字段</h3>
+<pre>{
+  "type": "SET_DISPLAY_STYLE",
+  "data": {
+    "bg": "#0f172a",                        // 背景色
+    "fs": 1.0,                              // 全局字号倍率
+    "textStyle": {                          // 9 处文字独立颜色+字体
+      "title":  {"c": "#f8fafc", "f": "Microsoft YaHei"},
+      "event":  {"c": "#f8fafc", "f": "Microsoft YaHei"},
+      ...
+    },
+    "fsParts": {                            // 4 类字号独立倍率
+      "title": 1.0, "event": 1.0, "time": 1.0, "info": 1.0
+    },
+    "recordsHidden": false,                 // WR/CR 横条显隐
+    "remarkShowReaction": true              // 备注栏显反应时
+  }
+}</pre>
+
+<h2 id="p8">八、媒体 / PPT 上传</h2>
+
+<h3>8.1 客户端本地上传 (UPLOAD_AND_PLAY_MEDIA) <span class="badge-new">v2026.06.18</span></h3>
+<pre>客户端 → 主服务器:
+{
+  "type": "REMOTE_CONTROL",
+  "command": "UPLOAD_AND_PLAY_MEDIA",
+  "dataUrl": "data:image/png;base64,iVBORw0KGgo...",
+  "kind": "image",
+  "mime": "image/png",
+  "fileName": "logo.png",
+  "fit": "contain",
+  "loop": false,
+  "muted": false,
+  "autoplay": true
+}
+
+主服务器 → display.html:
+{
+  "type": "SHOW_MEDIA",
+  "data": { kind, mime, fileName, dataUrl, fit, loop, muted, autoplay, sizeBytes }
+}</pre>
+
+<h3>8.2 PPT 上传 (UPLOAD_AND_PLAY_PPT) <span class="badge-new">v2026.06.18</span></h3>
+<p>客户端 base64 上传 PPT → 主控写临时文件 → PowerPoint COM 转 PNG → 弹翻页控制窗 + 每页用 SHOW_MEDIA 推送。</p>
+
+<h2 id="p9">九、锁机制 (LOCK_*)</h2>
+
+<h3>9.1 用途</h3>
+<p>编辑赛程 / 运动员 / 项目时, 同一资源同一时刻只能一个客户端编辑。锁机制防止并发修改冲突。</p>
+
+<h3>9.2 消息</h3>
+<table>
+  <tr><th>消息</th><th>字段</th></tr>
+  <tr><td><code>LOCK_REQUEST</code></td><td><code>corrId</code>, <code>resource</code> (锁名), <code>timeoutMs</code></td></tr>
+  <tr><td><code>LOCK_REPLY</code></td><td><code>corrId</code>, <code>granted</code> (true/false), <code>holderName</code></td></tr>
+  <tr><td><code>LOCK_RELEASE</code></td><td><code>resource</code></td></tr>
+</table>
+<p>客户端断开时主服务器自动释放其所有锁 (<code>ReleaseLocksHeldBy</code>)。</p>
+
+<h2 id="p10">十、数据查询与响应</h2>
+
+<table>
+  <tr><th>请求</th><th>响应</th><th>用途</th></tr>
+  <tr><td><code>GET_HEAT_SWIMMERS</code></td><td><code>HEAT_SWIMMERS_RESP</code></td><td>查询指定组的运动员列表</td></tr>
+  <tr><td><code>SAVE_CHECKIN</code></td><td>(无响应)</td><td>检录台保存运动员状态</td></tr>
+  <tr><td><code>REGISTER_SWIMMER</code></td><td>(无响应)</td><td>报名端添加运动员</td></tr>
+  <tr><td><code>REGISTER_QUERY</code></td><td><code>REGISTER_QUERY_RESP</code></td><td>查询已报名运动员</td></tr>
+  <tr><td><code>REGISTER_SWIMMER_BATCH</code></td><td>(无响应)</td><td>批量报名</td></tr>
+  <tr><td><code>DEVICE_OVERRIDE</code></td><td>(无响应)</td><td>主控覆盖设备状态 (远程标 Broken)</td></tr>
+  <tr><td><code>PRINT_HEAT_RESULT_HTML</code></td><td><code>{html, title}</code> 或 <code>{error}</code></td><td>请求组成绩 HTML 打印</td></tr>
+  <tr><td><code>EXPORT_RESULT_TXT_LIST</code></td><td><code>EXPORT_RESULT_TXT_LIST_RESP</code></td><td>查询可导出成绩列表</td></tr>
+</table>
+
+<h2 id="p11">十一、大屏推送消息 (SHOW_*)</h2>
+
+<p>主服务器主动推送给 display.html / leaderboard.html / 等。客户端按 <code>type</code> 切换页面或更新数据:</p>
+
+<table>
+  <tr><th>type</th><th>数据字段</th></tr>
+  <tr><td><code>SHOW_LIVE_RACE</code></td><td>当前组运动员 + 实时计时 + 滚动时间 + 触板/盲表/出发台状态</td></tr>
+  <tr><td><code>RUNNING_TIME_UPDATE</code></td><td><code>{runningTime, clockPaused}</code> 10Hz 高频帧</td></tr>
+  <tr><td><code>SHOW_START_LIST</code> / SHOW_HEAT_RESULT / SHOW_EVENT_RANKING / SHOW_TEAM_STANDINGS / SHOW_AWARDS / SHOW_REFEREES / SHOW_WELCOME / SHOW_PAUSE / SHOW_EVENT_LIST / SHOW_PROMOTION_LIST / SHOW_RECORDS</td><td>对应模式的完整数据快照</td></tr>
+  <tr><td><code>SHOW_SCHEDULE</code></td><td><code>{competitionName, session, items, modeExplicit:true}</code></td></tr>
+  <tr><td><code>SHOW_MEDIA</code></td><td><code>{kind, mime, fileName, dataUrl, fit, loop, muted, autoplay}</code></td></tr>
+  <tr><td><code>STAGE_COMPLETE</code></td><td>主服务器晋级提示 (control.html 弹框)</td></tr>
+  <tr><td><code>PROMOTION_DONE</code></td><td>晋级完成通知</td></tr>
+  <tr><td><code>PUBLISH_RESULT</code> 推回</td><td>成绩发布完整数据 (含 applicableRecords)</td></tr>
+  <tr><td><code>DOC_LIST_RESULT</code></td><td>文档列表响应</td></tr>
+</table>
+
+<h2 id="p12">十二、硬件计时器协议</h2>
+
+<h3>12.1 物理层</h3>
+<table>
+  <tr><th>方式</th><th>参数</th></tr>
+  <tr><td>串口 (UART)</td><td>9600/8/N/1, ASCII 帧 + 校验</td></tr>
+  <tr><td>TCP</td><td>5555 端口, 二进制帧</td></tr>
+  <tr><td>UDP</td><td>5002 端口, 二进制帧 (单向广播)</td></tr>
+</table>
+
+<h3>12.2 主要帧 (硬件 → PC)</h3>
+<table>
+  <tr><th>cmd</th><th>含义</th><th>关键字段</th></tr>
+  <tr><td>0x7F</td><td>滚动时间 (10Hz)</td><td>D3..D6 = 时间 ×0.01s</td></tr>
+  <tr><td>0x16</td><td>触板事件 (Touchpad / MB 代触)</td><td>D3=Result type, D4=lane, D5..D8=time, D10 抢跳位</td></tr>
+  <tr><td>0x17/0x18/0x19</td><td>盲表 1/2/3 按下</td><td>D4=lane, D5..D8=time</td></tr>
+  <tr><td>0x1A</td><td>出发台 (StartingBlock)</td><td>D4=lane (低 4 位 side), D5..D8=PreStart 计数器</td></tr>
+  <tr><td>0x1C</td><td>仰泳松开</td><td>同 0x1A 但 D3=3</td></tr>
+  <tr><td>0x21</td><td>就位 (Timer_Ready)</td><td></td></tr>
+  <tr><td>0x22</td><td>发令 (Gun PreStart)</td><td>D5..D8=Gun_PreStart 计数器</td></tr>
+  <tr><td>0x64</td><td>当前参数反馈</td><td>D3=泳道封闭时间, D4=触板延迟, D5=出发台延迟, D6=盲表代替延迟, D7=成绩显示时间</td></tr>
+</table>
+
+<h3>12.3 主要命令 (PC → 硬件)</h3>
+<table>
+  <tr><th>cmd</th><th>含义</th><th>用途</th></tr>
+  <tr><td>0x10</td><td>设发令点 (左/右)</td><td>StartPosition</td></tr>
+  <tr><td>0x20</td><td>清比赛状态</td><td></td></tr>
+  <tr><td>0x21</td><td>就位</td><td>PC 软件触发</td></tr>
+  <tr><td>0x1C</td><td>发令</td><td></td></tr>
+  <tr><td>0x41</td><td>设各类延迟时间</td><td>触板延迟 / 出发台延迟 / 盲表代替延迟 / 成绩显示时间</td></tr>
+  <tr><td>0x43</td><td>设比赛事件 (Set_MatchEvent)</td><td>总圈数 + 左右触板次数 + 空泳道位图</td></tr>
+  <tr><td>0x44</td><td>设单/双端触板</td><td></td></tr>
+  <tr><td>0x45</td><td>设盲表数量</td><td>D3=左端 D4=右端</td></tr>
+  <tr><td>0x46</td><td>设触板/出发台/盲表 启用状态</td><td>每泳道每端 1 位</td></tr>
+  <tr><td>0x49/0x4A</td><td>设盲表 2/3 启用</td><td>扩展位图</td></tr>
+  <tr><td>0x42</td><td>同步 PC 日期+时间到硬件 RTC</td><td>每 30 分钟周期同步</td></tr>
+</table>
+
+<h3>12.4 硬件 0x16 D3 子类型</h3>
+<table>
+  <tr><th>D3</th><th>含义</th></tr>
+  <tr><td>1 (Touchpad_Result)</td><td>真触板成绩</td></tr>
+  <tr><td>2 (Pushbutton_Result)</td><td>盲表代替触板</td></tr>
+  <tr><td>3 (BackstrokeRelease)</td><td>仰泳出发松开</td></tr>
+</table>
+
+<h2 id="p13">十三、HTTP 文件服务</h2>
+
+<h3>13.1 端点</h3>
+<pre>GET http://主服务器IP:8080/<file></pre>
+
+<h3>13.2 可访问文件</h3>
+<table>
+  <tr><th>路径</th><th>内容</th></tr>
+  <tr><td><code>/display.html</code></td><td>大屏页面</td></tr>
+  <tr><td><code>/control.html</code></td><td>显示控制 Web 端 (RDC.exe 的 Web 版)</td></tr>
+  <tr><td><code>/race_control.html</code></td><td>比赛控制 Web 端</td></tr>
+  <tr><td><code>/checkin.html</code></td><td>检录终端</td></tr>
+  <tr><td><code>/register.html</code></td><td>报名终端</td></tr>
+  <tr><td><code>/leaderboard.html</code></td><td>排行榜</td></tr>
+  <tr><td><code>/test_bot.html</code></td><td>测试机器人 (开发用)</td></tr>
+</table>
+
+<h3>13.3 URL 参数 (display.html / race_control.html)</h3>
+<table>
+  <tr><th>参数</th><th>含义</th></tr>
+  <tr><td><code>?host=主服务器IP</code> <span class="badge-new">v2026.06.18</span></td><td>覆盖 WebSocket 服务器地址 (RDC file:/// 加载用)</td></tr>
+</table>
+
+<h3>13.4 端口权限</h3>
+<div class="note">
+主服务器以管理员身份首次启动时, 自动尝试 <code>netsh http add urlacl url=http://+:8080/ user=Everyone</code>。
+失败时降级到 localhost:8080, 仅本机访问。客户机访问受限时, RDC.exe 自动回退到本地 file:/// 加载。
+</div>
+
+<h2 id="p14">十四、v2026.06.18 协议变更</h2>
+
+<h3>14.1 新增消息类型</h3>
+<table>
+  <tr><th>消息</th><th>用途</th></tr>
+  <tr><td><code>RTC_FORWARD</code></td><td>RTC → 主服务器, 包装 payload 透传给 display 客户端</td></tr>
+  <tr><td><code>TIMING_EXE_IDENTITY</code></td><td>RTC 声明自己也是计时 EXE (双重身份)</td></tr>
+  <tr><td><code>UPLOAD_AND_PLAY_MEDIA</code></td><td>客户端 base64 上传媒体并立即播放</td></tr>
+  <tr><td><code>UPLOAD_AND_PLAY_PPT</code></td><td>客户端 base64 上传 PPT, 主控转 PNG 后翻页</td></tr>
+</table>
+
+<h3>14.2 字段补充</h3>
+<table>
+  <tr><th>消息</th><th>变更</th></tr>
+  <tr><td><code>PUBLISH_RESULT</code></td><td>data 加 <code>ageGroup</code> 字段 (修跨年龄段污染)</td></tr>
+  <tr><td><code>SHOW_*</code></td><td>主服务器侧操作员主动切换时加 <code>modeExplicit: true</code></td></tr>
+  <tr><td><code>display.html ?host=</code></td><td>URL 参数指定 WebSocket 服务器地址</td></tr>
+</table>
+
+<h3>14.3 行为变更</h3>
+<ul>
+  <li><b>RTC_FORWARD 透传链路</b>: RTC 不开自己的 WebSocket Server, 所有比赛状态经主服务器中转</li>
+  <li><b>EditorSync 1.5s 去抖</b>: 主服务器 EDITOR_PACKAGE 推送, RTC 端 1.5s 内多次合并为 1 次应用</li>
+  <li><b>Broadcast 100ms 节流</b>: 事件密集时合并广播 (BroadcastImmediate via DispatcherTimer)</li>
+  <li><b>新连客户端</b>: 主服务器 OnOpen 时优先发 _lastRtcSnapshot, 无快照才走 BroadcastSingle</li>
+  <li><b>3002 端口冲突探测</b>: RTC 启动前 TcpListener 试绑, 被占即弹框提示</li>
+  <li><b>接力反应时窗口启动</b>: 改用基准事件 (TP/MB/手动 TP) 触发, SB 单独到先暂存 (修复抢跳 SB&lt;TP 算不出 bug)</li>
+  <li><b>接力反应时窗口时长</b>: 改用 <code>ResultConfirmCloseDelay</code> (默认 3s) 代替原 <code>ReactionEventWindowSec</code></li>
+  <li><b>完赛后 PushButton</b>: 不再被 4595 行早退丢弃, 继续进 ProcessBlindWatchData 存储</li>
+  <li><b>BroadcastJsonToClients</b>: 统一出口, PUBLISH_RESULT / SHOW_SCHEDULE / SHOW_MEDIA / STAGE_COMPLETE / PROMOTION_DONE / DOC_LIST_RESULT / BroadcastDisplayStyle 都经它处理 RTC/主服务器双模式</li>
+</ul>
+
+<h3>14.4 客户端 ID 持久化</h3>
+<table>
+  <tr><th>客户端</th><th>持久化方式</th></tr>
+  <tr><td>RDC.exe 服务器地址</td><td><code>rdc_server.json</code> (exe 同目录, 连接成功后写入, 启动时读取)</td></tr>
+  <tr><td>control.html / display.html 服务器地址</td><td><code>localStorage.swimServerHost</code></td></tr>
+  <tr><td>display.html 大屏样式</td><td><code>localStorage.swimDisplayFs / swimDisplayFsParts / swimDisplayTextStyle / swimDisplayBg</code></td></tr>
+  <tr><td>RTC editor sync</td><td><code>editor_sync.json</code> (host, autoConnect)</td></tr>
+</table>
+
+<div class="footer">
+游泳计时系统通讯协议 — v2026.06.18 &nbsp;|&nbsp; 配套《游泳赛事管理系统使用说明书 v2026.06.18》<br>
+2026 © Swim Timing System
+</div>
+
+</body>
+</html>

@@ -69,7 +69,8 @@ $excludePats = @(
     'display_credentials.json','display_remember.json',
     'RemoteTimingHw.json','remote_lane_close_settings.json',
     'timing_settings.json','timing_connection.json','device_states.json',
-    'last_competition.txt','auth_credentials.json'
+    'last_competition.txt','auth_credentials.json',
+    'rdc_server.json'
 )
 
 # SwimmingScoreboard: 优先 x64\Release
@@ -84,6 +85,18 @@ foreach ($sub in @("Web","Records")) {
     Copy-Item (Join-Path $root "SwimmingScoreboard\$sub") $dstSub -Recurse -Force
     Get-ChildItem $dstSub -Recurse -File -Include '*.bak_*','*.bak','*~' | Remove-Item -Force
 }
+# 2026-06-17 RTC 也开 HTTP 文件服务 + WebSocket Server, 需要同样的 Web/ 目录
+foreach ($sub in @("Web","Records")) {
+    $dstSub = Join-Path $installerBuild "RemoteTimingControl\$sub"
+    if (Test-Path $dstSub) { Remove-Item -Recurse -Force $dstSub }
+    Copy-Item (Join-Path $root "SwimmingScoreboard\$sub") $dstSub -Recurse -Force
+    Get-ChildItem $dstSub -Recurse -File -Include '*.bak_*','*.bak','*~' | Remove-Item -Force
+}
+# 2026-06-18 RDC 大屏预览 WebView2 用 file:/// 加载本地 display.html (主服务器 HTTP 8080 需 admin/netsh 注册, 不可靠)
+$dstWebRdc = Join-Path $installerBuild "RemoteDisplayControl\Web"
+if (Test-Path $dstWebRdc) { Remove-Item -Recurse -Force $dstWebRdc }
+Copy-Item (Join-Path $root "SwimmingScoreboard\Web") $dstWebRdc -Recurse -Force
+Get-ChildItem $dstWebRdc -Recurse -File -Include '*.bak_*','*.bak','*~' | Remove-Item -Force
 
 # 2026-05-21 删除开发机运行 EXE 时产生的整目录（exclude 模式只过滤文件，不过滤目录）：
 #   Database\    开发机的赛事档案 + RawData 原始数据快照 → 装到客户机会覆盖客户数据
@@ -112,6 +125,9 @@ if (Test-Path $rtsTxt) {
 
 $manualSrc = Join-Path $root "Installer\使用说明书.pdf"
 if (Test-Path $manualSrc) { Copy-Item $manualSrc (Join-Path $installerBuild "使用说明书.pdf") -Force }
+# 2026-06-18 通讯协议 PDF 一起打包
+$protocolSrc = Join-Path $root "Installer\通讯协议.pdf"
+if (Test-Path $protocolSrc) { Copy-Item $protocolSrc (Join-Path $installerBuild "通讯协议.pdf") -Force }
 
 Write-Host "[5/5] 打包完成。InstallerBuild 目录清单："
 Get-ChildItem $installerBuild | ForEach-Object {

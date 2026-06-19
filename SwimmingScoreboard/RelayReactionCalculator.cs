@@ -52,6 +52,9 @@ namespace SwimmingScoreboard
         private const double EmitTimeoutSec = 10.0;
 
         private readonly Dictionary<string, Window> _windows = new Dictionary<string, Window>();
+        // 2026-06-18 抢跳场景: SB 先于 TP 到达, 不立即创建 window (会被 windowSec 窗口期把 TP 排除掉),
+        //   先暂存到 _pendingSbs 等基准事件 (TP/MB/手动 TP) 到达再创建 window 并把 SB 加入.
+        private readonly Dictionary<string, double> _pendingSbs = new Dictionary<string, double>();
         private readonly Func<double> _windowSecGetter;
         private readonly Action<int, string, double, string> _onReaction;
         private readonly Action<int, string> _onNoReaction;
@@ -70,12 +73,32 @@ namespace SwimmingScoreboard
         {
             if (string.IsNullOrEmpty(side)) return;
             string key = lane + "_" + side;
+            // 2026-06-18 抢跳修复: 窗口只由"基准事件"(TP/MB/MB_Final/ManualTP) 触发创建.
+            //   SB 单独到时若无窗口 → 暂存 _pendingSbs[key] = swimTime, 等基准事件创建窗口时再取出加入.
+            bool isBasisKind = kind == EventKind.TP
+                            || kind == EventKind.MB_FirstPress
+                            || kind == EventKind.MB_Final
+                            || kind == EventKind.ManualTP;
             Window w;
-            if (!_windows.TryGetValue(key, out w) || w.Emitted)
+            bool hasWindow = _windows.TryGetValue(key, out w) && !w.Emitted;
+            if (!hasWindow)
             {
-                // 新窗口 (= 第一个事件起 N 秒倒计时)
+                if (!isBasisKind)
+                {
+                    // 抢跳 SB: 暂存等基准事件
+                    if (kind == EventKind.SB) _pendingSbs[key] = swimTime;
+                    return;
+                }
+                // 基准事件: 创建新窗口
                 w = new Window { Lane = lane, Side = side, WindowStartSwim = swimTime };
                 _windows[key] = w;
+                // 如有挂起 SB, 加入窗口 (= 抢跳场景的 SB 时刻)
+                double pendingSb;
+                if (_pendingSbs.TryGetValue(key, out pendingSb))
+                {
+                    w.LastSbSwim = pendingSb;
+                    _pendingSbs.Remove(key);
+                }
             }
             switch (kind)
             {
@@ -111,6 +134,7 @@ namespace SwimmingScoreboard
         public void Reset()
         {
             _windows.Clear();
+            _pendingSbs.Clear();   // 2026-06-18 抢跳挂起 SB 也清
         }
 
         private void TryEmit(Window w, double swimNow)
