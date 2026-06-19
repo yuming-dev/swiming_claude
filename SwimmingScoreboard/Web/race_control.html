@@ -228,8 +228,7 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 <!-- 区域1: 导航栏 -->
 <div class="nav-bar">
     <span class="current-info" id="currentInfo">未选择比赛</span>
-    <div id="stateDot" class="state-dot waiting"></div>
-    <span id="stateLabel" class="state-label">等待</span>
+    <!-- 2026-06-19 stateDot / stateLabel 移到 pool-topbar #runTime 右边 (与 PC 端 RaceStateBox 同位) -->
     <!-- 2026-06-19 顶端右侧完全仿 RTC 顶部状态栏顺序: 内存 → 电池电压 → 硬件计时器 → 控制模式 → 主服务器 -->
     <span style="margin-left:auto;display:flex;align-items:center;gap:6px;font-size:12px;color:#94A3B8;">
         <span>内存:</span><span id="memStatus" style="color:#22C55E;font-weight:bold;">—</span>
@@ -644,6 +643,9 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
             <div style="flex:1;"></div>
             <div id="recordDisplay" style="width:280px;font-size:18px;font-weight:bold;color:var(--gold);font-family:Consolas,monospace;opacity:0.9;text-align:right;">WR: ---    CR: ---</div>
             <div id="runTime" style="width:160px;font-size:32px;font-weight:bold;color:var(--gold);font-family:Consolas,monospace;opacity:0.85;white-space:pre;text-align:right;">0.00</div>
+            <!-- 2026-06-19 状态徽章移到滚动时间右边 (仿 PC 端 RaceStateBox: 圆点 + 文字, 圆角彩底) -->
+            <div id="stateDot" class="state-dot waiting" style="margin-left:12px;"></div>
+            <span id="stateLabel" class="state-label">等待</span>
         </div>
         <!-- 泳道表头（固定） -->
         <div class="pool-header" id="poolHeader"></div>
@@ -939,7 +941,9 @@ function connect() {
                 var rtEl = document.getElementById('runTime');
                 if (rtEl) {
                     var st = (data.raceState || '').toLowerCase();
-                    var idleOrDone = (st === 'waiting' || st === 'ready' || data.resultConfirmed);
+                    // 2026-06-19 删 || data.resultConfirmed: 确认本组成绩只是 PC 落盘, 与硬件无关.
+                    //   PC 端 RunningTimeText 也不归零, 顶栏滚动时间继续跟硬件实时值, 与 PC 一致.
+                    var idleOrDone = (st === 'waiting' || st === 'ready');
                     if (!data.firstPlaceActive) {   // 1 名成绩停留窗口期不要覆盖
                         rtEl.textContent = idleOrDone ? '0.00' : msg.data.runningTime;
                     }
@@ -1133,7 +1137,8 @@ function render() {
     //   不会被刷到 0.00. 这里在 render 里按状态强制更新一次, 保证 control.html 计时窗与服务器一致.
     var rtElTop = document.getElementById('runTime');
     if (rtElTop && !data.firstPlaceActive) {
-        var idleOrDoneTop = (state === 'waiting' || state === 'ready' || data.resultConfirmed);
+        // 2026-06-19 同上: 移除 || data.resultConfirmed 守卫, 与 PC 端 RunningTimeText 行为一致
+        var idleOrDoneTop = (state === 'waiting' || state === 'ready');
         if (idleOrDoneTop) {
             rtElTop.textContent = '0.00';
             rtElTop.style.color = '';
@@ -1143,7 +1148,8 @@ function render() {
     document.getElementById('stateDot').className = 'state-dot ' + state;
     var labels = {waiting:'等待', ready:'准备就绪', racing:'比赛中', finished:'已完赛'};
     var stateText = labels[state] || state;
-    if (data.resultConfirmed) stateText = '已确认 — 请选择下一组';
+    // 2026-06-19 状态标签与 PC 端 RaceStateLabel 完全对齐: 仅 等待/准备就绪/比赛中/已完赛
+    //   不再因 resultConfirmed 改成 "已确认 — 请选择下一组"
     var labelEl = document.getElementById('stateLabel');
     // 设备测试模式覆盖：显示"设备测试"红底白字，比正常 state 更醒目
     if (data.testMode) {
