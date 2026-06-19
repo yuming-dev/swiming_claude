@@ -201,33 +201,62 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 </style>
 </head>
 <body>
+<!-- 2026-06-19 登录弹窗 (跟 RTC LoginWindow.xaml 完全一样) -->
+<div id="loginOverlay" style="position:fixed;inset:0;z-index:99999;background:rgba(15,23,42,0.92);display:flex;align-items:center;justify-content:center;backdrop-filter:blur(6px);">
+    <div style="background:#1E293B;width:400px;border-radius:8px;padding:30px 40px;box-shadow:0 8px 32px rgba(0,0,0,0.6);border:1px solid #334155;">
+        <div style="text-align:center;margin-bottom:5px;">
+            <div style="font-size:20px;font-weight:bold;color:white;">游泳赛事管理系统</div>
+            <div style="font-size:13px;color:#94A3B8;margin-top:2px;">比赛控制</div>
+        </div>
+        <div style="height:18px;"></div>
+        <div style="display:flex;align-items:center;margin-bottom:10px;">
+            <div style="width:60px;color:#CBD5E1;font-size:14px;">用户名</div>
+            <input id="loginUser" type="text" autocomplete="username" style="flex:1;padding:8px 10px;background:#334155;color:white;border:1px solid #475569;border-radius:4px;font-size:14px;">
+        </div>
+        <div style="display:flex;align-items:center;margin-bottom:10px;">
+            <div style="width:60px;color:#CBD5E1;font-size:14px;">密&nbsp;&nbsp;码</div>
+            <input id="loginPwd" type="password" autocomplete="current-password" style="flex:1;padding:8px 10px;background:#334155;color:white;border:1px solid #475569;border-radius:4px;font-size:14px;">
+        </div>
+        <label style="display:flex;align-items:center;gap:6px;color:#CBD5E1;font-size:12px;margin-top:6px;cursor:pointer;">
+            <input id="loginRemember" type="checkbox" style="cursor:pointer;"> 记住登录名和密码
+        </label>
+        <div id="loginError" style="display:none;text-align:center;color:#F87171;font-size:12px;margin-top:6px;"></div>
+        <button id="loginBtn" onclick="doLogin()" style="width:100%;margin-top:14px;padding:10px;background:#3B82F6;color:white;border:none;border-radius:4px;font-size:15px;font-weight:bold;cursor:pointer;">登&nbsp;&nbsp;录</button>
+    </div>
+</div>
+
 <!-- 区域1: 导航栏 -->
 <div class="nav-bar">
     <span class="current-info" id="currentInfo">未选择比赛</span>
     <div id="stateDot" class="state-dot waiting"></div>
     <span id="stateLabel" class="state-label">等待</span>
-    <!--2026-05-19 硬件计时器连接状态：放大字号 + 红/绿背景文字，一看就知道-->
-    <span style="margin-left:12px;display:flex;align-items:center;gap:6px;font-size:13px;">
+    <!-- 2026-06-19 顶端右侧完全仿 RTC 顶部状态栏顺序: 内存 → 电池电压 → 硬件计时器 → 控制模式 → 主服务器 -->
+    <span style="margin-left:auto;display:flex;align-items:center;gap:6px;font-size:12px;color:#94A3B8;">
+        <span>内存:</span><span id="memStatus" style="color:#22C55E;font-weight:bold;">—</span>
+    </span>
+    <span style="margin-left:14px;display:flex;align-items:center;gap:6px;font-size:12px;color:#94A3B8;">
+        <span>电池电压:</span><span id="hwBatteryText" style="color:#94A3B8;font-weight:bold;">—</span>
+    </span>
+    <span style="margin-left:14px;display:flex;align-items:center;gap:6px;font-size:12px;color:#94A3B8;">
         <span id="hwConn" class="conn-dot off"></span>
-        <span style="color:#94A3B8;">硬件计时器:</span>
+        <span>硬件计时器:</span>
         <span id="hwConnText" style="color:#EF4444;font-weight:bold;">未连接</span>
-        <!--2026-05-19 硬件电池电压(0x4B 上报)：>4.0V 绿 / 3.5~4.0V 黄 / <3.5V 红 / 无上报留空-->
-        <span id="hwBatteryText" style="margin-left:6px;font-weight:bold;font-size:13px;"></span>
     </span>
-    <span id="controlMode" style="font-size:11px;color:#64748B;margin-left:8px;"></span>
-    <span style="margin-left:8px;display:flex;align-items:center;gap:3px;font-size:11px;">
-        <span id="wsConn" class="conn-dot off"></span><span style="color:#94A3B8;">服务器</span>
+    <!-- 2026-06-19 仿 RTC: 硬件连接 按钮 (硬件计时器右 / 主服务器左) -->
+    <button onclick="openHwConn()"
+        style="margin-left:8px;padding:3px 10px;background:#DC2626;color:white;border:none;border-radius:4px;font-size:11px;font-weight:bold;cursor:pointer;">硬件连接</button>
+    <!-- 2026-06-19 仿 RTC: 主服务器 [IP 输入] [连接按钮] [状态] -->
+    <span style="margin-left:14px;display:flex;align-items:center;gap:6px;font-size:12px;color:#94A3B8;">
+        <span>主服务器:</span>
+        <input id="serverHostInput" type="text" placeholder="127.0.0.1" autocomplete="off"
+            style="width:110px;padding:3px 6px;background:#334155;color:white;border:1px solid #475569;border-radius:3px;font-size:12px;font-family:Consolas,monospace;">
+        <button id="serverConnectBtn" onclick="toggleServerConnect()"
+            style="padding:3px 10px;background:#3B82F6;color:white;border:none;border-radius:3px;font-size:11px;font-weight:bold;cursor:pointer;">连接</button>
+        <span id="serverConnState" style="color:#94A3B8;font-weight:bold;">离线</span>
     </span>
-    <!-- 系统硬件：连接串口 + 设备测试（直接放导航栏，不藏在参数设置里）-->
-    <button id="navQuickConnBtn" onclick="quickConnectFromNav()" title="请求服务器用上次保存的串口/波特率连接硬件计时器；已连接时再点为断开"
-            style="margin-left:6px;padding:4px 10px;background:#22C55E;color:white;border:none;border-radius:4px;font-size:12px;font-weight:bold;cursor:pointer;">连接串口</button>
-    <button id="navDeviceTestBtn" onclick="toggleDeviceTest()" title="进入设备测试模式：所有触板/出发台/盲表打开，硬件来什么都接收显示，不计入比赛"
-            style="margin-left:4px;padding:4px 10px;background:#0EA5E9;color:white;border:none;border-radius:4px;font-size:12px;font-weight:bold;cursor:pointer;">设备测试</button>
-    <!--2026-05-19 设备全开按钮(0x4C): 强制全道(TP/SB/MB)进入全开模式，所有信号都按成绩接收-->
-    <button id="navForceOpenBtn" onclick="toggleForceOpenAll()" title="设备全开：忽略状态机过滤，所有触板/盲表/出发台信号都认作成绩(测试/调试用)"
-            style="margin-left:4px;padding:4px 10px;background:#475569;color:white;border:none;border-radius:4px;font-size:12px;font-weight:bold;cursor:pointer;">设备全开</button>
-    <button class="settings-btn" onclick="openSettings()">&#9881; 参数设置</button>
-    <button class="fullscreen-btn" onclick="goFullScreen()" style="position:fixed;top:4px;right:8px;z-index:50;padding:4px 10px;background:#3B82F6;color:white;border:none;border-radius:4px;font-size:12px;cursor:pointer;">全屏</button>
+    <!-- 控制模式 隐藏字段, 仅供 JS 设 readonlyOverlay 用, 不显示 (RTC 顶端无此显示) -->
+    <span id="controlMode" style="display:none;"></span>
+    <button class="fullscreen-btn" onclick="goFullScreen()" style="margin-left:10px;padding:4px 10px;background:#3B82F6;color:white;border:none;border-radius:4px;font-size:12px;cursor:pointer;">全屏</button>
 </div>
 
 <!-- 2026-06-18 参数设置 hub (仿 RTC 风格): 服务器地址 + 7 个分类按钮 -->
@@ -634,7 +663,11 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
         <div class="right-col">
             <!-- ═══ 比赛控制 ═══ -->
             <div class="section-group">
-                <div class="section-title">比赛控制</div>
+                <div class="section-title" style="display:flex;align-items:center;justify-content:space-between;">
+                    <span style="display:flex;align-items:center;gap:8px;">比赛控制</span>
+                    <button onclick="openSettings()" title="参数设置"
+                        style="padding:3px 10px;background:#475569;color:white;border:none;border-radius:5px;font-size:11px;font-weight:600;cursor:pointer;letter-spacing:0;text-transform:none;">⚙ 参数设置</button>
+                </div>
                 <div class="btn-grid cols-1" style="gap:4px;">
                     <button class="action-btn big" style="background:#EF4444;" onclick="confirmTimerReset()"><span class="ico">&#xE72C;</span>计时复位</button>
                     <button class="action-btn big" style="background:#F59E0B;" onclick="readyClick()"><span class="ico">&#xE7C1;</span>准备就绪</button>
@@ -689,6 +722,14 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
                     <button id="recordsHiddenBtn" class="action-btn small span2" style="background:#475569;" onclick="toggleRecordsHidden()"><span class="ico">&#xED1A;</span><span id="recordsHiddenBtnText">记录显示</span></button>
                     <button id="remarkReactionBtn" class="action-btn small span2" style="background:#475569;" onclick="toggleRemarkReaction()"><span class="ico">&#xE91F;</span><span id="remarkReactionBtnText">备注: 显反应时</span></button>
                     <button class="action-btn small span2" style="background:#F59E0B;color:black;" onclick="publishResult()"><span class="ico">&#xE8A5;</span>成绩发布</button>
+                </div>
+            </div>
+
+            <!-- ═══ 系统硬件 (右下角, 仿 PC 端 比赛控制 tab 右下"系统硬件"区) ═══ -->
+            <div class="section-group">
+                <div class="section-title">系统硬件</div>
+                <div class="btn-grid">
+                    <button id="navDeviceTestBtn" class="action-btn small span2" style="background:#0EA5E9;" onclick="toggleDeviceTest()" title="进入设备测试模式：所有触板/出发台/盲表打开，硬件来什么都接收显示，不计入比赛"><span class="ico">&#xE950;</span>设备测试</button>
                 </div>
             </div>
         </div>
@@ -775,6 +816,56 @@ function getServerHost(forceAsk) {
     return saved || 'localhost';
 }
 function changeServerHost() { _connFailCount = 0; var h = getServerHost(true); if (ws) try { ws.close(); } catch(e) {} connect(); }
+
+// 2026-06-19 仿 RTC: 顶端"主服务器"input + 连接按钮 + 状态
+function setServerUiState(state, host) {
+    var dot = document.getElementById('wsConn');
+    var btn = document.getElementById('serverConnectBtn');
+    var st = document.getElementById('serverConnState');
+    var inp = document.getElementById('serverHostInput');
+    if (!btn || !st || !inp) return;
+    if (state === 'online') {
+        if (dot) dot.className = 'conn-dot on';
+        btn.textContent = '断开';
+        btn.style.background = '#EF4444';
+        st.textContent = '已连接';
+        st.style.color = '#22C55E';
+        if (host) inp.value = host;
+        inp.disabled = true;
+    } else if (state === 'connecting') {
+        if (dot) dot.className = 'conn-dot off';
+        btn.textContent = '取消';
+        btn.style.background = '#F59E0B';
+        st.textContent = '连接中…';
+        st.style.color = '#F59E0B';
+        inp.disabled = true;
+    } else {   // offline
+        if (dot) dot.className = 'conn-dot off';
+        btn.textContent = '连接';
+        btn.style.background = '#3B82F6';
+        st.textContent = '离线';
+        st.style.color = '#94A3B8';
+        inp.disabled = false;
+    }
+}
+
+function toggleServerConnect() {
+    var inp = document.getElementById('serverHostInput');
+    if (ws && ws.readyState === 1) {
+        // 已连接 → 断开
+        try { ws.close(); } catch (e) {}
+        setServerUiState('offline');
+        addLog('已断开服务器');
+        return;
+    }
+    var newHost = (inp ? inp.value.trim() : '') || '';
+    if (!newHost) { alert('请输入主服务器 IP'); return; }
+    localStorage.setItem('swimServerHost', newHost);
+    _connFailCount = 0;
+    setServerUiState('connecting');
+    if (ws) try { ws.close(); } catch (e) {}
+    connect();
+}
 function applyServerHost() {
     var newHost = document.getElementById('dlgServerHost').value.trim();
     if (!newHost) { alert('请输入服务器地址'); return; }
@@ -788,11 +879,16 @@ function applyServerHost() {
 
 function connect() {
     var host = getServerHost();
+    // 2026-06-19 启动时把当前 host 填到顶端 input 框, 状态显示"连接中"
+    var inp = document.getElementById('serverHostInput');
+    if (inp && !inp.value) inp.value = host;
+    setServerUiState('connecting');
     ws = new WebSocket('ws://' + host + ':3002');
     ws.onopen = function() {
         _connFailCount = 0;
         ws.send(JSON.stringify({type: 'TIMING_WEB_IDENTITY'}));
-        document.getElementById('wsConn').className = 'conn-dot on';
+        // 2026-06-19 顶端"主服务器"仿 RTC: input + 连接按钮 + 状态
+        setServerUiState('online', host);
         addLog('已连接服务器 ' + host);
     };
     // 用 requestAnimationFrame 合并消息：服务器密集广播（每个触板/盲表/手动按下都广播）
@@ -879,7 +975,7 @@ function connect() {
         _rcScheduleRender(msg.data);
     };
     ws.onclose = function() {
-        document.getElementById('wsConn').className = 'conn-dot off';
+        setServerUiState('offline');
         _connFailCount++;
         if (_connFailCount >= 3) { _connFailCount = 0; if (confirm('连接失败，是否重新设置服务器地址？')) { changeServerHost(); return; } }
         setTimeout(connect, 3000);
@@ -1075,13 +1171,7 @@ function render() {
         connNav.textContent = hwOn ? '断开串口' : '连接串口';
         connNav.style.background = hwOn ? '#EF4444' : '#22C55E';
     }
-    // 2026-05-19 设备全开按钮颜色：进入全开=红"恢复正常"，否则=灰"设备全开"
-    var foNav = document.getElementById('navForceOpenBtn');
-    if (foNav) {
-        var foOn = !!data.forceAllOpenAll;
-        foNav.textContent = foOn ? '恢复正常' : '设备全开';
-        foNav.style.background = foOn ? '#EF4444' : '#475569';
-    }
+    // 2026-06-19 "设备全开"按钮已删除 (功能并入参数设置"硬件设备: 一直打开")
 
     // 本地计时器同步：
     // 服务器（主控制）是唯一权威时钟源，由硬件START事件驱动。
@@ -1106,7 +1196,25 @@ function render() {
 
     var ro = data.scoringControlMode === 'remote_exe';
     document.getElementById('readonlyOverlay').classList.toggle('hidden', !ro);
-    document.getElementById('controlMode').textContent = '控制模式: ' + (data.scoringControlMode || '-');
+    // 2026-06-19 controlMode 文本只显示模式值 (前缀"控制模式:"已在顶端 HTML 的 label 里)
+    var cmEl = document.getElementById('controlMode');
+    if (cmEl) {
+        var cmText = data.scoringControlMode === 'remote_exe' ? '远程 EXE 计时中' :
+                     data.scoringControlMode === 'remote_web' ? '远程 Web 计时中' :
+                     data.scoringControlMode === 'local' ? '主控本地' :
+                     data.scoringControlMode || '观察端';
+        cmEl.textContent = cmText;
+        cmEl.style.color = ro ? '#EF4444' : '#22C55E';
+    }
+    // 2026-06-19 顶端内存监控 (仿 RTC MemoryStatusText), 从 data.memoryStatus 取
+    var memEl = document.getElementById('memStatus');
+    if (memEl && data.memoryStatus) {
+        memEl.textContent = data.memoryStatus;
+        // 高于 80% 红色告警
+        var pctMatch = String(data.memoryStatus).match(/(\d+)\s*%/);
+        var pct = pctMatch ? parseInt(pctMatch[1]) : 0;
+        memEl.style.color = pct >= 80 ? '#EF4444' : '#22C55E';
+    }
 
     // 当前比赛信息
     var curAg = data.currentAgeGroup || '';
@@ -1172,7 +1280,8 @@ function render() {
             else if (bv < 4.0) hwBat.style.color = '#F59E0B'; // 黄 警告
             else                hwBat.style.color = '#22C55E'; // 绿 正常
         } else {
-            hwBat.textContent = '';
+            hwBat.textContent = '—';
+            hwBat.style.color = '#94A3B8';
         }
     }
     // 同步设置弹窗内的硬件状态
@@ -2508,20 +2617,7 @@ function toggleDeviceTest() {
     addLog(inTest ? '已请求退出设备测试' : '已请求进入设备测试');
 }
 
-// 2026-05-19 设备"全开"切换 — 顶层 DEVICE_OVERRIDE { lane:-1, mode:"allOpen"|"normal" }
-// 进入"全开"后, 硬件 0x4C 联动下发, 主服务器 ProcessTimingData 忽略状态机过滤
-function toggleForceOpenAll() {
-    if (!ws || ws.readyState !== 1) {
-        addLog('设备全开未发送(未连接服务器)');
-        alert('未连接到服务器（顶部"服务器"指示灯应为绿色）');
-        return;
-    }
-    var nowOn = !!(data && data.forceAllOpenAll);
-    var nextMode = nowOn ? 'normal' : 'allOpen';
-    if (!nowOn && !confirm('确认让全部泳道进入【设备全开】模式？\n\n硬件任意触板/盲表/出发台信号都将被认作成绩，状态机过滤被绕过。\n再点一次同按钮恢复正常。')) return;
-    ws.send(JSON.stringify({ type: 'DEVICE_OVERRIDE', lane: -1, mode: nextMode }));
-    addLog(nowOn ? '已请求恢复正常状态机过滤' : '已请求设备全开（全道）');
-}
+// 2026-06-19 toggleForceOpenAll 函数已删除 (按钮并入参数设置"硬件设备: 一直打开")
 
 function statusClass(s) {
     if (!s) return 'closed';
@@ -2817,7 +2913,72 @@ document.addEventListener('keydown', function(e) {
     if (rtOff) rtOff.checked = !reactionTimeEnabled;
 })();
 
-connect();
+// 2026-06-19 启动时显示登录窗口 (跟 RTC LoginWindow 完全一样)
+//   校验通过后才 connect(). 默认账号 admin/admin (首次启动). "记住" 写 localStorage.
+(function bootstrapLogin() {
+    var rUser = localStorage.getItem('rcLoginUserRemember');
+    var rPwd = localStorage.getItem('rcLoginPwdRemember');   // 简单 base64 (跟 PC 端 RememberStore 同款本机存储)
+    var uEl = document.getElementById('loginUser');
+    var pEl = document.getElementById('loginPwd');
+    var rEl = document.getElementById('loginRemember');
+    if (rUser && rPwd) {
+        uEl.value = rUser;
+        try { pEl.value = atob(rPwd); } catch (e) { pEl.value = ''; }
+        rEl.checked = true;
+        setTimeout(function() { pEl.focus(); pEl.select(); }, 50);
+    } else {
+        uEl.value = localStorage.getItem('rcOperatorName') || 'admin';
+        setTimeout(function() { pEl.focus(); }, 50);
+    }
+    // Enter 键登录
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' && document.getElementById('loginOverlay').style.display !== 'none') doLogin();
+    });
+})();
+
+function doLogin() {
+    var user = (document.getElementById('loginUser').value || '').trim();
+    var pwd = document.getElementById('loginPwd').value || '';
+    var errEl = document.getElementById('loginError');
+    if (!user || !pwd) {
+        errEl.textContent = '请输入用户名和密码。';
+        errEl.style.display = 'block'; return;
+    }
+    // 校验: 本机账号 (rcOperatorName + rcOperatorPwdHash) 或首次默认 admin/admin
+    var savedUser = localStorage.getItem('rcOperatorName');
+    var savedPwdB64 = localStorage.getItem('rcOperatorPwdHash');
+    var ok;
+    if (!savedUser) {
+        // 首次启动: 默认 admin/admin
+        ok = (user === 'admin' && pwd === 'admin');
+        if (ok) {
+            localStorage.setItem('rcOperatorName', 'admin');
+            try { localStorage.setItem('rcOperatorPwdHash', btoa('admin')); } catch (e) {}
+        }
+    } else {
+        var savedPwd = '';
+        try { savedPwd = savedPwdB64 ? atob(savedPwdB64) : ''; } catch (e) { savedPwd = ''; }
+        ok = (user === savedUser && pwd === savedPwd);
+    }
+    if (!ok) {
+        errEl.textContent = '用户名或密码错误，请重试。';
+        errEl.style.display = 'block';
+        document.getElementById('loginPwd').value = '';
+        document.getElementById('loginPwd').focus();
+        return;
+    }
+    // 记住 / 清除
+    if (document.getElementById('loginRemember').checked) {
+        localStorage.setItem('rcLoginUserRemember', user);
+        try { localStorage.setItem('rcLoginPwdRemember', btoa(pwd)); } catch (e) {}
+    } else {
+        localStorage.removeItem('rcLoginUserRemember');
+        localStorage.removeItem('rcLoginPwdRemember');
+    }
+    // 隐藏登录, 启动 WebSocket 连接
+    document.getElementById('loginOverlay').style.display = 'none';
+    connect();
+}
 </script>
 </body>
 </html>

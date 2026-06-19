@@ -3145,6 +3145,10 @@ namespace SwimmingScoreboard
                     manualTpReplaceTp = _laneCloseSettings.ManualTpReplaceTp,
                     startBoxEdgeFalling = _laneCloseSettings.StartBoxEdgeFalling
                 },
+                // 2026-06-19 race_control.html 顶端"内存监控"用 (跟 PC 端 MemoryStatusText 同源)
+                memoryStatus = MemoryStatusText != null ? MemoryStatusText.Text : "",
+                // 2026-06-19 race_control.html 顶端"电池电压"用 (跟 PC 端 BatteryVoltageText 同源)
+                batteryVoltage = BatteryVoltageText != null ? BatteryVoltageText.Text : "",
                 displayRecordLabel = string.IsNullOrEmpty(_displayRecordLabel) ? "WR" : _displayRecordLabel,
                 displayRecordTypeName = string.IsNullOrEmpty(_displayRecordTypeName) ? "世界纪录" : _displayRecordTypeName,
                 timingHwConnected = _timingBridge != null && _timingBridge.IsConnected,

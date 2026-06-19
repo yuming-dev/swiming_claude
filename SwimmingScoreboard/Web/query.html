@@ -383,6 +383,59 @@ tbody tr.muted td { color: var(--text-dim); }
 </head>
 <body>
 
+<!-- 2026-06-19 登录弹窗 (跟 RTC LoginWindow.xaml 完全一样) -->
+<div id="loginOverlay" style="position:fixed;inset:0;z-index:99999;background:rgba(15,23,42,0.92);display:flex;align-items:center;justify-content:center;backdrop-filter:blur(6px);">
+    <div style="background:#1E293B;width:400px;border-radius:8px;padding:30px 40px;box-shadow:0 8px 32px rgba(0,0,0,0.6);border:1px solid #334155;">
+        <div style="text-align:center;margin-bottom:5px;">
+            <div style="font-size:20px;font-weight:bold;color:white;">游泳赛事管理系统</div>
+            <div style="font-size:13px;color:#94A3B8;margin-top:2px;">赛事查询终端</div>
+        </div>
+        <div style="height:18px;"></div>
+        <div style="display:flex;align-items:center;margin-bottom:10px;">
+            <div style="width:60px;color:#CBD5E1;font-size:14px;">用户名</div>
+            <input id="loginUser" type="text" autocomplete="username" style="flex:1;padding:8px 10px;background:#334155;color:white;border:1px solid #475569;border-radius:4px;font-size:14px;">
+        </div>
+        <div style="display:flex;align-items:center;margin-bottom:10px;">
+            <div style="width:60px;color:#CBD5E1;font-size:14px;">密&nbsp;&nbsp;码</div>
+            <input id="loginPwd" type="password" autocomplete="current-password" style="flex:1;padding:8px 10px;background:#334155;color:white;border:1px solid #475569;border-radius:4px;font-size:14px;">
+        </div>
+        <label style="display:flex;align-items:center;gap:6px;color:#CBD5E1;font-size:12px;margin-top:6px;cursor:pointer;">
+            <input id="loginRemember" type="checkbox" style="cursor:pointer;"> 记住登录名和密码
+        </label>
+        <div id="loginError" style="display:none;text-align:center;color:#F87171;font-size:12px;margin-top:6px;"></div>
+        <button onclick="doLogin()" style="width:100%;margin-top:14px;padding:10px;background:#3B82F6;color:white;border:none;border-radius:4px;font-size:15px;font-weight:bold;cursor:pointer;">登&nbsp;&nbsp;录</button>
+    </div>
+</div>
+
+<!-- 2026-06-19 修改用户名/密码 弹窗 -->
+<div id="pwdChangeOverlay" style="display:none;position:fixed;inset:0;z-index:99998;background:rgba(15,23,42,0.92);align-items:center;justify-content:center;backdrop-filter:blur(6px);">
+    <div style="background:#1E293B;width:420px;border-radius:8px;padding:26px 36px;box-shadow:0 8px 32px rgba(0,0,0,0.6);border:1px solid #334155;">
+        <div style="font-size:17px;font-weight:bold;color:white;margin-bottom:6px;">修改用户名 / 密码</div>
+        <div style="font-size:12px;color:#94A3B8;margin-bottom:14px;">浏览器本机账号 (localStorage), 确认后立即生效, 下次登录用新账号.</div>
+        <div style="display:flex;align-items:center;margin-bottom:10px;">
+            <div style="width:80px;color:#CBD5E1;font-size:13px;">原密码</div>
+            <input id="pwdOld" type="password" style="flex:1;padding:7px 10px;background:#334155;color:white;border:1px solid #475569;border-radius:4px;font-size:13px;">
+        </div>
+        <div style="display:flex;align-items:center;margin-bottom:10px;">
+            <div style="width:80px;color:#CBD5E1;font-size:13px;">新用户名</div>
+            <input id="pwdNewUser" type="text" style="flex:1;padding:7px 10px;background:#334155;color:white;border:1px solid #475569;border-radius:4px;font-size:13px;">
+        </div>
+        <div style="display:flex;align-items:center;margin-bottom:10px;">
+            <div style="width:80px;color:#CBD5E1;font-size:13px;">新密码</div>
+            <input id="pwdNew1" type="password" style="flex:1;padding:7px 10px;background:#334155;color:white;border:1px solid #475569;border-radius:4px;font-size:13px;">
+        </div>
+        <div style="display:flex;align-items:center;margin-bottom:10px;">
+            <div style="width:80px;color:#CBD5E1;font-size:13px;">确认新密码</div>
+            <input id="pwdNew2" type="password" style="flex:1;padding:7px 10px;background:#334155;color:white;border:1px solid #475569;border-radius:4px;font-size:13px;">
+        </div>
+        <div id="pwdChangeError" style="display:none;text-align:center;color:#F87171;font-size:12px;margin-top:6px;"></div>
+        <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end;">
+            <button onclick="cancelPwdChange()" style="padding:8px 18px;background:#475569;color:white;border:none;border-radius:4px;font-size:13px;cursor:pointer;">取消</button>
+            <button onclick="applyPwdChange()" style="padding:8px 18px;background:#3B82F6;color:white;border:none;border-radius:4px;font-size:13px;font-weight:bold;cursor:pointer;">确认修改</button>
+        </div>
+    </div>
+</div>
+
 <!-- 顶栏 -->
 <div class="topbar">
     <div class="brand">
@@ -395,7 +448,8 @@ tbody tr.muted td { color: var(--text-dim); }
     </div>
     <div class="live-time" id="liveTime"></div>
     <div class="conn-pill" id="connPill"><span class="dot"></span><span id="connText">未连接</span></div>
-    <button class="btn ghost" onclick="showConnDialog()" style="padding:6px 12px;font-size:12px;">⚙</button>
+    <button class="btn ghost" onclick="openPwdChange()" style="padding:6px 12px;font-size:12px;" title="修改用户名 / 密码">🔑</button>
+    <button class="btn ghost" onclick="showConnDialog()" style="padding:6px 12px;font-size:12px;" title="服务器设置">⚙</button>
 </div>
 
 <div class="body">
@@ -1316,10 +1370,84 @@ function tickClock() {
 }
 setInterval(tickClock, 1000); tickClock();
 
-// ═══════ 启动 ═══════
-(function bootstrap() {
+// ═══════ 2026-06-19 登录 / 改密 ═══════
+function _hashPwd(s) { try { return btoa(unescape(encodeURIComponent(s || ''))); } catch (e) { return s || ''; } }
+function _getCred() {
+    var u = localStorage.getItem('queryOperatorName') || 'admin';
+    var h = localStorage.getItem('queryOperatorPwdHash');
+    if (h === null) h = _hashPwd('admin');
+    return { user: u, hash: h };
+}
+function _setCred(u, p) {
+    localStorage.setItem('queryOperatorName', u || 'admin');
+    localStorage.setItem('queryOperatorPwdHash', _hashPwd(p || 'admin'));
+}
+function _tryLoadRemembered() {
+    if (localStorage.getItem('queryLoginRemember') === '1') {
+        var u = localStorage.getItem('queryLoginUserRemember') || '';
+        var p = localStorage.getItem('queryLoginPwdRemember') || '';
+        if (u) $('loginUser').value = u;
+        if (p) { try { $('loginPwd').value = decodeURIComponent(escape(atob(p))); } catch (e) { $('loginPwd').value = ''; } }
+        $('loginRemember').checked = true;
+    }
+}
+function doLogin() {
+    var u = $('loginUser').value.trim();
+    var p = $('loginPwd').value;
+    var err = $('loginError');
+    if (!u) { err.textContent = '请输入用户名'; err.style.display = 'block'; return; }
+    var cred = _getCred();
+    if (u !== cred.user || _hashPwd(p) !== cred.hash) {
+        err.textContent = '用户名或密码错误'; err.style.display = 'block'; return;
+    }
+    if ($('loginRemember').checked) {
+        localStorage.setItem('queryLoginRemember', '1');
+        localStorage.setItem('queryLoginUserRemember', u);
+        localStorage.setItem('queryLoginPwdRemember', _hashPwd(p));
+    } else {
+        localStorage.removeItem('queryLoginRemember');
+        localStorage.removeItem('queryLoginUserRemember');
+        localStorage.removeItem('queryLoginPwdRemember');
+    }
+    $('loginOverlay').style.display = 'none';
     if (!getServerHost()) showConnDialog();
     else connect();
+}
+function openPwdChange() {
+    $('pwdOld').value = ''; $('pwdNewUser').value = ''; $('pwdNew1').value = ''; $('pwdNew2').value = '';
+    $('pwdChangeError').style.display = 'none';
+    $('pwdNewUser').value = (localStorage.getItem('queryOperatorName') || 'admin');
+    $('pwdChangeOverlay').style.display = 'flex';
+}
+function cancelPwdChange() { $('pwdChangeOverlay').style.display = 'none'; }
+function applyPwdChange() {
+    var oldP = $('pwdOld').value;
+    var newU = $('pwdNewUser').value.trim();
+    var n1 = $('pwdNew1').value;
+    var n2 = $('pwdNew2').value;
+    var err = $('pwdChangeError');
+    var cred = _getCred();
+    if (_hashPwd(oldP) !== cred.hash) { err.textContent = '原密码错误'; err.style.display = 'block'; return; }
+    if (!newU) { err.textContent = '新用户名不能为空'; err.style.display = 'block'; return; }
+    if (!n1) { err.textContent = '新密码不能为空'; err.style.display = 'block'; return; }
+    if (n1 !== n2) { err.textContent = '两次输入的新密码不一致'; err.style.display = 'block'; return; }
+    _setCred(newU, n1);
+    if (localStorage.getItem('queryLoginRemember') === '1') {
+        localStorage.setItem('queryLoginUserRemember', newU);
+        localStorage.setItem('queryLoginPwdRemember', _hashPwd(n1));
+    }
+    $('pwdChangeOverlay').style.display = 'none';
+    alert('用户名 / 密码 已更新.');
+}
+
+// ═══════ 启动 ═══════
+(function bootstrap() {
+    _tryLoadRemembered();
+    $('loginOverlay').style.display = 'flex';
+    setTimeout(function () { try { $('loginUser').focus(); } catch (e) { } }, 100);
+    ['loginUser', 'loginPwd'].forEach(function (id) {
+        $(id).addEventListener('keydown', function (e) { if (e.key === 'Enter') doLogin(); });
+    });
     $('connHost').addEventListener('keydown', function(e) { if (e.key === 'Enter') applyHost(); });
 })();
 </script>
