@@ -3205,6 +3205,18 @@ namespace SwimmingScoreboard
                                                   .Select(r => r.StartingBlockTime != 0 ? r.StartingBlockTime.ToString("F3") : "").FirstOrDefault() ?? "",
                     recordNote = sw.Results.Where(r => r.Stage == sw.CurrentStage)
                                            .Select(r => r.RecordNote ?? "").FirstOrDefault() ?? "",
+                    // 2026-06-19 query.html 需要按 stage+heat 查任意已完赛组的成绩, 加轻量 results 数组.
+                    //   GetStatusData allSwimmers 只投影当前 stage 的标量 finalTime 不够用 (旧逻辑导致
+                    //   query.html "有表格没成绩"). EDITOR_PACKAGE 的 Results 完整但被 SHOW_LIVE_RACE 覆盖.
+                    //   只含展示字段, 不含分段/触板/反应时大对象, 千人赛会带宽可控.
+                    results = sw.Results.Select(r => new {
+                        stage = r.Stage,
+                        heat = r.Heat,
+                        finalTime = r.FinalTimeDisplay,
+                        rank = r.Rank,
+                        recordNote = r.RecordNote ?? "",
+                        status = r.Status ?? ""
+                    }).ToList(),
                     currentRank = sw.CurrentRank,
                     status = sw.Status ?? "",
                     idNumber = sw.IDNumber ?? "",
@@ -8644,8 +8656,9 @@ namespace SwimmingScoreboard
                     for (int h = 1; h <= hc; h++) {
                         string status = HeatStatus(ag, ev.Gender ?? "", ev.EventName ?? "", ev.Stage ?? "", h);
                         if (statusFilter != "all" && status != statusFilter) continue;
-                        string when = ((ev.Date ?? "") + " " + (ev.Time ?? "")).Trim();
-                        string heatLabel = string.Format("{0} {1} 第{2}组 {3}", when, ev.Stage ?? "", h, StatusLabel(status));
+                        // 2026-06-19 去掉 ev.Date + ev.Time: 父节点 "第X场（YYYY-MM-DD 上午）" 已含日期+时段,
+                        //   子节点 第X组 再拼一次重复. 只保留 阶段 + 组次 + 状态.
+                        string heatLabel = string.Format("{0} 第{1}组 {2}", ev.Stage ?? "", h, StatusLabel(status)).Trim();
                         var l3 = new TreeViewItem {
                             Header = heatLabel,
                             Foreground = StatusBrush(status),
