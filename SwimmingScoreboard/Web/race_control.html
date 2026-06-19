@@ -250,10 +250,10 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
         <button class="hub-btn" style="background:#3B82F6;" onclick="closeSettings();openTimeParams()">时间参数设置</button>
         <button class="hub-btn" style="background:#10B981;" onclick="closeSettings();openPoolDevice()">比赛泳池、设备状态设置</button>
         <button class="hub-btn" style="background:#0EA5E9;" onclick="closeSettings();openManualButtonManager()">手动按键管理</button>
-        <button class="hub-btn" style="background:#10B981;" onclick="closeSettings();sendDisplay('OPEN_AUTOSAVE_PATH_DIALOG');addLog('已请求 PC 端弹成绩存盘路径配置窗口')">成绩存盘路径</button>
-        <button class="hub-btn" style="background:#3B82F6;" onclick="closeSettings();sendDisplay('OPEN_THERMAL_PRINTER_DIALOG');addLog('已请求 PC 端弹热敏打印配置窗口')">热敏打印</button>
+        <button class="hub-btn" style="background:#10B981;" onclick="closeSettings();openAutoSavePath()">成绩存盘路径</button>
+        <button class="hub-btn" style="background:#3B82F6;" onclick="closeSettings();openThermalPrint()">热敏打印</button>
         <button class="hub-btn" style="background:#DC2626;" onclick="closeSettings();openHwConn()">硬件计时器连接</button>
-        <button class="hub-btn" style="background:#8B5CF6;" onclick="closeSettings();sendDisplay('OPEN_CHANGE_PASSWORD_DIALOG');addLog('已请求 PC 端弹用户名/密码修改窗口')">用户名和密码</button>
+        <button class="hub-btn" style="background:#8B5CF6;" onclick="closeSettings();openChangePwd()">用户名和密码</button>
 
         <div class="modal-btns">
             <button class="btn-cancel" onclick="closeSettings()">关闭</button>
@@ -389,6 +389,128 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
         </div>
         <div class="modal-btns">
             <button class="btn-cancel" onclick="closeHwConn()">关闭</button>
+        </div>
+    </div>
+</div>
+
+<!-- 2026-06-18 浏览器本机 dialog: 成绩存盘路径 -->
+<div id="autoSavePathModal" class="modal-overlay hidden" onclick="if(event.target===this)closeAutoSavePath()">
+    <div class="modal-dialog">
+        <h2 style="color:#10B981;">成绩存盘路径</h2>
+        <div style="color:#94A3B8;font-size:12px;margin-bottom:12px;line-height:1.6;">
+            浏览器本机存盘配置 (保存到本机 localStorage). 由于浏览器沙箱限制, 无法直接写入绝对路径;
+            点击"打印成绩"时会通过浏览器下载机制保存到本机默认下载目录, 文件名按此处的命名格式生成.
+        </div>
+        <div class="param-row"><label>路径标签</label>
+            <input id="rcSavePath" placeholder="如 D:\\比赛成绩\\2026定西站" style="flex:1;padding:6px 10px;background:#0F172A;color:white;border:1px solid #475569;border-radius:6px;font-size:13px;">
+        </div>
+        <div class="param-row"><label>文件名格式</label>
+            <input id="rcSaveFmt" placeholder="如 {场号}-{项号}-{组号}.txt" value="{场号}-{项号}-{组号}.txt" style="flex:1;padding:6px 10px;background:#0F172A;color:white;border:1px solid #475569;border-radius:6px;font-size:13px;">
+        </div>
+        <div class="param-row"><label>自动下载</label>
+            <span style="display:flex;gap:12px;">
+                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="rcSaveAuto" id="rcSaveAutoOn"> 开 (确认成绩后自动下载)</label>
+                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="rcSaveAuto" id="rcSaveAutoOff" checked> 关</label>
+            </span>
+        </div>
+        <div class="modal-btns">
+            <button class="btn-cancel" onclick="closeAutoSavePath()">取消</button>
+            <button class="btn-ok" onclick="applyAutoSavePath()">保存到本机</button>
+        </div>
+    </div>
+</div>
+
+<!-- 2026-06-18 浏览器本机 dialog: 热敏打印 -->
+<div id="thermalPrintModal" class="modal-overlay hidden" onclick="if(event.target===this)closeThermalPrint()">
+    <div class="modal-dialog">
+        <h2 style="color:#3B82F6;">热敏打印</h2>
+        <div style="color:#94A3B8;font-size:12px;margin-bottom:12px;line-height:1.6;">
+            浏览器本机打印配置. 点击"打印成绩"时按这里设置, 通过浏览器调起打印机 (Ctrl+P 同款).
+            主控 PC / RTC 的热敏打印是另一套配置, 互不影响.
+        </div>
+        <div class="param-row"><label>启用</label>
+            <span style="display:flex;gap:12px;">
+                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="rcThermalEn" id="rcThermalOn"> 启用</label>
+                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="rcThermalEn" id="rcThermalOff" checked> 禁用</label>
+            </span>
+        </div>
+        <div class="param-row"><label>份数</label>
+            <input id="rcThermalCopies" type="number" min="1" max="10" value="1" style="width:80px;padding:6px 10px;background:#0F172A;color:white;border:1px solid #475569;border-radius:6px;font-size:13px;text-align:center;">
+        </div>
+        <div class="param-row"><label>纸张</label>
+            <select id="rcThermalPaper" style="flex:1;padding:6px 10px;background:#0F172A;color:white;border:1px solid #475569;border-radius:6px;font-size:13px;">
+                <option value="80mm">80mm 热敏</option>
+                <option value="58mm">58mm 热敏</option>
+                <option value="A4">A4 普通纸</option>
+            </select>
+        </div>
+        <div class="param-row"><label>自动打印</label>
+            <span style="display:flex;gap:12px;">
+                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="rcThermalAuto" id="rcThermalAutoOn"> 开 (确认后自动打印)</label>
+                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="rcThermalAuto" id="rcThermalAutoOff" checked> 关</label>
+            </span>
+        </div>
+        <div class="modal-btns">
+            <button class="btn-cancel" onclick="closeThermalPrint()">取消</button>
+            <button class="btn-ok" onclick="applyThermalPrint()">保存到本机</button>
+        </div>
+    </div>
+</div>
+
+<!-- 2026-06-18 浏览器本机 dialog: 用户名和密码 -->
+<div id="changePwdModal" class="modal-overlay hidden" onclick="if(event.target===this)closeChangePwd()">
+    <div class="modal-dialog">
+        <h2 style="color:#8B5CF6;">用户名和密码</h2>
+        <div style="color:#94A3B8;font-size:12px;margin-bottom:12px;line-height:1.6;">
+            浏览器本机账号 (保存到 localStorage). 当前 race_control.html 连接服务器不验证账号,
+            此账号仅作本机操作员标识用 (写入比赛日志). 修改 PC 端 (主服务器 / RTC) 凭据请到对应机器的"参数设置"操作.
+        </div>
+        <div class="param-row"><label>用户名</label>
+            <input id="rcPwdUser" placeholder="操作员名称" style="flex:1;padding:6px 10px;background:#0F172A;color:white;border:1px solid #475569;border-radius:6px;font-size:13px;">
+        </div>
+        <div class="param-row"><label>新密码</label>
+            <input id="rcPwdNew" type="password" placeholder="如需设置则填" style="flex:1;padding:6px 10px;background:#0F172A;color:white;border:1px solid #475569;border-radius:6px;font-size:13px;">
+        </div>
+        <div class="param-row"><label>确认密码</label>
+            <input id="rcPwdNew2" type="password" placeholder="再输一次" style="flex:1;padding:6px 10px;background:#0F172A;color:white;border:1px solid #475569;border-radius:6px;font-size:13px;">
+        </div>
+        <div class="modal-btns">
+            <button class="btn-cancel" onclick="closeChangePwd()">取消</button>
+            <button class="btn-ok" onclick="applyChangePwd()">保存到本机</button>
+        </div>
+    </div>
+</div>
+
+<!-- 2026-06-18 浏览器本机 dialog: 图片/视频 上传 -->
+<div id="mediaUploadModal" class="modal-overlay hidden" onclick="if(event.target===this)closeMediaUpload()">
+    <div class="modal-dialog">
+        <h2 style="color:#0EA5E9;">🖼️ 图片 / 视频</h2>
+        <div style="color:#94A3B8;font-size:12px;margin-bottom:12px;line-height:1.6;">
+            从<b>浏览器本机</b>选择文件, 上传到主服务器播放到大屏 (建议 &lt; 16 MB).
+            支持: png / jpg / bmp / gif / webp / mp4 / webm / ogg / m4v
+        </div>
+        <input id="rcMediaInput" type="file" accept="image/*,video/*" style="display:block;margin-bottom:10px;color:#94a3b8;" onchange="_rcUploadMedia(this.files[0])">
+        <div id="rcMediaStatus" style="font-size:12px;color:#94A3B8;margin-bottom:10px;min-height:18px;"></div>
+        <div style="border-top:1px solid #475569;padding-top:10px;display:flex;gap:6px;justify-content:flex-end;">
+            <button style="padding:6px 14px;background:#EF4444;color:white;border:none;border-radius:6px;cursor:pointer;font-size:13px;" onclick="sendDisplay('STOP_MEDIA');addLog('已请求停止媒体显示');closeMediaUpload()">停止显示</button>
+            <button class="btn-cancel" onclick="closeMediaUpload()">关闭</button>
+        </div>
+    </div>
+</div>
+
+<!-- 2026-06-18 浏览器本机 dialog: PPT 上传 -->
+<div id="pptUploadModal" class="modal-overlay hidden" onclick="if(event.target===this)closePptUpload()">
+    <div class="modal-dialog">
+        <h2 style="color:#FB923C;">📊 PPT 播放</h2>
+        <div style="color:#94A3B8;font-size:12px;margin-bottom:12px;line-height:1.6;">
+            从<b>浏览器本机</b>选择 PPT 文件, 上传到主服务器. 主控 PC 用 PowerPoint COM 转 PNG 后,
+            通过 SHOW_MEDIA 通道把每张幻灯片推送到大屏, 翻页控制窗口在主控 PC 弹出.
+            支持: .ppt / .pptx (建议 &lt; 32 MB)
+        </div>
+        <input id="rcPptInput" type="file" accept=".ppt,.pptx,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation" style="display:block;margin-bottom:10px;color:#94a3b8;" onchange="_rcUploadPpt(this.files[0])">
+        <div id="rcPptStatus" style="font-size:12px;color:#94A3B8;margin-bottom:10px;min-height:18px;"></div>
+        <div class="modal-btns">
+            <button class="btn-cancel" onclick="closePptUpload()">关闭</button>
         </div>
     </div>
 </div>
@@ -561,8 +683,8 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
                     <button class="action-btn small" style="background:#DC2626;" onclick="sendDisplay('SHOW_REFEREES')"><span class="ico">&#xE716;</span>裁判介绍</button>
                     <button class="action-btn small" style="background:#8B5CF6;" onclick="sendDisplay('SHOW_WELCOME')"><span class="ico">&#xE80F;</span>欢 迎</button>
                     <button class="action-btn small span2" style="background:#0D9488;" onclick="showSchedule()"><span class="ico">&#xE787;</span>显示比赛日程</button>
-                    <button class="action-btn small span2" style="background:#FB923C;" onclick="sendDisplay('PLAY_PPT')"><span class="ico">&#xE786;</span>PPT 播放</button>
-                    <button class="action-btn small span2" style="background:#0EA5E9;" onclick="sendDisplay('LIST_MEDIA_FILES');addLog('已请求 PC 端弹媒体文件列表')"><span class="ico">&#xE722;</span>图片 / 视频</button>
+                    <button class="action-btn small span2" style="background:#FB923C;" onclick="openPptUpload()"><span class="ico">&#xE786;</span>PPT 播放</button>
+                    <button class="action-btn small span2" style="background:#0EA5E9;" onclick="openMediaUpload()"><span class="ico">&#xE722;</span>图片 / 视频</button>
                     <button class="action-btn small span2" style="background:#7C3AED;" onclick="sendDisplay('OPEN_DISPLAY_STYLE');addLog('已请求 PC 端弹大屏样式窗口')"><span class="ico">&#xE790;</span>大屏样式</button>
                     <button id="recordsHiddenBtn" class="action-btn small span2" style="background:#475569;" onclick="toggleRecordsHidden()"><span class="ico">&#xED1A;</span><span id="recordsHiddenBtnText">记录显示</span></button>
                     <button id="remarkReactionBtn" class="action-btn small span2" style="background:#475569;" onclick="toggleRemarkReaction()"><span class="ico">&#xE91F;</span><span id="remarkReactionBtnText">备注: 显反应时</span></button>
@@ -1389,6 +1511,141 @@ function applyPoolDevice() {
 // ─── 子弹窗 3: 硬件计时器连接 ───
 function openHwConn() { document.getElementById('hwConnModal').classList.remove('hidden'); }
 function closeHwConn() { document.getElementById('hwConnModal').classList.add('hidden'); }
+
+// ─── 子弹窗 4: 成绩存盘路径 (浏览器本机 localStorage) ───
+function openAutoSavePath() {
+    document.getElementById('rcSavePath').value = localStorage.getItem('rcSavePath') || '';
+    document.getElementById('rcSaveFmt').value = localStorage.getItem('rcSaveFmt') || '{场号}-{项号}-{组号}.txt';
+    var auto = localStorage.getItem('rcSaveAuto') === '1';
+    document.getElementById('rcSaveAutoOn').checked = auto;
+    document.getElementById('rcSaveAutoOff').checked = !auto;
+    document.getElementById('autoSavePathModal').classList.remove('hidden');
+}
+function closeAutoSavePath() { document.getElementById('autoSavePathModal').classList.add('hidden'); }
+function applyAutoSavePath() {
+    localStorage.setItem('rcSavePath', document.getElementById('rcSavePath').value.trim());
+    localStorage.setItem('rcSaveFmt', document.getElementById('rcSaveFmt').value.trim() || '{场号}-{项号}-{组号}.txt');
+    localStorage.setItem('rcSaveAuto', document.getElementById('rcSaveAutoOn').checked ? '1' : '0');
+    addLog('成绩存盘路径已保存到本机 localStorage');
+    closeAutoSavePath();
+}
+
+// ─── 子弹窗 5: 热敏打印 (浏览器本机 localStorage) ───
+function openThermalPrint() {
+    document.getElementById('rcThermalOn').checked = (localStorage.getItem('rcThermalEnabled') === '1');
+    document.getElementById('rcThermalOff').checked = (localStorage.getItem('rcThermalEnabled') !== '1');
+    document.getElementById('rcThermalCopies').value = parseInt(localStorage.getItem('rcThermalCopies') || '1', 10);
+    document.getElementById('rcThermalPaper').value = localStorage.getItem('rcThermalPaper') || '80mm';
+    var auto = localStorage.getItem('rcThermalAuto') === '1';
+    document.getElementById('rcThermalAutoOn').checked = auto;
+    document.getElementById('rcThermalAutoOff').checked = !auto;
+    document.getElementById('thermalPrintModal').classList.remove('hidden');
+}
+function closeThermalPrint() { document.getElementById('thermalPrintModal').classList.add('hidden'); }
+function applyThermalPrint() {
+    localStorage.setItem('rcThermalEnabled', document.getElementById('rcThermalOn').checked ? '1' : '0');
+    var copies = parseInt(document.getElementById('rcThermalCopies').value, 10);
+    if (isNaN(copies) || copies < 1) copies = 1; if (copies > 10) copies = 10;
+    localStorage.setItem('rcThermalCopies', String(copies));
+    localStorage.setItem('rcThermalPaper', document.getElementById('rcThermalPaper').value);
+    localStorage.setItem('rcThermalAuto', document.getElementById('rcThermalAutoOn').checked ? '1' : '0');
+    addLog('热敏打印设置已保存到本机 localStorage');
+    closeThermalPrint();
+}
+
+// ─── 子弹窗 6: 用户名和密码 (浏览器本机 localStorage; race_control 现不验证, 仅作操作员标识) ───
+function openChangePwd() {
+    document.getElementById('rcPwdUser').value = localStorage.getItem('rcOperatorName') || '';
+    document.getElementById('rcPwdNew').value = '';
+    document.getElementById('rcPwdNew2').value = '';
+    document.getElementById('changePwdModal').classList.remove('hidden');
+}
+function closeChangePwd() { document.getElementById('changePwdModal').classList.add('hidden'); }
+function applyChangePwd() {
+    var u = document.getElementById('rcPwdUser').value.trim();
+    var p1 = document.getElementById('rcPwdNew').value;
+    var p2 = document.getElementById('rcPwdNew2').value;
+    if (p1 && p1 !== p2) { alert('两次密码不一致'); return; }
+    if (u) localStorage.setItem('rcOperatorName', u);
+    if (p1) { try { localStorage.setItem('rcOperatorPwdHash', btoa(p1)); } catch (e) {} }   // 简单 base64 保存, 仅作浏览器本机存储
+    addLog('操作员账号已保存到本机 (浏览器 localStorage)');
+    closeChangePwd();
+}
+
+// ─── 子弹窗 7: 图片/视频 上传 (浏览器本机选文件 → UPLOAD_AND_PLAY_MEDIA) ───
+function openMediaUpload() {
+    document.getElementById('rcMediaStatus').textContent = '';
+    var inp = document.getElementById('rcMediaInput');
+    if (inp) inp.value = '';
+    document.getElementById('mediaUploadModal').classList.remove('hidden');
+}
+function closeMediaUpload() { document.getElementById('mediaUploadModal').classList.add('hidden'); }
+function _rcUploadMedia(file) {
+    if (!file) return;
+    if (!ws || ws.readyState !== 1) { alert('未连接服务器'); return; }
+    var status = document.getElementById('rcMediaStatus');
+    var sizeMB = file.size / 1048576;
+    status.textContent = '读取中: ' + file.name + ' (' + sizeMB.toFixed(2) + ' MB)';
+    var ext = (file.name.split('.').pop() || '').toLowerCase();
+    var kind, mime;
+    if (['png','jpg','jpeg','bmp','gif','webp'].indexOf(ext) >= 0) {
+        kind = 'image';
+        mime = ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg'
+             : ext === 'bmp' ? 'image/bmp'
+             : ext === 'gif' ? 'image/gif'
+             : ext === 'webp' ? 'image/webp'
+             : 'image/png';
+    } else if (['mp4','webm','ogg','m4v'].indexOf(ext) >= 0) {
+        kind = 'video';
+        mime = ext === 'webm' ? 'video/webm' : ext === 'ogg' ? 'video/ogg' : 'video/mp4';
+    } else { status.textContent = '不支持的文件类型: ' + ext; return; }
+    var reader = new FileReader();
+    reader.onload = function() {
+        status.textContent = '上传中...';
+        ws.send(JSON.stringify({
+            type: 'REMOTE_CONTROL', command: 'UPLOAD_AND_PLAY_MEDIA',
+            fileName: file.name, kind: kind, mime: mime, dataUrl: reader.result,
+            fit: 'contain', loop: true, muted: false, autoplay: true
+        }));
+        status.textContent = '上传完成, 大屏播放中';
+        addLog('已上传媒体到大屏: ' + file.name);
+        setTimeout(closeMediaUpload, 800);
+    };
+    reader.onerror = function() { status.textContent = '读取失败'; };
+    reader.readAsDataURL(file);
+}
+
+// ─── 子弹窗 8: PPT 上传 (浏览器本机选文件 → UPLOAD_AND_PLAY_PPT) ───
+function openPptUpload() {
+    document.getElementById('rcPptStatus').textContent = '';
+    var inp = document.getElementById('rcPptInput');
+    if (inp) inp.value = '';
+    document.getElementById('pptUploadModal').classList.remove('hidden');
+}
+function closePptUpload() { document.getElementById('pptUploadModal').classList.add('hidden'); }
+function _rcUploadPpt(file) {
+    if (!file) return;
+    if (!ws || ws.readyState !== 1) { alert('未连接服务器'); return; }
+    var status = document.getElementById('rcPptStatus');
+    status.textContent = '读取中: ' + file.name + ' (' + (file.size / 1048576).toFixed(2) + ' MB)';
+    var reader = new FileReader();
+    reader.onload = function() {
+        var bytes = new Uint8Array(reader.result);
+        var bin = '';
+        for (var i = 0; i < bytes.byteLength; i++) bin += String.fromCharCode(bytes[i]);
+        var b64 = btoa(bin);
+        status.textContent = '上传中...';
+        ws.send(JSON.stringify({
+            type: 'REMOTE_CONTROL', command: 'UPLOAD_AND_PLAY_PPT',
+            fileName: file.name, base64: b64
+        }));
+        status.textContent = '上传完成, 主控转换中...';
+        addLog('已上传 PPT: ' + file.name + ' (主控 PC 转换并翻页)');
+        setTimeout(closePptUpload, 800);
+    };
+    reader.onerror = function() { status.textContent = '读取失败'; };
+    reader.readAsArrayBuffer(file);
+}
 
 function toggleHwPanels() {
     var mode = document.getElementById('dlgHwMode').value;
