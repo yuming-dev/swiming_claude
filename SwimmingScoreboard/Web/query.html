@@ -783,7 +783,9 @@ function applyEditorPackage(pkg) {
                 country: sw.Country || sw.country, countryShort: sw.CountryShort || sw.countryShort,
                 eventName: sw.EventName || sw.eventName,
                 currentStage: sw.CurrentStage || sw.currentStage,
-                heat: sw.Heat || sw.heat, lane: sw.Lane || sw.lane,
+                heat: sw.Heat || sw.heat,
+                // 2026-06-19 lane=0 是有效值 (异常布局/裁判道), 不能被 || 吃掉. PascalCase 优先.
+                lane: (sw.Lane != null ? sw.Lane : sw.lane),
                 entryTime: sw.EntryTime || sw.entryTime,
                 status: sw.Status || sw.status || '',
                 results: sw.Results || sw.results || []
@@ -1032,7 +1034,8 @@ function renderHeats() {
         } else {
             html += '<table style="font-size:13px;"><thead><tr><th>道次</th><th>号码</th><th>姓名</th><th>单位</th><th>组别</th><th>报名成绩</th></tr></thead><tbody>';
             lst.forEach(function(sw) {
-                html += '<tr><td><span class="rank-medal r' + (sw.lane <= 3 ? sw.lane : 'n') + '" style="background:linear-gradient(135deg,#3b82f6,#6366f1);color:white;">' + (sw.lane||'-') + '</span></td>' +
+                // 2026-06-19 lane=0 应显 0 而非 "-": 用 != null 替代 ||
+                html += '<tr><td><span class="rank-medal r' + (sw.lane <= 3 ? sw.lane : 'n') + '" style="background:linear-gradient(135deg,#3b82f6,#6366f1);color:white;">' + (sw.lane != null ? sw.lane : '-') + '</span></td>' +
                     '<td class="dim">' + escHtml(sw.bibNumber||'') + '</td>' +
                     '<td><b>' + escHtml(sw.name||'') + '</b></td>' +
                     '<td>' + escHtml(sw.country||'') + '</td>' +
@@ -1152,7 +1155,8 @@ function renderResults() {
             var note = r.RecordNote || r.recordNote || '';
             html += '<tr>' +
                 '<td>' + rkHtml + '</td>' +
-                '<td>' + (sw.lane||'-') + '</td>' +
+                // 2026-06-19 lane=0 应显 0 而非 "-": 用 != null 替代 ||
+                '<td>' + (sw.lane != null ? sw.lane : '-') + '</td>' +
                 '<td class="dim">' + escHtml(sw.bibNumber||'') + '</td>' +
                 '<td><b>' + escHtml(sw.name||'') + '</b></td>' +
                 '<td>' + escHtml(sw.country||'') + '</td>' +
