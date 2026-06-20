@@ -10036,13 +10036,16 @@ namespace SwimmingScoreboard
                 //   2026-06-04 接力赛比赛结束(Finished)后实时 UI 不显 (= 比赛中显当前棒, 结束后只 D 显)
                 double reactionVal = (_laneCloseSettings.ReactionTimeEnabled && ls != null
                                        && !(_isRelay && _raceState == RaceState.Finished)) ? ls.ReactionTime : 0;
-                if (_laneCloseSettings.ReactionTimeEnabled && reactionVal != 0) {
+                // 2026-06-20 NaN 不进 last value 字典 (NaN != NaN 恒 true, 否则每帧都误触发 "新值"; UI 那边也已守 NaN)
+                if (_laneCloseSettings.ReactionTimeEnabled && reactionVal != 0 && !double.IsNaN(reactionVal)) {
                     if (!_laneReactionLastValue.ContainsKey(lane) || _laneReactionLastValue[lane] != reactionVal) {
                         _laneReactionLastValue[lane] = reactionVal;
                         _laneReactionShowTime[lane] = DateTime.Now;
                     }
                 }
-                bool reactionVisible = _laneCloseSettings.ReactionTimeEnabled && reactionVal != 0 && (
+                // 2026-06-20 NaN = 反应时窗口超时未收到 SB → 控制界面"完全不显示"
+                //   注意 NaN != 0 返 true (NaN 与任何数比较都返 false), 不加 !IsNaN 守卫会显 "NaN" 文字.
+                bool reactionVisible = _laneCloseSettings.ReactionTimeEnabled && reactionVal != 0 && !double.IsNaN(reactionVal) && (
                     isFinished ||
                     (_laneReactionShowTime.ContainsKey(lane) &&
                      (DateTime.Now - _laneReactionShowTime[lane]).TotalSeconds < splitDisplaySec));
