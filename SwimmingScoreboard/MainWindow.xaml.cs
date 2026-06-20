@@ -3241,6 +3241,8 @@ namespace SwimmingScoreboard
                         swimmerBirthDate = leg.SwimmerBirthDate ?? ""
                     }).ToList()
                 }).ToList(),
+                // 2026-06-20 race_control 设备状态管理 升级 4 态: 加 10 个 NotInstalled 字段 + endLocked
+                //   endLocked='left'/'right'/'none' 表示哪端被单端配置锁定 (race_control 据此灰显该端 5 列)
                 laneDevices = _laneDeviceStates.Select(s => new {
                     lane = s.Lane,
                     leftTouchpadBroken = s.LeftTouchpadBroken,
@@ -3252,7 +3254,19 @@ namespace SwimmingScoreboard
                     rightStartBlockBroken = s.RightStartBlockBroken,
                     rightBlindWatch1Broken = s.RightBlindWatch1Broken,
                     rightBlindWatch2Broken = s.RightBlindWatch2Broken,
-                    rightBlindWatch3Broken = s.RightBlindWatch3Broken
+                    rightBlindWatch3Broken = s.RightBlindWatch3Broken,
+                    leftTouchpadNotInstalled = s.LeftTouchpadNotInstalled,
+                    leftStartBlockNotInstalled = s.LeftStartBlockNotInstalled,
+                    leftBlindWatch1NotInstalled = s.LeftBlindWatch1NotInstalled,
+                    leftBlindWatch2NotInstalled = s.LeftBlindWatch2NotInstalled,
+                    leftBlindWatch3NotInstalled = s.LeftBlindWatch3NotInstalled,
+                    rightTouchpadNotInstalled = s.RightTouchpadNotInstalled,
+                    rightStartBlockNotInstalled = s.RightStartBlockNotInstalled,
+                    rightBlindWatch1NotInstalled = s.RightBlindWatch1NotInstalled,
+                    rightBlindWatch2NotInstalled = s.RightBlindWatch2NotInstalled,
+                    rightBlindWatch3NotInstalled = s.RightBlindWatch3NotInstalled,
+                    endLocked = (_poolConfig != null && _poolConfig.HasRightStartBlock) ? "none"
+                              : ((_laneCloseSettings == null || _laneCloseSettings.FinishPosition != "right") ? "right" : "left")
                 }).ToList(),
                 eventRanking = eventRanking,
                 eventRankingSplit = eventRankingSplit,
@@ -10684,21 +10698,91 @@ namespace SwimmingScoreboard
         private void SetDeviceStatus(int lane, string device, string status) {
             var state = _laneDeviceStates.FirstOrDefault(s => s.Lane == lane);
             if (state == null) return;
-            bool broken = status == "broken";
+
+            // 2026-06-20 4 态: installed (= 已安装好) / not_installed / good / broken
+            //   兼容旧 2 态: "good" / "broken" 仅改 Broken (与 race_control 老协议一致)
+            //   "installed" / "not_installed" 改 NotInstalled, 未安装时清 Broken
+            //   未安装设备拒绝 good/broken (与 UI 锁定逻辑对齐).
+            bool isNotInstalled = (status == "not_installed");
+            bool isInstalled = (status == "installed");
+            bool isGood = (status == "good");
+            bool isBroken = (status == "broken");
+
+            // 检查是否在锁定列 (单端模式下非终点端)
+            bool dualEnd = _poolConfig != null && _poolConfig.HasRightStartBlock;
+            bool finishIsLeft = _laneCloseSettings == null || _laneCloseSettings.FinishPosition != "right";
+            bool lockLeft  = !dualEnd && !finishIsLeft;
+            bool lockRight = !dualEnd && finishIsLeft;
+            bool isLeftDev = device != null && device.StartsWith("left");
+            bool isRightDev = device != null && device.StartsWith("right");
+            if ((isLeftDev && lockLeft) || (isRightDev && lockRight)) {
+                AddLog(string.Format("泳道{0} {1} 受单端配置锁定, 远程修改被拒", lane, device));
+                return;
+            }
+
+            // 当前 NotInstalled 状态 (good/broken 命令必须在已安装下生效)
+            bool currentNotInstalled = false;
+            switch (device) {
+                case "leftTouchpad":    currentNotInstalled = state.LeftTouchpadNotInstalled; break;
+                case "leftStartBlock":  currentNotInstalled = state.LeftStartBlockNotInstalled; break;
+                case "leftBlindWatch1": currentNotInstalled = state.LeftBlindWatch1NotInstalled; break;
+                case "leftBlindWatch2": currentNotInstalled = state.LeftBlindWatch2NotInstalled; break;
+                case "leftBlindWatch3": currentNotInstalled = state.LeftBlindWatch3NotInstalled; break;
+                case "rightTouchpad":   currentNotInstalled = state.RightTouchpadNotInstalled; break;
+                case "rightStartBlock": currentNotInstalled = state.RightStartBlockNotInstalled; break;
+                case "rightBlindWatch1": currentNotInstalled = state.RightBlindWatch1NotInstalled; break;
+                case "rightBlindWatch2": currentNotInstalled = state.RightBlindWatch2NotInstalled; break;
+                case "rightBlindWatch3": currentNotInstalled = state.RightBlindWatch3NotInstalled; break;
+            }
+            if ((isGood || isBroken) && currentNotInstalled) {
+                AddLog(string.Format("泳道{0} {1} 未安装, 不能设好/坏", lane, device));
+                return;
+            }
 
             switch (device) {
-                case "leftTouchpad": state.LeftTouchpadBroken = broken; break;
-                case "leftBlindWatch1": state.LeftBlindWatch1Broken = broken; break;
-                case "leftBlindWatch2": state.LeftBlindWatch2Broken = broken; break;
-                case "leftBlindWatch3": state.LeftBlindWatch3Broken = broken; break;
-                case "leftStartBlock": state.LeftStartBlockBroken = broken; break;
-                case "rightTouchpad": state.RightTouchpadBroken = broken; break;
-                case "rightBlindWatch1": state.RightBlindWatch1Broken = broken; break;
-                case "rightBlindWatch2": state.RightBlindWatch2Broken = broken; break;
-                case "rightBlindWatch3": state.RightBlindWatch3Broken = broken; break;
-                case "rightStartBlock": state.RightStartBlockBroken = broken; break;
+                case "leftTouchpad":
+                    if (isNotInstalled) { state.LeftTouchpadNotInstalled = true; state.LeftTouchpadBroken = false; }
+                    else if (isInstalled) { state.LeftTouchpadNotInstalled = false; state.LeftTouchpadBroken = false; }
+                    else state.LeftTouchpadBroken = isBroken; break;
+                case "leftStartBlock":
+                    if (isNotInstalled) { state.LeftStartBlockNotInstalled = true; state.LeftStartBlockBroken = false; }
+                    else if (isInstalled) { state.LeftStartBlockNotInstalled = false; state.LeftStartBlockBroken = false; }
+                    else state.LeftStartBlockBroken = isBroken; break;
+                case "leftBlindWatch1":
+                    if (isNotInstalled) { state.LeftBlindWatch1NotInstalled = true; state.LeftBlindWatch1Broken = false; }
+                    else if (isInstalled) { state.LeftBlindWatch1NotInstalled = false; state.LeftBlindWatch1Broken = false; }
+                    else state.LeftBlindWatch1Broken = isBroken; break;
+                case "leftBlindWatch2":
+                    if (isNotInstalled) { state.LeftBlindWatch2NotInstalled = true; state.LeftBlindWatch2Broken = false; }
+                    else if (isInstalled) { state.LeftBlindWatch2NotInstalled = false; state.LeftBlindWatch2Broken = false; }
+                    else state.LeftBlindWatch2Broken = isBroken; break;
+                case "leftBlindWatch3":
+                    if (isNotInstalled) { state.LeftBlindWatch3NotInstalled = true; state.LeftBlindWatch3Broken = false; }
+                    else if (isInstalled) { state.LeftBlindWatch3NotInstalled = false; state.LeftBlindWatch3Broken = false; }
+                    else state.LeftBlindWatch3Broken = isBroken; break;
+                case "rightTouchpad":
+                    if (isNotInstalled) { state.RightTouchpadNotInstalled = true; state.RightTouchpadBroken = false; }
+                    else if (isInstalled) { state.RightTouchpadNotInstalled = false; state.RightTouchpadBroken = false; }
+                    else state.RightTouchpadBroken = isBroken; break;
+                case "rightStartBlock":
+                    if (isNotInstalled) { state.RightStartBlockNotInstalled = true; state.RightStartBlockBroken = false; }
+                    else if (isInstalled) { state.RightStartBlockNotInstalled = false; state.RightStartBlockBroken = false; }
+                    else state.RightStartBlockBroken = isBroken; break;
+                case "rightBlindWatch1":
+                    if (isNotInstalled) { state.RightBlindWatch1NotInstalled = true; state.RightBlindWatch1Broken = false; }
+                    else if (isInstalled) { state.RightBlindWatch1NotInstalled = false; state.RightBlindWatch1Broken = false; }
+                    else state.RightBlindWatch1Broken = isBroken; break;
+                case "rightBlindWatch2":
+                    if (isNotInstalled) { state.RightBlindWatch2NotInstalled = true; state.RightBlindWatch2Broken = false; }
+                    else if (isInstalled) { state.RightBlindWatch2NotInstalled = false; state.RightBlindWatch2Broken = false; }
+                    else state.RightBlindWatch2Broken = isBroken; break;
+                case "rightBlindWatch3":
+                    if (isNotInstalled) { state.RightBlindWatch3NotInstalled = true; state.RightBlindWatch3Broken = false; }
+                    else if (isInstalled) { state.RightBlindWatch3NotInstalled = false; state.RightBlindWatch3Broken = false; }
+                    else state.RightBlindWatch3Broken = isBroken; break;
             }
-            AddLog(string.Format("泳道{0} {1} 设为 {2}", lane, device, broken ? "损坏" : "正常"));
+            string desc = isNotInstalled ? "未安装" : isInstalled ? "已安装" : isBroken ? "损坏" : "正常";
+            AddLog(string.Format("泳道{0} {1} 设为 {2}", lane, device, desc));
             SaveDeviceStates();               // 远端 HTML/EXE 改的也要持久化，下次启动还原
             UpdateLaneStatusDisplay();        // 立即刷新本地泳道实时状态 UI
             Broadcast();
@@ -12320,7 +12404,8 @@ namespace SwimmingScoreboard
         }
 
         private void DeviceStatus_Click(object sender, RoutedEventArgs e) {
-            var win = new DeviceStatusWindow(_laneDeviceStates, _poolConfig);
+            // 2026-06-20 传 _laneCloseSettings 进去, 窗口据此 (HasRightStartBlock + FinishPosition) 锁定单端模式下非终点端整列, 防止用户改了又被 ApplyTouchpadInstallModeToLanes 覆盖.
+            var win = new DeviceStatusWindow(_laneDeviceStates, _poolConfig, _laneCloseSettings);
             win.Owner = this;
             if (win.ShowDialog() == true) {
                 AutoSaveData();

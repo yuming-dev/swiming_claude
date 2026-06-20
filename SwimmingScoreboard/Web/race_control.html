@@ -569,14 +569,17 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
     </div>
 </div>
 
-<!-- 设备状态管理弹窗 -->
+<!-- 设备状态管理弹窗 (2026-06-20 升级 4 态: 安装/未安装/好/坏) -->
 <div id="deviceModal" class="modal-overlay hidden" onclick="if(event.target===this)closeDeviceManager()">
-    <div class="modal-dialog" style="max-width:750px;">
-        <h2 style="color:#F59E0B;">泳道设备好/坏状态设置</h2>
-        <div style="overflow-x:auto;" id="deviceStatusPanel"></div>
-        <div style="display:flex;gap:8px;margin-top:12px;">
-            <button style="flex:1;padding:8px;background:#22C55E;color:white;border:none;border-radius:6px;cursor:pointer;font-size:14px;font-weight:bold;" onclick="setAllDevices(false)">全部设为好</button>
-            <button style="flex:1;padding:8px;background:#EF4444;color:white;border:none;border-radius:6px;cursor:pointer;font-size:14px;font-weight:bold;" onclick="setAllDevices(true)">全部设为坏</button>
+    <div class="modal-dialog" style="max-width:920px;">
+        <h2 style="color:#F59E0B;">泳道设备状态管理 (4 态)</h2>
+        <div style="font-size:11px;color:#94A3B8;margin-bottom:8px;">灰底列受 比赛泳池(单/双端) 与 盲表数量 配置控制, 此处不可编辑.</div>
+        <div style="overflow-x:auto;max-height:60vh;" id="deviceStatusPanel"></div>
+        <div style="display:flex;gap:6px;margin-top:12px;flex-wrap:wrap;">
+            <button style="flex:1;min-width:120px;padding:8px;background:#3B82F6;color:white;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:bold;" onclick="setAllDevicesStatus('installed')">全部设为安装</button>
+            <button style="flex:1;min-width:120px;padding:8px;background:#94A3B8;color:white;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:bold;" onclick="setAllDevicesStatus('not_installed')">全部设为未安装</button>
+            <button style="flex:1;min-width:100px;padding:8px;background:#22C55E;color:white;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:bold;" onclick="setAllDevicesStatus('good')">全部设为好</button>
+            <button style="flex:1;min-width:100px;padding:8px;background:#EF4444;color:white;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:bold;" onclick="setAllDevicesStatus('broken')">全部设为坏</button>
         </div>
         <div class="modal-btns">
             <button class="btn-cancel" onclick="closeDeviceManager()">关闭</button>
@@ -1391,14 +1394,19 @@ function closeDeviceManager() {
     document.getElementById('deviceModal').classList.add('hidden');
 }
 
+// 2026-06-20 4 态: 把 (NotInstalled, Broken) 翻译成下拉文本; 锁定端整 5 列灰显禁选
+function _devStatusText(notInstalled, broken) {
+    if (notInstalled) return '未安装';
+    return broken ? '坏' : '好';
+}
+function _isDeviceLeft(key) { return key.indexOf('left') === 0; }
+
 function renderDeviceStatusPanel() {
     var panel = document.getElementById('deviceStatusPanel');
-    // 从独立的laneDevices字段读取设备状态（不依赖swimmers）
     var laneDevices = data.laneDevices || [];
     var pool = data.poolConfig || {};
 
     if (laneDevices.length === 0) {
-        // 没有laneDevices数据时，用泳池配置生成空行
         var laneNumbers = pool.laneNumbers || [];
         if (laneNumbers.length === 0) {
             var count = pool.lanes || 10;
@@ -1408,8 +1416,9 @@ function renderDeviceStatusPanel() {
             laneDevices.push({lane: laneNumbers[i]});
         }
     }
+    var endLocked = (laneDevices[0] && laneDevices[0].endLocked) || 'none';   // 'left' | 'right' | 'none'
 
-    var html = '<table style="width:100%;border-collapse:collapse;font-size:13px;">';
+    var html = '<table style="width:100%;border-collapse:collapse;font-size:12px;">';
     html += '<tr style="background:#1E293B;"><th style="padding:6px;border:1px solid #475569;color:#94A3B8;">道次</th>';
     for (var d = 0; d < deviceNames.length; d++) {
         html += '<th style="padding:6px;border:1px solid #475569;color:#94A3B8;white-space:nowrap;">' + deviceNames[d].label + '</th>';
@@ -1420,14 +1429,31 @@ function renderDeviceStatusPanel() {
         var ld = laneDevices[n];
         var lane = ld.lane;
         html += '<tr>';
-        html += '<td style="padding:6px;border:1px solid #475569;text-align:center;font-weight:bold;font-size:15px;">' + lane + '</td>';
+        html += '<td style="padding:4px;border:1px solid #475569;text-align:center;font-weight:bold;font-size:14px;color:white;">' + lane + '</td>';
         for (var d = 0; d < deviceNames.length; d++) {
-            var broken = ld[deviceNames[d].key + 'Broken'] === true;
-            var bgColor = broken ? '#7F1D1D' : '#14532D';
-            var text = broken ? '坏' : '好';
-            html += '<td style="padding:4px;border:1px solid #475569;text-align:center;background:' + bgColor + ';">';
-            html += '<span style="cursor:pointer;color:white;font-weight:bold;font-size:13px;" ';
-            html += 'onclick="toggleDevice(' + lane + ',\'' + deviceNames[d].key + '\',' + (!broken) + ')">' + text + '</span>';
+            var key = deviceNames[d].key;
+            var isLeft = _isDeviceLeft(key);
+            var locked = (isLeft && endLocked === 'left') || (!isLeft && endLocked === 'right');
+            var ni = ld[key + 'NotInstalled'] === true;
+            var broken = ld[key + 'Broken'] === true;
+            var cur = _devStatusText(ni, broken);
+            var bg;
+            if (locked) bg = '#374151';
+            else if (ni) bg = '#475569';
+            else bg = broken ? '#7F1D1D' : '#14532D';
+            html += '<td style="padding:3px;border:1px solid #475569;text-align:center;background:' + bg + ';">';
+            if (locked) {
+                html += '<span style="color:#9CA3AF;font-size:12px;" title="该端受单端配置锁定">' + cur + '</span>';
+            } else {
+                html += '<select onchange="setDeviceStatus(' + lane + ',\'' + key + '\',this.value)" '
+                      + 'style="background:transparent;color:white;border:1px solid #64748B;border-radius:3px;padding:2px 4px;font-size:12px;cursor:pointer;">';
+                ['安装','未安装','好','坏'].forEach(function(opt) {
+                    var sel = (opt === cur) || (opt === '安装' && cur === '好') ? '' : '';
+                    // 显示规则: cur 实际是 未安装/好/坏 之一, "安装" 仅作为下拉选项 (等价于"好")
+                    html += '<option value="' + opt + '"' + (opt === cur ? ' selected' : '') + '>' + opt + '</option>';
+                });
+                html += '</select>';
+            }
             html += '</td>';
         }
         html += '</tr>';
@@ -1436,27 +1462,51 @@ function renderDeviceStatusPanel() {
     panel.innerHTML = html;
 }
 
-function toggleDevice(lane, device, broken) {
-    sendCmd('SET_DEVICE_STATUS', {lane: lane, device: device, status: broken ? 'broken' : 'good'});
-    addLog('泳道' + lane + ' ' + device + ' → ' + (broken ? '损坏' : '正常'));
-    // 本地立即更新laneDevices（不等服务器广播）
+function setDeviceStatus(lane, device, optText) {
+    // 下拉文本 → 协议 status (与 PC 端 SetDeviceStatus 4 态一致)
+    var status;
+    if (optText === '未安装') status = 'not_installed';
+    else if (optText === '安装') status = 'installed';
+    else if (optText === '坏')  status = 'broken';
+    else status = 'good';
+    sendCmd('SET_DEVICE_STATUS', {lane: lane, device: device, status: status});
+    addLog('泳道' + lane + ' ' + device + ' → ' + optText);
+    // 本地立即更新 (不等服务器广播)
     var ld = data.laneDevices || [];
     for (var i = 0; i < ld.length; i++) {
-        if (ld[i].lane === lane) { ld[i][device + 'Broken'] = broken; break; }
+        if (ld[i].lane === lane) {
+            if (status === 'not_installed') { ld[i][device + 'NotInstalled'] = true; ld[i][device + 'Broken'] = false; }
+            else if (status === 'installed') { ld[i][device + 'NotInstalled'] = false; ld[i][device + 'Broken'] = false; }
+            else if (status === 'broken') { ld[i][device + 'NotInstalled'] = false; ld[i][device + 'Broken'] = true; }
+            else { ld[i][device + 'NotInstalled'] = false; ld[i][device + 'Broken'] = false; }
+            break;
+        }
     }
     renderDeviceStatusPanel();
 }
 
-function setAllDevices(broken) {
+function setAllDevicesStatus(status) {
+    // status: 'installed' | 'not_installed' | 'good' | 'broken'
     var ld = data.laneDevices || [];
+    var endLocked = (ld[0] && ld[0].endLocked) || 'none';
     for (var i = 0; i < ld.length; i++) {
         for (var d = 0; d < deviceNames.length; d++) {
-            sendCmd('SET_DEVICE_STATUS', {lane: ld[i].lane, device: deviceNames[d].key, status: broken ? 'broken' : 'good'});
-            ld[i][deviceNames[d].key + 'Broken'] = broken;
+            var key = deviceNames[d].key;
+            var isLeft = _isDeviceLeft(key);
+            var locked = (isLeft && endLocked === 'left') || (!isLeft && endLocked === 'right');
+            if (locked) continue;
+            // good/broken 只对已安装设备生效, 与 UI 锁定逻辑一致
+            if ((status === 'good' || status === 'broken') && ld[i][key + 'NotInstalled']) continue;
+            sendCmd('SET_DEVICE_STATUS', {lane: ld[i].lane, device: key, status: status});
+            if (status === 'not_installed') { ld[i][key + 'NotInstalled'] = true; ld[i][key + 'Broken'] = false; }
+            else if (status === 'installed') { ld[i][key + 'NotInstalled'] = false; ld[i][key + 'Broken'] = false; }
+            else if (status === 'broken') ld[i][key + 'Broken'] = true;
+            else ld[i][key + 'Broken'] = false;
         }
     }
     renderDeviceStatusPanel();
-    addLog(broken ? '全部设备设为损坏' : '全部设备设为正常');
+    var label = status === 'installed' ? '已安装' : status === 'not_installed' ? '未安装' : status === 'broken' ? '损坏' : '正常';
+    addLog('全部设备设为' + label);
 }
 
 // ═══════ 手动按键管理 ═══════
