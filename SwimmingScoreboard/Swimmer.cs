@@ -1238,6 +1238,8 @@ namespace SwimmingScoreboard
 
         public string ReactionTimeDisplay {
             get {
+                // 2026-06-20 NaN = 反应时窗口超时未收到 SB → 显 "---"
+                if (double.IsNaN(_reactionTime)) return "---";
                 if (_reactionTime == 0) return "";
                 return _reactionTime.ToString("F2");
             }

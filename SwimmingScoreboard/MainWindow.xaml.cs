@@ -257,6 +257,8 @@ namespace SwimmingScoreboard
         private List<BackupEventInfo> _pendingBackupEvents = new List<BackupEventInfo>();
         private DispatcherTimer _raceTimer;
         private DispatcherTimer _countdownTimer;
+        // 2026-06-20 反应时收集窗口: 发令后 ReactionEventWindowSec 秒内未收到合法 SB → 标 "---" (= double.NaN)
+        private DispatcherTimer _reactionWindowTimer;
         //2026-05-16 周期性把 PC 时间下发到硬件 RTC，避免长时间运行后 RTC 漂移
         private DispatcherTimer _clockSyncTimer;
         private bool _initialized = false;
@@ -2919,8 +2921,12 @@ namespace SwimmingScoreboard
                     },
                     laneCloseCountdown = laneState != null ? laneState.LaneCloseCountdown : 0,
                     // 2026-06-04 接力比赛结束(Finished)后大屏/Web 不显反应时 (= 比赛中显当前棒)
-                    reactionTime = (_laneCloseSettings.ReactionTimeEnabled && laneState != null && laneState.ReactionTime != 0
-                                     && !(_isRelay && _raceState == RaceState.Finished)) ? laneState.ReactionTime.ToString("F2") : "",
+                    // 2026-06-20 NaN = 反应时窗口超时未收到 SB → 显 "---" (硬件没接 / 信号未到时不报抢跳)
+                    reactionTime = (_laneCloseSettings.ReactionTimeEnabled && laneState != null
+                                     && !(_isRelay && _raceState == RaceState.Finished))
+                        ? (double.IsNaN(laneState.ReactionTime) ? "---"
+                            : (laneState.ReactionTime == 0 ? "" : laneState.ReactionTime.ToString("F2")))
+                        : "",
                     // 反应时序号：每次 laneState.ReactionTime 写入即 +1，用于客户端识别"新一棒反应时"
                     // 触发大屏备注栏的反应时显示窗口（接力 4 棒共 4 个 seq）
                     reactionSeq = laneState != null ? laneState.ReactionSeq : 0,
@@ -2959,8 +2965,9 @@ namespace SwimmingScoreboard
                     recordNote = result != null ? (result.RecordNote ?? "") : "",
                     // 2026-06-18 同步 PC 端 UI 关键字段给 race_control.html (HTML 端可显示同款信息)
                     finishTpMbDispute = laneState != null && laneState.FinishTpMbDispute,
+                    // 2026-06-20 NaN → "---" (接力第 1 棒 SB 未收到时窗口超时标 NaN)
                     legReactionTimes = (_isRelay && result != null && result.LegReactionTimes != null)
-                        ? result.LegReactionTimes.Select(rt => rt.ToString("F2")).ToList<object>()
+                        ? result.LegReactionTimes.Select(rt => (object)(double.IsNaN(rt) ? "---" : rt.ToString("F2"))).ToList<object>()
                         : new List<object>(),
                     blindHistory = (_laneBlindHistory.ContainsKey(displayLane) && _laneBlindHistory[displayLane] != null)
                         ? _laneBlindHistory[displayLane].Take(20).Select(be => TimeFormatter.Format(be.TimeSeconds)).ToList<object>()
@@ -4879,6 +4886,19 @@ namespace SwimmingScoreboard
                         else if (side == "right") sbStatus = laneState.RightStartBlockStatus;
                         else {
                             AddLog(string.Format("泳道{0} 出发台 cmd side 字段缺失 (= 协议错误), 跳过处理", lane));
+                            break;
+                        }
+
+                        // 2026-06-20 守卫 A: 出发台未安装 → 直接丢弃, 不计算反应时.
+                        //   用户报: 没接出发台硬件, PC 仍算 reactionTime = 0 - GunPreStart = -142s.
+                        if (sbStatus == DeviceStatus.NotInstalled) {
+                            AddLog(string.Format("泳道{0} 出发台未安装, 忽略此 SB 帧 (不计算反应时)", lane));
+                            break;
+                        }
+                        // 2026-06-20 守卫 B: 帧时间字段 ≈ 0 → 硬件没真实信号 (上报空帧 / 通讯污染).
+                        //   原代码 reactionTime = 0 - GunPreStart 得到大负值, 误报抢跳. 留给反应时窗口 timer 兜底标 ---.
+                        if (Math.Abs(timeInSeconds) < 0.001) {
+                            AddLog(string.Format("泳道{0} SB 帧时间为 0 (= 无有效出发台信号), 忽略此帧", lane));
                             break;
                         }
 
@@ -7343,6 +7363,50 @@ namespace SwimmingScoreboard
         private static readonly SolidColorBrush _firstPlaceBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#22C55E"));
         private static readonly SolidColorBrush _runningTimeBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F59E0B"));
 
+        // 2026-06-20 反应时收集窗口: 发令时启动. ReactionEventWindowSec 秒到期后, 仍是 0 的 laneState.ReactionTime
+        //   标 double.NaN → ReactionTimeDisplay/SHOW_LIVE_RACE 投影都翻译为 "---". 裁判可手动覆盖.
+        //   只检查参赛泳道 (IsLaneReceivingData); 已写入合法反应时的 (ReactionTime != 0) 不动.
+        private void StartReactionWindowTimer() {
+            try { if (_reactionWindowTimer != null) _reactionWindowTimer.Stop(); } catch { }
+            if (_laneCloseSettings == null || !_laneCloseSettings.ReactionTimeEnabled) return;
+            double winSec = _laneCloseSettings.ReactionEventWindowSec > 0 ? _laneCloseSettings.ReactionEventWindowSec : 3.0;
+            _reactionWindowTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(winSec) };
+            _reactionWindowTimer.Tick += ReactionWindowTimer_Tick;
+            _reactionWindowTimer.Start();
+        }
+
+        private void StopReactionWindowTimer() {
+            try { if (_reactionWindowTimer != null) { _reactionWindowTimer.Stop(); _reactionWindowTimer = null; } } catch { }
+        }
+
+        private void ReactionWindowTimer_Tick(object sender, EventArgs e) {
+            try { if (_reactionWindowTimer != null) _reactionWindowTimer.Stop(); } catch { }
+            foreach (var laneState in _laneDeviceStates) {
+                if (laneState == null) continue;
+                if (!IsLaneReceivingData(laneState.Lane)) continue;          // 空泳道 / DNS/DNF 不动
+                if (laneState.ReactionTime != 0) continue;                   // 已有真实反应时 (包含负值/抢跳), 不动
+                if (double.IsNaN(laneState.ReactionTime)) continue;          // 已标过 NaN
+                laneState.ReactionTime = double.NaN;
+                AddLog(string.Format("泳道{0} 反应时窗口超时 ({1:F1}s) 未收到合法 SB 信号, 标 ---", laneState.Lane, _laneCloseSettings.ReactionEventWindowSec));
+                // 接力第 1 棒同步标 LegReactionTimes[0] = NaN
+                if (_isRelay) {
+                    var sw = GetCurrentHeatSwimmers().FirstOrDefault(s2 => {
+                        var sa2 = s2.GetAssignmentForStage(_currentStage);
+                        return (sa2 != null ? sa2.Lane : s2.Lane) == laneState.Lane;
+                    });
+                    if (sw != null) {
+                        var res = EnsureRelayLaneResult(sw, laneState.Lane);
+                        if (res != null) {
+                            EnsureLegReactionSlots(res);
+                            if (res.LegReactionTimes.Count > 0) res.LegReactionTimes[0] = double.NaN;
+                        }
+                    }
+                }
+            }
+            UpdateLaneStatusDisplay();
+            Broadcast();
+        }
+
         private void RaceTimer_Tick(object sender, EventArgs e) {
             // 发令后一直计时，不因比赛结束而停止，直到复位信号
             if (_raceStartTime != DateTime.MinValue) {
@@ -7505,6 +7569,8 @@ namespace SwimmingScoreboard
             //   非确认重赛分支, 不应该在 Ready 路径上做).
             _raceTimer.Stop();
             _countdownTimer.Stop();
+            // 2026-06-20 进 Ready 前停反应时窗口 timer (上一组未触发的窗口若残留, 进新组会误标 NaN)
+            StopReactionWindowTimer();
             _runningTime = 0;
             _raceStartTime = DateTime.MinValue;
             _hwRunningTimeAvailable = false;
@@ -7637,6 +7703,11 @@ namespace SwimmingScoreboard
             };
             sbTimer.Start();
 
+            // 2026-06-20 反应时收集窗口: 发令后 ReactionEventWindowSec 秒内还没收到合法 SB,
+            //   把仍是 0 的 laneState.ReactionTime 标 NaN → 显示 "---", 避免出现 -142.200s 这类错误数据.
+            //   裁判仍可手动输入覆盖. 接力第 1 棒同步把 LegReactionTimes[0] 标 NaN.
+            StartReactionWindowTimer();
+
             AddLog("发令 - 比赛开始");
             // 发令必须瞬时 — 参数已经在"就位"时同步给硬件了，这里只送 0x1C，硬件立刻启动计时
             if (sender != null && _timingBridge != null && _timingBridge.IsConnected) {
@@ -7721,6 +7792,8 @@ namespace SwimmingScoreboard
             // 2026-06-14 PreStart 重设计: 复位也清掉枪响 PreStart 锚点和待算反应时缓存 (= 新一场比赛干净状态)
             _gunPreStartSec = null;
             _pendingPreStartReactions.Clear();
+            // 2026-06-20 复位停反应时窗口 timer (= 跨场不能残留)
+            StopReactionWindowTimer();
             // 2026-06-16 盲表成绩历史清空 (每组开始干净状态) + 刷各泳道 ComboBox
             _laneBlindHistory.Clear();
             foreach (var rowUI in _laneRowUIs) {
