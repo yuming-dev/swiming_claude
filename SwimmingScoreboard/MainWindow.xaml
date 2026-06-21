@@ -467,9 +467,10 @@
                                                 ToolTip="从 Excel (.xlsx) 读取各项目各组的运动员分道，可在 WPS / Excel / Word 中编辑"/>
                                         <Button Content="导出分组表 (Excel)" Click="ExportHeatAssignmentsExcel_Click" Padding="15,5" Background="#16A34A" Foreground="White" BorderThickness="0" Margin="0,0,8,0"
                                                 ToolTip="导出 Excel：含「分组明细」「分组表(网格)」「填写说明」3 个工作表"/>
-                                        <Button Content="下载分组表 Excel 模板" Click="DownloadHeatAssignmentsExcelTemplate_Click" Padding="15,5" Background="#D97706" Foreground="White" BorderThickness="0" Margin="0,0,16,0"/>
-                                        <Separator Width="1" Background="#94A3B8" Margin="0,0,16,0"/>
-                                        <!-- 2026-06-21 兼容其他厂家成绩编排软件输出的 .xlsx (本程序"导出 Excel" 同款格式), 追加到现有数据 -->
+                                        <Button Content="下载分组表 Excel 模板" Click="DownloadHeatAssignmentsExcelTemplate_Click" Padding="15,5" Background="#D97706" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
+                                    </StackPanel>
+                                    <!-- 2026-06-21 兼容其他厂家成绩编排软件 — 单独一行避免挤出可视区 -->
+                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,6,0,0">
                                         <Button Content="导入(其他)日程表" Click="ImportOtherScheduleExcel_Click" Padding="15,5" Background="#1E40AF" Foreground="White" BorderThickness="0" Margin="0,0,8,0"
                                                 ToolTip="读 9 列 .xlsx (场次/时间/编号/性别/组别/项目/赛次/人(队)数/组数), 追加到现有赛程"/>
                                         <Button Content="导入(其他)分组表" Click="ImportOtherHeatExcel_Click" Padding="15,5" Background="#0369A1" Foreground="White" BorderThickness="0" Margin="0,0,8,0"
