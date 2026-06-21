@@ -16098,9 +16098,12 @@ namespace SwimmingScoreboard
                 grid.Columns.Add(new DataGridTextColumn { Header = "性别", Binding = new System.Windows.Data.Binding("Gender"), Width = new DataGridLength(40) });
                 grid.Columns.Add(new DataGridTextColumn { Header = "项目", Binding = new System.Windows.Data.Binding("EventName"), Width = new DataGridLength(160) });
                 grid.Columns.Add(new DataGridTextColumn { Header = "阶段", Binding = new System.Windows.Data.Binding("Stage"), Width = new DataGridLength(60) });
+                // 2026-06-21 加 "人(队)数" 列 (按 CountParticipants 算, 写入 ScheduleItem.ParticipantCount 供 Binding)
+                grid.Columns.Add(new DataGridTextColumn { Header = "人(队)数", Binding = new System.Windows.Data.Binding("ParticipantCount"), Width = new DataGridLength(70) });
                 grid.Columns.Add(new DataGridTextColumn { Header = "组数", Binding = new System.Windows.Data.Binding("HeatCount"), Width = new DataGridLength(50) });
 
                 // 保留 _schedule 自然顺序（支持用户自定义的比赛顺序）
+                foreach (var item in group) item.ParticipantCount = CountParticipants(item);
                 grid.ItemsSource = new ObservableCollection<ScheduleItem>(group);
                 ScheduleGroupedPanel.Children.Add(grid);
             }
@@ -21113,6 +21116,258 @@ namespace SwimmingScoreboard
             } catch (Exception ex) {
                 MessageBox.Show("导入失败: " + ex.Message, "错误");
             }
+        }
+
+        // ═══ 2026-06-21 兼容其他厂家成绩编排软件输出的 .xlsx (本程序"导出 Excel" 同款格式), 追加到现有数据 ═══
+
+        private void ImportOtherScheduleExcel_Click(object sender, RoutedEventArgs e) {
+            var dlg = new Microsoft.Win32.OpenFileDialog {
+                Filter = "Excel 工作簿|*.xlsx;*.xls",
+                Title = "导入(其他)日程表 — 9 列格式 (场次/时间/编号/性别/组别/项目/赛次/人(队)数/组数)"
+            };
+            if (dlg.ShowDialog() != true) return;
+            try {
+                int added = 0, updated = 0, skipped = 0;
+                using (var fs = new FileStream(dlg.FileName, FileMode.Open, FileAccess.Read)) {
+                    NPOI.SS.UserModel.IWorkbook wb = dlg.FileName.EndsWith(".xls", StringComparison.OrdinalIgnoreCase)
+                        ? (NPOI.SS.UserModel.IWorkbook)new NPOI.HSSF.UserModel.HSSFWorkbook(fs)
+                        : new NPOI.XSSF.UserModel.XSSFWorkbook(fs);
+                    var sh = wb.GetSheetAt(0);
+                    if (sh == null) { MessageBox.Show("Excel 中没有工作表", "错误"); return; }
+                    // 表头行 (第 1 行) 按字段名建 col 索引
+                    var head = sh.GetRow(0);
+                    if (head == null) { MessageBox.Show("首行(表头)为空", "错误"); return; }
+                    var colMap = new Dictionary<string, int>();
+                    for (int c = 0; c < head.LastCellNum; c++) {
+                        var hc = head.GetCell(c);
+                        if (hc != null) {
+                            string nm = (hc.ToString() ?? "").Trim();
+                            if (nm.Length > 0 && !colMap.ContainsKey(nm)) colMap[nm] = c;
+                        }
+                    }
+                    Func<string, int> col = nm => colMap.ContainsKey(nm) ? colMap[nm] : -1;
+                    int cSession = col("场次"), cTime = col("时间"), cEvNum = col("编号"),
+                        cGender = col("性别"), cAgeGroup = col("组别"), cEvent = col("项目"),
+                        cStage = col("赛次"), cHeatCount = col("组数");
+                    if (cGender < 0 || cEvent < 0 || cStage < 0) {
+                        MessageBox.Show("表头缺少必需列 (性别/项目/赛次)", "错误"); return;
+                    }
+                    for (int r = 1; r <= sh.LastRowNum; r++) {
+                        var row = sh.GetRow(r);
+                        if (row == null) continue;
+                        string gender = GetCellStr(row, cGender);
+                        string evName = GetCellStr(row, cEvent);
+                        string stage = GetCellStr(row, cStage);
+                        if (string.IsNullOrEmpty(gender) || string.IsNullOrEmpty(evName) || string.IsNullOrEmpty(stage)) { skipped++; continue; }
+                        string ageGroup = GetCellStr(row, cAgeGroup);
+                        string time = GetCellStr(row, cTime);
+                        int session = ParseIntOr(GetCellStr(row, cSession), 1);
+                        int evNum = ParseIntOr(GetCellStr(row, cEvNum), 0);
+                        int heatCount = ParseIntOr(GetCellStr(row, cHeatCount), 1);
+                        // 反查 _schedule (按 性别+组别+项目+赛次)
+                        var exist = _schedule.FirstOrDefault(s =>
+                            (s.Gender ?? "") == gender && (s.AgeGroup ?? "") == ageGroup
+                            && (s.EventName ?? "") == evName && (s.Stage ?? "") == stage);
+                        if (exist != null) {
+                            exist.SessionNumber = session;
+                            if (!string.IsNullOrEmpty(time)) exist.Time = time;
+                            if (evNum > 0) exist.EvNum = evNum;
+                            if (heatCount > 0) exist.HeatCount = heatCount;
+                            updated++;
+                        } else {
+                            _schedule.Add(new ScheduleItem {
+                                SessionNumber = session, EvNum = evNum, Time = time, AgeGroup = ageGroup,
+                                EventName = evName, Gender = gender, Stage = stage, HeatCount = heatCount,
+                                IsRelay = evName != null && evName.Contains("接力")
+                            });
+                            added++;
+                        }
+                    }
+                }
+                AutoSaveData();
+                RebuildScheduleGroupedView();
+                BuildScheduleTree();
+                Broadcast();
+                MessageBox.Show(string.Format("导入完成:\n  新增 {0} 项\n  更新 {1} 项\n  跳过 {2} 行", added, updated, skipped), "完成");
+                AddLog(string.Format("导入(其他)日程表: 新增{0} 更新{1} 跳过{2}", added, updated, skipped));
+            } catch (Exception ex) {
+                MessageBox.Show("导入失败: " + ex.Message, "错误");
+                AddLog("导入(其他)日程表失败: " + ex.Message);
+            }
+        }
+
+        // 网格式分组表导入. 状态机扫描:
+        //   "第 N 场 YYYY-MM-DD HH:MM" → 记录场次
+        //   "    K . 性别 项目 赛次" (前面有缩进或纯文本) → 进入项目 block, 解析性别+项目+赛次
+        //   "组\道" 表头行 → 读各列道次数字到 laneCols[]
+        //   组号数字 + 姓名行 → 接下来一行 = 单位行
+        //   按 (Gender, EventName, Name, CountryShort/Country) 反查 _swimmers: 找到→更新 Heat/Lane; 找不到→新增
+        private void ImportOtherHeatExcel_Click(object sender, RoutedEventArgs e) {
+            var dlg = new Microsoft.Win32.OpenFileDialog {
+                Filter = "Excel 工作簿|*.xlsx;*.xls",
+                Title = "导入(其他)分组表 — 网格式 (项目 block + 组号×道次)"
+            };
+            if (dlg.ShowDialog() != true) return;
+            try {
+                int updated = 0, added = 0, blanksSeen = 0;
+                int maxBib = 0;
+                foreach (var sw in _swimmers) {
+                    int n; if (int.TryParse(sw.BibNumber ?? "", out n) && n > maxBib) maxBib = n;
+                }
+                int nextBib = maxBib + 1;
+                using (var fs = new FileStream(dlg.FileName, FileMode.Open, FileAccess.Read)) {
+                    NPOI.SS.UserModel.IWorkbook wb = dlg.FileName.EndsWith(".xls", StringComparison.OrdinalIgnoreCase)
+                        ? (NPOI.SS.UserModel.IWorkbook)new NPOI.HSSF.UserModel.HSSFWorkbook(fs)
+                        : new NPOI.XSSF.UserModel.XSSFWorkbook(fs);
+                    var sh = wb.GetSheetAt(0);
+                    if (sh == null) { MessageBox.Show("Excel 中没有工作表", "错误"); return; }
+
+                    string curGender = "", curEvent = "", curStage = "", curAgeGroup = "";
+                    string curSessionDate = "", curSessionTime = "";
+                    int curSession = 1;
+                    int[] laneCols = null;
+                    int curEvNum = 0;
+                    int pendingHeat = -1;   // 待解析: 已看到组号行, 等单位行
+                    Dictionary<int, string> pendingNames = null;   // lane → name (来自姓名行)
+
+                    for (int r = 0; r <= sh.LastRowNum; r++) {
+                        var row = sh.GetRow(r);
+                        if (row == null) { blanksSeen++; continue; }
+                        string c0 = GetCellStr(row, 0);
+                        // 合并标题/副标题行 (含 "竞赛分组表" 等) — 直接跳过
+                        if (c0.Contains("竞赛分组表") || c0.Contains("赛事") || c0.Contains("游泳比赛")) continue;
+                        // "第 N 场 日期 时间"
+                        var mSess = System.Text.RegularExpressions.Regex.Match(c0,
+                            @"第\s*(\d+)\s*场\s*(\d{4}-\d{1,2}-\d{1,2})?\s*(\d{1,2}:\d{2})?");
+                        if (mSess.Success) {
+                            curSession = int.Parse(mSess.Groups[1].Value);
+                            if (mSess.Groups[2].Success) curSessionDate = mSess.Groups[2].Value;
+                            if (mSess.Groups[3].Success) curSessionTime = mSess.Groups[3].Value;
+                            continue;
+                        }
+                        // "K . 性别 项目 赛次" (本程序导出: "    K . [组别] 性别 项目 赛次")
+                        var mEv = System.Text.RegularExpressions.Regex.Match(c0,
+                            @"^\s*(\d+)\s*\.\s*(?:\[([^\]]+)\]\s*)?(男子|女子|混合)\s+(\S+)\s+(预赛|决赛|半决赛|复赛|资格赛)");
+                        if (mEv.Success) {
+                            // Flush 上一项目未完待续 (一般不会有)
+                            curEvNum = int.Parse(mEv.Groups[1].Value);
+                            curAgeGroup = mEv.Groups[2].Success ? mEv.Groups[2].Value : "";
+                            curGender = mEv.Groups[3].Value;
+                            curEvent = mEv.Groups[4].Value;
+                            curStage = mEv.Groups[5].Value;
+                            laneCols = null;
+                            pendingHeat = -1;
+                            pendingNames = null;
+                            continue;
+                        }
+                        // "组\道" 表头
+                        if (c0.Contains("组") && c0.Contains("道")) {
+                            laneCols = new int[row.LastCellNum + 1];
+                            for (int i = 0; i < laneCols.Length; i++) laneCols[i] = -1;
+                            for (int c = 1; c < row.LastCellNum; c++) {
+                                string v = GetCellStr(row, c);
+                                int ln; if (int.TryParse(v, out ln)) laneCols[c] = ln;
+                            }
+                            continue;
+                        }
+                        // 组号 + 姓名行
+                        if (laneCols != null && !string.IsNullOrEmpty(curGender) && !string.IsNullOrEmpty(curEvent)) {
+                            int heat; if (int.TryParse(c0, out heat) && heat > 0) {
+                                pendingHeat = heat;
+                                pendingNames = new Dictionary<int, string>();
+                                for (int c = 1; c < laneCols.Length; c++) {
+                                    if (laneCols[c] <= 0) continue;
+                                    string nm = (GetCellStr(row, c) ?? "").Replace(" ", "").Trim();
+                                    if (!string.IsNullOrEmpty(nm)) pendingNames[laneCols[c]] = nm;
+                                }
+                                continue;
+                            }
+                            // 单位行 (c0 通常为空, pendingHeat 有效)
+                            if (pendingHeat > 0 && pendingNames != null) {
+                                for (int c = 1; c < laneCols.Length; c++) {
+                                    if (laneCols[c] <= 0) continue;
+                                    int lane = laneCols[c];
+                                    if (!pendingNames.ContainsKey(lane)) continue;
+                                    string name = pendingNames[lane];
+                                    string country = (GetCellStr(row, c) ?? "").Trim();
+                                    if (string.IsNullOrEmpty(name)) continue;
+                                    // 反查 _swimmers (姓名去空格 + 单位 + 项目 + 性别)
+                                    var sw = _swimmers.FirstOrDefault(x =>
+                                        (x.Gender ?? "") == curGender
+                                        && (x.EventName ?? "") == curEvent
+                                        && ((x.Name ?? "").Replace(" ", "").Trim()) == name
+                                        && (((x.CountryShort ?? "").Trim() == country) || ((x.Country ?? "").Trim() == country)));
+                                    if (sw != null) {
+                                        sw.CurrentStage = curStage;
+                                        sw.Heat = pendingHeat; sw.Lane = lane;
+                                        sw.SetStageAssignment(curStage, pendingHeat, lane, sw.EntryTimeSeconds, sw.EntryTime);
+                                        updated++;
+                                    } else {
+                                        var nsw = new Swimmer {
+                                            Name = name, BibNumber = (nextBib++).ToString("000"),
+                                            Gender = curGender, Country = country, CountryShort = country,
+                                            EventName = curEvent, CurrentStage = curStage,
+                                            Heat = pendingHeat, Lane = lane,
+                                            AgeCategory = curAgeGroup
+                                        };
+                                        nsw.SetStageAssignment(curStage, pendingHeat, lane, 0, "");
+                                        _swimmers.Add(nsw);
+                                        added++;
+                                    }
+                                }
+                                // 同步 _schedule 项目 (若缺) + 更新 HeatCount
+                                var sched = _schedule.FirstOrDefault(s =>
+                                    (s.Gender ?? "") == curGender && (s.EventName ?? "") == curEvent
+                                    && (s.Stage ?? "") == curStage && (s.AgeGroup ?? "") == curAgeGroup);
+                                if (sched == null) {
+                                    _schedule.Add(new ScheduleItem {
+                                        SessionNumber = curSession, EvNum = curEvNum,
+                                        Date = curSessionDate, Time = curSessionTime,
+                                        AgeGroup = curAgeGroup, Gender = curGender,
+                                        EventName = curEvent, Stage = curStage,
+                                        HeatCount = pendingHeat,
+                                        IsRelay = curEvent.Contains("接力")
+                                    });
+                                } else if (pendingHeat > sched.HeatCount) {
+                                    sched.HeatCount = pendingHeat;
+                                }
+                                pendingHeat = -1;
+                                pendingNames = null;
+                            }
+                        }
+                    }
+                }
+                AutoSaveData();
+                RebuildScheduleGroupedView();
+                BuildScheduleTree();
+                RefreshSwimmerFilter();
+                Broadcast();
+                MessageBox.Show(string.Format("导入完成:\n  更新已有运动员 {0} 人\n  新增运动员 {1} 人", updated, added), "完成");
+                AddLog(string.Format("导入(其他)分组表: 更新{0} 新增{1}", updated, added));
+            } catch (Exception ex) {
+                MessageBox.Show("导入失败: " + ex.Message, "错误");
+                AddLog("导入(其他)分组表失败: " + ex.Message);
+            }
+        }
+
+        // helper: 取 cell 字符串 (null safe)
+        private static string GetCellStr(NPOI.SS.UserModel.IRow row, int col) {
+            if (row == null || col < 0) return "";
+            var c = row.GetCell(col);
+            if (c == null) return "";
+            try {
+                if (c.CellType == NPOI.SS.UserModel.CellType.Numeric) {
+                    double v = c.NumericCellValue;
+                    if (v == Math.Floor(v) && !double.IsInfinity(v)) return ((long)v).ToString();
+                    return v.ToString();
+                }
+                return (c.ToString() ?? "").Trim();
+            } catch { return ""; }
+        }
+
+        private static int ParseIntOr(string s, int dflt) {
+            if (string.IsNullOrEmpty(s)) return dflt;
+            int n; return int.TryParse(s.Trim(), out n) ? n : dflt;
         }
 
         private void DownloadHeatAssignmentsExcelTemplate_Click(object sender, RoutedEventArgs e) {

@@ -1392,6 +1392,14 @@ namespace SwimmingScoreboard
             set { _isRelay = value; OnPropertyChanged("IsRelay"); }
         }
 
+        // 2026-06-21 赛程管理 DataGrid 显示用 "人(队)数" 列, 非持久化字段, 由 RebuildScheduleGroupedView 填值
+        private int _participantCount;
+        [Newtonsoft.Json.JsonIgnore]
+        public int ParticipantCount {
+            get { return _participantCount; }
+            set { _participantCount = value; OnPropertyChanged("ParticipantCount"); }
+        }
+
         public string DisplayText {
             get {
                 return string.Format("{0} {1} {2}", _gender, _eventName, _stage);
