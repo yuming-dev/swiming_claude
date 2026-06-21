@@ -21990,7 +21990,8 @@ namespace SwimmingScoreboard
                 sb.Append("<table><tr align='center'><th width='60'>时间</th><th width='70'>编号</th><th width='50'>性别</th><th width='70'>组别</th><th>项目</th><th width='70'>赛次</th><th width='70'>人(队)数</th><th width='50'>组数</th></tr>");
                 foreach (var s in session) {
                     int participants = CountParticipants(s);
-                    sb.AppendFormat("<tr><td>{0}</td><td><b>{1}</b></td><td>{2}</td><td>{3}</td><td style='text-align:left;'>{4}</td><td>{5}</td><td>{6}</td><td>{7}</td></tr>",
+                    // 2026-06-21 "项目" 列删 text-align:left 改为默认居中
+                    sb.AppendFormat("<tr><td>{0}</td><td><b>{1}</b></td><td>{2}</td><td>{3}</td><td>{4}</td><td>{5}</td><td>{6}</td><td>{7}</td></tr>",
                         s.Time,
                         EventNumberLabel(evtMap, s.Gender, s.EventName, s.AgeGroup),
                         s.Gender,
