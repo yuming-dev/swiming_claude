@@ -1747,7 +1747,8 @@ function _refreshRaceRows() {
         var rsi2 = _realSplitInfoOf(sw);
         var realSplitCount = rsi2.count;
         var lastRealSplitStr = rsi2.last;
-        var hasReaction = sw.reactionTime && sw.reactionTime !== '';
+        // 2026-06-20 "---" = 反应时窗口超时未收到 SB, 与 PC 控制台 / race_control 一致, 大屏也完全不显
+        var hasReaction = sw.reactionTime && sw.reactionTime !== '' && sw.reactionTime !== '---';
         // 检测"新一棒反应时"，同时给两条触发路径以兼容新旧服务器：
         //   (1) 优先使用服务器送来的 reactionSeq（每次写 ReactionTime 自增）
         //   (2) 老服务器无 reactionSeq 字段时，退回比较 reactionTime 字符串
