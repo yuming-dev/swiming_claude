@@ -21968,8 +21968,13 @@ namespace SwimmingScoreboard
             var sb = new StringBuilder();
             sb.AppendFormat("<html><head><meta charset='UTF-8'><style>{0}</style></head><body>", DocCss());
             sb.Append(DocHeader("竞 赛 日 程"));
-            sb.AppendFormat("<h4>日期：{0} - {1} &nbsp;&nbsp;&nbsp;&nbsp; 地点：{2}</h4>",
-                GetDatePickerText(StartDatePicker), GetDatePickerText(EndDatePicker), LocationBox.Text);
+            // 2026-06-21 单天比赛只显 1 个日期 (避免 "2026-06-22 - 2026-06-22" 重复); 多天显范围
+            {
+                string sd = GetDatePickerText(StartDatePicker);
+                string ed = GetDatePickerText(EndDatePicker);
+                string dateLbl = (!string.IsNullOrEmpty(sd) && sd == ed) ? sd : (sd + " - " + ed);
+                sb.AppendFormat("<h4>日期：{0} &nbsp;&nbsp;&nbsp;&nbsp; 地点：{1}</h4>", dateLbl, LocationBox.Text);
+            }
 
             var evtMap = BuildEventNumberMap();
 
@@ -21980,16 +21985,19 @@ namespace SwimmingScoreboard
                 sb.AppendFormat("<h3>第{0}场 {1} {2}</h3>", session.Key,
                     !string.IsNullOrEmpty(first.Date) ? first.Date : "",
                     ComputeSessionTimeRange(session));
-                // 2026-06-04 顺序统一: 时间 / 编号 / 性别 / 组别 / 项目 / 赛次 / 组数 (性别 在 组别 前)
-                sb.Append("<table><tr align='center'><th width='60'>时间</th><th width='70'>编号</th><th width='50'>性别</th><th width='70'>组别</th><th>项目</th><th width='70'>赛次</th><th width='50'>组数</th></tr>");
+                // 2026-06-04 顺序统一: 时间 / 编号 / 性别 / 组别 / 项目 / 赛次 / 人(队)数 / 组数
+                // 2026-06-21 加 "人(队)数" 列 (按 (性别, 项目, 组别, 赛次) 反查 _swimmers 计数)
+                sb.Append("<table><tr align='center'><th width='60'>时间</th><th width='70'>编号</th><th width='50'>性别</th><th width='70'>组别</th><th>项目</th><th width='70'>赛次</th><th width='70'>人(队)数</th><th width='50'>组数</th></tr>");
                 foreach (var s in session) {
-                    sb.AppendFormat("<tr><td>{0}</td><td><b>{1}</b></td><td>{2}</td><td>{3}</td><td style='text-align:left;'>{4}</td><td>{5}</td><td>{6}</td></tr>",
+                    int participants = CountParticipants(s);
+                    sb.AppendFormat("<tr><td>{0}</td><td><b>{1}</b></td><td>{2}</td><td>{3}</td><td style='text-align:left;'>{4}</td><td>{5}</td><td>{6}</td><td>{7}</td></tr>",
                         s.Time,
                         EventNumberLabel(evtMap, s.Gender, s.EventName, s.AgeGroup),
                         s.Gender,
                         s.AgeGroup ?? "",
                         s.EventName,
                         s.Stage,
+                        participants > 0 ? participants.ToString() : "",
                         s.HeatCount > 0 ? s.HeatCount.ToString() : "");
                 }
                 sb.Append("</table>");
@@ -21998,6 +22006,246 @@ namespace SwimmingScoreboard
             sb.Append(DocFooter());
             sb.Append("</body></html>");
             return sb.ToString();
+        }
+
+        // 2026-06-21 按 (Gender, EventName, AgeGroup, Stage) 反查 _swimmers 数, 用于竞赛日程/分组表的"人(队)数"列
+        //   注意 swimmer.AgeCategory (运动员身上)对应 ScheduleItem.AgeGroup (项目设置), 空串视为相同 "不限组别"
+        private int CountParticipants(ScheduleItem s) {
+            if (s == null) return 0;
+            string sg = s.Gender ?? "", se = s.EventName ?? "", sa = s.AgeGroup ?? "", st = s.Stage ?? "";
+            return _swimmers.Count(sw =>
+                (sw.Gender ?? "") == sg
+                && (sw.EventName ?? "") == se
+                && (sw.AgeCategory ?? "") == sa
+                && (sw.CurrentStage ?? "") == st);
+        }
+
+        // ═══ 2026-06-21 竞赛日程 → 导出 Excel ═══
+        private void ExportScheduleExcel_Click(object sender, RoutedEventArgs e) {
+            var dlg = new Microsoft.Win32.SaveFileDialog {
+                Filter = "Excel 工作簿|*.xlsx",
+                FileName = "竞赛日程_" + DateTime.Now.ToString("yyyyMMdd_HHmmss") + ".xlsx",
+                Title = "导出竞赛日程 Excel"
+            };
+            if (dlg.ShowDialog() != true) return;
+            try {
+                BuildScheduleExcel(dlg.FileName);
+                AddLog("已导出竞赛日程 Excel: " + dlg.FileName);
+                try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(dlg.FileName) { UseShellExecute = true }); } catch { }
+            } catch (Exception ex) {
+                AddLog("导出竞赛日程 Excel 失败: " + ex.Message);
+                MessageBox.Show("导出失败: " + ex.Message, "错误");
+            }
+        }
+
+        private void BuildScheduleExcel(string path) {
+            var wb = new NPOI.XSSF.UserModel.XSSFWorkbook();
+            var sh = wb.CreateSheet("竞赛日程");
+            var head = sh.CreateRow(0);
+            string[] headers = new[] { "场次", "时间", "编号", "性别", "组别", "项目", "赛次", "人(队)数", "组数" };
+            var headStyle = wb.CreateCellStyle();
+            var headFont = wb.CreateFont(); headFont.IsBold = true; headStyle.SetFont(headFont);
+            headStyle.Alignment = NPOI.SS.UserModel.HorizontalAlignment.Center;
+            for (int i = 0; i < headers.Length; i++) {
+                var c = head.CreateCell(i); c.SetCellValue(headers[i]); c.CellStyle = headStyle;
+            }
+            var evtMap = BuildEventNumberMap();
+            int r = 1;
+            var sessions = _schedule.GroupBy(s => s.SessionNumber).OrderBy(g => g.Key);
+            foreach (var session in sessions) {
+                foreach (var s in session) {
+                    int participants = CountParticipants(s);
+                    var row = sh.CreateRow(r++);
+                    row.CreateCell(0).SetCellValue(session.Key);
+                    row.CreateCell(1).SetCellValue(s.Time ?? "");
+                    row.CreateCell(2).SetCellValue(EventNumberLabel(evtMap, s.Gender, s.EventName, s.AgeGroup));
+                    row.CreateCell(3).SetCellValue(s.Gender ?? "");
+                    row.CreateCell(4).SetCellValue(s.AgeGroup ?? "");
+                    row.CreateCell(5).SetCellValue(s.EventName ?? "");
+                    row.CreateCell(6).SetCellValue(s.Stage ?? "");
+                    row.CreateCell(7).SetCellValue(participants);
+                    row.CreateCell(8).SetCellValue(s.HeatCount);
+                }
+            }
+            for (int i = 0; i < headers.Length; i++) sh.AutoSizeColumn(i);
+            using (var fs = new FileStream(path, FileMode.Create, FileAccess.Write)) { wb.Write(fs); }
+        }
+
+        // ═══ 2026-06-21 分组表 → 输出/打印 (HTML) ═══
+        private void PrintHeatAssignments_Click(object sender, RoutedEventArgs e) {
+            GenerateAndOpenDocument("分组表", BuildHeatAssignmentsHtml());
+        }
+
+        private string BuildHeatAssignmentsHtml() {
+            var sb = new StringBuilder();
+            sb.AppendFormat("<html><head><meta charset='UTF-8'><style>{0}</style></head><body>", DocCss());
+            sb.Append(DocHeader("竞 赛 分 组 表"));
+            // 2026-06-21 单天比赛只显 1 个日期, 避免重复 (各场次 h3 已有日期)
+            {
+                string sd = GetDatePickerText(StartDatePicker);
+                string ed = GetDatePickerText(EndDatePicker);
+                string dateLbl = (!string.IsNullOrEmpty(sd) && sd == ed) ? sd : (sd + " - " + ed);
+                sb.AppendFormat("<h4>日期：{0} &nbsp;&nbsp;&nbsp;&nbsp; 地点：{1}</h4>", dateLbl, LocationBox.Text);
+            }
+
+            var evtMap = BuildEventNumberMap();
+            var laneNums = (_poolConfig != null && _poolConfig.LaneNumbers != null && _poolConfig.LaneNumbers.Count > 0)
+                ? _poolConfig.LaneNumbers : new List<int> { 1, 2, 3, 4, 5, 6, 7, 8 };
+
+            var sessions = _schedule.GroupBy(s => s.SessionNumber).OrderBy(g => g.Key);
+            foreach (var session in sessions) {
+                var first = session.First();
+                sb.AppendFormat("<h3>第{0}场 {1} {2}</h3>", session.Key,
+                    !string.IsNullOrEmpty(first.Date) ? first.Date : "",
+                    !string.IsNullOrEmpty(first.Time) ? first.Time : "");
+                foreach (var s in session) {
+                    int evNum;
+                    int.TryParse(EventNumberLabel(evtMap, s.Gender, s.EventName, s.AgeGroup), out evNum);
+                    int participants = CountParticipants(s);
+                    string agLabel = string.IsNullOrEmpty(s.AgeGroup) ? "" : ("[" + s.AgeGroup + "] ");
+                    sb.AppendFormat("<h4>{0} . {1}{2} {3} {4} &nbsp;&nbsp; {5} 人 &nbsp; {6} 组</h4>",
+                        evNum > 0 ? evNum.ToString() : "-", agLabel, s.Gender, s.EventName, s.Stage,
+                        participants, s.HeatCount);
+
+                    // 项目内运动员
+                    string sg = s.Gender ?? "", se = s.EventName ?? "", sa = s.AgeGroup ?? "", sst = s.Stage ?? "";
+                    var swims = _swimmers.Where(sw =>
+                        (sw.Gender ?? "") == sg && (sw.EventName ?? "") == se
+                        && (sw.AgeCategory ?? "") == sa && (sw.CurrentStage ?? "") == sst).ToList();
+
+                    sb.Append("<table><tr align='center'><th width='50'>组\\道</th>");
+                    foreach (var ln in laneNums) sb.AppendFormat("<th>{0}</th>", ln);
+                    sb.Append("</tr>");
+                    int heatCount = s.HeatCount > 0 ? s.HeatCount : 1;
+                    for (int h = 1; h <= heatCount; h++) {
+                        sb.AppendFormat("<tr><td><b>{0}</b></td>", h);
+                        foreach (var ln in laneNums) {
+                            var sw = swims.FirstOrDefault(x => x.Heat == h && x.Lane == ln);
+                            if (sw != null) {
+                                string nm = (sw.Name ?? "").Trim();
+                                string tm = !string.IsNullOrEmpty(sw.CountryShort) ? sw.CountryShort : (sw.Country ?? "");
+                                sb.AppendFormat("<td>{0}<br/><span style='color:#475569;font-size:12px;'>{1}</span></td>", nm, tm);
+                            } else {
+                                sb.Append("<td>&nbsp;</td>");
+                            }
+                        }
+                        sb.Append("</tr>");
+                    }
+                    sb.Append("</table>");
+                }
+            }
+            sb.Append(DocSignatureRow());
+            sb.Append(DocFooter());
+            sb.Append("</body></html>");
+            return sb.ToString();
+        }
+
+        // ═══ 2026-06-21 分组表 → 导出 Excel (秩序单 .xls 网格式, 与已有 3-sheet 版 ExportHeatAssignmentsExcel_Click 区分) ═══
+        private void ExportHeatAssignmentsGridExcel_Click(object sender, RoutedEventArgs e) {
+            var dlg = new Microsoft.Win32.SaveFileDialog {
+                Filter = "Excel 工作簿|*.xlsx",
+                FileName = "分组表_" + DateTime.Now.ToString("yyyyMMdd_HHmmss") + ".xlsx",
+                Title = "导出分组表 Excel"
+            };
+            if (dlg.ShowDialog() != true) return;
+            try {
+                BuildHeatAssignmentsGridExcel(dlg.FileName);
+                AddLog("已导出分组表 Excel: " + dlg.FileName);
+                try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(dlg.FileName) { UseShellExecute = true }); } catch { }
+            } catch (Exception ex) {
+                AddLog("导出分组表 Excel 失败: " + ex.Message);
+                MessageBox.Show("导出失败: " + ex.Message, "错误");
+            }
+        }
+
+        private void BuildHeatAssignmentsGridExcel(string path) {
+            var wb = new NPOI.XSSF.UserModel.XSSFWorkbook();
+            var sh = wb.CreateSheet("竞赛分组表");
+            var laneNums = (_poolConfig != null && _poolConfig.LaneNumbers != null && _poolConfig.LaneNumbers.Count > 0)
+                ? _poolConfig.LaneNumbers : new List<int> { 1, 2, 3, 4, 5, 6, 7, 8 };
+            int colCount = 1 + laneNums.Count;
+
+            var boldStyle = wb.CreateCellStyle();
+            var boldFont = wb.CreateFont(); boldFont.IsBold = true; boldStyle.SetFont(boldFont);
+            boldStyle.Alignment = NPOI.SS.UserModel.HorizontalAlignment.Center;
+            var centerStyle = wb.CreateCellStyle();
+            centerStyle.Alignment = NPOI.SS.UserModel.HorizontalAlignment.Center;
+            centerStyle.WrapText = true;
+
+            int r = 0;
+            // 标题
+            var tRow = sh.CreateRow(r++);
+            var tCell = tRow.CreateCell(0); tCell.SetCellValue(_competitionName ?? "游泳比赛"); tCell.CellStyle = boldStyle;
+            sh.AddMergedRegion(new NPOI.SS.Util.CellRangeAddress(r - 1, r - 1, 0, colCount - 1));
+            var t2Row = sh.CreateRow(r++);
+            var t2Cell = t2Row.CreateCell(0); t2Cell.SetCellValue("竞赛分组表"); t2Cell.CellStyle = boldStyle;
+            sh.AddMergedRegion(new NPOI.SS.Util.CellRangeAddress(r - 1, r - 1, 0, colCount - 1));
+            r++;   // 空行
+
+            var evtMap = BuildEventNumberMap();
+            var sessions = _schedule.GroupBy(s => s.SessionNumber).OrderBy(g => g.Key);
+            foreach (var session in sessions) {
+                var first = session.First();
+                var sRow = sh.CreateRow(r++);
+                var sCell = sRow.CreateCell(0);
+                sCell.SetCellValue(string.Format("第 {0} 场    {1}   {2}", session.Key, first.Date ?? "", first.Time ?? ""));
+                sCell.CellStyle = boldStyle;
+                sh.AddMergedRegion(new NPOI.SS.Util.CellRangeAddress(r - 1, r - 1, 0, colCount - 1));
+                r++;   // 空行
+
+                foreach (var s in session) {
+                    int evNum;
+                    int.TryParse(EventNumberLabel(evtMap, s.Gender, s.EventName, s.AgeGroup), out evNum);
+                    int participants = CountParticipants(s);
+                    string agLabel = string.IsNullOrEmpty(s.AgeGroup) ? "" : ("[" + s.AgeGroup + "] ");
+                    // 项目标题行
+                    var titleRow = sh.CreateRow(r++);
+                    var titleCell = titleRow.CreateCell(0);
+                    titleCell.SetCellValue(string.Format("    {0} . {1}{2} {3} {4}",
+                        evNum > 0 ? evNum.ToString() : "-", agLabel, s.Gender, s.EventName, s.Stage));
+                    titleCell.CellStyle = boldStyle;
+                    sh.AddMergedRegion(new NPOI.SS.Util.CellRangeAddress(r - 1, r - 1, 0, colCount - 3));
+                    var pCell = titleRow.CreateCell(colCount - 2); pCell.SetCellValue(participants + " 人"); pCell.CellStyle = boldStyle;
+                    var gCell = titleRow.CreateCell(colCount - 1); gCell.SetCellValue(s.HeatCount + " 组"); gCell.CellStyle = boldStyle;
+
+                    // 道次表头
+                    var laneHead = sh.CreateRow(r++);
+                    var lhCell = laneHead.CreateCell(0); lhCell.SetCellValue("组\\道"); lhCell.CellStyle = boldStyle;
+                    for (int i = 0; i < laneNums.Count; i++) {
+                        var c = laneHead.CreateCell(i + 1); c.SetCellValue(laneNums[i]); c.CellStyle = boldStyle;
+                    }
+
+                    // 该项目运动员
+                    string sg = s.Gender ?? "", se = s.EventName ?? "", sa = s.AgeGroup ?? "", sst = s.Stage ?? "";
+                    var swims = _swimmers.Where(sw =>
+                        (sw.Gender ?? "") == sg && (sw.EventName ?? "") == se
+                        && (sw.AgeCategory ?? "") == sa && (sw.CurrentStage ?? "") == sst).ToList();
+                    int heatCount = s.HeatCount > 0 ? s.HeatCount : 1;
+                    for (int h = 1; h <= heatCount; h++) {
+                        var nameRow = sh.CreateRow(r++);
+                        var hCell = nameRow.CreateCell(0); hCell.SetCellValue(h); hCell.CellStyle = boldStyle;
+                        var teamRow = sh.CreateRow(r++);
+                        teamRow.CreateCell(0).SetCellValue("");
+                        for (int i = 0; i < laneNums.Count; i++) {
+                            int ln = laneNums[i];
+                            var sw = swims.FirstOrDefault(x => x.Heat == h && x.Lane == ln);
+                            if (sw != null) {
+                                var nc = nameRow.CreateCell(i + 1); nc.SetCellValue((sw.Name ?? "").Trim()); nc.CellStyle = centerStyle;
+                                string tm = !string.IsNullOrEmpty(sw.CountryShort) ? sw.CountryShort : (sw.Country ?? "");
+                                var tc = teamRow.CreateCell(i + 1); tc.SetCellValue(tm); tc.CellStyle = centerStyle;
+                            } else {
+                                nameRow.CreateCell(i + 1).SetCellValue("");
+                                teamRow.CreateCell(i + 1).SetCellValue("");
+                            }
+                        }
+                        r++;   // 项目内组间空行
+                    }
+                    r++;   // 项目间空行
+                }
+            }
+            for (int i = 0; i < colCount; i++) sh.SetColumnWidth(i, 12 * 256);
+            sh.SetColumnWidth(0, 8 * 256);
+            using (var fs = new FileStream(path, FileMode.Create, FileAccess.Write)) { wb.Write(fs); }
         }
 
         // 项目编号：基于赛程顺序为每个 (性别, 项目) 分配唯一编号；不在赛程内的项目按字典序排在末尾

@@ -1688,9 +1688,22 @@
                                         <StackPanel>
                                             <TextBlock Text="竞赛日程" Style="{StaticResource DocTitle}"/>
                                             <TextBlock Style="{StaticResource DocSub}"
-                                                       Text="按场次列出比赛日期/时间/项目编号/赛次/组数。"/>
+                                                       Text="按场次列出比赛日期/时间/项目编号/性别/组别/项目/赛次/人(队)数/组数。"/>
                                             <StackPanel Orientation="Horizontal">
                                                 <Button Content="输出 / 打印" Click="PrintSchedule_Click" Background="#3B82F6" Style="{StaticResource DocActionBtn}"/>
+                                                <Button Content="导出 Excel" Click="ExportScheduleExcel_Click" Background="#16A34A" Style="{StaticResource DocActionBtn}"/>
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </Border>
+                                    <!-- 2026-06-21 分组表卡片: 网格式 (项目 → 组号×道次, cell=姓名+代表队), 参照 2026甘肃群众组-秩序单.xls 同款 -->
+                                    <Border Style="{StaticResource DocCardBorder}">
+                                        <StackPanel>
+                                            <TextBlock Text="分组表" Style="{StaticResource DocTitle}"/>
+                                            <TextBlock Style="{StaticResource DocSub}"
+                                                       Text="按项目列出 组号×道次 的运动员姓名+代表队 (网格式, 参照秩序单 .xls)。"/>
+                                            <StackPanel Orientation="Horizontal">
+                                                <Button Content="输出 / 打印" Click="PrintHeatAssignments_Click" Background="#0EA5E9" Style="{StaticResource DocActionBtn}"/>
+                                                <Button Content="导出 Excel" Click="ExportHeatAssignmentsGridExcel_Click" Background="#16A34A" Style="{StaticResource DocActionBtn}"/>
                                             </StackPanel>
                                         </StackPanel>
                                     </Border>
