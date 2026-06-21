@@ -405,6 +405,26 @@ namespace SwimmingScoreboard
             } catch { }
             return -1;
         }
+        // 2026-06-20 扩展: 同时取 占用% + 物理总量GB + 可用GB. 失败返 false, 此时显示退回 "进程 MB" 单字段
+        private static bool GetSystemMemoryInfo(out int loadPct, out double totalGB, out double availGB) {
+            loadPct = -1; totalGB = 0; availGB = 0;
+            try {
+                var m = new MEMORYSTATUSEX();
+                m.dwLength = (uint)System.Runtime.InteropServices.Marshal.SizeOf(typeof(MEMORYSTATUSEX));
+                if (GlobalMemoryStatusEx(ref m)) {
+                    loadPct = (int)m.dwMemoryLoad;
+                    totalGB = m.ullTotalPhys / 1073741824.0;
+                    availGB = m.ullAvailPhys / 1073741824.0;
+                    return true;
+                }
+            } catch { }
+            return false;
+        }
+        // 2026-06-20 SetProcessWorkingSetSize(handle, -1, -1) 把本进程 WS 压到最小, 视觉上立即降 MB.
+        //   实质把部分页移到 PageFile, 重新访问时调回 — 用户主动按"释放内存"接受此延迟.
+        [System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true)]
+        [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
+        private static extern bool SetProcessWorkingSetSize(IntPtr hProcess, IntPtr dwMinimumWorkingSetSize, IntPtr dwMaximumWorkingSetSize);
 
         private void StartMemoryMonitorAndPeriodicGc() {
             try {
@@ -413,16 +433,17 @@ namespace SwimmingScoreboard
                     try {
                         if (MemoryStatusText == null) return;
                         long ws = System.Diagnostics.Process.GetCurrentProcess().WorkingSet64;
-                        int gen2 = GC.CollectionCount(2);
                         double mb = ws / 1048576.0;
-                        int load = GetSystemMemoryLoadPercent();   // 系统内存占用率 %
-                        // 2026-06-15 显示 本进程MB + 系统内存占用% (G2 仍留作泄漏观测)
-                        MemoryStatusText.Text = load >= 0
-                            ? string.Format("{0:F0}MB 占用{1}% G2:{2}", mb, load, gen2)
-                            : string.Format("{0:F0} MB / G2:{1}", mb, gen2);
+                        // 2026-06-20 显示格式 (A): "本进程 350MB · 剩余 12.3/16.0GB · 占用 23%"
+                        //   取不到系统信息退回 "350MB". G2 字段移除 (用户长跑泄漏不关心).
+                        int load; double totalGB, availGB;
+                        bool hasSys = GetSystemMemoryInfo(out load, out totalGB, out availGB);
+                        MemoryStatusText.Text = hasSys
+                            ? string.Format("{0:F0}MB · 剩余 {1:F1}/{2:F1}GB · 占用 {3}%", mb, availGB, totalGB, load)
+                            : string.Format("{0:F0}MB", mb);
                         // 颜色提示(按系统内存占用率): >=80% 红(吃紧提示), 60-80% 琥珀, <60% 绿; 取不到则退回按 MB
                         string memCol;
-                        if (load >= 0) memCol = load >= 80 ? "#EF4444" : (load >= 60 ? "#F59E0B" : "#22C55E");
+                        if (hasSys) memCol = load >= 80 ? "#EF4444" : (load >= 60 ? "#F59E0B" : "#22C55E");
                         else memCol = mb >= 1000 ? "#EF4444" : (mb >= 500 ? "#F59E0B" : "#22C55E");
                         MemoryStatusText.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString(memCol));
                     } catch { }
@@ -440,17 +461,24 @@ namespace SwimmingScoreboard
         }
 
         // 2026-06-20 手动释放内存 (顶栏 ♻ 按钮 + race_control.html RELEASE_MEMORY 远程命令).
-        //   现有 5 分钟 _periodicGcTimer 是 Optimized 非阻塞兜底, 不强力. 本路径是 .NET 4.5 兼容的
-        //   强制 GC: Collect → WaitForPendingFinalizers → Collect, 真正回收所有可回收对象 + 终结器对象.
-        //   (.NET 4.5 不支持 LOH 紧凑 API, 那是 4.5.1+). 大堆下可能让 UI 卡 1-2 秒 — 用户主动触发可接受.
+        //   两步:
+        //     (1) 强制 GC: Collect → WaitForPendingFinalizers → Collect, 回收可回收对象 + 终结器对象
+        //     (2) SetProcessWorkingSetSize(-1, -1): OS 把本进程 WS 压到最小 (视觉上立即降 MB),
+        //         实质把部分页移到 PageFile, 重新访问时调回 — 用户主动触发可接受短暂延迟.
+        //   不能释放其他进程的内存 (普通进程无权).
         private void ReleaseMemory_Click(object sender, RoutedEventArgs e) {
             long beforeMB = 0, afterMB = 0;
             try {
-                beforeMB = System.Diagnostics.Process.GetCurrentProcess().WorkingSet64 / 1048576;
+                var proc = System.Diagnostics.Process.GetCurrentProcess();
+                beforeMB = proc.WorkingSet64 / 1048576;
+                // 第一步: 强制 GC
                 GC.Collect(2, GCCollectionMode.Forced);
                 GC.WaitForPendingFinalizers();
                 GC.Collect(2, GCCollectionMode.Forced);
-                afterMB = System.Diagnostics.Process.GetCurrentProcess().WorkingSet64 / 1048576;
+                // 第二步: 压 Working Set 到最小
+                try { SetProcessWorkingSetSize(proc.Handle, (IntPtr)(-1), (IntPtr)(-1)); } catch { }
+                proc.Refresh();
+                afterMB = proc.WorkingSet64 / 1048576;
             } catch (Exception ex) {
                 AddLog("释放内存失败: " + ex.Message);
                 return;
