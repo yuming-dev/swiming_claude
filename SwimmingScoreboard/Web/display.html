@@ -56,8 +56,10 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
     --race-info-h: 7vh;    /* race-info 内 6vh + margin/padding 共 1vh */
     --records-h: 5vh;      /* applicable-records 固定高度, 增大字号让文字看清 */
     --lanes-header-h: calc(3.5vh * var(--fs-header));
-    /* 单行 lane-row 固定高度 — 10 道 必须放得下. 比赛视图 + 组成绩 共用 */
-    --lane-row-h: calc((var(--rv-h) - var(--rv-pad-v) * 2 - var(--race-info-h) - var(--records-h) - var(--lanes-header-h)) / 10);
+    /* 2026-06-20 单行 lane-row 固定高度 — 按当前 LaneCount 自适应.
+       --lane-count 默认 10, JS 在 _ensureRaceRowsDom 里 setProperty 覆盖为实际道数 (8/10/...). */
+    --lane-count: 10;
+    --lane-row-h: calc((var(--rv-h) - var(--rv-pad-v) * 2 - var(--race-info-h) - var(--records-h) - var(--lanes-header-h)) / var(--lane-count));
 }
 .race-view { height: var(--rv-h); padding: var(--rv-pad-v) 2vw; display: flex; flex-direction: column; }
 .race-info { display: flex; justify-content: space-between; align-items: center; height: 6vh; margin-bottom: 0.5vh; border-bottom: 3px solid var(--accent); padding-bottom: 0.5vh; }
@@ -1650,6 +1652,9 @@ function _activeSwimmersForDisplay() {
 // DOM 构建：仅在 buildKey 变化时执行（运动员名单/泳道布局/接力切换/泳道数）
 function _ensureRaceRowsDom() {
     var lc = getLaneCount();
+    // 2026-06-20 同步 --lane-count CSS 变量, 让 --lane-row-h 按实际道数分配高度
+    //   (8 道时每行加高 25%, 不再写死 / 10 留底部空白). 比赛视图 + 组成绩 + 接力 + 成绩发布 共用 .lane-row 高度变量都自动跟着.
+    try { document.documentElement.style.setProperty('--lane-count', lc); } catch (e) { }
     // 2026-06-03 内联 style 会覆盖 .lanes-header CSS, 必须自带 fs 缩放变量
     // 2026-06-04 表头改用 --fs-header (与 td 的 --fs-info 解耦), 让 第3行 单独调
     var fs = lc <= 8 ? 'calc(3.5vh * var(--fs) * var(--fs-header))' : 'calc(2.9vh * var(--fs) * var(--fs-header))';
