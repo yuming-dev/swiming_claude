@@ -291,6 +291,10 @@
                                     <Button Content="导出个人报名模板" Click="DownloadSwimmersTemplateCSV_Click" Padding="12,6" Background="#F97316" Foreground="White" BorderThickness="0" Margin="0,0,6,0"
                                             ToolTip="导出空白个人报名 CSV 模板（带表头与示例行），用 Excel/WPS 编辑后可用'导入CSV'回灌（导入会严格校验表头与本模板一致）"/>
                                     <Border Width="1" Background="#CBD5E1" Margin="6,4,6,4"/>
+                                    <!-- 2026-06-21 兼容其他厂家成绩编排软件输出的"单项明细" Excel (33 列, R2 表头, 含 距离/姿式/证件/出生/电话等), 追加运动员; 没有"距离+姿式" (= 没有项) 的行忽略 -->
+                                    <Button Content="导入(其他)运动员信息" Click="ImportOtherSwimmerInfoExcel_Click" Padding="12,6" Background="#0369A1" Foreground="White" BorderThickness="0" Margin="0,0,6,0"
+                                            ToolTip="从'单项明细' Excel (.xlsx/.xls) 导入运动员; 按 姓名+证件号 (优先) 或 姓名+单位+项目+性别 反查现有运动员: 找到→更新元数据/分道, 找不到→新增. 没有'距离+姿式'的行跳过."/>
+                                    <Border Width="1" Background="#CBD5E1" Margin="6,4,6,4"/>
                                     <Button Content="号码区间设置" Click="BibRangeConfig_Click" Padding="12,6" Background="#0EA5E9" Foreground="White" BorderThickness="0"
                                             ToolTip="按代表队设置参赛号号码段（如 中国 001-050）。新注册的运动员将在所属代表队的号码段内自动取号。"/>
                                     <!-- 2026-05-26 「参赛单位管理」、「工作人员管理」已迁移到 赛事概览 → 新建赛事 右边 -->

@@ -21350,6 +21350,161 @@ namespace SwimmingScoreboard
             }
         }
 
+        // ═══ 2026-06-21 导入(其他)运动员信息 — "单项明细" .xls/.xlsx (33 列, R2 表头) ═══
+        // 没有 "距离+姿式" (= 无 EventName) 的行跳过.
+        // 反查策略 A: (姓名+证件号) 优先; 否则 (姓名+单位+项目+性别). 找到→更新, 找不到→新增.
+        private void ImportOtherSwimmerInfoExcel_Click(object sender, RoutedEventArgs e) {
+            var dlg = new Microsoft.Win32.OpenFileDialog {
+                Filter = "Excel 工作簿|*.xlsx;*.xls",
+                Title = "导入(其他)运动员信息 — 单项明细格式 (R1 大标题, R2 表头, R3 起数据)"
+            };
+            if (dlg.ShowDialog() != true) return;
+            int updated = 0, added = 0, skipped = 0, noEvent = 0;
+            int maxBib = 0;
+            foreach (var sw in _swimmers) {
+                int n; if (int.TryParse(sw.BibNumber ?? "", out n) && n > maxBib) maxBib = n;
+            }
+            int nextBib = maxBib + 1;
+            try {
+                using (var fs = new FileStream(dlg.FileName, FileMode.Open, FileAccess.Read)) {
+                    NPOI.SS.UserModel.IWorkbook wb;
+                    try {
+                        wb = dlg.FileName.EndsWith(".xls", StringComparison.OrdinalIgnoreCase)
+                            ? (NPOI.SS.UserModel.IWorkbook)new NPOI.HSSF.UserModel.HSSFWorkbook(fs)
+                            : new NPOI.XSSF.UserModel.XSSFWorkbook(fs);
+                    } catch (Exception exOpen) {
+                        MessageBox.Show("读取 Excel 失败: " + exOpen.Message
+                            + "\n\n如果是 .xls (老 BIFF 格式) 而 NPOI 报错, 请先用 Excel 另存为 .xlsx 再导入.",
+                            "错误");
+                        return;
+                    }
+                    var sh = wb.GetSheetAt(0);
+                    if (sh == null) { MessageBox.Show("Excel 中没有工作表", "错误"); return; }
+                    // R2 表头. 单项明细 R1 是分组大标题 (项目进度/项目名称/运动员/...), 跳过
+                    var head = sh.GetRow(1);
+                    if (head == null) { MessageBox.Show("第 2 行 (表头) 为空", "错误"); return; }
+                    var colMap = new Dictionary<string, int>();
+                    for (int c = 0; c < head.LastCellNum; c++) {
+                        var hc = head.GetCell(c);
+                        if (hc != null) {
+                            string nm = (hc.ToString() ?? "").Trim();
+                            if (nm.Length > 0 && !colMap.ContainsKey(nm)) colMap[nm] = c;
+                        }
+                    }
+                    Func<string, int> col = nm => colMap.ContainsKey(nm) ? colMap[nm] : -1;
+                    int cDate = col("开赛日期"), cSess = col("场次"), cEvNum = col("项次"),
+                        cHeat = col("组号"), cLane = col("道次"),
+                        cGender = col("性别"), cAgeGroup = col("组别"),
+                        cDist = col("距离"), cStroke = col("姿式"), cStage = col("赛别"),
+                        cCountry = col("单位简称"), cName = col("运动员"),
+                        cID = col("证件编号"), cBirth = col("出生日期"),
+                        cPhone = col("电话"), cAge = col("年龄"),
+                        cEntryTime = col("竞赛成绩"), cBib = col("参赛号");
+                    if (cName < 0 || cGender < 0 || cDist < 0 || cStroke < 0) {
+                        MessageBox.Show("表头缺必需列 (运动员/性别/距离/姿式)", "错误"); return;
+                    }
+                    // R3 起数据
+                    for (int r = 2; r <= sh.LastRowNum; r++) {
+                        var row = sh.GetRow(r);
+                        if (row == null) continue;
+                        string name = (GetCellStr(row, cName) ?? "").Replace(" ", "").Trim();
+                        string gender = GetCellStr(row, cGender);
+                        string dist = GetCellStr(row, cDist);
+                        string stroke = GetCellStr(row, cStroke);
+                        if (string.IsNullOrEmpty(name) || string.IsNullOrEmpty(gender)) { skipped++; continue; }
+                        if (string.IsNullOrEmpty(dist) || string.IsNullOrEmpty(stroke)) { noEvent++; continue; }
+                        string evName = dist + stroke;
+                        string stage = GetCellStr(row, cStage); if (string.IsNullOrEmpty(stage)) stage = "决赛";
+                        string country = GetCellStr(row, cCountry);
+                        string idNum = GetCellStr(row, cID);
+                        string birth = GetCellStr(row, cBirth);
+                        string phone = GetCellStr(row, cPhone);
+                        string ageGroup = GetCellStr(row, cAgeGroup);
+                        string entryTime = GetCellStr(row, cEntryTime);
+                        string bibRaw = GetCellStr(row, cBib);
+                        int age = ParseIntOr(GetCellStr(row, cAge), 0);
+                        int heat = ParseIntOr(GetCellStr(row, cHeat), 0);
+                        int lane = ParseIntOr(GetCellStr(row, cLane), 0);
+
+                        // 反查: 1) 姓名+证件号 (强匹配); 2) 姓名+单位+项目+性别
+                        Swimmer target = null;
+                        if (!string.IsNullOrEmpty(idNum)) {
+                            target = _swimmers.FirstOrDefault(x =>
+                                ((x.Name ?? "").Replace(" ", "").Trim()) == name
+                                && (x.IDNumber ?? "").Trim() == idNum
+                                && (x.EventName ?? "") == evName);
+                        }
+                        if (target == null) {
+                            target = _swimmers.FirstOrDefault(x =>
+                                ((x.Name ?? "").Replace(" ", "").Trim()) == name
+                                && (x.Gender ?? "") == gender
+                                && (x.EventName ?? "") == evName
+                                && (((x.CountryShort ?? "").Trim() == country) || ((x.Country ?? "").Trim() == country)));
+                        }
+                        if (target != null) {
+                            // 更新元数据 (空值不覆盖)
+                            if (!string.IsNullOrEmpty(birth)) target.BirthDate = birth;
+                            if (age > 0) target.Age = age;
+                            if (!string.IsNullOrEmpty(idNum)) target.IDNumber = idNum;
+                            if (!string.IsNullOrEmpty(phone)) target.Phone = phone;
+                            if (!string.IsNullOrEmpty(ageGroup)) target.AgeCategory = ageGroup;
+                            if (!string.IsNullOrEmpty(country)) {
+                                if (string.IsNullOrEmpty(target.Country)) target.Country = country;
+                                if (string.IsNullOrEmpty(target.CountryShort)) target.CountryShort = country;
+                            }
+                            if (!string.IsNullOrEmpty(entryTime)) {
+                                target.EntryTime = entryTime;
+                                target.EntryTimeSeconds = TimeFormatter.Parse(entryTime);
+                            }
+                            if (!string.IsNullOrEmpty(stage)) target.CurrentStage = stage;
+                            if (heat > 0) target.Heat = heat;
+                            if (lane > 0) target.Lane = lane;
+                            if (heat > 0 && lane > 0)
+                                target.SetStageAssignment(stage, heat, lane, target.EntryTimeSeconds, target.EntryTime);
+                            updated++;
+                        } else {
+                            var nsw = new Swimmer {
+                                Name = name,
+                                BibNumber = !string.IsNullOrEmpty(bibRaw) ? bibRaw : (nextBib++).ToString("000"),
+                                Gender = gender,
+                                BirthDate = birth,
+                                Age = age,
+                                Country = country,
+                                CountryShort = country,
+                                IDNumber = idNum,
+                                Phone = phone,
+                                AgeCategory = ageGroup,
+                                EventName = evName,
+                                CurrentStage = stage,
+                                Heat = heat,
+                                Lane = lane,
+                                EntryTime = entryTime,
+                                EntryTimeSeconds = !string.IsNullOrEmpty(entryTime) ? TimeFormatter.Parse(entryTime) : 0
+                            };
+                            if (heat > 0 && lane > 0)
+                                nsw.SetStageAssignment(stage, heat, lane, nsw.EntryTimeSeconds, nsw.EntryTime);
+                            _swimmers.Add(nsw);
+                            added++;
+                        }
+                    }
+                }
+                AutoSaveData();
+                RefreshOverviewStats();
+                RefreshSwimmerFilter();
+                RebuildScheduleGroupedView();
+                BuildScheduleTree();
+                Broadcast();
+                MessageBox.Show(string.Format(
+                    "导入完成:\n  更新已有运动员 {0} 人\n  新增运动员 {1} 人\n  无项目 (距离+姿式空) 跳过 {2} 行\n  其它无效 跳过 {3} 行",
+                    updated, added, noEvent, skipped), "完成");
+                AddLog(string.Format("导入(其他)运动员信息: 更新{0} 新增{1} 无项跳过{2} 其它跳过{3}",
+                    updated, added, noEvent, skipped));
+            } catch (Exception ex) {
+                MessageBox.Show("导入失败: " + ex.Message, "错误");
+                AddLog("导入(其他)运动员信息失败: " + ex.Message);
+            }
+        }
+
         // helper: 取 cell 字符串 (null safe)
         private static string GetCellStr(NPOI.SS.UserModel.IRow row, int col) {
             if (row == null || col < 0) return "";
