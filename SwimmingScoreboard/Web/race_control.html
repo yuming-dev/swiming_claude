@@ -232,6 +232,9 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
     <!-- 2026-06-19 顶端右侧完全仿 RTC 顶部状态栏顺序: 内存 → 电池电压 → 硬件计时器 → 控制模式 → 主服务器 -->
     <span style="margin-left:auto;display:flex;align-items:center;gap:6px;font-size:12px;color:#94A3B8;">
         <span>内存:</span><span id="memStatus" style="color:#22C55E;font-weight:bold;">—</span>
+        <!-- 2026-06-20 远程释放内存按钮: 触发主服务器/RTC GC.Collect + LOH 紧凑 -->
+        <button onclick="sendCmd('RELEASE_MEMORY');addLog('已请求 PC 端释放内存')" title="远程请求主服务器/RTC 释放内存 (强制 GC + LOH 紧凑, 大堆下可能短暂卡顿)"
+            style="padding:2px 8px;background:#0EA5E9;color:white;border:none;border-radius:3px;font-size:11px;cursor:pointer;">♻ 释放</button>
     </span>
     <span style="margin-left:14px;display:flex;align-items:center;gap:6px;font-size:12px;color:#94A3B8;">
         <span>电池电压:</span><span id="hwBatteryText" style="color:#94A3B8;font-weight:bold;">—</span>

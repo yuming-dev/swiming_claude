@@ -30,7 +30,9 @@
                 <StackPanel Grid.Column="2" Orientation="Horizontal">
                     <!--2026-06-08 内存监控显示: Working Set MB + Gen2 GC 次数. 长跑下若 MB 持续涨 = 有泄漏-->
                     <TextBlock Text="内存: " Foreground="#94A3B8" FontSize="12" VerticalAlignment="Center"/>
-                    <TextBlock x:Name="MemoryStatusText" Text="-" Foreground="#22C55E" FontSize="12" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,16,0"/>
+                    <TextBlock x:Name="MemoryStatusText" Text="-" Foreground="#22C55E" FontSize="12" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                    <!--2026-06-20 释放内存按钮: 强制 GC + LOH 紧凑, 大堆下可能卡 1-2s-->
+                    <Button Content="♻ 释放" Click="ReleaseMemory_Click" FontSize="11" Foreground="White" Background="#0EA5E9" BorderThickness="0" Padding="6,2" Margin="0,0,16,0" VerticalAlignment="Center" Cursor="Hand" ToolTip="强制释放进程内存 (含 LOH 紧凑), 大堆下可能短暂卡顿"/>
                     <!--2026-06-19 电池电压从"比赛控制 → 计时硬件连接"右下角移到顶端 (内存右 / 硬件计时器左)-->
                     <TextBlock Text="电池电压: " Foreground="#94A3B8" FontSize="12" VerticalAlignment="Center"/>
                     <TextBlock x:Name="BatteryVoltageText" Text="—" Foreground="#94A3B8" FontSize="12" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,16,0"/>

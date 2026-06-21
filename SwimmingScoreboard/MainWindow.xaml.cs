@@ -439,6 +439,35 @@ namespace SwimmingScoreboard
             } catch { }
         }
 
+        // 2026-06-20 手动释放内存 (顶栏 ♻ 按钮 + race_control.html RELEASE_MEMORY 远程命令).
+        //   现有 5 分钟 _periodicGcTimer 是 Optimized 非阻塞兜底, 不强力. 本路径是 .NET 4.5 兼容的
+        //   强制 GC: Collect → WaitForPendingFinalizers → Collect, 真正回收所有可回收对象 + 终结器对象.
+        //   (.NET 4.5 不支持 LOH 紧凑 API, 那是 4.5.1+). 大堆下可能让 UI 卡 1-2 秒 — 用户主动触发可接受.
+        private void ReleaseMemory_Click(object sender, RoutedEventArgs e) {
+            long beforeMB = 0, afterMB = 0;
+            try {
+                beforeMB = System.Diagnostics.Process.GetCurrentProcess().WorkingSet64 / 1048576;
+                GC.Collect(2, GCCollectionMode.Forced);
+                GC.WaitForPendingFinalizers();
+                GC.Collect(2, GCCollectionMode.Forced);
+                afterMB = System.Diagnostics.Process.GetCurrentProcess().WorkingSet64 / 1048576;
+            } catch (Exception ex) {
+                AddLog("释放内存失败: " + ex.Message);
+                return;
+            }
+            long freedMB = beforeMB - afterMB;
+            AddLog(string.Format("⟳ 手动释放内存: {0}MB → {1}MB (释放 {2}MB)", beforeMB, afterMB, freedMB));
+            try { Broadcast(); } catch { }   // 让 race_control 顶栏内存数字立即刷新
+            // sender != null = 用户本地按按钮触发, 弹结果对话框; 远端调用 (HandleRemoteControl) sender=null 静默
+            if (sender != null) {
+                try {
+                    MessageBox.Show(
+                        string.Format("内存释放完成\n\n之前: {0} MB\n之后: {1} MB\n释放: {2} MB", beforeMB, afterMB, freedMB),
+                        "释放内存", MessageBoxButton.OK, MessageBoxImage.Information);
+                } catch { }
+            }
+        }
+
         // 2026-06-10 Ctrl+Shift+B 查事件备份 / Ctrl+Shift+L 清空事件备份
         private void MainWindow_PreviewKeyDown_BackupShortcut(object sender, System.Windows.Input.KeyEventArgs e) {
             var mods = System.Windows.Input.Keyboard.Modifiers;
@@ -2568,6 +2597,10 @@ namespace SwimmingScoreboard
                     break;
                 case "OPEN_CHANGE_PASSWORD_DIALOG":
                     Dispatcher.Invoke(new Action(() => { try { EditorChangePassword_Click(null, null); } catch (Exception ex) { AddLog("远端 用户名/密码 弹框失败: " + ex.Message); } }));
+                    break;
+                // 2026-06-20 远程释放内存 (race_control.html 顶栏 ♻ 按钮)
+                case "RELEASE_MEMORY":
+                    Dispatcher.Invoke(new Action(() => { try { ReleaseMemory_Click(null, null); } catch (Exception ex) { AddLog("远端 释放内存 失败: " + ex.Message); } }));
                     break;
                 // 2026-06-17 RDC/control.html 完全远程化: list/play 模式 (主控 PC 不弹框)
                 // 文件目录: Media/ (图片视频) 和 Documents/PPT/ (PPT 文件), 相对 exe 路径或绝对路径
