@@ -3768,6 +3768,29 @@ namespace SwimmingScoreboard
                     qualifiedToNext = false
                 });
             }
+
+            // 2026-06-21 追加 DSQ/DNS/DNF/无成绩 运动员到末尾 (rank=0, 大屏总排名/颁奖回放都需显示).
+            //   TRI 不进总排名 (与 GetEventRanking 一致).
+            var othersFS = stageSwimmers.Where(s => !withTimes.Contains(s) && s.Status != "TRI").ToList();
+            foreach (var sw in othersFS) {
+                var r = sw.GetResultForStage(stage);
+                string rkName = sw.Name;
+                if (rankRelay && !string.IsNullOrEmpty(sw.Notes) && sw.Notes.StartsWith("接力队 棒次:"))
+                    rkName = sw.Notes.Substring("接力队 棒次:".Length);
+                string remark = "";
+                if (r != null && !string.IsNullOrEmpty(r.Status)) remark = r.Status;
+                else if (!string.IsNullOrEmpty(sw.Status)) remark = sw.Status;
+                var saO = sw.GetAssignmentForStage(stage);
+                int heatO = (saO != null && saO.Heat > 0) ? saO.Heat : sw.Heat;
+                ranked.Add(new {
+                    rank = 0, heat = heatO, lane = sw.Lane,
+                    bibNumber = sw.BibNumber, name = rkName, country = sw.Country,
+                    entryTime = sw.EntryTime ?? "",
+                    finalTime = "", timingSource = "",
+                    status = remark, resultStatus = remark,
+                    recordNote = "", qualifiedToNext = false
+                });
+            }
             return ranked;
         }
 
