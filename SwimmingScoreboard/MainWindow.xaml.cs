@@ -2845,6 +2845,8 @@ namespace SwimmingScoreboard
         private void BroadcastDisplayMode(string mode) {
             // 2026-06-21 切到非 SHOW_AWARDS 时清掉 _awardSelection, 避免颁奖选定项目污染后续广播
             if (mode != "SHOW_AWARDS") _awardSelection = null;
+            // 2026-06-21 同样守 _rankingSelection (总排名回放选定项目)
+            if (mode != "SHOW_EVENT_RANKING") _rankingSelection = null;
             // 2026-06-17 方案 B: RTC 模式通过主服务器转发, 不开本地 Server.
             if (IsRemoteTimingControlMode) {
                 try {
@@ -3368,7 +3370,17 @@ namespace SwimmingScoreboard
                 },
                 awardRanking = _awardSelection == null ? new List<object>()
                     : GetEventRankingForStage(_awardSelection.Gender ?? "", _awardSelection.EventName ?? "",
-                                              _awardSelection.AgeGroup ?? "", _awardSelection.Stage ?? "")
+                                              _awardSelection.AgeGroup ?? "", _awardSelection.Stage ?? ""),
+                // 2026-06-21 总排名回放: 用户从弹窗选定项目, display.html 检测后强制单表分页 (不走 split)
+                rankingSelection = _rankingSelection == null ? null : (object)new {
+                    gender = _rankingSelection.Gender ?? "",
+                    ageGroup = _rankingSelection.AgeGroup ?? "",
+                    eventName = _rankingSelection.EventName ?? "",
+                    stage = _rankingSelection.Stage ?? ""
+                },
+                rankingRanking = _rankingSelection == null ? new List<object>()
+                    : GetEventRankingForStage(_rankingSelection.Gender ?? "", _rankingSelection.EventName ?? "",
+                                              _rankingSelection.AgeGroup ?? "", _rankingSelection.Stage ?? "")
             };
         }
 
@@ -3702,6 +3714,8 @@ namespace SwimmingScoreboard
 
         // 颁奖按钮选定的项目 (null = 未选, GetStatusData 不附加 awardSelection 字段, display.html 退回 _currentXxx)
         private ScheduleItem _awardSelection = null;
+        // 2026-06-21 总排名按钮选定的项目 (回放任意已完赛项目, 与 _awardSelection 完全对称)
+        private ScheduleItem _rankingSelection = null;
 
         // GetEventRanking 的参数化版本: stage 来自参数, 不依赖 _currentStage. 颁奖用 (stage=决赛).
         //   其余逻辑跟 GetEventRanking 保持一致 (并列名次 / TRI 排除 / 接力队员处理 / DSQ/DNS/DNF 追加).
@@ -17666,7 +17680,69 @@ namespace SwimmingScoreboard
         private void ShowStartList_Click(object sender, RoutedEventArgs e) { BroadcastDisplayMode("SHOW_START_LIST"); }
         private void ShowLiveRace_Click(object sender, RoutedEventArgs e) { BroadcastDisplayMode("SHOW_LIVE_RACE"); }
         private void ShowHeatResult_Click(object sender, RoutedEventArgs e) { BroadcastDisplayMode("SHOW_HEAT_RESULT"); }
-        private void ShowEventRanking_Click(object sender, RoutedEventArgs e) { BroadcastDisplayMode("SHOW_EVENT_RANKING"); }
+        // 2026-06-21 总排名按键改为弹窗回放: 选已完赛 (决赛+全组确认) 项目, 按全项目总排名显示.
+        //   与颁奖弹窗 ShowAwards_Click 完全对称, 复用 GetFullyConfirmedFinalEvents / GetEventRankingForStage.
+        //   取消则不动作.
+        private void ShowEventRanking_Click(object sender, RoutedEventArgs e) {
+            var candidates = GetFullyConfirmedFinalEvents();
+            if (candidates.Count == 0) {
+                MessageBox.Show("尚无已完赛的决赛项目 (需要该项目所有组都已'确认本组成绩').", "总排名", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            var win = new Window {
+                Title = "选择总排名回放项目", Owner = this, Width = 520, Height = 480,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                ResizeMode = ResizeMode.CanResize
+            };
+            var grid = new Grid { Margin = new Thickness(12) };
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            var tip = new TextBlock {
+                Text = "选择要在大屏回放总排名的项目 (按项目总排名所有完赛运动员):",
+                FontSize = 13, FontWeight = FontWeights.Bold,
+                Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E40AF")),
+                Margin = new Thickness(0, 0, 0, 8)
+            };
+            Grid.SetRow(tip, 0); grid.Children.Add(tip);
+            var lb = new ListBox { FontSize = 14, Margin = new Thickness(0, 0, 0, 8) };
+            foreach (var item in candidates) {
+                int hc = item.HeatCount > 0 ? item.HeatCount : 1;
+                int n = _swimmers.Count(s => (s.Gender ?? "") == (item.Gender ?? "")
+                    && (s.EventName ?? "") == (item.EventName ?? "")
+                    && (s.AgeCategory ?? "") == (item.AgeGroup ?? ""));
+                string label = string.Format("{0}{1} {2} {3}  ({4} 人 {5} 组 全部已确认)",
+                    string.IsNullOrEmpty(item.AgeGroup) ? "" : ("[" + item.AgeGroup + "] "),
+                    item.Gender ?? "", item.EventName ?? "", item.Stage ?? "", n, hc);
+                var lbi = new ListBoxItem { Content = label, Tag = item, Padding = new Thickness(6, 4, 6, 4) };
+                lb.Items.Add(lbi);
+            }
+            if (lb.Items.Count > 0) lb.SelectedIndex = 0;
+            Grid.SetRow(lb, 1); grid.Children.Add(lb);
+            var btns = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
+            var okBtn = new Button { Content = "确认 → 大屏总排名", Padding = new Thickness(16, 6, 16, 6), Margin = new Thickness(0, 0, 8, 0),
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6")),
+                Foreground = Brushes.White, BorderThickness = new Thickness(0), FontWeight = FontWeights.Bold };
+            var cancelBtn = new Button { Content = "取消", Padding = new Thickness(16, 6, 16, 6),
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")),
+                Foreground = Brushes.White, BorderThickness = new Thickness(0) };
+            okBtn.Click += (s2, e2) => {
+                var sel = lb.SelectedItem as ListBoxItem;
+                if (sel == null) { MessageBox.Show("请选择一个项目", "提示"); return; }
+                _rankingSelection = sel.Tag as ScheduleItem;
+                win.DialogResult = true; win.Close();
+            };
+            cancelBtn.Click += (s2, e2) => { win.DialogResult = false; win.Close(); };
+            btns.Children.Add(okBtn); btns.Children.Add(cancelBtn);
+            Grid.SetRow(btns, 2); grid.Children.Add(btns);
+            win.Content = grid;
+            if (win.ShowDialog() == true && _rankingSelection != null) {
+                AddLog(string.Format("总排名回放: {0}{1} {2} (按全项目总排名)",
+                    string.IsNullOrEmpty(_rankingSelection.AgeGroup) ? "" : ("[" + _rankingSelection.AgeGroup + "] "),
+                    _rankingSelection.Gender, _rankingSelection.EventName));
+                BroadcastDisplayMode("SHOW_EVENT_RANKING");
+            }
+        }
         private void ShowTeamStandings_Click(object sender, RoutedEventArgs e) { BroadcastDisplayMode("SHOW_TEAM_STANDINGS"); }
         // 2026-06-21 颁奖弹窗: 列已完赛 (决赛+所有组确认) 项目, 用户选 1 项后大屏推颁奖.
         //   多组决赛颁奖按"全项目总排名前 3"渲染 (GetEventRankingForStage 计算).
