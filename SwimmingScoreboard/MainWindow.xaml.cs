@@ -2843,6 +2843,8 @@ namespace SwimmingScoreboard
         }
 
         private void BroadcastDisplayMode(string mode) {
+            // 2026-06-21 切到非 SHOW_AWARDS 时清掉 _awardSelection, 避免颁奖选定项目污染后续广播
+            if (mode != "SHOW_AWARDS") _awardSelection = null;
             // 2026-06-17 方案 B: RTC 模式通过主服务器转发, 不开本地 Server.
             if (IsRemoteTimingControlMode) {
                 try {
@@ -3354,7 +3356,19 @@ namespace SwimmingScoreboard
                         title = m.Title ?? "", name = m.Name ?? "",
                         country = m.Country ?? "", refereeLevel = m.RefereeLevel ?? "",
                         gender = m.Gender ?? ""
-                    }).ToList()
+                    }).ToList(),
+                // 2026-06-21 颁奖弹窗选定项目 (用户选 → SHOW_AWARDS), display.html 检测此字段优先用,
+                //   没有则退回 _currentXxx + eventRanking (兼容远端命令直接推 SHOW_AWARDS). awardRanking 按
+                //   "全项目总排名" 算 (多组决赛颁奖按总排名前 3, 非单组前 3).
+                awardSelection = _awardSelection == null ? null : (object)new {
+                    gender = _awardSelection.Gender ?? "",
+                    ageGroup = _awardSelection.AgeGroup ?? "",
+                    eventName = _awardSelection.EventName ?? "",
+                    stage = _awardSelection.Stage ?? ""
+                },
+                awardRanking = _awardSelection == null ? new List<object>()
+                    : GetEventRankingForStage(_awardSelection.Gender ?? "", _awardSelection.EventName ?? "",
+                                              _awardSelection.AgeGroup ?? "", _awardSelection.Stage ?? "")
             };
         }
 
@@ -3662,6 +3676,81 @@ namespace SwimmingScoreboard
                     status = remark,
                     resultStatus = remark,
                     recordNote = "",
+                    qualifiedToNext = false
+                });
+            }
+            return ranked;
+        }
+
+        // ═══ 2026-06-21 颁奖弹窗选项目用 ═══
+        // 列出已完赛 (Stage="决赛" + 全部组都 _confirmedHeats) 的项目, 供用户从中选 1 项颁奖
+        private List<ScheduleItem> GetFullyConfirmedFinalEvents() {
+            var result = new List<ScheduleItem>();
+            foreach (var s in _schedule) {
+                if (s == null || (s.Stage ?? "") != "决赛") continue;
+                int hc = s.HeatCount > 0 ? s.HeatCount : 1;
+                bool allConfirmed = true;
+                for (int h = 1; h <= hc; h++) {
+                    if (!IsHeatConfirmed(s.AgeGroup ?? "", s.Gender ?? "", s.EventName ?? "", s.Stage ?? "", h)) {
+                        allConfirmed = false; break;
+                    }
+                }
+                if (allConfirmed) result.Add(s);
+            }
+            return result;
+        }
+
+        // 颁奖按钮选定的项目 (null = 未选, GetStatusData 不附加 awardSelection 字段, display.html 退回 _currentXxx)
+        private ScheduleItem _awardSelection = null;
+
+        // GetEventRanking 的参数化版本: stage 来自参数, 不依赖 _currentStage. 颁奖用 (stage=决赛).
+        //   其余逻辑跟 GetEventRanking 保持一致 (并列名次 / TRI 排除 / 接力队员处理 / DSQ/DNS/DNF 追加).
+        private List<object> GetEventRankingForStage(string gender, string eventName, string ageGroup, string stage) {
+            if (string.IsNullOrEmpty(eventName) || string.IsNullOrEmpty(stage)) return new List<object>();
+            bool rankRelay = eventName.Contains("接力");
+            var schedItem = _schedule.FirstOrDefault(s => SgMatch(s.Gender, gender) && s.EventName == eventName
+                                                          && s.Stage == stage
+                                                          && (s.AgeGroup ?? "") == (ageGroup ?? ""));
+            int heatCount = schedItem != null && schedItem.HeatCount > 0 ? schedItem.HeatCount : 1;
+            var stageSwimmers = new List<Swimmer>();
+            for (int h = 1; h <= heatCount; h++) {
+                if (!IsHeatConfirmed(ageGroup ?? "", gender, eventName, stage, h)) continue;
+                foreach (var s in _swimmers) {
+                    if (s.EventName != eventName || !SgMatch(s.Gender, gender)) continue;
+                    if (!MatchesAgeGroup(s, ageGroup)) continue;
+                    if (s.Notes != null && s.Notes.StartsWith("接力队员")) continue;
+                    var sa = s.GetAssignmentForStage(stage);
+                    if (sa != null && sa.Heat == h) { stageSwimmers.Add(s); continue; }
+                    if (sa == null && s.CurrentStage == stage && s.Heat == h) stageSwimmers.Add(s);
+                }
+            }
+            var ranked = new List<object>();
+            var withTimes = stageSwimmers.Where(s => {
+                if (s.Status == "DSQ" || s.Status == "DNS" || s.Status == "DNF" || s.Status == "TRI") return false;
+                var r = s.GetResultForStage(stage);
+                return r != null && r.FinalTime > 0;
+            }).OrderBy(s => s.GetResultForStage(stage).FinalTime).ToList();
+            int idxER = 0, rank = 1;
+            double prevTimeER = -1;
+            foreach (var sw in withTimes) {
+                var r = sw.GetResultForStage(stage);
+                idxER++;
+                double curT = r != null ? r.FinalTime : 0;
+                if (idxER == 1 || !IsTieTime(curT, prevTimeER)) rank = idxER;
+                prevTimeER = curT;
+                string rkName = sw.Name;
+                if (rankRelay && !string.IsNullOrEmpty(sw.Notes) && sw.Notes.StartsWith("接力队 棒次:"))
+                    rkName = sw.Notes.Substring("接力队 棒次:".Length);
+                var saR = sw.GetAssignmentForStage(stage);
+                int heatR = (saR != null && saR.Heat > 0) ? saR.Heat : sw.Heat;
+                ranked.Add(new {
+                    rank = rank, heat = heatR, lane = sw.Lane,
+                    bibNumber = sw.BibNumber, name = rkName, country = sw.Country,
+                    entryTime = sw.EntryTime ?? "",
+                    finalTime = r != null ? TimeFormatter.Format(r.FinalTime) : "",
+                    timingSource = r != null ? r.TimingSource : "",
+                    status = sw.Status ?? "", resultStatus = r != null ? (r.Status ?? "") : "",
+                    recordNote = r != null ? (r.RecordNote ?? "") : "",
                     qualifiedToNext = false
                 });
             }
@@ -5103,6 +5192,21 @@ namespace SwimmingScoreboard
                     //   Touched    → 已有正式成绩；本次记日志并写入"备用成绩"（争议时使用）
                     //   其它（Closed/Broken/NotInstalled）→ 仅记日志，不作为成绩
                     {
+                        // 2026-06-21 仰泳出发端守卫: 仰泳比赛 CurrentLap=0 (还没游完任何一段) 时, 出发端 TP 是
+                        //   "运动员脚踩/松开" 的副产物 (反应时锚点), 不该计为 lap split. 防固件未标 D3=3
+                        //   BackstrokeRelease 时, 这一帧被走 ProcessTouchpadHit 错占第 1 段 → 100m+ 仰泳
+                        //   终点 (出发端=终点端) 提前关闭, 真正终点触板被丢弃, 没成绩.
+                        //   只在 (仰泳 + 出发端 + CurrentLap=0 + 非 MB 代触) 4 条件同时成立时触发, 其余路径不影响.
+                        {
+                            bool isBack_g = !string.IsNullOrEmpty(_currentEvent) && _currentEvent.Contains("仰泳");
+                            bool startFromLeft_g = _laneCloseSettings == null || _laneCloseSettings.StartPosition != "right";
+                            string startSideName_g = startFromLeft_g ? "left" : "right";
+                            if (isBack_g && side == startSideName_g && laneState.CurrentLap == 0 && !isMbSubstitute) {
+                                AddLog(string.Format("泳道{0} 仰泳出发端 {1} TP 在 CurrentLap=0 收到, 视为反应时副产物 (不计圈)",
+                                    lane, side == "left" ? "左" : "右"));
+                                break;
+                            }
+                        }
                         // 2026-06-02 协议规约: side 必须由硬件 frame[4]=Lane_NoTbl 解析得来, PC 不自判. side 缺失 = 协议错误, 跳过
                         DeviceStatus tpStatus;
                         string sideForClose = side;
@@ -17564,7 +17668,69 @@ namespace SwimmingScoreboard
         private void ShowHeatResult_Click(object sender, RoutedEventArgs e) { BroadcastDisplayMode("SHOW_HEAT_RESULT"); }
         private void ShowEventRanking_Click(object sender, RoutedEventArgs e) { BroadcastDisplayMode("SHOW_EVENT_RANKING"); }
         private void ShowTeamStandings_Click(object sender, RoutedEventArgs e) { BroadcastDisplayMode("SHOW_TEAM_STANDINGS"); }
-        private void ShowAwards_Click(object sender, RoutedEventArgs e) { BroadcastDisplayMode("SHOW_AWARDS"); }
+        // 2026-06-21 颁奖弹窗: 列已完赛 (决赛+所有组确认) 项目, 用户选 1 项后大屏推颁奖.
+        //   多组决赛颁奖按"全项目总排名前 3"渲染 (GetEventRankingForStage 计算).
+        //   取消则不动作. 弹窗动态构造 (不新建 .xaml 文件, 免动 csproj).
+        private void ShowAwards_Click(object sender, RoutedEventArgs e) {
+            var candidates = GetFullyConfirmedFinalEvents();
+            if (candidates.Count == 0) {
+                MessageBox.Show("尚无已完赛的决赛项目 (需要该项目所有组都已'确认本组成绩').", "颁奖", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            var win = new Window {
+                Title = "选择颁奖项目", Owner = this, Width = 520, Height = 480,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                ResizeMode = ResizeMode.CanResize
+            };
+            var grid = new Grid { Margin = new Thickness(12) };
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            var tip = new TextBlock {
+                Text = "选择要颁奖的决赛项目 (按项目总排名取前 3 名颁奖):",
+                FontSize = 13, FontWeight = FontWeights.Bold,
+                Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E40AF")),
+                Margin = new Thickness(0, 0, 0, 8)
+            };
+            Grid.SetRow(tip, 0); grid.Children.Add(tip);
+            var lb = new ListBox { FontSize = 14, Margin = new Thickness(0, 0, 0, 8) };
+            foreach (var item in candidates) {
+                int hc = item.HeatCount > 0 ? item.HeatCount : 1;
+                int n = _swimmers.Count(s => (s.Gender ?? "") == (item.Gender ?? "")
+                    && (s.EventName ?? "") == (item.EventName ?? "")
+                    && (s.AgeCategory ?? "") == (item.AgeGroup ?? ""));
+                string label = string.Format("{0}{1} {2} {3}  ({4} 人 {5} 组 全部已确认)",
+                    string.IsNullOrEmpty(item.AgeGroup) ? "" : ("[" + item.AgeGroup + "] "),
+                    item.Gender ?? "", item.EventName ?? "", item.Stage ?? "", n, hc);
+                var lbi = new ListBoxItem { Content = label, Tag = item, Padding = new Thickness(6, 4, 6, 4) };
+                lb.Items.Add(lbi);
+            }
+            if (lb.Items.Count > 0) lb.SelectedIndex = 0;
+            Grid.SetRow(lb, 1); grid.Children.Add(lb);
+            var btns = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
+            var okBtn = new Button { Content = "确认 → 大屏颁奖", Padding = new Thickness(16, 6, 16, 6), Margin = new Thickness(0, 0, 8, 0),
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F59E0B")),
+                Foreground = Brushes.White, BorderThickness = new Thickness(0), FontWeight = FontWeights.Bold };
+            var cancelBtn = new Button { Content = "取消", Padding = new Thickness(16, 6, 16, 6),
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")),
+                Foreground = Brushes.White, BorderThickness = new Thickness(0) };
+            okBtn.Click += (s2, e2) => {
+                var sel = lb.SelectedItem as ListBoxItem;
+                if (sel == null) { MessageBox.Show("请选择一个项目", "提示"); return; }
+                _awardSelection = sel.Tag as ScheduleItem;
+                win.DialogResult = true; win.Close();
+            };
+            cancelBtn.Click += (s2, e2) => { win.DialogResult = false; win.Close(); };
+            btns.Children.Add(okBtn); btns.Children.Add(cancelBtn);
+            Grid.SetRow(btns, 2); grid.Children.Add(btns);
+            win.Content = grid;
+            if (win.ShowDialog() == true && _awardSelection != null) {
+                AddLog(string.Format("颁奖大屏: {0}{1} {2} (按全项目总排名前 3)",
+                    string.IsNullOrEmpty(_awardSelection.AgeGroup) ? "" : ("[" + _awardSelection.AgeGroup + "] "),
+                    _awardSelection.Gender, _awardSelection.EventName));
+                BroadcastDisplayMode("SHOW_AWARDS");
+            }
+        }
         private void ShowRecords_Click(object sender, RoutedEventArgs e) { BroadcastDisplayMode("SHOW_RECORDS"); }
         // 2026-06-03 替换"纪录"按钮为"裁判介绍": 推 SHOW_REFEREES, 大屏渲染 _staff 里 Group=裁判员 的成员列表
         private void ShowReferees_Click(object sender, RoutedEventArgs e) { BroadcastDisplayMode("SHOW_REFEREES"); }

@@ -2399,11 +2399,26 @@ function renderReferees() {
 
 function renderAwards() {
     document.getElementById('awardView').classList.remove('hidden');
-    // 2026-06-04 顺序统一: 性别 组别 项目
-    document.getElementById('awardTitle').textContent = fmtGender(data.currentGender) + ' ' + ((data.currentAgeGroup||'') ? (data.currentAgeGroup+' ') : '') + (data.currentEvent||'') + ' 颁奖典礼';
+    // 2026-06-21 颁奖优先用 PC 端 awardSelection (颁奖弹窗选定项目) + awardRanking (全项目总排名).
+    //   没有则退回 _currentXxx + eventRanking (兼容远端命令直接推 SHOW_AWARDS).
+    var awGender, awAgeGroup, awEventName, er;
+    window._awardIsRelay = false;
+    if (data.awardSelection) {
+        awGender = data.awardSelection.gender || '';
+        awAgeGroup = data.awardSelection.ageGroup || '';
+        awEventName = data.awardSelection.eventName || '';
+        er = data.awardRanking || [];
+        window._awardIsRelay = awEventName.indexOf('接力') >= 0;
+    } else {
+        awGender = data.currentGender || '';
+        awAgeGroup = data.currentAgeGroup || '';
+        awEventName = data.currentEvent || '';
+        er = data.eventRanking || [];
+        window._awardIsRelay = isRelayEvent();
+    }
+    document.getElementById('awardTitle').textContent = fmtGender(awGender) + ' ' + (awAgeGroup ? (awAgeGroup+' ') : '') + awEventName + ' 颁奖典礼';
     var container = document.getElementById('awardContainer');
     container.innerHTML = '';
-    var er = data.eventRanking || [];
     var medals = ['silver','gold','bronze'];
     var icons = ['\uD83E\uDD48','\uD83E\uDD47','\uD83E\uDD49'];
     var order = [1,0,2]; // silver, gold, bronze display order
@@ -2412,7 +2427,8 @@ function renderAwards() {
         if (idx >= er.length) continue;
         var card = document.createElement('div');
         card.className = 'podium-card ' + medals[i];
-        var awRelay = isRelayEvent();
+        // 2026-06-21 接力判断改用 window._awardIsRelay (renderAwards 入口已按 awardSelection.eventName 或 currentEvent 算好)
+        var awRelay = !!window._awardIsRelay;
         var awName = awRelay ? (er[idx].country||'') : (er[idx].name||'');
         var awTeam = awRelay ? (er[idx].name||'') : (er[idx].country||'');
         card.innerHTML = '<div class="medal">' + icons[i] + '</div><div class="name">' + awName + '</div><div class="team">' + awTeam + '</div><div class="time">' + (er[idx].finalTime||'') + '</div>';
