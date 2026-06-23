@@ -3556,7 +3556,9 @@ namespace SwimmingScoreboard
                     });
                 }
                 // DSQ/DNS/DNF/无成绩 追加, 无名次. TRI 不进总排名 (= 仅展示)
-                foreach (var sw in subList.Where(s => !withTimes.Contains(s) && s.Status != "TRI")) {
+                // 2026-06-22 按 DSQ → DNF → DNS → 其他 排序 (用户要求 DSQ 在 DNS 上面)
+                foreach (var sw in subList.Where(s => !withTimes.Contains(s) && s.Status != "TRI")
+                    .OrderBy(s => (s.Status == "DSQ" || s.Status == "DQ") ? 1 : (s.Status == "DNF") ? 2 : (s.Status == "DNS") ? 3 : 9)) {
                     var r = sw.GetResultForStage(_currentStage);
                     string rkName = sw.Name;
                     if (rankRelay && !string.IsNullOrEmpty(sw.Notes) && sw.Notes.StartsWith("接力队 棒次:"))
@@ -3663,7 +3665,10 @@ namespace SwimmingScoreboard
 
             // 其余运动员（DSQ/DNS/DNF/无成绩）追加到末尾，无名次
             // 2026-06-04 TRI 不进总排名 (= 仅展示, 与 DSQ/DNS/DNF 不同, TRI 直接被剔除而非追加无名次)
-            var others = stageSwimmers.Where(s => !withTimes.Contains(s) && s.Status != "TRI").ToList();
+            // 2026-06-22 按 DSQ → DNF → DNS → 其他 排序 (用户要求 DSQ 在 DNS 上面)
+            var others = stageSwimmers.Where(s => !withTimes.Contains(s) && s.Status != "TRI")
+                .OrderBy(s => (s.Status == "DSQ" || s.Status == "DQ") ? 1 : (s.Status == "DNF") ? 2 : (s.Status == "DNS") ? 3 : 9)
+                .ToList();
             foreach (var sw in others) {
                 var r = sw.GetResultForStage(_currentStage);
                 string rkName = sw.Name;
@@ -3771,7 +3776,10 @@ namespace SwimmingScoreboard
 
             // 2026-06-21 追加 DSQ/DNS/DNF/无成绩 运动员到末尾 (rank=0, 大屏总排名/颁奖回放都需显示).
             //   TRI 不进总排名 (与 GetEventRanking 一致).
-            var othersFS = stageSwimmers.Where(s => !withTimes.Contains(s) && s.Status != "TRI").ToList();
+            // 2026-06-22 按 DSQ → DNF → DNS → 其他 排序 (用户要求 DSQ 在 DNS 上面)
+            var othersFS = stageSwimmers.Where(s => !withTimes.Contains(s) && s.Status != "TRI")
+                .OrderBy(s => (s.Status == "DSQ" || s.Status == "DQ") ? 1 : (s.Status == "DNF") ? 2 : (s.Status == "DNS") ? 3 : 9)
+                .ToList();
             foreach (var sw in othersFS) {
                 var r = sw.GetResultForStage(stage);
                 string rkName = sw.Name;
@@ -17166,7 +17174,10 @@ namespace SwimmingScoreboard
                     Status = !string.IsNullOrEmpty(remark) ? remark : (s.Status ?? ""),
                     RecordNote = r != null ? (r.RecordNote ?? "") : ""
                 };
-            }).OrderBy(x => x.SortTime).ToList();
+            // 2026-06-22 次级排序: 同 SortTime (= 都是 DSQ/DNS/DNF 的 MaxValue) 时按 DSQ→DNF→DNS→其他 排
+            }).OrderBy(x => x.SortTime)
+              .ThenBy(x => (x.Status == "DSQ" || x.Status == "DQ") ? 1 : (x.Status == "DNF") ? 2 : (x.Status == "DNS") ? 3 : 9)
+              .ToList();
 
             // 重新计算排名（DSQ/DNS/DNF无名次）；列与表头一一对应：
             //   "姓名"列 -> Name（接力时即 4 棒队员姓名）
