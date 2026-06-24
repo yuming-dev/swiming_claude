@@ -3879,8 +3879,38 @@ namespace SwimmingScoreboard
                 // 2026-06-23 Δ 算法重写: 维护 currentGunPs (= 当前 Ready/Reset 区间内最近一次发令时刻).
                 //   遇 RangeMarker (Ready/Reset) 重置 currentGunPs=null, 遇 IsGunEvent 更新, 普通事件用它算 Δ.
                 //   旧算法 break 取第 1 个发令时刻 → 跨组取错. 新算法每组独立, 抢跳重发也取最后一次.
+                // 2026-06-24 仅"每 lane × 每 gun 段最后一个反应时锚点" 显示 Δ (= 一组运动员只一个反应时).
+                //   pre-pass 扫一遍标记锚点 idx, render-pass 用集合判定. gun 之前的事件 + 非锚点设备类型 + 非最后锚点 → 仅 (P) 不显示 Δ.
+                var anchorIdxSet = new HashSet<int>();
+                {
+                    double? prePassGun = null;
+                    var lastAnchorIdxPerLane = new Dictionary<int, int>();
+                    Action commitLastAnchors = () => {
+                        foreach (var v in lastAnchorIdxPerLane.Values) anchorIdxSet.Add(v);
+                        lastAnchorIdxPerLane.Clear();
+                    };
+                    for (int i = 0; i < _pendingBackupEvents.Count; i++) {
+                        var ev = _pendingBackupEvents[i];
+                        if (ev.IsRangeMarker) { commitLastAnchors(); prePassGun = null; continue; }
+                        if (ev.IsGunEvent)    { commitLastAnchors(); prePassGun = ev.Hour * 3600.0 + ev.Minute * 60.0 + ev.Second + ev.Msecond / 100.0; continue; }
+                        if (!ev.IsPreStartTime || !prePassGun.HasValue) continue;   // gun 前 / 非 PreStart 跳过
+                        int bt = ev.EvtType & 0x7F;
+                        bool isAnc = false;
+                        if (bt == 0 || bt == 1) {
+                            bool sbFalling = _laneCloseSettings == null || _laneCloseSettings.StartBoxEdgeFalling;
+                            if (sbFalling && bt == 0) isAnc = true;
+                            else if (!sbFalling && bt == 1) isAnc = true;
+                        } else if (bt == 3) {
+                            isAnc = true;
+                        }
+                        if (isAnc) lastAnchorIdxPerLane[ev.Lane] = i;
+                    }
+                    commitLastAnchors();  // 收尾: 最后一组的最后锚点
+                }
                 double? currentGunPs = null;
+                int evtIdx = -1;
                 foreach (var evt in _pendingBackupEvents) {
+                    evtIdx++;
                     // 2026-06-14 发令事件 (EvtType=10) lane/side=0xFF 表全场, 不受泳道筛选过滤
                     // 2026-06-23 RangeMarker (EvtType=11/12) 同样全场, 不受筛选过滤
                     if (laneFilter >= 0 && !evt.IsGunEvent && !evt.IsRangeMarker && evt.Lane != laneFilter) continue;
@@ -3905,16 +3935,14 @@ namespace SwimmingScoreboard
                         // 2026-06-23 用 currentGunPs (本组最近一次发令时刻), 没有则显示 Δ=?
                         string pFlag = "";
                         if (evt.IsPreStartTime) {
-                            // 2026-06-23 反应时锚点 = TP/SB 松开瞬间 (不是按下). 按下事件仅显示 (P) 标志, 不计算 Δ.
-                            //   仰泳出发反应时 = TP 最后一次松开时刻 - gun 时刻 (跟 OnBackstrokeWindowExpired 算法一致).
-                            if (evt.IsPress) {
-                                pFlag = " (P)";  // 按下: 仅标志, 不显示 Δ
-                            } else if (currentGunPs.HasValue) {
+                            // 2026-06-24 仅"每 lane × gun 段最后一个反应时锚点"显示 Δ (= pre-pass 标记的 anchorIdxSet).
+                            //   gun 前事件 + 非锚点设备 (TP 按下/MB) + 非最后锚点 → 仅显示 (P) 不算 Δ.
+                            if (anchorIdxSet.Contains(evtIdx) && currentGunPs.HasValue) {
                                 double evtPs = evt.Hour * 3600.0 + evt.Minute * 60.0 + evt.Second + evt.Msecond / 100.0;
                                 double delta = evtPs - currentGunPs.Value;
-                                pFlag = string.Format(" (P, Δ={0:+0.00;-0.00}s)", delta);  // 松开: 显示反应时 Δ
+                                pFlag = string.Format(" (P, Δ={0:+0.00;-0.00}s)", delta);
                             } else {
-                                pFlag = " (P, Δ=?)";  // 松开但本组无发令时刻 (= 数据缺或事件早于 Ready)
+                                pFlag = " (P)";
                             }
                         }
                         ls.Add(string.Format("道{0}{1} {2} {3} = {4,8}{5} 硬件状态={6}",
