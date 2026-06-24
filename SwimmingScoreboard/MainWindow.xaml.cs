@@ -102,6 +102,11 @@ namespace SwimmingScoreboard
         //   抢跳 TP: 固件即触即送, 可能在 0x22 之前, 暂存到 _pendingPreStartReactions 等 0x22 来后回算.
         private double? _gunPreStartSec = null;
         private readonly List<PendingPreStartReaction> _pendingPreStartReactions = new List<PendingPreStartReaction>();
+        // 2026-06-23 仰泳出发反应时窗口: 收到 D3=3 帧后暂存到 _backstrokeWindows, gun 时刻起算 StartBlockCloseDelay 秒,
+        //   期间每帧覆盖暂存, 到期取最后一次锁定. 仅个人/接力第 1 棒 (CurrentLap==0). 接力非出发棒走 RelayReactionCalculator.
+        //   _gunArrivedAt = PC 端收到 gun 帧的本地时刻, 用于算窗口剩余时间 (= StartBlockCloseDelay - (now - _gunArrivedAt))
+        private DateTime? _gunArrivedAt = null;
+        private readonly Dictionary<int, BackstrokeReleaseWindow> _backstrokeWindows = new Dictionary<int, BackstrokeReleaseWindow>();
         // 2026-05-13 硬件计时器电池电压（0x4B 上报，0 = 未上报）
         private double _hwBatteryVoltage = 0;
         private DateTime _hwBatteryReceivedAt = DateTime.MinValue;
@@ -231,6 +236,16 @@ namespace SwimmingScoreboard
             public string Side;         // "left"/"right"/null
             public double RawPreStartSec;
             public bool IsRelayLeg1;    // 接力第1棒需要也写入 LegReactionTimes[0]
+        }
+
+        // 2026-06-23 仰泳出发反应时窗口 (= "取出发端最后一次 TP 松开"): D3=3 多次到达, 覆盖暂存,
+        //   gun + StartBlockCloseDelay 时刻锁定最后一次. 仅个人/接力第 1 棒. 接力非出发棒不进此窗口.
+        private class BackstrokeReleaseWindow {
+            public int Lane;
+            public string Side;
+            public double LastRawPreStartSec;   // 最后一次 TP 松开的 PreStart 计数器值 (覆盖式)
+            public bool TimerStarted;
+            public System.Windows.Threading.DispatcherTimer Timer;
         }
 
         // ── 编辑锁：避免两端同时编辑同一条数据 ──
@@ -3558,7 +3573,7 @@ namespace SwimmingScoreboard
                 // DSQ/DNS/DNF/无成绩 追加, 无名次. TRI 不进总排名 (= 仅展示)
                 // 2026-06-22 按 DSQ → DNF → DNS → 其他 排序 (用户要求 DSQ 在 DNS 上面)
                 foreach (var sw in subList.Where(s => !withTimes.Contains(s) && s.Status != "TRI")
-                    .OrderBy(s => (s.Status == "DSQ" || s.Status == "DQ") ? 1 : (s.Status == "DNF") ? 2 : (s.Status == "DNS") ? 3 : 9)) {
+                    .OrderBy(s => GetStatusSortOrder(s.Status ?? ""))) {
                     var r = sw.GetResultForStage(_currentStage);
                     string rkName = sw.Name;
                     if (rankRelay && !string.IsNullOrEmpty(sw.Notes) && sw.Notes.StartsWith("接力队 棒次:"))
@@ -3590,113 +3605,11 @@ namespace SwimmingScoreboard
             return result;
         }
 
+        // 2026-06-22 (S1 源头重构) 大排名计算去重: 此 3-arg wrapper 转调 GetEventRankingForStage,
+        //   后者是唯一实现 (含 DSQ/DNS/DNF 追加+排序, 兼容当前比赛 _resultConfirmed 补丁, qualifiedToNext 算).
+        //   原 ~100 行复制实现已删, 避免改一边漏另一边 (2026-06-21 / 22 已发生过 2 次同步漏 bug).
         private List<object> GetEventRanking(string ageGroup, string eventName, string gender) {
-            if (string.IsNullOrEmpty(eventName)) return new List<object>();
-            bool rankRelay = eventName.Contains("接力");
-
-            // 获取当前赛次的总组数 (按 ageGroup 过滤)
-            var schedItem = _schedule.FirstOrDefault(s => SgMatch(s.Gender, gender) && s.EventName == eventName
-                                                          && s.Stage == _currentStage
-                                                          && (s.AgeGroup ?? "") == (ageGroup ?? ""));
-            int heatCount = schedItem != null && schedItem.HeatCount > 0 ? schedItem.HeatCount : _totalHeats;
-
-            // 收集已确认成绩的各组中被分配到该赛次的运动员
-            var stageSwimmers = new List<Swimmer>();
-            for (int h = 1; h <= Math.Max(heatCount, _currentHeat); h++) {
-                // 判断该组是否已确认成绩 (用带 ageGroup 的重载)
-                bool confirmed = IsHeatConfirmed(ageGroup, gender, eventName, _currentStage, h);
-                if (!confirmed && h == _currentHeat && _resultConfirmed) confirmed = true;
-                if (!confirmed) continue;
-
-                foreach (var s in _swimmers) {
-                    if (s.EventName != eventName || !SgMatch(s.Gender, gender)) continue;
-                    if (!MatchesAgeGroup(s, ageGroup)) continue;   // 2026-05-27 按组别过滤
-                    if (s.Notes != null && s.Notes.StartsWith("接力队员")) continue;
-                    // 必须通过StageAssignment确认在该组
-                    var sa = s.GetAssignmentForStage(_currentStage);
-                    if (sa != null && sa.Heat == h) { stageSwimmers.Add(s); continue; }
-                    // 兼容：无StageAssignment时按CurrentStage+Heat匹配
-                    if (sa == null && s.CurrentStage == _currentStage && s.Heat == h) stageSwimmers.Add(s);
-                }
-            }
-
-            var ranked = new List<object>();
-
-            // 有有效成绩且非DSQ/DNS/DNF/TRI的运动员按成绩排名 (TRI 试游 同款排除)
-            var withTimes = stageSwimmers.Where(s => {
-                if (s.Status == "DSQ" || s.Status == "DNS" || s.Status == "DNF" || s.Status == "TRI") return false;
-                var r = s.GetResultForStage(_currentStage);
-                return r != null && r.FinalTime > 0;
-            }).OrderBy(s => s.GetResultForStage(_currentStage).FinalTime).ToList();
-
-            // 并列名次（competition ranking 1-2-2-4）：同 FinalTime 并列，后续名次跳过
-            // 浮点容差：百分秒级精度，5ms 内视为并列
-            int idxER = 0, rank = 1;
-            double prevTimeER = -1;
-            foreach (var sw in withTimes) {
-                var r = sw.GetResultForStage(_currentStage);
-                idxER++;
-                double curT = r != null ? r.FinalTime : 0;
-                if (idxER == 1 || !IsTieTime(curT, prevTimeER)) rank = idxER;
-                prevTimeER = curT;
-                string rkName = sw.Name;
-                if (rankRelay && !string.IsNullOrEmpty(sw.Notes) && sw.Notes.StartsWith("接力队 棒次:"))
-                    rkName = sw.Notes.Substring("接力队 棒次:".Length);
-                // 2026-06-02 总排名加 "组/道" 字段: heat 取 StageAssignment.Heat, 兜底用 sw.Heat
-                var saR = sw.GetAssignmentForStage(_currentStage);
-                int heatR = (saR != null && saR.Heat > 0) ? saR.Heat : sw.Heat;
-                ranked.Add(new {
-                    rank = rank,
-                    heat = heatR,
-                    lane = sw.Lane,
-                    bibNumber = sw.BibNumber,
-                    name = rkName,
-                    country = sw.Country,
-                    entryTime = sw.EntryTime ?? "",
-                    finalTime = r != null ? TimeFormatter.Format(r.FinalTime) : "",
-                    timingSource = r != null ? r.TimingSource : "",
-                    status = sw.Status ?? "",
-                    resultStatus = r != null ? (r.Status ?? "") : "",
-                    // 2026-06-01 总排名加备注: 晋级 Q + 破纪录 WR/CR/... (大屏 display.html 用)
-                    recordNote = r != null ? (r.RecordNote ?? "") : "",
-                    qualifiedToNext = IsQualifiedToNext(sw, _currentStage)
-                });
-            }
-
-            // 其余运动员（DSQ/DNS/DNF/无成绩）追加到末尾，无名次
-            // 2026-06-04 TRI 不进总排名 (= 仅展示, 与 DSQ/DNS/DNF 不同, TRI 直接被剔除而非追加无名次)
-            // 2026-06-22 按 DSQ → DNF → DNS → 其他 排序 (用户要求 DSQ 在 DNS 上面)
-            var others = stageSwimmers.Where(s => !withTimes.Contains(s) && s.Status != "TRI")
-                .OrderBy(s => (s.Status == "DSQ" || s.Status == "DQ") ? 1 : (s.Status == "DNF") ? 2 : (s.Status == "DNS") ? 3 : 9)
-                .ToList();
-            foreach (var sw in others) {
-                var r = sw.GetResultForStage(_currentStage);
-                string rkName = sw.Name;
-                if (rankRelay && !string.IsNullOrEmpty(sw.Notes) && sw.Notes.StartsWith("接力队 棒次:"))
-                    rkName = sw.Notes.Substring("接力队 棒次:".Length);
-                string remark = "";
-                if (r != null && !string.IsNullOrEmpty(r.Status)) remark = r.Status;
-                else if (!string.IsNullOrEmpty(sw.Status)) remark = sw.Status;
-                // 2026-06-02 同样加 "组/道" 字段
-                var saO = sw.GetAssignmentForStage(_currentStage);
-                int heatO = (saO != null && saO.Heat > 0) ? saO.Heat : sw.Heat;
-                ranked.Add(new {
-                    rank = 0,
-                    heat = heatO,
-                    lane = sw.Lane,
-                    bibNumber = sw.BibNumber,
-                    name = rkName,
-                    country = sw.Country,
-                    entryTime = sw.EntryTime ?? "",
-                    finalTime = "",
-                    timingSource = "",
-                    status = remark,
-                    resultStatus = remark,
-                    recordNote = "",
-                    qualifiedToNext = false
-                });
-            }
-            return ranked;
+            return GetEventRankingForStage(gender, eventName, ageGroup, _currentStage);
         }
 
         // ═══ 2026-06-21 颁奖弹窗选项目用 ═══
@@ -3724,16 +3637,25 @@ namespace SwimmingScoreboard
 
         // GetEventRanking 的参数化版本: stage 来自参数, 不依赖 _currentStage. 颁奖用 (stage=决赛).
         //   其余逻辑跟 GetEventRanking 保持一致 (并列名次 / TRI 排除 / 接力队员处理 / DSQ/DNS/DNF 追加).
+        // 2026-06-21 (+ 2026-06-22 S1 重构: 此方法是大排名计算的唯一实现, GetEventRanking 3-arg 版改为 wrapper 调本方法).
+        //   合并的兼容点:
+        //   - heatCount 兜底用 _totalHeats (当前比赛 schedule 缺时), 不是 1
+        //   - heat 循环到 Math.Max(heatCount, _currentHeat) (兼容当前比赛超 schedule 设置的偶发情况)
+        //   - confirmed 判定加 stage==_currentStage && h==_currentHeat && _resultConfirmed 补丁
+        //     (让"刚确认的最后一组"立刻进总排名, 不等下一帧广播; 仅当前比赛阶段生效, 颁奖回放无副作用)
+        //   - qualifiedToNext 算 IsQualifiedToNext(sw, stage) (决赛 stage 无下阶段自然返 false)
         private List<object> GetEventRankingForStage(string gender, string eventName, string ageGroup, string stage) {
             if (string.IsNullOrEmpty(eventName) || string.IsNullOrEmpty(stage)) return new List<object>();
             bool rankRelay = eventName.Contains("接力");
             var schedItem = _schedule.FirstOrDefault(s => SgMatch(s.Gender, gender) && s.EventName == eventName
                                                           && s.Stage == stage
                                                           && (s.AgeGroup ?? "") == (ageGroup ?? ""));
-            int heatCount = schedItem != null && schedItem.HeatCount > 0 ? schedItem.HeatCount : 1;
+            int heatCount = schedItem != null && schedItem.HeatCount > 0 ? schedItem.HeatCount : _totalHeats;
             var stageSwimmers = new List<Swimmer>();
-            for (int h = 1; h <= heatCount; h++) {
-                if (!IsHeatConfirmed(ageGroup ?? "", gender, eventName, stage, h)) continue;
+            for (int h = 1; h <= Math.Max(heatCount, _currentHeat); h++) {
+                bool confirmed = IsHeatConfirmed(ageGroup ?? "", gender, eventName, stage, h);
+                if (!confirmed && stage == _currentStage && h == _currentHeat && _resultConfirmed) confirmed = true;
+                if (!confirmed) continue;
                 foreach (var s in _swimmers) {
                     if (s.EventName != eventName || !SgMatch(s.Gender, gender)) continue;
                     if (!MatchesAgeGroup(s, ageGroup)) continue;
@@ -3770,7 +3692,7 @@ namespace SwimmingScoreboard
                     timingSource = r != null ? r.TimingSource : "",
                     status = sw.Status ?? "", resultStatus = r != null ? (r.Status ?? "") : "",
                     recordNote = r != null ? (r.RecordNote ?? "") : "",
-                    qualifiedToNext = false
+                    qualifiedToNext = IsQualifiedToNext(sw, stage)
                 });
             }
 
@@ -3778,7 +3700,7 @@ namespace SwimmingScoreboard
             //   TRI 不进总排名 (与 GetEventRanking 一致).
             // 2026-06-22 按 DSQ → DNF → DNS → 其他 排序 (用户要求 DSQ 在 DNS 上面)
             var othersFS = stageSwimmers.Where(s => !withTimes.Contains(s) && s.Status != "TRI")
-                .OrderBy(s => (s.Status == "DSQ" || s.Status == "DQ") ? 1 : (s.Status == "DNF") ? 2 : (s.Status == "DNS") ? 3 : 9)
+                .OrderBy(s => GetStatusSortOrder(s.Status ?? ""))
                 .ToList();
             foreach (var sw in othersFS) {
                 var r = sw.GetResultForStage(stage);
@@ -3954,32 +3876,46 @@ namespace SwimmingScoreboard
                     }
                 }
                 ls.Add("");
+                // 2026-06-23 Δ 算法重写: 维护 currentGunPs (= 当前 Ready/Reset 区间内最近一次发令时刻).
+                //   遇 RangeMarker (Ready/Reset) 重置 currentGunPs=null, 遇 IsGunEvent 更新, 普通事件用它算 Δ.
+                //   旧算法 break 取第 1 个发令时刻 → 跨组取错. 新算法每组独立, 抢跳重发也取最后一次.
+                double? currentGunPs = null;
                 foreach (var evt in _pendingBackupEvents) {
                     // 2026-06-14 发令事件 (EvtType=10) lane/side=0xFF 表全场, 不受泳道筛选过滤
-                    if (laneFilter >= 0 && !evt.IsGunEvent && evt.Lane != laneFilter) continue;
+                    // 2026-06-23 RangeMarker (EvtType=11/12) 同样全场, 不受筛选过滤
+                    if (laneFilter >= 0 && !evt.IsGunEvent && !evt.IsRangeMarker && evt.Lane != laneFilter) continue;
                     string ts;
                     if (evt.Hour > 0)        ts = string.Format("{0}:{1:00}:{2:00}.{3:00}", evt.Hour, evt.Minute, evt.Second, evt.Msecond);
                     else if (evt.Minute > 0) ts = string.Format("{0}:{1:00}.{2:00}", evt.Minute, evt.Second, evt.Msecond);
                     else                     ts = string.Format("{0}.{1:00}", evt.Second, evt.Msecond);
-                    if (evt.IsGunEvent) {
+                    if (evt.IsRangeMarker) {
+                        // 2026-06-23 组分隔: 比赛就绪 / 计时复位 — 重置 currentGunPs (新组开始)
+                        ls.Add(string.Format("---- {0} ----", evt.RangeMarkerLabel));
+                        currentGunPs = null;
+                    }
+                    else if (evt.IsGunEvent) {
                         // 2026-06-14 发令时刻特殊格式: 时间是 Gun_PreStart_* (= 反应时核对参考点)
+                        // 2026-06-23 同时更新 currentGunPs, 后续本组 PreStart 事件用它算 Δ
+                        currentGunPs = evt.Hour * 3600.0 + evt.Minute * 60.0 + evt.Second + evt.Msecond / 100.0;
                         ls.Add(string.Format("[发令时刻] = {0,8} (PreStart 计数器值, 后续 TP/SB 反应时 = 该 TP 时间 - 此处)", ts));
                     } else {
                         // 2026-06-14 IsPreStartTime: 固件设了 EvtType bit7 表示时间字段是 PreStart 计数器值 (= 发令前/开门窗口内事件),
                         //   不是 race timer. 加 " (P)" 标志, 避免操作员把出发反应时段的时间当成 race timer 比较.
                         // 2026-06-15 PreStart 事件附加 Δ (差值) = PreStart 时间 - 发令时刻 PreStart, 直接读出反应时, 跟硬件 LCD 显示一致
+                        // 2026-06-23 用 currentGunPs (本组最近一次发令时刻), 没有则显示 Δ=?
                         string pFlag = "";
                         if (evt.IsPreStartTime) {
-                            double gunPs = 0.0;
-                            foreach (var g in _pendingBackupEvents) {
-                                if (g.IsGunEvent) {
-                                    gunPs = g.Hour * 3600.0 + g.Minute * 60.0 + g.Second + g.Msecond / 100.0;
-                                    break;
-                                }
+                            // 2026-06-23 反应时锚点 = TP/SB 松开瞬间 (不是按下). 按下事件仅显示 (P) 标志, 不计算 Δ.
+                            //   仰泳出发反应时 = TP 最后一次松开时刻 - gun 时刻 (跟 OnBackstrokeWindowExpired 算法一致).
+                            if (evt.IsPress) {
+                                pFlag = " (P)";  // 按下: 仅标志, 不显示 Δ
+                            } else if (currentGunPs.HasValue) {
+                                double evtPs = evt.Hour * 3600.0 + evt.Minute * 60.0 + evt.Second + evt.Msecond / 100.0;
+                                double delta = evtPs - currentGunPs.Value;
+                                pFlag = string.Format(" (P, Δ={0:+0.00;-0.00}s)", delta);  // 松开: 显示反应时 Δ
+                            } else {
+                                pFlag = " (P, Δ=?)";  // 松开但本组无发令时刻 (= 数据缺或事件早于 Ready)
                             }
-                            double evtPs = evt.Hour * 3600.0 + evt.Minute * 60.0 + evt.Second + evt.Msecond / 100.0;
-                            double delta = evtPs - gunPs;
-                            pFlag = string.Format(" (P, Δ={0:+0.00;-0.00}s)", delta);
                         }
                         ls.Add(string.Format("道{0}{1} {2} {3} = {4,8}{5} 硬件状态={6}",
                             evt.Lane, evt.SideLabel, evt.EventLabel, evt.ActionLabel, ts, pFlag, evt.DevState));
@@ -4918,14 +4854,17 @@ namespace SwimmingScoreboard
                     // 2026-06-14 PreStart 重设计: 固件发令瞬间广播枪响时刻 PreStart 计数器值
                     //   = 个人/接力第1棒反应时的减数. 暂存到 _gunPreStartSec, 抢跳 TP/SB 等待此值后回算反应时.
                     _gunPreStartSec = timeInSeconds;
+                    _gunArrivedAt   = DateTime.Now;   // 2026-06-23 仰泳窗口起算基准 (= 本地时刻)
                     AddLog(string.Format("硬件触发: 枪响 PreStart = {0:F3}s", timeInSeconds));
                     FlushPendingPreStartReactions();
+                    StartBackstrokeWindowsAfterGun();   // 2026-06-23 启动 gun 前已暂存的仰泳窗口 timer
                     return;
                 case "TimerReset":
                     AddLog("硬件触发: 计时清零");
                     // 2026-06-14 新一场比赛: 清掉枪响 PreStart 锚点和待算反应时缓存
                     _gunPreStartSec = null;
                     _pendingPreStartReactions.Clear();
+                    ClearBackstrokeReleaseWindows();   // 2026-06-23 同步清仰泳出发反应时窗口
                     Restart_Click(null, null);
                     return;
             }
@@ -5017,55 +4956,8 @@ namespace SwimmingScoreboard
                     break;
 
                 case "BackstrokeRelease":
-                    // 2026-06-14 仰泳出发松开 TP: 固件已在开门窗口内发 D3=3 + PreStart 计数器值
-                    //   反应时 = 松开时刻 PreStart - 枪响时刻 PreStart, 负值=抢跳. 不进 ProcessTouchpadHit (不动圈数, 这事件是出发反应时, 不是 lap split).
-                    //   仰泳预备脚踩 TP press 固件不发 (BackstrokeBit + 开门窗口内 press 守卫), 所以这里收到的一定是真正的出发松开瞬间.
-                    {
-                        double reactionTime;
-                        if (_gunPreStartSec.HasValue) {
-                            reactionTime = timeInSeconds - _gunPreStartSec.Value;
-                        } else {
-                            // 2026-06-15 仰泳抢跳: release 早于 gun → _gunPreStartSec 还是 null. 暂存到 pending 等 0x22 回算精确反应时.
-                            //   抢跳预警: 立即在 UI 标 IsSuspectFalseStart=true (= 反应时字段红色), 让操作员**立刻**看到有运动员抢跳, 不必等发令瞬间.
-                            //   ReactionTime 暂时设 0 占位, gun 到达后 FlushPendingPreStartReactions 会覆盖为真实负值.
-                            _pendingPreStartReactions.Add(new PendingPreStartReaction {
-                                Lane = lane, DeviceKind = "TP", Side = side,
-                                RawPreStartSec = timeInSeconds, IsRelayLeg1 = _isRelay
-                            });
-                            laneState.IsSuspectFalseStart = true;   // UI 立即标红抢跳预警, ReactionTime 暂不动, 等发令后 Flush 算出真实负值
-                            AddLog(string.Format("⚠ 仰泳抢跳预警 泳道{0} TP 松开早于发令枪响 (PreStart={1:F3}s), 反应时待发令后回算", lane, timeInSeconds));
-                            break;
-                        }
-                        laneState.ReactionTime = reactionTime;
-                        if (_isRelay) {
-                            var swForLane0 = GetCurrentHeatSwimmers().FirstOrDefault(s2 => {
-                                var sa2 = s2.GetAssignmentForStage(_currentStage);
-                                return (sa2 != null ? sa2.Lane : s2.Lane) == lane;
-                            });
-                            if (swForLane0 != null) {
-                                var res0 = EnsureRelayLaneResult(swForLane0, lane);
-                                if (res0 != null) {
-                                    EnsureLegReactionSlots(res0);
-                                    if (res0.LegReactionTimes.Count > 0) res0.LegReactionTimes[0] = reactionTime;
-                                }
-                            }
-                        }
-                        if (reactionTime < 0) {
-                            laneState.IsSuspectFalseStart = true;
-                            AddLog(string.Format("⚠ 仰泳抢跳 泳道{0} 反应时: {1:F3}s", lane, reactionTime));
-                        } else {
-                            AddLog(string.Format("泳道{0} 仰泳出发反应时: {1:F3}s", lane, reactionTime));
-                        }
-                        // 2026-06-15 主动写比赛日志: 显示计算后的反应时 (= release_PreStart - _gunPreStartSec), 不是原始 PreStart 数据
-                        {
-                            var sw_br_log = GetCurrentHeatSwimmers().FirstOrDefault(s2 => {
-                                var sa2 = s2.GetAssignmentForStage(_currentStage);
-                                return (sa2 != null ? sa2.Lane : s2.Lane) == lane;
-                            });
-                            string swName_br_log = sw_br_log != null ? (sw_br_log.Name ?? "") : "";
-                            AppendToLaneEventLog(lane, "BackstrokeRelease", reactionTime, swName_br_log, side, -1);
-                        }
-                    }
+                    // 2026-06-23 仰泳出发反应时帧 → 走专用子程序 ProcessBackstrokeReleaseFrame (与正常 case 隔离, 跟固件 TouchPad_BackstrokeStart_Process 对称).
+                    ProcessBackstrokeReleaseFrame(lane, side, timeInSeconds, laneState);
                     break;
 
                 case "StartingBlock":
@@ -5237,11 +5129,11 @@ namespace SwimmingScoreboard
                     //   Touched    → 已有正式成绩；本次记日志并写入"备用成绩"（争议时使用）
                     //   其它（Closed/Broken/NotInstalled）→ 仅记日志，不作为成绩
                     {
-                        // 2026-06-21 仰泳出发端守卫: 仰泳比赛 CurrentLap=0 (还没游完任何一段) 时, 出发端 TP 是
-                        //   "运动员脚踩/松开" 的副产物 (反应时锚点), 不该计为 lap split. 防固件未标 D3=3
-                        //   BackstrokeRelease 时, 这一帧被走 ProcessTouchpadHit 错占第 1 段 → 100m+ 仰泳
-                        //   终点 (出发端=终点端) 提前关闭, 真正终点触板被丢弃, 没成绩.
-                        //   只在 (仰泳 + 出发端 + CurrentLap=0 + 非 MB 代触) 4 条件同时成立时触发, 其余路径不影响.
+                        // 2026-06-21 仰泳出发端守卫 (现为冗余防御 - 2026-06-22 固件 swimplay.c 已修协议:
+                        //   TP 松开发 D3=3 BackstrokeRelease 走 case "BackstrokeRelease" 路径不会到这里;
+                        //   TP 按下 if(0) 禁用不发任何帧. 此守卫保留作 defense-in-depth, 防固件回滚 / 老固件兼容.
+                        //   原 bug 描述: 固件未正确标 D3=3 时, 仰泳出发 TP 帧走 case "Touchpad" 错占第 1 段
+                        //   → 100m+ 仰泳终点提前关闭, 没成绩. 4 条件守卫: 仰泳 + 出发端 + CurrentLap=0 + 非 MB 代触.
                         {
                             bool isBack_g = !string.IsNullOrEmpty(_currentEvent) && _currentEvent.Contains("仰泳");
                             bool startFromLeft_g = _laneCloseSettings == null || _laneCloseSettings.StartPosition != "right";
@@ -7333,6 +7225,15 @@ namespace SwimmingScoreboard
         }
 
         // 该运动员是否已晋级到下一赛次（StageAssignments 含下一赛次 → 已被分组）
+        // 2026-06-22 (S2) DSQ/DNS/DNF 排序统一 helper. 用户要求 DSQ 在 DNS 上面.
+        //   DSQ/DQ=1 (最优先) → DNF=2 → DNS=3 → 其他=9. 所有显示视图必须用此 helper, 杜绝 inline 不一致.
+        private static int GetStatusSortOrder(string status) {
+            if (status == "DSQ" || status == "DQ") return 1;
+            if (status == "DNF") return 2;
+            if (status == "DNS") return 3;
+            return 9;
+        }
+
         private bool IsQualifiedToNext(Swimmer sw, string fromStage) {
             if (sw == null) return false;
             string next = GetNextStageFor(sw.AgeCategory ?? "", sw.Gender, sw.EventName, fromStage);
@@ -7792,6 +7693,7 @@ namespace SwimmingScoreboard
             if (_relayReactionCalc != null) _relayReactionCalc.Reset();
             _gunPreStartSec = null;
             _pendingPreStartReactions.Clear();
+            ClearBackstrokeReleaseWindows();   // 2026-06-23 同步清仰泳出发反应时窗口
             _resultConfirmed = false;
             _firstPlaceFinishTime = "";
             _firstPlaceShowStart = DateTime.MinValue;
@@ -8002,6 +7904,7 @@ namespace SwimmingScoreboard
             // 2026-06-14 PreStart 重设计: 复位也清掉枪响 PreStart 锚点和待算反应时缓存 (= 新一场比赛干净状态)
             _gunPreStartSec = null;
             _pendingPreStartReactions.Clear();
+            ClearBackstrokeReleaseWindows();   // 2026-06-23 同步清仰泳出发反应时窗口
             // 2026-06-20 复位停反应时窗口 timer (= 跨场不能残留)
             StopReactionWindowTimer();
             // 2026-06-16 盲表成绩历史清空 (每组开始干净状态) + 刷各泳道 ComboBox
@@ -9594,6 +9497,127 @@ namespace SwimmingScoreboard
                 }
             }
             _pendingPreStartReactions.Clear();
+        }
+
+        // 2026-06-23 仰泳出发反应时专用方法群 (= 与正常 case 隔离, 跟固件 TouchPad_BackstrokeStart_Process 对称).
+        //   case "BackstrokeRelease" → ProcessBackstrokeReleaseFrame: 入口处理 D3=3 帧 (= 暂存 + 启 timer)
+        //   case "GunPreStart"      → StartBackstrokeWindowsAfterGun: gun 到达时启动暂存 lane 的 timer (= StartBlockCloseDelay 全部)
+        //   timer 到期               → OnBackstrokeWindowExpired: 用最后一次的 LastRawPreStartSec 算反应时, 锁定 + 1 条比赛日志
+        //   Reset 路径               → ClearBackstrokeReleaseWindows: stop timer + clear dict + 清 _gunArrivedAt
+
+        // 2026-06-23 case "BackstrokeRelease" 帧的专用入口: 暂存 + 启 timer (覆盖式, 取最后一次松开).
+        //   守卫: 接力非出发棒 (CurrentLap>0) → 走 RelayReactionCalculator 现有路径, 不进此窗口.
+        //   时序: gun 已响 → 启 timer = max(0.05, StartBlockCloseDelay - (now - _gunArrivedAt))
+        //          gun 未响 → 仅暂存, 等 StartBackstrokeWindowsAfterGun 启动 timer = StartBlockCloseDelay 全部
+        //   不立即写 laneState.ReactionTime, 不立即 AppendToLaneEventLog. 等 OnBackstrokeWindowExpired 锁定.
+        private void ProcessBackstrokeReleaseFrame(int lane, string side, double timeInSeconds, LaneDeviceState laneState) {
+            // 守卫: 接力非出发棒 → 不进此窗口
+            if (_isRelay && laneState.CurrentLap > 0) {
+                AddLog(string.Format("泳道{0} BackstrokeRelease 在接力非出发棒 (CurrentLap={1}), 不进仰泳出发窗口", lane, laneState.CurrentLap));
+                return;
+            }
+            // 找/建 window, 覆盖暂存 (= 最后一次 TP 松开覆盖)
+            BackstrokeReleaseWindow win;
+            if (!_backstrokeWindows.TryGetValue(lane, out win)) {
+                win = new BackstrokeReleaseWindow { Lane = lane };
+                _backstrokeWindows[lane] = win;
+            }
+            win.Side = side;
+            win.LastRawPreStartSec = timeInSeconds;
+            // 启动 timer (仅 gun 已响且未启动)
+            if (!win.TimerStarted && _gunPreStartSec.HasValue && _gunArrivedAt.HasValue) {
+                double delay = (_laneCloseSettings != null) ? _laneCloseSettings.StartBlockCloseDelay : 2.0;
+                double elapsedSinceGun = (DateTime.Now - _gunArrivedAt.Value).TotalSeconds;
+                double remaining = Math.Max(0.05, delay - elapsedSinceGun);
+                int laneCopy = lane;
+                win.Timer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(remaining) };
+                win.Timer.Tick += (s, e) => OnBackstrokeWindowExpired(laneCopy);
+                win.Timer.Start();
+                win.TimerStarted = true;
+                AddLog(string.Format("泳道{0} 仰泳出发反应时窗口已启动 (剩余 {1:F2}s, 期间覆盖暂存)", lane, remaining));
+            }
+        }
+
+        private void StartBackstrokeWindowsAfterGun() {
+            if (!_gunPreStartSec.HasValue) return;
+            double delay = (_laneCloseSettings != null) ? _laneCloseSettings.StartBlockCloseDelay : 2.0;
+            var lanesToStart = new List<int>();
+            foreach (var kv in _backstrokeWindows) {
+                if (!kv.Value.TimerStarted) lanesToStart.Add(kv.Key);
+            }
+            foreach (var ln in lanesToStart) {
+                var win = _backstrokeWindows[ln];
+                int laneCopy = ln;
+                win.Timer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(delay) };
+                win.Timer.Tick += (s, e) => OnBackstrokeWindowExpired(laneCopy);
+                win.Timer.Start();
+                win.TimerStarted = true;
+                AddLog(string.Format("泳道{0} 仰泳出发反应时窗口随 gun 启动 ({1:F2}s, 含 gun 前已暂存的松开)", ln, delay));
+            }
+        }
+
+        private void OnBackstrokeWindowExpired(int lane) {
+            BackstrokeReleaseWindow win;
+            if (!_backstrokeWindows.TryGetValue(lane, out win)) return;
+            if (win.Timer != null) { try { win.Timer.Stop(); } catch { } }
+            _backstrokeWindows.Remove(lane);
+
+            var laneState = _laneDeviceStates.FirstOrDefault(s => s.Lane == lane);
+            if (laneState == null) return;
+
+            if (!_gunPreStartSec.HasValue) {
+                // 窗口到期但 gun 仍未响 (= 极罕见, 抢跳长时间未发令) → 暂存 pending 等 gun 来 Flush
+                AddLog(string.Format("⚠ 泳道{0} 仰泳窗口到期但 gun 未响, 暂存 pending 待 gun 回算", lane));
+                _pendingPreStartReactions.Add(new PendingPreStartReaction {
+                    Lane = lane, DeviceKind = "TP", Side = win.Side,
+                    RawPreStartSec = win.LastRawPreStartSec, IsRelayLeg1 = _isRelay
+                });
+                laneState.IsSuspectFalseStart = true;
+                return;
+            }
+
+            double reactionTime = win.LastRawPreStartSec - _gunPreStartSec.Value;
+            laneState.ReactionTime = reactionTime;
+
+            // 接力第 1 棒: 写 LegReactionTimes[0]
+            if (_isRelay) {
+                var swForLane0 = GetCurrentHeatSwimmers().FirstOrDefault(s2 => {
+                    var sa2 = s2.GetAssignmentForStage(_currentStage);
+                    return (sa2 != null ? sa2.Lane : s2.Lane) == lane;
+                });
+                if (swForLane0 != null) {
+                    var res0 = EnsureRelayLaneResult(swForLane0, lane);
+                    if (res0 != null) {
+                        EnsureLegReactionSlots(res0);
+                        if (res0.LegReactionTimes.Count > 0) res0.LegReactionTimes[0] = reactionTime;
+                    }
+                }
+            }
+
+            if (reactionTime < 0) {
+                laneState.IsSuspectFalseStart = true;
+                AddLog(string.Format("⚠ 仰泳抢跳 泳道{0} 反应时 (= 窗口结束取最后一次松开): {1:F3}s", lane, reactionTime));
+            } else {
+                AddLog(string.Format("泳道{0} 仰泳出发反应时 (= 窗口结束取最后一次松开): {1:F3}s", lane, reactionTime));
+            }
+
+            // 1 条比赛日志 (= 窗口结束才写, 期间多次松开都不写, 避免冗余)
+            var sw = GetCurrentHeatSwimmers().FirstOrDefault(s2 => {
+                var sa2 = s2.GetAssignmentForStage(_currentStage);
+                return (sa2 != null ? sa2.Lane : s2.Lane) == lane;
+            });
+            string swName = sw != null ? (sw.Name ?? "") : "";
+            AppendToLaneEventLog(lane, "BackstrokeRelease", reactionTime, swName, win.Side, -1);
+        }
+
+        private void ClearBackstrokeReleaseWindows() {
+            foreach (var kv in _backstrokeWindows) {
+                if (kv.Value.Timer != null) {
+                    try { kv.Value.Timer.Stop(); } catch { }
+                }
+            }
+            _backstrokeWindows.Clear();
+            _gunArrivedAt = null;
         }
 
         private void UpdateLaneStatusDisplay() {
@@ -17176,7 +17200,7 @@ namespace SwimmingScoreboard
                 };
             // 2026-06-22 次级排序: 同 SortTime (= 都是 DSQ/DNS/DNF 的 MaxValue) 时按 DSQ→DNF→DNS→其他 排
             }).OrderBy(x => x.SortTime)
-              .ThenBy(x => (x.Status == "DSQ" || x.Status == "DQ") ? 1 : (x.Status == "DNF") ? 2 : (x.Status == "DNS") ? 3 : 9)
+              .ThenBy(x => GetStatusSortOrder(x.Status ?? ""))
               .ToList();
 
             // 重新计算排名（DSQ/DNS/DNF无名次）；列与表头一一对应：

@@ -74,6 +74,16 @@ namespace SwimmingScoreboard
         // 2026-06-14 PreStart 时间源标志: 固件在 Ready_timer_bit==1 && GunFired_PostOpenDoneBit==0 时设 EvtType bit7
         //   PC 显示时间后追加 "(P)" 提示, 避免跟 race timer 时间混淆
         public bool IsPreStartTime { get { return (EvtType & 0x80) != 0 && EvtType != 0xFF; } }
+        // 2026-06-23 组分隔标记 (固件 swimplay.c push): 11 = Ready (比赛就绪) / 12 = Reset (计时复位)
+        //   作为事件备份组边界. PC 端 Δ 计算遇分隔符重置 currentGunPs, 避免跨组取错发令时刻
+        public bool IsRangeMarker { get { return BaseType == 11 || BaseType == 12; } }
+        public string RangeMarkerLabel {
+            get {
+                if (BaseType == 11) return "比赛就绪";
+                if (BaseType == 12) return "计时复位";
+                return "";
+            }
+        }
     }
 
     public class TimingData
