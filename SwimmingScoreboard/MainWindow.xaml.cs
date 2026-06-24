@@ -5446,7 +5446,7 @@ namespace SwimmingScoreboard
                         var rtParts = new List<string>();
                         for (int li = 0; li < r.LegReactionTimes.Count; li++) {
                             double rt = r.LegReactionTimes[li];
-                            rtParts.Add(string.Format("第{0}棒:{1}", li + 1, rt > 0 ? rt.ToString("F3") : "—"));
+                            rtParts.Add(string.Format("第{0}棒:{1}", li + 1, (rt != 0 && !double.IsNaN(rt)) ? rt.ToString("F3") : "—"));
                         }
                         reaction = string.Join(" / ", rtParts.ToArray());
                     } else if (r != null && r.StartingBlockTime != 0) {
@@ -5601,7 +5601,7 @@ namespace SwimmingScoreboard
                     var rtParts2 = new List<string>();
                     for (int li = 0; li < r.LegReactionTimes.Count; li++) {
                         double rt2 = r.LegReactionTimes[li];
-                        rtParts2.Add(string.Format("第{0}棒:{1}", li + 1, rt2 > 0 ? rt2.ToString("F3") : "—"));
+                        rtParts2.Add(string.Format("第{0}棒:{1}", li + 1, (rt2 != 0 && !double.IsNaN(rt2)) ? rt2.ToString("F3") : "—"));
                     }
                     reactionHtml = string.Join("<br>", rtParts2.ToArray());
                 } else if (r != null && r.StartingBlockTime != 0) {
@@ -17208,7 +17208,7 @@ namespace SwimmingScoreboard
                     var rtParts = new List<string>();
                     for (int li = 0; li < rgLegCount; li++) {
                         double rt = (r != null && r.LegReactionTimes != null && li < r.LegReactionTimes.Count) ? r.LegReactionTimes[li] : 0;
-                        rtParts.Add(string.Format("第{0}棒:{1}", li + 1, rt > 0 ? rt.ToString("F2") : "—"));
+                        rtParts.Add(string.Format("第{0}棒:{1}", li + 1, (rt != 0 && !double.IsNaN(rt)) ? rt.ToString("F2") : "—"));
                     }
                     reactionStr = string.Join("  ", rtParts.ToArray());
                 } else if (r != null && r.StartingBlockTime != 0) {
@@ -17314,7 +17314,7 @@ namespace SwimmingScoreboard
                 var parts = new List<string>();
                 for (int li = 0; li < r.LegReactionTimes.Count; li++) {
                     double rt = r.LegReactionTimes[li];
-                    parts.Add(string.Format("第{0}棒:{1}", li + 1, rt > 0 ? rt.ToString("F2") : "—"));
+                    parts.Add(string.Format("第{0}棒:{1}", li + 1, (rt != 0 && !double.IsNaN(rt)) ? rt.ToString("F2") : "—"));
                 }
                 return string.Join(" ", parts.ToArray());
             }
@@ -22364,7 +22364,7 @@ namespace SwimmingScoreboard
                         } else if (!isRelay && li == 0) {
                             rt = r.StartingBlockTime;
                         }
-                        if (rt < 0) rt = 0;
+                        // 2026-06-24 保留负反应时 (= 抢跳), FormatReactionRRRRCC 输出 -RRR.CC; NaN/0 输出 -------
                     }
                     sb.Append(" " + FormatReactionRRRRCC(rt));
                 }
@@ -22411,14 +22411,20 @@ namespace SwimmingScoreboard
             return string.Format("{0:D2}:{1:D2}.{2:D2}", m, s, cc);
         }
 
-        // 反应时格式 RRRR.cc (= 4-digit 整秒 . 2-digit 百分秒, 例: 1.01s → 0001.01)
+        // 2026-06-24 反应时格式 ±RRR.cc (= 符号 + 3-digit 整秒 . 2-digit 百分秒, 7 字符等宽):
+        //   正常出发  +001.23 (= +1.23s)
+        //   抢跳负值  -001.23 (= -1.23s)
+        //   未记录    -------  (= 7 个减号, NaN/0/Inf)
+        //   旧格式 RRRR.cc 4 位整秒不支持负号, 现改为支持 -999~+999 秒 (= 反应时实际仅 0-几秒)
         private static string FormatReactionRRRRCC(double seconds) {
-            if (seconds < 0 || double.IsNaN(seconds) || double.IsInfinity(seconds)) seconds = 0;
-            long totalCc = (long)Math.Round(seconds * 100);
+            if (seconds == 0 || double.IsNaN(seconds) || double.IsInfinity(seconds)) return "-------";
+            char sign = seconds < 0 ? '-' : '+';
+            double abs = Math.Abs(seconds);
+            long totalCc = (long)Math.Round(abs * 100);
             long cc = totalCc % 100;
-            long rrrr = totalCc / 100;
-            if (rrrr > 9999) rrrr = 9999;
-            return string.Format("{0:D4}.{1:D2}", rrrr, cc);
+            long rrr = totalCc / 100;
+            if (rrr > 999) rrr = 999;
+            return string.Format("{0}{1:D3}.{2:D2}", sign, rrr, cc);
         }
 
         private class ConfirmedHeatPick {
@@ -23587,7 +23593,7 @@ namespace SwimmingScoreboard
                     var parts = new List<string>();
                     for (int li = 0; li < legCount; li++) {
                         double rt = (r != null && r.LegReactionTimes != null && li < r.LegReactionTimes.Count) ? r.LegReactionTimes[li] : 0;
-                        parts.Add(string.Format("第{0}棒:{1}", li + 1, rt > 0 ? rt.ToString("F2") : "—"));
+                        parts.Add(string.Format("第{0}棒:{1}", li + 1, (rt != 0 && !double.IsNaN(rt)) ? rt.ToString("F2") : "—"));
                     }
                     reactionCell = string.Join("<br>", parts.ToArray());
                 } else if (r != null && r.StartingBlockTime != 0) {
@@ -23934,7 +23940,7 @@ namespace SwimmingScoreboard
                                 var rtParts = new List<string>();
                                 for (int li = 0; li < legCnt; li++) {
                                     double rt = (r != null && r.LegReactionTimes != null && li < r.LegReactionTimes.Count) ? r.LegReactionTimes[li] : 0;
-                                    rtParts.Add(string.Format("第{0}棒:{1}", li + 1, rt > 0 ? rt.ToString("F2") : "—"));
+                                    rtParts.Add(string.Format("第{0}棒:{1}", li + 1, (rt != 0 && !double.IsNaN(rt)) ? rt.ToString("F2") : "—"));
                                 }
                                 reactionCell = string.Join("<br>", rtParts.ToArray());
                             } else if (r != null && r.StartingBlockTime != 0) {

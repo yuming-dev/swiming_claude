@@ -282,7 +282,7 @@ namespace SwimmingScoreboard
                     var parts = new List<string>();
                     for (int li = 0; li < legCount; li++) {
                         double rt = (r != null && r.LegReactionTimes != null && li < r.LegReactionTimes.Count) ? r.LegReactionTimes[li] : 0;
-                        parts.Add(string.Format("第{0}棒:{1}", li + 1, rt > 0 ? rt.ToString("F2") : "—"));
+                        parts.Add(string.Format("第{0}棒:{1}", li + 1, (rt != 0 && !double.IsNaN(rt)) ? rt.ToString("F2") : "—"));
                     }
                     reactionPlain = string.Join("  ", parts.ToArray());
                     reactionHtml = string.Join("<br>", parts.ToArray());
