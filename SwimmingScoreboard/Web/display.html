@@ -195,20 +195,19 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 .sub-text { font-size: calc(3vh * var(--fs) * var(--fs-event)); color: var(--dim); text-align: center; }
 
 /* 颁奖 */
-/* 2026-06-22 (S4 源头修复): 用 dvh (动态视口高度, 自动减浏览器 chrome+任务栏) 替代 vh,
-   不再依赖魔术 padding-bottom 凑余量. 100dvh 始终 = 实际可见高度, 全屏/窗口模式都正确显示.
-   container = (100dvh - page-header 13vh) ≈ 87dvh, 留 1dvh 余量给边框 = 86dvh */
-.award-container { height: 86dvh; display: flex; align-items: flex-end; justify-content: center; gap: 2vw; padding-bottom: 1dvh; box-sizing: border-box; }
-/* 2026-06-24 justify-content: space-evenly → space-between, medal 贴顶 + time 贴底, 中间 3 行紧凑, 不裁掉 time */
-.podium-card { display: flex; flex-direction: column; align-items: center; justify-content: space-between; width: 28vw; padding: 1dvh 1vw; border-radius: 1vh; animation: reveal 0.8s ease-out forwards; opacity: 0; box-sizing: border-box; }
-.podium-card.gold   { background: linear-gradient(180deg, #f59e0b22, #f59e0b11); border: 3px solid var(--gold); height: 80dvh; animation-delay: 2.5s; }
-.podium-card.silver { background: linear-gradient(180deg, #c0c0c022, #c0c0c011); border: 3px solid #c0c0c0;     height: 68dvh; animation-delay: 1.2s; }
-.podium-card.bronze { background: linear-gradient(180deg, #cd7f3222, #cd7f3211); border: 3px solid #cd7f32;     height: 58dvh; animation-delay: 0.2s; }
-.podium-card .medal    { font-size: calc(11dvh  * var(--fs)); line-height: 1; }
-.podium-card .rank-num { font-size: calc(6dvh   * var(--fs)); line-height: 1; font-weight: bold; color: #fbbf24; text-align: center; letter-spacing: 0.1em; }
-.podium-card .name     { font-size: calc(6dvh   * var(--fs)); line-height: 1; font-weight: bold; text-align: center; }
-.podium-card .team     { font-size: calc(4dvh   * var(--fs)); line-height: 1; color: var(--dim); text-align: center; }
-.podium-card .time     { font-size: calc(5dvh   * var(--fs)); line-height: 1; font-family: 'Consolas', monospace; }
+/* 2026-06-24 v7 (= 真正根因: 双 page-header 叠加): #awardView 内有第 2 个 page-header (13vh), 加外层 page-header 13vh + container 87vh = 113vh, 底部被裁 13vh.
+ *   修: container 高度 = var(--rv-h) - 13vh = 74vh (留出内部 page-header 13vh). 总: 13(外) + 13(内) + 74(container) = 100vh 严格.
+ *   宽度: card 28vw → 24vw (用户允许缩小), 高度比例 1.0/0.90/0.80 (= 紧凑, bronze 也装下 medal 22vh). */
+.award-container { height: calc(var(--rv-h) - 13vh); display: flex; align-items: flex-end; justify-content: center; gap: 2vw; padding-bottom: 1vh; box-sizing: border-box; }
+.podium-card { display: flex; flex-direction: column; align-items: center; justify-content: space-between; width: 24vw; padding: 2vh 1vw; border-radius: 1vh; animation: reveal 0.8s ease-out forwards; opacity: 0; box-sizing: border-box; }
+.podium-card.gold   { background: linear-gradient(180deg, #f59e0b22, #f59e0b11); border: 3px solid var(--gold); height: calc(var(--rv-h) - 15vh);              animation-delay: 2.5s; }
+.podium-card.silver { background: linear-gradient(180deg, #c0c0c022, #c0c0c011); border: 3px solid #c0c0c0;     height: calc((var(--rv-h) - 13vh) * 0.90); animation-delay: 1.2s; }
+.podium-card.bronze { background: linear-gradient(180deg, #cd7f3222, #cd7f3211); border: 3px solid #cd7f32;     height: calc((var(--rv-h) - 13vh) * 0.80); animation-delay: 0.2s; }
+.podium-card .medal    { font-size: calc(22vh  * var(--fs)); line-height: 1; }  /* 放大 2x */
+.podium-card .rank-num { font-size: calc(6vh   * var(--fs)); line-height: 1; font-weight: bold; color: #fbbf24; text-align: center; letter-spacing: 0.1em; }
+.podium-card .name     { font-size: calc(6vh   * var(--fs)); line-height: 1; font-weight: bold; text-align: center; }
+.podium-card .team     { font-size: calc(4vh   * var(--fs)); line-height: 1; color: var(--dim); text-align: center; }
+.podium-card .time     { font-size: calc(5vh   * var(--fs)); line-height: 1; font-family: 'Consolas', monospace; }
 
 @keyframes reveal { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
