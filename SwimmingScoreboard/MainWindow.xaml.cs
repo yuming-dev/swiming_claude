@@ -18117,7 +18117,8 @@ namespace SwimmingScoreboard
         }
         private void RefreshRecordsHiddenBtn() {
             if (RecordsHiddenBtnText != null) {
-                RecordsHiddenBtnText.Text = _displayStyleRecordsHidden ? "记录已隐藏 (点击显示)" : "记录显示 (点击隐藏)";
+                // 2026-06-25 保留 ON/OFF 两态文字, 去 "(点击...)" 后缀
+                RecordsHiddenBtnText.Text = _displayStyleRecordsHidden ? "记录已隐藏" : "记录显示";
             }
         }
 
@@ -18131,7 +18132,8 @@ namespace SwimmingScoreboard
         }
         private void RefreshRemarkReactionBtn() {
             if (RemarkReactionBtnText != null) {
-                RemarkReactionBtnText.Text = _displayStyleRemarkShowReaction ? "备注: 显反应时 (点击关闭)" : "备注: 不显反应时 (点击打开)";
+                // 2026-06-25 保留 ON/OFF 两态文字, 去 "(点击...)" 后缀; 去 "备注: " 前缀
+                RemarkReactionBtnText.Text = _displayStyleRemarkShowReaction ? "显反应时" : "不显反应时";
             }
         }
 
