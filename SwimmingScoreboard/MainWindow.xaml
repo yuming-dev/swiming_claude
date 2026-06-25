@@ -749,7 +749,13 @@
                     <Border Grid.Column="1" Background="White" CornerRadius="6" Padding="16">
                         <ScrollViewer VerticalScrollBarVisibility="Auto">
                             <StackPanel>
-                                <TextBlock Text="运动员注册" FontSize="16" FontWeight="Bold" Margin="0,0,0,8"/>
+                                <!-- 2026-06-25 必填项标红 * + 提交校验 (= 跟 register.html 同款规范) -->
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                    <TextBlock Text="运动员注册" FontSize="16" FontWeight="Bold"/>
+                                    <TextBlock Margin="8,0,0,0" VerticalAlignment="Center" FontSize="12" Foreground="#64748B">
+                                        <Run Text="(带 "/><Run Text="*" Foreground="#EF4444" FontWeight="Bold"/><Run Text=" 为必填)"/>
+                                    </TextBlock>
+                                </StackPanel>
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="70"/>
@@ -767,22 +773,22 @@
                                         <RowDefinition Height="28"/>
                                         <RowDefinition Height="28"/>
                                     </Grid.RowDefinitions>
-                                    <TextBlock Grid.Row="0" Text="姓名:" VerticalAlignment="Center"/>
+                                    <TextBlock Grid.Row="0" VerticalAlignment="Center"><Run Text="姓名:"/><Run Text=" *" Foreground="#EF4444" FontWeight="Bold"/></TextBlock>
                                     <TextBox x:Name="RegNameBox" Grid.Row="0" Grid.Column="1" Padding="3"/>
-                                    <TextBlock Grid.Row="1" Text="性别:" VerticalAlignment="Center"/>
+                                    <TextBlock Grid.Row="1" VerticalAlignment="Center"><Run Text="性别:"/><Run Text=" *" Foreground="#EF4444" FontWeight="Bold"/></TextBlock>
                                     <ComboBox x:Name="RegGenderCombo" Grid.Row="1" Grid.Column="1" SelectedIndex="0">
                                         <ComboBoxItem Content="男"/><ComboBoxItem Content="女"/><ComboBoxItem Content="混合"/>
                                     </ComboBox>
-                                    <TextBlock Grid.Row="2" Text="组别:" VerticalAlignment="Center"/>
+                                    <TextBlock Grid.Row="2" VerticalAlignment="Center"><Run Text="组别:"/><Run Text=" *" Foreground="#EF4444" FontWeight="Bold"/></TextBlock>
                                     <ComboBox x:Name="RegGroupCombo" Grid.Row="2" Grid.Column="1" IsEditable="True"
-                                              ToolTip="报名时直接选择甲组/乙组等；留空则按出生日期自动推断"/>
-                                    <TextBlock Grid.Row="3" Text="出生日期:" VerticalAlignment="Center"/>
+                                              ToolTip="报名时直接选择甲组/乙组等"/>
+                                    <TextBlock Grid.Row="3" VerticalAlignment="Center"><Run Text="出生日期:"/><Run Text=" *" Foreground="#EF4444" FontWeight="Bold"/></TextBlock>
                                     <DatePicker x:Name="RegBirthDatePicker" Grid.Row="3" Grid.Column="1"
                                                 Language="en-CA" SelectedDateFormat="Short"
                                                 ToolTip="格式：yyyy-MM-dd（4 位年份）"/>
-                                    <TextBlock Grid.Row="4" Text="身份证号:" VerticalAlignment="Center"/>
+                                    <TextBlock Grid.Row="4" VerticalAlignment="Center"><Run Text="身份证号:"/><Run Text=" *" Foreground="#EF4444" FontWeight="Bold"/></TextBlock>
                                     <TextBox x:Name="RegIDNumberBox" Grid.Row="4" Grid.Column="1" Padding="3"/>
-                                    <TextBlock Grid.Row="5" Text="代表队:" VerticalAlignment="Center"/>
+                                    <TextBlock Grid.Row="5" VerticalAlignment="Center"><Run Text="代表队:"/><Run Text=" *" Foreground="#EF4444" FontWeight="Bold"/></TextBlock>
                                     <ComboBox x:Name="RegCountryBox" Grid.Row="5" Grid.Column="1" Padding="3"
                                               IsEditable="True" IsTextSearchEnabled="True" StaysOpenOnEdit="True"
                                               SelectionChanged="RegCountryBox_SelectionChanged"
@@ -799,7 +805,7 @@
                                 </Grid>
 
                                 <!-- 参赛项目列表 -->
-                                <TextBlock Text="参赛项目" FontSize="13" FontWeight="Bold" Margin="0,10,0,4"/>
+                                <TextBlock FontSize="13" FontWeight="Bold" Margin="0,10,0,4"><Run Text="参赛项目"/><Run Text=" *" Foreground="#EF4444" FontWeight="Bold"/></TextBlock>
                                 <ListBox x:Name="RegEventListBox" Height="80" FontSize="12"/>
                                 <Border Background="#F8FAFC" BorderBrush="#CBD5E1" BorderThickness="1" CornerRadius="4" Padding="6" Margin="0,4,0,0">
                                     <StackPanel>

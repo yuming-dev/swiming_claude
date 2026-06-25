@@ -14702,16 +14702,49 @@ namespace SwimmingScoreboard
         }
 
         private void RegSubmitAll_Click(object sender, RoutedEventArgs e) {
+            // 2026-06-25 必填项校验 (= 跟 register.html 同款规范: 收集所有缺项一次性弹窗, 阻止提交)
+            //   必填: 姓名 / 性别 / 组别 / 出生日期 / 身份证号 (15 或 18 位) / 代表队 / 参赛项目 (>=1)
+            var errors = new List<string>();
             string name = RegNameBox.Text.Trim();
-            if (string.IsNullOrEmpty(name)) { RegStatusText.Text = "请输入姓名"; return; }
-            if (_regEventList.Count == 0) { RegStatusText.Text = "请至少添加一个参赛项目"; return; }
+            if (string.IsNullOrEmpty(name)) errors.Add("请填写姓名");
 
-            string gender = ((ComboBoxItem)RegGenderCombo.SelectedItem).Content.ToString();
+            string gender = RegGenderCombo.SelectedItem != null ? ((ComboBoxItem)RegGenderCombo.SelectedItem).Content.ToString() : "";
+            if (string.IsNullOrEmpty(gender)) errors.Add("请选择性别");
+
+            // 报名时直接选择组别 (必填, 跟 register.html 一致)
+            string regGroup = RegGroupCombo != null
+                ? (RegGroupCombo.SelectedItem != null
+                    ? RegGroupCombo.SelectedItem.ToString()
+                    : (RegGroupCombo.Text ?? "").Trim())
+                : "";
+            if (string.IsNullOrEmpty(regGroup)) errors.Add("请选择组别");
+
+            // 出生日期 (必填 + 格式校验)
+            string bdErr;
+            string birthDate = ReadBirthDateFromPicker(RegBirthDatePicker, out bdErr);
+            if (bdErr != null) errors.Add(bdErr);
+            else if (string.IsNullOrEmpty(birthDate)) errors.Add("请填写出生日期");
+
+            // 身份证号 必填 + 15/18 位校验 (= 跟 register.html line 671 一致)
             string regIdNumber = RegIDNumberBox.Text.Trim();
+            if (string.IsNullOrEmpty(regIdNumber)) errors.Add("请填写身份证号");
+            else if (regIdNumber.Length != 15 && regIdNumber.Length != 18) errors.Add("身份证号应为 15 或 18 位");
+
             string regCountry = RegCountryBox != null ? RegCountryBox.Text.Trim() : "";
+            if (string.IsNullOrEmpty(regCountry)) errors.Add("请填写代表队");
+
+            if (_regEventList.Count == 0) errors.Add("请至少添加一个参赛项目");
+
+            if (errors.Count > 0) {
+                string vmsg = "表单未通过校验，请补全以下字段：\n\n  • " + string.Join("\n  • ", errors);
+                MessageBox.Show(this, vmsg, "必填项缺失", MessageBoxButton.OK, MessageBoxImage.Warning);
+                RegStatusText.Text = "表单未通过校验: " + string.Join(" / ", errors);
+                RegStatusText.Foreground = new SolidColorBrush(Colors.Red);
+                return;
+            }
 
             // 2026-05-24 自动把新代表队加进 Unit 列表（用户在下拉里手输新单位时）
-            if (!string.IsNullOrEmpty(regCountry) && !_units.Any(u => u != null && u.Name == regCountry)) {
+            if (!_units.Any(u => u != null && u.Name == regCountry)) {
                 string shortName = RegCountryShortBox != null ? RegCountryShortBox.Text.Trim() : "";
                 _units.Add(new Unit { Name = regCountry, ShortName = shortName });
                 RefreshUnitComboBox();
@@ -14720,37 +14753,26 @@ namespace SwimmingScoreboard
 
             // 2026-05-21 Upsert：若同身份证号已在 DB 中 → 复用其 bib，避免一个人因为
             // 多次报名拿到多个不同号码牌；否则按代表队号码段生成新号。
+            // 校验通过后 regIdNumber 一定非空 (= 必填)
             string bibNumber = null;
-            if (!string.IsNullOrEmpty(regIdNumber)) {
-                var anyExisting = _swimmers.FirstOrDefault(s =>
-                    !string.IsNullOrEmpty(s.IDNumber) && s.IDNumber == regIdNumber);
-                if (anyExisting != null) bibNumber = anyExisting.BibNumber;
-            }
+            var anyExisting = _swimmers.FirstOrDefault(s =>
+                !string.IsNullOrEmpty(s.IDNumber) && s.IDNumber == regIdNumber);
+            if (anyExisting != null) bibNumber = anyExisting.BibNumber;
             if (string.IsNullOrEmpty(bibNumber)) bibNumber = GenerateNextBibNumber(regCountry);
 
             // 2026-05-21 支持手动输入 yyyy-MM-dd（与 HTML <input type="date"> 一致）；
             // 输入了但解析不出来 → 报错而不是静默清空。
-            string bdErr;
-            string birthDate = ReadBirthDateFromPicker(RegBirthDatePicker, out bdErr);
-            if (bdErr != null) { RegStatusText.Text = bdErr; RegStatusText.Foreground = new SolidColorBrush(Colors.Red); return; }
+            // 校验通过后 birthDate 一定非空且格式正确
             int age = 0;
-            if (!string.IsNullOrEmpty(birthDate)) {
-                DateTime bdDt;
-                if (DateTime.TryParseExact(birthDate, "yyyy-MM-dd",
-                        System.Globalization.CultureInfo.InvariantCulture,
-                        System.Globalization.DateTimeStyles.None, out bdDt)) {
-                    var today = DateTime.Today;
-                    age = today.Year - bdDt.Year;
-                    if (bdDt.Date > today.AddYears(-age)) age--;
-                }
+            DateTime bdDt;
+            if (DateTime.TryParseExact(birthDate, "yyyy-MM-dd",
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    System.Globalization.DateTimeStyles.None, out bdDt)) {
+                var today = DateTime.Today;
+                age = today.Year - bdDt.Year;
+                if (bdDt.Date > today.AddYears(-age)) age--;
             }
 
-            // 报名时直接选择组别；留空则沿用按年龄自动推断
-            string regGroup = RegGroupCombo != null
-                ? (RegGroupCombo.SelectedItem != null
-                    ? RegGroupCombo.SelectedItem.ToString()
-                    : (RegGroupCombo.Text ?? "").Trim())
-                : "";
             string regCountryShort = RegCountryShortBox != null ? RegCountryShortBox.Text.Trim() : "";
             string regPhone = RegPhoneBox.Text.Trim();
             string regCSA = RegCSABox != null ? RegCSABox.Text.Trim() : "";
