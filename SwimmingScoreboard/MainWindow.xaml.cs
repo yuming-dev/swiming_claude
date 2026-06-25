@@ -5963,7 +5963,10 @@ namespace SwimmingScoreboard
                 if (finalSplit.PushButton3Time > 0) blinds.Add(finalSplit.PushButton3Time);
                 if (blinds.Count == 0) return;
                 blinds.Sort();
-                double mb = blinds[blinds.Count / 2];
+                // 2026-06-24 MB 算法: 1 个=自己, 2 个=平均 (千分位 floor), 3 个=真中位 (跟 DoMbSubstitute 一致)
+                double mb;
+                if (blinds.Count == 2) mb = Math.Floor((blinds[0] + blinds[1]) * 50.0) / 100.0;
+                else                   mb = blinds[blinds.Count / 2];
                 double diff = Math.Abs(finalSplit.TouchpadTime - mb);
                 if (diff > FINISH_TP_MB_DISPUTE_THRESHOLD) {
                     laneState.FinishTpMbDispute = true;
@@ -6513,8 +6516,13 @@ namespace SwimmingScoreboard
             if (split.PushButton3Time > 0) blinds.Add(split.PushButton3Time);
             if (blinds.Count == 0) return;
             blinds.Sort();
-            double med = blinds[blinds.Count / 2];   // 单/双/三 都取中位索引
-            AddLog(string.Format("泳道{0} 成绩确认延迟到期仍无 TP, 用盲表中位 {1} 代替 (源 {2} 个)", lane, TimeFormatter.Format(med), blinds.Count));
+            // 2026-06-24 MB 代 TP 算法: 1 个=自己, 2 个=平均, 3 个=真中位 (含两同自然取相同值).
+            //   2 个时 (a+b)/2 会引入千分位 → 按硬规则 floor 到百分位 (= 禁止四舍五入).
+            double med;
+            string algo;
+            if (blinds.Count == 2) { med = Math.Floor((blinds[0] + blinds[1]) * 50.0) / 100.0; algo = "平均"; }
+            else                   { med = blinds[blinds.Count / 2];                              algo = "中位"; }
+            AddLog(string.Format("泳道{0} 成绩确认延迟到期仍无 TP, 用盲表{1} {2} 代替 (源 {3} 个)", lane, algo, TimeFormatter.Format(med), blinds.Count));
             ProcessTouchpadHit(lane, med, state, side, true);   // isMbSubstitute=true, 标 MB
         }
 
@@ -10711,7 +10719,10 @@ namespace SwimmingScoreboard
                 return;
             }
             blinds.Sort();
-            double blindTime = blinds[blinds.Count / 2]; // 中位数
+            // 2026-06-24 MB 算法: 1 个=自己, 2 个=平均 (千分位 floor), 3 个=真中位
+            double blindTime;
+            if (blinds.Count == 2) blindTime = Math.Floor((blinds[0] + blinds[1]) * 50.0) / 100.0;
+            else                   blindTime = blinds[blinds.Count / 2];
 
             // 检查当前段是否已有触板时间（若有则不覆盖）
             var swimmer = GetCurrentHeatSwimmers().FirstOrDefault(s => {
@@ -18464,13 +18475,11 @@ namespace SwimmingScoreboard
                 return;
             }
 
-            // 检查是否切换到了新赛事（名称变了）
-            bool isNewCompetition = !string.IsNullOrEmpty(_competitionName) && _competitionName != newName;
-
-            if (isNewCompetition) {
-                // 切换到新赛事，清除所有旧数据和界面
-                ClearAllDataAndUI();
-                AddLog(string.Format("已从 [{0}] 切换到新赛事 [{1}]", _competitionName, newName));
+            // 2026-06-24 "保存赛事信息" 仅更新基本信息 (允许改名), 不清数据.
+            //   清数据请用 "新建赛事" 按钮 (NewCompetition_Click), 加载存档请用 "加载赛事" (LoadCompetition_Click).
+            //   旧逻辑把"改名"误判成"切换新赛事 → ClearAllDataAndUI", 用户改个错字就丢光报名/成绩.
+            if (!string.IsNullOrEmpty(_competitionName) && _competitionName != newName) {
+                AddLog(string.Format("赛事名称已修改: [{0}] → [{1}] (数据保留)", _competitionName, newName));
             }
 
             _competitionName = newName;
