@@ -14971,11 +14971,15 @@ namespace SwimmingScoreboard
         }
 
         // 填充"出场编排微调"里的组别下拉（首项=全部），当组别列表变化时调用
+        // 2026-06-24 加 "(无组别)" 项: 当报名数据里存在 AgeCategory 为空的运动员 (= 无组别比赛) 时显示,
+        //   让用户专门筛"无组别比赛"做出场编排微调; 没有无组别 swimmer 则不显示该项, 避免空选项
         private void RefreshEditAgeGroupCombo() {
             if (EditAgeGroupCombo == null) return;
             string prev = EditAgeGroupCombo.SelectedItem as string;
             EditAgeGroupCombo.Items.Clear();
             EditAgeGroupCombo.Items.Add("全部");
+            bool hasNoGroup = _swimmers.Any(s => !string.IsNullOrEmpty(s.EventName) && string.IsNullOrEmpty(s.AgeCategory));
+            if (hasNoGroup) EditAgeGroupCombo.Items.Add("(无组别)");
             foreach (var g in _ageGroups) EditAgeGroupCombo.Items.Add(g.Name);
             if (!string.IsNullOrEmpty(prev) && EditAgeGroupCombo.Items.Contains(prev))
                 EditAgeGroupCombo.SelectedItem = prev;
@@ -20517,6 +20521,8 @@ namespace SwimmingScoreboard
         // 若组别为空/"全部"/"不限"，则不过滤（兼容旧逻辑）；否则运动员的 AgeCategory 必须与之一致
         private bool MatchesAgeGroup(Swimmer s, string ageGroup) {
             if (string.IsNullOrEmpty(ageGroup) || ageGroup == "全部" || ageGroup == "不限") return true;
+            // 2026-06-24 "(无组别)" sentinel: EditAgeGroupCombo 专用, 仅匹配 AgeCategory 空的运动员 (= 无组别比赛)
+            if (ageGroup == "(无组别)") return string.IsNullOrEmpty(s.AgeCategory);
             string sg = s.AgeCategory ?? "";
             if (sg == ageGroup) return true;
             // 2026-06-04 并项组别 (e.g. schedule "12-15岁组" 覆盖 swimmer "12-13岁组" / "14-15岁组")
