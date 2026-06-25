@@ -195,17 +195,20 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 .sub-text { font-size: calc(3vh * var(--fs) * var(--fs-event)); color: var(--dim); text-align: center; }
 
 /* 颁奖 */
-/* 2026-06-21 (v7): 加大 padding-bottom 12vh + 缩小卡片高度, 让 time 远离屏幕底 14vh+ 余量 */
-.award-container { height: 85vh; display: flex; align-items: flex-end; justify-content: center; gap: 2vw; padding-bottom: 12vh; box-sizing: border-box; }
-.podium-card { display: flex; flex-direction: column; align-items: center; justify-content: space-evenly; width: 28vw; padding: 1vh 1vw; border-radius: 1vh; animation: reveal 0.8s ease-out forwards; opacity: 0; box-sizing: border-box; }
-.podium-card.gold   { background: linear-gradient(180deg, #f59e0b22, #f59e0b11); border: 3px solid var(--gold); height: 70vh; animation-delay: 2.5s; }
-.podium-card.silver { background: linear-gradient(180deg, #c0c0c022, #c0c0c011); border: 3px solid #c0c0c0;     height: 60vh; animation-delay: 1.2s; }
-.podium-card.bronze { background: linear-gradient(180deg, #cd7f3222, #cd7f3211); border: 3px solid #cd7f32;     height: 50vh; animation-delay: 0.2s; }
-.podium-card .medal    { font-size: calc(10vh   * var(--fs)); line-height: 1; }
-.podium-card .rank-num { font-size: calc(5.5vh  * var(--fs)); line-height: 1; font-weight: bold; color: #fbbf24; text-align: center; letter-spacing: 0.1em; }
-.podium-card .name     { font-size: calc(5.5vh  * var(--fs)); line-height: 1; font-weight: bold; text-align: center; }
-.podium-card .team     { font-size: calc(3.5vh  * var(--fs)); line-height: 1; color: var(--dim); text-align: center; }
-.podium-card .time     { font-size: calc(4.5vh  * var(--fs)); line-height: 1; font-family: 'Consolas', monospace; }
+/* 2026-06-22 (S4 源头修复): 用 dvh (动态视口高度, 自动减浏览器 chrome+任务栏) 替代 vh,
+   不再依赖魔术 padding-bottom 凑余量. 100dvh 始终 = 实际可见高度, 全屏/窗口模式都正确显示.
+   container = (100dvh - page-header 13vh) ≈ 87dvh, 留 1dvh 余量给边框 = 86dvh */
+.award-container { height: 86dvh; display: flex; align-items: flex-end; justify-content: center; gap: 2vw; padding-bottom: 1dvh; box-sizing: border-box; }
+/* 2026-06-24 justify-content: space-evenly → space-between, medal 贴顶 + time 贴底, 中间 3 行紧凑, 不裁掉 time */
+.podium-card { display: flex; flex-direction: column; align-items: center; justify-content: space-between; width: 28vw; padding: 1dvh 1vw; border-radius: 1vh; animation: reveal 0.8s ease-out forwards; opacity: 0; box-sizing: border-box; }
+.podium-card.gold   { background: linear-gradient(180deg, #f59e0b22, #f59e0b11); border: 3px solid var(--gold); height: 80dvh; animation-delay: 2.5s; }
+.podium-card.silver { background: linear-gradient(180deg, #c0c0c022, #c0c0c011); border: 3px solid #c0c0c0;     height: 68dvh; animation-delay: 1.2s; }
+.podium-card.bronze { background: linear-gradient(180deg, #cd7f3222, #cd7f3211); border: 3px solid #cd7f32;     height: 58dvh; animation-delay: 0.2s; }
+.podium-card .medal    { font-size: calc(11dvh  * var(--fs)); line-height: 1; }
+.podium-card .rank-num { font-size: calc(6dvh   * var(--fs)); line-height: 1; font-weight: bold; color: #fbbf24; text-align: center; letter-spacing: 0.1em; }
+.podium-card .name     { font-size: calc(6dvh   * var(--fs)); line-height: 1; font-weight: bold; text-align: center; }
+.podium-card .team     { font-size: calc(4dvh   * var(--fs)); line-height: 1; color: var(--dim); text-align: center; }
+.podium-card .time     { font-size: calc(5dvh   * var(--fs)); line-height: 1; font-family: 'Consolas', monospace; }
 
 @keyframes reveal { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
@@ -2442,21 +2445,26 @@ function renderAwards() {
     document.getElementById('awardTitle').textContent = fmtGender(awGender) + ' ' + (awAgeGroup ? (awAgeGroup+' ') : '') + awEventName + ' 颁奖典礼';
     var container = document.getElementById('awardContainer');
     container.innerHTML = '';
-    var medals = ['silver','gold','bronze'];
-    var icons = ['\uD83E\uDD48','\uD83E\uDD47','\uD83E\uDD49'];
-    var order = [1,0,2]; // silver, gold, bronze display order
+    // 2026-06-24 medal class + icon \u6309 er[idx].rank \u51B3\u5B9A (= \u5E76\u5217\u540D\u6B21\u6B63\u786E\u663E\u793A\u540C\u8272\u5956\u724C + \u540C\u9AD8\u9881\u5956\u53F0).
+    //   \u65E7\u7248 \u6309 i (\u4F4D\u7F6E 0/1/2) \u9009 medals[i]/icons[i], \u4E24\u4E2A\u7B2C 2 \u540D\u65F6\u7B2C 3 \u5217\u88AB\u8BEF\u663E\u793A\u4E3A\u94DC\u724C.
+    //   \u65B0\u7248 rank=1 \u91D1, rank=2 \u94F6, rank=3 \u94DC, CSS .gold/.silver/.bronze \u81EA\u52A8\u51B3\u5B9A\u9881\u5956\u53F0\u9AD8\u5EA6 (= \u5E76\u5217\u540C\u9AD8).
+    var rankMedalMap = { 1: 'gold', 2: 'silver', 3: 'bronze' };
+    var rankIconMap  = { 1: '\uD83E\uDD47', 2: '\uD83E\uDD48', 3: '\uD83E\uDD49' };  // \u91D1 \u94F6 \u94DC
+    var order = [1,0,2]; // \u663E\u793A\u987A\u5E8F (\u4F4D\u7F6E: \u5DE6\u4E2D\u53F3), \u4E2D\u95F4\u653E er[0] (= \u9ED8\u8BA4\u6392\u5E8F\u7B2C 1, \u591A\u6570\u4E3A\u91D1\u724C)
     for (var i = 0; i < 3 && i < er.length; i++) {
         var idx = order[i];
         if (idx >= er.length) continue;
+        // 2026-06-21 (v6) "第 N 名" 移到 medal 下方 (顺序: medal→rank-num→name→team→time), 避免被屏幕底裁切
+        var awRank = (er[idx].rank > 0) ? er[idx].rank : (idx + 1);
+        var medalCls = rankMedalMap[awRank] || 'bronze';
+        var medalIcon = rankIconMap[awRank] || rankIconMap[3];
         var card = document.createElement('div');
-        card.className = 'podium-card ' + medals[i];
+        card.className = 'podium-card ' + medalCls;
         // 2026-06-21 接力判断改用 window._awardIsRelay (renderAwards 入口已按 awardSelection.eventName 或 currentEvent 算好)
         var awRelay = !!window._awardIsRelay;
         var awName = awRelay ? (er[idx].country||'') : (er[idx].name||'');
         var awTeam = awRelay ? (er[idx].name||'') : (er[idx].country||'');
-        // 2026-06-21 (v6) "第 N 名" 移到 medal 下方 (顺序: medal→rank-num→name→team→time), 避免被屏幕底裁切
-        var awRank = (er[idx].rank > 0) ? er[idx].rank : (idx + 1);
-        card.innerHTML = '<div class="medal">' + icons[i] + '</div><div class="rank-num">第 ' + awRank + ' 名</div><div class="name">' + awName + '</div><div class="team">' + awTeam + '</div><div class="time">' + (er[idx].finalTime||'') + '</div>';
+        card.innerHTML = '<div class="medal">' + medalIcon + '</div><div class="rank-num">第 ' + awRank + ' 名</div><div class="name">' + awName + '</div><div class="team">' + awTeam + '</div><div class="time">' + (er[idx].finalTime||'') + '</div>';
         container.appendChild(card);
     }
 }
