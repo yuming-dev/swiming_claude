@@ -2366,7 +2366,7 @@ namespace SwimmingScoreboard
                             AutoAdjustStartPosition();                // 根据当前项目自动调整
                             // 重置出发台状态到正确一端 (2026-06-14 仰泳改开触板)
                             if (_raceState == RaceState.Waiting || _raceState == RaceState.Ready) {
-                                bool isBack1 = !string.IsNullOrEmpty(_currentEvent) && _currentEvent.Contains("仰泳");
+                                bool isBack1 = IsBackstrokeStartEvent(_currentEvent);
                                 foreach (var st in _laneDeviceStates) st.ResetForNewRace(_laneCloseSettings.StartPosition, isBack1);
                             }
                         }
@@ -4576,7 +4576,8 @@ namespace SwimmingScoreboard
                 // 2026-06-02 D9 = HardwareAlwaysOpen 标志: 硬件 TP/SB/MB 按键路径"一直处于打开状态"模式 (=1: 忽略关闭判定, 只跳过 ==3 坏 / ==4 未装; =0: 原比赛流程)
                 byte hwAlwaysOpenByte = (byte)(_laneCloseSettings.HardwareAlwaysOpen ? 1 : 0);
                 // 2026-06-14 D10 = Backstroke 标志: 仰泳项目时硬件 EventBackup 把 TP 松开也存 (用于算反应时, 因为仰泳运动员踩 TP 等发令, 松开 TP 是出发瞬间)
-                bool isBackstroke = !string.IsNullOrEmpty(_currentEvent) && _currentEvent.Contains("仰泳");
+                // 2026-06-26 扩展: 包括混合泳接力第 1 棒. 详见 IsBackstrokeStartEvent helper.
+                bool isBackstroke = IsBackstrokeStartEvent(_currentEvent);
                 byte backstrokeByte = (byte)(isBackstroke ? 1 : 0);
                 _timingBridge.SendFullFrame(0x43,
                     (byte)Math.Min(255, totalLaps),
@@ -4584,7 +4585,7 @@ namespace SwimmingScoreboard
                     (byte)Math.Min(255, leftTotal),
                     laneOpen0_4, laneOpen5_9, isRelayByte, hwAlwaysOpenByte, backstrokeByte);
                 _timingBridge.DelayBetweenFrames(20);     // 给硬件处理本帧的时间，防止下一条命令被吞
-                AddLog(string.Format("Set_MatchEvent 已下发: 总圈{0} 右{1} 左{2} 开0-4=0x{3:X2} 开5-9=0x{4:X2} 接力={5} 硬件一直打开={6} 仰泳={7}",
+                AddLog(string.Format("Set_MatchEvent 已下发: 总圈{0} 右{1} 左{2} 开0-4=0x{3:X2} 开5-9=0x{4:X2} 接力={5} 硬件一直打开={6} 仰泳出发={7}",
                     totalLaps, rightTotal, leftTotal, laneOpen0_4, laneOpen5_9, _isRelay ? "是" : "否", _laneCloseSettings.HardwareAlwaysOpen ? "是" : "否", isBackstroke ? "是" : "否"));
 
                 // 2026-06-15 跟 0x43 一起发 0x46 Set_StrokeType: 硬件 UI 第 2 行 +1 键左侧显示泳姿名称
@@ -4594,6 +4595,15 @@ namespace SwimmingScoreboard
             } catch (Exception ex) {
                 AddLog("Set_MatchEvent 下发失败: " + ex.Message);
             }
+        }
+
+        // 2026-06-26 判断项目"出发方式是否仰泳" (= 跟 register 仰泳反应时算法保持一致):
+        //   纯仰泳 (50/100/200m): 全程仰泳出发
+        //   混合泳接力 (4×50/4×100m): 第 1 棒仰泳出发
+        //   个人混合泳 (200/400m): 第 1 棒蝶泳, 不算
+        private bool IsBackstrokeStartEvent(string eventName) {
+            return !string.IsNullOrEmpty(eventName) &&
+                   (eventName.Contains("仰泳") || eventName.Contains("混合泳接力"));
         }
 
         // 2026-06-15 把项目名映射到硬件 StrokeType 编码 (0=自由 1=蝶 2=蛙 3=仰 4=混合 5=空白/未知)
@@ -4795,7 +4805,7 @@ namespace SwimmingScoreboard
                                     _laneCloseSettings.StartPosition = newFin;
                                     AutoAdjustStartPosition();
                                     if (_raceState == RaceState.Waiting || _raceState == RaceState.Ready) {
-                                        bool isBack2 = !string.IsNullOrEmpty(_currentEvent) && _currentEvent.Contains("仰泳");
+                                        bool isBack2 = IsBackstrokeStartEvent(_currentEvent);
                                         foreach (var st in _laneDeviceStates) st.ResetForNewRace(_laneCloseSettings.StartPosition, isBack2);
                                     }
                                     changed = true;
@@ -5163,7 +5173,7 @@ namespace SwimmingScoreboard
                         //   原 bug 描述: 固件未正确标 D3=3 时, 仰泳出发 TP 帧走 case "Touchpad" 错占第 1 段
                         //   → 100m+ 仰泳终点提前关闭, 没成绩. 4 条件守卫: 仰泳 + 出发端 + CurrentLap=0 + 非 MB 代触.
                         {
-                            bool isBack_g = !string.IsNullOrEmpty(_currentEvent) && _currentEvent.Contains("仰泳");
+                            bool isBack_g = IsBackstrokeStartEvent(_currentEvent);
                             bool startFromLeft_g = _laneCloseSettings == null || _laneCloseSettings.StartPosition != "right";
                             string startSideName_g = startFromLeft_g ? "left" : "right";
                             if (isBack_g && side == startSideName_g && laneState.CurrentLap == 0 && !isMbSubstitute) {
@@ -7768,7 +7778,7 @@ namespace SwimmingScoreboard
             // ResetForNewRace 把"出发端"的 Open 状态给对应设备:
             //   普通泳姿: 出发台 Open (= 运动员站台等枪响)
             //   仰泳    : 触板 Open  (= 运动员脚踩触板等枪响)
-            bool isBack3 = !string.IsNullOrEmpty(_currentEvent) && _currentEvent.Contains("仰泳");
+            bool isBack3 = IsBackstrokeStartEvent(_currentEvent);
             foreach (var state in _laneDeviceStates) {
                 state.ResetForNewRace(_laneCloseSettings.StartPosition, isBack3);
             }
@@ -12509,7 +12519,7 @@ namespace SwimmingScoreboard
                 _laneCloseSettings.StartPosition = newFinish;
                 AutoAdjustStartPosition();
                 if (_raceState == RaceState.Waiting || _raceState == RaceState.Ready) {
-                    bool isBack4 = !string.IsNullOrEmpty(_currentEvent) && _currentEvent.Contains("仰泳");
+                    bool isBack4 = IsBackstrokeStartEvent(_currentEvent);
                     foreach (var st in _laneDeviceStates) st.ResetForNewRace(_laneCloseSettings.StartPosition, isBack4);
                 }
                 foreach (var st in _laneDeviceStates) st.LaneCloseTime = 0;

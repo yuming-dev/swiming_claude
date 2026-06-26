@@ -2334,7 +2334,13 @@ function showRankingPage(er, erRelay) {
 
     // 2026-06-03 标题加 margin-top + 增大 margin-bottom, 让 运动会名/项目名次/表头 三行不再挤
     // 2026-06-04 顺序统一: 性别 组别 项目 赛次
-    var html = '<h2 style="margin:0 0 0.5vh 0;padding-bottom:0.5vh;border-bottom:3px solid var(--accent);font-size:calc(2.8vh * var(--fs) * var(--fs-event));color:var(--c-event);font-family:var(--ff-event);font-weight:bold;">' + fmtGender(data.currentGender) + ' ' + ((data.currentAgeGroup||'') ? (data.currentAgeGroup+' ') : '') + (data.currentEvent||'') + ' ' + (data.currentStage||'') + ' 总排名</h2>';
+    // 2026-06-26 修: rankingSelection 路径 (= 用户从"总排名"弹窗选定回放项目) 优先用 selection 字段;
+    //   旧版/无 selection 路径 fallback 到 current* (= 当前实时比赛).
+    var titleGender = (data.rankingSelection && data.rankingSelection.gender) || data.currentGender;
+    var titleAgeGroup = (data.rankingSelection && data.rankingSelection.ageGroup) || data.currentAgeGroup;
+    var titleEvent = (data.rankingSelection && data.rankingSelection.eventName) || data.currentEvent;
+    var titleStage = (data.rankingSelection && data.rankingSelection.stage) || data.currentStage;
+    var html = '<h2 style="margin:0 0 0.5vh 0;padding-bottom:0.5vh;border-bottom:3px solid var(--accent);font-size:calc(2.8vh * var(--fs) * var(--fs-event));color:var(--c-event);font-family:var(--ff-event);font-weight:bold;">' + fmtGender(titleGender) + ' ' + ((titleAgeGroup||'') ? (titleAgeGroup+' ') : '') + (titleEvent||'') + ' ' + (titleStage||'') + ' 总排名</h2>';
     // 2026-06-05 项目名称下 显示 本项目所有组别 纪录 (inline 行)
     if (data.applicableRecords && data.applicableRecords.length > 0) {
         html += '<div style="display:flex;flex-wrap:wrap;gap:0.4vh 2.4vw;padding:0.4vh 0.5vw;margin-bottom:0.4vh;font-size:calc(1.6vh * var(--fs) * var(--fs-info));color:#FBBF24;font-family:var(--ff-info);font-weight:bold;border-bottom:1px dashed rgba(251,191,36,0.4);">';
