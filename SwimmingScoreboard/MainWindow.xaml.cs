@@ -7829,16 +7829,28 @@ namespace SwimmingScoreboard
             _countdownTimer.Start();
 
             // 泳道设备状态：发令后
-            // 所有触板和盲表关闭，出发端的出发台打开
+            // 非仰泳: 所有触板和盲表关闭，出发端的出发台打开 (= 起跳台反应时)
+            // 2026-07-03 仰泳: 出发端触板打开 (运动员抓 TP), 出发台关闭 (水中出发不用起跳台).
+            //   之前 hardcode 走非仰泳逻辑, 让"泳道实时状态" UI 在仰泳发令后错误切成"出发台打开"
+            //   (发令前 EnterReadyStateInternal 走 ResetForNewRace(isBack) 是对的, 但发令 StartRace_Click 覆盖).
             bool startLeft = _laneCloseSettings.StartPosition != "right";
+            bool isBackstrokeStart = IsBackstrokeStartEvent(_currentEvent);
             foreach (var state in _laneDeviceStates) {
-                state.LeftTouchpadStatus = DeviceStatus.Closed;
                 state.LeftBlindWatch1Status = DeviceStatus.Closed; state.LeftBlindWatch2Status = DeviceStatus.Closed; state.LeftBlindWatch3Status = DeviceStatus.Closed;
-                state.RightTouchpadStatus = DeviceStatus.Closed;
                 state.RightBlindWatch1Status = DeviceStatus.Closed; state.RightBlindWatch2Status = DeviceStatus.Closed; state.RightBlindWatch3Status = DeviceStatus.Closed;
-                // 出发端的出发台打开
-                state.LeftStartBlockStatus = startLeft ? DeviceStatus.Open : DeviceStatus.Closed;
-                state.RightStartBlockStatus = startLeft ? DeviceStatus.Closed : DeviceStatus.Open;
+                if (isBackstrokeStart) {
+                    // 仰泳: 出发端 TP 打开, SB 关闭
+                    state.LeftTouchpadStatus = startLeft ? DeviceStatus.Open : DeviceStatus.Closed;
+                    state.RightTouchpadStatus = startLeft ? DeviceStatus.Closed : DeviceStatus.Open;
+                    state.LeftStartBlockStatus = DeviceStatus.Closed;
+                    state.RightStartBlockStatus = DeviceStatus.Closed;
+                } else {
+                    // 非仰泳: 出发端 SB 打开, TP 关闭
+                    state.LeftTouchpadStatus = DeviceStatus.Closed;
+                    state.RightTouchpadStatus = DeviceStatus.Closed;
+                    state.LeftStartBlockStatus = startLeft ? DeviceStatus.Open : DeviceStatus.Closed;
+                    state.RightStartBlockStatus = startLeft ? DeviceStatus.Closed : DeviceStatus.Open;
+                }
                 // 2026-05-25 修复时间漂移: 用 DateTime 锚点
                 double targetSec2 = state.LaneCloseTime > 0 ? state.LaneCloseTime : _laneCloseSettings.LaneCloseTime;
                 state.LaneCloseCountdown = targetSec2;
@@ -15726,6 +15738,9 @@ namespace SwimmingScoreboard
             int ageVal = 0; int.TryParse((tbAge.Text ?? "").Trim(), out ageVal);
 
             if (string.IsNullOrEmpty(name)) { MessageBox.Show("姓名不能为空"); return; }
+            // 2026-07-03 空 bib 自动分配唯一号 (= 修 EditSwapLane_Click 用 BibNumber 查找致
+            //   多个空 bib 临时加人 FirstOrDefault 永远匹配第 1 个, 无法交换第 2+ 个泳道)
+            if (string.IsNullOrEmpty(bib)) bib = GenerateNextBibNumber(country);
             if (!string.IsNullOrEmpty(bib) && _swimmers.Any(s => s.BibNumber == bib)) {
                 MessageBox.Show(string.Format("号码 {0} 已存在，请使用唯一号码。", bib)); return;
             }

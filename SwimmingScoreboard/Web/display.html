@@ -1857,7 +1857,8 @@ function _refreshRaceRows() {
         //   关掉后 反应时不进备注栏 (但 sw.reactionTime 数据仍在, 只是 UI 隐藏)
         if (!remarkText && hasReaction && ls.reactionShowAt > 0 && (now - ls.reactionShowAt) < displayMs && _remarkShowReaction) {
             remarkText = sw.reactionTime;
-            remarkColor = (sw.isSuspectFalseStart || sw.isFalseStart) ? '#ef4444' : '#f8fafc';
+            // 2026-07-03 大屏取消抢跳标红 (由裁判确定, 不预判); PC 端"泳道实时状态" 保留红提示操作员
+            remarkColor = '#f8fafc';
         }
         if (ui.lastRemark !== remarkText) { ui.remarkEl.textContent = remarkText; ui.lastRemark = remarkText; }
         if (ui.lastRemarkColor !== remarkColor) { ui.remarkEl.style.color = remarkColor; ui.lastRemarkColor = remarkColor; }
