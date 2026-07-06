@@ -1478,10 +1478,12 @@ function renderRace() {
     var curEventName = data.currentEvent || '';
     var curAgeGroup = data.currentAgeGroup || '';
     // 2026-06-18 加 ageGroup 精确过滤, 修跨年龄段纪录混显
+    // 2026-07-05 空 ageGroup 视为不限组别 (跟 PC 端 CheckRecords:7228 逻辑同步): WR/CR/AR 等
+    //   通常 record.ageGroup="" 表示"全组别通用", 之前严格 === curAgeGroup 导致具体组别比赛时右上角 WR/CR 为空.
     for (var r = 0; r < records.length; r++) {
         var rec = records[r];
         if (rec.gender === curGender && rec.eventName === curEventName
-            && (rec.ageGroup || '') === curAgeGroup) {
+            && (!rec.ageGroup || rec.ageGroup === curAgeGroup)) {
             var rt = rec.recordType || '';
             if (rt === mainTypeName || rt.indexOf(mainTypeName) >= 0) wrText = rec.time || '-';
             else if (rt === '赛会纪录') crText = rec.time || '-';

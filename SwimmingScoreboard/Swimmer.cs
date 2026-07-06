@@ -387,6 +387,15 @@ namespace SwimmingScoreboard
             get { return _splits; }
         }
 
+        // 2026-07-05 DSQ 备份字段 (= 防误操作 DSQ 后撤销可恢复成绩)
+        //   MarkLaneStatus DSQ 时把 FinalTime/TimeInSeconds/StartingBlockTime/Splits/LegReactionTimes 备份到这里,
+        //   CancelLaneNote 撤销 DSQ 时从这里恢复. 参与序列化, 关机重启后仍可撤销.
+        public double DsqBackupFinalTime { get; set; }
+        public double DsqBackupTimeInSeconds { get; set; }
+        public double DsqBackupStartingBlockTime { get; set; }
+        public List<double> DsqBackupLegReactionTimes { get; set; }
+        public List<SplitTime> DsqBackupSplits { get; set; }
+
         public string FinalTimeDisplay {
             get {
                 if (!string.IsNullOrEmpty(_status)) return _status;

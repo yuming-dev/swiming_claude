@@ -10695,6 +10695,26 @@ namespace SwimmingScoreboard
                 bool wasDQ = (oldStatus == "DSQ" || oldStatus == "DNS" || oldStatus == "DNF" || oldStatus == "TRI");
                 if (wasDQ) {
                     if (resCN.Status == oldStatus) resCN.Status = "";
+                    // 2026-07-05 撤销 DSQ 时从备份恢复成绩 (= 防误操作). DNS/DNF/TRI 从未清成绩, 无需恢复.
+                    if (oldStatus == "DSQ" && resCN.DsqBackupFinalTime > 0) {
+                        resCN.FinalTime = resCN.DsqBackupFinalTime;
+                        resCN.TimeInSeconds = resCN.DsqBackupTimeInSeconds;
+                        resCN.StartingBlockTime = resCN.DsqBackupStartingBlockTime;
+                        if (resCN.DsqBackupSplits != null) {
+                            resCN.Splits.Clear();
+                            foreach (var sp in resCN.DsqBackupSplits) resCN.Splits.Add(sp);
+                        }
+                        if (resCN.DsqBackupLegReactionTimes != null) {
+                            resCN.LegReactionTimes = new List<double>(resCN.DsqBackupLegReactionTimes);
+                        }
+                        // 清备份 (一次性使用)
+                        resCN.DsqBackupFinalTime = 0;
+                        resCN.DsqBackupTimeInSeconds = 0;
+                        resCN.DsqBackupStartingBlockTime = 0;
+                        resCN.DsqBackupSplits = null;
+                        resCN.DsqBackupLegReactionTimes = null;
+                        AddLog(string.Format("  泳道{0} DSQ 撤销 — 已恢复原成绩 {1}", lane, TimeFormatter.Format(resCN.FinalTime)));
+                    }
                     if (resCN.FinalTime > 0) {
                         // 复算破/平纪录标识
                         try { CheckRecords(swimmer, resCN); } catch { }
@@ -10980,6 +11000,12 @@ namespace SwimmingScoreboard
                         //   个人项目 DSQ → 清 最终成绩 + 所有分段 + 反应时
                         //   接力项目 DSQ → 保留 1~(N-1) 棒分段, 清 第N棒起的分段 + FinalTime
                         if (status == "DSQ") {
+                            // 2026-07-05 DSQ 备份原成绩到 res.DsqBackup* 字段, 防误操作 CancelLaneNote 撤销时可恢复
+                            res.DsqBackupFinalTime = res.FinalTime;
+                            res.DsqBackupTimeInSeconds = res.TimeInSeconds;
+                            res.DsqBackupStartingBlockTime = res.StartingBlockTime;
+                            res.DsqBackupSplits = new List<SplitTime>(res.Splits);
+                            res.DsqBackupLegReactionTimes = res.LegReactionTimes != null ? new List<double>(res.LegReactionTimes) : null;
                             if (relayViolationLeg > 0) {
                                 // 解析每棒距离 (e.g. "4x50米..." → 50)
                                 var mLeg = System.Text.RegularExpressions.Regex.Match(_currentEvent ?? "", @"\d+\s*[xX×]\s*(\d+)\s*米");
