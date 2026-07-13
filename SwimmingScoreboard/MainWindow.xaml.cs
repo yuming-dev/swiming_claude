@@ -4993,20 +4993,14 @@ namespace SwimmingScoreboard
             //   2026-06-03 棒次完成侧 = StartPosition if afterLap 偶 else 另一侧 (= 4×50m perLeg=1 时棒次交替)
             if (_relayReactionCalc != null && _isRelay && !string.IsNullOrEmpty(side)) {
                 var lsForHook = _laneDeviceStates.FirstOrDefault(s => s.Lane == lane);
-                int totalLapsForHook = GetTotalLaps();
-                int perLegLapsForHook = totalLapsForHook > 0 ? totalLapsForHook / 4 : 0;
+                // 2026-07-13 按侧化: 是否交接段 TP/MB 由按侧锚点决定 (HandoffMode 倒计时=0 设, 免疫 CurrentLap 的 ++ 时序).
+                //   该侧处未结算交接窗口 (HandoffMode && !SbReactionRecorded) → 本 TP/MB 即交接基准. 替代原 CurrentLap%perLeg 奇偶反推.
                 bool isHandoffTpSeg = false;
-                string expectedSideTp = null;
-                if (perLegLapsForHook > 0 && lsForHook != null) {
-                    int afterLap = lsForHook.CurrentLap + 1;
-                    isHandoffTpSeg = (afterLap % perLegLapsForHook == 0)
-                                  && (afterLap < totalLapsForHook);  // 排除终点 TP
-                    string startSideTp = _laneCloseSettings != null ? _laneCloseSettings.StartPosition : null;
-                    expectedSideTp = (afterLap % 2 == 0)
-                        ? startSideTp
-                        : (startSideTp == "left" ? "right" : "left");
+                if (lsForHook != null && (side == "left" || side == "right")) {
+                    bool hmTp  = (side == "left") ? lsForHook.HandoffModeLeft        : lsForHook.HandoffModeRight;
+                    bool recTp = (side == "left") ? lsForHook.SbReactionRecordedLeft : lsForHook.SbReactionRecordedRight;
+                    isHandoffTpSeg = hmTp && !recTp;
                 }
-                if (side != expectedSideTp) isHandoffTpSeg = false;
                 if (isHandoffTpSeg) {
                     // 2026-07-13 直通模式 (HardwareAlwaysOpen): PC 用 DirectSbWindow 自算反应时, 不喂旧的 14 规则 _relayReactionCalc.
                     //   否则它只拿到 TP/MB、拿不到 SB (SB 走 HandleStartingBlock_AlwaysOpen 不喂它) → 窗口到期
@@ -5113,23 +5107,13 @@ namespace SwimmingScoreboard
                         if (!sbOpen && sbStatus == DeviceStatus.Touched) {
                             // 2026-06-03 接力赛多次 SB (= Touched 状态下又按) 也喂 calculator — LastSbSwim 取最近一次.
                             //   同主路径用 side 反推 handoffLap. 允许 currentLap=0 + 非 StartPosition (= 4×50m 棒 2 抢跳).
+                            // 2026-07-13 按侧化: Touched 状态下接力多次 SB 也喂 calculator (LastSbSwim 取最近一次).
+                            //   判据 = 该侧未结算交接窗口 (HandoffMode 倒计时=0 设, 免疫 CurrentLap++ 时序). 替代 CurrentLap%perLeg 反推.
                             if (_isRelay && _laneCloseSettings != null && _laneCloseSettings.ReactionTimeEnabled
-                                && (laneState.CurrentLap > 0 || side != _laneCloseSettings.StartPosition)
-                                && _relayReactionCalc != null && !string.IsNullOrEmpty(side)) {
-                                int totalLapsSbB = GetTotalLaps();
-                                int perLegLapsSbB = totalLapsSbB > 0 ? totalLapsSbB / 4 : 0;
-                                string startSideSbB = _laneCloseSettings.StartPosition;
-                                bool sideIsStartB = (side == startSideSbB);
-                                int handoffLapB = -1;
-                                if (perLegLapsSbB > 0 && laneState.CurrentLap % perLegLapsSbB == 0
-                                    && ((laneState.CurrentLap % 2 == 0) == sideIsStartB)) {
-                                    handoffLapB = laneState.CurrentLap;
-                                }
-                                else if (perLegLapsSbB > 0 && (laneState.CurrentLap + 1) % perLegLapsSbB == 0
-                                         && (((laneState.CurrentLap + 1) % 2 == 0) == sideIsStartB)) {
-                                    handoffLapB = laneState.CurrentLap + 1;
-                                }
-                                if (handoffLapB > 0 && handoffLapB < totalLapsSbB) {
+                                && _relayReactionCalc != null && (side == "left" || side == "right")) {
+                                bool hmSbB  = (side == "left") ? laneState.HandoffModeLeft        : laneState.HandoffModeRight;
+                                bool recSbB = (side == "left") ? laneState.SbReactionRecordedLeft : laneState.SbReactionRecordedRight;
+                                if (hmSbB && !recSbB) {
                                     _relayReactionCalc.OnEvent(lane, side, RelayReactionCalculator.EventKind.SB, timeInSeconds);
                                 }
                             }
@@ -5141,32 +5125,14 @@ namespace SwimmingScoreboard
                         if (!_laneCloseSettings.ReactionTimeEnabled) {
                             // 关闭RT：不进行反应时/抢跳判定，仅记录出发台动作日志
                             AddLog(string.Format("泳道{0} 出发台触发（已关闭反应时检测）", lane));
-                        } else if (_isRelay && _laneCloseSettings != null
-                                   && (laneState.CurrentLap > 0 || side != _laneCloseSettings.StartPosition)) {
-                            // 2026-06-03 接力交接 SB: 喂入 RelayReactionCalculator. 抢跳时 SB 在棒 K-1 TP 之前来,
-                            //   currentLap=(K-1)*perLeg-1. 4×50m perLeg=1 棒 2 抢跳 currentLap=0 + side != StartPosition.
-                            //   用 side 反推 handoffLap: 偶=StartPosition / 奇=另一侧. 标准 handoffLap=currentLap, 抢跳=currentLap+1.
-                            //   handoffLap > 0 (= 不是棒 1 发令) && handoffLap < totalLaps (= 棒 4 也算, 不超棒 N).
+                        } else if (_isRelay && _laneCloseSettings != null && (side == "left" || side == "right")
+                                   && ((side == "left") ? laneState.HandoffModeLeft : laneState.HandoffModeRight)
+                                   && !((side == "left") ? laneState.SbReactionRecordedLeft : laneState.SbReactionRecordedRight)) {
+                            // 2026-07-13 按侧化: 接力交接 SB 喂入 RelayReactionCalculator. 判据 = 该侧未结算交接窗口
+                            //   (HandoffMode 倒计时=0 设, 免疫 CurrentLap 的 ++ 时序; 抢跳 SB 早于到达触板也已由锚点覆盖).
+                            //   替代原 CurrentLap%perLeg 奇偶反推 handoffLap. 棒 1 发令 SB: HandoffMode=false → 落到下方 else 出发段.
                             if (_relayReactionCalc != null && !string.IsNullOrEmpty(side)) {
-                                int totalLapsSb = GetTotalLaps();
-                                int perLegLapsSb = totalLapsSb > 0 ? totalLapsSb / 4 : 0;
-                                string startSideSb = _laneCloseSettings.StartPosition;
-                                bool sideIsStart = (side == startSideSb);
-                                int handoffLap = -1;
-                                // 标准 SB: currentLap=handoffLap, 奇偶要匹配 side
-                                if (perLegLapsSb > 0 && laneState.CurrentLap % perLegLapsSb == 0
-                                    && ((laneState.CurrentLap % 2 == 0) == sideIsStart)) {
-                                    handoffLap = laneState.CurrentLap;
-                                }
-                                // 抢跳 SB: currentLap+1=handoffLap, 奇偶要匹配 side
-                                else if (perLegLapsSb > 0 && (laneState.CurrentLap + 1) % perLegLapsSb == 0
-                                         && (((laneState.CurrentLap + 1) % 2 == 0) == sideIsStart)) {
-                                    handoffLap = laneState.CurrentLap + 1;
-                                }
-                                bool isHandoffSb = handoffLap > 0 && handoffLap < totalLapsSb;
-                                if (isHandoffSb) {
-                                    _relayReactionCalc.OnEvent(lane, side, RelayReactionCalculator.EventKind.SB, timeInSeconds);
-                                }
+                                _relayReactionCalc.OnEvent(lane, side, RelayReactionCalculator.EventKind.SB, timeInSeconds);
                             }
                         } else if (laneState.CurrentLap > 0) {
                             // 2026-06-03 非接力 + 已起跳 (CurrentLap>0): 比赛进行中的 SB 数据, 不算反应时, 仅记日志
@@ -7599,7 +7565,10 @@ namespace SwimmingScoreboard
                 if (swForLane != null) {
                     var relayRes = EnsureRelayLaneResult(swForLane, lane);
                     if (relayRes != null) {
-                        int legIdx = ComputeRelayLegIndex(laneState.CurrentLap);
+                        // 2026-07-13 按侧化: 棒次索引优先读该侧倒计时=0 盖的印章 (免疫 CurrentLap++ 时序); 缺印章才回退 CurrentLap 推算.
+                        int legIdx = (side == "left") ? laneState.HandoffLegIdxLeft
+                                   : (side == "right") ? laneState.HandoffLegIdxRight : -1;
+                        if (legIdx < 0) legIdx = ComputeRelayLegIndex(laneState.CurrentLap);
                         EnsureLegReactionSlots(relayRes);
                         if (legIdx >= 0 && legIdx < relayRes.LegReactionTimes.Count)
                             relayRes.LegReactionTimes[legIdx] = reaction;
@@ -7611,6 +7580,9 @@ namespace SwimmingScoreboard
                 laneState.IsSuspectFalseStart = true;
                 AddLog(string.Format("⚠ 接力抢跳(reaction<0) 道{0}{1} reaction:{2:F3}s{3}", lane, sideLabel, reaction, basisNote));
             }
+            // 2026-07-13 按侧化: 本侧本棒反应时已结算 → 置 SbReactionRecorded, 锚点复位 (后续同侧 SB 走备用, 直到下棒倒计时=0 清回).
+            if (side == "left") laneState.SbReactionRecordedLeft = true;
+            else if (side == "right") laneState.SbReactionRecordedRight = true;
         }
 
         private void OnRelayReactionNone(int lane, string side) {
@@ -7637,6 +7609,11 @@ namespace SwimmingScoreboard
                 string.IsNullOrEmpty(swimmerName) ? "" : (" (" + swimmerName + ")"));
             TrimSbIfOver(_laneEventLog[lane], MAX_LANE_EVENT_LOG);
             if (lane == _selectedLane) RefreshLaneEventLogView();
+            // 2026-07-13 按侧化: 本侧本棒交接窗口已结算 (无反应=---) → 置 SbReactionRecorded, 锚点复位, 防迟到 SB 重开窗口.
+            if (ls2 != null) {
+                if (side == "left") ls2.SbReactionRecordedLeft = true;
+                else if (side == "right") ls2.SbReactionRecordedRight = true;
+            }
         }
 
 
@@ -7800,11 +7777,14 @@ namespace SwimmingScoreboard
                                     if (!state.LeftStartBlockBroken) state.LeftStartBlockStatus = DeviceStatus.Open;
                                 }
                                 relayStartBlockOpened = true;
-                                // 2026-07-13 v8 阶段 1 (按侧): 直通模式 - 泳道倒计时=0 → 交接棒 SB 打开 → 建/重置 window,
-                                //   置该侧 HandoffMode + 盖起跳棒次印章, 清 SB 数据, 等 TP/MB 启 timer.
+                                // 2026-07-13 按侧: 泳道倒计时=0 → 交接棒 SB 打开 → 设该侧 HandoffMode + 盖起跳棒次印章 (两模式共用锚点).
+                                //   直通: 额外建自算 window (内部已调 MarkHandoffSide). 流程: 只设锚点, 反应时仍走 _relayReactionCalc.
+                                int legIdx = lapsPerLegVal > 0 ? nextLap / lapsPerLegVal : 0;   // 0-indexed 起跳棒
+                                string handoffSide = arriveRight ? "right" : "left";
                                 if (_laneCloseSettings != null && _laneCloseSettings.HardwareAlwaysOpen) {
-                                    int legIdx = lapsPerLegVal > 0 ? nextLap / lapsPerLegVal : 0;   // 0-indexed 起跳棒
-                                    CreateOrResetDirectSbWindow(state.Lane, arriveRight ? "right" : "left", legIdx);
+                                    CreateOrResetDirectSbWindow(state.Lane, handoffSide, legIdx);
+                                } else {
+                                    MarkHandoffSide(state.Lane, handoffSide, legIdx);
                                 }
                             }
                         }
@@ -9866,19 +9846,23 @@ namespace SwimmingScoreboard
             // 2026-07-13 v8: SB 帧到达只累加, 不启 timer. Timer 由 TP/MB/GUN 帧触发 (参照用户规则).
         }
 
+        // 2026-07-13 按侧交接锚点 (两模式共用, 倒计时=0 设): 置该侧 HandoffMode + 起跳棒次印章 + 清上一棒锁定标志.
+        //   锚点早于到达触板, 不依赖 CurrentLap 的 ++ 时序. 出发/交接判据从此只看 HandoffMode[side] && !SbReactionRecorded[side].
+        //   流程模式单独调此 (反应时仍由 _relayReactionCalc 算, 不建自算窗口); 直通模式由 CreateOrResetDirectSbWindow 内部调.
+        private void MarkHandoffSide(int lane, string side, int legIndex) {
+            var ls = _laneDeviceStates.FirstOrDefault(s => s.Lane == lane);
+            if (ls == null) return;
+            if (side == "left")       { ls.HandoffModeLeft = true;  ls.SbReactionRecordedLeft = false;  ls.HandoffLegIdxLeft = legIndex; }
+            else if (side == "right") { ls.HandoffModeRight = true; ls.SbReactionRecordedRight = false; ls.HandoffLegIdxRight = legIndex; }
+        }
+
         // 2026-07-13 v8: 创建/重置直通 window (清 SB 数据). 由主路径调用 (Ready 时对出发端, 触板+倒计时结束时对交接端).
         private void CreateOrResetDirectSbWindow(int lane, string side, int legIndex) {
             if (side != "left" && side != "right") return;
             string wkey = lane + "|" + side;
             var w = new DirectSbWindow { Lane = lane, Side = side, LegIndex = legIndex };
             _directSbWindows[wkey] = w;
-            // 2026-07-13 按侧: 标记该侧进入"交接处理"状态 (倒计时=0 锚点, 早于到达触板, 不依赖 CurrentLap),
-            //   并清该侧上一棒锁定标志 (= 允许本棒新窗口). 出发/交接判据从此只看 HandoffMode[side].
-            var ls = _laneDeviceStates.FirstOrDefault(s => s.Lane == lane);
-            if (ls != null) {
-                if (side == "left")  { ls.HandoffModeLeft = true;  ls.SbReactionRecordedLeft = false; }
-                else                 { ls.HandoffModeRight = true; ls.SbReactionRecordedRight = false; }
-            }
+            MarkHandoffSide(lane, side, legIndex);   // 置 HandoffMode + 棒次印章 + 清锁定标志 (两模式共用锚点)
             AddLog(string.Format("泳道{0} 直通 SB {1} window 清空 (第{2}棒, 等待 SB 迭代 + TP/MB 启 timer)",
                 lane, side == "left" ? "左" : "右", legIndex + 1));
         }

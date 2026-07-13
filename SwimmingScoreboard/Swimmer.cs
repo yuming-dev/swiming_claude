@@ -977,6 +977,9 @@ namespace SwimmingScoreboard
         //   false = 该侧仍处出发段 (基准=gun); true = 该侧已进入交接处理 (基准=TP/MB). Reset_Timer / ResetForNewRace 清回 false.
         public bool HandoffModeLeft { get; set; }
         public bool HandoffModeRight { get; set; }
+        // 2026-07-13 该侧交接棒的 0-indexed 起跳棒次印章 (倒计时=0 盖, 不依赖 CurrentLap). -1 = 未进交接. OnRelayReactionReady 读它写 LegReactionTimes.
+        public int HandoffLegIdxLeft = -1;
+        public int HandoffLegIdxRight = -1;
         private int _leftLapManualAdjust;   // 左端"圈数"显示的人工调整值（spinner ▲▼）
         private int _rightLapManualAdjust;  // 右端"圈数"显示的人工调整值（spinner ▲▼）
         private string _startSide = "left";  // 出发台所在端（用于抢跳显示）
@@ -1304,6 +1307,8 @@ namespace SwimmingScoreboard
             // 2026-07-13 按侧交接状态清回出发段 (= 下一组两侧都从出发段起算)
             HandoffModeLeft = false;
             HandoffModeRight = false;
+            HandoffLegIdxLeft = -1;
+            HandoffLegIdxRight = -1;
             _leftLapManualAdjust = 0;
             _rightLapManualAdjust = 0;
             _startSide = startPosition;
