@@ -966,6 +966,17 @@ namespace SwimmingScoreboard
         private double _reactionTime;
         private bool _isFalseStart;
         private bool _isSuspectFalseStart; // 反应时低于阈值（疑似抢跳）：仅作为视觉提示（反应时标红），是否判罚由裁判手动决定
+        // 2026-07-08 直通模式 (HardwareAlwaysOpen) SB 反应时窗口锁定状态 (v3):
+        //   直通模式下硬件不发状态帧, PC 自主屏蔽: gun 后 (或接力交接) 窗口内 SB 迭代覆盖, 窗口到=0 锁定反应时.
+        //   Per-side 独立 (= 接力/仰泳/普通场景都覆盖). Reset_Timer / ResetForNewRace 时清零.
+        //   窗口锁定后置 true; 该侧下次交接由 CreateOrResetDirectSbWindow (倒计时=0) 清回 false → 允许新窗口;
+        //   同棒锁定后再来的 SB → 走备用反应时.
+        public bool SbReactionRecordedLeft { get; set; }
+        public bool SbReactionRecordedRight { get; set; }
+        // 2026-07-13 按左右侧交接状态: 倒计时=0 打开该侧交接棒 SB 时置 true (锚点早于到达触板, 不依赖 CurrentLap 的 ++ 时序).
+        //   false = 该侧仍处出发段 (基准=gun); true = 该侧已进入交接处理 (基准=TP/MB). Reset_Timer / ResetForNewRace 清回 false.
+        public bool HandoffModeLeft { get; set; }
+        public bool HandoffModeRight { get; set; }
         private int _leftLapManualAdjust;   // 左端"圈数"显示的人工调整值（spinner ▲▼）
         private int _rightLapManualAdjust;  // 右端"圈数"显示的人工调整值（spinner ▲▼）
         private string _startSide = "left";  // 出发台所在端（用于抢跳显示）
@@ -1287,6 +1298,12 @@ namespace SwimmingScoreboard
             _reactionTime = 0;
             _isFalseStart = false;
             _isSuspectFalseStart = false;
+            // 2026-07-08 直通模式 SB window 锁定状态清零 (= 下一组比赛允许新窗口)
+            SbReactionRecordedLeft = false;
+            SbReactionRecordedRight = false;
+            // 2026-07-13 按侧交接状态清回出发段 (= 下一组两侧都从出发段起算)
+            HandoffModeLeft = false;
+            HandoffModeRight = false;
             _leftLapManualAdjust = 0;
             _rightLapManualAdjust = 0;
             _startSide = startPosition;

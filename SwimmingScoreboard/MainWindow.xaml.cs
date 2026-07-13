@@ -107,6 +107,14 @@ namespace SwimmingScoreboard
         //   _gunArrivedAt = PC 端收到 gun 帧的本地时刻, 用于算窗口剩余时间 (= StartBlockCloseDelay - (now - _gunArrivedAt))
         private DateTime? _gunArrivedAt = null;
         private readonly Dictionary<int, BackstrokeReleaseWindow> _backstrokeWindows = new Dictionary<int, BackstrokeReleaseWindow>();
+        // 2026-07-08 直通模式 (HardwareAlwaysOpen) SB 反应时窗口 (跟仰泳窗口同款模式, 用户指出根因):
+        //   gun 后每次 SB 触发都覆盖 LastPreStartSec, "出发台关闭延迟" 到=0 才用最后一次算反应时.
+        //   Key = "lane|side" (= per lane per side 独立, 支持接力 4 棒 + 双端出发)
+        private readonly Dictionary<string, DirectSbWindow> _directSbWindows = new Dictionary<string, DirectSbWindow>();
+        // 2026-07-13 直通模式【正常出发】SB 反应时迭代窗口 (跟仰泳出发窗口同款, gun 基准):
+        //   硬件在"各就位"发多次原始 SB, 每次覆盖 LastPreStartSec, 枪响后 StartBlockCloseDelay 到期取最后一次(=真起跳) − 枪响.
+        //   替代原 rev6 "取第一次 SB 立即算" (那样会把站定微动当官方). Key = lane (每道一次出发). 仅出发段用.
+        private readonly Dictionary<int, DirectSbWindow> _directStartSbWindows = new Dictionary<int, DirectSbWindow>();
         // 2026-05-13 硬件计时器电池电压（0x4B 上报，0 = 未上报）
         private double _hwBatteryVoltage = 0;
         private DateTime _hwBatteryReceivedAt = DateTime.MinValue;
@@ -243,9 +251,32 @@ namespace SwimmingScoreboard
         private class BackstrokeReleaseWindow {
             public int Lane;
             public string Side;
-            public double LastRawPreStartSec;   // 最后一次 TP 松开的 PreStart 计数器值 (覆盖式)
+            public double LastRawPreStartSec;   // 最后一次 TP 松开的 PreStart 计数器值 (覆盖式, 用于锁定反应时)
             public bool TimerStarted;
             public System.Windows.Threading.DispatcherTimer Timer;
+            // 2026-07-09 (v4) 直通模式: 窗口内所有 TP 松开的 raw PreStart 秒数, 到期后逐条写 BackstrokeRelease 日志.
+            //   按比赛流程模式此列表始终为空 (= ProcessBackstrokeReleaseFrame 里判断 HardwareAlwaysOpen 才 Add).
+            public List<double> AllRawTimes = new List<double>();
+        }
+        // 2026-07-08 直通模式 SB 反应时窗口 (跟 BackstrokeReleaseWindow 同款):
+        //   gun 后 SB 触发都覆盖 LastPreStartSec; StartBlockCloseDelay 到期取最后一次算反应时锁定.
+        private class DirectSbWindow {
+            public int Lane;
+            public string Side;
+            public double LastPreStartSec;    // 最后一次 SB 触发 (迭代替换式)
+            public bool LastIsFalseStart;
+            public bool TimerStarted;
+            public System.Windows.Threading.DispatcherTimer Timer;
+            public List<double> AllRawTimes = new List<double>();
+            // 2026-07-13 仅交接段用. 出发段照搬主路径, 不进 v8.
+            //   basis 优先级 (OnDirectSbHandoffExpired): TP > MB(1/2/3 first-press 按 DoMbSubstitute 规则).
+            //   MB_Final (硬件代触) 按用户 2026-07-13 决定(b) 不作 basis, 仅留痕.
+            public bool HasTp;              public double TpTime;              // 真触板 (case Touchpad)
+            public bool HasMbFinal;         public double MbFinalTime;         // 硬件 MB 代触 final (ManualTouchpad); 决定(b): 不作 basis, 仅留痕
+            public double Mb1, Mb2, Mb3;    // 三盲表各自 first-press (PushButton1/2/3), 供 1/2/3 取值算 MB 基准
+            public string TimerStartKind = "-";
+            // 2026-07-13 按侧: 倒计时=0 建窗口时盖"起跳棒次"印章 (0-indexed), 到期算 rt 时直接读, 不再用 CurrentLap 现推.
+            public int LegIndex;
         }
 
         // ── 编辑锁：避免两端同时编辑同一条数据 ──
@@ -4896,6 +4927,8 @@ namespace SwimmingScoreboard
                     AddLog(string.Format("硬件触发: 枪响 PreStart = {0:F3}s", timeInSeconds));
                     FlushPendingPreStartReactions();
                     StartBackstrokeWindowsAfterGun();   // 2026-06-23 启动 gun 前已暂存的仰泳窗口 timer
+                    StartDirectStartSbWindowsAfterGun();   // 2026-07-13 启动 gun 前已暂存的直通正常出发 SB 窗口 timer
+                    // 2026-07-13 v8-rev6: 出发段直接照搬主路径立即算 rt = SB - gun, 不再对 lane 启 v8 timer.
                     return;
                 case "TimerReset":
                     AddLog("硬件触发: 计时清零");
@@ -4903,6 +4936,8 @@ namespace SwimmingScoreboard
                     _gunPreStartSec = null;
                     _pendingPreStartReactions.Clear();
                     ClearBackstrokeReleaseWindows();   // 2026-06-23 同步清仰泳出发反应时窗口
+                    ClearDirectSbWindows();            // 2026-07-08 同步清直通模式 SB 窗口
+                    ClearDirectStartSbWindows();       // 2026-07-13 同步清直通正常出发 SB 窗口
                     Restart_Click(null, null);
                     return;
             }
@@ -4973,13 +5008,42 @@ namespace SwimmingScoreboard
                 }
                 if (side != expectedSideTp) isHandoffTpSeg = false;
                 if (isHandoffTpSeg) {
-                    // 2026-06-14 重构: cmdType 已区分, 真触板 = "Touchpad", MB 代触 = "ManualTouchpad", 不再依赖 isMbSubstitute 内嵌分支
-                    if (cmdType == "Touchpad") {
-                        _relayReactionCalc.OnEvent(lane, side, RelayReactionCalculator.EventKind.TP, timeInSeconds);
-                    } else if (cmdType == "ManualTouchpad") {
-                        _relayReactionCalc.OnEvent(lane, side, RelayReactionCalculator.EventKind.MB_Final, timeInSeconds);
-                    } else if (cmdType == "PushButton1" || cmdType == "PushButton2" || cmdType == "PushButton3") {
-                        _relayReactionCalc.OnEvent(lane, side, RelayReactionCalculator.EventKind.MB_FirstPress, timeInSeconds);
+                    // 2026-07-13 直通模式 (HardwareAlwaysOpen): PC 用 DirectSbWindow 自算反应时, 不喂旧的 14 规则 _relayReactionCalc.
+                    //   否则它只拿到 TP/MB、拿不到 SB (SB 走 HandleStartingBlock_AlwaysOpen 不喂它) → 窗口到期
+                    //   OnRelayReactionNone 吐冗余 "出[N]=---*". 仅按比赛流程模式才喂.
+                    if (_laneCloseSettings == null || !_laneCloseSettings.HardwareAlwaysOpen) {
+                        // 2026-06-14 重构: cmdType 已区分, 真触板 = "Touchpad", MB 代触 = "ManualTouchpad", 不再依赖 isMbSubstitute 内嵌分支
+                        if (cmdType == "Touchpad") {
+                            _relayReactionCalc.OnEvent(lane, side, RelayReactionCalculator.EventKind.TP, timeInSeconds);
+                        } else if (cmdType == "ManualTouchpad") {
+                            _relayReactionCalc.OnEvent(lane, side, RelayReactionCalculator.EventKind.MB_Final, timeInSeconds);
+                        } else if (cmdType == "PushButton1" || cmdType == "PushButton2" || cmdType == "PushButton3") {
+                            _relayReactionCalc.OnEvent(lane, side, RelayReactionCalculator.EventKind.MB_FirstPress, timeInSeconds);
+                        }
+                    }
+                    // 2026-07-13 v8-rev5 用户 3 规则:
+                    //   规则 1: 只 Open/Touched/FalseStart 时接收 (Closed/Broken/NotInstalled 拒).
+                    //   规则 2: TP 存在就用 TP; MB_Final 只在无 TP 时代替. MB_FirstPress 只启 timer, 不作 basis.
+                    //   规则 3: GUN 在 case "GunPreStart" 单独 dispatch (仰泳出发段跳过).
+                    if (_laneCloseSettings != null && _laneCloseSettings.HardwareAlwaysOpen && lsForHook != null) {
+                        DeviceStatus tpSt = (side == "left") ? lsForHook.LeftTouchpadStatus : lsForHook.RightTouchpadStatus;
+                        DeviceStatus bwSt = DeviceStatus.NotInstalled;
+                        if (cmdType == "PushButton1") bwSt = (side == "left") ? lsForHook.LeftBlindWatch1Status : lsForHook.RightBlindWatch1Status;
+                        else if (cmdType == "PushButton2") bwSt = (side == "left") ? lsForHook.LeftBlindWatch2Status : lsForHook.RightBlindWatch2Status;
+                        else if (cmdType == "PushButton3") bwSt = (side == "left") ? lsForHook.LeftBlindWatch3Status : lsForHook.RightBlindWatch3Status;
+                        bool tpAccept = tpSt != DeviceStatus.Closed && tpSt != DeviceStatus.Broken && tpSt != DeviceStatus.NotInstalled;
+                        bool bwAccept = bwSt != DeviceStatus.Closed && bwSt != DeviceStatus.Broken && bwSt != DeviceStatus.NotInstalled;
+                        if (cmdType == "Touchpad" && tpAccept) {
+                            RecordDirectSbBasis(lane, side, timeInSeconds, "TP");
+                        } else if (cmdType == "ManualTouchpad" && tpAccept) {
+                            RecordDirectSbBasis(lane, side, timeInSeconds, "MB_Final");
+                        } else if ((cmdType == "PushButton1" || cmdType == "PushButton2" || cmdType == "PushButton3") && bwAccept) {
+                            int mbBtn = cmdType == "PushButton1" ? 1 : (cmdType == "PushButton2" ? 2 : 3);
+                            RecordDirectSbBasis(lane, side, timeInSeconds, "MB_FirstPress", mbBtn);
+                        } else {
+                            AddLog(string.Format("泳道{0} 直通 basis {1} {2} 设备关闭/损坏/未装, 忽略 (tpSt={3}, bwSt={4})",
+                                lane, cmdType, side == "left" ? "左" : "右", tpSt, bwSt));
+                        }
                     }
                 }
                 // SB 在 case "StartingBlock" 接力分支内单独喂 (= 因为发令第 1 棒 SB 不喂)
@@ -4999,6 +5063,13 @@ namespace SwimmingScoreboard
                     break;
 
                 case "StartingBlock":
+                    // 2026-07-08 直通模式独立子程序 (跟原按比赛流程 case 隔离, 完整移植硬件 SBCloseDelay 屏蔽机制).
+                    //   按比赛流程: 硬件推 0x50 SB 状态帧 → PC 更新 shadow state → 用状态守卫过滤.
+                    //   直通模式:   硬件不推状态帧, 所有 SB 事件都上报. PC 需自主屏蔽 (= "首次记录, 之后备用").
+                    if (_laneCloseSettings != null && _laneCloseSettings.HardwareAlwaysOpen) {
+                        HandleStartingBlock_AlwaysOpen(lane, side, timeInSeconds, isFalseStart, laneState);
+                        break;
+                    }
                     // 出发台状态机（与触板对称）：
                     //   Open / FalseStart → 作为正式反应时处理，再切到 Touched（红）保持 StartBlockCloseDelay 秒
                     //   Touched           → 已记录正式反应时；本次记日志并写入"备用反应时"
@@ -5310,6 +5381,43 @@ namespace SwimmingScoreboard
             // 2026-05-27 同步追加到"比赛日志" tab 的 per-lane 缓冲
             // 2026-06-15 反应时类事件 (StartingBlock / BackstrokeRelease) 跳过这里, 由反应时计算路径 (case "StartingBlock"/"BackstrokeRelease" / FlushPendingPreStartReactions / OnRelayReactionReady) 主动写计算后的反应时, 避免比赛日志显示原始 PreStart 数据.
             if (cmdType == "StartingBlock" || cmdType == "BackstrokeRelease") return;
+            // 2026-07-09 仰泳出发端出发段 (CurrentLap=0) 的 Touchpad 帧不写日志.
+            //   用户诉求: 出发时只记录"触板放开" (触放), 触板按下 (触) 不记.
+            //   case "Touchpad" 已有守卫 (line 5207-5214) 视为反应时副产物, 日志同步过滤.
+            //   折返回起点端 (CurrentLap > 0) 走另一侧到边逻辑, 不受影响.
+            if (cmdType == "Touchpad" && side != null && _currentEvent != null && IsBackstrokeStartEvent(_currentEvent)) {
+                var lsFilter = _laneDeviceStates.FirstOrDefault(s => s.Lane == lane);
+                if (lsFilter != null) {
+                    bool startLeftFilter = _laneCloseSettings == null || _laneCloseSettings.StartPosition != "right";
+                    string startSideFilter = startLeftFilter ? "left" : "right";
+                    if (side == startSideFilter && lsFilter.CurrentLap == 0) return;
+                }
+            }
+            // 2026-07-09 直通模式 (HardwareAlwaysOpen): TP/MB = Closed 时的帧不写日志.
+            //   用户诉求: 触板后 ResultConfirmCloseDelay=0 关闭到下次 LaneCloseCountdown=0 打开之间不记.
+            //   按比赛流程模式硬件已过滤, 此 filter 不启用.
+            //   Touched 状态 (触板刚触未回 Closed) 不 filter, 保留 RecordBackupTouch 备用触发.
+            if (_laneCloseSettings != null && _laneCloseSettings.HardwareAlwaysOpen && side != null) {
+                var lsHw = _laneDeviceStates.FirstOrDefault(s => s.Lane == lane);
+                if (lsHw != null) {
+                    DeviceStatus devSt = DeviceStatus.Open;
+                    bool checkClose = false;
+                    if (cmdType == "Touchpad") {
+                        devSt = (side == "left") ? lsHw.LeftTouchpadStatus : lsHw.RightTouchpadStatus;
+                        checkClose = true;
+                    } else if (cmdType == "PushButton1") {
+                        devSt = (side == "left") ? lsHw.LeftBlindWatch1Status : lsHw.RightBlindWatch1Status;
+                        checkClose = true;
+                    } else if (cmdType == "PushButton2") {
+                        devSt = (side == "left") ? lsHw.LeftBlindWatch2Status : lsHw.RightBlindWatch2Status;
+                        checkClose = true;
+                    } else if (cmdType == "PushButton3") {
+                        devSt = (side == "left") ? lsHw.LeftBlindWatch3Status : lsHw.RightBlindWatch3Status;
+                        checkClose = true;
+                    }
+                    if (checkClose && devSt == DeviceStatus.Closed) return;
+                }
+            }
             AppendToLaneEventLog(lane, cmdType, time, swimmerName, side, lapRemain);
         }
 
@@ -5317,6 +5425,8 @@ namespace SwimmingScoreboard
         //   只挑跟运动员"成绩相关"的事件类型, 跳过 RunningTime/TimerReady/StartCommand 等控制帧.
         //   缓冲存活范围 = 一组比赛 (Restart/Ready 时清空).
         private void AppendToLaneEventLog(int lane, string cmdType, double time, string swimmerName, string side = null, int lapRemain = -1) {
+            // 2026-07-13 直通模式: PC 自算反应时, 硬件"SB 超时无反应"帧 (StartingBlockTimeout = 出[N]=---) 冗余 → 不入日志/不打印.
+            if (cmdType == "StartingBlockTimeout" && _laneCloseSettings != null && _laneCloseSettings.HardwareAlwaysOpen) return;
             // 2026-05-27 用户要求简化显示文字
             string label;
             switch (cmdType) {
@@ -5364,6 +5474,12 @@ namespace SwimmingScoreboard
             }
             // 若当前显示的就是这道, 立刻刷新可见 TextBox
             if (lane == _selectedLane) RefreshLaneEventLogView();
+        }
+
+        // 2026-07-13 反应时热敏打印 (每棒一行, 跟比赛日志"反应时="同源; 用户要求必须打印). rtText = 数值/******/------.
+        private void PrintReactionToThermal(int lane, string sideLabel, string legLabel, string rtText) {
+            if (_thermalPrinter != null && _thermalPrinter.Enabled)
+                _thermalPrinter.PrintLine(string.Format("道{0}{1}{2} 反应时 = {3}", lane, sideLabel, legLabel, rtText));
         }
 
         // 切换当前选中道次时调一次, 把 _laneEventLog[lane] 完整刷到 TextBox
@@ -7192,8 +7308,15 @@ namespace SwimmingScoreboard
 
         // 纪录类型 → 简写标识（用于备注栏/打印/大屏 BREAK/TIE 提示）
         // 破纪录用 "WR"，平纪录用 "=WR"
-        private static string RecordTypeToTag(string type) {
+        private string RecordTypeToTag(string type) {
             if (string.IsNullOrEmpty(type)) return "REC";
+            // 2026-07-09 优先查用户自定义映射 (= "大屏显示与纪录设置" 里维护的 Label / TypeName).
+            //   用户新增 "WJ / 世界青少年纪录" 后, 走此路径匹配, 不再被 hardcode 的 Contains("世界") 误命中返 "WR".
+            if (_displayRecordOptions != null) {
+                foreach (var o in _displayRecordOptions) {
+                    if (o != null && !string.IsNullOrEmpty(o.Label) && o.TypeName == type) return o.Label;
+                }
+            }
             string t = type;
             if (t.Contains("世界")) return "WR";
             if (t.Contains("奥运")) return "OR";
@@ -7248,7 +7371,8 @@ namespace SwimmingScoreboard
                 int v;
                 return order.TryGetValue(key, out v) ? v : 99;
             }).ToList();
-            string note = string.Join("/", tags);
+            // 2026-07-09 用户诉求: 只显示优先级最高的标识 (原 "WR/AR/NR" 拼接 → "WR").
+            string note = tags.Count > 0 ? tags[0] : "";
             result.RecordNote = note;
             // 一组多人同时打破纪录时，仅保留本组成绩最佳者（含并列）的标识；其余清除。
             // FINA 惯例：纪录归本组最快者所有；慢于他的同组选手即便也好于历史纪录，也不计破纪录。
@@ -7661,8 +7785,10 @@ namespace SwimmingScoreboard
                             var rlMatch = System.Text.RegularExpressions.Regex.Match(_currentEvent, @"(\d+)\s*[x×]");
                             if (rlMatch.Success) legCnt = int.Parse(rlMatch.Groups[1].Value);
                             int lapsPerLegVal = totalLapsVal > 0 ? totalLapsVal / legCnt : 1;
-                            // 下一段触板是否是交接棒（当前段+1 是每棒最后一段，且不是最后一棒最后一段）
-                            int nextLap = state.CurrentLap + 1;
+                            // 2026-07-13 按左右侧: 已完成段数 = 两侧实际触板数之和. 倒计时=0 时到达触板尚未落,
+                            //   该值稳定 (=CurrentLap 但不依赖其 ++ 时序). 下一段是否交接棒 = 下一段为每棒末段且非最后一棒末段.
+                            int completedSegs = state.LeftTouchDone + state.RightTouchDone;
+                            int nextLap = completedSegs + 1;
                             bool isNextExchange = (lapsPerLegVal > 0) && (nextLap % lapsPerLegVal == 0) && (nextLap < totalLapsVal);
                             if (isNextExchange) {
                                 // 2026-06-03 SB 打开侧 = 选手即将到达侧 (= 棒次终点侧 = 下棒起跳侧).
@@ -7674,6 +7800,12 @@ namespace SwimmingScoreboard
                                     if (!state.LeftStartBlockBroken) state.LeftStartBlockStatus = DeviceStatus.Open;
                                 }
                                 relayStartBlockOpened = true;
+                                // 2026-07-13 v8 阶段 1 (按侧): 直通模式 - 泳道倒计时=0 → 交接棒 SB 打开 → 建/重置 window,
+                                //   置该侧 HandoffMode + 盖起跳棒次印章, 清 SB 数据, 等 TP/MB 启 timer.
+                                if (_laneCloseSettings != null && _laneCloseSettings.HardwareAlwaysOpen) {
+                                    int legIdx = lapsPerLegVal > 0 ? nextLap / lapsPerLegVal : 0;   // 0-indexed 起跳棒
+                                    CreateOrResetDirectSbWindow(state.Lane, arriveRight ? "right" : "left", legIdx);
+                                }
                             }
                         }
 
@@ -7740,6 +7872,8 @@ namespace SwimmingScoreboard
             _gunPreStartSec = null;
             _pendingPreStartReactions.Clear();
             ClearBackstrokeReleaseWindows();   // 2026-06-23 同步清仰泳出发反应时窗口
+            ClearDirectSbWindows();            // 2026-07-13 v8 直通模式 Ready 时同步清 SB window
+            ClearDirectStartSbWindows();       // 2026-07-13 直通正常出发 SB 窗口 Ready 时同步清
             _resultConfirmed = false;
             _firstPlaceFinishTime = "";
             _firstPlaceShowStart = DateTime.MinValue;
@@ -7858,15 +7992,22 @@ namespace SwimmingScoreboard
                 state.CountdownTargetSec = targetSec2;
             }
 
-            // 延迟关闭出发台
+            // 延迟关闭出发台 (仰泳: 关出发端 TP; 非仰泳: 关出发端 SB)
+            //   2026-07-09 用户诉求: 仰泳 TP 在 Ready 时打开, 枪响后 StartBlockCloseDelay=0 时关闭 (变灰).
+            //   运动员折返回起点端时 LaneCloseCountdown 到 0 自动 Open (line 7666-7677), 循环成立无误伤.
             var sbTimer = new DispatcherTimer();
             sbTimer.Interval = TimeSpan.FromSeconds(_laneCloseSettings.StartBlockCloseDelay);
             sbTimer.Tick += delegate(object s, EventArgs args) {
                 sbTimer.Stop();
                 foreach (var state in _laneDeviceStates) {
                     if (!state.IsFalseStart) {
-                        if (startLeft) state.LeftStartBlockStatus = DeviceStatus.Closed;
-                        else state.RightStartBlockStatus = DeviceStatus.Closed;
+                        if (isBackstrokeStart) {
+                            if (startLeft) state.LeftTouchpadStatus = DeviceStatus.Closed;
+                            else state.RightTouchpadStatus = DeviceStatus.Closed;
+                        } else {
+                            if (startLeft) state.LeftStartBlockStatus = DeviceStatus.Closed;
+                            else state.RightStartBlockStatus = DeviceStatus.Closed;
+                        }
                     }
                 }
                 Broadcast();
@@ -7963,6 +8104,7 @@ namespace SwimmingScoreboard
             _gunPreStartSec = null;
             _pendingPreStartReactions.Clear();
             ClearBackstrokeReleaseWindows();   // 2026-06-23 同步清仰泳出发反应时窗口
+            ClearDirectStartSbWindows();       // 2026-07-13 同步清直通正常出发 SB 窗口
             // 2026-06-20 复位停反应时窗口 timer (= 跨场不能残留)
             StopReactionWindowTimer();
             // 2026-06-16 盲表成绩历史清空 (每组开始干净状态) + 刷各泳道 ComboBox
@@ -9568,10 +9710,444 @@ namespace SwimmingScoreboard
         //   时序: gun 已响 → 启 timer = max(0.05, StartBlockCloseDelay - (now - _gunArrivedAt))
         //          gun 未响 → 仅暂存, 等 StartBackstrokeWindowsAfterGun 启动 timer = StartBlockCloseDelay 全部
         //   不立即写 laneState.ReactionTime, 不立即 AppendToLaneEventLog. 等 OnBackstrokeWindowExpired 锁定.
+        // 2026-07-08 (v2) 直通模式 SB 独立子程序 (跟按比赛流程 case StartingBlock 隔离).
+        //   按比赛流程: 硬件推 0x50 SB 状态帧 (Open→Touched→Closed), PC 端用 sbStatus 守卫过滤.
+        //   直通模式:   硬件不推状态帧, 每次 SB 触发都上报. PC 需自主复刻硬件按比赛流程 SBCloseDelay 屏蔽 (用户指出根因):
+        //     - 窗口内 (gun 后 SBCloseDelay 时间内): 每次 SB 触发都覆盖 LastPreStartSec (迭代模式, 去干扰信号)
+        //     - 窗口到期 (SBCloseDelay 到=0): 用最后一次 LastPreStartSec 算反应时 + 写 laneState.ReactionTime + Broadcast
+        //       + 置 SbReactionRecorded flag → 之后 SB 不再进窗口
+        //     - Flag 置后再来 SB: RecordBackupReaction (= 备用反应时, 跟主路径 Touched 分支一致), 不覆盖主反应时
+        //     - Gun 前 SB: 也进窗口 (暂存 LastPreStartSec), timer 由 StartDirectSbWindowsAfterGun 在 gun 到时启动
+        //   TimerReset 时 ClearDirectSbWindows 清所有 window; ResetForNewRace 清 SbReactionRecorded flag.
+        private void HandleStartingBlock_AlwaysOpen(int lane, string side, double timeInSeconds, bool isFalseStart, LaneDeviceState laneState) {
+            // 2026-07-13 v8 诊断: 入口 log, 便于追踪 SB 帧是否到达+ 各守卫拦哪
+            AddLog(string.Format("泳道{0} 直通 SB {1} 帧收到 (t={2:F3}s, CurrentLap={3}, false={4})",
+                lane, side == "left" ? "左" : (side == "right" ? "右" : "?"),
+                timeInSeconds, laneState.CurrentLap, isFalseStart));
+            // 守卫 A: side 缺失 (= 协议错误, 跟主路径 line 5012-5015 一致). 前移: 后续判据全按 side.
+            if (side != "left" && side != "right") {
+                AddLog(string.Format("泳道{0} 直通模式 SB cmd side 字段缺失, 跳过", lane));
+                return;
+            }
+            // 2026-07-13 按侧出发/交接判据: HandoffMode[side] 由倒计时=0 (CreateOrResetDirectSbWindow) 置位.
+            //   false = 该侧仍出发段 (基准=gun); true = 该侧已进入交接处理 (基准=TP/MB). 不再看 CurrentLap.
+            bool handoffMode = (side == "left") ? laneState.HandoffModeLeft : laneState.HandoffModeRight;
+            // 2026-07-09 仰泳出发 (含混合泳接力第 1 棒仰泳) 反应时走 TP (BackstrokeRelease) 路径 → 出发段 SB 忽略.
+            //   仅出发段 (!handoffMode) 忽略; 混合接力棒 2/3/4 常规泳姿的 SB 交接反应时仍需处理.
+            if (IsBackstrokeStartEvent(_currentEvent) && !handoffMode) {
+                AddLog(string.Format("泳道{0} 直通模式 SB {1} 出发段忽略 (仰泳/混合接力第1棒, 走 TP 反应时)",
+                    lane, side == "left" ? "左" : "右"));
+                return;
+            }
+            // 2026-07-13 规则 1 (修正): Broken/NotInstalled 物理无设备 → 两段都拒.
+            //   Closed 仅【交接段】拒 (支持锁定后 Closed → 备用); 【出发段】不受 sbStatus gate
+            //   (= 删补丁1, 直通独立子程序不用主路径 sbStatus; 出发段 SB 一律进 _directStartSbWindows 自管窗口,
+            //    相当于该段 SB 恒 Open, 修棒1 "SB 被 sbTimer 关闭后规则1 拒收 → 反应时全丢").
+            {
+                DeviceStatus sbSt = (side == "left") ? laneState.LeftStartBlockStatus : laneState.RightStartBlockStatus;
+                if (sbSt == DeviceStatus.Broken || sbSt == DeviceStatus.NotInstalled) {
+                    AddLog(string.Format("泳道{0} 直通 SB {1} 状态 {2} (拒收, 设备损坏/未装)", lane, side == "left" ? "左" : "右", sbSt));
+                    return;
+                }
+                if (handoffMode && sbSt == DeviceStatus.Closed) {
+                    AddLog(string.Format("泳道{0} 直通 SB {1} 交接段状态 Closed (拒收, 锁定后走备用)", lane, side == "left" ? "左" : "右"));
+                    return;
+                }
+            }
+            // 2026-07-09 守卫: 出发段 (!handoffMode) 只允许出发端 SB, 非出发端 (= 硬件误触/杂帧) 忽略.
+            //   否则左右两侧各自建立 window 各到期算 rt → laneState.ReactionTime 被覆盖, display.html 显示错值.
+            //   交接段 (handoffMode) 不加此守卫 — 4×50m 棒 2/4 SB 在对端.
+            if (!handoffMode) {
+                bool startLeftSb = _laneCloseSettings == null || _laneCloseSettings.StartPosition != "right";
+                string startSideSb = startLeftSb ? "left" : "right";
+                if (side != startSideSb) {
+                    AddLog(string.Format("泳道{0} 直通模式 SB {1} 出发段非出发端 (发令端={2}), 忽略",
+                        lane, side == "left" ? "左" : "右", startSideSb == "left" ? "左" : "右"));
+                    return;
+                }
+            }
+            // 守卫 B: 时间≈0 (= 硬件无有效信号, 跟主路径 line 5023-5027 一致)
+            if (Math.Abs(timeInSeconds) < 0.001) {
+                AddLog(string.Format("泳道{0} 直通模式 SB 帧时间为 0 (= 无有效出发台信号), 忽略此帧", lane));
+                return;
+            }
+            // 2026-07-13 直通【正常出发】迭代窗口 (跟仰泳出发/交接段一致, 修正 rev6 "取第一次 SB"):
+            //   硬件"各就位"会发多次原始 SB → 每次覆盖 LastPreStartSec; 枪响后 StartBlockCloseDelay 到期取最后一次(=真起跳) − 枪.
+            //   枪未响(抢跳): 仅暂存, 由 StartDirectStartSbWindowsAfterGun 在枪响时启窗口. rt/抢跳/日志 都在 OnDirectStartSbExpired.
+            if (!handoffMode) {
+                if (!_laneCloseSettings.ReactionTimeEnabled) {
+                    AddLog(string.Format("泳道{0} 直通 SB 出发段触发（已关闭反应时检测）", lane));
+                    EnterStartBlockTouchedThenClose(laneState, side, lane);
+                    return;
+                }
+                // 2026-07-13 参考比赛模式 Touched 分支: 本侧出发窗口已到期锁定官方 rt → 之后来的 SB 走备用反应时,
+                //   不再新建窗口重算 (窗口已取最后一次=真起跳, 锁定后不该被覆盖).
+                bool startAlreadyRec = (side == "left") ? laneState.SbReactionRecordedLeft : laneState.SbReactionRecordedRight;
+                if (startAlreadyRec) {
+                    RecordBackupReaction(lane, timeInSeconds, side);
+                    AddLog(string.Format("泳道{0} 直通出发 SB {1} 窗口已锁定反应时, 本次走备用反应时", lane, side == "left" ? "左" : "右"));
+                    return;
+                }
+                DirectSbWindow swin;
+                if (!_directStartSbWindows.TryGetValue(lane, out swin)) {
+                    swin = new DirectSbWindow { Lane = lane, Side = side };
+                    _directStartSbWindows[lane] = swin;
+                }
+                swin.Side = side;
+                swin.LastPreStartSec = timeInSeconds;      // 迭代覆盖 = 最后一次(=真起跳)
+                swin.LastIsFalseStart = isFalseStart;
+                swin.AllRawTimes.Add(timeInSeconds);
+                EnterStartBlockTouchedThenClose(laneState, side, lane);   // 视觉 Touched(红), StartBlockCloseDelay 后 Closed
+                // 启窗口 timer (仅枪已响且未启): 从枪响算 StartBlockCloseDelay, 到期锁定最后一次
+                if (!swin.TimerStarted && _gunPreStartSec.HasValue && _gunArrivedAt.HasValue) {
+                    double delay = (_laneCloseSettings != null && _laneCloseSettings.StartBlockCloseDelay > 0) ? _laneCloseSettings.StartBlockCloseDelay : 2.0;
+                    double remaining = Math.Max(0.05, delay - (DateTime.Now - _gunArrivedAt.Value).TotalSeconds);
+                    int laneCopy = lane;
+                    swin.Timer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(remaining) };
+                    swin.Timer.Tick += (s, e) => OnDirectStartSbExpired(laneCopy);
+                    swin.Timer.Start();
+                    swin.TimerStarted = true;
+                    AddLog(string.Format("泳道{0} 直通出发 SB 窗口已启动 (剩余 {1:F2}s, 期间迭代覆盖取最后一次)", lane, remaining));
+                } else if (!_gunPreStartSec.HasValue) {
+                    AddLog(string.Format("泳道{0} 直通出发 SB 触发于枪响前 (抢跳 PreStart={1:F3}s), 暂存待枪响启窗口", lane, timeInSeconds));
+                }
+                return;
+            }
+            // ── 以下仅交接段 (handoffMode) 走 v8 DirectSbWindow ──
+            // 守卫 C: 本棒已锁定反应时 → 之后来的 SB 走备用反应时 (= 复刻 Touched 状态).
+            //   "新交接清 flag 允许新 window"已移至 CreateOrResetDirectSbWindow (倒计时=0), 不再靠 CurrentLap 比较.
+            bool alreadyRecorded = (side == "left") ? laneState.SbReactionRecordedLeft : laneState.SbReactionRecordedRight;
+            if (alreadyRecorded) {
+                RecordBackupReaction(lane, timeInSeconds, side);
+                AddLog(string.Format("泳道{0} 直通模式 SB {1} 本棒已锁定反应时, 本次走备用反应时", lane, side == "left" ? "左" : "右"));
+                return;
+            }
+            // 找/建 window (= per lane per side)
+            string wkey = lane + "|" + side;
+            DirectSbWindow win;
+            if (!_directSbWindows.TryGetValue(wkey, out win)) {
+                win = new DirectSbWindow { Lane = lane, Side = side };
+                _directSbWindows[wkey] = win;
+            }
+            // 覆盖 LastPreStartSec (= 用于最终锁定的"最后一次") + 累加 AllRawTimes (= 用于逐条日志的"全部历史").
+            win.LastPreStartSec = timeInSeconds;
+            win.LastIsFalseStart = isFalseStart;
+            win.AllRawTimes.Add(timeInSeconds);
+            AddLog(string.Format("泳道{0} 直通模式 SB {1} 窗口内触发 (第 {2} 次 PreStart={3:F3}s{4})",
+                lane, side == "left" ? "左" : "右", win.AllRawTimes.Count, timeInSeconds, isFalseStart ? " 抢跳" : ""));
+            // 2026-07-11 补丁 3: 每次触发都写比赛日志 "出(第N次)=X.XXX" (raw PreStart 秒), 不算 rt.
+            //   用户诉求: 窗口内每次 SB 都留痕以防误出发追溯. rt 计算+推 UI 仅在窗口锁定时做 1 次.
+            {
+                var swForLog = GetCurrentHeatSwimmers().FirstOrDefault(s2 => {
+                    var sa2 = s2.GetAssignmentForStage(_currentStage);
+                    return (sa2 != null ? sa2.Lane : s2.Lane) == lane;
+                });
+                string swNameForLog = swForLog != null ? (swForLog.Name ?? "") : "";
+                if (!_laneEventLog.ContainsKey(lane)) _laneEventLog[lane] = new StringBuilder();
+                string elapsedForLog = _raceStartTime > DateTime.MinValue
+                    ? FormatElapsedMSS((DateTime.Now - _raceStartTime).TotalSeconds)
+                    : "—";
+                string sideLabelForLog = side == "left" ? "左" : "右";
+                _laneEventLog[lane].AppendFormat("{0,8} 道{1}{2} 出(第{3}次)={4:F3}{5}\r\n",
+                    elapsedForLog, lane, sideLabelForLog, win.AllRawTimes.Count, timeInSeconds,
+                    string.IsNullOrEmpty(swNameForLog) ? "" : (" (" + swNameForLog + ")"));
+                TrimSbIfOver(_laneEventLog[lane], MAX_LANE_EVENT_LOG);
+            }
+            // 2026-07-12 直通模式 SB 状态转换 (对应硬件 swimplay.c line 4308-4319 松开→state=2 延迟关中):
+            //   sbStatus Open → Touched (红). UI 立即视觉反馈"按下".
+            //   与主路径 EnterStartBlockTouchedThenClose 隔离, 直通模式独立子程序自维护 (不共用).
+            if (side == "left") {
+                if (!laneState.LeftStartBlockBroken && laneState.LeftStartBlockStatus != DeviceStatus.NotInstalled)
+                    laneState.LeftStartBlockStatus = DeviceStatus.Touched;
+            } else {
+                if (!laneState.RightStartBlockBroken && laneState.RightStartBlockStatus != DeviceStatus.NotInstalled)
+                    laneState.RightStartBlockStatus = DeviceStatus.Touched;
+            }
+            // 2026-07-13 v8: SB 帧到达只累加, 不启 timer. Timer 由 TP/MB/GUN 帧触发 (参照用户规则).
+        }
+
+        // 2026-07-13 v8: 创建/重置直通 window (清 SB 数据). 由主路径调用 (Ready 时对出发端, 触板+倒计时结束时对交接端).
+        private void CreateOrResetDirectSbWindow(int lane, string side, int legIndex) {
+            if (side != "left" && side != "right") return;
+            string wkey = lane + "|" + side;
+            var w = new DirectSbWindow { Lane = lane, Side = side, LegIndex = legIndex };
+            _directSbWindows[wkey] = w;
+            // 2026-07-13 按侧: 标记该侧进入"交接处理"状态 (倒计时=0 锚点, 早于到达触板, 不依赖 CurrentLap),
+            //   并清该侧上一棒锁定标志 (= 允许本棒新窗口). 出发/交接判据从此只看 HandoffMode[side].
+            var ls = _laneDeviceStates.FirstOrDefault(s => s.Lane == lane);
+            if (ls != null) {
+                if (side == "left")  { ls.HandoffModeLeft = true;  ls.SbReactionRecordedLeft = false; }
+                else                 { ls.HandoffModeRight = true; ls.SbReactionRecordedRight = false; }
+            }
+            AddLog(string.Format("泳道{0} 直通 SB {1} window 清空 (第{2}棒, 等待 SB 迭代 + TP/MB 启 timer)",
+                lane, side == "left" ? "左" : "右", legIndex + 1));
+        }
+
+        // 2026-07-13 记录交接段 basis 信号 (仅交接段用, 出发段不进 v8). 用户规则:
+        //   "TP"            → 真触板 = 基准 (最优先). 从 TP 起 ReactionEventWindowSec 收尾 SB; 若 timer 已启则覆盖重启.
+        //   "MB_FirstPress" → 盲表 first-press (mbButton=1/2/3). 存 Mb1/2/3 供 1/2/3 取值; MB 先到且无 TP → 启
+        //                     "盲表代替延迟" BlindReplaceDelay 宽限等 TP (已启则不重启).
+        //   "MB_Final"      → 硬件 MB 代触 final. 决定(b): 不作 basis, 仅留痕; 若无 TP 无 timer 也启同款宽限等 TP.
+        //   到期 (OnDirectSbHandoffExpired): 基准 TP > MB(1/2/3 first-press); 无二者 → ****** (MB_Final 不算).
+        private void RecordDirectSbBasis(int lane, string side, double time, string kind, int mbButton = 0) {
+            if (side != "left" && side != "right") return;
+            string wkey = lane + "|" + side;
+            DirectSbWindow win;
+            if (!_directSbWindows.TryGetValue(wkey, out win)) {
+                win = new DirectSbWindow { Lane = lane, Side = side };
+                _directSbWindows[wkey] = win;
+            }
+            // 1) 记录信号
+            bool isTp = false;
+            switch (kind) {
+                case "TP":            win.HasTp = true; win.TpTime = time; isTp = true; break;
+                case "MB_Final":      win.HasMbFinal = true; win.MbFinalTime = time; break;   // (b): 不作 basis, 仅留痕
+                case "MB_FirstPress":
+                    if      (mbButton == 1 && win.Mb1 <= 0) win.Mb1 = time;   // 只取每个盲表首次按下
+                    else if (mbButton == 2 && win.Mb2 <= 0) win.Mb2 = time;
+                    else if (mbButton == 3 && win.Mb3 <= 0) win.Mb3 = time;
+                    break;
+                default: return;
+            }
+            // 2) 决定 timer: TP → ReactionEventWindowSec 收尾 (覆盖重启); MB 先到无 TP → BlindReplaceDelay 宽限 (不重启)
+            double delay; bool restart;
+            if (isTp) {
+                delay = (_laneCloseSettings != null) ? _laneCloseSettings.ReactionEventWindowSec : 3.0;
+                restart = win.TimerStarted;   // TP 到 → 从 TP 起重新计
+            } else {
+                delay = (_laneCloseSettings != null) ? _laneCloseSettings.BlindReplaceDelay : 3.0;
+                restart = false;              // MB 不打断已启的 timer
+            }
+            bool startNow = !win.TimerStarted;
+            if (startNow || restart) {
+                int laneCopy = lane;
+                string sideCopy = side;
+                if (win.Timer != null) { try { win.Timer.Stop(); } catch { } }
+                win.Timer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(delay) };
+                win.Timer.Tick += (s, e) => OnDirectSbHandoffExpired(laneCopy, sideCopy);
+                win.Timer.Start();
+                win.TimerStarted = true;
+                win.TimerStartKind = kind;
+                AddLog(string.Format("泳道{0} 直通 SB {1} 基准信号 {2}={3:F3}s {4}启 timer ({5:F2}s{6}, 已累计 SB={7})",
+                    lane, side == "left" ? "左" : "右", kind, time,
+                    restart ? "覆盖并重" : "", delay, isTp ? " 后按 TP 锁定" : " 盲表代替延迟宽限", win.AllRawTimes.Count));
+            } else {
+                AddLog(string.Format("泳道{0} 直通 SB {1} 基准信号 {2}={3:F3}s 记录 (timer 已由 {4} 启)",
+                    lane, side == "left" ? "左" : "右", kind, time, win.TimerStartKind));
+            }
+        }
+
+        // 2026-07-13 交接段 MB 代 TP 基准取值 (= 照搬主路径 DoMbSubstitute 规则):
+        //   1 个盲表 first-press = 自己; 2 个 = 平均后千分位 floor 到百分位 (禁四舍五入); 3 个 = 真中位.
+        //   特例(用户 2026-07-13): 3 个里有两个时间相同 → 排序后中位[1] 天然=该相同值, 无需特判.
+        //   无任何 first-press → false (由调用方判 ******). 数据源 = win.Mb1/Mb2/Mb3.
+        private bool TryComputeDirectMbBasis(DirectSbWindow win, out double basis) {
+            var blinds = new List<double>();
+            if (win.Mb1 > 0) blinds.Add(win.Mb1);
+            if (win.Mb2 > 0) blinds.Add(win.Mb2);
+            if (win.Mb3 > 0) blinds.Add(win.Mb3);
+            if (blinds.Count == 0) { basis = 0; return false; }
+            blinds.Sort();
+            basis = (blinds.Count == 2)
+                ? Math.Floor((blinds[0] + blinds[1]) * 50.0) / 100.0   // 2 个: floor 到百分位
+                : blinds[blinds.Count / 2];                            // 1 个=自己; 3 个=中位[1] (两同→自然取相同值)
+            return true;
+        }
+
+        // 2026-07-08 gun 到时启动所有已暂存 DirectSb window 的 timer (= 跟 StartBackstrokeWindowsAfterGun 同款)
+        // 2026-07-12 直通模式改用"每次 SB 触发 refresh timer", gun 到时无需特殊启动. 此方法保留但仅记日志, 不再启 timer.
+        private void StartDirectSbWindowsAfterGun() {
+            if (!_gunPreStartSec.HasValue) return;
+            double delay = (_laneCloseSettings != null) ? _laneCloseSettings.StartBlockCloseDelay : 2.0;
+            var keysToStart = new List<string>();
+            foreach (var kv in _directSbWindows) {
+                if (!kv.Value.TimerStarted) keysToStart.Add(kv.Key);
+            }
+            foreach (var wkey in keysToStart) {
+                var win = _directSbWindows[wkey];
+                int laneCopy = win.Lane;
+                string sideCopy = win.Side;
+                // 2026-07-09 (v4) gun 到只启 timer, 不再 flush 写日志.
+                //   所有 SB (gun 前 + gun 后) 都在 win.AllRawTimes 累加, 到 OnDirectSbWindowExpired 统一逐条写.
+                win.Timer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(delay) };
+                win.Timer.Tick += (s, e) => OnDirectSbHandoffExpired(laneCopy, sideCopy);
+                win.Timer.Start();
+                win.TimerStarted = true;
+                AddLog(string.Format("泳道{0} 直通模式 SB {1} 窗口随 gun 启动 ({2:F2}s, 已含 gun 前 {3} 次触发)",
+                    laneCopy, sideCopy == "left" ? "左" : "右", delay, win.AllRawTimes.Count));
+            }
+        }
+
+        // 2026-07-13 直通模式交接段 SB 反应时窗口到期 (仅交接段; 出发段走主路径立即算 rt, 不到此).
+        //   基准由 RecordDirectSbBasis 设定 (TP / MB 1/2/3 first-press), 到期算 rt = LastSb - 基准.
+        //   基准优先级 TP > MB(1/2/3); 二者皆无 → ****** (MB_Final 不算, 决定 b).
+        private void OnDirectSbHandoffExpired(int lane, string side) {
+            string wkey = lane + "|" + side;
+            DirectSbWindow win;
+            if (!_directSbWindows.TryGetValue(wkey, out win)) return;   // 幂等: 已处理过
+            if (win.Timer != null) { try { win.Timer.Stop(); } catch { } }
+            _directSbWindows.Remove(wkey);
+
+            var laneState = _laneDeviceStates.FirstOrDefault(s => s.Lane == lane);
+            if (laneState == null) return;
+
+            // 2026-07-12 sbStatus Touched → Closed (对应硬件 state=2→0 Process_StartBox_DelayClose 到期)
+            if (side == "left") {
+                if (laneState.LeftStartBlockStatus == DeviceStatus.Touched)
+                    laneState.LeftStartBlockStatus = DeviceStatus.Closed;
+            } else if (side == "right") {
+                if (laneState.RightStartBlockStatus == DeviceStatus.Touched)
+                    laneState.RightStartBlockStatus = DeviceStatus.Closed;
+            }
+
+            // 2026-07-13 交接段 basis 优先级: TP > MB(1/2/3 first-press). 出发段不到此.
+            //   - 有 SB + 有 basis → rt = LastPreStart - basisTime
+            //   - 有 basis 无 SB → "------"
+            //   - 无 basis (无 TP 且无盲表 first-press; 只有硬件 MB_Final 也算无 → 决定(b)) → "******"
+            double basisTime = 0; string basisKind = null;
+            if (win.HasTp) { basisTime = win.TpTime; basisKind = "TP"; }
+            else {
+                double mbBasis;
+                if (TryComputeDirectMbBasis(win, out mbBasis)) { basisTime = mbBasis; basisKind = "MB"; }
+                // (b): 只有硬件 MB_Final、无 TP 无 first-press → basisKind 保持 null → ******
+            }
+            bool hasBasis = basisKind != null;
+
+            var swForLog = GetCurrentHeatSwimmers().FirstOrDefault(s2 => {
+                var sa2 = s2.GetAssignmentForStage(_currentStage);
+                return (sa2 != null ? sa2.Lane : s2.Lane) == lane;
+            });
+            string swNameForLog = swForLog != null ? (swForLog.Name ?? "") : "";
+            string elapsedForLog = _raceStartTime > DateTime.MinValue
+                ? FormatElapsedMSS((DateTime.Now - _raceStartTime).TotalSeconds)
+                : "—";
+            string sideLabelForLog = side == "left" ? "左" : "右";
+            if (!_laneEventLog.ContainsKey(lane)) _laneEventLog[lane] = new StringBuilder();
+
+            // 接力棒次索引 = 倒计时=0 建窗口时盖的印章 (win.LegIndex), 不再用 CurrentLap 现推 (避免 ++ 时序错位)
+            int legIndex = _isRelay ? win.LegIndex : 0;
+            string legLabel = _isRelay ? string.Format(" 第{0}棒", legIndex + 1) : "";
+
+            // 情形 A: 无基准 → "******"
+            if (!hasBasis) {
+                _laneEventLog[lane].AppendFormat("{0,8} 道{1}{2}{3} 反应时=****** (无基准 TP/MB){4}\r\n",
+                    elapsedForLog, lane, sideLabelForLog, legLabel,
+                    string.IsNullOrEmpty(swNameForLog) ? "" : (" (" + swNameForLog + ")"));
+                TrimSbIfOver(_laneEventLog[lane], MAX_LANE_EVENT_LOG);
+                PrintReactionToThermal(lane, sideLabelForLog, legLabel, "******");
+                AddLog(string.Format("泳道{0}{1} 直通 SB {2} 窗口到期无基准 → ****** (SB {3} 次)", lane, legLabel, sideLabelForLog, win.AllRawTimes.Count));
+                // 标 NaN → 显当前棒 "---" (setter 自动 ReactionSeq++, 客户端显示+消隐)
+                laneState.ReactionTime = double.NaN;
+                if (_isRelay && swForLog != null) {
+                    var res0 = EnsureRelayLaneResult(swForLog, lane);
+                    if (res0 != null) {
+                        EnsureLegReactionSlots(res0);
+                        if (res0.LegReactionTimes.Count > legIndex) res0.LegReactionTimes[legIndex] = double.NaN;
+                    }
+                }
+                if (side == "left") { laneState.SbReactionRecordedLeft = true; }
+                else                { laneState.SbReactionRecordedRight = true; }
+                UpdateLaneStatusDisplay();
+                Broadcast();
+                return;
+            }
+
+            // 情形 B: 有基准 无 SB → "------"
+            if (win.AllRawTimes.Count == 0) {
+                _laneEventLog[lane].AppendFormat("{0,8} 道{1}{2}{3} 反应时=------ (无 SB, 基准 {4}={5:F3}s){6}\r\n",
+                    elapsedForLog, lane, sideLabelForLog, legLabel, basisKind, basisTime,
+                    string.IsNullOrEmpty(swNameForLog) ? "" : (" (" + swNameForLog + ")"));
+                TrimSbIfOver(_laneEventLog[lane], MAX_LANE_EVENT_LOG);
+                PrintReactionToThermal(lane, sideLabelForLog, legLabel, "------");
+                AddLog(string.Format("泳道{0}{1} 直通 SB {2} 窗口到期无 SB (基准 {3}={4:F3}s) → ------", lane, legLabel, sideLabelForLog, basisKind, basisTime));
+                laneState.ReactionTime = double.NaN;
+                if (_isRelay && swForLog != null) {
+                    var res0 = EnsureRelayLaneResult(swForLog, lane);
+                    if (res0 != null) {
+                        EnsureLegReactionSlots(res0);
+                        if (res0.LegReactionTimes.Count > legIndex) res0.LegReactionTimes[legIndex] = double.NaN;
+                    }
+                }
+                if (side == "left") { laneState.SbReactionRecordedLeft = true; }
+                else                { laneState.SbReactionRecordedRight = true; }
+                UpdateLaneStatusDisplay();
+                Broadcast();
+                return;
+            }
+
+            // 情形 C: 有基准 有 SB → rt = LastSb - basisTime
+            double reactionTime = win.LastPreStartSec - basisTime;
+            laneState.ReactionTime = reactionTime;   // 显当前棒 (setter 自动 ReactionSeq++, 客户端显示+消隐; 接力成绩另存 LegReactionTimes)
+            if (side == "left") { laneState.SbReactionRecordedLeft = true; }
+            else                { laneState.SbReactionRecordedRight = true; }
+            if (_isRelay && swForLog != null) {
+                var res0 = EnsureRelayLaneResult(swForLog, lane);
+                if (res0 != null) {
+                    EnsureLegReactionSlots(res0);
+                    if (res0.LegReactionTimes.Count > legIndex) res0.LegReactionTimes[legIndex] = reactionTime;
+                }
+            }
+            if (win.LastIsFalseStart || reactionTime < 0) {
+                laneState.IsSuspectFalseStart = true;
+                AddLog(string.Format("⚠ 抢跳（直通 v8）泳道{0}{1} SB {2} 反应时: {3:F3}s (基准 {4}={5:F3})", lane, legLabel, sideLabelForLog, reactionTime, basisKind, basisTime));
+            } else if (reactionTime <= _laneCloseSettings.FalseStartThreshold) {
+                laneState.IsSuspectFalseStart = true;
+                AddLog(string.Format("⚠ 起跳可疑（直通 v8, 待裁判）泳道{0}{1} SB {2} 反应时: {3:F3}s", lane, legLabel, sideLabelForLog, reactionTime));
+            } else {
+                AddLog(string.Format("泳道{0}{1} 直通 v8 SB {2} 反应时 = {3:F2}s (基准 {4}={5:F3})", lane, legLabel, sideLabelForLog, reactionTime, basisKind, basisTime));
+            }
+            _laneEventLog[lane].AppendFormat("{0,8} 道{1}{2}{3} 反应时={4:F2}{5}\r\n",
+                elapsedForLog, lane, sideLabelForLog, legLabel, reactionTime,
+                string.IsNullOrEmpty(swNameForLog) ? "" : (" (" + swNameForLog + ")"));
+            TrimSbIfOver(_laneEventLog[lane], MAX_LANE_EVENT_LOG);
+            PrintReactionToThermal(lane, sideLabelForLog, legLabel, string.Format("{0:F2}", reactionTime));
+            UpdateLaneStatusDisplay();
+            Broadcast();
+        }
+
+        // 2026-07-11 直通模式接力交接: 打开交接棒 SB 时调用, 启动 v4 handoff window timer.
+        //   与 HandleStartingBlock_AlwaysOpen 内的 timer 启动逻辑对应, 但**时机是触板到边+倒计时结束** (对应用户选的 2B),
+        //   不是等首次 SB 触发. 时长 = StartBlockCloseDelay 秒, 到期由 OnDirectSbWindowExpired 交接段分岔 feed relayCalc.
+        private void StartDirectSbHandoffWindow(int lane, string side) {
+            string wkey = lane + "|" + side;
+            DirectSbWindow win;
+            if (!_directSbWindows.TryGetValue(wkey, out win)) {
+                win = new DirectSbWindow { Lane = lane, Side = side };
+                _directSbWindows[wkey] = win;
+            }
+            if (win.TimerStarted) return;
+            double delay = (_laneCloseSettings != null) ? _laneCloseSettings.StartBlockCloseDelay : 2.0;
+            int laneCopy = lane;
+            string sideCopy = side;
+            win.Timer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(delay) };
+            win.Timer.Tick += (s, e) => OnDirectSbHandoffExpired(laneCopy, sideCopy);
+            win.Timer.Start();
+            win.TimerStarted = true;
+            AddLog(string.Format("泳道{0} 直通模式接力交接 SB {1} handoff window 启动 ({2:F2}s, 触板到边+倒计时结束触发)",
+                lane, side == "left" ? "左" : "右", delay));
+        }
+
+        // 2026-07-08 计时复位: 清所有 DirectSb window + 停 timer
+        private void ClearDirectSbWindows() {
+            foreach (var kv in _directSbWindows) {
+                if (kv.Value.Timer != null) { try { kv.Value.Timer.Stop(); } catch { } }
+            }
+            _directSbWindows.Clear();
+        }
+
         private void ProcessBackstrokeReleaseFrame(int lane, string side, double timeInSeconds, LaneDeviceState laneState) {
             // 守卫: 接力非出发棒 → 不进此窗口
             if (_isRelay && laneState.CurrentLap > 0) {
                 AddLog(string.Format("泳道{0} BackstrokeRelease 在接力非出发棒 (CurrentLap={1}), 不进仰泳出发窗口", lane, laneState.CurrentLap));
+                return;
+            }
+            // 2026-07-09 守卫: 出发端 TP 已 Closed (= 变灰, StartBlockCloseDelay 后 sbTimer 关闭) → 不再保存 BackstrokeRelease 数据.
+            //   用户诉求: 仰泳 TP 变灰后, 比赛日志不再累积出发端 TP 数据.
+            DeviceStatus tpSt = (side == "left") ? laneState.LeftTouchpadStatus
+                              : (side == "right") ? laneState.RightTouchpadStatus
+                              : DeviceStatus.Closed;
+            if (tpSt == DeviceStatus.Closed) {
+                AddLog(string.Format("泳道{0} BackstrokeRelease {1} 但出发端 TP 已变灰, 忽略此帧 (= 窗口已关闭)", lane, side == "left" ? "左" : "右"));
                 return;
             }
             // 找/建 window, 覆盖暂存 (= 最后一次 TP 松开覆盖)
@@ -9582,6 +10158,11 @@ namespace SwimmingScoreboard
             }
             win.Side = side;
             win.LastRawPreStartSec = timeInSeconds;
+            // 2026-07-09 (v4) 直通模式下累加所有 raw TP 松开时刻, 到期逐条写日志 (= 用户明确要求"仰泳出发 TP 数据也保存").
+            //   按比赛流程模式不 Add, 保持原有"窗口结束才写 1 条"行为.
+            if (_laneCloseSettings != null && _laneCloseSettings.HardwareAlwaysOpen) {
+                win.AllRawTimes.Add(timeInSeconds);
+            }
             // 启动 timer (仅 gun 已响且未启动)
             if (!win.TimerStarted && _gunPreStartSec.HasValue && _gunArrivedAt.HasValue) {
                 double delay = (_laneCloseSettings != null) ? _laneCloseSettings.StartBlockCloseDelay : 2.0;
@@ -9659,13 +10240,21 @@ namespace SwimmingScoreboard
                 AddLog(string.Format("泳道{0} 仰泳出发反应时 (= 窗口结束取最后一次松开): {1:F3}s", lane, reactionTime));
             }
 
-            // 1 条比赛日志 (= 窗口结束才写, 期间多次松开都不写, 避免冗余)
+            // 2026-07-09 (v4) 直通模式: 逐条写窗口内所有 TP 松开日志 (= 用户要求"以防误出发找不到真实数据"); 按比赛流程模式: 仅写 1 条锁定值.
             var sw = GetCurrentHeatSwimmers().FirstOrDefault(s2 => {
                 var sa2 = s2.GetAssignmentForStage(_currentStage);
                 return (sa2 != null ? sa2.Lane : s2.Lane) == lane;
             });
             string swName = sw != null ? (sw.Name ?? "") : "";
-            AppendToLaneEventLog(lane, "BackstrokeRelease", reactionTime, swName, win.Side, -1);
+            if (_laneCloseSettings != null && _laneCloseSettings.HardwareAlwaysOpen && win.AllRawTimes.Count > 0) {
+                foreach (double t in win.AllRawTimes) {
+                    double rt = t - _gunPreStartSec.Value;
+                    AppendToLaneEventLog(lane, "BackstrokeRelease", rt, swName, win.Side, -1);
+                }
+                AddLog(string.Format("泳道{0} 直通模式仰泳出发 TP 窗口共 {1} 条数据已逐条写入比赛日志", lane, win.AllRawTimes.Count));
+            } else {
+                AppendToLaneEventLog(lane, "BackstrokeRelease", reactionTime, swName, win.Side, -1);
+            }
         }
 
         private void ClearBackstrokeReleaseWindows() {
@@ -9676,6 +10265,110 @@ namespace SwimmingScoreboard
             }
             _backstrokeWindows.Clear();
             _gunArrivedAt = null;
+        }
+
+        // 2026-07-13 直通【正常出发】SB 窗口到期: 取窗口内最后一次 SB(=真起跳) − 枪响 = 反应时 (跟仰泳出发窗口同款).
+        //   接力第 1 棒写 LegReactionTimes[0]; 抢跳(硬件 flag 或 rt<0) / 可疑(≤阈值) 判定同主路径 case "StartingBlock".
+        private void OnDirectStartSbExpired(int lane) {
+            DirectSbWindow swin;
+            if (!_directStartSbWindows.TryGetValue(lane, out swin)) return;   // 幂等: 已处理过
+            if (swin.Timer != null) { try { swin.Timer.Stop(); } catch { } }
+            _directStartSbWindows.Remove(lane);
+            var laneState = _laneDeviceStates.FirstOrDefault(s => s.Lane == lane);
+            if (laneState == null) return;
+            string side = swin.Side;
+
+            if (!_gunPreStartSec.HasValue) {
+                // 窗口到期但枪未响 (极罕见, 长时间未发令) → 暂存 pending 待枪回算
+                _pendingPreStartReactions.Add(new PendingPreStartReaction {
+                    Lane = lane, DeviceKind = "SB", Side = side,
+                    RawPreStartSec = swin.LastPreStartSec, IsRelayLeg1 = _isRelay
+                });
+                laneState.IsSuspectFalseStart = true;
+                AddLog(string.Format("⚠ 泳道{0} 直通出发 SB 窗口到期但枪未响, 暂存 pending 待枪回算", lane));
+                return;
+            }
+
+            double reactionTime = swin.LastPreStartSec - _gunPreStartSec.Value;
+            laneState.ReactionTime = reactionTime;
+            // 接力第 1 棒: LegReactionTimes[0] (覆盖式)
+            if (_isRelay) {
+                var swForLane0 = GetCurrentHeatSwimmers().FirstOrDefault(s2 => {
+                    var sa2 = s2.GetAssignmentForStage(_currentStage);
+                    return (sa2 != null ? sa2.Lane : s2.Lane) == lane;
+                });
+                if (swForLane0 != null) {
+                    var res0 = EnsureRelayLaneResult(swForLane0, lane);
+                    if (res0 != null) {
+                        EnsureLegReactionSlots(res0);
+                        if (res0.LegReactionTimes.Count > 0) res0.LegReactionTimes[0] = reactionTime;
+                    }
+                }
+            }
+            if (swin.LastIsFalseStart || reactionTime < 0) {
+                laneState.IsSuspectFalseStart = true;
+                AddLog(string.Format("⚠ 抢跳 (直通出发, 取最后一次 SB) 泳道{0} 反应时: {1:F3}s", lane, reactionTime));
+            } else if (reactionTime <= _laneCloseSettings.FalseStartThreshold) {
+                laneState.IsSuspectFalseStart = true;
+                AddLog(string.Format("⚠ 起跳可疑 (直通出发, 待裁判) 泳道{0} 反应时: {1:F3}s", lane, reactionTime));
+            } else {
+                AddLog(string.Format("泳道{0} 直通出发反应时 (= 窗口结束取最后一次 SB): {1:F2}s", lane, reactionTime));
+            }
+            // 逐条写窗口内所有原始 SB 日志 (= 防误出发追溯, 跟仰泳窗口一致); 仅 1 条时写锁定值
+            var sw = GetCurrentHeatSwimmers().FirstOrDefault(s2 => {
+                var sa2 = s2.GetAssignmentForStage(_currentStage);
+                return (sa2 != null ? sa2.Lane : s2.Lane) == lane;
+            });
+            string swName = sw != null ? (sw.Name ?? "") : "";
+            if (swin.AllRawTimes.Count > 1) {
+                foreach (double t in swin.AllRawTimes)
+                    AppendToLaneEventLog(lane, "StartingBlock", t - _gunPreStartSec.Value, swName, side, -1);
+            } else {
+                AppendToLaneEventLog(lane, "StartingBlock", reactionTime, swName, side, -1);
+            }
+            // 2026-07-13 出发反应时汇总行 + 热敏打印 (跟交接段"反应时="一致). 显示已由 laneState.ReactionTime setter 触发.
+            {
+                string startSideLabel = side == "left" ? "左" : "右";
+                string startLegLabel = _isRelay ? " 第1棒" : "";
+                string startElapsed = _raceStartTime > DateTime.MinValue ? FormatElapsedMSS((DateTime.Now - _raceStartTime).TotalSeconds) : "—";
+                if (!_laneEventLog.ContainsKey(lane)) _laneEventLog[lane] = new StringBuilder();
+                _laneEventLog[lane].AppendFormat("{0,8} 道{1}{2}{3} 反应时={4:F2}{5}\r\n",
+                    startElapsed, lane, startSideLabel, startLegLabel, reactionTime,
+                    string.IsNullOrEmpty(swName) ? "" : (" (" + swName + ")"));
+                TrimSbIfOver(_laneEventLog[lane], MAX_LANE_EVENT_LOG);
+                PrintReactionToThermal(lane, startSideLabel, startLegLabel, string.Format("{0:F2}", reactionTime));
+            }
+            if (side == "left") { laneState.SbReactionRecordedLeft = true; }
+            else if (side == "right") { laneState.SbReactionRecordedRight = true; }
+            UpdateLaneStatusDisplay();
+            Broadcast();
+        }
+
+        // 2026-07-13 枪响时启动所有已暂存 (抢跳) 的直通正常出发 SB 窗口 (= 跟 StartBackstrokeWindowsAfterGun 同款).
+        private void StartDirectStartSbWindowsAfterGun() {
+            if (!_gunPreStartSec.HasValue) return;
+            double delay = (_laneCloseSettings != null && _laneCloseSettings.StartBlockCloseDelay > 0) ? _laneCloseSettings.StartBlockCloseDelay : 2.0;
+            var lanesToStart = new List<int>();
+            foreach (var kv in _directStartSbWindows) {
+                if (!kv.Value.TimerStarted) lanesToStart.Add(kv.Key);
+            }
+            foreach (var ln in lanesToStart) {
+                var swin = _directStartSbWindows[ln];
+                int laneCopy = ln;
+                swin.Timer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(delay) };
+                swin.Timer.Tick += (s, e) => OnDirectStartSbExpired(laneCopy);
+                swin.Timer.Start();
+                swin.TimerStarted = true;
+                AddLog(string.Format("泳道{0} 直通出发 SB 窗口随枪启动 ({1:F2}s, 含枪前已暂存的 SB)", ln, delay));
+            }
+        }
+
+        // 2026-07-13 清直通正常出发 SB 窗口 (Reset / 新一场).
+        private void ClearDirectStartSbWindows() {
+            foreach (var kv in _directStartSbWindows) {
+                if (kv.Value.Timer != null) { try { kv.Value.Timer.Stop(); } catch { } }
+            }
+            _directStartSbWindows.Clear();
         }
 
         private void UpdateLaneStatusDisplay() {
@@ -12864,6 +13557,24 @@ namespace SwimmingScoreboard
             return (max + 1).ToString("D" + defaultWidth);
         }
 
+        // 2026-07-09 一次性修复: 补齐所有空 BibNumber (= 修 2026-07-03 之前旧数据里空 bib,
+        //   会导致 EditSwapLane_Click 用 BibNumber 查找时 FirstOrDefault 撞第 1 个空 bib).
+        //   由 EditSwapLane_Click 等入口静默调用: 有空 bib → 一次性补齐 + AutoSave; 无空 bib → 立即返回不做事.
+        private void EnsureAllSwimmerBibs() {
+            int fixCount = 0;
+            foreach (var s in _swimmers) {
+                if (s == null) continue;
+                if (string.IsNullOrEmpty(s.BibNumber)) {
+                    s.BibNumber = GenerateNextBibNumber(s.Country ?? "");
+                    fixCount++;
+                }
+            }
+            if (fixCount > 0) {
+                AutoSaveData();
+                AddLog(string.Format("旧数据修: 补齐 {0} 条空 BibNumber", fixCount));
+            }
+        }
+
         private void AddSwimmer_Click(object sender, RoutedEventArgs e) {
             // 新增需要全局唯一参赛号 → 占"新增"位锁，避免两端同时新增冲突
             string holder;
@@ -15409,6 +16120,9 @@ namespace SwimmingScoreboard
         }
 
         private void EditSwapLane_Click(object sender, RoutedEventArgs e) {
+            // 2026-07-09 先补齐旧数据里的空 BibNumber (= 2026-07-03 之前的临时加人可能空 bib),
+            //   避免下面用 BibNumber 定位 sw1 时 FirstOrDefault 撞第 1 个空 bib.
+            EnsureAllSwimmerBibs();
             var grid = GetActiveEditGrid();
             var selected = grid.SelectedItem;
             if (selected == null) { MessageBox.Show("请先选中要交换的运动员"); return; }
@@ -16120,6 +16834,12 @@ namespace SwimmingScoreboard
                     var agCol = new DataGridComboBoxColumn { Header = "组别", Width = new DataGridLength(80), SelectedItemBinding = new System.Windows.Data.Binding("AgeGroup") };
                     var agItems = new List<string> { "" };
                     foreach (var g in _ageGroups) agItems.Add(g.Name);
+                    // 2026-07-09 Bug 修: 补齐 editList 里已出现但 _ageGroups 未列出的组别名,
+                    //   否则 ComboBoxColumn 匹配失败 → 组别列显示为空 (即使数据有值).
+                    foreach (var it in editList) {
+                        string ag = it.AgeGroup ?? "";
+                        if (!string.IsNullOrEmpty(ag) && !agItems.Contains(ag)) agItems.Add(ag);
+                    }
                     agCol.ItemsSource = agItems; eg.Columns.Add(agCol);
                     var gc = new DataGridComboBoxColumn { Header = "性别", Width = new DataGridLength(55), SelectedItemBinding = new System.Windows.Data.Binding("Gender") };
                     gc.ItemsSource = new string[] { "男", "女", "混合" }; eg.Columns.Add(gc);
@@ -22507,14 +23227,23 @@ namespace SwimmingScoreboard
         //   未记录    -------  (= 7 个减号, NaN/0/Inf)
         //   旧格式 RRRR.cc 4 位整秒不支持负号, 现改为支持 -999~+999 秒 (= 反应时实际仅 0-几秒)
         private static string FormatReactionRRRRCC(double seconds) {
-            if (seconds == 0 || double.IsNaN(seconds) || double.IsInfinity(seconds)) return "-------";
-            char sign = seconds < 0 ? '-' : '+';
+            if (double.IsNaN(seconds) || double.IsInfinity(seconds)) seconds = 0;
+            // 2026-07-09 用户诉求:
+            //   空泳道/无人 (seconds=0) → 全用 "0000.00" 填充 (= 不再用下横线 "-------")
+            //   正数 → 无符号, "0RRR.cc" 4 位整秒 + 2 位小数 = 7 字符 (= 不加 "+")
+            //   负数 → "-RRR.cc" 3 位整秒 + 负号 + 2 位小数 = 7 字符
+            if (seconds == 0) return "0000.00";
             double abs = Math.Abs(seconds);
             long totalCc = (long)Math.Round(abs * 100);
             long cc = totalCc % 100;
             long rrr = totalCc / 100;
-            if (rrr > 999) rrr = 999;
-            return string.Format("{0}{1:D3}.{2:D2}", sign, rrr, cc);
+            if (seconds > 0) {
+                if (rrr > 9999) rrr = 9999;
+                return string.Format("{0:D4}.{1:D2}", rrr, cc);
+            } else {
+                if (rrr > 999) rrr = 999;
+                return string.Format("-{0:D3}.{1:D2}", rrr, cc);
+            }
         }
 
         private class ConfirmedHeatPick {
