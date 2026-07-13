@@ -10255,6 +10255,20 @@ namespace SwimmingScoreboard
             } else {
                 AppendToLaneEventLog(lane, "BackstrokeRelease", reactionTime, swName, win.Side, -1);
             }
+            // 2026-07-13 仰泳直通出发反应时汇总行 + 热敏打印 (跟 OnDirectStartSbExpired 对称; 之前直通分支只 dump 了 raw 触放, 漏了汇总/打印/刷新).
+            if (_laneCloseSettings != null && _laneCloseSettings.HardwareAlwaysOpen) {
+                string bkSideLabel = win.Side == "left" ? "左" : "右";
+                string bkLegLabel = _isRelay ? " 第1棒" : "";
+                string bkElapsed = _raceStartTime > DateTime.MinValue ? FormatElapsedMSS((DateTime.Now - _raceStartTime).TotalSeconds) : "—";
+                if (!_laneEventLog.ContainsKey(lane)) _laneEventLog[lane] = new StringBuilder();
+                _laneEventLog[lane].AppendFormat("{0,8} 道{1}{2}{3} 反应时={4:F2}{5}\r\n",
+                    bkElapsed, lane, bkSideLabel, bkLegLabel, reactionTime,
+                    string.IsNullOrEmpty(swName) ? "" : (" (" + swName + ")"));
+                TrimSbIfOver(_laneEventLog[lane], MAX_LANE_EVENT_LOG);
+                PrintReactionToThermal(lane, bkSideLabel, bkLegLabel, string.Format("{0:F2}", reactionTime));
+                UpdateLaneStatusDisplay();
+                Broadcast();
+            }
         }
 
         private void ClearBackstrokeReleaseWindows() {
