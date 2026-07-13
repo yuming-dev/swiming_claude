@@ -125,9 +125,7 @@ if (Test-Path $rtsTxt) {
 
 $manualSrc = Join-Path $root "Installer\使用说明书.pdf"
 if (Test-Path $manualSrc) { Copy-Item $manualSrc (Join-Path $installerBuild "使用说明书.pdf") -Force }
-# 2026-06-18 通讯协议 PDF 一起打包
-$protocolSrc = Join-Path $root "Installer\通讯协议.pdf"
-if (Test-Path $protocolSrc) { Copy-Item $protocolSrc (Join-Path $installerBuild "通讯协议.pdf") -Force }
+# 2026-07-13 通讯协议.pdf 是开发者文档, 不进客户包 (原 2026-06-18 打包这行已移除). 客户包只放 使用说明书.pdf.
 
 Write-Host "[5/5] 打包完成。InstallerBuild 目录清单："
 Get-ChildItem $installerBuild | ForEach-Object {
