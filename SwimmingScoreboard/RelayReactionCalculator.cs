@@ -50,6 +50,11 @@ namespace SwimmingScoreboard
 
         // 兜底超时 (= 窗口起 N 秒 + 10s 还没等到 MB final → 强制 emit)
         private const double EmitTimeoutSec = 10.0;
+        // 2026-07-13 比赛模式硬件延迟送交接 SB (实测实际时钟晚到 ~2.9s, 过硬件状态机才送出): 窗口从"到达 TP/盲表"起算,
+        //   若 windowSec 到时有基准但 SB 还没到 → 再宽限 (2 × 接力反应时事件窗口) 等慢 SB, 一旦 SB 到就立即算.
+        //   用户定: 延长值 = 2 × windowSec, 故总等待 = windowSec + 2*windowSec = 3*windowSec.
+        //   只延后 "无SB→---" 判定, 不影响已收到 SB 的正常反应时. (直通模式不喂本计算器, 故此宽限只作用于比赛模式.)
+        private const double SbWaitGraceMultiplier = 2.0;
 
         private readonly Dictionary<string, Window> _windows = new Dictionary<string, Window>();
         // 2026-06-18 抢跳场景: SB 先于 TP 到达, 不立即创建 window (会被 windowSec 窗口期把 TP 排除掉),
@@ -163,6 +168,13 @@ namespace SwimmingScoreboard
             if (basis < 0 && w.MbFirstPressSwim > 0 && w.MbFinalSwim < 0 && !hardTimeout)
             {
                 // MB 第 1 块按了, final 还没出 → 继续等 MB final cmd (= MBdelay 4s 后会发)
+                return;
+            }
+
+            // 2026-07-13 有基准 (TP/MB/手动) 但交接 SB 还没到 → 再宽限 (2 × windowSec) 等慢 SB (比赛模式硬件延迟送 SB).
+            //   总等待上限 = windowSec + 2*windowSec = 3*windowSec. 一旦 SB 到达, 下一次 OnEvent/Tick 立即算出反应时, 不必等满宽限.
+            if (basis > 0 && w.LastSbSwim <= 0 && elapsed < windowSec + SbWaitGraceMultiplier * windowSec)
+            {
                 return;
             }
 
