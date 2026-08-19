@@ -7370,6 +7370,41 @@ namespace SwimmingScoreboard
             return 9;
         }
 
+        // 2026-08-19 单组成绩 (组成绩 / 本组成绩单) 排序 helper.
+        //   总排名 (GetStatusSortOrder) 里 TRI 整个被剔除, 不需要位置; 单组成绩 TRI 要显示 (有成绩不排名),
+        //   规则: 有名次者按名次 → TRI(试游) → DSQ/DQ → DNF → DNS → 其他(无成绩无状态).
+        //   与 display.html 的 _hrStatusOrder / _hrCompare 完全同口径.
+        private static int GetHeatStatusOrder(string status) {
+            if (status == "TRI") return 1;
+            if (status == "DSQ" || status == "DQ") return 2;
+            if (status == "DNF") return 3;
+            if (status == "DNS") return 4;
+            return 5;    // 正常 (含无成绩无状态)
+        }
+
+        // 取该运动员在指定 stage/heat 的"有效状态" (成绩行 Status 优先, 否则运动员 Status)
+        private static string GetEffectiveStatus(Swimmer sw, LaneResult r) {
+            if (r != null && !string.IsNullOrEmpty(r.Status)) return r.Status;
+            return sw != null ? (sw.Status ?? "") : "";
+        }
+
+        // 按上述规则排序单组运动员. 同类内: 有成绩的按成绩快慢 (多名 TRI 时), 无成绩的按道次.
+        private List<Swimmer> OrderHeatResultSwimmers(IEnumerable<Swimmer> swimmers, string stage, int heat) {
+            Func<Swimmer, LaneResult> getRes = sw =>
+                sw.Results.FirstOrDefault(lr => lr.Stage == stage && lr.Heat == heat) ?? sw.GetResultForStage(stage);
+            return swimmers
+                // 1) 有名次者在前 (状态正常 且 CurrentRank>0); 其余 int.MaxValue 排后面
+                .OrderBy(sw => GetHeatStatusOrder(GetEffectiveStatus(sw, getRes(sw))) == 5 && sw.CurrentRank > 0
+                               ? sw.CurrentRank : int.MaxValue)
+                // 2) 无名次者之间: TRI → DSQ → DNF → DNS → 其他
+                .ThenBy(sw => GetHeatStatusOrder(GetEffectiveStatus(sw, getRes(sw))))
+                // 3) 同类内: 有成绩按成绩快慢
+                .ThenBy(sw => { var r = getRes(sw); return r != null && r.FinalTime > 0 ? r.FinalTime : double.MaxValue; })
+                // 4) 兜底按道次
+                .ThenBy(sw => sw.Lane)
+                .ToList();
+        }
+
         private bool IsQualifiedToNext(Swimmer sw, string fromStage) {
             if (sw == null) return false;
             string next = GetNextStageFor(sw.AgeCategory ?? "", sw.Gender, sw.EventName, fromStage);
@@ -17998,8 +18033,16 @@ namespace SwimmingScoreboard
                     var sa = s.GetAssignmentForStage(stage);
                     lane = sa != null ? sa.Lane : s.Lane;
                 }
-                bool isDQ = s.Status == "DSQ" || s.Status == "DNS" || s.Status == "DNF" || s.Status == "DQ";
-                double sortTime = (!isDQ && r != null && r.FinalTime > 0) ? r.FinalTime : double.MaxValue;
+                // 2026-08-19 状态判定改用"有效状态" (成绩行 Status 优先, 否则运动员 Status),
+                //   修 只在成绩行标了 DSQ (s.Status 空) 时 备注显 DSQ 但仍显成绩+占名次 的不一致.
+                string effStatus = GetEffectiveStatus(s, r);
+                bool isDQ = effStatus == "DSQ" || effStatus == "DNS" || effStatus == "DNF" || effStatus == "DQ";
+                // 2026-08-19 TRI(试游) 正常显成绩但不排名次 (与大屏"组成绩"/成绩单一致);
+                //   GetHeatStatusOrder != 5 = TRI/DSQ/DQ/DNF/DNS, 一律 SortTime=MaxValue → 名次列显 "-"
+                int heatStatusOrder = GetHeatStatusOrder(effStatus);
+                bool noRank = heatStatusOrder != 5;
+                double sortTime = (!noRank && r != null && r.FinalTime > 0) ? r.FinalTime : double.MaxValue;
+                double timeKey = (r != null && r.FinalTime > 0) ? r.FinalTime : double.MaxValue;
                 // 接力项目：姓名显示四位队员姓名
                 string displayName = s.Name ?? "";
                 if (isRelayEvent && !string.IsNullOrEmpty(s.Notes) && s.Notes.StartsWith("接力队 棒次:")) {
@@ -18022,6 +18065,8 @@ namespace SwimmingScoreboard
                 }
                 return new {
                     SortTime = sortTime,
+                    StatusOrder = heatStatusOrder,        // 2026-08-19 无名次者之间的次序 (TRI→DSQ→DNF→DNS→其他)
+                    TimeKey = timeKey,                    // 2026-08-19 同类内按成绩快慢 (多名 TRI 时)
                     Lane = lane,
                     BibNumber = s.BibNumber ?? "",
                     Name = displayName,                  // 接力时为 4 名队员姓名（逗号分隔）
@@ -18033,11 +18078,15 @@ namespace SwimmingScoreboard
                     RecordNote = r != null ? (r.RecordNote ?? "") : ""
                 };
             // 2026-06-22 次级排序: 同 SortTime (= 都是 DSQ/DNS/DNF 的 MaxValue) 时按 DSQ→DNF→DNS→其他 排
+            // 2026-08-19 改用 GetHeatStatusOrder: TRI 插到 DSQ 之前 (TRI 有成绩只是不排名),
+            //   与大屏"组成绩"(display.html _hrCompare) / 本组成绩单 完全同口径.
             }).OrderBy(x => x.SortTime)
-              .ThenBy(x => GetStatusSortOrder(x.Status ?? ""))
+              .ThenBy(x => x.StatusOrder)
+              .ThenBy(x => x.TimeKey)
+              .ThenBy(x => x.Lane)
               .ToList();
 
-            // 重新计算排名（DSQ/DNS/DNF无名次）；列与表头一一对应：
+            // 重新计算排名（TRI/DSQ/DNS/DNF 无名次, SortTime 已置 MaxValue）；列与表头一一对应：
             //   "姓名"列 -> Name（接力时即 4 棒队员姓名）
             //   "代表队"列 -> Country（队名）
             var rankedData = new List<object>();
@@ -24354,7 +24403,8 @@ namespace SwimmingScoreboard
             sb.AppendFormat("<h4>比赛时间：{0} &nbsp;&nbsp;&nbsp;&nbsp; 地点：{1}</h4>", dateTimeInfo, LocationBox.Text);
 
             bool printRelay = _currentEvent.Contains("接力");
-            var swimmers = GetCurrentHeatSwimmers().OrderBy(s => s.CurrentRank > 0 ? s.CurrentRank : int.MaxValue).ToList();
+            // 2026-08-19 排序与大屏"组成绩"同规则: 名次 → TRI → DSQ → DNF → DNS → 其他
+            var swimmers = OrderHeatResultSwimmers(GetCurrentHeatSwimmers(), _currentStage, _currentHeat);
 
             // 2026-06-05 U 系列规则: 单组成绩单 单表 (不再按男女拆) — 总排名才按 性别×组别 拆
             RenderHeatResultsTable(sb, swimmers, printRelay);

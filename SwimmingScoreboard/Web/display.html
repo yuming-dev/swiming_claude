@@ -1904,6 +1904,45 @@ function renderStartList() {
     lv.innerHTML = html;
 }
 
+// ═══ 2026-08-19 本组成绩 统一排序规则 (组成绩 / 成绩发布 共用) ═══
+//   有名次者按名次 → TRI(试游) → DSQ/DQ → DNF → DNS → 其他(无成绩无状态)
+//   与 PC 端 GetStatusSortOrder (DSQ→DNF→DNS→其他, 用于总排名) 对齐;
+//   TRI 有有效成绩只是不排名次, 故插在犯规/弃权之前.
+//   原实现只按 (rank||99) 排, rank=0 的 DSQ/DNF/DNS/TRI 全挤在一起按泳道序, 不符合规则.
+function _hrStatusOrder(s) {
+    var st  = String((s && s.status) || '').toUpperCase();
+    var rst = String((s && s.resultStatus) || '').toUpperCase();
+    function has(k) { return st === k || rst === k; }
+    if (has('TRI')) return 1;
+    if (has('DSQ') || has('DQ')) return 2;
+    if (has('DNF')) return 3;
+    if (has('DNS')) return 4;
+    return 5;   // 正常 (含无成绩无状态)
+}
+function _hrLane(s) {
+    var l = (s && s.lane != null) ? Number(s.lane) : 999;
+    return isNaN(l) ? 999 : l;
+}
+// 只有"状态正常 (order=5) 且 rank>0"才算真有名次;
+//   成绩发布数据里 TRI / 成绩级 DSQ 的 rank 字段可能仍带值, 此处一并挡掉.
+function _hrRankOf(s) {
+    return (_hrStatusOrder(s) === 5 && s && s.rank > 0) ? s.rank : 0;
+}
+function _hrCompare(a, b) {
+    var ra = _hrRankOf(a), rb = _hrRankOf(b);
+    if (ra > 0 && rb > 0) return (ra - rb) || (_hrLane(a) - _hrLane(b));
+    if (ra > 0) return -1;
+    if (rb > 0) return 1;
+    var oa = _hrStatusOrder(a), ob = _hrStatusOrder(b);
+    if (oa !== ob) return oa - ob;
+    // 同类内: 有成绩的按成绩快慢 (TRI 多人时), 无成绩的按道次
+    var ta = _rtParse(a && a.finalTime), tb = _rtParse(b && b.finalTime);
+    if (ta != null && tb != null && ta !== tb) return ta - tb;
+    if (ta != null && tb == null) return -1;
+    if (ta == null && tb != null) return 1;
+    return _hrLane(a) - _hrLane(b);
+}
+
 // 2026-06-01 本组成绩视图: 固定行高 + 10 行翻页, 避免少人时行高拉得过高失真
 var _heatResultPageTimer = null;
 var _heatResultCurrentPage = 0;
@@ -1932,10 +1971,9 @@ function renderHeatResult() {
 
     // 仅保留有运动员的泳道（空泳道占位条目不进成绩榜）
     // 2026-06-05 U 系列规则: 组内只按时间排单一名次, 不再按性别拆段; 总排名才按 性别×组别 拆
+    // 2026-08-19 排序改用 _hrCompare: 名次 → TRI → DSQ → DNF → DNS → 其他
     _heatResultMixed = false;
-    _heatResultData = (data.swimmers || []).filter(isOccupiedLane).slice().sort(function(a,b) {
-        return (a.rank||99) - (b.rank||99);
-    });
+    _heatResultData = (data.swimmers || []).filter(isOccupiedLane).slice().sort(_hrCompare);
 
     // 2026-06-18 DOM 重建 key: 数据无实质变化时跳过 (修闪烁). 涵盖每行的 rank/finalTime/status/recordNote
     var hrKeyParts = [
@@ -1991,13 +2029,13 @@ function showHeatResultPage() {
         row.className = 'lane-row finished fixed-row' + (relay ? ' relay' : '');
 
         // 2026-06-04 TRI 名次列 留空 (仅展示, 不参与排名)
+        // 2026-08-19 改用 _hrRankOf (TRI/DSQ/DQ/DNF/DNS 一律无名次), 与 _hrCompare 排序口径一致
+        var hrRank = _hrRankOf(s);
         var rankText = '', rankClass = '';
-        if (s.status !== 'TRI') {
-            if (s.rank === 1) { rankClass = 'gold'; rankText = '1'; }
-            else if (s.rank === 2) { rankClass = 'silver'; rankText = '2'; }
-            else if (s.rank === 3) { rankClass = 'bronze'; rankText = '3'; }
-            else if (s.rank > 0) { rankText = s.rank; }
-        }
+        if (hrRank === 1) { rankClass = 'gold'; rankText = '1'; }
+        else if (hrRank === 2) { rankClass = 'silver'; rankText = '2'; }
+        else if (hrRank === 3) { rankClass = 'bronze'; rankText = '3'; }
+        else if (hrRank > 0) { rankText = hrRank; }
 
         // 备注栏优先级（确认成绩后的本组成绩榜）：DSQ/DNS/DNF/TRI（红）> 破/平纪录 recordNote（金）
         var remarkText = '', remarkColor = '';
@@ -2130,9 +2168,8 @@ function renderPublishedResult(pubData) {
 
     // 同样过滤掉空泳道占位条目
     // 2026-06-05 U 系列规则: 组内单一名次, 不再按性别拆段; 总排名才按 性别×组别 拆
-    var sw = (pubData.swimmers || []).filter(isOccupiedLane).slice().sort(function(a,b) {
-        return (a.rank||99) - (b.rank||99);
-    });
+    // 2026-08-19 排序与"组成绩"同规则: 名次 → TRI → DSQ → DNF → DNS → 其他
+    var sw = (pubData.swimmers || []).filter(isOccupiedLane).slice().sort(_hrCompare);
     var container = document.getElementById('lanesContainer');
     container.innerHTML = '';
 
@@ -2144,13 +2181,14 @@ function renderPublishedResult(pubData) {
         row.className = 'lane-row finished fixed-row pubresult' + (pubRelay ? ' relay' : '');
 
         // 2026-06-04 TRI 名次列 留空 (仅展示, 不参与排名), 但 finalTime 正常显
+        // 2026-08-19 改用 _hrRankOf: TRI / DSQ / DQ / DNF / DNS 一律无名次 (与排序口径一致),
+        //   修"成绩发布"数据里 TRI / 成绩级 DSQ 仍带 rank 值导致名次列有数字的问题.
+        var pubRank = _hrRankOf(s);
         var rankText = '', rankClass = '';
-        if (s.status !== 'TRI') {
-            if (s.rank === 1) { rankClass = 'gold'; rankText = '1'; }
-            else if (s.rank === 2) { rankClass = 'silver'; rankText = '2'; }
-            else if (s.rank === 3) { rankClass = 'bronze'; rankText = '3'; }
-            else if (s.rank > 0) { rankText = s.rank; }
-        }
+        if (pubRank === 1) { rankClass = 'gold'; rankText = '1'; }
+        else if (pubRank === 2) { rankClass = 'silver'; rankText = '2'; }
+        else if (pubRank === 3) { rankClass = 'bronze'; rankText = '3'; }
+        else if (pubRank > 0) { rankText = pubRank; }
 
         // 备注栏优先级（公布成绩）：DSQ/DNS/DNF/TRI（红）> 破/平纪录 recordNote（金）
         var remarkText = '', remarkColor = '';
