@@ -229,7 +229,15 @@
       "PowerShell(& 'C:\\\\代码\\\\swiming_claude\\\\tools\\\\import_competition.ps1' 2>&1 | Select-Object -Last 30)",
       "PowerShell(& 'C:\\\\代码\\\\swiming_claude\\\\tools\\\\import_competition.ps1' 2>&1 | Select-Object -Last 25)",
       "PowerShell(Get-Process *)",
-      "Bash(\"/c/Program Files/Microsoft Visual Studio/2022/Community/MSBuild/Current/Bin/MSBuild.exe\" //nologo //v:m //p:Configuration=Release //p:Platform=x64 SwimmingScoreboard/SwimmingScoreboard.csproj)"
+      "Bash(\"/c/Program Files/Microsoft Visual Studio/2022/Community/MSBuild/Current/Bin/MSBuild.exe\" //nologo //v:m //p:Configuration=Release //p:Platform=x64 SwimmingScoreboard/SwimmingScoreboard.csproj)",
+      "PowerShell(& \"C:\\\\Program Files\\\\Microsoft Visual Studio\\\\2022\\\\Community\\\\MSBuild\\\\Current\\\\Bin\\\\MSBuild.exe\" \"SwimmingScoreboard.sln\" /p:Configuration=Release /p:Platform=\"x64\" /nologo /v:m /t:SwimmingScoreboard 2>&1 | Select-Object -Last 25)",
+      "PowerShell(& \"C:\\\\Program Files\\\\Microsoft Visual Studio\\\\2022\\\\Community\\\\MSBuild\\\\Current\\\\Bin\\\\MSBuild.exe\" \"SwimmingScoreboard.sln\" /p:Configuration=Release /p:Platform=\"x64\" /nologo /v:m /t:SwimmingScoreboard 2>&1 | Select-Object -Last 8)",
+      "Bash(git *)",
+      "PowerShell(& \"C:\\\\游泳2026\\\\swiming_claude\\\\LapCountTest\\\\bin\\\\Release\\\\LapCountTest.exe\"; Write-Output \"退出码=$LASTEXITCODE\")",
+      "Bash(perl _fix_eventbackup.pl)",
+      "Bash(echo \"exit=$?\")",
+      "PowerShell(& \"C:\\\\游泳2026\\\\swiming_claude\\\\build_installer.ps1\")",
+      "PowerShell(& \"C:\\\\游泳2026\\\\swiming_claude\\\\build_installer.ps1\" 2>&1 | Select-Object -Last 20)"
     ]
   }
 }
