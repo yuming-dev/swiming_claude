@@ -154,6 +154,48 @@ label { color: #94a3b8; font-size: 12px; }
     </div>
 </div>
 
+<!-- 2026-07-12 反应时端到端测试面板 (硬件送帧粒度控制, 替代 ReactionTimeE2E.exe REPL) -->
+<div class="panel">
+    <h2>6. 反应时端到端测试（直接送硬件数据）</h2>
+    <div class="row">
+        <label>Gun PreStart 秒:</label>
+        <input id="e2eGun" type="number" step="0.001" value="100.000" style="width:100px">
+        <button class="btn-gold" onclick="e2eSendGun()">送 Gun (0x22 GunPreStart)</button>
+        <label style="color:#94a3b8;font-size:11px;margin-left:8px;">先送 gun 锚定 _gunPreStartSec, 再送 SB/TP</label>
+    </div>
+    <div class="row">
+        <label>泳道:</label>
+        <select id="e2eLane" style="width:60px">
+            <option>0</option><option>1</option><option>2</option><option>3</option><option>4</option>
+            <option>5</option><option>6</option><option>7</option><option>8</option><option>9</option>
+        </select>
+        <label>端:</label>
+        <select id="e2eSide" style="width:70px">
+            <option value="left">左</option><option value="right">右</option>
+        </select>
+        <label>时间(秒):</label>
+        <input id="e2eTime" type="number" step="0.001" value="100.600" style="width:100px">
+        <label style="color:#94a3b8;font-size:11px;">SB/触放 是 PreStart 秒 (rt=time-gunPreStart); TP 是 running 秒</label>
+    </div>
+    <div class="row">
+        <button class="btn-blue" onclick="e2eSend('StartingBlock', false)">送 SB 出发台</button>
+        <button class="btn-red" onclick="e2eSend('StartingBlock', true)">送 SB 抢跳</button>
+        <button class="btn-green" onclick="e2eSend('Touchpad', false)">送 TP 触板</button>
+        <button class="btn-purple" onclick="e2eSend('BackstrokeRelease', false)">送 仰泳松开</button>
+        <button class="btn-gray" onclick="e2eSend('PushButton1', false)">送 盲1</button>
+        <button class="btn-gray" onclick="e2eSend('PushButton2', false)">送 盲2</button>
+        <button class="btn-gray" onclick="e2eSend('PushButton3', false)">送 盲3</button>
+    </div>
+    <div class="row">
+        <button class="btn-gold" onclick="e2eRefresh()">刷新观察</button>
+        <label style="color:#94a3b8;font-size:11px;">主服务器 status 广播 100ms 自动来, 手工点也可</label>
+        <button class="btn-gray" onclick="e2ePreset('50m自由')">预设:50m 自由 (right/100.6)</button>
+        <button class="btn-gray" onclick="e2ePreset('4x50-leg2')">预设:4×50 棒2交接 (opp/130.4)</button>
+    </div>
+    <div style="background:#0f172a;padding:8px;font-family:Consolas,monospace;font-size:11px;color:#94a3b8;max-height:200px;overflow:auto;margin-top:8px;border:1px solid #334155;border-radius:4px;" id="e2eObservation">(点"刷新观察" 或送帧后自动更新)</div>
+    <div style="background:#0f172a;padding:8px;font-family:Consolas,monospace;font-size:11px;color:#f8fafc;max-height:150px;overflow:auto;margin-top:6px;border:1px solid #334155;border-radius:4px;" id="e2eLaneLog">(选中泳道后显示 laneEventLog)</div>
+</div>
+
 <div class="panel">
     <h2>日志</h2>
     <div id="log"></div>
@@ -250,6 +292,8 @@ function connect() {
             // 2026-06-02 收到任意服务器广播 → 同步动态填充下拉 (eventList/genderList/ageGroups)
             //   _lastDropdownSig 防止每条 100ms 帧都重画 (除非内容变化)
             try { syncBotDropdowns(); } catch(ex2) {}
+            // 2026-07-12 面板 6 反应时端到端: 自动刷新观察区
+            try { if (document.getElementById('e2eObservation')) e2eRefresh(); } catch(ex3) {}
         } catch(ex) {}
     };
 }
@@ -658,6 +702,67 @@ function autoGenerateHeats() {
 // ═══════ 2. 模拟比赛流程 ═══════
 function simReady() { sendCmd('READY'); log('发送: 就位'); }
 function simStart() { sendCmd('START_RACE'); log('发送: 发令'); }
+
+// 2026-07-12 反应时端到端 (面板 6): 直接送硬件帧 (TIMING_DATA), 主程序按硬件路径处理
+function e2eSendGun() {
+    var t = parseFloat(document.getElementById('e2eGun').value);
+    send('TIMING_DATA', {lane: 0, commandType: 'GunPreStart', time: t, side: null});
+    log('E2E: 送 GunPreStart PreStart=' + t.toFixed(3) + 's (锚定 _gunPreStartSec)');
+    setTimeout(e2eRefresh, 300);
+}
+function e2eSend(cmdType, isFalseStart) {
+    var lane = parseInt(document.getElementById('e2eLane').value);
+    var side = document.getElementById('e2eSide').value;
+    var t = parseFloat(document.getElementById('e2eTime').value);
+    var payload = {lane: lane, commandType: cmdType, time: t, side: side};
+    if (isFalseStart) payload.isFalseStart = true;
+    send('TIMING_DATA', payload);
+    log('E2E: 送 ' + cmdType + ' lane=' + lane + ' side=' + side + ' t=' + t.toFixed(3)
+        + (isFalseStart ? ' [抢跳]' : ''));
+    setTimeout(e2eRefresh, 300);
+}
+function e2ePreset(name) {
+    if (name === '50m自由') {
+        document.getElementById('e2eLane').value = '0';
+        document.getElementById('e2eSide').value = 'right';
+        document.getElementById('e2eGun').value = '100.000';
+        document.getElementById('e2eTime').value = '100.600';
+        log('E2E 预设: 50m 自由 lane=0 right t=100.600 期望 rt=0.6');
+    } else if (name === '4x50-leg2') {
+        document.getElementById('e2eLane').value = '0';
+        document.getElementById('e2eSide').value = 'left';   // 4×50 startPos=right 时对端为 left; 若 startPos=left 应发 right
+        document.getElementById('e2eGun').value = '100.000';
+        document.getElementById('e2eTime').value = '130.400';
+        log('E2E 预设: 4×50 棒2交接 (发前先 gun→SB出发→TP到端 时机), t=130.400');
+    }
+}
+function e2eRefresh() {
+    if (!data) { document.getElementById('e2eObservation').textContent = '(尚无 status)'; return; }
+    var out = 'state=' + (data.raceState || '?') + '  event=' + (data.currentEvent || '') + '  heat=' + (data.currentHeat || '?')
+        + '  isRelay=' + (data.isRelay ? '是' : '否') + '  running=' + (data.runningTime || '');
+    var lcs = data.laneCloseSettings || {};
+    out += '\n  startPos=' + (lcs.startPosition || '?') + '  sbCloseDelay=' + lcs.startBlockCloseDelay
+        + '  laneCloseTime=' + lcs.laneCloseTime + '  hwAlwaysOpen=' + lcs.hardwareAlwaysOpen;
+    out += '\n\n泳道                              rt   seq lap   SB左/右    TP左/右    LegRTs';
+    (data.swimmers || []).forEach(function(sw) {
+        var ds = sw.deviceStatus || {};
+        var legs = sw.legReactionTimes || [];
+        var name = ('道' + sw.lane + ' [' + (sw.name || '—') + ']').padEnd(30, ' ');
+        var rt = (sw.reactionTime || '').padStart(6, ' ');
+        var seq = String(sw.reactionSeq || 0).padStart(3, ' ');
+        var lap = String(sw.currentLap || 0).padStart(3, ' ');
+        var sb = ((ds.leftStartBlock || '?') + '/' + (ds.rightStartBlock || '?')).padEnd(20, ' ');
+        var tp = ((ds.leftTouchpad || '?') + '/' + (ds.rightTouchpad || '?')).padEnd(20, ' ');
+        var legStr = legs.length ? '[' + legs.join(',') + ']' : '';
+        out += '\n' + name + ' ' + rt + ' ' + seq + ' ' + lap + ' ' + sb + ' ' + tp + ' ' + legStr;
+    });
+    document.getElementById('e2eObservation').textContent = out;
+    // 刷新选中泳道的 laneEventLog
+    var lane = parseInt(document.getElementById('e2eLane').value);
+    var laneLogs = data.laneEventLogs || {};
+    var logText = laneLogs[String(lane)] || '(道' + lane + ' 暂无事件)';
+    document.getElementById('e2eLaneLog').textContent = '道 ' + lane + ' 比赛日志:\n' + logText;
+}
 
 function simStartBlock(side) {
     var lanes = getLanes();
