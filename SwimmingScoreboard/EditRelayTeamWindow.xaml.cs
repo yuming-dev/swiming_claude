@@ -16,6 +16,8 @@ namespace SwimmingScoreboard
         private readonly Brush _normalBorder;
         private static readonly Brush ErrorBorder = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EF4444"));
         private bool _suppressValidate;
+        // 2026-07-09 "无组别" 特殊显示标签, 保存时映射回空串
+        private const string NoAgeGroupLabel = "(无组别)";
 
         // 留给外部读取的"用户最终确认"标志
         public bool Confirmed { get; private set; }
@@ -43,6 +45,8 @@ namespace SwimmingScoreboard
             foreach (var n in unitNames) CountryBox.Items.Add(n);
 
             // 2026-05-25 组别下拉
+            // 2026-07-09 加 "(无组别)" 特殊选项在最上, 允许把接力队组别改为空.
+            AgeGroupBox.Items.Add(NoAgeGroupLabel);
             var ageList = (ageGroups ?? new string[0]).Where(g => !string.IsNullOrEmpty(g)).Distinct().ToList();
             foreach (var g in ageList) AgeGroupBox.Items.Add(g);
             if (!string.IsNullOrEmpty(team.AgeGroup) && !AgeGroupBox.Items.Contains(team.AgeGroup))
@@ -52,7 +56,8 @@ namespace SwimmingScoreboard
             TeamNameBox.Text = team.TeamName ?? "";
             CountryBox.Text = team.Country ?? team.TeamName ?? "";
             EventBox.SelectedItem = team.EventName;
-            AgeGroupBox.SelectedItem = team.AgeGroup ?? "";
+            // 2026-07-09 team.AgeGroup 为空 → 选中 "(无组别)" 显示
+            AgeGroupBox.SelectedItem = string.IsNullOrEmpty(team.AgeGroup) ? NoAgeGroupLabel : team.AgeGroup;
             foreach (ComboBoxItem item in GenderBox.Items) {
                 if ((item.Content as string) == team.Gender) { GenderBox.SelectedItem = item; break; }
             }
@@ -94,7 +99,8 @@ namespace SwimmingScoreboard
             EventBox.BorderThickness = evOk ? new Thickness(1) : new Thickness(2);
             if (!evOk) errors.Add("项目");
 
-            bool ageOk = AgeGroupBox.SelectedItem != null && !string.IsNullOrEmpty(AgeGroupBox.SelectedItem as string);
+            // 2026-07-09 允许 "(无组别)" 选项 (映射回空串). 只要有 SelectedItem 即视为已选.
+            bool ageOk = AgeGroupBox.SelectedItem != null;
             AgeGroupBox.BorderBrush = ageOk ? _normalBorder : ErrorBorder;
             AgeGroupBox.BorderThickness = ageOk ? new Thickness(1) : new Thickness(2);
             if (!ageOk) errors.Add("组别");
@@ -123,7 +129,9 @@ namespace SwimmingScoreboard
             string newName = TeamNameBox.Text.Trim();
             string newCountry = CountryBox.Text.Trim();
             string newEvent = EventBox.SelectedItem as string;
+            // 2026-07-09 "(无组别)" 映射回空串写入 team.AgeGroup
             string newAgeGroup = AgeGroupBox.SelectedItem as string;
+            if (newAgeGroup == NoAgeGroupLabel) newAgeGroup = "";
             string newGender = (GenderBox.SelectedItem as ComboBoxItem) != null
                 ? (GenderBox.SelectedItem as ComboBoxItem).Content.ToString() : _backup.Gender;
             string newEntryTime = EntryTimeBox.Text.Trim();
