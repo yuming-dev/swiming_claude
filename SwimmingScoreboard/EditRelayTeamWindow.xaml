@@ -48,11 +48,10 @@
                                   SelectionChanged="ValidateAll"
                                   ToolTip="组别来自主程序 比赛参数设置 → 组别"/>
                         <TextBlock Grid.Row="4" Grid.Column="0" Text="性别:" VerticalAlignment="Center" Margin="0,4,0,4"/>
-                        <ComboBox Grid.Row="4" Grid.Column="1" x:Name="GenderBox" Padding="4" Margin="0,4,0,4">
-                            <ComboBoxItem Content="男"/>
-                            <ComboBoxItem Content="女"/>
-                            <ComboBoxItem Content="混合"/>
-                        </ComboBox>
+                        <!-- 2026-08-21 性别项改由构造函数按比赛档案的"性别"表填充。
+                             原来写死 男/女/混合 三项，本届"男女"接力队打开后一项都选不中，
+                             会被兜底逻辑 SelectedIndex=0 默默改成"男"，一保存数据就坏了。 -->
+                        <ComboBox Grid.Row="4" Grid.Column="1" x:Name="GenderBox" Padding="4" Margin="0,4,0,4"/>
                         <TextBlock Grid.Row="5" Grid.Column="0" Text="报名成绩:" VerticalAlignment="Center" Margin="0,4,0,4"/>
                         <TextBox Grid.Row="5" Grid.Column="1" x:Name="EntryTimeBox" Padding="4" Margin="0,4,0,4"
                                  ToolTip="如 3:42.50 或 222.50"/>

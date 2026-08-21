@@ -1375,8 +1375,10 @@ namespace SwimmingScoreboard
             int heat = data["heat"] != null ? (int)data["heat"] : 0;
 
             bool isRelay = eventName.Contains("接力");
+            // 2026-08-21 见 GenderMatchEx 的说明
+            bool hasMixedChk = HasExplicitMixedEntry(eventName, ageGroup);
             var heatSwimmers = _swimmers.Where(s =>
-                SgMatch(s.Gender, gender) && s.EventName == eventName &&
+                GenderMatchEx(s.Gender, gender, hasMixedChk) && s.EventName == eventName &&
                 (string.IsNullOrEmpty(ageGroup) || (s.AgeCategory ?? "") == ageGroup) &&
                 !(isRelay && s.Notes != null && s.Notes.StartsWith("接力队员"))
             ).ToList();
@@ -3477,16 +3479,15 @@ namespace SwimmingScoreboard
                 return _currentHeatSwimmersCache;
             }
             bool isRelay = _currentEvent.Contains("接力");
+            // 2026-08-21 见 GenderMatchEx 的说明
+            bool hasMixed = HasExplicitMixedEntry(_currentEvent, _currentAgeGroup);
             var result = new List<Swimmer>();
             foreach (var s in _swimmers) {
                 if (s.EventName != _currentEvent) continue;
                 // 性别匹配：兼容"男"/"男子"等格式;
                 // 2026-06-04 加 男女 并项: 男 + 女 都过
                 // 2026-06-05 修复 接力 男女: swimmer.Gender 本身 = "男女" (接力 TEAM swimmer 条目) 也要过
-                bool genderOk;
-                if (_currentGender == "男女") genderOk = (s.Gender == "男" || s.Gender == "女" || s.Gender == "男女");
-                else genderOk = s.Gender == _currentGender || s.Gender.StartsWith(_currentGender) || _currentGender.StartsWith(s.Gender);
-                if (!genderOk) continue;
+                if (!GenderMatchEx(s.Gender, _currentGender, hasMixed)) continue;
                 // 组别匹配：当前赛程项有指定组别时只取该组的运动员（避免男甲+男乙并在同一个第1组里）
                 if (!MatchesAgeGroup(s, _currentAgeGroup)) continue;
                 // 接力项目：跳过个人队员条目，只保留代表队
@@ -8652,9 +8653,15 @@ namespace SwimmingScoreboard
             CurrentStageText.Text = stage;
 
             // 计算该阶段总组数
+            // 2026-08-21 两处修正：
+            //   1) 性别改用 GenderMatchEx（原来的 StartsWith 会把混合接力算进男子项）；
+            //   2) 补上组别过滤 —— 原来少年组和青年组的同名项目被算到一起，
+            //      大屏"第X/Y组"的 Y 会偏大（本届 45 项里有 23 项受影响）。
+            bool hasMixedStage = HasExplicitMixedEntry(_currentEvent, _currentAgeGroup);
             _totalHeats = _swimmers.Count(s =>
                 s.EventName == _currentEvent &&
-                (_currentGender == "男女" ? (s.Gender == "男" || s.Gender == "女" || s.Gender == "男女") : s.Gender.StartsWith(_currentGender)) &&
+                GenderMatchEx(s.Gender, _currentGender, hasMixedStage) &&
+                MatchesAgeGroup(s, _currentAgeGroup) &&
                 s.CurrentStage == _currentStage
             );
             if (_totalHeats > 0 && _poolConfig.LaneCount > 0) {
@@ -8857,9 +8864,10 @@ namespace SwimmingScoreboard
                 SgMatch(s.Gender, gender) && s.EventName == eventName && s.Stage == stage);
             if (sched != null && sched.HeatCount > 0) return sched.HeatCount;
 
+            bool hasMixedCnt = HasExplicitMixedEntry(eventName, ageGroup);
             var q = _swimmers.Where(s =>
                 s.EventName == eventName &&
-                (gender == "男女" ? (s.Gender == "男" || s.Gender == "女" || s.Gender == "男女") : s.Gender.StartsWith(gender)) &&
+                GenderMatchEx(s.Gender, gender, hasMixedCnt) &&
                 MatchesAgeGroup(s, ageGroup) &&
                 s.CurrentStage == stage &&
                 s.Heat > 0);
@@ -11553,10 +11561,19 @@ namespace SwimmingScoreboard
         private List<object> BuildApplicableRecords(string eventName, string gender, string ageGroup) {
             var list = new List<object>();
             if (string.IsNullOrEmpty(eventName) || _records == null || _records.Count == 0) return list;
+            // 2026-08-21 混合接力只列它自己那条纪录。
+            //   原来 gender=="男女" 无条件把 男 + 女 + 男女 三类都列出来，那是给
+            //   "男女并项"(男女同场比、分开排名) 用的；用在混合接力上会把同名的
+            //   男子项、女子项的纪录也列进去 —— 现场大屏 男女少年组4x50 纪录条
+            //   同时出现 1:58.98(女) / 1:49.30(男) / 1:52.98(男女) 三条就是这个。
+            //   判据同 GenderMatchEx：该项目的报名条目里有没有 Gender 本身是"男女"的。
             Func<string, bool> gOk;
-            if (gender == "男女") gOk = g => g == "男" || g == "女" || g == "男女";
+            if (NormGender(gender) == "男女") {
+                if (HasExplicitMixedEntry(eventName, ageGroup)) gOk = g => NormGender(g) == "男女";
+                else gOk = g => { string n = NormGender(g); return n == "男" || n == "女" || n == "男女"; };
+            }
             else if (string.IsNullOrEmpty(gender)) gOk = g => true;
-            else gOk = g => g == gender;
+            else gOk = g => NormGender(g) == NormGender(gender);
             // 年龄过滤: 优先用 ageGroup, 用 MatchesAgeGroup 处理区间 (12~15 覆盖 12-13 + 14-15);
             //   ageGroup 为空 / "全部" / "不限" → 不限
             Func<string, bool> aOk;
@@ -14971,7 +14988,7 @@ namespace SwimmingScoreboard
                 string oldCountry = sel.Country;
                 var oldLegNames = sel.Legs.Select(l => l.SwimmerName ?? "").ToList();
 
-                var dlg = new EditRelayTeamWindow(sel, _events, _units, _ageGroups.Select(g => g.Name)) { Owner = this };
+                var dlg = new EditRelayTeamWindow(sel, _events, _units, _ageGroups.Select(g => g.Name), _genders) { Owner = this };
                 bool? r = dlg.ShowDialog();
                 if (r != true || !dlg.Confirmed) return;
 
@@ -21405,6 +21422,54 @@ namespace SwimmingScoreboard
             return sg == filterGender || sg == "混合";
         }
 
+        // ══════════════════════════════════════════════════════════════
+        // 2026-08-21 性别匹配修正 —— 混合接力与男子/女子同名项目互相串
+        //
+        // 现象：甘肃省十六运大屏出现重复道次 3,3,4,4,5,5。
+        // 背景：本届 4x50米自由泳接力(少年组) 同时排了 男女 / 男 / 女 三个项目，
+        //       4x100米自由泳接力(青年组) 排了 男女 / 男 两个。它们的
+        //       项目名 + 组别 + 赛次 + 组次 完全相同，只有性别不同。
+        // 原来的判定有两处让它们互相串：
+        //   1) s.Gender.StartsWith(gender) —— 本意是兼容 "男"/"男子" 两种写法，
+        //      但 "男女".StartsWith("男") 也为真，混合接力队被捞进了男子项；
+        //   2) gender == "男女" 时无条件把 男 和 女 都并进来 —— 这本是给
+        //      "男女并项"(男女同场比、分开排名) 用的，用在混合接力项目上会把
+        //      男子项和女子项整个并进来（男女少年组4x50 应 7 队，实际出 23 条）。
+        //
+        // 现在的规则：
+        //   · 先归一 男子→男 / 女子→女 / 混合→男女，再精确比（不再用前缀）；
+        //   · gender == "男女" 分两种情形，用 hasExplicitMixed 区分：
+        //       该项目里存在 Gender 本身就是"男女"的报名条目 → 混合接力，只取这些；
+        //       不存在                                        → 男女并项，男和女都并进来。
+        private static string NormGender(string g) {
+            if (string.IsNullOrEmpty(g)) return "";
+            if (g == "男子") return "男";
+            if (g == "女子") return "女";
+            if (g == "混合") return "男女";
+            return g;
+        }
+        private static bool GenderMatchEx(string swimmerGender, string filterGender, bool hasExplicitMixed) {
+            string s = NormGender(swimmerGender);
+            string f = NormGender(filterGender);
+            if (string.IsNullOrEmpty(f)) return true;
+            if (f == "男女") {
+                return hasExplicitMixed ? (s == "男女")
+                                        : (s == "男" || s == "女" || s == "男女");
+            }
+            return s == f;
+        }
+        // 该项目(项目名+组别)里有没有 Gender 本身就是"男女"/"混合"的报名条目 = 是不是混合接力项目
+        private bool HasExplicitMixedEntry(string eventName, string ageGroup) {
+            if (string.IsNullOrEmpty(eventName) || _swimmers == null) return false;
+            foreach (var s in _swimmers) {
+                if (s.EventName != eventName) continue;
+                if (NormGender(s.Gender) != "男女") continue;
+                if (!MatchesAgeGroup(s, ageGroup)) continue;
+                return true;
+            }
+            return false;
+        }
+
         // 2026-06-04 严格相等 + 男女并项: 给原本写 SgMatch(s.Gender, gender) 的位置用
         //   gender == "男女" 时, swimmer 是 男 或 女 都匹配 (并项项目)
         //   其它情况: 严格相等 (维持旧行为)
@@ -24879,9 +24944,13 @@ namespace SwimmingScoreboard
             var list = new List<RecordReference>();
             if (_records == null) return list;
             // 2026-06-05 男女并项: schedule.Gender="男女" 时, 列出 男 + 女 + 男女 三类记录
+            // 2026-08-21 同 BuildApplicableRecords：混合接力只引它自己那条纪录
             Func<string, bool> genderOk;
-            if (gender == "男女") genderOk = g => g == "男" || g == "女" || g == "男女";
-            else genderOk = g => g == gender;
+            if (NormGender(gender) == "男女") {
+                if (HasExplicitMixedEntry(eventName, ageGroup)) genderOk = g => NormGender(g) == "男女";
+                else genderOk = g => { string n = NormGender(g); return n == "男" || n == "女" || n == "男女"; };
+            }
+            else genderOk = g => NormGender(g) == NormGender(gender);
             foreach (var rec in _records.Where(r => genderOk(r.Gender) && r.EventName == eventName)) {
                 if (!string.IsNullOrEmpty(ageGroup) && !string.IsNullOrEmpty(rec.AgeGroup) && rec.AgeGroup != ageGroup) continue;
                 string holder = rec.HolderName ?? "";

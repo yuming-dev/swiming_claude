@@ -22,8 +22,11 @@ namespace SwimmingScoreboard
         // 留给外部读取的"用户最终确认"标志
         public bool Confirmed { get; private set; }
 
+        // 2026-08-21 genders: 传比赛档案里的"性别"表(比赛参数设置管理 → 性别)。
+        //   原来性别项写死在 XAML 里(男/女/混合)，本届"男女"接力队打开这个窗口时
+        //   一项都选不中，会被下面的兜底逻辑改成"男"，保存后数据就坏了。
         public EditRelayTeamWindow(RelayTeam team, IEnumerable<string> events, IEnumerable<Unit> units,
-                                    IEnumerable<string> ageGroups) {
+                                    IEnumerable<string> ageGroups, IEnumerable<string> genders) {
             InitializeComponent();
             _team = team;
             _backup = Snapshot.Capture(team);
@@ -43,6 +46,14 @@ namespace SwimmingScoreboard
                 .Where(u => u != null && !string.IsNullOrEmpty(u.Name))
                 .Select(u => u.Name).Distinct().OrderBy(n => n).ToList();
             foreach (var n in unitNames) CountryBox.Items.Add(n);
+
+            // 2026-08-21 性别下拉：按比赛档案的性别表填；表里没有的(如旧存档)也补进来，
+            //   保证当前队的性别一定选得中，不会被兜底改掉
+            var genderList = (genders ?? new string[0]).Where(g => !string.IsNullOrEmpty(g)).Distinct().ToList();
+            if (genderList.Count == 0) genderList = new List<string> { "男", "女", "混合", "男女" };
+            foreach (var g in genderList) GenderBox.Items.Add(new ComboBoxItem { Content = g });
+            if (!string.IsNullOrEmpty(team.Gender) && !genderList.Contains(team.Gender))
+                GenderBox.Items.Add(new ComboBoxItem { Content = team.Gender });
 
             // 2026-05-25 组别下拉
             // 2026-07-09 加 "(无组别)" 特殊选项在最上, 允许把接力队组别改为空.
