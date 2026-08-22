@@ -35,8 +35,9 @@ namespace SwimmingScoreboard
             IList<AgeGroup> ageGroups = null)
         {
             InitializeComponent();
-            MainWindow.FillGenderCombo(GenderCombo);   // 2026-08-21 按比赛档案的性别表填，不再写死
             _swimmers = swimmers;
+            RefreshHasExplicitMixed();                 // 2026-08-22 必须在 _swimmers 赋值之后
+            MainWindow.FillGenderCombo(GenderCombo);   // 2026-08-21 按比赛档案的性别表填，不再写死
             _schedule = schedule;
             _competitionName = competitionName;
             _location = location;
@@ -99,10 +100,29 @@ namespace SwimmingScoreboard
         // 2026-08-21 原来 fg=="男女" 时匹配 男/女/混合，唯独漏了 "男女" 本身 ——
         //   混合接力队的条目 Gender 就是 "男女"，于是筛"男女"反而一条都匹配不到，
         //   男女接力的成绩单打出来是空的。补上，并把 混合/男女 视为同义。
-        private static bool SgMatchPrint(string sg, string fg) {
+        // 2026-08-22 名单里有没有 Gender 就是"男女"的条目 = 本场有混合接力
+        private bool _hasExplicitMixed = false;
+        private void RefreshHasExplicitMixed() {
+            _hasExplicitMixed = false;
+            if (_swimmers == null) return;
+            foreach (var s in _swimmers) {
+                string g = s.Gender ?? "";
+                if (g == "男女" || g == "混合") { _hasExplicitMixed = true; break; }
+            }
+        }
+
+        private bool SgMatchPrint(string sg, string fg) {
             if (string.IsNullOrEmpty(fg)) return true;
-            if (fg == "男女" || fg == "混合") return sg == "男" || sg == "女" || sg == "混合" || sg == "男女";
-            return sg == fg || sg == "混合" || sg == "男女";
+            // 2026-08-22 上一轮为了让混合接力能打出来, 把这里放宽成"男女也匹配男/女",
+            //   方向反了 —— 同名的男子/女子接力队会一起被打进来。
+            //   改为: 名单里存在 Gender 就是"男女"的条目(= 混合接力) 时按精确比对。
+            string sgN = (sg == "混合") ? "男女" : sg;
+            string fgN = (fg == "混合") ? "男女" : fg;
+            if (fgN == "男女") {
+                if (_hasExplicitMixed) return sgN == "男女";
+                return sgN == "男" || sgN == "女" || sgN == "男女";
+            }
+            return sgN == fgN;
         }
 
         private void PopulateEventCombo()
