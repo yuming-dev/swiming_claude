@@ -19,9 +19,7 @@
                           ToolTip="选择&quot;全部&quot;表示不按组别过滤"/>
                 <TextBlock Text="性别:" VerticalAlignment="Center" Margin="0,0,4,0"/>
                 <ComboBox x:Name="GenderCombo" Width="70" SelectionChanged="Filter_Changed" Margin="0,0,12,0">
-                    <ComboBoxItem Content="男" IsSelected="True"/>
-                    <ComboBoxItem Content="女"/>
-                    <ComboBoxItem Content="混合"/>
+                    <!-- 2026-08-21 改由 MainWindow.FillGenderCombo 按比赛档案的性别表填 -->
                     <ComboBoxItem Content="男女"/>
                 </ComboBox>
                 <TextBlock Text="项目:" VerticalAlignment="Center" Margin="0,0,4,0"/>

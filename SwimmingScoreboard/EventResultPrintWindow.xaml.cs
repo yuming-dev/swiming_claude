@@ -35,6 +35,7 @@ namespace SwimmingScoreboard
             IList<AgeGroup> ageGroups = null)
         {
             InitializeComponent();
+            MainWindow.FillGenderCombo(GenderCombo);   // 2026-08-21 按比赛档案的性别表填，不再写死
             _swimmers = swimmers;
             _schedule = schedule;
             _competitionName = competitionName;
@@ -95,10 +96,13 @@ namespace SwimmingScoreboard
         }
 
         // 2026-06-04 男女并项: 选 男女 时 男 + 女 + 混合 都过; 其他单性别保持原 (含混合) 兼容逻辑
+        // 2026-08-21 原来 fg=="男女" 时匹配 男/女/混合，唯独漏了 "男女" 本身 ——
+        //   混合接力队的条目 Gender 就是 "男女"，于是筛"男女"反而一条都匹配不到，
+        //   男女接力的成绩单打出来是空的。补上，并把 混合/男女 视为同义。
         private static bool SgMatchPrint(string sg, string fg) {
             if (string.IsNullOrEmpty(fg)) return true;
-            if (fg == "男女") return sg == "男" || sg == "女" || sg == "混合";
-            return sg == fg || sg == "混合";
+            if (fg == "男女" || fg == "混合") return sg == "男" || sg == "女" || sg == "混合" || sg == "男女";
+            return sg == fg || sg == "混合" || sg == "男女";
         }
 
         private void PopulateEventCombo()
@@ -301,7 +305,10 @@ namespace SwimmingScoreboard
             }).OrderBy(x => gender == "男女" ? (x.Gender == "女" ? 1 : 0) : 0).ThenBy(x => x.SortTime).ToList();
 
             // 2026-06-04 男女并项: 按性别分两个 leader + 各自 rank
-            bool isMixed = (gender == "男女");
+            // 2026-08-21 只有"男女并项"(条目本身是 男 或 女、同场比分开排名) 才拆；
+            //   混合接力的条目 Gender 本身就是"男女"，拆出来两边都是 0 条 → 打印空白。
+            bool isMixed = (gender == "男女")
+                        && displayData.Any(d => (string)d.Gender == "男" || (string)d.Gender == "女");
             var leaderMap = new Dictionary<string, double>();
             if (isMixed) {
                 foreach (var gKey in new[] { "男", "女" }) {
@@ -446,7 +453,9 @@ namespace SwimmingScoreboard
             int reactionWidth = epRelay ? 110 : 70;
 
             // 2026-06-04 男女并项: 拆 男 / 女 两张子表
-            bool printMixed = (SelectedGender == "男女");
+            // 2026-08-21 同上：混合接力(条目 Gender 就是"男女")不拆，否则两张子表都是空的
+            bool printMixed = (SelectedGender == "男女")
+                           && _currentResults.Cast<dynamic>().Any(it => (string)it.Gender == "男" || (string)it.Gender == "女");
             if (printMixed) {
                 foreach (var gKey in new[] { "男", "女" }) {
                     var subResults = new List<dynamic>();

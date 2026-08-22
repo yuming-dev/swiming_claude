@@ -1513,6 +1513,23 @@ namespace SwimmingScoreboard
         }
     }
 
+    // 2026-08-21 性别表全局登记处（仿 AgeGroupRegistry）。
+    //   各个结果/打印/查询窗口的"性别"下拉原来都在 XAML 里写死 男/女/混合，
+    //   本届"男女"混合接力在这些窗口里既选不到也筛不出。改成从这里取，
+    //   加载比赛档案时 Set 一次，全局生效。
+    public static class GenderRegistry
+    {
+        private static List<string> _list = new List<string> { "男", "女", "混合", "男女" };
+        public static List<string> List { get { return _list; } }
+        public static void Set(IEnumerable<string> genders) {
+            var l = new List<string>();
+            if (genders != null) foreach (var g in genders) {
+                if (!string.IsNullOrEmpty(g) && !l.Contains(g)) l.Add(g);
+            }
+            if (l.Count > 0) _list = l;
+        }
+    }
+
     // 2026-05-24 P0-3 参赛单位实体（代表队/俱乐部/学校 ...）
     // 与 Swimmer.Country 是同一对外名称；这里携带额外元信息（领队/教练/联系电话等）
     public class Unit

@@ -21,6 +21,7 @@ namespace SwimmingScoreboard
 
         public IndividualRankingWindow(ObservableCollection<Swimmer> swimmers, List<AgeGroup> ageGroups, ScoringConfig scoringConfig) {
             InitializeComponent();
+            MainWindow.FillGenderCombo(GenderCombo);   // 2026-08-21 按比赛档案的性别表填，不再写死
             _swimmers = swimmers;
             _ageGroups = ageGroups ?? new List<AgeGroup>();
             _scoringConfig = scoringConfig ?? new ScoringConfig();

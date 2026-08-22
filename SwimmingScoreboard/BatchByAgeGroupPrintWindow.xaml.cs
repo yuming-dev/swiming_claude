@@ -35,6 +35,7 @@ namespace SwimmingScoreboard
             IList<AgeGroup> ageGroups)
         {
             InitializeComponent();
+            MainWindow.FillGenderCombo(GenderCombo);   // 2026-08-21 按比赛档案的性别表填，不再写死
             _swimmers = swimmers;
             _schedule = schedule;
             _competitionName = competitionName ?? "";

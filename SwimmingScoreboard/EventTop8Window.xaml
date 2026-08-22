@@ -16,8 +16,7 @@
             <TextBlock Text="性别:" VerticalAlignment="Center" Margin="12,0,4,0"/>
             <ComboBox x:Name="GenderCombo" Width="70" VerticalAlignment="Center">
                 <ComboBoxItem Content="全部" IsSelected="True"/>
-                <ComboBoxItem Content="男"/>
-                <ComboBoxItem Content="女"/>
+                <!-- 2026-08-21 改由 MainWindow.FillGenderCombo 按比赛档案的性别表填 -->
             </ComboBox>
             <TextBlock Text="统计内容:" VerticalAlignment="Center" Margin="12,0,4,0"/>
             <ComboBox x:Name="DisplayCombo" Width="160" VerticalAlignment="Center">

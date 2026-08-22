@@ -371,8 +371,17 @@
                                             ToolTip="导入接力队 CSV (表头必须与「导出接力报名模板」一致；格式错误的行跳过并汇总)"/>
                                     <Button Content="导出CSV" Click="ExportRelayCSV_Click" Padding="12,6" FontSize="13" Background="#10B981" Foreground="White" BorderThickness="0" Margin="0,0,6,0"
                                             ToolTip="把当前所有接力队导出为 CSV"/>
-                                    <Button Content="导出接力报名模板" Click="ExportRelayTemplate_Click" Padding="12,6" FontSize="13" Background="#F97316" Foreground="White" BorderThickness="0"
+                                    <Button Content="导出接力报名模板" Click="ExportRelayTemplate_Click" Padding="12,6" FontSize="13" Background="#F97316" Foreground="White" BorderThickness="0" Margin="0,0,8,0"
                                             ToolTip="导出空白模板（带表头与示例行），编辑后用「导入CSV」回灌"/>
+                                    <!-- 2026-08-21 赛前一小时才拿到接力名单, 31 支队手工敲 124 个名字来不及。
+                                         这两个按钮配套用: 先导出填报表(队/道次已填好, 只留 4 棒空着),
+                                         拿到名单填完, 再一键读入。与「导入CSV」的区别: 那个只新建队伍,
+                                         已存在的会跳过; 这个专门给已有队伍补/改棒次姓名。 -->
+                                    <Border Width="1" Background="#CBD5E1" Margin="6,4,6,4"/>
+                                    <Button Content="导出棒次填报表" Click="ExportRelayLegSheet_Click" Padding="12,6" FontSize="13" Background="#0EA5E9" Foreground="White" BorderThickness="0" Margin="0,0,6,0"
+                                            ToolTip="按当前接力队导出填报表: 场次/项次/组次/泳道/项目/性别/组别/代表队 都已填好, 只留 4 棒姓名空着"/>
+                                    <Button Content="读入棒次名单" Click="ImportRelayLegSheet_Click" Padding="12,6" FontSize="13" Background="#DC2626" Foreground="White" BorderThickness="0"
+                                            ToolTip="读入填好的棒次填报表, 一键把 4 棒姓名灌进已有的接力队 (只填姓名, 不新建/删除队伍)"/>
                                 </StackPanel>
                                 <!-- 按项目分组的接力队列表 -->
                                 <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">

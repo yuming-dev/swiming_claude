@@ -60,7 +60,9 @@
                             <TextBox x:Name="NameBox" Grid.Row="0" Grid.Column="1" Padding="4" VerticalAlignment="Center"/>
                             <TextBlock Grid.Row="0" Grid.Column="2" Margin="16,0,0,0" Text="性别:" VerticalAlignment="Center"/>
                             <ComboBox x:Name="GenderCombo" Grid.Row="0" Grid.Column="3" VerticalAlignment="Center" SelectedIndex="0">
-                                <ComboBoxItem Content="男"/><ComboBoxItem Content="女"/><ComboBoxItem Content="混合"/>
+                                <!-- 2026-08-21 补"男女"：混合接力用的是"男女"(国际赛事标准写法)。
+                                     本程序没有配置推送通道，暂时写死；治本要加 genderList 下发 -->
+                                <ComboBoxItem Content="男"/><ComboBoxItem Content="女"/><ComboBoxItem Content="混合"/><ComboBoxItem Content="男女"/>
                             </ComboBox>
                             <TextBlock Grid.Row="1" Grid.Column="0" Margin="6,0,0,0" Text="出生日期:" VerticalAlignment="Center"/>
                             <DatePicker x:Name="BirthDatePicker" Grid.Row="1" Grid.Column="1" VerticalAlignment="Center"
@@ -159,7 +161,9 @@
                             <TextBox x:Name="RelayTeamBox" Grid.Row="0" Grid.Column="1" Padding="4" VerticalAlignment="Center"/>
                             <TextBlock Grid.Row="0" Grid.Column="2" Margin="16,0,0,0" Text="性别:" VerticalAlignment="Center"/>
                             <ComboBox x:Name="RelayGenderCombo" Grid.Row="0" Grid.Column="3" SelectedIndex="0" VerticalAlignment="Center">
-                                <ComboBoxItem Content="男"/><ComboBoxItem Content="女"/><ComboBoxItem Content="混合"/>
+                                <!-- 2026-08-21 补"男女"：混合接力用的是"男女"(国际赛事标准写法)。
+                                     本程序没有配置推送通道，暂时写死；治本要加 genderList 下发 -->
+                                <ComboBoxItem Content="男"/><ComboBoxItem Content="女"/><ComboBoxItem Content="混合"/><ComboBoxItem Content="男女"/>
                             </ComboBox>
                             <TextBlock Grid.Row="1" Grid.Column="0" Margin="6,0,0,0" Text="组别:" VerticalAlignment="Center"/>
                             <ComboBox x:Name="RelayAgeGroupCombo" Grid.Row="1" Grid.Column="1" VerticalAlignment="Center" IsEditable="True">

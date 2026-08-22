@@ -12353,6 +12353,9 @@ namespace SwimmingScoreboard
                 if (!string.IsNullOrEmpty(s) && !list.Contains(s)) list.Add(s);
             }
             _genders = list;
+            // 2026-08-21 这条路径原来也漏了刷下拉。消息在后台线程上，必须回 UI 线程。
+            GenderRegistry.Set(_genders);
+            try { Dispatcher.Invoke(new Action(() => { try { RefillGenderCombos(); } catch { } })); } catch { }
             AutoSaveData();
             Broadcast();
             AddLog(string.Format("编辑端更新性别列表: 共 {0} 项", list.Count));
@@ -14789,6 +14792,343 @@ namespace SwimmingScoreboard
             MessageBox.Show(string.Format("已导出 {0} 支接力队到:\n{1}", _relayTeams.Count, dlg.FileName), "完成");
         }
 
+        // ══════════════════════════════════════════════════════════════
+        // 2026-08-21 接力棒次填报表 —— 导出/读入
+        //
+        // 由来: 接力名单赛前一小时才发下来, 31 支队 124 个名字手工敲既来不及也容易串行。
+        // 用法: 赛前「导出棒次填报表」→ 队名/组次/泳道都已填好, 只有 4 棒是空的 →
+        //       拿到名单照着填 → 「读入棒次名单」一键灌进去。
+        // 与已有「导入CSV」的区别: 那个只**新建**接力队(key 已存在就跳过),
+        //   本届 31 支队都已在档案里, 用它一支也进不去; 这个只给已有队伍**填姓名**,
+        //   不新建、不删除、不改队名/项目/泳道。
+        private static readonly string[] RelayLegSheetHeader = new[] {
+            "场次", "项次", "组次", "泳道", "项目", "性别", "组别", "代表队",
+            "第1棒", "第2棒", "第3棒", "第4棒"
+        };
+
+        // CSV 用 Excel 另存时在中文 Windows 上默认是 GBK, 不是 UTF-8。
+        // 有 BOM 按 BOM 走; 没 BOM 先严格试 UTF-8, 不合法再退回本机默认(GBK)。
+        private static string[] ReadCsvLinesSmart(string path) {
+            var bytes = File.ReadAllBytes(path);
+            if (bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF)
+                return new UTF8Encoding(false).GetString(bytes, 3, bytes.Length - 3)
+                       .Split(new[] { "\r\n", "\n", "\r" }, StringSplitOptions.None);
+            try {
+                var strict = new UTF8Encoding(false, true);
+                return strict.GetString(bytes).Split(new[] { "\r\n", "\n", "\r" }, StringSplitOptions.None);
+            } catch {
+                return Encoding.Default.GetString(bytes).Split(new[] { "\r\n", "\n", "\r" }, StringSplitOptions.None);
+            }
+        }
+
+        private static string CsvCell(string s) {
+            s = s ?? "";
+            if (s.IndexOf(',') >= 0 || s.IndexOf('"') >= 0 || s.IndexOf('\n') >= 0)
+                return "\"" + s.Replace("\"", "\"\"") + "\"";
+            return s;
+        }
+
+        private void ExportRelayLegSheet_Click(object sender, RoutedEventArgs e) {
+            if (_relayTeams == null || _relayTeams.Count == 0) {
+                MessageBox.Show("当前没有接力队。", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            var dlg = new Microsoft.Win32.SaveFileDialog {
+                Filter = "Excel 工作簿|*.xlsx",
+                FileName = "接力棒次填报表.xlsx",
+                Title = "导出接力棒次填报表 (按场次分成多个文件)"
+            };
+            if (dlg.ShowDialog() != true) return;
+
+            // 按 场次 → 项次 → 泳道 排, 和秩序册顺序一致, 现场好对
+            var rows = new List<string[]>();
+            foreach (var t in _relayTeams) {
+                var sc = _schedule.FirstOrDefault(s => s.EventName == t.EventName
+                    && s.Gender == t.Gender && (s.AgeGroup ?? "") == (t.AgeGroup ?? ""));
+                int ses = sc != null ? sc.SessionNumber : 0;
+                int evn = sc != null ? sc.EvNum : 0;
+                var legs = new string[4];
+                for (int i = 0; i < 4; i++) legs[i] = (t.Legs != null && i < t.Legs.Count) ? (t.Legs[i].SwimmerName ?? "") : "";
+                rows.Add(new[] {
+                    ses.ToString(), evn.ToString(), t.Heat.ToString(), t.Lane.ToString(),
+                    t.EventName ?? "", t.Gender ?? "", t.AgeGroup ?? "", t.TeamName ?? "",
+                    legs[0], legs[1], legs[2], legs[3]
+                });
+            }
+            rows.Sort(delegate(string[] a, string[] b) {
+                int r = int.Parse(a[0]).CompareTo(int.Parse(b[0])); if (r != 0) return r;
+                r = int.Parse(a[1]).CompareTo(int.Parse(b[1]));     if (r != 0) return r;
+                r = int.Parse(a[2]).CompareTo(int.Parse(b[2]));     if (r != 0) return r;
+                return int.Parse(a[3]).CompareTo(int.Parse(b[3]));
+            });
+
+            // 2026-08-21 一场一个 Excel 文件。接力名单是按场次陆续发下来的
+            //   (如 22 日上午只拿到第1场的), 一张 31 行的大表反而容易填错行。
+            //   文件名 <你起的名>_第N场.xlsx, 文件内按项目分块, 现场只打开当场那个填。
+            string dir = System.IO.Path.GetDirectoryName(dlg.FileName);
+            string baseName = System.IO.Path.GetFileNameWithoutExtension(dlg.FileName);
+            var sessions = new List<int>();
+            foreach (var r in rows) { int s = int.Parse(r[0]); if (!sessions.Contains(s)) sessions.Add(s); }
+            sessions.Sort();
+
+            var written = new List<string>();
+            try {
+                foreach (int ses in sessions) {
+                    var legRows = new List<RelayLegSheetService.LegRow>();
+                    foreach (var r in rows) {
+                        if (int.Parse(r[0]) != ses) continue;
+                        var lr = new RelayLegSheetService.LegRow {
+                            Session = int.Parse(r[0]), EvNum = int.Parse(r[1]),
+                            Heat = int.Parse(r[2]), Lane = int.Parse(r[3]),
+                            EventName = r[4], Gender = r[5], AgeGroup = r[6], TeamName = r[7]
+                        };
+                        for (int i = 0; i < 4; i++) lr.Legs[i] = r[8 + i];
+                        legRows.Add(lr);
+                    }
+                    if (legRows.Count == 0) continue;
+                    var sc = _schedule.FirstOrDefault(s => s.SessionNumber == ses);
+                    string fn = System.IO.Path.Combine(dir, string.Format("{0}_第{1}场.xlsx", baseName, ses));
+                    RelayLegSheetService.ExportSession(fn, _competitionName, ses,
+                        sc != null ? sc.SessionName : "", sc != null ? sc.Date : "", sc != null ? sc.Time : "",
+                        legRows);
+                    written.Add(string.Format("  第{0}场  {1} 支队   {2}", ses, legRows.Count, System.IO.Path.GetFileName(fn)));
+                }
+                MessageBox.Show(string.Format(
+                    "已按场次导出 {0} 个 Excel 文件到:\n{1}\n\n{2}\n\n用法: 拿到哪一场的名单就打开哪个文件,\n只填黄色的「第1棒~第4棒」四列, 灰色各列请勿改动。\n填完存盘 (xlsx / xls 都行, WPS 表格存的也认),\n回程序点「读入棒次名单」。\n没填姓名的行会整行跳过, 不会影响别的队。",
+                    written.Count, dir, string.Join("\n", written.ToArray())),
+                    "导出成功", MessageBoxButton.OK, MessageBoxImage.Information);
+                AddLog(string.Format("导出接力棒次填报表: {0} 支队, 按场次分成 {1} 个 Excel → {2}", rows.Count, written.Count, dir));
+            } catch (Exception ex) {
+                MessageBox.Show("写文件失败: " + ex.Message, "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        // 2026-08-21 读入棒次名单前先选场次。
+        //   接力名单是分场次陆续发下来的, 比第1场时手边可能同时躺着三个文件,
+        //   选错了虽然不会写坏数据(对不上的行会被跳过), 但会让人以为"读进去了"。
+        //   先选场次 → 只认该场次的行 → 其它场次的行明确报出来, 一眼看出是不是拿错文件。
+        // 返回选中的场次号; 取消返回 -1。
+        private int AskRelaySession() {
+            var sessions = new List<int>();
+            foreach (var t in _relayTeams) {
+                var sc = _schedule.FirstOrDefault(s => s.EventName == t.EventName
+                    && s.Gender == t.Gender && (s.AgeGroup ?? "") == (t.AgeGroup ?? ""));
+                int ses = sc != null ? sc.SessionNumber : 0;
+                if (!sessions.Contains(ses)) sessions.Add(ses);
+            }
+            sessions.Sort();
+            if (sessions.Count == 0) return -1;
+            if (sessions.Count == 1) return sessions[0];   // 只有一个场次就不用问了
+
+            var win = new Window {
+                Title = "读入接力棒次名单 — 选择场次",
+                Width = 470, SizeToContent = SizeToContent.Height,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                ResizeMode = ResizeMode.NoResize, Owner = this
+            };
+            var root = new StackPanel { Margin = new Thickness(18) };
+            root.Children.Add(new TextBlock {
+                Text = "拿到的是哪一场的接力名单？", FontSize = 15, FontWeight = FontWeights.Bold,
+                Margin = new Thickness(0, 0, 0, 4)
+            });
+            root.Children.Add(new TextBlock {
+                Text = "只读入选中场次的队伍；文件里其它场次的行会跳过并提示。",
+                FontSize = 12, Foreground = System.Windows.Media.Brushes.Gray,
+                Margin = new Thickness(0, 0, 0, 12), TextWrapping = TextWrapping.Wrap
+            });
+
+            var radios = new List<RadioButton>();
+            foreach (int ses in sessions) {
+                var sc = _schedule.FirstOrDefault(s => s.SessionNumber == ses);
+                int total = 0, filled = 0;
+                foreach (var t in _relayTeams) {
+                    var s2 = _schedule.FirstOrDefault(s => s.EventName == t.EventName
+                        && s.Gender == t.Gender && (s.AgeGroup ?? "") == (t.AgeGroup ?? ""));
+                    if ((s2 != null ? s2.SessionNumber : 0) != ses) continue;
+                    total++;
+                    bool has = false;
+                    if (t.Legs != null) foreach (var lg in t.Legs) if (!string.IsNullOrEmpty(lg.SwimmerName)) { has = true; break; }
+                    if (has) filled++;
+                }
+                var rb = new RadioButton {
+                    Content = string.Format("第{0}场    {1} {2}    共 {3} 支队    已填 {4}/{3}",
+                        ses, sc != null ? sc.Date : "", sc != null ? sc.Time : "", total, filled),
+                    Tag = ses, FontSize = 14, Margin = new Thickness(0, 5, 0, 5), Padding = new Thickness(4, 0, 0, 0)
+                };
+                radios.Add(rb);
+                root.Children.Add(rb);
+            }
+            radios[0].IsChecked = true;
+
+            var btns = new StackPanel {
+                Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right,
+                Margin = new Thickness(0, 16, 0, 0)
+            };
+            int picked = -1;
+            var ok = new Button { Content = "下一步：选文件", Width = 120, Height = 30, Margin = new Thickness(0, 0, 8, 0), IsDefault = true };
+            var cancel = new Button { Content = "取消", Width = 80, Height = 30, IsCancel = true };
+            ok.Click += delegate {
+                foreach (var rb in radios) if (rb.IsChecked == true) { picked = (int)rb.Tag; break; }
+                win.DialogResult = true;
+            };
+            btns.Children.Add(ok); btns.Children.Add(cancel);
+            root.Children.Add(btns);
+            win.Content = root;
+            if (win.ShowDialog() != true) return -1;
+            return picked;
+        }
+
+        private void ImportRelayLegSheet_Click(object sender, RoutedEventArgs e) {
+            if (_relayTeams == null || _relayTeams.Count == 0) {
+                MessageBox.Show("当前没有接力队。", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            int wantSession = AskRelaySession();
+            if (wantSession < 0) return;
+
+            var dlg = new Microsoft.Win32.OpenFileDialog {
+                Filter = "Excel 工作簿|*.xlsx;*.xls|所有支持的格式|*.xlsx;*.xls",
+                Title = string.Format("读入 第{0}场 的接力棒次名单", wantSession)
+            };
+            if (dlg.ShowDialog() != true) return;
+
+            List<RelayLegSheetService.LegRow> sheetRows;
+            string warn;
+            try { sheetRows = RelayLegSheetService.Import(dlg.FileName, out warn); }
+            catch (Exception ex) { MessageBox.Show("读取失败: " + ex.Message, "错误", MessageBoxButton.OK, MessageBoxImage.Error); return; }
+            if (!string.IsNullOrEmpty(warn)) {
+                MessageBox.Show(warn + "\n\n请用「导出棒次填报表」重新导出一份再填。", "格式错误",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+            if (sheetRows.Count == 0) { MessageBox.Show("表里没有数据行。", "提示"); return; }
+
+            int updated = 0, blank = 0, otherSession = 0;
+            var otherSet = new List<int>();
+            var perSession = new Dictionary<int, int>();   // 2026-08-21 按场次分别汇报, 现场一眼看出读的是哪一场
+            var notFound = new List<string>();
+            var changeLog = new List<string>();
+
+            foreach (var d in sheetRows) {
+                // 2026-08-21 只读选中的那一场; 别场的行原样不动, 但要计数报出来
+                if (d.Session != wantSession) {
+                    otherSession++;
+                    if (!otherSet.Contains(d.Session)) otherSet.Add(d.Session);
+                    continue;
+                }
+                string evName = d.EventName ?? "";
+                string gender = d.Gender ?? "";
+                string ageGrp = d.AgeGroup ?? "";
+                string team   = d.TeamName ?? "";
+
+                var names = new string[4];
+                bool any = false;
+                for (int i = 0; i < 4; i++) {
+                    names[i] = d.Legs[i] ?? "";
+                    if (!string.IsNullOrEmpty(names[i])) any = true;
+                }
+                if (!any) { blank++; continue; }      // 这一行还没填, 跳过
+
+                var t = _relayTeams.FirstOrDefault(x => (x.TeamName ?? "") == team
+                    && (x.EventName ?? "") == evName
+                    && (x.Gender ?? "") == gender
+                    && (x.AgeGroup ?? "") == ageGrp);
+                if (t == null) {
+                    notFound.Add(string.Format("第 {0} 行: {1} {2} {3} {4}", d.ExcelRow, team, gender, ageGrp, evName));
+                    continue;
+                }
+
+                var oldNames = new List<string>();
+                for (int i = 0; i < 4; i++) oldNames.Add((t.Legs != null && i < t.Legs.Count) ? (t.Legs[i].SwimmerName ?? "") : "");
+
+                // 和「编辑队伍信息」保存时写法一致
+                while (t.Legs.Count < 4) t.Legs.Add(new RelayLeg { LegOrder = t.Legs.Count + 1 });
+                for (int i = 0; i < 4; i++) { t.Legs[i].LegOrder = i + 1; t.Legs[i].SwimmerName = names[i]; }
+
+                SyncRelayLegsToSwimmers(t, oldNames);
+                updated++;
+                int sesNo = d.Session;
+                if (!perSession.ContainsKey(sesNo)) perSession[sesNo] = 0;
+                perSession[sesNo]++;
+                changeLog.Add(string.Format("第{0}场 {1} {2} {3}: {4}", sesNo, t.TeamName, t.Gender, t.EventName, string.Join(",", names)));
+            }
+
+            if (updated > 0) {
+                AutoSaveData();
+                RebuildRelayGroupedView();
+                Broadcast();
+            }
+
+            // 选的场次在文件里一行都没有 —— 多半是文件拿错了
+            if (updated == 0 && blank == 0 && otherSession > 0) {
+                otherSet.Sort();
+                var names = new List<string>();
+                foreach (int s in otherSet) names.Add("第" + s + "场");
+                MessageBox.Show(string.Format(
+                    "这个文件里没有 第{0}场 的数据。\n\n文件里装的是: {1} (共 {2} 行)\n\n是不是文件拿错了? 请改选对应的场次, 或换成 第{0}场 的填报表。",
+                    wantSession, string.Join(" / ", names.ToArray()), otherSession),
+                    "文件与场次对不上", MessageBoxButton.OK, MessageBoxImage.Warning);
+                AddLog(string.Format("读入接力棒次名单: 选了第{0}场, 但文件里只有别的场次, 未做任何修改", wantSession));
+                return;
+            }
+
+            var msg = new StringBuilder();
+            msg.AppendFormat("读入完成  (第{0}场)\n\n  已填入棒次: {1} 支队\n", wantSession, updated);
+            foreach (var kv in perSession.OrderBy(x => x.Key))
+                msg.AppendFormat("      第{0}场: {1} 支\n", kv.Key, kv.Value);
+            if (blank > 0)         msg.AppendFormat("  尚未填写(跳过): {0} 行  ← 这些队原样不动\n", blank);
+            if (otherSession > 0)  msg.AppendFormat("  其它场次(跳过): {0} 行  ← 本次只读第{1}场\n", otherSession, wantSession);
+            if (notFound.Count > 0) {
+                msg.AppendFormat("  对不上的队伍: {0} 行\n", notFound.Count);
+                int show = Math.Min(8, notFound.Count);
+                for (int i = 0; i < show; i++) msg.AppendFormat("      {0}\n", notFound[i]);
+                if (notFound.Count > show) msg.AppendFormat("      ...另有 {0} 行\n", notFound.Count - show);
+                msg.Append("  (代表队/项目/性别/组别 四项必须与档案完全一致,\n   建议用「导出棒次填报表」导出的表来填, 不要自己另建表)\n");
+            }
+            MessageBox.Show(msg.ToString(), updated > 0 ? "读入成功" : "没有读入任何数据",
+                MessageBoxButton.OK, updated > 0 ? MessageBoxImage.Information : MessageBoxImage.Warning);
+            AddLog(string.Format("读入接力棒次名单(第{0}场): 填入 {1} 支, 未填 {2} 行, 别场次 {3} 行, 对不上 {4} 行",
+                wantSession, updated, blank, otherSession, notFound.Count));
+            foreach (var s in changeLog) AddLog("    " + s);
+        }
+
+        // 把接力队的 4 棒姓名同步到 _swimmers —— 大屏「姓名」列取的是代表条目的
+        // Notes("接力队 棒次:甲,乙,丙,丁"), 不同步的话名单填了大屏也不显示。
+        // 与 EditRelay_Click 里的同步逻辑保持一致。
+        private void SyncRelayLegsToSwimmers(RelayTeam t, List<string> oldNames) {
+            string legNamesStr = string.Join(",", t.Legs.Select(l => l.SwimmerName ?? "").ToArray());
+            // 代表条目: 按 队名+项目+性别 定位, 不依赖 Notes 的具体写法
+            // (本届档案里没填棒次时 Notes 只有"接力队"三个字, 用 StartsWith("接力队 棒次:") 找不到)
+            var proxy = _swimmers.FirstOrDefault(s =>
+                (s.Name ?? "") == (t.TeamName ?? "") && (s.EventName ?? "") == (t.EventName ?? "")
+                && (s.Gender ?? "") == (t.Gender ?? "") && !IsRelayMemberNote(s.Notes));
+            if (proxy != null) proxy.Notes = "接力队 棒次:" + legNamesStr;
+
+            for (int i = 0; i < Math.Min(4, t.Legs.Count); i++) {
+                string oldName = (oldNames != null && i < oldNames.Count) ? oldNames[i] : "";
+                string newName = t.Legs[i].SwimmerName ?? "";
+                if (string.IsNullOrEmpty(oldName) && string.IsNullOrEmpty(newName)) continue;
+                var mem = _swimmers.FirstOrDefault(s => IsRelayMemberNote(s.Notes)
+                    && (s.Country ?? "") == (t.TeamName ?? "") && (s.EventName ?? "") == (t.EventName ?? "")
+                    && (s.Name ?? "") == oldName);
+                if (mem != null) {
+                    mem.Name = newName;
+                    mem.Notes = string.Format("接力队员 {0} 第{1}棒", t.EventName, i + 1);
+                } else if (!string.IsNullOrEmpty(newName)) {
+                    string memBib = (proxy != null ? proxy.BibNumber : "R???") + "-" + (i + 1);
+                    if (!_swimmers.Any(s => s.BibNumber == memBib)) {
+                        _swimmers.Add(new Swimmer {
+                            BibNumber = memBib, Name = newName,
+                            Gender = (t.Gender == "混合" || t.Gender == "男女") ? "男" : t.Gender,
+                            Country = t.TeamName, EventName = t.EventName,
+                            AgeCategory = t.AgeGroup,
+                            Notes = string.Format("接力队员 {0} 第{1}棒", t.EventName, i + 1)
+                        });
+                    }
+                }
+            }
+        }
+
         private void ImportRelayCSV_Click(object sender, RoutedEventArgs e) {
             var dlg = new Microsoft.Win32.OpenFileDialog {
                 Filter = "CSV 文件|*.csv", Title = "导入接力队 CSV"
@@ -14994,9 +15334,13 @@ namespace SwimmingScoreboard
 
                 // 同步到 _swimmers：代表条目 + 队员子条目
                 // 代表条目：按旧 队名/项目/性别 三键定位
+                // 2026-08-21 原来要求 Notes 以"接力队 棒次:"开头才认。本届档案生成时
+                //   还没有棒次名单, Notes 只写了"接力队"三个字 —— 于是这里找不到代表条目,
+                //   手工敲完 4 棒姓名也同步不到大屏(大屏姓名列取的正是这个 Notes)。
+                //   改为按 队名+项目+性别 定位, 只排除队员子条目, 不依赖 Notes 的具体写法。
                 var proxy = _swimmers.FirstOrDefault(s =>
-                    !string.IsNullOrEmpty(s.Notes) && s.Notes.StartsWith("接力队 棒次:")
-                    && s.Name == oldTeamName && s.EventName == oldEvent && s.Gender == oldGender);
+                    s.Name == oldTeamName && s.EventName == oldEvent && s.Gender == oldGender
+                    && !IsRelayMemberNote(s.Notes));
                 if (proxy != null) {
                     proxy.Name = sel.TeamName;
                     proxy.Country = sel.Country;
@@ -20344,6 +20688,13 @@ namespace SwimmingScoreboard
                 if (package.Stages != null && package.Stages.Count > 0) _stages = package.Stages;
                 if (package.HeatCounts != null && package.HeatCounts.Count > 0) _heatCounts = package.HeatCounts;
                 AgeGroupRegistry.Set(_ageGroups);
+                // 2026-08-21 原来只更新了 _genders 和"参数设置"里的预览表，
+                //   五个性别下拉(报名筛选/编辑/成绩/注册/纪录筛选)还是 XAML 里写死的
+                //   男/女/混合 —— 现场表现为"性别框没跟着比赛参数设置管理更新"，
+                //   男女接力队因此选不到性别、录不了 4 棒姓名。赛次下拉同一个毛病。
+                GenderRegistry.Set(_genders);
+                try { RefillGenderCombos(); } catch { }
+                try { RefillStageCombos(); } catch { }
                 RefreshEventComboBoxes();
                 RefreshEventsPreview();
                 RefreshAgeGroupsPreview();
@@ -21441,6 +21792,32 @@ namespace SwimmingScoreboard
         //   · gender == "男女" 分两种情形，用 hasExplicitMixed 区分：
         //       该项目里存在 Gender 本身就是"男女"的报名条目 → 混合接力，只取这些；
         //       不存在                                        → 男女并项，男和女都并进来。
+        // 2026-08-21 把一个性别下拉按 GenderRegistry 重填。
+        //   保留原有的"全部"项和当前选中值；档案里没有但当前选着的值也补进来，
+        //   免得下拉一重填就把用户的选择改掉。各结果/打印窗口共用。
+        public static void FillGenderCombo(System.Windows.Controls.ComboBox cb) {
+            if (cb == null) return;
+            string prev = "";
+            var selItem = cb.SelectedItem as System.Windows.Controls.ComboBoxItem;
+            if (selItem != null && selItem.Content != null) prev = selItem.Content.ToString();
+            else if (cb.SelectedItem is string) prev = (string)cb.SelectedItem;
+            bool hasAll = false;
+            foreach (var it in cb.Items) {
+                var ci = it as System.Windows.Controls.ComboBoxItem;
+                if (ci != null && ci.Content != null && ci.Content.ToString() == "全部") { hasAll = true; break; }
+            }
+            cb.Items.Clear();
+            if (hasAll) cb.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = "全部" });
+            foreach (var g in GenderRegistry.List) cb.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = g });
+            if (!string.IsNullOrEmpty(prev) && !GenderRegistry.List.Contains(prev) && prev != "全部")
+                cb.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = prev });
+            for (int i = 0; i < cb.Items.Count; i++) {
+                var ci = cb.Items[i] as System.Windows.Controls.ComboBoxItem;
+                if (ci != null && ci.Content != null && ci.Content.ToString() == prev) { cb.SelectedIndex = i; return; }
+            }
+            if (cb.Items.Count > 0) cb.SelectedIndex = 0;
+        }
+
         private static string NormGender(string g) {
             if (string.IsNullOrEmpty(g)) return "";
             if (g == "男子") return "男";

@@ -388,6 +388,9 @@
     <Compile Include="..\SwimmingScoreboard\HeatExcelService.cs">
       <Link>HeatExcelService.cs</Link>
     </Compile>
+    <Compile Include="..\SwimmingScoreboard\RelayLegSheetService.cs">
+      <Link>RelayLegSheetService.cs</Link>
+    </Compile>
     <Compile Include="..\SwimmingScoreboard\HeatImportPromptWindow.xaml.cs">
       <Link>HeatImportPromptWindow.xaml.cs</Link>
       <DependentUpon>HeatImportPromptWindow.xaml</DependentUpon>
