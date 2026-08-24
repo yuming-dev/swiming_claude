@@ -50,3 +50,9 @@ LapAdjust_TestReport.csv
 # 2026-06-02 比赛档案包: 含选手 PII (姓名/出生日期/单位等), 离线分发 - 任何 比赛档案包 命名的目录 / zip 都不入库
 *比赛档案包*/
 *比赛档案包*.zip
+
+# 2026-08-24 第三方依赖库必须入库（例外于上面的 *.dll）
+# 三个工程的 csproj 全部 HintPath 到 SwimmingScoreboard\libs\，不入库就意味着
+# clone 下来编译不了。之前没暴露，是因为 MSBuild 默认搜索路径会从 bin\ 兜底，
+# 清一次 bin/obj 就断。比赛现场机器不一定有网，不能指望 NuGet restore。
+!SwimmingScoreboard/libs/**/*.dll
