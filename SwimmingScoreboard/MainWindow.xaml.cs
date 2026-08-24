@@ -5365,9 +5365,14 @@ namespace SwimmingScoreboard
             UpdateLaneStatusDisplay();
             Broadcast();
             // 2026-05-13 #6 比赛过程数据（触板/盲表/反应时）也要立刻持久化+同步给编排端。
-            // 滚动时间 0x7F 已在前面 if(cmdType=="RunningTime") return; 提前返回，不会落到这里，
-            // 所以这里调 AutoSaveData 不会被 100ms 节拍拖累 IO。
-            try { AutoSaveData(); } catch (Exception ex) { AddLog("成绩持久化失败: " + ex.Message); }
+            // 滚动时间 0x7F 已在前面 if(cmdType=="RunningTime") return; 提前返回，不会落到这里。
+            //
+            // 2026-08-24 迁移第2步：这里原来每次触板都 AutoSaveData()，也就是
+            // BuildCurrentPackage + 序列化整个 1.2MB 的包再写盘。400 米一组上百次
+            // 事件，每次约 20MB 分配，1.2MB 的字符串还直接进大对象堆(LOH 不压缩)
+            // —— 那次内存涨到几 GB、清内存也降不下来，根就在这一行。
+            // 改成只写当前组库那几行；JSON 仍留一条低频兜底(见 SaveHeatProgress)。
+            try { SaveHeatProgress(); } catch (Exception ex) { AddLog("成绩持久化失败: " + ex.Message); }
         }
 
         /// <summary>
@@ -7983,6 +7988,7 @@ namespace SwimmingScoreboard
             }
 
             _raceState = RaceState.Ready;
+            OpenLiveHeat();               // 2026-08-24 迁移第2步: 本组改走当前组库
             UpdateRaceStateDisplay();
             // ResetForNewRace 把"出发端"的 Open 状态给对应设备:
             //   普通泳姿: 出发台 Open (= 运动员站台等枪响)
@@ -8198,6 +8204,7 @@ namespace SwimmingScoreboard
             // 没当前组（_currentHeat <= 0）也要把状态机硬复位，避免按键静默失效。
             if (_currentHeat <= 0) {
                 _raceState = RaceState.Waiting;
+            DiscardLiveHeat();            // 2026-08-24 复位=本组作废: 解锁并清当前组库, 不回写
                 FlushDeferredSync();          // 2026-08-24 补推比赛中暂存的同步
                 if (_raceTimer != null) _raceTimer.Stop();
                 if (_countdownTimer != null) _countdownTimer.Stop();
@@ -8408,6 +8415,7 @@ namespace SwimmingScoreboard
             try { UpdateHeatRanking(); } catch (Exception ex) { AddLog("成绩排名计算失败: " + ex.Message); }
             try { UpdateRecordsAfterConfirm(); } catch (Exception ex) { AddLog("更新记录库失败: " + ex.Message); }
             try { AutoSaveData(); } catch (Exception ex) { AddLog("自动保存失败: " + ex.Message); }
+            try { CommitLiveHeat(); } catch (Exception ex) { AddLog("竞赛库回写失败: " + ex.Message); }
             try { UpdateLaneStatusDisplay(); } catch (Exception ex) { AddLog("泳道状态显示刷新失败: " + ex.Message); }
             try { UpdateRaceStateDisplay(); } catch (Exception ex) { AddLog("比赛状态显示刷新失败: " + ex.Message); }
 
@@ -21061,6 +21069,89 @@ namespace SwimmingScoreboard
                     }
                 }
             } catch { }
+        }
+
+        // ── 2026-08-24 迁移第 2 步：比赛热路径改走当前组库 ─────────────────
+        // 就位 → OpenLiveHeat()   把本组名单灌进 current_heat.db 并加锁
+        // 比赛中 → SaveHeatProgress()  只写那个几十 KB 的小库
+        // 确认成绩 → CommitLiveHeat()  回写竞赛库、查破纪录、解锁、清小库
+        //
+        // 当前组库没就绪（库里找不到这一组、导入失败…）时一律降级回
+        // AutoSaveData()，行为和改之前一模一样 —— 比赛不能因为新库出问题而停。
+
+        // JSON 兜底的最小间隔。小库已经完整记着本组成绩了，JSON 只是防
+        // 进程崩了之后老的恢复路径（重新加载档案）读不到东西。
+        private DateTime _lastHeatJsonSave = DateTime.MinValue;
+        private static readonly TimeSpan HeatJsonSaveGap = TimeSpan.FromSeconds(15);
+
+        private void OpenLiveHeat() {
+            try {
+                if (!_meetDb.IsOpen || _currentHeat <= 0 || string.IsNullOrEmpty(_currentEvent)) return;
+                _meetDb.LiveOpen(_currentAgeGroup, _currentGender, _currentEvent,
+                                 _currentStage, _currentHeat, Environment.MachineName);
+            } catch (Exception ex) { AddLog("当前组库打开失败(按原方式保存): " + ex.Message); }
+        }
+
+        private void DiscardLiveHeat() {
+            try { _meetDb.LiveDiscard(Environment.MachineName); } catch { }
+        }
+
+        private void CommitLiveHeat() {
+            if (!_meetDb.LiveActive) return;
+            var breaks = _meetDb.LiveCommit(Environment.MachineName);
+            foreach (var b in breaks) {
+                AddLog(string.Format("破纪录: {0} {1} 原 {2} ({3}) → 新 {4} ({5}){6}",
+                    b.Record.Abbr, b.Record.EventName,
+                    TimeFormatter.Format(b.Record.TimeSeconds), b.Record.HolderName,
+                    TimeFormatter.Format(b.NewTime), b.NewHolder, b.IsTie ? " 平" : ""));
+            }
+        }
+
+        /// <summary>把本组各泳道的当前成绩写进当前组库。降级时退回 AutoSaveData()。</summary>
+        private void SaveHeatProgress() {
+            if (!_meetDb.LiveActive) { AutoSaveData(); return; }
+
+            var lanes = new List<SwimmingScoreboard.Db.LiveLane>();
+            foreach (var s in GetCurrentHeatSwimmers()) {
+                int lane = LaneOfStage(s, _currentStage);
+                if (lane < 0) continue;
+                var res = s.GetResultForStage(_currentStage);
+                var ln = new SwimmingScoreboard.Db.LiveLane { Lane = lane, Name = s.Name };
+                if (res != null) {
+                    ln.FinalTime      = res.FinalTime;
+                    ln.Rank           = res.Rank;
+                    ln.Status         = res.Status;
+                    ln.RecordNote     = res.RecordNote;
+                    ln.TimingSource   = res.TimingSource;
+                    ln.TouchpadTime   = res.TouchpadTime;
+                    ln.StartBlockTime = res.StartingBlockTime;
+                    ln.Pb1Time        = res.PushButton1Time;
+                    ln.Pb2Time        = res.PushButton2Time;
+                    ln.Pb3Time        = res.PushButton3Time;
+                    ln.ManualLeft     = res.ManualTouchTimeLeft;
+                    ln.ManualRight    = res.ManualTouchTimeRight;
+                    ln.IsFinished     = res.FinalTime > 0;
+                    if (res.Splits != null) {
+                        ln.Splits = new List<SwimmingScoreboard.Db.SplitDto>();
+                        foreach (var sp in res.Splits) {
+                            if (sp == null || sp.IsDeleted || sp.Distance <= 0) continue;
+                            ln.Splits.Add(new SwimmingScoreboard.Db.SplitDto {
+                                Distance = sp.Distance, CumulativeTime = sp.CumulativeTime,
+                                LapTime = sp.Time, TimingSource = sp.TimingSource, IsManual = sp.IsManual });
+                        }
+                    }
+                }
+                lanes.Add(ln);
+            }
+
+            if (!_meetDb.LiveSaveLanes(lanes)) { AutoSaveData(); return; }   // 写失败就降级
+
+            // JSON 低频兜底：小库里已经是完整的了，这里只防进程崩掉之后
+            // 老的恢复路径读不到东西。原来是每次触板一存(每次 1.2MB)，现在 15 秒一次。
+            if (DateTime.Now - _lastHeatJsonSave >= HeatJsonSaveGap) {
+                _lastHeatJsonSave = DateTime.Now;
+                AutoSaveData();
+            }
         }
 
         // ── 2026-08-24 竞赛管理库同步（迁移第 1 步：只写不读）──────────────

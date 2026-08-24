@@ -39,6 +39,13 @@ namespace SwimmingScoreboard.Db
         public string DbPath { get { return _dbPath; } }
         public bool IsOpen { get { return _svc != null; } }
 
+        /// <summary>
+        /// 库文件放在哪个目录下的 Database\ 里。留空则用程序所在目录。
+        /// 做成可覆盖是为了别把路径钉死在 AppDomain.BaseDirectory 上 ——
+        /// 换宿主(测试脚本、以后的服务进程)时那个值不是程序目录。
+        /// </summary>
+        public string BaseDir { get; set; }
+
         public MeetDbBridge(Action<string> log) { _log = log ?? delegate { }; }
 
         private void Log(string s) { try { _log(s); } catch { } }
@@ -53,7 +60,8 @@ namespace SwimmingScoreboard.Db
             Close();
             try
             {
-                string dir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Database");
+                string root = string.IsNullOrEmpty(BaseDir) ? AppDomain.CurrentDomain.BaseDirectory : BaseDir;
+                string dir = Path.Combine(root, "Database");
                 if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
                 _dbPath = Path.Combine(dir, SafeName(competitionName) + ".db");
                 _svc = new LocalMeetService(_dbPath);
@@ -254,6 +262,114 @@ namespace SwimmingScoreboard.Db
         private static string Fmt(SortedDictionary<int, string> d)
         {
             return string.Join(" ", d.Select(kv => kv.Key + ":" + kv.Value).ToArray());
+        }
+
+        // ══════════════════════════════════════════════════════════════
+        // 当前组库（迁移第 2 步）
+        //
+        // 原来每次触板都 AutoSaveData() → BuildCurrentPackage + 序列化整个
+        // 1.2 MB 的包再写盘。400 米一组上百次事件，每次约 20 MB 分配，
+        // 而 1.2 MB 的字符串直接进大对象堆(LOH 不压缩) —— 这就是那次内存
+        // 涨到几 GB、"清内存"也降不下来的根。
+        //
+        // 改成：比赛中只写 current_heat.db 里那几行，几十 KB 的小文件。
+        // 确认成绩时才回写大库 + 存一次 JSON。
+        //
+        // 【失败一律降级，不阻断比赛】LiveActive 为 false 时，主程序会退回
+        // 原来的 AutoSaveData 路径，行为和改之前一模一样。
+        // ══════════════════════════════════════════════════════════════
+        private bool _liveActive;
+        private long _liveRoundId;
+        private int  _liveHeat;
+
+        /// <summary>当前组库是否已就绪。false 时调用方必须走原来的保存路径。</summary>
+        public bool LiveActive { get { return _liveActive; } }
+        public long LiveRoundId { get { return _liveRoundId; } }
+        public int  LiveHeat    { get { return _liveHeat; } }
+
+        /// <summary>就位时调：把本组名单灌进当前组库并加锁。失败返回 false（调用方降级）。</summary>
+        public bool LiveOpen(string ageGroup, string gender, string eventName, string stage, int heat, string op)
+        {
+            _liveActive = false;
+            if (_svc == null || heat <= 0) return false;
+            try
+            {
+                long rid = ResolveRound(ageGroup, gender, eventName, stage);
+                if (rid == 0)
+                {
+                    Log("当前组库: 库里找不到 " + (ageGroup ?? "") + gender + " " + eventName
+                        + " " + stage + "，本组仍按原方式保存");
+                    return false;
+                }
+                var live = _svc.OpenHeat(rid, heat, op);
+                if (live == null || live.Lanes.Count == 0) return false;
+                _liveRoundId = rid; _liveHeat = heat; _liveActive = true;
+                Log(string.Format("当前组库已就绪: 第{0}组 {1}道（比赛中不再序列化整包）", heat, live.Lanes.Count));
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Log("当前组库打开失败，本组按原方式保存: " + ex.Message);
+                return false;
+            }
+        }
+
+        /// <summary>比赛中每来一个计时事件调一次。只写当前组库的几行。</summary>
+        public bool LiveSaveLanes(IEnumerable<LiveLane> lanes)
+        {
+            if (!_liveActive || _svc == null || lanes == null) return false;
+            try
+            {
+                foreach (var ln in lanes)
+                {
+                    _svc.UpdateLane(ln.Lane, ln);
+                    if (ln.Splits != null)
+                        foreach (var sp in ln.Splits)
+                            _svc.UpdateSplit(ln.Lane, sp.Distance, sp.CumulativeTime, sp.LapTime, sp.TimingSource);
+                }
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Log("当前组库写入失败(已降级为原方式): " + ex.Message);
+                _liveActive = false;      // 一旦出问题就交回原路径，别让成绩没地方落
+                return false;
+            }
+        }
+
+        public void LiveSetRaceState(string state, string gunTime)
+        {
+            if (!_liveActive || _svc == null) return;
+            try { _svc.SetRaceState(state, gunTime); } catch { }
+        }
+
+        /// <summary>确认成绩：回写竞赛库、查破纪录、解锁、清当前组库。</summary>
+        public List<RecordBreak> LiveCommit(string op)
+        {
+            var empty = new List<RecordBreak>();
+            if (!_liveActive || _svc == null) return empty;
+            try
+            {
+                var breaks = _svc.CommitHeat(op);
+                _liveActive = false;
+                Log(string.Format("当前组库已回写竞赛库: 第{0}组{1}", _liveHeat,
+                    breaks.Count > 0 ? "，破纪录 " + breaks.Count + " 项" : ""));
+                return breaks;
+            }
+            catch (Exception ex)
+            {
+                _liveActive = false;
+                Log("当前组库回写失败(成绩仍以档案为准): " + ex.Message);
+                return empty;
+            }
+        }
+
+        /// <summary>复位 / 重赛 / 切组：放弃本组，解锁并清空当前组库，不回写。</summary>
+        public void LiveDiscard(string op)
+        {
+            if (_svc == null) return;
+            try { if (_liveActive) _svc.DiscardHeat(op); } catch { }
+            _liveActive = false;
         }
     }
 }
