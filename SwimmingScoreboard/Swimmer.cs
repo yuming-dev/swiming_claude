@@ -579,7 +579,15 @@ namespace SwimmingScoreboard
             get { return _results; }
         }
 
+        // 2026-08-24 原来只按赛次找第一条 —— 同一赛次若有多条成绩(并组/取消组后重排、
+        //   重赛)就会取到已经作废的那条。全仓库有 28 处调用它, 在这里一次修好。
+        //   规则: 以"当前分组说他在第几组"为准; 找不到再退回旧行为兼容老档案。
         public LaneResult GetResultForStage(string stage) {
+            var a = GetAssignmentForStage(stage);
+            if (a != null && a.Heat > 0) {
+                var byHeat = _results.FirstOrDefault(r => r.Stage == stage && r.Heat == a.Heat);
+                if (byHeat != null) return byHeat;
+            }
             return _results.FirstOrDefault(r => r.Stage == stage);
         }
 
@@ -1362,8 +1370,22 @@ namespace SwimmingScoreboard
     // ═══════════════════════════════════════════════════════════════
     // 赛程项目
     // ═══════════════════════════════════════════════════════════════
+    // 2026-08-24 被取消的组（并组 / 直接取消）。
+    //   组次号采用"保留空号"方案：第2组并入第1组后，第2组仍占着 2 号，
+    //   只是标记为已取消 —— 秩序册已印发到运动员手上，把原第3组改叫第2组会现场大乱。
+    //   记录留在原地，可查、可打印、可追溯。
+    public class CancelledHeat
+    {
+        public int Heat { get; set; }          // 被取消的组次
+        public int MergedInto { get; set; }    // 并入了哪一组；0 = 直接取消，没有并入
+        public string Reason { get; set; }     // 原因（人不够 / 弃权 / 人工填写）
+        public string Time { get; set; }       // 操作时间 yyyy-MM-dd HH:mm
+        public string Operator { get; set; }   // 操作人（留字段，暂不填）
+    }
+
     public class ScheduleItem : INotifyPropertyChanged
     {
+        private List<CancelledHeat> _cancelledHeats = new List<CancelledHeat>();
         private int _sessionNumber;
         private string _sessionName;
         private string _date;
@@ -1384,6 +1406,11 @@ namespace SwimmingScoreboard
         public int EvNum {
             get { return _evNum; }
             set { _evNum = value; OnPropertyChanged("EvNum"); }
+        }
+        // 2026-08-24 被取消的组。老档案没有这个字段 → 反序列化为 null，这里兜底成空表。
+        public List<CancelledHeat> CancelledHeats {
+            get { return _cancelledHeats; }
+            set { _cancelledHeats = value ?? new List<CancelledHeat>(); OnPropertyChanged("CancelledHeats"); }
         }
         public string SessionName {
             get { return _sessionName; }
