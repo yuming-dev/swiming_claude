@@ -472,6 +472,9 @@
     <Compile Include="..\SwimmingScoreboard\Db\MeetContracts.cs">
       <Link>Db\MeetContracts.cs</Link>
     </Compile>
+    <Compile Include="..\SwimmingScoreboard\Db\MeetDbBridge.cs">
+      <Link>Db\MeetDbBridge.cs</Link>
+    </Compile>
     <Compile Include="..\SwimmingScoreboard\Db\LocalMeetService.cs">
       <Link>Db\LocalMeetService.cs</Link>
     </Compile>

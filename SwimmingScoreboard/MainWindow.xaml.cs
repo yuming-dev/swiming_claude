@@ -30,6 +30,12 @@ namespace SwimmingScoreboard
         // 核心数据集合
         // ═══════════════════════════════════════════════════════════════
         private ObservableCollection<Swimmer> _swimmers = new ObservableCollection<Swimmer>();
+
+        // 2026-08-24 竞赛管理库(SQLite)。迁移第 1 步：只写不读，纯影子。
+        // 打开档案时导入一份并逐组自检，先把两边的差异暴露出来；
+        // 读路径这一步一处都不动，所以它坏了也不影响比赛。
+        private readonly SwimmingScoreboard.Db.MeetDbBridge _meetDb =
+            new SwimmingScoreboard.Db.MeetDbBridge(null);
         private ObservableCollection<RelayTeam> _relayTeams = new ObservableCollection<RelayTeam>();
         private ObservableCollection<SwimmingRecord> _records = new ObservableCollection<SwimmingRecord>();
         private ObservableCollection<TeamScore> _teamScores = new ObservableCollection<TeamScore>();
@@ -21057,6 +21063,22 @@ namespace SwimmingScoreboard
             } catch { }
         }
 
+        // ── 2026-08-24 竞赛管理库同步（迁移第 1 步：只写不读）──────────────
+        // 打开档案时把包灌进 meet.db，然后逐组比对库和内存的名单。
+        // 现阶段库不参与任何读，自检不通过也只记日志、不阻断 ——
+        // 它的作用是在真正把读路径搬到库上之前，先把差异暴露出来。
+        private void SyncToMeetDb(CompetitionPackage package) {
+            try {
+                if (!_meetDb.Open(_competitionName)) return;
+                if (!_meetDb.ImportPackage(package)) return;
+                var chk = _meetDb.SelfCheck(package);
+                AddLog(chk.ToString());
+                foreach (var d in chk.Diffs.Take(5)) AddLog("  差异: " + d);
+            } catch (Exception ex) {
+                AddLog("竞赛库同步失败(不影响比赛): " + ex.Message);
+            }
+        }
+
         private void LoadCompetitionFromFile(string path) {
             try {
                 string json = File.ReadAllText(path, Encoding.UTF8);
@@ -21225,6 +21247,7 @@ namespace SwimmingScoreboard
                 RefreshRecordFilterCombos();
 
                 AddLog("已加载赛事: " + _competitionName);
+                SyncToMeetDb(package);
             } catch (Exception ex) {
                 AddLog("加载赛事失败: " + ex.Message);
             }

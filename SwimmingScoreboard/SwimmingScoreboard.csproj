@@ -335,6 +335,7 @@
     <Compile Include="Db\LiveHeatSchema.cs" />
     <Compile Include="Db\MeetDb.cs" />
     <Compile Include="Db\MeetContracts.cs" />
+    <Compile Include="Db\MeetDbBridge.cs" />
     <Compile Include="Db\LocalMeetService.cs" />
     <Compile Include="Db\PackageImporter.cs" />
     <Compile Include="HeatExcelService.cs" />
