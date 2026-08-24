@@ -452,4 +452,34 @@
   </ItemGroup>
 
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <!-- 2026-08-24 竞赛管理库改用 SQLite：行级读写，不再整包序列化 -->
+  <ItemGroup>
+    <Reference Include="System.Data.SQLite">
+      <HintPath>..\SwimmingScoreboard\libs\System.Data.SQLite.dll</HintPath>
+    </Reference>
+    <Compile Include="..\SwimmingScoreboard\Db\MeetSchema.cs">
+      <Link>Db\MeetSchema.cs</Link>
+    </Compile>
+    <Compile Include="..\SwimmingScoreboard\Db\LiveHeatSchema.cs">
+      <Link>Db\LiveHeatSchema.cs</Link>
+    </Compile>
+    <Compile Include="..\SwimmingScoreboard\Db\MeetDb.cs">
+      <Link>Db\MeetDb.cs</Link>
+    </Compile>
+    <Compile Include="..\SwimmingScoreboard\Db\PackageImporter.cs">
+      <Link>Db\PackageImporter.cs</Link>
+    </Compile>
+    <Compile Include="..\SwimmingScoreboard\Db\MeetContracts.cs">
+      <Link>Db\MeetContracts.cs</Link>
+    </Compile>
+    <Compile Include="..\SwimmingScoreboard\Db\LocalMeetService.cs">
+      <Link>Db\LocalMeetService.cs</Link>
+    </Compile>
+    <!-- 原生 interop 必须落在输出目录的 x64\ 下，System.Data.SQLite 按进程位数
+         自己去那里找它；漏了要到运行时才报错（比赛当天才发现），所以随生成一起复制 -->
+    <Content Include="..\SwimmingScoreboard\libs\x64\SQLite.Interop.dll">
+      <Link>x64\SQLite.Interop.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
 </Project>
