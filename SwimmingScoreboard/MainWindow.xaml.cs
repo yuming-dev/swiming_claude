@@ -348,6 +348,72 @@ namespace SwimmingScoreboard
 
         // 2026-06-17 RemoteTimingControl 模式: 入口程序集名 = "RemoteTimingControl" 时,
         // 跳过 WebSocket Server 启动, 跳过本地硬件直连. 只保留"比赛控制"标签页.
+        // ══════════════════════════════════════════════════════════════
+        // 2026-08-25 机器角色
+        //
+        //   standalone(默认)  一台机器全干 —— 小比赛照旧, 什么都不变
+        //   server            主服务器: 【不承担计时】, 计时交给专门的计时机
+        //   timing            计时机: 专心计时(RemoteTimingControl 走这个)
+        //
+        // 正规比赛不该由一台机器包办, 计时必须独立 —— 这是行业做法。
+        // 但【代码一行不删】: 两个 exe 编的是同一份 MainWindow.xaml.cs,
+        // 删了主服务器的计时, RemoteTimingControl 的也一起没了。
+        // 所以只能像下面 IsRemoteTimingControlMode 那样做成运行时开关。
+        //
+        // 来源(命令行优先): --role server  |  meet_service.json { "Role": "server" }
+        // ══════════════════════════════════════════════════════════════
+        private static string _roleCache;
+        public static string MachineRole {
+            get {
+                if (_roleCache != null) return _roleCache;
+                _roleCache = "standalone";
+                try {
+                    var args = Environment.GetCommandLineArgs();
+                    for (int i = 0; i < args.Length; i++) {
+                        if (args[i].StartsWith("--role=", StringComparison.OrdinalIgnoreCase))
+                        { _roleCache = args[i].Substring(7).Trim().ToLowerInvariant(); return _roleCache; }
+                        if (string.Equals(args[i], "--role", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length)
+                        { _roleCache = args[i + 1].Trim().ToLowerInvariant(); return _roleCache; }
+                    }
+                    string cfg = IOPath.Combine(AppDomain.CurrentDomain.BaseDirectory, "meet_service.json");
+                    if (File.Exists(cfg)) {
+                        var o = JObject.Parse(File.ReadAllText(cfg, Encoding.UTF8));
+                        if (o["Role"] != null) _roleCache = o["Role"].ToString().Trim().ToLowerInvariant();
+                    }
+                } catch { }
+                return _roleCache;
+            }
+        }
+
+        /// <summary>本机是"只管竞赛数据、不承担计时"的主服务器。</summary>
+        public static bool IsScoringServerNoTiming {
+            get { return MachineRole == "server" && !IsRemoteTimingControlMode; }
+        }
+
+        /// <summary>
+        /// 主服务器角色: 把"比赛控制"整个标签页从界面上摘掉 —— 不是禁用按钮,
+        /// 是根本进不去。计时是计时机的事, 主服务器上不该有这个入口,
+        /// 免得操作员误以为可以在这台机器上发令。
+        /// 用 Remove 而不是 Visibility=Collapsed: 折叠只是看不见, Tab 键还能切进去。
+        /// </summary>
+        private void ApplyMachineRoleToUi() {
+            try {
+                if (!IsScoringServerNoTiming) return;
+                if (RaceControlTab != null && RaceControlTab.Parent is System.Windows.Controls.TabControl) {
+                    var tc = (System.Windows.Controls.TabControl)RaceControlTab.Parent;
+                    tc.Items.Remove(RaceControlTab);
+                    AddLog("本机为主服务器（不承担计时）：已移除「比赛控制」页，请在计时机上操作");
+                }
+            } catch (Exception ex) { AddLog("按角色调整界面失败: " + ex.Message); }
+        }
+
+        /// <summary>计时相关操作的统一守卫。被挡下时回 true。</summary>
+        private bool BlockIfNoTiming(string what) {
+            if (!IsScoringServerNoTiming) return false;
+            AddLog(string.Format("本机为主服务器（不承担计时），已忽略：{0}。请在计时机上操作。", what));
+            return true;
+        }
+
         public static bool IsRemoteTimingControlMode {
             get {
                 try {
@@ -382,6 +448,7 @@ namespace SwimmingScoreboard
             LoadThermalPrinterConfig();      // 2026-06-12 加载 USB 热敏打印机 配置 (实时打印 TP/SB/MB)
             ApplyPersistedDeviceStates();   // 设备状态（损坏/未安装/手动按键）从 device_states.json 还原
             LoadTimingConnectionConfig();   // 通讯参数从 timing_connection.json 还原
+            ApplyMachineRoleToUi();         // 2026-08-25 主服务器角色: 摘掉「比赛控制」页
             LoadLastCompetition();
             // 2026-05-26 不在此处再调 ApplyTouchpadInstallModeToLanes — 它会覆盖 ApplyPersistedDeviceStates
             //   刚还原的 NotInstalled 标志. 所有"计算后状态"已在 (设置变更 / 硬件 0x3A / 0x42) 时
@@ -2120,6 +2187,26 @@ namespace SwimmingScoreboard
 
             // 收到的远端命令统一写日志，便于排查"按了 HTML/EXE 按钮服务器没反应"问题
             AddLog("远端命令: " + (string.IsNullOrEmpty(cmd) ? "(空)" : cmd));
+
+            // 主服务器角色: 比赛控制类命令一律拒绝, 明确回话, 别让操作员干等。
+            // 其余命令(切项目/切组次/显示控制等)照常 —— 它管的是竞赛数据, 不是计时。
+            if (IsScoringServerNoTiming) {
+                switch (cmd) {
+                    case "READY": case "START_RACE": case "RESTART": case "TIMER_RESET":
+                    case "CONFIRM_RESULT": case "MARK_DSQ": case "MARK_DNS": case "MARK_DNF":
+                    case "MANUAL_SPLIT":
+                        AddLog("本机为主服务器（不承担计时），拒绝执行：" + cmd);
+                        if (socket != null) {
+                            try {
+                                EnqueueToSocket(socket, Newtonsoft.Json.JsonConvert.SerializeObject(new {
+                                    type = "TIMING_CMD_REJECTED", command = cmd,
+                                    reason = "本机为主服务器，不承担计时，请在计时机上操作"
+                                }));
+                            } catch { }
+                        }
+                        return;
+                }
+            }
 
             switch (cmd) {
                 case "READY":
@@ -4236,6 +4323,8 @@ namespace SwimmingScoreboard
         }
 
         private void ProcessTimingDataFromHardware(TimingData data) {
+            // 双保险: 就算有帧从别处进来(手工连了硬件/遥控转发), 主服务器也不处理
+            if (IsScoringServerNoTiming) return;
             // 硬件下发的参数设置帧：不走运动员计时路径，走双向同步
             if (data.CommandType == TimingCommandType.PoolConfig ||
                 data.CommandType == TimingCommandType.RaceConfig ||
@@ -7981,6 +8070,7 @@ namespace SwimmingScoreboard
         // 比赛控制按钮
         // ═══════════════════════════════════════════════════════════════
         private void Ready_Click(object sender, RoutedEventArgs e) {
+            if (BlockIfNoTiming("就位")) return;
             // 状态守卫 → 改本地状态 → 送 0x21；硬件参数在每次 Ready 时由 SendSetMatchEventToHardware 一同下发
             // 2026-05-30 本地点击 (sender!=null) 时检查硬件连接; 硬件回报/WebSocket 远程 (sender==null) 跳过弹窗
             if (sender != null && !EnsureHardwareConnected("准备就绪")) return;
@@ -8092,6 +8182,7 @@ namespace SwimmingScoreboard
         }
 
         private void StartRace_Click(object sender, RoutedEventArgs e) {
+            if (BlockIfNoTiming("发令")) return;
             // 计时复位后状态会回到 Waiting；点"发令"前用户可能没点"就位"，此时自动先就位再发令。
             // 走 EnterReadyStateInternal 跳过 Ready_Click 的确认对话框（用户按"发令"已明确开始意图），
             // 同时仍把 0x43+0x21 推给硬件，让硬件先进 Ready 再接受 0x1C。
@@ -8255,6 +8346,7 @@ namespace SwimmingScoreboard
         }
 
         private void Restart_Click(object sender, RoutedEventArgs e) {
+            if (BlockIfNoTiming("计时复位")) return;
             // 本地点击"计时复位"先弹确认，避免误按导致丢失计时数据；
             // 硬件触发或 WebSocket 远程调用（sender==null）跳过对话框
             // 2026-05-30 本地点击 (sender!=null) 时检查硬件连接
@@ -8468,6 +8560,7 @@ namespace SwimmingScoreboard
         }
 
         private void ConfirmResult_Click(object sender, RoutedEventArgs e) {
+            if (BlockIfNoTiming("确认成绩")) return;
             // 本地按钮点击时弹确认对话框，WebSocket远程调用时(sender==null)跳过
             if (sender != null) {
                 string info = string.Format("{0} {1} {2} 第{3}组", _currentGender, _currentEvent, _currentStage, _currentHeat);
@@ -20673,6 +20766,11 @@ namespace SwimmingScoreboard
 
         // 启动时自动重连（仅当 AutoReconnectOnStartup=true）
         private void TryAutoReconnectTiming() {
+            // 主服务器角色: 根本不碰计时硬件, 免得跟计时机抢同一台设备
+            if (IsScoringServerNoTiming) {
+                AddLog("本机为主服务器（不承担计时）：跳过计时硬件连接");
+                return;
+            }
             if (_timingConn == null || !_timingConn.AutoReconnectOnStartup) return;
             try {
                 if (_timingConn.LastType == "serial" && !string.IsNullOrEmpty(_timingConn.SerialPort)) {

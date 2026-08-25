@@ -855,7 +855,7 @@
             </TabItem>
 
             <!-- ═══ 比赛控制 ═══ -->
-            <TabItem Header="比赛控制">
+            <TabItem x:Name="RaceControlTab" Header="比赛控制">
                 <Grid Margin="10">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="220"/>
