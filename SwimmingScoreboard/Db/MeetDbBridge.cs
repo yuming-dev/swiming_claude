@@ -30,14 +30,27 @@ namespace SwimmingScoreboard.Db
         // 转义在跨工具传递时被吃掉过一次。
         private const char SEP = (char)1;
 
-        private LocalMeetService _svc;
+        // 竞赛管理库的访问方: 单机时就是 _local; 联网计时端时是 RemoteMeetService。
+        // 当前组库【永远是本机的】—— 比赛中的高频写不许过网, 这是整个设计的核心。
+        private IMeetService _meet;
+        private LocalMeetService _local;
+        private WebSocketRpcTransport _rpc;
         private string _dbPath;
         private readonly Action<string> _log;
 
-        /// <summary>当前档案对应的库；未打开时为 null。调用方必须判空。</summary>
-        public LocalMeetService Service { get { return _svc; } }
+        /// <summary>true = 连远端主服务器取竞赛数据; false = 本机开库。</summary>
+        public bool IsRemote { get { return _rpc != null; } }
+
+        /// <summary>联网计时端: 主服务器地址。留空 = 单机模式。</summary>
+        public string ServerHost;
+        public int ServerPort = 3002;
+
+        /// <summary>竞赛管理库的访问方(本机或远端)；未打开时为 null。</summary>
+        public IMeetService Service { get { return _meet; } }
+        /// <summary>本机那份(单机模式下和 Service 是同一个)。当前组库只认它。</summary>
+        public LocalMeetService Local { get { return _local; } }
         public string DbPath { get { return _dbPath; } }
-        public bool IsOpen { get { return _svc != null; } }
+        public bool IsOpen { get { return _meet != null; } }
 
         /// <summary>
         /// 库文件放在哪个目录下的 Database\ 里。留空则用程序所在目录。
@@ -46,7 +59,61 @@ namespace SwimmingScoreboard.Db
         /// </summary>
         public string BaseDir { get; set; }
 
-        public MeetDbBridge(Action<string> log) { _log = log ?? delegate { }; }
+        public MeetDbBridge(Action<string> log)
+        {
+            _log = log ?? delegate { };
+            LoadServiceConfig();
+        }
+
+        /// <summary>
+        /// 决定这台机器是单机开库还是连主服务器。两个来源, 命令行优先:
+        ///   命令行  --meet-server 192.168.1.10[:3002]
+        ///   配置文件 程序目录\meet_service.json
+        ///       { "Mode": "remote", "Host": "192.168.1.10", "Port": 3002 }
+        /// 都没有 = 单机, 跟现在完全一样。
+        ///
+        /// 这么设计是为了让计时端换一台机器只改一个文件, 不用重新编译;
+        /// 而单机小比赛什么都不配就能用, 不必先架服务器。
+        /// </summary>
+        private void LoadServiceConfig()
+        {
+            try
+            {
+                foreach (var a in Environment.GetCommandLineArgs())
+                {
+                    if (!a.StartsWith("--meet-server=", StringComparison.OrdinalIgnoreCase)) continue;
+                    ApplyHostSpec(a.Substring("--meet-server=".Length));
+                    return;
+                }
+                var args = Environment.GetCommandLineArgs();
+                for (int i = 0; i < args.Length - 1; i++)
+                    if (string.Equals(args[i], "--meet-server", StringComparison.OrdinalIgnoreCase))
+                    { ApplyHostSpec(args[i + 1]); return; }
+
+                string root = string.IsNullOrEmpty(BaseDir) ? AppDomain.CurrentDomain.BaseDirectory : BaseDir;
+                string cfg = Path.Combine(root, "meet_service.json");
+                if (!File.Exists(cfg)) return;
+                var o = Newtonsoft.Json.Linq.JObject.Parse(File.ReadAllText(cfg, Encoding.UTF8));
+                string mode = o["Mode"] != null ? o["Mode"].ToString() : "local";
+                if (!string.Equals(mode, "remote", StringComparison.OrdinalIgnoreCase)) return;
+                ServerHost = o["Host"] != null ? o["Host"].ToString() : null;
+                if (o["Port"] != null) ServerPort = (int)o["Port"];
+            }
+            catch (Exception ex) { Log("读竞赛服务配置失败, 按单机跑: " + ex.Message); }
+        }
+
+        private void ApplyHostSpec(string spec)
+        {
+            if (string.IsNullOrWhiteSpace(spec)) return;
+            spec = spec.Trim();
+            int i = spec.LastIndexOf(':');
+            if (i > 0)
+            {
+                int port;
+                if (int.TryParse(spec.Substring(i + 1), out port)) { ServerHost = spec.Substring(0, i); ServerPort = port; return; }
+            }
+            ServerHost = spec;
+        }
 
         private void Log(string s) { try { _log(s); } catch { } }
 
@@ -64,12 +131,34 @@ namespace SwimmingScoreboard.Db
                 string dir = Path.Combine(root, "Database");
                 if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
                 _dbPath = Path.Combine(dir, SafeName(competitionName) + ".db");
-                _svc = new LocalMeetService(_dbPath);
+
+                // 本机这份永远要开: 联网时它只用来装当前组库(current_heat.db),
+                // 比赛中的每一次触板都写在这里, 一步都不过网。
+                _local = new LocalMeetService(_dbPath);
+
+                if (string.IsNullOrWhiteSpace(ServerHost))
+                {
+                    _meet = _local;                       // 单机
+                    return true;
+                }
+
+                _rpc = new WebSocketRpcTransport(ServerHost, ServerPort, _log);
+                if (!_rpc.Connect(10000))
+                {
+                    // 连不上就退回本机库。宁可用本机的旧数据继续比赛,
+                    // 也不能因为网络不通把整台计时机卡死。
+                    Log("连不上主服务器 " + ServerHost + ":" + ServerPort + "，本组按单机模式跑");
+                    _rpc.Dispose(); _rpc = null;
+                    _meet = _local;
+                    return true;
+                }
+                _meet = new RemoteMeetService(_rpc);
+                Log("竞赛数据走主服务器 " + ServerHost + ":" + ServerPort + "（当前组仍写本机）");
                 return true;
             }
             catch (Exception ex)
             {
-                _svc = null; _dbPath = null;
+                Close();
                 Log("竞赛库打开失败(不影响比赛): " + ex.Message);
                 return false;
             }
@@ -77,9 +166,9 @@ namespace SwimmingScoreboard.Db
 
         public void Close()
         {
-            if (_svc == null) return;
-            try { _svc.Dispose(); } catch { }
-            _svc = null; _dbPath = null;
+            if (_rpc != null) { try { _rpc.Dispose(); } catch { } _rpc = null; }
+            if (_local != null) { try { _local.Dispose(); } catch { } _local = null; }
+            _meet = null; _dbPath = null;
         }
 
         public void Dispose() { Close(); }
@@ -101,11 +190,11 @@ namespace SwimmingScoreboard.Db
         /// </summary>
         public bool ImportPackage(CompetitionPackage pkg)
         {
-            if (_svc == null || pkg == null) return false;
+            if (_local == null || pkg == null) return false;
             try
             {
                 var sw = System.Diagnostics.Stopwatch.StartNew();
-                var rep = new PackageImporter(_svc.Db).Import(pkg);
+                var rep = new PackageImporter(_local.Db).Import(pkg);
                 Log(string.Format("竞赛库已建: 项目{0} 赛次{1} 运动员{2} 报名{3} 分组{4}，{5}ms",
                     rep.Events, rep.Rounds, rep.Athletes, rep.Entries, rep.HeatEntries, sw.ElapsedMilliseconds));
                 if (rep.Warnings.Count > 0)
@@ -137,19 +226,16 @@ namespace SwimmingScoreboard.Db
         public void BuildRoundIndex()
         {
             _roundIx.Clear(); _eventIx.Clear();
-            if (_svc == null) return;
+            if (_meet == null) return;
             try
             {
-                foreach (DataRow r in _svc.Db.Query(
-                    @"SELECT r.id AS rid, e.id AS eid, e.age_group, e.gender, e.event_name, r.stage
-                      FROM rounds r
-                      JOIN round_events re ON re.round_id = r.id
-                      JOIN events e        ON e.id = re.event_id").Rows)
+                // 走服务接口而不是直接查本机库 —— 远端模式下本机那个 meet.db 是空的,
+                // 名单和日程都在服务器那边。GetSchedule 本地远端通用。
+                foreach (var row in _meet.GetSchedule())
                 {
-                    string k = RKey(Convert.ToString(r["age_group"]), Convert.ToString(r["gender"]),
-                                    Convert.ToString(r["event_name"]), Convert.ToString(r["stage"]));
-                    if (!_roundIx.ContainsKey(k)) _roundIx[k] = Convert.ToInt64(r["rid"]);
-                    if (!_eventIx.ContainsKey(k)) _eventIx[k] = Convert.ToInt64(r["eid"]);
+                    string k = RKey(row.AgeGroup, row.Gender, row.EventName, row.Stage);
+                    if (!_roundIx.ContainsKey(k)) _roundIx[k] = row.RoundId;
+                    if (!_eventIx.ContainsKey(k)) _eventIx[k] = row.EventId;
                 }
             }
             catch (Exception ex) { Log("竞赛库索引重建失败: " + ex.Message); }
@@ -191,7 +277,7 @@ namespace SwimmingScoreboard.Db
         public CheckResult SelfCheck(CompetitionPackage pkg)
         {
             var res = new CheckResult();
-            if (_svc == null || pkg == null || pkg.Swimmers == null) return res;
+            if (_local == null || pkg == null || pkg.Swimmers == null) return res;
             try
             {
                 // 档案侧：按 (组别|性别|项目|赛次|组次) 归拢出 泳道→姓名
@@ -232,7 +318,7 @@ namespace SwimmingScoreboard.Db
                     { res.Diffs.Add(Desc(parts, heat) + " 库里找不到对应赛次"); continue; }
 
                     var fromDb = new SortedDictionary<int, string>();
-                    foreach (var row in _svc.GetHeat(rid, heat))
+                    foreach (var row in _local.GetHeat(rid, heat))
                         if (row.Lane != null) fromDb[row.Lane.Value] = row.Name ?? "";
 
                     if (SameRoster(kv.Value, fromDb)) { res.HeatsMatched++; continue; }
@@ -291,7 +377,7 @@ namespace SwimmingScoreboard.Db
         public bool LiveOpen(string ageGroup, string gender, string eventName, string stage, int heat, string op)
         {
             _liveActive = false;
-            if (_svc == null || heat <= 0) return false;
+            if (_meet == null || heat <= 0) return false;
             try
             {
                 long rid = ResolveRound(ageGroup, gender, eventName, stage);
@@ -301,8 +387,11 @@ namespace SwimmingScoreboard.Db
                         + " " + stage + "，本组仍按原方式保存");
                     return false;
                 }
-                var live = _svc.OpenHeat(rid, heat, op);
+                // 名单从竞赛库取(可能在远端), 取回来灌进【本机】当前组库。
+                // 之后整场比赛只写本机那个小库。
+                var live = _meet.OpenHeat(rid, heat, op);
                 if (live == null || live.Lanes.Count == 0) return false;
+                if (!ReferenceEquals(_meet, _local)) _local.SeedLiveHeat(live);
                 _liveRoundId = rid; _liveHeat = heat; _liveActive = true;
                 Log(string.Format("当前组库已就绪: 第{0}组 {1}道（比赛中不再序列化整包）", heat, live.Lanes.Count));
                 return true;
@@ -317,15 +406,17 @@ namespace SwimmingScoreboard.Db
         /// <summary>比赛中每来一个计时事件调一次。只写当前组库的几行。</summary>
         public bool LiveSaveLanes(IEnumerable<LiveLane> lanes)
         {
-            if (!_liveActive || _svc == null || lanes == null) return false;
+            if (!_liveActive || _local == null || lanes == null) return false;
             try
             {
+                // 永远写本机。远端模式下这里一次网都不过 —— 这是"计时器专心
+                // 做好计时"落到代码上的那一行。
                 foreach (var ln in lanes)
                 {
-                    _svc.UpdateLane(ln.Lane, ln);
+                    _local.UpdateLane(ln.Lane, ln);
                     if (ln.Splits != null)
                         foreach (var sp in ln.Splits)
-                            _svc.UpdateSplit(ln.Lane, sp.Distance, sp.CumulativeTime, sp.LapTime, sp.TimingSource);
+                            _local.UpdateSplit(ln.Lane, sp.Distance, sp.CumulativeTime, sp.LapTime, sp.TimingSource);
                 }
                 return true;
             }
@@ -339,18 +430,23 @@ namespace SwimmingScoreboard.Db
 
         public void LiveSetRaceState(string state, string gunTime)
         {
-            if (!_liveActive || _svc == null) return;
-            try { _svc.SetRaceState(state, gunTime); } catch { }
+            if (!_liveActive || _local == null) return;
+            try { _local.SetRaceState(state, gunTime); } catch { }
         }
 
         /// <summary>确认成绩：回写竞赛库、查破纪录、解锁、清当前组库。</summary>
         public List<RecordBreak> LiveCommit(string op)
         {
             var empty = new List<RecordBreak>();
-            if (!_liveActive || _svc == null) return empty;
+            if (!_liveActive || _meet == null) return empty;
             try
             {
-                var breaks = _svc.CommitHeat(op);
+                // 成绩在本机小库里。远端模式必须把它整份带过去 ——
+                // 服务器那台机器的当前组库是空的, 它读自己等于回写一组空成绩。
+                var breaks = ReferenceEquals(_meet, _local)
+                    ? _local.CommitHeat(op)
+                    : _meet.CommitHeatFrom(_local.GetLiveHeat(), op);
+                if (!ReferenceEquals(_meet, _local)) _local.DiscardHeat(op);   // 清本机小库
                 _liveActive = false;
                 Log(string.Format("当前组库已回写竞赛库: 第{0}组{1}", _liveHeat,
                     breaks.Count > 0 ? "，破纪录 " + breaks.Count + " 项" : ""));
@@ -367,8 +463,9 @@ namespace SwimmingScoreboard.Db
         /// <summary>复位 / 重赛 / 切组：放弃本组，解锁并清空当前组库，不回写。</summary>
         public void LiveDiscard(string op)
         {
-            if (_svc == null) return;
-            try { if (_liveActive) _svc.DiscardHeat(op); } catch { }
+            if (_local == null) return;
+            try { if (_liveActive) _local.DiscardHeat(op); } catch { }
+            try { if (_liveActive && !ReferenceEquals(_meet, _local)) _meet.DiscardHeat(op); } catch { }
             _liveActive = false;
         }
     }

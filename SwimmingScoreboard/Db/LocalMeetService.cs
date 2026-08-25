@@ -784,6 +784,43 @@ namespace SwimmingScoreboard.Db
             return GetLiveHeat();
         }
 
+        /// <summary>
+        /// 用现成的 LiveHeat 灌本机当前组库。远端模式下, 计时端拿到服务器给的
+        /// 名单后就靠它装进本机小库; 之后比赛全程只写这个小库。
+        /// </summary>
+        public void SeedLiveHeat(LiveHeat live)
+        {
+            if (live == null) throw new MeetDataException("没有本组数据");
+            ClearLive();
+            _live.InTransaction(delegate(Func<string, object[], int> run)
+            {
+                run(@"INSERT INTO live_heat(id,meet_round_id,meet_event_id,ev_num,age_group,gender,event_name,
+                          distance,stroke,relay_legs,stage,heat,total_heats,lane_count,pool_length,total_distance,
+                          race_state,opened_at,result_confirmed,schema_version)
+                      VALUES(1,@p1,@p2,@p3,@p4,@p5,@p6,@p7,@p8,@p9,@p10,@p11,@p12,@p13,@p14,@p15,@p16,@p17,0,@p18)",
+                    new object[] { live.MeetRoundId, live.MeetEventId, live.EvNum, live.AgeGroup, live.Gender,
+                        live.EventName, live.Distance, live.Stroke, live.RelayLegs, live.Stage, live.Heat,
+                        live.TotalHeats, live.LaneCount, live.PoolLength, live.TotalDistance,
+                        live.RaceState ?? "Waiting", live.OpenedAt ?? Now(), LiveHeatSchema.Version });
+
+                foreach (var ln in live.Lanes)
+                {
+                    run(@"INSERT INTO live_lanes(lane,heat_entry_id,bib_number,name,leg_names,country,
+                              age_category,gender,seed_time,is_relay)
+                          VALUES(@p1,@p2,@p3,@p4,@p5,@p6,@p7,@p8,@p9,@p10)",
+                        new object[] { ln.Lane, ln.HeatEntryId, ln.BibNumber, ln.Name, ln.LegNames,
+                            ln.Country, ln.AgeCategory, ln.Gender, ln.SeedTime, ln.IsRelay ? 1 : 0 });
+                    if (ln.Legs != null)
+                        foreach (var g in ln.Legs)
+                            run(@"INSERT INTO live_legs(lane,leg_order,athlete_id,swimmer_name,swimmer_bib,
+                                      swimmer_id_no,swimmer_birth,reaction_time)
+                                  VALUES(@p1,@p2,@p3,@p4,@p5,@p6,@p7,@p8)",
+                                new object[] { ln.Lane, g.LegOrder, g.AthleteId, g.SwimmerName, g.SwimmerBib,
+                                    g.SwimmerIdNo, g.SwimmerBirth, g.ReactionTime });
+                }
+            });
+        }
+
         private void ClearLive()
         {
             _live.InTransaction(delegate(Func<string, object[], int> run)
@@ -898,9 +935,14 @@ namespace SwimmingScoreboard.Db
                 state, gunTime);
         }
 
-        public List<RecordBreak> CommitHeat(string op)
+        public List<RecordBreak> CommitHeat(string op) { return CommitHeatFrom(GetLiveHeat(), op); }
+
+        /// <summary>
+        /// 回写一组成绩。live 从哪来无所谓 —— 本机当前组库(单机)或计时端送来的
+        /// (远端)。回写逻辑只有这一份, 两条路不可能写出两种结果。
+        /// </summary>
+        public List<RecordBreak> CommitHeatFrom(LiveHeat live, string op)
         {
-            var live = GetLiveHeat();
             if (live == null) throw new MeetDataException("当前没有正在比赛的组");
             long roundId = live.MeetRoundId; int heat = live.Heat;
             var breaks = new List<RecordBreak>();

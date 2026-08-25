@@ -172,6 +172,8 @@ namespace SwimmingScoreboard.Db
                 case "OpenHeat":
                     return s.OpenHeat(MeetRpc.Arg<long>(a, "roundId"), MeetRpc.Arg<int>(a, "heat"), MeetRpc.Arg<string>(a, "op"));
                 case "CommitHeat":    return s.CommitHeat(MeetRpc.Arg<string>(a, "op"));
+                case "CommitHeatFrom":
+                    return s.CommitHeatFrom(MeetRpc.Arg<LiveHeat>(a, "live"), MeetRpc.Arg<string>(a, "op"));
                 case "DiscardHeat":   s.DiscardHeat(MeetRpc.Arg<string>(a, "op")); return null;
 
                 // ── H ──

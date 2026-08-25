@@ -323,6 +323,19 @@ namespace SwimmingScoreboard.Db
         void     SetRaceState(string state, string gunTime);
         /// <summary>确认成绩：回写 meet.db、查破纪录、解锁、清当前组库。</summary>
         List<RecordBreak> CommitHeat(string op);
+
+        /// <summary>
+        /// 把【外面送来的】一组成绩回写。远端模式必须走这个 ——
+        /// 计时端的成绩在计时端本机的 current_heat.db 里, 服务器自己那个是空的,
+        /// 服务器要是去读自己的, 回写的就是一组空成绩。
+        /// </summary>
+        List<RecordBreak> CommitHeatFrom(LiveHeat live, string op);
+
+        /// <summary>
+        /// 用一份现成的 LiveHeat 灌本机当前组库(不查 meet.db)。
+        /// 远端模式下计时端就是这么把服务器给的名单装进本机小库的。
+        /// </summary>
+        void SeedLiveHeat(LiveHeat live);
         /// <summary>放弃本组（重赛）：解锁并清当前组库，不回写。</summary>
         void     DiscardHeat(string op);
 

@@ -135,7 +135,15 @@ namespace SwimmingScoreboard.Db
         // LocalMeetService 专管当前组库 —— 见 MeetDbBridge。
         public LiveHeat OpenHeat(long roundId, int heat, string op)
         { return Call<LiveHeat>("OpenHeat", new { roundId, heat, op }); }
-        public List<RecordBreak> CommitHeat(string op) { return Call<List<RecordBreak>>("CommitHeat", new { op }); }
+        // 远端模式下 CommitHeat 没有意义 —— 服务器那台机器的当前组库是空的。
+        // 必须把本机的成绩随请求带过去。
+        public List<RecordBreak> CommitHeat(string op)
+        { throw new MeetDataException("远端模式请用 CommitHeatFrom，把本机的成绩带过去"); }
+
+        public List<RecordBreak> CommitHeatFrom(LiveHeat live, string op)
+        { return Call<List<RecordBreak>>("CommitHeatFrom", new { live, op }); }
+
+        public void SeedLiveHeat(LiveHeat live) { throw NotOverWire("SeedLiveHeat"); }
         public void DiscardHeat(string op) { Send("DiscardHeat", new { op }); }
 
         public LiveHeat GetLiveHeat() { throw NotOverWire("GetLiveHeat"); }
