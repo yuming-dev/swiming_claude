@@ -35,6 +35,8 @@ namespace MeetSimulator
     //                     [--ws 3002] [--lanes 8] [--no-launch] [--exe 路径]
     //                     [--idle 秒]  发令后空转 N 秒再发触板(想看滚动时间就用它)
     //                     [--keep-app] 跑完不关主程序(默认会关掉自己拉起来的那个)
+    //                     [--baseline 文件] 字段基线: 没有则生成, 有则比对,
+    //                                       广播报文少字段就判失败(防静默丢字段)
     //                     [--dsq] [--dns] [--pause 300]
     // ══════════════════════════════════════════════════════════════════════
     internal static class Program
@@ -90,6 +92,9 @@ namespace MeetSimulator
             // 不关的话连跑几轮会在机器上留一堆残留进程, 下一轮 --no-launch
             // 还会误连到上一轮那个。--keep-app 可以留着不关(想手工看界面时用)。
             public bool KeepApp;
+            // 字段基线文件。跑完把广播报文的字段清单跟它比对, 少字段就判失败。
+            // 没有这个文件就先生成一份。
+            public string Baseline;
             public string AppDir;
             // 指定要跑哪个 exe。做版本 A/B 对比用 ——
             // 比如拿改动前后两个 build 跑同一套测试比内存。
@@ -206,6 +211,7 @@ namespace MeetSimulator
                     }
                     DumpFrame("LITE", WebClient2.BiggestLite);
                     DumpFrame("FULL", WebClient2.BiggestFull);
+                    CheckBaseline();
                     long tb = _displays.Sum(d => d.BytesReceived);
                     int tm = _displays.Sum(d => d.MessagesReceived);
                     Console.WriteLine(string.Format("      {0,-18} ×{1}  {2,6} 条  {3,8:N1} MB",
@@ -997,6 +1003,7 @@ namespace MeetSimulator
                         break;
                     case "--no-launch": o.NoLaunch = true; break;
                     case "--keep-app":  o.KeepApp = true; break;
+                    case "--baseline":  o.Baseline = a[++i]; break;
                     case "--dsq":   o.WithDsq = true; break;
                     case "--dns":   o.WithDns = true; break;
                 }
@@ -1025,6 +1032,101 @@ namespace MeetSimulator
             Console.WriteLine("══ 失败 " + _fail.Count + " 项 ══");
             foreach (var f in _fail) Console.WriteLine("  " + f);
             return 1;
+        }
+
+        // ══════════════════════════════════════════════════════════════
+        // 字段基线卡口
+        //
+        // 起因: 2026-08-25 改广播分包时, 服务端把 12 个字段置空而客户端只跳过
+        // 9 个, 项目名下那行纪录(MR)在比赛中被空数组冲掉 —— 而且只在比赛中
+        // 发作, 不比赛时看不出来。人工截图"验证"过, 还判了通过。
+        //
+        // 这类"静默丢字段"靠人眼盯不住, 得让机器拦。做法很笨但有效:
+        // 把广播报文的【字段清单】存成基线, 以后每次跑完自动比对,
+        // 少一个字段就报失败。多字段不管(加功能是正常的)。
+        //
+        // 用法:
+        //   第一次   --baseline fields.json    没这个文件就生成一份
+        //   以后     --baseline fields.json    比对, 少字段则退出码非 0
+        // ══════════════════════════════════════════════════════════════
+        static void CollectKeys(JToken t, string prefix, HashSet<string> into, int depth)
+        {
+            if (t == null || depth > 3) return;
+            var o = t as JObject;
+            if (o != null)
+            {
+                foreach (var pr in o.Properties())
+                {
+                    string k = prefix.Length == 0 ? pr.Name : prefix + "." + pr.Name;
+                    into.Add(k);
+                    CollectKeys(pr.Value, k, into, depth + 1);
+                }
+                return;
+            }
+            var arr = t as JArray;
+            // 数组只看第一个元素的形状: 要的是"字段在不在", 不是有几条数据
+            if (arr != null && arr.Count > 0) CollectKeys(arr[0], prefix + "[]", into, depth + 1);
+        }
+
+        static HashSet<string> KeysOf(string json)
+        {
+            var set = new HashSet<string>(StringComparer.Ordinal);
+            if (string.IsNullOrEmpty(json)) return set;
+            try
+            {
+                var d = JObject.Parse(json)["data"];
+                CollectKeys(d, "", set, 0);
+            }
+            catch { }
+            return set;
+        }
+
+        static void CheckBaseline()
+        {
+            if (string.IsNullOrEmpty(_o.Baseline)) return;
+            Console.WriteLine();
+            var now = new JObject();
+            var full = KeysOf(WebClient2.BiggestFull);
+            var lite = KeysOf(WebClient2.BiggestLite);
+            if (full.Count > 0) now["FULL"] = new JArray(full.OrderBy(x => x, StringComparer.Ordinal).ToArray());
+            if (lite.Count > 0) now["LITE"] = new JArray(lite.OrderBy(x => x, StringComparer.Ordinal).ToArray());
+            if (now.Count == 0) { Warn("没抓到广播报文, 基线跳过"); return; }
+
+            if (!File.Exists(_o.Baseline))
+            {
+                File.WriteAllText(_o.Baseline, now.ToString(Formatting.Indented), new UTF8Encoding(false));
+                Ok(string.Format("已生成字段基线 {0}（FULL {1} 项 / LITE {2} 项）",
+                    Path.GetFileName(_o.Baseline), full.Count, lite.Count));
+                Info("  以后每次跑都会跟它比对, 少字段就判失败");
+                return;
+            }
+
+            Info("══ 字段基线比对 ══");
+            JObject old;
+            try { old = JObject.Parse(File.ReadAllText(_o.Baseline, Encoding.UTF8)); }
+            catch (Exception ex) { Err("基线文件读不了: " + ex.Message); return; }
+
+            foreach (var kind in new[] { "FULL", "LITE" })
+            {
+                var baseArr = old[kind] as JArray;
+                if (baseArr == null) continue;
+                var cur = kind == "FULL" ? full : lite;
+                if (cur.Count == 0) { Warn(kind + " 帧这次没抓到, 跳过"); continue; }
+
+                var missing = baseArr.Select(x => (string)x).Where(x => !cur.Contains(x)).ToList();
+                var added = cur.Where(x => !baseArr.Any(y => (string)y == x)).ToList();
+
+                if (missing.Count == 0)
+                    Ok(string.Format("{0} 帧 {1} 个字段一个不少{2}", kind, baseArr.Count,
+                        added.Count > 0 ? "（新增 " + added.Count + " 个，正常）" : ""));
+                else
+                {
+                    Err(string.Format("{0} 帧少了 {1} 个字段 —— 大屏/报表上对应的东西会静默消失", kind, missing.Count));
+                    foreach (var m in missing.Take(12)) Console.WriteLine("        少: " + m);
+                    if (missing.Count > 12) Console.WriteLine("        …另有 " + (missing.Count - 12) + " 个");
+                }
+            }
+            Info("  基线要更新(确实删了字段)就把文件删掉重跑一次");
         }
 
         /// <summary>把一帧按顶层字段拆开, 看谁占地方。不猜, 直接量。</summary>
