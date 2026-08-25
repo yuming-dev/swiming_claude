@@ -72,6 +72,11 @@ namespace MeetSimulator
             public string Exe;
             // 只跑项目名含这个子串的组。做定向测量用(比如只测 400 米看段数影响)。
             public string Only;
+            // 挂几个 display.html 那样的大屏。每次广播主程序都要给每个连接
+            // 序列化+发一份, 用它验"内存是不是跟广播走"。
+            public int Displays = 0;
+            // 只跑第几场(SessionNumber)。0 = 不限。
+            public int Session = 0;
         }
 
         static int Main(string[] args)
@@ -111,9 +116,26 @@ namespace MeetSimulator
                 Info(string.Format("泳道开关时间设为 {0:N1}s，分段间隔 {1:N1}s", closeTime, _o.LapGap));
                 Thread.Sleep(600);
 
+                for (int i = 0; i < _o.Displays; i++)
+                {
+                    var d = new DisplayClient();
+                    if (d.Connect(_o.Host, _o.WsPort)) _displays.Add(d);
+                    else Warn("第 " + (i + 1) + " 个大屏连不上");
+                    Thread.Sleep(200);
+                }
+                if (_o.Displays > 0) Info(string.Format("已挂上 {0}/{1} 个大屏(DISPLAY_IDENTITY)", _displays.Count, _o.Displays));
+
                 var heats = LoadSchedule();
                 if (heats.Count == 0) { Err("读不到赛程 —— 主程序里先加载一个赛事档案"); return Finish(); }
-                if (!string.IsNullOrEmpty(_o.Only))
+                if (_o.Session > 0)
+            {
+                heats = heats.Where(h => h.SessionNo == _o.Session).ToList();
+                string sn = heats.Count > 0 ? heats[0].SessionName : "";
+                Info(string.Format("只跑第 {0} 场{1}: {2} 个组",
+                    _o.Session, string.IsNullOrEmpty(sn) ? "" : "(" + sn + ")", heats.Count));
+                if (heats.Count == 0) { Err("这一场没有组"); return Finish(); }
+            }
+            if (!string.IsNullOrEmpty(_o.Only))
             {
                 heats = heats.Where(h => h.EventName != null && h.EventName.Contains(_o.Only)).ToList();
                 Info("按项目名筛出含「" + _o.Only + "」的组: " + heats.Count + " 个");
@@ -134,6 +156,14 @@ namespace MeetSimulator
             catch (Exception ex) { Err("模拟器异常: " + ex); }
             finally
             {
+                if (_displays.Count > 0)
+                {
+                    long bytes = _displays.Sum(d => d.BytesReceived);
+                    int msgs = _displays.Sum(d => d.MessagesReceived);
+                    Info(string.Format("大屏共收到 {0} 条推送 / {1:N1} MB（{2} 个屏）",
+                        msgs, bytes / 1024.0 / 1024.0, _displays.Count));
+                }
+                foreach (var d in _displays) d.Dispose();
                 if (rc != null) rc.Dispose();
                 if (hw != null) hw.Dispose();
             }
@@ -370,11 +400,63 @@ namespace MeetSimulator
             }
         }
 
+        // ══════════════ 大屏（display.html 的替身）══════════════
+        // 只做两件事: 报 DISPLAY_IDENTITY, 然后把推过来的东西收掉。
+        // 收不收其实不重要 —— 要量的是主程序那边为每个连接序列化+发送的开销。
+        class DisplayClient : IDisposable
+        {
+            ClientWebSocket _ws;
+            Thread _rx;
+            volatile bool _run = true;
+            public long BytesReceived;
+            public int MessagesReceived;
+
+            public bool Connect(string host, int port)
+            {
+                try
+                {
+                    _ws = new ClientWebSocket();
+                    _ws.ConnectAsync(new Uri("ws://" + host + ":" + port), CancellationToken.None).Wait(6000);
+                    if (_ws.State != WebSocketState.Open) return false;
+                    var b = Encoding.UTF8.GetBytes("{\"type\":\"DISPLAY_IDENTITY\"}");
+                    _ws.SendAsync(new ArraySegment<byte>(b), WebSocketMessageType.Text, true, CancellationToken.None).Wait(3000);
+                    _rx = new Thread(RxLoop) { IsBackground = true };
+                    _rx.Start();
+                    return true;
+                }
+                catch { return false; }
+            }
+
+            void RxLoop()
+            {
+                var buf = new byte[64 * 1024];
+                while (_run && _ws != null && _ws.State == WebSocketState.Open)
+                {
+                    try
+                    {
+                        var r = _ws.ReceiveAsync(new ArraySegment<byte>(buf), CancellationToken.None).Result;
+                        if (r.MessageType == WebSocketMessageType.Close) break;
+                        BytesReceived += r.Count;
+                        if (r.EndOfMessage) MessagesReceived++;
+                    }
+                    catch { break; }
+                }
+            }
+
+            public void Dispose()
+            {
+                _run = false;
+                try { if (_ws != null) _ws.Dispose(); } catch { }
+            }
+        }
+
+        static readonly List<DisplayClient> _displays = new List<DisplayClient>();
+
         // ══════════════ 赛程 ══════════════
         class HeatRef
         {
-            public string AgeGroup, Gender, EventName, Stage;
-            public int Heat, TotalDistance;
+            public string AgeGroup, Gender, EventName, Stage, SessionName;
+            public int Heat, TotalDistance, SessionNo, EvNum;
         }
 
         static string DbDir { get { return Path.Combine(_o.AppDir, "Database"); } }
@@ -412,6 +494,9 @@ namespace MeetSimulator
                     list.Add(new HeatRef {
                         AgeGroup = (string)it["AgeGroup"], Gender = (string)it["Gender"],
                         EventName = ev, Stage = (string)it["Stage"] ?? "决赛",
+                        SessionNo = it["SessionNumber"] != null ? (int)it["SessionNumber"] : 0,
+                        SessionName = (string)it["SessionName"],
+                        EvNum = it["EvNum"] != null ? (int)it["EvNum"] : 0,
                         Heat = k, TotalDistance = ParseDistance(ev) });
             }
             return list;
@@ -679,6 +764,8 @@ namespace MeetSimulator
                     case "--idle":    o.IdleSec = double.Parse(a[++i]); break;
                     case "--exe":       o.Exe = a[++i]; break;
                     case "--event":     o.Only = a[++i]; break;
+                    case "--displays":  o.Displays = int.Parse(a[++i]); break;
+                    case "--session":   o.Session = int.Parse(a[++i]); break;
                     case "--no-launch": o.NoLaunch = true; break;
                     case "--dsq":   o.WithDsq = true; break;
                     case "--dns":   o.WithDns = true; break;
@@ -693,6 +780,7 @@ namespace MeetSimulator
             Console.WriteLine("  模拟比赛 自动化测试");
             Console.WriteLine("  计时硬件: TCP 服务端 :" + _o.TcpPort + "   遥控台: ws://" + _o.Host + ":" + _o.WsPort);
             Console.WriteLine("  组数 " + _o.Heats + "   泳道 " + _o.Lanes
+                + (_o.Displays > 0 ? "   大屏 " + _o.Displays : "")
                 + (_o.WithDsq ? "   含 DSQ" : "") + (_o.WithDns ? "   含 DNS" : ""));
             Console.WriteLine("══════════════════════════════════════════════════════");
         }
