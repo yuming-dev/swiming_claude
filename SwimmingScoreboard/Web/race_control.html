@@ -1033,8 +1033,19 @@ function connect() {
         if (msg.type === 'SHOW_LIVE_RACE_LITE') {
             if (!data || !data.competitionName) return;   // 还没收到过完整包, 等它
             var _lite = msg.data || {};
-            var _STATIC = ['allSwimmers', 'allRelayTeams', 'schedule', 'teamScores',
-                           'ageGroups', 'ageGroupsDetail', 'eventList', 'genderList', 'stageList'];
+            // 这张表必须和 MainWindow.GetStatusData(bool) 里被 keepStatic 关掉的字段
+            // 【一一对应】。少列一个, 精简帧里的空数组就会把上一份完整包里的真数据冲掉。
+            // 2026-08-25 就漏过 applicableRecords —— 比赛一开始, 项目名下那行纪录(MR)
+            // 就没了。eventRanking / eventRankingSplit 同理(总排名视图会变空)。
+            // 哪些字段在精简帧里是空的, 由【服务端随帧告知】(staticOmitted),
+            // 客户端不再自己维护一张要跟服务端对齐的名单 —— 那种设计漏一个就会
+            // 静默冲掉真数据(2026-08-25 漏了 applicableRecords, MR 那行没了)。
+            // 下面的硬编码只是老服务端不带这个字段时的兜底。
+            var _STATIC = (_lite.staticOmitted && _lite.staticOmitted.length)
+                ? _lite.staticOmitted
+                : ['allSwimmers', 'allRelayTeams', 'schedule', 'teamScores',
+                   'ageGroups', 'ageGroupsDetail', 'eventList', 'genderList', 'stageList',
+                   'eventRanking', 'eventRankingSplit', 'applicableRecords'];
             for (var _k in _lite) {
                 if (!Object.prototype.hasOwnProperty.call(_lite, _k)) continue;
                 if (_STATIC.indexOf(_k) >= 0) continue;

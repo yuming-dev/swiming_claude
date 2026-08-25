@@ -3304,7 +3304,18 @@ namespace SwimmingScoreboard
                 gold = t.GoldCount, silver = t.SilverCount, bronze = t.BronzeCount, rank = t.Rank
             }).ToList();
 
+            // 2026-08-25 把"这一帧里哪些字段被置空了"随帧带过去。
+            //   客户端照着这个合并, 就不用自己维护一张要跟这里一一对应的名单 ——
+            //   前一版就是客户端漏列 applicableRecords, 比赛一开始项目名下那行
+            //   纪录(MR)被空数组冲掉了。名单由产生方给出, 天然不会对不齐。
+            var staticOmitted = keepStatic ? new List<string>() : new List<string> {
+                "allSwimmers", "allRelayTeams", "schedule", "teamScores",
+                "ageGroups", "ageGroupsDetail", "eventList", "genderList", "stageList",
+                "eventRanking", "eventRankingSplit", "applicableRecords"
+            };
+
             return new {
+                staticOmitted = staticOmitted,
                 competitionName = _competitionName,
                 competitionMode = _competitionMode,
                 currentEvent = _currentEvent,
