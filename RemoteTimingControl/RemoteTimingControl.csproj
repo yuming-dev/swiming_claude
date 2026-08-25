@@ -475,6 +475,9 @@
     <Compile Include="..\SwimmingScoreboard\Db\RemoteMeetService.cs">
       <Link>Db\RemoteMeetService.cs</Link>
     </Compile>
+    <Compile Include="..\SwimmingScoreboard\Db\WebSocketRpcTransport.cs">
+      <Link>Db\WebSocketRpcTransport.cs</Link>
+    </Compile>
     <Compile Include="..\SwimmingScoreboard\Db\MeetServiceHost.cs">
       <Link>Db\MeetServiceHost.cs</Link>
     </Compile>

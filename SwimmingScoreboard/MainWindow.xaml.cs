@@ -1378,6 +1378,12 @@ namespace SwimmingScoreboard
                     case "TIMING_CMD":
                         HandleTimingCommand(msg, socket);
                         break;
+                    // 2026-08-25 竞赛数据服务: 主服务器独占 meet.db, 别的机器把请求发过来。
+                    //   计时端靠这个在【选组】和【确认成绩】两个时刻取名单/回写成绩;
+                    //   比赛中它只写自己的 current_heat.db, 这条路一次都不走。
+                    case SwimmingScoreboard.Db.MeetRpc.RequestType:
+                        HandleMeetRpc(msg, socket);
+                        break;
                     case "TIMING_DATA":
                         HandleTimingData(msg);
                         break;
@@ -2083,6 +2089,29 @@ namespace SwimmingScoreboard
             AutoSaveData();
             Broadcast();
             SendRelayResult(socket, true, "接力队报名成功", team.TeamName, bibNumber, team.Legs.Count, false);
+        }
+
+        // 2026-08-25 竞赛数据服务 服务端入口。
+        //   业务规则一份都不在这里 —— 全在 LocalMeetService, 本地和远端不可能
+        //   算出两个结果。这里只负责收发。
+        //   每次现取服务实例: 换赛事时库会重开, 缓存死了就指向旧库。
+        private SwimmingScoreboard.Db.MeetServiceHost _meetRpcHost;
+
+        private void HandleMeetRpc(JObject msg, IWebSocketConnection socket) {
+            if (socket == null) return;
+            try {
+                if (_meetRpcHost == null) {
+                    _meetRpcHost = new SwimmingScoreboard.Db.MeetServiceHost(
+                        delegate { return (SwimmingScoreboard.Db.IMeetService)_meetDb.Service; },
+                        delegate(string s) { try { Dispatcher.BeginInvoke(new Action(delegate { AddLog(s); })); } catch { } });
+                }
+                string reply = _meetRpcHost.Handle(msg);
+                if (!string.IsNullOrEmpty(reply)) EnqueueToSocket(socket, reply);
+            } catch (Exception ex) {
+                // Handle 内部已经把业务异常打包了; 走到这里说明是收发本身出问题,
+                // 也不能让一个客户端的坏请求把服务器搞崩。
+                AddLog("竞赛服务收发失败: " + ex.Message);
+            }
         }
 
         private void HandleTimingCommand(JObject msg, IWebSocketConnection socket = null) {

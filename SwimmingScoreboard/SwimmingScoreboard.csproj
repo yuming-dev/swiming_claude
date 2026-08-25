@@ -336,6 +336,7 @@
     <Compile Include="Db\MeetDb.cs" />
     <Compile Include="Db\MeetContracts.cs" />
     <Compile Include="Db\RemoteMeetService.cs" />
+    <Compile Include="Db\WebSocketRpcTransport.cs" />
     <Compile Include="Db\MeetServiceHost.cs" />
     <Compile Include="Db\MeetServiceProtocol.cs" />
     <Compile Include="Db\MeetDbBridge.cs" />
