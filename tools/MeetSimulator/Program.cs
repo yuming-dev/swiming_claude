@@ -53,6 +53,22 @@ namespace MeetSimulator
         static readonly List<string> _fail = new List<string>();
         static readonly List<double> _memSamples = new List<double>();
 
+        // ── 发帧台账 ──────────────────────────────────────────────────
+        // 发出去的每一个触板帧都记下来, 跑完逐条比对库里落了没有、值对不对。
+        // 这是"成绩记录对了"这条最要紧的要求, 唯一能量它的办法就是逐帧对账。
+        // 只验"有没有成绩、分段齐不齐"是不够的 —— 丢一段、串一段都看不出来。
+        class SentSplit { public int Lane, Distance; public double Cum; }
+        // key = 项目|赛次|组次
+        static readonly Dictionary<string, List<SentSplit>> _ledger =
+            new Dictionary<string, List<SentSplit>>(StringComparer.Ordinal);
+        static string LedgerKey(HeatRef h)
+        { return (h.EventName ?? "") + "|" + (h.Stage ?? "") + "|" + h.Heat + "|" + (h.Gender ?? ""); }
+
+        // 各阶段耗时。确认成绩那一步的耗时直接反映每组两次阻塞 Gen2 GC 的停顿。
+        static int _totalSent, _totalMiss, _totalBad;
+        static readonly List<double> _confirmMs = new List<double>();
+        static readonly List<double> _readyMs = new List<double>();
+
         class Opts
         {
             public int Heats = 3, Lanes = 8, WsPort = 3002, TcpPort = 5000, PauseMs = 300;
@@ -163,6 +179,7 @@ namespace MeetSimulator
 
                 Thread.Sleep(1500);
                 Verify(heats.Take(n).ToList());
+                TimingReport();
                 MemReport();
             }
             catch (Exception ex) { Err("模拟器异常: " + ex); }
@@ -208,8 +225,10 @@ namespace MeetSimulator
             rc.Send("SET_HEAT", h.Heat);
             Thread.Sleep(_o.PauseMs);
 
+            var swReady = System.Diagnostics.Stopwatch.StartNew();
             rc.Send("READY", null);
             Thread.Sleep(_o.PauseMs);
+            _readyMs.Add(swReady.ElapsedMilliseconds);
 
             rc.Send("START_RACE", null);
             hw.SendFrame(CMD_START, 0, 0, 0);          // 硬件回发令帧
@@ -226,9 +245,13 @@ namespace MeetSimulator
             }
 
             // 反应时（出发台）。第 1 道故意来一次抢跳，验证红标不崩。
-            for (int lane = 1; lane <= _o.Lanes; lane++)
+            // 只给实际有人的泳道发。档案里没排人的道, 真硬件也不会来信号。
+            var useLanes = h.Lanes.Count > 0
+                ? h.Lanes.Where(L => L >= 0 && L <= 9).ToList()
+                : Enumerable.Range(1, _o.Lanes).ToList();
+            foreach (int lane in useLanes)
             {
-                bool falseStart = (idx == 1 && lane == 1);
+                bool falseStart = (idx == 1 && lane == useLanes[0]);
                 hw.SendFrame(CMD_STARTBLOCK, 0, lane, 0.62 + lane * 0.01, falseStart ? (byte)1 : (byte)0);
                 Thread.Sleep(15);
             }
@@ -241,6 +264,8 @@ namespace MeetSimulator
             int segs = Math.Max(1, h.TotalDistance / 50);
             double baseLap = h.TotalDistance >= 400 ? 29.5 : 27.0;
             int gapMs = (int)(_o.LapGap * 1000);
+            var ledger = new List<SentSplit>();
+            _ledger[LedgerKey(h)] = ledger;
             Thread.Sleep(gapMs);                         // 等到达端触板打开
             for (int seg = 1; seg <= segs; seg++)
             {
@@ -251,11 +276,13 @@ namespace MeetSimulator
                 // 50 米(奇数圈)全错 —— 5 个组一条成绩都没落下。
                 // 协议里 D4 <10 = 物理左端，D4 >=10 = 物理右端(实际道次 = D4-10)。
                 bool arriveRight = ((segs - seg) % 2 == 1) ^ !_finishLeft;
-                for (int lane = 1; lane <= _o.Lanes; lane++)
+                foreach (int lane in useLanes)
                 {
-                    if (_o.WithDns && idx == 1 && lane == _o.Lanes) continue;    // 这一道没来
-                    double cum = seg * baseLap + lane * 0.35 + (seg * lane % 3) * 0.07;
+                    if (_o.WithDns && idx == 1 && lane == useLanes[useLanes.Count - 1]) continue;  // 这一道没来
+                    double cum = Math.Round(seg * baseLap + lane * 0.35 + (seg * lane % 3) * 0.07, 2);
                     hw.SendFrame(CMD_TOUCHPAD, 0, arriveRight ? lane + 10 : lane, cum);
+                    // 仰泳还没模拟对, 它的对账不算数 —— 不记账, 免得拿假失败去改程序
+                    if (!h.IsBackstroke) ledger.Add(new SentSplit { Lane = lane, Distance = seg * 50, Cum = cum });
                     Thread.Sleep(8);
                 }
                 // 滚动时间：模拟真实帧流。0x7F 会被主程序提前 return，不该触发任何存盘。
@@ -264,8 +291,12 @@ namespace MeetSimulator
             }
 
             // 盲表：给中间一道补一个，走 PushButton 路径。端别跟终点段一致。
-            if (_o.Lanes >= 3)
-                hw.SendFrame(CMD_PB1, 0, _finishLeft ? 3 : 13, segs * baseLap + 3 * 0.35 + 0.02);
+            if (useLanes.Count >= 3)
+            {
+                int mbLane = useLanes[useLanes.Count / 2];
+                hw.SendFrame(CMD_PB1, 0, _finishLeft ? mbLane : mbLane + 10,
+                             segs * baseLap + mbLane * 0.35 + 0.02);
+            }
 
             Thread.Sleep(_o.PauseMs);
             Sample(app, string.Format("第{0}组 触板完", h.Heat));
@@ -273,11 +304,16 @@ namespace MeetSimulator
             if (_o.WithDns && idx == 1) rc.Send("MARK_DNS", new JObject { ["lane"] = _o.Lanes });
             if (_o.WithDsq && idx == 2) rc.Send("MARK_DSQ", new JObject { ["lane"] = 2 });
 
+            // 确认成绩这一步里有 BuildScheduleTree + UpdateHeatRanking + AutoSaveData +
+            // SaveRawTimingLog, 外加两次阻塞式 Gen2 GC。量它就是量"下一组能多快开始"。
+            var swConfirm = System.Diagnostics.Stopwatch.StartNew();
             rc.Send("CONFIRM_RESULT", null);
             Thread.Sleep(_o.PauseMs * 2);
+            _confirmMs.Add(swConfirm.ElapsedMilliseconds);
             Sample(app, string.Format("第{0}组 已确认", h.Heat));
-            Ok(string.Format("第{0}组跑完：{1} 道 × {2} 段 = {3} 次触板事件",
-                h.Heat, _o.Lanes, segs, _o.Lanes * segs));
+            Ok(string.Format("第{0}组跑完：{1} 道 × {2} 段 = {3} 次触板事件{4}",
+                h.Heat, useLanes.Count, segs, useLanes.Count * segs,
+                h.IsBackstroke ? "（仰泳，对账不计）" : ""));
         }
 
         // ══════════════ 计时硬件模拟（TCP 服务端）══════════════
@@ -503,6 +539,13 @@ namespace MeetSimulator
         {
             public string AgeGroup, Gender, EventName, Stage, SessionName;
             public int Heat, TotalDistance, SessionNo, EvNum;
+            // 这一组实际有人的泳道。真硬件只会从有人的道来信号,
+            // 之前按 --lanes 一律发 8 道, 空道的帧被程序正当忽略,
+            // 却被台账当成"丢帧", 白白冤枉了程序 30%。
+            public readonly List<int> Lanes = new List<int>();
+            // 仰泳出发是脚踩触板、发令端开的是触板而不是出发台,
+            // 模拟器还没按这个发, 所以仰泳的对账结果不算数。
+            public bool IsBackstroke;
         }
 
         static string DbDir { get { return Path.Combine(_o.AppDir, "Database"); } }
@@ -530,6 +573,38 @@ namespace MeetSimulator
             var pkg = JObject.Parse(File.ReadAllText(p, Encoding.UTF8));
             var sch = pkg["Schedule"] as JArray;
             if (sch == null) return list;
+
+            // 先把"哪一组的哪几道有人"扫出来, key = 项目|性别|组别|赛次|组次
+            var occ = new Dictionary<string, List<int>>(StringComparer.Ordinal);
+            var swimmers = pkg["Swimmers"] as JArray;
+            if (swimmers != null)
+                foreach (var s in swimmers)
+                {
+                    string ev2 = (string)s["EventName"];
+                    if (string.IsNullOrEmpty(ev2)) continue;
+                    string notes = (string)s["Notes"] ?? "";
+                    if (notes.StartsWith("接力队员")) continue;
+                    var sa = s["StageAssignments"] as JObject;
+                    if (sa != null && sa.Count > 0)
+                    {
+                        foreach (var kv in sa)
+                        {
+                            var a = kv.Value;
+                            if (a == null || a["Heat"] == null || (int)a["Heat"] <= 0) continue;
+                            string k2 = ev2 + "|" + (string)s["Gender"] + "|" + (string)s["AgeCategory"]
+                                      + "|" + kv.Key + "|" + (int)a["Heat"];
+                            if (!occ.ContainsKey(k2)) occ[k2] = new List<int>();
+                            occ[k2].Add(a["Lane"] != null ? (int)a["Lane"] : 0);
+                        }
+                    }
+                    else if (s["Heat"] != null && (int)s["Heat"] > 0)
+                    {
+                        string k2 = ev2 + "|" + (string)s["Gender"] + "|" + (string)s["AgeCategory"]
+                                  + "|" + ((string)s["CurrentStage"] ?? "决赛") + "|" + (int)s["Heat"];
+                        if (!occ.ContainsKey(k2)) occ[k2] = new List<int>();
+                        occ[k2].Add(s["Lane"] != null ? (int)s["Lane"] : 0);
+                    }
+                }
             foreach (var it in sch)
             {
                 string ev = (string)it["EventName"];
@@ -537,13 +612,21 @@ namespace MeetSimulator
                 int hc = it["HeatCount"] != null ? (int)it["HeatCount"] : 0;
                 if (hc <= 0) hc = 1;
                 for (int k = 1; k <= hc; k++)
-                    list.Add(new HeatRef {
+                {
+                    var hr = new HeatRef {
                         AgeGroup = (string)it["AgeGroup"], Gender = (string)it["Gender"],
                         EventName = ev, Stage = (string)it["Stage"] ?? "决赛",
                         SessionNo = it["SessionNumber"] != null ? (int)it["SessionNumber"] : 0,
                         SessionName = (string)it["SessionName"],
                         EvNum = it["EvNum"] != null ? (int)it["EvNum"] : 0,
-                        Heat = k, TotalDistance = ParseDistance(ev) });
+                        Heat = k, TotalDistance = ParseDistance(ev) };
+                    hr.IsBackstroke = ev.Contains("仰泳");
+                    string ok2 = ev + "|" + hr.Gender + "|" + (hr.AgeGroup ?? "") + "|" + hr.Stage + "|" + k;
+                    List<int> lanes2;
+                    if (occ.TryGetValue(ok2, out lanes2))
+                        foreach (var L in lanes2.Distinct().OrderBy(x => x)) hr.Lanes.Add(L);
+                    list.Add(hr);
+                }
             }
             return list;
         }
@@ -601,6 +684,35 @@ namespace MeetSimulator
                     if (withSplits == 0) Err(Desc(h) + string.Format(" 应有 {0} 段分段，一条都没有", wantSegs));
                     else Ok(Desc(h) + string.Format(" {0} 道分段齐（每人约 {1} 段）", withSplits, wantSegs));
                 }
+
+                // ── 逐帧对账：发出去的每一段, 库里有没有、值对不对 ──
+                List<SentSplit> sent;
+                if (_ledger.TryGetValue(LedgerKey(h), out sent) && sent.Count > 0)
+                {
+                    int miss = 0, bad = 0;
+                    foreach (var g in sent.GroupBy(x => x.Lane))
+                    {
+                        var s = inHeat.FirstOrDefault(x => LaneOf(x, h.Stage) == g.Key);
+                        var r = s != null ? ResultOf(s, h.Stage, h.Heat) : null;
+                        var sp = r != null ? r["Splits"] as JArray : null;
+                        foreach (var one in g)
+                        {
+                            JToken hit = null;
+                            if (sp != null)
+                                foreach (var x in sp)
+                                    if (x["Distance"] != null && (int)x["Distance"] == one.Distance) { hit = x; break; }
+                            if (hit == null) { miss++; continue; }
+                            double got = hit["CumulativeTime"] != null ? (double)hit["CumulativeTime"] : 0;
+                            if (Math.Abs(got - one.Cum) > 0.011) bad++;
+                        }
+                    }
+                    _totalSent += sent.Count; _totalMiss += miss; _totalBad += bad;
+                    if (miss > 0 || bad > 0)
+                        Err(Desc(h) + string.Format(" 逐帧对账不符：发 {0} 段，丢 {1} 段，值不对 {2} 段",
+                            sent.Count, miss, bad));
+                    else
+                        Ok(Desc(h) + string.Format(" 逐帧对账通过：{0} 段全部落库且值一致", sent.Count));
+                }
             }
 
             // 竞赛库（新库）也核一遍
@@ -615,6 +727,13 @@ namespace MeetSimulator
         {
             a = (a ?? "").Replace("子", ""); b = (b ?? "").Replace("子", "");
             return string.Equals(a, b, StringComparison.Ordinal);
+        }
+
+        static int LaneOf(JToken s, string stage)
+        {
+            var sa = s["StageAssignments"] as JObject;
+            if (sa != null && sa[stage] != null && sa[stage]["Lane"] != null) return (int)sa[stage]["Lane"];
+            return s["Lane"] != null ? (int)s["Lane"] : -1;
         }
 
         static int HeatOf(JToken s, string stage)
@@ -697,6 +816,29 @@ namespace MeetSimulator
 
         [System.Runtime.InteropServices.DllImport("user32.dll")]
         static extern int GetGuiResources(IntPtr hProcess, int uiFlags);
+
+        static void TimingReport()
+        {
+            Console.WriteLine();
+            Info("══ 成绩记录 ══");
+            if (_totalSent == 0) { Warn("没有对账数据"); }
+            else
+            {
+                string line = string.Format("发出 {0} 段  丢 {1} 段  值不对 {2} 段", _totalSent, _totalMiss, _totalBad);
+                if (_totalMiss == 0 && _totalBad == 0) Ok(line + "  —— 逐帧一致");
+                else Err(line + "  —— 有帧没落库或值不对, 这是最要命的一类问题");
+            }
+            if (_confirmMs.Count > 0)
+            {
+                Console.WriteLine(string.Format("      确认成绩耗时  平均 {0,6:N0} ms   最慢 {1,6:N0} ms   ({2} 组)",
+                    _confirmMs.Average(), _confirmMs.Max(), _confirmMs.Count));
+                Console.WriteLine("      （这一步含 BuildScheduleTree + 整包存盘 + 两次阻塞 Gen2 GC，");
+                Console.WriteLine("        期间 UI 线程被占住，来的计时帧只能排队）");
+            }
+            if (_readyMs.Count > 0)
+                Console.WriteLine(string.Format("      就位耗时      平均 {0,6:N0} ms   最慢 {1,6:N0} ms",
+                    _readyMs.Average(), _readyMs.Max()));
+        }
 
         static void MemReport()
         {
