@@ -1025,6 +1025,24 @@ function connect() {
                 + '（' + msg.promotedCount + '人，' + msg.heatCount + '组）');
             return;
         }
+        // 2026-08-25 精简实况帧 SHOW_LIVE_RACE_LITE
+        //   服务器比赛中每 100ms 发这个(几 KB), 完整包降到低频。
+        //   精简帧里 名单/赛程/下拉列表/团体分 是空数组, 不能拿来覆盖,
+        //   要合并进上一份完整包。详见 display.html 同名处理和
+        //   MainWindow.GetStatusData(bool) 的注释。
+        if (msg.type === 'SHOW_LIVE_RACE_LITE') {
+            if (!data || !data.competitionName) return;   // 还没收到过完整包, 等它
+            var _lite = msg.data || {};
+            var _STATIC = ['allSwimmers', 'allRelayTeams', 'schedule', 'teamScores',
+                           'ageGroups', 'ageGroupsDetail', 'eventList', 'genderList', 'stageList'];
+            for (var _k in _lite) {
+                if (!Object.prototype.hasOwnProperty.call(_lite, _k)) continue;
+                if (_STATIC.indexOf(_k) >= 0) continue;
+                data[_k] = _lite[_k];
+            }
+            _rcScheduleRender(data);
+            return;
+        }
         // 其它（SHOW_LIVE_RACE 等高频广播）走帧合并
         _rcScheduleRender(msg.data);
     };

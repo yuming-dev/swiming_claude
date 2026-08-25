@@ -179,6 +179,8 @@ namespace MeetSimulator
                         Console.WriteLine(string.Format("      {0,-18} ×{1}  {2,6} 条  {3,8:N1} MB  平均 {4,7:N0} KB/条",
                             g.Key, g.Count(), m, b / 1024.0 / 1024.0, m > 0 ? b / 1024.0 / m : 0));
                     }
+                    DumpFrame("LITE", WebClient2.BiggestLite);
+                    DumpFrame("FULL", WebClient2.BiggestFull);
                     long tb = _displays.Sum(d => d.BytesReceived);
                     int tm = _displays.Sum(d => d.MessagesReceived);
                     Console.WriteLine(string.Format("      {0,-18} ×{1}  {2,6} 条  {3,8:N1} MB",
@@ -451,9 +453,13 @@ namespace MeetSimulator
                 catch { return false; }
             }
 
+            // 抓一份最大的 LITE 帧和一份 FULL 帧存下来, 用来看到底什么占地方。
+            public static string BiggestLite = null, BiggestFull = null;
+
             void RxLoop()
             {
                 var buf = new byte[64 * 1024];
+                var acc = new List<byte>();
                 while (_run && _ws != null && _ws.State == WebSocketState.Open)
                 {
                     try
@@ -461,7 +467,15 @@ namespace MeetSimulator
                         var r = _ws.ReceiveAsync(new ArraySegment<byte>(buf), CancellationToken.None).Result;
                         if (r.MessageType == WebSocketMessageType.Close) break;
                         BytesReceived += r.Count;
-                        if (r.EndOfMessage) MessagesReceived++;
+                        for (int i = 0; i < r.Count; i++) acc.Add(buf[i]);
+                        if (!r.EndOfMessage) continue;
+                        MessagesReceived++;
+                        string s = Encoding.UTF8.GetString(acc.ToArray());
+                        acc.Clear();
+                        if (s.IndexOf("SHOW_LIVE_RACE_LITE", StringComparison.Ordinal) >= 0)
+                        { if (BiggestLite == null || s.Length > BiggestLite.Length) BiggestLite = s; }
+                        else if (s.IndexOf("SHOW_LIVE_RACE", StringComparison.Ordinal) >= 0)
+                        { if (BiggestFull == null || s.Length > BiggestFull.Length) BiggestFull = s; }
                     }
                     catch { break; }
                 }
@@ -835,6 +849,27 @@ namespace MeetSimulator
             Console.WriteLine("══ 失败 " + _fail.Count + " 项 ══");
             foreach (var f in _fail) Console.WriteLine("  " + f);
             return 1;
+        }
+
+        /// <summary>把一帧按顶层字段拆开, 看谁占地方。不猜, 直接量。</summary>
+        static void DumpFrame(string tag, string json)
+        {
+            if (string.IsNullOrEmpty(json)) return;
+            Console.WriteLine();
+            Info(string.Format("══ {0} 帧构成（{1:N0} 字符 = 内存里 {2:N0} KB, LOH 门槛 85KB）══",
+                tag, json.Length, json.Length * 2 / 1024));
+            try
+            {
+                var o = JObject.Parse(json);
+                var d = o["data"] as JObject;
+                if (d == null) return;
+                foreach (var kv in d.Properties()
+                         .Select(x => new { x.Name, Len = x.Value.ToString(Formatting.None).Length })
+                         .OrderByDescending(x => x.Len).Take(12))
+                    Console.WriteLine(string.Format("      {0,-24} {1,9:N0} 字符  {2,5:P1}",
+                        kv.Name, kv.Len, (double)kv.Len / json.Length));
+            }
+            catch (Exception ex) { Warn("拆帧失败: " + ex.Message); }
         }
 
         static void Info(string s) { Console.WriteLine("  " + s); }

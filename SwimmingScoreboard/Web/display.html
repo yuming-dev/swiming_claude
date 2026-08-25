@@ -1047,6 +1047,28 @@ function connect() {
             try { applyRemoteDisplayStyle(msg.data || {}); } catch (er3) {}
             return;
         }
+        // 2026-08-25 精简实况帧 SHOW_LIVE_RACE_LITE
+        //   服务器在比赛中每 100ms 发这个(几 KB), 完整包降到 2 秒一次。
+        //   原因: 完整包 278 KB, 而浏览器无所谓, 是【服务器那边】每份都掉进
+        //   大对象堆(门槛 85KB)、LOH 又不压缩, 一场比赛堆了 1.9 GB 下不去。
+        //   精简帧里 名单/赛程/下拉列表/团体分 一律是空数组, 【不能拿来覆盖】,
+        //   要合并进上一份完整包。
+        if (msg.type === 'SHOW_LIVE_RACE_LITE') {
+            if (!data || !data.competitionName) return;   // 还没收到过完整包, 等它
+            var _lite = msg.data || {};
+            var _STATIC = ['allSwimmers', 'allRelayTeams', 'schedule', 'teamScores',
+                           'ageGroups', 'ageGroupsDetail', 'eventList', 'genderList', 'stageList'];
+            for (var _k in _lite) {
+                if (!Object.prototype.hasOwnProperty.call(_lite, _k)) continue;
+                if (_STATIC.indexOf(_k) >= 0) continue;
+                data[_k] = _lite[_k];
+            }
+            // 跟不带 modeExplicit 的 SHOW_LIVE_RACE 心跳一个待遇:
+            // 操作员锁在总排名/颁奖等视图时只更新数据, 不夺权切回比赛视图
+            if (modeLocked) return;
+            _scheduleRender('SHOW_LIVE_RACE', data, false);
+            return;
+        }
         // 2026-05-25 修复 #N：非显式 SHOW_LIVE_RACE 心跳 + 已锁定 → 只更新 data 不切视图
         // (修复总排名翻到第 3 页时被服务器心跳广播打回比赛视图的 bug)
         if (msg.type === 'SHOW_LIVE_RACE' && modeLocked && !msg.modeExplicit) {

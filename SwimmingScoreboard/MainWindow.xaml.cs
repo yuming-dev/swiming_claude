@@ -2894,19 +2894,37 @@ namespace SwimmingScoreboard
             BroadcastImmediate();
         }
 
+        // 2026-08-25 比赛中完整包的最小间隔。比赛中静态数据(名单/赛程/下拉列表)
+        //   根本不会变, 没必要每 100ms 推一遍 278 KB。
+        //   实时那份走 SHOW_LIVE_RACE_LITE, 几 KB, 稳稳在 LOH 门槛(85KB)以下。
+        //   完整包仍按这个间隔发, 是为了让还没迁移到 LITE 的客户端照常能用 ——
+        //   它们只是刷新慢一点, 不会坏。等客户端全切过去, 这个间隔可以再拉长。
+        private DateTime _lastFullBroadcast = DateTime.MinValue;
+        //   display.html 和 race_control.html 已经吃 LITE 了; 还在等完整包的只剩
+        //   query.html(它只用里面的名单/赛程等静态部分, 慢几秒完全没影响)。
+        //   checkin / leaderboard / control / register 压根不消费这个消息。
+        private static readonly TimeSpan FullBroadcastGapInRace = TimeSpan.FromSeconds(10);
+
         private void BroadcastImmediate() {
             if (!_initialized) return;
+
+            bool inRace = (_raceState == RaceState.Ready || _raceState == RaceState.Racing);
+            bool full = !inRace || (DateTime.Now - _lastFullBroadcast) >= FullBroadcastGapInRace;
+            if (full) _lastFullBroadcast = DateTime.Now;
+
             // RTC 模式: GetStatusData 在 UI 线程取快照, 通过主服务器转发
             if (IsRemoteTimingControlMode) {
                 try {
-                    var msg = new { type = "SHOW_LIVE_RACE", data = GetStatusData() };
+                    var msg = full ? new { type = "SHOW_LIVE_RACE",      data = GetStatusData(true) }
+                                   : new { type = "SHOW_LIVE_RACE_LITE", data = GetStatusData(false) };
                     TryForwardToMainServer(msg);
                 } catch { }
                 return;
             }
             if (_allSockets.Count == 0) return;   // 无客户端时连快照都省, 0 分配
             try {
-                var msg = new { type = "SHOW_LIVE_RACE", data = GetStatusData() };
+                var msg = full ? new { type = "SHOW_LIVE_RACE",      data = GetStatusData(true) }
+                               : new { type = "SHOW_LIVE_RACE_LITE", data = GetStatusData(false) };
                 // 2026-06-18 per-socket 队列, 序列化在主线程做一次, 入队 microsec 级
                 string json = JsonConvert.SerializeObject(msg);
                 EnqueueToAll(json);
@@ -2994,7 +3012,25 @@ namespace SwimmingScoreboard
             } catch { }
         }
 
-        private object GetStatusData() {
+        private object GetStatusData() { return GetStatusData(true); }
+
+        /// <summary>
+        /// keepStatic=false 时, 名单/赛程/接力队/团体分/各下拉列表 一律给空数组,
+        /// 只留"这一组正在发生的事"。这份精简包只走 SHOW_LIVE_RACE_LITE 这个新
+        /// 消息类型, 老客户端按 type 分发, 根本收不到它, 所以置空不会影响谁。
+        ///
+        /// 为什么要拆: 完整包实测 278 KB, 而大对象堆的门槛是 85 KB —— 比赛中每
+        /// 100ms 推一份, 每份都进 LOH 且大小各不相同, 空洞装不下新的只能开新段;
+        /// LOH 又不压缩, 所以确认成绩后那两次强制 Gen2 GC 也回收不掉。
+        /// 实测第 1~3 场 94 个组 + 5 个客户端: 推 15905 条 / 4.3 GB,
+        /// 进程从 171 MB 涨到 2213 MB, 其中 1931 MB 是 LOH。
+        /// 这就是现场"内存翻红、清内存也没用"的根。
+        ///
+        /// 用 Take(0) 而不是把字段删掉, 是为了让匿名类型的形状保持一致 ——
+        /// 两条路共用同一个方法, 不会随时间漂移成两份。
+        /// </summary>
+        private object GetStatusData(bool keepStatic) {
+            int staticN = keepStatic ? int.MaxValue : 0;
             // 构建当前组运动员数据
             var swimmerData = new List<object>();
             var currentSwimmers = GetCurrentHeatSwimmers();
@@ -3223,12 +3259,16 @@ namespace SwimmingScoreboard
             }
 
             // 项目总排名
-            var eventRanking = GetEventRanking(_currentEvent, _currentGender);
+            // 2026-08-25 这三块只有"总排名 / 组成绩 / 纪录"视图用得上, 比赛实况视图不看。
+            //   放进每 100ms 的精简帧纯属浪费: 一是把帧撑大(撑过 LOH 门槛就前功尽弃),
+            //   二是每秒白算十几次全项目排名。操作员切到总排名视图时, 低频的完整包
+            //   会把它们带上, 慢几秒没有影响。
+            var eventRanking = keepStatic ? GetEventRanking(_currentEvent, _currentGender) : new List<object>();
             // 2026-06-02 并项拆分: 按 (性别, 实际年龄) 切多张子表, 大屏 总排名 视图按子表翻页
-            var eventRankingSplit = GetEventRankingsSplit(_currentAgeGroup, _currentEvent, _currentGender);
+            var eventRankingSplit = keepStatic ? GetEventRankingsSplit(_currentAgeGroup, _currentEvent, _currentGender) : new List<object>();
             // 2026-06-05 项目名称下 一行 显示 本项目所有组别 纪录 (大屏 比赛视图/组成绩/总排名 用)
-            var applicableRecords = BuildApplicableRecords(_currentEvent, _currentGender);
-            var teamScoresData = _teamScores.OrderBy(t => t.Rank).Select(t => new {
+            var applicableRecords = keepStatic ? BuildApplicableRecords(_currentEvent, _currentGender) : new List<object>();
+            var teamScoresData = _teamScores.OrderBy(t => t.Rank).Take(staticN).Select(t => new {
                 teamName = t.TeamName, totalPoints = t.TotalPoints,
                 individualPoints = t.IndividualPoints, relayPoints = t.RelayPoints,
                 recordBonusPoints = t.RecordBonusPoints,
@@ -3311,13 +3351,13 @@ namespace SwimmingScoreboard
                 scoringControlMode = _scoringControlMode,
                 resultConfirmed = _resultConfirmed,
                 // 软件设置的组别/项目/性别/赛次列表 — 用于网页报名/检录端动态填充下拉
-                ageGroups = _ageGroups.Select(g => g.Name).ToList(),
+                ageGroups = _ageGroups.Take(staticN).Select(g => g.Name).ToList(),
                 // ScheduleEditor 编辑端使用：完整组别信息（含 minAge/maxAge），用于配置 Tab 表格
-                ageGroupsDetail = _ageGroups.Select(g => new { name = g.Name, minAge = g.MinAge, maxAge = g.MaxAge }).ToList(),
-                eventList = _events,
-                genderList = _genders,
-                stageList = _stages,
-                schedule = _schedule.Select(s => {
+                ageGroupsDetail = _ageGroups.Take(staticN).Select(g => new { name = g.Name, minAge = g.MinAge, maxAge = g.MaxAge }).ToList(),
+                eventList = _events.Take(staticN).ToList(),
+                genderList = _genders.Take(staticN).ToList(),
+                stageList = _stages.Take(staticN).ToList(),
+                schedule = _schedule.Take(staticN).Select(s => {
                     int hc = s.HeatCount > 0 ? s.HeatCount : 1;
                     string ag = s.AgeGroup ?? "";
                     var heatConfirmed = new List<bool>();
@@ -3334,7 +3374,7 @@ namespace SwimmingScoreboard
                 }).ToList(),
                 swimmers = swimmerData,
                 // ScheduleEditor 编辑端使用：全量运动员列表（不限当前组），用于赛事管理与报名/成绩与排名/文档打印
-                allSwimmers = _swimmers.Select(sw => new {
+                allSwimmers = _swimmers.Take(staticN).Select(sw => new {
                     bibNumber = sw.BibNumber,
                     name = sw.Name,
                     gender = sw.Gender,
@@ -3376,7 +3416,7 @@ namespace SwimmingScoreboard
                     notes = sw.Notes ?? ""
                 }).ToList(),
                 // ScheduleEditor 编辑端使用：全量接力队列表（队名 + 项目 + 性别 + 报名成绩 + 4 棒队员）
-                allRelayTeams = _relayTeams.Select(rt => new {
+                allRelayTeams = _relayTeams.Take(staticN).Select(rt => new {
                     teamName = rt.TeamName ?? "",
                     eventName = rt.EventName ?? "",
                     gender = rt.Gender ?? "",
