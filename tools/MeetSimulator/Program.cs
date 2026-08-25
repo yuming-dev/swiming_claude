@@ -33,6 +33,8 @@ namespace MeetSimulator
     // 用法:
     //   MeetSimulator.exe [--heats N] [--host 127.0.0.1] [--port 5000]
     //                     [--ws 3002] [--lanes 8] [--no-launch] [--exe 路径]
+    //                     [--idle 秒]  发令后空转 N 秒再发触板(想看滚动时间就用它)
+    //                     [--keep-app] 跑完不关主程序(默认会关掉自己拉起来的那个)
     //                     [--dsq] [--dns] [--pause 300]
     // ══════════════════════════════════════════════════════════════════════
     internal static class Program
@@ -50,6 +52,8 @@ namespace MeetSimulator
         // 终点端。程序默认左端(LaneCloseSettings.FinishPosition)，
         // 模拟器跟着它算每一段该发哪一端。
         static bool _finishLeft = true;
+        // 只关我们自己拉起来的那个; 挂到别人已经开着的实例上时不能动人家。
+        static bool _weLaunchedApp;
         static readonly List<string> _fail = new List<string>();
         static readonly List<double> _memSamples = new List<double>();
 
@@ -82,6 +86,10 @@ namespace MeetSimulator
             public double IdleSec = 0;
             public string Host = "127.0.0.1";
             public bool NoLaunch, WithDsq, WithDns;
+            // 跑完把自己拉起来的主程序一并关掉(默认关)。
+            // 不关的话连跑几轮会在机器上留一堆残留进程, 下一轮 --no-launch
+            // 还会误连到上一轮那个。--keep-app 可以留着不关(想手工看界面时用)。
+            public bool KeepApp;
             public string AppDir;
             // 指定要跑哪个 exe。做版本 A/B 对比用 ——
             // 比如拿改动前后两个 build 跑同一套测试比内存。
@@ -206,6 +214,7 @@ namespace MeetSimulator
                 foreach (var d in _displays) d.Dispose();
                 if (rc != null) rc.Dispose();
                 if (hw != null) hw.Dispose();
+                CloseAppIfOurs(app);
             }
             return Finish();
         }
@@ -881,6 +890,7 @@ namespace MeetSimulator
             _o.AppDir = Path.GetDirectoryName(exe);
             Info("启动主程序: " + exe);
             var p = Process.Start(new ProcessStartInfo(exe) { WorkingDirectory = _o.AppDir, UseShellExecute = true });
+            _weLaunchedApp = true;
             if (DismissLogin(TimeSpan.FromSeconds(30))) Info("已过登录窗");
             else Warn("没看到登录窗（可能已经登录过，或窗口标题变了）");
             Thread.Sleep(6000);
@@ -917,6 +927,29 @@ namespace MeetSimulator
                 Thread.Sleep(400);
             }
             return false;
+        }
+
+        /// <summary>
+        /// 跑完把自己拉起来的主程序关掉。先礼后兵: 先请它自己关窗口(能走完
+        /// 正常的退出流程、该存的存掉), 3 秒不退再强杀。
+        /// 挂到别人已经开着的实例上时(--no-launch)一概不动。
+        /// </summary>
+        static void CloseAppIfOurs(Process app)
+        {
+            if (app == null || _o.KeepApp || !_weLaunchedApp) return;
+            try
+            {
+                if (app.HasExited) return;
+                Info("收尾: 关闭主程序 PID=" + app.Id);
+                try { app.CloseMainWindow(); } catch { }
+                if (!app.WaitForExit(3000))
+                {
+                    try { app.Kill(); app.WaitForExit(3000); } catch { }
+                    Info("  主程序未响应关窗，已强制结束");
+                }
+                else Info("  主程序已正常退出");
+            }
+            catch (Exception ex) { Warn("关闭主程序失败: " + ex.Message); }
         }
 
         static string FindExe()
@@ -963,6 +996,7 @@ namespace MeetSimulator
                         { int v; if (int.TryParse(t.Trim(), out v)) o.Sessions.Add(v); }
                         break;
                     case "--no-launch": o.NoLaunch = true; break;
+                    case "--keep-app":  o.KeepApp = true; break;
                     case "--dsq":   o.WithDsq = true; break;
                     case "--dns":   o.WithDns = true; break;
                 }
