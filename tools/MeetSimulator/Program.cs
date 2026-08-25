@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
+using System.Diagnostics;   // Process + PerformanceCounter
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -32,7 +32,7 @@ namespace MeetSimulator
     //
     // 用法:
     //   MeetSimulator.exe [--heats N] [--host 127.0.0.1] [--port 5000]
-    //                     [--ws 3002] [--lanes 8] [--no-launch]
+    //                     [--ws 3002] [--lanes 8] [--no-launch] [--exe 路径]
     //                     [--dsq] [--dns] [--pause 300]
     // ══════════════════════════════════════════════════════════════════════
     internal static class Program
@@ -60,9 +60,18 @@ namespace MeetSimulator
             // 所以帧不能一口气灌完 —— 那样程序会把它们记进原始日志但拒绝算成绩，
             // 这是程序的正确行为，不是 bug。这里按节奏发，并把开关时间调小让测试跑得快。
             public double LapGap = 2.5;
+            // 发令后先空转这么多秒再发帧。用来把「比赛时长」和「触板事件数」
+            // 这两个变量拆开 —— 200 米组既事件多、比赛也长, 混在一起量不出
+            // 内存到底跟哪个走。
+            public double IdleSec = 0;
             public string Host = "127.0.0.1";
             public bool NoLaunch, WithDsq, WithDns;
             public string AppDir;
+            // 指定要跑哪个 exe。做版本 A/B 对比用 ——
+            // 比如拿改动前后两个 build 跑同一套测试比内存。
+            public string Exe;
+            // 只跑项目名含这个子串的组。做定向测量用(比如只测 400 米看段数影响)。
+            public string Only;
         }
 
         static int Main(string[] args)
@@ -104,9 +113,16 @@ namespace MeetSimulator
 
                 var heats = LoadSchedule();
                 if (heats.Count == 0) { Err("读不到赛程 —— 主程序里先加载一个赛事档案"); return Finish(); }
-                int n = Math.Min(_o.Heats, heats.Count);
+                if (!string.IsNullOrEmpty(_o.Only))
+            {
+                heats = heats.Where(h => h.EventName != null && h.EventName.Contains(_o.Only)).ToList();
+                Info("按项目名筛出含「" + _o.Only + "」的组: " + heats.Count + " 个");
+                if (heats.Count == 0) { Err("没有匹配的项目"); return Finish(); }
+            }
+            int n = Math.Min(_o.Heats, heats.Count);
                 Info("赛程读到 " + heats.Count + " 个组，本次跑前 " + n + " 个");
 
+                InitCounters(app);
                 Sample(app, "开跑前");
                 for (int i = 0; i < n; i++) RunOneHeat(rc, hw, app, heats[i], i + 1, n);
                 Sample(app, "跑完");
@@ -145,6 +161,16 @@ namespace MeetSimulator
             rc.Send("START_RACE", null);
             hw.SendFrame(CMD_START, 0, 0, 0);          // 硬件回发令帧
             Thread.Sleep(120);
+
+            if (_o.IdleSec > 0)
+            {
+                Sample(app, string.Format("第{0}组 发令后", h.Heat));
+                // 只发滚动时间(0x7F), 跟真实硬件一样 —— 程序对它提前 return, 不该有开销
+                var until = DateTime.Now.AddSeconds(_o.IdleSec);
+                double t = 0;
+                while (DateTime.Now < until) { hw.SendFrame(CMD_RUNNING, 0, 0, t); t += 0.1; Thread.Sleep(100); }
+                Sample(app, string.Format("第{0}组 空转{1:N0}秒后", h.Heat, _o.IdleSec));
+            }
 
             // 反应时（出发台）。第 1 道故意来一次抢跳，验证红标不崩。
             for (int lane = 1; lane <= _o.Lanes; lane++)
@@ -486,6 +512,39 @@ namespace MeetSimulator
         }
 
         // ══════════════ 内存 ══════════════
+        // .NET CLR 内存计数器。光看 PrivateMemorySize 分不出这内存是托管堆还是
+        // 非托管(WPF 渲染/GDI/native)，两边的查法完全不一样，先分清再动手。
+        static PerformanceCounter _pcAllHeaps, _pcLoh, _pcGen2, _pcHandles;
+
+        static void InitCounters(Process app)
+        {
+            try
+            {
+                string inst = app.ProcessName;
+                var cat = new PerformanceCounterCategory(".NET CLR Memory");
+                var names = cat.GetInstanceNames();
+                // 同名多实例时挑真正对得上 PID 的那个
+                foreach (var n in names.Where(x => x.StartsWith(inst, StringComparison.OrdinalIgnoreCase)))
+                {
+                    try
+                    {
+                        using (var pid = new PerformanceCounter(".NET CLR Memory", "Process ID", n, true))
+                            if ((int)pid.NextValue() == app.Id) { inst = n; break; }
+                    }
+                    catch { }
+                }
+                _pcAllHeaps = new PerformanceCounter(".NET CLR Memory", "# Bytes in all Heaps", inst, true);
+                _pcLoh      = new PerformanceCounter(".NET CLR Memory", "Large Object Heap size", inst, true);
+                _pcGen2     = new PerformanceCounter(".NET CLR Memory", "Gen 2 heap size", inst, true);
+                _pcHandles  = new PerformanceCounter(".NET CLR Memory", "# GC Handles", inst, true);
+                Info("CLR 计数器已挂上: " + inst);
+            }
+            catch (Exception ex) { Warn("挂不上 CLR 计数器(只看总内存): " + ex.Message); }
+        }
+
+        static double Mb(PerformanceCounter c)
+        { try { return c == null ? -1 : c.NextValue() / 1024.0 / 1024.0; } catch { return -1; } }
+
         static void Sample(Process app, string tag)
         {
             try
@@ -493,10 +552,20 @@ namespace MeetSimulator
                 app.Refresh();
                 double mb = app.PrivateMemorySize64 / 1024.0 / 1024.0;
                 _memSamples.Add(mb);
-                Console.WriteLine(string.Format("      内存 {0,8:N1} MB   ({1})", mb, tag));
+                double heaps = Mb(_pcAllHeaps), loh = Mb(_pcLoh), gen2 = Mb(_pcGen2);
+                double gdi = GetGuiResources(app.Handle, 0), usr = GetGuiResources(app.Handle, 1);
+                if (heaps >= 0)
+                    Console.WriteLine(string.Format(
+                        "      总 {0,7:N1} MB | 托管堆 {1,7:N1} (Gen2 {2,6:N1} / LOH {3,6:N1}) | 非托管 {4,7:N1} | GDI {5} User {6}   ({7})",
+                        mb, heaps, gen2, loh, mb - heaps, gdi, usr, tag));
+                else
+                    Console.WriteLine(string.Format("      内存 {0,8:N1} MB   ({1})", mb, tag));
             }
             catch { }
         }
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        static extern int GetGuiResources(IntPtr hProcess, int uiFlags);
 
         static void MemReport()
         {
@@ -515,8 +584,23 @@ namespace MeetSimulator
         // ══════════════ 杂项 ══════════════
         static Process FindOrLaunchApp()
         {
+            // 指定了 --exe 就先把别的实例清掉, 免得连到上一轮留下的进程上
+            if (!string.IsNullOrEmpty(_o.Exe))
+            {
+                foreach (var old in Process.GetProcessesByName("SwimmingScoreboard"))
+                { try { old.Kill(); old.WaitForExit(5000); } catch { } }
+                Thread.Sleep(800);
+            }
+
             var ps = Process.GetProcessesByName("SwimmingScoreboard");
-            if (ps.Length > 0) { _o.AppDir = Path.GetDirectoryName(ps[0].MainModule.FileName); return ps[0]; }
+            if (ps.Length > 0)
+            {
+                // MainModule 在少数情况下读不到(权限/位数不符), 退回按相对路径找
+                try { _o.AppDir = Path.GetDirectoryName(ps[0].MainModule.FileName); }
+                catch { string e2 = FindExe(); _o.AppDir = e2 != null ? Path.GetDirectoryName(e2) : null; }
+                if (_o.AppDir == null) { Err("找到进程但定位不到它的目录"); return null; }
+                return ps[0];
+            }
             if (_o.NoLaunch) return null;
 
             string exe = FindExe();
@@ -564,6 +648,8 @@ namespace MeetSimulator
 
         static string FindExe()
         {
+            if (!string.IsNullOrEmpty(_o.Exe))
+                return File.Exists(_o.Exe) ? Path.GetFullPath(_o.Exe) : null;
             string here = AppDomain.CurrentDomain.BaseDirectory;
             foreach (var rel in new[] {
                 @"..\..\..\..\SwimmingScoreboard\bin\x64\Release\SwimmingScoreboard.exe",
@@ -590,6 +676,9 @@ namespace MeetSimulator
                     case "--ws":    o.WsPort = int.Parse(a[++i]); break;
                     case "--pause": o.PauseMs = int.Parse(a[++i]); break;
                     case "--lap-gap": o.LapGap = double.Parse(a[++i]); break;
+                    case "--idle":    o.IdleSec = double.Parse(a[++i]); break;
+                    case "--exe":       o.Exe = a[++i]; break;
+                    case "--event":     o.Only = a[++i]; break;
                     case "--no-launch": o.NoLaunch = true; break;
                     case "--dsq":   o.WithDsq = true; break;
                     case "--dns":   o.WithDns = true; break;

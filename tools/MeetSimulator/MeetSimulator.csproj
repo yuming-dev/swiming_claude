@@ -13,6 +13,10 @@
     <AssemblyName>MeetSimulator</AssemblyName>
     <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
+    <!-- 必须 x64: 主程序是 64 位, 32 位进程读不了它的 MainModule
+         (AnyCPU 的 exe 默认 Prefer32Bit=true, 会掉进 32 位) -->
+    <PlatformTarget>x64</PlatformTarget>
+    <Prefer32Bit>false</Prefer32Bit>
     <ProjectGuid>{7B3D2C41-9E4A-4C88-B2E1-5D6F0A3C7E12}</ProjectGuid>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">

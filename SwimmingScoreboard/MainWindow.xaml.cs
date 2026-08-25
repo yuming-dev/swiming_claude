@@ -20640,8 +20640,26 @@ namespace SwimmingScoreboard
                 lock (_autoSaveBgLock) {   // 串行化, 防 AutoSaveData 短时间内多次触发 时同名文件竞争
                     try {
                         File.WriteAllText(lastCompPath, compName, Encoding.UTF8);
-                        string json = JsonConvert.SerializeObject(package, Formatting.Indented);
-                        File.WriteAllText(jsonPath, json, Encoding.UTF8);
+                        // 2026-08-25 不要 SerializeObject 再 WriteAllText:
+                        //   那样会先在内存里生成一个 1.2MB 的字符串。超过 85KB 就进大对象堆,
+                        //   而 LOH 不压缩; 一组存一次, 堆就一格一格往上爬 —— 实测连跑 25 组
+                        //   从 174MB 涨到 715MB(约 22MB/组), 整场 94 组推出来就是 2GB 量级,
+                        //   跟现场报的"内存翻红"对得上。
+                        //   改成直接往文件流里写, 中间不落大字符串。
+                        //   顺带先写 .tmp 再替换: 原来 WriteAllText 会先把正式档案截断,
+                        //   写一半崩了档案就毁了。
+                        string tmpPath = jsonPath + ".tmp";
+                        // 缓冲区故意用小的(16KB): 再大就自己变成大对象堆分配了,
+                        // 而 LOH 正是这次要治的东西, 别一边治一边添。
+                        using (var fs = new FileStream(tmpPath, FileMode.Create, FileAccess.Write, FileShare.None, 16 * 1024))
+                        using (var sw2 = new StreamWriter(fs, new UTF8Encoding(false), 16 * 1024))
+                        using (var jw = new JsonTextWriter(sw2)) {
+                            jw.Formatting = Formatting.Indented;
+                            JsonSerializer.CreateDefault().Serialize(jw, package);
+                            jw.Flush();
+                        }
+                        if (File.Exists(jsonPath)) File.Replace(tmpPath, jsonPath, null);
+                        else File.Move(tmpPath, jsonPath);
                     } catch (Exception ex) {
                         try { Dispatcher.BeginInvoke(new Action(() => AddLog("自动保存失败: " + ex.Message))); } catch { }
                     }
