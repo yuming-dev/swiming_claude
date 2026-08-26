@@ -343,6 +343,13 @@ class SetupForm : Form
                 string toolSrc = Path.Combine(sourceDir, toolName);
                 if (File.Exists(toolSrc)) File.Copy(toolSrc, Path.Combine(toolsDst, toolName), true);
             }
+            // 2026-08-26 安装包里的 Tools\ 整个搬过去(新版模拟计时器 TimingSimulatorGUI.exe
+            // 和它的说明就在里面)。以后再加工具, 打包时丢进 Tools\ 即可, 这里不用再改。
+            string toolsSrc = Path.Combine(sourceDir, "Tools");
+            if (Directory.Exists(toolsSrc)) {
+                foreach (string f in Directory.GetFiles(toolsSrc))
+                    File.Copy(f, Path.Combine(toolsDst, Path.GetFileName(f)), true);
+            }
 
             SetProgress(80, "创建桌面快捷方式...");
             string desktop = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);

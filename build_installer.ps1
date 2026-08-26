@@ -140,9 +140,17 @@ if (Test-Path $simProj) {
     if ($LASTEXITCODE -ne 0) { throw "新版模拟计时器编译失败" }
     $simExe = Join-Path $root "tools\TimingSimulator\bin\Release\TimingSimulator.exe"
     if (-not (Test-Path $simExe)) { throw "编译完了却找不到 $simExe" }
-    Copy-Item $simExe (Join-Path $installerBuild "TimingSimulatorGUI.exe") -Force
+    # 放进包里的 Tools\ 子目录 —— Setup 会把这个目录整个装到 <安装目录>\Tools\
+    # 早期版本把这两个直接放在根目录, 换到 Tools\ 之后要把旧的清掉, 免得一个包里两份
+    foreach ($stale in @("TimingSimulatorGUI.exe", "模拟计时器说明.md")) {
+        $sp2 = Join-Path $installerBuild $stale
+        if (Test-Path $sp2) { Remove-Item $sp2 -Force }
+    }
+    $toolsDir = Join-Path $installerBuild "Tools"
+    if (-not (Test-Path $toolsDir)) { New-Item -ItemType Directory -Path $toolsDir | Out-Null }
+    Copy-Item $simExe (Join-Path $toolsDir "TimingSimulatorGUI.exe") -Force
     $simDoc = Join-Path $root "tools\TimingSimulator\README.md"
-    if (Test-Path $simDoc) { Copy-Item $simDoc (Join-Path $installerBuild "模拟计时器说明.md") -Force }
+    if (Test-Path $simDoc) { Copy-Item $simDoc (Join-Path $toolsDir "模拟计时器说明.md") -Force }
     Write-Host "  ✓ TimingSimulatorGUI.exe (新版, 图形界面)"
 } else {
     Write-Host "  ! 找不到 $simProj, 跳过新版模拟计时器"

@@ -436,19 +436,29 @@ namespace TimingSimulator
             cb.SelectedIndex = 0;
         }
 
-        void FireGun()
+        void FireGun() { FireGun(true); }
+
+        /// <param name="echo">
+        /// true = 本机按钮触发, 要把发令帧发给比赛控制计算机;
+        /// false = 【收到对方的发令命令】, 只动本机时钟, 千万不能再发回去 ——
+        ///         UDP 自环时会无限来回, TCP 下也会让对方以为计时器又发了一次令。
+        /// </param>
+        void FireGun(bool echo)
         {
             _clock.Restart();
-            SendFrame(CMD_START, 0, 0, 0);
+            if (echo) SendFrame(CMD_START, 0, 0, 0);
             _flashLeft = 20; _hornLeft = 8;
             if (_chkHorn.Checked)
                 ThreadPool.QueueUserWorkItem(delegate { try { Console.Beep(1000, 300); } catch { } });
         }
 
-        void ResetClock()
+        void ResetClock() { ResetClock(true); }
+
+        /// <param name="echo">同 FireGun: 收到对方命令时为 false, 不回发。</param>
+        void ResetClock(bool echo)
         {
             _clock.Reset();
-            SendFrame(CMD_RESET, 0, 0, 0);
+            if (echo) SendFrame(CMD_RESET, 0, 0, 0);
             _clockLabel.Text = "0.00";
             for (int l = 0; l < LANES; l++)
                 for (int s = 0; s < 2; s++)
@@ -607,7 +617,7 @@ namespace TimingSimulator
             {
                 int n = st.Read(buf, 0, buf.Length);
                 if (n <= 0) break;
-                _framesRecv += n / FRAME;
+                OnBytes(buf, n);
             }
         }
 
@@ -661,7 +671,7 @@ namespace TimingSimulator
                     var u = _udp;
                     if (u == null) break;
                     var d = u.Receive(ref any);
-                    if (d != null && d.Length > 0) _framesRecv += d.Length / FRAME;
+                    if (d != null && d.Length > 0) OnBytes(d, d.Length);
                 }
                 catch { break; }
             }
@@ -685,6 +695,67 @@ namespace TimingSimulator
                 d.ShowDialog(this);
                 _connDlg = null;
             }
+        }
+
+        // ══════════════════════════════════════════════════════════════
+        // 收: 比赛控制计算机发过来的命令
+        //
+        // 真机就是双向的 —— 计时台按【计时复位】/【发令】, 命令要下到计时器。
+        // 原来这里只数了个帧数, 现在按协议解析出来并执行。
+        //
+        // TCP 是字节流, 一帧可能被拆成两次到达, 也可能几帧粘在一起,
+        // 所以要攒着按帧头(F1 53)对齐、帧尾(F4)校验, 不能按次读当帧用。
+        // ══════════════════════════════════════════════════════════════
+        readonly System.Collections.Generic.List<byte> _rx = new System.Collections.Generic.List<byte>();
+
+        void OnBytes(byte[] buf, int n)
+        {
+            lock (_rx)
+            {
+                for (int i = 0; i < n; i++) _rx.Add(buf[i]);
+                while (true)
+                {
+                    // 找帧头
+                    int s = -1;
+                    for (int i = 0; i + 1 < _rx.Count; i++)
+                        if (_rx[i] == SOH && _rx[i + 1] == STX_S) { s = i; break; }
+                    if (s < 0)
+                    {
+                        // 全是垃圾, 只留最后 1 字节(可能是下一帧头的前半个)
+                        if (_rx.Count > 1) _rx.RemoveRange(0, _rx.Count - 1);
+                        break;
+                    }
+                    if (s > 0) _rx.RemoveRange(0, s);
+                    if (_rx.Count < FRAME) break;              // 还没收全, 等下一批
+                    if (_rx[FRAME - 1] != EOT) { _rx.RemoveRange(0, 2); continue; }   // 帧尾不对, 跳过这个假帧头
+                    var f = _rx.GetRange(0, FRAME).ToArray();
+                    _rx.RemoveRange(0, FRAME);
+                    _framesRecv++;
+                    HandleIncoming(f);
+                }
+            }
+        }
+
+        void HandleIncoming(byte[] f)
+        {
+            byte cmd = f[2];
+            if (cmd != CMD_START && cmd != CMD_RESET) return;   // 其余命令本模拟器暂不响应
+            try
+            {
+                BeginInvoke((Action)delegate {
+                    if (cmd == CMD_START)
+                    {
+                        FireGun(false);                          // 不回发, 免得来回打转
+                        SetConn("收到比赛控制计算机【发令】—— 开始计时", COk);
+                    }
+                    else
+                    {
+                        ResetClock(false);
+                        SetConn("收到比赛控制计算机【计时复位】—— 已清零", COk);
+                    }
+                });
+            }
+            catch { }
         }
 
         void SetConn(string text, Color color)
