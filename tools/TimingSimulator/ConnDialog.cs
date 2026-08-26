@@ -1,5 +1,9 @@
 using System;
 using System.Drawing;
+using System.Linq;
+using System.Net;
+using System.Net.NetworkInformation;
+using System.Net.Sockets;
 using System.Windows.Forms;
 
 namespace TimingSimulator
@@ -7,9 +11,12 @@ namespace TimingSimulator
     /// <summary>跟比赛控制计算机怎么连。</summary>
     public enum ConnMode
     {
-        /// <summary>本机监听, 等比赛控制计算机连过来(默认, 也是原来一直用的方式)。</summary>
+        /// <summary>
+        /// 本机监听, 等比赛控制计算机连过来 —— 【默认, 也是真实现场的接法】:
+        /// 计时器(本模拟器)是服务端, 比赛控制计算机作为客户端来连它。
+        /// </summary>
         TcpServer,
-        /// <summary>本机主动去连比赛控制计算机。</summary>
+        /// <summary>本机主动去连比赛控制计算机(少数设备是这个方向)。</summary>
         TcpClient,
         /// <summary>UDP: 本机在端口上收, 同时往对方地址发。</summary>
         Udp
@@ -22,10 +29,12 @@ namespace TimingSimulator
     public class ConnDialog : Form
     {
         readonly ComboBox _mode = new ComboBox();
+        readonly Label _hostLabel = new Label();
         readonly TextBox _host = new TextBox();
         readonly TextBox _port = new TextBox();
         readonly Label _tip = new Label();
         readonly Label _state = new Label();
+        readonly string _realHost;      // 用户填的"对方地址", 切到服务端模式时先存着
 
         // 主程序是 DPI 感知的, 所以这里拿到的是【真实像素】: 150% 缩放时字会大 1.5 倍,
         // 而下面写的坐标是按 96dpi 设计的 —— 不折算就会把"连接方式"截成"连接方"。
@@ -33,7 +42,7 @@ namespace TimingSimulator
         int Z(int v) { return (int)Math.Round(v * _k); }
 
         public ConnMode Mode { get { return (ConnMode)_mode.SelectedIndex; } }
-        public string Host { get { return _host.Text.Trim(); } }
+        public string Host { get { return Mode == ConnMode.TcpServer ? _realHost : _host.Text.Trim(); } }
         public int Port { get { int v; return int.TryParse(_port.Text.Trim(), out v) ? v : 0; } }
 
         /// <summary>按下【连接】: 主窗口照这个设置重开网络。</summary>
@@ -41,8 +50,32 @@ namespace TimingSimulator
         /// <summary>按下【断开】: 主窗口把网络全部停掉。</summary>
         public Action Disconnect;
 
+        /// <summary>
+        /// 本机的 IPv4 地址(可能不止一个: 有线/无线/虚拟网卡)。
+        /// 服务端模式下操作员要照着这个填到比赛控制计算机上, 所以必须亮出来。
+        /// </summary>
+        public static string LocalIPv4Text()
+        {
+            try
+            {
+                var list = NetworkInterface.GetAllNetworkInterfaces()
+                    .Where(n => n.OperationalStatus == OperationalStatus.Up
+                             && n.NetworkInterfaceType != NetworkInterfaceType.Loopback)
+                    .SelectMany(n => n.GetIPProperties().UnicastAddresses)
+                    .Where(u => u.Address.AddressFamily == AddressFamily.InterNetwork
+                             && !IPAddress.IsLoopback(u.Address))
+                    .Select(u => u.Address.ToString())
+                    .Distinct()
+                    .ToList();
+                if (list.Count > 0) return string.Join(" / ", list.ToArray());
+            }
+            catch { }
+            return "127.0.0.1";
+        }
+
         public ConnDialog(ConnMode mode, string host, int port)
         {
+            _realHost = host;
             Text = "连接比赛控制计算机";
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false; MinimizeBox = false;
@@ -55,7 +88,7 @@ namespace TimingSimulator
             Controls.Add(new Label { Text = "连接方式", Left = Z(18), Top = Z(23), Width = Z(76), Height = Z(22) });
             _mode.DropDownStyle = ComboBoxStyle.DropDownList;
             _mode.Items.AddRange(new object[] {
-                "TCP 服务端 —— 本机监听, 等对方连过来",
+                "TCP 服务端 —— 本机监听, 等对方连过来（默认）",
                 "TCP 客户端 —— 本机主动去连对方",
                 "UDP —— 本机在端口上收, 同时往对方发"
             });
@@ -64,7 +97,8 @@ namespace TimingSimulator
             _mode.SelectedIndexChanged += delegate { RefreshTip(); };
             Controls.Add(_mode);
 
-            Controls.Add(new Label { Text = "对方地址", Left = Z(18), Top = Z(63), Width = Z(76), Height = Z(22) });
+            _hostLabel.SetBounds(Z(18), Z(63), Z(76), Z(22));
+            Controls.Add(_hostLabel);
             _host.SetBounds(Z(100), Z(58), Z(210), Z(26));
             _host.Text = host;
             Controls.Add(_host);
@@ -123,14 +157,26 @@ namespace TimingSimulator
 
         void RefreshTip()
         {
-            // TCP 服务端不需要对方地址 —— 是对方来找我们
-            _host.Enabled = Mode != ConnMode.TcpServer;
-            _tip.Text =
-                Mode == ConnMode.TcpServer
-                    ? "本机在这个端口上监听。比赛控制计算机要把计时硬件\n地址指到本机 IP + 这个端口, 且要【先开模拟器再开它】。"
-                : Mode == ConnMode.TcpClient
+            if (Mode == ConnMode.TcpServer)
+            {
+                // 服务端模式下这一栏不是"填对方地址", 而是【告诉你本机地址是多少】——
+                // 操作员要拿着它去比赛控制计算机上填。所以改标签、填本机 IP、置灰。
+                _hostLabel.Text = "本机地址";
+                _host.Text = LocalIPv4Text();
+                _host.Enabled = false;
+                _tip.Text =
+                    "现场就是这么接的: 本模拟器(计时器)当服务端, 比赛控制计算机当客户端连过来。\n"
+                  + "把上面的【本机地址 + 端口】填到比赛控制计算机的计时硬件设置里。\n"
+                  + "注意要【先开模拟器再开比赛控制程序】—— 对方启动时只连一次, 不重试。";
+            }
+            else
+            {
+                _hostLabel.Text = "对方地址";
+                if (!_host.Enabled) { _host.Text = _realHost; _host.Enabled = true; }
+                _tip.Text = Mode == ConnMode.TcpClient
                     ? "本机主动去连对方。连不上会每 2 秒重试一次,\n对方晚开也没关系。"
                     : "本机在这个端口上收, 同时往【对方地址 + 同一端口】发。\nUDP 不建连接, 对方没开也照发不误。";
+            }
         }
     }
 }

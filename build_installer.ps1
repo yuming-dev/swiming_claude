@@ -127,6 +127,27 @@ $manualSrc = Join-Path $root "Installer\使用说明书.pdf"
 if (Test-Path $manualSrc) { Copy-Item $manualSrc (Join-Path $installerBuild "使用说明书.pdf") -Force }
 # 2026-07-13 通讯协议.pdf 是开发者文档, 不进客户包 (原 2026-06-18 打包这行已移除). 客户包只放 使用说明书.pdf.
 
+# ── 新版模拟计时器(图形界面, 10 道泳池) ───────────────────────────────
+# 跟上面 InstallerApp\TimingSimulator.cs 编出来的老工具【不是同一个东西】:
+#   TimingSimulator.exe      老的, 命令行/简易版, 名字不动免得说明书和快捷方式失效
+#   TimingSimulatorGUI.exe   新的, 10 道泳池图 + 触板/出发台/盲表按钮 +
+#                            TCP服务端/TCP客户端/UDP 三种连接方式
+# 两者不能同名共存, 所以新的这个改名收进来。
+Write-Host "[4.5/5] 编译并收录新版模拟计时器 (tools\TimingSimulator) ..."
+$simProj = Join-Path $root "tools\TimingSimulator\TimingSimulator.csproj"
+if (Test-Path $simProj) {
+    & $msbuild $simProj -t:Rebuild -nologo -p:Configuration=Release -v:minimal
+    if ($LASTEXITCODE -ne 0) { throw "新版模拟计时器编译失败" }
+    $simExe = Join-Path $root "tools\TimingSimulator\bin\Release\TimingSimulator.exe"
+    if (-not (Test-Path $simExe)) { throw "编译完了却找不到 $simExe" }
+    Copy-Item $simExe (Join-Path $installerBuild "TimingSimulatorGUI.exe") -Force
+    $simDoc = Join-Path $root "tools\TimingSimulator\README.md"
+    if (Test-Path $simDoc) { Copy-Item $simDoc (Join-Path $installerBuild "模拟计时器说明.md") -Force }
+    Write-Host "  ✓ TimingSimulatorGUI.exe (新版, 图形界面)"
+} else {
+    Write-Host "  ! 找不到 $simProj, 跳过新版模拟计时器"
+}
+
 Write-Host "[5/5] 打包完成。InstallerBuild 目录清单："
 Get-ChildItem $installerBuild | ForEach-Object {
     if ($_.PSIsContainer) {

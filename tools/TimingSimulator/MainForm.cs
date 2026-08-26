@@ -552,7 +552,10 @@ namespace TimingSimulator
                     _listener = new TcpListener(IPAddress.Any, _port);
                     _listener.Start();
                     new Thread((ThreadStart)delegate { AcceptLoop(gen); }) { IsBackground = true }.Start();
-                    SetConn(string.Format("TCP 服务端 :{0} —— 等待比赛控制计算机连接…", _port), CWait);
+                    // 真实拓扑: 模拟器(计时器)是服务端, 比赛控制计算机作为客户端连过来。
+                    // 所以要把【本机地址+端口】亮出来, 操作员照着填到比赛控制计算机上。
+                    SetConn(string.Format("本机 {0}:{1} —— 等待比赛控制计算机连接…",
+                        ConnDialog.LocalIPv4Text(), _port), CWait);
                 }
                 else if (_mode == ConnMode.TcpClient)
                 {
@@ -590,7 +593,7 @@ namespace TimingSimulator
 
         void UpdateTitle()
         {
-            string m = _mode == ConnMode.TcpServer ? "TCP 服务端 :" + _port
+            string m = _mode == ConnMode.TcpServer ? "计时器 " + ConnDialog.LocalIPv4Text() + ":" + _port
                      : _mode == ConnMode.TcpClient ? "TCP 客户端 → " + _host + ":" + _port
                                                    : "UDP :" + _port + " → " + _host;
             string t = "模拟游泳计时器 —— 10 道泳池 (" + m + ")";
