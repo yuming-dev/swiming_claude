@@ -8217,7 +8217,22 @@ namespace SwimmingScoreboard
             // 状态守卫 → 改本地状态 → 送 0x21；硬件参数在每次 Ready 时由 SendSetMatchEventToHardware 一同下发
             // 2026-05-30 本地点击 (sender!=null) 时检查硬件连接; 硬件回报/WebSocket 远程 (sender==null) 跳过弹窗
             if (sender != null && !EnsureHardwareConnected("准备就绪")) return;
-            if (_raceState != RaceState.Waiting) return;
+            if (_raceState != RaceState.Waiting) {
+                // 2026-08-27 原来这里是静默 return —— 现场按了没反应, 操作员不知道为什么,
+                //   只能反复按。现在把当前状态和该怎么办说清楚。
+                //   本地点击弹窗(操作员正盯着屏幕); 远程调用只写日志, 不能弹窗阻塞服务端。
+                string stName = _raceState == RaceState.Ready  ? "已就位"
+                              : _raceState == RaceState.Racing ? "比赛进行中"
+                                                               : "本组已完赛";
+                AddLog("「准备就绪」未执行: 当前状态为" + stName + "，需先按「计时复位」");
+                if (sender != null) {
+                    MessageBox.Show(
+                        "当前状态是「" + stName + "」，不能再次就位。\n\n" +
+                        "请先按【计时复位】，再按【准备就绪】。",
+                        "准备就绪", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+                return;
+            }
             // 2026-06-18 新组就位, 清复位抑制 (上一场可能残留)
             _broadcastSuppressing = false;
             // 已确认成绩的组：禁止再次开始比赛
