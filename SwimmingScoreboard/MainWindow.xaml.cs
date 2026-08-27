@@ -3039,11 +3039,28 @@ namespace SwimmingScoreboard
             }
             if (_allSockets.Count == 0) return;   // 无客户端时连快照都省, 0 分配
             try {
-                var msg = full ? new { type = "SHOW_LIVE_RACE",      data = GetStatusData(true) }
-                               : new { type = "SHOW_LIVE_RACE_LITE", data = GetStatusData(false) };
-                // 2026-06-18 per-socket 队列, 序列化在主线程做一次, 入队 microsec 级
-                string json = JsonConvert.SerializeObject(msg);
-                EnqueueToAll(json);
+                string type = full ? "SHOW_LIVE_RACE" : "SHOW_LIVE_RACE_LITE";
+                var displays = _displaySockets.ToList();
+
+                // 2026-08-27 大屏走专用包。这是比赛中最费的一路(每 100ms 一帧),
+                //   整包 249KB -> 专用包约 23KB。别的客户端读的字段跟大屏不是一套,
+                //   照旧发整包/精简帧。
+                if (displays.Count > 0) {
+                    var vd = BuildDisplayPayload(type);
+                    if (vd != null) {
+                        string lite = JsonConvert.SerializeObject(new { type = type, data = vd });
+                        foreach (var s in displays) EnqueueToSocket(s, lite);
+                    }
+                }
+
+                var others = _allSockets.Where(s => !displays.Contains(s)).ToList();
+                if (others.Count > 0) {
+                    var msg = full ? new { type = "SHOW_LIVE_RACE",      data = GetStatusData(true) }
+                                   : new { type = "SHOW_LIVE_RACE_LITE", data = GetStatusData(false) };
+                    // 2026-06-18 per-socket 队列, 序列化在主线程做一次, 入队 microsec 级
+                    string json = JsonConvert.SerializeObject(msg);
+                    foreach (var s in others) EnqueueToSocket(s, json);
+                }
             } catch { }
         }
 
@@ -3443,28 +3460,7 @@ namespace SwimmingScoreboard
                     left  = _testLastEventLeft.ContainsKey(s.Lane)  ? _testLastEventLeft[s.Lane]  : "",
                     right = _testLastEventRight.ContainsKey(s.Lane) ? _testLastEventRight[s.Lane] : ""
                 }).ToList() : null,
-                laneCloseSettings = new {
-                    laneCloseTime = _laneCloseSettings.LaneCloseTime,
-                    startBlockCloseDelay = _laneCloseSettings.StartBlockCloseDelay,
-                    resultConfirmCloseDelay = _laneCloseSettings.ResultConfirmCloseDelay,
-                    falseStartThreshold = _laneCloseSettings.FalseStartThreshold,
-                    splitDisplayTime = _laneCloseSettings.SplitDisplayTime,
-                    startPosition = _laneCloseSettings.StartPosition,
-                    finishPosition = _laneCloseSettings.FinishPosition,
-                    firstPlaceHoldTime = _laneCloseSettings.FirstPlaceHoldTime,
-                    leftBlindWatchCount = _laneCloseSettings.LeftBlindWatchCount,
-                    rightBlindWatchCount = _laneCloseSettings.RightBlindWatchCount,
-                    bigDisplayPageInterval = _laneCloseSettings.BigDisplayPageInterval,
-                    reactionTimeEnabled = _laneCloseSettings.ReactionTimeEnabled,
-                    laneOrder = _laneCloseSettings.LaneOrder,
-                    hardwareAlwaysOpen = _laneCloseSettings.HardwareAlwaysOpen,
-                    // 2026-06-18 race_control.html 参数设置弹窗用 (与 PC 端同步)
-                    blindReplaceDelay = _laneCloseSettings.BlindReplaceDelay,
-                    reactionEventWindowSec = _laneCloseSettings.ReactionEventWindowSec,
-                    autoBlindReplaceTouchpad = _laneCloseSettings.AutoBlindReplaceTouchpad,
-                    manualTpReplaceTp = _laneCloseSettings.ManualTpReplaceTp,
-                    startBoxEdgeFalling = _laneCloseSettings.StartBoxEdgeFalling
-                },
+                laneCloseSettings = BuildLaneCloseSettingsPayload(),
                 // 2026-06-19 race_control.html 顶端"内存监控"用 (跟 PC 端 MemoryStatusText 同源)
                 memoryStatus = MemoryStatusText != null ? MemoryStatusText.Text : "",
                 // 2026-06-19 race_control.html 顶端"电池电压"用 (跟 PC 端 BatteryVoltageText 同源)
@@ -3736,6 +3732,26 @@ namespace SwimmingScoreboard
                     d["awardRanking"] = BuildAwardRankingPayload();
                     d["eventRanking"] = GetEventRanking(_currentEvent, _currentGender);
                     break;
+                // 2026-08-27 比赛实况 —— 这是【比赛中每 100ms 都在发】的那一路, 最费。
+                //   实测: 整包 249KB / 精简帧 28KB, 而 renderRace 真正要用的只有下面这些。
+                //   大屏不读的 laneDevices(5.5KB)、laneEventLogs、memoryStatus、
+                //   timingHwStatus、forceAllOpenLanes… 一律不发。
+                //   records 是 renderRace 要读的(项目名下那行纪录), 不能砍 ——
+                //   砍了就是重演"比赛中纪录行被冲掉"那次事故。
+                case "SHOW_LIVE_RACE":
+                case "SHOW_LIVE_RACE_LITE":
+                    d["swimmers"] = BuildSwimmerPayload();
+                    d["records"] = BuildRecordsPayload();
+                    d["applicableRecords"] = BuildApplicableRecords(_currentEvent, _currentGender);
+                    d["laneCloseSettings"] = BuildLaneCloseSettingsPayload();
+                    d["raceState"] = _raceState.ToString().ToUpper();
+                    d["runningTime"] = TimeFormatter.FormatRunning(_clockPaused ? _pausedRunningTime : _runningTime);
+                    d["clockPaused"] = _clockPaused;
+                    break;
+                // 欢迎屏 renderWelcome 只读 competitionName, 公共标量就够了。
+                //   原来这里发的是 249KB 整包 —— 一场比赛每次复位都发一遍。
+                case "SHOW_WELCOME":
+                    break;
                 default:
                     return null;   // 不认识的视图 -> 退回整包, 保证不会因为漏配而白屏
             }
@@ -3761,6 +3777,32 @@ namespace SwimmingScoreboard
                 { "displayRecordLabel", string.IsNullOrEmpty(_displayRecordLabel) ? "WR" : _displayRecordLabel },
                 { "displayRecordTypeName", string.IsNullOrEmpty(_displayRecordTypeName) ? "世界纪录" : _displayRecordTypeName },
                 { "poolConfig", BuildPoolConfigPayload() }
+            };
+        }
+
+        // 计时参数(大屏比赛实况视图也要读, 所以两边共用)
+        private object BuildLaneCloseSettingsPayload() {
+            return new {
+                laneCloseTime = _laneCloseSettings.LaneCloseTime,
+                startBlockCloseDelay = _laneCloseSettings.StartBlockCloseDelay,
+                resultConfirmCloseDelay = _laneCloseSettings.ResultConfirmCloseDelay,
+                falseStartThreshold = _laneCloseSettings.FalseStartThreshold,
+                splitDisplayTime = _laneCloseSettings.SplitDisplayTime,
+                startPosition = _laneCloseSettings.StartPosition,
+                finishPosition = _laneCloseSettings.FinishPosition,
+                firstPlaceHoldTime = _laneCloseSettings.FirstPlaceHoldTime,
+                leftBlindWatchCount = _laneCloseSettings.LeftBlindWatchCount,
+                rightBlindWatchCount = _laneCloseSettings.RightBlindWatchCount,
+                bigDisplayPageInterval = _laneCloseSettings.BigDisplayPageInterval,
+                reactionTimeEnabled = _laneCloseSettings.ReactionTimeEnabled,
+                laneOrder = _laneCloseSettings.LaneOrder,
+                hardwareAlwaysOpen = _laneCloseSettings.HardwareAlwaysOpen,
+                // 2026-06-18 race_control.html 参数设置弹窗用 (与 PC 端同步)
+                blindReplaceDelay = _laneCloseSettings.BlindReplaceDelay,
+                reactionEventWindowSec = _laneCloseSettings.ReactionEventWindowSec,
+                autoBlindReplaceTouchpad = _laneCloseSettings.AutoBlindReplaceTouchpad,
+                manualTpReplaceTp = _laneCloseSettings.ManualTpReplaceTp,
+                startBoxEdgeFalling = _laneCloseSettings.StartBoxEdgeFalling
             };
         }
 
