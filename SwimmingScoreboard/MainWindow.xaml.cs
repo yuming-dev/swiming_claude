@@ -3071,10 +3071,25 @@ namespace SwimmingScoreboard
             }
             if (_allSockets.Count == 0) return;
             try {
-                // 2026-05-25 modeExplicit=true 区分"操作员主动切显示模式" 与 "服务器状态心跳"
-                // 2026-06-18 per-socket 队列, 主线程序列化 + 入队后立即返回
-                var msg = new { type = mode, data = GetStatusData(), modeExplicit = true };
-                EnqueueToAll(JsonConvert.SerializeObject(msg));
+                // 2026-08-27 大屏走【专用包】: 只算、只发这个视图要用的数据。
+                //   其余客户端(控制页/检录台/成绩榜/查询页)照旧收整包 —— 它们读的字段
+                //   跟大屏不是一套(比如 query.html 真在读 allSwimmers), 不能一起瘦。
+                var viewData = BuildDisplayPayload(mode);
+                var displays = _displaySockets.ToList();
+
+                if (viewData != null && displays.Count > 0) {
+                    string lite = JsonConvert.SerializeObject(new { type = mode, data = viewData, modeExplicit = true });
+                    foreach (var s in displays) EnqueueToSocket(s, lite);
+                }
+
+                // 只有确实存在"非大屏"客户端时才去算整包 —— 没有就一次都不算
+                var others = _allSockets.Where(s => viewData == null || !displays.Contains(s)).ToList();
+                if (others.Count > 0) {
+                    // 2026-05-25 modeExplicit=true 区分"操作员主动切显示模式" 与 "服务器状态心跳"
+                    // 2026-06-18 per-socket 队列, 主线程序列化 + 入队后立即返回
+                    string full = JsonConvert.SerializeObject(new { type = mode, data = GetStatusData(), modeExplicit = true });
+                    foreach (var s in others) EnqueueToSocket(s, full);
+                }
             } catch { }
         }
 
@@ -3145,8 +3160,11 @@ namespace SwimmingScoreboard
         /// 用 Take(0) 而不是把字段删掉, 是为了让匿名类型的形状保持一致 ——
         /// 两条路共用同一个方法, 不会随时间漂移成两份。
         /// </summary>
-        private object GetStatusData(bool keepStatic) {
-            int staticN = keepStatic ? int.MaxValue : 0;
+        // ══════════════════════════════════════════════════════════════
+        // 当前组的泳道数据。整包(GetStatusData)和大屏专用包(BuildDisplayPayload)
+        // 都调这一个 —— 【只此一份】, 免得将来改了一处漏了另一处, 两边输出对不上。
+        // ══════════════════════════════════════════════════════════════
+        private List<object> BuildSwimmerPayload() {
             // 构建当前组运动员数据
             var swimmerData = new List<object>();
             var currentSwimmers = GetCurrentHeatSwimmers();
@@ -3359,20 +3377,14 @@ namespace SwimmingScoreboard
             }
             // 按泳道号排序（空泳道正确插入对应位置）
             swimmerData = swimmerData.OrderBy(o => { try { return (int)((dynamic)o).lane; } catch { return 0; } }).ToList();
+            return swimmerData;
+        }
 
-            // 2026-06-04 当前项目的 项次 (= 赛程顺序号, 0=未查到/无项目)
-            int currentEventNumber = 0;
-            if (!string.IsNullOrEmpty(_currentEvent)) {
-                try {
-                    var evtMap = BuildEventNumberMap();
-                    int no;
-                    // 2026-06-05 先按 性别|项目|年龄组 三部分 查, 找不到再降级到 性别|项目
-                    string k3 = (_currentGender ?? "") + "|" + _currentEvent + "|" + (_currentAgeGroup ?? "");
-                    string k2 = (_currentGender ?? "") + "|" + _currentEvent;
-                    if (evtMap.TryGetValue(k3, out no)) currentEventNumber = no;
-                    else if (evtMap.TryGetValue(k2, out no)) currentEventNumber = no;
-                } catch { }
-            }
+        private object GetStatusData(bool keepStatic) {
+            int staticN = keepStatic ? int.MaxValue : 0;
+            var swimmerData = BuildSwimmerPayload();
+
+            int currentEventNumber = BuildCurrentEventNumber();
 
             // 项目总排名
             // 2026-08-25 这三块只有"总排名 / 组成绩 / 纪录"视图用得上, 比赛实况视图不看。
@@ -3384,12 +3396,7 @@ namespace SwimmingScoreboard
             var eventRankingSplit = keepStatic ? GetEventRankingsSplit(_currentAgeGroup, _currentEvent, _currentGender) : new List<object>();
             // 2026-06-05 项目名称下 一行 显示 本项目所有组别 纪录 (大屏 比赛视图/组成绩/总排名 用)
             var applicableRecords = keepStatic ? BuildApplicableRecords(_currentEvent, _currentGender) : new List<object>();
-            var teamScoresData = _teamScores.OrderBy(t => t.Rank).Take(staticN).Select(t => new {
-                teamName = t.TeamName, totalPoints = t.TotalPoints,
-                individualPoints = t.IndividualPoints, relayPoints = t.RelayPoints,
-                recordBonusPoints = t.RecordBonusPoints,
-                gold = t.GoldCount, silver = t.SilverCount, bronze = t.BronzeCount, rank = t.Rank
-            }).ToList();
+            var teamScoresData = BuildTeamScoresPayload(staticN);
 
             // 2026-08-25 把"这一帧里哪些字段被置空了"随帧带过去。
             //   客户端照着这个合并, 就不用自己维护一张要跟这里一一对应的名单 ——
@@ -3413,13 +3420,7 @@ namespace SwimmingScoreboard
                 currentHeat = _currentHeat,
                 totalHeats = _totalHeats,
                 isRelay = _isRelay,
-                poolConfig = new {
-                    length = _poolConfig.Length,
-                    lanes = _poolConfig.LaneCount,
-                    laneNumbers = _poolConfig.LaneNumbers,
-                    //2026-05-19 推送泳池触板"两端/单端"安装方式给所有客户端 (race_control/RemoteTimingControl)
-                    hasRightStartBlock = _poolConfig.HasRightStartBlock
-                },
+                poolConfig = BuildPoolConfigPayload(),
                 //2026-05-19 推送当前"设备全开"集合 (含 -1 表示全道, 0..9 表示单道)
                 forceAllOpenLanes = _forceAllOpenLanes.ToList(),
                 forceAllOpenAll   = _forceAllOpenLanes.Contains(-1),
@@ -3591,43 +3592,185 @@ namespace SwimmingScoreboard
                 eventRankingSplit = eventRankingSplit,
                 applicableRecords = applicableRecords,   // 2026-06-05 大屏 项目名称下 inline 纪录行
                 teamScores = teamScoresData,
-                records = _records.Select(r => new {
-                    eventName = r.EventName, gender = r.Gender, ageGroup = r.AgeGroup ?? "",
-                    recordType = r.RecordType,
-                    holderName = r.HolderName, holderCountry = r.HolderCountry,
-                    time = TimeFormatter.Format(r.Time), timeInSeconds = r.Time,
-                    date = r.Date, location = r.Location
-                }).ToList(),
+                records = BuildRecordsPayload(),
                 // 2026-06-03 裁判员名单 (大屏 "裁判介绍" 视图): 从 _staff 里挑 Group=裁判员 的成员
-                refereeList = _staff
-                    .Where(m => m != null && (m.Group ?? "") == StaffGroups.Referees)
-                    .Select(m => new {
-                        title = m.Title ?? "", name = m.Name ?? "",
-                        country = m.Country ?? "", refereeLevel = m.RefereeLevel ?? "",
-                        gender = m.Gender ?? ""
-                    }).ToList(),
+                refereeList = BuildRefereePayload(),
                 // 2026-06-21 颁奖弹窗选定项目 (用户选 → SHOW_AWARDS), display.html 检测此字段优先用,
                 //   没有则退回 _currentXxx + eventRanking (兼容远端命令直接推 SHOW_AWARDS). awardRanking 按
                 //   "全项目总排名" 算 (多组决赛颁奖按总排名前 3, 非单组前 3).
-                awardSelection = _awardSelection == null ? null : (object)new {
-                    gender = _awardSelection.Gender ?? "",
-                    ageGroup = _awardSelection.AgeGroup ?? "",
-                    eventName = _awardSelection.EventName ?? "",
-                    stage = _awardSelection.Stage ?? ""
-                },
-                awardRanking = _awardSelection == null ? new List<object>()
-                    : GetEventRankingForStage(_awardSelection.Gender ?? "", _awardSelection.EventName ?? "",
-                                              _awardSelection.AgeGroup ?? "", _awardSelection.Stage ?? ""),
+                awardSelection = BuildAwardSelectionPayload(),
+                awardRanking = BuildAwardRankingPayload(),
                 // 2026-06-21 总排名回放: 用户从弹窗选定项目, display.html 检测后强制单表分页 (不走 split)
-                rankingSelection = _rankingSelection == null ? null : (object)new {
-                    gender = _rankingSelection.Gender ?? "",
-                    ageGroup = _rankingSelection.AgeGroup ?? "",
-                    eventName = _rankingSelection.EventName ?? "",
-                    stage = _rankingSelection.Stage ?? ""
-                },
-                rankingRanking = _rankingSelection == null ? new List<object>()
-                    : GetEventRankingForStage(_rankingSelection.Gender ?? "", _rankingSelection.EventName ?? "",
-                                              _rankingSelection.AgeGroup ?? "", _rankingSelection.Stage ?? "")
+                rankingSelection = BuildRankingSelectionPayload(),
+                rankingRanking = BuildRankingRankingPayload()
+            };
+        }
+
+        // ══════════════════════════════════════════════════════════════
+        // 以下都是【单一来源】的取数方法: 整包和大屏专用包共用同一份。
+        // 抽出来的目的不是好看, 是防止两条路径各写一份、改一处漏一处 ——
+        // 那样大屏上就会出现"跟整包对不上"的诡异差异, 而且极难查。
+        // ══════════════════════════════════════════════════════════════
+        private List<object> BuildTeamScoresPayload(int take) {
+            return _teamScores.OrderBy(t => t.Rank).Take(take).Select(t => (object)new {
+                teamName = t.TeamName, totalPoints = t.TotalPoints,
+                individualPoints = t.IndividualPoints, relayPoints = t.RelayPoints,
+                recordBonusPoints = t.RecordBonusPoints,
+                gold = t.GoldCount, silver = t.SilverCount, bronze = t.BronzeCount, rank = t.Rank
+            }).ToList();
+        }
+
+        private List<object> BuildRecordsPayload() {
+            return _records.Select(r => (object)new {
+                eventName = r.EventName, gender = r.Gender, ageGroup = r.AgeGroup ?? "",
+                recordType = r.RecordType,
+                holderName = r.HolderName, holderCountry = r.HolderCountry,
+                time = TimeFormatter.Format(r.Time), timeInSeconds = r.Time,
+                date = r.Date, location = r.Location
+            }).ToList();
+        }
+
+        // 裁判员名单 (大屏 "裁判介绍" 视图): 从 _staff 里挑 Group=裁判员 的成员
+        private List<object> BuildRefereePayload() {
+            return _staff
+                .Where(m => m != null && (m.Group ?? "") == StaffGroups.Referees)
+                .Select(m => (object)new {
+                    title = m.Title ?? "", name = m.Name ?? "",
+                    country = m.Country ?? "", refereeLevel = m.RefereeLevel ?? "",
+                    gender = m.Gender ?? ""
+                }).ToList();
+        }
+
+        private object BuildAwardSelectionPayload() {
+            return _awardSelection == null ? null : (object)new {
+                gender = _awardSelection.Gender ?? "",
+                ageGroup = _awardSelection.AgeGroup ?? "",
+                eventName = _awardSelection.EventName ?? "",
+                stage = _awardSelection.Stage ?? ""
+            };
+        }
+
+        private object BuildAwardRankingPayload() {
+            return _awardSelection == null ? new List<object>()
+                : GetEventRankingForStage(_awardSelection.Gender ?? "", _awardSelection.EventName ?? "",
+                                          _awardSelection.AgeGroup ?? "", _awardSelection.Stage ?? "");
+        }
+
+        private object BuildRankingSelectionPayload() {
+            return _rankingSelection == null ? null : (object)new {
+                gender = _rankingSelection.Gender ?? "",
+                ageGroup = _rankingSelection.AgeGroup ?? "",
+                eventName = _rankingSelection.EventName ?? "",
+                stage = _rankingSelection.Stage ?? ""
+            };
+        }
+
+        private object BuildRankingRankingPayload() {
+            return _rankingSelection == null ? new List<object>()
+                : GetEventRankingForStage(_rankingSelection.Gender ?? "", _rankingSelection.EventName ?? "",
+                                          _rankingSelection.AgeGroup ?? "", _rankingSelection.Stage ?? "");
+        }
+
+        // 2026-06-04 当前项目的 项次 (= 赛程顺序号, 0=未查到/无项目)
+        private int BuildCurrentEventNumber() {
+            int n = 0;
+            if (string.IsNullOrEmpty(_currentEvent)) return 0;
+            try {
+                var evtMap = BuildEventNumberMap();
+                int no;
+                // 2026-06-05 先按 性别|项目|年龄组 三部分 查, 找不到再降级到 性别|项目
+                string k3 = (_currentGender ?? "") + "|" + _currentEvent + "|" + (_currentAgeGroup ?? "");
+                string k2 = (_currentGender ?? "") + "|" + _currentEvent;
+                if (evtMap.TryGetValue(k3, out no)) n = no;
+                else if (evtMap.TryGetValue(k2, out no)) n = no;
+            } catch { }
+            return n;
+        }
+
+        // ══════════════════════════════════════════════════════════════
+        // 大屏(display.html)专用取数 —— 每个视图只算、只发它自己要用的数据。
+        //
+        // 为什么不是"把整包过滤一遍": 那样服务端照样把 592 人的名单、全部赛程、
+        // 全项目排名统统算一遍, 只是发之前扔掉 —— 内存和 CPU 一点没省。
+        // 这里是【按需计算】: 切到"裁判介绍"就只跑 BuildRefereePayload(), 别的一律不碰。
+        //
+        // 字段清单是从 display.html 里把七个 render 函数用到的 data.xxx 逐个抠出来核的,
+        // 不是照文档抄的 —— 文档漏了两处(EventRanking 的 applicableRecords/currentStage、
+        // Records 的 refereeList), 照文档做会重演"比赛中纪录行被冲掉"那次事故。
+        //
+        // 公共标量每个视图都带: display.html 收到后是 data = payload 【整体替换】,
+        // 少带一个页头就空。这几个都是标量, 加起来不到 1KB。
+        // ══════════════════════════════════════════════════════════════
+        private object BuildDisplayPayload(string mode) {
+            // 用字典而不是匿名类: 公共标量要跟视图数据【平铺在同一层】,
+            // display.html 读的是 data.competitionName, 套一层就取不到了。
+            // C# 5 的匿名类没法展开合并, 字典是最直接的办法。
+            var d = DisplayCommon();
+            switch (mode) {
+                case "SHOW_START_LIST":
+                    d["swimmers"] = BuildSwimmerPayload();
+                    break;
+                case "SHOW_HEAT_RESULT":
+                    d["swimmers"] = BuildSwimmerPayload();
+                    d["applicableRecords"] = BuildApplicableRecords(_currentEvent, _currentGender);
+                    break;
+                case "SHOW_EVENT_RANKING":
+                    d["eventRanking"] = GetEventRanking(_currentEvent, _currentGender);
+                    d["eventRankingSplit"] = GetEventRankingsSplit(_currentAgeGroup, _currentEvent, _currentGender);
+                    d["applicableRecords"] = BuildApplicableRecords(_currentEvent, _currentGender);
+                    d["rankingSelection"] = BuildRankingSelectionPayload();
+                    d["rankingRanking"] = BuildRankingRankingPayload();
+                    break;
+                case "SHOW_TEAM_STANDINGS":
+                    d["teamScores"] = BuildTeamScoresPayload(int.MaxValue);
+                    break;
+                case "SHOW_RECORDS":
+                    d["records"] = BuildRecordsPayload();
+                    d["refereeList"] = BuildRefereePayload();   // 纪录视图也读裁判名单(文档漏了这条)
+                    break;
+                case "SHOW_REFEREES":
+                    d["refereeList"] = BuildRefereePayload();
+                    break;
+                case "SHOW_AWARDS":
+                    d["awardSelection"] = BuildAwardSelectionPayload();
+                    d["awardRanking"] = BuildAwardRankingPayload();
+                    d["eventRanking"] = GetEventRanking(_currentEvent, _currentGender);
+                    break;
+                default:
+                    return null;   // 不认识的视图 -> 退回整包, 保证不会因为漏配而白屏
+            }
+            return d;
+        }
+
+        /// <summary>
+        /// 每个大屏视图都要带的公共标量(页头、项目名、组次…)。
+        /// display.html 收到后是 data = payload 整体替换, 少带一个页头就空 ——
+        /// 所以宁可每次都带上。全是标量, 加起来不到 1KB。
+        /// </summary>
+        private Dictionary<string, object> DisplayCommon() {
+            return new Dictionary<string, object> {
+                { "competitionName", _competitionName },
+                { "resultConfirmed", _resultConfirmed },
+                { "currentEvent", _currentEvent },
+                { "currentEventNumber", BuildCurrentEventNumber() },
+                { "currentGender", _currentGender },
+                { "currentAgeGroup", _currentAgeGroup ?? "" },
+                { "currentStage", _currentStage },
+                { "currentHeat", _currentHeat },
+                { "totalHeats", _totalHeats },
+                { "displayRecordLabel", string.IsNullOrEmpty(_displayRecordLabel) ? "WR" : _displayRecordLabel },
+                { "displayRecordTypeName", string.IsNullOrEmpty(_displayRecordTypeName) ? "世界纪录" : _displayRecordTypeName },
+                { "poolConfig", BuildPoolConfigPayload() }
+            };
+        }
+
+        private object BuildPoolConfigPayload() {
+            return new {
+                length = _poolConfig.Length,
+                lanes = _poolConfig.LaneCount,
+                laneNumbers = _poolConfig.LaneNumbers,
+                //2026-05-19 推送泳池触板"两端/单端"安装方式给所有客户端 (race_control/RemoteTimingControl)
+                hasRightStartBlock = _poolConfig.HasRightStartBlock
             };
         }
 
@@ -8178,7 +8321,17 @@ namespace SwimmingScoreboard
                 _timingBridge.SendCommand(0x21);
                 AddLog("已向硬件发送 0x21 准备就绪");
             }
+            // 2026-08-27 就位 = 这一组马上开赛, 大屏必须回到比赛画面。
+            //   原来这里只发 Broadcast() 心跳(不带 modeExplicit), 而 display.html 的
+            //   LOCKABLE_MODES 规则是"操作员切过去的视图会锁住, 心跳切不回来" ——
+            //   只要中途看过一次 组成绩/出发表/纪录/颁奖, 后面每一组就位大屏都还停在
+            //   上一组那个画面。现场跑四组 400 米就是这么撞上的。
+            //   BroadcastDisplayMode 带 modeExplicit=true, 会解锁并切回比赛实况。
+            //   注意: 这只改【什么时候切】, 不改显示格式和内容。
+            //   保留上面的 Broadcast() 不动 —— 它是 100ms 去抖的状态心跳, 别的客户端
+            //   (控制页/计时端)靠它更新, 不能拿这条一次性的显示切换去顶替。
             Broadcast();
+            BroadcastDisplayMode("SHOW_LIVE_RACE");
         }
 
         private void StartRace_Click(object sender, RoutedEventArgs e) {
