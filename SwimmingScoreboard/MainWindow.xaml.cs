@@ -818,10 +818,52 @@ namespace SwimmingScoreboard
                     _editorSyncClient.Send(rtcHello.ToString(Formatting.None));
                 }
                 SaveEditorSyncConfig(host, true);
+
+                // 2026-08-28 计时端: 界面上这个「主服务器」框原来【只管 EditorSync】,
+                //   不管竞赛数据服务(MeetDbBridge) —— 两套配置各走各的。
+                //   后果很隐蔽: MeetDbBridge 没配 meet_service.json 就退回单机模式,
+                //   自己开一个 meet.db, 【确认成绩会写进计时端自己的库】,
+                //   主服务器那边什么都没有, 赛后才发现就晚了。
+                //   所以这里把它一并配上, 并落盘, 下次开机自动生效。
+                if (IsRemoteTimingControlMode) BindMeetServiceToHost(host);
             } catch (Exception ex) {
                 AddLog("连接主服务器失败: " + ex.Message);
                 UpdateEditorSyncStatus("离线", "#94A3B8");
             }
+        }
+
+        /// <summary>
+        /// 把竞赛数据服务(MeetDbBridge)指到同一台主服务器, 并写进 meet_service.json。
+        /// 已经开着库的话就重开一次, 否则这一场还是按单机在跑。
+        /// </summary>
+        private void BindMeetServiceToHost(string host) {
+            try {
+                if (string.IsNullOrWhiteSpace(host)) return;
+                bool changed = !string.Equals(_meetDb.ServerHost ?? "", host, StringComparison.OrdinalIgnoreCase);
+                _meetDb.ServerHost = host;
+                _meetDb.ServerPort = 3002;
+
+                // 落盘, 下次开机不用再点一次
+                try {
+                    var o = new JObject();
+                    o["Mode"] = "remote";
+                    o["Host"] = host;
+                    o["Port"] = 3002;
+                    File.WriteAllText(
+                        IOPath.Combine(AppDomain.CurrentDomain.BaseDirectory, "meet_service.json"),
+                        o.ToString(Formatting.Indented), new UTF8Encoding(false));
+                } catch (Exception ex) { AddLog("写 meet_service.json 失败: " + ex.Message); }
+
+                // 已经开着(多半是刚才按单机开的)就重开, 让它真正连到主服务器
+                if (changed && _meetDb.IsOpen && !string.IsNullOrEmpty(_competitionName)) {
+                    if (_meetDb.Open(_competitionName))
+                        AddLog("竞赛数据服务已改连主服务器 " + host + ":3002");
+                    else
+                        AddLog("竞赛数据服务重开失败, 本场仍按单机库跑");
+                } else if (changed) {
+                    AddLog("竞赛数据服务已指向主服务器 " + host + ":3002");
+                }
+            } catch (Exception ex) { AddLog("绑定竞赛数据服务失败: " + ex.Message); }
         }
 
         private void SaveEditorSyncConfig(string host, bool autoConnect) {
