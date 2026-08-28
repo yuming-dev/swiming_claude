@@ -2952,12 +2952,14 @@ namespace SwimmingScoreboard
         // 2026-06-17 方案 B 统一出口: 已有 JSON 字符串的广播 (PUBLISH_RESULT / SHOW_SCHEDULE / SHOW_MEDIA 等).
         //   RTC 模式: 解析回 JToken 装入 RTC_FORWARD wrapper, 经 EditorSyncClient 推主服务器
         //   主服务器模式: 走原本地 _allSockets 分发 (后台线程串行化)
-        private void BroadcastJsonToClients(string json) {
+        /// <returns>这条消息实际发给了几个目标。0 = 一个都没发出去。</returns>
+        private int BroadcastJsonToClients(string json) {
             if (IsRemoteTimingControlMode) {
                 try {
                     JToken payloadObj = JToken.Parse(json);
                     var wrapper = new JObject { ["type"] = "RTC_FORWARD", ["payload"] = payloadObj };
                     string wrapped = wrapper.ToString(Newtonsoft.Json.Formatting.None);
+                    bool up = (_editorSyncClient != null && _editorSyncClient.IsConnected);
                     System.Threading.Tasks.Task.Run(() => {
                         try {
                             if (_editorSyncClient != null && _editorSyncClient.IsConnected) {
@@ -2965,11 +2967,16 @@ namespace SwimmingScoreboard
                             }
                         } catch { }
                     });
+                    // 计时端是把消息转给主服务器, 由主服务器再分发。
+                    // 所以"送达 1 个"= 转给了主服务器, 不是"有 1 个大屏"。
+                    return up ? 1 : 0;
                 } catch { }
-                return;
+                return 0;
             }
             // 2026-06-18 per-socket 队列, 慢 socket 自己堵, 不拖快 socket
+            int n = _allSockets.Count;
             EnqueueToAll(json);
+            return n;
         }
 
         // 2026-06-17 方案 B 核心: RTC 模式下不发本地 _allSockets, 改通过 EditorSyncClient 推给主服务器,
@@ -19908,7 +19915,13 @@ namespace SwimmingScoreboard
 
         // 2026-06-12 把赛程(按场次过滤或全部)推给大屏 (SHOW_SCHEDULE 模式, 独立负载, 不进常规心跳)
         private void BroadcastSchedule(int sessionFilter) {
-            if (_allSockets.Count == 0) { MessageBox.Show("没有已连接的大屏", "显示比赛日程"); return; }
+            // 2026-08-28 【不再预判"有没有大屏"】。
+            //   原来这里是 if (_allSockets.Count == 0) 就拦下来报"没有已连接的大屏"。
+            //   计时端根本不开本地 WebSocket 服务, 这个集合永远是空的 —— 必然误报,
+            //   现场表现就是: 大屏明明连着, 计时端按【比赛日程】却说没有大屏。
+            //   改成【先发, 再按实际送达数判断】: 送达数由发送函数返回, 两种模式
+            //   各自数各自的(计时端数"转给主服务器成功没有", 主服务器数本地客户端),
+            //   不再依赖任何模式判定, 也就不会因为判错模式而误报。
             try {
                 var items = _schedule.OrderBy(s => s.SessionNumber).ThenBy(s => s.EvNum).Select(s => new {
                     session = s.SessionNumber, sessionName = s.SessionName ?? "", date = s.Date ?? "", time = s.Time ?? "",
@@ -19917,7 +19930,17 @@ namespace SwimmingScoreboard
                 }).ToList();
                 var payload = new { competitionName = _competitionName ?? "", session = sessionFilter, items = items };
                 var msg = new { type = "SHOW_SCHEDULE", data = payload, modeExplicit = true };
-                BroadcastJsonToClients(JsonConvert.SerializeObject(msg));
+                int sent = BroadcastJsonToClients(JsonConvert.SerializeObject(msg));
+                if (sent <= 0) {
+                    AddLog("显示比赛日程: 没有发出去(本机没有客户端 / 未连主服务器)");
+                    MessageBox.Show(
+                        IsRemoteTimingControlMode
+                            ? "日程没有发出去：本机尚未连接主服务器。\n\n请先在右上角连上主服务器再试。"
+                            : "日程没有发出去：当前没有任何客户端连接（大屏/控制页都没连）。",
+                        "显示比赛日程");
+                } else {
+                    AddLog(string.Format("显示比赛日程: 已发出 (送达 {0} 个目标)", sent));
+                }
             } catch (Exception ex) { AddLog("显示比赛日程失败: " + ex.Message); }
         }
 
