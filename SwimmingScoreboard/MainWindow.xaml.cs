@@ -893,6 +893,16 @@ namespace SwimmingScoreboard
         private void OnEditorSyncConnected() {
             UpdateEditorSyncStatus("已连接", "#22C55E");
             if (_editorSyncConnectButton != null) _editorSyncConnectButton.Content = "断开";
+            // 2026-08-29 服务器回来了 —— 把断线期间跑的组补上去。
+            //   延后一点发: 身份帧(TIMING_WEB_IDENTITY)要先到, 否则服务器那边还没认人。
+            if (IsRemoteTimingControlMode) {
+                var t = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1200) };
+                t.Tick += delegate(object s2, EventArgs e2) {
+                    t.Stop();
+                    try { DrainPendingPush(); } catch (Exception ex) { AddLog("补传失败: " + ex.Message); }
+                };
+                t.Start();
+            }
         }
 
         private void OnEditorSyncDisconnected() {
@@ -938,6 +948,7 @@ namespace SwimmingScoreboard
                         "未保存到主服务器", MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
+                if (type == "HEAT_CONFIRMED_ACK") { HandleHeatConfirmedAck(msg); return; }
                 if (type == "EDITOR_PACKAGE") {
                     var pkgToken = msg["package"];
                     if (pkgToken == null) return;
@@ -1448,7 +1459,7 @@ namespace SwimmingScoreboard
                     // 2026-08-28 计时端确认成绩后回推本组 —— 让主服务器内存模型跟上,
                     //   否则赛程树的"已完赛"和项目成绩都看不到计时端跑出来的结果。
                     case "HEAT_CONFIRMED_PUSH":
-                        try { HandleHeatConfirmedPush(msg); } catch (Exception ex) { AddLog("应用回推成绩失败: " + ex.Message); }
+                        try { HandleHeatConfirmedPush(socket, msg); } catch (Exception ex) { AddLog("应用回推成绩失败: " + ex.Message); }
                         break;
                     case "EDITOR_PULL_PACKAGE":
                         SendEditorPackageTo(socket);
@@ -8807,10 +8818,6 @@ namespace SwimmingScoreboard
         /// 成绩对象整体序列化再还原, 不做字段映射 —— 少一个字段就是一处对不上。
         /// </summary>
         private void PushHeatConfirmedToServer() {
-            if (_editorSyncClient == null || !_editorSyncClient.IsConnected) {
-                AddLog("未连主服务器, 本组成绩只在本机(赛后需手工同步)");
-                return;
-            }
             var rows = new JArray();
             foreach (var sw in GetCurrentHeatSwimmers()) {
                 var r = sw.Results.FirstOrDefault(x => x.Stage == _currentStage && x.Heat == _currentHeat);
@@ -8824,18 +8831,92 @@ namespace SwimmingScoreboard
             d["stage"]     = _currentStage ?? "";
             d["heat"]      = _currentHeat;
             d["results"]   = rows;
+            // 2026-08-29 断线补传: 把当前组库的整份快照一起带上, 服务器拿它写自己的 meet.db。
+            //   必须在 CommitLiveHeat() 之前取 —— 确认流程里本方法确实排在它前面(见 ConfirmResult_Click),
+            //   提交之后当前组库就被清空了。
+            //   取不到也不致命: 内存模型照样补得上, 只是服务器的 meet.db 补不了, 所以要喊一声。
+            try {
+                var live = _meetDb.PeekLiveHeat();
+                if (live != null) d["liveHeat"] = JObject.Parse(JsonConvert.SerializeObject(live));
+                else AddLog("【注意】当前组快照为空, 这一组不会写进主服务器的 meet.db");
+            } catch (Exception ex) { AddLog("【注意】取当前组快照失败, 断线补传只补内存: " + ex.Message); }
+
+            string id = PendingPushId(_currentAgeGroup, _currentGender, _currentEvent, _currentStage, _currentHeat);
             var env = new JObject();
             env["type"] = "HEAT_CONFIRMED_PUSH";
+            env["id"]   = id;
             env["data"] = d;
-            _editorSyncClient.Send(env.ToString(Formatting.None));
-            AddLog(string.Format("已把第{0}组成绩({1}条)回推主服务器", _currentHeat, rows.Count));
+
+            // 【先落盘, 再发送】—— 顺序不能反。
+            //   发送失败、发送途中断线、服务器没起来, 成绩都还在待补传目录里躺着,
+            //   下次连上自动补。收到服务器回执才删。
+            QueuePendingPush(id, env);
+            if (_editorSyncClient != null && _editorSyncClient.IsConnected) {
+                _editorSyncClient.Send(env.ToString(Formatting.None));
+                AddLog(string.Format("已把第{0}组成绩({1}条)回推主服务器", _currentHeat, rows.Count));
+            } else {
+                AddLog(string.Format("未连主服务器, 第{0}组成绩({1}条)已存入待补传, 连上后自动补",
+                    _currentHeat, rows.Count));
+            }
+        }
+
+        // ══════════ 待补传队列 ══════════
+        // 主服务器停了照样比赛, 成绩先存本机; 服务器回来了自动补上去。
+        // 队列就是一个目录、一组 json 文件 —— 断电、崩溃、强杀都不会丢, 内存队列做不到这点。
+        // 文件名用"赛次+组次", 所以同一组重confirm 会覆盖同一个文件, 不会堆出重复。
+
+        private string PendingPushDir() {
+            string d = IOPath.Combine(AppDomain.CurrentDomain.BaseDirectory, "Database", "pending_push");
+            if (!Directory.Exists(d)) Directory.CreateDirectory(d);
+            return d;
+        }
+
+        private static string PendingPushId(string ag, string gd, string ev, string st, int heat) {
+            string s = string.Format("{0}_{1}_{2}_{3}_h{4}", ag ?? "", gd ?? "", ev ?? "", st ?? "", heat);
+            foreach (char c in IOPath.GetInvalidFileNameChars()) s = s.Replace(c, '_');
+            return s;
+        }
+
+        private void QueuePendingPush(string id, JObject env) {
+            try {
+                File.WriteAllText(IOPath.Combine(PendingPushDir(), id + ".json"),
+                                  env.ToString(Formatting.None), Encoding.UTF8);
+            } catch (Exception ex) {
+                // 这里失败意味着断线后这一组真会丢, 必须喊出来, 不能吞。
+                AddLog("【注意】待补传存盘失败, 主服务器不在时这一组会丢: " + ex.Message);
+            }
+        }
+
+        /// <summary>连上主服务器时调一次: 把断线期间攒下的组按时间顺序补上去。</summary>
+        private void DrainPendingPush() {
+            if (_editorSyncClient == null || !_editorSyncClient.IsConnected) return;
+            try {
+                var files = new DirectoryInfo(PendingPushDir()).GetFiles("*.json")
+                                .OrderBy(f => f.LastWriteTimeUtc).ToList();
+                if (files.Count == 0) return;
+                AddLog(string.Format("开始补传断线期间的 {0} 组成绩…", files.Count));
+                foreach (var f in files) {
+                    try { _editorSyncClient.Send(File.ReadAllText(f.FullName, Encoding.UTF8)); }
+                    catch (Exception ex) { AddLog("补传失败(" + f.Name + "): " + ex.Message); }
+                }
+            } catch (Exception ex) { AddLog("扫描待补传目录失败: " + ex.Message); }
+        }
+
+        /// <summary>收到服务器回执 → 这一组确实进库了, 删掉待补传文件。</summary>
+        private void HandleHeatConfirmedAck(JObject msg) {
+            string id = msg["id"] != null ? msg["id"].ToString() : "";
+            if (string.IsNullOrEmpty(id)) return;
+            try {
+                string p = IOPath.Combine(PendingPushDir(), id + ".json");
+                if (File.Exists(p)) { File.Delete(p); AddLog("主服务器已收妥: " + id); }
+            } catch (Exception ex) { AddLog("清理待补传文件失败: " + ex.Message); }
         }
 
         /// <summary>
         /// 主服务器收到计时端推来的"本组已确认": 写进内存模型 + 落盘 + 刷界面。
         /// 按泳道号对上人 —— 跟 GetHeatEntries 是同一套口径。
         /// </summary>
-        private void HandleHeatConfirmedPush(JObject msg) {
+        private void HandleHeatConfirmedPush(IWebSocketConnection socket, JObject msg) {
             var d = msg["data"] as JObject;
             if (d == null) return;
             string ag = d["ageGroup"] != null ? d["ageGroup"].ToString() : "";
@@ -8867,6 +8948,28 @@ namespace SwimmingScoreboard
                 }
             }
             _confirmedHeats.Add(ConfirmedHeatKey(ag, gd, ev, st, ht));
+
+            // 2026-08-29 把成绩写进主服务器【自己的】竞赛库。
+            //   联机时计时端已经通过 RPC 写过一次, 这里再写一次是幂等的(全是 UPDATE ... WHERE id);
+            //   而断线期间跑的组, 成绩只在计时端库里, 全靠这里补进来。
+            var lh = d["liveHeat"] as JObject;
+            if (lh != null) {
+                try {
+                    var live = JsonConvert.DeserializeObject<SwimmingScoreboard.Db.LiveHeat>(lh.ToString(Formatting.None));
+                    if (live != null) _meetDb.CommitHeatFromWire(live, "计时端");
+                } catch (Exception ex) { AddLog("写入计时端送来的成绩失败: " + ex.Message); }
+            }
+
+            // 回执: 计时端据此删掉待补传文件。没有回执它就一直留着, 下次连上再补 ——
+            // 宁可重复补传(幂等、安全), 也不能悄悄丢一组成绩。
+            try {
+                if (socket != null) {
+                    var ack = new JObject();
+                    ack["type"] = "HEAT_CONFIRMED_ACK";
+                    ack["id"] = msg["id"] != null ? msg["id"].ToString() : "";
+                    socket.Send(ack.ToString(Formatting.None));
+                }
+            } catch { }
             // 2026-08-28 团体总分是从 _swimmers 现算的。本机确认成绩时由
             //   ScoringConfigCore/CalcTeamScore 触发重算, 但计时端回推这条路
             //   原来谁都不触发 —— 主服务器上的团体总分会一直停在旧值。
@@ -21759,6 +21862,22 @@ namespace SwimmingScoreboard
                 var chk = _meetDb.SelfCheck(package);
                 AddLog(chk.ToString());
                 foreach (var d in chk.Diffs.Take(5)) AddLog("  差异: " + d);
+                // 2026-08-29 库和包对不上 => 编排改过了(或者上次导入没导全)。
+                //   计时端必须拿着【最新的】日程和分组表, 否则主服务器一停,
+                //   它就在用旧分组跑比赛 —— 这是"服务器停了也能比"的前提条件。
+                //   重建会保住已经跑出来的成绩; 平时自检一致, 一次也不会跑。
+                // 2026-08-29 【自动重建暂时关掉】。
+                //   第一版是"先清空, 再按最新包重导" —— 结果重导撞上 constraint failed,
+                //   库被清空后没能重建起来, 当场丢了一整组成绩(靠快照文件救回来的)。
+                //   教训: 唯一一份数据, 绝不能押在"后面那步一定成功"上。
+                //   重建方案改成【先在旁边建新库, 建成了再换】之后才会重新打开;
+                //   而且真正要先修的是导入本身为什么撞唯一约束。
+                //   在那之前: 只报警, 不动库 —— 库旧了至少还能用, 清空了就什么都没了。
+                if (chk.Diffs.Count > 0) {
+                    AddLog(string.Format("【注意】竞赛库与最新编排不一致({0} 处)。联机比赛不受影响(名单从主服务器取);",
+                        chk.Diffs.Count));
+                    AddLog("【注意】但主服务器一停, 计时端会按【本机这份旧分组表】跑。请先修好导入再离线比赛。");
+                }
             } catch (Exception ex) {
                 AddLog("竞赛库同步失败(不影响比赛): " + ex.Message);
             }

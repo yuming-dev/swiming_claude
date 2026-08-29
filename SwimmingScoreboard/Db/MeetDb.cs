@@ -143,9 +143,33 @@ namespace SwimmingScoreboard.Db
                 {
                     try
                     {
+                        // 2026-08-29 原来这里出错只往上抛一句 "constraint failed" ——
+                        //   一个事务里几万条 INSERT, 哪条炸的、什么值炸的, 全无线索。
+                        //   导入卡了很久没人查得动, 根子就在这。现在把 SQL 和参数带上。
                         Func<string, object[], int> run = delegate(string sql, object[] ps)
                         {
-                            using (var cmd = Cmd(sql, tx, ps ?? new object[0])) return cmd.ExecuteNonQuery();
+                            try
+                            {
+                                using (var cmd = Cmd(sql, tx, ps ?? new object[0])) return cmd.ExecuteNonQuery();
+                            }
+                            catch (Exception ex)
+                            {
+                                var sb = new System.Text.StringBuilder();
+                                sb.Append(ex.Message).Append(" || SQL: ");
+                                string one = (sql ?? "").Replace("\r", " ").Replace("\n", " ");
+                                while (one.Contains("  ")) one = one.Replace("  ", " ");
+                                sb.Append(one.Length > 300 ? one.Substring(0, 300) : one);
+                                if (ps != null && ps.Length > 0)
+                                {
+                                    sb.Append(" || 参数: ");
+                                    for (int i = 0; i < ps.Length && i < 20; i++)
+                                    {
+                                        if (i > 0) sb.Append(", ");
+                                        sb.Append(ps[i] == null ? "<null>" : ps[i].ToString());
+                                    }
+                                }
+                                throw new Exception(sb.ToString(), ex);
+                            }
                         };
                         body(run);
                         tx.Commit();

@@ -497,6 +497,243 @@ namespace SwimmingScoreboard.Db
             }
         }
 
+        // ══════════════════════════════════════════════════════════════════
+        // 保成绩重建 (2026-08-29)
+        //
+        // 为什么要有这个:
+        //   ① 计时端要能在【主服务器停了】的情况下独立跑完比赛, 前提是本机
+        //      有一份完整的日程和分组表。它是第一次启动时导入的 —— 但导入
+        //      之后就冻住了, 编排端后来改的分组永远进不来, 断线时用的就是旧表。
+        //   ② heat_entries.id 是 AUTOINCREMENT。计时端和主服务器的 id 能对上,
+        //      纯粹因为两边导的是同一个包、同样的顺序。只要有一边单独刷新过,
+        //      id 就会错位 —— 成绩会【写到别人身上】, 而且不报错。
+        //
+        // 做法: 不做增量, 而是整个重导。重导后 id 是"包"的确定性函数,
+        //   两台机器各导各的也必然一致, ② 顺带就没了。成绩先取出来、后贴回去。
+        //
+        // 贴回去用【自然键】(组别|性别|项目|赛次|组次|道次) —— 跟回推、跟
+        //   _confirmedHeats 用的是同一套口径。实测这个键在有成绩的行上唯一。
+
+        private static readonly string[] ResultCols = new string[] {
+            "final_time","rank","promotion_mark","score","status","dsq_code","dsq_leg",
+            "dsq_backup_splits","record_note","timing_source","reaction_time","touchpad_time",
+            "start_block_time","pb1_time","pb2_time","pb3_time","manual_left","manual_right",
+            "result_at","dispute_note","checkin_status","checkin_at","promoted_from","promoted_rank"
+        };
+
+        private class SavedRow
+        {
+            public string Ag, Gd, Ev, St;
+            public int Heat, Lane;
+            public readonly Dictionary<string, object> Cols = new Dictionary<string, object>();
+            public readonly List<object[]> Splits = new List<object[]>();
+            public readonly List<object[]> Legs = new List<object[]>();
+            public string Key()
+            {
+                return (Ag ?? "") + "|" + (Gd ?? "") + "|" + (Ev ?? "") + "|" + (St ?? "")
+                     + "|" + Heat + "|" + Lane;
+            }
+        }
+
+        /// <summary>
+        /// 按最新的包重建竞赛库, 已经跑出来的成绩原样保留。
+        /// 只在自检发现库和包对不上时调 —— 平时一次也不会跑。
+        /// </summary>
+        public bool RebuildFromPackage(CompetitionPackage pkg)
+        {
+            if (_local == null || pkg == null) return false;
+            var saved = new List<SavedRow>();
+            var savedHeats = new List<object[]>();
+            try
+            {
+                // ── 1. 把成绩取出来 ──────────────────────────────────────
+                string cols = string.Join(",", Array.ConvertAll(ResultCols, delegate(string s) { return "he." + s; }));
+                var t = _local.Db.Query(
+                    "SELECT e.age_group,e.gender,e.event_name,r.stage,he.heat,he.lane,he.id," + cols + " " +
+                    "FROM heat_entries he " +
+                    "JOIN rounds r ON r.id=he.round_id " +
+                    "JOIN entries en ON en.id=he.entry_id " +
+                    "JOIN events e ON e.id=en.event_id " +
+                    "WHERE he.final_time IS NOT NULL OR he.status IS NOT NULL OR he.result_at IS NOT NULL");
+                foreach (System.Data.DataRow row in t.Rows)
+                {
+                    var sr = new SavedRow();
+                    sr.Ag = SS(row["age_group"]); sr.Gd = SS(row["gender"]);
+                    sr.Ev = SS(row["event_name"]); sr.St = SS(row["stage"]);
+                    sr.Heat = Convert.ToInt32(row["heat"]); sr.Lane = Convert.ToInt32(row["lane"]);
+                    foreach (string c in ResultCols)
+                        sr.Cols[c] = row[c] == DBNull.Value ? null : row[c];
+
+                    long heid = Convert.ToInt64(row["id"]);
+                    var sp = _local.Db.Query(
+                        "SELECT distance,cumulative_time,lap_time,rank_at,timing_source,is_manual " +
+                        "FROM splits WHERE heat_entry_id=@p1", heid);
+                    foreach (System.Data.DataRow s in sp.Rows)
+                        sr.Splits.Add(new object[] { s["distance"], s["cumulative_time"], s["lap_time"],
+                                                     s["rank_at"], s["timing_source"], s["is_manual"] });
+
+                    var lg = _local.Db.Query(
+                        "SELECT leg_order,reaction_time,leg_time,cumulative_time,rank_at " +
+                        "FROM relay_legs WHERE heat_entry_id=@p1", heid);
+                    foreach (System.Data.DataRow g in lg.Rows)
+                        sr.Legs.Add(new object[] { g["leg_order"], g["reaction_time"], g["leg_time"],
+                                                   g["cumulative_time"], g["rank_at"] });
+                    saved.Add(sr);
+                }
+
+                // 组一级的确认信息(谁、什么时候确认的)也要留住 —— 赛程树的"已完赛"读它。
+                var ht = _local.Db.Query(
+                    "SELECT e.age_group,e.gender,e.event_name,r.stage,h.heat," +
+                    "       h.gun_time,h.started_at,h.confirmed_at,h.confirmed_by,h.operator " +
+                    "FROM heats h JOIN rounds r ON r.id=h.round_id " +
+                    "JOIN round_events re ON re.round_id=r.id JOIN events e ON e.id=re.event_id " +
+                    "WHERE h.confirmed_at IS NOT NULL OR h.gun_time IS NOT NULL");
+                foreach (System.Data.DataRow row in ht.Rows)
+                    savedHeats.Add(new object[] { SS(row["age_group"]), SS(row["gender"]), SS(row["event_name"]),
+                        SS(row["stage"]), Convert.ToInt32(row["heat"]), row["gun_time"], row["started_at"],
+                        row["confirmed_at"], row["confirmed_by"], row["operator"] });
+
+                Log(string.Format("重建竞赛库: 先保住 {0} 条成绩 / {1} 个组的确认信息", saved.Count, savedHeats.Count));
+
+                // ── 2. 落一份成绩快照到磁盘 ──────────────────────────────
+                // 万一下面贴回去出岔子, 这个文件是唯一能人工救回来的东西。
+                // 先写盘再动库, 顺序不能反。
+                string snap = null;
+                try
+                {
+                    snap = (_dbPath ?? "meet") + ".results-" + DateTime.Now.ToString("yyyyMMdd_HHmmss") + ".json";
+                    System.IO.File.WriteAllText(snap,
+                        Newtonsoft.Json.JsonConvert.SerializeObject(saved, Newtonsoft.Json.Formatting.Indented),
+                        System.Text.Encoding.UTF8);
+                    Log("成绩快照已存: " + System.IO.Path.GetFileName(snap));
+                }
+                catch (Exception ex) { Log("【注意】成绩快照写盘失败, 本次不重建: " + ex.Message); return false; }
+
+                // ── 3. 清空 + 重导 ───────────────────────────────────────
+                // sqlite_sequence 必须一起清, 否则 AUTOINCREMENT 接着旧号往下走,
+                // id 就不再是"包"的确定性函数, 两台机器又对不上了。
+                try { _local.Db.ExecuteNonQuery("PRAGMA foreign_keys=OFF"); } catch { }
+                var tabs = _local.Db.Query(
+                    "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'");
+                foreach (System.Data.DataRow row in tabs.Rows)
+                    try { _local.Db.ExecuteNonQuery("DELETE FROM \"" + SS(row["name"]) + "\""); } catch { }
+                try { _local.Db.ExecuteNonQuery("DELETE FROM sqlite_sequence"); } catch { }
+
+                var rep = new PackageImporter(_local.Db).Import(pkg);
+                Log(string.Format("重建竞赛库: 已按最新编排重导 项目{0} 赛次{1} 运动员{2} 报名{3} 分组{4}",
+                    rep.Events, rep.Rounds, rep.Athletes, rep.Entries, rep.HeatEntries));
+
+                // ── 4. 成绩贴回去 ────────────────────────────────────────
+                int back = 0;
+                var missed = new List<string>();
+                foreach (var sr in saved)
+                {
+                    var hit = _local.Db.Query(
+                        "SELECT he.id FROM heat_entries he " +
+                        "JOIN rounds r ON r.id=he.round_id " +
+                        "JOIN entries en ON en.id=he.entry_id " +
+                        "JOIN events e ON e.id=en.event_id " +
+                        "WHERE e.age_group=@p1 AND e.gender=@p2 AND e.event_name=@p3 " +
+                        "AND r.stage=@p4 AND he.heat=@p5 AND he.lane=@p6",
+                        sr.Ag, sr.Gd, sr.Ev, sr.St, sr.Heat, sr.Lane);
+                    if (hit.Rows.Count == 0) { missed.Add(sr.Key()); continue; }
+                    long id = Convert.ToInt64(hit.Rows[0]["id"]);
+
+                    var sets = new List<string>();
+                    var ps = new List<object>();
+                    int n = 1;
+                    foreach (string c in ResultCols)
+                    { sets.Add(c + "=@p" + n); ps.Add(sr.Cols[c]); n++; }
+                    ps.Add(id);
+                    _local.Db.ExecuteNonQuery(
+                        "UPDATE heat_entries SET " + string.Join(",", sets.ToArray()) + " WHERE id=@p" + n,
+                        ps.ToArray());
+
+                    _local.Db.ExecuteNonQuery("DELETE FROM splits WHERE heat_entry_id=@p1", id);
+                    foreach (var s in sr.Splits)
+                        _local.Db.ExecuteNonQuery(
+                            "INSERT INTO splits(heat_entry_id,distance,cumulative_time,lap_time,rank_at," +
+                            "timing_source,is_manual) VALUES(@p1,@p2,@p3,@p4,@p5,@p6,@p7)",
+                            id, s[0], s[1], s[2], s[3], s[4], s[5]);
+                    foreach (var g in sr.Legs)
+                        _local.Db.ExecuteNonQuery(
+                            "UPDATE relay_legs SET reaction_time=@p3,leg_time=@p4,cumulative_time=@p5,rank_at=@p6 " +
+                            "WHERE heat_entry_id=@p1 AND leg_order=@p2",
+                            id, g[0], g[1], g[2], g[3], g[4]);
+                    back++;
+                }
+
+                int hback = 0;
+                foreach (var h in savedHeats)
+                {
+                    long rid = ResolveRound(SS(h[0]), SS(h[1]), SS(h[2]), SS(h[3]));
+                    if (rid == 0) continue;
+                    hback += _local.Db.ExecuteNonQuery(
+                        "UPDATE heats SET gun_time=@p3,started_at=@p4,confirmed_at=@p5,confirmed_by=@p6,operator=@p7 " +
+                        "WHERE round_id=@p1 AND heat=@p2",
+                        rid, h[4], h[5], h[6], h[7], h[8], h[9]);
+                }
+
+                // ── 5. 校验 ──────────────────────────────────────────────
+                // 少一条都要喊。成绩悄悄少掉是这个项目最不能接受的事。
+                if (missed.Count > 0)
+                {
+                    Log(string.Format("【注意】重建后有 {0} 条成绩在新编排里找不到位置(组次/道次被改过?): {1}",
+                        missed.Count, string.Join(" ; ", missed.GetRange(0, Math.Min(5, missed.Count)).ToArray())));
+                    Log("【注意】这些成绩没丢, 在快照文件里: " + System.IO.Path.GetFileName(snap ?? ""));
+                }
+                Log(string.Format("重建竞赛库完成: 成绩 {0}/{1} 条已归位, 组确认信息 {2} 个",
+                    back, saved.Count, hback));
+                BuildRoundIndex();
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Log("【注意】重建竞赛库失败: " + ex.Message);
+                Log("【注意】成绩快照在 Database 目录下 .results-*.json, 不要删");
+                return false;
+            }
+        }
+
+        private static string SS(object o) { return o == null || o == DBNull.Value ? "" : o.ToString(); }
+
+        /// <summary>
+        /// 2026-08-29 断线补传用: 在 LiveCommit 之【前】抓一份当前组快照。
+        /// LiveCommit 会把当前组库清掉, 事后再想取就没有了。
+        /// </summary>
+        public LiveHeat PeekLiveHeat()
+        {
+            if (!_liveActive || _local == null) return null;
+            try { return _local.GetLiveHeat(); }
+            catch (Exception ex) { Log("取当前组快照失败: " + ex.Message); return null; }
+        }
+
+        /// <summary>
+        /// 2026-08-29 主服务器侧: 把计时端送来的一组成绩写进【自己的】竞赛库。
+        /// 用于两种情况: ① 计时端联机确认; ② 计时端断线期间跑的组, 重连后补传上来。
+        ///
+        /// 回写逻辑直接复用 CommitHeatFrom —— 跟联机实时回写是同一份代码, 两条路
+        /// 不可能写出两种结果。里面全是 UPDATE ... WHERE id 和 splits 先删后插,
+        /// 所以【同一组重复补传是安全的】, 这正是补传敢用"没收到回执就重发"的底气。
+        /// </summary>
+        public List<RecordBreak> CommitHeatFromWire(LiveHeat live, string op)
+        {
+            var empty = new List<RecordBreak>();
+            if (_local == null || live == null) return empty;
+            try
+            {
+                var breaks = _local.CommitHeatFrom(live, op);
+                Log(string.Format("计时端第{0}组成绩已写入竞赛库{1}", live.Heat,
+                    breaks.Count > 0 ? "，破纪录 " + breaks.Count + " 项" : ""));
+                return breaks;
+            }
+            catch (Exception ex)
+            {
+                Log("【注意】写入计时端送来的成绩失败: " + ex.Message);
+                return empty;
+            }
+        }
+
         /// <summary>复位 / 重赛 / 切组：放弃本组，解锁并清空当前组库，不回写。</summary>
         public void LiveDiscard(string op)
         {
