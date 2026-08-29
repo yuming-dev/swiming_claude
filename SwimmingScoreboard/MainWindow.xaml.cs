@@ -8860,6 +8860,141 @@ namespace SwimmingScoreboard
             }
         }
 
+        // ══════════════════════════════════════════════════════════════════
+        // 离线摆渡 (2026-08-29)
+        //
+        // 没有网的时候怎么办: 计时端把成绩导成一个文件, U盘拿到主服务器导进去。
+        // 导出的每一组, 内容跟联机回推(HEAT_CONFIRMED_PUSH)【完全一样】——
+        // 导入就是把这些组挨个喂给同一个处理函数。一套接收代码, 两条路进来,
+        // 不可能出现"联机对、离线不对"这种事。
+        // 重复导入是安全的: 成绩全是按 (项目|赛次|组次|道次) 覆盖写。
+        // ══════════════════════════════════════════════════════════════════
+
+        private void ExportResultsFile_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var heats = _meetDb.ListConfirmedHeats();
+                if (heats.Count == 0)
+                {
+                    MessageBox.Show("本机竞赛库里还没有已确认的组，没有可导出的成绩。",
+                        "导出成绩", MessageBoxButton.OK, MessageBoxImage.Information);
+                    return;
+                }
+                var dlg = new Microsoft.Win32.SaveFileDialog();
+                dlg.Filter = "成绩数据 (*.json)|*.json";
+                dlg.FileName = (_competitionName ?? "成绩") + "_成绩_" +
+                               DateTime.Now.ToString("yyyyMMdd_HHmm") + ".json";
+                if (dlg.ShowDialog() != true) return;
+
+                var arr = new JArray();
+                int withDb = 0;
+                foreach (var h in heats)
+                {
+                    string ag = h[0], gd = h[1], ev = h[2], st = h[3];
+                    int ht = int.Parse(h[4]);
+
+                    // 内存模型那份(主服务器拿它刷赛程树和项目成绩)
+                    var rows = new JArray();
+                    foreach (var sw in GetHeatEntries(ag, gd, ev, st, ht))
+                    {
+                        var r = sw.Results.FirstOrDefault(x => x.Stage == st && x.Heat == ht);
+                        if (r != null) rows.Add(JObject.Parse(JsonConvert.SerializeObject(r)));
+                    }
+                    var d = new JObject();
+                    d["ageGroup"] = ag; d["gender"] = gd; d["eventName"] = ev;
+                    d["stage"] = st; d["heat"] = ht; d["results"] = rows;
+
+                    // 竞赛库那份(主服务器拿它写自己的 meet.db)
+                    var live = _meetDb.BuildLiveHeatFromDb(ag, gd, ev, st, ht);
+                    if (live != null) { d["liveHeat"] = JObject.Parse(JsonConvert.SerializeObject(live)); withDb++; }
+                    arr.Add(d);
+                }
+
+                var root = new JObject();
+                root["type"] = "RESULTS_EXPORT";
+                root["competition"] = _competitionName ?? "";
+                root["exportedAt"] = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+                root["exportedBy"] = Environment.MachineName;
+                root["heats"] = arr;
+                File.WriteAllText(dlg.FileName, root.ToString(Formatting.Indented), Encoding.UTF8);
+
+                AddLog(string.Format("已导出成绩: {0} 个组(其中 {1} 组带竞赛库数据) -> {2}",
+                    arr.Count, withDb, IOPath.GetFileName(dlg.FileName)));
+                MessageBox.Show(string.Format(
+                    "已导出 {0} 个组的成绩。\n\n拿到主服务器上点「从文件导入成绩」即可。\n重复导入是安全的，不会重复计分。",
+                    arr.Count), "导出成绩", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                AddLog("导出成绩失败: " + ex.Message);
+                MessageBox.Show("导出成绩失败：" + ex.Message, "导出成绩",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void ImportResultsFile_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var dlg = new Microsoft.Win32.OpenFileDialog();
+                dlg.Filter = "成绩数据 (*.json)|*.json";
+                if (dlg.ShowDialog() != true) return;
+
+                var root = JObject.Parse(File.ReadAllText(dlg.FileName, Encoding.UTF8));
+                if (root["type"] == null || root["type"].ToString() != "RESULTS_EXPORT")
+                { MessageBox.Show("这不是成绩导出文件。", "导入成绩", MessageBoxButton.OK, MessageBoxImage.Warning); return; }
+
+                string fromMeet = root["competition"] != null ? root["competition"].ToString() : "";
+                if (!string.IsNullOrEmpty(fromMeet) && !string.IsNullOrEmpty(_competitionName)
+                    && fromMeet != _competitionName)
+                {
+                    // 赛事对不上还导进去, 就是把别的比赛的成绩灌进本场 —— 必须拦。
+                    var yn = MessageBox.Show(string.Format(
+                        "这个文件是【{0}】的成绩，\n当前打开的是【{1}】。\n\n确定要导入吗？",
+                        fromMeet, _competitionName), "赛事对不上",
+                        MessageBoxButton.YesNo, MessageBoxImage.Warning);
+                    if (yn != MessageBoxResult.Yes) return;
+                }
+
+                var arr = root["heats"] as JArray;
+                if (arr == null || arr.Count == 0)
+                { MessageBox.Show("文件里没有成绩。", "导入成绩", MessageBoxButton.OK, MessageBoxImage.Information); return; }
+
+                int ok = 0, bad = 0;
+                foreach (var t in arr)
+                {
+                    var d = t as JObject;
+                    if (d == null) { bad++; continue; }
+                    // 走的是跟联机回推【一模一样】的入口, socket 传 null(不用回执)
+                    var msg = new JObject();
+                    msg["type"] = "HEAT_CONFIRMED_PUSH";
+                    msg["data"] = d;
+                    try { HandleHeatConfirmedPush(null, msg); ok++; }
+                    catch (Exception ex) { bad++; AddLog("导入一组失败: " + ex.Message); }
+                }
+
+                try { BuildScheduleTree(); } catch { }
+                try { CalculateTeamScores(); } catch { }
+                try { RefreshOverviewStats(); } catch { }
+                try { AutoSaveData(); } catch { }
+                try { Broadcast(); } catch { }
+
+                AddLog(string.Format("已从文件导入成绩: {0} 个组成功{1}",
+                    ok, bad > 0 ? "，" + bad + " 个失败" : ""));
+                MessageBox.Show(string.Format("已导入 {0} 个组的成绩。{1}", ok,
+                    bad > 0 ? "\n有 " + bad + " 个组没导进来，详见系统日志。" : ""),
+                    "导入成绩", MessageBoxButton.OK,
+                    bad > 0 ? MessageBoxImage.Warning : MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                AddLog("导入成绩失败: " + ex.Message);
+                MessageBox.Show("导入成绩失败：" + ex.Message, "导入成绩",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
         // ══════════ 待补传队列 ══════════
         // 主服务器停了照样比赛, 成绩先存本机; 服务器回来了自动补上去。
         // 队列就是一个目录、一组 json 文件 —— 断电、崩溃、强杀都不会丢, 内存队列做不到这点。
@@ -21866,17 +22001,20 @@ namespace SwimmingScoreboard
                 //   计时端必须拿着【最新的】日程和分组表, 否则主服务器一停,
                 //   它就在用旧分组跑比赛 —— 这是"服务器停了也能比"的前提条件。
                 //   重建会保住已经跑出来的成绩; 平时自检一致, 一次也不会跑。
-                // 2026-08-29 【自动重建暂时关掉】。
-                //   第一版是"先清空, 再按最新包重导" —— 结果重导撞上 constraint failed,
-                //   库被清空后没能重建起来, 当场丢了一整组成绩(靠快照文件救回来的)。
-                //   教训: 唯一一份数据, 绝不能押在"后面那步一定成功"上。
-                //   重建方案改成【先在旁边建新库, 建成了再换】之后才会重新打开;
-                //   而且真正要先修的是导入本身为什么撞唯一约束。
-                //   在那之前: 只报警, 不动库 —— 库旧了至少还能用, 清空了就什么都没了。
+                // 2026-08-29 库和包对不上 => 编排改过了。计时端必须拿着【最新的】
+                //   日程和分组表, 否则主服务器一停, 它就在用旧分组跑比赛 ——
+                //   这是"服务器停了也能比"的前提条件。
+                //   重建是【在旁边建新库、建成了再换】, 原库全程不动;
+                //   成绩差一条都不换库。平时自检一致, 一次也不会跑。
+                //   (第一版写成"先清空再重导", 重导失败时库已经空了, 真丢过一组成绩。)
                 if (chk.Diffs.Count > 0) {
-                    AddLog(string.Format("【注意】竞赛库与最新编排不一致({0} 处)。联机比赛不受影响(名单从主服务器取);",
+                    AddLog(string.Format("竞赛库与最新编排不一致({0} 处), 按最新编排重建(成绩保留, 原库不动)…",
                         chk.Diffs.Count));
-                    AddLog("【注意】但主服务器一停, 计时端会按【本机这份旧分组表】跑。请先修好导入再离线比赛。");
+                    if (_meetDb.RebuildFromPackage(package)) {
+                        var again = _meetDb.SelfCheck(package);
+                        AddLog("重建后自检: " + again.ToString());
+                        foreach (var d in again.Diffs.Take(5)) AddLog("  仍有差异: " + d);
+                    }
                 }
             } catch (Exception ex) {
                 AddLog("竞赛库同步失败(不影响比赛): " + ex.Message);

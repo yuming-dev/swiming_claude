@@ -537,165 +537,298 @@ namespace SwimmingScoreboard.Db
 
         /// <summary>
         /// 按最新的包重建竞赛库, 已经跑出来的成绩原样保留。
-        /// 只在自检发现库和包对不上时调 —— 平时一次也不会跑。
+        ///
+        /// 【在旁边建新库, 建成了再换】—— 全程不动原库。
+        /// 第一版是"先清空原库再重导", 重导失败时库已经空了, 真丢过一整组成绩。
+        /// 现在任何一步失败, 原库一个字节都没被碰过, 删掉临时文件就完事。
         /// </summary>
         public bool RebuildFromPackage(CompetitionPackage pkg)
         {
-            if (_local == null || pkg == null) return false;
-            var saved = new List<SavedRow>();
-            var savedHeats = new List<object[]>();
+            if (_local == null || pkg == null || string.IsNullOrEmpty(_dbPath)) return false;
+
+            string newPath = _dbPath + ".new";
+            string bakPath = _dbPath + ".bak-" + DateTime.Now.ToString("yyyyMMdd_HHmmss");
+            bool wasLocal = ReferenceEquals(_meet, _local);
+
+            List<SavedRow> saved;
+            List<object[]> savedHeats;
+            try { saved = SnapshotResults(_local.Db, out savedHeats); }
+            catch (Exception ex) { Log("【注意】取成绩快照失败, 本次不重建: " + ex.Message); return false; }
+            Log(string.Format("重建竞赛库: 先保住 {0} 条成绩 / {1} 个组的确认信息", saved.Count, savedHeats.Count));
+
+            // 快照先写盘。万一后面全盘出错, 这个文件是唯一能人工救回来的东西 ——
+            // 上一次事故就是它救的命。写盘失败就不往下走。
+            string snap;
             try
             {
-                // ── 1. 把成绩取出来 ──────────────────────────────────────
-                string cols = string.Join(",", Array.ConvertAll(ResultCols, delegate(string s) { return "he." + s; }));
-                var t = _local.Db.Query(
-                    "SELECT e.age_group,e.gender,e.event_name,r.stage,he.heat,he.lane,he.id," + cols + " " +
-                    "FROM heat_entries he " +
-                    "JOIN rounds r ON r.id=he.round_id " +
-                    "JOIN entries en ON en.id=he.entry_id " +
-                    "JOIN events e ON e.id=en.event_id " +
-                    "WHERE he.final_time IS NOT NULL OR he.status IS NOT NULL OR he.result_at IS NOT NULL");
-                foreach (System.Data.DataRow row in t.Rows)
+                snap = _dbPath + ".results-" + DateTime.Now.ToString("yyyyMMdd_HHmmss") + ".json";
+                System.IO.File.WriteAllText(snap,
+                    Newtonsoft.Json.JsonConvert.SerializeObject(saved, Newtonsoft.Json.Formatting.Indented),
+                    System.Text.Encoding.UTF8);
+                Log("成绩快照已存: " + System.IO.Path.GetFileName(snap));
+            }
+            catch (Exception ex) { Log("【注意】成绩快照写盘失败, 本次不重建: " + ex.Message); return false; }
+
+            int back = 0, hback = 0;
+            var missed = new List<string>();
+            try
+            {
+                if (System.IO.File.Exists(newPath)) System.IO.File.Delete(newPath);
+                using (var tmp = new MeetDb(newPath))
                 {
-                    var sr = new SavedRow();
-                    sr.Ag = SS(row["age_group"]); sr.Gd = SS(row["gender"]);
-                    sr.Ev = SS(row["event_name"]); sr.St = SS(row["stage"]);
-                    sr.Heat = Convert.ToInt32(row["heat"]); sr.Lane = Convert.ToInt32(row["lane"]);
-                    foreach (string c in ResultCols)
-                        sr.Cols[c] = row[c] == DBNull.Value ? null : row[c];
+                    var rep = new PackageImporter(tmp).Import(pkg);
+                    long nr = Convert.ToInt64(tmp.ExecuteScalar("SELECT COUNT(*) FROM rounds"));
+                    long nh = Convert.ToInt64(tmp.ExecuteScalar("SELECT COUNT(*) FROM heat_entries"));
+                    if (nr == 0 || nh == 0) throw new Exception("新库导完是空的(赛次" + nr + " 分组" + nh + ")");
+                    Log(string.Format("重建竞赛库: 新库已按最新编排导好 项目{0} 赛次{1} 运动员{2} 报名{3} 分组{4}",
+                        rep.Events, rep.Rounds, rep.Athletes, rep.Entries, rep.HeatEntries));
 
-                    long heid = Convert.ToInt64(row["id"]);
-                    var sp = _local.Db.Query(
-                        "SELECT distance,cumulative_time,lap_time,rank_at,timing_source,is_manual " +
-                        "FROM splits WHERE heat_entry_id=@p1", heid);
-                    foreach (System.Data.DataRow s in sp.Rows)
-                        sr.Splits.Add(new object[] { s["distance"], s["cumulative_time"], s["lap_time"],
-                                                     s["rank_at"], s["timing_source"], s["is_manual"] });
+                    back = RestoreResults(tmp, saved, missed);
+                    hback = RestoreHeatMarks(tmp, savedHeats);
 
-                    var lg = _local.Db.Query(
-                        "SELECT leg_order,reaction_time,leg_time,cumulative_time,rank_at " +
-                        "FROM relay_legs WHERE heat_entry_id=@p1", heid);
-                    foreach (System.Data.DataRow g in lg.Rows)
-                        sr.Legs.Add(new object[] { g["leg_order"], g["reaction_time"], g["leg_time"],
-                                                   g["cumulative_time"], g["rank_at"] });
-                    saved.Add(sr);
+                    // 成绩必须全部归位才换库。差一条都不换 —— 宁可继续用旧库。
+                    if (missed.Count > 0)
+                    {
+                        Log(string.Format("【注意】有 {0} 条成绩在新编排里找不到位置(组次/道次被改过?), 本次【不换库】: {1}",
+                            missed.Count, string.Join(" ; ", missed.GetRange(0, Math.Min(5, missed.Count)).ToArray())));
+                        Log("【注意】原库原样保留, 比赛不受影响。请核对这几个人的编排后再试。");
+                        throw new Exception("成绩归位不全, 已放弃换库");
+                    }
+                    tmp.Checkpoint();
                 }
 
-                // 组一级的确认信息(谁、什么时候确认的)也要留住 —— 赛程树的"已完赛"读它。
-                var ht = _local.Db.Query(
-                    "SELECT e.age_group,e.gender,e.event_name,r.stage,h.heat," +
-                    "       h.gun_time,h.started_at,h.confirmed_at,h.confirmed_by,h.operator " +
-                    "FROM heats h JOIN rounds r ON r.id=h.round_id " +
-                    "JOIN round_events re ON re.round_id=r.id JOIN events e ON e.id=re.event_id " +
-                    "WHERE h.confirmed_at IS NOT NULL OR h.gun_time IS NOT NULL");
-                foreach (System.Data.DataRow row in ht.Rows)
-                    savedHeats.Add(new object[] { SS(row["age_group"]), SS(row["gender"]), SS(row["event_name"]),
-                        SS(row["stage"]), Convert.ToInt32(row["heat"]), row["gun_time"], row["started_at"],
-                        row["confirmed_at"], row["confirmed_by"], row["operator"] });
-
-                Log(string.Format("重建竞赛库: 先保住 {0} 条成绩 / {1} 个组的确认信息", saved.Count, savedHeats.Count));
-
-                // ── 2. 落一份成绩快照到磁盘 ──────────────────────────────
-                // 万一下面贴回去出岔子, 这个文件是唯一能人工救回来的东西。
-                // 先写盘再动库, 顺序不能反。
-                string snap = null;
-                try
+                // ── 到这里新库已经建好、成绩已全部归位, 才换 ──
+                _local.Dispose(); _local = null;
+                try { System.IO.File.Replace(newPath, _dbPath, bakPath); }
+                catch
                 {
-                    snap = (_dbPath ?? "meet") + ".results-" + DateTime.Now.ToString("yyyyMMdd_HHmmss") + ".json";
-                    System.IO.File.WriteAllText(snap,
-                        Newtonsoft.Json.JsonConvert.SerializeObject(saved, Newtonsoft.Json.Formatting.Indented),
-                        System.Text.Encoding.UTF8);
-                    Log("成绩快照已存: " + System.IO.Path.GetFileName(snap));
+                    // 有的文件系统不支持 Replace, 退回复制
+                    System.IO.File.Copy(_dbPath, bakPath, true);
+                    System.IO.File.Copy(newPath, _dbPath, true);
+                    try { System.IO.File.Delete(newPath); } catch { }
                 }
-                catch (Exception ex) { Log("【注意】成绩快照写盘失败, 本次不重建: " + ex.Message); return false; }
-
-                // ── 3. 清空 + 重导 ───────────────────────────────────────
-                // sqlite_sequence 必须一起清, 否则 AUTOINCREMENT 接着旧号往下走,
-                // id 就不再是"包"的确定性函数, 两台机器又对不上了。
-                try { _local.Db.ExecuteNonQuery("PRAGMA foreign_keys=OFF"); } catch { }
-                var tabs = _local.Db.Query(
-                    "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'");
-                foreach (System.Data.DataRow row in tabs.Rows)
-                    try { _local.Db.ExecuteNonQuery("DELETE FROM \"" + SS(row["name"]) + "\""); } catch { }
-                try { _local.Db.ExecuteNonQuery("DELETE FROM sqlite_sequence"); } catch { }
-
-                var rep = new PackageImporter(_local.Db).Import(pkg);
-                Log(string.Format("重建竞赛库: 已按最新编排重导 项目{0} 赛次{1} 运动员{2} 报名{3} 分组{4}",
-                    rep.Events, rep.Rounds, rep.Athletes, rep.Entries, rep.HeatEntries));
-
-                // ── 4. 成绩贴回去 ────────────────────────────────────────
-                int back = 0;
-                var missed = new List<string>();
-                foreach (var sr in saved)
-                {
-                    var hit = _local.Db.Query(
-                        "SELECT he.id FROM heat_entries he " +
-                        "JOIN rounds r ON r.id=he.round_id " +
-                        "JOIN entries en ON en.id=he.entry_id " +
-                        "JOIN events e ON e.id=en.event_id " +
-                        "WHERE e.age_group=@p1 AND e.gender=@p2 AND e.event_name=@p3 " +
-                        "AND r.stage=@p4 AND he.heat=@p5 AND he.lane=@p6",
-                        sr.Ag, sr.Gd, sr.Ev, sr.St, sr.Heat, sr.Lane);
-                    if (hit.Rows.Count == 0) { missed.Add(sr.Key()); continue; }
-                    long id = Convert.ToInt64(hit.Rows[0]["id"]);
-
-                    var sets = new List<string>();
-                    var ps = new List<object>();
-                    int n = 1;
-                    foreach (string c in ResultCols)
-                    { sets.Add(c + "=@p" + n); ps.Add(sr.Cols[c]); n++; }
-                    ps.Add(id);
-                    _local.Db.ExecuteNonQuery(
-                        "UPDATE heat_entries SET " + string.Join(",", sets.ToArray()) + " WHERE id=@p" + n,
-                        ps.ToArray());
-
-                    _local.Db.ExecuteNonQuery("DELETE FROM splits WHERE heat_entry_id=@p1", id);
-                    foreach (var s in sr.Splits)
-                        _local.Db.ExecuteNonQuery(
-                            "INSERT INTO splits(heat_entry_id,distance,cumulative_time,lap_time,rank_at," +
-                            "timing_source,is_manual) VALUES(@p1,@p2,@p3,@p4,@p5,@p6,@p7)",
-                            id, s[0], s[1], s[2], s[3], s[4], s[5]);
-                    foreach (var g in sr.Legs)
-                        _local.Db.ExecuteNonQuery(
-                            "UPDATE relay_legs SET reaction_time=@p3,leg_time=@p4,cumulative_time=@p5,rank_at=@p6 " +
-                            "WHERE heat_entry_id=@p1 AND leg_order=@p2",
-                            id, g[0], g[1], g[2], g[3], g[4]);
-                    back++;
-                }
-
-                int hback = 0;
-                foreach (var h in savedHeats)
-                {
-                    long rid = ResolveRound(SS(h[0]), SS(h[1]), SS(h[2]), SS(h[3]));
-                    if (rid == 0) continue;
-                    hback += _local.Db.ExecuteNonQuery(
-                        "UPDATE heats SET gun_time=@p3,started_at=@p4,confirmed_at=@p5,confirmed_by=@p6,operator=@p7 " +
-                        "WHERE round_id=@p1 AND heat=@p2",
-                        rid, h[4], h[5], h[6], h[7], h[8], h[9]);
-                }
-
-                // ── 5. 校验 ──────────────────────────────────────────────
-                // 少一条都要喊。成绩悄悄少掉是这个项目最不能接受的事。
-                if (missed.Count > 0)
-                {
-                    Log(string.Format("【注意】重建后有 {0} 条成绩在新编排里找不到位置(组次/道次被改过?): {1}",
-                        missed.Count, string.Join(" ; ", missed.GetRange(0, Math.Min(5, missed.Count)).ToArray())));
-                    Log("【注意】这些成绩没丢, 在快照文件里: " + System.IO.Path.GetFileName(snap ?? ""));
-                }
-                Log(string.Format("重建竞赛库完成: 成绩 {0}/{1} 条已归位, 组确认信息 {2} 个",
-                    back, saved.Count, hback));
+                _local = new LocalMeetService(_dbPath);
+                if (wasLocal) _meet = _local;
                 BuildRoundIndex();
+                Log(string.Format("重建竞赛库完成: 成绩 {0} 条已归位, 组确认信息 {1} 个; 旧库留作 {2}",
+                    back, hback, System.IO.Path.GetFileName(bakPath)));
                 return true;
             }
             catch (Exception ex)
             {
-                Log("【注意】重建竞赛库失败: " + ex.Message);
-                Log("【注意】成绩快照在 Database 目录下 .results-*.json, 不要删");
+                Log("【注意】重建竞赛库失败, 原库未改动, 继续用原库: " + ex.Message);
+                try { if (System.IO.File.Exists(newPath)) System.IO.File.Delete(newPath); } catch { }
+                if (_local == null)
+                {
+                    // 换库中途出的岔子, 得把原库重新打开, 否则整台机器没库可用
+                    try
+                    {
+                        _local = new LocalMeetService(_dbPath);
+                        if (wasLocal) _meet = _local;
+                        BuildRoundIndex();
+                        Log("原库已重新打开");
+                    }
+                    catch (Exception e2) { Log("【严重】原库重开失败: " + e2.Message); }
+                }
                 return false;
             }
         }
 
+        /// <summary>把已有成绩连同分段、接力棒次一起取出来, 按自然键存。</summary>
+        private List<SavedRow> SnapshotResults(MeetDb db, out List<object[]> heatMarks)
+        {
+            var saved = new List<SavedRow>();
+            string cols = string.Join(",", Array.ConvertAll(ResultCols, delegate(string s) { return "he." + s; }));
+            var t = db.Query(
+                "SELECT e.age_group,e.gender,e.event_name,r.stage,he.heat,he.lane,he.id," + cols + " " +
+                "FROM heat_entries he " +
+                "JOIN rounds r ON r.id=he.round_id " +
+                "JOIN entries en ON en.id=he.entry_id " +
+                "JOIN events e ON e.id=en.event_id " +
+                "WHERE he.final_time IS NOT NULL OR he.status IS NOT NULL OR he.result_at IS NOT NULL");
+            foreach (System.Data.DataRow row in t.Rows)
+            {
+                var sr = new SavedRow();
+                sr.Ag = SS(row["age_group"]); sr.Gd = SS(row["gender"]);
+                sr.Ev = SS(row["event_name"]); sr.St = SS(row["stage"]);
+                sr.Heat = Convert.ToInt32(row["heat"]); sr.Lane = Convert.ToInt32(row["lane"]);
+                foreach (string c in ResultCols) sr.Cols[c] = row[c] == DBNull.Value ? null : row[c];
+
+                long heid = Convert.ToInt64(row["id"]);
+                var sp = db.Query("SELECT distance,cumulative_time,lap_time,rank_at,timing_source,is_manual " +
+                                  "FROM splits WHERE heat_entry_id=@p1", heid);
+                foreach (System.Data.DataRow s in sp.Rows)
+                    sr.Splits.Add(new object[] { s["distance"], s["cumulative_time"], s["lap_time"],
+                                                 s["rank_at"], s["timing_source"], s["is_manual"] });
+                var lg = db.Query("SELECT leg_order,reaction_time,leg_time,cumulative_time,rank_at " +
+                                  "FROM relay_legs WHERE heat_entry_id=@p1", heid);
+                foreach (System.Data.DataRow g in lg.Rows)
+                    sr.Legs.Add(new object[] { g["leg_order"], g["reaction_time"], g["leg_time"],
+                                               g["cumulative_time"], g["rank_at"] });
+                saved.Add(sr);
+            }
+
+            heatMarks = new List<object[]>();
+            var ht = db.Query(
+                "SELECT e.age_group,e.gender,e.event_name,r.stage,h.heat," +
+                "       h.gun_time,h.started_at,h.confirmed_at,h.confirmed_by,h.operator " +
+                "FROM heats h JOIN rounds r ON r.id=h.round_id " +
+                "JOIN round_events re ON re.round_id=r.id JOIN events e ON e.id=re.event_id " +
+                "WHERE h.confirmed_at IS NOT NULL OR h.gun_time IS NOT NULL");
+            foreach (System.Data.DataRow row in ht.Rows)
+                heatMarks.Add(new object[] { SS(row["age_group"]), SS(row["gender"]), SS(row["event_name"]),
+                    SS(row["stage"]), Convert.ToInt32(row["heat"]), row["gun_time"], row["started_at"],
+                    row["confirmed_at"], row["confirmed_by"], row["operator"] });
+            return saved;
+        }
+
+        /// <summary>把成绩贴回新库。自然键 = 组别|性别|项目|赛次|组次|道次。</summary>
+        private int RestoreResults(MeetDb db, List<SavedRow> saved, List<string> missed)
+        {
+            int back = 0;
+            foreach (var sr in saved)
+            {
+                var hit = db.Query(
+                    "SELECT he.id FROM heat_entries he " +
+                    "JOIN rounds r ON r.id=he.round_id " +
+                    "JOIN entries en ON en.id=he.entry_id " +
+                    "JOIN events e ON e.id=en.event_id " +
+                    "WHERE e.age_group=@p1 AND e.gender=@p2 AND e.event_name=@p3 " +
+                    "AND r.stage=@p4 AND he.heat=@p5 AND he.lane=@p6",
+                    sr.Ag, sr.Gd, sr.Ev, sr.St, sr.Heat, sr.Lane);
+                if (hit.Rows.Count == 0)
+                {
+                    // 没成绩的行找不到位置无所谓(编排本来就能改), 有成绩的必须喊
+                    object ft; sr.Cols.TryGetValue("final_time", out ft);
+                    bool hasResult = ft != null && Convert.ToDouble(ft) > 0;
+                    if (hasResult) missed.Add(sr.Key());
+                    continue;
+                }
+                long id = Convert.ToInt64(hit.Rows[0]["id"]);
+
+                var sets = new List<string>(); var ps = new List<object>(); int n = 1;
+                foreach (string c in ResultCols) { sets.Add(c + "=@p" + n); ps.Add(sr.Cols[c]); n++; }
+                ps.Add(id);
+                db.ExecuteNonQuery("UPDATE heat_entries SET " + string.Join(",", sets.ToArray()) +
+                                   " WHERE id=@p" + n, ps.ToArray());
+
+                db.ExecuteNonQuery("DELETE FROM splits WHERE heat_entry_id=@p1", id);
+                foreach (var s in sr.Splits)
+                    db.ExecuteNonQuery(
+                        "INSERT INTO splits(heat_entry_id,distance,cumulative_time,lap_time,rank_at," +
+                        "timing_source,is_manual) VALUES(@p1,@p2,@p3,@p4,@p5,@p6,@p7)",
+                        id, s[0], s[1], s[2], s[3], s[4], s[5]);
+                foreach (var g in sr.Legs)
+                    db.ExecuteNonQuery(
+                        "UPDATE relay_legs SET reaction_time=@p3,leg_time=@p4,cumulative_time=@p5,rank_at=@p6 " +
+                        "WHERE heat_entry_id=@p1 AND leg_order=@p2",
+                        id, g[0], g[1], g[2], g[3], g[4]);
+                back++;
+            }
+            return back;
+        }
+
+        /// <summary>组一级的发令/确认信息 —— 赛程树的"已完赛"读它。</summary>
+        private int RestoreHeatMarks(MeetDb db, List<object[]> marks)
+        {
+            int n = 0;
+            foreach (var h in marks)
+            {
+                var rr = db.Query(
+                    "SELECT r.id FROM rounds r JOIN round_events re ON re.round_id=r.id " +
+                    "JOIN events e ON e.id=re.event_id " +
+                    "WHERE e.age_group=@p1 AND e.gender=@p2 AND e.event_name=@p3 AND r.stage=@p4",
+                    SS(h[0]), SS(h[1]), SS(h[2]), SS(h[3]));
+                if (rr.Rows.Count == 0) continue;
+                n += db.ExecuteNonQuery(
+                    "UPDATE heats SET gun_time=@p3,started_at=@p4,confirmed_at=@p5,confirmed_by=@p6,operator=@p7 " +
+                    "WHERE round_id=@p1 AND heat=@p2",
+                    Convert.ToInt64(rr.Rows[0]["id"]), h[4], h[5], h[6], h[7], h[8], h[9]);
+            }
+            return n;
+        }
+
         private static string SS(object o) { return o == null || o == DBNull.Value ? "" : o.ToString(); }
+
+        /// <summary>
+        /// 2026-08-29 离线摆渡用: 从本机竞赛库里把【已经比完的某一组】重新拼成 LiveHeat。
+        /// 跟联机回推走的是同一个结构, 所以主服务器那边不需要第二套接收代码。
+        /// </summary>
+        public LiveHeat BuildLiveHeatFromDb(string ageGroup, string gender, string eventName, string stage, int heat)
+        {
+            if (_local == null || heat <= 0) return null;
+            try
+            {
+                long rid = ResolveRound(ageGroup, gender, eventName, stage);
+                if (rid == 0) return null;
+                var live = new LiveHeat();
+                live.MeetRoundId = rid; live.Heat = heat;
+                live.AgeGroup = ageGroup; live.Gender = gender;
+                live.EventName = eventName; live.Stage = stage;
+                live.ResultConfirmed = true;
+
+                var t = _local.Db.Query(
+                    "SELECT id,lane,final_time,rank,status,record_note,timing_source,reaction_time," +
+                    "touchpad_time,start_block_time,pb1_time,pb2_time,pb3_time,manual_left,manual_right," +
+                    "dsq_code,dsq_leg FROM heat_entries WHERE round_id=@p1 AND heat=@p2 ORDER BY lane", rid, heat);
+                foreach (System.Data.DataRow r in t.Rows)
+                {
+                    var ln = new LiveLane();
+                    ln.HeatEntryId = Convert.ToInt64(r["id"]);
+                    ln.Lane = Convert.ToInt32(r["lane"]);
+                    ln.FinalTime = ND(r["final_time"]); ln.Rank = (int)ND(r["rank"]);
+                    ln.Status = SS(r["status"]); ln.RecordNote = SS(r["record_note"]);
+                    ln.TimingSource = SS(r["timing_source"]);
+                    ln.ReactionTime = ND(r["reaction_time"]); ln.TouchpadTime = ND(r["touchpad_time"]);
+                    ln.StartBlockTime = ND(r["start_block_time"]);
+                    ln.Pb1Time = ND(r["pb1_time"]); ln.Pb2Time = ND(r["pb2_time"]); ln.Pb3Time = ND(r["pb3_time"]);
+                    ln.ManualLeft = ND(r["manual_left"]); ln.ManualRight = ND(r["manual_right"]);
+                    ln.DsqCode = SS(r["dsq_code"]); ln.DsqLeg = (int)ND(r["dsq_leg"]);
+
+                    ln.Splits = new List<SplitDto>();
+                    var sp = _local.Db.Query(
+                        "SELECT distance,cumulative_time,lap_time,rank_at,timing_source,is_manual " +
+                        "FROM splits WHERE heat_entry_id=@p1 ORDER BY distance", ln.HeatEntryId);
+                    foreach (System.Data.DataRow s in sp.Rows)
+                    {
+                        var d = new SplitDto();
+                        d.Distance = (int)ND(s["distance"]); d.CumulativeTime = ND(s["cumulative_time"]);
+                        d.LapTime = ND(s["lap_time"]); d.RankAt = (int)ND(s["rank_at"]);
+                        d.TimingSource = SS(s["timing_source"]); d.IsManual = ND(s["is_manual"]) > 0;
+                        ln.Splits.Add(d);
+                    }
+                    live.Lanes.Add(ln);
+                }
+                return live.Lanes.Count > 0 ? live : null;
+            }
+            catch (Exception ex) { Log("拼装第" + heat + "组失败: " + ex.Message); return null; }
+        }
+
+        /// <summary>本机库里所有【已确认】的组, 按 组别/性别/项目/赛次/组次 列出来。</summary>
+        public List<string[]> ListConfirmedHeats()
+        {
+            var list = new List<string[]>();
+            if (_local == null) return list;
+            try
+            {
+                var t = _local.Db.Query(
+                    "SELECT DISTINCT e.age_group,e.gender,e.event_name,r.stage,h.heat " +
+                    "FROM heats h JOIN rounds r ON r.id=h.round_id " +
+                    "JOIN round_events re ON re.round_id=r.id JOIN events e ON e.id=re.event_id " +
+                    "WHERE h.confirmed_at IS NOT NULL ORDER BY e.age_group,e.event_name,r.stage,h.heat");
+                foreach (System.Data.DataRow r in t.Rows)
+                    list.Add(new string[] { SS(r["age_group"]), SS(r["gender"]), SS(r["event_name"]),
+                                            SS(r["stage"]), Convert.ToInt32(r["heat"]).ToString() });
+            }
+            catch (Exception ex) { Log("列已确认组失败: " + ex.Message); }
+            return list;
+        }
+
+        private static double ND(object o)
+        {
+            if (o == null || o == DBNull.Value) return 0;
+            try { return Convert.ToDouble(o); } catch { return 0; }
+        }
 
         /// <summary>
         /// 2026-08-29 断线补传用: 在 LiveCommit 之【前】抓一份当前组快照。
@@ -722,6 +855,37 @@ namespace SwimmingScoreboard.Db
             if (_local == null || live == null) return empty;
             try
             {
+                // 2026-08-29 送来的 MeetRoundId / HeatEntryId 是【对方库】的自增 id。
+                //   两边能对上, 只是因为导的是同一个包、同样的顺序 —— 任何一边单独
+                //   重建过, id 就会错位, 成绩会静默地写到别人身上。
+                //   所以一律不信对方的 id, 按 (组别|性别|项目|赛次) + 组次 + 道次
+                //   在本机重新认一遍。认不出来的道次跳过并报警, 绝不猜。
+                long rid = ResolveRound(live.AgeGroup, live.Gender, live.EventName, live.Stage);
+                if (rid == 0)
+                {
+                    Log(string.Format("【注意】本机库里找不到 {0}{1} {2} {3}, 这一组成绩没法入库",
+                        live.AgeGroup, live.Gender, live.EventName, live.Stage));
+                    return empty;
+                }
+                live.MeetRoundId = rid;
+                int relocated = 0, lost = 0;
+                foreach (var ln in live.Lanes)
+                {
+                    var q = _local.Db.Query(
+                        "SELECT id FROM heat_entries WHERE round_id=@p1 AND heat=@p2 AND lane=@p3",
+                        rid, live.Heat, ln.Lane);
+                    if (q.Rows.Count == 0) { ln.HeatEntryId = 0; lost++; continue; }
+                    long myId = Convert.ToInt64(q.Rows[0]["id"]);
+                    if (myId != ln.HeatEntryId) relocated++;
+                    ln.HeatEntryId = myId;
+                }
+                if (relocated > 0)
+                    Log(string.Format("收到的第{0}组有 {1} 个道次的行号与本机不同, 已按道次重新对上",
+                        live.Heat, relocated));
+                if (lost > 0)
+                    Log(string.Format("【注意】收到的第{0}组有 {1} 个道次在本机编排里没有, 这几道成绩没入库",
+                        live.Heat, lost));
+
                 var breaks = _local.CommitHeatFrom(live, op);
                 Log(string.Format("计时端第{0}组成绩已写入竞赛库{1}", live.Heat,
                     breaks.Count > 0 ? "，破纪录 " + breaks.Count + " 项" : ""));
