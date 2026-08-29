@@ -12523,6 +12523,7 @@ namespace SwimmingScoreboard
                 AddLog("成绩存盘路径未配置 — 跳过 txt 自动保存 (大屏已切总排名)");
                 return;
             }
+            WarnIfLocalSaveDirOnTimingStation(dir);
             try {
                 if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
                 var sched = _schedule.FirstOrDefault(s => s.Gender == _currentGender && s.EventName == _currentEvent
@@ -13473,6 +13474,20 @@ namespace SwimmingScoreboard
         private string GetAutoSaveTxtDir() {
             if (!string.IsNullOrWhiteSpace(_autoSaveTxtPath)) return _autoSaveTxtPath;
             return IOPath.Combine(AppDomain.CurrentDomain.BaseDirectory, "Documents", "成绩txt");
+        }
+
+        /// <summary>
+        /// 2026-08-28 防呆: 比赛控制转移到计时端之后, 操作员在【计时端】点"公布项目总排名(存盘)",
+        /// txt 就落在计时端这台机器上, 不在主服务器 —— 赛后去主服务器找文件会扑空。
+        /// 约定的做法是把计时端的存盘路径配成主服务器的共享目录(\\主服务器\成绩txt)。
+        /// 这里只提示不拦截: 现场可能就是有意存本机, 不该把人挡住。
+        /// </summary>
+        private void WarnIfLocalSaveDirOnTimingStation(string dir) {
+            if (!IsRemoteTimingControlMode) return;
+            if (string.IsNullOrWhiteSpace(dir)) return;
+            if (dir.StartsWith("\\")) return;                      // 已经是共享目录, 正常
+            AddLog("注意: 成绩 txt 存在【本机(计时端)】" + dir +
+                   " —— 赛后要到这台机器上取; 建议把存盘路径改成主服务器共享目录");
         }
         private void LoadAutoSaveTxtPath() {
             try {
