@@ -1442,6 +1442,11 @@ namespace SwimmingScoreboard
                             EnqueueToAll(json);
                         } catch { }
                         break;
+                    // 2026-08-28 计时端确认成绩后回推本组 —— 让主服务器内存模型跟上,
+                    //   否则赛程树的"已完赛"和项目成绩都看不到计时端跑出来的结果。
+                    case "HEAT_CONFIRMED_PUSH":
+                        try { HandleHeatConfirmedPush(msg); } catch (Exception ex) { AddLog("应用回推成绩失败: " + ex.Message); }
+                        break;
                     case "EDITOR_PULL_PACKAGE":
                         SendEditorPackageTo(socket);
                         break;
@@ -8794,6 +8799,79 @@ namespace SwimmingScoreboard
             _broadcastSuppressing = true;
         }
 
+        /// <summary>
+        /// 计时端把【刚确认的这一组】的成绩行推给主服务器, 让主服务器的内存模型跟上。
+        /// 成绩对象整体序列化再还原, 不做字段映射 —— 少一个字段就是一处对不上。
+        /// </summary>
+        private void PushHeatConfirmedToServer() {
+            if (_editorSyncClient == null || !_editorSyncClient.IsConnected) {
+                AddLog("未连主服务器, 本组成绩只在本机(赛后需手工同步)");
+                return;
+            }
+            var rows = new JArray();
+            foreach (var sw in GetCurrentHeatSwimmers()) {
+                var r = sw.Results.FirstOrDefault(x => x.Stage == _currentStage && x.Heat == _currentHeat);
+                if (r == null) continue;
+                rows.Add(JObject.Parse(JsonConvert.SerializeObject(r)));
+            }
+            var d = new JObject();
+            d["ageGroup"]  = _currentAgeGroup ?? "";
+            d["gender"]    = _currentGender ?? "";
+            d["eventName"] = _currentEvent ?? "";
+            d["stage"]     = _currentStage ?? "";
+            d["heat"]      = _currentHeat;
+            d["results"]   = rows;
+            var env = new JObject();
+            env["type"] = "HEAT_CONFIRMED_PUSH";
+            env["data"] = d;
+            _editorSyncClient.Send(env.ToString(Formatting.None));
+            AddLog(string.Format("已把第{0}组成绩({1}条)回推主服务器", _currentHeat, rows.Count));
+        }
+
+        /// <summary>
+        /// 主服务器收到计时端推来的"本组已确认": 写进内存模型 + 落盘 + 刷界面。
+        /// 按泳道号对上人 —— 跟 GetHeatEntries 是同一套口径。
+        /// </summary>
+        private void HandleHeatConfirmedPush(JObject msg) {
+            var d = msg["data"] as JObject;
+            if (d == null) return;
+            string ag = d["ageGroup"] != null ? d["ageGroup"].ToString() : "";
+            string gd = d["gender"] != null ? d["gender"].ToString() : "";
+            string ev = d["eventName"] != null ? d["eventName"].ToString() : "";
+            string st = d["stage"] != null ? d["stage"].ToString() : "";
+            int ht = d["heat"] != null ? (int)d["heat"] : 0;
+            if (string.IsNullOrEmpty(ev) || ht <= 0) return;
+
+            var swimmers = GetHeatEntries(ag, gd, ev, st, ht);
+            var arr = d["results"] as JArray;
+            int applied = 0;
+            if (arr != null) {
+                foreach (var t in arr) {
+                    LaneResult lr;
+                    try { lr = JsonConvert.DeserializeObject<LaneResult>(t.ToString(Formatting.None)); }
+                    catch { continue; }
+                    if (lr == null) continue;
+                    var sw = swimmers.FirstOrDefault(s => {
+                        var sa = s.GetAssignmentForStage(st);
+                        int ln = sa != null ? sa.Lane : s.Lane;
+                        return ln == lr.Lane;
+                    });
+                    if (sw == null) continue;
+                    var old = sw.Results.FirstOrDefault(x => x.Stage == st && x.Heat == ht);
+                    if (old != null) sw.Results.Remove(old);
+                    sw.Results.Add(lr);
+                    applied++;
+                }
+            }
+            _confirmedHeats.Add(ConfirmedHeatKey(ag, gd, ev, st, ht));
+            try { BuildScheduleTree(); } catch { }
+            try { RefreshOverviewStats(); } catch { }
+            try { AutoSaveData(); } catch (Exception ex) { AddLog("回推成绩落盘失败: " + ex.Message); }
+            try { Broadcast(); } catch { }
+            AddLog(string.Format("收到计时端回推: {0} {1} {2} 第{3}组 已确认, 应用 {4} 条成绩",
+                ag, gd, ev, ht, applied));
+        }
+
         // 2026-05-27 "停表" 按钮 - 切换 _clockPaused 状态:
         //   关 → 开: 快照当前 _runningTime, 之后 RaceTimer_Tick 显示快照值;
         //              GetStatusData 广播 clockPaused=true + pausedRunningTime, EXE/HTML/大屏冻结显示.
@@ -8838,6 +8916,12 @@ namespace SwimmingScoreboard
 
             // 把当前组锁定到 _confirmedHeats（先于其它 UI 步骤，避免任何异常导致锁定状态没生效）
             _confirmedHeats.Add(ConfirmedHeatKey(_currentAgeGroup, _currentGender, _currentEvent, _currentStage, _currentHeat));
+            // 2026-08-28 计时端确认成绩后, 必须把这一组【回推给主服务器】。
+            //   之前只写进了主服务器的 meet.db, 但主服务器【内存里的模型没变】——
+            //   赛程树的"已完赛"读 _confirmedHeats, 项目成绩读 _swimmers[].Results,
+            //   两样都没更新, 所以主服务器上看不到任何已完赛的痕迹。
+            //   只推这一组的行, 不推整包。
+            if (IsRemoteTimingControlMode) { try { PushHeatConfirmedToServer(); } catch (Exception ex) { AddLog("回推本组成绩失败: " + ex.Message); } }
 
             // 立即重建赛程树：哪怕下面 UpdateHeatRanking/AutoSaveData/SaveRawTimingLog 偶发异常，
             // "已完赛"标记也不会丢；之前用 try{}catch{} 把异常吞掉，"偶尔不打标记"就源于此。
