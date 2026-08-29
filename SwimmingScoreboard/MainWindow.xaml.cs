@@ -426,6 +426,9 @@ namespace SwimmingScoreboard
 
         public MainWindow() {
             InitializeComponent();
+            // 2026-08-28 竞赛库那一层原来传的是 null, 日志全进了黑洞 —— 三个 exe 都受影响。
+            //   放在 InitializeComponent 之后: 此时 SystemLogListBox 已存在, AddLog 可用。
+            _meetDb.SetLogger(AddLog);
             bool editorMode = IsScheduleEditorMode;
             bool rtcMode = IsRemoteTimingControlMode;
             // 2026-06-17 模式角色:
@@ -21660,9 +21663,22 @@ namespace SwimmingScoreboard
 
         private void OpenLiveHeat() {
             try {
-                if (!_meetDb.IsOpen || _currentHeat <= 0 || string.IsNullOrEmpty(_currentEvent)) return;
+                // 2026-08-28 原来这里是【静默 return】—— 库没打开就什么都不做, 一声不吭。
+                //   后果: 就位时当前组库没建, 确认成绩时 LiveActive=false 又静默跳过回写,
+                //   成绩只进了内存/JSON, meet.db 一条都没有, 而界面上一切正常。
+                //   今天挖出的问题清一色是这个毛病, 所以让它开口。
+                if (!_meetDb.IsOpen) {
+                    AddLog("【注意】竞赛库未打开, 本组不走当前组库(成绩只存内存/JSON, 不入 meet.db)");
+                    return;
+                }
+                if (_currentHeat <= 0 || string.IsNullOrEmpty(_currentEvent)) {
+                    AddLog("【注意】未选定项目/组次, 不建当前组库");
+                    return;
+                }
                 _meetDb.LiveOpen(_currentAgeGroup, _currentGender, _currentEvent,
                                  _currentStage, _currentHeat, Environment.MachineName);
+                if (!_meetDb.LiveActive)
+                    AddLog("【注意】当前组库没建起来(多半是这一组在竞赛库里对不上号), 确认成绩时不会回写 meet.db");
             } catch (Exception ex) { AddLog("当前组库打开失败(按原方式保存): " + ex.Message); }
         }
 
@@ -21671,7 +21687,11 @@ namespace SwimmingScoreboard
         }
 
         private void CommitLiveHeat() {
-            if (!_meetDb.LiveActive) return;
+            if (!_meetDb.LiveActive) {
+                // 同上: 不能再静默跳过。这条日志就是"成绩没进 meet.db"的唯一线索。
+                AddLog("【注意】当前组库未激活, 本组成绩未回写 meet.db(内存/JSON 不受影响)");
+                return;
+            }
             var breaks = _meetDb.LiveCommit(Environment.MachineName);
             foreach (var b in breaks) {
                 AddLog(string.Format("破纪录: {0} {1} 原 {2} ({3}) → 新 {4} ({5}){6}",
@@ -26765,10 +26785,37 @@ namespace SwimmingScoreboard
         private void AddLog(string msg) {
             // 2026-06-06 系统工作状态 → 比赛日志 (LogListBox) 已下线 (= 与 系统日志与数据 → 运行日志
             //   SystemLogListBox 同内容, 用户要求精简, 只保留后者). AddLog 现只写 SystemLogListBox.
-            if (SystemLogListBox == null) return;
             string entry = string.Format("[{0}] {1}", DateTime.Now.ToString("HH:mm:ss"), msg);
+            // 2026-08-28 同时落盘。界面那个列表只留 300 行、还带虚拟化, 出了问题
+            //   既翻不到历史也没法远程看 —— 排查现场问题时这是最要命的一点。
+            //   写文件是尽力而为: 任何异常都吞掉, 绝不能因为记日志把比赛搞停。
+            AppendLogFile(entry);
+            if (SystemLogListBox == null) return;
             SystemLogListBox.Items.Insert(0, entry);
             if (SystemLogListBox.Items.Count > 300) SystemLogListBox.Items.RemoveAt(SystemLogListBox.Items.Count - 1);
+        }
+
+        private static readonly object _logFileLock = new object();
+        private static string _logFilePath;
+
+        /// <summary>把一行日志追加到 &lt;程序目录&gt;\Logs\yyyyMMdd.log。失败一律忽略。</summary>
+        private static void AppendLogFile(string entry) {
+            try {
+                lock (_logFileLock) {
+                    string today = DateTime.Now.ToString("yyyyMMdd");
+                    if (_logFilePath == null || !_logFilePath.EndsWith(today + ".log", StringComparison.Ordinal)) {
+                        string dir = IOPath.Combine(AppDomain.CurrentDomain.BaseDirectory, "Logs");
+                        if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
+                        _logFilePath = IOPath.Combine(dir, today + ".log");
+                        // 顺手清掉 14 天前的, 免得越积越多
+                        try {
+                            foreach (var old in Directory.GetFiles(dir, "*.log"))
+                                if (File.GetLastWriteTime(old) < DateTime.Now.AddDays(-14)) File.Delete(old);
+                        } catch { }
+                    }
+                    File.AppendAllText(_logFilePath, entry + Environment.NewLine, Encoding.UTF8);
+                }
+            } catch { }
         }
 
         private string GetLocalIP() {

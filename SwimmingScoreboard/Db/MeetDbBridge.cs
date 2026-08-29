@@ -36,7 +36,7 @@ namespace SwimmingScoreboard.Db
         private LocalMeetService _local;
         private WebSocketRpcTransport _rpc;
         private string _dbPath;
-        private readonly Action<string> _log;
+        private Action<string> _log;
 
         /// <summary>true = 连远端主服务器取竞赛数据; false = 本机开库。</summary>
         public bool IsRemote { get { return _rpc != null; } }
@@ -58,6 +58,15 @@ namespace SwimmingScoreboard.Db
         /// 换宿主(测试脚本、以后的服务进程)时那个值不是程序目录。
         /// </summary>
         public string BaseDir { get; set; }
+
+        /// <summary>
+        /// 2026-08-28 补接日志。MainWindow 里这个对象是字段初始化器 new 出来的,
+        /// 那里还不能引用实例方法 AddLog, 所以当初传了 null —— 结果【竞赛库这一层
+        /// 所有日志从一开始就进了黑洞】: "竞赛库已建"、"库里找不到某某项目"、
+        /// "连不上主服务器, 本组按单机模式跑" 一条都没输出过, 出了问题毫无线索。
+        /// 界面初始化好之后调一次这个把日志接上。
+        /// </summary>
+        public void SetLogger(Action<string> log) { if (log != null) _log = log; }
 
         public MeetDbBridge(Action<string> log)
         {
@@ -139,6 +148,7 @@ namespace SwimmingScoreboard.Db
                 if (string.IsNullOrWhiteSpace(ServerHost))
                 {
                     _meet = _local;                       // 单机
+                    BuildRoundIndex();
                     return true;
                 }
 
@@ -150,10 +160,12 @@ namespace SwimmingScoreboard.Db
                     Log("连不上主服务器 " + ServerHost + ":" + ServerPort + "，本组按单机模式跑");
                     _rpc.Dispose(); _rpc = null;
                     _meet = _local;
+                    BuildRoundIndex();
                     return true;
                 }
                 _meet = new RemoteMeetService(_rpc);
                 Log("竞赛数据走主服务器 " + ServerHost + ":" + ServerPort + "（当前组仍写本机）");
+                BuildRoundIndex();
                 return true;
             }
             catch (Exception ex)
@@ -193,6 +205,24 @@ namespace SwimmingScoreboard.Db
             if (_local == null || pkg == null) return false;
             try
             {
+                // 2026-08-28 导入【不是幂等的】: 里面绝大多数是裸 INSERT(只有少数几张表
+                //   用了 OR IGNORE / OR REPLACE), 第二次跑必然撞唯一约束 constraint failed。
+                //   而这个库是【会长成绩的】—— 比赛跑出来的成绩就存在里面, 所以也不能
+                //   先清空再导。所以: 库里已经有数据就跳过, 不再重导。
+                //   历史上这个失败还连累了赛次索引(索引原来只在导入成功时才建, 于是
+                //   第二次启动之后成绩就静默不回写 meet.db 了 —— 已另行修正)。
+                //   要强制重导: 关程序, 删掉 Database\<赛事名>.db, 再启动。
+                long already = 0;
+                try { already = Convert.ToInt64(_local.Db.ExecuteScalar("SELECT COUNT(*) FROM rounds")); }
+                catch { already = 0; }
+                if (already > 0)
+                {
+                    Log(string.Format("竞赛库已有数据({0} 个赛次), 跳过导入。要重导请关程序删掉 {1} 再启动",
+                        already, System.IO.Path.GetFileName(_dbPath ?? "")));
+                    BuildRoundIndex();
+                    return true;
+                }
+
                 var sw = System.Diagnostics.Stopwatch.StartNew();
                 var rep = new PackageImporter(_local.Db).Import(pkg);
                 Log(string.Format("竞赛库已建: 项目{0} 赛次{1} 运动员{2} 报名{3} 分组{4}，{5}ms",
@@ -204,7 +234,9 @@ namespace SwimmingScoreboard.Db
             }
             catch (Exception ex)
             {
-                Log("竞赛库导入失败(不影响比赛): " + ex.Message);
+                // 导入失败不影响比赛(内存/JSON 照常), 但要说清楚: 索引仍会在 Open() 里建,
+                // 所以 meet.db 回写不受这个失败影响。第二次导入撞唯一约束是已知问题。
+                Log("竞赛库导入失败(不影响比赛, 赛次索引另行建立): " + ex.Message);
                 return false;
             }
         }
@@ -237,6 +269,11 @@ namespace SwimmingScoreboard.Db
                     if (!_roundIx.ContainsKey(k)) _roundIx[k] = row.RoundId;
                     if (!_eventIx.ContainsKey(k)) _eventIx[k] = row.EventId;
                 }
+                // 2026-08-28 索引空了就是"这一组在库里对不上号"的根源, 必须喊出来。
+                //   原来它只在 ImportPackage 成功时才建, 而导入第二次就会撞唯一约束
+                //   (constraint failed) —— 于是索引永远是空的, 成绩静默不回写 meet.db。
+                if (_roundIx.Count == 0) Log("【注意】赛次索引为空 —— 当前组库建不起来, 成绩不会回写 meet.db");
+                else Log(string.Format("赛次索引已建: {0} 条", _roundIx.Count));
             }
             catch (Exception ex) { Log("竞赛库索引重建失败: " + ex.Message); }
         }

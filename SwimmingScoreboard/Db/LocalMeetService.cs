@@ -730,8 +730,22 @@ namespace SwimmingScoreboard.Db
         // ═══════════════ G. 比赛中（当前组库）═══════════════
         public LiveHeat OpenHeat(long roundId, int heat, string op)
         {
-            var cur = _db.Query("SELECT state FROM heats WHERE round_id=@p1 AND state='racing'", roundId);
-            if (cur.Rows.Count > 0) throw new MeetDataException("已有一组在比赛中，请先确认或放弃那一组");
+            // 2026-08-28 原来这里只说"已有一组在比赛中", 不说是哪一组, 也没有恢复的路 ——
+            //   计时端崩一次 / 断电一次 / 测试中途失败, 那一组就永远停在 racing,
+            //   整个赛次从此开不了组, 而且操作员根本不知道该去放弃哪一组。
+            //   现在: ① 说清是第几组; ② 卡住的就是要开的这一组时, 当作【重开】放行
+            //   (崩溃后重来是最常见的情况, 本组数据本来就要重新灌)。
+            var cur = _db.Query("SELECT heat FROM heats WHERE round_id=@p1 AND state='racing'", roundId);
+            if (cur.Rows.Count > 0)
+            {
+                int stuck = NI(cur.Rows[0], "heat") ?? 0;
+                if (stuck != heat)
+                    throw new MeetDataException(string.Format(
+                        "第{0}组还在比赛中（上次可能没正常结束）。请先确认或放弃第{0}组，再开第{1}组。", stuck, heat));
+                // 同一组重开: 把上次那条 racing 记录清掉, 下面照常重新灌名单
+                _db.ExecuteNonQuery("UPDATE heats SET state='pending' WHERE round_id=@p1 AND heat=@p2 AND state='racing'",
+                    roundId, heat);
+            }
 
             var info = GetMeetInfo();
             var round = GetRound(roundId);
