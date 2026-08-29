@@ -8864,6 +8864,10 @@ namespace SwimmingScoreboard
                 }
             }
             _confirmedHeats.Add(ConfirmedHeatKey(ag, gd, ev, st, ht));
+            // 2026-08-28 团体总分是从 _swimmers 现算的。本机确认成绩时由
+            //   ScoringConfigCore/CalcTeamScore 触发重算, 但计时端回推这条路
+            //   原来谁都不触发 —— 主服务器上的团体总分会一直停在旧值。
+            try { CalculateTeamScores(); } catch (Exception ex) { AddLog("重算团体总分失败: " + ex.Message); }
             try { BuildScheduleTree(); } catch { }
             try { RefreshOverviewStats(); } catch { }
             try { AutoSaveData(); } catch (Exception ex) { AddLog("回推成绩落盘失败: " + ex.Message); }
