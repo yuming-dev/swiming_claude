@@ -9189,6 +9189,10 @@ namespace SwimmingScoreboard
             //   这样主服务器上看到的名次 = 主服务器库里的名次, 不存在第二个真相。
             ApplyHeatFromDb(ag, gd, ev, st, ht);
 
+            // 2026-08-31 服务器这边也要判: 这个项目全部组确认了就生成组排名表(定稿)
+            try { _meetDb.GenerateEventRankingIfComplete(ag, gd, ev, st, "计时端"); }
+            catch (Exception ex) { AddLog("生成组排名表失败: " + ex.Message); }
+
             // 回执: 计时端据此删掉待补传文件。没有回执它就一直留着, 下次连上再补 ——
             // 宁可重复补传(幂等、安全), 也不能悄悄丢一组成绩。
             try {
@@ -22192,6 +22196,12 @@ namespace SwimmingScoreboard
             // 2026-08-30 成绩确定了 —— 从库里把这一组读回来, 覆盖内存。
             //   从这一刻起这组的名次只有库里那一份, 打印/大屏/查询都用它, 谁都别再算。
             ApplyHeatFromDb(_currentAgeGroup, _currentGender, _currentEvent, _currentStage, _currentHeat);
+
+            // 2026-08-31 如果这个项目【所有组都确认了】, 生成组排名表(定稿)。
+            //   判定用"是不是全部确认", 不是"组次号最大" —— 中间可能有取消的组。
+            try { _meetDb.GenerateEventRankingIfComplete(_currentAgeGroup, _currentGender,
+                      _currentEvent, _currentStage, Environment.MachineName); }
+            catch (Exception ex) { AddLog("生成组排名表失败: " + ex.Message); }
         }
 
         /// <summary>
@@ -22446,6 +22456,14 @@ namespace SwimmingScoreboard
                 //   这在比赛里是不能接受的。
                 //   (曾经这里调过 RecomputeAllRanks 去修正旧算法留下的名次, 是我不懂规则。
                 //    历史数据若确有问题, 只能由裁判长明确决定后单独处理, 不能悄悄自动改。)
+
+                // 2026-08-31 一次性订正历史名次到当前并列口径(1/100 秒)。
+                //   这【不是】恢复"每次加载都重算" —— 那条已经撤了, 名次确认后就固定。
+                //   这里只把当初因旧口径(1e-9)该并列却没并列的订正过来, 成绩一个字不动,
+                //   而且靠 settings 里的 rank_rule_version 记账, 全场只跑一次。
+                //   每条改动都会写进日志, 便于事后核对。
+                try { _meetDb.MigrateRanksOnce(Environment.MachineName); }
+                catch (Exception ex) { AddLog("历史名次订正失败(名次维持原样): " + ex.Message); }
 
                 var chk = _meetDb.SelfCheck(package);
                 AddLog(chk.ToString());

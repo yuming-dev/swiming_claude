@@ -789,6 +789,162 @@ namespace SwimmingScoreboard.Db
             catch (Exception ex) { Log("从竞赛库读参数失败(" + key + "): " + ex.Message); return null; }
         }
 
+        /// <summary>
+        /// 2026-08-31 【一次性】把历史名次订正到当前并列口径, 之后再也不跑。
+        ///
+        /// 背景: 并列判定原来是 Math.Abs(差) > 1e-9 直接比 double, 现在是按 1/100 秒
+        /// 取整比(与裁判一致)。库里【已确认】的名次是旧口径算出来的, 极个别并列会不一样。
+        ///
+        /// 为什么可以改: 这不是"重排名次", 是把当初就该并列却没并列的订正过来 ——
+        /// 成绩一个字没动, 只是并列判定的口径统一。用户明确要求不留这个尾巴。
+        ///
+        /// 为什么只跑一次: 名次确认后就固定, 不能每次加载都动。用 settings 里的
+        /// rank_rule_version 记账, 订正过就跳过。
+        ///
+        /// 留痕: 每一条改动都写进日志(哪个项目、谁、原名次 -> 新名次), 一条不漏;
+        /// 没有任何改动时只记一句"无需订正"。
+        /// </summary>
+        /// <summary>
+        /// 2026-08-31 组排名表: 该项目【所有组都比完并确认】之后, 把全部运动员的成绩
+        /// 合到一张表上排出来的总排名。
+        ///
+        /// 它跟本组排名是两回事:
+        ///   本组排名 —— 第 X 组之内的名次(读时现算, 不入库)
+        ///   组排名   —— 全项目跨组的总名次。有几个赛次时是【晋级的依据】;
+        ///               直接决赛的项目, 它就是【最终名次】。
+        ///
+        /// 什么时候生成: 该项目所有组(取消的组不算)都确认之后, 由最后那一组的确认动作触发。
+        ///   判定用"是不是全部确认", 不是"组次号是不是最大" —— 中间可能有取消的组。
+        ///
+        /// 生成之后就定稿, 跟本组名次一样不许自动改。要改只能人工决定。
+        /// </summary>
+        public int GenerateEventRankingIfComplete(string ageGroup, string gender, string eventName, string stage, string op)
+        {
+            if (_local == null) return 0;
+            try
+            {
+                long rid = ResolveRound(ageGroup, gender, eventName, stage);
+                long eid = ResolveEvent(ageGroup, gender, eventName, stage);
+                if (rid == 0 || eid == 0) return 0;
+
+                // 还有没有没确认的组? (取消的组不算)
+                var pend = _local.Db.Query(
+                    "SELECT COUNT(*) AS n FROM heats WHERE round_id=@p1 " +
+                    "AND COALESCE(state,'') <> 'cancelled' AND confirmed_at IS NULL", rid);
+                int pending = pend.Rows.Count > 0 ? Convert.ToInt32(pend.Rows[0]["n"]) : 0;
+                if (pending > 0)
+                {
+                    Log(string.Format("{0}{1} {2} {3}: 还有 {4} 组没确认, 组排名表暂不生成",
+                        ageGroup, gender, eventName, stage, pending));
+                    return 0;
+                }
+
+                // 全部确认了 —— 生成/刷新这个项目的组排名表
+                var rows = _local.Db.Query(
+                    "SELECT he.id, he.heat, he.lane, he.final_time, he.rank, he.status, " +
+                    "       he.promotion_mark, he.record_note, en.bib_number AS bib, " +
+                    "       en.athlete_id AS aid, a.name AS nm, u.name AS un " +
+                    "FROM heat_entries he " +
+                    "JOIN entries en ON en.id=he.entry_id " +
+                    "LEFT JOIN athletes a ON a.id=en.athlete_id " +
+                    "LEFT JOIN units u ON u.id=en.unit_id " +
+                    "WHERE he.round_id=@p1 AND en.event_id=@p2 AND he.reserve_no IS NULL " +
+                    "ORDER BY CASE WHEN he.rank>0 THEN he.rank ELSE 9999 END, he.final_time", rid, eid);
+
+                // 本项目共几组(取消的不算) —— 打印时显示"第几组/总组数"
+                var th = _local.Db.Query("SELECT COUNT(*) AS n FROM heats WHERE round_id=@p1 AND COALESCE(state,'') <> 'cancelled'", rid);
+                int totalHeats = th.Rows.Count > 0 ? Convert.ToInt32(th.Rows[0]["n"]) : 0;
+
+                int n = 0;
+                _local.Db.InTransaction(delegate(Func<string, object[], int> run)
+                {
+                    run("DELETE FROM event_rankings WHERE round_id=@p1 AND event_id=@p2", new object[] { rid, eid });
+                    foreach (System.Data.DataRow r in rows.Rows)
+                    {
+                            // 备注: 判罚优先 -> 晋级标记 -> 纪录标识。跟成绩单上那一列同口径。
+                        string rmk = SS(r["status"]);
+                        if (rmk.Length == 0) rmk = SS(r["promotion_mark"]);
+                        if (rmk.Length == 0) rmk = SS(r["record_note"]);
+                        run("INSERT INTO event_rankings(round_id,event_id,heat_entry_id,athlete_id,bib_number," +
+                            "rank,heat,total_heats,lane,final_time,status,promotion_mark,record_note,remark," +
+                            "athlete_name,unit_name,generated_at,generated_by) " +
+                            "VALUES(@p1,@p2,@p3,@p4,@p5,@p6,@p7,@p8,@p9,@p10,@p11,@p12,@p13,@p14,@p15,@p16,@p17,@p18)",
+                            new object[] { rid, eid, r["id"], r["aid"], SS(r["bib"]),
+                                r["rank"] == DBNull.Value ? 0 : Convert.ToInt32(r["rank"]),
+                                r["heat"], totalHeats, r["lane"], r["final_time"], SS(r["status"]),
+                                SS(r["promotion_mark"]), SS(r["record_note"]), rmk, SS(r["nm"]), SS(r["un"]),
+                                DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"), op ?? "" });
+                        n++;
+                    }
+                });
+                Log(string.Format("★ 组排名表已生成: {0}{1} {2} {3} —— 全部组已确认, 共 {4} 人（晋级/最终名次以此为准）",
+                    ageGroup, gender, eventName, stage, n));
+                return n;
+            }
+            catch (Exception ex)
+            {
+                Log("【注意】生成组排名表失败(不影响已确认的成绩): " + ex.Message);
+                return 0;
+            }
+        }
+
+        public int MigrateRanksOnce(string op)
+        {
+            if (_local == null) return 0;
+            const string VER_KEY = "rank_rule_version";
+            const string VER_NOW = "tie-1/100";
+            try
+            {
+                if (_local.GetSetting(VER_KEY) == VER_NOW) return 0;   // 订正过了, 直接跳
+
+                int fixedRows = 0, checkedRounds = 0;
+                foreach (var row in _local.GetSchedule())
+                {
+                    checkedRounds++;
+                    // 取这个 (赛次,项目) 下所有有效成绩, 按成绩升序
+                    var t = _local.Db.Query(
+                        "SELECT he.id, he.final_time, he.rank FROM heat_entries he " +
+                        "JOIN entries en ON en.id=he.entry_id " +
+                        "WHERE he.round_id=@p1 AND en.event_id=@p2 AND he.reserve_no IS NULL " +
+                        "AND he.final_time>0 AND (he.status IS NULL OR he.status='') " +
+                        "ORDER BY he.final_time", row.RoundId, row.EventId);
+                    if (t.Rows.Count == 0) continue;
+
+                    var ids = new List<long>();
+                    var times = new List<double>();
+                    var olds = new List<int>();
+                    foreach (System.Data.DataRow r in t.Rows)
+                    {
+                        ids.Add(Convert.ToInt64(r["id"]));
+                        times.Add(Convert.ToDouble(r["final_time"]));
+                        olds.Add(r["rank"] == DBNull.Value ? 0 : Convert.ToInt32(r["rank"]));
+                    }
+                    var want = ResultOrdering.ComputeRanks(times, x => x);
+                    for (int i = 0; i < ids.Count; i++)
+                    {
+                        if (olds[i] == want[i]) continue;
+                        _local.Db.ExecuteNonQuery("UPDATE heat_entries SET rank=@p2 WHERE id=@p1", ids[i], want[i]);
+                        Log(string.Format("名次订正(并列口径): {0}{1} {2} {3} 成绩{4} 名次 {5} -> {6}",
+                            row.AgeGroup, row.Gender, row.EventName, row.Stage,
+                            times[i].ToString("F2"), olds[i], want[i]));
+                        fixedRows++;
+                    }
+                }
+                _local.SaveSetting(VER_KEY, VER_NOW, op);
+                if (fixedRows > 0)
+                    Log(string.Format("★ 历史名次一次性订正完成: 改了 {0} 条(共查 {1} 个赛次)。"
+                        + "成绩未动, 只是把当初该并列却没并列的统一到 1/100 秒口径。", fixedRows, checkedRounds));
+                else
+                    Log(string.Format("历史名次检查完毕: {0} 个赛次全部符合当前并列口径, 无需订正", checkedRounds));
+                return fixedRows;
+            }
+            catch (Exception ex)
+            {
+                Log("【注意】历史名次订正失败(名次维持原样): " + ex.Message);
+                return 0;
+            }
+        }
+
         // ★★ 2026-08-31 警告: 不许在任何自动流程里调这个方法 ★★
         //   名次在"确认本组成绩"那一刻就固定了, 是正式成绩的一部分。
         //   全场重算 = 事后改动已确认的成绩, 比赛里不能接受。

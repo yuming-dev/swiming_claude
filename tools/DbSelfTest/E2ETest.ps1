@@ -165,6 +165,19 @@ if ($cfg.Count -gt 0) {
 $ds = Sql $db "SELECT value FROM settings WHERE key='device_states'"
 Check "设备状态也进了库" ($ds.Count -gt 0) "settings 表里没有 device_states"
 
+# 组排名表: 该项目全部组确认后应生成
+$er = Sql $db "SELECT rank, athlete_name, final_time FROM event_rankings WHERE round_id=$rid ORDER BY rank"
+$pendH = Sql $db "SELECT COUNT(*) AS n FROM heats WHERE round_id=$rid AND COALESCE(state,'') <> 'cancelled' AND confirmed_at IS NULL"
+$allDone = ([int]$pendH[0].n -eq 0)
+if ($allDone) {
+    Check "全部组确认后已生成组排名表" ($er.Count -gt 0) "event_rankings 里没有这个项目"
+    if ($er.Count -gt 1) {
+        Check "组排名表按名次排好且从 1 开始" ([int]$er[0].rank -eq 1) ("首行名次 " + $er[0].rank)
+    }
+} else {
+    Check "还有组没确认时不生成组排名表(避免过程值被当定稿)" ($er.Count -eq 0) ("未全部确认却已生成 " + $er.Count + " 行")
+}
+
 $hc = Sql $db "SELECT confirmed_at FROM heats WHERE round_id=$rid AND heat=$heat"
 Check "该组已标记为已确认" ($hc.Count -gt 0 -and $hc[0].confirmed_at -ne [DBNull]::Value -and $hc[0].confirmed_at) "confirmed_at 为空"
 
