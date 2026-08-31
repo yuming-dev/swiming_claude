@@ -1093,6 +1093,40 @@ namespace SwimmingScoreboard.Db
         /// 这是"用哪部分读写哪部分": 不能因为要看一张榜就把全场成绩拖一遍 ——
         /// 数据量一大就是占内存、拖慢、最后卡死。
         /// </summary>
+        /// <summary>
+        /// 2026-08-31 读【组排名表】—— 已定稿的项目总排名。
+        ///
+        /// 返回 (组别, 性别, 项目, 赛次, 组次, 道次, 名次, 晋级标记)。
+        /// 只返回定位用的 key 和这两个值, 不带成绩 —— 结果集小, 属于轻查询。
+        ///
+        /// 谁该用它: 晋级查询、前八名、总排名、成绩公报、团体/个人总分。
+        /// 这些都是"项目全部比完之后"的事, 就该认定稿那一份, 不许各自再汇总一遍 ——
+        /// 各自汇总就会各自算错, 而且错得不一样。
+        /// </summary>
+        public List<object[]> GetEventRankings()
+        {
+            var list = new List<object[]>();
+            if (_local == null) return list;
+            try
+            {
+                var t = _local.Db.Query(
+                    "SELECT e.age_group, e.gender, e.event_name, r.stage, " +
+                    "       er.heat, er.lane, er.rank, er.promotion_mark " +
+                    "FROM event_rankings er " +
+                    "JOIN rounds r ON r.id = er.round_id " +
+                    "JOIN events e ON e.id = er.event_id " +
+                    "WHERE er.rank > 0");
+                foreach (System.Data.DataRow row in t.Rows)
+                    list.Add(new object[] {
+                        SS(row["age_group"]), SS(row["gender"]), SS(row["event_name"]), SS(row["stage"]),
+                        row["heat"] == DBNull.Value ? 0 : Convert.ToInt32(row["heat"]),
+                        row["lane"] == DBNull.Value ? -1 : Convert.ToInt32(row["lane"]),
+                        Convert.ToInt32(row["rank"]), SS(row["promotion_mark"]) });
+            }
+            catch (Exception ex) { Log("读组排名表失败: " + ex.Message); }
+            return list;
+        }
+
         public List<string[]> ListHeatStamps()
         {
             var list = new List<string[]>();

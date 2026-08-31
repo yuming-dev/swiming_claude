@@ -169,6 +169,26 @@ WHERE he.final_time>0 AND (he.status IS NULL OR he.status='')
     Check "同一个 key 覆盖写(不留旧值)" ($back2 -eq $payload2) ("读回 " + $back2)
     Check "没存过的 key 读出来是空" ([string]::IsNullOrEmpty($svc.GetSetting("selftest_never_saved"))) "居然有值"
 
+    # ── 7. 组排名表(定稿) 与 heat_entries.rank 必须一致 ─────────────
+    Write-Host "7. 组排名表 event_rankings"
+    $cn2 = New-Object System.Data.SQLite.SQLiteConnection("Data Source=$db;Version=3;Read Only=True;")
+    $cn2.Open(); $c2 = $cn2.CreateCommand()
+    $c2.CommandText = "SELECT name FROM sqlite_master WHERE type='table' AND name='event_rankings'"
+    $hasTbl = ($null -ne $c2.ExecuteScalar())
+    Check "event_rankings 表存在" $hasTbl "库里没有这张表"
+    if ($hasTbl) {
+        $c2.CommandText = "PRAGMA table_info(event_rankings)"
+        $rd2 = $c2.ExecuteReader(); $first = $null
+        if ($rd2.Read()) { $first = $rd2[1] }
+        $rd2.Close()
+        Check "第一列是名次(rank)" ($first -eq 'rank') ("第一列是 " + $first)
+        # 定稿值必须跟来源一致 —— 不一致说明定稿之后有人偷偷改了成绩却没重生成
+        $c2.CommandText = "SELECT COUNT(*) FROM event_rankings er JOIN heat_entries he ON he.id=er.heat_entry_id WHERE er.rank <> COALESCE(he.rank,0)"
+        $mismatch = [int]$c2.ExecuteScalar()
+        Check "定稿名次与竞赛库一致" ($mismatch -eq 0) ("有 $mismatch 条对不上, 定稿后成绩被改过却没重新生成")
+    }
+    $c2.Dispose(); $cn2.Close()
+
 } finally {
     if ($svc) { try { $svc.Dispose() } catch {} }
     try { Remove-Item $tmp -Recurse -Force -ErrorAction SilentlyContinue } catch {}

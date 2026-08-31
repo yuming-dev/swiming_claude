@@ -22325,6 +22325,49 @@ namespace SwimmingScoreboard
 
         private string _lastPollSignature = "";
 
+        /// <summary>
+        /// 2026-08-31 把【组排名表】里已定稿的名次和晋级标记灌回内存。
+        ///
+        /// 为什么这么做, 而不是让每个报表窗口各自去查表:
+        ///   晋级查询、前八名、总排名、成绩公报、团体/个人总分, 现在读的都是
+        ///   Swimmer.EventRankFor() 和成绩行上的 PromotionMark。只要把定稿值灌进这里,
+        ///   这几张表立刻全都认定稿那一份 —— 不用把五个窗口的取数路径各改一遍,
+        ///   也就不会改漏一个、留下一处还在自己汇总。
+        ///
+        ///   换句话说: 内存在这里只是【定稿表的镜像】, 不是第二个真相。
+        ///
+        /// 只覆盖已经定稿的项目(表里有行的)。没定稿的项目一个字不动 ——
+        /// 那些还在比, 名次本来就是过程值。
+        /// </summary>
+        private int ApplyEventRankingsFromDb() {
+            int applied = 0;
+            try {
+                var rows = _meetDb.GetEventRankings();
+                if (rows == null || rows.Count == 0) return 0;
+                foreach (var r in rows) {
+                    string ag = (string)r[0], gd = (string)r[1], ev = (string)r[2], st = (string)r[3];
+                    int heat = (int)r[4], lane = (int)r[5], rank = (int)r[6];
+                    string mark = (string)r[7];
+                    if (lane < 0 || heat <= 0 || rank <= 0) continue;
+
+                    foreach (var sw in GetHeatEntries(ag, gd, ev, st, heat)) {
+                        if (LaneOfStage(sw, st) != lane) continue;
+                        var res = sw.Results.FirstOrDefault(x => x.Stage == st && x.Heat == heat);
+                        if (res == null) continue;
+                        res.EventRank = rank;                 // 定稿的项目名次
+                        res.PromotionMark = mark ?? "";       // 定稿的晋级标记
+                        applied++;
+                        break;
+                    }
+                }
+                if (applied > 0)
+                    AddLog(string.Format("已按【组排名表】更新 {0} 条定稿名次（晋级/前八/总排名/公报都用它）", applied));
+            } catch (Exception ex) {
+                AddLog("【注意】读组排名表失败, 报表用的是内存里的汇总值: " + ex.Message);
+            }
+            return applied;
+        }
+
         internal void RefreshChangedFromDb() {
             try {
                 var stamps = _meetDb.ListHeatStamps();
@@ -22343,6 +22386,11 @@ namespace SwimmingScoreboard
                 if (changed > 0)
                     AddLog(string.Format("已从竞赛库增量刷新 {0} 组（共 {1} 组, 其余未变动未读取）",
                         changed, stamps.Count));
+
+                // 2026-08-31 再把【组排名表】里已定稿的名次灌回内存 ——
+                //   晋级查询/前八名/总排名/成绩公报/团体个人总分 读的都是它,
+                //   这样这几张表就都认定稿那一份, 不再各自汇总。
+                try { ApplyEventRankingsFromDb(); } catch { }
 
                 // 赛程树的"已完赛"读 _confirmedHeats(内存集合), 同样会落后于库。
                 // 这一条也是轻查询(只返回 key, 不带成绩), 按库补齐。
