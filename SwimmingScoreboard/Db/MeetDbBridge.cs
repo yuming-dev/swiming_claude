@@ -789,6 +789,12 @@ namespace SwimmingScoreboard.Db
             catch (Exception ex) { Log("从竞赛库读参数失败(" + key + "): " + ex.Message); return null; }
         }
 
+        // ★★ 2026-08-31 警告: 不许在任何自动流程里调这个方法 ★★
+        //   名次在"确认本组成绩"那一刻就固定了, 是正式成绩的一部分。
+        //   全场重算 = 事后改动已确认的成绩, 比赛里不能接受。
+        //   曾经加载档案时自动调过它(修正旧算法留下的名次), 已撤销 —— 那是不懂规则。
+        //   保留它只为两个用途: ① 自动化测试在【库的副本】上验算法; ② 裁判长明确
+        //   决定要重排时的人工操作。除此之外谁都不要调。
         public int RecomputeAllRanks(string op)
         {
             if (_local == null) return 0;

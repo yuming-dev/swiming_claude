@@ -22440,14 +22440,12 @@ namespace SwimmingScoreboard
             try {
                 if (!_meetDb.Open(_competitionName)) return;
                 if (!_meetDb.ImportPackage(package)) return;
-                // 2026-08-30 名次是"确认成绩时算一次"入库的, 所以库里存的是【当时那版
-                //   算法】的结果。并列口径后来改过(1e-9 -> 1/100 秒取整, 与裁判一致),
-                //   不重算的话老比赛的名次一直是旧口径, 谁也发现不了。
-                //   重算是幂等的(同样的成绩再排一次), 45 个赛次毫秒级。
-                try {
-                    int nrk = _meetDb.RecomputeAllRanks(Environment.MachineName);
-                    if (nrk > 0) AddLog(string.Format("竞赛库名次已按当前规则重算: {0} 个赛次", nrk));
-                } catch (Exception ex) { AddLog("重算名次失败(不影响比赛): " + ex.Message); }
+                // 2026-08-31 【不在这里重算名次】。
+                //   名次在"确认本组成绩"那一刻就固定了, 是正式成绩的一部分,
+                //   事后任何自动动作都不许改它 —— 加载一次档案名次就变一次,
+                //   这在比赛里是不能接受的。
+                //   (曾经这里调过 RecomputeAllRanks 去修正旧算法留下的名次, 是我不懂规则。
+                //    历史数据若确有问题, 只能由裁判长明确决定后单独处理, 不能悄悄自动改。)
 
                 var chk = _meetDb.SelfCheck(package);
                 AddLog(chk.ToString());
