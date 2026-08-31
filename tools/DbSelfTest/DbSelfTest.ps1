@@ -156,6 +156,19 @@ WHERE he.final_time>0 AND (he.status IS NULL OR he.status='')
     Check "DSQ/DQ/DNF/DNS 的项目名次必须是 0" ($n -eq 0) "有 $n 条判罚/弃权却带名次"
     $c.Dispose(); $cn.Close()
 
+    # ── 6. 参数存进库 (settings 表) ────────────────────────────────
+    Write-Host "6. 参数存取 (settings 表)"
+    $k = "selftest_cfg"
+    $payload = '{"LeftBlindWatchCount":2,"RightBlindWatchCount":2,"LaneCloseTime":1.5}'
+    $svc.SaveSetting($k, $payload, "selftest")
+    $back = $svc.GetSetting($k)
+    Check "参数写进库再读回来必须一致" ($back -eq $payload) ("读回 " + $back)
+    $payload2 = '{"LeftBlindWatchCount":3}'
+    $svc.SaveSetting($k, $payload2, "selftest")
+    $back2 = $svc.GetSetting($k)
+    Check "同一个 key 覆盖写(不留旧值)" ($back2 -eq $payload2) ("读回 " + $back2)
+    Check "没存过的 key 读出来是空" ([string]::IsNullOrEmpty($svc.GetSetting("selftest_never_saved"))) "居然有值"
+
 } finally {
     if ($svc) { try { $svc.Dispose() } catch {} }
     try { Remove-Item $tmp -Recurse -Force -ErrorAction SilentlyContinue } catch {}

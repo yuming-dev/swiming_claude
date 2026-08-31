@@ -21326,15 +21326,36 @@ namespace SwimmingScoreboard
             get { return IOPath.Combine(AppDomain.CurrentDomain.BaseDirectory, "timing_settings.json"); }
         }
 
+        // 2026-08-31 参数的【权威】是竞赛库的 settings 表, 本地 json 只当断线/降级
+        //   时的后备。联机时 _meet 就是主服务器, 所以计时端一存, 主服务器那份库里
+        //   立刻就是新值 —— 不再是"两份数据靠消息同步"(那样一定有分叉的时候)。
+        private const string CFG_TIMING = "timing_settings";
+        private const string CFG_DEVICE = "device_states";
+
         private void SaveTimingSettings() {
+            string json = null;
             try {
-                string json = JsonConvert.SerializeObject(_laneCloseSettings, Formatting.Indented);
+                json = JsonConvert.SerializeObject(_laneCloseSettings, Formatting.Indented);
                 File.WriteAllText(TimingSettingsPath, json, Encoding.UTF8);
             } catch { }
+            try { if (json != null) _meetDb.SaveConfig(CFG_TIMING, json, Environment.MachineName); } catch { }
         }
 
         private void LoadTimingSettings() {
             try {
+                // 2026-08-31 库里有就以库为准(联机时那是主服务器那份), 没有再退回本地 json。
+                //   第一次从 json 读上来之后, 下一次 SaveTimingSettings 就会写进库, 之后两端统一。
+                string dbJson = null;
+                try { dbJson = _meetDb.LoadConfig(CFG_TIMING); } catch { }
+                if (!string.IsNullOrWhiteSpace(dbJson)) {
+                    var fromDb = JsonConvert.DeserializeObject<LaneCloseSettings>(dbJson);
+                    if (fromDb != null) {
+                        _laneCloseSettings = fromDb;
+                        if (_poolConfig != null) _poolConfig.HasRightStartBlock = _laneCloseSettings.HasRightStartBlock;
+                        AddLog("计时参数已从竞赛库读取(以库为准)");
+                        return;
+                    }
+                }
                 if (File.Exists(TimingSettingsPath)) {
                     string json = File.ReadAllText(TimingSettingsPath, Encoding.UTF8);
                     var loaded = JsonConvert.DeserializeObject<LaneCloseSettings>(json);
@@ -21398,7 +21419,11 @@ namespace SwimmingScoreboard
                     o["rightManualEnabled"] = st.RightManualEnabled;
                     arr.Add(o);
                 }
-                File.WriteAllText(DeviceStatesPath, arr.ToString(Formatting.Indented), Encoding.UTF8);
+                string dsJson = arr.ToString(Formatting.Indented);
+                File.WriteAllText(DeviceStatesPath, dsJson, Encoding.UTF8);
+                // 2026-08-31 同时写进竞赛库 settings 表。联机时写的就是主服务器那份库,
+                //   所以"哪几个盲表装了/坏了"两端看到的是同一份, 不再各存各的。
+                try { _meetDb.SaveConfig(CFG_DEVICE, dsJson, Environment.MachineName); } catch { }
             } catch (Exception ex) {
                 AddLog("保存设备状态失败: " + ex.Message);
             }
@@ -21408,8 +21433,13 @@ namespace SwimmingScoreboard
         // 任何 InitLaneDeviceStates 之后调用一次即可让用户上次的"损坏/未安装/手动按键"配置生效。
         private void ApplyPersistedDeviceStates() {
             try {
-                if (!File.Exists(DeviceStatesPath)) return;
-                string json = File.ReadAllText(DeviceStatesPath, Encoding.UTF8);
+                // 2026-08-31 库里有就以库为准(联机时那是主服务器那份), 没有再退回本地 json。
+                string json = null;
+                try { json = _meetDb.LoadConfig(CFG_DEVICE); } catch { }
+                if (string.IsNullOrWhiteSpace(json)) {
+                    if (!File.Exists(DeviceStatesPath)) return;
+                    json = File.ReadAllText(DeviceStatesPath, Encoding.UTF8);
+                }
                 var arr = JArray.Parse(json);
                 int hits = 0;
                 foreach (JObject o in arr) {

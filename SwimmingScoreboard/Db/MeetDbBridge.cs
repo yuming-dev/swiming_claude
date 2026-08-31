@@ -761,6 +761,34 @@ namespace SwimmingScoreboard.Db
         /// 幂等: 重算只是按同样的成绩再排一次, 跑多少遍结果都一样。
         /// 只在本机库上做; 远端模式下主服务器自己会做自己那份。
         /// </summary>
+        /// <summary>
+        /// 2026-08-31 参数存进竞赛库的 settings 表(key -> JSON)。
+        ///
+        /// 为什么要搬: 参数原来只存在各自程序目录的 timing_settings.json /
+        /// device_states.json —— 【每台机器一份, 各存各的】。计时端改了, 主服务器
+        /// 那份不知道; 靠消息同步就一定有分叉的时候(断线改的、启动顺序不同、
+        /// 某个字段忘了推), 而且不报错。盲表数量那个 bug 就是这么来的。
+        ///
+        /// 走 _meet 而不是 _local: 联机时 _meet 就是主服务器 —— 计时端写的就是
+        /// 【主服务器那份库】, 两端读同一处, 这才叫单一来源。断线时 _meet 退回
+        /// 本机库, 参数照样存得下读得出, 联网后由推送对齐。
+        ///
+        /// settings 表本来就是 key->JSON 的设计, 不用新建表。
+        /// </summary>
+        public bool SaveConfig(string key, string json, string op)
+        {
+            if (_meet == null || string.IsNullOrEmpty(key)) return false;
+            try { _meet.SaveSetting(key, json, op); return true; }
+            catch (Exception ex) { Log("参数存入竞赛库失败(" + key + "): " + ex.Message); return false; }
+        }
+
+        public string LoadConfig(string key)
+        {
+            if (_meet == null || string.IsNullOrEmpty(key)) return null;
+            try { return _meet.GetSetting(key); }
+            catch (Exception ex) { Log("从竞赛库读参数失败(" + key + "): " + ex.Message); return null; }
+        }
+
         public int RecomputeAllRanks(string op)
         {
             if (_local == null) return 0;
