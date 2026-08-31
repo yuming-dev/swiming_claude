@@ -13,6 +13,13 @@ namespace SwimmingScoreboard
     public partial class EventResultPrintWindow : Window
     {
         private ObservableCollection<Swimmer> _swimmers;
+
+        /// <summary>
+        /// 2026-08-31 由主窗口注入: 查询前把这个项目从竞赛库整个刷新一遍。
+        /// 参数 = (组别, 性别, 项目, 赛次); 组别传空表示全部。
+        /// 没注入(null)时退化成"用内存里的", 不阻断。
+        /// </summary>
+        public Action<string, string, string, string> RefreshFromDb { get; set; }
         private ObservableCollection<ScheduleItem> _schedule;
         private string _competitionName;
         private string _location;
@@ -216,6 +223,15 @@ namespace SwimmingScoreboard
                 StatusText.Text = "请先选择比赛项目";
                 StatusText.Foreground = System.Windows.Media.Brushes.OrangeRed;
                 return;
+            }
+
+            // 2026-08-31 【先从竞赛库刷新, 再查】。
+            //   成绩可能是别的计算机(计时端/另一台控制台)写进库的, 本机内存不会自动知道;
+            //   不刷就会出现"库里是新的、界面上是旧的", 而且不报错。
+            //   刷新失败不阻断查询(下面照样用内存里的), 但主窗口日志里会有一条【注意】。
+            if (RefreshFromDb != null) {
+                try { RefreshFromDb(ageFilter == "全部" ? "" : ageFilter, gender, eventName, stage); }
+                catch { }
             }
 
             // 2026-06-01 加 AgeGroup 过滤; 男/女 也包含混合性别接力

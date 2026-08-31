@@ -22120,6 +22120,52 @@ namespace SwimmingScoreboard
         ///
         /// 回读失败不阻断比赛: 内存里原来那份还在, 只是会在日志里明确说一声。
         /// </summary>
+        /// <summary>
+        /// 2026-08-31 把某个 (组别,性别,项目,赛次) 的【所有组】从竞赛库重新读一遍。
+        ///
+        /// 为什么需要: ApplyHeatFromDb 只在【本机确认成绩那一刻】跑一次。别的计算机
+        /// (计时端、另一台控制台)往库里写了成绩或改了名次, 本机内存根本不知道 ——
+        /// 于是"库里是新的、界面上是旧的", 而且不报错。
+        /// 所以查询/打印之前必须先从库刷一遍, 拿库里的当准。
+        ///
+        /// ageGroup 传空表示"全部": 那就把内存里这个项目涉及到的组别挨个刷。
+        /// </summary>
+        internal void RefreshStageFromDb(string ageGroup, string gender, string eventName, string stage) {
+            try {
+                if (string.IsNullOrEmpty(eventName) || string.IsNullOrEmpty(stage)) return;
+                var ages = new List<string>();
+                if (!string.IsNullOrEmpty(ageGroup)) ages.Add(ageGroup);
+                else {
+                    foreach (var s in _swimmers) {
+                        if (s.EventName != eventName) continue;
+                        string a = s.AgeCategory ?? "";
+                        if (!ages.Contains(a)) ages.Add(a);
+                    }
+                }
+                int nHeat = 0;
+                foreach (string ag2 in ages) {
+                    // 这个项目在这个组别下涉及哪些组次 —— 从内存的分组信息取(库里也一样)
+                    var heats = new List<int>();
+                    foreach (var s in _swimmers) {
+                        if (s.EventName != eventName) continue;
+                        if ((s.AgeCategory ?? "") != ag2) continue;
+                        var sa = s.GetAssignmentForStage(stage);
+                        int h = (sa != null && sa.Heat > 0) ? sa.Heat : 0;
+                        if (h > 0 && !heats.Contains(h)) heats.Add(h);
+                        foreach (var r in s.Results)
+                            if (r.Stage == stage && r.Heat > 0 && !heats.Contains(r.Heat)) heats.Add(r.Heat);
+                    }
+                    string gd2 = gender;
+                    foreach (int h in heats) { ApplyHeatFromDb(ag2, gd2, eventName, stage, h); nHeat++; }
+                }
+                if (nHeat > 0)
+                    AddLog(string.Format("查询前已从竞赛库刷新: {0} {1} {2}, 共 {3} 组（以库为准）",
+                        string.IsNullOrEmpty(ageGroup) ? "全部组别" : ageGroup, eventName, stage, nHeat));
+            } catch (Exception ex) {
+                AddLog("【注意】查询前从库刷新失败, 用的是内存里的旧数据: " + ex.Message);
+            }
+        }
+
         private void ApplyHeatFromDb(string ag, string gd, string ev, string st, int heat) {
             try {
                 var rows = _meetDb.ReadBackHeat(ag, gd, ev, st, heat);
@@ -25141,6 +25187,8 @@ namespace SwimmingScoreboard
             // 2026-06-01 传 _ageGroups 给窗口构造组别下拉
             var win = new EventResultPrintWindow(_swimmers, _schedule, _competitionName,
                 LocationBox.Text, RefereeBox.Text, ChiefJudgeBox.Text, ArbiterBox.Text, _ageGroups);
+            // 2026-08-31 查询/打印前先从库刷新 —— 别的计算机写了库, 本机内存不会知道
+            win.RefreshFromDb = RefreshStageFromDb;
             win.Owner = this;
             win.ShowDialog();
         }
