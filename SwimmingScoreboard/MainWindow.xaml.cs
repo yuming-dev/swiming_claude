@@ -4274,9 +4274,20 @@ namespace SwimmingScoreboard
                 var r = s.GetResultForStage(stage);
                 return r != null && r.FinalTime > 0;
             }).OrderBy(s => s.GetResultForStage(stage).FinalTime).ToList();
-            // 2026-08-30 并列名次统一走 ResultOrdering.ComputeRanks(全场唯一一份)
-            var rkListER = ResultOrdering.ComputeRanks(withTimes, s => {
-                var rr = s.GetResultForStage(stage); return rr != null ? rr.FinalTime : 0; });
+            // 2026-08-31 大屏总排名【读已定稿的组排名表】, 不再自己算。
+            //   EventRankFor 取的是 event_rankings 灌回内存的定稿名次(见 ApplyEventRankingsFromDb)。
+            //   项目还没全部比完 / 还没定稿时, 它退回按成绩现算 —— 那时本来就只是过程值。
+            //   大屏的显示格式和内容一个字没动, 变的只是这些数字从哪来。
+            bool erFinal = withTimes.Count > 0 && withTimes.All(s => s.EventRankFor(stage) > 0);
+            if (erFinal) {
+                withTimes = withTimes.OrderBy(s => s.EventRankFor(stage))
+                                     .ThenBy(s => { var rr = s.GetResultForStage(stage); return rr != null ? rr.FinalTime : 0; })
+                                     .ToList();
+            }
+            var rkListER = erFinal
+                ? withTimes.Select(s => s.EventRankFor(stage)).ToList()
+                : ResultOrdering.ComputeRanks(withTimes, s => {
+                      var rr = s.GetResultForStage(stage); return rr != null ? rr.FinalTime : 0; });
             int idxER = 0;
             foreach (var sw in withTimes) {
                 var r = sw.GetResultForStage(stage);
