@@ -1099,13 +1099,30 @@ namespace SwimmingScoreboard
                 return;
             }
             try {
+                // 2026-08-31 【全量推送】—— 主服务器 SET_LANE_CLOSE_SETTINGS 能接的
+                //   19 个字段一个不落。第一版只发了 6 个, 剩下的照样到不了主服务器,
+                //   等于只修了盲表, 别的参数还是老毛病。参数设置里的每一项都要能同步。
                 var d = new JObject();
                 d["laneCloseTime"]            = _laneCloseSettings.LaneCloseTime;
                 d["startBlockCloseDelay"]     = _laneCloseSettings.StartBlockCloseDelay;
                 d["resultConfirmCloseDelay"]  = _laneCloseSettings.ResultConfirmCloseDelay;
                 d["falseStartThreshold"]      = _laneCloseSettings.FalseStartThreshold;
+                d["splitDisplayTime"]         = _laneCloseSettings.SplitDisplayTime;
+                d["blindReplaceDelay"]        = _laneCloseSettings.BlindReplaceDelay;
+                d["firstPlaceHoldTime"]       = _laneCloseSettings.FirstPlaceHoldTime;
+                d["reactionEventWindowSec"]   = _laneCloseSettings.ReactionEventWindowSec;
+                d["bigDisplayPageInterval"]   = _laneCloseSettings.BigDisplayPageInterval;
                 d["leftBlindWatchCount"]      = _laneCloseSettings.LeftBlindWatchCount;
                 d["rightBlindWatchCount"]     = _laneCloseSettings.RightBlindWatchCount;
+                d["startPosition"]            = _laneCloseSettings.StartPosition ?? "";
+                d["laneOrder"]                = _laneCloseSettings.LaneOrder ?? "";
+                d["reactionTimeEnabled"]      = _laneCloseSettings.ReactionTimeEnabled;
+                d["hardwareAlwaysOpen"]       = _laneCloseSettings.HardwareAlwaysOpen;
+                d["autoBlindReplaceTouchpad"] = _laneCloseSettings.AutoBlindReplaceTouchpad;
+                d["manualTpReplaceTp"]        = _laneCloseSettings.ManualTpReplaceTp;
+                d["startBoxEdgeFalling"]      = _laneCloseSettings.StartBoxEdgeFalling;
+                // 触板单端/两端: 服务器那边用 poolSingleSide 表示, 与 HasRightStartBlock 相反
+                d["poolSingleSide"]           = !_laneCloseSettings.HasRightStartBlock;
                 var env = new JObject();
                 env["type"]    = "TIMING_CMD";
                 env["command"] = "SET_LANE_CLOSE_SETTINGS";
