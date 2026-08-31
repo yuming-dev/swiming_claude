@@ -1069,6 +1069,69 @@ namespace SwimmingScoreboard
                 _laneDeviceStates.Add(new LaneDeviceState { Lane = lane });
             }
             ApplyTouchpadInstallModeToLanes();
+            // 2026-08-31 盲表数量也要重新套用 —— 原来只套触板, 这里是个不对称。
+            //   本函数在【加载赛事包】(联机时主服务器一推包就触发) 和改泳道数时都会调,
+            //   新建的 LaneDeviceState 全是默认值, 用户设的"每侧 2 个"就这么没了:
+            //   当前组还是对的(内存里已经改过), 换到下一组重建界面就变回 3 个。
+            ApplyBlindWatchCountToLanes();
+        }
+
+        /// <summary>
+        /// 2026-08-31 把"每侧盲表数量"套到每道的 NotInstalled 标志上。
+        /// 只管【装没装】, 不碰 Broken —— 坏表是现场标的, 不能被数量设置冲掉。
+        /// </summary>
+        /// <summary>
+        /// 2026-08-31 计时端改完参数后, 把整份参数推给主服务器【让它自己也应用】。
+        ///
+        /// 原来只有 Broadcast() —— 它在 RTC 模式下会包成 RTC_FORWARD 推过去, 但主服务器
+        /// 收到 RTC_FORWARD 只做一件事: EnqueueToAll 转发给大屏/网页。【它自己的
+        /// _laneCloseSettings 和 device_states.json 一个字都没改】。
+        /// 结果就是: 计时端上改的盲表数量/时间参数, 主服务器那边根本不知道,
+        /// 重启或切回主服务器控制时又变回旧值, 而且全程不报错。
+        ///
+        /// 信封跟网页端 race_control.html 的 sendCmd 完全一样 (TIMING_CMD +
+        /// SET_LANE_CLOSE_SETTINGS), 走的是主服务器已有的处理分支, 不新增协议。
+        /// </summary>
+        private void PushSettingsToServer() {
+            if (!IsRemoteTimingControlMode) return;
+            if (_editorSyncClient == null || !_editorSyncClient.IsConnected) {
+                AddLog("【注意】未连主服务器, 本次参数修改只存在本机(连上后请再点一次确认)");
+                return;
+            }
+            try {
+                var d = new JObject();
+                d["laneCloseTime"]            = _laneCloseSettings.LaneCloseTime;
+                d["startBlockCloseDelay"]     = _laneCloseSettings.StartBlockCloseDelay;
+                d["resultConfirmCloseDelay"]  = _laneCloseSettings.ResultConfirmCloseDelay;
+                d["falseStartThreshold"]      = _laneCloseSettings.FalseStartThreshold;
+                d["leftBlindWatchCount"]      = _laneCloseSettings.LeftBlindWatchCount;
+                d["rightBlindWatchCount"]     = _laneCloseSettings.RightBlindWatchCount;
+                var env = new JObject();
+                env["type"]    = "TIMING_CMD";
+                env["command"] = "SET_LANE_CLOSE_SETTINGS";
+                env["data"]    = d;
+                _editorSyncClient.Send(env.ToString(Formatting.None));
+                AddLog(string.Format("参数已推送主服务器: 盲表 左{0}/右{1}, 关闭{2}s 出发台{3}s 确认{4}s",
+                    _laneCloseSettings.LeftBlindWatchCount, _laneCloseSettings.RightBlindWatchCount,
+                    _laneCloseSettings.LaneCloseTime, _laneCloseSettings.StartBlockCloseDelay,
+                    _laneCloseSettings.ResultConfirmCloseDelay));
+            } catch (Exception ex) {
+                AddLog("【注意】参数推送主服务器失败, 主服务器那边还是旧值: " + ex.Message);
+            }
+        }
+
+        private void ApplyBlindWatchCountToLanes() {
+            if (_laneCloseSettings == null || _laneDeviceStates == null) return;
+            int l = _laneCloseSettings.LeftBlindWatchCount;
+            int r = _laneCloseSettings.RightBlindWatchCount;
+            foreach (var st in _laneDeviceStates) {
+                st.LeftBlindWatch1NotInstalled  = (l < 1);
+                st.LeftBlindWatch2NotInstalled  = (l < 2);
+                st.LeftBlindWatch3NotInstalled  = (l < 3);
+                st.RightBlindWatch1NotInstalled = (r < 1);
+                st.RightBlindWatch2NotInstalled = (r < 2);
+                st.RightBlindWatch3NotInstalled = (r < 3);
+            }
         }
 
         // 2026-05-13 电池电压显示：把 _hwBatteryVoltage 渲染到顶部状态栏 TimingHwConnText 旁
@@ -2672,6 +2735,10 @@ namespace SwimmingScoreboard
                             _laneCloseSettings.BigDisplayPageInterval,
                             _laneCloseSettings.LaneOrder == "reverse" ? "逆序9→0" : "正序0→9"));
                         SaveTimingSettings();
+                        // 2026-08-31 远端(计时端/网页)改了盲表数量, 这里也要把每道的
+                        //   NotInstalled 重新套一遍并落盘 —— 否则服务器界面上还是旧的道数。
+                        ApplyBlindWatchCountToLanes();
+                        SaveDeviceStates();
                         AutoSaveData();
                         UpdateLaneStatusDisplay();
                         Broadcast();
@@ -14300,6 +14367,7 @@ namespace SwimmingScoreboard
                 UpdateLaneStatusDisplay();
                 Broadcast();
                 SendTimingSettingsToHardware();   // 同步时间参数到硬件计时器
+                PushSettingsToServer();           // 2026-08-31 让主服务器也应用
                 AddLog(string.Format("时间参数更新: 关闭{0}s 出发台{1}s 确认{2}s 抢跳{3}s 分段{4}s 盲代{5}s 反应窗{6}s 停留{7}s 翻屏{8}s",
                     _laneCloseSettings.LaneCloseTime, _laneCloseSettings.StartBlockCloseDelay,
                     _laneCloseSettings.ResultConfirmCloseDelay, _laneCloseSettings.FalseStartThreshold,
@@ -14485,6 +14553,7 @@ namespace SwimmingScoreboard
                 if (_timingBridge != null && _timingBridge.IsConnected) {
                     try { _timingBridge.SendPoolSingleOrDoubleTP(!newHasRight); } catch { }
                 }
+                PushSettingsToServer();           // 2026-08-31 让主服务器也应用, 不只是转发
                 AddLog(string.Format("泳池/设备参数更新: 终点:{0} 反应时:{1} 道次:{2} 触板:{3} 边沿:{4} 盲代触板:{5} 硬件:{6} 手动TP代替真TP:{7}",
                     _laneCloseSettings.FinishPosition == "left" ? "左端" : "右端",
                     _laneCloseSettings.ReactionTimeEnabled ? "打开" : "关闭",
@@ -14596,6 +14665,11 @@ namespace SwimmingScoreboard
                 }
                 // 2026-05-26 用户要求"点确认就存", 不再用 if(changed) 跳过 IO
                 SaveTimingSettings();
+                // 2026-08-31 上面那个 foreach 改的是【设备状态】(NotInstalled/Broken),
+                //   它存在 device_states.json 里, 不归 SaveTimingSettings 管 ——
+                //   原来漏了这一句, 所以改完不落盘: 下次 ApplyPersistedDeviceStates
+                //   从文件读回来的还是旧的, 换组重建界面就变回去了。
+                SaveDeviceStates();
                 AutoSaveData();
                 UpdateLaneStatusDisplay();
                 if (changed) {
@@ -14604,6 +14678,7 @@ namespace SwimmingScoreboard
                     // 2026-06-16 (方案 B) 跟 0x45 一起发 0x46 同步 MB1 状态. 之前只发 0x45 不发 0x46, 硬件 MB[0][i]=Bad
                     // 状态保留 → UI 显示黑色. 现在先重置 LaneDeviceState (上面 foreach), 再发 0x46 → 硬件清掉 Bad.
                     SendDeviceStatusesToHardware();    // 0x46 把"非 Broken/NotInstalled"状态推到硬件
+                    PushSettingsToServer();            // 2026-08-31 让主服务器也应用, 不只是转发
                     AddLog(string.Format("盲表数量更新：左 {0}，右 {1}（已同步到三端与硬件, MB Broken/NotInstalled 已重置）", newLeft, newRight));
                 }
             }
