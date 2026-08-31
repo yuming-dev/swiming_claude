@@ -19853,6 +19853,7 @@ namespace SwimmingScoreboard
         }
 
         private void Promotion_Click(object sender, RoutedEventArgs e) {
+            RefreshAllFromDb();   // 2026-08-31 开报表前先从库刷新, 别的计算机写的成绩才看得到
             var win = new PromotionQueryWindow(_swimmers, _events, _poolConfig, _schedule);
             win.Owner = this;
             win.ShowDialog();
@@ -19872,16 +19873,19 @@ namespace SwimmingScoreboard
             win.ShowDialog();
         }
         private void EventTop8_Click(object sender, RoutedEventArgs e) {
+            RefreshAllFromDb();   // 2026-08-31 开报表前先从库刷新, 别的计算机写的成绩才看得到
             var win = new EventTop8Window(_swimmers, _ageGroups, _genders, _events);
             win.Owner = this;
             win.ShowDialog();
         }
         private void DepartmentBulletin_Click(object sender, RoutedEventArgs e) {
+            RefreshAllFromDb();   // 2026-08-31 开报表前先从库刷新, 别的计算机写的成绩才看得到
             var win = new DepartmentBulletinWindow(_swimmers, _ageGroups, _scoringConfig, _units);
             win.Owner = this;
             win.ShowDialog();
         }
         private void IndividualRanking_Click(object sender, RoutedEventArgs e) {
+            RefreshAllFromDb();   // 2026-08-31 开报表前先从库刷新, 别的计算机写的成绩才看得到
             var win = new IndividualRankingWindow(_swimmers, _ageGroups, _scoringConfig);
             win.Owner = this;
             win.ShowDialog();
@@ -22130,6 +22134,54 @@ namespace SwimmingScoreboard
         ///
         /// ageGroup 传空表示"全部": 那就把内存里这个项目涉及到的组别挨个刷。
         /// </summary>
+        /// <summary>
+        /// 2026-08-31 把【全场所有赛次】从竞赛库刷一遍, 在打开各种报表/榜单之前调。
+        ///
+        /// 理由跟 RefreshStageFromDb 一样: 成绩可能是别的计算机写进库的, 本机内存
+        /// 不会自动知道。总排名、前八名、个人总分、代表队公报、成绩公报、晋级查询
+        /// 这些都是【跨项目汇总】, 一处旧数据就会让整张榜单不对, 所以整体刷。
+        ///
+        /// 开销: 按组逐组读库, 全场 90 多组是毫秒级(自检脚本实测), 只在开窗口时跑一次。
+        /// 失败不阻断: 记一条【注意】, 照样用内存里的开窗口。
+        /// </summary>
+        internal void RefreshAllFromDb() {
+            try {
+                var done = new HashSet<string>();
+                int n = 0;
+                foreach (var s in _swimmers) {
+                    if (string.IsNullOrEmpty(s.EventName)) continue;
+                    foreach (var r in s.Results) {
+                        if (r == null || string.IsNullOrEmpty(r.Stage) || r.Heat <= 0) continue;
+                        string k = (s.AgeCategory ?? "") + "|" + (s.Gender ?? "") + "|" + s.EventName + "|" + r.Stage + "|" + r.Heat;
+                        if (!done.Add(k)) continue;
+                        ApplyHeatFromDb(s.AgeCategory ?? "", s.Gender ?? "", s.EventName, r.Stage, r.Heat);
+                        n++;
+                    }
+                }
+                // 赛程树的"已完赛"读的是 _confirmedHeats(内存集合) —— 同样会落后于库。
+                // 库里 heats.confirmed_at 才是准的, 按它补齐。
+                // 只加不删: 库里没有、内存里有的先留着(可能是刚确认还没落库的那一组),
+                // 少标一个"已完赛"比多标一个危险。
+                try {
+                    var confirmed = _meetDb.ListConfirmedHeats();
+                    int add = 0;
+                    foreach (var c in confirmed) {
+                        int hno; if (!int.TryParse(c[4], out hno) || hno <= 0) continue;
+                        string key = ConfirmedHeatKey(c[0], c[1], c[2], c[3], hno);
+                        if (_confirmedHeats.Add(key)) add++;
+                    }
+                    if (add > 0) {
+                        AddLog(string.Format("从竞赛库补齐已完赛标记: {0} 组（别的计算机确认的）", add));
+                        try { BuildScheduleTree(); } catch { }
+                    }
+                } catch (Exception ex) { AddLog("【注意】从库补已完赛标记失败: " + ex.Message); }
+
+                if (n > 0) AddLog(string.Format("已从竞赛库刷新全场成绩: {0} 组（以库为准）", n));
+            } catch (Exception ex) {
+                AddLog("【注意】从库刷新全场失败, 用的是内存里的旧数据: " + ex.Message);
+            }
+        }
+
         internal void RefreshStageFromDb(string ageGroup, string gender, string eventName, string stage) {
             try {
                 if (string.IsNullOrEmpty(eventName) || string.IsNullOrEmpty(stage)) return;
@@ -25195,6 +25247,7 @@ namespace SwimmingScoreboard
 
         // 2026-06-02 按组别批量公布: 选项目+性别+赛次, 一键生成各组别成绩单
         private void BatchByAgeGroupPrint_Click(object sender, RoutedEventArgs e) {
+            RefreshAllFromDb();   // 2026-08-31 开报表前先从库刷新, 别的计算机写的成绩才看得到
             var win = new BatchByAgeGroupPrintWindow(_swimmers, _schedule, _competitionName,
                 LocationBox.Text, RefereeBox.Text, _ageGroups);
             win.Owner = this;
