@@ -358,6 +358,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="RelayReactionCalculator.cs" />
+    <Compile Include="ResultOrdering.cs" />
     <Compile Include="Swimmer.cs" />
     <Compile Include="LapAdjustLogic.cs" />
     <Compile Include="LapSideLogic.cs" />

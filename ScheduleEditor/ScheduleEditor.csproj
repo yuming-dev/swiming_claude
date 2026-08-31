@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <!--
   ScheduleEditor.csproj
   ─────────────────────────────────────────────────────────────────────────
@@ -388,6 +388,9 @@
     </Compile>
     <Compile Include="..\SwimmingScoreboard\EditorSyncClient.cs">
       <Link>EditorSyncClient.cs</Link>
+    </Compile>
+    <Compile Include="..\SwimmingScoreboard\ResultOrdering.cs">
+      <Link>ResultOrdering.cs</Link>
     </Compile>
     <Compile Include="..\SwimmingScoreboard\Swimmer.cs">
       <Link>Swimmer.cs</Link>

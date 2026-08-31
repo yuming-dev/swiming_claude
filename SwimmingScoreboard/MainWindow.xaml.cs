@@ -4050,14 +4050,14 @@ namespace SwimmingScoreboard
                 }).OrderBy(s => s.GetResultForStage(_currentStage).FinalTime).ToList();
 
                 var items = new List<object>();
-                int idx = 0, rank = 1;
-                double prevT = -1;
+                // 2026-08-30 并列名次统一走 ResultOrdering.ComputeRanks(全场唯一一份)
+                var rkList = ResultOrdering.ComputeRanks(withTimes, s => {
+                    var rr = s.GetResultForStage(_currentStage); return rr != null ? rr.FinalTime : 0; });
+                int idx = 0;
                 foreach (var sw in withTimes) {
                     var r = sw.GetResultForStage(_currentStage);
+                    int rank = rkList[idx];
                     idx++;
-                    double curT = r != null ? r.FinalTime : 0;
-                    if (idx == 1 || !IsTieTime(curT, prevT)) rank = idx;
-                    prevT = curT;
                     string rkName = sw.Name;
                     if (rankRelay && !string.IsNullOrEmpty(sw.Notes) && sw.Notes.StartsWith("接力队 棒次:"))
                         rkName = sw.Notes.Substring("接力队 棒次:".Length);
@@ -4175,14 +4175,14 @@ namespace SwimmingScoreboard
                 var r = s.GetResultForStage(stage);
                 return r != null && r.FinalTime > 0;
             }).OrderBy(s => s.GetResultForStage(stage).FinalTime).ToList();
-            int idxER = 0, rank = 1;
-            double prevTimeER = -1;
+            // 2026-08-30 并列名次统一走 ResultOrdering.ComputeRanks(全场唯一一份)
+            var rkListER = ResultOrdering.ComputeRanks(withTimes, s => {
+                var rr = s.GetResultForStage(stage); return rr != null ? rr.FinalTime : 0; });
+            int idxER = 0;
             foreach (var sw in withTimes) {
                 var r = sw.GetResultForStage(stage);
+                int rank = rkListER[idxER];
                 idxER++;
-                double curT = r != null ? r.FinalTime : 0;
-                if (idxER == 1 || !IsTieTime(curT, prevTimeER)) rank = idxER;
-                prevTimeER = curT;
                 string rkName = sw.Name;
                 if (rankRelay && !string.IsNullOrEmpty(sw.Notes) && sw.Notes.StartsWith("接力队 棒次:"))
                     rkName = sw.Notes.Substring("接力队 棒次:".Length);
@@ -7741,14 +7741,17 @@ namespace SwimmingScoreboard
                 return r.FinalTime;
             }).ToList();
 
-            int idx = 0, rank = 1;
-            double prevTime = -1;
-            foreach (var sw in withResults) {
+            // 2026-08-30 并列名次的算法只有 ResultOrdering.ComputeRanks 一份。
+            //   原来这套"idx/rank/prevTime 三件套"在程序里各写各的有 5 处。
+            var hgRanks = ResultOrdering.ComputeRanks(withResults, s => {
+                var rr = s.Results.FirstOrDefault(lr => lr.Stage == _currentStage && lr.Heat == _currentHeat);
+                return rr != null ? rr.FinalTime : 0;
+            });
+            for (int i = 0; i < withResults.Count; i++) {
+                var sw = withResults[i];
                 var r = sw.Results.FirstOrDefault(lr => lr.Stage == _currentStage && lr.Heat == _currentHeat);
-                idx++;
-                if (idx == 1 || (r != null && !IsTieTime(r.FinalTime, prevTime))) rank = idx;
-                if (r != null) { r.Rank = rank; prevTime = r.FinalTime; }
-                sw.CurrentRank = rank;
+                if (r != null) r.Rank = hgRanks[i];
+                sw.CurrentRank = hgRanks[i];
             }
         }
 
@@ -7854,13 +7857,7 @@ namespace SwimmingScoreboard
         //   总排名 (GetStatusSortOrder) 里 TRI 整个被剔除, 不需要位置; 单组成绩 TRI 要显示 (有成绩不排名),
         //   规则: 有名次者按名次 → TRI(试游) → DSQ/DQ → DNF → DNS → 其他(无成绩无状态).
         //   与 display.html 的 _hrStatusOrder / _hrCompare 完全同口径.
-        private static int GetHeatStatusOrder(string status) {
-            if (status == "TRI") return 1;
-            if (status == "DSQ" || status == "DQ") return 2;
-            if (status == "DNF") return 3;
-            if (status == "DNS") return 4;
-            return 5;    // 正常 (含无成绩无状态)
-        }
+        private static int GetHeatStatusOrder(string status) { return ResultOrdering.StatusOrder(status); }
 
         // 2026-08-30 本组名次一律以【成绩行 r.Rank】为准。
         //   sw.CurrentRank 只是"最近一次算名次"留下的临时字段: 它每人只有一个值,
@@ -7868,8 +7865,7 @@ namespace SwimmingScoreboard
         //   谁就把有名次的人当成没名次的 —— 打印成绩单时 DNF 被排到并列第一之前,
         //   就是这么来的(显示读 r.Rank 显示成"1", 排序读 CurrentRank 当成 0)。
         private static int HeatRankOf(Swimmer sw, LaneResult r) {
-            if (r != null && r.Rank > 0) return r.Rank;
-            return (sw != null && sw.CurrentRank > 0) ? sw.CurrentRank : 0;
+            return ResultOrdering.RankOf(r != null ? r.Rank : 0, sw != null ? sw.CurrentRank : 0);
         }
 
         // 取该运动员在指定 stage/heat 的"有效状态" (成绩行 Status 优先, 否则运动员 Status)
@@ -7882,23 +7878,12 @@ namespace SwimmingScoreboard
         private List<Swimmer> OrderHeatResultSwimmers(IEnumerable<Swimmer> swimmers, string stage, int heat) {
             Func<Swimmer, LaneResult> getRes = sw =>
                 sw.Results.FirstOrDefault(lr => lr.Stage == stage && lr.Heat == heat) ?? sw.GetResultForStage(stage);
-            return swimmers
-                // 1) 有名次者在前, 按名次。名次取【成绩行】的 Rank(见 HeatRankOf)
-                .OrderBy(sw => { var r = getRes(sw);
-                                 return GetHeatStatusOrder(GetEffectiveStatus(sw, r)) == 5 && HeatRankOf(sw, r) > 0
-                                        ? HeatRankOf(sw, r) : int.MaxValue; })
-                // 2) 无名次者之间: 有成绩的正常人 → TRI → DSQ → DNF → DNS → 其他(无成绩无状态)
-                //    2026-08-30 原来"正常"是 5(最后), 于是【有成绩但还没算名次】的人
-                //    会被排到 DNS 后面。有成绩的人不该排在判罚/弃权的人后面。
-                .ThenBy(sw => { var r = getRes(sw);
-                                int so = GetHeatStatusOrder(GetEffectiveStatus(sw, r));
-                                if (so == 5 && r != null && r.FinalTime > 0) return 0;
-                                return so; })
-                // 3) 同类内: 有成绩按成绩快慢
-                .ThenBy(sw => { var r = getRes(sw); return r != null && r.FinalTime > 0 ? r.FinalTime : double.MaxValue; })
-                // 4) 兜底按道次
-                .ThenBy(sw => sw.Lane)
-                .ToList();
+            // 2026-08-30 顺序规则只有 ResultOrdering.OrderForHeat 一份, 这里只负责取值。
+            return ResultOrdering.OrderForHeat(swimmers,
+                sw => GetEffectiveStatus(sw, getRes(sw)),
+                sw => HeatRankOf(sw, getRes(sw)),
+                sw => { var r = getRes(sw); return r != null ? r.FinalTime : 0; },
+                sw => sw.Lane);
         }
 
         private bool IsQualifiedToNext(Swimmer sw, string fromStage) {
@@ -7931,12 +7916,9 @@ namespace SwimmingScoreboard
         // 因此先按硬件精度四舍五入到 1/100 秒整数（百分秒），再做 int 相等比较：
         // 两条都 round 到 5468 → 视为并列；硬件上一致即并列，与精度直接对齐。
         // 5 处排名计算（UpdateHeatRanking / GetEventRanking / ComputeLiveRanks / 两处打印）统一调用此方法。
-        private static bool IsTieTime(double a, double b) {
-            // MidpointRounding.AwayFromZero 与裁判惯例一致：54.685 → 54.69 而非 54.68
-            long ah = (long)Math.Round(a * 100.0, MidpointRounding.AwayFromZero);
-            long bh = (long)Math.Round(b * 100.0, MidpointRounding.AwayFromZero);
-            return ah == bh;
-        }
+        // 2026-08-30 实现搬到 ResultOrdering, 这里只留一层壳给老调用点。
+        //   规则只允许在 ResultOrdering.cs 里写一次 —— 见那个文件开头的说明。
+        private static bool IsTieTime(double a, double b) { return ResultOrdering.IsTie(a, b); }
 
         // 仅本组最快成绩（含并列）的 LaneResult.RecordNote 保留；其它人 RecordNote 清空。
         // 用于"一组多人破纪录只显示第 1 名记录"的展示+持久化逻辑。
@@ -26837,16 +26819,15 @@ namespace SwimmingScoreboard
                     && x.Swimmer.Status != "DSQ" && x.Swimmer.Status != "DNS" && x.Swimmer.Status != "DNF")
                 .OrderBy(x => x.R.FinalTime)
                 .ToList();
+            // 2026-08-30 改用统一的并列名次实现(原来这里是第 5 份各写各的)
+            var rrRanks = ResultOrdering.ComputeRanks(list, x => x.R.FinalTime);
             var result = new List<RankRow>();
-            int rank = 1;
-            double prevTime = -1; int prevRank = 1;
-            foreach (var x in list) {
-                int useRank;
-                bool tie = false;
-                if (IsTieTime(x.R.FinalTime, prevTime)) { useRank = prevRank; tie = true; }
-                else { useRank = rank; prevRank = rank; prevTime = x.R.FinalTime; }
-                result.Add(new RankRow { Swimmer = x.Swimmer, Rank = useRank, IsTie = tie, TimeText = TimeFormatter.Format(x.R.FinalTime) });
-                rank++;
+            for (int i = 0; i < list.Count; i++) {
+                var x = list[i];
+                bool tie = (i > 0 && rrRanks[i] == rrRanks[i - 1]) ||
+                           (i + 1 < list.Count && rrRanks[i] == rrRanks[i + 1]);
+                result.Add(new RankRow { Swimmer = x.Swimmer, Rank = rrRanks[i], IsTie = tie,
+                                         TimeText = TimeFormatter.Format(x.R.FinalTime) });
             }
             return result;
         }

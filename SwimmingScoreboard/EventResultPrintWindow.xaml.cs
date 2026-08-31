@@ -246,8 +246,38 @@ namespace SwimmingScoreboard
 
             if (withResults.Count == 0)
             {
-                StatusText.Text = string.Format("{0} {1} {2}{3} — 暂无比赛成绩，无法打印",
-                    gender, eventName, stage, filterHeat > 0 ? " 第" + filterHeat + "组" : "");
+                // 2026-08-30 原来只说"暂无比赛成绩", 到底是项目选错了、性别/组别筛掉了,
+                //   还是成绩确实没进来, 一点线索都没有 —— 计时端明明确认过, 这里却说没有,
+                //   谁也查不动。现在逐级报数, 断在哪一层一眼就看出来。
+                int cEvent = _swimmers.Count(s => s.EventName == eventName);
+                int cGender = _swimmers.Count(s => s.EventName == eventName && SgMatchPrint(s.Gender, gender));
+                int cAge = _swimmers.Count(s => s.EventName == eventName && SgMatchPrint(s.Gender, gender)
+                                                && MatchesAge(s.AgeCategory, ageFilter));
+                int cStage = _swimmers.Count(s => s.EventName == eventName && SgMatchPrint(s.Gender, gender)
+                                                && MatchesAge(s.AgeCategory, ageFilter)
+                                                && s.GetResultForStage(stage) != null);
+                int cHeat = matched.Count;
+                string chain = string.Format("本项目{0}人 → 性别{1} → 组别{2} → 有[{3}]成绩行{4}{5} → 有效成绩0",
+                    cEvent, cGender, cAge, stage, cStage,
+                    filterHeat > 0 ? " → 第" + filterHeat + "组" + cHeat : "");
+
+                // 断在最后一层最值得说: 成绩行有, 但成绩是 0 / 全是判罚弃权
+                string hint = "";
+                if (cStage > 0) {
+                    int cTri = matched.Count(s => { var r = s.GetResultForStage(stage);
+                                                   return s.Status == "TRI" || (r != null && r.Status == "TRI"); });
+                    int cZero = matched.Count(s => { var r = s.GetResultForStage(stage);
+                                                    return r != null && r.FinalTime <= 0; });
+                    if (cTri > 0) hint = "（其中 " + cTri + " 人是试游 TRI，不进项目成绩表）";
+                    else if (cZero > 0) hint = "（有成绩行但成绩为 0：多半是判罚/弃权，或成绩没真正回写）";
+                } else if (cAge > 0) {
+                    hint = "（这些人没有[" + stage + "]的成绩行：赛次选错了？还是这一组的成绩没同步过来？）";
+                } else if (cEvent > 0) {
+                    hint = "（被性别/组别筛掉了：确认上面的性别和组别选对了）";
+                }
+
+                StatusText.Text = string.Format("{0} {1} {2}{3} — 暂无比赛成绩，无法打印\n{4} {5}",
+                    gender, eventName, stage, filterHeat > 0 ? " 第" + filterHeat + "组" : "", chain, hint);
                 StatusText.Foreground = System.Windows.Media.Brushes.OrangeRed;
                 PreviewGrid.ItemsSource = null;
                 SetActionButtonsEnabled(false);
