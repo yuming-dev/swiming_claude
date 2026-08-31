@@ -37,6 +37,22 @@ foreach ($file in @('EventResultPrintWindow.xaml.cs','BatchByAgeGroupPrintWindow
 }
 Chk "反应时间的渲染处都带了判罚判断" ($bad.Count -eq 0) (($bad) -join '; ')
 
+Write-Host "3. 比赛进行中不许往主服务器的库写"
+$mwp = Join-Path $src 'MainWindow.xaml.cs'
+$mw  = [IO.File]::ReadAllText($mwp,[Text.Encoding]::UTF8)
+$ls  = [IO.File]::ReadAllLines($mwp,[Text.Encoding]::UTF8)
+$un = @()
+for ($i=0; $i -lt $ls.Count; $i++) {
+    if ($ls[$i] -notmatch '_meetDb\.SaveConfig') { continue }
+    # 前 6 行里必须有 InRaceNoDbWrite 守卫, 或者本身就在 FlushConfigToDb(确认后补写)里
+    $ctx = ($ls[[Math]::Max(0,$i-14)..$i] -join ' ')
+    if ($ctx -notmatch 'InRaceNoDbWrite|FlushConfigToDb|_cfgDbPending = false') { $un += ($i+1) }
+}
+Chk "SaveConfig 都带了""比赛中不写库""的守卫" ($un.Count -eq 0) ("未守卫的行: " + ($un -join ', '))
+# 比赛中的成绩写入必须走本机当前组库, 不能过网
+$bridge = [IO.File]::ReadAllText((Join-Path $src 'Db\MeetDbBridge.cs'),[Text.Encoding]::UTF8)
+Chk "LiveSaveLanes 只写本机(比赛中不过网)" ($bridge -match '_local\.UpdateLane') "LiveSaveLanes 不再只写 _local, 比赛中会过网!"
+
 Write-Host ""
 Write-Host ("结果: " + $pass + " 过 / " + $fail + " failed")
 if ($fail -gt 0) { $msgs | ForEach-Object { Write-Host ("  "+$_) -ForegroundColor Red }; exit 1 }

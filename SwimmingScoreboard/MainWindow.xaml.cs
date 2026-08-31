@@ -21353,12 +21353,45 @@ namespace SwimmingScoreboard
         private const string CFG_TIMING = "timing_settings";
         private const string CFG_DEVICE = "device_states";
 
+        // ── 2026-08-31 比赛进行中【不往主服务器的库写任何东西】 ──────────────
+        //   规矩: 比赛过程中的触板/盲表/出发反应时这些实时数据, 只留在计时端本机
+        //   和大屏上; 只有按下"确认本组成绩"之后, 才一次性写进主服务器的库。
+        //
+        //   参数和设备状态也一样。设备状态在比赛中是会变的(某块触板报故障、
+        //   盲表状态回报), 原来我让它一变就 SaveConfig —— 联机时 _meet 就是
+        //   主服务器, 那等于比赛中不停地往主服务器的库里写, 还都过网络。
+        //   现在: 比赛中只写本机 json, 记个"欠着", 确认成绩时一并补进库。
+        private bool _cfgDbPending;
+
+        /// <summary>比赛进行中(就位/比赛中)不许碰主服务器的库。</summary>
+        private bool InRaceNoDbWrite() {
+            return _raceState == RaceState.Ready || _raceState == RaceState.Racing;
+        }
+
+        /// <summary>把比赛期间欠下的参数/设备状态一次性写进库。确认成绩后调。</summary>
+        private void FlushConfigToDb() {
+            if (!_cfgDbPending) return;
+            _cfgDbPending = false;
+            try {
+                string j1 = JsonConvert.SerializeObject(_laneCloseSettings, Formatting.Indented);
+                _meetDb.SaveConfig(CFG_TIMING, j1, Environment.MachineName);
+            } catch { }
+            try {
+                if (File.Exists(DeviceStatesPath))
+                    _meetDb.SaveConfig(CFG_DEVICE, File.ReadAllText(DeviceStatesPath, Encoding.UTF8),
+                                       Environment.MachineName);
+            } catch { }
+            AddLog("比赛期间的参数/设备状态已一并写入竞赛库");
+        }
+
         private void SaveTimingSettings() {
             string json = null;
             try {
                 json = JsonConvert.SerializeObject(_laneCloseSettings, Formatting.Indented);
                 File.WriteAllText(TimingSettingsPath, json, Encoding.UTF8);
             } catch { }
+            // 比赛进行中只写本机 json, 不碰主服务器的库(见 InRaceNoDbWrite)
+            if (InRaceNoDbWrite()) { _cfgDbPending = true; return; }
             try { if (json != null) _meetDb.SaveConfig(CFG_TIMING, json, Environment.MachineName); } catch { }
         }
 
@@ -21444,7 +21477,10 @@ namespace SwimmingScoreboard
                 File.WriteAllText(DeviceStatesPath, dsJson, Encoding.UTF8);
                 // 2026-08-31 同时写进竞赛库 settings 表。联机时写的就是主服务器那份库,
                 //   所以"哪几个盲表装了/坏了"两端看到的是同一份, 不再各存各的。
-                try { _meetDb.SaveConfig(CFG_DEVICE, dsJson, Environment.MachineName); } catch { }
+                //   但比赛进行中不写 —— 设备状态在比赛中会变(触板报故障、盲表回报),
+                //   一变就写等于比赛中不停往主服务器库里写, 还过网络。欠着, 确认后补。
+                if (InRaceNoDbWrite()) { _cfgDbPending = true; }
+                else { try { _meetDb.SaveConfig(CFG_DEVICE, dsJson, Environment.MachineName); } catch { } }
             } catch (Exception ex) {
                 AddLog("保存设备状态失败: " + ex.Message);
             }
@@ -22123,6 +22159,9 @@ namespace SwimmingScoreboard
                     TimeFormatter.Format(b.Record.TimeSeconds), b.Record.HolderName,
                     TimeFormatter.Format(b.NewTime), b.NewHolder, b.IsTie ? " 平" : ""));
             }
+            // 2026-08-31 比赛期间欠下的参数/设备状态, 到这一步一并补进库。
+            //   顺序: 先补参数, 再回读成绩 —— 都在"确认"这一个动作里完成。
+            try { FlushConfigToDb(); } catch { }
             // 2026-08-30 成绩确定了 —— 从库里把这一组读回来, 覆盖内存。
             //   从这一刻起这组的名次只有库里那一份, 打印/大屏/查询都用它, 谁都别再算。
             ApplyHeatFromDb(_currentAgeGroup, _currentGender, _currentEvent, _currentStage, _currentHeat);
