@@ -118,6 +118,15 @@ LIMIT 1
         if ($msg -match 'HEAT_CONFIRMED_ACK') { $gotAck = $true }
     }
     Check "收到主服务器回执 HEAT_CONFIRMED_ACK" $gotAck "30 秒内没收到"
+
+    # ── 参数同步: 发 SET_LANE_CLOSE_SETTINGS, 验主服务器把它存进了库 ──
+    Write-Host "发送参数修改(盲表 左2/右2, 关闭 1.75s)…"
+    SendJson ([ordered]@{ type = 'TIMING_CMD'; command = 'SET_LANE_CLOSE_SETTINGS'
+        data = [ordered]@{ leftBlindWatchCount = 2; rightBlindWatchCount = 2; laneCloseTime = 1.75
+                           startBlockCloseDelay = 3.5; splitDisplayTime = 6.25 } })
+    Start-Sleep -Seconds 4
+
+
     Start-Sleep -Seconds 3
     try { $ws.Dispose() } catch {}
 
@@ -143,6 +152,19 @@ if ($byTime.Count -ge 2) {
         }
     }
 }
+$cfg = Sql $db "SELECT value FROM settings WHERE key='timing_settings'"
+Check "参数已存进主服务器的库(settings 表)" ($cfg.Count -gt 0) "settings 表里没有 timing_settings"
+if ($cfg.Count -gt 0) {
+    $o = $cfg[0].value | ConvertFrom-Json
+    Check "盲表数量存对了(左2)"  ([int]$o.LeftBlindWatchCount -eq 2)  ("实得 " + $o.LeftBlindWatchCount)
+    Check "盲表数量存对了(右2)"  ([int]$o.RightBlindWatchCount -eq 2) ("实得 " + $o.RightBlindWatchCount)
+    Check "泳道关闭时间存对了(1.75)" ([double]$o.LaneCloseTime -eq 1.75) ("实得 " + $o.LaneCloseTime)
+    Check "出发台延时存对了(3.5)"   ([double]$o.StartBlockCloseDelay -eq 3.5) ("实得 " + $o.StartBlockCloseDelay)
+    Check "分段停留存对了(6.25)"    ([double]$o.SplitDisplayTime -eq 6.25) ("实得 " + $o.SplitDisplayTime)
+}
+$ds = Sql $db "SELECT value FROM settings WHERE key='device_states'"
+Check "设备状态也进了库" ($ds.Count -gt 0) "settings 表里没有 device_states"
+
 $hc = Sql $db "SELECT confirmed_at FROM heats WHERE round_id=$rid AND heat=$heat"
 Check "该组已标记为已确认" ($hc.Count -gt 0 -and $hc[0].confirmed_at -ne [DBNull]::Value -and $hc[0].confirmed_at) "confirmed_at 为空"
 
