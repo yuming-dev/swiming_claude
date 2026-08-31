@@ -81,6 +81,9 @@ namespace SwimmingScoreboard.Db
             EnsureSchema();
         }
 
+        /// <summary>2026-08-31 供 DROP 掉某张表后重建用(建表语句都是 IF NOT EXISTS, 重复调无害)。</summary>
+        public void EnsureSchemaPublic() { EnsureSchema(); }
+
         private void EnsureSchema()
         {
             using (var tx = _cn.BeginTransaction())

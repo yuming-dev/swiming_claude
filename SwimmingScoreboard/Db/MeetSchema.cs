@@ -398,22 +398,22 @@ CREATE TABLE IF NOT EXISTS staff (
 --   直接决赛的项目, 它就是【最终名次】。
 --   生成之后定稿, 不许自动改。
 CREATE TABLE IF NOT EXISTS event_rankings (
+    rank           INTEGER,          -- 名次(组排名, 跨全部组) —— 这张表就是按它排的, 放第一列
+    athlete_id     INTEGER,          -- 运动员ID
+    bib_number     TEXT,             -- 号码
+    athlete_name   TEXT,             -- 姓名
+    unit_name      TEXT,             -- 代表队
+    final_time     REAL,             -- 成绩
+    heat           INTEGER,          -- 第几组
+    total_heats    INTEGER,          -- 总组数(取消的组不算), 打印时显示 第几组/总组数
+    lane           INTEGER,          -- 道次
+    remark         TEXT,             -- 备注: 判罚(DSQ/DNS/DNF) 优先, 否则晋级 Q/R, 否则纪录标识
+    status         TEXT,
+    promotion_mark TEXT,
+    record_note    TEXT,
     round_id       INTEGER NOT NULL,
     event_id       INTEGER NOT NULL,
     heat_entry_id  INTEGER,
-    athlete_id     INTEGER,          -- 运动员ID
-    bib_number     TEXT,             -- 号码布
-    rank           INTEGER,          -- 组排名(跨全部组)
-    heat           INTEGER,          -- 该成绩出自第几组
-    total_heats    INTEGER,          -- 本项目共几组(取消的不算), 打印时显示 第几组/总组数
-    lane           INTEGER,
-    final_time     REAL,
-    status         TEXT,             -- DSQ/DNS/DNF 等
-    promotion_mark TEXT,             -- Q 晋级 / R 替补
-    record_note    TEXT,             -- 破/平纪录标识
-    remark         TEXT,             -- 备注: 判罚(DSQ/DNS/DNF) 优先, 否则晋级 Q/R, 否则纪录标识
-    athlete_name   TEXT,
-    unit_name      TEXT,
     generated_at   TEXT,             -- 什么时候定的稿
     generated_by   TEXT,             -- 谁定的
     PRIMARY KEY (round_id, event_id, heat_entry_id)

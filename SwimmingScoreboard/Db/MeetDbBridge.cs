@@ -839,6 +839,17 @@ namespace SwimmingScoreboard.Db
                     return 0;
                 }
 
+                // 2026-08-31 老库里这张表可能是早先的列序(名次不在第一列)。
+                //   这表是每次全部确认后重新生成的, 丢了也能再生成 —— 列序不对就重建。
+                try {
+                    var ti = _local.Db.Query("PRAGMA table_info(event_rankings)");
+                    if (ti.Rows.Count > 0 && SS(ti.Rows[0]["name"]) != "rank") {
+                        _local.Db.ExecuteNonQuery("DROP TABLE event_rankings");
+                        _local.Db.EnsureSchemaPublic();
+                        Log("组排名表列序已更新(名次放到第一列), 表已重建");
+                    }
+                } catch { }
+
                 // 全部确认了 —— 生成/刷新这个项目的组排名表
                 var rows = _local.Db.Query(
                     "SELECT he.id, he.heat, he.lane, he.final_time, he.rank, he.status, " +
