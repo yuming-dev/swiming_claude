@@ -9097,6 +9097,12 @@ namespace SwimmingScoreboard
                 } catch (Exception ex) { AddLog("写入计时端送来的成绩失败: " + ex.Message); }
             }
 
+            // 2026-08-30 成绩已经进了【本机这份】竞赛库 —— 名次以它为准, 回读覆盖内存。
+            //   计时端推过来的那份是它确认【之前】的(推送排在 CommitLiveHeat 之前),
+            //   不带项目名次; 而且两台机器各有各的库, 本机显示当然要以本机库为准。
+            //   这样主服务器上看到的名次 = 主服务器库里的名次, 不存在第二个真相。
+            ApplyHeatFromDb(ag, gd, ev, st, ht);
+
             // 回执: 计时端据此删掉待补传文件。没有回执它就一直留着, 下次连上再补 ——
             // 宁可重复补传(幂等、安全), 也不能悄悄丢一组成绩。
             try {
@@ -20061,12 +20067,34 @@ namespace SwimmingScoreboard
             dlg.ShowDialog();
         }
 
+        /// <summary>
+        /// 取分/奖牌用的名次 —— 【项目内】跨组大排名, 由竞赛库算好入库, 这里只读。
+        /// 优先 EventRank(确认成绩后从库回读的); 库还没回读过就退回组内名次,
+        /// 保证老档案照样能算, 但那种情况下多组项目会偏高, 所以回读那条路要保证通。
+        /// </summary>
+        private static int ScoringRankOf(Swimmer sw) {
+            if (sw == null) return 0;
+            var r = sw.Results.FirstOrDefault(x => x.Stage == "决赛" && x.EventRank > 0);
+            if (r != null) return r.EventRank;
+            var r2 = sw.Results.FirstOrDefault(x => x.Stage == "决赛" && x.Rank > 0);
+            if (r2 != null) return r2.Rank;
+            return sw.CurrentRank;
+        }
+
         private void CalculateTeamScores() {
             var teamDict = new Dictionary<string, TeamScore>();
 
             // 取分范围由配置控制（默认前 8 名）
             int cutoff = _scoringConfig != null && _scoringConfig.RankCutoff > 0 ? _scoringConfig.RankCutoff : 8;
-            var finalSwimmers = _swimmers.Where(s => s.CurrentStage == "决赛" && s.CurrentRank > 0 && s.CurrentRank <= cutoff).ToList();
+            // 2026-08-30 取分必须用【项目内】名次, 不是组内名次。
+            //   本场 45 个决赛里有 31 个是多组的 —— 按组内名次算, 每组都会出一个"第1名",
+            //   金牌和分数都会多算。项目名次由竞赛库在确认成绩时算好并入库,
+            //   这里只读不算(ScoringRankOf)。
+            var finalSwimmers = _swimmers.Where(s => {
+                if (s.CurrentStage != "决赛") return false;
+                int rk = ScoringRankOf(s);
+                return rk > 0 && rk <= cutoff;
+            }).ToList();
 
             foreach (var sw in finalSwimmers) {
                 if (string.IsNullOrEmpty(sw.Country)) continue;
@@ -20076,9 +20104,10 @@ namespace SwimmingScoreboard
                 var ts = teamDict[sw.Country];
 
                 bool isRelay = sw.EventName.Contains("接力");
+                int scRank = ScoringRankOf(sw);
                 double points = isRelay
-                    ? _scoringConfig.GetRelayPoint(sw.CurrentRank)
-                    : _scoringConfig.GetIndividualPoint(sw.CurrentRank);
+                    ? _scoringConfig.GetRelayPoint(scRank)
+                    : _scoringConfig.GetIndividualPoint(scRank);
 
                 // 组别系数：从配置读，找不到按 1.0
                 double coeff = _scoringConfig.GetAgeCoefficient(sw.AgeCategory);
@@ -20088,9 +20117,9 @@ namespace SwimmingScoreboard
                 else ts.IndividualPoints += points;
 
                 // 奖牌
-                if (sw.CurrentRank == 1) ts.GoldCount++;
-                else if (sw.CurrentRank == 2) ts.SilverCount++;
-                else if (sw.CurrentRank == 3) ts.BronzeCount++;
+                if (scRank == 1) ts.GoldCount++;
+                else if (scRank == 2) ts.SilverCount++;
+                else if (scRank == 3) ts.BronzeCount++;
             }
 
             // 破纪录加分
@@ -21938,6 +21967,60 @@ namespace SwimmingScoreboard
                     b.Record.Abbr, b.Record.EventName,
                     TimeFormatter.Format(b.Record.TimeSeconds), b.Record.HolderName,
                     TimeFormatter.Format(b.NewTime), b.NewHolder, b.IsTie ? " 平" : ""));
+            }
+            // 2026-08-30 成绩确定了 —— 从库里把这一组读回来, 覆盖内存。
+            //   从这一刻起这组的名次只有库里那一份, 打印/大屏/查询都用它, 谁都别再算。
+            ApplyHeatFromDb(_currentAgeGroup, _currentGender, _currentEvent, _currentStage, _currentHeat);
+        }
+
+        /// <summary>
+        /// 把一组成绩从【竞赛库】读回来覆盖内存模型。
+        ///
+        /// 这是"成绩确定后只调数据库"的落地点。库里存着名次(组内 + 项目内)、成绩差、
+        /// 并列、晋级标记, 内存原来装不下, 各个视图只好自己再算一遍 —— 口径还不一样,
+        /// 于是出现过"打印出来的名次和大屏上的不一样""库里和界面上不一样"。
+        /// 现在这些值一律以库为准, 内存只是它的镜像。
+        ///
+        /// 回读失败不阻断比赛: 内存里原来那份还在, 只是会在日志里明确说一声。
+        /// </summary>
+        private void ApplyHeatFromDb(string ag, string gd, string ev, string st, int heat) {
+            try {
+                var rows = _meetDb.ReadBackHeat(ag, gd, ev, st, heat);
+                if (rows == null || rows.Count == 0) {
+                    AddLog(string.Format("【注意】第{0}组没能从竞赛库回读, 界面仍用内存里算的名次", heat));
+                    return;
+                }
+                var swimmers = GetHeatEntries(ag, gd, ev, st, heat);
+                int applied = 0, missed = 0;
+                foreach (var row in rows) {
+                    if (row.Lane == null) continue;
+                    int lane = row.Lane.Value;
+                    var sw = swimmers.FirstOrDefault(s => LaneOfStage(s, st) == lane);
+                    if (sw == null) { missed++; continue; }
+                    var r = sw.Results.FirstOrDefault(x => x.Stage == st && x.Heat == heat);
+                    if (r == null) continue;
+                    // 只覆盖"库说了算"的那几项。成绩本身也对一遍 ——
+                    // 库和内存要是对不上, 说明回写出了问题, 必须让它暴露出来。
+                    if (Math.Abs(r.FinalTime - row.FinalTime) > 0.0001 && row.FinalTime > 0) {
+                        AddLog(string.Format("【注意】第{0}组{1}道成绩与库不一致: 内存 {2} / 库 {3}, 以库为准",
+                            heat, lane, TimeFormatter.Format(r.FinalTime), TimeFormatter.Format(row.FinalTime)));
+                        r.FinalTime = row.FinalTime;
+                    }
+                    r.Rank = row.HeatRank;
+                    r.EventRank = row.Rank;
+                    r.Gap = row.Gap;
+                    r.IsTie = row.IsTie;
+                    r.PromotionMark = row.PromotionMark ?? "";
+                    if (!string.IsNullOrEmpty(row.RecordNote)) r.RecordNote = row.RecordNote;
+                    r.FromDb = true;
+                    // CurrentRank 是老代码到处在用的字段, 一起对齐, 别让它成为第二个真相
+                    sw.CurrentRank = row.HeatRank;
+                    applied++;
+                }
+                AddLog(string.Format("第{0}组已按竞赛库回读: {1} 道{2}（名次以库为准）",
+                    heat, applied, missed > 0 ? string.Format(", {0} 道在内存里找不到", missed) : ""));
+            } catch (Exception ex) {
+                AddLog("【注意】按竞赛库回读失败, 界面仍用内存里算的名次: " + ex.Message);
             }
         }
 

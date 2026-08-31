@@ -342,10 +342,55 @@ namespace SwimmingScoreboard
             get { return _timingSource; }
             set { _timingSource = value; OnPropertyChanged("TimingSource"); }
         }
+        /// <summary>组内名次。确认成绩后由竞赛库回读覆盖, 不要在别处重算。</summary>
         public int Rank {
             get { return _rank; }
             set { _rank = value; OnPropertyChanged("Rank"); }
         }
+
+        // ── 2026-08-30 以下四项【只来自竞赛库】, 任何地方都不许自己算 ──
+        //   库里本来就有(heat_entries.rank / 现算的组内名次和成绩差), 但内存模型
+        //   装不下, 于是打印、大屏、总排名、团体总分各自又算了一遍 —— 口径还不一样。
+        //   现在确认成绩后从库里回读一次, 填进这里, 后面一律只读不算。
+
+        private int _eventRank;
+        /// <summary>本项目本赛次的【跨组】大排名(库里的 heat_entries.rank)。
+        /// 注意跟 Rank 不是一回事: Rank 是组内名次。计时决赛多组时两者不同,
+        /// 团体总分、晋级、项目成绩用的都是这个。</summary>
+        public int EventRank {
+            get { return _eventRank; }
+            set { _eventRank = value; OnPropertyChanged("EventRank"); }
+        }
+
+        private double _gap;
+        /// <summary>与本项目第一名的成绩差(库里现算)。</summary>
+        public double Gap {
+            get { return _gap; }
+            set { _gap = value; OnPropertyChanged("Gap"); }
+        }
+
+        private bool _isTie;
+        /// <summary>与人并列(打印时名次前加 =)。</summary>
+        public bool IsTie {
+            get { return _isTie; }
+            set { _isTie = value; OnPropertyChanged("IsTie"); }
+        }
+
+        private string _promotionMark = "";
+        /// <summary>Q 晋级 / R 替补(库里按 promote_count/reserve_count 算)。</summary>
+        public string PromotionMark {
+            get { return _promotionMark; }
+            set { _promotionMark = value ?? ""; OnPropertyChanged("PromotionMark"); }
+        }
+
+        private bool _fromDb;
+        /// <summary>这条成绩的名次是不是从竞赛库回读来的。false = 还是内存现算的,
+        /// 出问题时一眼能看出是哪条路进来的。</summary>
+        public bool FromDb {
+            get { return _fromDb; }
+            set { _fromDb = value; OnPropertyChanged("FromDb"); }
+        }
+
         public string Status {
             get { return _status; }
             set { _status = value; OnPropertyChanged("Status"); }

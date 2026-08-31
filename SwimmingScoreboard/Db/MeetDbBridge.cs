@@ -751,6 +751,37 @@ namespace SwimmingScoreboard.Db
         private static string SS(object o) { return o == null || o == DBNull.Value ? "" : o.ToString(); }
 
         /// <summary>
+        /// 2026-08-30 确认成绩之后, 把这一组从竞赛库【读回来】。
+        ///
+        /// 这是"成绩确定后只调数据库、不再重算"的入口: 名次(组内/项目内)、成绩差、
+        /// 并列、晋级标记, 全部以库里这一份为准, 界面拿回读的结果去显示, 不自己算。
+        /// 走的是 IMeetService.GetHeat —— 联机时读的就是【主服务器】那份库,
+        /// 所以两端看到的名次必然一致。
+        /// </summary>
+        public List<LaneRow> ReadBackHeat(string ageGroup, string gender, string eventName, string stage, int heat)
+        {
+            if (_meet == null || heat <= 0) return null;
+            try
+            {
+                long rid = ResolveRound(ageGroup, gender, eventName, stage);
+                if (rid == 0)
+                {
+                    Log(string.Format("【注意】回读第{0}组失败: 库里找不到 {1}{2} {3} {4}",
+                        heat, ageGroup, gender, eventName, stage));
+                    return null;
+                }
+                var rows = _meet.GetHeat(rid, heat);
+                if (rows == null || rows.Count == 0)
+                {
+                    Log(string.Format("【注意】回读第{0}组: 库里这一组没有行", heat));
+                    return null;
+                }
+                return rows;
+            }
+            catch (Exception ex) { Log("【注意】回读第" + heat + "组失败: " + ex.Message); return null; }
+        }
+
+        /// <summary>
         /// 2026-08-29 离线摆渡用: 从本机竞赛库里把【已经比完的某一组】重新拼成 LiveHeat。
         /// 跟联机回推走的是同一个结构, 所以主服务器那边不需要第二套接收代码。
         /// </summary>
