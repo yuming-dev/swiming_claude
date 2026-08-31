@@ -7862,6 +7862,16 @@ namespace SwimmingScoreboard
             return 5;    // 正常 (含无成绩无状态)
         }
 
+        // 2026-08-30 本组名次一律以【成绩行 r.Rank】为准。
+        //   sw.CurrentRank 只是"最近一次算名次"留下的临时字段: 它每人只有一个值,
+        //   而且【计时端回推 / 文件导入的成绩根本不会设它】。谁拿它排序或显示,
+        //   谁就把有名次的人当成没名次的 —— 打印成绩单时 DNF 被排到并列第一之前,
+        //   就是这么来的(显示读 r.Rank 显示成"1", 排序读 CurrentRank 当成 0)。
+        private static int HeatRankOf(Swimmer sw, LaneResult r) {
+            if (r != null && r.Rank > 0) return r.Rank;
+            return (sw != null && sw.CurrentRank > 0) ? sw.CurrentRank : 0;
+        }
+
         // 取该运动员在指定 stage/heat 的"有效状态" (成绩行 Status 优先, 否则运动员 Status)
         private static string GetEffectiveStatus(Swimmer sw, LaneResult r) {
             if (r != null && !string.IsNullOrEmpty(r.Status)) return r.Status;
@@ -7873,11 +7883,17 @@ namespace SwimmingScoreboard
             Func<Swimmer, LaneResult> getRes = sw =>
                 sw.Results.FirstOrDefault(lr => lr.Stage == stage && lr.Heat == heat) ?? sw.GetResultForStage(stage);
             return swimmers
-                // 1) 有名次者在前 (状态正常 且 CurrentRank>0); 其余 int.MaxValue 排后面
-                .OrderBy(sw => GetHeatStatusOrder(GetEffectiveStatus(sw, getRes(sw))) == 5 && sw.CurrentRank > 0
-                               ? sw.CurrentRank : int.MaxValue)
-                // 2) 无名次者之间: TRI → DSQ → DNF → DNS → 其他
-                .ThenBy(sw => GetHeatStatusOrder(GetEffectiveStatus(sw, getRes(sw))))
+                // 1) 有名次者在前, 按名次。名次取【成绩行】的 Rank(见 HeatRankOf)
+                .OrderBy(sw => { var r = getRes(sw);
+                                 return GetHeatStatusOrder(GetEffectiveStatus(sw, r)) == 5 && HeatRankOf(sw, r) > 0
+                                        ? HeatRankOf(sw, r) : int.MaxValue; })
+                // 2) 无名次者之间: 有成绩的正常人 → TRI → DSQ → DNF → DNS → 其他(无成绩无状态)
+                //    2026-08-30 原来"正常"是 5(最后), 于是【有成绩但还没算名次】的人
+                //    会被排到 DNS 后面。有成绩的人不该排在判罚/弃权的人后面。
+                .ThenBy(sw => { var r = getRes(sw);
+                                int so = GetHeatStatusOrder(GetEffectiveStatus(sw, r));
+                                if (so == 5 && r != null && r.FinalTime > 0) return 0;
+                                return so; })
                 // 3) 同类内: 有成绩按成绩快慢
                 .ThenBy(sw => { var r = getRes(sw); return r != null && r.FinalTime > 0 ? r.FinalTime : double.MaxValue; })
                 // 4) 兜底按道次
@@ -9079,6 +9095,10 @@ namespace SwimmingScoreboard
                     var old = sw.Results.FirstOrDefault(x => x.Stage == st && x.Heat == ht);
                     if (old != null) sw.Results.Remove(old);
                     sw.Results.Add(lr);
+                    // 2026-08-30 名次还要落到 CurrentRank —— 团体总分(CalculateTeamScores)
+                    //   取分读的是它。本机跑的组由 RankHeatGroup 顺手设上了, 而回推/文件
+                    //   导入进来的成绩没人设 => 计时端跑出来的成绩【一分都不计】, 还不报错。
+                    if (lr.Rank > 0) sw.CurrentRank = lr.Rank;
                     applied++;
                 }
             }
@@ -25337,8 +25357,14 @@ namespace SwimmingScoreboard
                         prevCum = split.CumulativeTime;   // 只在有效段更新, 缺失段保留上一次值
                     }
                 }
-                sb.AppendFormat("<td style='text-align:center;font-weight:bold;background:#eff6ff;font-family:Consolas,monospace;'>{0}</td>",
-                    TimeFormatter.Format(result.FinalTime));
+                // 2026-08-30 判罚/弃权不显示最终成绩, 改显状态。
+                //   上面名次表对这些人是把成绩留空的, 这里却照印一个时间出来 ——
+                //   同一张成绩单上两张表自相矛盾(实际发生过: 名次表空白, 分段表 42.28)。
+                string spSt = GetEffectiveStatus(sw, result);
+                bool spJudged = spSt == "DSQ" || spSt == "DQ" || spSt == "DNF" || spSt == "DNS";
+                sb.AppendFormat("<td style='text-align:center;font-weight:bold;background:#eff6ff;font-family:Consolas,monospace;{1}'>{0}</td>",
+                    spJudged ? spSt : TimeFormatter.Format(result.FinalTime),
+                    spJudged ? "color:#dc2626;" : "");
                 sb.Append("</tr>");
             }
             sb.Append("</table>");
@@ -25379,9 +25405,15 @@ namespace SwimmingScoreboard
                 + "h2{text-align:center; font-size:28px; font-family:'SimHei'; margin-bottom:50px; letter-spacing:10px;} "
                 + "h3{font-size:22px; font-family:'SimHei'; border-bottom:3px solid #1e40af; padding-bottom:8px; margin-top:40px; color:#1e40af;} "
                 + "h4{font-size:18px; font-weight:bold; margin-top:20px; border-left:5px solid #1e40af; padding-left:10px;} "
-                + "table{border-collapse:collapse; width:100%; margin:15px 0; background:#fff;} "
-                + "th{border:1px solid #333; background:#dbeafe; padding:10px; font-weight:bold; font-size:14px; text-align:center; vertical-align:middle;} "
-                + "td{border:1px solid #333; padding:8px; text-align:center; font-size:14px;} "
+                // 2026-08-30 table-layout:fixed —— 没有它, 声明的列宽只是"最小宽度",
+                //   内容撑不下时整张表会超出纸宽, 【最右边的列被裁到纸外】。
+                //   成绩单就栽在这: 8 列声明 610px, 加内边距和边框要 747px, 而 A4 去掉
+                //   页边距和 .page 的 50px padding 只剩 618px -> "备注"列(DNF 显示在那里)
+                //   整列不见了, 看上去就像"有 DNF 时表格不对"。
+                //   固定布局下列宽按比例缩放、内容折行, 保证一列都不会丢。
+                + "table{border-collapse:collapse; width:100%; table-layout:fixed; margin:15px 0; background:#fff;} "
+                + "th{border:1px solid #333; background:#dbeafe; padding:10px; font-weight:bold; font-size:14px; text-align:center; vertical-align:middle; word-wrap:break-word; overflow-wrap:break-word;} "
+                + "td{border:1px solid #333; padding:8px; text-align:center; font-size:14px; word-wrap:break-word; overflow-wrap:break-word;} "
                 + "tr:nth-child(even){background:#f0f7ff;} "
                 + ".signature-row{margin-top:60px; display:flex; justify-content:space-between; font-size:15px; font-weight:bold;} "
                 + ".cover{display:flex; flex-direction:column; justify-content:space-between; min-height:1100px; padding:80px 60px;} "
@@ -25406,7 +25438,11 @@ namespace SwimmingScoreboard
                 + ".kv{display:inline-block; min-width:130px; margin:2px 18px 2px 0;} "
                 + ".kv .k{color:#475569; font-weight:bold;} "
                 + ".kv .v{color:#0f172a;} "
-                + "@media print { .page-break{page-break-before:always;} body{-webkit-print-color-adjust:exact;} @page { margin: 1cm; } } ";
+                // 打印时把 .page 的 50px 内边距收掉大半, 并把表格字号/内边距调小:
+                // 列多的表(分段表 4 段就是 8 列)才有地方摊开, 不至于挤成一团。
+                + "@media print { .page-break{page-break-before:always;} body{-webkit-print-color-adjust:exact;} "
+                + "  @page { margin: 1cm; } .page{padding:16px 12px; min-height:0;} "
+                + "  th{padding:5px; font-size:12px;} td{padding:4px; font-size:12px;} } ";
         }
 
         private string DocHeader(string subtitle) {
