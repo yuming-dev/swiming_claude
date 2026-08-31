@@ -820,6 +820,17 @@ namespace SwimmingScoreboard.Db
         /// </summary>
         public int GenerateEventRankingIfComplete(string ageGroup, string gender, string eventName, string stage, string op)
         {
+            return GenerateEventRankingIfComplete(ageGroup, gender, eventName, stage, op, null);
+        }
+
+        /// <param name="confirm">
+        /// 2026-08-31 判定"全部组已确认"之后、真正写表【之前】问一句。返回 false 就不生成。
+        /// 生成组成绩是定稿动作(晋级依据/最终名次), 不该在操作员不知情的情况下发生 ——
+        /// 万一是误确认了最后一组, 定了稿再回头改就麻烦了。
+        /// 传 null = 不问(用于没有人在跟前的场合, 比如主服务器按计时端的指令生成)。
+        /// </param>
+        public int GenerateEventRankingIfComplete(string ageGroup, string gender, string eventName, string stage, string op, Func<bool> confirm)
+        {
             if (_local == null) return 0;
             try
             {
@@ -850,7 +861,15 @@ namespace SwimmingScoreboard.Db
                     }
                 } catch { }
 
-                // 全部确认了 —— 生成/刷新这个项目的组排名表
+                // 全部确认了。写表【之前】先问一句 —— 定稿动作不能悄悄发生。
+                if (confirm != null && !confirm())
+                {
+                    Log(string.Format("{0}{1} {2} {3}: 操作员取消, 本次不生成组成绩(下次确认成绩时会再问)",
+                        ageGroup, gender, eventName, stage));
+                    return 0;
+                }
+
+                // 生成/刷新这个项目的组排名表
                 var rows = _local.Db.Query(
                     "SELECT he.id, he.heat, he.lane, he.final_time, he.rank, he.status, " +
                     "       he.promotion_mark, he.record_note, en.bib_number AS bib, " +

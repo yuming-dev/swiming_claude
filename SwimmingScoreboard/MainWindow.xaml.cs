@@ -1540,6 +1540,19 @@ namespace SwimmingScoreboard
                         break;
                     // 2026-08-28 计时端确认成绩后回推本组 —— 让主服务器内存模型跟上,
                     //   否则赛程树的"已完赛"和项目成绩都看不到计时端跑出来的结果。
+                    // 2026-08-31 计时端操作员确认过"生成组成绩"了, 主服务器也生成自己那份。
+                    //   这边没人看着, 所以不弹窗(confirm 传 null) —— 该问的已经在计时端问过了。
+                    case "GENERATE_EVENT_RANKING":
+                        try {
+                            var gd2 = msg["data"] as JObject;
+                            if (gd2 != null)
+                                _meetDb.GenerateEventRankingIfComplete(
+                                    gd2["ageGroup"] != null ? gd2["ageGroup"].ToString() : "",
+                                    gd2["gender"] != null ? gd2["gender"].ToString() : "",
+                                    gd2["eventName"] != null ? gd2["eventName"].ToString() : "",
+                                    gd2["stage"] != null ? gd2["stage"].ToString() : "", "计时端");
+                        } catch (Exception ex) { AddLog("生成组成绩失败: " + ex.Message); }
+                        break;
                     case "HEAT_CONFIRMED_PUSH":
                         try { HandleHeatConfirmedPush(socket, msg); } catch (Exception ex) { AddLog("应用回推成绩失败: " + ex.Message); }
                         break;
@@ -8901,6 +8914,27 @@ namespace SwimmingScoreboard
         /// 计时端把【刚确认的这一组】的成绩行推给主服务器, 让主服务器的内存模型跟上。
         /// 成绩对象整体序列化再还原, 不做字段映射 —— 少一个字段就是一处对不上。
         /// </summary>
+        /// <summary>
+        /// 2026-08-31 操作员在计时端确认"生成组成绩"之后, 通知主服务器也生成它那份。
+        /// 不确认就不发 —— 两边要么都有、要么都没有, 不会一边定了稿另一边没有。
+        /// </summary>
+        private void PushGenerateEventRanking(string ag, string gd, string ev, string st) {
+            if (_editorSyncClient == null || !_editorSyncClient.IsConnected) {
+                AddLog("【注意】未连主服务器, 组成绩只生成在本机(连上后请重新确认一次本组成绩)");
+                return;
+            }
+            try {
+                var d = new JObject();
+                d["ageGroup"] = ag ?? ""; d["gender"] = gd ?? "";
+                d["eventName"] = ev ?? ""; d["stage"] = st ?? "";
+                var env = new JObject();
+                env["type"] = "GENERATE_EVENT_RANKING";
+                env["data"] = d;
+                _editorSyncClient.Send(env.ToString(Formatting.None));
+                AddLog("已通知主服务器生成组成绩: " + ag + gd + " " + ev + " " + st);
+            } catch (Exception ex) { AddLog("通知主服务器生成组成绩失败: " + ex.Message); }
+        }
+
         private void PushHeatConfirmedToServer() {
             var rows = new JArray();
             foreach (var sw in GetCurrentHeatSwimmers()) {
@@ -9189,9 +9223,9 @@ namespace SwimmingScoreboard
             //   这样主服务器上看到的名次 = 主服务器库里的名次, 不存在第二个真相。
             ApplyHeatFromDb(ag, gd, ev, st, ht);
 
-            // 2026-08-31 服务器这边也要判: 这个项目全部组确认了就生成组排名表(定稿)
-            try { _meetDb.GenerateEventRankingIfComplete(ag, gd, ev, st, "计时端"); }
-            catch (Exception ex) { AddLog("生成组排名表失败: " + ex.Message); }
+            // 2026-08-31 服务器【不在这里自动生成】组成绩。
+            //   生成是定稿动作, 要由操作员在计时端弹窗确认。确认之后计时端会发
+            //   GENERATE_EVENT_RANKING 过来, 那时才生成 —— 保证两边要么都有、要么都没有。
 
             // 回执: 计时端据此删掉待补传文件。没有回执它就一直留着, 下次连上再补 ——
             // 宁可重复补传(幂等、安全), 也不能悄悄丢一组成绩。
@@ -22199,8 +22233,22 @@ namespace SwimmingScoreboard
 
             // 2026-08-31 如果这个项目【所有组都确认了】, 生成组排名表(定稿)。
             //   判定用"是不是全部确认", 不是"组次号最大" —— 中间可能有取消的组。
-            try { _meetDb.GenerateEventRankingIfComplete(_currentAgeGroup, _currentGender,
-                      _currentEvent, _currentStage, Environment.MachineName); }
+            //   生成前必须弹窗确认: 这是定稿动作(晋级依据/最终名次), 万一最后一组是
+            //   误确认的, 定了稿再回头改就麻烦了。
+            try {
+                string _ag = _currentAgeGroup, _gd = _currentGender, _ev = _currentEvent, _st = _currentStage;
+                int made = _meetDb.GenerateEventRankingIfComplete(_ag, _gd, _ev, _st,
+                    Environment.MachineName,
+                    delegate() {
+                        return MessageBox.Show(
+                            string.Format("【{0}{1} {2} {3}】全部组已经比完。\n\n将生成组成绩（本项目所有组的总排名）。\n"
+                                + "它是晋级的依据；直接决赛的项目，它就是最终名次。\n\n确定生成吗？",
+                                _ag, _gd, _ev, _st),
+                            "生成组成绩", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes;
+                    });
+                // 操作员确认生成了, 才让主服务器也生成它那份 —— 两边保持一致
+                if (made > 0 && IsRemoteTimingControlMode) PushGenerateEventRanking(_ag, _gd, _ev, _st);
+            }
             catch (Exception ex) { AddLog("生成组排名表失败: " + ex.Message); }
         }
 
