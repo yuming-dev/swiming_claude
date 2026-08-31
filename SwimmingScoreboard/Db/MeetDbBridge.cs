@@ -891,6 +891,42 @@ namespace SwimmingScoreboard.Db
         }
 
         /// <summary>本机库里所有【已确认】的组, 按 组别/性别/项目/赛次/组次 列出来。</summary>
+        /// <summary>
+        /// 2026-08-31 一条轻查询列出【每组的变更指纹】(最后成绩时间 + 确认时间)。
+        ///
+        /// 用途: 调用方拿它跟上次记的比一比, 只有指纹变了的组才去读那一组 ——
+        /// 没变的一行都不读。全场没人改过时, 整个刷新就只有这一条查询。
+        ///
+        /// 不返回成绩本身, 只返回 key + 指纹, 所以结果集很小(一组一行)。
+        /// 这是"用哪部分读写哪部分": 不能因为要看一张榜就把全场成绩拖一遍 ——
+        /// 数据量一大就是占内存、拖慢、最后卡死。
+        /// </summary>
+        public List<string[]> ListHeatStamps()
+        {
+            var list = new List<string[]>();
+            if (_local == null) return list;
+            try
+            {
+                var t = _local.Db.Query(
+                    "SELECT e.age_group,e.gender,e.event_name,r.stage,he.heat, " +
+                    "       MAX(COALESCE(he.result_at,'')) AS r_at, " +
+                    "       MAX(COALESCE(h.confirmed_at,'')) AS c_at " +
+                    "FROM heat_entries he " +
+                    "JOIN rounds r ON r.id=he.round_id " +
+                    "JOIN entries en ON en.id=he.entry_id " +
+                    "JOIN events e ON e.id=en.event_id " +
+                    "LEFT JOIN heats h ON h.round_id=he.round_id AND h.heat=he.heat " +
+                    "WHERE he.final_time>0 " +
+                    "GROUP BY e.age_group,e.gender,e.event_name,r.stage,he.heat");
+                foreach (System.Data.DataRow row in t.Rows)
+                    list.Add(new string[] { SS(row["age_group"]), SS(row["gender"]), SS(row["event_name"]),
+                        SS(row["stage"]), Convert.ToInt32(row["heat"]).ToString(),
+                        SS(row["r_at"]) + "|" + SS(row["c_at"]) });
+            }
+            catch (Exception ex) { Log("列组次指纹失败: " + ex.Message); }
+            return list;
+        }
+
         public List<string[]> ListConfirmedHeats()
         {
             var list = new List<string[]>();

@@ -19853,7 +19853,7 @@ namespace SwimmingScoreboard
         }
 
         private void Promotion_Click(object sender, RoutedEventArgs e) {
-            RefreshAllFromDb();   // 2026-08-31 开报表前先从库刷新, 别的计算机写的成绩才看得到
+            RefreshChangedFromDb();   // 2026-08-31 开报表前先从库刷新, 别的计算机写的成绩才看得到
             var win = new PromotionQueryWindow(_swimmers, _events, _poolConfig, _schedule);
             win.Owner = this;
             win.ShowDialog();
@@ -19873,19 +19873,19 @@ namespace SwimmingScoreboard
             win.ShowDialog();
         }
         private void EventTop8_Click(object sender, RoutedEventArgs e) {
-            RefreshAllFromDb();   // 2026-08-31 开报表前先从库刷新, 别的计算机写的成绩才看得到
+            RefreshChangedFromDb();   // 2026-08-31 开报表前先从库刷新, 别的计算机写的成绩才看得到
             var win = new EventTop8Window(_swimmers, _ageGroups, _genders, _events);
             win.Owner = this;
             win.ShowDialog();
         }
         private void DepartmentBulletin_Click(object sender, RoutedEventArgs e) {
-            RefreshAllFromDb();   // 2026-08-31 开报表前先从库刷新, 别的计算机写的成绩才看得到
+            RefreshChangedFromDb();   // 2026-08-31 开报表前先从库刷新, 别的计算机写的成绩才看得到
             var win = new DepartmentBulletinWindow(_swimmers, _ageGroups, _scoringConfig, _units);
             win.Owner = this;
             win.ShowDialog();
         }
         private void IndividualRanking_Click(object sender, RoutedEventArgs e) {
-            RefreshAllFromDb();   // 2026-08-31 开报表前先从库刷新, 别的计算机写的成绩才看得到
+            RefreshChangedFromDb();   // 2026-08-31 开报表前先从库刷新, 别的计算机写的成绩才看得到
             var win = new IndividualRankingWindow(_swimmers, _ageGroups, _scoringConfig);
             win.Owner = this;
             win.ShowDialog();
@@ -22134,51 +22134,58 @@ namespace SwimmingScoreboard
         ///
         /// ageGroup 传空表示"全部": 那就把内存里这个项目涉及到的组别挨个刷。
         /// </summary>
+        // 2026-08-31 上次从库读到的各组"变更指纹"。只有指纹变了的组才重新读。
+        private readonly Dictionary<string, string> _dbHeatStamps =
+            new Dictionary<string, string>(StringComparer.Ordinal);
+
         /// <summary>
-        /// 2026-08-31 把【全场所有赛次】从竞赛库刷一遍, 在打开各种报表/榜单之前调。
+        /// 2026-08-31 【增量】从竞赛库刷新: 先用一条轻查询看哪些组变过, 只读变了的那几组。
         ///
-        /// 理由跟 RefreshStageFromDb 一样: 成绩可能是别的计算机写进库的, 本机内存
-        /// 不会自动知道。总排名、前八名、个人总分、代表队公报、成绩公报、晋级查询
-        /// 这些都是【跨项目汇总】, 一处旧数据就会让整张榜单不对, 所以整体刷。
+        /// 上一版是 RefreshAllFromDb —— 每次开报表把全场成绩整个读一遍。
+        /// 组数少时看不出来, 数据一大就是占内存、拖慢、还挤占别的程序 ——
+        /// 这就是这个项目吃过大亏的"整包读写"。改掉。
         ///
-        /// 开销: 按组逐组读库, 全场 90 多组是毫秒级(自检脚本实测), 只在开窗口时跑一次。
-        /// 失败不阻断: 记一条【注意】, 照样用内存里的开窗口。
+        /// 代价: 全场没人改过时, 只有一条 GROUP BY 查询, 一行成绩都不读。
+        /// 别的计算机改了哪几组, 就只读那几组。
         /// </summary>
-        internal void RefreshAllFromDb() {
+        internal void RefreshChangedFromDb() {
             try {
-                var done = new HashSet<string>();
-                int n = 0;
-                foreach (var s in _swimmers) {
-                    if (string.IsNullOrEmpty(s.EventName)) continue;
-                    foreach (var r in s.Results) {
-                        if (r == null || string.IsNullOrEmpty(r.Stage) || r.Heat <= 0) continue;
-                        string k = (s.AgeCategory ?? "") + "|" + (s.Gender ?? "") + "|" + s.EventName + "|" + r.Stage + "|" + r.Heat;
-                        if (!done.Add(k)) continue;
-                        ApplyHeatFromDb(s.AgeCategory ?? "", s.Gender ?? "", s.EventName, r.Stage, r.Heat);
-                        n++;
-                    }
+                var stamps = _meetDb.ListHeatStamps();
+                if (stamps == null || stamps.Count == 0) return;
+                int changed = 0;
+                foreach (var s in stamps) {
+                    int hno;
+                    if (!int.TryParse(s[4], out hno) || hno <= 0) continue;
+                    string key = s[0] + "|" + s[1] + "|" + s[2] + "|" + s[3] + "|" + hno;
+                    string old;
+                    if (_dbHeatStamps.TryGetValue(key, out old) && old == s[5]) continue;   // 没变, 不读
+                    ApplyHeatFromDb(s[0], s[1], s[2], s[3], hno);
+                    _dbHeatStamps[key] = s[5];
+                    changed++;
                 }
-                // 赛程树的"已完赛"读的是 _confirmedHeats(内存集合) —— 同样会落后于库。
-                // 库里 heats.confirmed_at 才是准的, 按它补齐。
-                // 只加不删: 库里没有、内存里有的先留着(可能是刚确认还没落库的那一组),
+                if (changed > 0)
+                    AddLog(string.Format("已从竞赛库增量刷新 {0} 组（共 {1} 组, 其余未变动未读取）",
+                        changed, stamps.Count));
+
+                // 赛程树的"已完赛"读 _confirmedHeats(内存集合), 同样会落后于库。
+                // 这一条也是轻查询(只返回 key, 不带成绩), 按库补齐。
+                // 【只加不删】: 库里没有、内存里有的先留着(可能是刚确认还没落库的那一组) ——
                 // 少标一个"已完赛"比多标一个危险。
                 try {
                     var confirmed = _meetDb.ListConfirmedHeats();
                     int add = 0;
                     foreach (var c in confirmed) {
-                        int hno; if (!int.TryParse(c[4], out hno) || hno <= 0) continue;
-                        string key = ConfirmedHeatKey(c[0], c[1], c[2], c[3], hno);
-                        if (_confirmedHeats.Add(key)) add++;
+                        int hno2;
+                        if (!int.TryParse(c[4], out hno2) || hno2 <= 0) continue;
+                        if (_confirmedHeats.Add(ConfirmedHeatKey(c[0], c[1], c[2], c[3], hno2))) add++;
                     }
                     if (add > 0) {
                         AddLog(string.Format("从竞赛库补齐已完赛标记: {0} 组（别的计算机确认的）", add));
                         try { BuildScheduleTree(); } catch { }
                     }
                 } catch (Exception ex) { AddLog("【注意】从库补已完赛标记失败: " + ex.Message); }
-
-                if (n > 0) AddLog(string.Format("已从竞赛库刷新全场成绩: {0} 组（以库为准）", n));
             } catch (Exception ex) {
-                AddLog("【注意】从库刷新全场失败, 用的是内存里的旧数据: " + ex.Message);
+                AddLog("【注意】增量刷新失败, 用的是内存里的数据: " + ex.Message);
             }
         }
 
@@ -25247,7 +25254,7 @@ namespace SwimmingScoreboard
 
         // 2026-06-02 按组别批量公布: 选项目+性别+赛次, 一键生成各组别成绩单
         private void BatchByAgeGroupPrint_Click(object sender, RoutedEventArgs e) {
-            RefreshAllFromDb();   // 2026-08-31 开报表前先从库刷新, 别的计算机写的成绩才看得到
+            RefreshChangedFromDb();   // 2026-08-31 开报表前先从库刷新, 别的计算机写的成绩才看得到
             var win = new BatchByAgeGroupPrintWindow(_swimmers, _schedule, _competitionName,
                 LocationBox.Text, RefereeBox.Text, _ageGroups);
             win.Owner = this;
