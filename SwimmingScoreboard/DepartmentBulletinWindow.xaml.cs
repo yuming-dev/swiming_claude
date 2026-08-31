@@ -90,12 +90,12 @@ namespace SwimmingScoreboard
             // 单位团体总分
             double teamTotal = 0;
             foreach (var sw in entries) {
-                if (sw.CurrentRank <= 0) continue;
+                if (sw.EventRankFor("决赛") <= 0) continue;
                 if (sw.Status == "DSQ" || sw.Status == "DNS" || sw.Status == "DNF") continue;
                 var r = sw.GetResultForStage("决赛");
                 if (r == null || r.FinalTime <= 0) continue;
                 bool isRelay = sw.EventName != null && sw.EventName.Contains("接力");
-                double pts = isRelay ? _scoringConfig.GetRelayPoint(sw.CurrentRank) : _scoringConfig.GetIndividualPoint(sw.CurrentRank);
+                double pts = isRelay ? _scoringConfig.GetRelayPoint(sw.EventRankFor("决赛")) : _scoringConfig.GetIndividualPoint(sw.EventRankFor("决赛"));
                 if (pts <= 0) continue;
                 double coeff = _scoringConfig.GetAgeCoefficient(sw.AgeCategory ?? "");
                 teamTotal += pts * coeff;
@@ -184,14 +184,14 @@ namespace SwimmingScoreboard
                     string status = sw.Status ?? "";
                     bool isRelay = sw.EventName != null && sw.EventName.Contains("接力");
                     double pts = 0;
-                    if (sw.CurrentRank > 0 && status != "DSQ" && status != "DNS" && status != "DNF" && r != null && r.FinalTime > 0) {
-                        double basePts = isRelay ? _scoringConfig.GetRelayPoint(sw.CurrentRank) : _scoringConfig.GetIndividualPoint(sw.CurrentRank);
+                    if (sw.EventRankFor("决赛") > 0 && status != "DSQ" && status != "DNS" && status != "DNF" && r != null && r.FinalTime > 0) {
+                        double basePts = isRelay ? _scoringConfig.GetRelayPoint(sw.EventRankFor("决赛")) : _scoringConfig.GetIndividualPoint(sw.EventRankFor("决赛"));
                         pts = basePts * _scoringConfig.GetAgeCoefficient(sw.AgeCategory ?? "");
                         personalTotal += pts;
                     }
                     items.Add(new AthleteResultItem {
                         EventName = sw.EventName ?? "", IsRelay = isRelay,
-                        Rank = sw.CurrentRank, Time = timeStr, Status = status, Points = pts
+                        Rank = sw.EventRankFor("决赛"), Time = timeStr, Status = status, Points = pts
                     });
                 }
                 if (scoredOnly && personalTotal <= 0) continue;

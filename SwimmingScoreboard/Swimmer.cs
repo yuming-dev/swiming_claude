@@ -627,6 +627,21 @@ namespace SwimmingScoreboard
         // 2026-08-24 原来只按赛次找第一条 —— 同一赛次若有多条成绩(并组/取消组后重排、
         //   重赛)就会取到已经作废的那条。全仓库有 28 处调用它, 在这里一次修好。
         //   规则: 以"当前分组说他在第几组"为准; 找不到再退回旧行为兼容老档案。
+        /// <summary>
+        /// 2026-08-30 【项目内】跨组名次 —— 取分、奖牌、前八名、总排名一律用这个。
+        ///
+        /// 优先 EventRank: 确认成绩时从竞赛库回读来的, 库里怎么算这里就是多少。
+        /// 退回组内名次只是为了让【还没回读过的老档案】也能出东西 —— 但要知道:
+        /// 多组的项目里组内名次会偏高(每组都有个第1), 所以回读那条路必须保证通。
+        /// </summary>
+        public int EventRankFor(string stage) {
+            var r = _results.FirstOrDefault(x => x.Stage == stage && x.EventRank > 0);
+            if (r != null) return r.EventRank;
+            var r2 = GetResultForStage(stage);
+            if (r2 != null && r2.Rank > 0) return r2.Rank;
+            return CurrentRank;
+        }
+
         public LaneResult GetResultForStage(string stage) {
             var a = GetAssignmentForStage(stage);
             if (a != null && a.Heat > 0) {

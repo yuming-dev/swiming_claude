@@ -20073,12 +20073,20 @@ namespace SwimmingScoreboard
         /// 保证老档案照样能算, 但那种情况下多组项目会偏高, 所以回读那条路要保证通。
         /// </summary>
         private static int ScoringRankOf(Swimmer sw) {
-            if (sw == null) return 0;
-            var r = sw.Results.FirstOrDefault(x => x.Stage == "决赛" && x.EventRank > 0);
-            if (r != null) return r.EventRank;
-            var r2 = sw.Results.FirstOrDefault(x => x.Stage == "决赛" && x.Rank > 0);
-            if (r2 != null) return r2.Rank;
-            return sw.CurrentRank;
+            return sw == null ? 0 : sw.EventRankFor(ScoringStageOf(sw));
+        }
+
+        /// <summary>
+        /// 取分看哪个赛次。原来写死 "决赛" —— 一旦赛程里用的是"计时决赛"之类的名字,
+        /// 整场比赛一分都算不上, 而且不报错。改成: 有决赛用决赛, 没有就用这个人最后
+        /// 实际比的那个赛次。
+        /// </summary>
+        private static string ScoringStageOf(Swimmer sw) {
+            if (sw == null) return "决赛";
+            if (sw.Results.Any(x => x.Stage == "决赛")) return "决赛";
+            var last = sw.Results.LastOrDefault(x => !string.IsNullOrEmpty(x.Stage) && x.Stage.Contains("决赛"));
+            if (last != null) return last.Stage;
+            return sw.CurrentStage ?? "决赛";
         }
 
         private void CalculateTeamScores() {
@@ -20091,7 +20099,11 @@ namespace SwimmingScoreboard
             //   金牌和分数都会多算。项目名次由竞赛库在确认成绩时算好并入库,
             //   这里只读不算(ScoringRankOf)。
             var finalSwimmers = _swimmers.Where(s => {
-                if (s.CurrentStage != "决赛") return false;
+                // 2026-08-30 原来卡死 CurrentStage=="决赛"。CurrentStage 是"这个人当前在哪一轮"
+                //   的计划字段, 不是"他比完了哪一轮" —— 用它当取分条件本来就不对。
+                //   改成: 他在取分赛次上有名次就算数。
+                string st = ScoringStageOf(s);
+                if (!s.Results.Any(x => x.Stage == st && x.FinalTime > 0)) return false;
                 int rk = ScoringRankOf(s);
                 return rk > 0 && rk <= cutoff;
             }).ToList();

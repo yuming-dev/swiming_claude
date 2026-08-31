@@ -1961,12 +1961,20 @@ function _hrLane(s) {
 function _hrRankOf(s) {
     return (_hrStatusOrder(s) === 5 && s && s.rank > 0) ? s.rank : 0;
 }
+// 2026-08-30 这段必须与 C# 的 ResultOrdering.OrderForHeat 保持一致。
+//   C# 那边补了一档: 【有成绩但还没算出名次】的人要排在 TRI/DSQ/DNF/DNS 之前
+//   (原来"正常"档排最后, 这种人会被排到弃权的人后面)。这里同步。
+//   两边口径一旦不一样, 就会出现"大屏上的顺序和成绩单上的不一样"。
 function _hrCompare(a, b) {
     var ra = _hrRankOf(a), rb = _hrRankOf(b);
     if (ra > 0 && rb > 0) return (ra - rb) || (_hrLane(a) - _hrLane(b));
     if (ra > 0) return -1;
     if (rb > 0) return 1;
     var oa = _hrStatusOrder(a), ob = _hrStatusOrder(b);
+    // 有成绩的正常人提到最前(与 C# OrderForHeat 第二档一致)
+    var _t0a = _rtParse(a && a.finalTime), _t0b = _rtParse(b && b.finalTime);
+    if (oa === 5 && _t0a != null && _t0a > 0) oa = 0;
+    if (ob === 5 && _t0b != null && _t0b > 0) ob = 0;
     if (oa !== ob) return oa - ob;
     // 同类内: 有成绩的按成绩快慢 (TRI 多人时), 无成绩的按道次
     var ta = _rtParse(a && a.finalTime), tb = _rtParse(b && b.finalTime);

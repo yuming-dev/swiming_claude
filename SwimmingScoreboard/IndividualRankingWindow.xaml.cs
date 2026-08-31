@@ -57,16 +57,18 @@ namespace SwimmingScoreboard
                     var result = sw.GetResultForStage("决赛");
                     if (result == null || result.FinalTime <= 0) continue;
                     if (sw.Status == "DSQ" || sw.Status == "DNS" || sw.Status == "DNF") continue;
-                    if (sw.CurrentRank <= 0) continue;
+                    // 2026-08-30 取分用【项目内】名次(见 Swimmer.EventRankFor), 不是组内名次
+                    int evRank = sw.EventRankFor("决赛");
+                    if (evRank <= 0) continue;
                     bool isRelay = sw.EventName != null && sw.EventName.Contains("接力");
-                    double pts = isRelay ? _scoringConfig.GetRelayPoint(sw.CurrentRank) : _scoringConfig.GetIndividualPoint(sw.CurrentRank);
+                    double pts = isRelay ? _scoringConfig.GetRelayPoint(evRank) : _scoringConfig.GetIndividualPoint(evRank);
                     if (pts <= 0) continue;
                     double coeff = _scoringConfig.GetAgeCoefficient(sw.AgeCategory ?? "");
                     double scored = pts * coeff;
                     total += scored;
                     if (isRelay) relay++;
                     else indi++;
-                    details.Add(string.Format("{0}({2}):{1}名/{3}分", sw.EventName, sw.CurrentRank, isRelay ? "接力" : "个人", scored.ToString("0.##")));
+                    details.Add(string.Format("{0}({2}):{1}名/{3}分", sw.EventName, evRank, isRelay ? "接力" : "个人", scored.ToString("0.##")));
                 }
                 if (total <= 0) continue;
                 rows.Add(new IndividualRankRow {

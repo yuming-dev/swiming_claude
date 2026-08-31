@@ -54,14 +54,16 @@ namespace SwimmingScoreboard
                             .Where(s => s.EventName == ev && s.Gender == gender &&
                                         (string.IsNullOrEmpty(ag) || s.AgeCategory == ag) &&
                                         (s.Notes == null || !s.Notes.StartsWith("接力队员")) &&
-                                        s.CurrentRank > 0 && s.CurrentRank <= 8 &&
+                                        s.EventRankFor("决赛") > 0 && s.EventRankFor("决赛") <= 8 &&
                                         s.Status != "DSQ" && s.Status != "DNS" && s.Status != "DNF")
-                            .OrderBy(s => s.CurrentRank).ToList();
+                            // 2026-08-30 用【项目内】名次。原来用 CurrentRank(组内名次) ——
+                            //   多组的项目每组都有个"第1", 前八名会选出好几个第一名。
+                            .OrderBy(s => s.EventRankFor("决赛")).ToList();
                         if (top8.Count == 0) continue;
 
                         var row = new EventTop8Row { AgeGroup = ag, Gender = gender, EventName = ev };
                         for (int r = 1; r <= 8; r++) {
-                            var entries = top8.Where(s => s.CurrentRank == r).ToList();
+                            var entries = top8.Where(s => s.EventRankFor("决赛") == r).ToList();
                             if (entries.Count == 0) continue;
                             var text = string.Join(" / ", entries.Select(s => FormatEntry(s, display)).ToArray());
                             switch (r) {

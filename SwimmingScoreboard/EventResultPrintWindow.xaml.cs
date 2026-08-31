@@ -373,9 +373,22 @@ namespace SwimmingScoreboard
             }
 
             _currentResults = new List<object>();
-            var rankMap = new Dictionary<string, int> { {"男", 1}, {"女", 1}, {"_all", 1} };
-            foreach (var item in displayData)
+            // 2026-08-30 原来名次是一个自增计数器 —— 那是【行号】不是名次:
+            //   成绩相同的两个人会被印成 1 和 2, 而不是并列第 1。
+            //   现在用全场统一的并列算法(ResultOrdering.ComputeRanks), 与库里、
+            //   与成绩单、与大屏同一口径。displayData 已按成绩排好序。
+            var rankArr = new int[displayData.Count];
+            foreach (var grp in Enumerable.Range(0, displayData.Count)
+                                          .Where(i => !displayData[i].IsDQ)
+                                          .GroupBy(i => isMixed ? displayData[i].Gender : "_all"))
             {
+                var idxs = grp.ToList();
+                var rks = ResultOrdering.ComputeRanks(idxs, i => displayData[i].RawFinalTime);
+                for (int k = 0; k < idxs.Count; k++) rankArr[idxs[k]] = rks[k];
+            }
+            for (int di = 0; di < displayData.Count; di++)
+            {
+                var item = displayData[di];
                 string rkKey = isMixed ? item.Gender : "_all";
                 double leaderTime; leaderMap.TryGetValue(rkKey, out leaderTime);
                 string diffText = "";
@@ -393,7 +406,7 @@ namespace SwimmingScoreboard
                 } else {
                     remarkHtml = "";
                 }
-                int curRank = rankMap[rkKey];
+                int curRank = rankArr[di];
                 _currentResults.Add(new
                 {
                     Rank = item.IsDQ ? "-" : curRank.ToString(),
@@ -409,7 +422,6 @@ namespace SwimmingScoreboard
                     Remark = remarkPlain,
                     RemarkHtml = remarkHtml
                 });
-                if (!item.IsDQ) rankMap[rkKey] = curRank + 1;
             }
 
             PreviewGrid.ItemsSource = _currentResults;
