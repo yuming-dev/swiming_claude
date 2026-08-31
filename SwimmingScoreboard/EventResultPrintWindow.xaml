@@ -50,6 +50,9 @@
                   IsReadOnly="True" AlternatingRowBackground="#F8FAFC" Margin="0,0,0,8">
             <DataGrid.Columns>
                 <DataGridTextColumn Header="名次" Binding="{Binding Rank}" Width="50"/>
+                <!-- 2026-08-31 补组别/组数(第几组/总组数): 一张项目成绩单跨多组时看不出行属于哪一组 -->
+                <DataGridTextColumn Header="组别" Binding="{Binding AgeGroup}" Width="70"/>
+                <DataGridTextColumn Header="组数" Binding="{Binding HeatText}" Width="60"/>
                 <DataGridTextColumn Header="道" Binding="{Binding Lane}" Width="40"/>
                 <DataGridTextColumn Header="号码" Binding="{Binding BibNumber}" Width="60"/>
                 <DataGridTemplateColumn Header="姓名" Width="220">

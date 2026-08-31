@@ -346,8 +346,15 @@ namespace SwimmingScoreboard
                     Country = s.Country ?? "",
                     Gender = s.Gender ?? "",   // 2026-06-04 男女并项: 排名/输出 用
                     FinalTime = isDQ ? "" : (r.FinalTime > 0 ? TimeFormatter.Format(r.FinalTime) : ""),
-                    ReactionTime = reactionPlain,        // DataGrid 预览用：空格分隔，TextWrapping=Wrap 自动换行
-                    ReactionTimeHtml = reactionHtml,     // 打印 HTML 用：<br> 强制每棒一行
+                    // 2026-08-31 判罚/弃权(DSQ/DNS/DNF)不显示反应时间。
+                    //   他没成绩、不排名, 却单单留一个反应时在那里, 表格上很怪, 也容易被
+                    //   误当成有效数据。跟"成绩留空"同一个道理。
+                    ReactionTime = isDQ ? "" : reactionPlain,        // DataGrid 预览用
+                    ReactionTimeHtml = isDQ ? "" : reactionHtml,     // 打印 HTML 用
+                    // 2026-08-31 表格补上组别和组次 —— 一张项目成绩单跨多个组时,
+                    //   原来看不出某一行是第几组的, 也看不出这个人属于哪个组别。
+                    AgeGroup = s.AgeCategory ?? "",
+                    HeatNo = r.Heat,
                     Remark = remark,
                     Qualified = qualified
                 };
@@ -377,6 +384,15 @@ namespace SwimmingScoreboard
             //   成绩相同的两个人会被印成 1 和 2, 而不是并列第 1。
             //   现在用全场统一的并列算法(ResultOrdering.ComputeRanks), 与库里、
             //   与成绩单、与大屏同一口径。displayData 已按成绩排好序。
+            // 2026-08-31 组数列显示 "第几组/总组数" —— 总组数按本次查询范围内出现过的
+            //   组次去重计数, 跟表格内容一致(不是赛程上的名义组数)。
+            int totalHeatsForView = 0;
+            try {
+                var hs = new HashSet<int>();
+                foreach (var x in displayData) if (x.HeatNo > 0) hs.Add(x.HeatNo);
+                totalHeatsForView = hs.Count;
+            } catch { }
+
             var rankArr = new int[displayData.Count];
             foreach (var grp in Enumerable.Range(0, displayData.Count)
                                           .Where(i => !displayData[i].IsDQ)
@@ -410,6 +426,10 @@ namespace SwimmingScoreboard
                 _currentResults.Add(new
                 {
                     Rank = item.IsDQ ? "-" : curRank.ToString(),
+                    item.AgeGroup,
+                    HeatText = item.HeatNo > 0
+                        ? (totalHeatsForView > 0 ? item.HeatNo + "/" + totalHeatsForView : item.HeatNo.ToString())
+                        : "",
                     item.Lane,
                     item.BibNumber,
                     item.Name,
@@ -529,7 +549,7 @@ namespace SwimmingScoreboard
                     string brd = (gKey == "男") ? "#2563eb" : "#ec4899";
                     sb.AppendFormat("<h4 style='background:{0};border-left:5px solid {1};padding:8px 12px;'>{2} 子</h4>", bg, brd, gKey);
                     sb.Append("<table><tr>");
-                    sb.AppendFormat("<th width='50' align='center'>名次</th><th width='40' align='center'>道</th><th width='60' align='center'>号码</th>");
+                    sb.AppendFormat("<th width='50' align='center'>名次</th><th width='60' align='center'>组别</th><th width='55' align='center'>组数</th><th width='40' align='center'>道</th><th width='60' align='center'>号码</th>");
                     sb.AppendFormat("<th width='100' align='center'>{0}</th><th width='100' align='center'>{1}</th>", epH1, epH2);
                     sb.AppendFormat("<th width='90' align='center'>最终成绩</th><th width='70' align='center'>成绩差</th><th width='{0}' align='center'>反应时间</th><th width='50' align='center'>备注</th>", reactionWidth);
                     sb.Append("</tr>");
@@ -537,7 +557,7 @@ namespace SwimmingScoreboard
                         string c1 = epRelay ? item.Country : item.Name;
                         string c2 = epRelay ? item.Name : item.Country;
                         sb.Append("<tr>");
-                        sb.AppendFormat("<td>{0}</td><td>{1}</td><td>{2}</td>", item.Rank, item.Lane, item.BibNumber);
+                        sb.AppendFormat("<td>{0}</td><td>{1}</td><td>{2}</td><td>{3}</td><td>{4}</td>", item.Rank, item.AgeGroup, item.HeatText, item.Lane, item.BibNumber);
                         sb.AppendFormat("<td><b>{0}</b></td><td>{1}</td>", c1, c2);
                         sb.AppendFormat("<td style='font-weight:bold; background:#eff6ff;'>{0}</td>", item.FinalTime);
                         sb.AppendFormat("<td>{0}</td>", item.Diff);
@@ -548,7 +568,7 @@ namespace SwimmingScoreboard
                 }
             } else {
                 sb.Append("<table><tr>");
-                sb.AppendFormat("<th width='50'>名次</th><th width='40'>道</th><th width='60'>号码</th>");
+                sb.AppendFormat("<th width='50'>名次</th><th width='60'>组别</th><th width='55'>组数</th><th width='40'>道</th><th width='60'>号码</th>");
                 sb.AppendFormat("<th width='100'>{0}</th><th width='100'>{1}</th>", epH1, epH2);
                 sb.AppendFormat("<th width='90'>最终成绩</th><th width='70'>成绩差</th><th width='{0}'>反应时间</th><th width='50'>备注</th>", reactionWidth);
                 sb.Append("</tr>");
@@ -557,7 +577,7 @@ namespace SwimmingScoreboard
                     string c1 = epRelay ? item.Country : item.Name;
                     string c2 = epRelay ? item.Name : item.Country;
                     sb.Append("<tr>");
-                    sb.AppendFormat("<td>{0}</td><td>{1}</td><td>{2}</td>", item.Rank, item.Lane, item.BibNumber);
+                    sb.AppendFormat("<td>{0}</td><td>{1}</td><td>{2}</td><td>{3}</td><td>{4}</td>", item.Rank, item.AgeGroup, item.HeatText, item.Lane, item.BibNumber);
                     sb.AppendFormat("<td><b>{0}</b></td><td>{1}</td>", c1, c2);
                     sb.AppendFormat("<td style='font-weight:bold; background:#eff6ff;'>{0}</td>", item.FinalTime);
                     sb.AppendFormat("<td>{0}</td>", item.Diff);

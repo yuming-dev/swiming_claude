@@ -3,7 +3,7 @@
 $ErrorActionPreference = 'Continue'
 $d = $PSScriptRoot
 $fail = 0
-foreach ($t in @(@('竞赛库规则', 'DbSelfTest.ps1'), @('端到端(起进程+WebSocket+查库)', 'E2ETest.ps1'))) {
+foreach ($t in @(@('竞赛库规则', 'DbSelfTest.ps1'), @('端到端(起进程+WebSocket+查库)', 'E2ETest.ps1'), @('源码不变量', 'SourceRules.ps1'))) {
     Write-Host ""
     Write-Host ("═══ " + $t[0] + " ═══") -ForegroundColor Cyan
     & (Join-Path $d $t[1])

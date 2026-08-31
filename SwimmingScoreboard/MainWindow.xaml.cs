@@ -19663,7 +19663,8 @@ namespace SwimmingScoreboard
                         rtParts.Add(string.Format("第{0}棒:{1}", li + 1, (rt != 0 && !double.IsNaN(rt)) ? rt.ToString("F2") : "—"));
                     }
                     reactionStr = string.Join("  ", rtParts.ToArray());
-                } else if (r != null && r.StartingBlockTime != 0) {
+                } else if (r != null && r.StartingBlockTime != 0 && !isDQ) {
+                    // 2026-08-31 判罚/弃权不显示反应时间(与成绩单、项目成绩同口径)
                     reactionStr = r.StartingBlockTime.ToString("F2");
                 }
                 return new {
@@ -19776,6 +19777,8 @@ namespace SwimmingScoreboard
                 }
                 return string.Join(" ", parts.ToArray());
             }
+            // 2026-08-31 判罚/弃权不显示反应时间(与成绩单、项目成绩同口径)
+            if (r.Status == "DSQ" || r.Status == "DQ" || r.Status == "DNF" || r.Status == "DNS") return "";
             return r.StartingBlockTime != 0 ? r.StartingBlockTime.ToString("F2") : "";
         }
 
@@ -26558,7 +26561,9 @@ namespace SwimmingScoreboard
                         parts.Add(string.Format("第{0}棒:{1}", li + 1, (rt != 0 && !double.IsNaN(rt)) ? rt.ToString("F2") : "—"));
                     }
                     reactionCell = string.Join("<br>", parts.ToArray());
-                } else if (r != null && r.StartingBlockTime != 0) {
+                } else if (r != null && r.StartingBlockTime != 0 && string.IsNullOrEmpty(remark)) {
+                    // 2026-08-31 判罚/弃权(DSQ/DNS/DNF)不显示反应时间: 成绩都留空了,
+                    //   单留一个反应时在那儿, 容易被当成有效数据。
                     reactionCell = r.StartingBlockTime.ToString("F2");
                 }
                 // 2026-06-02 去掉"号码"列 (sw.BibNumber 不再输出)
@@ -26905,7 +26910,8 @@ namespace SwimmingScoreboard
                                     rtParts.Add(string.Format("第{0}棒:{1}", li + 1, (rt != 0 && !double.IsNaN(rt)) ? rt.ToString("F2") : "—"));
                                 }
                                 reactionCell = string.Join("<br>", rtParts.ToArray());
-                            } else if (r != null && r.StartingBlockTime != 0) {
+                            } else if (r != null && r.StartingBlockTime != 0 && !dq) {
+                                // 2026-08-31 判罚/弃权不显示反应时间(同上)
                                 reactionCell = r.StartingBlockTime.ToString("F2");
                             }
                             sb.AppendFormat("<tr><td>{0}</td><td>{1}</td><td><b>{2}</b></td><td>{3}</td><td>{4}</td><td style='font-size:12px;'>{5}</td>",

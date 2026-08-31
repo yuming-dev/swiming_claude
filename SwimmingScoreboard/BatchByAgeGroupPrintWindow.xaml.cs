@@ -1,4 +1,4 @@
-// 2026-06-02 "按组别批量公布"窗口
+﻿// 2026-06-02 "按组别批量公布"窗口
 // 选 性别 / 项目 / 赛次 → 一键生成该项目下"全部组别"的成绩单 (1 份整合文档, 每组分页)
 // 底部 5 操作按钮 + 关闭 与 EventResultPrintWindow / DocumentPreviewWindow 完全一致
 using System;
@@ -288,7 +288,8 @@ namespace SwimmingScoreboard
                     reactionPlain = string.Join("  ", parts.ToArray());
                     reactionHtml = string.Join("<br>", parts.ToArray());
                 } else if (r != null && r.StartingBlockTime != 0) {
-                    reactionPlain = r.StartingBlockTime.ToString("F2");
+                    // 2026-08-31 判罚/弃权不显示反应时间(与项目成绩、本组成绩单同口径)
+                    if (!isDQ) reactionPlain = r.StartingBlockTime.ToString("F2");
                     reactionHtml = reactionPlain;
                 }
                 return new {
