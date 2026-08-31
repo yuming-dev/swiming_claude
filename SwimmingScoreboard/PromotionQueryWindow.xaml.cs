@@ -181,8 +181,13 @@ namespace SwimmingScoreboard
 
             var selected = all.Take(totalPromo).ToList();
             _promoted = selected.Select(x => x.Swimmer).ToList();
-            int rank = 1;
-            foreach (var sr in selected) displayData.Add(MakeRow(rank++, sr, "总排名"));
+            // 2026-08-30 原来是行号当名次: 成绩并列的两人会被排成 1 和 2, 而晋级
+            //   卡在名额线上时, 并列的人该不该进是要看名次的 —— 行号会把并列拆开,
+            //   多放一个、少放一个都可能。改用全场统一的并列算法。
+            //   (selected 已按成绩、成绩相同再按反应时间排好序)
+            var pqRanks = ResultOrdering.ComputeRanks(selected, x => x.Result.FinalTime);
+            for (int pi = 0; pi < selected.Count; pi++)
+                displayData.Add(MakeRow(pqRanks[pi], selected[pi], "总排名"));
 
             // 并列检查
             if (selected.Count == totalPromo && all.Count > totalPromo) {

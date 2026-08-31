@@ -299,15 +299,25 @@ namespace SwimmingScoreboard
             }).OrderBy(x => x.SortTime).ToList();
 
             var rows = new List<RowVm>();
-            int rank = 1;
-            foreach (var x in raw) {
+            // 2026-08-30 原来 rank 是个自增计数器 —— 那是【行号】不是名次:
+            //   成绩相同的两个人会被印成 1 和 2, 而不是并列第 1。
+            //   改用全场统一的 ResultOrdering.ComputeRanks, 与竞赛库、成绩单、
+            //   项目成绩、大屏同一口径。raw 已按成绩排好序。
+            var bgRanks = new int[raw.Count];
+            {
+                var idxs = Enumerable.Range(0, raw.Count).Where(i => !raw[i].IsDQ).ToList();
+                var rks = ResultOrdering.ComputeRanks(idxs, i => raw[i].SortTime);
+                for (int k = 0; k < idxs.Count; k++) bgRanks[idxs[k]] = rks[k];
+            }
+            for (int bi = 0; bi < raw.Count; bi++) {
+                var x = raw[bi];
                 int lane = x.R != null ? x.R.Lane : x.Sw.Lane;
                 string remarkPlain = x.Remark;
                 string remarkHtml;
                 if (!string.IsNullOrEmpty(x.Remark)) remarkHtml = "<span style='color:#dc2626;'>" + x.Remark + "</span>";
                 else remarkHtml = "";
                 rows.Add(new RowVm {
-                    Rank = x.IsDQ ? "-" : rank.ToString(),
+                    Rank = x.IsDQ ? "-" : bgRanks[bi].ToString(),
                     Lane = lane,
                     BibNumber = x.Sw.BibNumber ?? "",
                     Name = x.DisplayName,
@@ -320,7 +330,6 @@ namespace SwimmingScoreboard
                     IsDQ = x.IsDQ,
                     SortTime = x.SortTime
                 });
-                if (!x.IsDQ) rank++;
             }
             return rows;
         }
