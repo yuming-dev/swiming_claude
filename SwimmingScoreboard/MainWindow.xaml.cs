@@ -12839,6 +12839,9 @@ namespace SwimmingScoreboard
         // 2026-06-06 用户要求: 仅存盘, 不再切大屏 (原 BroadcastDisplayMode("SHOW_EVENT_RANKING") 已删).
         //   要大屏切总排名 → race_control.html "总排名" 按钮 / 比赛控制界面 ShowEventRanking_Click 单独触发.
         private void PublishEventRanking_Click(object sender, RoutedEventArgs e) {
+            // 2026-08-31 公布总排名到大屏前先从库【增量】刷新 —— 别的计算机写的成绩才看得到。
+            //   开销是一条轻查询; 没变动就一行成绩都不读。
+            try { RefreshChangedFromDb(); } catch { }
             if (string.IsNullOrEmpty(_currentEvent) || string.IsNullOrEmpty(_currentStage)) {
                 MessageBox.Show("请先在赛程树选定项目", "操作提示", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
@@ -19557,6 +19560,9 @@ namespace SwimmingScoreboard
         }
 
         private void RefreshResultGrid() {
+            // 2026-08-31 成绩与排名列表前先从库【增量】刷新 —— 别的计算机写的成绩才看得到。
+            //   开销是一条轻查询; 没变动就一行成绩都不读。
+            try { RefreshChangedFromDb(); } catch { }
             if (ResultEventCombo == null || ResultStageCombo == null || ResultGenderCombo == null || ResultGrid == null) return;
             string ageFilter = ResultAgeGroupCombo != null && ResultAgeGroupCombo.SelectedItem != null ? ResultAgeGroupCombo.SelectedItem.ToString() : "全部";
             string gender = ResultGenderCombo.SelectedItem != null ? ((ComboBoxItem)ResultGenderCombo.SelectedItem).Content.ToString() : "男";
@@ -19710,6 +19716,9 @@ namespace SwimmingScoreboard
         }
 
         private void PublishResult_Click(object sender, RoutedEventArgs e) {
+            // 2026-08-31 公布成绩到大屏前先从库【增量】刷新 —— 别的计算机写的成绩才看得到。
+            //   开销是一条轻查询; 没变动就一行成绩都不读。
+            try { RefreshChangedFromDb(); } catch { }
             // 弹出窗口选择已完赛项目的组成绩发布到大屏
             var dlg = new Window {
                 Title = "成绩发布到大屏", Width = 500, Height = 420,
@@ -20270,6 +20279,9 @@ namespace SwimmingScoreboard
         //   与颁奖弹窗 ShowAwards_Click 完全对称, 复用 GetFullyConfirmedFinalEvents / GetEventRankingForStage.
         //   取消则不动作.
         private void ShowEventRanking_Click(object sender, RoutedEventArgs e) {
+            // 2026-08-31 显示总排名前先从库【增量】刷新 —— 别的计算机写的成绩才看得到。
+            //   开销是一条轻查询; 没变动就一行成绩都不读。
+            try { RefreshChangedFromDb(); } catch { }
             var candidates = GetFullyConfirmedFinalEvents();
             if (candidates.Count == 0) {
                 MessageBox.Show("尚无已完赛的决赛项目 (需要该项目所有组都已'确认本组成绩').", "总排名", MessageBoxButton.OK, MessageBoxImage.Information);
@@ -25233,6 +25245,9 @@ namespace SwimmingScoreboard
         // - 当前组成绩已确认 → 直接打印当前组成绩单
         // - 仍在比赛 / 未确认 → 弹窗提示"正在比赛中，不能打印，请稍后"
         private void PrintCurrentHeatResult_Click(object sender, RoutedEventArgs e) {
+            // 2026-08-31 打印本组成绩单前先从库【增量】刷新 —— 别的计算机写的成绩才看得到。
+            //   开销是一条轻查询; 没变动就一行成绩都不读。
+            try { RefreshChangedFromDb(); } catch { }
             // 当前组是否已确认：以 _resultConfirmed（本次刚确认）或 _confirmedHeats（历史已确认）为准
             bool confirmed = _resultConfirmed
                 || _confirmedHeats.Contains(ConfirmedHeatKey(_currentAgeGroup, _currentGender, _currentEvent, _currentStage, _currentHeat));

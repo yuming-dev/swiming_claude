@@ -25,6 +25,35 @@ namespace SwimmingScoreboard.Db
         private SQLiteConnection _cn;
         private readonly object _gate = new object();
 
+        // ── 2026-08-31 写入优先, 查询排队 ─────────────────────────────
+        //   比赛过程中【写入不能等】: 每一次触板都要立刻落库。而报表/刷新那类查询
+        //   可以慢一点。原来两者平等抢 _gate, 一个大查询正在跑, 触板写入就得干等。
+        //
+        //   现在:
+        //     写入  —— 先把"有写要来了"这个计数加上, 再去抢锁; 不排队, 谁先到谁进。
+        //     查询  —— ① 先在 _readOrder 上排队(先到先服务, 不会插队/饿死);
+        //               ② 进去之后, 只要还有写在排队就让路, 等写完再拿库。
+        //   效果: 写入永远不会被查询挡住; 查询之间按到达顺序来。
+        private int _pendingWrites;                       // 有多少个写在等/在跑
+        private readonly object _readOrder = new object(); // 查询之间的排队闸
+
+        // 本线程是不是正在写。写的过程里如果又发查询, 那个"有写在跑"其实是它自己 —— 不能空等自己。
+        [ThreadStatic] private static int _writeDepth;
+
+        private void EnterWrite() { _writeDepth++; System.Threading.Interlocked.Increment(ref _pendingWrites); }
+        private void LeaveWrite() { System.Threading.Interlocked.Decrement(ref _pendingWrites); _writeDepth--; }
+
+        /// <summary>查询前调: 先排队, 再给写入让路。</summary>
+        private void WaitForWriters() {
+            if (_writeDepth > 0) return;   // 自己就是写, 别等自己
+            // 让路上限 2 秒 —— 万一某个写卡住, 查询也不能永远不返回
+            var t0 = DateTime.Now;
+            while (System.Threading.Volatile.Read(ref _pendingWrites) > 0
+                   && (DateTime.Now - t0).TotalMilliseconds < 2000) {
+                System.Threading.Thread.Sleep(1);
+            }
+        }
+
         public string FilePath { get { return _path; } }
 
         public MeetDb(string path) : this(path, MeetSchema.Sql) { }
@@ -82,7 +111,15 @@ namespace SwimmingScoreboard.Db
             return cmd;
         }
 
+        // 2026-08-31 写入优先: 进来先登记"有写在跑", 查询看到就让路
         public int ExecuteNonQuery(string sql, params object[] ps)
+        {
+            EnterWrite();
+            try { return ExecuteNonQueryCore(sql, ps); }
+            finally { LeaveWrite(); }
+        }
+
+        private int ExecuteNonQueryCore(string sql, params object[] ps)
         {
             lock (_gate)
             {
@@ -113,29 +150,45 @@ namespace SwimmingScoreboard.Db
 
         public object ExecuteScalar(string sql, params object[] ps)
         {
-            lock (_gate)
+            lock (_readOrder)          // 查询排队: 先到先服务
             {
-                using (var cmd = Cmd(sql, null, ps)) return cmd.ExecuteScalar();
+                WaitForWriters();      // 写入优先: 有写在等就让路
+                lock (_gate)
+                {
+                    using (var cmd = Cmd(sql, null, ps)) return cmd.ExecuteScalar();
+                }
             }
         }
 
         // 只读查询：把结果读成 DataTable 再返回，连接不外泄，调用方也不用管释放
         public DataTable Query(string sql, params object[] ps)
         {
-            lock (_gate)
+            lock (_readOrder)          // 查询排队: 先到先服务, 不插队也不饿死
             {
-                using (var cmd = Cmd(sql, null, ps))
-                using (var rd = cmd.ExecuteReader())
+                WaitForWriters();      // 写入优先: 有写在等就让路(报表可以慢, 触板不能等)
+                lock (_gate)
                 {
-                    var t = new DataTable();
-                    t.Load(rd);
-                    return t;
+                    using (var cmd = Cmd(sql, null, ps))
+                    using (var rd = cmd.ExecuteReader())
+                    {
+                        var t = new DataTable();
+                        t.Load(rd);
+                        return t;
+                    }
                 }
             }
         }
 
         // 一批语句放进同一个事务。用于"导入""并组"这种要么全成要么全不动的操作。
+        // 2026-08-31 写入优先(同 ExecuteNonQuery)
         public void InTransaction(Action<Func<string, object[], int>> body)
+        {
+            EnterWrite();
+            try { InTransactionCore(body); }
+            finally { LeaveWrite(); }
+        }
+
+        private void InTransactionCore(Action<Func<string, object[], int>> body)
         {
             lock (_gate)
             {
