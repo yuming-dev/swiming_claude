@@ -14390,6 +14390,7 @@ namespace SwimmingScoreboard
                 Broadcast();
                 SendTimingSettingsToHardware();   // 同步时间参数到硬件计时器
                 PushSettingsToServer();           // 2026-08-31 让主服务器也应用
+                WriteConfigToDbNow();             // 2026-08-31 参数设置按确认 = 立即入库(成绩才等确认本组成绩)
                 AddLog(string.Format("时间参数更新: 关闭{0}s 出发台{1}s 确认{2}s 抢跳{3}s 分段{4}s 盲代{5}s 反应窗{6}s 停留{7}s 翻屏{8}s",
                     _laneCloseSettings.LaneCloseTime, _laneCloseSettings.StartBlockCloseDelay,
                     _laneCloseSettings.ResultConfirmCloseDelay, _laneCloseSettings.FalseStartThreshold,
@@ -14576,6 +14577,7 @@ namespace SwimmingScoreboard
                     try { _timingBridge.SendPoolSingleOrDoubleTP(!newHasRight); } catch { }
                 }
                 PushSettingsToServer();           // 2026-08-31 让主服务器也应用, 不只是转发
+                WriteConfigToDbNow();             // 2026-08-31 参数设置按确认 = 立即入库(成绩才等确认本组成绩)
                 AddLog(string.Format("泳池/设备参数更新: 终点:{0} 反应时:{1} 道次:{2} 触板:{3} 边沿:{4} 盲代触板:{5} 硬件:{6} 手动TP代替真TP:{7}",
                     _laneCloseSettings.FinishPosition == "left" ? "左端" : "右端",
                     _laneCloseSettings.ReactionTimeEnabled ? "打开" : "关闭",
@@ -14701,6 +14703,7 @@ namespace SwimmingScoreboard
                     // 状态保留 → UI 显示黑色. 现在先重置 LaneDeviceState (上面 foreach), 再发 0x46 → 硬件清掉 Bad.
                     SendDeviceStatusesToHardware();    // 0x46 把"非 Broken/NotInstalled"状态推到硬件
                     PushSettingsToServer();            // 2026-08-31 让主服务器也应用, 不只是转发
+                    WriteConfigToDbNow();             // 2026-08-31 参数设置按确认 = 立即入库(成绩才等确认本组成绩)
                     AddLog(string.Format("盲表数量更新：左 {0}，右 {1}（已同步到三端与硬件, MB Broken/NotInstalled 已重置）", newLeft, newRight));
                 }
             }
@@ -21366,6 +21369,30 @@ namespace SwimmingScoreboard
         /// <summary>比赛进行中(就位/比赛中)不许碰主服务器的库。</summary>
         private bool InRaceNoDbWrite() {
             return _raceState == RaceState.Ready || _raceState == RaceState.Racing;
+        }
+
+        /// <summary>
+        /// 2026-08-31 参数设置窗口按【确认】时立即写库 —— 不受"比赛中不写库"的限制。
+        ///
+        /// 要分清两件事:
+        ///   成绩   —— 比赛过程中的触板/盲表/反应时只留在计时端和大屏,
+        ///             只有"确认本组成绩"那一下才一次性写库。
+        ///   参数   —— 操作员在参数设置窗口点了确认, 那就是一次明确的人工动作,
+        ///             必须马上生效并入库(否则别的机器和硬件用的还是旧参数)。
+        ///             它是零星操作, 不会像成绩那样每秒往库里灌。
+        /// </summary>
+        private void WriteConfigToDbNow() {
+            try {
+                string j1 = JsonConvert.SerializeObject(_laneCloseSettings, Formatting.Indented);
+                _meetDb.SaveConfig(CFG_TIMING, j1, Environment.MachineName);
+            } catch { }
+            try {
+                if (File.Exists(DeviceStatesPath))
+                    _meetDb.SaveConfig(CFG_DEVICE, File.ReadAllText(DeviceStatesPath, Encoding.UTF8),
+                                       Environment.MachineName);
+            } catch { }
+            _cfgDbPending = false;   // 刚全写过, 不欠了
+            AddLog("参数已写入竞赛库");
         }
 
         /// <summary>把比赛期间欠下的参数/设备状态一次性写进库。确认成绩后调。</summary>

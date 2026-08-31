@@ -46,7 +46,7 @@ for ($i=0; $i -lt $ls.Count; $i++) {
     if ($ls[$i] -notmatch '_meetDb\.SaveConfig') { continue }
     # 前 6 行里必须有 InRaceNoDbWrite 守卫, 或者本身就在 FlushConfigToDb(确认后补写)里
     $ctx = ($ls[[Math]::Max(0,$i-14)..$i] -join ' ')
-    if ($ctx -notmatch 'InRaceNoDbWrite|FlushConfigToDb|_cfgDbPending = false') { $un += ($i+1) }
+    if ($ctx -notmatch 'InRaceNoDbWrite|FlushConfigToDb|WriteConfigToDbNow|_cfgDbPending = false') { $un += ($i+1) }
 }
 Chk "SaveConfig 都带了""比赛中不写库""的守卫" ($un.Count -eq 0) ("未守卫的行: " + ($un -join ', '))
 # 比赛中的成绩写入必须走本机当前组库, 不能过网
