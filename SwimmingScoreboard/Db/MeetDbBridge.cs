@@ -751,6 +751,33 @@ namespace SwimmingScoreboard.Db
         private static string SS(object o) { return o == null || o == DBNull.Value ? "" : o.ToString(); }
 
         /// <summary>
+        /// 2026-08-30 用【当前】算法把全库的项目名次重算一遍。
+        ///
+        /// 为什么必须有: 名次只在确认成绩时算并入库, 所以库里存的是【当时那版算法】
+        /// 算出来的。并列的口径改过(原来按 1e-9 直接比 double, 现在按 1/100 秒取整,
+        /// 与裁判一致) —— 不重算, 老比赛的名次就一直是旧口径的, 而且不会有人发现。
+        /// 自动化测试实测: 重算前有并列被拆成不同名次, 重算后全部正确。
+        ///
+        /// 幂等: 重算只是按同样的成绩再排一次, 跑多少遍结果都一样。
+        /// 只在本机库上做; 远端模式下主服务器自己会做自己那份。
+        /// </summary>
+        public int RecomputeAllRanks(string op)
+        {
+            if (_local == null) return 0;
+            int n = 0;
+            try
+            {
+                foreach (var row in _local.GetSchedule())
+                {
+                    try { _local.RecomputeRanks(row.RoundId, row.EventId, op); n++; }
+                    catch { }
+                }
+            }
+            catch (Exception ex) { Log("重算名次失败(不影响比赛): " + ex.Message); }
+            return n;
+        }
+
+        /// <summary>
         /// 2026-08-30 确认成绩之后, 把这一组从竞赛库【读回来】。
         ///
         /// 这是"成绩确定后只调数据库、不再重算"的入口: 名次(组内/项目内)、成绩差、

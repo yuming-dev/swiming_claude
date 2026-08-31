@@ -22091,6 +22091,15 @@ namespace SwimmingScoreboard
             try {
                 if (!_meetDb.Open(_competitionName)) return;
                 if (!_meetDb.ImportPackage(package)) return;
+                // 2026-08-30 名次是"确认成绩时算一次"入库的, 所以库里存的是【当时那版
+                //   算法】的结果。并列口径后来改过(1e-9 -> 1/100 秒取整, 与裁判一致),
+                //   不重算的话老比赛的名次一直是旧口径, 谁也发现不了。
+                //   重算是幂等的(同样的成绩再排一次), 45 个赛次毫秒级。
+                try {
+                    int nrk = _meetDb.RecomputeAllRanks(Environment.MachineName);
+                    if (nrk > 0) AddLog(string.Format("竞赛库名次已按当前规则重算: {0} 个赛次", nrk));
+                } catch (Exception ex) { AddLog("重算名次失败(不影响比赛): " + ex.Message); }
+
                 var chk = _meetDb.SelfCheck(package);
                 AddLog(chk.ToString());
                 foreach (var d in chk.Diffs.Take(5)) AddLog("  差异: " + d);
