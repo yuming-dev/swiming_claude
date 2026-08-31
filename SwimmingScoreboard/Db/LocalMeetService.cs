@@ -536,19 +536,18 @@ namespace SwimmingScoreboard.Db
             {
                 var ordered = g.OrderBy(x => x.FinalTime).ToList();
                 double best = ordered[0].FinalTime;
-                // 起手不能用 NaN 当哨兵：Math.Abs(x - NaN) 还是 NaN，跟任何数比都是 false，
-                // 名次会一个都赋不上（这个坑踩过一次）
-                int rank = 0, seen = 0; double prev = 0; bool first = true;
-                foreach (var x in ordered)
+                // 2026-08-30 并列判定改用 ResultOrdering(全场唯一一份)。
+                //   原来这里是 Math.Abs(差) > 1e-9, 而内存那套是【按 1/100 秒取整】比 ——
+                //   两套规则会算出不同的并列结果, 同一组成绩在库里和在界面上名次不一样。
+                //   成绩本来就是 1/100 精度的, 该以裁判口径(取整后相等即并列)为准。
+                var hrRanks = ResultOrdering.ComputeRanks(ordered, x => x.FinalTime);
+                for (int i = 0; i < ordered.Count; i++)
                 {
-                    seen++;
-                    if (first || Math.Abs(x.FinalTime - prev) > 1e-9)
-                    { rank = seen; prev = x.FinalTime; first = false; }
-                    x.HeatRank = rank;
-                    x.Gap = Math.Round(x.FinalTime - best, 2);
+                    ordered[i].HeatRank = hrRanks[i];
+                    ordered[i].Gap = Math.Round(ordered[i].FinalTime - best, 2);
                 }
-                foreach (var x in ordered)
-                    x.IsTie = ordered.Count(y => Math.Abs(y.FinalTime - x.FinalTime) < 1e-9) > 1;
+                for (int i = 0; i < ordered.Count; i++)
+                    ordered[i].IsTie = hrRanks.Count(v => v == hrRanks[i]) > 1;
             }
         }
         private static bool IsNoTime(string status)
@@ -1063,14 +1062,13 @@ namespace SwimmingScoreboard.Db
                 foreach (var id in invalid)
                     run("UPDATE heat_entries SET rank=0,promotion_mark=NULL WHERE id=@p1", new object[] { id });
 
-                int rank = 0, seen = 0; double prev = 0; bool first = true;
-                foreach (var kv in valid)
+                // 2026-08-30 并列判定改用 ResultOrdering(全场唯一一份), 见上面同样的说明。
+                //   valid 已按成绩升序排好。
+                var evRanks = ResultOrdering.ComputeRanks(valid, kv => kv.Value);
+                for (int i = 0; i < valid.Count; i++)
                 {
-                    seen++;
-                    // 并列：成绩相同则名次相同，下一个跳号（打印时前面加 =）
-                    // 注意别拿 NaN 当哨兵，跟 NaN 比大小恒为 false，名次会全成 0
-                    if (first || Math.Abs(kv.Value - prev) > 1e-9)
-                    { rank = seen; prev = kv.Value; first = false; }
+                    var kv = valid[i];
+                    int rank = evRanks[i];
                     // 卡在晋级线上并列的一律给 Q —— 规则上要加赛决定，先都放进去，
                     // 少放一个人比多放一个人麻烦得多
                     string mark = null;
@@ -1188,10 +1186,14 @@ namespace SwimmingScoreboard.Db
                                            S(r,"stroke"), I(r,"relay_legs")))
             {
                 if (rec.TimeSeconds <= 0) continue;
-                if (ft < rec.TimeSeconds - 1e-9 || Math.Abs(ft - rec.TimeSeconds) < 1e-9)
+                // 2026-08-30 平纪录的判定必须跟"并列"同口径(1/100 秒取整后相等),
+                //   否则会出现: 成绩和纪录显示的都是 42.28, 却判成没平纪录。
+                //   原来这里用 1e-9 直接比 double, 跟名次那套规则对不上。
+                bool tieRec = ResultOrdering.IsTie(ft, rec.TimeSeconds);
+                if (tieRec || ft < rec.TimeSeconds)
                     res.Add(new RecordBreak {
                         Record = rec, NewTime = ft,
-                        IsTie = Math.Abs(ft - rec.TimeSeconds) < 1e-9,
+                        IsTie = tieRec,
                         NewHolder = S(r,"nm"), NewCountry = S(r,"un") });
             }
             return res;
