@@ -460,6 +460,8 @@ namespace SwimmingScoreboard
             if (!editorMode) ApplyTimingConnectionToUi();     // RTC 也要还原 UI
             if (!editorMode) TryAutoReconnectTiming();        // RTC 也要尝试自动连硬件
             UpdateConnectionStatus();
+            // 2026-08-31 大屏的数据来自服务器内存 —— 开个低频轮询, 第三台机器改了库也能跟上
+            if (!IsScheduleEditorMode) { try { StartDbPoll(); } catch { } }
             _initialized = true;
             RefreshBackupList();
             UpdateEditHeatCombo();
@@ -22160,6 +22162,45 @@ namespace SwimmingScoreboard
         /// 代价: 全场没人改过时, 只有一条 GROUP BY 查询, 一行成绩都不读。
         /// 别的计算机改了哪几组, 就只读那几组。
         /// </summary>
+        // ── 2026-08-31 大屏/网页的数据来自服务器内存, 而内存只在"本机确认"和
+        //   "收到回推"时才从库刷新。第三台机器直接改了库(赛后改成绩、另一台控制台
+        //   确认), 服务器不会知道, 大屏就一直是旧的。
+        //
+        //   这里用一个低频轮询补上: 每 10 秒跑一次【增量】刷新 —— 也就是一条
+        //   GROUP BY 轻查询; 没人改过就一行成绩都不读, 几乎零开销。
+        //   查询已经是"写入优先"的(见 MeetDb), 挡不住触板写入。
+        //
+        //   比赛进行中直接跳过: 那会儿正在写当前组, 没必要也不该去动内存。
+        //   只有真的读到变化才 Broadcast, 不会平白增加大屏推送。
+        private DispatcherTimer _dbPollTimer;
+
+        private void StartDbPoll() {
+            if (_dbPollTimer != null) return;
+            _dbPollTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(10) };
+            _dbPollTimer.Tick += DbPoll_Tick;
+            _dbPollTimer.Start();
+        }
+
+        private void DbPoll_Tick(object sender, EventArgs e) {
+            try {
+                // 比赛中不动: 正在写当前组, 而且计时端会主动回推
+                if (_raceState == RaceState.Racing || _raceState == RaceState.Ready) return;
+                int before = _dbHeatStamps.Count;
+                string beforeKey = _lastPollSignature;
+                RefreshChangedFromDb();
+                // 指纹集合有变化(新组或某组改过) 才推大屏, 免得平白刷屏
+                string nowKey = _dbHeatStamps.Count + ":" + _confirmedHeats.Count;
+                if (nowKey != beforeKey) {
+                    _lastPollSignature = nowKey;
+                    if (before > 0) {   // 开机第一次不算"变化", 别一启动就推
+                        try { Broadcast(); } catch { }
+                    }
+                }
+            } catch { }
+        }
+
+        private string _lastPollSignature = "";
+
         internal void RefreshChangedFromDb() {
             try {
                 var stamps = _meetDb.ListHeatStamps();
