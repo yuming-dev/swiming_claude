@@ -118,6 +118,40 @@ Chk "判定'全部组已确认'走 _meet(库的真身)" ($brg -match '_meet\.Get
     "GenerateEventRankingIfComplete 又只看 _local 了: 联机计时端上永远生成不了组排名表"
 
 Write-Host ""
+Write-Host "6. 判罚状态一律看【有效状态】(成绩行优先)"
+# ══════════════════════════════════════════════════════════════════════
+# 2026-09-01 计时端标 DNS 改两处: swimmer.Status 和 成绩行 res.Status。
+#   回推给主服务器的只有成绩行那一份 —— 主服务器上 sw.Status 是空的。
+#   于是所有"只看 sw.Status"的地方都把判罚的人当正常人:
+#   大屏照显成绩、还挂着 MR、成绩单上占着名次(用户实拍到过)。
+#   入口已经把两份对齐(HandleHeatConfirmedPush), 广播这一处也不许再只看 sw.Status。
+# ══════════════════════════════════════════════════════════════════════
+$bp = -1
+for ($i=0; $i -lt $mwLns.Count; $i++) { if ($mwLns[$i] -match 'private List<object> BuildSwimmerPayload') { $bp = $i; break } }
+if ($bp -lt 0) {
+    Chk "找得到 BuildSwimmerPayload" $false "方法没了?"
+} else {
+    $bpEnd = [Math]::Min($mwLns.Count-1, $bp+180)
+    $bpBody = ($mwLns[$bp..$bpEnd] -join "`n")
+    Chk "大屏 payload 的判罚判定走 GetEffectiveStatus" `
+        ($bpBody -notmatch 'sw\.Status == "DSQ"' -and $bpBody -match 'GetEffectiveStatus\(sw, result\)') `
+        "BuildSwimmerPayload 又只看 sw.Status 了: 回推进来的判罚在大屏上会当正常人显示"
+}
+# 回推入口必须把成绩行的判罚镜像到运动员对象
+$hp = -1
+for ($i=0; $i -lt $mwLns.Count; $i++) { if ($mwLns[$i] -match 'private void HandleHeatConfirmedPush') { $hp = $i; break } }
+$hpBody = if ($hp -ge 0) { ($mwLns[$hp..([Math]::Min($mwLns.Count-1,$hp+120))] -join "`n") } else { "" }
+Chk "回推入口把判罚镜像到 sw.Status" ($hpBody -match 'sw\.Status = pushedStatus') `
+    "HandleHeatConfirmedPush 不再镜像判罚: 主服务器上十几处看 sw.Status 的地方会把判罚当正常人"
+
+# 打印本组成绩: 判罚不许印出名次
+$hr = -1
+for ($i=0; $i -lt $mwLns.Count; $i++) { if ($mwLns[$i] -match 'private string BuildHeatResultsHtml') { $hr = $i; break } }
+$hrBody = if ($hr -ge 0) { ($mwLns[$hr..([Math]::Min($mwLns.Count-1,$hr+130))] -join "`n") } else { "" }
+Chk "打印本组成绩: 判罚的名次印 '-'" ($hrBody -match 'IsNullOrEmpty\(remark\) \? "-"') `
+    "rankCell 又会把判罚的人的名次印出来了"
+
+Write-Host ""
 Write-Host ("结果: " + $pass + " 过 / " + $fail + " failed")
 if ($fail -gt 0) { $msgs | ForEach-Object { Write-Host ("  "+$_) -ForegroundColor Red }; exit 1 }
 exit 0

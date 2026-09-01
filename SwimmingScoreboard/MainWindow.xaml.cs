@@ -3437,13 +3437,26 @@ namespace SwimmingScoreboard
                         blind1 = TimeFormatter.Format(sp.PushButton1Time), blind2 = TimeFormatter.Format(sp.PushButton2Time), blind3 = TimeFormatter.Format(sp.PushButton3Time),
                         manual = TimeFormatter.Format(sp.ManualTouchTime), source = sp.TimingSource
                     }).ToList<object>() : new List<object>(),
+                    // ══════════════════════════════════════════════════════
+                    // 2026-09-01 判罚状态改用【有效状态】(成绩行优先, 否则运动员)。
+                    //
+                    // 原来这三个字段都只看 sw.Status(运动员级)。而计时端回推过来的
+                    // 成绩里, 判罚是记在【成绩行】上的 —— HandleHeatConfirmedPush 只
+                    // sw.Results.Add(lr), 从不设 sw.Status。于是主服务器上:
+                    //   sw.Status = ""  =>  大屏照发 finalTime, status 空,
+                    //   备注栏没有 DNS 可显, 就退回去显 recordNote = MR。
+                    // 现场拍到的就是这个: 大屏"组成绩"里 DNF/DNS 的人有成绩、带着 MR。
+                    //
+                    // "成绩行优先"这条规矩 2026-08-19 已经在成绩与排名那边立过
+                    // (GetEffectiveStatus), 广播这一处当时漏了。
+                    // ══════════════════════════════════════════════════════
                     // 2026-06-04 TRI 正常显成绩 (finalTime), 但 rank=0 (= 不参与排名, 客户端按 0 渲染空白)
-                    finalTime = (sw.Status == "DSQ" || sw.Status == "DNS" || sw.Status == "DNF") ? "" : (result != null ? TimeFormatter.Format(result.FinalTime) : ""),
+                    finalTime = ResultOrdering.IsJudged(GetEffectiveStatus(sw, result)) ? "" : (result != null ? TimeFormatter.Format(result.FinalTime) : ""),
                     // 实时分段名次：有则用 liveRank，否则回退到 result.Rank; TRI 强制 0
-                    rank = (sw.Status == "DSQ" || sw.Status == "DNS" || sw.Status == "DNF" || sw.Status == "TRI") ? 0
+                    rank = (ResultOrdering.StatusOrder(GetEffectiveStatus(sw, result)) != 5) ? 0
                         : (liveRanksForBroadcast.ContainsKey(sw) ? liveRanksForBroadcast[sw]
                            : (result != null ? result.Rank : 0)),
-                    status = sw.Status ?? "",
+                    status = GetEffectiveStatus(sw, result),
                     timingSources = result != null ? new {
                         touchpad = TimeFormatter.Format(result.TouchpadTime),
                         blindWatch1 = TimeFormatter.Format(result.PushButton1Time),
@@ -3461,8 +3474,12 @@ namespace SwimmingScoreboard
                     } : (object)null,
                     isFalseStart = laneState != null && laneState.IsFalseStart,
                     isSuspectFalseStart = laneState != null && laneState.IsSuspectFalseStart,
-                    isNewRecord = result != null && !string.IsNullOrEmpty(result.RecordNote),
-                    recordNote = result != null ? (result.RecordNote ?? "") : "",
+                    // 2026-09-01 判罚/弃权的人不发纪录标识 —— 他成绩都不算数, 更不可能破纪录。
+                    //   现场拍到过: 大屏上 DNF 那一行成绩空着, 备注却是金色的 MR。
+                    isNewRecord = result != null && !string.IsNullOrEmpty(result.RecordNote)
+                                  && !ResultOrdering.IsJudged(GetEffectiveStatus(sw, result)),
+                    recordNote = (result != null && !ResultOrdering.IsJudged(GetEffectiveStatus(sw, result)))
+                                 ? (result.RecordNote ?? "") : "",
                     // 2026-06-18 同步 PC 端 UI 关键字段给 race_control.html (HTML 端可显示同款信息)
                     finishTpMbDispute = laneState != null && laneState.FinishTpMbDispute,
                     // 2026-06-20 NaN → "---" (接力第 1 棒 SB 未收到时窗口超时标 NaN)
@@ -9325,6 +9342,26 @@ namespace SwimmingScoreboard
                     //   取分读的是它。本机跑的组由 RankHeatGroup 顺手设上了, 而回推/文件
                     //   导入进来的成绩没人设 => 计时端跑出来的成绩【一分都不计】, 还不报错。
                     if (lr.Rank > 0) sw.CurrentRank = lr.Rank;
+                    // ══════════════════════════════════════════════════════
+                    // 2026-09-01 判罚状态也要【镜像到运动员对象】上。
+                    //
+                    // 计时端标 DNS 时改的是两处: swimmer.Status 和 成绩行 res.Status。
+                    // 回推过来的只有成绩行那一份 —— 这里原来只 Results.Add(lr), 从不设
+                    // sw.Status。而程序里有十几处是看 sw.Status 判"这人被判罚了没":
+                    // 大屏 payload、打印成绩、团体总分、破纪录复核…… 于是主服务器上
+                    // 判罚的人被当成正常人: 大屏照显成绩、还挂着 MR、成绩单上占着名次。
+                    //
+                    // 与其把那十几处一处一处改成"成绩行优先", 不如在【入口】就把两份
+                    // 对齐 —— 少一处漏改的机会。
+                    // 撤销判罚时推过来的是空状态, 这里也要跟着清掉, 否则撤了还留着。
+                    {
+                        string pushedStatus = lr.Status ?? "";
+                        string memStatus = sw.Status ?? "";
+                        if (pushedStatus.Length > 0
+                            || ResultOrdering.IsJudged(memStatus) || memStatus == "TRI")
+                            sw.Status = pushedStatus;
+                        if (ResultOrdering.IsJudged(pushedStatus)) sw.CurrentRank = 0;
+                    }
                     applied++;
                 }
             }
@@ -27149,7 +27186,14 @@ namespace SwimmingScoreboard
                 }
                 // 2026-06-02 去掉"号码"列 (sw.BibNumber 不再输出)
                 // 2026-06-04 TRI 名次列 留空 (与 spec '保持为空' 一致, 其它无名次仍用 '-' 占位)
-                string rankCell = isTri ? "" : (r != null && r.Rank > 0 ? r.Rank.ToString() : "-");
+                // 2026-09-01 判罚/弃权一律 "-", 不许印出名次。
+                //   原来只看 r.Rank>0 就印。而确认成绩后 ApplyHeatFromDb 会把 r.Rank 按库
+                //   重新灌一遍 —— 库里那一行当时还是"没判罚的正常人"(判罚没落当前组库),
+                //   于是内存里刚清成 0 的名次又被填回来, 打出来的成绩单上 DNS 的人占着名次。
+                //   现在库那边已经修好, 这里再加一道: 备注里有判罚, 名次就是 "-"。
+                string rankCell = isTri ? ""
+                    : (!string.IsNullOrEmpty(remark) ? "-"
+                       : (r != null && r.Rank > 0 ? r.Rank.ToString() : "-"));
                 sb.AppendFormat("<tr><td>{0}</td><td>{1}</td><td><b>{2}</b></td><td>{3}</td><td style='font-weight:bold; background:#eff6ff;'>{4}</td><td>{5}</td><td style='font-size:12px;'>{6}</td><td>{7}</td></tr>",
                     rankCell,
                     sw.Lane, RelayCol1(printRelay, pName, pCountry), RelayCol2(printRelay, pName, pCountry),
@@ -27172,8 +27216,11 @@ namespace SwimmingScoreboard
             sb.Append("<table><tr align='center'><th>名次</th><th>号码</th><th>姓名</th><th>代表队</th><th>最终成绩</th></tr>");
             var ranking = GetEventRanking(_currentEvent, _currentGender);
             foreach (dynamic item in ranking) {
+                // 2026-09-01 无名次(判罚/弃权)印 "-", 不要印一个 "0" 出来
+                int itRank = (int)item.rank;
                 sb.AppendFormat("<tr><td>{0}</td><td>{1}</td><td><b>{2}</b></td><td>{3}</td><td style='font-weight:bold;'>{4}</td></tr>",
-                    item.rank, item.bibNumber, item.name, item.country, item.finalTime);
+                    itRank > 0 ? itRank.ToString() : "-",
+                    item.bibNumber, item.name, item.country, item.finalTime);
             }
             sb.Append("</table>");
             sb.Append(DocSignatureRow());
@@ -27433,7 +27480,10 @@ namespace SwimmingScoreboard
 
                     foreach (int heat in heatNumbers) {
                         var heatSwimmers = matched.Where(s => s.GetResultForStage(stage).Heat == heat).ToList();
-                        Func<Swimmer, bool> isDQ = sw => sw.Status == "DSQ" || sw.Status == "DNS" || sw.Status == "DNF";
+                        // 2026-09-01 判罚看【有效状态】(成绩行优先) —— 回推进来的成绩把判罚
+                        //   记在成绩行上, 只看 sw.Status 会把判罚的人当正常人排进去。
+                        Func<Swimmer, bool> isDQ = sw =>
+                            ResultOrdering.IsJudged(GetEffectiveStatus(sw, sw.GetResultForStage(stage)));
                         var ordered = heatSwimmers
                             .OrderBy(s => isDQ(s) ? 1 : 0)
                             .ThenBy(s => isDQ(s) ? 0 : s.GetResultForStage(stage).FinalTime)
