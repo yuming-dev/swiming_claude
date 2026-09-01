@@ -4143,7 +4143,12 @@ namespace SwimmingScoreboard
 
                 var withTimes = subList.Where(s => {
                     // 2026-06-04 TRI 同 DSQ/DNS/DNF, 不进 withTimes (= 不参与排名)
-                    if (s.Status == "DSQ" || s.Status == "DNS" || s.Status == "DNF" || s.Status == "TRI") return false;
+                    // 2026-09-01 判罚/弃权要看【成绩行】的状态, 不能只看运动员对象上的。
+                    //   DNF 通常标在成绩行(r.Status)上, 只查 s.Status 会把他放进总排名 ——
+                    //   大屏上就出现过"王朝辉 DNF 却排名第1、还显示 42.28"。
+                    { var _r0 = s.GetResultForStage(_currentStage);
+                      string _st0 = GetEffectiveStatus(s, _r0);
+                      if (ResultOrdering.IsJudged(_st0) || _st0 == "TRI") return false; }
                     var rr = s.GetResultForStage(_currentStage);
                     return rr != null && rr.FinalTime > 0;
                 }).OrderBy(s => s.GetResultForStage(_currentStage).FinalTime).ToList();
@@ -4270,7 +4275,10 @@ namespace SwimmingScoreboard
             }
             var ranked = new List<object>();
             var withTimes = stageSwimmers.Where(s => {
-                if (s.Status == "DSQ" || s.Status == "DNS" || s.Status == "DNF" || s.Status == "TRI") return false;
+                // 2026-09-01 同上: 判罚/弃权看【成绩行】的状态
+                { var _r1 = s.GetResultForStage(stage);
+                  string _st1 = GetEffectiveStatus(s, _r1);
+                  if (ResultOrdering.IsJudged(_st1) || _st1 == "TRI") return false; }
                 var r = s.GetResultForStage(stage);
                 return r != null && r.FinalTime > 0;
             }).OrderBy(s => s.GetResultForStage(stage).FinalTime).ToList();
@@ -4278,16 +4286,15 @@ namespace SwimmingScoreboard
             //   EventRankFor 取的是 event_rankings 灌回内存的定稿名次(见 ApplyEventRankingsFromDb)。
             //   项目还没全部比完 / 还没定稿时, 它退回按成绩现算 —— 那时本来就只是过程值。
             //   大屏的显示格式和内容一个字没动, 变的只是这些数字从哪来。
-            bool erFinal = withTimes.Count > 0 && withTimes.All(s => s.EventRankFor(stage) > 0);
-            if (erFinal) {
-                withTimes = withTimes.OrderBy(s => s.EventRankFor(stage))
-                                     .ThenBy(s => { var rr = s.GetResultForStage(stage); return rr != null ? rr.FinalTime : 0; })
-                                     .ToList();
-            }
-            var rkListER = erFinal
-                ? withTimes.Select(s => s.EventRankFor(stage)).ToList()
-                : ResultOrdering.ComputeRanks(withTimes, s => {
-                      var rr = s.GetResultForStage(stage); return rr != null ? rr.FinalTime : 0; });
+            // 2026-09-01 名次【只从库里读】, 这里一个字都不算。
+            //   EventRank 是确认成绩时由竞赛库算好、回读进内存的(heat_entries.rank);
+            //   项目全部比完定稿后, 又会被 event_rankings 的定稿值覆盖。
+            //   库里没有(还没确认)就是没名次, 显示留空 —— 不许在这里现算一个出来,
+            //   现算就会和成绩单、项目成绩各算各的, 三个地方三个答案(用户实拍到过)。
+            withTimes = withTimes.OrderBy(s => { int rk0 = s.EventRankFor(stage); return rk0 > 0 ? rk0 : int.MaxValue; })
+                                 .ThenBy(s => { var rr = s.GetResultForStage(stage); return rr != null ? rr.FinalTime : 0; })
+                                 .ToList();
+            var rkListER = withTimes.Select(s => s.EventRankFor(stage)).ToList();
             int idxER = 0;
             foreach (var sw in withTimes) {
                 var r = sw.GetResultForStage(stage);
@@ -19728,6 +19735,10 @@ namespace SwimmingScoreboard
                     reactionStr = r.StartingBlockTime.ToString("F2");
                 }
                 return new {
+                    // 2026-09-01 名次【从库里读】: r.EventRank 是确认成绩时竞赛库算好、
+                    //   回读进内存的(heat_entries.rank); 项目定稿后会被 event_rankings 覆盖。
+                    //   这里不算名次, 只是把它带出去。
+                    DbRank = (r != null ? r.EventRank : 0),
                     SortTime = sortTime,
                     StatusOrder = heatStatusOrder,        // 2026-08-19 无名次者之间的次序 (TRI→DSQ→DNF→DNS→其他)
                     TimeKey = timeKey,                    // 2026-08-19 同类内按成绩快慢 (多名 TRI 时)
@@ -19745,7 +19756,8 @@ namespace SwimmingScoreboard
             // 2026-08-19 改用 GetHeatStatusOrder: TRI 插到 DSQ 之前 (TRI 有成绩只是不排名),
             //   与大屏"组成绩"(display.html _hrCompare) / 本组成绩单 完全同口径.
             }).OrderBy(x => x.SortTime)
-              .ThenBy(x => x.StatusOrder)
+                .ThenBy(x => x.DbRank > 0 ? x.DbRank : int.MaxValue)   // 2026-09-01 先按库里的名次
+            .ThenBy(x => x.StatusOrder)
               .ThenBy(x => x.TimeKey)
               .ThenBy(x => x.Lane)
               .ToList();
@@ -19753,17 +19765,19 @@ namespace SwimmingScoreboard
             // 重新计算排名（TRI/DSQ/DNS/DNF 无名次, SortTime 已置 MaxValue）；列与表头一一对应：
             //   "姓名"列 -> Name（接力时即 4 棒队员姓名）
             //   "代表队"列 -> Country（队名）
+            // 2026-09-01 原来这里是【行号】当名次(rankNum++), 成绩相同的两人被排成 1 和 2 ——
+            //   用户在"成绩与排名"里实拍到的 1,2,3...11 就是它, 而同一份成绩在项目成绩里
+            //   是 1,1,1,4,4... 三个地方三个答案。
+            //   现在一律读库里的名次(DbRank), 库里没有就显示 "-" —— 这里不再算任何东西。
             var rankedData = new List<object>();
-            int rankNum = 1;
             foreach (var item in displayData) {
-                string rankStr = item.SortTime < double.MaxValue ? rankNum.ToString() : "-";
+                string rankStr = item.DbRank > 0 ? item.DbRank.ToString() : "-";
                 rankedData.Add(new {
                     Rank = rankStr,
                     item.Lane, item.BibNumber,
                     item.Name, item.Country,
                     item.FinalTime, item.TimingSource, item.ReactionTime, item.Status, item.RecordNote
                 });
-                if (item.SortTime < double.MaxValue) rankNum++;
             }
 
             ResultGrid.ItemsSource = rankedData;
