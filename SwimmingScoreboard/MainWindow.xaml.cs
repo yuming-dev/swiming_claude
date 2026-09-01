@@ -1546,11 +1546,12 @@ namespace SwimmingScoreboard
                         try {
                             var gd2 = msg["data"] as JObject;
                             if (gd2 != null)
-                                _meetDb.GenerateEventRankingIfComplete(
+                                HandleGenerateEventRanking(socket,
+                                    msg["id"] != null ? msg["id"].ToString() : "",
                                     gd2["ageGroup"] != null ? gd2["ageGroup"].ToString() : "",
                                     gd2["gender"] != null ? gd2["gender"].ToString() : "",
                                     gd2["eventName"] != null ? gd2["eventName"].ToString() : "",
-                                    gd2["stage"] != null ? gd2["stage"].ToString() : "", "计时端");
+                                    gd2["stage"] != null ? gd2["stage"].ToString() : "");
                         } catch (Exception ex) { AddLog("生成组成绩失败: " + ex.Message); }
                         break;
                     case "HEAT_CONFIRMED_PUSH":
@@ -8939,21 +8940,97 @@ namespace SwimmingScoreboard
         /// 2026-08-31 操作员在计时端确认"生成组成绩"之后, 通知主服务器也生成它那份。
         /// 不确认就不发 —— 两边要么都有、要么都没有, 不会一边定了稿另一边没有。
         /// </summary>
+        // 2026-09-01 通知主服务器生成组成绩 —— 【跟回推成绩一样先落盘再发】。
+        //
+        //   原来是"没连上就记一行日志然后算了"。后果很实在: 最后一组正好赶上断线,
+        //   主服务器就【永远】没有这个项目的组排名表 —— 而它是"文档编辑/输出/打印 →
+        //   项目成绩"的数据源。计时端上一切正常, 主服务器上那张表是空的, 谁也想不到
+        //   是那一瞬间的断线造成的。
+        //
+        //   现在走跟 HEAT_CONFIRMED_PUSH 同一套待补传: 落盘 → 能发就发 → 收到回执才删。
+        //   重复生成是安全的(整表 DELETE 后重插), 所以宁可多补一次。
         private void PushGenerateEventRanking(string ag, string gd, string ev, string st) {
-            if (_editorSyncClient == null || !_editorSyncClient.IsConnected) {
-                AddLog("【注意】未连主服务器, 组成绩只生成在本机(连上后请重新确认一次本组成绩)");
-                return;
-            }
             try {
                 var d = new JObject();
                 d["ageGroup"] = ag ?? ""; d["gender"] = gd ?? "";
                 d["eventName"] = ev ?? ""; d["stage"] = st ?? "";
+                // heat 传 0: 组排名是整个项目一份, 不属于某一组
+                string id = "gen_" + PendingPushId(ag, gd, ev, st, 0);
                 var env = new JObject();
                 env["type"] = "GENERATE_EVENT_RANKING";
+                env["id"]   = id;
                 env["data"] = d;
-                _editorSyncClient.Send(env.ToString(Formatting.None));
-                AddLog("已通知主服务器生成组成绩: " + ag + gd + " " + ev + " " + st);
+                QueuePendingPush(id, env);
+                if (_editorSyncClient != null && _editorSyncClient.IsConnected) {
+                    _editorSyncClient.Send(env.ToString(Formatting.None));
+                    AddLog("已通知主服务器生成组成绩: " + ag + gd + " " + ev + " " + st);
+                } else {
+                    AddLog(string.Format("【注意】未连主服务器, 生成组成绩的通知已存入待补传({0}{1} {2} {3}), 连上后自动补",
+                        ag, gd, ev, st));
+                }
             } catch (Exception ex) { AddLog("通知主服务器生成组成绩失败: " + ex.Message); }
+        }
+
+        // 2026-09-01 主服务器收到"生成组成绩"的通知。
+        //
+        //   为什么不是收到就一定能生成: 生成的前提是【本机库里这个项目所有组都已确认】。
+        //   最后一组的 HEAT_CONFIRMED_PUSH 和这条通知是先后两条消息, 万一这条先落地
+        //   (或者那一组因为道次对不上没写成), 这里就会 pending>0 而生成不出来。
+        //   原来的写法是: 生成不出来就算了, 一声不吭 —— 那张表就永远缺一块。
+        //
+        //   现在生成不出来就【记下来挂着】, 每次再收到回推、每次库轮询, 都重试一遍。
+        //   只有真生成出来了才回执, 计时端那边的待补传文件也才会删掉。
+        private readonly List<string[]> _pendingEventRankGen = new List<string[]>();
+
+        private void HandleGenerateEventRanking(IWebSocketConnection socket, string msgId,
+                                                string ag, string gd, string ev, string st) {
+            int made = 0;
+            try { made = _meetDb.GenerateEventRankingIfComplete(ag, gd, ev, st, "计时端"); }
+            catch (Exception ex) { AddLog("生成组成绩失败: " + ex.Message); }
+
+            if (made > 0) {
+                RemovePendingEventRankGen(ag, gd, ev, st);
+                try { ApplyEventRankingsFromDb(); } catch { }
+                try {
+                    if (socket != null && !string.IsNullOrEmpty(msgId)) {
+                        var ack = new JObject();
+                        ack["type"] = "HEAT_CONFIRMED_ACK";
+                        ack["id"] = msgId;
+                        socket.Send(ack.ToString(Formatting.None));
+                    }
+                } catch { }
+                return;
+            }
+
+            // 生成不出来 —— 挂起等重试, 并且不回执(计时端会再补一次)
+            bool exists = _pendingEventRankGen.Any(x =>
+                x[0] == (ag ?? "") && x[1] == (gd ?? "") && x[2] == (ev ?? "") && x[3] == (st ?? ""));
+            if (!exists) {
+                _pendingEventRankGen.Add(new string[] { ag ?? "", gd ?? "", ev ?? "", st ?? "" });
+                AddLog(string.Format("【注意】{0}{1} {2} {3} 的组成绩暂时生成不了(多半是还有组没确认到本机), 已挂起, 后面会自动重试",
+                    ag, gd, ev, st));
+            }
+        }
+
+        private void RemovePendingEventRankGen(string ag, string gd, string ev, string st) {
+            _pendingEventRankGen.RemoveAll(x =>
+                x[0] == (ag ?? "") && x[1] == (gd ?? "") && x[2] == (ev ?? "") && x[3] == (st ?? ""));
+        }
+
+        /// <summary>2026-09-01 把挂起的"生成组成绩"再试一遍。收到回推之后、库轮询时各调一次。</summary>
+        private void RetryPendingEventRankGen() {
+            if (_pendingEventRankGen.Count == 0) return;
+            var todo = _pendingEventRankGen.ToList();
+            foreach (var x in todo) {
+                int made = 0;
+                try { made = _meetDb.GenerateEventRankingIfComplete(x[0], x[1], x[2], x[3], "计时端(补)"); }
+                catch { }
+                if (made > 0) {
+                    RemovePendingEventRankGen(x[0], x[1], x[2], x[3]);
+                    AddLog(string.Format("挂起的组成绩已补上: {0}{1} {2} {3}", x[0], x[1], x[2], x[3]));
+                    try { ApplyEventRankingsFromDb(); } catch { }
+                }
+            }
         }
 
         private void PushHeatConfirmedToServer() {
@@ -9101,6 +9178,8 @@ namespace SwimmingScoreboard
                 { MessageBox.Show("文件里没有成绩。", "导入成绩", MessageBoxButton.OK, MessageBoxImage.Information); return; }
 
                 int ok = 0, bad = 0;
+                // 2026-09-01 导进来的组涉及哪些 (组别|性别|项目|赛次) —— 导完要按项目补生成组排名表
+                var touched = new List<string[]>();
                 foreach (var t in arr)
                 {
                     var d = t as JObject;
@@ -9109,9 +9188,33 @@ namespace SwimmingScoreboard
                     var msg = new JObject();
                     msg["type"] = "HEAT_CONFIRMED_PUSH";
                     msg["data"] = d;
-                    try { HandleHeatConfirmedPush(null, msg); ok++; }
+                    try {
+                        HandleHeatConfirmedPush(null, msg); ok++;
+                        string kag = d["ageGroup"] != null ? d["ageGroup"].ToString() : "";
+                        string kgd = d["gender"]   != null ? d["gender"].ToString()   : "";
+                        string kev = d["eventName"]!= null ? d["eventName"].ToString(): "";
+                        string kst = d["stage"]    != null ? d["stage"].ToString()    : "";
+                        if (!string.IsNullOrEmpty(kev) &&
+                            !touched.Any(x => x[0]==kag && x[1]==kgd && x[2]==kev && x[3]==kst))
+                            touched.Add(new string[] { kag, kgd, kev, kst });
+                    }
                     catch (Exception ex) { bad++; AddLog("导入一组失败: " + ex.Message); }
                 }
+
+                // 2026-09-01 【离线摆渡也要定稿】。
+                //   原来这条路只把成绩灌进库, 从不生成组排名表 —— 而"文档编辑/输出/打印 →
+                //   项目成绩"读的就是那张表。U盘导完, 库里成绩齐全, 那张表却一行没有,
+                //   于是"确认过的成绩查不到", 还看不出原因。
+                //   这里不弹窗(confirm 传 null): 该问的已经在计时端确认那一刻问过了,
+                //   导入的都是【已确认】的组。全部组齐了才会真生成, 不齐就什么都不做。
+                int gen = 0;
+                foreach (var k in touched) {
+                    try {
+                        int made = _meetDb.GenerateEventRankingIfComplete(k[0], k[1], k[2], k[3], "文件导入");
+                        if (made > 0) { gen++; AddLog(string.Format("已生成组成绩: {0}{1} {2} {3}（{4} 人）", k[0], k[1], k[2], k[3], made)); }
+                    } catch (Exception ex) { AddLog("导入后生成组成绩失败: " + ex.Message); }
+                }
+                if (gen > 0) { try { ApplyEventRankingsFromDb(); } catch { } }
 
                 try { BuildScheduleTree(); } catch { }
                 try { CalculateTeamScores(); } catch { }
@@ -9247,6 +9350,9 @@ namespace SwimmingScoreboard
             // 2026-08-31 服务器【不在这里自动生成】组成绩。
             //   生成是定稿动作, 要由操作员在计时端弹窗确认。确认之后计时端会发
             //   GENERATE_EVENT_RANKING 过来, 那时才生成 —— 保证两边要么都有、要么都没有。
+            // 2026-09-01 但如果那条通知【先到了】(那会儿这一组还没写进来, 生成不出来),
+            //   它就挂在 _pendingEventRankGen 里等着。这一组刚写完, 正是重试的时候。
+            try { RetryPendingEventRankGen(); } catch { }
 
             // 回执: 计时端据此删掉待补传文件。没有回执它就一直留着, 下次连上再补 ——
             // 宁可重复补传(幂等、安全), 也不能悄悄丢一组成绩。
@@ -22348,6 +22454,7 @@ namespace SwimmingScoreboard
                 int before = _dbHeatStamps.Count;
                 string beforeKey = _lastPollSignature;
                 RefreshChangedFromDb();
+                try { RetryPendingEventRankGen(); } catch { }   // 2026-09-01 挂起的组成绩再试一遍
                 // 指纹集合有变化(新组或某组改过) 才推大屏, 免得平白刷屏
                 string nowKey = _dbHeatStamps.Count + ":" + _confirmedHeats.Count;
                 if (nowKey != beforeKey) {
@@ -22481,6 +22588,11 @@ namespace SwimmingScoreboard
                 if (nHeat > 0)
                     AddLog(string.Format("查询前已从竞赛库刷新: {0} {1} {2}, 共 {3} 组（以库为准）",
                         string.IsNullOrEmpty(ageGroup) ? "全部组别" : ageGroup, eventName, stage, nHeat));
+                // 2026-09-01 组次刷完还得把【组排名表】的定稿名次灌回来。
+                //   原来这里漏了 —— ApplyHeatFromDb 只带回 heat_entries.rank(过程值),
+                //   定稿值只有 RefreshChangedFromDb 那条路才灌。于是"项目成绩"窗口
+                //   点查询, 拿到的是过程名次, 跟成绩公报/前八名不是同一份。
+                try { ApplyEventRankingsFromDb(); } catch { }
             } catch (Exception ex) {
                 AddLog("【注意】查询前从库刷新失败, 用的是内存里的旧数据: " + ex.Message);
             }
@@ -25540,11 +25652,29 @@ namespace SwimmingScoreboard
             GenerateAndOpenDocument("分组成绩", BuildHeatResultsHtml());
         }
         private void PrintEventResults_Click(object sender, RoutedEventArgs e) {
+            RefreshChangedFromDb();   // 2026-09-01 开窗前先增量刷一次(别的计算机写的成绩/定稿名次)
             // 2026-06-01 传 _ageGroups 给窗口构造组别下拉
             var win = new EventResultPrintWindow(_swimmers, _schedule, _competitionName,
                 LocationBox.Text, RefereeBox.Text, ChiefJudgeBox.Text, ArbiterBox.Text, _ageGroups);
             // 2026-08-31 查询/打印前先从库刷新 —— 别的计算机写了库, 本机内存不会知道
             win.RefreshFromDb = RefreshStageFromDb;
+            // 2026-09-01 【项目成绩优先直接读库里的组排名表】。
+            //   内存里的成绩行只有主服务器亲自收到过回推才有; 回推丢一次、道次对不上一次,
+            //   库里明明是全的、名次也定了稿, 这张表照样是空的 —— 这就是"确认后的成绩查不到"。
+            //   名次既然已经定稿在库里, 就该直接从库排版, 内存只当没有定稿时的退路。
+            win.ReadEventRankings = delegate(string ag, string gd, string ev, string st) {
+                return _meetDb.GetEventRankingRows(ag, gd, ev, st);
+            };
+            win.ReadEventProgress = delegate(string ag, string gd, string ev, string st) {
+                int total, pending, ranked;
+                _meetDb.GetEventRankingProgress(ag, gd, ev, st, out total, out pending, out ranked);
+                return new int[] { total, pending, ranked };
+            };
+            win.GenerateEventRanking = delegate(string ag, string gd, string ev, string st) {
+                int made = _meetDb.GenerateEventRankingIfComplete(ag, gd, ev, st, Environment.MachineName + "(补生成)");
+                if (made > 0) { try { ApplyEventRankingsFromDb(); } catch { } }
+                return made;
+            };
             win.Owner = this;
             win.ShowDialog();
         }

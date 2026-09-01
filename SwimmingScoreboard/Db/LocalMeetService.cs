@@ -532,7 +532,8 @@ namespace SwimmingScoreboard.Db
         /// <summary>组内名次和成绩差不入库，读的时候现算 —— 名次只有一处算，各端不会算出两个结果。</summary>
         private static void FillHeatRankAndGap(List<LaneRow> rows)
         {
-            foreach (var g in rows.Where(x => x.FinalTime > 0 && !IsNoTime(x.Status)).GroupBy(x => x.EventId))
+            // 2026-09-01 TRI(试游)不参与本组名次 —— 见 IsUnranked
+            foreach (var g in rows.Where(x => x.FinalTime > 0 && !IsUnranked(x.Status)).GroupBy(x => x.EventId))
             {
                 var ordered = g.OrderBy(x => x.FinalTime).ToList();
                 double best = ordered[0].FinalTime;
@@ -554,6 +555,22 @@ namespace SwimmingScoreboard.Db
         {
             if (string.IsNullOrEmpty(status)) return false;
             return status == "DSQ" || status == "DNS" || status == "DNF" || status == "DQ";
+        }
+
+        /// <summary>
+        /// 2026-09-01 【不参与排名】的状态: 判罚/弃权 + 试游 TRI。
+        ///
+        /// TRI 原来不在这个集合里 —— 于是试游的人也拿到了名次, 而且是【真名次】:
+        /// 他占掉第 3, 后面每一个真选手就都往后挪一位, 整个项目总排名错位。
+        /// 规则是"TRI 显成绩、不排名、不计分、不算纪录"(总排名表里也不显示他)。
+        ///
+        /// 跟 IsNoTime 分开两个方法, 是因为 IsNoTime 字面意思是"没有有效成绩",
+        /// 而 TRI 是有成绩的 —— 他只是不排名。
+        /// </summary>
+        private static bool IsUnranked(string status)
+        {
+            if (string.IsNullOrEmpty(status)) return false;
+            return status == "TRI" || IsNoTime(status);
         }
 
         public void SaveHeatEntry(LaneRow row, string op)
@@ -999,7 +1016,7 @@ namespace SwimmingScoreboard.Db
                 RecomputeRanks(roundId, L(r, "event_id"), op);
 
             foreach (var ln in live.Lanes)
-                if (ln.HeatEntryId > 0 && ln.FinalTime > 0 && !IsNoTime(ln.Status))
+                if (ln.HeatEntryId > 0 && ln.FinalTime > 0 && !IsUnranked(ln.Status))   // 2026-09-01 试游不算破纪录
                     breaks.AddRange(CheckRecordBreak(ln.HeatEntryId));
 
             ClearLive();
@@ -1047,7 +1064,8 @@ namespace SwimmingScoreboard.Db
             foreach (DataRow r in t.Rows)
             {
                 double ft = D(r, "final_time");
-                if (ft > 0 && !IsNoTime(S(r, "status"))) valid.Add(new KeyValuePair<long, double>(L(r, "id"), ft));
+                // 2026-09-01 TRI(试游)不进 valid —— 他原来会占掉一个真名次, 见 IsUnranked
+                if (ft > 0 && !IsUnranked(S(r, "status"))) valid.Add(new KeyValuePair<long, double>(L(r, "id"), ft));
                 else invalid.Add(L(r, "id"));
             }
             valid.Sort((a, b) => a.Value.CompareTo(b.Value));
@@ -1180,7 +1198,7 @@ namespace SwimmingScoreboard.Db
             if (t.Rows.Count == 0) return res;
             var r = t.Rows[0];
             double ft = D(r, "final_time");
-            if (ft <= 0 || IsNoTime(S(r, "status"))) return res;
+            if (ft <= 0 || IsUnranked(S(r, "status"))) return res;   // 2026-09-01 试游不算破纪录
 
             foreach (var rec in GetRecords(S(r,"age_group"), S(r,"gender"), I(r,"distance"),
                                            S(r,"stroke"), I(r,"relay_legs")))

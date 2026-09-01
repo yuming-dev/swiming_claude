@@ -20,6 +20,27 @@ namespace SwimmingScoreboard
         /// 没注入(null)时退化成"用内存里的", 不阻断。
         /// </summary>
         public Action<string, string, string, string> RefreshFromDb { get; set; }
+
+        /// <summary>
+        /// 2026-09-01 由主窗口注入: 直接读【组排名表】(项目定稿后的总排名)。
+        /// 参数 = (组别, 性别, 项目, 赛次)。返回空表 = 这个项目还没定稿。
+        ///
+        /// 这是本窗口的【第一数据源】。原来只从内存 _swimmers 里捞成绩行, 而内存里
+        /// 的成绩行只有主服务器亲自收到过回推才会有 —— 回推丢一次、道次对不上一次,
+        /// 库里明明是全的、名次也定了稿, 这张表照样是空的, 还查不出原因。
+        /// 名单(姓名/代表队/号码)内存里一直是全的, 缺的只是成绩; 所以成绩和名次读库,
+        /// 反应时/性别/组别这些库里没存的列再回内存补。
+        /// </summary>
+        public Func<string, string, string, string, List<Db.EventRankRow>> ReadEventRankings { get; set; }
+
+        /// <summary>2026-09-01 注入: 返回 {总组数, 未确认组数, 已有名次人数}; 总组数 -1 = 库里找不到这个项目。</summary>
+        public Func<string, string, string, string, int[]> ReadEventProgress { get; set; }
+
+        /// <summary>2026-09-01 注入: 补生成组排名表, 返回生成的人数。给"全部组已确认但表没生成"兜底。</summary>
+        public Func<string, string, string, string, int> GenerateEventRanking { get; set; }
+
+        // DB 路径下的总组数(库里定稿时记的), 打印表头用。0 = 没走 DB 路径。
+        private int _dbTotalHeats = 0;
         private ObservableCollection<ScheduleItem> _schedule;
         private string _competitionName;
         private string _location;
@@ -204,6 +225,275 @@ namespace SwimmingScoreboard
             StatusText.Foreground = System.Windows.Media.Brushes.SlateGray;
         }
 
+        // ══════════════════════════════════════════════════════════════════
+        // 2026-09-01 从【组排名表】直接排版
+        //
+        // 为什么单独一条路, 而不是继续拿库里的值去补内存:
+        //   内存里根本没有那一行的时候, 补也补不出来 —— 补的前提是行存在。
+        //   主服务器上"确认过的成绩查不到", 十次有九次就是这个: 库是全的、
+        //   名次也定了稿, 而内存里那几行从来没建起来(回推丢了/道次对不上/
+        //   离线摆渡只灌了库)。所以定稿之后就该以库为准, 内存只补库里没存的列。
+        // ══════════════════════════════════════════════════════════════════
+        private class DbFinalRow
+        {
+            public Db.EventRankRow R;
+            public string AgeGroup;
+            public string Gender;
+            public string ReactionPlain;
+            public string ReactionHtml;
+        }
+
+        /// <summary>ageFilter="全部" 时要查哪几个组别 —— 从名单里收(名单内存里一直是全的)。</summary>
+        private List<string> AgeGroupsToQuery(string ageFilter, string gender, string eventName)
+        {
+            var ages = new List<string>();
+            if (!string.IsNullOrEmpty(ageFilter) && ageFilter != "全部" && ageFilter != "不限") {
+                ages.Add(ageFilter);
+                return ages;
+            }
+            foreach (var s in _swimmers) {
+                if (s.EventName != eventName) continue;
+                if (!SgMatchPrint(s.Gender, gender)) continue;
+                string a = s.AgeCategory ?? "";
+                if (!ages.Contains(a)) ages.Add(a);
+            }
+            if (ages.Count == 0) ages.Add("");
+            return ages;
+        }
+
+        /// <summary>成绩了了的那一行在内存里对应的是谁 —— 先认号码, 号码空了再认 组次+道次。</summary>
+        private Swimmer FindSwimmer(Db.EventRankRow r, string stage, string eventName)
+        {
+            if (!string.IsNullOrEmpty(r.BibNumber)) {
+                var byBib = _swimmers.FirstOrDefault(s => s.EventName == eventName
+                                                       && (s.BibNumber ?? "") == r.BibNumber);
+                if (byBib != null) return byBib;
+            }
+            if (r.Heat > 0 && r.Lane >= 0) {
+                foreach (var s in _swimmers) {
+                    if (s.EventName != eventName) continue;
+                    var sa = s.GetAssignmentForStage(stage);
+                    int ln = sa != null ? sa.Lane : s.Lane;
+                    int ht = sa != null ? sa.Heat : s.Heat;
+                    if (ln == r.Lane && ht == r.Heat) return s;
+                }
+            }
+            return null;
+        }
+
+        private static int DbStatusOrder(string status)
+        {
+            return ResultOrdering.StatusOrder(status ?? "");
+        }
+
+        /// <summary>
+        /// 查到定稿数据并已经填好表 → true。库里没定稿(或没注入读库口) → false, 调用方走内存那条路。
+        /// </summary>
+        private bool TryQueryFromDb(string ageFilter, string gender, string eventName, string stage, int filterHeat)
+        {
+            if (ReadEventRankings == null) return false;
+
+            var all = new List<DbFinalRow>();
+            int maxTotalHeats = 0;
+            foreach (string ag in AgeGroupsToQuery(ageFilter, gender, eventName)) {
+                List<Db.EventRankRow> rows = null;
+                try { rows = ReadEventRankings(ag, gender, eventName, stage); } catch { }
+                if (rows == null) continue;
+                foreach (var r in rows) {
+                    if (r.TotalHeats > maxTotalHeats) maxTotalHeats = r.TotalHeats;
+                    all.Add(new DbFinalRow { R = r, AgeGroup = ag, Gender = gender });
+                }
+            }
+            if (all.Count == 0) return false;
+
+            if (filterHeat > 0) all = all.Where(x => x.R.Heat == filterHeat).ToList();
+            if (all.Count == 0) {
+                StatusText.Text = string.Format("{0} {1} {2} 第{3}组 — 组排名表里没有这一组（组次选错了？）",
+                    gender, eventName, stage, filterHeat);
+                StatusText.Foreground = System.Windows.Media.Brushes.OrangeRed;
+                PreviewGrid.ItemsSource = null;
+                SetActionButtonsEnabled(false);
+                return true;
+            }
+
+            // 库里没存的列(性别/反应时)回内存补。名单一直是全的, 所以基本都补得上;
+            // 补不上就留空 —— 留空是"没有这一项", 比拿别的值顶上去强。
+            bool isRelay = eventName.Contains("接力");
+            int legCount = 4;
+            if (isRelay) {
+                var mLeg = System.Text.RegularExpressions.Regex.Match(eventName, @"(\d+)\s*[x×]\s*\d+");
+                if (mLeg.Success) { int n; if (int.TryParse(mLeg.Groups[1].Value, out n) && n > 0 && n <= 10) legCount = n; }
+            }
+            foreach (var x in all) {
+                var sw = FindSwimmer(x.R, stage, eventName);
+                if (sw != null) {
+                    if (!string.IsNullOrEmpty(sw.Gender)) x.Gender = sw.Gender;
+                    if (string.IsNullOrEmpty(x.AgeGroup)) x.AgeGroup = sw.AgeCategory ?? "";
+                    if (string.IsNullOrEmpty(x.R.AthleteName)) x.R.AthleteName = sw.Name ?? "";
+                    // 接力项目：姓名列显示队员姓名
+                    if (isRelay && !string.IsNullOrEmpty(sw.Notes) && sw.Notes.StartsWith("接力队 棒次:"))
+                        x.R.AthleteName = sw.Notes.Substring("接力队 棒次:".Length);
+                }
+                bool judged = ResultOrdering.IsJudged(x.R.Status);
+                var res = sw != null ? sw.Results.FirstOrDefault(y => y.Stage == stage && y.Heat == x.R.Heat) : null;
+                if (judged) { x.ReactionPlain = ""; x.ReactionHtml = ""; }
+                else if (isRelay) {
+                    var parts = new List<string>();
+                    for (int li = 0; li < legCount; li++) {
+                        double rt = (res != null && res.LegReactionTimes != null && li < res.LegReactionTimes.Count)
+                                    ? res.LegReactionTimes[li] : 0;
+                        parts.Add(string.Format("第{0}棒:{1}", li + 1, (rt != 0 && !double.IsNaN(rt)) ? rt.ToString("F2") : "—"));
+                    }
+                    x.ReactionPlain = string.Join("  ", parts.ToArray());
+                    x.ReactionHtml = string.Join("<br>", parts.ToArray());
+                } else if (res != null && res.StartingBlockTime != 0) {
+                    x.ReactionPlain = res.StartingBlockTime.ToString("F2");
+                    x.ReactionHtml = x.ReactionPlain;
+                } else { x.ReactionPlain = ""; x.ReactionHtml = ""; }
+            }
+
+            // 排序: 组别内按定稿名次, 没名次的按 TRI→DSQ→DNF→DNS 再按成绩、道次。
+            //   多个组别一起看时【按组别分块】, 不按成绩串在一起 —— 各组别是各自的一份
+            //   总排名, 串起来会出现两个第 1 挨在一起, 看着像并列, 其实不是。
+            all = all
+                .OrderBy(x => x.AgeGroup ?? "")
+                .ThenBy(x => x.R.Rank > 0 ? 0 : 1)
+                .ThenBy(x => x.R.Rank > 0 ? x.R.Rank : 0)
+                .ThenBy(x => DbStatusOrder(x.R.Status))
+                .ThenBy(x => x.R.FinalTime > 0 ? x.R.FinalTime : double.MaxValue)
+                .ThenBy(x => x.R.Lane)
+                .ToList();
+
+            // 成绩差: 跟【本组别第一名】比。库里第一名就是 rank==1 那个。
+            var leader = new Dictionary<string, double>();
+            foreach (var x in all) {
+                string k = x.AgeGroup ?? "";
+                if (x.R.Rank <= 0 || x.R.FinalTime <= 0) continue;
+                double cur;
+                if (!leader.TryGetValue(k, out cur) || x.R.FinalTime < cur) leader[k] = x.R.FinalTime;
+            }
+
+            int shownHeats = all.Select(x => x.R.Heat).Where(h => h > 0).Distinct().Count();
+            _dbTotalHeats = maxTotalHeats > 0 ? maxTotalHeats : shownHeats;
+
+            _currentResults = new List<object>();
+            foreach (var x in all) {
+                bool judged = ResultOrdering.IsJudged(x.R.Status);
+                string diff = "";
+                double lead;
+                if (!judged && x.R.FinalTime > 0 && x.R.Rank > 0
+                    && leader.TryGetValue(x.AgeGroup ?? "", out lead) && x.R.FinalTime > lead)
+                    diff = (x.R.FinalTime - lead).ToString("F2");
+
+                // 备注: 库里那一列已经是同口径了(判罚 → 晋级 Q/R → 纪录)。这里只上色。
+                string remarkPlain = x.R.Remark ?? "";
+                string remarkHtml = "";
+                if (remarkPlain.Length > 0) {
+                    if (ResultOrdering.IsJudged(remarkPlain) || remarkPlain == "TRI")
+                        remarkHtml = "<span style='color:#dc2626;'>" + remarkPlain + "</span>";
+                    else if (remarkPlain == "Q" || remarkPlain == "R")
+                        remarkHtml = "<span style='color:#16a34a;font-weight:bold;'>" + remarkPlain + "</span>";
+                    else
+                        remarkHtml = remarkPlain;
+                }
+
+                _currentResults.Add(new {
+                    Rank = x.R.Rank > 0 ? x.R.Rank.ToString() : "-",
+                    AgeGroup = x.AgeGroup ?? "",
+                    HeatText = x.R.Heat > 0
+                        ? (_dbTotalHeats > 0 ? x.R.Heat + "/" + _dbTotalHeats : x.R.Heat.ToString())
+                        : "",
+                    Lane = x.R.Lane,
+                    BibNumber = x.R.BibNumber ?? "",
+                    Name = x.R.AthleteName ?? "",
+                    Country = x.R.UnitName ?? "",
+                    Gender = x.Gender ?? "",
+                    FinalTime = (judged || x.R.FinalTime <= 0) ? "" : TimeFormatter.Format(x.R.FinalTime),
+                    Diff = diff,
+                    ReactionTime = x.ReactionPlain ?? "",
+                    ReactionTimeHtml = x.ReactionHtml ?? "",
+                    Remark = remarkPlain,
+                    RemarkHtml = remarkHtml
+                });
+            }
+
+            PreviewGrid.ItemsSource = _currentResults;
+            SetActionButtonsEnabled(true);
+            SelectedGender = gender;
+            SelectedEvent = eventName;
+            SelectedStage = stage;
+            SelectedAgeGroup = ageFilter;
+            SelectedHeat = filterHeat;
+
+            string ageHead2 = (string.IsNullOrEmpty(ageFilter) || ageFilter == "全部") ? "" : (ageFilter + " ");
+            StatusText.Text = string.Format("{0}{1} {2} {3}{4} — 共{5}人（★ 取自竞赛库【组排名表】, 已定稿）",
+                ageHead2, gender, eventName, stage,
+                filterHeat > 0 ? " 第" + filterHeat + "组" : " 总排名", all.Count);
+            StatusText.Foreground = System.Windows.Media.Brushes.Green;
+            return true;
+        }
+
+        /// <summary>2026-09-01 一句话说清【库】那边到什么程度了: 总共几组、还差几组没确认、有几个人有名次。</summary>
+        private string DbProgressLine(string ageFilter, string gender, string eventName, string stage)
+        {
+            if (ReadEventProgress == null) return "";
+            int total = 0, pending = 0, ranked = 0, found = 0;
+            foreach (string ag in AgeGroupsToQuery(ageFilter, gender, eventName)) {
+                int[] p = null;
+                try { p = ReadEventProgress(ag, gender, eventName, stage); } catch { }
+                if (p == null || p.Length < 3 || p[0] < 0) continue;
+                found++; total += p[0]; pending += p[1]; ranked += p[2];
+            }
+            if (found == 0)
+                return "竞赛库里找不到这个项目/赛次（组别或赛次选错了？还是这台机器的竞赛库根本没打开——看系统日志）";
+            if (pending > 0)
+                return string.Format("竞赛库: 共 {0} 组, 还有 {1} 组没确认到本机 → 组排名表(定稿)还不能生成; 已有名次 {2} 人",
+                    total, pending, ranked);
+            return string.Format("竞赛库: 共 {0} 组【全部已确认】, 已有名次 {1} 人 —— 但组排名表还没生成",
+                total, ranked);
+        }
+
+        /// <summary>
+        /// 2026-09-01 全部组已确认、库里也有名次, 只差那张组排名表 —— 当场补生成。
+        ///
+        /// 什么时候会出现这种局面: 计时端确认最后一组那一刻正好断线(通知没送到),
+        /// 或者成绩是 U 盘导进来的。库里数据是齐的, 只是没人喊那一声"定稿"。
+        /// 生成本身是定稿动作, 所以仍然要人点头 —— 但至少现在点得着。
+        /// 真生成出来了返回 true。
+        /// </summary>
+        private bool OfferGenerateIfComplete(string ageFilter, string gender, string eventName, string stage)
+        {
+            if (GenerateEventRanking == null || ReadEventProgress == null) return false;
+            var ready = new List<string>();
+            foreach (string ag in AgeGroupsToQuery(ageFilter, gender, eventName)) {
+                int[] p = null;
+                try { p = ReadEventProgress(ag, gender, eventName, stage); } catch { }
+                if (p == null || p.Length < 3) continue;
+                if (p[0] > 0 && p[1] == 0 && p[2] > 0) ready.Add(ag);
+            }
+            if (ready.Count == 0) return false;
+
+            var r = MessageBox.Show(
+                string.Format("【{0} {1} {2}】在竞赛库里所有组都已确认，名次也算好了，\n"
+                            + "只是还没有生成【组成绩（本项目所有组的总排名）】。\n\n"
+                            + "它是晋级的依据；直接决赛的项目，它就是最终名次。\n"
+                            + "多半是计时端确认最后一组时正好断线，通知没送到。\n\n"
+                            + "现在生成吗？", gender, eventName, stage),
+                "补生成组成绩", MessageBoxButton.YesNo, MessageBoxImage.Question);
+            if (r != MessageBoxResult.Yes) return false;
+
+            int made = 0;
+            foreach (string ag in ready) {
+                try { made += GenerateEventRanking(ag, gender, eventName, stage); } catch { }
+            }
+            if (made <= 0) {
+                MessageBox.Show("没有生成出来。请到【系统日志与数据】页看一眼原因。",
+                    "补生成组成绩", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return false;
+            }
+            return true;
+        }
+
         private void Query_Click(object sender, RoutedEventArgs e)
         {
             string ageFilter = AgeGroupCombo != null && AgeGroupCombo.SelectedItem != null ? AgeGroupCombo.SelectedItem.ToString() : "全部";
@@ -233,6 +523,11 @@ namespace SwimmingScoreboard
                 try { RefreshFromDb(ageFilter == "全部" ? "" : ageFilter, gender, eventName, stage); }
                 catch { }
             }
+
+            // 2026-09-01 【先查库里的组排名表】。定稿了就直接按它排版, 一行都不用内存去凑。
+            //   查不到再走下面的内存路径 —— 那条路只对"还没定稿"有意义。
+            _dbTotalHeats = 0;
+            if (TryQueryFromDb(ageFilter, gender, eventName, stage, filterHeat)) return;
 
             // 2026-06-01 加 AgeGroup 过滤; 男/女 也包含混合性别接力
             var matched = _swimmers.Where(s =>
@@ -292,11 +587,21 @@ namespace SwimmingScoreboard
                     hint = "（被性别/组别筛掉了：确认上面的性别和组别选对了）";
                 }
 
-                StatusText.Text = string.Format("{0} {1} {2}{3} — 暂无比赛成绩，无法打印\n{4} {5}",
-                    gender, eventName, stage, filterHeat > 0 ? " 第" + filterHeat + "组" : "", chain, hint);
+                // 2026-09-01 再报一层【库】的情况 —— 上面那条链子说的全是内存。
+                //   真正的场面是: 库里成绩齐全、名次也在, 就是没生成组排名表(定稿),
+                //   而内存这边一行都没有。只看内存的链子会把人往"成绩没同步"上带。
+                string dbLine = DbProgressLine(ageFilter, gender, eventName, stage);
+
+                StatusText.Text = string.Format("{0} {1} {2}{3} — 暂无比赛成绩，无法打印\n{4} {5}{6}",
+                    gender, eventName, stage, filterHeat > 0 ? " 第" + filterHeat + "组" : "", chain, hint,
+                    dbLine.Length > 0 ? "\n" + dbLine : "");
                 StatusText.Foreground = System.Windows.Media.Brushes.OrangeRed;
                 PreviewGrid.ItemsSource = null;
                 SetActionButtonsEnabled(false);
+                // 全部组都确认了、库里也有名次, 却没有组排名表 —— 当场补生成一次就好了。
+                if (OfferGenerateIfComplete(ageFilter, gender, eventName, stage)) {
+                    Query_Click(sender, e);   // 生成完再查一遍, 这次就该走库那条路了
+                }
                 return;
             }
 
@@ -470,9 +775,13 @@ namespace SwimmingScoreboard
 
             string ageHead = (string.IsNullOrEmpty(ageFilter) || ageFilter == "全部") ? "" : (ageFilter + " ");
             string heatDesc = filterHeat > 0 ? " 第" + filterHeat + "组" : " 总排名";
-            StatusText.Text = string.Format("{0}{1} {2} {3}{4} — 共{5}人有成绩",
-                ageHead, gender, eventName, stage, heatDesc, withResults.Count);
-            StatusText.Foreground = System.Windows.Media.Brushes.Green;
+            // 2026-09-01 走到这里就说明【库里还没有组排名表】—— 下面这些名次都是过程值,
+            //   项目全部比完定稿之后还会变。必须说出来, 别让人拿过程名次当最终名次去发奖。
+            string dbNote = DbProgressLine(ageFilter, gender, eventName, stage);
+            StatusText.Text = string.Format("{0}{1} {2} {3}{4} — 共{5}人有成绩\n【尚未定稿】名次是过程值, 本项目全部比完并生成组成绩后才算最终名次{6}",
+                ageHead, gender, eventName, stage, heatDesc, withResults.Count,
+                dbNote.Length > 0 ? "\n" + dbNote : "");
+            StatusText.Foreground = System.Windows.Media.Brushes.DarkOrange;
         }
 
         // 2026-06-01 集中开关 5 个动作按钮 (查询出结果后才启用)
@@ -491,7 +800,9 @@ namespace SwimmingScoreboard
 
             // 组号显示逻辑：决赛只有1组时不显示，预赛/半决赛即使1组也显示
             // 2026-06-01 totalHeats 也要带 AgeGroup 过滤, 不然跨组别会把别人的 Heat 也算进来
-            int totalHeats = _swimmers.Where(s =>
+            // 2026-09-01 走库那条路时用库里定稿记下的总组数 —— 内存里可能一行成绩都没有,
+            //   拿它数出来是 0, 表头上的"第 X 组"就没了。
+            int totalHeats = _dbTotalHeats > 0 ? _dbTotalHeats : _swimmers.Where(s =>
                 SgMatchPrint(s.Gender, SelectedGender) &&
                 s.EventName == SelectedEvent &&
                 MatchesAge(s.AgeCategory, SelectedAgeGroup) &&

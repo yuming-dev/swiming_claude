@@ -189,6 +189,164 @@ WHERE he.final_time>0 AND (he.status IS NULL OR he.status='')
     }
     $c2.Dispose(); $cn2.Close()
 
+    # ══════════════════════════════════════════════════════════════════
+    # 8. TRI(试游) 不许占名次                                2026-09-01
+    #
+    # 这条测的是一个真出过的错: IsNoTime 只认 DSQ/DNS/DNF/DQ, 不含 TRI,
+    # 于是试游的人也进了有效名单 —— 他占掉第 2, 后面每个真选手都往后挪一位,
+    # 整个项目总排名错位, 而且界面上完全看不出来。
+    # 规则是"TRI 显成绩、不排名、不计分"。
+    #
+    # 做法: 在库的拷贝上把某个项目最快的三个人的成绩改成 10/11/12 秒
+    # (比场上任何成绩都快, 排名位置就完全确定), 再把 11 秒那个标成 TRI。
+    # 期望: 10秒=第1, 11秒(TRI)=无名次, 12秒=第2 —— 而不是第3。
+    # ══════════════════════════════════════════════════════════════════
+    Write-Host "8. TRI 试游不占名次"
+    $cnW = New-Object System.Data.SQLite.SQLiteConnection("Data Source=$db;Version=3;")
+    $cnW.Open(); $cw = $cnW.CreateCommand()
+    $cw.CommandText = @"
+SELECT he.round_id, en.event_id, COUNT(*) AS n
+FROM heat_entries he JOIN entries en ON en.id=he.entry_id
+WHERE he.final_time>0 AND (he.status IS NULL OR he.status='') AND he.reserve_no IS NULL
+GROUP BY he.round_id, en.event_id HAVING n>=3 ORDER BY n DESC LIMIT 1
+"@
+    $rdT = $cw.ExecuteReader(); $triRound = 0; $triEvent = 0
+    if ($rdT.Read()) { $triRound = [int64]$rdT[0]; $triEvent = [int64]$rdT[1] }
+    $rdT.Close()
+
+    if ($triRound -eq 0) {
+        Check "找得到一个至少 3 人有成绩的项目(本测试才有意义)" $false "库里没有这样的项目"
+    } else {
+        $cw.CommandText = @"
+SELECT he.id FROM heat_entries he JOIN entries en ON en.id=he.entry_id
+WHERE he.round_id=$triRound AND en.event_id=$triEvent AND he.final_time>0
+  AND (he.status IS NULL OR he.status='') AND he.reserve_no IS NULL
+ORDER BY he.final_time LIMIT 3
+"@
+        $rdT = $cw.ExecuteReader(); $ids = @()
+        while ($rdT.Read()) { $ids += [int64]$rdT[0] }
+        $rdT.Close()
+
+        # 造出确定的成绩, 免得受库里存量数据影响
+        $cw.CommandText = "UPDATE heat_entries SET final_time=10.00, status='' WHERE id=" + $ids[0]; $cw.ExecuteNonQuery() | Out-Null
+        $cw.CommandText = "UPDATE heat_entries SET final_time=11.00, status='' WHERE id=" + $ids[1]; $cw.ExecuteNonQuery() | Out-Null
+        $cw.CommandText = "UPDATE heat_entries SET final_time=12.00, status='' WHERE id=" + $ids[2]; $cw.ExecuteNonQuery() | Out-Null
+
+        # 先验一遍"没有 TRI 时"是 1,2,3 —— 不然下面那条测不出是 TRI 的功劳
+        $svc.RecomputeRanks($triRound, $triEvent, 'selftest')
+        $cw.CommandText = "SELECT rank FROM heat_entries WHERE id=" + $ids[2]
+        $rankBefore = [int]$cw.ExecuteScalar()
+        Check "基准: 三个人都正常时, 第三快的是第 3" ($rankBefore -eq 3) ("实得第 " + $rankBefore + " 名")
+
+        # 把中间那个标成试游
+        $cw.CommandText = "UPDATE heat_entries SET status='TRI' WHERE id=" + $ids[1]; $cw.ExecuteNonQuery() | Out-Null
+        $svc.RecomputeRanks($triRound, $triEvent, 'selftest')
+
+        $cw.CommandText = "SELECT rank FROM heat_entries WHERE id=" + $ids[0]; $r1 = [int]$cw.ExecuteScalar()
+        $cw.CommandText = "SELECT rank FROM heat_entries WHERE id=" + $ids[1]; $r2 = [int]$cw.ExecuteScalar()
+        $cw.CommandText = "SELECT rank FROM heat_entries WHERE id=" + $ids[2]; $r3 = [int]$cw.ExecuteScalar()
+        Check "TRI 本人没有名次" ($r2 -eq 0) ("试游者拿到了第 " + $r2 + " 名")
+        Check "TRI 前面的人名次不受影响(仍是第 1)" ($r1 -eq 1) ("实得第 " + $r1 + " 名")
+        Check "TRI 后面的人【递补上来】(第 3 -> 第 2)" ($r3 -eq 2) ("实得第 " + $r3 + " 名 —— 试游者占了一个名次")
+
+        # 组内名次(GetHeat 现算的那一份) 也不许给 TRI 名次
+        $badHeatTri = @()
+        foreach ($h in $svc.GetHeatList($triRound)) {
+            foreach ($row in $svc.GetHeat($triRound, $h.Heat)) {
+                if ($row.Status -eq 'TRI' -and $row.HeatRank -gt 0) {
+                    $badHeatTri += ("第" + $h.Heat + "组 道" + $row.Lane + " 组内名次=" + $row.HeatRank) }
+            }
+        }
+        Check "TRI 也没有组内名次" ($badHeatTri.Count -eq 0) ($badHeatTri -join '; ')
+    }
+
+    # ══════════════════════════════════════════════════════════════════
+    # 9. 组排名表: 全部组确认后生成得出来, 且能按项目整行读回  2026-09-01
+    #
+    # 为什么要测这个: "文档编辑/输出/打印 -> 项目成绩" 现在直接读这张表。
+    # 表生成不出来、或者读不回来, 现场就是"确认过的成绩查不到", 而且看不出原因。
+    # E2E 那边只测了反面(还有组没确认时不许生成), 正面一直没人测。
+    # ══════════════════════════════════════════════════════════════════
+    Write-Host "9. 组排名表生成与读取"
+    if ($triRound -ne 0) {
+        # 把这个赛次的所有组都标成已确认, 满足"全部组已确认"这个前提
+        $cw.CommandText = "UPDATE heats SET confirmed_at='2026-09-01 00:00:00' WHERE round_id=$triRound AND COALESCE(state,'') <> 'cancelled'"
+        $cw.ExecuteNonQuery() | Out-Null
+    }
+    $cw.Dispose(); $cnW.Close()
+
+    if ($triRound -eq 0) {
+        Check "跳过(上一节没找到可用项目)" $false "无可用项目"
+    } else {
+        # 库是 WAL 模式 —— 不先落盘, 复制出去的是半截(前面那些 UPDATE 还在 -wal 里)
+        $svc.Db.Checkpoint()
+
+        # MeetDbBridge 按 BaseDir\Database\<名字>.db 找库, 所以摆一份到那个位置
+        $dbDir = Join-Path $tmp 'Database'
+        New-Item -ItemType Directory -Force $dbDir | Out-Null
+        Copy-Item $db (Join-Path $dbDir 'ergen.db') -Force
+
+        $tBridge = $asm.GetType('SwimmingScoreboard.Db.MeetDbBridge')
+        $bArgs = New-Object 'object[]' 1; $bArgs[0] = $null
+        $bridge = [Activator]::CreateInstance($tBridge, $bArgs)
+        $bridge.BaseDir = $tmp
+        $opened = $bridge.Open('ergen')
+        Check "竞赛库打得开" $opened "MeetDbBridge.Open 返回 false"
+
+        if ($opened) {
+            # 这个赛次/项目的 (组别,性别,项目,赛次) 是什么
+            $sched = $svc.GetSchedule() | Where-Object { $_.RoundId -eq $triRound -and $_.EventId -eq $triEvent } | Select-Object -First 1
+            if (-not $sched) {
+                Check "赛程里找得到这个项目" $false "GetSchedule 里没有 round=$triRound event=$triEvent"
+            } else {
+                $gen = $bridge.GenerateEventRankingIfComplete(
+                    $sched.AgeGroup, $sched.Gender, $sched.EventName, $sched.Stage, 'selftest')
+                Check "全部组已确认 -> 组排名表生成得出来" ($gen -gt 0) ("生成了 $gen 行")
+
+                $rows = $bridge.GetEventRankingRows($sched.AgeGroup, $sched.Gender, $sched.EventName, $sched.Stage)
+                $rows = @($rows)
+                Check "能按项目把组排名表整行读回来" ($rows.Count -gt 0) ("读回 " + $rows.Count + " 行")
+
+                if ($rows.Count -gt 0) {
+                    # 姓名/代表队/成绩都得在行里 —— 打印就靠它, 不能再回内存凑
+                    $ranked = @($rows | Where-Object { $_.Rank -gt 0 })
+                    Check "第一行就是第 1 名" ($rows[0].Rank -eq 1) ("第一行名次=" + $rows[0].Rank)
+                    $noName = @($ranked | Where-Object { [string]::IsNullOrEmpty($_.AthleteName) })
+                    Check "有名次的行都带着姓名(打印不用回内存凑)" ($noName.Count -eq 0) ("有 " + $noName.Count + " 行没姓名")
+
+                    # 名次必须是不下降的 —— 表里的顺序就是打印顺序
+                    $badOrder = @()
+                    for ($i=1; $i -lt $ranked.Count; $i++) {
+                        if ($ranked[$i].Rank -lt $ranked[$i-1].Rank) {
+                            $badOrder += ("第" + $i + "行 名次" + $ranked[$i].Rank + " 排在 " + $ranked[$i-1].Rank + " 后面") }
+                    }
+                    Check "表里的顺序就是名次顺序(不用再排)" ($badOrder.Count -eq 0) (($badOrder | Select-Object -First 3) -join '; ')
+
+                    # 上一节标的那个 TRI 不许出现在总排名表里
+                    $triInTable = @($rows | Where-Object { $_.Status -eq 'TRI' })
+                    Check "TRI 不进组排名表(总排名列表中不显示 TRI)" ($triInTable.Count -eq 0) ("表里有 " + $triInTable.Count + " 条 TRI")
+
+                    # 无名次的(判罚/弃权)必须全在有名次的后面
+                    $firstUnranked = -1; $lastRanked = -1
+                    for ($i=0; $i -lt $rows.Count; $i++) {
+                        if ($rows[$i].Rank -gt 0) { $lastRanked = $i }
+                        elseif ($firstUnranked -lt 0) { $firstUnranked = $i }
+                    }
+                    $okTail = ($firstUnranked -lt 0) -or ($firstUnranked -gt $lastRanked)
+                    Check "判罚/弃权排在所有有名次的人后面" $okTail ("第一个无名次在第 $firstUnranked 行, 最后一个有名次在第 $lastRanked 行")
+                }
+
+                # 进度查询: 全部确认之后 pending 必须是 0
+                $total = 0; $pending = 0; $rankedN = 0
+                $pArgs = [object[]]@($sched.AgeGroup, $sched.Gender, $sched.EventName, $sched.Stage, $total, $pending, $rankedN)
+                $tBridge.GetMethod('GetEventRankingProgress').Invoke($bridge, $pArgs) | Out-Null
+                Check "进度查询: 总组数 > 0" ([int]$pArgs[4] -gt 0) ("总组数=" + $pArgs[4])
+                Check "进度查询: 全部确认后未确认组数 = 0" ([int]$pArgs[5] -eq 0) ("还差 " + $pArgs[5] + " 组")
+            }
+            $bridge.Dispose()
+        }
+    }
+
 } finally {
     if ($svc) { try { $svc.Dispose() } catch {} }
     try { Remove-Item $tmp -Recurse -Force -ErrorAction SilentlyContinue } catch {}

@@ -879,7 +879,19 @@ namespace SwimmingScoreboard.Db
                     "LEFT JOIN athletes a ON a.id=en.athlete_id " +
                     "LEFT JOIN units u ON u.id=en.unit_id " +
                     "WHERE he.round_id=@p1 AND en.event_id=@p2 AND he.reserve_no IS NULL " +
-                    "ORDER BY CASE WHEN he.rank>0 THEN he.rank ELSE 9999 END, he.final_time", rid, eid);
+                    // 2026-09-01 试游 TRI 不进组排名表 —— 规则是"总排名列表中不显示 TRI"。
+                    //   (他也已经不再占名次了, 见 LocalMeetService.IsUnranked)
+                    "AND COALESCE(he.status,'') <> 'TRI' " +
+                    // 2026-09-01 排序补齐到跟 ResultOrdering 一个口径。原来是
+                    //   "有名次的按名次, 其余按 final_time" —— 其余那一段是错的:
+                    //   DNS 的 final_time 是 0, 于是弃权的被排到了判罚(有成绩)的前面。
+                    //   现在: 有名次的按名次 → DSQ → DNF → DNS → 无成绩; 同档按成绩再按道次。
+                    "ORDER BY CASE WHEN he.rank>0 THEN 0 ELSE 1 END, " +
+                    "         CASE WHEN he.rank>0 THEN he.rank ELSE 0 END, " +
+                    "         CASE COALESCE(he.status,'') WHEN 'DSQ' THEN 2 WHEN 'DQ' THEN 2 " +
+                    "              WHEN 'DNF' THEN 3 WHEN 'DNS' THEN 4 ELSE 5 END, " +
+                    "         CASE WHEN he.final_time>0 THEN he.final_time ELSE 999999 END, " +
+                    "         he.lane", rid, eid);
 
                 // 本项目共几组(取消的不算) —— 打印时显示"第几组/总组数"
                 var th = _local.Db.Query("SELECT COUNT(*) AS n FROM heats WHERE round_id=@p1 AND COALESCE(state,'') <> 'cancelled'", rid);
@@ -1127,6 +1139,87 @@ namespace SwimmingScoreboard.Db
             return list;
         }
 
+        /// <summary>
+        /// 2026-09-01 读【某一个项目/赛次】的组排名表整行。
+        ///
+        /// 跟 GetEventRankings() 的区别: 那个是"把定稿名次灌回内存"用的轻查询(只带 key),
+        /// 这个是【打印/输出直接拿来排版】用的 —— 一行就是成绩单上的一行, 不需要再去
+        /// 内存里凑姓名、代表队、成绩。
+        ///
+        /// 为什么要有它: "文档编辑/输出/打印 → 项目成绩"原来是从【内存】里捞人的,
+        /// 而内存里的成绩行只有主服务器亲自收到过回推才会有。回推丢一次、道次对不上一次,
+        /// 库里明明是全的, 那张表就是空的, 还查不出原因。名次已经定稿在库里了,
+        /// 就该直接读库 —— 这也是"确认之后只调数据库、不再算"的本意。
+        ///
+        /// 返回顺序就是表里的定稿顺序(名次 → 判罚/弃权), 调用方不要再排。
+        /// 项目没定稿(表里没行)时返回空表 —— 让"还没定稿"跟"定稿了但没人"分得开,
+        /// 由调用方去问 GetEventRankingProgress。
+        /// </summary>
+        public List<EventRankRow> GetEventRankingRows(string ageGroup, string gender, string eventName, string stage)
+        {
+            var list = new List<EventRankRow>();
+            if (_local == null) return list;
+            try
+            {
+                long rid = ResolveRound(ageGroup, gender, eventName, stage);
+                long eid = ResolveEvent(ageGroup, gender, eventName, stage);
+                if (rid == 0 || eid == 0) return list;
+                var t = _local.Db.Query(
+                    "SELECT rank,bib_number,athlete_name,unit_name,final_time,heat,total_heats,lane," +
+                    "       remark,status,promotion_mark,record_note,heat_entry_id " +
+                    "FROM event_rankings WHERE round_id=@p1 AND event_id=@p2 " +
+                    "ORDER BY rowid", rid, eid);
+                foreach (System.Data.DataRow r in t.Rows)
+                    list.Add(new EventRankRow {
+                        Rank = r["rank"] == DBNull.Value ? 0 : Convert.ToInt32(r["rank"]),
+                        BibNumber = SS(r["bib_number"]),
+                        AthleteName = SS(r["athlete_name"]),
+                        UnitName = SS(r["unit_name"]),
+                        FinalTime = ND(r["final_time"]),
+                        Heat = r["heat"] == DBNull.Value ? 0 : Convert.ToInt32(r["heat"]),
+                        TotalHeats = r["total_heats"] == DBNull.Value ? 0 : Convert.ToInt32(r["total_heats"]),
+                        Lane = r["lane"] == DBNull.Value ? -1 : Convert.ToInt32(r["lane"]),
+                        Remark = SS(r["remark"]),
+                        Status = SS(r["status"]),
+                        PromotionMark = SS(r["promotion_mark"]),
+                        RecordNote = SS(r["record_note"]),
+                        HeatEntryId = r["heat_entry_id"] == DBNull.Value ? 0 : Convert.ToInt64(r["heat_entry_id"])
+                    });
+            }
+            catch (Exception ex) { Log("读组排名表(单项目)失败: " + ex.Message); }
+            return list;
+        }
+
+        /// <summary>
+        /// 2026-09-01 这个项目【为什么还没定稿】—— 总共几组、还差几组没确认。
+        /// 打印窗口拿它给出一句人话的解释, 而不是干巴巴一句"暂无成绩"。
+        /// total = -1 表示库里根本找不到这个项目/赛次(多半是组别或赛次选错了)。
+        /// </summary>
+        public void GetEventRankingProgress(string ageGroup, string gender, string eventName, string stage,
+                                            out int total, out int pending, out int ranked)
+        {
+            total = -1; pending = 0; ranked = 0;
+            if (_local == null) return;
+            try
+            {
+                long rid = ResolveRound(ageGroup, gender, eventName, stage);
+                long eid = ResolveEvent(ageGroup, gender, eventName, stage);
+                if (rid == 0 || eid == 0) return;
+                var a = _local.Db.Query(
+                    "SELECT COUNT(*) AS n FROM heats WHERE round_id=@p1 AND COALESCE(state,'') <> 'cancelled'", rid);
+                total = a.Rows.Count > 0 ? Convert.ToInt32(a.Rows[0]["n"]) : 0;
+                var b = _local.Db.Query(
+                    "SELECT COUNT(*) AS n FROM heats WHERE round_id=@p1 " +
+                    "AND COALESCE(state,'') <> 'cancelled' AND confirmed_at IS NULL", rid);
+                pending = b.Rows.Count > 0 ? Convert.ToInt32(b.Rows[0]["n"]) : 0;
+                var c = _local.Db.Query(
+                    "SELECT COUNT(*) AS n FROM heat_entries he JOIN entries en ON en.id=he.entry_id " +
+                    "WHERE he.round_id=@p1 AND en.event_id=@p2 AND he.reserve_no IS NULL AND he.rank>0", rid, eid);
+                ranked = c.Rows.Count > 0 ? Convert.ToInt32(c.Rows[0]["n"]) : 0;
+            }
+            catch (Exception ex) { Log("查项目定稿进度失败: " + ex.Message); }
+        }
+
         public List<string[]> ListHeatStamps()
         {
             var list = new List<string[]>();
@@ -1254,5 +1347,27 @@ namespace SwimmingScoreboard.Db
             try { if (_liveActive && !ReferenceEquals(_meet, _local)) _meet.DiscardHeat(op); } catch { }
             _liveActive = false;
         }
+    }
+
+    /// <summary>
+    /// 2026-09-01 组排名表的一行 —— 就是"项目成绩"单上的一行。
+    /// 姓名/代表队/成绩都在库里存着(定稿时抄下来的), 打印时不用再回内存里凑,
+    /// 也就不会出现"库里有、内存里没有 → 表是空的"。
+    /// </summary>
+    public class EventRankRow
+    {
+        public int Rank;
+        public string BibNumber;
+        public string AthleteName;
+        public string UnitName;
+        public double FinalTime;
+        public int Heat;
+        public int TotalHeats;
+        public int Lane;
+        public string Remark;
+        public string Status;
+        public string PromotionMark;
+        public string RecordNote;
+        public long HeatEntryId;
     }
 }
