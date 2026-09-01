@@ -838,16 +838,60 @@ namespace SwimmingScoreboard.Db
                 long eid = ResolveEvent(ageGroup, gender, eventName, stage);
                 if (rid == 0 || eid == 0) return 0;
 
-                // 还有没有没确认的组? (取消的组不算)
-                var pend = _local.Db.Query(
-                    "SELECT COUNT(*) AS n FROM heats WHERE round_id=@p1 " +
-                    "AND COALESCE(state,'') <> 'cancelled' AND confirmed_at IS NULL", rid);
-                int pending = pend.Rows.Count > 0 ? Convert.ToInt32(pend.Rows[0]["n"]) : 0;
+                // ══════════════════════════════════════════════════════════
+                // 2026-09-01 判定"全部组已确认"必须问【库的真身】。
+                //
+                // 联机计时端上 _local 不是真身: LiveCommit 在联机时走的是
+                //   _meet.CommitHeatFrom(...)  —— 成绩和 confirmed_at 只写主服务器,
+                //   本机那份 meet.db 是导入档案时建的、【一组都没确认过】的副本。
+                // 拿它去数, 结果永远是"还有 N 组没确认"(N = 该项目总组数, 一次都不减),
+                // 于是永远 return 0 —— 计时端从来没生成过组排名表, 也就从来没发
+                // GENERATE_EVENT_RANKING 给主服务器(那句话挂在 made>0 上)。
+                //
+                // 现场实测就是这样: 2 组的项目, 两组都确认完了, 日志里两次都是
+                // "还有 2 组没确认", 主服务器的 event_rankings 一行没有。
+                // 【这是"项目成绩查不到"的真正源头】—— 断线补传/导入补生成/竞态重试
+                // 那三处补丁全在下游, 通知压根没发出来过。
+                // ══════════════════════════════════════════════════════════
+                int pending;
+                bool standalone = ReferenceEquals(_meet, _local);
+                if (standalone)
+                {
+                    var pend = _local.Db.Query(
+                        "SELECT COUNT(*) AS n FROM heats WHERE round_id=@p1 " +
+                        "AND COALESCE(state,'') <> 'cancelled' AND confirmed_at IS NULL", rid);
+                    pending = pend.Rows.Count > 0 ? Convert.ToInt32(pend.Rows[0]["n"]) : 0;
+                }
+                else
+                {
+                    // 联机: 走 RPC 问主服务器那份 —— 那才是成绩真正落进去的库
+                    var hl = _meet.GetHeatList(rid);
+                    pending = 0;
+                    if (hl != null)
+                        foreach (var h in hl)
+                            if (!h.IsCancelled && !h.IsConfirmed) pending++;
+                }
                 if (pending > 0)
                 {
                     Log(string.Format("{0}{1} {2} {3}: 还有 {4} 组没确认, 组排名表暂不生成",
                         ageGroup, gender, eventName, stage, pending));
                     return 0;
+                }
+
+                // 联机计时端【不在本机写这张表】: _local 是空副本, 写出来的是一张错表,
+                // 而且没人会读它。判定通过 + 操作员点头之后, 由调用方发
+                // GENERATE_EVENT_RANKING 让主服务器用它自己的库生成 —— 那份才作数。
+                if (!standalone)
+                {
+                    if (confirm != null && !confirm())
+                    {
+                        Log(string.Format("{0}{1} {2} {3}: 操作员取消, 本次不生成组成绩(下次确认成绩时会再问)",
+                            ageGroup, gender, eventName, stage));
+                        return 0;
+                    }
+                    Log(string.Format("★ {0}{1} {2} {3} 全部组已确认 —— 通知主服务器生成组成绩（本机不写, 以服务器那份为准）",
+                        ageGroup, gender, eventName, stage));
+                    return 1;   // >0 = 告诉调用方"去通知主服务器"
                 }
 
                 // 2026-08-31 老库里这张表可能是早先的列序(名次不在第一列)。
@@ -1205,13 +1249,30 @@ namespace SwimmingScoreboard.Db
                 long rid = ResolveRound(ageGroup, gender, eventName, stage);
                 long eid = ResolveEvent(ageGroup, gender, eventName, stage);
                 if (rid == 0 || eid == 0) return;
-                var a = _local.Db.Query(
-                    "SELECT COUNT(*) AS n FROM heats WHERE round_id=@p1 AND COALESCE(state,'') <> 'cancelled'", rid);
-                total = a.Rows.Count > 0 ? Convert.ToInt32(a.Rows[0]["n"]) : 0;
-                var b = _local.Db.Query(
-                    "SELECT COUNT(*) AS n FROM heats WHERE round_id=@p1 " +
-                    "AND COALESCE(state,'') <> 'cancelled' AND confirmed_at IS NULL", rid);
-                pending = b.Rows.Count > 0 ? Convert.ToInt32(b.Rows[0]["n"]) : 0;
+                // 2026-09-01 跟 GenerateEventRankingIfComplete 同一个道理: 联机计时端上
+                //   _local 一组都没确认过, 拿它数会报出"还差 N 组"这种误导人的话。
+                if (ReferenceEquals(_meet, _local))
+                {
+                    var a = _local.Db.Query(
+                        "SELECT COUNT(*) AS n FROM heats WHERE round_id=@p1 AND COALESCE(state,'') <> 'cancelled'", rid);
+                    total = a.Rows.Count > 0 ? Convert.ToInt32(a.Rows[0]["n"]) : 0;
+                    var b = _local.Db.Query(
+                        "SELECT COUNT(*) AS n FROM heats WHERE round_id=@p1 " +
+                        "AND COALESCE(state,'') <> 'cancelled' AND confirmed_at IS NULL", rid);
+                    pending = b.Rows.Count > 0 ? Convert.ToInt32(b.Rows[0]["n"]) : 0;
+                }
+                else
+                {
+                    var hl = _meet.GetHeatList(rid);
+                    total = 0; pending = 0;
+                    if (hl != null)
+                        foreach (var h in hl)
+                        {
+                            if (h.IsCancelled) continue;
+                            total++;
+                            if (!h.IsConfirmed) pending++;
+                        }
+                }
                 var c = _local.Db.Query(
                     "SELECT COUNT(*) AS n FROM heat_entries he JOIN entries en ON en.id=he.entry_id " +
                     "WHERE he.round_id=@p1 AND en.event_id=@p2 AND he.reserve_no IS NULL AND he.rank>0", rid, eid);
@@ -1226,10 +1287,19 @@ namespace SwimmingScoreboard.Db
             if (_local == null) return list;
             try
             {
+                // 2026-09-01 指纹里【必须带上名次】。
+                //   原来只看 result_at + confirmed_at。而确认第 2 组时 RecomputeRanks 会把
+                //   【整个项目】的名次重排 —— 第 1 组那些人的 rank 从 1 变成 9, 可是他们的
+                //   result_at / confirmed_at 一个字都没动。指纹没变 => 增量刷新跳过这一组
+                //   => 内存里第 1 组永远停在"他们还是第 1"的旧值。
+                //   现场实测: 两组成绩不同, "成绩与排名"选"全部"时两组人全显示第 1。
+                //   加一个名次和(rank_sum)进指纹, 名次一变就会重读。
                 var t = _local.Db.Query(
                     "SELECT e.age_group,e.gender,e.event_name,r.stage,he.heat, " +
                     "       MAX(COALESCE(he.result_at,'')) AS r_at, " +
-                    "       MAX(COALESCE(h.confirmed_at,'')) AS c_at " +
+                    "       MAX(COALESCE(h.confirmed_at,'')) AS c_at, " +
+                    "       SUM(COALESCE(he.rank,0)) AS rk_sum, " +
+                    "       COUNT(NULLIF(COALESCE(he.status,''),'')) AS st_n " +
                     "FROM heat_entries he " +
                     "JOIN rounds r ON r.id=he.round_id " +
                     "JOIN entries en ON en.id=he.entry_id " +
@@ -1240,7 +1310,7 @@ namespace SwimmingScoreboard.Db
                 foreach (System.Data.DataRow row in t.Rows)
                     list.Add(new string[] { SS(row["age_group"]), SS(row["gender"]), SS(row["event_name"]),
                         SS(row["stage"]), Convert.ToInt32(row["heat"]).ToString(),
-                        SS(row["r_at"]) + "|" + SS(row["c_at"]) });
+                        SS(row["r_at"]) + "|" + SS(row["c_at"]) + "|" + SS(row["rk_sum"]) + "|" + SS(row["st_n"]) });
             }
             catch (Exception ex) { Log("列组次指纹失败: " + ex.Message); }
             return list;

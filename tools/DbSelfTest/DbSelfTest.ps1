@@ -154,6 +154,11 @@ WHERE he.final_time>0 AND (he.status IS NULL OR he.status='')
     $c.CommandText = "SELECT COUNT(*) FROM heat_entries WHERE status IN ('DSQ','DQ','DNF','DNS') AND rank>0"
     $n = [int]$c.ExecuteScalar()
     Check "DSQ/DQ/DNF/DNS 的项目名次必须是 0" ($n -eq 0) "有 $n 条判罚/弃权却带名次"
+    # 2026-09-01 判罚/弃权的人也不许留着破/平纪录标识 —— 现场出过:
+    #   界面上标了 DNS、成绩和名次都空了, "纪录"列却还挂着 MR, 大屏和成绩单照着显示。
+    $c.CommandText = "SELECT COUNT(*) FROM heat_entries WHERE status IN ('DSQ','DQ','DNF','DNS') AND COALESCE(record_note,'')<>''"
+    $nrec = [int]$c.ExecuteScalar()
+    Check "DSQ/DQ/DNF/DNS 不许带破/平纪录标识" ($nrec -eq 0) "有 $nrec 条判罚/弃权却带着纪录标识"
     $c.Dispose(); $cn.Close()
 
     # ── 6. 参数存进库 (settings 表) ────────────────────────────────

@@ -982,6 +982,12 @@ namespace SwimmingScoreboard.Db
                 foreach (var ln in live.Lanes)
                 {
                     if (ln.HeatEntryId <= 0) continue;
+                    // 2026-09-01 【入库边界的硬规矩】判罚/弃权/试游的人不许带纪录标识进库。
+                    //   现场出过: 界面上标了 DNS、日志也打了"取消破/平纪录标识", 库里那一行
+                    //   却还是 record_note=MR —— 因为送进来的这份快照是标 DNS 之前的。
+                    //   上游怎么错, 这一关都不许放过去: 名次由 RecomputeRanks 归 0,
+                    //   纪录标识在这里归空。
+                    if (IsUnranked(ln.Status)) ln.RecordNote = "";
                     run(@"UPDATE heat_entries SET final_time=@p2,status=@p3,record_note=@p4,timing_source=@p5,
                               reaction_time=@p6,touchpad_time=@p7,start_block_time=@p8,pb1_time=@p9,pb2_time=@p10,
                               pb3_time=@p11,manual_left=@p12,manual_right=@p13,dsq_code=@p14,dsq_leg=@p15,

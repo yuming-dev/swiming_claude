@@ -73,6 +73,51 @@ for ($i=0; $i -lt $mwLns.Count; $i++) {
 Chk "打印/查询窗口不再自己算名次" ($badRank.Count -eq 0) (($badRank) -join ', ')
 Chk "MainWindow 只剩确认时算名次那一处" ($mwCalls -le 1) ("还有 $mwCalls 处在算")
 
+Write-Host ""
+Write-Host "5. 比赛中的人工改动必须落【当前组库】"
+# ══════════════════════════════════════════════════════════════════════
+# 2026-09-01 现场吃过的亏:
+#   判罚(MarkLaneStatus) 只改内存 + 写 JSON, 没写当前组库。而"确认成绩"回写
+#   竞赛库时取的是【当前组库】的快照 —— 于是界面上标了 DNS、日志也打了
+#   "取消破/平纪录标识", 库里那一行却还是: 有成绩、占名次、带着 MR。
+#   判罚等于没打, 而且从界面上完全看不出来。
+#   手输成绩(OverrideLaneTime)、撤销判罚(CancelLaneNote) 是同一个毛病。
+#
+# 规则: 这三个方法体内必须调 SaveHeatProgress()。
+# ══════════════════════════════════════════════════════════════════════
+$needSave = @('MarkLaneStatus','OverrideLaneTime','CancelLaneNote')
+$missing = @()
+foreach ($m in $needSave) {
+    $start = -1
+    for ($i=0; $i -lt $mwLns.Count; $i++) {
+        if ($mwLns[$i] -match ('private void ' + $m + '\(')) { $start = $i; break }
+    }
+    if ($start -lt 0) { $missing += ($m + '(找不到这个方法)'); continue }
+    # 方法体: 从定义行往下, 到下一个 "        private " 为止
+    $end = $mwLns.Count - 1
+    for ($j=$start+1; $j -lt $mwLns.Count; $j++) {
+        if ($mwLns[$j] -match '^        private ') { $end = $j - 1; break }
+    }
+    $body = ($mwLns[$start..$end] -join "`n")
+    if ($body -notmatch 'SaveHeatProgress\(\)') { $missing += $m }
+}
+Chk "判罚/手输成绩/撤销判罚 都写了当前组库" ($missing.Count -eq 0) (("没写的: " + ($missing -join ', ')))
+
+# 入库边界: 判罚/弃权/试游不许带纪录标识进 heat_entries
+$lms = [IO.File]::ReadAllText((Join-Path $src 'Db\LocalMeetService.cs'),[Text.Encoding]::UTF8)
+Chk "入库时判罚/弃权/试游的纪录标识被清掉" ($lms -match 'IsUnranked\(ln\.Status\)\)\s*ln\.RecordNote\s*=\s*""') `
+    "CommitHeatFrom 里那道'判罚不许带纪录标识'的防线没了"
+
+# 增量刷新的指纹必须带名次 —— 不带就会漏掉"别的组确认导致本组名次变了"
+$brg = [IO.File]::ReadAllText((Join-Path $src 'Db\MeetDbBridge.cs'),[Text.Encoding]::UTF8)
+Chk "增量刷新指纹带了名次(rk_sum)" ($brg -match 'SUM\(COALESCE\(he\.rank,0\)\) AS rk_sum') `
+    "ListHeatStamps 指纹里没有名次: 别的组确认后本组名次变了也不会重读"
+
+# 判定"全部组已确认"必须问库的真身, 不能问联机计时端本机那份空副本
+Chk "判定'全部组已确认'走 _meet(库的真身)" ($brg -match '_meet\.GetHeatList\(rid\)') `
+    "GenerateEventRankingIfComplete 又只看 _local 了: 联机计时端上永远生成不了组排名表"
+
+Write-Host ""
 Write-Host ("结果: " + $pass + " 过 / " + $fail + " failed")
 if ($fail -gt 0) { $msgs | ForEach-Object { Write-Host ("  "+$_) -ForegroundColor Red }; exit 1 }
 exit 0
