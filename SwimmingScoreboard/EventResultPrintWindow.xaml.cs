@@ -369,6 +369,9 @@ namespace SwimmingScoreboard
                     ReactionTimeHtml = isDQ ? "" : reactionHtml,     // 打印 HTML 用
                     // 2026-08-31 表格补上组别和组次 —— 一张项目成绩单跨多个组时,
                     //   原来看不出某一行是第几组的, 也看不出这个人属于哪个组别。
+                    // 2026-09-01 名次【从库里读】: EventRankFor 取的是确认成绩时竞赛库算好、
+                    //   回读进内存的名次(项目定稿后是 event_rankings 的值)。这里不算。
+                    DbRank = s.EventRankFor(stage),
                     AgeGroup = s.AgeCategory ?? "",
                     HeatNo = r.Heat,
                     Remark = remark,
@@ -409,15 +412,11 @@ namespace SwimmingScoreboard
                 totalHeatsForView = hs.Count;
             } catch { }
 
+            // 2026-09-01 名次一律读库里的, 这里不再算 —— 现算就会和成绩与排名、大屏
+            //   各算各的, 同一份成绩三个答案(用户实拍到过)。库里没有就显示 "-"。
             var rankArr = new int[displayData.Count];
-            foreach (var grp in Enumerable.Range(0, displayData.Count)
-                                          .Where(i => !displayData[i].IsDQ)
-                                          .GroupBy(i => isMixed ? displayData[i].Gender : "_all"))
-            {
-                var idxs = grp.ToList();
-                var rks = ResultOrdering.ComputeRanks(idxs, i => displayData[i].RawFinalTime);
-                for (int k = 0; k < idxs.Count; k++) rankArr[idxs[k]] = rks[k];
-            }
+            for (int i = 0; i < displayData.Count; i++)
+                rankArr[i] = displayData[i].IsDQ ? 0 : displayData[i].DbRank;
             for (int di = 0; di < displayData.Count; di++)
             {
                 var item = displayData[di];
@@ -441,7 +440,7 @@ namespace SwimmingScoreboard
                 int curRank = rankArr[di];
                 _currentResults.Add(new
                 {
-                    Rank = item.IsDQ ? "-" : curRank.ToString(),
+                    Rank = (item.IsDQ || curRank <= 0) ? "-" : curRank.ToString(),
                     item.AgeGroup,
                     HeatText = item.HeatNo > 0
                         ? (totalHeatsForView > 0 ? item.HeatNo + "/" + totalHeatsForView : item.HeatNo.ToString())
