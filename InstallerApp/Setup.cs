@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.IO;
@@ -391,6 +391,23 @@ class SetupForm : Form
             // 复制使用说明书（PDF）
             string manualSrc = Path.Combine(sourceDir, "使用说明书.pdf");
             if (File.Exists(manualSrc)) File.Copy(manualSrc, Path.Combine(installDir, "使用说明书.pdf"), true);
+
+            // 2026-09-01 装 VC++ 运行库。SQLite.Interop.dll 是原生 DLL, 依赖它;
+            //   目标机没装就会报"无法加载 SQLite.Interop.dll: 找不到指定的模块"
+            //   —— 那句话说的是【依赖】找不到, 不是 DLL 本身找不到, 很容易看错。
+            //   后果是竞赛库从头到尾打不开: 成绩不入库、没有名次、组排名表不生成,
+            //   而界面上看不出任何异常(现场就这么跑了一整天)。
+            //   已装过的话它自己会跳过, 不会重复装。装不上也不拦着安装继续。
+            SetProgress(92, "安装运行库 (VC++ x64)...");
+            try {
+                string vcSrc = Path.Combine(sourceDir, "prereq", "vc_redist.x64.exe");
+                if (File.Exists(vcSrc)) {
+                    var psi = new System.Diagnostics.ProcessStartInfo(vcSrc, "/install /quiet /norestart");
+                    psi.UseShellExecute = true;
+                    var p = System.Diagnostics.Process.Start(psi);
+                    if (p != null) p.WaitForExit(180000);   // 最多等 3 分钟
+                }
+            } catch { }
 
             SetProgress(95, "创建卸载程序...");
             CreateUninstaller(desktop, startMenu);

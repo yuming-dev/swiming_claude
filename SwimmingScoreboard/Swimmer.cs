@@ -635,11 +635,15 @@ namespace SwimmingScoreboard
         /// 多组的项目里组内名次会偏高(每组都有个第1), 所以回读那条路必须保证通。
         /// </summary>
         public int EventRankFor(string stage) {
+            // 2026-09-01 【只认库】。原来这里在 EventRank 为 0 时会退回 r2.Rank ——
+            //   那是【组内名次】, 多组项目里每组都有个第1, 于是大屏和项目成绩上
+            //   7 个人全成了"第1"(用户实拍到)。而"成绩与排名"如实显示 "-",
+            //   三处又对不上。
+            //   库里没有项目名次就是没有 —— 返回 0, 各处一律显示 "-"。
+            //   要让它有值, 就得让成绩真正回写库并回读(确认本组成绩那条路), 而不是
+            //   在显示时临时凑一个出来。
             var r = _results.FirstOrDefault(x => x.Stage == stage && x.EventRank > 0);
-            if (r != null) return r.EventRank;
-            var r2 = GetResultForStage(stage);
-            if (r2 != null && r2.Rank > 0) return r2.Rank;
-            return CurrentRank;
+            return r != null ? r.EventRank : 0;
         }
 
         public LaneResult GetResultForStage(string stage) {

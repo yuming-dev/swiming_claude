@@ -21419,6 +21419,9 @@ namespace SwimmingScoreboard
         // 2026-08-31 参数的【权威】是竞赛库的 settings 表, 本地 json 只当断线/降级
         //   时的后备。联机时 _meet 就是主服务器, 所以计时端一存, 主服务器那份库里
         //   立刻就是新值 —— 不再是"两份数据靠消息同步"(那样一定有分叉的时候)。
+        // 2026-09-01 竞赛库打不开的告警每次加载只弹一次
+        private bool _meetDbFailWarned;
+
         private const string CFG_TIMING = "timing_settings";
         private const string CFG_DEVICE = "device_states";
 
@@ -22572,7 +22575,29 @@ namespace SwimmingScoreboard
         // 它的作用是在真正把读路径搬到库上之前，先把差异暴露出来。
         private void SyncToMeetDb(CompetitionPackage package) {
             try {
-                if (!_meetDb.Open(_competitionName)) return;
+                if (!_meetDb.Open(_competitionName)) {
+                    // 2026-09-01 竞赛库打不开是【致命】的, 不能只记一行日志就接着跑。
+                    //   实际发生过: SQLite.Interop.dll 加载失败(目标机缺 VC++ 运行库),
+                    //   库从头到尾没打开过 —— 成绩全进不了库、没有项目名次、组排名表不生成,
+                    //   而界面上一点异常都看不出来, 就这么跑了一整天。
+                    //   现在必须弹出来, 让人当场知道。每次加载档案只弹一次, 不烦人。
+                    if (!_meetDbFailWarned) {
+                        _meetDbFailWarned = true;
+                        AddLog("【严重】竞赛库打不开 —— 成绩无法入库, 无法生成组排名");
+                        try {
+                            MessageBox.Show(
+                                "竞赛库打不开。\n\n后果:\n"
+                                + "  · 成绩【无法写入数据库】(只留在内存和 JSON 档案里)\n"
+                                + "  · 没有项目总排名, 各处名次会显示 \"-\"\n"
+                                + "  · 无法生成组成绩(晋级依据/最终名次)\n\n"
+                                + "最常见的原因: 这台机器缺 VC++ 运行库, 导致 SQLite.Interop.dll\n"
+                                + "加载失败(日志里是\"找不到指定的模块\")。装一次运行库即可。\n\n"
+                                + "详细原因见【系统日志与数据】页, 或程序目录下 Logs\\\\ 里的日志文件。",
+                                "竞赛库打不开 —— 成绩不会入库", MessageBoxButton.OK, MessageBoxImage.Error);
+                        } catch { }
+                    }
+                    return;
+                }
                 if (!_meetDb.ImportPackage(package)) return;
                 // 2026-08-31 【不在这里重算名次】。
                 //   名次在"确认本组成绩"那一刻就固定了, 是正式成绩的一部分,

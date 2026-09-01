@@ -125,6 +125,20 @@ if (Test-Path $rtsTxt) {
 
 $manualSrc = Join-Path $root "Installer\使用说明书.pdf"
 if (Test-Path $manualSrc) { Copy-Item $manualSrc (Join-Path $installerBuild "使用说明书.pdf") -Force }
+
+# 2026-09-01 VC++ 运行库随包发。目标机缺它, SQLite.Interop.dll 就加载不了 ——
+#   竞赛库全程打不开(成绩不入库/没有名次/组排名不生成), 而界面上看不出任何异常。
+#   现场就这么跑了一整天才发现。安装器会静默装一次, 已装过的自动跳过。
+$prereqSrc = Join-Path $root "prereq"
+if (Test-Path $prereqSrc) {
+    $prereqDst = Join-Path $installerBuild "prereq"
+    New-Item -ItemType Directory -Force $prereqDst | Out-Null
+    Copy-Item (Join-Path $prereqSrc "*") $prereqDst -Force
+    $mb2 = ((Get-ChildItem $prereqDst | Measure-Object Length -Sum).Sum/1MB)
+    Write-Host ("    运行库已收入安装包: {0:N1} MB" -f $mb2)
+} else {
+    Write-Host "    [警告] 找不到 prereq 目录, 安装包不含 VC++ 运行库" -ForegroundColor Yellow
+}
 # 2026-07-13 通讯协议.pdf 是开发者文档, 不进客户包 (原 2026-06-18 打包这行已移除). 客户包只放 使用说明书.pdf.
 
 # ── 新版模拟计时器(图形界面, 10 道泳池) ───────────────────────────────
