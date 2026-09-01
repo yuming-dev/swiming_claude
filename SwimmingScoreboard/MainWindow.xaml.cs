@@ -19741,7 +19741,12 @@ namespace SwimmingScoreboard
                     // 2026-09-01 名次【从库里读】: r.EventRank 是确认成绩时竞赛库算好、
                     //   回读进内存的(heat_entries.rank); 项目定稿后会被 event_rankings 覆盖。
                     //   这里不算名次, 只是把它带出去。
-                    DbRank = (r != null ? r.EventRank : 0),
+                    // 2026-09-01 【本组名次】和【项目总排名】是两回事, 不能混:
+                    //   选了具体某一组 -> 显示【本组名次】(r.Rank, 库里 GetHeat 现算的组内名次)
+                    //   选"全部"      -> 显示【项目总排名】(r.EventRank, 库里 heat_entries.rank)
+                    //   上一版一律给了总排名, 于是按组看时名次成了总排名的名次(用户报的)。
+                    //   两个值都来自竞赛库(确认成绩时回读进内存的), 这里仍然不算任何东西。
+                    DbRank = (r == null ? 0 : (filterHeat > 0 ? r.Rank : r.EventRank)),
                     SortTime = sortTime,
                     StatusOrder = heatStatusOrder,        // 2026-08-19 无名次者之间的次序 (TRI→DSQ→DNF→DNS→其他)
                     TimeKey = timeKey,                    // 2026-08-19 同类内按成绩快慢 (多名 TRI 时)
@@ -22504,11 +22509,16 @@ namespace SwimmingScoreboard
                             heat, lane, TimeFormatter.Format(r.FinalTime), TimeFormatter.Format(row.FinalTime)));
                         r.FinalTime = row.FinalTime;
                     }
-                    r.Rank = row.HeatRank;
-                    r.EventRank = row.Rank;
-                    r.Gap = row.Gap;
+                    // 2026-09-01 【只覆盖库里真有值的】。
+                    //   这个方法每 10 秒轮询也会跑一次。原来无条件赋值 —— 库里那一列
+                    //   还是 0(比如这一组刚写进去、项目名次还没重排)时, 会把内存里
+                    //   原本有的名次【清成 0】, 界面上名次就变成 "-" 了, 而且是反复清。
+                    //   库里有值才覆盖; 没值就保留内存里那份, 等库里算出来再说。
+                    if (row.HeatRank > 0) r.Rank = row.HeatRank;
+                    if (row.Rank > 0) r.EventRank = row.Rank;
+                    if (row.Gap > 0) r.Gap = row.Gap;
                     r.IsTie = row.IsTie;
-                    r.PromotionMark = row.PromotionMark ?? "";
+                    if (!string.IsNullOrEmpty(row.PromotionMark)) r.PromotionMark = row.PromotionMark;
                     if (!string.IsNullOrEmpty(row.RecordNote)) r.RecordNote = row.RecordNote;
                     r.FromDb = true;
                     // CurrentRank 是老代码到处在用的字段, 一起对齐, 别让它成为第二个真相
