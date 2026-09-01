@@ -283,13 +283,13 @@ class SetupForm : Form
                 installDir + @"\ScheduleEditor\Database" };
             foreach (var d in dirs) { if (!Directory.Exists(d)) Directory.CreateDirectory(d); }
 
+            // 2026-09-01 见 CopyDirDeep 的说明: 这里必须【连子目录一起复制】
             SetProgress(15, "复制主服务器程序及依赖库...");
             // 复制 SwimmingScoreboard\ 根目录下所有文件（exe + 所有 dll）到 Server\
             string serverSrc = Path.Combine(sourceDir, "SwimmingScoreboard");
             string serverDst = Path.Combine(installDir, "Server");
             if (Directory.Exists(serverSrc))
-                foreach (var f in Directory.GetFiles(serverSrc))
-                    File.Copy(f, Path.Combine(serverDst, Path.GetFileName(f)), true);
+                CopyDirDeep(serverSrc, serverDst);   // 2026-09-01 连子目录一起复制(x64\SQLite.Interop.dll 就在子目录里)
 
             SetProgress(40, "复制Web页面...");
             string webSrc = Path.Combine(sourceDir, "SwimmingScoreboard", "Web");
@@ -307,29 +307,25 @@ class SetupForm : Form
             string remoteSrc = Path.Combine(sourceDir, "RemoteTimingControl");
             string remoteDst = Path.Combine(installDir, "RemoteControl");
             if (Directory.Exists(remoteSrc))
-                foreach (var f in Directory.GetFiles(remoteSrc))
-                    File.Copy(f, Path.Combine(remoteDst, Path.GetFileName(f)), true);
+                CopyDirDeep(remoteSrc, remoteDst);   // 2026-09-01 连子目录一起复制(x64\SQLite.Interop.dll 就在子目录里)
 
             SetProgress(64, "复制远程显示控制台及依赖库...");
             string displaySrc = Path.Combine(sourceDir, "RemoteDisplayControl");
             string displayDst = Path.Combine(installDir, "RemoteDisplay");
             if (Directory.Exists(displaySrc))
-                foreach (var f in Directory.GetFiles(displaySrc))
-                    File.Copy(f, Path.Combine(displayDst, Path.GetFileName(f)), true);
+                CopyDirDeep(displaySrc, displayDst);   // 2026-09-01 连子目录一起复制(x64\SQLite.Interop.dll 就在子目录里)
 
             SetProgress(67, "复制运动员报名工具及依赖库...");
             string regSrc = Path.Combine(sourceDir, "RegistrationTool");
             string regDst = Path.Combine(installDir, "Registration");
             if (Directory.Exists(regSrc))
-                foreach (var f in Directory.GetFiles(regSrc))
-                    File.Copy(f, Path.Combine(regDst, Path.GetFileName(f)), true);
+                CopyDirDeep(regSrc, regDst);   // 2026-09-01 连子目录一起复制(x64\SQLite.Interop.dll 就在子目录里)
 
             SetProgress(70, "复制编排记录及成绩处理（ScheduleEditor）...");
             string editorSrc = Path.Combine(sourceDir, "ScheduleEditor");
             string editorDst = Path.Combine(installDir, "ScheduleEditor");
             if (Directory.Exists(editorSrc))
-                foreach (var f in Directory.GetFiles(editorSrc))
-                    File.Copy(f, Path.Combine(editorDst, Path.GetFileName(f)), true);
+                CopyDirDeep(editorSrc, editorDst);   // 2026-09-01 连子目录一起复制(x64\SQLite.Interop.dll 就在子目录里)
             // ScheduleEditor 也带 Records 子目录（与主服务器共享纪录模板）
             string editorRecSrc = Path.Combine(sourceDir, "ScheduleEditor", "Records");
             if (Directory.Exists(editorRecSrc))
@@ -421,6 +417,25 @@ class SetupForm : Form
             MessageBox.Show("安装过程中出现错误:\n\n" + ex.Message, "安装错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
             ShowStep(1);
         }
+    }
+
+    /// <summary>
+    /// 2026-09-01 连子目录一起复制。
+    ///
+    /// 原来用的是 Directory.GetFiles(dir) —— 【不递归】, 只拿顶层文件。
+    /// 于是 x64\SQLite.Interop.dll 这种放在子目录里的原生 DLL 根本没被装到机器上:
+    /// 安装包里明明有, 装完就没了, 运行时报"无法加载 SQLite.Interop.dll: 找不到指定的模块"。
+    /// 后果是竞赛库全程打不开 —— 成绩不入库、没有名次、组排名不生成, 界面上还看不出来。
+    /// (查了很久才发现: 我一直在验安装包里有没有, 从来没验过【装完之后】有没有。)
+    /// </summary>
+    static void CopyDirDeep(string src, string dst)
+    {
+        if (!Directory.Exists(src)) return;
+        Directory.CreateDirectory(dst);
+        foreach (var f in Directory.GetFiles(src))
+            File.Copy(f, Path.Combine(dst, Path.GetFileName(f)), true);
+        foreach (var d in Directory.GetDirectories(src))
+            CopyDirDeep(d, Path.Combine(dst, Path.GetFileName(d)));
     }
 
     void FileCopy(string relSrc, string relDst)

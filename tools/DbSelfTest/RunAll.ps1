@@ -3,7 +3,7 @@
 $ErrorActionPreference = 'Continue'
 $d = $PSScriptRoot
 $fail = 0
-foreach ($t in @(@('竞赛库规则', 'DbSelfTest.ps1'), @('端到端(起进程+WebSocket+查库)', 'E2ETest.ps1'), @('源码不变量', 'SourceRules.ps1'))) {
+foreach ($t in @(@('竞赛库规则', 'DbSelfTest.ps1'), @('端到端(起进程+WebSocket+查库)', 'E2ETest.ps1'), @('源码不变量', 'SourceRules.ps1'), @('安装结果(装完之后有没有)', 'InstallTest.ps1'))) {
     Write-Host ""
     Write-Host ("═══ " + $t[0] + " ═══") -ForegroundColor Cyan
     # 用【子进程】跑: 反射测试会 Assembly.LoadFrom 锁住 exe, 同进程跑完锁不释放,
