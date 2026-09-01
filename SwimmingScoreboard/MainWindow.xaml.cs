@@ -3474,11 +3474,12 @@ namespace SwimmingScoreboard
                     } : (object)null,
                     isFalseStart = laneState != null && laneState.IsFalseStart,
                     isSuspectFalseStart = laneState != null && laneState.IsSuspectFalseStart,
-                    // 2026-09-01 判罚/弃权的人不发纪录标识 —— 他成绩都不算数, 更不可能破纪录。
-                    //   现场拍到过: 大屏上 DNF 那一行成绩空着, 备注却是金色的 MR。
+                    // 2026-09-01 判罚/弃权/试游都不发纪录标识 —— 他们的成绩不参与排名,
+                    //   自然也不能算破纪录。现场拍到过: 大屏上 DNF 那一行成绩空着,
+                    //   备注却是金色的 MR。(StatusOrder != 5 = TRI/DSQ/DQ/DNF/DNS)
                     isNewRecord = result != null && !string.IsNullOrEmpty(result.RecordNote)
-                                  && !ResultOrdering.IsJudged(GetEffectiveStatus(sw, result)),
-                    recordNote = (result != null && !ResultOrdering.IsJudged(GetEffectiveStatus(sw, result)))
+                                  && ResultOrdering.StatusOrder(GetEffectiveStatus(sw, result)) == 5,
+                    recordNote = (result != null && ResultOrdering.StatusOrder(GetEffectiveStatus(sw, result)) == 5)
                                  ? (result.RecordNote ?? "") : "",
                     // 2026-06-18 同步 PC 端 UI 关键字段给 race_control.html (HTML 端可显示同款信息)
                     finishTpMbDispute = laneState != null && laneState.FinishTpMbDispute,
@@ -4201,8 +4202,11 @@ namespace SwimmingScoreboard
                 }
                 // DSQ/DNS/DNF/无成绩 追加, 无名次. TRI 不进总排名 (= 仅展示)
                 // 2026-06-22 按 DSQ → DNF → DNS → 其他 排序 (用户要求 DSQ 在 DNS 上面)
-                foreach (var sw in subList.Where(s => !withTimes.Contains(s) && s.Status != "TRI")
-                    .OrderBy(s => GetStatusSortOrder(s.Status ?? ""))) {
+                // 2026-09-01 TRI 判定看【有效状态】—— 试游是记在成绩行上的,
+                //   只看 s.Status 会让 TRI 混进总排名末尾(规则是总排名不显示 TRI)。
+                foreach (var sw in subList.Where(s => !withTimes.Contains(s)
+                             && GetEffectiveStatus(s, s.GetResultForStage(_currentStage)) != "TRI")
+                    .OrderBy(s => GetStatusSortOrder(GetEffectiveStatus(s, s.GetResultForStage(_currentStage))))) {
                     var r = sw.GetResultForStage(_currentStage);
                     string rkName = sw.Name;
                     if (rankRelay && !string.IsNullOrEmpty(sw.Notes) && sw.Notes.StartsWith("接力队 棒次:"))
@@ -4341,8 +4345,10 @@ namespace SwimmingScoreboard
             // 2026-06-21 追加 DSQ/DNS/DNF/无成绩 运动员到末尾 (rank=0, 大屏总排名/颁奖回放都需显示).
             //   TRI 不进总排名 (与 GetEventRanking 一致).
             // 2026-06-22 按 DSQ → DNF → DNS → 其他 排序 (用户要求 DSQ 在 DNS 上面)
-            var othersFS = stageSwimmers.Where(s => !withTimes.Contains(s) && s.Status != "TRI")
-                .OrderBy(s => GetStatusSortOrder(s.Status ?? ""))
+            // 2026-09-01 同上: TRI 判定和排序都走有效状态(成绩行优先)
+            var othersFS = stageSwimmers.Where(s => !withTimes.Contains(s)
+                    && GetEffectiveStatus(s, s.GetResultForStage(stage)) != "TRI")
+                .OrderBy(s => GetStatusSortOrder(GetEffectiveStatus(s, s.GetResultForStage(stage))))
                 .ToList();
             foreach (var sw in othersFS) {
                 var r = sw.GetResultForStage(stage);
@@ -7873,7 +7879,10 @@ namespace SwimmingScoreboard
             var withResults = swimmers.Where(s => {
                 var r = s.Results.FirstOrDefault(lr => lr.Stage == _currentStage && lr.Heat == _currentHeat);
                 // 2026-06-04 TRI 不参与本组排名 (= 与 DSQ/DNS/DNF 同款排除)
-                return r != null && r.FinalTime > 0 && s.Status != "DSQ" && s.Status != "DNS" && s.Status != "DNF" && s.Status != "TRI";
+                // 2026-09-01 判罚/试游看【有效状态】(成绩行优先): 回推/导入进来的成绩
+                //   把状态记在成绩行上, 只看 s.Status 会把他们排进本组名次。
+                string es = GetEffectiveStatus(s, r);
+                return r != null && r.FinalTime > 0 && !ResultOrdering.IsJudged(es) && es != "TRI";
             }).OrderBy(s => {
                 var r = s.Results.FirstOrDefault(lr => lr.Stage == _currentStage && lr.Heat == _currentHeat);
                 return r.FinalTime;
@@ -13158,6 +13167,34 @@ namespace SwimmingScoreboard
                 }
 
                 swimmer.Status = status;
+                // ══════════════════════════════════════════════════════════
+                // 2026-09-01 TRI(试游) 也必须写到【成绩行】上。
+                //
+                // 原来 res.Status 只在 DSQ/DNS/DNF 那个分支里赋值, TRI 只改了
+                // swimmer.Status。后果是一条链子全断:
+                //   · SaveHeatProgress 写当前组库时 ln.Status = res.Status = "" → 库里没有 TRI
+                //   · 确认成绩入库, 竞赛库里这一行是"正常人" → 照样占名次
+                //   · 回推给主服务器的 lr.Status 也是空的 → 主服务器完全不知道有 TRI,
+                //     "成绩与排名"和"文档编辑/输出/打印"里都不显示 TRI 标注
+                // 只有计时端本机的 swimmer.Status 还留着, 所以【确认那一刻】大屏是对的,
+                // 之后换个视图、换台机器就全没了 —— 用户实测到的就是这个。
+                //
+                // TRI 与判罚的区别: 成绩正常显示, 只是不排名、不计分、不算纪录。
+                // 所以这里只清名次和纪录标识, 不动 FinalTime/分段。
+                // ══════════════════════════════════════════════════════════
+                if (status == "TRI") {
+                    var resTri = swimmer.Results.FirstOrDefault(r => r.Stage == _currentStage && r.Heat == _currentHeat);
+                    if (resTri != null) {
+                        if (!string.IsNullOrEmpty(resTri.RecordNote)) {
+                            AddLog(string.Format("  泳道{0} {1} 试游不计纪录，取消破/平纪录标识: {2}",
+                                lane, swimmer.Name, resTri.RecordNote));
+                            resTri.RecordNote = "";
+                        }
+                        resTri.Status = "TRI";
+                        resTri.Rank = 0;
+                    }
+                    swimmer.CurrentRank = 0;
+                }
                 // DSQ/DNS/DNF：成绩无效，必须清除 RecordNote（否则破/平纪录标识仍残留），
                 // 同时重新计算本组排名 + 复算其它运动员的破/平纪录（被取消的人不再占名次/不再当纪录候选）
                 if (status == "DSQ" || status == "DNS" || status == "DNF") {
@@ -13216,7 +13253,9 @@ namespace SwimmingScoreboard
                 try { UpdateHeatRanking(); } catch { }
                 // 2026-06-01 DSQ/DNS/DNF 后, 给新晋 leader 重新比对纪录库, 让 WR/CR 等
                 //   标识自动转到新的本组第 1 名 (UpdateHeatRanking → EnforceOnlyLeader 只清不补)
-                if (status == "DSQ" || status == "DNS" || status == "DNF") {
+                // 2026-09-01 TRI 也要走这一步: 试游的人本来是本组最快、拿着纪录标识,
+                //   标成试游之后他不再是排名里的第 1, 标识得转给真正的第 1 名。
+                if (status == "DSQ" || status == "DNS" || status == "DNF" || status == "TRI") {
                     try { RecheckHeatRecordsForNewLeader(); } catch { }
                 }
                 UpdateLaneStatusDisplay();
@@ -22713,7 +22752,9 @@ namespace SwimmingScoreboard
                     //   是判罚之前回推过来的, 而上面几行只覆盖"库里有值"的项, 从不清空。
                     //   这里补一道: 判了就不该有名次、也不该有纪录标识, 显示/打印/大屏
                     //   读的都是内存, 一处清掉处处就对。
-                    if (SwimmingScoreboard.ResultOrdering.IsJudged(r.Status)) {
+                    //   TRI(试游)一样不排名、不算纪录, 只是成绩照显 —— 所以判的是
+                    //   StatusOrder != 5 (= TRI/DSQ/DQ/DNF/DNS), 不是只看判罚。
+                    if (SwimmingScoreboard.ResultOrdering.StatusOrder(r.Status ?? "") != 5) {
                         r.Rank = 0; r.EventRank = 0; r.RecordNote = ""; sw.CurrentRank = 0;
                     }
                     applied++;

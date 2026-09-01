@@ -152,6 +152,28 @@ Chk "打印本组成绩: 判罚的名次印 '-'" ($hrBody -match 'IsNullOrEmpty\
     "rankCell 又会把判罚的人的名次印出来了"
 
 Write-Host ""
+Write-Host "7. TRI(试游) 必须写到【成绩行】上"
+# ══════════════════════════════════════════════════════════════════════
+# 2026-09-01 原来 res.Status 只在 DSQ/DNS/DNF 分支里赋值, 标 TRI 只改了
+#   swimmer.Status。后果一条链子全断: 当前组库没有 TRI -> 竞赛库没有 TRI ->
+#   照样占名次; 回推的 lr.Status 也是空的 -> 主服务器完全不知道有 TRI。
+#   只有计时端本机内存还留着, 所以确认那一刻大屏是对的, 换个视图就没了。
+# ══════════════════════════════════════════════════════════════════════
+$mls = -1
+for ($i=0; $i -lt $mwLns.Count; $i++) { if ($mwLns[$i] -match 'private void MarkLaneStatus') { $mls = $i; break } }
+$mlsBody = if ($mls -ge 0) { ($mwLns[$mls..([Math]::Min($mwLns.Count-1,$mls+180))] -join "`n") } else { "" }
+Chk "标 TRI 时写了成绩行的 Status" ($mlsBody -match 'resTri\.Status = "TRI"') `
+    "MarkLaneStatus 又只改 swimmer.Status 了: TRI 进不了库, 也传不到主服务器"
+Chk "标 TRI 时清掉名次" ($mlsBody -match 'resTri\.Rank = 0') "TRI 还会占名次"
+
+# 本组名次的排除判定必须走有效状态
+$rhg = -1
+for ($i=0; $i -lt $mwLns.Count; $i++) { if ($mwLns[$i] -match 'private void RankHeatGroup') { $rhg = $i; break } }
+$rhgBody = if ($rhg -ge 0) { ($mwLns[$rhg..([Math]::Min($mwLns.Count-1,$rhg+30))] -join "`n") } else { "" }
+Chk "本组名次排除判罚/试游走有效状态" ($rhgBody -match 'GetEffectiveStatus\(s, r\)') `
+    "RankHeatGroup 又只看 s.Status 了: 回推进来的判罚/试游会被排进名次"
+
+Write-Host ""
 Write-Host ("结果: " + $pass + " 过 / " + $fail + " failed")
 if ($fail -gt 0) { $msgs | ForEach-Object { Write-Host ("  "+$_) -ForegroundColor Red }; exit 1 }
 exit 0
