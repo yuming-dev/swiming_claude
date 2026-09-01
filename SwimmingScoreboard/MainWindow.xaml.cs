@@ -4154,9 +4154,12 @@ namespace SwimmingScoreboard
                 }).OrderBy(s => s.GetResultForStage(_currentStage).FinalTime).ToList();
 
                 var items = new List<object>();
-                // 2026-08-30 并列名次统一走 ResultOrdering.ComputeRanks(全场唯一一份)
-                var rkList = ResultOrdering.ComputeRanks(withTimes, s => {
-                    var rr = s.GetResultForStage(_currentStage); return rr != null ? rr.FinalTime : 0; });
+                // 2026-09-01 名次【从库里读】, 这里不算(EventRank 是确认成绩时竞赛库算好
+                //   回读进内存的; 项目定稿后是 event_rankings 的值)。
+                withTimes = withTimes.OrderBy(s => { int k0 = s.EventRankFor(_currentStage); return k0 > 0 ? k0 : int.MaxValue; })
+                                     .ThenBy(s => { var rr = s.GetResultForStage(_currentStage); return rr != null ? rr.FinalTime : 0; })
+                                     .ToList();
+                var rkList = withTimes.Select(s => s.EventRankFor(_currentStage)).ToList();
                 int idx = 0;
                 foreach (var sw in withTimes) {
                     var r = sw.GetResultForStage(_currentStage);
@@ -27252,16 +27255,17 @@ namespace SwimmingScoreboard
                             bool dq = !string.IsNullOrEmpty(remark);
                             string nm = ffRelay ? (sw.Country ?? "") : (sw.Name ?? "");
                             string ctry = sw.Country ?? "";
+                            // 2026-09-01 名次【从库里读】, 这里不算。原来是 rank++ 计数器
+                            //   配一个 prevTime 判并列 —— 又是一份自己的算法。
+                            //   并列仍显示 "=N"(打印惯例), 但 N 来自库, 不是数出来的。
                             string rankText;
-                            if (dq) { rankText = "—"; }
+                            int dbRk = sw.EventRankFor(stage);
+                            if (dq || dbRk <= 0) { rankText = "—"; }
                             else {
-                                if (IsTieTime(r.FinalTime, prevTime) && prevTime > 0) {
-                                    rankText = "=" + prevRank.ToString();
-                                } else {
-                                    rankText = rank.ToString();
-                                    prevRank = rank;
-                                    prevTime = r.FinalTime;
-                                }
+                                bool sameAsPrev = (dbRk == prevRank && prevRank > 0);
+                                rankText = sameAsPrev ? ("=" + dbRk.ToString()) : dbRk.ToString();
+                                prevRank = dbRk;
+                                prevTime = r.FinalTime;
                             }
                             // 2026-06-04 D 最终成绩 HTML 显 1-4 棒
                             string reactionCell = "";
@@ -27316,7 +27320,6 @@ namespace SwimmingScoreboard
                                 sb.AppendFormat("<td>{0}</td>", diff);
                             }
                             sb.Append("</tr>");
-                            if (!dq) rank++;
                         }
                         sb.Append("</table>");
                     }
@@ -27418,8 +27421,10 @@ namespace SwimmingScoreboard
                     && x.Swimmer.Status != "DSQ" && x.Swimmer.Status != "DNS" && x.Swimmer.Status != "DNF")
                 .OrderBy(x => x.R.FinalTime)
                 .ToList();
-            // 2026-08-30 改用统一的并列名次实现(原来这里是第 5 份各写各的)
-            var rrRanks = ResultOrdering.ComputeRanks(list, x => x.R.FinalTime);
+            // 2026-09-01 名次【从库里读】, 这里不算。
+            list = list.OrderBy(x => { int k1 = x.Swimmer.EventRankFor("决赛"); return k1 > 0 ? k1 : int.MaxValue; })
+                       .ThenBy(x => x.R.FinalTime).ToList();
+            var rrRanks = list.Select(x => x.Swimmer.EventRankFor("决赛")).ToList();
             var result = new List<RankRow>();
             for (int i = 0; i < list.Count; i++) {
                 var x = list[i];

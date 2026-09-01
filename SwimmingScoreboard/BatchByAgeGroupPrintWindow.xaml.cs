@@ -302,14 +302,13 @@ namespace SwimmingScoreboard
             var rows = new List<RowVm>();
             // 2026-08-30 原来 rank 是个自增计数器 —— 那是【行号】不是名次:
             //   成绩相同的两个人会被印成 1 和 2, 而不是并列第 1。
-            //   改用全场统一的 ResultOrdering.ComputeRanks, 与竞赛库、成绩单、
+            //   现在名次一律从竞赛库读(EventRankFor), 与竞赛库、成绩单、
             //   项目成绩、大屏同一口径。raw 已按成绩排好序。
+            // 2026-09-01 名次【从库里读】, 这里不算 —— 确认成绩时竞赛库已经算好并回读
+            //   进内存(项目定稿后是 event_rankings 的值)。库里没有就显示 "-"。
             var bgRanks = new int[raw.Count];
-            {
-                var idxs = Enumerable.Range(0, raw.Count).Where(i => !raw[i].IsDQ).ToList();
-                var rks = ResultOrdering.ComputeRanks(idxs, i => raw[i].SortTime);
-                for (int k = 0; k < idxs.Count; k++) bgRanks[idxs[k]] = rks[k];
-            }
+            for (int i = 0; i < raw.Count; i++)
+                bgRanks[i] = raw[i].IsDQ ? 0 : raw[i].Sw.EventRankFor(stage);
             for (int bi = 0; bi < raw.Count; bi++) {
                 var x = raw[bi];
                 int lane = x.R != null ? x.R.Lane : x.Sw.Lane;
@@ -318,7 +317,7 @@ namespace SwimmingScoreboard
                 if (!string.IsNullOrEmpty(x.Remark)) remarkHtml = "<span style='color:#dc2626;'>" + x.Remark + "</span>";
                 else remarkHtml = "";
                 rows.Add(new RowVm {
-                    Rank = x.IsDQ ? "-" : bgRanks[bi].ToString(),
+                    Rank = (x.IsDQ || bgRanks[bi] <= 0) ? "-" : bgRanks[bi].ToString(),
                     Lane = lane,
                     BibNumber = x.Sw.BibNumber ?? "",
                     Name = x.DisplayName,

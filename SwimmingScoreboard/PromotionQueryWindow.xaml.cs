@@ -185,7 +185,9 @@ namespace SwimmingScoreboard
             //   卡在名额线上时, 并列的人该不该进是要看名次的 —— 行号会把并列拆开,
             //   多放一个、少放一个都可能。改用全场统一的并列算法。
             //   (selected 已按成绩、成绩相同再按反应时间排好序)
-            var pqRanks = ResultOrdering.ComputeRanks(selected, x => x.Result.FinalTime);
+            // 2026-09-01 名次【从库里读】, 这里不算。晋级卡在名额线上时并列的人该不该进
+            //   是看名次的, 而名次只有库里那一份说了算。
+            var pqRanks = selected.Select(x => x.Swimmer.EventRankFor(fromStage)).ToList();
             for (int pi = 0; pi < selected.Count; pi++)
                 displayData.Add(MakeRow(pqRanks[pi], selected[pi], "总排名"));
 

@@ -54,6 +54,25 @@ $bridge = [IO.File]::ReadAllText((Join-Path $src 'Db\MeetDbBridge.cs'),[Text.Enc
 Chk "LiveSaveLanes 只写本机(比赛中不过网)" ($bridge -match '_local\.UpdateLane') "LiveSaveLanes 不再只写 _local, 比赛中会过网!"
 
 Write-Host ""
+Write-Host "4. 显示/打印路径不许自己算名次"
+$badRank = @()
+foreach ($fn in @('EventResultPrintWindow.xaml.cs','BatchByAgeGroupPrintWindow.xaml.cs','PromotionQueryWindow.xaml.cs')) {
+    $fp = Join-Path $src $fn
+    if (-not (Test-Path $fp)) { continue }
+    $lns = [IO.File]::ReadAllLines($fp,[Text.Encoding]::UTF8)
+    for ($i=0; $i -lt $lns.Count; $i++) {
+        if ($lns[$i] -match 'ResultOrdering\.ComputeRanks' -and $lns[$i] -notmatch '^\s*//') { $badRank += ($fn + ":" + ($i+1)) }
+    }
+}
+# MainWindow 只允许 RankHeatGroup 那一处(确认成绩时算, 结果要写进库)
+$mwLns = [IO.File]::ReadAllLines((Join-Path $src 'MainWindow.xaml.cs'),[Text.Encoding]::UTF8)
+$mwCalls = 0
+for ($i=0; $i -lt $mwLns.Count; $i++) {
+    if ($mwLns[$i] -match 'ResultOrdering\.ComputeRanks' -and $mwLns[$i] -notmatch '^\s*//') { $mwCalls++ }
+}
+Chk "打印/查询窗口不再自己算名次" ($badRank.Count -eq 0) (($badRank) -join ', ')
+Chk "MainWindow 只剩确认时算名次那一处" ($mwCalls -le 1) ("还有 $mwCalls 处在算")
+
 Write-Host ("结果: " + $pass + " 过 / " + $fail + " failed")
 if ($fail -gt 0) { $msgs | ForEach-Object { Write-Host ("  "+$_) -ForegroundColor Red }; exit 1 }
 exit 0

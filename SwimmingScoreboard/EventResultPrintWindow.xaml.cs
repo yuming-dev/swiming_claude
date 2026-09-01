@@ -401,7 +401,7 @@ namespace SwimmingScoreboard
             _currentResults = new List<object>();
             // 2026-08-30 原来名次是一个自增计数器 —— 那是【行号】不是名次:
             //   成绩相同的两个人会被印成 1 和 2, 而不是并列第 1。
-            //   现在用全场统一的并列算法(ResultOrdering.ComputeRanks), 与库里、
+            //   现在名次一律从竞赛库读(EventRankFor), 与库里、
             //   与成绩单、与大屏同一口径。displayData 已按成绩排好序。
             // 2026-08-31 组数列显示 "第几组/总组数" —— 总组数按本次查询范围内出现过的
             //   组次去重计数, 跟表格内容一致(不是赛程上的名义组数)。
