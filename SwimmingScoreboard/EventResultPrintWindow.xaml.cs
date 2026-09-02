@@ -307,6 +307,10 @@ namespace SwimmingScoreboard
             if (all.Count == 0) return false;
 
             if (filterHeat > 0) all = all.Where(x => x.R.Heat == filterHeat).ToList();
+            // 2026-09-01 TRI(试游)按视图决定显不显:
+            //   选【第X组】= 本组成绩单 -> 显成绩 + 备注 TRI + 无名次
+            //   选【全部】 = 项目总排名 -> 不显示(规则: 总排名列表中不显示 TRI)
+            else all = all.Where(x => (x.R.Status ?? "") != "TRI").ToList();
             if (all.Count == 0) {
                 StatusText.Text = string.Format("{0} {1} {2} 第{3}组 — 组排名表里没有这一组（组次选错了？）",
                     gender, eventName, stage, filterHeat);
@@ -549,9 +553,13 @@ namespace SwimmingScoreboard
             var withResults = matched.Where(s =>
             {
                 var r = s.GetResultForStage(stage);
-                // 2026-06-04 TRI 不进项目成绩 (= 总排名性质) 表, spec: '总排名列表中不显示 TRI'
-                if (s.Status == "TRI") return false;
-                if (r != null && r.Status == "TRI") return false;
+                // 2026-09-01 TRI(试游)按视图决定显不显:
+                //   选【第X组】= 本组成绩单 -> 要显(成绩 + 备注 TRI + 无名次)
+                //   选【全部】 = 项目总排名 -> 不显(spec: '总排名列表中不显示 TRI')
+                if (filterHeat <= 0) {
+                    if (s.Status == "TRI") return false;
+                    if (r != null && r.Status == "TRI") return false;
+                }
                 return r != null && r.FinalTime > 0;
             }).ToList();
 
@@ -633,8 +641,11 @@ namespace SwimmingScoreboard
                 var r = s.GetResultForStage(stage);
                 string remark = "";
                 if (r != null && !string.IsNullOrEmpty(r.Status)) remark = r.Status;
-                else if (!string.IsNullOrEmpty(s.Status) && (s.Status == "DNS" || s.Status == "DNF" || s.Status == "DSQ" || s.Status == "DQ")) remark = s.Status;
-                bool isDQ = !string.IsNullOrEmpty(remark);
+                else if (!string.IsNullOrEmpty(s.Status) && (s.Status == "DNS" || s.Status == "DNF" || s.Status == "DSQ" || s.Status == "DQ" || s.Status == "TRI")) remark = s.Status;
+                // 2026-09-01 TRI 跟判罚不是一回事: 试游【照显成绩】, 只是不排名、不算成绩差。
+                //   原来 remark 一非空就当判罚, TRI 的成绩会被抹掉。
+                bool isTri = remark == "TRI";
+                bool isDQ = !isTri && !string.IsNullOrEmpty(remark);
                 // 接力项目：Name显示队员姓名
                 string epName = s.Name ?? "";
                 if (stage.Length > 0 && eventName.Contains("接力") && !string.IsNullOrEmpty(s.Notes) && s.Notes.StartsWith("接力队 棒次:"))
@@ -658,9 +669,11 @@ namespace SwimmingScoreboard
                 bool qualified = !isDQ && !string.IsNullOrEmpty(nextStageQ) && s.GetAssignmentForStage(nextStageQ) != null;
                 return new
                 {
-                    SortTime = isDQ ? double.MaxValue : r.FinalTime,
-                    RawFinalTime = isDQ ? 0 : r.FinalTime,
+                    // TRI 跟判罚一样排到有名次的人后面, 也不参与"成绩差"的基准和计算
+                    SortTime = (isDQ || isTri) ? double.MaxValue : r.FinalTime,
+                    RawFinalTime = (isDQ || isTri) ? 0 : r.FinalTime,
                     IsDQ = isDQ,
+                    IsTri = isTri,
                     Lane = r.Lane,
                     BibNumber = s.BibNumber ?? "",
                     Name = epName,

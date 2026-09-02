@@ -327,9 +327,16 @@ ORDER BY he.final_time LIMIT 3
                     }
                     Check "表里的顺序就是名次顺序(不用再排)" ($badOrder.Count -eq 0) (($badOrder | Select-Object -First 3) -join '; ')
 
-                    # 上一节标的那个 TRI 不许出现在总排名表里
+                    # 2026-09-01 TRI【进表但不许有名次】。
+                    #   入不入表是"记录全不全", 显不显示是视图的事:
+                    #   "项目成绩"按第X组看是本组成绩单, TRI 要显; 按全部看是项目总排名, 不显。
+                    #   所以表里要留着它(带成绩、备注 TRI), 只是 rank 必须是 0。
                     $triInTable = @($rows | Where-Object { $_.Status -eq 'TRI' })
-                    Check "TRI 不进组排名表(总排名列表中不显示 TRI)" ($triInTable.Count -eq 0) ("表里有 " + $triInTable.Count + " 条 TRI")
+                    Check "TRI 进了组排名表(本组成绩单要显它)" ($triInTable.Count -gt 0) "表里一条 TRI 都没有"
+                    $triRanked = @($triInTable | Where-Object { $_.Rank -gt 0 })
+                    Check "TRI 在组排名表里没有名次" ($triRanked.Count -eq 0) ("有 " + $triRanked.Count + " 条 TRI 占了名次")
+                    $triNoTime = @($triInTable | Where-Object { $_.FinalTime -le 0 })
+                    Check "TRI 的成绩留在表里(试游显成绩)" ($triNoTime.Count -eq 0) ("有 " + $triNoTime.Count + " 条 TRI 没成绩")
 
                     # 无名次的(判罚/弃权)必须全在有名次的后面
                     $firstUnranked = -1; $lastRanked = -1

@@ -923,16 +923,19 @@ namespace SwimmingScoreboard.Db
                     "LEFT JOIN athletes a ON a.id=en.athlete_id " +
                     "LEFT JOIN units u ON u.id=en.unit_id " +
                     "WHERE he.round_id=@p1 AND en.event_id=@p2 AND he.reserve_no IS NULL " +
-                    // 2026-09-01 试游 TRI 不进组排名表 —— 规则是"总排名列表中不显示 TRI"。
-                    //   (他也已经不再占名次了, 见 LocalMeetService.IsUnranked)
-                    "AND COALESCE(he.status,'') <> 'TRI' " +
+                    // 2026-09-01 TRI(试游)【进表, 但 rank=0】—— 跟 DSQ/DNS/DNF 一个待遇。
+                    //   为什么不像先前那样直接不入表: 这张表是打印的数据源, 而
+                    //   "项目成绩"按【第X组】看时是本组成绩单, TRI 要显成绩+备注 TRI;
+                    //   选【全部】看时才是项目总排名, 那时才不显示 TRI。
+                    //   入不入表是"记录全不全"的问题, 显不显示是视图的问题, 两件事。
                     // 2026-09-01 排序补齐到跟 ResultOrdering 一个口径。原来是
                     //   "有名次的按名次, 其余按 final_time" —— 其余那一段是错的:
                     //   DNS 的 final_time 是 0, 于是弃权的被排到了判罚(有成绩)的前面。
-                    //   现在: 有名次的按名次 → DSQ → DNF → DNS → 无成绩; 同档按成绩再按道次。
+                    //   现在: 有名次的按名次 → TRI → DSQ → DNF → DNS → 无成绩;
+                    //   同档按成绩再按道次。
                     "ORDER BY CASE WHEN he.rank>0 THEN 0 ELSE 1 END, " +
                     "         CASE WHEN he.rank>0 THEN he.rank ELSE 0 END, " +
-                    "         CASE COALESCE(he.status,'') WHEN 'DSQ' THEN 2 WHEN 'DQ' THEN 2 " +
+                    "         CASE COALESCE(he.status,'') WHEN 'TRI' THEN 1 WHEN 'DSQ' THEN 2 WHEN 'DQ' THEN 2 " +
                     "              WHEN 'DNF' THEN 3 WHEN 'DNS' THEN 4 ELSE 5 END, " +
                     "         CASE WHEN he.final_time>0 THEN he.final_time ELSE 999999 END, " +
                     "         he.lane", rid, eid);
