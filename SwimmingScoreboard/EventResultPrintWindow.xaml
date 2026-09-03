@@ -60,11 +60,8 @@
                 <TextBlock Text="项目:" VerticalAlignment="Center" Margin="0,0,4,0"/>
                 <ComboBox x:Name="EventCombo" Width="180" SelectionChanged="Filter_Changed" Margin="0,0,12,0"/>
                 <TextBlock Text="赛次:" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                <ComboBox x:Name="StageCombo" Width="80" SelectionChanged="Filter_Changed" Margin="0,0,12,0">
-                    <ComboBoxItem Content="预赛" IsSelected="True"/>
-                    <ComboBoxItem Content="半决赛"/>
-                    <ComboBoxItem Content="决赛"/>
-                </ComboBox>
+                <!-- 2026-09-03 赛次改由 MainWindow.FillStageCombo 按【比赛参数设置管理 → 赛次】填, 不再写死 -->
+                <ComboBox x:Name="StageCombo" Width="90" SelectionChanged="Filter_Changed" Margin="0,0,12,0"/>
                 <TextBlock Text="组:" VerticalAlignment="Center" Margin="0,0,4,0"/>
                 <ComboBox x:Name="HeatCombo" Width="80" SelectionChanged="Heat_Changed" Margin="0,0,12,0">
                     <ComboBoxItem Content="全部" IsSelected="True"/>

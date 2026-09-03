@@ -77,7 +77,11 @@ namespace SwimmingScoreboard
                 }
             }
 
-            string[] stageOrder = { "预赛", "半决赛" };
+            // 2026-09-03 可晋级的"来源赛次"= 配置里的赛次表去掉最后一个(最后一个没有下一轮)。
+            //   原来写死 {"预赛","半决赛"} —— 用户在参数设置里改了赛次名(如"A预赛/复赛/决赛"),
+            //   这里就一个都匹配不上, 晋级查询整个不可用。
+            var stageOrder = new List<string>(StageRegistry.List);
+            if (stageOrder.Count > 1) stageOrder.RemoveAt(stageOrder.Count - 1);
             foreach (string st in stageOrder) {
                 if (stagesWithResults.Contains(st)) FromStageCombo.Items.Add(st);
             }

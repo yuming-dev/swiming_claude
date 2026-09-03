@@ -43,6 +43,7 @@ namespace SwimmingScoreboard
         {
             InitializeComponent();
             MainWindow.FillGenderCombo(GenderCombo);   // 2026-08-21 按比赛档案的性别表填，不再写死
+            MainWindow.FillStageCombo(StageCombo);     // 2026-09-03 赛次同理，按参数设置里的赛次表填(保留"全部")
             _swimmers = swimmers;
             _schedule = schedule;
             _competitionName = competitionName ?? "";
@@ -139,8 +140,9 @@ namespace SwimmingScoreboard
                 }
             } else eventsToRun.Add(_selectedEvent);
 
+            // 2026-09-03 "全部"赛次要跑哪几个, 取【比赛参数设置管理 → 赛次】那张表, 不写死
             var stagesToRun = new List<string>();
-            if (_selectedStage == "全部") { stagesToRun.Add("预赛"); stagesToRun.Add("半决赛"); stagesToRun.Add("决赛"); }
+            if (_selectedStage == "全部") stagesToRun.AddRange(StageRegistry.List);
             else stagesToRun.Add(_selectedStage);
 
             var blocks = new List<AgeBlock>();

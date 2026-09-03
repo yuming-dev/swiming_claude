@@ -1507,7 +1507,24 @@ namespace SwimmingScoreboard
         }
         public int HeatCount {
             get { return _heatCount; }
-            set { _heatCount = value; OnPropertyChanged("HeatCount"); }
+            set { _heatCount = value; OnPropertyChanged("HeatCount"); OnPropertyChanged("HeatCountText"); }
+        }
+
+        /// <summary>
+        /// 2026-09-03 组数的文字形式("3组") —— 赛程编辑里的组数下拉绑它。
+        /// 那个下拉的选项来自【比赛参数设置管理 → 组数】, 里面存的就是 "1组"/"2组"… 这种文字,
+        /// 直接绑 int 的 HeatCount 选不中。写回时把数字抠出来, 抠不到就不动(宁可不改也别改错)。
+        /// 不参与序列化(存档存的还是 HeatCount)。
+        /// </summary>
+        [Newtonsoft.Json.JsonIgnore]
+        public string HeatCountText {
+            get { return _heatCount > 0 ? (_heatCount + "组") : ""; }
+            set {
+                if (string.IsNullOrEmpty(value)) return;
+                var m = System.Text.RegularExpressions.Regex.Match(value, @"\d+");
+                int n;
+                if (m.Success && int.TryParse(m.Value, out n) && n > 0) HeatCount = n;
+            }
         }
         public bool IsRelay {
             get { return _isRelay; }
@@ -1618,6 +1635,46 @@ namespace SwimmingScoreboard
                 if (!string.IsNullOrEmpty(g) && !l.Contains(g)) l.Add(g);
             }
             if (l.Count > 0) _list = l;
+        }
+    }
+
+    /// <summary>
+    /// 2026-09-03 赛次表 —— 跟 GenderRegistry 同一个路子。
+    ///
+    /// 为什么要有它: 赛次是"比赛参数设置管理"里可以改的(改名、增删, 例如加"A决赛/B决赛"),
+    /// 而各个弹窗的赛次下拉原来是 XAML 里写死的 预赛/半决赛/决赛 —— 改了设置也不跟着变,
+    /// 用户在那些窗口里根本选不到自己新加的赛次。
+    /// 弹窗拿不到 MainWindow 的 _stages, 所以放一个静态表, 载入档案/保存设置时刷一次。
+    /// 里面的默认值只是"还没载入档案"时的兜底。
+    /// </summary>
+    public static class StageRegistry
+    {
+        private static List<string> _list = new List<string> { "预赛", "半决赛", "决赛" };
+        public static List<string> List { get { return _list; } }
+        public static void Set(IEnumerable<string> stages) {
+            var l = new List<string>();
+            if (stages != null) foreach (var s in stages) {
+                if (!string.IsNullOrEmpty(s) && !l.Contains(s)) l.Add(s);
+            }
+            if (l.Count > 0) _list = l;
+        }
+    }
+
+    /// <summary>
+    /// 2026-09-03 组数表(参数设置里的"1组/2组/…")。
+    /// 目前只有赛程编辑那类"这个项目分几组"的地方会用到; 组次下拉(第X组)一律按
+    /// 实际有人的组次现列, 不用这张表 —— 列出不存在的组比写死更糟。
+    /// </summary>
+    public static class HeatCountRegistry
+    {
+        private static List<string> _list = new List<string>();
+        public static List<string> List { get { return _list; } }
+        public static void Set(IEnumerable<string> counts) {
+            var l = new List<string>();
+            if (counts != null) foreach (var s in counts) {
+                if (!string.IsNullOrEmpty(s) && !l.Contains(s)) l.Add(s);
+            }
+            _list = l;
         }
     }
 

@@ -96,11 +96,83 @@ namespace RegistrationTool
             });
         }
 
+        /// <summary>
+        /// 2026-09-03 用主服务器下发的配置表重填四类下拉: 性别 / 组别 / 项目 / 接力项目。
+        ///
+        /// 这些原来全是 XAML 里写死的(男/女/混合/男女、甲乙丙丁组、50米自由泳…) ——
+        /// 主程序的"比赛参数设置管理"改了, 这边一点不知道, 报名员选不到本场真正的组别和项目。
+        /// 服务器没下发某一项(空表)时保持原样, 不要把下拉清空 —— 宁可用旧的, 也不能没得选。
+        /// 组别/项目下拉是可编辑的, 重填时把用户已经输入的文字留住。
+        /// </summary>
+        private void ApplyMetaLists(JObject d) {
+            if (d == null) return;
+            try {
+                var genders = ToList(d["genders"]);
+                var ages = ToList(d["ageGroups"]);
+                var events = ToList(d["events"]);
+                FillCombo(GenderCombo, genders, false);
+                FillCombo(RelayGenderCombo, genders, false);
+                FillCombo(AgeGroupCombo, ages, true);
+                FillCombo(RelayAgeGroupCombo, ages, true);
+                // 项目表里接力和个人项目混在一起, 按名字分到两个下拉
+                if (events.Count > 0) {
+                    var indiv = new List<string>();
+                    var relay = new List<string>();
+                    foreach (var ev in events) {
+                        if (ev.Contains("接力")) relay.Add(ev); else indiv.Add(ev);
+                    }
+                    FillCombo(EventCombo, indiv, false);
+                    FillCombo(RelayEventCombo, relay, false);
+                }
+                RegStatusText.Text = string.Format("已同步主服务器配置：性别{0} 组别{1} 项目{2}",
+                    genders.Count, ages.Count, events.Count);
+                RegStatusText.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Colors.Green);
+            } catch { }
+        }
+
+        private static List<string> ToList(JToken t) {
+            var l = new List<string>();
+            var arr = t as JArray;
+            if (arr == null) return l;
+            foreach (var x in arr) {
+                string s = x != null ? x.ToString() : "";
+                if (!string.IsNullOrEmpty(s) && !l.Contains(s)) l.Add(s);
+            }
+            return l;
+        }
+
+        /// <summary>空表不动(保住原有选项); 可编辑下拉在最前面留一个空项, 允许不填。</summary>
+        private static void FillCombo(ComboBox cb, List<string> items, bool allowBlank) {
+            if (cb == null || items == null || items.Count == 0) return;
+            string prev = "";
+            var sel = cb.SelectedItem as ComboBoxItem;
+            if (sel != null && sel.Content != null) prev = sel.Content.ToString();
+            else if (cb.SelectedItem is string) prev = (string)cb.SelectedItem;
+            else if (cb.IsEditable && !string.IsNullOrEmpty(cb.Text)) prev = cb.Text;
+            cb.Items.Clear();
+            if (allowBlank) cb.Items.Add(new ComboBoxItem { Content = "" });
+            foreach (var s in items) cb.Items.Add(new ComboBoxItem { Content = s });
+            for (int i = 0; i < cb.Items.Count; i++) {
+                var ci = cb.Items[i] as ComboBoxItem;
+                if (ci != null && ci.Content != null && ci.Content.ToString() == prev) { cb.SelectedIndex = i; return; }
+            }
+            if (cb.IsEditable && !string.IsNullOrEmpty(prev)) { cb.Text = prev; return; }
+            cb.SelectedIndex = 0;
+        }
+
         private void OnServerMessage(string json) {
             Dispatcher.Invoke((Action)delegate() {
                 try {
                     var msg = JObject.Parse(json);
                     string mtype = msg["type"] != null ? msg["type"].ToString() : "";
+                    // 2026-09-03 主服务器下发【比赛参数设置管理】里的五张表。
+                    //   本程序原来性别/组别是 XAML 里写死的 男/女/混合/男女 —— 源码注释里
+                    //   自己也写着"没有配置推送通道，暂时写死；治本要加 genderList 下发"。
+                    //   现在通道有了: 一上线服务器推一次, 参数改了再推一次。
+                    if (mtype == "META_LISTS") {
+                        ApplyMetaLists(msg["data"] as JObject);
+                        return;
+                    }
                     if (mtype == "REGISTER_RESULT") {
                         var data = msg["data"];
                         bool ok = data != null && data["success"] != null && (bool)data["success"];

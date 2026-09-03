@@ -1504,6 +1504,9 @@ namespace SwimmingScoreboard
                     case "REGISTER_TERMINAL_IDENTITY":
                         if (!_registerSockets.Contains(socket)) _registerSockets.Add(socket);
                         AddLog("注册终端已连接");
+                        // 2026-09-03 一上线就把【比赛参数设置管理】的五张表发过去 ——
+                        //   它是独立 exe, 不发它就只能用自己写死的那几个性别/组别。
+                        try { socket.Send(BuildMetaListsJson()); } catch { }
                         break;
                     case "TIMING_EXE_IDENTITY":
                         if (!_timingExeSockets.Contains(socket)) _timingExeSockets.Add(socket);
@@ -17732,13 +17735,51 @@ namespace SwimmingScoreboard
         // 比赛参数设置管理（组别/项目/性别/赛次/组数 等）保存后统一调用：
         // 同步刷新本机所有依赖下拉，并通过 Broadcast 把新配置推送给所有网页/远程端
         private void NotifyMetadataChanged() {
+            // 2026-09-03 先刷静态表, 再刷下拉 —— 弹窗(项目成绩/批量公布…)和别的 exe
+            //   都只能通过这几张静态表拿到最新配置, 漏了它们就是"设置改了、弹窗没跟着变"。
+            try { GenderRegistry.Set(_genders); } catch { }
+            try { StageRegistry.Set(_stages); } catch { }
+            try { AgeGroupRegistry.Set(_ageGroups); } catch { }
+            try { HeatCountRegistry.Set(_heatCounts); } catch { }
             // 本机各 WPF 下拉
             try { RefreshEventComboBoxes(); } catch { }
             try { RefreshAllAgeGroupFilterCombos(); } catch { }
             try { RefillGenderCombos(); } catch { }
             try { RefillStageCombos(); } catch { }
+            // 2026-09-03 注册终端是另一个 exe, 收不到上面这些 —— 单独把配置表推给它
+            try { PushMetaListsToRegisterTerminals(); } catch { }
             // 推送到所有网页/远程端
             try { Broadcast(); } catch { }
+        }
+
+        /// <summary>
+        /// 2026-09-03 把【比赛参数设置管理】里的五张表推给注册终端(独立 exe)。
+        ///
+        /// 它原来的性别/组别下拉是 XAML 里写死的 男/女/混合/男女 —— 源码里那条注释
+        /// 自己也写着"本程序没有配置推送通道，暂时写死；治本要加 genderList 下发"。
+        /// 现在补上这条通道: 终端一上线(REGISTER_TERMINAL_IDENTITY)推一次, 参数改了再推一次。
+        /// </summary>
+        private void PushMetaListsToRegisterTerminals() {
+            if (_registerSockets == null || _registerSockets.Count == 0) return;
+            string json = BuildMetaListsJson();
+            foreach (var s in _registerSockets.ToList()) {
+                try { if (s != null && s.IsAvailable) s.Send(json); } catch { }
+            }
+        }
+
+        private string BuildMetaListsJson() {
+            var d = new JObject();
+            d["genders"] = new JArray(_genders ?? new List<string>());
+            d["stages"] = new JArray(_stages ?? new List<string>());
+            d["heatCounts"] = new JArray(_heatCounts ?? new List<string>());
+            var ags = new JArray();
+            if (_ageGroups != null) foreach (var g in _ageGroups) if (g != null && !string.IsNullOrEmpty(g.Name)) ags.Add(g.Name);
+            d["ageGroups"] = ags;
+            d["events"] = new JArray(_events ?? new List<string>());
+            var env = new JObject();
+            env["type"] = "META_LISTS";
+            env["data"] = d;
+            return env.ToString(Formatting.None);
         }
 
         private void RefillGenderCombos() {
@@ -18770,12 +18811,25 @@ namespace SwimmingScoreboard
                     }
                     agCol.ItemsSource = agItems; eg.Columns.Add(agCol);
                     var gc = new DataGridComboBoxColumn { Header = "性别", Width = new DataGridLength(55), SelectedItemBinding = new System.Windows.Data.Binding("Gender") };
-                    gc.ItemsSource = new string[] { "男", "女", "混合" }; eg.Columns.Add(gc);
+                    // 2026-09-03 性别/赛次一律取【比赛参数设置管理】里的表, 不写死 ——
+                    //   写死的话, 用户在设置里新加的性别或赛次, 在赛程编辑这张表里根本选不到。
+                    gc.ItemsSource = new List<string>(_genders); eg.Columns.Add(gc);
                     var ec = new DataGridComboBoxColumn { Header = "项目", Width = new DataGridLength(160), SelectedItemBinding = new System.Windows.Data.Binding("EventName") };
                     ec.ItemsSource = _events; eg.Columns.Add(ec);
                     var sc = new DataGridComboBoxColumn { Header = "阶段", Width = new DataGridLength(70), SelectedItemBinding = new System.Windows.Data.Binding("Stage") };
-                    sc.ItemsSource = new string[] { "预赛", "半决赛", "决赛" }; eg.Columns.Add(sc);
-                    eg.Columns.Add(new DataGridTextColumn { Header = "组数", Binding = new System.Windows.Data.Binding("HeatCount"), Width = new DataGridLength(50) });
+                    sc.ItemsSource = new List<string>(_stages); eg.Columns.Add(sc);
+                    // 2026-09-03 组数: 参数设置里配了组数表(如 "1组".."8组")就给下拉选,
+                    //   没配就仍旧手输 —— 这是"组数"那张表唯一真正用得上的地方。
+                    if (_heatCounts != null && _heatCounts.Count > 0) {
+                        var hcCol = new DataGridComboBoxColumn {
+                            Header = "组数", Width = new DataGridLength(60),
+                            SelectedItemBinding = new System.Windows.Data.Binding("HeatCountText")
+                        };
+                        hcCol.ItemsSource = new List<string>(_heatCounts);
+                        eg.Columns.Add(hcCol);
+                    } else {
+                        eg.Columns.Add(new DataGridTextColumn { Header = "组数", Binding = new System.Windows.Data.Binding("HeatCount"), Width = new DataGridLength(50) });
+                    }
 
                     // 保留 editList 自然顺序（不再按时间排序），便于用户自定义比赛顺序
                     eg.ItemsSource = new ObservableCollection<ScheduleItem>(grp);
@@ -23059,6 +23113,10 @@ namespace SwimmingScoreboard
                 //   男/女/混合 —— 现场表现为"性别框没跟着比赛参数设置管理更新"，
                 //   男女接力队因此选不到性别、录不了 4 棒姓名。赛次下拉同一个毛病。
                 GenderRegistry.Set(_genders);
+                // 2026-09-03 赛次/组数也进静态表 —— 弹窗(项目成绩/批量公布…)拿不到 _stages,
+                //   只能走 StageRegistry。不同步就还是 XAML 里写死的那三个。
+                StageRegistry.Set(_stages);
+                HeatCountRegistry.Set(_heatCounts);
                 try { RefillGenderCombos(); } catch { }
                 try { RefillStageCombos(); } catch { }
                 RefreshEventComboBoxes();
@@ -24169,6 +24227,33 @@ namespace SwimmingScoreboard
         // 2026-08-21 把一个性别下拉按 GenderRegistry 重填。
         //   保留原有的"全部"项和当前选中值；档案里没有但当前选着的值也补进来，
         //   免得下拉一重填就把用户的选择改掉。各结果/打印窗口共用。
+        /// <summary>
+        /// 2026-09-03 按【比赛参数设置管理 → 赛次】填赛次下拉。跟 FillGenderCombo 一个用法:
+        /// 原来有"全部"的保留"全部", 尽量保住原选中项。
+        /// 弹窗(项目成绩/批量公布…)拿不到 _stages, 走 StageRegistry。
+        /// </summary>
+        public static void FillStageCombo(System.Windows.Controls.ComboBox cb) {
+            if (cb == null) return;
+            string prev = "";
+            var selItem = cb.SelectedItem as System.Windows.Controls.ComboBoxItem;
+            if (selItem != null && selItem.Content != null) prev = selItem.Content.ToString();
+            else if (cb.SelectedItem is string) prev = (string)cb.SelectedItem;
+            bool hasAll = false;
+            foreach (var it in cb.Items) {
+                var ci = it as System.Windows.Controls.ComboBoxItem;
+                if (ci != null && ci.Content != null && ci.Content.ToString() == "全部") { hasAll = true; break; }
+            }
+            cb.Items.Clear();
+            if (hasAll) cb.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = "全部" });
+            foreach (var s in StageRegistry.List) cb.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = s });
+            for (int i = 0; i < cb.Items.Count; i++) {
+                var ci = cb.Items[i] as System.Windows.Controls.ComboBoxItem;
+                if (ci != null && ci.Content != null && ci.Content.ToString() == prev) { cb.SelectedIndex = i; return; }
+            }
+            // 原来选的赛次被改没了 → 落到最后一个(通常是决赛), 比落到"全部"更贴近日常用法
+            if (cb.Items.Count > 0) cb.SelectedIndex = cb.Items.Count - 1;
+        }
+
         public static void FillGenderCombo(System.Windows.Controls.ComboBox cb) {
             if (cb == null) return;
             string prev = "";

@@ -196,6 +196,47 @@ $cellOk = ($erp -match "(?s)item\.Rank\);.{0,200}c1, c2\);.{0,200}item\.BibNumbe
 Chk "打印单元格顺序与表头一致" $cellOk "单元格顺序跟表头对不上, 每一列都会错位"
 
 Write-Host ""
+Write-Host "9. 组别/性别/项目/赛次/组数 不许写死"
+# ══════════════════════════════════════════════════════════════════════
+# 2026-09-03 用户定的规矩: 这五项一律跟"比赛参数设置管理"走。
+#   写死的后果不是样子难看, 是【选不到】: 用户在设置里加了"A决赛"或改了组别名,
+#   那些写死的窗口里根本没有这一项, 功能整个用不了。
+# ══════════════════════════════════════════════════════════════════════
+$hardStage = @()
+$hardGender = @()
+foreach ($x in @(@('SwimmingScoreboard','EventResultPrintWindow.xaml'),
+                 @('SwimmingScoreboard','BatchByAgeGroupPrintWindow.xaml'),
+                 @('SwimmingScoreboard','MainWindow.xaml'))) {
+    $p = Join-Path $root (Join-Path $x[0] $x[1])
+    if (-not (Test-Path $p)) { continue }
+    $lines = [IO.File]::ReadAllLines($p,[Text.Encoding]::UTF8)
+    for ($i=0; $i -lt $lines.Count; $i++) {
+        # MainWindow 里那几个是"占位默认值", 运行时由 RefillGenderCombos/RefillStageCombos 覆盖,
+        # 所以只盯两个弹窗 —— 它们没有任何重填入口
+        if ($x[1] -eq 'MainWindow.xaml') { continue }
+        if ($lines[$i] -match 'ComboBoxItem Content="(预赛|半决赛|决赛)"') { $hardStage += ($x[1]+":"+($i+1)) }
+        if ($lines[$i] -match 'ComboBoxItem Content="(男|女|混合|男女)"' -and $lines[$i] -notmatch 'FillGenderCombo') { $hardGender += ($x[1]+":"+($i+1)) }
+    }
+}
+Chk "弹窗的赛次下拉不写死(走 FillStageCombo)" ($hardStage.Count -eq 0) (($hardStage) -join ', ')
+# 两个弹窗必须真的调了填充函数
+foreach ($fn in @('EventResultPrintWindow.xaml.cs','BatchByAgeGroupPrintWindow.xaml.cs')) {
+    $t3 = [IO.File]::ReadAllText((Join-Path $src $fn),[Text.Encoding]::UTF8)
+    Chk ("$fn 调了 FillStageCombo") ($t3 -match 'MainWindow\.FillStageCombo\(') "赛次没按参数设置填"
+    Chk ("$fn 调了 FillGenderCombo") ($t3 -match 'MainWindow\.FillGenderCombo\(') "性别没按参数设置填"
+}
+# 赛程编辑那张表的 性别/赛次 列不许写死
+$mwText = [IO.File]::ReadAllText((Join-Path $src 'MainWindow.xaml.cs'),[Text.Encoding]::UTF8)
+Chk "赛程编辑表的性别列取自 _genders" ($mwText -notmatch 'gc\.ItemsSource = new string\[\]') "性别列又写死了"
+Chk "赛程编辑表的赛次列取自 _stages" ($mwText -notmatch 'sc\.ItemsSource = new string\[\]') "赛次列又写死了"
+# 参数变更后必须同步静态表, 否则弹窗和别的 exe 拿不到新配置
+Chk "参数变更后刷新 StageRegistry" ($mwText -match 'StageRegistry\.Set\(_stages\)') "NotifyMetadataChanged 没同步赛次表"
+Chk "参数变更后推送配置给注册终端" ($mwText -match 'PushMetaListsToRegisterTerminals\(\)') "注册终端收不到新配置"
+# 晋级查询的"来源赛次"不许写死
+$pq = [IO.File]::ReadAllText((Join-Path $src 'PromotionQueryWindow.xaml.cs'),[Text.Encoding]::UTF8)
+Chk "晋级查询的来源赛次取自赛次表" ($pq -match 'StageRegistry\.List') "又写死成 预赛/半决赛 了"
+
+Write-Host ""
 Write-Host ("结果: " + $pass + " 过 / " + $fail + " failed")
 if ($fail -gt 0) { $msgs | ForEach-Object { Write-Host ("  "+$_) -ForegroundColor Red }; exit 1 }
 exit 0

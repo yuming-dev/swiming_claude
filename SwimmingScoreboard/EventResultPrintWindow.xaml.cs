@@ -141,6 +141,7 @@ namespace SwimmingScoreboard
             _swimmers = swimmers;
             RefreshHasExplicitMixed();                 // 2026-08-22 必须在 _swimmers 赋值之后
             MainWindow.FillGenderCombo(GenderCombo);   // 2026-08-21 按比赛档案的性别表填，不再写死
+            MainWindow.FillStageCombo(StageCombo);     // 2026-09-03 赛次同理，按参数设置里的赛次表填
             _schedule = schedule;
             _competitionName = competitionName;
             _location = location;
