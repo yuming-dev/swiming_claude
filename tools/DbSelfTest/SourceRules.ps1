@@ -192,7 +192,8 @@ $erp = [IO.File]::ReadAllText((Join-Path $src 'EventResultPrintWindow.xaml.cs'),
 $hdrOk = ($erp -match "(?s)名次</th>.{0,200}\{0\}</th>.{0,80}\{1\}</th>.{0,200}号码</th>.{0,120}组别</th>.{0,120}组数</th>.{0,120}道次</th>.{0,200}最终成绩</th>")
 Chk "打印表头列序: 名次→姓名/代表队→号码→组别→组数→道次→最终成绩" $hdrOk "表头顺序被改动了"
 # 单元格顺序必须跟表头一致: Rank → c1,c2 → BibNumber,AgeGroup,HeatText,Lane → FinalTime
-$cellOk = ($erp -match "(?s)item\.Rank\);.{0,200}c1, c2\);.{0,200}item\.BibNumber, item\.AgeGroup, item\.HeatText, item\.Lane\);.{0,200}item\.FinalTime")
+# 2026-09-03 名次单元格改成带前三名底色(rkCls, rk), 其余顺序不变; 断言跟着改成认这个写法
+$cellOk = ($erp -match "(?s)rkCls, rk\);.{0,200}c1, c2\);.{0,200}item\.BibNumber, item\.AgeGroup, item\.HeatText, item\.Lane\);.{0,200}item\.FinalTime\);.{0,200}item\.Diff\);.{0,200}item\.ReactionTimeHtml, item\.RemarkHtml")
 Chk "打印单元格顺序与表头一致" $cellOk "单元格顺序跟表头对不上, 每一列都会错位"
 
 Write-Host ""

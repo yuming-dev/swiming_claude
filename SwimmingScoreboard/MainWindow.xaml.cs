@@ -14386,8 +14386,16 @@ namespace SwimmingScoreboard
             try {
                 var psi = new System.Diagnostics.ProcessStartInfo {
                     FileName = exe,
+                    // 2026-09-03 关掉浏览器自带的页眉页脚。
+                    //   不关的话每页顶上印一行打印日期、底下印一长串 file:///C:/Users/.../Temp/%E6%89%B9...
+                    //   和 "1/24" —— 这是要发出去的正式成绩单, 不能带这些。
+                    //   两个开关都传: 新版 Chrome/Edge 认 --no-pdf-header-footer,
+                    //   老版本认 --print-to-pdf-no-header; 不认识的开关会被忽略, 无害。
+                    //   --no-margins 也去掉了 —— 页边距交给 HTML 里的 @page 控制,
+                    //   零边距打出来的成绩单会顶到纸边上。
                     Arguments = string.Format(
-                        "--headless --disable-gpu --no-margins --print-to-pdf=\"{0}\" \"file:///{1}\"",
+                        "--headless --disable-gpu --no-pdf-header-footer --print-to-pdf-no-header "
+                      + "--print-to-pdf=\"{0}\" \"file:///{1}\"",
                         pdfPath, htmlPath.Replace('\\', '/')),
                     UseShellExecute = false, CreateNoWindow = true, RedirectStandardError = true, RedirectStandardOutput = true
                 };

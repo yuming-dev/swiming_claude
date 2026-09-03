@@ -414,7 +414,9 @@ namespace SwimmingScoreboard
                         parts.Add(string.Format("第{0}棒:{1}", li + 1, (rt != 0 && !double.IsNaN(rt)) ? rt.ToString("F2") : "—"));
                     }
                     reactionPlain = string.Join("  ", parts.ToArray());
-                    reactionHtml = string.Join("<br>", parts.ToArray());
+                    // 2026-09-03 打印时两棒一行 —— 四棒各占一行会把接力那张表撑到普通表的四倍高,
+                    //   一页只放得下一张。预览里仍是空格分隔的一行。
+                    reactionHtml = PairLines(parts);
                 } else if (r != null && r.StartingBlockTime != 0) {
                     // 2026-08-31 判罚/弃权不显示反应时间(与项目成绩、本组成绩单同口径)
                     if (!isDQ) reactionPlain = r.StartingBlockTime.ToString("F2");
@@ -466,71 +468,101 @@ namespace SwimmingScoreboard
         }
 
         private string BuildHtml(List<AgeBlock> blocks) {
+            // ══════════════════════════════════════════════════════════════
+            // 2026-09-03 排版重做。原来的三个毛病:
+            //   ① 每张子表 page-break-before:always —— 3 个人的表也独占一整页,
+            //      20 张子表打出来 24 页, 页页大半是空白。
+            //   ② 列宽写的是 px, 表格挤在页面左半边, 人少的表更窄。
+            //   ③ 裁判/记录长签名行每张子表都来一遍。
+            // 现在: 子表连排(整张表不允许被拆到两页), 列宽用百分比 + table-layout:fixed
+            //      占满纸宽, 签名行只在末尾出现一次。
+            // ══════════════════════════════════════════════════════════════
             var sb = new StringBuilder();
             sb.Append("<html><head><meta charset='UTF-8'><style>");
-            sb.Append("body{font-family:'SimSun'; padding:0; margin:0; line-height:1.5; color:#333;} ");
-            sb.Append(".page{padding:40px 50px; box-sizing:border-box;} ");
-            sb.Append("h1{text-align:center; font-size:32px; font-family:'SimHei'; margin:0 0 6px; letter-spacing:5px;} ");
-            sb.Append("h2{text-align:center; font-size:22px; font-family:'SimHei'; margin:0 0 22px; letter-spacing:8px; color:#1e40af;} ");
-            sb.Append("h3{font-size:20px; font-family:'SimHei'; border-bottom:3px solid #1e40af; padding-bottom:6px; margin-top:24px; color:#1e40af;} ");
-            sb.Append("h4{font-size:14px; font-weight:normal; color:#475569; margin-top:6px;} ");
-            sb.Append("table{border-collapse:collapse; width:100%; margin:10px 0 20px; background:#fff;} ");
-            sb.Append("th{border:1px solid #333; background:#dbeafe; padding:8px; font-weight:bold; font-size:13px; text-align:center; vertical-align:middle;} ");
-            sb.Append("td{border:1px solid #333; padding:6px; text-align:center; font-size:13px;} ");
-            sb.Append("tr:nth-child(even){background:#f0f7ff;} ");
-            sb.Append(".signature-row{margin-top:30px; display:flex; justify-content:space-between; font-size:14px; font-weight:bold;} ");
-            sb.Append("@media print { .page-break{page-break-before:always;} body{-webkit-print-color-adjust:exact;} @page { margin: 1cm; } } ");
-            sb.Append("</style></head><body>");
+            sb.Append("@page{ size:A4; margin:14mm 12mm; } ");
+            sb.Append("body{font-family:'Microsoft YaHei','微软雅黑',SimHei,SimSun,sans-serif; padding:0; margin:0; line-height:1.45; color:#1f2937;} ");
+            sb.Append(".page{padding:0 4px; box-sizing:border-box;} ");
+            sb.Append("h1{text-align:center; font-size:26px; margin:0 0 4px; letter-spacing:3px; color:#0f172a;} ");
+            sb.Append("h2{text-align:center; font-size:17px; margin:0 0 10px; letter-spacing:6px; color:#1e40af; font-weight:normal;} ");
+            sb.Append(".meta{text-align:center; font-size:12px; color:#475569; margin:0 0 4px;} ");
+            sb.Append(".rule{height:2px; background:#1e40af; margin:8px 0 4px;} ");
+            // 一张子表 = 标题 + 表格, 整块不许被分页切开
+            sb.Append(".blk{page-break-inside:avoid; break-inside:avoid; margin:14px 0 0;} ");
+            sb.Append(".blk h3{font-size:14px; margin:0 0 5px; padding:4px 8px; color:#1e3a8a;"
+                    + " background:#e8f0fe; border-left:4px solid #1e40af;} ");
+            sb.Append(".blk h3 .n{float:right; font-weight:normal; font-size:12px; color:#475569;} ");
+            sb.Append("table{border-collapse:collapse; width:100%; table-layout:fixed; margin:0; background:#fff;} ");
+            sb.Append("th{border:1px solid #94a3b8; background:#1e40af; color:#fff; padding:5px 3px;"
+                    + " font-weight:bold; font-size:12px; text-align:center; vertical-align:middle;} ");
+            sb.Append("td{border:1px solid #cbd5e1; padding:4px 3px; text-align:center; font-size:12px;"
+                    + " vertical-align:middle; word-break:break-all;} ");
+            sb.Append("tbody tr:nth-child(even){background:#f4f7fd;} ");
+            sb.Append(".nm{font-weight:bold;} ");
+            sb.Append(".tm{font-weight:bold; font-family:Consolas,'Courier New',monospace; background:#eff6ff;} ");
+            sb.Append(".r1{background:#fde68a; font-weight:bold;} .r2{background:#e5e7eb; font-weight:bold;} .r3{background:#fed7aa; font-weight:bold;} ");
+            sb.Append(".rt{font-size:11px; color:#475569;} ");
+            sb.Append(".signature-row{margin-top:26px; display:flex; justify-content:space-between; font-size:13px;} ");
+            sb.Append(".foot{text-align:right; color:#94a3b8; font-size:10px; margin-top:10px;} ");
+            sb.Append("@media print { body{-webkit-print-color-adjust:exact; print-color-adjust:exact;} } ");
+            sb.Append("</style></head><body><div class='page'>");
 
-            // 封面
-            sb.Append("<div class='page'>");
+            // 抬头(只在最前面出现一次, 不再单独占一页)
             sb.AppendFormat("<h1>{0}</h1>", HtmlEnc(_competitionName));
             sb.Append("<h2>成 绩 单 （ 按 组 别 ）</h2>");
-            sb.AppendFormat("<h4 style='text-align:center; font-size:18px;'>项目：{0} {1} {2} {3}</h4>",
+            sb.AppendFormat("<div class='meta'>{0} {1} {2} {3}</div>",
                 HtmlEnc(_selectedAgeGroup), HtmlEnc(_selectedGender), HtmlEnc(_selectedEvent), HtmlEnc(_selectedStage));
-            sb.AppendFormat("<h4 style='text-align:center;'>地点：{0} &nbsp;&nbsp;&nbsp; 共 {1} 张子表</h4>",
-                HtmlEnc(_location), blocks.Count);
+            // 2026-09-03 地点没填就整段不显示 —— 原来会印出光秃秃一个"地点："
+            sb.AppendFormat("<div class='meta'>{0}共 {1} 张子表</div>",
+                string.IsNullOrWhiteSpace(_location) ? "" : ("地点：" + HtmlEnc(_location) + "　|　"), blocks.Count);
+            sb.Append("<div class='rule'></div>");
 
-            bool firstBlock = true;
             foreach (var b in blocks) {
-                if (firstBlock) firstBlock = false;
-                else sb.Append("<div class='page-break'></div><div class='page'>");
+                sb.Append("<div class='blk'>");
 
                 // 2026-06-02 标题用 AgeBlock.Title (含性别 + 注册组别 + 可选实际年龄), 不再单独拼 _selectedGender
                 // 2026-09-03 项目/赛次取【本子块自己的】—— 它们都能选"全部", 一次查询里会有好几个项目
                 bool isRelayEv = (b.EventName ?? "").Contains("接力");
                 string c1H = isRelayEv ? "代表队" : "姓名";
                 string c2H = isRelayEv ? "姓名" : "代表队";
-                int rxW = isRelayEv ? 110 : 70;
-                sb.AppendFormat("<h3>{0}  {1} {2}　（{3}人）</h3>",
+                sb.AppendFormat("<h3>{0}　{1} {2}<span class='n'>{3} 人</span></h3>",
                     HtmlEnc(b.Title ?? b.AgeGroup), HtmlEnc(b.EventName), HtmlEnc(b.Stage), b.Rows.Count);
-                // 2026-09-03 列序改成跟"项目成绩"一模一样:
-                //   名次 → 姓名/代表队 → 号码 → 组别 → 组数 → 道次 → 最终成绩 → 成绩差 → 反应时间 → 备注
-                sb.Append("<table><tr align='center'>");
-                sb.Append("<th width='50'>名次</th>");
-                sb.AppendFormat("<th width='180'>{0}</th><th width='110'>{1}</th>", c1H, c2H);
-                sb.Append("<th width='60'>号码</th><th width='60'>组别</th><th width='55'>组数</th><th width='40'>道次</th>");
-                sb.AppendFormat("<th width='80'>最终成绩</th><th width='70'>成绩差</th><th width='{0}'>反应时间</th><th width='50'>备注</th></tr>", rxW);
+                // 2026-09-03 列宽改百分比 + table-layout:fixed —— 原来是 px, 表格挤在左半边,
+                //   人少的表更窄(实测 1 人的表只有半幅纸宽)。百分比才能稳定占满。
+                //   列序跟"项目成绩"一致: 名次 → 姓名/代表队 → 号码 → 组别 → 组数 → 道次
+                //                        → 最终成绩 → 成绩差 → 反应时间 → 备注
+                int[] w = isRelayEv ? new[] { 5, 15, 21, 6, 8, 6, 5, 10, 7, 12, 5 }
+                                    : new[] { 5, 18, 14, 7, 9, 7, 6, 11, 8, 9, 6 };
+                sb.Append("<table><colgroup>");
+                foreach (int x in w) sb.AppendFormat("<col style='width:{0}%'/>", x);
+                sb.Append("</colgroup><thead><tr>");
+                sb.Append("<th>名次</th>");
+                sb.AppendFormat("<th>{0}</th><th>{1}</th>", c1H, c2H);
+                sb.Append("<th>号码</th><th>组别</th><th>组数</th><th>道次</th>");
+                sb.Append("<th>最终成绩</th><th>成绩差</th><th>反应时间</th><th>备注</th></tr></thead><tbody>");
                 foreach (var r in b.Rows) {
                     string c1 = isRelayEv ? (r.Country ?? "") : (r.Name ?? "");
                     string c2 = isRelayEv ? (r.Name ?? "") : (r.Country ?? "");
+                    // 前三名给金/银/铜底色 —— 一眼看得出领奖台
+                    string rkCls = r.Rank == "1" ? " class='r1'" : r.Rank == "2" ? " class='r2'" : r.Rank == "3" ? " class='r3'" : "";
                     sb.Append("<tr>");
-                    sb.AppendFormat("<td>{0}</td>", r.Rank);
-                    sb.AppendFormat("<td><b>{0}</b></td><td>{1}</td>", HtmlEnc(c1), HtmlEnc(c2));
+                    sb.AppendFormat("<td{0}>{1}</td>", rkCls, r.Rank);
+                    sb.AppendFormat("<td class='nm'>{0}</td><td>{1}</td>", HtmlEnc(c1), HtmlEnc(c2));
                     sb.AppendFormat("<td>{0}</td><td>{1}</td><td>{2}</td><td>{3}</td>",
                         HtmlEnc(r.BibNumber), HtmlEnc(r.AgeGroupName), HtmlEnc(r.HeatText), r.Lane);
-                    sb.AppendFormat("<td style='font-weight:bold; background:#eff6ff;'>{0}</td>", HtmlEnc(r.FinalTime));
+                    sb.AppendFormat("<td class='tm'>{0}</td>", HtmlEnc(r.FinalTime));
                     sb.AppendFormat("<td>{0}</td>", HtmlEnc(r.Diff));
-                    sb.AppendFormat("<td style='font-size:11px;'>{0}</td><td>{1}</td>", r.ReactionHtml, r.RemarkHtml);
+                    sb.AppendFormat("<td class='rt'>{0}</td><td>{1}</td>", r.ReactionHtml, r.RemarkHtml);
                     sb.Append("</tr>");
                 }
-                sb.Append("</table>");
-                sb.Append("<div class='signature-row'>");
-                sb.AppendFormat("<p>裁判：{0}</p>", !string.IsNullOrEmpty(_referee) ? HtmlEnc(_referee) + "___________" : "__________________");
-                sb.Append("<p>记录长：__________________</p>");
-                sb.Append("</div>");
+                sb.Append("</tbody></table></div>");
             }
-            sb.AppendFormat("<p style='text-align:right; padding:14px 50px; color:gray; font-size:11px;'>打印时间：{0}</p>", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
+            // 2026-09-03 签名行只在整份文档末尾出现一次 —— 原来每张子表后面都来一遍,
+            //   20 张子表就是 20 组"裁判/记录长"的下划线, 又占地方又乱。
+            sb.Append("<div class='signature-row'>");
+            sb.AppendFormat("<span>裁判：{0}</span>", !string.IsNullOrEmpty(_referee) ? HtmlEnc(_referee) + "　___________" : "__________________");
+            sb.Append("<span>记录长：__________________</span>");
+            sb.Append("</div>");
+            sb.AppendFormat("<div class='foot'>打印时间：{0}</div>", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
             sb.Append("</div></body></html>");
             return sb.ToString();
         }
@@ -617,6 +649,18 @@ namespace SwimmingScoreboard
             if (cb.SelectedItem is ComboBoxItem) return ((ComboBoxItem)cb.SelectedItem).Content.ToString();
             return cb.SelectedItem.ToString();
         }
+        /// <summary>2026-09-03 接力反应时打印用: 两棒一行, 少占一半高度。</summary>
+        internal static string PairLines(List<string> parts) {
+            if (parts == null || parts.Count == 0) return "";
+            var sb = new StringBuilder();
+            for (int i = 0; i < parts.Count; i += 2) {
+                if (i > 0) sb.Append("<br>");
+                sb.Append(parts[i]);
+                if (i + 1 < parts.Count) sb.Append("&nbsp;&nbsp;").Append(parts[i + 1]);
+            }
+            return sb.ToString();
+        }
+
         private static string HtmlEnc(string s) {
             if (string.IsNullOrEmpty(s)) return "";
             return System.Net.WebUtility.HtmlEncode(s);

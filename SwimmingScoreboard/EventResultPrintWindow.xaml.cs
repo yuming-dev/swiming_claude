@@ -428,7 +428,7 @@ namespace SwimmingScoreboard
                         parts.Add(string.Format("第{0}棒:{1}", li + 1, (rt != 0 && !double.IsNaN(rt)) ? rt.ToString("F2") : "—"));
                     }
                     x.ReactionPlain = string.Join("  ", parts.ToArray());
-                    x.ReactionHtml = string.Join("<br>", parts.ToArray());
+                    x.ReactionHtml = BatchByAgeGroupPrintWindow.PairLines(parts)   /* 2026-09-03 两棒一行, 别把接力表撑高四倍 */;
                 } else if (res != null && res.StartingBlockTime != 0) {
                     x.ReactionPlain = res.StartingBlockTime.ToString("F2");
                     x.ReactionHtml = x.ReactionPlain;
@@ -777,7 +777,7 @@ namespace SwimmingScoreboard
                         parts.Add(string.Format("第{0}棒:{1}", li + 1, (rt != 0 && !double.IsNaN(rt)) ? rt.ToString("F2") : "—"));
                     }
                     reactionPlain = string.Join("  ", parts.ToArray());
-                    reactionHtml = string.Join("<br>", parts.ToArray());
+                    reactionHtml = BatchByAgeGroupPrintWindow.PairLines(parts)   /* 2026-09-03 两棒一行, 别把接力表撑高四倍 */;
                 } else if (r != null && r.StartingBlockTime != 0) {
                     reactionPlain = r.StartingBlockTime.ToString("F2");
                     reactionHtml = reactionPlain;
@@ -935,6 +935,19 @@ namespace SwimmingScoreboard
         }
 
         // 2026-06-01 5 个动作按钮共用的 HTML 构造 (原 Print_Click 文件输出主体抽出来)
+        /// <summary>
+        /// 2026-09-03 11 列的百分比列宽(配 table-layout:fixed)。跟"按组别批量公布"用同一套数字。
+        /// 原来是 px 宽度: 表格挤在纸的左半边, 人少的时候更窄 —— 打出来很难看。
+        /// </summary>
+        private static string ColGroupHtml(bool relay) {
+            int[] w = relay ? new[] { 5, 15, 21, 6, 8, 6, 5, 10, 7, 12, 5 }
+                            : new[] { 5, 18, 14, 7, 9, 7, 6, 11, 8, 9, 6 };
+            var sb = new StringBuilder("<colgroup>");
+            foreach (int x in w) sb.AppendFormat("<col style='width:{0}%'/>", x);
+            sb.Append("</colgroup>");
+            return sb.ToString();
+        }
+
         private string BuildPrintHtml(out string suggestedFileName) {
             suggestedFileName = "";
             if (_currentResults.Count == 0) return "";
@@ -972,28 +985,45 @@ namespace SwimmingScoreboard
 
             var sb = new StringBuilder();
             // HTML头和样式（参照跳水格式）
+            // 2026-09-03 排版与"按组别批量公布"统一 —— 两份文档会摆在一起看,
+            //   字号/配色/边距各是一套很难看。原来这份 h1 36px、h2 下面留 50px 空,
+            //   一张 8 人的成绩单要占掉大半页纸。
             sb.Append("<html><head><meta charset='UTF-8'><style>");
-            sb.Append("body{font-family:'SimSun'; padding:0; margin:0; line-height:1.5; color:#333;} ");
-            sb.Append(".page{padding:50px; position:relative; box-sizing:border-box; min-height:1000px;} ");
-            sb.Append("h1{text-align:center; font-size:36px; font-family:'SimHei'; margin-top:10px; letter-spacing:5px;} ");
-            sb.Append("h2{text-align:center; font-size:28px; font-family:'SimHei'; margin-bottom:50px; letter-spacing:10px;} ");
-            sb.Append("h3{font-size:22px; font-family:'SimHei'; border-bottom:3px solid #1e40af; padding-bottom:8px; margin-top:40px; color:#1e40af;} ");
-            sb.Append("h4{font-size:18px; font-weight:bold; margin-top:20px; border-left:5px solid #1e40af; padding-left:10px;} ");
-            sb.Append("table{border-collapse:collapse; width:100%; margin:15px 0; background:#fff;} ");
-            sb.Append("th{border:1px solid #333; background:#dbeafe; padding:10px; font-weight:bold; font-size:14px; text-align:center; vertical-align:middle;} ");
-            sb.Append("td{border:1px solid #333; padding:8px; text-align:center; font-size:14px;} ");
-            sb.Append("tr:nth-child(even){background:#f0f7ff;} ");
-            sb.Append(".signature-row{margin-top:60px; display:flex; justify-content:space-between; font-size:15px; font-weight:bold;} ");
-            sb.Append("@media print { .page-break{page-break-before:always;} body{-webkit-print-color-adjust:exact;} @page { margin: 1cm; } } ");
+            sb.Append("@page{ size:A4; margin:14mm 12mm; } ");
+            sb.Append("body{font-family:'Microsoft YaHei','微软雅黑',SimHei,SimSun,sans-serif; padding:0; margin:0; line-height:1.45; color:#1f2937;} ");
+            sb.Append(".page{padding:0 4px; box-sizing:border-box;} ");
+            sb.Append("h1{text-align:center; font-size:26px; margin:0 0 4px; letter-spacing:3px; color:#0f172a;} ");
+            sb.Append("h2{text-align:center; font-size:17px; margin:0 0 10px; letter-spacing:6px; color:#1e40af; font-weight:normal;} ");
+            sb.Append("h3{font-size:15px; margin:12px 0 5px; padding:5px 10px; color:#1e3a8a;"
+                    + " background:#e8f0fe; border-left:4px solid #1e40af;} ");
+            sb.Append(".meta{text-align:center; font-size:12px; color:#475569; margin:0 0 4px;} ");
+            sb.Append(".rule{height:2px; background:#1e40af; margin:8px 0 4px;} ");
+            sb.Append("table{border-collapse:collapse; width:100%; table-layout:fixed; margin:0; background:#fff;} ");
+            sb.Append("th{border:1px solid #94a3b8; background:#1e40af; color:#fff; padding:5px 3px;"
+                    + " font-weight:bold; font-size:12px; text-align:center; vertical-align:middle;} ");
+            sb.Append("td{border:1px solid #cbd5e1; padding:4px 3px; text-align:center; font-size:12px;"
+                    + " vertical-align:middle; word-break:break-all;} ");
+            sb.Append("tbody tr:nth-child(even){background:#f4f7fd;} ");
+            sb.Append("h4{font-size:13px; margin:12px 0 5px; padding:4px 8px; color:#1e3a8a;"
+                    + " background:#e8f0fe; border-left:4px solid #1e40af;} ");
+            sb.Append(".nm{font-weight:bold;} ");
+            sb.Append(".tm{font-weight:bold; font-family:Consolas,'Courier New',monospace; background:#eff6ff;} ");
+            sb.Append(".r1{background:#fde68a; font-weight:bold;} .r2{background:#e5e7eb; font-weight:bold;} .r3{background:#fed7aa; font-weight:bold;} ");
+            sb.Append(".rt{font-size:11px; color:#475569;} ");
+            sb.Append(".signature-row{margin-top:26px; display:flex; justify-content:space-between; font-size:13px;} ");
+            sb.Append("@media print { .page-break{page-break-before:always;} body{-webkit-print-color-adjust:exact; print-color-adjust:exact;} } ");
             sb.Append("</style></head><body>");
 
             // 正文
             sb.Append("<div class='page'>");
             sb.AppendFormat("<h1>{0}</h1>", _competitionName);
             sb.Append("<h2>成 绩 单</h2>");
-            sb.AppendFormat("<h3>项目：{0}</h3>", eventTitle);
-            sb.AppendFormat("<h4>比赛时间：{0} &nbsp;&nbsp;&nbsp;&nbsp; 地点：{1}</h4>",
-                dateTimeInfo, !string.IsNullOrEmpty(_location) ? _location : "——");
+            sb.AppendFormat("<div class='meta'>{0}</div>", eventTitle);
+            // 2026-09-03 地点没填就不印"地点：——"
+            sb.AppendFormat("<div class='meta'>比赛时间：{0}{1}</div>",
+                dateTimeInfo,
+                string.IsNullOrWhiteSpace(_location) ? "" : ("　|　地点：" + _location));
+            sb.Append("<div class='rule'></div>");
 
             // 成绩表（接力：代表队在前）
             bool epRelay = SelectedEvent.Contains("接力");
@@ -1018,46 +1048,57 @@ namespace SwimmingScoreboard
                     sb.Append("<table><tr>");
                     // 2026-09-02 列序: 名次 → 姓名/代表队 → 号码 → 组别 → 组数 → 道 → 最终成绩 …
                     //   (接力时 epH1/epH2 已经是"代表队/姓名", 顺序自动对调)
-                    sb.AppendFormat("<th width='50' align='center'>名次</th>");
-                    sb.AppendFormat("<th width='100' align='center'>{0}</th><th width='100' align='center'>{1}</th>", epH1, epH2);
-                    sb.AppendFormat("<th width='60' align='center'>号码</th><th width='60' align='center'>组别</th><th width='55' align='center'>组数</th><th width='40' align='center'>道次</th>");
-                    sb.AppendFormat("<th width='90' align='center'>最终成绩</th><th width='70' align='center'>成绩差</th><th width='{0}' align='center'>反应时间</th><th width='50' align='center'>备注</th>", reactionWidth);
-                    sb.Append("</tr>");
+                    // 2026-09-03 列宽改百分比 + table-layout:fixed, 让表格稳定占满纸宽
+                    sb.Append(ColGroupHtml(epRelay));
+                    sb.Append("<thead><tr>");
+                    sb.AppendFormat("<th>名次</th>");
+                    sb.AppendFormat("<th>{0}</th><th>{1}</th>", epH1, epH2);
+                    sb.Append("<th>号码</th><th>组别</th><th>组数</th><th>道次</th>");
+                    sb.Append("<th>最终成绩</th><th>成绩差</th><th>反应时间</th><th>备注</th>");
+                    sb.Append("</tr></thead><tbody>");
                     foreach (dynamic item in subResults) {
                         string c1 = epRelay ? item.Country : item.Name;
                         string c2 = epRelay ? item.Name : item.Country;
+                        string rk = (string)item.Rank;
+                        string rkCls = rk == "1" ? " class='r1'" : rk == "2" ? " class='r2'" : rk == "3" ? " class='r3'" : "";
                         sb.Append("<tr>");
-                        sb.AppendFormat("<td>{0}</td>", item.Rank);
-                        sb.AppendFormat("<td><b>{0}</b></td><td>{1}</td>", c1, c2);
+                        sb.AppendFormat("<td{0}>{1}</td>", rkCls, rk);
+                        sb.AppendFormat("<td class='nm'>{0}</td><td>{1}</td>", c1, c2);
                         sb.AppendFormat("<td>{0}</td><td>{1}</td><td>{2}</td><td>{3}</td>", item.BibNumber, item.AgeGroup, item.HeatText, item.Lane);
-                        sb.AppendFormat("<td style='font-weight:bold; background:#eff6ff;'>{0}</td>", item.FinalTime);
+                        sb.AppendFormat("<td class='tm'>{0}</td>", item.FinalTime);
                         sb.AppendFormat("<td>{0}</td>", item.Diff);
-                        sb.AppendFormat("<td style='font-size:12px;'>{0}</td><td>{1}</td>", item.ReactionTimeHtml, item.RemarkHtml);
+                        sb.AppendFormat("<td class='rt'>{0}</td><td>{1}</td>", item.ReactionTimeHtml, item.RemarkHtml);
                         sb.Append("</tr>");
                     }
+                    sb.Append("</tbody>");
                     sb.Append("</table>");
                 }
             } else {
                 sb.Append("<table><tr>");
                 // 2026-09-02 列序同上: 名次 → 姓名/代表队 → 号码 → 组别 → 组数 → 道次 → 最终成绩 …
-                sb.AppendFormat("<th width='50'>名次</th>");
-                sb.AppendFormat("<th width='100'>{0}</th><th width='100'>{1}</th>", epH1, epH2);
-                sb.AppendFormat("<th width='60'>号码</th><th width='60'>组别</th><th width='55'>组数</th><th width='40'>道次</th>");
-                sb.AppendFormat("<th width='90'>最终成绩</th><th width='70'>成绩差</th><th width='{0}'>反应时间</th><th width='50'>备注</th>", reactionWidth);
-                sb.Append("</tr>");
+                sb.Append(ColGroupHtml(epRelay));
+                sb.Append("<thead><tr>");
+                sb.AppendFormat("<th>名次</th>");
+                sb.AppendFormat("<th>{0}</th><th>{1}</th>", epH1, epH2);
+                sb.Append("<th>号码</th><th>组别</th><th>组数</th><th>道次</th>");
+                sb.Append("<th>最终成绩</th><th>成绩差</th><th>反应时间</th><th>备注</th>");
+                sb.Append("</tr></thead><tbody>");
                 foreach (dynamic item in _currentResults)
                 {
                     string c1 = epRelay ? item.Country : item.Name;
                     string c2 = epRelay ? item.Name : item.Country;
+                    string rk = (string)item.Rank;
+                    string rkCls = rk == "1" ? " class='r1'" : rk == "2" ? " class='r2'" : rk == "3" ? " class='r3'" : "";
                     sb.Append("<tr>");
-                    sb.AppendFormat("<td>{0}</td>", item.Rank);
-                    sb.AppendFormat("<td><b>{0}</b></td><td>{1}</td>", c1, c2);
+                    sb.AppendFormat("<td{0}>{1}</td>", rkCls, rk);
+                    sb.AppendFormat("<td class='nm'>{0}</td><td>{1}</td>", c1, c2);
                     sb.AppendFormat("<td>{0}</td><td>{1}</td><td>{2}</td><td>{3}</td>", item.BibNumber, item.AgeGroup, item.HeatText, item.Lane);
-                    sb.AppendFormat("<td style='font-weight:bold; background:#eff6ff;'>{0}</td>", item.FinalTime);
+                    sb.AppendFormat("<td class='tm'>{0}</td>", item.FinalTime);
                     sb.AppendFormat("<td>{0}</td>", item.Diff);
-                    sb.AppendFormat("<td style='font-size:12px;'>{0}</td><td>{1}</td>", item.ReactionTimeHtml, item.RemarkHtml);
+                    sb.AppendFormat("<td class='rt'>{0}</td><td>{1}</td>", item.ReactionTimeHtml, item.RemarkHtml);
                     sb.Append("</tr>");
                 }
+                sb.Append("</tbody>");
                 sb.Append("</table>");
             }
 
