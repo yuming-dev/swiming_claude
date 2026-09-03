@@ -3707,7 +3707,7 @@ namespace SwimmingScoreboard
                                              .Select(r => r.TimingSource).FirstOrDefault() ?? "",
                     //2026-05-12 != 0 而非 > 0：允许显示负值（抢跳/犯规时为负数，如 -0.020）
                     startingBlockTime = sw.Results.Where(r => r.Stage == sw.CurrentStage)
-                                                  .Select(r => r.StartingBlockTime != 0 ? r.StartingBlockTime.ToString("F3") : "").FirstOrDefault() ?? "",
+                                                  .Select(r => r.StartingBlockTime != 0 && !double.IsNaN(r.StartingBlockTime) ? r.StartingBlockTime.ToString("F3") : "").FirstOrDefault() ?? "",
                     recordNote = sw.Results.Where(r => r.Stage == sw.CurrentStage)
                                            .Select(r => r.RecordNote ?? "").FirstOrDefault() ?? "",
                     // 2026-06-19 query.html 需要按 stage+heat 查任意已完赛组的成绩, 加轻量 results 数组.
@@ -6168,7 +6168,7 @@ namespace SwimmingScoreboard
                             rtParts.Add(string.Format("第{0}棒:{1}", li + 1, (rt != 0 && !double.IsNaN(rt)) ? rt.ToString("F3") : "—"));
                         }
                         reaction = string.Join(" / ", rtParts.ToArray());
-                    } else if (r != null && r.StartingBlockTime != 0) {
+                    } else if (r != null && r.StartingBlockTime != 0 && !double.IsNaN(r.StartingBlockTime)) {
                         reaction = r.StartingBlockTime.ToString("F3");
                     }
                     string athletesFr = s.Name ?? "";
@@ -6323,7 +6323,7 @@ namespace SwimmingScoreboard
                         rtParts2.Add(string.Format("第{0}棒:{1}", li + 1, (rt2 != 0 && !double.IsNaN(rt2)) ? rt2.ToString("F3") : "—"));
                     }
                     reactionHtml = string.Join("<br>", rtParts2.ToArray());
-                } else if (r != null && r.StartingBlockTime != 0) {
+                } else if (r != null && r.StartingBlockTime != 0 && !double.IsNaN(r.StartingBlockTime)) {
                     reactionHtml = r.StartingBlockTime.ToString("F3");
                 }
                 h.AppendFormat("<tr><td style='text-align:center;font-weight:bold;'>{0}</td><td style='text-align:center;'>{1}</td><td>{2}</td><td><b>{3}</b></td>" +
@@ -20068,7 +20068,7 @@ namespace SwimmingScoreboard
                         rtParts.Add(string.Format("第{0}棒:{1}", li + 1, (rt != 0 && !double.IsNaN(rt)) ? rt.ToString("F2") : "—"));
                     }
                     reactionStr = string.Join("  ", rtParts.ToArray());
-                } else if (r != null && r.StartingBlockTime != 0 && !isDQ) {
+                } else if (r != null && r.StartingBlockTime != 0 && !double.IsNaN(r.StartingBlockTime) && !isDQ) {
                     // 2026-08-31 判罚/弃权不显示反应时间(与成绩单、项目成绩同口径)
                     reactionStr = r.StartingBlockTime.ToString("F2");
                 }
@@ -20238,7 +20238,7 @@ namespace SwimmingScoreboard
                 }
                 return string.Join(" ", parts.ToArray());
             }
-            return r.StartingBlockTime != 0 ? r.StartingBlockTime.ToString("F2") : "";
+            return r.StartingBlockTime != 0 && !double.IsNaN(r.StartingBlockTime) ? r.StartingBlockTime.ToString("F2") : "";
         }
 
         /// <summary>
@@ -27432,7 +27432,7 @@ namespace SwimmingScoreboard
                         parts.Add(string.Format("第{0}棒:{1}", li + 1, (rt != 0 && !double.IsNaN(rt)) ? rt.ToString("F2") : "—"));
                     }
                     reactionCell = string.Join("<br>", parts.ToArray());
-                } else if (r != null && r.StartingBlockTime != 0 && string.IsNullOrEmpty(remark)) {
+                } else if (r != null && r.StartingBlockTime != 0 && !double.IsNaN(r.StartingBlockTime) && string.IsNullOrEmpty(remark)) {
                     // 2026-08-31 判罚/弃权(DSQ/DNS/DNF)不显示反应时间: 成绩都留空了,
                     //   单留一个反应时在那儿, 容易被当成有效数据。
                     reactionCell = r.StartingBlockTime.ToString("F2");
@@ -27495,6 +27495,8 @@ namespace SwimmingScoreboard
                 + ".records-bar b{{color:#b45309;}} "
                 + ".heat-title{{margin-top:14px; padding:6px 10px; background:#fef3c7; font-weight:bold; border-left:4px solid #f59e0b;}} "
                 + ".event-meta{{display:flex; justify-content:space-between; margin:4px 0; font-size:14px; color:#475569;}} "
+                // 2026-09-03 前三名底色, 与"项目成绩"那张成绩单同款
+                + ".r1{{background:#fde68a; font-weight:bold;}} .r2{{background:#e5e7eb; font-weight:bold;}} .r3{{background:#fed7aa; font-weight:bold;}} "
                 + "</style></head><body>", DocCss());
 
             string compName = string.IsNullOrEmpty(_competitionName) ? "游泳比赛" : _competitionName;
@@ -27536,13 +27538,19 @@ namespace SwimmingScoreboard
                 sb.Append("</div>");
             }
 
+            // 2026-09-03 目录的序号必须和正文用同一个条件算。
+            //   体育道德风尚奖名单为空时正文整节跳过, 目录却照列 —— 后面每一节的中文
+            //   序号就集体错位一位: 目录写"三、破纪录统计表", 正文标题印的却是"二"。
+            bool hasSportsAwards = rb.IncludeSportsAwards
+                && (rb.SportsTeams.Count + rb.SportsAthletes.Count + rb.SportsJudges.Count > 0);
+
             // ═══ 3. 目录 ═══
             sb.Append("<div class='page-break'></div><div class='page'>");
             sb.AppendFormat("<h1>{0}</h1><h2>目 　 录</h2>", compName);
             sb.Append("<div class='toc'>");
             int tocN = 0;
             if (rb.IncludeMedalCount) sb.AppendFormat("<div class='row'><span>{0}、奖牌榜统计</span><span></span></div>", CnNum(++tocN));
-            if (rb.IncludeSportsAwards) sb.AppendFormat("<div class='row'><span>{0}、体育道德风尚奖</span><span></span></div>", CnNum(++tocN));
+            if (hasSportsAwards) sb.AppendFormat("<div class='row'><span>{0}、体育道德风尚奖</span><span></span></div>", CnNum(++tocN));
             if (rb.IncludeRecordStats) sb.AppendFormat("<div class='row'><span>{0}、破纪录统计表</span><span></span></div>", CnNum(++tocN));
             if (rb.IncludeFinalRanking) sb.AppendFormat("<div class='row'><span>{0}、名次公告</span><span></span></div>", CnNum(++tocN));
             if (rb.IncludeFullResults) sb.AppendFormat("<div class='row'><span>{0}、成绩公告</span><span></span></div>", CnNum(++tocN));
@@ -27556,24 +27564,35 @@ namespace SwimmingScoreboard
                 sb.AppendFormat("<h1>{0}</h1>", compName);
                 sb.AppendFormat("<h3><span class='section-tag'>{0}</span>奖牌榜统计</h3>", CnNum(++sectN));
                 sb.Append("<table><tr align='center'><th width='60'>排名</th><th>代表队</th><th width='80'>金牌</th><th width='80'>银牌</th><th width='80'>铜牌</th><th width='80'>总计</th></tr>");
+                // 2026-09-03 奖牌统计改走【和名次公告同一份名次】(GetEventFinalRanking = 库里的
+                //   项目名次)。原来这里自己 OrderBy(成绩).Take(3), 有三处不对:
+                //   ① 只按 性别+项目名 分组, 把青年组和少年组的同名项目并成一个项目 ——
+                //      本届 10 个决赛项目只发出了 8 套奖牌;
+                //   ② 不认并列: 并列第 1 该发两块金牌、不发银牌, 它按成绩顺序硬切前三;
+                //   ③ 只看 sw.Status, 判罚记在成绩行上的人照样进奖牌。
                 var medalTable = new Dictionary<string, int[]>();
-                var medalEventGroups = _swimmers.Where(s => !IsRelayMemberNote(s.Notes)).GroupBy(s => new { s.Gender, s.EventName });
-                foreach (var ev in medalEventGroups) {
-                    var finalists = ev.Where(s => s.GetResultForStage("决赛") != null && s.GetResultForStage("决赛").FinalTime > 0
-                            && s.Status != "DSQ" && s.Status != "DNS" && s.Status != "DNF")
-                        .OrderBy(s => s.GetResultForStage("决赛").FinalTime).Take(3).ToList();
-                    for (int i = 0; i < finalists.Count; i++) {
-                        string country = string.IsNullOrEmpty(finalists[i].Country) ? "—" : finalists[i].Country;
+                var medalDone = new HashSet<string>();
+                foreach (var mSched in _schedule.Where(s => s.Stage == "决赛")) {
+                    string mKey = (mSched.AgeGroup ?? "") + "|" + (mSched.Gender ?? "") + "|" + (mSched.EventName ?? "");
+                    if (!medalDone.Add(mKey)) continue;   // 同一项目在日程里排了多条时只统计一次
+                    foreach (var mRow in GetEventFinalRanking(mSched.AgeGroup ?? "", mSched.Gender, mSched.EventName)) {
+                        if (mRow.Rank < 1 || mRow.Rank > 3) continue;
+                        string country = string.IsNullOrEmpty(mRow.Swimmer.Country) ? "—" : mRow.Swimmer.Country;
                         if (!medalTable.ContainsKey(country)) medalTable[country] = new int[3];
-                        medalTable[country][i]++;
+                        medalTable[country][mRow.Rank - 1]++;
                     }
                 }
                 var sortedMedals = medalTable.OrderByDescending(x => x.Value[0] * 10000 + x.Value[1] * 100 + x.Value[2]).ToList();
+                // 金银铜完全一样的两个队是并列, 不该一个第 3 一个第 4
+                int mDispRank = 0, mPrevScore = -1;
                 for (int i = 0; i < sortedMedals.Count; i++) {
                     var m = sortedMedals[i];
-                    string row = i == 0 ? " style='background:#fef3c7;'" : (i == 1 ? " style='background:#f1f5f9;'" : (i == 2 ? " style='background:#fef0e7;'" : ""));
+                    int score = m.Value[0] * 10000 + m.Value[1] * 100 + m.Value[2];
+                    if (i == 0 || score != mPrevScore) mDispRank = i + 1;
+                    mPrevScore = score;
+                    string row = mDispRank == 1 ? " style='background:#fef3c7;'" : (mDispRank == 2 ? " style='background:#f1f5f9;'" : (mDispRank == 3 ? " style='background:#fef0e7;'" : ""));
                     sb.AppendFormat("<tr{0}><td>{1}</td><td style='text-align:left; padding-left:20px;'><b>{2}</b></td><td>{3}</td><td>{4}</td><td>{5}</td><td style='font-weight:bold;'>{6}</td></tr>",
-                        row, i + 1, m.Key, m.Value[0], m.Value[1], m.Value[2], m.Value[0] + m.Value[1] + m.Value[2]);
+                        row, mDispRank, m.Key, m.Value[0], m.Value[1], m.Value[2], m.Value[0] + m.Value[1] + m.Value[2]);
                 }
                 if (sortedMedals.Count == 0) sb.Append("<tr><td colspan='6' style='color:#94a3b8;'>暂无决赛成绩</td></tr>");
                 sb.Append("</table>");
@@ -27581,7 +27600,7 @@ namespace SwimmingScoreboard
             }
 
             // ═══ 5. 体育道德风尚奖 ═══
-            if (rb.IncludeSportsAwards && (rb.SportsTeams.Count + rb.SportsAthletes.Count + rb.SportsJudges.Count > 0)) {
+            if (hasSportsAwards) {
                 sb.Append("<div class='page-break'></div><div class='page'>");
                 sb.AppendFormat("<h1>{0}</h1>", compName);
                 sb.AppendFormat("<h3><span class='section-tag'>{0}</span>体育道德风尚奖</h3>", CnNum(++sectN));
@@ -27613,10 +27632,17 @@ namespace SwimmingScoreboard
                     sb.Append("<p style='text-align:center; color:#94a3b8; margin-top:40px;'>本次比赛暂无破纪录记录。</p>");
                 } else {
                     sb.AppendFormat("<p style='text-align:right; color:#475569;'>截至 {0}</p>", DateTime.Now.ToString("yyyy-MM-dd"));
-                    sb.Append("<table><tr align='center'><th width='100'>日期</th><th>项目</th><th width='80'>赛次</th><th width='110'>运动员</th><th width='100'>单位</th><th width='100'>成绩</th><th width='110'>纪录类型</th></tr>");
+                    sb.Append("<table><tr align='center'><th width='90'>日期</th><th>项目</th><th width='70'>赛次</th><th width='110'>运动员</th><th width='90'>单位</th><th width='90'>成绩</th><th width='60'>标识</th><th width='110'>纪录类型</th></tr>");
                     foreach (var r in brokenRows) {
-                        sb.AppendFormat("<tr><td>{0}</td><td style='text-align:left;'>{1} {2}</td><td>{3}</td><td>{4}</td><td>{5}</td><td style='font-weight:bold;'>{6}</td><td>{7}</td></tr>",
-                            r.Date, r.Gender, r.EventName, r.Stage, r.Athlete, r.Country, r.Time, r.RecordType);
+                        sb.AppendFormat("<tr><td>{0}</td><td style='text-align:left;'>{1}{2} {3}</td><td>{4}</td><td>{5}</td><td>{6}</td><td style='font-weight:bold;'>{7}</td><td style='color:#b45309;font-weight:bold;'>{8}</td><td>{9}</td></tr>",
+                            System.Net.WebUtility.HtmlEncode(r.Date),
+                            string.IsNullOrEmpty(r.AgeGroup) ? "" : (System.Net.WebUtility.HtmlEncode(r.AgeGroup) + " "),
+                            System.Net.WebUtility.HtmlEncode(r.Gender), System.Net.WebUtility.HtmlEncode(r.EventName),
+                            System.Net.WebUtility.HtmlEncode(r.Stage),
+                            System.Net.WebUtility.HtmlEncode(r.Athlete), System.Net.WebUtility.HtmlEncode(r.Country),
+                            r.Time,
+                            System.Net.WebUtility.HtmlEncode(r.Tag),
+                            System.Net.WebUtility.HtmlEncode(r.RecordType));
                     }
                     sb.Append("</table>");
                 }
@@ -27653,8 +27679,10 @@ namespace SwimmingScoreboard
                             string tc;
                             if (teamCoachMap.TryGetValue(sw.Country ?? "", out tc)) coach = tc;
                         }
-                        string joint = info != null ? info.JointTrainingUnit : "";
-                        if (string.IsNullOrEmpty(joint)) joint = sw.CountryShort ?? "";
+                        // 2026-09-03 没填联合培养单位就留空。原来回退成 sw.CountryShort ——
+                        //   于是"联合培养单位"整列和左边的"单位"一模一样, 白占一列纸,
+                        //   还会让人以为每个运动员都是联合培养的。
+                        string joint = info != null ? (info.JointTrainingUnit ?? "") : "";
                         // 接力：堆叠显示队员姓名
                         string nameCell;
                         if (nrRelay) {
@@ -27667,9 +27695,16 @@ namespace SwimmingScoreboard
                         } else {
                             nameCell = System.Net.WebUtility.HtmlEncode(sw.Name ?? "");
                         }
-                        string rankPrefix = row.IsTie ? "=" : "";
-                        sb.AppendFormat("<tr><td>{0}{1}</td><td>{2}</td><td style='text-align:left; padding-left:14px;'>{3}</td><td>{4}</td><td style='font-weight:bold;'>{5}</td><td>{6}</td></tr>",
-                            rankPrefix, row.Rank,
+                        // 2026-09-03 名次列与"项目成绩"统一: 只印名次数字, 前三名加底色。
+                        //   ① 去掉并列时的 "=" 前缀 —— 全场只有这本成绩册这么印, 项目成绩、
+                        //      成绩与排名、大屏都是光秃秃一个数字。并列本来就靠"两行同号"看出来,
+                        //      再加个 "=" 反而被当成录错了。
+                        //   ② 库里还没有项目名次时 row.Rank 是 0, 原来照印 —— 配上 "=" 就成了
+                        //      满页 "=0"(用户实拍到的青年组男 200 米自由泳)。没名次一律 "-"。
+                        string nrRankText = row.Rank > 0 ? row.Rank.ToString() : "-";
+                        string nrRankCls = row.Rank == 1 ? " class='r1'" : row.Rank == 2 ? " class='r2'" : row.Rank == 3 ? " class='r3'" : "";
+                        sb.AppendFormat("<tr><td{0}>{1}</td><td>{2}</td><td style='text-align:left; padding-left:14px;'>{3}</td><td>{4}</td><td style='font-weight:bold;'>{5}</td><td>{6}</td></tr>",
+                            nrRankCls, nrRankText,
                             System.Net.WebUtility.HtmlEncode(sw.Country ?? ""),
                             nameCell,
                             System.Net.WebUtility.HtmlEncode(joint),
@@ -27708,7 +27743,10 @@ namespace SwimmingScoreboard
                     if (heatNumbers.Count == 0) continue;
 
                     eventBlock++;
-                    if (eventBlock > 1) sb.Append("<div class='page-break'></div><div class='page'>");
+                    // 2026-09-03 换页前先把上一个项目的 .page 收掉。原来每换一个项目就再套一层
+                    //   <div class='page'> 而从不闭合, 一本二十几页的成绩册结尾嵌着十几层 div;
+                    //   浏览器靠容错顶着看不出来, 导出 Word / 再加样式就会错位。
+                    if (eventBlock > 1) sb.Append("</div><div class='page-break'></div><div class='page'>");
                     sb.Append("<div class='event-meta'>");
                     string ageHeadFR = string.IsNullOrEmpty(schedAge) ? "" : (schedAge + " ");   // 2026-06-01
                     sb.AppendFormat("<div><b>游泳</b>　　{0}{1} {2}　　{3}</div>", ageHeadFR, gender, eventName, stage);
@@ -27731,16 +27769,37 @@ namespace SwimmingScoreboard
                         for (int d = splitGap; d < distMeters; d += splitGap) splitMarks.Add(d);
                     }
 
+                    // 2026-09-03 成绩差跟【本项目(本组别本赛次)第 1 名】比, 不跟本组最快的比 ——
+                    //   与"项目成绩"那张成绩单同口径。原来是每组各算各的基准, 于是预赛第 1 组
+                    //   里排第 5 的人成了那一组的"0.00", 第 2 组的真冠军又是另一个 0.00,
+                    //   两组之间的成绩差根本不能比, 看着还像每组都有个冠军。
+                    double evLeaderRanked = 0, evLeaderAny = 0;
+                    foreach (var s in matched) {
+                        var lr = s.GetResultForStage(stage);
+                        if (lr == null || lr.FinalTime <= 0) continue;
+                        string es = GetEffectiveStatus(s, lr);
+                        if (ResultOrdering.IsJudged(es) || es == "TRI") continue;   // 判罚/试游不参与
+                        if (evLeaderAny <= 0 || lr.FinalTime < evLeaderAny) evLeaderAny = lr.FinalTime;
+                        if (s.EventRankFor(stage) <= 0) continue;
+                        if (evLeaderRanked <= 0 || lr.FinalTime < evLeaderRanked) evLeaderRanked = lr.FinalTime;
+                    }
+                    // 名次还没定稿(库里没有项目名次)时退回"本项目本赛次最快的有效成绩",
+                    // 免得预赛阶段整列成绩差是空的
+                    double evLeaderTime = evLeaderRanked > 0 ? evLeaderRanked : evLeaderAny;
+
                     foreach (int heat in heatNumbers) {
                         var heatSwimmers = matched.Where(s => s.GetResultForStage(stage).Heat == heat).ToList();
                         // 2026-09-01 判罚看【有效状态】(成绩行优先) —— 回推进来的成绩把判罚
                         //   记在成绩行上, 只看 sw.Status 会把判罚的人当正常人排进去。
-                        Func<Swimmer, bool> isDQ = sw =>
-                            ResultOrdering.IsJudged(GetEffectiveStatus(sw, sw.GetResultForStage(stage)));
-                        var ordered = heatSwimmers
-                            .OrderBy(s => isDQ(s) ? 1 : 0)
-                            .ThenBy(s => isDQ(s) ? 0 : s.GetResultForStage(stage).FinalTime)
-                            .ToList();
+                        // 2026-09-03 组内顺序走 ResultOrdering.OrderForHeat —— 那个文件开头就写着
+                        //   "名次怎么算、谁排前面只允许写一次"。这里原来自己写了一份
+                        //   OrderBy(判罚).ThenBy(成绩), 结果 TRI(试游)既不算判罚、成绩又是 0,
+                        //   被排到并列第 1 中间去了(用户实拍到的少年组女 50 蝶第 2 组)。
+                        var ordered = ResultOrdering.OrderForHeat(heatSwimmers,
+                            s => GetEffectiveStatus(s, s.GetResultForStage(stage)),
+                            s => s.EventRankFor(stage),
+                            s => { var lr = s.GetResultForStage(stage); return lr != null ? lr.FinalTime : 0; },
+                            s => { var lr = s.GetResultForStage(stage); return lr != null ? lr.Lane : s.Lane; });
                         if (ordered.Count == 0) continue;
                         bool showHeat = (heatNumbers.Count > 1) || (stage ?? "").Contains("预赛") || (stage ?? "").Contains("半决赛");
                         if (showHeat) {
@@ -27749,38 +27808,36 @@ namespace SwimmingScoreboard
                             sb.AppendFormat("<div class='heat-title'>{0}</div>", stage);
                         }
 
-                        // 反应时列：接力赛展开 N 棒，宽度加大
-                        int rtColW = ffRelay ? 110 : 60;
-                        sb.AppendFormat("<table><tr align='center'><th width='50'>名次</th><th width='40'>道次</th><th width='110'>运动员</th><th width='80'>单位</th><th width='100'>出生日期</th><th width='{0}'>反应时</th>", rtColW);
+                        // 2026-09-03 列与"项目成绩"那张成绩单对齐: 补【号码】和【备注】两列,
+                        //   尾部顺序统一成 成绩 → 成绩差 → 反应时 → 备注。
+                        //   补备注列的原因: 原来 DSQ/DNF/DNS 是直接把状态红字塞进"成绩"列里印的,
+                        //   跟真成绩挤在同一列; 项目成绩是成绩留空、判罚进备注 —— 两份文档
+                        //   摆在一起对，同一个人一边有"成绩"一边没有。
+                        int rtColW = ffRelay ? 110 : 60;   // 反应时列: 接力展开 N 棒, 宽度加大
+                        sb.Append("<table><tr align='center'><th width='50'>名次</th><th width='40'>道次</th><th width='55'>号码</th><th width='100'>运动员</th><th width='80'>单位</th><th width='90'>出生日期</th>");
                         foreach (var sm in splitMarks) sb.AppendFormat("<th width='60'>{0}m</th>", sm);
                         sb.Append("<th width='80'>成绩</th>");
-                        if (rb.ShowTimeDifference) sb.Append("<th width='70'>成绩差</th>");
+                        if (rb.ShowTimeDifference) sb.Append("<th width='60'>成绩差</th>");
+                        sb.AppendFormat("<th width='{0}'>反应时</th><th width='55'>备注</th>", rtColW);
                         sb.Append("</tr>");
 
-                        double leaderTime = ordered.Where(s => !isDQ(s)).Select(s => s.GetResultForStage(stage)).Where(r => r != null && r.FinalTime > 0).Select(r => r.FinalTime).DefaultIfEmpty(0).First();
-                        int rank = 1;
-                        double prevTime = -1;
-                        int prevRank = 1;
                         foreach (var sw in ordered) {
                             var r = sw.GetResultForStage(stage);
-                            string remark = "";
-                            if (r != null && !string.IsNullOrEmpty(r.Status)) remark = r.Status;
-                            else if (!string.IsNullOrEmpty(sw.Status) && (sw.Status == "DNS" || sw.Status == "DNF" || sw.Status == "DSQ" || sw.Status == "DQ")) remark = sw.Status;
-                            bool dq = !string.IsNullOrEmpty(remark);
+                            // 2026-09-03 TRI(试游)与判罚分开看: 试游【要显成绩】, 只是不排名次、
+                            //   不参与成绩差 —— 全系统都是这个规矩(RenderHeatResultsTable 里写着),
+                            //   唯独成绩册这里把 TRI 也当判罚, 成绩列印成红字 "TRI", 时间没了。
+                            string effStatus = GetEffectiveStatus(sw, r);
+                            bool isTri = effStatus == "TRI";
+                            bool dq = ResultOrdering.IsJudged(effStatus);
                             string nm = ffRelay ? (sw.Country ?? "") : (sw.Name ?? "");
                             string ctry = sw.Country ?? "";
-                            // 2026-09-01 名次【从库里读】, 这里不算。原来是 rank++ 计数器
-                            //   配一个 prevTime 判并列 —— 又是一份自己的算法。
-                            //   并列仍显示 "=N"(打印惯例), 但 N 来自库, 不是数出来的。
-                            string rankText;
-                            int dbRk = sw.EventRankFor(stage);
-                            if (dq || dbRk <= 0) { rankText = "—"; }
-                            else {
-                                bool sameAsPrev = (dbRk == prevRank && prevRank > 0);
-                                rankText = sameAsPrev ? ("=" + dbRk.ToString()) : dbRk.ToString();
-                                prevRank = dbRk;
-                                prevTime = r.FinalTime;
-                            }
+                            // 2026-09-01 名次【从库里读】, 这里不算。
+                            // 2026-09-03 去掉并列时的 "=" 前缀, 与项目成绩/成绩与排名/大屏统一;
+                            //   顺带修掉一个印错: prevRank 初值就是 1, 所以第一行只要是第 1 名
+                            //   就被判成"跟上一行并列", 满页 "=1"。没名次的从"—"改成"-"。
+                            int dbRk = (dq || isTri) ? 0 : sw.EventRankFor(stage);
+                            string rankText = dbRk > 0 ? dbRk.ToString() : "-";
+                            string rankCls = dbRk == 1 ? " class='r1'" : dbRk == 2 ? " class='r2'" : dbRk == 3 ? " class='r3'" : "";
                             // 2026-06-04 D 最终成绩 HTML 显 1-4 棒
                             string reactionCell = "";
                             // 2026-09-03 接力这一支原来漏了判罚守卫(个人项目那半边有 !dq)
@@ -27796,16 +27853,18 @@ namespace SwimmingScoreboard
                                     rtParts.Add(string.Format("第{0}棒:{1}", li + 1, (rt != 0 && !double.IsNaN(rt)) ? rt.ToString("F2") : "—"));
                                 }
                                 reactionCell = string.Join("<br>", rtParts.ToArray());
-                            } else if (r != null && r.StartingBlockTime != 0 && !dq) {
+                            } else if (r != null && r.StartingBlockTime != 0 && !double.IsNaN(r.StartingBlockTime) && !dq) {
                                 // 2026-08-31 判罚/弃权不显示反应时间(同上)
+                                // 2026-09-03 加 !IsNaN: NaN != 0 是成立的, 于是没采到反应时的道
+                                //   直接把 "NaN" 印在成绩册上(用户实拍到少年组 50 米蝶泳整组 NaN)。
                                 reactionCell = r.StartingBlockTime.ToString("F2");
                             }
-                            sb.AppendFormat("<tr><td>{0}</td><td>{1}</td><td><b>{2}</b></td><td>{3}</td><td>{4}</td><td style='font-size:12px;'>{5}</td>",
-                                rankText, dq ? "—" : r.Lane.ToString(),
+                            sb.AppendFormat("<tr><td{0}>{1}</td><td>{2}</td><td>{3}</td><td><b>{4}</b></td><td>{5}</td><td>{6}</td>",
+                                rankCls, rankText, dq ? "-" : r.Lane.ToString(),
+                                System.Net.WebUtility.HtmlEncode(sw.BibNumber ?? ""),
                                 System.Net.WebUtility.HtmlEncode(nm),
                                 System.Net.WebUtility.HtmlEncode(ctry),
-                                System.Net.WebUtility.HtmlEncode(sw.BirthDate ?? ""),
-                                reactionCell);
+                                System.Net.WebUtility.HtmlEncode(sw.BirthDate ?? ""));
                             // 分段成绩
                             foreach (var sm in splitMarks) {
                                 string st = "";
@@ -27816,24 +27875,25 @@ namespace SwimmingScoreboard
                                 }
                                 sb.AppendFormat("<td>{0}</td>", st);
                             }
-                            string finalText = dq ? remark : (r.FinalTime > 0 ? TimeFormatter.Format(r.FinalTime) : "");
+                            // 2026-09-03 判罚/弃权: 成绩列留空, 状态改由"备注"列印(同项目成绩)。
+                            //   试游 TRI 照常显成绩。
+                            string finalText = dq ? "" : (r.FinalTime > 0 ? TimeFormatter.Format(r.FinalTime) : "");
                             // 破/平纪录用金色标签紧跟成绩后（FINA 惯例：成绩后接 WR/=AR 等）
-                            string recTag = (!dq && r != null && !string.IsNullOrEmpty(r.RecordNote))
+                            //   试游不算破纪录, 不带标
+                            string recTag = (!dq && !isTri && r != null && !string.IsNullOrEmpty(r.RecordNote))
                                 ? string.Format(" <span style='color:#b45309;font-weight:bold;'>{0}</span>", System.Net.WebUtility.HtmlEncode(r.RecordNote))
                                 : "";
-                            // 录取标志 Q：预赛/半决赛后有下一赛次分组的运动员，时间后追加绿色 Q
-                            string qTag = (!dq && IsQualifiedToNext(sw, stage))
-                                ? " <span style='color:#16a34a;font-weight:bold;'>Q</span>"
-                                : "";
-                            sb.AppendFormat("<td style='font-weight:bold;'>{0}{1}{2}</td>",
-                                dq ? string.Format("<span style='color:#dc2626;'>{0}</span>", finalText) : finalText,
-                                recTag, qTag);
+                            sb.AppendFormat("<td style='font-weight:bold;'>{0}{1}</td>", finalText, recTag);
                             if (rb.ShowTimeDifference) {
+                                // 基准是本项目第 1 名(evLeaderTime), 不是本组最快; 试游不参与
                                 string diff = "";
-                                if (!dq && leaderTime > 0 && r.FinalTime > 0 && r.FinalTime > leaderTime)
-                                    diff = (r.FinalTime - leaderTime).ToString("F2");
+                                if (!dq && !isTri && evLeaderTime > 0 && r.FinalTime > evLeaderTime)
+                                    diff = (r.FinalTime - evLeaderTime).ToString("F2");
                                 sb.AppendFormat("<td>{0}</td>", diff);
                             }
+                            // 备注: 判罚/试游红字、晋级 Q 绿字 —— 与其它打印路径共用同一个渲染器
+                            sb.AppendFormat("<td style='font-size:12px;'>{0}</td><td>{1}</td>",
+                                reactionCell, RenderRemarkCellHtml(sw, r, stage));
                             sb.Append("</tr>");
                         }
                         sb.Append("</table>");
@@ -27887,34 +27947,60 @@ namespace SwimmingScoreboard
         }
 
         private class BrokenRecordRow {
-            public string Date, Gender, EventName, Stage, Athlete, Country, Time, RecordType;
+            public string Date, AgeGroup, Gender, EventName, Stage, Athlete, Country, Time, Tag, RecordType;
         }
+
+        // 2026-09-03 破纪录统计表改从【成绩行上的破纪录标识 RecordNote】收集。
+        //   RecordNote 就是成绩公告里每条成绩后面那个金色 "MR"/"=MR"(CheckRecords 写的)。
+        //   原来这里另走一套启发式 —— "纪录条目的保持人姓名+单位恰好出现在本届名单里,
+        //   且他有一条成绩正好等于该纪录" —— 跟 MR 完全不是一个来源, 而且纪录一旦被
+        //   UpdateRecordsAfterConfirm 刷新, 条件也对不上了。结果同一本成绩册里:
+        //   成绩公告满页 MR, 破纪录统计表却写着"本次比赛暂无破纪录记录"。
         private List<BrokenRecordRow> CollectBrokenRecords() {
             var rows = new List<BrokenRecordRow>();
-            // 启发式：仅当成绩册中可识别的纪录条目里 _records 已被现场更新（即 HolderName 在本届运动员名单内）时收录
-            if (_records == null) return rows;
-            var swimmerKeys = new HashSet<string>(_swimmers.Where(s => !IsRelayMemberNote(s.Notes)).Select(s => (s.Name ?? "") + "|" + (s.Country ?? "")));
-            foreach (var rec in _records) {
-                string key = (rec.HolderName ?? "") + "|" + (rec.HolderCountry ?? "");
-                if (!swimmerKeys.Contains(key)) continue;
-                // 在 _swimmers 里查找该运动员的同项目最佳决赛/半决赛/预赛成绩，且应等于 rec.TimeInSeconds
-                var sw = _swimmers.FirstOrDefault(s => (s.Name ?? "") == rec.HolderName && (s.Country ?? "") == rec.HolderCountry
-                    && (s.EventName ?? "") == (rec.EventName ?? "") && (s.Gender ?? "") == (rec.Gender ?? ""));
-                if (sw == null || sw.Results == null) continue;
-                var hit = sw.Results.OrderBy(x => x.FinalTime).FirstOrDefault(x => x.FinalTime > 0 && Math.Abs(x.FinalTime - (rec.TimeInSeconds > 0 ? rec.TimeInSeconds : rec.Time)) < 0.01);
-                if (hit == null) continue;
-                rows.Add(new BrokenRecordRow {
-                    Date = rec.Date ?? "",
-                    Gender = rec.Gender ?? "",
-                    EventName = rec.EventName ?? "",
-                    Stage = hit.Stage ?? "",
-                    Athlete = rec.HolderName ?? "",
-                    Country = rec.HolderCountry ?? "",
-                    Time = TimeFormatter.Format(hit.FinalTime),
-                    RecordType = rec.RecordType ?? ""
-                });
+            if (_swimmers == null) return rows;
+            foreach (var sw in _swimmers) {
+                if (IsRelayMemberNote(sw.Notes)) continue;      // 接力队员行不单独算, 记在队伍行上
+                if (sw.Results == null) continue;
+                bool isRelay = (sw.EventName ?? "").IndexOf("接力", StringComparison.Ordinal) >= 0;
+                foreach (var r in sw.Results) {
+                    if (r == null || r.FinalTime <= 0) continue;
+                    if (string.IsNullOrEmpty(r.RecordNote)) continue;
+                    string st = GetEffectiveStatus(sw, r);
+                    if (ResultOrdering.IsJudged(st) || st == "TRI") continue;   // 判罚/弃权/试游不算
+                    string note = r.RecordNote.Trim();
+                    bool tieRec = note.StartsWith("=");
+                    string abbr = tieRec ? note.Substring(1) : note;
+                    // 标识里只有缩写(MR/NR/...), 纪录类型全称回纪录库里找
+                    string typeName = abbr;
+                    if (_records != null) {
+                        var rec = _records.FirstOrDefault(x => x != null && RecordTypeToTag(x.RecordType) == abbr);
+                        if (rec != null && !string.IsNullOrEmpty(rec.RecordType)) typeName = rec.RecordType;
+                    }
+                    rows.Add(new BrokenRecordRow {
+                        Date = FindScheduleDate(sw.AgeCategory ?? "", sw.Gender ?? "", sw.EventName ?? "", r.Stage ?? ""),
+                        AgeGroup = sw.AgeCategory ?? "",
+                        Gender = sw.Gender ?? "",
+                        EventName = sw.EventName ?? "",
+                        Stage = r.Stage ?? "",
+                        Athlete = isRelay ? (sw.Country ?? "") : (sw.Name ?? ""),
+                        Country = sw.Country ?? "",
+                        Time = TimeFormatter.Format(r.FinalTime),
+                        Tag = note,
+                        RecordType = typeName + (tieRec ? "（平）" : "（破）")
+                    });
+                }
             }
-            return rows.OrderBy(r => r.Date).ToList();
+            return rows.OrderBy(r => r.Date).ThenBy(r => r.Stage).ThenBy(r => r.EventName).ToList();
+        }
+
+        // 日程里找这个项目的比赛日期; 找不到就留空(成绩行上没存日期)
+        private string FindScheduleDate(string ageGroup, string gender, string eventName, string stage) {
+            if (_schedule == null) return "";
+            var hit = _schedule.FirstOrDefault(s => s.EventName == eventName && s.Stage == stage
+                        && SgMatch(gender, s.Gender)
+                        && (string.IsNullOrEmpty(ageGroup) || string.IsNullOrEmpty(s.AgeGroup) || s.AgeGroup == ageGroup));
+            return hit != null ? (hit.Date ?? "") : "";
         }
 
         private class RankRow {

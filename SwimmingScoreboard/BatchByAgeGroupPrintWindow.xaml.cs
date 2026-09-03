@@ -420,7 +420,7 @@ namespace SwimmingScoreboard
                     // 2026-09-03 打印时两棒一行 —— 四棒各占一行会把接力那张表撑到普通表的四倍高,
                     //   一页只放得下一张。预览里仍是空格分隔的一行。
                     reactionHtml = PairLines(parts);
-                } else if (r != null && r.StartingBlockTime != 0) {
+                } else if (r != null && r.StartingBlockTime != 0 && !double.IsNaN(r.StartingBlockTime)) {
                     // 2026-08-31 判罚/弃权不显示反应时间(与项目成绩、本组成绩单同口径)
                     if (!isDQ) reactionPlain = r.StartingBlockTime.ToString("F2");
                     reactionHtml = reactionPlain;

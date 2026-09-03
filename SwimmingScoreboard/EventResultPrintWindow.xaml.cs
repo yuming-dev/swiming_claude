@@ -429,7 +429,7 @@ namespace SwimmingScoreboard
                     }
                     x.ReactionPlain = string.Join("  ", parts.ToArray());
                     x.ReactionHtml = BatchByAgeGroupPrintWindow.PairLines(parts)   /* 2026-09-03 两棒一行, 别把接力表撑高四倍 */;
-                } else if (res != null && res.StartingBlockTime != 0) {
+                } else if (res != null && res.StartingBlockTime != 0 && !double.IsNaN(res.StartingBlockTime)) {
                     x.ReactionPlain = res.StartingBlockTime.ToString("F2");
                     x.ReactionHtml = x.ReactionPlain;
                 } else { x.ReactionPlain = ""; x.ReactionHtml = ""; }
@@ -780,7 +780,7 @@ namespace SwimmingScoreboard
                     }
                     reactionPlain = string.Join("  ", parts.ToArray());
                     reactionHtml = BatchByAgeGroupPrintWindow.PairLines(parts)   /* 2026-09-03 两棒一行, 别把接力表撑高四倍 */;
-                } else if (r != null && r.StartingBlockTime != 0) {
+                } else if (r != null && r.StartingBlockTime != 0 && !double.IsNaN(r.StartingBlockTime)) {
                     reactionPlain = r.StartingBlockTime.ToString("F2");
                     reactionHtml = reactionPlain;
                 }
