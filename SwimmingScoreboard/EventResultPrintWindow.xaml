@@ -3,6 +3,17 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="项目成绩打印" Width="1400" Height="620"
         WindowStartupLocation="CenterOwner" Background="#F1F5F9">
+    <Window.Resources>
+        <!-- 2026-09-03 表格单元格内容居中。
+             注意: 光在 DataGrid.CellStyle 上设 HorizontalContentAlignment 是【没用】的 ——
+             DataGridCell 的默认模板里那个 ContentPresenter 根本没把对齐绑到
+             HorizontalContentAlignment 上。文本列必须走 ElementStyle 才生效。 -->
+        <Style x:Key="CellCenter" TargetType="TextBlock">
+            <Setter Property="HorizontalAlignment" Value="Center"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="TextAlignment" Value="Center"/>
+        </Style>
+    </Window.Resources>
     <Grid Margin="16">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -89,7 +100,7 @@
             <DataGrid.Columns>
                 <!-- 2026-09-02 列序: 名次 / 姓名 / 代表队 / 号码 / 组别 / 组数 / 道次 / 最终成绩 …
                      接力时"代表队"和"姓名"对调 (代码里按 DisplayIndex 换, 见 ApplyPreviewColumnOrder) -->
-                <DataGridTextColumn Header="名次" Binding="{Binding Rank}" Width="50"/>
+                <DataGridTextColumn Header="名次" Binding="{Binding Rank}" Width="50" ElementStyle="{StaticResource CellCenter}"/>
                 <DataGridTemplateColumn x:Name="NameCol" Header="姓名" Width="220">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
@@ -97,14 +108,14 @@
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
-                <DataGridTextColumn x:Name="TeamCol" Header="代表队" Binding="{Binding Country}" Width="100"/>
-                <DataGridTextColumn Header="号码" Binding="{Binding BibNumber}" Width="60"/>
+                <DataGridTextColumn x:Name="TeamCol" Header="代表队" Binding="{Binding Country}" Width="100" ElementStyle="{StaticResource CellCenter}"/>
+                <DataGridTextColumn Header="号码" Binding="{Binding BibNumber}" Width="60" ElementStyle="{StaticResource CellCenter}"/>
                 <!-- 2026-08-31 补组别/组数(第几组/总组数): 一张项目成绩单跨多组时看不出行属于哪一组 -->
-                <DataGridTextColumn Header="组别" Binding="{Binding AgeGroup}" Width="70"/>
-                <DataGridTextColumn Header="组数" Binding="{Binding HeatText}" Width="60"/>
-                <DataGridTextColumn Header="道次" Binding="{Binding Lane}" Width="45"/>
-                <DataGridTextColumn Header="最终成绩" Binding="{Binding FinalTime}" Width="80"/>
-                <DataGridTextColumn Header="成绩差" Binding="{Binding Diff}" Width="70"/>
+                <DataGridTextColumn Header="组别" Binding="{Binding AgeGroup}" Width="70" ElementStyle="{StaticResource CellCenter}"/>
+                <DataGridTextColumn Header="组数" Binding="{Binding HeatText}" Width="60" ElementStyle="{StaticResource CellCenter}"/>
+                <DataGridTextColumn Header="道次" Binding="{Binding Lane}" Width="45" ElementStyle="{StaticResource CellCenter}"/>
+                <DataGridTextColumn Header="最终成绩" Binding="{Binding FinalTime}" Width="80" ElementStyle="{StaticResource CellCenter}"/>
+                <DataGridTextColumn Header="成绩差" Binding="{Binding Diff}" Width="70" ElementStyle="{StaticResource CellCenter}"/>
                 <DataGridTemplateColumn Header="反应时间" Width="170">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
@@ -112,7 +123,7 @@
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
-                <DataGridTextColumn Header="备注" Binding="{Binding Remark}" Width="50"/>
+                <DataGridTextColumn Header="备注" Binding="{Binding Remark}" Width="50" ElementStyle="{StaticResource CellCenter}"/>
             </DataGrid.Columns>
         </DataGrid>
 

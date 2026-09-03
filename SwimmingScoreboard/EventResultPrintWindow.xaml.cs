@@ -455,8 +455,11 @@ namespace SwimmingScoreboard
                 if (!leader.TryGetValue(k, out cur) || x.R.FinalTime < cur) leader[k] = x.R.FinalTime;
             }
 
-            int shownHeats = all.Select(x => x.R.Heat).Where(h => h > 0).Distinct().Count();
-            _dbTotalHeats = maxTotalHeats > 0 ? maxTotalHeats : shownHeats;
+            // 总组数优先用定稿时记在表里的那个(total_heats); 老库里没有就问一次库的进度。
+            // 【不能】退回"当前看得见几组" —— 选了第2组时那是 1, 会印成 "2/1"。
+            _dbTotalHeats = maxTotalHeats > 0
+                ? maxTotalHeats
+                : TotalHeatsOfEvent(ageFilter, gender, eventName, stage, null);
 
             _currentResults = new List<object>();
             foreach (var x in all) {
@@ -514,6 +517,38 @@ namespace SwimmingScoreboard
                 filterHeat > 0 ? " 第" + filterHeat + "组" : " 总排名", all.Count);
             StatusText.Foreground = System.Windows.Media.Brushes.Green;
             return true;
+        }
+
+        /// <summary>
+        /// 2026-09-03 本项目这个赛次【一共几组】—— 组数列 "第X组/总组数" 的分母。
+        ///
+        /// 必须是"本项目一共几组", 不是"当前筛选看得见几组": 选了"第2组"时看得见的
+        /// 只有 1 组, 分母就成了 1, 印出来是 "2/1"。
+        ///
+        /// 先问竞赛库(最准 —— 取消的组不算), 库里问不到再从名单里数不重复的组次,
+        /// 数的是【按组次筛掉之前】那一份。
+        /// </summary>
+        private int TotalHeatsOfEvent(string ageFilter, string gender, string eventName, string stage,
+                                      List<Swimmer> beforeHeatFilter) {
+            if (ReadEventProgress != null) {
+                int best = 0;
+                foreach (string ag in AgeGroupsToQuery(ageFilter, gender, eventName)) {
+                    int[] p = null;
+                    try { p = ReadEventProgress(ag, gender, eventName, stage); } catch { }
+                    if (p != null && p.Length > 0 && p[0] > best) best = p[0];
+                }
+                if (best > 0) return best;
+            }
+            var hs = new HashSet<int>();
+            if (beforeHeatFilter != null) {
+                foreach (var s in beforeHeatFilter) {
+                    var r = s.GetResultForStage(stage);
+                    if (r != null && r.Heat > 0) { hs.Add(r.Heat); continue; }
+                    var sa = s.GetAssignmentForStage(stage);
+                    if (sa != null && sa.Heat > 0) hs.Add(sa.Heat);
+                }
+            }
+            return hs.Count;
         }
 
         /// <summary>2026-09-01 一句话说清【库】那边到什么程度了: 总共几组、还差几组没确认、有几个人有名次。</summary>
@@ -620,6 +655,8 @@ namespace SwimmingScoreboard
                 s.GetResultForStage(stage) != null
             ).ToList();
 
+            // 2026-09-03 总组数要在【按组次筛掉之前】数 —— 见 TotalHeatsOfEvent 的说明
+            var matchedAllHeats = matched;
             if (filterHeat > 0)
             {
                 matched = matched.Where(s =>
@@ -800,14 +837,10 @@ namespace SwimmingScoreboard
             //   成绩相同的两个人会被印成 1 和 2, 而不是并列第 1。
             //   现在名次一律从竞赛库读(EventRankFor), 与库里、
             //   与成绩单、与大屏同一口径。displayData 已按成绩排好序。
-            // 2026-08-31 组数列显示 "第几组/总组数" —— 总组数按本次查询范围内出现过的
-            //   组次去重计数, 跟表格内容一致(不是赛程上的名义组数)。
-            int totalHeatsForView = 0;
-            try {
-                var hs = new HashSet<int>();
-                foreach (var x in displayData) if (x.HeatNo > 0) hs.Add(x.HeatNo);
-                totalHeatsForView = hs.Count;
-            } catch { }
+            // 2026-09-03 组数列是"第几组/【本项目总组数】"。
+            //   原来拿的是"本次查询范围内出现过的组次数" —— 选了"第2组"时范围里就 1 组,
+            //   于是印成 "2/1"。用户实拍到过, 应该是 "2/6"。
+            int totalHeatsForView = TotalHeatsOfEvent(ageFilter, gender, eventName, stage, matchedAllHeats);
 
             // 2026-09-01 名次一律读库里的, 这里不再算 —— 现算就会和成绩与排名、大屏
             //   各算各的, 同一份成绩三个答案(用户实拍到过)。库里没有就显示 "-"。
@@ -1066,14 +1099,35 @@ namespace SwimmingScoreboard
             } catch (Exception ex) { MessageBox.Show("打开失败：" + ex.Message); }
         }
 
+        /// <summary>
+        /// 2026-09-03 "导出 PDF" 直接出 PDF 文件。
+        ///
+        /// 原来它只是把 HTML 在浏览器里打开, 再弹一句"请按 Ctrl+P 选 Print to PDF" ——
+        /// 按钮叫"导出 PDF", 按下去却没有 PDF, 名不副实。
+        /// 用的是跟"比赛日志 PDF"同一条路: Edge/Chrome 无头模式 --print-to-pdf。
+        /// 这台机器上确实没有 Edge/Chrome 时才退回原来那套, 并明说为什么。
+        /// </summary>
         private void ExportPdf_Click(object sender, RoutedEventArgs e) {
             try {
                 string suggested; var html = BuildPrintHtml(out suggested);
                 if (string.IsNullOrEmpty(html)) return;
-                var p = WriteTempHtml(html, suggested);
-                Process.Start(p);
-                MessageBox.Show("已在浏览器中打开。\n请按 Ctrl+P 打印，选择 \"Microsoft Print to PDF\" 打印机另存为 PDF。",
-                    "导出 PDF", MessageBoxButton.OK, MessageBoxImage.Information);
+                var dlg = new Microsoft.Win32.SaveFileDialog {
+                    Filter = "PDF 文件|*.pdf|所有文件|*.*",
+                    FileName = suggested + ".pdf",
+                    Title = "导出 PDF"
+                };
+                if (dlg.ShowDialog() != true) return;
+                string tmpHtml = WriteTempHtml(html, suggested);
+                if (MainWindow.TryHtmlToPdf(tmpHtml, dlg.FileName)) {
+                    if (MessageBox.Show("已导出：\n" + dlg.FileName + "\n\n是否立即打开？", "导出 PDF",
+                            MessageBoxButton.YesNo, MessageBoxImage.Information) == MessageBoxResult.Yes)
+                        Process.Start(dlg.FileName);
+                    return;
+                }
+                Process.Start(tmpHtml);
+                MessageBox.Show("这台机器上没找到 Edge 或 Chrome，无法直接生成 PDF。\n\n"
+                    + "已在浏览器中打开，请按 Ctrl+P，打印机选 \"Microsoft Print to PDF\" 另存为 PDF。",
+                    "导出 PDF", MessageBoxButton.OK, MessageBoxImage.Warning);
             } catch (Exception ex) { MessageBox.Show("导出 PDF 失败：" + ex.Message); }
         }
 

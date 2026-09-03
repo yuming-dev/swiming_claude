@@ -6,6 +6,15 @@
         Closing="Window_Closing">
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+        <!-- 2026-09-03 表格单元格内容居中。
+             注意: 光在 DataGrid.CellStyle 上设 HorizontalContentAlignment 是【没用】的 ——
+             DataGridCell 的默认模板里那个 ContentPresenter 根本没把对齐绑到
+             HorizontalContentAlignment 上。文本列必须走 ElementStyle 才生效。 -->
+        <Style x:Key="CellCenter" TargetType="TextBlock">
+            <Setter Property="HorizontalAlignment" Value="Center"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="TextAlignment" Value="Center"/>
+        </Style>
     </Window.Resources>
     <Grid>
         <Grid.RowDefinitions>
@@ -1665,9 +1674,9 @@
                             </Style>
                         </DataGrid.CellStyle>
                         <DataGrid.Columns>
-                            <DataGridTextColumn Header="名次" Binding="{Binding Rank}" Width="50"/>
-                            <DataGridTextColumn Header="道" Binding="{Binding Lane}" Width="40"/>
-                            <DataGridTextColumn Header="号码" Binding="{Binding BibNumber}" Width="60"/>
+                            <DataGridTextColumn Header="名次" Binding="{Binding Rank}" Width="50" ElementStyle="{StaticResource CellCenter}"/>
+                            <DataGridTextColumn Header="道" Binding="{Binding Lane}" Width="40" ElementStyle="{StaticResource CellCenter}"/>
+                            <DataGridTextColumn Header="号码" Binding="{Binding BibNumber}" Width="60" ElementStyle="{StaticResource CellCenter}"/>
                             <DataGridTemplateColumn Header="姓名" Width="220">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
@@ -1676,13 +1685,13 @@
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
-                            <DataGridTextColumn Header="代表队" Binding="{Binding Country}" Width="100"/>
+                            <DataGridTextColumn Header="代表队" Binding="{Binding Country}" Width="100" ElementStyle="{StaticResource CellCenter}"/>
                             <!-- 2026-09-02 组别/组数放最终成绩左边, 成绩差放右边 (与"项目成绩"同款) -->
-                            <DataGridTextColumn Header="组别" Binding="{Binding AgeGroup}" Width="70"/>
-                            <DataGridTextColumn Header="组数" Binding="{Binding HeatText}" Width="60"/>
-                            <DataGridTextColumn Header="最终成绩" Binding="{Binding FinalTime}" Width="80"/>
-                            <DataGridTextColumn Header="成绩差" Binding="{Binding Diff}" Width="70"/>
-                            <DataGridTextColumn Header="计时源" Binding="{Binding TimingSource}" Width="60"/>
+                            <DataGridTextColumn Header="组别" Binding="{Binding AgeGroup}" Width="70" ElementStyle="{StaticResource CellCenter}"/>
+                            <DataGridTextColumn Header="组数" Binding="{Binding HeatText}" Width="60" ElementStyle="{StaticResource CellCenter}"/>
+                            <DataGridTextColumn Header="最终成绩" Binding="{Binding FinalTime}" Width="80" ElementStyle="{StaticResource CellCenter}"/>
+                            <DataGridTextColumn Header="成绩差" Binding="{Binding Diff}" Width="70" ElementStyle="{StaticResource CellCenter}"/>
+                            <DataGridTextColumn Header="计时源" Binding="{Binding TimingSource}" Width="60" ElementStyle="{StaticResource CellCenter}"/>
                             <DataGridTemplateColumn Header="反应时间" Width="170">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
@@ -1690,8 +1699,8 @@
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
-                            <DataGridTextColumn Header="状态" Binding="{Binding Status}" Width="50"/>
-                            <DataGridTextColumn Header="纪录" Binding="{Binding RecordNote}" Width="80"/>
+                            <DataGridTextColumn Header="状态" Binding="{Binding Status}" Width="50" ElementStyle="{StaticResource CellCenter}"/>
+                            <DataGridTextColumn Header="纪录" Binding="{Binding RecordNote}" Width="80" ElementStyle="{StaticResource CellCenter}"/>
                         </DataGrid.Columns>
                     </DataGrid>
                 </Grid>

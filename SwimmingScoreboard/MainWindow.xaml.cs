@@ -14366,7 +14366,10 @@ namespace SwimmingScoreboard
         }
 
         // 2026-06-05 用 Edge / Chrome headless 把 HTML 转 PDF; 失败返回 false
-        private bool TryHtmlToPdf(string htmlPath, string pdfPath) {
+        // 2026-09-03 改成 internal static —— "项目成绩"窗口的"导出 PDF"也要用它。
+        //   里面一个实例成员都没碰(全是 Environment/File/Process), 改静态是安全的。
+        //   不另写一份: 找 Edge/Chrome 的那串候选路径抄两遍, 迟早有一处漏改。
+        internal static bool TryHtmlToPdf(string htmlPath, string pdfPath) {
             var candidates = new[] {
                 IOPath.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), @"Microsoft\Edge\Application\msedge.exe"),
                 IOPath.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),    @"Microsoft\Edge\Application\msedge.exe"),
@@ -19775,6 +19778,44 @@ namespace SwimmingScoreboard
         private void ResultGender_Changed(object sender, SelectionChangedEventArgs e) { if (_initialized && !_resultUpdating) { UpdateResultHeatCombo(); RefreshResultGrid(); } }
         private void ResultHeat_Changed(object sender, SelectionChangedEventArgs e) { if (_initialized && !_resultUpdating) RefreshResultGrid(); }
 
+        /// <summary>
+        /// 2026-09-03 本项目这个赛次【一共几组】—— 组数列 "第X组/总组数" 的分母。
+        /// 先问竞赛库(最准, 取消的组不算), 库里问不到再退回赛程上的名义组数。
+        /// 拿"当前筛选看得见几组"当分母是错的: 选了第2组时那是 1, 会印成 "2/1"。
+        /// </summary>
+        private int TotalHeatsOfEvent(string ageFilter, string gender, string eventName, string stage) {
+            if (string.IsNullOrEmpty(eventName) || string.IsNullOrEmpty(stage)) return 0;
+            try {
+                var ages = new List<string>();
+                if (!string.IsNullOrEmpty(ageFilter) && ageFilter != "全部") ages.Add(ageFilter);
+                else {
+                    foreach (var s in _swimmers) {
+                        if (s.EventName != eventName) continue;
+                        string a = s.AgeCategory ?? "";
+                        if (!ages.Contains(a)) ages.Add(a);
+                    }
+                }
+                int best = 0;
+                foreach (string ag in ages) {
+                    int t, p, r;
+                    _meetDb.GetEventRankingProgress(ag, gender, eventName, stage, out t, out p, out r);
+                    if (t > best) best = t;
+                }
+                if (best > 0) return best;
+            } catch { }
+            // 库不可用: 退回赛程上写的组数
+            int hc = 0;
+            try {
+                foreach (var s in _schedule) {
+                    if (s == null || s.EventName != eventName || s.Stage != stage) continue;
+                    if (!SgMatch(s.Gender, gender)) continue;
+                    if (!string.IsNullOrEmpty(ageFilter) && ageFilter != "全部" && (s.AgeGroup ?? "") != ageFilter) continue;
+                    if (s.HeatCount > hc) hc = s.HeatCount;
+                }
+            } catch { }
+            return hc;
+        }
+
         private void UpdateResultHeatCombo() {
             if (ResultHeatCombo == null || _resultUpdating) return;
             _resultUpdating = true;
@@ -20013,14 +20054,16 @@ namespace SwimmingScoreboard
             //   用户在"成绩与排名"里实拍到的 1,2,3...11 就是它, 而同一份成绩在项目成绩里
             //   是 1,1,1,4,4... 三个地方三个答案。
             //   现在一律读库里的名次(DbRank), 库里没有就显示 "-" —— 这里不再算任何东西。
-            // 2026-09-02 组数列显示"第几组/总组数" —— 总组数按本次查询范围内出现过的组次
-            //   去重计数, 跟表格内容一致(不是赛程上的名义组数), 与"项目成绩"同口径。
-            int totalHeatsInView = 0;
-            try {
-                var hset = new HashSet<int>();
-                foreach (var x in displayData) if (x.HeatNo > 0) hset.Add(x.HeatNo);
-                totalHeatsInView = hset.Count;
-            } catch { }
+            // 2026-09-03 组数列是"第几组/【本项目总组数】"。
+            //   原来拿的是"当前筛选看得见几组" —— 选了"第2组"时那是 1, 印成 "2/1"。
+            int totalHeatsInView = TotalHeatsOfEvent(ageFilter, gender, eventName, stage);
+            if (totalHeatsInView <= 0) {
+                try {
+                    var hset = new HashSet<int>();
+                    foreach (var x in displayData) if (x.HeatNo > 0) hset.Add(x.HeatNo);
+                    totalHeatsInView = hset.Count;
+                } catch { }
+            }
             // 成绩差按【组别】各算各的: 选"全部"时几个组别混在一张表里,
             //   拿全表最快当基准就等于把别的组别的人当成了自己的第一名。
             var leaderByAge = new Dictionary<string, double>();
