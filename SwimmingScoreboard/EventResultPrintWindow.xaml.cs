@@ -39,6 +39,81 @@ namespace SwimmingScoreboard
         /// <summary>2026-09-01 注入: 补生成组排名表, 返回生成的人数。给"全部组已确认但表没生成"兜底。</summary>
         public Func<string, string, string, string, int> GenerateEventRanking { get; set; }
 
+        /// <summary>
+        /// 2026-09-02 注入: 填左侧赛程导航树。参数 = (树, 搜索词, 状态筛选)。
+        ///
+        /// 直接借用主窗口的 RebuildNavTree —— 跟"成绩与排名"那棵是【同一份代码】。
+        /// 不在这里另写一棵: 赛程状态(未开始/进行中/已结束/已取消)的判定散在主窗口里,
+        /// 复制一份出来就等着两边慢慢长歪。
+        /// </summary>
+        public Action<TreeView, string, string> BuildNavTree { get; set; }
+
+        private string _navFilter = "all";
+
+        /// <summary>窗口打开时填一次导航树。没注入就当没有这一栏(不影响手动选)。</summary>
+        private void RefreshNavTree() {
+            if (BuildNavTree == null || NavTree == null) return;
+            try { BuildNavTree(NavTree, NavSearchBox != null ? NavSearchBox.Text : "", _navFilter); }
+            catch { }
+        }
+
+        private void NavSearch_TextChanged(object sender, TextChangedEventArgs e) {
+            if (!_initialized) return;
+            RefreshNavTree();
+        }
+
+        private void NavFilter_Click(object sender, RoutedEventArgs e) {
+            var b = sender as Button;
+            if (b == null || b.Tag == null) return;
+            _navFilter = b.Tag.ToString();
+            RefreshNavTree();
+        }
+
+        /// <summary>
+        /// 2026-09-02 点导航 → 上面那排下拉跟着走, 并直接查出来。
+        ///   项目节点 (tag "event:组别|性别|项目|赛次")        → 组次 = 全部
+        ///   组次节点 (tag "nav:组别|性别|项目|赛次|组次")      → 组次 = 第X组
+        /// </summary>
+        private void NavTree_Selected(object sender, RoutedPropertyChangedEventArgs<object> e) {
+            var item = e.NewValue as TreeViewItem;
+            if (item == null || !(item.Tag is string)) return;
+            string tag = (string)item.Tag;
+            string ag, gd, ev, st; int heat = 0;
+            if (tag.StartsWith("event:")) {
+                var p = tag.Substring(6).Split('|');
+                if (p.Length < 4) return;
+                ag = p[0]; gd = p[1]; ev = p[2]; st = p[3];
+            } else if (tag.StartsWith("nav:")) {
+                var p = tag.Substring(4).Split('|');
+                if (p.Length < 5) return;
+                ag = p[0]; gd = p[1]; ev = p[2]; st = p[3];
+                int.TryParse(p[4], out heat);
+            } else return;   // 场次节点等: 不动
+
+            // 顺序有讲究: 改组别/性别会连带重建"项目"下拉, 改项目/赛次会重建"组次"下拉。
+            // 所以先定组别/性别/赛次, 再定项目, 最后才是组次 —— 反过来会被后面的重建冲掉。
+            SetCombo(AgeGroupCombo, string.IsNullOrEmpty(ag) ? "全部" : ag);
+            SetCombo(GenderCombo, gd);
+            SetCombo(StageCombo, st);
+            SetCombo(EventCombo, ev);
+            UpdateHeatCombo();
+            SetCombo(HeatCombo, heat > 0 ? ("第" + heat + "组") : "全部");
+
+            Query_Click(null, null);
+        }
+
+        /// <summary>按显示文字选中下拉项。ComboBoxItem 和纯字符串两种都认。</summary>
+        private static void SetCombo(ComboBox cb, string val) {
+            if (cb == null || val == null) return;
+            for (int i = 0; i < cb.Items.Count; i++) {
+                var it = cb.Items[i];
+                string content = it is ComboBoxItem
+                    ? (((ComboBoxItem)it).Content == null ? "" : ((ComboBoxItem)it).Content.ToString())
+                    : (it == null ? "" : it.ToString());
+                if (content == val) { cb.SelectedIndex = i; return; }
+            }
+        }
+
         // DB 路径下的总组数(库里定稿时记的), 打印表头用。0 = 没走 DB 路径。
         private int _dbTotalHeats = 0;
         private ObservableCollection<ScheduleItem> _schedule;
@@ -76,6 +151,9 @@ namespace SwimmingScoreboard
             PopulateEventCombo();
             _initialized = true;
             UpdateHeatCombo();
+            // 2026-09-02 导航树要等主窗口把 BuildNavTree 注进来之后才能填 ——
+            //   那些属性是 new 完再赋的, 构造函数里还是 null。所以放到 Loaded。
+            Loaded += delegate { RefreshNavTree(); };
         }
 
         // 2026-06-01 加 AgeGroup 下拉, 解决决赛-only 比赛多年龄组共用 EventName 时按 Heat 误叠的 bug

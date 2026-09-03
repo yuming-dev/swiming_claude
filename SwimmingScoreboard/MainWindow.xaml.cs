@@ -10611,21 +10611,41 @@ namespace SwimmingScoreboard
                 ScrollScheduleGroupedToHeat(tag.Substring(4));
             }
         }
+        // ══════════════════════════════════════════════════════════════════
+        // 2026-09-02 点赛程导航 → 上面那排下拉跟着走。
+        //
+        //   项目节点 (tag "event:组别|性别|项目|赛次")   → 组次 = 全部
+        //   组次节点 (tag "nav:组别|性别|项目|赛次|组次") → 组次 = 第X组
+        //
+        // 两个原来都不对: 项目节点的 tag 是 "event:" 开头, 直接被这里 return 掉了(点了没反应);
+        // 组次节点则是把组号当成 "1" 去匹配下拉, 而下拉里的文字是 "第1组" —— 永远匹配不上,
+        // 于是组次那一格纹丝不动, 看着像"点了组, 结果显示的还是上一次的范围"。
+        // ══════════════════════════════════════════════════════════════════
         private void NavResultTree_Selected(object sender, RoutedPropertyChangedEventArgs<object> e) {
             var item = e.NewValue as TreeViewItem;
             if (item == null || !(item.Tag is string)) return;
             string tag = item.Tag as string;
-            if (!tag.StartsWith("nav:")) return;
-            // 拆 tag: nav:AgeGroup|Gender|Event|Stage|Heat → 同步成绩与排名筛选条件
-            var parts = tag.Substring(4).Split('|');
-            if (parts.Length < 5) return;
-            string ag = parts[0], gd = parts[1], ev = parts[2], st = parts[3];
-            int heat; int.TryParse(parts[4], out heat);
-            SetComboValue(ResultAgeGroupCombo, ag);
+            string ag, gd, ev, st; int heat = 0;
+            if (tag.StartsWith("event:")) {
+                var p = tag.Substring(6).Split('|');
+                if (p.Length < 4) return;
+                ag = p[0]; gd = p[1]; ev = p[2]; st = p[3];
+            } else if (tag.StartsWith("nav:")) {
+                var p = tag.Substring(4).Split('|');
+                if (p.Length < 5) return;
+                ag = p[0]; gd = p[1]; ev = p[2]; st = p[3];
+                int.TryParse(p[4], out heat);
+            } else return;   // 场次节点: 不动
+
+            // 顺序有讲究: 改组别/性别/赛次会连带重建"项目"和"组次"两个下拉,
+            // 所以先定它们, 再定项目, 最后才是组次 —— 反过来会被后面的重建冲掉。
+            SetComboValue(ResultAgeGroupCombo, string.IsNullOrEmpty(ag) ? "全部" : ag);
             SetComboValue(ResultGenderCombo, gd);
-            SetComboValue(ResultEventCombo, ev);
             SetComboValue(ResultStageCombo, st);
-            SetComboValue(ResultHeatCombo, heat.ToString());
+            SetComboValue(ResultEventCombo, ev);
+            try { UpdateResultHeatCombo(); } catch { }
+            SetComboValue(ResultHeatCombo, heat > 0 ? ("第" + heat + "组") : "全部");
+            try { RefreshResultGrid(); } catch { }
         }
         private static void SetComboValue(System.Windows.Controls.ComboBox cb, string val) {
             if (cb == null) return;
@@ -19964,6 +19984,12 @@ namespace SwimmingScoreboard
                     BibNumber = s.BibNumber ?? "",
                     Name = displayName,                  // 接力时为 4 名队员姓名（逗号分隔）
                     Country = s.Country ?? "",            // 代表队/队名
+                    // 2026-09-02 补 组别/组数/成绩差 三列(与"项目成绩"同款)。
+                    //   一张表跨多个组次时, 原来看不出某一行是第几组的, 也看不出属于哪个组别。
+                    AgeGroup = s.AgeCategory ?? "",
+                    HeatNo = swHeat,
+                    // 成绩差的基准只认【有名次的有效成绩】: 判罚/弃权/试游不参与, 也不当基准
+                    RawTime = (isDQ || heatStatusOrder != 5 || r == null) ? 0 : r.FinalTime,
                     FinalTime = isDQ ? "" : (r != null && r.FinalTime > 0 ? TimeFormatter.Format(r.FinalTime) : ""),
                     TimingSource = r != null ? (r.TimingSource ?? "") : "",
                     ReactionTime = reactionStr,
@@ -19987,14 +20013,44 @@ namespace SwimmingScoreboard
             //   用户在"成绩与排名"里实拍到的 1,2,3...11 就是它, 而同一份成绩在项目成绩里
             //   是 1,1,1,4,4... 三个地方三个答案。
             //   现在一律读库里的名次(DbRank), 库里没有就显示 "-" —— 这里不再算任何东西。
+            // 2026-09-02 组数列显示"第几组/总组数" —— 总组数按本次查询范围内出现过的组次
+            //   去重计数, 跟表格内容一致(不是赛程上的名义组数), 与"项目成绩"同口径。
+            int totalHeatsInView = 0;
+            try {
+                var hset = new HashSet<int>();
+                foreach (var x in displayData) if (x.HeatNo > 0) hset.Add(x.HeatNo);
+                totalHeatsInView = hset.Count;
+            } catch { }
+            // 成绩差按【组别】各算各的: 选"全部"时几个组别混在一张表里,
+            //   拿全表最快当基准就等于把别的组别的人当成了自己的第一名。
+            var leaderByAge = new Dictionary<string, double>();
+            foreach (var x in displayData) {
+                if (x.RawTime <= 0) continue;
+                string k = x.AgeGroup ?? "";
+                double cur;
+                if (!leaderByAge.TryGetValue(k, out cur) || x.RawTime < cur) leaderByAge[k] = x.RawTime;
+            }
+
             var rankedData = new List<object>();
             foreach (var item in displayData) {
                 string rankStr = item.DbRank > 0 ? item.DbRank.ToString() : "-";
+                string heatText = item.HeatNo > 0
+                    ? (totalHeatsInView > 0 ? item.HeatNo + "/" + totalHeatsInView : item.HeatNo.ToString())
+                    : "";
+                string diffText = "";
+                double lead;
+                if (item.RawTime > 0 && leaderByAge.TryGetValue(item.AgeGroup ?? "", out lead)
+                    && item.RawTime > lead)
+                    diffText = (item.RawTime - lead).ToString("F2");
                 rankedData.Add(new {
                     Rank = rankStr,
                     item.Lane, item.BibNumber,
                     item.Name, item.Country,
-                    item.FinalTime, item.TimingSource, item.ReactionTime, item.Status, item.RecordNote
+                    item.AgeGroup,
+                    HeatText = heatText,
+                    item.FinalTime,
+                    Diff = diffText,
+                    item.TimingSource, item.ReactionTime, item.Status, item.RecordNote
                 });
             }
 
@@ -25801,6 +25857,10 @@ namespace SwimmingScoreboard
                 int total, pending, ranked;
                 _meetDb.GetEventRankingProgress(ag, gd, ev, st, out total, out pending, out ranked);
                 return new int[] { total, pending, ranked };
+            };
+            // 2026-09-02 左侧赛程导航直接用主窗口那棵的构建函数, 跟"成绩与排名"同一份
+            win.BuildNavTree = delegate(System.Windows.Controls.TreeView tv, string q, string filter) {
+                RebuildNavTree(tv, q, filter);
             };
             win.GenerateEventRanking = delegate(string ag, string gd, string ev, string st) {
                 int made = _meetDb.GenerateEventRankingIfComplete(ag, gd, ev, st, Environment.MachineName + "(补生成)");

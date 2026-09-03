@@ -1662,7 +1662,11 @@
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
                             <DataGridTextColumn Header="代表队" Binding="{Binding Country}" Width="100"/>
+                            <!-- 2026-09-02 组别/组数放最终成绩左边, 成绩差放右边 (与"项目成绩"同款) -->
+                            <DataGridTextColumn Header="组别" Binding="{Binding AgeGroup}" Width="70"/>
+                            <DataGridTextColumn Header="组数" Binding="{Binding HeatText}" Width="60"/>
                             <DataGridTextColumn Header="最终成绩" Binding="{Binding FinalTime}" Width="80"/>
+                            <DataGridTextColumn Header="成绩差" Binding="{Binding Diff}" Width="70"/>
                             <DataGridTextColumn Header="计时源" Binding="{Binding TimingSource}" Width="60"/>
                             <DataGridTemplateColumn Header="反应时间" Width="170">
                                 <DataGridTemplateColumn.CellTemplate>
