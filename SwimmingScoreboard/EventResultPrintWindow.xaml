@@ -72,6 +72,20 @@
         <!-- 接力赛"姓名"列 4 名队员逗号分隔，需较宽；反应时列 4 棒分行展示 -->
         <DataGrid x:Name="PreviewGrid" Grid.Row="2" Grid.Column="1" AutoGenerateColumns="False" CanUserAddRows="False"
                   IsReadOnly="True" AlternatingRowBackground="#F8FAFC" Margin="0,0,0,8">
+            <!-- 2026-09-02 单元格和表头一律居中。
+                 BasedOn 指向主题默认样式 —— 不加它就等于把 DataGridCell 的默认样式
+                 整个换掉, 选中高亮、焦点框这些都会跟着没。 -->
+            <DataGrid.ColumnHeaderStyle>
+                <Style TargetType="DataGridColumnHeader" BasedOn="{StaticResource {x:Type DataGridColumnHeader}}">
+                    <Setter Property="HorizontalContentAlignment" Value="Center"/>
+                </Style>
+            </DataGrid.ColumnHeaderStyle>
+            <DataGrid.CellStyle>
+                <Style TargetType="DataGridCell" BasedOn="{StaticResource {x:Type DataGridCell}}">
+                    <Setter Property="HorizontalContentAlignment" Value="Center"/>
+                    <Setter Property="VerticalContentAlignment" Value="Center"/>
+                </Style>
+            </DataGrid.CellStyle>
             <DataGrid.Columns>
                 <!-- 2026-09-02 列序: 名次 / 姓名 / 代表队 / 号码 / 组别 / 组数 / 道次 / 最终成绩 …
                      接力时"代表队"和"姓名"对调 (代码里按 DisplayIndex 换, 见 ApplyPreviewColumnOrder) -->
@@ -79,7 +93,7 @@
                 <DataGridTemplateColumn x:Name="NameCol" Header="姓名" Width="220">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
-                            <TextBlock Text="{Binding Name}" TextWrapping="Wrap" Padding="4,3"/>
+                            <TextBlock Text="{Binding Name}" TextWrapping="Wrap" Padding="4,3" TextAlignment="Center"/>
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
@@ -94,7 +108,7 @@
                 <DataGridTemplateColumn Header="反应时间" Width="170">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
-                            <TextBlock Text="{Binding ReactionTime}" TextWrapping="Wrap" Padding="4,3"/>
+                            <TextBlock Text="{Binding ReactionTime}" TextWrapping="Wrap" Padding="4,3" TextAlignment="Center"/>
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>

@@ -1650,6 +1650,20 @@
                          "反应时间"按棒展开为"第1棒:0.45 第2棒:0.30 ..."；列宽不够时 TextWrapping 自动换行 -->
                     <DataGrid x:Name="ResultGrid" Grid.Row="1" Grid.Column="1" AutoGenerateColumns="False" CanUserAddRows="False"
                               IsReadOnly="True" AlternatingRowBackground="#F8FAFC">
+                        <!-- 2026-09-02 单元格和表头一律居中。
+                             BasedOn 指向主题默认样式 —— 不加它就等于把 DataGridCell 的默认
+                             样式整个换掉, 选中高亮、焦点框这些都会跟着没。 -->
+                        <DataGrid.ColumnHeaderStyle>
+                            <Style TargetType="DataGridColumnHeader" BasedOn="{StaticResource {x:Type DataGridColumnHeader}}">
+                                <Setter Property="HorizontalContentAlignment" Value="Center"/>
+                            </Style>
+                        </DataGrid.ColumnHeaderStyle>
+                        <DataGrid.CellStyle>
+                            <Style TargetType="DataGridCell" BasedOn="{StaticResource {x:Type DataGridCell}}">
+                                <Setter Property="HorizontalContentAlignment" Value="Center"/>
+                                <Setter Property="VerticalContentAlignment" Value="Center"/>
+                            </Style>
+                        </DataGrid.CellStyle>
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="名次" Binding="{Binding Rank}" Width="50"/>
                             <DataGridTextColumn Header="道" Binding="{Binding Lane}" Width="40"/>
@@ -1657,7 +1671,8 @@
                             <DataGridTemplateColumn Header="姓名" Width="220">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <TextBlock Text="{Binding Name}" TextWrapping="Wrap" Padding="4,3"/>
+                                        <!-- 换行的多行文本还要 TextAlignment, 单靠单元格居中只会把整块文字居中 -->
+                                        <TextBlock Text="{Binding Name}" TextWrapping="Wrap" Padding="4,3" TextAlignment="Center"/>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
@@ -1671,7 +1686,7 @@
                             <DataGridTemplateColumn Header="反应时间" Width="170">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <TextBlock Text="{Binding ReactionTime}" TextWrapping="Wrap" Padding="4,3"/>
+                                        <TextBlock Text="{Binding ReactionTime}" TextWrapping="Wrap" Padding="4,3" TextAlignment="Center"/>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
