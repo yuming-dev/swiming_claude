@@ -36,7 +36,6 @@
                 <DataGridTextColumn Header="组别" Binding="{Binding AgeCategory}" Width="60"/>
                 <DataGridTextColumn Header="总积分" Binding="{Binding TotalPointsText}" Width="70"/>
                 <DataGridTextColumn Header="个人项目" Binding="{Binding IndividualCount}" Width="70"/>
-                <DataGridTextColumn Header="接力项目" Binding="{Binding RelayCount}" Width="70"/>
                 <DataGridTextColumn Header="项目-名次明细" Binding="{Binding ScoreDetail}" Width="*"/>
             </DataGrid.Columns>
         </DataGrid>
@@ -47,7 +46,7 @@
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
             <TextBlock Grid.Column="0" VerticalAlignment="Center" Foreground="#94A3B8" FontSize="11" TextWrapping="Wrap"
-                       Text="说明: 积分按 名次分设置 配置计算 (个人名次分 + 接力名次分 + 组别系数)；仅决赛阶段计入；DSQ/DNS/DNF 不计分"/>
+                       Text="说明: 积分按 名次分设置 配置计算 (个人名次分 + 组别系数)；仅决赛阶段计入；接力不计入个人总分(算在团体总分里)；DSQ/DNS/DNF 不计分"/>
             <StackPanel Grid.Column="1" Orientation="Horizontal">
                 <Button Content="📤 导出 CSV" Click="ExportCsv_Click" Padding="12,4" Margin="0,0,8,0"
                         Background="#0EA5E9" Foreground="White" FontWeight="Bold" BorderThickness="0"/>
