@@ -407,7 +407,10 @@ namespace SwimmingScoreboard
                 if (isRelay && !string.IsNullOrEmpty(s.Notes) && s.Notes.StartsWith("接力队 棒次:"))
                     displayName = s.Notes.Substring("接力队 棒次:".Length);
                 string reactionPlain = "", reactionHtml = "";
-                if (isRelay) {
+                // 2026-09-03 接力这一支原来【没有判罚守卫】—— 个人项目那半边有(见下面的 !isDQ),
+                //   接力就漏了。结果是 DNF 的接力队成绩留空了、名次是 "-", 反应时那一列却还
+                //   老老实实印着四棒的数字(用户在样张里看出来的)。成绩都不算数了, 反应时更不该留。
+                if (isRelay && !isDQ) {
                     var parts = new List<string>();
                     for (int li = 0; li < legCount; li++) {
                         double rt = (r != null && r.LegReactionTimes != null && li < r.LegReactionTimes.Count) ? r.LegReactionTimes[li] : 0;

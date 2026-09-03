@@ -770,7 +770,9 @@ namespace SwimmingScoreboard
                 // 反应时：接力赛展开为 N 棒（"第N棒:0.45"），未记录到的棒显示"—"；个人赛仍是单值
                 // 预览（DataGrid TextWrapping=Wrap）用空格分隔以便在窄列里按词换行；打印 HTML 用 <br>
                 string reactionPlain = "", reactionHtml = "";
-                if (isRelay) {
+                // 2026-09-03 接力这一支也补上判罚守卫。下面输出时虽然还有一道 isDQ 兜着,
+                //   但这一处本身就不该算出来 —— 五处接力分支里有四处只有一道防线, 都漏过。
+                if (isRelay && !isDQ) {
                     var parts = new List<string>();
                     for (int li = 0; li < legCount; li++) {
                         double rt = (r != null && r.LegReactionTimes != null && li < r.LegReactionTimes.Count) ? r.LegReactionTimes[li] : 0;

@@ -20059,7 +20059,9 @@ namespace SwimmingScoreboard
                 else if (isDQ) remark = s.Status;
                 // 2026-06-04 D 最终成绩 DataGrid 显 1-4 棒
                 string reactionStr = "";
-                if (isRelayEvent) {
+                // 2026-09-03 接力这一支原来漏了判罚守卫(个人项目那半边有 !isDQ)。
+                //   DNF 的接力队成绩空着、名次是 "-", 反应时却还印着四棒数字。
+                if (isRelayEvent && !isDQ) {
                     var rtParts = new List<string>();
                     for (int li = 0; li < rgLegCount; li++) {
                         double rt = (r != null && r.LegReactionTimes != null && li < r.LegReactionTimes.Count) ? r.LegReactionTimes[li] : 0;
@@ -20223,6 +20225,9 @@ namespace SwimmingScoreboard
         // 2026-06-04 PublishResult / Broadcast 用: 接力赛拼 1-4 棒, 个人单值
         private static string BuildReactionFieldForPublish(string eventName, LaneResult r) {
             if (r == null) return "";
+            // 2026-09-03 判罚/弃权一律不发反应时 —— 这一句原来在接力分支【后面】,
+            //   于是个人项目挡住了、接力没挡住, 大屏上 DNF 的接力队照样显示四棒反应时。
+            if (r.Status == "DSQ" || r.Status == "DQ" || r.Status == "DNF" || r.Status == "DNS") return "";
             bool isRelay = !string.IsNullOrEmpty(eventName) && eventName.Contains("接力");
             if (isRelay) {
                 if (r.LegReactionTimes == null || r.LegReactionTimes.Count == 0) return "";
@@ -20233,8 +20238,6 @@ namespace SwimmingScoreboard
                 }
                 return string.Join(" ", parts.ToArray());
             }
-            // 2026-08-31 判罚/弃权不显示反应时间(与成绩单、项目成绩同口径)
-            if (r.Status == "DSQ" || r.Status == "DQ" || r.Status == "DNF" || r.Status == "DNS") return "";
             return r.StartingBlockTime != 0 ? r.StartingBlockTime.ToString("F2") : "";
         }
 
@@ -27416,7 +27419,8 @@ namespace SwimmingScoreboard
                 }
                 // 2026-06-04 D 最终成绩打印 显 1-4 棒
                 string reactionCell = "";
-                if (printRelay) {
+                // 2026-09-03 接力这一支原来漏了判罚守卫(个人项目那半边判的是 remark 空不空)
+                if (printRelay && string.IsNullOrEmpty(remark)) {
                     int legCount = 4;
                     var mLeg = System.Text.RegularExpressions.Regex.Match(_currentEvent ?? "", @"(\d+)\s*[x×]\s*\d+");
                     if (mLeg.Success) {
@@ -27779,7 +27783,8 @@ namespace SwimmingScoreboard
                             }
                             // 2026-06-04 D 最终成绩 HTML 显 1-4 棒
                             string reactionCell = "";
-                            if (ffRelay) {
+                            // 2026-09-03 接力这一支原来漏了判罚守卫(个人项目那半边有 !dq)
+                            if (ffRelay && !dq) {
                                 int legCnt = 4;
                                 var mLeg2 = System.Text.RegularExpressions.Regex.Match(eventName ?? "", @"(\d+)\s*[x×]\s*\d+");
                                 if (mLeg2.Success) {

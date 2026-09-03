@@ -33,8 +33,10 @@ foreach ($file in @('EventResultPrintWindow.xaml.cs','BatchByAgeGroupPrintWindow
     $lines = [IO.File]::ReadAllLines($p,[Text.Encoding]::UTF8)
     for ($i=0; $i -lt $lines.Count; $i++) {
         if ($lines[$i] -match 'StartingBlockTime\.ToString\("F2"\)') {
-            # 同一行或前两行里必须出现 DQ / remark / isDQ 的判断
-            $ctx = ($lines[[Math]::Max(0,$i-4)..$i] -join ' ')
+            # 前面若干行里必须出现 DQ / remark / isDQ 的判断
+            # 2026-09-03 窗口从 4 行放宽到 14 行: BuildReactionFieldForPublish 的判罚守卫
+            #   放在方法开头(比接力分支还早), 这是更好的写法, 不该因为离得远就报错。
+            $ctx = ($lines[[Math]::Max(0,$i-14)..$i] -join ' ')
             # EventResultPrintWindow 是在【输出行】统一置空的(ReactionTime = isDQ ? "" : reactionPlain),
             # 算出来的中间值带不带守卫无所谓 —— 这种整体置空的写法也认。
             $wholeFileBlanks = ($t2 -match 'isDQ \? "" : reactionPlain')
@@ -45,6 +47,56 @@ foreach ($file in @('EventResultPrintWindow.xaml.cs','BatchByAgeGroupPrintWindow
     }
 }
 Chk "反应时间的渲染处都带了判罚判断" ($bad.Count -eq 0) (($bad) -join '; ')
+
+# ══════════════════════════════════════════════════════════════════════
+# 2026-09-03 上面那条太松, 五处【接力】分支全从它眼皮底下漏过去了:
+#   个人项目那半边都写了 !isDQ, 接力那半边一处都没写 —— 于是 DNF 的接力队
+#   成绩空着、名次是 "-", 反应时那一列却印着四棒数字(用户在样张里看出来的)。
+# 这条专盯接力: 每个取 LegReactionTimes 的地方, 往上找到包住它的那个
+#   if (...接力...), 里面必须带判罚判断。
+# ══════════════════════════════════════════════════════════════════════
+# 只盯【给人看的成绩表】那几处(格式化成"第N棒:x.xx"的地方)。
+# 原始计时日志 / 成绩 txt 是给争议追溯和数据交换用的原始记录, 判罚的反应时也该留着, 不在此列。
+$rawMethods = @('SaveRawTimingLog','SaveRawTimingHtml','BuildResultTxtContent')
+$relayBad = @()
+foreach ($file in @('EventResultPrintWindow.xaml.cs','BatchByAgeGroupPrintWindow.xaml.cs','MainWindow.xaml.cs')) {
+    $p = Join-Path $src $file
+    if (-not (Test-Path $p)) { continue }
+    $lines = [IO.File]::ReadAllLines($p,[Text.Encoding]::UTF8)
+    for ($i=0; $i -lt $lines.Count; $i++) {
+        # 只认"把第N棒反应时拼进列表"这一种写法; AddLog 里那句"接力 DSQ 在第{0}棒"不算
+        if ($lines[$i] -notmatch 'Add\(string\.Format\("第\{0\}棒') { continue }
+        # 落在原始记录类方法里的跳过
+        $inRaw = $false
+        for ($k=$i; $k -ge [Math]::Max(0,$i-140); $k--) {
+            if ($lines[$k] -match '^\s{8}(private|internal|public) ') {
+                foreach ($rm in $rawMethods) { if ($lines[$k] -match $rm) { $inRaw = $true } }
+                break
+            }
+        }
+        if ($inRaw) { continue }
+        # 往上找包住它的那个 if (...relay...) {, 要么这一行自带判罚判断,
+        # 要么它是 else if 且上一分支就是判罚分支(if (judged) { 置空 } else if (isRelay))
+        $guard = $false; $found = $false
+        for ($j=$i; $j -ge [Math]::Max(0,$i-14); $j--) {
+            if ($lines[$j] -match 'if\s*\(.*[Rr]elay.*\)\s*\{') {
+                $found = $true
+                if ($lines[$j] -match 'isDQ|judged|!dq|IsNullOrEmpty\(remark\)|Status') { $guard = $true }
+                elseif ($lines[$j] -match '^\s*\}?\s*else if' -and
+                        (($lines[[Math]::Max(0,$j-3)..$j] -join ' ') -match 'judged|isDQ')) { $guard = $true }
+                # 守卫也可能放在这个 if 【之上】(方法一进来就把判罚 return 掉) —— 再往上看几行
+                if (-not $guard) {
+                    $above = ($lines[[Math]::Max(0,$j-5)..$j] -join ' ')
+                    if ($above -match '"DNF"' -and $above -match 'return ""') { $guard = $true }
+                }
+                break
+            }
+            if ($lines[$j] -match '"DNF"' -and $lines[$j] -match 'return ""') { $guard = $true; $found = $true; break }
+        }
+        if ($found -and -not $guard) { $relayBad += ($file + ":" + ($i+1)) }
+    }
+}
+Chk "接力反应时也带判罚判断(判罚不显示四棒反应时)" ($relayBad.Count -eq 0) (($relayBad) -join '; ')
 
 Write-Host "3. 比赛进行中不许往主服务器的库写"
 $mwp = Join-Path $src 'MainWindow.xaml.cs'
