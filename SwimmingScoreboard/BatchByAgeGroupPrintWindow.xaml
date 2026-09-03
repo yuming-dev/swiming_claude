@@ -1,8 +1,17 @@
 <Window x:Class="SwimmingScoreboard.BatchByAgeGroupPrintWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="按组别批量公布成绩" Width="1100" Height="600"
+        Title="按组别批量公布成绩" Width="1400" Height="640"
         WindowStartupLocation="CenterOwner" Background="#F1F5F9">
+    <Window.Resources>
+        <!-- 2026-09-03 表格内容居中。文本列必须走 ElementStyle ——
+             DataGridCell 的默认模板没把对齐绑到 HorizontalContentAlignment, 只设 CellStyle 不生效。 -->
+        <Style x:Key="CellCenter" TargetType="TextBlock">
+            <Setter Property="HorizontalAlignment" Value="Center"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="TextAlignment" Value="Center"/>
+        </Style>
+    </Window.Resources>
     <Grid Margin="16">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -14,6 +23,11 @@
         <!-- 选择条件 -->
         <Border Grid.Row="0" Background="White" CornerRadius="6" Padding="12" Margin="0,0,0,8">
             <StackPanel Orientation="Horizontal">
+                <!-- 2026-09-03 每个下拉都带"全部": 组别全部 = 各组别各出一张子表;
+                     项目/赛次全部 = 挨个跑一遍, 一次生成整本 -->
+                <TextBlock Text="组别:" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                <ComboBox x:Name="AgeGroupCombo" Width="110" SelectionChanged="Filter_Changed" Margin="0,0,12,0"
+                          ToolTip="选择&quot;全部&quot;= 每个组别各出一张子表"/>
                 <TextBlock Text="性别:" VerticalAlignment="Center" Margin="0,0,4,0"/>
                 <ComboBox x:Name="GenderCombo" Width="80" SelectionChanged="Filter_Changed" Margin="0,0,12,0">
                     <ComboBoxItem Content="全部" IsSelected="True"/>
@@ -22,7 +36,8 @@
                 <TextBlock Text="项目:" VerticalAlignment="Center" Margin="0,0,4,0"/>
                 <ComboBox x:Name="EventCombo" Width="200" SelectionChanged="Filter_Changed" Margin="0,0,12,0"/>
                 <TextBlock Text="赛次:" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                <ComboBox x:Name="StageCombo" Width="80" SelectionChanged="Filter_Changed" Margin="0,0,12,0">
+                <ComboBox x:Name="StageCombo" Width="90" SelectionChanged="Filter_Changed" Margin="0,0,12,0">
+                    <ComboBoxItem Content="全部"/>
                     <ComboBoxItem Content="预赛"/>
                     <ComboBoxItem Content="半决赛"/>
                     <ComboBoxItem Content="决赛" IsSelected="True"/>

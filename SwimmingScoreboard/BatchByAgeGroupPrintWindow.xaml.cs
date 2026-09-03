@@ -23,10 +23,17 @@ namespace SwimmingScoreboard
         private readonly string _referee;
         private readonly IList<AgeGroup> _ageGroups;
         private bool _initialized;
-        private string _selectedGender = "男", _selectedEvent = "", _selectedStage = "决赛";
+        private string _selectedGender = "男", _selectedEvent = "", _selectedStage = "决赛", _selectedAgeGroup = "全部";
         // 缓存最近一次"查询"产出, 5 个按钮共用
         private string _cachedHtml = "";
         private string _cachedFileBase = "";
+
+        /// <summary>
+        /// 2026-09-03 由主窗口注入: 本项目这个赛次一共几组(组数列的分母)。
+        /// 用的是主窗口那一份 TotalHeatsOfEvent —— 先问竞赛库, 库里问不到退回赛程。
+        /// 没注入就退回"这张子表里出现过几个组次"。
+        /// </summary>
+        public Func<string, string, string, string, int> TotalHeatsOf { get; set; }
 
         public BatchByAgeGroupPrintWindow(
             ObservableCollection<Swimmer> swimmers,
@@ -42,19 +49,44 @@ namespace SwimmingScoreboard
             _location = location ?? "";
             _referee = referee ?? "";
             _ageGroups = ageGroups;
+            PopulateAgeGroupCombo();
             PopulateEventCombo();
             _initialized = true;
         }
 
+        /// <summary>2026-09-03 组别下拉: "全部" + 档案里配置的组别(没配就从名单里收)。</summary>
+        private void PopulateAgeGroupCombo() {
+            AgeGroupCombo.Items.Clear();
+            AgeGroupCombo.Items.Add("全部");
+            foreach (string n in AllAgeGroupNames()) AgeGroupCombo.Items.Add(n);
+            AgeGroupCombo.SelectedIndex = 0;
+        }
+
+        private List<string> AllAgeGroupNames() {
+            var names = new List<string>();
+            if (_ageGroups != null && _ageGroups.Count > 0) {
+                foreach (var ag in _ageGroups)
+                    if (!string.IsNullOrEmpty(ag.Name) && !names.Contains(ag.Name)) names.Add(ag.Name);
+            } else {
+                var set = new HashSet<string>();
+                foreach (var s in _swimmers) if (!string.IsNullOrEmpty(s.AgeCategory)) set.Add(s.AgeCategory);
+                names.AddRange(set.OrderBy(x => x));
+            }
+            return names;
+        }
+
         private void PopulateEventCombo() {
             string gender = GetText(GenderCombo);
+            string ageG = GetText(AgeGroupCombo);
             string prev = EventCombo.SelectedItem as string ?? "";
             EventCombo.Items.Clear();
+            EventCombo.Items.Add("全部");   // 2026-09-03 项目也能选"全部": 一次生成整本
             var evSet = new HashSet<string>();
             foreach (var s in _swimmers) {
                 if (string.IsNullOrEmpty(s.EventName)) continue;
                 // 2026-06-02 "全部" 性别 = 不过滤性别, 列出所有项目; 否则原行为 (含混合)
                 if (gender != "全部" && s.Gender != gender && s.Gender != "混合") continue;
+                if (ageG != "全部" && (s.AgeCategory ?? "") != ageG) continue;
                 if (s.Notes != null && s.Notes.StartsWith("接力队员")) continue;
                 evSet.Add(s.EventName);
             }
@@ -65,7 +97,7 @@ namespace SwimmingScoreboard
 
         private void Filter_Changed(object sender, SelectionChangedEventArgs e) {
             if (!_initialized) return;
-            if (sender == GenderCombo) PopulateEventCombo();
+            if (sender == GenderCombo || sender == AgeGroupCombo) PopulateEventCombo();
             // 切条件后清缓存 + 灰按钮
             _cachedHtml = "";
             SetActionButtonsEnabled(false);
@@ -78,21 +110,20 @@ namespace SwimmingScoreboard
             _selectedGender = GetText(GenderCombo);
             _selectedEvent = EventCombo.SelectedItem as string ?? "";
             _selectedStage = GetText(StageCombo);
+            _selectedAgeGroup = GetText(AgeGroupCombo);
             if (string.IsNullOrEmpty(_selectedEvent)) {
                 StatusText.Text = "请先选择项目";
                 StatusText.Foreground = Brushes.OrangeRed;
                 return;
             }
 
-            // 收集该 (性别, 项目, 赛次) 下所有有数据的组别 — 按 _ageGroups 列表顺序
+            // 2026-09-03 四个维度都支持"全部", 各自展开成要跑的清单。
+            //   组别全部 = 每个组别各出一张子表(原行为); 项目/赛次全部 = 挨个跑一遍。
             var ageNames = new List<string>();
-            if (_ageGroups != null && _ageGroups.Count > 0) {
-                foreach (var ag in _ageGroups) if (!string.IsNullOrEmpty(ag.Name)) ageNames.Add(ag.Name);
-            } else {
-                var set = new HashSet<string>();
-                foreach (var s in _swimmers) if (!string.IsNullOrEmpty(s.AgeCategory)) set.Add(s.AgeCategory);
-                ageNames.AddRange(set.OrderBy(x => x));
-            }
+            if (_selectedAgeGroup == "全部") ageNames.AddRange(AllAgeGroupNames());
+            else ageNames.Add(_selectedAgeGroup);
+            // 档案里一个组别都没配时, 用空串跑一遍, 免得整个循环空转
+            if (ageNames.Count == 0) ageNames.Add("");
 
             // 2026-06-02 并项拆分: 性别"全部" → 男+女 各跑一遍; 单一性别保持只跑那一种.
             //   每个 (性别, 注册组别) 内部再按 swimmer.Age 切子块 (例 "9-11岁" → 9岁/10岁/11岁).
@@ -100,16 +131,33 @@ namespace SwimmingScoreboard
             if (_selectedGender == "全部") { gendersToRun.Add("男"); gendersToRun.Add("女"); }
             else gendersToRun.Add(_selectedGender);
 
-            bool isRelayEv = _selectedEvent.Contains("接力");
+            var eventsToRun = new List<string>();
+            if (_selectedEvent == "全部") {
+                foreach (var it in EventCombo.Items) {
+                    string ev = it as string;
+                    if (!string.IsNullOrEmpty(ev) && ev != "全部") eventsToRun.Add(ev);
+                }
+            } else eventsToRun.Add(_selectedEvent);
+
+            var stagesToRun = new List<string>();
+            if (_selectedStage == "全部") { stagesToRun.Add("预赛"); stagesToRun.Add("半决赛"); stagesToRun.Add("决赛"); }
+            else stagesToRun.Add(_selectedStage);
+
             var blocks = new List<AgeBlock>();
             foreach (var g in gendersToRun) {
-                foreach (var ag in ageNames) {
-                    var subBlocks = BuildAgeBlocksSplit(g, _selectedEvent, _selectedStage, ag, isRelayEv);
-                    foreach (var sb2 in subBlocks) if (sb2.Rows.Count > 0) blocks.Add(sb2);
+                foreach (var ev in eventsToRun) {
+                    bool isRelayEv = ev.Contains("接力");
+                    foreach (var st in stagesToRun) {
+                        foreach (var ag in ageNames) {
+                            var subBlocks = BuildAgeBlocksSplit(g, ev, st, ag, isRelayEv);
+                            foreach (var sb2 in subBlocks) if (sb2.Rows.Count > 0) blocks.Add(sb2);
+                        }
+                    }
                 }
             }
             if (blocks.Count == 0) {
-                StatusText.Text = string.Format("{0} {1} {2} — 各组别均暂无成绩, 无法批量公布", _selectedGender, _selectedEvent, _selectedStage);
+                StatusText.Text = string.Format("{0} {1} {2} {3} — 各组别均暂无成绩, 无法批量公布",
+                    _selectedAgeGroup, _selectedGender, _selectedEvent, _selectedStage);
                 StatusText.Foreground = Brushes.OrangeRed;
                 PreviewPanel.Children.Clear();
                 _cachedHtml = "";
@@ -119,41 +167,69 @@ namespace SwimmingScoreboard
 
             // 构建 HTML (整合 5 + 1 按钮共用) + 推荐文件名
             _cachedHtml = BuildHtml(blocks);
-            _cachedFileBase = SanitizeFile(string.Format("批量公布_{0}_{1}_{2}", _selectedGender, _selectedEvent, _selectedStage));
+            _cachedFileBase = SanitizeFile(string.Format("批量公布_{0}_{1}_{2}_{3}",
+                _selectedAgeGroup, _selectedGender, _selectedEvent, _selectedStage));
 
-            // 预览面板: 每子块一段, 标题含 性别 + 组别 + 子年龄
+            // 预览面板: 每子块一段, 标题含 性别 + 组别 + 子年龄 + 项目 + 赛次
             PreviewPanel.Children.Clear();
             foreach (var b in blocks) {
                 var header = new TextBlock {
-                    Text = string.Format("{0}  {1} {2}  ({3} 人)", b.Title, _selectedEvent, _selectedStage, b.Rows.Count),
+                    Text = string.Format("{0}  {1} {2}  ({3} 人)", b.Title, b.EventName, b.Stage, b.Rows.Count),
                     FontWeight = FontWeights.Bold, FontSize = 15,
                     Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E40AF")),
                     Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#DBEAFE")),
                     Padding = new Thickness(10, 5, 10, 5), Margin = new Thickness(0, 6, 0, 4)
                 };
                 PreviewPanel.Children.Add(header);
-                var dg = new DataGrid {
-                    AutoGenerateColumns = false, CanUserAddRows = false, IsReadOnly = true,
-                    HeadersVisibility = DataGridHeadersVisibility.Column,
-                    AlternatingRowBackground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F8FAFC")),
-                    MinHeight = 30,
-                    BorderThickness = new Thickness(1),
-                    BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#E2E8F0"))
-                };
-                dg.Columns.Add(new DataGridTextColumn { Header = "名次", Binding = new System.Windows.Data.Binding("Rank"), Width = new DataGridLength(50) });
-                dg.Columns.Add(new DataGridTextColumn { Header = "道", Binding = new System.Windows.Data.Binding("Lane"), Width = new DataGridLength(40) });
-                dg.Columns.Add(new DataGridTextColumn { Header = "姓名", Binding = new System.Windows.Data.Binding("Name"), Width = new DataGridLength(200) });
-                dg.Columns.Add(new DataGridTextColumn { Header = "代表队", Binding = new System.Windows.Data.Binding("Country"), Width = new DataGridLength(120) });
-                dg.Columns.Add(new DataGridTextColumn { Header = "成绩", Binding = new System.Windows.Data.Binding("FinalTime"), Width = new DataGridLength(90) });
-                dg.Columns.Add(new DataGridTextColumn { Header = "备注", Binding = new System.Windows.Data.Binding("Remark"), Width = new DataGridLength(70) });
-                dg.ItemsSource = b.Rows;
-                PreviewPanel.Children.Add(dg);
+                PreviewPanel.Children.Add(BuildPreviewGrid(b));
             }
 
-            StatusText.Text = string.Format("{0} {1} {2} → 共 {3} 个 子表 (性别×组×子年龄) 有数据, 已生成批量成绩单",
-                _selectedGender, _selectedEvent, _selectedStage, blocks.Count);
+            StatusText.Text = string.Format("{0} {1} {2} {3} → 共 {4} 个子表 (性别×组别×子年龄{5}) 有数据, 已生成批量成绩单",
+                _selectedAgeGroup, _selectedGender, _selectedEvent, _selectedStage, blocks.Count,
+                (_selectedEvent == "全部" || _selectedStage == "全部") ? "×项目×赛次" : "");
             StatusText.Foreground = Brushes.Green;
             SetActionButtonsEnabled(true);
+        }
+
+        /// <summary>
+        /// 2026-09-03 预览表格改成跟"项目成绩"一模一样的列:
+        ///   单项 名次/姓名/代表队/号码/组别/组数/道次/最终成绩/成绩差/反应时间/备注
+        ///   接力 名次/代表队/姓名/…(姓名与代表队对调, 其余相同)
+        /// 内容一律居中(文本列走 ElementStyle, 见 XAML 里的 CellCenter)。
+        /// </summary>
+        private DataGrid BuildPreviewGrid(AgeBlock b) {
+            var dg = new DataGrid {
+                AutoGenerateColumns = false, CanUserAddRows = false, IsReadOnly = true,
+                HeadersVisibility = DataGridHeadersVisibility.Column,
+                AlternatingRowBackground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F8FAFC")),
+                MinHeight = 30,
+                BorderThickness = new Thickness(1),
+                BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#E2E8F0"))
+            };
+            var center = TryFindResource("CellCenter") as Style;
+            Action<string, string, double> add = delegate(string header, string path, double w) {
+                var col = new DataGridTextColumn {
+                    Header = header,
+                    Binding = new System.Windows.Data.Binding(path),
+                    Width = new DataGridLength(w)
+                };
+                if (center != null) col.ElementStyle = center;
+                dg.Columns.Add(col);
+            };
+            bool relay = (b.EventName ?? "").Contains("接力");
+            add("名次", "Rank", 50);
+            if (relay) { add("代表队", "Country", 120); add("姓名", "Name", 200); }
+            else       { add("姓名", "Name", 200);      add("代表队", "Country", 120); }
+            add("号码", "BibNumber", 60);
+            add("组别", "AgeGroupName", 70);
+            add("组数", "HeatText", 60);
+            add("道次", "Lane", 45);
+            add("最终成绩", "FinalTime", 90);
+            add("成绩差", "Diff", 70);
+            add("反应时间", "ReactionTime", relay ? 170 : 80);
+            add("备注", "Remark", 50);
+            dg.ItemsSource = b.Rows;
+            return dg;
         }
 
         // 2026-06-02 把单一 (性别, 注册组别) 内的运动员再按 swimmer.Age 切多个子块.
@@ -169,8 +245,10 @@ namespace SwimmingScoreboard
                 output.Add(new AgeBlock {
                     AgeGroup = ageGroup, SubAge = 0,
                     Title = string.Format("{0} {1}", genderLabel, ageGroup),
-                    Rows = allRows
+                    Rows = allRows,
+                    EventName = eventName, Stage = stage, Gender = gender
                 });
+                foreach (var b0 in output) FinalizeBlock(b0);
                 return output;
             }
             // 按 swimmer.Age 分组. allRows 是 RowVm — 没带 Age, 这里换回 Swimmer 重新拿.
@@ -199,8 +277,10 @@ namespace SwimmingScoreboard
                 output.Add(new AgeBlock {
                     AgeGroup = ageGroup, SubAge = bucket.Count == 1 ? bucket.First().Key : 0,
                     Title = string.Format("{0} {1}", genderLabel, ageGroup),
-                    Rows = allRows
+                    Rows = allRows,
+                    EventName = eventName, Stage = stage, Gender = gender
                 });
+                foreach (var b1 in output) FinalizeBlock(b1);
                 return output;
             }
             // 多个实际年龄 → 各出一个子块, 子块内按 SortTime 排序后重新算名次
@@ -213,6 +293,7 @@ namespace SwimmingScoreboard
                     rebuilt.Add(new RowVm {
                         Rank = rv.IsDQ ? "-" : rk.ToString(),
                         Lane = rv.Lane, BibNumber = rv.BibNumber, Name = rv.Name, Country = rv.Country,
+                        AgeGroupName = rv.AgeGroupName, HeatNo = rv.HeatNo,
                         FinalTime = rv.FinalTime, ReactionTime = rv.ReactionTime, ReactionHtml = rv.ReactionHtml,
                         Remark = rv.Remark, RemarkHtml = rv.RemarkHtml, IsDQ = rv.IsDQ, SortTime = rv.SortTime
                     });
@@ -222,19 +303,31 @@ namespace SwimmingScoreboard
                     AgeGroup = ageGroup, SubAge = a,
                     // 2026-06-04 顺序统一: 性别 在前, 组别 + 子年龄 在后
                     Title = string.Format("{0} {1} ({2}岁)", genderLabel, ageGroup, a),
-                    Rows = rebuilt
+                    Rows = rebuilt,
+                    EventName = eventName, Stage = stage, Gender = gender
                 });
             }
+            foreach (var b2 in output) FinalizeBlock(b2);
             return output;
         }
 
-        private class AgeBlock { public string AgeGroup; public int SubAge; public string Title; public List<RowVm> Rows; }
+        // 2026-09-03 子块要记住自己是哪个项目/赛次 —— 项目和赛次都能选"全部"了,
+        //   一次查询里会同时出现好几个项目, 标题和表头不能再拿窗口上那个选择去拼。
+        private class AgeBlock {
+            public string AgeGroup; public int SubAge; public string Title; public List<RowVm> Rows;
+            public string EventName; public string Stage; public string Gender;
+        }
         private class RowVm {
             public string Rank { get; set; }
             public int Lane { get; set; }
             public string BibNumber { get; set; }
             public string Name { get; set; }
             public string Country { get; set; }
+            // 2026-09-03 补 组别/组数/成绩差 三列(与"项目成绩"同款)
+            public string AgeGroupName { get; set; }
+            public int HeatNo { get; set; }
+            public string HeatText { get; set; }
+            public string Diff { get; set; }
             public string FinalTime { get; set; }
             public string ReactionTime { get; set; }
             public string ReactionHtml { get; set; }
@@ -242,6 +335,39 @@ namespace SwimmingScoreboard
             public string RemarkHtml { get; set; }
             public bool IsDQ { get; set; }
             public double SortTime { get; set; }
+        }
+
+        /// <summary>
+        /// 2026-09-03 一张子表建好之后再补两列:
+        ///   组数  = "第X组/本项目总组数"(分母问主窗口/竞赛库, 不是"这张表里出现过几组")
+        ///   成绩差 = 本人成绩 - 本子表第一名; 判罚/弃权不参与, 也不当基准。
+        /// 放在最后统一算, 是因为按年龄再切子块时行会重排, 基准也跟着变。
+        /// </summary>
+        private void FinalizeBlock(AgeBlock b) {
+            if (b == null || b.Rows == null || b.Rows.Count == 0) return;
+            int total = 0;
+            if (TotalHeatsOf != null) {
+                try { total = TotalHeatsOf(b.AgeGroup ?? "", b.Gender ?? "", b.EventName ?? "", b.Stage ?? ""); }
+                catch { }
+            }
+            if (total <= 0) {
+                var hs = new HashSet<int>();
+                foreach (var r in b.Rows) if (r.HeatNo > 0) hs.Add(r.HeatNo);
+                total = hs.Count;
+            }
+            double leader = 0;
+            foreach (var r in b.Rows) {
+                if (r.IsDQ || r.SortTime <= 0 || r.SortTime == double.MaxValue) continue;
+                if (leader <= 0 || r.SortTime < leader) leader = r.SortTime;
+            }
+            foreach (var r in b.Rows) {
+                r.HeatText = r.HeatNo > 0
+                    ? (total > 0 ? r.HeatNo + "/" + total : r.HeatNo.ToString())
+                    : "";
+                r.Diff = (!r.IsDQ && r.SortTime > 0 && r.SortTime != double.MaxValue
+                          && leader > 0 && r.SortTime > leader)
+                         ? (r.SortTime - leader).ToString("F2") : "";
+            }
         }
 
         private List<RowVm> BuildOneAgeBlock(string gender, string eventName, string stage, string ageGroup) {
@@ -322,6 +448,9 @@ namespace SwimmingScoreboard
                     BibNumber = x.Sw.BibNumber ?? "",
                     Name = x.DisplayName,
                     Country = x.Sw.Country ?? "",
+                    // 2026-09-03 组别取运动员自己的注册组别(子表可能按实际年龄再切, 组别名不变)
+                    AgeGroupName = x.Sw.AgeCategory ?? "",
+                    HeatNo = x.R != null ? x.R.Heat : 0,
                     FinalTime = x.IsDQ ? "" : (x.R != null && x.R.FinalTime > 0 ? TimeFormatter.Format(x.R.FinalTime) : ""),
                     ReactionTime = x.ReactionPlain,
                     ReactionHtml = x.ReactionHtml,
@@ -335,11 +464,6 @@ namespace SwimmingScoreboard
         }
 
         private string BuildHtml(List<AgeBlock> blocks) {
-            bool isRelayEv = _selectedEvent.Contains("接力");
-            string c1H = isRelayEv ? "代表队" : "姓名";
-            string c2H = isRelayEv ? "姓名" : "代表队";
-            int rxW = isRelayEv ? 110 : 70;
-
             var sb = new StringBuilder();
             sb.Append("<html><head><meta charset='UTF-8'><style>");
             sb.Append("body{font-family:'SimSun'; padding:0; margin:0; line-height:1.5; color:#333;} ");
@@ -360,9 +484,9 @@ namespace SwimmingScoreboard
             sb.Append("<div class='page'>");
             sb.AppendFormat("<h1>{0}</h1>", HtmlEnc(_competitionName));
             sb.Append("<h2>成 绩 单 （ 按 组 别 ）</h2>");
-            sb.AppendFormat("<h4 style='text-align:center; font-size:18px;'>项目：{0} {1} {2}</h4>",
-                HtmlEnc(_selectedGender), HtmlEnc(_selectedEvent), HtmlEnc(_selectedStage));
-            sb.AppendFormat("<h4 style='text-align:center;'>地点：{0} &nbsp;&nbsp;&nbsp; 共 {1} 个组别</h4>",
+            sb.AppendFormat("<h4 style='text-align:center; font-size:18px;'>项目：{0} {1} {2} {3}</h4>",
+                HtmlEnc(_selectedAgeGroup), HtmlEnc(_selectedGender), HtmlEnc(_selectedEvent), HtmlEnc(_selectedStage));
+            sb.AppendFormat("<h4 style='text-align:center;'>地点：{0} &nbsp;&nbsp;&nbsp; 共 {1} 张子表</h4>",
                 HtmlEnc(_location), blocks.Count);
 
             bool firstBlock = true;
@@ -371,19 +495,30 @@ namespace SwimmingScoreboard
                 else sb.Append("<div class='page-break'></div><div class='page'>");
 
                 // 2026-06-02 标题用 AgeBlock.Title (含性别 + 注册组别 + 可选实际年龄), 不再单独拼 _selectedGender
+                // 2026-09-03 项目/赛次取【本子块自己的】—— 它们都能选"全部", 一次查询里会有好几个项目
+                bool isRelayEv = (b.EventName ?? "").Contains("接力");
+                string c1H = isRelayEv ? "代表队" : "姓名";
+                string c2H = isRelayEv ? "姓名" : "代表队";
+                int rxW = isRelayEv ? 110 : 70;
                 sb.AppendFormat("<h3>{0}  {1} {2}　（{3}人）</h3>",
-                    HtmlEnc(b.Title ?? b.AgeGroup), HtmlEnc(_selectedEvent), HtmlEnc(_selectedStage), b.Rows.Count);
+                    HtmlEnc(b.Title ?? b.AgeGroup), HtmlEnc(b.EventName), HtmlEnc(b.Stage), b.Rows.Count);
+                // 2026-09-03 列序改成跟"项目成绩"一模一样:
+                //   名次 → 姓名/代表队 → 号码 → 组别 → 组数 → 道次 → 最终成绩 → 成绩差 → 反应时间 → 备注
                 sb.Append("<table><tr align='center'>");
-                sb.Append("<th width='50'>名次</th><th width='40'>道</th><th width='60'>号码</th>");
+                sb.Append("<th width='50'>名次</th>");
                 sb.AppendFormat("<th width='180'>{0}</th><th width='110'>{1}</th>", c1H, c2H);
-                sb.AppendFormat("<th width='80'>成绩</th><th width='{0}'>反应时间</th><th width='50'>备注</th></tr>", rxW);
+                sb.Append("<th width='60'>号码</th><th width='60'>组别</th><th width='55'>组数</th><th width='40'>道次</th>");
+                sb.AppendFormat("<th width='80'>最终成绩</th><th width='70'>成绩差</th><th width='{0}'>反应时间</th><th width='50'>备注</th></tr>", rxW);
                 foreach (var r in b.Rows) {
                     string c1 = isRelayEv ? (r.Country ?? "") : (r.Name ?? "");
                     string c2 = isRelayEv ? (r.Name ?? "") : (r.Country ?? "");
                     sb.Append("<tr>");
-                    sb.AppendFormat("<td>{0}</td><td>{1}</td><td>{2}</td>", r.Rank, r.Lane, HtmlEnc(r.BibNumber));
-                    sb.AppendFormat("<td style='text-align:left; padding-left:10px;'><b>{0}</b></td><td>{1}</td>", HtmlEnc(c1), HtmlEnc(c2));
+                    sb.AppendFormat("<td>{0}</td>", r.Rank);
+                    sb.AppendFormat("<td><b>{0}</b></td><td>{1}</td>", HtmlEnc(c1), HtmlEnc(c2));
+                    sb.AppendFormat("<td>{0}</td><td>{1}</td><td>{2}</td><td>{3}</td>",
+                        HtmlEnc(r.BibNumber), HtmlEnc(r.AgeGroupName), HtmlEnc(r.HeatText), r.Lane);
                     sb.AppendFormat("<td style='font-weight:bold; background:#eff6ff;'>{0}</td>", HtmlEnc(r.FinalTime));
+                    sb.AppendFormat("<td>{0}</td>", HtmlEnc(r.Diff));
                     sb.AppendFormat("<td style='font-size:11px;'>{0}</td><td>{1}</td>", r.ReactionHtml, r.RemarkHtml);
                     sb.Append("</tr>");
                 }
@@ -419,12 +554,31 @@ namespace SwimmingScoreboard
             catch (Exception ex) { MessageBox.Show("打开失败: " + ex.Message); }
         }
 
+        /// <summary>
+        /// 2026-09-03 "导出 PDF" 直接出 PDF 文件(跟"项目成绩"那边同一处理)。
+        /// 原来只是把 HTML 在浏览器里打开再让人自己 Ctrl+P —— 按钮叫导出 PDF, 按下去却没有 PDF。
+        /// 走的是"比赛日志 PDF"那条路: Edge/Chrome 无头 --print-to-pdf。
+        /// </summary>
         private void ExportPdf_Click(object sender, RoutedEventArgs e) {
             if (string.IsNullOrEmpty(_cachedHtml)) return;
             try {
-                Process.Start(WriteTempHtml());
-                MessageBox.Show("已在浏览器中打开。\n请按 Ctrl+P 打印, 选择 \"Microsoft Print to PDF\" 打印机另存为 PDF。",
-                    "导出 PDF", MessageBoxButton.OK, MessageBoxImage.Information);
+                var dlg = new Microsoft.Win32.SaveFileDialog {
+                    Filter = "PDF 文件|*.pdf|所有文件|*.*",
+                    FileName = _cachedFileBase + ".pdf",
+                    Title = "导出 PDF"
+                };
+                if (dlg.ShowDialog() != true) return;
+                string tmpHtml = WriteTempHtml();
+                if (MainWindow.TryHtmlToPdf(tmpHtml, dlg.FileName)) {
+                    if (MessageBox.Show("已导出：\n" + dlg.FileName + "\n\n是否立即打开？", "导出 PDF",
+                            MessageBoxButton.YesNo, MessageBoxImage.Information) == MessageBoxResult.Yes)
+                        Process.Start(dlg.FileName);
+                    return;
+                }
+                Process.Start(tmpHtml);
+                MessageBox.Show("这台机器上没找到 Edge 或 Chrome，无法直接生成 PDF。\n\n"
+                    + "已在浏览器中打开，请按 Ctrl+P，打印机选 \"Microsoft Print to PDF\" 另存为 PDF。",
+                    "导出 PDF", MessageBoxButton.OK, MessageBoxImage.Warning);
             } catch (Exception ex) { MessageBox.Show("导出 PDF 失败: " + ex.Message); }
         }
 

@@ -14,6 +14,15 @@ $t = [IO.File]::ReadAllText($f,[Text.Encoding]::UTF8)
 $th = ([regex]::Matches($t,'<th')).Count
 $td = ([regex]::Matches($t,'<td')).Count
 Chk "项目成绩: 表头与单元格数量成比例(th=$th, td=$td)" ($th -gt 0 -and $td -gt 0 -and [Math]::Abs($th-$td) -le 4) "th=$th td=$td 差得太多, 多半是加列只改了一半"
+# 2026-09-03 批量公布也改成了同一套 11 列表格, 同样盯住
+$fb = Join-Path $src 'BatchByAgeGroupPrintWindow.xaml.cs'
+$tb = [IO.File]::ReadAllText($fb,[Text.Encoding]::UTF8)
+$thb = ([regex]::Matches($tb,'<th')).Count
+$tdb = ([regex]::Matches($tb,'<td')).Count
+Chk "批量公布: 表头与单元格数量成比例(th=$thb, td=$tdb)" ($thb -gt 0 -and $tdb -gt 0 -and [Math]::Abs($thb-$tdb) -le 4) "th=$thb td=$tdb 差得太多, 多半是加列只改了一半"
+# 两张表的列序必须一样 —— 用户明确要求"批量公布改成项目成绩的表格格式"
+$batchHdrOk = ($tb -match "(?s)名次</th>.{0,200}\{0\}</th>.{0,80}\{1\}</th>.{0,200}号码</th>.{0,120}组别</th>.{0,120}组数</th>.{0,120}道次</th>.{0,200}最终成绩</th>.{0,120}成绩差</th>")
+Chk "批量公布的列序与项目成绩一致" $batchHdrOk "批量公布的表头顺序跟项目成绩对不上了"
 
 Write-Host "2. 判罚/弃权不显示反应时间"
 $bad = @()

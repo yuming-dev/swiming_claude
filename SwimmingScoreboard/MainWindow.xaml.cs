@@ -25919,6 +25919,10 @@ namespace SwimmingScoreboard
             RefreshChangedFromDb();   // 2026-08-31 开报表前先从库刷新, 别的计算机写的成绩才看得到
             var win = new BatchByAgeGroupPrintWindow(_swimmers, _schedule, _competitionName,
                 LocationBox.Text, RefereeBox.Text, _ageGroups);
+            // 2026-09-03 组数列的分母(本项目总组数)问主窗口 —— 它能查竞赛库, 这个窗口不能
+            win.TotalHeatsOf = delegate(string ag, string gd, string ev, string st) {
+                return TotalHeatsOfEvent(string.IsNullOrEmpty(ag) ? "全部" : ag, gd, ev, st);
+            };
             win.Owner = this;
             win.ShowDialog();
         }
