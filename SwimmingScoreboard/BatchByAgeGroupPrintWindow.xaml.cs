@@ -486,11 +486,16 @@ namespace SwimmingScoreboard
             sb.Append("h2{text-align:center; font-size:17px; margin:0 0 10px; letter-spacing:6px; color:#1e40af; font-weight:normal;} ");
             sb.Append(".meta{text-align:center; font-size:12px; color:#475569; margin:0 0 4px;} ");
             sb.Append(".rule{height:2px; background:#1e40af; margin:8px 0 4px;} ");
-            // 一张子表 = 标题 + 表格, 整块不许被分页切开
+            // 2026-09-03 【一张子表 = 一张纸】。用户: 不剪, 直接一张张揭下来贴公告栏。
+            //   所以每张子表另起一页(第一张跟在抬头后面, 不单独浪费一页),
+            //   整块也不许被切开。
             sb.Append(".blk{page-break-inside:avoid; break-inside:avoid; margin:14px 0 0;} ");
+            sb.Append(".blk.np{page-break-before:always; break-before:page; margin-top:0;} ");
             sb.Append(".blk h3{font-size:14px; margin:0 0 5px; padding:4px 8px; color:#1e3a8a;"
                     + " background:#e8f0fe; border-left:4px solid #1e40af;} ");
-            sb.Append(".blk h3 .n{float:right; font-weight:normal; font-size:12px; color:#475569;} ");
+            sb.Append(".blk h3 .n{float:right; font-weight:normal; font-size:11px; color:#475569;} ");
+            // 每张子表自带签名行 —— 每张都是要单独张贴的正式成绩单
+            sb.Append(".sig{margin:14px 2px 0; display:flex; justify-content:space-between; font-size:13px; color:#334155;} ");
             sb.Append("table{border-collapse:collapse; width:100%; table-layout:fixed; margin:0; background:#fff;} ");
             sb.Append("th{border:1px solid #94a3b8; background:#1e40af; color:#fff; padding:5px 3px;"
                     + " font-weight:bold; font-size:12px; text-align:center; vertical-align:middle;} ");
@@ -516,16 +521,22 @@ namespace SwimmingScoreboard
                 string.IsNullOrWhiteSpace(_location) ? "" : ("地点：" + HtmlEnc(_location) + "　|　"), blocks.Count);
             sb.Append("<div class='rule'></div>");
 
+            bool firstBlk = true;
             foreach (var b in blocks) {
-                sb.Append("<div class='blk'>");
+                // 第一张接在抬头下面; 之后每张另起一页
+                sb.AppendFormat("<div class='blk{0}'>", firstBlk ? "" : " np");
+                firstBlk = false;
 
                 // 2026-06-02 标题用 AgeBlock.Title (含性别 + 注册组别 + 可选实际年龄), 不再单独拼 _selectedGender
                 // 2026-09-03 项目/赛次取【本子块自己的】—— 它们都能选"全部", 一次查询里会有好几个项目
                 bool isRelayEv = (b.EventName ?? "").Contains("接力");
                 string c1H = isRelayEv ? "代表队" : "姓名";
                 string c2H = isRelayEv ? "姓名" : "代表队";
-                sb.AppendFormat("<h3>{0}　{1} {2}<span class='n'>{3} 人</span></h3>",
-                    HtmlEnc(b.Title ?? b.AgeGroup), HtmlEnc(b.EventName), HtmlEnc(b.Stage), b.Rows.Count);
+                // 2026-09-03 标题栏右侧带上赛事名 —— 这几张是要剪下来分别贴公告栏的,
+                //   剪开之后光有"男子 青少年(12岁) 100米蛙泳 决赛"看不出是哪场比赛。
+                sb.AppendFormat("<h3>{0}　{1} {2}<span class='n'>{3}　|　{4} 人</span></h3>",
+                    HtmlEnc(b.Title ?? b.AgeGroup), HtmlEnc(b.EventName), HtmlEnc(b.Stage),
+                    HtmlEnc(_competitionName), b.Rows.Count);
                 // 2026-09-03 列宽改百分比 + table-layout:fixed —— 原来是 px, 表格挤在左半边,
                 //   人少的表更窄(实测 1 人的表只有半幅纸宽)。百分比才能稳定占满。
                 //   列序跟"项目成绩"一致: 名次 → 姓名/代表队 → 号码 → 组别 → 组数 → 道次
@@ -554,15 +565,20 @@ namespace SwimmingScoreboard
                     sb.AppendFormat("<td class='rt'>{0}</td><td>{1}</td>", r.ReactionHtml, r.RemarkHtml);
                     sb.Append("</tr>");
                 }
-                sb.Append("</tbody></table></div>");
+                sb.Append("</tbody></table>");
+                // 2026-09-03 【每张子表自带签名】—— 用户: 这几张是要剪下来单独贴公告栏的,
+                //   每张都得有裁判和记录长的签名位。签名行放在 .blk 里面, 跟着表一起
+                //   不允许被分页切开 —— 不然会出现"表在这一页、签名在下一页"。
+                sb.Append("<div class='sig'>");
+                sb.AppendFormat("<span>裁判：{0}</span>",
+                    !string.IsNullOrEmpty(_referee) ? HtmlEnc(_referee) + "　___________" : "__________________");
+                sb.Append("<span>记录长：__________________</span>");
+                sb.AppendFormat("<span>{0}</span>", DateTime.Now.ToString("yyyy-MM-dd"));
+                sb.Append("</div>");
+                sb.Append("</div>");   // .blk
             }
-            // 2026-09-03 签名行只在整份文档末尾出现一次 —— 原来每张子表后面都来一遍,
-            //   20 张子表就是 20 组"裁判/记录长"的下划线, 又占地方又乱。
-            sb.Append("<div class='signature-row'>");
-            sb.AppendFormat("<span>裁判：{0}</span>", !string.IsNullOrEmpty(_referee) ? HtmlEnc(_referee) + "　___________" : "__________________");
-            sb.Append("<span>记录长：__________________</span>");
-            sb.Append("</div>");
-            sb.AppendFormat("<div class='foot'>打印时间：{0}</div>", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
+            sb.AppendFormat("<div class='foot'>打印时间：{0}　共 {1} 张</div>",
+                DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"), blocks.Count);
             sb.Append("</div></body></html>");
             return sb.ToString();
         }
