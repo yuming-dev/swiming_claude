@@ -174,6 +174,19 @@ Chk "本组名次排除判罚/试游走有效状态" ($rhgBody -match 'GetEffect
     "RankHeatGroup 又只看 s.Status 了: 回推进来的判罚/试游会被排进名次"
 
 Write-Host ""
+Write-Host "8. 项目成绩表的列序"
+# 2026-09-02 用户定的列序: 名次 → 姓名/代表队 → 号码 → 组别 → 组数 → 道次 → 最终成绩 …
+#   (接力时姓名/代表队对调, 由 epH1/epH2 承担)
+#   列【数量】对不代表【顺序】对: 只改表头没改单元格, 数量测试照样过, 但每一列都错位。
+#   所以这里按出现先后核一遍。
+$erp = [IO.File]::ReadAllText((Join-Path $src 'EventResultPrintWindow.xaml.cs'),[Text.Encoding]::UTF8)
+$hdrOk = ($erp -match "(?s)名次</th>.{0,200}\{0\}</th>.{0,80}\{1\}</th>.{0,200}号码</th>.{0,120}组别</th>.{0,120}组数</th>.{0,120}道次</th>.{0,200}最终成绩</th>")
+Chk "打印表头列序: 名次→姓名/代表队→号码→组别→组数→道次→最终成绩" $hdrOk "表头顺序被改动了"
+# 单元格顺序必须跟表头一致: Rank → c1,c2 → BibNumber,AgeGroup,HeatText,Lane → FinalTime
+$cellOk = ($erp -match "(?s)item\.Rank\);.{0,200}c1, c2\);.{0,200}item\.BibNumber, item\.AgeGroup, item\.HeatText, item\.Lane\);.{0,200}item\.FinalTime")
+Chk "打印单元格顺序与表头一致" $cellOk "单元格顺序跟表头对不上, 每一列都会错位"
+
+Write-Host ""
 Write-Host ("结果: " + $pass + " 过 / " + $fail + " failed")
 if ($fail -gt 0) { $msgs | ForEach-Object { Write-Host ("  "+$_) -ForegroundColor Red }; exit 1 }
 exit 0

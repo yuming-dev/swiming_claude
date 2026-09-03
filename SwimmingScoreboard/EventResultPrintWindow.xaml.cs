@@ -421,6 +421,7 @@ namespace SwimmingScoreboard
                 });
             }
 
+            ApplyPreviewColumnOrder(eventName.Contains("接力"));   // 接力: 代表队在姓名前
             PreviewGrid.ItemsSource = _currentResults;
             SetActionButtonsEnabled(true);
             SelectedGender = gender;
@@ -777,6 +778,7 @@ namespace SwimmingScoreboard
                 });
             }
 
+            ApplyPreviewColumnOrder(eventName.Contains("接力"));   // 接力: 代表队在姓名前
             PreviewGrid.ItemsSource = _currentResults;
             SetActionButtonsEnabled(true);
 
@@ -795,6 +797,20 @@ namespace SwimmingScoreboard
                 ageHead, gender, eventName, stage, heatDesc, withResults.Count,
                 dbNote.Length > 0 ? "\n" + dbNote : "");
             StatusText.Foreground = System.Windows.Media.Brushes.DarkOrange;
+        }
+
+        /// <summary>
+        /// 2026-09-02 预览表格的列序: 单项是【姓名 → 代表队】, 接力是【代表队 → 姓名】。
+        /// 打印出来的 HTML 一直是按 epH1/epH2 这么排的, 预览这边原来写死在 XAML 里,
+        /// 于是接力时预览和打印两个样子。DisplayIndex 换一下就够, 不用重建列。
+        /// </summary>
+        private void ApplyPreviewColumnOrder(bool relay) {
+            try {
+                if (NameCol == null || TeamCol == null) return;
+                // 赋值会自动把另一列挤开, 所以只需要指定谁排在前面那一格
+                if (relay) TeamCol.DisplayIndex = 1;
+                else NameCol.DisplayIndex = 1;
+            } catch { }
         }
 
         // 2026-06-01 集中开关 5 个动作按钮 (查询出结果后才启用)
@@ -888,16 +904,20 @@ namespace SwimmingScoreboard
                     string brd = (gKey == "男") ? "#2563eb" : "#ec4899";
                     sb.AppendFormat("<h4 style='background:{0};border-left:5px solid {1};padding:8px 12px;'>{2} 子</h4>", bg, brd, gKey);
                     sb.Append("<table><tr>");
-                    sb.AppendFormat("<th width='50' align='center'>名次</th><th width='60' align='center'>组别</th><th width='55' align='center'>组数</th><th width='40' align='center'>道</th><th width='60' align='center'>号码</th>");
+                    // 2026-09-02 列序: 名次 → 姓名/代表队 → 号码 → 组别 → 组数 → 道 → 最终成绩 …
+                    //   (接力时 epH1/epH2 已经是"代表队/姓名", 顺序自动对调)
+                    sb.AppendFormat("<th width='50' align='center'>名次</th>");
                     sb.AppendFormat("<th width='100' align='center'>{0}</th><th width='100' align='center'>{1}</th>", epH1, epH2);
+                    sb.AppendFormat("<th width='60' align='center'>号码</th><th width='60' align='center'>组别</th><th width='55' align='center'>组数</th><th width='40' align='center'>道次</th>");
                     sb.AppendFormat("<th width='90' align='center'>最终成绩</th><th width='70' align='center'>成绩差</th><th width='{0}' align='center'>反应时间</th><th width='50' align='center'>备注</th>", reactionWidth);
                     sb.Append("</tr>");
                     foreach (dynamic item in subResults) {
                         string c1 = epRelay ? item.Country : item.Name;
                         string c2 = epRelay ? item.Name : item.Country;
                         sb.Append("<tr>");
-                        sb.AppendFormat("<td>{0}</td><td>{1}</td><td>{2}</td><td>{3}</td><td>{4}</td>", item.Rank, item.AgeGroup, item.HeatText, item.Lane, item.BibNumber);
+                        sb.AppendFormat("<td>{0}</td>", item.Rank);
                         sb.AppendFormat("<td><b>{0}</b></td><td>{1}</td>", c1, c2);
+                        sb.AppendFormat("<td>{0}</td><td>{1}</td><td>{2}</td><td>{3}</td>", item.BibNumber, item.AgeGroup, item.HeatText, item.Lane);
                         sb.AppendFormat("<td style='font-weight:bold; background:#eff6ff;'>{0}</td>", item.FinalTime);
                         sb.AppendFormat("<td>{0}</td>", item.Diff);
                         sb.AppendFormat("<td style='font-size:12px;'>{0}</td><td>{1}</td>", item.ReactionTimeHtml, item.RemarkHtml);
@@ -907,8 +927,10 @@ namespace SwimmingScoreboard
                 }
             } else {
                 sb.Append("<table><tr>");
-                sb.AppendFormat("<th width='50'>名次</th><th width='60'>组别</th><th width='55'>组数</th><th width='40'>道</th><th width='60'>号码</th>");
+                // 2026-09-02 列序同上: 名次 → 姓名/代表队 → 号码 → 组别 → 组数 → 道次 → 最终成绩 …
+                sb.AppendFormat("<th width='50'>名次</th>");
                 sb.AppendFormat("<th width='100'>{0}</th><th width='100'>{1}</th>", epH1, epH2);
+                sb.AppendFormat("<th width='60'>号码</th><th width='60'>组别</th><th width='55'>组数</th><th width='40'>道次</th>");
                 sb.AppendFormat("<th width='90'>最终成绩</th><th width='70'>成绩差</th><th width='{0}'>反应时间</th><th width='50'>备注</th>", reactionWidth);
                 sb.Append("</tr>");
                 foreach (dynamic item in _currentResults)
@@ -916,8 +938,9 @@ namespace SwimmingScoreboard
                     string c1 = epRelay ? item.Country : item.Name;
                     string c2 = epRelay ? item.Name : item.Country;
                     sb.Append("<tr>");
-                    sb.AppendFormat("<td>{0}</td><td>{1}</td><td>{2}</td><td>{3}</td><td>{4}</td>", item.Rank, item.AgeGroup, item.HeatText, item.Lane, item.BibNumber);
+                    sb.AppendFormat("<td>{0}</td>", item.Rank);
                     sb.AppendFormat("<td><b>{0}</b></td><td>{1}</td>", c1, c2);
+                    sb.AppendFormat("<td>{0}</td><td>{1}</td><td>{2}</td><td>{3}</td>", item.BibNumber, item.AgeGroup, item.HeatText, item.Lane);
                     sb.AppendFormat("<td style='font-weight:bold; background:#eff6ff;'>{0}</td>", item.FinalTime);
                     sb.AppendFormat("<td>{0}</td>", item.Diff);
                     sb.AppendFormat("<td style='font-size:12px;'>{0}</td><td>{1}</td>", item.ReactionTimeHtml, item.RemarkHtml);
