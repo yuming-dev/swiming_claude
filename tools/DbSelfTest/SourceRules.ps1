@@ -290,6 +290,26 @@ $pq = [IO.File]::ReadAllText((Join-Path $src 'PromotionQueryWindow.xaml.cs'),[Te
 Chk "晋级查询的来源赛次取自赛次表" ($pq -match 'StageRegistry\.List') "又写死成 预赛/半决赛 了"
 
 Write-Host ""
+Write-Host "10. 接力: 别把'队伍条目'和'队员条目'搞混"
+# ══════════════════════════════════════════════════════════════════════
+# 2026-09-03 接力在名单里是两种条目:
+#   "接力队 棒次:…"   = 队伍条目 —— 成绩、名次、得分都在它身上
+#   "接力队员 … 第N棒" = 队员子条目 —— 只是名册, 没有成绩
+# 取分的地方要排的是【队员条目】。排错成队伍条目 = 把接力的分整个丢掉,
+# 而且丢得悄无声息(成绩公报少了接力分, 主界面团体总分却算了, 两个答案)。
+# ══════════════════════════════════════════════════════════════════════
+$dep = [IO.File]::ReadAllText((Join-Path $src 'DepartmentBulletinWindow.xaml.cs'),[Text.Encoding]::UTF8)
+Chk "成绩公报取分排的是'接力队员'(不是队伍条目)" `
+    ($dep -match 'StartsWith\("接力队员"\)' -and $dep -notmatch 'Where\(s => s\.Notes == null \|\| !s\.Notes\.StartsWith\("接力队 棒次:"\)\)') `
+    "又把接力队伍条目排掉了 —— 接力的团体分会整个丢失"
+# 主界面的团体总分不许排除队伍条目(它才是接力得分的载体)
+$tsIdx = -1
+for ($i=0; $i -lt $mwLns.Count; $i++) { if ($mwLns[$i] -match 'private void CalculateTeamScores') { $tsIdx = $i; break } }
+$tsBody = if ($tsIdx -ge 0) { ($mwLns[$tsIdx..([Math]::Min($mwLns.Count-1,$tsIdx+60))] -join "`n") } else { "" }
+Chk "主界面团体总分没有排掉接力队伍条目" ($tsBody -notmatch 'StartsWith\("接力队 棒次:"\)') `
+    "CalculateTeamScores 也开始排队伍条目了, 接力分会丢"
+
+Write-Host ""
 Write-Host ("结果: " + $pass + " 过 / " + $fail + " failed")
 if ($fail -gt 0) { $msgs | ForEach-Object { Write-Host ("  "+$_) -ForegroundColor Red }; exit 1 }
 exit 0

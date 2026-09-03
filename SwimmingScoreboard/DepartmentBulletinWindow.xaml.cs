@@ -33,9 +33,12 @@ namespace SwimmingScoreboard
                 }
             }
 
-            // 提取参赛单位列表 (排除接力代表条目)
+            // 提取参赛单位列表
+            // 2026-09-03 这里原来也排的是"接力队 棒次:"(队伍条目) —— 同一处写反。
+            //   后果虽小但确实存在: 一个只报了接力、没有个人项目的单位, 会从单位列表里消失。
+            //   要排的是没有成绩的"接力队员"子条目。
             var units = _swimmers
-                .Where(s => s.Notes == null || !s.Notes.StartsWith("接力队 棒次:"))
+                .Where(s => s.Notes == null || !s.Notes.StartsWith("接力队员"))
                 .Select(s => s.Country ?? "")
                 .Where(c => !string.IsNullOrEmpty(c))
                 .Distinct()
@@ -82,9 +85,20 @@ namespace SwimmingScoreboard
 
         private string BuildBulletinHtml(string unit, bool scoredOnly, bool byAge) {
             // 该单位的全部条目（排除接力代表）
+            // ══════════════════════════════════════════════════════════════
+            // 2026-09-03 这里原来排除的是 "接力队 棒次:" —— 排错了对象。
+            //
+            //   "接力队 棒次:…"  = 接力【队伍】条目, 成绩、名次、得分都在它身上
+            //   "接力队员 … 第N棒" = 队员子条目, 只是名册, 没有成绩
+            //
+            //   排掉队伍条目 = 把接力的分整个丢了; 留着队员条目又没有任何作用。
+            //   结果: 主界面的团体总分算了接力分, 这张成绩公报没算 —— 同一份数据两个答案。
+            //   全系统别的地方(前八名/决赛状态/批量公布/项目成绩)排的都是"接力队员",
+            //   只有这里写反了。
+            // ══════════════════════════════════════════════════════════════
             var entries = _swimmers
                 .Where(s => s.Country == unit)
-                .Where(s => s.Notes == null || !s.Notes.StartsWith("接力队 棒次:"))
+                .Where(s => s.Notes == null || !s.Notes.StartsWith("接力队员"))
                 .ToList();
 
             // 单位团体总分
