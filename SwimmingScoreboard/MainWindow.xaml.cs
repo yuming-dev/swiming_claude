@@ -27242,6 +27242,23 @@ namespace SwimmingScoreboard
             return !string.IsNullOrEmpty(notes) && notes.StartsWith("接力队员");
         }
 
+        // 2026-09-04 列宽用【百分比 colgroup】, 不再靠 <th width='..'> 那串像素值。
+        //   table-layout:fixed 下"有的列给了 px 宽、有的列没给"是个陷阱: 剩余宽度不够时,
+        //   没给宽度的那列会被压到一个字宽。用户实拍的破纪录统计表就是这样 ——
+        //   "项目"列(唯一没给 width 的)被压成竖排的"少年组女100米蛙泳"。
+        //   百分比让每列都有确定宽度, 且随纸宽自动缩放; 成绩单在 cc68cba 已经这么改过。
+        private static string ColGroup(params double[] weights) {
+            double sum = 0;
+            foreach (var w in weights) sum += w;
+            if (sum <= 0) return "";
+            var cg = new StringBuilder("<colgroup>");
+            foreach (var w in weights)
+                cg.AppendFormat("<col style='width:{0}%'>",
+                    (w * 100.0 / sum).ToString("F2", System.Globalization.CultureInfo.InvariantCulture));
+            cg.Append("</colgroup>");
+            return cg.ToString();
+        }
+
         // 中文数字（一~二十），用于秩序册章节编号
         private static string CnNum(int n) {
             string[] tbl = { "零","一","二","三","四","五","六","七","八","九","十",
@@ -27512,13 +27529,53 @@ namespace SwimmingScoreboard
             sb.Append(".records-bar .rec-item{display:inline-block; margin-right:18px;} ");
             sb.Append(".records-bar b{color:#b45309;} ");
             sb.Append(".heat-title{margin-top:14px; padding:6px 10px; background:#fef3c7; font-weight:bold; border-left:4px solid #f59e0b;} ");
-            sb.Append(".event-meta{display:flex; justify-content:space-between; margin:4px 0; font-size:14px; color:#475569;} ");
+
+            // ── 2026-09-04 封面/抬头/目录一律【不用 flexbox】 ────────────────────────
+            //   这份文档有三个去处: 内嵌预览(WebBrowser = IE)、浏览器、导出 DOC(Word)。
+            //   三者里只有浏览器认 flex:
+            //     · Word 完全不认 —— 导出 DOC 的封面一直是错的, 只是没人从这条路看过;
+            //     · IE11 的列向 flex 配 min-height 有老毛病: 容器高度算成 0,
+            //       justify-content:space-between 就把三块挤在顶上【叠在一起】。
+            //   之前没有 <!DOCTYPE> 时 IE 跑在怪异模式, flex 当未知属性忽略, 按普通块流
+            //   反而是对的; 补了 DOCTYPE 切到标准模式, flex 生效, 封面就叠成一团了
+            //   (用户实拍: "游泳比赛/成绩册/甘肃省…"三行压在一起, 蓝线从标题中间穿过)。
+            //   所以这里把 flex 全部换成【块流 + 表格】—— 这两样三边都稳。
+            sb.Append(".rb-cover{display:block; min-height:1050px; padding:80px 60px; box-sizing:border-box;} ");
+            sb.Append(".rb-cover .cover-top{display:block; text-align:center; margin-top:40px;} ");
+            sb.Append(".rb-cover .cover-mid{display:block; text-align:center; margin:170px 0 190px;} ");
+            sb.Append(".rb-cover .cover-bot{display:block; border-top:3px solid #1e40af; padding-top:18px;} ");
+            sb.Append(".rb-cover .cover-bot .row{display:block; margin-bottom:4px;} ");
+            sb.Append(".rb-cover .cover-bot .lbl{display:inline-block; width:110px; vertical-align:top; color:#475569; font-weight:bold;} ");
+            sb.Append(".rb-cover .cover-bot .val{display:inline-block; vertical-align:top; color:#0f172a;} ");
+            sb.Append(".toc .row{display:block;} ");
+            // 项目抬头"左边项目名 / 右边日期地点"改用一行两格的表格来两端对齐。
+            // 表格是唯一在 IE / Chrome / Word 里都靠得住的两栏办法; 要去掉 DocCss 给
+            // 所有 td 加的边框, 否则抬头上会凭空多一个框。
+            sb.Append(".event-meta{display:table; width:100%; margin:6px 0; border-collapse:collapse; table-layout:auto;} ");
+            sb.Append(".event-meta td{border:none; padding:2px 0; font-size:14px; color:#475569; vertical-align:bottom;} ");
+            sb.Append(".event-meta .r{text-align:right;} .event-meta .l{text-align:left;} ");
             // 2026-09-03 前三名底色, 与"项目成绩"那张成绩单同款
             sb.Append(".r1{background:#fde68a; font-weight:bold;} .r2{background:#e5e7eb; font-weight:bold;} .r3{background:#fed7aa; font-weight:bold;} ");
             // 体育道德风尚奖的运动员名单分三栏; 老引擎要前缀, 不加就是单栏排下来一长条
             sb.Append(".name-cols{-webkit-column-count:3; -moz-column-count:3; column-count:3;"
                     + " -webkit-column-gap:30px; -moz-column-gap:30px; column-gap:30px;"
                     + " font-size:15px; line-height:2.2; padding:10px 30px;} ");
+
+            // ── 2026-09-04 打印分页改挂在 .page 上 ──────────────────────────────
+            //   原来靠 <div class='page-break'></div> 这个【空 div】+ page-break-before。
+            //   空块高度是 0, IE 的打印引擎直接跳过它 —— "打印"按钮走的正是内嵌 IE
+            //   (doc.execCommand("Print")), 于是分页整个失效: 封面、目录、奖牌榜、
+            //   破纪录表全挤在第一页上(用户实拍)。Chrome 宽容, 从"导出 PDF"看不出来。
+            //   现在把分页挂到【有内容的 .page 本身】, 空 div 藏掉, 两个引擎都认。
+            sb.Append("@media print{ .page-break{display:none;} ");
+            sb.Append("  body > .page{page-break-before:always;} ");
+            sb.Append("  body > .page:first-child{page-break-before:auto;} ");
+            // IE 打印纸面比浏览器窄, 36px 的大标题会折成三行, 把版面顶乱
+            sb.Append("  h1{font-size:24px; letter-spacing:2px; margin:0 0 6px;} ");
+            sb.Append("  h2{font-size:17px; letter-spacing:6px; margin-bottom:16px;} ");
+            sb.Append("  h3{font-size:16px; margin-top:16px;} ");
+            sb.Append("  .rb-cover{min-height:0;} .rb-cover .cover-mid{margin:120px 0 140px;} ");
+            sb.Append("} ");
             sb.Append("</style></head><body>");
             string startDate = GetDatePickerText(StartDatePicker);
             string endDate = GetDatePickerText(EndDatePicker);
@@ -27582,7 +27639,8 @@ namespace SwimmingScoreboard
                 sb.Append("<div class='page-break'></div><div class='page'>");
                 sb.AppendFormat("<h1>{0}</h1>", compName);
                 sb.AppendFormat("<h3><span class='section-tag'>{0}</span>奖牌榜统计</h3>", CnNum(++sectN));
-                sb.Append("<table><thead><tr><th width='60'>排名</th><th>代表队</th><th width='80'>金牌</th><th width='80'>银牌</th><th width='80'>铜牌</th><th width='80'>总计</th></tr></thead><tbody>");
+                sb.Append("<table>" + ColGroup(10, 40, 12.5, 12.5, 12.5, 12.5)
+                    + "<thead><tr><th>排名</th><th>代表队</th><th>金牌</th><th>银牌</th><th>铜牌</th><th>总计</th></tr></thead><tbody>");
                 // 2026-09-03 奖牌统计改走【和名次公告同一份名次】(GetEventFinalRanking = 库里的
                 //   项目名次)。原来这里自己 OrderBy(成绩).Take(3), 有三处不对:
                 //   ① 只按 性别+项目名 分组, 把青年组和少年组的同名项目并成一个项目 ——
@@ -27651,7 +27709,8 @@ namespace SwimmingScoreboard
                     sb.Append("<p style='text-align:center; color:#94a3b8; margin-top:40px;'>本次比赛暂无破纪录记录。</p>");
                 } else {
                     sb.AppendFormat("<p style='text-align:right; color:#475569;'>截至 {0}</p>", DateTime.Now.ToString("yyyy-MM-dd"));
-                    sb.Append("<table><thead><tr><th width='90'>日期</th><th>项目</th><th width='70'>赛次</th><th width='110'>运动员</th><th width='90'>单位</th><th width='90'>成绩</th><th width='60'>标识</th><th width='110'>纪录类型</th></tr></thead><tbody>");
+                    sb.Append("<table>" + ColGroup(11, 22, 7, 12, 11, 10, 6, 21)
+                        + "<thead><tr><th>日期</th><th>项目</th><th>赛次</th><th>运动员</th><th>单位</th><th>成绩</th><th>标识</th><th>纪录类型</th></tr></thead><tbody>");
                     foreach (var r in brokenRows) {
                         sb.AppendFormat("<tr><td>{0}</td><td style='text-align:left;'>{1}{2} {3}</td><td>{4}</td><td>{5}</td><td>{6}</td><td style='font-weight:bold;'>{7}</td><td style='color:#b45309;font-weight:bold;'>{8}</td><td>{9}</td></tr>",
                             System.Net.WebUtility.HtmlEncode(r.Date),
@@ -27683,12 +27742,13 @@ namespace SwimmingScoreboard
                     anyFinals = true;
                     bool nrRelay = (schedItem.EventName ?? "").IndexOf("接力", StringComparison.Ordinal) >= 0;
                     sb.Append("<div style='margin-top:18px; page-break-inside:avoid;'>");
-                    sb.Append("<div class='event-meta'>");
                     string ageHead0 = string.IsNullOrEmpty(schedAge) ? "" : (schedAge + " ");
-                    sb.AppendFormat("<div><b>游泳</b>　　{0}{1} {2}</div>", ageHead0, schedItem.Gender, schedItem.EventName);
-                    sb.AppendFormat("<div>{0} {1}　　{2}</div>", schedItem.Date ?? "", schedItem.Time ?? "", location);
-                    sb.Append("</div>");
-                    sb.Append("<table><thead><tr><th width='60'>名次</th><th width='110'>单位</th><th width='180'>姓名</th><th width='150'>联合培养单位</th><th width='90'>成绩</th><th>教练员</th></tr></thead><tbody>");
+                    sb.AppendFormat("<table class='event-meta'><tr><td class='l'><b>游泳</b>　　{0}{1} {2}</td>"
+                                  + "<td class='r'>{3} {4}　　{5}</td></tr></table>",
+                        ageHead0, schedItem.Gender, schedItem.EventName,
+                        schedItem.Date ?? "", schedItem.Time ?? "", location);
+                    sb.Append("<table>" + ColGroup(8, 15, 22, 18, 12, 25)
+                        + "<thead><tr><th>名次</th><th>单位</th><th>姓名</th><th>联合培养单位</th><th>成绩</th><th>教练员</th></tr></thead><tbody>");
                     foreach (var row in topList) {
                         var sw = row.Swimmer;
                         ResultBookSwimmerInfo info = null;
@@ -27766,11 +27826,11 @@ namespace SwimmingScoreboard
                     //   <div class='page'> 而从不闭合, 一本二十几页的成绩册结尾嵌着十几层 div;
                     //   浏览器靠容错顶着看不出来, 导出 Word / 再加样式就会错位。
                     if (eventBlock > 1) sb.Append("</div><div class='page-break'></div><div class='page'>");
-                    sb.Append("<div class='event-meta'>");
                     string ageHeadFR = string.IsNullOrEmpty(schedAge) ? "" : (schedAge + " ");   // 2026-06-01
-                    sb.AppendFormat("<div><b>游泳</b>　　{0}{1} {2}　　{3}</div>", ageHeadFR, gender, eventName, stage);
-                    sb.AppendFormat("<div>{0} {1}　　{2}</div>", schedItem.Date ?? "", schedItem.Time ?? "", location);
-                    sb.Append("</div>");
+                    sb.AppendFormat("<table class='event-meta'><tr><td class='l'><b>游泳</b>　　{0}{1} {2}　　{3}</td>"
+                                  + "<td class='r'>{4} {5}　　{6}</td></tr></table>",
+                        ageHeadFR, gender, eventName, stage,
+                        schedItem.Date ?? "", schedItem.Time ?? "", location);
 
                     // 项目纪录参考条
                     var refs = LookupRecordReferences(gender, eventName, schedItem.AgeGroup ?? "");
@@ -27835,13 +27895,19 @@ namespace SwimmingScoreboard
                         //   补备注列的原因: 原来 DSQ/DNF/DNS 是直接把状态红字塞进"成绩"列里印的,
                         //   跟真成绩挤在同一列; 项目成绩是成绩留空、判罚进备注 —— 两份文档
                         //   摆在一起对，同一个人一边有"成绩"一边没有。
-                        int rtColW = ffRelay ? 110 : 60;   // 反应时列: 接力展开 N 棒, 宽度加大
-                        sb.Append("<table><thead><tr><th width='50'>名次</th><th width='40'>道次</th><th width='55'>号码</th><th width='100'>运动员</th><th width='80'>单位</th><th width='90'>出生日期</th>");
-                        foreach (var sm in splitMarks) sb.AppendFormat("<th width='60'>{0}m</th>", sm);
-                        sb.Append("<th width='80'>成绩</th>");
-                        if (rb.ShowTimeDifference) sb.Append("<th width='60'>成绩差</th>");
-                        // 备注列要放得下 "Q MR" 这种并排的两个标, 给宽一点
-                        sb.AppendFormat("<th width='{0}'>反应时</th><th width='70'>备注</th>", rtColW);
+                        // 列数会变(分段列 0~N 个、成绩差列可关), 所以列宽按权重动态算成百分比
+                        var colW = new List<double> { 6, 5, 6, 13, 10, 10 };   // 名次 道次 号码 运动员 单位 出生日期
+                        foreach (var sm in splitMarks) colW.Add(8);
+                        colW.Add(11);                                          // 成绩
+                        if (rb.ShowTimeDifference) colW.Add(8);                // 成绩差
+                        colW.Add(ffRelay ? 16 : 8);                            // 反应时(接力要摊开 N 棒)
+                        colW.Add(8);                                           // 备注: 要放得下 "Q MR" 两个标
+                        sb.Append("<table>" + ColGroup(colW.ToArray()));
+                        sb.Append("<thead><tr><th>名次</th><th>道次</th><th>号码</th><th>运动员</th><th>单位</th><th>出生日期</th>");
+                        foreach (var sm in splitMarks) sb.AppendFormat("<th>{0}m</th>", sm);
+                        sb.Append("<th>成绩</th>");
+                        if (rb.ShowTimeDifference) sb.Append("<th>成绩差</th>");
+                        sb.Append("<th>反应时</th><th>备注</th>");
                         sb.Append("</tr></thead><tbody>");
 
                         foreach (var sw in ordered) {
