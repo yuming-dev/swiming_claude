@@ -27484,23 +27484,42 @@ namespace SwimmingScoreboard
 
         private string BuildFullResultBookHtml() {
             var sb = new StringBuilder();
-            sb.AppendFormat("<html><head><meta charset='UTF-8'><style>{0}"
-                + ".medal-gold td:first-child{{color:#d4af37; font-weight:bold;}} "
-                + ".medal-silver td:first-child{{color:#9ca3af; font-weight:bold;}} "
-                + ".medal-bronze td:first-child{{color:#b45309; font-weight:bold;}} "
-                + ".rb-cover .ttl1{{color:#b45309;}} "
-                + ".rb-cover .name{{color:#b45309;}} "
-                + ".records-bar{{background:#fef3c7; border:1px solid #fbbf24; border-radius:4px; padding:6px 12px; margin:8px 0; font-size:13px;}} "
-                + ".records-bar .rec-item{{display:inline-block; margin-right:18px;}} "
-                + ".records-bar b{{color:#b45309;}} "
-                + ".heat-title{{margin-top:14px; padding:6px 10px; background:#fef3c7; font-weight:bold; border-left:4px solid #f59e0b;}} "
-                + ".event-meta{{display:flex; justify-content:space-between; margin:4px 0; font-size:14px; color:#475569;}} "
-                // 2026-09-03 前三名底色, 与"项目成绩"那张成绩单同款
-                + ".r1{{background:#fde68a; font-weight:bold;}} .r2{{background:#e5e7eb; font-weight:bold;}} .r3{{background:#fed7aa; font-weight:bold;}} "
-                + "</style></head><body>", DocCss());
-
             string compName = string.IsNullOrEmpty(_competitionName) ? "游泳比赛" : _competitionName;
             var rb = _resultBook ?? new ResultBookData();
+
+            // 2026-09-04 文档头重做。原来是光秃秃一个 <html><head>, 三个毛病:
+            //   ① 没有 <!DOCTYPE html> —— 浏览器整篇按【怪异模式(quirks)】渲染, 表格列宽、
+            //      盒模型都按上世纪的规则算, 和"成绩单"(已是标准模式)排出来不一样;
+            //   ② 没有 <title> —— 浏览器标签页和打印页眉印的是文件名
+            //      "成绩册_20260904_0817.html", 发出去的正式文件上不该是这个;
+            //   ③ 没有 @page —— 纸张大小和页边距全凭浏览器默认。成绩单在 cc68cba
+            //      已经改成 A4 + 14mm/12mm, 成绩册这条路径一直没跟上。
+            sb.Append("<!DOCTYPE html>");
+            sb.Append("<html lang='zh-CN'><head><meta charset='UTF-8'>");
+            sb.Append("<meta http-equiv='X-UA-Compatible' content='IE=edge'>");
+            sb.AppendFormat("<title>{0} 成绩册</title>", System.Net.WebUtility.HtmlEncode(compName));
+            sb.AppendFormat("<style>{0}", DocCss());
+            sb.Append("@page{ size:A4; margin:14mm 12mm; } ");
+            // 表头跨页重复: 没有它, 一张表被分页切开后, 后半页就是几行没有表头的裸数据
+            // (用户实拍到成绩册第 27、29 页)。要生效, 表头必须真的包在 <thead> 里。
+            sb.Append("thead{display:table-header-group;} tfoot{display:table-footer-group;} ");
+            sb.Append("tr{page-break-inside:avoid;} ");
+            // 一个组的"组标题+成绩表"尽量不要被撕成两半
+            sb.Append(".heat-block{page-break-inside:avoid;} ");
+            sb.Append(".rb-cover .ttl1{color:#b45309;} ");
+            sb.Append(".rb-cover .name{color:#b45309;} ");
+            sb.Append(".records-bar{background:#fef3c7; border:1px solid #fbbf24; border-radius:4px; padding:6px 12px; margin:8px 0; font-size:13px;} ");
+            sb.Append(".records-bar .rec-item{display:inline-block; margin-right:18px;} ");
+            sb.Append(".records-bar b{color:#b45309;} ");
+            sb.Append(".heat-title{margin-top:14px; padding:6px 10px; background:#fef3c7; font-weight:bold; border-left:4px solid #f59e0b;} ");
+            sb.Append(".event-meta{display:flex; justify-content:space-between; margin:4px 0; font-size:14px; color:#475569;} ");
+            // 2026-09-03 前三名底色, 与"项目成绩"那张成绩单同款
+            sb.Append(".r1{background:#fde68a; font-weight:bold;} .r2{background:#e5e7eb; font-weight:bold;} .r3{background:#fed7aa; font-weight:bold;} ");
+            // 体育道德风尚奖的运动员名单分三栏; 老引擎要前缀, 不加就是单栏排下来一长条
+            sb.Append(".name-cols{-webkit-column-count:3; -moz-column-count:3; column-count:3;"
+                    + " -webkit-column-gap:30px; -moz-column-gap:30px; column-gap:30px;"
+                    + " font-size:15px; line-height:2.2; padding:10px 30px;} ");
+            sb.Append("</style></head><body>");
             string startDate = GetDatePickerText(StartDatePicker);
             string endDate = GetDatePickerText(EndDatePicker);
             string location = LocationBox.Text ?? "";
@@ -27563,7 +27582,7 @@ namespace SwimmingScoreboard
                 sb.Append("<div class='page-break'></div><div class='page'>");
                 sb.AppendFormat("<h1>{0}</h1>", compName);
                 sb.AppendFormat("<h3><span class='section-tag'>{0}</span>奖牌榜统计</h3>", CnNum(++sectN));
-                sb.Append("<table><tr align='center'><th width='60'>排名</th><th>代表队</th><th width='80'>金牌</th><th width='80'>银牌</th><th width='80'>铜牌</th><th width='80'>总计</th></tr>");
+                sb.Append("<table><thead><tr><th width='60'>排名</th><th>代表队</th><th width='80'>金牌</th><th width='80'>银牌</th><th width='80'>铜牌</th><th width='80'>总计</th></tr></thead><tbody>");
                 // 2026-09-03 奖牌统计改走【和名次公告同一份名次】(GetEventFinalRanking = 库里的
                 //   项目名次)。原来这里自己 OrderBy(成绩).Take(3), 有三处不对:
                 //   ① 只按 性别+项目名 分组, 把青年组和少年组的同名项目并成一个项目 ——
@@ -27595,7 +27614,7 @@ namespace SwimmingScoreboard
                         row, mDispRank, m.Key, m.Value[0], m.Value[1], m.Value[2], m.Value[0] + m.Value[1] + m.Value[2]);
                 }
                 if (sortedMedals.Count == 0) sb.Append("<tr><td colspan='6' style='color:#94a3b8;'>暂无决赛成绩</td></tr>");
-                sb.Append("</table>");
+                sb.Append("</tbody></table>");
                 sb.Append("</div>");
             }
 
@@ -27610,7 +27629,7 @@ namespace SwimmingScoreboard
                     sb.Append("</div>");
                 }
                 if (rb.SportsAthletes.Count > 0) {
-                    sb.Append("<h4>运动员</h4><div style='font-size:15px; line-height:2.2; padding:10px 30px; column-count:3; column-gap:30px;'>");
+                    sb.Append("<h4>运动员</h4><div class='name-cols'>");
                     foreach (var n in rb.SportsAthletes) sb.AppendFormat("<div>{0}</div>", System.Net.WebUtility.HtmlEncode(n));
                     sb.Append("</div>");
                 }
@@ -27632,7 +27651,7 @@ namespace SwimmingScoreboard
                     sb.Append("<p style='text-align:center; color:#94a3b8; margin-top:40px;'>本次比赛暂无破纪录记录。</p>");
                 } else {
                     sb.AppendFormat("<p style='text-align:right; color:#475569;'>截至 {0}</p>", DateTime.Now.ToString("yyyy-MM-dd"));
-                    sb.Append("<table><tr align='center'><th width='90'>日期</th><th>项目</th><th width='70'>赛次</th><th width='110'>运动员</th><th width='90'>单位</th><th width='90'>成绩</th><th width='60'>标识</th><th width='110'>纪录类型</th></tr>");
+                    sb.Append("<table><thead><tr><th width='90'>日期</th><th>项目</th><th width='70'>赛次</th><th width='110'>运动员</th><th width='90'>单位</th><th width='90'>成绩</th><th width='60'>标识</th><th width='110'>纪录类型</th></tr></thead><tbody>");
                     foreach (var r in brokenRows) {
                         sb.AppendFormat("<tr><td>{0}</td><td style='text-align:left;'>{1}{2} {3}</td><td>{4}</td><td>{5}</td><td>{6}</td><td style='font-weight:bold;'>{7}</td><td style='color:#b45309;font-weight:bold;'>{8}</td><td>{9}</td></tr>",
                             System.Net.WebUtility.HtmlEncode(r.Date),
@@ -27644,7 +27663,7 @@ namespace SwimmingScoreboard
                             System.Net.WebUtility.HtmlEncode(r.Tag),
                             System.Net.WebUtility.HtmlEncode(r.RecordType));
                     }
-                    sb.Append("</table>");
+                    sb.Append("</tbody></table>");
                 }
                 sb.Append("</div>");
             }
@@ -27669,7 +27688,7 @@ namespace SwimmingScoreboard
                     sb.AppendFormat("<div><b>游泳</b>　　{0}{1} {2}</div>", ageHead0, schedItem.Gender, schedItem.EventName);
                     sb.AppendFormat("<div>{0} {1}　　{2}</div>", schedItem.Date ?? "", schedItem.Time ?? "", location);
                     sb.Append("</div>");
-                    sb.Append("<table><tr align='center'><th width='60'>名次</th><th width='110'>单位</th><th width='180'>姓名</th><th width='150'>联合培养单位</th><th width='90'>成绩</th><th>教练员</th></tr>");
+                    sb.Append("<table><thead><tr><th width='60'>名次</th><th width='110'>单位</th><th width='180'>姓名</th><th width='150'>联合培养单位</th><th width='90'>成绩</th><th>教练员</th></tr></thead><tbody>");
                     foreach (var row in topList) {
                         var sw = row.Swimmer;
                         ResultBookSwimmerInfo info = null;
@@ -27711,7 +27730,7 @@ namespace SwimmingScoreboard
                             row.TimeText,
                             System.Net.WebUtility.HtmlEncode(coach));
                     }
-                    sb.Append("</table></div>");
+                    sb.Append("</tbody></table></div>");
                 }
                 if (!anyFinals) sb.Append("<p style='text-align:center; color:#94a3b8; margin-top:30px;'>暂无决赛排名数据。</p>");
                 sb.Append("</div>");
@@ -27802,6 +27821,9 @@ namespace SwimmingScoreboard
                             s => { var lr = s.GetResultForStage(stage); return lr != null ? lr.Lane : s.Lane; });
                         if (ordered.Count == 0) continue;
                         bool showHeat = (heatNumbers.Count > 1) || (stage ?? "").Contains("预赛") || (stage ?? "").Contains("半决赛");
+                        // 2026-09-04 组标题和它那张表包在 .heat-block 里, 分页时尽量不拆开 ——
+                        //   原来能出现"组标题落在上一页页脚、表格从下一页开头起"的样子。
+                        sb.Append("<div class='heat-block'>");
                         if (showHeat) {
                             sb.AppendFormat("<div class='heat-title'>{0}第{1}组，共{2}组</div>", stage, heat, heatNumbers.Count);
                         } else {
@@ -27814,12 +27836,13 @@ namespace SwimmingScoreboard
                         //   跟真成绩挤在同一列; 项目成绩是成绩留空、判罚进备注 —— 两份文档
                         //   摆在一起对，同一个人一边有"成绩"一边没有。
                         int rtColW = ffRelay ? 110 : 60;   // 反应时列: 接力展开 N 棒, 宽度加大
-                        sb.Append("<table><tr align='center'><th width='50'>名次</th><th width='40'>道次</th><th width='55'>号码</th><th width='100'>运动员</th><th width='80'>单位</th><th width='90'>出生日期</th>");
+                        sb.Append("<table><thead><tr><th width='50'>名次</th><th width='40'>道次</th><th width='55'>号码</th><th width='100'>运动员</th><th width='80'>单位</th><th width='90'>出生日期</th>");
                         foreach (var sm in splitMarks) sb.AppendFormat("<th width='60'>{0}m</th>", sm);
                         sb.Append("<th width='80'>成绩</th>");
                         if (rb.ShowTimeDifference) sb.Append("<th width='60'>成绩差</th>");
-                        sb.AppendFormat("<th width='{0}'>反应时</th><th width='55'>备注</th>", rtColW);
-                        sb.Append("</tr>");
+                        // 备注列要放得下 "Q MR" 这种并排的两个标, 给宽一点
+                        sb.AppendFormat("<th width='{0}'>反应时</th><th width='70'>备注</th>", rtColW);
+                        sb.Append("</tr></thead><tbody>");
 
                         foreach (var sw in ordered) {
                             var r = sw.GetResultForStage(stage);
@@ -27878,12 +27901,11 @@ namespace SwimmingScoreboard
                             // 2026-09-03 判罚/弃权: 成绩列留空, 状态改由"备注"列印(同项目成绩)。
                             //   试游 TRI 照常显成绩。
                             string finalText = dq ? "" : (r.FinalTime > 0 ? TimeFormatter.Format(r.FinalTime) : "");
-                            // 破/平纪录用金色标签紧跟成绩后（FINA 惯例：成绩后接 WR/=AR 等）
-                            //   试游不算破纪录, 不带标
-                            string recTag = (!dq && !isTri && r != null && !string.IsNullOrEmpty(r.RecordNote))
-                                ? string.Format(" <span style='color:#b45309;font-weight:bold;'>{0}</span>", System.Net.WebUtility.HtmlEncode(r.RecordNote))
-                                : "";
-                            sb.AppendFormat("<td style='font-weight:bold;'>{0}{1}</td>", finalText, recTag);
+                            // 2026-09-04 成绩列只放成绩。破/平纪录标识(MR/=MR)改进"备注"列 ——
+                            //   用户要求, 也与"项目成绩"一致(它的备注就是库里那一列,
+                            //   优先级 判罚 → 晋级 Q/R → 纪录)。原来跟在成绩后面, 成绩列
+                            //   变成"1:16.41 MR"两样东西挤一格。
+                            sb.AppendFormat("<td style='font-weight:bold;'>{0}</td>", finalText);
                             if (rb.ShowTimeDifference) {
                                 // 基准是本项目第 1 名(evLeaderTime), 不是本组最快; 试游不参与
                                 string diff = "";
@@ -27891,12 +27913,21 @@ namespace SwimmingScoreboard
                                     diff = (r.FinalTime - evLeaderTime).ToString("F2");
                                 sb.AppendFormat("<td>{0}</td>", diff);
                             }
-                            // 备注: 判罚/试游红字、晋级 Q 绿字 —— 与其它打印路径共用同一个渲染器
+                            // 备注: 判罚/试游红字、晋级 Q 绿字(共用 RenderRemarkCellHtml),
+                            //   再接破/平纪录金字。三者都有时并排显示(如 "Q MR"), 不互相顶掉 ——
+                            //   成绩册是存档件, 破纪录这条不能因为同时晋级就丢了。
+                            //   试游不算破纪录, 不带标。
+                            string remarkCell = RenderRemarkCellHtml(sw, r, stage);
+                            if (!dq && !isTri && r != null && !string.IsNullOrEmpty(r.RecordNote)) {
+                                string mrHtml = string.Format("<span style='color:#b45309;font-weight:bold;'>{0}</span>",
+                                    System.Net.WebUtility.HtmlEncode(r.RecordNote));
+                                remarkCell = string.IsNullOrEmpty(remarkCell) ? mrHtml : (remarkCell + " " + mrHtml);
+                            }
                             sb.AppendFormat("<td style='font-size:12px;'>{0}</td><td>{1}</td>",
-                                reactionCell, RenderRemarkCellHtml(sw, r, stage));
+                                reactionCell, remarkCell);
                             sb.Append("</tr>");
                         }
-                        sb.Append("</table>");
+                        sb.Append("</tbody></table></div>");   // </div> = .heat-block
                     }
                 }
                 sb.Append("</div>");
