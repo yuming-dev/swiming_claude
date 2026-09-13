@@ -199,7 +199,7 @@ namespace SwimmingScoreboard
         // 用处: 页面里有同名常量, 对不上就在页面顶端挂红条、并在主服务器系统日志里
         // 记一行。协议是 exe 和页面一起改的(比赛日志增量、设备状态推送、DATA_CHANGED),
         // 只换一半会出现"设备状态灯和比赛日志不刷新"这种看不出根由的毛病。
-        public const string WEB_ASSET_VERSION = "20260913-2";
+        public const string WEB_ASSET_VERSION = "20260913-3";
 
         private const int MAX_LANE_EVENT_LOG = 64 * 1024;
         private static void TrimSbIfOver(StringBuilder sb, int maxLen) {
@@ -500,6 +500,9 @@ namespace SwimmingScoreboard
             _initialized = true;
             // 2026-09-13 右侧"运动员注册"面板按当前页决定显不显示(默认落在"赛事概览", 所以是隐藏)
             try { UpdateAthleteRegPanelVisibility(); } catch { }
+            // 2026-09-13 开机就把控制模式算一次 —— 原来只在"有客户端连上本机"时才算,
+            //   RTC 的客户端连的是主服务器, 于是 RTC 顶栏一直显示"本地"(实际是它在控制)
+            try { UpdateScoringControlMode(); } catch { }
             RefreshBackupList();
             UpdateEditHeatCombo();
             UpdateResultHeatCombo();
@@ -1539,6 +1542,23 @@ namespace SwimmingScoreboard
             try {
                 var msg = JObject.Parse(message);
                 string type = msg["type"] != null ? msg["type"].ToString() : "";
+
+                // ── 2026-09-13 EXE 接管时, 网页端这几条【会动硬件的】一律不收 ────────
+                //   TIMING_CMD 里那些就位/发令/判罚在 HandleTimingCommand 里另挡;
+                //   这里挡的是绕开 TIMING_CMD 直接发的两条 —— 尤其 CONNECT_HW:
+                //   比赛中从网页上把计时硬件断开, 后果比按错发令键还严重。
+                if (socket != null && IsRaceControlTakenByExe() && _timingWebSockets.Contains(socket)) {
+                    if (type == "CONNECT_HW" || type == "DEVICE_OVERRIDE") {
+                        AddLog("比赛控制在 EXE 手里, 拒绝网页端: " + type);
+                        try {
+                            EnqueueToSocket(socket, Newtonsoft.Json.JsonConvert.SerializeObject(new {
+                                type = "TIMING_CMD_REJECTED", command = type,
+                                reason = "比赛控制程序(EXE)正在接管 —— 硬件和计时请在那台机器上操作"
+                            }));
+                        } catch { }
+                        return;
+                    }
+                }
 
                 switch (type) {
                     case "DISPLAY_IDENTITY":
@@ -3869,7 +3889,16 @@ namespace SwimmingScoreboard
                 //2026-05-19 把硬件电池电压推给客户端 (race_control.html 顶栏显示).
                 // 30 秒内有效, 否则按 0 处理(客户端不显示).
                 hwBatteryVoltage = (_hwBatteryVoltage > 0 && (DateTime.Now - _hwBatteryReceivedAt).TotalSeconds < 30) ? _hwBatteryVoltage : 0.0,
-                scoringControlMode = _scoringControlMode,
+                // ── 2026-09-13 【现算, 不用缓存那个字段】────────────────────────
+                //   _scoringControlMode 只在"有客户端连上/断开本机服务器"时才更新
+                //   (UpdateScoringControlMode 的三个调用点)。而 RTC 的客户端是连
+                //   【主服务器】的, 没人连 RTC 自己 —— 于是 RTC 那个字段【从开机起
+                //   一直是 "local"】, 它转发出去的每一帧都在说"控制权在本地",
+                //   比赛控制网页收到就把自己解禁了。
+                //   现象正是: EXE 上一改比赛项目(触发一次 RTC 广播), 网页就解禁一次;
+                //   主服务器自己的帧又说 remote_exe, 于是两边来回打架。
+                //   改成发的时候现算 —— 谁发的帧都说同一句话。
+                scoringControlMode = IsRaceControlTakenByExe() ? "remote_exe" : _scoringControlMode,
                 resultConfirmed = _resultConfirmed,
                 // 软件设置的组别/项目/性别/赛次列表 — 用于网页报名/检录端动态填充下拉
                 ageGroups = _ageGroups.Take(staticN).Select(g => g.Name).ToList(),

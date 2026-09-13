@@ -941,7 +941,7 @@ function connect() {
 // 只换一半会出现"设备状态灯和比赛日志不刷新"这种看不出根由的毛病, 所以对不上
 // 就在页顶挂红条, 顺带连上时报给主服务器, 让系统日志里也留一行。
 // 【改了本页就把这个日期跟 MainWindow.WEB_ASSET_VERSION 一起往后挪】
-var PAGE_VER = '20260913-2';
+var PAGE_VER = '20260913-3';
 var PAGE_NAME = 'race_control.html';
 function reportPageVer(sock) {
     try { sock.send(JSON.stringify({type: 'CLIENT_VERSION', page: PAGE_NAME, ver: PAGE_VER})); } catch (e) {}
@@ -995,6 +995,8 @@ function checkPageVer(serverVer) {
         // 服务端硬拦的回执 —— 旧页面/缓存绕过前端置灰时, 这条保证操作员看得到原因
         if (msg.type === 'TIMING_CMD_REJECTED') {
             addLog('命令被服务器拒绝(' + (msg.command || '') + '): ' + (msg.reason || ''));
+            // 拒绝理由里点名 EXE 的, 顺手把本页锁上 —— 不等下一帧, 免得再按第二下
+            if ((msg.reason || '').indexOf('EXE') >= 0) applyCtrlLock('remote_exe');
             alert('命令没有执行。\n\n原因：' + (msg.reason || '服务器拒绝'));
             return;
         }
@@ -2016,6 +2018,8 @@ function connectHwFromDialog() {
         payload.port = parseInt(document.getElementById('dlgHwTcpPort').value) || 5555;
     }
     if (!ws || ws.readyState !== 1) { alert('请先连接服务器'); return; }
+    // 2026-09-13 EXE 接管时不许从网页动硬件(服务端也硬拦一道)
+    if (_ctrlLockedByExe) { alert('比赛控制程序(EXE)正在接管，硬件请在那台机器上连接。'); return; }
     ws.send(JSON.stringify({ type: 'CONNECT_HW', data: payload }));
     document.getElementById('dlgHwStatus').textContent = '● 连接中...';
     document.getElementById('dlgHwStatus').style.color = '#F59E0B';
@@ -2023,6 +2027,8 @@ function connectHwFromDialog() {
 
 function disconnectHw() {
     if (!ws || ws.readyState !== 1) return;
+    // 2026-09-13 比赛中从网页上把计时硬件断开, 后果比按错发令键还严重
+    if (_ctrlLockedByExe) { alert('比赛控制程序(EXE)正在接管，硬件请在那台机器上操作。'); return; }
     ws.send(JSON.stringify({ type: 'CONNECT_HW', data: { mode: 'disconnect' } }));
     document.getElementById('dlgHwStatus').textContent = '● 已断开';
     document.getElementById('dlgHwStatus').style.color = '#94A3B8';
