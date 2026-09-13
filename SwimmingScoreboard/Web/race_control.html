@@ -985,6 +985,16 @@ function connect() {
         //   比赛中 100ms 一帧 —— 越比越肥, 正是"内存涨几个 G"的那副形状。
         //   现在每条事件只推 70 字节, 客户端自己往后接; 10 秒一次的完整帧仍带全量,
         //   断线重连或漏帧都能对齐。
+        // 2026-09-13 服务器不再每 10 秒定时重发 278KB 完整包 —— 数据真变了只吭一声,
+        //   本页的赛程/名单面板一直开着, 所以收到就去取一次(1.5 秒内不重复取)。
+        if (msg.type === 'DATA_CHANGED') {
+            var _now = Date.now();
+            if (!window._rcPullAt || _now - window._rcPullAt > 1500) {
+                window._rcPullAt = _now;
+                try { ws.send(JSON.stringify({type: 'REQUEST_FULL_STATUS'})); } catch (e) {}
+            }
+            return;
+        }
         // 2026-09-13 设备状态改走"变一次推一次"。原来每帧重发 10 道 × 23 个布尔,
         //   而故障状态一整场也变不了几次。实时性不降反升: 状态一变立刻到, 不用等下一帧。
         if (msg.type === 'DEVICE_STATES_UPDATE') {

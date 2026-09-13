@@ -368,6 +368,14 @@ function connect() {
                 handleRelayQueryResult(msg.data);
             } else if (msg.type === 'SHOW_LIVE_RACE' && msg.data) {
                 applyServerConfig(msg.data);
+            } else if (msg.type === 'DATA_CHANGED') {
+                // 2026-09-13 服务器不再定时重发整包了, 变了才吭一声。
+                //   本页只用组别/项目/性别那几个下拉, 收到就去取一次新的。
+                var _n = Date.now();
+                if (!window._regPullAt || _n - window._regPullAt > 2000) {
+                    window._regPullAt = _n;
+                    try { ws.send(JSON.stringify({type: 'REQUEST_FULL_STATUS'})); } catch (e) {}
+                }
             }
         } catch(ex) {}
     };

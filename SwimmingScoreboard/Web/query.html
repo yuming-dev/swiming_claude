@@ -735,8 +735,20 @@ function connect() {
         //   旧代码 `if (msg.data) { data = msg.data }` 会把整个 data 替换成 stub,
         //   schedule / allSwimmers 全丢, 导致整页闪烁 + 选不到组次/成绩.
         //   查询页不需要滚动时间, 也不用 STAGE_COMPLETE / PROMOTION_DONE 等局部消息, 全忽略.
+        // 2026-09-13 服务器不再每 10 秒定时重发 278KB 完整包了 ——
+        //   数据真变了只吭一条几十字节的 DATA_CHANGED, 本页【要用的时候】再去取一次。
+        //   页面放在后台没人看时, 这一路一个字节都不走。
+        if (msg.type === 'DATA_CHANGED') {
+            _dataStale = true;
+            setConnUI('已连接 ' + host + '（数据有更新）', true);
+            // 正开着页面在看 → 立刻取; 在后台 → 等切回来/下次查询再取
+            if (document.visibilityState !== 'hidden') requestFreshData();
+            return;
+        }
         if (msg.type === 'SHOW_LIVE_RACE' && msg.data) {
             data = msg.data;
+            _dataStale = false;
+            setConnUI('已连接 ' + host, true);
             applyStatusData(data);
         }
     };
@@ -855,7 +867,24 @@ document.querySelectorAll('.nav-item').forEach(function(it) {
         currentPage = p;
         var el = $('page-' + p); if (el) el.classList.add('active');
         renderPage(p);
+        // 2026-09-13 切到哪一页就在那一刻取一次新数据(如果服务器说变过了)
+        if (_dataStale) requestFreshData();
     });
+});
+
+// 2026-09-13 服务器说数据变了, 但本页可能正放在后台 —— 标一下, 要用的时候再取。
+var _dataStale = false;
+var _pullAt = 0;
+function requestFreshData() {
+    if (!connected || !ws || ws.readyState !== 1) return;
+    var now = Date.now();
+    if (now - _pullAt < 1500) return;      // 编排端连着改时别一秒取十次
+    _pullAt = now;
+    try { ws.send(JSON.stringify({type: 'REQUEST_FULL_STATUS'})); } catch (e) {}
+}
+// 从后台切回来时补一次
+document.addEventListener('visibilitychange', function() {
+    if (document.visibilityState !== 'hidden' && _dataStale) requestFreshData();
 });
 
 function renderAll() {

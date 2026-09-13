@@ -1581,6 +1581,11 @@ namespace SwimmingScoreboard
                     case "EDITOR_PULL_PACKAGE":
                         SendEditorPackageTo(socket);
                         break;
+                    // 2026-09-13 完整状态包改成"要才给" —— 客户端收到 DATA_CHANGED
+                    //   或者自己需要时来取一次, 服务器不再每 10 秒定时重发 278KB。
+                    case "REQUEST_FULL_STATUS":
+                        BroadcastSingle(socket);
+                        break;
                     case "EDITOR_PUSH_PACKAGE":
                         HandleEditorPushPackage(socket, msg);
                         break;
@@ -3222,10 +3227,12 @@ namespace SwimmingScoreboard
             if (full) _lastFullBroadcast = DateTime.Now;
 
             // RTC 模式: GetStatusData 在 UI 线程取快照, 通过主服务器转发
+            // 2026-09-13 同样只发精简帧。新客户端接进来时由主服务器用自己那份
+            //   完整数据兜底(BroadcastSingle) —— 静态部分主服务器手里就是权威的,
+            //   实况字段下一帧(100ms)就到, 不需要 RTC 定时重发 278KB。
             if (IsRemoteTimingControlMode) {
                 try {
-                    var msg = full ? new { type = "SHOW_LIVE_RACE",      data = GetStatusData(true) }
-                                   : new { type = "SHOW_LIVE_RACE_LITE", data = GetStatusData(false) };
+                    var msg = new { type = "SHOW_LIVE_RACE_LITE", data = GetStatusData(false) };
                     TryForwardToMainServer(msg);
                 } catch { }
                 return;
@@ -3248,11 +3255,36 @@ namespace SwimmingScoreboard
 
                 var others = _allSockets.Where(s => !displays.Contains(s)).ToList();
                 if (others.Count > 0) {
-                    var msg = full ? new { type = "SHOW_LIVE_RACE",      data = GetStatusData(true) }
-                                   : new { type = "SHOW_LIVE_RACE_LITE", data = GetStatusData(false) };
+                    // 2026-09-13 【整包不再按时间片发】
+                    //   原来每 10 秒给非大屏客户端发一次 278KB 的完整包, 理由是"它们还没
+                    //   迁到精简帧"。可整场下来那 278KB 里绝大多数字节从来没变过 ——
+                    //   一场三小时的比赛光这一路就是上百 MB, 纯属定时重发。
+                    //   现在: 这一路永远只发精简帧; 完整包改成【要才给】——
+                    //     · 新客户端连上时发一次(OnOpen → BroadcastSingle)
+                    //     · 数据真变了发一条几十字节的 DATA_CHANGED 通知
+                    //     · 客户端需要时发 REQUEST_FULL_STATUS 来取
+                    //   比赛中没人改数据, 这一路就是彻底的零流量。
+                    var msg = new { type = "SHOW_LIVE_RACE_LITE", data = GetStatusData(false) };
                     // 2026-06-18 per-socket 队列, 序列化在主线程做一次, 入队 microsec 级
                     string json = JsonConvert.SerializeObject(msg);
                     foreach (var s in others) EnqueueToSocket(s, json);
+                }
+            } catch { }
+        }
+
+        // ── 2026-09-13 "数据变了"通知 (几十字节) ───────────────────────
+        // 完整包不再定时重发, 改成: 数据真变了才吭一声, 客户端要用的时候自己来取
+        // (REQUEST_FULL_STATUS)。查询页放在后台没人看时, 这一路一个字节都不走。
+        private void PushDataChanged(string what) {
+            if (!_initialized) return;
+            try {
+                if (_allSockets.Count == 0) return;
+                var msg = new { type = "DATA_CHANGED", what = what ?? "" };
+                string json = JsonConvert.SerializeObject(msg);
+                var displays = _displaySockets.ToList();
+                foreach (var s in _allSockets.ToList()) {
+                    if (displays.Contains(s)) continue;   // 大屏有自己的专用包, 不用管
+                    EnqueueToSocket(s, json);
                 }
             } catch { }
         }
@@ -10657,6 +10689,7 @@ namespace SwimmingScoreboard
                 else { try { BuildScheduleTree(); } catch { } }
                 Broadcast();                // 100ms 批量去抖, 大屏那一路不受影响
             } finally { _patchInFlight = false; }
+            PushDataChanged("assign");      // 2026-09-13 吭一声, 查询页要用时自己来取
         }
 
         // ── 编排改动收尾: 落盘 + 用补丁同步给对端(不推整包) ─────────────
@@ -10871,6 +10904,7 @@ namespace SwimmingScoreboard
                 Broadcast();
             } finally { _patchInFlight = false; }
             ResetRecordsBaseline();   // 2026-09-12 远端改过了, 基准线跟着走
+            PushDataChanged("records");
             AddLog(string.Format("【纪录补丁】改 {0} 条, 删 {1} 条", up, del));
             return true;
         }
@@ -23594,6 +23628,7 @@ namespace SwimmingScoreboard
                     });
                 }
             } else {
+                PushDataChanged("meet");    // 2026-09-13 本机数据变了, 通知非大屏客户端(几十字节)
                 if (_editorSockets.Count > 0) {
                     try {
                         var pkg = BuildCurrentPackage();
