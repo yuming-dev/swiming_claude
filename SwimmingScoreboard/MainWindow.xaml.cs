@@ -958,8 +958,8 @@ namespace SwimmingScoreboard
                 //   不要整包 —— 整包会把正在看的这份数据整批换掉。
                 if (type == "EDITOR_PATCH") {
                     string perr;
-                    if (ApplyMergePatch(msg, out perr)) AddLog("已应用主服务器转来的并组补丁");
-                    else AddLog("主服务器转来的并组补丁没能应用: " + perr);
+                    if (ApplyPatch(msg, out perr)) AddLog("已应用主服务器转来的补丁");
+                    else AddLog("主服务器转来的补丁没能应用: " + perr);
                     return;
                 }
                 if (type == "EDITOR_PACKAGE") {
@@ -9785,29 +9785,35 @@ namespace SwimmingScoreboard
         // 注意别和上面的 NextLiveHeat 混了: 那个 "Live" 说的是"没被取消",
         // 这里的 Racing 说的是"正在比"。
         /// <summary>这一组动不得的原因; 动得了返回 null。</summary>
-        private string RacingHeatWhy(string ageGroup, string gender, string eventName, string stage, int heat) {
+        private string HeatLockedWhy(string ageGroup, string gender, string eventName, string stage, int heat) {
             if (heat <= 0) return null;
+            // 2026-09-12 【已完赛的组不在编辑范围】—— 定下来的规矩。
+            //   成绩确认过、公告贴出去了, 这会儿再动分组或道次, 成绩就挂到别人身上。
+            //   这一条两端都认(不像下面那些计时状态只有主服务器说了算):
+            //   IsHeatConfirmed 读的是 _confirmedHeats + 全员有成绩, 而 _confirmedHeats
+            //   跟着整包同步, 编排端手里那份是准的。
+            if (IsHeatConfirmed(ageGroup, gender, eventName, stage, heat)) return "已完赛(成绩已确认)";
             // 编排端自己不计时 —— 它那份 _raceState/_resultConfirmed 是跟着整包同步过来的影子,
             // 拿它拦人会误伤(主服务器早确认完了, 编排端这边还是"未确认")。
             // 编排端一律交给主服务器判: 补丁发过去, 真撞上正在比的组会被明确回绝。
             if (IsScheduleEditorMode) return null;
             // RTC 当主控时主服务器自己是空闲的, 得看计时端开着哪一组 (见 NoteRtcRaceState)
-            if (IsRtcBusyHeat(ageGroup, gender, eventName, stage, heat)) return "计时端(RTC)正开着这一组";
+            if (IsRtcBusyHeat(ageGroup, gender, eventName, stage, heat)) return "计时端(RTC)正开着它";
             if (_currentHeat != heat) return null;
             if (!SameLoadedEvent(ageGroup, gender, eventName, stage)) return null;
-            if (_raceState == RaceState.Ready) return "这一组已就位, 随时可能发令";
-            if (_raceState == RaceState.Racing) return "这一组正在计时";
+            if (_raceState == RaceState.Ready) return "已就位, 随时可能发令";
+            if (_raceState == RaceState.Racing) return "正在计时";
             if (_resultConfirmed) return null;
             foreach (var sw in GetCurrentHeatSwimmers()) {
                 var r = sw.Results.FirstOrDefault(x => x.Stage == _currentStage && x.Heat == _currentHeat);
                 if (r != null && (r.FinalTime > 0 || !string.IsNullOrEmpty(r.Status)))
-                    return "这一组成绩已录入, 还没点「确认本组成绩」";
+                    return "成绩已录入, 还没点「确认本组成绩」";
             }
             return null;
         }
 
-        private bool IsRacingHeat(string ageGroup, string gender, string eventName, string stage, int heat) {
-            return RacingHeatWhy(ageGroup, gender, eventName, stage, heat) != null;
+        private bool IsHeatLocked(string ageGroup, string gender, string eventName, string stage, int heat) {
+            return HeatLockedWhy(ageGroup, gender, eventName, stage, heat) != null;
         }
 
         // ── RTC(计时端)正开着哪一组 ─────────────────────────────── 2026-09-12
@@ -9862,23 +9868,60 @@ namespace SwimmingScoreboard
         }
 
         /// <summary>正在比的那一组 → 弹窗 + 记日志, 返回 true 表示已拦下。</summary>
-        private bool BlockIfRacingHeat(string ageGroup, string gender, string eventName, string stage,
+        private bool BlockIfHeatLocked(string ageGroup, string gender, string eventName, string stage,
                                        int heat, string actionLabel) {
-            string why = RacingHeatWhy(ageGroup, gender, eventName, stage, heat);
+            string why = HeatLockedWhy(ageGroup, gender, eventName, stage, heat);
             if (why == null) return false;
             MessageBox.Show(string.Format(
-                "第{0}组现在不能{1}。\n\n原因: {2}。\n\n别的项目、别的组照常可以改 —— 锁着的只有正在比的这一组。",
-                heat, actionLabel, why), "这一组正在比", MessageBoxButton.OK, MessageBoxImage.Warning);
-            AddLog(string.Format("【拦下】第{0}组正在比({1}), 拒绝{2}", heat, why, actionLabel));
+                "第{0}组现在不能{1}。\n\n原因: 这一组{2}。\n\n别的项目、别的组照常可以改 —— 锁着的只有正在比和已完赛的组。",
+                heat, actionLabel, why), "这一组动不得", MessageBoxButton.OK, MessageBoxImage.Warning);
+            AddLog(string.Format("【拦下】第{0}组{1}, 拒绝{2}", heat, why, actionLabel));
             return true;
         }
 
         /// <summary>不弹窗的版本, 给远端补丁和 ApplyMergeHeats 用 —— 原因写进 reason。</summary>
-        private bool RacingHeatReason(string ageGroup, string gender, string eventName, string stage,
+        private bool HeatLockedReason(string ageGroup, string gender, string eventName, string stage,
                                       int heat, out string reason) {
-            string why = RacingHeatWhy(ageGroup, gender, eventName, stage, heat);
+            string why = HeatLockedWhy(ageGroup, gender, eventName, stage, heat);
             reason = why == null ? null : string.Format("第{0}组动不了: {1}", heat, why);
             return why != null;
+        }
+
+        // 整项重排(手动分组 / 追加分组)之前用: 这一项这一赛次里只要有一个组锁着,
+        // 整项就不能重排 —— 重排会把所有人的组次道次重来一遍, 锁着的那组也跑不掉。
+        private string EventLockedWhy(string ageGroup, string gender, string eventName, string stage,
+                                      out int lockedHeat) {
+            lockedHeat = 0;
+            var heats = new HashSet<int>();
+            var sched = FindScheduleItem(ageGroup, gender, eventName, stage);
+            if (sched != null) for (int h = 1; h <= sched.HeatCount; h++) heats.Add(h);
+            bool isRelay = eventName != null && eventName.Contains("接力");
+            foreach (var s in _swimmers) {
+                if (s == null || s.EventName != eventName) continue;
+                if (!MatchesAgeGroup(s, ageGroup) || !SgMatch(s.Gender, gender)) continue;
+                if (isRelay && !string.IsNullOrEmpty(s.Notes) && s.Notes.StartsWith("接力队员")) continue;
+                var sa = s.GetAssignmentForStage(stage);
+                int h = (sa != null && sa.Heat > 0) ? sa.Heat : (s.CurrentStage == stage ? s.Heat : 0);
+                if (h > 0) heats.Add(h);
+            }
+            foreach (int h in heats) {
+                string why = HeatLockedWhy(ageGroup, gender, eventName, stage, h);
+                if (why != null) { lockedHeat = h; return why; }
+            }
+            return null;
+        }
+
+        private bool BlockIfEventLocked(string ageGroup, string gender, string eventName, string stage,
+                                        string actionLabel) {
+            int h;
+            string why = EventLockedWhy(ageGroup, gender, eventName, stage, out h);
+            if (why == null) return false;
+            MessageBox.Show(string.Format(
+                "{0} {1} {2} 现在不能{3}。\n\n原因: 第{4}组{5}。\n\n整项重排会把所有人的组次道次重来一遍，\n锁着的那一组也跑不掉，所以整项一起挡下。",
+                gender, eventName, stage, actionLabel, h, why),
+                "这一项里有动不得的组", MessageBoxButton.OK, MessageBoxImage.Warning);
+            AddLog(string.Format("【拦下】{0} {1} {2} 第{3}组{4}, 拒绝{5}", gender, eventName, stage, h, why, actionLabel));
+            return true;
         }
 
         /// <summary>这一组有没有录进成绩(含判 DSQ 之类只有状态没有时间的)。</summary>
@@ -9939,14 +9982,14 @@ namespace SwimmingScoreboard
             var live = new List<int>();
             var cnt  = new Dictionary<int, int>();
             var hasResult = new Dictionary<int, bool>();
-            var racingNow = new Dictionary<int, bool>();   // 2026-09-12 正在比的那一组
+            var lockedWhy = new Dictionary<int, string>();  // 2026-09-12 动不得的组(正在比 / 已完赛), null=能动
             for (int h = 1; h <= heatCount; h++) {
                 if (IsHeatCancelled(ageGroup, gender, eventName, stage, h)) continue;
                 live.Add(h);
                 var entries = GetHeatEntries(ageGroup, gender, eventName, stage, h);
                 cnt[h] = entries.Count;
                 hasResult[h] = HeatHasResult(ageGroup, gender, eventName, stage, h);
-                racingNow[h] = IsRacingHeat(ageGroup, gender, eventName, stage, h);
+                lockedWhy[h] = HeatLockedWhy(ageGroup, gender, eventName, stage, h);
             }
             if (live.Count < 2) {
                 MessageBox.Show("可用的组不足 2 个，无法并组。", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
@@ -9966,7 +10009,7 @@ namespace SwimmingScoreboard
             var status = new StringBuilder();
             foreach (int h in live)
                 status.AppendFormat("第{0}组 {1} 人{2}    ", h, cnt[h],
-                    racingNow[h] ? "(正在比)" : hasResult[h] ? "(已有成绩)" : "");
+                    lockedWhy[h] != null ? "(锁定)" : hasResult[h] ? "(已有成绩)" : "");
             root.Children.Add(new TextBlock { Text = status.ToString().Trim(), Margin = new Thickness(0, 0, 0, 12),
                 Foreground = System.Windows.Media.Brushes.DimGray, TextWrapping = TextWrapping.Wrap });
 
@@ -10002,10 +10045,12 @@ namespace SwimmingScoreboard
 
                 int dst = (dstBox.SelectedItem is int) ? (int)dstBox.SelectedItem : 0;
                 var sb = new StringBuilder();
-                if (src > 0 && racingNow.ContainsKey(src) && racingNow[src]) sb.Append("⚠ 第" + src + "组正在比，不能动它。\n");
+                if (src > 0 && lockedWhy.ContainsKey(src) && lockedWhy[src] != null)
+                    sb.Append("⚠ 第" + src + "组" + lockedWhy[src] + "，不能动它。\n");
                 else if (src > 0 && hasResult.ContainsKey(src) && hasResult[src]) sb.Append("⚠ 第" + src + "组已录入成绩，不能并组。\n");
                 if (dst > 0) {
-                    if (racingNow.ContainsKey(dst) && racingNow[dst]) sb.Append("⚠ 第" + dst + "组正在比，不能作为并入目标。\n");
+                    if (lockedWhy.ContainsKey(dst) && lockedWhy[dst] != null)
+                        sb.Append("⚠ 第" + dst + "组" + lockedWhy[dst] + "，不能作为并入目标。\n");
                     else if (hasResult.ContainsKey(dst) && hasResult[dst]) sb.Append("⚠ 第" + dst + "组已录入成绩，不能作为并入目标。\n");
                     int free = LaneCapacity() - cnt[dst];
                     sb.AppendFormat("第{0}组现有 {1} 人，空道 {2} 条；第{3}组 {4} 人。",
@@ -10036,8 +10081,8 @@ namespace SwimmingScoreboard
             string reason = (reasonBox.Text ?? "").Trim();
 
             // 2026-09-12 正在比的那一组, 谁也动不了 (别的组照常放行)
-            if (BlockIfRacingHeat(ageGroup, gender, eventName, stage, srcHeat, "并组")) return;
-            if (dstHeat > 0 && BlockIfRacingHeat(ageGroup, gender, eventName, stage, dstHeat, "作为并入目标")) return;
+            if (BlockIfHeatLocked(ageGroup, gender, eventName, stage, srcHeat, "并组")) return;
+            if (dstHeat > 0 && BlockIfHeatLocked(ageGroup, gender, eventName, stage, dstHeat, "作为并入目标")) return;
 
             // ── 2026-09-12 联网编排端: 走【增量补丁】, 不推整包 ──────────────
             //   老路 EDITOR_PUSH_PACKAGE 是"推整包 → 主服务器整库重载", 主服务器
@@ -10103,8 +10148,8 @@ namespace SwimmingScoreboard
 
             // 门禁: 正在比的那一组 + 已录成绩的组
             string why;
-            if (RacingHeatReason(ageGroup, gender, eventName, stage, srcHeat, out why)) { error = why; return false; }
-            if (dstHeat > 0 && RacingHeatReason(ageGroup, gender, eventName, stage, dstHeat, out why)) { error = why; return false; }
+            if (HeatLockedReason(ageGroup, gender, eventName, stage, srcHeat, out why)) { error = why; return false; }
+            if (dstHeat > 0 && HeatLockedReason(ageGroup, gender, eventName, stage, dstHeat, out why)) { error = why; return false; }
             if (HeatHasResult(ageGroup, gender, eventName, stage, srcHeat)) {
                 error = string.Format("第{0}组已录入成绩，不能并组。", srcHeat); return false;
             }
@@ -10164,21 +10209,7 @@ namespace SwimmingScoreboard
                 });
             }
 
-            // _patchInFlight: 这次改动已经由补丁送到对端了, 别再推一次整包
-            // (整包那条路比赛中本来就会被拒, 还要弹一个吓人的"未保存"对话框)
-            _patchInFlight = true;
-            try {
-                InvalidateMixedCache();
-                _currentHeatSwimmersCacheKey = null;      // 让 50ms 缓存立即失效
-                AutoSaveData();
-                RefreshEditPreview();       // 操作员就盯着这张表, 必须当场刷新
-                // 2026-09-12 赛程树比赛中不重建 —— 那是整棵 TreeView, 在 UI 线程上一跑
-                //   就可能压住硬件计时帧(0x7F)。何况比赛中没人看它。挂个脏标记,
-                //   计时复位 / 确认成绩之后(FlushDeferredSync)再建。
-                if (InRaceNoDbWrite()) _scheduleTreeDirty = true;
-                else { try { BuildScheduleTree(); } catch { } }
-                Broadcast();                // 100ms 批量去抖, 大屏那一路不受影响
-            } finally { _patchInFlight = false; }
+            FinishPatchApply(ageGroup, gender, eventName, stage);
 
             // 落进竞赛库。比赛中不碰库 —— 规矩见 InRaceNoDbWrite。
             try {
@@ -10195,25 +10226,32 @@ namespace SwimmingScoreboard
 
         // ── 2026-09-12 并组增量补丁 (编排端 ↔ 主服务器) ────────────────
         // 这是那句"治本是改成发增量消息, 不重载整库"的兑现。
-        // 消息长这样:
-        //   { type:"EDITOR_PATCH", op:"MergeHeats", corrId, clientName,
-        //     ageGroup, gender, eventName, stage, srcHeat, dstHeat, reason }
-        // 回执:
-        //   { type:"EDITOR_PATCH_ACK", corrId, ok, reason }
+        //
+        // 两种补丁:
+        //   op:"MergeHeats"  并组 / 取消组
+        //     { ageGroup, gender, eventName, stage, srcHeat, dstHeat, reason }
+        //   op:"Assign"      一个项目一个赛次的【分组泳道表快照】
+        //     { ageGroup, gender, eventName, stage, heatCount,
+        //       rows:[{bib,heat,lane,entryTime,entryTimeSeconds}],
+        //       swimmers:[整条 Swimmer] }
+        // 回执统一是 { type:"EDITOR_PATCH_ACK", corrId, ok, reason }
+        //
+        // 两种补丁的时序不一样, 是故意的:
+        //   并组【先问后改】—— 它要重排道次, 失败了不好回头;
+        //   Assign【先改后报】—— 编排端本地已经改完(那些编辑函数是就地改内存的),
+        //     报上去万一撞上锁着的组被拒, 就拉一次整包把本机盖回去, 不手工回滚。
         private bool _patchInFlight = false;
 
         /// <summary>编排端: 发补丁并等主服务器回执。ok 才返回 true。</summary>
-        private bool SendMergeHeatsPatch(string ageGroup, string gender, string eventName, string stage,
-                                         int srcHeat, int dstHeat, string reason, out string error) {
+        private bool SendPatchAndWait(JObject patch, out string error) {
             error = null;
+            if (_editorSyncClient == null || !_editorSyncClient.IsConnected) { error = "没连主服务器"; return false; }
             string corrId = Guid.NewGuid().ToString("N");
             var evt = new System.Threading.ManualResetEventSlim(false);
             lock (_lockSync) { _lockWaiters[corrId] = evt; }
             try {
-                var req = BuildMergePatch(ageGroup, gender, eventName, stage, srcHeat, dstHeat, reason,
-                                          "编排端 " + Environment.MachineName);
-                req["corrId"] = corrId;
-                _editorSyncClient.Send(req.ToString(Formatting.None));
+                patch["corrId"] = corrId;
+                _editorSyncClient.Send(patch.ToString(Formatting.None));
                 bool got = evt.Wait(5000);
                 JObject reply = null;
                 lock (_lockSync) {
@@ -10222,7 +10260,7 @@ namespace SwimmingScoreboard
                 }
                 if (!got || reply == null) { error = "主服务器 5 秒内没有回应"; return false; }
                 bool ok = reply["ok"] != null && (bool)reply["ok"];
-                if (!ok) error = reply["reason"] != null ? reply["reason"].ToString() : "主服务器拒绝了这次并组";
+                if (!ok) error = reply["reason"] != null ? reply["reason"].ToString() : "主服务器拒绝了这次改动";
                 return ok;
             } catch (Exception ex) {
                 lock (_lockSync) { _lockWaiters.Remove(corrId); _lockReplies.Remove(corrId); }
@@ -10231,40 +10269,474 @@ namespace SwimmingScoreboard
             }
         }
 
-        private JObject BuildMergePatch(string ageGroup, string gender, string eventName, string stage,
-                                        int srcHeat, int dstHeat, string reason, string clientName) {
+        /// <summary>主服务器: 把一条补丁发给在线编排端/RTC(except 那个除外)。</summary>
+        private void BroadcastPatch(JObject patch, IWebSocketConnection except) {
+            try {
+                if (patch == null || _editorSockets == null || _editorSockets.Count == 0) return;
+                string json = patch.ToString(Formatting.None);
+                foreach (var sock in _editorSockets.ToList()) {
+                    if (sock == except) continue;
+                    EnqueueToSocket(sock, json);
+                }
+            } catch (Exception ex) { AddLog("转发补丁失败: " + ex.Message); }
+        }
+
+        private JObject NewPatch(string op, string ageGroup, string gender, string eventName, string stage,
+                                 string clientName) {
             var p = new JObject();
             p["type"] = "EDITOR_PATCH";
-            p["op"] = "MergeHeats";
+            p["op"] = op;
             p["clientName"] = clientName ?? "";
             p["ageGroup"] = ageGroup ?? "";
             p["gender"] = gender ?? "";
             p["eventName"] = eventName ?? "";
             p["stage"] = stage ?? "";
+            return p;
+        }
+
+        private JObject BuildMergePatch(string ageGroup, string gender, string eventName, string stage,
+                                        int srcHeat, int dstHeat, string reason, string clientName) {
+            var p = NewPatch("MergeHeats", ageGroup, gender, eventName, stage, clientName);
             p["srcHeat"] = srcHeat;
             p["dstHeat"] = dstHeat;
             p["reason"] = reason ?? "";
             return p;
         }
 
-        /// <summary>主服务器: 把一条并组补丁发给在线编排端(except 那个除外)。</summary>
+        /// <summary>编排端: 发并组补丁(先问后改)。</summary>
+        private bool SendMergeHeatsPatch(string ageGroup, string gender, string eventName, string stage,
+                                         int srcHeat, int dstHeat, string reason, out string error) {
+            return SendPatchAndWait(BuildMergePatch(ageGroup, gender, eventName, stage, srcHeat, dstHeat,
+                                                    reason, "编排端 " + Environment.MachineName), out error);
+        }
+
+        /// <summary>主服务器本机做了并组 → 以补丁形式发给各编排端。</summary>
         private void BroadcastMergePatch(string ageGroup, string gender, string eventName, string stage,
                                          int srcHeat, int dstHeat, string reason, string clientName,
                                          IWebSocketConnection except) {
-            try {
-                if (_editorSockets == null || _editorSockets.Count == 0) return;
-                string json = BuildMergePatch(ageGroup, gender, eventName, stage, srcHeat, dstHeat,
-                                              reason, clientName).ToString(Formatting.None);
-                foreach (var sock in _editorSockets.ToList()) {
-                    if (sock == except) continue;
-                    EnqueueToSocket(sock, json);
-                }
-            } catch (Exception ex) { AddLog("转发并组补丁失败: " + ex.Message); }
+            BroadcastPatch(BuildMergePatch(ageGroup, gender, eventName, stage, srcHeat, dstHeat,
+                                           reason, clientName), except);
         }
 
-        /// <summary>收到别人发来的并组补丁, 照着改本机内存。</summary>
-        private bool ApplyMergePatch(JObject msg, out string error) {
+        // ── op:"Assign" 分组泳道表快照 ──────────────────────────────────
+        //
+        // 覆盖: 上移/下移、交换泳道、移到空道、增加到本组、移出本组、临时加人、
+        //       手动分组、追加分组。
+        //
+        // 为什么发【整项快照】而不是"谁挪到了哪一道"这种逐条增量:
+        //   一次编排常常同时动好几个人(手动分组是整项重排), 逐条增量既难拼又怕漏;
+        //   而一个项目一个赛次的名单就几十行, 比整包(实测 278KB)小一到两个数量级,
+        //   更要紧的是它【不会让对端重载整库】—— 当初出事的是重载, 不是字节数。
+        //   快照还有个好处: 重发一次结果一样, 网络抖动重试不会叠加出错。
+        //
+        // swimmers 里带整条人, 是为了"临时加人"和接力队员 —— 对端可能压根没有这个人。
+        // 收方只拿它补自己没有的人, 【绝不覆盖已有的】(覆盖就是把人家的成绩冲掉)。
+        private JObject BuildAssignPatch(string ageGroup, string gender, string eventName, string stage,
+                                         string clientName) {
+            var p = NewPatch("Assign", ageGroup, gender, eventName, stage, clientName);
+            bool isRelay = eventName != null && eventName.Contains("接力");
+            var rows = new JArray();
+            var people = new JArray();
+            int maxHeat = 0;
+            foreach (var s in _swimmers) {
+                if (s == null || s.EventName != eventName) continue;
+                bool isLeg = isRelay && !string.IsNullOrEmpty(s.Notes) && s.Notes.StartsWith("接力队员");
+                // 队员条目不带组别、混合接力里男女都有 —— 别拿筛选条件把它们漏掉,
+                // 漏了对端就只拿到一个没有棒次的空接力队。
+                if (!isLeg && (!MatchesAgeGroup(s, ageGroup) || !SgMatch(s.Gender, gender))) continue;
+                try { people.Add(JObject.FromObject(s)); } catch { }
+                // 接力队员只随 swimmers 过去(对端可能没有), 不占泳道行
+                if (isLeg) continue;
+                int h = 0, ln = 0;
+                double et = s.EntryTimeSeconds;
+                string ets = s.EntryTime;
+                var sa = s.GetAssignmentForStage(stage);
+                if (sa != null && sa.Heat > 0) { h = sa.Heat; ln = sa.Lane; et = sa.EntryTimeSeconds; ets = sa.EntryTime; }
+                else if (s.CurrentStage == stage && s.Heat > 0) { h = s.Heat; ln = s.Lane; }
+                if (h <= 0) continue;                       // 没分组的人不进快照(对端照着清掉就是"移出")
+                if (h > maxHeat) maxHeat = h;
+                var r = new JObject();
+                r["bib"] = s.BibNumber ?? "";
+                r["heat"] = h;
+                r["lane"] = ln;
+                r["entryTime"] = ets ?? "";
+                r["entryTimeSeconds"] = et;
+                rows.Add(r);
+            }
+            // 接力队记录(棒次在这里面)也得跟过去, 否则对端只有一个代表队条目、没有棒次
+            var teams = new JArray();
+            if (isRelay && _relayTeams != null) {
+                foreach (var t in _relayTeams) {
+                    if (t == null || t.EventName != eventName) continue;
+                    try { teams.Add(JObject.FromObject(t)); } catch { }
+                }
+            }
+            var sched = FindScheduleItem(ageGroup, gender, eventName, stage);
+            p["heatCount"] = sched != null && sched.HeatCount > maxHeat ? sched.HeatCount : maxHeat;
+            p["rows"] = rows;
+            p["swimmers"] = people;
+            p["relayTeams"] = teams;
+            return p;
+        }
+
+        /// <summary>收到 Assign 快照, 照着改本机这一项的分组。整条要么全成要么全不动。</summary>
+        private bool ApplyAssignPatch(JObject msg, out string error) {
             error = null;
+            string ag = msg["ageGroup"] != null ? msg["ageGroup"].ToString() : "";
+            string gd = msg["gender"] != null ? msg["gender"].ToString() : "";
+            string ev = msg["eventName"] != null ? msg["eventName"].ToString() : "";
+            string st = msg["stage"] != null ? msg["stage"].ToString() : "";
+            var rows = msg["rows"] as JArray;
+            if (rows == null) { error = "补丁里没有分组表"; return false; }
+            if (string.IsNullOrEmpty(ev) || string.IsNullOrEmpty(st)) { error = "补丁没说是哪个项目/赛次"; return false; }
+            bool isRelay = ev.Contains("接力");
+
+            // 表里要的分组
+            var want = new Dictionary<string, JObject>(StringComparer.Ordinal);
+            var touched = new HashSet<int>();
+            foreach (var t in rows) {
+                var r = t as JObject;
+                if (r == null) continue;
+                string bib = r["bib"] != null ? r["bib"].ToString() : "";
+                if (string.IsNullOrEmpty(bib)) continue;
+                want[bib] = r;
+                int h = 0;
+                try { if (r["heat"] != null) h = (int)r["heat"]; } catch { }
+                if (h > 0) touched.Add(h);
+            }
+
+            // 本机现在挂着的组也算"动到了" —— 有人被移出的那一组同样不能是锁着的
+            foreach (var s in _swimmers) {
+                if (s == null || !MatchesAgeGroup(s, ag) || !SgMatch(s.Gender, gd) || s.EventName != ev) continue;
+                if (isRelay && !string.IsNullOrEmpty(s.Notes) && s.Notes.StartsWith("接力队员")) continue;
+                var sa = s.GetAssignmentForStage(st);
+                int h = (sa != null && sa.Heat > 0) ? sa.Heat : (s.CurrentStage == st ? s.Heat : 0);
+                if (h > 0) touched.Add(h);
+            }
+
+            // 任何一个受影响的组锁着 → 整条拒, 一个字不动
+            foreach (int h in touched) {
+                string why = HeatLockedWhy(ag, gd, ev, st, h);
+                if (why != null) { error = string.Format("第{0}组动不了: {1}", h, why); return false; }
+            }
+
+            // 补上本机没有的人(临时加人 / 接力队员)。已有的一律不碰 —— 覆盖会冲掉成绩。
+            int added = 0;
+            var people = msg["swimmers"] as JArray;
+            if (people != null) {
+                foreach (var t in people) {
+                    var jo = t as JObject;
+                    if (jo == null) continue;
+                    string bib = jo["BibNumber"] != null ? jo["BibNumber"].ToString() : "";
+                    if (string.IsNullOrEmpty(bib)) continue;
+                    if (_swimmers.Any(x => x != null && x.BibNumber == bib && x.EventName == ev)) continue;
+                    try {
+                        var nw = jo.ToObject<Swimmer>();
+                        if (nw != null) { _swimmers.Add(nw); added++; }
+                    } catch { }
+                }
+            }
+            // 接力队记录同理: 缺的补上, 有的不动
+            int addedTeams = 0;
+            var teams = msg["relayTeams"] as JArray;
+            if (teams != null && _relayTeams != null) {
+                foreach (var t in teams) {
+                    var jo = t as JObject;
+                    if (jo == null) continue;
+                    string tn = jo["TeamName"] != null ? jo["TeamName"].ToString() : "";
+                    if (string.IsNullOrEmpty(tn)) continue;
+                    if (_relayTeams.Any(x => x != null && x.TeamName == tn && x.EventName == ev)) continue;
+                    try {
+                        var nt = jo.ToObject<RelayTeam>();
+                        if (nt != null) { _relayTeams.Add(nt); addedTeams++; }
+                    } catch { }
+                }
+                if (addedTeams > 0) { try { RebuildRelayGroupedView(); } catch { } }
+            }
+
+            // 套用: 表里有的照着设, 表里没有的把这个赛次的分组清掉(= 被移出了)
+            int setN = 0, clrN = 0;
+            foreach (var s in _swimmers.ToList()) {
+                if (s == null || !MatchesAgeGroup(s, ag) || !SgMatch(s.Gender, gd) || s.EventName != ev) continue;
+                if (isRelay && !string.IsNullOrEmpty(s.Notes) && s.Notes.StartsWith("接力队员")) continue;
+                JObject r;
+                if (want.TryGetValue(s.BibNumber ?? "", out r)) {
+                    int h = 0, ln = 0;
+                    try { if (r["heat"] != null) h = (int)r["heat"]; } catch { }
+                    try { if (r["lane"] != null) ln = (int)r["lane"]; } catch { }
+                    if (h <= 0) continue;
+                    double et = s.EntryTimeSeconds;
+                    string ets = s.EntryTime;
+                    try { if (r["entryTimeSeconds"] != null) et = (double)r["entryTimeSeconds"]; } catch { }
+                    try { if (r["entryTime"] != null) ets = r["entryTime"].ToString(); } catch { }
+                    s.SetStageAssignment(st, h, ln, et, ets);
+                    if (s.CurrentStage == st) { s.Heat = h; s.Lane = ln; }
+                    setN++;
+                } else {
+                    if (s.StageAssignments != null && s.StageAssignments.ContainsKey(st)) { s.StageAssignments.Remove(st); clrN++; }
+                    if (s.CurrentStage == st && s.Heat > 0) { s.Heat = 0; s.Lane = 0; }
+                }
+            }
+
+            // 组数跟着走 —— 否则对端赛程树上"共几组"和大屏的"第x/y组"会对不上。
+            // 对端连这个赛程项都没有(手动分组/追加分组会现建新项), 就照样建一个。
+            try {
+                int hc = msg["heatCount"] != null ? (int)msg["heatCount"] : 0;
+                var sched = FindScheduleItem(ag, gd, ev, st);
+                if (sched != null) { if (hc > 0) sched.HeatCount = hc; }
+                else if (hc > 0) {
+                    _schedule.Add(new ScheduleItem {
+                        SessionNumber = _schedule.Count > 0 ? _schedule.Max(x => x.SessionNumber) : 1,
+                        AgeGroup = ag, Gender = gd, EventName = ev, Stage = st, HeatCount = hc
+                    });
+                    AddLog(string.Format("补丁里带来了新赛程项: {0} {1} {2} {3}（{4}组）", ag, gd, ev, st, hc));
+                }
+            } catch { }
+
+            FinishPatchApply(ag, gd, ev, st);
+            AddLog(string.Format("【分组补丁】{0} {1} {2} {3}: 设 {4} 人, 清 {5} 人{6}{7}",
+                gd, ag, ev, st, setN, clrN,
+                added > 0 ? (", 新增 " + added + " 人") : "",
+                addedTeams > 0 ? (", 新增 " + addedTeams + " 支接力队") : ""));
+            return true;
+        }
+
+        /// <summary>补丁应用完的统一收尾(并组和 Assign 共用)。</summary>
+        private void FinishPatchApply(string ageGroup, string gender, string eventName, string stage) {
+            // _patchInFlight: 这次改动已经由补丁送到对端了, 别再推一次整包
+            // (整包那条路比赛中本来就会被拒, 还要弹一个吓人的"未保存"对话框)
+            _patchInFlight = true;
+            try {
+                InvalidateMixedCache();
+                _currentHeatSwimmersCacheKey = null;      // 让 50ms 缓存立即失效
+                AutoSaveData();
+                RefreshEditPreview();       // 操作员就盯着这张表, 必须当场刷新
+                // 赛程树比赛中不重建 —— 那是整棵 TreeView, 在 UI 线程上一跑就可能
+                // 压住硬件计时帧(0x7F)。何况比赛中没人看它。挂个脏标记, 复位/确认后再建。
+                if (InRaceNoDbWrite()) _scheduleTreeDirty = true;
+                else { try { BuildScheduleTree(); } catch { } }
+                Broadcast();                // 100ms 批量去抖, 大屏那一路不受影响
+            } finally { _patchInFlight = false; }
+        }
+
+        // ── 编排改动收尾: 落盘 + 用补丁同步给对端(不推整包) ─────────────
+        // 那些编辑函数原来最后一句是 AutoSaveData(), 换成这个就行。
+        private void SaveAndPushAssign(string ageGroup, string gender, string eventName, string stage) {
+            _patchInFlight = true;
+            try { AutoSaveData(); } finally { _patchInFlight = false; }
+            PushAssignPatch(ageGroup, gender, eventName, stage);
+        }
+
+        private bool PushAssignPatch(string ageGroup, string gender, string eventName, string stage) {
+            if (string.IsNullOrEmpty(eventName) || string.IsNullOrEmpty(stage)) return true;
+            try {
+                if (IsScheduleEditorMode) {
+                    if (_editorSyncClient == null || !_editorSyncClient.IsConnected) return true;   // 离线: 等重连时整包
+                    string err;
+                    var patch = BuildAssignPatch(ageGroup, gender, eventName, stage,
+                                                 "编排端 " + Environment.MachineName);
+                    if (SendPatchAndWait(patch, out err)) return true;
+                    // 被拒(多半是撞上正在比 / 已完赛的组)。本机已经改了, 不手工回滚 ——
+                    // 拉一次整包, 让主服务器那份把本机盖回去, 省得两边分叉还没人知道。
+                    MessageBox.Show("主服务器没有接受这次改动。\n\n原因: " + err +
+                        "\n\n本机将重新从主服务器取一次数据, 你刚才的改动会被撤销。",
+                        "未能保存到主服务器", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    AddLog("★ 编排补丁被主服务器拒绝: " + err + " —— 重新拉取主服务器数据");
+                    try {
+                        var pull = new JObject();
+                        pull["type"] = "EDITOR_PULL_PACKAGE";
+                        _editorSyncClient.Send(pull.ToString(Formatting.None));
+                    } catch { }
+                    return false;
+                } else {
+                    BroadcastPatch(BuildAssignPatch(ageGroup, gender, eventName, stage, Environment.MachineName), null);
+                }
+            } catch (Exception ex) { AddLog("发送编排补丁失败: " + ex.Message); }
+            return true;
+        }
+
+        // ── 2026-09-12 "窗口关了之后看哪几项变了" ──────────────────────
+        // 晋级处理、导入分组表这类操作在独立窗口/一大段解析里直接改内存, 不好在
+        // 里面一处处插补丁。干脆在外面拍两张快照一比: 哪个(组别|性别|项目|赛次)
+        // 的分组变了, 就发哪个的补丁。改一处就覆盖所有这类入口。
+        private static void AddSig(Dictionary<string, List<string>> map, string key, string one) {
+            List<string> lst;
+            if (!map.TryGetValue(key, out lst)) { lst = new List<string>(); map[key] = lst; }
+            lst.Add(one);
+        }
+
+        private Dictionary<string, string> SnapshotAssignments() {
+            var map = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+            foreach (var s in _swimmers) {
+                if (s == null || string.IsNullOrEmpty(s.EventName)) continue;
+                if (!string.IsNullOrEmpty(s.Notes) && s.Notes.StartsWith("接力队员")) continue;
+                string head = (s.AgeCategory ?? "") + "|" + (s.Gender ?? "") + "|" + s.EventName + "|";
+                bool anyStage = false;
+                if (s.StageAssignments != null) {
+                    foreach (var kv in s.StageAssignments) {
+                        if (kv.Value == null || kv.Value.Heat <= 0) continue;
+                        anyStage = true;
+                        AddSig(map, head + kv.Key, (s.BibNumber ?? "") + ":" + kv.Value.Heat + ":" + kv.Value.Lane);
+                    }
+                }
+                // 没有 StageAssignment 但顶层字段挂着的老数据也算上
+                if (!anyStage && s.Heat > 0 && !string.IsNullOrEmpty(s.CurrentStage))
+                    AddSig(map, head + s.CurrentStage, (s.BibNumber ?? "") + ":" + s.Heat + ":" + s.Lane);
+            }
+            var sig = new Dictionary<string, string>(StringComparer.Ordinal);
+            foreach (var kv in map) {
+                kv.Value.Sort(StringComparer.Ordinal);
+                sig[kv.Key] = string.Join(",", kv.Value.ToArray());
+            }
+            return sig;
+        }
+
+        /// <summary>和之前那张快照比, 变了的项目逐项发补丁。before 用 SnapshotAssignments() 拍。</summary>
+        private void PushChangedAssignments(Dictionary<string, string> before) {
+            try {
+                var after = SnapshotAssignments();
+                var keys = new HashSet<string>(StringComparer.Ordinal);
+                foreach (var k in before.Keys) keys.Add(k);
+                foreach (var k in after.Keys) keys.Add(k);
+                int n = 0;
+                foreach (string k in keys) {
+                    string b = null, a = null;
+                    before.TryGetValue(k, out b);
+                    after.TryGetValue(k, out a);
+                    if ((b ?? "") == (a ?? "")) continue;
+                    var p = k.Split('|');
+                    if (p.Length != 4) continue;
+                    n++;
+                    // 一次失败就打住: 那边已经拒了, 本机马上要整包重来一遍,
+                    // 再挨个发下去只会一连串弹窗、一连串 5 秒超时。
+                    if (!PushAssignPatch(p[0], p[1], p[2], p[3])) {
+                        AddLog("补丁被拒, 剩下的项目不再逐条发了 —— 等整包回来统一对齐");
+                        return;
+                    }
+                }
+                if (n > 0) AddLog(string.Format("分组变动 {0} 项, 已用补丁同步给对端(没推整包)", n));
+            } catch (Exception ex) { AddLog("对比分组变动失败: " + ex.Message); }
+        }
+
+        // ── 2026-09-12 纪录表补丁 op:"Records" ──────────────────────────
+        // 这里【不发整张表】, 只发"改了哪几条 / 删了哪几条"。
+        // 原因是那次事故的形状: 比赛中一份旧的纪录表盖过去, 就把刚刚破掉的新纪录
+        // 冲没了。按条 upsert 就不会 —— 补丁没提到的行一个字不动。
+        private static string RecordKey(SwimmingRecord r) {
+            if (r == null) return "";
+            return (r.AgeGroup ?? "") + "|" + (r.Gender ?? "") + "|" + (r.EventName ?? "") + "|" + (r.RecordType ?? "");
+        }
+
+        private Dictionary<string, string> SnapshotRecords() {
+            var d = new Dictionary<string, string>(StringComparer.Ordinal);
+            if (_records == null) return d;
+            foreach (var r in _records) {
+                if (r == null) continue;
+                d[RecordKey(r)] = r.TimeInSeconds.ToString("F3") + "|" + (r.HolderName ?? "") + "|"
+                                + (r.HolderCountry ?? "") + "|" + (r.Date ?? "") + "|" + (r.Location ?? "");
+            }
+            return d;
+        }
+
+        /// <summary>和之前那张快照比, 改过/删掉的纪录发一条补丁出去。</summary>
+        private void PushChangedRecords(Dictionary<string, string> before) {
+            try {
+                var after = SnapshotRecords();
+                var ups = new JArray();
+                var dels = new JArray();
+                foreach (var r in _records) {
+                    if (r == null) continue;
+                    string k = RecordKey(r);
+                    string b;
+                    if (before.TryGetValue(k, out b) && b == after[k]) continue;   // 没变
+                    try { ups.Add(JObject.FromObject(r)); } catch { }
+                }
+                foreach (var kv in before) if (!after.ContainsKey(kv.Key)) dels.Add(kv.Key);
+                if (ups.Count == 0 && dels.Count == 0) return;
+
+                var p = NewPatch("Records", "", "", "", "",
+                                 IsScheduleEditorMode ? ("编排端 " + Environment.MachineName) : Environment.MachineName);
+                p["upserts"] = ups;
+                p["deletes"] = dels;
+                if (IsScheduleEditorMode) {
+                    string err;
+                    if (!SendPatchAndWait(p, out err))
+                        AddLog("纪录补丁没送到主服务器: " + err + " —— 改动只在本机, 等空闲了整体保存一次");
+                } else {
+                    BroadcastPatch(p, null);
+                }
+                AddLog(string.Format("纪录变动: 改 {0} 条, 删 {1} 条, 已用补丁同步", ups.Count, dels.Count));
+            } catch (Exception ex) { AddLog("对比纪录变动失败: " + ex.Message); }
+        }
+
+        /// <summary>收到纪录补丁: 按条 upsert / 删除。没提到的行一个字不动。</summary>
+        private bool ApplyRecordsPatch(JObject msg, out string error) {
+            error = null;
+            int up = 0, del = 0;
+            var ups = msg["upserts"] as JArray;
+            if (ups != null) {
+                foreach (var t in ups) {
+                    var jo = t as JObject;
+                    if (jo == null) continue;
+                    SwimmingRecord nr = null;
+                    try { nr = jo.ToObject<SwimmingRecord>(); } catch { }
+                    if (nr == null) continue;
+                    string k = RecordKey(nr);
+                    var cur = _records.FirstOrDefault(x => x != null && RecordKey(x) == k);
+                    if (cur == null) { _records.Add(nr); up++; continue; }
+                    cur.HolderName = nr.HolderName; cur.HolderCountry = nr.HolderCountry;
+                    cur.Time = nr.Time; cur.TimeInSeconds = nr.TimeInSeconds;
+                    cur.Date = nr.Date; cur.Location = nr.Location;
+                    up++;
+                }
+            }
+            var dels = msg["deletes"] as JArray;
+            if (dels != null) {
+                foreach (var t in dels) {
+                    string k = t != null ? t.ToString() : "";
+                    if (string.IsNullOrEmpty(k)) continue;
+                    var cur = _records.FirstOrDefault(x => x != null && RecordKey(x) == k);
+                    if (cur != null) { _records.Remove(cur); del++; }
+                }
+            }
+            _patchInFlight = true;
+            try {
+                AutoSaveData();
+                try { RefreshRecordFilterCombos(); ApplyRecordFilter(); } catch { }
+                Broadcast();
+            } finally { _patchInFlight = false; }
+            AddLog(string.Format("【纪录补丁】改 {0} 条, 删 {1} 条", up, del));
+            return true;
+        }
+
+        /// <summary>落盘但不推整包 —— 后面会用补丁同步。</summary>
+        private void SaveWithoutPush() {
+            _patchInFlight = true;
+            try { AutoSaveData(); } finally { _patchInFlight = false; }
+        }
+
+        /// <summary>整场里有没有已完赛的组 / 正在比。整批重写分组的操作(导入整本分组表)之前问一句。</summary>
+        private bool MeetHasLockedHeats(out string what) {
+            what = null;
+            if (_raceState == RaceState.Ready || _raceState == RaceState.Racing) {
+                what = "正在计时(" + (_raceState == RaceState.Ready ? "已就位" : "比赛中") + ")";
+                return true;
+            }
+            if (_confirmedHeats != null && _confirmedHeats.Count > 0) {
+                what = "已经有 " + _confirmedHeats.Count + " 个组完赛";
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>收到别人发来的补丁, 照着改本机内存。</summary>
+        private bool ApplyPatch(JObject msg, out string error) {
+            error = null;
+            string op = msg["op"] != null ? msg["op"].ToString() : "";
+            if (op == "Assign") return ApplyAssignPatch(msg, out error);
+            if (op == "Records") return ApplyRecordsPatch(msg, out error);
+            if (op != "MergeHeats") { error = "不认识的补丁类型: " + op; return false; }
+
             string ag = msg["ageGroup"] != null ? msg["ageGroup"].ToString() : "";
             string gd = msg["gender"] != null ? msg["gender"].ToString() : "";
             string ev = msg["eventName"] != null ? msg["eventName"].ToString() : "";
@@ -10278,16 +10750,14 @@ namespace SwimmingScoreboard
             return ApplyMergeHeats(ag, gd, ev, st, src, dst, rs, who, out moved, out error);
         }
 
-        /// <summary>主服务器: 收到编排端的增量补丁。比赛中照收 —— 挡的只有正在比的那一组。</summary>
+        /// <summary>主服务器: 收到编排端的增量补丁。比赛中照收 —— 挡的只有锁着的那一组。</summary>
         private void HandleEditorPatch(IWebSocketConnection sender, JObject msg) {
             string corrId = msg["corrId"] != null ? msg["corrId"].ToString() : "";
             string op = msg["op"] != null ? msg["op"].ToString() : "";
             bool ok = false;
             string reason = null;
-            try {
-                if (op != "MergeHeats") reason = "不认识的补丁类型: " + op;
-                else ok = ApplyMergePatch(msg, out reason);
-            } catch (Exception ex) { ok = false; reason = ex.Message; }
+            try { ok = ApplyPatch(msg, out reason); }
+            catch (Exception ex) { ok = false; reason = ex.Message; }
 
             var rep = new JObject();
             rep["type"] = "EDITOR_PATCH_ACK";
@@ -10302,9 +10772,9 @@ namespace SwimmingScoreboard
                     if (sock == sender) continue;
                     try { EnqueueToSocket(sock, msg.ToString(Formatting.None)); } catch { }
                 }
-                AddLog("已应用编排端并组补丁并转发");
+                AddLog("已应用编排端补丁(" + op + ")并转发");
             } else {
-                AddLog("拒绝编排端并组补丁: " + reason);
+                AddLog("拒绝编排端补丁(" + op + "): " + reason);
             }
         }
 
@@ -14003,6 +14473,7 @@ namespace SwimmingScoreboard
             if (string.IsNullOrEmpty(evName) || string.IsNullOrEmpty(gender) || string.IsNullOrEmpty(recordType)) {
                 AddLog("ADD_RECORD 缺少 eventName/gender/recordType"); return;
             }
+            var recBefore97 = SnapshotRecords();   // 2026-09-12 改完一比, 只发变动的那条
             var existing = _records.FirstOrDefault(r =>
                 r.EventName == evName && r.Gender == gender && r.RecordType == recordType
                 && (r.AgeGroup ?? "") == (ageGroup ?? ""));
@@ -14023,7 +14494,8 @@ namespace SwimmingScoreboard
             }
             existing.Date = data["date"] != null ? data["date"].ToString() : (existing.Date ?? "");
             existing.Location = data["location"] != null ? data["location"].ToString() : (existing.Location ?? "");
-            AutoSaveData();
+            SaveWithoutPush();
+            PushChangedRecords(recBefore97);   // 2026-09-12 按条同步, 不推整包
             Broadcast();
             AddLog(string.Format("编辑端{0}纪录: {1} {2} {3} {4} = {5}",
                 isNew ? "新增" : "更新", ageGroup, gender, evName, recordType,
@@ -14043,8 +14515,10 @@ namespace SwimmingScoreboard
                 AddLog(string.Format("DELETE_RECORD 找不到: {0} {1} {2} {3}", ageGroup, gender, evName, recordType));
                 return;
             }
+            var recBefore96 = SnapshotRecords();
             _records.Remove(target);
-            AutoSaveData();
+            SaveWithoutPush();
+            PushChangedRecords(recBefore96);   // 2026-09-12 按条同步, 不推整包
             Broadcast();
             AddLog(string.Format("编辑端删除纪录: {0} {1} {2} {3}", ageGroup, gender, evName, recordType));
         }
@@ -18526,8 +19000,8 @@ namespace SwimmingScoreboard
                 var sw2 = target.Item1;
 
                 // 2026-09-12 正在比的那一组不许动 —— 源、目标两头都要看
-                if (BlockIfRacingHeat(ageGroup, gender, eventName, stage, heat1, "交换泳道")) return;
-                if (BlockIfRacingHeat(ageGroup, gender, eventName, stage, target.Item2, "作为交换目标")) return;
+                if (BlockIfHeatLocked(ageGroup, gender, eventName, stage, heat1, "交换泳道")) return;
+                if (BlockIfHeatLocked(ageGroup, gender, eventName, stage, target.Item2, "作为交换目标")) return;
 
                 if (sw2 == null) {
                     // 目标是空道：直接把 sw1 移到目标组/道
@@ -18537,7 +19011,7 @@ namespace SwimmingScoreboard
                         sw1.SetStageAssignment(stage, newHeat, newLane, sw1.EntryTimeSeconds, sw1.EntryTime);
                     }
                     if (sw1.CurrentStage == stage) { sw1.Heat = newHeat; sw1.Lane = newLane; }
-                    AutoSaveData();
+                    SaveAndPushAssign(ageGroup, gender, eventName, stage);   // 2026-09-12 走补丁, 不推整包
                     RefreshEditPreview();
                     AddLog(string.Format("移动到空道: {0}(第{1}组{2}道) → 第{3}组{4}道", sw1.Name, heat1, lane1, newHeat, newLane));
                 } else {
@@ -18557,7 +19031,7 @@ namespace SwimmingScoreboard
                     else sw2.SetStageAssignment(stage, h1, l1, sw2.EntryTimeSeconds, sw2.EntryTime);
                     if (sw1.CurrentStage == stage) { sw1.Heat = h2; sw1.Lane = l2; }
                     if (sw2.CurrentStage == stage) { sw2.Heat = h1; sw2.Lane = l1; }
-                    AutoSaveData();
+                    SaveAndPushAssign(ageGroup, gender, eventName, stage);   // 2026-09-12 走补丁, 不推整包
                     RefreshEditPreview();
                     AddLog(string.Format("泳道交换: {0}(第{1}组{2}道) ↔ {3}(第{4}组{5}道)", sw1.Name, h2, l2, sw2.Name, h1, l1));
                 }
@@ -18580,7 +19054,7 @@ namespace SwimmingScoreboard
             if (m.Success) heat = int.Parse(m.Value);
             if (heat <= 0) return;
             // 2026-09-12 正在比的那一组不许往里加人
-            if (BlockIfRacingHeat(ageGroup, gender, eventName, stage, heat, "往这一组里加人")) return;
+            if (BlockIfHeatLocked(ageGroup, gender, eventName, stage, heat, "往这一组里加人")) return;
 
             // 查找未分组的运动员（同组别同性别同项目同赛次，Heat=0或无StageAssignment）
             var unassigned = new List<Swimmer>();
@@ -18640,7 +19114,7 @@ namespace SwimmingScoreboard
                         AddLog(string.Format("已将 {0} 加入第{1}组第{2}道", sw.Name, heat, lane));
                     }
                 }
-                AutoSaveData();
+                SaveAndPushAssign(ageGroup, gender, eventName, stage);   // 2026-09-12 走补丁, 不推整包
                 RefreshEditPreview();
                 UpdateEditHeatCombo();
             }
@@ -18691,7 +19165,7 @@ namespace SwimmingScoreboard
                     return;
                 }
                 // 2026-09-12 正在比的那一组不许调道次 (别的组照常)
-                if (BlockIfRacingHeat(ageGroup, gender, eventName, stage, sw1.Item2, "调整泳道顺序")) return;
+                if (BlockIfHeatLocked(ageGroup, gender, eventName, stage, sw1.Item2, "调整泳道顺序")) return;
                 int lane1 = sw1.Item3, lane2 = sw2.Item3;
                 var sa1 = sw1.Item1.GetAssignmentForStage(stage);
                 var sa2 = sw2.Item1.GetAssignmentForStage(stage);
@@ -18704,7 +19178,7 @@ namespace SwimmingScoreboard
                 else sw2.Item1.SetStageAssignment(stage, swapHeat, lane1, sw2.Item1.EntryTimeSeconds, sw2.Item1.EntryTime);
                 if (sw1.Item1.CurrentStage == stage) sw1.Item1.Lane = lane2;
                 if (sw2.Item1.CurrentStage == stage) sw2.Item1.Lane = lane1;
-                AutoSaveData();
+                SaveAndPushAssign(ageGroup, gender, eventName, stage);   // 2026-09-12 走补丁, 不推整包
                 RefreshEditPreview();
             }
         }
@@ -18723,7 +19197,7 @@ namespace SwimmingScoreboard
                 string agRm = EditAgeGroupCombo != null && EditAgeGroupCombo.SelectedItem != null ? EditAgeGroupCombo.SelectedItem.ToString() : "";
                 string gdRm = EditGenderCombo != null && EditGenderCombo.SelectedItem != null ? ((ComboBoxItem)EditGenderCombo.SelectedItem).Content.ToString() : "";
                 string evRm = EditEventCombo != null && EditEventCombo.SelectedItem != null ? EditEventCombo.SelectedItem.ToString() : "";
-                if (BlockIfRacingHeat(agRm, gdRm, evRm, stage, heatRm, "把人移出本组")) return;
+                if (BlockIfHeatLocked(agRm, gdRm, evRm, stage, heatRm, "把人移出本组")) return;
                 if (MessageBox.Show(string.Format("确定将 {0} 移出本组？", sw.Name), "确认", MessageBoxButton.YesNo) == MessageBoxResult.Yes) {
                     // 清除StageAssignments中的记录
                     if (sw.StageAssignments.ContainsKey(stage))
@@ -18733,7 +19207,7 @@ namespace SwimmingScoreboard
                         sw.Heat = 0;
                         sw.Lane = 0;
                     }
-                    AutoSaveData();
+                    SaveAndPushAssign(agRm, gdRm, evRm, stage);   // 2026-09-12 走补丁, 不推整包
                     RefreshEditPreview();
                     AddLog(string.Format("已将 {0} 移出编排", sw.Name));
                 }
@@ -18827,7 +19301,7 @@ namespace SwimmingScoreboard
                 Heat = 0, Lane = 0, Notes = "临时加人"
             };
             _swimmers.Add(sw);
-            AutoSaveData();
+            SaveAndPushAssign(ageGroup, gender, eventName, stage);   // 2026-09-12 走补丁, 人随补丁过去
             UpdateEditHeatCombo();
             RefreshEditPreview();
             AddLog(string.Format("临时加人: {0} 加入 {1} {2} {3}（未分组，请手动放入组/道）", name, gender, eventName, stage));
@@ -18951,7 +19425,7 @@ namespace SwimmingScoreboard
                 });
             }
 
-            AutoSaveData();
+            SaveAndPushAssign(ageGroup, gender, eventName, stage);   // 2026-09-12 走补丁, 队和棒次随补丁过去
             RebuildRelayGroupedView();
             UpdateEditHeatCombo();
             RefreshEditPreview();
@@ -19565,6 +20039,7 @@ namespace SwimmingScoreboard
 
             // 统一对所有项目（个人+接力）的第一赛次进行蛇形分组，按组别隔离
             int generated = 0;
+            var skippedAuto = new List<string>();   // 2026-09-12 里面有动不得的组, 这次跳过的项目
             foreach (var item in _schedule) {
                 string fullEvent = item.EventName;
                 string stage = item.Stage;
@@ -19579,6 +20054,16 @@ namespace SwimmingScoreboard
                 ).ToList();
 
                 if (eventSwimmers.Count == 0) continue;
+
+                // 2026-09-12 这一项里有锁着的组(正在比 / 已完赛)就跳过, 别的项照分。
+                //   蛇形重排会把全项的组次道次重来一遍, 锁着那组同样跑不掉。
+                int lockedHeat0;
+                string lockedWhy0 = EventLockedWhy(ageGroup, gender, fullEvent, stage, out lockedHeat0);
+                if (lockedWhy0 != null) {
+                    skippedAuto.Add(string.Format("{0} {1} {2}(第{3}组{4})", gender, fullEvent, stage, lockedHeat0, lockedWhy0));
+                    AddLog(string.Format("自动分组跳过 {0} {1} {2}: 第{3}组{4}", gender, fullEvent, stage, lockedHeat0, lockedWhy0));
+                    continue;
+                }
 
                 // 2026-05-23 传入用户配置的种子组数（默认 3 短 / 2 长；可在 名次分设置 改）
                 int seedS = _scoringConfig != null && _scoringConfig.SeedHeatsCountShort > 0 ? _scoringConfig.SeedHeatsCountShort : 3;
@@ -19596,10 +20081,14 @@ namespace SwimmingScoreboard
 
             BuildScheduleTree();
             SyncRelayHeatInfo();
+            string skipAutoNote = skippedAuto.Count == 0 ? ""
+                : ("\n\n以下项目这次跳过了(里面有动不得的组):\n  " + string.Join("\n  ", skippedAuto.ToArray()));
             if (generated > 0) {
                 AddLog(string.Format("自动分组完成: {0}项已分配", generated));
-                MessageBox.Show(string.Format("分组完成！\n共{0}项已按报名成绩蛇形分组。\n\n后续赛次需在成绩与排名中通过\"晋级处理\"根据比赛成绩进行分组。", generated),
+                MessageBox.Show(string.Format("分组完成！\n共{0}项已按报名成绩蛇形分组。\n\n后续赛次需在成绩与排名中通过\"晋级处理\"根据比赛成绩进行分组。{1}", generated, skipAutoNote),
                     "分组完成", MessageBoxButton.OK, MessageBoxImage.Information);
+            } else if (skippedAuto.Count > 0) {
+                MessageBox.Show("没有分配任何项目。" + skipAutoNote, "分组未执行", MessageBoxButton.OK, MessageBoxImage.Information);
             } else {
                 MessageBox.Show("未分配任何运动员/接力队。\n\n请检查：\n1. 项目名称是否与赛程一致\n2. 性别是否与赛程一致\n3. 是否已生成日程", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
             }
@@ -19886,6 +20375,9 @@ namespace SwimmingScoreboard
                 var combo = combos[cbEvent.SelectedIndex];
                 string stage = cbStage.SelectedItem as string ?? "预赛";
 
+                // 2026-09-12 整项重排, 里面有锁着的组(正在比/已完赛)就整项挡下
+                if (BlockIfEventLocked(combo.AgeGroup, combo.Gender, combo.EventName, stage, "重新分组")) return;
+
                 int maxHeat = 0, assigned = 0;
                 foreach (var r in rowSource) {
                     int h = 0, ln = 0;
@@ -19916,7 +20408,7 @@ namespace SwimmingScoreboard
                     sched.HeatCount = maxHeat;
                 }
 
-                AutoSaveData();
+                SaveAndPushAssign(combo.AgeGroup, combo.Gender, combo.EventName, stage);   // 2026-09-12 走补丁
                 BuildScheduleTree();
                 SyncRelayHeatInfo();
                 UpdateEditHeatCombo();
@@ -20049,6 +20541,9 @@ namespace SwimmingScoreboard
             int totalAdded = 0;
             int laneCount = _poolConfig.LaneCount;
             int[] lanePriority = HeatScheduler.GetLanePriority(_poolConfig);
+            // 2026-09-12 改动过的项目, 循环完一项发一条补丁
+            var touchedEvents = new List<string[]>();
+            var skippedEvents = new List<string>();
 
             foreach (var kv in unassigned) {
                 var parts = kv.Key.Split('|');
@@ -20058,6 +20553,17 @@ namespace SwimmingScoreboard
                 string eventName = parts[2];
                 string stage = parts[3];
                 var newSwimmers = kv.Value;
+
+                // 2026-09-12 追加会往最后一组里塞人 —— 那一组正在比或已完赛就跳过这一项,
+                //   别的项目照常追加。不弹窗打断整批, 最后一并报。
+                int lockedHeat;
+                string lockedWhy = EventLockedWhy(ageGroup, gender, eventName, stage, out lockedHeat);
+                if (lockedWhy != null) {
+                    skippedEvents.Add(string.Format("{0} {1} {2}(第{3}组{4})", gender, eventName, stage, lockedHeat, lockedWhy));
+                    AddLog(string.Format("追加分组跳过 {0} {1} {2}: 第{3}组{4}", gender, eventName, stage, lockedHeat, lockedWhy));
+                    continue;
+                }
+                touchedEvents.Add(new string[] { ageGroup, gender, eventName, stage });
 
                 // 找该项目当前最大组号
                 int maxHeat = 0;
@@ -20142,10 +20648,14 @@ namespace SwimmingScoreboard
             BuildScheduleTree();
             SyncRelayHeatInfo();
             UpdateEditHeatCombo();
-            AutoSaveData();
+            // 2026-09-12 改过的项目逐项发补丁(第一条里已经带上落盘), 不推整包
+            if (touchedEvents.Count == 0) AutoSaveData();
+            else foreach (var te in touchedEvents) SaveAndPushAssign(te[0], te[1], te[2], te[3]);
             Broadcast();
             AddLog(string.Format("追加分组完成: {0}人已分配", totalAdded));
-            MessageBox.Show(string.Format("追加分组完成！\n共{0}人已分配到各组。\n\n已分好组的运动员不受影响。", totalAdded),
+            string skipNote = skippedEvents.Count == 0 ? ""
+                : ("\n\n以下项目这次跳过了(里面有动不得的组):\n  " + string.Join("\n  ", skippedEvents.ToArray()));
+            MessageBox.Show(string.Format("追加分组完成！\n共{0}人已分配到各组。\n\n已分好组的运动员不受影响。{1}", totalAdded, skipNote),
                 "追加分组完成", MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
@@ -20667,6 +21177,9 @@ namespace SwimmingScoreboard
 
         private void Promotion_Click(object sender, RoutedEventArgs e) {
             RefreshChangedFromDb();   // 2026-08-31 开报表前先从库刷新, 别的计算机写的成绩才看得到
+            // 2026-09-12 晋级窗口是直接改内存的, 关了之后拍照一比, 变了哪几项发哪几项的补丁。
+            //   半决赛/决赛分组恰恰是比赛中最常做的事 —— 这条路必须不推整包。
+            var before = SnapshotAssignments();
             var win = new PromotionQueryWindow(_swimmers, _events, _poolConfig, _schedule);
             win.Owner = this;
             win.ShowDialog();
@@ -20675,7 +21188,8 @@ namespace SwimmingScoreboard
             UpdateResultHeatCombo();
             RefreshResultGrid();
             UpdateEditHeatCombo();
-            AutoSaveData();
+            SaveWithoutPush();
+            PushChangedAssignments(before);
             Broadcast();
         }
 
@@ -24240,8 +24754,10 @@ namespace SwimmingScoreboard
                     "删除全部纪录", MessageBoxButton.YesNo, MessageBoxImage.Warning);
                 if (result == MessageBoxResult.Yes) {
                     int count = _records.Count;
+                    var recBefore = SnapshotRecords();
                     _records.Clear();
-                    AutoSaveData();
+                    SaveWithoutPush();
+                    PushChangedRecords(recBefore);   // 2026-09-12 按条同步, 不推整包
                     Broadcast();
                     RefreshRecordFilterCombos();
                     RecordFilterReset_Click(null, null);
@@ -24263,8 +24779,10 @@ namespace SwimmingScoreboard
             string lockKey = string.Format("record:{0}:{1}:{2}:{3}",
                 selected.RecordType ?? "", selected.EventName ?? "", selected.Gender ?? "", selected.AgeGroup ?? "");
             RunWithEditLock(lockKey, string.Format("纪录 [{0} {1} {2}]", selected.RecordType, selected.EventName, selected.Gender), delegate {
+                var recBefore = SnapshotRecords();
                 _records.Remove(selected);
-                AutoSaveData();
+                SaveWithoutPush();
+                PushChangedRecords(recBefore);   // 2026-09-12 按条同步, 不推整包
                 RefreshRecordFilterCombos();
                 ApplyRecordFilter();
             });
@@ -24322,6 +24840,7 @@ namespace SwimmingScoreboard
                 new { G="混合", E="4×100米混合泳接力",  T=217.43, H="美国队", C="美国", D="2024-08-03", L="巴黎" }
             };
 
+            var recBefore = SnapshotRecords();   // 2026-09-12 改完跟它一比, 只发变动的那几条
             // 先清除所有旧的世界纪录（包括可能因编码问题产生的乱码记录）
             var toRemove = new List<SwimmingRecord>();
             foreach (var r in _records) {
@@ -24341,7 +24860,8 @@ namespace SwimmingScoreboard
                 added++;
             }
             AddLog(string.Format("世界纪录: 清除旧记录{0}条, 导入{1}条", removed, added));
-            AutoSaveData();
+            SaveWithoutPush();
+            PushChangedRecords(recBefore);   // 2026-09-12 按条同步, 不推整包
             Broadcast();
             RefreshRecordFilterCombos();
         }
@@ -24353,6 +24873,7 @@ namespace SwimmingScoreboard
             };
             if (dlg.ShowDialog() == true) {
                 try {
+                    var recBefore = SnapshotRecords();   // 2026-09-12 改完跟它一比, 只发变动的那几条
                     // 检查是否为Excel二进制格式（.xls/.xlsx），提示用户先另存为CSV
                     string ext = System.IO.Path.GetExtension(dlg.FileName).ToLower();
                     if (ext == ".xls" || ext == ".xlsx") {
@@ -24438,7 +24959,8 @@ namespace SwimmingScoreboard
                     }
                     AddLog(string.Format("CSV导入纪录: 新增{0}条, 更新{1}条, 跳过空行{2}, 解析失败{3}, 重复{4}",
                         imported, updated, skippedEmpty, skippedParse, skippedDup));
-                    AutoSaveData();
+                    SaveWithoutPush();
+                    PushChangedRecords(recBefore);   // 2026-09-12 按条同步, 不推整包
                     Broadcast();
                     RefreshRecordFilterCombos();
                 } catch (Exception ex) {
@@ -25525,6 +26047,24 @@ namespace SwimmingScoreboard
                 }
                 if (rows.Count == 0) { MessageBox.Show("Excel 中没有可导入的分组数据。", "提示"); return; }
 
+                // 2026-09-12 导入是【整项清空重填】—— 先挑出里面有动不得的组(正在比 / 已完赛)
+                //   的项目, 那些项整项跳过, 别的项照常导。
+                var lockedKeys = new HashSet<string>();
+                var lockedNote = new List<string>();
+                foreach (var hr in rows) {
+                    if (string.IsNullOrEmpty(hr.Gender) || string.IsNullOrEmpty(hr.EventName) || string.IsNullOrEmpty(hr.Stage)) continue;
+                    string k0 = (hr.AgeGroup ?? "") + "|" + hr.Gender + "|" + hr.EventName + "|" + hr.Stage;
+                    if (lockedKeys.Contains(k0)) continue;
+                    int lh;
+                    string lw = EventLockedWhy(hr.AgeGroup ?? "", hr.Gender, hr.EventName, hr.Stage, out lh);
+                    if (lw != null) {
+                        lockedKeys.Add(k0);
+                        lockedNote.Add(string.Format("{0} {1} {2}(第{3}组{4})", hr.Gender, hr.EventName, hr.Stage, lh, lw));
+                        AddLog(string.Format("导入分组表跳过 {0} {1} {2}: 第{3}组{4}", hr.Gender, hr.EventName, hr.Stage, lh, lw));
+                    }
+                }
+                var beforeSig = SnapshotAssignments();
+
                 int imported = 0, skipped = 0, autoAdded = 0;
                 var unmatched = new List<string>();
                 var seenKeys = new HashSet<string>();
@@ -25533,6 +26073,7 @@ namespace SwimmingScoreboard
                         skipped++; continue;
                     }
                     string key = (hr.AgeGroup ?? "") + "|" + hr.Gender + "|" + hr.EventName + "|" + hr.Stage;
+                    if (lockedKeys.Contains(key)) { skipped++; continue; }
                     if (!seenKeys.Contains(key)) {
                         seenKeys.Add(key);
                         foreach (var sw in _swimmers) {
@@ -25592,11 +26133,14 @@ namespace SwimmingScoreboard
                     if (maxHeat > 0) sched.HeatCount = maxHeat;
                 }
 
-                AutoSaveData();
+                SaveWithoutPush();
+                PushChangedAssignments(beforeSig);   // 2026-09-12 变了哪几项发哪几项的补丁
                 BuildScheduleTree();
                 Broadcast();
                 AddLog(string.Format("导入分组表 Excel: 分配{0}条, 跳过{1}行, 自动新建{2}人", imported, skipped, autoAdded));
                 string detail = string.Format("已导入分组 {0} 条。", imported);
+                if (lockedNote.Count > 0)
+                    detail += "\n\n以下项目整项跳过了(里面有动不得的组):\n  · " + string.Join("\n  · ", lockedNote.ToArray());
                 if (autoAdded > 0) detail += string.Format("\n已自动注册 {0} 名运动员。", autoAdded);
                 if (unmatched.Count > 0) {
                     detail += string.Format("\n有 {0} 行未匹配到运动员（已跳过）：\n  · ", unmatched.Count);
@@ -25694,12 +26238,25 @@ namespace SwimmingScoreboard
         //   组号数字 + 姓名行 → 接下来一行 = 单位行
         //   按 (Gender, EventName, Name, CountryShort/Country) 反查 _swimmers: 找到→更新 Heat/Lane; 找不到→新增
         private void ImportOtherHeatExcel_Click(object sender, RoutedEventArgs e) {
+            // 2026-09-12 这一路是【整本分组表重写】(边读边建赛程项和分组), 没法像另一个
+            //   导入那样先挑出哪几项要跳过。已完赛的组不在编辑范围, 所以场上一旦开始比,
+            //   这个入口就关掉 —— 它本来就是赛前一次性的活。
+            string lockedWhat;
+            if (MeetHasLockedHeats(out lockedWhat)) {
+                MessageBox.Show("现在不能导入(其他)分组表。\n\n原因: " + lockedWhat +
+                    "。\n\n这个导入会把整本分组表重写一遍，已完赛和正在比的组也跑不掉。\n" +
+                    "要改个别项目，请用「出场编排微调」或「并组 / 取消组」。",
+                    "整本重写的导入已挡下", MessageBoxButton.OK, MessageBoxImage.Warning);
+                AddLog("拒绝导入(其他)分组表: " + lockedWhat);
+                return;
+            }
             var dlg = new Microsoft.Win32.OpenFileDialog {
                 Filter = "Excel 工作簿|*.xlsx;*.xls",
                 Title = "导入(其他)分组表 — 网格式 (项目 block + 组号×道次)"
             };
             if (dlg.ShowDialog() != true) return;
             try {
+                var beforeSig = SnapshotAssignments();
                 int updated = 0, added = 0, blanksSeen = 0;
                 int maxBib = 0;
                 foreach (var sw in _swimmers) {
@@ -25828,7 +26385,8 @@ namespace SwimmingScoreboard
                         }
                     }
                 }
-                AutoSaveData();
+                SaveWithoutPush();
+                PushChangedAssignments(beforeSig);   // 2026-09-12 变了哪几项发哪几项的补丁
                 RebuildScheduleGroupedView();
                 BuildScheduleTree();
                 RefreshSwimmerFilter();
