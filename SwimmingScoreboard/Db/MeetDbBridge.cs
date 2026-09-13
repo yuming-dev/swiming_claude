@@ -292,6 +292,64 @@ namespace SwimmingScoreboard.Db
             return _eventIx.TryGetValue(RKey(ageGroup, gender, eventName, stage), out id) ? id : 0L;
         }
 
+        // ── 并组落库 ────────────────────────────────────────────── 2026-09-12
+        // 老程序那边改的是内存里的 Swimmer, 这里把同一件事记进库:
+        // 谁挪到了哪一道、原组标成 cancelled 并记并入了哪组, 外加一条审计。
+        //
+        // laneMoves 是"原道次 → 新道次"。库里认的是 heat_entries.id, 所以先把
+        // 源组的泳道表拉下来, 按道次翻成 id —— 老程序那边没有这个 id, 只能这么对。
+        //
+        // 两条规矩照旧:
+        //   · 主服务器正在计时时一个字都不往库里写 (skipDuringRace, 见 InRaceNoDbWrite)。
+        //   · 【本类的任何失败都不许影响主程序】—— 全部吞掉只记日志。
+        public void MergeHeatsInDb(string ageGroup, string gender, string eventName, string stage,
+                                   int srcHeat, int dstHeat, Dictionary<int, int> laneMoves,
+                                   string reason, string op, bool skipDuringRace)
+        {
+            if (_meet == null) return;
+            if (skipDuringRace)
+            {
+                Log("比赛中不写竞赛库: 第" + srcHeat + "组的并组只落在本机 json");
+                return;
+            }
+            try
+            {
+                long rid = ResolveRound(ageGroup, gender, eventName, stage);
+                if (rid <= 0)
+                {
+                    Log("并组未落库: 赛次索引里找不到 " + gender + ageGroup + eventName + stage);
+                    return;
+                }
+                if (dstHeat > 0)
+                {
+                    var map = new Dictionary<long, int>();
+                    foreach (var row in _meet.GetHeat(rid, srcHeat))
+                    {
+                        if (row.Lane == null) continue;
+                        int newLane;
+                        if (laneMoves == null || !laneMoves.TryGetValue(row.Lane.Value, out newLane)) continue;
+                        map[row.Id] = newLane;
+                    }
+                    if (map.Count == 0)
+                    {
+                        Log("并组未落库: 库里第" + srcHeat + "组对不上道次(可能这一组还没导进库)");
+                        return;
+                    }
+                    _meet.MergeHeats(rid, srcHeat, dstHeat, map, op);
+                    Log(string.Format("并组已落库: 第{0}组 → 第{1}组, {2} 人", srcHeat, dstHeat, map.Count));
+                }
+                else
+                {
+                    _meet.CancelHeat(rid, srcHeat, string.IsNullOrEmpty(reason) ? "取消" : reason, op);
+                    Log("取消组已落库: 第" + srcHeat + "组");
+                }
+            }
+            catch (Exception ex)
+            {
+                Log("并组落库失败(本机数据不受影响): " + ex.Message);
+            }
+        }
+
         // ── 自检 ────────────────────────────────────────────────────────
         public class CheckResult
         {
