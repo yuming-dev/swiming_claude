@@ -9224,13 +9224,31 @@ namespace SwimmingScoreboard
                 if (arr == null || arr.Count == 0)
                 { MessageBox.Show("文件里没有成绩。", "导入成绩", MessageBoxButton.OK, MessageBoxImage.Information); return; }
 
-                int ok = 0, bad = 0;
+                int ok = 0, bad = 0, lockedSkip = 0;
+                var lockedList = new List<string>();
                 // 2026-09-01 导进来的组涉及哪些 (组别|性别|项目|赛次) —— 导完要按项目补生成组排名表
                 var touched = new List<string[]>();
                 foreach (var t in arr)
                 {
                     var d = t as JObject;
                     if (d == null) { bad++; continue; }
+                    // 2026-09-12 本机已经标注已完赛的组不许被覆盖 —— 已完赛的组不在修改范围。
+                    //   摆渡文件里装的都是别处确认过的成绩, 灌进来就是把本机那份盖掉。
+                    {
+                        string lag = d["ageGroup"] != null ? d["ageGroup"].ToString() : "";
+                        string lgd = d["gender"]   != null ? d["gender"].ToString()   : "";
+                        string lev = d["eventName"]!= null ? d["eventName"].ToString(): "";
+                        string lst = d["stage"]    != null ? d["stage"].ToString()    : "";
+                        int lht = 0;
+                        if (d["heat"] != null) int.TryParse(d["heat"].ToString(), out lht);
+                        if (ResultLockedWhy(lag, lgd, lev, lst, lht) != null) {
+                            lockedSkip++;
+                            string one = string.Format("{0} {1} {2} 第{3}组", lgd, lev, lst, lht);
+                            if (!lockedList.Contains(one)) lockedList.Add(one);
+                            AddLog("导入成绩跳过(本机已完赛): " + one);
+                            continue;
+                        }
+                    }
                     // 走的是跟联机回推【一模一样】的入口, socket 传 null(不用回执)
                     var msg = new JObject();
                     msg["type"] = "HEAT_CONFIRMED_PUSH";
@@ -9269,12 +9287,16 @@ namespace SwimmingScoreboard
                 try { AutoSaveData(); } catch { }
                 try { Broadcast(); } catch { }
 
-                AddLog(string.Format("已从文件导入成绩: {0} 个组成功{1}",
-                    ok, bad > 0 ? "，" + bad + " 个失败" : ""));
-                MessageBox.Show(string.Format("已导入 {0} 个组的成绩。{1}", ok,
-                    bad > 0 ? "\n有 " + bad + " 个组没导进来，详见系统日志。" : ""),
+                AddLog(string.Format("已从文件导入成绩: {0} 个组成功{1}{2}",
+                    ok, bad > 0 ? "，" + bad + " 个失败" : "",
+                    lockedSkip > 0 ? "，" + lockedSkip + " 个本机已完赛跳过" : ""));
+                string lockNote = lockedSkip == 0 ? ""
+                    : ("\n\n有 " + lockedSkip + " 个组本机已经标注已完赛，没有覆盖：\n  · "
+                       + string.Join("\n  · ", lockedList.Take(20).ToArray()));
+                MessageBox.Show(string.Format("已导入 {0} 个组的成绩。{1}{2}", ok,
+                    bad > 0 ? "\n有 " + bad + " 个组没导进来，详见系统日志。" : "", lockNote),
                     "导入成绩", MessageBoxButton.OK,
-                    bad > 0 ? MessageBoxImage.Warning : MessageBoxImage.Information);
+                    (bad > 0 || lockedSkip > 0) ? MessageBoxImage.Warning : MessageBoxImage.Information);
             }
             catch (Exception ex)
             {
@@ -9922,6 +9944,69 @@ namespace SwimmingScoreboard
                 "这一项里有动不得的组", MessageBoxButton.OK, MessageBoxImage.Warning);
             AddLog(string.Format("【拦下】{0} {1} {2} 第{3}组{4}, 拒绝{5}", gender, eventName, stage, h, why, actionLabel));
             return true;
+        }
+
+        // ── 2026-09-12 【已完赛的组, 成绩也不许改】────────────────────────
+        //
+        // 判定跟上面分组那把锁【故意不一样】: 这里只认"标注已完赛"
+        // (= _confirmedHeats, 操作员点过「确认本组成绩」、赛程树上带 [已完赛] 的),
+        // 不用 IsHeatConfirmed 那个"全员有成绩就算完赛"的推断。
+        // 因为刚游完、还没点确认的那一会儿, 恰恰是最常要改成绩的时候
+        // (某道明显不对, 改完再确认) —— 拿推断来锁就把正常流程堵死了。
+        //
+        // 组别的比对要松: _confirmedHeats 的 key 里记的是赛程项的组别(可能是
+        // "12-15岁组"这种并项), 而调用方手上常常是运动员自己的"12-13岁组"。
+        // 两边能对上(相等或区间包含)就算同一组。
+        private static bool AgeGroupCompatible(string a, string b) {
+            a = a ?? ""; b = b ?? "";
+            if (a == b) return true;
+            if (a.Length == 0 || b.Length == 0) return true;    // 有一边没说, 不拿它做否定
+            int aLo, aHi, bLo, bHi;
+            if (TryParseAgeRange(a, out aLo, out aHi) && TryParseAgeRange(b, out bLo, out bHi))
+                return (aLo <= bLo && bHi <= aHi) || (bLo <= aLo && aHi <= bHi);
+            return false;
+        }
+
+        /// <summary>这一组是不是已经"标注已完赛"了。</summary>
+        private bool IsHeatMarkedFinished(string ageGroup, string gender, string eventName, string stage, int heat) {
+            if (heat <= 0 || _confirmedHeats == null || _confirmedHeats.Count == 0) return false;
+            if (_confirmedHeats.Contains(ConfirmedHeatKey(ageGroup, gender, eventName, stage, heat))) return true;
+            foreach (string key in _confirmedHeats) {
+                var p = key.Split('|');          // ag|gd|ev|st|heat
+                if (p.Length != 5) continue;
+                int h;
+                if (!int.TryParse(p[4], out h) || h != heat) continue;
+                if ((p[2] ?? "") != (eventName ?? "")) continue;
+                if (!string.IsNullOrEmpty(p[3]) && !string.IsNullOrEmpty(stage) && p[3] != stage) continue;
+                if (!string.IsNullOrEmpty(p[1]) && !string.IsNullOrEmpty(gender) && !SgMatch(gender, p[1])) continue;
+                if (!AgeGroupCompatible(p[0], ageGroup)) continue;
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>成绩改不得就返回原因; 能改返回 null。</summary>
+        private string ResultLockedWhy(string ageGroup, string gender, string eventName, string stage, int heat) {
+            return IsHeatMarkedFinished(ageGroup, gender, eventName, stage, heat)
+                 ? "已完赛(成绩已确认)" : null;
+        }
+
+        /// <summary>成绩改不得 → 弹窗 + 记日志, 返回 true 表示已拦下。</summary>
+        private bool BlockIfResultLocked(string ageGroup, string gender, string eventName, string stage,
+                                         int heat, string actionLabel) {
+            string why = ResultLockedWhy(ageGroup, gender, eventName, stage, heat);
+            if (why == null) return false;
+            MessageBox.Show(string.Format(
+                "第{0}组现在不能{1}。\n\n原因: 这一组{2} —— 已完赛的组不在修改范围。\n\n成绩要在点「确认本组成绩」之前改。",
+                heat, actionLabel, why), "这一组已完赛", MessageBoxButton.OK, MessageBoxImage.Warning);
+            AddLog(string.Format("【拦下】第{0}组{1}, 拒绝{2}", heat, why, actionLabel));
+            return true;
+        }
+
+        /// <summary>当前装载的这一组成绩改不得 → 拦下。计时面板上那几个按钮用。</summary>
+        private bool BlockIfCurrentResultLocked(string actionLabel) {
+            return BlockIfResultLocked(_currentAgeGroup, _currentGender, _currentEvent, _currentStage,
+                                       _currentHeat, actionLabel);
         }
 
         /// <summary>这一组有没有录进成绩(含判 DSQ 之类只有状态没有时间的)。</summary>
@@ -10638,21 +10723,27 @@ namespace SwimmingScoreboard
             return d;
         }
 
-        /// <summary>和之前那张快照比, 改过/删掉的纪录发一条补丁出去。</summary>
-        private void PushChangedRecords(Dictionary<string, string> before) {
+        // 就地编辑那张表用的基准线: 上一次保存/同步时纪录长什么样。
+        // 表格是直接改对象的, 没有基准线就不知道"改了哪几条"。
+        private Dictionary<string, string> _recordsBaseline;
+        private void ResetRecordsBaseline() { try { _recordsBaseline = SnapshotRecords(); } catch { } }
+
+        /// <summary>和之前那张快照比, 改过/删掉的纪录发一条补丁出去。返回变动条数。</summary>
+        private int PushChangedRecords(Dictionary<string, string> before) {
             try {
                 var after = SnapshotRecords();
                 var ups = new JArray();
                 var dels = new JArray();
                 foreach (var r in _records) {
                     if (r == null) continue;
+                    if (string.IsNullOrWhiteSpace(r.EventName)) continue;   // 空白行(刚点"添加纪录"还没填)不外发
                     string k = RecordKey(r);
                     string b;
                     if (before.TryGetValue(k, out b) && b == after[k]) continue;   // 没变
                     try { ups.Add(JObject.FromObject(r)); } catch { }
                 }
                 foreach (var kv in before) if (!after.ContainsKey(kv.Key)) dels.Add(kv.Key);
-                if (ups.Count == 0 && dels.Count == 0) return;
+                if (ups.Count == 0 && dels.Count == 0) { ResetRecordsBaseline(); return 0; }
 
                 var p = NewPatch("Records", "", "", "", "",
                                  IsScheduleEditorMode ? ("编排端 " + Environment.MachineName) : Environment.MachineName);
@@ -10666,7 +10757,9 @@ namespace SwimmingScoreboard
                     BroadcastPatch(p, null);
                 }
                 AddLog(string.Format("纪录变动: 改 {0} 条, 删 {1} 条, 已用补丁同步", ups.Count, dels.Count));
-            } catch (Exception ex) { AddLog("对比纪录变动失败: " + ex.Message); }
+                ResetRecordsBaseline();
+                return ups.Count + dels.Count;
+            } catch (Exception ex) { AddLog("对比纪录变动失败: " + ex.Message); return 0; }
         }
 
         /// <summary>收到纪录补丁: 按条 upsert / 删除。没提到的行一个字不动。</summary>
@@ -10705,6 +10798,7 @@ namespace SwimmingScoreboard
                 try { RefreshRecordFilterCombos(); ApplyRecordFilter(); } catch { }
                 Broadcast();
             } finally { _patchInFlight = false; }
+            ResetRecordsBaseline();   // 2026-09-12 远端改过了, 基准线跟着走
             AddLog(string.Format("【纪录补丁】改 {0} 条, 删 {1} 条", up, del));
             return true;
         }
@@ -13657,6 +13751,8 @@ namespace SwimmingScoreboard
 
         // 取消备注：清除 DNS/DNF/DSQ 等状态，使运动员回到正常参赛状态
         private void CancelLaneNote(int lane) {
+            // 2026-09-12 已完赛的组成绩不许再改 —— 撤销 DSQ 会把备份成绩恢复回去, 同样是改成绩
+            if (BlockIfCurrentResultLocked("撤销状态标记")) return;
             var swimmer = GetCurrentHeatSwimmers().FirstOrDefault(s => {
                 var sa = s.GetAssignmentForStage(_currentStage);
                 return (sa != null ? sa.Lane : s.Lane) == lane;
@@ -13978,6 +14074,8 @@ namespace SwimmingScoreboard
         }
 
         private void MarkLaneStatus(int lane, string status) {
+            // 2026-09-12 已完赛的组成绩不许再改 —— 判 DSQ/DNS/DNF 也是改成绩
+            if (BlockIfCurrentResultLocked("改判 " + status)) return;
             var swimmer = GetCurrentHeatSwimmers().FirstOrDefault(s => {
                 var sa = s.GetAssignmentForStage(_currentStage);
                 return (sa != null ? sa.Lane : s.Lane) == lane;
@@ -14111,6 +14209,8 @@ namespace SwimmingScoreboard
         }
 
         private void OverrideLaneTime(int lane, double time) {
+            // 2026-09-12 已完赛的组成绩不许再改
+            if (BlockIfCurrentResultLocked("手动改成绩")) return;
             LogRawTimingData(lane, "ManualOverride", time);
             var swimmer = GetCurrentHeatSwimmers().FirstOrDefault(s => {
                 var sa = s.GetAssignmentForStage(_currentStage);
@@ -14359,6 +14459,14 @@ namespace SwimmingScoreboard
             if (string.IsNullOrEmpty(gender) || string.IsNullOrEmpty(evName) || string.IsNullOrEmpty(stage)) {
                 AddLog("CANCEL_PROMOTION 缺少 gender/eventName/stage"); return;
             }
+            // 2026-09-12 取消晋级会把整个赛次的分组和赛程项一起删掉 ——
+            //   里面只要有一组正在比或已完赛, 就整条不许做。远端来的不弹窗, 记日志。
+            int lockedH;
+            string lockedW = EventLockedWhy(ageGroup, gender, evName, stage, out lockedH);
+            if (lockedW != null) {
+                AddLog(string.Format("拒绝编辑端取消晋级: {0} {1} {2} 第{3}组{4}", gender, evName, stage, lockedH, lockedW));
+                return;
+            }
             int removed = 0;
             foreach (var sw in _swimmers.Where(s => SgMatch(s.Gender, gender) && s.EventName == evName
                     && (string.IsNullOrEmpty(ageGroup) || (s.AgeCategory ?? "") == ageGroup))) {
@@ -14398,6 +14506,15 @@ namespace SwimmingScoreboard
             int heat = 0;
             if (data["heat"] != null) int.TryParse(data["heat"].ToString(), out heat);
             var result = sw.Results.FirstOrDefault(r => r.Stage == stage && (heat == 0 || r.Heat == heat));
+            // 2026-09-12 已完赛的组成绩不许再改。远端来的不弹窗, 回一句 + 记日志。
+            //   heat 没给就用查到的那条成绩上的组次 —— 别因为没传组号就绕过这道门。
+            int heatChk = heat > 0 ? heat : (result != null ? result.Heat : 0);
+            string lockWhy = ResultLockedWhy(sw.AgeCategory, sw.Gender, evName, stage, heatChk);
+            if (lockWhy != null) {
+                AddLog(string.Format("拒绝编辑端改成绩: {0}({1}) {2} {3} 第{4}组 {5}",
+                    sw.Name, bib, evName, stage, heatChk, lockWhy));
+                return;
+            }
             if (result == null) {
                 // 没成绩记录就建一个空的
                 result = new LaneResult { EventName = evName, Stage = stage, Heat = heat, Lane = sw.Lane };
@@ -14735,8 +14852,15 @@ namespace SwimmingScoreboard
             string status = data["status"] != null ? data["status"].ToString() : "";
             var sw = _swimmers.FirstOrDefault(s => s.BibNumber == bib && s.EventName == evName);
             if (sw == null) { AddLog(string.Format("MARK_STATUS 找不到: {0} {1}", bib, evName)); return; }
-            sw.Status = status;
             var result = sw.Results.FirstOrDefault(r => r.Stage == stage);
+            // 2026-09-12 已完赛的组成绩不许再改 —— 标 DNS/DNF/DSQ 也是改成绩
+            string lockWhy2 = ResultLockedWhy(sw.AgeCategory, sw.Gender, evName, stage,
+                                              result != null ? result.Heat : 0);
+            if (lockWhy2 != null) {
+                AddLog(string.Format("拒绝编辑端标记: {0}({1}) {2} {3} {4}", sw.Name, bib, evName, stage, lockWhy2));
+                return;
+            }
+            sw.Status = status;
             if (result != null) {
                 result.Status = status;
                 if (status == "DNS" || status == "DNF" || status == "DSQ") {
@@ -22377,6 +22501,7 @@ namespace SwimmingScoreboard
             _teamScores.Clear();
             _schedule.Clear();
             _records.Clear();
+            ResetRecordsBaseline();   // 2026-09-12 基准线跟着清, 否则下次"保存纪录"会把旧纪录当成"被删了"推出去
             _confirmedHeats.Clear();
             // 2026-06-08 P3: 新建/切换赛事时同步清 per-lane 事件日志与原始计时日志, 避免上届比赛的
             //   尾部数据残留 (Ready_Click / Restart_Click 只在同场比赛内换组时清, 跨赛事场景需在此清).
@@ -24102,6 +24227,7 @@ namespace SwimmingScoreboard
                 }
                 _records.Clear();
                 if (package.Records != null) foreach (var r in package.Records) _records.Add(r);
+                ResetRecordsBaseline();   // 2026-09-12 表格就地编辑的基准线, 从这一刻算起
                 _teamScores.Clear();
                 if (package.TeamScores != null) foreach (var ts in package.TeamScores) _teamScores.Add(ts);
                 _schedule.Clear();
@@ -24770,7 +24896,40 @@ namespace SwimmingScoreboard
             RunWithEditLock("records-all", "纪录列表", delegate {
                 _records.Add(new SwimmingRecord { RecordType = "赛会纪录", Gender = "男" });
                 RefreshRecordFilterCombos();
+                AddLog("已添加一行空纪录 —— 填好之后记得点「保存纪录」");
             });
+        }
+
+        // ── 2026-09-12 纪录表的"保存" ────────────────────────────────────
+        // 这张表是就地编辑的(IsReadOnly=False), 原来从头到尾【没有一个保存动作】:
+        // 在格子里改完的值只能等别的操作顺带 AutoSaveData 才落盘, 而比赛中那条路是
+        // 推整包、会被主服务器拒收 —— 于是"比赛中改纪录"实际上改不动, 还看不出原因。
+        //
+        // 这里显式落盘 + 按条推补丁。按条而不是推整张表: 比赛中一份旧表盖过去,
+        // 刚破的纪录就没了 —— 那是出过事的形状(见 ApplyRecordsPatch 上面那段)。
+        private void SaveRecords_Click(object sender, RoutedEventArgs e) {
+            // 光标还停在格子里时这一格的值还没写回对象, 先逼它提交, 否则"改了没保存上"
+            try {
+                if (RecordGrid != null) {
+                    RecordGrid.CommitEdit(DataGridEditingUnit.Cell, true);
+                    RecordGrid.CommitEdit(DataGridEditingUnit.Row, true);
+                }
+            } catch { }
+
+            int blank = 0;
+            foreach (var r in _records) if (r != null && string.IsNullOrWhiteSpace(r.EventName)) blank++;
+
+            var before = _recordsBaseline != null ? _recordsBaseline : SnapshotRecords();
+            SaveWithoutPush();
+            int changed = PushChangedRecords(before);
+            RefreshRecordFilterCombos();
+            ApplyRecordFilter();
+            Broadcast();
+
+            string msg = changed > 0 ? string.Format("已保存 {0} 条改动。", changed) : "没有发现改动。";
+            if (blank > 0) msg += string.Format("\n\n有 {0} 行没填项目名，这些行没有同步出去。\n补齐项目名后再点一次保存。", blank);
+            MessageBox.Show(msg, "保存纪录", MessageBoxButton.OK, MessageBoxImage.Information);
+            AddLog(string.Format("保存纪录: {0} 条改动{1}", changed, blank > 0 ? ("，" + blank + " 行缺项目名未同步") : ""));
         }
 
         private void DeleteRecord_Click(object sender, RoutedEventArgs e) {

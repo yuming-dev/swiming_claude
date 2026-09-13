@@ -714,6 +714,11 @@
                                         <StackPanel DockPanel.Dock="Left" Orientation="Horizontal">
                                             <Button Content="添加纪录" Click="AddRecord_Click" Padding="12,6" Background="#3B82F6" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
                                             <Button Content="删除选中" Click="DeleteRecord_Click" Padding="12,6" Background="#EF4444" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
+                                            <!-- 2026-09-12 纪录表是就地编辑的, 原来没有任何"保存"动作 —— 改完只能等
+                                                 别的操作顺带落盘, 比赛中那就是整包、会被主服务器拒。这个按钮把改动
+                                                 落盘并按条同步给对端。 -->
+                                            <Button Content="保存纪录" Click="SaveRecords_Click" Padding="12,6" Background="#22C55E" Foreground="White" BorderThickness="0" Margin="0,0,8,0"
+                                                    ToolTip="把表格里改过的纪录落盘, 并按条同步给主服务器/编排端(不推整包)"/>
                                             <Button Content="导入标准纪录" Click="ImportDefaultRecords_Click" Padding="12,6" Background="#22C55E" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
                                             <Button Content="导入CSV纪录" Click="ImportRecordsCSV_Click" Padding="12,6" Background="#8B5CF6" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
                                             <Button Content="下载纪录模板" Click="ExportRecordTemplate_Click" Padding="12,6" Background="#F59E0B" Foreground="White" BorderThickness="0"/>
