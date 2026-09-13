@@ -83,25 +83,28 @@ foreach ($sub in @("Web","Records")) {
     $dstSub = Join-Path $installerBuild "SwimmingScoreboard\$sub"
     if (Test-Path $dstSub) { Remove-Item -Recurse -Force $dstSub }
     Copy-Item (Join-Path $root "SwimmingScoreboard\$sub") $dstSub -Recurse -Force
-    Get-ChildItem $dstSub -Recurse -File -Include '*.bak_*','*.bak','*~' | Remove-Item -Force
+    # 2026-09-13 顺带清掉 Web 下的开发笔记(*.md), 那是给自己看的, 不该进客户包
+    Get-ChildItem $dstSub -Recurse -File -Include '*.bak_*','*.bak','*~','*.md' | Remove-Item -Force
 }
 # 2026-06-17 RTC 也开 HTTP 文件服务 + WebSocket Server, 需要同样的 Web/ 目录
 foreach ($sub in @("Web","Records")) {
     $dstSub = Join-Path $installerBuild "RemoteTimingControl\$sub"
     if (Test-Path $dstSub) { Remove-Item -Recurse -Force $dstSub }
     Copy-Item (Join-Path $root "SwimmingScoreboard\$sub") $dstSub -Recurse -Force
-    Get-ChildItem $dstSub -Recurse -File -Include '*.bak_*','*.bak','*~' | Remove-Item -Force
+    Get-ChildItem $dstSub -Recurse -File -Include '*.bak_*','*.bak','*~','*.md' | Remove-Item -Force
 }
 # 2026-06-18 RDC 大屏预览 WebView2 用 file:/// 加载本地 display.html (主服务器 HTTP 8080 需 admin/netsh 注册, 不可靠)
 $dstWebRdc = Join-Path $installerBuild "RemoteDisplayControl\Web"
 if (Test-Path $dstWebRdc) { Remove-Item -Recurse -Force $dstWebRdc }
 Copy-Item (Join-Path $root "SwimmingScoreboard\Web") $dstWebRdc -Recurse -Force
-Get-ChildItem $dstWebRdc -Recurse -File -Include '*.bak_*','*.bak','*~' | Remove-Item -Force
+Get-ChildItem $dstWebRdc -Recurse -File -Include '*.bak_*','*.bak','*~','*.md' | Remove-Item -Force
 
 # 2026-05-21 删除开发机运行 EXE 时产生的整目录（exclude 模式只过滤文件，不过滤目录）：
 #   Database\    开发机的赛事档案 + RawData 原始数据快照 → 装到客户机会覆盖客户数据
 #   Documents\   开发机生成过的临时 PDF/DOC 文档
-foreach ($strayDir in @("Database","Documents")) {
+# 2026-09-13 Logs 一并清掉: 开发机跑出来的日志(20260829.log 这些)会被整个拷进客户包,
+#   既是噪音也是泄露。程序自己会建目录, 不用预先放。
+foreach ($strayDir in @("Database","Documents","Logs")) {
     $p = Join-Path $installerBuild "SwimmingScoreboard\$strayDir"
     if (Test-Path $p) {
         Remove-Item -Recurse -Force $p
