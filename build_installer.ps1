@@ -132,15 +132,37 @@ if (Test-Path $manualSrc) { Copy-Item $manualSrc (Join-Path $installerBuild "使
 # 2026-09-01 VC++ 运行库随包发。目标机缺它, SQLite.Interop.dll 就加载不了 ——
 #   竞赛库全程打不开(成绩不入库/没有名次/组排名不生成), 而界面上看不出任何异常。
 #   现场就这么跑了一整天才发现。安装器会静默装一次, 已装过的自动跳过。
+# 2026-09-13 prereq\ 不入库(24MB 微软签名二进制, .gitignore 里排掉了), 所以【新克隆
+#   出来的工作区里没有它】—— 警告必须把"去哪儿取、放哪儿、叫什么"一次说清楚,
+#   不然下一个人只看到一行"找不到", 照样打出一个不含运行库的包。
 $prereqSrc = Join-Path $root "prereq"
-if (Test-Path $prereqSrc) {
+$vcExe = Join-Path $prereqSrc "vc_redist.x64.exe"
+if (Test-Path $vcExe) {
     $prereqDst = Join-Path $installerBuild "prereq"
     New-Item -ItemType Directory -Force $prereqDst | Out-Null
     Copy-Item (Join-Path $prereqSrc "*") $prereqDst -Force
     $mb2 = ((Get-ChildItem $prereqDst | Measure-Object Length -Sum).Sum/1MB)
-    Write-Host ("    运行库已收入安装包: {0:N1} MB" -f $mb2)
+    # 顺带验一下签名 —— 这东西要装到客户机上, 来路不明的不能往包里放
+    $sigOk = "(未校验)"
+    try {
+        $sg = Get-AuthenticodeSignature $vcExe
+        $sigOk = if ($sg.Status -eq 'Valid' -and $sg.SignerCertificate.Subject -like '*Microsoft Corporation*') { "微软签名有效" }
+                 else { "[警告] 签名状态 " + $sg.Status + " —— 这个文件来路可疑, 别往客户机上装" }
+    } catch { }
+    Write-Host ("    运行库已收入安装包: {0:N1} MB  {1}" -f $mb2, $sigOk)
 } else {
-    Write-Host "    [警告] 找不到 prereq 目录, 安装包不含 VC++ 运行库" -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "    ╔══════════════════════════════════════════════════════════════════╗" -ForegroundColor Yellow
+    Write-Host "    ║ [警告] 安装包不含 VC++ 运行库                                    ║" -ForegroundColor Yellow
+    Write-Host "    ╚══════════════════════════════════════════════════════════════════╝" -ForegroundColor Yellow
+    Write-Host "      后果: 目标机缺这个运行库时 SQLite.Interop.dll 加载不了, 竞赛库" -ForegroundColor Yellow
+    Write-Host "            全程打不开(成绩不入库/没有名次/组排名不生成) —— 现场就这么" -ForegroundColor Yellow
+    Write-Host "            跑过一整天才发现。" -ForegroundColor Yellow
+    Write-Host "      补法: 下载 https://aka.ms/vs/17/release/vc_redist.x64.exe" -ForegroundColor Yellow
+    Write-Host ("            存成 {0}" -f $vcExe) -ForegroundColor Yellow
+    Write-Host "            (目录名 prereq、文件名 vc_redist.x64.exe 都不能改, 脚本认死的)" -ForegroundColor Yellow
+    Write-Host "            然后重新跑一遍本脚本。" -ForegroundColor Yellow
+    Write-Host ""
 }
 # 2026-07-13 通讯协议.pdf 是开发者文档, 不进客户包 (原 2026-06-18 打包这行已移除). 客户包只放 使用说明书.pdf.
 

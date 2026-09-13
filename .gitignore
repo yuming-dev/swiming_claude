@@ -56,3 +56,11 @@ LapAdjust_TestReport.csv
 # clone 下来编译不了。之前没暴露，是因为 MSBuild 默认搜索路径会从 bin\ 兜底，
 # 清一次 bin/obj 就断。比赛现场机器不一定有网，不能指望 NuGet restore。
 !SwimmingScoreboard/libs/**/*.dll
+
+# 2026-09-13 VC++ 运行库不入库 —— 24MB 的微软签名二进制, 版本库里不该放。
+#   但它【必须在打包前放好】, 否则安装包不含运行库: 目标机缺它 SQLite.Interop.dll
+#   就加载不了, 竞赛库全程打不开(成绩不入库/没有名次/组排名不生成), 而界面上
+#   看不出任何异常 —— 现场就这么跑过一整天。
+#   取法: https://aka.ms/vs/17/release/vc_redist.x64.exe
+#   放到: prereq\vc_redist.x64.exe  (目录名和文件名都不能改, 打包脚本认死的)
+prereq/
