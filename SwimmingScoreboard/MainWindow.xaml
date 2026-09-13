@@ -1122,6 +1122,21 @@
                                             </ControlTemplate>
                                         </Button.Template>
                                     </Button>
+                                    <!-- 2026-09-13 解锁本组成绩: 按错「确认本组成绩」之后才发现成绩有误,
+                                         没有这个口子就永远改不了了。二次确认 + 写审计日志。 -->
+                                    <Button Click="UnlockHeatResult_Click" Height="28" Margin="0,0,0,4" BorderThickness="0" Cursor="Hand"
+                                            ToolTip="把本组从「已完赛」解开, 好改成绩。要二次确认, 并记入审计日志。改完记得再点一次「确认本组成绩」">
+                                        <Button.Template>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border Background="#B45309" CornerRadius="8">
+                                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                        <TextBlock Text="&#xE785;" FontFamily="Segoe MDL2 Assets" FontSize="15" Foreground="White" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                                        <TextBlock Text="解锁本组成绩" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                    </StackPanel>
+                                                </Border>
+                                            </ControlTemplate>
+                                        </Button.Template>
+                                    </Button>
                                     <!-- 打印成绩：仅当当前组已确认成绩时直接打印；比赛中弹窗提示 -->
                                     <Button Click="PrintCurrentHeatResult_Click" Height="28" Margin="0,0,0,4" BorderThickness="0" Cursor="Hand">
                                         <Button.Template>

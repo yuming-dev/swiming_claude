@@ -350,6 +350,17 @@ namespace SwimmingScoreboard.Db
             }
         }
 
+        /// <summary>
+        /// 2026-09-13 记一条审计。给"解锁本组成绩"这种发生在老程序那一侧、
+        /// 但必须留痕的动作用。【失败不许影响主程序】, 照例吞掉只记日志。
+        /// </summary>
+        public void LogAudit(string action, string target, string oldValue, string newValue, string note, string op)
+        {
+            if (_meet == null) return;
+            try { _meet.LogAudit(action, target, oldValue, newValue, note, op); }
+            catch (Exception ex) { Log("写审计失败(不影响操作): " + ex.Message); }
+        }
+
         // ── 自检 ────────────────────────────────────────────────────────
         public class CheckResult
         {

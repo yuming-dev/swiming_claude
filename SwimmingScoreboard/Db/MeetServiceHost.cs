@@ -218,6 +218,11 @@ namespace SwimmingScoreboard.Db
                 case "GetAuditLog":
                     return s.GetAuditLog(MeetRpc.Arg<string>(a, "action"), MeetRpc.Arg<string>(a, "since"),
                         MeetRpc.Arg<int>(a, "limit", 500));
+                case "LogAudit":
+                    s.LogAudit(MeetRpc.Arg<string>(a, "action"), MeetRpc.Arg<string>(a, "target"),
+                        MeetRpc.Arg<string>(a, "oldValue"), MeetRpc.Arg<string>(a, "newValue"),
+                        MeetRpc.Arg<string>(a, "note"), MeetRpc.Arg<string>(a, "op"));
+                    return null;
 
                 default:
                     throw new MeetDataException("不认识的操作: " + op);

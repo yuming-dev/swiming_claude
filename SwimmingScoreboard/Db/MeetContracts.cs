@@ -364,5 +364,8 @@ namespace SwimmingScoreboard.Db
         // ── K. 运维 ──
         void     Backup(string targetPath);
         List<AuditRow> GetAuditLog(string action, string since, int limit);
+        /// <summary>2026-09-13 让上层记一条审计。原来只有库内部的写操作会落 audit_log,
+        /// 而"解锁本组成绩"这种动作发生在老程序那一侧, 一样得留下谁、什么时候、为什么。</summary>
+        void     LogAudit(string action, string target, string oldValue, string newValue, string note, string op);
     }
 }

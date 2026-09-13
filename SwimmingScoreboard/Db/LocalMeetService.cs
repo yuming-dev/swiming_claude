@@ -59,6 +59,12 @@ namespace SwimmingScoreboard.Db
                 Now(), op ?? Environment.MachineName, action, target, targetId, oldV, newV, note);
         }
 
+        /// <summary>2026-09-13 上层来的审计(解锁本组成绩这类)。</summary>
+        public void LogAudit(string action, string target, string oldValue, string newValue, string note, string op)
+        {
+            Audit(op, action, target, null, oldValue, newValue, note);
+        }
+
         /// <summary>撞上正在比赛的那一组就直接拒绝，不排队。</summary>
         private void EnsureNotRacing(long roundId, int? heat)
         {

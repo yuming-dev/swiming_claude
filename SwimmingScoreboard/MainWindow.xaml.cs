@@ -54,7 +54,11 @@ namespace SwimmingScoreboard
         private WizardDraft _wizardDraft;
         // 已"确认本组成绩"并锁定的组次，key = "<组别>|<性别>|<项目>|<赛次>|<组次>"
         // 一旦加入永不自动移除，确保赛程导航中的"已完赛"标志稳定
+        // 2026-09-13 例外: 「解锁本组成绩」会把它摘出来(按错确认键/成绩录错时的唯一出路)
         private HashSet<string> _confirmedHeats = new HashSet<string>();
+        // 2026-09-13 被显式解锁的组 —— 压住 IsHeatConfirmedFast 里那条"全员有成绩就算完赛"
+        //   的推断, 否则解了锁赛程树照旧标 [已完赛]。重新确认时移除。
+        private HashSet<string> _unlockedHeats = new HashSet<string>();
         private static string ConfirmedHeatKey(string ageGroup, string gender, string eventName, string stage, int heat) {
             return string.Format("{0}|{1}|{2}|{3}|{4}", ageGroup ?? "", gender ?? "", eventName ?? "", stage ?? "", heat);
         }
@@ -9418,6 +9422,7 @@ namespace SwimmingScoreboard
                 }
             }
             _confirmedHeats.Add(ConfirmedHeatKey(ag, gd, ev, st, ht));
+            ClearUnlockMark(ag, gd, ev, st, ht);   // 2026-09-13 重新确认 = 解锁标记作废
 
             // 2026-08-29 把成绩写进主服务器【自己的】竞赛库。
             //   联机时计时端已经通过 RPC 写过一次, 这里再写一次是幂等的(全是 UPDATE ... WHERE id);
@@ -9509,6 +9514,8 @@ namespace SwimmingScoreboard
 
             // 把当前组锁定到 _confirmedHeats（先于其它 UI 步骤，避免任何异常导致锁定状态没生效）
             _confirmedHeats.Add(ConfirmedHeatKey(_currentAgeGroup, _currentGender, _currentEvent, _currentStage, _currentHeat));
+            // 2026-09-13 解锁改完再确认 → 解锁标记作废, 这一组重新锁上
+            ClearUnlockMark(_currentAgeGroup, _currentGender, _currentEvent, _currentStage, _currentHeat);
             // 2026-08-28 计时端确认成绩后, 必须把这一组【回推给主服务器】。
             //   之前只写进了主服务器的 meet.db, 但主服务器【内存里的模型没变】——
             //   赛程树的"已完赛"读 _confirmedHeats, 项目成绩读 _swimmers[].Results,
@@ -9811,10 +9818,15 @@ namespace SwimmingScoreboard
             if (heat <= 0) return null;
             // 2026-09-12 【已完赛的组不在编辑范围】—— 定下来的规矩。
             //   成绩确认过、公告贴出去了, 这会儿再动分组或道次, 成绩就挂到别人身上。
-            //   这一条两端都认(不像下面那些计时状态只有主服务器说了算):
-            //   IsHeatConfirmed 读的是 _confirmedHeats + 全员有成绩, 而 _confirmedHeats
-            //   跟着整包同步, 编排端手里那份是准的。
-            if (IsHeatConfirmed(ageGroup, gender, eventName, stage, heat)) return "已完赛(成绩已确认)";
+            //
+            // 2026-09-13 "已完赛"就是【操作员点过「确认本组成绩」、赛程树上标了 [已完赛]】
+            //   这一个意思, 认 _confirmedHeats 这个集合 —— 不再用 IsHeatConfirmed 那个
+            //   "全员有成绩就算完赛"的推断(推断会把还没确认的组也说成已完赛)。
+            //   这一条两端都认: _confirmedHeats 跟着整包同步, 编排端手里那份是准的。
+            if (IsHeatMarkedFinished(ageGroup, gender, eventName, stage, heat)) return "已完赛(成绩已确认)";
+            // 还没确认、但已经录进成绩的组也不能动分组 —— 道次一换, 成绩就挂错人。
+            // (这跟"已完赛"是两回事, 所以分开说, 免得看日志的人以为确认过了。)
+            if (HeatHasResult(ageGroup, gender, eventName, stage, heat)) return "已经录了成绩(还没确认)";
             // 编排端自己不计时 —— 它那份 _raceState/_resultConfirmed 是跟着整包同步过来的影子,
             // 拿它拦人会误伤(主服务器早确认完了, 编排端这边还是"未确认")。
             // 编排端一律交给主服务器判: 补丁发过去, 真撞上正在比的组会被明确回绝。
@@ -9967,22 +9979,49 @@ namespace SwimmingScoreboard
             return false;
         }
 
-        /// <summary>这一组是不是已经"标注已完赛"了。</summary>
+        /// <summary>
+        /// 一条 "<组别>|<性别>|<项目>|<赛次>|<组次>" 的 key 说的是不是这一组。
+        /// 松着比: 组别/性别哪边没写就不拿它否定, 组别允许并项(区间包含) ——
+        /// 因为 key 里记的是赛程项的组别, 调用方手上常是运动员自己的那个。
+        /// </summary>
+        private bool HeatKeyMatches(string key, string ageGroup, string gender, string eventName, string stage, int heat) {
+            var p = key.Split('|');          // ag|gd|ev|st|heat
+            if (p.Length != 5) return false;
+            int h;
+            if (!int.TryParse(p[4], out h) || h != heat) return false;
+            if ((p[2] ?? "") != (eventName ?? "")) return false;
+            if (!string.IsNullOrEmpty(p[3]) && !string.IsNullOrEmpty(stage) && p[3] != stage) return false;
+            if (!string.IsNullOrEmpty(p[1]) && !string.IsNullOrEmpty(gender) && !SgMatch(gender, p[1])) return false;
+            if (!AgeGroupCompatible(p[0], ageGroup)) return false;
+            return true;
+        }
+
+        /// <summary>这一组是不是已经"标注已完赛"了(= 点过「确认本组成绩」)。</summary>
         private bool IsHeatMarkedFinished(string ageGroup, string gender, string eventName, string stage, int heat) {
             if (heat <= 0 || _confirmedHeats == null || _confirmedHeats.Count == 0) return false;
             if (_confirmedHeats.Contains(ConfirmedHeatKey(ageGroup, gender, eventName, stage, heat))) return true;
-            foreach (string key in _confirmedHeats) {
-                var p = key.Split('|');          // ag|gd|ev|st|heat
-                if (p.Length != 5) continue;
-                int h;
-                if (!int.TryParse(p[4], out h) || h != heat) continue;
-                if ((p[2] ?? "") != (eventName ?? "")) continue;
-                if (!string.IsNullOrEmpty(p[3]) && !string.IsNullOrEmpty(stage) && p[3] != stage) continue;
-                if (!string.IsNullOrEmpty(p[1]) && !string.IsNullOrEmpty(gender) && !SgMatch(gender, p[1])) continue;
-                if (!AgeGroupCompatible(p[0], ageGroup)) continue;
-                return true;
-            }
+            foreach (string key in _confirmedHeats)
+                if (HeatKeyMatches(key, ageGroup, gender, eventName, stage, heat)) return true;
             return false;
+        }
+
+        /// <summary>这一组是不是被显式解锁过。</summary>
+        private bool IsHeatUnlocked(string ageGroup, string gender, string eventName, string stage, int heat) {
+            if (heat <= 0 || _unlockedHeats == null || _unlockedHeats.Count == 0) return false;
+            if (_unlockedHeats.Contains(ConfirmedHeatKey(ageGroup, gender, eventName, stage, heat))) return true;
+            foreach (string key in _unlockedHeats)
+                if (HeatKeyMatches(key, ageGroup, gender, eventName, stage, heat)) return true;
+            return false;
+        }
+
+        /// <summary>重新确认时把解锁标记摘掉 —— 不然那条"全员有成绩"的推断一直被压着。</summary>
+        private void ClearUnlockMark(string ageGroup, string gender, string eventName, string stage, int heat) {
+            if (_unlockedHeats == null || _unlockedHeats.Count == 0) return;
+            var gone = new List<string>();
+            string exact = ConfirmedHeatKey(ageGroup, gender, eventName, stage, heat);
+            foreach (string key in _unlockedHeats)
+                if (key == exact || HeatKeyMatches(key, ageGroup, gender, eventName, stage, heat)) gone.Add(key);
+            foreach (string k in gone) _unlockedHeats.Remove(k);
         }
 
         /// <summary>成绩改不得就返回原因; 能改返回 null。</summary>
@@ -10392,7 +10431,7 @@ namespace SwimmingScoreboard
         private bool SendMergeHeatsPatch(string ageGroup, string gender, string eventName, string stage,
                                          int srcHeat, int dstHeat, string reason, out string error) {
             return SendPatchAndWait(BuildMergePatch(ageGroup, gender, eventName, stage, srcHeat, dstHeat,
-                                                    reason, "编排端 " + Environment.MachineName), out error);
+                                                    reason, ClientLabel()), out error);
         }
 
         /// <summary>主服务器本机做了并组 → 以补丁形式发给各编排端。</summary>
@@ -10612,17 +10651,38 @@ namespace SwimmingScoreboard
             PushAssignPatch(ageGroup, gender, eventName, stage);
         }
 
+        /// <summary>补丁上署的名: 让对面日志里看得出是谁改的。</summary>
+        private string ClientLabel() {
+            if (IsScheduleEditorMode) return "编排端 " + Environment.MachineName;
+            if (IsRemoteTimingControlMode) return "计时端 " + Environment.MachineName;
+            return Environment.MachineName;
+        }
+
+        /// <summary>
+        /// 2026-09-13 把补丁送出去 —— 【上下游都送】。
+        ///   编排端只有上游(连着主服务器), 主服务器只有下游(挂着编排端/计时端),
+        ///   RTC 计时端两头都有: 它既是主控, 又挂着自己的大屏客户端。
+        /// 原来只按 IsScheduleEditorMode 二选一, RTC 那一路改完谁也不知道。
+        /// 返回 false = 上游明确拒了(下游是广播, 无所谓成不成)。
+        /// </summary>
+        private bool SpreadPatch(JObject p, out string error) {
+            error = null;
+            bool ok = true;
+            if (_editorSyncClient != null && _editorSyncClient.IsConnected)
+                ok = SendPatchAndWait(p, out error);
+            if (_editorSockets != null && _editorSockets.Count > 0) BroadcastPatch(p, null);
+            return ok;
+        }
+
         private bool PushAssignPatch(string ageGroup, string gender, string eventName, string stage) {
             if (string.IsNullOrEmpty(eventName) || string.IsNullOrEmpty(stage)) return true;
             try {
+                string err;
+                var patch = BuildAssignPatch(ageGroup, gender, eventName, stage, ClientLabel());
+                if (SpreadPatch(patch, out err)) return true;
+                // 上游拒了(多半是撞上正在比 / 已完赛的组)。本机已经改了, 不手工回滚 ——
+                // 编排端拉一次整包, 让主服务器那份把本机盖回去, 省得两边分叉还没人知道。
                 if (IsScheduleEditorMode) {
-                    if (_editorSyncClient == null || !_editorSyncClient.IsConnected) return true;   // 离线: 等重连时整包
-                    string err;
-                    var patch = BuildAssignPatch(ageGroup, gender, eventName, stage,
-                                                 "编排端 " + Environment.MachineName);
-                    if (SendPatchAndWait(patch, out err)) return true;
-                    // 被拒(多半是撞上正在比 / 已完赛的组)。本机已经改了, 不手工回滚 ——
-                    // 拉一次整包, 让主服务器那份把本机盖回去, 省得两边分叉还没人知道。
                     MessageBox.Show("主服务器没有接受这次改动。\n\n原因: " + err +
                         "\n\n本机将重新从主服务器取一次数据, 你刚才的改动会被撤销。",
                         "未能保存到主服务器", MessageBoxButton.OK, MessageBoxImage.Warning);
@@ -10632,10 +10692,11 @@ namespace SwimmingScoreboard
                         pull["type"] = "EDITOR_PULL_PACKAGE";
                         _editorSyncClient.Send(pull.ToString(Formatting.None));
                     } catch { }
-                    return false;
                 } else {
-                    BroadcastPatch(BuildAssignPatch(ageGroup, gender, eventName, stage, Environment.MachineName), null);
+                    // 计时端不拉整包 —— 比赛中重载整库正是当初出事的那条路。只喊一声。
+                    AddLog("★ 编排补丁被主服务器拒绝: " + err + " —— 本机这份和主服务器已经不一致");
                 }
+                return false;
             } catch (Exception ex) { AddLog("发送编排补丁失败: " + ex.Message); }
             return true;
         }
@@ -10745,17 +10806,12 @@ namespace SwimmingScoreboard
                 foreach (var kv in before) if (!after.ContainsKey(kv.Key)) dels.Add(kv.Key);
                 if (ups.Count == 0 && dels.Count == 0) { ResetRecordsBaseline(); return 0; }
 
-                var p = NewPatch("Records", "", "", "", "",
-                                 IsScheduleEditorMode ? ("编排端 " + Environment.MachineName) : Environment.MachineName);
+                var p = NewPatch("Records", "", "", "", "", ClientLabel());
                 p["upserts"] = ups;
                 p["deletes"] = dels;
-                if (IsScheduleEditorMode) {
-                    string err;
-                    if (!SendPatchAndWait(p, out err))
-                        AddLog("纪录补丁没送到主服务器: " + err + " —— 改动只在本机, 等空闲了整体保存一次");
-                } else {
-                    BroadcastPatch(p, null);
-                }
+                string rerr;
+                if (!SpreadPatch(p, out rerr))
+                    AddLog("纪录补丁没送到主服务器: " + rerr + " —— 改动只在本机, 等空闲了整体保存一次");
                 AddLog(string.Format("纪录变动: 改 {0} 条, 删 {1} 条, 已用补丁同步", ups.Count, dels.Count));
                 ResetRecordsBaseline();
                 return ups.Count + dels.Count;
@@ -10823,12 +10879,215 @@ namespace SwimmingScoreboard
             return false;
         }
 
+        // ══════════════════════════════════════════════════════════════
+        // 2026-09-13 【解锁本组成绩】
+        //
+        // 为什么要有这个口子: 「确认本组成绩」一按, 这一组就进 _confirmedHeats,
+        // 赛程树标 [已完赛], 成绩从此不许改。可现场常有的事是 —— 按错了,
+        // 或者按下去之后才发现某道成绩不对。没有解锁, 那条错成绩就永远钉在那儿了。
+        //
+        // 三条规矩:
+        //   · 正在计时/已就位时不许解锁 —— 那会儿这一组还没比完, 谈不上解锁。
+        //   · 二次确认: 先看清楚要解哪一组(第一道), 再手输组号 + 写明原因(第二道)。
+        //     手输组号是防手滑的老办法 —— 看一眼弹窗就点"是"的人, 输不出那个数。
+        //   · 必须留痕: 系统日志 + 竞赛库 audit_log 各记一条, 记谁、几点、为什么。
+        //
+        // 解开之后这一组回到"有成绩但没确认"的状态: 成绩能改, 改完【再点一次
+        // 「确认本组成绩」重新锁上】—— 不重新确认, 赛程树上就一直是没完赛。
+        private void UnlockHeatResult_Click(object sender, RoutedEventArgs e) {
+            string ag = _currentAgeGroup, gd = _currentGender, ev = _currentEvent, st = _currentStage;
+            int heat = _currentHeat;
+
+            if (string.IsNullOrEmpty(ev) || heat <= 0) {
+                MessageBox.Show("当前没有装载任何组次。\n\n请先在赛程导航里选到要解锁的那一组。",
+                    "解锁本组成绩", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            if (_raceState == RaceState.Ready || _raceState == RaceState.Racing) {
+                MessageBox.Show("正在计时(" + (_raceState == RaceState.Ready ? "已就位" : "比赛中") +
+                    ")，不能解锁。\n\n这一组还没比完。",
+                    "解锁本组成绩", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+            if (!IsHeatMarkedFinished(ag, gd, ev, st, heat)) {
+                MessageBox.Show(string.Format("第{0}组本来就没锁 —— 它还没点过「确认本组成绩」。\n\n成绩现在就能改。", heat),
+                    "不用解锁", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            string head = string.Format("{0} {1} {2} {3} 第{4}组",
+                gd, string.IsNullOrEmpty(ag) ? "" : ag, ev, st, heat);
+
+            // ── 第一道: 看清楚要解哪一组 ──
+            if (MessageBox.Show(
+                "要把这一组从「已完赛」解开吗？\n\n  " + head +
+                "\n\n解开之后:\n" +
+                "  · 赛程树上的 [已完赛] 会去掉\n" +
+                "  · 这一组的成绩可以改了(判DSQ、手动改成绩都放开)\n" +
+                "  · 改完必须再点一次「确认本组成绩」重新锁上\n\n" +
+                "这件事会记进系统日志和竞赛库的审计表。",
+                "解锁本组成绩 (1/2)", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
+                return;
+
+            // ── 第二道: 手输组号 + 写原因 ──
+            string reason;
+            if (!AskUnlockConfirm(head, heat, out reason)) {
+                AddLog("解锁本组成绩: 已取消 (" + head + ")");
+                return;
+            }
+
+            UnlockHeatResult(ag, gd, ev, st, heat, reason, Environment.MachineName, true);
+        }
+
+        /// <summary>解锁的第二道确认窗: 手输组号 + 必填原因。两样都对才返回 true。</summary>
+        private bool AskUnlockConfirm(string head, int heat, out string reason) {
+            reason = "";
+            var win = new Window {
+                Title = "解锁本组成绩 (2/2)", Width = 520, SizeToContent = SizeToContent.Height,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner, ResizeMode = ResizeMode.NoResize, Owner = this
+            };
+            var root = new StackPanel { Margin = new Thickness(18) };
+            root.Children.Add(new TextBlock {
+                Text = head, FontSize = 15, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 0, 0, 10)
+            });
+            root.Children.Add(new TextBlock {
+                Text = "这是最后一道。请写清原因，并手输组号确认 —— 手输是防手滑的，别嫌麻烦。",
+                TextWrapping = TextWrapping.Wrap, Foreground = System.Windows.Media.Brushes.DimGray,
+                Margin = new Thickness(0, 0, 0, 12)
+            });
+
+            var r1 = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) };
+            r1.Children.Add(new TextBlock { Text = "原因:", VerticalAlignment = VerticalAlignment.Center, FontSize = 14, Width = 100 });
+            var reasonBox = new TextBox { Width = 380, FontSize = 14, Padding = new Thickness(4) };
+            r1.Children.Add(reasonBox);
+            root.Children.Add(r1);
+            root.Children.Add(new TextBlock {
+                Text = "例: 按错确认键 / 第4道成绩录反了 / 裁判改判",
+                Foreground = System.Windows.Media.Brushes.DimGray, FontSize = 12, Margin = new Thickness(100, 0, 0, 10)
+            });
+
+            var r2 = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 6) };
+            r2.Children.Add(new TextBlock { Text = "输入组号 " + heat + ":", VerticalAlignment = VerticalAlignment.Center, FontSize = 14, Width = 100 });
+            var heatBox = new TextBox { Width = 80, FontSize = 14, Padding = new Thickness(4) };
+            r2.Children.Add(heatBox);
+            root.Children.Add(r2);
+
+            var tip = new TextBlock { TextWrapping = TextWrapping.Wrap, FontSize = 12,
+                Foreground = System.Windows.Media.Brushes.Firebrick, Margin = new Thickness(0, 6, 0, 0) };
+            root.Children.Add(tip);
+
+            var btns = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 14, 0, 0) };
+            bool go = false;
+            var ok = new Button { Content = "确定解锁", Width = 100, Height = 30, Margin = new Thickness(0, 0, 8, 0), IsDefault = true };
+            var cancel = new Button { Content = "取消", Width = 80, Height = 30, IsCancel = true };
+            ok.Click += delegate {
+                string rs = (reasonBox.Text ?? "").Trim();
+                int typed;
+                if (rs.Length < 2) { tip.Text = "请把原因写清楚(至少两个字) —— 这条要进审计表。"; reasonBox.Focus(); return; }
+                if (!int.TryParse((heatBox.Text ?? "").Trim(), out typed) || typed != heat) {
+                    tip.Text = "组号对不上。要解的是第 " + heat + " 组，请照着输一遍。"; heatBox.Focus(); return;
+                }
+                go = true; win.DialogResult = true;
+            };
+            btns.Children.Add(ok); btns.Children.Add(cancel);
+            root.Children.Add(btns);
+            win.Content = root;
+            reasonBox.Focus();
+            if (win.ShowDialog() != true || !go) return false;
+            reason = (reasonBox.Text ?? "").Trim();
+            return true;
+        }
+
+        /// <summary>
+        /// 真正解锁。本机点按钮和收到远端补丁走同一份 —— 两边必须一致。
+        /// spread=true 时把这件事以补丁形式扩散给对端。
+        /// </summary>
+        private bool UnlockHeatResult(string ageGroup, string gender, string eventName, string stage,
+                                      int heat, string reason, string op, bool spread) {
+            if (heat <= 0 || string.IsNullOrEmpty(eventName)) return false;
+
+            // _confirmedHeats 里可能是用别的组别写法记的(并项组别), 把对得上的都摘掉,
+            // 只摘一个 key 会出现"解了还显示已完赛"。
+            var toRemove = new List<string>();
+            string exact = ConfirmedHeatKey(ageGroup, gender, eventName, stage, heat);
+            foreach (string key in _confirmedHeats)
+                if (key == exact || HeatKeyMatches(key, ageGroup, gender, eventName, stage, heat)) toRemove.Add(key);
+            foreach (string k in toRemove) _confirmedHeats.Remove(k);
+            if (toRemove.Count == 0) return false;
+            // 记一笔"这组是被解开的" —— 压住那条"全员有成绩就算完赛"的推断,
+            // 否则赛程树立刻又标回 [已完赛], 也不让重赛。
+            _unlockedHeats.Add(exact);
+            foreach (string k in toRemove) _unlockedHeats.Add(k);
+
+            // 解的就是当前装载的这一组 → UI 状态跟着回到"未确认"
+            if (heat == _currentHeat && SameLoadedEvent(ageGroup, gender, eventName, stage))
+                _resultConfirmed = false;
+
+            string head = string.Format("{0} {1} {2} {3} 第{4}组",
+                gender, string.IsNullOrEmpty(ageGroup) ? "" : ageGroup, eventName, stage, heat);
+            AddLog(string.Format("★【解锁本组成绩】{0} — 操作人 {1}，原因: {2}",
+                head, op ?? Environment.MachineName, string.IsNullOrEmpty(reason) ? "(未写)" : reason));
+
+            // 竞赛库审计表也记一条 —— 系统日志是会滚掉的, 审计表不会
+            try {
+                _meetDb.LogAudit("解锁本组成绩", "heats", "已完赛", "未确认",
+                                 head + " 原因: " + (string.IsNullOrEmpty(reason) ? "(未写)" : reason),
+                                 op ?? Environment.MachineName);
+            } catch { }
+
+            _patchInFlight = true;
+            try {
+                AutoSaveData();
+                try { BuildScheduleTree(); } catch { }
+                try { UpdateResultHeatCombo(); RefreshResultGrid(); } catch { }
+                try { UpdateRaceStateDisplay(); UpdateLaneStatusDisplay(); } catch { }
+                Broadcast();
+            } finally { _patchInFlight = false; }
+
+            if (spread) {
+                var p2 = NewPatch("Unlock", ageGroup, gender, eventName, stage, ClientLabel());
+                p2["heat"] = heat;
+                p2["reason"] = reason ?? "";
+                string uerr;
+                if (!SpreadPatch(p2, out uerr))
+                    AddLog("解锁没同步到主服务器: " + uerr + " —— 只解开了本机这一份, 别的机器上还是锁着");
+            }
+            return true;
+        }
+
+        /// <summary>收到解锁补丁。</summary>
+        private bool ApplyUnlockPatch(JObject msg, out string error) {
+            error = null;
+            string ag = msg["ageGroup"] != null ? msg["ageGroup"].ToString() : "";
+            string gd = msg["gender"] != null ? msg["gender"].ToString() : "";
+            string ev = msg["eventName"] != null ? msg["eventName"].ToString() : "";
+            string st = msg["stage"] != null ? msg["stage"].ToString() : "";
+            string rs = msg["reason"] != null ? msg["reason"].ToString() : "";
+            string who = msg["clientName"] != null ? msg["clientName"].ToString() : "远端";
+            int heat = 0;
+            try { if (msg["heat"] != null) heat = (int)msg["heat"]; } catch { }
+            if (heat <= 0) { error = "补丁没说解哪一组"; return false; }
+            // 正在比那一组不许被远端解 —— 解了就等于允许改正在比的成绩
+            if (_raceState == RaceState.Ready || _raceState == RaceState.Racing) {
+                if (heat == _currentHeat && SameLoadedEvent(ag, gd, ev, st)) {
+                    error = string.Format("第{0}组正在计时, 不解锁", heat);
+                    return false;
+                }
+            }
+            if (!UnlockHeatResult(ag, gd, ev, st, heat, rs, who, false)) {
+                error = string.Format("第{0}组本机没标已完赛, 不用解", heat);
+                return false;
+            }
+            return true;
+        }
+
         /// <summary>收到别人发来的补丁, 照着改本机内存。</summary>
         private bool ApplyPatch(JObject msg, out string error) {
             error = null;
             string op = msg["op"] != null ? msg["op"].ToString() : "";
             if (op == "Assign") return ApplyAssignPatch(msg, out error);
             if (op == "Records") return ApplyRecordsPatch(msg, out error);
+            if (op == "Unlock")  return ApplyUnlockPatch(msg, out error);
             if (op != "MergeHeats") { error = "不认识的补丁类型: " + op; return false; }
 
             string ag = msg["ageGroup"] != null ? msg["ageGroup"].ToString() : "";
@@ -11601,6 +11860,9 @@ namespace SwimmingScoreboard
         private bool IsHeatConfirmedFast(string ageGroup, string gender, string eventName, string stage, int heat,
                                           Dictionary<string, List<Swimmer>> idx) {
             if (_confirmedHeats.Contains(ConfirmedHeatKey(ageGroup, gender, eventName, stage, heat))) return true;
+            // 2026-09-13 显式解锁过的组: 底下那条"全员有成绩就算完赛"的推断一律不算数,
+            //   否则刚解完锁, 推断立刻又把它说成已完赛。(正常情况这张表是空的, 零开销)
+            if (_unlockedHeats.Count > 0 && IsHeatUnlocked(ageGroup, gender, eventName, stage, heat)) return false;
 
             bool isRelay = eventName.Contains("接力");
             IEnumerable<Swimmer> source;
@@ -22503,6 +22765,7 @@ namespace SwimmingScoreboard
             _records.Clear();
             ResetRecordsBaseline();   // 2026-09-12 基准线跟着清, 否则下次"保存纪录"会把旧纪录当成"被删了"推出去
             _confirmedHeats.Clear();
+            _unlockedHeats.Clear();
             // 2026-06-08 P3: 新建/切换赛事时同步清 per-lane 事件日志与原始计时日志, 避免上届比赛的
             //   尾部数据残留 (Ready_Click / Restart_Click 只在同场比赛内换组时清, 跨赛事场景需在此清).
             _laneEventLog.Clear();
@@ -23197,7 +23460,8 @@ namespace SwimmingScoreboard
                 DisplayRecordLabel = _displayRecordLabel,
                 DisplayRecordTypeName = _displayRecordTypeName,
                 DisplayRecordOptions = _displayRecordOptions,
-                ConfirmedHeats = _confirmedHeats.ToList()
+                ConfirmedHeats = _confirmedHeats.ToList(),
+                UnlockedHeats = _unlockedHeats.ToList()     // 2026-09-13 解锁标记也要存, 否则重开档案又锁上
             };
         }
 
@@ -23831,6 +24095,9 @@ namespace SwimmingScoreboard
                     foreach (var c in confirmed) {
                         int hno2;
                         if (!int.TryParse(c[4], out hno2) || hno2 <= 0) continue;
+                        // 2026-09-13 刚在本机解过锁的组别再从库里捡回来 —— 库里那条还是"已确认",
+                        //   不挡一下, 10 秒一次的轮询会把刚解开的锁又扣上。
+                        if (IsHeatUnlocked(c[0], c[1], c[2], c[3], hno2)) continue;
                         if (_confirmedHeats.Add(ConfirmedHeatKey(c[0], c[1], c[2], c[3], hno2))) add++;
                     }
                     if (add > 0) {
@@ -24168,6 +24435,7 @@ namespace SwimmingScoreboard
                 if (!string.IsNullOrEmpty(package.DisplayRecordTypeName)) _displayRecordTypeName = package.DisplayRecordTypeName;
                 if (package.DisplayRecordOptions != null && package.DisplayRecordOptions.Count > 0) _displayRecordOptions = package.DisplayRecordOptions;
                 _confirmedHeats = new HashSet<string>(package.ConfirmedHeats ?? new List<string>());
+                _unlockedHeats = new HashSet<string>(package.UnlockedHeats ?? new List<string>());
                 // 2026-06-08 P3: 加载赛事档案时同步清 per-lane 事件日志与原始计时日志 (防御性 — 跨档案切换
                 //   时, 上一档的尾部日志缓冲不应残留. Ready/Restart 路径已在同场比赛换组时清, 加载档案是另一入口.)
                 _laneEventLog.Clear();

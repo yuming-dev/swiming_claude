@@ -2054,6 +2054,14 @@ namespace SwimmingScoreboard
         public List<DisplayRecordOption> DisplayRecordOptions { get; set; } // 可选项（预设+用户自定义）
         // 已"确认本组成绩"并锁定的组次列表，元素 = "<组别>|<性别>|<项目>|<赛次>|<组次>"
         public List<string> ConfirmedHeats { get; set; }
+        // 2026-09-13 被"解锁本组成绩"显式解开的组次(同样的 key 写法)。
+        //   为什么要单独记一张表: 判"完赛"除了看 ConfirmedHeats, 还有一条
+        //   "全员都有成绩就算完赛"的推断兜底(老数据/别的机器录的成绩靠它)。
+        //   解锁之后人还在、成绩还在, 那条推断会立刻把这组又说成已完赛 ——
+        //   于是赛程树照旧标 [已完赛]、也不让重赛, 操作员会以为解锁没生效。
+        //   这张表就是压住那条推断的: 在里面的组, 推断一律不算数。
+        //   重新点「确认本组成绩」时从这里移除。
+        public List<string> UnlockedHeats { get; set; }
         // 团体计分配置（名次分 / 接力倍率 / 组别系数 / 取分人数 / 破纪录加分）
         public ScoringConfig ScoringConfig { get; set; }
         // 2026-05-24 项目用时配置（一键全自动排日程时用）

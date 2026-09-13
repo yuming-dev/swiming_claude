@@ -190,5 +190,7 @@ namespace SwimmingScoreboard.Db
         public void Backup(string targetPath) { Send("Backup", new { targetPath }); }
         public List<AuditRow> GetAuditLog(string action, string since, int limit)
         { return Call<List<AuditRow>>("GetAuditLog", new { action, since, limit }); }
+        public void LogAudit(string action, string target, string oldValue, string newValue, string note, string op)
+        { Send("LogAudit", new { action, target, oldValue, newValue, note, op }); }
     }
 }
