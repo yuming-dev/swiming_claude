@@ -5477,7 +5477,13 @@ namespace SwimmingScoreboard
             maybeSet(() => st.RightStartBlockBroken,  b => st.RightStartBlockBroken = b, (right & 0x10) != 0);
             if (changed) {
                 AddLog(string.Format("硬件设备状态回报: 泳道{0} 左=0x{1:X2} 右=0x{2:X2}", lane, left, right));
-                AutoSaveData();
+                // 2026-09-13 这里原来调的是 AutoSaveData() —— 两处不对:
+                //   一是【坏表标志根本不存在赛事包里】(它存 device_states.json), 为一个
+                //     布尔位去序列化整个 1.2MB 的包, 纯属白干, 比赛中更是那条老毛病;
+                //   二是它【不推设备状态】, 而比赛日志/设备状态现在是按变化推的 ——
+                //     结果就是"硬件报了故障, 比赛控制页面上那盏灯不亮", 而且看不出根由。
+                //   SaveDeviceStates() 两件事一起办: 写那个几 KB 的 json, 并立刻推给客户端。
+                SaveDeviceStates();
                 UpdateLaneStatusDisplay();
                 Broadcast();
             }
@@ -23205,6 +23211,10 @@ namespace SwimmingScoreboard
                 json = JsonConvert.SerializeObject(_laneCloseSettings, Formatting.Indented);
                 File.WriteAllText(TimingSettingsPath, json, Encoding.UTF8);
             } catch { }
+            // 2026-09-13 泳道面板上"哪一端锁着"(endLocked)是按终点位置算出来的, 就在
+            //   laneDevices 里带着走 —— 参数一改就得推一次, 不然比赛控制页面上那一端
+            //   一直显示着旧的。
+            PushDeviceStates();
             // 比赛进行中只写本机 json, 不碰主服务器的库(见 InRaceNoDbWrite)
             if (InRaceNoDbWrite()) { _cfgDbPending = true; return; }
             try { if (json != null) _meetDb.SaveConfig(CFG_TIMING, json, Environment.MachineName); } catch { }
@@ -23392,6 +23402,8 @@ namespace SwimmingScoreboard
             } catch (Exception ex) {
                 AddLog("加载设备状态失败: " + ex.Message);
             }
+            // 2026-09-13 换赛事包/改泳道数会重建这张表, 重建完推一次, 别让客户端拿着旧的
+            PushDeviceStates();
         }
 
         // 计时硬件通讯参数（串口 / TCP / UDP）持久化路径
