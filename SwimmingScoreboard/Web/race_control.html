@@ -980,6 +980,26 @@ function connect() {
             return;
         }
         // 硬件 0.1s 节拍的轻量滚动时间帧 — 只更新顶部时间显示，不重渲染整页
+        // 2026-09-13 比赛日志改走增量追加。
+        //   原来 laneEventLogs 是每帧全量重发的: 每道上限 64KB, 十道就是 640KB 文本,
+        //   比赛中 100ms 一帧 —— 越比越肥, 正是"内存涨几个 G"的那副形状。
+        //   现在每条事件只推 70 字节, 客户端自己往后接; 10 秒一次的完整帧仍带全量,
+        //   断线重连或漏帧都能对齐。
+        if (msg.type === 'LANE_EVENT_APPEND') {
+            if (msg.data && data) {
+                if (!data.laneEventLogs) data.laneEventLogs = {};
+                var _ln = String(msg.data.lane);
+                var _prev = data.laneEventLogs[_ln] || '';
+                var _next = _prev + (msg.data.text || '');
+                // 跟服务端一样掐 64KB, 免得页面开一整天越堆越大
+                if (_next.length > 65536) _next = _next.slice(_next.length - 65536);
+                data.laneEventLogs[_ln] = _next;
+                if (typeof selectedLane !== 'undefined' && String(selectedLane) === _ln) {
+                    try { rcRefreshLaneEventLog(); } catch (e) {}
+                }
+            }
+            return;
+        }
         if (msg.type === 'RUNNING_TIME_UPDATE') {
             if (msg.data && typeof msg.data.runningTime === 'string' && data) {
                 data.runningTime = msg.data.runningTime;

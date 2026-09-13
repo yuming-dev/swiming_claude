@@ -3633,7 +3633,8 @@ namespace SwimmingScoreboard
             var staticOmitted = keepStatic ? new List<string>() : new List<string> {
                 "allSwimmers", "allRelayTeams", "schedule", "teamScores",
                 "ageGroups", "ageGroupsDetail", "eventList", "genderList", "stageList",
-                "eventRanking", "eventRankingSplit", "applicableRecords"
+                "eventRanking", "eventRankingSplit", "applicableRecords",
+                "laneEventLogs"          // 2026-09-13 改走 LANE_EVENT_APPEND 增量追加
             };
 
             return new {
@@ -3658,7 +3659,17 @@ namespace SwimmingScoreboard
                 clockPaused = _clockPaused,
                 pausedRunningTime = _clockPaused ? TimeFormatter.FormatRunning(_pausedRunningTime) : "",
                 // 2026-05-27 "比赛日志" tab 数据: per-lane 累积事件文本, EXE/HTML 按选定道次显示
-                laneEventLogs = _laneEventLog.ToDictionary(kv => kv.Key.ToString(), kv => kv.Value.ToString()),
+                //
+                // 2026-09-13 【只随低频完整帧走, 精简帧里不带】
+                //   这一条是本次瘦身里最肥的一处: 每道上限 64KB(MAX_LANE_EVENT_LOG),
+                //   十条道就是 640KB 文本 —— 而它原来每一帧都全量重发一遍, 比赛中
+                //   100ms 一帧。ToDictionary + 每道 ToString() 还要现分配一整份副本,
+                //   400 米那种事件多的比赛越比越肥, 正是"内存涨几个 G"的同一副形状。
+                //   现在: 完整帧(10 秒一次)带全量兜底, 中间靠 LANE_EVENT_APPEND 增量追加
+                //   (一条事件约 70 字节)。客户端照 staticOmitted 保留上一份, 不会被空表冲掉。
+                laneEventLogs = keepStatic
+                    ? _laneEventLog.ToDictionary(kv => kv.Key.ToString(), kv => kv.Value.ToString())
+                    : new Dictionary<string, string>(),
                 // 第1名成绩（由ProcessTouchpadHit设置，客户端直接显示）
                 firstPlaceFinishTime = _firstPlaceFinishTime ?? "",
                 firstPlaceActive = (_firstPlaceShowStart != DateTime.MinValue &&
@@ -6057,7 +6068,6 @@ namespace SwimmingScoreboard
                 case "ManualTouchRight":  label = "手右"; break;
                 default: return;   // 其它类型跳过
             }
-            if (!_laneEventLog.ContainsKey(lane)) _laneEventLog[lane] = new StringBuilder();
             string elapsed = _raceStartTime > DateTime.MinValue
                 ? FormatElapsedMSS((DateTime.Now - _raceStartTime).TotalSeconds)
                 : "—";
@@ -6071,10 +6081,9 @@ namespace SwimmingScoreboard
             else if (time < 0) timeStr = "-" + TimeFormatter.Format(-time);   // TimeFormatter 对 <=0 返空, 用 abs+前缀
             else timeStr = TimeFormatter.Format(time);
             // 2026-06-16 简化日志格式: 去掉 "[T=" 和 "]", 直接显示时间值. 原 `[T=    3.06]` → `   3.06`
-            _laneEventLog[lane].AppendFormat("{0,8} 道{1}{2} {3}{4}={5}{6}\r\n",
+            AppendLaneEventLog(lane, string.Format("{0,8} 道{1}{2} {3}{4}={5}{6}\r\n",
                 elapsed, lane, sideLabel, label, lapLabel, timeStr,
-                string.IsNullOrEmpty(swimmerName) ? "" : (" (" + swimmerName + ")"));
-            TrimSbIfOver(_laneEventLog[lane], MAX_LANE_EVENT_LOG);
+                string.IsNullOrEmpty(swimmerName) ? "" : (" (" + swimmerName + ")")));
             // 2026-06-12 USB 热敏打印机 实时打印: 仅 TP/SB/MB 三类 (出/触/盲1-3), 不含 手动触板/触代.
             //   打印同一行 = 跟比赛日志一致 (现场纸质流水留底). 入队即返回, 不阻塞 UI.
             if (_thermalPrinter != null && _thermalPrinter.Enabled) {
@@ -6098,6 +6107,31 @@ namespace SwimmingScoreboard
         }
 
         // 切换当前选中道次时调一次, 把 _laneEventLog[lane] 完整刷到 TextBox
+        // ── 2026-09-13 比赛日志的增量追加 ──────────────────────────────
+        // 一条事件约 70 字节, 直接推给客户端让它自己往后接。
+        // 对比原来的做法: 每帧把十条道 640KB 的累积文本全量重发一遍。
+        // 完整帧(10 秒一次)仍带全量, 客户端断线重连/漏了一条也能对齐。
+        private void PushLaneEventAppend(int lane, string line) {
+            if (string.IsNullOrEmpty(line)) return;
+            try {
+                var msg = new { type = "LANE_EVENT_APPEND", data = new { lane = lane, text = line } };
+                string json = JsonConvert.SerializeObject(msg);
+                if (IsRemoteTimingControlMode) { TryForwardToMainServer(msg); return; }
+                if (_allSockets.Count == 0) return;
+                EnqueueToAll(json);
+            } catch { }
+        }
+
+        /// <summary>往某道的比赛日志追加一行: 存本地 + 刷本机视图 + 增量推客户端。</summary>
+        private void AppendLaneEventLog(int lane, string line) {
+            if (string.IsNullOrEmpty(line)) return;
+            if (!_laneEventLog.ContainsKey(lane)) _laneEventLog[lane] = new StringBuilder();
+            _laneEventLog[lane].Append(line);
+            TrimSbIfOver(_laneEventLog[lane], MAX_LANE_EVENT_LOG);
+            if (lane == _selectedLane) RefreshLaneEventLogView();
+            PushLaneEventAppend(lane, line);
+        }
+
         private void RefreshLaneEventLogView() {
             if (LaneEventLogText == null) return;
             string content;
@@ -8240,14 +8274,11 @@ namespace SwimmingScoreboard
                 return (sa2 != null ? sa2.Lane : s2.Lane) == lane;
             });
             if (sw2 != null) swimmerName = sw2.Name ?? "";
-            if (!_laneEventLog.ContainsKey(lane)) _laneEventLog[lane] = new StringBuilder();
             // 2026-06-03 计算数据 (= 14 条规则算出) time 后加 "*" 与原始 SB 数据区分
             // 2026-06-16 简化日志格式: 去掉 "[T=" 和 "]"
-            _laneEventLog[lane].AppendFormat("{0,8} 道{1}{2} {3}{4}={5}*{6}{7}\r\n",
+            AppendLaneEventLog(lane, string.Format("{0,8} 道{1}{2} {3}{4}={5}*{6}{7}\r\n",
                 elapsed, lane, sideLabel, label, lapLabel, timeStr, basisNote,
-                string.IsNullOrEmpty(swimmerName) ? "" : (" (" + swimmerName + ")"));
-            TrimSbIfOver(_laneEventLog[lane], MAX_LANE_EVENT_LOG);
-            if (lane == _selectedLane) RefreshLaneEventLogView();
+                string.IsNullOrEmpty(swimmerName) ? "" : (" (" + swimmerName + ")")));
             // 写到接力 LegReactionTimes (= 棒次反应时表)
             if (_isRelay) {
                 var swForLane = GetCurrentHeatSwimmers().FirstOrDefault(s2 => {
@@ -24218,8 +24249,22 @@ namespace SwimmingScoreboard
         }
 
         /// <summary>把本组各泳道的当前成绩写进当前组库。降级时退回 AutoSaveData()。</summary>
+        // 2026-09-13 降级路径【必须限流】。
+        //   当前组库没就绪(库打不开 / 这一组在库里找不到)或写失败时, 原来是直接
+        //   AutoSaveData() —— 那就是每次触板都 BuildCurrentPackage + 整包序列化写盘,
+        //   2026-08-24 治的那个"400 米涨几个 G"原样复活。而"库打不开"现场真发生过
+        //   (缺 VC++ 运行库, SQLite.Interop.dll 加载失败), 界面上还看不出来。
+        //   库坏了是异常, 不该连带把内存打爆: 比赛中按 15 秒一次落盘就够
+        //   (正常路径的 JSON 兜底本来也是 15 秒一次), 崩了最多丢这 15 秒。
+        //   不在比赛中(赛后改判、手输成绩)照旧立刻落盘, 那条路本来就不高频。
+        private void SaveHeatFallbackJson() {
+            if (InRaceNoDbWrite() && DateTime.Now - _lastHeatJsonSave < HeatJsonSaveGap) return;
+            _lastHeatJsonSave = DateTime.Now;
+            AutoSaveData();
+        }
+
         private void SaveHeatProgress() {
-            if (!_meetDb.LiveActive) { AutoSaveData(); return; }
+            if (!_meetDb.LiveActive) { SaveHeatFallbackJson(); return; }
 
             var lanes = new List<SwimmingScoreboard.Db.LiveLane>();
             foreach (var s in GetCurrentHeatSwimmers()) {
@@ -24254,7 +24299,7 @@ namespace SwimmingScoreboard
                 lanes.Add(ln);
             }
 
-            if (!_meetDb.LiveSaveLanes(lanes)) { AutoSaveData(); return; }   // 写失败就降级
+            if (!_meetDb.LiveSaveLanes(lanes)) { SaveHeatFallbackJson(); return; }   // 写失败就降级(限流)
 
             // JSON 低频兜底：小库里已经是完整的了，这里只防进程崩掉之后
             // 老的恢复路径读不到东西。原来是每次触板一存(每次 1.2MB)，现在 15 秒一次。
