@@ -397,6 +397,12 @@
     <Content Include="Web\test_bot.html">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <!-- 2026-09-13 query.html 一直没在这张表里 —— 于是它从来没被拷进 bin\Release\Web,
+         安装包也就没带过它(装机只能手工拷)。页面和 exe 必须一起换, 漏一个就是
+         "旧页面配新 exe"。补上。 -->
+    <Content Include="Web\query.html">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
   <ItemGroup>
     <Content Include="Records\swimming_records.csv">

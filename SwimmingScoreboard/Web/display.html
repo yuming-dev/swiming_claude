@@ -959,10 +959,33 @@ function connect() {
         setTimeout(connect, 2000);
         return;
     }
+// ── 2026-09-13 页面版本自查 ──────────────────────────────────────────
+// 协议是 exe 和页面【一起改】的(比赛日志增量 / 设备状态推送 / DATA_CHANGED)。
+// 只换一半会出现"设备状态灯和比赛日志不刷新"这种看不出根由的毛病, 所以对不上
+// 就在页顶挂红条, 顺带连上时报给主服务器, 让系统日志里也留一行。
+// 【改了本页就把这个日期跟 MainWindow.WEB_ASSET_VERSION 一起往后挪】
+var PAGE_VER = '20260913';
+var PAGE_NAME = 'display.html';
+function reportPageVer(sock) {
+    try { sock.send(JSON.stringify({type: 'CLIENT_VERSION', page: PAGE_NAME, ver: PAGE_VER})); } catch (e) {}
+}
+function checkPageVer(serverVer) {
+    if (!serverVer || serverVer === PAGE_VER) return;
+    if (document.getElementById('_verWarnBar')) return;
+    var d = document.createElement('div');
+    d.id = '_verWarnBar';
+    d.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:99999;background:#DC2626;color:#fff;'
+                    + 'font:bold 14px/1.6 sans-serif;padding:8px 12px;text-align:center;cursor:pointer';
+    d.textContent = '⚠ 本页版本 ' + PAGE_VER + ' 与主服务器 ' + serverVer + ' 不一致 —— 请按 Ctrl+F5 强制刷新。'
+                  + '仍不一致说明这台机器上的 Web 目录没跟 exe 一起更新。(点此关闭)';
+    d.onclick = function() { d.parentNode.removeChild(d); };
+    document.body.appendChild(d);
+}
     ws.onopen = function() {
         _connFailCount = 0;
         ws.send(JSON.stringify({type: 'DISPLAY_IDENTITY'}));
         hideConnectOverlay();   // 只有连接成功才隐藏遮罩
+        reportPageVer(ws);
     };
     // 用 requestAnimationFrame 合并消息：服务器密集广播时（每个触板/盲表都广播一次），
     // 手机若每条都解析+渲染一次会严重积压（手机 JS 引擎慢，几十 KB JSON.parse 5–20ms）。
@@ -1009,6 +1032,7 @@ function connect() {
     ws.onmessage = function(e) {
         var msg;
         try { msg = JSON.parse(e.data); } catch (er) { return; }
+        if (msg.data && msg.data.webAssetVersion) checkPageVer(msg.data.webAssetVersion);
         // 硬件 0.1s 节拍的轻量滚动时间帧 — 只更新右上角时间，不重渲染整页
         if (msg.type === 'RUNNING_TIME_UPDATE') {
             if (msg.data && typeof msg.data.runningTime === 'string') {

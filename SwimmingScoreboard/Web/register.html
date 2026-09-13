@@ -319,9 +319,32 @@ function changeServerHost() { _connFailCount = 0; var h = getServerHost(true); i
 function connect() {
     var host = getServerHost();
     ws = new WebSocket('ws://' + host + ':3002');
+// ── 2026-09-13 页面版本自查 ──────────────────────────────────────────
+// 协议是 exe 和页面【一起改】的(比赛日志增量 / 设备状态推送 / DATA_CHANGED)。
+// 只换一半会出现"设备状态灯和比赛日志不刷新"这种看不出根由的毛病, 所以对不上
+// 就在页顶挂红条, 顺带连上时报给主服务器, 让系统日志里也留一行。
+// 【改了本页就把这个日期跟 MainWindow.WEB_ASSET_VERSION 一起往后挪】
+var PAGE_VER = '20260913';
+var PAGE_NAME = 'register.html';
+function reportPageVer(sock) {
+    try { sock.send(JSON.stringify({type: 'CLIENT_VERSION', page: PAGE_NAME, ver: PAGE_VER})); } catch (e) {}
+}
+function checkPageVer(serverVer) {
+    if (!serverVer || serverVer === PAGE_VER) return;
+    if (document.getElementById('_verWarnBar')) return;
+    var d = document.createElement('div');
+    d.id = '_verWarnBar';
+    d.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:99999;background:#DC2626;color:#fff;'
+                    + 'font:bold 14px/1.6 sans-serif;padding:8px 12px;text-align:center;cursor:pointer';
+    d.textContent = '⚠ 本页版本 ' + PAGE_VER + ' 与主服务器 ' + serverVer + ' 不一致 —— 请按 Ctrl+F5 强制刷新。'
+                  + '仍不一致说明这台机器上的 Web 目录没跟 exe 一起更新。(点此关闭)';
+    d.onclick = function() { d.parentNode.removeChild(d); };
+    document.body.appendChild(d);
+}
     ws.onopen = function() {
         _connFailCount = 0;
         ws.send(JSON.stringify({type: 'REGISTER_TERMINAL_IDENTITY'}));
+        reportPageVer(ws);
         // 2026-05-21 只改 span 文字 + 颜色；切勿对 connStatus 用 textContent，
         // 否则会把"切换服务器IP"按钮一起抹掉
         document.getElementById('connStatusText').textContent = '已连接服务器 ' + host;
@@ -337,6 +360,7 @@ function connect() {
     ws.onmessage = function(e) {
         try {
             var msg = JSON.parse(e.data);
+            if (msg.data && msg.data.webAssetVersion) checkPageVer(msg.data.webAssetVersion);
             if (msg.type === 'REGISTER_RESULT') {
                 var ok = msg.data && msg.data.success;
                 if (ok) {

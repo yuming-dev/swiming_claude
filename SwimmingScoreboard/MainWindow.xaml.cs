@@ -194,6 +194,13 @@ namespace SwimmingScoreboard
         //   _rawTimingLog 10Hz 写 → 6h ≈ 13MB; _laneEventLog 每泳道每事件 ~70B, 复杂比赛 1000+ 事件后影响 GC.
         //   触发上限时只丢早期数据, 不影响最近 ~30 分钟可读性.
         private const int MAX_RAW_TIMING_LOG = 256 * 1024;
+        // ── 2026-09-13 网页资源版本 ──────────────────────────────────────
+        // 【改了 Web\ 下任何一个页面, 就把这个日期往后挪一格】
+        // 用处: 页面里有同名常量, 对不上就在页面顶端挂红条、并在主服务器系统日志里
+        // 记一行。协议是 exe 和页面一起改的(比赛日志增量、设备状态推送、DATA_CHANGED),
+        // 只换一半会出现"设备状态灯和比赛日志不刷新"这种看不出根由的毛病。
+        public const string WEB_ASSET_VERSION = "20260913";
+
         private const int MAX_LANE_EVENT_LOG = 64 * 1024;
         private static void TrimSbIfOver(StringBuilder sb, int maxLen) {
             if (sb == null || sb.Length <= maxLen) return;
@@ -1479,6 +1486,16 @@ namespace SwimmingScoreboard
                             : ext == ".ttf"  ? "font/ttf"  : ext == ".otf"   ? "font/otf"
                             : ext == ".mp4"  ? "video/mp4" : ext == ".webm" ? "video/webm"
                             : "application/octet-stream";
+                        // ── 2026-09-13 网页一律不许进浏览器缓存 ────────────────
+                        //   "旧页面配新 exe"的真正来源不是忘了拷文件, 而是【浏览器缓存】:
+                        //   HttpListener 默认一个缓存头都不发, 浏览器就按自己的启发式规则
+                        //   把 html/js 留着用, 盘上的文件早换了, 屏幕上跑的还是上一版。
+                        //   页面就那几十 KB, 每次重取一遍不值一提; 图片/字体/视频照旧可缓存。
+                        if (ext == ".html" || ext == ".htm" || ext == ".js" || ext == ".css") {
+                            ctx.Response.Headers["Cache-Control"] = "no-cache, no-store, must-revalidate";
+                            ctx.Response.Headers["Pragma"] = "no-cache";
+                            ctx.Response.Headers["Expires"] = "0";
+                        }
                         ctx.Response.ContentLength64 = bytes.Length;
                         ctx.Response.OutputStream.Write(bytes, 0, bytes.Length);
                     } else {
@@ -1585,6 +1602,21 @@ namespace SwimmingScoreboard
                     //   或者自己需要时来取一次, 服务器不再每 10 秒定时重发 278KB。
                     case "REQUEST_FULL_STATUS":
                         BroadcastSingle(socket);
+                        break;
+                    // 2026-09-13 页面一连上就报自己的版本。对不上就在系统日志里点名 ——
+                    //   页面那头也会挂红条, 但没人盯着浏览器时, 这条日志是唯一的线索。
+                    case "CLIENT_VERSION":
+                        try {
+                            string pageName = msg["page"] != null ? msg["page"].ToString() : "(未知页面)";
+                            string pageVer = msg["ver"] != null ? msg["ver"].ToString() : "";
+                            if (pageVer != WEB_ASSET_VERSION) {
+                                AddLog(string.Format("【注意】{0} 的版本是 {1}, 主服务器是 {2} —— 页面没跟 exe 一起更新, "
+                                    + "或者浏览器还在用缓存。请在该页按 Ctrl+F5 强制刷新; 还不行就把 Web 目录拷过去。",
+                                    pageName, string.IsNullOrEmpty(pageVer) ? "(旧版, 不报版本)" : pageVer, WEB_ASSET_VERSION));
+                            } else {
+                                AddLog(pageName + " 已连接 (版本一致 " + pageVer + ")");
+                            }
+                        } catch { }
                         break;
                     case "EDITOR_PUSH_PACKAGE":
                         HandleEditorPushPackage(socket, msg);
@@ -3672,6 +3704,7 @@ namespace SwimmingScoreboard
 
             return new {
                 staticOmitted = staticOmitted,
+                webAssetVersion = WEB_ASSET_VERSION,   // 2026-09-13 页面版本对不上时自查用
                 competitionName = _competitionName,
                 competitionMode = _competitionMode,
                 currentEvent = _currentEvent,
@@ -4001,6 +4034,7 @@ namespace SwimmingScoreboard
         /// </summary>
         private Dictionary<string, object> DisplayCommon() {
             return new Dictionary<string, object> {
+                { "webAssetVersion", WEB_ASSET_VERSION },   // 2026-09-13 页面版本对不上时自查用
                 { "competitionName", _competitionName },
                 { "resultConfirmed", _resultConfirmed },
                 { "currentEvent", _currentEvent },
