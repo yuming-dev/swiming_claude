@@ -3149,6 +3149,46 @@ namespace SwimmingScoreboard
                 ControlModeText.Text = "本地";
                 ControlModeText.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#22C55E"));
             }
+            UpdateRaceControlTabLock();   // 2026-09-13 有远程控制端接管时, 本机「比赛控制」页锁上
+        }
+
+        // ══════════════════════════════════════════════════════════════
+        // 2026-09-13 【比赛控制归谁, 界面上就得看得出来】
+        //
+        // 比赛控制程序(RemoteTimingControl.exe)或比赛控制网页(race_control.html)
+        // 一连上来, 计时就在那台机器上操作了。这时本机「比赛控制」页里那一堆
+        // 就位/发令/复位/判罚按钮全都不该再按 —— 两头同时按, 谁也说不清现在是什么状态。
+        //
+        // 做成【页签变灰、点不进去】, 不是把按钮一个个禁掉:
+        //   · 灰页签一眼就看得出"这台机器现在不管计时", 不用猜
+        //   · 按钮一个个禁, 总有漏网的; 页签一锁, 整页都进不去
+        // 远程端断开后自动恢复 —— 不用重启, 也不用手动切回来。
+        private void UpdateRaceControlTabLock() {
+            if (RaceControlTab == null) return;
+            // 比赛控制程序(RTC)自己【永远不锁自己】: 它才是接着硬件的那台, 站在它跟前的
+            // 操作员必须随时能按。有人另开一个比赛控制网页连到它, 那是它的延伸, 不是接管。
+            if (IsRemoteTimingControlMode) return;
+            bool remote = (_timingExeSockets.Count > 0 || _timingWebSockets.Count > 0);
+            if (RaceControlTab.IsEnabled == !remote) return;    // 状态没变, 不折腾也不刷日志
+            RaceControlTab.IsEnabled = !remote;
+            if (remote) {
+                string who = _timingExeSockets.Count > 0 ? "比赛控制程序(EXE)" : "比赛控制网页";
+                RaceControlTab.ToolTip = "比赛控制已由" + who + "接管 —— 计时请在那台机器上操作。\n对方断开后本页自动恢复。";
+                // 正停在这一页上就先挪走: 页签灰了内容还杵在那儿, 看着像死机
+                if (RaceControlTab.IsSelected) {
+                    var tc = RaceControlTab.Parent as TabControl;
+                    if (tc != null) {
+                        foreach (var it in tc.Items) {
+                            var t = it as TabItem;
+                            if (t != null && !ReferenceEquals(t, RaceControlTab) && t.IsEnabled) { t.IsSelected = true; break; }
+                        }
+                    }
+                }
+                AddLog("【比赛控制】已由" + who + "接管 —— 本机这一页已锁(灰), 计时请在那台机器上操作");
+            } else {
+                RaceControlTab.ToolTip = null;
+                AddLog("【比赛控制】远程控制端已全部断开 —— 本机这一页恢复可用");
+            }
         }
 
         private void UpdateConnectionStatus() {
