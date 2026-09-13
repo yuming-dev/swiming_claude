@@ -941,7 +941,7 @@ function connect() {
 // 只换一半会出现"设备状态灯和比赛日志不刷新"这种看不出根由的毛病, 所以对不上
 // 就在页顶挂红条, 顺带连上时报给主服务器, 让系统日志里也留一行。
 // 【改了本页就把这个日期跟 MainWindow.WEB_ASSET_VERSION 一起往后挪】
-var PAGE_VER = '20260913';
+var PAGE_VER = '20260913-2';
 var PAGE_NAME = 'race_control.html';
 function reportPageVer(sock) {
     try { sock.send(JSON.stringify({type: 'CLIENT_VERSION', page: PAGE_NAME, ver: PAGE_VER})); } catch (e) {}
@@ -991,6 +991,13 @@ function checkPageVer(serverVer) {
         var msg;
         try { msg = JSON.parse(e.data); } catch (er) { return; }
         if (msg.data && msg.data.webAssetVersion) checkPageVer(msg.data.webAssetVersion);
+        if (msg.data && msg.data.scoringControlMode) applyCtrlLock(msg.data.scoringControlMode);
+        // 服务端硬拦的回执 —— 旧页面/缓存绕过前端置灰时, 这条保证操作员看得到原因
+        if (msg.type === 'TIMING_CMD_REJECTED') {
+            addLog('命令被服务器拒绝(' + (msg.command || '') + '): ' + (msg.reason || ''));
+            alert('命令没有执行。\n\n原因：' + (msg.reason || '服务器拒绝'));
+            return;
+        }
         // 2026-06-03 大屏样式同步 (服务器持久化的 recordsHidden 等) - 用来更新本端按钮文字状态
         if (msg.type === 'DISPLAY_STYLE_PUSH') {
             if (msg.data && typeof msg.data.recordsHidden === 'boolean') _rcApplyRecordsHidden(msg.data.recordsHidden);
@@ -1128,7 +1135,44 @@ function checkPageVer(serverVer) {
     };
 }
 
+// ── 2026-09-13 比赛控制的优先级: EXE > 本网页 > 主服务器本机 ──────────────
+// 同一场比赛只能有一处发令。比赛控制程序(RemoteTimingControl.exe)在场时,
+// 本页的计时命令一律不发 —— 服务端也会硬拦一道(TIMING_CMD_REJECTED),
+// 这里置灰只是让人【一眼看见】, 不至于按了没反应还以为是网卡了。
+// EXE 一断开自动恢复。
+var _ctrlLockedByExe = false;
+var CTRL_CMDS = ['READY','START_RACE','RESTART','TIMER_RESET','CONFIRM_RESULT',
+                 'MARK_DSQ','MARK_DNS','MARK_DNF','MARK_TRI','CANCEL_NOTE',
+                 'MANUAL_SPLIT','OVERRIDE_TIME'];
+function applyCtrlLock(mode) {
+    var locked = (mode === 'remote_exe');
+    if (locked === _ctrlLockedByExe) return;     // 状态没变就别反复动 DOM
+    _ctrlLockedByExe = locked;
+    var bar = document.getElementById('_ctrlLockBar');
+    if (locked) {
+        if (!bar) {
+            bar = document.createElement('div');
+            bar.id = '_ctrlLockBar';
+            bar.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:99998;background:#F59E0B;'
+                              + 'color:#1F2937;font:bold 14px/1.6 sans-serif;padding:8px 12px;text-align:center';
+            bar.textContent = '⚠ 比赛控制程序(EXE)正在接管 —— 本页的计时按钮已停用。'
+                            + '计时请在那台机器上操作；对方退出后本页自动恢复。';
+            document.body.appendChild(bar);
+        }
+        addLog('比赛控制已由 EXE 接管, 本页计时按钮停用');
+    } else {
+        if (bar && bar.parentNode) bar.parentNode.removeChild(bar);
+        addLog('EXE 已退出, 本页计时按钮恢复可用');
+    }
+}
+
 function sendCmd(cmd, cmdData) {
+    // 优先级挡在这里: EXE 在场时本页不发计时命令(切项目/切组次/显示控制不受影响)
+    if (_ctrlLockedByExe && CTRL_CMDS.indexOf(cmd) >= 0) {
+        addLog('命令未发送(比赛控制在 EXE 手里): ' + cmd);
+        alert('比赛控制程序(EXE)正在接管，本页不能发计时命令。\n\n请在那台机器上操作；对方退出后本页自动恢复。');
+        return;
+    }
     if (!ws || ws.readyState !== 1) {
         addLog('命令未发送(未连接服务器): ' + cmd);
         alert('未连接到服务器（顶部"服务器"指示灯应为绿色）。\n请先确认服务器在运行，再点 全屏右上角 或 顶部"服务器"附近的连接按钮。');

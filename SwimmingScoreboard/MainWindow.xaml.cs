@@ -199,7 +199,7 @@ namespace SwimmingScoreboard
         // 用处: 页面里有同名常量, 对不上就在页面顶端挂红条、并在主服务器系统日志里
         // 记一行。协议是 exe 和页面一起改的(比赛日志增量、设备状态推送、DATA_CHANGED),
         // 只换一半会出现"设备状态灯和比赛日志不刷新"这种看不出根由的毛病。
-        public const string WEB_ASSET_VERSION = "20260913";
+        public const string WEB_ASSET_VERSION = "20260913-2";
 
         private const int MAX_LANE_EVENT_LOG = 64 * 1024;
         private static void TrimSbIfOver(StringBuilder sb, int maxLen) {
@@ -2433,6 +2433,30 @@ namespace SwimmingScoreboard
             // 收到的远端命令统一写日志，便于排查"按了 HTML/EXE 按钮服务器没反应"问题
             AddLog("远端命令: " + (string.IsNullOrEmpty(cmd) ? "(空)" : cmd));
 
+            // ── 2026-09-13 比赛控制的优先级: EXE > 网页 > 主服务器本机 ──────────
+            //   同一场比赛只能有一处发令。定下来的次序是:
+            //     1) 比赛控制程序(RemoteTimingControl.exe) —— 它接着硬件, 最高
+            //     2) 比赛控制网页(race_control.html)
+            //     3) 主服务器自己的「比赛控制」页 —— 最低, 有前两者在就锁灰
+            //   这里挡的是第 2 层: EXE 在场时, 网页发来的计时命令一律不执行。
+            //   【服务端硬拦】而不只是把网页按钮置灰 —— 灰按钮防不住旧版页面和缓存,
+            //   而两处同时发令, 谁也说不清现在是什么状态。
+            if (IsRaceControlTakenByExe() && socket != null && _timingWebSockets.Contains(socket)) {
+                switch (cmd) {
+                    case "READY": case "START_RACE": case "RESTART": case "TIMER_RESET":
+                    case "CONFIRM_RESULT": case "MARK_DSQ": case "MARK_DNS": case "MARK_DNF":
+                    case "MARK_TRI": case "CANCEL_NOTE": case "MANUAL_SPLIT": case "OVERRIDE_TIME":
+                        AddLog("比赛控制在 EXE 手里, 拒绝网页端命令: " + cmd);
+                        try {
+                            EnqueueToSocket(socket, Newtonsoft.Json.JsonConvert.SerializeObject(new {
+                                type = "TIMING_CMD_REJECTED", command = cmd,
+                                reason = "比赛控制程序(EXE)正在接管 —— 计时请在那台机器上操作"
+                            }));
+                        } catch { }
+                        return;
+                }
+            }
+
             // 主服务器角色: 比赛控制类命令一律拒绝, 明确回话, 别让操作员干等。
             // 其余命令(切项目/切组次/显示控制等)照常 —— 它管的是竞赛数据, 不是计时。
             if (IsScoringServerNoTiming) {
@@ -3135,7 +3159,26 @@ namespace SwimmingScoreboard
             Broadcast();
         }
 
+        /// <summary>
+        /// 2026-09-13 比赛控制现在归 EXE 管吗。
+        /// 两种情形: 有比赛控制程序连进来; 或者【本机就是那个程序】(RTC) ——
+        /// RTC 不会把自己算进 _timingExeSockets, 但它接着硬件, 优先级最高。
+        /// </summary>
+        private bool IsRaceControlTakenByExe() {
+            return IsRemoteTimingControlMode || _timingExeSockets.Count > 0;
+        }
+
         private void UpdateScoringControlMode() {
+            // 本机就是比赛控制程序 —— 对连上来的网页而言, 控制权在 EXE 手里
+            if (IsRemoteTimingControlMode) {
+                _scoringControlMode = "remote_exe";
+                if (ControlModeText != null) {
+                    ControlModeText.Text = "本机EXE";
+                    ControlModeText.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F59E0B"));
+                }
+                UpdateRaceControlTabLock();
+                return;
+            }
             if (_timingExeSockets.Count > 0) {
                 _scoringControlMode = "remote_exe";
                 ControlModeText.Text = "远程EXE";
