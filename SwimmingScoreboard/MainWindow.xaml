@@ -173,11 +173,16 @@
                 <Grid Margin="10">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="400"/>
+                        <!-- 2026-09-13 右侧"运动员注册"只在 运动员管理 / 接力队管理 两页用得上,
+                             其余页(赛事概览/赛程管理/出场编排微调/比赛参数设置管理/记录管理)
+                             把它收起来, 宽度一并归零 —— 否则左边表格右侧留一条 400 像素的空白。
+                             见 UpdateAthleteRegPanelVisibility()。 -->
+                        <ColumnDefinition x:Name="AthleteRegColumn" Width="400"/>
                     </Grid.ColumnDefinitions>
 
                     <!-- 左侧：赛事信息 + 运动员列表 -->
-                    <TabControl Grid.Column="0" Margin="0,0,10,0">
+                    <TabControl x:Name="MeetMgmtTabs" Grid.Column="0" Margin="0,0,10,0"
+                                SelectionChanged="MeetMgmtTabs_SelectionChanged">
                         <TabItem Header="赛事概览">
                             <ScrollViewer VerticalScrollBarVisibility="Auto">
                                 <StackPanel Margin="16">
@@ -777,8 +782,8 @@
                         </TabItem>
                     </TabControl>
 
-                    <!-- 右侧：运动员注册面板 -->
-                    <Border Grid.Column="1" Background="White" CornerRadius="6" Padding="16">
+                    <!-- 右侧：运动员注册面板 (只在 运动员管理 / 接力队管理 两页显示) -->
+                    <Border x:Name="AthleteRegPanel" Grid.Column="1" Background="White" CornerRadius="6" Padding="16">
                         <ScrollViewer VerticalScrollBarVisibility="Auto">
                             <StackPanel>
                                 <!-- 2026-06-25 必填项标红 * + 提交校验 (= 跟 register.html 同款规范) -->

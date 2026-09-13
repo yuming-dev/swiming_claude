@@ -407,6 +407,30 @@ namespace SwimmingScoreboard
         /// 免得操作员误以为可以在这台机器上发令。
         /// 用 Remove 而不是 Visibility=Collapsed: 折叠只是看不见, Tab 键还能切进去。
         /// </summary>
+        // ══════════════════════════════════════════════════════════════
+        // 2026-09-13 右侧"运动员注册"面板只在用得上的两页出现
+        //
+        // 「赛事管理与报名」右边那块注册表单, 只有 运动员管理 / 接力队管理 两页在用;
+        // 赛事概览、赛程管理、出场编排微调、比赛参数设置管理、记录管理都用不着 ——
+        // 留在那儿既占掉 400 像素(左边表格被挤窄), 又让人以为当前页能注册。
+        //
+        // 收起来的时候把那一列的宽度也归零, 不然只是内容看不见, 空白还占着位置。
+        private void UpdateAthleteRegPanelVisibility() {
+            if (MeetMgmtTabs == null || AthleteRegPanel == null || AthleteRegColumn == null) return;
+            string header = "";
+            var ti = MeetMgmtTabs.SelectedItem as TabItem;
+            if (ti != null && ti.Header != null) header = ti.Header.ToString();
+            bool show = (header == "运动员管理" || header == "接力队管理");
+            AthleteRegPanel.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+            AthleteRegColumn.Width = show ? new GridLength(400) : new GridLength(0);
+        }
+
+        private void MeetMgmtTabs_SelectionChanged(object sender, SelectionChangedEventArgs e) {
+            // 里层控件(DataGrid 选中行之类)的 SelectionChanged 也会冒泡到这里, 只认这一个 TabControl 自己的
+            if (!ReferenceEquals(e.OriginalSource, MeetMgmtTabs)) return;
+            UpdateAthleteRegPanelVisibility();
+        }
+
         private void ApplyMachineRoleToUi() {
             try {
                 if (!IsScoringServerNoTiming) return;
@@ -474,6 +498,8 @@ namespace SwimmingScoreboard
             // 2026-08-31 大屏的数据来自服务器内存 —— 开个低频轮询, 第三台机器改了库也能跟上
             if (!IsScheduleEditorMode) { try { StartDbPoll(); } catch { } }
             _initialized = true;
+            // 2026-09-13 右侧"运动员注册"面板按当前页决定显不显示(默认落在"赛事概览", 所以是隐藏)
+            try { UpdateAthleteRegPanelVisibility(); } catch { }
             RefreshBackupList();
             UpdateEditHeatCombo();
             UpdateResultHeatCombo();
