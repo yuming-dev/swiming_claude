@@ -3634,7 +3634,8 @@ namespace SwimmingScoreboard
                 "allSwimmers", "allRelayTeams", "schedule", "teamScores",
                 "ageGroups", "ageGroupsDetail", "eventList", "genderList", "stageList",
                 "eventRanking", "eventRankingSplit", "applicableRecords",
-                "laneEventLogs"          // 2026-09-13 改走 LANE_EVENT_APPEND 增量追加
+                "laneEventLogs",         // 2026-09-13 改走 LANE_EVENT_APPEND 增量追加
+                "laneDevices"            // 2026-09-13 改走 DEVICE_STATES_UPDATE 变更即推
             };
 
             return new {
@@ -3781,31 +3782,12 @@ namespace SwimmingScoreboard
                 }).ToList(),
                 // 2026-06-20 race_control 设备状态管理 升级 4 态: 加 10 个 NotInstalled 字段 + endLocked
                 //   endLocked='left'/'right'/'none' 表示哪端被单端配置锁定 (race_control 据此灰显该端 5 列)
-                laneDevices = _laneDeviceStates.Select(s => new {
-                    lane = s.Lane,
-                    leftTouchpadBroken = s.LeftTouchpadBroken,
-                    leftStartBlockBroken = s.LeftStartBlockBroken,
-                    leftBlindWatch1Broken = s.LeftBlindWatch1Broken,
-                    leftBlindWatch2Broken = s.LeftBlindWatch2Broken,
-                    leftBlindWatch3Broken = s.LeftBlindWatch3Broken,
-                    rightTouchpadBroken = s.RightTouchpadBroken,
-                    rightStartBlockBroken = s.RightStartBlockBroken,
-                    rightBlindWatch1Broken = s.RightBlindWatch1Broken,
-                    rightBlindWatch2Broken = s.RightBlindWatch2Broken,
-                    rightBlindWatch3Broken = s.RightBlindWatch3Broken,
-                    leftTouchpadNotInstalled = s.LeftTouchpadNotInstalled,
-                    leftStartBlockNotInstalled = s.LeftStartBlockNotInstalled,
-                    leftBlindWatch1NotInstalled = s.LeftBlindWatch1NotInstalled,
-                    leftBlindWatch2NotInstalled = s.LeftBlindWatch2NotInstalled,
-                    leftBlindWatch3NotInstalled = s.LeftBlindWatch3NotInstalled,
-                    rightTouchpadNotInstalled = s.RightTouchpadNotInstalled,
-                    rightStartBlockNotInstalled = s.RightStartBlockNotInstalled,
-                    rightBlindWatch1NotInstalled = s.RightBlindWatch1NotInstalled,
-                    rightBlindWatch2NotInstalled = s.RightBlindWatch2NotInstalled,
-                    rightBlindWatch3NotInstalled = s.RightBlindWatch3NotInstalled,
-                    endLocked = (_poolConfig != null && _poolConfig.HasRightStartBlock) ? "none"
-                              : ((_laneCloseSettings == null || _laneCloseSettings.FinishPosition != "right") ? "right" : "left")
-                }).ToList(),
+                // 2026-09-13 设备状态改走【变一次推一次】(DEVICE_STATES_UPDATE) ——
+                //   它是 10 道 × 23 个布尔, 每帧约 3-5KB, 而故障状态一整场也变不了几次,
+                //   每 100ms 重发一遍纯属浪费。精简帧里不带(进 staticOmitted, 客户端保留上一份),
+                //   完整帧仍带全量兜底。
+                //   【实时性不降反升】: 原来要等下一帧(最多 100ms), 现在状态一变立刻推。
+                laneDevices = keepStatic ? BuildLaneDevicesPayload() : null,
                 eventRanking = eventRanking,
                 eventRankingSplit = eventRankingSplit,
                 applicableRecords = applicableRecords,   // 2026-06-05 大屏 项目名称下 inline 纪录行
@@ -8856,6 +8838,7 @@ namespace SwimmingScoreboard
             if (_currentHeat <= 0) {
                 _raceState = RaceState.Waiting;
             DiscardLiveHeat();            // 2026-08-24 复位=本组作废: 解锁并清当前组库, 不回写
+            ClearLiveHeatProgressFile();  // 2026-09-13 本组作废, 进度小文件跟着清
                 FlushDeferredSync();          // 2026-08-24 补推比赛中暂存的同步
                 if (_raceTimer != null) _raceTimer.Stop();
                 if (_countdownTimer != null) _countdownTimer.Stop();
@@ -8904,6 +8887,7 @@ namespace SwimmingScoreboard
             // ═══ 公共复位：计时器 / 状态 / 显示 ═══
             _raceState = RaceState.Waiting;
             FlushDeferredSync();              // 2026-08-24 补推比赛中暂存的同步
+            ClearLiveHeatProgressFile();      // 2026-09-13 复位=本组收尾, 进度小文件清掉, 免得下次启动误恢复
             _raceTimer.Stop();
             _countdownTimer.Stop();
             _runningTime = 0;
@@ -9547,6 +9531,7 @@ namespace SwimmingScoreboard
             _confirmedHeats.Add(ConfirmedHeatKey(_currentAgeGroup, _currentGender, _currentEvent, _currentStage, _currentHeat));
             // 2026-09-13 解锁改完再确认 → 解锁标记作废, 这一组重新锁上
             ClearUnlockMark(_currentAgeGroup, _currentGender, _currentEvent, _currentStage, _currentHeat);
+            ClearLiveHeatProgressFile();   // 2026-09-13 本组收尾, 进度小文件没用了
             // 2026-08-28 计时端确认成绩后, 必须把这一组【回推给主服务器】。
             //   之前只写进了主服务器的 meet.db, 但主服务器【内存里的模型没变】——
             //   赛程树的"已完赛"读 _confirmedHeats, 项目成绩读 _swimmers[].Results,
@@ -23202,6 +23187,46 @@ namespace SwimmingScoreboard
             get { return IOPath.Combine(AppDomain.CurrentDomain.BaseDirectory, "device_states.json"); }
         }
 
+        // 2026-09-13 设备状态载荷: 完整帧带全量, 平时靠 DEVICE_STATES_UPDATE 变更即推。
+        private object BuildLaneDevicesPayload() {
+            return _laneDeviceStates.Select(s => new {
+                lane = s.Lane,
+                leftTouchpadBroken = s.LeftTouchpadBroken,
+                leftStartBlockBroken = s.LeftStartBlockBroken,
+                leftBlindWatch1Broken = s.LeftBlindWatch1Broken,
+                leftBlindWatch2Broken = s.LeftBlindWatch2Broken,
+                leftBlindWatch3Broken = s.LeftBlindWatch3Broken,
+                rightTouchpadBroken = s.RightTouchpadBroken,
+                rightStartBlockBroken = s.RightStartBlockBroken,
+                rightBlindWatch1Broken = s.RightBlindWatch1Broken,
+                rightBlindWatch2Broken = s.RightBlindWatch2Broken,
+                rightBlindWatch3Broken = s.RightBlindWatch3Broken,
+                leftTouchpadNotInstalled = s.LeftTouchpadNotInstalled,
+                leftStartBlockNotInstalled = s.LeftStartBlockNotInstalled,
+                leftBlindWatch1NotInstalled = s.LeftBlindWatch1NotInstalled,
+                leftBlindWatch2NotInstalled = s.LeftBlindWatch2NotInstalled,
+                leftBlindWatch3NotInstalled = s.LeftBlindWatch3NotInstalled,
+                rightTouchpadNotInstalled = s.RightTouchpadNotInstalled,
+                rightStartBlockNotInstalled = s.RightStartBlockNotInstalled,
+                rightBlindWatch1NotInstalled = s.RightBlindWatch1NotInstalled,
+                rightBlindWatch2NotInstalled = s.RightBlindWatch2NotInstalled,
+                rightBlindWatch3NotInstalled = s.RightBlindWatch3NotInstalled,
+                endLocked = (_poolConfig != null && _poolConfig.HasRightStartBlock) ? "none"
+                          : ((_laneCloseSettings == null || _laneCloseSettings.FinishPosition != "right") ? "right" : "left")
+            }).ToList();
+        }
+
+        /// <summary>设备状态一变就推 —— 一次几 KB, 一场也就几次, 比每帧重发划算得多。</summary>
+        private void PushDeviceStates() {
+            if (!_initialized) return;
+            try {
+                var msg = new { type = "DEVICE_STATES_UPDATE", data = BuildLaneDevicesPayload() };
+                if (IsRemoteTimingControlMode) { TryForwardToMainServer(msg); return; }
+                if (_allSockets.Count == 0) return;
+                EnqueueToAll(JsonConvert.SerializeObject(msg));
+            } catch { }
+        }
+
         private void SaveDeviceStates() {
             try {
                 var arr = new JArray();
@@ -23246,6 +23271,9 @@ namespace SwimmingScoreboard
             } catch (Exception ex) {
                 AddLog("保存设备状态失败: " + ex.Message);
             }
+            // 2026-09-13 状态一变立刻推给客户端(几 KB)。所有改设备状态的地方都会走到
+            //   这个函数, 所以这一处挂上就够, 不用到十几个调用点各加一遍。
+            PushDeviceStates();
         }
 
         // 把磁盘上的设备状态贴回到当前 _laneDeviceStates；
@@ -23622,6 +23650,14 @@ namespace SwimmingScoreboard
         //   照旧绝对不能收。其余编排操作还在整包上, 以后一项一项搬成补丁。
         private bool IsPackageApplyBlocked(out string why) {
             why = null;
+            // ── 2026-09-13 只有【这台机器自己在计时】才拦 ──────────────────
+            //   比赛控制已经安排在另一台计算机上独立进行, 主服务器这台只管竞赛数据。
+            //   它自己不计时, 那就没有"正在广播的当前组数据被换掉"这回事 ——
+            //   再拿"比赛中"去锁编排端和查询端, 就是把"比赛中改别的项目"这件事白白否掉。
+            //   正在比的那一组照样动不了: 那是按【组】拦的(HeatLockedWhy / IsRtcBusyHeat),
+            //   跟这里按【整包】拦是两码事。
+            if (IsScoringServerNoTiming) return false;
+
             if (_raceState == RaceState.Ready || _raceState == RaceState.Racing) {
                 why = "主服务器正在计时（" + (_raceState == RaceState.Ready ? "已就位" : "比赛中") + "）";
                 return true;
@@ -24257,15 +24293,28 @@ namespace SwimmingScoreboard
         //   库坏了是异常, 不该连带把内存打爆: 比赛中按 15 秒一次落盘就够
         //   (正常路径的 JSON 兜底本来也是 15 秒一次), 崩了最多丢这 15 秒。
         //   不在比赛中(赛后改判、手输成绩)照旧立刻落盘, 那条路本来就不高频。
-        private void SaveHeatFallbackJson() {
-            if (InRaceNoDbWrite() && DateTime.Now - _lastHeatJsonSave < HeatJsonSaveGap) return;
-            _lastHeatJsonSave = DateTime.Now;
-            AutoSaveData();
+        // ── 2026-09-13 比赛中只写"当前组"这一份, 整包一次都不写 ────────────
+        //
+        // 定下来的规矩: 比赛过程中只往【当前组】那份存储里写, 中间过程一个字都不
+        // 往主库/整包里写; 等操作员点了「确认本组成绩」, 才一次性回写主库并整份落盘。
+        //
+        // 原来这里有个暗门: 当前组库没就绪(库打不开 / 这一组在库里找不到)或写失败时,
+        // 直接退回 AutoSaveData() —— 每次触板 BuildCurrentPackage + 整包序列化写盘,
+        // 正是 2026-08-24 那个"400 米涨几个 G"的原样复活。而"库打不开"现场真发生过
+        // (缺 VC++ 运行库, SQLite.Interop.dll 加载失败), 界面上还看不出来。
+        //
+        // 现在没有这个暗门了: 当前组的进度【总是】写本机那个几 KB 的小文件,
+        // 小库能用就同时写小库(它才是回写主库的来源)。两条路都不碰整包。
+        private string LiveHeatProgressPath {
+            get {
+                return IOPath.Combine(IOPath.Combine(AppDomain.CurrentDomain.BaseDirectory, "Database"),
+                                      "current_heat_progress.json");
+            }
         }
+        private bool _liveDegradeWarned;
 
-        private void SaveHeatProgress() {
-            if (!_meetDb.LiveActive) { SaveHeatFallbackJson(); return; }
-
+        /// <summary>把当前组的泳道数据摊成 LiveLane 列表(小库和小文件共用)。</summary>
+        private List<SwimmingScoreboard.Db.LiveLane> BuildLiveLanes() {
             var lanes = new List<SwimmingScoreboard.Db.LiveLane>();
             foreach (var s in GetCurrentHeatSwimmers()) {
                 int lane = LaneOfStage(s, _currentStage);
@@ -24298,15 +24347,116 @@ namespace SwimmingScoreboard
                 }
                 lanes.Add(ln);
             }
+            return lanes;
+        }
 
-            if (!_meetDb.LiveSaveLanes(lanes)) { SaveHeatFallbackJson(); return; }   // 写失败就降级(限流)
-
-            // JSON 低频兜底：小库里已经是完整的了，这里只防进程崩掉之后
-            // 老的恢复路径读不到东西。原来是每次触板一存(每次 1.2MB)，现在 15 秒一次。
-            if (DateTime.Now - _lastHeatJsonSave >= HeatJsonSaveGap) {
-                _lastHeatJsonSave = DateTime.Now;
-                AutoSaveData();
+        /// <summary>当前组进度小文件: 只有本组这几条道, 几 KB。崩了就靠它恢复。</summary>
+        private void SaveLiveHeatProgressFile(List<SwimmingScoreboard.Db.LiveLane> lanes) {
+            try {
+                string dir = IOPath.Combine(AppDomain.CurrentDomain.BaseDirectory, "Database");
+                if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
+                var o = new JObject();
+                o["competition"] = _competitionName ?? "";
+                o["ageGroup"]    = _currentAgeGroup ?? "";
+                o["gender"]      = _currentGender ?? "";
+                o["eventName"]   = _currentEvent ?? "";
+                o["stage"]       = _currentStage ?? "";
+                o["heat"]        = _currentHeat;
+                o["savedAt"]     = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+                o["lanes"]       = JArray.FromObject(lanes);
+                // 先写 .tmp 再替换: 写一半断电不会把上一份也毁掉
+                string path = LiveHeatProgressPath, tmp = path + ".tmp";
+                File.WriteAllText(tmp, o.ToString(Formatting.None), Encoding.UTF8);
+                if (File.Exists(path)) File.Replace(tmp, path, null); else File.Move(tmp, path);
+            } catch (Exception ex) {
+                AddLog("当前组进度文件写入失败: " + ex.Message);
             }
+        }
+
+        /// <summary>本组已经确认/作废, 进度文件没用了。留着反而会在下次启动误恢复。</summary>
+        private void ClearLiveHeatProgressFile() {
+            try { if (File.Exists(LiveHeatProgressPath)) File.Delete(LiveHeatProgressPath); } catch { }
+            _liveDegradeWarned = false;
+        }
+
+        /// <summary>
+        /// 装载档案后调: 上次比赛中途崩了的话, 把那一组的进度捡回来。
+        /// 比赛中不写整包, 档案里就没有这一组的过程数据 —— 全靠这个小文件。
+        /// </summary>
+        private void TryRestoreLiveHeatProgress() {
+            try {
+                string path = LiveHeatProgressPath;
+                if (!File.Exists(path)) return;
+                var o = JObject.Parse(File.ReadAllText(path, Encoding.UTF8));
+                string comp = o["competition"] != null ? o["competition"].ToString() : "";
+                if (!string.Equals(comp, _competitionName ?? "", StringComparison.Ordinal)) return;  // 别的比赛的, 不碰
+                string ag = o["ageGroup"] != null ? o["ageGroup"].ToString() : "";
+                string gd = o["gender"] != null ? o["gender"].ToString() : "";
+                string ev = o["eventName"] != null ? o["eventName"].ToString() : "";
+                string st = o["stage"] != null ? o["stage"].ToString() : "";
+                int ht = 0;
+                try { if (o["heat"] != null) ht = (int)o["heat"]; } catch { }
+                if (ht <= 0 || string.IsNullOrEmpty(ev)) return;
+                // 已经确认过的组不用恢复(正常收尾会把文件删掉, 这是防万一)
+                if (IsHeatMarkedFinished(ag, gd, ev, st, ht)) { ClearLiveHeatProgressFile(); return; }
+
+                var lanes = o["lanes"] as JArray;
+                if (lanes == null || lanes.Count == 0) return;
+                var entries = GetHeatEntries(ag, gd, ev, st, ht);
+                int n = 0;
+                foreach (var t in lanes) {
+                    var jl = t as JObject;
+                    if (jl == null) continue;
+                    int lane = 0;
+                    try { if (jl["Lane"] != null) lane = (int)jl["Lane"]; } catch { }
+                    double ft = 0;
+                    try { if (jl["FinalTime"] != null) ft = (double)jl["FinalTime"]; } catch { }
+                    string status = jl["Status"] != null ? jl["Status"].ToString() : "";
+                    if (ft <= 0 && string.IsNullOrEmpty(status)) continue;
+                    var sw = entries.FirstOrDefault(x => LaneOfStage(x, st) == lane);
+                    if (sw == null) continue;
+                    var res = sw.Results.FirstOrDefault(r => r.Stage == st && r.Heat == ht);
+                    if (res == null) {
+                        res = new LaneResult { EventName = ev, Stage = st, Heat = ht, Lane = lane };
+                        sw.Results.Add(res);
+                    }
+                    if (res.FinalTime > 0) continue;          // 内存里已经有了, 不覆盖
+                    res.FinalTime = ft; res.TimeInSeconds = ft;
+                    if (!string.IsNullOrEmpty(status)) { res.Status = status; sw.Status = status; }
+                    if (jl["TimingSource"] != null) res.TimingSource = jl["TimingSource"].ToString();
+                    n++;
+                }
+                if (n > 0) {
+                    string savedAt = o["savedAt"] != null ? o["savedAt"].ToString() : "";
+                    AddLog(string.Format("★ 已从当前组进度文件恢复 {0} 条成绩: {1} {2} {3} 第{4}组（存于 {5}）",
+                        n, gd, ev, st, ht, savedAt));
+                    MessageBox.Show(string.Format(
+                        "发现上次没走完的一组，已把进度捡回来。\n\n  {0} {1} {2} 第{3}组\n  恢复 {4} 条成绩（存盘时间 {5}）\n\n" +
+                        "请核对无误后再点「确认本组成绩」。",
+                        gd, ev, st, ht, n, savedAt), "已恢复上次的比赛进度",
+                        MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+            } catch (Exception ex) {
+                AddLog("恢复当前组进度失败(不影响比赛): " + ex.Message);
+            }
+        }
+
+        private void SaveHeatProgress() {
+            var lanes = BuildLiveLanes();
+
+            // 小库能用就写小库 —— 它是确认成绩时回写主库的来源
+            bool dbOk = _meetDb.LiveActive && _meetDb.LiveSaveLanes(lanes);
+            if (!dbOk && !_liveDegradeWarned) {
+                _liveDegradeWarned = true;
+                AddLog("【注意】当前组库不可用，本组只写进度小文件（成绩不会丢，确认成绩时照常入库）");
+            }
+
+            // 进度小文件总是写 —— 几 KB, 而且是崩溃恢复的唯一凭据
+            SaveLiveHeatProgressFile(lanes);
+
+            // 本组还没确认 = 中间过程, 一个字都不写整包。
+            // 确认之后(赛后改判、手输成绩这些低频操作)照旧立刻整份落盘。
+            if (_resultConfirmed) AutoSaveData();
         }
 
         // ── 2026-08-24 竞赛管理库同步（迁移第 1 步：只写不读）──────────────
@@ -24556,6 +24706,9 @@ namespace SwimmingScoreboard
 
                 AddLog("已加载赛事: " + _competitionName);
                 SyncToMeetDb(package);
+                // 2026-09-13 比赛中不写整包了, 档案里就没有正在比那一组的过程数据 ——
+                //   上次要是比到一半崩了, 靠当前组进度小文件把它捡回来。
+                try { TryRestoreLiveHeatProgress(); } catch { }
             } catch (Exception ex) {
                 AddLog("加载赛事失败: " + ex.Message);
             }

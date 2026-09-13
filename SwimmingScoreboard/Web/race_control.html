@@ -985,6 +985,15 @@ function connect() {
         //   比赛中 100ms 一帧 —— 越比越肥, 正是"内存涨几个 G"的那副形状。
         //   现在每条事件只推 70 字节, 客户端自己往后接; 10 秒一次的完整帧仍带全量,
         //   断线重连或漏帧都能对齐。
+        // 2026-09-13 设备状态改走"变一次推一次"。原来每帧重发 10 道 × 23 个布尔,
+        //   而故障状态一整场也变不了几次。实时性不降反升: 状态一变立刻到, 不用等下一帧。
+        if (msg.type === 'DEVICE_STATES_UPDATE') {
+            if (msg.data && data) {
+                data.laneDevices = msg.data;
+                try { renderDeviceStatusPanel(); } catch (e) {}
+            }
+            return;
+        }
         if (msg.type === 'LANE_EVENT_APPEND') {
             if (msg.data && data) {
                 if (!data.laneEventLogs) data.laneEventLogs = {};
