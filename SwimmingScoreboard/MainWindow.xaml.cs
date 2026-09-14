@@ -13786,7 +13786,12 @@ namespace SwimmingScoreboard
                 var result = sw.Results.FirstOrDefault(r => r.Stage == _currentStage && r.Heat == _currentHeat);
                 // 已记录最终成绩的运动员（即便 LaneDeviceState.IsFinished 因切组被复位）也算作完赛
                 bool isFinished = (ls != null && ls.IsFinished) || (result != null && result.FinalTime > 0);
-                string status = sw.Status ?? "";
+                // 2026-09-13 备注栏改用 GetEffectiveStatus(成绩行优先, 退回运动员那份)。
+                //   判罚状态在内存里存了两处(运动员 sw.Status + 成绩行 r.Status), 而这块面板
+                //   原来只认 sw.Status —— 某条回填路径只写了成绩行那一份时, 备注栏就空了
+                //   (现场: 确认成绩之后再看, 成绩名次都在, DNS/DNF/DSQ/TRI 没了)。
+                //   大屏那条路(BuildSwimmerPayload)早就用这个helper了, 面板一直没跟上。
+                string status = GetEffectiveStatus(sw, result);
                 bool isDQ = status == "DSQ" || status == "DNS" || status == "DNF";
 
                 // 姓名/队伍 — 个人项目: 姓名+代表队；接力项目: 代表队 + 第N棒:运动员
@@ -24560,7 +24565,13 @@ namespace SwimmingScoreboard
                     if (!string.IsNullOrEmpty(row.RecordNote)) r.RecordNote = row.RecordNote;
                     // 2026-09-01 判罚状态也以库为准(只加不删: 库里没写的时候不要把内存里
                     //   刚标上的判罚抹掉 —— 少一个判罚比多一个危险)。
-                    if (!string.IsNullOrEmpty(row.Status)) r.Status = row.Status;
+                    // 2026-09-13 【两份状态要一起对齐】。判罚状态在内存里存了两处:
+                    //   成绩行 r.Status 和运动员 sw.Status。这里原来只写成绩行那一份 ——
+                    //   而计时面板的"备注"栏、大屏 payload、打印、团体总分读的都是 sw.Status。
+                    //   现场症状: 确认成绩之后(内存被整包/回读刷过一轮)再看, 成绩还在、
+                    //   名次还在, 备注栏的 DNS/DNF/DSQ/TRI 却空了 —— 就是只回了一份。
+                    //   HandleHeatConfirmedPush 早就是两份一起对齐的, 这条路一直漏着。
+                    if (!string.IsNullOrEmpty(row.Status)) { r.Status = row.Status; sw.Status = row.Status; }
                     r.FromDb = true;
                     // CurrentRank 是老代码到处在用的字段, 一起对齐, 别让它成为第二个真相
                     sw.CurrentRank = row.HeatRank;
