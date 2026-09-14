@@ -1417,12 +1417,15 @@ namespace SwimmingScoreboard
                         });
                         // 2026-06-17 方案 B: 若有 RTC 主控推过来的完整快照, 优先发给新客户端,
                         //   避免显示空白等待下次事件触发. 没有快照时回退到本机 BroadcastSingle.
-                        string snap = _lastRtcSnapshot;
-                        if (!string.IsNullOrEmpty(snap)) {
-                            EnqueueToSocket(socket, snap);
-                        } else {
-                            BroadcastSingle(socket);
-                        }
+                        // ── 2026-09-13 新客户端一律用【本机这份完整数据】开局 ──────────
+                        //   原来优先发 _lastRtcSnapshot(RTC 转发过来的最近一帧完整包)。
+                        //   现在 RTC 平时只发精简帧, 而切显示模式时发的是【大屏专用包】——
+                        //   拿任何一种当新客户端的底子都是错的: 精简帧没有名单/赛程,
+                        //   大屏专用包也没有, 非大屏客户端(比赛控制页/查询页)收到就把
+                        //   自己那份静态数据冲空了。
+                        //   主服务器手里的才是静态数据的权威来源, 直接发它;
+                        //   实况字段下一帧(100ms)就到, 不差这一下。
+                        BroadcastSingle(socket);
                     };
                     socket.OnClose = delegate() {
                         UnregisterSocketSender(socket);   // 2026-06-18 停 sender worker
@@ -1612,9 +1615,11 @@ namespace SwimmingScoreboard
                             var payload = msg["payload"];
                             if (payload == null) break;
                             string json = payload.ToString(Newtonsoft.Json.Formatting.None);
-                            // 2026-06-17 缓存最近一次 SHOW_LIVE_RACE 完整快照, 新连接的 display 通过 OnOpen 直接发它
+                            // 2026-06-17 原本缓存 RTC 最近一次完整快照给新客户端开局。
+                            // 2026-09-13 不再缓存也不再用它 —— RTC 平时只发精简帧, 切视图时发的是
+                            //   大屏专用包, 两种都没有名单/赛程, 拿来当新客户端的底子会把它那份
+                            //   静态数据冲空。新客户端改由主服务器自己那份完整数据开局(见 OnOpen)。
                             string ptype = payload["type"] != null ? payload["type"].ToString() : "";
-                            if (ptype == "SHOW_LIVE_RACE") _lastRtcSnapshot = json;
                             // 2026-09-12 顺手记下 RTC 正开着哪一组 —— 编排端发来的补丁要靠它挡
                             if (ptype == "SHOW_LIVE_RACE" || ptype == "SHOW_LIVE_RACE_LITE")
                                 NoteRtcRaceState(payload as JObject);
@@ -24573,8 +24578,13 @@ namespace SwimmingScoreboard
                     //   HandleHeatConfirmedPush 早就是两份一起对齐的, 这条路一直漏着。
                     if (!string.IsNullOrEmpty(row.Status)) { r.Status = row.Status; sw.Status = row.Status; }
                     r.FromDb = true;
-                    // CurrentRank 是老代码到处在用的字段, 一起对齐, 别让它成为第二个真相
-                    sw.CurrentRank = row.HeatRank;
+                    // CurrentRank 是老代码到处在用的字段, 一起对齐, 别让它成为第二个真主。
+                    // 2026-09-13 【条件要跟 r.Rank 那行一致】。上面 r.Rank 是"库里有值才覆盖"
+                    //   (库里那列还是 0 时保留内存那份), 这一行原来却是无条件赋值 ——
+                    //   于是 HeatRank=0 的那一轮把 CurrentRank 清成 0, 而 r.Rank 还留着。
+                    //   团体总分取分读的正是 CurrentRank: 名次界面上看着好好的, 分却算没了,
+                    //   而且不报错。两行同一个条件, 就不会再分叉。
+                    if (row.HeatRank > 0) sw.CurrentRank = row.HeatRank;
                     // 2026-09-01 判罚/弃权的人: 名次和纪录标识一律清干净。
                     //   现场实测过 —— 界面上成绩空了、名次空了, "纪录"列却还挂着 MR。
                     //   原因是判罚是在【另一台机器】上标的, 本机内存里那份 RecordNote
@@ -24634,10 +24644,13 @@ namespace SwimmingScoreboard
                 if (lane < 0) continue;
                 var res = s.GetResultForStage(_currentStage);
                 var ln = new SwimmingScoreboard.Db.LiveLane { Lane = lane, Name = s.Name };
+                // 2026-09-13 状态取"两份里有的那份"(成绩行优先, 退回运动员那份)。
+                //   原来只取成绩行: 检录台标的 DNS 只写在运动员身上, 而 DNS 的人不会触板、
+                //   压根没有成绩行 —— 于是那个 DNS 一路进不了库, 报表上是空白不是 DNS。
+                ln.Status = GetEffectiveStatus(s, res);
                 if (res != null) {
                     ln.FinalTime      = res.FinalTime;
                     ln.Rank           = res.Rank;
-                    ln.Status         = res.Status;
                     ln.RecordNote     = res.RecordNote;
                     ln.TimingSource   = res.TimingSource;
                     ln.TouchpadTime   = res.TouchpadTime;
