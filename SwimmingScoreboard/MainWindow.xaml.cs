@@ -1441,6 +1441,8 @@ namespace SwimmingScoreboard
                         Dispatcher.Invoke((Action)delegate() {
                             UpdateScoringControlMode();
                             UpdateConnectionStatus();
+                            // 2026-09-13 计时端(EXE)全断了 → "当前比赛"那块回归本机, 别停在它最后那一组
+                            if (_timingExeSockets.Count == 0) ClearRtcRaceDisplay("计时端已退出");
                         });
                     };
                     socket.OnMessage = delegate(string message) {
@@ -10126,6 +10128,30 @@ namespace SwimmingScoreboard
         private int _rtcHeat = 0;
         private DateTime _rtcSeenAt = DateTime.MinValue;
 
+        // 2026-09-13 「当前比赛」那块现在是计时端在驱动 —— 计时端一退出就得清掉,
+        //   否则屏幕上永远停在它最后那一组, 看的人以为还在比。
+        private bool _rtcDrivesCurrentRaceText;
+
+        /// <summary>计时端退出/失联 → 把"当前比赛"从它的数据切回本机自己的(本机没有就显 "-")。</summary>
+        private void ClearRtcRaceDisplay(string why) {
+            if (!_rtcDrivesCurrentRaceText) return;
+            _rtcDrivesCurrentRaceText = false;
+            _rtcEvent = ""; _rtcGender = ""; _rtcAgeGroup = ""; _rtcStage = "";
+            _rtcHeat = 0; _rtcSeenAt = DateTime.MinValue;
+            bool hasLocal = !string.IsNullOrEmpty(_currentEvent);
+            if (CurrentEventText != null)
+                CurrentEventText.Text = hasLocal
+                    ? (_currentGender + (string.IsNullOrEmpty(_currentAgeGroup) ? " " : (" [" + _currentAgeGroup + "] ")) + _currentEvent)
+                    : "-";
+            if (CurrentStageText != null)
+                CurrentStageText.Text = (hasLocal && !string.IsNullOrEmpty(_currentStage)) ? _currentStage : "-";
+            if (CurrentHeatText != null)
+                CurrentHeatText.Text = (hasLocal && _currentHeat > 0)
+                    ? string.Format("第{0}组 / 共{1}组", _currentHeat, _totalHeats) : "-";
+            try { UpdateRaceStateDisplay(); } catch { }   // 状态框回到本机自己的 _raceState
+            AddLog("【当前比赛】已清空 —— " + why);
+        }
+
         private void NoteRtcRaceState(JObject payload) {
             try {
                 if (payload == null) return;
@@ -10154,6 +10180,7 @@ namespace SwimmingScoreboard
                 if (CurrentHeatText != null)
                     CurrentHeatText.Text = _rtcHeat > 0
                         ? ("第" + _rtcHeat + "组" + (total > 0 ? " / 共" + total + "组" : "") + "（计时端）") : "-";
+                _rtcDrivesCurrentRaceText = true;   // 2026-09-13 记一笔: 这块现在归计时端驱动
                 if (RaceStateText != null && !string.IsNullOrEmpty(rs)) {
                     string label; string bg;
                     switch (rs) {
@@ -24378,6 +24405,11 @@ namespace SwimmingScoreboard
 
         private void DbPoll_Tick(object sender, EventArgs e) {
             try {
+                // 2026-09-13 计时端硬断电时 socket 可能迟迟不关, 光靠 OnClose 清不掉。
+                //   30 秒没收到它的状态帧就当它走了(它正常时每 100ms 一帧)。
+                if (_rtcDrivesCurrentRaceText && _rtcSeenAt != DateTime.MinValue
+                    && (DateTime.Now - _rtcSeenAt).TotalSeconds > 30)
+                    ClearRtcRaceDisplay("计时端已失联 30 秒");
                 // 比赛中不动: 正在写当前组, 而且计时端会主动回推
                 if (_raceState == RaceState.Racing || _raceState == RaceState.Ready) return;
                 int before = _dbHeatStamps.Count;
