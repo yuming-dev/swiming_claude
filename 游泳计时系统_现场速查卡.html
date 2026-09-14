@@ -1,0 +1,184 @@
+﻿<!DOCTYPE html><html lang="zh"><head><meta charset="utf-8"><title>游泳计时系统 现场速查卡</title><style>@page{size:A4;margin:8mm 8mm;} body{font-family:'Microsoft YaHei','Source Han Sans CN',sans-serif;max-width:100%;margin:0;padding:0;line-height:1.25;color:#111;font-size:9.2pt;} h1{color:#1e3a8a;font-size:15pt;border-bottom:2.5pt solid #3b82f6;padding-bottom:3pt;margin:0 0 4pt;page-break-before:auto;} h2{color:#1e40af;font-size:10.5pt;border-bottom:0.8pt solid #cbd5e1;padding-bottom:1.5pt;margin:7pt 0 2.5pt;page-break-after:avoid;} h3{color:#1e3a8a;font-size:9.8pt;margin:6pt 0 2pt;page-break-after:avoid;} p{margin:2pt 0;} table{border-collapse:collapse;margin:2.5pt 0;width:100%;font-size:8.4pt;} th,td{border:0.6pt solid #94a3b8;padding:1.2pt 3.5pt;text-align:left;vertical-align:top;line-height:1.2;} th{background:#eff6ff;color:#1e40af;font-weight:bold;} tr:nth-child(even) td{background:#f6f9ff;} code{background:#f1f5f9;padding:0 3pt;border-radius:2pt;color:#be185d;font-family:Consolas,monospace;font-size:88%;} pre{background:#f1f5f9;color:#0f172a;padding:4pt 6pt;border-radius:3pt;font-family:Consolas,monospace;font-size:8pt;line-height:1.3;margin:3pt 0;} ul,ol{margin:2pt 0 2pt 16pt;padding:0;} li{margin:1pt 0;} blockquote{border-left:2.5pt solid #ef4444;background:#fef2f2;padding:2pt 7pt;margin:3pt 0;color:#991b1b;font-weight:bold;} hr{display:none;} strong{color:#111;} </style></head><body><h1>游泳计时系统 现场速查卡</h1>
+<p><strong>v2026.09.14</strong> · 贴在计时机旁边 · 详细说明见《使用说明书》</p>
+<hr>
+<h2>一场比赛，六步</h2>
+<table>
+<thead><tr>
+  <th></th>
+  <th>动作</th>
+  <th>看什么</th>
+</tr></thead><tbody>
+<tr>
+  <td>1</td>
+  <td>赛程导航点到这一组</td>
+  <td>中间出现本组名单</td>
+</tr>
+<tr>
+  <td>2</td>
+  <td><strong>准备就绪</strong></td>
+  <td>出发台打开，大屏切到本组</td>
+</tr>
+<tr>
+  <td>3</td>
+  <td>发令</td>
+  <td>滚动时间开始走</td>
+</tr>
+<tr>
+  <td>4</td>
+  <td>比赛中</td>
+  <td>触板/盲表自动记，需要就判罚</td>
+</tr>
+<tr>
+  <td>5</td>
+  <td><strong>确认本组成绩</strong></td>
+  <td>成绩锁定入库，大屏切组成绩</td>
+</tr>
+<tr>
+  <td>6</td>
+  <td><strong>计时复位</strong></td>
+  <td>进入下一组</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>判罚四个键</h2>
+<table>
+<thead><tr>
+  <th>键</th>
+  <th>含义</th>
+  <th>还计时吗</th>
+  <th>有成绩吗</th>
+  <th>排名吗</th>
+</tr></thead><tbody>
+<tr>
+  <td><strong>DNS</strong></td>
+  <td>没来</td>
+  <td>✕</td>
+  <td>✕</td>
+  <td>✕</td>
+</tr>
+<tr>
+  <td><strong>DNF</strong></td>
+  <td>没游完</td>
+  <td>✕</td>
+  <td>✕</td>
+  <td>✕</td>
+</tr>
+<tr>
+  <td><strong>DSQ</strong></td>
+  <td>犯规取消</td>
+  <td>✕</td>
+  <td>✕</td>
+  <td>✕</td>
+</tr>
+<tr>
+  <td><strong>TRI</strong></td>
+  <td><strong>试游</strong></td>
+  <td><strong>✓</strong></td>
+  <td><strong>✓</strong></td>
+  <td><strong>✕</strong></td>
+</tr>
+</tbody></table>
+<ul>
+<li><strong>TRI 要计时</strong>：人下水、触板照记、成绩照出，只是不进名次、不计分、不算纪录</li>
+<li>DSQ 接力会先问<strong>犯规棒次</strong>，前面几棒的分段保留</li>
+<li>判错了用<strong>取消备注</strong>撤销</li>
+<li><strong>计时复位</strong>（抢跳重赛）清时间<strong>但保留备注</strong></li>
+</ul>
+<hr>
+<h2>按错了「确认本组成绩」怎么办</h2>
+<blockquote>确认一按就锁死：成绩、判罚、分组全改不了。</blockquote>
+<p><strong>「解锁本组成绩」</strong> —— 确认键正下方，琥珀色</p>
+<ol>
+<li>第一道：弹窗看清是哪一组</li>
+<li>第二道：<strong>手输组号 + 写原因</strong>（防手滑，必填）</li>
+<li>改成绩 / 改判罚</li>
+<li><strong>⚠ 改完必须再点一次「确认本组成绩」</strong></li>
+</ol>
+<blockquote><strong>漏了第 4 步，改动不入库——过一会儿会自己变回旧值。</strong></blockquote>
+<p>解锁会记进系统日志和竞赛库审计表（谁、几点、为什么）。</p>
+<p>正在计时/已就位时不给解。只能在<strong>计时端</strong>这台解。</p>
+<hr>
+<h2>谁能发令：EXE &gt; 网页 &gt; 主服务器</h2>
+<table>
+<thead><tr>
+  <th>优先级</th>
+  <th>谁</th>
+  <th>被压住时的表现</th>
+</tr></thead><tbody>
+<tr>
+  <td>1</td>
+  <td><strong>计时端程序</strong>（池边这台）</td>
+  <td>永远能用</td>
+</tr>
+<tr>
+  <td>2</td>
+  <td>比赛控制<strong>网页</strong></td>
+  <td>计时按钮停用，顶部橙条</td>
+</tr>
+<tr>
+  <td>3</td>
+  <td>主服务器「比赛控制」页</td>
+  <td>页签<strong>变灰</strong>，点不进去</td>
+</tr>
+</tbody></table>
+<ul>
+<li>高的一退出，低的<strong>自动恢复</strong>，不用重启</li>
+<li>切项目、切组次、显示控制<strong>不受影响</strong>，网页照常能用</li>
+</ul>
+<hr>
+<h2>比赛中能改别的项目</h2>
+<p><strong>只有正在比的那一组锁着</strong>，别的项目、别的组随便改。动不得的只有四种: 正在计时/已就位、已完赛、成绩已录未确认、计时端正开着它 —— 界面会说清是哪一组、为什么。</p>
+<hr>
+<h2>出状况</h2>
+<table>
+<thead><tr>
+  <th>现象</th>
+  <th>怎么办</th>
+</tr></thead><tbody>
+<tr>
+  <td><strong>改完过一会儿又变回去了</strong></td>
+  <td>漏了最后那次「确认本组成绩」</td>
+</tr>
+<tr>
+  <td><strong>判罚按钮没反应</strong></td>
+  <td>这组已完赛 → 先「解锁本组成绩」</td>
+</tr>
+<tr>
+  <td><strong>网页上按发令没反应</strong></td>
+  <td>计时端程序在跑，网页让位 → 去计时端那台按</td>
+</tr>
+<tr>
+  <td><strong>某道标了 DSQ 就不计时了</strong></td>
+  <td>正常。要继续计时用「取消备注」撤销</td>
+</tr>
+<tr>
+  <td><strong>大屏回不到比赛视图</strong></td>
+  <td>按「比赛视图」即可；若无效，Ctrl+F5 刷新大屏</td>
+</tr>
+<tr>
+  <td><strong>大屏页顶红条说版本不一致</strong></td>
+  <td>Ctrl+F5；还不行说明那台的 <code>Web\</code> 目录没更新</td>
+</tr>
+<tr>
+  <td><strong>客户端全连不上</strong></td>
+  <td>① 防火墙放行 <strong>3002 / 8080</strong> ② 是不是开了<strong>两个</strong>主服务器抢端口</td>
+</tr>
+<tr>
+  <td><strong>硬件计时器一直红</strong></td>
+  <td>串口号 / 波特率 / 接线 / 硬件电源</td>
+</tr>
+<tr>
+  <td><strong>弹窗"竞赛库打不开"</strong></td>
+  <td>缺 VC++ 运行库，用安装包重装一次</td>
+</tr>
+<tr>
+  <td><strong>比赛中途程序崩了</strong></td>
+  <td>重开、加载同一赛事 → 会弹窗问是否恢复上次进度</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>开机顺序</h2>
+<p>① <strong>主服务器</strong>(记下顶栏 IP) → ② <strong>计时端</strong>填该 IP 连接、再连硬件 → ③ 大屏浏览器开 <code>http://该IP:8080/display.html</code> 按 F11 → ④ 其它网页同理换文件名(race_control / query / register / checkin)。</p>
+<p>主服务器 + 计时端的摆法, 主服务器用带 <code>--role server</code> 的快捷方式启动(自动摘掉「比赛控制」页)。</p>
+<p><strong>网页和主程序必须同版本一起换</strong> —— 只换一半会出现"设备灯不刷新""日志不动"这类查不出原因的毛病, 页顶红条就是在提醒。</p>
+</body></html>
