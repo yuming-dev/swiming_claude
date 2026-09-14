@@ -1618,8 +1618,22 @@ namespace SwimmingScoreboard
                             // 2026-09-12 顺手记下 RTC 正开着哪一组 —— 编排端发来的补丁要靠它挡
                             if (ptype == "SHOW_LIVE_RACE" || ptype == "SHOW_LIVE_RACE_LITE")
                                 NoteRtcRaceState(payload as JObject);
-                            // 2026-06-18 per-socket 队列, 不再 lock 串行 send
-                            EnqueueToAll(json);
+                            // 2026-09-13 RTC 可以指定这一帧发给谁: to="display" 只发大屏,
+                            //   to="others" 只发非大屏。切显示模式时 RTC 就靠这个把
+                            //   【大屏专用包(约 23KB)】和【给其它客户端的精简帧】分开发 ——
+                            //   原来不分, 一律发 GetStatusData() 整包(278KB), 大屏切个视图
+                            //   要等那 278KB 传完再解析, 现场感觉就是"按了半天才变"。
+                            string to = msg["to"] != null ? msg["to"].ToString() : "";
+                            if (to == "display") {
+                                foreach (var s in _displaySockets.ToList()) EnqueueToSocket(s, json);
+                            } else if (to == "others") {
+                                var disp = _displaySockets.ToList();
+                                foreach (var s in _allSockets.ToList())
+                                    if (!disp.Contains(s)) EnqueueToSocket(s, json);
+                            } else {
+                                // 2026-06-18 per-socket 队列, 不再 lock 串行 send
+                                EnqueueToAll(json);
+                            }
                         } catch { }
                         break;
                     // 2026-08-28 计时端确认成绩后回推本组 —— 让主服务器内存模型跟上,
@@ -3334,11 +3348,19 @@ namespace SwimmingScoreboard
         // 2026-06-17 方案 B 核心: RTC 模式下不发本地 _allSockets, 改通过 EditorSyncClient 推给主服务器,
         //   主服务器收到 RTC_FORWARD 后再分发给所有 display/control 客户端.
         //   返回 true = 已交给主服务器转发链, 调用者无需再走本地分发; false = 非 RTC 模式, 走本地分发.
-        private bool TryForwardToMainServer(object payload) {
+        private bool TryForwardToMainServer(object payload) { return TryForwardToMainServer(payload, null); }
+
+        /// <summary>
+        /// 2026-09-13 to: null=发给所有客户端(老行为); "display"=只发大屏; "others"=只发非大屏。
+        /// 切显示模式时靠它把【大屏专用包】和【给别人的精简帧】分开发, 不再一律甩 278KB 整包。
+        /// </summary>
+        private bool TryForwardToMainServer(object payload, string to) {
             if (!IsRemoteTimingControlMode) return false;
             try {
                 if (_editorSyncClient != null && _editorSyncClient.IsConnected) {
-                    var wrapper = new { type = "RTC_FORWARD", payload };
+                    var wrapper = string.IsNullOrEmpty(to)
+                        ? (object)new { type = "RTC_FORWARD", payload }
+                        : (object)new { type = "RTC_FORWARD", payload, to };
                     System.Threading.Tasks.Task.Run(() => {
                         try {
                             string json = JsonConvert.SerializeObject(wrapper);
@@ -3466,9 +3488,20 @@ namespace SwimmingScoreboard
             if (mode != "SHOW_EVENT_RANKING") _rankingSelection = null;
             // 2026-06-17 方案 B: RTC 模式通过主服务器转发, 不开本地 Server.
             if (IsRemoteTimingControlMode) {
+                // ── 2026-09-13 分开发, 别再一律甩 278KB ──────────────────────
+                //   原来这里把 GetStatusData() 整包(实测 278KB)转给主服务器, 主服务器
+                //   又原样发给【所有】客户端 —— 大屏切个视图要等那 278KB 传完再解析,
+                //   现场感觉就是"按了半天才变"。非 RTC 那条路早就是大屏走专用包(约 23KB)了,
+                //   RTC 这条一直没跟上。现在照着分:
+                //     大屏  → BuildDisplayPayload(mode) 专用包
+                //     其余  → 精简帧(静态部分他们本来就留着, 要整包会自己来取)
                 try {
-                    var msg = new { type = mode, data = GetStatusData(), modeExplicit = true };
-                    TryForwardToMainServer(msg);
+                    var vd = BuildDisplayPayload(mode);
+                    if (vd != null)
+                        TryForwardToMainServer(new { type = mode, data = vd, modeExplicit = true }, "display");
+                    TryForwardToMainServer(
+                        new { type = mode, data = GetStatusData(vd == null), modeExplicit = true },
+                        vd == null ? null : "others");
                 } catch { }
                 return;
             }
@@ -10099,6 +10132,34 @@ namespace SwimmingScoreboard
                 _rtcStage    = d["currentStage"]    != null ? d["currentStage"].ToString()    : "";
                 _rtcHeat     = d["currentHeat"]     != null ? (int)d["currentHeat"]           : 0;
                 _rtcSeenAt   = DateTime.Now;
+                // ── 2026-09-13 主服务器"当前比赛"跟着计时端走 ────────────────────
+                //   RTC 当主控时, 主服务器只是条总线: 它自己的 _currentEvent/_currentHeat
+                //   一直是空的, 于是「系统工作状态」页那块"当前比赛"从头到尾显示 "-" ——
+                //   场上明明在比, 主服务器这台却什么都看不出来。
+                //   这里【只刷显示】, 不去动 _currentEvent 那些字段: 那些字段还牵着
+                //   取名单、切组门禁、广播内容一大串, 动了会牵出别的事。
+                //   括号里标明是计时端的, 免得有人以为这台机器在计时。
+                int total = 0;
+                try { if (d["totalHeats"] != null) total = (int)d["totalHeats"]; } catch { }
+                string rs = d["raceState"] != null ? d["raceState"].ToString() : "";
+                if (CurrentEventText != null)
+                    CurrentEventText.Text = string.IsNullOrEmpty(_rtcEvent) ? "-"
+                        : ((string.IsNullOrEmpty(_rtcAgeGroup) ? "" : "[" + _rtcAgeGroup + "] ") + _rtcGender + " " + _rtcEvent);
+                if (CurrentStageText != null) CurrentStageText.Text = string.IsNullOrEmpty(_rtcStage) ? "-" : _rtcStage;
+                if (CurrentHeatText != null)
+                    CurrentHeatText.Text = _rtcHeat > 0
+                        ? ("第" + _rtcHeat + "组" + (total > 0 ? " / 共" + total + "组" : "") + "（计时端）") : "-";
+                if (RaceStateText != null && !string.IsNullOrEmpty(rs)) {
+                    string label; string bg;
+                    switch (rs) {
+                        case "READY":    label = "已就位（计时端）";   bg = "#F59E0B"; break;
+                        case "RACING":   label = "比赛中（计时端）";   bg = "#EF4444"; break;
+                        case "FINISHED": label = "本组已完赛（计时端）"; bg = "#64748B"; break;
+                        default:         label = "等待（计时端）";     bg = "#3B82F6"; break;
+                    }
+                    RaceStateText.Text = label;
+                    RaceStateText.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString(bg));
+                }
             } catch { }
         }
 
@@ -13293,6 +13354,20 @@ namespace SwimmingScoreboard
                 BuildLaneRows(allPoolLanes, laneSwimmerMap);
                 _laneRowsBuiltKey = key;
             }
+            // ── 2026-09-13 泳道行里存的 Swimmer 引用可能已经作废 ──────────────
+            //   RefreshLaneRows 画的是 rowUI.Swimmer, 那是 BuildLaneRows 那一刻抓住的对象。
+            //   而收到整包(EDITOR_PACKAGE)时 ApplyPackageInMemory 会把 _swimmers 整批换成
+            //   新对象 —— 姓名没变, 上面那个 key 就没变, 于是行不重建, 里头攥着的还是
+            //   一批孤儿对象。后果: 之后所有改动(判 DSQ/DNS/TRI、改成绩)都改在新对象上,
+            //   而中间这块面板画的是旧对象 —— 界面上【一点反应都没有】, 大屏却是对的。
+            //   现场就是这么撞出来的: 确认成绩(回推主服务器→主服务器推整包回来)之后
+            //   再判罚, 面板不标注, 大屏要等下一次确认才显示。
+            //   这里按道次重新认一遍人, 便宜(十来个引用赋值), 且把这类问题一次性了结。
+            foreach (var rowUI in _laneRowUIs) {
+                Swimmer cur;
+                laneSwimmerMap.TryGetValue(rowUI.Lane, out cur);
+                if (!ReferenceEquals(rowUI.Swimmer, cur)) rowUI.Swimmer = cur;
+            }
             RefreshLaneRows(currentSwimmers);
             UpdateTimingSourceInfo();
         }
@@ -14667,8 +14742,16 @@ namespace SwimmingScoreboard
                 }
                 LogRawTimingData(lane, "MARK_" + status, 0);
                 AddLog(string.Format("泳道{0} {1} 标记为 {2}", lane, swimmer.Name, status));
+                // ── 2026-09-13 TRI 不能标"已完赛" ────────────────────────────
+                //   IsFinished 是整条计时链的总闸: 触板(6641)、分段、盲表、
+                //   设备开关循环(8630) 一律先看它, 为 true 就直接 return/continue。
+                //   原来这里不分状态一律置 true —— 于是赛前把某道标成 TRI,
+                //   那道整场收不到任何数据, 触板盲表全是空的。
+                //   可 TRI 是【试游】: 人要下水、要计时、成绩照常出, 只是不排名、
+                //   不计分、不算纪录。把闸门关了就把规则弄反了。
+                //   DNS/DNF/DSQ 照旧置 true(他们确实不再产生成绩)。
                 var laneState = _laneDeviceStates.FirstOrDefault(s => s.Lane == lane);
-                if (laneState != null) laneState.IsFinished = true;
+                if (laneState != null && status != "TRI") laneState.IsFinished = true;
                 // 重新计算本组排名（被取消的运动员让出名次）
                 try { UpdateHeatRanking(); } catch { }
                 // 2026-06-01 DSQ/DNS/DNF 后, 给新晋 leader 重新比对纪录库, 让 WR/CR 等
