@@ -964,7 +964,7 @@ function connect() {
 // 只换一半会出现"设备状态灯和比赛日志不刷新"这种看不出根由的毛病, 所以对不上
 // 就在页顶挂红条, 顺带连上时报给主服务器, 让系统日志里也留一行。
 // 【改了本页就把这个日期跟 MainWindow.WEB_ASSET_VERSION 一起往后挪】
-var PAGE_VER = '20260913-3';
+var PAGE_VER = '20260913-4';
 var PAGE_NAME = 'display.html';
 function reportPageVer(sock) {
     try { sock.send(JSON.stringify({type: 'CLIENT_VERSION', page: PAGE_NAME, ver: PAGE_VER})); } catch (e) {}
@@ -996,6 +996,9 @@ function checkPageVer(serverVer) {
     var _renderScheduled = false;
     // 2026-05-25 操作员主动锁定的"非比赛"显示模式 — 收到不带 modeExplicit 的 SHOW_LIVE_RACE
     // 心跳时不会切回 LIVE_RACE，避免总排名/团体/纪录/颁奖等翻页中途被服务器心跳打断
+    // 2026-09-13 操作员显式按过"比赛视图" —— 压住 render() 里"确认成绩后自动跳组成绩"
+    //   那条规则, 否则按了也回不去。下一组开始(resultConfirmed 转 false)自动清掉。
+    var _liveRaceForced = false;
     var LOCKABLE_MODES = {
         'SHOW_EVENT_RANKING': 1, 'SHOW_TEAM_STANDINGS': 1, 'SHOW_RECORDS': 1,
         'SHOW_REFEREES': 1,
@@ -1012,9 +1015,9 @@ function checkPageVer(serverVer) {
             _renderScheduled = false;
             if (_pendingMode) {
                 // 操作员显式切到非比赛模式 → 锁定，让后续 LIVE_RACE 心跳无法夺权
-                if (modeExplicit && LOCKABLE_MODES[_pendingMode]) modeLocked = true;
-                // 操作员显式切回 LIVE_RACE → 解锁
-                else if (modeExplicit && _pendingMode === 'SHOW_LIVE_RACE') modeLocked = false;
+                if (modeExplicit && LOCKABLE_MODES[_pendingMode]) { modeLocked = true; _liveRaceForced = false; }
+                // 操作员显式切回 LIVE_RACE → 解锁, 并压住"确认后自动跳组成绩"那条规则
+                else if (modeExplicit && _pendingMode === 'SHOW_LIVE_RACE') { modeLocked = false; _liveRaceForced = true; }
                 // 心跳类（非 explicit）默认不改 modeLocked
                 else if (!modeExplicit) { /* keep current modeLocked */ }
                 currentMode = _pendingMode;
@@ -1048,6 +1051,7 @@ function checkPageVer(serverVer) {
             currentMode = 'SHOW_PUBLISHED_RESULT';
             publishedData = msg.data;
             modeLocked = true;
+            _liveRaceForced = false;   // 2026-09-13 切走了, 压制标志跟着清
             renderPublishedResult(msg.data);
             return;
         }
@@ -1062,6 +1066,7 @@ function checkPageVer(serverVer) {
         if (msg.type === 'SHOW_MEDIA') {
             currentMode = 'SHOW_MEDIA';
             modeLocked = true;
+            _liveRaceForced = false;   // 2026-09-13 切走了, 压制标志跟着清
             renderMedia(msg.data || {});
             return;
         }
@@ -1194,7 +1199,14 @@ function render() {
     hideMediaView();
 
     // 成绩确认后自动切换到本组成绩排名
-    if (data.resultConfirmed && currentMode === 'SHOW_LIVE_RACE') {
+    // 2026-09-13 【操作员显式按了"比赛视图"就不再自动跳】
+    //   原来只要 resultConfirmed 为真, 这里就把比赛视图强行改画成组成绩。
+    //   于是"成绩发布 → 再按比赛视图"回不去: 模式确实切成 SHOW_LIVE_RACE 了、锁也解了,
+    //   可画到这一步又被拽回组成绩 —— 操作员看到的就是"按了没用"。
+    //   自动跳本身是要的(比完自动亮成绩), 但它不该压过人手动按的那一下。
+    //   下一组一开始(resultConfirmed 变回 false)这个压制自动失效, 自动跳照常。
+    if (!data.resultConfirmed) _liveRaceForced = false;
+    if (data.resultConfirmed && currentMode === 'SHOW_LIVE_RACE' && !_liveRaceForced) {
         renderHeatResult();
         return;
     }
