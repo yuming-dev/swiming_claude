@@ -235,13 +235,17 @@ class SetupForm : Form
                    "  ★  远程显示控制台\n" +
                    "  ★  运动员报名工具\n" +
                    "  ★  编排记录及成绩处理\n\n" +
+                   // 2026-09-14 这里的端口写错过: 网页在 8080, 3002 是 WebSocket 端口。
+                   //   照着 3002 开网页是打不开的 —— 新装机的人第一步就会卡在这儿。
                    "Web 客户端地址（主服务器启动后）：\n" +
-                   "  比赛控制  http://<server>:3002/race_control.html\n" +
-                   "  大屏显示  http://<server>:3002/display.html\n" +
-                   "  排名屏      http://<server>:3002/leaderboard.html\n" +
-                   "  在线报名  http://<server>:3002/register.html\n" +
-                   "  检录台      http://<server>:3002/checkin.html\n\n" +
-                   "使用说明书：" + installDir + "\\使用说明书.pdf",
+                   "  比赛控制  http://<server>:8080/race_control.html\n" +
+                   "  大屏显示  http://<server>:8080/display.html\n" +
+                   "  成绩查询  http://<server>:8080/query.html\n" +
+                   "  排名屏      http://<server>:8080/leaderboard.html\n" +
+                   "  在线报名  http://<server>:8080/register.html\n" +
+                   "  检录台      http://<server>:8080/checkin.html\n\n" +
+                   "使用说明书：" + installDir + "\\使用说明书.pdf\n" +
+                   "现场速查卡：" + installDir + "\\现场速查卡.pdf（两页，建议打印贴在计时机旁）",
             Font = new Font("Microsoft YaHei", 10), ForeColor = Color.FromArgb(71, 85, 105),
             Location = new Point(30, 60), Size = new Size(380, 320)
         };
@@ -387,6 +391,11 @@ class SetupForm : Form
             // 复制使用说明书（PDF）
             string manualSrc = Path.Combine(sourceDir, "使用说明书.pdf");
             if (File.Exists(manualSrc)) File.Copy(manualSrc, Path.Combine(installDir, "使用说明书.pdf"), true);
+
+            // 2026-09-14 现场速查卡（两页 A4）—— 说明书 40 页, 比赛当天没人翻得动,
+            //   卡片只放"手上正在做的事", 建议打印贴在计时机旁边。
+            string cardSrc = Path.Combine(sourceDir, "现场速查卡.pdf");
+            if (File.Exists(cardSrc)) File.Copy(cardSrc, Path.Combine(installDir, "现场速查卡.pdf"), true);
 
             // 2026-09-01 装 VC++ 运行库。SQLite.Interop.dll 是原生 DLL, 依赖它;
             //   目标机没装就会报"无法加载 SQLite.Interop.dll: 找不到指定的模块"
