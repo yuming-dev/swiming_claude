@@ -1432,6 +1432,56 @@ namespace SwimmingScoreboard.Db
         /// 不可能写出两种结果。里面全是 UPDATE ... WHERE id 和 splits 先删后插,
         /// 所以【同一组重复补传是安全的】, 这正是补传敢用"没收到回执就重发"的底气。
         /// </summary>
+        /// <summary>
+        /// 2026-09-14 不经当前组库, 直接把内存里这一组的成绩写进竞赛库。
+        ///
+        /// 用在【解锁本组成绩 → 改完 → 再确认】这条路上: 第一次确认时 LiveCommit 已经
+        /// 把当前组库提交并关掉了(_liveActive=false), 第二次确认再走 CommitLiveHeat
+        /// 就直接 return —— 改过的成绩根本没进库。而 10 秒一次的库回读又会拿库里那份
+        /// 旧值把内存盖回去, 现场看到的就是"改好了, 过一会儿又变回去了"。
+        ///
+        /// 行号(heat_entries.id)一律按【道次】重新认, 不信调用方传的 —— 跟
+        /// CommitHeatFromWire 一个规矩: 两边库各自重建过 id 就会错位, 认错人比不写更糟。
+        /// 联机时写的是主服务器那份库(_meet), 单机时就是本机那份。
+        /// </summary>
+        public List<RecordBreak> CommitHeatDirect(LiveHeat live, string op)
+        {
+            var empty = new List<RecordBreak>();
+            if (_meet == null || live == null || live.Heat <= 0) return empty;
+            try
+            {
+                long rid = ResolveRound(live.AgeGroup, live.Gender, live.EventName, live.Stage);
+                if (rid == 0)
+                {
+                    Log(string.Format("【注意】库里找不到 {0}{1} {2} {3}, 这一组改动没能入库",
+                        live.AgeGroup, live.Gender, live.EventName, live.Stage));
+                    return empty;
+                }
+                live.MeetRoundId = rid;
+                var byLane = new Dictionary<int, long>();
+                foreach (var row in _meet.GetHeat(rid, live.Heat))
+                    if (row.Lane != null && !byLane.ContainsKey(row.Lane.Value)) byLane[row.Lane.Value] = row.Id;
+                int lost = 0;
+                foreach (var ln in live.Lanes)
+                {
+                    long id;
+                    if (byLane.TryGetValue(ln.Lane, out id)) ln.HeatEntryId = id;
+                    else { ln.HeatEntryId = 0; lost++; }
+                }
+                if (lost > 0)
+                    Log(string.Format("【注意】第{0}组有 {1} 个道次在库里的编排中找不到, 这几道没入库", live.Heat, lost));
+                var breaks = _meet.CommitHeatFrom(live, op);
+                Log(string.Format("第{0}组改动已直接写入竞赛库{1}", live.Heat,
+                    breaks.Count > 0 ? "，破纪录 " + breaks.Count + " 项" : ""));
+                return breaks;
+            }
+            catch (Exception ex)
+            {
+                Log("【注意】直接写入竞赛库失败: " + ex.Message);
+                return empty;
+            }
+        }
+
         public List<RecordBreak> CommitHeatFromWire(LiveHeat live, string op)
         {
             var empty = new List<RecordBreak>();

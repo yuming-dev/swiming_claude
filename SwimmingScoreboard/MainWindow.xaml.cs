@@ -9369,8 +9369,21 @@ namespace SwimmingScoreboard
             //   取不到也不致命: 内存模型照样补得上, 只是服务器的 meet.db 补不了, 所以要喊一声。
             try {
                 var live = _meetDb.PeekLiveHeat();
+                // 2026-09-14 当前组库关着时(解锁后再确认就是这种), 快照取不到 ——
+                //   原来只喊一声就算了, 结果主服务器那份库补不上, 它自己的 10 秒回读
+                //   又会拿旧值把内存盖回去, 于是主服务器上"改完过一会儿变回去"。
+                //   现在拿内存现搭一份, 带的成绩就是刚改完的那份。
+                if (live == null) {
+                    live = new SwimmingScoreboard.Db.LiveHeat {
+                        AgeGroup = _currentAgeGroup ?? "", Gender = _currentGender ?? "",
+                        EventName = _currentEvent ?? "", Stage = _currentStage ?? "",
+                        Heat = _currentHeat, TotalHeats = _totalHeats,
+                        RaceState = "confirmed", ResultConfirmed = true,
+                        Lanes = BuildLiveLanes()
+                    };
+                    AddLog("当前组快照为空(多为解锁后再确认), 已用内存现搭一份回推");
+                }
                 if (live != null) d["liveHeat"] = JObject.Parse(JsonConvert.SerializeObject(live));
-                else AddLog("【注意】当前组快照为空, 这一组不会写进主服务器的 meet.db");
             } catch (Exception ex) { AddLog("【注意】取当前组快照失败, 断线补传只补内存: " + ex.Message); }
 
             string id = PendingPushId(_currentAgeGroup, _currentGender, _currentEvent, _currentStage, _currentHeat);
@@ -24301,10 +24314,48 @@ namespace SwimmingScoreboard
             try { _meetDb.LiveDiscard(Environment.MachineName); } catch { }
         }
 
+        /// <summary>
+        /// 2026-09-14 当前组库没激活时的回写路径 —— 直接把内存里这一组写进竞赛库。
+        ///
+        /// 什么时候会走到这儿:
+        ///   · 【解锁本组成绩 → 改完 → 再确认】第一次确认时 LiveCommit 已经把当前组库
+        ///     提交并关掉了, 第二次确认时它是关着的;
+        ///   · 当前组库本来就没就绪(库里找不到这一组 / SQLite 加载失败)。
+        ///
+        /// 原来这两种情况都只记一行日志就 return —— 成绩留在内存和 JSON 里, 库里还是旧的。
+        /// 而 10 秒一次的库回读(ApplyHeatFromDb)会拿库里那份旧值把内存盖回去:
+        /// 现场看到的就是"改好了、大屏也对了, 过一会儿又变回改之前"。
+        /// </summary>
+        private void CommitHeatDirectToDb() {
+            try {
+                var live = new SwimmingScoreboard.Db.LiveHeat {
+                    AgeGroup = _currentAgeGroup ?? "", Gender = _currentGender ?? "",
+                    EventName = _currentEvent ?? "", Stage = _currentStage ?? "",
+                    Heat = _currentHeat, TotalHeats = _totalHeats,
+                    RaceState = "confirmed", ResultConfirmed = true,
+                    Lanes = BuildLiveLanes()
+                };
+                var breaks = _meetDb.CommitHeatDirect(live, Environment.MachineName);
+                foreach (var b in breaks) {
+                    AddLog(string.Format("破纪录: {0} {1} 原 {2} ({3}) → 新 {4} ({5}){6}",
+                        b.Record.Abbr, b.Record.EventName,
+                        TimeFormatter.Format(b.Record.TimeSeconds), b.Record.HolderName,
+                        TimeFormatter.Format(b.NewTime), b.NewHolder, b.IsTie ? " 平" : ""));
+                }
+                try { FlushConfigToDb(); } catch { }
+                // 写完再回读一次 —— 名次以库为准, 和正常那条路一个待遇
+                ApplyHeatFromDb(_currentAgeGroup, _currentGender, _currentEvent, _currentStage, _currentHeat);
+            } catch (Exception ex) {
+                AddLog("【注意】本组成绩直接回写竞赛库失败: " + ex.Message);
+            }
+        }
+
         private void CommitLiveHeat() {
             if (!_meetDb.LiveActive) {
-                // 同上: 不能再静默跳过。这条日志就是"成绩没进 meet.db"的唯一线索。
-                AddLog("【注意】当前组库未激活, 本组成绩未回写 meet.db(内存/JSON 不受影响)");
+                // 2026-09-14 原来这里只记一行日志就走 —— 解锁改完再确认时成绩就这么丢在
+                //   内存里没进库, 十秒后被库里的旧值盖回去。现在改成直接回写。
+                AddLog("当前组库未激活(多为解锁后再确认), 改走直接回写竞赛库");
+                CommitHeatDirectToDb();
                 return;
             }
             var breaks = _meetDb.LiveCommit(Environment.MachineName);
