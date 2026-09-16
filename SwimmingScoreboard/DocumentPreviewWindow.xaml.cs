@@ -95,16 +95,12 @@ namespace SwimmingScoreboard
         private static string InjectWordPageNumberFooter(string html) {
             if (string.IsNullOrEmpty(html)) return html;
 
-            // 2026-09-16 奖状/纪录证书用的是 position:absolute 手写在证书内部的页码角标
-            // (那两份专给 Chrome/PDF 用, 因为 @page margin:0 时 Chrome 的页边距页码框
-            // 也显不出来)。Word 压根不认 position:absolute —— 实机验证过: 这段文字会
-            // 当成普通正文, 整行飘到每页最上面、堆在"奖状"标题前面, 很难看。
-            // 下面马上要插入的 Word 原生页脚已经能正确显示页码, 这段手写角标在 DOC 里
-            // 纯属多余(还破相), 先摘掉。
-            string result = Regex.Replace(html,
-                "<div style='position:absolute;bottom:10mm;right:14mm[^']*'>[^<]*</div>", "");
+            // 2026-09-16 奖状/纪录证书是发给个人的凭证, 不是连续编号的书刊, 不要页码
+            // (用户明确要求)——这两份 html 里认得出 .cert-page 这个类名(全系统独此两处
+            // 用), 碰到就原样放行, 不插页脚。
+            if (html.IndexOf("cert-page", StringComparison.OrdinalIgnoreCase) >= 0) return html;
 
-            result = Regex.Replace(result, "<html[^>]*>",
+            string result = Regex.Replace(html, "<html[^>]*>",
                 "<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>",
                 RegexOptions.IgnoreCase);
 

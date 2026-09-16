@@ -28627,8 +28627,9 @@ namespace SwimmingScoreboard
         }
         private void PrintTeamStandings_Click(object sender, RoutedEventArgs e) { CalculateTeamScores(); GenerateAndOpenDocument("团体成绩", BuildTeamStandingsHtml()); }
         private void PrintRecordReport_Click(object sender, RoutedEventArgs e) { GenerateAndOpenDocument("纪录报告", BuildRecordReportHtml()); }
-        private void PrintAwardCertificate_Click(object sender, RoutedEventArgs e) { GenerateAndOpenDocument("奖状", BuildAwardCertificateHtml()); }
-        private void PrintRecordCertificate_Click(object sender, RoutedEventArgs e) { GenerateAndOpenDocument("纪录证书", BuildRecordCertificateHtml()); }
+        // 2026-09-16 奖状/纪录证书的点击处理挪到各自 Build*CertificateHtml 旁边,
+        //   改成先弹选择窗口(选项目/单张/批量), 见 PrintAwardCertificate_Click /
+        //   PrintRecordCertificate_Click 两处新定义。
         // "分段计时报告"按钮：弹出已完赛组次树（与赛程导航同结构），选择后打印对应组的分段计时；取消则不打印
         private void PrintSplitTimeReport_Click(object sender, RoutedEventArgs e) {
             var picked = ShowConfirmedHeatPicker("选择已完赛组次 — 分段计时报告");
@@ -29049,17 +29050,28 @@ namespace SwimmingScoreboard
                 + "td{border:1px solid #333; padding:8px; text-align:center; font-size:14px; word-wrap:break-word; overflow-wrap:break-word;} "
                 + "tr:nth-child(even){background:#f0f7ff;} "
                 + ".signature-row{margin-top:60px; display:flex; justify-content:space-between; font-size:15px; font-weight:bold;} "
-                + ".cover{display:flex; flex-direction:column; justify-content:space-between; min-height:1100px; padding:80px 60px;} "
-                + ".cover-top{text-align:center;} "
+                // 2026-09-16 封面改 display:block + 固定 margin 撑开间距, 不再靠
+                //   flex + justify-content:space-between。原因: 打印时 .page 统一把
+                //   min-height 收到 0(不然短内容的普通页也会被撑出一大截空白), 而
+                //   flex 容器一旦没了高度, space-between 就没有余量可分, 标题/主办
+                //   单位这些内容全挤在页面最上头, 下面大片空白——用户实拍到的"文字
+                //   挤在一起"就是这个。成绩册的 .rb-cover 当初就是因为这个坑改成了
+                //   block + 固定 margin(不依赖容器高度, 打印时数值也还在), 这里统一
+                //   成同一份写法。
+                + ".cover{display:block; min-height:1100px; padding:80px 60px; box-sizing:border-box;} "
+                + ".cover-top{display:block; text-align:center; margin-top:40px;} "
                 + ".cover-top .ttl1{font-size:44px; font-family:'SimHei'; letter-spacing:10px; color:#1e3a8a; margin-bottom:8px;} "
                 + ".cover-top .ttl2{font-size:30px; font-family:'SimHei'; letter-spacing:6px; color:#0f172a;} "
-                + ".cover-mid{flex:1; display:flex; align-items:center; justify-content:center;} "
+                + ".cover-mid{display:block; text-align:center; margin:170px 0 190px;} "
                 + ".cover-mid .name{font-size:60px; font-family:'SimHei'; letter-spacing:14px; color:#1e40af; text-align:center; line-height:1.4;} "
                 + ".cover-bot{font-size:18px; line-height:2.2; border-top:3px solid #1e40af; padding-top:18px;} "
                 + ".cover-bot .row{display:flex;} "
                 + ".cover-bot .lbl{flex:0 0 110px; color:#475569; font-weight:bold;} "
                 + ".cover-bot .val{flex:1; color:#0f172a;} "
-                + ".toc{font-size:18px; line-height:2.4; max-width:560px; margin:30px auto;} "
+                // 2026-09-16 目录原来 margin:30px auto —— 标题下面紧跟着列表, 页面下半截
+                //   一大片空白, 显得头重脚轻(用户实拍)。加大顶部留白、行距也松一点,
+                //   让列表在纸面上居中偏上、别一股脑堆在最上面。
+                + ".toc{font-size:19px; line-height:2.8; max-width:560px; margin:90px auto 0;} "
                 + ".toc .row{display:flex; border-bottom:1px dotted #94a3b8;} "
                 + ".toc .row span:first-child{flex:1;} "
                 + ".section-tag{display:inline-block; background:#1e40af; color:#fff; padding:2px 10px; font-size:14px; margin-right:10px; font-family:'SimHei'; letter-spacing:2px;} "
@@ -29078,10 +29090,23 @@ namespace SwimmingScoreboard
                 //   打出来纸张规格就不对了。
                 //   页码用 CSS Paged Media 的 @bottom-center + counter(page)/counter(pages),
                 //   Chrome 的 --print-to-pdf 认这个, 不用在每页内容里手动拼"第几页"。
+                // 2026-09-16 封面不显页码(书刊惯例, 封面不编号)。
+                //   第一版想用 CSS 命名分页(page:no-pagenum)给封面+目录两页都去掉页码,
+                //   结果 Chrome 在真实的长文档里对着同一个命名页用两次时会凭空插入一张
+                //   空白页(实测: 秩序册从该有 37 页变成 38 页, 多出来那页正好夹在封面和
+                //   目录之间, 页脚还印着页码)——孤立的小样例测不出来, 只在完整文档里炸。
+                //   换成更基础、Chrome 支持更稳的 @page :first(专指"整份文档的第一页",
+                //   不是自定义命名页), 同样能去掉封面页码, 且不再多出空白页。代价是
+                //   目录页只能保留页码显示, 不能跟封面一起去掉了。
                 + "@media print { .page-break{page-break-before:always;} body{-webkit-print-color-adjust:exact;} "
                 + "  @page { size: A4; margin: 1cm; "
                 + "    @bottom-center { content: '第 ' counter(page) ' 页  共 ' counter(pages) ' 页'; font-size:10px; color:#64748b; font-family:'SimSun'; } "
-                + "  } .page{padding:16px 12px; min-height:0;} "
+                + "  } @page :first{ @bottom-center{content:none;} } "
+                + "  .page{padding:16px 12px; min-height:0;} "
+                // 封面 min-height 打印时也归零(跟其它 .page 一样), 但 .cover-mid 的固定
+                // margin 撑开间距不受影响 —— 稍微收窄一点(170/190→120/140), 给 A4 纸的
+                // 可用高度留出安全余量, 不会因为长队名换行把封面挤到第二页去。
+                + "  .cover{min-height:0;} .cover-mid{margin:120px 0 140px;} "
                 + "  th{padding:5px; font-size:12px;} td{padding:4px; font-size:12px;} } ";
         }
 
@@ -30668,8 +30693,14 @@ namespace SwimmingScoreboard
             return list.OrderBy(x => x.Type).ToList();
         }
 
-        private class BrokenRecordRow {
+        // 2026-09-16 从 private 改 public 且补 Selected —— RecordCertificateWindow
+        //   (选纪录证书用哪几条记录的选择窗口)要绑这个类当 DataGrid 行, private 类
+        //   外部类访问不到; AwardCertificateWindow 的构造函数/委托是 public 的,
+        //   参数类型也得跟着至少是 public(用 internal 会报可访问性不一致)。
+        public class BrokenRecordRow {
             public string Date, AgeGroup, Gender, EventName, Stage, Athlete, Country, Time, Tag, RecordType;
+            public bool Selected;
+            public string EventLabel { get { return (Gender ?? "") + " " + (EventName ?? ""); } }
         }
 
         // 2026-09-03 破纪录统计表改从【成绩行上的破纪录标识 RecordNote】收集。
@@ -30837,11 +30868,55 @@ namespace SwimmingScoreboard
             return sb.ToString();
         }
 
-        private string BuildAwardCertificateHtml() {
-            // 查找决赛前3名
+        // 2026-09-16 奖状改从选择窗口来 —— 原来是"决赛前 3 名, 一次性全出",
+        //   现在先收集候选名单给 AwardCertificateWindow 挑选(单张/批量/按项目筛选),
+        //   再拿选中的子集来生成。
+        public class AwardCandidateRow {
+            public string Gender, EventName, EventLabel, DisplayName, Country, RankLabel;
+            public int Rank;
+            public Swimmer Sw;
+            public bool Selected;
+        }
+
+        private List<AwardCandidateRow> CollectAwardCandidates() {
+            string[] rankNames = { "冠军", "亚军", "季军", "第四名", "第五名", "第六名", "第七名", "第八名" };
+            var result = new List<AwardCandidateRow>();
+            if (_swimmers == null) return result;
             var finalists = _swimmers.Where(s => s.CurrentStage == "决赛" && s.Results.Any(r => r.Stage == "决赛" && r.FinalTime > 0))
                 .GroupBy(s => new { s.Gender, s.EventName });
+            foreach (var g in finalists) {
+                var ranked = g.OrderBy(s => {
+                    var r = s.GetResultForStage("决赛");
+                    return r != null ? r.FinalTime : double.MaxValue;
+                }).Take(3).ToList();
+                for (int i = 0; i < ranked.Count; i++) {
+                    var sw = ranked[i];
+                    bool certRelay = g.Key.EventName.Contains("接力");
+                    string displayName = sw.Name;
+                    if (certRelay && !string.IsNullOrEmpty(sw.Notes) && sw.Notes.StartsWith("接力队 棒次:"))
+                        displayName = sw.Country + "（" + sw.Notes.Substring("接力队 棒次:".Length) + "）";
+                    result.Add(new AwardCandidateRow {
+                        Gender = g.Key.Gender, EventName = g.Key.EventName,
+                        EventLabel = g.Key.Gender + " " + g.Key.EventName,
+                        Rank = i + 1, RankLabel = i < rankNames.Length ? rankNames[i] : ("第" + (i + 1) + "名"),
+                        Sw = sw, DisplayName = displayName, Country = sw.Country ?? ""
+                    });
+                }
+            }
+            return result;
+        }
 
+        private void PrintAwardCertificate_Click(object sender, RoutedEventArgs e) {
+            var candidates = CollectAwardCandidates();
+            var win = new AwardCertificateWindow(candidates) { Owner = this };
+            win.OnGenerate = delegate(List<AwardCandidateRow> selected) {
+                GenerateAndOpenDocument("奖状", BuildAwardCertificateHtml(selected));
+                win.Close();
+            };
+            win.ShowDialog();
+        }
+
+        private string BuildAwardCertificateHtml(List<AwardCandidateRow> selected) {
             var sb = new StringBuilder();
             sb.Append("<!DOCTYPE html><html><head><meta charset='UTF-8'><style>");
             sb.Append("body{font-family:'SimSun',serif;margin:0;padding:0;}");
@@ -30864,61 +30939,50 @@ namespace SwimmingScoreboard
             sb.Append("@media print{.cert-page{-webkit-print-color-adjust:exact;}@page{size:A4;margin:0;}}");
             sb.Append("</style></head><body>");
 
-            string[] rankNames = { "冠军", "亚军", "季军", "第四名", "第五名", "第六名", "第七名", "第八名" };
-            int certCount = 0;
-            // 2026-09-16 页码。证书这张纸 @page margin:0(要让红色双线边框顶到纸边),
-            //   CSS 的 @bottom-center 页边距框在 margin:0 时没地方画、根本显不出来,
-            //   只能在 .cert-page 内部(它有 24mm/22mm 的 padding)手写一个绝对定位的
-            //   页码角标。要显示"共 N 页"得先知道总数, 所以先轻量数一遍。
-            int totalCerts = finalists.Sum(g => Math.Min(3, g.Count()));
-
-            foreach (var g in finalists) {
-                var ranked = g.OrderBy(s => {
-                    var r = s.GetResultForStage("决赛");
-                    return r != null ? r.FinalTime : double.MaxValue;
-                }).Take(3).ToList();
-
-                for (int i = 0; i < ranked.Count; i++) {
-                    var sw = ranked[i];
-                    string rk = i < rankNames.Length ? rankNames[i] : string.Format("第{0}名", i + 1);
-
-                    certCount++;
-                    sb.Append("<div class='cert-page'>");
-                    sb.AppendFormat("<div style='position:absolute;bottom:10mm;right:14mm;font-size:10px;color:#999;'>第 {0} 页　共 {1} 页</div>", certCount, totalCerts);
-                    sb.Append("<div class='cert-title'>奖&nbsp;&nbsp;状</div>");
-                    sb.Append("<hr class='cert-divider'/>");
-                    sb.Append("<div class='cert-body'>");
-                    string certName = sw.Name;
-                    bool certRelay = g.Key.EventName.Contains("接力");
-                    if (certRelay && !string.IsNullOrEmpty(sw.Notes) && sw.Notes.StartsWith("接力队 棒次:"))
-                        certName = sw.Country + "（" + sw.Notes.Substring("接力队 棒次:".Length) + "）";
-                    sb.AppendFormat("<div style='font-size:24px;'><span class='cert-name'>{0}</span>：</div>", certName);
-                    sb.Append("<div class='cert-text'>");
-                    sb.AppendFormat("在&nbsp;<span class='cert-comp-name'>{0}</span>&nbsp;", _competitionName);
-                    sb.AppendFormat("<span class='cert-event-name'>{0} {1}</span>&nbsp;项目比赛中，", g.Key.Gender, g.Key.EventName);
-                    sb.AppendFormat("表现优异，荣获<span class='cert-rank'>{0}</span>，特发此证，以资鼓励。", rk);
-                    sb.Append("</div></div>");
-                    sb.Append("<div class='cert-fields'>");
-                    sb.AppendFormat("<div class='cert-field'><span class='field-label'>参赛单位：</span><span class='field-value'>{0}</span></div>", sw.Country ?? "");
-                    // 2026-05-26 删除"裁判长签字"行 (该字段历史用 ChiefJudgeBox 即编排长数据)
-                    sb.Append("<div class='cert-field'><span class='field-label'>赛事组委会盖章：</span><span class='field-blank'>&nbsp;</span></div>");
-                    string dateStr = GetDatePickerText(StartDatePicker);
-                    DateTime dt;
-                    if (DateTime.TryParse(dateStr, out dt))
-                        sb.AppendFormat("<div class='cert-date'>日期：{0}&nbsp;年&nbsp;{1}&nbsp;月&nbsp;{2}&nbsp;日</div>", dt.Year, dt.Month, dt.Day);
-                    sb.Append("</div></div>");
-                }
+            // 2026-09-16 奖状不要页码(证书是单独发给个人的凭证, 不是一本连续编号的
+            //   书刊) —— 选择窗口里选中哪些, 这里就原样逐条出一张, 不再自己数张数。
+            string dateStr0 = GetDatePickerText(StartDatePicker);
+            DateTime dt0; bool hasDate0 = DateTime.TryParse(dateStr0, out dt0);
+            foreach (var c in selected ?? new List<AwardCandidateRow>()) {
+                var sw = c.Sw;
+                sb.Append("<div class='cert-page'>");
+                sb.Append("<div class='cert-title'>奖&nbsp;&nbsp;状</div>");
+                sb.Append("<hr class='cert-divider'/>");
+                sb.Append("<div class='cert-body'>");
+                sb.AppendFormat("<div style='font-size:24px;'><span class='cert-name'>{0}</span>：</div>", c.DisplayName);
+                sb.Append("<div class='cert-text'>");
+                sb.AppendFormat("在&nbsp;<span class='cert-comp-name'>{0}</span>&nbsp;", _competitionName);
+                sb.AppendFormat("<span class='cert-event-name'>{0} {1}</span>&nbsp;项目比赛中，", c.Gender, c.EventName);
+                sb.AppendFormat("表现优异，荣获<span class='cert-rank'>{0}</span>，特发此证，以资鼓励。", c.RankLabel);
+                sb.Append("</div></div>");
+                sb.Append("<div class='cert-fields'>");
+                sb.AppendFormat("<div class='cert-field'><span class='field-label'>参赛单位：</span><span class='field-value'>{0}</span></div>", c.Country);
+                // 2026-05-26 删除"裁判长签字"行 (该字段历史用 ChiefJudgeBox 即编排长数据)
+                sb.Append("<div class='cert-field'><span class='field-label'>赛事组委会盖章：</span><span class='field-blank'>&nbsp;</span></div>");
+                if (hasDate0)
+                    sb.AppendFormat("<div class='cert-date'>日期：{0}&nbsp;年&nbsp;{1}&nbsp;月&nbsp;{2}&nbsp;日</div>", dt0.Year, dt0.Month, dt0.Day);
+                sb.Append("</div></div>");
             }
 
-            if (certCount == 0) {
-                sb.Append("<div class='cert-page'><p style='text-align:center;font-size:24px;margin-top:200px;'>暂无决赛成绩，无法生成奖状</p></div>");
+            if (selected == null || selected.Count == 0) {
+                sb.Append("<div class='cert-page'><p style='text-align:center;font-size:24px;margin-top:200px;'>未选择任何获奖者</p></div>");
             }
 
             sb.Append("</body></html>");
             return sb.ToString();
         }
 
-        private string BuildRecordCertificateHtml() {
+        private void PrintRecordCertificate_Click(object sender, RoutedEventArgs e) {
+            var records = CollectBrokenRecords();
+            var win = new RecordCertificateWindow(records) { Owner = this };
+            win.OnGenerate = delegate(List<BrokenRecordRow> selected) {
+                GenerateAndOpenDocument("纪录证书", BuildRecordCertificateHtml(selected));
+                win.Close();
+            };
+            win.ShowDialog();
+        }
+
+        private string BuildRecordCertificateHtml(List<BrokenRecordRow> selected) {
             // 查找本次比赛中破纪录的运动员
             var sb = new StringBuilder();
             sb.Append("<!DOCTYPE html><html><head><meta charset='UTF-8'><style>");
@@ -30943,31 +31007,36 @@ namespace SwimmingScoreboard
             sb.Append("@media print{.cert-page{-webkit-print-color-adjust:exact;}@page{size:A4;margin:0;}}");
             sb.Append("</style></head><body>");
 
-            // 这里暂用占位，可通过 RecordCertificateWindow 弹窗填入具体信息
-            sb.Append("<div class='cert-page'>");
-            // 2026-09-16 页码(同奖状: @page margin:0 时页边距框显不出来, 内部手写角标)。
-            //   这份现在只生成 1 页, 先按 1/1 写死; 以后要是也改成按每条纪录出一页,
-            //   记得跟奖状那处一样先数总数再回填。
-            sb.Append("<div style='position:absolute;bottom:10mm;right:14mm;font-size:10px;color:#999;'>第 1 页　共 1 页</div>");
-            sb.Append("<div class='cert-title'>破&nbsp;纪&nbsp;录&nbsp;证&nbsp;书</div>");
-            sb.Append("<hr class='cert-divider'/>");
-            sb.Append("<div class='cert-body'>");
-            sb.Append("<div style='font-size:24px;'><span class='cert-name'>__________________</span>：</div>");
-            sb.Append("<div class='cert-text'>");
-            sb.AppendFormat("在&nbsp;<span class='cert-comp-name'>{0}</span>&nbsp;", _competitionName);
-            sb.Append("<span class='cert-event-name'>__________________</span>&nbsp;项目比赛中，");
-            sb.Append("凭借卓越的竞技水平，以<span class='cert-score'>__________________</span>的优异成绩，");
-            sb.Append("打破<span class='cert-record-type'>__________________</span>，");
-            sb.Append("特发此证，以表彰其杰出成就。");
-            sb.Append("</div></div>");
-            sb.Append("<div class='cert-fields'>");
-            // 2026-05-26 删除"裁判长签字"行 (该字段历史用 ChiefJudgeBox 即编排长数据)
-            sb.Append("<div class='cert-field'><span class='field-label'>赛事组委会盖章：</span><span class='field-blank'>&nbsp;</span></div>");
+            // 2026-09-16 纪录证书改从选择窗口来, 数据源是 CollectBrokenRecords() 那份
+            //   真实"破纪录"名单(跟成绩册"破纪录统计表"同一处来源), 不再是手填占位模板。
+            //   不要页码(单独发给个人的凭证, 不是连续编号的书刊)。
             string dateStr = GetDatePickerText(StartDatePicker);
-            DateTime dt;
-            if (DateTime.TryParse(dateStr, out dt))
-                sb.AppendFormat("<div class='cert-date'>日期：{0}&nbsp;年&nbsp;{1}&nbsp;月&nbsp;{2}&nbsp;日</div>", dt.Year, dt.Month, dt.Day);
-            sb.Append("</div></div>");
+            DateTime dt; bool hasDate = DateTime.TryParse(dateStr, out dt);
+            foreach (var r in selected ?? new List<BrokenRecordRow>()) {
+                sb.Append("<div class='cert-page'>");
+                sb.Append("<div class='cert-title'>破&nbsp;纪&nbsp;录&nbsp;证&nbsp;书</div>");
+                sb.Append("<hr class='cert-divider'/>");
+                sb.Append("<div class='cert-body'>");
+                sb.AppendFormat("<div style='font-size:24px;'><span class='cert-name'>{0}</span>：</div>", r.Athlete);
+                sb.Append("<div class='cert-text'>");
+                sb.AppendFormat("在&nbsp;<span class='cert-comp-name'>{0}</span>&nbsp;", _competitionName);
+                sb.AppendFormat("<span class='cert-event-name'>{0} {1}</span>&nbsp;项目比赛中，", r.Gender, r.EventName);
+                sb.AppendFormat("凭借卓越的竞技水平，以<span class='cert-score'>{0}</span>的优异成绩，", r.Time);
+                sb.AppendFormat("打破<span class='cert-record-type'>{0}</span>，", r.RecordType);
+                sb.Append("特发此证，以表彰其杰出成就。");
+                sb.Append("</div></div>");
+                sb.Append("<div class='cert-fields'>");
+                sb.AppendFormat("<div class='cert-field'><span class='field-label'>参赛单位：</span><span class='field-value'>{0}</span></div>", r.Country);
+                // 2026-05-26 删除"裁判长签字"行 (该字段历史用 ChiefJudgeBox 即编排长数据)
+                sb.Append("<div class='cert-field'><span class='field-label'>赛事组委会盖章：</span><span class='field-blank'>&nbsp;</span></div>");
+                if (hasDate)
+                    sb.AppendFormat("<div class='cert-date'>日期：{0}&nbsp;年&nbsp;{1}&nbsp;月&nbsp;{2}&nbsp;日</div>", dt.Year, dt.Month, dt.Day);
+                sb.Append("</div></div>");
+            }
+
+            if (selected == null || selected.Count == 0) {
+                sb.Append("<div class='cert-page'><p style='text-align:center;font-size:24px;margin-top:200px;'>未选择任何破纪录记录</p></div>");
+            }
             sb.Append("</body></html>");
             return sb.ToString();
         }
