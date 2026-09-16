@@ -21999,7 +21999,7 @@ namespace SwimmingScoreboard
                     int n; if (int.TryParse(mLeg.Groups[1].Value, out n) && n > 0 && n <= 10) rgLegCount = n;
                 }
             }
-            var displayData = results.Select(s => {
+            var rawResultRows = results.Select(s => {
                 // 按运动员所属的组精确查找该组成绩（避免在 stage 内多组场景下取错）
                 int swHeat = 0;
                 var swSa = s.GetAssignmentForStage(stage);
@@ -22076,15 +22076,29 @@ namespace SwimmingScoreboard
                     Status = !string.IsNullOrEmpty(remark) ? remark : (s.Status ?? ""),
                     RecordNote = r != null ? (r.RecordNote ?? "") : ""
                 };
-            // 2026-06-22 次级排序: 同 SortTime (= 都是 DSQ/DNS/DNF 的 MaxValue) 时按 DSQ→DNF→DNS→其他 排
-            // 2026-08-19 改用 GetHeatStatusOrder: TRI 插到 DSQ 之前 (TRI 有成绩只是不排名),
+            }).ToList();
+
+            // 2026-09-16 "全部"(项目总排名) 改调统一入口 ResultOrdering.RankForTotalView ——
+            //   跟成绩册名次公告(GetEventFinalRanking)/项目成绩打印"全部"视图是同一份规则、
+            //   同一处维护, 不再在这里单独写一遍排序链。
+            //   "第X组"(本组名次)不是总排名, 维持原来那条排序链不动:
+            //   2026-06-22 次级排序: 同 SortTime (= 都是 DSQ/DNS/DNF 的 MaxValue) 时按 DSQ→DNF→DNS→其他 排
+            //   2026-08-19 改用 GetHeatStatusOrder: TRI 插到 DSQ 之前 (TRI 有成绩只是不排名),
             //   与大屏"组成绩"(display.html _hrCompare) / 本组成绩单 完全同口径.
-            }).OrderBy(x => x.SortTime)
-                .ThenBy(x => x.DbRank > 0 ? x.DbRank : int.MaxValue)   // 2026-09-01 先按库里的名次
-            .ThenBy(x => x.StatusOrder)
-              .ThenBy(x => x.TimeKey)
-              .ThenBy(x => x.Lane)
-              .ToList();
+            List<int> dispRanks = new List<int>();
+            var displayData = rawResultRows;
+            if (filterHeat <= 0) {
+                displayData = ResultOrdering.RankForTotalView(rawResultRows,
+                    x => x.Status, x => x.DbRank, x => x.SortTime, out dispRanks);
+            } else {
+                displayData = rawResultRows.OrderBy(x => x.SortTime)
+                    .ThenBy(x => x.DbRank > 0 ? x.DbRank : int.MaxValue)   // 2026-09-01 先按库里的名次
+                    .ThenBy(x => x.StatusOrder)
+                    .ThenBy(x => x.TimeKey)
+                    .ThenBy(x => x.Lane)
+                    .ToList();
+                dispRanks = displayData.Select(x => x.DbRank).ToList();
+            }
 
             // 重新计算排名（TRI/DSQ/DNS/DNF 无名次, SortTime 已置 MaxValue）；列与表头一一对应：
             //   "姓名"列 -> Name（接力时即 4 棒队员姓名）
@@ -22114,8 +22128,10 @@ namespace SwimmingScoreboard
             }
 
             var rankedData = new List<object>();
-            foreach (var item in displayData) {
-                string rankStr = item.DbRank > 0 ? item.DbRank.ToString() : "-";
+            for (int riIdx = 0; riIdx < displayData.Count; riIdx++) {
+                var item = displayData[riIdx];
+                int itemRank = (riIdx < dispRanks.Count) ? dispRanks[riIdx] : item.DbRank;
+                string rankStr = itemRank > 0 ? itemRank.ToString() : "-";
                 string heatText = item.HeatNo > 0
                     ? (totalHeatsInView > 0 ? item.HeatNo + "/" + totalHeatsInView : item.HeatNo.ToString())
                     : "";
@@ -29057,8 +29073,15 @@ namespace SwimmingScoreboard
                 + ".kv .v{color:#0f172a;} "
                 // 打印时把 .page 的 50px 内边距收掉大半, 并把表格字号/内边距调小:
                 // 列多的表(分段表 4 段就是 8 列)才有地方摊开, 不至于挤成一团。
+                // 2026-09-16 A4 + 页码。原来 @page 没给 size, 交给 Chrome 默认(= 美式 Letter,
+                //   612x792pt, 不是中文文档惯用的 A4) —— 秩序册/成绩册这种要装订的正式文档
+                //   打出来纸张规格就不对了。
+                //   页码用 CSS Paged Media 的 @bottom-center + counter(page)/counter(pages),
+                //   Chrome 的 --print-to-pdf 认这个, 不用在每页内容里手动拼"第几页"。
                 + "@media print { .page-break{page-break-before:always;} body{-webkit-print-color-adjust:exact;} "
-                + "  @page { margin: 1cm; } .page{padding:16px 12px; min-height:0;} "
+                + "  @page { size: A4; margin: 1cm; "
+                + "    @bottom-center { content: '第 ' counter(page) ' 页  共 ' counter(pages) ' 页'; font-size:10px; color:#64748b; font-family:'SimSun'; } "
+                + "  } .page{padding:16px 12px; min-height:0;} "
                 + "  th{padding:5px; font-size:12px;} td{padding:4px; font-size:12px;} } ";
         }
 
@@ -29716,7 +29739,12 @@ namespace SwimmingScoreboard
                 if (entries.Count == 0) continue;
 
                 blockIdx++;
-                if (blockIdx > 1 && blockIdx % 4 == 1) sb.Append("<div class='page-break'></div><div class='page'>");
+                // 2026-09-16 换页前先把上一页的 .page 收掉 —— 原来每 4 个项目再套一层
+                //   <div class='page'> 而从不闭合, 45 张报名表下来结尾嵌着十几层没关的 div;
+                //   每层 .page 都有左右 padding, 嵌得越深、正文能用的宽度越窄, 越往后表格
+                //   越"缩水"(用户实拍到的现象)。跟成绩册"成绩公告"那处 2026-09-03 已经
+                //   修过的是同一个坑, 只是这处当时漏改了。
+                if (blockIdx > 1 && blockIdx % 4 == 1) sb.Append("</div><div class='page-break'></div><div class='page'>");
                 sb.AppendFormat("<h4>项目 {0}：{1} {2} {3}　<span style='font-weight:normal; font-size:14px; color:#64748b;'>报名 {4} 人{5}</span></h4>",
                     kv.Value, evGender, evAge, evName, entries.Count, manRelay ? "/队" : "");
                 sb.Append("<table>" + ColGroup(50, 70, 110, 110, 80, 80));
