@@ -123,5 +123,40 @@ namespace SwimmingScoreboard
                 .ThenBy(x => getLane(x))
                 .ToList();
         }
+
+        // ── ⑥ 项目总排名组装 (全场唯一一份) ─────────────────────────────
+        /// <summary>
+        /// 2026-09-16 "项目总排名"(名次公告/项目成绩打印选【全部】/成绩与排名选【全部】)
+        /// 的组装规则, 跟 ④ OrderForHeat 是同一层次的搭档 —— 那个管"单组结果", 这个管
+        /// "跨组的项目总排名"。
+        ///
+        /// 为什么要单独抽出这一份: 这几处各写了一份几乎一样又不完全一样的排序/判空逻辑,
+        /// 这一季出的好几个 bug(判罚排到有名次的人前面/中间、判罚整行从名单消失、判罚
+        /// 显示一个假名次)根子都是"同一条边界情况在其中一处漏掉了, 另一处没漏"——改一处
+        /// 不代表另一处也改了。现在只写这一份, 调用方以后只用把数据接进来, 不用再自己
+        /// 挑排序规则。
+        ///
+        /// 规则: TRI 不参与(调用方按自己的口径先筛掉, 这里不重复判——TRI 的具体取值
+        /// 每处未必一致); DSQ/DNF/DNS 排在最后, 名次一律给 0 —— 不管 getDbRank 传进来的
+        /// 值是不是干净的(库/内存缓存哪一层没刷新干净都不怕, 状态本身说了算); 正常人
+        /// 按 getDbRank 给的库定稿名次排, 同一个数字算并列。
+        /// </summary>
+        public static List<T> RankForTotalView<T>(
+            IEnumerable<T> items,
+            Func<T, string> getStatus,
+            Func<T, int> getDbRank,
+            Func<T, double> getTime,
+            out List<int> ranks)
+        {
+            var ordered = (items ?? new List<T>())
+                .OrderBy(x => IsJudged(getStatus(x)) ? int.MaxValue : (getDbRank(x) > 0 ? getDbRank(x) : int.MaxValue))
+                .ThenBy(x => StatusOrder(getStatus(x)))
+                .ThenBy(x => { double t = getTime(x); return t > 0 ? t : double.MaxValue; })
+                .ToList();
+            ranks = new List<int>();
+            foreach (var x in ordered)
+                ranks.Add(IsJudged(getStatus(x)) ? 0 : getDbRank(x));
+            return ordered;
+        }
     }
 }

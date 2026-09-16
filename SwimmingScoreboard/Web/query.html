@@ -6,53 +6,78 @@
 <title>赛事信息查询</title>
 <style>
 :root {
-    --bg: #0b1220; --bg2: #0f172a; --surface: #111c33; --surface2: #1a2540;
-    --border: #1f2c4a; --text: #f1f5f9; --text-dim: #94a3b8; --text-muted: #64748b;
-    --accent: #3b82f6; --accent2: #6366f1; --success: #10b981; --warn: #f59e0b;
+    --bg: #0a0f1c; --bg2: #0d1526; --surface: #111c33; --surface2: #172544;
+    --border: #223154; --border-soft: rgba(148,163,184,0.12);
+    --text: #f1f5f9; --text-dim: #94a3b8; --text-muted: #64748b;
+    /* 2026-09-15 视觉整体翻新: 主蓝紫之外加一条水感青色(--aqua), 用在标题条/高亮点缀上,
+       跟"游泳"这个主题更贴一点, 不再是随便一个后台管理系统的配色。 */
+    --accent: #3b82f6; --accent2: #6366f1; --aqua: #22d3ee; --aqua2: #0ea5e9;
+    --success: #10b981; --warn: #f59e0b;
     --danger: #ef4444; --gold: #fbbf24; --silver: #cbd5e1; --bronze: #d97706;
-    --shadow: 0 8px 32px rgba(0,0,0,0.4);
-    --shadow-sm: 0 2px 8px rgba(0,0,0,0.3);
+    --shadow: 0 8px 32px rgba(0,0,0,0.45);
+    --shadow-sm: 0 2px 10px rgba(0,0,0,0.3);
+    --shadow-lg: 0 20px 60px rgba(0,0,0,0.5);
+    --radius: 14px; --radius-sm: 10px; --radius-lg: 18px;
 }
 * { margin: 0; padding: 0; box-sizing: border-box; }
 html, body { height: 100%; }
 body {
     font-family: 'PingFang SC', 'Microsoft YaHei', -apple-system, BlinkMacSystemFont, sans-serif;
-    background: radial-gradient(ellipse at top, #0f172a 0%, #0b1220 60%) fixed;
+    /* 2026-09-15 原来是单一径向渐变, 偏平。加一层极淡的青色光晕(左上)跟蓝紫光晕(右下)
+       叠出层次感, 再叠一层极细的点阵纹理(background-image 第三层) —— 都是 1-3% 透明度,
+       远看还是纯色深色底, 近看有质感, 不会喧宾夺主。全部本地 CSS 生成, 不依赖任何外部图片/字体。 */
+    background:
+        radial-gradient(ellipse 900px 600px at 12% -6%, rgba(34,211,238,0.10), transparent 60%),
+        radial-gradient(ellipse 1100px 800px at 88% 108%, rgba(99,102,241,0.14), transparent 60%),
+        radial-gradient(circle, rgba(148,163,184,0.05) 1px, transparent 1px) 0 0/28px 28px,
+        radial-gradient(ellipse at top, #0d1526 0%, #0a0f1c 60%);
+    background-attachment: fixed;
     color: var(--text);
     overflow: hidden;
+    /* 2026-09-15 body 改 flex 列布局, .body 用 flex:1+min-height:0 吃满剩余高度 ——
+       原来是 .body{height:calc(100vh - 62px)} 硬编码顶栏高度, 顶栏内边距/字号
+       但凡再调一次这个数字就得跟着改, 现在布局自己算, 不用再维护这个魔数。 */
+    display: flex; flex-direction: column;
     -webkit-font-smoothing: antialiased;
+    letter-spacing: 0.1px;
 }
 
 /* ---------- 顶栏 ---------- */
 .topbar {
     display: flex; align-items: center; gap: 16px;
-    padding: 12px 24px;
-    background: linear-gradient(180deg, rgba(17,28,51,0.95) 0%, rgba(11,18,32,0.85) 100%);
+    padding: 13px 26px;
+    background: linear-gradient(180deg, rgba(17,28,51,0.96) 0%, rgba(11,18,32,0.88) 100%);
     border-bottom: 1px solid var(--border);
     backdrop-filter: blur(20px);
     position: relative; z-index: 10;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.25);
+    box-shadow: 0 4px 24px rgba(0,0,0,0.3);
+}
+/* 顶栏底部一条极细的水色描边, 呼应"水"这个主题, 比纯灰边线多一点识别度 */
+.topbar::after {
+    content: ''; position: absolute; left: 0; right: 0; bottom: -1px; height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(34,211,238,0.5) 20%, rgba(99,102,241,0.5) 60%, transparent);
 }
 .brand {
     display: flex; align-items: center; gap: 12px;
-    font-size: 18px; font-weight: 700;
-    background: linear-gradient(135deg, #60a5fa, #818cf8);
+    font-size: 17px; font-weight: 700; letter-spacing: 0.3px;
+    background: linear-gradient(135deg, #67e8f9, #818cf8);
     -webkit-background-clip: text; background-clip: text;
     color: transparent;
 }
 .brand .logo {
-    width: 36px; height: 36px; border-radius: 10px;
-    background: linear-gradient(135deg, #3b82f6, #6366f1);
+    width: 38px; height: 38px; border-radius: 11px;
+    background: linear-gradient(135deg, var(--aqua2), var(--accent2));
     display: flex; align-items: center; justify-content: center;
-    font-size: 18px; color: white;
-    box-shadow: 0 4px 16px rgba(59,130,246,0.5);
+    font-size: 19px; color: white;
+    box-shadow: 0 4px 18px rgba(14,165,233,0.45), inset 0 1px 0 rgba(255,255,255,0.25);
 }
 .comp-info {
     flex: 1; display: flex; flex-direction: column;
     line-height: 1.3; margin-left: 16px;
+    padding-left: 16px; border-left: 1px solid var(--border-soft);
 }
 .comp-info .name { font-size: 16px; font-weight: 600; color: var(--text); }
-.comp-info .meta { font-size: 12px; color: var(--text-dim); margin-top: 2px; }
+.comp-info .meta { font-size: 12px; color: var(--text-dim); margin-top: 3px; }
 
 .conn-pill {
     display: inline-flex; align-items: center; gap: 8px;
@@ -67,42 +92,54 @@ body {
 }
 @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
 .live-time {
-    font-family: Consolas, monospace; font-size: 13px; color: var(--text-dim);
-    margin-left: 12px;
+    font-family: 'SF Mono', Consolas, monospace; font-size: 13px; color: var(--text-dim);
+    margin-left: 4px; padding: 6px 10px; border-radius: 999px;
+    background: rgba(148,163,184,0.08); border: 1px solid var(--border-soft);
+    font-variant-numeric: tabular-nums;
 }
 
 /* ---------- 主体 ---------- */
 .body {
-    display: flex; height: calc(100vh - 62px);
+    display: flex; flex: 1; min-height: 0;
 }
 .sidebar {
-    width: 220px; flex-shrink: 0;
-    background: rgba(15,23,42,0.6);
+    width: 226px; flex-shrink: 0;
+    background: rgba(13,21,38,0.55);
     border-right: 1px solid var(--border);
-    padding: 16px 12px;
+    padding: 18px 12px;
     overflow-y: auto;
     backdrop-filter: blur(10px);
 }
-.nav-section { margin-bottom: 18px; }
+.nav-section { margin-bottom: 20px; }
 .nav-section-title {
-    font-size: 10px; font-weight: 700; text-transform: uppercase;
-    letter-spacing: 1.5px; color: var(--text-muted);
-    padding: 0 12px 6px; margin-bottom: 2px;
+    font-size: 10.5px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 1.6px; color: var(--text-muted);
+    padding: 0 12px 8px; margin-bottom: 2px;
 }
 .nav-item {
-    display: flex; align-items: center; gap: 12px;
-    padding: 9px 12px; margin-bottom: 2px;
-    border-radius: 8px; font-size: 14px; cursor: pointer;
-    color: var(--text-dim); transition: all 0.15s ease;
-    user-select: none;
+    display: flex; align-items: center; gap: 11px;
+    padding: 9px 12px; margin-bottom: 3px;
+    border-radius: var(--radius-sm); font-size: 14px; cursor: pointer;
+    color: var(--text-dim); transition: background 0.15s ease, color 0.15s ease, transform 0.15s ease;
+    user-select: none; position: relative;
 }
-.nav-item:hover { background: rgba(99,102,241,0.08); color: var(--text); }
+.nav-item:hover { background: rgba(148,163,184,0.07); color: var(--text); transform: translateX(1px); }
 .nav-item.active {
-    background: linear-gradient(90deg, rgba(99,102,241,0.18), rgba(59,130,246,0.08));
-    color: white; box-shadow: inset 3px 0 0 var(--accent);
-    font-weight: 600;
+    background: linear-gradient(90deg, rgba(34,211,238,0.14), rgba(99,102,241,0.14));
+    color: white; font-weight: 600;
 }
-.nav-item .icon { font-size: 18px; width: 22px; text-align: center; }
+.nav-item.active::before {
+    content: ''; position: absolute; left: -12px; top: 3px; bottom: 3px; width: 3px;
+    border-radius: 0 3px 3px 0;
+    background: linear-gradient(180deg, var(--aqua), var(--accent2));
+    box-shadow: 0 0 8px rgba(34,211,238,0.6);
+}
+.nav-item .icon {
+    font-size: 15px; width: 26px; height: 26px; text-align: center;
+    display: inline-flex; align-items: center; justify-content: center;
+    border-radius: 8px; background: rgba(148,163,184,0.08); flex-shrink: 0;
+}
+.nav-item.active .icon { background: rgba(255,255,255,0.1); }
 
 .main {
     flex: 1; overflow-y: auto; padding: 24px 32px;
@@ -119,23 +156,32 @@ body {
 
 .page-header {
     display: flex; align-items: center; justify-content: space-between;
-    margin-bottom: 20px;
+    margin-bottom: 22px; padding-bottom: 16px;
+    border-bottom: 1px solid var(--border-soft);
 }
 .page-title {
-    display: flex; align-items: center; gap: 12px;
-    font-size: 22px; font-weight: 700;
+    display: flex; align-items: center; gap: 13px;
+    font-size: 21px; font-weight: 700; letter-spacing: 0.2px;
 }
 .page-title .accent-bar {
-    width: 4px; height: 22px; border-radius: 2px;
-    background: linear-gradient(180deg, var(--accent), var(--accent2));
+    width: 5px; height: 24px; border-radius: 3px;
+    background: linear-gradient(180deg, var(--aqua), var(--accent2));
+    box-shadow: 0 0 10px rgba(34,211,238,0.4);
 }
-.page-subtitle { font-size: 13px; color: var(--text-dim); margin-top: 4px; }
+.page-subtitle { font-size: 12.5px; color: var(--text-dim); margin-top: 5px; }
 
 /* ---------- 卡片 ---------- */
 .card {
-    background: linear-gradient(180deg, var(--surface) 0%, var(--surface2) 100%);
-    border: 1px solid var(--border); border-radius: 14px;
+    background: linear-gradient(165deg, var(--surface) 0%, var(--surface2) 100%);
+    border: 1px solid var(--border); border-radius: var(--radius);
     padding: 20px; box-shadow: var(--shadow-sm);
+    position: relative;
+}
+/* 卡片顶边一道极细高光, 玻璃质感的经典手法 —— 让深色卡片不至于扁平死板 */
+.card::before {
+    content: ''; position: absolute; left: 1px; right: 1px; top: 1px; height: 1px;
+    border-radius: var(--radius) var(--radius) 0 0;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.12), transparent);
 }
 .card-h {
     display: flex; align-items: center; justify-content: space-between;
@@ -146,14 +192,15 @@ body {
 /* ---------- 表格 ---------- */
 .table-wrap {
     background: var(--surface); border: 1px solid var(--border);
-    border-radius: 12px; overflow: hidden;
+    border-radius: var(--radius); overflow: hidden; overflow-x: auto;
     box-shadow: var(--shadow-sm);
 }
 table { width: 100%; border-collapse: collapse; font-size: 13px; }
 thead th {
-    text-align: left; font-weight: 600; font-size: 12px;
+    text-align: left; font-weight: 700; font-size: 11.5px;
+    letter-spacing: 0.4px;
     color: var(--text-dim); background: var(--bg2);
-    padding: 12px 14px;
+    padding: 13px 14px;
     border-bottom: 1px solid var(--border);
     position: sticky; top: 0; z-index: 1;
 }
@@ -163,55 +210,63 @@ tbody td {
     color: var(--text);
 }
 tbody tr:last-child td { border-bottom: none; }
-tbody tr:hover { background: rgba(99,102,241,0.04); }
+tbody tr { transition: background 0.12s ease; }
+tbody tr:hover { background: rgba(34,211,238,0.045); }
 tbody tr.muted td { color: var(--text-dim); }
+/* 斑马纹: 极淡, 只为帮长表格对齐视线, 不抢 hover 高亮的风头 */
+tbody tr:nth-child(even) { background: rgba(148,163,184,0.025); }
+tbody tr:nth-child(even):hover { background: rgba(34,211,238,0.045); }
 
 .badge {
     display: inline-block;
     padding: 2px 10px; border-radius: 999px;
     font-size: 11px; font-weight: 600;
 }
-.badge.gold { background: rgba(251,191,36,0.18); color: #fbbf24; }
-.badge.silver { background: rgba(203,213,225,0.15); color: #cbd5e1; }
-.badge.bronze { background: rgba(217,119,6,0.18); color: #fdba74; }
-.badge.green { background: rgba(16,185,129,0.18); color: #6ee7b7; }
-.badge.blue { background: rgba(59,130,246,0.18); color: #93c5fd; }
-.badge.amber { background: rgba(245,158,11,0.18); color: #fcd34d; }
-.badge.red { background: rgba(239,68,68,0.18); color: #fca5a5; }
-.badge.gray { background: rgba(148,163,184,0.15); color: var(--text-dim); }
+.badge.gold { background: rgba(251,191,36,0.16); color: #fbbf24; border: 1px solid rgba(251,191,36,0.3); }
+.badge.silver { background: rgba(203,213,225,0.13); color: #cbd5e1; border: 1px solid rgba(203,213,225,0.25); }
+.badge.bronze { background: rgba(217,119,6,0.16); color: #fdba74; border: 1px solid rgba(217,119,6,0.3); }
+.badge.green { background: rgba(16,185,129,0.16); color: #6ee7b7; border: 1px solid rgba(16,185,129,0.3); }
+.badge.blue { background: rgba(59,130,246,0.16); color: #93c5fd; border: 1px solid rgba(59,130,246,0.3); }
+.badge.amber { background: rgba(245,158,11,0.16); color: #fcd34d; border: 1px solid rgba(245,158,11,0.3); }
+.badge.red { background: rgba(239,68,68,0.16); color: #fca5a5; border: 1px solid rgba(239,68,68,0.3); }
+.badge.gray { background: rgba(148,163,184,0.13); color: var(--text-dim); border: 1px solid var(--border-soft); }
 
 .rank-medal {
     display: inline-flex; align-items: center; justify-content: center;
     width: 28px; height: 28px; border-radius: 50%;
     font-weight: 700; font-size: 13px;
+    border: 1px solid rgba(255,255,255,0.25);
 }
-.rank-medal.r1 { background: linear-gradient(135deg, #fbbf24, #f59e0b); color: #422006; box-shadow: 0 0 12px rgba(251,191,36,0.5); }
-.rank-medal.r2 { background: linear-gradient(135deg, #e2e8f0, #94a3b8); color: #1e293b; box-shadow: 0 0 8px rgba(203,213,225,0.4); }
-.rank-medal.r3 { background: linear-gradient(135deg, #fb923c, #ea580c); color: #431407; box-shadow: 0 0 8px rgba(251,146,60,0.4); }
-.rank-num { color: var(--text-dim); font-variant-numeric: tabular-nums; }
+.rank-medal.r1 { background: linear-gradient(135deg, #fde68a, #f59e0b); color: #422006; box-shadow: 0 0 14px rgba(251,191,36,0.55); }
+.rank-medal.r2 { background: linear-gradient(135deg, #f1f5f9, #94a3b8); color: #1e293b; box-shadow: 0 0 10px rgba(203,213,225,0.45); }
+.rank-medal.r3 { background: linear-gradient(135deg, #fdba74, #ea580c); color: #431407; box-shadow: 0 0 10px rgba(251,146,60,0.45); }
+.rank-num { color: var(--text-dim); font-variant-numeric: tabular-nums; font-weight: 600; }
 
-.time-cell { font-family: Consolas, monospace; font-variant-numeric: tabular-nums; }
+.time-cell { font-family: 'SF Mono', Consolas, monospace; font-variant-numeric: tabular-nums; letter-spacing: 0.3px; }
 
 /* ---------- 控件 ---------- */
-.search-row { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+.search-row { display: flex; gap: 10px; margin-bottom: 18px; flex-wrap: wrap; }
 .input, .select {
     background: var(--surface); border: 1px solid var(--border);
     color: var(--text); font-size: 13px;
-    padding: 9px 14px; border-radius: 8px;
-    outline: none; transition: border-color 0.15s;
+    padding: 9px 14px; border-radius: var(--radius-sm);
+    outline: none; transition: border-color 0.15s, box-shadow 0.15s;
 }
-.input:focus, .select:focus { border-color: var(--accent); }
+.input:focus, .select:focus { border-color: var(--aqua2); box-shadow: 0 0 0 3px rgba(14,165,233,0.15); }
 .input { min-width: 200px; }
 .select { min-width: 140px; cursor: pointer; }
+.input::placeholder { color: var(--text-muted); }
 
 .btn {
-    background: var(--accent); color: white; border: none;
-    padding: 9px 16px; border-radius: 8px; font-size: 13px;
-    font-weight: 600; cursor: pointer; transition: opacity 0.15s;
+    background: linear-gradient(135deg, var(--aqua2), var(--accent2)); color: white; border: none;
+    padding: 9px 18px; border-radius: var(--radius-sm); font-size: 13px;
+    font-weight: 600; cursor: pointer; transition: filter 0.15s, transform 0.1s;
+    box-shadow: 0 4px 14px rgba(14,165,233,0.3);
 }
-.btn:hover { opacity: 0.88; }
-.btn.ghost { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
-.btn.ghost:hover { background: var(--surface2); }
+.btn:hover { filter: brightness(1.08); }
+.btn:active { transform: translateY(1px); }
+.btn.ghost { background: var(--surface); color: var(--text); border: 1px solid var(--border); box-shadow: none; }
+.btn.ghost:hover { background: var(--surface2); filter: none; }
 
 /* ---------- 概览统计卡 ---------- */
 .stat-grid {
@@ -220,22 +275,27 @@ tbody tr.muted td { color: var(--text-dim); }
     gap: 14px; margin-bottom: 24px;
 }
 .stat-card {
-    background: linear-gradient(135deg, var(--surface) 0%, var(--surface2) 100%);
-    border: 1px solid var(--border); border-radius: 14px;
+    background: linear-gradient(150deg, var(--surface) 0%, var(--surface2) 100%);
+    border: 1px solid var(--border); border-radius: var(--radius);
     padding: 18px 20px; position: relative; overflow: hidden;
+    transition: transform 0.18s ease, border-color 0.18s ease;
 }
+.stat-card:hover { transform: translateY(-3px); border-color: rgba(34,211,238,0.3); }
 .stat-card::before {
     content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
-    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    background: linear-gradient(90deg, var(--aqua), var(--accent2));
 }
-.stat-card .label { font-size: 12px; color: var(--text-dim); margin-bottom: 6px; }
+.stat-card .label {
+    font-size: 12px; color: var(--text-dim); margin-bottom: 8px;
+    display: flex; align-items: center; gap: 6px;
+}
 .stat-card .value {
-    font-size: 30px; font-weight: 700;
-    background: linear-gradient(135deg, #93c5fd, #c4b5fd);
+    font-size: 32px; font-weight: 800; line-height: 1.1;
+    background: linear-gradient(135deg, #a5f3fc, #93c5fd);
     -webkit-background-clip: text; background-clip: text; color: transparent;
     font-variant-numeric: tabular-nums;
 }
-.stat-card .sub { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+.stat-card .sub { font-size: 12px; color: var(--text-muted); margin-top: 5px; }
 
 .stat-card.gold::before { background: linear-gradient(90deg, #fbbf24, #d97706); }
 .stat-card.gold .value { background: linear-gradient(135deg, #fde68a, #fbbf24); -webkit-background-clip: text; background-clip: text; color: transparent; }
@@ -243,6 +303,16 @@ tbody tr.muted td { color: var(--text-dim); }
 .stat-card.green .value { background: linear-gradient(135deg, #6ee7b7, #10b981); -webkit-background-clip: text; background-clip: text; color: transparent; }
 .stat-card.purple::before { background: linear-gradient(90deg, #a78bfa, #7c3aed); }
 .stat-card.purple .value { background: linear-gradient(135deg, #c4b5fd, #a78bfa); -webkit-background-clip: text; background-clip: text; color: transparent; }
+
+/* ---------- 概览: 当前组卡片 ---------- */
+.live-card { border-color: rgba(239,68,68,0.25); }
+.live-dot {
+    display: inline-block; width: 9px; height: 9px; border-radius: 50%;
+    background: var(--danger); margin-right: 9px;
+    box-shadow: 0 0 8px rgba(239,68,68,0.7);
+    animation: pulse 1.6s infinite;
+}
+.live-detail { font-size: 15px; color: var(--text); line-height: 1.5; }
 
 .progress-card {
     grid-column: 1 / -1;
@@ -255,9 +325,9 @@ tbody tr.muted td { color: var(--text-dim); }
 }
 .progress-fill {
     height: 100%; border-radius: 999px;
-    background: linear-gradient(90deg, var(--accent), var(--success));
+    background: linear-gradient(90deg, var(--aqua2), var(--success));
     transition: width 0.5s ease;
-    box-shadow: 0 0 12px rgba(59,130,246,0.5);
+    box-shadow: 0 0 12px rgba(14,165,233,0.5);
 }
 
 /* ---------- 团体总分柱状图 ---------- */
@@ -270,10 +340,11 @@ tbody tr.muted td { color: var(--text-dim); }
 .bar-row .bar-bg {
     flex: 1; height: 22px; background: var(--bg2); border-radius: 6px;
     overflow: hidden; position: relative;
+    box-shadow: inset 0 1px 4px rgba(0,0,0,0.35);
 }
 .bar-row .bar-fill {
     height: 100%; border-radius: 6px;
-    background: linear-gradient(90deg, var(--accent2), var(--accent));
+    background: linear-gradient(90deg, var(--accent2), var(--aqua2));
     transition: width 0.4s ease;
     display: flex; align-items: center; justify-content: flex-end;
     padding-right: 8px;
@@ -287,50 +358,15 @@ tbody tr.muted td { color: var(--text-dim); }
     text-shadow: 0 1px 2px rgba(0,0,0,0.5);
 }
 
-/* ---------- 奖牌格子 ---------- */
-.medal-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-    gap: 14px;
-}
-.medal-card {
-    background: linear-gradient(180deg, var(--surface) 0%, var(--surface2) 100%);
-    border: 1px solid var(--border); border-radius: 14px;
-    padding: 18px 20px;
-    display: flex; align-items: center; gap: 18px;
-    position: relative; overflow: hidden;
-}
-.medal-card .rank-big {
-    font-size: 28px; font-weight: 800; color: var(--text-dim);
-    width: 48px; text-align: center;
-}
-.medal-card.r1 .rank-big { color: #fbbf24; text-shadow: 0 0 16px rgba(251,191,36,0.6); }
-.medal-card.r2 .rank-big { color: #cbd5e1; }
-.medal-card.r3 .rank-big { color: #fb923c; }
-.medal-card .team-name { flex: 1; font-size: 15px; font-weight: 600; }
-.medal-card .medals-row { display: flex; gap: 12px; }
-.medal-pill {
-    display: flex; align-items: center; gap: 5px;
-    font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums;
-}
-.medal-pill .ico { font-size: 18px; }
-
-/* ---------- 名片 ---------- */
-.card-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
-    gap: 14px;
-}
-.ref-card {
-    background: linear-gradient(180deg, var(--surface) 0%, var(--surface2) 100%);
-    border: 1px solid var(--border); border-radius: 14px;
-    padding: 18px; display: flex; flex-direction: column; gap: 8px;
-    transition: transform 0.15s, border-color 0.15s;
-}
-.ref-card:hover { transform: translateY(-2px); border-color: var(--accent); }
-.ref-card .ref-title { font-size: 11px; color: var(--accent); font-weight: 600; text-transform: uppercase; letter-spacing: 1px; }
-.ref-card .ref-name { font-size: 16px; font-weight: 700; }
-.ref-card .ref-meta { font-size: 12px; color: var(--text-dim); }
+/* ---------- 奖牌榜 / 裁判员: 都是"人或单位 + 几个属性"的结构化数据,
+   改用表格 —— 比卡片网格更整齐、更好扫视, 名次列/奖牌数天然对齐成列。
+   2026-09-15 奖牌榜原来是卡片竖排一名一行, 现在连卡片也去掉改真表格,
+   行内数字对齐更严整, 是"排行榜"该有的样子。 ---------- */
+.medal-row-r1 td { background: linear-gradient(90deg, rgba(251,191,36,0.09), transparent 60%); }
+.medal-row-r2 td { background: linear-gradient(90deg, rgba(203,213,225,0.07), transparent 60%); }
+.medal-row-r3 td { background: linear-gradient(90deg, rgba(217,119,6,0.08), transparent 60%); }
+.medal-count { display: inline-flex; align-items: center; gap: 5px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.medal-count .ico { font-size: 15px; }
 
 /* ---------- 空状态 ---------- */
 .empty {
@@ -349,20 +385,86 @@ tbody tr.muted td { color: var(--text-dim); }
 }
 .conn-overlay.show { display: flex; }
 .conn-dialog {
-    background: var(--surface); border: 1px solid var(--border);
-    border-radius: 16px; padding: 28px 32px; min-width: 380px;
-    box-shadow: var(--shadow);
+    background: linear-gradient(165deg, var(--surface) 0%, var(--surface2) 100%);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg); padding: 28px 32px; min-width: 380px;
+    box-shadow: var(--shadow-lg);
 }
 .conn-dialog h2 { font-size: 18px; margin-bottom: 8px; }
 .conn-dialog p { color: var(--text-dim); font-size: 13px; margin-bottom: 16px; }
 .conn-dialog .row { display: flex; gap: 8px; }
 .conn-dialog input { flex: 1; }
 
+/* ---------- 登录 / 改密弹窗 (跟其它弹窗共用一套玻璃卡片样式) ---------- */
+.auth-overlay {
+    position: fixed; inset: 0; z-index: 99999;
+    background: rgba(10,15,28,0.88); backdrop-filter: blur(8px);
+    align-items: center; justify-content: center;
+}
+.auth-dialog {
+    position: relative; width: 400px; max-width: 92vw;
+    background: linear-gradient(165deg, var(--surface) 0%, var(--surface2) 100%);
+    border: 1px solid var(--border); border-radius: var(--radius-lg);
+    padding: 30px 34px; box-shadow: var(--shadow-lg);
+    overflow: hidden;
+}
+/* 顶边一道水色-靛蓝渐变条, 跟顶栏/侧栏呼应, 一眼认出这是同一个系统的弹窗,
+   不再是随手拿系统默认灰弹窗糊一个上去。 */
+.auth-dialog::before {
+    content: ''; position: absolute; left: 0; right: 0; top: 0; height: 4px;
+    background: linear-gradient(90deg, var(--aqua), var(--accent2));
+}
+.auth-head { text-align: center; margin-bottom: 22px; }
+.auth-head .logo {
+    width: 52px; height: 52px; margin: 0 auto 12px; border-radius: 15px;
+    background: linear-gradient(135deg, var(--aqua2), var(--accent2));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 26px; box-shadow: 0 6px 20px rgba(14,165,233,0.4), inset 0 1px 0 rgba(255,255,255,0.25);
+}
+.auth-head .title { font-size: 19px; font-weight: 700; color: var(--text); }
+.auth-head .sub { font-size: 12.5px; color: var(--text-dim); margin-top: 3px; }
+.auth-field { display: flex; align-items: center; gap: 14px; margin-bottom: 12px; }
+.auth-field .lbl { width: 74px; flex-shrink: 0; color: var(--text-dim); font-size: 13px; text-align: right; }
+.auth-field input {
+    flex: 1; padding: 9px 12px; background: var(--bg2);
+    color: var(--text); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); font-size: 13.5px;
+    outline: none; transition: border-color 0.15s, box-shadow 0.15s;
+}
+.auth-field input:focus { border-color: var(--aqua2); box-shadow: 0 0 0 3px rgba(14,165,233,0.15); }
+.auth-remember {
+    display: flex; align-items: center; gap: 7px; color: var(--text-dim);
+    font-size: 12.5px; margin: 8px 0 4px 88px; cursor: pointer; user-select: none;
+}
+.auth-remember input { cursor: pointer; accent-color: var(--aqua2); }
+.auth-error {
+    display: none; text-align: center; color: #fca5a5; font-size: 12.5px;
+    margin-top: 10px; padding: 8px; border-radius: 8px;
+    background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.25);
+}
+.auth-actions { display: flex; gap: 10px; margin-top: 18px; }
+.auth-btn-primary {
+    flex: 1; padding: 11px; border: none; border-radius: var(--radius-sm);
+    background: linear-gradient(135deg, var(--aqua2), var(--accent2)); color: white;
+    font-size: 14.5px; font-weight: 700; cursor: pointer;
+    box-shadow: 0 4px 16px rgba(14,165,233,0.35);
+    transition: filter 0.15s, transform 0.1s;
+}
+.auth-btn-primary:hover { filter: brightness(1.08); }
+.auth-btn-primary:active { transform: translateY(1px); }
+.auth-btn-secondary {
+    padding: 11px 20px; border-radius: var(--radius-sm);
+    background: rgba(148,163,184,0.1); border: 1px solid var(--border); color: var(--text);
+    font-size: 13.5px; cursor: pointer; transition: background 0.15s;
+}
+.auth-btn-secondary:hover { background: rgba(148,163,184,0.18); }
+
 /* ---------- 响应式 ---------- */
 @media (max-width: 900px) {
     .sidebar { width: 64px; padding: 12px 6px; }
     .nav-item .label { display: none; }
     .nav-item { justify-content: center; padding: 12px; }
+    .nav-item.active::before { left: -6px; }
     .nav-section-title { display: none; }
     .main { padding: 16px; }
     .stat-card .value { font-size: 24px; }
@@ -383,55 +485,60 @@ tbody tr.muted td { color: var(--text-dim); }
 </head>
 <body>
 
-<!-- 2026-06-19 登录弹窗 (跟 RTC LoginWindow.xaml 完全一样) -->
-<div id="loginOverlay" style="position:fixed;inset:0;z-index:99999;background:rgba(15,23,42,0.92);display:flex;align-items:center;justify-content:center;backdrop-filter:blur(6px);">
-    <div style="background:#1E293B;width:400px;border-radius:8px;padding:30px 40px;box-shadow:0 8px 32px rgba(0,0,0,0.6);border:1px solid #334155;">
-        <div style="text-align:center;margin-bottom:5px;">
-            <div style="font-size:20px;font-weight:bold;color:white;">游泳赛事管理系统</div>
-            <div style="font-size:13px;color:#94A3B8;margin-top:2px;">赛事查询终端</div>
+<!-- 2026-09-15 登录/改密弹窗改用跟全页一致的玻璃卡片样式(见 .auth-* 规则),
+     原来是整块内联样式写的纯色弹窗, 跟其余页面的深色玻璃质感是两套风格。
+     元素 id 和 JS 里 .style.display 切换的两个容器 id (loginOverlay/pwdChangeOverlay)
+     都原样保留, 不影响 doLogin()/openPwdChange() 等既有逻辑。 -->
+<div id="loginOverlay" class="auth-overlay" style="display:flex;">
+    <div class="auth-dialog">
+        <div class="auth-head">
+            <div class="logo">🏊</div>
+            <div class="title">游泳赛事管理系统</div>
+            <div class="sub">赛事查询终端</div>
         </div>
-        <div style="height:18px;"></div>
-        <div style="display:flex;align-items:center;margin-bottom:10px;">
-            <div style="width:60px;color:#CBD5E1;font-size:14px;">用户名</div>
-            <input id="loginUser" type="text" autocomplete="username" style="flex:1;padding:8px 10px;background:#334155;color:white;border:1px solid #475569;border-radius:4px;font-size:14px;">
+        <div class="auth-field">
+            <div class="lbl">用户名</div>
+            <input id="loginUser" type="text" autocomplete="username">
         </div>
-        <div style="display:flex;align-items:center;margin-bottom:10px;">
-            <div style="width:60px;color:#CBD5E1;font-size:14px;">密&nbsp;&nbsp;码</div>
-            <input id="loginPwd" type="password" autocomplete="current-password" style="flex:1;padding:8px 10px;background:#334155;color:white;border:1px solid #475569;border-radius:4px;font-size:14px;">
+        <div class="auth-field">
+            <div class="lbl">密&nbsp;&nbsp;码</div>
+            <input id="loginPwd" type="password" autocomplete="current-password">
         </div>
-        <label style="display:flex;align-items:center;gap:6px;color:#CBD5E1;font-size:12px;margin-top:6px;cursor:pointer;">
-            <input id="loginRemember" type="checkbox" style="cursor:pointer;"> 记住登录名和密码
+        <label class="auth-remember">
+            <input id="loginRemember" type="checkbox"> 记住登录名和密码
         </label>
-        <div id="loginError" style="display:none;text-align:center;color:#F87171;font-size:12px;margin-top:6px;"></div>
-        <button onclick="doLogin()" style="width:100%;margin-top:14px;padding:10px;background:#3B82F6;color:white;border:none;border-radius:4px;font-size:15px;font-weight:bold;cursor:pointer;">登&nbsp;&nbsp;录</button>
+        <div id="loginError" class="auth-error"></div>
+        <button onclick="doLogin()" class="auth-btn-primary" style="width:100%;margin-top:16px;">登&nbsp;&nbsp;录</button>
     </div>
 </div>
 
 <!-- 2026-06-19 修改用户名/密码 弹窗 -->
-<div id="pwdChangeOverlay" style="display:none;position:fixed;inset:0;z-index:99998;background:rgba(15,23,42,0.92);align-items:center;justify-content:center;backdrop-filter:blur(6px);">
-    <div style="background:#1E293B;width:420px;border-radius:8px;padding:26px 36px;box-shadow:0 8px 32px rgba(0,0,0,0.6);border:1px solid #334155;">
-        <div style="font-size:17px;font-weight:bold;color:white;margin-bottom:6px;">修改用户名 / 密码</div>
-        <div style="font-size:12px;color:#94A3B8;margin-bottom:14px;">浏览器本机账号 (localStorage), 确认后立即生效, 下次登录用新账号.</div>
-        <div style="display:flex;align-items:center;margin-bottom:10px;">
-            <div style="width:80px;color:#CBD5E1;font-size:13px;">原密码</div>
-            <input id="pwdOld" type="password" style="flex:1;padding:7px 10px;background:#334155;color:white;border:1px solid #475569;border-radius:4px;font-size:13px;">
+<div id="pwdChangeOverlay" class="auth-overlay" style="display:none;">
+    <div class="auth-dialog" style="width:430px;">
+        <div class="auth-head" style="text-align:left;margin-bottom:18px;">
+            <div class="title" style="font-size:17px;">修改用户名 / 密码</div>
+            <div class="sub">浏览器本机账号（localStorage），确认后立即生效，下次登录用新账号。</div>
         </div>
-        <div style="display:flex;align-items:center;margin-bottom:10px;">
-            <div style="width:80px;color:#CBD5E1;font-size:13px;">新用户名</div>
-            <input id="pwdNewUser" type="text" style="flex:1;padding:7px 10px;background:#334155;color:white;border:1px solid #475569;border-radius:4px;font-size:13px;">
+        <div class="auth-field">
+            <div class="lbl" style="width:88px;">原密码</div>
+            <input id="pwdOld" type="password">
         </div>
-        <div style="display:flex;align-items:center;margin-bottom:10px;">
-            <div style="width:80px;color:#CBD5E1;font-size:13px;">新密码</div>
-            <input id="pwdNew1" type="password" style="flex:1;padding:7px 10px;background:#334155;color:white;border:1px solid #475569;border-radius:4px;font-size:13px;">
+        <div class="auth-field">
+            <div class="lbl" style="width:88px;">新用户名</div>
+            <input id="pwdNewUser" type="text">
         </div>
-        <div style="display:flex;align-items:center;margin-bottom:10px;">
-            <div style="width:80px;color:#CBD5E1;font-size:13px;">确认新密码</div>
-            <input id="pwdNew2" type="password" style="flex:1;padding:7px 10px;background:#334155;color:white;border:1px solid #475569;border-radius:4px;font-size:13px;">
+        <div class="auth-field">
+            <div class="lbl" style="width:88px;">新密码</div>
+            <input id="pwdNew1" type="password">
         </div>
-        <div id="pwdChangeError" style="display:none;text-align:center;color:#F87171;font-size:12px;margin-top:6px;"></div>
-        <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end;">
-            <button onclick="cancelPwdChange()" style="padding:8px 18px;background:#475569;color:white;border:none;border-radius:4px;font-size:13px;cursor:pointer;">取消</button>
-            <button onclick="applyPwdChange()" style="padding:8px 18px;background:#3B82F6;color:white;border:none;border-radius:4px;font-size:13px;font-weight:bold;cursor:pointer;">确认修改</button>
+        <div class="auth-field">
+            <div class="lbl" style="width:88px;">确认新密码</div>
+            <input id="pwdNew2" type="password">
+        </div>
+        <div id="pwdChangeError" class="auth-error"></div>
+        <div class="auth-actions" style="justify-content:flex-end;">
+            <button onclick="cancelPwdChange()" class="auth-btn-secondary">取消</button>
+            <button onclick="applyPwdChange()" class="auth-btn-primary" style="flex:none;padding:10px 22px;">确认修改</button>
         </div>
     </div>
 </div>
@@ -487,13 +594,16 @@ tbody tr.muted td { color: var(--text-dim); }
                 </div>
             </div>
             <div class="stat-grid" id="statGrid"></div>
-            <div class="card" id="liveCard" style="margin-bottom:18px;">
-                <div class="card-h"><h3>🔴 当前组</h3><span class="dim" id="liveState"></span></div>
-                <div id="liveDetail" class="dim">尚未开始</div>
+            <div class="card live-card" id="liveCard" style="margin-bottom:18px;">
+                <div class="card-h"><h3><span class="live-dot"></span>当前组</h3><span class="badge blue" id="liveState"></span></div>
+                <div id="liveDetail" class="live-detail">尚未开始</div>
             </div>
-            <div class="card">
-                <div class="card-h"><h3>最近完赛项目</h3></div>
-                <div id="recentFinished" class="dim">--</div>
+            <div class="card" style="padding:0;overflow:hidden;">
+                <div class="card-h" style="padding:20px 20px 14px;margin-bottom:0;"><h3>🏁 最近完赛项目</h3></div>
+                <table>
+                    <thead><tr><th>场次</th><th>项目</th><th style="text-align:right;">状态</th></tr></thead>
+                    <tbody id="recentFinished"></tbody>
+                </table>
             </div>
         </section>
 
@@ -598,7 +708,15 @@ tbody tr.muted td { color: var(--text-dim); }
                     <div class="page-subtitle">按金/银/铜统计的单位排名</div>
                 </div>
             </div>
-            <div class="medal-grid" id="medalGrid"></div>
+            <!-- 2026-09-15 改真表格: 名次/奖牌数天然对齐成列, 比卡片网格更像排行榜 -->
+            <div class="table-wrap">
+                <table>
+                    <thead><tr>
+                        <th>名次</th><th>单位</th><th>金 🥇</th><th>银 🥈</th><th>铜 🥉</th><th>奖牌合计</th>
+                    </tr></thead>
+                    <tbody id="medalGrid"></tbody>
+                </table>
+            </div>
         </section>
 
         <!-- 团体 -->
@@ -653,7 +771,15 @@ tbody tr.muted td { color: var(--text-dim); }
                     <div class="page-subtitle">本届赛事裁判员名单</div>
                 </div>
             </div>
-            <div class="card-grid" id="refGrid"></div>
+            <!-- 2026-09-15 名片网格改表格: 人名/头衔/单位/性别是典型的结构化列表, 表格更好扫视对比 -->
+            <div class="table-wrap">
+                <table>
+                    <thead><tr>
+                        <th>头衔 / 级别</th><th>姓名</th><th>性别</th><th>单位</th>
+                    </tr></thead>
+                    <tbody id="refGrid"></tbody>
+                </table>
+            </div>
         </section>
     </main>
 </div>
@@ -722,7 +848,7 @@ function connect() {
 // 只换一半会出现"设备状态灯和比赛日志不刷新"这种看不出根由的毛病, 所以对不上
 // 就在页顶挂红条, 顺带连上时报给主服务器, 让系统日志里也留一行。
 // 【改了本页就把这个日期跟 MainWindow.WEB_ASSET_VERSION 一起往后挪】
-var PAGE_VER = '20260913-4';
+var PAGE_VER = '20260916-2';
 var PAGE_NAME = 'query.html';
 function reportPageVer(sock) {
     try { sock.send(JSON.stringify({type: 'CLIENT_VERSION', page: PAGE_NAME, ver: PAGE_VER})); } catch (e) {}
@@ -742,8 +868,13 @@ function checkPageVer(serverVer) {
     ws.onopen = function() {
         connected = true;
         setConnUI('已连接 ' + host, true);
-        // 用 EDITOR_IDENTITY 让主服务器立即推送一次整包
+        // 用 EDITOR_IDENTITY 让主服务器立即推送一次整包 + 订阅后续增量补丁(不改这条,
+        // 本页面一直是这么拿数据的)
         try { ws.send(JSON.stringify({type: 'EDITOR_IDENTITY'})); } catch (e) {}
+        // 2026-09-14 另发一条本页专属身份, 让主服务器"系统工作状态→连接状态"里能单独
+        // 数出"信息查询"终端连了几个 —— 原来这页只发 EDITOR_IDENTITY, 会被计进"编排端"
+        // 那一类, 界面上根本看不出有台机器在查信息。
+        try { ws.send(JSON.stringify({type: 'QUERY_IDENTITY'})); } catch (e) {}
         reportPageVer(ws);
     };
     ws.onmessage = function(e) {
@@ -788,8 +919,24 @@ function checkPageVer(serverVer) {
 }
 
 // ═══════ 数据处理 ═══════
+// 2026-09-15 数字字段专用取值: 场次/项次/组次这些字段【0 是合法值】(第0场/未分场次
+// 等), 原来用 `a || b` 兜底, 0 会被当"假"直接跳过去找 b —— 而 PascalCase(a) 一侧
+// 压根没有 camelCase(b) 那个属性名, 结果整个变成 undefined, 表格上显示 "-"/"?"。
+// "比赛日程"第几场/项次都不对, 根就在这儿。
+function _numField(a, b, dflt) {
+    if (a !== null && a !== undefined) return a;
+    if (b !== null && b !== undefined) return b;
+    return dflt;
+}
 // EDITOR_PACKAGE 字段是 PascalCase, 转 camelCase 兼容
 function applyEditorPackage(pkg) {
+    // 2026-09-15 EDITOR_PACKAGE 里没有现成的"这组确不确认" —— 原来 schedule 里根本
+    // 不带 heatConfirmed, 页面开着的时候(还没等到下一份 SHOW_LIVE_RACE 全量包)
+    // "比赛日程"状态列、"概览"进度统计全部当"待赛"算, 数字全错。
+    // pkg.ConfirmedHeats 是主服务器"确认本组成绩"时写的权威记录(键 = 组别|性别|项目|赛次|组次,
+    // 与 MainWindow.ConfirmedHeatKey 完全同一格式), 直接拿它算, 不用等下一次广播。
+    var confirmedSet = {};
+    (pkg.ConfirmedHeats || pkg.confirmedHeats || []).forEach(function(k) { confirmedSet[k] = 1; });
     var d = {
         competitionName: pkg.CompetitionName || pkg.competitionName,
         startDate: pkg.StartDate || pkg.startDate,
@@ -800,14 +947,26 @@ function applyEditorPackage(pkg) {
         poolLength: pkg.PoolLength || pkg.poolLength,
         laneCount: pkg.LaneCount || pkg.laneCount,
         schedule: (pkg.Schedule || pkg.schedule || []).map(function(s) {
+            var ageGroup = s.AgeGroup || s.ageGroup || '';
+            var gender = s.Gender || s.gender;
+            var eventName = s.EventName || s.eventName;
+            var stage = s.Stage || s.stage;
+            var heatCount = _numField(s.HeatCount, s.heatCount, 1) || 1;
+            var heatConfirmed = [];
+            for (var h = 1; h <= heatCount; h++) {
+                var key = ageGroup + '|' + (gender||'') + '|' + (eventName||'') + '|' + (stage||'') + '|' + h;
+                heatConfirmed.push(!!confirmedSet[key]);
+            }
             return {
-                session: s.SessionNumber || s.session, sessionName: s.SessionName || s.sessionName,
+                session: _numField(s.SessionNumber, s.session, 0), sessionName: s.SessionName || s.sessionName,
                 date: s.Date || s.date, time: s.Time || s.time,
-                evNum: s.EvNum || s.evNum,
-                ageGroup: s.AgeGroup || s.ageGroup || '',
-                eventName: s.EventName || s.eventName, gender: s.Gender || s.gender,
-                stage: s.Stage || s.stage, heatCount: s.HeatCount || s.heatCount || 1,
-                isRelay: s.IsRelay || s.isRelay
+                evNum: _numField(s.EvNum, s.evNum, 0),
+                ageGroup: ageGroup,
+                eventName: eventName, gender: gender,
+                stage: stage, heatCount: heatCount,
+                isRelay: s.IsRelay || s.isRelay,
+                heatConfirmed: heatConfirmed,
+                allConfirmed: heatConfirmed.length > 0 && heatConfirmed.every(function(x){return x;})
             };
         }),
         allSwimmers: (pkg.Swimmers || pkg.swimmers || []).map(function(sw) {
@@ -819,7 +978,7 @@ function applyEditorPackage(pkg) {
                 country: sw.Country || sw.country, countryShort: sw.CountryShort || sw.countryShort,
                 eventName: sw.EventName || sw.eventName,
                 currentStage: sw.CurrentStage || sw.currentStage,
-                heat: sw.Heat || sw.heat,
+                heat: _numField(sw.Heat, sw.heat, 0),
                 // 2026-06-19 lane=0 是有效值 (异常布局/裁判道), 不能被 || 吃掉. PascalCase 优先.
                 lane: (sw.Lane != null ? sw.Lane : sw.lane),
                 entryTime: sw.EntryTime || sw.entryTime,
@@ -953,15 +1112,15 @@ function renderHome() {
 
     $('statGrid').innerHTML =
         '<div class="stat-card progress-card">' +
-            '<div class="label">比赛进度</div>' +
+            '<div class="label"><span>⏱</span>比赛进度</div>' +
             '<div style="display:flex;align-items:baseline;gap:12px;margin-top:6px;"><div class="value">' + pct + '%</div>' +
             '<span class="sub">已完赛 ' + doneHeats + ' / ' + totalHeats + ' 组 · ' + doneEvents + ' / ' + totalEvents + ' 项</span></div>' +
             '<div class="progress-bar"><div class="progress-fill" style="width:' + pct + '%"></div></div>' +
         '</div>' +
-        '<div class="stat-card"><div class="label">参赛运动员</div><div class="value">' + swimmers.length + '</div><div class="sub">来自 ' + teams.size + ' 个单位</div></div>' +
-        '<div class="stat-card green"><div class="label">总项目</div><div class="value">' + totalEvents + '</div><div class="sub">已完赛 ' + doneEvents + ' 项</div></div>' +
-        '<div class="stat-card gold"><div class="label">破纪录</div><div class="value">' + newRecords + '</div><div class="sub">人次</div></div>' +
-        '<div class="stat-card purple"><div class="label">总组数</div><div class="value">' + totalHeats + '</div><div class="sub">已完赛 ' + doneHeats + ' 组</div></div>';
+        '<div class="stat-card"><div class="label"><span>👥</span>参赛运动员</div><div class="value">' + swimmers.length + '</div><div class="sub">来自 ' + teams.size + ' 个单位</div></div>' +
+        '<div class="stat-card green"><div class="label"><span>📋</span>总项目</div><div class="value">' + totalEvents + '</div><div class="sub">已完赛 ' + doneEvents + ' 项</div></div>' +
+        '<div class="stat-card gold"><div class="label"><span>⭐</span>破纪录</div><div class="value">' + newRecords + '</div><div class="sub">人次</div></div>' +
+        '<div class="stat-card purple"><div class="label"><span>🎯</span>总组数</div><div class="value">' + totalHeats + '</div><div class="sub">已完赛 ' + doneHeats + ' 组</div></div>';
 
     // 当前组
     var live = '尚未开始';
@@ -972,9 +1131,9 @@ function renderHome() {
     $('liveDetail').innerHTML = live;
     var rs = (data.raceState || '').toLowerCase();
     var rsMap = { 'waiting': '等待', 'ready': '就位', 'racing': '🔴 比赛中', 'finished': '已完赛' };
-    $('liveState').innerHTML = rsMap[rs] || '';
+    $('liveState').textContent = rsMap[rs] || '等待';
 
-    // 最近完赛 (取最后 10 个 heatConfirmed=true 的)
+    // 最近完赛 (取最后 10 个 heatConfirmed=true 的) —— 2026-09-15 改表格行, 跟其它列表页一致
     var finishedList = [];
     sch.forEach(function(s) {
         var hc = s.heatCount || 1;
@@ -986,13 +1145,13 @@ function renderHome() {
     });
     finishedList = finishedList.slice(-8).reverse();
     if (finishedList.length === 0) {
-        $('recentFinished').innerHTML = '<div class="empty"><div class="title">还没有完赛项目</div></div>';
+        $('recentFinished').innerHTML = '<tr><td colspan="3"><div class="empty"><div class="title">还没有完赛项目</div></div></td></tr>';
     } else {
         $('recentFinished').innerHTML = finishedList.map(function(it) {
             var s = it.schedule;
-            return '<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px;">' +
-                '<span><span class="badge gray">第' + (s.session||'?') + '场</span> ' + fmtGender(s.gender) + ' ' + (s.ageGroup ? '['+s.ageGroup+'] ' : '') + escHtml(s.eventName||'') + ' ' + escHtml(s.stage||'') + ' 第' + it.heat + '组</span>' +
-                '<span class="badge green">✓ 已完赛</span></div>';
+            return '<tr><td><span class="badge gray">第' + (s.session||'?') + '场</span></td>' +
+                '<td>' + fmtGender(s.gender) + ' ' + (s.ageGroup ? '['+s.ageGroup+'] ' : '') + escHtml(s.eventName||'') + ' ' + escHtml(s.stage||'') + ' 第' + it.heat + '组</td>' +
+                '<td style="text-align:right;"><span class="badge green">✓ 已完赛</span></td></tr>';
         }).join('');
     }
 }
@@ -1002,7 +1161,9 @@ function renderSchedule() {
     var sch = data.schedule || [];
     var sessSel = $('schSession');
     if (!sessSel.dataset.built) {
-        var sessions = Array.from(new Set(sch.map(function(s) { return s.session || 0; }))).sort();
+        // 2026-09-15 裸 .sort() 对数字是按字符串比较("10" 排到 "2" 前面) —— 场次一旦
+        //   超过 9 场, 下拉列表顺序就乱了。加数值比较器。
+        var sessions = Array.from(new Set(sch.map(function(s) { return s.session || 0; }))).sort(function(a,b){return a-b;});
         sessions.forEach(function(n) {
             var o = document.createElement('option');
             o.value = n; o.textContent = '第 ' + n + ' 场';
@@ -1158,6 +1319,15 @@ function renderAthletes() {
     $('athBody').innerHTML = html || '<tr><td colspan="8"><div class="empty"><div class="title">没有匹配结果</div></div></td></tr>';
 }
 
+// 与 C# ResultOrdering.StatusOrder(全场唯一一份状态先后规则)同一套, renderResults 排序用
+function _hrStatusOrder(st) {
+    if (st === 'TRI') return 1;
+    if (st === 'DSQ' || st === 'DQ') return 2;
+    if (st === 'DNF') return 3;
+    if (st === 'DNS') return 4;
+    return 5;
+}
+
 // ═══════ 成绩 ═══════
 function renderResults() {
     var sel = $('resEvent');
@@ -1180,42 +1350,82 @@ function renderResults() {
         var confirmed = sch && sch.heatConfirmed && sch.heatConfirmed[h-1];
         if (!confirmed) continue;
         hasContent = true;
-        var lst = (data.allSwimmers||[]).filter(function(sw) {
-            return (sw.ageCategory||'') === ag && (sw.gender||'') === g && (sw.eventName||'') === evN && (sw.currentStage||'') === st && sw.heat === h;
+        // 2026-09-15 原来靠"运动员当前的 currentStage/heat"筛人 —— 这两个字段是【实时】的,
+        //   一晋级/重新分组就变。查一个已经过去的预赛某组成绩时, 这一组里游过的人
+        //   如果后来进了半决赛, currentStage 早就不是"预赛"了, 会被筛掉, 查出来的
+        //   成绩表就缺人(或者干脆是空的) —— "成绩查询不对"根就在这儿。
+        //   改成直接看每个人的 results 数组里有没有对应 (stage,heat) 的成绩行 ——
+        //   那是这一组当初confirm 时钉死的历史记录, 不随后续分组变化, 谁查都一样。
+        var lst = [];
+        (data.allSwimmers||[]).forEach(function(sw) {
+            if ((sw.ageCategory||'') !== ag || (sw.gender||'') !== g || (sw.eventName||'') !== evN) return;
+            var r = (sw.results || []).find(function(rr) {
+                return (rr.Stage || rr.stage) === st && (rr.Heat || rr.heat) === h;
+            });
+            if (!r) return;
+            sw._r = r;
+            lst.push(sw);
         });
-        // 按 result.Rank 排序 (PascalCase fallback)
-        lst.forEach(function(sw) {
-            sw._r = (sw.results || []).find(function(r) {
-                return (r.Stage || r.stage) === st && (r.Heat || r.heat) === h;
-            }) || {};
-        });
-        lst.sort(function(a,b) {
-            var ra = (a._r.Rank || a._r.rank || 99), rb = (b._r.Rank || b._r.rank || 99);
-            return ra - rb;
+        // 2026-09-15 原来只按 Rank||99 排 —— JS 里 0 是假值, "Rank||99" 会把 Rank=0 的
+        //   人(TRI/DSQ/DNF/DNS 全归在 rank=0)一律排成 99, 挤在一起且互相之间没有先后
+        //   规则(谁在数组里排前面全看原始顺序), TRI 因此可能排到比它慢很多的判罚/弃权
+        //   前面或后面，位置不对。改成跟 ResultOrdering.OrderForHeat(C#, 全场唯一一份
+        //   顺序规则)同一套: 有名次的按名次 → 有成绩没名次的 → TRI → DSQ → DNF → DNS →
+        //   无成绩；同档内按成绩快慢，再按道次。
+        lst.sort(function(a, b) {
+            var ra = a._r.Rank || a._r.rank || 0, rb = b._r.Rank || b._r.rank || 0;
+            var sa = a._r.Status || a._r.status || a.status || '', sb = b._r.Status || b._r.status || b.status || '';
+            var soa = _hrStatusOrder(sa), sob = _hrStatusOrder(sb);
+            var ta = parseTime(a._r.FinalTime || a._r.finalTime || ''), tb = parseTime(b._r.FinalTime || b._r.finalTime || '');
+            var pa = (soa === 5 && ra > 0) ? ra : 999999, pb = (sob === 5 && rb > 0) ? rb : 999999;
+            if (pa !== pb) return pa - pb;
+            var sa2 = (soa === 5 && ta < 99999) ? 0 : soa;
+            var sb2 = (sob === 5 && tb < 99999) ? 0 : sob;
+            if (sa2 !== sb2) return sa2 - sb2;
+            if (ta !== tb) return ta - tb;
+            var la = _numField(a._r.Lane, a._r.lane, null); if (la === null) la = a.lane || 0;
+            var lb = _numField(b._r.Lane, b._r.lane, null); if (lb === null) lb = b.lane || 0;
+            return la - lb;
         });
         html += '<div class="card" style="margin-bottom:14px;"><div class="card-h"><h3>第 ' + h + ' 组 成绩</h3><span class="badge green">✓ 已确认</span></div>';
         html += '<table><thead><tr><th>名次</th><th>道次</th><th>号码</th><th>姓名</th><th>单位</th><th>组别</th><th>成绩</th><th>备注</th></tr></thead><tbody>';
         lst.forEach(function(sw) {
             var r = sw._r;
-            var ft = r.FinalTime || r.finalTime || '';
             var rk = r.Rank || r.rank || 0;
+            // 2026-09-15 道次/状态也改读这条历史成绩行本身的(r.lane/r.status), 不用
+            //   运动员"现在"的 lane/status —— 理由同上, 晋级后本就不是同一回事。
+            var lane = _numField(r.Lane, r.lane, null);
+            if (lane === null) lane = sw.lane;   // 兜底: 老缓存/极端情况没这个字段时不至于空白
+            var st2 = r.Status || r.status || sw.status || '';
+            var judged = (st2 === 'DSQ' || st2 === 'DNS' || st2 === 'DNF' || st2 === 'TRI');
+            // 2026-09-15 【名次显示约定】判罚/弃权/TRI 一律无名次，名次列只印数字或"-"，
+            //   DSQ/DNS/DNF 这些状态字样归备注列——这是系统其它三处(项目成绩/成绩与
+            //   排名/大屏)统一的规矩（见 display.html 的 _hrRankOf + 备注栏那段），
+            //   这个页面之前把状态字样直接塞进了名次列，不符合规定。
             var rkHtml = '';
-            if (sw.status === 'DSQ' || sw.status === 'DNS' || sw.status === 'DNF') rkHtml = '<span class="badge red">' + sw.status + '</span>';
-            else if (rk === 1) rkHtml = '<span class="rank-medal r1">1</span>';
-            else if (rk === 2) rkHtml = '<span class="rank-medal r2">2</span>';
-            else if (rk === 3) rkHtml = '<span class="rank-medal r3">3</span>';
-            else if (rk > 0) rkHtml = '<span class="rank-num">' + rk + '</span>';
+            if (!judged) {
+                if (rk === 1) rkHtml = '<span class="rank-medal r1">1</span>';
+                else if (rk === 2) rkHtml = '<span class="rank-medal r2">2</span>';
+                else if (rk === 3) rkHtml = '<span class="rank-medal r3">3</span>';
+                else if (rk > 0) rkHtml = '<span class="rank-num">' + rk + '</span>';
+            }
+            if (!rkHtml) rkHtml = '<span class="rank-num">-</span>';
             var note = r.RecordNote || r.recordNote || '';
+            // 备注列优先级同 display.html: DSQ/DNS/DNF/TRI(红) > 破/平纪录(金)
+            var remarkHtml = judged ? ('<span class="badge red">' + st2 + '</span>')
+                            : (note ? ('<span class="badge gold">' + escHtml(note) + '</span>') : '');
+            // 2026-06-04 TRI 正常显成绩(试游, 时间照常显); DSQ/DNS/DNF 成绩无效不显示
+            var ft = (st2 === 'DSQ' || st2 === 'DNS' || st2 === 'DNF') ? '' : (r.FinalTime || r.finalTime || '');
             html += '<tr>' +
                 '<td>' + rkHtml + '</td>' +
                 // 2026-06-19 lane=0 应显 0 而非 "-": 用 != null 替代 ||
-                '<td>' + (sw.lane != null ? sw.lane : '-') + '</td>' +
+                '<td>' + (lane != null ? lane : '-') + '</td>' +
                 '<td class="dim">' + escHtml(sw.bibNumber||'') + '</td>' +
                 '<td><b>' + escHtml(sw.name||'') + '</b></td>' +
                 '<td>' + escHtml(sw.country||'') + '</td>' +
                 '<td>' + escHtml(sw.ageCategory||'') + '</td>' +
                 '<td class="time-cell">' + escHtml(ft) + '</td>' +
-                '<td>' + (note ? '<span class="badge gold">' + escHtml(note) + '</span>' : '') + '</td></tr>';
+                '<td>' + remarkHtml + '</td></tr>';
         });
         html += '</tbody></table></div>';
     }
@@ -1235,41 +1445,94 @@ function renderRanking() {
     if (!key) { $('rankBody').innerHTML = '<div class="empty"><div class="title">请选择项目</div></div>'; return; }
     var p = key.split('|');
     var ag = p[0], g = p[1], evN = p[2], st = p[3];
+    // 2026-09-15 同 renderResults: 不再用"运动员现在的 currentStage"筛人 —— 一晋级
+    //   就变, 查早前那个赛次的总排名时会把已经进入下一赛次的人漏掉。这里判定
+    //   "算不算这个赛次的人"改成看 results 里有没有对应 stage 的成绩行(下面那句
+    //   find), 上面这道 currentStage 关卡纯属多余还会挡人, 删掉。
     var lst = (data.allSwimmers||[]).filter(function(sw) {
         if ((sw.ageCategory||'') !== ag || (sw.gender||'') !== g || (sw.eventName||'') !== evN) return false;
-        if (st && (sw.currentStage||'') !== st) return false;
-        // 必须有成绩
         var r = (sw.results||[]).find(function(rr) { return (rr.Stage || rr.stage) === st; });
         if (!r) return false;
-        var ft = r.FinalTime || r.finalTime || '';
-        if (!ft || ft === '' || ft === '0.00') return false;
+        // 2026-09-16 【总排名规则】只有 TRI(试游)不进总排名; DSQ/DNF/DNS 判罚/弃权仍要
+        //   出现在总排名列表里(名次显示"-"、备注显判罚字样) —— 跟"成绩与排名"/"项目
+        //   成绩打印"选【全部】视图那两处的表现一致(那两处的[已完赛]项目总排名下面就
+        //   带着 DSQ/DNF/DNS 这几行)。之前这里连 DSQ/DNF/DNS 也一并过滤掉了, 这几个
+        //   人在 query.html 的总排名里直接消失, 跟另外两处对不上号(用户实拍到)。
+        var st2 = r.Status || r.status || '';
+        if (st2 === 'TRI') return false;
+        var judged = (st2 === 'DSQ' || st2 === 'DNS' || st2 === 'DNF');
+        if (!judged) {
+            // 正常人必须有真实成绩才算数(比如这个赛次还没游到这个人)
+            var ft = r.FinalTime || r.finalTime || '';
+            if (!ft || ft === '' || ft === '0.00') return false;
+        }
         sw._r = r;
-        return sw.status !== 'DSQ' && sw.status !== 'DNS' && sw.status !== 'DNF';
+        return true;
     });
-    lst.sort(function(a, b) {
-        var ta = parseTime(a._r.FinalTime || a._r.finalTime || '99:59.99');
-        var tb = parseTime(b._r.FinalTime || b._r.finalTime || '99:59.99');
-        return ta - tb;
-    });
+    // 2026-09-15 项目全部组确认后, 服务器会算出一份跨组的权威名次(eventRank, 主服务器
+    //   "成绩与排名"/大屏总排名/打印成绩单都读这份)。这里如果都有了就直接用它, 不再
+    //   自己按时间重排一遍 —— 避免跟别处"各算各的"对不上号(并列名次规则一旦跟服务器
+    //   不一致就会出现"两个地方的总排名不一样"这种事故)。还没生成时(项目没比完/没确认)
+    //   仍按时间现排, 让查询页在比赛过程中也能看到实时排名。
+    var hasEventRank = lst.some(function(sw) { return (sw._r.EventRank || sw._r.eventRank || 0) > 0; });
+    // 2026-09-16 判罚(DSQ/DNF/DNS)不管有没有定稿都排在有名次/有成绩的人之后, 三种判罚
+    //   之间再按 _hrStatusOrder(跟 C# ResultOrdering.StatusOrder 同一套)分先后, 不能
+    //   一起塞进"按成绩排"那个 tie-break 里各排各的。
+    if (hasEventRank) {
+        lst.sort(function(a, b) {
+            var ra = (a._r.EventRank || a._r.eventRank || 0), rb = (b._r.EventRank || b._r.eventRank || 0);
+            if (ra > 0 && rb > 0) return ra - rb;
+            if (ra > 0) return -1;
+            if (rb > 0) return 1;
+            var sa = _hrStatusOrder(a._r.Status || a._r.status || ''), sb = _hrStatusOrder(b._r.Status || b._r.status || '');
+            if (sa !== sb) return sa - sb;
+            var ta = parseTime(a._r.FinalTime || a._r.finalTime || '99:59.99');
+            var tb = parseTime(b._r.FinalTime || b._r.finalTime || '99:59.99');
+            return ta - tb;
+        });
+    } else {
+        lst.sort(function(a, b) {
+            var sa = _hrStatusOrder(a._r.Status || a._r.status || ''), sb = _hrStatusOrder(b._r.Status || b._r.status || '');
+            if (sa !== sb) return sa - sb;
+            var ta = parseTime(a._r.FinalTime || a._r.finalTime || '99:59.99');
+            var tb = parseTime(b._r.FinalTime || b._r.finalTime || '99:59.99');
+            return ta - tb;
+        });
+    }
     if (lst.length === 0) {
         $('rankBody').innerHTML = '<div class="empty"><div class="title">还没有有效成绩</div></div>';
         return;
     }
     var html = '<div class="table-wrap"><table><thead><tr><th>名次</th><th>号码</th><th>姓名</th><th>单位</th><th>组别</th><th>成绩</th><th>备注</th></tr></thead><tbody>';
-    lst.forEach(function(sw, idx) {
-        var rk = idx + 1;
-        var rkHtml = rk === 1 ? '<span class="rank-medal r1">1</span>'
+    // 2026-09-16 判罚(DSQ/DNF/DNS)不参与编号, 名次一律"-"; 还没定稿(hasEventRank=false)
+    //   时给正常人按数组顺序临时编号, 这个"第几个正常人"要单独计数 —— 不能拿数组下标
+    //   (idx)直接+1, 判罚的人如果排在前面, 会把后面正常人的临时名次也带偏一位。
+    var provisionalRank = 0;
+    lst.forEach(function(sw) {
+        var st2 = sw._r.Status || sw._r.status || '';
+        var judged = (st2 === 'DSQ' || st2 === 'DNS' || st2 === 'DNF');
+        var evRk = sw._r.EventRank || sw._r.eventRank || 0;
+        var rk;
+        if (judged) rk = 0;
+        else if (hasEventRank) rk = evRk;
+        else { provisionalRank++; rk = provisionalRank; }
+        var rkHtml = rk <= 0 ? '<span class="rank-num">-</span>'
+            : rk === 1 ? '<span class="rank-medal r1">1</span>'
             : rk === 2 ? '<span class="rank-medal r2">2</span>'
             : rk === 3 ? '<span class="rank-medal r3">3</span>'
             : '<span class="rank-num">' + rk + '</span>';
         var note = sw._r.RecordNote || sw._r.recordNote || '';
+        // 2026-09-16 备注列原来只显破/平纪录标识, 判罚状态没地方显示(名次列也不许显判罚
+        //   字样, 见名次显示约定) —— 现在跟 renderResults 同一个优先级: 判罚(红) > 纪录(金)。
+        var remarkHtml = judged ? ('<span class="badge red">' + st2 + '</span>')
+                        : (note ? ('<span class="badge gold">' + escHtml(note) + '</span>') : '');
         html += '<tr><td>' + rkHtml + '</td>' +
             '<td class="dim">' + escHtml(sw.bibNumber||'') + '</td>' +
             '<td><b>' + escHtml(sw.name||'') + '</b></td>' +
             '<td>' + escHtml(sw.country||'') + '</td>' +
             '<td>' + escHtml(sw.ageCategory||'') + '</td>' +
             '<td class="time-cell">' + escHtml(sw._r.FinalTime || sw._r.finalTime || '') + '</td>' +
-            '<td>' + (note ? '<span class="badge gold">' + escHtml(note) + '</span>' : '') + '</td></tr>';
+            '<td>' + remarkHtml + '</td></tr>';
     });
     html += '</tbody></table></div>';
     $('rankBody').innerHTML = html;
@@ -1290,23 +1553,27 @@ function renderMedals() {
         return b.bronze - a.bronze;
     });
     if (ts.length === 0) {
-        $('medalGrid').innerHTML = '<div class="empty" style="grid-column:1/-1;"><div class="title">尚无团体数据</div></div>';
+        $('medalGrid').innerHTML = '<tr><td colspan="6"><div class="empty"><div class="title">尚无团体数据</div></div></td></tr>';
         return;
     }
-    var html = ts.map(function(t, i) {
+    // 2026-09-15 奖牌榜改真表格 —— 一名一行, 名次/金银铜/合计天然对齐成列(见 renderResults
+    //   同款理由：先前的卡片布局在宽屏下会挤成多列，名次顺序看着"之字形"，不像排行榜)。
+    $('medalGrid').innerHTML = ts.map(function(t, i) {
         var rk = i + 1;
-        return '<div class="medal-card r' + (rk <= 3 ? rk : 'n') + '">' +
-            '<div class="rank-big">#' + rk + '</div>' +
-            '<div style="flex:1;">' +
-                '<div class="team-name">' + escHtml(t.teamName||'') + '</div>' +
-                '<div class="medals-row" style="margin-top:8px;">' +
-                    '<span class="medal-pill" style="color:#fbbf24;"><span class="ico">🥇</span>' + (t.gold||0) + '</span>' +
-                    '<span class="medal-pill" style="color:#cbd5e1;"><span class="ico">🥈</span>' + (t.silver||0) + '</span>' +
-                    '<span class="medal-pill" style="color:#fb923c;"><span class="ico">🥉</span>' + (t.bronze||0) + '</span>' +
-                '</div>' +
-            '</div></div>';
+        var rkHtml = rk === 1 ? '<span class="rank-medal r1">1</span>'
+            : rk === 2 ? '<span class="rank-medal r2">2</span>'
+            : rk === 3 ? '<span class="rank-medal r3">3</span>'
+            : '<span class="rank-num">' + rk + '</span>';
+        var rowCls = rk <= 3 ? ' class="medal-row-r' + rk + '"' : '';
+        var total = (t.gold||0) + (t.silver||0) + (t.bronze||0);
+        return '<tr' + rowCls + '>' +
+            '<td>' + rkHtml + '</td>' +
+            '<td><b>' + escHtml(t.teamName||'') + '</b></td>' +
+            '<td><span class="medal-count" style="color:#fbbf24;"><span class="ico">🥇</span>' + (t.gold||0) + '</span></td>' +
+            '<td><span class="medal-count" style="color:#cbd5e1;"><span class="ico">🥈</span>' + (t.silver||0) + '</span></td>' +
+            '<td><span class="medal-count" style="color:#fdba74;"><span class="ico">🥉</span>' + (t.bronze||0) + '</span></td>' +
+            '<td class="dim" style="font-variant-numeric:tabular-nums;">' + total + '</td></tr>';
     }).join('');
-    $('medalGrid').innerHTML = html;
 }
 
 // ═══════ 团体总分 ═══════
@@ -1392,15 +1659,16 @@ function renderRecords() {
 function renderReferees() {
     var refs = data.referees || data.refereeList || [];
     if (refs.length === 0) {
-        $('refGrid').innerHTML = '<div class="empty" style="grid-column:1/-1;"><div class="title">尚无裁判员资料</div></div>';
+        $('refGrid').innerHTML = '<tr><td colspan="4"><div class="empty"><div class="title">尚无裁判员资料</div></div></td></tr>';
         return;
     }
+    // 2026-09-15 名片网格改表格: 头衔/姓名/性别/单位对齐成列, 比一堆卡片更好扫视对比
     $('refGrid').innerHTML = refs.map(function(m) {
-        return '<div class="ref-card">' +
-            '<div class="ref-title">' + escHtml(m.title || m.refereeLevel || '裁判员') + '</div>' +
-            '<div class="ref-name">' + escHtml(m.name||'') + '</div>' +
-            '<div class="ref-meta">' + escHtml(m.country||'') + (m.gender ? '  ·  ' + fmtGender(m.gender) : '') + '</div>' +
-        '</div>';
+        return '<tr>' +
+            '<td><span class="badge blue">' + escHtml(m.title || m.refereeLevel || '裁判员') + '</span></td>' +
+            '<td><b>' + escHtml(m.name||'') + '</b></td>' +
+            '<td class="dim">' + (m.gender ? fmtGender(m.gender) : '') + '</td>' +
+            '<td class="dim">' + escHtml(m.country||'') + '</td></tr>';
     }).join('');
 }
 

@@ -997,15 +997,18 @@ namespace SwimmingScoreboard.Db
                     //   "项目成绩"按【第X组】看时是本组成绩单, TRI 要显成绩+备注 TRI;
                     //   选【全部】看时才是项目总排名, 那时才不显示 TRI。
                     //   入不入表是"记录全不全"的问题, 显不显示是视图的问题, 两件事。
-                    // 2026-09-01 排序补齐到跟 ResultOrdering 一个口径。原来是
-                    //   "有名次的按名次, 其余按 final_time" —— 其余那一段是错的:
-                    //   DNS 的 final_time 是 0, 于是弃权的被排到了判罚(有成绩)的前面。
-                    //   现在: 有名次的按名次 → TRI → DSQ → DNF → DNS → 无成绩;
-                    //   同档按成绩再按道次。
-                    "ORDER BY CASE WHEN he.rank>0 THEN 0 ELSE 1 END, " +
-                    "         CASE WHEN he.rank>0 THEN he.rank ELSE 0 END, " +
-                    "         CASE COALESCE(he.status,'') WHEN 'TRI' THEN 1 WHEN 'DSQ' THEN 2 WHEN 'DQ' THEN 2 " +
-                    "              WHEN 'DNF' THEN 3 WHEN 'DNS' THEN 4 ELSE 5 END, " +
+                    // 2026-09-14 【本条 ORDER BY 原来拿 he.rank 当主排序键 —— 那是错的】
+                    //   he.rank 是 UpdateHeatRanking() 算出来的"组内名次"(只在本组内比较,
+                    //   见 MainWindow.RankHeatGroup: 只喂 GetCurrentHeatSwimmers() 这一组的人)。
+                    //   一个决赛项目分 2+ 组时, 每组都各有一个"组内第1", 数值都是 1 ——
+                    //   照 he.rank 排、再照 he.rank 原样写进 event_rankings.rank, 后果是:
+                    //   甲组游得慢的"组内第1"和乙组游得快的"组内第1"【都显示总排名第1】,
+                    //   总排名的名次跟真实用时完全对不上号(用户实拍到: 5:40 排在 3:01 前面)。
+                    //   现在只按【真实成绩】+状态分档排序, 下面在 C# 里按这个顺序重新算
+                    //   一份跨组的名次(并列规则与 ResultOrdering.ComputeRanks 同一份),
+                    //   不再相信 he.rank 这个组内值。
+                    "ORDER BY CASE COALESCE(he.status,'') WHEN 'TRI' THEN 1 WHEN 'DSQ' THEN 2 WHEN 'DQ' THEN 2 " +
+                    "              WHEN 'DNF' THEN 3 WHEN 'DNS' THEN 4 ELSE 0 END, " +
                     "         CASE WHEN he.final_time>0 THEN he.final_time ELSE 999999 END, " +
                     "         he.lane", rid, eid);
 
@@ -1013,12 +1016,34 @@ namespace SwimmingScoreboard.Db
                 var th = _local.Db.Query("SELECT COUNT(*) AS n FROM heats WHERE round_id=@p1 AND COALESCE(state,'') <> 'cancelled'", rid);
                 int totalHeats = th.Rows.Count > 0 ? Convert.ToInt32(th.Rows[0]["n"]) : 0;
 
+                // 2026-09-14 跨组名次在这里重算一遍, 不用 he.rank(那是组内名次) ——
+                //   算法跟 ResultOrdering.ComputeRanks 同一份(1/100 秒取整判并列,
+                //   形如 1,1,3,4), 只是这里的输入是【全项目、跨所有组】按成绩排好的行,
+                //   而 he.rank 当初只在各自那一组内部算过一次。
+                //   rows 已经按上面的 ORDER BY 排好(有效成绩最前、按成绩升序), 这里
+                //   只挑"正常状态 + 有成绩"的行参与编号, TRI/DSQ/DNF/DNS/无成绩一律 0。
+                var crossRanks = new int[rows.Rows.Count];
+                {
+                    int rk = 0; double prevT = -1; int seen = 0;
+                    for (int i = 0; i < rows.Rows.Count; i++) {
+                        var rr = rows.Rows[i];
+                        string st0 = SS(rr["status"]);
+                        double ft0 = rr["final_time"] == DBNull.Value ? 0 : Convert.ToDouble(rr["final_time"]);
+                        if (st0.Length > 0 || ft0 <= 0) { crossRanks[i] = 0; continue; }
+                        seen++;
+                        if (seen == 1 || !SwimmingScoreboard.ResultOrdering.IsTie(ft0, prevT)) rk = seen;
+                        crossRanks[i] = rk;
+                        prevT = ft0;
+                    }
+                }
+
                 int n = 0;
                 _local.Db.InTransaction(delegate(Func<string, object[], int> run)
                 {
                     run("DELETE FROM event_rankings WHERE round_id=@p1 AND event_id=@p2", new object[] { rid, eid });
-                    foreach (System.Data.DataRow r in rows.Rows)
+                    for (int ri = 0; ri < rows.Rows.Count; ri++)
                     {
+                        System.Data.DataRow r = rows.Rows[ri];
                             // 备注: 判罚优先 -> 晋级标记 -> 纪录标识。跟成绩单上那一列同口径。
                         string rmk = SS(r["status"]);
                         if (rmk.Length == 0) rmk = SS(r["promotion_mark"]);
@@ -1028,7 +1053,7 @@ namespace SwimmingScoreboard.Db
                             "athlete_name,unit_name,generated_at,generated_by) " +
                             "VALUES(@p1,@p2,@p3,@p4,@p5,@p6,@p7,@p8,@p9,@p10,@p11,@p12,@p13,@p14,@p15,@p16,@p17,@p18)",
                             new object[] { rid, eid, r["id"], r["aid"], SS(r["bib"]),
-                                r["rank"] == DBNull.Value ? 0 : Convert.ToInt32(r["rank"]),
+                                crossRanks[ri],
                                 r["heat"], totalHeats, r["lane"], r["final_time"], SS(r["status"]),
                                 SS(r["promotion_mark"]), SS(r["record_note"]), rmk, SS(r["nm"]), SS(r["un"]),
                                 DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"), op ?? "" });
@@ -1044,6 +1069,60 @@ namespace SwimmingScoreboard.Db
                 Log("【注意】生成组排名表失败(不影响已确认的成绩): " + ex.Message);
                 return 0;
             }
+        }
+
+        /// <summary>
+        /// 2026-09-16 "空道试游"(MainWindow.CreateEmptyLaneTriSwimmer)占位运动员是纯内存对象——
+        /// 该道原本没有报名信息, 无 entry/heat_entries 可挂, 于是从来不会进 heat_entries 表。
+        /// 上面 GenerateEventRankingIfComplete 那条 SQL 是从 heat_entries 出发查的, 天生看不到
+        /// 这几行, 于是"项目成绩打印"(只读 event_rankings)/大屏总排名等【只认库】的地方,
+        /// 会把这几个空道试游的人整条漏掉(用户实拍到: 少年组男200米自由泳决赛, 3 个空道
+        /// 试游 TRI 在"项目成绩打印"的分组表和总排名里完全不出现, 而"成绩与排名"/query.html
+        /// 因为读的是内存 _swimmers, 不受影响)。
+        /// 调用方(MainWindow, 持有 _swimmers)在 GenerateEventRankingIfComplete 成功后, 把这个
+        /// round/event 下所有"空道试游"占位行收集好传进来, 这里【追加】进 event_rankings ——
+        /// 不参与排名(rank=0), 跟真实 TRI 待遇一致; heat_entry_id 用负数合成, 不会跟真实
+        /// (正数自增) id 冲突。
+        /// </summary>
+        public void AppendTriPlaceholderRankingRows(string ageGroup, string gender, string eventName, string stage,
+            List<TriPlaceholderInfo> placeholders)
+        {
+            if (_local == null || placeholders == null || placeholders.Count == 0) return;
+            try
+            {
+                long rid = ResolveRound(ageGroup, gender, eventName, stage);
+                long eid = ResolveEvent(ageGroup, gender, eventName, stage);
+                if (rid == 0 || eid == 0) return;
+                // event_rankings 里可能还没有这个 round/event(GenerateEventRankingIfComplete
+                //   没跑过, 比如全项目就这么几个人全是空道试游、真实成绩一条没有) —— 那种场景
+                //   不追加, 避免凑出一张"全是占位行"的假总排名表。
+                var chk = _local.Db.Query("SELECT COUNT(*) AS n FROM event_rankings WHERE round_id=@p1 AND event_id=@p2", rid, eid);
+                if (chk.Rows.Count == 0 || Convert.ToInt32(chk.Rows[0]["n"]) == 0) return;
+                var th = _local.Db.Query("SELECT COUNT(*) AS n FROM heats WHERE round_id=@p1 AND COALESCE(state,'') <> 'cancelled'", rid);
+                int totalHeats = th.Rows.Count > 0 ? Convert.ToInt32(th.Rows[0]["n"]) : 0;
+                int n2 = 0;
+                _local.Db.InTransaction(delegate(Func<string, object[], int> run)
+                {
+                    foreach (var p in placeholders)
+                    {
+                        long syntheticId = -((long)p.Heat * 1000 + p.Lane);   // 负数, 不会跟真实 heat_entries.id 撞
+                        run("DELETE FROM event_rankings WHERE round_id=@p1 AND event_id=@p2 AND heat_entry_id=@p3",
+                            new object[] { rid, eid, syntheticId });
+                        run("INSERT INTO event_rankings(round_id,event_id,heat_entry_id,athlete_id,bib_number," +
+                            "rank,heat,total_heats,lane,final_time,status,promotion_mark,record_note,remark," +
+                            "athlete_name,unit_name,generated_at,generated_by) " +
+                            "VALUES(@p1,@p2,@p3,@p4,@p5,@p6,@p7,@p8,@p9,@p10,@p11,@p12,@p13,@p14,@p15,@p16,@p17,@p18)",
+                            new object[] { rid, eid, syntheticId, DBNull.Value, "",
+                                0, p.Heat, totalHeats, p.Lane, p.FinalTime, "TRI",
+                                "", "", "TRI", p.Name ?? "", "",
+                                DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"), "空道试游(占位追加)" });
+                        n2++;
+                    }
+                });
+                if (n2 > 0)
+                    Log(string.Format("空道试游占位行已补进组排名表: {0}{1} {2} {3}, 共 {4} 条", ageGroup, gender, eventName, stage, n2));
+            }
+            catch (Exception ex) { Log("补写空道试游占位行失败(不影响已确认的成绩): " + ex.Message); }
         }
 
         public int MigrateRanksOnce(string op)
@@ -1237,13 +1316,22 @@ namespace SwimmingScoreboard.Db
             if (_local == null) return list;
             try
             {
+                // 2026-09-16 原来这里 WHERE er.rank > 0, 把判罚/试游(DSQ/DNF/DNS/TRI, 在
+                //   event_rankings 里 rank 就是 0)的行整个滤掉了 —— 调用方 ApplyEventRankingsFromDb
+                //   本来就是想拿这张表【把内存里的 EventRank 刷成库里最新的样子】, 可判罚的人
+                //   那一行永远查不出来, 内存里如果曾经有过一个旧的正数 EventRank(比如判罚前
+                //   已经确认过一次、后来解锁改判 DSQ 重新确认), 就永远没有机会被刷成 0 ——
+                //   于是"名次公告"排序时误把她当成"有名次"排到了真正的第 1 名前面
+                //   (用户实拍到: 青年组女100米仰泳, DSQ 的王雪颖排在第1名前面; 青年组男200米
+                //   混合泳, DNS 的苏静疏排在第1组和第4组名次中间)。
+                //   现在把判罚/试游的行也带出来(rank=0), 让调用方能明确把内存里的旧值清零。
                 var t = _local.Db.Query(
                     "SELECT e.age_group, e.gender, e.event_name, r.stage, " +
                     "       er.heat, er.lane, er.rank, er.promotion_mark " +
                     "FROM event_rankings er " +
                     "JOIN rounds r ON r.id = er.round_id " +
                     "JOIN events e ON e.id = er.event_id " +
-                    "WHERE er.rank > 0");
+                    "WHERE er.lane IS NOT NULL");
                 foreach (System.Data.DataRow row in t.Rows)
                     list.Add(new object[] {
                         SS(row["age_group"]), SS(row["gender"]), SS(row["event_name"]), SS(row["stage"]),
@@ -1561,5 +1649,18 @@ namespace SwimmingScoreboard.Db
         public string PromotionMark;
         public string RecordNote;
         public long HeatEntryId;
+    }
+
+    /// <summary>
+    /// 2026-09-16 一条"空道试游"占位记录(见 MainWindow.CreateEmptyLaneTriSwimmer) ——
+    /// 只有 组次/道次/成绩, 没有报名信息(姓名/代表队/号码本来就是空的)。
+    /// 用于 AppendTriPlaceholderRankingRows 把内存里这几条追加进 event_rankings。
+    /// </summary>
+    public class TriPlaceholderInfo
+    {
+        public int Heat;
+        public int Lane;
+        public double FinalTime;
+        public string Name;
     }
 }

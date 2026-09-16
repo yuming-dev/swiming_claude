@@ -964,7 +964,7 @@ function connect() {
 // 只换一半会出现"设备状态灯和比赛日志不刷新"这种看不出根由的毛病, 所以对不上
 // 就在页顶挂红条, 顺带连上时报给主服务器, 让系统日志里也留一行。
 // 【改了本页就把这个日期跟 MainWindow.WEB_ASSET_VERSION 一起往后挪】
-var PAGE_VER = '20260913-4';
+var PAGE_VER = '20260916-2';
 var PAGE_NAME = 'display.html';
 function reportPageVer(sock) {
     try { sock.send(JSON.stringify({type: 'CLIENT_VERSION', page: PAGE_NAME, ver: PAGE_VER})); } catch (e) {}
@@ -1006,7 +1006,18 @@ function checkPageVer(serverVer) {
         'SHOW_START_LIST': 1, 'SHOW_HEAT_RESULT': 1,
         'SHOW_EVENT_LIST': 1, 'SHOW_PROMOTION_LIST': 1
     };
+    // 2026-09-14 modeExplicit 原来是闭包参数, 只留住【本帧第一条】消息的那个值。
+    //   一帧(16ms)内先到心跳、后到操作员按的那一下时, 按下去的 modeExplicit=true 就被丢了 ——
+    //   模式确实切成 SHOW_LIVE_RACE, 但锁没解、_liveRaceForced 没置, render() 又被
+    //   "确认成绩后自动跳组成绩"那条规则拽回成绩画面, 现场表现还是"按了没用"。
+    //   改成随 _pendingMode 一起存: 同一个模式的多条消息里, 只要有一条是操作员按的, 就算显式。
+    var _pendingExplicit = false;
     function _scheduleRender(mode, payload, modeExplicit) {
+        // 2026-09-14 这一帧已经压着操作员按的那一下了, 随后 16ms 内到的心跳别把它顶掉 ——
+        //   顶掉就是"按了出发表/比赛视图没反应"。心跳 100ms 一条, 丢这一条没有任何影响。
+        if (!modeExplicit && _pendingExplicit && _pendingMode !== mode) return;
+        if (_pendingMode !== mode) _pendingExplicit = false;   // 换了模式, 重新判定
+        if (modeExplicit) _pendingExplicit = true;
         _pendingMode = mode;
         _pendingData = payload || {};
         if (_renderScheduled) return;
@@ -1014,6 +1025,8 @@ function checkPageVer(serverVer) {
         var doIt = function() {
             _renderScheduled = false;
             if (_pendingMode) {
+                var modeExplicit = _pendingExplicit;
+                _pendingExplicit = false;
                 // 操作员显式切到非比赛模式 → 锁定，让后续 LIVE_RACE 心跳无法夺权
                 if (modeExplicit && LOCKABLE_MODES[_pendingMode]) { modeLocked = true; _liveRaceForced = false; }
                 // 操作员显式切回 LIVE_RACE → 解锁, 并压住"确认后自动跳组成绩"那条规则
@@ -1032,6 +1045,16 @@ function checkPageVer(serverVer) {
         else setTimeout(doIt, 16);
     }
 
+    // 2026-09-14 成绩发布 / 比赛日程 / 图片视频 这三路是【不进帧合并、收到就画】的。
+    //   要是此刻正好还压着一帧没画的心跳(上一条 SHOW_LIVE_RACE_LITE 排的),
+    //   那一帧随后会照排好的 currentMode 再画一次, 把刚画上去的成绩盖掉 ——
+    //   现场就是"按了成绩发布, 闪一下又回比赛视图"。画之前先把那一帧作废。
+    function _cancelPendingRender() {
+        _pendingMode = null;
+        _pendingData = null;
+        _pendingExplicit = false;
+    }
+
     ws.onmessage = function(e) {
         var msg;
         try { msg = JSON.parse(e.data); } catch (er) { return; }
@@ -1048,6 +1071,7 @@ function checkPageVer(serverVer) {
             return;
         }
         if (msg.type === 'SHOW_PUBLISHED_RESULT') {
+            _cancelPendingRender();
             currentMode = 'SHOW_PUBLISHED_RESULT';
             publishedData = msg.data;
             modeLocked = true;
@@ -1057,6 +1081,7 @@ function checkPageVer(serverVer) {
         }
         // 2026-06-12 显示比赛日程: 独立负载缓存 (不进常规心跳), 翻页显示
         if (msg.type === 'SHOW_SCHEDULE') {
+            _cancelPendingRender();
             currentMode = 'SHOW_SCHEDULE';
             scheduleData = msg.data;
             modeLocked = true;
@@ -1064,6 +1089,7 @@ function checkPageVer(serverVer) {
             return;
         }
         if (msg.type === 'SHOW_MEDIA') {
+            _cancelPendingRender();
             currentMode = 'SHOW_MEDIA';
             modeLocked = true;
             _liveRaceForced = false;   // 2026-09-13 切走了, 压制标志跟着清
@@ -1448,6 +1474,24 @@ var _raceRowsBuiltKey = '';
 var _raceRowDOM = [];   // [{lane, row, laneNum, nameEl, teamEl, resultEl, rankEl, remarkEl, lastClass, lastResult, lastResultColor, lastRank, lastRankClass, lastRemark, lastRemarkColor, lastNameHtml, lastTeamHtml, lastLaneNum}]
 var _raceHeaderRelay = null;
 
+// 2026-09-14 #lanesContainer 是【三家共用】的: 比赛视图 / 组成绩 / 成绩发布 都往它里面画,
+//   后进来的那家直接 innerHTML='' 把前一家的行全铲了。
+//   而比赛视图和组成绩各自有一份"数据没变就不重建 DOM"的缓存(_raceRowsBuiltKey /
+//   _heatResultBuiltKey, 为的是不闪) —— 这份缓存只看数据, 不知道容器已经被别人重画过。
+//   于是现场那条路就断了: 本组比完 → 按"组成绩"或"成绩发布"(容器被换成成绩行)
+//   → 再按"比赛视图" → 项目/组次/运动员一个都没变, key 相同 → 直接 return,
+//   一行都不重建, 大屏就停在成绩画面上, 操作员看到的是"按了没用"。
+//   ("准备就绪"同理: 还是这一组时 key 也没变。)
+//   记一个"容器现在归谁", 换了主人就把两份缓存都作废, 逼下一次重建。
+//   注意: 只在【主人变了】时作废, 同一个视图连续刷新照旧走缓存, 不影响防闪。
+var _lanesOwner = '';
+function _claimLanesContainer(owner) {
+    if (_lanesOwner === owner) return;
+    _lanesOwner = owner;
+    _raceRowsBuiltKey = '';
+    _heatResultBuiltKey = '';
+}
+
 // 2026-06-14 比赛视图表头(接力感知) — 与运动员行顺序对齐:
 //   个人: 道次 名次 姓名 代表队 组别 成绩 备注
 //   接力: 道次 名次 代表队(窄) 姓名(宽,4棒同列) 组别 成绩 备注  (= 行内 .lane-row.relay swimmer-name 实承载代表队 / swimmer-team 承载姓名)
@@ -1726,6 +1770,7 @@ function _activeSwimmersForDisplay() {
 
 // DOM 构建：仅在 buildKey 变化时执行（运动员名单/泳道布局/接力切换/泳道数）
 function _ensureRaceRowsDom() {
+    _claimLanesContainer('race');   // 2026-09-14 容器刚被 组成绩/成绩发布 占过就强制重建
     var lc = getLaneCount();
     // 2026-06-20 同步 --lane-count CSS 变量, 让 --lane-row-h 按实际道数分配高度
     //   (8 道时每行加高 25%, 不再写死 / 10 留底部空白). 比赛视图 + 组成绩 + 接力 + 成绩发布 共用 .lane-row 高度变量都自动跟着.
@@ -2032,6 +2077,7 @@ var _heatResultMixed = false;   // 2026-06-05 男女并项 (= showHeatResultPage
 var _heatResultBuiltKey = '';
 
 function renderHeatResult() {
+    _claimLanesContainer('heat');   // 2026-09-14 容器刚被 比赛视图/成绩发布 占过就强制重建
     // 使用和比赛视图相同的布局和字体
     document.getElementById('raceView').classList.remove('hidden');
     // 2026-06-04 顺序统一: 性别 组别 项目
@@ -2197,6 +2243,7 @@ function isOccupiedLane(s) {
 
 function renderPublishedResult(pubData) {
     if (!pubData) return;
+    _claimLanesContainer('published');   // 2026-09-14 本函数自己每次都重建, 这里是为了让下一次切回 比赛视图/组成绩 时它们也重建
 
     // 隐藏所有视图，清除翻页定时器
     if (_rankingPageTimer) { clearInterval(_rankingPageTimer); _rankingPageTimer = null; }

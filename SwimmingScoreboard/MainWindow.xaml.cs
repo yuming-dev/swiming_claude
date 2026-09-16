@@ -199,7 +199,7 @@ namespace SwimmingScoreboard
         // 用处: 页面里有同名常量, 对不上就在页面顶端挂红条、并在主服务器系统日志里
         // 记一行。协议是 exe 和页面一起改的(比赛日志增量、设备状态推送、DATA_CHANGED),
         // 只换一半会出现"设备状态灯和比赛日志不刷新"这种看不出根由的毛病。
-        public const string WEB_ASSET_VERSION = "20260913-4";
+        public const string WEB_ASSET_VERSION = "20260916-2";
 
         private const int MAX_LANE_EVENT_LOG = 64 * 1024;
         private static void TrimSbIfOver(StringBuilder sb, int maxLen) {
@@ -237,8 +237,34 @@ namespace SwimmingScoreboard
         private List<IWebSocketConnection> _registerSockets = new List<IWebSocketConnection>();
         private List<IWebSocketConnection> _timingExeSockets = new List<IWebSocketConnection>();
         private List<IWebSocketConnection> _timingWebSockets = new List<IWebSocketConnection>();
+        // 2026-09-14 每个"计时EXE"连接的硬件状态 —— 是不是真接着硬件计时器(RTC 的
+        //   TIMING_EXE_IDENTITY/TIMING_EXE_HW_STATUS 带的 hwConnected), 以及是【哪台机器】
+        //   (Environment.MachineName, 连不上机器名时退回连接方 IP)。
+        //   前者决定"比赛控制"归谁的关键信号(见 UpdateScoringControlMode), 后者用于
+        //   "系统工作状态→连接状态"面板明确标出是哪台电脑接着硬件, 免得现场猜。
+        private class RemoteExeInfo {
+            public bool HwConnected;
+            public string MachineName = "";
+        }
+        private Dictionary<IWebSocketConnection, RemoteExeInfo> _timingExeInfo = new Dictionary<IWebSocketConnection, RemoteExeInfo>();
         // 编排 EXE 客户端集合（主服务器模式下）— 任何 AutoSaveData 之后把整包 CompetitionPackage 推过去
         private List<IWebSocketConnection> _editorSockets = new List<IWebSocketConnection>();
+        // 2026-09-14 query.html("赛事信息查询"终端) —— 拿数据的路子跟编排端一样(借用
+        //   EDITOR_IDENTITY 拉整包 + 订阅增量补丁, 这条不改), 但它是只读查询, 不是编排端,
+        //   混在 _editorSockets 里"连接状态"面板数不出它来。这里单独另计一份数, 只为显示;
+        //   该收整包/补丁照旧走 _editorSockets 那条路径不变。
+        private List<IWebSocketConnection> _querySockets = new List<IWebSocketConnection>();
+        // 2026-09-14 显示控制端(control.html / RemoteDisplayControl.exe) —— 跟"大屏显示"
+        //   (display.html, 真正在放内容的那块屏)是两码事: 这俩是操作员手里"遥控"大屏的
+        //   终端。原来它俩连上来一句身份都不报, 直接发 REMOTE_CONTROL 命令, 主服务器
+        //   "连接状态"面板完全看不出有它们存在。现在单独另计一份数, 只为显示;
+        //   它俩原有的命令收发(REMOTE_CONTROL/SET_DISPLAY_STYLE 等)走的是 _allSockets,
+        //   不受这份计数影响。
+        private List<IWebSocketConnection> _displayControlSockets = new List<IWebSocketConnection>();
+        // 2026-09-15 编排端(ScheduleEditor.exe, "编排记录及成绩处理") —— 跟 query.html 一样
+        //   借 EDITOR_IDENTITY 那条路拿整包/订阅补丁(不改), 但它是真正会写数据的编排端,
+        //   不是只读查询。同样混在 _editorSockets 里"连接状态"面板数不出来, 这里单独另计。
+        private List<IWebSocketConnection> _scheduleEditorSockets = new List<IWebSocketConnection>();
         // 编排 EXE 同步客户端（编排模式下）— 连到主服务器，双向同步整包
         private EditorSyncClient _editorSyncClient;
         // 双端共用：true 表示正在应用对端推过来的整包，AutoSaveData 不再回推，避免无限回环
@@ -859,10 +885,29 @@ namespace SwimmingScoreboard
                 hello["type"] = "EDITOR_IDENTITY";
                 _editorSyncClient.Send(hello.ToString(Formatting.None));
                 // 2026-06-17 RTC 模式: 额外发 TIMING_EXE_IDENTITY 让主服务器"系统工作状态" tab 显示 RTC 已连
+                // 2026-09-14 顺带带上本机此刻是否真接着硬件(hwConnected) —— 主服务器据此
+                //   判断"比赛控制"该让谁管, 不再只看"是不是 EXE 类型连接"。
+                //   连上主服务器这一刻硬件多半还没连(操作员通常先连主服务器、再连硬件),
+                //   所以这里大概率是 false; 真正的信号靠下面 OnStatusChanged 里的
+                //   PushHwConnStatusToMainServer 在硬件真连上的那一刻补发。
                 if (IsRemoteTimingControlMode) {
                     var rtcHello = new JObject();
                     rtcHello["type"] = "TIMING_EXE_IDENTITY";
+                    rtcHello["hwConnected"] = (_timingBridge != null && _timingBridge.IsConnected);
+                    // 2026-09-14 带上本机机器名, 让主服务器"连接状态"面板能明确标出
+                    // "是哪台电脑"接着硬件, 不止是"有没有接"。
+                    rtcHello["machine"] = Environment.MachineName;
                     _editorSyncClient.Send(rtcHello.ToString(Formatting.None));
+                }
+                // 2026-09-15 编排端(ScheduleEditor.exe)同样额外报一条专属身份 ——
+                //   跟 query.html 一样借 EDITOR_IDENTITY 那条路拿整包/订阅补丁(不改),
+                //   但那条身份是"信息查询终端"也在用的(见 query.html QUERY_IDENTITY),
+                //   两者混在 _editorSockets 里主服务器分不出"连着的是编排端还是查询页"。
+                //   这条专属身份只为"连接状态"面板单独计数, 不影响数据同步逻辑。
+                if (IsScheduleEditorMode) {
+                    var seHello = new JObject();
+                    seHello["type"] = "SCHEDULE_EDITOR_IDENTITY";
+                    _editorSyncClient.Send(seHello.ToString(Formatting.None));
                 }
                 SaveEditorSyncConfig(host, true);
 
@@ -877,6 +922,24 @@ namespace SwimmingScoreboard
                 AddLog("连接主服务器失败: " + ex.Message);
                 UpdateEditorSyncStatus("离线", "#94A3B8");
             }
+        }
+
+        /// <summary>
+        /// 2026-09-14 【原则】哪台机器接着硬件计时器、正在做比赛计时控制，
+        /// 哪台机器的"比赛控制"就是最高优先级 —— 不是"哪个是 EXE、哪个是网页"。
+        /// RTC 每次硬件连接状态变化(连上/断开)都调这个, 把事实告诉主服务器;
+        /// 主服务器据此决定自己该不该把「比赛控制」页让给远程(见 UpdateScoringControlMode)。
+        /// </summary>
+        private void PushHwConnStatusToMainServer() {
+            if (!IsRemoteTimingControlMode) return;
+            if (_editorSyncClient == null || !_editorSyncClient.IsConnected) return;
+            try {
+                var msg = new JObject();
+                msg["type"] = "TIMING_EXE_HW_STATUS";
+                msg["hwConnected"] = (_timingBridge != null && _timingBridge.IsConnected);
+                msg["machine"] = Environment.MachineName;
+                _editorSyncClient.Send(msg.ToString(Formatting.None));
+            } catch { }
         }
 
         /// <summary>
@@ -1376,6 +1439,18 @@ namespace SwimmingScoreboard
             try { sender.Signal.Set(); } catch { }
         }
 
+        // 2026-09-15 【广播分级】入队到"这一组"socket, 不是全体。
+        //   TP/SB/MB 设备状态、泳道事件日志、0.1s 滚动时间、比赛实况精简帧这几路
+        //   原来一律 EnqueueToAll —— 检录台/信息查询/排名屏/报名终端/显示控制/编排端
+        //   全都收到, 而它们的页面代码根本不处理这些类型, 白白经过序列化+网络+解析
+        //   一趟, 收到即丢。这几路的真正订阅者只有"大屏"(_displaySockets)、
+        //   "比赛控制网页"(_timingWebSockets)、"显示控制端"(_displayControlSockets)
+        //   这三类里的几种组合, 见各调用点注释。
+        private void EnqueueToSet(IEnumerable<IWebSocketConnection> targets, string json) {
+            if (string.IsNullOrEmpty(json) || targets == null) return;
+            foreach (var s in targets) EnqueueToSocket(s, json);
+        }
+
         private void InitializeWebSocketServer() {
             // 2026-06-17 方案 B: RTC 模式不再开 WebSocket Server.
             //   display.html / race_control.html 改为连主服务器, RTC 通过 EditorSyncClient
@@ -1434,8 +1509,12 @@ namespace SwimmingScoreboard
                         _leaderboardSockets.Remove(socket);
                         _registerSockets.Remove(socket);
                         _timingExeSockets.Remove(socket);
+                        _timingExeInfo.Remove(socket);
                         _timingWebSockets.Remove(socket);
                         _editorSockets.Remove(socket);
+                        _querySockets.Remove(socket);
+                        _displayControlSockets.Remove(socket);
+                        _scheduleEditorSockets.Remove(socket);
                         // 客户端断开 → 释放其持有的所有编辑锁，避免数据被永久锁死
                         ReleaseLocksHeldBy(socket);
                         Dispatcher.Invoke((Action)delegate() {
@@ -1593,8 +1672,42 @@ namespace SwimmingScoreboard
                         break;
                     case "TIMING_EXE_IDENTITY":
                         if (!_timingExeSockets.Contains(socket)) _timingExeSockets.Add(socket);
-                        AddLog("计时EXE已连接");
+                        // 2026-09-14 记下这个 EXE 连上这一刻是否真接着硬件、是哪台机器
+                        //   (见 PushHwConnStatusToMainServer 的注释) —— 机器名拿不到(老版本
+                        //   RTC 没带这个字段)就退回连接方 IP, "连接状态"面板好歹能看出个大概。
+                        {
+                            var info = new RemoteExeInfo {
+                                HwConnected = (msg["hwConnected"] != null && (bool)msg["hwConnected"]),
+                                MachineName = msg["machine"] != null ? msg["machine"].ToString() : ""
+                            };
+                            if (string.IsNullOrEmpty(info.MachineName)) {
+                                try { info.MachineName = socket.ConnectionInfo.ClientIpAddress; } catch { }
+                            }
+                            _timingExeInfo[socket] = info;
+                            AddLog(string.Format("计时EXE已连接（{0}，{1}）", info.MachineName,
+                                info.HwConnected ? "已接硬件" : "尚未接硬件"));
+                        }
                         UpdateScoringControlMode();
+                        UpdateConnectionStatus();   // 2026-09-14 刷新"连接状态"里"计时硬件"那一行(哪台机器)
+                        break;
+                    // 2026-09-14 RTC 硬件连接状态变化(连上/断开硬件计时器)实时上报 ——
+                    //   "比赛控制"该让谁管靠这个信号判断, 不是靠"连接类型是 EXE 还是网页"。
+                    case "TIMING_EXE_HW_STATUS":
+                        {
+                            RemoteExeInfo info;
+                            if (!_timingExeInfo.TryGetValue(socket, out info)) {
+                                info = new RemoteExeInfo();
+                                try { info.MachineName = socket.ConnectionInfo.ClientIpAddress; } catch { }
+                                _timingExeInfo[socket] = info;
+                            }
+                            if (msg["machine"] != null && !string.IsNullOrEmpty(msg["machine"].ToString()))
+                                info.MachineName = msg["machine"].ToString();
+                            info.HwConnected = (msg["hwConnected"] != null && (bool)msg["hwConnected"]);
+                            AddLog(string.Format("远程计时控制（{0}） 硬件连接状态: {1}",
+                                info.MachineName, info.HwConnected ? "已连接" : "已断开"));
+                        }
+                        UpdateScoringControlMode();
+                        UpdateConnectionStatus();   // 2026-09-14 刷新"连接状态"里"计时硬件"那一行(哪台机器)
                         break;
                     case "TIMING_WEB_IDENTITY":
                         if (!_timingWebSockets.Contains(socket)) _timingWebSockets.Add(socket);
@@ -1608,6 +1721,27 @@ namespace SwimmingScoreboard
                         if (!_editorSockets.Contains(socket)) _editorSockets.Add(socket);
                         AddLog("编排客户端已连接 — 立即推送整包");
                         SendEditorPackageTo(socket);   // 上线立即喂一次整包，编排端覆盖本地
+                        break;
+                    // 2026-09-14 query.html("信息查询"终端) 的身份标记 —— 只为"连接状态"面板计数,
+                    //   不影响它借用 EDITOR_IDENTITY 拿整包/订阅补丁那条路(见上面那个 case)。
+                    case "QUERY_IDENTITY":
+                        if (!_querySockets.Contains(socket)) _querySockets.Add(socket);
+                        AddLog("信息查询终端已连接");
+                        UpdateConnectionStatus();
+                        break;
+                    // 2026-09-14 显示控制端(control.html / RemoteDisplayControl.exe) 身份标记 ——
+                    //   只为"连接状态"面板计数, 不影响它俩原有的 REMOTE_CONTROL 命令收发。
+                    case "DISPLAY_CONTROL_IDENTITY":
+                        if (!_displayControlSockets.Contains(socket)) _displayControlSockets.Add(socket);
+                        AddLog("显示控制端已连接");
+                        UpdateConnectionStatus();
+                        break;
+                    // 2026-09-15 编排端(ScheduleEditor.exe)身份标记 —— 只为"连接状态"面板计数,
+                    //   不影响它借用 EDITOR_IDENTITY 拿整包/订阅补丁那条路(见上面 EDITOR_IDENTITY)。
+                    case "SCHEDULE_EDITOR_IDENTITY":
+                        if (!_scheduleEditorSockets.Contains(socket)) _scheduleEditorSockets.Add(socket);
+                        AddLog("编排端已连接");
+                        UpdateConnectionStatus();
                         break;
                     // 2026-06-17 方案 B: RTC 把比赛状态 (SHOW_LIVE_RACE / RUNNING_TIME_UPDATE 等) 经此连接
                     //   推给主服务器, 主服务器透传给所有本机 _allSockets (display.html / race_control.html ...).
@@ -1630,13 +1764,24 @@ namespace SwimmingScoreboard
                             //   【大屏专用包(约 23KB)】和【给其它客户端的精简帧】分开发 ——
                             //   原来不分, 一律发 GetStatusData() 整包(278KB), 大屏切个视图
                             //   要等那 278KB 传完再解析, 现场感觉就是"按了半天才变"。
+                            // 2026-09-15 【广播分级】to="others" 的含义收窄: 原来是"除大屏外
+                            //   所有人"(检录台/信息查询/排名屏/报名终端/显示控制/编排端全在内,
+                            //   但它们谁都不处理这些消息), 现在改成"比赛控制网页"
+                            //   (_timingWebSockets, race_control.html) —— 真正会用这些数据的
+                            //   只有它。同时新增两个更窄的收件人组: to="display_control"
+                            //   (大屏∪比赛控制网页, 给滚动时间用) 和 to="style"
+                            //   (大屏∪比赛控制网页∪显示控制端, 给大屏样式推送用)。
+                            //   没带 to 的默认分支保留 EnqueueToAll, 给低频结构性消息
+                            //   (比如成绩回推类通知)兜底广播, 本次不收窄。
                             string to = msg["to"] != null ? msg["to"].ToString() : "";
                             if (to == "display") {
                                 foreach (var s in _displaySockets.ToList()) EnqueueToSocket(s, json);
                             } else if (to == "others") {
-                                var disp = _displaySockets.ToList();
-                                foreach (var s in _allSockets.ToList())
-                                    if (!disp.Contains(s)) EnqueueToSocket(s, json);
+                                foreach (var s in _timingWebSockets.ToList()) EnqueueToSocket(s, json);
+                            } else if (to == "display_control") {
+                                foreach (var s in _displaySockets.Concat(_timingWebSockets).ToList()) EnqueueToSocket(s, json);
+                            } else if (to == "style") {
+                                foreach (var s in _displaySockets.Concat(_timingWebSockets).Concat(_displayControlSockets).ToList()) EnqueueToSocket(s, json);
                             } else {
                                 // 2026-06-18 per-socket 队列, 不再 lock 串行 send
                                 EnqueueToAll(json);
@@ -3201,14 +3346,61 @@ namespace SwimmingScoreboard
         }
 
         /// <summary>
-        /// 2026-09-13 比赛控制现在归 EXE 管吗。
-        /// 两种情形: 有比赛控制程序连进来; 或者【本机就是那个程序】(RTC) ——
-        /// RTC 不会把自己算进 _timingExeSockets, 但它接着硬件, 优先级最高。
+        /// 2026-09-13 比赛控制现在归 EXE 管吗 —— 这个值会广播给 race_control.html /
+        /// query.html 等网页, 网页据此决定要不要把自己的操作按钮禁掉。
+        /// 2026-09-14 改按【接没接硬件】判, 不再是"连接类型是不是 EXE 就算数":
+        ///   · 本机是 RTC 时: 只有 RTC 自己也真接着硬件, 才有资格说"控制权在 EXE"——
+        ///     RTC 还没接硬件(比如刚启动、线还没插)时说"控制权在我", 会把网页的按钮
+        ///     平白无故禁掉, 而实际上谁都没在控制。
+        ///   · 本机是主服务器时: 本机真接着硬件、且没有远程 EXE 也报告接了硬件,
+        ///     控制权在本机自己, 不算"被 EXE 拿走"(即使凑巧有个不接硬件的远程 EXE 连着)。
         /// </summary>
         private bool IsRaceControlTakenByExe() {
-            return IsRemoteTimingControlMode || _timingExeSockets.Count > 0;
+            if (IsRemoteTimingControlMode) return LocalHasHardware();
+            if (LocalHasHardware() && !AnyRemoteExeHasHardware()) return false;
+            return _timingExeSockets.Count > 0;
         }
 
+        // 2026-09-14 本机(主服务器)此刻是不是真接着硬件计时器在计时。
+        private bool LocalHasHardware() {
+            return _timingBridge != null && _timingBridge.IsConnected;
+        }
+
+        // 2026-09-14 有没有哪个远程"计时EXE"连接【真的】接着硬件(见 _timingExeInfo)。
+        //   跟"_timingExeSockets.Count > 0"不是一回事 —— 后者只说明有个 EXE 连上来了,
+        //   不说明它接了硬件(可能只是开着看、或者硬件还没接上)。
+        private bool AnyRemoteExeHasHardware() {
+            foreach (var kv in _timingExeInfo) { if (kv.Value != null && kv.Value.HwConnected) return true; }
+            return false;
+        }
+
+        // 2026-09-14 哪台远程机器接着硬件 —— "连接状态"面板用, 明确标出是哪台电脑,
+        //   不止是"有没有接"。多台同时报接硬件(误配置)时取第一个, 已经在
+        //   UpdateScoringControlMode 里对这种情况单独报过警告。
+        private string RemoteExeHardwareMachineName() {
+            foreach (var kv in _timingExeInfo) {
+                if (kv.Value != null && kv.Value.HwConnected)
+                    return string.IsNullOrEmpty(kv.Value.MachineName) ? "(未知机器)" : kv.Value.MachineName;
+            }
+            return "";
+        }
+
+        // ══════════════════════════════════════════════════════════════
+        // 2026-09-14 【原则】哪台机器接着硬件计时器正在做比赛计时控制,
+        //   哪台机器的"比赛控制"优先级最高 —— 判定依据是"接没接硬件",
+        //   不是"连接类型是 EXE 还是网页"。
+        //
+        //   原来的判定完全按连接类型分 (EXE > Web > 本地): 本机(主服务器)只要
+        //   一有远程 EXE/网页连上来就让权、把自己的「比赛控制」页锁上 —— 但如果
+        //   本机自己才是那台真正接着硬件在计时的机器, 而对面连上来的 EXE 其实
+        //   没接硬件(比如现场另开了一份 RTC.exe 只是看看, 或者硬件线还没插上),
+        //   这就是本末倒置: 真正在计时的机器反而被挤下线。
+        //
+        //   现在改成: 本机有硬件、且没有任何远程 EXE 报告"我也接了硬件"时,
+        //   本机稳坐"本地直连"不动, 不管有多少远程 EXE/网页连着——它们此刻
+        //   顶多是旁观/待命, 不是真在计时。只有当远程那头明确报告接了硬件,
+        //   才按原来的优先级把控制权让出去。
+        // ══════════════════════════════════════════════════════════════
         private void UpdateScoringControlMode() {
             // 本机就是比赛控制程序 —— 对连上来的网页而言, 控制权在 EXE 手里
             if (IsRemoteTimingControlMode) {
@@ -3220,10 +3412,21 @@ namespace SwimmingScoreboard
                 UpdateRaceControlTabLock();
                 return;
             }
-            if (_timingExeSockets.Count > 0) {
+            bool localHw = LocalHasHardware();
+            bool remoteHw = AnyRemoteExeHasHardware();
+            if (localHw && !remoteHw) {
+                // 本机真接着硬件, 远程没人接 —— 本机说了算, 不理会挂着的远程连接数量
+                _scoringControlMode = "local";
+                ControlModeText.Text = "本地(直连硬件)";
+                ControlModeText.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#22C55E"));
+            } else if (_timingExeSockets.Count > 0) {
                 _scoringControlMode = "remote_exe";
                 ControlModeText.Text = "远程EXE";
                 ControlModeText.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F59E0B"));
+                // 2026-09-14 两头都接着硬件是误配置(同一台计时器不该被两条线路同时读),
+                //   默认仍让远程接管(避免忽左忽右), 但得在日志里喊一声让人去查现场接线。
+                if (localHw && remoteHw)
+                    AddLog("【注意】本机和远程计时EXE都报告接着硬件计时器 —— 请检查现场接线, 当前默认由远程一端控制");
             } else if (_timingWebSockets.Count > 0) {
                 _scoringControlMode = "remote_web";
                 ControlModeText.Text = "远程Web";
@@ -3252,7 +3455,10 @@ namespace SwimmingScoreboard
             // 比赛控制程序(RTC)自己【永远不锁自己】: 它才是接着硬件的那台, 站在它跟前的
             // 操作员必须随时能按。有人另开一个比赛控制网页连到它, 那是它的延伸, 不是接管。
             if (IsRemoteTimingControlMode) return;
-            bool remote = (_timingExeSockets.Count > 0 || _timingWebSockets.Count > 0);
+            // 2026-09-14 本机真接着硬件、远程没人接硬件时, 不让远程的连接数量(哪怕是 EXE)
+            // 把本机这一页锁掉 —— 见 UpdateScoringControlMode 顶上那段【原则】说明。
+            bool localTakesPriority = LocalHasHardware() && !AnyRemoteExeHasHardware();
+            bool remote = !localTakesPriority && (_timingExeSockets.Count > 0 || _timingWebSockets.Count > 0);
             if (RaceControlTab.IsEnabled == !remote) return;    // 状态没变, 不折腾也不刷日志
             RaceControlTab.IsEnabled = !remote;
             if (remote) {
@@ -3283,12 +3489,31 @@ namespace SwimmingScoreboard
             LeaderboardConnText.Foreground = new SolidColorBrush(_leaderboardSockets.Count > 0 ? Colors.Green : Colors.Red);
             RegisterConnText.Text = _registerSockets.Count.ToString();
             RegisterConnText.Foreground = new SolidColorBrush(_registerSockets.Count > 0 ? Colors.Green : Colors.Red);
+            QueryConnText.Text = _querySockets.Count.ToString();
+            QueryConnText.Foreground = new SolidColorBrush(_querySockets.Count > 0 ? Colors.Green : Colors.Red);
+            DisplayControlConnText.Text = _displayControlSockets.Count.ToString();
+            DisplayControlConnText.Foreground = new SolidColorBrush(_displayControlSockets.Count > 0 ? Colors.Green : Colors.Red);
+            ScheduleEditorConnText.Text = _scheduleEditorSockets.Count.ToString();
+            ScheduleEditorConnText.Foreground = new SolidColorBrush(_scheduleEditorSockets.Count > 0 ? Colors.Green : Colors.Red);
             TimingExeConnText.Text = _timingExeSockets.Count.ToString();
             TimingExeConnText.Foreground = new SolidColorBrush(_timingExeSockets.Count > 0 ? Colors.Green : Colors.Red);
             TimingWebConnText.Text = _timingWebSockets.Count.ToString();
             TimingWebConnText.Foreground = new SolidColorBrush(_timingWebSockets.Count > 0 ? Colors.Green : Colors.Red);
-            TimingHwConnText.Text = _timingBridge != null && _timingBridge.IsConnected ? _timingBridge.StatusText : "未连接";
-            TimingHwConnText.Foreground = new SolidColorBrush(_timingBridge != null && _timingBridge.IsConnected ? Colors.Green : Colors.Red);
+            // 2026-09-14 明确列明是【哪台电脑】接着硬件计时器, 不只是"连了没有"——
+            //   本机(主服务器自己)真接着硬件时优先显示本机; 否则看有没有远程 EXE(RTC)
+            //   报告接了硬件, 报了就把那台机器的名字亮出来; 都没有才是"未连接"。
+            bool _localHwOn = LocalHasHardware();
+            string _remoteHwMachine = RemoteExeHardwareMachineName();
+            if (_localHwOn) {
+                TimingHwConnText.Text = "本机 (" + Environment.MachineName + ")";
+                TimingHwConnText.Foreground = new SolidColorBrush(Colors.Green);
+            } else if (!string.IsNullOrEmpty(_remoteHwMachine)) {
+                TimingHwConnText.Text = "远程 (" + _remoteHwMachine + ")";
+                TimingHwConnText.Foreground = new SolidColorBrush(Colors.Green);
+            } else {
+                TimingHwConnText.Text = "未连接";
+                TimingHwConnText.Foreground = new SolidColorBrush(Colors.Red);
+            }
             //2026-05-19 顶部状态栏右侧的"硬件计时器"指示同步刷新
             bool _hwOn = _timingBridge != null && _timingBridge.IsConnected;
             // 2026-06-15 已连接 = 鲜艳红色(醒目, 比赛中一眼确认硬件在线); 未连接 = 橙色告警(与红区分)
@@ -3358,8 +3583,11 @@ namespace SwimmingScoreboard
         private bool TryForwardToMainServer(object payload) { return TryForwardToMainServer(payload, null); }
 
         /// <summary>
-        /// 2026-09-13 to: null=发给所有客户端(老行为); "display"=只发大屏; "others"=只发非大屏。
-        /// 切显示模式时靠它把【大屏专用包】和【给别人的精简帧】分开发, 不再一律甩 278KB 整包。
+        /// 2026-09-13 to: null=发给所有客户端(老行为，给低频结构性消息兜底); "display"=只发大屏。
+        /// 2026-09-15 【广播分级】"others"=只发比赛控制网页(_timingWebSockets, race_control.html)
+        /// ——不再是"除大屏外所有人"; "display_control"=大屏∪比赛控制网页(滚动时间用);
+        /// "style"=大屏∪比赛控制网页∪显示控制端(大屏样式推送用)。分发定义见服务端
+        /// HandleMessage 的 RTC_FORWARD case。
         /// </summary>
         private bool TryForwardToMainServer(object payload, string to) {
             if (!IsRemoteTimingControlMode) return false;
@@ -3423,14 +3651,34 @@ namespace SwimmingScoreboard
             if (IsRemoteTimingControlMode) {
                 try {
                     var msg = new { type = "SHOW_LIVE_RACE_LITE", data = GetStatusData(false) };
-                    TryForwardToMainServer(msg);
+                    // 2026-09-15 【广播分级, 修正】这一路是 RTC 驱动比赛时, 大屏(display.html)
+                    //   赖以刷新泳道行/分段成绩/触板成绩/比赛状态的【唯一】周期性来源
+                    //   (display.html 收到 SHOW_LIVE_RACE_LITE 后按 staticOmitted 合并进
+                    //   data.swimmers/raceState 等字段, 靠它才有实时画面)。
+                    //   原来这里是不带 to 的 TryForwardToMainServer(msg)(单参数重载,
+                    //   老逻辑落到 EnqueueToAll, 大屏在收件人之列)。上一版广播分级把它
+                    //   错改成了 to="others" —— 而 "others" 这次被收窄成只发比赛控制网页
+                    //   (_timingWebSockets), 大屏被排除在外了, 后果就是 RTC 驱动时
+                    //   大屏的滚动时间/分段成绩/触板成绩全部停更(现场实拍到)。
+                    //   改成 to="display_control"(大屏∪比赛控制网页), 大屏重新在收件人里;
+                    //   检录台/信息查询/排名屏/报名终端/显示控制/编排端依然不收——它们
+                    //   从来不处理这个类型, 这条才是本次分级真正要省的那一路。
+                    TryForwardToMainServer(msg, "display_control");
                 } catch { }
                 return;
             }
-            if (_allSockets.Count == 0) return;   // 无客户端时连快照都省, 0 分配
+            var displays = _displaySockets.ToList();
+            // 2026-09-15 【广播分级】"其余客户端"原来是 _allSockets 减大屏 —— 检录台/
+            //   信息查询/排名屏/报名终端/显示控制/编排端全在里面, 可它们的页面代码
+            //   压根不处理 SHOW_LIVE_RACE_LITE, 收到即丢。真正的订阅者只有比赛控制
+            //   网页(race_control.html, _timingWebSockets)。窄成这个集合后:
+            //   · 现场只开检录台/查询终端、没人开比赛控制网页时, 这条 100ms 一次的
+            //     GetStatusData(false) 计算 + 序列化【彻底不跑了】—— 这才是用户要的
+            //     "主服务器省下来干别的事", 不只是省网络流量。
+            var others = _timingWebSockets.ToList();
+            if (displays.Count == 0 && others.Count == 0) return;   // 无相关客户端时连快照都省, 0 分配
             try {
                 string type = full ? "SHOW_LIVE_RACE" : "SHOW_LIVE_RACE_LITE";
-                var displays = _displaySockets.ToList();
 
                 // 2026-08-27 大屏走专用包。这是比赛中最费的一路(每 100ms 一帧),
                 //   整包 249KB -> 专用包约 23KB。别的客户端读的字段跟大屏不是一套,
@@ -3443,7 +3691,6 @@ namespace SwimmingScoreboard
                     }
                 }
 
-                var others = _allSockets.Where(s => !displays.Contains(s)).ToList();
                 if (others.Count > 0) {
                     // 2026-09-13 【整包不再按时间片发】
                     //   原来每 10 秒给非大屏客户端发一次 278KB 的完整包, 理由是"它们还没
@@ -3566,11 +3813,16 @@ namespace SwimmingScoreboard
                             clockPaused = _clockPaused
                         }
                     };
-                    TryForwardToMainServer(msg);
+                    // 2026-09-15 【广播分级】滚动时间只有"大屏"和"比赛控制网页"要看,
+                    //   检录台/信息查询/排名屏/报名终端/显示控制/编排端都不显示这个,
+                    //   原来 10Hz 群发给所有人。带 to="display_control", 主服务器只转给
+                    //   _displaySockets ∪ _timingWebSockets(定义见 RTC_FORWARD case)。
+                    TryForwardToMainServer(msg, "display_control");
                 } catch { }
                 return;
             }
-            if (_allSockets.Count == 0) return;
+            // 2026-09-15 【广播分级】同上, 收件人从 _allSockets 收窄成"大屏 ∪ 比赛控制网页"。
+            if (_displaySockets.Count == 0 && _timingWebSockets.Count == 0) return;
             try {
                 // 2026-05-27 停表期间高频转发也用快照值, 防止冻结画面被 100ms 频率的真实时间覆盖
                 double t = _clockPaused ? _pausedRunningTime : _runningTime;
@@ -3582,7 +3834,7 @@ namespace SwimmingScoreboard
                     }
                 };
                 string json = JsonConvert.SerializeObject(msg);
-                EnqueueToAll(json);   // 2026-06-18 per-socket 队列
+                EnqueueToSet(_displaySockets.Concat(_timingWebSockets), json);
             } catch { }
         }
 
@@ -3954,6 +4206,9 @@ namespace SwimmingScoreboard
                     for (int hh = 1; hh <= hc; hh++) heatConfirmed.Add(IsHeatConfirmed(ag, s.Gender, s.EventName, s.Stage, hh));
                     return new {
                         session = s.SessionNumber, sessionName = s.SessionName,
+                        // 2026-09-15 漏发 evNum(项次) —— query.html"比赛日程"页那一列一直显示"-",
+                        //   下拉排序(session*1000+evNum)也跟着失真。这里补上。
+                        evNum = s.EvNum,
                         date = s.Date, time = s.Time,
                         ageGroup = ag,
                         eventName = s.EventName, gender = s.Gender,
@@ -3994,8 +4249,16 @@ namespace SwimmingScoreboard
                     results = sw.Results.Select(r => new {
                         stage = r.Stage,
                         heat = r.Heat,
+                        // 2026-09-15 query.html 查"成绩"页按 stage+heat 从这个数组里找人时,
+                        //   原来没带 lane —— 只能退回 sw.lane(运动员【当前】那个道次), 晋级/
+                        //   重新分组后跟这一条历史成绩当初实际游的道次对不上, 显示就错了。
+                        lane = r.Lane,
                         finalTime = r.FinalTimeDisplay,
                         rank = r.Rank,
+                        // 2026-09-15 "总排名"页原来是拿到手的成绩自己重新按时间排一遍——
+                        //   跟"成绩与排名"/大屏/打印那份权威的跨组名次(EventRank, 全场只算
+                        //   一次那份)各算各的, 可能对不上号。带上它, 有定稿值就优先用。
+                        eventRank = r.EventRank,
                         recordNote = r.RecordNote ?? "",
                         status = r.Status ?? ""
                     }).ToList(),
@@ -4644,8 +4907,17 @@ namespace SwimmingScoreboard
             //   导致硬件→PC 延迟可达秒级 (UI 重绘 / Broadcast / AddLog 慢时).
             //   改 BeginInvoke 后: 接收线程 raise 事件 → 排队后立刻返回继续读下一帧,
             //   UI 线程空闲时按 FIFO 顺序消费. 帧间顺序保留, 接收线程不再被 UI 拖慢.
+            // 2026-09-14 RTC 界面 TP/MB 状态灯比硬件自己的屏幕慢半拍 —— 根就在这条
+            //   排队顺序上。RTC 比主服务器多一路排队: EditorSyncClient.OnMessage 收到
+            //   主服务器转发回来的东西, 也是同样 Normal 优先级 BeginInvoke 到这同一个
+            //   UI 线程。两路谁先排上谁先跑, 网络那路消息一多/一密, 后到的硬件触板帧
+            //   就排在后面, 状态灯跟着晚刷 —— 这条本来就在上面注释里写过("间接导致
+            //   硬件计时帧 backlog → 中间面板触板成绩/状态灯刷新不及时"), 一直没配优先级。
+            //   硬件帧(触板/盲表/出发台/状态灯)是实时性要求最高的一路, 给它 Send
+            //   优先级(WPF Dispatcher 里最高一档), 排到所有 Normal 优先级的网络消息前面,
+            //   不用等排在它前面的那堆 EditorSync 消息处理完。
             _timingBridge.OnTimingData += delegate(TimingData data) {
-                Dispatcher.BeginInvoke((Action)delegate() {
+                Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Send, (Action)delegate() {
                     ProcessTimingDataFromHardware(data);
                 });
             };
@@ -4653,6 +4925,17 @@ namespace SwimmingScoreboard
                 Dispatcher.BeginInvoke((Action)delegate() {
                     TimingStatusText.Text = status;
                     UpdateConnectionStatus();
+                    // 2026-09-14 原则: 谁接着硬件计时器, 谁的"比赛控制"最高优先级 ——
+                    //   不是"谁是 EXE 谁是网页"。RTC 硬件连接状态一变(连上/断开),
+                    //   立刻把这个事实告诉主服务器, 主服务器据此决定该让谁说了算
+                    //   (见 UpdateScoringControlMode / UpdateRaceControlTabLock)。
+                    if (IsRemoteTimingControlMode) PushHwConnStatusToMainServer();
+                    // 2026-09-14 本机(主服务器)自己的硬件连接状态变了, 也得重新评一遍
+                    //   "比赛控制"该不该锁 —— 不然本机硬件刚插上那一刻, 页签还锁着,
+                    //   要等下一次有远程连接数变化才会刷新, 现场感觉像"接上了也没用"。
+                    //   (InitializeTimingBridge 只在非编排端模式下才会跑到这里, 这个分支
+                    //   跑到的就是"主服务器本机", RTC 已经在上面 if 分支里单独处理过了)
+                    else UpdateScoringControlMode();
                     // 硬件刚连上时，把当前参数/设备状态/比赛距离/发令点下发一次（以服务器为准）
                     if (_timingBridge != null && _timingBridge.IsConnected) {
                         // 2026-05-30 v2: 重连后清"不再提醒" 抑制标志, 让用户重新收到通知
@@ -6343,14 +6626,17 @@ namespace SwimmingScoreboard
         // 一条事件约 70 字节, 直接推给客户端让它自己往后接。
         // 对比原来的做法: 每帧把十条道 640KB 的累积文本全量重发一遍。
         // 完整帧(10 秒一次)仍带全量, 客户端断线重连/漏了一条也能对齐。
+        // 2026-09-15 【广播分级】泳道事件日志只有"比赛控制网页"(race_control.html) 的
+        //   日志面板在读; 大屏不读(BuildDisplayPayload 本来就不带这个字段), 检录台/
+        //   信息查询/排名屏/报名终端/显示控制/编排端更用不上。原来 EnqueueToAll 全员群发。
         private void PushLaneEventAppend(int lane, string line) {
             if (string.IsNullOrEmpty(line)) return;
             try {
                 var msg = new { type = "LANE_EVENT_APPEND", data = new { lane = lane, text = line } };
+                if (IsRemoteTimingControlMode) { TryForwardToMainServer(msg, "others"); return; }
+                if (_timingWebSockets.Count == 0) return;
                 string json = JsonConvert.SerializeObject(msg);
-                if (IsRemoteTimingControlMode) { TryForwardToMainServer(msg); return; }
-                if (_allSockets.Count == 0) return;
-                EnqueueToAll(json);
+                EnqueueToSet(_timingWebSockets, json);
             } catch { }
         }
 
@@ -9306,6 +9592,7 @@ namespace SwimmingScoreboard
 
             if (made > 0) {
                 RemovePendingEventRankGen(ag, gd, ev, st);
+                AppendTriPlaceholdersToEventRanking(ag, gd, ev, st);
                 try { ApplyEventRankingsFromDb(); } catch { }
                 try {
                     if (socket != null && !string.IsNullOrEmpty(msgId)) {
@@ -9344,6 +9631,7 @@ namespace SwimmingScoreboard
                 if (made > 0) {
                     RemovePendingEventRankGen(x[0], x[1], x[2], x[3]);
                     AddLog(string.Format("挂起的组成绩已补上: {0}{1} {2} {3}", x[0], x[1], x[2], x[3]));
+                    AppendTriPlaceholdersToEventRanking(x[0], x[1], x[2], x[3]);
                     try { ApplyEventRankingsFromDb(); } catch { }
                 }
             }
@@ -9558,7 +9846,11 @@ namespace SwimmingScoreboard
                 foreach (var k in touched) {
                     try {
                         int made = _meetDb.GenerateEventRankingIfComplete(k[0], k[1], k[2], k[3], "文件导入");
-                        if (made > 0) { gen++; AddLog(string.Format("已生成组成绩: {0}{1} {2} {3}（{4} 人）", k[0], k[1], k[2], k[3], made)); }
+                        if (made > 0) {
+                            gen++;
+                            AddLog(string.Format("已生成组成绩: {0}{1} {2} {3}（{4} 人）", k[0], k[1], k[2], k[3], made));
+                            AppendTriPlaceholdersToEventRanking(k[0], k[1], k[2], k[3]);
+                        }
                     } catch (Exception ex) { AddLog("导入后生成组成绩失败: " + ex.Message); }
                 }
                 if (gen > 0) { try { ApplyEventRankingsFromDb(); } catch { } }
@@ -11732,9 +12024,11 @@ namespace SwimmingScoreboard
                 AddLog("比赛进行中不能切换项目");
                 return;
             }
-            // 已完赛的组：灰色可见但不能选择开始比赛
+            // 2026-09-16 只有【已确认】(真点过"确认本组成绩")的组才锁 —— 标 [已完赛] 但没点
+            //   过确认按钮的组不会走到这条 done: 分支(见 BuildScheduleTree), 能正常点开重装,
+            //   点完再补"确认本组成绩"。灰色可见但不能选择开始比赛。
             if (tag.StartsWith("done:")) {
-                AddLog("该组比赛已完赛，不能重新选择");
+                AddLog("该组成绩已确认，不能重新选择（如需修改，请用「解锁本组成绩」或「裁判长改成绩」）");
                 return;
             }
             // 格式: "heat:组别|性别|项目|阶段|组次"  （组别可空）
@@ -11809,15 +12103,23 @@ namespace SwimmingScoreboard
                     string header = string.Format("{0}. ", seqNum)
                                   + (string.IsNullOrEmpty(ag) ? "" : ("[" + ag + "] "))
                                   + string.Format("{0} {1} {2}", ev.Gender, ev.EventName, ev.Stage);
-                    bool allHeatsConfirmed = IsStageAllConfirmedFast(ag, ev.Gender, ev.EventName, ev.Stage, swIdx);
-                    if (!allHeatsConfirmed) sessionAllDone = false;
+                    // 2026-09-16 拆成两条: “已完赛”(数据齐, 仍可点开重装)和“已确认”(真点过
+                    //   确认按钮, 锁定不让再点开) —— 用户提出的区分, 解开了下面这个死结:
+                    //   中途关程序漏点"确认本组成绩", 数据其实全收到了, 旧逻辑一条推断就把
+                    //   这组标成"已完赛"锁死, 连点开补确认的入口都没有。
+                    bool allHeatsDataDone = IsStageAllConfirmedFast(ag, ev.Gender, ev.EventName, ev.Stage, swIdx);
+                    bool allHeatsTrulyConfirmed = IsStageAllTrulyConfirmed(ag, ev.Gender, ev.EventName, ev.Stage);
+                    if (!allHeatsTrulyConfirmed) sessionAllDone = false;
+                    string evDoneTag = allHeatsTrulyConfirmed ? "已确认" : (allHeatsDataDone ? "已完赛" : "");
 
                     // Tag 扩展：event:AgeGroup|Gender|Event|Stage  或  heat/done:AgeGroup|Gender|Event|Stage|Heat
                     var eventItem = new TreeViewItem {
                         Tag = string.Format("event:{0}|{1}|{2}|{3}", ag, ev.Gender, ev.EventName, ev.Stage),
-                        Header = allHeatsConfirmed ? header + " [已完赛]" : header,
-                        Foreground = allHeatsConfirmed ? new SolidColorBrush(Colors.Gray) : new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E293B")),
-                        IsExpanded = !allHeatsConfirmed
+                        Header = string.IsNullOrEmpty(evDoneTag) ? header : (header + " [" + evDoneTag + "]"),
+                        Foreground = allHeatsTrulyConfirmed ? new SolidColorBrush(Colors.Gray)
+                                   : allHeatsDataDone ? new SolidColorBrush((Color)ColorConverter.ConvertFromString("#CA8A04"))
+                                   : new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E293B")),
+                        IsExpanded = !allHeatsTrulyConfirmed
                     };
 
                     int heatCount = ev.HeatCount > 0 ? ev.HeatCount : 1;
@@ -11831,16 +12133,22 @@ namespace SwimmingScoreboard
                         }
                     }
                     for (int h = 1; h <= heatCount; h++) {
+                        // 2026-09-16 heatConfirmed(数据齐, 展示用) 和 heatTrulyConfirmed(真确认过,
+                        //   决定 Tag 是不是 "done:"、能不能点开) 分开 —— 只有后者才锁, 前者只是
+                        //   换个颜色提醒操作员"这组数据齐了、该点确认了", 点得开。
                         bool heatConfirmed = IsHeatConfirmedFast(ag, ev.Gender, ev.EventName, ev.Stage, h, swIdx);
+                        bool heatTrulyConfirmed = IsHeatTrulyConfirmed(ag, ev.Gender, ev.EventName, ev.Stage, h);
+                        string heatDoneTag = heatTrulyConfirmed ? "已确认" : (heatConfirmed ? "已完赛" : "");
                         var heatItem = new TreeViewItem {
-                            Tag = string.Format("{0}:{1}|{2}|{3}|{4}|{5}", heatConfirmed ? "done" : "heat", ag, ev.Gender, ev.EventName, ev.Stage, h),
+                            Tag = string.Format("{0}:{1}|{2}|{3}|{4}|{5}", heatTrulyConfirmed ? "done" : "heat", ag, ev.Gender, ev.EventName, ev.Stage, h),
                             // 2026-08-24 已取消(并组)的组要标出来, 不然是个点进去空白的组
                             Header = cancelLabels.ContainsKey(h)
                                 ? string.Format("第{0}组 [{1}]", h, cancelLabels[h])
-                                : (heatConfirmed ? string.Format("第{0}组 [已完赛]", h) : string.Format("第{0}组 (共{1}组)", h, heatCount)),
-                            Foreground = (cancelLabels.ContainsKey(h) || heatConfirmed)
-                                ? new SolidColorBrush(Colors.Gray)
-                                : new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E293B"))
+                                : (string.IsNullOrEmpty(heatDoneTag) ? string.Format("第{0}组 (共{1}组)", h, heatCount) : string.Format("第{0}组 [{1}]", h, heatDoneTag)),
+                            Foreground = cancelLabels.ContainsKey(h) ? new SolidColorBrush(Colors.Gray)
+                                       : heatTrulyConfirmed ? new SolidColorBrush(Colors.Gray)
+                                       : heatConfirmed ? new SolidColorBrush((Color)ColorConverter.ConvertFromString("#CA8A04"))
+                                       : new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E293B"))
                         };
                         eventItem.Items.Add(heatItem);
                     }
@@ -11920,9 +12228,15 @@ namespace SwimmingScoreboard
             if (NavResultTree != null) RebuildNavTree(NavResultTree, NavResultSearchBox != null ? NavResultSearchBox.Text : "", _navResultFilter);
         }
 
-        // 一个 leaf 节点的状态：未开始 / 进行中 / 已结束 / 已取消
+        // 2026-09-16 一个 leaf 节点的状态：未开始 / 进行中 / 已完赛(数据齐但未点确认) /
+        //   已确认(真点过"确认本组成绩") / 已取消。
+        //   跟"比赛控制"赛程树那次修改同一个道理拆开: 这里原来的 "done" 是【两条路径合一】——
+        //   IsHeatConfirmed(内部也带着"全员有成绩就算完赛"那条兜底推断)先判一次, 判不出来
+        //   下面又用同一条推断再判一次, 于是"数据齐但没点确认"和"真点过确认"在这棵树上
+        //   一直是同一个状态、同一个"[已结束]"标签, 分不出来。用户点名要求这几棵"赛程导航"
+        //   树都按"比赛控制"那次改法统一: 数据齐≠锁定, 只有真点过确认才算锁定。
         private string HeatStatus(string ageGroup, string gender, string eventName, string stage, int heat) {
-            if (IsHeatConfirmed(ageGroup, gender, eventName, stage, heat)) return "done";
+            if (IsHeatTrulyConfirmed(ageGroup, gender, eventName, stage, heat)) return "confirmed";
             bool isRelay = eventName != null && eventName.Contains("接力");
             var heatSwimmers = _swimmers.Where(s =>
                 SgMatch(s.Gender, gender) && s.EventName == eventName &&
@@ -11945,23 +12259,27 @@ namespace SwimmingScoreboard
                 return "pending";
             }
             if (withResult < inHeat.Count) return "running";
-            return "done";   // 全有成绩(理论上 IsHeatConfirmed 已经覆盖,这是兜底)
+            return "done";   // 全有成绩, 但还没真正点过"确认本组成绩"
         }
 
-        // 节点级聚合：所有子节点的最小活跃度 (running > pending > done > cancelled)
+        // 节点级聚合：所有子节点的最小活跃度 (running > pending > done/confirmed > cancelled)
+        // 2026-09-16 confirmed 和 done 分开聚合: 子节点全部真"已确认"才算父节点"已确认",
+        //   混着数据齐但未确认的, 父节点只能算"已完赛"(还没能收尾)。
         private static string AggregateStatus(IEnumerable<string> children) {
             var list = children.ToList();
             if (list.Count == 0) return "pending";
             if (list.Contains("running")) return "running";
             if (list.Contains("pending")) return "pending";
-            if (list.All(x => x == "done")) return "done";
+            if (list.All(x => x == "confirmed")) return "confirmed";
+            if (list.All(x => x == "done" || x == "confirmed")) return "done";
             if (list.All(x => x == "cancelled")) return "cancelled";
             return list[0];
         }
 
         private static string StatusLabel(string s) {
             switch (s) {
-                case "done": return "[已结束]";
+                case "confirmed": return "[已确认]";
+                case "done": return "[已完赛]";
                 case "running": return "[进行中]";
                 case "cancelled": return "[已取消]";
                 default: return "[未开始]";
@@ -11969,7 +12287,8 @@ namespace SwimmingScoreboard
         }
         private static SolidColorBrush StatusBrush(string s) {
             switch (s) {
-                case "done": return new SolidColorBrush((Color)ColorConverter.ConvertFromString("#22C55E"));
+                case "confirmed": return new SolidColorBrush((Color)ColorConverter.ConvertFromString("#22C55E"));
+                case "done": return new SolidColorBrush((Color)ColorConverter.ConvertFromString("#CA8A04"));
                 case "running": return new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6"));
                 case "cancelled": return new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EF4444"));
                 default: return new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8"));
@@ -11999,7 +12318,12 @@ namespace SwimmingScoreboard
                     var heatStatuses = new List<string>();
                     for (int h = 1; h <= hc; h++) {
                         string status = HeatStatus(ag, ev.Gender ?? "", ev.EventName ?? "", ev.Stage ?? "", h);
-                        if (statusFilter != "all" && status != statusFilter) continue;
+                        // 2026-09-16 筛选按钮上"已结束"(Tag="done")一直是粗筛——不管这组是数据齐
+                        //   (done)还是真点过确认(confirmed), 都算"比完了", 所以这里 done 桶要把
+                        //   confirmed 也接进来, 不然点"已结束"筛选按钮, 已确认的组全部消失。
+                        bool passFilter = statusFilter == "all" || status == statusFilter
+                                        || (statusFilter == "done" && status == "confirmed");
+                        if (!passFilter) continue;
                         // 2026-06-19 去掉 ev.Date + ev.Time: 父节点 "第X场（YYYY-MM-DD 上午）" 已含日期+时段,
                         //   子节点 第X组 再拼一次重复. 只保留 阶段 + 组次 + 状态.
                         string heatLabel = string.Format("{0} 第{1}组 {2}", ev.Stage ?? "", h, StatusLabel(status)).Trim();
@@ -12260,6 +12584,40 @@ namespace SwimmingScoreboard
                 if (cancelled.Any(x => x.Heat == h)) continue;
                 live++;
                 if (!IsHeatConfirmedFast(ageGroup, gender, eventName, stage, h, idx)) return false;
+            }
+            return live > 0;
+        }
+
+        /// <summary>
+        /// 2026-09-16 【严格版, 只认真正点过"确认本组成绩"】——不看 IsHeatConfirmedFast 那条
+        /// "全员都有成绩就算完赛"的兜底推断。
+        ///
+        /// 为什么要分出这一份: 赛程树"能不能点开重新装载这一组"原来直接用 IsHeatConfirmedFast
+        /// 的结果(→"done:"标签, 点了什么都不做)。程序中途被关掉、操作员没来得及点"确认本组
+        /// 成绩", 但硬件数据其实已经全部收到 —— 那条兜底推断照样判定"已完赛", 这一组就被
+        /// 锁死在赛程树里点不开, 连重新装载、补点"确认本组成绩"的入口都没有, 成了死结
+        /// (用户实拍到)。
+        /// "能不能点开"只应该看【真的确认过没有】, "看起来数据是不是齐了"只是个展示上的
+        /// 提示, 不该拿来当锁的依据 —— 这就是用户提出的"已完赛"(数据齐, 能再点开)和
+        /// "已确认"(真锁定, 点不开)该分成两个状态。
+        /// </summary>
+        private bool IsHeatTrulyConfirmed(string ageGroup, string gender, string eventName, string stage, int heat) {
+            return _confirmedHeats.Contains(ConfirmedHeatKey(ageGroup, gender, eventName, stage, heat));
+        }
+
+        private bool IsStageAllTrulyConfirmed(string ageGroup, string gender, string eventName, string stage) {
+            var schedItem = _schedule.FirstOrDefault(s =>
+                (s.AgeGroup ?? "") == (ageGroup ?? "") &&
+                SgMatch(s.Gender, gender) && s.EventName == eventName && s.Stage == stage);
+            int heatCount = schedItem != null && schedItem.HeatCount > 0 ? schedItem.HeatCount : 0;
+            if (heatCount == 0) return false;
+            var cancelled = (schedItem != null && schedItem.CancelledHeats != null)
+                ? schedItem.CancelledHeats : new List<CancelledHeat>();
+            int live = 0;
+            for (int h = 1; h <= heatCount; h++) {
+                if (cancelled.Any(x => x.Heat == h)) continue;
+                live++;
+                if (!IsHeatTrulyConfirmed(ageGroup, gender, eventName, stage, h)) return false;
             }
             return live > 0;
         }
@@ -14779,12 +15137,18 @@ namespace SwimmingScoreboard
                                 AddLog(string.Format("  接力 DSQ 在第{0}棒 — 保留 1~{1}棒分段, 清第{0}棒之后的分段 + 最终成绩",
                                     relayViolationLeg, relayViolationLeg - 1));
                             } else {
-                                // 个人项目: 全清
-                                res.Splits.Clear();
+                                // 2026-09-16 个人 DSQ: 只清最终成绩 + 反应时, 【不再清分段成绩】。
+                                //   原来连分段一起清掉 —— 但判 DSQ 多数是技术犯规(单手触壁/转身
+                                //   提前登边之类), 运动员本来就游完了全程, 中途的分段计时是硬件
+                                //   实测到的真实数据, 不该因为最后判罚就把它抹掉。成绩册"成绩公告"
+                                //   一直是拿 r.Splits 现算分段列的, 之前 DSQ 那一行分段栏一直是空的,
+                                //   跟同一张表里 DNF/DNS/TRI 都还留着分段对不上号(用户实拍到)。
+                                //   "成绩"这一列是否显示，由显示层的 dq? "" 那道判断挡着, 不靠这里
+                                //   把数据删空来实现 —— 数据和"要不要显示"是两件事。
                                 res.FinalTime = 0;
                                 res.TimeInSeconds = 0;
                                 res.StartingBlockTime = 0;
-                                AddLog("  个人 DSQ — 清最终成绩 + 所有分段 + 反应时");
+                                AddLog("  个人 DSQ — 清最终成绩 + 反应时, 分段成绩保留(真实计时数据)");
                             }
                         }
                     }
@@ -22154,6 +22518,107 @@ namespace SwimmingScoreboard
         // ═══════════════════════════════════════════════════════════════
         // 团体计分
         // ═══════════════════════════════════════════════════════════════
+        /// <summary>
+        /// 2026-09-16 "裁判长改成绩" —— 最高权限、跳过「解锁本组成绩」状态检查的最后一道口子。
+        ///
+        /// 起因: 一个几周前(08-22/23)就已经[已完赛]的历史项目, 现在重新装载档案后点
+        /// 「解锁本组成绩」被挡住(内存里的 _confirmedHeats 快照跟赛程树显示的[已完赛]
+        /// 状态对不上, 走不到能改成绩那一步)。用户明确要求: 在"成绩与排名"界面加一个
+        /// 裁判长专用、进入要密码的窗口, 能直接改选定项目第X组的成绩, 确认写库/取消不存。
+        ///
+        /// 用当前"成绩与排名"筛选框里已经选好的 组别/性别/项目/阶段/组, 跟这个 Tab
+        /// 平时查成绩用的是同一份筛选状态, 不用再建一套选择器。
+        /// </summary>
+        private void ChiefJudgeOverride_Click(object sender, RoutedEventArgs e) {
+            if (ResultEventCombo == null || ResultStageCombo == null || ResultGenderCombo == null) return;
+            string ageFilter = ResultAgeGroupCombo != null && ResultAgeGroupCombo.SelectedItem != null ? ResultAgeGroupCombo.SelectedItem.ToString() : "全部";
+            string gender = ResultGenderCombo.SelectedItem != null ? ((ComboBoxItem)ResultGenderCombo.SelectedItem).Content.ToString() : "男";
+            string eventName = ResultEventCombo.SelectedItem != null ? ResultEventCombo.SelectedItem.ToString() : "";
+            string stage = ResultStageCombo.SelectedItem != null ? ((ComboBoxItem)ResultStageCombo.SelectedItem).Content.ToString() : "预赛";
+            string heatFilter = ResultHeatCombo != null && ResultHeatCombo.SelectedItem != null ? ((ComboBoxItem)ResultHeatCombo.SelectedItem).Content.ToString() : "全部";
+
+            if (string.IsNullOrEmpty(eventName)) {
+                MessageBox.Show("请先在上面选好组别/性别/项目/阶段。", "裁判长改成绩", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            int heat = 0;
+            if (heatFilter != "全部") {
+                var m = System.Text.RegularExpressions.Regex.Match(heatFilter, @"\d+");
+                if (m.Success) heat = int.Parse(m.Value);
+            }
+            if (heat <= 0) {
+                MessageBox.Show("请把上面的「组」下拉框选到具体的第几组(不能选\"全部\") —— 这个窗口一次只改一组。",
+                    "裁判长改成绩", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            if (!PromptChiefJudgePassword()) return;
+
+            string ag2 = (ageFilter == "全部") ? "" : ageFilter;
+            var win = new JudgeOverrideWindow(_meetDb, ag2, gender, eventName, stage, heat) { Owner = this };
+            win.AfterSaved = delegate(string ag3, string gd3, string ev3, string st3, int heat3) {
+                // 2026-09-16 先把这一组从竞赛库强制刷新回内存(不带"只加不删"防抖) ——
+                //   顺序很重要: 必须在下面重新生成组排名表之前刷, 不然"组排名表"是拿着
+                //   内存里没刷新的旧状态(比如还是 TRI)去生成的, 生成完了名次还是错的。
+                try { ForceRefreshHeatAfterJudgeOverride(ag3, gd3, ev3, st3, heat3); } catch (Exception ex) { AddLog("裁判长改成绩刷新失败: " + ex.Message); }
+                try {
+                    // 项目已经全部组确认过的话, 这次改动要同步进"组排名表"(定稿) ——
+                    // 跟正常确认路径同一份逻辑, 不弹窗(裁判长刚在上一个窗口点头确认过了)。
+                    int made = _meetDb.GenerateEventRankingIfComplete(ag3, gd3, ev3, st3, Environment.MachineName + "(裁判长改成绩)", null);
+                    if (made > 0) AppendTriPlaceholdersToEventRanking(ag3, gd3, ev3, st3);
+                } catch (Exception ex) { AddLog("裁判长改成绩后重新生成组排名表失败: " + ex.Message); }
+                try { ApplyEventRankingsFromDb(); } catch { }
+                try { BuildScheduleTree(); } catch { }
+                try { RefreshResultGrid(); } catch { }
+                try { Broadcast(); } catch { }
+            };
+            win.ShowDialog();
+        }
+
+        /// <summary>裁判长改成绩的密码门 —— 跟 query.html/register.html 用同一套系统账号密码(AuthHelper)。</summary>
+        private bool PromptChiefJudgePassword() {
+            var win = new Window {
+                Title = "裁判长身份验证", Width = 380, SizeToContent = SizeToContent.Height,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner, ResizeMode = ResizeMode.NoResize, Owner = this
+            };
+            var root = new StackPanel { Margin = new Thickness(18) };
+            root.Children.Add(new TextBlock {
+                // 2026-09-16 这个密码是"裁判长改成绩"专用的一套(chief_judge_credentials.json),
+                //   跟系统账号密码(admin/xxx)是分开的两套 —— 用同一套的话就等于知道系统密码
+                //   的人(现场好几台机器的操作员)都能直接改库了, 达不到"只给裁判长用"的要求。
+                Text = "即将进入「裁判长改成绩」—— 直接改竞赛库，请输入裁判长专用密码(跟系统账号密码不是一套)。",
+                TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 12)
+            });
+            var pwdBox = new PasswordBox { FontSize = 14, Padding = new Thickness(4) };
+            root.Children.Add(pwdBox);
+            var tip = new TextBlock { Foreground = Brushes.Firebrick, Margin = new Thickness(0, 8, 0, 0), TextWrapping = TextWrapping.Wrap };
+            root.Children.Add(tip);
+            var btns = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 14, 0, 0) };
+            bool ok2 = false;
+            var okBtn = new Button { Content = "确定", Width = 90, Height = 30, Margin = new Thickness(0, 0, 8, 0), IsDefault = true };
+            var cancelBtn = new Button { Content = "取消", Width = 80, Height = 30, IsCancel = true };
+            okBtn.Click += delegate {
+                if (!AuthHelper.VerifyChiefJudgePassword(pwdBox.Password)) {
+                    tip.Text = "密码不对。(这是裁判长专用密码, 不是系统账号密码 —— 忘了就去「设置→裁判长权限」里改)";
+                    pwdBox.Password = ""; pwdBox.Focus();
+                    return;
+                }
+                ok2 = true; win.DialogResult = true;
+            };
+            btns.Children.Add(okBtn); btns.Children.Add(cancelBtn);
+            root.Children.Add(btns);
+            win.Content = root;
+            pwdBox.Focus();
+            win.ShowDialog();
+            return ok2;
+        }
+
+        /// <summary>"设置"标签页→"裁判长权限"→"设置/修改 裁判长改成绩密码"。</summary>
+        private void ChiefJudgePassword_Click(object sender, RoutedEventArgs e) {
+            var win = new ChiefJudgePasswordWindow { Owner = this };
+            win.ShowDialog();
+        }
+
         private void ViewRawData_Click(object sender, RoutedEventArgs e) {
             string dir = IOPath.Combine(AppDomain.CurrentDomain.BaseDirectory, "Database", "RawData");
             if (!Directory.Exists(dir)) {
@@ -23380,12 +23845,16 @@ namespace SwimmingScoreboard
                             ["remarkShowReaction"] = _displayStyleRemarkShowReaction
                         }
                     };
-                    TryForwardToMainServer(payload);
+                    // 2026-09-15 【广播分级】大屏样式只有大屏本身、比赛控制网页(同步
+                    //   "记录显示/显反应时"按钮态)、显示控制端(control.html/RDC, 编辑
+                    //   这份样式的地方本身)要看, 检录台/信息查询/排名屏/报名终端/编排端
+                    //   都用不上。to="style", 主服务器转给三者并集(定义见 RTC_FORWARD case)。
+                    TryForwardToMainServer(payload, "style");
                 } catch { }
                 return;
             }
             string json = BuildDisplayStyleJson();
-            EnqueueToAll(json);   // 2026-06-18 per-socket 队列
+            EnqueueToSet(_displaySockets.Concat(_timingWebSockets).Concat(_displayControlSockets), json);   // 2026-06-18 per-socket 队列
             // 主控 PC 端打开的"大屏样式"窗口同步 UI (其它客户端通过 WebSocket 推送同步)
             if (_displayStyleWin != null && _displayStyleWin.IsLoaded) {
                 try {
@@ -23566,13 +24035,21 @@ namespace SwimmingScoreboard
         }
 
         /// <summary>设备状态一变就推 —— 一次几 KB, 一场也就几次, 比每帧重发划算得多。</summary>
+        // 2026-09-15 【广播分级】TP/SB/MB 设备状态只有"比赛控制网页"(race_control.html)
+        //   的状态灯面板在读; 大屏不读(同 laneEventLogs, BuildDisplayPayload 本就不带),
+        //   检录台/信息查询/排名屏/报名终端/显示控制/编排端更用不上。原来 EnqueueToAll
+        //   全员群发, 现在连 BuildLaneDevicesPayload() 这份计算都先看有没有人要再做。
         private void PushDeviceStates() {
             if (!_initialized) return;
             try {
+                if (IsRemoteTimingControlMode) {
+                    var msgR = new { type = "DEVICE_STATES_UPDATE", data = BuildLaneDevicesPayload() };
+                    TryForwardToMainServer(msgR, "others");
+                    return;
+                }
+                if (_timingWebSockets.Count == 0) return;
                 var msg = new { type = "DEVICE_STATES_UPDATE", data = BuildLaneDevicesPayload() };
-                if (IsRemoteTimingControlMode) { TryForwardToMainServer(msg); return; }
-                if (_allSockets.Count == 0) return;
-                EnqueueToAll(JsonConvert.SerializeObject(msg));
+                EnqueueToSet(_timingWebSockets, JsonConvert.SerializeObject(msg));
             } catch { }
         }
 
@@ -24345,9 +24822,72 @@ namespace SwimmingScoreboard
                 try { FlushConfigToDb(); } catch { }
                 // 写完再回读一次 —— 名次以库为准, 和正常那条路一个待遇
                 ApplyHeatFromDb(_currentAgeGroup, _currentGender, _currentEvent, _currentStage, _currentHeat);
+                // 2026-09-15 【解锁再改再确认】漏掉了"重新生成组排名表(定稿)"这一步 ——
+                //   heat_entries.rank 在 CommitHeatFrom 里确实当场重算对了(RecomputeRanks
+                //   是跨组的, 见 ResultOrdering), 但"项目成绩打印"读的是 event_rankings
+                //   这张【单独的定稿快照表】, 只有正常确认路径(CommitLiveHeat)才会在
+                //   "全部组已确认"时调 GenerateEventRankingIfComplete 重新生成它。
+                //   这条"解锁后直接回写"的路一直没调这一步 —— 于是改完重新确认后,
+                //   heat_entries 里是对的、内存也是对的, 唯独定稿表还停在改之前那次的
+                //   旧快照上, 打印出来就是"全部名次5个第9名, 一个'-'"这种明显不对的老照片。
+                //   现在和正常路径同一个待遇: 全部组确认了就问一句、生成一次。
+                TryGenerateEventRankingAfterCommit(_currentAgeGroup, _currentGender, _currentEvent, _currentStage);
             } catch (Exception ex) {
                 AddLog("【注意】本组成绩直接回写竞赛库失败: " + ex.Message);
             }
+        }
+
+        /// <summary>
+        /// 2026-09-15 从 CommitLiveHeat 里提出来, 供正常确认路径和"解锁后直接回写"路径
+        /// 共用同一份"全部组确认完就重新生成定稿表"逻辑 —— 两条路都会让 heat_entries.rank
+        /// 变新, 定稿表 event_rankings 也必须两条路都跟着刷新, 不能只顾一条。
+        /// </summary>
+        private void TryGenerateEventRankingAfterCommit(string ageGroup, string gender, string eventName, string stage) {
+            try {
+                string _ag = ageGroup, _gd = gender, _ev = eventName, _st = stage;
+                int made = _meetDb.GenerateEventRankingIfComplete(_ag, _gd, _ev, _st,
+                    Environment.MachineName,
+                    delegate() {
+                        return MessageBox.Show(
+                            string.Format("【{0}{1} {2} {3}】全部组已经比完。\n\n将生成组成绩（本项目所有组的总排名）。\n"
+                                + "它是晋级的依据；直接决赛的项目，它就是最终名次。\n\n确定生成吗？",
+                                _ag, _gd, _ev, _st),
+                            "生成组成绩", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes;
+                    });
+                if (made > 0) {
+                    if (IsRemoteTimingControlMode) PushGenerateEventRanking(_ag, _gd, _ev, _st);
+                    else if (_meetDb.IsRemote)
+                        AddLog(string.Format("【注意】本机用的是远端竞赛库但不是计时端, 组成绩没人通知主服务器生成: {0}{1} {2} {3}",
+                            _ag, _gd, _ev, _st));
+                    AppendTriPlaceholdersToEventRanking(_ag, _gd, _ev, _st);
+                }
+            }
+            catch (Exception ex) { AddLog("生成组排名表失败: " + ex.Message); }
+        }
+
+        /// <summary>
+        /// 2026-09-16 GenerateEventRankingIfComplete 成功之后调: 把这个 round/event 下所有
+        /// "空道试游"(EmptyTriMarker)占位运动员收集出来, 追加进 event_rankings —— 这些人
+        /// 从来不会自己进 heat_entries(见 CreateEmptyLaneTriSwimmer 的注释), 上面那次生成天生
+        /// 看不到他们。在 RTC/计时端上调用时(_local 是空副本)AppendTriPlaceholderRankingRows
+        /// 内部会因为查不到刚生成的 event_rankings 行而直接跳过, 不会写出脏数据 —— 真正落地
+        /// 只会发生在事实上写了表的那台机器(通常是主服务器)。
+        /// </summary>
+        private void AppendTriPlaceholdersToEventRanking(string ageGroup, string gender, string eventName, string stage) {
+            try {
+                var list = new List<SwimmingScoreboard.Db.TriPlaceholderInfo>();
+                foreach (var sw in _swimmers) {
+                    if (sw.Notes != EmptyTriMarker) continue;
+                    if ((sw.EventName ?? "") != eventName || (sw.AgeCategory ?? "") != (ageGroup ?? "")) continue;
+                    if (!(sw.Gender == gender || gender == "男女" || sw.Gender == "男女")) continue;
+                    var r = sw.GetResultForStage(stage);
+                    if (r == null || r.Heat <= 0) continue;
+                    list.Add(new SwimmingScoreboard.Db.TriPlaceholderInfo {
+                        Heat = r.Heat, Lane = r.Lane, FinalTime = r.FinalTime, Name = sw.Name ?? ""
+                    });
+                }
+                if (list.Count > 0) _meetDb.AppendTriPlaceholderRankingRows(ageGroup, gender, eventName, stage, list);
+            } catch (Exception ex) { AddLog("补写空道试游占位行失败: " + ex.Message); }
         }
 
         private void CommitLiveHeat() {
@@ -24376,29 +24916,8 @@ namespace SwimmingScoreboard
             //   判定用"是不是全部确认", 不是"组次号最大" —— 中间可能有取消的组。
             //   生成前必须弹窗确认: 这是定稿动作(晋级依据/最终名次), 万一最后一组是
             //   误确认的, 定了稿再回头改就麻烦了。
-            try {
-                string _ag = _currentAgeGroup, _gd = _currentGender, _ev = _currentEvent, _st = _currentStage;
-                int made = _meetDb.GenerateEventRankingIfComplete(_ag, _gd, _ev, _st,
-                    Environment.MachineName,
-                    delegate() {
-                        return MessageBox.Show(
-                            string.Format("【{0}{1} {2} {3}】全部组已经比完。\n\n将生成组成绩（本项目所有组的总排名）。\n"
-                                + "它是晋级的依据；直接决赛的项目，它就是最终名次。\n\n确定生成吗？",
-                                _ag, _gd, _ev, _st),
-                            "生成组成绩", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes;
-                    });
-                // 操作员确认生成了, 才让主服务器也生成它那份 —— 两边保持一致
-                // 2026-09-01 联机时本机【不写表】(见 GenerateEventRankingIfComplete),
-                //   made>0 的含义就是"该通知主服务器了"。通知不出去必须喊一声,
-                //   否则又是"计时端一切正常、主服务器那张表永远是空的"。
-                if (made > 0) {
-                    if (IsRemoteTimingControlMode) PushGenerateEventRanking(_ag, _gd, _ev, _st);
-                    else if (_meetDb.IsRemote)
-                        AddLog(string.Format("【注意】本机用的是远端竞赛库但不是计时端, 组成绩没人通知主服务器生成: {0}{1} {2} {3}",
-                            _ag, _gd, _ev, _st));
-                }
-            }
-            catch (Exception ex) { AddLog("生成组排名表失败: " + ex.Message); }
+            // 2026-09-15 这段跟"解锁后直接回写"共用, 提到 TryGenerateEventRankingAfterCommit 里去了。
+            TryGenerateEventRankingAfterCommit(_currentAgeGroup, _currentGender, _currentEvent, _currentStage);
         }
 
         /// <summary>
@@ -24503,14 +25022,16 @@ namespace SwimmingScoreboard
                     string ag = (string)r[0], gd = (string)r[1], ev = (string)r[2], st = (string)r[3];
                     int heat = (int)r[4], lane = (int)r[5], rank = (int)r[6];
                     string mark = (string)r[7];
-                    if (lane < 0 || heat <= 0 || rank <= 0) continue;
+                    if (lane < 0 || heat <= 0) continue;
+                    // 2026-09-16 rank<=0 (判罚/试游) 不再跳过 —— 要把内存里可能残留的旧正数
+                    //   EventRank 明确清零, 见 GetEventRankings() 那条 SQL 同一次修改的说明。
 
                     foreach (var sw in GetHeatEntries(ag, gd, ev, st, heat)) {
                         if (LaneOfStage(sw, st) != lane) continue;
                         var res = sw.Results.FirstOrDefault(x => x.Stage == st && x.Heat == heat);
                         if (res == null) continue;
-                        res.EventRank = rank;                 // 定稿的项目名次
-                        res.PromotionMark = mark ?? "";       // 定稿的晋级标记
+                        res.EventRank = rank > 0 ? rank : 0;           // 定稿的项目名次; 判罚/试游明确清零
+                        res.PromotionMark = rank > 0 ? (mark ?? "") : "";  // 判罚/试游没有晋级标记
                         applied++;
                         break;
                     }
@@ -24688,6 +25209,51 @@ namespace SwimmingScoreboard
             } catch (Exception ex) {
                 AddLog("【注意】按竞赛库回读失败, 界面仍用内存里算的名次: " + ex.Message);
             }
+        }
+
+        /// <summary>
+        /// 2026-09-16 "裁判长改成绩"专用强制回读 —— 跟上面 ApplyHeatFromDb 的区别是不带
+        /// "只加不删"的防抖。那条防抖(见 ApplyHeatFromDb 里"库里没写的时候不要把内存里
+        /// 刚标上的判罚抹掉")是给【正常增量轮询】用的, 目的是防半头数据抢跑; 但它有个副作用:
+        /// 库里的新值如果恰好是【空】(比如把 TRI 改回正常/留空), 这条防抖会把它当成
+        /// "库还没写到"而按兵不动, 内存里的旧状态就永远留着不刷新。
+        /// 裁判长这条路径不一样: SaveResult 刚成功返回, 库里就是最新、最权威的那份 ——
+        /// 内存必须无条件跟着改, 包括"改成空值"这种情况(用户实拍到: 某道 TRI 标注改回
+        /// 正常/留空, 存盘退出后"成绩与排名"还显示 TRI, 根子就是这条防抖挡住了空值)。
+        /// </summary>
+        private void ForceRefreshHeatAfterJudgeOverride(string ag, string gd, string ev, string st, int heat) {
+            try {
+                var rows = _meetDb.ReadBackHeat(ag, gd, ev, st, heat);
+                if (rows == null || rows.Count == 0) return;
+                var swimmers = GetHeatEntries(ag, gd, ev, st, heat);
+                int applied = 0;
+                foreach (var row in rows) {
+                    if (row.Lane == null) continue;
+                    int lane = row.Lane.Value;
+                    var sw = swimmers.FirstOrDefault(s => LaneOfStage(s, st) == lane);
+                    if (sw == null) continue;
+                    var r = sw.Results.FirstOrDefault(x => x.Stage == st && x.Heat == heat);
+                    if (r == null) continue;
+                    r.FinalTime = row.FinalTime;
+                    r.Status = row.Status ?? "";
+                    sw.Status = row.Status ?? "";
+                    // 2026-09-16 row.Note(heat_entries.note) 在内存 LaneResult 上没有对应字段
+                    //   (只有 RecordNote), 库里这一列本来就只在数据库层面存, 不需要往内存同步。
+                    r.RecordNote = row.RecordNote ?? "";
+                    r.PromotionMark = row.PromotionMark ?? "";
+                    r.Rank = row.HeatRank > 0 ? row.HeatRank : 0;
+                    r.EventRank = row.Rank > 0 ? row.Rank : 0;
+                    r.IsTie = row.IsTie;
+                    r.FromDb = true;
+                    sw.CurrentRank = r.Rank;
+                    // 判罚/试游的人不该有名次、不该有纪录标识 —— 跟 ApplyHeatFromDb 同一条规矩
+                    if (SwimmingScoreboard.ResultOrdering.StatusOrder(r.Status ?? "") != 5) {
+                        r.Rank = 0; r.EventRank = 0; r.RecordNote = ""; sw.CurrentRank = 0;
+                    }
+                    applied++;
+                }
+                AddLog(string.Format("裁判长改成绩: 第{0}组已强制按竞赛库刷新内存, 共 {1} 道", heat, applied));
+            } catch (Exception ex) { AddLog("裁判长改成绩后强制刷新内存失败: " + ex.Message); }
         }
 
         /// <summary>把本组各泳道的当前成绩写进当前组库。降级时退回 AutoSaveData()。</summary>
@@ -27966,7 +28532,10 @@ namespace SwimmingScoreboard
             };
             win.GenerateEventRanking = delegate(string ag, string gd, string ev, string st) {
                 int made = _meetDb.GenerateEventRankingIfComplete(ag, gd, ev, st, Environment.MachineName + "(补生成)");
-                if (made > 0) { try { ApplyEventRankingsFromDb(); } catch { } }
+                if (made > 0) {
+                    AppendTriPlaceholdersToEventRanking(ag, gd, ev, st);
+                    try { ApplyEventRankingsFromDb(); } catch { }
+                }
                 return made;
             };
             win.Owner = this;
@@ -28253,7 +28822,11 @@ namespace SwimmingScoreboard
                     int heatCount = ev.HeatCount > 0 ? ev.HeatCount : 1;
                     var heatNodes = new List<TreeViewItem>();
                     for (int h = 1; h <= heatCount; h++) {
-                        if (!IsHeatConfirmed(ag, ev.Gender, ev.EventName, ev.Stage, h)) continue;
+                        // 2026-09-16 这个弹窗的提示语明明白白写着"仅显示按下'确认本组成绩'的组"——
+                        //   但原来用的是带"全员有成绩就算完赛"兜底推断的 IsHeatConfirmed, 跟提示语
+                        //   对不上: 数据齐但没点确认的组也会被列进来, 让人误以为已经确认过了。
+                        //   改成只认真正确认过的 IsHeatTrulyConfirmed, 跟提示语说的一致。
+                        if (!IsHeatTrulyConfirmed(ag, ev.Gender, ev.EventName, ev.Stage, h)) continue;
                         var heatNode = new TreeViewItem {
                             Header = string.Format("第{0}组 [已完赛]", h),
                             Tag = new ConfirmedHeatPick { AgeGroup = ag, Gender = ev.Gender, EventName = ev.EventName, Stage = ev.Stage, Heat = h },
@@ -28912,11 +29485,17 @@ namespace SwimmingScoreboard
             sb.Append("<div class='page-break'></div><div class='page'>");
             sb.AppendFormat("<h1>{0}</h1>", compName);
             sb.AppendFormat("<h3><span class='section-tag'>{0}</span>赛事概况</h3>", CnNum(++sectN));
-            sb.Append("<table>");
-            sb.AppendFormat("<tr align='center'><th width='130'>赛事名称</th><td colspan='3' style='text-align:left;'>{0}</td></tr>", compName);
+            // 2026-09-16 统一改用百分比 colgroup, 不再靠 <th width='px'> ——
+            //   这张表前三行是 colspan=3 的"标签+长值", 后四行是"标签/值/标签/值"四个真列,
+            //   table-layout:fixed 只吃第一行(或第一次出现某列)给的宽度, 前三行的 colspan
+            //   单元格给不出第2/3/4列各自该多宽, 后四行的列宽就成了浏览器自己猜——猜出来的
+            //   宽度和"秩序册"其它表对不上号, 整本册子表格宽窄不一(用户实拍到)。
+            //   colgroup 一次性把 4 列的比例定死, 所有行都按这个走, 不再依赖某一行的属性。
+            sb.Append("<table>" + ColGroup(15, 35, 15, 35));
+            sb.AppendFormat("<tr align='center'><th>赛事名称</th><td colspan='3' style='text-align:left;'>{0}</td></tr>", compName);
             sb.AppendFormat("<tr align='center'><th>主办单位</th><td colspan='3' style='text-align:left;'>{0}</td></tr>", string.IsNullOrEmpty(organizer) ? "&nbsp;" : organizer);
             sb.AppendFormat("<tr align='center'><th>承办单位</th><td colspan='3' style='text-align:left;'>{0}</td></tr>", string.IsNullOrEmpty(host) ? "&nbsp;" : host);
-            sb.AppendFormat("<tr align='center'><th>比赛时间</th><td>{0} 至 {1}</td><th width='80'>比赛地点</th><td>{2}</td></tr>",
+            sb.AppendFormat("<tr align='center'><th>比赛时间</th><td>{0} 至 {1}</td><th>比赛地点</th><td>{2}</td></tr>",
                 startDate, string.IsNullOrEmpty(endDate) ? startDate : endDate, location);
             sb.AppendFormat("<tr align='center'><th>泳池规格</th><td>{0} 米 / {1} 道</td><th>赛事天数</th><td>{2} 天</td></tr>",
                 _poolConfig.Length, _poolConfig.LaneCount, ComputeDays(startDate, endDate));
@@ -28935,7 +29514,7 @@ namespace SwimmingScoreboard
                 sb.Append("<div class='page-break'></div><div class='page'>");
                 sb.AppendFormat("<h1>{0}</h1>", compName);
                 sb.AppendFormat("<h3><span class='section-tag'>{0}</span>竞赛规程</h3>", CnNum(++sectN));
-                sb.AppendFormat("<div style='font-size:15px; line-height:1.9; white-space:pre-wrap;'>{0}</div>",
+                sb.AppendFormat("<div style='font-size:15px; line-height:1.9; text-indent:2em; white-space:pre-wrap;'>{0}</div>",
                     System.Net.WebUtility.HtmlEncode(pb.Regulations));
                 sb.Append("</div>");
             }
@@ -28944,15 +29523,15 @@ namespace SwimmingScoreboard
             sb.Append("<div class='page-break'></div><div class='page'>");
             sb.AppendFormat("<h1>{0}</h1>", compName);
             sb.AppendFormat("<h3><span class='section-tag'>{0}</span>竞赛人员</h3>", CnNum(++sectN));
-            sb.Append("<table>");
-            sb.AppendFormat("<tr align='center'><th width='130'>技术代表</th><td>{0}</td><th width='130'>总裁判长</th><td>{1}</td></tr>",
+            sb.Append("<table>" + ColGroup(15, 35, 15, 35));
+            sb.AppendFormat("<tr align='center'><th>技术代表</th><td>{0}</td><th>总裁判长</th><td>{1}</td></tr>",
                 Hyphen(techDel), Hyphen(referee));
             // 2026-05-26 删除"编排长"行；仲裁委员独占一行 (colspan 占满)
             sb.AppendFormat("<tr align='center'><th>仲裁委员</th><td colspan='3'>{0}</td></tr>", Hyphen(arbiter));
             sb.Append("</table>");
             if (pb.Officials != null && pb.Officials.Count > 0) {
                 sb.Append("<h4>技术官员名单</h4>");
-                sb.Append("<table><tr align='center'><th width='200'>职务</th><th>姓名</th></tr>");
+                sb.Append("<table>" + ColGroup(25, 75) + "<tr align='center'><th>职务</th><th>姓名</th></tr>");
                 foreach (var o in pb.Officials) {
                     sb.AppendFormat("<tr><td>{0}</td><td style='text-align:left;'>{1}</td></tr>",
                         System.Net.WebUtility.HtmlEncode(o.Title ?? ""),
@@ -28967,7 +29546,8 @@ namespace SwimmingScoreboard
                 sb.Append("<div class='page-break'></div><div class='page'>");
                 sb.AppendFormat("<h1>{0}</h1>", compName);
                 sb.AppendFormat("<h3><span class='section-tag'>{0}</span>重要活动日程</h3>", CnNum(++sectN));
-                sb.Append("<table><tr align='center'><th width='110'>日期</th><th width='110'>时间</th><th>活动内容</th><th width='140'>参与人员</th><th width='160'>地点</th></tr>");
+                sb.Append("<table>" + ColGroup(110, 110, 280, 140, 160)
+                    + "<tr align='center'><th>日期</th><th>时间</th><th>活动内容</th><th>参与人员</th><th>地点</th></tr>");
                 foreach (var a in pb.KeyActivities) {
                     sb.AppendFormat("<tr><td>{0}</td><td>{1}</td><td style='text-align:left;'>{2}</td><td>{3}</td><td>{4}</td></tr>",
                         System.Net.WebUtility.HtmlEncode(a.Date ?? ""),
@@ -28984,7 +29564,7 @@ namespace SwimmingScoreboard
             sb.Append("<div class='page-break'></div><div class='page'>");
             sb.AppendFormat("<h1>{0}</h1>", compName);
             sb.AppendFormat("<h3><span class='section-tag'>{0}</span>小项设置</h3>", CnNum(++sectN));
-            sb.Append("<table><tr align='center'><th width='80'>性别</th><th>小项</th><th width='80'>项数</th></tr>");
+            sb.Append("<table>" + ColGroup(80, 640, 80) + "<tr align='center'><th>性别</th><th>小项</th><th>项数</th></tr>");
             foreach (var gp in evtMap.Keys.GroupBy(k => k.Split('|')[0])) {
                 var events = gp.Select(k => k.Split('|')[1]).OrderBy(e => evtMap[gp.Key + "|" + e]).ToList();
                 sb.AppendFormat("<tr><td><b>{0}子</b></td><td style='text-align:left;'>{1}</td><td>{2} 项</td></tr>",
@@ -29003,7 +29583,8 @@ namespace SwimmingScoreboard
             if (_schedule.Count == 0) {
                 sb.Append("<p style='text-align:center; color:#94a3b8;'>暂未编排日程，请在【赛事管理与报名】中维护。</p>");
             } else {
-                sb.Append("<table><tr align='center'><th width='95'>日期</th><th width='70'>场次</th><th width='110'>时间</th><th width='70'>项目编号</th><th>内容</th></tr>");
+                sb.Append("<table>" + ColGroup(95, 70, 110, 70, 455)
+                    + "<tr align='center'><th>日期</th><th>场次</th><th>时间</th><th>项目编号</th><th>内容</th></tr>");
                 var sessions = _schedule.GroupBy(s => s.SessionNumber).OrderBy(g => g.Key);
                 foreach (var session in sessions) {
                     var first = session.First();
@@ -29035,7 +29616,7 @@ namespace SwimmingScoreboard
                 sb.Append("<div class='page-break'></div><div class='page'>");
                 sb.AppendFormat("<h1>{0}</h1>", compName);
                 sb.AppendFormat("<h3><span class='section-tag'>{0}</span>训练日程</h3>", CnNum(++sectN));
-                sb.Append("<table><tr align='center'><th width='160'>日期</th><th width='200'>时间</th><th>地点</th></tr>");
+                sb.Append("<table>" + ColGroup(160, 200, 440) + "<tr align='center'><th>日期</th><th>时间</th><th>地点</th></tr>");
                 foreach (var t in pb.TrainingSchedule) {
                     sb.AppendFormat("<tr><td>{0}</td><td>{1}</td><td>{2}</td></tr>",
                         System.Net.WebUtility.HtmlEncode(t.Date ?? ""),
@@ -29050,7 +29631,8 @@ namespace SwimmingScoreboard
             sb.Append("<div class='page-break'></div><div class='page'>");
             sb.AppendFormat("<h1>{0}</h1>", compName);
             sb.AppendFormat("<h3><span class='section-tag'>{0}</span>运动队人数统计</h3>", CnNum(++sectN));
-            sb.Append("<table><tr align='center'><th width='50'>序号</th><th>代表队</th><th width='70'>男</th><th width='70'>女</th><th width='70'>合计</th><th width='70'>接力队</th></tr>");
+            sb.Append("<table>" + ColGroup(50, 470, 70, 70, 70, 70)
+                + "<tr align='center'><th>序号</th><th>代表队</th><th>男</th><th>女</th><th>合计</th><th>接力队</th></tr>");
             var teamRows = _swimmers
                 .Where(s => !IsRelayMemberNote(s.Notes))
                 .GroupBy(s => s.Country ?? "")
@@ -29137,7 +29719,8 @@ namespace SwimmingScoreboard
                 if (blockIdx > 1 && blockIdx % 4 == 1) sb.Append("<div class='page-break'></div><div class='page'>");
                 sb.AppendFormat("<h4>项目 {0}：{1} {2} {3}　<span style='font-weight:normal; font-size:14px; color:#64748b;'>报名 {4} 人{5}</span></h4>",
                     kv.Value, evGender, evAge, evName, entries.Count, manRelay ? "/队" : "");
-                sb.AppendFormat("<table><tr align='center'><th width='50'>序号</th><th width='70'>号码</th><th width='110'>{0}</th><th width='110'>{1}</th><th width='80'>报名成绩</th><th width='80'>组别</th></tr>",
+                sb.Append("<table>" + ColGroup(50, 70, 110, 110, 80, 80));
+                sb.AppendFormat("<tr align='center'><th>序号</th><th>号码</th><th>{0}</th><th>{1}</th><th>报名成绩</th><th>组别</th></tr>",
                     RelayCol1Header(manRelay), RelayCol2Header(manRelay));
                 int rowI = 0;
                 foreach (var sw in entries.OrderBy(s => s.EntryTimeSeconds <= 0 ? double.MaxValue : s.EntryTimeSeconds).ThenBy(s => s.BibNumber ?? "")) {
@@ -29145,7 +29728,10 @@ namespace SwimmingScoreboard
                     string nm = sw.Name ?? ""; string ctry = sw.Country ?? "";
                     if (manRelay && !string.IsNullOrEmpty(sw.Notes) && sw.Notes.StartsWith("接力队 棒次:"))
                         nm = sw.Notes.Substring("接力队 棒次:".Length);
-                    sb.AppendFormat("<tr><td>{0}</td><td>{1}</td><td><b>{2}</b></td><td>{3}</td><td>{4}</td><td>{5}</td></tr>",
+                    // 2026-09-16 姓名/代表队这两列原来没给 text-align, 落到 td 默认的居中 ——
+                    //   全文档其它表里同类"文字列"(单位/内容/小项)都是靠左对齐, 唯独这张报名表
+                    //   居中, 看着"一会儿靠左一会儿居中"(用户实拍到)。统一成靠左。
+                    sb.AppendFormat("<tr><td>{0}</td><td>{1}</td><td style='text-align:left;'><b>{2}</b></td><td style='text-align:left;'>{3}</td><td>{4}</td><td>{5}</td></tr>",
                         rowI, sw.BibNumber, RelayCol1(manRelay, nm, ctry), RelayCol2(manRelay, nm, ctry),
                         string.IsNullOrEmpty(sw.EntryTime) ? "—" : sw.EntryTime,
                         sw.AgeCategory ?? "");
@@ -29161,7 +29747,7 @@ namespace SwimmingScoreboard
                 sb.Append("<div class='page-break'></div><div class='page'>");
                 sb.AppendFormat("<h1>{0}</h1>", compName);
                 sb.AppendFormat("<h3><span class='section-tag'>{0}</span>比赛补充通知</h3>", CnNum(++sectN));
-                sb.AppendFormat("<div style='font-size:15px; line-height:1.9; white-space:pre-wrap;'>{0}</div>",
+                sb.AppendFormat("<div style='font-size:15px; line-height:1.9; text-indent:2em; white-space:pre-wrap;'>{0}</div>",
                     System.Net.WebUtility.HtmlEncode(pb.SupplementaryNotice));
                 sb.Append("</div>");
             }
@@ -29188,7 +29774,7 @@ namespace SwimmingScoreboard
                 sb.Append("<div class='page-break'></div><div class='page'>");
                 sb.AppendFormat("<h1>{0}</h1>", compName);
                 sb.AppendFormat("<h3><span class='section-tag'>{0}</span>附注</h3>", CnNum(++sectN));
-                sb.AppendFormat("<div style='font-size:15px; line-height:1.9; white-space:pre-wrap;'>{0}</div>",
+                sb.AppendFormat("<div style='font-size:15px; line-height:1.9; text-indent:2em; white-space:pre-wrap;'>{0}</div>",
                     System.Net.WebUtility.HtmlEncode(pb.ClosingNote));
                 sb.Append("</div>");
             }
@@ -29463,6 +30049,31 @@ namespace SwimmingScoreboard
         }
 
         private string BuildFullResultBookHtml() {
+            // 2026-09-16 生成成绩册前先把"全部组已确认、但组排名表还没生成"的决赛项目补一遍。
+            //
+            // 为什么要有这一步: "名次公告"/"奖牌榜统计"读的是 EventRankFor(), 库里没有
+            // event_rankings 这张定稿表就一律是 0 → 一律显示"-"。正常应该是【确认最后一组
+            // 成绩那一刻】自动生成的, 但这一步依赖"操作员点了确认"这个动作真的发生并且
+            // 成功弹窗确认过 —— 断线/多机确认/最后一组是在另一台机器上确认的, 都可能让
+            // 这张表始终没生成。"项目成绩打印"窗口早就有一个"打开时发现缺表就当场补"的
+            // 兜底(OfferGenerateIfComplete), 成绩册这条路径一直没有, 于是出现"9个人真的
+            // 都游完了, 名次公告却整页'-'"(用户实拍到: 青年组男200米自由泳)。
+            // confirm 传 null(不弹窗) —— 这里是批量过一遍全部决赛项目, 弹几十个"确定生成
+            // 组成绩吗"的框没法用; 生成是不是该发生只看"是不是全部组都确认了"这一个客观
+            // 条件, 不需要现场再问一遍。
+            try { RefreshChangedFromDb(); } catch { }
+            try {
+                var doneEvt = new HashSet<string>();
+                foreach (var sched0 in _schedule.Where(s => s.Stage == "决赛")) {
+                    string k0 = (sched0.AgeGroup ?? "") + "|" + (sched0.Gender ?? "") + "|" + (sched0.EventName ?? "");
+                    if (!doneEvt.Add(k0)) continue;
+                    int made0 = _meetDb.GenerateEventRankingIfComplete(sched0.AgeGroup ?? "", sched0.Gender, sched0.EventName,
+                        "决赛", Environment.MachineName + "(成绩册补生成)", null);
+                    if (made0 > 0) AppendTriPlaceholdersToEventRanking(sched0.AgeGroup ?? "", sched0.Gender, sched0.EventName, "决赛");
+                }
+                ApplyEventRankingsFromDb();
+            } catch (Exception exGen) { AddLog("成绩册: 补生成组排名表失败(不影响已确认的成绩): " + exGen.Message); }
+
             var sb = new StringBuilder();
             string compName = string.IsNullOrEmpty(_competitionName) ? "游泳比赛" : _competitionName;
             var rb = _resultBook ?? new ResultBookData();
@@ -29710,8 +30321,11 @@ namespace SwimmingScoreboard
                                   + "<td class='r'>{3} {4}　　{5}</td></tr></table>",
                         ageHead0, schedItem.Gender, schedItem.EventName,
                         schedItem.Date ?? "", schedItem.Time ?? "", location);
-                    sb.Append("<table>" + ColGroup(8, 15, 22, 18, 12, 25)
-                        + "<thead><tr><th>名次</th><th>单位</th><th>姓名</th><th>联合培养单位</th><th>成绩</th><th>教练员</th></tr></thead><tbody>");
+                    // 2026-09-16 加一列"备注" —— DSQ/DNF/DNS 判罚状态字样印在这里, 不印在
+                    //   名次/成绩列(全场统一的名次显示约定)。原来这张表压根没有能放判罚字样
+                    //   的地方, 是这几个人从名单里直接消失的另一半原因。
+                    sb.Append("<table>" + ColGroup(7, 13, 20, 16, 11, 22, 11)
+                        + "<thead><tr><th>名次</th><th>单位</th><th>姓名</th><th>联合培养单位</th><th>成绩</th><th>教练员</th><th>备注</th></tr></thead><tbody>");
                     foreach (var row in topList) {
                         var sw = row.Swimmer;
                         ResultBookSwimmerInfo info = null;
@@ -29745,13 +30359,17 @@ namespace SwimmingScoreboard
                         //      满页 "=0"(用户实拍到的青年组男 200 米自由泳)。没名次一律 "-"。
                         string nrRankText = row.Rank > 0 ? row.Rank.ToString() : "-";
                         string nrRankCls = row.Rank == 1 ? " class='r1'" : row.Rank == 2 ? " class='r2'" : row.Rank == 3 ? " class='r3'" : "";
-                        sb.AppendFormat("<tr><td{0}>{1}</td><td>{2}</td><td style='text-align:left; padding-left:14px;'>{3}</td><td>{4}</td><td style='font-weight:bold;'>{5}</td><td>{6}</td></tr>",
+                        string nrRemark = !string.IsNullOrEmpty(row.Status)
+                            ? string.Format("<span style='color:#dc2626;font-weight:bold;'>{0}</span>", row.Status)
+                            : "";
+                        sb.AppendFormat("<tr><td{0}>{1}</td><td>{2}</td><td style='text-align:left; padding-left:14px;'>{3}</td><td>{4}</td><td style='font-weight:bold;'>{5}</td><td>{6}</td><td>{7}</td></tr>",
                             nrRankCls, nrRankText,
                             System.Net.WebUtility.HtmlEncode(sw.Country ?? ""),
                             nameCell,
                             System.Net.WebUtility.HtmlEncode(joint),
                             row.TimeText,
-                            System.Net.WebUtility.HtmlEncode(coach));
+                            System.Net.WebUtility.HtmlEncode(coach),
+                            nrRemark);
                     }
                     sb.Append("</tbody></table></div>");
                 }
@@ -29843,6 +30461,21 @@ namespace SwimmingScoreboard
                             s => { var lr = s.GetResultForStage(stage); return lr != null ? lr.FinalTime : 0; },
                             s => { var lr = s.GetResultForStage(stage); return lr != null ? lr.Lane : s.Lane; });
                         if (ordered.Count == 0) continue;
+                        // 2026-09-16 这张"成绩公告"表是【本组成绩单】, 名次要按本组真实成绩重算
+                        //   (组内名次), 不能直接拿 EventRankFor(那是跨组的项目总排名)往上印 ——
+                        //   一个项目分多组时, 后面那组不管本组第几都会被印成同一个跨组数字
+                        //   (用户实拍到: 青年组男200米蛙泳决赛第2组, 8人全印"4"; 少年组女50米
+                        //   蝶泳决赛第2组同样如此)。这里按 ResultOrdering.ComputeRanks(全场
+                        //   唯一一份并列规则)只对本组【有效成绩】重新编一份组内名次, 只在这张
+                        //   表内部用, 不写回 event_rankings, 不影响"名次公告"/总排名那些视图。
+                        var heatValid = ordered.Where(s => {
+                            var lr0 = s.GetResultForStage(stage);
+                            string es0 = GetEffectiveStatus(s, lr0);
+                            return lr0 != null && lr0.FinalTime > 0 && !ResultOrdering.IsJudged(es0) && es0 != "TRI";
+                        }).OrderBy(s => s.GetResultForStage(stage).FinalTime).ToList();
+                        var heatLocalRanks = ResultOrdering.ComputeRanks(heatValid, s => s.GetResultForStage(stage).FinalTime);
+                        var heatRankMap = new Dictionary<Swimmer, int>();
+                        for (int hi = 0; hi < heatValid.Count; hi++) heatRankMap[heatValid[hi]] = heatLocalRanks[hi];
                         bool showHeat = (heatNumbers.Count > 1) || (stage ?? "").Contains("预赛") || (stage ?? "").Contains("半决赛");
                         // 2026-09-04 组标题和它那张表包在 .heat-block 里, 分页时尽量不拆开 ——
                         //   原来能出现"组标题落在上一页页脚、表格从下一页开头起"的样子。
@@ -29887,7 +30520,8 @@ namespace SwimmingScoreboard
                             // 2026-09-03 去掉并列时的 "=" 前缀, 与项目成绩/成绩与排名/大屏统一;
                             //   顺带修掉一个印错: prevRank 初值就是 1, 所以第一行只要是第 1 名
                             //   就被判成"跟上一行并列", 满页 "=1"。没名次的从"—"改成"-"。
-                            int dbRk = (dq || isTri) ? 0 : sw.EventRankFor(stage);
+                            int dbRk = 0;
+                            if (!dq && !isTri) heatRankMap.TryGetValue(sw, out dbRk);
                             string rankText = dbRk > 0 ? dbRk.ToString() : "-";
                             string rankCls = dbRk == 1 ? " class='r1'" : dbRk == 2 ? " class='r2'" : dbRk == 3 ? " class='r3'" : "";
                             // 2026-06-04 D 最终成绩 HTML 显 1-4 棒
@@ -29967,7 +30601,7 @@ namespace SwimmingScoreboard
                 sb.Append("<div class='page-break'></div><div class='page'>");
                 sb.AppendFormat("<h1>{0}</h1>", compName);
                 sb.Append("<h3>附 注</h3>");
-                sb.AppendFormat("<div style='font-size:15px; line-height:1.9; white-space:pre-wrap;'>{0}</div>",
+                sb.AppendFormat("<div style='font-size:15px; line-height:1.9; text-indent:2em; white-space:pre-wrap;'>{0}</div>",
                     System.Net.WebUtility.HtmlEncode(rb.ClosingNote));
                 sb.Append("</div>");
             }
@@ -30065,6 +30699,10 @@ namespace SwimmingScoreboard
 
         private class RankRow {
             public Swimmer Swimmer; public int Rank; public bool IsTie; public string TimeText;
+            // 2026-09-16 判罚状态(DSQ/DNF/DNS), 正常/无名次时为空 —— 名次公告要跟"成绩与排名"/
+            //   "项目成绩打印"选【全部】那两处一样, 把判罚的人也列出来(名次"-", 备注显判罚字样),
+            //   不是"没有名次的人直接从名单里消失"。
+            public string Status;
         }
         private List<RankRow> GetEventFinalRanking(string gender, string eventName) {
             return GetEventFinalRanking("", gender, eventName);
@@ -30073,26 +30711,38 @@ namespace SwimmingScoreboard
         // 2026-06-01 加 AgeGroup 重载: 本次决赛-only 比赛多年龄组共用 EventName, 不带 AgeGroup
         //   过滤会把不同年龄组的决赛运动员混在一起排名.
         private List<RankRow> GetEventFinalRanking(string ageGroup, string gender, string eventName) {
+            // 2026-09-16 【总排名规则】只有 TRI(试游)不进名次公告; DSQ/DNF/DNS 判罚/弃权仍要
+            //   出现在名单里(名次"-"、备注显判罚字样) —— 跟"成绩与排名"/"项目成绩打印"选
+            //   【全部】视图那两处的表现一致(那两处的总排名下面就带着 DSQ/DNF/DNS 这几行)。
+            //   原来这里连 DSQ/DNF/DNS 也一并过滤掉了, 这几个人在成绩册"名次公告"里直接
+            //   消失, 跟另外两处对不上号(用户实拍到)。
             var list = _swimmers
                 .Where(s => SgMatch(s.Gender, gender) && s.EventName == eventName && !IsRelayMemberNote(s.Notes)
                             && MatchesAgeGroup(s, ageGroup))
                 .Select(s => new { Swimmer = s, R = s.GetResultForStage("决赛") })
-                .Where(x => x.R != null && x.R.FinalTime > 0
-                    && string.IsNullOrEmpty(x.R.Status)
-                    && x.Swimmer.Status != "DSQ" && x.Swimmer.Status != "DNS" && x.Swimmer.Status != "DNF")
-                .OrderBy(x => x.R.FinalTime)
+                .Where(x => x.R != null)
+                .Select(x => new { x.Swimmer, x.R, St = GetEffectiveStatus(x.Swimmer, x.R) })
+                .Where(x => x.St != "TRI")
+                .Where(x => ResultOrdering.IsJudged(x.St) || x.R.FinalTime > 0)
                 .ToList();
-            // 2026-09-01 名次【从库里读】, 这里不算。
-            list = list.OrderBy(x => { int k1 = x.Swimmer.EventRankFor("决赛"); return k1 > 0 ? k1 : int.MaxValue; })
-                       .ThenBy(x => x.R.FinalTime).ToList();
-            var rrRanks = list.Select(x => x.Swimmer.EventRankFor("决赛")).ToList();
+            // 2026-09-16 排序/判罚兜底/并列全部走 ResultOrdering.RankForTotalView(全场唯一
+            //   一份"项目总排名"组装规则) —— 不再在这里自己写一份。这个函数已经把"判罚
+            //   不管缓存名次干不干净都排最后"这条边界情况处理掉了, 见它自己的注释。
+            List<int> rrRanks;
+            list = ResultOrdering.RankForTotalView(list,
+                x => x.St,
+                x => x.Swimmer.EventRankFor("决赛"),
+                x => x.R.FinalTime,
+                out rrRanks);
             var result = new List<RankRow>();
             for (int i = 0; i < list.Count; i++) {
                 var x = list[i];
-                bool tie = (i > 0 && rrRanks[i] == rrRanks[i - 1]) ||
-                           (i + 1 < list.Count && rrRanks[i] == rrRanks[i + 1]);
-                result.Add(new RankRow { Swimmer = x.Swimmer, Rank = rrRanks[i], IsTie = tie,
-                                         TimeText = TimeFormatter.Format(x.R.FinalTime) });
+                bool tie = rrRanks[i] > 0 && ((i > 0 && rrRanks[i] == rrRanks[i - 1]) ||
+                           (i + 1 < list.Count && rrRanks[i] == rrRanks[i + 1]));
+                bool judged = ResultOrdering.IsJudged(x.St);
+                result.Add(new RankRow { Swimmer = x.Swimmer, Rank = judged ? 0 : rrRanks[i], IsTie = tie,
+                                         TimeText = (!judged && x.R.FinalTime > 0) ? TimeFormatter.Format(x.R.FinalTime) : "",
+                                         Status = judged ? x.St : "" });
             }
             return result;
         }
@@ -30380,6 +31030,16 @@ namespace SwimmingScoreboard
             try { CancelAllLaneCloseTimers(); } catch { }
             if (_timingBridge != null) _timingBridge.Dispose();
             if (_server != null) _server.Dispose();
+            // 2026-09-14 RTC/编排端退出时连接数不 -1、下次连上又 +1 的根 ——
+            //   RTC/ScheduleEditor 模式不开本机 _server(上面这行 Dispose 是空操作),
+            //   它们连主服务器靠的是 _editorSyncClient 这条单独的 TCP 连接, 但这里
+            //   从来没关过它: 点窗口右上角 X 正常关闭时, 只是进程退出把 TCP 硬断,
+            //   没发 WebSocket 关闭帧。主服务器那端全靠 Fleck 探测到连接失效才会
+            //   触发 OnClose 把它从 _timingExeSockets/_editorSockets 里摘掉 ——
+            //   这个探测不是即时的(经常要等到主服务器下次给这条连接写数据失败才发现),
+            //   现场看到的就是"退出时数量不减, 下次连上又多一个"。
+            //   退出前主动断开, 发出正经的 WebSocket 关闭帧, 主服务器立刻 OnClose。
+            if (_editorSyncClient != null) { try { _editorSyncClient.Disconnect(); } catch { } }
         }
 
         // ═══════════════════════════════════════════════════════════════

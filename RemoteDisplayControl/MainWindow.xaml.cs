@@ -158,6 +158,10 @@ namespace RemoteDisplayControl
                     });
                 };
                 _ws.Connect(host, port);
+                // 2026-09-14 本程序(远程显示控制)连上主服务器一直没报过身份 —— 主服务器
+                // "系统工作状态→连接状态"完全数不出这台机器连着。加一条身份帧, 只为计数,
+                // 不影响原有的 REMOTE_CONTROL / SET_DISPLAY_STYLE 等命令收发。
+                try { _ws.Send(JsonConvert.SerializeObject(new { type = "DISPLAY_CONTROL_IDENTITY" })); } catch { }
                 StatusText.Text = "已连接: " + addr;
                 StatusText.Foreground = new SolidColorBrush(Colors.LimeGreen);
                 ConnectBtn.Content = "断开";

@@ -404,6 +404,12 @@
     <Compile Include="..\SwimmingScoreboard\AuthHelper.cs">
       <Link>AuthHelper.cs</Link>
     </Compile>
+    <Compile Include="..\SwimmingScoreboard\ChiefJudgePasswordWindow.cs">
+      <Link>ChiefJudgePasswordWindow.cs</Link>
+    </Compile>
+    <Compile Include="..\SwimmingScoreboard\JudgeOverrideWindow.cs">
+      <Link>JudgeOverrideWindow.cs</Link>
+    </Compile>
     <Compile Include="..\SwimmingScoreboard\EditorSyncClient.cs">
       <Link>EditorSyncClient.cs</Link>
     </Compile>

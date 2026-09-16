@@ -316,6 +316,10 @@ function connect() {
     ws.onopen = function() {
         _connFailCount = 0;
         setConnUI('已连接', '#22C55E');
+        // 2026-09-14 本页(显示控制)原来连上直接发 REMOTE_CONTROL 命令, 没报过身份 ——
+        // 主服务器"系统工作状态→连接状态"完全数不出有台显示控制终端连着。加一条身份帧,
+        // 不影响下面这条 SHOW_LIVE_RACE 命令(该干嘛还干嘛)。
+        ws.send(JSON.stringify({type: 'DISPLAY_CONTROL_IDENTITY'}));
         ws.send(JSON.stringify({type: 'REMOTE_CONTROL', command: 'SHOW_LIVE_RACE'}));
     };
     ws.onclose = function() {

@@ -116,6 +116,12 @@ namespace SwimmingScoreboard
 
         // DB 路径下的总组数(库里定稿时记的), 打印表头用。0 = 没走 DB 路径。
         private int _dbTotalHeats = 0;
+        // 2026-09-15 名次是不是【已定稿】(= 走的是竞赛库组排名表那条路)。
+        //   屏幕上一直有"尚未定稿"的橙字提示(StatusText), 但那行字只在预览窗口里,
+        //   不会印到纸上 —— 现场把这种"全部 -"或"过程值"表当场打出来发给裁判/记录长,
+        //   拿着纸的人根本看不到那句提示。这个字段就是让 BuildPrintHtml 也能知道
+        //   "这次要不要在纸面上印一条同样的警示", 见该函数里对它的使用。
+        private bool _resultsFinalized = false;
         private ObservableCollection<ScheduleItem> _schedule;
         private string _competitionName;
         private string _location;
@@ -360,11 +366,6 @@ namespace SwimmingScoreboard
             return null;
         }
 
-        private static int DbStatusOrder(string status)
-        {
-            return ResultOrdering.StatusOrder(status ?? "");
-        }
-
         /// <summary>
         /// 查到定稿数据并已经填好表 → true。库里没定稿(或没注入读库口) → false, 调用方走内存那条路。
         /// </summary>
@@ -385,7 +386,23 @@ namespace SwimmingScoreboard
             }
             if (all.Count == 0) return false;
 
-            if (filterHeat > 0) all = all.Where(x => x.R.Heat == filterHeat).ToList();
+            if (filterHeat > 0) {
+                all = all.Where(x => x.R.Heat == filterHeat).ToList();
+                // 2026-09-15 "第X组"是【本组成绩单】, 名次要跟"成绩与排名"同口径 —— 组内名次,
+                //   不是项目总排名。R.Rank 存的是 event_rankings 里【跨组】的项目定稿名次
+                //   (全项目统一编号), 之前这里直接拿它印, 会出现"这组全印第9名"这种跟
+                //   "本组一共 6 人"完全对不上的名次(用户实拍到: 少年组女100米蛙泳第1组,
+                //   5人全印"第9名")。这里改成只按【本组】的真实成绩重新算一份组内名次
+                //   (按年龄组分别算, 混编组避免不同年龄组互相排到一起), 覆盖 R.Rank ——
+                //   只影响这张"第X组"表, "全部"(总排名)那条分支不动, 仍然用库里的跨组名次。
+                foreach (var grp in all.GroupBy(x => x.AgeGroup ?? "")) {
+                    var heatValid = grp.Where(x => !ResultOrdering.IsJudged(x.R.Status) && (x.R.Status ?? "") != "TRI" && x.R.FinalTime > 0)
+                                        .OrderBy(x => x.R.FinalTime).ToList();
+                    var heatRanks = ResultOrdering.ComputeRanks(heatValid, x => x.R.FinalTime);
+                    foreach (var x in grp) x.R.Rank = 0;
+                    for (int i = 0; i < heatValid.Count; i++) heatValid[i].R.Rank = heatRanks[i];
+                }
+            }
             // 2026-09-01 TRI(试游)按视图决定显不显:
             //   选【第X组】= 本组成绩单 -> 显成绩 + 备注 TRI + 无名次
             //   选【全部】 = 项目总排名 -> 不显示(规则: 总排名列表中不显示 TRI)
@@ -435,17 +452,27 @@ namespace SwimmingScoreboard
                 } else { x.ReactionPlain = ""; x.ReactionHtml = ""; }
             }
 
-            // 排序: 组别内按定稿名次, 没名次的按 TRI→DSQ→DNF→DNS 再按成绩、道次。
-            //   多个组别一起看时【按组别分块】, 不按成绩串在一起 —— 各组别是各自的一份
-            //   总排名, 串起来会出现两个第 1 挨在一起, 看着像并列, 其实不是。
-            all = all
-                .OrderBy(x => x.AgeGroup ?? "")
-                .ThenBy(x => x.R.Rank > 0 ? 0 : 1)
-                .ThenBy(x => x.R.Rank > 0 ? x.R.Rank : 0)
-                .ThenBy(x => DbStatusOrder(x.R.Status))
-                .ThenBy(x => x.R.FinalTime > 0 ? x.R.FinalTime : double.MaxValue)
-                .ThenBy(x => x.R.Lane)
-                .ToList();
+            // 2026-09-16 排序改走 ResultOrdering.RankForTotalView(全场唯一一份"项目总排名"
+            //   组装规则, 名次公告/成绩与排名选【全部】都调这一份) —— 不再在这里自己写。
+            //   多个组别一起看时仍然【按组别分块】: 各组别是各自的一份总排名, 串起来按
+            //   成绩排会出现两个第 1 挨在一起、看着像并列其实不是, 所以外层按组别分组,
+            //   组内再调共用函数。顺带把重新算出的名次覆盖回 x.R.Rank —— 判罚的人不管
+            //   库里那份定稿名次是不是干净的, 这里显示的名次都以状态说了算(同一套防御性
+            //   道理, 见 RankForTotalView 自己的注释)。
+            var blocked = new List<DbFinalRow>();
+            foreach (var grp in all.GroupBy(x => x.AgeGroup ?? "").OrderBy(g => g.Key)) {
+                List<int> ranksOut;
+                var orderedGrp = ResultOrdering.RankForTotalView(grp,
+                    x => x.R.Status, x => x.R.Rank, x => x.R.FinalTime, out ranksOut);
+                for (int i = 0; i < orderedGrp.Count; i++) orderedGrp[i].R.Rank = ranksOut[i];
+                // 2026-09-16 【别在这里再 OrderBy(Lane)】—— OrderBy 不是"追加一个次要排序键",
+                //   是重新按这一个键整个排一遍, 会把上面 RankForTotalView 排好的名次顺序
+                //   整个打散。真正并列(名次/状态/成绩都一样)时按道次排前后只是锦上添花,
+                //   不值得为了这点锦上添花去踩"整个表按道次重排"这个大坑, 保持
+                //   RankForTotalView 给出的顺序(并列内部按原有顺序, OrderBy 本身是稳定排序)。
+                blocked.AddRange(orderedGrp);
+            }
+            all = blocked;
 
             // 成绩差: 跟【本组别第一名】比。库里第一名就是 rank==1 那个。
             var leader = new Dictionary<string, double>();
@@ -511,6 +538,7 @@ namespace SwimmingScoreboard
             SelectedStage = stage;
             SelectedAgeGroup = ageFilter;
             SelectedHeat = filterHeat;
+            _resultsFinalized = true;
 
             string ageHead2 = (string.IsNullOrEmpty(ageFilter) || ageFilter == "全部") ? "" : (ageFilter + " ");
             StatusText.Text = string.Format("{0}{1} {2} {3}{4} — 共{5}人（★ 取自竞赛库【组排名表】, 已定稿）",
@@ -646,6 +674,7 @@ namespace SwimmingScoreboard
             // 2026-09-01 【先查库里的组排名表】。定稿了就直接按它排版, 一行都不用内存去凑。
             //   查不到再走下面的内存路径 —— 那条路只对"还没定稿"有意义。
             _dbTotalHeats = 0;
+            _resultsFinalized = false;
             if (TryQueryFromDb(ageFilter, gender, eventName, stage, filterHeat)) return;
 
             // 2026-06-01 加 AgeGroup 过滤; 男/女 也包含混合性别接力
@@ -670,13 +699,20 @@ namespace SwimmingScoreboard
             var withResults = matched.Where(s =>
             {
                 var r = s.GetResultForStage(stage);
+                string st2 = (r != null && !string.IsNullOrEmpty(r.Status)) ? r.Status
+                           : (!string.IsNullOrEmpty(s.Status) ? s.Status : "");
                 // 2026-09-01 TRI(试游)按视图决定显不显:
                 //   选【第X组】= 本组成绩单 -> 要显(成绩 + 备注 TRI + 无名次)
                 //   选【全部】 = 项目总排名 -> 不显(spec: '总排名列表中不显示 TRI')
-                if (filterHeat <= 0) {
-                    if (s.Status == "TRI") return false;
-                    if (r != null && r.Status == "TRI") return false;
-                }
+                if (filterHeat <= 0 && st2 == "TRI") return false;
+                // 2026-09-16 判罚(DSQ/DNF/DNS)本来就没有成绩(FinalTime=0 是正常状态), 不能
+                //   要求"有成绩"才显示 —— 这条筛选原来对所有状态一视同仁地要求 FinalTime>0,
+                //   判罚的人天生过不了这一关, 整行从这条【内存回退路径】的名单里消失
+                //   (用户实拍到: "裁判长改成绩"把某道标成 DNS 后, "成绩与排名"正常显示 DNS,
+                //   但"项目成绩打印"这一道整行不见了 —— DB 那条路径(TryQueryFromDb, 走
+                //   event_rankings)本来就没有这条限制, 只有这条内存回退路径独漏了判罚状态)。
+                //   跟"备注"栏有没有另外填字没关系, 这里认的是"状态"栏。
+                if (st2 == "DSQ" || st2 == "DQ" || st2 == "DNF" || st2 == "DNS") return true;
                 return r != null && r.FinalTime > 0;
             }).ToList();
 
@@ -1025,6 +1061,16 @@ namespace SwimmingScoreboard
             sb.AppendFormat("<div class='meta'>比赛时间：{0}{1}</div>",
                 dateTimeInfo,
                 string.IsNullOrWhiteSpace(_location) ? "" : ("　|　地点：" + _location));
+            // 2026-09-15 尚未定稿(竞赛库还没有组排名表)时, 预览窗口的 StatusText 一直有
+            //   橙字提示, 但那句话只在屏幕上 —— 现场直接把这张表打出来发给裁判/记录长,
+            //   拿着纸的人看不到那句话, 容易把过程名次当成最终名次。这里把同一句话
+            //   印到纸上, 跟屏幕上说的保持一致。
+            if (!_resultsFinalized) {
+                sb.Append("<div style='margin:2px 0 8px;padding:6px 10px;border:1.5px solid #ea580c;"
+                        + "background:#fff7ed;color:#c2410c;font-size:12px;font-weight:bold;text-align:center;'>"
+                        + "【尚未定稿】本项目还没有全部组确认成绩、或未生成组排名表 —— 以下名次仅为过程值，"
+                        + "不是最终名次，不能据此发奖/公告</div>");
+            }
             sb.Append("<div class='rule'></div>");
 
             // 成绩表（接力：代表队在前）

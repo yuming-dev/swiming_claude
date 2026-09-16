@@ -142,25 +142,46 @@
                                     <RowDefinition Height="32"/>
                                     <RowDefinition Height="32"/>
                                     <RowDefinition Height="32"/>
+                                    <RowDefinition Height="32"/>
+                                    <RowDefinition Height="32"/>
+                                    <RowDefinition Height="32"/>
                                 </Grid.RowDefinitions>
                                 <TextBlock Grid.Row="0" Grid.Column="0" Text="&#xE7F4;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="#3B82F6" VerticalAlignment="Center" Margin="0,0,8,0"/>
                                 <TextBlock Grid.Row="0" Grid.Column="1" Text="大屏显示" FontSize="14" Foreground="#475569" VerticalAlignment="Center"/>
                                 <TextBlock x:Name="DisplayConnText" Grid.Row="0" Grid.Column="2" Text="0" FontSize="15" FontWeight="Bold" Foreground="#EF4444" VerticalAlignment="Center"/>
-                                <TextBlock Grid.Row="1" Grid.Column="0" Text="&#xE7F4;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="#8B5CF6" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                <TextBlock Grid.Row="1" Grid.Column="1" Text="排名屏" FontSize="14" Foreground="#475569" VerticalAlignment="Center"/>
-                                <TextBlock x:Name="LeaderboardConnText" Grid.Row="1" Grid.Column="2" Text="0" FontSize="15" FontWeight="Bold" Foreground="#EF4444" VerticalAlignment="Center"/>
-                                <TextBlock Grid.Row="2" Grid.Column="0" Text="&#xE77B;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="#059669" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                <TextBlock Grid.Row="2" Grid.Column="1" Text="注册终端" FontSize="14" Foreground="#475569" VerticalAlignment="Center"/>
-                                <TextBlock x:Name="RegisterConnText" Grid.Row="2" Grid.Column="2" Text="0" FontSize="15" FontWeight="Bold" Foreground="#EF4444" VerticalAlignment="Center"/>
-                                <TextBlock Grid.Row="3" Grid.Column="0" Text="&#xE916;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="#D97706" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                <TextBlock Grid.Row="3" Grid.Column="1" Text="计时EXE" FontSize="14" Foreground="#475569" VerticalAlignment="Center"/>
-                                <TextBlock x:Name="TimingExeConnText" Grid.Row="3" Grid.Column="2" Text="0" FontSize="15" FontWeight="Bold" Foreground="#EF4444" VerticalAlignment="Center"/>
-                                <TextBlock Grid.Row="4" Grid.Column="0" Text="&#xE774;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="#2563EB" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                <TextBlock Grid.Row="4" Grid.Column="1" Text="计时Web" FontSize="14" Foreground="#475569" VerticalAlignment="Center"/>
-                                <TextBlock x:Name="TimingWebConnText" Grid.Row="4" Grid.Column="2" Text="0" FontSize="15" FontWeight="Bold" Foreground="#EF4444" VerticalAlignment="Center"/>
-                                <TextBlock Grid.Row="5" Grid.Column="0" Text="&#xE964;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="#DC2626" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                <TextBlock Grid.Row="5" Grid.Column="1" Text="计时硬件" FontSize="14" Foreground="#475569" VerticalAlignment="Center"/>
-                                <TextBlock x:Name="TimingHwConnText" Grid.Row="5" Grid.Column="2" Text="未连接" FontSize="15" FontWeight="Bold" Foreground="#EF4444" VerticalAlignment="Center"/>
+                                <!-- 2026-09-14 显示控制端(control.html / RemoteDisplayControl.exe) 单独一行 ——
+                                     它是"遥控大屏放什么"的操作端, 跟上面"大屏显示"(真正在放内容的那块屏)是两码事,
+                                     原来俩连上来都不报身份, 混在没人管的连接里, 面板上完全看不出来。
+                                     图标沿用大屏显示同款(都是屏幕), 颜色改成"显示控制区"同款紫 #6B21A8 以示区分。 -->
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="&#xE7F4;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="#6B21A8" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                <TextBlock Grid.Row="1" Grid.Column="1" Text="显示控制" FontSize="14" Foreground="#475569" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="DisplayControlConnText" Grid.Row="1" Grid.Column="2" Text="0" FontSize="15" FontWeight="Bold" Foreground="#EF4444" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="&#xE7F4;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="#8B5CF6" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                <TextBlock Grid.Row="2" Grid.Column="1" Text="排名屏" FontSize="14" Foreground="#475569" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="LeaderboardConnText" Grid.Row="2" Grid.Column="2" Text="0" FontSize="15" FontWeight="Bold" Foreground="#EF4444" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Row="3" Grid.Column="0" Text="&#xE77B;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="#059669" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                <TextBlock Grid.Row="3" Grid.Column="1" Text="注册终端" FontSize="14" Foreground="#475569" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="RegisterConnText" Grid.Row="3" Grid.Column="2" Text="0" FontSize="15" FontWeight="Bold" Foreground="#EF4444" VerticalAlignment="Center"/>
+                                <!-- 2026-09-14 信息查询终端(query.html) 单独一行计数, 原来混在"编排端"里数不出来 -->
+                                <TextBlock Grid.Row="4" Grid.Column="0" Text="&#xE721;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="#0D9488" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                <TextBlock Grid.Row="4" Grid.Column="1" Text="信息查询" FontSize="14" Foreground="#475569" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="QueryConnText" Grid.Row="4" Grid.Column="2" Text="0" FontSize="15" FontWeight="Bold" Foreground="#EF4444" VerticalAlignment="Center"/>
+                                <!-- 2026-09-15 编排端(ScheduleEditor.exe, "编排记录及成绩处理")单独一行计数,
+                                     原来跟"信息查询"一样混在"编排端"连接里数不出来 -->
+                                <TextBlock Grid.Row="5" Grid.Column="0" Text="&#xE70F;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="#7C3AED" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                <TextBlock Grid.Row="5" Grid.Column="1" Text="编排及成绩处理" FontSize="14" Foreground="#475569" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="ScheduleEditorConnText" Grid.Row="5" Grid.Column="2" Text="0" FontSize="15" FontWeight="Bold" Foreground="#EF4444" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Row="6" Grid.Column="0" Text="&#xE916;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="#D97706" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                <TextBlock Grid.Row="6" Grid.Column="1" Text="计时EXE" FontSize="14" Foreground="#475569" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="TimingExeConnText" Grid.Row="6" Grid.Column="2" Text="0" FontSize="15" FontWeight="Bold" Foreground="#EF4444" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Row="7" Grid.Column="0" Text="&#xE774;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="#2563EB" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                <TextBlock Grid.Row="7" Grid.Column="1" Text="计时Web" FontSize="14" Foreground="#475569" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="TimingWebConnText" Grid.Row="7" Grid.Column="2" Text="0" FontSize="15" FontWeight="Bold" Foreground="#EF4444" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Row="8" Grid.Column="0" Text="&#xE964;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="#DC2626" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                <TextBlock Grid.Row="8" Grid.Column="1" Text="计时硬件" FontSize="14" Foreground="#475569" VerticalAlignment="Center"/>
+                                <!-- 2026-09-14 字号比其它计数小一档(13): 这一格现在显示"本机/远程 (机器名)",
+                                     比单个数字长不少, 字号跟着降一点免得跟左边标签挤在一起 -->
+                                <TextBlock x:Name="TimingHwConnText" Grid.Row="8" Grid.Column="2" Text="未连接" FontSize="13" FontWeight="Bold" Foreground="#EF4444" VerticalAlignment="Center" HorizontalAlignment="Right"/>
                             </Grid>
                         </StackPanel>
                     </Border>
@@ -1666,6 +1687,9 @@
                                 Background="#22C55E" Foreground="White" BorderThickness="0"/>
                         <Button Content="查询原始数据" Click="ViewRawData_Click" Padding="12,4" Margin="8,0,0,0"
                                 Background="#64748B" Foreground="White" BorderThickness="0"/>
+                        <Button Content="🔒 裁判长改成绩" Click="ChiefJudgeOverride_Click" Padding="12,4" Margin="8,0,0,0"
+                                Background="#DC2626" Foreground="White" BorderThickness="0" FontWeight="Bold"
+                                ToolTip="最高权限：需输入系统密码。直接改竞赛库里选中这一组的成绩，跳过「解锁本组成绩」的状态检查——只在正常解锁流程走不通时(如几周前的历史项目)用"/>
                         <Separator Margin="8,0,8,0" Background="#94A3B8" Width="1"/>
                         <Button Content="📋 决赛状态" Click="FinalsStatus_Click" Padding="10,4" Margin="0,0,4,0"
                                 Background="#0EA5E9" Foreground="White" BorderThickness="0"
@@ -2074,6 +2098,11 @@
                             <Button x:Name="DisconnectTimingButton" Grid.Row="4" Grid.Column="2" Content="断开" Click="DisconnectTiming_Click" Padding="12,4" Margin="8,0,0,0"/>
                         </Grid>
 
+                        <TextBlock Text="裁判长权限" FontSize="16" FontWeight="Bold" Margin="0,24,0,10"/>
+                        <TextBlock TextWrapping="Wrap" Foreground="#64748B" Margin="0,0,0,8"
+                                   Text="「成绩与排名」界面里「裁判长改成绩」按钮用的密码，跟系统账号密码是分开的两套——不改这里的话，任何知道系统账号密码的人都能直接改库，达不到「只给裁判长用」的目的。"/>
+                        <Button Content="设置/修改 裁判长改成绩密码" Click="ChiefJudgePassword_Click" HorizontalAlignment="Left"
+                                Padding="16,8" Background="#DC2626" Foreground="White" BorderThickness="0" FontWeight="Bold"/>
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>

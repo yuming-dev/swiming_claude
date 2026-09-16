@@ -550,12 +550,39 @@ function connect() {
         hideConnectOverlay();   // 只有连接成功才隐藏遮罩
     };
     // requestAnimationFrame 合并：手机端高频广播时只保留最新一份，下一帧统一渲染，避免积压
+    // 2026-09-15 【项目排名/团体/纪录 三个标签页"一会有一会没有"的根】
+    //   主服务器给排名屏这类"非大屏"客户端平时只发精简帧 SHOW_LIVE_RACE_LITE ——
+    //   那一帧里 eventRanking / teamScores 就是空数组(省流量, 这些数据比赛中大多数
+    //   时候没变), 原来这里不管三七二十一 data = _pendingData 整个替换, 空数组一来
+    //   排名/团体分当场清空, 要等下一次完整帧(数据真变了服务器才会给)才补回来。
+    //   跟 checkin.html "赛程导航"是同一个毛病, 见那边注释。改成按服务端随帧告知的
+    //   staticOmitted 只合并"这一帧真带了的"字段, 省掉的字段沿用上一份。
     ws.onmessage = function(e) {
         var msg;
         try { msg = JSON.parse(e.data); } catch (er) { return; }
-        // 排名屏不展示滚动时间，跳过 0.1s 节拍的轻量帧避免覆盖完整 data
-        if (msg.type === 'RUNNING_TIME_UPDATE') return;
-        _pendingData = msg.data || {};
+        // 2026-09-15 【广播分级】排名屏现在不再收周期性的 SHOW_LIVE_RACE_LITE 了(主服务器
+        //   那边改成只发给比赛控制网页)——项目排名/团体分/纪录这些原来就只在"确认本组
+        //   成绩"/"生成组排名"这类结构性变化时才会真的变, 靠 DATA_CHANGED 通知 + 主动要
+        //   一次完整包(REQUEST_FULL_STATUS)足够及时, 比原来 100ms 一次的广播更贴合实际
+        //   更新频率。没有这一段的话, 排名屏在广播分级后除了刚连上那一刻, 就再也不会刷新了。
+        if (msg.type === 'DATA_CHANGED') {
+            if (ws && ws.readyState === 1) ws.send(JSON.stringify({ type: 'REQUEST_FULL_STATUS' }));
+            return;
+        }
+        // 2026-09-15 只挑 SHOW_LIVE_RACE / SHOW_LIVE_RACE_LITE 这两种碰 data —— 主服务器
+        //   还会广播一堆跟排名屏无关但同样带 .data 的消息(LANE_EVENT_APPEND 泳道事件、
+        //   DISPLAY_STYLE_PUSH 大屏样式、DEVICE_STATES_UPDATE 设备状态……), 这些消息的
+        //   .data 是各自独立的小对象, 没有 staticOmitted, 原来只挡了 RUNNING_TIME_UPDATE
+        //   一种、这些没挡住的一样会把 _pendingData 整个冲空(排名/团体分随之消失)。
+        //   改白名单, 其余类型一律不碰 data, 跟 query.html / race_control.html 同一个思路。
+        if (msg.type !== 'SHOW_LIVE_RACE' && msg.type !== 'SHOW_LIVE_RACE_LITE') return;
+        var incoming = msg.data || {};
+        var omitted = (incoming.staticOmitted && incoming.staticOmitted.length) ? incoming.staticOmitted : null;
+        if (omitted && _pendingData) {
+            for (var k in incoming) { if (omitted.indexOf(k) < 0) _pendingData[k] = incoming[k]; }
+        } else {
+            _pendingData = incoming;
+        }
         if (_renderScheduled) return;
         _renderScheduled = true;
         var doIt = function() {

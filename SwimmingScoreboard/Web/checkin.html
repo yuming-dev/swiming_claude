@@ -206,17 +206,44 @@ function setConnState(ok, text) {
     document.getElementById('connText').textContent = text || (ok ? '已连接' : '未连接');
 }
 
+// 2026-09-15 【赛程导航"一会显示一会不显示"的根 —— 第一版改法还漏了一大半】
+//   主服务器给"非大屏"客户端(检录台在内)的广播里, 真正带着 schedule/allSwimmers
+//   完整状态的只有两种: SHOW_LIVE_RACE(完整包, 数据真变了或新客户端接进来才发)
+//   和 SHOW_LIVE_RACE_LITE(精简帧, schedule/allSwimmers 等静态字段是空的)。
+//   除此之外, 主服务器还会广播一堆【跟检录台完全无关、但一样带 .data 字段】的
+//   消息: RUNNING_TIME_UPDATE(滚动时间, 比赛中 10 次/秒)、LANE_EVENT_APPEND
+//   (泳道事件追加)、DISPLAY_STYLE_PUSH(大屏样式)、DEVICE_STATES_UPDATE(设备状态)……
+//   这些消息的 .data 是各自独立的小对象(比如 {runningTime, clockPaused}), 既没有
+//   staticOmitted 字段, 内容也压根不是 schedule 那一套。
+//   第一版改法只按"有没有 staticOmitted"来判断要不要整个替换 data —— 这些消息没有
+//   staticOmitted, 直接落进"整个替换"分支, data.schedule 立刻被冲没。RUNNING_TIME_UPDATE
+//   比赛中一秒钟冲 10 次, 比原来"精简帧偶尔冲一下"还猛, 赛程导航反而更容易空。
+//   现在改成【白名单】: 只有 SHOW_LIVE_RACE / SHOW_LIVE_RACE_LITE 这两种才碰 data,
+//   其余类型一律不理会(该干嘛干嘛, 不影响 data)。跟 query.html / race_control.html
+//   处理同一份广播用的是同一个思路。
 function handleMessage(msg) {
     if (msg.type === 'HEAT_SWIMMERS') {
         renderSwimmers(msg.data);
         return;
     }
-    // 其余广播都包含服务器完整状态 data
-    if (msg.data) {
-        data = msg.data;
-        if (data.competitionName) document.getElementById('compName').textContent = data.competitionName;
-        renderScheduleTree();
+    if (msg.type === 'DATA_CHANGED') {
+        if (ws && ws.readyState === 1) ws.send(JSON.stringify({ type: 'REQUEST_FULL_STATUS' }));
+        return;
     }
+    if (msg.type !== 'SHOW_LIVE_RACE' && msg.type !== 'SHOW_LIVE_RACE_LITE') return;
+    if (!msg.data) return;
+    var omitted = (msg.data.staticOmitted && msg.data.staticOmitted.length) ? msg.data.staticOmitted : null;
+    if (omitted && data) {
+        // 精简帧: 省略的字段保留上一份完整数据里的值, 其余字段照更新
+        for (var k in msg.data) {
+            if (omitted.indexOf(k) >= 0) continue;
+            data[k] = msg.data[k];
+        }
+    } else {
+        data = msg.data;
+    }
+    if (data.competitionName) document.getElementById('compName').textContent = data.competitionName;
+    renderScheduleTree();
 }
 
 // ═══════ 赛程导航 ═══════

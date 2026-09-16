@@ -443,7 +443,13 @@ namespace SwimmingScoreboard
 
         public string FinalTimeDisplay {
             get {
-                if (!string.IsNullOrEmpty(_status)) return _status;
+                // 2026-09-16 【名次显示约定】判罚/弃权(DSQ/DQ/DNF/DNS)成绩栏留空, 状态字样只在
+                //   备注栏(query.html 的 results[].status 已经单独带出去了, 这里不该顶个状态
+                //   文本占成绩的位置)。TRI(试游) 不是判罚 —— 试游要正常显成绩, 原来
+                //   "!string.IsNullOrEmpty(_status) 就 return _status" 把 TRI 也一并当判罚处理,
+                //   query.html/大屏这个字段的消费方拿到的就是字面文本 "TRI" 而不是真实成绩
+                //   (用户实拍到: 少年组男200米自由泳第1组, 空道试游 TRI 那一行成绩栏印着 "TRI")。
+                if (!string.IsNullOrEmpty(_status) && ResultOrdering.IsJudged(_status)) return "";
                 if (_finalTime <= 0) return "";
                 return TimeFormatter.Format(_finalTime);
             }
@@ -642,7 +648,17 @@ namespace SwimmingScoreboard
             //   库里没有项目名次就是没有 —— 返回 0, 各处一律显示 "-"。
             //   要让它有值, 就得让成绩真正回写库并回读(确认本组成绩那条路), 而不是
             //   在显示时临时凑一个出来。
-            var r = _results.FirstOrDefault(x => x.Stage == stage && x.EventRank > 0);
+            // 2026-09-16 【WithLane bug】原来这里是 _results.FirstOrDefault(x => Stage==stage
+            //   && EventRank>0) —— 不看这条是不是【当前分组】的那一条, 只要同一赛次下随便哪条
+            //   历史成绩行带着 EventRank 就认了。并组/重新分组/晋级会给同一人同一赛次留下
+            //   不止一条 LaneResult(GetResultForStage 2026-08-24 那次已经踩过同一个坑, 改成了
+            //   按"当前分组的组次"去找那一条), 这里没跟着改: 运动员本来分在别的组、后来判罚
+            //   (DSQ/DNS)或重新分组, 旧的那条历史行如果还留着一个 EventRank>0, 就会被这里捞出来
+            //   当成"这人有名次"—— 于是判罚的人在成绩册"名次公告"里排到了真正名次前面
+            //   (用户实拍到: 青年组女100米仰泳, DSQ 的王雪颖排在第 1 名之前;
+            //   青年组男200米混合泳, DNS 的苏静疏排在第 1 组和第 4 组名次中间)。
+            //   现在跟 GetResultForStage 同一份"当前分组"口径 —— 只认这一条。
+            var r = GetResultForStage(stage);
             return r != null ? r.EventRank : 0;
         }
 
@@ -841,7 +857,13 @@ namespace SwimmingScoreboard
 
         public string FinalTimeDisplay {
             get {
-                if (!string.IsNullOrEmpty(_status)) return _status;
+                // 2026-09-16 【名次显示约定】判罚/弃权(DSQ/DQ/DNF/DNS)成绩栏留空, 状态字样只在
+                //   备注栏(query.html 的 results[].status 已经单独带出去了, 这里不该顶个状态
+                //   文本占成绩的位置)。TRI(试游) 不是判罚 —— 试游要正常显成绩, 原来
+                //   "!string.IsNullOrEmpty(_status) 就 return _status" 把 TRI 也一并当判罚处理,
+                //   query.html/大屏这个字段的消费方拿到的就是字面文本 "TRI" 而不是真实成绩
+                //   (用户实拍到: 少年组男200米自由泳第1组, 空道试游 TRI 那一行成绩栏印着 "TRI")。
+                if (!string.IsNullOrEmpty(_status) && ResultOrdering.IsJudged(_status)) return "";
                 if (_finalTime <= 0) return "";
                 return TimeFormatter.Format(_finalTime);
             }

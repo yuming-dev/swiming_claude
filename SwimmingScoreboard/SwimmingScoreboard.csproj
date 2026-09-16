@@ -330,6 +330,8 @@
     </Compile>
     <Compile Include="ResultBookData.cs" />
     <Compile Include="AuthHelper.cs" />
+    <Compile Include="ChiefJudgePasswordWindow.cs" />
+    <Compile Include="JudgeOverrideWindow.cs" />
     <Compile Include="EditorSyncClient.cs" />
     <Compile Include="Db\MeetSchema.cs" />
     <Compile Include="Db\LiveHeatSchema.cs" />
