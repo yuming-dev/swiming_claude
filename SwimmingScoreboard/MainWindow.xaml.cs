@@ -29121,6 +29121,16 @@ namespace SwimmingScoreboard
                 // margin 撑开间距不受影响 —— 稍微收窄一点(170/190→120/140), 给 A4 纸的
                 // 可用高度留出安全余量, 不会因为长队名换行把封面挤到第二页去。
                 + "  .cover{min-height:0;} .cover-mid{margin:120px 0 140px;} "
+                // 2026-09-16 赛事名称标题(h1)打印时缩小 + 撑满整行, 不许换行。
+                //   原来 36px + letter-spacing:5px 是给屏幕看的, 打印时长赛事名(比如
+                //   "甘肃省第十六届运动会青少年组游泳比赛", 17 个字)在纸宽内放不下,
+                //   自动折成两行、第二行就剩"比赛"两个字孤零零杵在那(用户实拍到)。
+                //   text-align-last:justify + text-justify:inter-character 是 CJK 标题
+                //   撑满整行的标准写法(两端对齐、字间距自动摊匀), 配 white-space:nowrap
+                //   禁止折行——字号缩小到能在一行里放下, 但间距会自动撑到贴住左右边距,
+                //   不会看着"缩小了却没占满"。
+                + "  h1{font-size:26px; letter-spacing:normal; margin:0 0 8px; "
+                + "    text-align:justify; text-align-last:justify; text-justify:inter-character; white-space:nowrap;} "
                 + "  th{padding:5px; font-size:12px;} td{padding:4px; font-size:12px;} } ";
         }
 
@@ -30211,8 +30221,8 @@ namespace SwimmingScoreboard
             sb.Append("@media print{ .page-break{display:none;} ");
             sb.Append("  body > .page{page-break-before:always;} ");
             sb.Append("  body > .page:first-child{page-break-before:auto;} ");
-            // IE 打印纸面比浏览器窄, 36px 的大标题会折成三行, 把版面顶乱
-            sb.Append("  h1{font-size:24px; letter-spacing:2px; margin:0 0 6px;} ");
+            // 2026-09-16 h1 缩小+撑满整行那条规则挪到 DocCss() 里统一管了(秩序册标题
+            //   折行那次一起治的), 这里不再单独写一份、免得两处对不上。
             sb.Append("  h2{font-size:17px; letter-spacing:6px; margin-bottom:16px;} ");
             sb.Append("  h3{font-size:16px; margin-top:16px;} ");
             sb.Append("  .rb-cover{min-height:0;} .rb-cover .cover-mid{margin:120px 0 140px;} ");
