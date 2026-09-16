@@ -108,7 +108,30 @@ namespace SwimmingScoreboard
                 "<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>",
                 RegexOptions.IgnoreCase);
 
-            string footerCss = "@page Section1 { mso-footer: f1; } "
+            // 2026-09-16 比角标飘位更大的问题: 全系统 9 种文档(秩序册/成绩册/竞赛日程/
+            // 分组表/出发表/团体成绩/纪录报告/分段计时报告等, 走共用 DocCss() 那条路)的
+            // page-break-before:always 无一例外全写在 @media print{...} 里面 —— 对照实验
+            // 实锤过: 同一条规则放 @media print 里 Word 导入后是 1 页(整条规则被无视),
+            // 挪到外面就是 2 页。这几种文档导出 DOC 后, 秩序册每个项目、成绩册每个名次
+            // 公告/成绩公告小节, 全都会挤成一整段连续的文字/表格——比证书角标飘位更容易
+            // 让人看错数据(哪张表是哪个项目的都分不清)。
+            //
+            // 单挪出 @media 【还不够】, 中途踩了两个坑, 都是实测出来的(不是靠猜):
+            //  ① 分页点是【空 div】<div class='page-break'></div> 时, Word 跟 IE 打印引擎
+            //     一样把零内容的块直接跳过, page-break-before 挂在它身上不起作用。
+            //  ② 换个思路, 把规则直接挂在【有内容的 .page 本身】(成绩册 2026-09-04 治好
+            //     IE 用的就是这招) —— 结果更糟: Word 会把这条 page-break-before 从 .page
+            //     "渗透"给它内部每一个子 div, 秩序册封面那几行"标题/主办单位/比赛时间"
+            //     全被拆成了一行一页(实测: 4 个子 div 的封面拆出了 5 页)。
+            // 真正管用的组合(也是实测出来的): 保留【空 div】当分页点, 但塞一个 &nbsp;
+            // 让它不再是"零内容"骗过 Word 的跳过检测; 同时这块 div 不包住任何正文,
+            // 也就没有②那种"渗透"给子元素的风险。下面先把秩序册/成绩册等文档 HTML 里
+            // 所有 <div class='page-break'></div> 塞一个 &nbsp;, 再给 .page-break 补一条
+            // 不带 @media 的 page-break-before:always。
+            result = Regex.Replace(result, "<div class='page-break'></div>", "<div class='page-break'>&nbsp;</div>");
+
+            string footerCss = ".page-break{page-break-before:always;} "
+                + "@page Section1 { mso-footer: f1; } "
                 + "div.Section1 { page: Section1; } "
                 + "p.MsoFooter, li.MsoFooter, div.MsoFooter { margin:0; text-align:center; font-size:9pt; color:#666; } ";
             int styleClose = result.IndexOf("</style>", StringComparison.OrdinalIgnoreCase);

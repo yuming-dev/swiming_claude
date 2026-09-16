@@ -494,7 +494,14 @@ namespace SwimmingScoreboard
             //   所以每张子表另起一页(第一张跟在抬头后面, 不单独浪费一页),
             //   整块也不许被切开。
             sb.Append(".blk{page-break-inside:avoid; break-inside:avoid; margin:14px 0 0;} ");
-            sb.Append(".blk.np{page-break-before:always; break-before:page; margin-top:0;} ");
+            sb.Append(".blk.np{margin-top:0;} ");
+            // 2026-09-16 换页规则从 .blk.np 挪到独立的 .page-break 标记 div 上(跟秩序册/
+            // 成绩册那套是同一份写法) —— 实测揪出来的: page-break-before 挂在【第一个子
+            // 元素是 table 的 div】上, Word 会整条无视, 不管这个 div 前面是不是先有个 h3
+            // 标题(子表结构固定是 h3+table, 每次都踩); 换成挂在不含表格的独立标记 div 上
+            // 才稳定生效。Chrome/PDF 这条路本来就认 .blk.np 那种写法, 不受这个坑影响,
+            // 所以顺手统一成同一套, 不用两边各写一份。
+            sb.Append(".page-break{page-break-before:always; break-before:page;} ");
             sb.Append(".blk h3{font-size:14px; margin:0 0 5px; padding:4px 8px; color:#1e3a8a;"
                     + " background:#e8f0fe; border-left:4px solid #1e40af;} ");
             sb.Append(".blk h3 .n{float:right; font-weight:normal; font-size:11px; color:#475569;} ");
@@ -527,7 +534,8 @@ namespace SwimmingScoreboard
 
             bool firstBlk = true;
             foreach (var b in blocks) {
-                // 第一张接在抬头下面; 之后每张另起一页
+                // 第一张接在抬头下面; 之后每张另起一页(换页标记见上面 .page-break 的注释)
+                if (!firstBlk) sb.Append("<div class='page-break'>&nbsp;</div>");
                 sb.AppendFormat("<div class='blk{0}'>", firstBlk ? "" : " np");
                 firstBlk = false;
 
