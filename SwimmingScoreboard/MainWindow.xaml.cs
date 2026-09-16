@@ -30872,7 +30872,7 @@ namespace SwimmingScoreboard
         //   现在先收集候选名单给 AwardCertificateWindow 挑选(单张/批量/按项目筛选),
         //   再拿选中的子集来生成。
         public class AwardCandidateRow {
-            public string Gender, EventName, EventLabel, DisplayName, Country, RankLabel;
+            public string Gender, EventName, EventLabel, DisplayName, Country, RankLabel, AgeGroup, TimeText;
             public int Rank;
             public Swimmer Sw;
             public bool Selected;
@@ -30895,11 +30895,14 @@ namespace SwimmingScoreboard
                     string displayName = sw.Name;
                     if (certRelay && !string.IsNullOrEmpty(sw.Notes) && sw.Notes.StartsWith("接力队 棒次:"))
                         displayName = sw.Country + "（" + sw.Notes.Substring("接力队 棒次:".Length) + "）";
+                    var rFinal = sw.GetResultForStage("决赛");
                     result.Add(new AwardCandidateRow {
                         Gender = g.Key.Gender, EventName = g.Key.EventName,
                         EventLabel = g.Key.Gender + " " + g.Key.EventName,
                         Rank = i + 1, RankLabel = i < rankNames.Length ? rankNames[i] : ("第" + (i + 1) + "名"),
-                        Sw = sw, DisplayName = displayName, Country = sw.Country ?? ""
+                        Sw = sw, DisplayName = displayName, Country = sw.Country ?? "",
+                        AgeGroup = sw.AgeCategory ?? "",
+                        TimeText = (rFinal != null && rFinal.FinalTime > 0) ? TimeFormatter.Format(rFinal.FinalTime) : ""
                     });
                 }
             }
@@ -30909,14 +30912,81 @@ namespace SwimmingScoreboard
         private void PrintAwardCertificate_Click(object sender, RoutedEventArgs e) {
             var candidates = CollectAwardCandidates();
             var win = new AwardCertificateWindow(candidates) { Owner = this };
-            win.OnGenerate = delegate(List<AwardCandidateRow> selected) {
-                GenerateAndOpenDocument("奖状", BuildAwardCertificateHtml(selected));
+            win.OnGenerate = delegate(List<AwardCandidateRow> selected, string template, double offX, double offY) {
+                GenerateAndOpenDocument("奖状", BuildAwardCertificateHtml(selected, template, offX, offY));
                 win.Close();
             };
             win.ShowDialog();
         }
 
-        private string BuildAwardCertificateHtml(List<AwardCandidateRow> selected) {
+        // 2026-09-16 三选一模板: "full"=原来自己画的完整证书(边框/印章/大标题都是程序画的,
+        //   打在空白纸上); "gansu"/"haosha"=用户提供的两张已经印好边框图案+盖好章的实体
+        //   证书纸(见 两种标准版的获奖证书模板2026-7-29.pdf), 现场只用把姓名/项目/成绩这
+        //   几项套打到纸上留白的横线位置, 不能再画任何装饰(纸上已经有了)。
+        private string BuildAwardCertificateHtml(List<AwardCandidateRow> selected, string template, double offXmm, double offYmm) {
+            if (template == "gansu" || template == "haosha")
+                return BuildAwardCertificatePreprintedHtml(selected, template, offXmm, offYmm);
+            return BuildAwardCertificateFullHtml(selected);
+        }
+
+        // 2026-09-16 "预印证书套打"——字段坐标是照着用户给的实体证书照片目测的比例换算
+        //   到 A4(210×297mm)的, 不是拿真尺量出来的, 打印机型号/纸张进纸位置都可能有偏差。
+        //   选择窗口里留了"水平/垂直微调(mm)"，实机套打对不上时直接改那两个数, 不用回来
+        //   改代码——两个数是整体平移, 4~5 个字段一起挪。
+        private string BuildAwardCertificatePreprintedHtml(List<AwardCandidateRow> selected, string template, double offXmm, double offYmm) {
+            var sb = new StringBuilder();
+            sb.Append("<!DOCTYPE html><html><head><meta charset='UTF-8'><style>");
+            sb.Append("body{font-family:'SimSun',serif;margin:0;padding:0;}");
+            sb.Append(".cert-page{width:210mm;height:297mm;position:relative;page-break-after:always;box-sizing:border-box;overflow:hidden;}");
+            sb.Append(".fld{position:absolute;font-size:13pt;color:#111;white-space:nowrap;}");
+            sb.Append("@media print{@page{size:A4;margin:0;}}");
+            sb.Append("</style></head><body>");
+
+            string dateStr = GetDatePickerText(StartDatePicker);
+            string endDateStr = GetDatePickerText(EndDatePicker);
+            string dateRange = string.IsNullOrEmpty(dateStr) ? "" : (dateStr + (string.IsNullOrEmpty(endDateStr) || endDateStr == dateStr ? "" : (" 至 " + endDateStr)));
+            string location = LocationBox.Text ?? "";
+            string timeLocation = (dateRange + (string.IsNullOrEmpty(location) ? "" : ("　" + location))).Trim();
+
+            Func<AwardCandidateRow, string> eventScoreText = c => c.Gender + c.EventName + "　" + c.RankLabel + (string.IsNullOrEmpty(c.TimeText) ? "" : ("　" + c.TimeText));
+            Func<AwardCandidateRow, string> groupEventText = c => (string.IsNullOrEmpty(c.AgeGroup) ? "" : (c.AgeGroup + " ")) + c.Gender + c.EventName;
+            Func<AwardCandidateRow, string> rankScoreText = c => c.RankLabel + (string.IsNullOrEmpty(c.TimeText) ? "" : ("　" + c.TimeText));
+
+            foreach (var c in selected ?? new List<AwardCandidateRow>()) {
+                sb.Append("<div class='cert-page'>");
+                if (template == "gansu") {
+                    // 模板一: 竞赛名称/运动员姓名/项目与成绩/时间地点 四行, 从照片估约
+                    //   62%/66%/70%/74% 卡片高度处起
+                    AppendCertField(sb, 78, 184, offXmm, offYmm, _competitionName);
+                    AppendCertField(sb, 78, 196, offXmm, offYmm, c.DisplayName);
+                    AppendCertField(sb, 78, 208, offXmm, offYmm, eventScoreText(c));
+                    AppendCertField(sb, 78, 220, offXmm, offYmm, timeLocation);
+                } else {
+                    // 模板二(浩沙FAFA杯): 比赛名称/运动员姓名/组别与项目/名次与成绩/
+                    //   时间地点 五行, 从照片估约 34%/38%/42%/46%/50% 卡片高度处起
+                    AppendCertField(sb, 74, 101, offXmm, offYmm, _competitionName);
+                    AppendCertField(sb, 74, 113, offXmm, offYmm, c.DisplayName);
+                    AppendCertField(sb, 74, 125, offXmm, offYmm, groupEventText(c));
+                    AppendCertField(sb, 74, 137, offXmm, offYmm, rankScoreText(c));
+                    AppendCertField(sb, 74, 149, offXmm, offYmm, timeLocation);
+                }
+                sb.Append("</div>");
+            }
+            if (selected == null || selected.Count == 0) {
+                sb.Append("<div class='cert-page'><p style='text-align:center;font-size:18pt;margin-top:120mm;'>未选择任何获奖者</p></div>");
+            }
+            sb.Append("</body></html>");
+            return sb.ToString();
+        }
+
+        private static void AppendCertField(StringBuilder sb, double xMm, double yMm, double offXmm, double offYmm, string text) {
+            sb.AppendFormat("<div class='fld' style='left:{0}mm;top:{1}mm;'>{2}</div>",
+                (xMm + offXmm).ToString(System.Globalization.CultureInfo.InvariantCulture),
+                (yMm + offYmm).ToString(System.Globalization.CultureInfo.InvariantCulture),
+                System.Net.WebUtility.HtmlEncode(text ?? ""));
+        }
+
+        private string BuildAwardCertificateFullHtml(List<AwardCandidateRow> selected) {
             var sb = new StringBuilder();
             sb.Append("<!DOCTYPE html><html><head><meta charset='UTF-8'><style>");
             sb.Append("body{font-family:'SimSun',serif;margin:0;padding:0;}");

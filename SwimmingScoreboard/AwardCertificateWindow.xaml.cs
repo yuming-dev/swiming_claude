@@ -10,8 +10,8 @@ namespace SwimmingScoreboard
     {
         private readonly List<MainWindow.AwardCandidateRow> _all;
 
-        // MainWindow 传进来处理"选中的这几条，帮我出证书"
-        public Action<List<MainWindow.AwardCandidateRow>> OnGenerate;
+        // MainWindow 传进来处理"选中的这几条 + 用哪个模板 + 微调偏移，帮我出证书"
+        public Action<List<MainWindow.AwardCandidateRow>, string, double, double> OnGenerate;
 
         public AwardCertificateWindow(List<MainWindow.AwardCandidateRow> candidates) {
             InitializeComponent();
@@ -23,6 +23,14 @@ namespace SwimmingScoreboard
             EventFilterBox.SelectedIndex = 0;
 
             RefreshGrid();
+        }
+
+        private void TemplateBox_SelectionChanged(object sender, SelectionChangedEventArgs e) {
+            // 预印模板才需要套打微调；自画完整证书用不上，藏起来免得让人以为要填
+            if (OffsetPanel == null) return;
+            var item = TemplateBox.SelectedItem as ComboBoxItem;
+            string tag = item != null ? (item.Tag as string) : "full";
+            OffsetPanel.Visibility = (tag == "gansu" || tag == "haosha") ? Visibility.Visible : Visibility.Collapsed;
         }
 
         private void RefreshGrid() {
@@ -63,7 +71,14 @@ namespace SwimmingScoreboard
             UpdateCount();
             var selected = _all.Where(c => c.Selected).ToList();
             if (selected.Count == 0) { MessageBox.Show("请至少选择一条获奖记录。", "奖状生成"); return; }
-            if (OnGenerate != null) OnGenerate(selected);
+
+            var templateItem = TemplateBox.SelectedItem as ComboBoxItem;
+            string template = templateItem != null ? (templateItem.Tag as string) : "full";
+            double offX, offY;
+            if (!double.TryParse(OffsetXBox.Text, out offX)) offX = 0;
+            if (!double.TryParse(OffsetYBox.Text, out offY)) offY = 0;
+
+            if (OnGenerate != null) OnGenerate(selected, template, offX, offY);
         }
 
         private void Close_Click(object sender, RoutedEventArgs e) { Close(); }
