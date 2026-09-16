@@ -30866,6 +30866,11 @@ namespace SwimmingScoreboard
 
             string[] rankNames = { "冠军", "亚军", "季军", "第四名", "第五名", "第六名", "第七名", "第八名" };
             int certCount = 0;
+            // 2026-09-16 页码。证书这张纸 @page margin:0(要让红色双线边框顶到纸边),
+            //   CSS 的 @bottom-center 页边距框在 margin:0 时没地方画、根本显不出来,
+            //   只能在 .cert-page 内部(它有 24mm/22mm 的 padding)手写一个绝对定位的
+            //   页码角标。要显示"共 N 页"得先知道总数, 所以先轻量数一遍。
+            int totalCerts = finalists.Sum(g => Math.Min(3, g.Count()));
 
             foreach (var g in finalists) {
                 var ranked = g.OrderBy(s => {
@@ -30877,7 +30882,9 @@ namespace SwimmingScoreboard
                     var sw = ranked[i];
                     string rk = i < rankNames.Length ? rankNames[i] : string.Format("第{0}名", i + 1);
 
+                    certCount++;
                     sb.Append("<div class='cert-page'>");
+                    sb.AppendFormat("<div style='position:absolute;bottom:10mm;right:14mm;font-size:10px;color:#999;'>第 {0} 页　共 {1} 页</div>", certCount, totalCerts);
                     sb.Append("<div class='cert-title'>奖&nbsp;&nbsp;状</div>");
                     sb.Append("<hr class='cert-divider'/>");
                     sb.Append("<div class='cert-body'>");
@@ -30900,7 +30907,6 @@ namespace SwimmingScoreboard
                     if (DateTime.TryParse(dateStr, out dt))
                         sb.AppendFormat("<div class='cert-date'>日期：{0}&nbsp;年&nbsp;{1}&nbsp;月&nbsp;{2}&nbsp;日</div>", dt.Year, dt.Month, dt.Day);
                     sb.Append("</div></div>");
-                    certCount++;
                 }
             }
 
@@ -30939,6 +30945,10 @@ namespace SwimmingScoreboard
 
             // 这里暂用占位，可通过 RecordCertificateWindow 弹窗填入具体信息
             sb.Append("<div class='cert-page'>");
+            // 2026-09-16 页码(同奖状: @page margin:0 时页边距框显不出来, 内部手写角标)。
+            //   这份现在只生成 1 页, 先按 1/1 写死; 以后要是也改成按每条纪录出一页,
+            //   记得跟奖状那处一样先数总数再回填。
+            sb.Append("<div style='position:absolute;bottom:10mm;right:14mm;font-size:10px;color:#999;'>第 1 页　共 1 页</div>");
             sb.Append("<div class='cert-title'>破&nbsp;纪&nbsp;录&nbsp;证&nbsp;书</div>");
             sb.Append("<hr class='cert-divider'/>");
             sb.Append("<div class='cert-body'>");

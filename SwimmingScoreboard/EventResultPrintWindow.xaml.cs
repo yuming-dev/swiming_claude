@@ -1027,7 +1027,9 @@ namespace SwimmingScoreboard
             //   字号/配色/边距各是一套很难看。原来这份 h1 36px、h2 下面留 50px 空,
             //   一张 8 人的成绩单要占掉大半页纸。
             sb.Append("<html><head><meta charset='UTF-8'><style>");
-            sb.Append("@page{ size:A4; margin:14mm 12mm; } ");
+            // 2026-09-16 页码。跟秩序册/成绩册那份 DocCss() 是同一个 CSS Paged Media 写法,
+            //   但这份文档是独立类(不是 MainWindow 的私有方法能直接调), 只能各写一份。
+            sb.Append("@page{ size:A4; margin:14mm 12mm; @bottom-center { content: '第 ' counter(page) ' 页  共 ' counter(pages) ' 页'; font-size:9px; color:#64748b; font-family:SimSun; } } ");
             sb.Append("body{font-family:'Microsoft YaHei','微软雅黑',SimHei,SimSun,sans-serif; padding:0; margin:0; line-height:1.45; color:#1f2937;} ");
             sb.Append(".page{padding:0 4px; box-sizing:border-box;} ");
             sb.Append("h1{text-align:center; font-size:26px; margin:0 0 4px; letter-spacing:3px; color:#0f172a;} ");

@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Reflection;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Windows;
 
 namespace SwimmingScoreboard
@@ -80,7 +81,59 @@ namespace SwimmingScoreboard
             } catch (Exception ex) { MessageBox.Show("导出 PDF 失败：" + ex.Message); }
         }
 
-        private void ExportDoc_Click(object sender, RoutedEventArgs e) { Save(".doc", "Word 文档|*.doc|所有文件|*.*"); }
+        /// <summary>
+        /// 2026-09-16 DOC 导出补页码。
+        ///
+        /// 秩序册/成绩册等用的是 CSS3 Paged Media 的 counter(page)(给 Chrome 打 PDF 用,
+        /// 已验证有效), 但 Word 打开"HTML 存成 .doc"这条路时走的是它自己的老式 HTML
+        /// 导入器, 根本不认 @bottom-center/counter(page) —— 这段 CSS 到 Word 里就是废纸。
+        /// Word 认的是它自己那套 mso-* 扩展: @page 关联一个 mso-footer 的 div, 里面用
+        /// mso-field-code 放 PAGE/NUMPAGES 域 —— Word 打开/打印时会自己把域换成"第几页/
+        /// 共几页", 翻页也跟着自动更新, 效果上等价于 Chrome 那边的页码。
+        /// (这段没有实机 Word 环境能验证渲染效果, 是 Word HTML 导入 mso-footer 的标准写法。)
+        /// </summary>
+        private static string InjectWordPageNumberFooter(string html) {
+            if (string.IsNullOrEmpty(html)) return html;
+            string result = Regex.Replace(html, "<html[^>]*>",
+                "<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>",
+                RegexOptions.IgnoreCase);
+
+            string footerCss = "@page Section1 { mso-footer: f1; } "
+                + "div.Section1 { page: Section1; } "
+                + "p.MsoFooter, li.MsoFooter, div.MsoFooter { margin:0; text-align:center; font-size:9pt; color:#666; } ";
+            int styleClose = result.IndexOf("</style>", StringComparison.OrdinalIgnoreCase);
+            if (styleClose >= 0) result = result.Insert(styleClose, footerCss);
+
+            string footerDiv = "<div style='mso-element:footer' id=f1>"
+                + "<p class=MsoFooter>第&nbsp;<span style='mso-field-code:\" PAGE \"'></span>"
+                + "&nbsp;页&nbsp;共&nbsp;<span style='mso-field-code:\" NUMPAGES \"'></span>&nbsp;页</p></div>";
+
+            int bodyTagIdx = result.IndexOf("<body", StringComparison.OrdinalIgnoreCase);
+            int bodyOpenEnd = bodyTagIdx >= 0 ? result.IndexOf('>', bodyTagIdx) : -1;
+            int bodyCloseIdx = result.LastIndexOf("</body>", StringComparison.OrdinalIgnoreCase);
+            if (bodyOpenEnd > 0 && bodyCloseIdx > bodyOpenEnd) {
+                result = result.Insert(bodyCloseIdx, "</div>" + footerDiv);
+                result = result.Insert(bodyOpenEnd + 1, "<div class=Section1>");
+            }
+            return result;
+        }
+
+        private void ExportDoc_Click(object sender, RoutedEventArgs e) {
+            var dlg = new Microsoft.Win32.SaveFileDialog {
+                Filter = "Word 文档|*.doc|所有文件|*.*",
+                FileName = _suggestedName + ".doc",
+                Title = "导出 DOC"
+            };
+            if (dlg.ShowDialog() != true) return;
+            try {
+                File.WriteAllText(dlg.FileName, InjectWordPageNumberFooter(CurrentHtml), Encoding.UTF8);
+                if (MessageBox.Show("导出完成：\n" + dlg.FileName + "\n\n是否立即打开？", "导出成功",
+                                    MessageBoxButton.YesNo, MessageBoxImage.Information) == MessageBoxResult.Yes) {
+                    System.Diagnostics.Process.Start(dlg.FileName);
+                }
+            } catch (Exception ex) { MessageBox.Show("导出失败：" + ex.Message); }
+        }
+
         private void ExportHtml_Click(object sender, RoutedEventArgs e) { Save(".html", "HTML 文件|*.html|所有文件|*.*"); }
 
         private void Save(string ext, string filter) {

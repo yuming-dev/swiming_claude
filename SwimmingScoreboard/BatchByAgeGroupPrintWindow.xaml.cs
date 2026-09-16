@@ -482,7 +482,8 @@ namespace SwimmingScoreboard
             // ══════════════════════════════════════════════════════════════
             var sb = new StringBuilder();
             sb.Append("<html><head><meta charset='UTF-8'><style>");
-            sb.Append("@page{ size:A4; margin:14mm 12mm; } ");
+            // 2026-09-16 页码, 跟项目成绩打印(EventResultPrintWindow)同一写法。
+            sb.Append("@page{ size:A4; margin:14mm 12mm; @bottom-center { content: '第 ' counter(page) ' 页  共 ' counter(pages) ' 页'; font-size:9px; color:#64748b; font-family:SimSun; } } ");
             sb.Append("body{font-family:'Microsoft YaHei','微软雅黑',SimHei,SimSun,sans-serif; padding:0; margin:0; line-height:1.45; color:#1f2937;} ");
             sb.Append(".page{padding:0 4px; box-sizing:border-box;} ");
             sb.Append("h1{text-align:center; font-size:26px; margin:0 0 4px; letter-spacing:3px; color:#0f172a;} ");
