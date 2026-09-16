@@ -17,10 +17,11 @@
 
         <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,10" VerticalAlignment="Center">
             <TextBlock Text="证书模板：" Foreground="#94A3B8" VerticalAlignment="Center" Margin="0,0,6,0"/>
-            <ComboBox x:Name="TemplateBox" Width="220" SelectionChanged="TemplateBox_SelectionChanged">
-                <ComboBoxItem Content="完整证书（自画，打在空白纸上）" Tag="full" IsSelected="True"/>
-                <ComboBoxItem Content="甘肃省运动会标准版（预印套打）" Tag="gansu"/>
-                <ComboBoxItem Content="浩沙FAFA杯标准版（预印套打）" Tag="haosha"/>
+            <ComboBox x:Name="TemplateBox" Width="280" SelectionChanged="TemplateBox_SelectionChanged">
+                <ComboBoxItem Content="完整证书－浩沙FAFA杯风格（自画）" Tag="full_haosha" IsSelected="True"/>
+                <ComboBoxItem Content="完整证书－甘肃省运动会风格（自画）" Tag="full_gansu"/>
+                <ComboBoxItem Content="甘肃省运动会标准版（预印套打）" Tag="preprint_gansu"/>
+                <ComboBoxItem Content="浩沙FAFA杯标准版（预印套打）" Tag="preprint_haosha"/>
             </ComboBox>
             <StackPanel x:Name="OffsetPanel" Orientation="Horizontal" Margin="20,0,0,0" Visibility="Collapsed">
                 <TextBlock Text="水平微调(mm)：" Foreground="#94A3B8" VerticalAlignment="Center" Margin="0,0,4,0"/>

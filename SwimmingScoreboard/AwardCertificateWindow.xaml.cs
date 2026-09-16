@@ -29,8 +29,8 @@ namespace SwimmingScoreboard
             // 预印模板才需要套打微调；自画完整证书用不上，藏起来免得让人以为要填
             if (OffsetPanel == null) return;
             var item = TemplateBox.SelectedItem as ComboBoxItem;
-            string tag = item != null ? (item.Tag as string) : "full";
-            OffsetPanel.Visibility = (tag == "gansu" || tag == "haosha") ? Visibility.Visible : Visibility.Collapsed;
+            string tag = item != null ? (item.Tag as string) : "full_haosha";
+            OffsetPanel.Visibility = (tag == "preprint_gansu" || tag == "preprint_haosha") ? Visibility.Visible : Visibility.Collapsed;
         }
 
         private void RefreshGrid() {
@@ -73,7 +73,7 @@ namespace SwimmingScoreboard
             if (selected.Count == 0) { MessageBox.Show("请至少选择一条获奖记录。", "奖状生成"); return; }
 
             var templateItem = TemplateBox.SelectedItem as ComboBoxItem;
-            string template = templateItem != null ? (templateItem.Tag as string) : "full";
+            string template = templateItem != null ? (templateItem.Tag as string) : "full_haosha";
             double offX, offY;
             if (!double.TryParse(OffsetXBox.Text, out offX)) offX = 0;
             if (!double.TryParse(OffsetYBox.Text, out offY)) offY = 0;

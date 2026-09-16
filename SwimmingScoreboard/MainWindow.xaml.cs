@@ -30919,14 +30919,19 @@ namespace SwimmingScoreboard
             win.ShowDialog();
         }
 
-        // 2026-09-16 三选一模板: "full"=原来自己画的完整证书(边框/印章/大标题都是程序画的,
-        //   打在空白纸上); "gansu"/"haosha"=用户提供的两张已经印好边框图案+盖好章的实体
-        //   证书纸(见 两种标准版的获奖证书模板2026-7-29.pdf), 现场只用把姓名/项目/成绩这
-        //   几项套打到纸上留白的横线位置, 不能再画任何装饰(纸上已经有了)。
+        // 2026-09-16 四选一模板:
+        //   "full_haosha"/"full_gansu" = 完全自己画的完整证书(边框/大标题/底色都是程序画的,
+        //     打在空白纸上就是整张证书), 分别照浩沙FAFA杯 / 甘肃省运动会那两张照片的
+        //     配色版式画;
+        //   "preprint_gansu"/"preprint_haosha" = 用户提供的两张已经印好边框图案+盖好章的
+        //     实体证书纸(见 两种标准版的获奖证书模板2026-7-29.pdf), 现场只把姓名/项目/
+        //     成绩这几项套打到纸上留白的横线位置, 不能再画任何装饰(纸上已经有了)。
         private string BuildAwardCertificateHtml(List<AwardCandidateRow> selected, string template, double offXmm, double offYmm) {
-            if (template == "gansu" || template == "haosha")
+            if (template == "preprint_gansu" || template == "preprint_haosha")
                 return BuildAwardCertificatePreprintedHtml(selected, template, offXmm, offYmm);
-            return BuildAwardCertificateFullHtml(selected);
+            if (template == "full_gansu")
+                return BuildAwardCertificateFullGansuHtml(selected);
+            return BuildAwardCertificateFullHaoshaHtml(selected);
         }
 
         // 2026-09-16 "预印证书套打"——字段坐标是照着用户给的实体证书照片目测的比例换算
@@ -30954,7 +30959,7 @@ namespace SwimmingScoreboard
 
             foreach (var c in selected ?? new List<AwardCandidateRow>()) {
                 sb.Append("<div class='cert-page'>");
-                if (template == "gansu") {
+                if (template == "preprint_gansu") {
                     // 模板一: 竞赛名称/运动员姓名/项目与成绩/时间地点 四行, 从照片估约
                     //   62%/66%/70%/74% 卡片高度处起
                     AppendCertField(sb, 78, 184, offXmm, offYmm, _competitionName);
@@ -30992,7 +30997,7 @@ namespace SwimmingScoreboard
         //   时间地点)、右下角主办单位。跟预印模板那两份不一样的是: 这份还是全部由程序
         //   画出来(边框/底色/大字都是画的), 打在空白纸上就是一张完整证书, 不需要另外
         //   准备印刷好的证书纸。
-        private string BuildAwardCertificateFullHtml(List<AwardCandidateRow> selected) {
+        private string BuildAwardCertificateFullHaoshaHtml(List<AwardCandidateRow> selected) {
             var sb = new StringBuilder();
             sb.Append("<!DOCTYPE html><html><head><meta charset='UTF-8'><style>");
             sb.Append("body{font-family:'SimSun',serif;margin:0;padding:0;}");
@@ -31041,6 +31046,80 @@ namespace SwimmingScoreboard
                 sb.Append("</div></div>");
                 if (!string.IsNullOrEmpty(organizer0))
                     sb.AppendFormat("<div class='cert-org'>{0}</div>", System.Net.WebUtility.HtmlEncode(organizer0));
+                sb.Append("</div>");
+            }
+
+            if (selected == null || selected.Count == 0) {
+                sb.Append("<div class='cert-page'><p style='text-align:center;font-size:24px;margin-top:200px;'>未选择任何获奖者</p></div>");
+            }
+
+            sb.Append("</body></html>");
+            return sb.ToString();
+        }
+
+        // 2026-09-16 "完整证书(自画)"第二种版式——照甘肃省运动会标准版那张照片的配色画:
+        //   暖白底色、红色双线边框(花纹式的花边照片里那种精细回纹没法用 CSS 精确复刻,
+        //   用双线+内层细线勾一个"证书感"的边框代替)、金色大字"获奖证书"+英文副标题、
+        //   四行字段(竞赛名称/运动员姓名/项目与成绩/时间地点, 跟预印版 preprint_gansu
+        //   模板字段一致)、左下角主办/承办单位、右下角组委会+日期+盖章位置虚线圈(打完
+        //   证书后拿真印章往虚线圈里盖, 不是画一个假印章冒充)。
+        private string BuildAwardCertificateFullGansuHtml(List<AwardCandidateRow> selected) {
+            var sb = new StringBuilder();
+            sb.Append("<!DOCTYPE html><html><head><meta charset='UTF-8'><style>");
+            sb.Append("body{font-family:'SimSun',serif;margin:0;padding:0;}");
+            sb.Append(".cert-page{width:210mm;height:297mm;margin:0 auto;box-sizing:border-box;position:relative;");
+            sb.Append("page-break-after:always;overflow:hidden;background:#fffdf6;}");
+            sb.Append(".cert-frame{position:absolute;top:8mm;left:8mm;right:8mm;bottom:8mm;border:3px double #b8342a;box-sizing:border-box;}");
+            sb.Append(".cert-frame-in{position:absolute;top:11.5mm;left:11.5mm;right:11.5mm;bottom:11.5mm;border:1px solid #e0a89e;box-sizing:border-box;}");
+            sb.Append(".cert-inner2{position:relative;padding:22mm 22mm 0;text-align:center;}");
+            sb.Append(".cert-comp-cn{font-size:22px;font-weight:bold;color:#7a1f1f;letter-spacing:2px;}");
+            sb.Append(".cert-title-cn{font-size:56px;font-family:'SimHei';font-weight:bold;color:#b8860b;letter-spacing:18px;margin:14mm 0 4mm;}");
+            sb.Append(".cert-title-en{font-size:13px;color:#b8860b;letter-spacing:6px;margin-bottom:16mm;}");
+            sb.Append(".cert-fields2{max-width:140mm;margin:0 auto;text-align:left;font-size:15pt;line-height:2.7;}");
+            sb.Append(".cert-field2{display:flex;align-items:baseline;}");
+            sb.Append(".field-label2{white-space:nowrap;color:#7a1f1f;font-weight:bold;min-width:120px;}");
+            sb.Append(".field-value2{flex:1;border-bottom:1px solid #94a3b8;padding-left:8px;min-width:140px;color:#111;}");
+            sb.Append(".cert-bottom{position:absolute;left:22mm;right:22mm;bottom:16mm;display:flex;justify-content:space-between;align-items:flex-end;}");
+            sb.Append(".cert-org-left{text-align:left;font-size:11pt;line-height:1.9;color:#333;}");
+            sb.Append(".cert-org-right{text-align:right;font-size:11pt;line-height:1.9;color:#333;position:relative;padding-right:30mm;}");
+            sb.Append(".cert-stamp{position:absolute;right:0;bottom:-6mm;width:26mm;height:26mm;border:1.5px dashed #c0392b;border-radius:50%;}");
+            sb.Append("@media print{.cert-page{-webkit-print-color-adjust:exact;print-color-adjust:exact;}@page{size:A4;margin:0;}}");
+            sb.Append("</style></head><body>");
+
+            string dateStr1 = GetDatePickerText(StartDatePicker);
+            string endDateStr1 = GetDatePickerText(EndDatePicker);
+            string dateRange1 = string.IsNullOrEmpty(dateStr1) ? "" : (dateStr1 + (string.IsNullOrEmpty(endDateStr1) || endDateStr1 == dateStr1 ? "" : (" 至 " + endDateStr1)));
+            string location1 = LocationBox.Text ?? "";
+            string timeLocation1 = (dateRange1 + (string.IsNullOrEmpty(location1) ? "" : ("　" + location1))).Trim();
+            string organizer1 = OrganizerBox.Text ?? "";
+            string host1 = HostBox.Text ?? "";
+            DateTime dt1; bool hasDate1 = DateTime.TryParse(dateStr1, out dt1);
+
+            foreach (var c in selected ?? new List<AwardCandidateRow>()) {
+                string eventScore = c.Gender + c.EventName + "　" + c.RankLabel + (string.IsNullOrEmpty(c.TimeText) ? "" : ("　" + c.TimeText));
+                sb.Append("<div class='cert-page'>");
+                sb.Append("<div class='cert-frame'></div><div class='cert-frame-in'></div>");
+                sb.Append("<div class='cert-inner2'>");
+                sb.AppendFormat("<div class='cert-comp-cn'>{0}</div>", System.Net.WebUtility.HtmlEncode(_competitionName));
+                sb.Append("<div class='cert-title-cn'>获奖证书</div>");
+                sb.Append("<div class='cert-title-en'>CERTIFICATE OF AWARD</div>");
+                sb.Append("<div class='cert-fields2'>");
+                sb.AppendFormat("<div class='cert-field2'><span class='field-label2'>竞赛名称：</span><span class='field-value2'>{0}</span></div>", System.Net.WebUtility.HtmlEncode(_competitionName));
+                sb.AppendFormat("<div class='cert-field2'><span class='field-label2'>运动员姓名：</span><span class='field-value2'>{0}</span></div>", System.Net.WebUtility.HtmlEncode(c.DisplayName));
+                sb.AppendFormat("<div class='cert-field2'><span class='field-label2'>项目与成绩：</span><span class='field-value2'>{0}</span></div>", System.Net.WebUtility.HtmlEncode(eventScore));
+                sb.AppendFormat("<div class='cert-field2'><span class='field-label2'>时间地点：</span><span class='field-value2'>{0}</span></div>", System.Net.WebUtility.HtmlEncode(timeLocation1));
+                sb.Append("</div></div>");
+                sb.Append("<div class='cert-bottom'>");
+                sb.Append("<div class='cert-org-left'>");
+                if (!string.IsNullOrEmpty(organizer1)) sb.AppendFormat("主办单位：{0}<br/>", System.Net.WebUtility.HtmlEncode(organizer1));
+                if (!string.IsNullOrEmpty(host1)) sb.AppendFormat("承办单位：{0}", System.Net.WebUtility.HtmlEncode(host1));
+                sb.Append("</div>");
+                sb.Append("<div class='cert-org-right'>");
+                sb.AppendFormat("{0}组织委员会", System.Net.WebUtility.HtmlEncode(_competitionName));
+                if (hasDate1) sb.AppendFormat("<br/>{0}&nbsp;年&nbsp;{1}&nbsp;月&nbsp;{2}&nbsp;日", dt1.Year, dt1.Month, dt1.Day);
+                sb.Append("<div class='cert-stamp'></div>");
+                sb.Append("</div>");
+                sb.Append("</div>");
                 sb.Append("</div>");
             }
 
