@@ -400,6 +400,14 @@ namespace SwimmingScoreboard
             get { return _recordNote; }
             set { _recordNote = value ?? ""; OnPropertyChanged("RecordNote"); }
         }
+        // 2026-09-16 破纪录证书要印"原记录成绩/原记录保持者/原记录时间"——CheckRecords
+        //   判定破纪录那一刻在这里存个快照, 因为紧接着 UpdateRecordsAfterConfirm 就会把
+        //   _records 里的旧数据覆盖成新纪录持有者, 不当场抓下来事后就再也找不回了(没有
+        //   历史表)。这几个字段不用参与数据绑定, 直接普通字段, 不走 OnPropertyChanged。
+        public string OldRecordHolder = "";
+        public string OldRecordCountry = "";
+        public double OldRecordTime = 0;
+        public string OldRecordDate = "";
         // 接力赛各棒反应时（单位：秒）；按棒次顺序追加：
         //   第1棒 = 出发反应时（与 StartingBlockTime 相同）
         //   第2-4棒 = 交接反应时（出发台动作时刻 - 上一棒触板时刻）

@@ -8515,6 +8515,11 @@ namespace SwimmingScoreboard
             //   不是 _currentGender (= "男女" 时永远不匹配任何 男/女 record)
             string swGender = swimmer.Gender ?? "";
             var tags = new List<string>();
+            // 2026-09-16 tag 对应的旧纪录快照(纪录证书要印"原记录成绩/原记录保持者/原
+            //   记录时间")——UpdateRecordsAfterConfirm 紧跟着就会把 _records 覆盖成新
+            //   持有者, 这里是唯一还能拿到"破之前"数据的地方, 跟 tag 一起存, 免得多个
+            //   record 同时被破时张冠李戴。
+            var tagSnaps = new Dictionary<string, SwimmingRecord>();
             foreach (var record in _records) {
                 if (record == null || record.Time <= 0) continue;                      // 记录库无数据则不比较
                 if (record.Gender != swGender) continue;
@@ -8526,12 +8531,14 @@ namespace SwimmingScoreboard
                 string tag = RecordTypeToTag(record.RecordType);
                 if (result.FinalTime < record.Time) {
                     tags.Add(tag);
+                    tagSnaps[tag] = record;
                     AddLog(string.Format("★破{0}! {1} {2} < {3}（原 {4}/{5}）",
                         record.RecordType, swimmer.Name,
                         TimeFormatter.Format(result.FinalTime), TimeFormatter.Format(record.Time),
                         record.HolderName ?? "", record.HolderCountry ?? ""));
                 } else if (Math.Abs(result.FinalTime - record.Time) < 0.005) {
                     tags.Add("=" + tag);
+                    tagSnaps["=" + tag] = record;
                     AddLog(string.Format("★平{0}! {1} {2} = {3}",
                         record.RecordType, swimmer.Name,
                         TimeFormatter.Format(result.FinalTime), TimeFormatter.Format(record.Time)));
@@ -8547,6 +8554,13 @@ namespace SwimmingScoreboard
             // 2026-07-09 用户诉求: 只显示优先级最高的标识 (原 "WR/AR/NR" 拼接 → "WR").
             string note = tags.Count > 0 ? tags[0] : "";
             result.RecordNote = note;
+            SwimmingRecord noteSnap;
+            if (!string.IsNullOrEmpty(note) && tagSnaps.TryGetValue(note, out noteSnap) && noteSnap != null) {
+                result.OldRecordHolder = noteSnap.HolderName ?? "";
+                result.OldRecordCountry = noteSnap.HolderCountry ?? "";
+                result.OldRecordTime = noteSnap.Time;
+                result.OldRecordDate = noteSnap.Date ?? "";
+            }
             // 一组多人同时打破纪录时，仅保留本组成绩最佳者（含并列）的标识；其余清除。
             // FINA 惯例：纪录归本组最快者所有；慢于他的同组选手即便也好于历史纪录，也不计破纪录。
             EnforceOnlyLeaderRecordNote();
@@ -30699,8 +30713,20 @@ namespace SwimmingScoreboard
         //   参数类型也得跟着至少是 public(用 internal 会报可访问性不一致)。
         public class BrokenRecordRow {
             public string Date, AgeGroup, Gender, EventName, Stage, Athlete, Country, Time, Tag, RecordType;
+            // 2026-09-16 纪录证书要印"原记录成绩/谁的记录/原记录时间/本次运动会名次"
+            //   (用户明确要求) —— 前三项是 CheckRecords 判定破纪录那一刻存到 LaneResult
+            //   上的快照(OldRecordHolder/Time/Date, 事后 _records 已被覆盖就拿不到了),
+            //   最后一项是这名运动员在本届比赛该项目的正式名次(不是"破纪录"这件事本身
+            //   的名次, 是运动会名次——冠军破纪录也可能只是亚军破了个人最好成绩之类)。
+            public string OldHolder, OldTime, OldDate, CompRankLabel;
             public bool Selected;
             public string EventLabel { get { return (Gender ?? "") + " " + (EventName ?? ""); } }
+        }
+
+        private static string RankNumberToLabel(int rank) {
+            string[] names = { "冠军", "亚军", "季军", "第四名", "第五名", "第六名", "第七名", "第八名" };
+            if (rank <= 0) return "-";
+            return rank <= names.Length ? names[rank - 1] : ("第" + rank + "名");
         }
 
         // 2026-09-03 破纪录统计表改从【成绩行上的破纪录标识 RecordNote】收集。
@@ -30730,6 +30756,7 @@ namespace SwimmingScoreboard
                         var rec = _records.FirstOrDefault(x => x != null && RecordTypeToTag(x.RecordType) == abbr);
                         if (rec != null && !string.IsNullOrEmpty(rec.RecordType)) typeName = rec.RecordType;
                     }
+                    int compRank = sw.EventRankFor(r.Stage ?? "");
                     rows.Add(new BrokenRecordRow {
                         Date = FindScheduleDate(sw.AgeCategory ?? "", sw.Gender ?? "", sw.EventName ?? "", r.Stage ?? ""),
                         AgeGroup = sw.AgeCategory ?? "",
@@ -30740,7 +30767,12 @@ namespace SwimmingScoreboard
                         Country = sw.Country ?? "",
                         Time = TimeFormatter.Format(r.FinalTime),
                         Tag = note,
-                        RecordType = typeName + (tieRec ? "（平）" : "（破）")
+                        RecordType = typeName + (tieRec ? "（平）" : "（破）"),
+                        OldHolder = string.IsNullOrEmpty(r.OldRecordHolder) ? "" :
+                            (r.OldRecordHolder + (string.IsNullOrEmpty(r.OldRecordCountry) ? "" : ("（" + r.OldRecordCountry + "）"))),
+                        OldTime = r.OldRecordTime > 0 ? TimeFormatter.Format(r.OldRecordTime) : "",
+                        OldDate = r.OldRecordDate ?? "",
+                        CompRankLabel = RankNumberToLabel(compRank)
                     });
                 }
             }
@@ -31188,6 +31220,13 @@ namespace SwimmingScoreboard
 
             foreach (var r in selected ?? new List<BrokenRecordRow>()) {
                 string eventScore = r.Gender + r.EventName + (string.IsNullOrEmpty(r.Time) ? "" : ("　" + r.Time));
+                // 2026-09-16 用户要求纪录证书要印"原记录成绩/谁的记录/时间/运动会名次"。
+                //   原记录三项(保持者/成绩/时间)只要有一样非空就拼一行; 全空说明这个项目
+                //   原本没有纪录(首次设立), 显式写出来而不是留一行空白让人以为漏填了。
+                string oldRecordLine = (!string.IsNullOrEmpty(r.OldHolder) || !string.IsNullOrEmpty(r.OldTime) || !string.IsNullOrEmpty(r.OldDate))
+                    ? (r.OldHolder + (string.IsNullOrEmpty(r.OldHolder) || string.IsNullOrEmpty(r.OldTime) ? "" : "　") + r.OldTime
+                       + (string.IsNullOrEmpty(r.OldDate) ? "" : ("　" + r.OldDate)))
+                    : "（该项目原无纪录）";
                 sb.Append("<div class='cert-page'>");
                 sb.Append("<div class='cert-frame'></div><div class='cert-frame-in'></div>");
                 sb.Append("<div class='cert-inner2'>");
@@ -31198,7 +31237,9 @@ namespace SwimmingScoreboard
                 sb.AppendFormat("<div class='cert-field2'><span class='field-label2'>竞赛名称：</span><span class='field-value2'>{0}</span></div>", System.Net.WebUtility.HtmlEncode(_competitionName));
                 sb.AppendFormat("<div class='cert-field2'><span class='field-label2'>运动员姓名：</span><span class='field-value2'>{0}</span></div>", System.Net.WebUtility.HtmlEncode(r.Athlete));
                 sb.AppendFormat("<div class='cert-field2'><span class='field-label2'>项目与成绩：</span><span class='field-value2'>{0}</span></div>", System.Net.WebUtility.HtmlEncode(eventScore));
+                sb.AppendFormat("<div class='cert-field2'><span class='field-label2'>运动会名次：</span><span class='field-value2'>{0}</span></div>", System.Net.WebUtility.HtmlEncode(r.CompRankLabel ?? "-"));
                 sb.AppendFormat("<div class='cert-field2'><span class='field-label2'>纪录类型：</span><span class='field-value2'>{0}</span></div>", System.Net.WebUtility.HtmlEncode(r.RecordType ?? ""));
+                sb.AppendFormat("<div class='cert-field2'><span class='field-label2'>原纪录：</span><span class='field-value2'>{0}</span></div>", System.Net.WebUtility.HtmlEncode(oldRecordLine));
                 sb.AppendFormat("<div class='cert-field2'><span class='field-label2'>时间地点：</span><span class='field-value2'>{0}</span></div>", System.Net.WebUtility.HtmlEncode(timeLocation2));
                 sb.Append("</div></div>");
                 sb.Append("<div class='cert-bottom'>");
@@ -31254,6 +31295,11 @@ namespace SwimmingScoreboard
             string dateStr = GetDatePickerText(StartDatePicker);
             DateTime dt; bool hasDate = DateTime.TryParse(dateStr, out dt);
             foreach (var r in selected ?? new List<BrokenRecordRow>()) {
+                // 2026-09-16 用户要求纪录证书要印"原记录成绩/谁的记录/时间/运动会名次"。
+                string oldRecordLine = (!string.IsNullOrEmpty(r.OldHolder) || !string.IsNullOrEmpty(r.OldTime) || !string.IsNullOrEmpty(r.OldDate))
+                    ? (r.OldHolder + (string.IsNullOrEmpty(r.OldHolder) || string.IsNullOrEmpty(r.OldTime) ? "" : "　") + r.OldTime
+                       + (string.IsNullOrEmpty(r.OldDate) ? "" : ("　" + r.OldDate)))
+                    : "该项目原无纪录";
                 sb.Append("<div class='cert-page'>");
                 sb.Append("<div class='cert-title'>破&nbsp;纪&nbsp;录&nbsp;证&nbsp;书</div>");
                 sb.Append("<hr class='cert-divider'/>");
@@ -31262,8 +31308,8 @@ namespace SwimmingScoreboard
                 sb.Append("<div class='cert-text'>");
                 sb.AppendFormat("在&nbsp;<span class='cert-comp-name'>{0}</span>&nbsp;", _competitionName);
                 sb.AppendFormat("<span class='cert-event-name'>{0} {1}</span>&nbsp;项目比赛中，", r.Gender, r.EventName);
-                sb.AppendFormat("凭借卓越的竞技水平，以<span class='cert-score'>{0}</span>的优异成绩，", r.Time);
-                sb.AppendFormat("打破<span class='cert-record-type'>{0}</span>，", r.RecordType);
+                sb.AppendFormat("凭借卓越的竞技水平，以<span class='cert-score'>{0}</span>的优异成绩，荣获<span class='cert-record-type'>{1}</span>，", r.Time, r.CompRankLabel ?? "-");
+                sb.AppendFormat("打破<span class='cert-record-type'>{0}</span>（原纪录：{1}），", r.RecordType, System.Net.WebUtility.HtmlEncode(oldRecordLine));
                 sb.Append("特发此证，以表彰其杰出成就。");
                 sb.Append("</div></div>");
                 sb.Append("<div class='cert-fields'>");
