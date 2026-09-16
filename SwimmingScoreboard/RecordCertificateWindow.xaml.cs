@@ -10,7 +10,7 @@ namespace SwimmingScoreboard
     {
         private readonly List<MainWindow.BrokenRecordRow> _all;
 
-        public Action<List<MainWindow.BrokenRecordRow>> OnGenerate;
+        public Action<List<MainWindow.BrokenRecordRow>, string> OnGenerate;
 
         public RecordCertificateWindow(List<MainWindow.BrokenRecordRow> records) {
             InitializeComponent();
@@ -64,7 +64,9 @@ namespace SwimmingScoreboard
                 else MessageBox.Show("请至少选择一条破纪录记录。", "纪录证书生成");
                 return;
             }
-            if (OnGenerate != null) OnGenerate(selected);
+            var templateItem = TemplateBox.SelectedItem as ComboBoxItem;
+            string template = templateItem != null ? (templateItem.Tag as string) : "full";
+            if (OnGenerate != null) OnGenerate(selected, template);
         }
 
         private void Close_Click(object sender, RoutedEventArgs e) { Close(); }

@@ -31134,14 +31134,96 @@ namespace SwimmingScoreboard
         private void PrintRecordCertificate_Click(object sender, RoutedEventArgs e) {
             var records = CollectBrokenRecords();
             var win = new RecordCertificateWindow(records) { Owner = this };
-            win.OnGenerate = delegate(List<BrokenRecordRow> selected) {
-                GenerateAndOpenDocument("纪录证书", BuildRecordCertificateHtml(selected));
+            win.OnGenerate = delegate(List<BrokenRecordRow> selected, string template) {
+                GenerateAndOpenDocument("纪录证书", BuildRecordCertificateHtml(selected, template));
                 win.Close();
             };
             win.ShowDialog();
         }
 
-        private string BuildRecordCertificateHtml(List<BrokenRecordRow> selected) {
+        // 2026-09-16 纪录证书两选一: "full_gansu"=照甘肃省运动会标准版配色画(跟奖状那份
+        //   完整证书－甘肃省运动会风格是同一套 CSS 风格, 红双线边框+金字), 其它(含默认)
+        //   =原来那份深蓝双线边框的样式。纪录证书目前没有对应的预印证书纸模板(用户只
+        //   给了获奖证书的两张照片), 所以不像奖状那样有"预印套打"选项。
+        private string BuildRecordCertificateHtml(List<BrokenRecordRow> selected, string template) {
+            if (template == "full_gansu") return BuildRecordCertificateFullGansuHtml(selected);
+            return BuildRecordCertificateFullHtml(selected);
+        }
+
+        // 2026-09-16 纪录证书"甘肃省运动会风格"——跟 BuildAwardCertificateFullGansuHtml
+        //   同一套配色/边框/角标(红双线边框、金色大字、虚线印章圈), 字段换成纪录证书
+        //   自己的: 竞赛名称/运动员姓名/项目与成绩/纪录类型/时间地点, 比奖状那份多一行
+        //   "纪录类型"(破的是哪项纪录), 少不了——不然证书上看不出破的是什么纪录。
+        private string BuildRecordCertificateFullGansuHtml(List<BrokenRecordRow> selected) {
+            var sb = new StringBuilder();
+            sb.Append("<!DOCTYPE html><html><head><meta charset='UTF-8'><style>");
+            sb.Append("body{font-family:'SimSun',serif;margin:0;padding:0;}");
+            sb.Append(".cert-page{width:210mm;height:297mm;margin:0 auto;box-sizing:border-box;position:relative;");
+            sb.Append("page-break-after:always;overflow:hidden;background:#fffdf6;}");
+            sb.Append(".cert-frame{position:absolute;top:8mm;left:8mm;right:8mm;bottom:8mm;border:3px double #b8342a;box-sizing:border-box;}");
+            sb.Append(".cert-frame-in{position:absolute;top:11.5mm;left:11.5mm;right:11.5mm;bottom:11.5mm;border:1px solid #e0a89e;box-sizing:border-box;}");
+            sb.Append(".cert-inner2{position:relative;padding:20mm 22mm 0;text-align:center;}");
+            sb.Append(".cert-comp-cn{font-size:22px;font-weight:bold;color:#7a1f1f;letter-spacing:2px;}");
+            sb.Append(".cert-title-cn{font-size:50px;font-family:'SimHei';font-weight:bold;color:#b8860b;letter-spacing:14px;margin:12mm 0 4mm;}");
+            sb.Append(".cert-title-en{font-size:12px;color:#b8860b;letter-spacing:5px;margin-bottom:14mm;}");
+            sb.Append(".cert-fields2{max-width:145mm;margin:0 auto;text-align:left;font-size:14pt;line-height:2.5;}");
+            sb.Append(".cert-field2{display:flex;align-items:baseline;}");
+            sb.Append(".field-label2{white-space:nowrap;color:#7a1f1f;font-weight:bold;min-width:120px;}");
+            sb.Append(".field-value2{flex:1;border-bottom:1px solid #94a3b8;padding-left:8px;min-width:140px;color:#111;}");
+            sb.Append(".cert-bottom{position:absolute;left:22mm;right:22mm;bottom:16mm;display:flex;justify-content:space-between;align-items:flex-end;}");
+            sb.Append(".cert-org-left{text-align:left;font-size:11pt;line-height:1.9;color:#333;}");
+            sb.Append(".cert-org-right{text-align:right;font-size:11pt;line-height:1.9;color:#333;position:relative;padding-right:30mm;}");
+            sb.Append(".cert-stamp{position:absolute;right:0;bottom:-6mm;width:26mm;height:26mm;border:1.5px dashed #c0392b;border-radius:50%;}");
+            sb.Append("@media print{.cert-page{-webkit-print-color-adjust:exact;print-color-adjust:exact;}@page{size:A4;margin:0;}}");
+            sb.Append("</style></head><body>");
+
+            string dateStr2 = GetDatePickerText(StartDatePicker);
+            string endDateStr2 = GetDatePickerText(EndDatePicker);
+            string dateRange2 = string.IsNullOrEmpty(dateStr2) ? "" : (dateStr2 + (string.IsNullOrEmpty(endDateStr2) || endDateStr2 == dateStr2 ? "" : (" 至 " + endDateStr2)));
+            string location2 = LocationBox.Text ?? "";
+            string timeLocation2 = (dateRange2 + (string.IsNullOrEmpty(location2) ? "" : ("　" + location2))).Trim();
+            string organizer2 = OrganizerBox.Text ?? "";
+            string host2 = HostBox.Text ?? "";
+            DateTime dt2; bool hasDate2 = DateTime.TryParse(dateStr2, out dt2);
+
+            foreach (var r in selected ?? new List<BrokenRecordRow>()) {
+                string eventScore = r.Gender + r.EventName + (string.IsNullOrEmpty(r.Time) ? "" : ("　" + r.Time));
+                sb.Append("<div class='cert-page'>");
+                sb.Append("<div class='cert-frame'></div><div class='cert-frame-in'></div>");
+                sb.Append("<div class='cert-inner2'>");
+                sb.AppendFormat("<div class='cert-comp-cn'>{0}</div>", System.Net.WebUtility.HtmlEncode(_competitionName));
+                sb.Append("<div class='cert-title-cn'>破&nbsp;纪&nbsp;录&nbsp;证&nbsp;书</div>");
+                sb.Append("<div class='cert-title-en'>CERTIFICATE OF RECORD</div>");
+                sb.Append("<div class='cert-fields2'>");
+                sb.AppendFormat("<div class='cert-field2'><span class='field-label2'>竞赛名称：</span><span class='field-value2'>{0}</span></div>", System.Net.WebUtility.HtmlEncode(_competitionName));
+                sb.AppendFormat("<div class='cert-field2'><span class='field-label2'>运动员姓名：</span><span class='field-value2'>{0}</span></div>", System.Net.WebUtility.HtmlEncode(r.Athlete));
+                sb.AppendFormat("<div class='cert-field2'><span class='field-label2'>项目与成绩：</span><span class='field-value2'>{0}</span></div>", System.Net.WebUtility.HtmlEncode(eventScore));
+                sb.AppendFormat("<div class='cert-field2'><span class='field-label2'>纪录类型：</span><span class='field-value2'>{0}</span></div>", System.Net.WebUtility.HtmlEncode(r.RecordType ?? ""));
+                sb.AppendFormat("<div class='cert-field2'><span class='field-label2'>时间地点：</span><span class='field-value2'>{0}</span></div>", System.Net.WebUtility.HtmlEncode(timeLocation2));
+                sb.Append("</div></div>");
+                sb.Append("<div class='cert-bottom'>");
+                sb.Append("<div class='cert-org-left'>");
+                if (!string.IsNullOrEmpty(organizer2)) sb.AppendFormat("主办单位：{0}<br/>", System.Net.WebUtility.HtmlEncode(organizer2));
+                if (!string.IsNullOrEmpty(host2)) sb.AppendFormat("承办单位：{0}", System.Net.WebUtility.HtmlEncode(host2));
+                sb.Append("</div>");
+                sb.Append("<div class='cert-org-right'>");
+                sb.AppendFormat("{0}组织委员会", System.Net.WebUtility.HtmlEncode(_competitionName));
+                if (hasDate2) sb.AppendFormat("<br/>{0}&nbsp;年&nbsp;{1}&nbsp;月&nbsp;{2}&nbsp;日", dt2.Year, dt2.Month, dt2.Day);
+                sb.Append("<div class='cert-stamp'></div>");
+                sb.Append("</div>");
+                sb.Append("</div>");
+                sb.Append("</div>");
+            }
+
+            if (selected == null || selected.Count == 0) {
+                sb.Append("<div class='cert-page'><p style='text-align:center;font-size:24px;margin-top:200px;'>未选择任何破纪录记录</p></div>");
+            }
+
+            sb.Append("</body></html>");
+            return sb.ToString();
+        }
+
+        private string BuildRecordCertificateFullHtml(List<BrokenRecordRow> selected) {
             // 查找本次比赛中破纪录的运动员
             var sb = new StringBuilder();
             sb.Append("<!DOCTYPE html><html><head><meta charset='UTF-8'><style>");
