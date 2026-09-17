@@ -40,6 +40,14 @@ namespace SwimmingScoreboard
         public Func<string, string, string, string, int> GenerateEventRanking { get; set; }
 
         /// <summary>
+        /// 2026-09-17 注入: 单独问"这一组是否已经确认本组成绩"。参数 = (组别, 性别, 项目,
+        /// 赛次, 组次)。跟 ReadEventProgress/GenerateEventRanking 问的"全项目是否都确认"
+        /// 是两件不相关的事——选【第X组】打印只该看这一组自己确认没确认, 跟别的组
+        /// 比没比完毫无关系; 只有选【全部】(总排名)才用得上"全部组是否都确认"那条判定。
+        /// </summary>
+        public Func<string, string, string, string, int, bool> IsHeatConfirmed { get; set; }
+
+        /// <summary>
         /// 2026-09-02 注入: 填左侧赛程导航树。参数 = (树, 搜索词, 状态筛选)。
         ///
         /// 直接借用主窗口的 RebuildNavTree —— 跟"成绩与排名"那棵是【同一份代码】。
@@ -780,6 +788,14 @@ namespace SwimmingScoreboard
                 return;
             }
 
+            // 2026-09-17 【选"第X组"打印, 只该看这一组自己确认没确认】——跟"生成组成绩/
+            //   总排名"要求的"全项目是否都确认"是两件不相关的事, 不能拿后者卡前者。
+            //   用户明确指出: 按过"确认本组成绩"就该能打印这一组, 跟别的组比没比完
+            //   毫无关系; "尚未定稿"那句警示只该在选【全部】(总排名)、且项目没全部
+            //   确认时才出现。这里单独问一次这一组的确认状态, 问到了就不再当"过程值"。
+            bool singleHeatFinalized = filterHeat > 0 && IsHeatConfirmed != null
+                && IsHeatConfirmed(ageFilter, gender, eventName, stage, filterHeat);
+
             // 接力赛棒次数（用于反应时分棒输出）
             bool isRelay = eventName.Contains("接力");
             int legCount = 4;
@@ -858,7 +874,13 @@ namespace SwimmingScoreboard
                     //   原来看不出某一行是第几组的, 也看不出这个人属于哪个组别。
                     // 2026-09-01 名次【从库里读】: EventRankFor 取的是确认成绩时竞赛库算好、
                     //   回读进内存的名次(项目定稿后是 event_rankings 的值)。这里不算。
-                    DbRank = s.EventRankFor(stage),
+                    // 2026-09-17 【单独确认的这一组是个例外】——EventRankFor 故意"只认
+                    //   event_rankings"(全项目定稿后才有), 项目没全部确认时一律返回 0,
+                    //   显示"-"。可这一组自己已经确认过了, r.Rank(组内名次, 确认那一刻
+                    //   就由竞赛库回读进内存, 见 LaneResult.Rank 的注释)是真实有效的——
+                    //   只看这一组、没有别的组混进来对比, 不会重蹈"多组各自的第1名全部
+                    //   显示第1"那个坑(那是【总排名】视图混了多组才会出的问题)。
+                    DbRank = singleHeatFinalized ? r.Rank : s.EventRankFor(stage),
                     AgeGroup = s.AgeCategory ?? "",
                     HeatNo = r.Heat,
                     Remark = remark,
@@ -954,6 +976,14 @@ namespace SwimmingScoreboard
 
             string ageHead = (string.IsNullOrEmpty(ageFilter) || ageFilter == "全部") ? "" : (ageFilter + " ");
             string heatDesc = filterHeat > 0 ? " 第" + filterHeat + "组" : " 总排名";
+            if (singleHeatFinalized) {
+                // 2026-09-17 这一组已经确认过成绩(不管别的组比没比完), 不再当"过程值"。
+                _resultsFinalized = true;
+                StatusText.Text = string.Format("{0}{1} {2} {3}{4} — 共{5}人有成绩（✓ 本组已确认, 名次以本组为准）",
+                    ageHead, gender, eventName, stage, heatDesc, withResults.Count);
+                StatusText.Foreground = System.Windows.Media.Brushes.Green;
+                return;
+            }
             // 2026-09-01 走到这里就说明【库里还没有组排名表】—— 下面这些名次都是过程值,
             //   项目全部比完定稿之后还会变。必须说出来, 别让人拿过程名次当最终名次去发奖。
             string dbNote = DbProgressLine(ageFilter, gender, eventName, stage);

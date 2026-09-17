@@ -1457,6 +1457,33 @@ namespace SwimmingScoreboard.Db
             catch (Exception ex) { Log("查项目定稿进度失败: " + ex.Message); }
         }
 
+        /// <summary>
+        /// 2026-09-17 单独一组是不是已经"确认本组成绩"——跟"这个项目全部组是否都已确认
+        /// (从而能不能生成【组成绩/总排名】)"是两件不相关的事, 不能混着问。
+        ///
+        /// 用户明确指出: "项目成绩"里选【第X组】打印, 只要按过"确认本组成绩"就该能打印,
+        /// 跟别的组比没比完毫无关系; 只有选【全部】(总排名)才用得上"是否全部组都确认"。
+        /// 原来打印窗口没有单独问"这一组"的入口, 只能问 GetEventRankingProgress 那种
+        /// "全项目还差几组"的整体进度, 或者直接查 event_rankings(只有全部组确认后才有
+        /// 数据)——于是单独一组哪怕早就确认了, 只要项目里还有别的组没比，"第X组"照样
+        /// 打印不出来、或者带着"尚未定稿"的警示, 这是不对的。
+        /// </summary>
+        public bool IsHeatConfirmed(string ageGroup, string gender, string eventName, string stage, int heat)
+        {
+            if (_local == null || _meet == null || heat <= 0) return false;
+            try
+            {
+                long rid = ResolveRound(ageGroup, gender, eventName, stage);
+                if (rid == 0) return false;
+                var hl = _meet.GetHeatList(rid);
+                if (hl == null) return false;
+                foreach (var h in hl)
+                    if (h.Heat == heat) return !h.IsCancelled && h.IsConfirmed;
+                return false;
+            }
+            catch (Exception ex) { Log("查单组确认状态失败: " + ex.Message); return false; }
+        }
+
         public List<string[]> ListHeatStamps()
         {
             var list = new List<string[]>();

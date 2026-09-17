@@ -28579,6 +28579,11 @@ namespace SwimmingScoreboard
                 }
                 return made;
             };
+            // 2026-09-17 打印选了【第X组】时, 只该看这一组自己确认没确认——跟"生成组
+            //   成绩"要求的"全项目都确认"是两件事, 不能拿后者去卡前者。
+            win.IsHeatConfirmed = delegate(string ag, string gd, string ev, string st, int heat) {
+                return _meetDb.IsHeatConfirmed(ag, gd, ev, st, heat);
+            };
             win.Owner = this;
             win.ShowDialog();
         }
