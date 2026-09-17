@@ -31128,9 +31128,9 @@ namespace SwimmingScoreboard
             sb.Append(".field-label{white-space:nowrap;color:#1e3a8a;font-weight:bold;min-width:130px;}");
             sb.Append(".field-value{flex:1;border-bottom:1px solid #64748b;padding-left:8px;min-width:140px;color:#111;}");
             // 2026-09-17 主办单位这行原来 bottom:16mm, 紧贴证书最下沿, 盖章章面(常见
-            //   30-40mm 直径)根本按不下去(用户实拍)。先抬到 bottom:30mm, 用户实际
-            //   打印盖章后反馈还要再高一点, 又抬到 38mm。
-            sb.Append(".cert-org{position:absolute;right:20mm;bottom:38mm;text-align:right;font-size:14pt;font-weight:bold;color:#0f172a;}");
+            //   30-40mm 直径)根本按不下去(用户实拍)。16→30→38mm 两轮实际打印盖章后
+            //   都反馈还不够高, 第三轮直接抬到 58mm。
+            sb.Append(".cert-org{position:absolute;right:20mm;bottom:58mm;text-align:right;font-size:14pt;font-weight:bold;color:#0f172a;}");
             sb.Append("@media print{.cert-page{-webkit-print-color-adjust:exact;print-color-adjust:exact;}@page{size:A4;margin:0;}}");
             sb.Append("</style></head><body>");
 
@@ -31206,9 +31206,9 @@ namespace SwimmingScoreboard
             sb.Append(".field-label2{white-space:nowrap;color:#7a1f1f;font-weight:bold;min-width:120px;}");
             sb.Append(".field-value2{flex:1;border-bottom:1px solid #94a3b8;padding-left:8px;min-width:140px;color:#111;}");
             // 2026-09-17 原来 bottom:16mm, 组委会/日期/印章圈紧贴证书最下沿, 盖章按不下去
-            //   (用户实拍)。先抬到 bottom:30mm, 用户实际打印盖章后反馈还要再高一点,
-            //   又抬到 38mm。
-            sb.Append(".cert-bottom{position:absolute;left:22mm;right:22mm;bottom:38mm;display:flex;justify-content:space-between;align-items:flex-end;}");
+            //   (用户实拍)。16→30→38mm 两轮实际打印盖章后都反馈还不够高, 第三轮
+            //   直接抬到 58mm。
+            sb.Append(".cert-bottom{position:absolute;left:22mm;right:22mm;bottom:58mm;display:flex;justify-content:space-between;align-items:flex-end;}");
             sb.Append(".cert-org-left{text-align:left;font-size:11pt;line-height:1.9;color:#333;max-width:75mm;}");
             // 2026-09-17 取消印章虚线圈(用户明确要求直接在证书上盖真章, 不需要引导圈)。
             //   组委会落款原来靠 padding-right:30mm 给虚线圈让位; 现在圈没了, 改成
@@ -31303,9 +31303,9 @@ namespace SwimmingScoreboard
             sb.Append(".field-label2{white-space:nowrap;color:#7a1f1f;font-weight:bold;min-width:120px;}");
             sb.Append(".field-value2{flex:1;border-bottom:1px solid #94a3b8;padding-left:8px;min-width:140px;color:#111;}");
             // 2026-09-17 原来 bottom:16mm, 组委会/日期/印章圈紧贴证书最下沿, 盖章按不下去
-            //   (用户实拍)。先抬到 bottom:30mm, 用户实际打印盖章后反馈还要再高一点,
-            //   又抬到 38mm。
-            sb.Append(".cert-bottom{position:absolute;left:22mm;right:22mm;bottom:38mm;display:flex;justify-content:space-between;align-items:flex-end;}");
+            //   (用户实拍)。16→30→38mm 两轮实际打印盖章后都反馈还不够高, 第三轮
+            //   直接抬到 58mm。
+            sb.Append(".cert-bottom{position:absolute;left:22mm;right:22mm;bottom:58mm;display:flex;justify-content:space-between;align-items:flex-end;}");
             sb.Append(".cert-org-left{text-align:left;font-size:11pt;line-height:1.9;color:#333;max-width:75mm;}");
             // 2026-09-17 取消印章虚线圈、组委会落款改 max-width 自动换行——理由同
             //   BuildAwardCertificateFullGansuHtml 里的同名改动, 见那边注释。
