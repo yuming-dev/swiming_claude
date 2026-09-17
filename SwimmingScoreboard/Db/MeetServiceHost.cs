@@ -217,6 +217,10 @@ namespace SwimmingScoreboard.Db
                 case "ListHeatStamps": return s.ListHeatStamps();
                 case "ListConfirmedHeats": return s.ListConfirmedHeats();
                 case "GetRacingHeats": return s.GetRacingHeats();
+                case "GenerateEventRankingIfComplete":
+                    return s.GenerateEventRankingIfComplete(MeetRpc.Arg<long>(a, "roundId"), MeetRpc.Arg<long>(a, "eventId"),
+                        MeetRpc.Arg<string>(a, "ageGroup"), MeetRpc.Arg<string>(a, "gender"),
+                        MeetRpc.Arg<string>(a, "eventName"), MeetRpc.Arg<string>(a, "stage"), MeetRpc.Arg<string>(a, "op"));
 
                 // ── K ──
                 case "Backup":        s.Backup(MeetRpc.Arg<string>(a, "targetPath")); return null;

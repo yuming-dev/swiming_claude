@@ -922,6 +922,14 @@ namespace SwimmingScoreboard.Db
                 // 【这是"项目成绩查不到"的真正源头】—— 断线补传/导入补生成/竞态重试
                 // 那三处补丁全在下游, 通知压根没发出来过。
                 // ══════════════════════════════════════════════════════════
+                // ══════════════════════════════════════════════════════════
+                // 2026-09-01 判定"全部组已确认"必须问【库的真身】。
+                //
+                // 联机计时端上 _local 不是真身: LiveCommit 在联机时走的是
+                //   _meet.CommitHeatFrom(...)  —— 成绩和 confirmed_at 只写主服务器,
+                //   本机那份 meet.db 是导入档案时建的、【一组都没确认过】的副本。
+                // 拿它去数, 结果永远是"还有 N 组没确认"(N = 该项目总组数, 一次都不减)。
+                // ══════════════════════════════════════════════════════════
                 int pending;
                 bool standalone = ReferenceEquals(_meet, _local);
                 if (standalone)
@@ -947,33 +955,6 @@ namespace SwimmingScoreboard.Db
                     return 0;
                 }
 
-                // 联机计时端【不在本机写这张表】: _local 是空副本, 写出来的是一张错表,
-                // 而且没人会读它。判定通过 + 操作员点头之后, 由调用方发
-                // GENERATE_EVENT_RANKING 让主服务器用它自己的库生成 —— 那份才作数。
-                if (!standalone)
-                {
-                    if (confirm != null && !confirm())
-                    {
-                        Log(string.Format("{0}{1} {2} {3}: 操作员取消, 本次不生成组成绩(下次确认成绩时会再问)",
-                            ageGroup, gender, eventName, stage));
-                        return 0;
-                    }
-                    Log(string.Format("★ {0}{1} {2} {3} 全部组已确认 —— 通知主服务器生成组成绩（本机不写, 以服务器那份为准）",
-                        ageGroup, gender, eventName, stage));
-                    return 1;   // >0 = 告诉调用方"去通知主服务器"
-                }
-
-                // 2026-08-31 老库里这张表可能是早先的列序(名次不在第一列)。
-                //   这表是每次全部确认后重新生成的, 丢了也能再生成 —— 列序不对就重建。
-                try {
-                    var ti = _local.Db.Query("PRAGMA table_info(event_rankings)");
-                    if (ti.Rows.Count > 0 && SS(ti.Rows[0]["name"]) != "rank") {
-                        _local.Db.ExecuteNonQuery("DROP TABLE event_rankings");
-                        _local.Db.EnsureSchemaPublic();
-                        Log("组排名表列序已更新(名次放到第一列), 表已重建");
-                    }
-                } catch { }
-
                 // 全部确认了。写表【之前】先问一句 —— 定稿动作不能悄悄发生。
                 if (confirm != null && !confirm())
                 {
@@ -982,103 +963,16 @@ namespace SwimmingScoreboard.Db
                     return 0;
                 }
 
-                // 生成/刷新这个项目的组排名表
-                var rows = _local.Db.Query(
-                    "SELECT he.id, he.heat, he.lane, he.final_time, he.rank, he.status, " +
-                    "       he.promotion_mark, he.record_note, en.bib_number AS bib, " +
-                    "       en.athlete_id AS aid, a.name AS nm, u.name AS un " +
-                    "FROM heat_entries he " +
-                    "JOIN entries en ON en.id=he.entry_id " +
-                    "LEFT JOIN athletes a ON a.id=en.athlete_id " +
-                    "LEFT JOIN units u ON u.id=en.unit_id " +
-                    "WHERE he.round_id=@p1 AND en.event_id=@p2 AND he.reserve_no IS NULL " +
-                    // 2026-09-01 TRI(试游)【进表, 但 rank=0】—— 跟 DSQ/DNS/DNF 一个待遇。
-                    //   为什么不像先前那样直接不入表: 这张表是打印的数据源, 而
-                    //   "项目成绩"按【第X组】看时是本组成绩单, TRI 要显成绩+备注 TRI;
-                    //   选【全部】看时才是项目总排名, 那时才不显示 TRI。
-                    //   入不入表是"记录全不全"的问题, 显不显示是视图的问题, 两件事。
-                    // 2026-09-14 【本条 ORDER BY 原来拿 he.rank 当主排序键 —— 那是错的】
-                    //   he.rank 是 UpdateHeatRanking() 算出来的"组内名次"(只在本组内比较,
-                    //   见 MainWindow.RankHeatGroup: 只喂 GetCurrentHeatSwimmers() 这一组的人)。
-                    //   一个决赛项目分 2+ 组时, 每组都各有一个"组内第1", 数值都是 1 ——
-                    //   照 he.rank 排、再照 he.rank 原样写进 event_rankings.rank, 后果是:
-                    //   甲组游得慢的"组内第1"和乙组游得快的"组内第1"【都显示总排名第1】,
-                    //   总排名的名次跟真实用时完全对不上号(用户实拍到: 5:40 排在 3:01 前面)。
-                    //   现在只按【真实成绩】+状态分档排序, 下面在 C# 里按这个顺序重新算
-                    //   一份跨组的名次(并列规则与 ResultOrdering.ComputeRanks 同一份),
-                    //   不再相信 he.rank 这个组内值。
-                    "ORDER BY CASE COALESCE(he.status,'') WHEN 'TRI' THEN 1 WHEN 'DSQ' THEN 2 WHEN 'DQ' THEN 2 " +
-                    "              WHEN 'DNF' THEN 3 WHEN 'DNS' THEN 4 ELSE 0 END, " +
-                    "         CASE WHEN he.final_time>0 THEN he.final_time ELSE 999999 END, " +
-                    "         he.lane", rid, eid);
-
-                // 本项目共几组(取消的不算) —— 打印时显示"第几组/总组数"
-                var th = _local.Db.Query("SELECT COUNT(*) AS n FROM heats WHERE round_id=@p1 AND COALESCE(state,'') <> 'cancelled'", rid);
-                int totalHeats = th.Rows.Count > 0 ? Convert.ToInt32(th.Rows[0]["n"]) : 0;
-
-                // 2026-09-14 跨组名次在这里重算一遍, 不用 he.rank(那是组内名次) ——
-                //   算法跟 ResultOrdering.ComputeRanks 同一份(1/100 秒取整判并列,
-                //   形如 1,1,3,4), 只是这里的输入是【全项目、跨所有组】按成绩排好的行,
-                //   而 he.rank 当初只在各自那一组内部算过一次。
-                //   rows 已经按上面的 ORDER BY 排好(有效成绩最前、按成绩升序), 这里
-                //   只挑"正常状态 + 有成绩"的行参与编号, TRI/DSQ/DNF/DNS/无成绩一律 0。
-                var crossRanks = new int[rows.Rows.Count];
-                {
-                    int rk = 0; double prevT = -1; int seen = 0;
-                    for (int i = 0; i < rows.Rows.Count; i++) {
-                        var rr = rows.Rows[i];
-                        string st0 = SS(rr["status"]);
-                        double ft0 = rr["final_time"] == DBNull.Value ? 0 : Convert.ToDouble(rr["final_time"]);
-                        if (st0.Length > 0 || ft0 <= 0) { crossRanks[i] = 0; continue; }
-                        seen++;
-                        if (seen == 1 || !SwimmingScoreboard.ResultOrdering.IsTie(ft0, prevT)) rk = seen;
-                        crossRanks[i] = rk;
-                        prevT = ft0;
-                    }
-                }
-
-                int n = 0;
-                var skipped = new List<string>();
-                _local.Db.InTransaction(delegate(Func<string, object[], int> run)
-                {
-                    run("DELETE FROM event_rankings WHERE round_id=@p1 AND event_id=@p2", new object[] { rid, eid });
-                    for (int ri = 0; ri < rows.Rows.Count; ri++)
-                    {
-                        System.Data.DataRow r = rows.Rows[ri];
-                            // 备注: 判罚优先 -> 晋级标记 -> 纪录标识。跟成绩单上那一列同口径。
-                        string rmk = SS(r["status"]);
-                        if (rmk.Length == 0) rmk = SS(r["promotion_mark"]);
-                        if (rmk.Length == 0) rmk = SS(r["record_note"]);
-                        // 2026-09-17 【单独一行数据有问题(比如同一 heat_entry 被 JOIN 出重复行,
-                        //   撞了 event_rankings 的 (round_id,event_id,heat_entry_id) 主键)原来会让
-                        //   整个 InTransaction 抛出去、连同前面已经 DELETE 的旧表一起回滚——
-                        //   一个项目里一支队伍/一个人的数据有毛病, 其余人全部跟着"生成失败",
-                        //   而且 DbPoll_Tick 每 10 秒重试一次, 同一条错误反复写进日志(用户实拍到:
-                        //   同一个报名号连续几十次"未能启用约束"), 这个项目永远定不了稿。
-                        //   现在单行插入失败只跳过这一行、记下是谁, 其余人正常定稿——
-                        //   不能因为一个人的报名数据有问题, 把全项目的名次都卡死。
-                        try {
-                            run("INSERT INTO event_rankings(round_id,event_id,heat_entry_id,athlete_id,bib_number," +
-                                "rank,heat,total_heats,lane,final_time,status,promotion_mark,record_note,remark," +
-                                "athlete_name,unit_name,generated_at,generated_by) " +
-                                "VALUES(@p1,@p2,@p3,@p4,@p5,@p6,@p7,@p8,@p9,@p10,@p11,@p12,@p13,@p14,@p15,@p16,@p17,@p18)",
-                                new object[] { rid, eid, r["id"], r["aid"], SS(r["bib"]),
-                                    crossRanks[ri],
-                                    r["heat"], totalHeats, r["lane"], r["final_time"], SS(r["status"]),
-                                    SS(r["promotion_mark"]), SS(r["record_note"]), rmk, SS(r["nm"]), SS(r["un"]),
-                                    DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"), op ?? "" });
-                            n++;
-                        } catch (Exception exRow) {
-                            skipped.Add(string.Format("号码{0}/姓名{1}/道{2}: {3}",
-                                SS(r["bib"]), SS(r["nm"]), r["lane"], exRow.Message));
-                        }
-                    }
-                });
-                Log(string.Format("★ 组排名表已生成: {0}{1} {2} {3} —— 全部组已确认, 共 {4} 人（晋级/最终名次以此为准）",
-                    ageGroup, gender, eventName, stage, n));
-                if (skipped.Count > 0)
-                    Log(string.Format("【注意】{0}{1} {2} {3}: 组排名表里有 {4} 行数据异常被跳过(其余 {5} 人正常定稿, 不受影响) —— {6}",
-                        ageGroup, gender, eventName, stage, skipped.Count, n, string.Join("; ", skipped)));
+                // 2026-09-18 真正的写表动作统一经 IMeetService(_meet)调用 —— 单机时
+                //   _meet 就是 _local, 进程内直接跑; 联机时 _meet 是 RemoteMeetService,
+                //   这一步是 RPC, 真正落在服务器自己的库上(那份才作数)。不再区分
+                //   standalone/非 standalone 各写一份、也不再靠"exe 名字叫
+                //   RemoteTimingControl 才通知服务器"这条脆弱的老路子(见本方法上面
+                //   的说明和 MeetContracts.IMeetService.GenerateEventRankingIfComplete)。
+                int n = _meet.GenerateEventRankingIfComplete(rid, eid, ageGroup, gender, eventName, stage, op);
+                if (n > 0)
+                    Log(string.Format("★ 组排名表已生成: {0}{1} {2} {3} —— 全部组已确认, 共 {4} 人（晋级/最终名次以此为准）",
+                        ageGroup, gender, eventName, stage, n));
                 return n;
             }
             catch (Exception ex)

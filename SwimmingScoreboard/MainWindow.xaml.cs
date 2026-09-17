@@ -24927,10 +24927,19 @@ namespace SwimmingScoreboard
                             "生成组成绩", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes;
                     });
                 if (made > 0) {
-                    if (IsRemoteTimingControlMode) PushGenerateEventRanking(_ag, _gd, _ev, _st);
-                    else if (_meetDb.IsRemote)
-                        AddLog(string.Format("【注意】本机用的是远端竞赛库但不是计时端, 组成绩没人通知主服务器生成: {0}{1} {2} {3}",
-                            _ag, _gd, _ev, _st));
+                    // 2026-09-18 真正的生成/写表在上面 GenerateEventRankingIfComplete 里已经
+                    //   经 _meet 完成了(单机/联机都算数, 不再看 exe 名字是不是叫
+                    //   RemoteTimingControl —— 那条老判断漏掉了"role=timing 的普通
+                    //   SwimmingScoreboard.exe 当计时端连远端服务器"这种同样合法的部署,
+                    //   用户实拍到的"个人总分排名/团体分一直是空的"根子就在这, 见
+                    //   MeetContracts.IMeetService.GenerateEventRankingIfComplete 的说明)。
+                    //   这里补推一条 GENERATE_EVENT_RANKING 只是为了让服务器顺带跑一遍
+                    //   AppendTriPlaceholdersToEventRanking(空道试游占位行, 只在真身那份
+                    //   库所在的机器上才追加得进去) —— 有 EditorSyncClient(RTC/编辑端)
+                    //   才补得了这一步, 没有(普通 SwimmingScoreboard.exe 当计时端)就没有
+                    //   这个次要功能, 但主排名已经生成对了, 不算故障。
+                    if (_editorSyncClient != null && _editorSyncClient.IsConnected)
+                        PushGenerateEventRanking(_ag, _gd, _ev, _st);
                     AppendTriPlaceholdersToEventRanking(_ag, _gd, _ev, _st);
                 }
             }

@@ -1515,6 +1515,100 @@ namespace SwimmingScoreboard.Db
             return list;
         }
 
+        // 2026-09-18 从 MeetDbBridge.GenerateEventRankingIfComplete 的"单机"分支挪过来的
+        //   写表本体 —— 老代码只在【standalone(_meet==_local)】时才在本机跑这段, 联机时
+        //   靠 PushGenerateEventRanking 经 EditorSyncClient 通知服务器, 而那条通知只有
+        //   IsRemoteTimingControlMode(exe 名字恰好叫 RemoteTimingControl)才会发。
+        //   用 "--role timing" 把普通 SwimmingScoreboard.exe 当计时端连远端服务器
+        //   (同样合法的部署方式)时, 没人发这条通知, event_rankings 永远生成不出来 ——
+        //   用户实拍到: 一个 2 组的决赛项目两组都确认了, "个人总分排名"/团体分里这个
+        //   项目的人一个都不算, 因为它们读的 EventRankFor 全靠这张表。
+        //   现在改成: 不管 exe 是谁、不管连没连远端, 一律经 IMeetService(即 _meet)
+        //   直接调用 —— 单机时 _meet 就是 _local, 进程内直接跑这段; 联机时 _meet 是
+        //   RemoteMeetService, 这段真正跑在服务器自己的库上, 才是"写了真身那份"。
+        //   调用前提: 调用方已经确认这个项目全部组都确认过(pending==0), 这里为防御
+        //   起见再查一遍, 但不重复问操作员("生成组成绩"那次确认框是客户端本地问的,
+        //   问完了才会调到这里)。
+        public int GenerateEventRankingIfComplete(long roundId, long eventId, string ageGroup, string gender, string eventName, string stage, string op)
+        {
+            var pend = _db.Query(
+                "SELECT COUNT(*) AS n FROM heats WHERE round_id=@p1 " +
+                "AND COALESCE(state,'') <> 'cancelled' AND confirmed_at IS NULL", roundId);
+            int pending = pend.Rows.Count > 0 ? Convert.ToInt32(pend.Rows[0]["n"]) : 0;
+            if (pending > 0) return 0;
+
+            // 2026-08-31 老库里这张表可能是早先的列序(名次不在第一列)。
+            //   这表是每次全部确认后重新生成的, 丢了也能再生成 —— 列序不对就重建。
+            try {
+                var ti = _db.Query("PRAGMA table_info(event_rankings)");
+                if (ti.Rows.Count > 0 && S(ti.Rows[0], "name") != "rank") {
+                    _db.ExecuteNonQuery("DROP TABLE event_rankings");
+                    _db.EnsureSchemaPublic();
+                }
+            } catch { }
+
+            var rows = _db.Query(
+                "SELECT he.id, he.heat, he.lane, he.final_time, he.rank, he.status, " +
+                "       he.promotion_mark, he.record_note, en.bib_number AS bib, " +
+                "       en.athlete_id AS aid, a.name AS nm, u.name AS un " +
+                "FROM heat_entries he " +
+                "JOIN entries en ON en.id=he.entry_id " +
+                "LEFT JOIN athletes a ON a.id=en.athlete_id " +
+                "LEFT JOIN units u ON u.id=en.unit_id " +
+                "WHERE he.round_id=@p1 AND en.event_id=@p2 AND he.reserve_no IS NULL " +
+                "ORDER BY CASE COALESCE(he.status,'') WHEN 'TRI' THEN 1 WHEN 'DSQ' THEN 2 WHEN 'DQ' THEN 2 " +
+                "              WHEN 'DNF' THEN 3 WHEN 'DNS' THEN 4 ELSE 0 END, " +
+                "         CASE WHEN he.final_time>0 THEN he.final_time ELSE 999999 END, " +
+                "         he.lane", roundId, eventId);
+
+            var th = _db.Query("SELECT COUNT(*) AS n FROM heats WHERE round_id=@p1 AND COALESCE(state,'') <> 'cancelled'", roundId);
+            int totalHeats = th.Rows.Count > 0 ? Convert.ToInt32(th.Rows[0]["n"]) : 0;
+
+            // 跨组名次(算法与 ResultOrdering.ComputeRanks 同一份, 见原 MeetDbBridge 版本注释)
+            var crossRanks = new int[rows.Rows.Count];
+            {
+                int rk = 0; double prevT = -1; int seen = 0;
+                for (int i = 0; i < rows.Rows.Count; i++) {
+                    var rr = rows.Rows[i];
+                    string st0 = S(rr, "status") ?? "";
+                    double ft0 = D(rr, "final_time");
+                    if (st0.Length > 0 || ft0 <= 0) { crossRanks[i] = 0; continue; }
+                    seen++;
+                    if (seen == 1 || !SwimmingScoreboard.ResultOrdering.IsTie(ft0, prevT)) rk = seen;
+                    crossRanks[i] = rk;
+                    prevT = ft0;
+                }
+            }
+
+            int n = 0;
+            _db.InTransaction(delegate(Func<string, object[], int> run)
+            {
+                run("DELETE FROM event_rankings WHERE round_id=@p1 AND event_id=@p2", new object[] { roundId, eventId });
+                for (int ri = 0; ri < rows.Rows.Count; ri++)
+                {
+                    DataRow r = rows.Rows[ri];
+                    string rmk = S(r, "status") ?? "";
+                    if (rmk.Length == 0) rmk = S(r, "promotion_mark") ?? "";
+                    if (rmk.Length == 0) rmk = S(r, "record_note") ?? "";
+                    // 单行数据有问题(比如 JOIN 撞了 event_rankings 主键)只跳过这一行,
+                    // 不让整个项目的名次都卡死(同 MeetDbBridge 原版注释)。
+                    try {
+                        run("INSERT INTO event_rankings(round_id,event_id,heat_entry_id,athlete_id,bib_number," +
+                            "rank,heat,total_heats,lane,final_time,status,promotion_mark,record_note,remark," +
+                            "athlete_name,unit_name,generated_at,generated_by) " +
+                            "VALUES(@p1,@p2,@p3,@p4,@p5,@p6,@p7,@p8,@p9,@p10,@p11,@p12,@p13,@p14,@p15,@p16,@p17,@p18)",
+                            new object[] { roundId, eventId, r["id"], r["aid"], S(r, "bib") ?? "",
+                                crossRanks[ri],
+                                r["heat"], totalHeats, r["lane"], r["final_time"], S(r, "status") ?? "",
+                                S(r, "promotion_mark") ?? "", S(r, "record_note") ?? "", rmk, S(r, "nm") ?? "", S(r, "un") ?? "",
+                                Now(), op ?? "" });
+                        n++;
+                    } catch { /* 单行异常跳过, 其余人正常定稿 */ }
+                }
+            });
+            return n;
+        }
+
         private static void MarkTiesAndGap(List<LaneRow> rows)
         {
             var scored = rows.Where(x => x.Rank > 0).OrderBy(x => x.Rank).ToList();

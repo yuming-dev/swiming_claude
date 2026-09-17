@@ -189,6 +189,8 @@ namespace SwimmingScoreboard.Db
         public List<string[]> ListHeatStamps() { return Call<List<string[]>>("ListHeatStamps", new { }); }
         public List<string[]> ListConfirmedHeats() { return Call<List<string[]>>("ListConfirmedHeats", new { }); }
         public List<string[]> GetRacingHeats() { return Call<List<string[]>>("GetRacingHeats", new { }); }
+        public int GenerateEventRankingIfComplete(long roundId, long eventId, string ageGroup, string gender, string eventName, string stage, string op)
+        { return Call<int>("GenerateEventRankingIfComplete", new { roundId, eventId, ageGroup, gender, eventName, stage, op }); }
 
         // ── K. 运维 ──
         // 备份是在【服务器那台机器上】复制文件, 路径也是服务器的路径。

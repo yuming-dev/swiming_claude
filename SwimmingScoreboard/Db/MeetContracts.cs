@@ -391,6 +391,17 @@ namespace SwimmingScoreboard.Db
         /// 这个。heats.state 这张定稿之外的"实时状态"其实一直有(OpenHeat 时就写了
         /// state='racing'), 只是判定逻辑一直没读它、只信本机内存。这里补上读库那条路。</summary>
         List<string[]> GetRacingHeats();
+        /// <summary>2026-09-18 生成/刷新某项目的定稿组排名表(event_rankings)——"个人总分排名"/
+        /// 团体分靠它算 EventRankFor。老代码只在单机(_meet==_local)时在本机写这张表, 联机时
+        /// 靠 PushGenerateEventRanking 经 EditorSyncClient 通知服务器写, 而那条通知只有
+        /// IsRemoteTimingControlMode(entry assembly 名字恰好叫 RemoteTimingControl)才会发——
+        /// 用 "--role timing" 把普通 SwimmingScoreboard.exe 当计时端连远端服务器(同样合法的
+        /// 部署方式)时没人发这条通知, 这张表永远生成不出来。用户实拍到: 决赛项目两组都
+        /// 确认了, "个人总分排名"整份是空的, 没有任何运动员。现在不管 exe 是谁一律经
+        /// IMeetService(_meet)直接调用——单机时进程内直接跑, 联机时真正落在服务器自己的库上。
+        /// 调用前提: 该项目全部组都已确认(调用方已用 GetHeatList 判过 pending==0 并问过操作员),
+        /// 这里只再防御性复核一次 pending, 不重复弹确认框。</summary>
+        int GenerateEventRankingIfComplete(long roundId, long eventId, string ageGroup, string gender, string eventName, string stage, string op);
 
         // ── K. 运维 ──
         void     Backup(string targetPath);
