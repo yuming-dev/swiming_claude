@@ -164,6 +164,19 @@ namespace SwimmingScoreboard.Db
         }
 
         // 只读查询：把结果读成 DataTable 再返回，连接不外泄，调用方也不用管释放
+        //
+        // 2026-09-17 【原来 t.Load(rd) 是"未能启用约束"的真正病根】——这个重载会按
+        //   IDataReader.GetSchemaTable() 里各列"来自哪张源表、是不是那张表的主键"
+        //   自动给结果 DataTable 扣一个 PrimaryKey(等价 MissingSchemaAction.AddWithKey)。
+        //   一旦 SQL 是多表 JOIN, 这个自动推断经常挑错列——用户实拍到的接力项目
+        //   "生成组排名表"那条查询里 LEFT JOIN athletes(接力是按队报名, 没有单个
+        //   athlete_id, 这一列整批都是 NULL), ADO.NET 把 athletes.id 当成结果表的
+        //   主键列之一, 而 .NET DataTable 的唯一约束把多个 NULL 当"相等"处理(不是
+        //   SQL 的 NULL≠NULL 语义)——只要一个 JOIN 结果里有 2 行以上同一列都是 NULL,
+        //   EndLoadData()→EnableConstraints() 就直接抛 ConstraintException, 而且
+        //   每次都在同一句 SQL 上百分百复现(不是偶发的脏数据, 是 ADO.NET 对这类
+        //   JOIN 的通病)。改用 SQLiteDataAdapter + MissingSchemaAction.Add——
+        //   只补列、不推断/不强加主键, 这层本来就没人指望它替调用方去重或校验。
         public DataTable Query(string sql, params object[] ps)
         {
             lock (_readOrder)          // 查询排队: 先到先服务, 不插队也不饿死
@@ -172,10 +185,11 @@ namespace SwimmingScoreboard.Db
                 lock (_gate)
                 {
                     using (var cmd = Cmd(sql, null, ps))
-                    using (var rd = cmd.ExecuteReader())
+                    using (var da = new SQLiteDataAdapter(cmd))
                     {
+                        da.MissingSchemaAction = MissingSchemaAction.Add;
                         var t = new DataTable();
-                        t.Load(rd);
+                        da.Fill(t);
                         return t;
                     }
                 }
