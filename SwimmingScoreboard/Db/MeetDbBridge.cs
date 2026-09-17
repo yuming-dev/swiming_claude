@@ -1038,6 +1038,7 @@ namespace SwimmingScoreboard.Db
                 }
 
                 int n = 0;
+                var skipped = new List<string>();
                 _local.Db.InTransaction(delegate(Func<string, object[], int> run)
                 {
                     run("DELETE FROM event_rankings WHERE round_id=@p1 AND event_id=@p2", new object[] { rid, eid });
@@ -1048,25 +1049,50 @@ namespace SwimmingScoreboard.Db
                         string rmk = SS(r["status"]);
                         if (rmk.Length == 0) rmk = SS(r["promotion_mark"]);
                         if (rmk.Length == 0) rmk = SS(r["record_note"]);
-                        run("INSERT INTO event_rankings(round_id,event_id,heat_entry_id,athlete_id,bib_number," +
-                            "rank,heat,total_heats,lane,final_time,status,promotion_mark,record_note,remark," +
-                            "athlete_name,unit_name,generated_at,generated_by) " +
-                            "VALUES(@p1,@p2,@p3,@p4,@p5,@p6,@p7,@p8,@p9,@p10,@p11,@p12,@p13,@p14,@p15,@p16,@p17,@p18)",
-                            new object[] { rid, eid, r["id"], r["aid"], SS(r["bib"]),
-                                crossRanks[ri],
-                                r["heat"], totalHeats, r["lane"], r["final_time"], SS(r["status"]),
-                                SS(r["promotion_mark"]), SS(r["record_note"]), rmk, SS(r["nm"]), SS(r["un"]),
-                                DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"), op ?? "" });
-                        n++;
+                        // 2026-09-17 【单独一行数据有问题(比如同一 heat_entry 被 JOIN 出重复行,
+                        //   撞了 event_rankings 的 (round_id,event_id,heat_entry_id) 主键)原来会让
+                        //   整个 InTransaction 抛出去、连同前面已经 DELETE 的旧表一起回滚——
+                        //   一个项目里一支队伍/一个人的数据有毛病, 其余人全部跟着"生成失败",
+                        //   而且 DbPoll_Tick 每 10 秒重试一次, 同一条错误反复写进日志(用户实拍到:
+                        //   同一个报名号连续几十次"未能启用约束"), 这个项目永远定不了稿。
+                        //   现在单行插入失败只跳过这一行、记下是谁, 其余人正常定稿——
+                        //   不能因为一个人的报名数据有问题, 把全项目的名次都卡死。
+                        try {
+                            run("INSERT INTO event_rankings(round_id,event_id,heat_entry_id,athlete_id,bib_number," +
+                                "rank,heat,total_heats,lane,final_time,status,promotion_mark,record_note,remark," +
+                                "athlete_name,unit_name,generated_at,generated_by) " +
+                                "VALUES(@p1,@p2,@p3,@p4,@p5,@p6,@p7,@p8,@p9,@p10,@p11,@p12,@p13,@p14,@p15,@p16,@p17,@p18)",
+                                new object[] { rid, eid, r["id"], r["aid"], SS(r["bib"]),
+                                    crossRanks[ri],
+                                    r["heat"], totalHeats, r["lane"], r["final_time"], SS(r["status"]),
+                                    SS(r["promotion_mark"]), SS(r["record_note"]), rmk, SS(r["nm"]), SS(r["un"]),
+                                    DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"), op ?? "" });
+                            n++;
+                        } catch (Exception exRow) {
+                            skipped.Add(string.Format("号码{0}/姓名{1}/道{2}: {3}",
+                                SS(r["bib"]), SS(r["nm"]), r["lane"], exRow.Message));
+                        }
                     }
                 });
                 Log(string.Format("★ 组排名表已生成: {0}{1} {2} {3} —— 全部组已确认, 共 {4} 人（晋级/最终名次以此为准）",
                     ageGroup, gender, eventName, stage, n));
+                if (skipped.Count > 0)
+                    Log(string.Format("【注意】{0}{1} {2} {3}: 组排名表里有 {4} 行数据异常被跳过(其余 {5} 人正常定稿, 不受影响) —— {6}",
+                        ageGroup, gender, eventName, stage, skipped.Count, n, string.Join("; ", skipped)));
                 return n;
             }
             catch (Exception ex)
             {
-                Log("【注意】生成组排名表失败(不影响已确认的成绩): " + ex.Message);
+                // 2026-09-17 原来这里只打 ex.Message —— 用户实拍到的日志是一句光秃秃的
+                //   "未能启用约束。一行或多行中包含违反非空、唯一或外键约束的值"，
+                //   连是哪句 SQL、哪个值都看不出来, 而且 DbPoll_Tick 每 10 秒重试一次,
+                //   同一句空话在日志里刷了几十遍, 排查不动。这里落地那个 Exception 只有
+                //   Message, 说明真正抛出来的不是 InTransactionCore.run() 那个已经带
+                //   SQL+参数的包装异常(那个会长得多), 而是这段代码里没走 run() 的另一句
+                //   查询(比如取总组数/PRAGMA table_info 那几句直接 _local.Db.Query)。
+                //   现在把完整异常链(ToString, 带 InnerException 和调用栈)打出来,
+                //   下次同样的问题能一眼看出究竟是哪一句、哪个值。
+                Log("【注意】生成组排名表失败(不影响已确认的成绩): " + ex);
                 return 0;
             }
         }
