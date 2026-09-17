@@ -2050,6 +2050,10 @@ namespace SwimmingScoreboard
         public int LaneCount { get; set; }
         public string Organizer { get; set; }
         public string Host { get; set; }
+        // 2026-09-17 证书底部"组委会（盖章）"那一行的落款文字——独立于 Organizer(主办单位),
+        //   因为落款习惯上是"XX比赛组织委员会"而不是主办单位本身, 且可能需要用户手动
+        //   换行让长名称排版好看。空 = 用 CompetitionName+"组织委员会" 的旧默认值兜底。
+        public string CertCommittee { get; set; }
         public string TechnicalDelegate { get; set; }
         public string Referee { get; set; }
         public string Starter { get; set; }   // 2026-05-26 已从 UI 移除（保留字段以兼容旧存档）

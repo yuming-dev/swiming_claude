@@ -80,6 +80,9 @@ namespace SwimmingScoreboard
         // 比赛状态
         // ═══════════════════════════════════════════════════════════════
         private string _competitionName = "";
+        // 2026-09-17 证书底部"组委会（盖章）"落款文字, 通过"证书参数设置"窗口维护;
+        //   空 = 用 _competitionName+"组织委员会" 兜底(旧行为)。
+        private string _certCommitteeText = "";
         private string _competitionMode = "domestic";
         // 2026-06-05 比赛规则: '国际比赛'(FINA) / '国内大赛'(中国游协) / 'U系列青少年游泳比赛'.
         //   U 系列允许 男女并项, 跨年龄组并项, TRI 参赛, 多组直接决赛, 组内按时间排单一名次, 项目后按 性别×组别 拆总排名
@@ -23710,6 +23713,7 @@ namespace SwimmingScoreboard
             if (LocationBox != null) LocationBox.Text = "";
             if (OrganizerBox != null) OrganizerBox.Text = "";
             if (HostBox != null) HostBox.Text = "";
+            _certCommitteeText = "";
             if (TechDelegateBox != null) TechDelegateBox.Text = "";
             if (RefereeBox != null) RefereeBox.Text = "";
             if (ArbiterBox != null) ArbiterBox.Text = "";   // 2026-05-26 取代了 StarterBox
@@ -24350,6 +24354,7 @@ namespace SwimmingScoreboard
                 LaneCount = _poolConfig.LaneCount,
                 Organizer = OrganizerBox.Text,
                 Host = HostBox.Text,
+                CertCommittee = _certCommitteeText,
                 TechnicalDelegate = TechDelegateBox.Text,
                 Referee = RefereeBox.Text,
                 Starter = "",                 // 2026-05-26 UI 已删除发令员
@@ -25557,6 +25562,7 @@ namespace SwimmingScoreboard
                 LocationBox.Text = package.Location ?? "";
                 OrganizerBox.Text = package.Organizer ?? "";
                 HostBox.Text = package.Host ?? "";
+                _certCommitteeText = package.CertCommittee ?? "";
                 TechDelegateBox.Text = package.TechnicalDelegate ?? "";
                 RefereeBox.Text = package.Referee ?? "";
                 // 2026-05-26 UI 已删发令员，旧存档的 Starter 合并到仲裁委员展示前缀避免数据丢失
@@ -30987,7 +30993,21 @@ namespace SwimmingScoreboard
                 GenerateAndOpenDocument("奖状", BuildAwardCertificateHtml(selected, template, offX, offY));
                 win.Close();
             };
+            win.OnOpenCertSettings = delegate { OpenCertSettingsDialog(win); };
             win.ShowDialog();
+        }
+
+        // 2026-09-17 奖状/纪录证书选择窗口里的"证书参数设置"按钮共用这一个弹窗——
+        //   主办单位复用赛事信息里已有的 OrganizerBox, 组委会(盖章)落款是新加的
+        //   _certCommitteeText, 确认后立即 AutoSaveData() 落盘, 不等下次自动保存。
+        private void OpenCertSettingsDialog(Window owner) {
+            var dlg = new CertSettingsWindow(OrganizerBox.Text, _certCommitteeText, _competitionName) { Owner = owner };
+            dlg.OnConfirm = delegate(string organizer, string committee) {
+                OrganizerBox.Text = organizer;
+                _certCommitteeText = committee;
+                AutoSaveData();
+            };
+            dlg.ShowDialog();
         }
 
         // 2026-09-16 四选一模板:
@@ -31137,6 +31157,16 @@ namespace SwimmingScoreboard
         //   四行字段(竞赛名称/运动员姓名/项目与成绩/时间地点, 跟预印版 preprint_gansu
         //   模板字段一致)、左下角主办/承办单位、右下角组委会+日期+盖章位置虚线圈(打完
         //   证书后拿真印章往虚线圈里盖, 不是画一个假印章冒充)。
+        // 2026-09-17 证书右下角"组委会（盖章）"落款——_certCommitteeText 为空时用
+        //   "赛事名称+组织委员会" 兜底(旧行为)。用户在设置窗口里按了回车的手动换行
+        //   原样保留(按行编码后用 <br/> 拼回去), 配合 .cert-org-right 的 max-width
+        //   自动换行(css white-space 默认值就会在容器变窄时换行), 长落款不会撑出证书。
+        private string BuildCertCommitteeHtml() {
+            string text = string.IsNullOrEmpty(_certCommitteeText) ? (_competitionName + "组织委员会") : _certCommitteeText;
+            var lines = text.Replace("\r\n", "\n").Split('\n');
+            return string.Join("<br/>", lines.Select(l => System.Net.WebUtility.HtmlEncode(l)));
+        }
+
         private string BuildAwardCertificateFullGansuHtml(List<AwardCandidateRow> selected) {
             var sb = new StringBuilder();
             sb.Append("<!DOCTYPE html><html><head><meta charset='UTF-8'><style>");
@@ -31156,9 +31186,12 @@ namespace SwimmingScoreboard
             // 2026-09-17 原来 bottom:16mm, 组委会/日期/印章圈紧贴证书最下沿, 盖章按不下去
             //   (用户实拍)。抬到 bottom:30mm 空出盖章的余量。
             sb.Append(".cert-bottom{position:absolute;left:22mm;right:22mm;bottom:30mm;display:flex;justify-content:space-between;align-items:flex-end;}");
-            sb.Append(".cert-org-left{text-align:left;font-size:11pt;line-height:1.9;color:#333;}");
-            sb.Append(".cert-org-right{text-align:right;font-size:11pt;line-height:1.9;color:#333;position:relative;padding-right:30mm;}");
-            sb.Append(".cert-stamp{position:absolute;right:0;bottom:-6mm;width:26mm;height:26mm;border:1.5px dashed #c0392b;border-radius:50%;}");
+            sb.Append(".cert-org-left{text-align:left;font-size:11pt;line-height:1.9;color:#333;max-width:75mm;}");
+            // 2026-09-17 取消印章虚线圈(用户明确要求直接在证书上盖真章, 不需要引导圈)。
+            //   组委会落款原来靠 padding-right:30mm 给虚线圈让位; 现在圈没了, 改成
+            //   max-width 限制落款自身宽度——内容一长(默认换行规则)就自动折行,
+            //   不再一行到底撑到边框外。
+            sb.Append(".cert-org-right{text-align:right;font-size:11pt;line-height:1.9;color:#333;max-width:80mm;}");
             sb.Append("@media print{.cert-page{-webkit-print-color-adjust:exact;print-color-adjust:exact;}@page{size:A4;margin:0;}}");
             sb.Append("</style></head><body>");
 
@@ -31191,9 +31224,8 @@ namespace SwimmingScoreboard
                 if (!string.IsNullOrEmpty(host1)) sb.AppendFormat("承办单位：{0}", System.Net.WebUtility.HtmlEncode(host1));
                 sb.Append("</div>");
                 sb.Append("<div class='cert-org-right'>");
-                sb.AppendFormat("{0}组织委员会", System.Net.WebUtility.HtmlEncode(_competitionName));
+                sb.Append(BuildCertCommitteeHtml());
                 if (hasDate1) sb.AppendFormat("<br/>{0}&nbsp;年&nbsp;{1}&nbsp;月&nbsp;{2}&nbsp;日", dt1.Year, dt1.Month, dt1.Day);
-                sb.Append("<div class='cert-stamp'></div>");
                 sb.Append("</div>");
                 sb.Append("</div>");
                 sb.Append("</div>");
@@ -31214,6 +31246,7 @@ namespace SwimmingScoreboard
                 GenerateAndOpenDocument("纪录证书", BuildRecordCertificateHtml(selected, template));
                 win.Close();
             };
+            win.OnOpenCertSettings = delegate { OpenCertSettingsDialog(win); };
             win.ShowDialog();
         }
 
@@ -31249,9 +31282,10 @@ namespace SwimmingScoreboard
             // 2026-09-17 原来 bottom:16mm, 组委会/日期/印章圈紧贴证书最下沿, 盖章按不下去
             //   (用户实拍)。抬到 bottom:30mm 空出盖章的余量。
             sb.Append(".cert-bottom{position:absolute;left:22mm;right:22mm;bottom:30mm;display:flex;justify-content:space-between;align-items:flex-end;}");
-            sb.Append(".cert-org-left{text-align:left;font-size:11pt;line-height:1.9;color:#333;}");
-            sb.Append(".cert-org-right{text-align:right;font-size:11pt;line-height:1.9;color:#333;position:relative;padding-right:30mm;}");
-            sb.Append(".cert-stamp{position:absolute;right:0;bottom:-6mm;width:26mm;height:26mm;border:1.5px dashed #c0392b;border-radius:50%;}");
+            sb.Append(".cert-org-left{text-align:left;font-size:11pt;line-height:1.9;color:#333;max-width:75mm;}");
+            // 2026-09-17 取消印章虚线圈、组委会落款改 max-width 自动换行——理由同
+            //   BuildAwardCertificateFullGansuHtml 里的同名改动, 见那边注释。
+            sb.Append(".cert-org-right{text-align:right;font-size:11pt;line-height:1.9;color:#333;max-width:80mm;}");
             sb.Append("@media print{.cert-page{-webkit-print-color-adjust:exact;print-color-adjust:exact;}@page{size:A4;margin:0;}}");
             sb.Append("</style></head><body>");
 
@@ -31294,9 +31328,8 @@ namespace SwimmingScoreboard
                 if (!string.IsNullOrEmpty(host2)) sb.AppendFormat("承办单位：{0}", System.Net.WebUtility.HtmlEncode(host2));
                 sb.Append("</div>");
                 sb.Append("<div class='cert-org-right'>");
-                sb.AppendFormat("{0}组织委员会", System.Net.WebUtility.HtmlEncode(_competitionName));
+                sb.Append(BuildCertCommitteeHtml());
                 if (hasDate2) sb.AppendFormat("<br/>{0}&nbsp;年&nbsp;{1}&nbsp;月&nbsp;{2}&nbsp;日", dt2.Year, dt2.Month, dt2.Day);
-                sb.Append("<div class='cert-stamp'></div>");
                 sb.Append("</div>");
                 sb.Append("</div>");
                 sb.Append("</div>");

@@ -4,6 +4,13 @@
         Title="纪录证书生成" Width="1180" Height="640"
         WindowStartupLocation="CenterOwner"
         Background="#1E293B">
+    <Window.Resources>
+        <!-- 2026-09-17 数据列内容跟表头一样居中显示, 不再左对齐。 -->
+        <Style x:Key="CellCenter" TargetType="TextBlock">
+            <Setter Property="TextAlignment" Value="Center"/>
+            <Setter Property="HorizontalAlignment" Value="Stretch"/>
+        </Style>
+    </Window.Resources>
     <Grid Margin="18">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -21,6 +28,7 @@
                 <ComboBoxItem Content="完整证书（自画，原有风格）" Tag="full" IsSelected="True"/>
                 <ComboBoxItem Content="完整证书－综合性运动会风格（自画）" Tag="full_gansu"/>
             </ComboBox>
+            <Button Content="证书参数设置" Click="CertSettings_Click" Margin="20,0,0,0" Padding="12,5"/>
         </StackPanel>
 
         <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,10" VerticalAlignment="Center">
@@ -68,16 +76,16 @@
             </DataGrid.CellStyle>
             <DataGrid.Columns>
                 <DataGridCheckBoxColumn Header="选择" Binding="{Binding Selected, Mode=TwoWay}" Width="55"/>
-                <DataGridTextColumn Header="日期" Binding="{Binding Date}" Width="100" IsReadOnly="True"/>
-                <DataGridTextColumn Header="项目" Binding="{Binding EventLabel}" Width="220" IsReadOnly="True"/>
-                <DataGridTextColumn Header="运动员/代表队" Binding="{Binding Athlete}" Width="160" IsReadOnly="True"/>
-                <DataGridTextColumn Header="代表队" Binding="{Binding Country}" Width="120" IsReadOnly="True"/>
-                <DataGridTextColumn Header="成绩" Binding="{Binding Time}" Width="90" IsReadOnly="True"/>
-                <DataGridTextColumn Header="运动会名次" Binding="{Binding CompRankLabel}" Width="90" IsReadOnly="True"/>
-                <DataGridTextColumn Header="纪录类型" Binding="{Binding RecordType}" Width="160" IsReadOnly="True"/>
-                <DataGridTextColumn Header="原记录保持者" Binding="{Binding OldHolder}" Width="140" IsReadOnly="True"/>
-                <DataGridTextColumn Header="原记录成绩" Binding="{Binding OldTime}" Width="90" IsReadOnly="True"/>
-                <DataGridTextColumn Header="原记录时间" Binding="{Binding OldDate}" Width="*" IsReadOnly="True"/>
+                <DataGridTextColumn Header="日期" Binding="{Binding Date}" Width="100" IsReadOnly="True" ElementStyle="{StaticResource CellCenter}"/>
+                <DataGridTextColumn Header="项目" Binding="{Binding EventLabel}" Width="220" IsReadOnly="True" ElementStyle="{StaticResource CellCenter}"/>
+                <DataGridTextColumn Header="运动员/代表队" Binding="{Binding Athlete}" Width="160" IsReadOnly="True" ElementStyle="{StaticResource CellCenter}"/>
+                <DataGridTextColumn Header="代表队" Binding="{Binding Country}" Width="120" IsReadOnly="True" ElementStyle="{StaticResource CellCenter}"/>
+                <DataGridTextColumn Header="成绩" Binding="{Binding Time}" Width="90" IsReadOnly="True" ElementStyle="{StaticResource CellCenter}"/>
+                <DataGridTextColumn Header="运动会名次" Binding="{Binding CompRankLabel}" Width="90" IsReadOnly="True" ElementStyle="{StaticResource CellCenter}"/>
+                <DataGridTextColumn Header="纪录类型" Binding="{Binding RecordType}" Width="160" IsReadOnly="True" ElementStyle="{StaticResource CellCenter}"/>
+                <DataGridTextColumn Header="原记录保持者" Binding="{Binding OldHolder}" Width="140" IsReadOnly="True" ElementStyle="{StaticResource CellCenter}"/>
+                <DataGridTextColumn Header="原记录成绩" Binding="{Binding OldTime}" Width="90" IsReadOnly="True" ElementStyle="{StaticResource CellCenter}"/>
+                <DataGridTextColumn Header="原记录时间" Binding="{Binding OldDate}" Width="*" IsReadOnly="True" ElementStyle="{StaticResource CellCenter}"/>
             </DataGrid.Columns>
         </DataGrid>
 

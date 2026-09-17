@@ -4,6 +4,13 @@
         Title="奖状生成" Width="900" Height="680"
         WindowStartupLocation="CenterOwner"
         Background="#1E293B">
+    <Window.Resources>
+        <!-- 2026-09-17 数据列内容跟表头一样居中显示, 不再左对齐。 -->
+        <Style x:Key="CellCenter" TargetType="TextBlock">
+            <Setter Property="TextAlignment" Value="Center"/>
+            <Setter Property="HorizontalAlignment" Value="Stretch"/>
+        </Style>
+    </Window.Resources>
     <Grid Margin="18">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -30,6 +37,7 @@
                 <TextBox x:Name="OffsetYBox" Width="50" Text="0"/>
                 <TextBlock Text="（套打对不齐时改这两个数，正数右移/下移）" Foreground="#64748B" FontSize="11" VerticalAlignment="Center" Margin="10,0,0,0"/>
             </StackPanel>
+            <Button Content="证书参数设置" Click="CertSettings_Click" Margin="20,0,0,0" Padding="12,5"/>
         </StackPanel>
 
         <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,10" VerticalAlignment="Center">
@@ -77,10 +85,10 @@
             </DataGrid.CellStyle>
             <DataGrid.Columns>
                 <DataGridCheckBoxColumn Header="选择" Binding="{Binding Selected, Mode=TwoWay}" Width="55"/>
-                <DataGridTextColumn Header="项目" Binding="{Binding EventLabel}" Width="240" IsReadOnly="True"/>
-                <DataGridTextColumn Header="名次" Binding="{Binding RankLabel}" Width="80" IsReadOnly="True"/>
-                <DataGridTextColumn Header="姓名/代表队" Binding="{Binding DisplayName}" Width="200" IsReadOnly="True"/>
-                <DataGridTextColumn Header="代表队" Binding="{Binding Country}" Width="*" IsReadOnly="True"/>
+                <DataGridTextColumn Header="项目" Binding="{Binding EventLabel}" Width="240" IsReadOnly="True" ElementStyle="{StaticResource CellCenter}"/>
+                <DataGridTextColumn Header="名次" Binding="{Binding RankLabel}" Width="80" IsReadOnly="True" ElementStyle="{StaticResource CellCenter}"/>
+                <DataGridTextColumn Header="姓名/代表队" Binding="{Binding DisplayName}" Width="200" IsReadOnly="True" ElementStyle="{StaticResource CellCenter}"/>
+                <DataGridTextColumn Header="代表队" Binding="{Binding Country}" Width="*" IsReadOnly="True" ElementStyle="{StaticResource CellCenter}"/>
             </DataGrid.Columns>
         </DataGrid>
 

@@ -11,6 +11,9 @@ namespace SwimmingScoreboard
         private readonly List<MainWindow.BrokenRecordRow> _all;
 
         public Action<List<MainWindow.BrokenRecordRow>, string> OnGenerate;
+        // 2026-09-17 "证书参数设置"按钮——本窗口不直接持有主办单位/组委会这些设置
+        // (它们挂在 MainWindow 上), 点了就交给 MainWindow 弹出设置窗口。
+        public Action OnOpenCertSettings;
 
         public RecordCertificateWindow(List<MainWindow.BrokenRecordRow> records) {
             InitializeComponent();
@@ -70,5 +73,9 @@ namespace SwimmingScoreboard
         }
 
         private void Close_Click(object sender, RoutedEventArgs e) { Close(); }
+
+        private void CertSettings_Click(object sender, RoutedEventArgs e) {
+            if (OnOpenCertSettings != null) OnOpenCertSettings();
+        }
     }
 }

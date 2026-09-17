@@ -12,6 +12,9 @@ namespace SwimmingScoreboard
 
         // MainWindow 传进来处理"选中的这几条 + 用哪个模板 + 微调偏移，帮我出证书"
         public Action<List<MainWindow.AwardCandidateRow>, string, double, double> OnGenerate;
+        // 2026-09-17 "证书参数设置"按钮——本窗口不直接持有主办单位/组委会这些设置
+        // (它们挂在 MainWindow 上), 点了就交给 MainWindow 弹出设置窗口。
+        public Action OnOpenCertSettings;
 
         public AwardCertificateWindow(List<MainWindow.AwardCandidateRow> candidates) {
             InitializeComponent();
@@ -82,5 +85,9 @@ namespace SwimmingScoreboard
         }
 
         private void Close_Click(object sender, RoutedEventArgs e) { Close(); }
+
+        private void CertSettings_Click(object sender, RoutedEventArgs e) {
+            if (OnOpenCertSettings != null) OnOpenCertSettings();
+        }
     }
 }

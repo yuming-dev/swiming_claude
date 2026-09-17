@@ -179,6 +179,11 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </Page>
+    <Page Include="..\SwimmingScoreboard\CertSettingsWindow.xaml">
+      <Link>CertSettingsWindow.xaml</Link>
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
     <Page Include="..\SwimmingScoreboard\HeatEditWindow.xaml">
       <Link>HeatEditWindow.xaml</Link>
       <Generator>MSBuild:Compile</Generator>
@@ -297,6 +302,11 @@
     <Compile Include="..\SwimmingScoreboard\RecordCertificateWindow.xaml.cs">
       <Link>RecordCertificateWindow.xaml.cs</Link>
       <DependentUpon>RecordCertificateWindow.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="..\SwimmingScoreboard\CertSettingsWindow.xaml.cs">
+      <Link>CertSettingsWindow.xaml.cs</Link>
+      <DependentUpon>CertSettingsWindow.xaml</DependentUpon>
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="..\SwimmingScoreboard\HeatEditWindow.xaml.cs">
