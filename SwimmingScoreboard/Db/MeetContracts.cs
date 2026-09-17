@@ -360,6 +360,12 @@ namespace SwimmingScoreboard.Db
         List<LaneRow> GetResultSheet(long roundId, long? eventId);
         List<LaneRow> GetSummary(long roundId, long eventId);
         List<LaneRow> GetRankingBulletin(long eventId);
+        /// <summary>2026-09-17 组排名表(event_rankings)的原始行——项目全部组确认后生成的
+        /// 定稿快照, "项目成绩"打印/查询就读这个。必须走 RPC(而不是各机器各自查本机
+        /// event_rankings), 因为这张表只在主服务器那份库里真正生成; 计时端/编排端本机
+        /// 的 event_rankings 要么是导入时的空表、要么压根没这张表——不这样问真身,
+        /// 就会出现"服务器早就定稿了, 别的机器打印却一直说尚未定稿"。</summary>
+        List<EventRankRow> GetEventRankRows(long roundId, long eventId);
 
         // ── K. 运维 ──
         void     Backup(string targetPath);

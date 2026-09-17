@@ -1408,6 +1408,36 @@ namespace SwimmingScoreboard.Db
             return list;
         }
 
+        // 2026-09-17 从 MeetDbBridge.GetEventRankingRows 挪过来的查询本体——那边原来
+        //   直接 _local.Db.Query, 联机时(_local 不是真身)永远查到本机那份空表/旧表。
+        //   现在这条查询只在【真身这一份库】(标准调用路径: 单机时的 _local, 联机时
+        //   主服务器自己的 LocalMeetService)上跑, 计时端/编排端通过 IMeetService
+        //   这层 RPC 转过来, 见 RemoteMeetService.GetEventRankRows / MeetServiceHost。
+        public List<EventRankRow> GetEventRankRows(long roundId, long eventId)
+        {
+            var list = new List<EventRankRow>();
+            foreach (DataRow r in _db.Query(
+                "SELECT rank,bib_number,athlete_name,unit_name,final_time,heat,total_heats,lane," +
+                "       remark,status,promotion_mark,record_note,heat_entry_id " +
+                "FROM event_rankings WHERE round_id=@p1 AND event_id=@p2 ORDER BY rowid", roundId, eventId).Rows)
+                list.Add(new EventRankRow {
+                    Rank = I(r, "rank"),
+                    BibNumber = S(r, "bib_number"),
+                    AthleteName = S(r, "athlete_name"),
+                    UnitName = S(r, "unit_name"),
+                    FinalTime = D(r, "final_time"),
+                    Heat = I(r, "heat"),
+                    TotalHeats = I(r, "total_heats"),
+                    Lane = r.Table.Columns.Contains("lane") && r["lane"] != DBNull.Value ? Convert.ToInt32(r["lane"]) : -1,
+                    Remark = S(r, "remark"),
+                    Status = S(r, "status"),
+                    PromotionMark = S(r, "promotion_mark"),
+                    RecordNote = S(r, "record_note"),
+                    HeatEntryId = L(r, "heat_entry_id")
+                });
+            return list;
+        }
+
         private static void MarkTiesAndGap(List<LaneRow> rows)
         {
             var scored = rows.Where(x => x.Rank > 0).OrderBy(x => x.Rank).ToList();

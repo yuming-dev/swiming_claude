@@ -212,6 +212,7 @@ namespace SwimmingScoreboard.Db
                 case "GetResultSheet": return s.GetResultSheet(MeetRpc.Arg<long>(a, "roundId"), MeetRpc.Arg<long?>(a, "eventId"));
                 case "GetSummary":    return s.GetSummary(MeetRpc.Arg<long>(a, "roundId"), MeetRpc.Arg<long>(a, "eventId"));
                 case "GetRankingBulletin": return s.GetRankingBulletin(MeetRpc.Arg<long>(a, "eventId"));
+                case "GetEventRankRows": return s.GetEventRankRows(MeetRpc.Arg<long>(a, "roundId"), MeetRpc.Arg<long>(a, "eventId"));
 
                 // ── K ──
                 case "Backup":        s.Backup(MeetRpc.Arg<string>(a, "targetPath")); return null;

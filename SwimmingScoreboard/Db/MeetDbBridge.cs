@@ -1362,33 +1362,23 @@ namespace SwimmingScoreboard.Db
         public List<EventRankRow> GetEventRankingRows(string ageGroup, string gender, string eventName, string stage)
         {
             var list = new List<EventRankRow>();
-            if (_local == null) return list;
+            if (_local == null || _meet == null) return list;
             try
             {
                 long rid = ResolveRound(ageGroup, gender, eventName, stage);
                 long eid = ResolveEvent(ageGroup, gender, eventName, stage);
                 if (rid == 0 || eid == 0) return list;
-                var t = _local.Db.Query(
-                    "SELECT rank,bib_number,athlete_name,unit_name,final_time,heat,total_heats,lane," +
-                    "       remark,status,promotion_mark,record_note,heat_entry_id " +
-                    "FROM event_rankings WHERE round_id=@p1 AND event_id=@p2 " +
-                    "ORDER BY rowid", rid, eid);
-                foreach (System.Data.DataRow r in t.Rows)
-                    list.Add(new EventRankRow {
-                        Rank = r["rank"] == DBNull.Value ? 0 : Convert.ToInt32(r["rank"]),
-                        BibNumber = SS(r["bib_number"]),
-                        AthleteName = SS(r["athlete_name"]),
-                        UnitName = SS(r["unit_name"]),
-                        FinalTime = ND(r["final_time"]),
-                        Heat = r["heat"] == DBNull.Value ? 0 : Convert.ToInt32(r["heat"]),
-                        TotalHeats = r["total_heats"] == DBNull.Value ? 0 : Convert.ToInt32(r["total_heats"]),
-                        Lane = r["lane"] == DBNull.Value ? -1 : Convert.ToInt32(r["lane"]),
-                        Remark = SS(r["remark"]),
-                        Status = SS(r["status"]),
-                        PromotionMark = SS(r["promotion_mark"]),
-                        RecordNote = SS(r["record_note"]),
-                        HeatEntryId = r["heat_entry_id"] == DBNull.Value ? 0 : Convert.ToInt64(r["heat_entry_id"])
-                    });
+                // 2026-09-17 【这里原来一直是 _local.Db.Query, 是"项目成绩打印在别的机器上
+                //   一直说尚未定稿"的真正病根】——跟 GenerateEventRankingIfComplete 开头
+                //   那段大注释同一个道理: 联机计时端/编排端上 _local 不是真身, 组排名表
+                //   只会在主服务器那份库里生成; 别的机器的 _local.event_rankings 要么是
+                //   导入时的空表、要么压根没这张表, 于是不管主服务器早没早定稿, 在那些
+                //   机器上打印"项目成绩"都只会查到 0 行、显示【尚未定稿】。
+                //   用户实测到的"这组才比完赛、成绩已确认, 打印却说尚未定稿"就是这个——
+                //   不是真没定稿, 是打印所在的这台机器问错了库。现在跟同一个类里另外三处
+                //   (pending 判定/进度查询/生成判定)一个待遇: 统一走 _meet, 单机时
+                //   _meet==_local 直接查本机, 联机时 RPC 问主服务器那份真身。
+                return _meet.GetEventRankRows(rid, eid) ?? list;
             }
             catch (Exception ex) { Log("读组排名表(单项目)失败: " + ex.Message); }
             return list;
