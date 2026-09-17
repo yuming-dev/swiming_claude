@@ -916,6 +916,15 @@ namespace SwimmingScoreboard
             //   原来拿的是"本次查询范围内出现过的组次数" —— 选了"第2组"时范围里就 1 组,
             //   于是印成 "2/1"。用户实拍到过, 应该是 "2/6"。
             int totalHeatsForView = TotalHeatsOfEvent(ageFilter, gender, eventName, stage, matchedAllHeats);
+            // 2026-09-17 【标题里的"第 X 组"没印出来, 病根就在这一行没写】——BuildPrintHtml
+            //   算 showHeat 时用的是 _dbTotalHeats(只有 TryQueryFromDb 那条路才会赋值),
+            //   这条"process value / 单组已确认"路径原来一直没写它, 打印时 _dbTotalHeats
+            //   还停在 Query_Click 开头 reset 的 0, BuildPrintHtml 只好退回内存里现数一遍
+            //   ——数出来的跟这里 totalHeatsForView(走 ReadEventProgress, 已经是联机安全
+            //   的那份)不是同一个来源, 数据表格上"组数"列(1/3)是对的, 标题却当成"只有
+            //   1 组"而不显示"第 1 组", 用户看着表格有"1/3"、标题却没有组号, 显然对不上。
+            //   两处改成同一个数, 标题和表格才能说一句话。
+            _dbTotalHeats = totalHeatsForView;
 
             // 2026-09-01 名次一律读库里的, 这里不再算 —— 现算就会和成绩与排名、大屏
             //   各算各的, 同一份成绩三个答案(用户实拍到过)。库里没有就显示 "-"。
