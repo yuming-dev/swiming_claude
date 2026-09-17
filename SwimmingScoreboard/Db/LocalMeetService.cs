@@ -1438,6 +1438,68 @@ namespace SwimmingScoreboard.Db
             return list;
         }
 
+        // 2026-09-17 从 MeetDbBridge.GetEventRankings 挪过来的查询本体, 理由跟 GetEventRankRows
+        //   挪过来同一份(见那边注释)：这条 SQL 只该在真身那份库上跑, 计时端/编排端经
+        //   IMeetService 这层 RPC 转过来。
+        //   2026-09-16 判罚/试游(rank=0)的行也带出来, 让调用方(ApplyEventRankingsFromDb)
+        //   能明确把内存里的旧正数名次清零——原来 WHERE rank>0 会把这些行整个滤掉。
+        public List<EventRankSyncRow> GetAllEventRankings()
+        {
+            var list = new List<EventRankSyncRow>();
+            foreach (DataRow row in _db.Query(
+                "SELECT e.age_group, e.gender, e.event_name, r.stage, " +
+                "       er.heat, er.lane, er.rank, er.promotion_mark " +
+                "FROM event_rankings er " +
+                "JOIN rounds r ON r.id = er.round_id " +
+                "JOIN events e ON e.id = er.event_id " +
+                "WHERE er.lane IS NOT NULL").Rows)
+                list.Add(new EventRankSyncRow {
+                    AgeGroup = S(row, "age_group"), Gender = S(row, "gender"),
+                    EventName = S(row, "event_name"), Stage = S(row, "stage"),
+                    Heat = I(row, "heat"), Lane = I(row, "lane"), Rank = I(row, "rank"),
+                    PromotionMark = S(row, "promotion_mark")
+                });
+            return list;
+        }
+
+        // 2026-09-17 从 MeetDbBridge.ListHeatStamps/ListConfirmedHeats 挪过来的查询本体,
+        //   理由同 GetEventRankRows/GetAllEventRankings 那两处(见各自注释)：这两条查询
+        //   只该在真身那份库上跑, 计时端/编排端经 IMeetService 这层 RPC 转过来。
+        public List<string[]> ListHeatStamps()
+        {
+            var list = new List<string[]>();
+            foreach (DataRow row in _db.Query(
+                "SELECT e.age_group,e.gender,e.event_name,r.stage,he.heat, " +
+                "       MAX(COALESCE(he.result_at,'')) AS r_at, " +
+                "       MAX(COALESCE(h.confirmed_at,'')) AS c_at, " +
+                "       SUM(COALESCE(he.rank,0)) AS rk_sum, " +
+                "       COUNT(NULLIF(COALESCE(he.status,''),'')) AS st_n " +
+                "FROM heat_entries he " +
+                "JOIN rounds r ON r.id=he.round_id " +
+                "JOIN entries en ON en.id=he.entry_id " +
+                "JOIN events e ON e.id=en.event_id " +
+                "LEFT JOIN heats h ON h.round_id=he.round_id AND h.heat=he.heat " +
+                "WHERE he.final_time>0 " +
+                "GROUP BY e.age_group,e.gender,e.event_name,r.stage,he.heat").Rows)
+                list.Add(new string[] { S(row, "age_group"), S(row, "gender"), S(row, "event_name"),
+                    S(row, "stage"), I(row, "heat").ToString(),
+                    S(row, "r_at") + "|" + S(row, "c_at") + "|" + S(row, "rk_sum") + "|" + S(row, "st_n") });
+            return list;
+        }
+
+        public List<string[]> ListConfirmedHeats()
+        {
+            var list = new List<string[]>();
+            foreach (DataRow r in _db.Query(
+                "SELECT DISTINCT e.age_group,e.gender,e.event_name,r.stage,h.heat " +
+                "FROM heats h JOIN rounds r ON r.id=h.round_id " +
+                "JOIN round_events re ON re.round_id=r.id JOIN events e ON e.id=re.event_id " +
+                "WHERE h.confirmed_at IS NOT NULL ORDER BY e.age_group,e.event_name,r.stage,h.heat").Rows)
+                list.Add(new string[] { S(r, "age_group"), S(r, "gender"), S(r, "event_name"),
+                                        S(r, "stage"), I(r, "heat").ToString() });
+            return list;
+        }
+
         private static void MarkTiesAndGap(List<LaneRow> rows)
         {
             var scored = rows.Where(x => x.Rank > 0).OrderBy(x => x.Rank).ToList();

@@ -1339,31 +1339,21 @@ namespace SwimmingScoreboard.Db
         public List<object[]> GetEventRankings()
         {
             var list = new List<object[]>();
-            if (_local == null) return list;
+            if (_local == null || _meet == null) return list;
             try
             {
-                // 2026-09-16 原来这里 WHERE er.rank > 0, 把判罚/试游(DSQ/DNF/DNS/TRI, 在
-                //   event_rankings 里 rank 就是 0)的行整个滤掉了 —— 调用方 ApplyEventRankingsFromDb
-                //   本来就是想拿这张表【把内存里的 EventRank 刷成库里最新的样子】, 可判罚的人
-                //   那一行永远查不出来, 内存里如果曾经有过一个旧的正数 EventRank(比如判罚前
-                //   已经确认过一次、后来解锁改判 DSQ 重新确认), 就永远没有机会被刷成 0 ——
-                //   于是"名次公告"排序时误把她当成"有名次"排到了真正的第 1 名前面
-                //   (用户实拍到: 青年组女100米仰泳, DSQ 的王雪颖排在第1名前面; 青年组男200米
-                //   混合泳, DNS 的苏静疏排在第1组和第4组名次中间)。
-                //   现在把判罚/试游的行也带出来(rank=0), 让调用方能明确把内存里的旧值清零。
-                var t = _local.Db.Query(
-                    "SELECT e.age_group, e.gender, e.event_name, r.stage, " +
-                    "       er.heat, er.lane, er.rank, er.promotion_mark " +
-                    "FROM event_rankings er " +
-                    "JOIN rounds r ON r.id = er.round_id " +
-                    "JOIN events e ON e.id = er.event_id " +
-                    "WHERE er.lane IS NOT NULL");
-                foreach (System.Data.DataRow row in t.Rows)
+                // 2026-09-17 【原来这里一直是 _local.Db.Query, 跟 GetEventRankingRows 当初
+                //   那个病根一模一样】——联机时(计时端/编排端) _local 不是真身, 这条查询
+                //   在那些机器上永远查到 0 行。ApplyEventRankingsFromDb 拿这个结果去刷内存
+                //   的 EventRank/PromotionMark, 团体分/晋级查询/前八名/成绩公报读的都是
+                //   这份内存——查不到就意味着那些机器上这几张报表永远显示"-"/空,
+                //   跟主服务器早没早定稿完全无关。改走 _meet.GetAllEventRankings(), 单机时
+                //   _meet==_local 跟原来结果一样, 联机时 RPC 问主服务器那份真身。
+                //   2026-09-16 判罚/试游(rank=0)的行也带出来, 见 GetAllEventRankings 的说明。
+                foreach (var row in _meet.GetAllEventRankings() ?? new List<EventRankSyncRow>())
                     list.Add(new object[] {
-                        SS(row["age_group"]), SS(row["gender"]), SS(row["event_name"]), SS(row["stage"]),
-                        row["heat"] == DBNull.Value ? 0 : Convert.ToInt32(row["heat"]),
-                        row["lane"] == DBNull.Value ? -1 : Convert.ToInt32(row["lane"]),
-                        Convert.ToInt32(row["rank"]), SS(row["promotion_mark"]) });
+                        row.AgeGroup ?? "", row.Gender ?? "", row.EventName ?? "", row.Stage ?? "",
+                        row.Heat, row.Lane, row.Rank, row.PromotionMark ?? "" });
             }
             catch (Exception ex) { Log("读组排名表失败: " + ex.Message); }
             return list;
@@ -1449,10 +1439,13 @@ namespace SwimmingScoreboard.Db
                             if (!h.IsConfirmed) pending++;
                         }
                 }
-                var c = _local.Db.Query(
-                    "SELECT COUNT(*) AS n FROM heat_entries he JOIN entries en ON en.id=he.entry_id " +
-                    "WHERE he.round_id=@p1 AND en.event_id=@p2 AND he.reserve_no IS NULL AND he.rank>0", rid, eid);
-                ranked = c.Rows.Count > 0 ? Convert.ToInt32(c.Rows[0]["n"]) : 0;
+                // 2026-09-17 这一句原来一直是 _local.Db.Query, 跟上面 total/pending 判定
+                //   犯的是同一个错——联机时 _local 不是真身, 数出来的"已有名次"在计时端/
+                //   编排端上永远是 0 或一份陈旧值, DbProgressLine 那句"已有名次 N 人"
+                //   在别的机器上就是一句瞎话。改用 _meet.GetSummary(RPC 安全, 单机时
+                //   _meet==_local 直接查本机, 跟原来结果一样), 数 Rank>0 的行数。
+                var summaryRows = _meet.GetSummary(rid, eid);
+                ranked = summaryRows != null ? summaryRows.Count(x => x.Rank > 0 && x.ReserveNo == null) : 0;
             }
             catch (Exception ex) { Log("查项目定稿进度失败: " + ex.Message); }
         }
@@ -1487,7 +1480,7 @@ namespace SwimmingScoreboard.Db
         public List<string[]> ListHeatStamps()
         {
             var list = new List<string[]>();
-            if (_local == null) return list;
+            if (_local == null || _meet == null) return list;
             try
             {
                 // 2026-09-01 指纹里【必须带上名次】。
@@ -1497,23 +1490,12 @@ namespace SwimmingScoreboard.Db
                 //   => 内存里第 1 组永远停在"他们还是第 1"的旧值。
                 //   现场实测: 两组成绩不同, "成绩与排名"选"全部"时两组人全显示第 1。
                 //   加一个名次和(rank_sum)进指纹, 名次一变就会重读。
-                var t = _local.Db.Query(
-                    "SELECT e.age_group,e.gender,e.event_name,r.stage,he.heat, " +
-                    "       MAX(COALESCE(he.result_at,'')) AS r_at, " +
-                    "       MAX(COALESCE(h.confirmed_at,'')) AS c_at, " +
-                    "       SUM(COALESCE(he.rank,0)) AS rk_sum, " +
-                    "       COUNT(NULLIF(COALESCE(he.status,''),'')) AS st_n " +
-                    "FROM heat_entries he " +
-                    "JOIN rounds r ON r.id=he.round_id " +
-                    "JOIN entries en ON en.id=he.entry_id " +
-                    "JOIN events e ON e.id=en.event_id " +
-                    "LEFT JOIN heats h ON h.round_id=he.round_id AND h.heat=he.heat " +
-                    "WHERE he.final_time>0 " +
-                    "GROUP BY e.age_group,e.gender,e.event_name,r.stage,he.heat");
-                foreach (System.Data.DataRow row in t.Rows)
-                    list.Add(new string[] { SS(row["age_group"]), SS(row["gender"]), SS(row["event_name"]),
-                        SS(row["stage"]), Convert.ToInt32(row["heat"]).ToString(),
-                        SS(row["r_at"]) + "|" + SS(row["c_at"]) + "|" + SS(row["rk_sum"]) + "|" + SS(row["st_n"]) });
+                // 2026-09-17 【这里原来一直是 _local.Db.Query, 联机时(计时端/编排端)主窗口
+                //   每 10 秒的增量刷新(RefreshChangedFromDb)在那些机器上永远查到 0 行 ——
+                //   跟前面几处(读组排名表/团体分)同一个病根, 只是这条更基础: 增量刷新本身
+                //   就靠这张"指纹表"判断"要不要读", 查不到指纹, 后面那句"该重读哪一组"
+                //   根本走不到。改走 _meet 统一处理。
+                foreach (var row in _meet.ListHeatStamps() ?? new List<string[]>()) list.Add(row);
             }
             catch (Exception ex) { Log("列组次指纹失败: " + ex.Message); }
             return list;
@@ -1522,17 +1504,12 @@ namespace SwimmingScoreboard.Db
         public List<string[]> ListConfirmedHeats()
         {
             var list = new List<string[]>();
-            if (_local == null) return list;
+            if (_local == null || _meet == null) return list;
             try
             {
-                var t = _local.Db.Query(
-                    "SELECT DISTINCT e.age_group,e.gender,e.event_name,r.stage,h.heat " +
-                    "FROM heats h JOIN rounds r ON r.id=h.round_id " +
-                    "JOIN round_events re ON re.round_id=r.id JOIN events e ON e.id=re.event_id " +
-                    "WHERE h.confirmed_at IS NOT NULL ORDER BY e.age_group,e.event_name,r.stage,h.heat");
-                foreach (System.Data.DataRow r in t.Rows)
-                    list.Add(new string[] { SS(r["age_group"]), SS(r["gender"]), SS(r["event_name"]),
-                                            SS(r["stage"]), Convert.ToInt32(r["heat"]).ToString() });
+                // 2026-09-17 同上——赛程导航树的"[已完赛]"标记靠它, 联机时原来一直查本机,
+                //   在计时端/编排端上永远显示"未完赛"。
+                foreach (var row in _meet.ListConfirmedHeats() ?? new List<string[]>()) list.Add(row);
             }
             catch (Exception ex) { Log("列已确认组失败: " + ex.Message); }
             return list;
@@ -1692,6 +1669,18 @@ namespace SwimmingScoreboard.Db
         public string PromotionMark;
         public string RecordNote;
         public long HeatEntryId;
+    }
+
+    /// <summary>
+    /// 2026-09-17 "组排名表灌回内存"用的轻量一行(见 GetEventRankings 的说明) ——
+    /// 只带定位用的四个字符串(组别/性别/项目/赛次) + 组次/道次/名次/晋级标记, 不带
+    /// 姓名/成绩/号码这些排版才需要的字段, 结果集小, 适合走 RPC 频繁同步。
+    /// </summary>
+    public class EventRankSyncRow
+    {
+        public string AgeGroup, Gender, EventName, Stage;
+        public int Heat, Lane, Rank;
+        public string PromotionMark;
     }
 
     /// <summary>

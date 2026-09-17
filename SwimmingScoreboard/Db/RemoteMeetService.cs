@@ -185,6 +185,9 @@ namespace SwimmingScoreboard.Db
         public List<LaneRow> GetSummary(long roundId, long eventId) { return Call<List<LaneRow>>("GetSummary", new { roundId, eventId }); }
         public List<LaneRow> GetRankingBulletin(long eventId) { return Call<List<LaneRow>>("GetRankingBulletin", new { eventId }); }
         public List<EventRankRow> GetEventRankRows(long roundId, long eventId) { return Call<List<EventRankRow>>("GetEventRankRows", new { roundId, eventId }); }
+        public List<EventRankSyncRow> GetAllEventRankings() { return Call<List<EventRankSyncRow>>("GetAllEventRankings", new { }); }
+        public List<string[]> ListHeatStamps() { return Call<List<string[]>>("ListHeatStamps", new { }); }
+        public List<string[]> ListConfirmedHeats() { return Call<List<string[]>>("ListConfirmedHeats", new { }); }
 
         // ── K. 运维 ──
         // 备份是在【服务器那台机器上】复制文件, 路径也是服务器的路径。

@@ -366,6 +366,22 @@ namespace SwimmingScoreboard.Db
         /// 的 event_rankings 要么是导入时的空表、要么压根没这张表——不这样问真身,
         /// 就会出现"服务器早就定稿了, 别的机器打印却一直说尚未定稿"。</summary>
         List<EventRankRow> GetEventRankRows(long roundId, long eventId);
+        /// <summary>2026-09-17 全场"组排名表"的轻量快照(见 EventRankSyncRow)——把定稿名次
+        /// 灌回内存(晋级查询/前八名/总排名/成绩公报/团体分都读内存里这份)要用它。同一个
+        /// 类里(GetEventRankRows/GetEventRankingProgress/GenerateEventRankingIfComplete)
+        /// 都已经走 RPC 问真身, 这个原来漏了——联机时(计时端/编排端)一直读本机那份空/
+        /// 陈旧的 event_rankings, 团体分/晋级/前八在那些机器上会一直是空的, 跟主服务器
+        /// 早没早定稿完全无关。</summary>
+        List<EventRankSyncRow> GetAllEventRankings();
+        /// <summary>2026-09-17 全场每个(组别/性别/项目/赛次/组次)的"变更指纹"(轻查询, 只
+        /// 返回 key+指纹, 不带成绩)——主窗口每 10 秒的增量刷新(RefreshChangedFromDb)靠它
+        /// 判断"哪几组变了才重读那一组", 原来只查本机 _local, 联机时(计时端/编排端)本机
+        /// 数据库是空/陈旧的, 永远查不到任何指纹, 增量刷新在那些机器上等于彻底失效。</summary>
+        List<string[]> ListHeatStamps();
+        /// <summary>2026-09-17 全场"已确认成绩"的组列表——赛程导航树的"[已完赛]"标记靠它,
+        /// 跟 ListHeatStamps 同一个问题: 原来只查本机, 联机时那些机器上赛程树会一直显示
+        /// "未完赛", 哪怕主服务器早就确认了。</summary>
+        List<string[]> ListConfirmedHeats();
 
         // ── K. 运维 ──
         void     Backup(string targetPath);

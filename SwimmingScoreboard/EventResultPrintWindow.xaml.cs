@@ -793,8 +793,13 @@ namespace SwimmingScoreboard
             //   用户明确指出: 按过"确认本组成绩"就该能打印这一组, 跟别的组比没比完
             //   毫无关系; "尚未定稿"那句警示只该在选【全部】(总排名)、且项目没全部
             //   确认时才出现。这里单独问一次这一组的确认状态, 问到了就不再当"过程值"。
+            // 2026-09-17 【组别选的是"全部"时也要问对】——IsHeatConfirmed 要一个具体组别
+            //   才能定位到 round_id, 不能直接把 "全部" 传进去(问不到任何 round, 永远
+            //   false)。这里跟本文件其它四处一样, 走 AgeGroupsToQuery 展开成具体组别
+            //   列表——ageFilter 本来就是具体值时列表只有它自己, 不影响原有行为。
             bool singleHeatFinalized = filterHeat > 0 && IsHeatConfirmed != null
-                && IsHeatConfirmed(ageFilter, gender, eventName, stage, filterHeat);
+                && AgeGroupsToQuery(ageFilter, gender, eventName)
+                    .Any(ag => IsHeatConfirmed(ag, gender, eventName, stage, filterHeat));
 
             // 接力赛棒次数（用于反应时分棒输出）
             bool isRelay = eventName.Contains("接力");
