@@ -19,7 +19,7 @@
             <TextBlock Text="证书模板：" Foreground="#94A3B8" VerticalAlignment="Center" Margin="0,0,6,0"/>
             <ComboBox x:Name="TemplateBox" Width="260">
                 <ComboBoxItem Content="完整证书（自画，原有风格）" Tag="full" IsSelected="True"/>
-                <ComboBoxItem Content="完整证书－甘肃省运动会风格（自画）" Tag="full_gansu"/>
+                <ComboBoxItem Content="完整证书－综合性运动会风格（自画）" Tag="full_gansu"/>
             </ComboBox>
         </StackPanel>
 
@@ -31,10 +31,41 @@
             <TextBlock x:Name="CountText" Foreground="#94A3B8" VerticalAlignment="Center" Margin="20,0,0,0" FontSize="13"/>
         </StackPanel>
 
+        <!-- 2026-09-17 原来深色背景配深色文字, 数据行基本看不见(用户实拍)。
+             改浅色卡片: 白底深字, 表头深蓝底白字, 对比度够、跟窗口深色外框
+             也算协调(深色窗体里嵌一张白纸型表格, 常见的深浅搭配)。 -->
         <DataGrid x:Name="Grid1" Grid.Row="3" AutoGenerateColumns="False" CanUserAddRows="False"
-                  HeadersVisibility="Column" GridLinesVisibility="Horizontal" RowHeight="32"
-                  Background="#0F172A" Foreground="#E2E8F0" BorderBrush="#334155" BorderThickness="1"
-                  RowBackground="#0F172A" AlternatingRowBackground="#16213A" AlternationCount="2">
+                  HeadersVisibility="Column" GridLinesVisibility="Horizontal" RowHeight="34"
+                  Background="White" Foreground="#0F172A" BorderBrush="#CBD5E1" BorderThickness="1"
+                  RowBackground="White" AlternatingRowBackground="#EFF6FF" AlternationCount="2"
+                  HorizontalGridLinesBrush="#E2E8F0" VerticalGridLinesBrush="#E2E8F0"
+                  RowHeaderWidth="0">
+            <DataGrid.ColumnHeaderStyle>
+                <Style TargetType="DataGridColumnHeader">
+                    <Setter Property="Background" Value="#1E3A8A"/>
+                    <Setter Property="Foreground" Value="White"/>
+                    <Setter Property="FontWeight" Value="Bold"/>
+                    <Setter Property="Padding" Value="10,8"/>
+                    <Setter Property="BorderBrush" Value="#1E3A8A"/>
+                    <Setter Property="BorderThickness" Value="0,0,1,0"/>
+                    <Setter Property="HorizontalContentAlignment" Value="Center"/>
+                </Style>
+            </DataGrid.ColumnHeaderStyle>
+            <DataGrid.CellStyle>
+                <Style TargetType="DataGridCell">
+                    <Setter Property="Foreground" Value="#0F172A"/>
+                    <Setter Property="Background" Value="Transparent"/>
+                    <Setter Property="BorderThickness" Value="0"/>
+                    <Setter Property="Padding" Value="8,4"/>
+                    <Setter Property="VerticalContentAlignment" Value="Center"/>
+                    <Style.Triggers>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter Property="Background" Value="#BFDBFE"/>
+                            <Setter Property="Foreground" Value="#0F172A"/>
+                        </Trigger>
+                    </Style.Triggers>
+                </Style>
+            </DataGrid.CellStyle>
             <DataGrid.Columns>
                 <DataGridCheckBoxColumn Header="选择" Binding="{Binding Selected, Mode=TwoWay}" Width="55"/>
                 <DataGridTextColumn Header="日期" Binding="{Binding Date}" Width="100" IsReadOnly="True"/>

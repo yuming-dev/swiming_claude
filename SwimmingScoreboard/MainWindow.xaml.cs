@@ -30722,14 +30722,31 @@ namespace SwimmingScoreboard
         //   外部类访问不到; AwardCertificateWindow 的构造函数/委托是 public 的,
         //   参数类型也得跟着至少是 public(用 internal 会报可访问性不一致)。
         public class BrokenRecordRow {
-            public string Date, AgeGroup, Gender, EventName, Stage, Athlete, Country, Time, Tag, RecordType;
+            // 2026-09-17 原来是裸字段(public string X, Y, Z;)。WPF 的 {Binding} 只认
+            //   公有属性, 不认公有字段——纪录证书窗口的 DataGrid 里, 唯一是真属性的
+            //   "EventLabel"(下面那个 get 写法)显示正常, 其余全部绑不上、显示空白
+            //   (用户截图"看不清"其实不是配色问题, 是整列压根没绑上)。改成自动属性
+            //   后 Binding 才能真正读到值。
+            public string Date { get; set; }
+            public string AgeGroup { get; set; }
+            public string Gender { get; set; }
+            public string EventName { get; set; }
+            public string Stage { get; set; }
+            public string Athlete { get; set; }
+            public string Country { get; set; }
+            public string Time { get; set; }
+            public string Tag { get; set; }
+            public string RecordType { get; set; }
             // 2026-09-16 纪录证书要印"原记录成绩/谁的记录/原记录时间/本次运动会名次"
             //   (用户明确要求) —— 前三项是 CheckRecords 判定破纪录那一刻存到 LaneResult
             //   上的快照(OldRecordHolder/Time/Date, 事后 _records 已被覆盖就拿不到了),
             //   最后一项是这名运动员在本届比赛该项目的正式名次(不是"破纪录"这件事本身
             //   的名次, 是运动会名次——冠军破纪录也可能只是亚军破了个人最好成绩之类)。
-            public string OldHolder, OldTime, OldDate, CompRankLabel;
-            public bool Selected;
+            public string OldHolder { get; set; }
+            public string OldTime { get; set; }
+            public string OldDate { get; set; }
+            public string CompRankLabel { get; set; }
+            public bool Selected { get; set; }
             public string EventLabel { get { return (Gender ?? "") + " " + (EventName ?? ""); } }
         }
 
@@ -30914,10 +30931,22 @@ namespace SwimmingScoreboard
         //   现在先收集候选名单给 AwardCertificateWindow 挑选(单张/批量/按项目筛选),
         //   再拿选中的子集来生成。
         public class AwardCandidateRow {
-            public string Gender, EventName, EventLabel, DisplayName, Country, RankLabel, AgeGroup, TimeText;
-            public int Rank;
-            public Swimmer Sw;
-            public bool Selected;
+            // 2026-09-17 原来是裸字段(public string X, Y, Z;)。WPF 的 {Binding} 只认
+            //   公有属性, 不认公有字段——DataGrid 里除了靠"选中"复选框(程序里手动
+            //   Selected=true 再 Items.Refresh, 不走绑定回写)之外, 其余每一列全部
+            //   显示空白(用户截图"看不清"其实不是配色问题, 是整列压根没绑上)。
+            //   改成自动属性后 Binding 才能真正读到值。
+            public string Gender { get; set; }
+            public string EventName { get; set; }
+            public string EventLabel { get; set; }
+            public string DisplayName { get; set; }
+            public string Country { get; set; }
+            public string RankLabel { get; set; }
+            public string AgeGroup { get; set; }
+            public string TimeText { get; set; }
+            public int Rank { get; set; }
+            public Swimmer Sw { get; set; }
+            public bool Selected { get; set; }
         }
 
         private List<AwardCandidateRow> CollectAwardCandidates() {
@@ -31056,7 +31085,10 @@ namespace SwimmingScoreboard
             sb.Append(".cert-field{display:flex;align-items:baseline;}");
             sb.Append(".field-label{white-space:nowrap;color:#1e3a8a;font-weight:bold;min-width:130px;}");
             sb.Append(".field-value{flex:1;border-bottom:1px solid #64748b;padding-left:8px;min-width:140px;color:#111;}");
-            sb.Append(".cert-org{position:absolute;right:20mm;bottom:16mm;text-align:right;font-size:14pt;font-weight:bold;color:#0f172a;}");
+            // 2026-09-17 主办单位这行原来 bottom:16mm, 紧贴证书最下沿, 盖章章面(常见
+            //   30-40mm 直径)根本按不下去(用户实拍)。抬到 bottom:30mm, 底下留出
+            //   够盖章的空间, 跟证书自身的装饰色带底边也不再顶在一起。
+            sb.Append(".cert-org{position:absolute;right:20mm;bottom:30mm;text-align:right;font-size:14pt;font-weight:bold;color:#0f172a;}");
             sb.Append("@media print{.cert-page{-webkit-print-color-adjust:exact;print-color-adjust:exact;}@page{size:A4;margin:0;}}");
             sb.Append("</style></head><body>");
 
@@ -31121,7 +31153,9 @@ namespace SwimmingScoreboard
             sb.Append(".cert-field2{display:flex;align-items:baseline;}");
             sb.Append(".field-label2{white-space:nowrap;color:#7a1f1f;font-weight:bold;min-width:120px;}");
             sb.Append(".field-value2{flex:1;border-bottom:1px solid #94a3b8;padding-left:8px;min-width:140px;color:#111;}");
-            sb.Append(".cert-bottom{position:absolute;left:22mm;right:22mm;bottom:16mm;display:flex;justify-content:space-between;align-items:flex-end;}");
+            // 2026-09-17 原来 bottom:16mm, 组委会/日期/印章圈紧贴证书最下沿, 盖章按不下去
+            //   (用户实拍)。抬到 bottom:30mm 空出盖章的余量。
+            sb.Append(".cert-bottom{position:absolute;left:22mm;right:22mm;bottom:30mm;display:flex;justify-content:space-between;align-items:flex-end;}");
             sb.Append(".cert-org-left{text-align:left;font-size:11pt;line-height:1.9;color:#333;}");
             sb.Append(".cert-org-right{text-align:right;font-size:11pt;line-height:1.9;color:#333;position:relative;padding-right:30mm;}");
             sb.Append(".cert-stamp{position:absolute;right:0;bottom:-6mm;width:26mm;height:26mm;border:1.5px dashed #c0392b;border-radius:50%;}");
@@ -31212,7 +31246,9 @@ namespace SwimmingScoreboard
             sb.Append(".cert-field2{display:flex;align-items:baseline;}");
             sb.Append(".field-label2{white-space:nowrap;color:#7a1f1f;font-weight:bold;min-width:120px;}");
             sb.Append(".field-value2{flex:1;border-bottom:1px solid #94a3b8;padding-left:8px;min-width:140px;color:#111;}");
-            sb.Append(".cert-bottom{position:absolute;left:22mm;right:22mm;bottom:16mm;display:flex;justify-content:space-between;align-items:flex-end;}");
+            // 2026-09-17 原来 bottom:16mm, 组委会/日期/印章圈紧贴证书最下沿, 盖章按不下去
+            //   (用户实拍)。抬到 bottom:30mm 空出盖章的余量。
+            sb.Append(".cert-bottom{position:absolute;left:22mm;right:22mm;bottom:30mm;display:flex;justify-content:space-between;align-items:flex-end;}");
             sb.Append(".cert-org-left{text-align:left;font-size:11pt;line-height:1.9;color:#333;}");
             sb.Append(".cert-org-right{text-align:right;font-size:11pt;line-height:1.9;color:#333;position:relative;padding-right:30mm;}");
             sb.Append(".cert-stamp{position:absolute;right:0;bottom:-6mm;width:26mm;height:26mm;border:1.5px dashed #c0392b;border-radius:50%;}");
