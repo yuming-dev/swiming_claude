@@ -31509,6 +31509,57 @@ namespace SwimmingScoreboard
             } catch { }
         }
 
+        /// <summary>
+        /// 2026-09-17 用户要求: 运行日志能存成一个文件, 方便出问题时直接拷给开发方分析。
+        ///
+        /// 界面上那个 SystemLogListBox 只留最近 300 行(还带虚拟化), 复制粘贴很不方便,
+        /// 而且早就重启过的话当次启动之前的日志根本不在列表里。AddLog 其实一直有落盘
+        /// (AppendLogFile, Logs\yyyyMMdd.log 按天分文件, 14 天自动清理), 只是这个路径
+        /// 藏在安装目录里, 现场没人会主动去翻——这里直接把 Logs 目录下所有还没被清理掉
+        /// 的日志文件(=最近 14 天内)按日期顺序拼成一份, 弹保存对话框让用户自己选地方存,
+        /// 不用再教人怎么找安装目录、怎么复制文本。
+        /// </summary>
+        private void ExportLog_Click(object sender, RoutedEventArgs e) {
+            try {
+                string dir = IOPath.Combine(AppDomain.CurrentDomain.BaseDirectory, "Logs");
+                if (!Directory.Exists(dir)) {
+                    MessageBox.Show("还没有日志文件。", "导出日志", MessageBoxButton.OK, MessageBoxImage.Information);
+                    return;
+                }
+                var files = Directory.GetFiles(dir, "*.log").OrderBy(f => f).ToList();
+                if (files.Count == 0) {
+                    MessageBox.Show("还没有日志文件。", "导出日志", MessageBoxButton.OK, MessageBoxImage.Information);
+                    return;
+                }
+
+                string defaultName = string.Format("运行日志_{0}_{1}.txt",
+                    string.IsNullOrEmpty(_competitionName) ? "游泳赛事" : _competitionName,
+                    DateTime.Now.ToString("yyyyMMdd_HHmmss"));
+                var dlg = new Microsoft.Win32.SaveFileDialog {
+                    Filter = "文本文件|*.txt",
+                    Title = "导出运行日志",
+                    FileName = defaultName,
+                    InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory)
+                };
+                if (dlg.ShowDialog() != true) return;
+
+                var sb = new StringBuilder();
+                sb.AppendFormat("运行日志导出 —— {0}（共 {1} 天）", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"), files.Count);
+                sb.AppendLine();
+                foreach (var f in files) {
+                    sb.AppendLine();
+                    sb.AppendFormat("══════ {0} ══════", IOPath.GetFileNameWithoutExtension(f));
+                    sb.AppendLine();
+                    try { sb.Append(File.ReadAllText(f, Encoding.UTF8)); }
+                    catch (Exception exRead) { sb.AppendFormat("（这一天的日志读取失败: {0}）", exRead.Message).AppendLine(); }
+                }
+                File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
+                MessageBox.Show("已导出: " + dlg.FileName, "导出日志", MessageBoxButton.OK, MessageBoxImage.Information);
+            } catch (Exception ex) {
+                MessageBox.Show("导出失败: " + ex.Message, "导出日志", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
         private string GetLocalIP() {
             try {
                 using (Socket socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, 0)) {

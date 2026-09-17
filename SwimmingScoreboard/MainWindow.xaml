@@ -2008,7 +2008,19 @@
                     </Grid.ColumnDefinitions>
 
                     <!-- 左侧：运行日志 -->
-                    <GroupBox Header="运行日志">
+                    <GroupBox>
+                        <GroupBox.Header>
+                            <DockPanel LastChildFill="False">
+                                <TextBlock Text="运行日志" VerticalAlignment="Center"/>
+                                <!-- 2026-09-17 用户要"把运行日志存成文件方便拷给你分析"——界面这个列表
+                                     只留最近 300 行(带虚拟化), AddLog 早就同步落盘到 Logs\yyyyMMdd.log,
+                                     但那个路径藏在安装目录里, 现场遇到问题时没人会去翻。加这个按钮把
+                                     最近几天的日志文件直接拼成一份, 弹保存对话框让用户自己选地方存,
+                                     不用再教人怎么找安装目录。 -->
+                                <Button x:Name="ExportLogBtn" Content="导出日志..." Click="ExportLog_Click"
+                                        DockPanel.Dock="Right" Padding="10,2" Margin="16,0,0,0"/>
+                            </DockPanel>
+                        </GroupBox.Header>
                         <ListBox x:Name="SystemLogListBox" FontFamily="Consolas" FontSize="12" BorderThickness="0"
                                  ScrollViewer.VerticalScrollBarVisibility="Auto"/>
                     </GroupBox>
