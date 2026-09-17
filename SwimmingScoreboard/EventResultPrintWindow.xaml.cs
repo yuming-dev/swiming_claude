@@ -766,6 +766,20 @@ namespace SwimmingScoreboard
                 return;
             }
 
+            // 2026-09-17 【内存里有数据不代表已经无法定稿】——上面只有"内存也一行没有"
+            //   (暂无比赛成绩)这一条路会主动提出"当场补生成"; 内存里凑得出过程值表时,
+            //   看着"总归能打印"，这条路原来什么都不做，那条"尚未定稿"的橙字警示就
+            //   可能永远挂在纸上。用户实拍到的正是这个场景: 一个刚比完、名次/DNF/DSQ
+            //   全部正常显示的接力项目，打印永远带着"尚未定稿"——多半是计时端确认
+            //   最后一组那一刻生成组成绩的对话框被跳过/答了否，或者压根没人点过。
+            //   现在跟"暂无成绩"那条路一个待遇: 只要满足"全部组已确认、库里已有
+            //   名次"，主动问一句要不要当场补生成；生成成功就重新查一遍，这次会走
+            //   event_rankings 那条真正的定稿路径，警示自然消失。
+            if (!_resultsFinalized && OfferGenerateIfComplete(ageFilter, gender, eventName, stage)) {
+                Query_Click(sender, e);
+                return;
+            }
+
             // 接力赛棒次数（用于反应时分棒输出）
             bool isRelay = eventName.Contains("接力");
             int legCount = 4;
