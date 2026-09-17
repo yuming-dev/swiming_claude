@@ -382,6 +382,15 @@ namespace SwimmingScoreboard.Db
         /// 跟 ListHeatStamps 同一个问题: 原来只查本机, 联机时那些机器上赛程树会一直显示
         /// "未完赛", 哪怕主服务器早就确认了。</summary>
         List<string[]> ListConfirmedHeats();
+        /// <summary>2026-09-18 全场当前"正在计时"(heats.state='racing')的组列表, 格式跟
+        /// ListConfirmedHeats 一样 [组别,性别,项目,赛次,组次]。正常情况下最多一行(同一时刻
+        /// 只有一组在游)。"赛程导航"树原来判"[正在计时]"只看本机内存里的 _currentXxx(当前
+        /// 选中的项目/组), 别的机器(主服务器/编排端)navigate 到的跟正在计时的那组根本不是
+        /// 同一个, 于是永远判不出"正在计时", 只能等到"确认本组成绩"那一刻数据全灌进去才
+        /// 跳到[已确认]——用户实拍到的"所有赛程导航从头到尾没有一处显示过[正在计时]"就是
+        /// 这个。heats.state 这张定稿之外的"实时状态"其实一直有(OpenHeat 时就写了
+        /// state='racing'), 只是判定逻辑一直没读它、只信本机内存。这里补上读库那条路。</summary>
+        List<string[]> GetRacingHeats();
 
         // ── K. 运维 ──
         void     Backup(string targetPath);

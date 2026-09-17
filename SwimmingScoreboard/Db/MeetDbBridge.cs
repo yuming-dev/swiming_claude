@@ -1515,6 +1515,29 @@ namespace SwimmingScoreboard.Db
             return list;
         }
 
+        /// <summary>
+        /// 2026-09-18 全场当前"正在计时"的组——用户实拍到: 从按"准备就绪"、发令到计时
+        /// 结束, 所有"赛程导航"(计时端/主服务器/编排端)一路都停在【未开始】, 只有到
+        /// "确认本组成绩"那一刻才跳到【已确认】, 中间那段本该显示的【正在计时】全场
+        /// 没有一处出现过。根子在 MainWindow.HeatStatus(): 判"正在计时"只在本机内存的
+        /// _currentAgeGroup/_currentEvent/... 等于要判的这一组时才成立——那是"本机当前
+        /// 选中/正在操作的组"这个纯本地状态, 从来没同步给别的机器, 于是除了正在计时的
+        /// 那台机器自己(而且还得赶巧本机导航也停在同一组), 谁都判不出来。
+        /// heats.state='racing' 这张"实时状态"其实一直有(OpenHeat 开组那一刻就写库),
+        /// 只是原来的判定逻辑压根没读它。这里补一条真正跨机器的读法。
+        /// </summary>
+        public List<string[]> GetRacingHeats()
+        {
+            var list = new List<string[]>();
+            if (_local == null || _meet == null) return list;
+            try
+            {
+                foreach (var row in _meet.GetRacingHeats() ?? new List<string[]>()) list.Add(row);
+            }
+            catch (Exception ex) { Log("查正在计时的组失败: " + ex.Message); }
+            return list;
+        }
+
         private static double ND(object o)
         {
             if (o == null || o == DBNull.Value) return 0;

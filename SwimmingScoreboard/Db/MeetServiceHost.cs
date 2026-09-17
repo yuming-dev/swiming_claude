@@ -216,6 +216,7 @@ namespace SwimmingScoreboard.Db
                 case "GetAllEventRankings": return s.GetAllEventRankings();
                 case "ListHeatStamps": return s.ListHeatStamps();
                 case "ListConfirmedHeats": return s.ListConfirmedHeats();
+                case "GetRacingHeats": return s.GetRacingHeats();
 
                 // ── K ──
                 case "Backup":        s.Backup(MeetRpc.Arg<string>(a, "targetPath")); return null;

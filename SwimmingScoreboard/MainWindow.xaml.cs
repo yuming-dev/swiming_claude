@@ -9165,6 +9165,12 @@ namespace SwimmingScoreboard
 
             _raceState = RaceState.Ready;
             OpenLiveHeat();               // 2026-08-24 迁移第2步: 本组改走当前组库
+            // 2026-09-18 OpenLiveHeat() 刚把 heats.state 写成 'racing', 但本机 10 秒
+            //   轮询(DbPoll_Tick) 一进 Ready/Racing 就直接跳过不刷 —— 见那边的
+            //   "比赛中不动" 注释, 这是刻意的, 保护正在写的当前组。所以本机的"赛程导航"
+            //   只能靠这里主动补一次, 不然要等到"确认本组成绩"才会重建, 用户实拍到的
+            //   正是这个空档。
+            try { RebuildBothNavTrees(); } catch { }
             UpdateRaceStateDisplay();
             // ResetForNewRace 把"出发端"的 Open 状态给对应设备:
             //   普通泳姿: 出发台 Open (= 运动员站台等枪响)
@@ -12254,6 +12260,14 @@ namespace SwimmingScoreboard
         //   下面又用同一条推断再判一次, 于是"数据齐但没点确认"和"真点过确认"在这棵树上
         //   一直是同一个状态、同一个"[已结束]"标签, 分不出来。用户点名要求这几棵"赛程导航"
         //   树都按"比赛控制"那次改法统一: 数据齐≠锁定, 只有真点过确认才算锁定。
+        // 2026-09-18 RebuildNavTree 每次重建整棵树前刷新一次(见该函数开头), HeatStatus
+        //   对每个 leaf 节点只做一次成员判断, 不再各自去问库——一棵树几十上百个组, 不能
+        //   每判一组的状态就发一次 RPC。
+        private HashSet<string> _racingHeatKeys;
+        private static string RacingHeatKey(string ageGroup, string gender, string eventName, string stage, int heat) {
+            return (ageGroup ?? "") + "|" + (gender ?? "") + "|" + (eventName ?? "") + "|" + (stage ?? "") + "|" + heat;
+        }
+
         private string HeatStatus(string ageGroup, string gender, string eventName, string stage, int heat) {
             if (IsHeatTrulyConfirmed(ageGroup, gender, eventName, stage, heat)) return "confirmed";
             bool isRelay = eventName != null && eventName.Contains("接力");
@@ -12274,7 +12288,13 @@ namespace SwimmingScoreboard
             if (allCancelled) return "cancelled";
             int withResult = inHeat.Count(s => s.Results.Any(r => r.Stage == stage && r.Heat == heat && r.FinalTime > 0));
             if (withResult == 0) {
+                // 2026-09-18 本机"当前选中的组"是纯本地状态, 从没同步给别的机器——用户
+                //   实拍到: 从"准备就绪"到出成绩这一整段, 计时端/主服务器/编排端的赛程
+                //   导航树全都停在【未开始】, 没有一处显示过【正在计时】, 根子就在这句
+                //   只认本机 _currentXxx。heats.state='racing' 这张实时状态一直有(开组
+                //   那一刻就写库了), 换成读它才是跨机器都认的同一份真相。
                 if (ageGroup == _currentAgeGroup && gender == _currentGender && eventName == _currentEvent && stage == _currentStage && heat == _currentHeat) return "running";
+                if (_racingHeatKeys != null && _racingHeatKeys.Contains(RacingHeatKey(ageGroup, gender, eventName, stage, heat))) return "running";
                 return "pending";
             }
             if (withResult < inHeat.Count) return "running";
@@ -12319,6 +12339,19 @@ namespace SwimmingScoreboard
         private void RebuildNavTree(TreeView tv, string searchText, string statusFilter) {
             tv.Items.Clear();
             string q = (searchText ?? "").Trim().ToLower();
+            // 2026-09-18 每次重建树只问一次"全场哪组正在计时"(正常情况下最多一行), 下面
+            //   逐组判状态时直接查这个内存集合, 不再每判一组的状态就发一次 RPC。
+            //   查询失败(联机没连上/库暂时不可用)不影响树的其余部分, 静默退回"只信本机"。
+            try {
+                var racingKeys = new HashSet<string>();
+                foreach (var r in _meetDb.GetRacingHeats() ?? new List<string[]>()) {
+                    if (r == null || r.Length < 5) continue;
+                    int hh;
+                    if (!int.TryParse(r[4], out hh)) continue;
+                    racingKeys.Add(RacingHeatKey(r[0], r[1], r[2], r[3], hh));
+                }
+                _racingHeatKeys = racingKeys;
+            } catch { _racingHeatKeys = null; }
             // 拆出每个 heat 的状态(用于 leaf 节点+聚合)
             // 数据来源: _schedule + ScheduleItem.HeatCount
             // 2026-06-12 改为 场次(场) → 项目(序号) → 组 结构 (同 比赛控制 ScheduleTree),
@@ -25037,6 +25070,7 @@ namespace SwimmingScoreboard
         }
 
         private string _lastPollSignature = "";
+        private string _lastRacingSignature = "";
 
         /// <summary>
         /// 2026-08-31 把【组排名表】里已定稿的名次和晋级标记灌回内存。
@@ -25127,6 +25161,18 @@ namespace SwimmingScoreboard
                         try { BuildScheduleTree(); } catch { }
                     }
                 } catch (Exception ex) { AddLog("【注意】从库补已完赛标记失败: " + ex.Message); }
+
+                // 2026-09-18 本机没在计时(没走 EnterReadyStateInternal 那条本地补刷) 时,
+                //   "赛程导航"的[正在计时]全指望这 10 秒一次的轮询捡回来 —— 只有"谁在
+                //   racing"这个集合真变了(开新组/组结束)才重建树, 不然每 10 秒都重建太浪费。
+                try {
+                    var racing = _meetDb.GetRacingHeats() ?? new List<string[]>();
+                    string sig = string.Join(",", racing.Select(r => (r != null && r.Length >= 5) ? string.Join("|", r) : ""));
+                    if (sig != _lastRacingSignature) {
+                        _lastRacingSignature = sig;
+                        try { RebuildBothNavTrees(); } catch { }
+                    }
+                } catch (Exception ex) { AddLog("【注意】查正在计时的组失败: " + ex.Message); }
             } catch (Exception ex) {
                 AddLog("【注意】增量刷新失败, 用的是内存里的数据: " + ex.Message);
             }

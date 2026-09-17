@@ -1500,6 +1500,21 @@ namespace SwimmingScoreboard.Db
             return list;
         }
 
+        // 2026-09-18 跟 ListConfirmedHeats 同一套 JOIN, 只是 WHERE 换成 state='racing'——
+        //   给"赛程导航"树判"[正在计时]"用, 见 MeetContracts.IMeetService.GetRacingHeats 的说明。
+        public List<string[]> GetRacingHeats()
+        {
+            var list = new List<string[]>();
+            foreach (DataRow r in _db.Query(
+                "SELECT DISTINCT e.age_group,e.gender,e.event_name,r.stage,h.heat " +
+                "FROM heats h JOIN rounds r ON r.id=h.round_id " +
+                "JOIN round_events re ON re.round_id=r.id JOIN events e ON e.id=re.event_id " +
+                "WHERE h.state='racing'").Rows)
+                list.Add(new string[] { S(r, "age_group"), S(r, "gender"), S(r, "event_name"),
+                                        S(r, "stage"), I(r, "heat").ToString() });
+            return list;
+        }
+
         private static void MarkTiesAndGap(List<LaneRow> rows)
         {
             var scored = rows.Where(x => x.Rank > 0).OrderBy(x => x.Rank).ToList();
