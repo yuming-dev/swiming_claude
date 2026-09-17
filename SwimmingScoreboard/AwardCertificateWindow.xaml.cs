@@ -8,7 +8,7 @@ namespace SwimmingScoreboard
 {
     public partial class AwardCertificateWindow : Window
     {
-        private readonly List<MainWindow.AwardCandidateRow> _all;
+        private List<MainWindow.AwardCandidateRow> _all;
 
         // MainWindow 传进来处理"选中的这几条 + 用哪个模板 + 微调偏移，帮我出证书"
         public Action<List<MainWindow.AwardCandidateRow>, string, double, double> OnGenerate;
@@ -20,11 +20,25 @@ namespace SwimmingScoreboard
             InitializeComponent();
             _all = candidates ?? new List<MainWindow.AwardCandidateRow>();
 
+            RebuildEventFilter();
+            RefreshGrid();
+        }
+
+        private void RebuildEventFilter() {
+            EventFilterBox.Items.Clear();
             EventFilterBox.Items.Add("全部项目");
             foreach (var ev in _all.Select(c => c.EventLabel).Distinct().OrderBy(s => s))
                 EventFilterBox.Items.Add(ev);
             EventFilterBox.SelectedIndex = 0;
+        }
 
+        // 2026-09-17 "证书参数设置"里改了"打印到第几名"以后, MainWindow 用新名次限制
+        //   重新 CollectAwardCandidates() 一遍, 拿新名单整体替换本窗口正在显示的这份——
+        //   不重开窗口, 直接刷新表格 + 标题里的名次数字, 用户不用退出重进就能看到变化。
+        public void RefreshCandidates(List<MainWindow.AwardCandidateRow> candidates, int rankLimit) {
+            _all = candidates ?? new List<MainWindow.AwardCandidateRow>();
+            HeaderText.Text = string.Format("选择要生成奖状的获奖者（决赛前 {0} 名）", rankLimit);
+            RebuildEventFilter();
             RefreshGrid();
         }
 

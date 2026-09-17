@@ -83,6 +83,8 @@ namespace SwimmingScoreboard
         // 2026-09-17 证书底部"组委会（盖章）"落款文字, 通过"证书参数设置"窗口维护;
         //   空 = 用 _competitionName+"组织委员会" 兜底(旧行为)。
         private string _certCommitteeText = "";
+        // 2026-09-17 奖状打印到决赛第几名, 通过"证书参数设置"窗口维护, 默认前 3 名。
+        private int _awardCertRankLimit = 3;
         private string _competitionMode = "domestic";
         // 2026-06-05 比赛规则: '国际比赛'(FINA) / '国内大赛'(中国游协) / 'U系列青少年游泳比赛'.
         //   U 系列允许 男女并项, 跨年龄组并项, TRI 参赛, 多组直接决赛, 组内按时间排单一名次, 项目后按 性别×组别 拆总排名
@@ -23714,6 +23716,7 @@ namespace SwimmingScoreboard
             if (OrganizerBox != null) OrganizerBox.Text = "";
             if (HostBox != null) HostBox.Text = "";
             _certCommitteeText = "";
+            _awardCertRankLimit = 3;
             if (TechDelegateBox != null) TechDelegateBox.Text = "";
             if (RefereeBox != null) RefereeBox.Text = "";
             if (ArbiterBox != null) ArbiterBox.Text = "";   // 2026-05-26 取代了 StarterBox
@@ -24355,6 +24358,7 @@ namespace SwimmingScoreboard
                 Organizer = OrganizerBox.Text,
                 Host = HostBox.Text,
                 CertCommittee = _certCommitteeText,
+                AwardCertRankLimit = _awardCertRankLimit,
                 TechnicalDelegate = TechDelegateBox.Text,
                 Referee = RefereeBox.Text,
                 Starter = "",                 // 2026-05-26 UI 已删除发令员
@@ -25563,6 +25567,7 @@ namespace SwimmingScoreboard
                 OrganizerBox.Text = package.Organizer ?? "";
                 HostBox.Text = package.Host ?? "";
                 _certCommitteeText = package.CertCommittee ?? "";
+                _awardCertRankLimit = package.AwardCertRankLimit > 0 ? package.AwardCertRankLimit : 3;
                 TechDelegateBox.Text = package.TechnicalDelegate ?? "";
                 RefereeBox.Text = package.Referee ?? "";
                 // 2026-05-26 UI 已删发令员，旧存档的 Starter 合并到仲裁委员展示前缀避免数据丢失
@@ -30959,13 +30964,17 @@ namespace SwimmingScoreboard
             string[] rankNames = { "冠军", "亚军", "季军", "第四名", "第五名", "第六名", "第七名", "第八名" };
             var result = new List<AwardCandidateRow>();
             if (_swimmers == null) return result;
+            // 2026-09-17 打印到第几名由"证书参数设置"里的下拉框决定(原来写死 Take(3))。
+            //   rankNames 只备了 8 个名次, 超出的用"第N名"兜底, 但 UI 下拉框本身就
+            //   限定在 1~8, 正常不会走到兜底分支。
+            int rankLimit = _awardCertRankLimit > 0 ? _awardCertRankLimit : 3;
             var finalists = _swimmers.Where(s => s.CurrentStage == "决赛" && s.Results.Any(r => r.Stage == "决赛" && r.FinalTime > 0))
                 .GroupBy(s => new { s.Gender, s.EventName });
             foreach (var g in finalists) {
                 var ranked = g.OrderBy(s => {
                     var r = s.GetResultForStage("决赛");
                     return r != null ? r.FinalTime : double.MaxValue;
-                }).Take(3).ToList();
+                }).Take(rankLimit).ToList();
                 for (int i = 0; i < ranked.Count; i++) {
                     var sw = ranked[i];
                     bool certRelay = g.Key.EventName.Contains("接力");
@@ -30989,22 +30998,35 @@ namespace SwimmingScoreboard
         private void PrintAwardCertificate_Click(object sender, RoutedEventArgs e) {
             var candidates = CollectAwardCandidates();
             var win = new AwardCertificateWindow(candidates) { Owner = this };
+            // 2026-09-17 标题里的"决赛前 N 名"要跟着上次设置的名次范围走, 不能一直
+            //   显示写死的"3"——哪怕这次没改设置, 也用当前 _awardCertRankLimit 刷一遍。
+            win.RefreshCandidates(candidates, _awardCertRankLimit);
             win.OnGenerate = delegate(List<AwardCandidateRow> selected, string template, double offX, double offY) {
                 GenerateAndOpenDocument("奖状", BuildAwardCertificateHtml(selected, template, offX, offY));
                 win.Close();
             };
-            win.OnOpenCertSettings = delegate { OpenCertSettingsDialog(win); };
+            win.OnOpenCertSettings = delegate { OpenCertSettingsDialog(win, true); };
             win.ShowDialog();
         }
 
         // 2026-09-17 奖状/纪录证书选择窗口里的"证书参数设置"按钮共用这一个弹窗——
-        //   主办单位复用赛事信息里已有的 OrganizerBox, 组委会(盖章)落款是新加的
-        //   _certCommitteeText, 确认后立即 AutoSaveData() 落盘, 不等下次自动保存。
-        private void OpenCertSettingsDialog(Window owner) {
-            var dlg = new CertSettingsWindow(OrganizerBox.Text, _certCommitteeText, _competitionName) { Owner = owner };
-            dlg.OnConfirm = delegate(string organizer, string committee) {
+        //   主办单位/承办单位复用赛事信息里已有的 OrganizerBox/HostBox, 组委会(盖章)
+        //   落款是新加的 _certCommitteeText, 确认后立即 AutoSaveData() 落盘, 不等下次
+        //   自动保存。isAward=true 时额外带上"打印到第几名"(只有奖状才有名次这回事,
+        //   纪录证书不显示这一项)——改了名次以后候选名单变了, 得把已经打开的
+        //   AwardCertificateWindow 里的表格连同标题一起刷新, 不然用户看到的还是旧名单。
+        private void OpenCertSettingsDialog(Window owner, bool isAward) {
+            int? rankLimit = isAward ? (int?)_awardCertRankLimit : null;
+            var dlg = new CertSettingsWindow(OrganizerBox.Text, HostBox.Text, _certCommitteeText, _competitionName, rankLimit) { Owner = owner };
+            dlg.OnConfirm = delegate(string organizer, string host, string committee, int? newRankLimit) {
                 OrganizerBox.Text = organizer;
+                HostBox.Text = host;
                 _certCommitteeText = committee;
+                if (isAward && newRankLimit.HasValue) {
+                    _awardCertRankLimit = newRankLimit.Value;
+                    var awardWin = owner as AwardCertificateWindow;
+                    if (awardWin != null) awardWin.RefreshCandidates(CollectAwardCandidates(), _awardCertRankLimit);
+                }
                 AutoSaveData();
             };
             dlg.ShowDialog();
@@ -31106,9 +31128,9 @@ namespace SwimmingScoreboard
             sb.Append(".field-label{white-space:nowrap;color:#1e3a8a;font-weight:bold;min-width:130px;}");
             sb.Append(".field-value{flex:1;border-bottom:1px solid #64748b;padding-left:8px;min-width:140px;color:#111;}");
             // 2026-09-17 主办单位这行原来 bottom:16mm, 紧贴证书最下沿, 盖章章面(常见
-            //   30-40mm 直径)根本按不下去(用户实拍)。抬到 bottom:30mm, 底下留出
-            //   够盖章的空间, 跟证书自身的装饰色带底边也不再顶在一起。
-            sb.Append(".cert-org{position:absolute;right:20mm;bottom:30mm;text-align:right;font-size:14pt;font-weight:bold;color:#0f172a;}");
+            //   30-40mm 直径)根本按不下去(用户实拍)。先抬到 bottom:30mm, 用户实际
+            //   打印盖章后反馈还要再高一点, 又抬到 38mm。
+            sb.Append(".cert-org{position:absolute;right:20mm;bottom:38mm;text-align:right;font-size:14pt;font-weight:bold;color:#0f172a;}");
             sb.Append("@media print{.cert-page{-webkit-print-color-adjust:exact;print-color-adjust:exact;}@page{size:A4;margin:0;}}");
             sb.Append("</style></head><body>");
 
@@ -31184,8 +31206,9 @@ namespace SwimmingScoreboard
             sb.Append(".field-label2{white-space:nowrap;color:#7a1f1f;font-weight:bold;min-width:120px;}");
             sb.Append(".field-value2{flex:1;border-bottom:1px solid #94a3b8;padding-left:8px;min-width:140px;color:#111;}");
             // 2026-09-17 原来 bottom:16mm, 组委会/日期/印章圈紧贴证书最下沿, 盖章按不下去
-            //   (用户实拍)。抬到 bottom:30mm 空出盖章的余量。
-            sb.Append(".cert-bottom{position:absolute;left:22mm;right:22mm;bottom:30mm;display:flex;justify-content:space-between;align-items:flex-end;}");
+            //   (用户实拍)。先抬到 bottom:30mm, 用户实际打印盖章后反馈还要再高一点,
+            //   又抬到 38mm。
+            sb.Append(".cert-bottom{position:absolute;left:22mm;right:22mm;bottom:38mm;display:flex;justify-content:space-between;align-items:flex-end;}");
             sb.Append(".cert-org-left{text-align:left;font-size:11pt;line-height:1.9;color:#333;max-width:75mm;}");
             // 2026-09-17 取消印章虚线圈(用户明确要求直接在证书上盖真章, 不需要引导圈)。
             //   组委会落款原来靠 padding-right:30mm 给虚线圈让位; 现在圈没了, 改成
@@ -31246,7 +31269,7 @@ namespace SwimmingScoreboard
                 GenerateAndOpenDocument("纪录证书", BuildRecordCertificateHtml(selected, template));
                 win.Close();
             };
-            win.OnOpenCertSettings = delegate { OpenCertSettingsDialog(win); };
+            win.OnOpenCertSettings = delegate { OpenCertSettingsDialog(win, false); };
             win.ShowDialog();
         }
 
@@ -31280,8 +31303,9 @@ namespace SwimmingScoreboard
             sb.Append(".field-label2{white-space:nowrap;color:#7a1f1f;font-weight:bold;min-width:120px;}");
             sb.Append(".field-value2{flex:1;border-bottom:1px solid #94a3b8;padding-left:8px;min-width:140px;color:#111;}");
             // 2026-09-17 原来 bottom:16mm, 组委会/日期/印章圈紧贴证书最下沿, 盖章按不下去
-            //   (用户实拍)。抬到 bottom:30mm 空出盖章的余量。
-            sb.Append(".cert-bottom{position:absolute;left:22mm;right:22mm;bottom:30mm;display:flex;justify-content:space-between;align-items:flex-end;}");
+            //   (用户实拍)。先抬到 bottom:30mm, 用户实际打印盖章后反馈还要再高一点,
+            //   又抬到 38mm。
+            sb.Append(".cert-bottom{position:absolute;left:22mm;right:22mm;bottom:38mm;display:flex;justify-content:space-between;align-items:flex-end;}");
             sb.Append(".cert-org-left{text-align:left;font-size:11pt;line-height:1.9;color:#333;max-width:75mm;}");
             // 2026-09-17 取消印章虚线圈、组委会落款改 max-width 自动换行——理由同
             //   BuildAwardCertificateFullGansuHtml 里的同名改动, 见那边注释。

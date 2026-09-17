@@ -20,7 +20,7 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <TextBlock Grid.Row="0" Text="选择要生成奖状的获奖者（决赛前 3 名）" FontSize="17" FontWeight="Bold" Foreground="White" Margin="0,0,0,10"/>
+        <TextBlock x:Name="HeaderText" Grid.Row="0" Text="选择要生成奖状的获奖者（决赛前 3 名）" FontSize="17" FontWeight="Bold" Foreground="White" Margin="0,0,0,10"/>
 
         <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,10" VerticalAlignment="Center">
             <TextBlock Text="证书模板：" Foreground="#94A3B8" VerticalAlignment="Center" Margin="0,0,6,0"/>

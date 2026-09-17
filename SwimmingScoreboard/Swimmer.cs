@@ -2054,6 +2054,9 @@ namespace SwimmingScoreboard
         //   因为落款习惯上是"XX比赛组织委员会"而不是主办单位本身, 且可能需要用户手动
         //   换行让长名称排版好看。空 = 用 CompetitionName+"组织委员会" 的旧默认值兜底。
         public string CertCommittee { get; set; }
+        // 2026-09-17 奖状打印到第几名(决赛名次), 默认前 3 名(冠亚季军)。用户明确要求
+        // 可调——有的比赛只发前 3, 有的要发到前 8。
+        public int AwardCertRankLimit { get; set; }
         public string TechnicalDelegate { get; set; }
         public string Referee { get; set; }
         public string Starter { get; set; }   // 2026-05-26 已从 UI 移除（保留字段以兼容旧存档）
@@ -2106,6 +2109,7 @@ namespace SwimmingScoreboard
             CompetitionRule = "U系列青少年游泳比赛";
             PoolLength = 50;
             LaneCount = 10;
+            AwardCertRankLimit = 3;
             Officials = new List<string>();
             Swimmers = new List<Swimmer>();
             RelayTeams = new List<RelayTeam>();
