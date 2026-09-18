@@ -3154,6 +3154,15 @@ namespace SwimmingScoreboard
                         UpdateLaneStatusDisplay();
                         Broadcast();
                         SendTimingSettingsToHardware();   // 同步到硬件计时控制器
+                        // 2026-09-18 【本机是 role=timing 连远端主服务器时补的一环】——
+                        //   race_control.html 只能连"本机开着 WebSocket 服务"的那台机器,
+                        //   RTC.exe 没有本机服务, race_control.html 连不上它, 原来这条链路
+                        //   没人走过。但普通主程序当计时端(IsTimingClientMode)照常开本机
+                        //   服务, race_control.html 完全可能连的是这台"计时站", 不是远端
+                        //   那份真身主服务器——网页改的参数只在这台机器上生效, 远端主服务器
+                        //   一无所知(同一个"改了本机没同步远端"的病根)。内部已按
+                        //   IsTimingClientMode 判过, 非计时客户端这里静默跳过。
+                        PushSettingsToServer();
                     }
                     break;
                 case "OPEN_ALL_LANES":
