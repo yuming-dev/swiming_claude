@@ -1016,6 +1016,25 @@ namespace SwimmingScoreboard
         }
 
         /// <summary>
+        /// 2026-09-18 告诉主服务器"数据变了, 请转告你那边挂着的其它客户端"——
+        /// 专给那些【不经 AutoSaveData】的变化用, 比如"准备就绪"把 heats.state 写成
+        /// racing 这一步只经 _meet RPC 直接落库, 不落 JSON 存档, 自然不会触发
+        /// AutoSaveData→PropagateSyncAfterSave 那条已有的 PushDataChanged 链路——
+        /// 这类变化原来只能靠编排端/主服务器自己 10 秒一次的轮询追上, 用户明确反映过
+        /// "更新有延迟"。本机是主服务器/单机时 _editorSyncClient 是 null, 静默跳过
+        /// (本机自己的轮询本来就没有跨进程延迟这一说, 不需要这条)。
+        /// </summary>
+        private void NotifyRemoteDataChanged(string what) {
+            if (_editorSyncClient == null || !_editorSyncClient.IsConnected) return;
+            try {
+                var msg = new JObject();
+                msg["type"] = "CLIENT_DATA_CHANGED";
+                msg["what"] = what ?? "";
+                _editorSyncClient.Send(msg.ToString(Formatting.None));
+            } catch { }
+        }
+
+        /// <summary>
         /// 把竞赛数据服务(MeetDbBridge)指到同一台主服务器, 并写进 meet_service.json。
         /// 已经开着库的话就重开一次, 否则这一场还是按单机在跑。
         /// </summary>
@@ -1140,6 +1159,14 @@ namespace SwimmingScoreboard
                     return;
                 }
                 if (type == "HEAT_CONFIRMED_ACK") { HandleHeatConfirmedAck(msg); return; }
+                // 2026-09-18 主服务器"数据真变了"的轻量通知(几十字节, PushDataChanged 发的)——
+                //   网页端(race_control.html 等)早就认这条、收到就立刻去取新状态; 这个 WPF
+                //   exe 这一侧的 EditorSyncClient 接的是同一路消息, 却从没接过线, 一直只能
+                //   干等 10 秒一次的 DbPoll_Tick 轮询才追得上, 这才是编排端"数据更新有延迟"
+                //   的根子。直接复用 DbPoll_Tick 的判断(比赛中不动、有变化才推大屏)——
+                //   等于把"轮询"从"固定 10 秒一次"改成"固定 10 秒一次 + 数据一变立刻多补一次",
+                //   平时那句"不给主服务器太大压力"的初衷不变, 只是变化发生的那一刻不用再等。
+                if (type == "DATA_CHANGED") { DbPoll_Tick(null, EventArgs.Empty); return; }
                 // 2026-09-12 主服务器转来的并组补丁(别的编排端做的)。照着改本机,
                 //   不要整包 —— 整包会把正在看的这份数据整批换掉。
                 if (type == "EDITOR_PATCH") {
@@ -1836,6 +1863,16 @@ namespace SwimmingScoreboard
                         if (!_scheduleEditorSockets.Contains(socket)) _scheduleEditorSockets.Add(socket);
                         AddLog("编排端已连接");
                         UpdateConnectionStatus();
+                        break;
+                    // 2026-09-18 计时端(RTC/role=timing)本地状态变了、但走的不是 AutoSaveData
+                    //   那条路(比如"准备就绪"把 heats.state 写成 racing——这一步只经 _meet RPC
+                    //   直接落库, 不落 JSON 存档, 自然也不会触发 AutoSaveData→PushDataChanged)。
+                    //   这类变化以前只能靠编排端/主服务器自己 10 秒一次的轮询追上。计时端这边
+                    //   补发一条轻量通知, 主服务器收到就用同一条 PushDataChanged 管道转给它
+                    //   自己这边挂着的其它客户端(编排端等)——它们收到后走新加的 DATA_CHANGED
+                    //   处理, 立刻多轮询一次, 不用等下一个 10 秒整点。
+                    case "CLIENT_DATA_CHANGED":
+                        PushDataChanged(msg["what"] != null ? msg["what"].ToString() : "");
                         break;
                     // 2026-06-17 方案 B: RTC 把比赛状态 (SHOW_LIVE_RACE / RUNNING_TIME_UPDATE 等) 经此连接
                     //   推给主服务器, 主服务器透传给所有本机 _allSockets (display.html / race_control.html ...).
@@ -9269,6 +9306,7 @@ namespace SwimmingScoreboard
             //   只能靠这里主动补一次, 不然要等到"确认本组成绩"才会重建, 用户实拍到的
             //   正是这个空档。
             try { RebuildBothNavTrees(); } catch { }
+            try { NotifyRemoteDataChanged("racing"); } catch { }
             UpdateRaceStateDisplay();
             // ResetForNewRace 把"出发端"的 Open 状态给对应设备:
             //   普通泳姿: 出发台 Open (= 运动员站台等枪响)
