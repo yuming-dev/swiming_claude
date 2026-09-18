@@ -10859,6 +10859,16 @@ namespace SwimmingScoreboard
             return 0;
         }
 
+        // 2026-09-18 混编项目里"这一组另有几人属于别的组别"——只报数字看不出是谁,
+        //   得去改主界面的"组别"筛选再刷新才能看见。这里直接列出名字/组别/道次。
+        private List<string> OtherAgeGroupOccupants(string ageGroup, string gender, string eventName, string stage, int heat) {
+            var filtered = new HashSet<Swimmer>(GetHeatEntries(ageGroup, gender, eventName, stage, heat));
+            var others = GetHeatEntries("", gender, eventName, stage, heat).Where(s => !filtered.Contains(s));
+            return others.OrderBy(s => LaneOfStage(s, stage))
+                .Select(s => string.Format("{0}道 {1}（{2}）", LaneOfStage(s, stage), s.Name, string.IsNullOrEmpty(s.AgeCategory) ? "无组别" : s.AgeCategory))
+                .ToList();
+        }
+
         // ══════════════════════════════════════════════════════════════
         // 2026-08-24 【并组 / 取消组】
         //
@@ -11014,9 +11024,15 @@ namespace SwimmingScoreboard
                     int free = LaneCapacity() - occupied[dst];
                     sb.AppendFormat("第{0}组现有 {1} 人，空道 {2} 条；第{3}组 {4} 人。",
                         dst, cnt[dst], free, src, cnt[src]);
-                    if (occupied[dst] > cnt[dst])
-                        sb.AppendFormat("\n（第{0}组另有 {1} 人属于别的组别，未列入「{0}人」里，但占着道次。）",
-                            dst, occupied[dst] - cnt[dst]);
+                    // 2026-09-18 用户实测追问: "另有 N 人属于别的组别"这句话只报了个数字,
+                    //   在这个弹窗里没地方看这几个人到底是谁——得先去把主界面上方的
+                    //   "组别"下拉改成"全部"再点"刷新显示"才能看见, 太绕。这里直接把
+                    //   这几个人的名字/组别/道次列出来, 不用离开这个弹窗就能看清楚。
+                    var othersInDst = OtherAgeGroupOccupants(ageGroup, gender, eventName, stage, dst);
+                    if (othersInDst.Count > 0) {
+                        sb.AppendFormat("\n（第{0}组另有 {1} 人属于别的组别, 占着道次:\n    {2}）",
+                            dst, othersInDst.Count, string.Join("\n    ", othersInDst));
+                    }
                     if (free < cnt[src]) sb.AppendFormat("\n⚠ 空道不够，差 {0} 条。", cnt[src] - free);
                     else sb.Append("\n目标组原有的人道次不动，并过来的人填空道；之后可用 上移/下移/交换泳道 人工调整。");
                 } else {
