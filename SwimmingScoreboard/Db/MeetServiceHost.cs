@@ -204,6 +204,7 @@ namespace SwimmingScoreboard.Db
                         MeetRpc.Arg<List<RecordBreak>>(a, "breaks") ?? new List<RecordBreak>(),
                         MeetRpc.Arg<string>(a, "op")); return null;
                 case "SaveRecord":    return s.SaveRecord(MeetRpc.Arg<RecordDto>(a, "r"), MeetRpc.Arg<string>(a, "op"));
+                case "DeleteRecord":  s.DeleteRecord(MeetRpc.Arg<long>(a, "id"), MeetRpc.Arg<string>(a, "op")); return null;
                 case "GetTeamScores": return s.GetTeamScores();
                 case "RecomputeTeamScores": s.RecomputeTeamScores(MeetRpc.Arg<string>(a, "op")); return null;
 

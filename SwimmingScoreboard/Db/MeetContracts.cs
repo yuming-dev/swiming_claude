@@ -352,6 +352,9 @@ namespace SwimmingScoreboard.Db
         List<RecordBreak> CheckRecordBreak(long heatEntryId);
         void     ApplyRecordBreak(long heatEntryId, List<RecordBreak> breaks, string op);
         long     SaveRecord(RecordDto r, string op);
+        /// <summary>2026-09-18 SaveRecord 一直只有增/改, 没有删——手工编辑纪录界面(ApplyRecordsPatch)
+        /// 的"deletes"那半份补丁从没地方落地过, 一并补上。</summary>
+        void     DeleteRecord(long id, string op);
         List<UnitDto> GetTeamScores();
         void     RecomputeTeamScores(string op);
 

@@ -176,6 +176,7 @@ namespace SwimmingScoreboard.Db
         public void ApplyRecordBreak(long heatEntryId, List<RecordBreak> breaks, string op)
         { Send("ApplyRecordBreak", new { heatEntryId, breaks, op }); }
         public long SaveRecord(RecordDto r, string op) { return Call<long>("SaveRecord", new { r, op }); }
+        public void DeleteRecord(long id, string op) { Send("DeleteRecord", new { id, op }); }
         public List<UnitDto> GetTeamScores() { return Call<List<UnitDto>>("GetTeamScores", null); }
         public void RecomputeTeamScores(string op) { Send("RecomputeTeamScores", new { op }); }
 

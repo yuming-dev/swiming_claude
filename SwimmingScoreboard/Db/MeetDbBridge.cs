@@ -1471,6 +1471,31 @@ namespace SwimmingScoreboard.Db
             return list;
         }
 
+        // 2026-09-18 手工编辑纪录(ApplyRecordsPatch)一直只改内存/JSON, 没有一步真的
+        //   写进 meet.db 的 records 表——SaveRecord/DeleteRecord 这两个 IMeetService
+        //   方法早就有实现(LocalMeetService/RemoteMeetService/MeetServiceHost 四件套
+        //   都齐了), 只是从没被调用方接上过线, 见 MainWindow.SyncRecordsPatchToMeetDb。
+        //   这里补三个薄包装, 跟本类其余方法同一个待遇: 单机时 _meet==_local 直接查/改
+        //   本机, 联机时 RPC 问/改主服务器那份真身。
+        public List<RecordDto> GetRecords(string ageGroup, string gender, int distance, string stroke, int relayLegs)
+        {
+            if (_meet == null) return new List<RecordDto>();
+            try { return _meet.GetRecords(ageGroup, gender, distance, stroke, relayLegs) ?? new List<RecordDto>(); }
+            catch (Exception ex) { Log("查纪录失败: " + ex.Message); return new List<RecordDto>(); }
+        }
+        public long SaveRecord(RecordDto r, string op)
+        {
+            if (_meet == null) return 0;
+            try { return _meet.SaveRecord(r, op); }
+            catch (Exception ex) { Log("写纪录到竞赛库失败: " + ex.Message); return 0; }
+        }
+        public void DeleteRecord(long id, string op)
+        {
+            if (_meet == null) return;
+            try { _meet.DeleteRecord(id, op); }
+            catch (Exception ex) { Log("从竞赛库删纪录失败: " + ex.Message); }
+        }
+
         private static double ND(object o)
         {
             if (o == null || o == DBNull.Value) return 0;

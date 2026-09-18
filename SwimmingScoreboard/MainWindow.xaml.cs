@@ -11435,6 +11435,13 @@ namespace SwimmingScoreboard
             _patchInFlight = true;
             try { AutoSaveData(); } finally { _patchInFlight = false; }
             PushAssignPatch(ageGroup, gender, eventName, stage);
+            // 2026-09-18 HandleEditorPatch 里那处同步(见其说明)只在【主服务器收到远端
+            //   推来的补丁】那一刻触发——单机版(没有任何远端连接)、或者就是在主服务器
+            //   自己身上做"手动分组"这类编辑, 补丁压根没有机会被"收到", 那条路一次都不会跑,
+            //   meet.db 永远停在导入那一刻的旧分组。RebuildFromPackage 只对着 _local 操作,
+            //   只有这台机器自己就是真身(不是远端客户端)时调它才有意义——远端客户端调了
+            //   也是白调, 重建的是它自己那份不算数的空副本, 不能帮到真身那份库。
+            if (!_meetDb.IsRemote) ScheduleMeetDbSyncFromPatch();
         }
 
         /// <summary>补丁上署的名: 让对面日志里看得出是谁改的。</summary>
@@ -11599,9 +11606,85 @@ namespace SwimmingScoreboard
                 if (!SpreadPatch(p, out rerr))
                     AddLog("纪录补丁没送到主服务器: " + rerr + " —— 改动只在本机, 等空闲了整体保存一次");
                 AddLog(string.Format("纪录变动: 改 {0} 条, 删 {1} 条, 已用补丁同步", ups.Count, dels.Count));
+                // 2026-09-18 补丁只同步了内存/JSON, 竞赛库(meet.db)另外补一步——见
+                // SyncRecordsPatchToMeetDb 的说明。在【编辑发生的这台机器】上做, 不管
+                // 是不是联机: _meetDb 单机时直接写本机, 联机时经 _meet RPC 写到真身
+                // 那台, 不依赖 SpreadPatch 那条 WebSocket 通道是否连着/成不成功。
+                try { SyncRecordsPatchToMeetDb(p); } catch (Exception ex) { AddLog("纪录同步竞赛库失败: " + ex.Message); }
                 ResetRecordsBaseline();
                 return ups.Count + dels.Count;
             } catch (Exception ex) { AddLog("对比纪录变动失败: " + ex.Message); return 0; }
+        }
+
+        /// <summary>
+        /// 2026-09-18 手工编辑纪录(ApplyRecordsPatch)原来只改了内存 _records 和 JSON 存档,
+        /// 从没写进过主服务器的竞赛库(meet.db 的 records 表)——SaveRecord/DeleteRecord 这两个
+        /// IMeetService 方法早就实现完整, 只是没人调用过。这个 gap 很隐蔽但后果不小:
+        /// 确认成绩时自动"破没破纪录"的判定(CheckRecordBreak)直接查 meet.db 里的 records 表,
+        /// 手工订正过的纪录(比如赛前发现原记录抄错了)如果没同步进去, 现场判定用的还是
+        /// 错误的旧纪录, 会错判"破纪录"或者漏判。
+        /// 只在【主服务器自己】这台机器上调(见 HandleEditorPatch 里的调用点)——_meetDb 在
+        /// 别的机器上不是真身, 而这里最终写的是 IMeetService(_meet), 单机时就是本机直接写,
+        /// 联机时是 RPC 写到真身那台, 不需要每台收到补丁的机器都各写一遍。
+        /// </summary>
+        private void SyncRecordsPatchToMeetDb(JObject msg) {
+            if (_meetDb == null || !_meetDb.IsOpen) return;
+            try {
+                int savedN = 0, delN = 0;
+                var ups = msg["upserts"] as JArray;
+                if (ups != null) {
+                    foreach (var t in ups) {
+                        var jo = t as JObject;
+                        if (jo == null) continue;
+                        SwimmingRecord sr = null;
+                        try { sr = jo.ToObject<SwimmingRecord>(); } catch { }
+                        if (sr == null || string.IsNullOrWhiteSpace(sr.EventName)) continue;
+                        int dist, legs; string stroke;
+                        SwimmingScoreboard.Db.PackageImporter.ParseEventName(sr.EventName, out dist, out stroke, out legs);
+                        long existingId = 0;
+                        try {
+                            var existing = _meetDb.GetRecords(sr.AgeGroup ?? "", sr.Gender, dist, stroke, legs);
+                            var hit = existing.FirstOrDefault(x => x.RecordType == sr.RecordType);
+                            if (hit != null) existingId = hit.Id;
+                        } catch { }
+                        var dto = new SwimmingScoreboard.Db.RecordDto {
+                            Id = existingId,
+                            Abbr = SwimmingScoreboard.Db.PackageImporter.AbbrOf(sr.RecordType),
+                            RecordType = sr.RecordType,
+                            AgeGroup = sr.AgeGroup ?? "",
+                            Gender = sr.Gender,
+                            Distance = dist,
+                            Stroke = stroke,
+                            RelayLegs = legs,
+                            EventName = sr.EventName,
+                            TimeSeconds = sr.TimeInSeconds > 0 ? sr.TimeInSeconds : sr.Time,
+                            HolderName = sr.HolderName,
+                            HolderCountry = sr.HolderCountry,
+                            Date = sr.Date,
+                            Location = sr.Location,
+                            IsCurrent = true
+                        };
+                        if (_meetDb.SaveRecord(dto, ClientLabel()) > 0 || existingId > 0) savedN++;
+                    }
+                }
+                var dels = msg["deletes"] as JArray;
+                if (dels != null) {
+                    foreach (var t in dels) {
+                        string k = t != null ? t.ToString() : "";
+                        var parts = (k ?? "").Split('|');
+                        if (parts.Length < 4) continue;
+                        int dist, legs; string stroke;
+                        SwimmingScoreboard.Db.PackageImporter.ParseEventName(parts[2], out dist, out stroke, out legs);
+                        try {
+                            var existing = _meetDb.GetRecords(parts[0], parts[1], dist, stroke, legs);
+                            var hit = existing.FirstOrDefault(x => x.RecordType == parts[3]);
+                            if (hit != null) { _meetDb.DeleteRecord(hit.Id, ClientLabel()); delN++; }
+                        } catch { }
+                    }
+                }
+                if (savedN > 0 || delN > 0)
+                    AddLog(string.Format("纪录改动已同步竞赛库: 改/增 {0} 条, 删 {1} 条", savedN, delN));
+            } catch (Exception ex) { AddLog("纪录补丁同步竞赛库失败(内存/JSON 仍是最新的): " + ex.Message); }
         }
 
         /// <summary>收到纪录补丁: 按条 upsert / 删除。没提到的行一个字不动。</summary>
@@ -11923,6 +12006,10 @@ namespace SwimmingScoreboard
                 //   并立刻轮询一次"——用已有的、结果保留式的 RebuildFromPackage(同 SyncToMeetDb
                 //   加载整包时那一条, 已经是验证过的安全路径, 不新写一套 SQL), 防抖 2 秒
                 //   (编辑经常是连续几条补丁一起来, 逐条重建太重), 写完再吭一声 DATA_CHANGED。
+                // 2026-09-18 "Records" 补丁不用在这里(接收端)再同步一次——发送方
+                //   (PushChangedRecords, 见其说明)已经直接经 _meet RPC 写过真身那份
+                //   meet.db 了, 不依赖这条 WebSocket 补丁通道转不转发。这里只处理
+                //   "Assign"/"MergeHeats" 这类 SelfCheck 认得出的赛程差异。
                 if (op != "Records") ScheduleMeetDbSyncFromPatch();
             } else {
                 AddLog("拒绝编排端补丁(" + op + "): " + reason);

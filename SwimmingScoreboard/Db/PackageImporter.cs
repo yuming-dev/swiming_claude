@@ -545,7 +545,7 @@ namespace SwimmingScoreboard.Db
             return null;
         }
 
-        private static string AbbrOf(string recordType)
+        public static string AbbrOf(string recordType)
         {
             string t = recordType ?? "";
             if (t.Contains("世界青年")) return "WJ";

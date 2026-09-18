@@ -1282,6 +1282,13 @@ namespace SwimmingScoreboard.Db
             return id;
         }
 
+        public void DeleteRecord(long id, string op)
+        {
+            if (id <= 0) return;
+            _db.ExecuteNonQuery("DELETE FROM records WHERE id=@p1", id);
+            Audit(op, "删纪录", "records", id, null, null, null);
+        }
+
         public List<UnitDto> GetTeamScores()
         {
             var list = new List<UnitDto>();
