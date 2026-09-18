@@ -10973,15 +10973,31 @@ namespace SwimmingScoreboard
                 Foreground = System.Windows.Media.Brushes.DimGray, Margin = new Thickness(0, 6, 0, 0) };
             root.Children.Add(hint);
 
-            Action refresh = delegate {
-                int src = srcBox.SelectedItem != null ? (int)srcBox.SelectedItem : 0;
+            // 2026-09-18 【重写这一段】旧版 refresh() 同时挂在 srcBox 和 dstBox 的
+            //   SelectionChanged 上, 但函数体里自己又去 Clear()/重新 Add()/重新赋值
+            //   dstBox.SelectedItem —— 这几步本身就会再触发一次 dstBox.SelectionChanged,
+            //   于是 refresh() 在自己的事件回调里把自己调用了一遍, 一路递归下去。
+            //   用户实测: 按这个按钮程序直接闪退, 连 error.log、Windows 事件查看器
+            //   都没留下痕迹——这个特征只有 StackOverflowException 才有(调用栈涨爆,
+            //   .NET 里唯一连包多少层 try/catch 都接不住、连异常日志都来不及写的一类
+            //   崩溃), 跟这段代码的写法完全对得上。
+            //   新写法把"要不要重建 dstBox 候选列表"和"刷新提示文字"拆成两件事:
+            //   dstBox 自己的选择变了, 只更新提示文字, 绝不再碰 dstBox 的 Items/
+            //   SelectedItem(它自己的候选列表不需要因为自己被选中而重建); 只有
+            //   srcBox 变了才需要重建 dstBox 的候选(排除掉新选的 src)。这样 dstBox
+            //   的 SelectionChanged 处理函数里就没有任何会反过来触发它自己的代码,
+            //   结构上就切断了递归的可能——再加一道 updating 重入锁, 双重保险。
+            bool updating = false;
+            Action<int> rebuildDstItems = delegate(int src) {
                 object keep = dstBox.SelectedItem;
                 dstBox.Items.Clear();
                 dstBox.Items.Add("(仅取消，不并入)");
                 foreach (int h in live) if (h != src) dstBox.Items.Add(h);
                 dstBox.SelectedItem = (keep != null && dstBox.Items.Contains(keep)) ? keep : dstBox.Items[dstBox.Items.Count > 1 ? 1 : 0];
-
-                int dst = (dstBox.SelectedItem is int) ? (int)dstBox.SelectedItem : 0;
+            };
+            Action refreshHint = delegate {
+                int src = srcBox.SelectedItem is int ? (int)srcBox.SelectedItem : 0;
+                int dst = dstBox.SelectedItem is int ? (int)dstBox.SelectedItem : 0;
                 var sb = new StringBuilder();
                 if (src > 0 && lockedWhy.ContainsKey(src) && lockedWhy[src] != null)
                     sb.Append("⚠ 第" + src + "组" + lockedWhy[src] + "，不能动它。\n");
@@ -10992,9 +11008,9 @@ namespace SwimmingScoreboard
                     else if (hasResult.ContainsKey(dst) && hasResult[dst]) sb.Append("⚠ 第" + dst + "组已录入成绩，不能作为并入目标。\n");
                     // 2026-09-18 空道数按物理组实际占道数(occupied[dst])算, 不能按筛选组别的
                     //   人数(cnt[dst])算——混编项目里同一物理组常坐着好几个组别的人, 用
-                    //   cnt[dst] 会把空道数算多(见 ApplyMergeHeats 里详细说明, 那才是"按并组就崩"
-                    //   这次问题的根子)。这里只是让操作员看到的数字提前对, 真正防呆在
-                    //   ApplyMergeHeats 里, 这条不一致就算漏了也不会撞车。
+                    //   cnt[dst] 会把空道数算多(见 ApplyMergeHeats 里详细说明)。这里只是
+                    //   让操作员看到的数字提前对, 真正防呆在 ApplyMergeHeats 里, 这条
+                    //   不一致就算漏了也不会撞车。
                     int free = LaneCapacity() - occupied[dst];
                     sb.AppendFormat("第{0}组现有 {1} 人，空道 {2} 条；第{3}组 {4} 人。",
                         dst, cnt[dst], free, src, cnt[src]);
@@ -11008,9 +11024,21 @@ namespace SwimmingScoreboard
                 }
                 hint.Text = sb.ToString();
             };
-            srcBox.SelectionChanged += delegate { refresh(); };
-            dstBox.SelectionChanged += delegate { refresh(); };
-            refresh();
+            srcBox.SelectionChanged += delegate {
+                if (updating) return;
+                updating = true;
+                try { rebuildDstItems(srcBox.SelectedItem is int ? (int)srcBox.SelectedItem : 0); }
+                finally { updating = false; }
+                refreshHint();
+            };
+            dstBox.SelectionChanged += delegate {
+                if (updating) return;   // rebuildDstItems 改 dstBox.SelectedItem 时会重入触发到这里, 直接吞掉
+                refreshHint();           // dstBox 自己被选中: 只刷新文字, 绝不碰它自己的 Items/SelectedItem
+            };
+            updating = true;
+            try { rebuildDstItems(srcBox.SelectedItem is int ? (int)srcBox.SelectedItem : 0); }
+            finally { updating = false; }
+            refreshHint();
 
             var btns = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 16, 0, 0) };
             bool go = false;
