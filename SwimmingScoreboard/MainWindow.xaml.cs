@@ -4917,13 +4917,20 @@ namespace SwimmingScoreboard
             foreach (var s in _schedule) {
                 if (s == null || (s.Stage ?? "") != "决赛") continue;
                 int hc = s.HeatCount > 0 ? s.HeatCount : 1;
-                bool allConfirmed = true;
+                // 2026-09-18 跟 IsStageAllConfirmedFast(2026-08-24 已修的同一个问题, 见那边的
+                //   说明)一样的坑: 被取消(并组)的组次号永远不会有人去点"确认本组成绩",
+                //   这里原来没跳过它, 导致只要一个项目里有任何一组被并组过, 整个项目就
+                //   永远进不了"颁奖"弹窗的候选名单——即使剩下真正在比的那些组早都确认完了。
+                var cancelled = (s.CancelledHeats != null) ? s.CancelledHeats : new List<CancelledHeat>();
+                bool allConfirmed = true; int live = 0;
                 for (int h = 1; h <= hc; h++) {
+                    if (cancelled.Any(x => x.Heat == h)) continue;
+                    live++;
                     if (!IsHeatConfirmed(s.AgeGroup ?? "", s.Gender ?? "", s.EventName ?? "", s.Stage ?? "", h)) {
                         allConfirmed = false; break;
                     }
                 }
-                if (allConfirmed) result.Add(s);
+                if (allConfirmed && live > 0) result.Add(s);
             }
             return result;
         }
