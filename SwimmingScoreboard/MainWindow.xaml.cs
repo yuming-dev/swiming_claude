@@ -25372,7 +25372,21 @@ namespace SwimmingScoreboard
                     //   连 missed 都不算, 日志上只留一句"回读: 0 道", 看不出发生了什么。
                     //   这正是"库里有成绩、界面上查不到"的现场特征: 回读只能往已存在的行上
                     //   覆盖值, 建不出行来。数出来喊一声, 下次一眼就能认出。
-                    if (r == null) { noRow++; continue; }
+                    // 2026-09-18 【光喊一声不够, 得真的把行建出来】——用户实拍到: DNS 的运动员
+                    //   "项目成绩打印"(直接读库里 event_rankings)显示正常, "成绩与排名"(靠这个
+                    //   函数从库回读进内存)那一行状态却是空的。根子就是这儿: DNS 的人从没真正
+                    //   "发令/比赛"过, 内存里 sw.Results 压根没建过这个 (stage,heat) 的行——
+                    //   多半是他所在那组只有他一个人(独苗组)、又是跨机器同步/断线补传进来的,
+                    //   本机从没走过"就位→发令→出成绩"那条会顺带建行的路径。以前遇到这种
+                    //   "建不出行"就放弃, DNS/DNF 这类【本来就没有成绩、只有一个状态】的行
+                    //   反而是最常撞上这个空子的——恰恰是最需要把状态显示出来的那几行。
+                    //   现在库里既然有这一道的数据(不然 rows 里不会有它), 直接在内存里新建
+                    //   一行, 下面同一套赋值逻辑照旧把库里的值(状态/成绩/名次)灌进去。
+                    if (r == null) {
+                        r = new LaneResult { EventName = ev, Stage = st, Heat = heat, Lane = lane };
+                        sw.Results.Add(r);
+                        noRow++;
+                    }
                     // 只覆盖"库说了算"的那几项。成绩本身也对一遍 ——
                     // 库和内存要是对不上, 说明回写出了问题, 必须让它暴露出来。
                     if (Math.Abs(r.FinalTime - row.FinalTime) > 0.0001 && row.FinalTime > 0) {
@@ -25424,7 +25438,7 @@ namespace SwimmingScoreboard
                 AddLog(string.Format("第{0}组已按竞赛库回读: {1} 道{2}{3}（名次以库为准）",
                     heat, applied,
                     missed > 0 ? string.Format(", {0} 道在内存里找不到人", missed) : "",
-                    noRow > 0 ? string.Format(", 【{0} 道内存里没有成绩行 —— 库里有成绩但界面上看不到, 项目成绩请以库里的组排名表为准】", noRow) : ""));
+                    noRow > 0 ? string.Format(", {0} 道内存里原没有成绩行(多半是从没在本机走过就位/发令, 比如独苗组的 DNS)已按库补建", noRow) : ""));
             } catch (Exception ex) {
                 AddLog("【注意】按竞赛库回读失败, 界面仍用内存里算的名次: " + ex.Message);
             }
@@ -25452,7 +25466,13 @@ namespace SwimmingScoreboard
                     var sw = swimmers.FirstOrDefault(s => LaneOfStage(s, st) == lane);
                     if (sw == null) continue;
                     var r = sw.Results.FirstOrDefault(x => x.Stage == st && x.Heat == heat);
-                    if (r == null) continue;
+                    // 2026-09-18 跟 ApplyHeatFromDb 同一个道理(见那边的说明): 内存里没有这一行
+                    //   不代表库里没有, 建不出行就白改了——裁判长这条路径尤其容易撞上,
+                    //   改的常常正是从没在本机走过流程的那一道(比如替判/补录)。
+                    if (r == null) {
+                        r = new LaneResult { EventName = ev, Stage = st, Heat = heat, Lane = lane };
+                        sw.Results.Add(r);
+                    }
                     r.FinalTime = row.FinalTime;
                     r.Status = row.Status ?? "";
                     sw.Status = row.Status ?? "";
