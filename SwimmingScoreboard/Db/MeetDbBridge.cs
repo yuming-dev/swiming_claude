@@ -278,18 +278,43 @@ namespace SwimmingScoreboard.Db
             catch (Exception ex) { Log("竞赛库索引重建失败: " + ex.Message); }
         }
 
+        // 2026-09-18 索引缓存 miss 时补一次实时重建, 但要防抖 —— 不然浏览器/打印窗口
+        //   里连续查好几个查不到的组合(比如项目下拉还没选全), 每次 miss 都去发一遍
+        //   GetSchedule() RPC, 白白增加服务器负担。同一轮 miss 5 秒内只重建一次。
+        private DateTime _lastRoundIxRebuildAttempt = DateTime.MinValue;
+        private bool RebuildRoundIndexIfStale()
+        {
+            if ((DateTime.Now - _lastRoundIxRebuildAttempt).TotalSeconds < 5) return false;
+            _lastRoundIxRebuildAttempt = DateTime.Now;
+            BuildRoundIndex();
+            return true;
+        }
+
         /// <summary>老程序的四字段 → round_id。找不到返回 0。</summary>
         public long ResolveRound(string ageGroup, string gender, string eventName, string stage)
         {
             long id;
-            return _roundIx.TryGetValue(RKey(ageGroup, gender, eventName, stage), out id) ? id : 0L;
+            string key = RKey(ageGroup, gender, eventName, stage);
+            if (_roundIx.TryGetValue(key, out id)) return id;
+            // 2026-09-18 【这是"这台机器上项目成绩一直说尚未定稿, 换主服务器看就正常"的
+            //   真正病根】——_roundIx/_eventIx 只在联机那一刻建过一次(见 BuildRoundIndex
+            //   的调用点, 全在 Open/重连里), 之后服务器那边新加的项目/赛次(比如接力赛前
+            //   才定下分组、追加分组、改赛程)这台机器一直不知道, ResolveRound 永远返回0,
+            //   调用方(GetEventRankingRows 等)一律当"库里没有"处理返回空 —— 不是真没
+            //   定稿, 是这台机器的索引缓存过期了、问都没问服务器。这里 miss 时补一次
+            //   实时重建再查一遍, 真不存在才返回0。
+            if (RebuildRoundIndexIfStale() && _roundIx.TryGetValue(key, out id)) return id;
+            return 0L;
         }
 
         /// <summary>老程序的四字段 → event_id。找不到返回 0。</summary>
         public long ResolveEvent(string ageGroup, string gender, string eventName, string stage)
         {
             long id;
-            return _eventIx.TryGetValue(RKey(ageGroup, gender, eventName, stage), out id) ? id : 0L;
+            string key = RKey(ageGroup, gender, eventName, stage);
+            if (_eventIx.TryGetValue(key, out id)) return id;
+            if (RebuildRoundIndexIfStale() && _eventIx.TryGetValue(key, out id)) return id;
+            return 0L;
         }
 
         // ── 并组落库 ────────────────────────────────────────────── 2026-09-12
