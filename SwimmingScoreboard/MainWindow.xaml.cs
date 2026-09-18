@@ -490,6 +490,27 @@ namespace SwimmingScoreboard
             }
         }
 
+        /// <summary>
+        /// 2026-09-18 "这台机器是不是一个连着远端主服务器的计时站"——不按 exe 名字判,
+        /// 按两种情况算: ① 真正的 RemoteTimingControl.exe(IsRemoteTimingControlMode);
+        /// ② 普通 SwimmingScoreboard.exe 配了 --role timing / meet_service.json
+        /// {"Role":"timing"}, 直接连硬件、连远端主服务器, 但不像 RTC.exe 那样收起界面、
+        /// 也照常开自己的本机 WebSocket/HTTP 服务(race_control.html 可以直接连这台机器)。
+        ///
+        /// 用户明确要用这第二种部署方式——这是原来完全没接通的一条路: MachineRole 早就
+        /// 认得 "timing" 这个值, 但代码里唯一读它的地方(注释文档)从没真的据此做过任何事,
+        /// "推参数/推确认成绩/连远端竞赛库"这几处只认 IsRemoteTimingControlMode, 换成这种
+        /// 部署方式全部落空(数据只进了本机, 主服务器完全不知道)。
+        ///
+        /// 只用来放宽"要不要把本机状态/数据同步给远端主服务器"这一类判断——RTC 特有的
+        /// "没有本机 WebSocket/HTTP 服务, 必须经 EditorSyncClient 转发广播" 那一大类判断
+        /// 不能换成这个: 普通 exe 本来就开着本机服务, 走本机 _allSockets 广播才是对的,
+        /// 硬套这个反而会把 race_control.html 等本机连接方式打断。
+        /// </summary>
+        public static bool IsTimingClientMode {
+            get { return IsRemoteTimingControlMode || (!IsScheduleEditorMode && MachineRole == "timing"); }
+        }
+
         public MainWindow() {
             InitializeComponent();
             // 2026-08-28 竞赛库那一层原来传的是 null, 日志全进了黑洞 —— 三个 exe 都受影响。
@@ -497,11 +518,17 @@ namespace SwimmingScoreboard
             _meetDb.SetLogger(AddLog);
             bool editorMode = IsScheduleEditorMode;
             bool rtcMode = IsRemoteTimingControlMode;
+            // 2026-09-18 普通主程序配了 --role timing 连远端主服务器: 界面/本机服务都
+            //   保持全功能(不像 RTC 那样收起 tab、不开本机 WebSocket/HTTP), 只额外
+            //   把"推参数/推确认成绩/连远端竞赛库"这条通道接上——见 IsTimingClientMode 和
+            //   下面 ApplyPlainTimingRoleMode 的说明。
+            bool plainTimingRole = !editorMode && !rtcMode && MachineRole == "timing";
             // 2026-06-17 模式角色:
             //   编辑端 (ScheduleEditor): 跳过 Server + 硬件 + 自动连接 (只管数据编辑)
             //   RTC (RemoteTimingControl): 跳过 Server 但开硬件 (直连硬件计时器, 当 Client 连主服务器拉数据/推成绩)
             if (editorMode) ApplyScheduleEditorMode();
             if (rtcMode) ApplyRemoteTimingControlMode();
+            if (plainTimingRole) ApplyPlainTimingRoleMode();
             InitializeData();
             // 2026-06-17 RTC 也开 Server (RTC 连硬件 = 主控, 大屏直接连 RTC).
             //   主服务器和 RTC 不应同时跑同一台机器, 否则 3002 端口冲突.
@@ -580,6 +607,24 @@ namespace SwimmingScoreboard
 
             // 顶部状态栏注入"主服务器: [IP] [连接/断开] [状态]"控件 + 启动 EditorSyncClient
             // (复用 ScheduleEditor 同套同步机制 — 拉赛程/运动员, 推改动)
+            InjectEditorSyncToolbar();
+            SetupEditorSyncClient();
+        }
+
+        /// <summary>
+        /// 2026-09-18 普通 SwimmingScoreboard.exe 配了 --role timing(或 meet_service.json
+        /// {"Role":"timing"}) 连远端主服务器——跟 ApplyRemoteTimingControlMode 的区别只有一条:
+        /// 不收起 tab、不改标题、照常开本机 WebSocket(3002)/HTTP(8080), 因为这台机器本来就是
+        /// 全功能主程序, 操作员就站在它跟前操作, race_control.html/display.html 也可能直接
+        /// 连这台机器本机(不是连远端那个"真身"主服务器)。
+        ///
+        /// 需要额外接通的只是"这台机器的确认成绩/参数改动/硬件在线状态要不要同步给远端那份
+        /// 真身竞赛库"——这条路原来完全没人走(IsRemoteTimingControlMode 卡在最前面), 于是
+        /// 这种部署方式下改的参数、确认的成绩全部只留在本机, 远端主服务器一无所知。
+        /// 跟 RTC 共用同一套 EditorSyncClient + BindMeetServiceToHost 机制, 后续各处
+        /// IsTimingClientMode 判断会一并放行。
+        /// </summary>
+        private void ApplyPlainTimingRoleMode() {
             InjectEditorSyncToolbar();
             SetupEditorSyncClient();
         }
@@ -904,7 +949,7 @@ namespace SwimmingScoreboard
                 //   连上主服务器这一刻硬件多半还没连(操作员通常先连主服务器、再连硬件),
                 //   所以这里大概率是 false; 真正的信号靠下面 OnStatusChanged 里的
                 //   PushHwConnStatusToMainServer 在硬件真连上的那一刻补发。
-                if (IsRemoteTimingControlMode) {
+                if (IsTimingClientMode) {
                     var rtcHello = new JObject();
                     rtcHello["type"] = "TIMING_EXE_IDENTITY";
                     rtcHello["hwConnected"] = (_timingBridge != null && _timingBridge.IsConnected);
@@ -931,7 +976,7 @@ namespace SwimmingScoreboard
                 //   自己开一个 meet.db, 【确认成绩会写进计时端自己的库】,
                 //   主服务器那边什么都没有, 赛后才发现就晚了。
                 //   所以这里把它一并配上, 并落盘, 下次开机自动生效。
-                if (IsRemoteTimingControlMode) BindMeetServiceToHost(host);
+                if (IsTimingClientMode) BindMeetServiceToHost(host);
             } catch (Exception ex) {
                 AddLog("连接主服务器失败: " + ex.Message);
                 UpdateEditorSyncStatus("离线", "#94A3B8");
@@ -945,7 +990,7 @@ namespace SwimmingScoreboard
         /// 主服务器据此决定自己该不该把「比赛控制」页让给远程(见 UpdateScoringControlMode)。
         /// </summary>
         private void PushHwConnStatusToMainServer() {
-            if (!IsRemoteTimingControlMode) return;
+            if (!IsTimingClientMode) return;
             if (_editorSyncClient == null || !_editorSyncClient.IsConnected) return;
             try {
                 var msg = new JObject();
@@ -968,14 +1013,24 @@ namespace SwimmingScoreboard
                 _meetDb.ServerPort = 3002;
 
                 // 落盘, 下次开机不用再点一次
+                // 2026-09-18 【先读旧文件, 保留 Role 字段】—— 原来这里整份新建覆盖写,
+                //   普通主程序配了 meet_service.json{"Role":"timing"} 才会走到这个函数
+                //   (见 ApplyPlainTimingRoleMode/IsTimingClientMode), 点一次"连接"就把
+                //   "Role":"timing" 连同整份文件一起覆盖没了——本次运行没事(角色在
+                //   MachineRole 的静态缓存里已经读过一次), 但下次重启读这份文件时
+                //   Role 字段已经不见了, 退回 standalone, 这一整套(主服务器工具栏/
+                //   EditorSyncClient/推参数/推确认成绩)全部悄悄失效, 而且不报错。
                 try {
-                    var o = new JObject();
+                    string cfgPath = IOPath.Combine(AppDomain.CurrentDomain.BaseDirectory, "meet_service.json");
+                    JObject o = null;
+                    if (File.Exists(cfgPath)) {
+                        try { o = JObject.Parse(File.ReadAllText(cfgPath, Encoding.UTF8)); } catch { }
+                    }
+                    if (o == null) o = new JObject();
                     o["Mode"] = "remote";
                     o["Host"] = host;
                     o["Port"] = 3002;
-                    File.WriteAllText(
-                        IOPath.Combine(AppDomain.CurrentDomain.BaseDirectory, "meet_service.json"),
-                        o.ToString(Formatting.Indented), new UTF8Encoding(false));
+                    File.WriteAllText(cfgPath, o.ToString(Formatting.Indented), new UTF8Encoding(false));
                 } catch (Exception ex) { AddLog("写 meet_service.json 失败: " + ex.Message); }
 
                 // 已经开着(多半是刚才按单机开的)就重开, 让它真正连到主服务器
@@ -1016,7 +1071,7 @@ namespace SwimmingScoreboard
             if (_editorSyncConnectButton != null) _editorSyncConnectButton.Content = "断开";
             // 2026-08-29 服务器回来了 —— 把断线期间跑的组补上去。
             //   延后一点发: 身份帧(TIMING_WEB_IDENTITY)要先到, 否则服务器那边还没认人。
-            if (IsRemoteTimingControlMode) {
+            if (IsTimingClientMode) {
                 var t = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1200) };
                 t.Tick += delegate(object s2, EventArgs e2) {
                     t.Stop();
@@ -1223,7 +1278,7 @@ namespace SwimmingScoreboard
         /// SET_LANE_CLOSE_SETTINGS), 走的是主服务器已有的处理分支, 不新增协议。
         /// </summary>
         private void PushSettingsToServer() {
-            if (!IsRemoteTimingControlMode) return;
+            if (!IsTimingClientMode) return;
             if (_editorSyncClient == null || !_editorSyncClient.IsConnected) {
                 AddLog("【注意】未连主服务器, 本次参数修改只存在本机(连上后请再点一次确认)");
                 return;
@@ -1727,6 +1782,11 @@ namespace SwimmingScoreboard
                         if (!_timingWebSockets.Contains(socket)) _timingWebSockets.Add(socket);
                         AddLog("计时Web已连接");
                         UpdateScoringControlMode();
+                        // 2026-09-18 race_control.html 的"记录显示/显反应时"按钮态跟
+                        //   DisplayStyleWindow 同一个毛病: 只在"有人改动"那一刻广播,
+                        //   这里连上来的新连接(含断线重连)不知道当前真实状态, 要等下一次
+                        //   别处有人改动才追得上。新连上就补一次当前快照。
+                        try { EnqueueToSocket(socket, BuildDisplayStyleJson()); } catch { }
                         break;
                     case "CHECKIN_IDENTITY":
                         AddLog("检录台已连接");
@@ -4949,7 +5009,7 @@ namespace SwimmingScoreboard
                     //   不是"谁是 EXE 谁是网页"。RTC 硬件连接状态一变(连上/断开),
                     //   立刻把这个事实告诉主服务器, 主服务器据此决定该让谁说了算
                     //   (见 UpdateScoringControlMode / UpdateRaceControlTabLock)。
-                    if (IsRemoteTimingControlMode) PushHwConnStatusToMainServer();
+                    if (IsTimingClientMode) PushHwConnStatusToMainServer();
                     // 2026-09-14 本机(主服务器)自己的硬件连接状态变了, 也得重新评一遍
                     //   "比赛控制"该不该锁 —— 不然本机硬件刚插上那一刻, 页签还锁着,
                     //   要等下一次有远程连接数变化才会刷新, 现场感觉像"接上了也没用"。
@@ -10132,7 +10192,7 @@ namespace SwimmingScoreboard
             //   赛程树的"已完赛"读 _confirmedHeats, 项目成绩读 _swimmers[].Results,
             //   两样都没更新, 所以主服务器上看不到任何已完赛的痕迹。
             //   只推这一组的行, 不推整包。
-            if (IsRemoteTimingControlMode) { try { PushHeatConfirmedToServer(); } catch (Exception ex) { AddLog("回推本组成绩失败: " + ex.Message); } }
+            if (IsTimingClientMode) { try { PushHeatConfirmedToServer(); } catch (Exception ex) { AddLog("回推本组成绩失败: " + ex.Message); } }
 
             // 立即重建赛程树：哪怕下面 UpdateHeatRanking/AutoSaveData/SaveRawTimingLog 偶发异常，
             // "已完赛"标记也不会丢；之前用 try{}catch{} 把异常吞掉，"偶尔不打标记"就源于此。
@@ -11319,7 +11379,7 @@ namespace SwimmingScoreboard
         /// <summary>补丁上署的名: 让对面日志里看得出是谁改的。</summary>
         private string ClientLabel() {
             if (IsScheduleEditorMode) return "编排端 " + Environment.MachineName;
-            if (IsRemoteTimingControlMode) return "计时端 " + Environment.MachineName;
+            if (IsTimingClientMode) return "计时端 " + Environment.MachineName;
             return Environment.MachineName;
         }
 
@@ -16096,7 +16156,7 @@ namespace SwimmingScoreboard
         /// 这里只提示不拦截: 现场可能就是有意存本机, 不该把人挡住。
         /// </summary>
         private void WarnIfLocalSaveDirOnTimingStation(string dir) {
-            if (!IsRemoteTimingControlMode) return;
+            if (!IsTimingClientMode) return;
             if (string.IsNullOrWhiteSpace(dir)) return;
             if (dir.StartsWith("\\")) return;                      // 已经是共享目录, 正常
             AddLog("注意: 成绩 txt 存在【本机(计时端)】" + dir +
