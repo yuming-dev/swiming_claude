@@ -12087,16 +12087,22 @@ namespace SwimmingScoreboard
         }
 
         // 本池可用泳道数
+        // 2026-09-18 【0 是真泳道】——全运会式泳池是 0~9 共 10 道(见 MeetSchema.cs/
+        //   LiveHeatSchema.cs 里"注意 0 是真泳道"那几处说明), 别处用 LaneNumbers
+        //   全都不过滤 0(见那几十处 _poolConfig.LaneNumbers.ToList() 之类的直接用法),
+        //   只有这两个函数原来写的是 l > 0——0~9 十道的池子会被这里少数成 9 道,
+        //   0 道永远排不进"空道"候选, 白白浪费一条真实存在的道。改成 l >= 0
+        //   跟其余几十处用法保持同一个口径。
         private int LaneCapacity() {
             if (_poolConfig != null && _poolConfig.LaneNumbers != null && _poolConfig.LaneNumbers.Count > 0)
-                return _poolConfig.LaneNumbers.Count(l => l > 0);
+                return _poolConfig.LaneNumbers.Count(l => l >= 0);
             return _poolConfig != null && _poolConfig.LaneCount > 0 ? _poolConfig.LaneCount : 8;
         }
 
         // 空着的泳道, 按"靠中间优先"排序 (4-5-3-6-2-7-1-8 那种顺序)
         private List<int> FreeLanesCenterFirst(HashSet<int> used) {
             var all = (_poolConfig != null && _poolConfig.LaneNumbers != null && _poolConfig.LaneNumbers.Count > 0)
-                ? _poolConfig.LaneNumbers.Where(l => l > 0).ToList()
+                ? _poolConfig.LaneNumbers.Where(l => l >= 0).ToList()
                 : Enumerable.Range(1, LaneCapacity()).ToList();
             double mid = (all.Count > 0) ? (all.Min() + all.Max()) / 2.0 : 0;
             return all.Where(l => !used.Contains(l))
