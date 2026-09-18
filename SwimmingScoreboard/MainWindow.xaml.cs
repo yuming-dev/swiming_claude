@@ -12731,16 +12731,33 @@ namespace SwimmingScoreboard
                     var heatItems = new List<TreeViewItem>();
                     var heatStatuses = new List<string>();
                     for (int h = 1; h <= hc; h++) {
-                        string status = HeatStatus(ag, ev.Gender ?? "", ev.EventName ?? "", ev.Stage ?? "", h);
+                        // 2026-09-18 用户实测: 并组/取消组之后, "比赛控制"这棵赛程导航树
+                        //   没有更新——这棵树从来没真的查过 IsHeatCancelled/GetCancelledHeat,
+                        //   一直是把 1..HeatCount 每个组次号都当成正常在比的组画出来, 并组
+                        //   过的那个组次号照样显示"[未开始]"。跟 BuildScheduleTree("赛程管理"
+                        //   Tab 自己那棵树)保持同一个待遇: 不隐藏(组次号本来就是保留空号,
+                        //   点开也该看得到"这号去哪了"), 但要标成"[已取消 并入第X组]"。
+                        var cancelled = GetCancelledHeat(ag, ev.Gender ?? "", ev.EventName ?? "", ev.Stage ?? "", h);
+                        string status;
+                        string heatLabel;
+                        if (cancelled != null) {
+                            status = "cancelled";
+                            string cancelTag = cancelled.MergedInto > 0
+                                ? "已取消 并入第" + cancelled.MergedInto + "组"
+                                : (string.IsNullOrEmpty(cancelled.Reason) ? "已取消" : "已取消 " + cancelled.Reason);
+                            heatLabel = string.Format("{0} 第{1}组 [{2}]", ev.Stage ?? "", h, cancelTag).Trim();
+                        } else {
+                            status = HeatStatus(ag, ev.Gender ?? "", ev.EventName ?? "", ev.Stage ?? "", h);
+                            // 2026-06-19 去掉 ev.Date + ev.Time: 父节点 "第X场（YYYY-MM-DD 上午）" 已含日期+时段,
+                            //   子节点 第X组 再拼一次重复. 只保留 阶段 + 组次 + 状态.
+                            heatLabel = string.Format("{0} 第{1}组 {2}", ev.Stage ?? "", h, StatusLabel(status)).Trim();
+                        }
                         // 2026-09-16 筛选按钮上"已结束"(Tag="done")一直是粗筛——不管这组是数据齐
                         //   (done)还是真点过确认(confirmed), 都算"比完了", 所以这里 done 桶要把
                         //   confirmed 也接进来, 不然点"已结束"筛选按钮, 已确认的组全部消失。
                         bool passFilter = statusFilter == "all" || status == statusFilter
                                         || (statusFilter == "done" && status == "confirmed");
                         if (!passFilter) continue;
-                        // 2026-06-19 去掉 ev.Date + ev.Time: 父节点 "第X场（YYYY-MM-DD 上午）" 已含日期+时段,
-                        //   子节点 第X组 再拼一次重复. 只保留 阶段 + 组次 + 状态.
-                        string heatLabel = string.Format("{0} 第{1}组 {2}", ev.Stage ?? "", h, StatusLabel(status)).Trim();
                         var l3 = new TreeViewItem {
                             Header = heatLabel,
                             Foreground = StatusBrush(status),
