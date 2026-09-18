@@ -281,6 +281,14 @@ CREATE TABLE IF NOT EXISTS heat_entries (
     dsq_leg           INTEGER DEFAULT 0,    -- 接力 DSQ 判在第几棒：保留 1~(N-1) 棒分段，
                                             -- 清掉第 N 棒起。撤销 DSQ 要还原，所以备份原分段
     dsq_backup_splits TEXT,                 -- JSON 数组
+    -- 2026-09-18 撤销 DSQ 要还原的不只是分段——最终成绩/出发反应时/接力各棒反应时
+    --   同样得备份。这三列一直没加, dsq_backup_splits 也一直没人真的写过(建表时就晾在这,
+    --   UpdateLane/CommitHeatFrom 都不碰它)——MainWindow.LaneResult.DsqBackup* 那份快照
+    --   只活在内存和 JSON 存档里, 换机器/库回读撤销 DSQ 时把成绩恢复成 0, 状态却已经不是
+    --   DSQ 了, 界面上看着像「参赛但没成绩」, 看不出哪里错了。
+    dsq_backup_final_time      REAL DEFAULT 0,
+    dsq_backup_start_block_time REAL DEFAULT 0,
+    dsq_backup_leg_reaction_times TEXT,     -- JSON 数组
     record_note       TEXT,                 -- MR / =MR / NR …
 
     timing_source     TEXT,                 -- 触板 / 按钮 / 手计时

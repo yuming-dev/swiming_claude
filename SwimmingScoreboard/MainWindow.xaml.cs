@@ -25597,6 +25597,25 @@ namespace SwimmingScoreboard
                             r.OldRecordDate = oldRec.Date ?? "";
                         }
                     }
+                    // 2026-09-18 撤销 DSQ 用的原成绩备份, 库里有、内存这份却还没有时兜底补上
+                    //   (同上一段一个道理——见 MeetSchema.cs 里 dsq_backup_* 几列的说明)。
+                    //   只在"内存这份是空的"时才补, 不覆盖正在计时那台机器自己维护的那份。
+                    if (r.DsqBackupFinalTime <= 0 && row.DsqBackupFinalTime > 0) {
+                        r.DsqBackupFinalTime = row.DsqBackupFinalTime;
+                        r.DsqBackupTimeInSeconds = row.DsqBackupFinalTime;
+                        r.DsqBackupStartingBlockTime = row.DsqBackupStartBlockTime;
+                        if (row.DsqBackupLegReactionTimes != null)
+                            r.DsqBackupLegReactionTimes = new List<double>(row.DsqBackupLegReactionTimes);
+                        if (row.DsqBackupSplits != null) {
+                            r.DsqBackupSplits = new List<SplitTime>();
+                            foreach (var sp in row.DsqBackupSplits) {
+                                if (sp == null) continue;
+                                r.DsqBackupSplits.Add(new SplitTime {
+                                    Distance = sp.Distance, CumulativeTime = sp.CumulativeTime,
+                                    Time = sp.LapTime, TimingSource = sp.TimingSource, IsManual = sp.IsManual });
+                            }
+                        }
+                    }
                     // 2026-09-01 判罚状态也以库为准(只加不删: 库里没写的时候不要把内存里
                     //   刚标上的判罚抹掉 —— 少一个判罚比多一个危险)。
                     // 2026-09-13 【两份状态要一起对齐】。判罚状态在内存里存了两处:
@@ -25746,6 +25765,23 @@ namespace SwimmingScoreboard
                         foreach (var sp in res.Splits) {
                             if (sp == null || sp.IsDeleted || sp.Distance <= 0) continue;
                             ln.Splits.Add(new SwimmingScoreboard.Db.SplitDto {
+                                Distance = sp.Distance, CumulativeTime = sp.CumulativeTime,
+                                LapTime = sp.Time, TimingSource = sp.TimingSource, IsManual = sp.IsManual });
+                        }
+                    }
+                    // 2026-09-18 撤销 DSQ 用的原成绩备份也跟着这一行走——见 MeetSchema.cs
+                    //   里 dsq_backup_* 几列的说明。以前这份快照只活在 res.DsqBackup* 这几个
+                    //   内存字段里, 从没跟着当前组库/竞赛库走过一步, 换机器/库回读撤销 DSQ
+                    //   时只能把成绩恢复成 0。
+                    ln.DsqBackupFinalTime = res.DsqBackupFinalTime;
+                    ln.DsqBackupStartBlockTime = res.DsqBackupStartingBlockTime;
+                    if (res.DsqBackupLegReactionTimes != null)
+                        ln.DsqBackupLegReactionTimes = new List<double>(res.DsqBackupLegReactionTimes);
+                    if (res.DsqBackupSplits != null) {
+                        ln.DsqBackupSplits = new List<SwimmingScoreboard.Db.SplitDto>();
+                        foreach (var sp in res.DsqBackupSplits) {
+                            if (sp == null) continue;
+                            ln.DsqBackupSplits.Add(new SwimmingScoreboard.Db.SplitDto {
                                 Distance = sp.Distance, CumulativeTime = sp.CumulativeTime,
                                 LapTime = sp.Time, TimingSource = sp.TimingSource, IsManual = sp.IsManual });
                         }

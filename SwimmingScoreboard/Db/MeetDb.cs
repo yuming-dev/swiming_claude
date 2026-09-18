@@ -79,10 +79,11 @@ namespace SwimmingScoreboard.Db
             _cn = new SQLiteConnection(csb.ToString());
             _cn.Open();
             EnsureSchema();
+            EnsureLateColumns();
         }
 
         /// <summary>2026-08-31 供 DROP 掉某张表后重建用(建表语句都是 IF NOT EXISTS, 重复调无害)。</summary>
-        public void EnsureSchemaPublic() { EnsureSchema(); }
+        public void EnsureSchemaPublic() { EnsureSchema(); EnsureLateColumns(); }
 
         private void EnsureSchema()
         {
@@ -90,6 +91,40 @@ namespace SwimmingScoreboard.Db
             {
                 Exec(_schemaSql, tx);
                 tx.Commit();
+            }
+        }
+
+        // 2026-09-18 EnsureSchema 只管"建表"——CREATE TABLE IF NOT EXISTS 对已经建好的
+        //   老表不会补列。真实赛事的 meet.db/current_heat.db 从开赛那天起就是同一个文件,
+        //   后续版本加的新列(比如这次撤销 DSQ 要补的几列)老库里永远不会自动冒出来,
+        //   一用就是 "no such column" —— 老赛事升级新版本装上就直接崩。
+        //   这里补一道通用的"补列"：建完表之后, 把"后来才加的列"按名单挨个查一遍,
+        //   缺了就 ALTER TABLE 补上（SQLite 加列是轻量操作, 不用整表重写）。
+        //   以后再往 heat_entries/live_lanes 这类已经有真实数据的表加列, 照这个名单
+        //   加一行就行——干净的新表(CREATE TABLE IF NOT EXISTS 那条已经带了新列)不受影响。
+        private static readonly string[][] _lateColumns = new string[][] {
+            new[] { "heat_entries", "dsq_backup_final_time",       "REAL DEFAULT 0" },
+            new[] { "heat_entries", "dsq_backup_start_block_time", "REAL DEFAULT 0" },
+            new[] { "heat_entries", "dsq_backup_leg_reaction_times", "TEXT" },
+            new[] { "live_lanes",   "dsq_backup_final_time",       "REAL DEFAULT 0" },
+            new[] { "live_lanes",   "dsq_backup_start_block_time", "REAL DEFAULT 0" },
+            new[] { "live_lanes",   "dsq_backup_leg_reaction_times", "TEXT" },
+        };
+        private void EnsureLateColumns()
+        {
+            foreach (var col in _lateColumns)
+            {
+                string table = col[0], name = col[1], decl = col[2];
+                try
+                {
+                    var ti = Query("PRAGMA table_info(" + table + ")");
+                    if (ti.Rows.Count == 0) continue;   // 这个库里压根没这张表(比如 meet.db 没有 live_lanes), 跳过
+                    bool exists = false;
+                    foreach (DataRow r in ti.Rows)
+                        if (string.Equals(Convert.ToString(r["name"]), name, StringComparison.OrdinalIgnoreCase)) { exists = true; break; }
+                    if (!exists) ExecuteNonQuery("ALTER TABLE " + table + " ADD COLUMN " + name + " " + decl);
+                }
+                catch { /* 补列失败不阻断开库——大不了这一列继续没有, 不能让老赛事打不开 */ }
             }
         }
 

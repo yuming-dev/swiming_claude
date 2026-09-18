@@ -48,6 +48,19 @@ namespace SwimmingScoreboard.Db
         { return r.Table.Columns.Contains(c) && r[c] != DBNull.Value ? Convert.ToDouble(r[c]) : 0d; }
         private static bool B(DataRow r, string c) { return I(r, c) != 0; }
 
+        // 2026-09-18 撤销 DSQ 备份用: dsq_backup_leg_reaction_times / dsq_backup_splits
+        // 都是 JSON 数组存的 TEXT 列, 空/坏数据一律当"没有备份"处理, 不抛出去炸调用方。
+        private static List<double> ParseDoubleList(string json)
+        {
+            if (string.IsNullOrEmpty(json)) return null;
+            try { return JsonConvert.DeserializeObject<List<double>>(json); } catch { return null; }
+        }
+        private static List<SplitDto> ParseSplitDtoList(string json)
+        {
+            if (string.IsNullOrEmpty(json)) return null;
+            try { return JsonConvert.DeserializeObject<List<SplitDto>>(json); } catch { return null; }
+        }
+
         private static string Now() { return DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"); }
 
         private void Audit(string op, string action, string target, long? targetId,
@@ -501,7 +514,9 @@ namespace SwimmingScoreboard.Db
             @"SELECT v.*, he.entry_id, he.seed_time_seconds, he.checkin_at, he.promoted_from, he.promoted_rank,
                      he.score, he.dsq_code, he.dsq_leg, he.timing_source, he.touchpad_time, he.start_block_time,
                      he.pb1_time, he.pb2_time, he.pb3_time, he.manual_left, he.manual_right,
-                     he.result_at, he.note, he.dispute_note
+                     he.result_at, he.note, he.dispute_note,
+                     he.dsq_backup_final_time, he.dsq_backup_start_block_time,
+                     he.dsq_backup_leg_reaction_times, he.dsq_backup_splits
               FROM v_startlist v JOIN heat_entries he ON he.id = v.heat_entry_id ";
 
         private static LaneRow ReadLane(DataRow r)
@@ -522,7 +537,11 @@ namespace SwimmingScoreboard.Db
                 ReactionTime = D(r,"反应时"), TouchpadTime = D(r,"touchpad_time"),
                 StartBlockTime = D(r,"start_block_time"), Pb1Time = D(r,"pb1_time"), Pb2Time = D(r,"pb2_time"),
                 Pb3Time = D(r,"pb3_time"), ManualLeft = D(r,"manual_left"), ManualRight = D(r,"manual_right"),
-                ResultAt = S(r,"result_at"), Note = S(r,"note"), DisputeNote = S(r,"dispute_note") };
+                ResultAt = S(r,"result_at"), Note = S(r,"note"), DisputeNote = S(r,"dispute_note"),
+                DsqBackupFinalTime = D(r,"dsq_backup_final_time"),
+                DsqBackupStartBlockTime = D(r,"dsq_backup_start_block_time"),
+                DsqBackupLegReactionTimes = ParseDoubleList(S(r,"dsq_backup_leg_reaction_times")),
+                DsqBackupSplits = ParseSplitDtoList(S(r,"dsq_backup_splits")) };
         }
 
         public List<LaneRow> GetHeat(long roundId, int heat)
@@ -896,6 +915,10 @@ namespace SwimmingScoreboard.Db
                     Pb3Time = D(x,"pb3_time"), ManualLeft = D(x,"manual_left"), ManualRight = D(x,"manual_right"),
                     CurrentLap = I(x,"current_lap"), IsFinished = B(x,"is_finished"),
                     IsFalseStart = B(x,"is_false_start"), DsqCode = S(x,"dsq_code"), DsqLeg = I(x,"dsq_leg"),
+                    DsqBackupFinalTime = D(x,"dsq_backup_final_time"),
+                    DsqBackupStartBlockTime = D(x,"dsq_backup_start_block_time"),
+                    DsqBackupLegReactionTimes = ParseDoubleList(S(x,"dsq_backup_leg_reaction_times")),
+                    DsqBackupSplits = ParseSplitDtoList(S(x,"dsq_backup_splits")),
                     Splits = new List<SplitDto>(), Legs = new List<RelayLegDto>() };
                 foreach (DataRow sp in _live.Query(
                     "SELECT * FROM live_splits WHERE lane=@p1 ORDER BY distance", ln.Lane).Rows)
@@ -919,14 +942,21 @@ namespace SwimmingScoreboard.Db
         /// <summary>触板/按钮/手计时来一次就调一次。只写当前组库那一行，大库一个字节都不动。</summary>
         public void UpdateLane(int lane, LiveLane d)
         {
+            // 2026-09-18 撤销 DSQ 的备份跟着这一行一起写——MarkLaneStatus 判 DSQ 那一刻在
+            //   BuildLiveLanes 里把 d.DsqBackup* 填好, 这里落进 live_lanes, 确认成绩时
+            //   GetLiveHeat 再原样读回来交给 CommitHeatFrom 写进 heat_entries。
             _live.ExecuteNonQuery(
                 @"UPDATE live_lanes SET final_time=@p2,rank=@p3,status=@p4,record_note=@p5,timing_source=@p6,
                       reaction_time=@p7,touchpad_time=@p8,start_block_time=@p9,pb1_time=@p10,pb2_time=@p11,
                       pb3_time=@p12,manual_left=@p13,manual_right=@p14,current_lap=@p15,is_finished=@p16,
-                      is_false_start=@p17 WHERE lane=@p1",
+                      is_false_start=@p17,dsq_backup_final_time=@p18,dsq_backup_start_block_time=@p19,
+                      dsq_backup_leg_reaction_times=@p20,dsq_backup_splits=@p21 WHERE lane=@p1",
                 lane, d.FinalTime, d.Rank, d.Status, d.RecordNote, d.TimingSource, d.ReactionTime,
                 d.TouchpadTime, d.StartBlockTime, d.Pb1Time, d.Pb2Time, d.Pb3Time, d.ManualLeft,
-                d.ManualRight, d.CurrentLap, d.IsFinished ? 1 : 0, d.IsFalseStart ? 1 : 0);
+                d.ManualRight, d.CurrentLap, d.IsFinished ? 1 : 0, d.IsFalseStart ? 1 : 0,
+                d.DsqBackupFinalTime, d.DsqBackupStartBlockTime,
+                d.DsqBackupLegReactionTimes != null ? JsonConvert.SerializeObject(d.DsqBackupLegReactionTimes) : null,
+                d.DsqBackupSplits != null ? JsonConvert.SerializeObject(d.DsqBackupSplits) : null);
         }
 
         public void UpdateSplit(int lane, int distance, double cumulative, double lap, string source)
@@ -994,13 +1024,20 @@ namespace SwimmingScoreboard.Db
                     //   上游怎么错, 这一关都不许放过去: 名次由 RecomputeRanks 归 0,
                     //   纪录标识在这里归空。
                     if (IsUnranked(ln.Status)) ln.RecordNote = "";
+                    // 2026-09-18 撤销 DSQ 的备份跟着这一行一起落库——见 MeetSchema.cs 里
+                    //   这几列的说明。不然确认成绩后备份就跟着 live_lanes 清空一起消失,
+                    //   哪台机器/哪次会话来撤销都恢复不了原成绩。
                     run(@"UPDATE heat_entries SET final_time=@p2,status=@p3,record_note=@p4,timing_source=@p5,
                               reaction_time=@p6,touchpad_time=@p7,start_block_time=@p8,pb1_time=@p9,pb2_time=@p10,
                               pb3_time=@p11,manual_left=@p12,manual_right=@p13,dsq_code=@p14,dsq_leg=@p15,
-                              result_at=@p16 WHERE id=@p1",
+                              result_at=@p16,dsq_backup_final_time=@p17,dsq_backup_start_block_time=@p18,
+                              dsq_backup_leg_reaction_times=@p19,dsq_backup_splits=@p20 WHERE id=@p1",
                         new object[] { ln.HeatEntryId, ln.FinalTime, ln.Status, ln.RecordNote, ln.TimingSource,
                             ln.ReactionTime, ln.TouchpadTime, ln.StartBlockTime, ln.Pb1Time, ln.Pb2Time,
-                            ln.Pb3Time, ln.ManualLeft, ln.ManualRight, ln.DsqCode, ln.DsqLeg, Now() });
+                            ln.Pb3Time, ln.ManualLeft, ln.ManualRight, ln.DsqCode, ln.DsqLeg, Now(),
+                            ln.DsqBackupFinalTime, ln.DsqBackupStartBlockTime,
+                            ln.DsqBackupLegReactionTimes != null ? JsonConvert.SerializeObject(ln.DsqBackupLegReactionTimes) : null,
+                            ln.DsqBackupSplits != null ? JsonConvert.SerializeObject(ln.DsqBackupSplits) : null });
 
                     run("DELETE FROM splits WHERE heat_entry_id=@p1", new object[] { ln.HeatEntryId });
                     if (ln.Splits != null)

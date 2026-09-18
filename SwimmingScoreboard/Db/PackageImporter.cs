@@ -389,17 +389,37 @@ namespace SwimmingScoreboard.Db
                             var r = FindResult(s, kv.Key, a.Heat);
                             if (r != null && (r.FinalTime > 0 || !string.IsNullOrEmpty(r.Status)))
                             {
+                                // 2026-09-18 撤销 DSQ 备份的 JSON 形状要跟 LocalMeetService.UpdateLane/
+                                //   CommitHeatFrom 那条路统一用 SplitDto(Distance/CumulativeTime/LapTime/
+                                //   TimingSource/IsManual)——之前这里直接序列化 LaneResult.DsqBackupSplits
+                                //   (List<SplitTime>, 字段名是 Time 不是 LapTime), 跟回读那边按 SplitDto
+                                //   反序列化对不上号, LapTime 会静默丢成 0。順手把另外两列(原成绩/原出发
+                                //   反应时)也一并写上——以前压根没写过, 见 MeetSchema.cs 里那几列的说明。
                                 string bak = null;
-                                if (r.DsqBackupSplits != null && r.DsqBackupSplits.Count > 0)
-                                    try { bak = JsonConvert.SerializeObject(r.DsqBackupSplits); } catch { }
+                                if (r.DsqBackupSplits != null && r.DsqBackupSplits.Count > 0) {
+                                    try {
+                                        var dtos = r.DsqBackupSplits
+                                            .Where(sp => sp != null)
+                                            .Select(sp => new SplitDto { Distance = sp.Distance, CumulativeTime = sp.CumulativeTime,
+                                                LapTime = sp.Time, TimingSource = sp.TimingSource, IsManual = sp.IsManual })
+                                            .ToList();
+                                        bak = JsonConvert.SerializeObject(dtos);
+                                    } catch { }
+                                }
+                                string bakLegs = null;
+                                if (r.DsqBackupLegReactionTimes != null && r.DsqBackupLegReactionTimes.Count > 0)
+                                    try { bakLegs = JsonConvert.SerializeObject(r.DsqBackupLegReactionTimes); } catch { }
                                 run(@"UPDATE heat_entries SET final_time=@p2,rank=@p3,status=@p4,record_note=@p5,
                                           timing_source=@p6,touchpad_time=@p7,start_block_time=@p8,
                                           pb1_time=@p9,pb2_time=@p10,pb3_time=@p11,manual_left=@p12,manual_right=@p13,
-                                          dsq_backup_splits=@p14,result_at=@p15
+                                          dsq_backup_splits=@p14,result_at=@p15,
+                                          dsq_backup_final_time=@p16,dsq_backup_start_block_time=@p17,
+                                          dsq_backup_leg_reaction_times=@p18
                                       WHERE id=@p1",
                                     new object[] { heId, r.FinalTime, r.Rank, r.Status, r.RecordNote, r.TimingSource,
                                         r.TouchpadTime, r.StartingBlockTime, r.PushButton1Time, r.PushButton2Time,
-                                        r.PushButton3Time, r.ManualTouchTimeLeft, r.ManualTouchTimeRight, bak, now });
+                                        r.PushButton3Time, r.ManualTouchTimeLeft, r.ManualTouchTimeRight, bak, now,
+                                        r.DsqBackupFinalTime, r.DsqBackupStartingBlockTime, bakLegs });
                                 rep.Results++;
 
                                 if (r.Splits != null)

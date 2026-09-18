@@ -83,7 +83,11 @@ CREATE TABLE IF NOT EXISTS live_lanes (
     is_false_start    INTEGER DEFAULT 0,
     dsq_code          TEXT,
     dsq_leg           INTEGER DEFAULT 0,    -- 接力 DSQ 判在第几棒
-    dsq_backup_splits TEXT                  -- 撤销 DSQ 时还原用
+    dsq_backup_splits TEXT,                 -- 撤销 DSQ 时还原用
+    -- 2026-09-18 见 MeetSchema.heat_entries 同名几列的说明：撤销 DSQ 要还原的不止分段。
+    dsq_backup_final_time       REAL DEFAULT 0,
+    dsq_backup_start_block_time REAL DEFAULT 0,
+    dsq_backup_leg_reaction_times TEXT      -- JSON 数组
 );
 
 -- ══ 分段 ════════════════════════════════════════════════════════════

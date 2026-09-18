@@ -218,6 +218,11 @@ namespace SwimmingScoreboard.Db
         public double ReactionTime, TouchpadTime, StartBlockTime;
         public double Pb1Time, Pb2Time, Pb3Time, ManualLeft, ManualRight;
         public string ResultAt, Note, DisputeNote;
+        // 2026-09-18 见 LiveLane 同名字段的说明：撤销 DSQ 用的原成绩备份，回读时补给
+        // MainWindow.ApplyHeatFromDb，让"这条成绩不是本机判的 DSQ"也能正常撤销。
+        public double DsqBackupFinalTime, DsqBackupStartBlockTime;
+        public List<double> DsqBackupLegReactionTimes;
+        public List<SplitDto> DsqBackupSplits;
 
         public List<SplitDto> Splits;                // 按需带上
         public List<RelayLegDto> Legs;
@@ -283,6 +288,13 @@ namespace SwimmingScoreboard.Db
         public string DsqCode; public int DsqLeg;
         public List<SplitDto> Splits;
         public List<RelayLegDto> Legs;
+        // 2026-09-18 撤销 DSQ 用的原成绩备份——MarkLaneStatus 判 DSQ 那一刻把 FinalTime/
+        //   StartBlockTime/分段/接力各棒反应时备份到这里, CancelLaneNote 撤销时原样恢复。
+        //   以前这份快照只活在 MainWindow.LaneResult 的内存字段里, 从没跟着 live_lanes/
+        //   heat_entries 走过, 见 MeetSchema.cs 里这几列的说明。
+        public double DsqBackupFinalTime, DsqBackupStartBlockTime;
+        public List<double> DsqBackupLegReactionTimes;
+        public List<SplitDto> DsqBackupSplits;
     }
 
     public class AuditRow

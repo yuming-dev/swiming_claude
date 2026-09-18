@@ -635,7 +635,9 @@ namespace SwimmingScoreboard.Db
 
         private static readonly string[] ResultCols = new string[] {
             "final_time","rank","promotion_mark","score","status","dsq_code","dsq_leg",
-            "dsq_backup_splits","record_note","timing_source","reaction_time","touchpad_time",
+            "dsq_backup_splits","dsq_backup_final_time","dsq_backup_start_block_time",
+            "dsq_backup_leg_reaction_times",
+            "record_note","timing_source","reaction_time","touchpad_time",
             "start_block_time","pb1_time","pb2_time","pb3_time","manual_left","manual_right",
             "result_at","dispute_note","checkin_status","checkin_at","promoted_from","promoted_rank"
         };
