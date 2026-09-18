@@ -527,7 +527,16 @@ namespace SwimmingScoreboard
             if (!editorMode) TryAutoReconnectTiming();        // RTC 也要尝试自动连硬件
             UpdateConnectionStatus();
             // 2026-08-31 大屏的数据来自服务器内存 —— 开个低频轮询, 第三台机器改了库也能跟上
-            if (!IsScheduleEditorMode) { try { StartDbPoll(); } catch { } }
+            // 2026-09-18 原来这句排除了编排端(IsScheduleEditorMode), 大概是当初以为"编排端
+            //   只管编辑赛程, 不用跟结果实时状态"。但编排端自己的"赛程导航"/"项目成绩打印"
+            //   跟主服务器、计时端是同一份界面代码, 一样要显示【正在计时】/【已确认】——
+            //   用户实拍到: 远程计时控制正在跑一组接力, 主服务器赛程导航显示【进行中】,
+            //   "编排记录及成绩处理"(= 编排端)却停在【未开始】, 因为它压根没启动过这个
+            //   10 秒轮询, RefreshChangedFromDb 里"正在计时"指纹比对那段代码永远不会跑到。
+            //   现在编排端也开这个轮询——它不碰硬件/不驱动比赛(_raceState 在编排端上永远
+            //   是 Waiting, DbPoll_Tick 开头那句"比赛中不动"的跳过条件对它不成立), 纯读库,
+            //   没有跟主服务器/计时端冲突的写操作。
+            try { StartDbPoll(); } catch { }
             _initialized = true;
             // 2026-09-13 右侧"运动员注册"面板按当前页决定显不显示(默认落在"赛事概览", 所以是隐藏)
             try { UpdateAthleteRegPanelVisibility(); } catch { }
