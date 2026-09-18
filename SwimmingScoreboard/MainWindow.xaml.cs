@@ -25696,6 +25696,35 @@ namespace SwimmingScoreboard
                     r.IsTie = row.IsTie;
                     r.FromDb = true;
                     sw.CurrentRank = r.Rank;
+                    // 2026-09-18 跟 ApplyHeatFromDb 同一条规矩(见那边的说明): 原记录快照/撤销
+                    //   DSQ 的原成绩备份都不在这几行"覆盖"范围内, 内存本来是空的才兜底补,
+                    //   不然裁判长在换了台机器改这一组时, 补齐了名次却把这两样悄悄丢了。
+                    if (!string.IsNullOrEmpty(r.RecordNote) && string.IsNullOrEmpty(r.OldRecordHolder)) {
+                        string abbrJ = r.RecordNote.Split(' ')[0].TrimStart('=');
+                        var oldRecJ = _meetDb.GetOldRecordForHeatEntry(row.Id, abbrJ);
+                        if (oldRecJ != null) {
+                            r.OldRecordHolder = oldRecJ.HolderName ?? "";
+                            r.OldRecordCountry = oldRecJ.HolderCountry ?? "";
+                            r.OldRecordTime = oldRecJ.TimeSeconds;
+                            r.OldRecordDate = oldRecJ.Date ?? "";
+                        }
+                    }
+                    if (r.DsqBackupFinalTime <= 0 && row.DsqBackupFinalTime > 0) {
+                        r.DsqBackupFinalTime = row.DsqBackupFinalTime;
+                        r.DsqBackupTimeInSeconds = row.DsqBackupFinalTime;
+                        r.DsqBackupStartingBlockTime = row.DsqBackupStartBlockTime;
+                        if (row.DsqBackupLegReactionTimes != null)
+                            r.DsqBackupLegReactionTimes = new List<double>(row.DsqBackupLegReactionTimes);
+                        if (row.DsqBackupSplits != null) {
+                            r.DsqBackupSplits = new List<SplitTime>();
+                            foreach (var sp in row.DsqBackupSplits) {
+                                if (sp == null) continue;
+                                r.DsqBackupSplits.Add(new SplitTime {
+                                    Distance = sp.Distance, CumulativeTime = sp.CumulativeTime,
+                                    Time = sp.LapTime, TimingSource = sp.TimingSource, IsManual = sp.IsManual });
+                            }
+                        }
+                    }
                     // 判罚/试游的人不该有名次、不该有纪录标识 —— 跟 ApplyHeatFromDb 同一条规矩
                     if (SwimmingScoreboard.ResultOrdering.StatusOrder(r.Status ?? "") != 5) {
                         r.Rank = 0; r.EventRank = 0; r.RecordNote = ""; sw.CurrentRank = 0;
