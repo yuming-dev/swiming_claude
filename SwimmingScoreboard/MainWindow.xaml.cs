@@ -11913,9 +11913,58 @@ namespace SwimmingScoreboard
                     try { EnqueueToSocket(sock, msg.ToString(Formatting.None)); } catch { }
                 }
                 AddLog("已应用编排端补丁(" + op + ")并转发");
+                // 2026-09-18 【这里一直漏了写 meet.db】——"Assign"(手动分组/自动分组/临时加人/
+                //   接力棒次等)这批补丁 2026-09-12 起改成"走补丁, 不推整包"以后, ApplyAssignPatch/
+                //   ApplyMergeHeats 里只有并组那一条真的调了 _meetDb.MergeHeatsInDb, 其余全部只改了
+                //   内存 _swimmers, 从没写过 meet.db。这几轮改的一大串"读 _meet 才对"的地方
+                //   (GetHeat/GetRacingHeats/项目名次……)读到的还是编排端改之前那份旧分组——
+                //   补丁本身在编排端/主服务器之间是同步的, 但那份"真身"库没跟上, 计时端拿到的
+                //   道次/名单就可能是过时的。用户明确要求"修改并确认后立刻存进主服务器数据库
+                //   并立刻轮询一次"——用已有的、结果保留式的 RebuildFromPackage(同 SyncToMeetDb
+                //   加载整包时那一条, 已经是验证过的安全路径, 不新写一套 SQL), 防抖 2 秒
+                //   (编辑经常是连续几条补丁一起来, 逐条重建太重), 写完再吭一声 DATA_CHANGED。
+                if (op != "Records") ScheduleMeetDbSyncFromPatch();
             } else {
                 AddLog("拒绝编排端补丁(" + op + "): " + reason);
             }
+        }
+
+        // 2026-09-18 见 HandleEditorPatch 里的说明: 补丁只改了内存, 没写 meet.db,
+        //   这里补一条防抖同步。防抖而不是逐条同步: 编排端一次编辑动作常常连着
+        //   发好几条补丁(比如手动分组一次拖了好几个人), 逐条都重建库既没必要又费时间。
+        private DispatcherTimer _meetDbSyncDebounceTimer;
+        private void ScheduleMeetDbSyncFromPatch() {
+            try {
+                if (_meetDbSyncDebounceTimer == null) {
+                    _meetDbSyncDebounceTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
+                    _meetDbSyncDebounceTimer.Tick += MeetDbSyncDebounceTick;
+                }
+                _meetDbSyncDebounceTimer.Stop();
+                _meetDbSyncDebounceTimer.Start();
+            } catch { }
+        }
+
+        private void MeetDbSyncDebounceTick(object sender, EventArgs e) {
+            _meetDbSyncDebounceTimer.Stop();
+            try {
+                // 跟 SyncToMeetDb(整包加载时那条)一个道理: 正在计时/成绩未确认时不动库,
+                // 不然重建瞬间 _swimmers 整批换对象, 正在广播的当前组数据引用到旧对象。
+                string why;
+                if (IsPackageApplyBlocked(out why)) {
+                    AddLog("编排补丁暂不同步到竞赛库: " + why + "（下次补丁/整包同步时会补上）");
+                    return;
+                }
+                var package = BuildCurrentPackage();
+                var chk = _meetDb.SelfCheck(package);
+                if (chk.Diffs.Count == 0) return;   // 没差异, 不用白重建一次
+                AddLog(string.Format("编排补丁已同步到内存, 竞赛库有 {0} 处差异, 按最新编排重建(成绩保留, 原库不动)…",
+                    chk.Diffs.Count));
+                if (_meetDb.RebuildFromPackage(package)) {
+                    var again = _meetDb.SelfCheck(package);
+                    AddLog("重建后自检: " + again.ToString());
+                    try { PushDataChanged("assign"); } catch { }   // 让挂着的其它客户端立刻多轮询一次
+                }
+            } catch (Exception ex) { AddLog("编排补丁同步竞赛库失败(不影响比赛, 内存/JSON 仍是最新的): " + ex.Message); }
         }
 
         // 本池可用泳道数
