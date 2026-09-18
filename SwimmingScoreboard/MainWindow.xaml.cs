@@ -976,7 +976,21 @@ namespace SwimmingScoreboard
                 //   自己开一个 meet.db, 【确认成绩会写进计时端自己的库】,
                 //   主服务器那边什么都没有, 赛后才发现就晚了。
                 //   所以这里把它一并配上, 并落盘, 下次开机自动生效。
-                if (IsTimingClientMode) BindMeetServiceToHost(host);
+                //
+                // 2026-09-18 【这才是"编排记录及成绩处理"赛程导航/项目成绩打印跟主服务器
+                //   一直不一致的真正病根】——上面一大段全是 EditorSyncClient(WebSocket,
+                //   走 EDITOR_PACKAGE/EDITOR_PATCH 同步赛程/名单)那条独立的通道, 原来只有
+                //   IsTimingClientMode(RTC/role=timing) 才顺带把 MeetDbBridge(_meetDb/_meet,
+                //   IMeetService RPC 通道)也绑到同一个主服务器上；编排端连"主服务器"框
+                //   点了"连接"、状态显示"已连接", 但那只连通了 EditorSyncClient 一条线,
+                //   _meetDb.Service 压根没被重新指过, 一直是它自己那份【单机本地库】——
+                //   这个会话里这几轮全部改成"经 _meet 读"的地方(赛程导航正在计时/已确认、
+                //   项目成绩打印定稿状态、round/event 索引……)在编排端上因此全部还是在问
+                //   自己本机那份过时的库, 表面上像是"没生效", 其实是根本没连到真身。
+                //   编排端本身不计时、不推确认成绩/参数, 不需要 IsTimingClientMode 那批
+                //   判断, 但它的【只读查询】必须经 _meet 问到真身, 所以单独把
+                //   IsScheduleEditorMode 也加进来。
+                if (IsTimingClientMode || IsScheduleEditorMode) BindMeetServiceToHost(host);
             } catch (Exception ex) {
                 AddLog("连接主服务器失败: " + ex.Message);
                 UpdateEditorSyncStatus("离线", "#94A3B8");
