@@ -12,6 +12,12 @@ namespace RemoteDisplayControl
     {
         private SimpleWebSocketClient _ws;
         private DisplayStyleWindow _displayStyleWin;   // 2026-06-01 大屏样式远程控制窗口
+        // 2026-09-18 缓存收到的最近一次 DISPLAY_STYLE_PUSH —— 服务器只在"连上那一刻"和
+        //   "有人改动"两个时机推这条消息, 而"记录显示/隐藏""显反应时"这个样式窗口通常是
+        //   连上之后才点开的(见 OpenDisplayStyle_Click), 那次推送来的时候窗口还没建、
+        //   _displayStyleWin 是 null, 消息直接被现有代码丢掉了。窗口打开时用这份缓存兜底,
+        //   不然按钮显示的是硬编码默认值, 跟服务器当前真实状态对不上。
+        private JObject _lastDisplayStyleData;
         // 2026-06-17 远程化: 缓存主控广播的 schedule, 给"成绩发布"用
         private JArray _scheduleData;
         // 4 个本地弹 Window (列表填充 / 重用)
@@ -122,6 +128,7 @@ namespace RemoteDisplayControl
                         // 2026-06-01 大屏样式
                         if (type == "DISPLAY_STYLE_PUSH") {
                             var data = msg["data"] as JObject;
+                            _lastDisplayStyleData = data;   // 缓存住, 供之后才打开的样式窗口兜底用
                             Dispatcher.Invoke((Action)delegate() {
                                 if (_displayStyleWin != null && _displayStyleWin.IsLoaded) _displayStyleWin.ApplyRemoteStyle(data);
                             });
@@ -203,6 +210,12 @@ namespace RemoteDisplayControl
             _displayStyleWin = new DisplayStyleWindow(_ws);
             _displayStyleWin.Owner = this;
             _displayStyleWin.Show();
+            // 2026-09-18 用连接期间缓存的最近一次样式兜个底 —— 不然新窗口显示的是
+            // 硬编码默认值(比如"记录显示"永远显着开), 跟服务器当前真实状态可能对不上,
+            // 要等下一次有人在别处改一下才会刷新。
+            if (_lastDisplayStyleData != null) {
+                try { _displayStyleWin.ApplyRemoteStyle(_lastDisplayStyleData); } catch { }
+            }
         }
 
         // ════════════════════════════════════════════════════════════

@@ -1749,6 +1749,12 @@ namespace SwimmingScoreboard
                         if (!_displayControlSockets.Contains(socket)) _displayControlSockets.Add(socket);
                         AddLog("显示控制端已连接");
                         UpdateConnectionStatus();
+                        // 2026-09-18 大屏样式(记录显示/隐藏、显反应时等开关)只在"有人改动"那一刻
+                        //   广播一次(BroadcastDisplayStyle), 断线重连/新开一个显示控制端之后、
+                        //   下一次有人改之前, 这台机器完全不知道当前开关状态——按钮显示的是
+                        //   程序刚启动的默认值, 跟真实状态可能对不上。新连上来就补一次当前快照,
+                        //   不用等"下一次谁改了"才追得上。
+                        try { EnqueueToSocket(socket, BuildDisplayStyleJson()); } catch { }
                         break;
                     // 2026-09-15 编排端(ScheduleEditor.exe)身份标记 —— 只为"连接状态"面板计数,
                     //   不影响它借用 EDITOR_IDENTITY 拿整包/订阅补丁那条路(见上面 EDITOR_IDENTITY)。
