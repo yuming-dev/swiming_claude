@@ -24873,6 +24873,36 @@ namespace SwimmingScoreboard
         }
 
         /// <summary>
+        /// 2026-09-18 确认成绩时破的纪录只写进了真身那份 records 表(LiveCommit/CommitHeatDirect
+        /// 内部经 _meet 完成, DB 这一步一直是对的), 但没有一处把新纪录同步回本机内存的 _records——
+        /// 泳道实时状态顶栏"MR: xxx CR: xxx"读的正是这份内存, 于是破纪录那一刻起, 连正在确认
+        /// 这一组的机器自己, 顶栏都还显示着旧纪录, 要等重新导入/重启才会变, 别的机器更不用说。
+        /// 记录编辑(手工改纪录)那条路早就有 PushChangedRecords/ApplyRecordsPatch 这一套经
+        /// EditorSyncClient 同步给别的机器的机制, 这里只是把"自动破纪录"接进同一条已有的管道——
+        /// 不新增协议、不新增轮询, 跟手工改纪录走的是同一份代码。
+        /// </summary>
+        private void ApplyRecordBreaksToLocalState(List<SwimmingScoreboard.Db.RecordBreak> breaks) {
+            if (breaks == null || breaks.Count == 0) return;
+            try {
+                var before = SnapshotRecords();
+                foreach (var b in breaks) {
+                    if (b == null || b.Record == null) continue;
+                    string k = (b.Record.AgeGroup ?? "") + "|" + (b.Record.Gender ?? "") + "|"
+                             + (b.Record.EventName ?? "") + "|" + (b.Record.RecordType ?? "");
+                    var cur = _records.FirstOrDefault(x => x != null && RecordKey(x) == k);
+                    if (cur == null) continue;   // 内存里对不上号(纪录清单没导过这一条)就不硬凑, 宁可让它继续显示旧值
+                    cur.HolderName = b.NewHolder ?? cur.HolderName;
+                    cur.HolderCountry = b.NewCountry ?? cur.HolderCountry;
+                    cur.Time = b.NewTime; cur.TimeInSeconds = b.NewTime;
+                    cur.Date = DateTime.Now.ToString("yyyy-MM-dd");
+                }
+                try { UpdateRecordDisplay(); } catch { }   // 本机顶栏 MR/CR 立即刷新
+                try { RefreshRecordFilterCombos(); ApplyRecordFilter(); } catch { }
+                PushChangedRecords(before);   // 同步给别的联着 EditorSyncClient 的机器(RTC/编排端)
+            } catch (Exception ex) { AddLog("破纪录后同步纪录清单失败: " + ex.Message); }
+        }
+
+        /// <summary>
         /// 2026-09-14 当前组库没激活时的回写路径 —— 直接把内存里这一组写进竞赛库。
         ///
         /// 什么时候会走到这儿:
@@ -24900,6 +24930,7 @@ namespace SwimmingScoreboard
                         TimeFormatter.Format(b.Record.TimeSeconds), b.Record.HolderName,
                         TimeFormatter.Format(b.NewTime), b.NewHolder, b.IsTie ? " 平" : ""));
                 }
+                ApplyRecordBreaksToLocalState(breaks);
                 try { FlushConfigToDb(); } catch { }
                 // 写完再回读一次 —— 名次以库为准, 和正常那条路一个待遇
                 ApplyHeatFromDb(_currentAgeGroup, _currentGender, _currentEvent, _currentStage, _currentHeat);
@@ -24990,6 +25021,7 @@ namespace SwimmingScoreboard
                     TimeFormatter.Format(b.Record.TimeSeconds), b.Record.HolderName,
                     TimeFormatter.Format(b.NewTime), b.NewHolder, b.IsTie ? " 平" : ""));
             }
+            ApplyRecordBreaksToLocalState(breaks);
             // 2026-08-31 比赛期间欠下的参数/设备状态, 到这一步一并补进库。
             //   顺序: 先补参数, 再回读成绩 —— 都在"确认"这一个动作里完成。
             try { FlushConfigToDb(); } catch { }
