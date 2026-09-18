@@ -10859,16 +10859,6 @@ namespace SwimmingScoreboard
             return 0;
         }
 
-        // 2026-09-18 混编项目里"这一组另有几人属于别的组别"——只报数字看不出是谁,
-        //   得去改主界面的"组别"筛选再刷新才能看见。这里直接列出名字/组别/道次。
-        private List<string> OtherAgeGroupOccupants(string ageGroup, string gender, string eventName, string stage, int heat) {
-            var filtered = new HashSet<Swimmer>(GetHeatEntries(ageGroup, gender, eventName, stage, heat));
-            var others = GetHeatEntries("", gender, eventName, stage, heat).Where(s => !filtered.Contains(s));
-            return others.OrderBy(s => LaneOfStage(s, stage))
-                .Select(s => string.Format("{0}道 {1}（{2}）", LaneOfStage(s, stage), s.Name, string.IsNullOrEmpty(s.AgeCategory) ? "无组别" : s.AgeCategory))
-                .ToList();
-        }
-
         // ══════════════════════════════════════════════════════════════
         // 2026-08-24 【并组 / 取消组】
         //
@@ -10926,16 +10916,25 @@ namespace SwimmingScoreboard
             var cnt  = new Dictionary<int, int>();
             var hasResult = new Dictionary<int, bool>();
             var lockedWhy = new Dictionary<int, string>();  // 2026-09-12 动不得的组(正在比 / 已完赛), null=能动
-            var occupied = new Dictionary<int, int>();   // 2026-09-18 见下方 refresh() 里的用法说明
+            // 2026-09-18 【订正】上一版这里改成过"不限组别地数占道"(GetHeatEntries("",...))，
+            //   当时的判断依据是 schema 里"多个组别可以混在同一组下水"那句话——但那句话
+            //   说的是【同一个 ScheduleItem 的组别本身是个年龄区间】(比如"12-17岁组"覆盖
+            //   "12-15岁组"/"15-17岁组"两个子组，这种情况 MatchesAgeGroup 本来就认得出来，
+            //   ageGroup 筛选并不会漏人)。用户实拍验证后发现是另一种情况：青年组和少年组
+            //   压根是两个【互相独立】的 ScheduleItem，各自有各自从 1 开始的组次编号，
+            //   "青年组第1组"和"少年组第2组"只是编号凑巧不同、彼此毫不相干的两场比赛，
+            //   不共用任何泳道。GetHeatEntries("",...) 分不清"同一个 ScheduleItem 内部真的
+            //   混了年龄段"和"两个独立 ScheduleItem 恰好编号相同"这两种情况，后者远比前者
+            //   常见，硬去掉 ageGroup 过滤反而是把两场不相关的比赛错认成"抢道"，弄出一堆
+            //   看着吓人但其实不存在的"另有 N 人"提示。改回按 ageGroup 筛选——这本来就是
+            //   对的：ApplyMergeHeats 操作的 srcHeat/dstHeat 从头到尾都在【当前这一个
+            //   ScheduleItem】范围内，它自己的组别筛选(包含区间匹配)已经把"这个 ScheduleItem
+            //   该有的所有人"都圈全了，用不着再跨到别的 ScheduleItem 去查。
             for (int h = 1; h <= heatCount; h++) {
                 if (IsHeatCancelled(ageGroup, gender, eventName, stage, h)) continue;
                 live.Add(h);
                 var entries = GetHeatEntries(ageGroup, gender, eventName, stage, h);
                 cnt[h] = entries.Count;
-                // 混编项目里同一个物理组常常还坐着别的组别的人(见下面 ApplyMergeHeats 里的
-                //   详细说明)——这里的 cnt[h] 只数当前筛选组别、是"要挪走几个人", 保持不变;
-                //   但"这一组还有几条空道"必须按物理组的真实占道数算, 两者不能混用同一个数字。
-                occupied[h] = GetHeatEntries("", gender, eventName, stage, h).Count;
                 hasResult[h] = HeatHasResult(ageGroup, gender, eventName, stage, h);
                 lockedWhy[h] = HeatLockedWhy(ageGroup, gender, eventName, stage, h);
             }
@@ -11016,23 +11015,9 @@ namespace SwimmingScoreboard
                     if (lockedWhy.ContainsKey(dst) && lockedWhy[dst] != null)
                         sb.Append("⚠ 第" + dst + "组" + lockedWhy[dst] + "，不能作为并入目标。\n");
                     else if (hasResult.ContainsKey(dst) && hasResult[dst]) sb.Append("⚠ 第" + dst + "组已录入成绩，不能作为并入目标。\n");
-                    // 2026-09-18 空道数按物理组实际占道数(occupied[dst])算, 不能按筛选组别的
-                    //   人数(cnt[dst])算——混编项目里同一物理组常坐着好几个组别的人, 用
-                    //   cnt[dst] 会把空道数算多(见 ApplyMergeHeats 里详细说明)。这里只是
-                    //   让操作员看到的数字提前对, 真正防呆在 ApplyMergeHeats 里, 这条
-                    //   不一致就算漏了也不会撞车。
-                    int free = LaneCapacity() - occupied[dst];
+                    int free = LaneCapacity() - cnt[dst];
                     sb.AppendFormat("第{0}组现有 {1} 人，空道 {2} 条；第{3}组 {4} 人。",
                         dst, cnt[dst], free, src, cnt[src]);
-                    // 2026-09-18 用户实测追问: "另有 N 人属于别的组别"这句话只报了个数字,
-                    //   在这个弹窗里没地方看这几个人到底是谁——得先去把主界面上方的
-                    //   "组别"下拉改成"全部"再点"刷新显示"才能看见, 太绕。这里直接把
-                    //   这几个人的名字/组别/道次列出来, 不用离开这个弹窗就能看清楚。
-                    var othersInDst = OtherAgeGroupOccupants(ageGroup, gender, eventName, stage, dst);
-                    if (othersInDst.Count > 0) {
-                        sb.AppendFormat("\n（第{0}组另有 {1} 人属于别的组别, 占着道次:\n    {2}）",
-                            dst, othersInDst.Count, string.Join("\n    ", othersInDst));
-                    }
                     if (free < cnt[src]) sb.AppendFormat("\n⚠ 空道不够，差 {0} 条。", cnt[src] - free);
                     else sb.Append("\n目标组原有的人道次不动，并过来的人填空道；之后可用 上移/下移/交换泳道 人工调整。");
                 } else {
@@ -11152,20 +11137,18 @@ namespace SwimmingScoreboard
             var laneMoves = new Dictionary<int, int>();       // 原道次 → 新道次, 落库时要用
 
             if (dstHeat > 0) {
-                // 2026-09-18 用户实拍到"按并组/取消组就崩"——查到的根子: 混编项目里,
-                //   一个物理组可能同时坐着少年组/甲组/乙组等好几个年龄组的人(schema
-                //   早就说明了这一点: "多个组别、甚至男女, 可以混在同一组下水比赛"),
-                //   但这里原来只拿"当前筛选的这个组别"去数 dstHeat 占了哪几道
-                //   (GetHeatEntries(ageGroup,...)), 别的组别的人从这份清单里根本看不见。
-                //   于是"空道"算多了, 并过来的人被塞进一条其实已经有人(只是别的组别)
-                //   的道——两个 Swimmer 同时占着同一道, 后面任何假定"一道一人"的代码
-                //   (排序/建组内字典/生成日程树)一碰到就可能直接抛异常, 界面上没有
-                //   任何提示地整个程序退出。这里改成不带组别过滤查一遍该项目该组的
-                //   真实占道情况(ageGroup 传空字符串 = 不限组别, 但仍按项目/性别/赛次/
-                //   组次锁定, 见 MatchesAgeGroup 对空字符串的处理), 数对了才动手挪人。
-                var dstListAll = GetHeatEntries("", gender, eventName, stage, dstHeat);
+                // 2026-09-18 【订正】这里曾经改成不带组别过滤地查 dstHeat 占了哪几道
+                //   (GetHeatEntries("",...))，当时怀疑是混编项目里别的年龄组占道没数进去。
+                //   用户实拍验证后确认：像"青年组第1组"和"少年组第2组"这种情况，是两个
+                //   【互相独立】的 ScheduleItem 各自从 1 开始编号，编号凑巧撞上而已，
+                //   压根不是同一场比赛、不共用泳道——不带组别过滤反而会把两场毫不相干的
+                //   比赛错认成"抢道"，白白拒掉本来合法的并组。ApplyMergeHeats 从 srcHeat
+                //   到 dstHeat 全程都在【当前这一个 ScheduleItem】范围内, ageGroup 筛选
+                //   (本来就认得区间形式的组别, 见 MatchesAgeGroup)已经把这个 ScheduleItem
+                //   该有的人全圈出来了, 改回按 ageGroup 查才是对的。
+                var dstList = GetHeatEntries(ageGroup, gender, eventName, stage, dstHeat);
                 var used = new HashSet<int>();
-                foreach (var s in dstListAll) used.Add(LaneOfStage(s, stage));
+                foreach (var s in dstList) used.Add(LaneOfStage(s, stage));
                 var freeLanes = FreeLanesCenterFirst(used);
                 if (freeLanes.Count < srcList.Count) {
                     error = string.Format("第{0}组空道只有 {1} 条，装不下第{2}组的 {3} 人。",
@@ -11181,12 +11164,13 @@ namespace SwimmingScoreboard
                 for (int i = 0; i < ordered.Count; i++) {
                     var s = ordered[i];
                     int lane = freeLanes[i];
-                    // 2026-09-18 最后一道保险: 万一上面的占道统计还是漏了(比如别的
-                    //   赛次/极端边界情况), 这里现查一遍那条道当下真的空着——查到有人
-                    //   就直接失败退出, 绝不硬塞出一道两人。内存到这一步还什么都没改,
-                    //   直接 return false 不会留下半截数据。
-                    if (GetHeatEntries("", gender, eventName, stage, dstHeat).Any(x => LaneOfStage(x, stage) == lane)) {
-                        error = string.Format("第{0}组{1}道其实已经有人(可能是别的组别), 为避免顶号已取消这次并组。", dstHeat, lane);
+                    // 最后一道保险: 万一上面的占道统计还是漏了(比如极端边界情况), 这里
+                    //   现查一遍那条道当下真的空着——查到有人就直接失败退出, 绝不硬塞出
+                    //   一道两人。内存到这一步还什么都没改, 直接 return false 不会留下
+                    //   半截数据。这里同样只在当前 ScheduleItem(按 ageGroup 筛选)范围内查,
+                    //   不跨到别的独立 ScheduleItem 去。
+                    if (GetHeatEntries(ageGroup, gender, eventName, stage, dstHeat).Any(x => LaneOfStage(x, stage) == lane)) {
+                        error = string.Format("第{0}组{1}道其实已经有人, 为避免顶号已取消这次并组。", dstHeat, lane);
                         return false;
                     }
                     int oldLane = LaneOfStage(s, stage);
