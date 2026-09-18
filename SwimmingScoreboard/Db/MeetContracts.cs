@@ -355,6 +355,15 @@ namespace SwimmingScoreboard.Db
         /// <summary>2026-09-18 SaveRecord 一直只有增/改, 没有删——手工编辑纪录界面(ApplyRecordsPatch)
         /// 的"deletes"那半份补丁从没地方落地过, 一并补上。</summary>
         void     DeleteRecord(long id, string op);
+        /// <summary>2026-09-18 破纪录证书要印"原记录成绩/原持有人/原记录时间"——ApplyRecordBreak
+        /// 早就把被打破那条 records 行置成历史(is_current=0, broken_by=这条成绩的 heat_entries.id),
+        /// 是唯一保真的一份, 从没被真正查询过。证书功能一直读的是 LaneResult 上一个纯内存字段
+        /// (CheckRecords 在实时出成绩那一刻顺手记的快照), 这份快照从不落库、也不跨机器同步——
+        /// 只要打证书那一刻不是当初计时那台机器上没重载过的同一个内存对象(比如换机器打印、
+        /// 或者这条成绩是靠"竞赛库回读"重新建出来的), 快照就是空的, 即使库里其实一直老实
+        /// 存着原记录。这个方法把 meet.db 里这份历史行重新暴露出来, 给 ApplyHeatFromDb
+        /// 兜底补齐。abbr 为空时随便挑一条(单一记录类型的常见情形)。</summary>
+        RecordDto GetOldRecordForHeatEntry(long heatEntryId, string abbr);
         List<UnitDto> GetTeamScores();
         void     RecomputeTeamScores(string op);
 

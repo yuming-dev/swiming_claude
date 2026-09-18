@@ -1289,6 +1289,18 @@ namespace SwimmingScoreboard.Db
             Audit(op, "删纪录", "records", id, null, null, null);
         }
 
+        // 2026-09-18 见 MeetContracts.IMeetService.GetOldRecordForHeatEntry 的说明:
+        //   ApplyRecordBreak 早把旧纪录行置成历史(is_current=0)存着, 这里第一次真正查它。
+        public RecordDto GetOldRecordForHeatEntry(long heatEntryId, string abbr)
+        {
+            if (heatEntryId <= 0) return null;
+            var t = string.IsNullOrEmpty(abbr)
+                ? _db.Query("SELECT * FROM records WHERE broken_by=@p1 ORDER BY id DESC LIMIT 1", heatEntryId)
+                : _db.Query("SELECT * FROM records WHERE broken_by=@p1 AND abbr=@p2 ORDER BY id DESC LIMIT 1",
+                    heatEntryId, abbr);
+            return t.Rows.Count > 0 ? ReadRecord(t.Rows[0]) : null;
+        }
+
         public List<UnitDto> GetTeamScores()
         {
             var list = new List<UnitDto>();

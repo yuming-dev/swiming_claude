@@ -25579,6 +25579,24 @@ namespace SwimmingScoreboard
                     r.IsTie = row.IsTie;
                     if (!string.IsNullOrEmpty(row.PromotionMark)) r.PromotionMark = row.PromotionMark;
                     if (!string.IsNullOrEmpty(row.RecordNote)) r.RecordNote = row.RecordNote;
+                    // 2026-09-18 破纪录证书"原记录"栏一直是空的——OldRecordHolder/OldRecordTime/
+                    //   OldRecordDate 只有 CheckRecords(实时出成绩那一刻, 在计时那台机器的内存里)
+                    //   会填, 从不落库、也不跨机器同步。这条成绩要是换了台机器打证书, 或者是
+                    //   像这行代码上面(r==null 分支)那样靠竞赛库回读新建出来的, 这几个字段
+                    //   天生是空的——但原记录其实一直老实存在 meet.db 里(ApplyRecordBreak 早把
+                    //   被打破那条 records 行置成历史, is_current=0, broken_by 指回这条成绩),
+                    //   只是没人问过。这里补一次兜底查询, 只在"库说这条破了纪录、内存却还没有
+                    //   原记录快照"时才查(避免每 10 秒轮询都白问一次)。
+                    if (!string.IsNullOrEmpty(r.RecordNote) && string.IsNullOrEmpty(r.OldRecordHolder)) {
+                        string abbr0 = r.RecordNote.Split(' ')[0].TrimStart('=');
+                        var oldRec = _meetDb.GetOldRecordForHeatEntry(row.Id, abbr0);
+                        if (oldRec != null) {
+                            r.OldRecordHolder = oldRec.HolderName ?? "";
+                            r.OldRecordCountry = oldRec.HolderCountry ?? "";
+                            r.OldRecordTime = oldRec.TimeSeconds;
+                            r.OldRecordDate = oldRec.Date ?? "";
+                        }
+                    }
                     // 2026-09-01 判罚状态也以库为准(只加不删: 库里没写的时候不要把内存里
                     //   刚标上的判罚抹掉 —— 少一个判罚比多一个危险)。
                     // 2026-09-13 【两份状态要一起对齐】。判罚状态在内存里存了两处:

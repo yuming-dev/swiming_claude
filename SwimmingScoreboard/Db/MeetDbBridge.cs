@@ -1495,6 +1495,16 @@ namespace SwimmingScoreboard.Db
             try { _meet.DeleteRecord(id, op); }
             catch (Exception ex) { Log("从竞赛库删纪录失败: " + ex.Message); }
         }
+        // 2026-09-18 见 MeetContracts.IMeetService.GetOldRecordForHeatEntry 的说明: 破纪录证书
+        //   "原记录"栏一直空着, 库里其实一直存着(ApplyRecordBreak 早把旧纪录行置成历史),
+        //   只是没人问过——这里补上查询, 供 ApplyHeatFromDb 兜底回填 LaneResult 那几个
+        //   从不落库的内存字段。
+        public RecordDto GetOldRecordForHeatEntry(long heatEntryId, string abbr)
+        {
+            if (_meet == null || heatEntryId <= 0) return null;
+            try { return _meet.GetOldRecordForHeatEntry(heatEntryId, abbr); }
+            catch (Exception ex) { Log("查原纪录失败: " + ex.Message); return null; }
+        }
 
         private static double ND(object o)
         {
