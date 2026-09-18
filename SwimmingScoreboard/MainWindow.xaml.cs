@@ -10869,7 +10869,31 @@ namespace SwimmingScoreboard
         //   · 道次采用**填空道** —— 目标组原有的人道次不动, 并过来的人按报名成绩
         //     由快到慢填入空道(空道按 靠中间优先 的顺序取)。之后可用 上移/下移/交换泳道 人工调整。
         //   · 只允许在**没有成绩之前**并组。任一组已录成绩就拒绝, 避免把已比完的组搅乱。
+        // 2026-09-18 用户报告按"并组/取消组"程序直接闪退退出、机器上连 error.log
+        //   都没留下——说明那次很可能不是一次普通的、C# try/catch 接得住的异常
+        //   (大概率是原生层面的东西, 常规 catch 到不了)。这个按钮本身已经按代码
+        //   审查修了一个真实的道次冲突 bug(见 ApplyMergeHeats 里的说明), 但既然
+        //   没有现场堆栈能 100% 咬死"就是这一个"、也不能排除还有别的路能走到崩溃,
+        //   这里索性把整个点击处理包一层保险: 万一 Core 里冒出任何 C# 能接住的
+        //   异常(哪怕是我没想到的那一种), 都在这里挡下来, 弹一个正常的错误框,
+        //   不再让它有机会变成一次"什么都不说就退出"的崩溃。
+        //   真正接不住的(原生崩溃/栈溢出), 这层也无能为力——但那类问题不该出现在
+        //   这么一段纯内存/纯 UI 的逻辑里, 大概率是别的地方(硬件/数据库驱动)的事。
         private void MergeHeats_Click(object sender, RoutedEventArgs e) {
+            try {
+                MergeHeats_ClickCore(sender, e);
+            } catch (Exception ex) {
+                AddLog("【并组/取消组】出现未预期的异常, 操作已中止: " + ex);
+                MessageBox.Show(
+                    "并组/取消组时出现意外错误, 操作已中止:\n\n" + ex.Message +
+                    "\n\n内存里的分组数据可能处于半途状态, 建议：\n" +
+                    "  1) 打开「系统日志与数据」核对一下这个项目的分组是否正常；\n" +
+                    "  2) 如果不对，重新打开一次赛事档案（不要保存这次改动）。",
+                    "并组/取消组失败", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void MergeHeats_ClickCore(object sender, RoutedEventArgs e) {
             // 取法与 RefreshEditPreview 保持一致
             string ageGroup = EditAgeGroupCombo != null && EditAgeGroupCombo.SelectedItem != null ? EditAgeGroupCombo.SelectedItem.ToString() : "";
             string gender   = EditGenderCombo != null && EditGenderCombo.SelectedItem != null ? ((ComboBoxItem)EditGenderCombo.SelectedItem).Content.ToString() : "";
