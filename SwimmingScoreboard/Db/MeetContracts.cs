@@ -402,6 +402,12 @@ namespace SwimmingScoreboard.Db
         /// 调用前提: 该项目全部组都已确认(调用方已用 GetHeatList 判过 pending==0 并问过操作员),
         /// 这里只再防御性复核一次 pending, 不重复弹确认框。</summary>
         int GenerateEventRankingIfComplete(long roundId, long eventId, string ageGroup, string gender, string eventName, string stage, string op);
+        /// <summary>2026-09-18 "空道试游"占位运动员没有 heat_entries 行, GenerateEventRankingIfComplete
+        /// 天生看不到他们, 生成组排名表后要靠这一步【追加】进去(见 TriPlaceholderInfo 的说明)。
+        /// 老代码这一步一直是 MeetDbBridge 直接写 _local, 联机时(计时端/编排端不是主服务器)
+        /// 写的是本机那份空副本, 真身(服务器)那张表永远缺这几行——跟 GenerateEventRankingIfComplete
+        /// 同一个病根, 一并经 IMeetService(_meet) 改掉, 不再单独留一条不过网的写路。</summary>
+        void AppendTriPlaceholderRankingRows(long roundId, long eventId, List<TriPlaceholderInfo> placeholders);
 
         // ── K. 运维 ──
         void     Backup(string targetPath);

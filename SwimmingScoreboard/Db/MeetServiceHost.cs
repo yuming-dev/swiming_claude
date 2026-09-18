@@ -221,6 +221,10 @@ namespace SwimmingScoreboard.Db
                     return s.GenerateEventRankingIfComplete(MeetRpc.Arg<long>(a, "roundId"), MeetRpc.Arg<long>(a, "eventId"),
                         MeetRpc.Arg<string>(a, "ageGroup"), MeetRpc.Arg<string>(a, "gender"),
                         MeetRpc.Arg<string>(a, "eventName"), MeetRpc.Arg<string>(a, "stage"), MeetRpc.Arg<string>(a, "op"));
+                case "AppendTriPlaceholderRankingRows":
+                    s.AppendTriPlaceholderRankingRows(MeetRpc.Arg<long>(a, "roundId"), MeetRpc.Arg<long>(a, "eventId"),
+                        MeetRpc.Arg<List<TriPlaceholderInfo>>(a, "placeholders") ?? new List<TriPlaceholderInfo>());
+                    return null;
 
                 // ── K ──
                 case "Backup":        s.Backup(MeetRpc.Arg<string>(a, "targetPath")); return null;

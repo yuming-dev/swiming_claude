@@ -1609,6 +1609,38 @@ namespace SwimmingScoreboard.Db
             return n;
         }
 
+        // 2026-09-18 从 MeetDbBridge.AppendTriPlaceholderRankingRows 挪过来的写表本体,
+        //   理由同 GenerateEventRankingIfComplete(见其说明): 空道试游占位行只该追加进
+        //   真身那份 event_rankings, 不能各机器各写各的空副本。
+        public void AppendTriPlaceholderRankingRows(long roundId, long eventId, List<TriPlaceholderInfo> placeholders)
+        {
+            if (placeholders == null || placeholders.Count == 0) return;
+            // event_rankings 里可能还没有这个 round/event(GenerateEventRankingIfComplete 没跑过,
+            //   比如全项目就这么几个人全是空道试游、真实成绩一条没有)——那种场景不追加,
+            //   避免凑出一张"全是占位行"的假总排名表。
+            var chk = _db.Query("SELECT COUNT(*) AS n FROM event_rankings WHERE round_id=@p1 AND event_id=@p2", roundId, eventId);
+            if (chk.Rows.Count == 0 || Convert.ToInt32(chk.Rows[0]["n"]) == 0) return;
+            var th = _db.Query("SELECT COUNT(*) AS n FROM heats WHERE round_id=@p1 AND COALESCE(state,'') <> 'cancelled'", roundId);
+            int totalHeats = th.Rows.Count > 0 ? Convert.ToInt32(th.Rows[0]["n"]) : 0;
+            _db.InTransaction(delegate(Func<string, object[], int> run)
+            {
+                foreach (var p in placeholders)
+                {
+                    long syntheticId = -((long)p.Heat * 1000 + p.Lane);   // 负数, 不会跟真实 heat_entries.id 撞
+                    run("DELETE FROM event_rankings WHERE round_id=@p1 AND event_id=@p2 AND heat_entry_id=@p3",
+                        new object[] { roundId, eventId, syntheticId });
+                    run("INSERT INTO event_rankings(round_id,event_id,heat_entry_id,athlete_id,bib_number," +
+                        "rank,heat,total_heats,lane,final_time,status,promotion_mark,record_note,remark," +
+                        "athlete_name,unit_name,generated_at,generated_by) " +
+                        "VALUES(@p1,@p2,@p3,@p4,@p5,@p6,@p7,@p8,@p9,@p10,@p11,@p12,@p13,@p14,@p15,@p16,@p17,@p18)",
+                        new object[] { roundId, eventId, syntheticId, DBNull.Value, "",
+                            0, p.Heat, totalHeats, p.Lane, p.FinalTime, "TRI",
+                            "", "", "TRI", p.Name ?? "", "",
+                            Now(), "空道试游(占位追加)" });
+                }
+            });
+        }
+
         private static void MarkTiesAndGap(List<LaneRow> rows)
         {
             var scored = rows.Where(x => x.Rank > 0).OrderBy(x => x.Rank).ToList();

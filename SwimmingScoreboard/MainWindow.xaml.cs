@@ -24927,19 +24927,14 @@ namespace SwimmingScoreboard
                             "生成组成绩", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes;
                     });
                 if (made > 0) {
-                    // 2026-09-18 真正的生成/写表在上面 GenerateEventRankingIfComplete 里已经
-                    //   经 _meet 完成了(单机/联机都算数, 不再看 exe 名字是不是叫
-                    //   RemoteTimingControl —— 那条老判断漏掉了"role=timing 的普通
-                    //   SwimmingScoreboard.exe 当计时端连远端服务器"这种同样合法的部署,
-                    //   用户实拍到的"个人总分排名/团体分一直是空的"根子就在这, 见
-                    //   MeetContracts.IMeetService.GenerateEventRankingIfComplete 的说明)。
-                    //   这里补推一条 GENERATE_EVENT_RANKING 只是为了让服务器顺带跑一遍
-                    //   AppendTriPlaceholdersToEventRanking(空道试游占位行, 只在真身那份
-                    //   库所在的机器上才追加得进去) —— 有 EditorSyncClient(RTC/编辑端)
-                    //   才补得了这一步, 没有(普通 SwimmingScoreboard.exe 当计时端)就没有
-                    //   这个次要功能, 但主排名已经生成对了, 不算故障。
-                    if (_editorSyncClient != null && _editorSyncClient.IsConnected)
-                        PushGenerateEventRanking(_ag, _gd, _ev, _st);
+                    // 2026-09-18 生成/写表(上面 GenerateEventRankingIfComplete)和补空道试游
+                    //   占位行(AppendTriPlaceholdersToEventRanking → AppendTriPlaceholderRankingRows)
+                    //   现在统一经 IMeetService(_meet) 直接调用, 单机/联机都真正落在真身那份库
+                    //   上——不再需要 PushGenerateEventRanking 经 EditorSyncClient 绕一圈去通知
+                    //   服务器(那条老路子按 exe 名字判"是不是 RemoteTimingControl", 漏了"role=timing
+                    //   的普通 SwimmingScoreboard.exe 当计时端"这种同样合法的部署, 见
+                    //   MeetContracts.IMeetService.GenerateEventRankingIfComplete 的说明), 也不再
+                    //   要求这台机器必须连着 EditorSyncClient 才补得上空道试游占位行。
                     AppendTriPlaceholdersToEventRanking(_ag, _gd, _ev, _st);
                 }
             }

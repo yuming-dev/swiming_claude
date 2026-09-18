@@ -32,6 +32,31 @@ namespace SwimmingScoreboard.Db
 
         // 竞赛管理库的访问方: 单机时就是 _local; 联网计时端时是 RemoteMeetService。
         // 当前组库【永远是本机的】—— 比赛中的高频写不许过网, 这是整个设计的核心。
+        //
+        // ══════════════════════════════════════════════════════════════════
+        // 2026-09-18 一条硬性原则(用户明确定的): 联机时(计时端/编排端/大屏显示
+        //   控制等任何子程序), 数据查询一律问主服务器那份库, 数据改动第一时间
+        //   存进主服务器那份库 —— 不许"数出多门"(每台机器各算各的、各存各的)。
+        //
+        //   本类里"哪个字段该用"的判断标准就一条: 【_local】只允许两种角色 ——
+        //     ① 联机时当前正在计时的那一组的临时草稿(LiveOpen/LiveSaveLanes/
+        //        LiveCommit 那一串, current_heat.db) —— 高频触板写入不过网是
+        //        性能红线, 但草稿只在"这一组比赛期间"存在, 一"确认本组成绩"
+        //        立刻整份提交给 _meet, 提交完即弃, 不当第二个真相长期留着;
+        //     ② 单机模式(_meet==_local 本来就是同一个对象), 或者"本机自己的
+        //        导入自检"这类只关心"我这份文件对不对", 跟别的机器无关的操作。
+        //   除了这两种, 任何"查询"和"写入定稿数据"都必须走 【_meet】(IMeetService),
+        //   单机时它就是 _local(进程内直接跑, 零额外成本), 联机时是 RemoteMeetService
+        //   (RPC 问/改主服务器那份真身) —— 一份接口, 两种运行时绑定, 业务代码不用
+        //   关心也不该关心"我现在是不是联机"。
+        //
+        //   本类 2026-09-17/18 这两天连续修的一串 bug(读组排名表/团体分/增量刷新
+        //   指纹/赛程已完赛状态/生成组成绩/补空道试游占位行/round-event 索引缓存
+        //   过期), 病根全是同一条: 某处该写"_meet."时手滑写成了"_local.", 或者
+        //   该实时问服务器的翻译表只在联机那一刻建过一次就再没续过。以后新增任何
+        //   读写, 先问自己一句"联机时这一句会不会绕开主服务器"——会绕开就是错的,
+        //   除非能明确说出属于上面两种角色之一。
+        // ══════════════════════════════════════════════════════════════════
         private IMeetService _meet;
         private LocalMeetService _local;
         private WebSocketRpcTransport _rpc;
@@ -1028,44 +1053,26 @@ namespace SwimmingScoreboard.Db
         /// round/event 下所有"空道试游"占位行收集好传进来, 这里【追加】进 event_rankings ——
         /// 不参与排名(rank=0), 跟真实 TRI 待遇一致; heat_entry_id 用负数合成, 不会跟真实
         /// (正数自增) id 冲突。
+        ///
+        /// 2026-09-18 写表这步统一经 IMeetService(_meet)——道理跟 GenerateEventRankingIfComplete
+        /// 完全一样: 联机时只有真身(服务器)那份 event_rankings 才作数, 直接写 _local 是写了
+        /// 一张没人读的空副本(老代码这里一直是 _local.Db, 就是"数出多门"的另一处)。
         /// </summary>
         public void AppendTriPlaceholderRankingRows(string ageGroup, string gender, string eventName, string stage,
             List<TriPlaceholderInfo> placeholders)
         {
-            if (_local == null || placeholders == null || placeholders.Count == 0) return;
+            if (_meet == null || placeholders == null || placeholders.Count == 0) return;
             try
             {
                 long rid = ResolveRound(ageGroup, gender, eventName, stage);
                 long eid = ResolveEvent(ageGroup, gender, eventName, stage);
                 if (rid == 0 || eid == 0) return;
-                // event_rankings 里可能还没有这个 round/event(GenerateEventRankingIfComplete
-                //   没跑过, 比如全项目就这么几个人全是空道试游、真实成绩一条没有) —— 那种场景
-                //   不追加, 避免凑出一张"全是占位行"的假总排名表。
-                var chk = _local.Db.Query("SELECT COUNT(*) AS n FROM event_rankings WHERE round_id=@p1 AND event_id=@p2", rid, eid);
-                if (chk.Rows.Count == 0 || Convert.ToInt32(chk.Rows[0]["n"]) == 0) return;
-                var th = _local.Db.Query("SELECT COUNT(*) AS n FROM heats WHERE round_id=@p1 AND COALESCE(state,'') <> 'cancelled'", rid);
-                int totalHeats = th.Rows.Count > 0 ? Convert.ToInt32(th.Rows[0]["n"]) : 0;
-                int n2 = 0;
-                _local.Db.InTransaction(delegate(Func<string, object[], int> run)
-                {
-                    foreach (var p in placeholders)
-                    {
-                        long syntheticId = -((long)p.Heat * 1000 + p.Lane);   // 负数, 不会跟真实 heat_entries.id 撞
-                        run("DELETE FROM event_rankings WHERE round_id=@p1 AND event_id=@p2 AND heat_entry_id=@p3",
-                            new object[] { rid, eid, syntheticId });
-                        run("INSERT INTO event_rankings(round_id,event_id,heat_entry_id,athlete_id,bib_number," +
-                            "rank,heat,total_heats,lane,final_time,status,promotion_mark,record_note,remark," +
-                            "athlete_name,unit_name,generated_at,generated_by) " +
-                            "VALUES(@p1,@p2,@p3,@p4,@p5,@p6,@p7,@p8,@p9,@p10,@p11,@p12,@p13,@p14,@p15,@p16,@p17,@p18)",
-                            new object[] { rid, eid, syntheticId, DBNull.Value, "",
-                                0, p.Heat, totalHeats, p.Lane, p.FinalTime, "TRI",
-                                "", "", "TRI", p.Name ?? "", "",
-                                DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"), "空道试游(占位追加)" });
-                        n2++;
-                    }
-                });
-                if (n2 > 0)
-                    Log(string.Format("空道试游占位行已补进组排名表: {0}{1} {2} {3}, 共 {4} 条", ageGroup, gender, eventName, stage, n2));
+                _meet.AppendTriPlaceholderRankingRows(rid, eid, placeholders);
+                // 2026-09-18 void RPC 拿不到服务器那边实际写了几行(比如组排名表还没生成时
+                //   服务器会静默跳过, 见 LocalMeetService 同名方法的说明) —— 只报"已发出",
+                //   不报具体条数, 免得数字比实际写入的多, 反而误导。
+                Log(string.Format("空道试游占位行已发给主服务器补进组排名表: {0}{1} {2} {3}, 共 {4} 条待补",
+                    ageGroup, gender, eventName, stage, placeholders.Count));
             }
             catch (Exception ex) { Log("补写空道试游占位行失败(不影响已确认的成绩): " + ex.Message); }
         }
@@ -1073,6 +1080,13 @@ namespace SwimmingScoreboard.Db
         public int MigrateRanksOnce(string op)
         {
             if (_local == null) return 0;
+            // 2026-09-18 这是"一次性订正旧数据"的历史迁移, 只该在真身(服务器)那份库上跑——
+            //   联机时(_meet 是 RemoteMeetService)本机 _local 只是导入时建的本地副本,
+            //   在它上面订正 rank 白改一场: 改了没人读(名次显示都经 _meet/event_rankings),
+            //   真身那份没订正到, 白白在每台计时端/编排端上把这张"已订正"标记提前标死,
+            //   将来真要连服务器补做时反而被这个标记拦住不跑了。联机时干脆不跑,
+            //   服务器自己启动时(它是 _meet==_local)会跑到、订正到真身那份库上。
+            if (!ReferenceEquals(_meet, _local)) return 0;
             const string VER_KEY = "rank_rule_version";
             const string VER_NOW = "tie-1/100";
             try
