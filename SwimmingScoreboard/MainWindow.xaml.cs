@@ -12189,6 +12189,188 @@ namespace SwimmingScoreboard
             PushDataChanged("relay");
         }
 
+        // 2026-09-19 用户明确要求: "编排记录（除接力队外还有单人比赛等）信息编辑改走
+        //   小补丁, 不要推整包"。这里是"修改运动员信息"那条路的核心改法——发起端
+        //   (EditSwimmer_Click)和接收端(ApplySwimmerEditPatch)共用同一份, 校验(参赛号
+        //   查重)、赋值、"同一参赛号级联到其它项目记录+接力棒次"这三步原样从
+        //   OpenSwimmerEditor 搬过来, 一字不差, 只是改成按 (oldBib, oldEventName)
+        //   在【当前这台机器的 _swimmers】里现查 target, 不再依赖调用方传一个对象引用
+        //   过来(补丁走网络, 传不了对象引用)。
+        private bool ApplySwimmerEditCore(PendingSwimmerEdit f, out string error) {
+            error = null;
+            var target = _swimmers.FirstOrDefault(s => s.BibNumber == f.OldBib && s.EventName == f.OldEventName);
+            if (target == null) { error = "本机找不到这条运动员项目记录(可能数据已不一致)"; return false; }
+
+            string oldBib = f.OldBib, newBib = f.NewBib;
+            if (newBib != oldBib) {
+                var others = _swimmers.Where(s => s != target && s.BibNumber == newBib).ToList();
+                if (others.Any(s => s.Name != f.Name ||
+                    (!string.IsNullOrEmpty(s.IDNumber) && !string.IsNullOrEmpty(f.IDNumber) && s.IDNumber != f.IDNumber))) {
+                    error = string.Format("参赛号 {0} 已被其他运动员使用，请换一个号码。", newBib);
+                    return false;
+                }
+            }
+
+            target.Name = f.Name;
+            target.Gender = f.Gender;
+            target.BirthDate = f.BirthDate;
+            target.Age = f.Age;
+            target.IDNumber = f.IDNumber;
+            target.Country = f.Country;
+            target.CountryShort = f.CountryShort;
+            target.Phone = f.Phone;
+            target.CSANumber = f.CSANumber;
+            target.EventName = f.EventName;
+            target.EntryTime = f.EntryTime;
+            target.EntryTimeSeconds = f.EntryTimeSeconds;
+            target.CurrentStage = f.CurrentStage;
+            target.AgeCategory = f.AgeCategory;
+            target.Notes = f.Notes;
+
+            // 号码变更：级联更新同一人的其它项目记录 + 接力棒次
+            if (newBib != oldBib) {
+                foreach (var s in _swimmers) { if (s != target && s.BibNumber == oldBib) s.BibNumber = newBib; }
+                if (_relayTeams != null) {
+                    foreach (var team in _relayTeams)
+                        foreach (var leg in team.Legs)
+                            if (!string.IsNullOrEmpty(leg.SwimmerBibNumber) && leg.SwimmerBibNumber == oldBib)
+                                leg.SwimmerBibNumber = newBib;
+                }
+                AddLog(string.Format("参赛号变更: {0} → {1}（{2}）", oldBib, newBib, target.Name));
+            } else {
+                target.BibNumber = newBib;
+            }
+
+            // 同步同一参赛号其它项目记录
+            foreach (var s in _swimmers) {
+                if (s != target && s.BibNumber == target.BibNumber) {
+                    s.Name = target.Name; s.Gender = target.Gender; s.BirthDate = target.BirthDate;
+                    s.Age = target.Age; s.IDNumber = target.IDNumber; s.Country = target.Country;
+                    s.CountryShort = target.CountryShort; s.Phone = target.Phone; s.CSANumber = target.CSANumber;
+                }
+            }
+            return true;
+        }
+
+        private JObject BuildSwimmerEditPatch(PendingSwimmerEdit f, string clientName) {
+            var p = NewPatch("SwimmerEdit", "", f.Gender, f.EventName, "", clientName);
+            p["oldBib"] = f.OldBib ?? ""; p["oldEventName"] = f.OldEventName ?? ""; p["newBib"] = f.NewBib ?? "";
+            p["name"] = f.Name ?? ""; p["gender"] = f.Gender ?? ""; p["birthDate"] = f.BirthDate ?? "";
+            p["age"] = f.Age; p["idNumber"] = f.IDNumber ?? ""; p["country"] = f.Country ?? "";
+            p["countryShort"] = f.CountryShort ?? ""; p["phone"] = f.Phone ?? ""; p["csaNumber"] = f.CSANumber ?? "";
+            p["eventName"] = f.EventName ?? ""; p["entryTime"] = f.EntryTime ?? ""; p["entryTimeSeconds"] = f.EntryTimeSeconds;
+            p["currentStage"] = f.CurrentStage ?? ""; p["ageCategory"] = f.AgeCategory ?? ""; p["notes"] = f.Notes ?? "";
+            return p;
+        }
+
+        /// <summary>编排端: 发运动员编辑补丁(先问后改)。</summary>
+        private bool SendSwimmerEditPatch(PendingSwimmerEdit f, out string error) {
+            return SendPatchAndWait(BuildSwimmerEditPatch(f, ClientLabel()), out error);
+        }
+
+        /// <summary>主服务器本机改的运动员信息 → 以补丁形式发给各编排端(同样不推整包)。</summary>
+        private void BroadcastSwimmerEditPatch(PendingSwimmerEdit f, string clientName, IWebSocketConnection except) {
+            BroadcastPatch(BuildSwimmerEditPatch(f, clientName), except);
+        }
+
+        private bool ApplySwimmerEditPatch(JObject msg, out string error) {
+            var f = new PendingSwimmerEdit {
+                OldBib = msg["oldBib"] != null ? msg["oldBib"].ToString() : "",
+                OldEventName = msg["oldEventName"] != null ? msg["oldEventName"].ToString() : "",
+                NewBib = msg["newBib"] != null ? msg["newBib"].ToString() : "",
+                Name = msg["name"] != null ? msg["name"].ToString() : "",
+                Gender = msg["gender"] != null ? msg["gender"].ToString() : "",
+                BirthDate = msg["birthDate"] != null ? msg["birthDate"].ToString() : "",
+                IDNumber = msg["idNumber"] != null ? msg["idNumber"].ToString() : "",
+                Country = msg["country"] != null ? msg["country"].ToString() : "",
+                CountryShort = msg["countryShort"] != null ? msg["countryShort"].ToString() : "",
+                Phone = msg["phone"] != null ? msg["phone"].ToString() : "",
+                CSANumber = msg["csaNumber"] != null ? msg["csaNumber"].ToString() : "",
+                EventName = msg["eventName"] != null ? msg["eventName"].ToString() : "",
+                EntryTime = msg["entryTime"] != null ? msg["entryTime"].ToString() : "",
+                CurrentStage = msg["currentStage"] != null ? msg["currentStage"].ToString() : "",
+                AgeCategory = msg["ageCategory"] != null ? msg["ageCategory"].ToString() : "",
+                Notes = msg["notes"] != null ? msg["notes"].ToString() : ""
+            };
+            try { if (msg["age"] != null) f.Age = (int)msg["age"]; } catch { }
+            try { if (msg["entryTimeSeconds"] != null) f.EntryTimeSeconds = (double)msg["entryTimeSeconds"]; } catch { }
+            return ApplySwimmerEditCore(f, out error);
+        }
+
+        // 2026-09-19 收尾——跟 FinishRelayEditPatchApply 同一个道理, 运动员信息不影响
+        //   道次/组次, 不需要重建赛程树。
+        private void FinishSwimmerEditPatchApply() {
+            _patchInFlight = true;
+            try {
+                AutoSaveData();
+                Broadcast();
+            } finally { _patchInFlight = false; }
+            PushDataChanged("swimmer");
+        }
+
+        // 2026-09-19 删接力队/删运动员——跟编辑同一个道理, 一并搬过来。
+        private bool ApplyRelayDeleteCore(string teamName, string eventName, string gender, out string error) {
+            error = null;
+            var team = _relayTeams.FirstOrDefault(t => t.TeamName == teamName && t.EventName == eventName && t.Gender == gender);
+            if (team == null) { error = "本机找不到这支接力队(可能已被删除)"; return false; }
+            var proxy = _swimmers.FirstOrDefault(s => s.Name == teamName && s.EventName == eventName && s.Gender == gender
+                && !string.IsNullOrEmpty(s.Notes) && s.Notes.StartsWith("接力队"));
+            if (proxy != null) _swimmers.Remove(proxy);
+            _relayTeams.Remove(team);
+            return true;
+        }
+        private JObject BuildRelayDeletePatch(string teamName, string eventName, string gender, string clientName) {
+            var p = NewPatch("RelayDelete", "", gender, eventName, "", clientName);
+            p["teamName"] = teamName ?? ""; return p;
+        }
+        private bool SendRelayDeletePatch(string teamName, string eventName, string gender, out string error) {
+            return SendPatchAndWait(BuildRelayDeletePatch(teamName, eventName, gender, ClientLabel()), out error);
+        }
+        private void BroadcastRelayDeletePatch(string teamName, string eventName, string gender, string clientName, IWebSocketConnection except) {
+            BroadcastPatch(BuildRelayDeletePatch(teamName, eventName, gender, clientName), except);
+        }
+        private bool ApplyRelayDeletePatch(JObject msg, out string error) {
+            string teamName = msg["teamName"] != null ? msg["teamName"].ToString() : "";
+            string eventName = msg["eventName"] != null ? msg["eventName"].ToString() : "";
+            string gender = msg["gender"] != null ? msg["gender"].ToString() : "";
+            return ApplyRelayDeleteCore(teamName, eventName, gender, out error);
+        }
+
+        // 运动员删除: 一次可能删好几条(多选), 补丁里带一份清单。
+        private class SwimmerDeleteKey { public string BibNumber, Name, EventName; }
+        private bool ApplySwimmerDeleteCore(List<SwimmerDeleteKey> keys, out int removed, out string error) {
+            error = null; removed = 0;
+            foreach (var k in keys ?? new List<SwimmerDeleteKey>()) {
+                var sw = _swimmers.FirstOrDefault(s => s.BibNumber == k.BibNumber && s.Name == k.Name && s.EventName == k.EventName);
+                if (sw != null) { _swimmers.Remove(sw); removed++; }
+            }
+            return true;   // 找不到的条目跳过, 不当失败(可能对面已经删过了)
+        }
+        private JObject BuildSwimmerDeletePatch(List<SwimmerDeleteKey> keys, string clientName) {
+            var p = NewPatch("SwimmerDelete", "", "", "", "", clientName);
+            p["keys"] = JArray.FromObject((keys ?? new List<SwimmerDeleteKey>())
+                .Select(k => new { bibNumber = k.BibNumber, name = k.Name, eventName = k.EventName }));
+            return p;
+        }
+        private bool SendSwimmerDeletePatch(List<SwimmerDeleteKey> keys, out string error) {
+            return SendPatchAndWait(BuildSwimmerDeletePatch(keys, ClientLabel()), out error);
+        }
+        private void BroadcastSwimmerDeletePatch(List<SwimmerDeleteKey> keys, string clientName, IWebSocketConnection except) {
+            BroadcastPatch(BuildSwimmerDeletePatch(keys, clientName), except);
+        }
+        private bool ApplySwimmerDeletePatch(JObject msg, out string error) {
+            var keys = new List<SwimmerDeleteKey>();
+            var arr = msg["keys"] as JArray;
+            if (arr != null) foreach (JObject o in arr)
+                keys.Add(new SwimmerDeleteKey {
+                    BibNumber = o["bibNumber"] != null ? o["bibNumber"].ToString() : "",
+                    Name = o["name"] != null ? o["name"].ToString() : "",
+                    EventName = o["eventName"] != null ? o["eventName"].ToString() : ""
+                });
+            int removed;
+            return ApplySwimmerDeleteCore(keys, out removed, out error);
+        }
+
         /// <summary>收到别人发来的补丁, 照着改本机内存。</summary>
         private bool ApplyPatch(JObject msg, out string error) {
             error = null;
@@ -12197,6 +12379,9 @@ namespace SwimmingScoreboard
             if (op == "Records") return ApplyRecordsPatch(msg, out error);
             if (op == "Unlock")  return ApplyUnlockPatch(msg, out error);
             if (op == "RelayEdit") return ApplyRelayEditPatch(msg, out error);
+            if (op == "SwimmerEdit") return ApplySwimmerEditPatch(msg, out error);
+            if (op == "RelayDelete") return ApplyRelayDeletePatch(msg, out error);
+            if (op == "SwimmerDelete") return ApplySwimmerDeletePatch(msg, out error);
             if (op != "MergeHeats") { error = "不认识的补丁类型: " + op; return false; }
 
             string ag = msg["ageGroup"] != null ? msg["ageGroup"].ToString() : "";
@@ -15951,10 +16136,19 @@ namespace SwimmingScoreboard
             if (data["idNumber"] != null) sw.IDNumber = data["idNumber"].ToString();
             if (data["phone"] != null) sw.Phone = data["phone"].ToString();
             if (data["notes"] != null) sw.Notes = data["notes"].ToString();
-            AutoSaveData();
+            // 2026-09-19 【用户明确要求, 不止接力队/单人编辑, 这类"编辑端"命令处理函数
+            //   全部一样要治】——这一整个 HandleEditor* 家族(UPDATE_SWIMMER 等命令)收到的
+            //   本来就是【已经很小的定向数据】(就这一个人的这几个字段), 不是问题所在;
+            //   问题出在结尾这句 AutoSaveData()——它会经 PropagateSyncAfterSave 顺带
+            //   把整个竞赛包打包推给所有连着的编排端/计时端, 把一次"改一个人"的动作
+            //   放大成一次整库同步。改用 SaveWithoutPush()(落盘但不触发那次整包推送,
+            //   跟接力队/运动员编辑补丁最终收尾用的是同一个函数), 只留 Broadcast()
+            //   那条本来就是轻量的 100ms 批量精简帧广播。
+            SaveWithoutPush();
             RefreshOverviewStats();
             RefreshSwimmerFilter();
             Broadcast();
+            PushDataChanged("swimmer");
             AddLog(string.Format("编辑端更新运动员: {0}({1}) {2}", sw.Name, sw.BibNumber, sw.EventName));
         }
 
@@ -15971,10 +16165,11 @@ namespace SwimmingScoreboard
                 return;
             }
             _swimmers.Remove(sw);
-            AutoSaveData();
+            SaveWithoutPush();   // 2026-09-19 见 HandleEditorUpdateSwimmer 的说明
             RefreshOverviewStats();
             RefreshSwimmerFilter();
             Broadcast();
+            PushDataChanged("swimmer");
             AddLog(string.Format("编辑端删除运动员: {0}({1}) {2}", sw.Name, sw.BibNumber, sw.EventName));
         }
 
@@ -16062,8 +16257,9 @@ namespace SwimmingScoreboard
             UpdateResultHeatCombo();
             RefreshResultGrid();
             UpdateEditHeatCombo();
-            AutoSaveData();
+            SaveWithoutPush();   // 2026-09-19 见 HandleEditorUpdateSwimmer 的说明
             Broadcast();
+            PushDataChanged("assign");
             AddLog(string.Format("编辑端取消晋级: {0} {1} {2}（{3} 人 / {4} 组赛程被移除）",
                 gender, evName, stage, removed, toRemove.Count));
         }
@@ -16106,8 +16302,9 @@ namespace SwimmingScoreboard
             if (data["recordNote"] != null) result.RecordNote = data["recordNote"].ToString();
 
             UpdateHeatRanking();
-            AutoSaveData();
+            SaveWithoutPush();   // 2026-09-19 见 HandleEditorUpdateSwimmer 的说明
             Broadcast();
+            PushDataChanged("meet");
             AddLog(string.Format("编辑端更新成绩: {0}({1}) {2} {3} → {4}",
                 sw.Name, sw.BibNumber, sw.EventName, stage,
                 !string.IsNullOrEmpty(sw.Status) ? sw.Status : TimeFormatter.Format(result.FinalTime)));
@@ -16146,8 +16343,9 @@ namespace SwimmingScoreboard
                 });
             }
             RebuildRelayGroupedView();
-            AutoSaveData();
+            SaveWithoutPush();   // 2026-09-19 见 HandleEditorUpdateSwimmer 的说明
             Broadcast();
+            PushDataChanged("relay");
             AddLog(string.Format("编辑端{0}接力队: {1} {2} {3}（{4} 棒）",
                 isNew ? "新增" : "更新", gender, evName, teamName, existing.Legs.Count));
         }
@@ -16268,8 +16466,9 @@ namespace SwimmingScoreboard
                     item.AgeGroup, item.Gender, item.EventName, item.Stage));
             }
             BuildScheduleTree();
-            AutoSaveData();
+            SaveWithoutPush();   // 2026-09-19 见 HandleEditorUpdateSwimmer 的说明
             Broadcast();
+            PushDataChanged("assign");
         }
 
         private void HandleEditorUpdateScheduleItem(JObject data) {
@@ -16286,8 +16485,9 @@ namespace SwimmingScoreboard
                 && s.Stage == stage && (s.AgeGroup ?? "") == (ageGroup ?? "")).ToList();
             foreach (var s in toRemove) _schedule.Remove(s);
             BuildScheduleTree();
-            AutoSaveData();
+            SaveWithoutPush();   // 2026-09-19 见 HandleEditorUpdateSwimmer 的说明
             Broadcast();
+            PushDataChanged("assign");
             AddLog(string.Format("编辑端删除赛程: {0} {1} {2} {3}（共 {4} 条）",
                 ageGroup, gender, evName, stage, toRemove.Count));
         }
@@ -16328,8 +16528,9 @@ namespace SwimmingScoreboard
             _events = list;
             RefreshEventComboBoxes();
             RefreshEventsPreview();
-            AutoSaveData();
+            SaveWithoutPush();   // 2026-09-19 见 HandleEditorUpdateSwimmer 的说明
             Broadcast();
+            PushDataChanged("meet");
             AddLog(string.Format("编辑端更新项目列表: 共 {0} 项", list.Count));
         }
 
@@ -16350,8 +16551,9 @@ namespace SwimmingScoreboard
             AgeGroupRegistry.Set(_ageGroups);
             RefreshAgeGroupsPreview();
             RefreshAllAgeGroupFilterCombos();
-            AutoSaveData();
+            SaveWithoutPush();   // 2026-09-19 见 HandleEditorUpdateSwimmer 的说明
             Broadcast();
+            PushDataChanged("meet");
             AddLog(string.Format("编辑端更新组别列表: 共 {0} 项", list.Count));
         }
 
@@ -16368,8 +16570,9 @@ namespace SwimmingScoreboard
             // 2026-08-21 这条路径原来也漏了刷下拉。消息在后台线程上，必须回 UI 线程。
             GenderRegistry.Set(_genders);
             try { Dispatcher.Invoke(new Action(() => { try { RefillGenderCombos(); } catch { } })); } catch { }
-            AutoSaveData();
+            SaveWithoutPush();   // 2026-09-19 见 HandleEditorUpdateSwimmer 的说明
             Broadcast();
+            PushDataChanged("meet");
             AddLog(string.Format("编辑端更新性别列表: 共 {0} 项", list.Count));
         }
 
@@ -16383,8 +16586,9 @@ namespace SwimmingScoreboard
                 if (!string.IsNullOrEmpty(s) && !list.Contains(s)) list.Add(s);
             }
             _stages = list;
-            AutoSaveData();
+            SaveWithoutPush();   // 2026-09-19 见 HandleEditorUpdateSwimmer 的说明
             Broadcast();
+            PushDataChanged("meet");
             AddLog(string.Format("编辑端更新赛次列表: 共 {0} 项", list.Count));
         }
 
@@ -16411,8 +16615,9 @@ namespace SwimmingScoreboard
                 && !string.IsNullOrEmpty(s.Notes) && s.Notes.StartsWith("接力队 棒次:"));
             if (proxy != null) _swimmers.Remove(proxy);
             RebuildRelayGroupedView();
-            AutoSaveData();
+            SaveWithoutPush();   // 2026-09-19 见 HandleEditorUpdateSwimmer 的说明
             Broadcast();
+            PushDataChanged("relay");
             AddLog(string.Format("编辑端删除接力队: {0} {1} {2}", gender, evName, teamName));
         }
 
@@ -16442,8 +16647,9 @@ namespace SwimmingScoreboard
                 }
             }
             UpdateHeatRanking();
-            AutoSaveData();
+            SaveWithoutPush();   // 2026-09-19 见 HandleEditorUpdateSwimmer 的说明
             Broadcast();
+            PushDataChanged("meet");
             AddLog(string.Format("编辑端标记: {0}({1}) {2} {3} = {4}",
                 sw.Name, sw.BibNumber, sw.EventName, stage,
                 string.IsNullOrEmpty(status) ? "(清空)" : status));
@@ -17757,20 +17963,38 @@ namespace SwimmingScoreboard
                 acquired.Add(k0);
             }
 
-            int removed = 0, notFound = 0;
             try {
-                foreach (var sw in toDelete) {
-                    if (_swimmers.Remove(sw)) { removed++; continue; }
-                    // 兜底：按 (BibNumber + Name + EventName) 查找同一条记录再删（避免引用不对等的极端情况）
-                    var alt = _swimmers.FirstOrDefault(s => s.BibNumber == sw.BibNumber && s.Name == sw.Name && s.EventName == sw.EventName);
-                    if (alt != null && _swimmers.Remove(alt)) { removed++; AddLog(string.Format("按号码兜底删除: {0}({1}) {2}", alt.Name, alt.BibNumber, alt.EventName)); }
-                    else { notFound++; }
+                var keys = toDelete.Select(sw => new SwimmerDeleteKey {
+                    BibNumber = sw.BibNumber, Name = sw.Name, EventName = sw.EventName
+                }).ToList();
+
+                bool serverAccepted = false;
+                if (IsScheduleEditorMode && _editorSyncClient != null && _editorSyncClient.IsConnected) {
+                    string perr;
+                    if (!SendSwimmerDeletePatch(keys, out perr)) {
+                        MessageBox.Show("主服务器没有接受这次删除。\n\n原因: " + perr, "未能删除", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        AddLog("运动员删除被主服务器拒绝: " + perr);
+                        return;
+                    }
+                    serverAccepted = true;
                 }
 
-                AutoSaveData();
+                int removed; string applyError;
+                if (!ApplySwimmerDeleteCore(keys, out removed, out applyError)) {
+                    if (serverAccepted) {
+                        MessageBox.Show("主服务器已删除，但本机没能跟着删。\n\n原因: " + applyError + "\n\n请断开重连主服务器重新取一次数据。",
+                            "本机与主服务器不一致", MessageBoxButton.OK, MessageBoxImage.Error);
+                    } else {
+                        MessageBox.Show(applyError, "无法删除", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    }
+                    return;
+                }
+                if (!IsScheduleEditorMode) BroadcastSwimmerDeletePatch(keys, Environment.MachineName, null);
+
+                int notFound = keys.Count - removed;
                 RefreshOverviewStats();
                 RefreshSwimmerFilter();
-                Broadcast();
+                FinishSwimmerEditPatchApply();
                 AddLog(string.Format("已删除运动员 {0} 条{1}", removed, notFound > 0 ? string.Format("（{0} 条未在列表中找到）", notFound) : ""));
                 if (notFound > 0) {
                     MessageBox.Show(string.Format("已删除 {0} 条。另有 {1} 条未在列表中找到，请检查是否被其他筛选/编辑中的操作修改。",
@@ -17804,12 +18028,47 @@ namespace SwimmingScoreboard
                 return;
             }
             try {
-                if (OpenSwimmerEditor(selected, isNew: false)) {
-                    RefreshSwimmerFilter();
-                    AutoSaveData();
-                    Broadcast();
-                    AddLog(string.Format("已修改运动员: {0}({1}) {2}", selected.Name, selected.BibNumber, selected.EventName));
+                _pendingSwimmerEdit = null;
+                if (!OpenSwimmerEditor(selected, isNew: false)) return;
+                var f = _pendingSwimmerEdit;
+                _pendingSwimmerEdit = null;
+                if (f == null) return;   // 理论上走不到——isNew:false 时 OpenSwimmerEditor 确认必收集
+
+                // 2026-09-19 【改走小补丁, 不再推整包】——原来这里改完直接 AutoSaveData()
+                //   触发整包推送, 是用户点名要求整改的那条老路(不止接力队, 单人比赛信息
+                //   编辑同样归在"编排记录信息编辑"这一类)。跟并组/接力队编辑同一个待遇:
+                //   联着主服务器的编排端先问一句、等回执再改本机。
+                bool serverAccepted = false;
+                if (IsScheduleEditorMode && _editorSyncClient != null && _editorSyncClient.IsConnected) {
+                    string perr;
+                    if (!SendSwimmerEditPatch(f, out perr)) {
+                        MessageBox.Show("主服务器没有接受这次运动员信息修改。\n\n原因: " + perr + "\n\n本机数据未改动, 请稍后重试。",
+                            "未能保存", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        AddLog("运动员信息修改被主服务器拒绝: " + perr);
+                        return;
+                    }
+                    serverAccepted = true;
                 }
+
+                string applyError;
+                if (!ApplySwimmerEditCore(f, out applyError)) {
+                    if (serverAccepted) {
+                        MessageBox.Show("主服务器已经接受这次修改，但本机没能跟着改。\n\n原因: " + applyError +
+                            "\n\n多半是本机这份数据旧了。请断开重连主服务器重新取一次数据。",
+                            "本机与主服务器不一致", MessageBoxButton.OK, MessageBoxImage.Error);
+                        AddLog("★ 主服务器已接受运动员编辑但本机应用失败(数据可能已旧): " + applyError);
+                    } else {
+                        MessageBox.Show(applyError, "无法保存", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    }
+                    return;
+                }
+
+                if (!IsScheduleEditorMode)
+                    BroadcastSwimmerEditPatch(f, Environment.MachineName, null);
+
+                RefreshSwimmerFilter();
+                FinishSwimmerEditPatchApply();
+                AddLog(string.Format("已修改运动员: {0}({1}) {2}", f.Name, f.NewBib, f.EventName));
             } finally {
                 ReleaseEditLock(lockKey);
             }
@@ -17926,79 +18185,81 @@ namespace SwimmingScoreboard
             dlg.Content = sp;
             if (dlg.ShowDialog() != true) return false;
 
-            // 参赛号校验
+            // 参赛号校验(新增流程用的快速本机校验; 修改流程的权威校验挪到了
+            // ApplySwimmerEditCore, 联机时要在【真正落子的那台机器】上查重才作数)
             string oldBib = target.BibNumber ?? "";
             string newBib = (tbBib.Text ?? "").Trim();
             if (string.IsNullOrEmpty(newBib)) { MessageBox.Show("参赛号不能为空"); return false; }
-
-            if (isNew) {
-                // 新增时直接查重
-                if (_swimmers.Any(s => s.BibNumber == newBib)) {
-                    MessageBox.Show(string.Format("参赛号 {0} 已存在，请换一个号码。", newBib));
-                    return false;
-                }
-            } else if (newBib != oldBib) {
-                var others = _swimmers.Where(s => s != target && s.BibNumber == newBib).ToList();
-                if (others.Any(s => s.Name != target.Name ||
-                    (!string.IsNullOrEmpty(s.IDNumber) && !string.IsNullOrEmpty(target.IDNumber) && s.IDNumber != target.IDNumber))) {
-                    MessageBox.Show(string.Format("参赛号 {0} 已被其他运动员使用，请换一个号码。", newBib));
-                    return false;
-                }
+            if (isNew && _swimmers.Any(s => s.BibNumber == newBib)) {
+                MessageBox.Show(string.Format("参赛号 {0} 已存在，请换一个号码。", newBib));
+                return false;
             }
 
-            target.Name = (tbName.Text ?? "").Trim();
-            target.Gender = cbGender.SelectedItem != null ? cbGender.SelectedItem.ToString() : "男";
             string bdErr;
             string bdVal = ReadBirthDateFromPicker(dpBirth, out bdErr);
             if (bdErr != null) { MessageBox.Show(bdErr); return false; }
-            target.BirthDate = bdVal;
-            int ageVal; if (int.TryParse((tbAge.Text ?? "").Trim(), out ageVal)) target.Age = ageVal;
-            target.IDNumber = (tbID.Text ?? "").Trim();
-            target.Country = (tbCountry.Text ?? "").Trim();
-            target.CountryShort = (tbCountryShort.Text ?? "").Trim();
-            target.Phone = (tbPhone.Text ?? "").Trim();
-            target.CSANumber = (tbCSA.Text ?? "").Trim();
-            target.EventName = cbEvent.SelectedItem != null ? cbEvent.SelectedItem.ToString().Trim() : ((cbEvent.Text ?? "").Trim());
-            target.EntryTime = (tbEntry.Text ?? "").Trim();
-            target.EntryTimeSeconds = TimeFormatter.Parse(target.EntryTime);
-            target.CurrentStage = cbStage.SelectedItem != null ? cbStage.SelectedItem.ToString() : "决赛";
-            // "组别" 手动覆盖 AgeCategory；空串表示不指定
+            int ageVal = target.Age; int.TryParse((tbAge.Text ?? "").Trim(), out ageVal);
             string manualGroup = cbGroup.SelectedItem != null ? cbGroup.SelectedItem.ToString() : ((cbGroup.Text ?? "").Trim());
-            if (!string.IsNullOrEmpty(manualGroup)) target.AgeCategory = manualGroup;
-            target.Notes = (tbNotes.Text ?? "").Trim();
+            string newAgeCategory = !string.IsNullOrEmpty(manualGroup) ? manualGroup : (target.AgeCategory ?? "");
+            string newEventName = cbEvent.SelectedItem != null ? cbEvent.SelectedItem.ToString().Trim() : ((cbEvent.Text ?? "").Trim());
+            string newEntryTime = (tbEntry.Text ?? "").Trim();
 
-            // 号码变更：级联更新同一人的其它项目记录 + 接力棒次
-            if (!isNew && newBib != oldBib) {
-                foreach (var s in _swimmers) { if (s.BibNumber == oldBib) s.BibNumber = newBib; }
-                if (_relayTeams != null) {
-                    foreach (var team in _relayTeams)
-                        foreach (var leg in team.Legs)
-                            if (!string.IsNullOrEmpty(leg.SwimmerBibNumber) && leg.SwimmerBibNumber == oldBib)
-                                leg.SwimmerBibNumber = newBib;
-                }
-                AddLog(string.Format("参赛号变更: {0} → {1}（{2}）", oldBib, newBib, target.Name));
-            } else {
+            // 2026-09-19 【用户明确要求: 编排记录的每一处编辑都要改走小补丁, 不许推整包】
+            //   isNew=true(新增运动员)时 target 还是个游离对象, 没有"级联同名人其它项目"
+            //   这回事, 直接写 target 让调用方自己 Add 进 _swimmers 即可, 沿用原逻辑。
+            //   isNew=false(修改)才是这次真正要治的那条路——不直接碰 target/_swimmers,
+            //   把收集到的新值交给 EditSwimmer_Click 走 SwimmerEdit 补丁(先问后改,
+            //   核对/级联逻辑挪到 ApplySwimmerEditCore, 发起端/接收端共用同一份, 跟
+            //   接力队编辑那次改法一模一样)。
+            if (isNew) {
+                target.Name = (tbName.Text ?? "").Trim();
+                target.Gender = cbGender.SelectedItem != null ? cbGender.SelectedItem.ToString() : "男";
+                target.BirthDate = bdVal;
+                target.Age = ageVal;
+                target.IDNumber = (tbID.Text ?? "").Trim();
+                target.Country = (tbCountry.Text ?? "").Trim();
+                target.CountryShort = (tbCountryShort.Text ?? "").Trim();
+                target.Phone = (tbPhone.Text ?? "").Trim();
+                target.CSANumber = (tbCSA.Text ?? "").Trim();
+                target.EventName = newEventName;
+                target.EntryTime = newEntryTime;
+                target.EntryTimeSeconds = TimeFormatter.Parse(newEntryTime);
+                target.CurrentStage = cbStage.SelectedItem != null ? cbStage.SelectedItem.ToString() : "决赛";
+                target.AgeCategory = newAgeCategory;
+                target.Notes = (tbNotes.Text ?? "").Trim();
                 target.BibNumber = newBib;
+                return true;
             }
 
-            // 同步同一参赛号其它项目记录（仅修改流程；新增时此刻 target 还未在 _swimmers 里，不做同步）
-            if (!isNew) {
-                foreach (var s in _swimmers) {
-                    if (s != target && s.BibNumber == target.BibNumber) {
-                        s.Name = target.Name;
-                        s.Gender = target.Gender;
-                        s.BirthDate = target.BirthDate;
-                        s.Age = target.Age;
-                        s.IDNumber = target.IDNumber;
-                        s.Country = target.Country;
-                        s.CountryShort = target.CountryShort;
-                        s.Phone = target.Phone;
-                        s.CSANumber = target.CSANumber;
-                    }
-                }
-            }
+            _pendingSwimmerEdit = new PendingSwimmerEdit {
+                OldBib = oldBib, OldEventName = target.EventName ?? "",
+                NewBib = newBib,
+                Name = (tbName.Text ?? "").Trim(),
+                Gender = cbGender.SelectedItem != null ? cbGender.SelectedItem.ToString() : "男",
+                BirthDate = bdVal, Age = ageVal,
+                IDNumber = (tbID.Text ?? "").Trim(), Country = (tbCountry.Text ?? "").Trim(),
+                CountryShort = (tbCountryShort.Text ?? "").Trim(), Phone = (tbPhone.Text ?? "").Trim(),
+                CSANumber = (tbCSA.Text ?? "").Trim(),
+                EventName = newEventName, EntryTime = newEntryTime,
+                EntryTimeSeconds = TimeFormatter.Parse(newEntryTime),
+                CurrentStage = cbStage.SelectedItem != null ? cbStage.SelectedItem.ToString() : "决赛",
+                AgeCategory = newAgeCategory, Notes = (tbNotes.Text ?? "").Trim()
+            };
             return true;
         }
+
+        // 2026-09-19 OpenSwimmerEditor(isNew:false) 收集到的新值——跟 target 分开放,
+        //   不直接写进 _swimmers, 等 EditSwimmer_Click 走完补丁流程再落地。
+        //   用字段而不是 out 参数, 是因为 OpenSwimmerEditor 这个大函数中途有好几个
+        //   "校验不过直接 return false" 的分支, out 参数在 C# 里每个 return 都得赋值,
+        //   反而让校验分支的代码噪音变大。
+        private class PendingSwimmerEdit {
+            public string OldBib, OldEventName, NewBib;
+            public string Name, Gender, BirthDate, IDNumber, Country, CountryShort, Phone, CSANumber;
+            public string EventName, EntryTime, CurrentStage, AgeCategory, Notes;
+            public int Age; public double EntryTimeSeconds;
+        }
+        private PendingSwimmerEdit _pendingSwimmerEdit;
 
         private TextBox AddEditField(Grid grid, int row, int col, string label, string value) {
             AddEditLabel(grid, row, col, label);
@@ -19448,17 +19709,36 @@ namespace SwimmingScoreboard
                 return;
             }
             try {
-                if (MessageBox.Show(string.Format("确定删除接力队 [{0}] ({1})？", selected.TeamName, selected.EventName), "确认", MessageBoxButton.YesNo) == MessageBoxResult.Yes) {
-                    // 同时删除_swimmers中的代表条目
-                    var proxy = _swimmers.FirstOrDefault(s => s.Name == selected.TeamName && s.EventName == selected.EventName && s.Gender == selected.Gender && !string.IsNullOrEmpty(s.Notes) && s.Notes.StartsWith("接力队"));
-                    if (proxy != null) _swimmers.Remove(proxy);
-                    _relayTeams.Remove(selected);
-                    _selectedRelayTeam = null;
-                    if (RelayLegGrid != null) RelayLegGrid.ItemsSource = null;
-                    RelayLegTitle.Text = "棒次安排（请选中一支接力队）";
-                    RebuildRelayGroupedView();
-                    AutoSaveData();
+                if (MessageBox.Show(string.Format("确定删除接力队 [{0}] ({1})？", selected.TeamName, selected.EventName), "确认", MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
+
+                string teamName = selected.TeamName, eventName = selected.EventName, gender = selected.Gender;
+                bool serverAccepted = false;
+                if (IsScheduleEditorMode && _editorSyncClient != null && _editorSyncClient.IsConnected) {
+                    string perr;
+                    if (!SendRelayDeletePatch(teamName, eventName, gender, out perr)) {
+                        MessageBox.Show("主服务器没有接受这次删除。\n\n原因: " + perr, "未能删除", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        AddLog("接力队删除被主服务器拒绝: " + perr);
+                        return;
+                    }
+                    serverAccepted = true;
                 }
+                string applyError;
+                if (!ApplyRelayDeleteCore(teamName, eventName, gender, out applyError)) {
+                    if (serverAccepted) {
+                        MessageBox.Show("主服务器已删除，但本机没能跟着删。\n\n原因: " + applyError + "\n\n请断开重连主服务器重新取一次数据。",
+                            "本机与主服务器不一致", MessageBoxButton.OK, MessageBoxImage.Error);
+                    } else {
+                        MessageBox.Show(applyError, "无法删除", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    }
+                    return;
+                }
+                if (!IsScheduleEditorMode) BroadcastRelayDeletePatch(teamName, eventName, gender, Environment.MachineName, null);
+
+                _selectedRelayTeam = null;
+                if (RelayLegGrid != null) RelayLegGrid.ItemsSource = null;
+                RelayLegTitle.Text = "棒次安排（请选中一支接力队）";
+                FinishRelayEditPatchApply();
+                AddLog(string.Format("已删除接力队: {0} ({1})", teamName, eventName));
             } finally {
                 ReleaseEditLock(lockKey);
             }
@@ -26376,6 +26656,34 @@ namespace SwimmingScoreboard
                 _laneEventLog.Clear();
                 if (_rawTimingLog != null) _rawTimingLog.Clear();
 
+                // 2026-09-19 【用户明确要求, 严重级】正在比的那一组, 触板/分段成绩绝对不许
+                //   被一次远程同步的整包重载动一个字——不管这次重载是谁触发的(接力队编辑
+                //   只是这次抓到的一个例子, 这文件里还有几十处别的地方也会推整包, 不可能
+                //   一次改完; 而且 RTC/计时端断线重连问服务器要整包这种场景, 触发原因压根
+                //   不在编排端手里)。下面 _swimmers.Clear() 是无差别地把整份名单连成绩一起
+                //   换成包里那份快照——包是编排端在"这一刻"打的, 不含此后这一组又新触板的
+                //   那几个分段, 一旦真换了, 现场看到的就是"比到第几圈, 前几圈的分段成绩被
+                //   清空"。这里先把本机正在比的这一组、每一道当下的成绩行原样摘下来存好,
+                //   等新名单装完了原样贴回去(不比较"哪份更新", 本机当下这一份就是唯一权威,
+                //   没有讨论余地)。只在【远程同步触发的重载】时才这么做——本机用户自己在
+                //   本机点"加载赛事"/"新建赛事"就是要整个换一场比赛, 那种情况没有"正在比的
+                //   这一组"这回事, 用不上这套保护。
+                Dictionary<string, LaneResult> liveHeatResultsByBib = null;
+                Dictionary<string, string> liveHeatStatusByBib = null;
+                if (_applyingRemoteSync && _currentHeat > 0 && !string.IsNullOrEmpty(_currentEvent)) {
+                    liveHeatResultsByBib = new Dictionary<string, LaneResult>();
+                    liveHeatStatusByBib = new Dictionary<string, string>();
+                    foreach (var sw0 in GetCurrentHeatSwimmers()) {
+                        if (string.IsNullOrEmpty(sw0.BibNumber)) continue;
+                        var r0 = sw0.Results.FirstOrDefault(x => x.Stage == _currentStage && x.Heat == _currentHeat);
+                        if (r0 != null) liveHeatResultsByBib[sw0.BibNumber] = r0;
+                        // 判罚状态(DSQ/DNS/DNF/TRI)也是现场当场标的, 同一个道理保留。
+                        if (!string.IsNullOrEmpty(sw0.Status)) liveHeatStatusByBib[sw0.BibNumber] = sw0.Status;
+                    }
+                    if (liveHeatResultsByBib.Count == 0) liveHeatResultsByBib = null;
+                    if (liveHeatStatusByBib.Count == 0) liveHeatStatusByBib = null;
+                }
+
                 _swimmers.Clear();
                 if (package.Swimmers != null) {
                     foreach (var sw in package.Swimmers) {
@@ -26394,6 +26702,24 @@ namespace SwimmingScoreboard
                         }
                         _swimmers.Add(sw);
                     }
+                }
+                if (liveHeatResultsByBib != null || liveHeatStatusByBib != null) {
+                    int restored = 0;
+                    foreach (var sw in _swimmers) {
+                        if (string.IsNullOrEmpty(sw.BibNumber)) continue;
+                        string savedStatus;
+                        if (liveHeatStatusByBib != null && liveHeatStatusByBib.TryGetValue(sw.BibNumber, out savedStatus))
+                            sw.Status = savedStatus;
+                        LaneResult savedR;
+                        if (liveHeatResultsByBib == null || !liveHeatResultsByBib.TryGetValue(sw.BibNumber, out savedR)) continue;
+                        var staleR = sw.Results.FirstOrDefault(x => x.Stage == _currentStage && x.Heat == _currentHeat);
+                        if (staleR != null) sw.Results.Remove(staleR);
+                        sw.Results.Add(savedR);
+                        restored++;
+                    }
+                    if (restored > 0)
+                        AddLog(string.Format("远程同步整包重载: 正在比的第{0}组, {1} 道的成绩/分段已原样保留(不采用包里那份旧快照)",
+                            _currentHeat, restored));
                 }
                 _relayTeams.Clear();
                 if (package.RelayTeams != null) {
