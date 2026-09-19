@@ -12062,6 +12062,133 @@ namespace SwimmingScoreboard
             return true;
         }
 
+        // 2026-09-19 用户明确要求: "没必要进行整包, 应该分包——改哪部分就是哪个包,
+        //   这样影响最小"。编辑接力队信息(EditRelay_Click)一直是本文件里少数还没
+        //   搬过来的老路之一, 走的是 AutoSaveData()→整包推送——现场事故(TP/MB 计时中
+        //   被冲成关闭)的诱因正是这条路。这里补一个跟 Assign/MergeHeats 同一套写法的
+        //   小补丁: 只带"这一支接力队改了什么", 不碰任何跟硬件、跟别的项目相关的数据。
+        //   ApplyRelayEditCore 是发起端(EditRelay_Click)和接收端(ApplyRelayEditPatch)
+        //   共用的唯一一份改法, 两条路必须字字一致, 否则两边的接力队信息会分叉。
+        private bool ApplyRelayEditCore(string oldTeamName, string oldEvent, string oldGender,
+                                        List<string> oldLegNames,
+                                        string newTeamName, string newCountry, string newEvent, string newGender,
+                                        string newEntryTime, double newEntryTimeSeconds, List<string> legNames,
+                                        out string error) {
+            error = null;
+            oldLegNames = oldLegNames ?? new List<string>();
+            var proxy = _swimmers.FirstOrDefault(s =>
+                s.Name == oldTeamName && s.EventName == oldEvent && s.Gender == oldGender
+                && !IsRelayMemberNote(s.Notes));
+            if (proxy == null) { error = "本机找不到这支接力队(可能数据已不一致)"; return false; }
+
+            proxy.Name = newTeamName;
+            proxy.Country = newCountry;
+            proxy.EventName = newEvent;
+            proxy.Gender = newGender;
+            proxy.EntryTime = newEntryTime;
+            proxy.EntryTimeSeconds = newEntryTimeSeconds;
+            string legNamesStr = string.Join(",", (legNames ?? new List<string>()).ToArray());
+            proxy.Notes = "接力队 棒次:" + legNamesStr;
+
+            for (int i = 0; i < Math.Min(4, legNames != null ? legNames.Count : 0); i++) {
+                string oldLegName = i < oldLegNames.Count ? oldLegNames[i] : "";
+                string newLegName = legNames[i] ?? "";
+                if (string.IsNullOrEmpty(oldLegName) && string.IsNullOrEmpty(newLegName)) continue;
+                var memEntry = _swimmers.FirstOrDefault(s =>
+                    s.Notes != null && s.Notes.StartsWith("接力队员")
+                    && s.Country == oldTeamName && s.EventName == oldEvent
+                    && s.Name == oldLegName);
+                if (memEntry != null) {
+                    memEntry.Name = newLegName;
+                    memEntry.Country = newTeamName;
+                    memEntry.EventName = newEvent;
+                    memEntry.Gender = newGender == "混合" ? memEntry.Gender : newGender;
+                    memEntry.Notes = string.Format("接力队员 {0} 第{1}棒", newEvent, i + 1);
+                } else if (!string.IsNullOrEmpty(newLegName)) {
+                    string memBib = proxy.BibNumber + "-" + (i + 1);
+                    if (!_swimmers.Any(s => s.BibNumber == memBib)) {
+                        _swimmers.Add(new Swimmer {
+                            BibNumber = memBib, Name = newLegName,
+                            Gender = newGender == "混合" ? "男" : newGender,
+                            Country = newTeamName, EventName = newEvent,
+                            Notes = string.Format("接力队员 {0} 第{1}棒", newEvent, i + 1)
+                        });
+                    }
+                }
+            }
+            return true;
+        }
+
+        private JObject BuildRelayEditPatch(string oldTeamName, string oldEvent, string oldGender, List<string> oldLegNames,
+                                            string newTeamName, string newCountry, string newEvent, string newGender,
+                                            string newEntryTime, double newEntryTimeSeconds, List<string> legNames,
+                                            string clientName) {
+            var p = NewPatch("RelayEdit", "", newGender, newEvent, "", clientName);
+            p["oldTeamName"] = oldTeamName ?? ""; p["oldEvent"] = oldEvent ?? ""; p["oldGender"] = oldGender ?? "";
+            // 2026-09-19 旧棒次姓名必须跟着补丁一起传——接收端没有发起端那份 RelayTeam UI
+            //   对象可以现取"改之前是什么", 只能靠补丁自己带全, 否则两边各按各的猜, 对不上号。
+            p["oldLegNames"] = JArray.FromObject(oldLegNames ?? new List<string>());
+            p["newTeamName"] = newTeamName ?? ""; p["newCountry"] = newCountry ?? "";
+            p["newEvent"] = newEvent ?? ""; p["newGender"] = newGender ?? "";
+            p["newEntryTime"] = newEntryTime ?? ""; p["newEntryTimeSeconds"] = newEntryTimeSeconds;
+            p["legNames"] = JArray.FromObject(legNames ?? new List<string>());
+            return p;
+        }
+
+        /// <summary>编排端: 发接力队编辑补丁(先问后改, 跟并组同一个待遇——万一撞上正在比的组要能拒)。</summary>
+        private bool SendRelayEditPatch(string oldTeamName, string oldEvent, string oldGender, List<string> oldLegNames,
+                                        string newTeamName, string newCountry, string newEvent, string newGender,
+                                        string newEntryTime, double newEntryTimeSeconds, List<string> legNames,
+                                        out string error) {
+            return SendPatchAndWait(BuildRelayEditPatch(oldTeamName, oldEvent, oldGender, oldLegNames, newTeamName,
+                newCountry, newEvent, newGender, newEntryTime, newEntryTimeSeconds, legNames, ClientLabel()), out error);
+        }
+
+        /// <summary>主服务器本机改的接力队信息 → 以补丁形式发给各编排端(同样不推整包)。</summary>
+        private void BroadcastRelayEditPatch(string oldTeamName, string oldEvent, string oldGender, List<string> oldLegNames,
+                                             string newTeamName, string newCountry, string newEvent, string newGender,
+                                             string newEntryTime, double newEntryTimeSeconds, List<string> legNames,
+                                             string clientName, IWebSocketConnection except) {
+            BroadcastPatch(BuildRelayEditPatch(oldTeamName, oldEvent, oldGender, oldLegNames, newTeamName, newCountry,
+                newEvent, newGender, newEntryTime, newEntryTimeSeconds, legNames, clientName), except);
+        }
+
+        private static List<string> ReadJArrayStrings(JObject msg, string key) {
+            var list = new List<string>();
+            var arr = msg[key] as JArray;
+            if (arr != null) foreach (var t in arr) list.Add(t != null ? t.ToString() : "");
+            return list;
+        }
+
+        private bool ApplyRelayEditPatch(JObject msg, out string error) {
+            string oldTeamName = msg["oldTeamName"] != null ? msg["oldTeamName"].ToString() : "";
+            string oldEvent = msg["oldEvent"] != null ? msg["oldEvent"].ToString() : "";
+            string oldGender = msg["oldGender"] != null ? msg["oldGender"].ToString() : "";
+            string newTeamName = msg["newTeamName"] != null ? msg["newTeamName"].ToString() : "";
+            string newCountry = msg["newCountry"] != null ? msg["newCountry"].ToString() : "";
+            string newEvent = msg["newEvent"] != null ? msg["newEvent"].ToString() : "";
+            string newGender = msg["newGender"] != null ? msg["newGender"].ToString() : "";
+            string newEntryTime = msg["newEntryTime"] != null ? msg["newEntryTime"].ToString() : "";
+            double newEntryTimeSeconds = 0;
+            try { if (msg["newEntryTimeSeconds"] != null) newEntryTimeSeconds = (double)msg["newEntryTimeSeconds"]; } catch { }
+            var oldLegNames = ReadJArrayStrings(msg, "oldLegNames");
+            var legNames = ReadJArrayStrings(msg, "legNames");
+            return ApplyRelayEditCore(oldTeamName, oldEvent, oldGender, oldLegNames, newTeamName, newCountry, newEvent,
+                newGender, newEntryTime, newEntryTimeSeconds, legNames, out error);
+        }
+
+        // 2026-09-19 接力队编辑收尾——跟 FinishPatchApply(Assign 那条路用的)同一个道理,
+        //   但不需要重建赛程树(接力队信息不影响道次/组次), 更轻。
+        private void FinishRelayEditPatchApply() {
+            _patchInFlight = true;
+            try {
+                RebuildRelayGroupedView();
+                AutoSaveData();
+                Broadcast();
+            } finally { _patchInFlight = false; }
+            PushDataChanged("relay");
+        }
+
         /// <summary>收到别人发来的补丁, 照着改本机内存。</summary>
         private bool ApplyPatch(JObject msg, out string error) {
             error = null;
@@ -12069,6 +12196,7 @@ namespace SwimmingScoreboard
             if (op == "Assign") return ApplyAssignPatch(msg, out error);
             if (op == "Records") return ApplyRecordsPatch(msg, out error);
             if (op == "Unlock")  return ApplyUnlockPatch(msg, out error);
+            if (op == "RelayEdit") return ApplyRelayEditPatch(msg, out error);
             if (op != "MergeHeats") { error = "不认识的补丁类型: " + op; return false; }
 
             string ag = msg["ageGroup"] != null ? msg["ageGroup"].ToString() : "";
@@ -19252,66 +19380,57 @@ namespace SwimmingScoreboard
                 string oldTeamName = sel.TeamName;
                 string oldEvent = sel.EventName;
                 string oldGender = sel.Gender;
-                string oldCountry = sel.Country;
                 var oldLegNames = sel.Legs.Select(l => l.SwimmerName ?? "").ToList();
 
                 var dlg = new EditRelayTeamWindow(sel, _events, _units, _ageGroups.Select(g => g.Name), _genders) { Owner = this };
                 bool? r = dlg.ShowDialog();
                 if (r != true || !dlg.Confirmed) return;
 
-                // 同步到 _swimmers：代表条目 + 队员子条目
-                // 代表条目：按旧 队名/项目/性别 三键定位
-                // 2026-08-21 原来要求 Notes 以"接力队 棒次:"开头才认。本届档案生成时
-                //   还没有棒次名单, Notes 只写了"接力队"三个字 —— 于是这里找不到代表条目,
-                //   手工敲完 4 棒姓名也同步不到大屏(大屏姓名列取的正是这个 Notes)。
-                //   改为按 队名+项目+性别 定位, 只排除队员子条目, 不依赖 Notes 的具体写法。
-                var proxy = _swimmers.FirstOrDefault(s =>
-                    s.Name == oldTeamName && s.EventName == oldEvent && s.Gender == oldGender
-                    && !IsRelayMemberNote(s.Notes));
-                if (proxy != null) {
-                    proxy.Name = sel.TeamName;
-                    proxy.Country = sel.Country;
-                    proxy.EventName = sel.EventName;
-                    proxy.Gender = sel.Gender;
-                    proxy.EntryTime = sel.EntryTime;
-                    proxy.EntryTimeSeconds = sel.EntryTimeSeconds;
-                    string legNamesStr = string.Join(",", sel.Legs.Select(l => l.SwimmerName ?? "").ToArray());
-                    proxy.Notes = "接力队 棒次:" + legNamesStr;
-                }
+                string newTeamName = sel.TeamName, newCountry = sel.Country, newEvent = sel.EventName, newGender = sel.Gender;
+                string newEntryTime = sel.EntryTime; double newEntryTimeSeconds = sel.EntryTimeSeconds;
+                var legNames = sel.Legs.Select(l => l.SwimmerName ?? "").ToList();
 
-                // 队员子条目：按 (旧队名 + 旧项目 + 旧姓名) 三键定位老条目；找到一一更新
-                for (int i = 0; i < Math.Min(4, sel.Legs.Count); i++) {
-                    string oldLegName = i < oldLegNames.Count ? oldLegNames[i] : "";
-                    string newLegName = sel.Legs[i].SwimmerName ?? "";
-                    if (string.IsNullOrEmpty(oldLegName) && string.IsNullOrEmpty(newLegName)) continue;
-                    var memEntry = _swimmers.FirstOrDefault(s =>
-                        s.Notes != null && s.Notes.StartsWith("接力队员")
-                        && s.Country == oldTeamName && s.EventName == oldEvent
-                        && s.Name == oldLegName);
-                    if (memEntry != null) {
-                        memEntry.Name = newLegName;
-                        memEntry.Country = sel.TeamName;   // 队员的 Country 用 TeamName 标识所属队
-                        memEntry.EventName = sel.EventName;
-                        memEntry.Gender = sel.Gender == "混合" ? memEntry.Gender : sel.Gender;
-                        memEntry.Notes = string.Format("接力队员 {0} 第{1}棒", sel.EventName, i + 1);
-                    } else if (!string.IsNullOrEmpty(newLegName)) {
-                        // 旧条目找不到（可能首次编辑前没建好）— 新建一个子条目
-                        string memBib = (proxy != null ? proxy.BibNumber : "R???") + "-" + (i + 1);
-                        if (!_swimmers.Any(s => s.BibNumber == memBib)) {
-                            _swimmers.Add(new Swimmer {
-                                BibNumber = memBib, Name = newLegName,
-                                Gender = sel.Gender == "混合" ? "男" : sel.Gender,
-                                Country = sel.TeamName, EventName = sel.EventName,
-                                Notes = string.Format("接力队员 {0} 第{1}棒", sel.EventName, i + 1)
-                            });
-                        }
+                // 2026-09-19 【改走小补丁, 不再推整包】——这个功能之前一直是本文件仅剩的
+                //   老路之一(AutoSaveData() 直接触发整包推送), 现场事故(计时中 TP/MB 被
+                //   整包重载冲成关闭, 见当时的说明)的诱因就是它。跟并组同一个待遇:
+                //   联着主服务器的编排端先问一句、等回执再改本机; 拒了就原样不动、弹窗
+                //   说明原因, 不吞不改。
+                bool serverAccepted = false;
+                if (IsScheduleEditorMode && _editorSyncClient != null && _editorSyncClient.IsConnected) {
+                    string perr;
+                    if (!SendRelayEditPatch(oldTeamName, oldEvent, oldGender, oldLegNames,
+                            newTeamName, newCountry, newEvent, newGender, newEntryTime, newEntryTimeSeconds, legNames,
+                            out perr)) {
+                        MessageBox.Show("主服务器没有接受这次接力队信息修改。\n\n原因: " + perr + "\n\n本机数据未改动, 请稍后重试。",
+                            "未能保存", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        AddLog("接力队信息修改被主服务器拒绝: " + perr);
+                        return;
                     }
+                    serverAccepted = true;
                 }
 
-                AutoSaveData();
-                RebuildRelayGroupedView();
-                Broadcast();
-                AddLog(string.Format("接力队信息已修改: {0} ({1} {2})", sel.TeamName, sel.Gender, sel.EventName));
+                string applyError;
+                if (!ApplyRelayEditCore(oldTeamName, oldEvent, oldGender, oldLegNames,
+                        newTeamName, newCountry, newEvent, newGender, newEntryTime, newEntryTimeSeconds, legNames,
+                        out applyError)) {
+                    if (serverAccepted) {
+                        MessageBox.Show("主服务器已经接受这次修改，但本机没能跟着改。\n\n原因: " + applyError +
+                            "\n\n多半是本机这份数据旧了。请断开重连主服务器重新取一次数据。",
+                            "本机与主服务器不一致", MessageBoxButton.OK, MessageBoxImage.Error);
+                        AddLog("★ 主服务器已接受接力队编辑但本机应用失败(数据可能已旧): " + applyError);
+                    } else {
+                        MessageBox.Show(applyError, "无法保存", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    }
+                    return;
+                }
+
+                if (!IsScheduleEditorMode)
+                    BroadcastRelayEditPatch(oldTeamName, oldEvent, oldGender, oldLegNames,
+                        newTeamName, newCountry, newEvent, newGender, newEntryTime, newEntryTimeSeconds, legNames,
+                        Environment.MachineName, null);
+
+                FinishRelayEditPatchApply();
+                AddLog(string.Format("接力队信息已修改: {0} ({1} {2})", newTeamName, newGender, newEvent));
             } finally {
                 ReleaseEditLock(lockKey);
             }
@@ -26317,8 +26436,25 @@ namespace SwimmingScoreboard
                 _schedule.Clear();
                 if (package.Schedule != null) foreach (var s in package.Schedule) _schedule.Add(s);
 
-                InitLaneDeviceStates();
-                ApplyPersistedDeviceStates();   // 加载赛事 package 时不要冲掉用户的设备状态
+                // 2026-09-19 用户实拍到现场事故: 计时端正在比赛中, 收到一次跟硬件设备
+                //   毫不相干的远程同步(比如编排端改了个接力队信息、走的是还没搬完补丁的
+                //   老整包路)重新加载赛事包——这里原来无条件 Clear() 重建所有泳道的
+                //   LaneDeviceState 对象。TP/MB"当下有没有连上、有没有在收信号"这类
+                //   实时状态压根不在赛事包这份数据里、也不在 ApplyPersistedDeviceStates
+                //   读的那份 device_states.json 持久化配置里——一重建就成了全新对象、
+                //   全部默认值(未连接), 界面上立刻看到"TP/MB 从打开变成关闭", 而这时候
+                //   比赛正在进行中。不是数据错了, 是这几个纯反映"硬件此刻状态"的内存
+                //   对象被一次跟硬件毫不相干的同步动作捎带手清空了。
+                //   区分开: 本机用户自己在设置里改赛事名称/泳道数(_applyingRemoteSync
+                //   为 false)才是真的需要重建；远程同步触发的重载(_applyingRemoteSync
+                //   为 true, 且已经有过一次初始化)只需要让持久化配置(损坏/未安装)照常
+                //   生效, 那几个反映硬件当下连接状态的对象原样保留, 不重建。
+                if (_applyingRemoteSync && _laneDeviceStates.Count > 0) {
+                    ApplyPersistedDeviceStates();
+                } else {
+                    InitLaneDeviceStates();
+                    ApplyPersistedDeviceStates();   // 加载赛事 package 时不要冲掉用户的设备状态
+                }
                 BuildScheduleTree();
                 RebuildRelayGroupedView();
                 UpdateRaceStateDisplay();
