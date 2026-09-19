@@ -31585,8 +31585,14 @@ namespace SwimmingScoreboard
             //   rankNames 只备了 8 个名次, 超出的用"第N名"兜底, 但 UI 下拉框本身就
             //   限定在 1~8, 正常不会走到兜底分支。
             int rankLimit = _awardCertRankLimit > 0 ? _awardCertRankLimit : 3;
+            // 2026-09-19 用户实拍到奖状窗口一直没有组别筛选——查到根子比"少个筛选框"
+            //   严重得多: 这里分组一直没带组别, 只按"性别+项目"分——同一个项目甲组/乙组
+            //   各游各的决赛, 名次却被按成绩混在一起重排一遍, 快的组别把慢的组别全部
+            //   挤出前 3 名。青少年赛的组别就是分开发奖的依据, 混排等于把不同组别的
+            //   比赛当成同一场比, 发错奖状认不出来(名字都对, 只是那个人根本没资格拿
+            //   这个名次)。分组键加 AgeGroup, 各组别各排各的。
             var finalists = _swimmers.Where(s => s.CurrentStage == "决赛" && s.Results.Any(r => r.Stage == "决赛" && r.FinalTime > 0))
-                .GroupBy(s => new { s.Gender, s.EventName });
+                .GroupBy(s => new { s.Gender, s.EventName, AgeGroup = s.AgeCategory ?? "" });
             foreach (var g in finalists) {
                 var ranked = g.OrderBy(s => {
                     var r = s.GetResultForStage("决赛");

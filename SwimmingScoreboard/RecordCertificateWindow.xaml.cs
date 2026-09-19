@@ -19,6 +19,13 @@ namespace SwimmingScoreboard
             InitializeComponent();
             _all = records ?? new List<MainWindow.BrokenRecordRow>();
 
+            // 2026-09-19 用户实拍到: 这个窗口一直没有组别筛选、表格也没有组别这一列——
+            //   同一个项目不同组别破的纪录混在一起, 看不出哪条是哪个组别破的。
+            AgeGroupFilterBox.Items.Add("全部组别");
+            foreach (var ag in _all.Select(r => r.AgeGroup).Distinct().OrderBy(s => s))
+                if (!string.IsNullOrEmpty(ag)) AgeGroupFilterBox.Items.Add(ag);
+            AgeGroupFilterBox.SelectedIndex = 0;
+
             EventFilterBox.Items.Add("全部项目");
             foreach (var ev in _all.Select(r => r.EventLabel).Distinct().OrderBy(s => s))
                 EventFilterBox.Items.Add(ev);
@@ -28,11 +35,14 @@ namespace SwimmingScoreboard
         }
 
         private void RefreshGrid() {
-            string filter = EventFilterBox.SelectedItem as string;
-            var view = (string.IsNullOrEmpty(filter) || filter == "全部项目")
-                ? _all
-                : _all.Where(r => r.EventLabel == filter).ToList();
-            Grid1.ItemsSource = view;
+            string evFilter = EventFilterBox.SelectedItem as string;
+            string agFilter = AgeGroupFilterBox.SelectedItem as string;
+            IEnumerable<MainWindow.BrokenRecordRow> view = _all;
+            if (!string.IsNullOrEmpty(evFilter) && evFilter != "全部项目")
+                view = view.Where(r => r.EventLabel == evFilter);
+            if (!string.IsNullOrEmpty(agFilter) && agFilter != "全部组别")
+                view = view.Where(r => r.AgeGroup == agFilter);
+            Grid1.ItemsSource = view.ToList();
             UpdateCount();
         }
 
@@ -41,6 +51,7 @@ namespace SwimmingScoreboard
         }
 
         private void EventFilterBox_SelectionChanged(object sender, SelectionChangedEventArgs e) { RefreshGrid(); }
+        private void AgeGroupFilterBox_SelectionChanged(object sender, SelectionChangedEventArgs e) { RefreshGrid(); }
 
         private IEnumerable<MainWindow.BrokenRecordRow> CurrentView() {
             return (Grid1.ItemsSource as IEnumerable<MainWindow.BrokenRecordRow>) ?? new List<MainWindow.BrokenRecordRow>();

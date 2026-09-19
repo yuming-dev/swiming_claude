@@ -20,8 +20,21 @@ namespace SwimmingScoreboard
             InitializeComponent();
             _all = candidates ?? new List<MainWindow.AwardCandidateRow>();
 
+            RebuildAgeGroupFilter();
             RebuildEventFilter();
             RefreshGrid();
+        }
+
+        // 2026-09-19 用户实拍到: 奖状窗口一直没有组别筛选、表格也没有组别这一列——
+        //   同一个项目(比如"男 200米蛙泳")甲组/乙组各有各的决赛, 名单混在一起
+        //   看不出谁是哪个组别的, 选错组别的人生成证书都发现不了。这里补上跟
+        //   "项目筛选"并列的"组别筛选", 两个筛选条件同时生效(AND)。
+        private void RebuildAgeGroupFilter() {
+            AgeGroupFilterBox.Items.Clear();
+            AgeGroupFilterBox.Items.Add("全部组别");
+            foreach (var ag in _all.Select(c => c.AgeGroup).Distinct().OrderBy(s => s))
+                if (!string.IsNullOrEmpty(ag)) AgeGroupFilterBox.Items.Add(ag);
+            AgeGroupFilterBox.SelectedIndex = 0;
         }
 
         private void RebuildEventFilter() {
@@ -38,6 +51,7 @@ namespace SwimmingScoreboard
         public void RefreshCandidates(List<MainWindow.AwardCandidateRow> candidates, int rankLimit) {
             _all = candidates ?? new List<MainWindow.AwardCandidateRow>();
             HeaderText.Text = string.Format("选择要生成奖状的获奖者（决赛前 {0} 名）", rankLimit);
+            RebuildAgeGroupFilter();
             RebuildEventFilter();
             RefreshGrid();
         }
@@ -51,11 +65,14 @@ namespace SwimmingScoreboard
         }
 
         private void RefreshGrid() {
-            string filter = EventFilterBox.SelectedItem as string;
-            var view = (string.IsNullOrEmpty(filter) || filter == "全部项目")
-                ? _all
-                : _all.Where(c => c.EventLabel == filter).ToList();
-            Grid1.ItemsSource = view;
+            string evFilter = EventFilterBox.SelectedItem as string;
+            string agFilter = AgeGroupFilterBox.SelectedItem as string;
+            IEnumerable<MainWindow.AwardCandidateRow> view = _all;
+            if (!string.IsNullOrEmpty(evFilter) && evFilter != "全部项目")
+                view = view.Where(c => c.EventLabel == evFilter);
+            if (!string.IsNullOrEmpty(agFilter) && agFilter != "全部组别")
+                view = view.Where(c => c.AgeGroup == agFilter);
+            Grid1.ItemsSource = view.ToList();
             UpdateCount();
         }
 
@@ -64,6 +81,7 @@ namespace SwimmingScoreboard
         }
 
         private void EventFilterBox_SelectionChanged(object sender, SelectionChangedEventArgs e) { RefreshGrid(); }
+        private void AgeGroupFilterBox_SelectionChanged(object sender, SelectionChangedEventArgs e) { RefreshGrid(); }
 
         private IEnumerable<MainWindow.AwardCandidateRow> CurrentView() {
             return (Grid1.ItemsSource as IEnumerable<MainWindow.AwardCandidateRow>) ?? new List<MainWindow.AwardCandidateRow>();

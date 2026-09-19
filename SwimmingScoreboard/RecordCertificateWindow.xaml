@@ -32,7 +32,9 @@
         </StackPanel>
 
         <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,10" VerticalAlignment="Center">
-            <TextBlock Text="项目筛选：" Foreground="#94A3B8" VerticalAlignment="Center" Margin="0,0,6,0"/>
+            <TextBlock Text="组别筛选：" Foreground="#94A3B8" VerticalAlignment="Center" Margin="0,0,6,0"/>
+            <ComboBox x:Name="AgeGroupFilterBox" Width="140" SelectionChanged="AgeGroupFilterBox_SelectionChanged"/>
+            <TextBlock Text="项目筛选：" Foreground="#94A3B8" VerticalAlignment="Center" Margin="16,0,6,0"/>
             <ComboBox x:Name="EventFilterBox" Width="280" SelectionChanged="EventFilterBox_SelectionChanged"/>
             <Button Content="全选" Click="SelectAll_Click" Margin="20,0,0,0" Padding="12,5"/>
             <Button Content="全不选" Click="SelectNone_Click" Margin="8,0,0,0" Padding="12,5"/>
@@ -77,7 +79,8 @@
             <DataGrid.Columns>
                 <DataGridCheckBoxColumn Header="选择" Binding="{Binding Selected, Mode=TwoWay}" Width="55"/>
                 <DataGridTextColumn Header="日期" Binding="{Binding Date}" Width="100" IsReadOnly="True" ElementStyle="{StaticResource CellCenter}"/>
-                <DataGridTextColumn Header="项目" Binding="{Binding EventLabel}" Width="220" IsReadOnly="True" ElementStyle="{StaticResource CellCenter}"/>
+                <DataGridTextColumn Header="组别" Binding="{Binding AgeGroup}" Width="80" IsReadOnly="True" ElementStyle="{StaticResource CellCenter}"/>
+                <DataGridTextColumn Header="项目" Binding="{Binding EventLabel}" Width="200" IsReadOnly="True" ElementStyle="{StaticResource CellCenter}"/>
                 <DataGridTextColumn Header="运动员/代表队" Binding="{Binding Athlete}" Width="160" IsReadOnly="True" ElementStyle="{StaticResource CellCenter}"/>
                 <DataGridTextColumn Header="代表队" Binding="{Binding Country}" Width="120" IsReadOnly="True" ElementStyle="{StaticResource CellCenter}"/>
                 <DataGridTextColumn Header="成绩" Binding="{Binding Time}" Width="90" IsReadOnly="True" ElementStyle="{StaticResource CellCenter}"/>
