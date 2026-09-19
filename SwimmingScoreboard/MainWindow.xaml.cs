@@ -10615,6 +10615,10 @@ namespace SwimmingScoreboard
         private string _rtcEvent = "", _rtcGender = "", _rtcAgeGroup = "", _rtcStage = "";
         private int _rtcHeat = 0;
         private DateTime _rtcSeenAt = DateTime.MinValue;
+        // 2026-09-19 见 IsPackageApplyBlocked 里的说明: 原始 READY/RACING/FINISHED 字符串,
+        //   之前只用来刷"当前比赛"那行显示文字, 没存下来——现在要拿它判"计时端是不是
+        //   正在比", 不能只有显示用的中文标签。
+        private string _rtcRaceState = "";
 
         // 2026-09-13 「当前比赛」那块现在是计时端在驱动 —— 计时端一退出就得清掉,
         //   否则屏幕上永远停在它最后那一组, 看的人以为还在比。
@@ -10625,7 +10629,7 @@ namespace SwimmingScoreboard
             if (!_rtcDrivesCurrentRaceText) return;
             _rtcDrivesCurrentRaceText = false;
             _rtcEvent = ""; _rtcGender = ""; _rtcAgeGroup = ""; _rtcStage = "";
-            _rtcHeat = 0; _rtcSeenAt = DateTime.MinValue;
+            _rtcHeat = 0; _rtcSeenAt = DateTime.MinValue; _rtcRaceState = "";
             bool hasLocal = !string.IsNullOrEmpty(_currentEvent);
             if (CurrentEventText != null)
                 CurrentEventText.Text = hasLocal
@@ -10661,6 +10665,7 @@ namespace SwimmingScoreboard
                 int total = 0;
                 try { if (d["totalHeats"] != null) total = (int)d["totalHeats"]; } catch { }
                 string rs = d["raceState"] != null ? d["raceState"].ToString() : "";
+                _rtcRaceState = rs;
                 if (CurrentEventText != null)
                     CurrentEventText.Text = string.IsNullOrEmpty(_rtcEvent) ? "-"
                         : ((string.IsNullOrEmpty(_rtcAgeGroup) ? "" : "[" + _rtcAgeGroup + "] ") + _rtcGender + " " + _rtcEvent);
@@ -24952,13 +24957,27 @@ namespace SwimmingScoreboard
         //   照旧绝对不能收。其余编排操作还在整包上, 以后一项一项搬成补丁。
         private bool IsPackageApplyBlocked(out string why) {
             why = null;
-            // ── 2026-09-13 只有【这台机器自己在计时】才拦 ──────────────────
-            //   比赛控制已经安排在另一台计算机上独立进行, 主服务器这台只管竞赛数据。
-            //   它自己不计时, 那就没有"正在广播的当前组数据被换掉"这回事 ——
-            //   再拿"比赛中"去锁编排端和查询端, 就是把"比赛中改别的项目"这件事白白否掉。
-            //   正在比的那一组照样动不了: 那是按【组】拦的(HeatLockedWhy / IsRtcBusyHeat),
-            //   跟这里按【整包】拦是两码事。
-            if (IsScoringServerNoTiming) return false;
+            // ── 2026-09-13 本机自己不计时时, 原来这里整个放行 ──────────────────
+            //   本意是: 比赛控制安排在另一台机器上独立进行, 主服务器这台只管竞赛数据,
+            //   它自己不计时, 就没有"正在广播的当前组数据被换掉"这回事。
+            // 2026-09-19【订正, 现场事故】——这个前提只想到了"本机不计时"这一半, 漏了
+            //   "但那台真正计时的机器(RTC/role=timing 的普通 exe)可能正在比"这一半。
+            //   用户实拍到: 编排端存了一次接力队信息(走的还是整包这条老路, 没搬成补丁),
+            //   主服务器自己确实空闲、照单全收 → ApplyPackageInMemory 整库重载 →
+            //   HandleEditorPushPackage 末尾 Broadcast() 把这份重载后的数据广播出去 ——
+            //   计时端收到这一帧, 它自己会话内的硬件按钮状态(TP/MB 开关等, 压根不在
+            //   "竞赛包"这份数据里, 是那台机器自己进程内的现场状态)被这次广播带的副作用
+            //   冲乱了, 现场直接看到"TP/MB 从打开变成关闭, 收不到成绩了", 而当时正在
+            //   比赛中。这里补上第二道拦：本机不计时不假, 但只要计时端(RTC 每 100ms
+            //   转发一次状态, 见 NoteRtcRaceState)半分钟内报的是"已就位/比赛中",
+            //   同样不能收整包——跟本机自己在计时同一个道理, 同一句话。
+            if (IsScoringServerNoTiming) {
+                bool rtcBusy = (_rtcRaceState == "READY" || _rtcRaceState == "RACING")
+                    && _rtcSeenAt != DateTime.MinValue && (DateTime.Now - _rtcSeenAt).TotalSeconds <= 30;
+                if (!rtcBusy) return false;
+                why = "计时端正在比赛（" + (_rtcRaceState == "READY" ? "已就位" : "比赛中") + "）";
+                return true;
+            }
 
             if (_raceState == RaceState.Ready || _raceState == RaceState.Racing) {
                 why = "主服务器正在计时（" + (_raceState == RaceState.Ready ? "已就位" : "比赛中") + "）";
