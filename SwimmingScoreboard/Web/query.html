@@ -848,7 +848,7 @@ function connect() {
 // 只换一半会出现"设备状态灯和比赛日志不刷新"这种看不出根由的毛病, 所以对不上
 // 就在页顶挂红条, 顺带连上时报给主服务器, 让系统日志里也留一行。
 // 【改了本页就把这个日期跟 MainWindow.WEB_ASSET_VERSION 一起往后挪】
-var PAGE_VER = '20260916-2';
+var PAGE_VER = '20260918-1';
 var PAGE_NAME = 'query.html';
 function reportPageVer(sock) {
     try { sock.send(JSON.stringify({type: 'CLIENT_VERSION', page: PAGE_NAME, ver: PAGE_VER})); } catch (e) {}
@@ -1097,11 +1097,19 @@ function renderHome() {
     var doneHeats = 0, totalHeats = 0;
     var doneEvents = 0, totalEvents = sch.length;
     sch.forEach(function(s) {
-        var hc = s.heatCount || 1; totalHeats += hc;
+        // 2026-09-18 并组/取消组之后, 被取消的组次号不该再算进"总组数"——不然分母永远比
+        //   实际能比完的组数多, 进度条卡在 100% 之前的某个数字下不来, "已完赛 X/Y 项"
+        //   也永远差一项(allConfirmed 已经在服务器那边按"活着的组"算过一次, 这里直接用它,
+        //   不再自己重算一遍 heatConfirmed.every——避免同一件事两处算出两个答案)。
+        var hc = s.heatCount || 1;
+        var cancelledArr = s.heatCancelled || [];
+        var liveCount = 0;
+        for (var i = 0; i < hc; i++) if (!cancelledArr[i]) liveCount++;
+        totalHeats += liveCount;
         if (s.heatConfirmed && s.heatConfirmed.length > 0) {
             doneHeats += s.heatConfirmed.filter(function(x){return x;}).length;
-            if (s.heatConfirmed.every(function(x){return x;})) doneEvents++;
         }
+        if (s.allConfirmed) doneEvents++;
     });
     var pct = totalHeats > 0 ? Math.round(doneHeats * 100 / totalHeats) : 0;
     var teams = new Set();
@@ -1212,7 +1220,9 @@ function renderSchedule() {
 }
 function scheduleStatus(s) {
     if (!s.heatConfirmed || s.heatConfirmed.length === 0) return 'todo';
-    if (s.heatConfirmed.every(function(x){return x;})) return 'done';
+    // 2026-09-18 跟 renderHome 同一个道理: 判"全部完赛"要用服务器已经按"活着的组"
+    //   算好的 allConfirmed, 不能对着 heatConfirmed(取消的组永远是 false)直接 every。
+    if (s.allConfirmed) return 'done';
     if (s.heatConfirmed.some(function(x){return x;})) return 'live';
     return 'todo';
 }
@@ -1240,10 +1250,16 @@ function renderHeats() {
     for (var h = 1; h <= hc; h++) {
         var lst = swimmers.filter(function(sw) { return sw.heat === h; }).sort(function(a,b) { return (a.lane||0) - (b.lane||0); });
         var confirmed = sch && sch.heatConfirmed && sch.heatConfirmed[h-1];
+        // 2026-09-18 并组/取消组之后, 被取消的组次号这里原来只会显示"本组暂无运动员"——
+        //   跟"这组本来就没排人"完全分不清, 看着像编排漏了。标清楚"已取消"。
+        var cancelled = sch && sch.heatCancelled && sch.heatCancelled[h-1];
         html += '<div class="card" style="margin-bottom:14px;">' +
-            '<div class="card-h"><h3>🏊 第 ' + h + ' 组' + (confirmed ? ' <span class="badge green">✓ 已完赛</span>' : '') + '</h3>' +
+            '<div class="card-h"><h3>🏊 第 ' + h + ' 组' +
+            (cancelled ? ' <span class="badge gray">已取消</span>' : (confirmed ? ' <span class="badge green">✓ 已完赛</span>' : '')) + '</h3>' +
             '<span class="dim">' + lst.length + ' 人</span></div>';
-        if (lst.length === 0) {
+        if (cancelled) {
+            html += '<div class="empty"><div class="title">本组已并入其它组</div></div>';
+        } else if (lst.length === 0) {
             html += '<div class="empty"><div class="title">本组暂无运动员</div></div>';
         } else {
             html += '<table style="font-size:13px;"><thead><tr><th>道次</th><th>号码</th><th>姓名</th><th>单位</th><th>组别</th><th>报名成绩</th></tr></thead><tbody>';

@@ -204,7 +204,7 @@ namespace SwimmingScoreboard
         // 用处: 页面里有同名常量, 对不上就在页面顶端挂红条、并在主服务器系统日志里
         // 记一行。协议是 exe 和页面一起改的(比赛日志增量、设备状态推送、DATA_CHANGED),
         // 只换一半会出现"设备状态灯和比赛日志不刷新"这种看不出根由的毛病。
-        public const string WEB_ASSET_VERSION = "20260916-2";
+        public const string WEB_ASSET_VERSION = "20260918-1";
 
         private const int MAX_LANE_EVENT_LOG = 64 * 1024;
         private static void TrimSbIfOver(StringBuilder sb, int maxLen) {
@@ -4342,8 +4342,22 @@ namespace SwimmingScoreboard
                 schedule = _schedule.Take(staticN).Select(s => {
                     int hc = s.HeatCount > 0 ? s.HeatCount : 1;
                     string ag = s.AgeGroup ?? "";
+                    var cancelledHeats = s.CancelledHeats ?? new List<CancelledHeat>();
                     var heatConfirmed = new List<bool>();
-                    for (int hh = 1; hh <= hc; hh++) heatConfirmed.Add(IsHeatConfirmed(ag, s.Gender, s.EventName, s.Stage, hh));
+                    // 2026-09-18 heatCancelled 跟 heatConfirmed 逐一对应(同一条 hh 循环, 下标一致)——
+                    //   query.html 拿组次号去这两个数组同一个下标查, 才能把"取消"和"没确认"分清楚。
+                    var heatCancelled = new List<bool>();
+                    for (int hh = 1; hh <= hc; hh++) {
+                        bool cancelled = cancelledHeats.Any(c => c.Heat == hh);
+                        heatCancelled.Add(cancelled);
+                        heatConfirmed.Add(!cancelled && IsHeatConfirmed(ag, s.Gender, s.EventName, s.Stage, hh));
+                    }
+                    // 2026-09-18 跟 IsStageAllConfirmedFast/GetFullyConfirmedFinalEvents 同一个坑:
+                    //   被取消(并组)的组次号永远不会被确认——allConfirmed 原来直接 All(x=>x),
+                    //   只要项目里有一组被并组过就永远算不出"全部确认", 网页那边"项目已完成"
+                    //   的标记就一直卡着。改成只看"活着"的那些组。
+                    var liveConfirmed = new List<bool>();
+                    for (int hh = 0; hh < hc; hh++) if (!heatCancelled[hh]) liveConfirmed.Add(heatConfirmed[hh]);
                     return new {
                         session = s.SessionNumber, sessionName = s.SessionName,
                         // 2026-09-15 漏发 evNum(项次) —— query.html"比赛日程"页那一列一直显示"-",
@@ -4354,7 +4368,8 @@ namespace SwimmingScoreboard
                         eventName = s.EventName, gender = s.Gender,
                         stage = s.Stage, heatCount = s.HeatCount, isRelay = s.IsRelay,
                         heatConfirmed = heatConfirmed,
-                        allConfirmed = heatConfirmed.Count > 0 && heatConfirmed.All(x => x)
+                        heatCancelled = heatCancelled,
+                        allConfirmed = liveConfirmed.Count > 0 && liveConfirmed.All(x => x)
                     };
                 }).ToList(),
                 swimmers = swimmerData,
@@ -29892,6 +29907,18 @@ namespace SwimmingScoreboard
                     sb.Append("</tr>");
                     int heatCount = s.HeatCount > 0 ? s.HeatCount : 1;
                     for (int h = 1; h <= heatCount; h++) {
+                        // 2026-09-18 并组/取消组之后, 被取消的组次号那一行原来整行空着(既不报错
+                        //   也不提示), 谁看了都以为"这组人还没排"——其实是并到别组去了。
+                        //   跟 RebuildNavTree/BuildScheduleTree 同一个待遇, 标清楚"已取消"。
+                        var cancelled = GetCancelledHeat(s.AgeGroup ?? "", s.Gender ?? "", s.EventName ?? "", s.Stage ?? "", h);
+                        if (cancelled != null) {
+                            string cancelTag = cancelled.MergedInto > 0
+                                ? "已取消, 并入第" + cancelled.MergedInto + "组"
+                                : (string.IsNullOrEmpty(cancelled.Reason) ? "已取消" : "已取消: " + cancelled.Reason);
+                            sb.AppendFormat("<tr><td><b>{0}</b></td><td colspan='{1}' style='color:#94A3B8;'>{2}</td></tr>",
+                                h, laneNums.Count, cancelTag);
+                            continue;
+                        }
                         sb.AppendFormat("<tr><td><b>{0}</b></td>", h);
                         foreach (var ln in laneNums) {
                             var sw = swims.FirstOrDefault(x => x.Heat == h && x.Lane == ln);
@@ -30000,6 +30027,20 @@ namespace SwimmingScoreboard
                         var hCell = nameRow.CreateCell(0); hCell.SetCellValue(h); hCell.CellStyle = boldStyle;
                         var teamRow = sh.CreateRow(r++);
                         teamRow.CreateCell(0).SetCellValue("");
+                        // 2026-09-18 跟 BuildHeatAssignmentsHtml(打印版)同一个待遇: 并组/取消组
+                        //   之后, 被取消的组次号原来这两行整片空着, 看着像"这组人还没排",
+                        //   其实是并到别组去了——标清楚"已取消"。
+                        var cancelled = GetCancelledHeat(s.AgeGroup ?? "", s.Gender ?? "", s.EventName ?? "", s.Stage ?? "", h);
+                        if (cancelled != null) {
+                            string cancelTag = cancelled.MergedInto > 0
+                                ? "已取消, 并入第" + cancelled.MergedInto + "组"
+                                : (string.IsNullOrEmpty(cancelled.Reason) ? "已取消" : "已取消: " + cancelled.Reason);
+                            var cCell = nameRow.CreateCell(1); cCell.SetCellValue(cancelTag); cCell.CellStyle = centerStyle;
+                            if (laneNums.Count > 1) sh.AddMergedRegion(new NPOI.SS.Util.CellRangeAddress(r - 2, r - 2, 1, colCount - 1));
+                            for (int i = 0; i < laneNums.Count; i++) teamRow.CreateCell(i + 1).SetCellValue("");
+                            r++;   // 项目内组间空行
+                            continue;
+                        }
                         for (int i = 0; i < laneNums.Count; i++) {
                             int ln = laneNums[i];
                             var sw = swims.FirstOrDefault(x => x.Heat == h && x.Lane == ln);
