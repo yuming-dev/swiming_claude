@@ -1138,6 +1138,11 @@ namespace SwimmingScoreboard
         // 2026-08-24 上一次推给主服务器被拒(计时中) → 本地改动尚未提交
         private bool _editorPushRejected = false;
         private DispatcherTimer _packageApplyDebounceTimer;
+        // 2026-09-19 用户明确要求: 正在比的这一组用的当前组临时数据库(current_heat.db)
+        //   在比赛期间绝对不能被重建——收到的整包同步不是"想办法安全地应用", 是【压根
+        //   不给它应用的机会】, 原样按下不表, 存在这里, 等这一组确认/取消(LiveActive
+        //   变回 false)后由 DbPoll_Tick 自动补上。见 PackageApplyDebounceTick 的说明。
+        private CompetitionPackage _deferredEditorPackage;
 
         // 编排端：收到主服务器推过来的 EDITOR_PACKAGE → 覆盖本地（_applyingRemoteSync 防回环）
         private void HandleEditorSyncMessage(string raw) {
@@ -1216,6 +1221,21 @@ namespace SwimmingScoreboard
                 _editorPushRejected = false;
             }
             if (pkg == null) return;
+            // 2026-09-19 【用户明确要求, 按此重做】正在比的这一组, 当前组临时数据库
+            //   (current_heat.db, _meetDb.LiveActive 为 true 期间)绝对不能被重建——
+            //   之前"重建前摘成绩、重建完再贴回去"的补救办法, 用户认为比赛实时性太强,
+            //   摘/贴两步之间理论上仍有缝隙, 算不上万无一失。这次改成釜底抽薪: LiveActive
+            //   还是 true 就【原样按下不表】, ApplyPackageInMemory 一次都不跑, 存进
+            //   _deferredEditorPackage, 等这一组确认成绩/取消(LiveActive 变回 false,
+            //   数据这时候已经安全地写进 meet.db 了, "临时数据库使命完成")才由
+            //   DbPoll_Tick 自动补上——不是"重建后恢复", 是压根不给它发生的机会。
+            //   赛前(LiveActive 是 false)收到的整包照旧立即应用, 不受影响。
+            if (_meetDb.LiveActive) {
+                _deferredEditorPackage = pkg;
+                UpdateEditorSyncStatus("本组比赛中, 已暂缓同步", "#F59E0B");
+                AddLog("收到主服务器整包同步, 但本机当前组正在比赛中(临时数据库使用中)——已暂缓, 等这组确认成绩/取消后自动补上");
+                return;
+            }
             try {
                 ApplyPackageInMemory(pkg);
                 UpdateEditorSyncStatus("已同步", "#22C55E");
@@ -25356,6 +25376,17 @@ namespace SwimmingScoreboard
         //   照旧绝对不能收。其余编排操作还在整包上, 以后一项一项搬成补丁。
         private bool IsPackageApplyBlocked(out string why) {
             why = null;
+            // 2026-09-19【用户明确要求】正在比的这一组用的是当前组临时数据库(current_heat.db,
+            //   _meetDb.LiveActive 就是这个库"还在用"的信号)——这是本机判断"这一组是否
+            //   还没了结"的最权威依据, 比下面的 _raceState/_resultConfirmed 更早一步就该拦。
+            //   典型缝隙: ConfirmResult_Click 里 _raceState 先变成 Finished、_resultConfirmed
+            //   先置 true, 过几步才真正调用 CommitLiveHeat() 把临时库提交进 meet.db 并释放——
+            //   这几步之间 _raceState 那道检查已经放行了, 但临时库其实还没交完, 这里单独补
+            //   一道最前置的拦, 不跟其它检查共用一套"像不像在比"的推断逻辑。
+            if (_meetDb.LiveActive) {
+                why = "本机当前组临时数据库使用中（比赛未确认/未提交）";
+                return true;
+            }
             // ── 2026-09-13 本机自己不计时时, 原来这里整个放行 ──────────────────
             //   本意是: 比赛控制安排在另一台机器上独立进行, 主服务器这台只管竞赛数据,
             //   它自己不计时, 就没有"正在广播的当前组数据被换掉"这回事。
@@ -25902,6 +25933,20 @@ namespace SwimmingScoreboard
 
         private void DbPoll_Tick(object sender, EventArgs e) {
             try {
+                // 2026-09-19 见 PackageApplyDebounceTick 的说明: 比赛期间收到的整包同步
+                //   被原样按下不表存在这里——每次轮询(含 DATA_CHANGED 触发的立即那一次)
+                //   都问一句"这一组的临时数据库现在还在用吗", LiveActive 一变回 false
+                //   (说明这一组已经确认成绩/取消, 数据已经安全写进 meet.db, 临时数据库
+                //   使命完成)就把攒着的这份包应用上, 不用再等下一次主服务器主动推。
+                if (_deferredEditorPackage != null && !_meetDb.LiveActive) {
+                    var pkg = _deferredEditorPackage;
+                    _deferredEditorPackage = null;
+                    try {
+                        ApplyPackageInMemory(pkg);
+                        UpdateEditorSyncStatus("已同步(补上比赛期间暂缓的更新)", "#22C55E");
+                        AddLog("本组比赛已结束(临时数据库已释放), 补上比赛期间暂缓的主服务器整包同步");
+                    } catch (Exception ex) { AddLog("补应用暂缓的整包同步失败: " + ex.Message); }
+                }
                 // 2026-09-13 计时端硬断电时 socket 可能迟迟不关, 光靠 OnClose 清不掉。
                 //   30 秒没收到它的状态帧就当它走了(它正常时每 100ms 一帧)。
                 if (_rtcDrivesCurrentRaceText && _rtcSeenAt != DateTime.MinValue
@@ -26656,32 +26701,20 @@ namespace SwimmingScoreboard
                 _laneEventLog.Clear();
                 if (_rawTimingLog != null) _rawTimingLog.Clear();
 
-                // 2026-09-19 【用户明确要求, 严重级】正在比的那一组, 触板/分段成绩绝对不许
-                //   被一次远程同步的整包重载动一个字——不管这次重载是谁触发的(接力队编辑
-                //   只是这次抓到的一个例子, 这文件里还有几十处别的地方也会推整包, 不可能
-                //   一次改完; 而且 RTC/计时端断线重连问服务器要整包这种场景, 触发原因压根
-                //   不在编排端手里)。下面 _swimmers.Clear() 是无差别地把整份名单连成绩一起
-                //   换成包里那份快照——包是编排端在"这一刻"打的, 不含此后这一组又新触板的
-                //   那几个分段, 一旦真换了, 现场看到的就是"比到第几圈, 前几圈的分段成绩被
-                //   清空"。这里先把本机正在比的这一组、每一道当下的成绩行原样摘下来存好,
-                //   等新名单装完了原样贴回去(不比较"哪份更新", 本机当下这一份就是唯一权威,
-                //   没有讨论余地)。只在【远程同步触发的重载】时才这么做——本机用户自己在
-                //   本机点"加载赛事"/"新建赛事"就是要整个换一场比赛, 那种情况没有"正在比的
-                //   这一组"这回事, 用不上这套保护。
-                Dictionary<string, LaneResult> liveHeatResultsByBib = null;
-                Dictionary<string, string> liveHeatStatusByBib = null;
-                if (_applyingRemoteSync && _currentHeat > 0 && !string.IsNullOrEmpty(_currentEvent)) {
-                    liveHeatResultsByBib = new Dictionary<string, LaneResult>();
-                    liveHeatStatusByBib = new Dictionary<string, string>();
-                    foreach (var sw0 in GetCurrentHeatSwimmers()) {
-                        if (string.IsNullOrEmpty(sw0.BibNumber)) continue;
-                        var r0 = sw0.Results.FirstOrDefault(x => x.Stage == _currentStage && x.Heat == _currentHeat);
-                        if (r0 != null) liveHeatResultsByBib[sw0.BibNumber] = r0;
-                        // 判罚状态(DSQ/DNS/DNF/TRI)也是现场当场标的, 同一个道理保留。
-                        if (!string.IsNullOrEmpty(sw0.Status)) liveHeatStatusByBib[sw0.BibNumber] = sw0.Status;
-                    }
-                    if (liveHeatResultsByBib.Count == 0) liveHeatResultsByBib = null;
-                    if (liveHeatStatusByBib.Count == 0) liveHeatStatusByBib = null;
+                // 2026-09-19 【订正】上一版这里是"重建前摘成绩、重建完再贴回去"——用户
+                //   指出比赛实时性太强, 摘/贴两步之间理论上仍有缝隙, 算不上万无一失。
+                //   真正的防线挪到了更早的地方: PackageApplyDebounceTick(编排端/计时端
+                //   收远程整包那一步)现在会先查 _meetDb.LiveActive, 只要这一组的当前组
+                //   临时数据库(current_heat.db)还在用, 整包直接原样按下不表、存进
+                //   _deferredEditorPackage, 连这个函数都不会被调用——不是"重建后恢复",
+                //   是压根不给重建发生的机会。等这一组confirm/丢弃(LiveActive 变回
+                //   false, 数据已经安全写进 meet.db)才由 DbPoll_Tick 补上。
+                //   这里只留一道兜底断言: 万一真的在 LiveActive 期间走到了这一步(说明
+                //   上面那道防线出了漏洞), 大声记一条日志, 不要悄悄地把成绩冲掉却没人
+                //   发现——这属于不该发生的情况, 发生了要能一眼看出来去查原因。
+                if (_applyingRemoteSync && _meetDb.LiveActive) {
+                    AddLog("【严重】远程同步整包重载发生在当前组临时数据库(LiveActive)仍在使用期间——" +
+                        "这本不该发生(见 PackageApplyDebounceTick 的拦截), 请检查触发路径, 现场成绩可能受影响");
                 }
 
                 _swimmers.Clear();
@@ -26702,24 +26735,6 @@ namespace SwimmingScoreboard
                         }
                         _swimmers.Add(sw);
                     }
-                }
-                if (liveHeatResultsByBib != null || liveHeatStatusByBib != null) {
-                    int restored = 0;
-                    foreach (var sw in _swimmers) {
-                        if (string.IsNullOrEmpty(sw.BibNumber)) continue;
-                        string savedStatus;
-                        if (liveHeatStatusByBib != null && liveHeatStatusByBib.TryGetValue(sw.BibNumber, out savedStatus))
-                            sw.Status = savedStatus;
-                        LaneResult savedR;
-                        if (liveHeatResultsByBib == null || !liveHeatResultsByBib.TryGetValue(sw.BibNumber, out savedR)) continue;
-                        var staleR = sw.Results.FirstOrDefault(x => x.Stage == _currentStage && x.Heat == _currentHeat);
-                        if (staleR != null) sw.Results.Remove(staleR);
-                        sw.Results.Add(savedR);
-                        restored++;
-                    }
-                    if (restored > 0)
-                        AddLog(string.Format("远程同步整包重载: 正在比的第{0}组, {1} 道的成绩/分段已原样保留(不采用包里那份旧快照)",
-                            _currentHeat, restored));
                 }
                 _relayTeams.Clear();
                 if (package.RelayTeams != null) {
