@@ -2674,8 +2674,7 @@ namespace SwimmingScoreboard
                 foreach (var leg in team.Legs) existingTeam.Legs.Add(leg);
                 AddLog(string.Format("更新接力队: {0} ({1}) {2}人", team.TeamName, team.EventName, team.Legs.Count));
                 RebuildRelayGroupedView();
-                AutoSaveData();
-                Broadcast();
+                FinishAndSyncPatch(BuildSwimmerRowsUpsertPatch(new List<Swimmer>(), new List<RelayTeam> { existingTeam }, null, ClientLabel()), "swimmer");
                 // 反馈：更新已存在的接力队
                 var existingProxy = _swimmers.FirstOrDefault(s =>
                     s.Country == team.TeamName && s.Gender == team.Gender && s.EventName == team.EventName
@@ -2685,6 +2684,7 @@ namespace SwimmingScoreboard
                 return;
             }
             _relayTeams.Add(team);
+            var touchedRows = new List<Swimmer>();
 
             // 在_swimmers中创建代表该接力队的条目，统一走日程/分组/成绩流程
             string legNames = "";
@@ -2708,6 +2708,7 @@ namespace SwimmingScoreboard
                 };
                 if (!string.IsNullOrEmpty(relayAgeGroup)) proxy.AgeCategory = relayAgeGroup;
                 _swimmers.Add(proxy);
+                touchedRows.Add(proxy);
             }
 
             // 为每位队员创建/更新 Swimmer 子条目（用于存储身份证并承载检录状态）
@@ -2728,6 +2729,7 @@ namespace SwimmingScoreboard
                     if (!string.IsNullOrEmpty(leg.SwimmerBirthDate))
                         memExisting.BirthDate = leg.SwimmerBirthDate;
                     if (string.IsNullOrEmpty(memExisting.BibNumber)) memExisting.BibNumber = memBib;
+                    touchedRows.Add(memExisting);
                 } else {
                     var mem = new Swimmer {
                         BibNumber = memBib,
@@ -2742,13 +2744,13 @@ namespace SwimmingScoreboard
                     };
                     if (!string.IsNullOrEmpty(relayAgeGroup)) mem.AgeCategory = relayAgeGroup;
                     _swimmers.Add(mem);
+                    touchedRows.Add(mem);
                 }
             }
 
             AddLog(string.Format("注册接力队: {0} ({1}) {2}人 [{3}]", team.TeamName, team.EventName, team.Legs.Count, legNames));
             RebuildRelayGroupedView();
-            AutoSaveData();
-            Broadcast();
+            FinishAndSyncPatch(BuildSwimmerRowsUpsertPatch(touchedRows, new List<RelayTeam> { team }, null, ClientLabel()), "swimmer");
             SendRelayResult(socket, true, "接力队报名成功", team.TeamName, bibNumber, team.Legs.Count, false);
         }
 
@@ -10085,7 +10087,10 @@ namespace SwimmingScoreboard
                 try { BuildScheduleTree(); } catch { }
                 try { CalculateTeamScores(); } catch { }
                 try { RefreshOverviewStats(); } catch { }
-                try { AutoSaveData(); } catch { }
+                // 2026-09-20 每一组都是经 HandleHeatConfirmedPush 灌的(见上面那句调用)——
+                // 那条路自己已经 SaveWithoutPush+PushDataChanged 过了, 这里再退回
+                // AutoSaveData() 反而是把已经省下来的整包又推一次, 一样改成轻量收尾。
+                try { SaveWithoutPush(); PushDataChanged("meet"); } catch { }
                 try { Broadcast(); } catch { }
 
                 AddLog(string.Format("已从文件导入成绩: {0} 个组成功{1}{2}",
@@ -12517,6 +12522,104 @@ namespace SwimmingScoreboard
             return true;
         }
 
+        // 2026-09-20 【用户明确要求: CSV/Excel 批量导入那几处也建个 upsert 型补丁】——
+        //   这几处导入是"新增"和"更新已有记录"混在一起的批量操作(ImportOneSwimmerEvent
+        //   就是典型: 身份证号+项目匹配上就地覆盖字段, 匹配不上才新建一行), SwimmerRowsAdd
+        //   那套"按(号码+项目)去重、已存在就跳过"的语义在这里不对——已存在的那些行本该
+        //   被"覆盖"而不是"跳过", 用 SwimmerRowsAdd 会把更新悄悄丢掉。这里单独建一条
+        //   "upsert"语义的补丁: 优先按身份证号+项目匹配(跟 ImportOneSwimmerEvent 同一个
+        //   优先级), 找不到再退回号码+项目匹配, 都没有就当新增——接收端和发起端用的是
+        //   同一套匹配规则, 不会出现"发起端更新了第3行, 接收端却把第3行当新增"这种分叉。
+        private JObject BuildSwimmerRowsUpsertPatch(List<Swimmer> rows, List<SwimmerDeleteKey> removeKeys, string clientName) {
+            return BuildSwimmerRowsUpsertPatch(rows, null, removeKeys, clientName);
+        }
+        /// <summary>teams 可选——接力棒次表导入这类场景会就地改现有 RelayTeam 的 Legs,
+        /// 同 SwimmerRowsAdd 的 teams: 按队名+项目+性别匹配上就整队替换, 匹配不上才新增。</summary>
+        private JObject BuildSwimmerRowsUpsertPatch(List<Swimmer> rows, List<RelayTeam> teams, List<SwimmerDeleteKey> removeKeys, string clientName) {
+            var p = NewPatch("SwimmerRowsUpsert", "", "", "", "", clientName);
+            p["rows"] = JArray.FromObject(rows ?? new List<Swimmer>());
+            if (teams != null && teams.Count > 0) p["teams"] = JArray.FromObject(teams);
+            if (removeKeys != null && removeKeys.Count > 0)
+                p["removeKeys"] = JArray.FromObject(removeKeys.Select(k => new { bibNumber = k.BibNumber, name = k.Name, eventName = k.EventName }));
+            return p;
+        }
+        private void ApplyRelayTeamsUpsertCore(List<RelayTeam> teams) {
+            foreach (var t in teams ?? new List<RelayTeam>()) {
+                if (t == null || string.IsNullOrEmpty(t.TeamName)) continue;
+                var existing = _relayTeams.FirstOrDefault(x => x.TeamName == t.TeamName && x.EventName == t.EventName && x.Gender == t.Gender);
+                if (existing != null) {
+                    // 2026-09-20 RelayTeam 自己也带着实时成绩/分段(FinalTime/LegSplits等)——
+                    //   跟 ApplySwimmerRowsUpsertCore 同一道理, 正在比的这支队跳过不碰。
+                    if (_meetDb.LiveActive && existing.EventName == _currentEvent && existing.Heat == _currentHeat) {
+                        AddLog(string.Format("批量导入: 接力队 {0} 正在参加当前组比赛, 本行改动已跳过(临时数据库使用中)", existing.TeamName));
+                        continue;
+                    }
+                    _relayTeams[_relayTeams.IndexOf(existing)] = t;
+                } else {
+                    _relayTeams.Add(t);
+                }
+            }
+        }
+        private void ApplySwimmerRowsUpsertCore(List<Swimmer> rows, out int added, out int updated) {
+            added = 0; updated = 0;
+            foreach (var r in rows ?? new List<Swimmer>()) {
+                if (r == null) continue;
+                Swimmer existing = null;
+                if (!string.IsNullOrEmpty(r.IDNumber))
+                    existing = _swimmers.FirstOrDefault(s => !string.IsNullOrEmpty(s.IDNumber) && s.IDNumber == r.IDNumber && s.EventName == r.EventName);
+                if (existing == null && !string.IsNullOrEmpty(r.BibNumber))
+                    existing = _swimmers.FirstOrDefault(s => s.BibNumber == r.BibNumber && s.EventName == r.EventName);
+                if (existing != null) {
+                    // 2026-09-20 【同一条命根子, 用户明确要求过】upsert 是整行覆盖(见下面注释),
+                    //   对端那份没有正在计时这台机器刚触板出来的分段/成绩——如果这一行正好是
+                    //   当前组临时数据库(current_heat.db)在用的那个人, 覆盖等于把刚打上去的
+                    //   成绩冲掉。跟整包同一个道理: LiveActive 期间这一行原样不动、跳过,
+                    //   等这一组确认/取消(临时数据库使命完成)后由下一次批量导入/补丁自然覆盖。
+                    if (_meetDb.LiveActive && existing.EventName == _currentEvent
+                        && (existing.GetAssignmentForStage(_currentStage) != null
+                            ? existing.GetAssignmentForStage(_currentStage).Heat == _currentHeat
+                            : existing.Heat == _currentHeat)) {
+                        AddLog(string.Format("批量导入: {0}({1}) 正在参加当前组比赛, 本行改动已跳过(临时数据库使用中)",
+                            existing.Name, existing.BibNumber));
+                        continue;
+                    }
+                    int idx = _swimmers.IndexOf(existing);
+                    _swimmers[idx] = r;   // 整行换成对端那份最终值, 字段级 diff 没必要——本来就是"这一行现在长这样"
+                    updated++;
+                } else {
+                    _swimmers.Add(r);
+                    added++;
+                }
+            }
+        }
+        private bool ApplySwimmerRowsUpsertPatch(JObject msg, out string error) {
+            error = null;
+            var removeArr = msg["removeKeys"] as JArray;
+            if (removeArr != null) {
+                foreach (JObject o in removeArr) {
+                    string bib = o["bibNumber"] != null ? o["bibNumber"].ToString() : "";
+                    if (string.IsNullOrEmpty(bib)) continue;
+                    foreach (var sw in _swimmers.Where(s => s.BibNumber == bib).ToList()) _swimmers.Remove(sw);
+                }
+            }
+            var rows = new List<Swimmer>();
+            var arr = msg["rows"] as JArray;
+            if (arr != null) foreach (var t in arr) {
+                try { var sw = t.ToObject<Swimmer>(); if (sw != null) rows.Add(sw); } catch { }
+            }
+            int added, updated;
+            ApplySwimmerRowsUpsertCore(rows, out added, out updated);
+            var teamsArr = msg["teams"] as JArray;
+            if (teamsArr != null) {
+                var teams = new List<RelayTeam>();
+                foreach (var t in teamsArr) {
+                    try { var rt = t.ToObject<RelayTeam>(); if (rt != null) teams.Add(rt); } catch { }
+                }
+                ApplyRelayTeamsUpsertCore(teams);
+            }
+            return true;
+        }
+
         private JObject BuildListSetPatch(string target, JToken items, string clientName) {
             var p = NewPatch("ListSet", "", "", "", "", clientName);
             p["target"] = target ?? "";
@@ -12583,6 +12686,7 @@ namespace SwimmingScoreboard
             if (op == "RelayDelete") return ApplyRelayDeletePatch(msg, out error);
             if (op == "SwimmerDelete") return ApplySwimmerDeletePatch(msg, out error);
             if (op == "SwimmerRowsAdd") return ApplySwimmerRowsAddPatch(msg, out error);
+            if (op == "SwimmerRowsUpsert") return ApplySwimmerRowsUpsertPatch(msg, out error);
             if (op == "ListSet") return ApplyListSetPatch(msg, out error);
             if (op != "MergeHeats") { error = "不认识的补丁类型: " + op; return false; }
 
@@ -18874,6 +18978,7 @@ namespace SwimmingScoreboard
 
                 int imported = 0, updated = 0, skipped = 0;
                 var skipReasons = new List<string>();
+                var touchedRows = new List<Swimmer>();
 
                 for (int i = 1; i < rows.Count; i++) {
                     string[] cols = rows[i];
@@ -18926,18 +19031,19 @@ namespace SwimmingScoreboard
 
                     // 通过 → 写入(每项目一条 Upsert)
                     foreach (var p in validPairs) {
+                        Swimmer touched;
                         ImportOneSwimmerEvent(bibFromRow, name, gender, country, countryShort,
                             p[0], p[1], age, birthDate, idNumber, phone, notes, ageCategory,
-                            i + 1, ref imported, ref updated, ref skipped, skipReasons);
+                            i + 1, ref imported, ref updated, ref skipped, skipReasons, out touched);
+                        if (touched != null) touchedRows.Add(touched);
                     }
                 }
 
                 AddLog(string.Format("CSV 导入完成: 新增 {0} 条 / 更新 {1} 条 / 跳过 {2} 行",
                     imported, updated, skipped));
-                AutoSaveData();
                 RefreshOverviewStats();
                 RefreshSwimmerFilter();
-                Broadcast();
+                FinishAndSyncPatch(BuildSwimmerRowsUpsertPatch(touchedRows, null, ClientLabel()), "swimmer");
 
                 // 汇总弹窗 — 全量列出便于管理员定位
                 var sb = new StringBuilder();
@@ -18978,7 +19084,9 @@ namespace SwimmingScoreboard
             string bibNum, string name, string gender, string country, string countryShort,
             string eventName, string entryTime, int age, string birthDate, string idNumber,
             string phone, string notes, string ageCategory,
-            int rowIdx, ref int imported, ref int updated, ref int skipped, List<string> skipReasons) {
+            int rowIdx, ref int imported, ref int updated, ref int skipped, List<string> skipReasons,
+            out Swimmer touched) {
+            touched = null;
             double entrySec = TimeFormatter.Parse(entryTime);
 
             // ★ Upsert：身份证号 + 项目 双匹配 → 覆盖现有记录
@@ -19001,6 +19109,7 @@ namespace SwimmingScoreboard
                     if (!string.IsNullOrEmpty(ageCategory)) existing.AgeCategory = ageCategory;
                     if (!string.IsNullOrEmpty(bibNum))      existing.BibNumber   = bibNum;
                     updated++;
+                    touched = existing;
                     return;
                 }
             }
@@ -19043,6 +19152,7 @@ namespace SwimmingScoreboard
             if (!string.IsNullOrEmpty(ageCategory)) sw.AgeCategory = ageCategory;
             _swimmers.Add(sw);
             imported++;
+            touched = sw;
         }
 
         private void AddRelay_Click(object sender, RoutedEventArgs e) {
@@ -19535,6 +19645,8 @@ namespace SwimmingScoreboard
             var perSession = new Dictionary<int, int>();   // 2026-08-21 按场次分别汇报, 现场一眼看出读的是哪一场
             var notFound = new List<string>();
             var changeLog = new List<string>();
+            var touchedTeams = new List<RelayTeam>();
+            var touchedRows = new List<Swimmer>();
 
             foreach (var d in sheetRows) {
                 // 2026-08-21 只读选中的那一场; 别场的行原样不动, 但要计数报出来
@@ -19572,7 +19684,10 @@ namespace SwimmingScoreboard
                 while (t.Legs.Count < 4) t.Legs.Add(new RelayLeg { LegOrder = t.Legs.Count + 1 });
                 for (int i = 0; i < 4; i++) { t.Legs[i].LegOrder = i + 1; t.Legs[i].SwimmerName = names[i]; }
 
-                SyncRelayLegsToSwimmers(t, oldNames);
+                List<Swimmer> syncTouched;
+                SyncRelayLegsToSwimmers(t, oldNames, out syncTouched);
+                touchedTeams.Add(t);
+                touchedRows.AddRange(syncTouched);
                 updated++;
                 int sesNo = d.Session;
                 if (!perSession.ContainsKey(sesNo)) perSession[sesNo] = 0;
@@ -19581,9 +19696,8 @@ namespace SwimmingScoreboard
             }
 
             if (updated > 0) {
-                AutoSaveData();
                 RebuildRelayGroupedView();
-                Broadcast();
+                FinishAndSyncPatch(BuildSwimmerRowsUpsertPatch(touchedRows, touchedTeams, null, ClientLabel()), "swimmer");
             }
 
             // 选的场次在文件里一行都没有 —— 多半是文件拿错了
@@ -19623,13 +19737,18 @@ namespace SwimmingScoreboard
         // Notes("接力队 棒次:甲,乙,丙,丁"), 不同步的话名单填了大屏也不显示。
         // 与 EditRelay_Click 里的同步逻辑保持一致。
         private void SyncRelayLegsToSwimmers(RelayTeam t, List<string> oldNames) {
+            List<Swimmer> touched;
+            SyncRelayLegsToSwimmers(t, oldNames, out touched);
+        }
+        private void SyncRelayLegsToSwimmers(RelayTeam t, List<string> oldNames, out List<Swimmer> touched) {
+            touched = new List<Swimmer>();
             string legNamesStr = string.Join(",", t.Legs.Select(l => l.SwimmerName ?? "").ToArray());
             // 代表条目: 按 队名+项目+性别 定位, 不依赖 Notes 的具体写法
             // (本届档案里没填棒次时 Notes 只有"接力队"三个字, 用 StartsWith("接力队 棒次:") 找不到)
             var proxy = _swimmers.FirstOrDefault(s =>
                 (s.Name ?? "") == (t.TeamName ?? "") && (s.EventName ?? "") == (t.EventName ?? "")
                 && (s.Gender ?? "") == (t.Gender ?? "") && !IsRelayMemberNote(s.Notes));
-            if (proxy != null) proxy.Notes = "接力队 棒次:" + legNamesStr;
+            if (proxy != null) { proxy.Notes = "接力队 棒次:" + legNamesStr; touched.Add(proxy); }
 
             for (int i = 0; i < Math.Min(4, t.Legs.Count); i++) {
                 string oldName = (oldNames != null && i < oldNames.Count) ? oldNames[i] : "";
@@ -19641,16 +19760,19 @@ namespace SwimmingScoreboard
                 if (mem != null) {
                     mem.Name = newName;
                     mem.Notes = string.Format("接力队员 {0} 第{1}棒", t.EventName, i + 1);
+                    touched.Add(mem);
                 } else if (!string.IsNullOrEmpty(newName)) {
                     string memBib = (proxy != null ? proxy.BibNumber : "R???") + "-" + (i + 1);
                     if (!_swimmers.Any(s => s.BibNumber == memBib)) {
-                        _swimmers.Add(new Swimmer {
+                        var newMem = new Swimmer {
                             BibNumber = memBib, Name = newName,
                             Gender = (t.Gender == "混合" || t.Gender == "男女") ? "男" : t.Gender,
                             Country = t.TeamName, EventName = t.EventName,
                             AgeCategory = t.AgeGroup,
                             Notes = string.Format("接力队员 {0} 第{1}棒", t.EventName, i + 1)
-                        });
+                        };
+                        _swimmers.Add(newMem);
+                        touched.Add(newMem);
                     }
                 }
             }
@@ -19693,6 +19815,8 @@ namespace SwimmingScoreboard
 
             int importedCount = 0, pendingCount = 0;
             var skipped = new List<string>();
+            var addedRows = new List<Swimmer>();
+            var addedTeams = new List<RelayTeam>();
 
             for (int li = 1; li < lines.Length; li++) {
                 string raw = lines[li];
@@ -19760,6 +19884,7 @@ namespace SwimmingScoreboard
                     });
                 }
                 _relayTeams.Add(team);
+                addedTeams.Add(team);
                 existingKeys.Add(dedupKey);
                 if (team.AgeCategoryPending) pendingCount++;
                 importedCount++;
@@ -19768,28 +19893,32 @@ namespace SwimmingScoreboard
                 string legNamesStr = string.Join(",", legNames);
                 string teamBib = "R" + _relayTeams.Count.ToString("D3");
                 while (_swimmers.Any(s => s.BibNumber == teamBib)) teamBib = "R" + DateTime.Now.Ticks.ToString().Substring(10);
-                _swimmers.Add(new Swimmer {
+                var proxyRow = new Swimmer {
                     BibNumber = teamBib, Name = teamName, Gender = gender, Country = teamName,
                     EventName = evName, AgeCategory = ageGrp,
                     EntryTime = entryTime, EntryTimeSeconds = team.EntryTimeSeconds,
                     Notes = string.Format("接力队 棒次:{0}", legNamesStr)
-                });
+                };
+                _swimmers.Add(proxyRow);
+                addedRows.Add(proxyRow);
                 for (int k = 0; k < 4; k++) {
                     string memBib = teamBib + "-" + (k + 1);
                     if (_swimmers.Any(s => s.BibNumber == memBib)) continue;
-                    _swimmers.Add(new Swimmer {
+                    var memberRow = new Swimmer {
                         BibNumber = memBib, Name = legNames[k],
                         Gender = gender == "混合" ? "男" : gender, Country = teamName,
                         IDNumber = legIds[k] ?? "",
                         BirthDate = legBirths[k] ?? "",
                         EventName = evName,
                         Notes = string.Format("接力队员 {0} 第{1}棒", evName, k + 1)
-                    });
+                    };
+                    _swimmers.Add(memberRow);
+                    addedRows.Add(memberRow);
                 }
             }
 
-            AutoSaveData();
             RebuildRelayGroupedView();
+            FinishAndSyncPatch(BuildSwimmerRowsAddPatch(addedRows, addedTeams, ClientLabel()), "swimmer");
             AddLog(string.Format("接力 CSV 导入: 新增 {0} 队 / 跳过 {1} 行 / 待确认 {2} 队",
                 importedCount, skipped.Count, pendingCount));
 
@@ -28883,9 +29012,8 @@ namespace SwimmingScoreboard
                     });
                     imported++;
                 }
-                AutoSaveData();
                 BuildScheduleTree();
-                Broadcast();
+                FinishAndSyncPatch(BuildListSetPatch("schedule", JArray.FromObject(_schedule), ClientLabel()), "meet");
                 AddLog(string.Format("导入日程表: 新增{0}条, 跳过{1}行", imported, skipped));
                 MessageBox.Show(string.Format("已导入日程 {0} 条（跳过{1}行）。", imported, skipped), "完成");
             } catch (Exception ex) {
@@ -29136,10 +29264,12 @@ namespace SwimmingScoreboard
                         }
                     }
                 }
-                AutoSaveData();
                 RebuildScheduleGroupedView();
                 BuildScheduleTree();
-                Broadcast();
+                // 2026-09-20 _schedule 整表本来就用 ListSet 补丁同步(见 AddSchedule_Click 等)——
+                // 这里改完了的 _schedule 就是最终那份, 直接复用同一条路, 不必再单独建一套按行
+                // upsert 的协议。
+                FinishAndSyncPatch(BuildListSetPatch("schedule", JArray.FromObject(_schedule), ClientLabel()), "meet");
                 MessageBox.Show(string.Format("导入完成:\n  新增 {0} 项\n  更新 {1} 项\n  跳过 {2} 行", added, updated, skipped), "完成");
                 AddLog(string.Format("导入(其他)日程表: 新增{0} 更新{1} 跳过{2}", added, updated, skipped));
             } catch (Exception ex) {
@@ -29331,6 +29461,7 @@ namespace SwimmingScoreboard
                 int n; if (int.TryParse(sw.BibNumber ?? "", out n) && n > maxBib) maxBib = n;
             }
             int nextBib = maxBib + 1;
+            var touchedRows = new List<Swimmer>();
             try {
                 using (var fs = new FileStream(dlg.FileName, FileMode.Open, FileAccess.Read)) {
                     NPOI.SS.UserModel.IWorkbook wb;
@@ -29428,6 +29559,7 @@ namespace SwimmingScoreboard
                             if (heat > 0 && lane > 0)
                                 target.SetStageAssignment(stage, heat, lane, target.EntryTimeSeconds, target.EntryTime);
                             updated++;
+                            touchedRows.Add(target);
                         } else {
                             var nsw = new Swimmer {
                                 Name = name,
@@ -29451,15 +29583,15 @@ namespace SwimmingScoreboard
                                 nsw.SetStageAssignment(stage, heat, lane, nsw.EntryTimeSeconds, nsw.EntryTime);
                             _swimmers.Add(nsw);
                             added++;
+                            touchedRows.Add(nsw);
                         }
                     }
                 }
-                AutoSaveData();
                 RefreshOverviewStats();
                 RefreshSwimmerFilter();
                 RebuildScheduleGroupedView();
                 BuildScheduleTree();
-                Broadcast();
+                FinishAndSyncPatch(BuildSwimmerRowsUpsertPatch(touchedRows, null, ClientLabel()), "swimmer");
                 MessageBox.Show(string.Format(
                     "导入完成:\n  更新已有运动员 {0} 人\n  新增运动员 {1} 人\n  无项目 (距离+姿式空) 跳过 {2} 行\n  其它无效 跳过 {3} 行",
                     updated, added, noEvent, skipped), "完成");
@@ -29670,6 +29802,11 @@ namespace SwimmingScoreboard
                 // 按 (gender, event, stage) 分组：清空后再填充
                 var seen = new HashSet<string>();
                 int imported = 0, skipped = 0, notFound = 0;
+                // 2026-09-20 这一步是"先清空这一(组别,性别,项目,阶段)下所有人的分组, 再按
+                // CSV 重新填"——被清空但这次 CSV 没提到的人(分组信息被拿掉了)跟被重新赋值
+                // 的人一样都得同步过去, 否则对端还留着这人旧的道次/组号。用 HashSet 按对象
+                // 去重(可能先被清空、后又在本次重新赋值)。
+                var touchedSet = new HashSet<Swimmer>();
                 for (int i = 1; i < rows.Count; i++) {
                     var c = rows[i];
                     if (c.Length < 6) { skipped++; continue; }
@@ -29704,6 +29841,7 @@ namespace SwimmingScoreboard
                             if (s.Notes != null && s.Notes.StartsWith("接力队员")) continue;
                             if (s.StageAssignments.ContainsKey(stage)) s.StageAssignments.Remove(stage);
                             if (s.CurrentStage == stage) { s.Heat = 0; s.Lane = 0; }
+                            touchedSet.Add(s);
                         }
                     }
 
@@ -29727,6 +29865,7 @@ namespace SwimmingScoreboard
                     sw.SetStageAssignment(stage, heat, lane, sec, seedTime);
                     if (sw.CurrentStage == stage) { sw.Heat = heat; sw.Lane = lane; }
                     imported++;
+                    touchedSet.Add(sw);
                 }
 
                 // 更新各项目的 HeatCount（按导入后最大组号）
@@ -29740,9 +29879,12 @@ namespace SwimmingScoreboard
                     if (maxHeat > 0) sched.HeatCount = maxHeat;
                 }
 
-                AutoSaveData();
                 BuildScheduleTree();
-                Broadcast();
+                FinishAndSyncPatch(BuildSwimmerRowsUpsertPatch(touchedSet.ToList(), null, ClientLabel()), "swimmer");
+                // HeatCount 是 _schedule 上的字段, 跟运动员分组走的不是同一份数据, 单独用
+                // ListSet 补一次——这两条补丁都比整包轻得多, 分开发不值得为了省这一点带宽
+                // 再去为它俩搭一条合并通道。
+                FinishAndSyncPatch(BuildListSetPatch("schedule", JArray.FromObject(_schedule), ClientLabel()), "meet");
                 AddLog(string.Format("导入分组表: 分配{0}条, 跳过{1}行, 未匹配{2}人", imported, skipped, notFound));
                 string note = notFound > 0 ? string.Format("\n有 {0} 行未匹配到运动员（参赛号或姓名+代表队不符，已跳过）。", notFound) : "";
                 MessageBox.Show(string.Format("已导入分组 {0} 条。{1}", imported, note), "完成");
