@@ -2,6 +2,24 @@
 
 $md = [System.IO.File]::ReadAllText($mdPath, [System.Text.Encoding]::UTF8)
 $lines = $md -split "(`r`n|`n)"
+$mdDir = Split-Path -Parent (Resolve-Path $mdPath)
+
+function EmbedImage([string]$src) {
+    $imgPath = $src
+    if (-not [System.IO.Path]::IsPathRooted($imgPath)) { $imgPath = Join-Path $mdDir $imgPath }
+    if (-not (Test-Path $imgPath)) { return $null }
+    $ext = [System.IO.Path]::GetExtension($imgPath).TrimStart('.').ToLower()
+    $mime = switch ($ext) {
+        "png" { "image/png" }
+        "jpg" { "image/jpeg" }
+        "jpeg" { "image/jpeg" }
+        "gif" { "image/gif" }
+        default { "image/png" }
+    }
+    $bytes = [System.IO.File]::ReadAllBytes($imgPath)
+    $b64 = [System.Convert]::ToBase64String($bytes)
+    return "data:$mime;base64,$b64"
+}
 
 $out = ""
 $inCode = $false
@@ -105,6 +123,21 @@ foreach ($raw in $lines) {
         continue
     }
 
+    # 图片（独占一行）：![alt](path)
+    if ($line -match '^\s*!\[([^\]]*)\]\(([^\)]+)\)\s*$') {
+        $alt = $matches[1]
+        $src = $matches[2]
+        $dataUri = EmbedImage $src
+        if ($dataUri -ne $null) {
+            $out += "<figure><img src=`"$dataUri`" alt=`"" + (EscHtml $alt) + "`">"
+            if ($alt -ne '') { $out += "<figcaption>" + (InlineMd (EscHtml $alt)) + "</figcaption>" }
+            $out += "</figure>`r`n"
+        } else {
+            $out += "<p style=`"color:#dc2626`">[图片未找到: " + (EscHtml $src) + "]</p>`r`n"
+        }
+        continue
+    }
+
     # 段落
     if ($line.Trim() -ne '') {
         $out += "<p>" + (InlineMd (EscHtml $line)) + "</p>`r`n"
@@ -114,7 +147,7 @@ foreach ($raw in $lines) {
 if ($inList) { $out += "</$listType>`r`n" }
 if ($inTable) { $out += "</tbody></table>`r`n" }
 
-$css = "body{font-family:'Microsoft YaHei','Source Han Sans CN',sans-serif;max-width:960px;margin:30px auto;padding:0 20px;line-height:1.7;color:#1f2937;background:#fff;}h1{color:#1e3a8a;font-size:28px;border-bottom:3px solid #3b82f6;padding-bottom:12px;margin-top:30px;}h2{color:#1e40af;font-size:22px;border-bottom:1px solid #cbd5e1;padding-bottom:6px;margin-top:30px;}h3{color:#1e3a8a;font-size:18px;margin-top:24px;}h4{color:#334155;font-size:16px;margin-top:18px;}h5,h6{color:#475569;font-size:14px;}p{margin:8px 0;}table{border-collapse:collapse;margin:12px 0;width:100%;font-size:14px;}th,td{border:1px solid #cbd5e1;padding:8px 12px;text-align:left;vertical-align:top;}th{background:#eff6ff;color:#1e40af;font-weight:bold;}tr:nth-child(even) td{background:#f8fafc;}code{background:#f1f5f9;padding:1px 6px;border-radius:3px;color:#be185d;font-family:Consolas,monospace;font-size:90%;}pre{background:#0f172a;color:#e2e8f0;padding:14px 16px;border-radius:6px;overflow-x:auto;font-family:Consolas,monospace;font-size:13px;}ul,ol{margin:8px 0 8px 28px;}li{margin:4px 0;}blockquote{border-left:4px solid #3b82f6;background:#eff6ff;padding:6px 14px;margin:10px 0;color:#1e3a8a;}hr{border:none;border-top:2px solid #e2e8f0;margin:30px 0;}a{color:#2563eb;text-decoration:none;}a:hover{text-decoration:underline;}strong{color:#1e293b;}@media print{body{font-size:11pt;max-width:100%;}h1{page-break-before:always;}h1:first-child{page-break-before:auto;}table,pre,blockquote{page-break-inside:avoid;}pre{background:#f8fafc;color:#1f2937;}}"
+$css = "body{font-family:'Microsoft YaHei','Source Han Sans CN',sans-serif;max-width:960px;margin:30px auto;padding:0 20px;line-height:1.7;color:#1f2937;background:#fff;}h1{color:#1e3a8a;font-size:28px;border-bottom:3px solid #3b82f6;padding-bottom:12px;margin-top:30px;}h2{color:#1e40af;font-size:22px;border-bottom:1px solid #cbd5e1;padding-bottom:6px;margin-top:30px;}h3{color:#1e3a8a;font-size:18px;margin-top:24px;}h4{color:#334155;font-size:16px;margin-top:18px;}h5,h6{color:#475569;font-size:14px;}p{margin:8px 0;}table{border-collapse:collapse;margin:12px 0;width:100%;font-size:14px;}th,td{border:1px solid #cbd5e1;padding:8px 12px;text-align:left;vertical-align:top;}th{background:#eff6ff;color:#1e40af;font-weight:bold;}tr:nth-child(even) td{background:#f8fafc;}code{background:#f1f5f9;padding:1px 6px;border-radius:3px;color:#be185d;font-family:Consolas,monospace;font-size:90%;}pre{background:#0f172a;color:#e2e8f0;padding:14px 16px;border-radius:6px;overflow-x:auto;font-family:Consolas,monospace;font-size:13px;}ul,ol{margin:8px 0 8px 28px;}li{margin:4px 0;}blockquote{border-left:4px solid #3b82f6;background:#eff6ff;padding:6px 14px;margin:10px 0;color:#1e3a8a;}hr{border:none;border-top:2px solid #e2e8f0;margin:30px 0;}a{color:#2563eb;text-decoration:none;}a:hover{text-decoration:underline;}strong{color:#1e293b;}figure{margin:16px 0;text-align:center;}figure img{max-width:100%;border:1px solid #cbd5e1;border-radius:6px;box-shadow:0 1px 4px rgba(0,0,0,.08);}figcaption{margin-top:6px;font-size:13px;color:#64748b;}@media print{figure{page-break-inside:avoid;}body{font-size:11pt;max-width:100%;}h1{page-break-before:always;}h1:first-child{page-break-before:auto;}table,pre,blockquote{page-break-inside:avoid;}pre{background:#f8fafc;color:#1f2937;}}"
 
 $html = "<!DOCTYPE html><html lang=`"zh`"><head><meta charset=`"utf-8`"><title>$title</title><style>$css</style></head><body>$out</body></html>"
 
