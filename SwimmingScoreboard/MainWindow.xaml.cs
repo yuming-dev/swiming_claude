@@ -13387,14 +13387,11 @@ namespace SwimmingScoreboard
         // 2026-09-21 用户明确要求: 组次状态标注做成"数字 -> 状态"对照表, 这样以后整个
         //   系统从中文转英文时只用改这一张表。唯一的中文文本来源, 其它地方一律只传
         //   HeatDisplayStatus 这个数字, 不再比较/拼接字符串。
-        private static readonly Dictionary<HeatDisplayStatus, string> HeatStatusLabels = new Dictionary<HeatDisplayStatus, string> {
-            { HeatDisplayStatus.Pending,   "未开始" },
-            { HeatDisplayStatus.CheckedIn, "已检录" },
-            { HeatDisplayStatus.Running,   "进行中" },
-            { HeatDisplayStatus.Done,      "已完赛" },
-            { HeatDisplayStatus.Confirmed, "已确认" },
-            { HeatDisplayStatus.Cancelled, "已取消" },
-        };
+        // 2026-09-21 【中文/English 第五阶段】这张表原来是死的静态字典, 现在真的要转英文了——
+        //   改成从 Loc.T() 查表(键 Str_HeatStatus_*, 见 Localization.cs), 中文/English 两条
+        //   跟着"设置"页那个按钮活切换。BuildScheduleTree() 在 LanguageToggle_Click 里补了一次
+        //   调用(见该处说明), 已经渲染好的树节点才会跟着重画成新语言, 不然这些标签是烤进
+        //   TreeViewItem.Header 字符串里的, 不会像 DynamicResource 那样自己活刷新。
 
         private string HeatStatus(string ageGroup, string gender, string eventName, string stage, int heat) {
             if (IsHeatTrulyConfirmed(ageGroup, gender, eventName, stage, heat)) return "confirmed";
@@ -13464,8 +13461,14 @@ namespace SwimmingScoreboard
         }
 
         private static string HeatStatusText(HeatDisplayStatus s) {
-            string label;
-            return HeatStatusLabels.TryGetValue(s, out label) ? label : HeatStatusLabels[HeatDisplayStatus.Pending];
+            switch (s) {
+                case HeatDisplayStatus.CheckedIn: return Loc.T("Str_HeatStatus_CheckedIn");
+                case HeatDisplayStatus.Running:   return Loc.T("Str_HeatStatus_Running");
+                case HeatDisplayStatus.Done:      return Loc.T("Str_HeatStatus_Done");
+                case HeatDisplayStatus.Confirmed: return Loc.T("Str_HeatStatus_Confirmed");
+                case HeatDisplayStatus.Cancelled: return Loc.T("Str_HeatStatus_Cancelled");
+                default: return Loc.T("Str_HeatStatus_Pending");
+            }
         }
         private static string StatusLabel(HeatDisplayStatus s) { return "[" + HeatStatusText(s) + "]"; }
         private static string StatusLabel(string s) { return StatusLabel(HeatStatusCode(s)); }
@@ -20621,7 +20624,7 @@ namespace SwimmingScoreboard
 
             if (_relayTeams.Count == 0) {
                 RelayGroupedPanel.Children.Add(new TextBlock {
-                    Text = "暂无接力队。请通过测试机器人或手动添加接力队。",
+                    Text = Loc.T("Str_EM_Relay_NoTeams"),
                     Foreground = new SolidColorBrush(Colors.Gray), Margin = new Thickness(10), FontSize = 13
                 });
                 return;
@@ -20633,7 +20636,7 @@ namespace SwimmingScoreboard
 
             foreach (var group in groups) {
                 string ageTag = string.IsNullOrEmpty(group.Key.AgeGroup) ? "" : "[" + group.Key.AgeGroup + "] ";
-                string title = string.Format("{0}{1} {2}（{3}队）", ageTag, group.Key.Gender, group.Key.EventName, group.Count());
+                string title = string.Format(Loc.T("Str_EM_Relay_GroupTitleFmt"), ageTag, group.Key.Gender, group.Key.EventName, group.Count());
                 var header = new TextBlock {
                     Text = title,
                     FontWeight = FontWeights.Bold, FontSize = 15,
@@ -20655,14 +20658,14 @@ namespace SwimmingScoreboard
                     BorderThickness = new Thickness(1),
                     BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#E2E8F0"))
                 };
-                grid.Columns.Add(new DataGridTextColumn { Header = "队名", Binding = new System.Windows.Data.Binding("TeamName"), Width = new DataGridLength(100) });
-                grid.Columns.Add(new DataGridTextColumn { Header = "组别", Binding = new System.Windows.Data.Binding("AgeGroup"), Width = new DataGridLength(60) });
-                grid.Columns.Add(new DataGridTextColumn { Header = "报名成绩", Binding = new System.Windows.Data.Binding("EntryTime"), Width = new DataGridLength(80) });
-                grid.Columns.Add(new DataGridTextColumn { Header = "棒次", Binding = new System.Windows.Data.Binding("LegOrderDisplay"), Width = new DataGridLength(1, DataGridLengthUnitType.Star) });
-                grid.Columns.Add(new DataGridTextColumn { Header = "阶段", Binding = new System.Windows.Data.Binding("Stage"), Width = new DataGridLength(50) });
-                grid.Columns.Add(new DataGridTextColumn { Header = "组", Binding = new System.Windows.Data.Binding("Heat"), Width = new DataGridLength(35) });
-                grid.Columns.Add(new DataGridTextColumn { Header = "道", Binding = new System.Windows.Data.Binding("Lane"), Width = new DataGridLength(35) });
-                grid.Columns.Add(new DataGridTextColumn { Header = "状态", Binding = new System.Windows.Data.Binding("Status"), Width = new DataGridLength(50) });
+                grid.Columns.Add(new DataGridTextColumn { Header = Loc.T("Str_EM_Relay_ColTeamName"), Binding = new System.Windows.Data.Binding("TeamName"), Width = new DataGridLength(100) });
+                grid.Columns.Add(new DataGridTextColumn { Header = Loc.T("Str_Results_ColAgeGroup"), Binding = new System.Windows.Data.Binding("AgeGroup"), Width = new DataGridLength(60) });
+                grid.Columns.Add(new DataGridTextColumn { Header = Loc.T("Str_EM_LT_SeedEntry"), Binding = new System.Windows.Data.Binding("EntryTime"), Width = new DataGridLength(80) });
+                grid.Columns.Add(new DataGridTextColumn { Header = Loc.T("Str_EM_Relay_ColLegs"), Binding = new System.Windows.Data.Binding("LegOrderDisplay"), Width = new DataGridLength(1, DataGridLengthUnitType.Star) });
+                grid.Columns.Add(new DataGridTextColumn { Header = Loc.T("Str_EM_Relay_ColStage"), Binding = new System.Windows.Data.Binding("Stage"), Width = new DataGridLength(50) });
+                grid.Columns.Add(new DataGridTextColumn { Header = Loc.T("Str_EM_Relay_ColHeat"), Binding = new System.Windows.Data.Binding("Heat"), Width = new DataGridLength(35) });
+                grid.Columns.Add(new DataGridTextColumn { Header = Loc.T("Str_Results_ColLane"), Binding = new System.Windows.Data.Binding("Lane"), Width = new DataGridLength(35) });
+                grid.Columns.Add(new DataGridTextColumn { Header = Loc.T("Str_Results_ColStatus"), Binding = new System.Windows.Data.Binding("Status"), Width = new DataGridLength(50) });
 
                 // 2026-05-24 CSV 导入校验 — AgeCategoryPending 高亮黄色 + 弹出提示气泡
                 var rowStyle = new Style(typeof(DataGridRow));
@@ -20673,7 +20676,7 @@ namespace SwimmingScoreboard
                 trigger.Setters.Add(new Setter(DataGridRow.BackgroundProperty,
                     new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FEF3C7"))));
                 trigger.Setters.Add(new Setter(DataGridRow.ToolTipProperty,
-                    (object)"⚠ 组别待确认 — 部分队员生日缺失，请在棒次详情或赛程管理窗口补录"));
+                    (object)Loc.T("Str_EM_Relay_AgeCategoryPendingTip")));
                 rowStyle.Triggers.Add(trigger);
                 grid.RowStyle = rowStyle;
 
@@ -20693,7 +20696,7 @@ namespace SwimmingScoreboard
                                     leg.SwimmerBibNumber = match.BibNumber;
                             }
                         }
-                        RelayLegTitle.Text = string.Format("{0} — {1} 棒次安排（{2}人）", sel.TeamName, sel.EventName, sel.Legs.Count);
+                        RelayLegTitle.Text = string.Format(Loc.T("Str_EM_Relay_LegTitleFmt"), sel.TeamName, sel.EventName, sel.Legs.Count);
                         RelayLegGrid.ItemsSource = sel.Legs;
                     }
                 };
@@ -21205,7 +21208,7 @@ namespace SwimmingScoreboard
 
             string prevStage = GetPreviousStage(stage);
             if (EditSeedTimeColumn != null) {
-                EditSeedTimeColumn.Header = stage == "预赛" ? "报名成绩" : (prevStage + "成绩");
+                EditSeedTimeColumn.Header = stage == "预赛" ? Loc.T("Str_EM_LT_SeedEntry") : string.Format(Loc.T("Str_EM_LT_SeedSuffixFmt"), Loc.StageDisplay(prevStage));
             }
 
             // 查找该赛次的运动员（接力项目只显示代表队条目，不显示个人队员）
@@ -21258,14 +21261,14 @@ namespace SwimmingScoreboard
                         int agi; if (!ageOrder.TryGetValue(ag, out agi)) agi = 999;
                         return agi * 10000 + first.Item2;
                     });
-                string seedColHeader = stage == "预赛" ? "报名成绩" : (prevStage + "成绩");
+                string seedColHeader = stage == "预赛" ? Loc.T("Str_EM_LT_SeedEntry") : string.Format(Loc.T("Str_EM_LT_SeedSuffixFmt"), Loc.StageDisplay(prevStage));
 
                 foreach (var grp in groupsKeyed) {
                     var first = grp.First();
                     string ageLabel = first.Item1.AgeCategory ?? "";
                     string headerText = splitByAge && !string.IsNullOrEmpty(ageLabel)
-                        ? string.Format("{0}  第{1}组（{2}人）", ageLabel, first.Item2, grp.Count())
-                        : string.Format("第{0}组（{1}人）", first.Item2, grp.Count());
+                        ? string.Format(Loc.T("Str_EM_LT_GroupHeaderWithAge"), ageLabel, first.Item2, grp.Count())
+                        : string.Format(Loc.T("Str_EM_LT_GroupHeader"), first.Item2, grp.Count());
                     // 组标题
                     var header = new TextBlock {
                         Text = headerText,
@@ -21290,14 +21293,14 @@ namespace SwimmingScoreboard
                         BorderThickness = new Thickness(1),
                         BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#E2E8F0"))
                     };
-                    grid.Columns.Add(new DataGridTextColumn { Header = "道", Binding = new System.Windows.Data.Binding("Lane"), Width = new DataGridLength(40) });
-                    grid.Columns.Add(new DataGridTextColumn { Header = "号码", Binding = new System.Windows.Data.Binding("BibNumber"), Width = new DataGridLength(60) });
-                    grid.Columns.Add(new DataGridTextColumn { Header = "姓名", Binding = new System.Windows.Data.Binding("Name"), Width = new DataGridLength(80) });
-                    grid.Columns.Add(new DataGridTextColumn { Header = "性别", Binding = new System.Windows.Data.Binding("Gender"), Width = new DataGridLength(40) });
-                    grid.Columns.Add(new DataGridTextColumn { Header = "代表队", Binding = new System.Windows.Data.Binding("Country"), Width = new DataGridLength(80) });
+                    grid.Columns.Add(new DataGridTextColumn { Header = Loc.T("Str_Results_ColLane"), Binding = new System.Windows.Data.Binding("Lane"), Width = new DataGridLength(40) });
+                    grid.Columns.Add(new DataGridTextColumn { Header = Loc.T("Str_Results_ColBib"), Binding = new System.Windows.Data.Binding("BibNumber"), Width = new DataGridLength(60) });
+                    grid.Columns.Add(new DataGridTextColumn { Header = Loc.T("Str_Results_ColName"), Binding = new System.Windows.Data.Binding("Name"), Width = new DataGridLength(80) });
+                    grid.Columns.Add(new DataGridTextColumn { Header = Loc.T("Str_EM_ColGender"), Binding = new System.Windows.Data.Binding("Gender"), Width = new DataGridLength(40) });
+                    grid.Columns.Add(new DataGridTextColumn { Header = Loc.T("Str_Results_ColCountry"), Binding = new System.Windows.Data.Binding("Country"), Width = new DataGridLength(80) });
                     grid.Columns.Add(new DataGridTextColumn { Header = seedColHeader, Binding = new System.Windows.Data.Binding("SeedTime"), Width = new DataGridLength(80) });
-                    grid.Columns.Add(new DataGridTextColumn { Header = "组别", Binding = new System.Windows.Data.Binding("AgeCategory"), Width = new DataGridLength(60) });
-                    grid.Columns.Add(new DataGridTextColumn { Header = "状态", Binding = new System.Windows.Data.Binding("Status"), Width = new DataGridLength(50) });
+                    grid.Columns.Add(new DataGridTextColumn { Header = Loc.T("Str_Results_ColAgeGroup"), Binding = new System.Windows.Data.Binding("AgeCategory"), Width = new DataGridLength(60) });
+                    grid.Columns.Add(new DataGridTextColumn { Header = Loc.T("Str_Results_ColStatus"), Binding = new System.Windows.Data.Binding("Status"), Width = new DataGridLength(50) });
 
                     var grpData = grp.OrderBy(t => t.Item3).Select(t => {
                         var s = t.Item1;
@@ -21327,7 +21330,7 @@ namespace SwimmingScoreboard
 
                 if (matchedSwimmers.Count == 0) {
                     EditAllGroupsPanel.Children.Add(new TextBlock {
-                        Text = "暂无分组数据",
+                        Text = Loc.T("Str_EM_LT_NoGroupData"),
                         Foreground = new SolidColorBrush(Colors.Gray),
                         Margin = new Thickness(10),
                         FontSize = 14
@@ -21339,11 +21342,11 @@ namespace SwimmingScoreboard
                 EditAllGroupsScroll.Visibility = System.Windows.Visibility.Visible;
                 EditAllGroupsPanel.Children.Clear();
 
-                string seedColHeader = stage == "预赛" ? "报名成绩" : (prevStage + "成绩");
+                string seedColHeader = stage == "预赛" ? Loc.T("Str_EM_LT_SeedEntry") : string.Format(Loc.T("Str_EM_LT_SeedSuffixFmt"), Loc.StageDisplay(prevStage));
 
                 // 组标题
                 var header = new TextBlock {
-                    Text = string.Format("第{0}组（{1}人）", heat, matchedSwimmers.Count),
+                    Text = string.Format(Loc.T("Str_EM_LT_GroupHeader"), heat, matchedSwimmers.Count),
                     FontWeight = FontWeights.Bold,
                     FontSize = 15,
                     Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E40AF")),
@@ -21364,14 +21367,14 @@ namespace SwimmingScoreboard
                     BorderThickness = new Thickness(1),
                     BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#E2E8F0"))
                 };
-                grid.Columns.Add(new DataGridTextColumn { Header = "道", Binding = new System.Windows.Data.Binding("Lane"), Width = new DataGridLength(40) });
-                grid.Columns.Add(new DataGridTextColumn { Header = "号码", Binding = new System.Windows.Data.Binding("BibNumber"), Width = new DataGridLength(60) });
-                grid.Columns.Add(new DataGridTextColumn { Header = "姓名", Binding = new System.Windows.Data.Binding("Name"), Width = new DataGridLength(80) });
-                grid.Columns.Add(new DataGridTextColumn { Header = "性别", Binding = new System.Windows.Data.Binding("Gender"), Width = new DataGridLength(40) });
-                grid.Columns.Add(new DataGridTextColumn { Header = "代表队", Binding = new System.Windows.Data.Binding("Country"), Width = new DataGridLength(80) });
+                grid.Columns.Add(new DataGridTextColumn { Header = Loc.T("Str_Results_ColLane"), Binding = new System.Windows.Data.Binding("Lane"), Width = new DataGridLength(40) });
+                grid.Columns.Add(new DataGridTextColumn { Header = Loc.T("Str_Results_ColBib"), Binding = new System.Windows.Data.Binding("BibNumber"), Width = new DataGridLength(60) });
+                grid.Columns.Add(new DataGridTextColumn { Header = Loc.T("Str_Results_ColName"), Binding = new System.Windows.Data.Binding("Name"), Width = new DataGridLength(80) });
+                grid.Columns.Add(new DataGridTextColumn { Header = Loc.T("Str_EM_ColGender"), Binding = new System.Windows.Data.Binding("Gender"), Width = new DataGridLength(40) });
+                grid.Columns.Add(new DataGridTextColumn { Header = Loc.T("Str_Results_ColCountry"), Binding = new System.Windows.Data.Binding("Country"), Width = new DataGridLength(80) });
                 grid.Columns.Add(new DataGridTextColumn { Header = seedColHeader, Binding = new System.Windows.Data.Binding("SeedTime"), Width = new DataGridLength(80) });
-                grid.Columns.Add(new DataGridTextColumn { Header = "组别", Binding = new System.Windows.Data.Binding("AgeCategory"), Width = new DataGridLength(60) });
-                grid.Columns.Add(new DataGridTextColumn { Header = "状态", Binding = new System.Windows.Data.Binding("Status"), Width = new DataGridLength(50) });
+                grid.Columns.Add(new DataGridTextColumn { Header = Loc.T("Str_Results_ColAgeGroup"), Binding = new System.Windows.Data.Binding("AgeCategory"), Width = new DataGridLength(60) });
+                grid.Columns.Add(new DataGridTextColumn { Header = Loc.T("Str_Results_ColStatus"), Binding = new System.Windows.Data.Binding("Status"), Width = new DataGridLength(50) });
 
                 // 选中行跟踪（用于上移/下移操作）
                 grid.SelectionChanged += delegate { _editSelectedGrid = grid; };
@@ -21402,7 +21405,7 @@ namespace SwimmingScoreboard
 
                 if (matchedSwimmers.Count == 0) {
                     EditAllGroupsPanel.Children.Add(new TextBlock {
-                        Text = "暂无分组数据",
+                        Text = Loc.T("Str_EM_LT_NoGroupData"),
                         Foreground = new SolidColorBrush(Colors.Gray),
                         Margin = new Thickness(10),
                         FontSize = 14
@@ -22476,15 +22479,15 @@ namespace SwimmingScoreboard
                     IsReadOnly = true,
                     SelectionMode = DataGridSelectionMode.Single
                 };
-                grid.Columns.Add(new DataGridTextColumn { Header = "顺序号", Binding = new System.Windows.Data.Binding("SeqInSession"), Width = new DataGridLength(55) });
-                grid.Columns.Add(new DataGridTextColumn { Header = "时间", Binding = new System.Windows.Data.Binding("Time"), Width = new DataGridLength(70) });
-                grid.Columns.Add(new DataGridTextColumn { Header = "组别", Binding = new System.Windows.Data.Binding("AgeGroup"), Width = new DataGridLength(70) });
-                grid.Columns.Add(new DataGridTextColumn { Header = "性别", Binding = new System.Windows.Data.Binding("Gender"), Width = new DataGridLength(40) });
-                grid.Columns.Add(new DataGridTextColumn { Header = "项目", Binding = new System.Windows.Data.Binding("EventName"), Width = new DataGridLength(160) });
-                grid.Columns.Add(new DataGridTextColumn { Header = "阶段", Binding = new System.Windows.Data.Binding("Stage"), Width = new DataGridLength(60) });
+                grid.Columns.Add(new DataGridTextColumn { Header = Loc.T("Str_EM_Sched_ColSeq"), Binding = new System.Windows.Data.Binding("SeqInSession"), Width = new DataGridLength(55) });
+                grid.Columns.Add(new DataGridTextColumn { Header = Loc.T("Str_EM_Sched_ColTime"), Binding = new System.Windows.Data.Binding("Time"), Width = new DataGridLength(70) });
+                grid.Columns.Add(new DataGridTextColumn { Header = Loc.T("Str_Results_ColAgeGroup"), Binding = new System.Windows.Data.Binding("AgeGroup"), Width = new DataGridLength(70) });
+                grid.Columns.Add(new DataGridTextColumn { Header = Loc.T("Str_EM_ColGender"), Binding = new System.Windows.Data.Binding("Gender"), Width = new DataGridLength(40) });
+                grid.Columns.Add(new DataGridTextColumn { Header = Loc.T("Str_EM_Sched_ColEvent"), Binding = new System.Windows.Data.Binding("EventName"), Width = new DataGridLength(160) });
+                grid.Columns.Add(new DataGridTextColumn { Header = Loc.T("Str_EM_Relay_ColStage"), Binding = new System.Windows.Data.Binding("Stage"), Width = new DataGridLength(60) });
                 // 2026-06-21 加 "人(队)数" 列 (按 CountParticipants 算, 写入 ScheduleItem.ParticipantCount 供 Binding)
-                grid.Columns.Add(new DataGridTextColumn { Header = "人(队)数", Binding = new System.Windows.Data.Binding("ParticipantCount"), Width = new DataGridLength(70) });
-                grid.Columns.Add(new DataGridTextColumn { Header = "组数", Binding = new System.Windows.Data.Binding("HeatCount"), Width = new DataGridLength(50) });
+                grid.Columns.Add(new DataGridTextColumn { Header = Loc.T("Str_EM_Sched_ColParticipants"), Binding = new System.Windows.Data.Binding("ParticipantCount"), Width = new DataGridLength(70) });
+                grid.Columns.Add(new DataGridTextColumn { Header = Loc.T("Str_Results_ColHeatText"), Binding = new System.Windows.Data.Binding("HeatCount"), Width = new DataGridLength(50) });
 
                 // 保留 _schedule 自然顺序（支持用户自定义的比赛顺序）
                 int seq = 0;
@@ -22498,7 +22501,7 @@ namespace SwimmingScoreboard
 
             if (_schedule.Count == 0) {
                 ScheduleGroupedPanel.Children.Add(new TextBlock {
-                    Text = "暂无赛程。请点击\"一键生成日程\"或\"添加赛程项\"。",
+                    Text = Loc.T("Str_EM_Sched_NoSchedule"),
                     Foreground = new SolidColorBrush(Colors.Gray),
                     Margin = new Thickness(10)
                 });
@@ -24099,8 +24102,15 @@ namespace SwimmingScoreboard
             try { RefreshRemarkReactionBtn(); } catch { }
             try { UpdateQuickConnectButton(); } catch { }
             try { UpdateDeviceTestButton(); } catch { }
+            // 2026-09-21 赛程导航树上的 [已确认] 这类状态标签是拼进 TreeViewItem.Header 的
+            // 静态字符串, 不会跟着 DynamicResource 自己变——重建一次树(顺带联动
+            // RebuildBothNavTrees() 那三棵), 已经在屏幕上的标签才会立刻换成新语言。
+            try { BuildScheduleTree(); } catch { }   // 顺带联动 RebuildScheduleGroupedView()(赛程管理分组视图)
+            try { RefreshOverviewStats(); } catch { }
+            try { RebuildRelayGroupedView(); } catch { }
+            try { RefreshEditPreview(); } catch { }
             AddLog(Loc.CurrentLanguage == Loc.En
-                ? "界面语言已切换为 English（标签页/设置页/比赛控制页已生效；系统日志/弹窗仍为中文）"
+                ? "界面语言已切换为 English（标签页/设置页/比赛控制页/赛程导航状态标签已生效；系统日志/弹窗仍为中文）"
                 : "界面语言已切换为中文");
         }
 
@@ -27477,19 +27487,19 @@ namespace SwimmingScoreboard
             // 汇总条
             OverviewSummaryPanel.Children.Clear();
             var summaryItems = new[] {
-                new { Label = "代表队", Value = totalTeams.ToString(), Color = "#8B5CF6" },
-                new { Label = "总人次", Value = totalAthletes.ToString(), Color = "#3B82F6" },
-                new { Label = "男", Value = totalMale.ToString(), Color = "#2563EB" },
-                new { Label = "女", Value = totalFemale.ToString(), Color = "#EC4899" },
-                new { Label = "项目数", Value = totalEvents.ToString(), Color = "#F59E0B" }
+                new { Label = Loc.T("Str_EM_RegStats_Teams"), Value = totalTeams.ToString(), Color = "#8B5CF6" },
+                new { Label = Loc.T("Str_EM_RegStats_Entries"), Value = totalAthletes.ToString(), Color = "#3B82F6" },
+                new { Label = Loc.T("Str_EM_RegStats_Male"), Value = totalMale.ToString(), Color = "#2563EB" },
+                new { Label = Loc.T("Str_EM_RegStats_Female"), Value = totalFemale.ToString(), Color = "#EC4899" },
+                new { Label = Loc.T("Str_EM_RegStats_EventCount"), Value = totalEvents.ToString(), Color = "#F59E0B" }
             };
             if (totalMixed > 0) summaryItems = new[] {
-                new { Label = "代表队", Value = totalTeams.ToString(), Color = "#8B5CF6" },
-                new { Label = "总人次", Value = totalAthletes.ToString(), Color = "#3B82F6" },
-                new { Label = "男", Value = totalMale.ToString(), Color = "#2563EB" },
-                new { Label = "女", Value = totalFemale.ToString(), Color = "#EC4899" },
-                new { Label = "混合", Value = totalMixed.ToString(), Color = "#10B981" },
-                new { Label = "项目数", Value = totalEvents.ToString(), Color = "#F59E0B" }
+                new { Label = Loc.T("Str_EM_RegStats_Teams"), Value = totalTeams.ToString(), Color = "#8B5CF6" },
+                new { Label = Loc.T("Str_EM_RegStats_Entries"), Value = totalAthletes.ToString(), Color = "#3B82F6" },
+                new { Label = Loc.T("Str_EM_RegStats_Male"), Value = totalMale.ToString(), Color = "#2563EB" },
+                new { Label = Loc.T("Str_EM_RegStats_Female"), Value = totalFemale.ToString(), Color = "#EC4899" },
+                new { Label = Loc.T("Str_EM_RegStats_Mixed"), Value = totalMixed.ToString(), Color = "#10B981" },
+                new { Label = Loc.T("Str_EM_RegStats_EventCount"), Value = totalEvents.ToString(), Color = "#F59E0B" }
             };
 
             foreach (var item in summaryItems) {
@@ -27511,7 +27521,7 @@ namespace SwimmingScoreboard
             OverviewStatsPanel.Children.Clear();
             if (eventStats.Count == 0) {
                 OverviewStatsPanel.Children.Add(new TextBlock {
-                    Text = "暂无项目报名数据", Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")),
+                    Text = Loc.T("Str_EM_NoEventData"), Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")),
                     HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 10, 0, 0)
                 });
                 return;
@@ -27553,7 +27563,7 @@ namespace SwimmingScoreboard
                 // 表头
                 grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(28) });
                 var headerBg = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#E2E8F0"));
-                string[] headers = { "#", "项目名称", "男", "女", "合计" };
+                string[] headers = { Loc.T("Str_EM_RegStats_ColIndex"), Loc.T("Str_EM_RegStats_ColEventName"), Loc.T("Str_EM_RegStats_Male"), Loc.T("Str_EM_RegStats_Female"), Loc.T("Str_EM_RegStats_ColTotal") };
                 for (int c = 0; c < headers.Length; c++) {
                     var border = new Border { Background = headerBg, Padding = new Thickness(6, 0, 6, 0) };
                     var tb = new TextBlock {
@@ -27623,7 +27633,7 @@ namespace SwimmingScoreboard
                     grid.Children.Add(border3);
                 };
                 addSumCell(0, "");
-                addSumCell(1, "小计 (" + evList.Count + " 项)");
+                addSumCell(1, string.Format(Loc.T("Str_EM_RegStats_Subtotal"), evList.Count));
                 addSumCell(2, sumM.ToString());
                 addSumCell(3, sumF.ToString());
                 addSumCell(4, sumT.ToString());
@@ -27631,8 +27641,8 @@ namespace SwimmingScoreboard
                 OverviewStatsPanel.Children.Add(grid);
             };
 
-            buildTable("个人项目", personalEvents);
-            buildTable("接力项目", relayEvents);
+            buildTable(Loc.T("Str_EM_RegStats_Personal"), personalEvents);
+            buildTable(Loc.T("Str_EM_RegStats_Relay"), relayEvents);
         }
 
         // ═══════════════════════════════════════════════════════════════

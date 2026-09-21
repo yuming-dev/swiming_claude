@@ -463,6 +463,77 @@ namespace SwimmingScoreboard
             { "Str_Results_ColReaction",new[] { "反应时间", "Reaction" } },
             { "Str_Results_ColStatus",  new[] { "状态", "Status" } },
             { "Str_Results_ColRecord",  new[] { "纪录", "Record" } },
+
+            // 2026-09-21 组次状态标签(赛程导航树节点上的 [已确认] 这类方括号标签)——
+            // 见 MainWindow.xaml.cs 的 HeatStatusText()。这几个标签是拼进 TreeViewItem.Header
+            // 字符串的静态文本, 不是 DynamicResource 活绑定, 树建好之后不会自己变——
+            // LanguageToggle_Click 里补了一次 BuildScheduleTree() 强制重建, 才能让已经
+            // 画出来的树跟着语言切换立刻变。
+            { "Str_HeatStatus_Pending",   new[] { "未开始", "Not Started" } },
+            { "Str_HeatStatus_CheckedIn", new[] { "已检录", "Checked In" } },
+            { "Str_HeatStatus_Running",   new[] { "进行中", "Running" } },
+            { "Str_HeatStatus_Done",      new[] { "已完赛", "Done" } },
+            { "Str_HeatStatus_Confirmed", new[] { "已确认", "Confirmed" } },
+            { "Str_HeatStatus_Cancelled", new[] { "已取消", "Cancelled" } },
+
+            // 2026-09-21 【中文/English 第五阶段】四块纯 C# 运行时拼出来的动态面板之一：
+            // 赛事概览的报名统计(RefreshOverviewStats)。跟静态 XAML 不一样，这些字符串
+            // 每次数据变化/语言切换都要重新跑一遍这个函数才会重新生成，见
+            // LanguageToggle_Click 里新增的 RefreshOverviewStats() 调用。
+            { "Str_EM_RegStats_Teams",   new[] { "代表队", "Teams" } },
+            { "Str_EM_RegStats_Entries", new[] { "总人次", "Entries" } },
+            { "Str_EM_RegStats_Male",    new[] { "男", "Male" } },
+            { "Str_EM_RegStats_Female",  new[] { "女", "Female" } },
+            { "Str_EM_RegStats_Mixed",   new[] { "混合", "Mixed" } },
+            { "Str_EM_RegStats_EventCount", new[] { "项目数", "Events" } },
+            { "Str_EM_RegStats_ColIndex",new[] { "#", "#" } },
+            { "Str_EM_RegStats_ColEventName", new[] { "项目名称", "Event" } },
+            { "Str_EM_RegStats_ColTotal",new[] { "合计", "Total" } },
+            { "Str_EM_RegStats_Subtotal",new[] { "小计 ({0} 项)", "Subtotal ({0} events)" } },
+            { "Str_EM_RegStats_Personal",new[] { "个人项目", "Individual Events" } },
+            { "Str_EM_RegStats_Relay",   new[] { "接力项目", "Relay Events" } },
+
+            // 2026-09-21 第二块动态面板：出场编排微调的"全部组"总览(RefreshEditPreview 里
+            // EditAllGroupsPanel 那一段, 单组/全部组两种模式共用同一套列头拼法)。
+            // 赛次名("预赛"/"半决赛"/"决赛")本身仍是数据哨兵、不翻译(见前几阶段的说明)，
+            // 这里只在"显示用"的场合另外查一张纯展示用的赛次名表(StageDisplay)，
+            // 不影响 stage/prevStage 变量本身参与的任何比较逻辑。
+            { "Str_Stage_Prelim", new[] { "预赛", "Prelim" } },
+            { "Str_Stage_Semi",   new[] { "半决赛", "Semifinal" } },
+            { "Str_Stage_Final",  new[] { "决赛", "Final" } },
+            { "Str_EM_LT_SeedEntry",  new[] { "报名成绩", "Entry Time" } },
+            { "Str_EM_LT_SeedSuffixFmt", new[] { "{0}成绩", "{0} Time" } },
+            { "Str_EM_ColGender", new[] { "性别", "Sex" } },
+            { "Str_EM_LT_GroupHeaderWithAge", new[] { "{0}  第{1}组（{2}人）", "{0}  Heat {1} ({2} swimmers)" } },
+            { "Str_EM_LT_GroupHeader",        new[] { "第{0}组（{1}人）", "Heat {0} ({1} swimmers)" } },
+            { "Str_EM_LT_NoGroupData", new[] { "暂无分组数据", "No lineup data" } },
+
+            // 2026-09-21 第三块动态面板：接力队管理的分组视图(RebuildRelayGroupedView)。
+            { "Str_EM_Relay_NoTeams",  new[] { "暂无接力队。请通过测试机器人或手动添加接力队。", "No relay teams yet. Add one manually, or via the test bot." } },
+            { "Str_EM_Relay_GroupTitleFmt", new[] { "{0}{1} {2}（{3}队）", "{0}{1} {2} ({3} teams)" } },
+            { "Str_EM_Relay_ColTeamName", new[] { "队名", "Team Name" } },
+            { "Str_EM_Relay_ColLegs",   new[] { "棒次", "Legs" } },
+            { "Str_EM_Relay_ColStage",  new[] { "阶段", "Stage" } },
+            { "Str_EM_Relay_ColHeat",   new[] { "组", "Heat" } },
+            { "Str_EM_Relay_AgeCategoryPendingTip", new[] {
+                "⚠ 组别待确认 — 部分队员生日缺失，请在棒次详情或赛程管理窗口补录",
+                "⚠ Age group pending — some swimmers are missing a birth date; fill it in via Leg Details or Schedule Management." } },
+            { "Str_EM_Relay_LegTitleFmt", new[] { "{0} — {1} 棒次安排（{2}人）", "{0} — {1} Leg Order ({2} swimmers)" } },
+
+            // 2026-09-21 第四块动态面板：赛程管理的分组视图(RebuildScheduleGroupedView)。
+            // 注意：场次标题(SessionName, "第1场（日期 上午）"这种)不在这次翻译范围内——
+            // 它不是纯 UI 展示字符串, 是写回 ScheduleItem.SessionName 这个数据字段的,
+            // 会被存盘/跨机同步；"上午/下午/晚上"这几个值本身在 sessionRank() 那处也是
+            // 排序用的数据哨兵。翻译了会让不同语言的机器互相覆盖出中英混杂的场次名，
+            // 属于跟 384d37d 同一类"数据字段不能因为本机语言设置就变"的坑，这次只翻译
+            // 这块面板里纯展示、不进数据模型的部分(列头、空状态提示)。
+            { "Str_EM_Sched_ColSeq",  new[] { "顺序号", "Seq" } },
+            { "Str_EM_Sched_ColTime", new[] { "时间", "Time" } },
+            { "Str_EM_Sched_ColEvent",new[] { "项目", "Event" } },
+            { "Str_EM_Sched_ColParticipants", new[] { "人(队)数", "Entries" } },
+            { "Str_EM_Sched_NoSchedule", new[] {
+                "暂无赛程。请点击\"一键生成日程\"或\"添加赛程项\"。",
+                "No schedule yet. Click \"Generate Schedule\" or \"Add Schedule Item\"." } },
         };
 
         /// <summary>查当前语言下的文字；查不到就退回中文；中文也没有就返回 key 本身兜底。</summary>
@@ -497,6 +568,18 @@ namespace SwimmingScoreboard
             if (app == null) return;
             foreach (var kv in Table) {
                 app.Resources[kv.Key] = T(kv.Key);
+            }
+        }
+
+        /// <summary>纯展示用的赛次名翻译——"预赛"/"半决赛"/"决赛"这几个值本身在别处是拿来
+        /// 做比较/存档的数据哨兵(不能翻译，见 384d37d 起的说明)，这个函数只用在拼接给人看
+        /// 的标题/列头文字时，不改变调用方手里那份 stage 字符串本身。</summary>
+        public static string StageDisplay(string zhStage) {
+            switch (zhStage) {
+                case "预赛": return T("Str_Stage_Prelim");
+                case "半决赛": return T("Str_Stage_Semi");
+                case "决赛": return T("Str_Stage_Final");
+                default: return zhStage ?? "";
             }
         }
 
