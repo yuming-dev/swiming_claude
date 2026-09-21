@@ -2198,9 +2198,12 @@ namespace SwimmingScoreboard
 
             AddLog(string.Format("检录: {0} {1} {2} 第{3}组 已保存{4}条状态",
                 gender, eventName, stage, heat, updated));
-            AutoSaveData();
+            // 2026-09-20 检录改的是已有运动员的 Status 字段(narrow update)——跟
+            // HandleEditorUpdateSwimmer 同一个道理, 不必为几个人的检录状态推整包。
+            SaveWithoutPush();
             UpdateLaneStatusDisplay();
             Broadcast();
+            PushDataChanged("swimmer");
         }
 
         private void HandleRegisterSwimmer(JObject msg) {
@@ -2236,10 +2239,9 @@ namespace SwimmingScoreboard
             }
             _swimmers.Add(swimmer);
             AddLog(string.Format("远程注册运动员: {0}({1}) {2}", swimmer.Name, bibNumber, swimmer.EventName));
-            AutoSaveData();
             RefreshOverviewStats();
             RefreshSwimmerFilter();
-            Broadcast();
+            FinishAndSyncPatch(BuildSwimmerRowsAddPatch(new List<Swimmer> { swimmer }, ClientLabel()), "swimmer");
         }
 
         private void HandleRegisterSwimmerBatch(IWebSocketConnection socket, JObject msg) {
@@ -2259,9 +2261,13 @@ namespace SwimmingScoreboard
             string bibNumber = swimmerData["bibNumber"] != null ? swimmerData["bibNumber"].ToString() : "";
 
             // 如果是重新提交，先删除该运动员之前的所有报名记录
+            var removedKeys = new List<SwimmerDeleteKey>();
             if (isResubmit && !string.IsNullOrEmpty(bibNumber)) {
                 var toRemove = _swimmers.Where(s => s.BibNumber == bibNumber).ToList();
-                foreach (var s in toRemove) _swimmers.Remove(s);
+                foreach (var s in toRemove) {
+                    _swimmers.Remove(s);
+                    removedKeys.Add(new SwimmerDeleteKey { BibNumber = s.BibNumber, Name = s.Name, EventName = s.EventName });
+                }
                 AddLog(string.Format("重新提交: 已清除 {0}({1}) 的 {2} 条旧记录", name, bibNumber, toRemove.Count));
             }
 
@@ -2271,6 +2277,7 @@ namespace SwimmingScoreboard
 
             int added = 0;
             int skipped = 0;
+            var addedRows = new List<Swimmer>();
             foreach (JObject ev in eventsArr) {
                 string eventName = ev["eventName"] != null ? ev["eventName"].ToString() : "";
                 string entryTime = ev["entryTime"] != null ? ev["entryTime"].ToString() : "";
@@ -2299,15 +2306,15 @@ namespace SwimmingScoreboard
                 if (!string.IsNullOrEmpty(batchAgeGroup)) swimmer.AgeCategory = batchAgeGroup;
                 swimmer.EntryTimeSeconds = TimeFormatter.Parse(swimmer.EntryTime);
                 _swimmers.Add(swimmer);
+                addedRows.Add(swimmer);
                 added++;
             }
 
             AddLog(string.Format("批量注册: {0}({1}) 新增{2}个项目，跳过{3}个已存在",
                 name, bibNumber, added, skipped));
-            AutoSaveData();
             RefreshOverviewStats();
             RefreshSwimmerFilter();
-            Broadcast();
+            FinishAndSyncPatch(BuildSwimmerRowsAddPatch(addedRows, null, removedKeys, ClientLabel()), "swimmer");
 
             // 2026-05-21：原来无论 added=多少都回 success=true，导致"提交的全是重复项目"
             // 时 EXE 仍显示"报名成功"，用户去主服务器查看运动员列表却找不到新数据，
@@ -2423,6 +2430,8 @@ namespace SwimmingScoreboard
 
             // 写入阶段：每条独立处理（与现有 HandleRegisterSwimmerBatch 逻辑一致）
             var newPerEntry = new List<object>();
+            var addedRows = new List<Swimmer>();
+            var removedKeys = new List<SwimmerDeleteKey>();
             for (int i = 0; i < normalized.Count; i++) {
                 var norm = normalized[i];
                 if (norm == null) { newPerEntry.Add(perEntry[i]); continue; }
@@ -2437,7 +2446,10 @@ namespace SwimmingScoreboard
 
                 if (isResub && !string.IsNullOrEmpty(bibNumber)) {
                     var toRemove = _swimmers.Where(s => s.BibNumber == bibNumber).ToList();
-                    foreach (var s in toRemove) _swimmers.Remove(s);
+                    foreach (var s in toRemove) {
+                        _swimmers.Remove(s);
+                        removedKeys.Add(new SwimmerDeleteKey { BibNumber = s.BibNumber, Name = s.Name, EventName = s.EventName });
+                    }
                     AddLog(string.Format("重新提交: 已清除 {0}({1}) 的 {2} 条旧记录", name, bibNumber, toRemove.Count));
                 }
                 if (string.IsNullOrEmpty(bibNumber)) bibNumber = GenerateNextBibNumber(country);
@@ -2469,16 +2481,16 @@ namespace SwimmingScoreboard
                     if (!string.IsNullOrEmpty(ag)) swimmer.AgeCategory = ag;
                     swimmer.EntryTimeSeconds = TimeFormatter.Parse(swimmer.EntryTime);
                     _swimmers.Add(swimmer);
+                    addedRows.Add(swimmer);
                     added++;
                 }
                 AddLog(string.Format("多人批量注册: {0}({1}) {2}个项目", name, bibNumber, added));
                 newPerEntry.Add(new { ok = true, message = "", bibNumber = bibNumber, name = name, addedCount = added });
             }
 
-            AutoSaveData();
             RefreshOverviewStats();
             RefreshSwimmerFilter();
-            Broadcast();
+            FinishAndSyncPatch(BuildSwimmerRowsAddPatch(addedRows, null, removedKeys, ClientLabel()), "swimmer");
             SendMultiResult(socket, true, "全部报名提交成功", newPerEntry);
         }
 
@@ -8910,6 +8922,9 @@ namespace SwimmingScoreboard
         // 裁判确认成绩后调用：把本组中所有 RecordNote 含"破纪录"标签（不带=前缀）的成绩
         // 用于刷新对应 SwimmingRecord 条目（保持者/时间/日期/地点同步更新）
         private void UpdateRecordsAfterConfirm() {
+            // 2026-09-20 跟 ApplyRecordBreaksToLocalState 同一个道理: 纪录表就这么大一份,
+            //   改完用 PushChangedRecords 按条(upsert)同步, 不用为几条破纪录推整包。
+            var before = SnapshotRecords();
             var heatSwimmers = GetCurrentHeatSwimmers();
             string today = DateTime.Now.ToString("yyyy-MM-dd");
             int updated = 0;
@@ -8938,7 +8953,10 @@ namespace SwimmingScoreboard
                     }
                 }
             }
-            if (updated > 0) AutoSaveData(); // 纪录在 CompetitionPackage 中持久化
+            if (updated > 0) {
+                SaveWithoutPush();
+                PushChangedRecords(before);
+            }
         }
 
         // ═══════════════════════════════════════════════════════════════
@@ -12401,6 +12419,158 @@ namespace SwimmingScoreboard
             return ApplySwimmerDeleteCore(keys, out removed, out error);
         }
 
+        // ── 2026-09-20 【剩下那批"改完就推整包"逐处排查, 按数据归属建两类通用补丁】────
+        //   排查发现两大类高频命中: (1) 新增运动员/接力队(接力队本质是几条 Swimmer 行,
+        //   见 AddRelayCore)——网页报名/手工新增/CSV批量导入, 只【新增】行, 不碰任何
+        //   已有记录; (2) 性别/赛次/组数/比赛项目/组别/号码段/参赛单位/工作人员/赛程
+        //   这几张"整表编辑"配置——表不大(几条到几十条), 但只是这一张表, 不该带着
+        //   运动员名单/成绩/记录这些完全没变的东西一起打包送出去。
+        //   两类都是"本机已经直接改了内存(先改后报), 需要把这次改动告诉对端"这同一个
+        //   收尾动作, 抽成一个共用函数, 不为每个 op 各写一份。
+
+        /// <summary>本机刚做完一次新增/整表替换类的编辑(内存已经改完), 用补丁把这次改动
+        /// 告诉对端, 不再为它推整包。编排端"先改后报"(问服务器, 被拒就留在本机, 等下次
+        /// 联网/整体保存时自然补上——跟 Assign 补丁同一个道理); 服务器就地改完直接广播
+        /// 给在线编排端(没有"先问"这一步, 本来就是权威)。</summary>
+        private void FinishAndSyncPatch(JObject patch, string pushTopic) {
+            SaveWithoutPush();
+            try {
+                if (IsScheduleEditorMode) {
+                    string err;
+                    if (!SendPatchAndWait(patch, out err))
+                        AddLog("改动没能同步到主服务器: " + err + "——下次联网/整体保存时会补上");
+                } else {
+                    BroadcastPatch(patch, null);
+                }
+            } catch (Exception ex) { AddLog("同步改动失败: " + ex.Message); }
+            Broadcast();
+            if (!string.IsNullOrEmpty(pushTopic)) PushDataChanged(pushTopic);
+        }
+
+        private JObject BuildSwimmerRowsAddPatch(List<Swimmer> rows, string clientName) {
+            return BuildSwimmerRowsAddPatch(rows, null, null, clientName);
+        }
+        private JObject BuildSwimmerRowsAddPatch(List<Swimmer> rows, List<RelayTeam> teams, string clientName) {
+            return BuildSwimmerRowsAddPatch(rows, teams, null, clientName);
+        }
+        /// <summary>teams 可选——接力队新增除了几条 Swimmer 行(代表+队员), 还有一份
+        /// _relayTeams 里的 RelayTeam(棒次详情/生日等), 不带上它接收端的 _relayTeams
+        /// 会跟 _swimmers 脱节。removeKeys 可选——"重新提交报名"先删旧记录再加新的,
+        /// 跟 SwimmerDelete 补丁共用同一份 key 结构, 接收端按"先删后加"的顺序应用。</summary>
+        private JObject BuildSwimmerRowsAddPatch(List<Swimmer> rows, List<RelayTeam> teams, List<SwimmerDeleteKey> removeKeys, string clientName) {
+            var p = NewPatch("SwimmerRowsAdd", "", "", "", "", clientName);
+            p["rows"] = JArray.FromObject(rows ?? new List<Swimmer>());
+            if (teams != null && teams.Count > 0) p["teams"] = JArray.FromObject(teams);
+            if (removeKeys != null && removeKeys.Count > 0)
+                p["removeKeys"] = JArray.FromObject(removeKeys.Select(k => new { bibNumber = k.BibNumber, name = k.Name, eventName = k.EventName }));
+            return p;
+        }
+        /// <summary>把新增的这几行(可能是单个运动员, 也可能是一支接力队的代表+队员条目,
+        /// 也可能是一批CSV/网页报名)按 BibNumber 去重后追加——已经存在的跳过, 不当失败
+        /// (可能是补丁被重放/两边都已经加过了)。</summary>
+        private int ApplySwimmerRowsAddCore(List<Swimmer> rows) {
+            int added = 0;
+            foreach (var r in rows ?? new List<Swimmer>()) {
+                if (r == null || string.IsNullOrEmpty(r.BibNumber)) continue;
+                // 2026-09-20 去重键是(号码+项目), 不是号码——一人报几个项目, 每个项目一条
+                // Swimmer 行, 号码相同但项目不同, 按号码单独去重会把后面几项全部当"已存在"漏掉。
+                if (_swimmers.Any(s => s.BibNumber == r.BibNumber && s.EventName == r.EventName)) continue;
+                _swimmers.Add(r);
+                added++;
+            }
+            return added;
+        }
+        private int ApplyRelayTeamsAddCore(List<RelayTeam> teams) {
+            int added = 0;
+            foreach (var t in teams ?? new List<RelayTeam>()) {
+                if (t == null || string.IsNullOrEmpty(t.TeamName)) continue;
+                if (_relayTeams.Any(x => x.TeamName == t.TeamName && x.EventName == t.EventName && x.Gender == t.Gender)) continue;
+                _relayTeams.Add(t);
+                added++;
+            }
+            return added;
+        }
+        private bool ApplySwimmerRowsAddPatch(JObject msg, out string error) {
+            error = null;
+            var removeArr = msg["removeKeys"] as JArray;
+            if (removeArr != null) {
+                foreach (JObject o in removeArr) {
+                    string bib = o["bibNumber"] != null ? o["bibNumber"].ToString() : "";
+                    if (string.IsNullOrEmpty(bib)) continue;
+                    foreach (var sw in _swimmers.Where(s => s.BibNumber == bib).ToList()) _swimmers.Remove(sw);
+                }
+            }
+            var rows = new List<Swimmer>();
+            var arr = msg["rows"] as JArray;
+            if (arr != null) foreach (var t in arr) {
+                try { var sw = t.ToObject<Swimmer>(); if (sw != null) rows.Add(sw); } catch { }
+            }
+            ApplySwimmerRowsAddCore(rows);
+            var teamsArr = msg["teams"] as JArray;
+            if (teamsArr != null) {
+                var teams = new List<RelayTeam>();
+                foreach (var t in teamsArr) {
+                    try { var rt = t.ToObject<RelayTeam>(); if (rt != null) teams.Add(rt); } catch { }
+                }
+                ApplyRelayTeamsAddCore(teams);
+            }
+            return true;
+        }
+
+        private JObject BuildListSetPatch(string target, JToken items, string clientName) {
+            var p = NewPatch("ListSet", "", "", "", "", clientName);
+            p["target"] = target ?? "";
+            p["items"] = items ?? new JArray();
+            return p;
+        }
+        /// <summary>target 认哪张表就整表替换哪张——这几张表都不大, 编辑本来就是"整表改完
+        /// 再保存", 按条 diff 不划算, 直接送整张表比 Records 那种"高频、单条改"划算得多。</summary>
+        private bool ApplyListSetCore(string target, JArray items, out string error) {
+            error = null;
+            items = items ?? new JArray();
+            switch (target) {
+                case "genders": _genders = items.Select(t => t.ToString()).ToList(); RefreshGendersPreview(); break;
+                case "stages": _stages = items.Select(t => t.ToString()).ToList(); RefreshStagesPreview(); break;
+                case "heatCounts": _heatCounts = items.Select(t => t.ToString()).ToList(); RefreshHeatCountsPreview(); break;
+                case "events": _events = items.Select(t => t.ToString()).ToList(); RefreshEventsPreview(); break;
+                case "ageGroups":
+                    _ageGroups = items.Select(t => { try { return t.ToObject<AgeGroup>(); } catch { return null; } })
+                        .Where(x => x != null).ToList();
+                    AgeGroupRegistry.Set(_ageGroups);   // 2026-09-20 见 EditAgeGroupsListCore: 静态注册表也要跟着换
+                    RefreshAgeGroupsPreview();
+                    RefreshGendersPreview();
+                    RefreshStagesPreview();
+                    RefreshHeatCountsPreview();
+                    break;
+                case "bibRanges":
+                    _bibRanges = items.Select(t => { try { return t.ToObject<BibRange>(); } catch { return null; } })
+                        .Where(x => x != null).ToList();
+                    break;
+                case "units":
+                    _units.Clear();
+                    foreach (var t in items) { try { var u = t.ToObject<Unit>(); if (u != null) _units.Add(u); } catch { } }
+                    RefreshUnitComboBox();
+                    break;
+                case "staff":
+                    _staff.Clear();
+                    foreach (var t in items) { try { var s = t.ToObject<StaffMember>(); if (s != null) _staff.Add(s); } catch { } }
+                    break;
+                case "schedule":
+                    _schedule.Clear();
+                    foreach (var t in items) { try { var s = t.ToObject<ScheduleItem>(); if (s != null) _schedule.Add(s); } catch { } }
+                    try { BuildScheduleTree(); } catch { }
+                    break;
+                default: error = "不认识的列表类型: " + target; return false;
+            }
+            try { NotifyMetadataChanged(); } catch { }
+            return true;
+        }
+        private bool ApplyListSetPatch(JObject msg, out string error) {
+            string target = msg["target"] != null ? msg["target"].ToString() : "";
+            var items = msg["items"] as JArray ?? new JArray();
+            return ApplyListSetCore(target, items, out error);
+        }
+
         /// <summary>收到别人发来的补丁, 照着改本机内存。</summary>
         private bool ApplyPatch(JObject msg, out string error) {
             error = null;
@@ -12412,6 +12582,8 @@ namespace SwimmingScoreboard
             if (op == "SwimmerEdit") return ApplySwimmerEditPatch(msg, out error);
             if (op == "RelayDelete") return ApplyRelayDeletePatch(msg, out error);
             if (op == "SwimmerDelete") return ApplySwimmerDeletePatch(msg, out error);
+            if (op == "SwimmerRowsAdd") return ApplySwimmerRowsAddPatch(msg, out error);
+            if (op == "ListSet") return ApplyListSetPatch(msg, out error);
             if (op != "MergeHeats") { error = "不认识的补丁类型: " + op; return false; }
 
             string ag = msg["ageGroup"] != null ? msg["ageGroup"].ToString() : "";
@@ -17426,7 +17598,9 @@ namespace SwimmingScoreboard
                 if (double.TryParse(tbBigPage.Text, out v)) _laneCloseSettings.BigDisplayPageInterval = v;
                 foreach (var st in _laneDeviceStates) st.LaneCloseTime = 0;
                 SaveTimingSettings();
-                AutoSaveData();
+                // 2026-09-20 _laneCloseSettings 已经有 PushSettingsToServer() 这条专用的轻量
+                // 同步通道了, 不需要 AutoSaveData() 再顺带推一次整包。
+                SaveWithoutPush();
                 UpdateLaneStatusDisplay();
                 Broadcast();
                 SendTimingSettingsToHardware();   // 同步时间参数到硬件计时器
@@ -17607,7 +17781,7 @@ namespace SwimmingScoreboard
                 }
 
                 SaveTimingSettings();
-                AutoSaveData();
+                SaveWithoutPush();   // 2026-09-20 同 ShowTimeParamsDialog: 有 PushSettingsToServer() 专用通道
                 UpdateLaneStatusDisplay();
                 Broadcast();
                 SendTimingSettingsToHardware();   // 同步到硬件计时控制器
@@ -17735,7 +17909,7 @@ namespace SwimmingScoreboard
                 //   原来漏了这一句, 所以改完不落盘: 下次 ApplyPersistedDeviceStates
                 //   从文件读回来的还是旧的, 换组重建界面就变回去了。
                 SaveDeviceStates();
-                AutoSaveData();
+                SaveWithoutPush();   // 2026-09-20 同 ShowTimeParamsDialog: 有 PushSettingsToServer() 专用通道
                 UpdateLaneStatusDisplay();
                 if (changed) {
                     Broadcast();                       // 同步到 Web/Remote 控制台
@@ -17842,7 +18016,9 @@ namespace SwimmingScoreboard
             var win = new DeviceStatusWindow(_laneDeviceStates, _poolConfig, _laneCloseSettings);
             win.Owner = this;
             if (win.ShowDialog() == true) {
-                AutoSaveData();
+                // 2026-09-20 设备状态(_laneDeviceStates)压根不在 CompetitionPackage 里
+                // (只落 device_states.json), AutoSaveData() 在这儿纯属多余的整包推送。
+                SaveWithoutPush();
                 SaveDeviceStates();                  // 持久化到 device_states.json，下次启动还原
                 UpdateLaneStatusDisplay();           // 立即刷新泳道实时状态 UI（设备点颜色）
                 Broadcast();                         // 同步到 EXE/Web 三端
@@ -17936,10 +18112,9 @@ namespace SwimmingScoreboard
                 };
                 if (OpenSwimmerEditor(sw, isNew: true)) {
                     _swimmers.Add(sw);
-                    AutoSaveData();
                     RefreshOverviewStats();
                     RefreshSwimmerFilter();
-                    Broadcast();
+                    FinishAndSyncPatch(BuildSwimmerRowsAddPatch(new List<Swimmer> { sw }, ClientLabel()), "swimmer");
                     AddLog(string.Format("新增运动员: {0}({1}) {2}", sw.Name, sw.BibNumber, sw.EventName));
                 }
             } finally {
@@ -18366,7 +18541,7 @@ namespace SwimmingScoreboard
                 var wnd = new UnitManageWindow(_units, _swimmers) { Owner = this };
                 if (wnd.ShowDialog() == true) {
                     RefreshUnitComboBox();
-                    AutoSaveData();
+                    FinishAndSyncPatch(BuildListSetPatch("units", JArray.FromObject(_units), ClientLabel()), "meet");
                     AddLog(string.Format("参赛单位元信息已保存（{0} 个单位）", _units.Count));
                 }
             });
@@ -18377,7 +18552,7 @@ namespace SwimmingScoreboard
             RunWithEditLock("staff-manage", "工作人员管理", delegate {
                 var wnd = new StaffManageWindow(_staff) { Owner = this };
                 if (wnd.ShowDialog() == true) {
-                    AutoSaveData();
+                    FinishAndSyncPatch(BuildListSetPatch("staff", JArray.FromObject(_staff), ClientLabel()), "meet");
                     AddLog(string.Format("工作人员名单已保存（共 {0} 人）", _staff.Count));
                 }
             });
@@ -18503,8 +18678,7 @@ namespace SwimmingScoreboard
                     }
                 }
                 _bibRanges = finalList;
-                AutoSaveData();
-                Broadcast();
+                FinishAndSyncPatch(BuildListSetPatch("bibRanges", JArray.FromObject(_bibRanges), ClientLabel()), "meet");
                 AddLog(string.Format("已更新代表队号码段配置（{0} 条）", _bibRanges.Count));
                 dlg.DialogResult = true;
             };
@@ -19053,29 +19227,36 @@ namespace SwimmingScoreboard
             while (_swimmers.Any(s => s.BibNumber == teamBib)) teamBib = "R" + DateTime.Now.Ticks.ToString().Substring(10);
 
             // 2026-05-25 代表条目带上 AgeCategory, 否则秩序册向导按组别×性别×项目筛 _swimmers 时接力项目漏出
-            _swimmers.Add(new Swimmer {
+            var addedRows = new List<Swimmer>();
+            var proxyRow = new Swimmer {
                 BibNumber = teamBib, Name = teamName, Gender = gender, Country = teamName,
                 EventName = eventName, AgeCategory = ageGroup,
                 EntryTime = entryTimeStr, EntryTimeSeconds = entrySec,
                 Notes = string.Format("接力队 棒次:{0}", legNames)
-            });
+            };
+            _swimmers.Add(proxyRow);
+            addedRows.Add(proxyRow);
 
             // 队员子条目
             foreach (var leg in team.Legs) {
                 if (string.IsNullOrEmpty(leg.SwimmerName)) continue;
                 string memBib = !string.IsNullOrEmpty(leg.SwimmerBibNumber) ? leg.SwimmerBibNumber : (teamBib + "-" + leg.LegOrder);
                 if (_swimmers.Any(s => s.BibNumber == memBib)) continue;
-                _swimmers.Add(new Swimmer {
+                var memberRow = new Swimmer {
                     BibNumber = memBib, Name = leg.SwimmerName,
                     Gender = gender == "混合" ? "男" : gender, Country = teamName,
                     IDNumber = leg.SwimmerIDNumber ?? "",
                     BirthDate = leg.SwimmerBirthDate ?? "",
                     EventName = eventName,
                     Notes = string.Format("接力队员 {0} 第{1}棒", eventName, leg.LegOrder)
-                });
+                };
+                _swimmers.Add(memberRow);
+                addedRows.Add(memberRow);
             }
 
-            AutoSaveData();
+            // 2026-09-20 接力队本质是几条 Swimmer 行(代表+队员), 新增的这几行用补丁带过去,
+            //   不为一支接力队推一次整包。
+            FinishAndSyncPatch(BuildSwimmerRowsAddPatch(addedRows, new List<RelayTeam> { team }, ClientLabel()), "swimmer");
             RebuildRelayGroupedView();
             AddLog(string.Format("手动添加接力队: {0} ({1} {2}) {3}棒", teamName, gender, eventName, team.Legs.Count));
         }
@@ -21546,9 +21727,8 @@ namespace SwimmingScoreboard
                 Time = time
             };
             _schedule.Insert(insertIndex, newItem);
-            AutoSaveData();
             BuildScheduleTree();
-            Broadcast();
+            FinishAndSyncPatch(BuildListSetPatch("schedule", JArray.FromObject(_schedule), ClientLabel()), "meet");
         }
 
         private void EditSchedule_Click(object sender, RoutedEventArgs e) {
@@ -21811,9 +21991,8 @@ namespace SwimmingScoreboard
                 // 用编辑后的数据替换原赛程（保留用户自定义顺序）
                 _schedule.Clear();
                 foreach (var item in editList) _schedule.Add(item);
-                AutoSaveData();       // 保存
                 BuildScheduleTree();  // 刷新日程树 & 赛程管理面板
-                Broadcast();          // 同步到三个计时控制台 + 显示 + 打印
+                FinishAndSyncPatch(BuildListSetPatch("schedule", JArray.FromObject(_schedule), ClientLabel()), "meet");
                 AddLog(string.Format("赛程已修改: {0}条赛程项", _schedule.Count));
             }
         }
@@ -21824,9 +22003,8 @@ namespace SwimmingScoreboard
             if (MessageBox.Show(string.Format("确定要删除赛程项 [{0}]？", desc), "确认删除", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
             _schedule.Remove(_selectedScheduleItem);
             _selectedScheduleItem = null;
-            AutoSaveData();
             BuildScheduleTree();
-            Broadcast();
+            FinishAndSyncPatch(BuildListSetPatch("schedule", JArray.FromObject(_schedule), ClientLabel()), "meet");
         }
 
         // 将用户输入的日期归一化为 yyyy-MM-dd 格式（支持 2026-4-21、2026/4/21、2026.4.21 等）
@@ -28181,7 +28359,8 @@ namespace SwimmingScoreboard
         private void EditGendersList_Click(object sender, RoutedEventArgs e) {
             RunWithEditLock("genders-list", "性别列表", delegate {
                 EditStringListDialog("性别编辑", "性别名称", _genders, new[] { "男", "女", "混合" }, list => {
-                    _genders = list; RefreshGendersPreview(); AutoSaveData();
+                    _genders = list; RefreshGendersPreview();
+                    FinishAndSyncPatch(BuildListSetPatch("genders", JArray.FromObject(_genders), ClientLabel()), "meet");
                     NotifyMetadataChanged();
                     AddLog(string.Format("已更新性别列表（{0} 条）", _genders.Count));
                 });
@@ -28189,7 +28368,8 @@ namespace SwimmingScoreboard
         }
         private void ExportGendersCSV_Click(object sender, RoutedEventArgs e) { ExportStringListCsv("导出性别表", "性别表.csv", "性别", _genders); }
         private void ImportGendersCSV_Click(object sender, RoutedEventArgs e) {
-            ImportStringListCsv("导入性别表", "性别", list => { _genders = list; RefreshGendersPreview(); AutoSaveData();
+            ImportStringListCsv("导入性别表", "性别", list => { _genders = list; RefreshGendersPreview();
+                FinishAndSyncPatch(BuildListSetPatch("genders", JArray.FromObject(_genders), ClientLabel()), "meet");
                 NotifyMetadataChanged();
                 AddLog(string.Format("导入性别: 共{0}条", _genders.Count)); });
         }
@@ -28201,7 +28381,8 @@ namespace SwimmingScoreboard
         private void EditStagesList_Click(object sender, RoutedEventArgs e) {
             RunWithEditLock("stages-list", "赛次列表", delegate {
                 EditStringListDialog("赛次编辑", "赛次名称", _stages, new[] { "预赛", "半决赛", "决赛" }, list => {
-                    _stages = list; RefreshStagesPreview(); AutoSaveData();
+                    _stages = list; RefreshStagesPreview();
+                    FinishAndSyncPatch(BuildListSetPatch("stages", JArray.FromObject(_stages), ClientLabel()), "meet");
                     NotifyMetadataChanged();
                     AddLog(string.Format("已更新赛次列表（{0} 条）", _stages.Count));
                 });
@@ -28209,7 +28390,8 @@ namespace SwimmingScoreboard
         }
         private void ExportStagesCSV_Click(object sender, RoutedEventArgs e) { ExportStringListCsv("导出赛次表", "赛次表.csv", "赛次", _stages); }
         private void ImportStagesCSV_Click(object sender, RoutedEventArgs e) {
-            ImportStringListCsv("导入赛次表", "赛次", list => { _stages = list; RefreshStagesPreview(); AutoSaveData();
+            ImportStringListCsv("导入赛次表", "赛次", list => { _stages = list; RefreshStagesPreview();
+                FinishAndSyncPatch(BuildListSetPatch("stages", JArray.FromObject(_stages), ClientLabel()), "meet");
                 NotifyMetadataChanged();
                 AddLog(string.Format("导入赛次: 共{0}条", _stages.Count)); });
         }
@@ -28221,7 +28403,8 @@ namespace SwimmingScoreboard
         private void EditHeatCountsList_Click(object sender, RoutedEventArgs e) {
             RunWithEditLock("heatcounts-list", "组数列表", delegate {
                 EditStringListDialog("组数编辑", "组数", _heatCounts, new[] { "1组", "2组", "3组", "4组", "5组", "6组", "7组", "8组" }, list => {
-                    _heatCounts = list; RefreshHeatCountsPreview(); AutoSaveData();
+                    _heatCounts = list; RefreshHeatCountsPreview();
+                    FinishAndSyncPatch(BuildListSetPatch("heatCounts", JArray.FromObject(_heatCounts), ClientLabel()), "meet");
                     NotifyMetadataChanged();
                     AddLog(string.Format("已更新组数列表（{0} 条）", _heatCounts.Count));
                 });
@@ -28229,7 +28412,8 @@ namespace SwimmingScoreboard
         }
         private void ExportHeatCountsCSV_Click(object sender, RoutedEventArgs e) { ExportStringListCsv("导出组数表", "组数表.csv", "组数", _heatCounts); }
         private void ImportHeatCountsCSV_Click(object sender, RoutedEventArgs e) {
-            ImportStringListCsv("导入组数表", "组数", list => { _heatCounts = list; RefreshHeatCountsPreview(); AutoSaveData();
+            ImportStringListCsv("导入组数表", "组数", list => { _heatCounts = list; RefreshHeatCountsPreview();
+                FinishAndSyncPatch(BuildListSetPatch("heatCounts", JArray.FromObject(_heatCounts), ClientLabel()), "meet");
                 NotifyMetadataChanged();
                 AddLog(string.Format("导入组数: 共{0}条", _heatCounts.Count)); });
         }
@@ -28303,7 +28487,7 @@ namespace SwimmingScoreboard
                 if (finalList.Count == 0) { MessageBox.Show("至少保留一个比赛项目"); return; }
                 _events = finalList;
                 RefreshEventsPreview();
-                AutoSaveData();
+                FinishAndSyncPatch(BuildListSetPatch("events", JArray.FromObject(_events), ClientLabel()), "meet");
                 NotifyMetadataChanged();
                 AddLog(string.Format("已更新比赛项目列表（{0} 条）", _events.Count));
                 dlg.DialogResult = true;
@@ -28399,7 +28583,7 @@ namespace SwimmingScoreboard
                 RefreshStagesPreview();
                 RefreshHeatCountsPreview();
                 RecomputeAllAgeCategories();
-                AutoSaveData();
+                FinishAndSyncPatch(BuildListSetPatch("ageGroups", JArray.FromObject(_ageGroups), ClientLabel()), "meet");
                 NotifyMetadataChanged();
                 AddLog(string.Format("已更新组别列表（{0} 条）", _ageGroups.Count));
                 dlg.DialogResult = true;
@@ -28456,7 +28640,7 @@ namespace SwimmingScoreboard
                 if (finalList.Count == 0) { MessageBox.Show("未读取到有效项目行"); return; }
                 _events = finalList;
                 RefreshEventsPreview();
-                AutoSaveData();
+                FinishAndSyncPatch(BuildListSetPatch("events", JArray.FromObject(_events), ClientLabel()), "meet");
                 NotifyMetadataChanged();
                 AddLog(string.Format("导入比赛项目: 共{0}条", _events.Count));
                 MessageBox.Show(string.Format("已导入 {0} 条比赛项目。", _events.Count), "完成");
@@ -28531,7 +28715,7 @@ namespace SwimmingScoreboard
                 RefreshStagesPreview();
                 RefreshHeatCountsPreview();
                 RecomputeAllAgeCategories();
-                AutoSaveData();
+                FinishAndSyncPatch(BuildListSetPatch("ageGroups", JArray.FromObject(_ageGroups), ClientLabel()), "meet");
                 NotifyMetadataChanged();
                 AddLog(string.Format("导入组别: 共{0}条", _ageGroups.Count));
                 MessageBox.Show(string.Format("已导入 {0} 个组别。", _ageGroups.Count), "完成");
