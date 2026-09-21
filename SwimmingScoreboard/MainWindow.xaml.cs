@@ -24080,6 +24080,16 @@ namespace SwimmingScoreboard
             win.ShowDialog();
         }
 
+        // 2026-09-21 "设置"页中文/English按钮——第一阶段：只切标签页标题和"设置"页本身
+        // (走 DynamicResource, 立即生效, 见 Localization.cs 顶部说明)。系统日志/弹窗等
+        // 仍是硬编码中文, 不受这个按钮影响, 这里补一条日志说明白, 别让人以为按了没反应。
+        private void LanguageToggle_Click(object sender, RoutedEventArgs e) {
+            Loc.Toggle();
+            AddLog(Loc.CurrentLanguage == Loc.En
+                ? "界面语言已切换为 English（标签页/设置页已生效；系统日志/弹窗仍为中文）"
+                : "界面语言已切换为中文");
+        }
+
         private void ViewRawData_Click(object sender, RoutedEventArgs e) {
             string dir = IOPath.Combine(AppDomain.CurrentDomain.BaseDirectory, "Database", "RawData");
             if (!Directory.Exists(dir)) {

@@ -59,7 +59,7 @@
         <TabControl Grid.Row="1" Margin="8" x:Name="MainTabControl" SelectionChanged="MainTabControl_SelectionChanged">
 
             <!-- ═══ 系统状态 ═══ -->
-            <TabItem Header="系统工作状态">
+            <TabItem Header="{DynamicResource Str_Tab_SystemStatus}">
                 <Grid Margin="12">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
@@ -190,7 +190,7 @@
             </TabItem>
 
             <!-- ═══ 赛事管理与报名 ═══ -->
-            <TabItem Header="赛事管理与报名">
+            <TabItem Header="{DynamicResource Str_Tab_EventMgmt}">
                 <Grid Margin="10">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
@@ -923,7 +923,7 @@
             </TabItem>
 
             <!-- ═══ 比赛控制 ═══ -->
-            <TabItem x:Name="RaceControlTab" Header="比赛控制">
+            <TabItem x:Name="RaceControlTab" Header="{DynamicResource Str_Tab_RaceControl}">
                 <Grid Margin="10">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="220"/>
@@ -1656,7 +1656,7 @@
             </TabItem>
 
             <!-- ═══ 成绩与排名 ═══ -->
-            <TabItem Header="成绩与排名">
+            <TabItem Header="{DynamicResource Str_Tab_Results}">
                 <Grid Margin="10">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="290"/>
@@ -1782,7 +1782,7 @@
             </TabItem>
 
             <!-- ═══ 文档编辑 / 输出 / 打印 ═══ -->
-            <TabItem Header="文档编辑/输出/打印">
+            <TabItem Header="{DynamicResource Str_Tab_Docs}">
                 <TabItem.Resources>
                     <!-- 输出文档卡片中两种统一按钮：编辑 / 输出 -->
                     <Style x:Key="DocActionBtn" TargetType="Button">
@@ -2024,7 +2024,7 @@
             </TabItem>
 
             <!-- ═══ 系统日志与数据 ═══ -->
-            <TabItem Header="系统日志与数据">
+            <TabItem Header="{DynamicResource Str_Tab_SystemLog}">
                 <Grid Margin="10">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
@@ -2091,10 +2091,10 @@
             </TabItem>
 
             <!-- ═══ 设置 ═══ -->
-            <TabItem Header="设置">
+            <TabItem Header="{DynamicResource Str_Tab_Settings}">
                 <ScrollViewer Margin="10">
                     <StackPanel MaxWidth="600" HorizontalAlignment="Left">
-                        <TextBlock Text="计时硬件连接" FontSize="16" FontWeight="Bold" Margin="0,0,0,10"/>
+                        <TextBlock Text="{DynamicResource Str_Settings_TimingHw}" FontSize="16" FontWeight="Bold" Margin="0,0,0,10"/>
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="90"/>
@@ -2108,10 +2108,10 @@
                                 <RowDefinition Height="36"/>
                                 <RowDefinition Height="36"/>
                             </Grid.RowDefinitions>
-                            <TextBlock Grid.Row="0" Grid.Column="0" Text="串口:" VerticalAlignment="Center"/>
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="{DynamicResource Str_Settings_SerialPort}" VerticalAlignment="Center"/>
                             <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                                 <ComboBox x:Name="ComPortCombo" Width="120" VerticalAlignment="Center"/>
-                                <TextBlock Text="波特率:" VerticalAlignment="Center" Margin="12,0,4,0"/>
+                                <TextBlock Text="{DynamicResource Str_Settings_BaudRate}" VerticalAlignment="Center" Margin="12,0,4,0"/>
                                 <ComboBox x:Name="BaudRateCombo" Width="90" VerticalAlignment="Center" SelectionChanged="BaudRate_Changed">
                                     <ComboBoxItem Content="9600" IsSelected="True"/>
                                     <ComboBoxItem Content="19200"/>
@@ -2120,25 +2120,35 @@
                                     <ComboBoxItem Content="115200"/>
                                 </ComboBox>
                             </StackPanel>
-                            <Button Grid.Row="0" Grid.Column="2" Content="连接串口" Click="ConnectSerial_Click" Padding="12,4" Margin="8,0,0,0"/>
-                            <TextBlock Grid.Row="1" Grid.Column="0" Text="TCP地址:" VerticalAlignment="Center"/>
+                            <Button Grid.Row="0" Grid.Column="2" Content="{DynamicResource Str_Settings_ConnectSerial}" Click="ConnectSerial_Click" Padding="12,4" Margin="8,0,0,0"/>
+                            <TextBlock Grid.Row="1" Grid.Column="0" Text="{DynamicResource Str_Settings_TcpAddr}" VerticalAlignment="Center"/>
                             <TextBox x:Name="TcpHostBox" Grid.Row="1" Grid.Column="1" Text="127.0.0.1:5000" Padding="4" VerticalAlignment="Center"/>
-                            <Button Grid.Row="1" Grid.Column="2" Content="连接TCP" Click="ConnectTcp_Click" Padding="12,4" Margin="8,0,0,0"/>
-                            <TextBlock Grid.Row="2" Grid.Column="0" Text="UDP收端口:" VerticalAlignment="Center"/>
+                            <Button Grid.Row="1" Grid.Column="2" Content="{DynamicResource Str_Settings_ConnectTcp}" Click="ConnectTcp_Click" Padding="12,4" Margin="8,0,0,0"/>
+                            <TextBlock Grid.Row="2" Grid.Column="0" Text="{DynamicResource Str_Settings_UdpRecvPort}" VerticalAlignment="Center"/>
                             <TextBox x:Name="UdpPortBox" Grid.Row="2" Grid.Column="1" Text="5001" Padding="4" VerticalAlignment="Center"/>
-                            <Button Grid.Row="2" Grid.Column="2" Content="监听UDP" Click="ConnectUdp_Click" Padding="12,4" Margin="8,0,0,0"/>
-                            <TextBlock Grid.Row="3" Grid.Column="0" Text="UDP发送:" VerticalAlignment="Center"/>
+                            <Button Grid.Row="2" Grid.Column="2" Content="{DynamicResource Str_Settings_ListenUdp}" Click="ConnectUdp_Click" Padding="12,4" Margin="8,0,0,0"/>
+                            <TextBlock Grid.Row="3" Grid.Column="0" Text="{DynamicResource Str_Settings_UdpSend}" VerticalAlignment="Center"/>
                             <TextBox x:Name="UdpSendBox" Grid.Row="3" Grid.Column="1" Text="127.0.0.1:5002" Padding="4" VerticalAlignment="Center"/>
-                            <TextBlock Grid.Row="4" Grid.Column="0" Text="状态:" VerticalAlignment="Center"/>
-                            <TextBlock x:Name="TimingStatusText" Grid.Row="4" Grid.Column="1" Text="未连接" VerticalAlignment="Center" Foreground="#EF4444"/>
-                            <Button x:Name="DisconnectTimingButton" Grid.Row="4" Grid.Column="2" Content="断开" Click="DisconnectTiming_Click" Padding="12,4" Margin="8,0,0,0"/>
+                            <TextBlock Grid.Row="4" Grid.Column="0" Text="{DynamicResource Str_Settings_Status}" VerticalAlignment="Center"/>
+                            <TextBlock x:Name="TimingStatusText" Grid.Row="4" Grid.Column="1" Text="{DynamicResource Str_Settings_NotConnected}" VerticalAlignment="Center" Foreground="#EF4444"/>
+                            <Button x:Name="DisconnectTimingButton" Grid.Row="4" Grid.Column="2" Content="{DynamicResource Str_Settings_Disconnect}" Click="DisconnectTiming_Click" Padding="12,4" Margin="8,0,0,0"/>
                         </Grid>
 
-                        <TextBlock Text="裁判长权限" FontSize="16" FontWeight="Bold" Margin="0,24,0,10"/>
+                        <TextBlock Text="{DynamicResource Str_Settings_ChiefJudge}" FontSize="16" FontWeight="Bold" Margin="0,24,0,10"/>
                         <TextBlock TextWrapping="Wrap" Foreground="#64748B" Margin="0,0,0,8"
-                                   Text="「成绩与排名」界面里「裁判长改成绩」按钮用的密码，跟系统账号密码是分开的两套——不改这里的话，任何知道系统账号密码的人都能直接改库，达不到「只给裁判长用」的目的。"/>
-                        <Button Content="设置/修改 裁判长改成绩密码" Click="ChiefJudgePassword_Click" HorizontalAlignment="Left"
+                                   Text="{DynamicResource Str_Settings_ChiefJudgeDesc}"/>
+                        <Button Content="{DynamicResource Str_Settings_ChiefJudgeBtn}" Click="ChiefJudgePassword_Click" HorizontalAlignment="Left"
                                 Padding="16,8" Background="#DC2626" Foreground="White" BorderThickness="0" FontWeight="Bold"/>
+
+                        <TextBlock Text="{DynamicResource Str_Settings_Language}" FontSize="16" FontWeight="Bold" Margin="0,24,0,10"/>
+                        <TextBlock TextWrapping="Wrap" Foreground="#64748B" Margin="0,0,0,8"
+                                   Text="{DynamicResource Str_Settings_LanguageDesc}"/>
+                        <StackPanel Orientation="Horizontal">
+                            <Button Content="中文 / English" Click="LanguageToggle_Click" HorizontalAlignment="Left"
+                                    Padding="16,8" Background="#1E40AF" Foreground="White" BorderThickness="0" FontWeight="Bold"/>
+                            <TextBlock x:Name="LanguageCurrentText" Text="{DynamicResource Str_Settings_LanguageCurrent}"
+                                       VerticalAlignment="Center" Margin="12,0,0,0" Foreground="#64748B"/>
+                        </StackPanel>
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>

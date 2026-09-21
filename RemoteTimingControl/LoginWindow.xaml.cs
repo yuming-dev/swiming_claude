@@ -47,6 +47,8 @@ namespace RemoteTimingControl
 
             // 2026-06-17 路径 A: 登录成功 → 主服务器 MainWindow (RTC 模式: 构造函数自动识别入口程序集名为
             // RemoteTimingControl, 隐藏除"比赛控制"外其他 tab, 跳过 WebSocket Server + 硬件直连初始化)
+            SwimmingScoreboard.Loc.LoadSaved();
+            SwimmingScoreboard.Loc.Apply();
             var main = new SwimmingScoreboard.MainWindow();
             Application.Current.MainWindow = main;
             Application.Current.ShutdownMode = ShutdownMode.OnMainWindowClose;

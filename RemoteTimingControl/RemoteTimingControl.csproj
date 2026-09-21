@@ -414,6 +414,9 @@
     <Compile Include="..\SwimmingScoreboard\AuthHelper.cs">
       <Link>AuthHelper.cs</Link>
     </Compile>
+    <Compile Include="..\SwimmingScoreboard\Localization.cs">
+      <Link>Localization.cs</Link>
+    </Compile>
     <Compile Include="..\SwimmingScoreboard\ChiefJudgePasswordWindow.cs">
       <Link>ChiefJudgePasswordWindow.cs</Link>
     </Compile>

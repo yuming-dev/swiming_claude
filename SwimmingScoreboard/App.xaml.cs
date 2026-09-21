@@ -22,6 +22,8 @@ namespace SwimmingScoreboard
             if (result != true) {
                 Shutdown(); return;
             }
+            Loc.LoadSaved();
+            Loc.Apply();
             try {
                 var mainWin = new MainWindow();
                 MainWindow = mainWin;

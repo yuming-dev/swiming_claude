@@ -83,6 +83,9 @@ $excludePats = @(
     'timing_settings.json','timing_connection.json','device_states.json',
     'last_competition.txt','auth_credentials.json',
     'rdc_server.json',
+    # 2026-09-21 "设置"页中文/English按钮——语言选择存在本机 language.json，
+    # 跟 credentials.json 同一类"开发机自己的偏好，不该原样装到客户机"。
+    'language.json',
     # 2026-09-21 开发机跑 RemoteTimingControl.exe 时会在 bin\Release 下生成自己那份
     # "连哪个服务器"配置——同上, 是开发机的连接记录, 不该原样装到客户机。
     'meet_service.json'
