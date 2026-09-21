@@ -43,9 +43,8 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 .tree-heat .st-done { color: #ca8a04; }
 .tree-heat .st-cancelled { color: #ef4444; }
 .tree-heat .st-pending { color: var(--dim); }
+.tree-heat .st-checkedin { color: #06b6d4; }
 .tree-heat.active .st-tag { color: #dbeafe; }
-.tree-heat .checkin-tag { color: #06b6d4; font-size: 11px; margin-left: 4px; }
-.tree-heat.active .checkin-tag { color: #cffafe; }
 .tree-heat.locked { cursor: default; }
 .tree-heat.cancelled-heat { color: #64748b; text-decoration: line-through; }
 .checkin-locked-banner { background: #7c2d12; border: 1px solid #dc2626; color: #fecaca; padding: 8px 12px; border-radius: 6px; margin-bottom: 10px; font-size: 13px; font-weight: bold; }
@@ -269,10 +268,12 @@ function handleMessage(msg) {
 }
 
 // ═══════ 赛程导航 ═══════
-// 2026-09-21 跟主服务器"赛程导航"树用同一套状态词汇——HeatStatus() 算出来的原始状态
-// 字符串由服务器直接发过来(见 schedule[].heatStatus), 这里只管照抄同一份映射, 不自己
-// 另猜一套, 保证两边不会打架。
-var STATUS_LABEL = { pending: '未开始', running: '进行中', done: '已完赛', confirmed: '已确认', cancelled: '已取消' };
+// 2026-09-21 用户明确要求: 组次状态标注做"数字 -> 状态"对照表, 以后系统从中文转英文
+// 只用改这一张表——跟主服务器 C# 那边的 HeatDisplayStatus 枚举(Swimmer.cs)数值必须
+// 完全对应, 数据(schedule[].heatStatus)是服务器直接算好发过来的数字, 这里不自己猜。
+var HEAT_STATUS = { PENDING: 1, CHECKED_IN: 2, RUNNING: 3, DONE: 4, CONFIRMED: 5, CANCELLED: 6 };
+var STATUS_LABEL = { 1: '未开始', 2: '已检录', 3: '进行中', 4: '已完赛', 5: '已确认', 6: '已取消' };
+var STATUS_CLASS = { 1: 'st-pending', 2: 'st-checkedin', 3: 'st-running', 4: 'st-done', 5: 'st-confirmed', 6: 'st-cancelled' };
 function renderScheduleTree() {
     var container = document.getElementById('schedTree');
     var schedule = (data && data.schedule) || [];
@@ -318,20 +319,16 @@ function renderScheduleTree() {
                 var hc = ev.heatCount || 1;
                 for (var h = 1; h <= hc; h++) {
                     var idx = h - 1;
-                    var cancelled = !!(ev.heatCancelled && ev.heatCancelled[idx]);
-                    var status = (ev.heatStatus && ev.heatStatus[idx]) || 'pending';
-                    var checkedIn = !!(ev.heatCheckedIn && ev.heatCheckedIn[idx]);
+                    var status = (ev.heatStatus && ev.heatStatus[idx]) || HEAT_STATUS.PENDING;
+                    var cancelled = (status === HEAT_STATUS.CANCELLED);
                     var key = (ev.ageGroup || '') + '|' + (ev.gender || '') + '|' + (ev.eventName || '') + '|' + (ev.stage || '') + '|' + h;
                     var active = '';
                     if (currentHeat && currentHeat.ageGroup === (ev.ageGroup || '') && currentHeat.gender === ev.gender && currentHeat.eventName === ev.eventName
                         && currentHeat.stage === ev.stage && currentHeat.heat === h) active = ' active';
-                    var locked = (status === 'running' || status === 'confirmed');
+                    var locked = (status === HEAT_STATUS.RUNNING || status === HEAT_STATUS.CONFIRMED);
                     var cls = 'tree-heat' + active + (locked ? ' locked' : '') + (cancelled ? ' cancelled-heat' : '');
-                    var stLabel = cancelled ? '已取消' : (STATUS_LABEL[status] || '未开始');
-                    var stCls = cancelled ? 'st-cancelled' : ('st-' + status);
                     html += '<div class="' + cls + '" onclick="selectHeat(\'' + key.replace(/\\/g, '\\\\').replace(/\'/g, "\\'") + '\')">第' + h + '组（共' + hc + '组）'
-                         + '<span class="st-tag ' + stCls + '">[' + stLabel + ']</span>'
-                         + (checkedIn ? '<span class="checkin-tag">✓已检录</span>' : '')
+                         + '<span class="st-tag ' + (STATUS_CLASS[status] || 'st-pending') + '">[' + (STATUS_LABEL[status] || STATUS_LABEL[HEAT_STATUS.PENDING]) + ']</span>'
                          + '</div>';
                 }
             }
@@ -348,13 +345,10 @@ function findHeatMeta(ageGroup, gender, eventName, stage, heat) {
         var ev = schedule[i];
         if ((ev.ageGroup || '') !== (ageGroup || '') || ev.gender !== gender || ev.eventName !== eventName || ev.stage !== stage) continue;
         var idx = heat - 1;
-        return {
-            status: (ev.heatStatus && ev.heatStatus[idx]) || 'pending',
-            cancelled: !!(ev.heatCancelled && ev.heatCancelled[idx]),
-            checkedIn: !!(ev.heatCheckedIn && ev.heatCheckedIn[idx])
-        };
+        var status = (ev.heatStatus && ev.heatStatus[idx]) || HEAT_STATUS.PENDING;
+        return { status: status, cancelled: (status === HEAT_STATUS.CANCELLED) };
     }
-    return { status: 'pending', cancelled: false, checkedIn: false };
+    return { status: HEAT_STATUS.PENDING, cancelled: false };
 }
 
 function selectHeat(key) {
@@ -388,12 +382,12 @@ function renderSwimmers(d) {
     // 2026-09-21 正在比赛"进行中"/"已确认"的组不能再检录——查一下这组当前状态,
     // 锁住时表格照常显示(方便查看名单), 但备注下拉禁用、顶部按钮也禁用。
     var meta = findHeatMeta(currentHeat.ageGroup, currentHeat.gender, currentHeat.eventName, currentHeat.stage, currentHeat.heat);
-    currentHeatLocked = (meta.status === 'running' || meta.status === 'confirmed');
+    currentHeatLocked = (meta.status === HEAT_STATUS.RUNNING || meta.status === HEAT_STATUS.CONFIRMED);
     var banner = document.getElementById('lockedBanner');
     var confirmBtn = document.querySelector('.btn-confirm');
     if (currentHeatLocked) {
         banner.style.display = 'block';
-        banner.textContent = (meta.status === 'running' ? '该组正在比赛中' : '该组成绩已确认') + '，不能再检录，仅供查看。';
+        banner.textContent = (meta.status === HEAT_STATUS.RUNNING ? '该组正在比赛中' : '该组成绩已确认') + '，不能再检录，仅供查看。';
         if (confirmBtn) confirmBtn.disabled = true;
     } else {
         banner.style.display = 'none';

@@ -2197,6 +2197,9 @@ function applyBlindWatchCount() {
 }
 
 // ═══════ 赛程树 ═══════
+// 2026-09-21 组次状态"数字 -> 状态"对照表——跟主服务器 C# 那边的 HeatDisplayStatus 枚举
+// (Swimmer.cs)数值完全对应, 以后系统从中文转英文只用改这一张表。
+var HEAT_STATUS = { PENDING: 1, CHECKED_IN: 2, RUNNING: 3, DONE: 4, CONFIRMED: 5, CANCELLED: 6 };
 var treeCollapsed = {}; // session number -> collapsed state
 
 function renderScheduleTree() {
@@ -2270,8 +2273,8 @@ function renderScheduleTree() {
                             active = ' active';
                         }
                         // 2026-09-21 用户要求: "已检录"标志要在整个系统的赛程导航都能看到——
-                        // 跟主服务器/checkin.html 同一份 heatCheckedIn 数组(GetStatusData 算好发过来的)。
-                        var checkedIn = (ev.heatCheckedIn && ev.heatCheckedIn[h-1]) ? ' <span style="color:#06b6d4;">[已检录]</span>' : '';
+                        // 跟主服务器/checkin.html 同一份数字状态表(schedule[].heatStatus, 服务器算好发过来)。
+                        var checkedIn = (ev.heatStatus && ev.heatStatus[h-1] === HEAT_STATUS.CHECKED_IN) ? ' <span style="color:#06b6d4;">[已检录]</span>' : '';
                         if (confirmed) {
                             html += '<div class="tree-heat" style="color:#aaa;cursor:default;pointer-events:none;">第' + h + '组 [已完赛]' + checkedIn + '</div>';
                         } else {

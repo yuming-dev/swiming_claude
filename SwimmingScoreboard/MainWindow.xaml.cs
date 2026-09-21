@@ -4423,19 +4423,17 @@ namespace SwimmingScoreboard
                     // 2026-09-18 heatCancelled 跟 heatConfirmed 逐一对应(同一条 hh 循环, 下标一致)——
                     //   query.html 拿组次号去这两个数组同一个下标查, 才能把"取消"和"没确认"分清楚。
                     var heatCancelled = new List<bool>();
-                    // 2026-09-21 用户要求: checkin.html 的赛程导航要跟主服务器那棵树标同样的
-                    //   "未开始/进行中/已确认"等状态——不在网页端另猜一套, 直接把 HeatStatus()
-                    //   (RebuildNavTree 用的同一个函数)算出来的原始状态字符串发过去, 网页照抄
-                    //   同一份 StatusLabel 映射, 保证两边永远不会打架。heatCheckedIn 是检录台
-                    //   自己"按过确认检录"的标记, 跟 heatConfirmed(赛后锁成绩)是两回事。
-                    var heatStatus = new List<string>();
-                    var heatCheckedIn = new List<bool>();
+                    // 2026-09-21 用户要求: 组次状态标注做"数字 -> 状态"对照表——网页端不再
+                    //   收字符串自己猜, 直接发 HeatDisplayStatus 的数字编号(见 Swimmer.cs),
+                    //   网页那边照抄同一份数字表(见各 html 里的 STATUS_LABEL), 保证两边永远
+                    //   不会打架, 以后系统从中文转英文也只用改这一张表。已检录已经是
+                    //   HeatStatus() 数字表里的一档状态, 不用再单独发 heatCheckedIn 了。
+                    var heatStatus = new List<int>();
                     for (int hh = 1; hh <= hc; hh++) {
                         bool cancelled = cancelledHeats.Any(c => c.Heat == hh);
                         heatCancelled.Add(cancelled);
                         heatConfirmed.Add(!cancelled && IsHeatConfirmed(ag, s.Gender, s.EventName, s.Stage, hh));
-                        heatStatus.Add(cancelled ? "cancelled" : HeatStatus(ag, s.Gender, s.EventName, s.Stage, hh));
-                        heatCheckedIn.Add(_checkedInHeats.Contains(ConfirmedHeatKey(ag, s.Gender, s.EventName, s.Stage, hh)));
+                        heatStatus.Add((int)(cancelled ? HeatDisplayStatus.Cancelled : HeatStatusCode(HeatStatus(ag, s.Gender, s.EventName, s.Stage, hh))));
                     }
                     // 2026-09-18 跟 IsStageAllConfirmedFast/GetFullyConfirmedFinalEvents 同一个坑:
                     //   被取消(并组)的组次号永远不会被确认——allConfirmed 原来直接 All(x=>x),
@@ -4455,7 +4453,6 @@ namespace SwimmingScoreboard
                         heatConfirmed = heatConfirmed,
                         heatCancelled = heatCancelled,
                         heatStatus = heatStatus,
-                        heatCheckedIn = heatCheckedIn,
                         allConfirmed = liveConfirmed.Count > 0 && liveConfirmed.All(x => x)
                     };
                 }).ToList(),
@@ -13195,20 +13192,8 @@ namespace SwimmingScoreboard
                     //   确认按钮, 锁定不让再点开) —— 用户提出的区分, 解开了下面这个死结:
                     //   中途关程序漏点"确认本组成绩", 数据其实全收到了, 旧逻辑一条推断就把
                     //   这组标成"已完赛"锁死, 连点开补确认的入口都没有。
-                    bool allHeatsDataDone = IsStageAllConfirmedFast(ag, ev.Gender, ev.EventName, ev.Stage, swIdx);
                     bool allHeatsTrulyConfirmed = IsStageAllTrulyConfirmed(ag, ev.Gender, ev.EventName, ev.Stage);
                     if (!allHeatsTrulyConfirmed) sessionAllDone = false;
-                    string evDoneTag = allHeatsTrulyConfirmed ? "已确认" : (allHeatsDataDone ? "已完赛" : "");
-
-                    // Tag 扩展：event:AgeGroup|Gender|Event|Stage  或  heat/done:AgeGroup|Gender|Event|Stage|Heat
-                    var eventItem = new TreeViewItem {
-                        Tag = string.Format("event:{0}|{1}|{2}|{3}", ag, ev.Gender, ev.EventName, ev.Stage),
-                        Header = string.IsNullOrEmpty(evDoneTag) ? header : (header + " [" + evDoneTag + "]"),
-                        Foreground = allHeatsTrulyConfirmed ? new SolidColorBrush(Colors.Gray)
-                                   : allHeatsDataDone ? new SolidColorBrush((Color)ColorConverter.ConvertFromString("#CA8A04"))
-                                   : new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E293B")),
-                        IsExpanded = !allHeatsTrulyConfirmed
-                    };
 
                     int heatCount = ev.HeatCount > 0 ? ev.HeatCount : 1;
                     // 2026-08-24 本项目被取消的组
@@ -13220,39 +13205,56 @@ namespace SwimmingScoreboard
                                 : (string.IsNullOrEmpty(cc.Reason) ? "已取消" : "已取消 " + cc.Reason);
                         }
                     }
+                    // Tag 扩展：event:AgeGroup|Gender|Event|Stage  或  heat/done:AgeGroup|Gender|Event|Stage|Heat
+                    var eventItem = new TreeViewItem {
+                        Tag = string.Format("event:{0}|{1}|{2}|{3}", ag, ev.Gender, ev.EventName, ev.Stage),
+                        IsExpanded = !allHeatsTrulyConfirmed
+                    };
+
+                    // 2026-09-21 这棵树("比赛控制" Tab 专用, RaceControlTab)用的是【数字状态表】
+                    //   (HeatDisplayStatus, 见 Swimmer.cs)——跟 RebuildNavTree 那三棵共用同一张
+                    //   表和同一套颜色, 这里只是数据来源不同(这棵走的是性能优化过的 Fast 索引,
+                    //   不查"进行中", 所以不会出现 Running)。已检录同一张 _checkedInHeats 表。
+                    var heatStatuses = new List<HeatDisplayStatus>();
                     for (int h = 1; h <= heatCount; h++) {
                         // 2026-09-16 heatConfirmed(数据齐, 展示用) 和 heatTrulyConfirmed(真确认过,
                         //   决定 Tag 是不是 "done:"、能不能点开) 分开 —— 只有后者才锁, 前者只是
                         //   换个颜色提醒操作员"这组数据齐了、该点确认了", 点得开。
                         bool heatConfirmed = IsHeatConfirmedFast(ag, ev.Gender, ev.EventName, ev.Stage, h, swIdx);
                         bool heatTrulyConfirmed = IsHeatTrulyConfirmed(ag, ev.Gender, ev.EventName, ev.Stage, h);
-                        string heatDoneTag = heatTrulyConfirmed ? "已确认" : (heatConfirmed ? "已完赛" : "");
-                        // 2026-09-21 用户要求: "比赛控制"这棵赛程导航树(RaceControlTab 专用,
-                        //   跟 RebuildNavTree 那三棵不是同一份代码)也要有"已检录"标志——同一张
-                        //   _checkedInHeats 表, 不新开一套判定。
-                        bool heatCheckedIn = !cancelLabels.ContainsKey(h)
-                            && _checkedInHeats.Contains(ConfirmedHeatKey(ag, ev.Gender ?? "", ev.EventName ?? "", ev.Stage ?? "", h));
-                        if (heatCheckedIn) heatDoneTag = string.IsNullOrEmpty(heatDoneTag) ? "已检录" : (heatDoneTag + " 已检录");
+                        bool cancelled = cancelLabels.ContainsKey(h);
+                        HeatDisplayStatus hStatus =
+                            cancelled ? HeatDisplayStatus.Cancelled :
+                            heatTrulyConfirmed ? HeatDisplayStatus.Confirmed :
+                            heatConfirmed ? HeatDisplayStatus.Done :
+                            _checkedInHeats.Contains(ConfirmedHeatKey(ag, ev.Gender ?? "", ev.EventName ?? "", ev.Stage ?? "", h)) ? HeatDisplayStatus.CheckedIn :
+                            HeatDisplayStatus.Pending;
+                        heatStatuses.Add(hStatus);
                         var heatItem = new TreeViewItem {
                             Tag = string.Format("{0}:{1}|{2}|{3}|{4}|{5}", heatTrulyConfirmed ? "done" : "heat", ag, ev.Gender, ev.EventName, ev.Stage, h),
-                            // 2026-08-24 已取消(并组)的组要标出来, 不然是个点进去空白的组
-                            Header = cancelLabels.ContainsKey(h)
+                            // 2026-08-24 已取消(并组)的组要标出来, 不然是个点进去空白的组——保留
+                            //   "并入第X组"这层细节, 不走通用的 StatusLabel(那边只会说"[已取消]")。
+                            Header = cancelled
                                 ? string.Format("第{0}组 [{1}]", h, cancelLabels[h])
-                                : (string.IsNullOrEmpty(heatDoneTag) ? string.Format("第{0}组 (共{1}组)", h, heatCount) : string.Format("第{0}组 [{1}]", h, heatDoneTag)),
-                            Foreground = cancelLabels.ContainsKey(h) ? new SolidColorBrush(Colors.Gray)
-                                       : heatTrulyConfirmed ? new SolidColorBrush(Colors.Gray)
-                                       : heatConfirmed ? new SolidColorBrush((Color)ColorConverter.ConvertFromString("#CA8A04"))
-                                       : new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E293B"))
+                                : (hStatus == HeatDisplayStatus.Pending ? string.Format("第{0}组 (共{1}组)", h, heatCount) : string.Format("第{0}组 {1}", h, StatusLabel(hStatus))),
+                            Foreground = StatusBrush(hStatus)
                         };
                         eventItem.Items.Add(heatItem);
                     }
+                    // 2026-09-21 已取消(并组)的组不算数——同 IsStageAllTrulyConfirmed 的口径,
+                    //   全场都在等的那个"确认"状态只看还"活着"的组次, 被并走的空号不该
+                    //   拖着整个项目显示不出"已确认"。
+                    var liveHeatStatuses = heatStatuses.Where(s => s != HeatDisplayStatus.Cancelled).ToList();
+                    HeatDisplayStatus evStatus = liveHeatStatuses.Count > 0 ? AggregateStatus(liveHeatStatuses) : HeatDisplayStatus.Cancelled;
+                    eventItem.Header = (evStatus == HeatDisplayStatus.Pending || evStatus == HeatDisplayStatus.Cancelled) ? header : (header + " " + StatusLabel(evStatus));
+                    eventItem.Foreground = StatusBrush(evStatus);
                     sessionItem.Items.Add(eventItem);
                 }
 
                 // 场内所有项目都完赛时收起，否则展开
                 sessionItem.IsExpanded = !sessionAllDone;
                 if (sessionAllDone) {
-                    sessionItem.Header = (session.First().SessionName ?? string.Format("第{0}场", session.Key)) + " [已完赛]";
+                    sessionItem.Header = (session.First().SessionName ?? string.Format("第{0}场", session.Key)) + " " + StatusLabel(HeatDisplayStatus.Done);
                     sessionItem.Foreground = new SolidColorBrush(Colors.Gray);
                 }
 
@@ -13340,6 +13342,18 @@ namespace SwimmingScoreboard
             return (ageGroup ?? "") + "|" + (gender ?? "") + "|" + (eventName ?? "") + "|" + (stage ?? "") + "|" + heat;
         }
 
+        // 2026-09-21 用户明确要求: 组次状态标注做成"数字 -> 状态"对照表, 这样以后整个
+        //   系统从中文转英文时只用改这一张表。唯一的中文文本来源, 其它地方一律只传
+        //   HeatDisplayStatus 这个数字, 不再比较/拼接字符串。
+        private static readonly Dictionary<HeatDisplayStatus, string> HeatStatusLabels = new Dictionary<HeatDisplayStatus, string> {
+            { HeatDisplayStatus.Pending,   "未开始" },
+            { HeatDisplayStatus.CheckedIn, "已检录" },
+            { HeatDisplayStatus.Running,   "进行中" },
+            { HeatDisplayStatus.Done,      "已完赛" },
+            { HeatDisplayStatus.Confirmed, "已确认" },
+            { HeatDisplayStatus.Cancelled, "已取消" },
+        };
+
         private string HeatStatus(string ageGroup, string gender, string eventName, string stage, int heat) {
             if (IsHeatTrulyConfirmed(ageGroup, gender, eventName, stage, heat)) return "confirmed";
             bool isRelay = eventName != null && eventName.Contains("接力");
@@ -13367,43 +13381,77 @@ namespace SwimmingScoreboard
                 //   那一刻就写库了), 换成读它才是跨机器都认的同一份真相。
                 if (ageGroup == _currentAgeGroup && gender == _currentGender && eventName == _currentEvent && stage == _currentStage && heat == _currentHeat) return "running";
                 if (_racingHeatKeys != null && _racingHeatKeys.Contains(RacingHeatKey(ageGroup, gender, eventName, stage, heat))) return "running";
+                // 2026-09-21 用户明确要求: 检录只是"到没到场", 跟"未开始/已检录/进行中/
+                //   已确认"是同一条状态线上的事——还没按准备就绪(走不到上面 running 那两
+                //   条分支)但检录台已经交过表的组, 标"已检录", 不是笼统的"未开始"。
+                if (_checkedInHeats.Contains(ConfirmedHeatKey(ageGroup, gender, eventName, stage, heat))) return "checkedIn";
                 return "pending";
             }
             if (withResult < inHeat.Count) return "running";
             return "done";   // 全有成绩, 但还没真正点过"确认本组成绩"
         }
 
-        // 节点级聚合：所有子节点的最小活跃度 (running > pending > done/confirmed > cancelled)
+        // 字符串状态码(pending/checkedIn/running/done/confirmed/cancelled) → 数字对照表。
+        // HeatStatus() 内部逻辑较复杂(读 _swimmers/_racingHeatKeys/_checkedInHeats), 保留
+        // 字符串返回值不动, 这里只做"翻译成数字"这一层, 数字表本身是唯一权威。
+        private static HeatDisplayStatus HeatStatusCode(string s) {
+            switch (s) {
+                case "checkedIn": return HeatDisplayStatus.CheckedIn;
+                case "running": return HeatDisplayStatus.Running;
+                case "done": return HeatDisplayStatus.Done;
+                case "confirmed": return HeatDisplayStatus.Confirmed;
+                case "cancelled": return HeatDisplayStatus.Cancelled;
+                default: return HeatDisplayStatus.Pending;
+            }
+        }
+
+        // 节点级聚合：所有子节点里最需要操作员关注的那个状态
+        // (进行中 > 已检录 > 未开始 > 已完赛/已确认(全体一致才算) > 已取消)
         // 2026-09-16 confirmed 和 done 分开聚合: 子节点全部真"已确认"才算父节点"已确认",
         //   混着数据齐但未确认的, 父节点只能算"已完赛"(还没能收尾)。
-        private static string AggregateStatus(IEnumerable<string> children) {
+        private static HeatDisplayStatus AggregateStatus(IEnumerable<HeatDisplayStatus> children) {
             var list = children.ToList();
-            if (list.Count == 0) return "pending";
-            if (list.Contains("running")) return "running";
-            if (list.Contains("pending")) return "pending";
-            if (list.All(x => x == "confirmed")) return "confirmed";
-            if (list.All(x => x == "done" || x == "confirmed")) return "done";
-            if (list.All(x => x == "cancelled")) return "cancelled";
+            if (list.Count == 0) return HeatDisplayStatus.Pending;
+            if (list.Contains(HeatDisplayStatus.Running)) return HeatDisplayStatus.Running;
+            if (list.Contains(HeatDisplayStatus.CheckedIn)) return HeatDisplayStatus.CheckedIn;
+            if (list.Contains(HeatDisplayStatus.Pending)) return HeatDisplayStatus.Pending;
+            if (list.All(x => x == HeatDisplayStatus.Confirmed)) return HeatDisplayStatus.Confirmed;
+            if (list.All(x => x == HeatDisplayStatus.Done || x == HeatDisplayStatus.Confirmed)) return HeatDisplayStatus.Done;
+            if (list.All(x => x == HeatDisplayStatus.Cancelled)) return HeatDisplayStatus.Cancelled;
             return list[0];
         }
 
-        private static string StatusLabel(string s) {
-            switch (s) {
-                case "confirmed": return "[已确认]";
-                case "done": return "[已完赛]";
-                case "running": return "[进行中]";
-                case "cancelled": return "[已取消]";
-                default: return "[未开始]";
-            }
+        private static string HeatStatusText(HeatDisplayStatus s) {
+            string label;
+            return HeatStatusLabels.TryGetValue(s, out label) ? label : HeatStatusLabels[HeatDisplayStatus.Pending];
         }
-        private static SolidColorBrush StatusBrush(string s) {
+        private static string StatusLabel(HeatDisplayStatus s) { return "[" + HeatStatusText(s) + "]"; }
+        private static string StatusLabel(string s) { return StatusLabel(HeatStatusCode(s)); }
+        private static SolidColorBrush StatusBrush(HeatDisplayStatus s) {
             switch (s) {
-                case "confirmed": return new SolidColorBrush((Color)ColorConverter.ConvertFromString("#22C55E"));
-                case "done": return new SolidColorBrush((Color)ColorConverter.ConvertFromString("#CA8A04"));
-                case "running": return new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6"));
-                case "cancelled": return new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EF4444"));
+                case HeatDisplayStatus.Confirmed: return new SolidColorBrush((Color)ColorConverter.ConvertFromString("#22C55E"));
+                case HeatDisplayStatus.Done: return new SolidColorBrush((Color)ColorConverter.ConvertFromString("#CA8A04"));
+                case HeatDisplayStatus.Running: return new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6"));
+                case HeatDisplayStatus.CheckedIn: return new SolidColorBrush((Color)ColorConverter.ConvertFromString("#06B6D4"));
+                case HeatDisplayStatus.Cancelled: return new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EF4444"));
                 default: return new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8"));
             }
+        }
+        private static SolidColorBrush StatusBrush(string s) { return StatusBrush(HeatStatusCode(s)); }
+        // HeatStatusCode 的反函数——RebuildNavTree 内部大量用 pending/checkedIn/running/...
+        // 这几个既有字符串键做 == 比较, 保持不动; 聚合改走数字表算完再翻回字符串。
+        private static string HeatStatusString(HeatDisplayStatus s) {
+            switch (s) {
+                case HeatDisplayStatus.CheckedIn: return "checkedIn";
+                case HeatDisplayStatus.Running: return "running";
+                case HeatDisplayStatus.Done: return "done";
+                case HeatDisplayStatus.Confirmed: return "confirmed";
+                case HeatDisplayStatus.Cancelled: return "cancelled";
+                default: return "pending";
+            }
+        }
+        private static string AggregateStatus(IEnumerable<string> children) {
+            return HeatStatusString(AggregateStatus(children.Select(HeatStatusCode)));
         }
 
         // Tag 格式: "nav:AgeGroup|Gender|Event|Stage|Heat"  (level-3 = heat 节点)
@@ -13460,18 +13508,19 @@ namespace SwimmingScoreboard
                             status = HeatStatus(ag, ev.Gender ?? "", ev.EventName ?? "", ev.Stage ?? "", h);
                             // 2026-06-19 去掉 ev.Date + ev.Time: 父节点 "第X场（YYYY-MM-DD 上午）" 已含日期+时段,
                             //   子节点 第X组 再拼一次重复. 只保留 阶段 + 组次 + 状态.
-                            // 2026-09-21 用户明确要求: checkin.html 那边加了"已检录"标志后,
-                            //   整个系统的赛程导航也要有——跟 checkin.html 用同一张
-                            //   _checkedInHeats 表, 不新开一套判定。
-                            bool checkedIn = _checkedInHeats.Contains(ConfirmedHeatKey(ag, ev.Gender ?? "", ev.EventName ?? "", ev.Stage ?? "", h));
-                            heatLabel = string.Format("{0} 第{1}组 {2}{3}", ev.Stage ?? "", h, StatusLabel(status),
-                                checkedIn ? " [已检录]" : "").Trim();
+                            // 2026-09-21 "已检录"现在是 HeatStatus() 数字表里的一档状态(见
+                            //   HeatDisplayStatus.CheckedIn), 不再是外挂的字符串拼接——
+                            //   StatusLabel(status) 已经会打印"[已检录]"。
+                            heatLabel = string.Format("{0} 第{1}组 {2}", ev.Stage ?? "", h, StatusLabel(status)).Trim();
                         }
                         // 2026-09-16 筛选按钮上"已结束"(Tag="done")一直是粗筛——不管这组是数据齐
                         //   (done)还是真点过确认(confirmed), 都算"比完了", 所以这里 done 桶要把
                         //   confirmed 也接进来, 不然点"已结束"筛选按钮, 已确认的组全部消失。
+                        // 2026-09-21 同理, "未开始"(Tag="pending")桶也把"已检录"(checkedIn)接进来——
+                        //   检录只是"到没到场", 没按准备就绪之前都算没开赛。
                         bool passFilter = statusFilter == "all" || status == statusFilter
-                                        || (statusFilter == "done" && status == "confirmed");
+                                        || (statusFilter == "done" && status == "confirmed")
+                                        || (statusFilter == "pending" && status == "checkedIn");
                         if (!passFilter) continue;
                         var l3 = new TreeViewItem {
                             Header = heatLabel,
