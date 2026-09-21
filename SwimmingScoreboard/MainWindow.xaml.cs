@@ -1894,6 +1894,16 @@ namespace SwimmingScoreboard
                     //   自己这边挂着的其它客户端(编排端等)——它们收到后走新加的 DATA_CHANGED
                     //   处理, 立刻多轮询一次, 不用等下一个 10 秒整点。
                     case "CLIENT_DATA_CHANGED":
+                        // 2026-09-21 【订正】上面这条只是转告"数据变了, 自己来取"——但检录台/
+                        //   编排端收到后发 REQUEST_FULL_STATUS 拿到的 heatStatus 是主服务器
+                        //   当场算的(HeatStatus() 读 _racingHeatKeys), 而 _racingHeatKeys 只在
+                        //   RebuildNavTree() 里才刷新(见其说明), 从不因为收到这条通知而重新
+                        //   查一次 _meetDb.GetRacingHeats()。之前只转发不重算, 于是主服务器
+                        //   自己那份 _racingHeatKeys 停留在这一组开赛前的旧值, 转告"数据变了"
+                        //   反而喂给检录台一份跟没变一样的旧状态——用户实拍到"检录台迟迟不见
+                        //   【进行中】"正是这个空档。跟"准备就绪"在本机那侧的补法(9431 行
+                        //   RebuildBothNavTrees())同一个道理, 这里补一次真正的重算再转告。
+                        try { BuildScheduleTree(); } catch { }
                         PushDataChanged(msg["what"] != null ? msg["what"].ToString() : "");
                         break;
                     // 2026-06-17 方案 B: RTC 把比赛状态 (SHOW_LIVE_RACE / RUNNING_TIME_UPDATE 等) 经此连接
@@ -2221,19 +2231,28 @@ namespace SwimmingScoreboard
 
             // 2026-09-21 标记"这一组已经检录过"——跟 ConfirmedHeats(赛后锁成绩)是两个
             //   不同阶段, 分开一张表。一旦提交过, checkin.html 的赛程导航要能看出来。
-            _checkedInHeats.Add(ConfirmedHeatKey(ageGroup, gender, eventName, stage, heat));
+            MarkHeatCheckedInCore(ageGroup, gender, eventName, stage, heat);
 
             AddLog(string.Format("检录: {0} {1} {2} 第{3}组 已保存{4}条状态",
                 gender, eventName, stage, heat, updated));
-            // 2026-09-21 【订正】上一版这里改成了 SaveWithoutPush()+PushDataChanged("swimmer")——
-            //   想得美, 但 PushDataChanged 触发的 DbPoll_Tick 只追 meetDb 里的成绩/排名, 检录
-            //   状态(Status 字段)只在内存/JSON 里, 根本不走那条路——编排端/计时端收到 DATA_CHANGED
-            //   问了一圈等于白问, 检录状态压根没同步过去。用户现在明确要求"按下确认检录后
-            //   ScheduleEditor.exe/RemoteTimingControl.exe 要立刻同步刷新", 改用真正携带数据
-            //   的 upsert 补丁——跟 CSV 批量导入那批是同一套机制, 已经带着 LiveActive 保护
-            //   (正在比的那个人这一行不会被覆盖, 见 ApplySwimmerRowsUpsertCore)。
+            // 2026-09-21 【再订正】上一版这里改成了走 SwimmerRowsUpsert 补丁("想得美, 但…"
+            //   那句注释), 以为带着 Swimmer.Status 字段过去就够了——结果主服务器自己这棵树
+            //   都没刷新, 编排端/计时端更是白等: 三棵"赛程导航"树的[已检录]标签只认
+            //   _checkedInHeats 这张表(见 BuildScheduleTree/HeatStatus), 压根不看 Swimmer.Status,
+            //   SwimmerRowsUpsert 补丁再怎么带数据也带不到这张表上; 而且当时也没在本机调用
+            //   BuildScheduleTree() 刷新——主服务器自己那份内存其实早改对了, 只是 WPF 的
+            //   TreeView 控件没人告诉它"该重画了"。现在分两步真正补上: 本机 MarkHeatCheckedInCore
+            //   里已经重建过树, 这里再单独发一条"CheckIn"补丁(见 ApplyCheckInPatch)把
+            //   _checkedInHeats 这张表本身同步给比赛控制exe/编排端, 它们收到后同样会各自调
+            //   BuildScheduleTree() 重画。Swimmer.Status 的 upsert 补丁仍然要发(DNS 等状态
+            //   本身也要同步), 两条补丁并不冲突, 各管各的字段。
             UpdateLaneStatusDisplay();
             FinishAndSyncPatch(BuildSwimmerRowsUpsertPatch(touchedRows, null, ClientLabel()), "swimmer");
+            var checkInPatch = NewPatch("CheckIn", ageGroup, gender, eventName, stage, ClientLabel());
+            checkInPatch["heat"] = heat;
+            string cierr;
+            if (!SpreadPatch(checkInPatch, out cierr))
+                AddLog("已检录状态没能同步到比赛控制端/编排端: " + cierr + " —— 只有主服务器这边刷新了");
             try {
                 if (socket != null) {
                     var ack = new JObject();
@@ -12147,6 +12166,28 @@ namespace SwimmingScoreboard
             return true;
         }
 
+        // 2026-09-21 检录状态改动的唯一落地点——本机点"确认检录"(HandleSaveCheckin)
+        //   和收到远端转发来的"CheckIn"补丁(ApplyCheckInPatch)都走这一份, 保证两条路
+        //   对"标已检录"这件事的理解(加到 _checkedInHeats + 重画树)完全一致。
+        private void MarkHeatCheckedInCore(string ageGroup, string gender, string eventName, string stage, int heat) {
+            _checkedInHeats.Add(ConfirmedHeatKey(ageGroup, gender, eventName, stage, heat));
+            try { BuildScheduleTree(); } catch { }   // 重画"比赛控制"树, 顺带联动赛程管理/成绩与排名/出场编排微调三棵
+        }
+
+        /// <summary>收到检录补丁——本机(主服务器/比赛控制exe/编排端)同步别处检录台刚交的表。</summary>
+        private bool ApplyCheckInPatch(JObject msg, out string error) {
+            error = null;
+            string ag = msg["ageGroup"] != null ? msg["ageGroup"].ToString() : "";
+            string gd = msg["gender"] != null ? msg["gender"].ToString() : "";
+            string ev = msg["eventName"] != null ? msg["eventName"].ToString() : "";
+            string st = msg["stage"] != null ? msg["stage"].ToString() : "";
+            int heat = 0;
+            try { if (msg["heat"] != null) heat = (int)msg["heat"]; } catch { }
+            if (heat <= 0) { error = "补丁没说检录的是哪一组"; return false; }
+            MarkHeatCheckedInCore(ag, gd, ev, st, heat);
+            return true;
+        }
+
         /// <summary>收到解锁补丁。</summary>
         private bool ApplyUnlockPatch(JObject msg, out string error) {
             error = null;
@@ -12739,6 +12780,7 @@ namespace SwimmingScoreboard
             if (op == "Assign") return ApplyAssignPatch(msg, out error);
             if (op == "Records") return ApplyRecordsPatch(msg, out error);
             if (op == "Unlock")  return ApplyUnlockPatch(msg, out error);
+            if (op == "CheckIn") return ApplyCheckInPatch(msg, out error);
             if (op == "RelayEdit") return ApplyRelayEditPatch(msg, out error);
             if (op == "SwimmerEdit") return ApplySwimmerEditPatch(msg, out error);
             if (op == "RelayDelete") return ApplyRelayDeletePatch(msg, out error);
