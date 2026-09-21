@@ -2,9 +2,21 @@
 # 一次性重新编译并打包游泳赛事管理系统。
 # 流程：
 #   1. MSBuild 重建 SwimmingScoreboard.sln (Release)
-#   2. csc.exe 编译 InstallerApp\{Setup,Uninstall,TimingSimulator,ParamDebugBot}.cs
+#   2. csc.exe 编译 InstallerApp\{Setup,Uninstall,TimingSimulator}.cs
 #   3. 把 5 个 WPF EXE 输出 + Web/Records + 工具 EXE 收集到 InstallerBuild\
 # 运行：powershell -ExecutionPolicy Bypass -File .\build_installer.ps1
+#
+# 2026-09-21 用户明确要求"整理安装包, 去掉不要的部分"——排查发现两类不该进客户包的东西:
+#   1. ParamDebugBot.exe(硬件参数调试机器人) 和 Web\test_bot.html(测试机器人网页)都是
+#      开发/调试专用工具(使用说明书里查无这两样), 不进包。ParamDebugBot 需要的话在
+#      InstallerApp\ParamDebugBot.cs 里, 开发机上单独用 csc 编译即可, 不用每次打包都带上。
+#   2. RemoteTimingControl\bin\Release 下由于开发机反复跑过 RTC.exe, 累积了
+#      Database\(含真实赛事库和原始计时数据)/Documents\(含真实运动员姓名成绩文档)/
+#      Logs\(运行日志)/meet_service.json(开发机自己的服务器连接配置) 这些运行态残留——
+#      跟 SwimmingScoreboard 那份"开发机残留数据"是同一个坑, 但清理逻辑只覆盖了
+#      SwimmingScoreboard 一个项目, 没覆盖 RemoteTimingControl/ScheduleEditor/
+#      RemoteDisplayControl, 于是这批真实赛事数据(甘肃省第十六届运动会青少年组游泳比赛)
+#      一直在每个客户安装包里——[3/5]清理步骤和 $excludePats 都已经改成四个项目统一处理。
 
 $ErrorActionPreference = "Stop"
 $root = "C:\游泳2026\swiming_claude"
@@ -20,7 +32,7 @@ Write-Host "[1/5] MSBuild 重建 Release ..."
 & $msbuild (Join-Path $root "SwimmingScoreboard.sln") -t:Rebuild -nologo -m -p:Configuration=Release -v:minimal
 if ($LASTEXITCODE -ne 0) { throw "MSBuild 失败" }
 
-Write-Host "[2/5] 编译 Setup / Uninstall / TimingSimulator / ParamDebugBot ..."
+Write-Host "[2/5] 编译 Setup / Uninstall / TimingSimulator ..."
 if (-not (Test-Path $installerBuild)) { New-Item -ItemType Directory -Path $installerBuild | Out-Null }
 $winFormsRef = "/reference:System.Windows.Forms.dll,System.Drawing.dll"
 $fullRef = "/reference:System.Windows.Forms.dll,System.Drawing.dll,System.dll"
@@ -42,17 +54,17 @@ $srcSim = Join-Path $root "InstallerApp\TimingSimulator.cs"
 & $csc /target:winexe "/out:$outSim" $fullRef $srcSim
 if ($LASTEXITCODE -ne 0) { throw "TimingSimulator.cs 编译失败" }
 
-$outBot = Join-Path $installerBuild "ParamDebugBot.exe"
-$srcBot = Join-Path $root "InstallerApp\ParamDebugBot.cs"
-& $csc /target:winexe "/out:$outBot" $fullRef $srcBot
-if ($LASTEXITCODE -ne 0) { throw "ParamDebugBot.cs 编译失败" }
-
 Write-Host "[3/5] 清理旧的 InstallerBuild 子目录 ..."
 foreach ($sub in @("SwimmingScoreboard","RemoteTimingControl","RemoteDisplayControl","RegistrationTool","ScheduleEditor")) {
     $p = Join-Path $installerBuild $sub
     if (Test-Path $p) { Remove-Item -Recurse -Force $p }
     New-Item -ItemType Directory -Path $p | Out-Null
 }
+# 2026-09-21 ParamDebugBot.exe 不再编译进包(见上面的说明)，但旧版本打的包里这个文件已经
+# 躺在 InstallerBuild 根目录——这一层只清子目录，清不到根目录的散文件，得单独删一次，
+# 不然它会一直原地不动，看着像"还在用"。
+$staleBot = Join-Path $installerBuild "ParamDebugBot.exe"
+if (Test-Path $staleBot) { Remove-Item -Force $staleBot; Write-Host "  ✂  删除 ParamDebugBot.exe (调试工具, 不进客户包)" }
 
 Write-Host "[4/5] 拷贝 5 个 WPF EXE 输出 + Web/Records ..."
 
@@ -70,7 +82,10 @@ $excludePats = @(
     'RemoteTimingHw.json','remote_lane_close_settings.json',
     'timing_settings.json','timing_connection.json','device_states.json',
     'last_competition.txt','auth_credentials.json',
-    'rdc_server.json'
+    'rdc_server.json',
+    # 2026-09-21 开发机跑 RemoteTimingControl.exe 时会在 bin\Release 下生成自己那份
+    # "连哪个服务器"配置——同上, 是开发机的连接记录, 不该原样装到客户机。
+    'meet_service.json'
 )
 
 # SwimmingScoreboard: 优先 x64\Release
@@ -84,20 +99,24 @@ foreach ($sub in @("Web","Records")) {
     if (Test-Path $dstSub) { Remove-Item -Recurse -Force $dstSub }
     Copy-Item (Join-Path $root "SwimmingScoreboard\$sub") $dstSub -Recurse -Force
     # 2026-09-13 顺带清掉 Web 下的开发笔记(*.md), 那是给自己看的, 不该进客户包
-    Get-ChildItem $dstSub -Recurse -File -Include '*.bak_*','*.bak','*~','*.md' | Remove-Item -Force
+    # 2026-09-21 顺带清掉 test_bot.html("测试机器人"网页)——开发/调试专用, 使用说明书
+    #   里查无这个功能, 不该进客户包。
+    Get-ChildItem $dstSub -Recurse -File -Include '*.bak_*','*.bak','*~','*.md','test_bot.html' | Remove-Item -Force
 }
 # 2026-06-17 RTC 也开 HTTP 文件服务 + WebSocket Server, 需要同样的 Web/ 目录
 foreach ($sub in @("Web","Records")) {
     $dstSub = Join-Path $installerBuild "RemoteTimingControl\$sub"
     if (Test-Path $dstSub) { Remove-Item -Recurse -Force $dstSub }
     Copy-Item (Join-Path $root "SwimmingScoreboard\$sub") $dstSub -Recurse -Force
-    Get-ChildItem $dstSub -Recurse -File -Include '*.bak_*','*.bak','*~','*.md' | Remove-Item -Force
+    # 2026-09-21 顺带清掉 test_bot.html("测试机器人"网页)——开发/调试专用, 使用说明书
+    #   里查无这个功能, 不该进客户包。
+    Get-ChildItem $dstSub -Recurse -File -Include '*.bak_*','*.bak','*~','*.md','test_bot.html' | Remove-Item -Force
 }
 # 2026-06-18 RDC 大屏预览 WebView2 用 file:/// 加载本地 display.html (主服务器 HTTP 8080 需 admin/netsh 注册, 不可靠)
 $dstWebRdc = Join-Path $installerBuild "RemoteDisplayControl\Web"
 if (Test-Path $dstWebRdc) { Remove-Item -Recurse -Force $dstWebRdc }
 Copy-Item (Join-Path $root "SwimmingScoreboard\Web") $dstWebRdc -Recurse -Force
-Get-ChildItem $dstWebRdc -Recurse -File -Include '*.bak_*','*.bak','*~','*.md' | Remove-Item -Force
+Get-ChildItem $dstWebRdc -Recurse -File -Include '*.bak_*','*.bak','*~','*.md','test_bot.html' | Remove-Item -Force
 
 # 2026-05-21 删除开发机运行 EXE 时产生的整目录（exclude 模式只过滤文件，不过滤目录）：
 #   Database\    开发机的赛事档案 + RawData 原始数据快照 → 装到客户机会覆盖客户数据
@@ -116,6 +135,17 @@ foreach ($proj in @("RemoteTimingControl","RemoteDisplayControl","RegistrationTo
     $src = Join-Path $root "$proj\bin\Release"
     if (Test-Path $src) {
         Copy-Item (Join-Path $src "*") (Join-Path $installerBuild $proj) -Recurse -Force -Exclude $excludePats
+        # 2026-09-21 同上——这几个项目开发机上一样跑过 exe, 一样会攒出 Database\/Documents\/
+        #   Logs\ 这类运行态残留(exclude 模式只挡文件, 挡不住整个目录)。之前这段清理只对
+        #   SwimmingScoreboard 做, RemoteTimingControl 的开发机残留(含真实赛事库/原始计时
+        #   数据/运动员成绩文档)一直在每个客户包里, 这里补齐四个项目统一处理。
+        foreach ($strayDir in @("Database","Documents","Logs")) {
+            $p2 = Join-Path $installerBuild "$proj\$strayDir"
+            if (Test-Path $p2) {
+                Remove-Item -Recurse -Force $p2
+                Write-Host "  ✂  删除 $proj\$strayDir (开发机残留数据)"
+            }
+        }
     } else {
         Write-Warning "未找到 $src - 跳过"
     }
