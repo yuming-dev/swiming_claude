@@ -36,6 +36,19 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 .tree-heat:hover { background: #253049; }
 .tree-heat.active { background: var(--accent); color: white; border-radius: 3px; margin: 1px 4px; }
 .tree-heat.checked { color: #10b981; }
+/* 2026-09-21 状态标签统一：跟主服务器赛程导航同一套颜色 */
+.tree-heat .st-tag { font-size: 11px; margin-left: 4px; }
+.tree-heat .st-running { color: #3b82f6; }
+.tree-heat .st-confirmed { color: #22c55e; }
+.tree-heat .st-done { color: #ca8a04; }
+.tree-heat .st-cancelled { color: #ef4444; }
+.tree-heat .st-pending { color: var(--dim); }
+.tree-heat.active .st-tag { color: #dbeafe; }
+.tree-heat .checkin-tag { color: #06b6d4; font-size: 11px; margin-left: 4px; }
+.tree-heat.active .checkin-tag { color: #cffafe; }
+.tree-heat.locked { cursor: default; }
+.tree-heat.cancelled-heat { color: #64748b; text-decoration: line-through; }
+.checkin-locked-banner { background: #7c2d12; border: 1px solid #dc2626; color: #fecaca; padding: 8px 12px; border-radius: 6px; margin-bottom: 10px; font-size: 13px; font-weight: bold; }
 
 /* 右侧主体：限宽居中，视觉更紧凑 */
 .content { flex: 1; display: flex; flex-direction: column; overflow: hidden; padding: 12px; max-width: 860px; width: 100%; margin: 0 auto; }
@@ -136,6 +149,7 @@ table.checkin .leg-tag { display: inline-block; background: #334155; color: #94a
     <div class="content">
         <!-- 打印抬头（仅打印时显示） -->
         <div class="print-title" id="printTitle"></div>
+        <div class="checkin-locked-banner" id="lockedBanner" style="display:none;"></div>
         <div class="info-card">
             <div>
                 <div class="title" id="heatTitle">请从左侧选择比赛组</div>
@@ -167,6 +181,7 @@ table.checkin .leg-tag { display: inline-block; background: #334155; color: #94a
 var ws = null;
 var data = {};
 var currentHeat = null;  // {gender, eventName, stage, heat}
+var currentHeatLocked = false;  // 2026-09-21 当前组"进行中/已确认"时为 true——只能看不能改
 var currentSwimmers = [];
 var dirty = false;       // 是否有未保存的备注修改
 var treeCollapsed = {};
@@ -230,6 +245,13 @@ function handleMessage(msg) {
         if (ws && ws.readyState === 1) ws.send(JSON.stringify({ type: 'REQUEST_FULL_STATUS' }));
         return;
     }
+    if (msg.type === 'CHECKIN_RESULT') {
+        // 2026-09-21 服务器可能会拒(该组正在比赛中/已确认)——原来是前端一发就乐观提示
+        // "已提交", 实际有没有存上全看服务器脸色, 现在照服务器的真实回执来。
+        if (msg.ok) alert('检录结果已提交');
+        else alert('检录未提交：' + (msg.reason || '服务器拒绝了这次提交'));
+        return;
+    }
     if (msg.type !== 'SHOW_LIVE_RACE' && msg.type !== 'SHOW_LIVE_RACE_LITE') return;
     if (!msg.data) return;
     var omitted = (msg.data.staticOmitted && msg.data.staticOmitted.length) ? msg.data.staticOmitted : null;
@@ -247,6 +269,10 @@ function handleMessage(msg) {
 }
 
 // ═══════ 赛程导航 ═══════
+// 2026-09-21 跟主服务器"赛程导航"树用同一套状态词汇——HeatStatus() 算出来的原始状态
+// 字符串由服务器直接发过来(见 schedule[].heatStatus), 这里只管照抄同一份映射, 不自己
+// 另猜一套, 保证两边不会打架。
+var STATUS_LABEL = { pending: '未开始', running: '进行中', done: '已完赛', confirmed: '已确认', cancelled: '已取消' };
 function renderScheduleTree() {
     var container = document.getElementById('schedTree');
     var schedule = (data && data.schedule) || [];
@@ -279,21 +305,34 @@ function renderScheduleTree() {
         html += '<span class="arrow">' + (collapsed ? '▶' : '▼') + '</span> ' + escHtml(sess.name);
         html += '</div>';
         if (!collapsed) {
+            var evSeq = 0;
             for (var j = 0; j < sess.events.length; j++) {
                 var ev = sess.events[j];
+                evSeq++;
+                // 2026-09-21 序号跟主服务器那棵树同一个算法: 有项次(evNum)用项次, 否则按场内顺序
+                var seqNum = (ev.evNum && ev.evNum > 0) ? ev.evNum : evSeq;
                 // 2026-06-16 显示 ageGroup 前缀, key 含 ageGroup 修跨组别污染
                 var ageHead = ev.ageGroup ? (ev.ageGroup + ' ') : '';
-                var label = ageHead + (ev.gender || '') + ' ' + (ev.eventName || '') + ' ' + (ev.stage || '');
+                var label = seqNum + '. ' + ageHead + (ev.gender || '') + ' ' + (ev.eventName || '') + ' ' + (ev.stage || '');
                 html += '<div class="tree-event">' + escHtml(label) + '</div>';
                 var hc = ev.heatCount || 1;
                 for (var h = 1; h <= hc; h++) {
+                    var idx = h - 1;
+                    var cancelled = !!(ev.heatCancelled && ev.heatCancelled[idx]);
+                    var status = (ev.heatStatus && ev.heatStatus[idx]) || 'pending';
+                    var checkedIn = !!(ev.heatCheckedIn && ev.heatCheckedIn[idx]);
                     var key = (ev.ageGroup || '') + '|' + (ev.gender || '') + '|' + (ev.eventName || '') + '|' + (ev.stage || '') + '|' + h;
                     var active = '';
                     if (currentHeat && currentHeat.ageGroup === (ev.ageGroup || '') && currentHeat.gender === ev.gender && currentHeat.eventName === ev.eventName
                         && currentHeat.stage === ev.stage && currentHeat.heat === h) active = ' active';
-                    var confirmed = (ev.heatConfirmed && ev.heatConfirmed[h - 1]) ? ' checked' : '';
-                    html += '<div class="tree-heat' + active + confirmed + '" onclick="selectHeat(\'' + key.replace(/\\/g, '\\\\').replace(/\'/g, "\\'") + '\')">第' + h + '组（共' + hc + '组）'
-                         + (confirmed ? ' ✓' : '') + '</div>';
+                    var locked = (status === 'running' || status === 'confirmed');
+                    var cls = 'tree-heat' + active + (locked ? ' locked' : '') + (cancelled ? ' cancelled-heat' : '');
+                    var stLabel = cancelled ? '已取消' : (STATUS_LABEL[status] || '未开始');
+                    var stCls = cancelled ? 'st-cancelled' : ('st-' + status);
+                    html += '<div class="' + cls + '" onclick="selectHeat(\'' + key.replace(/\\/g, '\\\\').replace(/\'/g, "\\'") + '\')">第' + h + '组（共' + hc + '组）'
+                         + '<span class="st-tag ' + stCls + '">[' + stLabel + ']</span>'
+                         + (checkedIn ? '<span class="checkin-tag">✓已检录</span>' : '')
+                         + '</div>';
                 }
             }
         }
@@ -302,6 +341,21 @@ function renderScheduleTree() {
     container.innerHTML = html;
 }
 function toggleSession(sn) { treeCollapsed[sn] = !(treeCollapsed[sn] === true); renderScheduleTree(); }
+
+function findHeatMeta(ageGroup, gender, eventName, stage, heat) {
+    var schedule = (data && data.schedule) || [];
+    for (var i = 0; i < schedule.length; i++) {
+        var ev = schedule[i];
+        if ((ev.ageGroup || '') !== (ageGroup || '') || ev.gender !== gender || ev.eventName !== eventName || ev.stage !== stage) continue;
+        var idx = heat - 1;
+        return {
+            status: (ev.heatStatus && ev.heatStatus[idx]) || 'pending',
+            cancelled: !!(ev.heatCancelled && ev.heatCancelled[idx]),
+            checkedIn: !!(ev.heatCheckedIn && ev.heatCheckedIn[idx])
+        };
+    }
+    return { status: 'pending', cancelled: false, checkedIn: false };
+}
 
 function selectHeat(key) {
     if (dirty && !confirm('当前组有未保存的备注修改，切换后将丢失。确定切换？')) return;
@@ -331,6 +385,20 @@ function renderSwimmers(d) {
     document.getElementById('heatTitle').textContent = title;
     document.getElementById('heatSub').textContent =
         '（共 ' + currentSwimmers.length + ' ' + (d.isRelay ? '队' : '人') + '）';
+    // 2026-09-21 正在比赛"进行中"/"已确认"的组不能再检录——查一下这组当前状态,
+    // 锁住时表格照常显示(方便查看名单), 但备注下拉禁用、顶部按钮也禁用。
+    var meta = findHeatMeta(currentHeat.ageGroup, currentHeat.gender, currentHeat.eventName, currentHeat.stage, currentHeat.heat);
+    currentHeatLocked = (meta.status === 'running' || meta.status === 'confirmed');
+    var banner = document.getElementById('lockedBanner');
+    var confirmBtn = document.querySelector('.btn-confirm');
+    if (currentHeatLocked) {
+        banner.style.display = 'block';
+        banner.textContent = (meta.status === 'running' ? '该组正在比赛中' : '该组成绩已确认') + '，不能再检录，仅供查看。';
+        if (confirmBtn) confirmBtn.disabled = true;
+    } else {
+        banner.style.display = 'none';
+        if (confirmBtn) confirmBtn.disabled = false;
+    }
     updateStats();
     // 打印抬头（大赛名 + 项目组别 + 小字检录表）
     var compName = (data && data.competitionName) ? data.competitionName : '游泳竞赛';
@@ -353,7 +421,7 @@ function renderSwimmers(d) {
     var html = '<table class="checkin">';
     html += '<thead><tr>';
     html += '<th class="lane-cell">泳道</th>';
-    html += '<th class="bib-cell">号码布</th>';
+    html += '<th class="bib-cell">号码</th>';
     html += '<th class="name-cell">姓名' + (d.isRelay ? '（队 / 队员）' : '') + '</th>';
     html += '<th class="id-cell">身份证号</th>';
     html += '<th class="team-cell">单位</th>';
@@ -411,7 +479,7 @@ function buildStatusSelect(bib, cur, labelPrefix) {
     if (cur === 'DNS') selClass += ' dns';
     else if (cur === 'DNF') selClass += ' dnf';
     else if (cur === 'DSQ') selClass += ' dsq';
-    var html = '<select class="' + selClass + '" data-bib="' + escHtml(bib || '') + '" onchange="onStatusChange(this)">';
+    var html = '<select class="' + selClass + '" data-bib="' + escHtml(bib || '') + '" onchange="onStatusChange(this)"' + (currentHeatLocked ? ' disabled' : '') + '>';
     for (var i = 0; i < opts.length; i++) {
         var sel = (opts[i].v === (cur || '')) ? ' selected' : '';
         html += '<option value="' + opts[i].v + '"' + sel + '>' + opts[i].t + '</option>';
@@ -482,6 +550,9 @@ function updateStats() {
 function confirmCheckin() {
     if (!currentHeat) { alert('请先选择比赛组'); return; }
     if (!ws || ws.readyState !== 1) { alert('未连接主服务器'); return; }
+    // 2026-09-21 前端拦一道；服务器那边(HandleSaveCheckin)也会按同一条件再拒一次，
+    // 防止页面缓存/绕过前端直接发消息。
+    if (currentHeatLocked) { alert('该组正在比赛中或成绩已确认，不能再检录。'); return; }
     if (!confirm('确认提交本组检录结果？\n\n将把备注中的 DNS/DNF/DSQ 状态同步到主服务器。')) return;
 
     var statuses = [];
@@ -506,7 +577,6 @@ function confirmCheckin() {
     }));
     dirty = false;
     updateStats();
-    alert('检录结果已提交');
 }
 
 function doPrint() {

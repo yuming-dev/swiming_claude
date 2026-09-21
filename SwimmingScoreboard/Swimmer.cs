@@ -1569,6 +1569,15 @@ namespace SwimmingScoreboard
             set { _participantCount = value; OnPropertyChanged("ParticipantCount"); }
         }
 
+        // 2026-09-21 赛程管理 DataGrid 显示用 "顺序号" 列(每场从1开始计数), 非持久化字段,
+        //   由 RebuildScheduleGroupedView 填值——同 ParticipantCount 的道理。
+        private int _seqInSession;
+        [Newtonsoft.Json.JsonIgnore]
+        public int SeqInSession {
+            get { return _seqInSession; }
+            set { _seqInSession = value; OnPropertyChanged("SeqInSession"); }
+        }
+
         public string DisplayText {
             get {
                 return string.Format("{0} {1} {2}", _gender, _eventName, _stage);
@@ -2099,6 +2108,9 @@ namespace SwimmingScoreboard
         //   这张表就是压住那条推断的: 在里面的组, 推断一律不算数。
         //   重新点「确认本组成绩」时从这里移除。
         public List<string> UnlockedHeats { get; set; }
+        // 2026-09-21 检录台(checkin.html)按下"确认检录"提交过的组次(同样的 key 写法)——
+        //   跟 ConfirmedHeats(赛后锁成绩)是两个完全不同的生命周期阶段, 分开记一张表。
+        public List<string> CheckedInHeats { get; set; }
         // 团体计分配置（名次分 / 接力倍率 / 组别系数 / 取分人数 / 破纪录加分）
         public ScoringConfig ScoringConfig { get; set; }
         // 2026-05-24 项目用时配置（一键全自动排日程时用）

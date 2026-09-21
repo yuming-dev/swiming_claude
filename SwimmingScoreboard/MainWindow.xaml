@@ -528,7 +528,30 @@
                             </Grid>
                         </TabItem>
                         <TabItem Header="出场编排微调">
-                            <DockPanel Margin="10">
+                            <Grid Margin="10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="260"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <!-- 2026-09-21 用户要求: 加整个系统统一的"赛程导航"树, 点了顶部组别/性别/项目/赛次/组
+                                     跟着变; 正在比赛"进行中"/"已确认"的组不能再微调(见 NavEditTree_Selected)。 -->
+                                <Border Grid.Column="0" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="6" Background="White" Margin="0,0,8,0">
+                                    <DockPanel Margin="8">
+                                        <TextBlock DockPanel.Dock="Top" Text="🧭 赛程导航" FontSize="14" FontWeight="Bold" Foreground="#1E40AF" Margin="0,0,0,6"/>
+                                        <TextBox DockPanel.Dock="Top" x:Name="NavEditSearchBox" Padding="4" Margin="0,0,0,6"
+                                                 ToolTip="输入项目/组别/赛次关键字,自动展开匹配分支并高亮"
+                                                 TextChanged="NavEditSearch_TextChanged"/>
+                                        <WrapPanel DockPanel.Dock="Top" Margin="0,0,0,6">
+                                            <Button x:Name="NavEditFilterAll" Content="全部" Click="NavEditFilter_Click" Tag="all" Padding="6,3" FontSize="11" Background="#1E40AF" Foreground="White" BorderThickness="0" Margin="0,0,4,4"/>
+                                            <Button Content="未开始" Click="NavEditFilter_Click" Tag="pending" Padding="6,3" FontSize="11" Background="#94A3B8" Foreground="White" BorderThickness="0" Margin="0,0,4,4"/>
+                                            <Button Content="进行中" Click="NavEditFilter_Click" Tag="running" Padding="6,3" FontSize="11" Background="#3B82F6" Foreground="White" BorderThickness="0" Margin="0,0,4,4"/>
+                                            <Button Content="已结束" Click="NavEditFilter_Click" Tag="done" Padding="6,3" FontSize="11" Background="#22C55E" Foreground="White" BorderThickness="0" Margin="0,0,4,4"/>
+                                            <Button Content="已取消" Click="NavEditFilter_Click" Tag="cancelled" Padding="6,3" FontSize="11" Background="#EF4444" Foreground="White" BorderThickness="0" Margin="0,0,4,4"/>
+                                        </WrapPanel>
+                                        <TreeView x:Name="NavEditTree" BorderThickness="0" SelectedItemChanged="NavEditTree_Selected"/>
+                                    </DockPanel>
+                                </Border>
+                            <DockPanel Grid.Column="1">
                                 <StackPanel DockPanel.Dock="Top" Margin="0,0,0,8">
                                     <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
                                         <TextBlock Text="组别:" VerticalAlignment="Center" Margin="0,0,4,0"/>
@@ -588,6 +611,7 @@
                                     <StackPanel x:Name="EditAllGroupsPanel"/>
                                 </ScrollViewer>
                             </DockPanel>
+                            </Grid>
                         </TabItem>
                         <TabItem Header="比赛参数设置管理">
                             <ScrollViewer Margin="10" VerticalScrollBarVisibility="Auto">

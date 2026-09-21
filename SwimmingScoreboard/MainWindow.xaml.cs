@@ -59,6 +59,8 @@ namespace SwimmingScoreboard
         // 2026-09-13 被显式解锁的组 —— 压住 IsHeatConfirmedFast 里那条"全员有成绩就算完赛"
         //   的推断, 否则解了锁赛程树照旧标 [已完赛]。重新确认时移除。
         private HashSet<string> _unlockedHeats = new HashSet<string>();
+        // 2026-09-21 检录台(checkin.html)提交过"确认检录"的组次, key 写法同 _confirmedHeats。
+        private HashSet<string> _checkedInHeats = new HashSet<string>();
         private static string ConfirmedHeatKey(string ageGroup, string gender, string eventName, string stage, int heat) {
             return string.Format("{0}|{1}|{2}|{3}|{4}", ageGroup ?? "", gender ?? "", eventName ?? "", stage ?? "", heat);
         }
@@ -2001,7 +2003,7 @@ namespace SwimmingScoreboard
                         HandleGetHeatSwimmers(socket, msg);
                         break;
                     case "SAVE_CHECKIN":
-                        HandleSaveCheckin(msg);
+                        HandleSaveCheckin(socket, msg);
                         break;
                     case "REGISTER_SWIMMER":
                         HandleRegisterSwimmer(msg);
@@ -2152,7 +2154,7 @@ namespace SwimmingScoreboard
 
         // 检录表确认：批量更新状态（DNS 等），保存并广播
         // statuses 支持两种键：bibNumber（首选，兼容接力队员）或 lane（个人项目兼容）
-        private void HandleSaveCheckin(JObject msg) {
+        private void HandleSaveCheckin(IWebSocketConnection socket, JObject msg) {
             var data = msg["data"];
             if (data == null) return;
             // 2026-06-16 加 ageGroup: 防跨组别 bibNumber 撞号 (虽然 bibNumber 一般全局唯一, 兜底)
@@ -2164,7 +2166,27 @@ namespace SwimmingScoreboard
             var statuses = data["statuses"] as JArray;
             if (statuses == null) return;
 
+            // 2026-09-21 用户明确要求: 正在比赛"进行中"、"已确认"的组不能再检录——
+            //   前端(checkin.html)已经把按钮/表单禁掉, 这里再挡一道, 防止老页面缓存/
+            //   绕过前端直接发消息。
+            string curStatus = HeatStatus(ageGroup, gender, eventName, stage, heat);
+            if (curStatus == "running" || curStatus == "confirmed") {
+                string why = curStatus == "running" ? "这一组正在比赛中" : "这一组成绩已确认";
+                AddLog(string.Format("检录被拒: {0} {1} {2} 第{3}组 — {4}", gender, eventName, stage, heat, why));
+                try {
+                    if (socket != null) {
+                        var rej = new JObject();
+                        rej["type"] = "CHECKIN_RESULT";
+                        rej["ok"] = false;
+                        rej["reason"] = why + "，不能再检录。";
+                        socket.Send(rej.ToString(Formatting.None));
+                    }
+                } catch { }
+                return;
+            }
+
             int updated = 0;
+            var touchedRows = new List<Swimmer>();
             foreach (JObject st in statuses.Cast<JObject>()) {
                 string bib = st["bibNumber"] != null ? st["bibNumber"].ToString() : "";
                 int lane = st["lane"] != null ? (int)st["lane"] : 0;
@@ -2193,17 +2215,33 @@ namespace SwimmingScoreboard
                 if (target != null && (target.Status ?? "") != newStatus) {
                     target.Status = newStatus;
                     updated++;
+                    touchedRows.Add(target);
                 }
             }
 
+            // 2026-09-21 标记"这一组已经检录过"——跟 ConfirmedHeats(赛后锁成绩)是两个
+            //   不同阶段, 分开一张表。一旦提交过, checkin.html 的赛程导航要能看出来。
+            _checkedInHeats.Add(ConfirmedHeatKey(ageGroup, gender, eventName, stage, heat));
+
             AddLog(string.Format("检录: {0} {1} {2} 第{3}组 已保存{4}条状态",
                 gender, eventName, stage, heat, updated));
-            // 2026-09-20 检录改的是已有运动员的 Status 字段(narrow update)——跟
-            // HandleEditorUpdateSwimmer 同一个道理, 不必为几个人的检录状态推整包。
-            SaveWithoutPush();
+            // 2026-09-21 【订正】上一版这里改成了 SaveWithoutPush()+PushDataChanged("swimmer")——
+            //   想得美, 但 PushDataChanged 触发的 DbPoll_Tick 只追 meetDb 里的成绩/排名, 检录
+            //   状态(Status 字段)只在内存/JSON 里, 根本不走那条路——编排端/计时端收到 DATA_CHANGED
+            //   问了一圈等于白问, 检录状态压根没同步过去。用户现在明确要求"按下确认检录后
+            //   ScheduleEditor.exe/RemoteTimingControl.exe 要立刻同步刷新", 改用真正携带数据
+            //   的 upsert 补丁——跟 CSV 批量导入那批是同一套机制, 已经带着 LiveActive 保护
+            //   (正在比的那个人这一行不会被覆盖, 见 ApplySwimmerRowsUpsertCore)。
             UpdateLaneStatusDisplay();
-            Broadcast();
-            PushDataChanged("swimmer");
+            FinishAndSyncPatch(BuildSwimmerRowsUpsertPatch(touchedRows, null, ClientLabel()), "swimmer");
+            try {
+                if (socket != null) {
+                    var ack = new JObject();
+                    ack["type"] = "CHECKIN_RESULT";
+                    ack["ok"] = true;
+                    socket.Send(ack.ToString(Formatting.None));
+                }
+            } catch { }
         }
 
         private void HandleRegisterSwimmer(JObject msg) {
@@ -4385,10 +4423,19 @@ namespace SwimmingScoreboard
                     // 2026-09-18 heatCancelled 跟 heatConfirmed 逐一对应(同一条 hh 循环, 下标一致)——
                     //   query.html 拿组次号去这两个数组同一个下标查, 才能把"取消"和"没确认"分清楚。
                     var heatCancelled = new List<bool>();
+                    // 2026-09-21 用户要求: checkin.html 的赛程导航要跟主服务器那棵树标同样的
+                    //   "未开始/进行中/已确认"等状态——不在网页端另猜一套, 直接把 HeatStatus()
+                    //   (RebuildNavTree 用的同一个函数)算出来的原始状态字符串发过去, 网页照抄
+                    //   同一份 StatusLabel 映射, 保证两边永远不会打架。heatCheckedIn 是检录台
+                    //   自己"按过确认检录"的标记, 跟 heatConfirmed(赛后锁成绩)是两回事。
+                    var heatStatus = new List<string>();
+                    var heatCheckedIn = new List<bool>();
                     for (int hh = 1; hh <= hc; hh++) {
                         bool cancelled = cancelledHeats.Any(c => c.Heat == hh);
                         heatCancelled.Add(cancelled);
                         heatConfirmed.Add(!cancelled && IsHeatConfirmed(ag, s.Gender, s.EventName, s.Stage, hh));
+                        heatStatus.Add(cancelled ? "cancelled" : HeatStatus(ag, s.Gender, s.EventName, s.Stage, hh));
+                        heatCheckedIn.Add(_checkedInHeats.Contains(ConfirmedHeatKey(ag, s.Gender, s.EventName, s.Stage, hh)));
                     }
                     // 2026-09-18 跟 IsStageAllConfirmedFast/GetFullyConfirmedFinalEvents 同一个坑:
                     //   被取消(并组)的组次号永远不会被确认——allConfirmed 原来直接 All(x=>x),
@@ -4407,6 +4454,8 @@ namespace SwimmingScoreboard
                         stage = s.Stage, heatCount = s.HeatCount, isRelay = s.IsRelay,
                         heatConfirmed = heatConfirmed,
                         heatCancelled = heatCancelled,
+                        heatStatus = heatStatus,
+                        heatCheckedIn = heatCheckedIn,
                         allConfirmed = liveConfirmed.Count > 0 && liveConfirmed.All(x => x)
                     };
                 }).ToList(),
@@ -11579,18 +11628,30 @@ namespace SwimmingScoreboard
             // _patchInFlight: 这次改动已经由补丁送到对端了, 别再推一次整包
             // (整包那条路比赛中本来就会被拒, 还要弹一个吓人的"未保存"对话框)
             _patchInFlight = true;
+            bool raceLive;
             try {
                 InvalidateMixedCache();
                 _currentHeatSwimmersCacheKey = null;      // 让 50ms 缓存立即失效
-                AutoSaveData();
-                RefreshEditPreview();       // 操作员就盯着这张表, 必须当场刷新
-                // 赛程树比赛中不重建 —— 那是整棵 TreeView, 在 UI 线程上一跑就可能
-                // 压住硬件计时帧(0x7F)。何况比赛中没人看它。挂个脏标记, 复位/确认后再建。
-                if (InRaceNoDbWrite()) _scheduleTreeDirty = true;
-                else { try { BuildScheduleTree(); } catch { } }
-                Broadcast();                // 100ms 批量去抖, 大屏那一路不受影响
+                // 2026-09-21 【订正, 见 FlushPatchDeferred 上面的说明】原来只按本机
+                //   InRaceNoDbWrite()(本机自己的 _raceState)判断要不要押后, RTC 当主控时
+                //   本机的 _raceState 从头到尾是空闲, 这个判断形同虚设。改用
+                //   _meetDb.LiveActive——不管这一刻是谁在计时, 这个信号都权威(整包那道闸
+                //   用的也是它), 三步(落盘/赛程树/广播)统一押后, 不再各按各的判断。
+                raceLive = _meetDb.LiveActive;
+                if (raceLive) {
+                    _patchSaveDirty = true;
+                    _scheduleTreeDirty = true;
+                    _patchBroadcastDirty = true;
+                } else {
+                    AutoSaveData();
+                    try { BuildScheduleTree(); } catch { }
+                }
+                RefreshEditPreview();       // 操作员就盯着这张表, 必须当场刷新——纯本机 UI, 不牵扯广播, 不押后
             } finally { _patchInFlight = false; }
-            PushDataChanged("assign");      // 2026-09-13 吭一声, 查询页要用时自己来取
+            if (!raceLive) {
+                Broadcast();                // 100ms 批量去抖, 大屏那一路不受影响
+                PushDataChanged("assign");  // 2026-09-13 吭一声, 查询页要用时自己来取
+            }
         }
 
         // ── 编排改动收尾: 落盘 + 用补丁同步给对端(不推整包) ─────────────
@@ -13255,10 +13316,13 @@ namespace SwimmingScoreboard
         // 当前 status 筛选 (per-tree)
         private string _navSchedFilter = "all";
         private string _navResultFilter = "all";
+        // 2026-09-21 "出场编排微调" Tab 也要有同一棵赛程导航树。
+        private string _navEditFilter = "all";
 
         private void RebuildBothNavTrees() {
             if (NavSchedTree != null) RebuildNavTree(NavSchedTree, NavSchedSearchBox != null ? NavSchedSearchBox.Text : "", _navSchedFilter);
             if (NavResultTree != null) RebuildNavTree(NavResultTree, NavResultSearchBox != null ? NavResultSearchBox.Text : "", _navResultFilter);
+            if (NavEditTree != null) RebuildNavTree(NavEditTree, NavEditSearchBox != null ? NavEditSearchBox.Text : "", _navEditFilter);
         }
 
         // 2026-09-16 一个 leaf 节点的状态：未开始 / 进行中 / 已完赛(数据齐但未点确认) /
@@ -13547,6 +13611,56 @@ namespace SwimmingScoreboard
             SetComboValue(ResultHeatCombo, heat > 0 ? ("第" + heat + "组") : "全部");
             try { RefreshResultGrid(); } catch { }
         }
+        // 2026-09-21 "出场编排微调" Tab 的赛程导航——跟 NavSchedTree/NavResultTree 同一套
+        //   RebuildNavTree, 点了顶部 组别/性别/项目/赛次/组 几个下拉跟着走(同 NavResultTree_Selected
+        //   的思路); 额外多一条: 选中的是"某一组次"且这组正在比赛中/已确认时, 直接拦下不让选,
+        //   不然会让人在锁着的组上点"上移/下移/交换泳道"这些按钮, 到保存那一步才被拒。
+        private void NavEditFilter_Click(object sender, RoutedEventArgs e) {
+            var btn = sender as Button;
+            _navEditFilter = btn != null ? (btn.Tag as string ?? "all") : "all";
+            RebuildNavTree(NavEditTree, NavEditSearchBox != null ? NavEditSearchBox.Text : "", _navEditFilter);
+        }
+        private void NavEditSearch_TextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e) {
+            RebuildNavTree(NavEditTree, NavEditSearchBox.Text, _navEditFilter);
+        }
+        private void NavEditTree_Selected(object sender, RoutedPropertyChangedEventArgs<object> e) {
+            var item = e.NewValue as TreeViewItem;
+            if (item == null || !(item.Tag is string)) return;
+            string tag = item.Tag as string;
+            string ag, gd, ev, st; int heat = 0;
+            if (tag.StartsWith("event:")) {
+                var p = tag.Substring(6).Split('|');
+                if (p.Length < 4) return;
+                ag = p[0]; gd = p[1]; ev = p[2]; st = p[3];
+            } else if (tag.StartsWith("nav:")) {
+                var p = tag.Substring(4).Split('|');
+                if (p.Length < 5) return;
+                ag = p[0]; gd = p[1]; ev = p[2]; st = p[3];
+                int.TryParse(p[4], out heat);
+            } else return;   // 场次节点: 不动
+
+            if (heat > 0) {
+                string hs = HeatStatus(ag, gd, ev, st, heat);
+                if (hs == "running" || hs == "confirmed") {
+                    MessageBox.Show(string.Format("{0} 第{1}组当前{2}，不能再进行出场编排微调。",
+                        ev, heat, hs == "running" ? "正在比赛中" : "成绩已确认"),
+                        "不能微调", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+            }
+
+            _editUpdating = true;
+            try {
+                SetComboValue(EditAgeGroupCombo, string.IsNullOrEmpty(ag) ? "全部" : ag);
+                SetComboValue(EditGenderCombo, gd);
+                SetComboValue(EditStageCombo, st);
+            } finally { _editUpdating = false; }
+            UpdateEditHeatCombo();   // 按新的 组别/性别/赛次 重建 项目/组次 下拉(内部已调用一次 RefreshEditPreview)
+            SetComboValue(EditEventCombo, ev);
+            SetComboValue(EditHeatCombo, heat > 0 ? ("第" + heat + "组") : "全部");
+            try { RefreshEditPreview(); } catch { }
+        }
+
         private static void SetComboValue(System.Windows.Controls.ComboBox cb, string val) {
             if (cb == null) return;
             for (int i = 0; i < cb.Items.Count; i++) {
@@ -21203,7 +21317,33 @@ namespace SwimmingScoreboard
             return EditPreviewGrid;
         }
 
+        // 2026-09-21 用户明确要求: 正在比赛"进行中"、"已确认"的组不能再微调——出场编排
+        //   微调这几个按钮(上移/下移/交换泳道/增加到本组/移出本组/保存修改)原来一个都不
+        //   挡, 点了就直接改内存, 现在统一在动手之前查一次当前选中的具体组次状态。
+        //   "全部组"总览视图(没定位到具体组次)不挡——真正落到某一组时才判。
+        private bool CheckEditHeatNotLocked() {
+            string ageGroup = EditAgeGroupCombo != null && EditAgeGroupCombo.SelectedItem != null ? EditAgeGroupCombo.SelectedItem.ToString() : "";
+            if (ageGroup == "全部" || ageGroup == "(无组别)") ageGroup = "";
+            string gender = EditGenderCombo != null && EditGenderCombo.SelectedItem != null ? ((ComboBoxItem)EditGenderCombo.SelectedItem).Content.ToString() : "";
+            string eventName = EditEventCombo != null && EditEventCombo.SelectedItem != null ? EditEventCombo.SelectedItem.ToString() : "";
+            string stage = EditStageCombo != null && EditStageCombo.SelectedItem != null ? ((ComboBoxItem)EditStageCombo.SelectedItem).Content.ToString() : "";
+            string heatStr = EditHeatCombo != null && EditHeatCombo.SelectedItem != null ? EditHeatCombo.SelectedItem.ToString() : "";
+            if (string.IsNullOrEmpty(eventName) || string.IsNullOrEmpty(heatStr) || heatStr == "全部") return true;
+            var m = System.Text.RegularExpressions.Regex.Match(heatStr, @"\d+");
+            int heat;
+            if (!m.Success || !int.TryParse(m.Value, out heat) || heat <= 0) return true;
+            string hs = HeatStatus(ageGroup, gender, eventName, stage, heat);
+            if (hs == "running" || hs == "confirmed") {
+                MessageBox.Show(string.Format("{0} 第{1}组当前{2}，不能再进行出场编排微调。",
+                    eventName, heat, hs == "running" ? "正在比赛中" : "成绩已确认"),
+                    "不能微调", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return false;
+            }
+            return true;
+        }
+
         private void EditMoveUp_Click(object sender, RoutedEventArgs e) {
+            if (!CheckEditHeatNotLocked()) return;
             var grid = GetActiveEditGrid();
             int idx = grid.SelectedIndex;
             if (idx <= 0) return;
@@ -21211,6 +21351,7 @@ namespace SwimmingScoreboard
         }
 
         private void EditMoveDown_Click(object sender, RoutedEventArgs e) {
+            if (!CheckEditHeatNotLocked()) return;
             var grid = GetActiveEditGrid();
             int idx = grid.SelectedIndex;
             if (idx < 0 || idx >= grid.Items.Count - 1) return;
@@ -21218,6 +21359,7 @@ namespace SwimmingScoreboard
         }
 
         private void EditSwapLane_Click(object sender, RoutedEventArgs e) {
+            if (!CheckEditHeatNotLocked()) return;
             // 2026-07-09 先补齐旧数据里的空 BibNumber (= 2026-07-03 之前的临时加人可能空 bib),
             //   避免下面用 BibNumber 定位 sw1 时 FirstOrDefault 撞第 1 个空 bib.
             EnsureAllSwimmerBibs();
@@ -21347,6 +21489,7 @@ namespace SwimmingScoreboard
         }
 
         private void EditAddToHeat_Click(object sender, RoutedEventArgs e) {
+            if (!CheckEditHeatNotLocked()) return;
             string ageGroup = EditAgeGroupCombo != null && EditAgeGroupCombo.SelectedItem != null ? EditAgeGroupCombo.SelectedItem.ToString() : "";
             string gender = EditGenderCombo.SelectedItem != null ? ((ComboBoxItem)EditGenderCombo.SelectedItem).Content.ToString() : "";
             string eventName = EditEventCombo.SelectedItem != null ? EditEventCombo.SelectedItem.ToString() : "";
@@ -21492,6 +21635,7 @@ namespace SwimmingScoreboard
         }
 
         private void EditRemoveFromHeat_Click(object sender, RoutedEventArgs e) {
+            if (!CheckEditHeatNotLocked()) return;
             var grid = GetActiveEditGrid();
             var selected = grid.SelectedItem;
             if (selected == null) { MessageBox.Show("请先选中一名运动员"); return; }
@@ -21742,6 +21886,7 @@ namespace SwimmingScoreboard
         }
 
         private void EditSaveChanges_Click(object sender, RoutedEventArgs e) {
+            if (!CheckEditHeatNotLocked()) return;
             AutoSaveData();
             Broadcast();
             BuildScheduleTree();
@@ -22225,6 +22370,7 @@ namespace SwimmingScoreboard
                     IsReadOnly = true,
                     SelectionMode = DataGridSelectionMode.Single
                 };
+                grid.Columns.Add(new DataGridTextColumn { Header = "顺序号", Binding = new System.Windows.Data.Binding("SeqInSession"), Width = new DataGridLength(55) });
                 grid.Columns.Add(new DataGridTextColumn { Header = "时间", Binding = new System.Windows.Data.Binding("Time"), Width = new DataGridLength(70) });
                 grid.Columns.Add(new DataGridTextColumn { Header = "组别", Binding = new System.Windows.Data.Binding("AgeGroup"), Width = new DataGridLength(70) });
                 grid.Columns.Add(new DataGridTextColumn { Header = "性别", Binding = new System.Windows.Data.Binding("Gender"), Width = new DataGridLength(40) });
@@ -22235,7 +22381,11 @@ namespace SwimmingScoreboard
                 grid.Columns.Add(new DataGridTextColumn { Header = "组数", Binding = new System.Windows.Data.Binding("HeatCount"), Width = new DataGridLength(50) });
 
                 // 保留 _schedule 自然顺序（支持用户自定义的比赛顺序）
-                foreach (var item in group) item.ParticipantCount = CountParticipants(item);
+                int seq = 0;
+                foreach (var item in group) {
+                    item.ParticipantCount = CountParticipants(item);
+                    item.SeqInSession = ++seq;   // 2026-09-21 每场从1开始计数
+                }
                 grid.ItemsSource = new ObservableCollection<ScheduleItem>(group);
                 ScheduleGroupedPanel.Children.Add(grid);
             }
@@ -25562,7 +25712,8 @@ namespace SwimmingScoreboard
                 DisplayRecordTypeName = _displayRecordTypeName,
                 DisplayRecordOptions = _displayRecordOptions,
                 ConfirmedHeats = _confirmedHeats.ToList(),
-                UnlockedHeats = _unlockedHeats.ToList()     // 2026-09-13 解锁标记也要存, 否则重开档案又锁上
+                UnlockedHeats = _unlockedHeats.ToList(),    // 2026-09-13 解锁标记也要存, 否则重开档案又锁上
+                CheckedInHeats = _checkedInHeats.ToList()
             };
         }
 
@@ -25593,9 +25744,38 @@ namespace SwimmingScoreboard
             try { BuildScheduleTree(); AddLog("比赛中攒下的赛程树重建已补上"); } catch { }
         }
 
+        // 2026-09-21 【现场实测到的问题】FinishPatchApply(Assign/MergeHeats 补丁收尾)里的
+        //   AutoSaveData()/Broadcast()/PushDataChanged() 原来不管三七二十一, 不管是本机自己
+        //   在计时、还是 RTC 当主控本机只是条总线, 一律照做——AutoSaveData() 在 UI 线程上
+        //   同步打一次整包快照(慢), Broadcast() 用本机的 _currentEvent/_currentHeat 现算一
+        //   帧塞进跟 RTC 共用的那条大屏/计时网页 socket 流。RTC 当主控时本机这两个字段是
+        //   刻意留空的(见 NoteRtcRaceState 的说明), 于是编排端随手改一个跟当前比赛无关的
+        //   项目, 主服务器就会往 RTC 正确的实时帧中间硬插一帧"空/别的组"的数据——大屏/RTC
+        //   画面因此闪一下、瞬间冒出不该有的分段成绩。跟 _meetDb.LiveActive 早前堵住的那个
+        //   整包漏洞是同一类问题, 但这条路走的是补丁(EDITOR_PATCH), 不受那道闸门管——这里
+        //   补上同一道闸: 只要临时数据库还在用(不管是谁在用), 这三步全部押后, 比赛结束
+        //   (临时数据库释放)后由 FlushPatchDeferred 补上。
+        private bool _patchSaveDirty = false;
+        private bool _patchBroadcastDirty = false;
+        private void FlushPatchDeferred() {
+            if (_meetDb.LiveActive) return;   // 还在比, 不该现在补
+            FlushScheduleTree();
+            bool save = _patchSaveDirty, bcast = _patchBroadcastDirty;
+            _patchSaveDirty = false; _patchBroadcastDirty = false;
+            if (save) { try { AutoSaveData(); } catch (Exception ex) { AddLog("补推编排改动落盘失败: " + ex.Message); } }
+            if (bcast) {
+                try {
+                    Broadcast();
+                    PushDataChanged("assign");
+                    AddLog("比赛中攒下的编排改动已补推给大屏/编排端");
+                } catch (Exception ex) { AddLog("补推编排改动失败: " + ex.Message); }
+            }
+        }
+
         // 2026-08-24 比赛中攒下的同步, 结束后补推一次完整的
         private void FlushDeferredSync() {
             FlushScheduleTree();          // 2026-09-12 顺带把欠的赛程树重建补上
+            FlushPatchDeferred();         // 2026-09-21 顺带把攒下的编排补丁广播/落盘也补上
             if (!_syncDeferredDuringRace) return;
             _syncDeferredDuringRace = false;
             if (_raceState == RaceState.Ready || _raceState == RaceState.Racing) return;
@@ -26264,6 +26444,12 @@ namespace SwimmingScoreboard
                         AddLog("本组比赛已结束(临时数据库已释放), 补上比赛期间暂缓的主服务器整包同步");
                     } catch (Exception ex) { AddLog("补应用暂缓的整包同步失败: " + ex.Message); }
                 }
+                // 2026-09-21 见 FlushPatchDeferred 的说明: 本机是"总线"(RTC 当主控)时,
+                //   本机自己的 _raceState 从不经历 Ready/Racing/Finished, FlushDeferredSync
+                //   那几个挂在本机race生命周期上的调用点一次都不会跑——这里靠轮询兜底,
+                //   LiveActive 一变回 false 就把攒着的编排补丁广播/落盘补上, 不用等到下一次
+                //   本机自己"就位/复位/确认"(可能永远不会发生)。
+                try { FlushPatchDeferred(); } catch { }
                 // 2026-09-13 计时端硬断电时 socket 可能迟迟不关, 光靠 OnClose 清不掉。
                 //   30 秒没收到它的状态帧就当它走了(它正常时每 100ms 一帧)。
                 if (_rtcDrivesCurrentRaceText && _rtcSeenAt != DateTime.MinValue
@@ -27013,6 +27199,7 @@ namespace SwimmingScoreboard
                 if (package.DisplayRecordOptions != null && package.DisplayRecordOptions.Count > 0) _displayRecordOptions = package.DisplayRecordOptions;
                 _confirmedHeats = new HashSet<string>(package.ConfirmedHeats ?? new List<string>());
                 _unlockedHeats = new HashSet<string>(package.UnlockedHeats ?? new List<string>());
+                _checkedInHeats = new HashSet<string>(package.CheckedInHeats ?? new List<string>());
                 // 2026-06-08 P3: 加载赛事档案时同步清 per-lane 事件日志与原始计时日志 (防御性 — 跨档案切换
                 //   时, 上一档的尾部日志缓冲不应残留. Ready/Restart 路径已在同场比赛换组时清, 加载档案是另一入口.)
                 _laneEventLog.Clear();
