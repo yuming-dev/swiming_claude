@@ -24109,8 +24109,10 @@ namespace SwimmingScoreboard
             try { RefreshOverviewStats(); } catch { }
             try { RebuildRelayGroupedView(); } catch { }
             try { RefreshEditPreview(); } catch { }
+            // 2026-09-21 这条日志本身就是随每个阶段的翻译范围在扩大——写成"已覆盖到第几阶段"
+            // 而不是逐页罗列，省得每加一个页面又要来改一遍这行文字。
             AddLog(Loc.CurrentLanguage == Loc.En
-                ? "界面语言已切换为 English（标签页/设置页/比赛控制页/赛程导航状态标签已生效；系统日志/弹窗仍为中文）"
+                ? "界面语言已切换为 English（标签页/设置页/比赛控制页/赛事管理与报名/成绩与排名/文档编辑输出打印/系统日志与数据 页面及赛程导航状态标签已生效；系统日志正文/弹窗提示仍为中文，后续阶段逐步覆盖）"
                 : "界面语言已切换为中文");
         }
 
@@ -30247,11 +30249,11 @@ namespace SwimmingScoreboard
         // ═══════════════════════════════════════════════════════════════
         // 文档打印
         // ═══════════════════════════════════════════════════════════════
-        private void PrintSchedule_Click(object sender, RoutedEventArgs e) { GenerateAndOpenDocument("竞赛日程", BuildScheduleHtml()); }
-        private void PrintManual_Click(object sender, RoutedEventArgs e) { GenerateAndOpenDocument("秩序册", BuildManualHtml()); }
+        private void PrintSchedule_Click(object sender, RoutedEventArgs e) { GenerateAndOpenDocument(Loc.T("Str_DocTitle_Schedule"), BuildScheduleHtml()); }
+        private void PrintManual_Click(object sender, RoutedEventArgs e) { GenerateAndOpenDocument(Loc.T("Str_DocTitle_ProgramBook"), BuildManualHtml()); }
 
         private void EditProgramBook_Click(object sender, RoutedEventArgs e) {
-            RunWithEditLock("programbook", "秩序册", delegate { EditProgramBookCore(); });
+            RunWithEditLock("programbook", Loc.T("Str_DocTitle_ProgramBook"), delegate { EditProgramBookCore(); });
         }
 
         private void EditProgramBookCore() {
@@ -30275,8 +30277,8 @@ namespace SwimmingScoreboard
                 AddLog("秩序册自定义内容已保存。");
             }
         }
-        private void PrintStartList_Click(object sender, RoutedEventArgs e) { GenerateAndOpenDocument("出发表", BuildStartListHtml()); }
-        private void PrintHeatResults_Click(object sender, RoutedEventArgs e) { GenerateAndOpenDocument("分组成绩", BuildHeatResultsHtml()); }
+        private void PrintStartList_Click(object sender, RoutedEventArgs e) { GenerateAndOpenDocument(Loc.T("Str_DocTitle_StartList"), BuildStartListHtml()); }
+        private void PrintHeatResults_Click(object sender, RoutedEventArgs e) { GenerateAndOpenDocument(Loc.T("Str_DocTitle_HeatResults"), BuildHeatResultsHtml()); }
 
         // 比赛控制 Tab "确认本组成绩"下方的"打印成绩"按钮：
         // - 当前组成绩已确认 → 直接打印当前组成绩单
@@ -30292,7 +30294,7 @@ namespace SwimmingScoreboard
                 MessageBox.Show("正在比赛中，不能打印，请稍后。", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
-            GenerateAndOpenDocument("分组成绩", BuildHeatResultsHtml());
+            GenerateAndOpenDocument(Loc.T("Str_DocTitle_HeatResults"), BuildHeatResultsHtml());
         }
         private void PrintEventResults_Click(object sender, RoutedEventArgs e) {
             RefreshChangedFromDb();   // 2026-09-01 开窗前先增量刷一次(别的计算机写的成绩/定稿名次)
@@ -30346,10 +30348,10 @@ namespace SwimmingScoreboard
             win.Owner = this;
             win.ShowDialog();
         }
-        private void PrintFullResultBook_Click(object sender, RoutedEventArgs e) { GenerateAndOpenDocument("成绩册", BuildFullResultBookHtml()); }
+        private void PrintFullResultBook_Click(object sender, RoutedEventArgs e) { GenerateAndOpenDocument(Loc.T("Str_DocTitle_ResultBook"), BuildFullResultBookHtml()); }
 
         private void EditResultBook_Click(object sender, RoutedEventArgs e) {
-            RunWithEditLock("resultbook", "成绩册", delegate { EditResultBookCore(); });
+            RunWithEditLock("resultbook", Loc.T("Str_DocTitle_ResultBook"), delegate { EditResultBookCore(); });
         }
 
         private void EditResultBookCore() {
@@ -30376,7 +30378,7 @@ namespace SwimmingScoreboard
                 AutoSaveData();
                 AddLog("成绩册自定义内容已保存。");
                 if (win.RequestPrint) {
-                    GenerateAndOpenDocument("成绩册", BuildFullResultBookHtml());
+                    GenerateAndOpenDocument(Loc.T("Str_DocTitle_ResultBook"), BuildFullResultBookHtml());
                 } else if (win.RequestExportDoc) {
                     ExportResultBookAsDoc();
                 }
@@ -30401,22 +30403,22 @@ namespace SwimmingScoreboard
                 MessageBox.Show("导出失败：" + ex.Message);
             }
         }
-        private void PrintTeamStandings_Click(object sender, RoutedEventArgs e) { CalculateTeamScores(); GenerateAndOpenDocument("团体成绩", BuildTeamStandingsHtml()); }
-        private void PrintRecordReport_Click(object sender, RoutedEventArgs e) { GenerateAndOpenDocument("纪录报告", BuildRecordReportHtml()); }
+        private void PrintTeamStandings_Click(object sender, RoutedEventArgs e) { CalculateTeamScores(); GenerateAndOpenDocument(Loc.T("Str_DocTitle_TeamStandings"), BuildTeamStandingsHtml()); }
+        private void PrintRecordReport_Click(object sender, RoutedEventArgs e) { GenerateAndOpenDocument(Loc.T("Str_DocTitle_RecordReport"), BuildRecordReportHtml()); }
         // 2026-09-16 奖状/纪录证书的点击处理挪到各自 Build*CertificateHtml 旁边,
         //   改成先弹选择窗口(选项目/单张/批量), 见 PrintAwardCertificate_Click /
         //   PrintRecordCertificate_Click 两处新定义。
         // "分段计时报告"按钮：弹出已完赛组次树（与赛程导航同结构），选择后打印对应组的分段计时；取消则不打印
         private void PrintSplitTimeReport_Click(object sender, RoutedEventArgs e) {
-            var picked = ShowConfirmedHeatPicker("选择已完赛组次 — 分段计时报告");
+            var picked = ShowConfirmedHeatPicker(Loc.T("Str_DocPicker_SplitReport"));
             if (picked == null) return;     // 取消
-            GenerateAndOpenDocument("分段计时报告",
+            GenerateAndOpenDocument(Loc.T("Str_DocTitle_SplitTimeReport"),
                 BuildSplitTimeReportHtmlFor(picked.AgeGroup, picked.Gender, picked.EventName, picked.Stage, picked.Heat));
         }
 
         // 2026-06-04 成绩 txt 输出: 按 场号-项号-组号.txt 命名, 每行 道次 + final + 8 段累计 + 4 棒反应时, 全部 10 道
         private void ExportResultTxt_Click(object sender, RoutedEventArgs e) {
-            var picked = ShowConfirmedHeatPicker("选择已完赛组次 — 成绩 txt 输出");
+            var picked = ShowConfirmedHeatPicker(Loc.T("Str_DocPicker_ResultTxt"));
             if (picked == null) return;
             try {
                 // 文件名: 场号-项号-组号 (各 2 位补 0)
@@ -31022,7 +31024,7 @@ namespace SwimmingScoreboard
 
         // ═══ 2026-06-21 分组表 → 输出/打印 (HTML) ═══
         private void PrintHeatAssignments_Click(object sender, RoutedEventArgs e) {
-            GenerateAndOpenDocument("分组表", BuildHeatAssignmentsHtml());
+            GenerateAndOpenDocument(Loc.T("Str_DocTitle_HeatAssignments"), BuildHeatAssignmentsHtml());
         }
 
         private string BuildHeatAssignmentsHtml() {
@@ -32785,7 +32787,7 @@ namespace SwimmingScoreboard
             //   显示写死的"3"——哪怕这次没改设置, 也用当前 _awardCertRankLimit 刷一遍。
             win.RefreshCandidates(candidates, _awardCertRankLimit);
             win.OnGenerate = delegate(List<AwardCandidateRow> selected, string template, double offX, double offY) {
-                GenerateAndOpenDocument("奖状", BuildAwardCertificateHtml(selected, template, offX, offY));
+                GenerateAndOpenDocument(Loc.T("Str_DocTitle_AwardCert"), BuildAwardCertificateHtml(selected, template, offX, offY));
                 win.Close();
             };
             win.OnOpenCertSettings = delegate { OpenCertSettingsDialog(win, true); };
@@ -33049,7 +33051,7 @@ namespace SwimmingScoreboard
             var records = CollectBrokenRecords();
             var win = new RecordCertificateWindow(records) { Owner = this };
             win.OnGenerate = delegate(List<BrokenRecordRow> selected, string template) {
-                GenerateAndOpenDocument("纪录证书", BuildRecordCertificateHtml(selected, template));
+                GenerateAndOpenDocument(Loc.T("Str_DocTitle_RecordCert"), BuildRecordCertificateHtml(selected, template));
                 win.Close();
             };
             win.OnOpenCertSettings = delegate { OpenCertSettingsDialog(win, false); };

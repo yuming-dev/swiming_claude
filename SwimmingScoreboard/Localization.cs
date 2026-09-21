@@ -534,6 +534,103 @@ namespace SwimmingScoreboard
             { "Str_EM_Sched_NoSchedule", new[] {
                 "暂无赛程。请点击\"一键生成日程\"或\"添加赛程项\"。",
                 "No schedule yet. Click \"Generate Schedule\" or \"Add Schedule Item\"." } },
+
+            // 2026-09-21 【中文/English 第六阶段】"文档编辑/输出/打印"页
+            { "Str_Docs_PageTitle", new[] { "文档编辑 / 输出 / 打印", "Document Edit / Output / Print" } },
+            { "Str_Docs_Intro", new[] {
+                "所有文档支持\"编辑\"（自定义内容）与\"输出\"（在弹出窗口中预览，并可导出为 PDF / DOC / HTML 或直接打印）。",
+                "Every document supports \"Edit\" (customize content) and \"Output\" (preview in a popup window, then export as PDF / DOC / HTML or print directly)." } },
+            { "Str_Docs_Section1", new[] { "一、赛前文档", "1. Pre-Event Documents" } },
+            { "Str_Docs_Section2", new[] { "二、比赛成绩", "2. Race Results" } },
+            { "Str_Docs_Section3", new[] { "三、排名与纪录", "3. Rankings & Records" } },
+            { "Str_Docs_Section4", new[] { "四、证书与奖状", "4. Certificates & Awards" } },
+            // 各卡片通用按钮文字(多张卡复用同一份文案)
+            { "Str_Docs_BtnEdit",        new[] { "编辑", "Edit" } },
+            { "Str_Docs_BtnPrint",       new[] { "输出 / 打印", "Output / Print" } },
+            { "Str_Docs_BtnExportExcel", new[] { "导出 Excel", "Export Excel" } },
+            { "Str_Docs_BtnExport",      new[] { "输出", "Output" } },
+            // 卡片: 秩序册
+            { "Str_Docs_ProgramBook_Title", new[] { "秩序册", "Program Book" } },
+            { "Str_Docs_ProgramBook_Desc",  new[] { "封面/前言/规程/活动日程/技术官员/运动队人员等。", "Cover / foreword / rules / schedule / officials / team rosters, etc." } },
+            // 卡片: 竞赛日程
+            { "Str_Docs_Schedule_Title", new[] { "竞赛日程", "Competition Schedule" } },
+            { "Str_Docs_Schedule_Desc",  new[] { "按场次列出比赛日期/时间/项目编号/性别/组别/项目/赛次/人(队)数/组数。", "Lists date/time/event no./sex/age group/event/stage/entries/heat count by session." } },
+            // 卡片: 分组表
+            { "Str_Docs_HeatAssign_Title", new[] { "分组表", "Heat Assignments" } },
+            { "Str_Docs_HeatAssign_Desc",  new[] { "按项目列出 组号×道次 的运动员姓名+代表队 (网格式, 参照秩序单 .xls)。", "Grid of swimmer name + team by heat number × lane, per event (matches the .xls program sheet layout)." } },
+            // 卡片: 出发表
+            { "Str_Docs_StartList_Title", new[] { "出发表", "Start List" } },
+            { "Str_Docs_StartList_Desc",  new[] { "按赛程顺序、每组出场名单（道次 / 号码 / 姓名 / 代表队 / 备注）。", "Heat-by-heat start list in schedule order (lane / bib / name / team / notes)." } },
+            // 卡片: 成绩册
+            { "Str_Docs_ResultBook_Title", new[] { "成绩册", "Result Book" } },
+            { "Str_Docs_ResultBook_Desc",  new[] { "封面/奖牌榜/体育道德风尚奖/破纪录/名次公告/成绩公告。", "Cover / medal table / sportsmanship award / broken records / placement & result bulletins." } },
+            // 卡片: 项目成绩
+            { "Str_Docs_EventResults_Title", new[] { "项目成绩", "Event Results" } },
+            { "Str_Docs_EventResults_Desc",  new[] { "按项目汇总（决赛排名总表）。", "Summarized by event (final ranking table)." } },
+            // 卡片: 按组别批量公布
+            { "Str_Docs_BatchByAgeGroup_Title", new[] { "按组别批量公布", "Batch Publish by Age Group" } },
+            { "Str_Docs_BatchByAgeGroup_Desc",  new[] { "选项目+性别+赛次, 一键生成该项目下各组别成绩单 (整体文档含每组分页)。", "Pick event + sex + stage, generate result sheets for every age group in that event in one go (one document, one page per group)." } },
+            // 卡片: 分段计时报告
+            { "Str_Docs_SplitReport_Title", new[] { "分段计时报告", "Split Time Report" } },
+            { "Str_Docs_SplitReport_Desc",  new[] { "每 50m / 100m 分段时间，含触板与盲表。", "Split times every 50m / 100m, including touchpad and backup watch." } },
+            // 卡片: 成绩 txt 输出
+            { "Str_Docs_ResultTxt_Title", new[] { "成绩 txt 输出", "Result TXT Export" } },
+            { "Str_Docs_ResultTxt_Desc",  new[] { "选项目 → 场号-项号-组号.txt 文本输出 (10 道 / 8 段累计 / 4 棒反应时)。", "Pick an event → exports session-event-heat.txt (10 lanes / 8 cumulative splits / 4-leg reaction times)." } },
+            // 卡片: 团体成绩
+            { "Str_Docs_TeamStandings_Title", new[] { "团体成绩", "Team Standings" } },
+            { "Str_Docs_TeamStandings_Desc",  new[] { "代表队总分排名（个人分/接力分/破纪录加分/金银铜）。", "Team overall score ranking (individual + relay points, record bonus, gold/silver/bronze)." } },
+            // 卡片: 纪录报告
+            { "Str_Docs_RecordReport_Title", new[] { "纪录报告", "Record Report" } },
+            { "Str_Docs_RecordReport_Desc",  new[] { "本届破纪录情况一览（项目 / 类型 / 保持者 / 成绩）。", "Overview of records broken this meet (event / type / holder / result)." } },
+            // 卡片: 奖状
+            { "Str_Docs_AwardCert_Title", new[] { "奖状", "Award Certificate" } },
+            { "Str_Docs_AwardCert_Desc",  new[] { "冠/亚/季军证书（自动填充姓名 / 项目 / 名次 / 成绩）。", "1st/2nd/3rd place certificates (name / event / place / result auto-filled)." } },
+            // 卡片: 纪录证书
+            { "Str_Docs_RecordCert_Title", new[] { "纪录证书", "Record Certificate" } },
+            { "Str_Docs_RecordCert_Desc",  new[] { "破纪录证书（自动填充破纪录运动员 / 类型 / 成绩）。", "Record-breaking certificate (swimmer / record type / result auto-filled)." } },
+            // 帮助提示框
+            { "Str_Docs_FormatNoteTitle", new[] { "输出格式说明", "Output Format Notes" } },
+            { "Str_Docs_FormatNoteIntro", new[] { "所有\"输出 / 打印\"按钮会弹出预览窗口，可在窗口内：", "Every \"Output / Print\" button opens a preview window, where you can:" } },
+            { "Str_Docs_FormatPdfLabel",  new[] { "导出 PDF", "Export PDF" } },
+            { "Str_Docs_FormatPdfDesc",   new[] { " — 在浏览器中按 Ctrl+P 选择 \"Microsoft Print to PDF\"", " — in the browser, press Ctrl+P and choose \"Microsoft Print to PDF\"" } },
+            { "Str_Docs_FormatDocLabel",  new[] { "导出 DOC", "Export DOC" } },
+            { "Str_Docs_FormatDocDesc",   new[] { " — 直接保存为 Word 兼容的 .doc 文件", " — saves directly as a Word-compatible .doc file" } },
+            { "Str_Docs_FormatHtmlLabel", new[] { "导出 HTML", "Export HTML" } },
+            { "Str_Docs_FormatHtmlDesc",  new[] { " — 保存原始 HTML 文档（可二次编辑）", " — saves the raw HTML document (further editable)" } },
+            { "Str_Docs_FormatPrintLabel",new[] { "打印", "Print" } },
+            { "Str_Docs_FormatPrintDesc", new[] { " — 直接调用系统打印对话框", " — calls the system print dialog directly" } },
+            // 2026-09-21 GenerateAndOpenDocument(title, html)/RunWithEditLock(key, entityLabel, ...) 的
+            // title/entityLabel 参数——纯展示(预览窗口标题/编辑锁提示/本地html备份文件名的一部分)，
+            // 不是数据比较用的哨兵，翻译安全(跟"全部/男/女/混合"那类不是一回事)。只翻译了
+            // Documents/Print页上按钮触发的这几处；导出对话框里建议的文件名(FileName=...)本次不动，
+            // 那属于遍布全应用的文件命名惯例，留给后续阶段一起处理。
+            { "Str_DocTitle_ProgramBook",     new[] { "秩序册", "Program Book" } },
+            { "Str_DocTitle_Schedule",        new[] { "竞赛日程", "Competition Schedule" } },
+            { "Str_DocTitle_StartList",       new[] { "出发表", "Start List" } },
+            { "Str_DocTitle_HeatResults",     new[] { "分组成绩", "Heat Results" } },
+            { "Str_DocTitle_ResultBook",      new[] { "成绩册", "Result Book" } },
+            { "Str_DocTitle_TeamStandings",   new[] { "团体成绩", "Team Standings" } },
+            { "Str_DocTitle_RecordReport",    new[] { "纪录报告", "Record Report" } },
+            { "Str_DocTitle_SplitTimeReport", new[] { "分段计时报告", "Split Time Report" } },
+            { "Str_DocTitle_HeatAssignments", new[] { "分组表", "Heat Assignments" } },
+            { "Str_DocTitle_AwardCert",       new[] { "奖状", "Award Certificate" } },
+            { "Str_DocTitle_RecordCert",      new[] { "纪录证书", "Record Certificate" } },
+            { "Str_DocPicker_SplitReport", new[] { "选择已完赛组次 — 分段计时报告", "Choose a completed heat — Split Time Report" } },
+            { "Str_DocPicker_ResultTxt",   new[] { "选择已完赛组次 — 成绩 txt 输出", "Choose a completed heat — Result TXT Export" } },
+
+            // 2026-09-21 【中文/English 第六阶段】"系统日志与数据"页(只翻页面本身的静态文字，
+            // 不翻 SystemLogListBox 里滚动显示的日志正文——那是 AddLog(...) 调用点生成的，
+            // 全应用大概 750+ 处，属于单独一个更大的阶段，这次不碰)
+            { "Str_SysLog_RunLog",       new[] { "运行日志", "Run Log" } },
+            { "Str_SysLog_ExportLog",    new[] { "导出日志...", "Export Log..." } },
+            { "Str_SysLog_ArchiveMgmt",  new[] { "存档管理", "Backup Management" } },
+            { "Str_SysLog_LoadBackup",   new[] { "加载选中存档", "Load Selected Backup" } },
+            { "Str_SysLog_DeleteBackup", new[] { "删除选中存档", "Delete Selected Backup" } },
+            { "Str_SysLog_ClearDb",      new[] { "清除当前库数据", "Clear Current Database" } },
+            { "Str_SysLog_ClearRecords", new[] { "删除全部纪录", "Delete All Records" } },
+            { "Str_SysLog_ForceSave",    new[] { "强制保存", "Force Save" } },
+            { "Str_SysLog_ShowIP",       new[] { "查询本机IP地址", "Show Local IP Address" } },
+            { "Str_SysLog_ChangePassword", new[] { "修改密码", "Change Password" } },
         };
 
         /// <summary>查当前语言下的文字；查不到就退回中文；中文也没有就返回 key 本身兜底。</summary>

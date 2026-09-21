@@ -1949,58 +1949,58 @@
                     <StackPanel Margin="20">
                         <!-- 标题 + 说明 -->
                         <StackPanel Margin="0,0,0,12">
-                            <TextBlock Text="文档编辑 / 输出 / 打印" FontSize="22" FontWeight="Bold" Foreground="#1E293B"/>
+                            <TextBlock Text="{DynamicResource Str_Docs_PageTitle}" FontSize="22" FontWeight="Bold" Foreground="#1E293B"/>
                             <TextBlock Margin="0,4,0,0" FontSize="12" Foreground="#64748B" TextWrapping="Wrap"
-                                       Text="所有文档支持&quot;编辑&quot;（自定义内容）与&quot;输出&quot;（在弹出窗口中预览，并可导出为 PDF / DOC / HTML 或直接打印）。"/>
+                                       Text="{DynamicResource Str_Docs_Intro}"/>
                         </StackPanel>
 
                         <!-- ═══ 一、赛前文档 ═══ -->
                         <Border Background="White" CornerRadius="10" Padding="14" Margin="0,0,0,12"
                                 BorderBrush="#E2E8F0" BorderThickness="1">
                             <StackPanel>
-                                <TextBlock Text="一、赛前文档" FontSize="15" FontWeight="Bold" Foreground="#3B82F6" Margin="0,0,0,8"/>
+                                <TextBlock Text="{DynamicResource Str_Docs_Section1}" FontSize="15" FontWeight="Bold" Foreground="#3B82F6" Margin="0,0,0,8"/>
                                 <WrapPanel>
                                     <Border Style="{StaticResource DocCardBorder}">
                                         <StackPanel>
-                                            <TextBlock Text="秩序册" Style="{StaticResource DocTitle}"/>
+                                            <TextBlock Text="{DynamicResource Str_Docs_ProgramBook_Title}" Style="{StaticResource DocTitle}"/>
                                             <TextBlock Style="{StaticResource DocSub}"
-                                                       Text="封面/前言/规程/活动日程/技术官员/运动队人员等。"/>
+                                                       Text="{DynamicResource Str_Docs_ProgramBook_Desc}"/>
                                             <StackPanel Orientation="Horizontal">
-                                                <Button Content="编辑" Click="EditProgramBook_Click" Background="#7C3AED" Style="{StaticResource DocActionBtn}"/>
-                                                <Button Content="输出 / 打印" Click="PrintManual_Click" Background="#2563EB" Style="{StaticResource DocActionBtn}"/>
+                                                <Button Content="{DynamicResource Str_Docs_BtnEdit}" Click="EditProgramBook_Click" Background="#7C3AED" Style="{StaticResource DocActionBtn}"/>
+                                                <Button Content="{DynamicResource Str_Docs_BtnPrint}" Click="PrintManual_Click" Background="#2563EB" Style="{StaticResource DocActionBtn}"/>
                                             </StackPanel>
                                         </StackPanel>
                                     </Border>
                                     <Border Style="{StaticResource DocCardBorder}">
                                         <StackPanel>
-                                            <TextBlock Text="竞赛日程" Style="{StaticResource DocTitle}"/>
+                                            <TextBlock Text="{DynamicResource Str_Docs_Schedule_Title}" Style="{StaticResource DocTitle}"/>
                                             <TextBlock Style="{StaticResource DocSub}"
-                                                       Text="按场次列出比赛日期/时间/项目编号/性别/组别/项目/赛次/人(队)数/组数。"/>
+                                                       Text="{DynamicResource Str_Docs_Schedule_Desc}"/>
                                             <StackPanel Orientation="Horizontal">
-                                                <Button Content="输出 / 打印" Click="PrintSchedule_Click" Background="#3B82F6" Style="{StaticResource DocActionBtn}"/>
-                                                <Button Content="导出 Excel" Click="ExportScheduleExcel_Click" Background="#16A34A" Style="{StaticResource DocActionBtn}"/>
+                                                <Button Content="{DynamicResource Str_Docs_BtnPrint}" Click="PrintSchedule_Click" Background="#3B82F6" Style="{StaticResource DocActionBtn}"/>
+                                                <Button Content="{DynamicResource Str_Docs_BtnExportExcel}" Click="ExportScheduleExcel_Click" Background="#16A34A" Style="{StaticResource DocActionBtn}"/>
                                             </StackPanel>
                                         </StackPanel>
                                     </Border>
                                     <!-- 2026-06-21 分组表卡片: 网格式 (项目 → 组号×道次, cell=姓名+代表队), 参照 2026甘肃群众组-秩序单.xls 同款 -->
                                     <Border Style="{StaticResource DocCardBorder}">
                                         <StackPanel>
-                                            <TextBlock Text="分组表" Style="{StaticResource DocTitle}"/>
+                                            <TextBlock Text="{DynamicResource Str_Docs_HeatAssign_Title}" Style="{StaticResource DocTitle}"/>
                                             <TextBlock Style="{StaticResource DocSub}"
-                                                       Text="按项目列出 组号×道次 的运动员姓名+代表队 (网格式, 参照秩序单 .xls)。"/>
+                                                       Text="{DynamicResource Str_Docs_HeatAssign_Desc}"/>
                                             <StackPanel Orientation="Horizontal">
-                                                <Button Content="输出 / 打印" Click="PrintHeatAssignments_Click" Background="#0EA5E9" Style="{StaticResource DocActionBtn}"/>
-                                                <Button Content="导出 Excel" Click="ExportHeatAssignmentsGridExcel_Click" Background="#16A34A" Style="{StaticResource DocActionBtn}"/>
+                                                <Button Content="{DynamicResource Str_Docs_BtnPrint}" Click="PrintHeatAssignments_Click" Background="#0EA5E9" Style="{StaticResource DocActionBtn}"/>
+                                                <Button Content="{DynamicResource Str_Docs_BtnExportExcel}" Click="ExportHeatAssignmentsGridExcel_Click" Background="#16A34A" Style="{StaticResource DocActionBtn}"/>
                                             </StackPanel>
                                         </StackPanel>
                                     </Border>
                                     <Border Style="{StaticResource DocCardBorder}">
                                         <StackPanel>
-                                            <TextBlock Text="出发表" Style="{StaticResource DocTitle}"/>
+                                            <TextBlock Text="{DynamicResource Str_Docs_StartList_Title}" Style="{StaticResource DocTitle}"/>
                                             <TextBlock Style="{StaticResource DocSub}"
-                                                       Text="按赛程顺序、每组出场名单（道次 / 号码 / 姓名 / 代表队 / 备注）。"/>
+                                                       Text="{DynamicResource Str_Docs_StartList_Desc}"/>
                                             <StackPanel Orientation="Horizontal">
-                                                <Button Content="输出 / 打印" Click="PrintStartList_Click" Background="#1D4ED8" Style="{StaticResource DocActionBtn}"/>
+                                                <Button Content="{DynamicResource Str_Docs_BtnPrint}" Click="PrintStartList_Click" Background="#1D4ED8" Style="{StaticResource DocActionBtn}"/>
                                             </StackPanel>
                                         </StackPanel>
                                     </Border>
@@ -2012,59 +2012,59 @@
                         <Border Background="White" CornerRadius="10" Padding="14" Margin="0,0,0,12"
                                 BorderBrush="#E2E8F0" BorderThickness="1">
                             <StackPanel>
-                                <TextBlock Text="二、比赛成绩" FontSize="15" FontWeight="Bold" Foreground="#059669" Margin="0,0,0,8"/>
+                                <TextBlock Text="{DynamicResource Str_Docs_Section2}" FontSize="15" FontWeight="Bold" Foreground="#059669" Margin="0,0,0,8"/>
                                 <WrapPanel>
                                     <Border Style="{StaticResource DocCardBorder}">
                                         <StackPanel>
-                                            <TextBlock Text="成绩册" Style="{StaticResource DocTitle}"/>
+                                            <TextBlock Text="{DynamicResource Str_Docs_ResultBook_Title}" Style="{StaticResource DocTitle}"/>
                                             <TextBlock Style="{StaticResource DocSub}"
-                                                       Text="封面/奖牌榜/体育道德风尚奖/破纪录/名次公告/成绩公告。"/>
+                                                       Text="{DynamicResource Str_Docs_ResultBook_Desc}"/>
                                             <StackPanel Orientation="Horizontal">
-                                                <Button Content="编辑" Click="EditResultBook_Click" Background="#B45309" Style="{StaticResource DocActionBtn}"/>
-                                                <Button Content="输出 / 打印" Click="PrintFullResultBook_Click" Background="#047857" Style="{StaticResource DocActionBtn}"/>
+                                                <Button Content="{DynamicResource Str_Docs_BtnEdit}" Click="EditResultBook_Click" Background="#B45309" Style="{StaticResource DocActionBtn}"/>
+                                                <Button Content="{DynamicResource Str_Docs_BtnPrint}" Click="PrintFullResultBook_Click" Background="#047857" Style="{StaticResource DocActionBtn}"/>
                                             </StackPanel>
                                         </StackPanel>
                                     </Border>
                                     <!-- "分组成绩"原"输出/打印"按钮已迁移至"比赛控制"Tab"确认本组成绩"下方的"打印成绩"按钮 -->
                                     <Border Style="{StaticResource DocCardBorder}">
                                         <StackPanel>
-                                            <TextBlock Text="项目成绩" Style="{StaticResource DocTitle}"/>
+                                            <TextBlock Text="{DynamicResource Str_Docs_EventResults_Title}" Style="{StaticResource DocTitle}"/>
                                             <TextBlock Style="{StaticResource DocSub}"
-                                                       Text="按项目汇总（决赛排名总表）。"/>
+                                                       Text="{DynamicResource Str_Docs_EventResults_Desc}"/>
                                             <StackPanel Orientation="Horizontal">
-                                                <Button Content="输出 / 打印" Click="PrintEventResults_Click" Background="#10B981" Style="{StaticResource DocActionBtn}"/>
+                                                <Button Content="{DynamicResource Str_Docs_BtnPrint}" Click="PrintEventResults_Click" Background="#10B981" Style="{StaticResource DocActionBtn}"/>
                                             </StackPanel>
                                         </StackPanel>
                                     </Border>
                                     <!-- 2026-06-02 按组别批量公布: 选项目+性别+赛次, 一键输出该项目下所有组别的成绩单 (含完整 5+1 操作按钮) -->
                                     <Border Style="{StaticResource DocCardBorder}">
                                         <StackPanel>
-                                            <TextBlock Text="按组别批量公布" Style="{StaticResource DocTitle}"/>
+                                            <TextBlock Text="{DynamicResource Str_Docs_BatchByAgeGroup_Title}" Style="{StaticResource DocTitle}"/>
                                             <TextBlock Style="{StaticResource DocSub}"
-                                                       Text="选项目+性别+赛次, 一键生成该项目下各组别成绩单 (整体文档含每组分页)。"/>
+                                                       Text="{DynamicResource Str_Docs_BatchByAgeGroup_Desc}"/>
                                             <StackPanel Orientation="Horizontal">
-                                                <Button Content="输出 / 打印" Click="BatchByAgeGroupPrint_Click" Background="#EA580C" Style="{StaticResource DocActionBtn}"/>
+                                                <Button Content="{DynamicResource Str_Docs_BtnPrint}" Click="BatchByAgeGroupPrint_Click" Background="#EA580C" Style="{StaticResource DocActionBtn}"/>
                                             </StackPanel>
                                         </StackPanel>
                                     </Border>
                                     <Border Style="{StaticResource DocCardBorder}">
                                         <StackPanel>
-                                            <TextBlock Text="分段计时报告" Style="{StaticResource DocTitle}"/>
+                                            <TextBlock Text="{DynamicResource Str_Docs_SplitReport_Title}" Style="{StaticResource DocTitle}"/>
                                             <TextBlock Style="{StaticResource DocSub}"
-                                                       Text="每 50m / 100m 分段时间，含触板与盲表。"/>
+                                                       Text="{DynamicResource Str_Docs_SplitReport_Desc}"/>
                                             <StackPanel Orientation="Horizontal">
-                                                <Button Content="输出 / 打印" Click="PrintSplitTimeReport_Click" Background="#34D399" Style="{StaticResource DocActionBtn}"/>
+                                                <Button Content="{DynamicResource Str_Docs_BtnPrint}" Click="PrintSplitTimeReport_Click" Background="#34D399" Style="{StaticResource DocActionBtn}"/>
                                             </StackPanel>
                                         </StackPanel>
                                     </Border>
                                     <!-- 2026-06-04 成绩 txt 输出: 按 场号-项号-组号.txt 命名, 道次行 (LL final 8段 4反应), 10 道全显示 -->
                                     <Border Style="{StaticResource DocCardBorder}">
                                         <StackPanel>
-                                            <TextBlock Text="成绩 txt 输出" Style="{StaticResource DocTitle}"/>
+                                            <TextBlock Text="{DynamicResource Str_Docs_ResultTxt_Title}" Style="{StaticResource DocTitle}"/>
                                             <TextBlock Style="{StaticResource DocSub}"
-                                                       Text="选项目 → 场号-项号-组号.txt 文本输出 (10 道 / 8 段累计 / 4 棒反应时)。"/>
+                                                       Text="{DynamicResource Str_Docs_ResultTxt_Desc}"/>
                                             <StackPanel Orientation="Horizontal">
-                                                <Button Content="输出" Click="ExportResultTxt_Click" Background="#0EA5E9" Style="{StaticResource DocActionBtn}"/>
+                                                <Button Content="{DynamicResource Str_Docs_BtnExport}" Click="ExportResultTxt_Click" Background="#0EA5E9" Style="{StaticResource DocActionBtn}"/>
                                             </StackPanel>
                                         </StackPanel>
                                     </Border>
@@ -2076,25 +2076,25 @@
                         <Border Background="White" CornerRadius="10" Padding="14" Margin="0,0,0,12"
                                 BorderBrush="#E2E8F0" BorderThickness="1">
                             <StackPanel>
-                                <TextBlock Text="三、排名与纪录" FontSize="15" FontWeight="Bold" Foreground="#D97706" Margin="0,0,0,8"/>
+                                <TextBlock Text="{DynamicResource Str_Docs_Section3}" FontSize="15" FontWeight="Bold" Foreground="#D97706" Margin="0,0,0,8"/>
                                 <WrapPanel>
                                     <Border Style="{StaticResource DocCardBorder}">
                                         <StackPanel>
-                                            <TextBlock Text="团体成绩" Style="{StaticResource DocTitle}"/>
+                                            <TextBlock Text="{DynamicResource Str_Docs_TeamStandings_Title}" Style="{StaticResource DocTitle}"/>
                                             <TextBlock Style="{StaticResource DocSub}"
-                                                       Text="代表队总分排名（个人分/接力分/破纪录加分/金银铜）。"/>
+                                                       Text="{DynamicResource Str_Docs_TeamStandings_Desc}"/>
                                             <StackPanel Orientation="Horizontal">
-                                                <Button Content="输出 / 打印" Click="PrintTeamStandings_Click" Background="#D97706" Style="{StaticResource DocActionBtn}"/>
+                                                <Button Content="{DynamicResource Str_Docs_BtnPrint}" Click="PrintTeamStandings_Click" Background="#D97706" Style="{StaticResource DocActionBtn}"/>
                                             </StackPanel>
                                         </StackPanel>
                                     </Border>
                                     <Border Style="{StaticResource DocCardBorder}">
                                         <StackPanel>
-                                            <TextBlock Text="纪录报告" Style="{StaticResource DocTitle}"/>
+                                            <TextBlock Text="{DynamicResource Str_Docs_RecordReport_Title}" Style="{StaticResource DocTitle}"/>
                                             <TextBlock Style="{StaticResource DocSub}"
-                                                       Text="本届破纪录情况一览（项目 / 类型 / 保持者 / 成绩）。"/>
+                                                       Text="{DynamicResource Str_Docs_RecordReport_Desc}"/>
                                             <StackPanel Orientation="Horizontal">
-                                                <Button Content="输出 / 打印" Click="PrintRecordReport_Click" Background="#F59E0B" Style="{StaticResource DocActionBtn}"/>
+                                                <Button Content="{DynamicResource Str_Docs_BtnPrint}" Click="PrintRecordReport_Click" Background="#F59E0B" Style="{StaticResource DocActionBtn}"/>
                                             </StackPanel>
                                         </StackPanel>
                                     </Border>
@@ -2106,25 +2106,25 @@
                         <Border Background="White" CornerRadius="10" Padding="14" Margin="0,0,0,12"
                                 BorderBrush="#E2E8F0" BorderThickness="1">
                             <StackPanel>
-                                <TextBlock Text="四、证书与奖状" FontSize="15" FontWeight="Bold" Foreground="#DC2626" Margin="0,0,0,8"/>
+                                <TextBlock Text="{DynamicResource Str_Docs_Section4}" FontSize="15" FontWeight="Bold" Foreground="#DC2626" Margin="0,0,0,8"/>
                                 <WrapPanel>
                                     <Border Style="{StaticResource DocCardBorder}">
                                         <StackPanel>
-                                            <TextBlock Text="奖状" Style="{StaticResource DocTitle}"/>
+                                            <TextBlock Text="{DynamicResource Str_Docs_AwardCert_Title}" Style="{StaticResource DocTitle}"/>
                                             <TextBlock Style="{StaticResource DocSub}"
-                                                       Text="冠/亚/季军证书（自动填充姓名 / 项目 / 名次 / 成绩）。"/>
+                                                       Text="{DynamicResource Str_Docs_AwardCert_Desc}"/>
                                             <StackPanel Orientation="Horizontal">
-                                                <Button Content="输出 / 打印" Click="PrintAwardCertificate_Click" Background="#DC2626" Style="{StaticResource DocActionBtn}"/>
+                                                <Button Content="{DynamicResource Str_Docs_BtnPrint}" Click="PrintAwardCertificate_Click" Background="#DC2626" Style="{StaticResource DocActionBtn}"/>
                                             </StackPanel>
                                         </StackPanel>
                                     </Border>
                                     <Border Style="{StaticResource DocCardBorder}">
                                         <StackPanel>
-                                            <TextBlock Text="纪录证书" Style="{StaticResource DocTitle}"/>
+                                            <TextBlock Text="{DynamicResource Str_Docs_RecordCert_Title}" Style="{StaticResource DocTitle}"/>
                                             <TextBlock Style="{StaticResource DocSub}"
-                                                       Text="破纪录证书（自动填充破纪录运动员 / 类型 / 成绩）。"/>
+                                                       Text="{DynamicResource Str_Docs_RecordCert_Desc}"/>
                                             <StackPanel Orientation="Horizontal">
-                                                <Button Content="输出 / 打印" Click="PrintRecordCertificate_Click" Background="#E11D48" Style="{StaticResource DocActionBtn}"/>
+                                                <Button Content="{DynamicResource Str_Docs_BtnPrint}" Click="PrintRecordCertificate_Click" Background="#E11D48" Style="{StaticResource DocActionBtn}"/>
                                             </StackPanel>
                                         </StackPanel>
                                     </Border>
@@ -2135,17 +2135,17 @@
                         <!-- 帮助提示 -->
                         <Border Background="#EFF6FF" CornerRadius="6" Padding="12" Margin="0,0,0,4" BorderBrush="#BFDBFE" BorderThickness="1">
                             <StackPanel>
-                                <TextBlock FontSize="12" FontWeight="Bold" Foreground="#1E40AF" Margin="0,0,0,4" Text="输出格式说明"/>
+                                <TextBlock FontSize="12" FontWeight="Bold" Foreground="#1E40AF" Margin="0,0,0,4" Text="{DynamicResource Str_Docs_FormatNoteTitle}"/>
                                 <TextBlock FontSize="12" Foreground="#475569" TextWrapping="Wrap">
-                                    <Run Text="所有&quot;输出 / 打印&quot;按钮会弹出预览窗口，可在窗口内："/>
+                                    <Run Text="{DynamicResource Str_Docs_FormatNoteIntro}"/>
                                     <LineBreak/>
-                                    <Run Text="&#x00B7; "/><Run Text="导出 PDF" FontWeight="Bold"/><Run Text=" — 在浏览器中按 Ctrl+P 选择 &quot;Microsoft Print to PDF&quot;"/>
+                                    <Run Text="&#x00B7; "/><Run Text="{DynamicResource Str_Docs_FormatPdfLabel}" FontWeight="Bold"/><Run Text="{DynamicResource Str_Docs_FormatPdfDesc}"/>
                                     <LineBreak/>
-                                    <Run Text="&#x00B7; "/><Run Text="导出 DOC" FontWeight="Bold"/><Run Text=" — 直接保存为 Word 兼容的 .doc 文件"/>
+                                    <Run Text="&#x00B7; "/><Run Text="{DynamicResource Str_Docs_FormatDocLabel}" FontWeight="Bold"/><Run Text="{DynamicResource Str_Docs_FormatDocDesc}"/>
                                     <LineBreak/>
-                                    <Run Text="&#x00B7; "/><Run Text="导出 HTML" FontWeight="Bold"/><Run Text=" — 保存原始 HTML 文档（可二次编辑）"/>
+                                    <Run Text="&#x00B7; "/><Run Text="{DynamicResource Str_Docs_FormatHtmlLabel}" FontWeight="Bold"/><Run Text="{DynamicResource Str_Docs_FormatHtmlDesc}"/>
                                     <LineBreak/>
-                                    <Run Text="&#x00B7; "/><Run Text="打印" FontWeight="Bold"/><Run Text=" — 直接调用系统打印对话框"/>
+                                    <Run Text="&#x00B7; "/><Run Text="{DynamicResource Str_Docs_FormatPrintLabel}" FontWeight="Bold"/><Run Text="{DynamicResource Str_Docs_FormatPrintDesc}"/>
                                 </TextBlock>
                             </StackPanel>
                         </Border>
@@ -2165,22 +2165,27 @@
                     <GroupBox>
                         <GroupBox.Header>
                             <DockPanel LastChildFill="False">
-                                <TextBlock Text="运行日志" VerticalAlignment="Center"/>
+                                <TextBlock Text="{DynamicResource Str_SysLog_RunLog}" VerticalAlignment="Center"/>
                                 <!-- 2026-09-17 用户要"把运行日志存成文件方便拷给你分析"——界面这个列表
                                      只留最近 300 行(带虚拟化), AddLog 早就同步落盘到 Logs\yyyyMMdd.log,
                                      但那个路径藏在安装目录里, 现场遇到问题时没人会去翻。加这个按钮把
                                      最近几天的日志文件直接拼成一份, 弹保存对话框让用户自己选地方存,
                                      不用再教人怎么找安装目录。 -->
-                                <Button x:Name="ExportLogBtn" Content="导出日志..." Click="ExportLog_Click"
+                                <Button x:Name="ExportLogBtn" Content="{DynamicResource Str_SysLog_ExportLog}" Click="ExportLog_Click"
                                         DockPanel.Dock="Right" Padding="10,2" Margin="16,0,0,0"/>
                             </DockPanel>
                         </GroupBox.Header>
+                        <!-- 2026-09-21 SystemLogListBox 显示的正文是 AddLog(...) 生成的中文日志行，
+                             全应用约750+处调用点，是单独一个更大阶段的工作，这次不碰。 -->
                         <ListBox x:Name="SystemLogListBox" FontFamily="Consolas" FontSize="12" BorderThickness="0"
                                  ScrollViewer.VerticalScrollBarVisibility="Auto"/>
                     </GroupBox>
 
                     <!-- 右侧：存档管理 -->
-                    <GroupBox Grid.Column="1" Header="存档管理" Margin="10,0,0,0">
+                    <GroupBox Grid.Column="1" Margin="10,0,0,0">
+                        <GroupBox.Header>
+                            <TextBlock Text="{DynamicResource Str_SysLog_ArchiveMgmt}"/>
+                        </GroupBox.Header>
                         <Grid>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="*"/>
@@ -2199,20 +2204,20 @@
                             </ListBox>
 
                             <StackPanel Grid.Row="1">
-                                <Button Content="加载选中存档" Click="LoadBackup_Click" Padding="10" FontSize="14"
+                                <Button Content="{DynamicResource Str_SysLog_LoadBackup}" Click="LoadBackup_Click" Padding="10" FontSize="14"
                                         Background="#22C55E" Foreground="White" BorderThickness="0" Margin="0,0,0,5"/>
-                                <Button Content="删除选中存档" Click="DeleteBackup_Click" Padding="10" FontSize="14"
+                                <Button Content="{DynamicResource Str_SysLog_DeleteBackup}" Click="DeleteBackup_Click" Padding="10" FontSize="14"
                                         Background="#EF4444" Foreground="White" BorderThickness="0" Margin="0,0,0,10"/>
-                                <Button Content="清除当前库数据" Click="ClearDatabase_Click" Padding="10" FontSize="14"
+                                <Button Content="{DynamicResource Str_SysLog_ClearDb}" Click="ClearDatabase_Click" Padding="10" FontSize="14"
                                         Background="#7F1D1D" Foreground="White" BorderThickness="0" Margin="0,0,0,5"/>
-                                <Button Content="删除全部纪录" Click="ClearAllRecords_Click" Padding="10" FontSize="14"
+                                <Button Content="{DynamicResource Str_SysLog_ClearRecords}" Click="ClearAllRecords_Click" Padding="10" FontSize="14"
                                         Background="#DC2626" Foreground="White" BorderThickness="0" Margin="0,0,0,10"/>
-                                <Button Content="强制保存" Click="ForceSave_Click" Padding="10" FontSize="14"
+                                <Button Content="{DynamicResource Str_SysLog_ForceSave}" Click="ForceSave_Click" Padding="10" FontSize="14"
                                         Background="#3B82F6" Foreground="White" BorderThickness="0" Margin="0,0,0,5"/>
                                 <Separator Margin="0,5,0,5"/>
-                                <Button Content="查询本机IP地址" Click="ShowLocalIP_Click" Padding="10" FontSize="14"
+                                <Button Content="{DynamicResource Str_SysLog_ShowIP}" Click="ShowLocalIP_Click" Padding="10" FontSize="14"
                                         Background="#0EA5E9" Foreground="White" BorderThickness="0" Margin="0,0,0,5"/>
-                                <Button Content="修改密码" Click="ChangePassword_Click" Padding="10" FontSize="14"
+                                <Button Content="{DynamicResource Str_SysLog_ChangePassword}" Click="ChangePassword_Click" Padding="10" FontSize="14"
                                         Background="#475569" Foreground="White" BorderThickness="0"/>
                             </StackPanel>
                         </Grid>
