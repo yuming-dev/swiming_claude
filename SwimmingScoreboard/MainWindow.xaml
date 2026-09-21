@@ -951,14 +951,14 @@
                                     <Border Background="#8B5CF6" CornerRadius="4" Padding="5,3" Margin="0,0,8,0">
                                         <TextBlock Text="&#xE8A5;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="White" VerticalAlignment="Center"/>
                                     </Border>
-                                    <TextBlock Text="赛程导航" FontSize="15" FontWeight="Bold" Foreground="#1E293B" VerticalAlignment="Center"/>
+                                    <TextBlock Text="{DynamicResource Str_RC_ScheduleNav}" FontSize="15" FontWeight="Bold" Foreground="#1E293B" VerticalAlignment="Center"/>
                                 </StackPanel>
                                 <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,6,0,0">
                                     <Button Click="PrevHeat_Click" Margin="0,0,8,0" BorderThickness="0" Cursor="Hand">
                                         <Button.Template>
                                             <ControlTemplate TargetType="Button">
                                                 <Border Background="#6366F1" CornerRadius="6" Padding="12,5">
-                                                    <TextBlock Text="◀ 上一组" FontSize="12" Foreground="White" FontWeight="Bold"/>
+                                                    <TextBlock Text="{DynamicResource Str_RC_PrevHeat}" FontSize="12" Foreground="White" FontWeight="Bold"/>
                                                 </Border>
                                             </ControlTemplate>
                                         </Button.Template>
@@ -967,7 +967,7 @@
                                         <Button.Template>
                                             <ControlTemplate TargetType="Button">
                                                 <Border Background="#6366F1" CornerRadius="6" Padding="12,5">
-                                                    <TextBlock Text="下一组 ▶" FontSize="12" Foreground="White" FontWeight="Bold"/>
+                                                    <TextBlock Text="{DynamicResource Str_RC_NextHeat}" FontSize="12" Foreground="White" FontWeight="Bold"/>
                                                 </Border>
                                             </ControlTemplate>
                                         </Button.Template>
@@ -979,24 +979,24 @@
                         <!-- 计时源对比 + 比赛日志 Tab（下1/4）2026-05-27 加 Tab 切换 -->
                         <Border Grid.Row="1" CornerRadius="10" Padding="6" BorderBrush="#334155" BorderThickness="1" Background="#0F172A">
                             <TabControl Background="Transparent" BorderThickness="0" Padding="0">
-                                <TabItem Header="计时源对比">
+                                <TabItem Header="{DynamicResource Str_RC_TabTimingCompare}">
                                     <DockPanel Margin="4">
                                         <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,4,0,4">
-                                            <TextBlock Text="分段:" Foreground="#94A3B8" FontSize="12" VerticalAlignment="Center"/>
+                                            <TextBlock Text="{DynamicResource Str_RC_SplitLabel}" Foreground="#94A3B8" FontSize="12" VerticalAlignment="Center"/>
                                             <ComboBox x:Name="SplitSelectCombo" Width="110" FontSize="12" Margin="6,0,0,0"
                                                       BorderBrush="#475569" SelectionChanged="SplitSelect_Changed" SelectedIndex="0">
-                                                <sys:String xmlns:sys="clr-namespace:System;assembly=mscorlib">终点</sys:String>
+                                                <ComboBoxItem Content="{DynamicResource Str_RC_SplitFinish}"/>
                                             </ComboBox>
                                         </StackPanel>
                                         <ScrollViewer VerticalScrollBarVisibility="Auto">
-                                            <TextBlock x:Name="TimingSourceInfo" Text="点击泳道行查看计时源" Foreground="#94A3B8" FontSize="13" TextWrapping="Wrap"/>
+                                            <TextBlock x:Name="TimingSourceInfo" Text="{DynamicResource Str_RC_TimingSourceHint}" Foreground="#94A3B8" FontSize="13" TextWrapping="Wrap"/>
                                         </ScrollViewer>
                                     </DockPanel>
                                 </TabItem>
-                                <TabItem Header="比赛日志">
+                                <TabItem Header="{DynamicResource Str_RC_TabRaceLog}">
                                     <DockPanel Margin="4">
                                         <TextBlock DockPanel.Dock="Top" Foreground="#94A3B8" FontSize="11" Margin="0,4,0,4">
-                                            <Run Text="本组所选道次的实时事件 — 出发反应时 / 触板 / 盲表 (切道次可调出该道历史)"/>
+                                            <Run Text="{DynamicResource Str_RC_RaceLogHint}"/>
                                         </TextBlock>
                                         <ScrollViewer x:Name="LaneEventLogScroller" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
                                             <TextBox x:Name="LaneEventLogText" IsReadOnly="True" Background="Transparent"
@@ -1025,7 +1025,7 @@
                                     <Border Background="#3B82F6" CornerRadius="4" Padding="5,3" Margin="0,0,8,0">
                                         <TextBlock Text="&#xE916;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="White" VerticalAlignment="Center"/>
                                     </Border>
-                                    <TextBlock Text="泳道实时状态" FontSize="16" FontWeight="Bold" Foreground="White" VerticalAlignment="Center"/>
+                                    <TextBlock Text="{DynamicResource Str_RC_LaneStatus}" FontSize="16" FontWeight="Bold" Foreground="White" VerticalAlignment="Center"/>
                                 </StackPanel>
                                 <!-- 选定的比赛项目 -->
                                 <TextBlock x:Name="PoolCurrentEventText" Grid.Column="1" Text="" FontSize="14" FontWeight="Bold"
@@ -1041,7 +1041,7 @@
                                 <Border x:Name="RaceStateBox" Grid.Column="4" Background="#3B82F6" CornerRadius="12" Padding="10,4" Width="90">
                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                                         <Ellipse x:Name="RaceStateIndicator" Width="12" Height="12" Fill="White" Margin="0,0,6,0" VerticalAlignment="Center"/>
-                                        <TextBlock x:Name="RaceStateLabel" Text="等待" FontSize="14" FontWeight="Bold" Foreground="White" VerticalAlignment="Center" Width="48" TextAlignment="Center"/>
+                                        <TextBlock x:Name="RaceStateLabel" Text="{DynamicResource Str_RC_StateWaiting}" FontSize="14" FontWeight="Bold" Foreground="White" VerticalAlignment="Center" Width="48" TextAlignment="Center"/>
                                     </StackPanel>
                                 </Border>
                             </Grid>
@@ -1093,9 +1093,9 @@
                                     <Border Background="#DC2626" CornerRadius="4" Padding="5,3" Margin="0,0,8,0">
                                         <TextBlock Text="&#xE7FC;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="White" VerticalAlignment="Center"/>
                                     </Border>
-                                    <TextBlock Text="比赛控制" FontSize="16" FontWeight="Bold" Foreground="#1E293B" VerticalAlignment="Center"/>
+                                    <TextBlock Text="{DynamicResource Str_RC_SectionTitle}" FontSize="14" FontWeight="Bold" Foreground="#1E293B" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
                                 </StackPanel>
-                                <Button Grid.Column="1" Content="&#9881; 参数设置" Click="TimingSettings_Click"
+                                <Button Grid.Column="1" Content="{DynamicResource Str_RC_TimingSettings}" Click="TimingSettings_Click"
                                         Padding="8,2" Background="#475569" Foreground="White" BorderThickness="0"
                                         FontSize="12" VerticalAlignment="Center" Cursor="Hand"/>
                             </Grid>
@@ -1112,7 +1112,7 @@
                                                 <Border Background="#EF4444" CornerRadius="8">
                                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
                                                         <TextBlock Text="&#xE72C;" FontFamily="Segoe MDL2 Assets" FontSize="15" Foreground="White" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                                        <TextBlock Text="计时复位" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                        <TextBlock Text="{DynamicResource Str_RC_ClockReset}" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
                                                     </StackPanel>
                                                 </Border>
                                             </ControlTemplate>
@@ -1124,7 +1124,7 @@
                                                 <Border Background="#F59E0B" CornerRadius="8">
                                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
                                                         <TextBlock Text="&#xE7C1;" FontFamily="Segoe MDL2 Assets" FontSize="15" Foreground="White" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                                        <TextBlock Text="准备就绪" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                        <TextBlock Text="{DynamicResource Str_RC_Ready}" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
                                                     </StackPanel>
                                                 </Border>
                                             </ControlTemplate>
@@ -1136,7 +1136,7 @@
                                                 <Border Background="#10B981" CornerRadius="8">
                                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
                                                         <TextBlock Text="&#xE768;" FontFamily="Segoe MDL2 Assets" FontSize="15" Foreground="White" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                                        <TextBlock Text="M.发令" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                        <TextBlock Text="{DynamicResource Str_RC_ManualStart}" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
                                                     </StackPanel>
                                                 </Border>
                                             </ControlTemplate>
@@ -1158,7 +1158,7 @@
                                                 </Border>
                                             </ControlTemplate>
                                         </Button.Template>
-                                        <TextBlock x:Name="PauseClockBtnText" Text="停表" FontSize="14" Foreground="White" FontWeight="Bold"/>
+                                        <TextBlock x:Name="PauseClockBtnText" Text="{DynamicResource Str_RC_PauseClock}" FontSize="14" Foreground="White" FontWeight="Bold"/>
                                     </Button>
                                     <Button Click="ConfirmResult_Click" Height="28" Margin="0,0,0,4" BorderThickness="0" Cursor="Hand">
                                         <Button.Template>
@@ -1166,7 +1166,7 @@
                                                 <Border Background="#3B82F6" CornerRadius="8">
                                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
                                                         <TextBlock Text="&#xE73E;" FontFamily="Segoe MDL2 Assets" FontSize="15" Foreground="White" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                                        <TextBlock Text="确认本组成绩" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                        <TextBlock Text="{DynamicResource Str_RC_ConfirmResult}" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
                                                     </StackPanel>
                                                 </Border>
                                             </ControlTemplate>
@@ -1175,13 +1175,13 @@
                                     <!-- 2026-09-13 解锁本组成绩: 按错「确认本组成绩」之后才发现成绩有误,
                                          没有这个口子就永远改不了了。二次确认 + 写审计日志。 -->
                                     <Button Click="UnlockHeatResult_Click" Height="28" Margin="0,0,0,4" BorderThickness="0" Cursor="Hand"
-                                            ToolTip="把本组从「已完赛」解开, 好改成绩。要二次确认, 并记入审计日志。改完记得再点一次「确认本组成绩」">
+                                            ToolTip="{DynamicResource Str_RC_UnlockResultTip}">
                                         <Button.Template>
                                             <ControlTemplate TargetType="Button">
                                                 <Border Background="#B45309" CornerRadius="8">
                                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
                                                         <TextBlock Text="&#xE785;" FontFamily="Segoe MDL2 Assets" FontSize="15" Foreground="White" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                                        <TextBlock Text="解锁本组成绩" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                        <TextBlock Text="{DynamicResource Str_RC_UnlockResult}" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
                                                     </StackPanel>
                                                 </Border>
                                             </ControlTemplate>
@@ -1194,7 +1194,7 @@
                                                 <Border Background="#0EA5E9" CornerRadius="8">
                                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
                                                         <TextBlock Text="&#xE749;" FontFamily="Segoe MDL2 Assets" FontSize="15" Foreground="White" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                                        <TextBlock Text="打印成绩" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                        <TextBlock Text="{DynamicResource Str_RC_PrintResult}" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
                                                     </StackPanel>
                                                 </Border>
                                             </ControlTemplate>
@@ -1208,7 +1208,7 @@
                                                 <Border Background="#F97316" CornerRadius="8">
                                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
                                                         <TextBlock Text="&#xE9D9;" FontFamily="Segoe MDL2 Assets" FontSize="15" Foreground="White" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                                        <TextBlock Text="公布项目总排名 (存盘)" FontSize="13" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                        <TextBlock Text="{DynamicResource Str_RC_PublishRanking}" FontSize="13" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
                                                     </StackPanel>
                                                 </Border>
                                             </ControlTemplate>
@@ -1223,9 +1223,9 @@
                                 <StackPanel>
                                     <!-- 泳道操作 标题 + 道号输入 -->
                                     <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
-                                        <TextBlock Text="泳道操作" FontSize="14" FontWeight="Bold" Foreground="#92400E" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                        <TextBlock Text="{DynamicResource Str_RC_LaneControls}" FontSize="14" FontWeight="Bold" Foreground="#92400E" VerticalAlignment="Center" Margin="0,0,8,0"/>
                                         <TextBox x:Name="LaneInputBox" Text="4" Width="46" Padding="4" FontSize="14" TextAlignment="Center" BorderBrush="#FCD34D" TextChanged="LaneInputBox_TextChanged"/>
-                                        <TextBlock Text="道" Foreground="#92400E" FontSize="12" VerticalAlignment="Center" Margin="4,0,0,0"/>
+                                        <TextBlock Text="{DynamicResource Str_RC_LaneUnit}" Foreground="#92400E" FontSize="12" VerticalAlignment="Center" Margin="4,0,0,0"/>
                                     </StackPanel>
                                     <Grid>
                                         <Grid.ColumnDefinitions>
@@ -1270,7 +1270,7 @@
                                             </Button.Template>
                                         </Button>
                                         <Button Grid.Row="1" Grid.Column="1" Click="MarkTri_Click" Margin="2" BorderThickness="0" Cursor="Hand"
-                                                ToolTip="标记本道为 TRI (试游 / 不计成绩 / 不参与排名), 备注栏显示 'TRI'">
+                                                ToolTip="{DynamicResource Str_RC_TriTip}">
                                             <Button.Template>
                                                 <ControlTemplate TargetType="Button">
                                                     <Border Background="#7C3AED" CornerRadius="5">
@@ -1284,7 +1284,7 @@
                                             <Button.Template>
                                                 <ControlTemplate TargetType="Button">
                                                     <Border Background="#0EA5E9" CornerRadius="5">
-                                                        <TextBlock Text="取消备注" FontSize="13" Foreground="White" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                        <TextBlock Text="{DynamicResource Str_RC_CancelNote}" FontSize="13" Foreground="White" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                                     </Border>
                                                 </ControlTemplate>
                                             </Button.Template>
@@ -1293,7 +1293,7 @@
                                             <Button.Template>
                                                 <ControlTemplate TargetType="Button">
                                                     <Border Background="#8B5CF6" CornerRadius="5">
-                                                        <TextBlock Text="盲表成绩" FontSize="13" Foreground="White" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                        <TextBlock Text="{DynamicResource Str_RC_BlindResult}" FontSize="13" Foreground="White" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                                     </Border>
                                                 </ControlTemplate>
                                             </Button.Template>
@@ -1303,7 +1303,7 @@
                                             <Button.Template>
                                                 <ControlTemplate TargetType="Button">
                                                     <Border Background="#10B981" CornerRadius="5">
-                                                        <TextBlock Text="道次打开" FontSize="13" Foreground="White" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                        <TextBlock Text="{DynamicResource Str_RC_LaneOpen}" FontSize="13" Foreground="White" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                                     </Border>
                                                 </ControlTemplate>
                                             </Button.Template>
@@ -1312,7 +1312,7 @@
                                             <Button.Template>
                                                 <ControlTemplate TargetType="Button">
                                                     <Border Background="#94A3B8" CornerRadius="5">
-                                                        <TextBlock Text="道次关闭" FontSize="13" Foreground="White" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                        <TextBlock Text="{DynamicResource Str_RC_LaneClose}" FontSize="13" Foreground="White" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                                     </Border>
                                                 </ControlTemplate>
                                             </Button.Template>
@@ -1324,7 +1324,7 @@
                                                     <Border Background="#059669" CornerRadius="5">
                                                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
                                                             <TextBlock Text="&#xE8FB;" FontFamily="Segoe MDL2 Assets" FontSize="12" Foreground="White" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                                                            <TextBlock Text="全部打开" FontSize="13" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                            <TextBlock Text="{DynamicResource Str_RC_OpenAll}" FontSize="13" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
                                                         </StackPanel>
                                                     </Border>
                                                 </ControlTemplate>
@@ -1336,7 +1336,7 @@
                                                     <Border Background="#4B5563" CornerRadius="5">
                                                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
                                                             <TextBlock Text="&#xE711;" FontFamily="Segoe MDL2 Assets" FontSize="12" Foreground="White" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                                                            <TextBlock Text="全部关闭" FontSize="13" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                            <TextBlock Text="{DynamicResource Str_RC_CloseAll}" FontSize="13" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
                                                         </StackPanel>
                                                     </Border>
                                                 </ControlTemplate>
@@ -1349,7 +1349,7 @@
                                                     <Border Background="#D97706" CornerRadius="5">
                                                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
                                                             <TextBlock Text="&#xE932;" FontFamily="Segoe MDL2 Assets" FontSize="12" Foreground="White" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                                                            <TextBlock Text="手动输入" FontSize="13" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                            <TextBlock Text="{DynamicResource Str_RC_ManualTime}" FontSize="13" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
                                                         </StackPanel>
                                                     </Border>
                                                 </ControlTemplate>
@@ -1361,7 +1361,7 @@
                                                     <Border Background="#06B6D4" CornerRadius="5">
                                                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
                                                             <TextBlock Text="&#xE70F;" FontFamily="Segoe MDL2 Assets" FontSize="12" Foreground="White" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                                                            <TextBlock Text="手工补段" FontSize="13" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                            <TextBlock Text="{DynamicResource Str_RC_ManualSplit}" FontSize="13" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
                                                         </StackPanel>
                                                     </Border>
                                                 </ControlTemplate>
@@ -1374,7 +1374,7 @@
                             <!-- 2026-06-25 显示控制区 v2 Card 化 (浅紫底 + Border), 紧凑 (RowDef 28, 删内 Border Padding=4) -->
                             <Border Background="#F3E8FF" BorderBrush="#D8B4FE" BorderThickness="1" CornerRadius="8" Padding="10,8,10,10" Margin="0,0,0,8">
                                 <StackPanel>
-                                    <TextBlock Text="显示控制" FontSize="14" FontWeight="Bold" Foreground="#6B21A8" Margin="0,0,0,6"/>
+                                    <TextBlock Text="{DynamicResource Str_RC_DisplayControl}" FontSize="14" FontWeight="Bold" Foreground="#6B21A8" Margin="0,0,0,6"/>
                                     <Grid>
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
@@ -1397,7 +1397,7 @@
                                                 <Border Background="#3B82F6" CornerRadius="5">
                                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
                                                         <TextBlock Text="&#xE8F1;" FontFamily="Segoe MDL2 Assets" FontSize="15" Foreground="White" VerticalAlignment="Center" Margin="0,0,5,0"/>
-                                                        <TextBlock Text="出发表" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                        <TextBlock Text="{DynamicResource Str_RC_ShowStartList}" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
                                                     </StackPanel>
                                                 </Border>
                                             </ControlTemplate>
@@ -1409,7 +1409,7 @@
                                                 <Border Background="#2563EB" CornerRadius="5">
                                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
                                                         <TextBlock Text="&#xE768;" FontFamily="Segoe MDL2 Assets" FontSize="15" Foreground="White" VerticalAlignment="Center" Margin="0,0,5,0"/>
-                                                        <TextBlock Text="比赛视图" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                        <TextBlock Text="{DynamicResource Str_RC_ShowLiveRace}" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
                                                     </StackPanel>
                                                 </Border>
                                             </ControlTemplate>
@@ -1422,7 +1422,7 @@
                                                 <Border Background="#059669" CornerRadius="5">
                                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
                                                         <TextBlock Text="&#xE9D5;" FontFamily="Segoe MDL2 Assets" FontSize="15" Foreground="White" VerticalAlignment="Center" Margin="0,0,5,0"/>
-                                                        <TextBlock Text="组成绩" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                        <TextBlock Text="{DynamicResource Str_RC_ShowHeatResult}" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
                                                     </StackPanel>
                                                 </Border>
                                             </ControlTemplate>
@@ -1434,7 +1434,7 @@
                                                 <Border Background="#10B981" CornerRadius="5">
                                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
                                                         <TextBlock Text="&#xE8CB;" FontFamily="Segoe MDL2 Assets" FontSize="15" Foreground="White" VerticalAlignment="Center" Margin="0,0,5,0"/>
-                                                        <TextBlock Text="总排名" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                        <TextBlock Text="{DynamicResource Str_RC_ShowEventRanking}" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
                                                     </StackPanel>
                                                 </Border>
                                             </ControlTemplate>
@@ -1447,7 +1447,7 @@
                                                 <Border Background="#D97706" CornerRadius="5">
                                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
                                                         <TextBlock Text="&#xE8D1;" FontFamily="Segoe MDL2 Assets" FontSize="15" Foreground="White" VerticalAlignment="Center" Margin="0,0,5,0"/>
-                                                        <TextBlock Text="团体" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                        <TextBlock Text="{DynamicResource Str_RC_ShowTeamStandings}" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
                                                     </StackPanel>
                                                 </Border>
                                             </ControlTemplate>
@@ -1459,7 +1459,7 @@
                                                 <Border Background="#F59E0B" CornerRadius="5">
                                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
                                                         <TextBlock Text="&#xE8A0;" FontFamily="Segoe MDL2 Assets" FontSize="15" Foreground="White" VerticalAlignment="Center" Margin="0,0,5,0"/>
-                                                        <TextBlock Text="颁奖" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                        <TextBlock Text="{DynamicResource Str_RC_ShowAwards}" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
                                                     </StackPanel>
                                                 </Border>
                                             </ControlTemplate>
@@ -1472,7 +1472,7 @@
                                                 <Border Background="#DC2626" CornerRadius="5">
                                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
                                                         <TextBlock Text="&#xE716;" FontFamily="Segoe MDL2 Assets" FontSize="15" Foreground="White" VerticalAlignment="Center" Margin="0,0,5,0"/>
-                                                        <TextBlock Text="裁判介绍" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                        <TextBlock Text="{DynamicResource Str_RC_ShowReferees}" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
                                                     </StackPanel>
                                                 </Border>
                                             </ControlTemplate>
@@ -1484,7 +1484,7 @@
                                                 <Border Background="#8B5CF6" CornerRadius="5">
                                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
                                                         <TextBlock Text="&#xE80F;" FontFamily="Segoe MDL2 Assets" FontSize="15" Foreground="White" VerticalAlignment="Center" Margin="0,0,5,0"/>
-                                                        <TextBlock Text="欢迎" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                        <TextBlock Text="{DynamicResource Str_RC_ShowWelcome}" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
                                                     </StackPanel>
                                                 </Border>
                                             </ControlTemplate>
@@ -1498,20 +1498,20 @@
                                                 <Border Background="#F59E0B" CornerRadius="5">
                                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
                                                         <TextBlock Text="&#xE8A5;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="White" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                                                        <TextBlock Text="成绩发布" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                        <TextBlock Text="{DynamicResource Str_RC_PublishResult}" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
                                                     </StackPanel>
                                                 </Border>
                                             </ControlTemplate>
                                         </Button.Template>
                                     </Button>
                                     <Button Grid.Row="4" Grid.Column="1" Click="ShowSchedule_Click" Margin="2" BorderThickness="0" Cursor="Hand"
-                                            ToolTip="选择比赛场次(或全部), 大屏翻页显示该场次/全部比赛日程">
+                                            ToolTip="{DynamicResource Str_RC_ShowScheduleTip}">
                                         <Button.Template>
                                             <ControlTemplate TargetType="Button">
                                                 <Border Background="#0D9488" CornerRadius="5">
                                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
                                                         <TextBlock Text="&#xE787;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="White" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                                                        <TextBlock Text="比赛日程" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                        <TextBlock Text="{DynamicResource Str_RC_ShowSchedule}" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
                                                     </StackPanel>
                                                 </Border>
                                             </ControlTemplate>
@@ -1520,26 +1520,26 @@
                                     <!-- 图片 / 视频 -->
                                     <!-- Row 5: 图片/视频 / PPT 播放 (2026-06-25 用户要求合一行各占 1 列) -->
                                     <Button Grid.Row="5" Grid.Column="0" Click="ShowMedia_Click" Margin="2" BorderThickness="0" Cursor="Hand"
-                                            ToolTip="选择图片或视频文件，发送到大屏播放">
+                                            ToolTip="{DynamicResource Str_RC_ShowMediaTip}">
                                         <Button.Template>
                                             <ControlTemplate TargetType="Button">
                                                 <Border Background="#0EA5E9" CornerRadius="5">
                                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
                                                         <TextBlock Text="&#xE8B9;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="White" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                                                        <TextBlock Text="图片/视频" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                        <TextBlock Text="{DynamicResource Str_RC_ShowMedia}" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
                                                     </StackPanel>
                                                 </Border>
                                             </ControlTemplate>
                                         </Button.Template>
                                     </Button>
                                     <Button Grid.Row="5" Grid.Column="1" Click="PlayPpt_Click" Margin="2" BorderThickness="0" Cursor="Hand"
-                                            ToolTip="选择 PPT/PPTX 文件, 自动以幻灯片放映模式打开 (需安装 PowerPoint; 未装时用默认关联程序兜底)">
+                                            ToolTip="{DynamicResource Str_RC_PlayPptTip}">
                                         <Button.Template>
                                             <ControlTemplate TargetType="Button">
                                                 <Border Background="#FB923C" CornerRadius="5">
                                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
                                                         <TextBlock Text="&#xE786;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="White" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                                                        <TextBlock Text="PPT 播放" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                        <TextBlock Text="{DynamicResource Str_RC_PlayPpt}" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
                                                     </StackPanel>
                                                 </Border>
                                             </ControlTemplate>
@@ -1547,13 +1547,13 @@
                                     </Button>
                                     <!-- 2026-06-01 大屏样式远程控制: 底色 / 字号 / 9 处文字颜色字体 -->
                                     <Button Grid.Row="6" Grid.Column="0" Grid.ColumnSpan="2" Click="OpenDisplayStyle_Click" Margin="2" BorderThickness="0" Cursor="Hand"
-                                            ToolTip="底色 / 字号 / 9 处文字颜色和字体, 实时推送到所有大屏 display.html">
+                                            ToolTip="{DynamicResource Str_RC_DisplayStyleTip}">
                                         <Button.Template>
                                             <ControlTemplate TargetType="Button">
                                                 <Border Background="#7C3AED" CornerRadius="5">
                                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
                                                         <TextBlock Text="&#xE790;" FontFamily="Segoe MDL2 Assets" FontSize="15" Foreground="White" VerticalAlignment="Center" Margin="0,0,5,0"/>
-                                                        <TextBlock Text="大屏样式 (底色/字号/文字)" FontSize="13" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                        <TextBlock Text="{DynamicResource Str_RC_DisplayStyle}" FontSize="13" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
                                                     </StackPanel>
                                                 </Border>
                                             </ControlTemplate>
@@ -1564,21 +1564,21 @@
                                          这样 x:Name="RecordsHiddenBtnText" 在 code-behind 可访问 -->
                                     <!-- Row 7: 记录显示 / 显反应时 (2026-06-25 用户要求合一行, "备注: 显反应时" 去"备注: ") -->
                                     <Button Grid.Row="7" Grid.Column="0" x:Name="RecordsHiddenBtn" Click="ToggleRecordsHidden_Click" Margin="2" Padding="0" BorderThickness="0" Cursor="Hand" Background="Transparent"
-                                            ToolTip="切换大屏右上角 WR/CR 纪录指示条的显示/隐藏">
+                                            ToolTip="{DynamicResource Str_RC_RecordsHiddenTip}">
                                         <Border Background="#475569" CornerRadius="5">
                                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
                                                 <TextBlock Text="&#xED1A;" FontFamily="Segoe MDL2 Assets" FontSize="15" Foreground="White" VerticalAlignment="Center" Margin="0,0,5,0"/>
-                                                <TextBlock x:Name="RecordsHiddenBtnText" Text="记录显示" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                <TextBlock x:Name="RecordsHiddenBtnText" Text="{DynamicResource Str_RC_RecordsShow}" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
                                             </StackPanel>
                                         </Border>
                                     </Button>
                                     <!-- 2026-06-04 备注栏 是否显示 出发反应时 切换 (= display.html lane-row .remark 反应时窗口期内显示) -->
                                     <Button Grid.Row="7" Grid.Column="1" x:Name="RemarkReactionBtn" Click="ToggleRemarkReaction_Click" Margin="2" Padding="0" BorderThickness="0" Cursor="Hand" Background="Transparent"
-                                            ToolTip="切换大屏 备注 栏是否显示 出发反应时 (短暂窗口期内). 关 = 不显, 开 = 显">
+                                            ToolTip="{DynamicResource Str_RC_RemarkReactionTip}">
                                         <Border Background="#475569" CornerRadius="5">
                                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
                                                 <TextBlock Text="&#xE91F;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="White" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                                                <TextBlock x:Name="RemarkReactionBtnText" Text="显反应时" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                <TextBlock x:Name="RemarkReactionBtnText" Text="{DynamicResource Str_RC_RemarkReaction}" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
                                             </StackPanel>
                                         </Border>
                                     </Button>
@@ -1589,7 +1589,7 @@
                             <!-- 2026-06-25 系统硬件区 v2 Card 化 (浅绿底 + Border), 紧凑 (RowDef 28) -->
                             <Border Background="#ECFDF5" BorderBrush="#6EE7B7" BorderThickness="1" CornerRadius="8" Padding="10,8,10,10" Margin="0,0,0,8">
                                 <StackPanel>
-                                    <TextBlock Text="系统硬件" FontSize="14" FontWeight="Bold" Foreground="#065F46" Margin="0,0,0,6"/>
+                                    <TextBlock Text="{DynamicResource Str_RC_SystemHardware}" FontSize="14" FontWeight="Bold" Foreground="#065F46" Margin="0,0,0,6"/>
                                     <Grid>
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
@@ -1600,15 +1600,15 @@
                                         </Grid.RowDefinitions>
                                     <!-- 2026-05-14 连接按钮：硬件改走 TCP 网络连接（沿用既有 QuickConnect 控件名，
                                          保持代码绑定不变；按钮显示文字改为"网络连接"，Click 处理走 TCP） -->
-                                    <Button x:Name="QuickConnectSerialButton" Grid.Row="0" Grid.Column="0" Content="网络连接" Click="QuickConnectSerial_Click"
+                                    <Button x:Name="QuickConnectSerialButton" Grid.Row="0" Grid.Column="0" Content="{DynamicResource Str_RC_NetworkConnect}" Click="QuickConnectSerial_Click"
                                             Margin="2" BorderThickness="0" Cursor="Hand"
-                                            ToolTip="用上次保存的 TCP 主机/端口快速连接硬件计时器；详细配置请到 系统工作状态 → 硬件计时器连接">
+                                            ToolTip="{DynamicResource Str_RC_NetworkConnectTip}">
                                         <Button.Template>
                                             <ControlTemplate TargetType="Button">
                                                 <Border x:Name="QuickConnBorder" Background="#22C55E" CornerRadius="5">
                                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
                                                         <TextBlock Text="&#xE839;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="White" VerticalAlignment="Center" Margin="0,0,5,0"/>
-                                                        <TextBlock x:Name="QuickConnectSerialButtonText" Text="网络连接" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                        <TextBlock x:Name="QuickConnectSerialButtonText" Text="{DynamicResource Str_RC_NetworkConnect}" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
                                                     </StackPanel>
                                                 </Border>
                                                 <ControlTemplate.Triggers>
@@ -1623,15 +1623,15 @@
                                         </Button.Template>
                                     </Button>
                                     <!-- 设备测试：触板/出发台/盲表全部打开，硬件来什么数据都接收并显示 -->
-                                    <Button x:Name="DeviceTestButton" Grid.Row="0" Grid.Column="1" Content="设备测试" Click="DeviceTest_Click"
+                                    <Button x:Name="DeviceTestButton" Grid.Row="0" Grid.Column="1" Content="{DynamicResource Str_RC_DeviceTest}" Click="DeviceTest_Click"
                                             Margin="2" BorderThickness="0" Cursor="Hand"
-                                            ToolTip="所有触板/出发台/盲表都打开，硬件发来的任何数据都接收显示（用于联调）。再点一次退出测试。">
+                                            ToolTip="{DynamicResource Str_RC_DeviceTestTip}">
                                         <Button.Template>
                                             <ControlTemplate TargetType="Button">
                                                 <Border x:Name="DeviceTestBorder" Background="#0EA5E9" CornerRadius="5">
                                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
                                                         <TextBlock Text="&#xE9F5;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="White" VerticalAlignment="Center" Margin="0,0,5,0"/>
-                                                        <TextBlock x:Name="DeviceTestButtonText" Text="设备测试" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                        <TextBlock x:Name="DeviceTestButtonText" Text="{DynamicResource Str_RC_DeviceTest}" FontSize="14" Foreground="White" FontWeight="Bold" VerticalAlignment="Center"/>
                                                     </StackPanel>
                                                 </Border>
                                                 <ControlTemplate.Triggers>

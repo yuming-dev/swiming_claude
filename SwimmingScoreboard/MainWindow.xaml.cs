@@ -24085,8 +24085,17 @@ namespace SwimmingScoreboard
         // 仍是硬编码中文, 不受这个按钮影响, 这里补一条日志说明白, 别让人以为按了没反应。
         private void LanguageToggle_Click(object sender, RoutedEventArgs e) {
             Loc.Toggle();
+            // 2026-09-21 "比赛控制"页几个按钮的文字是跟着状态变的(停表/继续走表、记录显示/已隐藏、
+            // RT On/Off、网络连接/断开、设备测试/退出测试)——它们的刷新函数会直接赋值 .Text,
+            // 一旦赋值就把 XAML 里的 DynamicResource 绑定冲掉了, 光调 Loc.Apply() 追不上这几个,
+            // 这里主动按当前状态重刷一遍, 语言按钮点下去才能做到"立刻全部生效"而不是要等
+            // 下次连接/测试状态变化才顺带更新。
+            try { RefreshRecordsHiddenBtn(); } catch { }
+            try { RefreshRemarkReactionBtn(); } catch { }
+            try { UpdateQuickConnectButton(); } catch { }
+            try { UpdateDeviceTestButton(); } catch { }
             AddLog(Loc.CurrentLanguage == Loc.En
-                ? "界面语言已切换为 English（标签页/设置页已生效；系统日志/弹窗仍为中文）"
+                ? "界面语言已切换为 English（标签页/设置页/比赛控制页已生效；系统日志/弹窗仍为中文）"
                 : "界面语言已切换为中文");
         }
 
@@ -24632,7 +24641,10 @@ namespace SwimmingScoreboard
         private void RefreshRecordsHiddenBtn() {
             if (RecordsHiddenBtnText != null) {
                 // 2026-06-25 保留 ON/OFF 两态文字, 去 "(点击...)" 后缀
-                RecordsHiddenBtnText.Text = _displayStyleRecordsHidden ? "记录已隐藏" : "记录显示";
+                // 2026-09-21 直接赋值 .Text 会把 XAML 里的 DynamicResource 绑定冲掉——查表而不是
+                // 硬编码中文字面量, 这样中文/English 按钮切换后再次触发这个函数(见
+                // LanguageToggle_Click)时才会跟着变, 不会永远卡死在上次赋值那一刻的语言。
+                RecordsHiddenBtnText.Text = _displayStyleRecordsHidden ? Loc.T("Str_RC_RecordsHidden") : Loc.T("Str_RC_RecordsShow");
             }
         }
 
@@ -24647,7 +24659,8 @@ namespace SwimmingScoreboard
         private void RefreshRemarkReactionBtn() {
             if (RemarkReactionBtnText != null) {
                 // 2026-06-25 保留 ON/OFF 两态文字, 去 "(点击...)" 后缀; 去 "备注: " 前缀
-                RemarkReactionBtnText.Text = _displayStyleRemarkShowReaction ? "显反应时" : "不显反应时";
+                // 2026-09-21 同 RefreshRecordsHiddenBtn 的说明——查表, 别再硬编码中文字面量。
+                RemarkReactionBtnText.Text = _displayStyleRemarkShowReaction ? Loc.T("Str_RC_RemarkReaction") : Loc.T("Str_RC_RemarkReactionOff");
             }
         }
 
@@ -27860,7 +27873,8 @@ namespace SwimmingScoreboard
         // 设备测试按钮文字/底色随 _testMode 变化
         private void UpdateDeviceTestButton() {
             if (DeviceTestButton == null) return;
-            string label = _testMode ? "退出测试" : "设备测试";
+            // 2026-09-21 查表, 别再硬编码中文字面量——理由同 RefreshRecordsHiddenBtn。
+            string label = _testMode ? Loc.T("Str_RC_DeviceTestExit") : Loc.T("Str_RC_DeviceTest");
             string bgHex = _testMode ? "#EF4444" : "#0EA5E9";
             try {
                 DeviceTestButton.ApplyTemplate();
@@ -27878,7 +27892,8 @@ namespace SwimmingScoreboard
             if (QuickConnectSerialButton == null) return;
             bool connected = _timingBridge != null && _timingBridge.IsConnected;
             //2026-05-14 顶栏改走网络连接，未连接时文字为"网络连接"，已连接显示"断开"
-            string label = connected ? "断开" : "网络连接";
+            // 2026-09-21 查表(复用"设置"页已有的 Str_Settings_Disconnect), 别再硬编码中文字面量。
+            string label = connected ? Loc.T("Str_Settings_Disconnect") : Loc.T("Str_RC_NetworkConnect");
             string bgHex = connected ? "#EF4444" : "#22C55E";
             // 模板内的 TextBlock 用 x:Name="QuickConnectSerialButtonText"，
             // 模板里的 Border 是按钮 Template 的根元素 — 通过 VisualTreeHelper 拿到再改 Background
