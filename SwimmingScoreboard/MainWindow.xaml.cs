@@ -13233,6 +13233,12 @@ namespace SwimmingScoreboard
                         bool heatConfirmed = IsHeatConfirmedFast(ag, ev.Gender, ev.EventName, ev.Stage, h, swIdx);
                         bool heatTrulyConfirmed = IsHeatTrulyConfirmed(ag, ev.Gender, ev.EventName, ev.Stage, h);
                         string heatDoneTag = heatTrulyConfirmed ? "已确认" : (heatConfirmed ? "已完赛" : "");
+                        // 2026-09-21 用户要求: "比赛控制"这棵赛程导航树(RaceControlTab 专用,
+                        //   跟 RebuildNavTree 那三棵不是同一份代码)也要有"已检录"标志——同一张
+                        //   _checkedInHeats 表, 不新开一套判定。
+                        bool heatCheckedIn = !cancelLabels.ContainsKey(h)
+                            && _checkedInHeats.Contains(ConfirmedHeatKey(ag, ev.Gender ?? "", ev.EventName ?? "", ev.Stage ?? "", h));
+                        if (heatCheckedIn) heatDoneTag = string.IsNullOrEmpty(heatDoneTag) ? "已检录" : (heatDoneTag + " 已检录");
                         var heatItem = new TreeViewItem {
                             Tag = string.Format("{0}:{1}|{2}|{3}|{4}|{5}", heatTrulyConfirmed ? "done" : "heat", ag, ev.Gender, ev.EventName, ev.Stage, h),
                             // 2026-08-24 已取消(并组)的组要标出来, 不然是个点进去空白的组

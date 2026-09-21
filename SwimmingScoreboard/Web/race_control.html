@@ -2269,10 +2269,13 @@ function renderScheduleTree() {
                         if (!selectedHeatKey && (data.currentAgeGroup||'') === ag && data.currentGender === ev.gender && data.currentEvent === ev.eventName && data.currentStage === ev.stage && data.currentHeat === h) {
                             active = ' active';
                         }
+                        // 2026-09-21 用户要求: "已检录"标志要在整个系统的赛程导航都能看到——
+                        // 跟主服务器/checkin.html 同一份 heatCheckedIn 数组(GetStatusData 算好发过来的)。
+                        var checkedIn = (ev.heatCheckedIn && ev.heatCheckedIn[h-1]) ? ' <span style="color:#06b6d4;">[已检录]</span>' : '';
                         if (confirmed) {
-                            html += '<div class="tree-heat" style="color:#aaa;cursor:default;pointer-events:none;">第' + h + '组 [已完赛]</div>';
+                            html += '<div class="tree-heat" style="color:#aaa;cursor:default;pointer-events:none;">第' + h + '组 [已完赛]' + checkedIn + '</div>';
                         } else {
-                            html += '<div class="tree-heat' + active + '" onclick="selectHeat(\'' + key.replace(/'/g,"\\'") + '\')">第' + h + '组 (共' + hc + '组)</div>';
+                            html += '<div class="tree-heat' + active + '" onclick="selectHeat(\'' + key.replace(/'/g,"\\'") + '\')">第' + h + '组 (共' + hc + '组)' + checkedIn + '</div>';
                         }
                     }
                 }
