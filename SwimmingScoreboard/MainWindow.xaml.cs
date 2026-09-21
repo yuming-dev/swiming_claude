@@ -15853,9 +15853,14 @@ namespace SwimmingScoreboard
 
         private void RefreshDisplayRecordLabelText() {
             if (DisplayRecordLabelText == null) return;
+            // 2026-09-21 这里的记录类型名(_displayRecordTypeName)是操作员在"设置..."弹窗里
+            // 自由编辑/新增的数据(可以是"市记录"/"行业纪录"这类任意文字), 不是固定 UI 文案,
+            // 没法走翻译表——只有两个默认兜底值("WR"/"世界纪录", 用户从没设置过时用)值得查表,
+            // 真选了别的纪录类型时原样显示操作员填的字, 跟 TimingStatusText 那类"动态数据不翻译"
+            // 是同一个道理。
             DisplayRecordLabelText.Text = string.Format("{0} ({1})",
                 string.IsNullOrEmpty(_displayRecordLabel) ? "WR" : _displayRecordLabel,
-                string.IsNullOrEmpty(_displayRecordTypeName) ? "世界纪录" : _displayRecordTypeName);
+                string.IsNullOrEmpty(_displayRecordTypeName) ? Loc.T("Str_Col_RecordType_World") : _displayRecordTypeName);
         }
 
         private void DisplayRecordTypeSetting_Click(object sender, RoutedEventArgs e) {
