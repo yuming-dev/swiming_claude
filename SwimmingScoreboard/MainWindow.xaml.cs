@@ -13460,7 +13460,12 @@ namespace SwimmingScoreboard
                             status = HeatStatus(ag, ev.Gender ?? "", ev.EventName ?? "", ev.Stage ?? "", h);
                             // 2026-06-19 去掉 ev.Date + ev.Time: 父节点 "第X场（YYYY-MM-DD 上午）" 已含日期+时段,
                             //   子节点 第X组 再拼一次重复. 只保留 阶段 + 组次 + 状态.
-                            heatLabel = string.Format("{0} 第{1}组 {2}", ev.Stage ?? "", h, StatusLabel(status)).Trim();
+                            // 2026-09-21 用户明确要求: checkin.html 那边加了"已检录"标志后,
+                            //   整个系统的赛程导航也要有——跟 checkin.html 用同一张
+                            //   _checkedInHeats 表, 不新开一套判定。
+                            bool checkedIn = _checkedInHeats.Contains(ConfirmedHeatKey(ag, ev.Gender ?? "", ev.EventName ?? "", ev.Stage ?? "", h));
+                            heatLabel = string.Format("{0} 第{1}组 {2}{3}", ev.Stage ?? "", h, StatusLabel(status),
+                                checkedIn ? " [已检录]" : "").Trim();
                         }
                         // 2026-09-16 筛选按钮上"已结束"(Tag="done")一直是粗筛——不管这组是数据齐
                         //   (done)还是真点过确认(confirmed), 都算"比完了", 所以这里 done 桶要把
@@ -22085,6 +22090,9 @@ namespace SwimmingScoreboard
                         MinHeight = 30, SelectionMode = DataGridSelectionMode.Single,
                         AlternatingRowBackground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F8FAFC"))
                     };
+                    // 2026-09-21 用户要求: 最左边加"顺序号"列(每场从1开始), 跟"赛程管理"
+                    //   主表(RebuildScheduleGroupedView)用同一个字段(SeqInSession), 只读。
+                    eg.Columns.Add(new DataGridTextColumn { Header = "顺序号", Binding = new System.Windows.Data.Binding("SeqInSession"), Width = new DataGridLength(55), IsReadOnly = true });
                     eg.Columns.Add(new DataGridTextColumn { Header = "日期", Binding = new System.Windows.Data.Binding("Date"), Width = new DataGridLength(100) });
                     eg.Columns.Add(new DataGridTextColumn { Header = "时间", Binding = new System.Windows.Data.Binding("Time"), Width = new DataGridLength(70) });
                     // 组别（空串=不限）
@@ -22120,6 +22128,8 @@ namespace SwimmingScoreboard
                     }
 
                     // 保留 editList 自然顺序（不再按时间排序），便于用户自定义比赛顺序
+                    int seq = 0;
+                    foreach (var it in grp) it.SeqInSession = ++seq;
                     eg.ItemsSource = new ObservableCollection<ScheduleItem>(grp);
                     eg.SelectionChanged += delegate { _editSelected = eg.SelectedItem as ScheduleItem; };
                     editPanel.Children.Add(eg);
