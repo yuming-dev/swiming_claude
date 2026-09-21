@@ -3221,7 +3221,11 @@ namespace SwimmingScoreboard
                         //   NotInstalled 重新套一遍并落盘 —— 否则服务器界面上还是旧的道数。
                         ApplyBlindWatchCountToLanes();
                         SaveDeviceStates();
-                        AutoSaveData();
+                        // 2026-09-20 这里改的是 _laneCloseSettings(触板安装方式/盲表数量等
+                        //   本机硬件计时参数)——编排端根本不关心也不消费这份数据, 用不着
+                        //   为它推一次整包。改用 SaveWithoutPush(), 该有的轻量通知
+                        //   (Broadcast() 给 EXE/Web 三端)照旧, 没丢任何该同步的东西。
+                        SaveWithoutPush();
                         UpdateLaneStatusDisplay();
                         Broadcast();
                         SendTimingSettingsToHardware();   // 同步到硬件计时控制器
@@ -6228,7 +6232,9 @@ namespace SwimmingScoreboard
 
                 if (changed) {
                     SaveTimingSettings();
-                    AutoSaveData();
+                    // 2026-09-20 同 HandleTimingCommand 的参数更新分支: 硬件回报的这几个
+                    //   计时参数(盲表数量等)是本机硬件状态, 编排端用不上, 不必为它推整包。
+                    SaveWithoutPush();
                     UpdateLaneStatusDisplay();
                     UpdateRaceStateDisplay();
                     Broadcast();   // 同步到 EXE/Web 三端
@@ -10237,7 +10243,11 @@ namespace SwimmingScoreboard
             try { CalculateTeamScores(); } catch (Exception ex) { AddLog("重算团体总分失败: " + ex.Message); }
             try { BuildScheduleTree(); } catch { }
             try { RefreshOverviewStats(); } catch { }
-            try { AutoSaveData(); } catch (Exception ex) { AddLog("回推成绩落盘失败: " + ex.Message); }
+            // 2026-09-20 CalculateTeamScores() 内部已经落盘+按需整包推送过一次(团体总分是
+            //   package-only 字段, 确实要让编排端看到); 这里落的成绩本身是 meetDb 里的东西
+            //   (CommitHeatFromWire 已经写过库), 编排端能靠 DATA_CHANGED→DbPoll_Tick 的
+            //   RefreshChangedFromDb 追上, 不用再重复推一次整包(等于省掉一次多余的整包序列化)。
+            try { SaveWithoutPush(); PushDataChanged("meet"); } catch (Exception ex) { AddLog("回推成绩落盘失败: " + ex.Message); }
             try { Broadcast(); } catch { }
             AddLog(string.Format("收到计时端回推: {0} {1} {2} 第{3}组 已确认, 应用 {4} 条成绩",
                 ag, gd, ev, ht, applied));
