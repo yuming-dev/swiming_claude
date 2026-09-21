@@ -12986,17 +12986,15 @@ namespace SwimmingScoreboard
             }
         }
 
-        // 2026-09-21 用户实测到: 已检录(检录台标了 DNS/DNF/DSQ 的人)的组, 还没真正开始
-        //   比赛就被"尚未确认成绩，不能切换"拦下了。根子在这里——下面两个函数原来只要
-        //   Results 里【存在】一条 stage+heat 匹配的行就算"已开赛", 但检录/试图等场景
-        //   可能已经在成绩行上挂了 Status(DNS/DNF/DSQ), FinalTime/分段却是空的(压根没
-        //   下水), 这种"只有判罚、没有真实计时数据"的行不该被当成"比赛已经开始, 摸不得,
-        //   要先确认或复位"。改成只认【真有计时数据】(有最终成绩 / 有分段 / 有反应时 /
-        //   有触板时间)的行, 纯判罚占位行不算。
-        private static bool HasGenuineTimingData(LaneResult r) {
-            if (r == null) return false;
-            return r.FinalTime > 0 || r.TouchpadTime > 0 || r.StartingBlockTime > 0
-                || (r.Splits != null && r.Splits.Count > 0);
+        // 2026-09-21 【用户订正】上一版去翻成绩表猜"有没有真实计时数据", 想复杂了——
+        //   用户点破: 检录只是看人到没到(到=正常, 没到=备注 DNS), 这跟"未开始"/"已检录"/
+        //   "进行中"/"已确认"是同一条状态线上的事, 压根不该去看成绩表。一组的生命周期
+        //   就是: 未开始/已检录(_raceState==Waiting) → 按"准备就绪"进入进行中
+        //   (_raceState==Ready/Racing/已完赛未确认) → 确认成绩(_resultConfirmed==true)。
+        //   能不能离开这组, 直接问这条状态线, 不问成绩表。
+        private bool CurrentHeatInProgress() {
+            if (_resultConfirmed) return false;
+            return _raceState == RaceState.Ready || _raceState == RaceState.Racing || _raceState == RaceState.Finished;
         }
 
         // 服务端门禁（处理来自 HTML/EXE 远程台的 SET_* 指令）：
@@ -13004,39 +13002,21 @@ namespace SwimmingScoreboard
         // - 比赛已结束但成绩还未确认：拒
         // 拒绝时记日志（HTML/EXE 也会同步看到现有 currentXxx 不变）
         private bool IsHeatSwitchBlocked(string actionLabel) {
-            if (_raceState == RaceState.Ready || _raceState == RaceState.Racing) {
-                AddLog("比赛进行中不能" + actionLabel);
-                return true;
-            }
-            // 已开赛/有成绩但未确认：阻止切组
             if (string.IsNullOrEmpty(_currentEvent) || _currentHeat <= 0) return false;
-            if (_resultConfirmed) return false;
-            bool anyResult = false;
-            foreach (var sw in GetCurrentHeatSwimmers()) {
-                if (sw.Results.Any(rx => rx.Stage == _currentStage && rx.Heat == _currentHeat && HasGenuineTimingData(rx))) { anyResult = true; break; }
-            }
-            if (anyResult) {
-                AddLog("当前组未确认成绩，不能" + actionLabel);
+            if (CurrentHeatInProgress()) {
+                AddLog((_raceState == RaceState.Ready || _raceState == RaceState.Racing ? "比赛进行中不能" : "当前组未确认成绩，不能") + actionLabel);
                 return true;
             }
             return false;
         }
 
-        // 当前组未确认成绩时禁止切组：返回 true 表示放行，false 表示拦截
-        // （已确认的成绩 / 还未开赛的组次 都允许切换）
+        // 当前组"进行中"(已按准备就绪/正在比/已完赛但未确认)时禁止切组：
+        // 返回 true 表示放行，false 表示拦截。
+        // （未开始/已检录 —— 还没按准备就绪 —— 和 已确认 都允许切换）
         private bool CanLeaveCurrentHeat(int targetHeat) {
             if (string.IsNullOrEmpty(_currentEvent) || _currentHeat <= 0) return true;
             if (targetHeat == _currentHeat) return true;
-            if (_resultConfirmed) return true;
-            // 当前组没有任何真实计时数据（还没开赛，只是检录时标了 DNS/DNF/DSQ 之类
-            // 判罚也算"没开赛"）也允许切走
-            bool anyResult = false;
-            var heatSwimmers = GetCurrentHeatSwimmers();
-            foreach (var sw in heatSwimmers) {
-                var r = sw.Results.FirstOrDefault(rx => rx.Stage == _currentStage && rx.Heat == _currentHeat);
-                if (HasGenuineTimingData(r)) { anyResult = true; break; }
-            }
-            if (!anyResult) return true;
+            if (!CurrentHeatInProgress()) return true;
             MessageBox.Show(
                 string.Format("当前组（{0} {1} 第{2}组）尚未确认成绩，不能切换到其它组。\n请先点击\"确认成绩\"或\"计时复位\"清除当前组数据。",
                     _currentGender, _currentEvent, _currentHeat),
