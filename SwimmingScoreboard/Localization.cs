@@ -416,6 +416,53 @@ namespace SwimmingScoreboard
             { "Str_EM_RegAddEvent",    new[] { "+ 添加参赛项目", "+ Add Event" } },
             { "Str_EM_RegRemoveEvent", new[] { "X 删除此项", "X Remove" } },
             { "Str_EM_RegSubmitAll",   new[] { "提交全部报名信息", "Submit Registration" } },
+
+            // 2026-09-21 "成绩与排名"页（第四阶段）——性别/阶段/组次下拉框的 ComboBoxItem
+            // 不翻译：UpdateResultHeatCombo/RefreshResultGrid 等一大串地方直接拿
+            // ((ComboBoxItem)xxx.SelectedItem).Content.ToString() 去跟"男"/"女"/"混合"/
+            // "预赛"/"半决赛"/"决赛"/"全部"/"第N组"做字符串比较，翻译了会破坏筛选逻辑——
+            // 跟 384d37d 里"赛事管理与报名"页踩过的坑同一类。这里只翻译旁边的静态标签。
+            { "Str_Results_NavTitle",   new[] { "🧭 赛程导航", "🧭 Schedule" } },
+            { "Str_Results_NavSearchTip", new[] { "输入项目/组别/赛次关键字,自动展开匹配分支并高亮", "Type an event/age-group/stage keyword to auto-expand and highlight matches" } },
+            { "Str_Results_FilterAll",  new[] { "全部", "All" } },
+            { "Str_Results_FilterPending", new[] { "未开始", "Pending" } },
+            { "Str_Results_FilterRunning", new[] { "进行中", "Running" } },
+            { "Str_Results_FilterDone", new[] { "已结束", "Done" } },
+            { "Str_Results_FilterCancelled", new[] { "已取消", "Cancelled" } },
+            { "Str_Results_AgeGroup",   new[] { "组别:", "Group:" } },
+            { "Str_Results_AgeGroupTip",new[] { "选择\"全部\"表示不按组别过滤", "Choose \"All\" to skip filtering by age group" } },
+            { "Str_Results_Gender",     new[] { "性别:", "Sex:" } },
+            { "Str_Results_Event",      new[] { " 项目:", " Event:" } },
+            { "Str_Results_Stage",      new[] { " 阶段:", " Stage:" } },
+            { "Str_Results_Heat",       new[] { " 组:", " Heat:" } },
+            { "Str_Results_Promotion",  new[] { "晋级处理", "Promotion" } },
+            { "Str_Results_TeamScore",  new[] { "团体计分", "Team Score" } },
+            { "Str_Results_ViewRawData",new[] { "查询原始数据", "View Raw Data" } },
+            { "Str_Results_ChiefJudgeOverride", new[] { "🔒 裁判长改成绩", "🔒 Chief Judge Override" } },
+            { "Str_Results_ChiefJudgeOverrideTip", new[] {
+                "最高权限：需输入系统密码。直接改竞赛库里选中这一组的成绩，跳过「解锁本组成绩」的状态检查——只在正常解锁流程走不通时(如几周前的历史项目)用",
+                "Highest privilege: requires the system password. Edits this heat's result directly in the competition database, bypassing the \"Unlock Heat Result\" status check — use only when the normal unlock flow doesn't work (e.g. an event from weeks ago)." } },
+            { "Str_Results_FinalsStatus", new[] { "📋 决赛状态", "📋 Finals Status" } },
+            { "Str_Results_FinalsStatusTip", new[] { "决赛项目状态总览", "Overview of finals event status" } },
+            { "Str_Results_EventTop8",  new[] { "🏆 各项前 8 名", "🏆 Top 8" } },
+            { "Str_Results_EventTop8Tip", new[] { "项目成绩统计 — 各项目第 1-8 名", "Event result stats — places 1-8 for each event" } },
+            { "Str_Results_DeptBulletin", new[] { "🏢 部门公告", "🏢 Dept Bulletin" } },
+            { "Str_Results_DeptBulletinTip", new[] { "各部门成绩公告 (HTML 输出)", "Per-department result bulletin (HTML output)" } },
+            { "Str_Results_IndividualRanking", new[] { "🥇 个人总分排名", "🥇 Individual Ranking" } },
+            { "Str_Results_IndividualRankingTip", new[] { "运动员个人总分排名 (Top N)", "Individual overall score ranking (Top N)" } },
+            { "Str_Results_ColRank",    new[] { "名次", "Rank" } },
+            { "Str_Results_ColLane",    new[] { "道", "Lane" } },
+            { "Str_Results_ColName",    new[] { "姓名", "Name" } },
+            { "Str_Results_ColCountry", new[] { "代表队", "Team" } },
+            { "Str_Results_ColBib",     new[] { "号码", "Bib" } },
+            { "Str_Results_ColAgeGroup",new[] { "组别", "Group" } },
+            { "Str_Results_ColHeatText",new[] { "组数", "Heat" } },
+            { "Str_Results_ColFinalTime",new[] { "最终成绩", "Final Time" } },
+            { "Str_Results_ColDiff",    new[] { "成绩差", "Diff" } },
+            { "Str_Results_ColSource",  new[] { "计时源", "Source" } },
+            { "Str_Results_ColReaction",new[] { "反应时间", "Reaction" } },
+            { "Str_Results_ColStatus",  new[] { "状态", "Status" } },
+            { "Str_Results_ColRecord",  new[] { "纪录", "Record" } },
         };
 
         /// <summary>查当前语言下的文字；查不到就退回中文；中文也没有就返回 key 本身兜底。</summary>

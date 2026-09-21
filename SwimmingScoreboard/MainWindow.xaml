@@ -1768,64 +1768,68 @@
                     <!-- 2026-05-24 左侧 赛程导航 (3 级) -->
                     <Border Grid.Row="0" Grid.RowSpan="2" Grid.Column="0" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="6" Background="White" Margin="0,0,8,0">
                         <DockPanel Margin="8">
-                            <TextBlock DockPanel.Dock="Top" Text="🧭 赛程导航" FontSize="14" FontWeight="Bold" Foreground="#1E40AF" Margin="0,0,0,6"/>
+                            <TextBlock DockPanel.Dock="Top" Text="{DynamicResource Str_Results_NavTitle}" FontSize="14" FontWeight="Bold" Foreground="#1E40AF" Margin="0,0,0,6"/>
                             <TextBox DockPanel.Dock="Top" x:Name="NavResultSearchBox" Padding="4" Margin="0,0,0,6"
-                                     ToolTip="输入项目/组别/赛次关键字,自动展开匹配分支并高亮"
+                                     ToolTip="{DynamicResource Str_Results_NavSearchTip}"
                                      TextChanged="NavResultSearch_TextChanged"/>
                             <WrapPanel DockPanel.Dock="Top" Margin="0,0,0,6">
-                                <Button x:Name="NavResultFilterAll" Content="全部" Click="NavResultFilter_Click" Tag="all" Padding="6,3" FontSize="11" Background="#1E40AF" Foreground="White" BorderThickness="0" Margin="0,0,4,4"/>
-                                <Button Content="未开始" Click="NavResultFilter_Click" Tag="pending" Padding="6,3" FontSize="11" Background="#94A3B8" Foreground="White" BorderThickness="0" Margin="0,0,4,4"/>
-                                <Button Content="进行中" Click="NavResultFilter_Click" Tag="running" Padding="6,3" FontSize="11" Background="#3B82F6" Foreground="White" BorderThickness="0" Margin="0,0,4,4"/>
-                                <Button Content="已结束" Click="NavResultFilter_Click" Tag="done" Padding="6,3" FontSize="11" Background="#22C55E" Foreground="White" BorderThickness="0" Margin="0,0,4,4"/>
-                                <Button Content="已取消" Click="NavResultFilter_Click" Tag="cancelled" Padding="6,3" FontSize="11" Background="#EF4444" Foreground="White" BorderThickness="0" Margin="0,0,4,4"/>
+                                <Button x:Name="NavResultFilterAll" Content="{DynamicResource Str_Results_FilterAll}" Click="NavResultFilter_Click" Tag="all" Padding="6,3" FontSize="11" Background="#1E40AF" Foreground="White" BorderThickness="0" Margin="0,0,4,4"/>
+                                <Button Content="{DynamicResource Str_Results_FilterPending}" Click="NavResultFilter_Click" Tag="pending" Padding="6,3" FontSize="11" Background="#94A3B8" Foreground="White" BorderThickness="0" Margin="0,0,4,4"/>
+                                <Button Content="{DynamicResource Str_Results_FilterRunning}" Click="NavResultFilter_Click" Tag="running" Padding="6,3" FontSize="11" Background="#3B82F6" Foreground="White" BorderThickness="0" Margin="0,0,4,4"/>
+                                <Button Content="{DynamicResource Str_Results_FilterDone}" Click="NavResultFilter_Click" Tag="done" Padding="6,3" FontSize="11" Background="#22C55E" Foreground="White" BorderThickness="0" Margin="0,0,4,4"/>
+                                <Button Content="{DynamicResource Str_Results_FilterCancelled}" Click="NavResultFilter_Click" Tag="cancelled" Padding="6,3" FontSize="11" Background="#EF4444" Foreground="White" BorderThickness="0" Margin="0,0,4,4"/>
                             </WrapPanel>
                             <TreeView x:Name="NavResultTree" BorderThickness="0" SelectedItemChanged="NavResultTree_Selected"/>
                         </DockPanel>
                     </Border>
                     <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Margin="0,0,0,8">
-                        <TextBlock Text="组别:" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                        <TextBlock Text="{DynamicResource Str_Results_AgeGroup}" VerticalAlignment="Center" Margin="0,0,4,0"/>
                         <ComboBox x:Name="ResultAgeGroupCombo" Width="90" Margin="0,0,8,0" SelectionChanged="ResultAgeGroup_Changed"
-                                  ToolTip="选择“全部”表示不按组别过滤"/>
-                        <TextBlock Text="性别:" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                  ToolTip="{DynamicResource Str_Results_AgeGroupTip}"/>
+                        <TextBlock Text="{DynamicResource Str_Results_Gender}" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                        <!-- 2026-09-21 男/女/混合 不翻译——UpdateResultHeatCombo 等处按这几个字面量做筛选，见 Localization.cs 里的说明 -->
                         <ComboBox x:Name="ResultGenderCombo" Width="70" SelectionChanged="ResultGender_Changed">
                             <ComboBoxItem Content="男" IsSelected="True"/>
                             <ComboBoxItem Content="女"/>
                             <ComboBoxItem Content="混合"/>
                         </ComboBox>
-                        <TextBlock Text=" 项目:" VerticalAlignment="Center" Margin="8,0,4,0"/>
+                        <TextBlock Text="{DynamicResource Str_Results_Event}" VerticalAlignment="Center" Margin="8,0,4,0"/>
                         <ComboBox x:Name="ResultEventCombo" Width="200" SelectionChanged="ResultEvent_Changed"/>
-                        <TextBlock Text=" 阶段:" VerticalAlignment="Center" Margin="8,0,4,0"/>
+                        <TextBlock Text="{DynamicResource Str_Results_Stage}" VerticalAlignment="Center" Margin="8,0,4,0"/>
+                        <!-- 2026-09-21 预赛/半决赛/决赛 同样不翻译，理由同上 -->
                         <ComboBox x:Name="ResultStageCombo" Width="80" SelectionChanged="ResultStage_Changed">
                             <ComboBoxItem Content="预赛" IsSelected="True"/>
                             <ComboBoxItem Content="半决赛"/>
                             <ComboBoxItem Content="决赛"/>
                         </ComboBox>
-                        <TextBlock Text=" 组:" VerticalAlignment="Center" Margin="8,0,4,0"/>
+                        <TextBlock Text="{DynamicResource Str_Results_Heat}" VerticalAlignment="Center" Margin="8,0,4,0"/>
+                        <!-- 2026-09-21 这个初始项一开出来就会被 UpdateResultHeatCombo() 整体重建覆盖掉(含"全部"字样)，
+                             C# 里同样拿它的 Content.ToString() 做筛选比较，不翻译 -->
                         <ComboBox x:Name="ResultHeatCombo" Width="60" SelectionChanged="ResultHeat_Changed">
                             <ComboBoxItem Content="全部" IsSelected="True"/>
                         </ComboBox>
-                        <Button Content="晋级处理" Click="Promotion_Click" Padding="12,4" Margin="16,0,0,0"
+                        <Button Content="{DynamicResource Str_Results_Promotion}" Click="Promotion_Click" Padding="12,4" Margin="16,0,0,0"
                                 Background="#8B5CF6" Foreground="White" BorderThickness="0"/>
-                        <Button Content="团体计分" Click="CalcTeamScore_Click" Padding="12,4" Margin="8,0,0,0"
+                        <Button Content="{DynamicResource Str_Results_TeamScore}" Click="CalcTeamScore_Click" Padding="12,4" Margin="8,0,0,0"
                                 Background="#22C55E" Foreground="White" BorderThickness="0"/>
-                        <Button Content="查询原始数据" Click="ViewRawData_Click" Padding="12,4" Margin="8,0,0,0"
+                        <Button Content="{DynamicResource Str_Results_ViewRawData}" Click="ViewRawData_Click" Padding="12,4" Margin="8,0,0,0"
                                 Background="#64748B" Foreground="White" BorderThickness="0"/>
-                        <Button Content="🔒 裁判长改成绩" Click="ChiefJudgeOverride_Click" Padding="12,4" Margin="8,0,0,0"
+                        <Button Content="{DynamicResource Str_Results_ChiefJudgeOverride}" Click="ChiefJudgeOverride_Click" Padding="12,4" Margin="8,0,0,0"
                                 Background="#DC2626" Foreground="White" BorderThickness="0" FontWeight="Bold"
-                                ToolTip="最高权限：需输入系统密码。直接改竞赛库里选中这一组的成绩，跳过「解锁本组成绩」的状态检查——只在正常解锁流程走不通时(如几周前的历史项目)用"/>
+                                ToolTip="{DynamicResource Str_Results_ChiefJudgeOverrideTip}"/>
                         <Separator Margin="8,0,8,0" Background="#94A3B8" Width="1"/>
-                        <Button Content="📋 决赛状态" Click="FinalsStatus_Click" Padding="10,4" Margin="0,0,4,0"
+                        <Button Content="{DynamicResource Str_Results_FinalsStatus}" Click="FinalsStatus_Click" Padding="10,4" Margin="0,0,4,0"
                                 Background="#0EA5E9" Foreground="White" BorderThickness="0"
-                                ToolTip="决赛项目状态总览"/>
-                        <Button Content="🏆 各项前 8 名" Click="EventTop8_Click" Padding="10,4" Margin="0,0,4,0"
+                                ToolTip="{DynamicResource Str_Results_FinalsStatusTip}"/>
+                        <Button Content="{DynamicResource Str_Results_EventTop8}" Click="EventTop8_Click" Padding="10,4" Margin="0,0,4,0"
                                 Background="#0EA5E9" Foreground="White" BorderThickness="0"
-                                ToolTip="项目成绩统计 — 各项目第 1-8 名"/>
-                        <Button Content="🏢 部门公告" Click="DepartmentBulletin_Click" Padding="10,4" Margin="0,0,4,0"
+                                ToolTip="{DynamicResource Str_Results_EventTop8Tip}"/>
+                        <Button Content="{DynamicResource Str_Results_DeptBulletin}" Click="DepartmentBulletin_Click" Padding="10,4" Margin="0,0,4,0"
                                 Background="#0EA5E9" Foreground="White" BorderThickness="0"
-                                ToolTip="各部门成绩公告 (HTML 输出)"/>
-                        <Button Content="🥇 个人总分排名" Click="IndividualRanking_Click" Padding="10,4" Margin="0,0,0,0"
+                                ToolTip="{DynamicResource Str_Results_DeptBulletinTip}"/>
+                        <Button Content="{DynamicResource Str_Results_IndividualRanking}" Click="IndividualRanking_Click" Padding="10,4" Margin="0,0,0,0"
                                 Background="#0EA5E9" Foreground="White" BorderThickness="0"
-                                ToolTip="运动员个人总分排名 (Top N)"/>
+                                ToolTip="{DynamicResource Str_Results_IndividualRankingTip}"/>
                     </StackPanel>
                     <!-- 姓名列 / 反应时间列加宽并允许换行：接力赛"姓名"为 4 名队员（逗号分隔），
                          "反应时间"按棒展开为"第1棒:0.45 第2棒:0.30 ..."；列宽不够时 TextWrapping 自动换行 -->
@@ -1847,9 +1851,17 @@
                         </DataGrid.CellStyle>
                         <DataGrid.Columns>
                             <!-- 2026-09-03 号码移到组别左边(见下), 列序: 名次 道 姓名 代表队 号码 组别 组数 最终成绩 … -->
-                            <DataGridTextColumn Header="名次" Binding="{Binding Rank}" Width="50" ElementStyle="{StaticResource CellCenter}"/>
-                            <DataGridTextColumn Header="道" Binding="{Binding Lane}" Width="40" ElementStyle="{StaticResource CellCenter}"/>
-                            <DataGridTemplateColumn Header="姓名" Width="220">
+                            <!-- 2026-09-21 DataGridColumn.Header 不是 FrameworkElement，不接受活的 DynamicResource
+                                 通知，直接 Header="{DynamicResource ...}" 只会在首次构造时解析一次、之后卡死——
+                                 全部改成 Header 里塞一个 TextBlock，语言切换才能跟着刷新(384d37d 已踩过这个坑)。 -->
+                            <DataGridTextColumn Binding="{Binding Rank}" Width="50" ElementStyle="{StaticResource CellCenter}">
+                                <DataGridTextColumn.Header><TextBlock Text="{DynamicResource Str_Results_ColRank}"/></DataGridTextColumn.Header>
+                            </DataGridTextColumn>
+                            <DataGridTextColumn Binding="{Binding Lane}" Width="40" ElementStyle="{StaticResource CellCenter}">
+                                <DataGridTextColumn.Header><TextBlock Text="{DynamicResource Str_Results_ColLane}"/></DataGridTextColumn.Header>
+                            </DataGridTextColumn>
+                            <DataGridTemplateColumn Width="220">
+                                <DataGridTemplateColumn.Header><TextBlock Text="{DynamicResource Str_Results_ColName}"/></DataGridTemplateColumn.Header>
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <!-- 换行的多行文本还要 TextAlignment, 单靠单元格居中只会把整块文字居中 -->
@@ -1857,24 +1869,43 @@
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
-                            <DataGridTextColumn Header="代表队" Binding="{Binding Country}" Width="100" ElementStyle="{StaticResource CellCenter}"/>
+                            <DataGridTextColumn Binding="{Binding Country}" Width="100" ElementStyle="{StaticResource CellCenter}">
+                                <DataGridTextColumn.Header><TextBlock Text="{DynamicResource Str_Results_ColCountry}"/></DataGridTextColumn.Header>
+                            </DataGridTextColumn>
                             <!-- 2026-09-03 号码贴在组别左边(与"项目成绩"同款) -->
-                            <DataGridTextColumn Header="号码" Binding="{Binding BibNumber}" Width="60" ElementStyle="{StaticResource CellCenter}"/>
+                            <DataGridTextColumn Binding="{Binding BibNumber}" Width="60" ElementStyle="{StaticResource CellCenter}">
+                                <DataGridTextColumn.Header><TextBlock Text="{DynamicResource Str_Results_ColBib}"/></DataGridTextColumn.Header>
+                            </DataGridTextColumn>
                             <!-- 2026-09-02 组别/组数放最终成绩左边, 成绩差放右边 (与"项目成绩"同款) -->
-                            <DataGridTextColumn Header="组别" Binding="{Binding AgeGroup}" Width="70" ElementStyle="{StaticResource CellCenter}"/>
-                            <DataGridTextColumn Header="组数" Binding="{Binding HeatText}" Width="60" ElementStyle="{StaticResource CellCenter}"/>
-                            <DataGridTextColumn Header="最终成绩" Binding="{Binding FinalTime}" Width="80" ElementStyle="{StaticResource CellCenter}"/>
-                            <DataGridTextColumn Header="成绩差" Binding="{Binding Diff}" Width="70" ElementStyle="{StaticResource CellCenter}"/>
-                            <DataGridTextColumn Header="计时源" Binding="{Binding TimingSource}" Width="60" ElementStyle="{StaticResource CellCenter}"/>
-                            <DataGridTemplateColumn Header="反应时间" Width="170">
+                            <DataGridTextColumn Binding="{Binding AgeGroup}" Width="70" ElementStyle="{StaticResource CellCenter}">
+                                <DataGridTextColumn.Header><TextBlock Text="{DynamicResource Str_Results_ColAgeGroup}"/></DataGridTextColumn.Header>
+                            </DataGridTextColumn>
+                            <DataGridTextColumn Binding="{Binding HeatText}" Width="60" ElementStyle="{StaticResource CellCenter}">
+                                <DataGridTextColumn.Header><TextBlock Text="{DynamicResource Str_Results_ColHeatText}"/></DataGridTextColumn.Header>
+                            </DataGridTextColumn>
+                            <DataGridTextColumn Binding="{Binding FinalTime}" Width="80" ElementStyle="{StaticResource CellCenter}">
+                                <DataGridTextColumn.Header><TextBlock Text="{DynamicResource Str_Results_ColFinalTime}"/></DataGridTextColumn.Header>
+                            </DataGridTextColumn>
+                            <DataGridTextColumn Binding="{Binding Diff}" Width="70" ElementStyle="{StaticResource CellCenter}">
+                                <DataGridTextColumn.Header><TextBlock Text="{DynamicResource Str_Results_ColDiff}"/></DataGridTextColumn.Header>
+                            </DataGridTextColumn>
+                            <DataGridTextColumn Binding="{Binding TimingSource}" Width="60" ElementStyle="{StaticResource CellCenter}">
+                                <DataGridTextColumn.Header><TextBlock Text="{DynamicResource Str_Results_ColSource}"/></DataGridTextColumn.Header>
+                            </DataGridTextColumn>
+                            <DataGridTemplateColumn Width="170">
+                                <DataGridTemplateColumn.Header><TextBlock Text="{DynamicResource Str_Results_ColReaction}"/></DataGridTemplateColumn.Header>
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <TextBlock Text="{Binding ReactionTime}" TextWrapping="Wrap" Padding="4,3" TextAlignment="Center"/>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
-                            <DataGridTextColumn Header="状态" Binding="{Binding Status}" Width="50" ElementStyle="{StaticResource CellCenter}"/>
-                            <DataGridTextColumn Header="纪录" Binding="{Binding RecordNote}" Width="80" ElementStyle="{StaticResource CellCenter}"/>
+                            <DataGridTextColumn Binding="{Binding Status}" Width="50" ElementStyle="{StaticResource CellCenter}">
+                                <DataGridTextColumn.Header><TextBlock Text="{DynamicResource Str_Results_ColStatus}"/></DataGridTextColumn.Header>
+                            </DataGridTextColumn>
+                            <DataGridTextColumn Binding="{Binding RecordNote}" Width="80" ElementStyle="{StaticResource CellCenter}">
+                                <DataGridTextColumn.Header><TextBlock Text="{DynamicResource Str_Results_ColRecord}"/></DataGridTextColumn.Header>
+                            </DataGridTextColumn>
                         </DataGrid.Columns>
                     </DataGrid>
                 </Grid>
