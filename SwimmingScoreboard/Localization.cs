@@ -2551,6 +2551,18 @@ namespace SwimmingScoreboard
             { "Str_Win_MergeHeats_HintOkTip", new[] { "\n目标组原有的人道次不动，并过来的人填空道；之后可用 上移/下移/交换泳道 人工调整。", "\nThe target heat's existing lanes stay put; incoming swimmers fill the empty lanes. You can fine-tune afterward with Move Up/Down/Swap Lane." } },
             { "Str_Win_MergeHeats_HintCancelOnlyFmt", new[] { "第{0}组的 {1} 人将被移出该组（不并入任何组），该组标记为已取消。", "The {1} swimmer(s) in Heat {0} will be removed from it (not merged into any heat), and the heat will be marked cancelled." } },
             { "Str_Win_MergeHeats_ExecuteBtn", new[] { "执行", "Execute" } },
+            { "Str_Win_UnlockConfirm_Body", new[] { "这是最后一道。请写清原因，并手输组号确认 —— 手输是防手滑的，别嫌麻烦。", "This is the final step. Please state a clear reason and type the heat number to confirm — typing it is a safeguard against accidental clicks, so please don't skip it." } },
+            { "Str_Win_UnlockConfirm_ReasonExample", new[] { "例: 按错确认键 / 第4道成绩录反了 / 裁判改判", "e.g. Clicked Confirm by mistake / Lane 4's result was entered backwards / Referee overruled" } },
+            { "Str_Win_UnlockConfirm_HeatInputLabelFmt", new[] { "输入组号 {0}:", "Type heat number {0}:" } },
+            { "Str_Win_UnlockConfirm_OkBtn", new[] { "确定解锁", "Confirm Unlock" } },
+            { "Str_Win_UnlockConfirm_MsgReasonTooShort", new[] { "请把原因写清楚(至少两个字) —— 这条要进审计表。", "Please give a clearer reason (at least 2 characters) — this is recorded in the audit log." } },
+            { "Str_Win_UnlockConfirm_MsgHeatMismatchFmt", new[] { "组号对不上。要解的是第 {0} 组，请照着输一遍。", "Heat number doesn't match. You're unlocking Heat {0} — please type it exactly." } },
+            { "Str_Win_DisplayRecordSetting_Title", new[] { "大屏显示记录设置", "Big-Screen Record Display Settings" } },
+            { "Str_Win_DisplayRecordSetting_Desc", new[] { "选择大屏顶部及泳道实时状态界面中显示的主纪录类型。可在下方列表中编辑、增加新项（如 市记录 / 行业纪录 等）。", "Choose the primary record type shown at the top of the big screen and in the lane live-status view. You can edit or add new entries below (e.g. City Record / Industry Record, etc.)." } },
+            { "Str_Win_DisplayRecordSetting_ColFullName", new[] { "完整名称", "Full Name" } },
+            { "Str_Win_DisplayRecordSetting_NewLabel", new[] { "新", "New" } },
+            { "Str_Win_DisplayRecordSetting_NewTypeName", new[] { "新记录类型", "New Record Type" } },
+            { "Str_Win_DisplayRecordSetting_OkBtn", new[] { "确定（应用选中项）", "OK (Apply Selection)" } },
         };
 
         /// <summary>查当前语言下的文字；查不到就退回中文；中文也没有就返回 key 本身兜底。</summary>

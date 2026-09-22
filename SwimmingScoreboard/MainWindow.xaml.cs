@@ -12031,23 +12031,23 @@ namespace SwimmingScoreboard
                 Text = head, FontSize = 15, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 0, 0, 10)
             });
             root.Children.Add(new TextBlock {
-                Text = "这是最后一道。请写清原因，并手输组号确认 —— 手输是防手滑的，别嫌麻烦。",
+                Text = Loc.T("Str_Win_UnlockConfirm_Body"),
                 TextWrapping = TextWrapping.Wrap, Foreground = System.Windows.Media.Brushes.DimGray,
                 Margin = new Thickness(0, 0, 0, 12)
             });
 
             var r1 = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) };
-            r1.Children.Add(new TextBlock { Text = "原因:", VerticalAlignment = VerticalAlignment.Center, FontSize = 14, Width = 100 });
+            r1.Children.Add(new TextBlock { Text = Loc.T("Str_Win_MergeHeats_ReasonLabel"), VerticalAlignment = VerticalAlignment.Center, FontSize = 14, Width = 100 });
             var reasonBox = new TextBox { Width = 380, FontSize = 14, Padding = new Thickness(4) };
             r1.Children.Add(reasonBox);
             root.Children.Add(r1);
             root.Children.Add(new TextBlock {
-                Text = "例: 按错确认键 / 第4道成绩录反了 / 裁判改判",
+                Text = Loc.T("Str_Win_UnlockConfirm_ReasonExample"),
                 Foreground = System.Windows.Media.Brushes.DimGray, FontSize = 12, Margin = new Thickness(100, 0, 0, 10)
             });
 
             var r2 = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 6) };
-            r2.Children.Add(new TextBlock { Text = "输入组号 " + heat + ":", VerticalAlignment = VerticalAlignment.Center, FontSize = 14, Width = 100 });
+            r2.Children.Add(new TextBlock { Text = Loc.F("Str_Win_UnlockConfirm_HeatInputLabelFmt", heat), VerticalAlignment = VerticalAlignment.Center, FontSize = 14, Width = 100 });
             var heatBox = new TextBox { Width = 80, FontSize = 14, Padding = new Thickness(4) };
             r2.Children.Add(heatBox);
             root.Children.Add(r2);
@@ -12058,14 +12058,14 @@ namespace SwimmingScoreboard
 
             var btns = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 14, 0, 0) };
             bool go = false;
-            var ok = new Button { Content = "确定解锁", Width = 100, Height = 30, Margin = new Thickness(0, 0, 8, 0), IsDefault = true };
-            var cancel = new Button { Content = "取消", Width = 80, Height = 30, IsCancel = true };
+            var ok = new Button { Content = Loc.T("Str_Win_UnlockConfirm_OkBtn"), Width = 100, Height = 30, Margin = new Thickness(0, 0, 8, 0), IsDefault = true };
+            var cancel = new Button { Content = Loc.T("Str_Btn_Cancel"), Width = 80, Height = 30, IsCancel = true };
             ok.Click += delegate {
                 string rs = (reasonBox.Text ?? "").Trim();
                 int typed;
-                if (rs.Length < 2) { tip.Text = "请把原因写清楚(至少两个字) —— 这条要进审计表。"; reasonBox.Focus(); return; }
+                if (rs.Length < 2) { tip.Text = Loc.T("Str_Win_UnlockConfirm_MsgReasonTooShort"); reasonBox.Focus(); return; }
                 if (!int.TryParse((heatBox.Text ?? "").Trim(), out typed) || typed != heat) {
-                    tip.Text = "组号对不上。要解的是第 " + heat + " 组，请照着输一遍。"; heatBox.Focus(); return;
+                    tip.Text = Loc.F("Str_Win_UnlockConfirm_MsgHeatMismatchFmt", heat); heatBox.Focus(); return;
                 }
                 go = true; win.DialogResult = true;
             };
@@ -15836,20 +15836,20 @@ namespace SwimmingScoreboard
 
         private void DisplayRecordTypeSetting_Click(object sender, RoutedEventArgs e) {
             var dlg = new Window {
-                Title = "大屏显示记录设置",
+                Title = Loc.T("Str_Win_DisplayRecordSetting_Title"),
                 Width = 520, Height = 480,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner, Owner = this, ResizeMode = ResizeMode.CanResize,
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F8FAFC"))
             };
             var sp = new StackPanel { Margin = new Thickness(16) };
             sp.Children.Add(new TextBlock {
-                Text = "大屏显示记录设置",
+                Text = Loc.T("Str_Win_DisplayRecordSetting_Title"),
                 FontSize = 16, FontWeight = FontWeights.Bold,
                 Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E293B")),
                 Margin = new Thickness(0, 0, 0, 6)
             });
             sp.Children.Add(new TextBlock {
-                Text = "选择大屏顶部及泳道实时状态界面中显示的主纪录类型。可在下方列表中编辑、增加新项（如 市记录 / 行业纪录 等）。",
+                Text = Loc.T("Str_Win_DisplayRecordSetting_Desc"),
                 TextWrapping = TextWrapping.Wrap,
                 Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")),
                 FontSize = 12, Margin = new Thickness(0, 0, 0, 12)
@@ -15865,9 +15865,9 @@ namespace SwimmingScoreboard
                 HeadersVisibility = DataGridHeadersVisibility.All, RowHeaderWidth = 50
             };
             grid.LoadingRow += delegate(object _s, DataGridRowEventArgs _ev) { _ev.Row.Header = (_ev.Row.GetIndex() + 1).ToString(); };
-            grid.Columns.Add(new DataGridTextColumn { Header = "简称", Width = new DataGridLength(100),
+            grid.Columns.Add(new DataGridTextColumn { Header = Loc.T("Str_Col_Abbr"), Width = new DataGridLength(100),
                 Binding = new System.Windows.Data.Binding("Label") { Mode = System.Windows.Data.BindingMode.TwoWay, UpdateSourceTrigger = System.Windows.Data.UpdateSourceTrigger.PropertyChanged } });
-            grid.Columns.Add(new DataGridTextColumn { Header = "完整名称", Width = new DataGridLength(1, DataGridLengthUnitType.Star),
+            grid.Columns.Add(new DataGridTextColumn { Header = Loc.T("Str_Win_DisplayRecordSetting_ColFullName"), Width = new DataGridLength(1, DataGridLengthUnitType.Star),
                 Binding = new System.Windows.Data.Binding("TypeName") { Mode = System.Windows.Data.BindingMode.TwoWay, UpdateSourceTrigger = System.Windows.Data.UpdateSourceTrigger.PropertyChanged } });
             grid.ItemsSource = working;
             // 选中当前生效项
@@ -15879,10 +15879,10 @@ namespace SwimmingScoreboard
             sp.Children.Add(grid);
 
             var btnRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 10, 0, 0) };
-            var btnAdd = new Button { Content = "新增", Padding = new Thickness(12, 6, 12, 6), Margin = new Thickness(0, 0, 8, 0),
+            var btnAdd = new Button { Content = Loc.T("Str_Win_UnitMgmt_AddBtn"), Padding = new Thickness(12, 6, 12, 6), Margin = new Thickness(0, 0, 8, 0),
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6")), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
-            btnAdd.Click += delegate { working.Add(new DisplayRecordOption { Label = "新", TypeName = "新记录类型" }); };
-            var btnDel = new Button { Content = "删除选中", Padding = new Thickness(12, 6, 12, 6), Margin = new Thickness(0, 0, 8, 0),
+            btnAdd.Click += delegate { working.Add(new DisplayRecordOption { Label = Loc.T("Str_Win_DisplayRecordSetting_NewLabel"), TypeName = Loc.T("Str_Win_DisplayRecordSetting_NewTypeName") }); };
+            var btnDel = new Button { Content = Loc.T("Str_Win_UnitMgmt_DeleteBtn"), Padding = new Thickness(12, 6, 12, 6), Margin = new Thickness(0, 0, 8, 0),
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EF4444")), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
             btnDel.Click += delegate {
                 var sel = grid.SelectedItem as DisplayRecordOption;
@@ -15893,10 +15893,10 @@ namespace SwimmingScoreboard
             sp.Children.Add(btnRow);
 
             var okRow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 12, 0, 0) };
-            var btnCancel = new Button { Content = "取消", Padding = new Thickness(16, 6, 16, 6), Margin = new Thickness(0, 0, 8, 0),
+            var btnCancel = new Button { Content = Loc.T("Str_Btn_Cancel"), Padding = new Thickness(16, 6, 16, 6), Margin = new Thickness(0, 0, 8, 0),
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
             btnCancel.Click += delegate { dlg.DialogResult = false; };
-            var btnOk = new Button { Content = "确定（应用选中项）", Padding = new Thickness(16, 6, 16, 6), FontWeight = FontWeights.Bold,
+            var btnOk = new Button { Content = Loc.T("Str_Win_DisplayRecordSetting_OkBtn"), Padding = new Thickness(16, 6, 16, 6), FontWeight = FontWeights.Bold,
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#22C55E")), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
             btnOk.Click += delegate {
                 try { grid.CommitEdit(DataGridEditingUnit.Cell, true); grid.CommitEdit(DataGridEditingUnit.Row, true); } catch { }
