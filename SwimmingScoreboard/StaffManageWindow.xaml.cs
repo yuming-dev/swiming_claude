@@ -59,7 +59,7 @@ namespace SwimmingScoreboard
 
         private void RefreshCountText() {
             var counts = StaffGroups.All.ToDictionary(g => g, g => _staff.Count(s => (s.Group ?? "") == g));
-            CountText.Text = string.Format("总 {0} 人 / 主席团 {1} / 组织委员会 {2} / 工作机构 {3} / 技术及仲裁 {4} / 裁判员 {5}",
+            CountText.Text = Loc.F("Str_Win_StaffMgmt_CountFmt",
                 _staff.Count, counts[StaffGroups.Presidium], counts[StaffGroups.OrgCommittee],
                 counts[StaffGroups.WorkOrg], counts[StaffGroups.TechArbitration], counts[StaffGroups.Referees]);
         }
@@ -78,7 +78,7 @@ namespace SwimmingScoreboard
         }
 
         private void Add_Click(object sender, RoutedEventArgs e) {
-            var sm = new StaffMember { Group = CurrentGroupSelection(), Title = "（请填岗位）", Name = "" };
+            var sm = new StaffMember { Group = CurrentGroupSelection(), Title = Loc.T("Str_Win_StaffMgmt_FillTitlePlaceholder"), Name = "" };
             _staff.Add(sm);
             StaffGrid.SelectedItem = sm;
             StaffGrid.ScrollIntoView(sm);
@@ -87,9 +87,9 @@ namespace SwimmingScoreboard
 
         private void Delete_Click(object sender, RoutedEventArgs e) {
             var sel = StaffGrid.SelectedItems.Cast<StaffMember>().ToList();
-            if (sel.Count == 0) { MessageBox.Show("请先在表格中选中要删除的人员", "提示"); return; }
-            if (MessageBox.Show(string.Format("确认删除 {0} 名工作人员？", sel.Count),
-                "确认", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+            if (sel.Count == 0) { MessageBox.Show(Loc.T("Str_Win_UnitMgmt_MsgSelectToDelete"), Loc.T("Str_MsgTitle_Info")); return; }
+            if (MessageBox.Show(Loc.F("Str_Win_StaffMgmt_MsgConfirmDeleteFmt", sel.Count),
+                Loc.T("Str_MsgTitle_Confirm"), MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
             foreach (var s in sel) _staff.Remove(s);
             RefreshCountText();
         }
@@ -98,12 +98,12 @@ namespace SwimmingScoreboard
             string g = CurrentGroupSelection();
             string[] titles;
             if (!StaffGroups.DefaultTitles.TryGetValue(g, out titles) || titles.Length == 0) {
-                MessageBox.Show("该组没有预设岗位", "提示"); return;
+                MessageBox.Show(Loc.T("Str_Win_StaffMgmt_MsgNoDefaultTitles"), Loc.T("Str_MsgTitle_Info")); return;
             }
             int existing = _staff.Count(s => (s.Group ?? "") == g);
             if (existing > 0) {
-                if (MessageBox.Show(string.Format("当前 {0} 已有 {1} 条记录。\n是否仍然追加预设岗位（不删除已有项）？", g, existing),
-                    "确认", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+                if (MessageBox.Show(Loc.F("Str_Win_StaffMgmt_MsgConfirmAppendFmt", g, existing),
+                    Loc.T("Str_MsgTitle_Confirm"), MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
             }
             int added = 0;
             var alreadyTitles = new HashSet<string>(_staff.Where(s => (s.Group ?? "") == g)
@@ -114,17 +114,17 @@ namespace SwimmingScoreboard
                 added++;
             }
             RefreshCountText();
-            MessageBox.Show(string.Format("✔ 已为「{0}」追加 {1} 个预设岗位（姓名待填）", g, added), "完成");
+            MessageBox.Show(Loc.F("Str_Win_StaffMgmt_MsgAppendDoneFmt", g, added), Loc.T("Str_MsgTitle_Done"));
         }
 
         private void ExportCsv_Click(object sender, RoutedEventArgs e) {
             var dlg = new Microsoft.Win32.SaveFileDialog {
-                Filter = "CSV 文件|*.csv",
+                Filter = Loc.T("Str_Win_UnitMgmt_CsvFilter"),
                 FileName = "工作人员_" + DateTime.Now.ToString("yyyyMMdd_HHmm") + ".csv"
             };
             if (dlg.ShowDialog() != true) return;
             var sb = new StringBuilder();
-            sb.AppendLine("分组,工作岗位,姓名,性别,裁判等级,工作单位,电话,备注");
+            sb.AppendLine(Loc.T("Str_Win_StaffMgmt_CsvHeader"));
             foreach (var s in _staff) {
                 sb.AppendLine(string.Join(",", new[] {
                     Esc(s.Group), Esc(s.Title), Esc(s.Name), Esc(s.Gender), Esc(s.RefereeLevel),
@@ -132,11 +132,11 @@ namespace SwimmingScoreboard
                 }));
             }
             File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
-            MessageBox.Show("已导出: " + dlg.FileName, "完成");
+            MessageBox.Show(Loc.F("Str_Win_UnitMgmt_MsgExportedFmt", dlg.FileName), Loc.T("Str_MsgTitle_Done"));
         }
 
         private void ImportCsv_Click(object sender, RoutedEventArgs e) {
-            var dlg = new Microsoft.Win32.OpenFileDialog { Filter = "CSV 文件|*.csv" };
+            var dlg = new Microsoft.Win32.OpenFileDialog { Filter = Loc.T("Str_Win_UnitMgmt_CsvFilter") };
             if (dlg.ShowDialog() != true) return;
             try {
                 var lines = File.ReadAllLines(dlg.FileName, Encoding.UTF8);
@@ -158,9 +158,9 @@ namespace SwimmingScoreboard
                     added++;
                 }
                 RefreshCountText();
-                MessageBox.Show(string.Format("✔ 已导入 {0} 名", added), "完成");
+                MessageBox.Show(Loc.F("Str_Win_StaffMgmt_MsgImportedFmt", added), Loc.T("Str_MsgTitle_Done"));
             } catch (Exception ex) {
-                MessageBox.Show("导入失败: " + ex.Message, "错误");
+                MessageBox.Show(Loc.F("Str_Win_UnitMgmt_MsgImportFailFmt", ex.Message), Loc.T("Str_MsgTitle_Error"));
             }
         }
 
@@ -168,7 +168,7 @@ namespace SwimmingScoreboard
         private void ExportRoster_Click(object sender, RoutedEventArgs e) {
             int perPage = StylePerPage8.IsChecked == true ? 8 : (StylePerPage6.IsChecked == true ? 6 : 4);
             var dlg = new Microsoft.Win32.SaveFileDialog {
-                Filter = "Excel 工作簿|*.xlsx",
+                Filter = Loc.T("Str_Win_StaffMgmt_XlsxFilter"),
                 FileName = "工作人员花名册_" + DateTime.Now.ToString("yyyyMMdd_HHmm") + ".xlsx"
             };
             if (dlg.ShowDialog() != true) return;
@@ -181,21 +181,21 @@ namespace SwimmingScoreboard
                     var sheet = wb.CreateSheet(safeName);
                     int r = 0;
                     var titleRow = sheet.CreateRow(r++);
-                    titleRow.CreateCell(0).SetCellValue("工作人员管理 < 可选 >  ·  " + grp + "   (样式: " + perPage + " 张/页)");
+                    titleRow.CreateCell(0).SetCellValue(Loc.F("Str_Win_StaffMgmt_RosterTitleFmt", grp, perPage));
                     bool isReferees = grp == StaffGroups.Referees;
                     var hr = sheet.CreateRow(r++);
-                    hr.CreateCell(0).SetCellValue("序号");
-                    hr.CreateCell(1).SetCellValue("工作岗位");
-                    hr.CreateCell(2).SetCellValue("姓名");
-                    hr.CreateCell(3).SetCellValue("性别");
+                    hr.CreateCell(0).SetCellValue(Loc.T("Str_Win_StaffMgmt_ColIndex"));
+                    hr.CreateCell(1).SetCellValue(Loc.T("Str_Win_StaffMgmt_ColTitle"));
+                    hr.CreateCell(2).SetCellValue(Loc.T("Str_Col_Name"));
+                    hr.CreateCell(3).SetCellValue(Loc.T("Str_Col_Sex"));
                     if (isReferees) {
-                        hr.CreateCell(4).SetCellValue("裁判等级");
-                        hr.CreateCell(5).SetCellValue("电话");
+                        hr.CreateCell(4).SetCellValue(Loc.T("Str_Win_StaffMgmt_ColRefLevel"));
+                        hr.CreateCell(5).SetCellValue(Loc.T("Str_Col_Phone"));
                     } else {
-                        hr.CreateCell(4).SetCellValue("电话");
-                        hr.CreateCell(5).SetCellValue("工作单位");
+                        hr.CreateCell(4).SetCellValue(Loc.T("Str_Col_Phone"));
+                        hr.CreateCell(5).SetCellValue(Loc.T("Str_Win_StaffMgmt_ColWorkUnit"));
                     }
-                    hr.CreateCell(6).SetCellValue("备注");
+                    hr.CreateCell(6).SetCellValue(Loc.T("Str_Col_Notes"));
                     int idx = 1;
                     foreach (var s in members) {
                         var row = sheet.CreateRow(r++);
@@ -215,9 +215,9 @@ namespace SwimmingScoreboard
                     for (int c = 0; c < 7; c++) sheet.AutoSizeColumn(c);
                 }
                 using (var fs = new FileStream(dlg.FileName, FileMode.Create, FileAccess.Write)) wb.Write(fs);
-                MessageBox.Show("已导出: " + dlg.FileName + "\n样式: " + perPage + " 张/页", "完成");
+                MessageBox.Show(Loc.F("Str_Win_StaffMgmt_MsgRosterExportedFmt", dlg.FileName, perPage), Loc.T("Str_MsgTitle_Done"));
             } catch (Exception ex) {
-                MessageBox.Show("导出失败: " + ex.Message, "错误");
+                MessageBox.Show(Loc.F("Str_Win_StaffMgmt_MsgExportFailFmt", ex.Message), Loc.T("Str_MsgTitle_Error"));
             }
         }
 
@@ -225,8 +225,8 @@ namespace SwimmingScoreboard
             // 简单校验：每行必填 分组 + 岗位
             int incomplete = _staff.Count(s => string.IsNullOrEmpty(s.Group) || string.IsNullOrEmpty(s.Title));
             if (incomplete > 0) {
-                if (MessageBox.Show(string.Format("有 {0} 行 分组 或 岗位 为空，确认仍然保存？", incomplete),
-                    "确认", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+                if (MessageBox.Show(Loc.F("Str_Win_StaffMgmt_MsgConfirmSaveIncompleteFmt", incomplete),
+                    Loc.T("Str_MsgTitle_Confirm"), MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
             }
             DialogResult = true;
             Close();
