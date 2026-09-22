@@ -102,7 +102,7 @@ namespace SwimmingScoreboard
             // 切条件后清缓存 + 灰按钮
             _cachedHtml = "";
             SetActionButtonsEnabled(false);
-            StatusText.Text = "请点击 查询 生成成绩单预览";
+            StatusText.Text = Loc.T("Str_Win_BatchAge_StatusClickQuery");
             StatusText.Foreground = Brushes.SlateGray;
             PreviewPanel.Children.Clear();
         }
@@ -113,7 +113,7 @@ namespace SwimmingScoreboard
             _selectedStage = GetText(StageCombo);
             _selectedAgeGroup = GetText(AgeGroupCombo);
             if (string.IsNullOrEmpty(_selectedEvent)) {
-                StatusText.Text = "请先选择项目";
+                StatusText.Text = Loc.T("Str_Win_BatchAge_StatusSelectEventFirst");
                 StatusText.Foreground = Brushes.OrangeRed;
                 return;
             }
@@ -158,7 +158,7 @@ namespace SwimmingScoreboard
                 }
             }
             if (blocks.Count == 0) {
-                StatusText.Text = string.Format("{0} {1} {2} {3} — 各组别均暂无成绩, 无法批量公布",
+                StatusText.Text = Loc.F("Str_Win_BatchAge_StatusNoDataFmt",
                     _selectedAgeGroup, _selectedGender, _selectedEvent, _selectedStage);
                 StatusText.Foreground = Brushes.OrangeRed;
                 PreviewPanel.Children.Clear();
@@ -176,7 +176,7 @@ namespace SwimmingScoreboard
             PreviewPanel.Children.Clear();
             foreach (var b in blocks) {
                 var header = new TextBlock {
-                    Text = string.Format("{0}  {1} {2}  ({3} 人)", b.Title, b.EventName, b.Stage, b.Rows.Count),
+                    Text = Loc.F("Str_Win_BatchAge_PreviewHeaderFmt", b.Title, b.EventName, b.Stage, b.Rows.Count),
                     FontWeight = FontWeights.Bold, FontSize = 15,
                     Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E40AF")),
                     Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#DBEAFE")),
@@ -186,9 +186,9 @@ namespace SwimmingScoreboard
                 PreviewPanel.Children.Add(BuildPreviewGrid(b));
             }
 
-            StatusText.Text = string.Format("{0} {1} {2} {3} → 共 {4} 个子表 (性别×组别×子年龄{5}) 有数据, 已生成批量成绩单",
+            StatusText.Text = Loc.F("Str_Win_BatchAge_StatusDoneFmt",
                 _selectedAgeGroup, _selectedGender, _selectedEvent, _selectedStage, blocks.Count,
-                (_selectedEvent == "全部" || _selectedStage == "全部") ? "×项目×赛次" : "");
+                (_selectedEvent == "全部" || _selectedStage == "全部") ? Loc.T("Str_Win_BatchAge_ExtraDims") : "");
             StatusText.Foreground = Brushes.Green;
             SetActionButtonsEnabled(true);
         }
@@ -219,17 +219,17 @@ namespace SwimmingScoreboard
                 dg.Columns.Add(col);
             };
             bool relay = (b.EventName ?? "").Contains("接力");
-            add("名次", "Rank", 50);
-            if (relay) { add("代表队", "Country", 120); add("姓名", "Name", 200); }
-            else       { add("姓名", "Name", 200);      add("代表队", "Country", 120); }
-            add("号码", "BibNumber", 60);
-            add("组别", "AgeGroupName", 70);
-            add("组数", "HeatText", 60);
-            add("道次", "Lane", 45);
-            add("最终成绩", "FinalTime", 90);
-            add("成绩差", "Diff", 70);
-            add("反应时间", "ReactionTime", relay ? 170 : 80);
-            add("备注", "Remark", 50);
+            add(Loc.T("Str_Results_ColRank"), "Rank", 50);
+            if (relay) { add(Loc.T("Str_Col_Team"), "Country", 120); add(Loc.T("Str_Col_Name"), "Name", 200); }
+            else       { add(Loc.T("Str_Col_Name"), "Name", 200);      add(Loc.T("Str_Col_Team"), "Country", 120); }
+            add(Loc.T("Str_Col_BibNo"), "BibNumber", 60);
+            add(Loc.T("Str_Col_Group"), "AgeGroupName", 70);
+            add(Loc.T("Str_Win_BatchAge_ColHeatCount"), "HeatText", 60);
+            add(Loc.T("Str_Col_Lane"), "Lane", 45);
+            add(Loc.T("Str_Win_BatchAge_ColFinalTime"), "FinalTime", 90);
+            add(Loc.T("Str_Win_BatchAge_ColDiff"), "Diff", 70);
+            add(Loc.T("Str_Win_BatchAge_ColReactionTime"), "ReactionTime", relay ? 170 : 80);
+            add(Loc.T("Str_Col_Notes"), "Remark", 50);
             dg.ItemsSource = b.Rows;
             return dg;
         }
@@ -613,7 +613,7 @@ namespace SwimmingScoreboard
         private void OpenBrowser_Click(object sender, RoutedEventArgs e) {
             if (string.IsNullOrEmpty(_cachedHtml)) return;
             try { Process.Start(WriteTempHtml()); }
-            catch (Exception ex) { MessageBox.Show("打开失败: " + ex.Message); }
+            catch (Exception ex) { MessageBox.Show(Loc.T("Str_Win_DocPreview_MsgOpenFailPrefix") + ex.Message); }
         }
 
         /// <summary>
@@ -625,49 +625,48 @@ namespace SwimmingScoreboard
             if (string.IsNullOrEmpty(_cachedHtml)) return;
             try {
                 var dlg = new Microsoft.Win32.SaveFileDialog {
-                    Filter = "PDF 文件|*.pdf|所有文件|*.*",
+                    Filter = Loc.T("Str_Win_DocPreview_PdfFilter"),
                     FileName = _cachedFileBase + ".pdf",
-                    Title = "导出 PDF"
+                    Title = Loc.T("Str_Win_DocPreview_ExportPdfBtn")
                 };
                 if (dlg.ShowDialog() != true) return;
                 string tmpHtml = WriteTempHtml();
                 if (MainWindow.TryHtmlToPdf(tmpHtml, dlg.FileName)) {
-                    if (MessageBox.Show("已导出：\n" + dlg.FileName + "\n\n是否立即打开？", "导出 PDF",
+                    if (MessageBox.Show(Loc.F("Str_Win_DocPreview_MsgExportedOpenFmt", dlg.FileName), Loc.T("Str_Win_DocPreview_ExportPdfBtn"),
                             MessageBoxButton.YesNo, MessageBoxImage.Information) == MessageBoxResult.Yes)
                         Process.Start(dlg.FileName);
                     return;
                 }
                 Process.Start(tmpHtml);
-                MessageBox.Show("这台机器上没找到 Edge 或 Chrome，无法直接生成 PDF。\n\n"
-                    + "已在浏览器中打开，请按 Ctrl+P，打印机选 \"Microsoft Print to PDF\" 另存为 PDF。",
-                    "导出 PDF", MessageBoxButton.OK, MessageBoxImage.Warning);
-            } catch (Exception ex) { MessageBox.Show("导出 PDF 失败: " + ex.Message); }
+                MessageBox.Show(Loc.T("Str_Win_DocPreview_MsgNoPdfEngine"),
+                    Loc.T("Str_Win_DocPreview_ExportPdfBtn"), MessageBoxButton.OK, MessageBoxImage.Warning);
+            } catch (Exception ex) { MessageBox.Show(Loc.T("Str_Win_DocPreview_MsgExportPdfFailPrefix") + ex.Message); }
         }
 
-        private void ExportDoc_Click(object sender, RoutedEventArgs e) { SaveAs(".doc", "Word 文档|*.doc|所有文件|*.*"); }
-        private void ExportHtml_Click(object sender, RoutedEventArgs e) { SaveAs(".html", "HTML 文件|*.html|所有文件|*.*"); }
+        private void ExportDoc_Click(object sender, RoutedEventArgs e) { SaveAs(".doc", Loc.T("Str_Win_DocPreview_DocFilter")); }
+        private void ExportHtml_Click(object sender, RoutedEventArgs e) { SaveAs(".html", Loc.T("Str_Win_DocPreview_HtmlFilter")); }
 
         private void SaveAs(string ext, string filter) {
             if (string.IsNullOrEmpty(_cachedHtml)) return;
             var dlg = new Microsoft.Win32.SaveFileDialog {
-                Filter = filter, FileName = _cachedFileBase + ext, Title = "导出 " + ext.TrimStart('.').ToUpper()
+                Filter = filter, FileName = _cachedFileBase + ext, Title = Loc.T("Str_Win_DocPreview_ExportHtmlBtn")
             };
             if (dlg.ShowDialog() != true) return;
             try {
                 File.WriteAllText(dlg.FileName, _cachedHtml, Encoding.UTF8);
-                if (MessageBox.Show("导出完成: \n" + dlg.FileName + "\n\n是否立即打开?", "导出成功",
+                if (MessageBox.Show(Loc.F("Str_Win_DocPreview_MsgExportedOpenFmt", dlg.FileName), Loc.T("Str_Win_DocPreview_MsgTitleExportSuccess"),
                     MessageBoxButton.YesNo, MessageBoxImage.Information) == MessageBoxResult.Yes) {
                     Process.Start(dlg.FileName);
                 }
-            } catch (Exception ex) { MessageBox.Show("导出失败: " + ex.Message); }
+            } catch (Exception ex) { MessageBox.Show(Loc.T("Str_Win_DocPreview_MsgExportFailPrefix") + ex.Message); }
         }
 
         private void Print_Click(object sender, RoutedEventArgs e) {
             if (string.IsNullOrEmpty(_cachedHtml)) return;
             try {
-                var prev = new DocumentPreviewWindow("按组别批量公布 - " + _cachedFileBase, _cachedHtml) { Owner = this };
+                var prev = new DocumentPreviewWindow(Loc.T("Str_Win_BatchAge_Title") + " - " + _cachedFileBase, _cachedHtml) { Owner = this };
                 prev.Show();
-            } catch (Exception ex) { MessageBox.Show("打印失败: " + ex.Message); }
+            } catch (Exception ex) { MessageBox.Show(Loc.T("Str_Win_BatchAge_MsgPrintFailPrefix") + ex.Message); }
         }
 
         private void Close_Click(object sender, RoutedEventArgs e) { Close(); }
@@ -694,7 +693,7 @@ namespace SwimmingScoreboard
             return System.Net.WebUtility.HtmlEncode(s);
         }
         private static string SanitizeFile(string s) {
-            if (string.IsNullOrEmpty(s)) return "文档";
+            if (string.IsNullOrEmpty(s)) return Loc.T("Str_Win_DocPreview_DefaultDocName");
             foreach (char c in Path.GetInvalidFileNameChars()) s = s.Replace(c, '_');
             return s;
         }
