@@ -30065,7 +30065,7 @@ namespace SwimmingScoreboard
                 }
                 File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
                 AddLog("已导出分组表 CSV → " + dlg.FileName);
-                MessageBox.Show("分组表已导出。", Loc.T("Str_MsgTitle_Done"));
+                MessageBox.Show(Loc.T("Str_Msg_HeatsCsvExported"), Loc.T("Str_MsgTitle_Done"));
             } catch (Exception ex) {
                 MessageBox.Show(Loc.F("Str_Msg_ExportFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error"));
             }
@@ -30082,11 +30082,11 @@ namespace SwimmingScoreboard
                 MessageBox.Show(Loc.T("Str_Msg_XlsxReadFailedTip3"),
                     Loc.T("Str_MsgTitle_FormatNote"), MessageBoxButton.OK, MessageBoxImage.Warning); return;
             }
-            if (MessageBox.Show("导入分组表将覆盖相应项目/赛次的现有分组。继续？", Loc.T("Str_MsgTitle_Confirm"), MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
+            if (MessageBox.Show(Loc.T("Str_Msg_ConfirmOverwriteHeats"), Loc.T("Str_MsgTitle_Confirm"), MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
 
             try {
                 var rows = ReadCsvLines(dlg.FileName);
-                if (rows.Count < 2) { MessageBox.Show("CSV 无有效数据"); return; }
+                if (rows.Count < 2) { MessageBox.Show(Loc.T("Str_Msg_CsvNoValidData")); return; }
 
                 // 按 (gender, event, stage) 分组：清空后再填充
                 var seen = new HashSet<string>();
@@ -30175,8 +30175,8 @@ namespace SwimmingScoreboard
                 // 再去为它俩搭一条合并通道。
                 FinishAndSyncPatch(BuildListSetPatch("schedule", JArray.FromObject(_schedule), ClientLabel()), "meet");
                 AddLog(string.Format("导入分组表: 分配{0}条, 跳过{1}行, 未匹配{2}人", imported, skipped, notFound));
-                string note = notFound > 0 ? string.Format("\n有 {0} 行未匹配到运动员（参赛号或姓名+代表队不符，已跳过）。", notFound) : "";
-                MessageBox.Show(string.Format("已导入分组 {0} 条。{1}", imported, note), Loc.T("Str_MsgTitle_Done"));
+                string note = notFound > 0 ? Loc.F("Str_Msg_UnmatchedSwimmersNoteFmt", notFound) : "";
+                MessageBox.Show(Loc.F("Str_Msg_ImportedHeatsCountFmt", imported, note), Loc.T("Str_MsgTitle_Done"));
             } catch (Exception ex) {
                 MessageBox.Show(Loc.F("Str_Msg_ImportFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error"));
             }
@@ -30197,8 +30197,7 @@ namespace SwimmingScoreboard
                 sb.AppendLine("少年,男,50米自由泳,预赛,1,5,002,李四,上海,0:23.60");
                 sb.AppendLine("成人,男,50米自由泳,预赛,2,4,003,王五,广东,0:24.10");
                 File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
-                MessageBox.Show("模板已保存，用 Excel/WPS 打开填写后通过【导入分组表】读入。\n\n" +
-                    "说明：\n• 参赛号或 “姓名+代表队” 任一能匹配到已注册运动员即可\n• 导入会覆盖相应项目/赛次的所有分组",
+                MessageBox.Show(Loc.T("Str_Msg_HeatsTemplateSavedTip"),
                     Loc.T("Str_MsgTitle_Done"));
             } catch (Exception ex) {
                 MessageBox.Show(Loc.F("Str_Msg_SaveFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error"));
@@ -30250,7 +30249,7 @@ namespace SwimmingScoreboard
             bool confirmed = _resultConfirmed
                 || _confirmedHeats.Contains(ConfirmedHeatKey(_currentAgeGroup, _currentGender, _currentEvent, _currentStage, _currentHeat));
             if (!confirmed) {
-                MessageBox.Show("正在比赛中，不能打印，请稍后。", Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show(Loc.T("Str_Msg_CannotPrintWhileRacing"), Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
             GenerateAndOpenDocument(Loc.T("Str_DocTitle_HeatResults"), BuildHeatResultsHtml());
