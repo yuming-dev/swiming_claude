@@ -314,7 +314,7 @@ namespace SwimmingScoreboard
 
             PreviewGrid.ItemsSource = null;
             SetActionButtonsEnabled(false);
-            StatusText.Text = "请选择条件后点击查询";
+            StatusText.Text = Loc.T("Str_Win_EventResultPrint_InitialStatus");
             StatusText.Foreground = System.Windows.Media.Brushes.SlateGray;
         }
 
@@ -1246,7 +1246,7 @@ namespace SwimmingScoreboard
                 if (string.IsNullOrEmpty(html)) return;
                 var p = WriteTempHtml(html, suggested);
                 Process.Start(p);
-            } catch (Exception ex) { MessageBox.Show("打开失败：" + ex.Message); }
+            } catch (Exception ex) { MessageBox.Show(Loc.T("Str_Win_DocPreview_MsgOpenFailPrefix") + ex.Message); }
         }
 
         /// <summary>
@@ -1262,27 +1262,26 @@ namespace SwimmingScoreboard
                 string suggested; var html = BuildPrintHtml(out suggested);
                 if (string.IsNullOrEmpty(html)) return;
                 var dlg = new Microsoft.Win32.SaveFileDialog {
-                    Filter = "PDF 文件|*.pdf|所有文件|*.*",
+                    Filter = Loc.T("Str_Win_DocPreview_PdfFilter"),
                     FileName = suggested + ".pdf",
-                    Title = "导出 PDF"
+                    Title = Loc.T("Str_Win_DocPreview_ExportPdfBtn")
                 };
                 if (dlg.ShowDialog() != true) return;
                 string tmpHtml = WriteTempHtml(html, suggested);
                 if (MainWindow.TryHtmlToPdf(tmpHtml, dlg.FileName)) {
-                    if (MessageBox.Show("已导出：\n" + dlg.FileName + "\n\n是否立即打开？", "导出 PDF",
+                    if (MessageBox.Show(Loc.F("Str_Win_DocPreview_MsgExportedOpenFmt", dlg.FileName), Loc.T("Str_Win_DocPreview_ExportPdfBtn"),
                             MessageBoxButton.YesNo, MessageBoxImage.Information) == MessageBoxResult.Yes)
                         Process.Start(dlg.FileName);
                     return;
                 }
                 Process.Start(tmpHtml);
-                MessageBox.Show("这台机器上没找到 Edge 或 Chrome，无法直接生成 PDF。\n\n"
-                    + "已在浏览器中打开，请按 Ctrl+P，打印机选 \"Microsoft Print to PDF\" 另存为 PDF。",
-                    "导出 PDF", MessageBoxButton.OK, MessageBoxImage.Warning);
-            } catch (Exception ex) { MessageBox.Show("导出 PDF 失败：" + ex.Message); }
+                MessageBox.Show(Loc.T("Str_Win_DocPreview_MsgNoPdfEngine"),
+                    Loc.T("Str_Win_DocPreview_ExportPdfBtn"), MessageBoxButton.OK, MessageBoxImage.Warning);
+            } catch (Exception ex) { MessageBox.Show(Loc.T("Str_Win_DocPreview_MsgExportPdfFailPrefix") + ex.Message); }
         }
 
-        private void ExportDoc_Click(object sender, RoutedEventArgs e) { SaveAs(".doc", "Word 文档|*.doc|所有文件|*.*"); }
-        private void ExportHtml_Click(object sender, RoutedEventArgs e) { SaveAs(".html", "HTML 文件|*.html|所有文件|*.*"); }
+        private void ExportDoc_Click(object sender, RoutedEventArgs e) { SaveAs(".doc", Loc.T("Str_Win_DocPreview_DocFilter")); }
+        private void ExportHtml_Click(object sender, RoutedEventArgs e) { SaveAs(".html", Loc.T("Str_Win_DocPreview_HtmlFilter")); }
 
         private void SaveAs(string ext, string filter) {
             string suggested; var html = BuildPrintHtml(out suggested);
@@ -1290,16 +1289,16 @@ namespace SwimmingScoreboard
             var dlg = new Microsoft.Win32.SaveFileDialog {
                 Filter = filter,
                 FileName = suggested + ext,
-                Title = "导出 " + ext.TrimStart('.').ToUpper()
+                Title = Loc.T("Str_Win_DocPreview_ExportHtmlBtn")
             };
             if (dlg.ShowDialog() != true) return;
             try {
                 File.WriteAllText(dlg.FileName, html, Encoding.UTF8);
-                if (MessageBox.Show("导出完成：\n" + dlg.FileName + "\n\n是否立即打开？", "导出成功",
+                if (MessageBox.Show(Loc.F("Str_Win_DocPreview_MsgExportedOpenFmt", dlg.FileName), Loc.T("Str_Win_DocPreview_MsgTitleExportSuccess"),
                                     MessageBoxButton.YesNo, MessageBoxImage.Information) == MessageBoxResult.Yes) {
                     Process.Start(dlg.FileName);
                 }
-            } catch (Exception ex) { MessageBox.Show("导出失败：" + ex.Message); }
+            } catch (Exception ex) { MessageBox.Show(Loc.T("Str_Win_DocPreview_MsgExportFailPrefix") + ex.Message); }
         }
 
         // "打印"按钮: 复用 DocumentPreviewWindow (含 WebBrowser, execCommand 打印更可靠)
@@ -1307,9 +1306,9 @@ namespace SwimmingScoreboard
             try {
                 string suggested; var html = BuildPrintHtml(out suggested);
                 if (string.IsNullOrEmpty(html)) return;
-                var prevWin = new DocumentPreviewWindow("项目成绩 - " + suggested, html) { Owner = this };
+                var prevWin = new DocumentPreviewWindow(Loc.T("Str_Win_EventResultPrint_Title") + " - " + suggested, html) { Owner = this };
                 prevWin.Show();
-            } catch (Exception ex) { MessageBox.Show("打印失败：" + ex.Message); }
+            } catch (Exception ex) { MessageBox.Show(Loc.T("Str_Win_BatchAge_MsgPrintFailPrefix") + ex.Message); }
         }
 
         private void Close_Click(object sender, RoutedEventArgs e)

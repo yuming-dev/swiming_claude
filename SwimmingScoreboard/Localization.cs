@@ -2372,6 +2372,15 @@ namespace SwimmingScoreboard
             { "Str_Win_Promotion_ResultSubstitutedFmt", new[] { "已完成 {0} 项弃权递补", "Completed {0} substitution(s)" } },
             { "Str_Win_Promotion_MsgSubDoneFmt", new[] { "已替换 {0} 个决赛位次。\n请回到主界面赛程树查看更新后的组次。", "Replaced {0} final slot(s).\nPlease return to the main schedule tree to see the updated heats." } },
             { "Str_Win_Promotion_MsgTitleSubDone", new[] { "递补完成", "Substitution Complete" } },
+            { "Str_Win_EventResultPrint_Title", new[] { "项目成绩打印", "Event Result Print" } },
+            { "Str_Win_EventResultPrint_NavHeader", new[] { "🧭 赛程导航", "🧭 Schedule Navigator" } },
+            { "Str_Win_EventResultPrint_NavSearchTip", new[] { "输入项目/组别/赛次关键字,自动展开匹配分支并高亮", "Type an event/age-group/stage keyword to auto-expand and highlight matching branches" } },
+            { "Str_Win_EventResultPrint_NavAll", new[] { "全部", "All" } },
+            { "Str_Win_EventResultPrint_NavPending", new[] { "未开始", "Pending" } },
+            { "Str_Win_EventResultPrint_NavRunning", new[] { "进行中", "Running" } },
+            { "Str_Win_EventResultPrint_NavDone", new[] { "已结束", "Done" } },
+            { "Str_Win_EventResultPrint_NavCancelled", new[] { "已取消", "Cancelled" } },
+            { "Str_Win_EventResultPrint_InitialStatus", new[] { "请选择条件后点击查询", "Choose the filters, then click Query" } },
         };
 
         /// <summary>查当前语言下的文字；查不到就退回中文；中文也没有就返回 key 本身兜底。</summary>
