@@ -501,6 +501,9 @@ namespace SwimmingScoreboard
             { "Str_Stage_Prelim", new[] { "预赛", "Prelim" } },
             { "Str_Stage_Semi",   new[] { "半决赛", "Semifinal" } },
             { "Str_Stage_Final",  new[] { "决赛", "Final" } },
+            { "Str_Gender_Male",   new[] { "男", "Men" } },
+            { "Str_Gender_Female", new[] { "女", "Women" } },
+            { "Str_Gender_Mixed",  new[] { "混合", "Mixed" } },
             { "Str_EM_LT_SeedEntry",  new[] { "报名成绩", "Entry Time" } },
             { "Str_EM_LT_SeedSuffixFmt", new[] { "{0}成绩", "{0} Time" } },
             { "Str_EM_ColGender", new[] { "性别", "Sex" } },
@@ -1027,6 +1030,71 @@ namespace SwimmingScoreboard
             { "Str_Msg_CsvImportSummaryFmt", new[] { "CSV 导入完成（个人报名模板）：\n\n  ✅ 新增 {0} 条\n  🔄 更新 {1} 条 (按身份证号+项目匹配)\n  ⏭ 跳过 {2} 行\n", "CSV import complete (individual registration template):\n\n  ✅ Added {0}\n  🔄 Updated {1} (matched by ID number + event)\n  ⏭ Skipped {2} row(s)\n" } },
             { "Str_Msg_SkipDetailsHeader", new[] { "\n--- 跳过明细 ---", "\n--- Skipped Details ---" } },
             { "Str_Msg_MoreNotShownFmt", new[] { "... 还有 {0} 条未显示\n", "... {0} more not shown\n" } },
+
+            // 2026-09-22 MessageBox 扫尾——上面第七阶段中断重启了两次(会话限流), 收尾时
+            // 再过一遍全文件找剩下的硬编码中文, 这批是那次扫尾补上的。
+            { "Str_MsgTitle_PortConflict", new[] { "端口冲突 — 大屏将无法接收数据", "Port Conflict — Big Screen Won't Receive Data" } },
+            { "Str_Msg_Port3002Occupied", new[] {
+                "WebSocket 端口 3002 已被占用。\r\n\r\n常见原因：本机已经在运行 主服务器(SwimmingScoreboard.exe) 或另一份 RemoteTimingControl.exe，\r\n两个程序都监听 3002 端口会冲突。\r\n\r\n后果：display.html / race_control.html 等大屏页面将无法接收本程序推送的数据 (黑屏 / 无运动员)。\r\n\r\n解决方法：\r\n  1) 关闭本机已经在运行的另一个程序后再启动；或\r\n  2) 将本程序部署到另一台 PC 上运行 (推荐生产部署方式)。",
+                "WebSocket port 3002 is already in use.\r\n\r\nCommon cause: the main server (SwimmingScoreboard.exe) or another copy of RemoteTimingControl.exe is already running on this machine — both programs listening on port 3002 conflicts.\r\n\r\nConsequence: display.html / race_control.html and other big-screen pages will not receive data pushed by this program (blank screen / no swimmers).\r\n\r\nFix:\r\n  1) Close the other program already running on this machine before starting this one; or\r\n  2) Deploy this program on a different PC (recommended for production)." } },
+            { "Str_MsgTitle_Save",  new[] { "存盘", "Save" } },
+            { "Str_MsgTitle_Print", new[] { "打印", "Print" } },
+            { "Str_MsgTitle_RequiredMissing", new[] { "必填项缺失", "Required Field Missing" } },
+            { "Str_MsgTitle_SaveRecord", new[] { "保存纪录", "Save Record" } },
+            { "Str_MsgTitle_LocalIP", new[] { "本机IP地址", "Local IP Address" } },
+            { "Str_MsgTitle_CannotFineTune", new[] { "不能微调", "Cannot Adjust" } },
+            { "Str_Msg_CannotFineTuneFmt", new[] { "{0} 第{1}组当前{2}，不能再进行出场编排微调。", "{0} heat {1} is currently {2} — lineup tuning is no longer allowed." } },
+            { "Str_Frag_HeatRunning",   new[] { "正在比赛中", "in progress" } },
+            { "Str_Frag_HeatConfirmed", new[] { "成绩已确认", "result already confirmed" } },
+            { "Str_Msg_SwimmerAddingBusyFmt", new[] { "{0} 正在新增运动员，请稍后再试。", "{0} is currently adding a swimmer — please try again shortly." } },
+            { "Str_Msg_RelayAddingBusyFmt",   new[] { "{0} 正在新增接力队，请稍后再试。", "{0} is currently adding a relay team — please try again shortly." } },
+            { "Str_Msg_TeamDuplicateFmt",     new[] { "代表队 \"{0}\" 重复，请合并或删除重复行。", "Team \"{0}\" is duplicated — please merge or delete the duplicate row." } },
+            { "Str_Msg_TeamRangeInvalidFmt",  new[] { "代表队 [{0}] 的起始/结束号不合法（要求 起始 > 0 且 结束 ≥ 起始）。", "Team [{0}]'s start/end number is invalid (start must be > 0 and end ≥ start)." } },
+            { "Str_Msg_TeamRangeOverlapFmt",  new[] { "[{0}] 的号码段 {1}-{2} 与 [{3}] 的 {4}-{5} 重叠，请调整。", "[{0}]'s number range {1}-{2} overlaps with [{3}]'s {4}-{5} — please adjust." } },
+            { "Str_Msg_RemoveFromHeatConfirmFmt", new[] { "确定将 {0} 移出本组？", "Remove {0} from this heat?" } },
+            { "Str_Msg_LineupWrittenBackFmt", new[] { "已把 {0} 项编排写回主程序赛程，整个系统已立即更新。", "{0} lineup entries written back to the main program's schedule — the whole system has updated immediately." } },
+            { "Str_MsgTitle_AppendGroupingDone", new[] { "追加分组完成", "Append Grouping Complete" } },
+            { "Str_Msg_AppendGroupingDoneFmt", new[] { "追加分组完成！\n共{0}人已分配到各组。\n\n已分好组的运动员不受影响。{1}", "Append grouping complete!\n{0} swimmer(s) assigned to heats in total.\n\nSwimmers already grouped are unaffected.{1}" } },
+            { "Str_Msg_AppendGroupingSkippedFmt", new[] { "\n\n以下项目这次跳过了(里面有动不得的组):\n  {0}", "\n\nThe following events were skipped this time (contain heats that can't be touched):\n  {0}" } },
+            { "Str_Msg_DuplicateValueFmt",   new[] { "[{0}] 重复。", "[{0}] is duplicated." } },
+            { "Str_Msg_KeepAtLeastOneFmt",   new[] { "至少保留一项{0}", "Keep at least one {0}" } },
+            { "Str_Msg_TableExportedFmt",    new[] { "{0}表已导出。", "{0} table exported." } },
+            { "Str_Msg_ImportSwimmerDoneFmt", new[] { "导入完成:\n  更新已有运动员 {0} 人\n  新增运动员 {1} 人", "Import complete:\n  Updated {0} existing swimmer(s)\n  Added {1} new swimmer(s)" } },
+            { "Str_Msg_RecordsSavedChangedFmt", new[] { "已保存 {0} 条改动。", "Saved {0} change(s)." } },
+            { "Str_Msg_RecordsNoChange", new[] { "没有发现改动。", "No changes found." } },
+            { "Str_Msg_RecordsBlankRowsFmt", new[] { "\n\n有 {0} 行没填项目名，这些行没有同步出去。\n补齐项目名后再点一次保存。", "\n\n{0} row(s) have no event name and were not synced.\nFill in the event name and save again." } },
+            { "Str_Msg_LocalIPInfoFmt", new[] { "本机IP地址: {0}\n\nWebSocket服务: ws://{0}:3002\nWeb页面: http://{0}:3002\n\n请将此地址告知各客户端连接。", "Local IP address: {0}\n\nWebSocket service: ws://{0}:3002\nWeb page: http://{0}:3002\n\nShare this address with client machines so they can connect." } },
+
+            // 2026-09-22 MessageBox 扫尾第二轮——上面单行 grep 漏掉的跨行 string.Format 调用。
+            { "Str_MsgTitle_MeetMismatch", new[] { "赛事对不上", "Competition Mismatch" } },
+            { "Str_Msg_MeetMismatchConfirmFmt", new[] { "这个文件是【{0}】的成绩，\n当前打开的是【{1}】。\n\n确定要导入吗？", "This file's results are from 【{0}】,\nbut the one currently open is 【{1}】.\n\nImport anyway?" } },
+            { "Str_MsgTitle_ConfirmResult", new[] { "确认成绩", "Confirm Result" } },
+            { "Str_Msg_ConfirmResultFmt", new[] { "确认本组成绩？\n\n{0}\n\n确认后成绩将锁定保存。", "Confirm this heat's result?\n\n{0}\n\nOnce confirmed, the result will be locked and saved." } },
+            { "Str_MsgTitle_AutoPromotion", new[] { "自动晋级", "Auto-Promotion" } },
+            { "Str_Msg_AutoPromotionFmt", new[] { "{0}{1} {2} {3} 全部{4}人已完赛！\n\n是否自动晋级前{5}名到{6}？\n（按成绩总排名）", "{0}{1} {2} {3} — all {4} swimmers have finished!\n\nAuto-promote the top {5} to {6}?\n(by overall result ranking)" } },
+            { "Str_Why_Finished",        new[] { "已完赛(成绩已确认)", "already finished (result confirmed)" } },
+            { "Str_Why_ResultNotConfirmed", new[] { "已经录了成绩(还没确认)", "has a result recorded (not yet confirmed)" } },
+            { "Str_Why_RtcBusy",         new[] { "计时端(RTC)正开着它", "the timing station (RTC) currently has it open" } },
+            { "Str_Why_Ready",           new[] { "已就位, 随时可能发令", "is in Ready state — the start could come any moment" } },
+            { "Str_Why_Racing",          new[] { "正在计时", "is currently being timed" } },
+            { "Str_Why_ResultPending",   new[] { "成绩已录入, 还没点「确认本组成绩」", "has a result entered but \"Confirm Heat Result\" hasn't been pressed yet" } },
+            { "Str_MsgTitle_HeatLocked",  new[] { "这一组动不得", "This Heat Is Locked" } },
+            { "Str_Msg_HeatLockedFmt", new[] { "第{0}组现在不能{1}。\n\n原因: 这一组{2}。\n\n别的项目、别的组照常可以改 —— 锁着的只有正在比和已完赛的组。", "Heat {0} can't be {1} right now.\n\nReason: this heat {2}.\n\nOther events and heats can still be edited as usual — only the currently-racing or already-finished heat is locked." } },
+            { "Str_MsgTitle_EventLocked",  new[] { "这一项里有动不得的组", "This Event Has a Locked Heat" } },
+            { "Str_Msg_EventLockedFmt", new[] { "{0} {1} {2} 现在不能{3}。\n\n原因: 第{4}组{5}。\n\n整项重排会把所有人的组次道次重来一遍，\n锁着的那一组也跑不掉，所以整项一起挡下。", "{0} {1} {2} can't be {3} right now.\n\nReason: heat {4} {5}.\n\nRe-grouping the whole event reassigns everyone's heat/lane, including the locked heat, so the entire event is blocked." } },
+            { "Str_Action_MergeHeats",      new[] { "并组", "merge heats" } },
+            { "Str_Action_MergeTarget",     new[] { "作为并入目标", "be a merge target" } },
+            { "Str_Action_SwapLane",        new[] { "交换泳道", "swap lanes" } },
+            { "Str_Action_SwapTarget",      new[] { "作为交换目标", "be a swap target" } },
+            { "Str_Action_AddToHeat",       new[] { "往这一组里加人", "add someone to this heat" } },
+            { "Str_Action_ReorderLane",     new[] { "调整泳道顺序", "reorder lanes" } },
+            { "Str_Action_RemoveFromHeat",  new[] { "把人移出本组", "remove someone from this heat" } },
+            { "Str_Action_Regroup",         new[] { "重新分组", "be regrouped" } },
+            { "Str_MsgTitle_ResultLocked",   new[] { "这一组已完赛", "This Heat Is Already Finished" } },
+            { "Str_Msg_ResultLockedFmt", new[] { "第{0}组现在不能{1}。\n\n原因: 这一组{2} —— 已完赛的组不在修改范围。\n\n成绩要在点「确认本组成绩」之前改。", "Heat {0} can't be {1} right now.\n\nReason: this heat {2} — finished heats are out of scope for editing.\n\nResults must be changed before pressing \"Confirm Heat Result\"." } },
+            { "Str_Action_ClearStatusMark", new[] { "撤销状态标记", "clear the status mark" } },
+            { "Str_Action_JudgeStatusFmt",  new[] { "改判 {0}", "mark as {0}" } },
+            { "Str_Action_ManualEditResult",new[] { "手动改成绩", "manually edit the result" } },
         };
 
         /// <summary>查当前语言下的文字；查不到就退回中文；中文也没有就返回 key 本身兜底。</summary>
@@ -1081,6 +1149,17 @@ namespace SwimmingScoreboard
                 case "半决赛": return T("Str_Stage_Semi");
                 case "决赛": return T("Str_Stage_Final");
                 default: return zhStage ?? "";
+            }
+        }
+
+        /// <summary>纯展示用的性别翻译——同 StageDisplay 的道理, "男"/"女"/"混合"本身在别处
+        /// 是比较/存档用的数据哨兵，这个函数只用于拼接给人看的文字，不改变调用方手里的原值。</summary>
+        public static string GenderDisplay(string zhGender) {
+            switch (zhGender) {
+                case "男": return T("Str_Gender_Male");
+                case "女": return T("Str_Gender_Female");
+                case "混合": return T("Str_Gender_Mixed");
+                default: return zhGender ?? "";
             }
         }
 

@@ -1587,18 +1587,12 @@ namespace SwimmingScoreboard
                 return;
             }
             if (IsPort3002Occupied()) {
-                string msg = "WebSocket 端口 3002 已被占用。\r\n\r\n"
-                    + "常见原因：本机已经在运行 主服务器(SwimmingScoreboard.exe) 或另一份 RemoteTimingControl.exe，\r\n"
-                    + "两个程序都监听 3002 端口会冲突。\r\n\r\n"
-                    + "后果：display.html / race_control.html 等大屏页面将无法接收本程序推送的数据 (黑屏 / 无运动员)。\r\n\r\n"
-                    + "解决方法：\r\n"
-                    + "  1) 关闭本机已经在运行的另一个程序后再启动；或\r\n"
-                    + "  2) 将本程序部署到另一台 PC 上运行 (推荐生产部署方式)。";
+                string msg = Loc.T("Str_Msg_Port3002Occupied");
                 AddLog("[严重] " + msg.Replace("\r\n", " "));
                 if (IsRemoteTimingControlMode) {
                     try {
                         Dispatcher.BeginInvoke((Action)delegate() {
-                            MessageBox.Show(this, msg, "端口冲突 — 大屏将无法接收数据",
+                            MessageBox.Show(this, msg, Loc.T("Str_MsgTitle_PortConflict"),
                                 MessageBoxButton.OK, MessageBoxImage.Warning);
                         });
                     } catch { }
@@ -5462,7 +5456,7 @@ namespace SwimmingScoreboard
                         System.IO.File.WriteAllLines(dlg.FileName, lines, System.Text.Encoding.UTF8);
                         MessageBox.Show(Loc.F("Str_Msg_SavedAsFmt", dlg.FileName), Loc.T("Str_MsgTitle_SaveToDisk"), MessageBoxButton.OK, MessageBoxImage.Information);
                     } catch (Exception ex) {
-                        MessageBox.Show(Loc.F("Str_Msg_SaveFailedFmt", ex.Message), "存盘", MessageBoxButton.OK, MessageBoxImage.Error);
+                        MessageBox.Show(Loc.F("Str_Msg_SaveFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Save"), MessageBoxButton.OK, MessageBoxImage.Error);
                     }
                 }
             };
@@ -5485,7 +5479,7 @@ namespace SwimmingScoreboard
                         pd.PrintDocument(paginator, "事件备份");
                     }
                 } catch (Exception ex) {
-                    MessageBox.Show(Loc.F("Str_Msg_PrintFailedFmt", ex.Message), "打印", MessageBoxButton.OK, MessageBoxImage.Error);
+                    MessageBox.Show(Loc.F("Str_Msg_PrintFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Print"), MessageBoxButton.OK, MessageBoxImage.Error);
                 }
             };
             btnPanel.Children.Add(btnPrint);
@@ -10069,9 +10063,8 @@ namespace SwimmingScoreboard
                     && fromMeet != _competitionName)
                 {
                     // 赛事对不上还导进去, 就是把别的比赛的成绩灌进本场 —— 必须拦。
-                    var yn = MessageBox.Show(string.Format(
-                        "这个文件是【{0}】的成绩，\n当前打开的是【{1}】。\n\n确定要导入吗？",
-                        fromMeet, _competitionName), "赛事对不上",
+                    var yn = MessageBox.Show(Loc.F("Str_Msg_MeetMismatchConfirmFmt",
+                        fromMeet, _competitionName), Loc.T("Str_MsgTitle_MeetMismatch"),
                         MessageBoxButton.YesNo, MessageBoxImage.Warning);
                     if (yn != MessageBoxResult.Yes) return;
                 }
@@ -10363,8 +10356,8 @@ namespace SwimmingScoreboard
             if (sender != null) {
                 string info = string.Format("{0} {1} {2} 第{3}组", _currentGender, _currentEvent, _currentStage, _currentHeat);
                 var r = MessageBox.Show(
-                    "确认本组成绩？\n\n" + info + "\n\n确认后成绩将锁定保存。",
-                    "确认成绩", MessageBoxButton.YesNo, MessageBoxImage.Question);
+                    Loc.F("Str_Msg_ConfirmResultFmt", info),
+                    Loc.T("Str_MsgTitle_ConfirmResult"), MessageBoxButton.YesNo, MessageBoxImage.Question);
                 if (r != MessageBoxResult.Yes) return;
             }
             _countdownTimer.Stop();
@@ -10483,9 +10476,9 @@ namespace SwimmingScoreboard
             int promoCount = HeatScheduler.GetPromotionCount(_currentStage, nextStage);
             string agLabel = string.IsNullOrEmpty(_currentAgeGroup) ? "" : ("[" + _currentAgeGroup + "] ");
             var answer = MessageBox.Show(
-                string.Format("{0}{1} {2} {3} 全部{4}人已完赛！\n\n是否自动晋级前{5}名到{6}？\n（按成绩总排名）",
-                    agLabel, _currentGender, _currentEvent, _currentStage, stageSwimmers.Count, promoCount, nextStage),
-                "自动晋级", MessageBoxButton.YesNo, MessageBoxImage.Question);
+                Loc.F("Str_Msg_AutoPromotionFmt",
+                    agLabel, Loc.GenderDisplay(_currentGender), _currentEvent, Loc.StageDisplay(_currentStage), stageSwimmers.Count, promoCount, Loc.StageDisplay(nextStage)),
+                Loc.T("Str_MsgTitle_AutoPromotion"), MessageBoxButton.YesNo, MessageBoxImage.Question);
 
             if (answer == MessageBoxResult.Yes) {
                 ExecutePromotion(_currentAgeGroup, _currentGender, _currentEvent, _currentStage, nextStage, promoCount);
@@ -10687,25 +10680,25 @@ namespace SwimmingScoreboard
             //   这一个意思, 认 _confirmedHeats 这个集合 —— 不再用 IsHeatConfirmed 那个
             //   "全员有成绩就算完赛"的推断(推断会把还没确认的组也说成已完赛)。
             //   这一条两端都认: _confirmedHeats 跟着整包同步, 编排端手里那份是准的。
-            if (IsHeatMarkedFinished(ageGroup, gender, eventName, stage, heat)) return "已完赛(成绩已确认)";
+            if (IsHeatMarkedFinished(ageGroup, gender, eventName, stage, heat)) return Loc.T("Str_Why_Finished");
             // 还没确认、但已经录进成绩的组也不能动分组 —— 道次一换, 成绩就挂错人。
             // (这跟"已完赛"是两回事, 所以分开说, 免得看日志的人以为确认过了。)
-            if (HeatHasResult(ageGroup, gender, eventName, stage, heat)) return "已经录了成绩(还没确认)";
+            if (HeatHasResult(ageGroup, gender, eventName, stage, heat)) return Loc.T("Str_Why_ResultNotConfirmed");
             // 编排端自己不计时 —— 它那份 _raceState/_resultConfirmed 是跟着整包同步过来的影子,
             // 拿它拦人会误伤(主服务器早确认完了, 编排端这边还是"未确认")。
             // 编排端一律交给主服务器判: 补丁发过去, 真撞上正在比的组会被明确回绝。
             if (IsScheduleEditorMode) return null;
             // RTC 当主控时主服务器自己是空闲的, 得看计时端开着哪一组 (见 NoteRtcRaceState)
-            if (IsRtcBusyHeat(ageGroup, gender, eventName, stage, heat)) return "计时端(RTC)正开着它";
+            if (IsRtcBusyHeat(ageGroup, gender, eventName, stage, heat)) return Loc.T("Str_Why_RtcBusy");
             if (_currentHeat != heat) return null;
             if (!SameLoadedEvent(ageGroup, gender, eventName, stage)) return null;
-            if (_raceState == RaceState.Ready) return "已就位, 随时可能发令";
-            if (_raceState == RaceState.Racing) return "正在计时";
+            if (_raceState == RaceState.Ready) return Loc.T("Str_Why_Ready");
+            if (_raceState == RaceState.Racing) return Loc.T("Str_Why_Racing");
             if (_resultConfirmed) return null;
             foreach (var sw in GetCurrentHeatSwimmers()) {
                 var r = sw.Results.FirstOrDefault(x => x.Stage == _currentStage && x.Heat == _currentHeat);
                 if (r != null && (r.FinalTime > 0 || !string.IsNullOrEmpty(r.Status)))
-                    return "成绩已录入, 还没点「确认本组成绩」";
+                    return Loc.T("Str_Why_ResultPending");
             }
             return null;
         }
@@ -10828,9 +10821,8 @@ namespace SwimmingScoreboard
                                        int heat, string actionLabel) {
             string why = HeatLockedWhy(ageGroup, gender, eventName, stage, heat);
             if (why == null) return false;
-            MessageBox.Show(string.Format(
-                "第{0}组现在不能{1}。\n\n原因: 这一组{2}。\n\n别的项目、别的组照常可以改 —— 锁着的只有正在比和已完赛的组。",
-                heat, actionLabel, why), "这一组动不得", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show(Loc.F("Str_Msg_HeatLockedFmt",
+                heat, actionLabel, why), Loc.T("Str_MsgTitle_HeatLocked"), MessageBoxButton.OK, MessageBoxImage.Warning);
             AddLog(string.Format("【拦下】第{0}组{1}, 拒绝{2}", heat, why, actionLabel));
             return true;
         }
@@ -10872,10 +10864,9 @@ namespace SwimmingScoreboard
             int h;
             string why = EventLockedWhy(ageGroup, gender, eventName, stage, out h);
             if (why == null) return false;
-            MessageBox.Show(string.Format(
-                "{0} {1} {2} 现在不能{3}。\n\n原因: 第{4}组{5}。\n\n整项重排会把所有人的组次道次重来一遍，\n锁着的那一组也跑不掉，所以整项一起挡下。",
-                gender, eventName, stage, actionLabel, h, why),
-                "这一项里有动不得的组", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show(Loc.F("Str_Msg_EventLockedFmt",
+                Loc.GenderDisplay(gender), eventName, Loc.StageDisplay(stage), actionLabel, h, why),
+                Loc.T("Str_MsgTitle_EventLocked"), MessageBoxButton.OK, MessageBoxImage.Warning);
             AddLog(string.Format("【拦下】{0} {1} {2} 第{3}组{4}, 拒绝{5}", gender, eventName, stage, h, why, actionLabel));
             return true;
         }
@@ -10949,7 +10940,7 @@ namespace SwimmingScoreboard
         /// <summary>成绩改不得就返回原因; 能改返回 null。</summary>
         private string ResultLockedWhy(string ageGroup, string gender, string eventName, string stage, int heat) {
             return IsHeatMarkedFinished(ageGroup, gender, eventName, stage, heat)
-                 ? "已完赛(成绩已确认)" : null;
+                 ? Loc.T("Str_Why_Finished") : null;
         }
 
         /// <summary>成绩改不得 → 弹窗 + 记日志, 返回 true 表示已拦下。</summary>
@@ -10957,9 +10948,8 @@ namespace SwimmingScoreboard
                                          int heat, string actionLabel) {
             string why = ResultLockedWhy(ageGroup, gender, eventName, stage, heat);
             if (why == null) return false;
-            MessageBox.Show(string.Format(
-                "第{0}组现在不能{1}。\n\n原因: 这一组{2} —— 已完赛的组不在修改范围。\n\n成绩要在点「确认本组成绩」之前改。",
-                heat, actionLabel, why), "这一组已完赛", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show(Loc.F("Str_Msg_ResultLockedFmt",
+                heat, actionLabel, why), Loc.T("Str_MsgTitle_ResultLocked"), MessageBoxButton.OK, MessageBoxImage.Warning);
             AddLog(string.Format("【拦下】第{0}组{1}, 拒绝{2}", heat, why, actionLabel));
             return true;
         }
@@ -11190,8 +11180,8 @@ namespace SwimmingScoreboard
             string reason = (reasonBox.Text ?? "").Trim();
 
             // 2026-09-12 正在比的那一组, 谁也动不了 (别的组照常放行)
-            if (BlockIfHeatLocked(ageGroup, gender, eventName, stage, srcHeat, "并组")) return;
-            if (dstHeat > 0 && BlockIfHeatLocked(ageGroup, gender, eventName, stage, dstHeat, "作为并入目标")) return;
+            if (BlockIfHeatLocked(ageGroup, gender, eventName, stage, srcHeat, Loc.T("Str_Action_MergeHeats"))) return;
+            if (dstHeat > 0 && BlockIfHeatLocked(ageGroup, gender, eventName, stage, dstHeat, Loc.T("Str_Action_MergeTarget"))) return;
 
             // ── 2026-09-12 联网编排端: 走【增量补丁】, 不推整包 ──────────────
             //   老路 EDITOR_PUSH_PACKAGE 是"推整包 → 主服务器整库重载", 主服务器
@@ -13728,9 +13718,9 @@ namespace SwimmingScoreboard
             if (heat > 0) {
                 string hs = HeatStatus(ag, gd, ev, st, heat);
                 if (hs == "running" || hs == "confirmed") {
-                    MessageBox.Show(string.Format("{0} 第{1}组当前{2}，不能再进行出场编排微调。",
-                        ev, heat, hs == "running" ? "正在比赛中" : "成绩已确认"),
-                        "不能微调", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    MessageBox.Show(Loc.F("Str_Msg_CannotFineTuneFmt",
+                        ev, heat, hs == "running" ? Loc.T("Str_Frag_HeatRunning") : Loc.T("Str_Frag_HeatConfirmed")),
+                        Loc.T("Str_MsgTitle_CannotFineTune"), MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
             }
@@ -16007,7 +15997,7 @@ namespace SwimmingScoreboard
         // 取消备注：清除 DNS/DNF/DSQ 等状态，使运动员回到正常参赛状态
         private void CancelLaneNote(int lane) {
             // 2026-09-12 已完赛的组成绩不许再改 —— 撤销 DSQ 会把备份成绩恢复回去, 同样是改成绩
-            if (BlockIfCurrentResultLocked("撤销状态标记")) return;
+            if (BlockIfCurrentResultLocked(Loc.T("Str_Action_ClearStatusMark"))) return;
             var swimmer = GetCurrentHeatSwimmers().FirstOrDefault(s => {
                 var sa = s.GetAssignmentForStage(_currentStage);
                 return (sa != null ? sa.Lane : s.Lane) == lane;
@@ -16330,7 +16320,7 @@ namespace SwimmingScoreboard
 
         private void MarkLaneStatus(int lane, string status) {
             // 2026-09-12 已完赛的组成绩不许再改 —— 判 DSQ/DNS/DNF 也是改成绩
-            if (BlockIfCurrentResultLocked("改判 " + status)) return;
+            if (BlockIfCurrentResultLocked(Loc.F("Str_Action_JudgeStatusFmt", status))) return;
             var swimmer = GetCurrentHeatSwimmers().FirstOrDefault(s => {
                 var sa = s.GetAssignmentForStage(_currentStage);
                 return (sa != null ? sa.Lane : s.Lane) == lane;
@@ -16479,7 +16469,7 @@ namespace SwimmingScoreboard
 
         private void OverrideLaneTime(int lane, double time) {
             // 2026-09-12 已完赛的组成绩不许再改
-            if (BlockIfCurrentResultLocked("手动改成绩")) return;
+            if (BlockIfCurrentResultLocked(Loc.T("Str_Action_ManualEditResult"))) return;
             LogRawTimingData(lane, "ManualOverride", time);
             var swimmer = GetCurrentHeatSwimmers().FirstOrDefault(s => {
                 var sa = s.GetAssignmentForStage(_currentStage);
@@ -18407,7 +18397,7 @@ namespace SwimmingScoreboard
             // 新增需要全局唯一参赛号 → 占"新增"位锁，避免两端同时新增冲突
             string holder;
             if (!TryAcquireEditLock("swimmer-add", out holder)) {
-                MessageBox.Show(string.Format("{0} 正在新增运动员，请稍后再试。", holder),
+                MessageBox.Show(Loc.F("Str_Msg_SwimmerAddingBusyFmt", holder),
                     Loc.T("Str_MsgTitle_CannotAdd"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
@@ -18962,12 +18952,12 @@ namespace SwimmingScoreboard
                     r.Country = r.Country.Trim();
                     if (r.Width <= 0) r.Width = 3;
                     if (seenCountries.Contains(r.Country)) {
-                        MessageBox.Show(string.Format("代表队 \"{0}\" 重复，请合并或删除重复行。", r.Country), Loc.T("Str_MsgTitle_Info")); return;
+                        MessageBox.Show(Loc.F("Str_Msg_TeamDuplicateFmt", r.Country), Loc.T("Str_MsgTitle_Info")); return;
                     }
                     seenCountries.Add(r.Country);
                     if (r.Start != 0 || r.End != 0) {
                         if (r.Start <= 0 || r.End < r.Start) {
-                            MessageBox.Show(string.Format("代表队 [{0}] 的起始/结束号不合法（要求 起始 > 0 且 结束 ≥ 起始）。", r.Country), Loc.T("Str_MsgTitle_Info")); return;
+                            MessageBox.Show(Loc.F("Str_Msg_TeamRangeInvalidFmt", r.Country), Loc.T("Str_MsgTitle_Info")); return;
                         }
                     }
                     finalList.Add(r);
@@ -18978,7 +18968,7 @@ namespace SwimmingScoreboard
                         var a = finalList[i]; var b = finalList[j];
                         if (a.Start <= 0 || b.Start <= 0) continue;
                         if (a.End >= b.Start && b.End >= a.Start) {
-                            MessageBox.Show(string.Format("[{0}] 的号码段 {1}-{2} 与 [{3}] 的 {4}-{5} 重叠，请调整。", a.Country, a.Start, a.End, b.Country, b.Start, b.End), Loc.T("Str_MsgTitle_Info")); return;
+                            MessageBox.Show(Loc.F("Str_Msg_TeamRangeOverlapFmt", a.Country, a.Start, a.End, b.Country, b.Start, b.End), Loc.T("Str_MsgTitle_Info")); return;
                         }
                     }
                 }
@@ -19351,7 +19341,7 @@ namespace SwimmingScoreboard
             // 新增接力队：占"新增"位锁，避免两端同时新增同名队
             string addHolder;
             if (!TryAcquireEditLock("relay-add", out addHolder)) {
-                MessageBox.Show(string.Format("{0} 正在新增接力队，请稍后再试。", addHolder),
+                MessageBox.Show(Loc.F("Str_Msg_RelayAddingBusyFmt", addHolder),
                     Loc.T("Str_MsgTitle_CannotAdd"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
@@ -20741,7 +20731,7 @@ namespace SwimmingScoreboard
 
             if (errors.Count > 0) {
                 string vmsg = "表单未通过校验，请补全以下字段：\n\n  • " + string.Join("\n  • ", errors);
-                MessageBox.Show(this, vmsg, "必填项缺失", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(this, vmsg, Loc.T("Str_MsgTitle_RequiredMissing"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 RegStatusText.Text = "表单未通过校验: " + string.Join(" / ", errors);
                 RegStatusText.Foreground = new SolidColorBrush(Colors.Red);
                 return;
@@ -21405,9 +21395,9 @@ namespace SwimmingScoreboard
             if (!m.Success || !int.TryParse(m.Value, out heat) || heat <= 0) return true;
             string hs = HeatStatus(ageGroup, gender, eventName, stage, heat);
             if (hs == "running" || hs == "confirmed") {
-                MessageBox.Show(string.Format("{0} 第{1}组当前{2}，不能再进行出场编排微调。",
-                    eventName, heat, hs == "running" ? "正在比赛中" : "成绩已确认"),
-                    "不能微调", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(Loc.F("Str_Msg_CannotFineTuneFmt",
+                    eventName, heat, hs == "running" ? Loc.T("Str_Frag_HeatRunning") : Loc.T("Str_Frag_HeatConfirmed")),
+                    Loc.T("Str_MsgTitle_CannotFineTune"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 return false;
             }
             return true;
@@ -21521,8 +21511,8 @@ namespace SwimmingScoreboard
                 var sw2 = target.Item1;
 
                 // 2026-09-12 正在比的那一组不许动 —— 源、目标两头都要看
-                if (BlockIfHeatLocked(ageGroup, gender, eventName, stage, heat1, "交换泳道")) return;
-                if (BlockIfHeatLocked(ageGroup, gender, eventName, stage, target.Item2, "作为交换目标")) return;
+                if (BlockIfHeatLocked(ageGroup, gender, eventName, stage, heat1, Loc.T("Str_Action_SwapLane"))) return;
+                if (BlockIfHeatLocked(ageGroup, gender, eventName, stage, target.Item2, Loc.T("Str_Action_SwapTarget"))) return;
 
                 if (sw2 == null) {
                     // 目标是空道：直接把 sw1 移到目标组/道
@@ -21576,7 +21566,7 @@ namespace SwimmingScoreboard
             if (m.Success) heat = int.Parse(m.Value);
             if (heat <= 0) return;
             // 2026-09-12 正在比的那一组不许往里加人
-            if (BlockIfHeatLocked(ageGroup, gender, eventName, stage, heat, "往这一组里加人")) return;
+            if (BlockIfHeatLocked(ageGroup, gender, eventName, stage, heat, Loc.T("Str_Action_AddToHeat"))) return;
 
             // 查找未分组的运动员（同组别同性别同项目同赛次，Heat=0或无StageAssignment）
             var unassigned = new List<Swimmer>();
@@ -21687,7 +21677,7 @@ namespace SwimmingScoreboard
                     return;
                 }
                 // 2026-09-12 正在比的那一组不许调道次 (别的组照常)
-                if (BlockIfHeatLocked(ageGroup, gender, eventName, stage, sw1.Item2, "调整泳道顺序")) return;
+                if (BlockIfHeatLocked(ageGroup, gender, eventName, stage, sw1.Item2, Loc.T("Str_Action_ReorderLane"))) return;
                 int lane1 = sw1.Item3, lane2 = sw2.Item3;
                 var sa1 = sw1.Item1.GetAssignmentForStage(stage);
                 var sa2 = sw2.Item1.GetAssignmentForStage(stage);
@@ -21720,8 +21710,8 @@ namespace SwimmingScoreboard
                 string agRm = EditAgeGroupCombo != null && EditAgeGroupCombo.SelectedItem != null ? EditAgeGroupCombo.SelectedItem.ToString() : "";
                 string gdRm = EditGenderCombo != null && EditGenderCombo.SelectedItem != null ? ((ComboBoxItem)EditGenderCombo.SelectedItem).Content.ToString() : "";
                 string evRm = EditEventCombo != null && EditEventCombo.SelectedItem != null ? EditEventCombo.SelectedItem.ToString() : "";
-                if (BlockIfHeatLocked(agRm, gdRm, evRm, stage, heatRm, "把人移出本组")) return;
-                if (MessageBox.Show(string.Format("确定将 {0} 移出本组？", sw.Name), Loc.T("Str_MsgTitle_Confirm"), MessageBoxButton.YesNo) == MessageBoxResult.Yes) {
+                if (BlockIfHeatLocked(agRm, gdRm, evRm, stage, heatRm, Loc.T("Str_Action_RemoveFromHeat"))) return;
+                if (MessageBox.Show(Loc.F("Str_Msg_RemoveFromHeatConfirmFmt", sw.Name), Loc.T("Str_MsgTitle_Confirm"), MessageBoxButton.YesNo) == MessageBoxResult.Yes) {
                     // 清除StageAssignments中的记录
                     if (sw.StageAssignments.ContainsKey(stage))
                         sw.StageAssignments.Remove(stage);
@@ -22537,7 +22527,7 @@ namespace SwimmingScoreboard
                 RefreshEventComboBoxes();
                 Broadcast();
                 AddLog(string.Format("✅ 秩序册向导：已写回赛程 {0} 项，共 {1} 个场（UI 已全量刷新）", wnd.AssignedItems.Count, sessionNum - 1));
-                MessageBox.Show(string.Format("已把 {0} 项编排写回主程序赛程，整个系统已立即更新。", wnd.AssignedItems.Count), Loc.T("Str_MsgTitle_Done"));
+                MessageBox.Show(Loc.F("Str_Msg_LineupWrittenBackFmt", wnd.AssignedItems.Count), Loc.T("Str_MsgTitle_Done"));
             }
         }
 
@@ -22907,7 +22897,7 @@ namespace SwimmingScoreboard
                 string stage = cbStage.SelectedItem as string ?? "预赛";
 
                 // 2026-09-12 整项重排, 里面有锁着的组(正在比/已完赛)就整项挡下
-                if (BlockIfEventLocked(combo.AgeGroup, combo.Gender, combo.EventName, stage, "重新分组")) return;
+                if (BlockIfEventLocked(combo.AgeGroup, combo.Gender, combo.EventName, stage, Loc.T("Str_Action_Regroup"))) return;
 
                 int maxHeat = 0, assigned = 0;
                 foreach (var r in rowSource) {
@@ -23185,9 +23175,9 @@ namespace SwimmingScoreboard
             Broadcast();
             AddLog(string.Format("追加分组完成: {0}人已分配", totalAdded));
             string skipNote = skippedEvents.Count == 0 ? ""
-                : ("\n\n以下项目这次跳过了(里面有动不得的组):\n  " + string.Join("\n  ", skippedEvents.ToArray()));
-            MessageBox.Show(string.Format("追加分组完成！\n共{0}人已分配到各组。\n\n已分好组的运动员不受影响。{1}", totalAdded, skipNote),
-                "追加分组完成", MessageBoxButton.OK, MessageBoxImage.Information);
+                : Loc.F("Str_Msg_AppendGroupingSkippedFmt", string.Join("\n  ", skippedEvents.ToArray()));
+            MessageBox.Show(Loc.F("Str_Msg_AppendGroupingDoneFmt", totalAdded, skipNote),
+                Loc.T("Str_MsgTitle_AppendGroupingDone"), MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
         /// <summary>
@@ -28104,9 +28094,9 @@ namespace SwimmingScoreboard
             ApplyRecordFilter();
             Broadcast();
 
-            string msg = changed > 0 ? string.Format("已保存 {0} 条改动。", changed) : "没有发现改动。";
-            if (blank > 0) msg += string.Format("\n\n有 {0} 行没填项目名，这些行没有同步出去。\n补齐项目名后再点一次保存。", blank);
-            MessageBox.Show(msg, "保存纪录", MessageBoxButton.OK, MessageBoxImage.Information);
+            string msg = changed > 0 ? Loc.F("Str_Msg_RecordsSavedChangedFmt", changed) : Loc.T("Str_Msg_RecordsNoChange");
+            if (blank > 0) msg += Loc.F("Str_Msg_RecordsBlankRowsFmt", blank);
+            MessageBox.Show(msg, Loc.T("Str_MsgTitle_SaveRecord"), MessageBoxButton.OK, MessageBoxImage.Information);
             AddLog(string.Format("保存纪录: {0} 条改动{1}", changed, blank > 0 ? ("，" + blank + " 行缺项目名未同步") : ""));
         }
 
@@ -28698,11 +28688,11 @@ namespace SwimmingScoreboard
                 foreach (var r in working) {
                     string v = (r.Value ?? "").Trim();
                     if (string.IsNullOrEmpty(v)) continue;
-                    if (seen.Contains(v)) { MessageBox.Show(string.Format("[{0}] 重复。", v)); return; }
+                    if (seen.Contains(v)) { MessageBox.Show(Loc.F("Str_Msg_DuplicateValueFmt", v)); return; }
                     seen.Add(v);
                     finalList.Add(v);
                 }
-                if (finalList.Count == 0) { MessageBox.Show(string.Format("至少保留一项{0}", nameHeader)); return; }
+                if (finalList.Count == 0) { MessageBox.Show(Loc.F("Str_Msg_KeepAtLeastOneFmt", nameHeader)); return; }
                 onSave(finalList);
                 dlg.DialogResult = true;
             };
@@ -28731,7 +28721,7 @@ namespace SwimmingScoreboard
                 sb.AppendLine(headerName);
                 foreach (var v in source) sb.AppendLine(CsvEscape(v));
                 File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
-                MessageBox.Show(headerName + "表已导出。", Loc.T("Str_MsgTitle_Done"));
+                MessageBox.Show(Loc.F("Str_Msg_TableExportedFmt", headerName), Loc.T("Str_MsgTitle_Done"));
             } catch (Exception ex) { MessageBox.Show(Loc.F("Str_Msg_ExportFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error")); }
         }
         private void ImportStringListCsv(string title, string headerName, Action<List<string>> onLoaded) {
@@ -29729,7 +29719,7 @@ namespace SwimmingScoreboard
                 BuildScheduleTree();
                 RefreshSwimmerFilter();
                 Broadcast();
-                MessageBox.Show(string.Format("导入完成:\n  更新已有运动员 {0} 人\n  新增运动员 {1} 人", updated, added), Loc.T("Str_MsgTitle_Done"));
+                MessageBox.Show(Loc.F("Str_Msg_ImportSwimmerDoneFmt", updated, added), Loc.T("Str_MsgTitle_Done"));
                 AddLog(string.Format("导入(其他)分组表: 更新{0} 新增{1}", updated, added));
             } catch (Exception ex) {
                 MessageBox.Show(Loc.F("Str_Msg_ImportFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error"));
@@ -33421,8 +33411,8 @@ namespace SwimmingScoreboard
 
         private void ShowLocalIP_Click(object sender, RoutedEventArgs e) {
             string ip = GetLocalIP();
-            string info = string.Format("本机IP地址: {0}\n\nWebSocket服务: ws://{0}:3002\nWeb页面: http://{0}:3002\n\n请将此地址告知各客户端连接。", ip);
-            MessageBox.Show(info, "本机IP地址", MessageBoxButton.OK, MessageBoxImage.Information);
+            string info = Loc.F("Str_Msg_LocalIPInfoFmt", ip);
+            MessageBox.Show(info, Loc.T("Str_MsgTitle_LocalIP"), MessageBoxButton.OK, MessageBoxImage.Information);
             AddLog("查询IP: " + ip);
         }
 
