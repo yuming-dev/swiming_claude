@@ -22251,7 +22251,7 @@ namespace SwimmingScoreboard
 
             // 上移/下移：在 editList 中交换选中项与相邻项的位置
             Action<int> moveSelected = delegate(int delta) {
-                if (_editSelected == null) { MessageBox.Show("请先选中要移动的行"); return; }
+                if (_editSelected == null) { MessageBox.Show(Loc.T("Str_Msg_SelectRowToMove")); return; }
                 int idx = editList.IndexOf(_editSelected);
                 int newIdx = idx + delta;
                 if (idx < 0 || newIdx < 0 || newIdx >= editList.Count) return;
@@ -22348,9 +22348,9 @@ namespace SwimmingScoreboard
         }
 
         private void DeleteSchedule_Click(object sender, RoutedEventArgs e) {
-            if (_selectedScheduleItem == null) { MessageBox.Show("请先在日程表中选中要删除的行"); return; }
+            if (_selectedScheduleItem == null) { MessageBox.Show(Loc.T("Str_Msg_SelectRowInScheduleToDelete")); return; }
             string desc = string.Format("{0} {1} {2}", _selectedScheduleItem.Gender, _selectedScheduleItem.EventName, _selectedScheduleItem.Stage);
-            if (MessageBox.Show(string.Format("确定要删除赛程项 [{0}]？", desc), Loc.T("Str_MsgTitle_ConfirmDelete"), MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+            if (MessageBox.Show(Loc.F("Str_Msg_ConfirmDeleteScheduleItemFmt", desc), Loc.T("Str_MsgTitle_ConfirmDelete"), MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
             _schedule.Remove(_selectedScheduleItem);
             _selectedScheduleItem = null;
             BuildScheduleTree();
@@ -22552,20 +22552,20 @@ namespace SwimmingScoreboard
         // ═══════════════════════════════════════════════════════════════
         private void AutoGenerateHeats_Click(object sender, RoutedEventArgs e) {
             if (_swimmers.Count == 0) {
-                MessageBox.Show("没有已注册的运动员/接力队，请先注册再生成分组。", Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show(Loc.T("Str_Msg_NoRegisteredSwimmersForHeats"), Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
             if (_schedule.Count == 0) {
-                MessageBox.Show("请先点击\"一键生成日程\"生成赛程安排，再进行分组。", Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show(Loc.T("Str_Msg_GenerateScheduleFirst"), Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
             // 检测是否已有分组
             bool hasExistingAssignment = _swimmers.Any(s =>
                 !string.IsNullOrEmpty(s.EventName) && s.Heat > 0 &&
                 !(s.Notes != null && s.Notes.StartsWith("接力队员")));
-            string confirmMsg = "确定按报名成绩对预赛进行蛇形自动分组？";
+            string confirmMsg = Loc.T("Str_Msg_ConfirmAutoGenHeats");
             if (hasExistingAssignment)
-                confirmMsg = "警告：已有运动员分好组！\n\n重新自动分组将清除所有已有分组，重新分配。\n如需仅对新增运动员分组，请使用\"追加分组\"。\n\n确定要重新全部分组吗？";
+                confirmMsg = Loc.T("Str_Msg_WarnReassignHeats");
             if (MessageBox.Show(confirmMsg, Loc.T("Str_MsgTitle_Confirm"), MessageBoxButton.YesNo, hasExistingAssignment ? MessageBoxImage.Warning : MessageBoxImage.Question) != MessageBoxResult.Yes) return;
 
             // 统一对所有项目（个人+接力）的第一赛次进行蛇形分组，按组别隔离
@@ -22616,12 +22616,12 @@ namespace SwimmingScoreboard
                 : ("\n\n以下项目这次跳过了(里面有动不得的组):\n  " + string.Join("\n  ", skippedAuto.ToArray()));
             if (generated > 0) {
                 AddLog(string.Format("自动分组完成: {0}项已分配", generated));
-                MessageBox.Show(string.Format("分组完成！\n共{0}项已按报名成绩蛇形分组。\n\n后续赛次需在成绩与排名中通过\"晋级处理\"根据比赛成绩进行分组。{1}", generated, skipAutoNote),
-                    "分组完成", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show(Loc.F("Str_Msg_AutoHeatsDoneFmt", generated, skipAutoNote),
+                    Loc.T("Str_MsgTitle_HeatsDone"), MessageBoxButton.OK, MessageBoxImage.Information);
             } else if (skippedAuto.Count > 0) {
-                MessageBox.Show("没有分配任何项目。" + skipAutoNote, "分组未执行", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show(Loc.T("Str_Msg_NoEventsAssigned") + skipAutoNote, Loc.T("Str_MsgTitle_HeatsNotDone"), MessageBoxButton.OK, MessageBoxImage.Information);
             } else {
-                MessageBox.Show("未分配任何运动员/接力队。\n\n请检查：\n1. 项目名称是否与赛程一致\n2. 性别是否与赛程一致\n3. 是否已生成日程", Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show(Loc.T("Str_Msg_NoSwimmersAssignedCheck"), Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Information);
             }
             AutoSaveData();
             Broadcast();
@@ -22633,7 +22633,7 @@ namespace SwimmingScoreboard
         // 解决自动分组"第一组满道，后面组缺很多"的不均衡问题
         // ═══════════════════════════════════════════════════════════════
         private void ManualHeatAssign_Click(object sender, RoutedEventArgs e) {
-            if (_swimmers.Count == 0) { MessageBox.Show("暂无已注册运动员。"); return; }
+            if (_swimmers.Count == 0) { MessageBox.Show(Loc.T("Str_Msg_NoRegisteredSwimmers")); return; }
 
             // 收集有效 (组别, gender, event) 组合 — 以组别为第一维，男甲/男乙单独成条
             var combos = _swimmers
@@ -22643,7 +22643,7 @@ namespace SwimmingScoreboard
                 .OrderBy(g => g.Key.AgeGroup).ThenBy(g => g.Key.Gender).ThenBy(g => g.Key.EventName)
                 .Select(g => g.Key)
                 .ToList();
-            if (combos.Count == 0) { MessageBox.Show("没有可分组的运动员。"); return; }
+            if (combos.Count == 0) { MessageBox.Show(Loc.T("Str_Msg_NoSwimmersToGroup")); return; }
 
             var dlg = new Window {
                 Title = "手动分组", Width = 900, Height = 620,
