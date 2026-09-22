@@ -920,7 +920,7 @@ namespace SwimmingScoreboard
                 Dispatcher.BeginInvoke((Action)delegate() { OnEditorSyncDisconnected(); });
             };
             _editorSyncClient.OnLog += delegate(string s) {
-                Dispatcher.BeginInvoke((Action)delegate() { AddLog("[同步] " + s); });
+                Dispatcher.BeginInvoke((Action)delegate() { AddLog(Loc.F("Str_Log_SyncPrefixFmt", s)); });
             };
 
             // 读 editor_sync.json：上次连接地址 + 是否自动重连
@@ -1588,7 +1588,7 @@ namespace SwimmingScoreboard
             }
             if (IsPort3002Occupied()) {
                 string msg = Loc.T("Str_Msg_Port3002Occupied");
-                AddLog("[严重] " + msg.Replace("\r\n", " "));
+                AddLog(Loc.F("Str_Log_SeverePrefixFmt", msg.Replace("\r\n", " ")));
                 if (IsRemoteTimingControlMode) {
                     try {
                         Dispatcher.BeginInvoke((Action)delegate() {
@@ -2312,7 +2312,7 @@ namespace SwimmingScoreboard
                     _swimmers.Remove(s);
                     removedKeys.Add(new SwimmerDeleteKey { BibNumber = s.BibNumber, Name = s.Name, EventName = s.EventName });
                 }
-                AddLog(string.Format("重新提交: 已清除 {0}({1}) 的 {2} 条旧记录", name, bibNumber, toRemove.Count));
+                AddLog(Loc.F("Str_Log_ResubmitClearedFmt", name, bibNumber, toRemove.Count));
             }
 
             // 生成参赛号（按代表队号码段）
@@ -2494,7 +2494,7 @@ namespace SwimmingScoreboard
                         _swimmers.Remove(s);
                         removedKeys.Add(new SwimmerDeleteKey { BibNumber = s.BibNumber, Name = s.Name, EventName = s.EventName });
                     }
-                    AddLog(string.Format("重新提交: 已清除 {0}({1}) 的 {2} 条旧记录", name, bibNumber, toRemove.Count));
+                    AddLog(Loc.F("Str_Log_ResubmitClearedFmt", name, bibNumber, toRemove.Count));
                 }
                 if (string.IsNullOrEmpty(bibNumber)) bibNumber = GenerateNextBibNumber(country);
 
@@ -3388,14 +3388,14 @@ namespace SwimmingScoreboard
                                 string startMr = _laneCloseSettings.StartPosition;
                                 string expectedSideMr = (afterLapMr % 2 == 0) ? startMr : (startMr == "left" ? "right" : "left");
                                 if (expectedSideMr != "right") {
-                                    AddLog(string.Format("泳道{0} 右手动触板忽略 (= 当前棒应在{1}侧完成, 接力 side 守卫)", laneNum, expectedSideMr == "left" ? "左" : "右"));
+                                    AddLog(Loc.F("Str_Log_RightManualIgnoredSideGuardFmt", laneNum, expectedSideMr == "left" ? Loc.T("Str_Frag_Left") : Loc.T("Str_Frag_Right")));
                                     break;
                                 }
                             }
                             lState.RightManualTouchTime = _runningTime;
                             SaveManualTouchToSplit(laneNum, _runningTime, "right");
                             LogRawTimingData(laneNum, "ManualTouchRight", _runningTime, "right");
-                            AddLog(string.Format("泳道{0} 右端手动触板: {1}", laneNum, TimeFormatter.Format(_runningTime)));
+                            AddLog(Loc.F("Str_Log_RightManualTouchFmt", laneNum, TimeFormatter.Format(_runningTime)));
                             // 2026-06-03 喂入 RelayReactionCalculator (= 同上, 棒次完成侧由 afterLap 奇偶决定)
                             if (_relayReactionCalc != null && _isRelay && _laneCloseSettings != null) {
                                 int tt = GetTotalLaps();
@@ -3409,7 +3409,7 @@ namespace SwimmingScoreboard
                                 }
                             }
                         } else if (lState != null) {
-                            AddLog(string.Format("泳道{0} 右端手动触板(未启用)", laneNum));
+                            AddLog(Loc.F("Str_Log_RightManualTouchDisabledFmt", laneNum));
                         }
                     }
                     break;
@@ -3487,61 +3487,61 @@ namespace SwimmingScoreboard
                 // 2026-06-04 PPT 播放: 远端触发主控 PC 上弹 文件选择框 + 启动 PowerPoint /s 放映
                 //   注意: 文件对话框只能在 UI 线程弹, 这里 Dispatcher.Invoke 切回 UI 线程
                 case "PLAY_PPT":
-                    Dispatcher.Invoke(new Action(() => { try { PlayPpt_Click(null, null); } catch (Exception ex) { AddLog("远端 PPT 播放失败: " + ex.Message); } }));
+                    Dispatcher.Invoke(new Action(() => { try { PlayPpt_Click(null, null); } catch (Exception ex) { AddLog(Loc.F("Str_Log_RemotePptPlayFailedFmt", ex.Message)); } }));
                     break;
                 // 2026-06-18 race_control.html "大屏样式" — 在 PC 端弹大屏样式控制窗口
                 case "OPEN_DISPLAY_STYLE":
-                    Dispatcher.Invoke(new Action(() => { try { OpenDisplayStyle_Click(null, null); } catch (Exception ex) { AddLog("远端 大屏样式 弹框失败: " + ex.Message); } }));
+                    Dispatcher.Invoke(new Action(() => { try { OpenDisplayStyle_Click(null, null); } catch (Exception ex) { AddLog(Loc.F("Str_Log_RemoteDisplayStyleFailedFmt", ex.Message)); } }));
                     break;
                 // 2026-06-18 race_control.html 参数设置 hub 三项 — 远程触发 PC 端本机对话框
                 case "OPEN_AUTOSAVE_PATH_DIALOG":
-                    Dispatcher.Invoke(new Action(() => { try { AutoSaveTxtPathConfig_Click(null, null); } catch (Exception ex) { AddLog("远端 成绩存盘路径 弹框失败: " + ex.Message); } }));
+                    Dispatcher.Invoke(new Action(() => { try { AutoSaveTxtPathConfig_Click(null, null); } catch (Exception ex) { AddLog(Loc.F("Str_Log_RemoteResultPathFailedFmt", ex.Message)); } }));
                     break;
                 case "OPEN_THERMAL_PRINTER_DIALOG":
-                    Dispatcher.Invoke(new Action(() => { try { ThermalPrinterConfig_Click(null, null); } catch (Exception ex) { AddLog("远端 热敏打印 弹框失败: " + ex.Message); } }));
+                    Dispatcher.Invoke(new Action(() => { try { ThermalPrinterConfig_Click(null, null); } catch (Exception ex) { AddLog(Loc.F("Str_Log_RemoteThermalPrinterFailedFmt", ex.Message)); } }));
                     break;
                 case "OPEN_CHANGE_PASSWORD_DIALOG":
-                    Dispatcher.Invoke(new Action(() => { try { EditorChangePassword_Click(null, null); } catch (Exception ex) { AddLog("远端 用户名/密码 弹框失败: " + ex.Message); } }));
+                    Dispatcher.Invoke(new Action(() => { try { EditorChangePassword_Click(null, null); } catch (Exception ex) { AddLog(Loc.F("Str_Log_RemoteChangePwdFailedFmt", ex.Message)); } }));
                     break;
                 // 2026-06-20 远程释放内存 (race_control.html 顶栏 ♻ 按钮)
                 case "RELEASE_MEMORY":
-                    Dispatcher.Invoke(new Action(() => { try { ReleaseMemory_Click(null, null); } catch (Exception ex) { AddLog("远端 释放内存 失败: " + ex.Message); } }));
+                    Dispatcher.Invoke(new Action(() => { try { ReleaseMemory_Click(null, null); } catch (Exception ex) { AddLog(Loc.F("Str_Log_RemoteFreeMemFailedFmt", ex.Message)); } }));
                     break;
                 // 2026-06-17 RDC/control.html 完全远程化: list/play 模式 (主控 PC 不弹框)
                 // 文件目录: Media/ (图片视频) 和 Documents/PPT/ (PPT 文件), 相对 exe 路径或绝对路径
                 case "TOGGLE_RECORDS_HIDDEN":
-                    Dispatcher.Invoke(new Action(() => { try { ToggleRecordsHidden_Click(null, null); } catch (Exception ex) { AddLog("远端 切换记录显示 失败: " + ex.Message); } }));
+                    Dispatcher.Invoke(new Action(() => { try { ToggleRecordsHidden_Click(null, null); } catch (Exception ex) { AddLog(Loc.F("Str_Log_RemoteToggleRecordsFailedFmt", ex.Message)); } }));
                     break;
                 case "TOGGLE_REMARK_REACTION":
-                    Dispatcher.Invoke(new Action(() => { try { ToggleRemarkReaction_Click(null, null); } catch (Exception ex) { AddLog("远端 切换备注反应时 失败: " + ex.Message); } }));
+                    Dispatcher.Invoke(new Action(() => { try { ToggleRemarkReaction_Click(null, null); } catch (Exception ex) { AddLog(Loc.F("Str_Log_RemoteToggleRemarkFailedFmt", ex.Message)); } }));
                     break;
                 case "LIST_MEDIA_FILES":
                     SendMediaFileListToClient(socket);
                     break;
                 case "PLAY_MEDIA_FILE":
-                    Dispatcher.Invoke(new Action(() => { try { RemotePlayMediaFile(msg); } catch (Exception ex) { AddLog("远端 播放媒体 失败: " + ex.Message); } }));
+                    Dispatcher.Invoke(new Action(() => { try { RemotePlayMediaFile(msg); } catch (Exception ex) { AddLog(Loc.F("Str_Log_RemotePlayMediaFailedFmt", ex.Message)); } }));
                     break;
                 case "STOP_MEDIA":
-                    Dispatcher.Invoke(new Action(() => { try { BroadcastDisplayMode("SHOW_LIVE_RACE"); AddLog("远端 停止媒体显示"); } catch { } }));
+                    Dispatcher.Invoke(new Action(() => { try { BroadcastDisplayMode("SHOW_LIVE_RACE"); AddLog(Loc.T("Str_Log_RemoteStopMedia")); } catch { } }));
                     break;
                 case "LIST_PPT_FILES":
                     SendPptFileListToClient(socket);
                     break;
                 case "PLAY_PPT_FILE":
-                    Dispatcher.Invoke(new Action(() => { try { RemotePlayPptFile(msg); } catch (Exception ex) { AddLog("远端 PPT 播放 失败: " + ex.Message); } }));
+                    Dispatcher.Invoke(new Action(() => { try { RemotePlayPptFile(msg); } catch (Exception ex) { AddLog(Loc.F("Str_Log_RemotePptUploadFailedFmt", ex.Message)); } }));
                     break;
                 case "LIST_SCHEDULE_SESSIONS":
                     SendScheduleSessionListToClient(socket);
                     break;
                 case "SHOW_SCHEDULE_SESSION":
-                    Dispatcher.Invoke(new Action(() => { try { RemoteShowScheduleSession(msg); } catch (Exception ex) { AddLog("远端 显示日程 失败: " + ex.Message); } }));
+                    Dispatcher.Invoke(new Action(() => { try { RemoteShowScheduleSession(msg); } catch (Exception ex) { AddLog(Loc.F("Str_Log_RemoteShowScheduleFailedFmt", ex.Message)); } }));
                     break;
                 // 2026-06-17 双模式: 本机上传 — 客户端把文件 base64 后上传, 主控转发或保存临播
                 case "UPLOAD_AND_PLAY_MEDIA":
-                    Dispatcher.Invoke(new Action(() => { try { RemoteUploadAndPlayMedia(msg); } catch (Exception ex) { AddLog("远端 上传媒体 失败: " + ex.Message); } }));
+                    Dispatcher.Invoke(new Action(() => { try { RemoteUploadAndPlayMedia(msg); } catch (Exception ex) { AddLog(Loc.F("Str_Log_RemoteUploadMediaFailedFmt", ex.Message)); } }));
                     break;
                 case "UPLOAD_AND_PLAY_PPT":
-                    Dispatcher.Invoke(new Action(() => { try { RemoteUploadAndPlayPpt(msg); } catch (Exception ex) { AddLog("远端 上传 PPT 失败: " + ex.Message); } }));
+                    Dispatcher.Invoke(new Action(() => { try { RemoteUploadAndPlayPpt(msg); } catch (Exception ex) { AddLog(Loc.F("Str_Log_RemoteUploadPptFailedFmt", ex.Message)); } }));
                     break;
                 case "SHOW_WELCOME": BroadcastDisplayMode("SHOW_WELCOME"); break;
                 case "SHOW_PAUSE": BroadcastDisplayMode("SHOW_PAUSE"); break;
@@ -3562,7 +3562,7 @@ namespace SwimmingScoreboard
                 // 起跳犯规判罚改为人工：硬件检测到的"抢跳"只作为可疑标记（反应时标红），是否判罚由裁判手动 DSQ
                 state.IsSuspectFalseStart = true;
                 state.ReactionTime = reactionTime;
-                AddLog(string.Format("⚠ 起跳可疑（待裁判确认）泳道{0} 反应时: {1:F3}s", lane, reactionTime));
+                AddLog(Loc.F("Str_Log_SuspiciousStartFmt", lane, reactionTime));
             }
             Broadcast();
         }
@@ -3648,7 +3648,7 @@ namespace SwimmingScoreboard
                 // 2026-09-14 两头都接着硬件是误配置(同一台计时器不该被两条线路同时读),
                 //   默认仍让远程接管(避免忽左忽右), 但得在日志里喊一声让人去查现场接线。
                 if (localHw && remoteHw)
-                    AddLog("【注意】本机和远程计时EXE都报告接着硬件计时器 —— 请检查现场接线, 当前默认由远程一端控制");
+                    AddLog(Loc.T("Str_Log_BothReportHwConnected"));
             } else if (_timingWebSockets.Count > 0) {
                 _scoringControlMode = "remote_web";
                 ControlModeText.Text = "远程Web";
@@ -3696,10 +3696,10 @@ namespace SwimmingScoreboard
                         }
                     }
                 }
-                AddLog("【比赛控制】已由" + who + "接管 —— 本机这一页已锁(灰), 计时请在那台机器上操作");
+                AddLog(Loc.F("Str_Log_RaceControlTakenOverFmt", who));
             } else {
                 RaceControlTab.ToolTip = null;
-                AddLog("【比赛控制】远程控制端已全部断开 —— 本机这一页恢复可用");
+                AddLog(Loc.T("Str_Log_RaceControlAllDisconnected"));
             }
         }
 
@@ -5193,7 +5193,7 @@ namespace SwimmingScoreboard
                         // 2026-05-30 v2: 重连后清"不再提醒" 抑制标志, 让用户重新收到通知
                         if (_suppressHwDisconnectWarning) {
                             _suppressHwDisconnectWarning = false;
-                            AddLog("✓ 硬件重新连接, \"不再提醒\" 抑制已清除");
+                            AddLog(Loc.T("Str_Log_HwReconnectedSuppressCleared"));
                         }
                         //2026-05-12 一上线就发送当前PC的日期+时间，让硬件RTC自动校时
                         try { _timingBridge.SendDateTimeSync(); } catch { }
@@ -5227,14 +5227,14 @@ namespace SwimmingScoreboard
                     _pendingBackupEvents.Add(evt);
                     // 2026-06-14 发令事件诊断: 收到 EvtType=10 时立即 log, 让用户看到固件 v6 push 的发令时刻确实到了 PC
                     if (evt.IsGunEvent) {
-                        AddLog(string.Format("收到发令时刻备份: Gun_PreStart = {0}:{1:00}.{2:00} (s/cs), EvtType={3}, Lane={4}, Side={5}",
+                        AddLog(Loc.F("Str_Log_GunPreStartBackupFmt",
                             evt.Minute, evt.Second, evt.Msecond, evt.EvtType, evt.Lane, evt.Side));
                     }
                 });
             };
             _timingBridge.OnBackupQueryComplete += delegate() {
                 Dispatcher.BeginInvoke((Action)delegate() {
-                    AddLog(string.Format("事件备份查询完成: {0} 条事件", _pendingBackupEvents.Count));
+                    AddLog(Loc.F("Str_Log_EventBackupQueryDoneFmt", _pendingBackupEvents.Count));
                     ShowBackupEventDialog();
                 });
             };
@@ -5269,7 +5269,7 @@ namespace SwimmingScoreboard
             }
             _pendingBackupEvents.Clear();
             _timingBridge.SendCommand(0x66);   // Query_BackupLog_Command (0x56) + 0x10
-            AddLog("已发查事件备份请求 (0x66), 等硬件回应...");
+            AddLog(Loc.T("Str_Log_EventBackupQuerySent"));
         }
 
         public void ClearBackupLog() {
@@ -5281,7 +5281,7 @@ namespace SwimmingScoreboard
                 MessageBoxButton.YesNo, MessageBoxImage.Question);
             if (r != MessageBoxResult.Yes) return;
             _timingBridge.SendCommand(0x68);   // Clear_BackupLog_Command (0x58) + 0x10
-            AddLog("已发清空事件备份 (0x68)");
+            AddLog(Loc.T("Str_Log_EventBackupCleared"));
         }
 
         private void ShowBackupEventDialog() {
@@ -5550,7 +5550,7 @@ namespace SwimmingScoreboard
                     v = data.Param6;             if (Math.Abs(_laneCloseSettings.BlindReplaceDelay - v) > 0.001)       { _laneCloseSettings.BlindReplaceDelay = v; changed = true; }
                     v = data.Param7;             if (Math.Abs(_laneCloseSettings.SplitDisplayTime - v) > 0.001)        { _laneCloseSettings.SplitDisplayTime = v; changed = true; }
                     if (changed) {
-                        AddLog(string.Format("硬件计时器: 参数 封闭{0}s 触板延迟{1}s 出发台延迟{2}s 盲表代替{3}s 成绩显示{4}s (0x64)",
+                        AddLog(Loc.F("Str_Log_HwParamsFmt",
                             _laneCloseSettings.LaneCloseTime, _laneCloseSettings.ResultConfirmCloseDelay,
                             _laneCloseSettings.StartBlockCloseDelay, _laneCloseSettings.BlindReplaceDelay,
                             _laneCloseSettings.SplitDisplayTime));
@@ -5567,7 +5567,7 @@ namespace SwimmingScoreboard
                 string newOrder = (data.Param1 != 0) ? "reverse" : "forward";
                 if (_laneCloseSettings != null && _laneCloseSettings.LaneOrder != newOrder) {
                     _laneCloseSettings.LaneOrder = newOrder;
-                    AddLog(string.Format("硬件计时器: 道次顺序 → {0} (0x62)", newOrder == "reverse" ? "反向 9-0" : "正向 0-9"));
+                    AddLog(Loc.F("Str_Log_HwLaneOrderFmt", newOrder == "reverse" ? Loc.T("Str_Frag_Reverse90") : Loc.T("Str_Frag_Forward09")));
                     UpdateLaneStatusDisplay();
                     Broadcast();
                 }
@@ -5588,7 +5588,7 @@ namespace SwimmingScoreboard
                     // 2026-05-26 计算后的 NotInstalled 落盘 + 参数本身落盘
                     try { SaveDeviceStates(); } catch { }
                     try { SaveTimingSettings(); } catch { }
-                    AddLog(string.Format("硬件计时器: 终点位置 → {0} (0x63)", newFinish == "left" ? "左端" : "右端"));
+                    AddLog(Loc.F("Str_Log_HwFinishPosFmt", newFinish == "left" ? Loc.T("Str_Frag_LeftEnd") : Loc.T("Str_Frag_RightEnd")));
                     UpdateLaneStatusDisplay();
                     Broadcast();
                 }
@@ -5608,7 +5608,7 @@ namespace SwimmingScoreboard
                     try { SaveDeviceStates(); } catch { }
                     try { SaveTimingSettings(); } catch { }
                     UpdateLaneStatusDisplay();
-                    AddLog(string.Format("硬件计时器: 泳池触板安装方式 → {0} (0x3A)", newHasRight ? "两端" : "单端"));
+                    AddLog(Loc.F("Str_Log_HwTouchpadModeFmt", newHasRight ? Loc.T("Str_Log_BothEnds") : Loc.T("Str_Log_Single")));
                     Broadcast();
                 }
                 return;
@@ -5644,7 +5644,7 @@ namespace SwimmingScoreboard
                         DateTime supUntil;
                         int supKey = hwLane * 2 + (hwIsLeft ? 0 : 1);
                         if (_mbSubTpSuppressUntil.TryGetValue(supKey, out supUntil) && supUntil > DateTime.Now) {
-                            AddLog(string.Format("泳道{0}{1} TP色变更 → 已按开关压制 (MB 代触关联)", hwLane, hwIsLeft ? "左" : "右"));
+                            AddLog(Loc.F("Str_Log_TpColorSuppressedFmt", hwLane, hwIsLeft ? Loc.T("Str_Frag_Left") : Loc.T("Str_Frag_Right")));
                             break;
                         }
                         if (hwIsLeft) hwLs.HwLeftTouchpadColor = hwNewState;
@@ -5685,7 +5685,7 @@ namespace SwimmingScoreboard
                         s.LaneCloseCountdown = 0;
                     }
                     UpdateLaneStatusDisplay();
-                    AddLog(laneOpen ? "硬件计时器: 全部泳道已打开 (0x47)" : "硬件计时器: 全部泳道已关闭 (0x47)");
+                    AddLog(laneOpen ? Loc.T("Str_Log_HwAllLanesOpen") : Loc.T("Str_Log_HwAllLanesClosed"));
                     Broadcast();
                 } else if (d3 < 10 && d3 < _laneDeviceStates.Count) {
                     var s = _laneDeviceStates[d3];
@@ -5699,7 +5699,7 @@ namespace SwimmingScoreboard
                     s.RightBlindWatch3Status = ds;
                     s.LaneCloseCountdown = 0;
                     UpdateLaneStatusDisplay();
-                    AddLog(string.Format("硬件计时器: 第{0}道{1} (0x47)", d3, laneOpen ? "打开" : "关闭"));
+                    AddLog(Loc.F("Str_Log_HwLaneToggleFmt", d3, laneOpen ? Loc.T("Str_Frag_Open") : Loc.T("Str_Frag_Close")));
                     Broadcast();
                 }
                 return;
@@ -5724,7 +5724,7 @@ namespace SwimmingScoreboard
             //   已被其他路径记录, 丢弃这一包不丢盲表数据, 只是拒绝把它转成 Touchpad. 硬件 mbDelay 不变 (按用户要求).
             //   同时标记 1s 抑制窗口: 紧跟的 TPStateChange (0x51) 颜色变更帧也丢, 否则 PC UI 圆点会跟着变红.
             if (isMbSubstitute && _laneCloseSettings != null && !_laneCloseSettings.AutoBlindReplaceTouchpad) {
-                AddLog(string.Format("泳道{0} 硬件盲表代触 → 已按开关丢弃 (Touchpad/TP色 不接受)", data.Lane));
+                AddLog(Loc.F("Str_Log_BwSubTouchDroppedFmt", data.Lane));
                 bool dropIsLeft = (side == "left");
                 _mbSubTpSuppressUntil[data.Lane * 2 + (dropIsLeft ? 0 : 1)] = DateTime.Now.AddSeconds(1);
                 return;
@@ -5734,7 +5734,7 @@ namespace SwimmingScoreboard
             if (data.CommandType == TimingCommandType.Touchpad || data.CommandType == TimingCommandType.ManualTouchpad) {
                 DateTime skipUntil;
                 if (_skipNextHwTpUntil.TryGetValue(data.Lane, out skipUntil) && skipUntil > DateTime.Now) {
-                    AddLog(string.Format("泳道{0} 硬件 TP 在跳圈抑制窗口内 → 丢弃 (避免二次推进)", data.Lane));
+                    AddLog(Loc.F("Str_Log_TpInLapSuppressFmt", data.Lane));
                     _skipNextHwTpUntil.Remove(data.Lane);
                     return;
                 }
@@ -5750,7 +5750,7 @@ namespace SwimmingScoreboard
         // 拆为具体的 *_REPORT TIMING_CMD 子命令转给主服务器, 这里把它们还原为 TimingData 后走 ProcessTimingDataFromHardware
         // 复用同一套状态更新逻辑(更新 _laneCloseSettings/_poolConfig/_laneDeviceStates + AddLog + Broadcast), 避免代码重复
         private void HandleHardwareReportForwarded(string cmd, JObject data) {
-            if (data == null) { AddLog(cmd + ": data 为空"); return; }
+            if (data == null) { AddLog(Loc.F("Str_Log_DataNullFmt", cmd)); return; }
             try {
                 var td = new TimingData {
                     Lane = 0,
@@ -5805,13 +5805,13 @@ namespace SwimmingScoreboard
                         break;
                     }
                     default:
-                        AddLog("HandleHardwareReportForwarded: 未知命令 " + cmd);
+                        AddLog(Loc.F("Str_Log_UnknownCmdFmt", cmd));
                         return;
                 }
                 // 复用与"硬件直连模式"完全一致的处理路径
                 ProcessTimingDataFromHardware(td);
             } catch (Exception ex) {
-                AddLog(string.Format("{0} 处理失败: {1}", cmd, ex.Message));
+                AddLog(Loc.F("Str_Log_CmdHandleFailedFmt", cmd, ex.Message));
             }
         }
 
@@ -5890,7 +5890,7 @@ namespace SwimmingScoreboard
                     _laneCloseSettings.LaneOrder == "reverse" ? "逆序9→0" : "正序0→9",
                     lc, rc));
             } catch (Exception ex) {
-                AddLog("参数下发硬件失败: " + ex.Message);
+                AddLog(Loc.F("Str_Log_ParamsSendHwFailedFmt", ex.Message));
             }
         }
 
@@ -5903,9 +5903,9 @@ namespace SwimmingScoreboard
                 if (lc < 0) lc = 0; if (lc > 3) lc = 3;
                 if (rc < 0) rc = 0; if (rc > 3) rc = 3;
                 _timingBridge.SendFullFrame(0x45, (byte)lc, (byte)rc);
-                AddLog(string.Format("盲表数量已同步到硬件：左 {0}，右 {1}（0x45）", lc, rc));
+                AddLog(Loc.F("Str_Log_BwCountSyncedFmt", lc, rc));
             } catch (Exception ex) {
-                AddLog("盲表数量下发硬件失败: " + ex.Message);
+                AddLog(Loc.F("Str_Log_BwCountSendFailedFmt", ex.Message));
             }
         }
 
@@ -5962,9 +5962,9 @@ namespace SwimmingScoreboard
                 byte pos = _laneCloseSettings.StartPosition == "right" ? (byte)1 : (byte)0;
                 _timingBridge.SendCommand(0x10, 0x42, pos);
                 _timingBridge.DelayBetweenFrames(20);
-                AddLog(string.Format("发令点已下发: {0}", pos == 1 ? "右端" : "左端"));
+                AddLog(Loc.F("Str_Log_StartPosSentFmt", pos == 1 ? Loc.T("Str_Frag_RightEnd") : Loc.T("Str_Frag_LeftEnd")));
             } catch (Exception ex) {
-                AddLog("发令点下发失败: " + ex.Message);
+                AddLog(Loc.F("Str_Log_StartPosSendFailedFmt", ex.Message));
             }
         }
 
@@ -6040,7 +6040,7 @@ namespace SwimmingScoreboard
                 _timingBridge.SendSetStrokeType(strokeTypeByte);
                 _timingBridge.DelayBetweenFrames(20);
             } catch (Exception ex) {
-                AddLog("Set_MatchEvent 下发失败: " + ex.Message);
+                AddLog(Loc.F("Str_Log_SetMatchEventFailedFmt", ex.Message));
             }
         }
 
@@ -6081,10 +6081,10 @@ namespace SwimmingScoreboard
                     (byte)Math.Min(255, leftTotal),
                     (byte)Math.Min(255, rightTotal),
                     distHi, distLo);
-                AddLog(string.Format("比赛距离已同步到硬件: {0} ({1} 米, {2} 趟, 左{3}次 右{4}次)",
+                AddLog(Loc.F("Str_Log_DistanceSyncedFmt",
                     _currentEvent, distance, totalLaps, leftTotal, rightTotal));
             } catch (Exception ex) {
-                AddLog("比赛距离下发硬件失败: " + ex.Message);
+                AddLog(Loc.F("Str_Log_DistanceSendFailedFmt", ex.Message));
             }
         }
 
@@ -6161,10 +6161,10 @@ namespace SwimmingScoreboard
                 //   _timingBridge.SendFullFrame(0x49, mb2Val_bytes...);
                 //   _timingBridge.SendFullFrame(0x4A, mb3Val_bytes...);
 
-                AddLog(string.Format("设备状态已同步到硬件: TP=0x{0:X5} SB=0x{1:X5} MB1=0x{2:X5}（盲表2/3 状态仅本机保留，等硬件分配新命令码）",
+                AddLog(Loc.F("Str_Log_DeviceStateSyncedFmt",
                     tpVal & 0xFFFFF, sbVal & 0xFFFFF, mb1Val & 0xFFFFF));
             } catch (Exception ex) {
-                AddLog("设备状态下发硬件失败: " + ex.Message);
+                AddLog(Loc.F("Str_Log_DeviceStateSendFailedFmt", ex.Message));
             }
         }
 
@@ -6189,7 +6189,7 @@ namespace SwimmingScoreboard
             maybeSet(() => st.RightBlindWatch3Broken, b => st.RightBlindWatch3Broken = b, (right & 0x08) != 0);
             maybeSet(() => st.RightStartBlockBroken,  b => st.RightStartBlockBroken = b, (right & 0x10) != 0);
             if (changed) {
-                AddLog(string.Format("硬件设备状态回报: 泳道{0} 左=0x{1:X2} 右=0x{2:X2}", lane, left, right));
+                AddLog(Loc.F("Str_Log_HwDeviceStateReportFmt", lane, left, right));
                 // 2026-09-13 这里原来调的是 AutoSaveData() —— 两处不对:
                 //   一是【坏表标志根本不存在赛事包里】(它存 device_states.json), 为一个
                 //     布尔位去序列化整个 1.2MB 的包, 纯属白干, 比赛中更是那条老毛病;
@@ -6222,7 +6222,7 @@ namespace SwimmingScoreboard
                             if (PoolLengthCombo != null) PoolLengthCombo.SelectedIndex = length == 25 ? 1 : 0;
                             changed = true;
                         }
-                        if (changed) AddLog(string.Format("硬件参数回报: 泳池 {0}米 {1}道", _poolConfig.Length, _poolConfig.LaneCount));
+                        if (changed) AddLog(Loc.F("Str_Log_HwPoolParamsReportFmt", _poolConfig.Length, _poolConfig.LaneCount));
                         break;
                     }
                     case TimingCommandType.SetCommand: {
@@ -6237,7 +6237,7 @@ namespace SwimmingScoreboard
                             int leftN = data.Param5;        // D5
                             int rightN = data.Param6;       // D6
                             int dist = (data.Param7 << 8) | data.Param8;   // D7:D8
-                            AddLog(string.Format("硬件比赛距离回报: {0}米 / {1}趟 / 左{2}次 右{3}次",
+                            AddLog(Loc.F("Str_Log_HwDistanceReportFmt",
                                 dist, laps, leftN, rightN));
                             break;
                         }
@@ -6276,22 +6276,22 @@ namespace SwimmingScoreboard
                                     if (_laneCloseSettings.RightBlindWatchCount != newRight) {
                                         _laneCloseSettings.RightBlindWatchCount = newRight; changed = true;
                                     }
-                                    if (changed) AddLog(string.Format("硬件盲表数量回报：左 {0}，右 {1}", newLeft, newRight));
+                                    if (changed) AddLog(Loc.F("Str_Log_HwBwCountReportFmt", newLeft, newRight));
                                 } else {
-                                    AddLog(string.Format("硬件盲表数量值非法: 0x{0:X2}", data.RawD4));
+                                    AddLog(Loc.F("Str_Log_HwBwCountInvalidFmt", data.RawD4));
                                 }
                                 break;
                             }
                             default:
-                                AddLog(string.Format("硬件参数: 未识别子码 D3=0x{0:X2} D4=0x{1:X2}", data.Param1, data.RawD4));
+                                AddLog(Loc.F("Str_Log_HwParamUnknownSubcodeFmt", data.Param1, data.RawD4));
                                 break;
                         }
-                        if (changed) AddLog(string.Format("硬件参数回报: D3=0x{0:X2} D4={1}", data.Param1, data.RawD4));
+                        if (changed) AddLog(Loc.F("Str_Log_HwParamReportFmt", data.Param1, data.RawD4));
                         break;
                     }
                     case TimingCommandType.RaceConfig:
                         // 0x41 比赛距离+空道位图，当前仅记录日志，由操作员自行确认
-                        AddLog(string.Format("硬件比赛参数: 趟数={0} 空道位图 D6=0x{1:X2} D7=0x{2:X2}",
+                        AddLog(Loc.F("Str_Log_HwRaceParamsFmt",
                             data.RawD4, data.Param6, data.Param7));
                         break;
                 }
@@ -6335,11 +6335,11 @@ namespace SwimmingScoreboard
             // 硬件触发的比赛控制命令：直接联动到本地状态机；不做去抖（信任硬件按键发出的是干净的单条命令）
             switch (cmdType) {
                 case "TimerReady":
-                    AddLog("硬件触发: 就位");
+                    AddLog(Loc.T("Str_Log_HwTriggerReady"));
                     Ready_Click(null, null);
                     return;
                 case "StartCommand":
-                    AddLog("硬件触发: 发令");
+                    AddLog(Loc.T("Str_Log_HwTriggerStart"));
                     if (_raceState == RaceState.Waiting) Ready_Click(null, null);
                     StartRace_Click(null, null);
                     return;
@@ -6348,14 +6348,14 @@ namespace SwimmingScoreboard
                     //   = 个人/接力第1棒反应时的减数. 暂存到 _gunPreStartSec, 抢跳 TP/SB 等待此值后回算反应时.
                     _gunPreStartSec = timeInSeconds;
                     _gunArrivedAt   = DateTime.Now;   // 2026-06-23 仰泳窗口起算基准 (= 本地时刻)
-                    AddLog(string.Format("硬件触发: 枪响 PreStart = {0:F3}s", timeInSeconds));
+                    AddLog(Loc.F("Str_Log_HwTriggerGunFmt", timeInSeconds));
                     FlushPendingPreStartReactions();
                     StartBackstrokeWindowsAfterGun();   // 2026-06-23 启动 gun 前已暂存的仰泳窗口 timer
                     StartDirectStartSbWindowsAfterGun();   // 2026-07-13 启动 gun 前已暂存的直通正常出发 SB 窗口 timer
                     // 2026-07-13 v8-rev6: 出发段直接照搬主路径立即算 rt = SB - gun, 不再对 lane 启 v8 timer.
                     return;
                 case "TimerReset":
-                    AddLog("硬件触发: 计时清零");
+                    AddLog(Loc.T("Str_Log_HwTriggerReset"));
                     // 2026-06-14 新一场比赛: 清掉枪响 PreStart 锚点和待算反应时缓存
                     _gunPreStartSec = null;
                     _pendingPreStartReactions.Clear();
@@ -6390,7 +6390,7 @@ namespace SwimmingScoreboard
             // 空泳道或 DNS/DNF：整条泳道关闭，不记录也不处理任何计时数据。
             // 抢跳 DSQ 运动员仍在水中继续比赛，触板/盲表/分段数据应继续接收并保存（仅大屏不显示成绩）。
             if (!IsLaneReceivingData(lane)) {
-                AddLog(string.Format("泳道{0} 数据丢弃（空泳道或未参赛）: {1}", lane, cmdType));
+                AddLog(Loc.F("Str_Log_DataDroppedEmptyLaneFmt", lane, cmdType));
                 return;
             }
 
@@ -6499,20 +6499,20 @@ namespace SwimmingScoreboard
                         if (side == "left") sbStatus = laneState.LeftStartBlockStatus;
                         else if (side == "right") sbStatus = laneState.RightStartBlockStatus;
                         else {
-                            AddLog(string.Format("泳道{0} 出发台 cmd side 字段缺失 (= 协议错误), 跳过处理", lane));
+                            AddLog(Loc.F("Str_Log_SbSideMissingFmt", lane));
                             break;
                         }
 
                         // 2026-06-20 守卫 A: 出发台未安装 → 直接丢弃, 不计算反应时.
                         //   用户报: 没接出发台硬件, PC 仍算 reactionTime = 0 - GunPreStart = -142s.
                         if (sbStatus == DeviceStatus.NotInstalled) {
-                            AddLog(string.Format("泳道{0} 出发台未安装, 忽略此 SB 帧 (不计算反应时)", lane));
+                            AddLog(Loc.F("Str_Log_SbNotInstalledFmt", lane));
                             break;
                         }
                         // 2026-06-20 守卫 B: 帧时间字段 ≈ 0 → 硬件没真实信号 (上报空帧 / 通讯污染).
                         //   原代码 reactionTime = 0 - GunPreStart 得到大负值, 误报抢跳. 留给反应时窗口 timer 兜底标 ---.
                         if (Math.Abs(timeInSeconds) < 0.001) {
-                            AddLog(string.Format("泳道{0} SB 帧时间为 0 (= 无有效出发台信号), 忽略此帧", lane));
+                            AddLog(Loc.F("Str_Log_SbTimeZeroFmt", lane));
                             break;
                         }
 
@@ -6548,7 +6548,7 @@ namespace SwimmingScoreboard
 
                         if (!_laneCloseSettings.ReactionTimeEnabled) {
                             // 关闭RT：不进行反应时/抢跳判定，仅记录出发台动作日志
-                            AddLog(string.Format("泳道{0} 出发台触发（已关闭反应时检测）", lane));
+                            AddLog(Loc.F("Str_Log_SbTriggeredRtOffFmt", lane));
                         } else if (_isRelay && _laneCloseSettings != null && (side == "left" || side == "right")
                                    && ((side == "left") ? laneState.HandoffModeLeft : laneState.HandoffModeRight)
                                    && !((side == "left") ? laneState.SbReactionRecordedLeft : laneState.SbReactionRecordedRight)) {
@@ -6560,7 +6560,7 @@ namespace SwimmingScoreboard
                             }
                         } else if (laneState.CurrentLap > 0) {
                             // 2026-06-03 非接力 + 已起跳 (CurrentLap>0): 比赛进行中的 SB 数据, 不算反应时, 仅记日志
-                            AddLog(string.Format("泳道{0} 出发台触发(已起跳后, 不算反应时, 仅日志)", lane));
+                            AddLog(Loc.F("Str_Log_SbTriggeredAfterStartFmt", lane));
                         } else {
                             // 比赛发令出发 (= CurrentLap==0, 个人赛起跳 OR 接力第 1 棒).
                             // 2026-06-14 PreStart 重设计: 固件送来的 timeInSeconds 是 SB 触发时刻的 PreStart 计数器值(不是反应时),
@@ -6574,7 +6574,7 @@ namespace SwimmingScoreboard
                                     Lane = lane, DeviceKind = "SB", Side = side,
                                     RawPreStartSec = timeInSeconds, IsRelayLeg1 = _isRelay
                                 });
-                                AddLog(string.Format("泳道{0} SB 触发于枪响前 (抢跳 PreStart={1:F3}s), 暂存待 0x22 回算反应时", lane, timeInSeconds));
+                                AddLog(Loc.F("Str_Log_SbBeforeGunFmt", lane, timeInSeconds));
                                 // 反应时未知, 暂不更新 laneState.ReactionTime / LegReactionTimes (留待 Flush 回填)
                                 EnterStartBlockTouchedThenClose(laneState, sbSideForClose, lane);
                                 break;
@@ -6597,13 +6597,13 @@ namespace SwimmingScoreboard
                             if (isFalseStart || reactionTime < 0) {
                                 // 2026-05-12 硬件以 D10 符号位明确上报抢跳; 2026-06-14 PC 端 reaction<0 (SB 早于枪响) 也算抢跳
                                 laneState.IsSuspectFalseStart = true;
-                                AddLog(string.Format("⚠ 抢跳（硬件确认）泳道{0} 反应时: {1:F3}s", lane, reactionTime));
+                                AddLog(Loc.F("Str_Log_FalseStartHwConfirmedFmt", lane, reactionTime));
                             } else if (reactionTime <= _laneCloseSettings.FalseStartThreshold) {
                                 // 仅作可疑提示（反应时标红），是否判罚由裁判手动决定
                                 laneState.IsSuspectFalseStart = true;
-                                AddLog(string.Format("⚠ 起跳可疑（待裁判确认）泳道{0} 反应时: {1:F3}s", lane, reactionTime));
+                                AddLog(Loc.F("Str_Log_SuspiciousStartFmt", lane, reactionTime));
                             } else {
-                                AddLog(string.Format("泳道{0} 反应时间: {1:F2}s", lane, reactionTime));
+                                AddLog(Loc.F("Str_Log_ReactionTimeFmt", lane, reactionTime));
                             }
                             // 2026-06-15 主动写比赛日志: 显示计算后的反应时 (= sb_PreStart - _gunPreStartSec), 不是原始 PreStart 数据
                             {
@@ -6649,7 +6649,7 @@ namespace SwimmingScoreboard
                         if (side == "left") tpStatus = laneState.LeftTouchpadStatus;
                         else if (side == "right") tpStatus = laneState.RightTouchpadStatus;
                         else {
-                            AddLog(string.Format("泳道{0} 触板 cmd side 字段缺失 (= 协议错误), 跳过处理", lane));
+                            AddLog(Loc.F("Str_Log_TpSideMissingFmt", lane));
                             break;
                         }
 
@@ -6743,7 +6743,7 @@ namespace SwimmingScoreboard
             // 事件，每次约 20MB 分配，1.2MB 的字符串还直接进大对象堆(LOH 不压缩)
             // —— 那次内存涨到几 GB、清内存也降不下来，根就在这一行。
             // 改成只写当前组库那几行；JSON 仍留一条低频兜底(见 SaveHeatProgress)。
-            try { SaveHeatProgress(); } catch (Exception ex) { AddLog("成绩持久化失败: " + ex.Message); }
+            try { SaveHeatProgress(); } catch (Exception ex) { AddLog(Loc.F("Str_Log_ResultPersistFailedFmt", ex.Message)); }
         }
 
         /// <summary>
@@ -7057,7 +7057,7 @@ namespace SwimmingScoreboard
                 string htmlPath = IOPath.Combine(dir, safeName + ".html");
                 SaveRawTimingHtml(htmlPath, safeName);
 
-                AddLog(string.Format("原始计时数据已保存: {0}（txt + html）", safeName));
+                AddLog(Loc.F("Str_Log_RawDataSavedFmt", safeName));
             } catch (Exception ex) {
                 AddLog("保存原始计时数据失败: " + ex.Message);
             }
