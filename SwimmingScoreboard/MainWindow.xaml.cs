@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -872,7 +872,7 @@ namespace SwimmingScoreboard
                 string typeName = asmName + ".ChangePasswordWindow";
                 var t = asm.GetType(typeName);
                 if (t == null) {
-                    MessageBox.Show("未找到 " + typeName + " 类型。", "提示",
+                    MessageBox.Show("未找到 " + typeName + " 类型。", Loc.T("Str_MsgTitle_Info"),
                         MessageBoxButton.OK, MessageBoxImage.Information);
                     return;
                 }
@@ -882,7 +882,7 @@ namespace SwimmingScoreboard
                 win.ShowDialog();
             } catch (Exception ex) {
                 AddLog("打开修改用户名/密码窗口失败: " + ex.Message);
-                MessageBox.Show("打开修改密码窗口失败:\n" + ex.Message, "错误",
+                MessageBox.Show("打开修改密码窗口失败:\n" + ex.Message, Loc.T("Str_MsgTitle_Error"),
                     MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
@@ -5468,7 +5468,7 @@ namespace SwimmingScoreboard
                         System.IO.File.WriteAllLines(dlg.FileName, lines, System.Text.Encoding.UTF8);
                         MessageBox.Show("已保存: " + dlg.FileName, "存盘", MessageBoxButton.OK, MessageBoxImage.Information);
                     } catch (Exception ex) {
-                        MessageBox.Show("保存失败: " + ex.Message, "存盘", MessageBoxButton.OK, MessageBoxImage.Error);
+                        MessageBox.Show(Loc.F("Str_Msg_SaveFailedFmt", ex.Message), "存盘", MessageBoxButton.OK, MessageBoxImage.Error);
                     }
                 }
             };
@@ -5491,7 +5491,7 @@ namespace SwimmingScoreboard
                         pd.PrintDocument(paginator, "事件备份");
                     }
                 } catch (Exception ex) {
-                    MessageBox.Show("打印失败: " + ex.Message, "打印", MessageBoxButton.OK, MessageBoxImage.Error);
+                    MessageBox.Show(Loc.F("Str_Msg_PrintFailedFmt", ex.Message), "打印", MessageBoxButton.OK, MessageBoxImage.Error);
                 }
             };
             btnPanel.Children.Add(btnPrint);
@@ -5502,7 +5502,7 @@ namespace SwimmingScoreboard
                     System.Windows.Clipboard.SetText(string.Join("\r\n", lines));
                     MessageBox.Show("已复制到剪贴板", "复制");
                 } catch (Exception ex) {
-                    MessageBox.Show("复制失败: " + ex.Message);
+                    MessageBox.Show(Loc.F("Str_Msg_CopyFailedFmt", ex.Message));
                 }
             };
             btnPanel.Children.Add(btnCopy);
@@ -8565,22 +8565,22 @@ namespace SwimmingScoreboard
             okBtn.Click += (s, ea) => {
                 int segNum;
                 if (!int.TryParse(segBox.Text.Trim(), out segNum) || segNum < 1 || segNum > totalLaps) {
-                    MessageBox.Show("段次必须是 1-" + totalLaps + " 之间的整数。", "格式错误", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    MessageBox.Show("段次必须是 1-" + totalLaps + " 之间的整数。", Loc.T("Str_MsgTitle_FormatError"), MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
                 double cumSec;
                 if (!ParseMmSsXxx(timeBox.Text.Trim(), out cumSec) || cumSec <= 0) {
-                    MessageBox.Show("时间格式应为 m:ss.xxx 或 mm:ss.xxx (例: 1:23.456 或 23.456), 且需大于 0。", "格式错误", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    MessageBox.Show("时间格式应为 m:ss.xxx 或 mm:ss.xxx (例: 1:23.456 或 23.456), 且需大于 0。", Loc.T("Str_MsgTitle_FormatError"), MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
                 if (laneCombo.SelectedIndex < 0 || laneCombo.SelectedIndex >= laneCount) {
-                    MessageBox.Show("请选择道次。", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                    MessageBox.Show("请选择道次。", Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Information);
                     return;
                 }
                 int selectedLane = laneCombo.SelectedIndex + 1;
                 var swimmer = swimmers.FirstOrDefault(x => getLane(x) == selectedLane);
                 if (swimmer == null) {
-                    MessageBox.Show(string.Format("第 {0} 道无运动员/接力队, 不能补段。", selectedLane), "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                    MessageBox.Show(string.Format("第 {0} 道无运动员/接力队, 不能补段。", selectedLane), Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Information);
                     return;
                 }
                 ApplyManualSplit(swimmer, segNum, cumSec);
@@ -11046,13 +11046,13 @@ namespace SwimmingScoreboard
             string stage    = EditStageCombo != null && EditStageCombo.SelectedItem != null ? ((ComboBoxItem)EditStageCombo.SelectedItem).Content.ToString() : "";
             if (ageGroup == "全部" || ageGroup == "不限") ageGroup = "";
             if (string.IsNullOrEmpty(eventName) || string.IsNullOrEmpty(stage)) {
-                MessageBox.Show("请先在上面选定 组别 / 性别 / 项目 / 赛次。", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show("请先在上面选定 组别 / 性别 / 项目 / 赛次。", Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
             var sched = FindScheduleItem(ageGroup, gender, eventName, stage);
             int heatCount = sched != null && sched.HeatCount > 0 ? sched.HeatCount : 1;
             if (heatCount < 2) {
-                MessageBox.Show("本项目只有 1 组，无法并组。", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show("本项目只有 1 组，无法并组。", Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
 
@@ -11084,7 +11084,7 @@ namespace SwimmingScoreboard
                 lockedWhy[h] = HeatLockedWhy(ageGroup, gender, eventName, stage, h);
             }
             if (live.Count < 2) {
-                MessageBox.Show("可用的组不足 2 个，无法并组。", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show("可用的组不足 2 个，无法并组。", Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
 
@@ -11232,10 +11232,10 @@ namespace SwimmingScoreboard
                 if (serverAccepted) {
                     MessageBox.Show("主服务器已经完成这次并组，但本机没能跟着改。\n\n原因: " + error +
                         "\n\n多半是本机这份数据旧了。请断开重连主服务器重新取一次数据。",
-                        "本机与主服务器不一致", MessageBoxButton.OK, MessageBoxImage.Error);
+                        Loc.T("Str_MsgTitle_ServerMismatch"), MessageBoxButton.OK, MessageBoxImage.Error);
                     AddLog("★ 主服务器已并组但本机应用失败(数据可能已旧): " + error);
                 } else {
-                    MessageBox.Show(error, "无法执行", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    MessageBox.Show(error, Loc.T("Str_MsgTitle_CannotProceed"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 }
                 return;
             }
@@ -13059,7 +13059,7 @@ namespace SwimmingScoreboard
             MessageBox.Show(
                 string.Format("当前组（{0} {1} 第{2}组）尚未确认成绩，不能切换到其它组。\n请先点击\"确认成绩\"或\"计时复位\"清除当前组数据。",
                     _currentGender, _currentEvent, _currentHeat),
-                "操作被阻止", MessageBoxButton.OK, MessageBoxImage.Warning);
+                Loc.T("Str_MsgTitle_ActionBlocked"), MessageBoxButton.OK, MessageBoxImage.Warning);
             AddLog("当前组未确认成绩，已拦截切组");
             return false;
         }
@@ -13147,7 +13147,7 @@ namespace SwimmingScoreboard
                 (tag.StartsWith("heat:") || tag.StartsWith("event:"))) {
                 MessageBox.Show(
                     "比赛进行中不能重新选择比赛项目。\n\n如需切换，请先点击 \"计时复位\" 结束当前比赛。",
-                    "操作被阻止", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    Loc.T("Str_MsgTitle_ActionBlocked"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 AddLog("比赛进行中不能切换项目");
                 return;
             }
@@ -13284,7 +13284,7 @@ namespace SwimmingScoreboard
                         eventItem.Items.Add(heatItem);
                     }
                     // 2026-09-21 已取消(并组)的组不算数——同 IsStageAllTrulyConfirmed 的口径,
-                    //   全场都在等的那个"确认"状态只看还"活着"的组次, 被并走的空号不该
+                    //   全场都在等的那个Loc.T("Str_MsgTitle_Confirm")状态只看还"活着"的组次, 被并走的空号不该
                     //   拖着整个项目显示不出"已确认"。
                     var liveHeatStatuses = heatStatuses.Where(s => s != HeatDisplayStatus.Cancelled).ToList();
                     HeatDisplayStatus evStatus = liveHeatStatuses.Count > 0 ? AggregateStatus(liveHeatStatuses) : HeatDisplayStatus.Cancelled;
@@ -17319,7 +17319,7 @@ namespace SwimmingScoreboard
             if (dlg.ShowDialog() == true && !string.IsNullOrEmpty(tb.Text)) {
                 double time = TimeFormatter.Parse(tb.Text.Trim());
                 if (time <= 0) {
-                    MessageBox.Show("成绩格式无效", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                    MessageBox.Show("成绩格式无效", Loc.T("Str_MsgTitle_Error"), MessageBoxButton.OK, MessageBoxImage.Error);
                     return;
                 }
                 // 确认对话框
@@ -17843,7 +17843,7 @@ namespace SwimmingScoreboard
             var btnRow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 16, 0, 0) };
             var btnDisc = new Button { Content = "断开硬件", Padding = new Thickness(14, 6, 14, 6), Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EF4444")), Foreground = Brushes.White, BorderThickness = new Thickness(0), Margin = new Thickness(0, 0, 8, 0) };
             btnDisc.Click += delegate {
-                if (_raceState != RaceState.Waiting) { MessageBox.Show("非 Waiting 状态不能断开 (请先按计时复位)", "提示"); return; }
+                if (_raceState != RaceState.Waiting) { MessageBox.Show("非 Waiting 状态不能断开 (请先按计时复位)", Loc.T("Str_MsgTitle_Info")); return; }
                 if (_timingBridge != null) _timingBridge.Disconnect();
                 UpdateConnectionStatus();
                 try { UpdateQuickConnectButton(); } catch { }
@@ -17891,7 +17891,7 @@ namespace SwimmingScoreboard
             var timeBtnPanel = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 16, 0, 0) };
             var timeCancel = new Button { Content = "取消", Padding = new Thickness(16, 6, 16, 6), Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569")), Foreground = Brushes.White, BorderThickness = new Thickness(0), Margin = new Thickness(0, 0, 8, 0) };
             timeCancel.Click += delegate { dlg.DialogResult = false; };
-            var timeOk = new Button { Content = "确认", Padding = new Thickness(16, 6, 16, 6), Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6")), Foreground = Brushes.White, BorderThickness = new Thickness(0), FontWeight = FontWeights.Bold };
+            var timeOk = new Button { Content = Loc.T("Str_MsgTitle_Confirm"), Padding = new Thickness(16, 6, 16, 6), Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6")), Foreground = Brushes.White, BorderThickness = new Thickness(0), FontWeight = FontWeights.Bold };
             timeOk.Click += delegate { dlg.DialogResult = true; };
             timeBtnPanel.Children.Add(timeCancel);
             timeBtnPanel.Children.Add(timeOk);
@@ -18046,7 +18046,7 @@ namespace SwimmingScoreboard
             var btnPanel = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 16, 0, 0) };
             var btnCancel = new Button { Content = "取消", Padding = new Thickness(16, 6, 16, 6), Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569")), Foreground = Brushes.White, BorderThickness = new Thickness(0), Margin = new Thickness(0, 0, 8, 0) };
             btnCancel.Click += delegate { dlg.DialogResult = false; };
-            var btnOk = new Button { Content = "确认", Padding = new Thickness(16, 6, 16, 6), Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6")), Foreground = Brushes.White, BorderThickness = new Thickness(0), FontWeight = FontWeights.Bold };
+            var btnOk = new Button { Content = Loc.T("Str_MsgTitle_Confirm"), Padding = new Thickness(16, 6, 16, 6), Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6")), Foreground = Brushes.White, BorderThickness = new Thickness(0), FontWeight = FontWeights.Bold };
             btnOk.Click += delegate { dlg.DialogResult = true; };
             btnPanel.Children.Add(btnCancel);
             btnPanel.Children.Add(btnOk);
@@ -18302,7 +18302,7 @@ namespace SwimmingScoreboard
             btnAllOn.Click += delegate { foreach (var it in items) { it.LeftEnabled = true; it.RightEnabled = true; } dataGrid.Items.Refresh(); };
             var btnAllOff = new Button { Content = "全部设为不用", Padding = new Thickness(16, 6, 16, 6), Margin = new Thickness(0, 0, 16, 0) };
             btnAllOff.Click += delegate { foreach (var it in items) { it.LeftEnabled = false; it.RightEnabled = false; } dataGrid.Items.Refresh(); };
-            var btnOK = new Button { Content = "确认", Padding = new Thickness(16, 6, 16, 6), Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6")), Foreground = Brushes.White, BorderThickness = new Thickness(0), Margin = new Thickness(0, 0, 8, 0) };
+            var btnOK = new Button { Content = Loc.T("Str_MsgTitle_Confirm"), Padding = new Thickness(16, 6, 16, 6), Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6")), Foreground = Brushes.White, BorderThickness = new Thickness(0), Margin = new Thickness(0, 0, 8, 0) };
             btnOK.Click += delegate {
                 for (int i = 0; i < items.Count && i < _laneDeviceStates.Count; i++) {
                     _laneDeviceStates[i].LeftManualEnabled = items[i].LeftEnabled;
@@ -18422,7 +18422,7 @@ namespace SwimmingScoreboard
             string holder;
             if (!TryAcquireEditLock("swimmer-add", out holder)) {
                 MessageBox.Show(string.Format("{0} 正在新增运动员，请稍后再试。", holder),
-                    "无法新增", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    Loc.T("Str_MsgTitle_CannotAdd"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
             try {
@@ -18458,7 +18458,7 @@ namespace SwimmingScoreboard
                 if (single != null) toDelete.Add(single);
             }
             if (toDelete.Count == 0) {
-                MessageBox.Show("请先在列表里选中要删除的行（可按住 Ctrl/Shift 多选）。", "提示",
+                MessageBox.Show("请先在列表里选中要删除的行（可按住 Ctrl/Shift 多选）。", Loc.T("Str_MsgTitle_Info"),
                     MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
@@ -18472,7 +18472,7 @@ namespace SwimmingScoreboard
                 if (toDelete.Count > 8) preview += string.Format("\n... 及其它 {0} 条", toDelete.Count - 8);
                 confirmMsg = string.Format("确定删除以下 {0} 条报名记录？\n\n{1}", toDelete.Count, preview);
             }
-            if (MessageBox.Show(confirmMsg, "确认删除", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+            if (MessageBox.Show(confirmMsg, Loc.T("Str_MsgTitle_ConfirmDelete"), MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
 
             // 删除前批量申请锁；任何一条被人占用 → 整批取消
             var acquired = new List<string>();
@@ -18484,7 +18484,7 @@ namespace SwimmingScoreboard
                     MessageBox.Show(
                         string.Format("运动员 [{0} {1}] 正在被 {2} 编辑，无法删除。请稍后再试。",
                                       sw.BibNumber, sw.Name, h0),
-                        "无法删除", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        Loc.T("Str_MsgTitle_CannotDelete"), MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
                 acquired.Add(k0);
@@ -18510,9 +18510,9 @@ namespace SwimmingScoreboard
                 if (!ApplySwimmerDeleteCore(keys, out removed, out applyError)) {
                     if (serverAccepted) {
                         MessageBox.Show("主服务器已删除，但本机没能跟着删。\n\n原因: " + applyError + "\n\n请断开重连主服务器重新取一次数据。",
-                            "本机与主服务器不一致", MessageBoxButton.OK, MessageBoxImage.Error);
+                            Loc.T("Str_MsgTitle_ServerMismatch"), MessageBoxButton.OK, MessageBoxImage.Error);
                     } else {
-                        MessageBox.Show(applyError, "无法删除", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        MessageBox.Show(applyError, Loc.T("Str_MsgTitle_CannotDelete"), MessageBoxButton.OK, MessageBoxImage.Warning);
                     }
                     return;
                 }
@@ -18551,7 +18551,7 @@ namespace SwimmingScoreboard
                 MessageBox.Show(
                     string.Format("此运动员 [{0} {1}] 正在被 {2} 编辑，请稍后再试。",
                                   selected.BibNumber, selected.Name, holder),
-                    "无法编辑", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    Loc.T("Str_MsgTitle_CannotEdit"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
             try {
@@ -18582,10 +18582,10 @@ namespace SwimmingScoreboard
                     if (serverAccepted) {
                         MessageBox.Show("主服务器已经接受这次修改，但本机没能跟着改。\n\n原因: " + applyError +
                             "\n\n多半是本机这份数据旧了。请断开重连主服务器重新取一次数据。",
-                            "本机与主服务器不一致", MessageBoxButton.OK, MessageBoxImage.Error);
+                            Loc.T("Str_MsgTitle_ServerMismatch"), MessageBoxButton.OK, MessageBoxImage.Error);
                         AddLog("★ 主服务器已接受运动员编辑但本机应用失败(数据可能已旧): " + applyError);
                     } else {
-                        MessageBox.Show(applyError, "无法保存", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        MessageBox.Show(applyError, Loc.T("Str_MsgTitle_CannotSave"), MessageBoxButton.OK, MessageBoxImage.Warning);
                     }
                     return;
                 }
@@ -18979,12 +18979,12 @@ namespace SwimmingScoreboard
                     r.Country = r.Country.Trim();
                     if (r.Width <= 0) r.Width = 3;
                     if (seenCountries.Contains(r.Country)) {
-                        MessageBox.Show(string.Format("代表队 \"{0}\" 重复，请合并或删除重复行。", r.Country), "提示"); return;
+                        MessageBox.Show(string.Format("代表队 \"{0}\" 重复，请合并或删除重复行。", r.Country), Loc.T("Str_MsgTitle_Info")); return;
                     }
                     seenCountries.Add(r.Country);
                     if (r.Start != 0 || r.End != 0) {
                         if (r.Start <= 0 || r.End < r.Start) {
-                            MessageBox.Show(string.Format("代表队 [{0}] 的起始/结束号不合法（要求 起始 > 0 且 结束 ≥ 起始）。", r.Country), "提示"); return;
+                            MessageBox.Show(string.Format("代表队 [{0}] 的起始/结束号不合法（要求 起始 > 0 且 结束 ≥ 起始）。", r.Country), Loc.T("Str_MsgTitle_Info")); return;
                         }
                     }
                     finalList.Add(r);
@@ -18995,7 +18995,7 @@ namespace SwimmingScoreboard
                         var a = finalList[i]; var b = finalList[j];
                         if (a.Start <= 0 || b.Start <= 0) continue;
                         if (a.End >= b.Start && b.End >= a.Start) {
-                            MessageBox.Show(string.Format("[{0}] 的号码段 {1}-{2} 与 [{3}] 的 {4}-{5} 重叠，请调整。", a.Country, a.Start, a.End, b.Country, b.Start, b.End), "提示"); return;
+                            MessageBox.Show(string.Format("[{0}] 的号码段 {1}-{2} 与 [{3}] 的 {4}-{5} 重叠，请调整。", a.Country, a.Start, a.End, b.Country, b.Start, b.End), Loc.T("Str_MsgTitle_Info")); return;
                         }
                     }
                 }
@@ -19049,7 +19049,7 @@ namespace SwimmingScoreboard
             // 导出当前所有已报名运动员（含接力代表条目和接力队员个人条目）
             var rows = _swimmers.ToList();
             if (rows.Count == 0) {
-                MessageBox.Show("当前没有可导出的报名数据。", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show("当前没有可导出的报名数据。", Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
             string defaultName = string.IsNullOrEmpty(_competitionName)
@@ -19085,9 +19085,9 @@ namespace SwimmingScoreboard
                 }
                 File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
                 AddLog(string.Format("已导出运动员报名数据 {0} 条", rows.Count));
-                MessageBox.Show(string.Format("已导出 {0} 条运动员报名数据：\n{1}", rows.Count, dlg.FileName), "完成");
+                MessageBox.Show(string.Format("已导出 {0} 条运动员报名数据：\n{1}", rows.Count, dlg.FileName), Loc.T("Str_MsgTitle_Done"));
             } catch (Exception ex) {
-                MessageBox.Show("导出失败: " + ex.Message, "错误");
+                MessageBox.Show(Loc.F("Str_Msg_ExportFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error"));
             }
         }
 
@@ -19141,9 +19141,9 @@ namespace SwimmingScoreboard
                     "● 号码列留空 → 导入时由系统按代表队号码段自动分配\n" +
                     "● 接力项目请在「接力队管理」Tab 集中报名（需指定棒次与队级成绩）\n" +
                     "● 「导入CSV」严格按本模板表头校验，列名/列序不一致整文件拒绝",
-                    "完成");
+                    Loc.T("Str_MsgTitle_Done"));
             } catch (Exception ex) {
-                MessageBox.Show("保存失败: " + ex.Message, "错误");
+                MessageBox.Show(Loc.F("Str_Msg_SaveFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error"));
             }
         }
 
@@ -19170,7 +19170,7 @@ namespace SwimmingScoreboard
                 if (header.Length != SwimmerCsvTemplateHeader.Length) {
                     MessageBox.Show(string.Format(
                         "❌ CSV 表头列数不对：模板要求 {0} 列，实际 {1} 列。\n\n请用「导出个人报名模板」按钮重新导出模板编辑后再导入。",
-                        SwimmerCsvTemplateHeader.Length, header.Length), "格式错误",
+                        SwimmerCsvTemplateHeader.Length, header.Length), Loc.T("Str_MsgTitle_FormatError"),
                         MessageBoxButton.OK, MessageBoxImage.Error);
                     return;
                 }
@@ -19180,7 +19180,7 @@ namespace SwimmingScoreboard
                     if (actual != expected) {
                         MessageBox.Show(string.Format(
                             "❌ CSV 表头第 {0} 列不匹配：\n   期望「{1}」\n   实际「{2}」\n\n请用「导出个人报名模板」按钮重新导出模板编辑后再导入。",
-                            hi + 1, expected, actual), "格式错误",
+                            hi + 1, expected, actual), Loc.T("Str_MsgTitle_FormatError"),
                             MessageBoxButton.OK, MessageBoxImage.Error);
                         return;
                     }
@@ -19378,7 +19378,7 @@ namespace SwimmingScoreboard
             string addHolder;
             if (!TryAcquireEditLock("relay-add", out addHolder)) {
                 MessageBox.Show(string.Format("{0} 正在新增接力队，请稍后再试。", addHolder),
-                    "无法新增", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    Loc.T("Str_MsgTitle_CannotAdd"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
             try {
@@ -19393,7 +19393,7 @@ namespace SwimmingScoreboard
             // 确认后完整创建 RelayTeam + _swimmers 代表条目 + 队员子条目
             var relayEvents = _events.Where(ev => ev.Contains("接力")).ToList();
             if (relayEvents.Count == 0) {
-                MessageBox.Show("没有可用的接力项目。请检查项目列表。", "提示"); return;
+                MessageBox.Show("没有可用的接力项目。请检查项目列表。", Loc.T("Str_MsgTitle_Info")); return;
             }
 
             var dlg = new Window {
@@ -19617,12 +19617,12 @@ namespace SwimmingScoreboard
             File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
             MessageBox.Show("已导出接力报名模板:\n" + dlg.FileName +
                 "\n\n表头共 18 列（含组别），编辑后用「导入CSV」回灌；生日格式 yyyy-MM-dd，报名成绩格式 mm:ss.ff 或 ss.ff。",
-                "完成");
+                Loc.T("Str_MsgTitle_Done"));
         }
 
         private void ExportRelayCSV_Click(object sender, RoutedEventArgs e) {
             if (_relayTeams.Count == 0) {
-                MessageBox.Show("当前没有接力队可导出", "提示"); return;
+                MessageBox.Show("当前没有接力队可导出", Loc.T("Str_MsgTitle_Info")); return;
             }
             var dlg = new Microsoft.Win32.SaveFileDialog {
                 Filter = "CSV 文件|*.csv", Title = "导出接力队",
@@ -19644,7 +19644,7 @@ namespace SwimmingScoreboard
                 }));
             }
             File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
-            MessageBox.Show(string.Format("已导出 {0} 支接力队到:\n{1}", _relayTeams.Count, dlg.FileName), "完成");
+            MessageBox.Show(string.Format("已导出 {0} 支接力队到:\n{1}", _relayTeams.Count, dlg.FileName), Loc.T("Str_MsgTitle_Done"));
         }
 
         // ══════════════════════════════════════════════════════════════
@@ -19685,7 +19685,7 @@ namespace SwimmingScoreboard
 
         private void ExportRelayLegSheet_Click(object sender, RoutedEventArgs e) {
             if (_relayTeams == null || _relayTeams.Count == 0) {
-                MessageBox.Show("当前没有接力队。", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show("当前没有接力队。", Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
             var dlg = new Microsoft.Win32.SaveFileDialog {
@@ -19754,7 +19754,7 @@ namespace SwimmingScoreboard
                     "导出成功", MessageBoxButton.OK, MessageBoxImage.Information);
                 AddLog(string.Format("导出接力棒次填报表: {0} 支队, 按场次分成 {1} 个 Excel → {2}", rows.Count, written.Count, dir));
             } catch (Exception ex) {
-                MessageBox.Show("写文件失败: " + ex.Message, "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show(Loc.F("Str_Msg_WriteFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error"), MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -19835,7 +19835,7 @@ namespace SwimmingScoreboard
 
         private void ImportRelayLegSheet_Click(object sender, RoutedEventArgs e) {
             if (_relayTeams == null || _relayTeams.Count == 0) {
-                MessageBox.Show("当前没有接力队。", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show("当前没有接力队。", Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
             int wantSession = AskRelaySession();
@@ -19850,13 +19850,13 @@ namespace SwimmingScoreboard
             List<RelayLegSheetService.LegRow> sheetRows;
             string warn;
             try { sheetRows = RelayLegSheetService.Import(dlg.FileName, out warn); }
-            catch (Exception ex) { MessageBox.Show("读取失败: " + ex.Message, "错误", MessageBoxButton.OK, MessageBoxImage.Error); return; }
+            catch (Exception ex) { MessageBox.Show(Loc.F("Str_Msg_ReadFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error"), MessageBoxButton.OK, MessageBoxImage.Error); return; }
             if (!string.IsNullOrEmpty(warn)) {
-                MessageBox.Show(warn + "\n\n请用「导出棒次填报表」重新导出一份再填。", "格式错误",
+                MessageBox.Show(warn + "\n\n请用「导出棒次填报表」重新导出一份再填。", Loc.T("Str_MsgTitle_FormatError"),
                     MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
-            if (sheetRows.Count == 0) { MessageBox.Show("表里没有数据行。", "提示"); return; }
+            if (sheetRows.Count == 0) { MessageBox.Show("表里没有数据行。", Loc.T("Str_MsgTitle_Info")); return; }
 
             int updated = 0, blank = 0, otherSession = 0;
             var otherSet = new List<int>();
@@ -20004,23 +20004,23 @@ namespace SwimmingScoreboard
 
             string[] lines;
             try { lines = File.ReadAllLines(dlg.FileName, Encoding.UTF8); }
-            catch (Exception ex) { MessageBox.Show("读取失败: " + ex.Message, "错误"); return; }
+            catch (Exception ex) { MessageBox.Show(Loc.F("Str_Msg_ReadFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error")); return; }
 
-            if (lines.Length < 1) { MessageBox.Show("文件为空", "提示"); return; }
+            if (lines.Length < 1) { MessageBox.Show("文件为空", Loc.T("Str_MsgTitle_Info")); return; }
 
             // 表头校验
             var headerCols = ParseCsvLine(lines[0]);
             if (headerCols.Length != RelayCsvHeader.Length) {
                 MessageBox.Show(string.Format(
                     "❌ 表头列数不对：期望 {0} 列，实际 {1} 列。请用「导出接力报名模板」导出新模板后重试。",
-                    RelayCsvHeader.Length, headerCols.Length), "格式错误");
+                    RelayCsvHeader.Length, headerCols.Length), Loc.T("Str_MsgTitle_FormatError"));
                 return;
             }
             for (int i = 0; i < RelayCsvHeader.Length; i++) {
                 if ((headerCols[i] ?? "").Trim() != RelayCsvHeader[i]) {
                     MessageBox.Show(string.Format(
                         "❌ 表头第 {0} 列不匹配：期望「{1}」，实际「{2}」。请用「导出接力报名模板」导出新模板后重试。",
-                        i + 1, RelayCsvHeader[i], headerCols[i] ?? ""), "格式错误");
+                        i + 1, RelayCsvHeader[i], headerCols[i] ?? ""), Loc.T("Str_MsgTitle_FormatError"));
                     return;
                 }
             }
@@ -20184,14 +20184,14 @@ namespace SwimmingScoreboard
         private void EditRelay_Click(object sender, RoutedEventArgs e) {
             var sel = _selectedRelayTeam;
             if (sel == null) {
-                MessageBox.Show("请先在接力队列表中选中要编辑的队伍。", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show("请先在接力队列表中选中要编辑的队伍。", Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
             string lockKey = "relay:" + (sel.TeamName ?? "") + "|" + (sel.EventName ?? "");
             string holder;
             if (!TryAcquireEditLock(lockKey, out holder)) {
                 MessageBox.Show(string.Format("接力队 [{0}] 正在被 {1} 编辑，请稍后再试。", sel.TeamName, holder),
-                    "无法编辑", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    Loc.T("Str_MsgTitle_CannotEdit"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
             try {
@@ -20235,10 +20235,10 @@ namespace SwimmingScoreboard
                     if (serverAccepted) {
                         MessageBox.Show("主服务器已经接受这次修改，但本机没能跟着改。\n\n原因: " + applyError +
                             "\n\n多半是本机这份数据旧了。请断开重连主服务器重新取一次数据。",
-                            "本机与主服务器不一致", MessageBoxButton.OK, MessageBoxImage.Error);
+                            Loc.T("Str_MsgTitle_ServerMismatch"), MessageBoxButton.OK, MessageBoxImage.Error);
                         AddLog("★ 主服务器已接受接力队编辑但本机应用失败(数据可能已旧): " + applyError);
                     } else {
-                        MessageBox.Show(applyError, "无法保存", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        MessageBox.Show(applyError, Loc.T("Str_MsgTitle_CannotSave"), MessageBoxButton.OK, MessageBoxImage.Warning);
                     }
                     return;
                 }
@@ -20257,17 +20257,17 @@ namespace SwimmingScoreboard
 
         private void DeleteRelay_Click(object sender, RoutedEventArgs e) {
             var selected = _selectedRelayTeam;
-            if (selected == null) { MessageBox.Show("请先选中一支接力队"); return; }
+            if (selected == null) { MessageBox.Show(Loc.T("Str_Msg_SelectRelayFirst")); return; }
             string lockKey = "relay:" + (selected.TeamName ?? "") + "|" + (selected.EventName ?? "");
             string holder;
             if (!TryAcquireEditLock(lockKey, out holder)) {
                 MessageBox.Show(
                     string.Format("接力队 [{0}] 正在被 {1} 编辑，无法删除。请稍后再试。", selected.TeamName, holder),
-                    "无法删除", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    Loc.T("Str_MsgTitle_CannotDelete"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
             try {
-                if (MessageBox.Show(string.Format("确定删除接力队 [{0}] ({1})？", selected.TeamName, selected.EventName), "确认", MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
+                if (MessageBox.Show(string.Format("确定删除接力队 [{0}] ({1})？", selected.TeamName, selected.EventName), Loc.T("Str_MsgTitle_Confirm"), MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
 
                 string teamName = selected.TeamName, eventName = selected.EventName, gender = selected.Gender;
                 bool serverAccepted = false;
@@ -20284,9 +20284,9 @@ namespace SwimmingScoreboard
                 if (!ApplyRelayDeleteCore(teamName, eventName, gender, out applyError)) {
                     if (serverAccepted) {
                         MessageBox.Show("主服务器已删除，但本机没能跟着删。\n\n原因: " + applyError + "\n\n请断开重连主服务器重新取一次数据。",
-                            "本机与主服务器不一致", MessageBoxButton.OK, MessageBoxImage.Error);
+                            Loc.T("Str_MsgTitle_ServerMismatch"), MessageBoxButton.OK, MessageBoxImage.Error);
                     } else {
-                        MessageBox.Show(applyError, "无法删除", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        MessageBox.Show(applyError, Loc.T("Str_MsgTitle_CannotDelete"), MessageBoxButton.OK, MessageBoxImage.Warning);
                     }
                     return;
                 }
@@ -20325,7 +20325,7 @@ namespace SwimmingScoreboard
 
         private void RelayLegUp_Click(object sender, RoutedEventArgs e) {
             var team = _selectedRelayTeam;
-            if (team == null) { MessageBox.Show("请先选中一支接力队"); return; }
+            if (team == null) { MessageBox.Show(Loc.T("Str_Msg_SelectRelayFirst")); return; }
             int idx = RelayLegGrid.SelectedIndex;
             if (idx <= 0) return;
             // 交换棒次
@@ -20340,7 +20340,7 @@ namespace SwimmingScoreboard
 
         private void RelayLegDown_Click(object sender, RoutedEventArgs e) {
             var team = _selectedRelayTeam;
-            if (team == null) { MessageBox.Show("请先选中一支接力队"); return; }
+            if (team == null) { MessageBox.Show(Loc.T("Str_Msg_SelectRelayFirst")); return; }
             int idx = RelayLegGrid.SelectedIndex;
             if (idx < 0 || idx >= team.Legs.Count - 1) return;
             var leg1 = team.Legs[idx];
@@ -20354,7 +20354,7 @@ namespace SwimmingScoreboard
 
         private void RelayLegReplace_Click(object sender, RoutedEventArgs e) {
             var team = _selectedRelayTeam;
-            if (team == null) { MessageBox.Show("请先选中一支接力队"); return; }
+            if (team == null) { MessageBox.Show(Loc.T("Str_Msg_SelectRelayFirst")); return; }
             var leg = RelayLegGrid.SelectedItem as RelayLeg;
             if (leg == null) { MessageBox.Show("请在棒次表中选中要更换的队员"); return; }
             string lockKey = "relay:" + (team.TeamName ?? "") + "|" + (team.EventName ?? "");
@@ -20362,7 +20362,7 @@ namespace SwimmingScoreboard
             if (!TryAcquireEditLock(lockKey, out holder)) {
                 MessageBox.Show(
                     string.Format("接力队 [{0}] 正在被 {1} 编辑，请稍后再试。", team.TeamName, holder),
-                    "无法编辑", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    Loc.T("Str_MsgTitle_CannotEdit"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
             try {
@@ -20509,13 +20509,13 @@ namespace SwimmingScoreboard
 
         private void RelayLegSave_Click(object sender, RoutedEventArgs e) {
             var team = _selectedRelayTeam;
-            if (team == null) { MessageBox.Show("请先选中一支接力队"); return; }
+            if (team == null) { MessageBox.Show(Loc.T("Str_Msg_SelectRelayFirst")); return; }
             string lockKey = "relay:" + (team.TeamName ?? "") + "|" + (team.EventName ?? "");
             string holder;
             if (!TryAcquireEditLock(lockKey, out holder)) {
                 MessageBox.Show(
                     string.Format("接力队 [{0}] 正在被 {1} 编辑，请稍后再试。", team.TeamName, holder),
-                    "无法保存", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    Loc.T("Str_MsgTitle_CannotSave"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
             try {
@@ -20714,7 +20714,7 @@ namespace SwimmingScoreboard
 
             foreach (var ev in _regEventList) {
                 if (ev.Item1 == eventName) {
-                    MessageBox.Show("已添加此项目，不能重复！", "提示", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    MessageBox.Show("已添加此项目，不能重复！", Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
             }
@@ -21602,7 +21602,7 @@ namespace SwimmingScoreboard
             bool isRelay = eventName.Contains("接力");
 
             if (heatStr == "全部" || string.IsNullOrEmpty(heatStr)) {
-                MessageBox.Show("请先选择具体的组（不能是\"全部\"）", "提示"); return;
+                MessageBox.Show("请先选择具体的组（不能是\"全部\"）", Loc.T("Str_MsgTitle_Info")); return;
             }
             int heat = 0;
             var m = System.Text.RegularExpressions.Regex.Match(heatStr, @"\d+");
@@ -21622,7 +21622,7 @@ namespace SwimmingScoreboard
                 if (!hasAssignment) unassigned.Add(s);
             }
 
-            if (unassigned.Count == 0) { MessageBox.Show("没有未分组的运动员可以添加", "提示"); return; }
+            if (unassigned.Count == 0) { MessageBox.Show("没有未分组的运动员可以添加", Loc.T("Str_MsgTitle_Info")); return; }
 
             var dlg = new Window {
                 Title = string.Format("增加到第{0}组 — {1} {2} {3}", heat, gender, eventName, stage),
@@ -21716,7 +21716,7 @@ namespace SwimmingScoreboard
                 var sw2 = matchedSwimmers[idx2];
                 // 只允许同组内交换泳道
                 if (sw1.Item2 != sw2.Item2) {
-                    MessageBox.Show("只能在同一组内交换泳道位置。", "提示");
+                    MessageBox.Show("只能在同一组内交换泳道位置。", Loc.T("Str_MsgTitle_Info"));
                     return;
                 }
                 // 2026-09-12 正在比的那一组不许调道次 (别的组照常)
@@ -21754,7 +21754,7 @@ namespace SwimmingScoreboard
                 string gdRm = EditGenderCombo != null && EditGenderCombo.SelectedItem != null ? ((ComboBoxItem)EditGenderCombo.SelectedItem).Content.ToString() : "";
                 string evRm = EditEventCombo != null && EditEventCombo.SelectedItem != null ? EditEventCombo.SelectedItem.ToString() : "";
                 if (BlockIfHeatLocked(agRm, gdRm, evRm, stage, heatRm, "把人移出本组")) return;
-                if (MessageBox.Show(string.Format("确定将 {0} 移出本组？", sw.Name), "确认", MessageBoxButton.YesNo) == MessageBoxResult.Yes) {
+                if (MessageBox.Show(string.Format("确定将 {0} 移出本组？", sw.Name), Loc.T("Str_MsgTitle_Confirm"), MessageBoxButton.YesNo) == MessageBoxResult.Yes) {
                     // 清除StageAssignments中的记录
                     if (sw.StageAssignments.ContainsKey(stage))
                         sw.StageAssignments.Remove(stage);
@@ -21779,7 +21779,7 @@ namespace SwimmingScoreboard
             // 2026-06-18 加"组别"传递, 修临时加人 AgeCategory 丢失
             string ageGroup = EditAgeGroupCombo != null && EditAgeGroupCombo.SelectedItem != null ? EditAgeGroupCombo.SelectedItem.ToString() : "";
             if (string.IsNullOrEmpty(gender) || string.IsNullOrEmpty(eventName) || string.IsNullOrEmpty(stage)) {
-                MessageBox.Show("请先在上方选择性别、项目、赛次后再临时加人。", "提示"); return;
+                MessageBox.Show("请先在上方选择性别、项目、赛次后再临时加人。", Loc.T("Str_MsgTitle_Info")); return;
             }
 
             bool isRelay = eventName.Contains("接力");
@@ -22056,7 +22056,7 @@ namespace SwimmingScoreboard
         private ScheduleItem _selectedScheduleItem;
 
         private void AddSchedule_Click(object sender, RoutedEventArgs e) {
-            if (MessageBox.Show("确定要添加一条新的赛程项？\n（将插入到选中行后面，未选中则添加到末尾）", "确认", MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
+            if (MessageBox.Show("确定要添加一条新的赛程项？\n（将插入到选中行后面，未选中则添加到末尾）", Loc.T("Str_MsgTitle_Confirm"), MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
 
             // 根据选中行确定插入位置和场号
             int insertIndex = _schedule.Count;
@@ -22115,7 +22115,7 @@ namespace SwimmingScoreboard
             if (!TryAcquireEditLock("schedule", out holder)) {
                 MessageBox.Show(
                     string.Format("赛程正在被 {0} 编辑，请稍后再试。", holder),
-                    "无法编辑", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    Loc.T("Str_MsgTitle_CannotEdit"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
             try {
@@ -22279,7 +22279,7 @@ namespace SwimmingScoreboard
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EF4444")), Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0) };
             btnDel.Click += delegate {
                 if (_editSelected != null) { editList.Remove(_editSelected); _editSelected = null; rebuildEditPanel(); }
-                else MessageBox.Show("请先选中要删除的行");
+                else MessageBox.Show(Loc.T("Str_Msg_SelectRowToDelete"));
             };
 
             // 上移/下移：在 editList 中交换选中项与相邻项的位置
@@ -22383,7 +22383,7 @@ namespace SwimmingScoreboard
         private void DeleteSchedule_Click(object sender, RoutedEventArgs e) {
             if (_selectedScheduleItem == null) { MessageBox.Show("请先在日程表中选中要删除的行"); return; }
             string desc = string.Format("{0} {1} {2}", _selectedScheduleItem.Gender, _selectedScheduleItem.EventName, _selectedScheduleItem.Stage);
-            if (MessageBox.Show(string.Format("确定要删除赛程项 [{0}]？", desc), "确认删除", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+            if (MessageBox.Show(string.Format("确定要删除赛程项 [{0}]？", desc), Loc.T("Str_MsgTitle_ConfirmDelete"), MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
             _schedule.Remove(_selectedScheduleItem);
             _selectedScheduleItem = null;
             BuildScheduleTree();
@@ -22570,7 +22570,7 @@ namespace SwimmingScoreboard
                 RefreshEventComboBoxes();
                 Broadcast();
                 AddLog(string.Format("✅ 秩序册向导：已写回赛程 {0} 项，共 {1} 个场（UI 已全量刷新）", wnd.AssignedItems.Count, sessionNum - 1));
-                MessageBox.Show(string.Format("已把 {0} 项编排写回主程序赛程，整个系统已立即更新。", wnd.AssignedItems.Count), "完成");
+                MessageBox.Show(string.Format("已把 {0} 项编排写回主程序赛程，整个系统已立即更新。", wnd.AssignedItems.Count), Loc.T("Str_MsgTitle_Done"));
             }
         }
 
@@ -22585,11 +22585,11 @@ namespace SwimmingScoreboard
         // ═══════════════════════════════════════════════════════════════
         private void AutoGenerateHeats_Click(object sender, RoutedEventArgs e) {
             if (_swimmers.Count == 0) {
-                MessageBox.Show("没有已注册的运动员/接力队，请先注册再生成分组。", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show("没有已注册的运动员/接力队，请先注册再生成分组。", Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
             if (_schedule.Count == 0) {
-                MessageBox.Show("请先点击\"一键生成日程\"生成赛程安排，再进行分组。", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show("请先点击\"一键生成日程\"生成赛程安排，再进行分组。", Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
             // 检测是否已有分组
@@ -22599,7 +22599,7 @@ namespace SwimmingScoreboard
             string confirmMsg = "确定按报名成绩对预赛进行蛇形自动分组？";
             if (hasExistingAssignment)
                 confirmMsg = "警告：已有运动员分好组！\n\n重新自动分组将清除所有已有分组，重新分配。\n如需仅对新增运动员分组，请使用\"追加分组\"。\n\n确定要重新全部分组吗？";
-            if (MessageBox.Show(confirmMsg, "确认", MessageBoxButton.YesNo, hasExistingAssignment ? MessageBoxImage.Warning : MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+            if (MessageBox.Show(confirmMsg, Loc.T("Str_MsgTitle_Confirm"), MessageBoxButton.YesNo, hasExistingAssignment ? MessageBoxImage.Warning : MessageBoxImage.Question) != MessageBoxResult.Yes) return;
 
             // 统一对所有项目（个人+接力）的第一赛次进行蛇形分组，按组别隔离
             int generated = 0;
@@ -22654,7 +22654,7 @@ namespace SwimmingScoreboard
             } else if (skippedAuto.Count > 0) {
                 MessageBox.Show("没有分配任何项目。" + skipAutoNote, "分组未执行", MessageBoxButton.OK, MessageBoxImage.Information);
             } else {
-                MessageBox.Show("未分配任何运动员/接力队。\n\n请检查：\n1. 项目名称是否与赛程一致\n2. 性别是否与赛程一致\n3. 是否已生成日程", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show("未分配任何运动员/接力队。\n\n请检查：\n1. 项目名称是否与赛程一致\n2. 性别是否与赛程一致\n3. 是否已生成日程", Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Information);
             }
             AutoSaveData();
             Broadcast();
@@ -22925,7 +22925,7 @@ namespace SwimmingScoreboard
                     }));
                 }
                 System.IO.File.WriteAllText(saveDlg.FileName, sb.ToString(), System.Text.Encoding.UTF8);
-                MessageBox.Show("已导出: " + saveDlg.FileName, "完成");
+                MessageBox.Show("已导出: " + saveDlg.FileName, Loc.T("Str_MsgTitle_Done"));
             };
 
             btnOk.Click += delegate {
@@ -23022,7 +23022,7 @@ namespace SwimmingScoreboard
         // ═══════════════════════════════════════════════════════════════
         private void SupplementHeats_Click(object sender, RoutedEventArgs e) {
             if (_schedule.Count == 0) {
-                MessageBox.Show("请先生成日程和预赛分组。", "提示"); return;
+                MessageBox.Show("请先生成日程和预赛分组。", Loc.T("Str_MsgTitle_Info")); return;
             }
 
             // 收集所有未分组的运动员（按项目分组）
@@ -23042,7 +23042,7 @@ namespace SwimmingScoreboard
             }
 
             if (unassigned.Count == 0) {
-                MessageBox.Show("所有运动员已分组，没有需要追加的。", "提示"); return;
+                MessageBox.Show("所有运动员已分组，没有需要追加的。", Loc.T("Str_MsgTitle_Info")); return;
             }
 
             // 弹窗显示未分组运动员
@@ -24119,12 +24119,12 @@ namespace SwimmingScoreboard
         private void ViewRawData_Click(object sender, RoutedEventArgs e) {
             string dir = IOPath.Combine(AppDomain.CurrentDomain.BaseDirectory, "Database", "RawData");
             if (!Directory.Exists(dir)) {
-                MessageBox.Show("暂无原始数据文件。\n\n原始数据在比赛确认成绩后自动保存到:\n" + dir, "提示");
+                MessageBox.Show("暂无原始数据文件。\n\n原始数据在比赛确认成绩后自动保存到:\n" + dir, Loc.T("Str_MsgTitle_Info"));
                 return;
             }
             var files = Directory.GetFiles(dir, "*.txt").OrderByDescending(f => File.GetLastWriteTime(f)).ToArray();
             if (files.Length == 0) {
-                MessageBox.Show("暂无原始数据文件。", "提示");
+                MessageBox.Show("暂无原始数据文件。", Loc.T("Str_MsgTitle_Info"));
                 return;
             }
 
@@ -24168,7 +24168,7 @@ namespace SwimmingScoreboard
                         textBox.Text = File.ReadAllText(sel.Tag.ToString(), Encoding.UTF8);
                         textBox.ScrollToHome();
                     } catch (Exception ex) {
-                        textBox.Text = "读取失败: " + ex.Message;
+                        textBox.Text = Loc.F("Str_Msg_ReadFailedFmt", ex.Message);
                     }
                 }
             };
@@ -24187,7 +24187,7 @@ namespace SwimmingScoreboard
                 if (File.Exists(htmlFile)) {
                     try { Process.Start(htmlFile); } catch (Exception ex2) { MessageBox.Show("打开失败: " + ex2.Message); }
                 } else {
-                    MessageBox.Show("对应的HTML文件不存在。\n\n该文件可能是旧版本保存的，请重新确认成绩以生成HTML版本。", "提示");
+                    MessageBox.Show("对应的HTML文件不存在。\n\n该文件可能是旧版本保存的，请重新确认成绩以生成HTML版本。", Loc.T("Str_MsgTitle_Info"));
                 }
             };
             topPanel.Children.Add(combo);
@@ -24353,7 +24353,7 @@ namespace SwimmingScoreboard
                 Foreground = Brushes.White, BorderThickness = new Thickness(0) };
             okBtn.Click += (s2, e2) => {
                 var sel = lb.SelectedItem as ListBoxItem;
-                if (sel == null) { MessageBox.Show("请选择一个项目", "提示"); return; }
+                if (sel == null) { MessageBox.Show("请选择一个项目", Loc.T("Str_MsgTitle_Info")); return; }
                 _rankingSelection = sel.Tag as ScheduleItem;
                 win.DialogResult = true; win.Close();
             };
@@ -24417,7 +24417,7 @@ namespace SwimmingScoreboard
                 Foreground = Brushes.White, BorderThickness = new Thickness(0) };
             okBtn.Click += (s2, e2) => {
                 var sel = lb.SelectedItem as ListBoxItem;
-                if (sel == null) { MessageBox.Show("请选择一个项目", "提示"); return; }
+                if (sel == null) { MessageBox.Show("请选择一个项目", Loc.T("Str_MsgTitle_Info")); return; }
                 _awardSelection = sel.Tag as ScheduleItem;
                 win.DialogResult = true; win.Close();
             };
@@ -24466,7 +24466,7 @@ namespace SwimmingScoreboard
             var btnPanel = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 14, 0, 0) };
             var btnCancel = new Button { Content = "取消", Padding = new Thickness(16, 6, 16, 6), Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569")), Foreground = Brushes.White, BorderThickness = new Thickness(0), Margin = new Thickness(0, 0, 8, 0) };
             btnCancel.Click += delegate { dlg.DialogResult = false; };
-            var btnOk = new Button { Content = "确认", Padding = new Thickness(16, 6, 16, 6), Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6")), Foreground = Brushes.White, BorderThickness = new Thickness(0), FontWeight = FontWeights.Bold };
+            var btnOk = new Button { Content = Loc.T("Str_MsgTitle_Confirm"), Padding = new Thickness(16, 6, 16, 6), Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6")), Foreground = Brushes.White, BorderThickness = new Thickness(0), FontWeight = FontWeights.Bold };
             btnOk.Click += delegate { dlg.DialogResult = true; };
             btnPanel.Children.Add(btnCancel); btnPanel.Children.Add(btnOk);
             sp.Children.Add(btnPanel);
@@ -24694,7 +24694,7 @@ namespace SwimmingScoreboard
             };
             if (dlg.ShowDialog() != true) return;
             string path = dlg.FileName;
-            if (!File.Exists(path)) { MessageBox.Show("文件不存在: " + path, "错误"); return; }
+            if (!File.Exists(path)) { MessageBox.Show("文件不存在: " + path, Loc.T("Str_MsgTitle_Error")); return; }
 
             string outDir = IOPath.Combine(IOPath.GetTempPath(), "swim_ppt_" + DateTime.Now.Ticks);
             try { Directory.CreateDirectory(outDir); } catch { }
@@ -24705,12 +24705,12 @@ namespace SwimmingScoreboard
                 slides = ConvertPptToPngSlides(path, outDir);
             } catch (Exception ex) {
                 MessageBox.Show("PPT 转换失败 (主控 PC 需要安装 Microsoft PowerPoint):\n" + ex.Message,
-                    "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                    Loc.T("Str_MsgTitle_Error"), MessageBoxButton.OK, MessageBoxImage.Error);
                 AddLog("PPT 转换失败: " + ex.Message);
                 return;
             }
             if (slides == null || slides.Count == 0) {
-                MessageBox.Show("没有从 PPT 中提取出任何幻灯片", "错误");
+                MessageBox.Show("没有从 PPT 中提取出任何幻灯片", Loc.T("Str_MsgTitle_Error"));
                 return;
             }
             AddLog(string.Format("PPT 转换完成: {0} 页 → {1}", slides.Count, outDir));
@@ -24967,7 +24967,7 @@ namespace SwimmingScoreboard
                 long len = new FileInfo(p).Length;
                 if (len > 60L * 1024 * 1024) {
                     if (MessageBox.Show(string.Format("文件较大（{0:F1} MB），通过 WebSocket 嵌入可能耗时。继续发送？", len / 1048576.0),
-                        "确认", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+                        Loc.T("Str_MsgTitle_Confirm"), MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
                 }
                 string fit = rbCover.IsChecked == true ? "cover" : (rbStretch.IsChecked == true ? "fill" : "contain");
                 BroadcastMediaToDisplay(p, detectedKind, detectedMime, fit, cbLoop.IsChecked == true, cbMute.IsChecked == true, cbAuto.IsChecked == true);
@@ -25021,7 +25021,7 @@ namespace SwimmingScoreboard
         private void SaveCompetitionInfo_Click(object sender, RoutedEventArgs e) {
             string newName = CompNameBox.Text.Trim();
             if (string.IsNullOrEmpty(newName)) {
-                MessageBox.Show("请输入赛事名称", "提示");
+                MessageBox.Show("请输入赛事名称", Loc.T("Str_MsgTitle_Info"));
                 return;
             }
 
@@ -25068,7 +25068,7 @@ namespace SwimmingScoreboard
 
         private void NewCompetition_Click(object sender, RoutedEventArgs e) {
             if (_swimmers.Count > 0 || _schedule.Count > 0) {
-                if (MessageBox.Show("新建赛事将清除当前所有数据，是否继续？", "确认", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
+                if (MessageBox.Show("新建赛事将清除当前所有数据，是否继续？", Loc.T("Str_MsgTitle_Confirm"), MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
                     return;
             }
             ClearAllDataAndUI();
@@ -26252,7 +26252,7 @@ namespace SwimmingScoreboard
             if (!TryAcquireEditLock(key, out holder)) {
                 MessageBox.Show(
                     string.Format("{0} 正在被 {1} 编辑，请稍后再试。", entityLabel, holder),
-                    "无法编辑", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    Loc.T("Str_MsgTitle_CannotEdit"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
             try { body(); } finally { ReleaseEditLock(key); }
@@ -26502,7 +26502,7 @@ namespace SwimmingScoreboard
             }
             ApplyRecordBreaksToLocalState(breaks);
             // 2026-08-31 比赛期间欠下的参数/设备状态, 到这一步一并补进库。
-            //   顺序: 先补参数, 再回读成绩 —— 都在"确认"这一个动作里完成。
+            //   顺序: 先补参数, 再回读成绩 —— 都在Loc.T("Str_MsgTitle_Confirm")这一个动作里完成。
             try { FlushConfigToDb(); } catch { }
             // 2026-08-30 成绩确定了 —— 从库里把这一组读回来, 覆盖内存。
             //   从这一刻起这组的名次只有库里那一份, 打印/大屏/查询都用它, 谁都别再算。
@@ -28082,7 +28082,7 @@ namespace SwimmingScoreboard
 
         private void ClearAllRecords_Click(object sender, RoutedEventArgs e) {
             if (_records.Count == 0) {
-                MessageBox.Show("当前没有纪录数据。", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show("当前没有纪录数据。", Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
             RunWithEditLock("records-all", "纪录列表", delegate {
@@ -28248,12 +28248,8 @@ namespace SwimmingScoreboard
                     string ext = System.IO.Path.GetExtension(dlg.FileName).ToLower();
                     if (ext == ".xls" || ext == ".xlsx") {
                         MessageBox.Show(
-                            "无法直接读取Excel文件（.xls/.xlsx）。\n\n" +
-                            "请在Excel中将文件另存为：\n" +
-                            "  文件类型: CSV UTF-8（逗号分隔）(*.csv)\n" +
-                            "  或: CSV（逗号分隔）(*.csv)\n\n" +
-                            "然后用导出的CSV文件重新导入。",
-                            "格式提示", MessageBoxButton.OK, MessageBoxImage.Warning);
+                            Loc.T("Str_Msg_XlsxReadFailedTipLong"),
+                            Loc.T("Str_MsgTitle_FormatNote"), MessageBoxButton.OK, MessageBoxImage.Warning);
                         return;
                     }
 
@@ -28722,7 +28718,7 @@ namespace SwimmingScoreboard
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EF4444")), Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0) };
             btnDel.Click += delegate {
                 var sel = grid.SelectedItem as EditableNameRow;
-                if (sel != null) working.Remove(sel); else MessageBox.Show("请先选中要删除的行");
+                if (sel != null) working.Remove(sel); else MessageBox.Show(Loc.T("Str_Msg_SelectRowToDelete"));
             };
             var btnOk = new Button { Content = "确认保存", Padding = new Thickness(16, 6, 16, 6), Margin = new Thickness(0, 0, 8, 0), FontWeight = FontWeights.Bold,
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#22C55E")), Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0) };
@@ -28768,8 +28764,8 @@ namespace SwimmingScoreboard
                 sb.AppendLine(headerName);
                 foreach (var v in source) sb.AppendLine(CsvEscape(v));
                 File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
-                MessageBox.Show(headerName + "表已导出。", "完成");
-            } catch (Exception ex) { MessageBox.Show("导出失败: " + ex.Message, "错误"); }
+                MessageBox.Show(headerName + "表已导出。", Loc.T("Str_MsgTitle_Done"));
+            } catch (Exception ex) { MessageBox.Show(Loc.F("Str_Msg_ExportFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error")); }
         }
         private void ImportStringListCsv(string title, string headerName, Action<List<string>> onLoaded) {
             var dlg = new Microsoft.Win32.OpenFileDialog {
@@ -28779,9 +28775,9 @@ namespace SwimmingScoreboard
             if (dlg.ShowDialog() != true) return;
             string ext = IOPath.GetExtension(dlg.FileName).ToLower();
             if (ext == ".xls" || ext == ".xlsx") {
-                MessageBox.Show("无法直接读取 Excel 文件。请另存为 CSV UTF-8 后再导入。", "格式提示"); return;
+                MessageBox.Show(Loc.T("Str_Msg_XlsxReadFailedTip"), Loc.T("Str_MsgTitle_FormatNote")); return;
             }
-            if (MessageBox.Show("导入将替换当前列表。继续？", "确认", MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
+            if (MessageBox.Show("导入将替换当前列表。继续？", Loc.T("Str_MsgTitle_Confirm"), MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
             try {
                 var rows = ReadCsvLines(dlg.FileName);
                 var seen = new HashSet<string>();
@@ -28798,8 +28794,8 @@ namespace SwimmingScoreboard
                 }
                 if (finalList.Count == 0) { MessageBox.Show("未读取到有效条目"); return; }
                 onLoaded(finalList);
-                MessageBox.Show(string.Format("已导入 {0} 个{1}。", finalList.Count, headerName), "完成");
-            } catch (Exception ex) { MessageBox.Show("导入失败: " + ex.Message, "错误"); }
+                MessageBox.Show(string.Format("已导入 {0} 个{1}。", finalList.Count, headerName), Loc.T("Str_MsgTitle_Done"));
+            } catch (Exception ex) { MessageBox.Show(Loc.F("Str_Msg_ImportFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error")); }
         }
         private void DownloadStringListTemplate(string title, string fileName, string headerName, string[] sampleRows) {
             var dlg = new Microsoft.Win32.SaveFileDialog { Filter = "CSV文件|*.csv", Title = title, FileName = fileName };
@@ -28810,8 +28806,8 @@ namespace SwimmingScoreboard
                 sb.AppendLine(headerName + "名称");
                 foreach (var s in sampleRows) sb.AppendLine(s);
                 File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
-                MessageBox.Show(headerName + "模板已保存。", "完成");
-            } catch (Exception ex) { MessageBox.Show("保存失败: " + ex.Message, "错误"); }
+                MessageBox.Show(headerName + "模板已保存。", Loc.T("Str_MsgTitle_Done"));
+            } catch (Exception ex) { MessageBox.Show(Loc.F("Str_Msg_SaveFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error")); }
         }
 
         // —— 性别 ——
@@ -28926,7 +28922,7 @@ namespace SwimmingScoreboard
             btnDel.Click += delegate {
                 var sel = grid.SelectedItem as EventRow;
                 if (sel != null) working.Remove(sel);
-                else MessageBox.Show("请先选中要删除的行");
+                else MessageBox.Show(Loc.T("Str_Msg_SelectRowToDelete"));
             };
             var btnOk = new Button { Content = "确认保存", Padding = new Thickness(16, 6, 16, 6), Margin = new Thickness(0, 0, 8, 0), FontWeight = FontWeights.Bold,
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#22C55E")), Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0) };
@@ -29017,7 +29013,7 @@ namespace SwimmingScoreboard
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EF4444")), Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0) };
             btnDel.Click += delegate {
                 var sel = grid.SelectedItem as AgeGroup;
-                if (sel != null) working.Remove(sel); else MessageBox.Show("请先选中要删除的行");
+                if (sel != null) working.Remove(sel); else MessageBox.Show(Loc.T("Str_Msg_SelectRowToDelete"));
             };
             var btnOk = new Button { Content = "确认保存", Padding = new Thickness(16, 6, 16, 6), Margin = new Thickness(0, 0, 8, 0), FontWeight = FontWeights.Bold,
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#22C55E")), Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0) };
@@ -29065,8 +29061,8 @@ namespace SwimmingScoreboard
                 sb.AppendLine("比赛项目");
                 foreach (var ev in _events) sb.AppendLine(CsvEscape(ev));
                 File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
-                MessageBox.Show("比赛项目表已导出。", "完成");
-            } catch (Exception ex) { MessageBox.Show("导出失败: " + ex.Message, "错误"); }
+                MessageBox.Show("比赛项目表已导出。", Loc.T("Str_MsgTitle_Done"));
+            } catch (Exception ex) { MessageBox.Show(Loc.F("Str_Msg_ExportFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error")); }
         }
 
         private void ImportEventsCSV_Click(object sender, RoutedEventArgs e) {
@@ -29077,9 +29073,9 @@ namespace SwimmingScoreboard
             if (dlg.ShowDialog() != true) return;
             string ext = IOPath.GetExtension(dlg.FileName).ToLower();
             if (ext == ".xls" || ext == ".xlsx") {
-                MessageBox.Show("无法直接读取 Excel 文件。请另存为 CSV UTF-8 后再导入。", "格式提示"); return;
+                MessageBox.Show(Loc.T("Str_Msg_XlsxReadFailedTip"), Loc.T("Str_MsgTitle_FormatNote")); return;
             }
-            if (MessageBox.Show("导入将替换当前比赛项目列表。继续？", "确认", MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
+            if (MessageBox.Show("导入将替换当前比赛项目列表。继续？", Loc.T("Str_MsgTitle_Confirm"), MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
             try {
                 var rows = ReadCsvLines(dlg.FileName);
                 var finalList = new List<string>();
@@ -29102,8 +29098,8 @@ namespace SwimmingScoreboard
                 FinishAndSyncPatch(BuildListSetPatch("events", JArray.FromObject(_events), ClientLabel()), "meet");
                 NotifyMetadataChanged();
                 AddLog(string.Format("导入比赛项目: 共{0}条", _events.Count));
-                MessageBox.Show(string.Format("已导入 {0} 条比赛项目。", _events.Count), "完成");
-            } catch (Exception ex) { MessageBox.Show("导入失败: " + ex.Message, "错误"); }
+                MessageBox.Show(string.Format("已导入 {0} 条比赛项目。", _events.Count), Loc.T("Str_MsgTitle_Done"));
+            } catch (Exception ex) { MessageBox.Show(Loc.F("Str_Msg_ImportFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error")); }
         }
 
         private void DownloadEventsTemplate_Click(object sender, RoutedEventArgs e) {
@@ -29119,8 +29115,8 @@ namespace SwimmingScoreboard
                 sb.AppendLine("4×50米自由泳接力");
                 sb.AppendLine("4×100米混合泳接力");
                 File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
-                MessageBox.Show("比赛项目模板已保存。", "完成");
-            } catch (Exception ex) { MessageBox.Show("保存失败: " + ex.Message, "错误"); }
+                MessageBox.Show("比赛项目模板已保存。", Loc.T("Str_MsgTitle_Done"));
+            } catch (Exception ex) { MessageBox.Show(Loc.F("Str_Msg_SaveFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error")); }
         }
 
         private void ExportAgeGroupsCSV_Click(object sender, RoutedEventArgs e) {
@@ -29132,8 +29128,8 @@ namespace SwimmingScoreboard
                 sb.AppendLine("组别名称");
                 foreach (var g in _ageGroups) sb.AppendLine(CsvEscape(g.Name));
                 File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
-                MessageBox.Show("组别表已导出。", "完成");
-            } catch (Exception ex) { MessageBox.Show("导出失败: " + ex.Message, "错误"); }
+                MessageBox.Show("组别表已导出。", Loc.T("Str_MsgTitle_Done"));
+            } catch (Exception ex) { MessageBox.Show(Loc.F("Str_Msg_ExportFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error")); }
         }
 
         private void ImportAgeGroupsCSV_Click(object sender, RoutedEventArgs e) {
@@ -29144,9 +29140,9 @@ namespace SwimmingScoreboard
             if (dlg.ShowDialog() != true) return;
             string ext = IOPath.GetExtension(dlg.FileName).ToLower();
             if (ext == ".xls" || ext == ".xlsx") {
-                MessageBox.Show("无法直接读取 Excel 文件。请另存为 CSV UTF-8 后再导入。", "格式提示"); return;
+                MessageBox.Show(Loc.T("Str_Msg_XlsxReadFailedTip"), Loc.T("Str_MsgTitle_FormatNote")); return;
             }
-            if (MessageBox.Show("导入将替换当前组别列表。继续？", "确认", MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
+            if (MessageBox.Show("导入将替换当前组别列表。继续？", Loc.T("Str_MsgTitle_Confirm"), MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
             try {
                 var rows = ReadCsvLines(dlg.FileName);
                 var finalList = new List<AgeGroup>();
@@ -29177,8 +29173,8 @@ namespace SwimmingScoreboard
                 FinishAndSyncPatch(BuildListSetPatch("ageGroups", JArray.FromObject(_ageGroups), ClientLabel()), "meet");
                 NotifyMetadataChanged();
                 AddLog(string.Format("导入组别: 共{0}条", _ageGroups.Count));
-                MessageBox.Show(string.Format("已导入 {0} 个组别。", _ageGroups.Count), "完成");
-            } catch (Exception ex) { MessageBox.Show("导入失败: " + ex.Message, "错误"); }
+                MessageBox.Show(string.Format("已导入 {0} 个组别。", _ageGroups.Count), Loc.T("Str_MsgTitle_Done"));
+            } catch (Exception ex) { MessageBox.Show(Loc.F("Str_Msg_ImportFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error")); }
         }
 
         private void DownloadAgeGroupsTemplate_Click(object sender, RoutedEventArgs e) {
@@ -29195,8 +29191,8 @@ namespace SwimmingScoreboard
                 sb.AppendLine("戊组");
                 sb.AppendLine("己组");
                 File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
-                MessageBox.Show("组别模板已保存。", "完成");
-            } catch (Exception ex) { MessageBox.Show("保存失败: " + ex.Message, "错误"); }
+                MessageBox.Show("组别模板已保存。", Loc.T("Str_MsgTitle_Done"));
+            } catch (Exception ex) { MessageBox.Show(Loc.F("Str_Msg_SaveFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error")); }
         }
 
         // ═══════════════════════════════════════════════════════════════
@@ -29285,9 +29281,9 @@ namespace SwimmingScoreboard
                 }
                 File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
                 AddLog(string.Format("已导出日程表 CSV: {0} 条 → {1}", _schedule.Count, dlg.FileName));
-                MessageBox.Show("日程表已导出。", "完成");
+                MessageBox.Show("日程表已导出。", Loc.T("Str_MsgTitle_Done"));
             } catch (Exception ex) {
-                MessageBox.Show("导出失败: " + ex.Message, "错误");
+                MessageBox.Show(Loc.F("Str_Msg_ExportFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error"));
             }
         }
 
@@ -29299,12 +29295,12 @@ namespace SwimmingScoreboard
             if (dlg.ShowDialog() != true) return;
             string ext = IOPath.GetExtension(dlg.FileName).ToLower();
             if (ext == ".xls" || ext == ".xlsx") {
-                MessageBox.Show("无法直接读取 Excel 文件。请在 Excel/WPS 中另存为 “CSV UTF-8（逗号分隔）(*.csv)” 后再导入。",
-                    "格式提示", MessageBoxButton.OK, MessageBoxImage.Warning); return;
+                MessageBox.Show(Loc.T("Str_Msg_XlsxReadFailedTip2"),
+                    Loc.T("Str_MsgTitle_FormatNote"), MessageBoxButton.OK, MessageBoxImage.Warning); return;
             }
             if (_schedule.Count > 0) {
                 if (MessageBox.Show(string.Format("当前已有{0}条日程，导入将会清空并替换。继续？", _schedule.Count),
-                    "确认", MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
+                    Loc.T("Str_MsgTitle_Confirm"), MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
             }
             try {
                 var rows = ReadCsvLines(dlg.FileName);
@@ -29345,9 +29341,9 @@ namespace SwimmingScoreboard
                 BuildScheduleTree();
                 FinishAndSyncPatch(BuildListSetPatch("schedule", JArray.FromObject(_schedule), ClientLabel()), "meet");
                 AddLog(string.Format("导入日程表: 新增{0}条, 跳过{1}行", imported, skipped));
-                MessageBox.Show(string.Format("已导入日程 {0} 条（跳过{1}行）。", imported, skipped), "完成");
+                MessageBox.Show(string.Format("已导入日程 {0} 条（跳过{1}行）。", imported, skipped), Loc.T("Str_MsgTitle_Done"));
             } catch (Exception ex) {
-                MessageBox.Show("导入失败: " + ex.Message, "错误");
+                MessageBox.Show(Loc.F("Str_Msg_ImportFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error"));
             }
         }
 
@@ -29368,9 +29364,9 @@ namespace SwimmingScoreboard
                 sb.AppendLine("2,2026-04-20,15:00,少年,男,50米自由泳,决赛,1");
                 sb.AppendLine("2,2026-04-20,15:10,,男,100米自由泳,决赛,1");
                 File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
-                MessageBox.Show("模板已保存，用 Excel/WPS 打开填写后通过【导入日程表】读入。", "完成");
+                MessageBox.Show("模板已保存，用 Excel/WPS 打开填写后通过【导入日程表】读入。", Loc.T("Str_MsgTitle_Done"));
             } catch (Exception ex) {
-                MessageBox.Show("保存失败: " + ex.Message, "错误");
+                MessageBox.Show(Loc.F("Str_Msg_SaveFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error"));
             }
         }
 
@@ -29395,10 +29391,10 @@ namespace SwimmingScoreboard
                     GetDatePickerText(StartDatePicker), GetDatePickerText(EndDatePicker),
                     LocationBox != null ? LocationBox.Text : "", laneNumbers, rows, events, teams);
                 AddLog("已导出分组表 Excel → " + dlg.FileName);
-                if (MessageBox.Show("分组表已导出。\n\n是否立即打开？", "完成", MessageBoxButton.YesNo, MessageBoxImage.Information) == MessageBoxResult.Yes)
+                if (MessageBox.Show("分组表已导出。\n\n是否立即打开？", Loc.T("Str_MsgTitle_Done"), MessageBoxButton.YesNo, MessageBoxImage.Information) == MessageBoxResult.Yes)
                     System.Diagnostics.Process.Start(dlg.FileName);
             } catch (Exception ex) {
-                MessageBox.Show("导出失败: " + ex.Message, "错误");
+                MessageBox.Show(Loc.F("Str_Msg_ExportFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error"));
             }
         }
 
@@ -29420,7 +29416,7 @@ namespace SwimmingScoreboard
                     if (MessageBox.Show(warning + "\n\n是否仍然继续？", "导入提示", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
                         return;
                 }
-                if (rows.Count == 0) { MessageBox.Show("Excel 中没有可导入的分组数据。", "提示"); return; }
+                if (rows.Count == 0) { MessageBox.Show("Excel 中没有可导入的分组数据。", Loc.T("Str_MsgTitle_Info")); return; }
 
                 // 2026-09-12 导入是【整项清空重填】—— 先挑出里面有动不得的组(正在比 / 已完赛)
                 //   的项目, 那些项整项跳过, 别的项照常导。
@@ -29522,9 +29518,9 @@ namespace SwimmingScoreboard
                     detail += string.Join("\n  · ", unmatched.Take(20).ToArray());
                     if (unmatched.Count > 20) detail += "\n  · ... 等共 " + unmatched.Count + " 条";
                 }
-                MessageBox.Show(detail, "完成");
+                MessageBox.Show(detail, Loc.T("Str_MsgTitle_Done"));
             } catch (Exception ex) {
-                MessageBox.Show("导入失败: " + ex.Message, "错误");
+                MessageBox.Show(Loc.F("Str_Msg_ImportFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error"));
             }
         }
 
@@ -29543,10 +29539,10 @@ namespace SwimmingScoreboard
                         ? (NPOI.SS.UserModel.IWorkbook)new NPOI.HSSF.UserModel.HSSFWorkbook(fs)
                         : new NPOI.XSSF.UserModel.XSSFWorkbook(fs);
                     var sh = wb.GetSheetAt(0);
-                    if (sh == null) { MessageBox.Show("Excel 中没有工作表", "错误"); return; }
+                    if (sh == null) { MessageBox.Show(Loc.T("Str_Msg_ExcelNoSheet"), Loc.T("Str_MsgTitle_Error")); return; }
                     // 表头行 (第 1 行) 按字段名建 col 索引
                     var head = sh.GetRow(0);
-                    if (head == null) { MessageBox.Show("首行(表头)为空", "错误"); return; }
+                    if (head == null) { MessageBox.Show("首行(表头)为空", Loc.T("Str_MsgTitle_Error")); return; }
                     var colMap = new Dictionary<string, int>();
                     for (int c = 0; c < head.LastCellNum; c++) {
                         var hc = head.GetCell(c);
@@ -29560,7 +29556,7 @@ namespace SwimmingScoreboard
                         cGender = col("性别"), cAgeGroup = col("组别"), cEvent = col("项目"),
                         cStage = col("赛次"), cHeatCount = col("组数");
                     if (cGender < 0 || cEvent < 0 || cStage < 0) {
-                        MessageBox.Show("表头缺少必需列 (性别/项目/赛次)", "错误"); return;
+                        MessageBox.Show("表头缺少必需列 (性别/项目/赛次)", Loc.T("Str_MsgTitle_Error")); return;
                     }
                     for (int r = 1; r <= sh.LastRowNum; r++) {
                         var row = sh.GetRow(r);
@@ -29600,10 +29596,10 @@ namespace SwimmingScoreboard
                 // 这里改完了的 _schedule 就是最终那份, 直接复用同一条路, 不必再单独建一套按行
                 // upsert 的协议。
                 FinishAndSyncPatch(BuildListSetPatch("schedule", JArray.FromObject(_schedule), ClientLabel()), "meet");
-                MessageBox.Show(string.Format("导入完成:\n  新增 {0} 项\n  更新 {1} 项\n  跳过 {2} 行", added, updated, skipped), "完成");
+                MessageBox.Show(string.Format("导入完成:\n  新增 {0} 项\n  更新 {1} 项\n  跳过 {2} 行", added, updated, skipped), Loc.T("Str_MsgTitle_Done"));
                 AddLog(string.Format("导入(其他)日程表: 新增{0} 更新{1} 跳过{2}", added, updated, skipped));
             } catch (Exception ex) {
-                MessageBox.Show("导入失败: " + ex.Message, "错误");
+                MessageBox.Show(Loc.F("Str_Msg_ImportFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error"));
                 AddLog("导入(其他)日程表失败: " + ex.Message);
             }
         }
@@ -29645,7 +29641,7 @@ namespace SwimmingScoreboard
                         ? (NPOI.SS.UserModel.IWorkbook)new NPOI.HSSF.UserModel.HSSFWorkbook(fs)
                         : new NPOI.XSSF.UserModel.XSSFWorkbook(fs);
                     var sh = wb.GetSheetAt(0);
-                    if (sh == null) { MessageBox.Show("Excel 中没有工作表", "错误"); return; }
+                    if (sh == null) { MessageBox.Show(Loc.T("Str_Msg_ExcelNoSheet"), Loc.T("Str_MsgTitle_Error")); return; }
 
                     string curGender = "", curEvent = "", curStage = "", curAgeGroup = "";
                     string curSessionDate = "", curSessionTime = "";
@@ -29768,10 +29764,10 @@ namespace SwimmingScoreboard
                 BuildScheduleTree();
                 RefreshSwimmerFilter();
                 Broadcast();
-                MessageBox.Show(string.Format("导入完成:\n  更新已有运动员 {0} 人\n  新增运动员 {1} 人", updated, added), "完成");
+                MessageBox.Show(string.Format("导入完成:\n  更新已有运动员 {0} 人\n  新增运动员 {1} 人", updated, added), Loc.T("Str_MsgTitle_Done"));
                 AddLog(string.Format("导入(其他)分组表: 更新{0} 新增{1}", updated, added));
             } catch (Exception ex) {
-                MessageBox.Show("导入失败: " + ex.Message, "错误");
+                MessageBox.Show(Loc.F("Str_Msg_ImportFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error"));
                 AddLog("导入(其他)分组表失败: " + ex.Message);
             }
         }
@@ -29802,14 +29798,14 @@ namespace SwimmingScoreboard
                     } catch (Exception exOpen) {
                         MessageBox.Show("读取 Excel 失败: " + exOpen.Message
                             + "\n\n如果是 .xls (老 BIFF 格式) 而 NPOI 报错, 请先用 Excel 另存为 .xlsx 再导入.",
-                            "错误");
+                            Loc.T("Str_MsgTitle_Error"));
                         return;
                     }
                     var sh = wb.GetSheetAt(0);
-                    if (sh == null) { MessageBox.Show("Excel 中没有工作表", "错误"); return; }
+                    if (sh == null) { MessageBox.Show(Loc.T("Str_Msg_ExcelNoSheet"), Loc.T("Str_MsgTitle_Error")); return; }
                     // R2 表头. 单项明细 R1 是分组大标题 (项目进度/项目名称/运动员/...), 跳过
                     var head = sh.GetRow(1);
-                    if (head == null) { MessageBox.Show("第 2 行 (表头) 为空", "错误"); return; }
+                    if (head == null) { MessageBox.Show("第 2 行 (表头) 为空", Loc.T("Str_MsgTitle_Error")); return; }
                     var colMap = new Dictionary<string, int>();
                     for (int c = 0; c < head.LastCellNum; c++) {
                         var hc = head.GetCell(c);
@@ -29828,7 +29824,7 @@ namespace SwimmingScoreboard
                         cPhone = col("电话"), cAge = col("年龄"),
                         cEntryTime = col("竞赛成绩"), cBib = col("参赛号");
                     if (cName < 0 || cGender < 0 || cDist < 0 || cStroke < 0) {
-                        MessageBox.Show("表头缺必需列 (运动员/性别/距离/姿式)", "错误"); return;
+                        MessageBox.Show("表头缺必需列 (运动员/性别/距离/姿式)", Loc.T("Str_MsgTitle_Error")); return;
                     }
                     // R3 起数据
                     for (int r = 2; r <= sh.LastRowNum; r++) {
@@ -29924,11 +29920,11 @@ namespace SwimmingScoreboard
                 FinishAndSyncPatch(BuildSwimmerRowsUpsertPatch(touchedRows, null, ClientLabel()), "swimmer");
                 MessageBox.Show(string.Format(
                     "导入完成:\n  更新已有运动员 {0} 人\n  新增运动员 {1} 人\n  无项目 (距离+姿式空) 跳过 {2} 行\n  其它无效 跳过 {3} 行",
-                    updated, added, noEvent, skipped), "完成");
+                    updated, added, noEvent, skipped), Loc.T("Str_MsgTitle_Done"));
                 AddLog(string.Format("导入(其他)运动员信息: 更新{0} 新增{1} 无项跳过{2} 其它跳过{3}",
                     updated, added, noEvent, skipped));
             } catch (Exception ex) {
-                MessageBox.Show("导入失败: " + ex.Message, "错误");
+                MessageBox.Show(Loc.F("Str_Msg_ImportFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error"));
                 AddLog("导入(其他)运动员信息失败: " + ex.Message);
             }
         }
@@ -29968,12 +29964,12 @@ namespace SwimmingScoreboard
                     CollectEventInfoForExport(),
                     _swimmers.Where(s => !IsRelayMemberNote(s.Notes)).Select(s => s.Country ?? "")
                         .Where(c => !string.IsNullOrEmpty(c)).Distinct().OrderBy(c => c).ToList());
-                if (MessageBox.Show("模板已保存：\n" + dlg.FileName + "\n\n是否立即打开？", "完成",
+                if (MessageBox.Show("模板已保存：\n" + dlg.FileName + "\n\n是否立即打开？", Loc.T("Str_MsgTitle_Done"),
                     MessageBoxButton.YesNo, MessageBoxImage.Information) == MessageBoxResult.Yes) {
                     System.Diagnostics.Process.Start(dlg.FileName);
                 }
             } catch (Exception ex) {
-                MessageBox.Show("保存失败: " + ex.Message, "错误");
+                MessageBox.Show(Loc.F("Str_Msg_SaveFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error"));
             }
         }
 
@@ -30106,9 +30102,9 @@ namespace SwimmingScoreboard
                 }
                 File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
                 AddLog("已导出分组表 CSV → " + dlg.FileName);
-                MessageBox.Show("分组表已导出。", "完成");
+                MessageBox.Show("分组表已导出。", Loc.T("Str_MsgTitle_Done"));
             } catch (Exception ex) {
-                MessageBox.Show("导出失败: " + ex.Message, "错误");
+                MessageBox.Show(Loc.F("Str_Msg_ExportFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error"));
             }
         }
 
@@ -30120,10 +30116,10 @@ namespace SwimmingScoreboard
             if (dlg.ShowDialog() != true) return;
             string ext = IOPath.GetExtension(dlg.FileName).ToLower();
             if (ext == ".xls" || ext == ".xlsx") {
-                MessageBox.Show("无法直接读取 Excel 文件。请另存为 “CSV UTF-8（逗号分隔）(*.csv)” 后再导入。",
-                    "格式提示", MessageBoxButton.OK, MessageBoxImage.Warning); return;
+                MessageBox.Show(Loc.T("Str_Msg_XlsxReadFailedTip3"),
+                    Loc.T("Str_MsgTitle_FormatNote"), MessageBoxButton.OK, MessageBoxImage.Warning); return;
             }
-            if (MessageBox.Show("导入分组表将覆盖相应项目/赛次的现有分组。继续？", "确认", MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
+            if (MessageBox.Show("导入分组表将覆盖相应项目/赛次的现有分组。继续？", Loc.T("Str_MsgTitle_Confirm"), MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
 
             try {
                 var rows = ReadCsvLines(dlg.FileName);
@@ -30217,9 +30213,9 @@ namespace SwimmingScoreboard
                 FinishAndSyncPatch(BuildListSetPatch("schedule", JArray.FromObject(_schedule), ClientLabel()), "meet");
                 AddLog(string.Format("导入分组表: 分配{0}条, 跳过{1}行, 未匹配{2}人", imported, skipped, notFound));
                 string note = notFound > 0 ? string.Format("\n有 {0} 行未匹配到运动员（参赛号或姓名+代表队不符，已跳过）。", notFound) : "";
-                MessageBox.Show(string.Format("已导入分组 {0} 条。{1}", imported, note), "完成");
+                MessageBox.Show(string.Format("已导入分组 {0} 条。{1}", imported, note), Loc.T("Str_MsgTitle_Done"));
             } catch (Exception ex) {
-                MessageBox.Show("导入失败: " + ex.Message, "错误");
+                MessageBox.Show(Loc.F("Str_Msg_ImportFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error"));
             }
         }
 
@@ -30240,9 +30236,9 @@ namespace SwimmingScoreboard
                 File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
                 MessageBox.Show("模板已保存，用 Excel/WPS 打开填写后通过【导入分组表】读入。\n\n" +
                     "说明：\n• 参赛号或 “姓名+代表队” 任一能匹配到已注册运动员即可\n• 导入会覆盖相应项目/赛次的所有分组",
-                    "完成");
+                    Loc.T("Str_MsgTitle_Done"));
             } catch (Exception ex) {
-                MessageBox.Show("保存失败: " + ex.Message, "错误");
+                MessageBox.Show(Loc.F("Str_Msg_SaveFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error"));
             }
         }
 
@@ -30291,7 +30287,7 @@ namespace SwimmingScoreboard
             bool confirmed = _resultConfirmed
                 || _confirmedHeats.Contains(ConfirmedHeatKey(_currentAgeGroup, _currentGender, _currentEvent, _currentStage, _currentHeat));
             if (!confirmed) {
-                MessageBox.Show("正在比赛中，不能打印，请稍后。", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show("正在比赛中，不能打印，请稍后。", Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
             GenerateAndOpenDocument(Loc.T("Str_DocTitle_HeatResults"), BuildHeatResultsHtml());
@@ -30400,7 +30396,7 @@ namespace SwimmingScoreboard
                     System.Diagnostics.Process.Start(dlg.FileName);
                 }
             } catch (Exception ex) {
-                MessageBox.Show("导出失败：" + ex.Message);
+                MessageBox.Show(Loc.F("Str_Msg_ExportFailedFmt", ex.Message));
             }
         }
         private void PrintTeamStandings_Click(object sender, RoutedEventArgs e) { CalculateTeamScores(); GenerateAndOpenDocument(Loc.T("Str_DocTitle_TeamStandings"), BuildTeamStandingsHtml()); }
@@ -30443,9 +30439,9 @@ namespace SwimmingScoreboard
                 string text = BuildResultTxtContent(picked.AgeGroup, picked.Gender, picked.EventName, picked.Stage, picked.Heat);
                 File.WriteAllText(sfd.FileName, text, new UTF8Encoding(false));     // 不带 BOM, 兼容旧解析器
                 AddLog("成绩 txt 已导出: " + sfd.FileName);
-                MessageBox.Show("已导出:\n" + sfd.FileName, "完成", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show("已导出:\n" + sfd.FileName, Loc.T("Str_MsgTitle_Done"), MessageBoxButton.OK, MessageBoxImage.Information);
             } catch (Exception ex) {
-                MessageBox.Show("导出失败: " + ex.Message, "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show(Loc.F("Str_Msg_ExportFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error"), MessageBoxButton.OK, MessageBoxImage.Error);
                 AddLog("成绩 txt 导出失败: " + ex.Message);
             }
         }
@@ -30671,7 +30667,7 @@ namespace SwimmingScoreboard
             btnOK.Click += delegate {
                 var sel = tv.SelectedItem as TreeViewItem;
                 if (sel == null || !(sel.Tag is ConfirmedHeatPick)) {
-                    MessageBox.Show("请先在树中选择一个【第N组 [已完赛]】节点。", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                    MessageBox.Show("请先在树中选择一个【第N组 [已完赛]】节点。", Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Information);
                     return;
                 }
                 selected = (ConfirmedHeatPick)sel.Tag;
@@ -30985,7 +30981,7 @@ namespace SwimmingScoreboard
                 try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(dlg.FileName) { UseShellExecute = true }); } catch { }
             } catch (Exception ex) {
                 AddLog("导出竞赛日程 Excel 失败: " + ex.Message);
-                MessageBox.Show("导出失败: " + ex.Message, "错误");
+                MessageBox.Show(Loc.F("Str_Msg_ExportFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error"));
             }
         }
 
@@ -31117,7 +31113,7 @@ namespace SwimmingScoreboard
                 try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(dlg.FileName) { UseShellExecute = true }); } catch { }
             } catch (Exception ex) {
                 AddLog("导出分组表 Excel 失败: " + ex.Message);
-                MessageBox.Show("导出失败: " + ex.Message, "错误");
+                MessageBox.Show(Loc.F("Str_Msg_ExportFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error"));
             }
         }
 
@@ -33336,7 +33332,7 @@ namespace SwimmingScoreboard
                 File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
                 MessageBox.Show("已导出: " + dlg.FileName, "导出日志", MessageBoxButton.OK, MessageBoxImage.Information);
             } catch (Exception ex) {
-                MessageBox.Show("导出失败: " + ex.Message, "导出日志", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show(Loc.F("Str_Msg_ExportFailedFmt", ex.Message), "导出日志", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -33415,7 +33411,7 @@ namespace SwimmingScoreboard
             if (selected == null) { MessageBox.Show("请先选中一个存档"); return; }
             if (MessageBox.Show(
                 string.Format("严重警告：确定要永久删除存档文件 [{0}.json] 吗？\n\n此操作不可恢复！", selected.Name),
-                "确认删除", MessageBoxButton.YesNo, MessageBoxImage.Stop) == MessageBoxResult.Yes) {
+                Loc.T("Str_MsgTitle_ConfirmDelete"), MessageBoxButton.YesNo, MessageBoxImage.Stop) == MessageBoxResult.Yes) {
                 try {
                     if (File.Exists(selected.FilePath)) {
                         File.Delete(selected.FilePath);
@@ -33430,7 +33426,7 @@ namespace SwimmingScoreboard
                         }
                     }
                 } catch (Exception ex) {
-                    MessageBox.Show("删除失败: " + ex.Message);
+                    MessageBox.Show(Loc.F("Str_Msg_DeleteFailedFmt", ex.Message));
                 }
             }
         }

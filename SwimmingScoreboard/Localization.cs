@@ -631,6 +631,49 @@ namespace SwimmingScoreboard
             { "Str_SysLog_ForceSave",    new[] { "强制保存", "Force Save" } },
             { "Str_SysLog_ShowIP",       new[] { "查询本机IP地址", "Show Local IP Address" } },
             { "Str_SysLog_ChangePassword", new[] { "修改密码", "Change Password" } },
+
+            // 2026-09-21 【中文/English 第七阶段】MessageBox 弹窗——约315处调用点里反复出现的
+            // 共享标题词(提示/错误/确认/完成等), 先收敛成一批共用 key, 别每个调用点各建一份。
+            { "Str_MsgTitle_Info",    new[] { "提示", "Note" } },
+            { "Str_MsgTitle_Error",   new[] { "错误", "Error" } },
+            { "Str_MsgTitle_Confirm", new[] { "确认", "Confirm" } },
+            { "Str_MsgTitle_Done",    new[] { "完成", "Done" } },
+            { "Str_MsgTitle_FormatNote",  new[] { "格式提示", "Format Note" } },
+            { "Str_MsgTitle_FormatError", new[] { "格式错误", "Format Error" } },
+            { "Str_MsgTitle_ServerMismatch", new[] { "本机与主服务器不一致", "Local Data Out of Sync with Main Server" } },
+            { "Str_MsgTitle_CannotEdit",   new[] { "无法编辑", "Cannot Edit" } },
+            { "Str_MsgTitle_CannotDelete", new[] { "无法删除", "Cannot Delete" } },
+            { "Str_MsgTitle_CannotSave",   new[] { "无法保存", "Cannot Save" } },
+            { "Str_MsgTitle_CannotAdd",    new[] { "无法新增", "Cannot Add" } },
+            { "Str_MsgTitle_CannotProceed",new[] { "无法执行", "Cannot Proceed" } },
+            { "Str_MsgTitle_ConfirmDelete",new[] { "确认删除", "Confirm Delete" } },
+            { "Str_MsgTitle_ActionBlocked",new[] { "操作被阻止", "Action Blocked" } },
+
+            // 反复出现的具体消息(带 {0}/{1} 占位符走 Loc.F, 纯静态走 Loc.T)
+            { "Str_Msg_SaveFailedFmt",   new[] { "保存失败: {0}", "Save failed: {0}" } },
+            { "Str_Msg_ExportFailedFmt", new[] { "导出失败: {0}", "Export failed: {0}" } },
+            { "Str_Msg_ImportFailedFmt", new[] { "导入失败: {0}", "Import failed: {0}" } },
+            { "Str_Msg_PrintFailedFmt",  new[] { "打印失败: {0}", "Print failed: {0}" } },
+            { "Str_Msg_ReadFailedFmt",   new[] { "读取失败: {0}", "Read failed: {0}" } },
+            { "Str_Msg_WriteFailedFmt",  new[] { "写文件失败: {0}", "Failed to write file: {0}" } },
+            { "Str_Msg_DeleteFailedFmt", new[] { "删除失败: {0}", "Delete failed: {0}" } },
+            { "Str_Msg_CopyFailedFmt",   new[] { "复制失败: {0}", "Copy failed: {0}" } },
+            { "Str_Msg_SelectRelayFirst",  new[] { "请先选中一支接力队", "Select a relay team first." } },
+            { "Str_Msg_SelectRowToDelete", new[] { "请先选中要删除的行", "Select a row to delete first." } },
+            { "Str_Msg_SelectRowFirst",    new[] { "请先选中一行", "Select a row first." } },
+            { "Str_Msg_XlsxReadFailedTip", new[] {
+                "无法直接读取 Excel 文件。请另存为 CSV UTF-8 后再导入。",
+                "Can't read the Excel file directly. Save it as CSV UTF-8 first, then import that." } },
+            { "Str_Msg_XlsxReadFailedTip2", new[] {
+                "无法直接读取 Excel 文件。请在 Excel/WPS 中另存为 “CSV UTF-8（逗号分隔）(*.csv)” 后再导入。",
+                "Can't read the Excel file directly. In Excel/WPS, save it as “CSV UTF-8 (Comma delimited) (*.csv)” first, then import that." } },
+            { "Str_Msg_XlsxReadFailedTip3", new[] {
+                "无法直接读取 Excel 文件。请另存为 “CSV UTF-8（逗号分隔）(*.csv)” 后再导入。",
+                "Can't read the Excel file directly. Save it as “CSV UTF-8 (Comma delimited) (*.csv)” first, then import that." } },
+            { "Str_Msg_XlsxReadFailedTipLong", new[] {
+                "无法直接读取Excel文件（.xls/.xlsx）。\n\n请在Excel中将文件另存为：\n  文件类型: CSV UTF-8（逗号分隔）(*.csv)\n  或: CSV（逗号分隔）(*.csv)\n\n然后用导出的CSV文件重新导入。",
+                "Can't read the Excel file (.xls/.xlsx) directly.\n\nIn Excel, save the file as:\n  File type: CSV UTF-8 (Comma delimited) (*.csv)\n  or: CSV (Comma delimited) (*.csv)\n\nThen re-import the exported CSV file." } },
+            { "Str_Msg_ExcelNoSheet",  new[] { "Excel 中没有工作表", "The Excel file has no worksheet." } },
         };
 
         /// <summary>查当前语言下的文字；查不到就退回中文；中文也没有就返回 key 本身兜底。</summary>
@@ -639,6 +682,14 @@ namespace SwimmingScoreboard
             if (!Table.TryGetValue(key, out pair)) return key;
             int idx = CurrentLanguage == En ? 1 : 0;
             return (idx < pair.Length && !string.IsNullOrEmpty(pair[idx])) ? pair[idx] : pair[0];
+        }
+
+        /// <summary>2026-09-21【第七阶段: MessageBox 弹窗】T() 只管"整句话固定不变"的文字；
+        /// 弹窗消息大多是 string.Format 拼出来的("确定删除 {0} 吗?")，这里把查表结果当
+        /// format 模板用。中英文模板里的 {0}/{1}… 占位符个数/顺序必须跟调用处传的参数对上，
+        /// 对不上会被 catch 住退回原模板文字(带着没换掉的{0})而不是崩溃。</summary>
+        public static string F(string key, params object[] args) {
+            try { return string.Format(T(key), args); } catch { return T(key); }
         }
 
         public static void LoadSaved() {
