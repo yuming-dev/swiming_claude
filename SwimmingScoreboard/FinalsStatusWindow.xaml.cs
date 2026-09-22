@@ -58,13 +58,13 @@ namespace SwimmingScoreboard
                         int effectiveTotal = match.Count - dnsCount;   // 有效需录入人数
 
                         string inputStatus;
-                        if (withResult == 0) inputStatus = "✗ 未录入";
-                        else if (withResult >= effectiveTotal) inputStatus = "✅ 完成";
-                        else inputStatus = string.Format("⏳ {0}/{1}", withResult, effectiveTotal);
+                        if (withResult == 0) inputStatus = Loc.T("Str_Win_FinalsStatus_InputNone");
+                        else if (withResult >= effectiveTotal) inputStatus = Loc.T("Str_Win_FinalsStatus_InputDone");
+                        else inputStatus = Loc.F("Str_Win_FinalsStatus_InputPartialFmt", withResult, effectiveTotal);
 
                         // 加分状态（CurrentRank > 0 表示已计算名次）
                         int withRank = match.Count(s => s.CurrentRank > 0);
-                        string scoringStatus = withRank > 0 ? "✅ 已加分" : "—";
+                        string scoringStatus = withRank > 0 ? Loc.T("Str_Win_FinalsStatus_ScoringDone") : "—";
 
                         // 确认状态（_confirmedHeats key = 组别|性别|项目|赛次|组次）
                         bool allConfirmed = true;
@@ -74,10 +74,10 @@ namespace SwimmingScoreboard
                             if (_confirmedHeats.Contains(key)) anyConfirmed = true;
                             else allConfirmed = false;
                         }
-                        string confirmedStatus = !anyConfirmed ? "—" : allConfirmed ? "✅ 全部" : "⏳ 部分";
+                        string confirmedStatus = !anyConfirmed ? "—" : allConfirmed ? Loc.T("Str_Win_FinalsStatus_ConfirmedAll") : Loc.T("Str_Win_FinalsStatus_ConfirmedPartial");
 
                         string note = "";
-                        if (dnsCount > 0) note += string.Format("DSQ/DNS/DNF {0} 人", dnsCount);
+                        if (dnsCount > 0) note += Loc.F("Str_Win_FinalsStatus_DnsNoteFmt", dnsCount);
 
                         rows.Add(new FinalsStatusRow {
                             AgeGroup = ag, Gender = gender, EventName = ev,
@@ -91,10 +91,9 @@ namespace SwimmingScoreboard
 
             StatusGrid.ItemsSource = rows;
             int total = rows.Count;
-            int doneInput = rows.Count(r => r.InputStatusText.Contains("完成"));
-            int doneConfirm = rows.Count(r => r.ConfirmedStatusText.Contains("全部"));
-            SummaryText.Text = string.Format("共 {0} 项决赛 | 录入完成 {1} 项 | 全部确认 {2} 项",
-                total, doneInput, doneConfirm);
+            int doneInput = rows.Count(r => r.InputStatusText == Loc.T("Str_Win_FinalsStatus_InputDone"));
+            int doneConfirm = rows.Count(r => r.ConfirmedStatusText == Loc.T("Str_Win_FinalsStatus_ConfirmedAll"));
+            SummaryText.Text = Loc.F("Str_Win_FinalsStatus_SummaryFmt", total, doneInput, doneConfirm);
         }
     }
 
@@ -104,7 +103,7 @@ namespace SwimmingScoreboard
         public string Gender { get; set; }
         public string EventName { get; set; }
         public int ParticipantCount { get; set; }
-        public string ParticipantLabel { get { return ParticipantCount + "人"; } }
+        public string ParticipantLabel { get { return Loc.F("Str_Win_FinalsStatus_ParticipantFmt", ParticipantCount); } }
         public int FinalHeats { get; set; }
         public string InputStatusText { get; set; }
         public string ScoringStatusText { get; set; }
