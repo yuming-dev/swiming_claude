@@ -29248,7 +29248,7 @@ namespace SwimmingScoreboard
                 }
                 File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
                 AddLog(string.Format("已导出日程表 CSV: {0} 条 → {1}", _schedule.Count, dlg.FileName));
-                MessageBox.Show("日程表已导出。", Loc.T("Str_MsgTitle_Done"));
+                MessageBox.Show(Loc.T("Str_Msg_ScheduleExported"), Loc.T("Str_MsgTitle_Done"));
             } catch (Exception ex) {
                 MessageBox.Show(Loc.F("Str_Msg_ExportFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error"));
             }
@@ -29266,12 +29266,12 @@ namespace SwimmingScoreboard
                     Loc.T("Str_MsgTitle_FormatNote"), MessageBoxButton.OK, MessageBoxImage.Warning); return;
             }
             if (_schedule.Count > 0) {
-                if (MessageBox.Show(string.Format("当前已有{0}条日程，导入将会清空并替换。继续？", _schedule.Count),
+                if (MessageBox.Show(Loc.F("Str_Msg_ConfirmReplaceScheduleFmt", _schedule.Count),
                     Loc.T("Str_MsgTitle_Confirm"), MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
             }
             try {
                 var rows = ReadCsvLines(dlg.FileName);
-                if (rows.Count < 2) { MessageBox.Show("CSV 无有效数据"); return; }
+                if (rows.Count < 2) { MessageBox.Show(Loc.T("Str_Msg_CsvNoValidData")); return; }
                 _schedule.Clear();
                 int imported = 0, skipped = 0;
                 for (int i = 1; i < rows.Count; i++) {
@@ -29308,7 +29308,7 @@ namespace SwimmingScoreboard
                 BuildScheduleTree();
                 FinishAndSyncPatch(BuildListSetPatch("schedule", JArray.FromObject(_schedule), ClientLabel()), "meet");
                 AddLog(string.Format("导入日程表: 新增{0}条, 跳过{1}行", imported, skipped));
-                MessageBox.Show(string.Format("已导入日程 {0} 条（跳过{1}行）。", imported, skipped), Loc.T("Str_MsgTitle_Done"));
+                MessageBox.Show(Loc.F("Str_Msg_ImportedScheduleFmt", imported, skipped), Loc.T("Str_MsgTitle_Done"));
             } catch (Exception ex) {
                 MessageBox.Show(Loc.F("Str_Msg_ImportFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error"));
             }
@@ -29331,7 +29331,7 @@ namespace SwimmingScoreboard
                 sb.AppendLine("2,2026-04-20,15:00,少年,男,50米自由泳,决赛,1");
                 sb.AppendLine("2,2026-04-20,15:10,,男,100米自由泳,决赛,1");
                 File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
-                MessageBox.Show("模板已保存，用 Excel/WPS 打开填写后通过【导入日程表】读入。", Loc.T("Str_MsgTitle_Done"));
+                MessageBox.Show(Loc.T("Str_Msg_ScheduleTemplateSaved"), Loc.T("Str_MsgTitle_Done"));
             } catch (Exception ex) {
                 MessageBox.Show(Loc.F("Str_Msg_SaveFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error"));
             }
@@ -29358,7 +29358,7 @@ namespace SwimmingScoreboard
                     GetDatePickerText(StartDatePicker), GetDatePickerText(EndDatePicker),
                     LocationBox != null ? LocationBox.Text : "", laneNumbers, rows, events, teams);
                 AddLog("已导出分组表 Excel → " + dlg.FileName);
-                if (MessageBox.Show("分组表已导出。\n\n是否立即打开？", Loc.T("Str_MsgTitle_Done"), MessageBoxButton.YesNo, MessageBoxImage.Information) == MessageBoxResult.Yes)
+                if (MessageBox.Show(Loc.T("Str_Msg_HeatsExportedOpenNow"), Loc.T("Str_MsgTitle_Done"), MessageBoxButton.YesNo, MessageBoxImage.Information) == MessageBoxResult.Yes)
                     System.Diagnostics.Process.Start(dlg.FileName);
             } catch (Exception ex) {
                 MessageBox.Show(Loc.F("Str_Msg_ExportFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error"));
@@ -29380,10 +29380,10 @@ namespace SwimmingScoreboard
                 string warning;
                 var rows = HeatExcelService.Import(dlg.FileName, out warning);
                 if (!string.IsNullOrEmpty(warning)) {
-                    if (MessageBox.Show(warning + "\n\n是否仍然继续？", "导入提示", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
+                    if (MessageBox.Show(warning + Loc.T("Str_Msg_ContinueAnywaySuffix"), Loc.T("Str_MsgTitle_ImportNote"), MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
                         return;
                 }
-                if (rows.Count == 0) { MessageBox.Show("Excel 中没有可导入的分组数据。", Loc.T("Str_MsgTitle_Info")); return; }
+                if (rows.Count == 0) { MessageBox.Show(Loc.T("Str_Msg_NoHeatsInExcel"), Loc.T("Str_MsgTitle_Info")); return; }
 
                 // 2026-09-12 导入是【整项清空重填】—— 先挑出里面有动不得的组(正在比 / 已完赛)
                 //   的项目, 那些项整项跳过, 别的项照常导。
