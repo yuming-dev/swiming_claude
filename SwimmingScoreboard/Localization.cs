@@ -89,6 +89,7 @@ namespace SwimmingScoreboard
             { "Str_RC_Ready",           new[] { "准备就绪", "Ready" } },
             { "Str_RC_ManualStart",     new[] { "M.发令", "M. Start" } },
             { "Str_RC_PauseClock",      new[] { "停表", "Pause Clock" } },
+            { "Str_RC_ResumeClock",     new[] { "继续走表", "Resume Clock" } },
             { "Str_RC_ConfirmResult",   new[] { "确认本组成绩", "Confirm Heat Result" } },
             { "Str_RC_UnlockResultTip", new[] {
                 "把本组从「已完赛」解开, 好改成绩。要二次确认, 并记入审计日志。改完记得再点一次「确认本组成绩」",
@@ -2774,6 +2775,14 @@ namespace SwimmingScoreboard
             { "Str_SyncStatus_PausedDuringRace", new[] { "本组比赛中, 已暂缓同步", "Race In Progress — Sync Paused" } },
             { "Str_SyncStatus_Synced", new[] { "已同步", "Synced" } },
             { "Str_SyncStatus_SyncedCaughtUp", new[] { "已同步(补上比赛期间暂缓的更新)", "Synced (caught up on updates paused during race)" } },
+            { "Str_ScoringMode_LocalExe", new[] { "本机EXE", "Local EXE" } },
+            { "Str_ScoringMode_LocalHw", new[] { "本地(直连硬件)", "Local (Direct Hardware)" } },
+            { "Str_ScoringMode_RemoteExe", new[] { "远程EXE", "Remote EXE" } },
+            { "Str_ScoringMode_RemoteWeb", new[] { "远程Web", "Remote Web" } },
+            { "Str_ScoringMode_Local", new[] { "本地", "Local" } },
+            { "Str_HwConn_LocalMachineFmt", new[] { "本机 ({0})", "Local ({0})" } },
+            { "Str_HwConn_RemoteMachineFmt", new[] { "远程 ({0})", "Remote ({0})" } },
+            { "Str_HwConn_NotConnected", new[] { "未连接", "Not Connected" } },
         };
 
         /// <summary>查当前语言下的文字；查不到就退回中文；中文也没有就返回 key 本身兜底。</summary>

@@ -3628,7 +3628,7 @@ namespace SwimmingScoreboard
             if (IsRemoteTimingControlMode) {
                 _scoringControlMode = "remote_exe";
                 if (ControlModeText != null) {
-                    ControlModeText.Text = "本机EXE";
+                    ControlModeText.Text = Loc.T("Str_ScoringMode_LocalExe");
                     ControlModeText.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F59E0B"));
                 }
                 UpdateRaceControlTabLock();
@@ -3639,11 +3639,11 @@ namespace SwimmingScoreboard
             if (localHw && !remoteHw) {
                 // 本机真接着硬件, 远程没人接 —— 本机说了算, 不理会挂着的远程连接数量
                 _scoringControlMode = "local";
-                ControlModeText.Text = "本地(直连硬件)";
+                ControlModeText.Text = Loc.T("Str_ScoringMode_LocalHw");
                 ControlModeText.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#22C55E"));
             } else if (_timingExeSockets.Count > 0) {
                 _scoringControlMode = "remote_exe";
-                ControlModeText.Text = "远程EXE";
+                ControlModeText.Text = Loc.T("Str_ScoringMode_RemoteExe");
                 ControlModeText.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F59E0B"));
                 // 2026-09-14 两头都接着硬件是误配置(同一台计时器不该被两条线路同时读),
                 //   默认仍让远程接管(避免忽左忽右), 但得在日志里喊一声让人去查现场接线。
@@ -3651,11 +3651,11 @@ namespace SwimmingScoreboard
                     AddLog(Loc.T("Str_Log_BothReportHwConnected"));
             } else if (_timingWebSockets.Count > 0) {
                 _scoringControlMode = "remote_web";
-                ControlModeText.Text = "远程Web";
+                ControlModeText.Text = Loc.T("Str_ScoringMode_RemoteWeb");
                 ControlModeText.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6"));
             } else {
                 _scoringControlMode = "local";
-                ControlModeText.Text = "本地";
+                ControlModeText.Text = Loc.T("Str_ScoringMode_Local");
                 ControlModeText.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#22C55E"));
             }
             UpdateRaceControlTabLock();   // 2026-09-13 有远程控制端接管时, 本机「比赛控制」页锁上
@@ -3727,13 +3727,13 @@ namespace SwimmingScoreboard
             bool _localHwOn = LocalHasHardware();
             string _remoteHwMachine = RemoteExeHardwareMachineName();
             if (_localHwOn) {
-                TimingHwConnText.Text = "本机 (" + Environment.MachineName + ")";
+                TimingHwConnText.Text = Loc.F("Str_HwConn_LocalMachineFmt", Environment.MachineName);
                 TimingHwConnText.Foreground = new SolidColorBrush(Colors.Green);
             } else if (!string.IsNullOrEmpty(_remoteHwMachine)) {
-                TimingHwConnText.Text = "远程 (" + _remoteHwMachine + ")";
+                TimingHwConnText.Text = Loc.F("Str_HwConn_RemoteMachineFmt", _remoteHwMachine);
                 TimingHwConnText.Foreground = new SolidColorBrush(Colors.Green);
             } else {
-                TimingHwConnText.Text = "未连接";
+                TimingHwConnText.Text = Loc.T("Str_HwConn_NotConnected");
                 TimingHwConnText.Foreground = new SolidColorBrush(Colors.Red);
             }
             //2026-05-19 顶部状态栏右侧的"硬件计时器"指示同步刷新
@@ -9720,7 +9720,7 @@ namespace SwimmingScoreboard
             // 2026-05-27 计时复位时清除"停表"状态, 按钮文字也复位
             _clockPaused = false;
             _pausedRunningTime = 0;
-            if (PauseClockBtnText != null) PauseClockBtnText.Text = "停表";
+            if (PauseClockBtnText != null) PauseClockBtnText.Text = Loc.T("Str_RC_PauseClock");
             _laneSplitCount.Clear();
             _laneSplitShowTime.Clear();
             _laneReactionLastValue.Clear();
@@ -10332,10 +10332,10 @@ namespace SwimmingScoreboard
             _clockPaused = !_clockPaused;
             if (_clockPaused) {
                 _pausedRunningTime = _runningTime;
-                if (PauseClockBtnText != null) PauseClockBtnText.Text = "继续走表";
+                if (PauseClockBtnText != null) PauseClockBtnText.Text = Loc.T("Str_RC_ResumeClock");
                 AddLog(Loc.F("Str_Log_ClockPausedFmt", TimeFormatter.FormatRunning(_pausedRunningTime)));
             } else {
-                if (PauseClockBtnText != null) PauseClockBtnText.Text = "停表";
+                if (PauseClockBtnText != null) PauseClockBtnText.Text = Loc.T("Str_RC_PauseClock");
                 AddLog(Loc.F("Str_Log_ClockResumedFmt", TimeFormatter.FormatRunning(_runningTime)));
             }
             // 立刻刷新 RunningTimeText 一次, 不等下个 100ms tick
@@ -15945,13 +15945,13 @@ namespace SwimmingScoreboard
             string bgHex, fgHex;
             switch (_raceState) {
                 case RaceState.Ready:
-                    label = "准备就绪"; bgHex = "#F59E0B"; fgHex = "#000000"; break;
+                    label = Loc.T("Str_RC_Ready"); bgHex = "#F59E0B"; fgHex = "#000000"; break;
                 case RaceState.Racing:
-                    label = "比赛中"; bgHex = "#EF4444"; fgHex = "#FFFFFF"; break;
+                    label = Loc.T("Str_Msg_Racing"); bgHex = "#EF4444"; fgHex = "#FFFFFF"; break;
                 case RaceState.Finished:
-                    label = "已完赛"; bgHex = "#475569"; fgHex = "#FFFFFF"; break;
+                    label = Loc.T("Str_HeatStatus_Done"); bgHex = "#475569"; fgHex = "#FFFFFF"; break;
                 default:
-                    label = "等待"; bgHex = "#3B82F6"; fgHex = "#FFFFFF"; break;
+                    label = Loc.T("Str_RC_StateWaiting"); bgHex = "#3B82F6"; fgHex = "#FFFFFF"; break;
             }
             var bgBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString(bgHex));
             var fgBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString(fgHex));
@@ -24047,6 +24047,10 @@ namespace SwimmingScoreboard
             try { RefreshRemarkReactionBtn(); } catch { }
             try { UpdateQuickConnectButton(); } catch { }
             try { UpdateDeviceTestButton(); } catch { }
+            try { UpdateScoringControlMode(); } catch { }
+            try { UpdateConnectionStatus(); } catch { }
+            try { if (PauseClockBtnText != null) PauseClockBtnText.Text = Loc.T(_clockPaused ? "Str_RC_ResumeClock" : "Str_RC_PauseClock"); } catch { }
+            try { UpdateRaceStateDisplay(); } catch { }
             // 2026-09-21 赛程导航树上的 [已确认] 这类状态标签是拼进 TreeViewItem.Header 的
             // 静态字符串, 不会跟着 DynamicResource 自己变——重建一次树(顺带联动
             // RebuildBothNavTrees() 那三棵), 已经在屏幕上的标签才会立刻换成新语言。
@@ -25082,7 +25086,7 @@ namespace SwimmingScoreboard
             if (CurrentEventText != null) CurrentEventText.Text = "-";
             if (CurrentStageText != null) CurrentStageText.Text = "-";
             if (CurrentHeatText != null) CurrentHeatText.Text = "-";
-            if (RaceStateText != null) { RaceStateText.Text = "等待"; RaceStateText.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F59E0B")); }
+            if (RaceStateText != null) { RaceStateText.Text = Loc.T("Str_RC_StateWaiting"); RaceStateText.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F59E0B")); }
             if (RunningTimeText != null) RunningTimeText.Text = "0.00";
 
             // 刷新系统状态显示（保留赛事信息的模式和泳池信息）
