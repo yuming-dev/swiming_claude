@@ -1882,6 +1882,10 @@ namespace SwimmingScoreboard
             { "Str_Log_ForceSaveDoneFmt", new[] { "强制保存完成: {0}", "Force save completed: {0}" } },
             { "Str_Log_QueriedIpFmt", new[] { "查询IP: {0}", "Queried IP: {0}" } },
             { "Str_Log_OpenedChangePasswordWindow", new[] { "打开修改密码窗口", "Opened the change password window" } },
+
+            // 2026-09-22 第九阶段：25个独立弹窗窗口
+            { "Str_Win_AwardQuery_Title",  new[] { "颁奖查询", "Awards Query" } },
+            { "Str_Win_AwardQuery_Header", new[] { "颁奖查询窗口", "Awards Query" } },
         };
 
         /// <summary>查当前语言下的文字；查不到就退回中文；中文也没有就返回 key 本身兜底。</summary>
