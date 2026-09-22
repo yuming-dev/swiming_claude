@@ -741,8 +741,8 @@ namespace SwimmingScoreboard
             if (sender != null) {
                 try {
                     MessageBox.Show(
-                        string.Format("内存释放完成\n\n之前: {0} MB\n之后: {1} MB\n释放: {2} MB", beforeMB, afterMB, freedMB),
-                        "释放内存", MessageBoxButton.OK, MessageBoxImage.Information);
+                        Loc.F("Str_Msg_FreeMemoryDoneFmt", beforeMB, afterMB, freedMB),
+                        Loc.T("Str_MsgTitle_FreeMemory"), MessageBoxButton.OK, MessageBoxImage.Information);
                 } catch { }
             }
         }
@@ -866,13 +866,13 @@ namespace SwimmingScoreboard
         private void EditorChangePassword_Click(object sender, RoutedEventArgs e) {
             try {
                 var asm = System.Reflection.Assembly.GetEntryAssembly();
-                if (asm == null) { MessageBox.Show("无法识别入口程序集。"); return; }
+                if (asm == null) { MessageBox.Show(Loc.T("Str_Msg_NoEntryAssembly")); return; }
                 // 用入口程序集的 RootNamespace + .ChangePasswordWindow
                 string asmName = asm.GetName().Name;
                 string typeName = asmName + ".ChangePasswordWindow";
                 var t = asm.GetType(typeName);
                 if (t == null) {
-                    MessageBox.Show("未找到 " + typeName + " 类型。", Loc.T("Str_MsgTitle_Info"),
+                    MessageBox.Show(Loc.F("Str_Msg_TypeNotFoundFmt", typeName), Loc.T("Str_MsgTitle_Info"),
                         MessageBoxButton.OK, MessageBoxImage.Information);
                     return;
                 }
@@ -1159,10 +1159,8 @@ namespace SwimmingScoreboard
                     UpdateEditorSyncStatus("未保存到主服务器", "#DC2626");
                     AddLog("★ 本次修改未保存到主服务器：" + reason);
                     MessageBox.Show(
-                        "本次修改【没有】保存到主服务器。\n\n原因：" + reason +
-                        "\n\n你在本机看到的修改只存在本地。\n请等主服务器点了「计时复位」/「确认本组成绩」之后，\n再点一次「保存修改」重新提交。\n\n" +
-                        "（注：「并组 / 取消组」不走这条路，比赛中也能直接生效，\n  只有正在比的那一组改不了。）",
-                        "未保存到主服务器", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        Loc.F("Str_Msg_NotSavedToServerFmt", reason),
+                        Loc.T("Str_MsgTitle_NotSavedToServer"), MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
                 if (type == "HEAT_CONFIRMED_ACK") { HandleHeatConfirmedAck(msg); return; }
@@ -1209,12 +1207,8 @@ namespace SwimmingScoreboard
             //   主服务器推来的包, 本地改动就被悄无声息地覆盖掉了。先问一句。
             if (_editorPushRejected && pkg != null) {
                 var ans = MessageBox.Show(
-                    "主服务器推来了新的比赛数据。\n\n" +
-                    "但你上一次的修改【还没有】保存到主服务器。\n" +
-                    "现在套用主服务器的数据，会覆盖掉你本地未提交的修改。\n\n" +
-                    "  是  = 放弃本地修改，采用主服务器的数据\n" +
-                    "  否  = 保留本地修改（本次不同步；等主服务器空闲后再点保存）",
-                    "本地有未提交的修改", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+                    Loc.T("Str_Msg_LocalUnsavedConfirm"),
+                    Loc.T("Str_MsgTitle_LocalUnsaved"), MessageBoxButton.YesNo, MessageBoxImage.Warning);
                 if (ans != MessageBoxResult.Yes) {
                     AddLog("已保留本地未提交的修改，跳过本次主服务器同步");
                     UpdateEditorSyncStatus("本地有未提交修改", "#DC2626");
@@ -5277,7 +5271,7 @@ namespace SwimmingScoreboard
         //   比赛结束确认无问题后 → 清空备份
         public void QueryBackupLog() {
             if (_timingBridge == null || !_timingBridge.IsConnected) {
-                MessageBox.Show("硬件未连接", "查事件备份");
+                MessageBox.Show(Loc.T("Str_Msg_HwNotConnected"), Loc.T("Str_MsgTitle_CheckEventBackup"));
                 return;
             }
             _pendingBackupEvents.Clear();
@@ -5287,10 +5281,10 @@ namespace SwimmingScoreboard
 
         public void ClearBackupLog() {
             if (_timingBridge == null || !_timingBridge.IsConnected) {
-                MessageBox.Show("硬件未连接", "清空事件备份");
+                MessageBox.Show(Loc.T("Str_Msg_HwNotConnected"), Loc.T("Str_MsgTitle_ClearEventBackup"));
                 return;
             }
-            var r = MessageBox.Show("确定清空硬件事件备份? (= 比赛结束并确认无问题后)", "清空确认",
+            var r = MessageBox.Show(Loc.T("Str_Msg_ClearHwBackupConfirm"), Loc.T("Str_MsgTitle_ClearConfirm"),
                 MessageBoxButton.YesNo, MessageBoxImage.Question);
             if (r != MessageBoxResult.Yes) return;
             _timingBridge.SendCommand(0x68);   // Clear_BackupLog_Command (0x58) + 0x10
@@ -5299,7 +5293,7 @@ namespace SwimmingScoreboard
 
         private void ShowBackupEventDialog() {
             if (_pendingBackupEvents.Count == 0) {
-                MessageBox.Show("事件备份: 无事件", "事件备份");
+                MessageBox.Show(Loc.T("Str_Msg_EventBackupEmpty"), Loc.T("Str_MsgTitle_EventBackup"));
                 return;
             }
             // 2026-06-10 格式: 道N侧 出/触/盲X = 设备按下瞬间硬件时间 (= 跟比赛日志 = 后 SB/TP/MB 成绩同源)
@@ -5466,7 +5460,7 @@ namespace SwimmingScoreboard
                 if (dlg.ShowDialog() == true) {
                     try {
                         System.IO.File.WriteAllLines(dlg.FileName, lines, System.Text.Encoding.UTF8);
-                        MessageBox.Show("已保存: " + dlg.FileName, "存盘", MessageBoxButton.OK, MessageBoxImage.Information);
+                        MessageBox.Show(Loc.F("Str_Msg_SavedAsFmt", dlg.FileName), Loc.T("Str_MsgTitle_SaveToDisk"), MessageBoxButton.OK, MessageBoxImage.Information);
                     } catch (Exception ex) {
                         MessageBox.Show(Loc.F("Str_Msg_SaveFailedFmt", ex.Message), "存盘", MessageBoxButton.OK, MessageBoxImage.Error);
                     }
@@ -5500,7 +5494,7 @@ namespace SwimmingScoreboard
             btnCopy.Click += delegate(object s, RoutedEventArgs e) {
                 try {
                     System.Windows.Clipboard.SetText(string.Join("\r\n", lines));
-                    MessageBox.Show("已复制到剪贴板", "复制");
+                    MessageBox.Show(Loc.T("Str_Msg_CopiedToClipboard"), Loc.T("Str_MsgTitle_Copy"));
                 } catch (Exception ex) {
                     MessageBox.Show(Loc.F("Str_Msg_CopyFailedFmt", ex.Message));
                 }
@@ -8190,7 +8184,7 @@ namespace SwimmingScoreboard
             if (result.Verdict == LapAdjustVerdict.Defense4_NeedConfirm) {
                 int oldCur = ls.CurrentLap;
                 var r = MessageBox.Show(
-                    string.Format("泳道{0}\n\n{1}", lane, result.ErrorMessage),
+                    Loc.F("Str_Msg_LaneErrorFmt", lane, result.ErrorMessage),
                     result.ErrorTitle,
                     MessageBoxButton.YesNo, MessageBoxImage.Warning);
                 if (r != MessageBoxResult.Yes) {
@@ -8207,7 +8201,7 @@ namespace SwimmingScoreboard
                 || result.Verdict == LapAdjustVerdict.Defense2_LapOutOfRange
                 || result.Verdict == LapAdjustVerdict.Defense3_WrongSpinner) {
                 MessageBox.Show(
-                    string.Format("泳道{0}\n\n{1}", lane, result.ErrorMessage),
+                    Loc.F("Str_Msg_LaneErrorFmt", lane, result.ErrorMessage),
                     result.ErrorTitle,
                     MessageBoxButton.OK, MessageBoxImage.Warning);
                 AddLog(string.Format("泳道{0} {1}", lane, result.LogMessage));
@@ -8463,14 +8457,14 @@ namespace SwimmingScoreboard
         //2026-05-29 "📝 手工补段成绩"按钮 click handler — 弹对话框输入道次/段次/累计时间
         private void ManualSplit_Click(object sender, RoutedEventArgs e) {
             if (string.IsNullOrEmpty(_currentEvent) || _currentHeat <= 0) {
-                MessageBox.Show("请先选择当前比赛组次。", "手工补段", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show(Loc.T("Str_Msg_SelectCurrentHeatFirst"), Loc.T("Str_MsgTitle_ManualSplitEntry"), MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
             var swimmers = GetCurrentHeatSwimmers()
                 .Where(s => !(s.Status == "DSQ" || s.Status == "DNS" || s.Status == "DNF"))
                 .ToList();
             if (swimmers.Count == 0) {
-                MessageBox.Show("当前组次无可补段运动员。", "手工补段", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show(Loc.T("Str_Msg_NoSwimmerToSplit"), Loc.T("Str_MsgTitle_ManualSplitEntry"), MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
             int totalLaps = GetTotalLaps();
@@ -8565,22 +8559,22 @@ namespace SwimmingScoreboard
             okBtn.Click += (s, ea) => {
                 int segNum;
                 if (!int.TryParse(segBox.Text.Trim(), out segNum) || segNum < 1 || segNum > totalLaps) {
-                    MessageBox.Show("段次必须是 1-" + totalLaps + " 之间的整数。", Loc.T("Str_MsgTitle_FormatError"), MessageBoxButton.OK, MessageBoxImage.Warning);
+                    MessageBox.Show(Loc.F("Str_Msg_LapRangeFmt", totalLaps), Loc.T("Str_MsgTitle_FormatError"), MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
                 double cumSec;
                 if (!ParseMmSsXxx(timeBox.Text.Trim(), out cumSec) || cumSec <= 0) {
-                    MessageBox.Show("时间格式应为 m:ss.xxx 或 mm:ss.xxx (例: 1:23.456 或 23.456), 且需大于 0。", Loc.T("Str_MsgTitle_FormatError"), MessageBoxButton.OK, MessageBoxImage.Warning);
+                    MessageBox.Show(Loc.T("Str_Msg_TimeFormatHint"), Loc.T("Str_MsgTitle_FormatError"), MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
                 if (laneCombo.SelectedIndex < 0 || laneCombo.SelectedIndex >= laneCount) {
-                    MessageBox.Show("请选择道次。", Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Information);
+                    MessageBox.Show(Loc.T("Str_Msg_SelectLaneFirst"), Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Information);
                     return;
                 }
                 int selectedLane = laneCombo.SelectedIndex + 1;
                 var swimmer = swimmers.FirstOrDefault(x => getLane(x) == selectedLane);
                 if (swimmer == null) {
-                    MessageBox.Show(string.Format("第 {0} 道无运动员/接力队, 不能补段。", selectedLane), Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Information);
+                    MessageBox.Show(Loc.F("Str_Msg_LaneNoSwimmerFmt", selectedLane), Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Information);
                     return;
                 }
                 ApplyManualSplit(swimmer, segNum, cumSec);
@@ -8638,8 +8632,8 @@ namespace SwimmingScoreboard
             if (!string.IsNullOrEmpty(sp.TimingSource) && (sp.TimingSource == "TP" || sp.TimingSource == "MB" || sp.TimingSource == "Manual")) {
                 string srcLabel = sp.TimingSource == "TP" ? "触板(TP)" : (sp.TimingSource == "MB" ? "盲表代替(MB)" : "手动 TP");
                 var confirm = MessageBox.Show(
-                    string.Format("第{0}道 第{1}段 已有【{2}】成绩 ({3:F3}s)\n手工输入会覆盖, 确定?", swimmer.Lane, segNum, srcLabel, sp.CumulativeTime),
-                    "覆盖确认", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+                    Loc.F("Str_Msg_SplitOverwriteFmt", swimmer.Lane, segNum, srcLabel, sp.CumulativeTime),
+                    Loc.T("Str_MsgTitle_OverwriteConfirm"), MessageBoxButton.YesNo, MessageBoxImage.Warning);
                 if (confirm != MessageBoxResult.Yes) {
                     AddLog(string.Format("📝 手工补段已取消 (第{0}道 第{1}段 保留原 {2} 成绩)", swimmer.Lane, segNum, srcLabel));
                     return;
@@ -9343,9 +9337,8 @@ namespace SwimmingScoreboard
                 AddLog("「准备就绪」未执行: 当前状态为" + stName + "，需先按「计时复位」");
                 if (sender != null) {
                     MessageBox.Show(
-                        "当前状态是「" + stName + "」，不能再次就位。\n\n" +
-                        "请先按【计时复位】，再按【准备就绪】。",
-                        "准备就绪", MessageBoxButton.OK, MessageBoxImage.Information);
+                        Loc.F("Str_Msg_CannotReReadyFmt", stName),
+                        Loc.T("Str_MsgTitle_Ready"), MessageBoxButton.OK, MessageBoxImage.Information);
                 }
                 return;
             }
@@ -9362,8 +9355,8 @@ namespace SwimmingScoreboard
                 string info = string.Format("{0} {1} {2} 第{3}组",
                     _currentGender ?? "", _currentEvent ?? "", _currentStage ?? "", _currentHeat);
                 var r = MessageBox.Show(
-                    "确定让本组进入【就位】状态？" + info + "\n",
-                    "就位确认", MessageBoxButton.YesNo, MessageBoxImage.Question);
+                    Loc.F("Str_Msg_ReadyConfirmFmt", info),
+                    Loc.T("Str_MsgTitle_ReadyConfirm"), MessageBoxButton.YesNo, MessageBoxImage.Question);
                 if (r != MessageBoxResult.Yes) return;
             }
             // 实际进 Ready 状态 + 推送 0x43 + 0x21 给硬件（仅本地点击时；硬件回流路径 sender==null 不回送）
@@ -9661,7 +9654,7 @@ namespace SwimmingScoreboard
                 }
             }
             if (sender != null) {
-                var r = MessageBox.Show("确定计时复位？", "计时复位确认", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+                var r = MessageBox.Show(Loc.T("Str_Msg_ClockResetConfirm"), Loc.T("Str_MsgTitle_ClockResetConfirm"), MessageBoxButton.YesNo, MessageBoxImage.Warning);
                 if (r != MessageBoxResult.Yes) return;
             }
             // 没当前组（_currentHeat <= 0）也要把状态机硬复位，避免按键静默失效。
@@ -10004,8 +9997,8 @@ namespace SwimmingScoreboard
                 var heats = _meetDb.ListConfirmedHeats();
                 if (heats.Count == 0)
                 {
-                    MessageBox.Show("本机竞赛库里还没有已确认的组，没有可导出的成绩。",
-                        "导出成绩", MessageBoxButton.OK, MessageBoxImage.Information);
+                    MessageBox.Show(Loc.T("Str_Msg_NoConfirmedToExport"),
+                        Loc.T("Str_MsgTitle_ExportResults"), MessageBoxButton.OK, MessageBoxImage.Information);
                     return;
                 }
                 var dlg = new Microsoft.Win32.SaveFileDialog();
@@ -10048,14 +10041,13 @@ namespace SwimmingScoreboard
 
                 AddLog(string.Format("已导出成绩: {0} 个组(其中 {1} 组带竞赛库数据) -> {2}",
                     arr.Count, withDb, IOPath.GetFileName(dlg.FileName)));
-                MessageBox.Show(string.Format(
-                    "已导出 {0} 个组的成绩。\n\n拿到主服务器上点「从文件导入成绩」即可。\n重复导入是安全的，不会重复计分。",
-                    arr.Count), "导出成绩", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show(
+                    Loc.F("Str_Msg_ExportedHeatsFmt", arr.Count), Loc.T("Str_MsgTitle_ExportResults"), MessageBoxButton.OK, MessageBoxImage.Information);
             }
             catch (Exception ex)
             {
                 AddLog("导出成绩失败: " + ex.Message);
-                MessageBox.Show("导出成绩失败：" + ex.Message, "导出成绩",
+                MessageBox.Show(Loc.F("Str_Msg_ExportResultsFailedFmt", ex.Message), Loc.T("Str_MsgTitle_ExportResults"),
                     MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
@@ -10070,7 +10062,7 @@ namespace SwimmingScoreboard
 
                 var root = JObject.Parse(File.ReadAllText(dlg.FileName, Encoding.UTF8));
                 if (root["type"] == null || root["type"].ToString() != "RESULTS_EXPORT")
-                { MessageBox.Show("这不是成绩导出文件。", "导入成绩", MessageBoxButton.OK, MessageBoxImage.Warning); return; }
+                { MessageBox.Show(Loc.T("Str_Msg_NotAResultsFile"), Loc.T("Str_MsgTitle_ImportResults"), MessageBoxButton.OK, MessageBoxImage.Warning); return; }
 
                 string fromMeet = root["competition"] != null ? root["competition"].ToString() : "";
                 if (!string.IsNullOrEmpty(fromMeet) && !string.IsNullOrEmpty(_competitionName)
@@ -10086,7 +10078,7 @@ namespace SwimmingScoreboard
 
                 var arr = root["heats"] as JArray;
                 if (arr == null || arr.Count == 0)
-                { MessageBox.Show("文件里没有成绩。", "导入成绩", MessageBoxButton.OK, MessageBoxImage.Information); return; }
+                { MessageBox.Show(Loc.T("Str_Msg_FileHasNoResults"), Loc.T("Str_MsgTitle_ImportResults"), MessageBoxButton.OK, MessageBoxImage.Information); return; }
 
                 int ok = 0, bad = 0, lockedSkip = 0;
                 var lockedList = new List<string>();
@@ -10164,15 +10156,15 @@ namespace SwimmingScoreboard
                 string lockNote = lockedSkip == 0 ? ""
                     : ("\n\n有 " + lockedSkip + " 个组本机已经标注已完赛，没有覆盖：\n  · "
                        + string.Join("\n  · ", lockedList.Take(20).ToArray()));
-                MessageBox.Show(string.Format("已导入 {0} 个组的成绩。{1}{2}", ok,
-                    bad > 0 ? "\n有 " + bad + " 个组没导进来，详见系统日志。" : "", lockNote),
-                    "导入成绩", MessageBoxButton.OK,
+                MessageBox.Show(Loc.F("Str_Msg_ImportedHeatsFmt", ok,
+                    bad > 0 ? Loc.F("Str_Msg_ImportedHeatsBadNoteFmt", bad) : "", lockNote),
+                    Loc.T("Str_MsgTitle_ImportResults"), MessageBoxButton.OK,
                     (bad > 0 || lockedSkip > 0) ? MessageBoxImage.Warning : MessageBoxImage.Information);
             }
             catch (Exception ex)
             {
                 AddLog("导入成绩失败: " + ex.Message);
-                MessageBox.Show("导入成绩失败：" + ex.Message, "导入成绩",
+                MessageBox.Show(Loc.F("Str_Msg_ImportResultsFailedFmt", ex.Message), Loc.T("Str_MsgTitle_ImportResults"),
                     MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
