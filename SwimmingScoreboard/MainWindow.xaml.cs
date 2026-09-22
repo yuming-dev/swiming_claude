@@ -21436,7 +21436,7 @@ namespace SwimmingScoreboard
             EnsureAllSwimmerBibs();
             var grid = GetActiveEditGrid();
             var selected = grid.SelectedItem;
-            if (selected == null) { MessageBox.Show("请先选中要交换的运动员"); return; }
+            if (selected == null) { MessageBox.Show(Loc.T("Str_Msg_SelectSwimmerToSwap")); return; }
             string bib = selected.GetType().GetProperty("BibNumber").GetValue(selected, null).ToString();
             string ageGroup = EditAgeGroupCombo != null && EditAgeGroupCombo.SelectedItem != null ? EditAgeGroupCombo.SelectedItem.ToString() : "";
             string gender = EditGenderCombo.SelectedItem != null ? ((ComboBoxItem)EditGenderCombo.SelectedItem).Content.ToString() : "";
@@ -21483,7 +21483,7 @@ namespace SwimmingScoreboard
 
             candidates.Sort((a, b) => { int c = a.Item2.CompareTo(b.Item2); return c != 0 ? c : a.Item3.CompareTo(b.Item3); });
 
-            if (candidates.Count == 0) { MessageBox.Show("没有可交换的运动员或空道"); return; }
+            if (candidates.Count == 0) { MessageBox.Show(Loc.T("Str_Msg_NoSwapCandidates")); return; }
 
             var dlg = new Window {
                 Title = string.Format("交换泳道 / 移到空道 — {0}（第{1}组 第{2}道）", sw1.Name, heat1, lane1),
@@ -21569,7 +21569,7 @@ namespace SwimmingScoreboard
             bool isRelay = eventName.Contains("接力");
 
             if (heatStr == "全部" || string.IsNullOrEmpty(heatStr)) {
-                MessageBox.Show("请先选择具体的组（不能是\"全部\"）", Loc.T("Str_MsgTitle_Info")); return;
+                MessageBox.Show(Loc.T("Str_Msg_SelectSpecificHeatNotAll"), Loc.T("Str_MsgTitle_Info")); return;
             }
             int heat = 0;
             var m = System.Text.RegularExpressions.Regex.Match(heatStr, @"\d+");
@@ -21589,7 +21589,7 @@ namespace SwimmingScoreboard
                 if (!hasAssignment) unassigned.Add(s);
             }
 
-            if (unassigned.Count == 0) { MessageBox.Show("没有未分组的运动员可以添加", Loc.T("Str_MsgTitle_Info")); return; }
+            if (unassigned.Count == 0) { MessageBox.Show(Loc.T("Str_Msg_NoUnassignedSwimmers"), Loc.T("Str_MsgTitle_Info")); return; }
 
             var dlg = new Window {
                 Title = string.Format("增加到第{0}组 — {1} {2} {3}", heat, gender, eventName, stage),
@@ -21683,7 +21683,7 @@ namespace SwimmingScoreboard
                 var sw2 = matchedSwimmers[idx2];
                 // 只允许同组内交换泳道
                 if (sw1.Item2 != sw2.Item2) {
-                    MessageBox.Show("只能在同一组内交换泳道位置。", Loc.T("Str_MsgTitle_Info"));
+                    MessageBox.Show(Loc.T("Str_Msg_SwapSameHeatOnly"), Loc.T("Str_MsgTitle_Info"));
                     return;
                 }
                 // 2026-09-12 正在比的那一组不许调道次 (别的组照常)
@@ -21709,7 +21709,7 @@ namespace SwimmingScoreboard
             if (!CheckEditHeatNotLocked()) return;
             var grid = GetActiveEditGrid();
             var selected = grid.SelectedItem;
-            if (selected == null) { MessageBox.Show("请先选中一名运动员"); return; }
+            if (selected == null) { MessageBox.Show(Loc.T("Str_Msg_SelectSwimmerFirst")); return; }
             string bib = selected.GetType().GetProperty("BibNumber").GetValue(selected, null).ToString();
             string stage = EditStageCombo.SelectedItem != null ? ((ComboBoxItem)EditStageCombo.SelectedItem).Content.ToString() : "";
             var sw = _swimmers.FirstOrDefault(s => s.BibNumber == bib);
