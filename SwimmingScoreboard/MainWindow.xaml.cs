@@ -10195,12 +10195,12 @@ namespace SwimmingScoreboard
                 var files = new DirectoryInfo(PendingPushDir()).GetFiles("*.json")
                                 .OrderBy(f => f.LastWriteTimeUtc).ToList();
                 if (files.Count == 0) return;
-                AddLog(string.Format("开始补传断线期间的 {0} 组成绩…", files.Count));
+                AddLog(Loc.F("Str_Log_ResendQueueStartFmt", files.Count));
                 foreach (var f in files) {
                     try { _editorSyncClient.Send(File.ReadAllText(f.FullName, Encoding.UTF8)); }
-                    catch (Exception ex) { AddLog("补传失败(" + f.Name + "): " + ex.Message); }
+                    catch (Exception ex) { AddLog(Loc.F("Str_Log_ResendItemFailedFmt", f.Name, ex.Message)); }
                 }
-            } catch (Exception ex) { AddLog("扫描待补传目录失败: " + ex.Message); }
+            } catch (Exception ex) { AddLog(Loc.F("Str_Log_ScanResendDirFailedFmt", ex.Message)); }
         }
 
         /// <summary>收到服务器回执 → 这一组确实进库了, 删掉待补传文件。</summary>
@@ -10209,8 +10209,8 @@ namespace SwimmingScoreboard
             if (string.IsNullOrEmpty(id)) return;
             try {
                 string p = IOPath.Combine(PendingPushDir(), id + ".json");
-                if (File.Exists(p)) { File.Delete(p); AddLog("主服务器已收妥: " + id); }
-            } catch (Exception ex) { AddLog("清理待补传文件失败: " + ex.Message); }
+                if (File.Exists(p)) { File.Delete(p); AddLog(Loc.F("Str_Log_MainServerReceivedFmt", id)); }
+            } catch (Exception ex) { AddLog(Loc.F("Str_Log_CleanupResendFailedFmt", ex.Message)); }
         }
 
         /// <summary>
@@ -10283,7 +10283,7 @@ namespace SwimmingScoreboard
                 try {
                     var live = JsonConvert.DeserializeObject<SwimmingScoreboard.Db.LiveHeat>(lh.ToString(Formatting.None));
                     if (live != null) _meetDb.CommitHeatFromWire(live, "计时端");
-                } catch (Exception ex) { AddLog("写入计时端送来的成绩失败: " + ex.Message); }
+                } catch (Exception ex) { AddLog(Loc.F("Str_Log_WriteTimingResultFailedFmt", ex.Message)); }
             }
 
             // 2026-08-30 成绩已经进了【本机这份】竞赛库 —— 名次以它为准, 回读覆盖内存。
@@ -10312,16 +10312,16 @@ namespace SwimmingScoreboard
             // 2026-08-28 团体总分是从 _swimmers 现算的。本机确认成绩时由
             //   ScoringConfigCore/CalcTeamScore 触发重算, 但计时端回推这条路
             //   原来谁都不触发 —— 主服务器上的团体总分会一直停在旧值。
-            try { CalculateTeamScores(); } catch (Exception ex) { AddLog("重算团体总分失败: " + ex.Message); }
+            try { CalculateTeamScores(); } catch (Exception ex) { AddLog(Loc.F("Str_Log_RecalcTeamScoreFailedFmt", ex.Message)); }
             try { BuildScheduleTree(); } catch { }
             try { RefreshOverviewStats(); } catch { }
             // 2026-09-20 CalculateTeamScores() 内部已经落盘+按需整包推送过一次(团体总分是
             //   package-only 字段, 确实要让编排端看到); 这里落的成绩本身是 meetDb 里的东西
             //   (CommitHeatFromWire 已经写过库), 编排端能靠 DATA_CHANGED→DbPoll_Tick 的
             //   RefreshChangedFromDb 追上, 不用再重复推一次整包(等于省掉一次多余的整包序列化)。
-            try { SaveWithoutPush(); PushDataChanged("meet"); } catch (Exception ex) { AddLog("回推成绩落盘失败: " + ex.Message); }
+            try { SaveWithoutPush(); PushDataChanged("meet"); } catch (Exception ex) { AddLog(Loc.F("Str_Log_PushbackSaveFailedFmt", ex.Message)); }
             try { Broadcast(); } catch { }
-            AddLog(string.Format("收到计时端回推: {0} {1} {2} 第{3}组 已确认, 应用 {4} 条成绩",
+            AddLog(Loc.F("Str_Log_TimingPushbackReceivedFmt",
                 ag, gd, ev, ht, applied));
         }
 
@@ -10334,10 +10334,10 @@ namespace SwimmingScoreboard
             if (_clockPaused) {
                 _pausedRunningTime = _runningTime;
                 if (PauseClockBtnText != null) PauseClockBtnText.Text = "继续走表";
-                AddLog(string.Format("停表 — 显示冻结在 {0} (硬件计时继续)", TimeFormatter.FormatRunning(_pausedRunningTime)));
+                AddLog(Loc.F("Str_Log_ClockPausedFmt", TimeFormatter.FormatRunning(_pausedRunningTime)));
             } else {
                 if (PauseClockBtnText != null) PauseClockBtnText.Text = "停表";
-                AddLog(string.Format("继续走表 — 同步到硬件当前时间 {0}", TimeFormatter.FormatRunning(_runningTime)));
+                AddLog(Loc.F("Str_Log_ClockResumedFmt", TimeFormatter.FormatRunning(_runningTime)));
             }
             // 立刻刷新 RunningTimeText 一次, 不等下个 100ms tick
             try {
@@ -10377,51 +10377,51 @@ namespace SwimmingScoreboard
             //   赛程树的"已完赛"读 _confirmedHeats, 项目成绩读 _swimmers[].Results,
             //   两样都没更新, 所以主服务器上看不到任何已完赛的痕迹。
             //   只推这一组的行, 不推整包。
-            if (IsTimingClientMode) { try { PushHeatConfirmedToServer(); } catch (Exception ex) { AddLog("回推本组成绩失败: " + ex.Message); } }
+            if (IsTimingClientMode) { try { PushHeatConfirmedToServer(); } catch (Exception ex) { AddLog(Loc.F("Str_Log_PushHeatConfirmedFailedFmt", ex.Message)); } }
 
             // 立即重建赛程树：哪怕下面 UpdateHeatRanking/AutoSaveData/SaveRawTimingLog 偶发异常，
             // "已完赛"标记也不会丢；之前用 try{}catch{} 把异常吞掉，"偶尔不打标记"就源于此。
             try { BuildScheduleTree(); }
-            catch (Exception ex) { AddLog("赛程导航刷新失败(确认成绩-早): " + ex.Message); }
+            catch (Exception ex) { AddLog(Loc.F("Str_Log_NavRefreshFailedEarlyFmt", ex.Message)); }
 
-            try { UpdateHeatRanking(); } catch (Exception ex) { AddLog("成绩排名计算失败: " + ex.Message); }
-            try { UpdateRecordsAfterConfirm(); } catch (Exception ex) { AddLog("更新记录库失败: " + ex.Message); }
-            try { AutoSaveData(); } catch (Exception ex) { AddLog("自动保存失败: " + ex.Message); }
-            try { CommitLiveHeat(); } catch (Exception ex) { AddLog("竞赛库回写失败: " + ex.Message); }
-            try { UpdateLaneStatusDisplay(); } catch (Exception ex) { AddLog("泳道状态显示刷新失败: " + ex.Message); }
-            try { UpdateRaceStateDisplay(); } catch (Exception ex) { AddLog("比赛状态显示刷新失败: " + ex.Message); }
+            try { UpdateHeatRanking(); } catch (Exception ex) { AddLog(Loc.F("Str_Log_RankingCalcFailedFmt", ex.Message)); }
+            try { UpdateRecordsAfterConfirm(); } catch (Exception ex) { AddLog(Loc.F("Str_Log_UpdateRecordsFailedFmt", ex.Message)); }
+            try { AutoSaveData(); } catch (Exception ex) { AddLog(Loc.F("Str_Log_AutoSaveFailedFmt", ex.Message)); }
+            try { CommitLiveHeat(); } catch (Exception ex) { AddLog(Loc.F("Str_Log_MeetDbCommitFailedFmt", ex.Message)); }
+            try { UpdateLaneStatusDisplay(); } catch (Exception ex) { AddLog(Loc.F("Str_Log_LaneStatusRefreshFailedFmt", ex.Message)); }
+            try { UpdateRaceStateDisplay(); } catch (Exception ex) { AddLog(Loc.F("Str_Log_RaceStateRefreshFailedFmt", ex.Message)); }
 
-            AddLog(string.Format("★ 已确认本组成绩: {0}{1}子 {2} {3} 第{4}组",
+            AddLog(Loc.F("Str_Log_HeatResultConfirmedFmt",
                 string.IsNullOrEmpty(_currentAgeGroup) ? "" : ("[" + _currentAgeGroup + "] "),
                 _currentGender, _currentEvent, _currentStage, _currentHeat));
 
             try { SaveRawTimingLog(); } catch (Exception ex) { AddLog(Loc.F("Str_Log_SaveRawDataFailedFmt", ex.Message)); }
 
             // 刷新成绩与排名页面
-            try { UpdateResultHeatCombo(); } catch (Exception ex) { AddLog("成绩组次下拉刷新失败: " + ex.Message); }
-            try { RefreshResultGrid(); } catch (Exception ex) { AddLog("成绩与排名刷新失败: " + ex.Message); }
+            try { UpdateResultHeatCombo(); } catch (Exception ex) { AddLog(Loc.F("Str_Log_ResultHeatComboFailedFmt", ex.Message)); }
+            try { RefreshResultGrid(); } catch (Exception ex) { AddLog(Loc.F("Str_Log_ResultGridRefreshFailedFmt", ex.Message)); }
 
             // 末尾再刷一次赛程导航，吸收期间任何异步 UI 状态变化
             try { BuildScheduleTree(); }
-            catch (Exception ex) { AddLog("赛程导航刷新失败(确认成绩-后): " + ex.Message); }
+            catch (Exception ex) { AddLog(Loc.F("Str_Log_NavRefreshFailedLateFmt", ex.Message)); }
 
             // 检查该项目该阶段是否所有组都已完赛（广播给HTML控制端）
-            try { CheckStageComplete(); } catch (Exception ex) { AddLog("赛次完赛检查失败: " + ex.Message); }
+            try { CheckStageComplete(); } catch (Exception ex) { AddLog(Loc.F("Str_Log_StageCompleteCheckFailedFmt", ex.Message)); }
 
             // EXE本地也弹晋级确认（当从EXE按钮触发时）
             if (sender != null) {
-                try { CheckStageCompleteLocal(); } catch (Exception ex) { AddLog("本地赛次完赛检查失败: " + ex.Message); }
+                try { CheckStageCompleteLocal(); } catch (Exception ex) { AddLog(Loc.F("Str_Log_StageCompleteCheckLocalFailedFmt", ex.Message)); }
             }
 
             Broadcast();
 
             // 确认成绩后大屏自动从"比赛视图"切换到"本组成绩"
-            try { BroadcastDisplayMode("SHOW_HEAT_RESULT"); } catch (Exception ex) { AddLog("切换大屏到本组成绩失败: " + ex.Message); }
+            try { BroadcastDisplayMode("SHOW_HEAT_RESULT"); } catch (Exception ex) { AddLog(Loc.F("Str_Log_SwitchDisplayHeatResultFailedFmt", ex.Message)); }
 
             // 2026-06-05 全部 UI/数据/广播 流程完成后, 自动写本组成绩 txt 到配置目录
-            try { AutoSaveCurrentHeatTxt(); } catch (Exception ex) { AddLog("自动保存成绩 txt 失败: " + ex.Message); }
+            try { AutoSaveCurrentHeatTxt(); } catch (Exception ex) { AddLog(Loc.F("Str_Log_AutoSaveTxtFailedFmt", ex.Message)); }
             // 2026-06-05 自动写本组 比赛日志 PDF (HTML + Edge headless 转 PDF; 失败保留 HTML)
-            try { AutoSaveCurrentHeatLog(); } catch (Exception ex) { AddLog("自动保存比赛日志失败: " + ex.Message); }
+            try { AutoSaveCurrentHeatLog(); } catch (Exception ex) { AddLog(Loc.F("Str_Log_AutoSaveHeatLogFailedFmt", ex.Message)); }
             // 2026-06-08 P3-A: 每组确认成绩后强制 Gen2 GC. 这是长时间运行 30+ 组后变慢的兜底:
             //   不管是 WPF 视觉树残留 / Newtonsoft 反射缓存 / Fleck 队列 / ObservableCollection 订阅链,
             //   只要理论上可回收, 这里都能扫掉. 用户此刻正在等下一组准备, 200ms GC 暂停可接受.
@@ -10429,7 +10429,7 @@ namespace SwimmingScoreboard
                 GC.Collect(2, GCCollectionMode.Forced, blocking: true);
                 GC.WaitForPendingFinalizers();
                 GC.Collect(2, GCCollectionMode.Forced, blocking: true);
-                AddLog(string.Format("✓ 已回收内存 (Gen2 GC), 当前 Working Set: {0:F1} MB",
+                AddLog(Loc.F("Str_Log_GcReclaimedFmt",
                     System.Diagnostics.Process.GetCurrentProcess().WorkingSet64 / 1048576.0));
             } catch { }
         }
@@ -10521,7 +10521,7 @@ namespace SwimmingScoreboard
                 if (nextStage != null) {
                     int promoCount = HeatScheduler.GetPromotionCount(_currentStage, nextStage);
                     string agLog = string.IsNullOrEmpty(_currentAgeGroup) ? "" : ("[" + _currentAgeGroup + "] ");
-                    AddLog(string.Format("★ {0}{1}{2} {3}全部完赛！可晋级{4}人到{5}", agLog, _currentGender, _currentEvent, _currentStage, promoCount, nextStage));
+                    AddLog(Loc.F("Str_Log_AllFinishedCanPromoteFmt", agLog, Loc.GenderDisplay(_currentGender), _currentEvent, Loc.StageDisplay(_currentStage), promoCount, Loc.StageDisplay(nextStage)));
 
                     // 向所有控制端广播赛次完成通知（控制端弹出晋级确认）
                     var stageCompleteData = new {
@@ -10538,7 +10538,7 @@ namespace SwimmingScoreboard
                     BroadcastJsonToClients(json);
                 }
             } else {
-                AddLog("请选择下一组比赛");
+                AddLog(Loc.T("Str_Log_PleaseSelectNextHeat"));
             }
         }
 
@@ -10579,7 +10579,7 @@ namespace SwimmingScoreboard
                 UpdateEditHeatCombo();
                 SyncRelayHeatInfo();
                 AutoSaveData();
-                AddLog(string.Format("已自动晋级{0}人到{1}，分为{2}组", promoted.Count, nextStage, heatCount));
+                AddLog(Loc.F("Str_Log_AutoPromotedFmt", promoted.Count, Loc.StageDisplay(nextStage), heatCount));
 
                 // 通知所有客户端晋级完成
                 var resultData = new {
@@ -10624,9 +10624,9 @@ namespace SwimmingScoreboard
                         try { _timingBridge.SendPoolSingleOrDoubleTP(isSingle); } catch { }
                     }
                     Broadcast();
-                    AddLog("进入比赛控制 → 已自动推送完整参数包到硬件 + 广播给客户端 (无需手动打开参数设置)");
+                    AddLog(Loc.T("Str_Log_EnterRaceControlAutoPush"));
                 } catch (Exception ex) {
-                    AddLog("自动推送参数失败: " + ex.Message);
+                    AddLog(Loc.F("Str_Log_AutoPushParamsFailedFmt", ex.Message));
                 }
             }
         }
@@ -10743,7 +10743,7 @@ namespace SwimmingScoreboard
                 CurrentHeatText.Text = (hasLocal && _currentHeat > 0)
                     ? string.Format("第{0}组 / 共{1}组", _currentHeat, _totalHeats) : "-";
             try { UpdateRaceStateDisplay(); } catch { }   // 状态框回到本机自己的 _raceState
-            AddLog("【当前比赛】已清空 —— " + why);
+            AddLog(Loc.F("Str_Log_CurrentRaceClearedFmt", why));
         }
 
         private void NoteRtcRaceState(JObject payload) {
@@ -11009,7 +11009,7 @@ namespace SwimmingScoreboard
             try {
                 MergeHeats_ClickCore(sender, e);
             } catch (Exception ex) {
-                AddLog("【并组/取消组】出现未预期的异常, 操作已中止: " + ex);
+                AddLog(Loc.F("Str_Log_MergeUnexpectedExceptionFmt", ex));
                 MessageBox.Show(
                     Loc.F("Str_Msg_MergeHeatsCrashFmt", ex.Message),
                     Loc.T("Str_MsgTitle_MergeHeatsFailed"), MessageBoxButton.OK, MessageBoxImage.Error);
@@ -11195,7 +11195,7 @@ namespace SwimmingScoreboard
                 if (!SendMergeHeatsPatch(ageGroup, gender, eventName, stage, srcHeat, dstHeat, reason, out perr)) {
                     MessageBox.Show(Loc.F("Str_Msg_MergeRejectedFmt", perr),
                         Loc.T("Str_MsgTitle_MergeNotDone"), MessageBoxButton.OK, MessageBoxImage.Warning);
-                    AddLog("并组被主服务器拒绝: " + perr);
+                    AddLog(Loc.F("Str_Log_MergeRejectedByMainFmt", perr));
                     return;
                 }
                 serverAccepted = true;
@@ -11210,7 +11210,7 @@ namespace SwimmingScoreboard
                 if (serverAccepted) {
                     MessageBox.Show(Loc.F("Str_Msg_MergeServerAheadFmt", error),
                         Loc.T("Str_MsgTitle_ServerMismatch"), MessageBoxButton.OK, MessageBoxImage.Error);
-                    AddLog("★ 主服务器已并组但本机应用失败(数据可能已旧): " + error);
+                    AddLog(Loc.F("Str_Log_MergeAppliedLocalFailFmt", error));
                 } else {
                     MessageBox.Show(error, Loc.T("Str_MsgTitle_CannotProceed"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 }
@@ -11331,10 +11331,10 @@ namespace SwimmingScoreboard
                                        laneMoves, reason, op, InRaceNoDbWrite());
             } catch { }
 
-            AddLog(string.Format("【并组】{0} {1} {2} {3}: 第{4}组 {5} — {6}",
+            AddLog(Loc.F("Str_Log_MergeDoneLogFmt",
                 gender, ageGroup, eventName, stage, srcHeat,
                 dstHeat > 0 ? ("并入第" + dstHeat + "组") : "直接取消", reason));
-            foreach (var m in moved) AddLog("      " + m);
+            foreach (var m in moved) AddLog(Loc.F("Str_Log_IndentedLineFmt", m));
             return true;
         }
 
@@ -11392,7 +11392,7 @@ namespace SwimmingScoreboard
                     if (sock == except) continue;
                     EnqueueToSocket(sock, json);
                 }
-            } catch (Exception ex) { AddLog("转发补丁失败: " + ex.Message); }
+            } catch (Exception ex) { AddLog(Loc.F("Str_Log_ForwardPatchFailedFmt", ex.Message)); }
         }
 
         private JObject NewPatch(string op, string ageGroup, string gender, string eventName, string stage,
@@ -11603,12 +11603,12 @@ namespace SwimmingScoreboard
                         SessionNumber = _schedule.Count > 0 ? _schedule.Max(x => x.SessionNumber) : 1,
                         AgeGroup = ag, Gender = gd, EventName = ev, Stage = st, HeatCount = hc
                     });
-                    AddLog(string.Format("补丁里带来了新赛程项: {0} {1} {2} {3}（{4}组）", ag, gd, ev, st, hc));
+                    AddLog(Loc.F("Str_Log_PatchNewScheduleItemFmt", ag, Loc.GenderDisplay(gd), ev, Loc.StageDisplay(st), hc));
                 }
             } catch { }
 
             FinishPatchApply(ag, gd, ev, st);
-            AddLog(string.Format("【分组补丁】{0} {1} {2} {3}: 设 {4} 人, 清 {5} 人{6}{7}",
+            AddLog(Loc.F("Str_Log_AssignPatchFmt",
                 gd, ag, ev, st, setN, clrN,
                 added > 0 ? (", 新增 " + added + " 人") : "",
                 addedTeams > 0 ? (", 新增 " + addedTeams + " 支接力队") : ""));
@@ -11695,7 +11695,7 @@ namespace SwimmingScoreboard
                 if (IsScheduleEditorMode) {
                     MessageBox.Show(Loc.F("Str_Msg_AssignRejectedFmt", err),
                         Loc.T("Str_MsgTitle_NotSavedToServer"), MessageBoxButton.OK, MessageBoxImage.Warning);
-                    AddLog("★ 编排补丁被主服务器拒绝: " + err + " —— 重新拉取主服务器数据");
+                    AddLog(Loc.F("Str_Log_EditorPatchRejectedRefetchFmt", err));
                     try {
                         var pull = new JObject();
                         pull["type"] = "EDITOR_PULL_PACKAGE";
@@ -11703,10 +11703,10 @@ namespace SwimmingScoreboard
                     } catch { }
                 } else {
                     // 计时端不拉整包 —— 比赛中重载整库正是当初出事的那条路。只喊一声。
-                    AddLog("★ 编排补丁被主服务器拒绝: " + err + " —— 本机这份和主服务器已经不一致");
+                    AddLog(Loc.F("Str_Log_EditorPatchRejectedDivergedFmt", err));
                 }
                 return false;
-            } catch (Exception ex) { AddLog("发送编排补丁失败: " + ex.Message); }
+            } catch (Exception ex) { AddLog(Loc.F("Str_Log_SendEditorPatchFailedFmt", ex.Message)); }
             return true;
         }
 
@@ -11765,12 +11765,12 @@ namespace SwimmingScoreboard
                     // 一次失败就打住: 那边已经拒了, 本机马上要整包重来一遍,
                     // 再挨个发下去只会一连串弹窗、一连串 5 秒超时。
                     if (!PushAssignPatch(p[0], p[1], p[2], p[3])) {
-                        AddLog("补丁被拒, 剩下的项目不再逐条发了 —— 等整包回来统一对齐");
+                        AddLog(Loc.T("Str_Log_PatchRejectedStopSending"));
                         return;
                     }
                 }
-                if (n > 0) AddLog(string.Format("分组变动 {0} 项, 已用补丁同步给对端(没推整包)", n));
-            } catch (Exception ex) { AddLog("对比分组变动失败: " + ex.Message); }
+                if (n > 0) AddLog(Loc.F("Str_Log_AssignChangesSyncedFmt", n));
+            } catch (Exception ex) { AddLog(Loc.F("Str_Log_DiffAssignFailedFmt", ex.Message)); }
         }
 
         // ── 2026-09-12 纪录表补丁 op:"Records" ──────────────────────────
@@ -11820,16 +11820,16 @@ namespace SwimmingScoreboard
                 p["deletes"] = dels;
                 string rerr;
                 if (!SpreadPatch(p, out rerr))
-                    AddLog("纪录补丁没送到主服务器: " + rerr + " —— 改动只在本机, 等空闲了整体保存一次");
-                AddLog(string.Format("纪录变动: 改 {0} 条, 删 {1} 条, 已用补丁同步", ups.Count, dels.Count));
+                    AddLog(Loc.F("Str_Log_RecordsPatchNotSentFmt", rerr));
+                AddLog(Loc.F("Str_Log_RecordsChangedFmt", ups.Count, dels.Count));
                 // 2026-09-18 补丁只同步了内存/JSON, 竞赛库(meet.db)另外补一步——见
                 // SyncRecordsPatchToMeetDb 的说明。在【编辑发生的这台机器】上做, 不管
                 // 是不是联机: _meetDb 单机时直接写本机, 联机时经 _meet RPC 写到真身
                 // 那台, 不依赖 SpreadPatch 那条 WebSocket 通道是否连着/成不成功。
-                try { SyncRecordsPatchToMeetDb(p); } catch (Exception ex) { AddLog("纪录同步竞赛库失败: " + ex.Message); }
+                try { SyncRecordsPatchToMeetDb(p); } catch (Exception ex) { AddLog(Loc.F("Str_Log_RecordsSyncMeetDbFailedFmt", ex.Message)); }
                 ResetRecordsBaseline();
                 return ups.Count + dels.Count;
-            } catch (Exception ex) { AddLog("对比纪录变动失败: " + ex.Message); return 0; }
+            } catch (Exception ex) { AddLog(Loc.F("Str_Log_DiffRecordsFailedFmt", ex.Message)); return 0; }
         }
 
         /// <summary>
@@ -11899,8 +11899,8 @@ namespace SwimmingScoreboard
                     }
                 }
                 if (savedN > 0 || delN > 0)
-                    AddLog(string.Format("纪录改动已同步竞赛库: 改/增 {0} 条, 删 {1} 条", savedN, delN));
-            } catch (Exception ex) { AddLog("纪录补丁同步竞赛库失败(内存/JSON 仍是最新的): " + ex.Message); }
+                    AddLog(Loc.F("Str_Log_RecordsMeetDbSyncedFmt", savedN, delN));
+            } catch (Exception ex) { AddLog(Loc.F("Str_Log_RecordsPatchMeetDbFailedFmt", ex.Message)); }
         }
 
         /// <summary>收到纪录补丁: 按条 upsert / 删除。没提到的行一个字不动。</summary>
@@ -11941,7 +11941,7 @@ namespace SwimmingScoreboard
             } finally { _patchInFlight = false; }
             ResetRecordsBaseline();   // 2026-09-12 远端改过了, 基准线跟着走
             PushDataChanged("records");
-            AddLog(string.Format("【纪录补丁】改 {0} 条, 删 {1} 条", up, del));
+            AddLog(Loc.F("Str_Log_RecordsPatchAppliedFmt", up, del));
             return true;
         }
 
@@ -12013,7 +12013,7 @@ namespace SwimmingScoreboard
             // ── 第二道: 手输组号 + 写原因 ──
             string reason;
             if (!AskUnlockConfirm(head, heat, out reason)) {
-                AddLog("解锁本组成绩: 已取消 (" + head + ")");
+                AddLog(Loc.F("Str_Log_UnlockCancelledFmt", head));
                 return;
             }
 
@@ -12106,7 +12106,7 @@ namespace SwimmingScoreboard
 
             string head = string.Format("{0} {1} {2} {3} 第{4}组",
                 gender, string.IsNullOrEmpty(ageGroup) ? "" : ageGroup, eventName, stage, heat);
-            AddLog(string.Format("★【解锁本组成绩】{0} — 操作人 {1}，原因: {2}",
+            AddLog(Loc.F("Str_Log_UnlockDoneFmt",
                 head, op ?? Environment.MachineName, string.IsNullOrEmpty(reason) ? "(未写)" : reason));
 
             // 竞赛库审计表也记一条 —— 系统日志是会滚掉的, 审计表不会
@@ -12131,7 +12131,7 @@ namespace SwimmingScoreboard
                 p2["reason"] = reason ?? "";
                 string uerr;
                 if (!SpreadPatch(p2, out uerr))
-                    AddLog("解锁没同步到主服务器: " + uerr + " —— 只解开了本机这一份, 别的机器上还是锁着");
+                    AddLog(Loc.F("Str_Log_UnlockNotSyncedFmt", uerr));
             }
             return true;
         }
@@ -12358,7 +12358,7 @@ namespace SwimmingScoreboard
                             if (!string.IsNullOrEmpty(leg.SwimmerBibNumber) && leg.SwimmerBibNumber == oldBib)
                                 leg.SwimmerBibNumber = newBib;
                 }
-                AddLog(string.Format("参赛号变更: {0} → {1}（{2}）", oldBib, newBib, target.Name));
+                AddLog(Loc.F("Str_Log_BibChangedFmt", oldBib, newBib, target.Name));
             } else {
                 target.BibNumber = newBib;
             }
@@ -12512,11 +12512,11 @@ namespace SwimmingScoreboard
                 if (IsScheduleEditorMode) {
                     string err;
                     if (!SendPatchAndWait(patch, out err))
-                        AddLog("改动没能同步到主服务器: " + err + "——下次联网/整体保存时会补上");
+                        AddLog(Loc.F("Str_Log_ChangeNotSyncedFmt", err));
                 } else {
                     BroadcastPatch(patch, null);
                 }
-            } catch (Exception ex) { AddLog("同步改动失败: " + ex.Message); }
+            } catch (Exception ex) { AddLog(Loc.F("Str_Log_SyncChangeFailedFmt", ex.Message)); }
             Broadcast();
             if (!string.IsNullOrEmpty(pushTopic)) PushDataChanged(pushTopic);
         }
@@ -12620,7 +12620,7 @@ namespace SwimmingScoreboard
                     // 2026-09-20 RelayTeam 自己也带着实时成绩/分段(FinalTime/LegSplits等)——
                     //   跟 ApplySwimmerRowsUpsertCore 同一道理, 正在比的这支队跳过不碰。
                     if (_meetDb.LiveActive && existing.EventName == _currentEvent && existing.Heat == _currentHeat) {
-                        AddLog(string.Format("批量导入: 接力队 {0} 正在参加当前组比赛, 本行改动已跳过(临时数据库使用中)", existing.TeamName));
+                        AddLog(Loc.F("Str_Log_BatchImportRelaySkippedFmt", existing.TeamName));
                         continue;
                     }
                     _relayTeams[_relayTeams.IndexOf(existing)] = t;
@@ -12648,7 +12648,7 @@ namespace SwimmingScoreboard
                         && (existing.GetAssignmentForStage(_currentStage) != null
                             ? existing.GetAssignmentForStage(_currentStage).Heat == _currentHeat
                             : existing.Heat == _currentHeat)) {
-                        AddLog(string.Format("批量导入: {0}({1}) 正在参加当前组比赛, 本行改动已跳过(临时数据库使用中)",
+                        AddLog(Loc.F("Str_Log_BatchImportSwimmerSkippedFmt",
                             existing.Name, existing.BibNumber));
                         continue;
                     }
@@ -12795,7 +12795,7 @@ namespace SwimmingScoreboard
                     if (sock == sender) continue;
                     try { EnqueueToSocket(sock, msg.ToString(Formatting.None)); } catch { }
                 }
-                AddLog("已应用编排端补丁(" + op + ")并转发");
+                AddLog(Loc.F("Str_Log_EditorPatchAppliedFwdFmt", op));
                 // 2026-09-18 【这里一直漏了写 meet.db】——"Assign"(手动分组/自动分组/临时加人/
                 //   接力棒次等)这批补丁 2026-09-12 起改成"走补丁, 不推整包"以后, ApplyAssignPatch/
                 //   ApplyMergeHeats 里只有并组那一条真的调了 _meetDb.MergeHeatsInDb, 其余全部只改了
@@ -12812,7 +12812,7 @@ namespace SwimmingScoreboard
                 //   "Assign"/"MergeHeats" 这类 SelfCheck 认得出的赛程差异。
                 if (op != "Records") ScheduleMeetDbSyncFromPatch();
             } else {
-                AddLog("拒绝编排端补丁(" + op + "): " + reason);
+                AddLog(Loc.F("Str_Log_EditorPatchRejectedFmt", op, reason));
             }
         }
 
@@ -12838,20 +12838,20 @@ namespace SwimmingScoreboard
                 // 不然重建瞬间 _swimmers 整批换对象, 正在广播的当前组数据引用到旧对象。
                 string why;
                 if (IsPackageApplyBlocked(out why)) {
-                    AddLog("编排补丁暂不同步到竞赛库: " + why + "（下次补丁/整包同步时会补上）");
+                    AddLog(Loc.F("Str_Log_EditorPatchDeferredMeetDbFmt", why));
                     return;
                 }
                 var package = BuildCurrentPackage();
                 var chk = _meetDb.SelfCheck(package);
                 if (chk.Diffs.Count == 0) return;   // 没差异, 不用白重建一次
-                AddLog(string.Format("编排补丁已同步到内存, 竞赛库有 {0} 处差异, 按最新编排重建(成绩保留, 原库不动)…",
+                AddLog(Loc.F("Str_Log_EditorPatchMeetDbDiffFmt",
                     chk.Diffs.Count));
                 if (_meetDb.RebuildFromPackage(package)) {
                     var again = _meetDb.SelfCheck(package);
-                    AddLog("重建后自检: " + again.ToString());
+                    AddLog(Loc.F("Str_Log_RebuildSelfCheckFmt", again.ToString()));
                     try { PushDataChanged("assign"); } catch { }   // 让挂着的其它客户端立刻多轮询一次
                 }
-            } catch (Exception ex) { AddLog("编排补丁同步竞赛库失败(不影响比赛, 内存/JSON 仍是最新的): " + ex.Message); }
+            } catch (Exception ex) { AddLog(Loc.F("Str_Log_EditorPatchMeetDbFailedFmt", ex.Message)); }
         }
 
         // 本池可用泳道数
@@ -12936,9 +12936,9 @@ namespace SwimmingScoreboard
             //      之前不发 0x41, 硬件用上一帧的 sp50m=0 当 50m 项目处理, 0x21 Ready 时打开的出发台
             //      落在终点端而非对面, 后续触板/盲表方向都跟着错位.
             if (_timingBridge != null && _timingBridge.IsConnected) {
-                try { SendSetMatchEventToHardware(); } catch (Exception ex) { AddLog("Set_MatchEvent 同步失败: " + ex.Message); }
-                try { SendStartPositionToHardware(); } catch (Exception ex) { AddLog("发令点同步失败: " + ex.Message); }
-                try { SendTimingSettingsToHardware(); } catch (Exception ex) { AddLog("参数同步失败 (sp50m): " + ex.Message); }
+                try { SendSetMatchEventToHardware(); } catch (Exception ex) { AddLog(Loc.F("Str_Log_SetMatchEventSyncFailedFmt", ex.Message)); }
+                try { SendStartPositionToHardware(); } catch (Exception ex) { AddLog(Loc.F("Str_Log_StartPosSyncFailedFmt", ex.Message)); }
+                try { SendTimingSettingsToHardware(); } catch (Exception ex) { AddLog(Loc.F("Str_Log_ParamsSyncFailedSp50mFmt", ex.Message)); }
             }
         }
 
@@ -12990,7 +12990,7 @@ namespace SwimmingScoreboard
             }
             if (_laneCloseSettings.StartPosition != newStart) {
                 _laneCloseSettings.StartPosition = newStart;
-                AddLog(string.Format("发令位置自动切换: {0}（{1}，终点在{2}端）",
+                AddLog(Loc.F("Str_Log_StartPosAutoSwitchFmt",
                     newStart == "left" ? "左端" : "右端", is50m ? "50米单程" : "多程", finish == "left" ? "左" : "右"));
             }
         }
@@ -13013,7 +13013,7 @@ namespace SwimmingScoreboard
         private bool IsHeatSwitchBlocked(string actionLabel) {
             if (string.IsNullOrEmpty(_currentEvent) || _currentHeat <= 0) return false;
             if (CurrentHeatInProgress()) {
-                AddLog((_raceState == RaceState.Ready || _raceState == RaceState.Racing ? "比赛进行中不能" : "当前组未确认成绩，不能") + actionLabel);
+                AddLog((_raceState == RaceState.Ready || _raceState == RaceState.Racing ? Loc.T("Str_Frag_CannotWhileRacing") : Loc.T("Str_Frag_CannotUnconfirmed")) + actionLabel);
                 return true;
             }
             return false;
@@ -13029,7 +13029,7 @@ namespace SwimmingScoreboard
             MessageBox.Show(
                 Loc.F("Str_Msg_CannotLeaveHeatFmt", Loc.GenderDisplay(_currentGender), _currentEvent, _currentHeat),
                 Loc.T("Str_MsgTitle_ActionBlocked"), MessageBoxButton.OK, MessageBoxImage.Warning);
-            AddLog("当前组未确认成绩，已拦截切组");
+            AddLog(Loc.T("Str_Log_HeatSwitchBlockedUnconfirmed"));
             return false;
         }
 
@@ -13100,9 +13100,9 @@ namespace SwimmingScoreboard
             // 2026-05-26 补 SendTimingSettingsToHardware: AutoAdjustStartPosition 把 StartPosition 切到对面后,
             //   sp50m 位 (= StartPosition != FinishPosition) 必须通过 0x41 帧告诉硬件, 否则 50m 出发台开错端.
             if (_timingBridge != null && _timingBridge.IsConnected) {
-                try { SendSetMatchEventToHardware(); } catch (Exception ex) { AddLog("Set_MatchEvent 同步失败: " + ex.Message); }
-                try { SendStartPositionToHardware(); } catch (Exception ex) { AddLog("发令点同步失败: " + ex.Message); }
-                try { SendTimingSettingsToHardware(); } catch (Exception ex) { AddLog("参数同步失败 (sp50m): " + ex.Message); }
+                try { SendSetMatchEventToHardware(); } catch (Exception ex) { AddLog(Loc.F("Str_Log_SetMatchEventSyncFailedFmt", ex.Message)); }
+                try { SendStartPositionToHardware(); } catch (Exception ex) { AddLog(Loc.F("Str_Log_StartPosSyncFailedFmt", ex.Message)); }
+                try { SendTimingSettingsToHardware(); } catch (Exception ex) { AddLog(Loc.F("Str_Log_ParamsSyncFailedSp50mFmt", ex.Message)); }
             }
         }
 
@@ -27167,7 +27167,7 @@ namespace SwimmingScoreboard
                         chk.Diffs.Count));
                     if (_meetDb.RebuildFromPackage(package)) {
                         var again = _meetDb.SelfCheck(package);
-                        AddLog("重建后自检: " + again.ToString());
+                        AddLog(Loc.F("Str_Log_RebuildSelfCheckFmt", again.ToString()));
                         foreach (var d in again.Diffs.Take(5)) AddLog("  仍有差异: " + d);
                     }
                 }
