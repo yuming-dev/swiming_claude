@@ -30354,7 +30354,7 @@ namespace SwimmingScoreboard
                 string html = BuildFullResultBookHtml();
                 File.WriteAllText(dlg.FileName, html, System.Text.Encoding.UTF8);
                 AddLog("成绩册已导出: " + dlg.FileName);
-                if (MessageBox.Show("导出完成，是否立即打开？", "成绩册导出", MessageBoxButton.YesNo, MessageBoxImage.Information) == MessageBoxResult.Yes) {
+                if (MessageBox.Show(Loc.T("Str_Msg_ExportDoneOpenNow"), Loc.T("Str_MsgTitle_ResultBookExport"), MessageBoxButton.YesNo, MessageBoxImage.Information) == MessageBoxResult.Yes) {
                     System.Diagnostics.Process.Start(dlg.FileName);
                 }
             } catch (Exception ex) {
@@ -30401,7 +30401,7 @@ namespace SwimmingScoreboard
                 string text = BuildResultTxtContent(picked.AgeGroup, picked.Gender, picked.EventName, picked.Stage, picked.Heat);
                 File.WriteAllText(sfd.FileName, text, new UTF8Encoding(false));     // 不带 BOM, 兼容旧解析器
                 AddLog("成绩 txt 已导出: " + sfd.FileName);
-                MessageBox.Show("已导出:\n" + sfd.FileName, Loc.T("Str_MsgTitle_Done"), MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show(Loc.F("Str_Msg_ExportedToFmt", sfd.FileName), Loc.T("Str_MsgTitle_Done"), MessageBoxButton.OK, MessageBoxImage.Information);
             } catch (Exception ex) {
                 MessageBox.Show(Loc.F("Str_Msg_ExportFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error"), MessageBoxButton.OK, MessageBoxImage.Error);
                 AddLog("成绩 txt 导出失败: " + ex.Message);
@@ -30629,7 +30629,7 @@ namespace SwimmingScoreboard
             btnOK.Click += delegate {
                 var sel = tv.SelectedItem as TreeViewItem;
                 if (sel == null || !(sel.Tag is ConfirmedHeatPick)) {
-                    MessageBox.Show("请先在树中选择一个【第N组 [已完赛]】节点。", Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Information);
+                    MessageBox.Show(Loc.T("Str_Msg_SelectFinishedHeatNode"), Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Information);
                     return;
                 }
                 selected = (ConfirmedHeatPick)sel.Tag;
@@ -33261,12 +33261,12 @@ namespace SwimmingScoreboard
             try {
                 string dir = IOPath.Combine(AppDomain.CurrentDomain.BaseDirectory, "Logs");
                 if (!Directory.Exists(dir)) {
-                    MessageBox.Show("还没有日志文件。", "导出日志", MessageBoxButton.OK, MessageBoxImage.Information);
+                    MessageBox.Show(Loc.T("Str_Msg_NoLogFile"), Loc.T("Str_MsgTitle_ExportLog"), MessageBoxButton.OK, MessageBoxImage.Information);
                     return;
                 }
                 var files = Directory.GetFiles(dir, "*.log").OrderBy(f => f).ToList();
                 if (files.Count == 0) {
-                    MessageBox.Show("还没有日志文件。", "导出日志", MessageBoxButton.OK, MessageBoxImage.Information);
+                    MessageBox.Show(Loc.T("Str_Msg_NoLogFile"), Loc.T("Str_MsgTitle_ExportLog"), MessageBoxButton.OK, MessageBoxImage.Information);
                     return;
                 }
 
@@ -33292,9 +33292,9 @@ namespace SwimmingScoreboard
                     catch (Exception exRead) { sb.AppendFormat("（这一天的日志读取失败: {0}）", exRead.Message).AppendLine(); }
                 }
                 File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
-                MessageBox.Show("已导出: " + dlg.FileName, "导出日志", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show(Loc.F("Str_Msg_ExportedToFmt", dlg.FileName), Loc.T("Str_MsgTitle_ExportLog"), MessageBoxButton.OK, MessageBoxImage.Information);
             } catch (Exception ex) {
-                MessageBox.Show(Loc.F("Str_Msg_ExportFailedFmt", ex.Message), "导出日志", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show(Loc.F("Str_Msg_ExportFailedFmt", ex.Message), Loc.T("Str_MsgTitle_ExportLog"), MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -33311,7 +33311,7 @@ namespace SwimmingScoreboard
         }
 
         private void Window_Closing(object sender, CancelEventArgs e) {
-            if (MessageBox.Show("确定要退出游泳赛事管理系统？\n\n数据将自动保存。", "确认退出", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) {
+            if (MessageBox.Show(Loc.T("Str_Msg_ConfirmExit"), Loc.T("Str_MsgTitle_ConfirmExit"), MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) {
                 e.Cancel = true;
                 return;
             }
@@ -33357,10 +33357,10 @@ namespace SwimmingScoreboard
 
         private void LoadBackup_Click(object sender, RoutedEventArgs e) {
             var selected = BackupListBox.SelectedItem as BackupInfo;
-            if (selected == null) { MessageBox.Show("请先选中一个存档"); return; }
+            if (selected == null) { MessageBox.Show(Loc.T("Str_Msg_SelectBackupFirst")); return; }
             if (MessageBox.Show(
-                string.Format("确定要加载存档 [{0}] 吗？\n当前未保存的数据将被覆盖。", selected.Name),
-                "确认加载", MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes) {
+                Loc.F("Str_Msg_ConfirmLoadBackupFmt", selected.Name),
+                Loc.T("Str_MsgTitle_ConfirmLoad"), MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes) {
                 _competitionName = selected.Name;
                 CompNameBox.Text = selected.Name;
                 LoadCompetitionFromFile(selected.FilePath);
@@ -33370,9 +33370,9 @@ namespace SwimmingScoreboard
 
         private void DeleteBackup_Click(object sender, RoutedEventArgs e) {
             var selected = BackupListBox.SelectedItem as BackupInfo;
-            if (selected == null) { MessageBox.Show("请先选中一个存档"); return; }
+            if (selected == null) { MessageBox.Show(Loc.T("Str_Msg_SelectBackupFirst")); return; }
             if (MessageBox.Show(
-                string.Format("严重警告：确定要永久删除存档文件 [{0}.json] 吗？\n\n此操作不可恢复！", selected.Name),
+                Loc.F("Str_Msg_ConfirmDeleteBackupFmt", selected.Name),
                 Loc.T("Str_MsgTitle_ConfirmDelete"), MessageBoxButton.YesNo, MessageBoxImage.Stop) == MessageBoxResult.Yes) {
                 try {
                     if (File.Exists(selected.FilePath)) {
@@ -33395,27 +33395,27 @@ namespace SwimmingScoreboard
 
         private void ClearDatabase_Click(object sender, RoutedEventArgs e) {
             if (MessageBox.Show(
-                string.Format("严重警告：确定要清空当前比赛 [{0}] 的所有数据吗？\n\n运动员、赛程、成绩将全部清除！\n赛事基本信息（名称、日期、地点、裁判等）将保留。", _competitionName),
-                "确认清空", MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes) {
+                Loc.F("Str_Msg_ConfirmClearDataFmt", _competitionName),
+                Loc.T("Str_MsgTitle_ConfirmClear"), MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes) {
                 ClearCompetitionData();
                 AutoSaveData();
                 Broadcast();
                 AddLog(string.Format("比赛 [{0}] 的数据已清空（赛事信息保留）", _competitionName));
-                MessageBox.Show(string.Format("比赛 [{0}] 的数据已成功清空。\n赛事基本信息已保留。", _competitionName));
+                MessageBox.Show(Loc.F("Str_Msg_ClearDataDoneFmt", _competitionName));
             }
         }
 
         private void ForceSave_Click(object sender, RoutedEventArgs e) {
             if (string.IsNullOrEmpty(_competitionName)) {
-                MessageBox.Show("请先设置赛事名称");
+                MessageBox.Show(Loc.T("Str_Msg_SetCompNameFirst"));
                 return;
             }
-            if (MessageBox.Show("确定要立即执行强制保存吗？\n系统将根据当前项目名称覆盖现有存档文件。",
-                "确认保存", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes) {
+            if (MessageBox.Show(Loc.T("Str_Msg_ConfirmForceSave"),
+                Loc.T("Str_MsgTitle_ConfirmSave"), MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes) {
                 AutoSaveData();
                 RefreshBackupList();
                 AddLog("强制保存完成: " + _competitionName);
-                MessageBox.Show("数据强制保存完成！");
+                MessageBox.Show(Loc.T("Str_Msg_ForceSaveDone"));
             }
         }
 
