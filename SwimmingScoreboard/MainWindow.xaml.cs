@@ -28344,15 +28344,8 @@ namespace SwimmingScoreboard
                 File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
                 AddLog("已导出纪录模板: " + dlg.FileName);
                 MessageBox.Show(
-                    "纪录模板已保存！\n\n" +
-                    "使用说明：\n" +
-                    "1. 用Excel打开CSV文件\n" +
-                    "2. 在空行中填入各项纪录（保持者、代表队、成绩、日期、地点）\n" +
-                    "3. 成绩格式：秒.百分秒(如20.91) 或 分:秒.百分秒(如1:42.00) 或 时:分:秒.百分秒\n" +
-                    "4. 已有世界纪录数据已预填，可直接修改\n" +
-                    "5. 未填的行会自动跳过\n" +
-                    "6. 保存后通过【导入CSV纪录】按钮一次性读入",
-                    "纪录模板", MessageBoxButton.OK, MessageBoxImage.Information);
+                    Loc.T("Str_Msg_RecordTemplateSaved"),
+                    Loc.T("Str_MsgTitle_RecordTemplate"), MessageBoxButton.OK, MessageBoxImage.Information);
             } catch (Exception ex) {
                 AddLog("导出纪录模板失败: " + ex.Message);
             }
