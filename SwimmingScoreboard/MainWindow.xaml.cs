@@ -19032,7 +19032,7 @@ namespace SwimmingScoreboard
             // 导出当前所有已报名运动员（含接力代表条目和接力队员个人条目）
             var rows = _swimmers.ToList();
             if (rows.Count == 0) {
-                MessageBox.Show("当前没有可导出的报名数据。", Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show(Loc.T("Str_Msg_NoRegDataToExport"), Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
             string defaultName = string.IsNullOrEmpty(_competitionName)
@@ -19068,7 +19068,7 @@ namespace SwimmingScoreboard
                 }
                 File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
                 AddLog(string.Format("已导出运动员报名数据 {0} 条", rows.Count));
-                MessageBox.Show(string.Format("已导出 {0} 条运动员报名数据：\n{1}", rows.Count, dlg.FileName), Loc.T("Str_MsgTitle_Done"));
+                MessageBox.Show(Loc.F("Str_Msg_ExportedSwimmersFmt", rows.Count, dlg.FileName), Loc.T("Str_MsgTitle_Done"));
             } catch (Exception ex) {
                 MessageBox.Show(Loc.F("Str_Msg_ExportFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error"));
             }
@@ -19117,14 +19117,7 @@ namespace SwimmingScoreboard
                 sb.AppendLine(string.Join(",", ex2.ConvertAll<string>(CsvEscape)));
 
                 File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
-                MessageBox.Show(
-                    "个人报名模板已保存（27 列）。\n\n" +
-                    "● 一名运动员填一行，最多 8 个个人项目并列填在 \"项目1/成绩1\" 到 \"项目8/成绩8\" 列对中\n" +
-                    "● 项目列为空 → 该列对忽略；用户用不到的项目列对可全部留空\n" +
-                    "● 号码列留空 → 导入时由系统按代表队号码段自动分配\n" +
-                    "● 接力项目请在「接力队管理」Tab 集中报名（需指定棒次与队级成绩）\n" +
-                    "● 「导入CSV」严格按本模板表头校验，列名/列序不一致整文件拒绝",
-                    Loc.T("Str_MsgTitle_Done"));
+                MessageBox.Show(Loc.T("Str_Msg_SwimmerTemplateSaved"), Loc.T("Str_MsgTitle_Done"));
             } catch (Exception ex) {
                 MessageBox.Show(Loc.F("Str_Msg_SaveFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error"));
             }
@@ -19143,7 +19136,7 @@ namespace SwimmingScoreboard
                 //   失败行跳过+理由汇总；接力项目仍走「接力队管理」Tab
                 var rows = ReadCsvLines(dlg.FileName);
                 if (rows.Count < 2) {
-                    MessageBox.Show("CSV 文件没有数据行（只有表头或为空）。", "导入失败",
+                    MessageBox.Show(Loc.T("Str_Msg_CsvNoDataRows"), Loc.T("Str_MsgTitle_ImportFailed"),
                         MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
@@ -19161,9 +19154,8 @@ namespace SwimmingScoreboard
                     string expected = SwimmerCsvTemplateHeader[hi];
                     string actual = (header[hi] ?? "").Trim();
                     if (actual != expected) {
-                        MessageBox.Show(string.Format(
-                            "❌ CSV 表头第 {0} 列不匹配：\n   期望「{1}」\n   实际「{2}」\n\n请用「导出个人报名模板」按钮重新导出模板编辑后再导入。",
-                            hi + 1, expected, actual), Loc.T("Str_MsgTitle_FormatError"),
+                        MessageBox.Show(Loc.F("Str_Msg_CsvHeaderColMismatchFmt", hi + 1, expected, actual),
+                            Loc.T("Str_MsgTitle_FormatError"),
                             MessageBoxButton.OK, MessageBoxImage.Error);
                         return;
                     }
@@ -19248,19 +19240,18 @@ namespace SwimmingScoreboard
 
                 // 汇总弹窗 — 全量列出便于管理员定位
                 var sb = new StringBuilder();
-                sb.AppendFormat("CSV 导入完成（个人报名模板）：\n\n  ✅ 新增 {0} 条\n  🔄 更新 {1} 条 (按身份证号+项目匹配)\n  ⏭ 跳过 {2} 行\n",
-                    imported, updated, skipped);
+                sb.AppendFormat(Loc.T("Str_Msg_CsvImportSummaryFmt"), imported, updated, skipped);
                 if (skipReasons.Count > 0) {
-                    sb.AppendLine("\n--- 跳过明细 ---");
+                    sb.AppendLine(Loc.T("Str_Msg_SkipDetailsHeader"));
                     int show = Math.Min(skipReasons.Count, 100);
                     for (int k = 0; k < show; k++) sb.AppendLine("• " + skipReasons[k]);
-                    if (skipReasons.Count > show) sb.AppendFormat("... 还有 {0} 条未显示\n", skipReasons.Count - show);
+                    if (skipReasons.Count > show) sb.AppendFormat(Loc.T("Str_Msg_MoreNotShownFmt"), skipReasons.Count - show);
                 }
-                MessageBox.Show(sb.ToString(), "导入运动员 CSV 完成",
+                MessageBox.Show(sb.ToString(), Loc.T("Str_MsgTitle_ImportSwimmerCsvDone"),
                     MessageBoxButton.OK, skipped > 0 ? MessageBoxImage.Warning : MessageBoxImage.Information);
             } catch (Exception ex) {
                 AddLog("CSV导入失败: " + ex.Message);
-                MessageBox.Show("CSV 导入失败: " + ex.Message, "导入失败",
+                MessageBox.Show(Loc.F("Str_Msg_CsvImportFailedFmt", ex.Message), Loc.T("Str_MsgTitle_ImportFailed"),
                     MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }

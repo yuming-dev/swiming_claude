@@ -863,6 +863,10 @@ namespace SwimmingScoreboard
             { "Str_Msg_SwimmerEditServerAheadFmt", new[] { "主服务器已经接受这次修改，但本机没能跟着改。\n\n原因: {0}\n\n多半是本机这份数据旧了。请断开重连主服务器重新取一次数据。", "The main server already accepted this edit, but this machine failed to apply it.\n\nReason: {0}\n\nThis usually means this machine's data is stale — disconnect and reconnect to re-fetch it." } },
             { "Str_Msg_BibRequired", new[] { "参赛号不能为空", "Bib number is required." } },
             { "Str_Msg_BibAlreadyExistsFmt", new[] { "参赛号 {0} 已存在，请换一个号码。", "Bib number {0} already exists — choose a different number." } },
+            { "Str_Msg_CsvNoDataRows", new[] { "CSV 文件没有数据行（只有表头或为空）。", "The CSV file has no data rows (only a header, or empty)." } },
+            { "Str_Msg_CsvImportSummaryFmt", new[] { "CSV 导入完成（个人报名模板）：\n\n  ✅ 新增 {0} 条\n  🔄 更新 {1} 条 (按身份证号+项目匹配)\n  ⏭ 跳过 {2} 行\n", "CSV import complete (individual registration template):\n\n  ✅ Added {0}\n  🔄 Updated {1} (matched by ID number + event)\n  ⏭ Skipped {2} row(s)\n" } },
+            { "Str_Msg_SkipDetailsHeader", new[] { "\n--- 跳过明细 ---", "\n--- Skipped Details ---" } },
+            { "Str_Msg_MoreNotShownFmt", new[] { "... 还有 {0} 条未显示\n", "... {0} more not shown\n" } },
         };
 
         /// <summary>查当前语言下的文字；查不到就退回中文；中文也没有就返回 key 本身兜底。</summary>
