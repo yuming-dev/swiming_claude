@@ -24929,11 +24929,11 @@ namespace SwimmingScoreboard
             };
             btnSend.Click += delegate {
                 string p = pathBox.Text;
-                if (string.IsNullOrEmpty(p) || !File.Exists(p)) { MessageBox.Show("请选择有效的图片或视频文件"); return; }
-                if (string.IsNullOrEmpty(detectedKind)) { MessageBox.Show("无法识别文件类型，请选择 PNG/JPG/BMP/GIF/WEBP 图片或 MP4/WEBM/OGG 视频"); return; }
+                if (string.IsNullOrEmpty(p) || !File.Exists(p)) { MessageBox.Show(Loc.T("Str_Msg_SelectValidMediaFile")); return; }
+                if (string.IsNullOrEmpty(detectedKind)) { MessageBox.Show(Loc.T("Str_Msg_UnrecognizedMediaType")); return; }
                 long len = new FileInfo(p).Length;
                 if (len > 60L * 1024 * 1024) {
-                    if (MessageBox.Show(string.Format("文件较大（{0:F1} MB），通过 WebSocket 嵌入可能耗时。继续发送？", len / 1048576.0),
+                    if (MessageBox.Show(Loc.F("Str_Msg_LargeFileConfirmFmt", len / 1048576.0),
                         Loc.T("Str_MsgTitle_Confirm"), MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
                 }
                 string fit = rbCover.IsChecked == true ? "cover" : (rbStretch.IsChecked == true ? "fill" : "contain");
@@ -24977,7 +24977,7 @@ namespace SwimmingScoreboard
                     kind == "image" ? "图片" : "视频", IOPath.GetFileName(path), bytes.Length / 1048576.0,
                     IsRemoteTimingControlMode ? "（经主服务器转发）" : "（客户端 " + _allSockets.Count + " 个）"));
             } catch (Exception ex) {
-                MessageBox.Show("发送失败：" + ex.Message);
+                MessageBox.Show(Loc.F("Str_Msg_SendFailedFmt", ex.Message));
                 AddLog("媒体发送失败: " + ex.Message);
             }
         }
@@ -24988,7 +24988,7 @@ namespace SwimmingScoreboard
         private void SaveCompetitionInfo_Click(object sender, RoutedEventArgs e) {
             string newName = CompNameBox.Text.Trim();
             if (string.IsNullOrEmpty(newName)) {
-                MessageBox.Show("请输入赛事名称", Loc.T("Str_MsgTitle_Info"));
+                MessageBox.Show(Loc.T("Str_Msg_EnterCompName"), Loc.T("Str_MsgTitle_Info"));
                 return;
             }
 
@@ -25035,7 +25035,7 @@ namespace SwimmingScoreboard
 
         private void NewCompetition_Click(object sender, RoutedEventArgs e) {
             if (_swimmers.Count > 0 || _schedule.Count > 0) {
-                if (MessageBox.Show("新建赛事将清除当前所有数据，是否继续？", Loc.T("Str_MsgTitle_Confirm"), MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
+                if (MessageBox.Show(Loc.T("Str_Msg_ConfirmNewCompetition"), Loc.T("Str_MsgTitle_Confirm"), MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
                     return;
             }
             ClearAllDataAndUI();
