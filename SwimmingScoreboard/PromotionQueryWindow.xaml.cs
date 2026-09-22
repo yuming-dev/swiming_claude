@@ -33,7 +33,7 @@ namespace SwimmingScoreboard
         // ═══════ 下拉框填充 ═══════
         private void PopulateAgeGroups() {
             AgeGroupCombo.Items.Clear();
-            AgeGroupCombo.Items.Add("全部");
+            AgeGroupCombo.Items.Add(Loc.T("Str_Win_AwardCert_AllAgeGroups"));
             foreach (var g in AgeGroupRegistry.Groups) AgeGroupCombo.Items.Add(g.Name);
             AgeGroupCombo.SelectedIndex = 0;
         }
@@ -51,11 +51,11 @@ namespace SwimmingScoreboard
         }
 
         private string GetAgeGroup() {
-            return AgeGroupCombo != null && AgeGroupCombo.SelectedItem != null ? AgeGroupCombo.SelectedItem.ToString() : "全部";
+            return AgeGroupCombo != null && AgeGroupCombo.SelectedItem != null ? AgeGroupCombo.SelectedItem.ToString() : Loc.T("Str_Win_AwardCert_AllAgeGroups");
         }
 
         private bool MatchesAgeFilter(Swimmer s, string ageFilter) {
-            if (string.IsNullOrEmpty(ageFilter) || ageFilter == "全部") return true;
+            if (string.IsNullOrEmpty(ageFilter) || ageFilter == Loc.T("Str_Win_AwardCert_AllAgeGroups")) return true;
             return (s.AgeCategory ?? "") == ageFilter;
         }
 
@@ -104,7 +104,7 @@ namespace SwimmingScoreboard
             string eventName = GetEventName();
             string fromStage = GetFromStage();
             if (string.IsNullOrEmpty(fromStage)) {
-                WarningText.Text = "该项目没有已完成的阶段成绩，请先完成比赛。";
+                WarningText.Text = Loc.T("Str_Win_Promotion_MsgNoCompletedStage");
                 return;
             }
 
@@ -117,7 +117,7 @@ namespace SwimmingScoreboard
                 bool hasSemis = false;
                 foreach (var sch in _schedule) {
                     if (sch.Gender == gender && sch.EventName == eventName && sch.Stage == "半决赛"
-                        && (ageFilter == "全部" || (sch.AgeGroup ?? "") == ageFilter)) {
+                        && (ageFilter == Loc.T("Str_Win_AwardCert_AllAgeGroups") || (sch.AgeGroup ?? "") == ageFilter)) {
                         hasSemis = true; break;
                     }
                 }
@@ -142,13 +142,13 @@ namespace SwimmingScoreboard
             int promoCount = 16;
             int.TryParse(CountBox.Text.Trim(), out promoCount);
 
-            InfoText.Text = string.Format("{0} {1} — {2}\n共 {3} 人，{4} 人有成绩，{5} 个小组\n晋级 {6} 人到 {7}",
+            InfoText.Text = Loc.F("Str_Win_Promotion_InfoFmt",
                 gender, eventName, fromStage, total, withResults, heats.Count, promoCount, _toStage);
 
             if (withResults == 0)
-                WarningText.Text = "警告：该阶段没有成绩数据！请先完成比赛。";
+                WarningText.Text = Loc.T("Str_Win_Promotion_MsgNoResultData");
             else if (withResults < promoCount)
-                WarningText.Text = string.Format("注意：有成绩人数（{0}）少于晋级人数（{1}）", withResults, promoCount);
+                WarningText.Text = Loc.F("Str_Win_Promotion_MsgFewerThanPromoFmt", withResults, promoCount);
         }
 
         // ═══════ 查询晋级名单 ═══════
@@ -156,7 +156,7 @@ namespace SwimmingScoreboard
             string gender = GetGender();
             string eventName = GetEventName();
             string fromStage = GetFromStage();
-            if (string.IsNullOrEmpty(fromStage)) { MessageBox.Show("请选择赛次"); return; }
+            if (string.IsNullOrEmpty(fromStage)) { MessageBox.Show(Loc.T("Str_Win_Promotion_MsgSelectStage")); return; }
 
             int totalPromo = 16;
             int.TryParse(CountBox.Text.Trim(), out totalPromo);
@@ -193,7 +193,7 @@ namespace SwimmingScoreboard
             //   是看名次的, 而名次只有库里那一份说了算。
             var pqRanks = selected.Select(x => x.Swimmer.EventRankFor(fromStage)).ToList();
             for (int pi = 0; pi < selected.Count; pi++)
-                displayData.Add(MakeRow(pqRanks[pi], selected[pi], "总排名"));
+                displayData.Add(MakeRow(pqRanks[pi], selected[pi], Loc.T("Str_Win_Promotion_MethodTotalRank")));
 
             // 并列检查
             if (selected.Count == totalPromo && all.Count > totalPromo) {
@@ -203,12 +203,12 @@ namespace SwimmingScoreboard
                     double cutReact = selected.Last().Result.StartingBlockTime;
                     int stillTied = all.Count(x => x.Result.FinalTime == cutoff && x.Result.StartingBlockTime == cutReact && !selected.Contains(x));
                     if (stillTied > 0)
-                        WarningText.Text = string.Format("警告：第{0}名成绩{1}反应{2}s存在并列{3}人！需加赛。", totalPromo, TimeFormatter.Format(cutoff), cutReact.ToString("F2"), stillTied);
+                        WarningText.Text = Loc.F("Str_Win_Promotion_MsgTieWarningFmt", totalPromo, TimeFormatter.Format(cutoff), cutReact.ToString("F2"), stillTied);
                 }
             }
 
             PromotionGrid.ItemsSource = displayData;
-            ResultText.Text = _promoted.Count > 0 ? string.Format("共 {0} 人晋级", _promoted.Count) : "未找到成绩";
+            ResultText.Text = _promoted.Count > 0 ? Loc.F("Str_Win_Promotion_ResultCountFmt", _promoted.Count) : Loc.T("Str_Win_Promotion_ResultNoneFound");
             ResultText.Foreground = new System.Windows.Media.SolidColorBrush(
                 _promoted.Count > 0 ? System.Windows.Media.Colors.Green : System.Windows.Media.Colors.Red);
         }
@@ -233,7 +233,7 @@ namespace SwimmingScoreboard
             if (EnableBFinalCheck.IsChecked == true) {
                 CountBox.Text = "16";   // A 组 8 + B 组 8
                 if (InfoText != null) {
-                    InfoText.Text = "已启用 B 组决赛：第 1-8 名 → 决赛（A 组）；第 9-16 名 → B组决赛（独立排名）。";
+                    InfoText.Text = Loc.T("Str_Win_Promotion_MsgBFinalEnabled");
                     InfoText.Foreground = new System.Windows.Media.SolidColorBrush(
                         (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#1E40AF"));
                 }
@@ -242,8 +242,8 @@ namespace SwimmingScoreboard
 
         // ═══════ 执行晋级 ═══════
         private void Execute_Click(object sender, RoutedEventArgs e) {
-            if (_promoted.Count == 0) { MessageBox.Show("请先点击\"查询晋级名单\""); return; }
-            if (string.IsNullOrEmpty(_toStage)) { MessageBox.Show("无法确定晋级目标阶段"); return; }
+            if (_promoted.Count == 0) { MessageBox.Show(Loc.T("Str_Win_Promotion_MsgQueryFirst")); return; }
+            if (string.IsNullOrEmpty(_toStage)) { MessageBox.Show(Loc.T("Str_Win_Promotion_MsgCannotDetermineStage")); return; }
 
             string eventName = GetEventName();
             string fromStage = GetFromStage();
@@ -255,29 +255,27 @@ namespace SwimmingScoreboard
             if (enableBFinal) {
                 int aCnt = Math.Min(8, _promoted.Count);
                 int bCnt = _promoted.Count - aCnt;
-                promptMsg = string.Format(
-                    "确认晋级（启用 B 组决赛）？\n  A 组决赛（决赛阶段）：第 1-{0} 名共 {0} 人；\n  B 组决赛（B组决赛阶段）：第 {1}-{2} 名共 {3} 人。\nB 组单独排名、不与 A 组合并；分别颁奖。",
+                promptMsg = Loc.F("Str_Win_Promotion_ConfirmBFinalFmt",
                     aCnt, aCnt + 1, aCnt + bCnt, bCnt);
             } else {
-                promptMsg = string.Format(
-                    "确认将 {0} 名运动员从 {1} 晋级到 {2}？\n将按{1}成绩蛇形分组。", _promoted.Count, fromStage, _toStage);
+                promptMsg = Loc.F("Str_Win_Promotion_ConfirmPromoteFmt", _promoted.Count, fromStage, _toStage);
             }
-            if (MessageBox.Show(promptMsg, "确认晋级", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+            if (MessageBox.Show(promptMsg, Loc.T("Str_Win_Promotion_MsgTitleConfirmPromote"), MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
 
             if (enableBFinal) {
                 var aGroup = _promoted.Take(8).ToList();
                 var bGroup = _promoted.Skip(8).Take(8).ToList();
                 HeatScheduler.GenerateHeatsFromResults(aGroup, _poolConfig, eventName, "决赛", fromStage);
                 HeatScheduler.GenerateHeatsFromResults(bGroup, _poolConfig, eventName, "B组决赛", fromStage);
-                ResultText.Text = string.Format("已晋级 A 组 {0} 人 + B 组 {1} 人", aGroup.Count, bGroup.Count);
-                MessageBox.Show(string.Format(
-                    "✅ A 组决赛：{0} 人，1 组（决赛 阶段）\n✅ B 组决赛：{1} 人，1 组（B组决赛 阶段）\n\nA/B 两组单独排名、单独颁奖。请在赛程树中分别选择两个阶段的组次。",
-                    aGroup.Count, bGroup.Count), "晋级完成（B 组决赛）");
+                ResultText.Text = Loc.F("Str_Win_Promotion_ResultABGroupFmt", aGroup.Count, bGroup.Count);
+                MessageBox.Show(Loc.F(
+                    "Str_Win_Promotion_MsgBFinalDoneFmt",
+                    aGroup.Count, bGroup.Count), Loc.T("Str_Win_Promotion_MsgTitleBFinalDone"));
             } else {
                 var assignments = HeatScheduler.GenerateHeatsFromResults(_promoted, _poolConfig, eventName, _toStage, fromStage);
                 int heatCount = assignments.Count > 0 ? assignments.Max(a => a.Heat) : 0;
-                ResultText.Text = string.Format("已晋级 {0} 人到{1}，{2}组", _promoted.Count, _toStage, heatCount);
-                MessageBox.Show(string.Format("已将 {0} 名运动员晋级到 {1}，分为 {2} 组。\n请在赛程树中选择{1}的组次。", _promoted.Count, _toStage, heatCount), "晋级完成");
+                ResultText.Text = Loc.F("Str_Win_Promotion_ResultPromotedFmt", _promoted.Count, _toStage, heatCount);
+                MessageBox.Show(Loc.F("Str_Win_Promotion_MsgPromoteDoneFmt", _promoted.Count, _toStage, heatCount), Loc.T("Str_Win_Promotion_MsgTitlePromoteDone"));
             }
         }
 
@@ -294,7 +292,7 @@ namespace SwimmingScoreboard
             string gender = GetGender();
             string ageFilter = GetAgeGroup();
             if (string.IsNullOrEmpty(eventName) || string.IsNullOrEmpty(fromStage)) {
-                MessageBox.Show("请先选择项目和\"上一轮\"赛次"); return;
+                MessageBox.Show(Loc.T("Str_Win_Promotion_MsgSelectEventAndStage")); return;
             }
 
             // 全员预赛排名（用于找候选）
@@ -336,25 +334,25 @@ namespace SwimmingScoreboard
             }
 
             if (swaps.Count == 0) {
-                MessageBox.Show("当前 决赛/B组决赛 阶段没有需要递补的弃权者。\n（仅识别 Status=DSQ/DNS/DNF 的已分组运动员）",
-                    "无弃权", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show(Loc.T("Str_Win_Promotion_MsgNoSubstitutes"),
+                    Loc.T("Str_Win_Promotion_MsgTitleNoGiveups"), MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
 
             // 预览
             var preview = new System.Text.StringBuilder();
-            preview.AppendLine(string.Format("找到 {0} 项弃权递补:", swaps.Count));
+            preview.AppendLine(Loc.F("Str_Win_Promotion_PreviewFoundFmt", swaps.Count));
             preview.AppendLine();
             foreach (var sw in swaps) {
-                preview.AppendLine(string.Format(
-                    "  [{0}] 弃权: {1} ({2})  →  递补: {3}  (第{4}组 {5}道)",
+                preview.AppendLine(Loc.F(
+                    "Str_Win_Promotion_PreviewLineFmt",
                     sw.Stage, sw.Giveup.Name, sw.Giveup.Status,
                     sw.SubIn.Name, sw.Heat, sw.Lane));
             }
             preview.AppendLine();
-            preview.AppendLine("确认执行替换？(原弃权者的决赛分组将被清除)");
+            preview.AppendLine(Loc.T("Str_Win_Promotion_PreviewConfirmSuffix"));
 
-            if (MessageBox.Show(preview.ToString(), "弃权递补确认",
+            if (MessageBox.Show(preview.ToString(), Loc.T("Str_Win_Promotion_MsgTitleSubConfirm"),
                 MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
 
             // 执行
@@ -369,11 +367,11 @@ namespace SwimmingScoreboard
                     sw.Giveup.StageAssignments.Remove(sw.Stage);
             }
 
-            ResultText.Text = string.Format("已完成 {0} 项弃权递补", swaps.Count);
+            ResultText.Text = Loc.F("Str_Win_Promotion_ResultSubstitutedFmt", swaps.Count);
             ResultText.Foreground = new System.Windows.Media.SolidColorBrush(
                 (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#22C55E"));
-            MessageBox.Show(string.Format("已替换 {0} 个决赛位次。\n请回到主界面赛程树查看更新后的组次。",
-                swaps.Count), "递补完成");
+            MessageBox.Show(Loc.F("Str_Win_Promotion_MsgSubDoneFmt",
+                swaps.Count), Loc.T("Str_Win_Promotion_MsgTitleSubDone"));
         }
 
         // C6 辅助：递补对照条目
