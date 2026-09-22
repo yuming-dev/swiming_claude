@@ -31,7 +31,7 @@ namespace SwimmingScoreboard
         //   "项目筛选"并列的"组别筛选", 两个筛选条件同时生效(AND)。
         private void RebuildAgeGroupFilter() {
             AgeGroupFilterBox.Items.Clear();
-            AgeGroupFilterBox.Items.Add("全部组别");
+            AgeGroupFilterBox.Items.Add(Loc.T("Str_Win_AwardCert_AllAgeGroups"));
             foreach (var ag in _all.Select(c => c.AgeGroup).Distinct().OrderBy(s => s))
                 if (!string.IsNullOrEmpty(ag)) AgeGroupFilterBox.Items.Add(ag);
             AgeGroupFilterBox.SelectedIndex = 0;
@@ -39,7 +39,7 @@ namespace SwimmingScoreboard
 
         private void RebuildEventFilter() {
             EventFilterBox.Items.Clear();
-            EventFilterBox.Items.Add("全部项目");
+            EventFilterBox.Items.Add(Loc.T("Str_Win_AwardCert_AllEvents"));
             foreach (var ev in _all.Select(c => c.EventLabel).Distinct().OrderBy(s => s))
                 EventFilterBox.Items.Add(ev);
             EventFilterBox.SelectedIndex = 0;
@@ -50,7 +50,7 @@ namespace SwimmingScoreboard
         //   不重开窗口, 直接刷新表格 + 标题里的名次数字, 用户不用退出重进就能看到变化。
         public void RefreshCandidates(List<MainWindow.AwardCandidateRow> candidates, int rankLimit) {
             _all = candidates ?? new List<MainWindow.AwardCandidateRow>();
-            HeaderText.Text = string.Format("选择要生成奖状的获奖者（决赛前 {0} 名）", rankLimit);
+            HeaderText.Text = Loc.F("Str_Win_AwardCert_HeaderFmt", rankLimit);
             RebuildAgeGroupFilter();
             RebuildEventFilter();
             RefreshGrid();
@@ -68,16 +68,16 @@ namespace SwimmingScoreboard
             string evFilter = EventFilterBox.SelectedItem as string;
             string agFilter = AgeGroupFilterBox.SelectedItem as string;
             IEnumerable<MainWindow.AwardCandidateRow> view = _all;
-            if (!string.IsNullOrEmpty(evFilter) && evFilter != "全部项目")
+            if (!string.IsNullOrEmpty(evFilter) && evFilter != Loc.T("Str_Win_AwardCert_AllEvents"))
                 view = view.Where(c => c.EventLabel == evFilter);
-            if (!string.IsNullOrEmpty(agFilter) && agFilter != "全部组别")
+            if (!string.IsNullOrEmpty(agFilter) && agFilter != Loc.T("Str_Win_AwardCert_AllAgeGroups"))
                 view = view.Where(c => c.AgeGroup == agFilter);
             Grid1.ItemsSource = view.ToList();
             UpdateCount();
         }
 
         private void UpdateCount() {
-            CountText.Text = string.Format("共 {0} 条，已选 {1} 条", _all.Count, _all.Count(c => c.Selected));
+            CountText.Text = Loc.F("Str_Win_AwardCert_CountFmt", _all.Count, _all.Count(c => c.Selected));
         }
 
         private void EventFilterBox_SelectionChanged(object sender, SelectionChangedEventArgs e) { RefreshGrid(); }
@@ -105,7 +105,7 @@ namespace SwimmingScoreboard
             try { Grid1.CommitEdit(DataGridEditingUnit.Cell, true); Grid1.CommitEdit(DataGridEditingUnit.Row, true); } catch { }
             UpdateCount();
             var selected = _all.Where(c => c.Selected).ToList();
-            if (selected.Count == 0) { MessageBox.Show("请至少选择一条获奖记录。", "奖状生成"); return; }
+            if (selected.Count == 0) { MessageBox.Show(Loc.T("Str_Win_AwardCert_MsgSelectAtLeastOne"), Loc.T("Str_Win_AwardCert_Title")); return; }
 
             var templateItem = TemplateBox.SelectedItem as ComboBoxItem;
             string template = templateItem != null ? (templateItem.Tag as string) : "full_haosha";
