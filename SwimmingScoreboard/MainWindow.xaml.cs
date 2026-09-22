@@ -19367,7 +19367,7 @@ namespace SwimmingScoreboard
             // 确认后完整创建 RelayTeam + _swimmers 代表条目 + 队员子条目
             var relayEvents = _events.Where(ev => ev.Contains("接力")).ToList();
             if (relayEvents.Count == 0) {
-                MessageBox.Show("没有可用的接力项目。请检查项目列表。", Loc.T("Str_MsgTitle_Info")); return;
+                MessageBox.Show(Loc.T("Str_Msg_NoRelayEventsAvailable"), Loc.T("Str_MsgTitle_Info")); return;
             }
 
             var dlg = new Window {
@@ -19485,12 +19485,11 @@ namespace SwimmingScoreboard
             string teamName = (tbTeam.Text ?? "").Trim();
             string entryTimeStr = (tbEntryTime.Text ?? "").Trim();
 
-            if (string.IsNullOrEmpty(eventName)) { MessageBox.Show("请选择接力项目"); return; }
-            if (string.IsNullOrEmpty(teamName)) { MessageBox.Show("队名不能为空"); return; }
+            if (string.IsNullOrEmpty(eventName)) { MessageBox.Show(Loc.T("Str_Msg_SelectRelayEvent")); return; }
+            if (string.IsNullOrEmpty(teamName)) { MessageBox.Show(Loc.T("Str_Msg_TeamNameRequired")); return; }
             if (_relayTeams.Any(t => t.EventName == eventName && t.TeamName == teamName
                                     && t.Gender == gender && (t.AgeGroup ?? "") == ageGroup)) {
-                MessageBox.Show(string.Format("代表队 \"{0}\" 已在该项目（{1} {2} {3}）报名过接力队。",
-                    teamName, ageGroup, gender, eventName)); return;
+                MessageBox.Show(Loc.F("Str_Msg_RelayTeamAlreadyRegisteredFmt", teamName, ageGroup, gender, eventName)); return;
             }
 
             double entrySec = 0;
@@ -19508,7 +19507,7 @@ namespace SwimmingScoreboard
                 string lbdErr;
                 string lbd = ReadBirthDateFromPicker(legBirthPickers[i], out lbdErr);
                 if (lbdErr != null) {
-                    MessageBox.Show(string.Format("第{0}棒 {1}", i + 1, lbdErr), "接力队报名",
+                    MessageBox.Show(Loc.F("Str_Msg_RelayLegErrorFmt", i + 1, lbdErr), Loc.T("Str_MsgTitle_RelayRegistration"),
                         MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
@@ -19589,14 +19588,13 @@ namespace SwimmingScoreboard
                           "王五,510102200505010003,2005-05-03," +
                           "赵六,510102200505010004,2005-05-04,示例（删除本行后填真数据）");
             File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
-            MessageBox.Show("已导出接力报名模板:\n" + dlg.FileName +
-                "\n\n表头共 18 列（含组别），编辑后用「导入CSV」回灌；生日格式 yyyy-MM-dd，报名成绩格式 mm:ss.ff 或 ss.ff。",
+            MessageBox.Show(Loc.F("Str_Msg_ExportedRelayTemplateFmt", dlg.FileName),
                 Loc.T("Str_MsgTitle_Done"));
         }
 
         private void ExportRelayCSV_Click(object sender, RoutedEventArgs e) {
             if (_relayTeams.Count == 0) {
-                MessageBox.Show("当前没有接力队可导出", Loc.T("Str_MsgTitle_Info")); return;
+                MessageBox.Show(Loc.T("Str_Msg_NoRelayTeamsToExport"), Loc.T("Str_MsgTitle_Info")); return;
             }
             var dlg = new Microsoft.Win32.SaveFileDialog {
                 Filter = "CSV 文件|*.csv", Title = "导出接力队",
@@ -19618,7 +19616,7 @@ namespace SwimmingScoreboard
                 }));
             }
             File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
-            MessageBox.Show(string.Format("已导出 {0} 支接力队到:\n{1}", _relayTeams.Count, dlg.FileName), Loc.T("Str_MsgTitle_Done"));
+            MessageBox.Show(Loc.F("Str_Msg_ExportedRelayTeamsFmt", _relayTeams.Count, dlg.FileName), Loc.T("Str_MsgTitle_Done"));
         }
 
         // ══════════════════════════════════════════════════════════════
