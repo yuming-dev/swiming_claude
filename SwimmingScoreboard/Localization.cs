@@ -2293,6 +2293,22 @@ namespace SwimmingScoreboard
             { "Str_Win_IndiRank_ExportCsvTitle", new[] { "导出个人总分排名", "Export Individual Ranking" } },
             { "Str_Win_IndiRank_CsvHeader", new[] { "名次,号码,姓名,性别,代表队,组别,总积分,个人项目数,项目-名次明细", "Rank,Bib No.,Name,Sex,Team,Group,Total Points,Individual Events,Event-Rank Detail" } },
             { "Str_Win_IndiRank_MsgGeneratedFmt", new[] { "已生成: {0}", "Generated: {0}" } },
+            { "Str_Win_EventTop8_Title", new[] { "项目成绩统计 — 各项第 1-8 名", "Event Results Summary — Places 1-8" } },
+            { "Str_Win_EventTop8_DisplayLabel", new[] { "统计内容:", "Display:" } },
+            { "Str_Win_EventTop8_DisplayNameTeam", new[] { "姓名 (代表队)", "Name (Team)" } },
+            { "Str_Win_EventTop8_DisplayNameTime", new[] { "姓名 + 成绩", "Name + Time" } },
+            { "Str_Win_EventTop8_ColRank1", new[] { "第1名", "1st" } },
+            { "Str_Win_EventTop8_ColRank2", new[] { "第2名", "2nd" } },
+            { "Str_Win_EventTop8_ColRank3", new[] { "第3名", "3rd" } },
+            { "Str_Win_EventTop8_ColRank4", new[] { "第4名", "4th" } },
+            { "Str_Win_EventTop8_ColRank5", new[] { "第5名", "5th" } },
+            { "Str_Win_EventTop8_ColRank6", new[] { "第6名", "6th" } },
+            { "Str_Win_EventTop8_ColRank7", new[] { "第7名", "7th" } },
+            { "Str_Win_EventTop8_ColRank8", new[] { "第8名", "8th" } },
+            { "Str_Win_EventTop8_FooterNote", new[] { "说明：以决赛阶段名次为准；DSQ/DNS/DNF 不入榜；并列名次在同一格", "Note: based on finals-stage rank; DSQ/DNS/DNF are excluded; tied ranks share the same cell" } },
+            { "Str_Win_EventTop8_SummaryFmt", new[] { "命中 {0} 项有决赛成绩", "{0} event(s) with finals results" } },
+            { "Str_Win_EventTop8_ExportCsvTitle", new[] { "导出项目成绩统计", "Export Event Results Summary" } },
+            { "Str_Win_EventTop8_CsvHeader", new[] { "组别,性别,项目,第1名,第2名,第3名,第4名,第5名,第6名,第7名,第8名", "Group,Sex,Event,1st,2nd,3rd,4th,5th,6th,7th,8th" } },
         };
 
         /// <summary>查当前语言下的文字；查不到就退回中文；中文也没有就返回 key 本身兜底。</summary>

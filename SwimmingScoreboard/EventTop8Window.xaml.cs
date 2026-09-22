@@ -29,21 +29,21 @@ namespace SwimmingScoreboard
             _genders = genders ?? new List<string> { "男", "女" };
             _events = events ?? new List<string>();
 
-            AgeGroupCombo.Items.Add("全部组别");
+            AgeGroupCombo.Items.Add(Loc.T("Str_Win_AwardCert_AllAgeGroups"));
             foreach (var g in _ageGroups) AgeGroupCombo.Items.Add(g.Name);
             AgeGroupCombo.SelectedIndex = 0;
         }
 
         private void Compute_Click(object sender, RoutedEventArgs e) {
-            string ageFilter = AgeGroupCombo.SelectedItem != null ? AgeGroupCombo.SelectedItem.ToString() : "全部组别";
+            string ageFilter = AgeGroupCombo.SelectedItem != null ? AgeGroupCombo.SelectedItem.ToString() : Loc.T("Str_Win_AwardCert_AllAgeGroups");
             string genderFilter = GenderCombo.SelectedItem != null ? ((ComboBoxItem)GenderCombo.SelectedItem).Content.ToString() : "全部";
-            string display = DisplayCombo.SelectedItem != null ? ((ComboBoxItem)DisplayCombo.SelectedItem).Content.ToString() : "姓名 (代表队)";
+            string display = DisplayCombo.SelectedItem != null ? ((ComboBoxItem)DisplayCombo.SelectedItem).Content.ToString() : Loc.T("Str_Win_EventTop8_DisplayNameTeam");
 
             var ageGroupNames = _ageGroups.Count > 0 ? _ageGroups.Select(g => g.Name).ToList() : new List<string> { "" };
             var rows = new List<EventTop8Row>();
 
             foreach (var ag in ageGroupNames) {
-                if (ageFilter != "全部组别" && ag != ageFilter) continue;
+                if (ageFilter != Loc.T("Str_Win_AwardCert_AllAgeGroups") && ag != ageFilter) continue;
                 foreach (var gender in _genders) {
                     if (genderFilter != "全部" && gender != genderFilter) continue;
                     foreach (var ev in _events) {
@@ -86,7 +86,7 @@ namespace SwimmingScoreboard
             rows = rows.OrderBy(r => r.AgeGroup ?? "").ThenBy(r => GenderOrder(r.Gender)).ThenBy(r => EventOrder(r.EventName)).ToList();
             _lastResult = rows;
             Top8Grid.ItemsSource = rows;
-            SummaryText.Text = string.Format("命中 {0} 项有决赛成绩", rows.Count);
+            SummaryText.Text = Loc.F("Str_Win_EventTop8_SummaryFmt", rows.Count);
         }
 
         private static string FormatEntry(Swimmer s, string display) {
@@ -94,12 +94,10 @@ namespace SwimmingScoreboard
             string country = s.Country ?? "";
             var result = s.GetResultForStage("决赛");
             string time = result != null && result.FinalTime > 0 ? TimeFormatter.Format(result.FinalTime) : "";
-            switch (display) {
-                case "代表队": return country;
-                case "姓名": return name;
-                case "姓名 + 成绩": return name + " " + time;
-                default: return name + " (" + country + ")";   // "姓名 (代表队)"
-            }
+            if (display == Loc.T("Str_Col_Team")) return country;
+            if (display == Loc.T("Str_Col_Name")) return name;
+            if (display == Loc.T("Str_Win_EventTop8_DisplayNameTime")) return name + " " + time;
+            return name + " (" + country + ")";   // "姓名 (代表队)"
         }
 
         private static int GenderOrder(string g) {
@@ -124,14 +122,14 @@ namespace SwimmingScoreboard
         }
 
         private void ExportCsv_Click(object sender, RoutedEventArgs e) {
-            if (_lastResult.Count == 0) { MessageBox.Show("请先 🔍 统计", "提示"); return; }
+            if (_lastResult.Count == 0) { MessageBox.Show(Loc.T("Str_Win_IndiRank_MsgComputeFirst"), Loc.T("Str_MsgTitle_Info")); return; }
             var dlg = new Microsoft.Win32.SaveFileDialog {
-                Filter = "CSV 文件|*.csv", Title = "导出项目成绩统计",
+                Filter = Loc.T("Str_Win_UnitMgmt_CsvFilter"), Title = Loc.T("Str_Win_EventTop8_ExportCsvTitle"),
                 FileName = "项目成绩统计_" + DateTime.Now.ToString("yyyyMMdd_HHmm") + ".csv"
             };
             if (dlg.ShowDialog() != true) return;
             var sb = new StringBuilder();
-            sb.AppendLine("组别,性别,项目,第1名,第2名,第3名,第4名,第5名,第6名,第7名,第8名");
+            sb.AppendLine(Loc.T("Str_Win_EventTop8_CsvHeader"));
             foreach (var r in _lastResult) {
                 sb.AppendLine(string.Join(",", new[] {
                     Esc(r.AgeGroup), Esc(r.Gender), Esc(r.EventName),
@@ -140,19 +138,23 @@ namespace SwimmingScoreboard
                 }));
             }
             File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
-            MessageBox.Show("已导出: " + dlg.FileName, "完成");
+            MessageBox.Show(Loc.F("Str_Win_UnitMgmt_MsgExportedFmt", dlg.FileName), Loc.T("Str_MsgTitle_Done"));
         }
 
         private void PrintHtml_Click(object sender, RoutedEventArgs e) {
-            if (_lastResult.Count == 0) { MessageBox.Show("请先 🔍 统计", "提示"); return; }
+            if (_lastResult.Count == 0) { MessageBox.Show(Loc.T("Str_Win_IndiRank_MsgComputeFirst"), Loc.T("Str_MsgTitle_Info")); return; }
             var sb = new StringBuilder();
-            sb.AppendLine("<!DOCTYPE html><html><head><meta charset='UTF-8'><title>项目成绩统计</title>");
+            sb.AppendLine("<!DOCTYPE html><html><head><meta charset='UTF-8'><title>" + He(Loc.T("Str_Win_EventTop8_Title")) + "</title>");
             sb.AppendLine("<style>body{font-family:'Microsoft YaHei',sans-serif;margin:20px;font-size:12px;}");
             sb.AppendLine("table{border-collapse:collapse;width:100%;}th,td{border:1px solid #ddd;padding:5px 8px;text-align:center;}");
             sb.AppendLine("th{background:#1E40AF;color:white;text-align:center;vertical-align:middle;}tr:nth-child(even){background:#F8FAFC;}");
             sb.AppendLine("h1{color:#1E40AF;}td.gold{background:#FEF3C7;font-weight:bold;}td.silver{background:#E5E7EB;}td.bronze{background:#FED7AA;}</style></head><body>");
-            sb.AppendLine("<h1>项目成绩统计 — 各项目第 1-8 名</h1>");
-            sb.AppendLine("<table><tr align='center'><th>组别</th><th>性别</th><th>项目</th><th>第1名</th><th>第2名</th><th>第3名</th><th>第4名</th><th>第5名</th><th>第6名</th><th>第7名</th><th>第8名</th></tr>");
+            sb.AppendLine("<h1>" + He(Loc.T("Str_Win_EventTop8_Title")) + "</h1>");
+            sb.AppendFormat("<table><tr align='center'><th>{0}</th><th>{1}</th><th>{2}</th><th>{3}</th><th>{4}</th><th>{5}</th><th>{6}</th><th>{7}</th><th>{8}</th><th>{9}</th><th>{10}</th></tr>\n",
+                He(Loc.T("Str_Col_Group")), He(Loc.T("Str_Col_Sex")), He(Loc.T("Str_Win_AwardCert_ColEvent")),
+                He(Loc.T("Str_Win_EventTop8_ColRank1")), He(Loc.T("Str_Win_EventTop8_ColRank2")), He(Loc.T("Str_Win_EventTop8_ColRank3")),
+                He(Loc.T("Str_Win_EventTop8_ColRank4")), He(Loc.T("Str_Win_EventTop8_ColRank5")), He(Loc.T("Str_Win_EventTop8_ColRank6")),
+                He(Loc.T("Str_Win_EventTop8_ColRank7")), He(Loc.T("Str_Win_EventTop8_ColRank8")));
             foreach (var r in _lastResult) {
                 sb.AppendFormat("<tr><td>{0}</td><td>{1}</td><td>{2}</td><td class='gold'>{3}</td><td class='silver'>{4}</td><td class='bronze'>{5}</td><td>{6}</td><td>{7}</td><td>{8}</td><td>{9}</td><td>{10}</td></tr>\n",
                     He(r.AgeGroup), He(r.Gender), He(r.EventName),
@@ -161,7 +163,7 @@ namespace SwimmingScoreboard
             sb.AppendLine("</table></body></html>");
             string tmp = Path.Combine(Path.GetTempPath(), "项目成绩统计_" + DateTime.Now.ToString("yyyyMMdd_HHmm") + ".html");
             File.WriteAllText(tmp, sb.ToString(), Encoding.UTF8);
-            try { Process.Start(tmp); } catch { MessageBox.Show("已生成: " + tmp); }
+            try { Process.Start(tmp); } catch { MessageBox.Show(Loc.F("Str_Win_IndiRank_MsgGeneratedFmt", tmp)); }
         }
 
         private void Close_Click(object sender, RoutedEventArgs e) { Close(); }
