@@ -14,11 +14,11 @@ namespace SwimmingScoreboard
 
         public CertSettingsWindow(string organizer, string host, string committee, string competitionName, int? awardRankLimit) {
             InitializeComponent();
-            _defaultCommittee = (competitionName ?? "") + "组织委员会";
+            _defaultCommittee = (competitionName ?? "") + Loc.T("Str_Win_CertSettings_OrgCommitteeSuffix");
             OrganizerInput.Text = organizer ?? "";
             HostInput.Text = host ?? "";
             CommitteeInput.Text = committee ?? "";
-            PreviewText.Text = "留空时将使用：" + _defaultCommittee;
+            PreviewText.Text = Loc.F("Str_Win_CertSettings_PreviewFmt", _defaultCommittee);
 
             // 2026-09-17 "打印到第几名"只有奖状才有意义(纪录证书没有名次范围这回事),
             //   RecordCertificateWindow 打开本窗口时 awardRankLimit 传 null, 这块不显示。

@@ -20,29 +20,29 @@ namespace SwimmingScoreboard
             string confirmPassword = ConfirmPasswordBox.Password;
 
             if (string.IsNullOrEmpty(currentPassword)) {
-                ShowMessage("请输入当前密码。", false); return;
+                ShowMessage(Loc.T("Str_Win_ChangePwd_MsgEnterCurrent"), false); return;
             }
             var creds = AuthHelper.LoadCredentials();
             if (!string.Equals(creds.PasswordHash, AuthHelper.HashPassword(currentPassword), StringComparison.Ordinal)) {
-                ShowMessage("当前密码错误。", false); return;
+                ShowMessage(Loc.T("Str_Win_ChangePwd_MsgWrongCurrent"), false); return;
             }
             if (string.IsNullOrEmpty(newUsername)) {
-                ShowMessage("新用户名不能为空。", false); return;
+                ShowMessage(Loc.T("Str_Win_ChangePwd_MsgUsernameEmpty"), false); return;
             }
             if (string.IsNullOrEmpty(newPassword)) {
-                ShowMessage("新密码不能为空。", false); return;
+                ShowMessage(Loc.T("Str_Win_ChangePwd_MsgNewEmpty"), false); return;
             }
             if (newPassword.Length < 6) {
-                ShowMessage("新密码长度不能少于6位。", false); return;
+                ShowMessage(Loc.T("Str_Win_ChangePwd_MsgTooShort"), false); return;
             }
             if (!string.Equals(newPassword, confirmPassword, StringComparison.Ordinal)) {
-                ShowMessage("两次输入的新密码不一致。", false); return;
+                ShowMessage(Loc.T("Str_Win_ChangePwd_MsgMismatch"), false); return;
             }
 
             creds.Username = newUsername;
             creds.PasswordHash = AuthHelper.HashPassword(newPassword);
             AuthHelper.SaveCredentials(creds);
-            ShowMessage("账号密码修改成功！", true);
+            ShowMessage(Loc.T("Str_Win_ChangePwd_MsgSuccess"), true);
             CurrentPasswordBox.Clear();
             NewPasswordBox.Clear();
             ConfirmPasswordBox.Clear();

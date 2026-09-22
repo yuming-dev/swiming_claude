@@ -1,44 +1,44 @@
 <Window x:Class="SwimmingScoreboard.CertSettingsWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="证书参数设置" Width="580" SizeToContent="Height"
+        Title="{DynamicResource Str_Win_CertSettings_Title}" Width="580" SizeToContent="Height"
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize"
         Background="#1E293B">
     <StackPanel Margin="20">
-        <TextBlock Text="证书底部落款内容" FontSize="16" FontWeight="Bold" Foreground="White" Margin="0,0,0,4"/>
-        <TextBlock Text="奖状/纪录证书底部左右两侧打印的主办/承办单位与组委会落款，修改后对之后生成的证书生效。" Foreground="#94A3B8" FontSize="12" TextWrapping="Wrap" Margin="0,0,0,16"/>
+        <TextBlock Text="{DynamicResource Str_Win_CertSettings_Header}" FontSize="16" FontWeight="Bold" Foreground="White" Margin="0,0,0,4"/>
+        <TextBlock Text="{DynamicResource Str_Win_CertSettings_Desc}" Foreground="#94A3B8" FontSize="12" TextWrapping="Wrap" Margin="0,0,0,16"/>
 
-        <TextBlock Text="主办单位：" Foreground="White" Margin="0,0,0,6"/>
+        <TextBlock Text="{DynamicResource Str_Win_CertSettings_Organizer}" Foreground="White" Margin="0,0,0,6"/>
         <TextBox x:Name="OrganizerInput" Padding="8,6" FontSize="14" Margin="0,0,0,14"/>
 
-        <TextBlock Text="承办单位：" Foreground="White" Margin="0,0,0,6"/>
+        <TextBlock Text="{DynamicResource Str_Win_CertSettings_Host}" Foreground="White" Margin="0,0,0,6"/>
         <TextBox x:Name="HostInput" Padding="8,6" FontSize="14" Margin="0,0,0,14"/>
 
-        <TextBlock Text="组委会（盖章）：" Foreground="White" Margin="0,0,0,6"/>
-        <TextBlock Text="打在证书右下角、印章直接盖上去的落款；留空则自动用「赛事名称＋组织委员会」。内容较长时会自动换行，也可以按回车手动换行。" Foreground="#64748B" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,6"/>
+        <TextBlock Text="{DynamicResource Str_Win_CertSettings_Committee}" Foreground="White" Margin="0,0,0,6"/>
+        <TextBlock Text="{DynamicResource Str_Win_CertSettings_CommitteeDesc}" Foreground="#64748B" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,6"/>
         <TextBox x:Name="CommitteeInput" Height="100" Padding="8,6" FontSize="14"
                  AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" Margin="0,0,0,4"/>
         <TextBlock x:Name="PreviewText" Foreground="#64748B" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,14"/>
 
         <StackPanel x:Name="RankLimitPanel" Orientation="Horizontal" Margin="0,0,0,10" Visibility="Collapsed">
-            <TextBlock Text="奖状打印到第几名：" Foreground="White" VerticalAlignment="Center" Margin="0,0,8,0"/>
+            <TextBlock Text="{DynamicResource Str_Win_CertSettings_RankLimitLabel}" Foreground="White" VerticalAlignment="Center" Margin="0,0,8,0"/>
             <ComboBox x:Name="RankLimitBox" Width="140">
-                <ComboBoxItem Content="前 1 名（冠军）" Tag="1"/>
-                <ComboBoxItem Content="前 2 名" Tag="2"/>
-                <ComboBoxItem Content="前 3 名" Tag="3"/>
-                <ComboBoxItem Content="前 4 名" Tag="4"/>
-                <ComboBoxItem Content="前 5 名" Tag="5"/>
-                <ComboBoxItem Content="前 6 名" Tag="6"/>
-                <ComboBoxItem Content="前 7 名" Tag="7"/>
-                <ComboBoxItem Content="前 8 名" Tag="8"/>
+                <ComboBoxItem Content="{DynamicResource Str_Win_CertSettings_Rank1}" Tag="1"/>
+                <ComboBoxItem Content="{DynamicResource Str_Win_CertSettings_Rank2}" Tag="2"/>
+                <ComboBoxItem Content="{DynamicResource Str_Win_CertSettings_Rank3}" Tag="3"/>
+                <ComboBoxItem Content="{DynamicResource Str_Win_CertSettings_Rank4}" Tag="4"/>
+                <ComboBoxItem Content="{DynamicResource Str_Win_CertSettings_Rank5}" Tag="5"/>
+                <ComboBoxItem Content="{DynamicResource Str_Win_CertSettings_Rank6}" Tag="6"/>
+                <ComboBoxItem Content="{DynamicResource Str_Win_CertSettings_Rank7}" Tag="7"/>
+                <ComboBoxItem Content="{DynamicResource Str_Win_CertSettings_Rank8}" Tag="8"/>
             </ComboBox>
-            <TextBlock Text="（决赛名次，一般发前 3 名）" Foreground="#64748B" FontSize="11" VerticalAlignment="Center" Margin="10,0,0,0"/>
+            <TextBlock Text="{DynamicResource Str_Win_CertSettings_RankLimitHint}" Foreground="#64748B" FontSize="11" VerticalAlignment="Center" Margin="10,0,0,0"/>
         </StackPanel>
 
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,6,0,0">
-            <Button Content="确认保存" Click="Confirm_Click" Padding="18,8" Background="#2563EB" Foreground="White" FontWeight="Bold" BorderThickness="0" Margin="0,0,10,0"/>
-            <Button Content="取消" Click="Cancel_Click" Padding="18,8"/>
+            <Button Content="{DynamicResource Str_Btn_ConfirmSave}" Click="Confirm_Click" Padding="18,8" Background="#2563EB" Foreground="White" FontWeight="Bold" BorderThickness="0" Margin="0,0,10,0"/>
+            <Button Content="{DynamicResource Str_Btn_Cancel}" Click="Cancel_Click" Padding="18,8"/>
         </StackPanel>
     </StackPanel>
 </Window>

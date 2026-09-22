@@ -1,7 +1,7 @@
 ﻿<Window x:Class="SwimmingScoreboard.HeatEditWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="分组/泳道编辑" Width="700" Height="500"
+        Title="{DynamicResource Str_Win_HeatEdit_Title}" Width="700" Height="500"
         WindowStartupLocation="CenterOwner">
     <Grid Margin="16">
         <Grid.RowDefinitions>
@@ -9,21 +9,21 @@
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
-        <TextBlock Grid.Row="0" Text="分组/泳道编辑" FontSize="16" FontWeight="Bold" Margin="0,0,0,10"/>
+        <TextBlock Grid.Row="0" Text="{DynamicResource Str_Win_HeatEdit_Title}" FontSize="16" FontWeight="Bold" Margin="0,0,0,10"/>
         <DataGrid x:Name="HeatGrid" Grid.Row="1" AutoGenerateColumns="False" CanUserAddRows="False"
                   IsReadOnly="False" AlternatingRowBackground="#F8FAFC">
             <DataGrid.Columns>
-                <DataGridTextColumn Header="组" Binding="{Binding Heat}" Width="50"/>
-                <DataGridTextColumn Header="道" Binding="{Binding Lane}" Width="50"/>
-                <DataGridTextColumn Header="号码" Binding="{Binding BibNumber}" Width="60"/>
-                <DataGridTextColumn Header="姓名" Binding="{Binding Name}" Width="80"/>
-                <DataGridTextColumn Header="代表队" Binding="{Binding Country}" Width="80"/>
-                <DataGridTextColumn Header="报名成绩" Binding="{Binding EntryTime}" Width="80"/>
+                <DataGridTextColumn Width="50"><DataGridTextColumn.Header><TextBlock Text="{DynamicResource Str_Col_Heat}"/></DataGridTextColumn.Header><DataGridTextColumn.Binding><Binding Path="Heat"/></DataGridTextColumn.Binding></DataGridTextColumn>
+                <DataGridTextColumn Width="50"><DataGridTextColumn.Header><TextBlock Text="{DynamicResource Str_Col_Lane}"/></DataGridTextColumn.Header><DataGridTextColumn.Binding><Binding Path="Lane"/></DataGridTextColumn.Binding></DataGridTextColumn>
+                <DataGridTextColumn Width="60"><DataGridTextColumn.Header><TextBlock Text="{DynamicResource Str_Col_Bib}"/></DataGridTextColumn.Header><DataGridTextColumn.Binding><Binding Path="BibNumber"/></DataGridTextColumn.Binding></DataGridTextColumn>
+                <DataGridTextColumn Width="80"><DataGridTextColumn.Header><TextBlock Text="{DynamicResource Str_Col_Name}"/></DataGridTextColumn.Header><DataGridTextColumn.Binding><Binding Path="Name"/></DataGridTextColumn.Binding></DataGridTextColumn>
+                <DataGridTextColumn Width="80"><DataGridTextColumn.Header><TextBlock Text="{DynamicResource Str_Col_Team}"/></DataGridTextColumn.Header><DataGridTextColumn.Binding><Binding Path="Country"/></DataGridTextColumn.Binding></DataGridTextColumn>
+                <DataGridTextColumn Width="80"><DataGridTextColumn.Header><TextBlock Text="{DynamicResource Str_Col_Entry}"/></DataGridTextColumn.Header><DataGridTextColumn.Binding><Binding Path="EntryTime"/></DataGridTextColumn.Binding></DataGridTextColumn>
             </DataGrid.Columns>
         </DataGrid>
         <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
-            <Button Content="保存" Click="Save_Click" Padding="16,6" Background="#3B82F6" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
-            <Button Content="关闭" Click="Close_Click" Padding="16,6"/>
+            <Button Content="{DynamicResource Str_Btn_Save}" Click="Save_Click" Padding="16,6" Background="#3B82F6" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
+            <Button Content="{DynamicResource Str_Btn_Close}" Click="Close_Click" Padding="16,6"/>
         </StackPanel>
     </Grid>
 </Window>
