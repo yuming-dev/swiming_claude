@@ -15931,7 +15931,7 @@ namespace SwimmingScoreboard
                 UpdateRecordDisplay();
                 AutoSaveData();
                 Broadcast();
-                AddLog(string.Format("大屏显示记录已切换为：{0} ({1})", _displayRecordLabel, _displayRecordTypeName));
+                AddLog(Loc.F("Str_Log_DisplayRecordSwitchedFmt", _displayRecordLabel, _displayRecordTypeName));
             }
         }
 
@@ -15994,7 +15994,7 @@ namespace SwimmingScoreboard
                 return (sa != null ? sa.Lane : s.Lane) == lane;
             });
             if (swimmer == null) swimmer = GetCurrentHeatSwimmers().FirstOrDefault(s => s.Lane == lane);
-            if (swimmer == null) { AddLog(string.Format("泳道{0} 未找到运动员", lane)); return; }
+            if (swimmer == null) { AddLog(Loc.F("Str_Log_LaneSwimmerNotFoundFmt", lane)); return; }
 
             // 2026-06-12 空道试游 占位运动员: 取消备注 = 整条移除 (无报名信息, 不应残留空行)
             if (swimmer.Notes == EmptyTriMarker) {
@@ -16006,7 +16006,7 @@ namespace SwimmingScoreboard
                     try { SendSetMatchEventToHardware(); } catch { }
                 }
                 LogRawTimingData(lane, "CANCEL_EMPTY_TRI", 0);
-                AddLog(string.Format("泳道{0} 取消空道试游 — 已移除该临时试游道", lane));
+                AddLog(Loc.F("Str_Log_EmptyLaneTriCancelledFmt", lane));
                 try { UpdateHeatRanking(); } catch { }
                 UpdateLaneStatusDisplay();
                 try { RefreshResultGrid(); } catch { }
@@ -16043,7 +16043,7 @@ namespace SwimmingScoreboard
                         resCN.DsqBackupStartingBlockTime = 0;
                         resCN.DsqBackupSplits = null;
                         resCN.DsqBackupLegReactionTimes = null;
-                        AddLog(string.Format("  泳道{0} DSQ 撤销 — 已恢复原成绩 {1}", lane, TimeFormatter.Format(resCN.FinalTime)));
+                        AddLog(Loc.F("Str_Log_DsqRevokedRestoredFmt", lane, TimeFormatter.Format(resCN.FinalTime)));
                     }
                     if (resCN.FinalTime > 0) {
                         // 复算破/平纪录标识
@@ -16057,13 +16057,13 @@ namespace SwimmingScoreboard
                 if (!hasFinalTime) laneState.IsFinished = false;
             }
             LogRawTimingData(lane, "CANCEL_NOTE", 0);
-            AddLog(string.Format("泳道{0} {1} 取消备注（原 {2}），恢复正常参赛状态",
-                lane, swimmer.Name, string.IsNullOrEmpty(oldStatus) ? "无" : oldStatus));
+            AddLog(Loc.F("Str_Log_NoteCancelledRestoredFmt",
+                lane, swimmer.Name, string.IsNullOrEmpty(oldStatus) ? Loc.T("Str_Frag_None") : oldStatus));
             try { UpdateHeatRanking(); } catch { }
             UpdateLaneStatusDisplay();
             // 2026-09-01 同 MarkLaneStatus: 撤销判罚也要落当前组库, 否则撤销只在内存里生效,
             //   确认成绩时又按当前组库里那份旧的写回去 —— 撤了等于没撤。
-            try { SaveHeatProgress(); } catch (Exception ex) { AddLog("【注意】撤销备注未能写入当前组库: " + ex.Message); }
+            try { SaveHeatProgress(); } catch (Exception ex) { AddLog(Loc.F("Str_Log_CancelNoteSaveFailedFmt", ex.Message)); }
             AutoSaveData();
             Broadcast();
         }
@@ -16073,7 +16073,7 @@ namespace SwimmingScoreboard
         //       按触板到达处理（ProcessTouchpadHit 会把盲表时间清理并完成分段）
         private void UseBlindResultForCurrentSegment(int lane) {
             var laneState = _laneDeviceStates.FirstOrDefault(s => s.Lane == lane);
-            if (laneState == null) { AddLog(string.Format("泳道{0} 状态不存在", lane)); return; }
+            if (laneState == null) { AddLog(Loc.F("Str_Log_LaneStateNotFoundFmt", lane)); return; }
 
             // 当前 split 上可能已经记录了盲表时间（预创建 split 时盲表会写入 split.PushButton*Time），
             // 这是正常的工作路径；laneState.PendingBlind*Time 只是无 split 时的备用暂存。
@@ -16090,7 +16090,7 @@ namespace SwimmingScoreboard
                 if (curSplit.PushButton3Time > 0 && !blinds.Contains(curSplit.PushButton3Time)) blinds.Add(curSplit.PushButton3Time);
             }
             if (blinds.Count == 0) {
-                AddLog(string.Format("泳道{0} 无盲表数据可用", lane));
+                AddLog(Loc.F("Str_Log_NoBlindDataFmt", lane));
                 return;
             }
             blinds.Sort();
@@ -16111,13 +16111,13 @@ namespace SwimmingScoreboard
                 if (res != null) {
                     var sp = res.Splits.FirstOrDefault(x => x.Lap == curLap);
                     if (sp != null && sp.TouchpadTime > 0) {
-                        AddLog(string.Format("泳道{0} 当前分段已有触板成绩，盲表成绩补充操作跳过", lane));
+                        AddLog(Loc.F("Str_Log_SplitAlreadyHasTpSkippedFmt", lane));
                         return;
                     }
                 }
             }
 
-            AddLog(string.Format("泳道{0} 使用盲表成绩 {1} 作为当前分段正式成绩",
+            AddLog(Loc.F("Str_Log_UseBlindAsOfficialFmt",
                 lane, TimeFormatter.Format(blindTime)));
             LogRawTimingData(lane, "USE_BLIND_RESULT", blindTime);
 
@@ -16132,7 +16132,7 @@ namespace SwimmingScoreboard
         // 道次打开 / 道次关闭：只对指定泳道生效（单道版本的 OpenAll/CloseAll）
         private void SetSingleLaneOpen(int lane, bool open) {
             var s = _laneDeviceStates.FirstOrDefault(x => x.Lane == lane);
-            if (s == null) { AddLog(string.Format("泳道{0} 状态不存在", lane)); return; }
+            if (s == null) { AddLog(Loc.F("Str_Log_LaneStateNotFoundFmt", lane)); return; }
             DeviceStatus st = open ? DeviceStatus.Open : DeviceStatus.Closed;
             s.LeftTouchpadStatus = st;
             s.LeftBlindWatch1Status = st; s.LeftBlindWatch2Status = st; s.LeftBlindWatch3Status = st;
@@ -16141,7 +16141,7 @@ namespace SwimmingScoreboard
             s.RightBlindWatch1Status = st; s.RightBlindWatch2Status = st; s.RightBlindWatch3Status = st;
             s.RightStartBlockStatus = st;
             s.LaneCloseCountdown = 0;
-            AddLog(string.Format("泳道{0} 已{1}", lane, open ? "打开" : "关闭"));
+            AddLog(Loc.F("Str_Log_LaneSetOpenClosedFmt", lane, open ? Loc.T("Str_Frag_Open") : Loc.T("Str_Frag_Close")));
             //2026-05-14 单道也同步下发硬件：0x47 D3=lane D4=1/0
             //2026-05-18 lane 按屏幕位置编码（逆序模式下转换）
             try { if (_timingBridge != null && _timingBridge.IsConnected) _timingBridge.SendLaneOpenClose(LaneToHwIndex(lane), open); } catch { }
@@ -16236,7 +16236,7 @@ namespace SwimmingScoreboard
             // 2) 自动写 txt (按 性别×组别 一文件)
             string dir = GetAutoSaveTxtDir();
             if (string.IsNullOrWhiteSpace(dir)) {
-                AddLog("成绩存盘路径未配置 — 跳过 txt 自动保存 (大屏已切总排名)");
+                AddLog(Loc.T("Str_Log_ResultSavePathNotConfigured"));
                 return;
             }
             WarnIfLocalSaveDirOnTimingStation(dir);
@@ -16270,8 +16270,8 @@ namespace SwimmingScoreboard
                     WriteFileAsync(fullPath, sb.ToString(), new UTF8Encoding(false), null, Loc.T("Str_Log_RankingTxtWriteFailedPrefix"));
                     saved++;
                 }
-                AddLog(string.Format("✓ 项目总排名已写 {0} 个 txt 到: {1}", saved, dir));
-                AddLog("    打印: 文档编辑/输出/打印 → 项目成绩 打印 (男女并项会自动拆 蓝/粉 子表)");
+                AddLog(Loc.F("Str_Log_RankingTxtWrittenFmt", saved, dir));
+                AddLog(Loc.T("Str_Log_PrintRankingHint"));
             } catch (Exception ex) {
                 AddLog(Loc.T("Str_Log_RankingTxtWriteFailedPrefix") + ex.Message);
             }
@@ -16326,7 +16326,7 @@ namespace SwimmingScoreboard
                         int legCount = GetLegCountForEvent(_currentEvent);
                         relayViolationLeg = AskRelayViolationLeg(lane, swimmer.Name, legCount);
                         if (relayViolationLeg <= 0) {
-                            AddLog(string.Format("泳道{0} {1} 接力 DSQ 取消 (未选犯规棒次)", lane, swimmer.Name));
+                            AddLog(Loc.F("Str_Log_RelayDsqCancelledNoLegFmt", lane, swimmer.Name));
                             return;
                         }
                     }
@@ -16352,7 +16352,7 @@ namespace SwimmingScoreboard
                     var resTri = swimmer.Results.FirstOrDefault(r => r.Stage == _currentStage && r.Heat == _currentHeat);
                     if (resTri != null) {
                         if (!string.IsNullOrEmpty(resTri.RecordNote)) {
-                            AddLog(string.Format("  泳道{0} {1} 试游不计纪录，取消破/平纪录标识: {2}",
+                            AddLog(Loc.F("Str_Log_TriRecordFlagClearedFmt",
                                 lane, swimmer.Name, resTri.RecordNote));
                             resTri.RecordNote = "";
                         }
@@ -16367,7 +16367,7 @@ namespace SwimmingScoreboard
                     var res = swimmer.Results.FirstOrDefault(r => r.Stage == _currentStage && r.Heat == _currentHeat);
                     if (res != null) {
                         if (!string.IsNullOrEmpty(res.RecordNote)) {
-                            AddLog(string.Format("  泳道{0} {1} 成绩无效，取消破/平纪录标识: {2}", lane, swimmer.Name, res.RecordNote));
+                            AddLog(Loc.F("Str_Log_InvalidRecordFlagClearedFmt", lane, swimmer.Name, res.RecordNote));
                             res.RecordNote = "";
                         }
                         res.Status = status;
@@ -16397,7 +16397,7 @@ namespace SwimmingScoreboard
                                 }
                                 res.FinalTime = 0;
                                 res.TimeInSeconds = 0;
-                                AddLog(string.Format("  接力 DSQ 在第{0}棒 — 保留 1~{1}棒分段, 清第{0}棒之后的分段 + 最终成绩",
+                                AddLog(Loc.F("Str_Log_RelayDsqLegPartialClearFmt",
                                     relayViolationLeg, relayViolationLeg - 1));
                             } else {
                                 // 2026-09-16 个人 DSQ: 只清最终成绩 + 反应时, 【不再清分段成绩】。
@@ -16411,14 +16411,14 @@ namespace SwimmingScoreboard
                                 res.FinalTime = 0;
                                 res.TimeInSeconds = 0;
                                 res.StartingBlockTime = 0;
-                                AddLog("  个人 DSQ — 清最终成绩 + 反应时, 分段成绩保留(真实计时数据)");
+                                AddLog(Loc.T("Str_Log_IndividualDsqClearedKeepSplits"));
                             }
                         }
                     }
                     swimmer.CurrentRank = 0;
                 }
                 LogRawTimingData(lane, "MARK_" + status, 0);
-                AddLog(string.Format("泳道{0} {1} 标记为 {2}", lane, swimmer.Name, status));
+                AddLog(Loc.F("Str_Log_LaneMarkedStatusFmt", lane, swimmer.Name, status));
                 // ── 2026-09-13 TRI 不能标"已完赛" ────────────────────────────
                 //   IsFinished 是整条计时链的总闸: 触板(6641)、分段、盲表、
                 //   设备开关循环(8630) 一律先看它, 为 true 就直接 return/continue。
@@ -16452,7 +16452,7 @@ namespace SwimmingScoreboard
                 // 而且大屏和成绩单都照着库显示 —— 判罚等于没打。
                 // 全库 592 行里只有 8 行有判罚状态, 就是这么丢的。
                 // ══════════════════════════════════════════════════════════
-                try { SaveHeatProgress(); } catch (Exception ex) { AddLog("【注意】判罚未能写入当前组库: " + ex.Message); }
+                try { SaveHeatProgress(); } catch (Exception ex) { AddLog(Loc.F("Str_Log_JudgmentSaveFailedFmt", ex.Message)); }
                 AutoSaveData();
                 Broadcast();
             }
@@ -16492,13 +16492,13 @@ namespace SwimmingScoreboard
                 laneState.IsFinished = true;
             }
 
-            AddLog(string.Format("泳道{0} 手动输入成绩: {1}", lane, TimeFormatter.Format(time)));
+            AddLog(Loc.F("Str_Log_ManualResultEnteredFmt", lane, TimeFormatter.Format(time)));
             UpdateHeatRanking();
             CheckRecords(swimmer, result);
             UpdateLaneStatusDisplay();
             // 2026-09-01 同 MarkLaneStatus: 手动输入的成绩也必须落当前组库,
             //   否则确认成绩时 LiveCommit 取到的还是没改过的那一份, 手输白输。
-            try { SaveHeatProgress(); } catch (Exception ex) { AddLog("【注意】手输成绩未能写入当前组库: " + ex.Message); }
+            try { SaveHeatProgress(); } catch (Exception ex) { AddLog(Loc.F("Str_Log_ManualResultSaveFailedFmt", ex.Message)); }
             AutoSaveData();
             Broadcast();
         }
@@ -16524,7 +16524,7 @@ namespace SwimmingScoreboard
             bool isLeftDev = device != null && device.StartsWith("left");
             bool isRightDev = device != null && device.StartsWith("right");
             if ((isLeftDev && lockLeft) || (isRightDev && lockRight)) {
-                AddLog(string.Format("泳道{0} {1} 受单端配置锁定, 远程修改被拒", lane, device));
+                AddLog(Loc.F("Str_Log_DeviceLockedRemoteRejectedFmt", lane, device));
                 return;
             }
 
@@ -16543,7 +16543,7 @@ namespace SwimmingScoreboard
                 case "rightBlindWatch3": currentNotInstalled = state.RightBlindWatch3NotInstalled; break;
             }
             if ((isGood || isBroken) && currentNotInstalled) {
-                AddLog(string.Format("泳道{0} {1} 未安装, 不能设好/坏", lane, device));
+                AddLog(Loc.F("Str_Log_DeviceNotInstalledCannotSetFmt", lane, device));
                 return;
             }
 
@@ -16590,7 +16590,7 @@ namespace SwimmingScoreboard
                     else state.RightBlindWatch3Broken = isBroken; break;
             }
             string desc = isNotInstalled ? "未安装" : isInstalled ? "已安装" : isBroken ? "损坏" : "正常";
-            AddLog(string.Format("泳道{0} {1} 设为 {2}", lane, device, desc));
+            AddLog(Loc.F("Str_Log_DeviceSetToFmt", lane, device, desc));
             SaveDeviceStates();               // 远端 HTML/EXE 改的也要持久化，下次启动还原
             UpdateLaneStatusDisplay();        // 立即刷新本地泳道实时状态 UI
             Broadcast();
@@ -16601,7 +16601,7 @@ namespace SwimmingScoreboard
         // ScheduleEditor 编辑端 — WebSocket 命令处理
         // ═══════════════════════════════════════════════════════════════
         private void HandleEditorUpdateSwimmer(JObject data) {
-            if (data == null) { AddLog("UPDATE_SWIMMER 数据为空"); return; }
+            if (data == null) { AddLog(Loc.T("Str_Log_UpdateSwimmerNoData")); return; }
             string bib = data["bibNumber"] != null ? data["bibNumber"].ToString() : "";
             string name = data["name"] != null ? data["name"].ToString() : "";
             string ev = data["eventName"] != null ? data["eventName"].ToString() : "";
@@ -16610,7 +16610,7 @@ namespace SwimmingScoreboard
                 !string.IsNullOrEmpty(bib) && s.BibNumber == bib && s.EventName == ev);
             if (sw == null) sw = _swimmers.FirstOrDefault(s => s.Name == name && s.EventName == ev);
             if (sw == null) {
-                AddLog(string.Format("UPDATE_SWIMMER 找不到: {0}({1}) {2}", name, bib, ev));
+                AddLog(Loc.F("Str_Log_UpdateSwimmerNotFoundFmt", name, bib, ev));
                 return;
             }
             // 应用字段
@@ -16641,11 +16641,11 @@ namespace SwimmingScoreboard
             RefreshSwimmerFilter();
             Broadcast();
             PushDataChanged("swimmer");
-            AddLog(string.Format("编辑端更新运动员: {0}({1}) {2}", sw.Name, sw.BibNumber, sw.EventName));
+            AddLog(Loc.F("Str_Log_EditorUpdatedSwimmerFmt", sw.Name, sw.BibNumber, sw.EventName));
         }
 
         private void HandleEditorDeleteSwimmer(JObject data) {
-            if (data == null) { AddLog("DELETE_SWIMMER 数据为空"); return; }
+            if (data == null) { AddLog(Loc.T("Str_Log_DeleteSwimmerNoData")); return; }
             string bib = data["bibNumber"] != null ? data["bibNumber"].ToString() : "";
             string name = data["name"] != null ? data["name"].ToString() : "";
             string ev = data["eventName"] != null ? data["eventName"].ToString() : "";
@@ -16653,7 +16653,7 @@ namespace SwimmingScoreboard
                 !string.IsNullOrEmpty(bib) && s.BibNumber == bib && s.EventName == ev);
             if (sw == null) sw = _swimmers.FirstOrDefault(s => s.Name == name && s.EventName == ev);
             if (sw == null) {
-                AddLog(string.Format("DELETE_SWIMMER 找不到: {0}({1}) {2}", name, bib, ev));
+                AddLog(Loc.F("Str_Log_DeleteSwimmerNotFoundFmt", name, bib, ev));
                 return;
             }
             _swimmers.Remove(sw);
@@ -16662,7 +16662,7 @@ namespace SwimmingScoreboard
             RefreshSwimmerFilter();
             Broadcast();
             PushDataChanged("swimmer");
-            AddLog(string.Format("编辑端删除运动员: {0}({1}) {2}", sw.Name, sw.BibNumber, sw.EventName));
+            AddLog(Loc.F("Str_Log_EditorDeletedSwimmerFmt", sw.Name, sw.BibNumber, sw.EventName));
         }
 
         private void HandleEditorListDocuments() {
@@ -16702,29 +16702,29 @@ namespace SwimmingScoreboard
             try {
                 CalculateTeamScores();
                 Broadcast();
-                AddLog("编辑端请求：团体计分已重新计算");
+                AddLog(Loc.T("Str_Log_EditorTeamScoreRecalculated"));
             } catch (Exception ex) {
-                AddLog("团体计分计算失败: " + ex.Message);
+                AddLog(Loc.F("Str_Log_TeamScoreCalcFailedFmt", ex.Message));
             }
         }
 
         // 编辑端 — 取消晋级：删除指定 (ageGroup, gender, event, stage) 的 StageAssignment + 赛程项
         // 2026-06-16 加 ageGroup 筛选: 跨组别共用 (gender, event, stage) 时不会全删
         private void HandleEditorCancelPromotion(JObject data) {
-            if (data == null) { AddLog("CANCEL_PROMOTION 数据为空"); return; }
+            if (data == null) { AddLog(Loc.T("Str_Log_CancelPromotionNoData")); return; }
             string ageGroup = data["ageGroup"] != null ? data["ageGroup"].ToString() : "";
             string gender = data["gender"] != null ? data["gender"].ToString() : "";
             string evName = data["eventName"] != null ? data["eventName"].ToString() : "";
             string stage = data["stage"] != null ? data["stage"].ToString() : "";
             if (string.IsNullOrEmpty(gender) || string.IsNullOrEmpty(evName) || string.IsNullOrEmpty(stage)) {
-                AddLog("CANCEL_PROMOTION 缺少 gender/eventName/stage"); return;
+                AddLog(Loc.T("Str_Log_CancelPromotionMissingFields")); return;
             }
             // 2026-09-12 取消晋级会把整个赛次的分组和赛程项一起删掉 ——
             //   里面只要有一组正在比或已完赛, 就整条不许做。远端来的不弹窗, 记日志。
             int lockedH;
             string lockedW = EventLockedWhy(ageGroup, gender, evName, stage, out lockedH);
             if (lockedW != null) {
-                AddLog(string.Format("拒绝编辑端取消晋级: {0} {1} {2} 第{3}组{4}", gender, evName, stage, lockedH, lockedW));
+                AddLog(Loc.F("Str_Log_RejectCancelPromotionFmt", Loc.GenderDisplay(gender), evName, Loc.StageDisplay(stage), lockedH, lockedW));
                 return;
             }
             int removed = 0;
@@ -16752,18 +16752,18 @@ namespace SwimmingScoreboard
             SaveWithoutPush();   // 2026-09-19 见 HandleEditorUpdateSwimmer 的说明
             Broadcast();
             PushDataChanged("assign");
-            AddLog(string.Format("编辑端取消晋级: {0} {1} {2}（{3} 人 / {4} 组赛程被移除）",
-                gender, evName, stage, removed, toRemove.Count));
+            AddLog(Loc.F("Str_Log_EditorCancelledPromotionFmt",
+                Loc.GenderDisplay(gender), evName, Loc.StageDisplay(stage), removed, toRemove.Count));
         }
 
         // 编辑端 — 编辑某个具体成绩（finalTime / status / recordNote）
         private void HandleEditorUpdateResult(JObject data) {
-            if (data == null) { AddLog("UPDATE_RESULT 数据为空"); return; }
+            if (data == null) { AddLog(Loc.T("Str_Log_UpdateResultNoData")); return; }
             string bib = data["bibNumber"] != null ? data["bibNumber"].ToString() : "";
             string evName = data["eventName"] != null ? data["eventName"].ToString() : "";
             string stage = data["stage"] != null ? data["stage"].ToString() : "";
             var sw = _swimmers.FirstOrDefault(s => s.BibNumber == bib && s.EventName == evName);
-            if (sw == null) { AddLog(string.Format("UPDATE_RESULT 找不到: {0} {1}", bib, evName)); return; }
+            if (sw == null) { AddLog(Loc.F("Str_Log_UpdateResultNotFoundFmt", bib, evName)); return; }
             int heat = 0;
             if (data["heat"] != null) int.TryParse(data["heat"].ToString(), out heat);
             var result = sw.Results.FirstOrDefault(r => r.Stage == stage && (heat == 0 || r.Heat == heat));
@@ -16772,8 +16772,8 @@ namespace SwimmingScoreboard
             int heatChk = heat > 0 ? heat : (result != null ? result.Heat : 0);
             string lockWhy = ResultLockedWhy(sw.AgeCategory, sw.Gender, evName, stage, heatChk);
             if (lockWhy != null) {
-                AddLog(string.Format("拒绝编辑端改成绩: {0}({1}) {2} {3} 第{4}组 {5}",
-                    sw.Name, bib, evName, stage, heatChk, lockWhy));
+                AddLog(Loc.F("Str_Log_RejectEditorUpdateResultFmt",
+                    sw.Name, bib, evName, Loc.StageDisplay(stage), heatChk, lockWhy));
                 return;
             }
             if (result == null) {
@@ -16797,19 +16797,19 @@ namespace SwimmingScoreboard
             SaveWithoutPush();   // 2026-09-19 见 HandleEditorUpdateSwimmer 的说明
             Broadcast();
             PushDataChanged("meet");
-            AddLog(string.Format("编辑端更新成绩: {0}({1}) {2} {3} → {4}",
-                sw.Name, sw.BibNumber, sw.EventName, stage,
+            AddLog(Loc.F("Str_Log_EditorUpdatedResultFmt",
+                sw.Name, sw.BibNumber, sw.EventName, Loc.StageDisplay(stage),
                 !string.IsNullOrEmpty(sw.Status) ? sw.Status : TimeFormatter.Format(result.FinalTime)));
         }
 
         // 编辑端 — 新增 / 更新接力队（按 队名+性别+项目 唯一定位）
         private void HandleEditorUpdateRelay(JObject data) {
-            if (data == null) { AddLog("UPDATE_RELAY 数据为空"); return; }
+            if (data == null) { AddLog(Loc.T("Str_Log_UpdateRelayNoData")); return; }
             string teamName = data["teamName"] != null ? data["teamName"].ToString() : "";
             string evName = data["eventName"] != null ? data["eventName"].ToString() : "";
             string gender = data["gender"] != null ? data["gender"].ToString() : "男";
             if (string.IsNullOrEmpty(teamName) || string.IsNullOrEmpty(evName)) {
-                AddLog("UPDATE_RELAY 缺少队名或项目"); return;
+                AddLog(Loc.T("Str_Log_UpdateRelayMissingFields")); return;
             }
             var existing = _relayTeams.FirstOrDefault(t =>
                 t.TeamName == teamName && t.Gender == gender && t.EventName == evName);
@@ -16838,20 +16838,20 @@ namespace SwimmingScoreboard
             SaveWithoutPush();   // 2026-09-19 见 HandleEditorUpdateSwimmer 的说明
             Broadcast();
             PushDataChanged("relay");
-            AddLog(string.Format("编辑端{0}接力队: {1} {2} {3}（{4} 棒）",
-                isNew ? "新增" : "更新", gender, evName, teamName, existing.Legs.Count));
+            AddLog(Loc.F("Str_Log_EditorRelayAddedUpdatedFmt",
+                isNew ? Loc.T("Str_Frag_Added") : Loc.T("Str_Frag_Updated"), Loc.GenderDisplay(gender), evName, teamName, existing.Legs.Count));
         }
 
         // 编辑端 — 纪录 新增 / 更新 / 删除
         // 主键 = (eventName, gender, recordType, ageGroup)
         private void HandleEditorAddRecord(JObject data) {
-            if (data == null) { AddLog("ADD_RECORD 数据为空"); return; }
+            if (data == null) { AddLog(Loc.T("Str_Log_AddRecordNoData")); return; }
             string evName = data["eventName"] != null ? data["eventName"].ToString() : "";
             string gender = data["gender"] != null ? data["gender"].ToString() : "";
             string recordType = data["recordType"] != null ? data["recordType"].ToString() : "";
             string ageGroup = data["ageGroup"] != null ? data["ageGroup"].ToString() : "";
             if (string.IsNullOrEmpty(evName) || string.IsNullOrEmpty(gender) || string.IsNullOrEmpty(recordType)) {
-                AddLog("ADD_RECORD 缺少 eventName/gender/recordType"); return;
+                AddLog(Loc.T("Str_Log_AddRecordMissingFields")); return;
             }
             var recBefore97 = SnapshotRecords();   // 2026-09-12 改完一比, 只发变动的那条
             var existing = _records.FirstOrDefault(r =>
@@ -16877,13 +16877,13 @@ namespace SwimmingScoreboard
             SaveWithoutPush();
             PushChangedRecords(recBefore97);   // 2026-09-12 按条同步, 不推整包
             Broadcast();
-            AddLog(string.Format("编辑端{0}纪录: {1} {2} {3} {4} = {5}",
-                isNew ? "新增" : "更新", ageGroup, gender, evName, recordType,
+            AddLog(Loc.F("Str_Log_EditorRecordAddedUpdatedFmt",
+                isNew ? Loc.T("Str_Frag_Added") : Loc.T("Str_Frag_Updated"), ageGroup, Loc.GenderDisplay(gender), evName, recordType,
                 TimeFormatter.Format(existing.Time)));
         }
 
         private void HandleEditorDeleteRecord(JObject data) {
-            if (data == null) { AddLog("DELETE_RECORD 数据为空"); return; }
+            if (data == null) { AddLog(Loc.T("Str_Log_DeleteRecordNoData")); return; }
             string evName = data["eventName"] != null ? data["eventName"].ToString() : "";
             string gender = data["gender"] != null ? data["gender"].ToString() : "";
             string recordType = data["recordType"] != null ? data["recordType"].ToString() : "";
@@ -16892,7 +16892,7 @@ namespace SwimmingScoreboard
                 r.EventName == evName && r.Gender == gender && r.RecordType == recordType
                 && (r.AgeGroup ?? "") == (ageGroup ?? ""));
             if (target == null) {
-                AddLog(string.Format("DELETE_RECORD 找不到: {0} {1} {2} {3}", ageGroup, gender, evName, recordType));
+                AddLog(Loc.F("Str_Log_DeleteRecordNotFoundFmt", ageGroup, Loc.GenderDisplay(gender), evName, recordType));
                 return;
             }
             var recBefore96 = SnapshotRecords();
@@ -16900,12 +16900,12 @@ namespace SwimmingScoreboard
             SaveWithoutPush();
             PushChangedRecords(recBefore96);   // 2026-09-12 按条同步, 不推整包
             Broadcast();
-            AddLog(string.Format("编辑端删除纪录: {0} {1} {2} {3}", ageGroup, gender, evName, recordType));
+            AddLog(Loc.F("Str_Log_EditorDeletedRecordFmt", ageGroup, Loc.GenderDisplay(gender), evName, recordType));
         }
 
         // 编辑端 — 触发服务器生成 / 打开各种报告（路由到既有 Print*_Click 方法）
         private void HandleEditorGenerateReport(JObject data) {
-            if (data == null) { AddLog("GENERATE_REPORT 数据为空"); return; }
+            if (data == null) { AddLog(Loc.T("Str_Log_GenerateReportNoData")); return; }
             string type = data["type"] != null ? data["type"].ToString() : "";
             try {
                 switch (type) {
@@ -16924,17 +16924,17 @@ namespace SwimmingScoreboard
                     case "exportScheduleCSV":     ExportScheduleCSV_Click(null, null); break;
                     case "exportHeatAssignExcel": ExportHeatAssignmentsExcel_Click(null, null); break;
                     case "exportHeatAssignCSV":   ExportHeatAssignmentsCSV_Click(null, null); break;
-                    default: AddLog("未识别的报告类型: " + type); break;
+                    default: AddLog(Loc.F("Str_Log_UnrecognizedReportTypeFmt", type)); break;
                 }
-                AddLog("编辑端触发报告: " + type);
+                AddLog(Loc.F("Str_Log_EditorTriggeredReportFmt", type));
             } catch (Exception ex) {
-                AddLog("报告生成失败 (" + type + "): " + ex.Message);
+                AddLog(Loc.F("Str_Log_ReportGenFailedFmt", type, ex.Message));
             }
         }
 
         // 编辑端 — 赛程项 新增 / 更新 / 删除
         private void HandleEditorAddScheduleItem(JObject data) {
-            if (data == null) { AddLog("ADD_SCHEDULE_ITEM 数据为空"); return; }
+            if (data == null) { AddLog(Loc.T("Str_Log_AddScheduleItemNoData")); return; }
             var item = ParseScheduleItem(data);
             if (item == null) return;
             // 主键：性别 + 项目 + 赛次 + 组别 唯一（重复则更新而不是新增）
@@ -16948,14 +16948,14 @@ namespace SwimmingScoreboard
                 existing.Time = item.Time;
                 existing.HeatCount = item.HeatCount;
                 existing.IsRelay = item.IsRelay;
-                AddLog(string.Format("编辑端更新赛程: {0} {1} {2} {3}",
-                    item.AgeGroup, item.Gender, item.EventName, item.Stage));
+                AddLog(Loc.F("Str_Log_EditorUpdatedScheduleFmt",
+                    item.AgeGroup, Loc.GenderDisplay(item.Gender), item.EventName, Loc.StageDisplay(item.Stage)));
             } else {
                 if (item.SessionNumber <= 0)
                     item.SessionNumber = _schedule.Count > 0 ? _schedule.Max(s => s.SessionNumber) + 1 : 1;
                 _schedule.Add(item);
-                AddLog(string.Format("编辑端新增赛程: {0} {1} {2} {3}",
-                    item.AgeGroup, item.Gender, item.EventName, item.Stage));
+                AddLog(Loc.F("Str_Log_EditorAddedScheduleFmt",
+                    item.AgeGroup, Loc.GenderDisplay(item.Gender), item.EventName, Loc.StageDisplay(item.Stage)));
             }
             BuildScheduleTree();
             SaveWithoutPush();   // 2026-09-19 见 HandleEditorUpdateSwimmer 的说明
@@ -16968,7 +16968,7 @@ namespace SwimmingScoreboard
         }
 
         private void HandleEditorDeleteScheduleItem(JObject data) {
-            if (data == null) { AddLog("DELETE_SCHEDULE_ITEM 数据为空"); return; }
+            if (data == null) { AddLog(Loc.T("Str_Log_DeleteScheduleItemNoData")); return; }
             string gender = data["gender"] != null ? data["gender"].ToString() : "";
             string evName = data["eventName"] != null ? data["eventName"].ToString() : "";
             string stage = data["stage"] != null ? data["stage"].ToString() : "";
@@ -16980,8 +16980,8 @@ namespace SwimmingScoreboard
             SaveWithoutPush();   // 2026-09-19 见 HandleEditorUpdateSwimmer 的说明
             Broadcast();
             PushDataChanged("assign");
-            AddLog(string.Format("编辑端删除赛程: {0} {1} {2} {3}（共 {4} 条）",
-                ageGroup, gender, evName, stage, toRemove.Count));
+            AddLog(Loc.F("Str_Log_EditorDeletedScheduleFmt",
+                ageGroup, Loc.GenderDisplay(gender), evName, Loc.StageDisplay(stage), toRemove.Count));
         }
 
         private ScheduleItem ParseScheduleItem(JObject data) {
@@ -17001,7 +17001,7 @@ namespace SwimmingScoreboard
             if (data["isRelay"] != null) item.IsRelay = (bool)data["isRelay"];
             if (string.IsNullOrEmpty(item.Gender) || string.IsNullOrEmpty(item.EventName)
                 || string.IsNullOrEmpty(item.Stage)) {
-                AddLog("赛程项缺少 gender/eventName/stage 字段");
+                AddLog(Loc.T("Str_Log_ScheduleItemMissingFields"));
                 return null;
             }
             return item;
@@ -17009,9 +17009,9 @@ namespace SwimmingScoreboard
 
         // 编辑端 — 整表替换 项目 / 组别 / 性别 / 赛次 配置
         private void HandleEditorUpdateEventList(JObject data) {
-            if (data == null) { AddLog("UPDATE_EVENT_LIST 数据为空"); return; }
+            if (data == null) { AddLog(Loc.T("Str_Log_UpdateEventListNoData")); return; }
             var items = data["items"] as JArray;
-            if (items == null) { AddLog("UPDATE_EVENT_LIST 缺少 items"); return; }
+            if (items == null) { AddLog(Loc.T("Str_Log_UpdateEventListMissingItems")); return; }
             var list = new List<string>();
             foreach (var it in items) {
                 string s = it.ToString().Trim();
@@ -17023,13 +17023,13 @@ namespace SwimmingScoreboard
             SaveWithoutPush();   // 2026-09-19 见 HandleEditorUpdateSwimmer 的说明
             Broadcast();
             PushDataChanged("meet");
-            AddLog(string.Format("编辑端更新项目列表: 共 {0} 项", list.Count));
+            AddLog(Loc.F("Str_Log_EditorUpdatedEventListFmt", list.Count));
         }
 
         private void HandleEditorUpdateAgeGroupList(JObject data) {
-            if (data == null) { AddLog("UPDATE_AGE_GROUP_LIST 数据为空"); return; }
+            if (data == null) { AddLog(Loc.T("Str_Log_UpdateAgeGroupListNoData")); return; }
             var items = data["items"] as JArray;
-            if (items == null) { AddLog("UPDATE_AGE_GROUP_LIST 缺少 items"); return; }
+            if (items == null) { AddLog(Loc.T("Str_Log_UpdateAgeGroupListMissingItems")); return; }
             var list = new List<AgeGroup>();
             foreach (JObject o in items) {
                 string name = o["name"] != null ? o["name"].ToString().Trim() : "";
@@ -17046,13 +17046,13 @@ namespace SwimmingScoreboard
             SaveWithoutPush();   // 2026-09-19 见 HandleEditorUpdateSwimmer 的说明
             Broadcast();
             PushDataChanged("meet");
-            AddLog(string.Format("编辑端更新组别列表: 共 {0} 项", list.Count));
+            AddLog(Loc.F("Str_Log_EditorUpdatedAgeGroupListFmt", list.Count));
         }
 
         private void HandleEditorUpdateGenderList(JObject data) {
-            if (data == null) { AddLog("UPDATE_GENDER_LIST 数据为空"); return; }
+            if (data == null) { AddLog(Loc.T("Str_Log_UpdateGenderListNoData")); return; }
             var items = data["items"] as JArray;
-            if (items == null) { AddLog("UPDATE_GENDER_LIST 缺少 items"); return; }
+            if (items == null) { AddLog(Loc.T("Str_Log_UpdateGenderListMissingItems")); return; }
             var list = new List<string>();
             foreach (var it in items) {
                 string s = it.ToString().Trim();
@@ -17065,13 +17065,13 @@ namespace SwimmingScoreboard
             SaveWithoutPush();   // 2026-09-19 见 HandleEditorUpdateSwimmer 的说明
             Broadcast();
             PushDataChanged("meet");
-            AddLog(string.Format("编辑端更新性别列表: 共 {0} 项", list.Count));
+            AddLog(Loc.F("Str_Log_EditorUpdatedGenderListFmt", list.Count));
         }
 
         private void HandleEditorUpdateStageList(JObject data) {
-            if (data == null) { AddLog("UPDATE_STAGE_LIST 数据为空"); return; }
+            if (data == null) { AddLog(Loc.T("Str_Log_UpdateStageListNoData")); return; }
             var items = data["items"] as JArray;
-            if (items == null) { AddLog("UPDATE_STAGE_LIST 缺少 items"); return; }
+            if (items == null) { AddLog(Loc.T("Str_Log_UpdateStageListMissingItems")); return; }
             var list = new List<string>();
             foreach (var it in items) {
                 string s = it.ToString().Trim();
@@ -17081,13 +17081,13 @@ namespace SwimmingScoreboard
             SaveWithoutPush();   // 2026-09-19 见 HandleEditorUpdateSwimmer 的说明
             Broadcast();
             PushDataChanged("meet");
-            AddLog(string.Format("编辑端更新赛次列表: 共 {0} 项", list.Count));
+            AddLog(Loc.F("Str_Log_EditorUpdatedStageListFmt", list.Count));
         }
 
         // 编辑端 — 删除接力队
         // 2026-06-18 加 ageGroup 过滤, 修跨年龄段同 (teamName, gender, eventName) 误删的 bug
         private void HandleEditorDeleteRelay(JObject data) {
-            if (data == null) { AddLog("DELETE_RELAY 数据为空"); return; }
+            if (data == null) { AddLog(Loc.T("Str_Log_DeleteRelayNoData")); return; }
             string teamName = data["teamName"] != null ? data["teamName"].ToString() : "";
             string evName = data["eventName"] != null ? data["eventName"].ToString() : "";
             string gender = data["gender"] != null ? data["gender"].ToString() : "";
@@ -17096,7 +17096,7 @@ namespace SwimmingScoreboard
                 t.TeamName == teamName && t.Gender == gender && t.EventName == evName
                 && (string.IsNullOrEmpty(ageGroup) || (t.AgeGroup ?? "") == ageGroup));
             if (team == null) {
-                AddLog(string.Format("DELETE_RELAY 找不到: {0} {1} {2} {3}", ageGroup, gender, evName, teamName));
+                AddLog(Loc.F("Str_Log_DeleteRelayNotFoundFmt", ageGroup, Loc.GenderDisplay(gender), evName, teamName));
                 return;
             }
             _relayTeams.Remove(team);
@@ -17110,24 +17110,24 @@ namespace SwimmingScoreboard
             SaveWithoutPush();   // 2026-09-19 见 HandleEditorUpdateSwimmer 的说明
             Broadcast();
             PushDataChanged("relay");
-            AddLog(string.Format("编辑端删除接力队: {0} {1} {2}", gender, evName, teamName));
+            AddLog(Loc.F("Str_Log_EditorDeletedRelayFmt", Loc.GenderDisplay(gender), evName, teamName));
         }
 
         // 编辑端 — 标记 DNS / DNF / DSQ
         private void HandleEditorMarkStatus(JObject data) {
-            if (data == null) { AddLog("MARK_STATUS 数据为空"); return; }
+            if (data == null) { AddLog(Loc.T("Str_Log_MarkStatusNoData")); return; }
             string bib = data["bibNumber"] != null ? data["bibNumber"].ToString() : "";
             string evName = data["eventName"] != null ? data["eventName"].ToString() : "";
             string stage = data["stage"] != null ? data["stage"].ToString() : "";
             string status = data["status"] != null ? data["status"].ToString() : "";
             var sw = _swimmers.FirstOrDefault(s => s.BibNumber == bib && s.EventName == evName);
-            if (sw == null) { AddLog(string.Format("MARK_STATUS 找不到: {0} {1}", bib, evName)); return; }
+            if (sw == null) { AddLog(Loc.F("Str_Log_MarkStatusNotFoundFmt", bib, evName)); return; }
             var result = sw.Results.FirstOrDefault(r => r.Stage == stage);
             // 2026-09-12 已完赛的组成绩不许再改 —— 标 DNS/DNF/DSQ 也是改成绩
             string lockWhy2 = ResultLockedWhy(sw.AgeCategory, sw.Gender, evName, stage,
                                               result != null ? result.Heat : 0);
             if (lockWhy2 != null) {
-                AddLog(string.Format("拒绝编辑端标记: {0}({1}) {2} {3} {4}", sw.Name, bib, evName, stage, lockWhy2));
+                AddLog(Loc.F("Str_Log_RejectEditorMarkFmt", sw.Name, bib, evName, Loc.StageDisplay(stage), lockWhy2));
                 return;
             }
             sw.Status = status;
@@ -17142,9 +17142,9 @@ namespace SwimmingScoreboard
             SaveWithoutPush();   // 2026-09-19 见 HandleEditorUpdateSwimmer 的说明
             Broadcast();
             PushDataChanged("meet");
-            AddLog(string.Format("编辑端标记: {0}({1}) {2} {3} = {4}",
-                sw.Name, sw.BibNumber, sw.EventName, stage,
-                string.IsNullOrEmpty(status) ? "(清空)" : status));
+            AddLog(Loc.F("Str_Log_EditorMarkedFmt",
+                sw.Name, sw.BibNumber, sw.EventName, Loc.StageDisplay(stage),
+                string.IsNullOrEmpty(status) ? Loc.T("Str_Frag_Cleared") : status));
         }
 
         private bool ConfirmMarkStatus(int lane, string status, string desc) {
@@ -17156,21 +17156,21 @@ namespace SwimmingScoreboard
 
         private void MarkDNS_Click(object sender, RoutedEventArgs e) {
             int lane;
-            if (!int.TryParse(LaneInputBox.Text, out lane)) { AddLog("请输入泳道号"); return; }
+            if (!int.TryParse(LaneInputBox.Text, out lane)) { AddLog(Loc.T("Str_Log_PleaseEnterLaneNumber")); return; }
             if (!ConfirmMarkStatus(lane, "DNS", Loc.T("Str_Desc_DNS"))) return;
             MarkLaneStatus(lane, "DNS");
         }
 
         private void MarkDNF_Click(object sender, RoutedEventArgs e) {
             int lane;
-            if (!int.TryParse(LaneInputBox.Text, out lane)) { AddLog("请输入泳道号"); return; }
+            if (!int.TryParse(LaneInputBox.Text, out lane)) { AddLog(Loc.T("Str_Log_PleaseEnterLaneNumber")); return; }
             if (!ConfirmMarkStatus(lane, "DNF", Loc.T("Str_Desc_DNF"))) return;
             MarkLaneStatus(lane, "DNF");
         }
 
         private void MarkDSQ_Click(object sender, RoutedEventArgs e) {
             int lane;
-            if (!int.TryParse(LaneInputBox.Text, out lane)) { AddLog("请输入泳道号"); return; }
+            if (!int.TryParse(LaneInputBox.Text, out lane)) { AddLog(Loc.T("Str_Log_PleaseEnterLaneNumber")); return; }
             if (!ConfirmMarkStatus(lane, "DSQ", Loc.T("Str_Desc_DSQ"))) return;
             MarkLaneStatus(lane, "DSQ");
         }
@@ -17180,7 +17180,7 @@ namespace SwimmingScoreboard
         private const string EmptyTriMarker = "空道试游";
         private void MarkTri_Click(object sender, RoutedEventArgs e) {
             int lane;
-            if (!int.TryParse(LaneInputBox.Text, out lane)) { AddLog("请输入泳道号"); return; }
+            if (!int.TryParse(LaneInputBox.Text, out lane)) { AddLog(Loc.T("Str_Log_PleaseEnterLaneNumber")); return; }
             // 2026-06-12 该道当前无运动员 → 空道试游 (临时占位); 有运动员 → 原 TRI 标注
             bool hasSwimmer = GetCurrentHeatSwimmers().Any(s => {
                 var sa = s.GetAssignmentForStage(_currentStage);
@@ -17236,20 +17236,20 @@ namespace SwimmingScoreboard
 
         private void CancelNote_Click(object sender, RoutedEventArgs e) {
             int lane;
-            if (!int.TryParse(LaneInputBox.Text, out lane)) { AddLog("请输入泳道号"); return; }
+            if (!int.TryParse(LaneInputBox.Text, out lane)) { AddLog(Loc.T("Str_Log_PleaseEnterLaneNumber")); return; }
             CancelLaneNote(lane);
         }
 
         private void BlindResult_Click(object sender, RoutedEventArgs e) {
             int lane;
-            if (!int.TryParse(LaneInputBox.Text, out lane)) { AddLog("请输入泳道号"); return; }
+            if (!int.TryParse(LaneInputBox.Text, out lane)) { AddLog(Loc.T("Str_Log_PleaseEnterLaneNumber")); return; }
             UseBlindResultForCurrentSegment(lane);
         }
 
         private void LaneOpen_Click(object sender, RoutedEventArgs e) {
             // 2026-05-30 硬件未连接弹窗
             int lane;
-            if (!int.TryParse(LaneInputBox.Text, out lane)) { AddLog("请输入泳道号"); return; }
+            if (!int.TryParse(LaneInputBox.Text, out lane)) { AddLog(Loc.T("Str_Log_PleaseEnterLaneNumber")); return; }
             if (!EnsureHardwareConnected(Loc.F("Str_Action_LaneOpenFmt", lane))) return;
             SetSingleLaneOpen(lane, true);
         }
@@ -17257,14 +17257,14 @@ namespace SwimmingScoreboard
         private void LaneClose_Click(object sender, RoutedEventArgs e) {
             // 2026-05-30 硬件未连接弹窗
             int lane;
-            if (!int.TryParse(LaneInputBox.Text, out lane)) { AddLog("请输入泳道号"); return; }
+            if (!int.TryParse(LaneInputBox.Text, out lane)) { AddLog(Loc.T("Str_Log_PleaseEnterLaneNumber")); return; }
             if (!EnsureHardwareConnected(Loc.F("Str_Action_LaneCloseFmt", lane))) return;
             SetSingleLaneOpen(lane, false);
         }
 
         private void ManualTime_Click(object sender, RoutedEventArgs e) {
             int lane;
-            if (!int.TryParse(LaneInputBox.Text, out lane)) { AddLog("请输入泳道号"); return; }
+            if (!int.TryParse(LaneInputBox.Text, out lane)) { AddLog(Loc.T("Str_Log_PleaseEnterLaneNumber")); return; }
             var dlg = new Window {
                 Title = string.Format("手动输入成绩 — 泳道{0}", lane), Width = 320, Height = 170,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner, Owner = this, ResizeMode = ResizeMode.NoResize
