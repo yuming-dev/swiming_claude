@@ -834,6 +834,18 @@ namespace SwimmingScoreboard
             { "Str_Msg_CannotUnlockRacingFmt", new[] { "正在计时({0})，不能解锁。\n\n这一组还没比完。", "Timing is in progress ({0}) — can't unlock.\n\nThis heat hasn't finished yet." } },
             { "Str_MsgTitle_NoNeedToUnlock", new[] { "不用解锁", "No Need to Unlock" } },
             { "Str_Msg_HeatNotLockedFmt", new[] { "第{0}组本来就没锁 —— 它还没点过「确认本组成绩」。\n\n成绩现在就能改。", "Heat {0} was never locked — \"Confirm Heat Result\" hasn't been pressed for it.\n\nYou can already edit its result." } },
+            { "Str_Msg_SelectRecordTypeRow", new[] { "请先选中要应用的记录类型行", "Select the record-type row to apply first." } },
+            { "Str_Msg_LabelAndNameRequired", new[] { "简称和完整名称都不能为空", "Both the short label and full name are required." } },
+            { "Str_Msg_SelectEventInTreeFirst", new[] { "请先在赛程树选定项目", "Select an event in the schedule tree first." } },
+            { "Str_Msg_NoConfirmedResultsYet", new[] { "本项目还没有任何已确认成绩 (请先确认至少一组成绩)", "This event has no confirmed results yet (confirm at least one heat first)." } },
+            { "Str_MsgTitle_EmptyLaneTri", new[] { "空道试游(TRI)", "Empty-Lane Trial (TRI)" } },
+            { "Str_Msg_SelectEventHeatForTri", new[] { "请先选择具体的比赛项目和组次, 再标注空道试游", "Select a specific event and heat first, then mark an empty-lane trial." } },
+            { "Str_Msg_ConfirmEmptyLaneTriFmt", new[] { "泳道{0} 当前无运动员。\n确定标注为【空道试游(TRI)】?\n无报名信息, 仅记录成绩并在大屏/成绩单显示, 不参与名次。", "Lane {0} currently has no swimmer.\nMark it as an [Empty-Lane Trial (TRI)]?\nNo registration info — only records a time shown on the big screen/result sheet, not ranked." } },
+            { "Str_Msg_InvalidTimeFormat", new[] { "成绩格式无效", "Invalid time format." } },
+            { "Str_MsgTitle_ConfirmManualTime", new[] { "确认手动输入", "Confirm Manual Time" } },
+            { "Str_Msg_ConfirmManualTimeFmt", new[] { "确认将泳道 {0} 的成绩手动输入为 {1}？\n\n此操作将写入数据库。", "Confirm manually entering lane {0}'s result as {1}?\n\nThis writes to the database." } },
+            { "Str_Msg_SelectPrinterFirst", new[] { "请先选择打印机", "Select a printer first." } },
+            { "Str_Msg_CannotDisconnectNotWaiting", new[] { "非 Waiting 状态不能断开 (请先按计时复位)", "Can't disconnect while not in Waiting state (press Clock Reset first)." } },
         };
 
         /// <summary>查当前语言下的文字；查不到就退回中文；中文也没有就返回 key 本身兜底。</summary>

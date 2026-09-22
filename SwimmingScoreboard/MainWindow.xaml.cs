@@ -15905,7 +15905,7 @@ namespace SwimmingScoreboard
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EF4444")), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
             btnDel.Click += delegate {
                 var sel = grid.SelectedItem as DisplayRecordOption;
-                if (sel != null) working.Remove(sel); else MessageBox.Show("请先选中一行");
+                if (sel != null) working.Remove(sel); else MessageBox.Show(Loc.T("Str_Msg_SelectRowFirst"));
             };
             btnRow.Children.Add(btnAdd);
             btnRow.Children.Add(btnDel);
@@ -15920,9 +15920,9 @@ namespace SwimmingScoreboard
             btnOk.Click += delegate {
                 try { grid.CommitEdit(DataGridEditingUnit.Cell, true); grid.CommitEdit(DataGridEditingUnit.Row, true); } catch { }
                 var sel = grid.SelectedItem as DisplayRecordOption;
-                if (sel == null) { MessageBox.Show("请先选中要应用的记录类型行"); return; }
+                if (sel == null) { MessageBox.Show(Loc.T("Str_Msg_SelectRecordTypeRow")); return; }
                 if (string.IsNullOrWhiteSpace(sel.Label) || string.IsNullOrWhiteSpace(sel.TypeName)) {
-                    MessageBox.Show("简称和完整名称都不能为空"); return;
+                    MessageBox.Show(Loc.T("Str_Msg_LabelAndNameRequired")); return;
                 }
                 var finalList = new List<DisplayRecordOption>();
                 var seen = new HashSet<string>();
@@ -16242,13 +16242,13 @@ namespace SwimmingScoreboard
             //   开销是一条轻查询; 没变动就一行成绩都不读。
             try { RefreshChangedFromDb(); } catch { }
             if (string.IsNullOrEmpty(_currentEvent) || string.IsNullOrEmpty(_currentStage)) {
-                MessageBox.Show("请先在赛程树选定项目", "操作提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show(Loc.T("Str_Msg_SelectEventInTreeFirst"), Loc.T("Str_MsgTitle_ActionTip"), MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
             // 验证至少有一组已确认
             var subList = GetEventRankingsSplit(_currentAgeGroup, _currentEvent, _currentGender);
             if (subList == null || subList.Count == 0) {
-                MessageBox.Show("本项目还没有任何已确认成绩 (请先确认至少一组成绩)", "操作提示", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(Loc.T("Str_Msg_NoConfirmedResultsYet"), Loc.T("Str_MsgTitle_ActionTip"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
@@ -17216,12 +17216,12 @@ namespace SwimmingScoreboard
         //   TRI 本身不参与名次. 取消备注时整条移除 (见 CancelLaneNote).
         private void CreateEmptyLaneTriSwimmer(int lane) {
             if (string.IsNullOrEmpty(_currentEvent) || _currentHeat <= 0) {
-                MessageBox.Show("请先选择具体的比赛项目和组次, 再标注空道试游", "空道试游(TRI)", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(Loc.T("Str_Msg_SelectEventHeatForTri"), Loc.T("Str_MsgTitle_EmptyLaneTri"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
             var r = MessageBox.Show(
-                string.Format("泳道{0} 当前无运动员。\n确定标注为【空道试游(TRI)】?\n无报名信息, 仅记录成绩并在大屏/成绩单显示, 不参与名次。", lane),
-                "空道试游(TRI)", MessageBoxButton.YesNo, MessageBoxImage.Question);
+                Loc.F("Str_Msg_ConfirmEmptyLaneTriFmt", lane),
+                Loc.T("Str_MsgTitle_EmptyLaneTri"), MessageBoxButton.YesNo, MessageBoxImage.Question);
             if (r != MessageBoxResult.Yes) return;
 
             var sw = new Swimmer {
@@ -17306,14 +17306,13 @@ namespace SwimmingScoreboard
             if (dlg.ShowDialog() == true && !string.IsNullOrEmpty(tb.Text)) {
                 double time = TimeFormatter.Parse(tb.Text.Trim());
                 if (time <= 0) {
-                    MessageBox.Show("成绩格式无效", Loc.T("Str_MsgTitle_Error"), MessageBoxButton.OK, MessageBoxImage.Error);
+                    MessageBox.Show(Loc.T("Str_Msg_InvalidTimeFormat"), Loc.T("Str_MsgTitle_Error"), MessageBoxButton.OK, MessageBoxImage.Error);
                     return;
                 }
                 // 确认对话框
                 var r = MessageBox.Show(
-                    string.Format("确认将泳道 {0} 的成绩手动输入为 {1}？\n\n此操作将写入数据库。",
-                        lane, TimeFormatter.Format(time)),
-                    "确认手动输入", MessageBoxButton.YesNo, MessageBoxImage.Question);
+                    Loc.F("Str_Msg_ConfirmManualTimeFmt", lane, TimeFormatter.Format(time)),
+                    Loc.T("Str_MsgTitle_ConfirmManualTime"), MessageBoxButton.YesNo, MessageBoxImage.Question);
                 if (r != MessageBoxResult.Yes) return;
                 OverrideLaneTime(lane, time);
             }
@@ -17459,7 +17458,7 @@ namespace SwimmingScoreboard
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6")), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
             btnTest.Click += delegate {
                 var name = combo.SelectedItem as string;
-                if (string.IsNullOrEmpty(name)) { MessageBox.Show("请先选择打印机"); return; }
+                if (string.IsNullOrEmpty(name)) { MessageBox.Show(Loc.T("Str_Msg_SelectPrinterFirst")); return; }
                 _thermalPrinter.PrinterName = name;
                 _thermalPrinter.TestPrint();
             };
@@ -17830,7 +17829,7 @@ namespace SwimmingScoreboard
             var btnRow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 16, 0, 0) };
             var btnDisc = new Button { Content = "断开硬件", Padding = new Thickness(14, 6, 14, 6), Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EF4444")), Foreground = Brushes.White, BorderThickness = new Thickness(0), Margin = new Thickness(0, 0, 8, 0) };
             btnDisc.Click += delegate {
-                if (_raceState != RaceState.Waiting) { MessageBox.Show("非 Waiting 状态不能断开 (请先按计时复位)", Loc.T("Str_MsgTitle_Info")); return; }
+                if (_raceState != RaceState.Waiting) { MessageBox.Show(Loc.T("Str_Msg_CannotDisconnectNotWaiting"), Loc.T("Str_MsgTitle_Info")); return; }
                 if (_timingBridge != null) _timingBridge.Disconnect();
                 UpdateConnectionStatus();
                 try { UpdateQuickConnectButton(); } catch { }
