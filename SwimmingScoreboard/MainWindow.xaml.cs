@@ -21746,7 +21746,7 @@ namespace SwimmingScoreboard
             // 2026-06-18 加"组别"传递, 修临时加人 AgeCategory 丢失
             string ageGroup = EditAgeGroupCombo != null && EditAgeGroupCombo.SelectedItem != null ? EditAgeGroupCombo.SelectedItem.ToString() : "";
             if (string.IsNullOrEmpty(gender) || string.IsNullOrEmpty(eventName) || string.IsNullOrEmpty(stage)) {
-                MessageBox.Show("请先在上方选择性别、项目、赛次后再临时加人。", Loc.T("Str_MsgTitle_Info")); return;
+                MessageBox.Show(Loc.T("Str_Msg_SelectFiltersBeforeTempAdd"), Loc.T("Str_MsgTitle_Info")); return;
             }
 
             bool isRelay = eventName.Contains("接力");
@@ -21805,12 +21805,12 @@ namespace SwimmingScoreboard
             string entryTimeStr = (tbEntryTime.Text ?? "").Trim();
             int ageVal = 0; int.TryParse((tbAge.Text ?? "").Trim(), out ageVal);
 
-            if (string.IsNullOrEmpty(name)) { MessageBox.Show("姓名不能为空"); return; }
+            if (string.IsNullOrEmpty(name)) { MessageBox.Show(Loc.T("Str_Msg_NameRequired")); return; }
             // 2026-07-03 空 bib 自动分配唯一号 (= 修 EditSwapLane_Click 用 BibNumber 查找致
             //   多个空 bib 临时加人 FirstOrDefault 永远匹配第 1 个, 无法交换第 2+ 个泳道)
             if (string.IsNullOrEmpty(bib)) bib = GenerateNextBibNumber(country);
             if (!string.IsNullOrEmpty(bib) && _swimmers.Any(s => s.BibNumber == bib)) {
-                MessageBox.Show(string.Format("号码 {0} 已存在，请使用唯一号码。", bib)); return;
+                MessageBox.Show(Loc.F("Str_Msg_BibAlreadyExistsFmt", bib)); return;
             }
 
             double entrySec = 0;
@@ -21828,7 +21828,7 @@ namespace SwimmingScoreboard
             UpdateEditHeatCombo();
             RefreshEditPreview();
             AddLog(string.Format("临时加人: {0} 加入 {1} {2} {3}（未分组，请手动放入组/道）", name, gender, eventName, stage));
-            MessageBox.Show(string.Format("已添加 {0}。\n请使用“增加到本组”或“交换泳道→空道”将其放入具体组/道。", name), "临时加人完成");
+            MessageBox.Show(Loc.F("Str_Msg_TempAddedSwimmerFmt", name), Loc.T("Str_MsgTitle_TempAddDone"));
         }
 
         private void AddTempRelayTeam(string ageGroup, string gender, string eventName, string stage) {
@@ -21897,9 +21897,9 @@ namespace SwimmingScoreboard
 
             string teamName = (tbTeam.Text ?? "").Trim();
             string entryTimeStr = (tbEntryTime.Text ?? "").Trim();
-            if (string.IsNullOrEmpty(teamName)) { MessageBox.Show("队名不能为空"); return; }
+            if (string.IsNullOrEmpty(teamName)) { MessageBox.Show(Loc.T("Str_Msg_TeamNameRequired")); return; }
             if (_swimmers.Any(s => s.EventName == eventName && s.Country == teamName && s.Notes != null && s.Notes.StartsWith("接力队 棒次:"))) {
-                MessageBox.Show(string.Format("代表队 \"{0}\" 已在本项目报名过接力队。", teamName)); return;
+                MessageBox.Show(Loc.F("Str_Msg_TeamAlreadyInEventFmt", teamName)); return;
             }
 
             double entrySec = 0;
@@ -21953,7 +21953,7 @@ namespace SwimmingScoreboard
             UpdateEditHeatCombo();
             RefreshEditPreview();
             AddLog(string.Format("临时加接力队: {0} ({1}) → {2} {3}（未分组，请手动放入组/道）", teamName, eventName, gender, stage));
-            MessageBox.Show(string.Format("已添加接力队 {0}。\n请使用“增加到本组”或“交换泳道→空道”将其放入具体组/道。", teamName), "临时加人完成");
+            MessageBox.Show(Loc.F("Str_Msg_TempAddedRelayFmt", teamName), Loc.T("Str_MsgTitle_TempAddDone"));
         }
 
         private void EditSaveChanges_Click(object sender, RoutedEventArgs e) {
@@ -21961,7 +21961,7 @@ namespace SwimmingScoreboard
             AutoSaveData();
             Broadcast();
             BuildScheduleTree();
-            MessageBox.Show("编排修改已保存！", "保存成功");
+            MessageBox.Show(Loc.T("Str_Msg_LineupChangesSaved"), Loc.T("Str_MsgTitle_SaveSuccess"));
             AddLog("出场编排修改已保存");
         }
         private void FilterGender_Changed(object sender, SelectionChangedEventArgs e) { if (_initialized) RefreshSwimmerFilter(); }
@@ -22023,7 +22023,7 @@ namespace SwimmingScoreboard
         private ScheduleItem _selectedScheduleItem;
 
         private void AddSchedule_Click(object sender, RoutedEventArgs e) {
-            if (MessageBox.Show("确定要添加一条新的赛程项？\n（将插入到选中行后面，未选中则添加到末尾）", Loc.T("Str_MsgTitle_Confirm"), MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
+            if (MessageBox.Show(Loc.T("Str_Msg_ConfirmAddScheduleItem"), Loc.T("Str_MsgTitle_Confirm"), MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
 
             // 根据选中行确定插入位置和场号
             int insertIndex = _schedule.Count;
