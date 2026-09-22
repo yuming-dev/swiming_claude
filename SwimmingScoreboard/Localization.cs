@@ -2681,6 +2681,20 @@ namespace SwimmingScoreboard
             { "Str_Win_SaveScheduleTemplate_Title", new[] { "保存日程表模板", "Save Schedule Template" } },
             { "Str_Win_ExportHeatAssignmentsExcel_Title", new[] { "导出分组表 (Excel)", "Export Heat Assignments (Excel)" } },
             { "Str_Win_ImportHeatAssignmentsExcel_Title", new[] { "导入分组表 (Excel)", "Import Heat Assignments (Excel)" } },
+            { "Str_Win_ImportOtherScheduleExcel_Title", new[] { "导入(其他)日程表 — 9 列格式 (场次/时间/编号/性别/组别/项目/赛次/人(队)数/组数)", "Import Schedule (Other Format) — 9-column (Session/Time/No./Gender/Group/Event/Stage/Count/Heats)" } },
+            { "Str_Win_ImportOtherAssignExcel_Title", new[] { "导入(其他)分组表 — 网格式 (项目 block + 组号×道次)", "Import Heat Assignments (Other Format) — Grid (event blocks + heat x lane)" } },
+            { "Str_Win_ImportOtherSwimmerInfoExcel_Title", new[] { "导入(其他)运动员信息 — 单项明细格式 (R1 大标题, R2 表头, R3 起数据)", "Import Swimmer Info (Other Format) — Per-Event Detail (R1 title, R2 header, R3+ data)" } },
+            { "Str_Win_SaveHeatAssignmentsExcelTemplate_Title", new[] { "保存分组表 Excel 模板", "Save Heat Assignments Excel Template" } },
+            { "Str_Win_ExportHeatAssignmentsCsv_Title", new[] { "导出分组表", "Export Heat Assignments" } },
+            { "Str_Win_ImportHeatAssignmentsCsv_Title", new[] { "导入分组表（表头: 组别,性别,项目,阶段,组号,道次,参赛号,姓名,代表队,报名成绩）", "Import Heat Assignments (header: Group,Gender,Event,Stage,Heat,Lane,Bib,Name,Team,Entry Time)" } },
+            { "Str_Win_SaveHeatAssignmentsTemplate_Title", new[] { "保存分组表模板", "Save Heat Assignments Template" } },
+            { "Str_Win_ExportResultBookDocHtml_Title", new[] { "导出成绩册为 DOC / HTML", "Export Result Book as DOC / HTML" } },
+            { "Str_Win_SaveResultTxt_Title", new[] { "保存成绩 txt 文件", "Save Result txt File" } },
+            { "Str_Win_ExportScheduleExcel_Title", new[] { "导出竞赛日程 Excel", "Export Competition Schedule (Excel)" } },
+            { "Str_Win_ExportHeatAssignmentsGridExcel_Title", new[] { "导出分组表 Excel", "Export Heat Assignments (Excel)" } },
+            { "Str_Win_ExportRunLog_Title", new[] { "导出运行日志", "Export Run Log" } },
+            { "Str_Fmt_ImportTableTitle", new[] { "导入{0}表（表头: {0}名称）", "Import {0} List (header: {0} Name)" } },
+            { "Str_Win_ImportRelayLegListFmt", new[] { "读入 第{0}场 的接力棒次名单", "Import Relay Leg List — Session {0}" } },
         };
 
         /// <summary>查当前语言下的文字；查不到就退回中文；中文也没有就返回 key 本身兜底。</summary>
