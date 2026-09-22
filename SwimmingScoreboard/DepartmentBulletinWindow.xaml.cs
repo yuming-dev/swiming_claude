@@ -45,7 +45,7 @@ namespace SwimmingScoreboard
                 .OrderBy(c => c)
                 .ToList();
             foreach (var u in units) UnitListBox.Items.Add(u);
-            UnitSummaryText.Text = string.Format("共 {0} 个单位", units.Count);
+            UnitSummaryText.Text = Loc.F("Str_Win_DeptBulletin_UnitCountFmt", units.Count);
         }
 
         private void SelectAll_Click(object sender, RoutedEventArgs e) {
@@ -57,10 +57,10 @@ namespace SwimmingScoreboard
 
         private void Generate_Click(object sender, RoutedEventArgs e) {
             var selected = UnitListBox.SelectedItems.Cast<string>().ToList();
-            if (selected.Count == 0) { MessageBox.Show("请先勾选要生成公告的单位", "提示"); return; }
+            if (selected.Count == 0) { MessageBox.Show(Loc.T("Str_Win_DeptBulletin_MsgSelectUnitFirst"), Loc.T("Str_MsgTitle_Info")); return; }
 
             var dlg = new System.Windows.Forms.FolderBrowserDialog {
-                Description = "选择公告保存目录",
+                Description = Loc.T("Str_Win_DeptBulletin_FolderPickTitle"),
                 ShowNewFolderButton = true
             };
             if (dlg.ShowDialog() != System.Windows.Forms.DialogResult.OK) return;
@@ -79,7 +79,7 @@ namespace SwimmingScoreboard
                 genCount++;
             }
 
-            GenStatusText.Text = string.Format("✔ 已生成 {0} 份公告到 {1}", genCount, outDir);
+            GenStatusText.Text = Loc.F("Str_Win_DeptBulletin_MsgGeneratedFmt", genCount, outDir);
             try { Process.Start(outDir); } catch { }
         }
 
@@ -231,7 +231,7 @@ namespace SwimmingScoreboard
         }
 
         private static string MakeSafeFileName(string s) {
-            if (string.IsNullOrEmpty(s)) return "未命名";
+            if (string.IsNullOrEmpty(s)) return Loc.T("Str_Win_DeptBulletin_Unnamed");
             var bad = Path.GetInvalidFileNameChars();
             var sb = new StringBuilder();
             foreach (var c in s) sb.Append(Array.IndexOf(bad, c) >= 0 ? '_' : c);
