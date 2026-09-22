@@ -20323,12 +20323,12 @@ namespace SwimmingScoreboard
             var team = _selectedRelayTeam;
             if (team == null) { MessageBox.Show(Loc.T("Str_Msg_SelectRelayFirst")); return; }
             var leg = RelayLegGrid.SelectedItem as RelayLeg;
-            if (leg == null) { MessageBox.Show("请在棒次表中选中要更换的队员"); return; }
+            if (leg == null) { MessageBox.Show(Loc.T("Str_Msg_SelectLegToReplace")); return; }
             string lockKey = "relay:" + (team.TeamName ?? "") + "|" + (team.EventName ?? "");
             string holder;
             if (!TryAcquireEditLock(lockKey, out holder)) {
                 MessageBox.Show(
-                    string.Format("接力队 [{0}] 正在被 {1} 编辑，请稍后再试。", team.TeamName, holder),
+                    Loc.F("Str_Msg_RelayBeingEditedFmt", team.TeamName, holder),
                     Loc.T("Str_MsgTitle_CannotEdit"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
@@ -20481,7 +20481,7 @@ namespace SwimmingScoreboard
             string holder;
             if (!TryAcquireEditLock(lockKey, out holder)) {
                 MessageBox.Show(
-                    string.Format("接力队 [{0}] 正在被 {1} 编辑，请稍后再试。", team.TeamName, holder),
+                    Loc.F("Str_Msg_RelayBeingEditedFmt", team.TeamName, holder),
                     Loc.T("Str_MsgTitle_CannotSave"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
@@ -20549,7 +20549,7 @@ namespace SwimmingScoreboard
             RebuildRelayGroupedView();
             AutoSaveData();
             Broadcast();
-            MessageBox.Show("接力队棒次修改已保存！", "保存成功");
+            MessageBox.Show(Loc.T("Str_Msg_RelayLegsSaved"), Loc.T("Str_MsgTitle_SaveSuccess"));
         }
 
         /// <summary>
@@ -20558,7 +20558,7 @@ namespace SwimmingScoreboard
         private void SyncRelayHeatInfo_Click(object sender, RoutedEventArgs e) {
             SyncRelayHeatInfo();
             RebuildRelayGroupedView();
-            MessageBox.Show(string.Format("已同步接力队的组数和道次信息。"), "同步完成");
+            MessageBox.Show(Loc.T("Str_Msg_RelayHeatInfoSynced"), Loc.T("Str_MsgTitle_SyncDone"));
         }
 
         /// <summary>
@@ -20681,7 +20681,7 @@ namespace SwimmingScoreboard
 
             foreach (var ev in _regEventList) {
                 if (ev.Item1 == eventName) {
-                    MessageBox.Show("已添加此项目，不能重复！", Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Warning);
+                    MessageBox.Show(Loc.T("Str_Msg_EventAlreadyAdded"), Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
             }
@@ -20692,7 +20692,7 @@ namespace SwimmingScoreboard
 
         private void RegRemoveEvent_Click(object sender, RoutedEventArgs e) {
             int idx = RegEventListBox.SelectedIndex;
-            if (idx < 0 || idx >= _regEventList.Count) { MessageBox.Show("请先选中要删除的项目"); return; }
+            if (idx < 0 || idx >= _regEventList.Count) { MessageBox.Show(Loc.T("Str_Msg_SelectEventToDelete")); return; }
             _regEventList.RemoveAt(idx);
             RefreshRegEventList();
         }
