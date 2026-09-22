@@ -23894,8 +23894,8 @@ namespace SwimmingScoreboard
             var btnReset = new Button { Content = "恢复默认", Padding = new Thickness(16, 6, 16, 6), Margin = new Thickness(0, 0, 8, 0),
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
             btnReset.Click += delegate {
-                if (MessageBox.Show("将所有数值恢复为系统默认（个人 12/10/8/7/6/5/4/3，接力 24/20/16/14/12/10/8/6，青少年/少年=0.8、大师=0.7，取分前 8 名；种子组数 短3/长2）。继续？",
-                    "恢复默认", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes) {
+                if (MessageBox.Show(Loc.T("Str_Msg_ConfirmResetScoringDefaults"),
+                    Loc.T("Str_MsgTitle_ResetDefaults"), MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes) {
                     _scoringConfig.ResetToDefaults();
                     dlg.DialogResult = false;
                     dlg.Close();
@@ -23910,7 +23910,7 @@ namespace SwimmingScoreboard
             btnOK.Click += delegate {
                 int cutoff;
                 if (!int.TryParse(cutoffBox.Text.Trim(), out cutoff) || cutoff < 1 || cutoff > 50) {
-                    MessageBox.Show("取分人数必须是 1–50 的整数。", "输入错误", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    MessageBox.Show(Loc.T("Str_Msg_RankCutoffRange"), Loc.T("Str_MsgTitle_InputError"), MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
                 double bonus;
@@ -23974,7 +23974,7 @@ namespace SwimmingScoreboard
             string heatFilter = ResultHeatCombo != null && ResultHeatCombo.SelectedItem != null ? ((ComboBoxItem)ResultHeatCombo.SelectedItem).Content.ToString() : "全部";
 
             if (string.IsNullOrEmpty(eventName)) {
-                MessageBox.Show("请先在上面选好组别/性别/项目/阶段。", "裁判长改成绩", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show(Loc.T("Str_Msg_SelectFiltersForChiefJudge"), Loc.T("Str_MsgTitle_ChiefJudgeEdit"), MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
             int heat = 0;
@@ -23983,8 +23983,8 @@ namespace SwimmingScoreboard
                 if (m.Success) heat = int.Parse(m.Value);
             }
             if (heat <= 0) {
-                MessageBox.Show("请把上面的「组」下拉框选到具体的第几组(不能选\"全部\") —— 这个窗口一次只改一组。",
-                    "裁判长改成绩", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show(Loc.T("Str_Msg_SelectSpecificHeatForChiefJudge"),
+                    Loc.T("Str_MsgTitle_ChiefJudgeEdit"), MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
 
@@ -24086,12 +24086,12 @@ namespace SwimmingScoreboard
         private void ViewRawData_Click(object sender, RoutedEventArgs e) {
             string dir = IOPath.Combine(AppDomain.CurrentDomain.BaseDirectory, "Database", "RawData");
             if (!Directory.Exists(dir)) {
-                MessageBox.Show("暂无原始数据文件。\n\n原始数据在比赛确认成绩后自动保存到:\n" + dir, Loc.T("Str_MsgTitle_Info"));
+                MessageBox.Show(Loc.F("Str_Msg_NoRawDataFilesDirFmt", dir), Loc.T("Str_MsgTitle_Info"));
                 return;
             }
             var files = Directory.GetFiles(dir, "*.txt").OrderByDescending(f => File.GetLastWriteTime(f)).ToArray();
             if (files.Length == 0) {
-                MessageBox.Show("暂无原始数据文件。", Loc.T("Str_MsgTitle_Info"));
+                MessageBox.Show(Loc.T("Str_Msg_NoRawDataFiles"), Loc.T("Str_MsgTitle_Info"));
                 return;
             }
 
@@ -24152,9 +24152,9 @@ namespace SwimmingScoreboard
                 string txtFile = sel.Tag.ToString();
                 string htmlFile = IOPath.ChangeExtension(txtFile, ".html");
                 if (File.Exists(htmlFile)) {
-                    try { Process.Start(htmlFile); } catch (Exception ex2) { MessageBox.Show("打开失败: " + ex2.Message); }
+                    try { Process.Start(htmlFile); } catch (Exception ex2) { MessageBox.Show(Loc.F("Str_Msg_OpenFailedFmt", ex2.Message)); }
                 } else {
-                    MessageBox.Show("对应的HTML文件不存在。\n\n该文件可能是旧版本保存的，请重新确认成绩以生成HTML版本。", Loc.T("Str_MsgTitle_Info"));
+                    MessageBox.Show(Loc.T("Str_Msg_HtmlFileMissing"), Loc.T("Str_MsgTitle_Info"));
                 }
             };
             topPanel.Children.Add(combo);
