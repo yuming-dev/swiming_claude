@@ -17,7 +17,7 @@ namespace SwimmingScoreboard
         private static readonly Brush ErrorBorder = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EF4444"));
         private bool _suppressValidate;
         // 2026-07-09 "无组别" 特殊显示标签, 保存时映射回空串
-        private const string NoAgeGroupLabel = "(无组别)";
+        private static string NoAgeGroupLabel { get { return Loc.T("Str_Win_EditRelay_NoAgeGroupLabel"); } }
 
         // 留给外部读取的"用户最终确认"标志
         public bool Confirmed { get; private set; }
@@ -98,37 +98,37 @@ namespace SwimmingScoreboard
             bool teamOk = !string.IsNullOrWhiteSpace(TeamNameBox.Text);
             TeamNameBox.BorderBrush = teamOk ? _normalBorder : ErrorBorder;
             TeamNameBox.BorderThickness = teamOk ? new Thickness(1) : new Thickness(2);
-            if (!teamOk) errors.Add("队名");
+            if (!teamOk) errors.Add(Loc.T("Str_Win_EditRelay_FieldTeamName"));
 
             bool countryOk = !string.IsNullOrWhiteSpace(CountryBox.Text);
             CountryBox.BorderBrush = countryOk ? _normalBorder : ErrorBorder;
             CountryBox.BorderThickness = countryOk ? new Thickness(1) : new Thickness(2);
-            if (!countryOk) errors.Add("单位");
+            if (!countryOk) errors.Add(Loc.T("Str_Win_EditRelay_FieldUnit"));
 
             bool evOk = EventBox.SelectedItem != null && !string.IsNullOrEmpty(EventBox.SelectedItem as string);
             EventBox.BorderBrush = evOk ? _normalBorder : ErrorBorder;
             EventBox.BorderThickness = evOk ? new Thickness(1) : new Thickness(2);
-            if (!evOk) errors.Add("项目");
+            if (!evOk) errors.Add(Loc.T("Str_Win_EditRelay_FieldEvent"));
 
             // 2026-07-09 允许 "(无组别)" 选项 (映射回空串). 只要有 SelectedItem 即视为已选.
             bool ageOk = AgeGroupBox.SelectedItem != null;
             AgeGroupBox.BorderBrush = ageOk ? _normalBorder : ErrorBorder;
             AgeGroupBox.BorderThickness = ageOk ? new Thickness(1) : new Thickness(2);
-            if (!ageOk) errors.Add("组别");
+            if (!ageOk) errors.Add(Loc.T("Str_Win_EditRelay_FieldAgeGroup"));
 
             var legBoxes = new[] { Leg1Box, Leg2Box, Leg3Box, Leg4Box };
             for (int i = 0; i < 4; i++) {
                 bool ok = !string.IsNullOrWhiteSpace(legBoxes[i].Text);
                 legBoxes[i].BorderBrush = ok ? _normalBorder : ErrorBorder;
                 legBoxes[i].BorderThickness = ok ? new Thickness(1) : new Thickness(2);
-                if (!ok) errors.Add(string.Format("第 {0} 棒姓名", i + 1));
+                if (!ok) errors.Add(Loc.F("Str_Win_EditRelay_FieldLegNameFmt", i + 1));
             }
 
             if (errors.Count == 0) {
                 ValidationBar.Visibility = Visibility.Collapsed;
                 SaveBtn.IsEnabled = true;
             } else {
-                ValidationText.Text = "⚠ 以下必填字段未填: " + string.Join(", ", errors);
+                ValidationText.Text = Loc.T("Str_Win_EditRelay_ValidationPrefix") + string.Join(", ", errors);
                 ValidationBar.Visibility = Visibility.Visible;
                 SaveBtn.IsEnabled = false;
             }
@@ -148,25 +148,25 @@ namespace SwimmingScoreboard
             string newEntryTime = EntryTimeBox.Text.Trim();
             var newLegs = new[] { Leg1Box.Text.Trim(), Leg2Box.Text.Trim(), Leg3Box.Text.Trim(), Leg4Box.Text.Trim() };
 
-            if (newName != (_backup.TeamName ?? "")) changes.Add(string.Format("队名: {0} → {1}", _backup.TeamName, newName));
-            if (newCountry != (_backup.Country ?? "")) changes.Add(string.Format("单位: {0} → {1}", _backup.Country, newCountry));
-            if (newEvent != (_backup.EventName ?? "")) changes.Add(string.Format("项目: {0} → {1}", _backup.EventName, newEvent));
-            if ((newAgeGroup ?? "") != (_backup.AgeGroup ?? "")) changes.Add(string.Format("组别: {0} → {1}", _backup.AgeGroup, newAgeGroup));
-            if (newGender != (_backup.Gender ?? "")) changes.Add(string.Format("性别: {0} → {1}", _backup.Gender, newGender));
-            if (newEntryTime != (_backup.EntryTime ?? "")) changes.Add(string.Format("报名成绩: {0} → {1}", _backup.EntryTime, newEntryTime));
+            if (newName != (_backup.TeamName ?? "")) changes.Add(Loc.F("Str_Win_EditRelay_DiffTeamNameFmt", _backup.TeamName, newName));
+            if (newCountry != (_backup.Country ?? "")) changes.Add(Loc.F("Str_Win_EditRelay_DiffUnitFmt", _backup.Country, newCountry));
+            if (newEvent != (_backup.EventName ?? "")) changes.Add(Loc.F("Str_Win_EditRelay_DiffEventFmt", _backup.EventName, newEvent));
+            if ((newAgeGroup ?? "") != (_backup.AgeGroup ?? "")) changes.Add(Loc.F("Str_Win_EditRelay_DiffAgeGroupFmt", _backup.AgeGroup, newAgeGroup));
+            if (newGender != (_backup.Gender ?? "")) changes.Add(Loc.F("Str_Win_EditRelay_DiffGenderFmt", _backup.Gender, newGender));
+            if (newEntryTime != (_backup.EntryTime ?? "")) changes.Add(Loc.F("Str_Win_EditRelay_DiffEntryTimeFmt", _backup.EntryTime, newEntryTime));
             for (int i = 0; i < 4; i++) {
                 string oldLeg = i < _backup.LegNames.Length ? _backup.LegNames[i] : "";
-                if (newLegs[i] != oldLeg) changes.Add(string.Format("第 {0} 棒: {1} → {2}", i + 1, oldLeg, newLegs[i]));
+                if (newLegs[i] != oldLeg) changes.Add(Loc.F("Str_Win_EditRelay_DiffLegFmt", i + 1, oldLeg, newLegs[i]));
             }
 
             if (changes.Count == 0) {
-                MessageBox.Show("没有任何修改", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show(Loc.T("Str_Win_EditRelay_MsgNoChanges"), Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
 
             // 二次确认
-            string summary = "确认保存以下修改？\n\n  • " + string.Join("\n  • ", changes);
-            var res = MessageBox.Show(summary, "保存确认", MessageBoxButton.OKCancel, MessageBoxImage.Question);
+            string summary = Loc.T("Str_Win_EditRelay_ConfirmSavePrefix") + string.Join("\n  • ", changes);
+            var res = MessageBox.Show(summary, Loc.T("Str_Win_EditRelay_MsgTitleSaveConfirm"), MessageBoxButton.OKCancel, MessageBoxImage.Question);
             if (res != MessageBoxResult.OK) return;
 
             // 应用到 _team
@@ -197,7 +197,7 @@ namespace SwimmingScoreboard
                 || Leg3Box.Text.Trim() != (_backup.LegNames.Length > 2 ? _backup.LegNames[2] : "")
                 || Leg4Box.Text.Trim() != (_backup.LegNames.Length > 3 ? _backup.LegNames[3] : "");
             if (hasChanges) {
-                var res = MessageBox.Show("有未保存的修改，确认放弃？", "取消确认",
+                var res = MessageBox.Show(Loc.T("Str_Win_EditRelay_MsgConfirmDiscard"), Loc.T("Str_Win_EditRelay_MsgTitleCancelConfirm"),
                     MessageBoxButton.YesNo, MessageBoxImage.Question);
                 if (res != MessageBoxResult.Yes) return;
             }
