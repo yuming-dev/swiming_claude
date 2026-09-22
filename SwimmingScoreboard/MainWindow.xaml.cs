@@ -28993,11 +28993,11 @@ namespace SwimmingScoreboard
                 foreach (var r in working) {
                     string name = (r.Name ?? "").Trim();
                     if (string.IsNullOrEmpty(name)) continue;
-                    if (seen.Contains(name)) { MessageBox.Show(string.Format("组别 [{0}] 重复。", name)); return; }
+                    if (seen.Contains(name)) { MessageBox.Show(Loc.F("Str_Msg_DuplicateAgeGroupFmt", name)); return; }
                     seen.Add(name);
                     finalList.Add(new AgeGroup { Name = name, MinAge = r.MinAge, MaxAge = r.MaxAge });
                 }
-                if (finalList.Count == 0) { MessageBox.Show("至少保留一个组别"); return; }
+                if (finalList.Count == 0) { MessageBox.Show(Loc.T("Str_Msg_KeepAtLeastOneAgeGroup")); return; }
                 _ageGroups = finalList;
                 AgeGroupRegistry.Set(_ageGroups);
                 RefreshAgeGroupsPreview();
@@ -29028,7 +29028,7 @@ namespace SwimmingScoreboard
                 sb.AppendLine("比赛项目");
                 foreach (var ev in _events) sb.AppendLine(CsvEscape(ev));
                 File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
-                MessageBox.Show("比赛项目表已导出。", Loc.T("Str_MsgTitle_Done"));
+                MessageBox.Show(Loc.T("Str_Msg_EventsTableExported"), Loc.T("Str_MsgTitle_Done"));
             } catch (Exception ex) { MessageBox.Show(Loc.F("Str_Msg_ExportFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error")); }
         }
 
@@ -29042,7 +29042,7 @@ namespace SwimmingScoreboard
             if (ext == ".xls" || ext == ".xlsx") {
                 MessageBox.Show(Loc.T("Str_Msg_XlsxReadFailedTip"), Loc.T("Str_MsgTitle_FormatNote")); return;
             }
-            if (MessageBox.Show("导入将替换当前比赛项目列表。继续？", Loc.T("Str_MsgTitle_Confirm"), MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
+            if (MessageBox.Show(Loc.T("Str_Msg_ImportReplacesListConfirm"), Loc.T("Str_MsgTitle_Confirm"), MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
             try {
                 var rows = ReadCsvLines(dlg.FileName);
                 var finalList = new List<string>();
@@ -29059,13 +29059,13 @@ namespace SwimmingScoreboard
                     seen.Add(name);
                     finalList.Add(name);
                 }
-                if (finalList.Count == 0) { MessageBox.Show("未读取到有效项目行"); return; }
+                if (finalList.Count == 0) { MessageBox.Show(Loc.T("Str_Msg_NoValidEventRows")); return; }
                 _events = finalList;
                 RefreshEventsPreview();
                 FinishAndSyncPatch(BuildListSetPatch("events", JArray.FromObject(_events), ClientLabel()), "meet");
                 NotifyMetadataChanged();
                 AddLog(string.Format("导入比赛项目: 共{0}条", _events.Count));
-                MessageBox.Show(string.Format("已导入 {0} 条比赛项目。", _events.Count), Loc.T("Str_MsgTitle_Done"));
+                MessageBox.Show(Loc.F("Str_Msg_ImportedNEventsFmt", _events.Count), Loc.T("Str_MsgTitle_Done"));
             } catch (Exception ex) { MessageBox.Show(Loc.F("Str_Msg_ImportFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error")); }
         }
 
@@ -29082,7 +29082,7 @@ namespace SwimmingScoreboard
                 sb.AppendLine("4×50米自由泳接力");
                 sb.AppendLine("4×100米混合泳接力");
                 File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
-                MessageBox.Show("比赛项目模板已保存。", Loc.T("Str_MsgTitle_Done"));
+                MessageBox.Show(Loc.T("Str_Msg_EventsTemplateSaved"), Loc.T("Str_MsgTitle_Done"));
             } catch (Exception ex) { MessageBox.Show(Loc.F("Str_Msg_SaveFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error")); }
         }
 
@@ -29095,7 +29095,7 @@ namespace SwimmingScoreboard
                 sb.AppendLine("组别名称");
                 foreach (var g in _ageGroups) sb.AppendLine(CsvEscape(g.Name));
                 File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
-                MessageBox.Show("组别表已导出。", Loc.T("Str_MsgTitle_Done"));
+                MessageBox.Show(Loc.T("Str_Msg_AgeGroupsTableExported"), Loc.T("Str_MsgTitle_Done"));
             } catch (Exception ex) { MessageBox.Show(Loc.F("Str_Msg_ExportFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error")); }
         }
 
@@ -29109,7 +29109,7 @@ namespace SwimmingScoreboard
             if (ext == ".xls" || ext == ".xlsx") {
                 MessageBox.Show(Loc.T("Str_Msg_XlsxReadFailedTip"), Loc.T("Str_MsgTitle_FormatNote")); return;
             }
-            if (MessageBox.Show("导入将替换当前组别列表。继续？", Loc.T("Str_MsgTitle_Confirm"), MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
+            if (MessageBox.Show(Loc.T("Str_Msg_ImportReplacesListConfirm"), Loc.T("Str_MsgTitle_Confirm"), MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
             try {
                 var rows = ReadCsvLines(dlg.FileName);
                 var finalList = new List<AgeGroup>();
@@ -29129,7 +29129,7 @@ namespace SwimmingScoreboard
                     if (c.Length > 2) int.TryParse((c[2] ?? "").Trim(), out maxA);
                     finalList.Add(new AgeGroup { Name = name, MinAge = minA, MaxAge = maxA });
                 }
-                if (finalList.Count == 0) { MessageBox.Show("未读取到有效组别"); return; }
+                if (finalList.Count == 0) { MessageBox.Show(Loc.T("Str_Msg_NoValidAgeGroups")); return; }
                 _ageGroups = finalList;
                 AgeGroupRegistry.Set(_ageGroups);
                 RefreshAgeGroupsPreview();
@@ -29140,7 +29140,7 @@ namespace SwimmingScoreboard
                 FinishAndSyncPatch(BuildListSetPatch("ageGroups", JArray.FromObject(_ageGroups), ClientLabel()), "meet");
                 NotifyMetadataChanged();
                 AddLog(string.Format("导入组别: 共{0}条", _ageGroups.Count));
-                MessageBox.Show(string.Format("已导入 {0} 个组别。", _ageGroups.Count), Loc.T("Str_MsgTitle_Done"));
+                MessageBox.Show(Loc.F("Str_Msg_ImportedNAgeGroupsFmt", _ageGroups.Count), Loc.T("Str_MsgTitle_Done"));
             } catch (Exception ex) { MessageBox.Show(Loc.F("Str_Msg_ImportFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error")); }
         }
 
@@ -29158,7 +29158,7 @@ namespace SwimmingScoreboard
                 sb.AppendLine("戊组");
                 sb.AppendLine("己组");
                 File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
-                MessageBox.Show("组别模板已保存。", Loc.T("Str_MsgTitle_Done"));
+                MessageBox.Show(Loc.T("Str_Msg_AgeGroupsTemplateSaved"), Loc.T("Str_MsgTitle_Done"));
             } catch (Exception ex) { MessageBox.Show(Loc.F("Str_Msg_SaveFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error")); }
         }
 
