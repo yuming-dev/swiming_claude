@@ -819,7 +819,7 @@ namespace SwimmingScoreboard
             // 2026-06-17 顶端右侧加"硬件连接"按钮 (RTC 上方便, 主服务器有原入口也可加)
             if (IsRemoteTimingControlMode) {
                 var btnHwConn = new Button {
-                    Content = "硬件连接",
+                    Content = Loc.T("Str_Btn_HwConnLabel"),
                     Padding = new Thickness(10, 2, 10, 2), FontSize = 12,
                     Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#DC2626")),
                     Foreground = Brushes.White, BorderThickness = new Thickness(0),
@@ -843,7 +843,7 @@ namespace SwimmingScoreboard
             };
             parent.Children.Add(_editorSyncHostBox);
             _editorSyncConnectButton = new Button {
-                Content = "连接", Padding = new Thickness(10, 2, 10, 2), FontSize = 12,
+                Content = Loc.T("Str_Btn_Connect"), Padding = new Thickness(10, 2, 10, 2), FontSize = 12,
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6")),
                 Foreground = Brushes.White, BorderThickness = new Thickness(0),
                 Margin = new Thickness(0, 0, 8, 0)
@@ -940,7 +940,7 @@ namespace SwimmingScoreboard
             try {
                 string host = _editorSyncHostBox != null ? (_editorSyncHostBox.Text ?? "").Trim() : "127.0.0.1";
                 if (string.IsNullOrEmpty(host)) host = "127.0.0.1";
-                UpdateEditorSyncStatus("连接中…", "#F59E0B");
+                UpdateEditorSyncStatus(Loc.T("Str_SyncStatus_Connecting"), "#F59E0B");
                 _editorSyncClient.Connect(host, 3002);
                 var hello = new JObject();
                 hello["type"] = "EDITOR_IDENTITY";
@@ -995,7 +995,7 @@ namespace SwimmingScoreboard
                 if (IsTimingClientMode || IsScheduleEditorMode) BindMeetServiceToHost(host);
             } catch (Exception ex) {
                 AddLog(Loc.F("Str_Log_ConnectMainServerFailedFmt", ex.Message));
-                UpdateEditorSyncStatus("离线", "#94A3B8");
+                UpdateEditorSyncStatus(Loc.T("Str_SyncStatus_Offline"), "#94A3B8");
             }
         }
 
@@ -1102,8 +1102,8 @@ namespace SwimmingScoreboard
         }
 
         private void OnEditorSyncConnected() {
-            UpdateEditorSyncStatus("已连接", "#22C55E");
-            if (_editorSyncConnectButton != null) _editorSyncConnectButton.Content = "断开";
+            UpdateEditorSyncStatus(Loc.T("Str_SyncStatus_Connected"), "#22C55E");
+            if (_editorSyncConnectButton != null) _editorSyncConnectButton.Content = Loc.T("Str_Btn_Disconnect");
             // 2026-08-29 服务器回来了 —— 把断线期间跑的组补上去。
             //   延后一点发: 身份帧(TIMING_WEB_IDENTITY)要先到, 否则服务器那边还没认人。
             if (IsTimingClientMode) {
@@ -1117,8 +1117,8 @@ namespace SwimmingScoreboard
         }
 
         private void OnEditorSyncDisconnected() {
-            UpdateEditorSyncStatus("离线", "#94A3B8");
-            if (_editorSyncConnectButton != null) _editorSyncConnectButton.Content = "连接";
+            UpdateEditorSyncStatus(Loc.T("Str_SyncStatus_Offline"), "#94A3B8");
+            if (_editorSyncConnectButton != null) _editorSyncConnectButton.Content = Loc.T("Str_Btn_Connect");
         }
 
         private void UpdateEditorSyncStatus(string text, string color) {
@@ -1156,7 +1156,7 @@ namespace SwimmingScoreboard
                 if (type == "EDITOR_PUSH_REJECTED") {
                     string reason = msg["reason"] != null ? msg["reason"].ToString() : "主服务器暂时不能接收修改";
                     _editorPushRejected = true;
-                    UpdateEditorSyncStatus("未保存到主服务器", "#DC2626");
+                    UpdateEditorSyncStatus(Loc.T("Str_SyncStatus_NotSavedToServer"), "#DC2626");
                     AddLog(Loc.F("Str_Log_NotSavedToMainServerFmt", reason));
                     MessageBox.Show(
                         Loc.F("Str_Msg_NotSavedToServerFmt", reason),
@@ -1186,7 +1186,7 @@ namespace SwimmingScoreboard
                     var package = pkgToken.ToObject<CompetitionPackage>();
                     if (package == null) return;
                     _pendingPackage = package;
-                    UpdateEditorSyncStatus("收包中…", "#F59E0B");
+                    UpdateEditorSyncStatus(Loc.T("Str_SyncStatus_Receiving"), "#F59E0B");
                     if (_packageApplyDebounceTimer == null) {
                         _packageApplyDebounceTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1500) };
                         _packageApplyDebounceTimer.Tick += PackageApplyDebounceTick;
@@ -1211,7 +1211,7 @@ namespace SwimmingScoreboard
                     Loc.T("Str_MsgTitle_LocalUnsaved"), MessageBoxButton.YesNo, MessageBoxImage.Warning);
                 if (ans != MessageBoxResult.Yes) {
                     AddLog(Loc.T("Str_Log_KeptLocalUnsubmitted"));
-                    UpdateEditorSyncStatus("本地有未提交修改", "#DC2626");
+                    UpdateEditorSyncStatus(Loc.T("Str_SyncStatus_LocalUncommitted"), "#DC2626");
                     return;
                 }
                 _editorPushRejected = false;
@@ -1228,13 +1228,13 @@ namespace SwimmingScoreboard
             //   赛前(LiveActive 是 false)收到的整包照旧立即应用, 不受影响。
             if (_meetDb.LiveActive) {
                 _deferredEditorPackage = pkg;
-                UpdateEditorSyncStatus("本组比赛中, 已暂缓同步", "#F59E0B");
+                UpdateEditorSyncStatus(Loc.T("Str_SyncStatus_PausedDuringRace"), "#F59E0B");
                 AddLog(Loc.T("Str_Log_MainPackageDeferredLiveActive"));
                 return;
             }
             try {
                 ApplyPackageInMemory(pkg);
-                UpdateEditorSyncStatus("已同步", "#22C55E");
+                UpdateEditorSyncStatus(Loc.T("Str_SyncStatus_Synced"), "#22C55E");
                 AddLog(Loc.T("Str_Log_MainPackageAppliedThrottled"));
             } catch (Exception ex) {
                 AddLog(Loc.F("Str_Log_ApplySyncPackageFailedFmt", ex.Message));
@@ -17854,7 +17854,7 @@ namespace SwimmingScoreboard
             var tbBigPage = AddSettingsRow(sp, "大屏翻屏时间", _laneCloseSettings.BigDisplayPageInterval.ToString(), "秒");
 
             var timeBtnPanel = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 16, 0, 0) };
-            var timeCancel = new Button { Content = "取消", Padding = new Thickness(16, 6, 16, 6), Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569")), Foreground = Brushes.White, BorderThickness = new Thickness(0), Margin = new Thickness(0, 0, 8, 0) };
+            var timeCancel = new Button { Content = Loc.T("Str_Btn_Cancel"), Padding = new Thickness(16, 6, 16, 6), Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569")), Foreground = Brushes.White, BorderThickness = new Thickness(0), Margin = new Thickness(0, 0, 8, 0) };
             timeCancel.Click += delegate { dlg.DialogResult = false; };
             var timeOk = new Button { Content = Loc.T("Str_MsgTitle_Confirm"), Padding = new Thickness(16, 6, 16, 6), Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6")), Foreground = Brushes.White, BorderThickness = new Thickness(0), FontWeight = FontWeights.Bold };
             timeOk.Click += delegate { dlg.DialogResult = true; };
@@ -17913,40 +17913,40 @@ namespace SwimmingScoreboard
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E293B"))
             };
             var sp = new StackPanel { Margin = new Thickness(20) };
-            sp.Children.Add(new TextBlock { Text = "比赛泳池、设备状态设置", FontSize = 17, FontWeight = FontWeights.Bold, Foreground = Brushes.White, Margin = new Thickness(0, 0, 0, 14) });
+            sp.Children.Add(new TextBlock { Text = Loc.T("Str_Win_PoolDevice_Title"), FontSize = 17, FontWeight = FontWeights.Bold, Foreground = Brushes.White, Margin = new Thickness(0, 0, 0, 14) });
 
             // 终点位置
             var finishRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 10, 0, 0) };
-            finishRow.Children.Add(new TextBlock { Text = "终点位置", Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), FontSize = 15, VerticalAlignment = VerticalAlignment.Center, Width = 140 });
-            var rbLeft = new RadioButton { Content = "左端", Foreground = Brushes.White, FontSize = 14, IsChecked = _laneCloseSettings.FinishPosition == "left", GroupName = "FinPos", Margin = new Thickness(0, 0, 12, 0) };
-            var rbRight = new RadioButton { Content = "右端", Foreground = Brushes.White, FontSize = 14, IsChecked = _laneCloseSettings.FinishPosition == "right", GroupName = "FinPos" };
+            finishRow.Children.Add(new TextBlock { Text = Loc.T("Str_PoolDevice_FinishPos"), Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), FontSize = 15, VerticalAlignment = VerticalAlignment.Center, Width = 140 });
+            var rbLeft = new RadioButton { Content = Loc.T("Str_Radio_FinishLeft"), Foreground = Brushes.White, FontSize = 14, IsChecked = _laneCloseSettings.FinishPosition == "left", GroupName = "FinPos", Margin = new Thickness(0, 0, 12, 0) };
+            var rbRight = new RadioButton { Content = Loc.T("Str_Radio_FinishRight"), Foreground = Brushes.White, FontSize = 14, IsChecked = _laneCloseSettings.FinishPosition == "right", GroupName = "FinPos" };
             finishRow.Children.Add(rbLeft);
             finishRow.Children.Add(rbRight);
             sp.Children.Add(finishRow);
 
             // 反应时检测（RT）开关：关闭后所有出发反应时相关处理跳过
             var rtRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 10, 0, 0) };
-            rtRow.Children.Add(new TextBlock { Text = "反应时(RT)", Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), FontSize = 15, VerticalAlignment = VerticalAlignment.Center, Width = 140 });
-            var rbRtOn = new RadioButton { Content = "打开", Foreground = Brushes.White, FontSize = 14, IsChecked = _laneCloseSettings.ReactionTimeEnabled, GroupName = "RTSwitch", Margin = new Thickness(0, 0, 12, 0) };
-            var rbRtOff = new RadioButton { Content = "关闭", Foreground = Brushes.White, FontSize = 14, IsChecked = !_laneCloseSettings.ReactionTimeEnabled, GroupName = "RTSwitch" };
+            rtRow.Children.Add(new TextBlock { Text = Loc.T("Str_PoolDevice_ReactionTime"), Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), FontSize = 15, VerticalAlignment = VerticalAlignment.Center, Width = 140 });
+            var rbRtOn = new RadioButton { Content = Loc.T("Str_Radio_On"), Foreground = Brushes.White, FontSize = 14, IsChecked = _laneCloseSettings.ReactionTimeEnabled, GroupName = "RTSwitch", Margin = new Thickness(0, 0, 12, 0) };
+            var rbRtOff = new RadioButton { Content = Loc.T("Str_Radio_Off"), Foreground = Brushes.White, FontSize = 14, IsChecked = !_laneCloseSettings.ReactionTimeEnabled, GroupName = "RTSwitch" };
             rtRow.Children.Add(rbRtOn);
             rtRow.Children.Add(rbRtOff);
             sp.Children.Add(rtRow);
 
             // 2026-06-06 盲表代替触板 (PC 端自动用盲表中位数补当前段缺失的触板成绩)
             var blindRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 10, 0, 0) };
-            blindRow.Children.Add(new TextBlock { Text = "盲表代触板", Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), FontSize = 15, VerticalAlignment = VerticalAlignment.Center, Width = 140 });
-            var rbBlindOn = new RadioButton { Content = "开 (盲表中位数自动代替)", Foreground = Brushes.White, FontSize = 14, IsChecked = _laneCloseSettings.AutoBlindReplaceTouchpad, GroupName = "BlindReplace", Margin = new Thickness(0, 0, 12, 0) };
-            var rbBlindOff = new RadioButton { Content = "关 (仅手动按钮)", Foreground = Brushes.White, FontSize = 14, IsChecked = !_laneCloseSettings.AutoBlindReplaceTouchpad, GroupName = "BlindReplace" };
+            blindRow.Children.Add(new TextBlock { Text = Loc.T("Str_PoolDevice_BlindReplace"), Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), FontSize = 15, VerticalAlignment = VerticalAlignment.Center, Width = 140 });
+            var rbBlindOn = new RadioButton { Content = Loc.T("Str_Radio_BlindOn"), Foreground = Brushes.White, FontSize = 14, IsChecked = _laneCloseSettings.AutoBlindReplaceTouchpad, GroupName = "BlindReplace", Margin = new Thickness(0, 0, 12, 0) };
+            var rbBlindOff = new RadioButton { Content = Loc.T("Str_Radio_BlindOff"), Foreground = Brushes.White, FontSize = 14, IsChecked = !_laneCloseSettings.AutoBlindReplaceTouchpad, GroupName = "BlindReplace" };
             blindRow.Children.Add(rbBlindOn);
             blindRow.Children.Add(rbBlindOff);
             sp.Children.Add(blindRow);
 
             // 2026-06-14 手动 TP 代替真 TP: 开=手动 TP 即使该段已有真触板也覆盖; 关=仅无 TP 时应急, 已有真 TP 只记备份
             var manualTpRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 10, 0, 0) };
-            manualTpRow.Children.Add(new TextBlock { Text = "手动TP代替真TP", Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), FontSize = 15, VerticalAlignment = VerticalAlignment.Center, Width = 140 });
-            var rbManualTpOn = new RadioButton { Content = "开 (覆盖真触板)", Foreground = Brushes.White, FontSize = 14, IsChecked = _laneCloseSettings.ManualTpReplaceTp, GroupName = "ManualTpReplace", Margin = new Thickness(0, 0, 12, 0) };
-            var rbManualTpOff = new RadioButton { Content = "关 (仅无TP时应急)", Foreground = Brushes.White, FontSize = 14, IsChecked = !_laneCloseSettings.ManualTpReplaceTp, GroupName = "ManualTpReplace" };
+            manualTpRow.Children.Add(new TextBlock { Text = Loc.T("Str_PoolDevice_ManualTpReplace"), Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), FontSize = 15, VerticalAlignment = VerticalAlignment.Center, Width = 140 });
+            var rbManualTpOn = new RadioButton { Content = Loc.T("Str_Radio_ManualTpOn"), Foreground = Brushes.White, FontSize = 14, IsChecked = _laneCloseSettings.ManualTpReplaceTp, GroupName = "ManualTpReplace", Margin = new Thickness(0, 0, 12, 0) };
+            var rbManualTpOff = new RadioButton { Content = Loc.T("Str_Radio_ManualTpOff"), Foreground = Brushes.White, FontSize = 14, IsChecked = !_laneCloseSettings.ManualTpReplaceTp, GroupName = "ManualTpReplace" };
             manualTpRow.Children.Add(rbManualTpOn);
             manualTpRow.Children.Add(rbManualTpOff);
             sp.Children.Add(manualTpRow);
@@ -17955,27 +17955,27 @@ namespace SwimmingScoreboard
             //   "一直打开" = 硬件 TP/SB/MB 按键路径忽略 *_Open_Close_State 关闭状态, 只跳过 ==3 坏 / ==4 未装. 让 PC 端拿到所有按键事件
             //   "按流程"   = 原行为 (硬件按比赛流程时序自动开/关设备)
             var hwOpenRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 10, 0, 0) };
-            hwOpenRow.Children.Add(new TextBlock { Text = "硬件设备", Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), FontSize = 15, VerticalAlignment = VerticalAlignment.Center, Width = 140 });
-            var rbHwAlwaysOpen = new RadioButton { Content = "一直打开", Foreground = Brushes.White, FontSize = 14, IsChecked = _laneCloseSettings.HardwareAlwaysOpen, GroupName = "HwOpenMode", Margin = new Thickness(0, 0, 12, 0) };
-            var rbHwFlow = new RadioButton { Content = "按比赛流程", Foreground = Brushes.White, FontSize = 14, IsChecked = !_laneCloseSettings.HardwareAlwaysOpen, GroupName = "HwOpenMode" };
+            hwOpenRow.Children.Add(new TextBlock { Text = Loc.T("Str_PoolDevice_HwDevice"), Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), FontSize = 15, VerticalAlignment = VerticalAlignment.Center, Width = 140 });
+            var rbHwAlwaysOpen = new RadioButton { Content = Loc.T("Str_Radio_HwAlwaysOpen"), Foreground = Brushes.White, FontSize = 14, IsChecked = _laneCloseSettings.HardwareAlwaysOpen, GroupName = "HwOpenMode", Margin = new Thickness(0, 0, 12, 0) };
+            var rbHwFlow = new RadioButton { Content = Loc.T("Str_Radio_HwFlow"), Foreground = Brushes.White, FontSize = 14, IsChecked = !_laneCloseSettings.HardwareAlwaysOpen, GroupName = "HwOpenMode" };
             hwOpenRow.Children.Add(rbHwAlwaysOpen);
             hwOpenRow.Children.Add(rbHwFlow);
             sp.Children.Add(hwOpenRow);
 
             // 2026-06-03 出发信号边沿 — 硬件 SB 按键有效边沿 (下降沿 / 上升沿), 0x41 帧 d7 下发硬件
             var edgeRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 10, 0, 0) };
-            edgeRow.Children.Add(new TextBlock { Text = "出发信号边沿", Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), FontSize = 15, VerticalAlignment = VerticalAlignment.Center, Width = 140 });
-            var rbEdgeFall = new RadioButton { Content = "下降沿", Foreground = Brushes.White, FontSize = 14, IsChecked = _laneCloseSettings.StartBoxEdgeFalling, GroupName = "SBEdge", Margin = new Thickness(0, 0, 12, 0) };
-            var rbEdgeRise = new RadioButton { Content = "上升沿", Foreground = Brushes.White, FontSize = 14, IsChecked = !_laneCloseSettings.StartBoxEdgeFalling, GroupName = "SBEdge" };
+            edgeRow.Children.Add(new TextBlock { Text = Loc.T("Str_PoolDevice_StartEdge"), Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), FontSize = 15, VerticalAlignment = VerticalAlignment.Center, Width = 140 });
+            var rbEdgeFall = new RadioButton { Content = Loc.T("Str_Radio_EdgeFall"), Foreground = Brushes.White, FontSize = 14, IsChecked = _laneCloseSettings.StartBoxEdgeFalling, GroupName = "SBEdge", Margin = new Thickness(0, 0, 12, 0) };
+            var rbEdgeRise = new RadioButton { Content = Loc.T("Str_Radio_EdgeRise"), Foreground = Brushes.White, FontSize = 14, IsChecked = !_laneCloseSettings.StartBoxEdgeFalling, GroupName = "SBEdge" };
             edgeRow.Children.Add(rbEdgeFall);
             edgeRow.Children.Add(rbEdgeRise);
             sp.Children.Add(edgeRow);
 
             // 道次显示顺序：正序=顶到底为 0→9；逆序=顶到底为 9→0（同步给硬件计时器及所有 UI）
             var orderRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 10, 0, 0) };
-            orderRow.Children.Add(new TextBlock { Text = "道次顺序", Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), FontSize = 15, VerticalAlignment = VerticalAlignment.Center, Width = 140 });
-            var rbOrderFwd = new RadioButton { Content = "正序 0→9", Foreground = Brushes.White, FontSize = 14, IsChecked = _laneCloseSettings.LaneOrder != "reverse", GroupName = "LaneOrder", Margin = new Thickness(0, 0, 12, 0) };
-            var rbOrderRev = new RadioButton { Content = "逆序 9→0", Foreground = Brushes.White, FontSize = 14, IsChecked = _laneCloseSettings.LaneOrder == "reverse", GroupName = "LaneOrder" };
+            orderRow.Children.Add(new TextBlock { Text = Loc.T("Str_PoolDevice_LaneOrder"), Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), FontSize = 15, VerticalAlignment = VerticalAlignment.Center, Width = 140 });
+            var rbOrderFwd = new RadioButton { Content = Loc.T("Str_Radio_OrderFwd"), Foreground = Brushes.White, FontSize = 14, IsChecked = _laneCloseSettings.LaneOrder != "reverse", GroupName = "LaneOrder", Margin = new Thickness(0, 0, 12, 0) };
+            var rbOrderRev = new RadioButton { Content = Loc.T("Str_Radio_OrderRev"), Foreground = Brushes.White, FontSize = 14, IsChecked = _laneCloseSettings.LaneOrder == "reverse", GroupName = "LaneOrder" };
             orderRow.Children.Add(rbOrderFwd);
             orderRow.Children.Add(rbOrderRev);
             sp.Children.Add(orderRow);
@@ -17984,18 +17984,18 @@ namespace SwimmingScoreboard
             //  HasRightStartBlock=true  -> 两端都有触板
             //  HasRightStartBlock=false -> 只有一端有触板（单边）
             var poolTpRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 10, 0, 0) };
-            poolTpRow.Children.Add(new TextBlock { Text = "泳池触板", Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), FontSize = 15, VerticalAlignment = VerticalAlignment.Center, Width = 140 });
-            var rbTpBoth = new RadioButton { Content = "两端安装", Foreground = Brushes.White, FontSize = 14, IsChecked = _poolConfig != null && _poolConfig.HasRightStartBlock, GroupName = "PoolTP", Margin = new Thickness(0, 0, 12, 0) };
-            var rbTpSingle = new RadioButton { Content = "单边安装", Foreground = Brushes.White, FontSize = 14, IsChecked = _poolConfig != null && !_poolConfig.HasRightStartBlock, GroupName = "PoolTP" };
+            poolTpRow.Children.Add(new TextBlock { Text = Loc.T("Str_PoolDevice_PoolTp"), Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), FontSize = 15, VerticalAlignment = VerticalAlignment.Center, Width = 140 });
+            var rbTpBoth = new RadioButton { Content = Loc.T("Str_Radio_TpBoth"), Foreground = Brushes.White, FontSize = 14, IsChecked = _poolConfig != null && _poolConfig.HasRightStartBlock, GroupName = "PoolTP", Margin = new Thickness(0, 0, 12, 0) };
+            var rbTpSingle = new RadioButton { Content = Loc.T("Str_Radio_TpSingle"), Foreground = Brushes.White, FontSize = 14, IsChecked = _poolConfig != null && !_poolConfig.HasRightStartBlock, GroupName = "PoolTP" };
             poolTpRow.Children.Add(rbTpBoth);
             poolTpRow.Children.Add(rbTpSingle);
             sp.Children.Add(poolTpRow);
 
             // 设备状态管理按钮
             var deviceSep = new Border { BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569")), BorderThickness = new Thickness(0, 1, 0, 0), Margin = new Thickness(0, 10, 0, 0), Padding = new Thickness(0, 10, 0, 0) };
-            var btnDeviceMgr = new Button { Content = "设备状态管理", Padding = new Thickness(0, 8, 0, 8), FontSize = 14, FontWeight = FontWeights.Bold, Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#8B5CF6")), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
+            var btnDeviceMgr = new Button { Content = Loc.T("Str_Btn_DeviceStatusMgr"), Padding = new Thickness(0, 8, 0, 8), FontSize = 14, FontWeight = FontWeights.Bold, Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#8B5CF6")), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
             btnDeviceMgr.Click += delegate { dlg.DialogResult = false; DeviceStatus_Click(null, null); };
-            var btnBlindMgr = new Button { Content = "左右盲表数量设置", Padding = new Thickness(0, 8, 0, 8), FontSize = 14, FontWeight = FontWeights.Bold, Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F59E0B")), Foreground = Brushes.Black, BorderThickness = new Thickness(0), Margin = new Thickness(0, 6, 0, 0) };
+            var btnBlindMgr = new Button { Content = Loc.T("Str_Win_BlindWatchCount_Title"), Padding = new Thickness(0, 8, 0, 8), FontSize = 14, FontWeight = FontWeights.Bold, Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F59E0B")), Foreground = Brushes.Black, BorderThickness = new Thickness(0), Margin = new Thickness(0, 6, 0, 0) };
             btnBlindMgr.Click += delegate { dlg.DialogResult = false; OpenBlindWatchCountDialog(); };
 
             //2026-05-14 删除"全部道设备：全开 / 恢复正常关闭流程"两个按钮 —— 改由
@@ -18009,7 +18009,7 @@ namespace SwimmingScoreboard
             sp.Children.Add(deviceSep);
 
             var btnPanel = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 16, 0, 0) };
-            var btnCancel = new Button { Content = "取消", Padding = new Thickness(16, 6, 16, 6), Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569")), Foreground = Brushes.White, BorderThickness = new Thickness(0), Margin = new Thickness(0, 0, 8, 0) };
+            var btnCancel = new Button { Content = Loc.T("Str_Btn_Cancel"), Padding = new Thickness(16, 6, 16, 6), Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569")), Foreground = Brushes.White, BorderThickness = new Thickness(0), Margin = new Thickness(0, 0, 8, 0) };
             btnCancel.Click += delegate { dlg.DialogResult = false; };
             var btnOk = new Button { Content = Loc.T("Str_MsgTitle_Confirm"), Padding = new Thickness(16, 6, 16, 6), Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6")), Foreground = Brushes.White, BorderThickness = new Thickness(0), FontWeight = FontWeights.Bold };
             btnOk.Click += delegate { dlg.DialogResult = true; };
@@ -18149,13 +18149,13 @@ namespace SwimmingScoreboard
 
             var btnPanel = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 16, 0, 0) };
             var btnCancel = new Button {
-                Content = "取消", Padding = new Thickness(16, 6, 16, 6),
+                Content = Loc.T("Str_Btn_Cancel"), Padding = new Thickness(16, 6, 16, 6),
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569")),
                 Foreground = Brushes.White, BorderThickness = new Thickness(0), Margin = new Thickness(0, 0, 8, 0)
             };
             btnCancel.Click += delegate { dlg.DialogResult = false; };
             var btnOk = new Button {
-                Content = "确定", Padding = new Thickness(16, 6, 16, 6),
+                Content = Loc.T("Str_Btn_OK"), Padding = new Thickness(16, 6, 16, 6),
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6")),
                 Foreground = Brushes.White, BorderThickness = new Thickness(0), FontWeight = FontWeights.Bold
             };
@@ -18263,9 +18263,9 @@ namespace SwimmingScoreboard
             mainGrid.Children.Add(dataGrid);
 
             var btnPanel = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 12, 0, 0) };
-            var btnAllOn = new Button { Content = "全部设为用", Padding = new Thickness(16, 6, 16, 6), Margin = new Thickness(0, 0, 8, 0) };
+            var btnAllOn = new Button { Content = Loc.T("Str_Btn_SetAllUse"), Padding = new Thickness(16, 6, 16, 6), Margin = new Thickness(0, 0, 8, 0) };
             btnAllOn.Click += delegate { foreach (var it in items) { it.LeftEnabled = true; it.RightEnabled = true; } dataGrid.Items.Refresh(); };
-            var btnAllOff = new Button { Content = "全部设为不用", Padding = new Thickness(16, 6, 16, 6), Margin = new Thickness(0, 0, 16, 0) };
+            var btnAllOff = new Button { Content = Loc.T("Str_Btn_SetAllNotUse"), Padding = new Thickness(16, 6, 16, 6), Margin = new Thickness(0, 0, 16, 0) };
             btnAllOff.Click += delegate { foreach (var it in items) { it.LeftEnabled = false; it.RightEnabled = false; } dataGrid.Items.Refresh(); };
             var btnOK = new Button { Content = Loc.T("Str_MsgTitle_Confirm"), Padding = new Thickness(16, 6, 16, 6), Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6")), Foreground = Brushes.White, BorderThickness = new Thickness(0), Margin = new Thickness(0, 0, 8, 0) };
             btnOK.Click += delegate {
@@ -18281,7 +18281,7 @@ namespace SwimmingScoreboard
                 AddLog(Loc.T("Str_Log_ManualButtonSettingsUpdated"));
                 dlg.Close();
             };
-            var btnCancel = new Button { Content = "取消", Padding = new Thickness(16, 6, 16, 6) };
+            var btnCancel = new Button { Content = Loc.T("Str_Btn_Cancel"), Padding = new Thickness(16, 6, 16, 6) };
             btnCancel.Click += delegate { dlg.Close(); };
             btnPanel.Children.Add(btnAllOn); btnPanel.Children.Add(btnAllOff);
             btnPanel.Children.Add(btnOK); btnPanel.Children.Add(btnCancel);
@@ -18658,7 +18658,7 @@ namespace SwimmingScoreboard
 
             // 按钮
             var btnPanel = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 16, 0, 0) };
-            var btnCancel = new Button { Content = "取消", Padding = new Thickness(20, 6, 20, 6), Margin = new Thickness(0, 0, 8, 0) };
+            var btnCancel = new Button { Content = Loc.T("Str_Btn_Cancel"), Padding = new Thickness(20, 6, 20, 6), Margin = new Thickness(0, 0, 8, 0) };
             btnCancel.Click += delegate { dlg.DialogResult = false; };
             var btnOk = new Button {
                 Content = isNew ? "确认添加" : "确认修改",
@@ -18913,16 +18913,16 @@ namespace SwimmingScoreboard
 
             var btnPanel = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 10, 0, 0) };
             Grid.SetRow(btnPanel, 2);
-            var btnAdd = new Button { Content = "新增行", Padding = new Thickness(12, 6, 12, 6), Margin = new Thickness(0, 0, 8, 0),
+            var btnAdd = new Button { Content = Loc.T("Str_Btn_AddRow"), Padding = new Thickness(12, 6, 12, 6), Margin = new Thickness(0, 0, 8, 0),
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6")), Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0) };
             btnAdd.Click += delegate { working.Add(new BibRange { Country = "", Start = 0, End = 0, Width = 3 }); };
-            var btnDel = new Button { Content = "删除选中", Padding = new Thickness(12, 6, 12, 6), Margin = new Thickness(0, 0, 8, 0),
+            var btnDel = new Button { Content = Loc.T("Str_Btn_DeleteSelected"), Padding = new Thickness(12, 6, 12, 6), Margin = new Thickness(0, 0, 8, 0),
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EF4444")), Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0) };
             btnDel.Click += delegate {
                 var sel = grid.SelectedItem as BibRange;
                 if (sel != null) working.Remove(sel);
             };
-            var btnOk = new Button { Content = "保存", Padding = new Thickness(16, 6, 16, 6), Margin = new Thickness(0, 0, 8, 0), FontWeight = FontWeights.Bold,
+            var btnOk = new Button { Content = Loc.T("Str_Btn_Save"), Padding = new Thickness(16, 6, 16, 6), Margin = new Thickness(0, 0, 8, 0), FontWeight = FontWeights.Bold,
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#22C55E")), Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0) };
             btnOk.Click += delegate {
                 // 提交正在编辑的单元格
@@ -18966,7 +18966,7 @@ namespace SwimmingScoreboard
                 AddLog(Loc.F("Str_Log_BibRangesUpdatedFmt", _bibRanges.Count));
                 dlg.DialogResult = true;
             };
-            var btnCancel = new Button { Content = "取消", Padding = new Thickness(16, 6, 16, 6),
+            var btnCancel = new Button { Content = Loc.T("Str_Btn_Cancel"), Padding = new Thickness(16, 6, 16, 6),
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")), Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0) };
             btnCancel.Click += delegate { dlg.DialogResult = false; };
             btnPanel.Children.Add(btnAdd);
@@ -19443,10 +19443,10 @@ namespace SwimmingScoreboard
             rebuildLegs();
 
             var btnPanel = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 14, 0, 0) };
-            var btnOk = new Button { Content = "确定添加", Padding = new Thickness(16, 6, 16, 6), FontSize = 13, Margin = new Thickness(0, 0, 8, 0),
+            var btnOk = new Button { Content = Loc.T("Str_Btn_ConfirmAdd"), Padding = new Thickness(16, 6, 16, 6), FontSize = 13, Margin = new Thickness(0, 0, 8, 0),
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6")), Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0) };
             btnOk.Click += delegate { dlg.DialogResult = true; };
-            var btnCancel = new Button { Content = "取消", Padding = new Thickness(16, 6, 16, 6), FontSize = 13,
+            var btnCancel = new Button { Content = Loc.T("Str_Btn_Cancel"), Padding = new Thickness(16, 6, 16, 6), FontSize = 13,
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")), Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0) };
             btnCancel.Click += delegate { dlg.DialogResult = false; };
             btnPanel.Children.Add(btnOk);
@@ -19769,8 +19769,8 @@ namespace SwimmingScoreboard
                 Margin = new Thickness(0, 16, 0, 0)
             };
             int picked = -1;
-            var ok = new Button { Content = "下一步：选文件", Width = 120, Height = 30, Margin = new Thickness(0, 0, 8, 0), IsDefault = true };
-            var cancel = new Button { Content = "取消", Width = 80, Height = 30, IsCancel = true };
+            var ok = new Button { Content = Loc.T("Str_Btn_NextChooseFile"), Width = 120, Height = 30, Margin = new Thickness(0, 0, 8, 0), IsDefault = true };
+            var cancel = new Button { Content = Loc.T("Str_Btn_Cancel"), Width = 80, Height = 30, IsCancel = true };
             ok.Click += delegate {
                 foreach (var rb in radios) if (rb.IsChecked == true) { picked = (int)rb.Tag; break; }
                 win.DialogResult = true;
@@ -20426,13 +20426,13 @@ namespace SwimmingScoreboard
 
             var btnPanel = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 10, 0, 0) };
             var btnOk = new Button {
-                Content = "确定更换", Padding = new Thickness(16, 6, 16, 6), FontSize = 13, Margin = new Thickness(0, 0, 8, 0),
+                Content = Loc.T("Str_Btn_ConfirmReplace"), Padding = new Thickness(16, 6, 16, 6), FontSize = 13, Margin = new Thickness(0, 0, 8, 0),
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6")),
                 Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0)
             };
             btnOk.Click += delegate { dlg.DialogResult = true; };
             var btnCancel = new Button {
-                Content = "关闭", Padding = new Thickness(16, 6, 16, 6), FontSize = 13,
+                Content = Loc.T("Str_Btn_Close"), Padding = new Thickness(16, 6, 16, 6), FontSize = 13,
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")),
                 Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0)
             };
@@ -21483,10 +21483,10 @@ namespace SwimmingScoreboard
             sp.Children.Add(listBox);
 
             var btnPanel = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 10, 0, 0) };
-            var btnOk = new Button { Content = "确定交换", Padding = new Thickness(16, 6, 16, 6), FontSize = 13, Margin = new Thickness(0, 0, 8, 0),
+            var btnOk = new Button { Content = Loc.T("Str_Btn_ConfirmSwap"), Padding = new Thickness(16, 6, 16, 6), FontSize = 13, Margin = new Thickness(0, 0, 8, 0),
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F59E0B")), Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0) };
             btnOk.Click += delegate { dlg.DialogResult = true; };
-            var btnClose = new Button { Content = "关闭", Padding = new Thickness(16, 6, 16, 6), FontSize = 13,
+            var btnClose = new Button { Content = Loc.T("Str_Btn_Close"), Padding = new Thickness(16, 6, 16, 6), FontSize = 13,
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")), Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0) };
             btnClose.Click += delegate { dlg.DialogResult = false; };
             btnPanel.Children.Add(btnOk);
@@ -21588,10 +21588,10 @@ namespace SwimmingScoreboard
             sp.Children.Add(tbLane);
 
             var btnPanel = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 10, 0, 0) };
-            var btnOk = new Button { Content = "确定添加", Padding = new Thickness(16, 6, 16, 6), FontSize = 13, Margin = new Thickness(0, 0, 8, 0),
+            var btnOk = new Button { Content = Loc.T("Str_Btn_ConfirmAdd"), Padding = new Thickness(16, 6, 16, 6), FontSize = 13, Margin = new Thickness(0, 0, 8, 0),
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6")), Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0) };
             btnOk.Click += delegate { dlg.DialogResult = true; };
-            var btnClose = new Button { Content = "关闭", Padding = new Thickness(16, 6, 16, 6), FontSize = 13,
+            var btnClose = new Button { Content = Loc.T("Str_Btn_Close"), Padding = new Thickness(16, 6, 16, 6), FontSize = 13,
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")), Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0) };
             btnClose.Click += delegate { dlg.DialogResult = false; };
             btnPanel.Children.Add(btnOk);
@@ -21764,10 +21764,10 @@ namespace SwimmingScoreboard
             addRow("报名成绩:", tbEntryTime);
 
             var btnPanel = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 14, 0, 0) };
-            var btnOk = new Button { Content = "确定添加", Padding = new Thickness(16, 6, 16, 6), FontSize = 13, Margin = new Thickness(0, 0, 8, 0),
+            var btnOk = new Button { Content = Loc.T("Str_Btn_ConfirmAdd"), Padding = new Thickness(16, 6, 16, 6), FontSize = 13, Margin = new Thickness(0, 0, 8, 0),
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#8B5CF6")), Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0) };
             btnOk.Click += delegate { dlg.DialogResult = true; };
-            var btnCancel = new Button { Content = "取消", Padding = new Thickness(16, 6, 16, 6), FontSize = 13,
+            var btnCancel = new Button { Content = Loc.T("Str_Btn_Cancel"), Padding = new Thickness(16, 6, 16, 6), FontSize = 13,
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")), Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0) };
             btnCancel.Click += delegate { dlg.DialogResult = false; };
             btnPanel.Children.Add(btnOk);
@@ -21860,10 +21860,10 @@ namespace SwimmingScoreboard
             }
 
             var btnPanel = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 14, 0, 0) };
-            var btnOk = new Button { Content = "确定添加", Padding = new Thickness(16, 6, 16, 6), FontSize = 13, Margin = new Thickness(0, 0, 8, 0),
+            var btnOk = new Button { Content = Loc.T("Str_Btn_ConfirmAdd"), Padding = new Thickness(16, 6, 16, 6), FontSize = 13, Margin = new Thickness(0, 0, 8, 0),
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#8B5CF6")), Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0) };
             btnOk.Click += delegate { dlg.DialogResult = true; };
-            var btnCancel = new Button { Content = "取消", Padding = new Thickness(16, 6, 16, 6), FontSize = 13,
+            var btnCancel = new Button { Content = Loc.T("Str_Btn_Cancel"), Padding = new Thickness(16, 6, 16, 6), FontSize = 13,
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")), Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0) };
             btnCancel.Click += delegate { dlg.DialogResult = false; };
             btnPanel.Children.Add(btnOk);
@@ -22212,15 +22212,15 @@ namespace SwimmingScoreboard
                 rebuildEditPanel();
             };
 
-            var btnAddBefore = new Button { Content = "前插入", Padding = new Thickness(10, 6, 10, 6), Margin = new Thickness(0, 0, 4, 0), FontSize = 13,
+            var btnAddBefore = new Button { Content = Loc.T("Str_Btn_InsertBefore"), Padding = new Thickness(10, 6, 10, 6), Margin = new Thickness(0, 0, 4, 0), FontSize = 13,
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6")), Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0) };
             btnAddBefore.Click += delegate { insertScheduleItem(true); };
 
-            var btnAddAfter = new Button { Content = "后插入", Padding = new Thickness(10, 6, 10, 6), Margin = new Thickness(0, 0, 8, 0), FontSize = 13,
+            var btnAddAfter = new Button { Content = Loc.T("Str_Btn_InsertAfter"), Padding = new Thickness(10, 6, 10, 6), Margin = new Thickness(0, 0, 8, 0), FontSize = 13,
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#2563EB")), Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0) };
             btnAddAfter.Click += delegate { insertScheduleItem(false); };
 
-            var btnDel = new Button { Content = "删除选中", Padding = new Thickness(12, 6, 12, 6), Margin = new Thickness(0, 0, 8, 0), FontSize = 13,
+            var btnDel = new Button { Content = Loc.T("Str_Btn_DeleteSelected"), Padding = new Thickness(12, 6, 12, 6), Margin = new Thickness(0, 0, 8, 0), FontSize = 13,
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EF4444")), Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0) };
             btnDel.Click += delegate {
                 if (_editSelected != null) { editList.Remove(_editSelected); _editSelected = null; rebuildEditPanel(); }
@@ -22239,11 +22239,11 @@ namespace SwimmingScoreboard
                 _editSelected = sel;
             };
 
-            var btnMoveUp = new Button { Content = "上移", Padding = new Thickness(10, 6, 10, 6), Margin = new Thickness(0, 0, 4, 0), FontSize = 13,
+            var btnMoveUp = new Button { Content = Loc.T("Str_Btn_MoveUp"), Padding = new Thickness(10, 6, 10, 6), Margin = new Thickness(0, 0, 4, 0), FontSize = 13,
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#0EA5E9")), Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0) };
             btnMoveUp.Click += delegate { moveSelected(-1); };
 
-            var btnMoveDown = new Button { Content = "下移", Padding = new Thickness(10, 6, 10, 6), Margin = new Thickness(0, 0, 8, 0), FontSize = 13,
+            var btnMoveDown = new Button { Content = Loc.T("Str_Btn_MoveDown"), Padding = new Thickness(10, 6, 10, 6), Margin = new Thickness(0, 0, 8, 0), FontSize = 13,
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#0284C7")), Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0) };
             btnMoveDown.Click += delegate { moveSelected(1); };
 
@@ -22270,7 +22270,7 @@ namespace SwimmingScoreboard
             };
 
             // 刷新按钮：flush + 归一化 + 按日期/时间重排 + 重建面板
-            var btnRefresh = new Button { Content = "刷新", Padding = new Thickness(12, 6, 12, 6), Margin = new Thickness(0, 0, 8, 0), FontSize = 13,
+            var btnRefresh = new Button { Content = Loc.T("Str_Btn_Refresh"), Padding = new Thickness(12, 6, 12, 6), Margin = new Thickness(0, 0, 8, 0), FontSize = 13,
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F59E0B")), Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0) };
             btnRefresh.Click += delegate {
                 flushPendingEdits();
@@ -22280,7 +22280,7 @@ namespace SwimmingScoreboard
                 rebuildEditPanel();
             };
 
-            var btnOk = new Button { Content = "确认修改", Padding = new Thickness(16, 6, 16, 6), Margin = new Thickness(0, 0, 8, 0), FontSize = 13, FontWeight = FontWeights.Bold,
+            var btnOk = new Button { Content = Loc.T("Str_Btn_ConfirmModify"), Padding = new Thickness(16, 6, 16, 6), Margin = new Thickness(0, 0, 8, 0), FontSize = 13, FontWeight = FontWeights.Bold,
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#22C55E")), Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0) };
             btnOk.Click += delegate {
                 flushPendingEdits();
@@ -22290,7 +22290,7 @@ namespace SwimmingScoreboard
                 dlg.DialogResult = true;
             };
 
-            var btnCancel = new Button { Content = "取消", Padding = new Thickness(16, 6, 16, 6), FontSize = 13,
+            var btnCancel = new Button { Content = Loc.T("Str_Btn_Cancel"), Padding = new Thickness(16, 6, 16, 6), FontSize = 13,
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")), Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0) };
             btnCancel.Click += delegate { dlg.DialogResult = false; };
 
@@ -22666,22 +22666,22 @@ namespace SwimmingScoreboard
 
             // ─ 操作按钮行 ─
             var btnRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) };
-            var btnEvenSplit = new Button { Content = "均匀分组 (按每组人数)", Padding = new Thickness(12, 5, 12, 5),
+            var btnEvenSplit = new Button { Content = Loc.T("Str_Btn_EvenSplit"), Padding = new Thickness(12, 5, 12, 5),
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#22C55E")),
                 Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0), Margin = new Thickness(0, 0, 8, 0),
                 ToolTip = "根据每组人数把所选项目的运动员平均分成若干组，例如 19 人按每组 8 → 2 组各 10 和 9"};
             btnRow.Children.Add(btnEvenSplit);
-            var btnClear = new Button { Content = "清空本项目分组", Padding = new Thickness(12, 5, 12, 5),
+            var btnClear = new Button { Content = Loc.T("Str_Btn_ClearEventGrouping"), Padding = new Thickness(12, 5, 12, 5),
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EF4444")),
                 Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0), Margin = new Thickness(0, 0, 8, 0) };
             btnRow.Children.Add(btnClear);
             // 2026-05-24 分组结果导出
-            var btnExportXlsx = new Button { Content = "📤 导出分组表 (Excel)", Padding = new Thickness(12, 5, 12, 5),
+            var btnExportXlsx = new Button { Content = Loc.T("Str_Btn_ExportGroupingExcel"), Padding = new Thickness(12, 5, 12, 5),
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#16A34A")),
                 Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0), Margin = new Thickness(0, 0, 8, 0),
                 ToolTip = "导出全部已分组结果到 Excel (.xlsx, 3 个 Sheet: 分组明细 / 分组表网格 / 填写说明)" };
             btnRow.Children.Add(btnExportXlsx);
-            var btnExportCsv = new Button { Content = "📤 导出 CSV", Padding = new Thickness(12, 5, 12, 5),
+            var btnExportCsv = new Button { Content = Loc.T("Str_Btn_ExportCsvEmoji"), Padding = new Thickness(12, 5, 12, 5),
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#0EA5E9")),
                 Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0), Margin = new Thickness(0, 0, 8, 0),
                 ToolTip = "导出当前项目+阶段表格里的分组结果到 CSV" };
@@ -22713,10 +22713,10 @@ namespace SwimmingScoreboard
 
             // ─ 确认 / 取消 ─
             var okRow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 8, 0, 0) };
-            var btnOk = new Button { Content = "确认保存", Padding = new Thickness(18, 6, 18, 6), FontWeight = FontWeights.Bold,
+            var btnOk = new Button { Content = Loc.T("Str_Btn_ConfirmSave"), Padding = new Thickness(18, 6, 18, 6), FontWeight = FontWeights.Bold,
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6")),
                 Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0), Margin = new Thickness(0, 0, 8, 0) };
-            var btnCancel = new Button { Content = "取消", Padding = new Thickness(18, 6, 18, 6),
+            var btnCancel = new Button { Content = Loc.T("Str_Btn_Cancel"), Padding = new Thickness(18, 6, 18, 6),
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")),
                 Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0) };
             okRow.Children.Add(btnOk);
@@ -23027,14 +23027,14 @@ namespace SwimmingScoreboard
             var btnPanel = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
             btnPanel.SetValue(Grid.RowProperty, 2);
             var btnOk = new Button {
-                Content = "确认追加", Padding = new Thickness(16, 6, 16, 6), FontSize = 14, FontWeight = FontWeights.Bold,
+                Content = Loc.T("Str_Btn_ConfirmAppend"), Padding = new Thickness(16, 6, 16, 6), FontSize = 14, FontWeight = FontWeights.Bold,
                 Margin = new Thickness(0, 0, 8, 0),
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#0EA5E9")),
                 Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0)
             };
             btnOk.Click += delegate { dlg.DialogResult = true; };
             var btnCancel = new Button {
-                Content = "取消", Padding = new Thickness(16, 6, 16, 6), FontSize = 14,
+                Content = Loc.T("Str_Btn_Cancel"), Padding = new Thickness(16, 6, 16, 6), FontSize = 14,
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")),
                 Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0)
             };
@@ -23593,10 +23593,10 @@ namespace SwimmingScoreboard
             sp.Children.Add(listBox);
 
             var btnPanel = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 12, 0, 0) };
-            var btnOk = new Button { Content = "发布到大屏", Padding = new Thickness(16, 6, 16, 6), FontSize = 14, Margin = new Thickness(0, 0, 8, 0),
+            var btnOk = new Button { Content = Loc.T("Str_Btn_PublishToScreen"), Padding = new Thickness(16, 6, 16, 6), FontSize = 14, Margin = new Thickness(0, 0, 8, 0),
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F59E0B")), Foreground = new SolidColorBrush(Colors.White), FontWeight = FontWeights.Bold, BorderThickness = new Thickness(0) };
             btnOk.Click += delegate { dlg.DialogResult = true; };
-            var btnClose = new Button { Content = "关闭", Padding = new Thickness(16, 6, 16, 6), FontSize = 14,
+            var btnClose = new Button { Content = Loc.T("Str_Btn_Close"), Padding = new Thickness(16, 6, 16, 6), FontSize = 14,
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")), Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0) };
             btnClose.Click += delegate { dlg.DialogResult = false; };
             btnPanel.Children.Add(btnOk);
@@ -23869,7 +23869,7 @@ namespace SwimmingScoreboard
 
             // 按钮行
             var btnRow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 12, 0, 0) };
-            var btnReset = new Button { Content = "恢复默认", Padding = new Thickness(16, 6, 16, 6), Margin = new Thickness(0, 0, 8, 0),
+            var btnReset = new Button { Content = Loc.T("Str_Btn_ResetDefault"), Padding = new Thickness(16, 6, 16, 6), Margin = new Thickness(0, 0, 8, 0),
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
             btnReset.Click += delegate {
                 if (MessageBox.Show(Loc.T("Str_Msg_ConfirmResetScoringDefaults"),
@@ -23880,10 +23880,10 @@ namespace SwimmingScoreboard
                     ScoringConfigCore();   // 重新打开载入默认值（直接 Core 复用外层已占的锁）
                 }
             };
-            var btnCancel = new Button { Content = "取消", Padding = new Thickness(20, 6, 20, 6), Margin = new Thickness(0, 0, 8, 0),
+            var btnCancel = new Button { Content = Loc.T("Str_Btn_Cancel"), Padding = new Thickness(20, 6, 20, 6), Margin = new Thickness(0, 0, 8, 0),
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
             btnCancel.Click += delegate { dlg.DialogResult = false; };
-            var btnOK = new Button { Content = "保存并重算", Padding = new Thickness(20, 6, 20, 6), FontWeight = FontWeights.Bold,
+            var btnOK = new Button { Content = Loc.T("Str_Btn_SaveRecalc"), Padding = new Thickness(20, 6, 20, 6), FontWeight = FontWeights.Bold,
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#22C55E")), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
             btnOK.Click += delegate {
                 int cutoff;
@@ -24009,8 +24009,8 @@ namespace SwimmingScoreboard
             root.Children.Add(tip);
             var btns = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 14, 0, 0) };
             bool ok2 = false;
-            var okBtn = new Button { Content = "确定", Width = 90, Height = 30, Margin = new Thickness(0, 0, 8, 0), IsDefault = true };
-            var cancelBtn = new Button { Content = "取消", Width = 80, Height = 30, IsCancel = true };
+            var okBtn = new Button { Content = Loc.T("Str_Btn_OK"), Width = 90, Height = 30, Margin = new Thickness(0, 0, 8, 0), IsDefault = true };
+            var cancelBtn = new Button { Content = Loc.T("Str_Btn_Cancel"), Width = 80, Height = 30, IsCancel = true };
             okBtn.Click += delegate {
                 if (!AuthHelper.VerifyChiefJudgePassword(pwdBox.Password)) {
                     tip.Text = "密码不对。(这是裁判长专用密码, 不是系统账号密码 —— 忘了就去「设置→裁判长权限」里改)";
@@ -24118,7 +24118,7 @@ namespace SwimmingScoreboard
                 }
             };
             var pdfBtn = new Button {
-                Content = "导出PDF", Padding = new Thickness(14, 5, 14, 5), FontSize = 13,
+                Content = Loc.T("Str_Btn_ExportPdf"), Padding = new Thickness(14, 5, 14, 5), FontSize = 13,
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F59E0B")),
                 Foreground = new SolidColorBrush(Colors.White), FontWeight = FontWeights.Bold,
                 BorderThickness = new Thickness(0), Margin = new Thickness(12, 0, 0, 0),
@@ -24290,10 +24290,10 @@ namespace SwimmingScoreboard
             if (lb.Items.Count > 0) lb.SelectedIndex = 0;
             Grid.SetRow(lb, 1); grid.Children.Add(lb);
             var btns = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
-            var okBtn = new Button { Content = "确认 → 大屏总排名", Padding = new Thickness(16, 6, 16, 6), Margin = new Thickness(0, 0, 8, 0),
+            var okBtn = new Button { Content = Loc.T("Str_Btn_ConfirmToScreenRanking"), Padding = new Thickness(16, 6, 16, 6), Margin = new Thickness(0, 0, 8, 0),
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6")),
                 Foreground = Brushes.White, BorderThickness = new Thickness(0), FontWeight = FontWeights.Bold };
-            var cancelBtn = new Button { Content = "取消", Padding = new Thickness(16, 6, 16, 6),
+            var cancelBtn = new Button { Content = Loc.T("Str_Btn_Cancel"), Padding = new Thickness(16, 6, 16, 6),
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")),
                 Foreground = Brushes.White, BorderThickness = new Thickness(0) };
             okBtn.Click += (s2, e2) => {
@@ -24354,10 +24354,10 @@ namespace SwimmingScoreboard
             if (lb.Items.Count > 0) lb.SelectedIndex = 0;
             Grid.SetRow(lb, 1); grid.Children.Add(lb);
             var btns = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
-            var okBtn = new Button { Content = "确认 → 大屏颁奖", Padding = new Thickness(16, 6, 16, 6), Margin = new Thickness(0, 0, 8, 0),
+            var okBtn = new Button { Content = Loc.T("Str_Btn_ConfirmToScreenAwards"), Padding = new Thickness(16, 6, 16, 6), Margin = new Thickness(0, 0, 8, 0),
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F59E0B")),
                 Foreground = Brushes.White, BorderThickness = new Thickness(0), FontWeight = FontWeights.Bold };
-            var cancelBtn = new Button { Content = "取消", Padding = new Thickness(16, 6, 16, 6),
+            var cancelBtn = new Button { Content = Loc.T("Str_Btn_Cancel"), Padding = new Thickness(16, 6, 16, 6),
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")),
                 Foreground = Brushes.White, BorderThickness = new Thickness(0) };
             okBtn.Click += (s2, e2) => {
@@ -24394,7 +24394,7 @@ namespace SwimmingScoreboard
             sp.Children.Add(new TextBlock { Text = "显示比赛日程", FontSize = 17, FontWeight = FontWeights.Bold, Foreground = Brushes.White, Margin = new Thickness(0, 0, 0, 6) });
             sp.Children.Add(new TextBlock { Text = "选择要在大屏显示日程的比赛场次 (超过一页自动翻页):", Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), FontSize = 13, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 12) });
             var combo = new ComboBox { FontSize = 14, Margin = new Thickness(0, 0, 0, 6) };
-            combo.Items.Add(new ComboBoxItem { Content = "全部场次", Tag = -1 });
+            combo.Items.Add(new ComboBoxItem { Content = Loc.T("Str_All_Sessions"), Tag = -1 });
             foreach (var sn in _schedule.Select(s => s.SessionNumber).Distinct().OrderBy(n => n)) {
                 var first = _schedule.FirstOrDefault(s => s.SessionNumber == sn);
                 string nm = "";
@@ -24409,7 +24409,7 @@ namespace SwimmingScoreboard
             combo.SelectedIndex = 0;
             sp.Children.Add(combo);
             var btnPanel = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 14, 0, 0) };
-            var btnCancel = new Button { Content = "取消", Padding = new Thickness(16, 6, 16, 6), Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569")), Foreground = Brushes.White, BorderThickness = new Thickness(0), Margin = new Thickness(0, 0, 8, 0) };
+            var btnCancel = new Button { Content = Loc.T("Str_Btn_Cancel"), Padding = new Thickness(16, 6, 16, 6), Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569")), Foreground = Brushes.White, BorderThickness = new Thickness(0), Margin = new Thickness(0, 0, 8, 0) };
             btnCancel.Click += delegate { dlg.DialogResult = false; };
             var btnOk = new Button { Content = Loc.T("Str_MsgTitle_Confirm"), Padding = new Thickness(16, 6, 16, 6), Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6")), Foreground = Brushes.White, BorderThickness = new Thickness(0), FontWeight = FontWeights.Bold };
             btnOk.Click += delegate { dlg.DialogResult = true; };
@@ -24715,13 +24715,13 @@ namespace SwimmingScoreboard
             };
 
             var row = new StackPanel { Orientation = Orientation.Horizontal };
-            var prev = new Button { Content = "← 上一页", Padding = new Thickness(14, 6, 14, 6), Margin = new Thickness(0, 0, 8, 0),
+            var prev = new Button { Content = Loc.T("Str_Btn_PrevPage"), Padding = new Thickness(14, 6, 14, 6), Margin = new Thickness(0, 0, 8, 0),
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
-            var next = new Button { Content = "下一页 →", Padding = new Thickness(14, 6, 14, 6), Margin = new Thickness(0, 0, 8, 0),
+            var next = new Button { Content = Loc.T("Str_Btn_NextPage"), Padding = new Thickness(14, 6, 14, 6), Margin = new Thickness(0, 0, 8, 0),
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6")), Foreground = Brushes.White, FontWeight = FontWeights.Bold, BorderThickness = new Thickness(0) };
-            var auto = new Button { Content = "▶ 自动 5s", Padding = new Thickness(14, 6, 14, 6), Margin = new Thickness(0, 0, 8, 0),
+            var auto = new Button { Content = Loc.T("Str_Btn_AutoPlay5s"), Padding = new Thickness(14, 6, 14, 6), Margin = new Thickness(0, 0, 8, 0),
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#22C55E")), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
-            var close = new Button { Content = "结束放映", Padding = new Thickness(14, 6, 14, 6),
+            var close = new Button { Content = Loc.T("Str_Btn_EndSlideshow"), Padding = new Thickness(14, 6, 14, 6),
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#DC2626")), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
 
             prev.Click += (s, e) => { if (idx > 0) { idx--; pushCurrent(); } };
@@ -24731,13 +24731,13 @@ namespace SwimmingScoreboard
                     autoTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
                     autoTimer.Tick += (s2, e2) => {
                         if (idx < slides.Count - 1) { idx++; pushCurrent(); }
-                        else { autoTimer.Stop(); autoTimer = null; auto.Content = "▶ 自动 5s"; }
+                        else { autoTimer.Stop(); autoTimer = null; auto.Content = Loc.T("Str_Btn_AutoPlay5s"); }
                     };
                     autoTimer.Start();
-                    auto.Content = "■ 停止自动";
+                    auto.Content = Loc.T("Str_Btn_StopAuto");
                 } else {
                     autoTimer.Stop(); autoTimer = null;
-                    auto.Content = "▶ 自动 5s";
+                    auto.Content = Loc.T("Str_Btn_AutoPlay5s");
                 }
             };
             close.Click += (s, e) => {
@@ -24810,7 +24810,7 @@ namespace SwimmingScoreboard
             var pathRow = new DockPanel { Margin = new Thickness(0, 0, 0, 10) };
             DockPanel.SetDock(pathRow, Dock.Top);
             var btnPick = new Button {
-                Content = "选择文件...", Padding = new Thickness(12, 6, 12, 6),
+                Content = Loc.T("Str_Btn_ChooseFileEllipsis"), Padding = new Thickness(12, 6, 12, 6),
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6")),
                 Foreground = Brushes.White, BorderThickness = new Thickness(0)
             };
@@ -24834,17 +24834,17 @@ namespace SwimmingScoreboard
             var lblFit = new TextBlock { Text = "缩放方式：", VerticalAlignment = VerticalAlignment.Center, Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569")) };
             Grid.SetRow(lblFit, 0); Grid.SetColumn(lblFit, 0);
             var fitPanel = new StackPanel { Orientation = Orientation.Horizontal };
-            var rbContain = new RadioButton { Content = "保持比例（contain）", IsChecked = true, GroupName = "MediaFit", Margin = new Thickness(0, 0, 16, 0), VerticalAlignment = VerticalAlignment.Center };
-            var rbCover = new RadioButton { Content = "填满屏幕（cover）", GroupName = "MediaFit", Margin = new Thickness(0, 0, 16, 0), VerticalAlignment = VerticalAlignment.Center };
-            var rbStretch = new RadioButton { Content = "拉伸（fill）", GroupName = "MediaFit", VerticalAlignment = VerticalAlignment.Center };
+            var rbContain = new RadioButton { Content = Loc.T("Str_Radio_FitContain"), IsChecked = true, GroupName = "MediaFit", Margin = new Thickness(0, 0, 16, 0), VerticalAlignment = VerticalAlignment.Center };
+            var rbCover = new RadioButton { Content = Loc.T("Str_Radio_FitCover"), GroupName = "MediaFit", Margin = new Thickness(0, 0, 16, 0), VerticalAlignment = VerticalAlignment.Center };
+            var rbStretch = new RadioButton { Content = Loc.T("Str_Radio_FitStretch"), GroupName = "MediaFit", VerticalAlignment = VerticalAlignment.Center };
             fitPanel.Children.Add(rbContain); fitPanel.Children.Add(rbCover); fitPanel.Children.Add(rbStretch);
             Grid.SetRow(fitPanel, 0); Grid.SetColumn(fitPanel, 1);
             var lblOpt = new TextBlock { Text = "视频选项：", VerticalAlignment = VerticalAlignment.Center, Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569")), Margin = new Thickness(0, 6, 0, 0) };
             Grid.SetRow(lblOpt, 1); Grid.SetColumn(lblOpt, 0);
             var optPanel = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 6, 0, 0) };
-            var cbLoop = new CheckBox { Content = "循环播放", IsChecked = true, Margin = new Thickness(0, 0, 16, 0), VerticalAlignment = VerticalAlignment.Center };
-            var cbMute = new CheckBox { Content = "静音", IsChecked = false, Margin = new Thickness(0, 0, 16, 0), VerticalAlignment = VerticalAlignment.Center };
-            var cbAuto = new CheckBox { Content = "自动播放", IsChecked = true, VerticalAlignment = VerticalAlignment.Center };
+            var cbLoop = new CheckBox { Content = Loc.T("Str_Chk_Loop"), IsChecked = true, Margin = new Thickness(0, 0, 16, 0), VerticalAlignment = VerticalAlignment.Center };
+            var cbMute = new CheckBox { Content = Loc.T("Str_Chk_Mute"), IsChecked = false, Margin = new Thickness(0, 0, 16, 0), VerticalAlignment = VerticalAlignment.Center };
+            var cbAuto = new CheckBox { Content = Loc.T("Str_Chk_AutoPlay"), IsChecked = true, VerticalAlignment = VerticalAlignment.Center };
             optPanel.Children.Add(cbLoop); optPanel.Children.Add(cbMute); optPanel.Children.Add(cbAuto);
             Grid.SetRow(optPanel, 1); Grid.SetColumn(optPanel, 1);
             optsGrid.Children.Add(lblFit); optsGrid.Children.Add(fitPanel); optsGrid.Children.Add(lblOpt); optsGrid.Children.Add(optPanel);
@@ -24897,12 +24897,12 @@ namespace SwimmingScoreboard
 
             var btnRow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 12, 0, 0) };
             var btnStop = new Button {
-                Content = "停止显示（返回比赛视图）", Padding = new Thickness(14, 6, 14, 6), Margin = new Thickness(0, 0, 8, 0),
+                Content = Loc.T("Str_Btn_StopDisplayReturn"), Padding = new Thickness(14, 6, 14, 6), Margin = new Thickness(0, 0, 8, 0),
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EF4444")), Foreground = Brushes.White, BorderThickness = new Thickness(0)
             };
             btnStop.Click += delegate { BroadcastDisplayMode("SHOW_LIVE_RACE"); AddLog(Loc.T("Str_Log_MediaStoppedBackToRace")); };
             var btnSend = new Button {
-                Content = "发送到大屏", Padding = new Thickness(14, 6, 14, 6), Margin = new Thickness(0, 0, 8, 0), FontWeight = FontWeights.Bold,
+                Content = Loc.T("Str_Btn_SendToScreen"), Padding = new Thickness(14, 6, 14, 6), Margin = new Thickness(0, 0, 8, 0), FontWeight = FontWeights.Bold,
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#22C55E")), Foreground = Brushes.White, BorderThickness = new Thickness(0)
             };
             btnSend.Click += delegate {
@@ -24919,7 +24919,7 @@ namespace SwimmingScoreboard
                 _lastMediaPath = p;
             };
             var btnClose = new Button {
-                Content = "关闭", Padding = new Thickness(14, 6, 14, 6),
+                Content = Loc.T("Str_Btn_Close"), Padding = new Thickness(14, 6, 14, 6),
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")), Foreground = Brushes.White, BorderThickness = new Thickness(0)
             };
             btnClose.Click += delegate { dlg.Close(); };
@@ -26524,7 +26524,7 @@ namespace SwimmingScoreboard
                     _deferredEditorPackage = null;
                     try {
                         ApplyPackageInMemory(pkg);
-                        UpdateEditorSyncStatus("已同步(补上比赛期间暂缓的更新)", "#22C55E");
+                        UpdateEditorSyncStatus(Loc.T("Str_SyncStatus_SyncedCaughtUp"), "#22C55E");
                         AddLog(Loc.T("Str_Log_HeatEndedCatchUpFullSync"));
                     } catch (Exception ex) { AddLog(Loc.F("Str_Log_DeferredFullSyncApplyFailedFmt", ex.Message)); }
                 }
@@ -28638,16 +28638,16 @@ namespace SwimmingScoreboard
 
             var btnPanel = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 10, 0, 0) };
             Grid.SetRow(btnPanel, 2);
-            var btnAdd = new Button { Content = "新增", Padding = new Thickness(12, 6, 12, 6), Margin = new Thickness(0, 0, 8, 0),
+            var btnAdd = new Button { Content = Loc.T("Str_Btn_Add"), Padding = new Thickness(12, 6, 12, 6), Margin = new Thickness(0, 0, 8, 0),
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6")), Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0) };
             btnAdd.Click += delegate { working.Add(new EditableNameRow { Value = "" }); };
-            var btnDel = new Button { Content = "删除选中", Padding = new Thickness(12, 6, 12, 6), Margin = new Thickness(0, 0, 8, 0),
+            var btnDel = new Button { Content = Loc.T("Str_Btn_DeleteSelected"), Padding = new Thickness(12, 6, 12, 6), Margin = new Thickness(0, 0, 8, 0),
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EF4444")), Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0) };
             btnDel.Click += delegate {
                 var sel = grid.SelectedItem as EditableNameRow;
                 if (sel != null) working.Remove(sel); else MessageBox.Show(Loc.T("Str_Msg_SelectRowToDelete"));
             };
-            var btnOk = new Button { Content = "确认保存", Padding = new Thickness(16, 6, 16, 6), Margin = new Thickness(0, 0, 8, 0), FontWeight = FontWeights.Bold,
+            var btnOk = new Button { Content = Loc.T("Str_Btn_ConfirmSave"), Padding = new Thickness(16, 6, 16, 6), Margin = new Thickness(0, 0, 8, 0), FontWeight = FontWeights.Bold,
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#22C55E")), Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0) };
             btnOk.Click += delegate {
                 var fe = System.Windows.Input.Keyboard.FocusedElement as FrameworkElement;
@@ -28666,7 +28666,7 @@ namespace SwimmingScoreboard
                 onSave(finalList);
                 dlg.DialogResult = true;
             };
-            var btnCancel = new Button { Content = "取消", Padding = new Thickness(16, 6, 16, 6),
+            var btnCancel = new Button { Content = Loc.T("Str_Btn_Cancel"), Padding = new Thickness(16, 6, 16, 6),
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")), Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0) };
             btnCancel.Click += delegate { dlg.DialogResult = false; };
             btnPanel.Children.Add(btnAdd); btnPanel.Children.Add(btnDel); btnPanel.Children.Add(btnOk); btnPanel.Children.Add(btnCancel);
@@ -28841,17 +28841,17 @@ namespace SwimmingScoreboard
             var btnPanel = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 10, 0, 0) };
             Grid.SetRow(btnPanel, 2);
 
-            var btnAdd = new Button { Content = "新增项目", Padding = new Thickness(12, 6, 12, 6), Margin = new Thickness(0, 0, 8, 0),
+            var btnAdd = new Button { Content = Loc.T("Str_Btn_AddEvent"), Padding = new Thickness(12, 6, 12, 6), Margin = new Thickness(0, 0, 8, 0),
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6")), Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0) };
             btnAdd.Click += delegate { working.Add(new EventRow { Name = "新项目" }); };
-            var btnDel = new Button { Content = "删除选中", Padding = new Thickness(12, 6, 12, 6), Margin = new Thickness(0, 0, 8, 0),
+            var btnDel = new Button { Content = Loc.T("Str_Btn_DeleteSelected"), Padding = new Thickness(12, 6, 12, 6), Margin = new Thickness(0, 0, 8, 0),
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EF4444")), Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0) };
             btnDel.Click += delegate {
                 var sel = grid.SelectedItem as EventRow;
                 if (sel != null) working.Remove(sel);
                 else MessageBox.Show(Loc.T("Str_Msg_SelectRowToDelete"));
             };
-            var btnOk = new Button { Content = "确认保存", Padding = new Thickness(16, 6, 16, 6), Margin = new Thickness(0, 0, 8, 0), FontWeight = FontWeights.Bold,
+            var btnOk = new Button { Content = Loc.T("Str_Btn_ConfirmSave"), Padding = new Thickness(16, 6, 16, 6), Margin = new Thickness(0, 0, 8, 0), FontWeight = FontWeights.Bold,
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#22C55E")), Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0) };
             btnOk.Click += delegate {
                 var fe = System.Windows.Input.Keyboard.FocusedElement as FrameworkElement;
@@ -28874,7 +28874,7 @@ namespace SwimmingScoreboard
                 AddLog(Loc.F("Str_Log_EventListUpdated2Fmt", _events.Count));
                 dlg.DialogResult = true;
             };
-            var btnCancel = new Button { Content = "取消", Padding = new Thickness(16, 6, 16, 6),
+            var btnCancel = new Button { Content = Loc.T("Str_Btn_Cancel"), Padding = new Thickness(16, 6, 16, 6),
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")), Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0) };
             btnCancel.Click += delegate { dlg.DialogResult = false; };
             btnPanel.Children.Add(btnAdd); btnPanel.Children.Add(btnDel); btnPanel.Children.Add(btnOk); btnPanel.Children.Add(btnCancel);
@@ -28933,16 +28933,16 @@ namespace SwimmingScoreboard
 
             var btnPanel = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 10, 0, 0) };
             Grid.SetRow(btnPanel, 2);
-            var btnAdd = new Button { Content = "新增", Padding = new Thickness(12, 6, 12, 6), Margin = new Thickness(0, 0, 8, 0),
+            var btnAdd = new Button { Content = Loc.T("Str_Btn_Add"), Padding = new Thickness(12, 6, 12, 6), Margin = new Thickness(0, 0, 8, 0),
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6")), Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0) };
             btnAdd.Click += delegate { working.Add(new AgeGroup { Name = "新组别", MinAge = 0, MaxAge = 0 }); };
-            var btnDel = new Button { Content = "删除选中", Padding = new Thickness(12, 6, 12, 6), Margin = new Thickness(0, 0, 8, 0),
+            var btnDel = new Button { Content = Loc.T("Str_Btn_DeleteSelected"), Padding = new Thickness(12, 6, 12, 6), Margin = new Thickness(0, 0, 8, 0),
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EF4444")), Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0) };
             btnDel.Click += delegate {
                 var sel = grid.SelectedItem as AgeGroup;
                 if (sel != null) working.Remove(sel); else MessageBox.Show(Loc.T("Str_Msg_SelectRowToDelete"));
             };
-            var btnOk = new Button { Content = "确认保存", Padding = new Thickness(16, 6, 16, 6), Margin = new Thickness(0, 0, 8, 0), FontWeight = FontWeights.Bold,
+            var btnOk = new Button { Content = Loc.T("Str_Btn_ConfirmSave"), Padding = new Thickness(16, 6, 16, 6), Margin = new Thickness(0, 0, 8, 0), FontWeight = FontWeights.Bold,
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#22C55E")), Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0) };
             btnOk.Click += delegate {
                 var fe = System.Windows.Input.Keyboard.FocusedElement as FrameworkElement;
@@ -28970,7 +28970,7 @@ namespace SwimmingScoreboard
                 AddLog(Loc.F("Str_Log_AgeGroupListUpdated2Fmt", _ageGroups.Count));
                 dlg.DialogResult = true;
             };
-            var btnCancel = new Button { Content = "取消", Padding = new Thickness(16, 6, 16, 6),
+            var btnCancel = new Button { Content = Loc.T("Str_Btn_Cancel"), Padding = new Thickness(16, 6, 16, 6),
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")), Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0) };
             btnCancel.Click += delegate { dlg.DialogResult = false; };
             btnPanel.Children.Add(btnAdd); btnPanel.Children.Add(btnDel); btnPanel.Children.Add(btnOk); btnPanel.Children.Add(btnCancel);
@@ -30579,11 +30579,11 @@ namespace SwimmingScoreboard
             }
 
             var btnPanel = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 12, 0, 0) };
-            var btnCancel = new Button { Content = "取消", Padding = new Thickness(20, 6, 20, 6), Margin = new Thickness(0, 0, 8, 0),
+            var btnCancel = new Button { Content = Loc.T("Str_Btn_Cancel"), Padding = new Thickness(20, 6, 20, 6), Margin = new Thickness(0, 0, 8, 0),
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")), Foreground = Brushes.White,
                 BorderThickness = new Thickness(0) };
             btnCancel.Click += delegate { dlg.DialogResult = false; };
-            var btnOK = new Button { Content = "确定", Padding = new Thickness(20, 6, 20, 6), FontWeight = FontWeights.Bold,
+            var btnOK = new Button { Content = Loc.T("Str_Btn_OK"), Padding = new Thickness(20, 6, 20, 6), FontWeight = FontWeights.Bold,
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6")), Foreground = Brushes.White,
                 BorderThickness = new Thickness(0) };
             btnOK.Click += delegate {
