@@ -29,11 +29,11 @@ namespace SwimmingScoreboard
         }
 
         private void RefreshCountText() {
-            CountText.Text = string.Format("共 {0} 个单位", _units.Count);
+            CountText.Text = Loc.F("Str_Win_UnitMgmt_CountFmt", _units.Count);
         }
 
         private void Add_Click(object sender, RoutedEventArgs e) {
-            var u = new Unit { Name = "新单位" + (_units.Count + 1) };
+            var u = new Unit { Name = Loc.T("Str_Win_UnitMgmt_NewUnitPrefix") + (_units.Count + 1) };
             _units.Add(u);
             UnitGrid.SelectedItem = u;
             UnitGrid.ScrollIntoView(u);
@@ -42,9 +42,9 @@ namespace SwimmingScoreboard
 
         private void Delete_Click(object sender, RoutedEventArgs e) {
             var sel = UnitGrid.SelectedItems.Cast<Unit>().ToList();
-            if (sel.Count == 0) { MessageBox.Show("请先在表格中选中要删除的单位", "提示"); return; }
-            if (MessageBox.Show(string.Format("确认删除选中的 {0} 个单位？\n(只删除元信息，不影响运动员的代表队字段)", sel.Count),
-                "确认", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+            if (sel.Count == 0) { MessageBox.Show(Loc.T("Str_Win_UnitMgmt_MsgSelectToDelete"), Loc.T("Str_MsgTitle_Info")); return; }
+            if (MessageBox.Show(Loc.F("Str_Win_UnitMgmt_MsgConfirmDeleteFmt", sel.Count),
+                Loc.T("Str_MsgTitle_Confirm"), MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
             foreach (var u in sel) _units.Remove(u);
             RefreshCountText();
         }
@@ -63,12 +63,12 @@ namespace SwimmingScoreboard
                 added++;
             }
             RefreshCountText();
-            MessageBox.Show(string.Format("✔ 已从报名表自动补全 {0} 个新单位", added), "完成");
+            MessageBox.Show(Loc.F("Str_Win_UnitMgmt_MsgAutoFillDoneFmt", added), Loc.T("Str_MsgTitle_Done"));
         }
 
         private void ExportCsv_Click(object sender, RoutedEventArgs e) {
             var dlg = new Microsoft.Win32.SaveFileDialog {
-                Filter = "CSV 文件|*.csv",
+                Filter = Loc.T("Str_Win_UnitMgmt_CsvFilter"),
                 FileName = "参赛单位_" + DateTime.Now.ToString("yyyyMMdd_HHmm") + ".csv"
             };
             if (dlg.ShowDialog() != true) return;
@@ -82,12 +82,12 @@ namespace SwimmingScoreboard
                 }));
             }
             File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
-            MessageBox.Show("已导出: " + dlg.FileName, "完成");
+            MessageBox.Show(Loc.F("Str_Win_UnitMgmt_MsgExportedFmt", dlg.FileName), Loc.T("Str_MsgTitle_Done"));
         }
 
         private void ImportCsv_Click(object sender, RoutedEventArgs e) {
             var dlg = new Microsoft.Win32.OpenFileDialog {
-                Filter = "CSV 文件|*.csv"
+                Filter = Loc.T("Str_Win_UnitMgmt_CsvFilter")
             };
             if (dlg.ShowDialog() != true) return;
             try {
@@ -125,9 +125,9 @@ namespace SwimmingScoreboard
                     }
                 }
                 RefreshCountText();
-                MessageBox.Show(string.Format("✔ 新增 {0} 个，更新 {1} 个", added, updated), "完成");
+                MessageBox.Show(Loc.F("Str_Win_UnitMgmt_MsgImportDoneFmt", added, updated), Loc.T("Str_MsgTitle_Done"));
             } catch (Exception ex) {
-                MessageBox.Show("导入失败: " + ex.Message, "错误");
+                MessageBox.Show(Loc.F("Str_Win_UnitMgmt_MsgImportFailFmt", ex.Message), Loc.T("Str_MsgTitle_Error"));
             }
         }
 
@@ -146,22 +146,21 @@ namespace SwimmingScoreboard
                 _editTempPath = tmp;
                 try { Process.Start(new ProcessStartInfo(tmp) { UseShellExecute = true }); }
                 catch (Exception ex) {
-                    MessageBox.Show("无法用默认应用打开 .xlsx: " + ex.Message +
-                        "\n\n文件已保存到：\n" + tmp + "\n\n请手动用 Excel/WPS 打开编辑后再点回灌。", "提示");
+                    MessageBox.Show(Loc.F("Str_Win_UnitMgmt_MsgOpenFailFmt", ex.Message, tmp), Loc.T("Str_MsgTitle_Info"));
                 }
                 // 模态等待对话框: 编辑完成回灌 / 取消
                 var dlg = new Window {
-                    Title = "Excel/WPS 编辑中", Width = 460, Height = 220,
+                    Title = Loc.T("Str_Win_UnitMgmt_XlsxTempTitle"), Width = 460, Height = 220,
                     WindowStartupLocation = WindowStartupLocation.CenterOwner, Owner = this,
                     ResizeMode = ResizeMode.NoResize, Background = System.Windows.Media.Brushes.WhiteSmoke
                 };
                 var sp = new System.Windows.Controls.StackPanel { Margin = new Thickness(16) };
                 sp.Children.Add(new System.Windows.Controls.TextBlock {
-                    Text = "已用 Excel/WPS 打开临时文件 (路径见底部)：",
+                    Text = Loc.T("Str_Win_UnitMgmt_XlsxOpenedLine1"),
                     FontWeight = FontWeights.Bold, FontSize = 13, Margin = new Thickness(0, 0, 0, 6)
                 });
                 sp.Children.Add(new System.Windows.Controls.TextBlock {
-                    Text = "1. 在 Excel/WPS 里修改数据后【保存】文件 (Ctrl+S)\n2. 关闭 Excel/WPS\n3. 点下方「✓ 编辑完成，回灌」按钮把改动写回程序",
+                    Text = Loc.T("Str_Win_UnitMgmt_XlsxSteps"),
                     TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 12), Foreground = System.Windows.Media.Brushes.DarkSlateGray
                 });
                 sp.Children.Add(new System.Windows.Controls.TextBlock {
@@ -173,7 +172,7 @@ namespace SwimmingScoreboard
                     HorizontalAlignment = System.Windows.HorizontalAlignment.Right
                 };
                 var bOk = new System.Windows.Controls.Button {
-                    Content = "✓ 编辑完成，回灌", Padding = new Thickness(14, 6, 14, 6),
+                    Content = Loc.T("Str_Win_UnitMgmt_XlsxDoneBtn"), Padding = new Thickness(14, 6, 14, 6),
                     Background = new System.Windows.Media.SolidColorBrush(
                         (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#16A34A")),
                     Foreground = System.Windows.Media.Brushes.White,
@@ -181,7 +180,7 @@ namespace SwimmingScoreboard
                     Margin = new Thickness(0, 0, 8, 0)
                 };
                 var bCancel = new System.Windows.Controls.Button {
-                    Content = "取消", Padding = new Thickness(14, 6, 14, 6),
+                    Content = Loc.T("Str_Btn_Cancel"), Padding = new Thickness(14, 6, 14, 6),
                     Background = new System.Windows.Media.SolidColorBrush(
                         (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#64748B")),
                     Foreground = System.Windows.Media.Brushes.White, BorderThickness = new Thickness(0)
@@ -197,7 +196,7 @@ namespace SwimmingScoreboard
                     try { File.Delete(tmp); } catch { }
                 }
             } catch (Exception ex) {
-                MessageBox.Show("启动外部编辑失败: " + ex.Message, "错误");
+                MessageBox.Show(Loc.F("Str_Win_UnitMgmt_MsgLaunchFailFmt", ex.Message), Loc.T("Str_MsgTitle_Error"));
             }
         }
 
@@ -225,31 +224,31 @@ namespace SwimmingScoreboard
         }
 
         private void ReadbackUnitsFromXlsx(string path) {
-            if (!File.Exists(path)) { MessageBox.Show("找不到临时文件: " + path, "错误"); return; }
+            if (!File.Exists(path)) { MessageBox.Show(Loc.F("Str_Win_UnitMgmt_MsgTempMissingFmt", path), Loc.T("Str_MsgTitle_Error")); return; }
             IWorkbook wb;
             try {
                 using (var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
                     wb = new XSSFWorkbook(fs);
             } catch (IOException) {
-                MessageBox.Show("文件仍被 Excel/WPS 占用，请先关闭再回灌。", "提示"); return;
+                MessageBox.Show(Loc.T("Str_Win_UnitMgmt_MsgFileLocked"), Loc.T("Str_MsgTitle_Info")); return;
             } catch (Exception ex) {
-                MessageBox.Show("读取失败: " + ex.Message, "错误"); return;
+                MessageBox.Show(Loc.F("Str_Win_UnitMgmt_MsgReadFailFmt", ex.Message), Loc.T("Str_MsgTitle_Error")); return;
             }
             var sheet = wb.GetSheetAt(0);
-            if (sheet == null) { MessageBox.Show("没有工作表", "错误"); return; }
+            if (sheet == null) { MessageBox.Show(Loc.T("Str_Win_UnitMgmt_MsgNoSheet"), Loc.T("Str_MsgTitle_Error")); return; }
 
-            // 表头严格校验
+            // 表头严格校验 (UnitXlsxHeader 是数据格式契约, 与导入回读比对, 不可翻译)
             var head = sheet.GetRow(0);
             if (head == null || head.LastCellNum < UnitXlsxHeader.Length) {
-                MessageBox.Show("❌ 表头列数不足或为空。请用「📊 用 Excel/WPS 编辑」重新导出再编辑。", "格式错误");
+                MessageBox.Show(Loc.T("Str_Win_UnitMgmt_MsgHeaderCountBad"), Loc.T("Str_MsgTitle_Error"));
                 return;
             }
             for (int c = 0; c < UnitXlsxHeader.Length; c++) {
                 string actual = head.GetCell(c) != null ? (head.GetCell(c).ToString() ?? "").Trim() : "";
                 if (actual != UnitXlsxHeader[c]) {
-                    MessageBox.Show(string.Format(
-                        "❌ 表头第 {0} 列不匹配：期望「{1}」，实际「{2}」。",
-                        c + 1, UnitXlsxHeader[c], actual), "格式错误");
+                    MessageBox.Show(Loc.F(
+                        "Str_Win_UnitMgmt_MsgHeaderMismatchFmt",
+                        c + 1, UnitXlsxHeader[c], actual), Loc.T("Str_MsgTitle_Error"));
                     return;
                 }
             }
@@ -262,7 +261,7 @@ namespace SwimmingScoreboard
                 string name = CellStr(row.GetCell(0));
                 if (string.IsNullOrEmpty(name)) continue;     // 全空行跳过
                 if (seenNames.Contains(name)) {
-                    skipped.Add(string.Format("第 {0} 行 [{1}]: 单位名称重复", r + 1, name));
+                    skipped.Add(Loc.F("Str_Win_UnitMgmt_MsgDupNameFmt", r + 1, name));
                     continue;
                 }
                 seenNames.Add(name);
@@ -288,10 +287,10 @@ namespace SwimmingScoreboard
             }
 
             // 二次确认：整体替换
-            var res = MessageBox.Show(string.Format(
-                "回灌将整体替换当前 {0} 个单位为 {1} 个，跳过 {2} 行重复/无效记录。\n\n确认替换？",
+            var res = MessageBox.Show(Loc.F(
+                "Str_Win_UnitMgmt_MsgConfirmReadbackFmt",
                 _units.Count, newUnits.Count, skipped.Count),
-                "确认回灌", MessageBoxButton.OKCancel, MessageBoxImage.Question);
+                Loc.T("Str_MsgTitle_Confirm"), MessageBoxButton.OKCancel, MessageBoxImage.Question);
             if (res != MessageBoxResult.OK) return;
 
             _units.Clear();
@@ -299,12 +298,12 @@ namespace SwimmingScoreboard
             RefreshCountText();
 
             var sb = new StringBuilder();
-            sb.AppendFormat("✔ 已回灌 {0} 个单位\n", newUnits.Count);
+            sb.Append(Loc.F("Str_Win_UnitMgmt_MsgReadbackDoneFmt", newUnits.Count));
             if (skipped.Count > 0) {
-                sb.AppendLine("\n跳过明细:");
+                sb.AppendLine(Loc.T("Str_Win_UnitMgmt_MsgSkippedDetail"));
                 foreach (var s in skipped) sb.AppendLine("• " + s);
             }
-            MessageBox.Show(sb.ToString(), "完成");
+            MessageBox.Show(sb.ToString(), Loc.T("Str_MsgTitle_Done"));
 
             try { File.Delete(path); } catch { }
             _editTempPath = null;
