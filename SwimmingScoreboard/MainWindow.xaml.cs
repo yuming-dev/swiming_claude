@@ -6032,7 +6032,7 @@ namespace SwimmingScoreboard
                     (byte)Math.Min(255, leftTotal),
                     laneOpen0_4, laneOpen5_9, isRelayByte, hwAlwaysOpenByte, backstrokeByte);
                 _timingBridge.DelayBetweenFrames(20);     // 给硬件处理本帧的时间，防止下一条命令被吞
-                AddLog(string.Format("Set_MatchEvent 已下发: 总圈{0} 右{1} 左{2} 开0-4=0x{3:X2} 开5-9=0x{4:X2} 接力={5} 硬件一直打开={6} 仰泳出发={7}",
+                AddLog(Loc.F("Str_Log_SetMatchEventSentFmt",
                     totalLaps, rightTotal, leftTotal, laneOpen0_4, laneOpen5_9, _isRelay ? "是" : "否", _laneCloseSettings.HardwareAlwaysOpen ? "是" : "否", isBackstroke ? "是" : "否"));
 
                 // 2026-06-15 跟 0x43 一起发 0x46 Set_StrokeType: 硬件 UI 第 2 行 +1 键左侧显示泳姿名称
@@ -6459,7 +6459,7 @@ namespace SwimmingScoreboard
                             int mbBtn = cmdType == "PushButton1" ? 1 : (cmdType == "PushButton2" ? 2 : 3);
                             RecordDirectSbBasis(lane, side, timeInSeconds, "MB_FirstPress", mbBtn);
                         } else {
-                            AddLog(string.Format("泳道{0} 直通 basis {1} {2} 设备关闭/损坏/未装, 忽略 (tpSt={3}, bwSt={4})",
+                            AddLog(Loc.F("Str_Log_DirectBasisIgnoredFmt",
                                 lane, cmdType, side == "left" ? "左" : "右", tpSt, bwSt));
                         }
                     }
@@ -6638,7 +6638,7 @@ namespace SwimmingScoreboard
                             bool startFromLeft_g = _laneCloseSettings == null || _laneCloseSettings.StartPosition != "right";
                             string startSideName_g = startFromLeft_g ? "left" : "right";
                             if (isBack_g && side == startSideName_g && laneState.CurrentLap == 0 && !isMbSubstitute) {
-                                AddLog(string.Format("泳道{0} 仰泳出发端 {1} TP 在 CurrentLap=0 收到, 视为反应时副产物 (不计圈)",
+                                AddLog(Loc.F("Str_Log_BackstrokeStartTpFmt",
                                     lane, side == "left" ? "左" : "右"));
                                 break;
                             }
@@ -6662,7 +6662,7 @@ namespace SwimmingScoreboard
                                 ? startSideTpG
                                 : (startSideTpG == "left" ? "right" : "left");
                             if (side != expectedSideTpG) {
-                                AddLog(string.Format("泳道{0} {1}侧 {2} 忽略 (= 当前棒应在{3}侧完成, 接力 side 守卫)",
+                                AddLog(Loc.F("Str_Log_SideIgnoredGuardFmt",
                                     lane,
                                     side == "left" ? "左" : "右",
                                     isMbSubstitute ? "MB代替" : "触板",
@@ -6685,7 +6685,7 @@ namespace SwimmingScoreboard
                             // 备用成绩：写入运动员当前组的成绩记录 + 日志
                             RecordBackupTouch(lane, timeInSeconds);
                         } else {
-                            AddLog(string.Format("泳道{0} 触板数据已记录但不作为成绩（{1}状态:{2}）",
+                            AddLog(Loc.F("Str_Log_TpRecordedNotResultFmt",
                                 lane, side ?? "", tpStatus));
                         }
                     }
@@ -6726,7 +6726,7 @@ namespace SwimmingScoreboard
                             AppendBlindResult(lane, timeInSeconds);
                             RecordBackupBlind(lane, blindNum, timeInSeconds);
                         } else {
-                            AddLog(string.Format("泳道{0} 盲表{1} 数据已记录但不作为成绩（{2}状态:{3}）",
+                            AddLog(Loc.F("Str_Log_BwRecordedNotResultFmt",
                                 lane, blindNum, side ?? "", bwStatus));
                         }
                     }
@@ -7059,7 +7059,7 @@ namespace SwimmingScoreboard
 
                 AddLog(Loc.F("Str_Log_RawDataSavedFmt", safeName));
             } catch (Exception ex) {
-                AddLog("保存原始计时数据失败: " + ex.Message);
+                AddLog(Loc.F("Str_Log_SaveRawDataFailedFmt", ex.Message));
             }
         }
 
@@ -7375,7 +7375,7 @@ namespace SwimmingScoreboard
                 var result = swimmer.Results.FirstOrDefault(r => r.Stage == _currentStage && r.Heat == _currentHeat);
                 if (result != null) result.BackupReactionTimes.Add((side ?? "?") + ":" + time.ToString("F3"));
             }
-            AddLog(string.Format("泳道{0} 出发台触发【备用反应时】{1}={2:F3}s（争议时使用，已记录但不作为正式反应时）",
+            AddLog(Loc.F("Str_Log_SbBackupReactionFmt",
                 lane, side ?? "?", time));
         }
 
@@ -7389,7 +7389,7 @@ namespace SwimmingScoreboard
                 var result = swimmer.Results.FirstOrDefault(r => r.Stage == _currentStage && r.Heat == _currentHeat);
                 if (result != null) result.BackupBlindTimes.Add(blindNum + ":" + time.ToString("F3"));
             }
-            AddLog(string.Format("泳道{0} 盲表{1}【备用成绩】{2:F3}s（争议时使用，已记录但不作为正式分段）",
+            AddLog(Loc.F("Str_Log_BwBackupResultFmt",
                 lane, blindNum, time));
         }
 
@@ -7400,16 +7400,16 @@ namespace SwimmingScoreboard
                 return (sa != null ? sa.Lane : s.Lane) == lane;
             });
             if (swimmer == null) {
-                AddLog(string.Format("泳道{0} 备用成绩 {1}（找不到运动员，仅日志）", lane, TimeFormatter.Format(time)));
+                AddLog(Loc.F("Str_Log_BackupResultNoSwimmerFmt", lane, TimeFormatter.Format(time)));
                 return;
             }
             var result = swimmer.Results.FirstOrDefault(r => r.Stage == _currentStage && r.Heat == _currentHeat);
             if (result == null) {
-                AddLog(string.Format("泳道{0} 备用成绩 {1}（无成绩记录，仅日志）", lane, TimeFormatter.Format(time)));
+                AddLog(Loc.F("Str_Log_BackupResultNoRecordFmt", lane, TimeFormatter.Format(time)));
                 return;
             }
             result.BackupTouchTimes.Add(time);
-            AddLog(string.Format("泳道{0} {1} 触板【备用成绩】{2}（争议时使用，正式成绩 {3}）",
+            AddLog(Loc.F("Str_Log_TpBackupResultFmt",
                 lane, swimmer.Name ?? "", TimeFormatter.Format(time),
                 result.FinalTime > 0 ? TimeFormatter.Format(result.FinalTime) : "—"));
         }
@@ -7424,7 +7424,7 @@ namespace SwimmingScoreboard
             var laneState = _laneDeviceStates.FirstOrDefault(s => s.Lane == lane);
             if (laneState == null) return;
             if (laneState.IsFinished) {
-                AddLog(string.Format("泳道{0} 已完赛, 跳圈忽略", lane));
+                AddLog(Loc.F("Str_Log_LapSkipFinishedFmt", lane));
                 return;
             }
             var swimmer = GetCurrentHeatSwimmers().FirstOrDefault(s => {
@@ -7432,7 +7432,7 @@ namespace SwimmingScoreboard
                 return (sa != null ? sa.Lane : s.Lane) == lane;
             });
             if (swimmer == null) swimmer = GetCurrentHeatSwimmers().FirstOrDefault(s => s.Lane == lane);
-            if (swimmer == null) { AddLog(string.Format("泳道{0} 无运动员, 跳圈忽略", lane)); return; }
+            if (swimmer == null) { AddLog(Loc.F("Str_Log_LapSkipNoSwimmerFmt", lane)); return; }
 
             var result = swimmer.Results.FirstOrDefault(r => r.Stage == _currentStage && r.Heat == _currentHeat);
             if (result == null) {
@@ -7463,14 +7463,14 @@ namespace SwimmingScoreboard
             if (currentLap >= totalLaps) {
                 laneState.IsFinished = true;
                 result.FinalTime = 0; result.TimeInSeconds = 0; result.TimingSource = "Skipped";
-                AddLog(string.Format("⏭ 泳道{0} 跳圈完赛 (FinalTime=0, 等手工输入)", lane));
+                AddLog(Loc.F("Str_Log_LapSkipFinishNoTimeFmt", lane));
             } else {
                 // 启动 LaneClose 倒计时 (= 分段触板路径一致)
                 double targetSec = laneState.LaneCloseTime > 0 ? laneState.LaneCloseTime : _laneCloseSettings.LaneCloseTime;
                 laneState.LaneCloseCountdown = targetSec;
                 laneState.CountdownStartedAt = DateTime.Now;
                 laneState.CountdownTargetSec = targetSec;
-                AddLog(string.Format("⏭ 泳道{0} 跳圈 (第{1}段无时间, 等手工输入)", lane, currentLap));
+                AddLog(Loc.F("Str_Log_LapSkipNoSplitTimeFmt", lane, currentLap));
             }
 
             // 抑制窗口: 操作员紧跟按硬件手动 TP → 硬件发 0x16 → 在窗口内丢, 不二次推进 PC
@@ -7517,12 +7517,12 @@ namespace SwimmingScoreboard
                 double diff = Math.Abs(finalSplit.TouchpadTime - mb);
                 if (diff > FINISH_TP_MB_DISPUTE_THRESHOLD) {
                     laneState.FinishTpMbDispute = true;
-                    AddLog(string.Format("⚠ 泳道{0} 终点 TP={1} MB中位={2} 差 {3:F3}s > {4}s — 标红警示 (复位后清)",
+                    AddLog(Loc.F("Str_Log_FinishTpMbDiffFmt",
                         lane, TimeFormatter.Format(finalSplit.TouchpadTime), TimeFormatter.Format(mb), diff, FINISH_TP_MB_DISPUTE_THRESHOLD));
                     UpdateLaneStatusDisplay();
                     Broadcast();
                 }
-            } catch (Exception ex) { AddLog("终点 TP/MB 差异检测失败: " + ex.Message); }
+            } catch (Exception ex) { AddLog(Loc.F("Str_Log_FinishTpMbDiffCheckFailedFmt", ex.Message)); }
         }
 
         private void ProcessTouchpadHit(int lane, double time, LaneDeviceState laneState, string side = null, bool isMbSubstitute = false, string forceSource = null) {
@@ -7590,14 +7590,14 @@ namespace SwimmingScoreboard
                         curSp.Time = time - prevCumU;
                         curSp.CumulativeTime = time;
                         curSp.TimingSource = "TP";
-                        AddLog(string.Format("泳道{0} 第{1}段 TP={2} 覆盖原 MB 代替成绩 (成绩以触板为准, 不计新圈)",
+                        AddLog(Loc.F("Str_Log_TpOverridesMbFmt",
                             lane, laneState.CurrentLap, TimeFormatter.Format(time)));
                         if (laneState.IsFinished && laneState.CurrentLap >= totalLaps) {
                             result.TouchpadTime = time;
                             result.FinalTime = time;
                             result.TimeInSeconds = time;
                             result.TimingSource = "TP";
-                            AddLog(string.Format("泳道{0} 终点成绩改用 TP: {1}", lane, TimeFormatter.Format(time)));
+                            AddLog(Loc.F("Str_Log_FinishUsesTpFmt", lane, TimeFormatter.Format(time)));
                             UpdateHeatRanking();
                             CheckFinalTpMbDispute(lane);
                         }
@@ -7606,7 +7606,7 @@ namespace SwimmingScoreboard
                         return;
                     }
                 }
-                AddLog(string.Format("泳道{0} {1}侧 重复触板 (距上次 {2:F2}s < 封闭 {3:F1}s) 记备份不计圈",
+                AddLog(Loc.F("Str_Log_DuplicateTouchFmt",
                     lane, touchSide == "left" ? "左" : "右", time - prevSideT, closeWin));
                 return;
             }
@@ -7643,7 +7643,7 @@ namespace SwimmingScoreboard
                 // 2026-06-14 撤销按侧 ++ 与去抖时刻 (本次未真正计圈)
                 if (touchSide == "left") { laneState.LeftTouchDone--; laneState.LeftLastTouchTime = prevSideT; }
                 else { laneState.RightTouchDone--; laneState.RightLastTouchTime = prevSideT; }
-                AddLog(string.Format("泳道{0} 第{1}段 MB final={2} 到达, 但已有 TP 成绩, 保持 TP (MB 留痕到 MbFinalTime)", lane, currentLap, TimeFormatter.Format(time)));
+                AddLog(Loc.F("Str_Log_MbArrivesKeepsTpFmt", lane, currentLap, TimeFormatter.Format(time)));
                 return;
             }
             // 填入触板数据到预创建的split中（盲表和手动可能已经写入了）
@@ -7671,7 +7671,7 @@ namespace SwimmingScoreboard
             laneState.PendingBlind1Time = 0;
             laneState.PendingBlind2Time = 0;
             laneState.PendingBlind3Time = 0;
-            AddLog(string.Format("泳道{0} 第{1}段: {2} (累计: {3})", lane, currentLap,
+            AddLog(Loc.F("Str_Log_LapSplitFmt", lane, currentLap,
                 TimeFormatter.Format(split.Time), TimeFormatter.Format(time)));
 
             if (currentLap >= totalLaps) {
@@ -7718,7 +7718,7 @@ namespace SwimmingScoreboard
                 finishCloseTimer.Start();
                 RegisterLaneCloseTimer(lane, finishCloseTimer);   // 2026-05-30 +/- 撤销时可取消
 
-                AddLog(string.Format("泳道{0} 完赛: {1} (来源:{2})", lane, TimeFormatter.Format(result.FinalTime), result.TimingSource));
+                AddLog(Loc.F("Str_Log_FinishedFmt", lane, TimeFormatter.Format(result.FinalTime), result.TimingSource));
                 UpdateHeatRanking();
                 CheckRecords(swimmer, result);
                 // 注意：仅在 ConfirmResult_Click 才落盘，让裁判有机会修改/取消成绩
@@ -7730,7 +7730,7 @@ namespace SwimmingScoreboard
                 if (_laneDeviceStates.All(s => s.IsFinished || GetCurrentHeatSwimmers().All(sw => sw.Lane != s.Lane || sw.Status == "DNS"))) {
                     _raceState = RaceState.Finished;
                     UpdateRaceStateDisplay();
-                    AddLog("本组比赛结束");
+                    AddLog(Loc.T("Str_Log_HeatEnded"));
                 }
             } else {
                 // 分段触碰 — 方向由实际触板侧决定 (触左→朝右"→" / 触右→朝左"←"), 不再盲翻转; 开始新倒计时
@@ -7768,7 +7768,7 @@ namespace SwimmingScoreboard
                         };
                         sbCloseTimer.Start();
                         RegisterLaneCloseTimer(lane, sbCloseTimer);   // 2026-05-30 +/- 撤销时可取消
-                        AddLog(string.Format("泳道{0} 交接棒触板，出发台将在{1}秒后关闭", lane, _laneCloseSettings.StartBlockCloseDelay));
+                        AddLog(Loc.F("Str_Log_RelayTakeoverTouchFmt", lane, _laneCloseSettings.StartBlockCloseDelay));
                     }
                 }
 
@@ -7895,7 +7895,7 @@ namespace SwimmingScoreboard
                 existingSplit.Time = time - prevCum;
                 existingSplit.CumulativeTime = time;
                 existingSplit.TimingSource = "Manual";
-                AddLog(string.Format("泳道{0} 第{1}段 手动TP={2} 代替真TP (开关开, 覆盖该段主成绩)", lane, existingSplit.Lap, TimeFormatter.Format(time)));
+                AddLog(Loc.F("Str_Log_ManualTpOverrideFmt", lane, existingSplit.Lap, TimeFormatter.Format(time)));
                 var lsR = _laneDeviceStates.FirstOrDefault(s => s.Lane == lane);
                 if (lsR != null && lsR.IsFinished && resR != null) {
                     int totalLapsR = GetTotalLaps();
@@ -8001,7 +8001,7 @@ namespace SwimmingScoreboard
                     }
                 }
             }
-            AddLog(string.Format("泳道{0} {1}: {2}", lane, cmdType, TimeFormatter.Format(time)));
+            AddLog(Loc.F("Str_Log_LaneCmdTimeFmt", lane, cmdType, TimeFormatter.Format(time)));
 
             // 2026-06-14 PC 端 "盲表代替触板" 开关 — 按硬件模型: 成绩以触板为准。
             //   MB 到达不立即代替, 而是启动"成绩确认关闭延迟"宽限计时; 窗口内 TP 到达 → 记 TP 并取消代替(TP 优先);
@@ -8022,7 +8022,7 @@ namespace SwimmingScoreboard
                         }
                         if (relaySideOk) ScheduleMbSubstitute(lane, side);
                     }
-                } catch (Exception exA) { AddLog("盲表代触板自动补失败: " + exA.Message); }
+                } catch (Exception exA) { AddLog(Loc.F("Str_Log_BwAutoSubFailedFmt", exA.Message)); }
             }
         }
 
@@ -8039,7 +8039,7 @@ namespace SwimmingScoreboard
             t.Tick += delegate(object s, EventArgs e) {
                 t.Stop();
                 _pendingMbSubTimers.Remove(capLane);
-                try { DoMbSubstitute(capLane, capSide); } catch (Exception ex) { AddLog("盲表代替失败: " + ex.Message); }
+                try { DoMbSubstitute(capLane, capSide); } catch (Exception ex) { AddLog(Loc.F("Str_Log_MbSubFailedFmt", ex.Message)); }
             };
             _pendingMbSubTimers[lane] = t;
             t.Start();
@@ -8069,7 +8069,7 @@ namespace SwimmingScoreboard
             string algo;
             if (blinds.Count == 2) { med = Math.Floor((blinds[0] + blinds[1]) * 50.0) / 100.0; algo = "平均"; }
             else                   { med = blinds[blinds.Count / 2];                              algo = "中位"; }
-            AddLog(string.Format("泳道{0} 成绩确认延迟到期仍无 TP, 用盲表{1} {2} 代替 (源 {3} 个)", lane, algo, TimeFormatter.Format(med), blinds.Count));
+            AddLog(Loc.F("Str_Log_ConfirmDelayMbSubFmt", lane, algo, TimeFormatter.Format(med), blinds.Count));
             ProcessTouchpadHit(lane, med, state, side, true);   // isMbSubstitute=true, 标 MB
         }
 
@@ -8181,10 +8181,10 @@ namespace SwimmingScoreboard
                     result.ErrorTitle,
                     MessageBoxButton.YesNo, MessageBoxImage.Warning);
                 if (r != MessageBoxResult.Yes) {
-                    AddLog(string.Format("泳道{0} 比赛中圈数清零操作被用户取消 ({1}→0)", lane, oldCur));
+                    AddLog(Loc.F("Str_Log_LapClearCancelledFmt", lane, oldCur));
                     return;
                 }
-                AddLog(string.Format("泳道{0} 比赛中圈数清零操作被二次确认通过 ({1}→0)", lane, oldCur));
+                AddLog(Loc.F("Str_Log_LapClearConfirmedFmt", lane, oldCur));
                 input.ConfirmAfterRacingZero = true;
                 result = LapAdjustLogic.Compute(input);
             }
@@ -8247,12 +8247,12 @@ namespace SwimmingScoreboard
             if (oldCurForRollback == input.TotalLaps && result.NewCurrentLap < input.TotalLaps) {
                 if (ls.IsFinished) {
                     ls.IsFinished = false;
-                    AddLog(string.Format("泳道{0} 撤销完赛状态 (oldCur={1}→newCur={2})", lane, oldCurForRollback, result.NewCurrentLap));
+                    AddLog(Loc.F("Str_Log_RevertFinishFmt", lane, oldCurForRollback, result.NewCurrentLap));
                 }
                 if (_raceState == RaceState.Finished) {
                     _raceState = RaceState.Racing;
                     UpdateRaceStateDisplay();
-                    AddLog("撤销完赛, 比赛状态回 Racing");
+                    AddLog(Loc.T("Str_Log_RevertFinishToRacing"));
                 }
             }
             if (result.NewCurrentLap == 0) {
@@ -8369,7 +8369,7 @@ namespace SwimmingScoreboard
                 win.ShowDialog();
                 if (cb.IsChecked == true) {
                     _suppressHwDisconnectWarning = true;
-                    AddLog("⚠ 用户勾选 \"本次会话不再提醒\", 后续硬件未连接弹窗已抑制 (重连后恢复)");
+                    AddLog(Loc.T("Str_Log_HwWarnSuppressedBySession"));
                 }
             } catch { }
         }
@@ -8378,7 +8378,7 @@ namespace SwimmingScoreboard
         private bool EnsureHardwareConnected(string actionName) {
             if (_timingBridge != null && _timingBridge.IsConnected) return true;
             ShowHwDisconnectWarning(actionName, true);
-            AddLog(string.Format("⚠ \"{0}\" 时硬件未连接, 操作已取消", actionName));
+            AddLog(Loc.F("Str_Log_HwNotConnStrictFmt", actionName));
             return false;
         }
 
@@ -8387,7 +8387,7 @@ namespace SwimmingScoreboard
         private void WarnIfHardwareNotConnected(string actionName) {
             if (_timingBridge != null && _timingBridge.IsConnected) return;
             ShowHwDisconnectWarning(actionName, false);
-            AddLog(string.Format("⚠ \"{0}\" 时硬件未连接, 设置只在 PC 本地生效", actionName));
+            AddLog(Loc.F("Str_Log_HwNotConnSoftFmt", actionName));
         }
 
         //2026-05-30 注册 / 取消该 lane 上活跃的 DispatcherTimer (finishCloseTimer / sbCloseTimer)
@@ -8441,7 +8441,7 @@ namespace SwimmingScoreboard
                 var sp = result.Splits[k];
                 if (sp.IsDeleted) continue;
                 sp.IsDeleted = true;
-                AddLog(string.Format("泳道{0} 软删最近分段 (第{1}段, 累计 {2}, 标 IsDeleted=true)",
+                AddLog(Loc.F("Str_Log_SoftDeleteSplitFmt",
                     lane, sp.Lap, sp.CumulativeTimeDisplay));
                 return;
             }
@@ -8628,7 +8628,7 @@ namespace SwimmingScoreboard
                     Loc.F("Str_Msg_SplitOverwriteFmt", swimmer.Lane, segNum, srcLabel, sp.CumulativeTime),
                     Loc.T("Str_MsgTitle_OverwriteConfirm"), MessageBoxButton.YesNo, MessageBoxImage.Warning);
                 if (confirm != MessageBoxResult.Yes) {
-                    AddLog(string.Format("📝 手工补段已取消 (第{0}道 第{1}段 保留原 {2} 成绩)", swimmer.Lane, segNum, srcLabel));
+                    AddLog(Loc.F("Str_Log_ManualSplitCancelledFmt", swimmer.Lane, segNum, srcLabel));
                     return;
                 }
             }
@@ -8643,7 +8643,7 @@ namespace SwimmingScoreboard
             sp.Time = (prev != null) ? (cumSec - prev.CumulativeTime) : cumSec;
             // 2026-06-03 TimingSource="Input" 表示用户手工输入 (= 最低优先级), 区别 "Manual" (= 手动 T 按钮)
             sp.TimingSource = "Input";
-            AddLog(string.Format("📝 手工补段: 第 {0} 道 ({1}) 第 {2} 段 累计 {3:F3}s, 差值 {4:F3}s, TimingSource=Input",
+            AddLog(Loc.F("Str_Log_ManualSplitAppliedFmt",
                 swimmer.Lane, swimmer.Name, segNum, cumSec, sp.Time));
             AutoSaveData();
             UpdateLaneStatusDisplay();
@@ -8786,14 +8786,14 @@ namespace SwimmingScoreboard
                 if (result.FinalTime < record.Time) {
                     tags.Add(tag);
                     tagSnaps[tag] = record;
-                    AddLog(string.Format("★破{0}! {1} {2} < {3}（原 {4}/{5}）",
+                    AddLog(Loc.F("Str_Log_RecordBrokenFmt",
                         record.RecordType, swimmer.Name,
                         TimeFormatter.Format(result.FinalTime), TimeFormatter.Format(record.Time),
                         record.HolderName ?? "", record.HolderCountry ?? ""));
                 } else if (Math.Abs(result.FinalTime - record.Time) < 0.005) {
                     tags.Add("=" + tag);
                     tagSnaps["=" + tag] = record;
-                    AddLog(string.Format("★平{0}! {1} {2} = {3}",
+                    AddLog(Loc.F("Str_Log_RecordTiedFmt",
                         record.RecordType, swimmer.Name,
                         TimeFormatter.Format(result.FinalTime), TimeFormatter.Format(record.Time)));
                 }
@@ -8965,7 +8965,7 @@ namespace SwimmingScoreboard
                 if (r == null || string.IsNullOrEmpty(r.RecordNote)) continue;
                 long curH = (long)Math.Round(r.FinalTime * 100.0, MidpointRounding.AwayFromZero);
                 if (curH > leaderHundredths) {
-                    AddLog(string.Format("  泳道{0} {1} 非本组第1名（{2} > {3}），清除破/平纪录标识 [{4}]",
+                    AddLog(Loc.F("Str_Log_RecordClearedNot1stFmt",
                         sw.Lane, sw.Name, TimeFormatter.Format(r.FinalTime), TimeFormatter.Format(leaderTime), r.RecordNote));
                     r.RecordNote = "";
                 }
@@ -9000,7 +9000,7 @@ namespace SwimmingScoreboard
                         record.TimeInSeconds = res.FinalTime;
                         record.Date = today;
                         record.Location = _competitionName ?? "";
-                        AddLog(string.Format("✓ 已更新{0}: {1}({2}) {3} @ {4}",
+                        AddLog(Loc.F("Str_Log_RecordUpdatedFmt",
                             record.RecordType, record.HolderName, record.HolderCountry,
                             TimeFormatter.Format(record.Time), today));
                         updated++;
@@ -9093,7 +9093,7 @@ namespace SwimmingScoreboard
             // 抢跳标记
             if (reaction < 0) {
                 laneState.IsSuspectFalseStart = true;
-                AddLog(string.Format("⚠ 接力抢跳(reaction<0) 道{0}{1} reaction:{2:F3}s{3}", lane, sideLabel, reaction, basisNote));
+                AddLog(Loc.F("Str_Log_RelayFalseStartFmt", lane, sideLabel, reaction, basisNote));
             }
             // 2026-07-13 按侧化: 本侧本棒反应时已结算 → 置 SbReactionRecorded, 锚点复位 (后续同侧 SB 走备用, 直到下棒倒计时=0 清回).
             if (side == "left") laneState.SbReactionRecordedLeft = true;
@@ -9160,7 +9160,7 @@ namespace SwimmingScoreboard
                 if (laneState.ReactionTime != 0) continue;                   // 已有真实反应时 (包含负值/抢跳), 不动
                 if (double.IsNaN(laneState.ReactionTime)) continue;          // 已标过 NaN
                 laneState.ReactionTime = double.NaN;
-                AddLog(string.Format("泳道{0} 反应时窗口超时 ({1:F1}s) 未收到合法 SB 信号, 标 ---", laneState.Lane, _laneCloseSettings.ReactionEventWindowSec));
+                AddLog(Loc.F("Str_Log_ReactionWindowTimeoutFmt", laneState.Lane, _laneCloseSettings.ReactionEventWindowSec));
                 // 接力第 1 棒同步标 LegReactionTimes[0] = NaN
                 if (_isRelay) {
                     var sw = GetCurrentHeatSwimmers().FirstOrDefault(s2 => {
@@ -9304,7 +9304,7 @@ namespace SwimmingScoreboard
                             }
                         }
 
-                    AddLog(string.Format("泳道{0} 倒计时结束，{1}端设备已打开{2}", state.Lane, arriveRight ? "右" : "左",
+                    AddLog(Loc.F("Str_Log_CountdownDoneDeviceOpenFmt", state.Lane, arriveRight ? Loc.T("Str_Frag_Right") : Loc.T("Str_Frag_Left"),
                         relayStartBlockOpened ? "（含出发台-交接棒检测）" : ""));
                     changed = true;
                 }
@@ -9327,7 +9327,7 @@ namespace SwimmingScoreboard
                 string stName = _raceState == RaceState.Ready  ? "已就位"
                               : _raceState == RaceState.Racing ? "比赛进行中"
                                                                : "本组已完赛";
-                AddLog("「准备就绪」未执行: 当前状态为" + stName + "，需先按「计时复位」");
+                AddLog(Loc.F("Str_Log_ReadyNotExecutedFmt", stName));
                 if (sender != null) {
                     MessageBox.Show(
                         Loc.F("Str_Msg_CannotReReadyFmt", stName),
@@ -9340,7 +9340,7 @@ namespace SwimmingScoreboard
             // 已确认成绩的组：禁止再次开始比赛
             if (!string.IsNullOrEmpty(_currentEvent) && _currentHeat > 0
                 && IsHeatConfirmed(_currentAgeGroup, _currentGender, _currentEvent, _currentStage, _currentHeat)) {
-                AddLog("当前组已确认成绩，不能再次开始");
+                AddLog(Loc.T("Str_Log_CurrentHeatConfirmedCannotStart"));
                 return;
             }
             // 本地点击弹确认；硬件触发或 WebSocket 远程调用（sender==null）跳过
@@ -9437,13 +9437,13 @@ namespace SwimmingScoreboard
             // 立刻刷新泳道状态 UI — 此时 _raceTimer 还没启动（要发令后才启动），
             // 100ms tick 不会自动重绘，必须显式调一次让发令端出发台立即变成打开
             UpdateLaneStatusDisplay();
-            AddLog("准备就绪");
+            AddLog(Loc.T("Str_RC_Ready"));
             PrintRaceHeaderToThermal();   // 2026-06-12 热敏小票表头: 当前项目 + 比赛日期/当前时间 + 分隔线
             // Set_MatchEvent (0x43) 和 发令点已经在 SetCurrentEvent / SetCurrentHeat 同步过了，
             // 这里只送 0x21 准备就绪，硬件据此打开出发台。
             if (pushToHardware && _timingBridge != null && _timingBridge.IsConnected) {
                 _timingBridge.SendCommand(0x21);
-                AddLog("已向硬件发送 0x21 准备就绪");
+                AddLog(Loc.T("Str_Log_HwSent0x21"));
             }
             // 2026-08-27 就位 = 这一组马上开赛, 大屏必须回到比赛画面。
             //   原来这里只发 Broadcast() 心跳(不带 modeExplicit), 而 display.html 的
@@ -9469,7 +9469,7 @@ namespace SwimmingScoreboard
                 // 已确认组守卫
                 if (!string.IsNullOrEmpty(_currentEvent) && _currentHeat > 0
                     && IsHeatConfirmed(_currentAgeGroup, _currentGender, _currentEvent, _currentStage, _currentHeat)) {
-                    AddLog("当前组已确认成绩，不能再次开始");
+                    AddLog(Loc.T("Str_Log_CurrentHeatConfirmedCannotStart"));
                     return;
                 }
                 EnterReadyStateInternal(pushToHardware: sender != null);
@@ -9548,11 +9548,11 @@ namespace SwimmingScoreboard
             //   裁判仍可手动输入覆盖. 接力第 1 棒同步把 LegReactionTimes[0] 标 NaN.
             StartReactionWindowTimer();
 
-            AddLog("发令 - 比赛开始");
+            AddLog(Loc.T("Str_Log_StartRaceBegins"));
             // 发令必须瞬时 — 参数已经在"就位"时同步给硬件了，这里只送 0x1C，硬件立刻启动计时
             if (sender != null && _timingBridge != null && _timingBridge.IsConnected) {
                 _timingBridge.SendCommand(0x1C);
-                AddLog("已向硬件发送 0x1C 发令");
+                AddLog(Loc.T("Str_Log_HwSent0x1C"));
             }
             // 2026-06-14 手动发令也算发令: PC 端本地补一条"发令时刻" EventBackup 记录
             //   sender != null = 用户本地按发令键 (含硬件回流走的 sender=null 路径排除, 避免双条)
@@ -9575,7 +9575,7 @@ namespace SwimmingScoreboard
                     TimeInSeconds = gunSec
                 };
                 _pendingBackupEvents.Add(gunEvt);
-                AddLog(string.Format("PC 端补录发令时刻 EventBackup (手动发令): 时间={0:F2}s ({1}:{2:00}.{3:00})", gunSec, gunMin, gunS, gunCs));
+                AddLog(Loc.F("Str_Log_PcBackupGunTimeFmt", gunSec, gunMin, gunS, gunCs));
             }
             Broadcast();
         }
@@ -9595,7 +9595,7 @@ namespace SwimmingScoreboard
                 s.LaneCloseCountdown = 0;
             }
             UpdateLaneStatusDisplay();
-            AddLog("全部泳道已打开");
+            AddLog(Loc.T("Str_Log_AllLanesOpenedPlain"));
             //2026-05-14 同步下发硬件：0x47 D3=0xFF D4=1 全部泳道纳入比赛
             try { if (_timingBridge != null && _timingBridge.IsConnected) _timingBridge.SendLaneOpenClose(-1, true); } catch { }
             Broadcast();
@@ -9616,7 +9616,7 @@ namespace SwimmingScoreboard
                 s.LaneCloseCountdown = 0;
             }
             UpdateLaneStatusDisplay();
-            AddLog("全部泳道已关闭");
+            AddLog(Loc.T("Str_Log_AllLanesClosedPlain"));
             //2026-05-14 同步下发硬件：0x47 D3=0xFF D4=0 全部泳道移出比赛（屏蔽信号）
             try { if (_timingBridge != null && _timingBridge.IsConnected) _timingBridge.SendLaneOpenClose(-1, false); } catch { }
             Broadcast();
@@ -9751,11 +9751,11 @@ namespace SwimmingScoreboard
                 // A) 已确认：成绩锁定，UI彻底归零；优先自动切到下一组开赛
                 int totalHeats = CountHeatsForEvent(_currentAgeGroup, _currentGender, _currentEvent, _currentStage);
                 if (_currentHeat < totalHeats) {
-                    AddLog(string.Format("计时复位：本组({0})已确认，自动切到第{1}组", _currentHeat, _currentHeat + 1));
+                    AddLog(Loc.F("Str_Log_ClockResetAutoNextFmt", _currentHeat, _currentHeat + 1));
                     SetCurrentHeat(_currentHeat + 1);
                 } else {
                     // 已是本赛次最后一组：完全清空泳道行（不显示已完赛数据），等待操作员从赛程导航选下一项
-                    AddLog(string.Format("计时复位：本组({0})已确认，本赛次已完赛，泳道已清空，大屏切到欢迎画面", _currentHeat));
+                    AddLog(Loc.F("Str_Log_ClockResetStageDoneFmt", _currentHeat));
                     int oldHeat = _currentHeat;
                     _currentHeat = 0;        // 让 GetCurrentHeatSwimmers 返回空，泳道行整体置为"（空泳道）"
                     if (CurrentHeatText != null) CurrentHeatText.Text = string.Format("第{0}组已完赛 / 共{1}组", oldHeat, totalHeats);
@@ -9778,7 +9778,7 @@ namespace SwimmingScoreboard
                     if (result != null) sw.Results.Remove(result);
                     if (!keepStatus) sw.Status = "";
                 }
-                AddLog("计时复位（重新发令）");
+                AddLog(Loc.T("Str_Log_ClockResetRestart"));
                 UpdateRaceStateDisplay();
                 UpdateLaneStatusDisplay();
             }
@@ -9845,12 +9845,12 @@ namespace SwimmingScoreboard
                 QueuePendingPush(id, env);
                 if (_editorSyncClient != null && _editorSyncClient.IsConnected) {
                     _editorSyncClient.Send(env.ToString(Formatting.None));
-                    AddLog("已通知主服务器生成组成绩: " + ag + gd + " " + ev + " " + st);
+                    AddLog(Loc.F("Str_Log_NotifiedMainGenRankingFmt", ag, gd, ev, st));
                 } else {
-                    AddLog(string.Format("【注意】未连主服务器, 生成组成绩的通知已存入待补传({0}{1} {2} {3}), 连上后自动补",
+                    AddLog(Loc.F("Str_Log_GenRankingNotifyQueuedFmt",
                         ag, gd, ev, st));
                 }
-            } catch (Exception ex) { AddLog("通知主服务器生成组成绩失败: " + ex.Message); }
+            } catch (Exception ex) { AddLog(Loc.F("Str_Log_NotifyGenRankingFailedFmt", ex.Message)); }
         }
 
         // 2026-09-01 主服务器收到"生成组成绩"的通知。
@@ -9868,7 +9868,7 @@ namespace SwimmingScoreboard
                                                 string ag, string gd, string ev, string st) {
             int made = 0;
             try { made = _meetDb.GenerateEventRankingIfComplete(ag, gd, ev, st, "计时端"); }
-            catch (Exception ex) { AddLog("生成组成绩失败: " + ex.Message); }
+            catch (Exception ex) { AddLog(Loc.F("Str_Log_GenEventRankingFailedFmt", ex.Message)); }
 
             if (made > 0) {
                 RemovePendingEventRankGen(ag, gd, ev, st);
@@ -9890,7 +9890,7 @@ namespace SwimmingScoreboard
                 x[0] == (ag ?? "") && x[1] == (gd ?? "") && x[2] == (ev ?? "") && x[3] == (st ?? ""));
             if (!exists) {
                 _pendingEventRankGen.Add(new string[] { ag ?? "", gd ?? "", ev ?? "", st ?? "" });
-                AddLog(string.Format("【注意】{0}{1} {2} {3} 的组成绩暂时生成不了(多半是还有组没确认到本机), 已挂起, 后面会自动重试",
+                AddLog(Loc.F("Str_Log_RankingPendingFmt",
                     ag, gd, ev, st));
             }
         }
@@ -9910,7 +9910,7 @@ namespace SwimmingScoreboard
                 catch { }
                 if (made > 0) {
                     RemovePendingEventRankGen(x[0], x[1], x[2], x[3]);
-                    AddLog(string.Format("挂起的组成绩已补上: {0}{1} {2} {3}", x[0], x[1], x[2], x[3]));
+                    AddLog(Loc.F("Str_Log_PendingRankingDoneFmt", x[0], x[1], x[2], x[3]));
                     AppendTriPlaceholdersToEventRanking(x[0], x[1], x[2], x[3]);
                     try { ApplyEventRankingsFromDb(); } catch { }
                 }
@@ -9949,10 +9949,10 @@ namespace SwimmingScoreboard
                         RaceState = "confirmed", ResultConfirmed = true,
                         Lanes = BuildLiveLanes()
                     };
-                    AddLog("当前组快照为空(多为解锁后再确认), 已用内存现搭一份回推");
+                    AddLog(Loc.T("Str_Log_SnapshotEmptyRebuilt"));
                 }
                 if (live != null) d["liveHeat"] = JObject.Parse(JsonConvert.SerializeObject(live));
-            } catch (Exception ex) { AddLog("【注意】取当前组快照失败, 断线补传只补内存: " + ex.Message); }
+            } catch (Exception ex) { AddLog(Loc.F("Str_Log_SnapshotFailedFmt", ex.Message)); }
 
             string id = PendingPushId(_currentAgeGroup, _currentGender, _currentEvent, _currentStage, _currentHeat);
             var env = new JObject();
@@ -9966,9 +9966,9 @@ namespace SwimmingScoreboard
             QueuePendingPush(id, env);
             if (_editorSyncClient != null && _editorSyncClient.IsConnected) {
                 _editorSyncClient.Send(env.ToString(Formatting.None));
-                AddLog(string.Format("已把第{0}组成绩({1}条)回推主服务器", _currentHeat, rows.Count));
+                AddLog(Loc.F("Str_Log_PushedResultToMainFmt", _currentHeat, rows.Count));
             } else {
-                AddLog(string.Format("未连主服务器, 第{0}组成绩({1}条)已存入待补传, 连上后自动补",
+                AddLog(Loc.F("Str_Log_ResultQueuedFmt",
                     _currentHeat, rows.Count));
             }
         }
@@ -10032,14 +10032,14 @@ namespace SwimmingScoreboard
                 root["heats"] = arr;
                 File.WriteAllText(dlg.FileName, root.ToString(Formatting.Indented), Encoding.UTF8);
 
-                AddLog(string.Format("已导出成绩: {0} 个组(其中 {1} 组带竞赛库数据) -> {2}",
+                AddLog(Loc.F("Str_Log_ResultExportedFmt",
                     arr.Count, withDb, IOPath.GetFileName(dlg.FileName)));
                 MessageBox.Show(
                     Loc.F("Str_Msg_ExportedHeatsFmt", arr.Count), Loc.T("Str_MsgTitle_ExportResults"), MessageBoxButton.OK, MessageBoxImage.Information);
             }
             catch (Exception ex)
             {
-                AddLog("导出成绩失败: " + ex.Message);
+                AddLog(Loc.F("Str_Log_ResultExportFailedFmt", ex.Message));
                 MessageBox.Show(Loc.F("Str_Msg_ExportResultsFailedFmt", ex.Message), Loc.T("Str_MsgTitle_ExportResults"),
                     MessageBoxButton.OK, MessageBoxImage.Error);
             }
@@ -10093,7 +10093,7 @@ namespace SwimmingScoreboard
                             lockedSkip++;
                             string one = string.Format("{0} {1} {2} 第{3}组", lgd, lev, lst, lht);
                             if (!lockedList.Contains(one)) lockedList.Add(one);
-                            AddLog("导入成绩跳过(本机已完赛): " + one);
+                            AddLog(Loc.F("Str_Log_ImportResultSkippedFmt", one));
                             continue;
                         }
                     }
@@ -10111,7 +10111,7 @@ namespace SwimmingScoreboard
                             !touched.Any(x => x[0]==kag && x[1]==kgd && x[2]==kev && x[3]==kst))
                             touched.Add(new string[] { kag, kgd, kev, kst });
                     }
-                    catch (Exception ex) { bad++; AddLog("导入一组失败: " + ex.Message); }
+                    catch (Exception ex) { bad++; AddLog(Loc.F("Str_Log_ImportHeatFailedFmt", ex.Message)); }
                 }
 
                 // 2026-09-01 【离线摆渡也要定稿】。
@@ -10126,10 +10126,10 @@ namespace SwimmingScoreboard
                         int made = _meetDb.GenerateEventRankingIfComplete(k[0], k[1], k[2], k[3], "文件导入");
                         if (made > 0) {
                             gen++;
-                            AddLog(string.Format("已生成组成绩: {0}{1} {2} {3}（{4} 人）", k[0], k[1], k[2], k[3], made));
+                            AddLog(Loc.F("Str_Log_RankingGeneratedFmt", k[0], k[1], k[2], k[3], made));
                             AppendTriPlaceholdersToEventRanking(k[0], k[1], k[2], k[3]);
                         }
-                    } catch (Exception ex) { AddLog("导入后生成组成绩失败: " + ex.Message); }
+                    } catch (Exception ex) { AddLog(Loc.F("Str_Log_PostImportRankingFailedFmt", ex.Message)); }
                 }
                 if (gen > 0) { try { ApplyEventRankingsFromDb(); } catch { } }
 
@@ -10142,7 +10142,7 @@ namespace SwimmingScoreboard
                 try { SaveWithoutPush(); PushDataChanged("meet"); } catch { }
                 try { Broadcast(); } catch { }
 
-                AddLog(string.Format("已从文件导入成绩: {0} 个组成功{1}{2}",
+                AddLog(Loc.F("Str_Log_ImportedFromFileFmt",
                     ok, bad > 0 ? "，" + bad + " 个失败" : "",
                     lockedSkip > 0 ? "，" + lockedSkip + " 个本机已完赛跳过" : ""));
                 string lockNote = lockedSkip == 0 ? ""
@@ -10155,7 +10155,7 @@ namespace SwimmingScoreboard
             }
             catch (Exception ex)
             {
-                AddLog("导入成绩失败: " + ex.Message);
+                AddLog(Loc.F("Str_Log_ImportResultFailedFmt", ex.Message));
                 MessageBox.Show(Loc.F("Str_Msg_ImportResultsFailedFmt", ex.Message), Loc.T("Str_MsgTitle_ImportResults"),
                     MessageBoxButton.OK, MessageBoxImage.Error);
             }
@@ -10184,7 +10184,7 @@ namespace SwimmingScoreboard
                                   env.ToString(Formatting.None), Encoding.UTF8);
             } catch (Exception ex) {
                 // 这里失败意味着断线后这一组真会丢, 必须喊出来, 不能吞。
-                AddLog("【注意】待补传存盘失败, 主服务器不在时这一组会丢: " + ex.Message);
+                AddLog(Loc.F("Str_Log_QueueSaveFailedFmt", ex.Message));
             }
         }
 
@@ -10395,7 +10395,7 @@ namespace SwimmingScoreboard
                 string.IsNullOrEmpty(_currentAgeGroup) ? "" : ("[" + _currentAgeGroup + "] "),
                 _currentGender, _currentEvent, _currentStage, _currentHeat));
 
-            try { SaveRawTimingLog(); } catch (Exception ex) { AddLog("保存原始计时数据失败: " + ex.Message); }
+            try { SaveRawTimingLog(); } catch (Exception ex) { AddLog(Loc.F("Str_Log_SaveRawDataFailedFmt", ex.Message)); }
 
             // 刷新成绩与排名页面
             try { UpdateResultHeatCombo(); } catch (Exception ex) { AddLog("成绩组次下拉刷新失败: " + ex.Message); }
