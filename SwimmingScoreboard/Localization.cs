@@ -2635,6 +2635,33 @@ namespace SwimmingScoreboard
             { "Str_AppTitle_Main", new[] { "游泳赛事管理系统", "Swimming Event Management System" } },
             { "Str_AppTitle_Rtc",  new[] { "游泳赛事管理系统 — 远程计时控制", "Swimming Event Management System — Remote Timing Control" } },
             { "Str_AppTitle_ScheduleEditor", new[] { "游泳赛事管理系统 — 编排记录及成绩处理", "Swimming Event Management System — Schedule & Results Editor" } },
+
+            // 2026-09-22 第九阶段 Part B 续：SaveFileDialog/OpenFileDialog Title/Filter
+            { "Str_Filter_Csv",       new[] { "CSV文件|*.csv", "CSV Files|*.csv" } },
+            { "Str_Filter_CsvTxtAll", new[] { "CSV文件|*.csv|文本文件|*.txt|所有文件|*.*", "CSV Files|*.csv|Text Files|*.txt|All Files|*.*" } },
+            { "Str_Filter_ExcelXlsx", new[] { "Excel 工作簿|*.xlsx", "Excel Workbook|*.xlsx" } },
+            { "Str_Filter_ExcelXlsxXls", new[] { "Excel 工作簿|*.xlsx;*.xls", "Excel Workbook|*.xlsx;*.xls" } },
+            { "Str_Filter_ExcelXlsxXlsAll", new[] { "Excel 工作簿|*.xlsx;*.xls|所有支持的格式|*.xlsx;*.xls", "Excel Workbook|*.xlsx;*.xls|All Supported Formats|*.xlsx;*.xls" } },
+            { "Str_Filter_ExcelFile", new[] { "Excel 文件|*.xlsx;*.xls", "Excel Files|*.xlsx;*.xls" } },
+            { "Str_Filter_ResultJson", new[] { "成绩数据 (*.json)|*.json", "Result Data (*.json)|*.json" } },
+            { "Str_Filter_Json",      new[] { "JSON文件|*.json", "JSON Files|*.json" } },
+            { "Str_Filter_TxtFile",   new[] { "文本文件|*.txt", "Text Files|*.txt" } },
+            { "Str_Filter_TxtAll",    new[] { "文本文件 (*.txt)|*.txt|所有文件 (*.*)|*.*", "Text Files (*.txt)|*.txt|All Files (*.*)|*.*" } },
+            { "Str_Filter_ImageVideo", new[] { "图片 / 视频|*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.webp;*.mp4;*.webm;*.ogg;*.m4v|图片|*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.webp|视频|*.mp4;*.webm;*.ogg;*.m4v|所有文件|*.*", "Image / Video|*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.webp;*.mp4;*.webm;*.ogg;*.m4v|Image|*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.webp|Video|*.mp4;*.webm;*.ogg;*.m4v|All Files|*.*" } },
+            { "Str_Filter_DocHtml",   new[] { "Word 文档|*.doc|HTML 文件|*.html", "Word Document|*.doc|HTML File|*.html" } },
+            { "Str_Filter_Ppt",       new[] { "PowerPoint 文件 (*.ppt;*.pptx;*.pps;*.ppsx)|*.ppt;*.pptx;*.pps;*.ppsx|所有文件 (*.*)|*.*", "PowerPoint Files (*.ppt;*.pptx;*.pps;*.ppsx)|*.ppt;*.pptx;*.pps;*.ppsx|All Files (*.*)|*.*" } },
+            { "Str_Filter_CsvAll",    new[] { "CSV文件|*.csv|所有文件|*.*", "CSV Files|*.csv|All Files|*.*" } },
+
+            { "Str_Win_ExportEvents_Title", new[] { "导出比赛项目表", "Export Event List" } },
+            { "Str_Win_SaveEventsTemplate_Title", new[] { "保存比赛项目模板", "Save Event Template" } },
+            { "Str_Win_ExportAgeGroups_Title", new[] { "导出组别表", "Export Age Group List" } },
+            { "Str_Win_SaveAgeGroupsTemplate_Title", new[] { "保存组别模板", "Save Age Group Template" } },
+            { "Str_Win_ExportGenders_Title", new[] { "导出性别表", "Export Gender List" } },
+            { "Str_Win_SaveGendersTemplate_Title", new[] { "保存性别模板", "Save Gender Template" } },
+            { "Str_Win_ExportStages_Title", new[] { "导出赛次表", "Export Stage List" } },
+            { "Str_Win_SaveStagesTemplate_Title", new[] { "保存赛次模板", "Save Stage Template" } },
+            { "Str_Win_ExportHeatCounts_Title", new[] { "导出组数表", "Export Heat Count List" } },
+            { "Str_Win_SaveHeatCountsTemplate_Title", new[] { "保存组数模板", "Save Heat Count Template" } },
         };
 
         /// <summary>查当前语言下的文字；查不到就退回中文；中文也没有就返回 key 本身兜底。</summary>
