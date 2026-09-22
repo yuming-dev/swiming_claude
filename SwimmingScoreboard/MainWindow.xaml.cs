@@ -17645,7 +17645,7 @@ namespace SwimmingScoreboard
         // 2026-06-12 参数设置 改为分类中枢: "时间参数设置" / "比赛泳池、设备状态设置" 两个子窗口, 各自确认/取消独立生效
         private void TimingSettingsCore() {
             var dlg = new Window {
-                Title = "参数设置",
+                Title = Loc.T("Str_Win_ParamsHub_Title"),
                 Width = 360,
                 SizeToContent = SizeToContent.Height,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner,
@@ -17653,38 +17653,38 @@ namespace SwimmingScoreboard
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E293B"))
             };
             var sp = new StackPanel { Margin = new Thickness(20) };
-            sp.Children.Add(new TextBlock { Text = "参数设置", FontSize = 17, FontWeight = FontWeights.Bold, Foreground = Brushes.White, Margin = new Thickness(0, 0, 0, 6) });
-            sp.Children.Add(new TextBlock { Text = "选择要设置的分类:", Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), FontSize = 13, Margin = new Thickness(0, 0, 0, 14) });
-            var btnTimeCat = new Button { Content = "时间参数设置", Padding = new Thickness(0, 12, 0, 12), FontSize = 15, FontWeight = FontWeights.Bold, Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6")), Foreground = Brushes.White, BorderThickness = new Thickness(0), Margin = new Thickness(0, 0, 0, 10) };
+            sp.Children.Add(new TextBlock { Text = Loc.T("Str_Win_ParamsHub_Title"), FontSize = 17, FontWeight = FontWeights.Bold, Foreground = Brushes.White, Margin = new Thickness(0, 0, 0, 6) });
+            sp.Children.Add(new TextBlock { Text = Loc.T("Str_Win_ParamsHub_Desc"), Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), FontSize = 13, Margin = new Thickness(0, 0, 0, 14) });
+            var btnTimeCat = new Button { Content = Loc.T("Str_Win_ParamsHub_TimeBtn"), Padding = new Thickness(0, 12, 0, 12), FontSize = 15, FontWeight = FontWeights.Bold, Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6")), Foreground = Brushes.White, BorderThickness = new Thickness(0), Margin = new Thickness(0, 0, 0, 10) };
             btnTimeCat.Click += delegate { ShowTimeParamsDialog(); };
             sp.Children.Add(btnTimeCat);
-            var btnPoolCat = new Button { Content = "比赛泳池、设备状态设置", Padding = new Thickness(0, 12, 0, 12), FontSize = 15, FontWeight = FontWeights.Bold, Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#10B981")), Foreground = Brushes.White, BorderThickness = new Thickness(0), Margin = new Thickness(0, 0, 0, 10) };
+            var btnPoolCat = new Button { Content = Loc.T("Str_Win_ParamsHub_PoolBtn"), Padding = new Thickness(0, 12, 0, 12), FontSize = 15, FontWeight = FontWeights.Bold, Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#10B981")), Foreground = Brushes.White, BorderThickness = new Thickness(0), Margin = new Thickness(0, 0, 0, 10) };
             btnPoolCat.Click += delegate { ShowPoolDeviceSettingsDialog(); };
             sp.Children.Add(btnPoolCat);
             // 2026-06-12 手动按键管理 保留在 参数设置 (中枢) 窗口, 不并入泳池设备子窗口
-            var btnManualCat = new Button { Content = "手动按键管理", Padding = new Thickness(0, 12, 0, 12), FontSize = 15, FontWeight = FontWeights.Bold, Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#0EA5E9")), Foreground = Brushes.White, BorderThickness = new Thickness(0), Margin = new Thickness(0, 0, 0, 10) };
+            var btnManualCat = new Button { Content = Loc.T("Str_Win_ParamsHub_ManualBtnBtn"), Padding = new Thickness(0, 12, 0, 12), FontSize = 15, FontWeight = FontWeights.Bold, Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#0EA5E9")), Foreground = Brushes.White, BorderThickness = new Thickness(0), Margin = new Thickness(0, 0, 0, 10) };
             btnManualCat.Click += delegate { OpenManualButtonManager(); };
             sp.Children.Add(btnManualCat);
             // 2026-06-12 成绩存盘路径 / 热敏打印 从 比赛控制 标题栏 移入 参数设置 窗口
-            var btnAutoSaveCat = new Button { Content = "成绩存盘路径", Padding = new Thickness(0, 12, 0, 12), FontSize = 15, FontWeight = FontWeights.Bold, Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#10B981")), Foreground = Brushes.White, BorderThickness = new Thickness(0), Margin = new Thickness(0, 0, 0, 10) };
+            var btnAutoSaveCat = new Button { Content = Loc.T("Str_Win_ParamsHub_AutoSaveBtn"), Padding = new Thickness(0, 12, 0, 12), FontSize = 15, FontWeight = FontWeights.Bold, Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#10B981")), Foreground = Brushes.White, BorderThickness = new Thickness(0), Margin = new Thickness(0, 0, 0, 10) };
             btnAutoSaveCat.Click += delegate { AutoSaveTxtPathConfig_Click(null, null); };
             sp.Children.Add(btnAutoSaveCat);
-            var btnThermalCat = new Button { Content = "热敏打印", Padding = new Thickness(0, 12, 0, 12), FontSize = 15, FontWeight = FontWeights.Bold, Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6")), Foreground = Brushes.White, BorderThickness = new Thickness(0), Margin = new Thickness(0, 0, 0, 10) };
+            var btnThermalCat = new Button { Content = Loc.T("Str_Win_ParamsHub_ThermalBtn"), Padding = new Thickness(0, 12, 0, 12), FontSize = 15, FontWeight = FontWeights.Bold, Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6")), Foreground = Brushes.White, BorderThickness = new Thickness(0), Margin = new Thickness(0, 0, 0, 10) };
             btnThermalCat.Click += delegate { ThermalPrinterConfig_Click(null, null); };
             sp.Children.Add(btnThermalCat);
             // 2026-06-17 硬件计时器连接 (串口/TCP/UDP) — 主服务器 + RTC 都通过参数设置进入
-            var btnHwConnCat = new Button { Content = "硬件计时器连接", Padding = new Thickness(0, 12, 0, 12), FontSize = 15, FontWeight = FontWeights.Bold, Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#DC2626")), Foreground = Brushes.White, BorderThickness = new Thickness(0), Margin = new Thickness(0, 0, 0, 10) };
+            var btnHwConnCat = new Button { Content = Loc.T("Str_Win_ParamsHub_HwConnBtn"), Padding = new Thickness(0, 12, 0, 12), FontSize = 15, FontWeight = FontWeights.Bold, Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#DC2626")), Foreground = Brushes.White, BorderThickness = new Thickness(0), Margin = new Thickness(0, 0, 0, 10) };
             btnHwConnCat.Click += delegate { ShowHardwareConnectionDialog(); };
             sp.Children.Add(btnHwConnCat);
             // 2026-06-17 用户名和密码 — 从顶端右上角移入参数设置. 反射打开各入口程序集的 ChangePasswordWindow
             //   主服务器 → SwimmingScoreboard.ChangePasswordWindow (credentials.json)
             //   RTC → RemoteTimingControl.ChangePasswordWindow (timing_credentials.json)
             //   ScheduleEditor → ScheduleEditor.ChangePasswordWindow (editor_credentials.json)
-            var btnPwdCat = new Button { Content = "用户名和密码", Padding = new Thickness(0, 12, 0, 12), FontSize = 15, FontWeight = FontWeights.Bold, Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#8B5CF6")), Foreground = Brushes.White, BorderThickness = new Thickness(0), Margin = new Thickness(0, 0, 0, 10) };
+            var btnPwdCat = new Button { Content = Loc.T("Str_Win_ParamsHub_PwdBtn"), Padding = new Thickness(0, 12, 0, 12), FontSize = 15, FontWeight = FontWeights.Bold, Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#8B5CF6")), Foreground = Brushes.White, BorderThickness = new Thickness(0), Margin = new Thickness(0, 0, 0, 10) };
             btnPwdCat.Click += delegate { EditorChangePassword_Click(null, null); };
             sp.Children.Add(btnPwdCat);
             var hubBtnPanel = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 6, 0, 0) };
-            var hubClose = new Button { Content = "关闭", Padding = new Thickness(16, 6, 16, 6), Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569")), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
+            var hubClose = new Button { Content = Loc.T("Str_Btn_Close"), Padding = new Thickness(16, 6, 16, 6), Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569")), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
             hubClose.Click += delegate { dlg.DialogResult = true; };
             hubBtnPanel.Children.Add(hubClose);
             sp.Children.Add(hubBtnPanel);
@@ -17697,19 +17697,19 @@ namespace SwimmingScoreboard
         //   功能: 串口/TCP/UDP 三种连接方式 + 状态显示 + 断开按钮. 不复用 xaml ComPortCombo, 独立控件.
         private void ShowHardwareConnectionDialog() {
             var dlg = new Window {
-                Title = "硬件计时器连接", Width = 520, SizeToContent = SizeToContent.Height,
+                Title = Loc.T("Str_Win_ParamsHub_HwConnBtn"), Width = 520, SizeToContent = SizeToContent.Height,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner, Owner = this, ResizeMode = ResizeMode.NoResize,
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E293B"))
             };
             var sp = new StackPanel { Margin = new Thickness(20) };
-            sp.Children.Add(new TextBlock { Text = "硬件计时器连接", FontSize = 17, FontWeight = FontWeights.Bold, Foreground = Brushes.White, Margin = new Thickness(0, 0, 0, 10) });
+            sp.Children.Add(new TextBlock { Text = Loc.T("Str_Win_ParamsHub_HwConnBtn"), FontSize = 17, FontWeight = FontWeights.Bold, Foreground = Brushes.White, Margin = new Thickness(0, 0, 0, 10) });
             // 当前状态行
             var statusRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 14) };
-            statusRow.Children.Add(new TextBlock { Text = "当前状态: ", Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), VerticalAlignment = VerticalAlignment.Center });
+            statusRow.Children.Add(new TextBlock { Text = Loc.T("Str_Win_HwConn_CurrentStatusLabel"), Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), VerticalAlignment = VerticalAlignment.Center });
             var statusText = new TextBlock { FontSize = 14, FontWeight = FontWeights.Bold, VerticalAlignment = VerticalAlignment.Center };
             Action refreshStatus = delegate {
                 bool conn = _timingBridge != null && _timingBridge.IsConnected;
-                statusText.Text = conn ? "已连接" : "未连接";
+                statusText.Text = conn ? Loc.T("Str_Win_HwConn_Connected") : Loc.T("Str_Win_HwConn_NotConnected");
                 statusText.Foreground = new SolidColorBrush(conn ? Colors.LimeGreen : Colors.OrangeRed);
             };
             refreshStatus();
@@ -17725,7 +17725,7 @@ namespace SwimmingScoreboard
             Brush brushBoxBg = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#334155"));
             Brush brushBoxBorder = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569"));
             // Row 0: 串口
-            var lblSerial = new TextBlock { Text = "串口:", Foreground = brushLabel, VerticalAlignment = VerticalAlignment.Center };
+            var lblSerial = new TextBlock { Text = Loc.T("Str_Win_HwConn_SerialLabel"), Foreground = brushLabel, VerticalAlignment = VerticalAlignment.Center };
             Grid.SetRow(lblSerial, 0); Grid.SetColumn(lblSerial, 0); grid.Children.Add(lblSerial);
             var serialRow = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
             var cbCom = new ComboBox { Width = 120, Background = brushBoxBg, Foreground = Brushes.White, BorderBrush = brushBoxBorder };
@@ -17733,7 +17733,7 @@ namespace SwimmingScoreboard
             if (_timingConn != null && !string.IsNullOrEmpty(_timingConn.SerialPort) && cbCom.Items.Contains(_timingConn.SerialPort)) cbCom.SelectedItem = _timingConn.SerialPort;
             else if (cbCom.Items.Count > 0) cbCom.SelectedIndex = 0;
             serialRow.Children.Add(cbCom);
-            serialRow.Children.Add(new TextBlock { Text = " 波特率: ", Foreground = brushLabel, VerticalAlignment = VerticalAlignment.Center });
+            serialRow.Children.Add(new TextBlock { Text = Loc.T("Str_Win_HwConn_BaudLabel"), Foreground = brushLabel, VerticalAlignment = VerticalAlignment.Center });
             var cbBaud = new ComboBox { Width = 90, Background = brushBoxBg, Foreground = Brushes.White, BorderBrush = brushBoxBorder };
             foreach (var b in new[] { "9600", "19200", "38400", "57600", "115200" }) cbBaud.Items.Add(b);
             int curBaud = (_timingConn != null && _timingConn.SerialBaudRate > 0) ? _timingConn.SerialBaudRate : 9600;
@@ -17741,7 +17741,7 @@ namespace SwimmingScoreboard
             if (cbBaud.SelectedItem == null) cbBaud.SelectedIndex = 0;
             serialRow.Children.Add(cbBaud);
             Grid.SetRow(serialRow, 0); Grid.SetColumn(serialRow, 1); grid.Children.Add(serialRow);
-            var btnSerial = new Button { Content = "连接串口", Padding = new Thickness(12, 4, 12, 4), Margin = new Thickness(8, 0, 0, 0), Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6")), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
+            var btnSerial = new Button { Content = Loc.T("Str_Win_HwConn_ConnectSerialBtn"), Padding = new Thickness(12, 4, 12, 4), Margin = new Thickness(8, 0, 0, 0), Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6")), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
             btnSerial.Click += delegate {
                 if (cbCom.SelectedItem == null) { AddLog(Loc.T("Str_Log_PleaseSelectSerialPort")); return; }
                 string port = cbCom.SelectedItem.ToString();
@@ -17755,12 +17755,12 @@ namespace SwimmingScoreboard
             };
             Grid.SetRow(btnSerial, 0); Grid.SetColumn(btnSerial, 2); grid.Children.Add(btnSerial);
             // Row 1: TCP
-            var lblTcp = new TextBlock { Text = "TCP地址:", Foreground = brushLabel, VerticalAlignment = VerticalAlignment.Center };
+            var lblTcp = new TextBlock { Text = Loc.T("Str_Win_HwConn_TcpLabel"), Foreground = brushLabel, VerticalAlignment = VerticalAlignment.Center };
             Grid.SetRow(lblTcp, 1); Grid.SetColumn(lblTcp, 0); grid.Children.Add(lblTcp);
             string tcpDefault = (_timingConn != null && !string.IsNullOrEmpty(_timingConn.TcpHost)) ? (_timingConn.TcpHost + ":" + (_timingConn.TcpPort > 0 ? _timingConn.TcpPort : 5000)) : "127.0.0.1:5000";
             var tbTcp = new TextBox { Text = tcpDefault, Padding = new Thickness(4), Background = brushBoxBg, Foreground = Brushes.White, BorderBrush = brushBoxBorder, VerticalContentAlignment = VerticalAlignment.Center };
             Grid.SetRow(tbTcp, 1); Grid.SetColumn(tbTcp, 1); grid.Children.Add(tbTcp);
-            var btnTcp = new Button { Content = "连接TCP", Padding = new Thickness(12, 4, 12, 4), Margin = new Thickness(8, 0, 0, 0), Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#22C55E")), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
+            var btnTcp = new Button { Content = Loc.T("Str_Win_HwConn_ConnectTcpBtn"), Padding = new Thickness(12, 4, 12, 4), Margin = new Thickness(8, 0, 0, 0), Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#22C55E")), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
             btnTcp.Click += delegate {
                 string addr = tbTcp.Text.Trim();
                 string[] parts = addr.Split(':');
@@ -17775,14 +17775,14 @@ namespace SwimmingScoreboard
             };
             Grid.SetRow(btnTcp, 1); Grid.SetColumn(btnTcp, 2); grid.Children.Add(btnTcp);
             // Row 2: UDP 监听
-            var lblUdp = new TextBlock { Text = "UDP收端口:", Foreground = brushLabel, VerticalAlignment = VerticalAlignment.Center };
+            var lblUdp = new TextBlock { Text = Loc.T("Str_Win_HwConn_UdpRecvLabel"), Foreground = brushLabel, VerticalAlignment = VerticalAlignment.Center };
             Grid.SetRow(lblUdp, 2); Grid.SetColumn(lblUdp, 0); grid.Children.Add(lblUdp);
             string udpDefault = (_timingConn != null && _timingConn.UdpListenPort > 0) ? _timingConn.UdpListenPort.ToString() : "5001";
             var tbUdp = new TextBox { Text = udpDefault, Padding = new Thickness(4), Background = brushBoxBg, Foreground = Brushes.White, BorderBrush = brushBoxBorder, VerticalContentAlignment = VerticalAlignment.Center };
             Grid.SetRow(tbUdp, 2); Grid.SetColumn(tbUdp, 1); grid.Children.Add(tbUdp);
-            var btnUdp = new Button { Content = "监听UDP", Padding = new Thickness(12, 4, 12, 4), Margin = new Thickness(8, 0, 0, 0), Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F59E0B")), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
+            var btnUdp = new Button { Content = Loc.T("Str_Win_HwConn_ListenUdpBtn"), Padding = new Thickness(12, 4, 12, 4), Margin = new Thickness(8, 0, 0, 0), Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F59E0B")), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
             // Row 3: UDP 发送 (放下面)
-            var lblUdpSend = new TextBlock { Text = "UDP发送:", Foreground = brushLabel, VerticalAlignment = VerticalAlignment.Center };
+            var lblUdpSend = new TextBlock { Text = Loc.T("Str_Win_HwConn_UdpSendLabel"), Foreground = brushLabel, VerticalAlignment = VerticalAlignment.Center };
             Grid.SetRow(lblUdpSend, 3); Grid.SetColumn(lblUdpSend, 0); grid.Children.Add(lblUdpSend);
             string udpSendDefault = (_timingConn != null && !string.IsNullOrEmpty(_timingConn.UdpSendHost)) ? (_timingConn.UdpSendHost + ":" + _timingConn.UdpSendPort) : "127.0.0.1:5002";
             var tbUdpSend = new TextBox { Text = udpSendDefault, Padding = new Thickness(4), Background = brushBoxBg, Foreground = Brushes.White, BorderBrush = brushBoxBorder, VerticalContentAlignment = VerticalAlignment.Center };
@@ -17806,7 +17806,7 @@ namespace SwimmingScoreboard
             sp.Children.Add(grid);
             // 底部按钮: 断开 / 关闭
             var btnRow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 16, 0, 0) };
-            var btnDisc = new Button { Content = "断开硬件", Padding = new Thickness(14, 6, 14, 6), Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EF4444")), Foreground = Brushes.White, BorderThickness = new Thickness(0), Margin = new Thickness(0, 0, 8, 0) };
+            var btnDisc = new Button { Content = Loc.T("Str_Win_HwConn_DisconnectBtn"), Padding = new Thickness(14, 6, 14, 6), Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EF4444")), Foreground = Brushes.White, BorderThickness = new Thickness(0), Margin = new Thickness(0, 0, 8, 0) };
             btnDisc.Click += delegate {
                 if (_raceState != RaceState.Waiting) { MessageBox.Show(Loc.T("Str_Msg_CannotDisconnectNotWaiting"), Loc.T("Str_MsgTitle_Info")); return; }
                 if (_timingBridge != null) _timingBridge.Disconnect();
@@ -17817,7 +17817,7 @@ namespace SwimmingScoreboard
                 refreshStatus();
             };
             btnRow.Children.Add(btnDisc);
-            var btnClose = new Button { Content = "关闭", Padding = new Thickness(14, 6, 14, 6), Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569")), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
+            var btnClose = new Button { Content = Loc.T("Str_Btn_Close"), Padding = new Thickness(14, 6, 14, 6), Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569")), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
             btnClose.Click += delegate { dlg.DialogResult = true; };
             btnRow.Children.Add(btnClose);
             sp.Children.Add(btnRow);
@@ -17828,7 +17828,7 @@ namespace SwimmingScoreboard
         // 2026-06-12 时间参数设置 子窗口 (从 参数设置 拆出 9 个时间参数). 确认=应用并同步硬件; 取消=不改.
         private void ShowTimeParamsDialog() {
             var dlg = new Window {
-                Title = "时间参数设置",
+                Title = Loc.T("Str_Win_TimeParams_Title"),
                 Width = 420,
                 SizeToContent = SizeToContent.Height,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner,
@@ -17836,7 +17836,7 @@ namespace SwimmingScoreboard
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E293B"))
             };
             var sp = new StackPanel { Margin = new Thickness(20) };
-            sp.Children.Add(new TextBlock { Text = "时间参数设置", FontSize = 17, FontWeight = FontWeights.Bold, Foreground = Brushes.White, Margin = new Thickness(0, 0, 0, 14) });
+            sp.Children.Add(new TextBlock { Text = Loc.T("Str_Win_TimeParams_Title"), FontSize = 17, FontWeight = FontWeights.Bold, Foreground = Brushes.White, Margin = new Thickness(0, 0, 0, 14) });
 
             var tbCloseTime = AddSettingsRow(sp, "泳道关闭时间", _laneCloseSettings.LaneCloseTime.ToString(), "秒");
             var tbSBDelay = AddSettingsRow(sp, "出发台关闭延迟", _laneCloseSettings.StartBlockCloseDelay.ToString(), "秒");
