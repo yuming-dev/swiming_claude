@@ -1095,6 +1095,22 @@ namespace SwimmingScoreboard
             { "Str_Action_ClearStatusMark", new[] { "撤销状态标记", "clear the status mark" } },
             { "Str_Action_JudgeStatusFmt",  new[] { "改判 {0}", "mark as {0}" } },
             { "Str_Action_ManualEditResult",new[] { "手动改成绩", "manually edit the result" } },
+            { "Str_MsgTitle_MergeDone", new[] { "并组完成", "Merge Complete" } },
+            { "Str_Msg_MergeDoneFmt", new[] { "已完成。\n\n  第{0}组 {1}\n  移动 {2} 人\n\n第{0}组保留组次号并标记为已取消，\n赛程树、大屏、上一组/下一组都会跳过它。\n\n道次如需调整，用 上移/下移/交换泳道。", "Done.\n\n  Heat {0} {1}\n  Moved {2} swimmer(s)\n\nHeat {0} keeps its number but is marked Cancelled —\nthe schedule tree, big screen, and Prev/Next Heat will all skip it.\n\nTo adjust lanes, use Move Up/Down/Swap Lanes." } },
+            { "Str_Frag_MergedIntoFmt", new[] { "已并入第{0}组", "merged into heat {0}" } },
+            { "Str_Frag_Cancelled",     new[] { "已取消", "cancelled" } },
+            { "Str_Frag_HeatHeaderFmt", new[] { "{0} {1} {2} {3} 第{4}组", "{0} {1} {2} {3} Heat {4}" } },
+            { "Str_MsgTitle_UnlockStep1", new[] { "解锁本组成绩 (1/2)", "Unlock Heat Result (1/2)" } },
+            { "Str_Msg_UnlockStep1Fmt", new[] { "要把这一组从「已完赛」解开吗？\n\n  {0}\n\n解开之后:\n  · 赛程树上的 [已完赛] 会去掉\n  · 这一组的成绩可以改了(判DSQ、手动改成绩都放开)\n  · 改完必须再点一次「确认本组成绩」重新锁上\n\n这件事会记进系统日志和竞赛库的审计表。", "Unlock this heat from \"Finished\"?\n\n  {0}\n\nOnce unlocked:\n  · The [Finished] tag on the schedule tree is removed\n  · This heat's result can be edited again (DSQ, manual edits, etc.)\n  · You must press \"Confirm Heat Result\" again afterward to re-lock it\n\nThis action is written to the system log and the competition database's audit table." } },
+            { "Str_MsgTitle_UnlockStep2", new[] { "解锁本组成绩 (2/2)", "Unlock Heat Result (2/2)" } },
+            { "Str_Msg_CannotLeaveHeatFmt", new[] { "当前组（{0} {1} 第{2}组）尚未确认成绩，不能切换到其它组。\n请先点击\"确认成绩\"或\"计时复位\"清除当前组数据。", "The current heat ({0} {1} Heat {2}) hasn't had its result confirmed yet — can't switch to another heat.\nPress \"Confirm Result\" or \"Clock Reset\" first to clear the current heat's data." } },
+            { "Str_Msg_CannotReselectEvent", new[] { "比赛进行中不能重新选择比赛项目。\n\n如需切换，请先点击 \"计时复位\" 结束当前比赛。", "Can't reselect the event while a race is in progress.\n\nTo switch, press \"Clock Reset\" first to end the current race." } },
+            { "Str_MsgTitle_ConfirmMark", new[] { "确认标记", "Confirm Mark" } },
+            { "Str_Msg_ConfirmMarkFmt", new[] { "确认将泳道 {0} 标记为 {1}（{2}）？\n\n此操作将取消该泳道的成绩。", "Mark lane {0} as {1} ({2})?\n\nThis will cancel that lane's result." } },
+            { "Str_Desc_DNS", new[] { "缺席未出发", "absent, did not start" } },
+            { "Str_Desc_DNF", new[] { "中途退出", "withdrew mid-race" } },
+            { "Str_Desc_DSQ", new[] { "犯规取消资格", "disqualified for a violation" } },
+            { "Str_Desc_TRI", new[] { "试游 / 不计排名", "trial swim / not ranked" } },
         };
 
         /// <summary>查当前语言下的文字；查不到就退回中文；中文也没有就返回 key 本身兜底。</summary>

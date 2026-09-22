@@ -11223,10 +11223,9 @@ namespace SwimmingScoreboard
                 BroadcastMergePatch(ageGroup, gender, eventName, stage, srcHeat, dstHeat, reason,
                                     Environment.MachineName, null);
 
-            MessageBox.Show(string.Format(
-                "已完成。\n\n  第{0}组 {1}\n  移动 {2} 人\n\n第{0}组保留组次号并标记为已取消，\n赛程树、大屏、上一组/下一组都会跳过它。\n\n道次如需调整，用 上移/下移/交换泳道。",
-                srcHeat, dstHeat > 0 ? ("已并入第" + dstHeat + "组") : "已取消", moved.Count),
-                "并组完成", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show(Loc.F("Str_Msg_MergeDoneFmt",
+                srcHeat, dstHeat > 0 ? Loc.F("Str_Frag_MergedIntoFmt", dstHeat) : Loc.T("Str_Frag_Cancelled"), moved.Count),
+                Loc.T("Str_MsgTitle_MergeDone"), MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
         // ══════════════════════════════════════════════════════════════
@@ -12003,18 +12002,13 @@ namespace SwimmingScoreboard
                 return;
             }
 
-            string head = string.Format("{0} {1} {2} {3} 第{4}组",
-                gd, string.IsNullOrEmpty(ag) ? "" : ag, ev, st, heat);
+            string head = Loc.F("Str_Frag_HeatHeaderFmt",
+                Loc.GenderDisplay(gd), string.IsNullOrEmpty(ag) ? "" : ag, ev, Loc.StageDisplay(st), heat);
 
             // ── 第一道: 看清楚要解哪一组 ──
             if (MessageBox.Show(
-                "要把这一组从「已完赛」解开吗？\n\n  " + head +
-                "\n\n解开之后:\n" +
-                "  · 赛程树上的 [已完赛] 会去掉\n" +
-                "  · 这一组的成绩可以改了(判DSQ、手动改成绩都放开)\n" +
-                "  · 改完必须再点一次「确认本组成绩」重新锁上\n\n" +
-                "这件事会记进系统日志和竞赛库的审计表。",
-                "解锁本组成绩 (1/2)", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
+                Loc.F("Str_Msg_UnlockStep1Fmt", head),
+                Loc.T("Str_MsgTitle_UnlockStep1"), MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
                 return;
 
             // ── 第二道: 手输组号 + 写原因 ──
@@ -12031,7 +12025,7 @@ namespace SwimmingScoreboard
         private bool AskUnlockConfirm(string head, int heat, out string reason) {
             reason = "";
             var win = new Window {
-                Title = "解锁本组成绩 (2/2)", Width = 520, SizeToContent = SizeToContent.Height,
+                Title = Loc.T("Str_MsgTitle_UnlockStep2"), Width = 520, SizeToContent = SizeToContent.Height,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner, ResizeMode = ResizeMode.NoResize, Owner = this
             };
             var root = new StackPanel { Margin = new Thickness(18) };
@@ -13034,8 +13028,7 @@ namespace SwimmingScoreboard
             if (targetHeat == _currentHeat) return true;
             if (!CurrentHeatInProgress()) return true;
             MessageBox.Show(
-                string.Format("当前组（{0} {1} 第{2}组）尚未确认成绩，不能切换到其它组。\n请先点击\"确认成绩\"或\"计时复位\"清除当前组数据。",
-                    _currentGender, _currentEvent, _currentHeat),
+                Loc.F("Str_Msg_CannotLeaveHeatFmt", Loc.GenderDisplay(_currentGender), _currentEvent, _currentHeat),
                 Loc.T("Str_MsgTitle_ActionBlocked"), MessageBoxButton.OK, MessageBoxImage.Warning);
             AddLog("当前组未确认成绩，已拦截切组");
             return false;
@@ -13123,7 +13116,7 @@ namespace SwimmingScoreboard
             if ((_raceState == RaceState.Ready || _raceState == RaceState.Racing) &&
                 (tag.StartsWith("heat:") || tag.StartsWith("event:"))) {
                 MessageBox.Show(
-                    "比赛进行中不能重新选择比赛项目。\n\n如需切换，请先点击 \"计时复位\" 结束当前比赛。",
+                    Loc.T("Str_Msg_CannotReselectEvent"),
                     Loc.T("Str_MsgTitle_ActionBlocked"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 AddLog("比赛进行中不能切换项目");
                 return;
@@ -17158,30 +17151,29 @@ namespace SwimmingScoreboard
 
         private bool ConfirmMarkStatus(int lane, string status, string desc) {
             var r = MessageBox.Show(
-                string.Format("确认将泳道 {0} 标记为 {1}（{2}）？\n\n此操作将取消该泳道的成绩。",
-                    lane, status, desc),
-                "确认标记", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+                Loc.F("Str_Msg_ConfirmMarkFmt", lane, status, desc),
+                Loc.T("Str_MsgTitle_ConfirmMark"), MessageBoxButton.YesNo, MessageBoxImage.Warning);
             return r == MessageBoxResult.Yes;
         }
 
         private void MarkDNS_Click(object sender, RoutedEventArgs e) {
             int lane;
             if (!int.TryParse(LaneInputBox.Text, out lane)) { AddLog("请输入泳道号"); return; }
-            if (!ConfirmMarkStatus(lane, "DNS", "缺席未出发")) return;
+            if (!ConfirmMarkStatus(lane, "DNS", Loc.T("Str_Desc_DNS"))) return;
             MarkLaneStatus(lane, "DNS");
         }
 
         private void MarkDNF_Click(object sender, RoutedEventArgs e) {
             int lane;
             if (!int.TryParse(LaneInputBox.Text, out lane)) { AddLog("请输入泳道号"); return; }
-            if (!ConfirmMarkStatus(lane, "DNF", "中途退出")) return;
+            if (!ConfirmMarkStatus(lane, "DNF", Loc.T("Str_Desc_DNF"))) return;
             MarkLaneStatus(lane, "DNF");
         }
 
         private void MarkDSQ_Click(object sender, RoutedEventArgs e) {
             int lane;
             if (!int.TryParse(LaneInputBox.Text, out lane)) { AddLog("请输入泳道号"); return; }
-            if (!ConfirmMarkStatus(lane, "DSQ", "犯规取消资格")) return;
+            if (!ConfirmMarkStatus(lane, "DSQ", Loc.T("Str_Desc_DSQ"))) return;
             MarkLaneStatus(lane, "DSQ");
         }
 
@@ -17197,7 +17189,7 @@ namespace SwimmingScoreboard
                 return (sa != null ? sa.Lane : s.Lane) == lane;
             });
             if (!hasSwimmer) { CreateEmptyLaneTriSwimmer(lane); return; }
-            if (!ConfirmMarkStatus(lane, "TRI", "试游 / 不计排名")) return;
+            if (!ConfirmMarkStatus(lane, "TRI", Loc.T("Str_Desc_TRI"))) return;
             MarkLaneStatus(lane, "TRI");
         }
 
