@@ -37,7 +37,7 @@ namespace SwimmingScoreboard
         }
 
         private void ResetDefaults_Click(object sender, RoutedEventArgs e) {
-            if (MessageBox.Show("将所有项目用时恢复到默认值？", "确认",
+            if (MessageBox.Show(Loc.T("Str_Win_EvtDur_ConfirmReset"), Loc.T("Str_MsgTitle_Confirm"),
                 MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
             _config.ResetToDefaults();
             LoadFromConfig();
