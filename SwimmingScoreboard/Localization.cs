@@ -2242,6 +2242,23 @@ namespace SwimmingScoreboard
             { "Str_Win_RecordCert_ColOldDate", new[] { "原记录时间", "Previous Record Date" } },
             { "Str_Win_RecordCert_MsgNoRecords", new[] { "本次比赛暂无破纪录记录。", "No record-breaking entries in this meet yet." } },
             { "Str_Win_RecordCert_MsgSelectAtLeastOne", new[] { "请至少选择一条破纪录记录。", "Please select at least one record-breaking entry." } },
+            { "Str_Win_DeviceStatus_Title", new[] { "设备状态管理", "Device Status Management" } },
+            { "Str_Win_DeviceStatus_Header", new[] { "泳道设备状态管理 (4 态: 安装 / 未安装 / 好 / 坏)", "Lane Device Status Management (4 states: Installed / Not Installed / Good / Bad)" } },
+            { "Str_Win_DeviceStatus_GreyNote", new[] { "灰底列受 比赛泳池(单/双端) 与 盲表数量 配置控制, 此处不可编辑.", "Grey columns are controlled by the Pool (single/dual-end) and blind-watch-count settings and cannot be edited here." } },
+            { "Str_Win_DeviceStatus_ColLeftTouchpad", new[] { "左触板", "L Touchpad" } },
+            { "Str_Win_DeviceStatus_ColLeftStartBlock", new[] { "左出发台", "L Start Block" } },
+            { "Str_Win_DeviceStatus_ColLeftBlind1", new[] { "左盲1", "L Blind 1" } },
+            { "Str_Win_DeviceStatus_ColLeftBlind2", new[] { "左盲2", "L Blind 2" } },
+            { "Str_Win_DeviceStatus_ColLeftBlind3", new[] { "左盲3", "L Blind 3" } },
+            { "Str_Win_DeviceStatus_ColRightTouchpad", new[] { "右触板", "R Touchpad" } },
+            { "Str_Win_DeviceStatus_ColRightStartBlock", new[] { "右出发台", "R Start Block" } },
+            { "Str_Win_DeviceStatus_ColRightBlind1", new[] { "右盲1", "R Blind 1" } },
+            { "Str_Win_DeviceStatus_ColRightBlind2", new[] { "右盲2", "R Blind 2" } },
+            { "Str_Win_DeviceStatus_ColRightBlind3", new[] { "右盲3", "R Blind 3" } },
+            { "Str_Win_DeviceStatus_AllInstalledBtn", new[] { "全部设为安装", "Set All Installed" } },
+            { "Str_Win_DeviceStatus_AllNotInstalledBtn", new[] { "全部设为未安装", "Set All Not Installed" } },
+            { "Str_Win_DeviceStatus_AllGoodBtn", new[] { "全部设为好", "Set All Good" } },
+            { "Str_Win_DeviceStatus_AllBadBtn", new[] { "全部设为坏", "Set All Bad" } },
         };
 
         /// <summary>查当前语言下的文字；查不到就退回中文；中文也没有就返回 key 本身兜底。</summary>
