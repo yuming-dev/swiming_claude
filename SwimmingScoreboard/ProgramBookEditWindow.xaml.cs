@@ -90,9 +90,9 @@ namespace SwimmingScoreboard
         }
 
         private void Reset_Click(object sender, RoutedEventArgs e) {
-            if (MessageBox.Show("确认清空所有自定义内容？", "重置秩序册", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
-            CoverTitleBox.Text = "游泳比赛";
-            CoverSubtitleBox.Text = "秩 序 册";
+            if (MessageBox.Show(Loc.T("Str_Win_ProgBook_MsgConfirmReset"), Loc.T("Str_Win_ProgBook_MsgTitleReset"), MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+            CoverTitleBox.Text = Loc.T("Str_Win_ProgBook_DefaultCoverTitle");
+            CoverSubtitleBox.Text = Loc.T("Str_Win_ProgBook_DefaultCoverSubtitle");
             VenueImagePathBox.Text = "";
             ForewordBox.Text = "";
             RegulationsBox.Text = "";
@@ -105,7 +105,7 @@ namespace SwimmingScoreboard
         }
 
         private void Preview_Click(object sender, RoutedEventArgs e) {
-            if (_previewProvider == null) { MessageBox.Show("预览不可用。"); return; }
+            if (_previewProvider == null) { MessageBox.Show(Loc.T("Str_Win_ProgBook_MsgPreviewUnavailable")); return; }
             // 临时收集当前值供预览
             var snapshot = Collect();
             // 把当前 dialog 的值压入 result 临时让 caller 用快照渲染
@@ -118,14 +118,14 @@ namespace SwimmingScoreboard
                     System.Diagnostics.Process.Start(tmp);
                 }
             } catch (Exception ex) {
-                MessageBox.Show("预览失败：" + ex.Message);
+                MessageBox.Show(Loc.T("Str_Win_ProgBook_MsgPreviewFailPrefix") + ex.Message);
             }
         }
 
         private void PickVenueImage_Click(object sender, RoutedEventArgs e) {
             var dlg = new Microsoft.Win32.OpenFileDialog {
-                Filter = "图片文件|*.png;*.jpg;*.jpeg;*.bmp|所有文件|*.*",
-                Title = "选择比赛场地示意图"
+                Filter = Loc.T("Str_Win_ProgBook_ImageFilter"),
+                Title = Loc.T("Str_Win_ProgBook_PickImageTitle")
             };
             if (dlg.ShowDialog() == true) {
                 VenueImagePathBox.Text = dlg.FileName;
@@ -146,7 +146,7 @@ namespace SwimmingScoreboard
                 _teamStaff.Add(new ProgramBookTeamStaff { TeamName = t, Leader = "", Coaches = "", Doctors = "", Staff = "" });
                 added++;
             }
-            MessageBox.Show(string.Format("已添加 {0} 支队伍空白行。", added), "提示");
+            MessageBox.Show(Loc.F("Str_Win_ProgBook_MsgAutoFillDoneFmt", added), Loc.T("Str_MsgTitle_Info"));
         }
     }
 }
