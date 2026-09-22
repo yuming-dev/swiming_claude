@@ -24661,7 +24661,7 @@ namespace SwimmingScoreboard
             };
             if (dlg.ShowDialog() != true) return;
             string path = dlg.FileName;
-            if (!File.Exists(path)) { MessageBox.Show("文件不存在: " + path, Loc.T("Str_MsgTitle_Error")); return; }
+            if (!File.Exists(path)) { MessageBox.Show(Loc.F("Str_Msg_FileNotExistFmt", path), Loc.T("Str_MsgTitle_Error")); return; }
 
             string outDir = IOPath.Combine(IOPath.GetTempPath(), "swim_ppt_" + DateTime.Now.Ticks);
             try { Directory.CreateDirectory(outDir); } catch { }
@@ -24671,13 +24671,13 @@ namespace SwimmingScoreboard
             try {
                 slides = ConvertPptToPngSlides(path, outDir);
             } catch (Exception ex) {
-                MessageBox.Show("PPT 转换失败 (主控 PC 需要安装 Microsoft PowerPoint):\n" + ex.Message,
+                MessageBox.Show(Loc.F("Str_Msg_PptConvertFailedFmt", ex.Message),
                     Loc.T("Str_MsgTitle_Error"), MessageBoxButton.OK, MessageBoxImage.Error);
                 AddLog("PPT 转换失败: " + ex.Message);
                 return;
             }
             if (slides == null || slides.Count == 0) {
-                MessageBox.Show("没有从 PPT 中提取出任何幻灯片", Loc.T("Str_MsgTitle_Error"));
+                MessageBox.Show(Loc.T("Str_Msg_NoPptSlidesExtracted"), Loc.T("Str_MsgTitle_Error"));
                 return;
             }
             AddLog(string.Format("PPT 转换完成: {0} 页 → {1}", slides.Count, outDir));
