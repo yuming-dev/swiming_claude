@@ -29509,7 +29509,7 @@ namespace SwimmingScoreboard
                     if (sh == null) { MessageBox.Show(Loc.T("Str_Msg_ExcelNoSheet"), Loc.T("Str_MsgTitle_Error")); return; }
                     // 表头行 (第 1 行) 按字段名建 col 索引
                     var head = sh.GetRow(0);
-                    if (head == null) { MessageBox.Show("首行(表头)为空", Loc.T("Str_MsgTitle_Error")); return; }
+                    if (head == null) { MessageBox.Show(Loc.T("Str_Msg_HeaderRowEmpty"), Loc.T("Str_MsgTitle_Error")); return; }
                     var colMap = new Dictionary<string, int>();
                     for (int c = 0; c < head.LastCellNum; c++) {
                         var hc = head.GetCell(c);
@@ -29523,7 +29523,7 @@ namespace SwimmingScoreboard
                         cGender = col("性别"), cAgeGroup = col("组别"), cEvent = col("项目"),
                         cStage = col("赛次"), cHeatCount = col("组数");
                     if (cGender < 0 || cEvent < 0 || cStage < 0) {
-                        MessageBox.Show("表头缺少必需列 (性别/项目/赛次)", Loc.T("Str_MsgTitle_Error")); return;
+                        MessageBox.Show(Loc.T("Str_Msg_HeaderMissingRequiredCols"), Loc.T("Str_MsgTitle_Error")); return;
                     }
                     for (int r = 1; r <= sh.LastRowNum; r++) {
                         var row = sh.GetRow(r);
@@ -29563,7 +29563,7 @@ namespace SwimmingScoreboard
                 // 这里改完了的 _schedule 就是最终那份, 直接复用同一条路, 不必再单独建一套按行
                 // upsert 的协议。
                 FinishAndSyncPatch(BuildListSetPatch("schedule", JArray.FromObject(_schedule), ClientLabel()), "meet");
-                MessageBox.Show(string.Format("导入完成:\n  新增 {0} 项\n  更新 {1} 项\n  跳过 {2} 行", added, updated, skipped), Loc.T("Str_MsgTitle_Done"));
+                MessageBox.Show(Loc.F("Str_Msg_ImportDoneAddedUpdatedSkippedFmt", added, updated, skipped), Loc.T("Str_MsgTitle_Done"));
                 AddLog(string.Format("导入(其他)日程表: 新增{0} 更新{1} 跳过{2}", added, updated, skipped));
             } catch (Exception ex) {
                 MessageBox.Show(Loc.F("Str_Msg_ImportFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error"));
@@ -29583,10 +29583,8 @@ namespace SwimmingScoreboard
             //   这个入口就关掉 —— 它本来就是赛前一次性的活。
             string lockedWhat;
             if (MeetHasLockedHeats(out lockedWhat)) {
-                MessageBox.Show("现在不能导入(其他)分组表。\n\n原因: " + lockedWhat +
-                    "。\n\n这个导入会把整本分组表重写一遍，已完赛和正在比的组也跑不掉。\n" +
-                    "要改个别项目，请用「出场编排微调」或「并组 / 取消组」。",
-                    "整本重写的导入已挡下", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(Loc.F("Str_Msg_ImportOtherHeatsBlockedFmt", lockedWhat),
+                    Loc.T("Str_MsgTitle_FullRewriteBlocked"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 AddLog("拒绝导入(其他)分组表: " + lockedWhat);
                 return;
             }
@@ -29763,8 +29761,7 @@ namespace SwimmingScoreboard
                             ? (NPOI.SS.UserModel.IWorkbook)new NPOI.HSSF.UserModel.HSSFWorkbook(fs)
                             : new NPOI.XSSF.UserModel.XSSFWorkbook(fs);
                     } catch (Exception exOpen) {
-                        MessageBox.Show("读取 Excel 失败: " + exOpen.Message
-                            + "\n\n如果是 .xls (老 BIFF 格式) 而 NPOI 报错, 请先用 Excel 另存为 .xlsx 再导入.",
+                        MessageBox.Show(Loc.F("Str_Msg_ExcelReadFailedFmt", exOpen.Message),
                             Loc.T("Str_MsgTitle_Error"));
                         return;
                     }
@@ -29772,7 +29769,7 @@ namespace SwimmingScoreboard
                     if (sh == null) { MessageBox.Show(Loc.T("Str_Msg_ExcelNoSheet"), Loc.T("Str_MsgTitle_Error")); return; }
                     // R2 表头. 单项明细 R1 是分组大标题 (项目进度/项目名称/运动员/...), 跳过
                     var head = sh.GetRow(1);
-                    if (head == null) { MessageBox.Show("第 2 行 (表头) 为空", Loc.T("Str_MsgTitle_Error")); return; }
+                    if (head == null) { MessageBox.Show(Loc.T("Str_Msg_Row2HeaderEmpty"), Loc.T("Str_MsgTitle_Error")); return; }
                     var colMap = new Dictionary<string, int>();
                     for (int c = 0; c < head.LastCellNum; c++) {
                         var hc = head.GetCell(c);
@@ -29791,7 +29788,7 @@ namespace SwimmingScoreboard
                         cPhone = col("电话"), cAge = col("年龄"),
                         cEntryTime = col("竞赛成绩"), cBib = col("参赛号");
                     if (cName < 0 || cGender < 0 || cDist < 0 || cStroke < 0) {
-                        MessageBox.Show("表头缺必需列 (运动员/性别/距离/姿式)", Loc.T("Str_MsgTitle_Error")); return;
+                        MessageBox.Show(Loc.T("Str_Msg_HeaderMissingCols2"), Loc.T("Str_MsgTitle_Error")); return;
                     }
                     // R3 起数据
                     for (int r = 2; r <= sh.LastRowNum; r++) {
@@ -29885,8 +29882,7 @@ namespace SwimmingScoreboard
                 RebuildScheduleGroupedView();
                 BuildScheduleTree();
                 FinishAndSyncPatch(BuildSwimmerRowsUpsertPatch(touchedRows, null, ClientLabel()), "swimmer");
-                MessageBox.Show(string.Format(
-                    "导入完成:\n  更新已有运动员 {0} 人\n  新增运动员 {1} 人\n  无项目 (距离+姿式空) 跳过 {2} 行\n  其它无效 跳过 {3} 行",
+                MessageBox.Show(Loc.F("Str_Msg_ImportSwimmersOtherDoneFmt",
                     updated, added, noEvent, skipped), Loc.T("Str_MsgTitle_Done"));
                 AddLog(string.Format("导入(其他)运动员信息: 更新{0} 新增{1} 无项跳过{2} 其它跳过{3}",
                     updated, added, noEvent, skipped));
@@ -29931,7 +29927,7 @@ namespace SwimmingScoreboard
                     CollectEventInfoForExport(),
                     _swimmers.Where(s => !IsRelayMemberNote(s.Notes)).Select(s => s.Country ?? "")
                         .Where(c => !string.IsNullOrEmpty(c)).Distinct().OrderBy(c => c).ToList());
-                if (MessageBox.Show("模板已保存：\n" + dlg.FileName + "\n\n是否立即打开？", Loc.T("Str_MsgTitle_Done"),
+                if (MessageBox.Show(Loc.F("Str_Msg_TemplateSavedOpenNowFmt", dlg.FileName), Loc.T("Str_MsgTitle_Done"),
                     MessageBoxButton.YesNo, MessageBoxImage.Information) == MessageBoxResult.Yes) {
                     System.Diagnostics.Process.Start(dlg.FileName);
                 }
