@@ -8152,7 +8152,7 @@ namespace SwimmingScoreboard
             if (ls == null) return;
 
             // 2026-05-30 硬件未连接弹窗 (圈数 +/- spinner)
-            if (!EnsureHardwareConnected(string.Format("泳道{0} 圈数{1}1", lane, delta > 0 ? "+" : "-"))) return;
+            if (!EnsureHardwareConnected(Loc.F("Str_Action_LaneLapDeltaFmt", lane, delta > 0 ? "+" : "-"))) return;
 
             // 2026-05-29 重构: 防线 1-4 / SB / TP+MB / direction 推算全部下放给 LapAdjustLogic.Compute,
             // 跟 LapTestSim 测试程序同源. 这里只负责: 收集输入 → 弹窗 / 落地 UI / 发硬件.
@@ -8338,7 +8338,7 @@ namespace SwimmingScoreboard
             if (_suppressHwDisconnectWarning) return;
             try {
                 var win = new Window {
-                    Title = "⚠ 硬件未连接",
+                    Title = Loc.T("Str_MsgTitle_HwNotConnectedPopup"),
                     Width = 480, Height = 220,
                     WindowStartupLocation = WindowStartupLocation.CenterOwner,
                     Owner = this,
@@ -8347,20 +8347,20 @@ namespace SwimmingScoreboard
                 };
                 var panel = new System.Windows.Controls.StackPanel { Margin = new Thickness(16) };
                 panel.Children.Add(new System.Windows.Controls.TextBlock {
-                    Text = string.Format("硬件计时器未连接, 无法执行 \"{0}\".\n\n{1}", actionName,
+                    Text = Loc.F("Str_Msg_HwNotConnectedFmt", actionName,
                         isStrict
-                            ? "本次操作在 PC 端不会生效, 硬件不会收到指令.\n请先连接硬件计时器再操作."
-                            : "本次操作只在 PC 本地生效, 硬件不会同步.\n建议连接硬件后再次保存以同步."),
+                            ? Loc.T("Str_Msg_HwNotConnectedStrict")
+                            : Loc.T("Str_Msg_HwNotConnectedSoft")),
                     TextWrapping = TextWrapping.Wrap,
                     Margin = new Thickness(0, 0, 0, 12)
                 });
                 var cb = new System.Windows.Controls.CheckBox {
-                    Content = "本次会话不再提醒 (重连硬件后自动恢复)",
+                    Content = Loc.T("Str_Msg_HwWarnDontShowAgain"),
                     Margin = new Thickness(0, 0, 0, 12)
                 };
                 panel.Children.Add(cb);
                 var btnOk = new System.Windows.Controls.Button {
-                    Content = "确定", Width = 80, Height = 28,
+                    Content = Loc.T("Str_Btn_OK"), Width = 80, Height = 28,
                     HorizontalAlignment = HorizontalAlignment.Right,
                     IsDefault = true
                 };
@@ -9320,7 +9320,7 @@ namespace SwimmingScoreboard
             if (BlockIfNoTiming("就位")) return;
             // 状态守卫 → 改本地状态 → 送 0x21；硬件参数在每次 Ready 时由 SendSetMatchEventToHardware 一同下发
             // 2026-05-30 本地点击 (sender!=null) 时检查硬件连接; 硬件回报/WebSocket 远程 (sender==null) 跳过弹窗
-            if (sender != null && !EnsureHardwareConnected("准备就绪")) return;
+            if (sender != null && !EnsureHardwareConnected(Loc.T("Str_RC_Ready"))) return;
             if (_raceState != RaceState.Waiting) {
                 // 2026-08-27 原来这里是静默 return —— 现场按了没反应, 操作员不知道为什么,
                 //   只能反复按。现在把当前状态和该怎么办说清楚。
@@ -9465,7 +9465,7 @@ namespace SwimmingScoreboard
             // 走 EnterReadyStateInternal 跳过 Ready_Click 的确认对话框（用户按"发令"已明确开始意图），
             // 同时仍把 0x43+0x21 推给硬件，让硬件先进 Ready 再接受 0x1C。
             // 2026-05-30 本地点击 (sender!=null) 时检查硬件连接
-            if (sender != null && !EnsureHardwareConnected("发令")) return;
+            if (sender != null && !EnsureHardwareConnected(Loc.T("Str_Action_ManualStartPlain"))) return;
             if (_raceState == RaceState.Waiting) {
                 // 已确认组守卫
                 if (!string.IsNullOrEmpty(_currentEvent) && _currentHeat > 0
@@ -9583,7 +9583,7 @@ namespace SwimmingScoreboard
 
         private void OpenAll_Click(object sender, RoutedEventArgs e) {
             // 2026-05-30 硬件未连接弹窗
-            if (!EnsureHardwareConnected("全部泳道打开")) return;
+            if (!EnsureHardwareConnected(Loc.T("Str_Action_OpenAllLanes"))) return;
             foreach (var s in _laneDeviceStates) {
                 s.LeftTouchpadStatus = DeviceStatus.Open;
                 s.LeftBlindWatch1Status = DeviceStatus.Open;
@@ -9604,7 +9604,7 @@ namespace SwimmingScoreboard
 
         private void CloseAll_Click(object sender, RoutedEventArgs e) {
             // 2026-05-30 硬件未连接弹窗
-            if (!EnsureHardwareConnected("全部泳道关闭")) return;
+            if (!EnsureHardwareConnected(Loc.T("Str_Action_CloseAllLanes"))) return;
             foreach (var s in _laneDeviceStates) {
                 s.LeftTouchpadStatus = DeviceStatus.Closed;
                 s.LeftBlindWatch1Status = DeviceStatus.Closed;
@@ -9628,7 +9628,7 @@ namespace SwimmingScoreboard
             // 本地点击"计时复位"先弹确认，避免误按导致丢失计时数据；
             // 硬件触发或 WebSocket 远程调用（sender==null）跳过对话框
             // 2026-05-30 本地点击 (sender!=null) 时检查硬件连接
-            if (sender != null && !EnsureHardwareConnected("计时复位")) return;
+            if (sender != null && !EnsureHardwareConnected(Loc.T("Str_RC_ClockReset"))) return;
             // 2026-06-03 比赛复位 → 清接力 reaction window (= 防上场残留)
             if (_relayReactionCalc != null) _relayReactionCalc.Reset();
             // 2026-06-14 PreStart 重设计: 复位也清掉枪响 PreStart 锚点和待算反应时缓存 (= 新一场比赛干净状态)
@@ -17252,7 +17252,7 @@ namespace SwimmingScoreboard
             // 2026-05-30 硬件未连接弹窗
             int lane;
             if (!int.TryParse(LaneInputBox.Text, out lane)) { AddLog("请输入泳道号"); return; }
-            if (!EnsureHardwareConnected(string.Format("泳道{0} 打开", lane))) return;
+            if (!EnsureHardwareConnected(Loc.F("Str_Action_LaneOpenFmt", lane))) return;
             SetSingleLaneOpen(lane, true);
         }
 
@@ -17260,7 +17260,7 @@ namespace SwimmingScoreboard
             // 2026-05-30 硬件未连接弹窗
             int lane;
             if (!int.TryParse(LaneInputBox.Text, out lane)) { AddLog("请输入泳道号"); return; }
-            if (!EnsureHardwareConnected(string.Format("泳道{0} 关闭", lane))) return;
+            if (!EnsureHardwareConnected(Loc.F("Str_Action_LaneCloseFmt", lane))) return;
             SetSingleLaneOpen(lane, false);
         }
 
@@ -17641,7 +17641,7 @@ namespace SwimmingScoreboard
 
         private void TimingSettings_Click(object sender, RoutedEventArgs e) {
             // 2026-05-30 v2: 软警告 (没连允许保存 PC 本地, 弹窗提示硬件不会同步)
-            WarnIfHardwareNotConnected("参数设置");
+            WarnIfHardwareNotConnected(Loc.T("Str_Entity_TimingSettingsPlain"));
             RunWithEditLock("timing-settings", Loc.T("Str_Entity_TimingSettingsPlain"), delegate { TimingSettingsCore(); });
         }
 
@@ -24450,9 +24450,9 @@ namespace SwimmingScoreboard
                     AddLog("显示比赛日程: 没有发出去(本机没有客户端 / 未连主服务器)");
                     MessageBox.Show(
                         IsRemoteTimingControlMode
-                            ? "日程没有发出去：本机尚未连接主服务器。\n\n请先在右上角连上主服务器再试。"
-                            : "日程没有发出去：当前没有任何客户端连接（大屏/控制页都没连）。",
-                        "显示比赛日程");
+                            ? Loc.T("Str_Msg_ScheduleNotSentRtc")
+                            : Loc.T("Str_Msg_ScheduleNotSentNoClients"),
+                        Loc.T("Str_MsgTitle_ShowSchedule"));
                 } else {
                     AddLog(string.Format("显示比赛日程: 已发出 (送达 {0} 个目标)", sent));
                 }
@@ -26388,10 +26388,9 @@ namespace SwimmingScoreboard
                     Environment.MachineName,
                     delegate() {
                         return MessageBox.Show(
-                            string.Format("【{0}{1} {2} {3}】全部组已经比完。\n\n将生成组成绩（本项目所有组的总排名）。\n"
-                                + "它是晋级的依据；直接决赛的项目，它就是最终名次。\n\n确定生成吗？",
-                                _ag, _gd, _ev, _st),
-                            "生成组成绩", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes;
+                            Loc.F("Str_Msg_GenEventRankingFmt",
+                                _ag, Loc.GenderDisplay(_gd), _ev, Loc.StageDisplay(_st)),
+                            Loc.T("Str_MsgTitle_GenEventRanking"), MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes;
                     });
                 if (made > 0) {
                     // 2026-09-18 生成/写表(上面 GenerateEventRankingIfComplete)和补空道试游
@@ -27085,10 +27084,8 @@ namespace SwimmingScoreboard
                     string savedAt = o["savedAt"] != null ? o["savedAt"].ToString() : "";
                     AddLog(string.Format("★ 已从当前组进度文件恢复 {0} 条成绩: {1} {2} {3} 第{4}组（存于 {5}）",
                         n, gd, ev, st, ht, savedAt));
-                    MessageBox.Show(string.Format(
-                        "发现上次没走完的一组，已把进度捡回来。\n\n  {0} {1} {2} 第{3}组\n  恢复 {4} 条成绩（存盘时间 {5}）\n\n" +
-                        "请核对无误后再点「确认本组成绩」。",
-                        gd, ev, st, ht, n, savedAt), "已恢复上次的比赛进度",
+                    MessageBox.Show(Loc.F("Str_Msg_ProgressRestoredFmt",
+                        Loc.GenderDisplay(gd), ev, Loc.StageDisplay(st), ht, n, savedAt), Loc.T("Str_MsgTitle_ProgressRestored"),
                         MessageBoxButton.OK, MessageBoxImage.Information);
                 }
             } catch (Exception ex) {
@@ -27131,14 +27128,8 @@ namespace SwimmingScoreboard
                         AddLog("【严重】竞赛库打不开 —— 成绩无法入库, 无法生成组排名");
                         try {
                             MessageBox.Show(
-                                "竞赛库打不开。\n\n后果:\n"
-                                + "  · 成绩【无法写入数据库】(只留在内存和 JSON 档案里)\n"
-                                + "  · 没有项目总排名, 各处名次会显示 \"-\"\n"
-                                + "  · 无法生成组成绩(晋级依据/最终名次)\n\n"
-                                + "最常见的原因: 这台机器缺 VC++ 运行库, 导致 SQLite.Interop.dll\n"
-                                + "加载失败(日志里是\"找不到指定的模块\")。装一次运行库即可。\n\n"
-                                + "详细原因见【系统日志与数据】页, 或程序目录下 Logs\\\\ 里的日志文件。",
-                                "竞赛库打不开 —— 成绩不会入库", MessageBoxButton.OK, MessageBoxImage.Error);
+                                Loc.T("Str_Msg_MeetDbCannotOpen"),
+                                Loc.T("Str_MsgTitle_MeetDbCannotOpen"), MessageBoxButton.OK, MessageBoxImage.Error);
                         } catch { }
                     }
                     return;
@@ -27644,8 +27635,8 @@ namespace SwimmingScoreboard
             int port = _timingConn != null && _timingConn.TcpPort > 0 ? _timingConn.TcpPort : 5000;
             if (string.IsNullOrEmpty(host)) {
                 MessageBox.Show(
-                    "未保存默认网络地址。请先到 \"系统工作状态 → 硬件计时器连接\" 配置 TCP 主机和端口，按一次\"连接TCP\"使其落盘，下次再用此快捷键。",
-                    "无默认网络地址", MessageBoxButton.OK, MessageBoxImage.Information);
+                    Loc.T("Str_Msg_NoDefaultAddress"),
+                    Loc.T("Str_MsgTitle_NoDefaultAddress"), MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
             try {
@@ -27752,7 +27743,7 @@ namespace SwimmingScoreboard
         // 退出测试：再次点击恢复正常 — 关掉 _testMode，所有设备重置为 Closed（用户可重新开比赛）。
         private void DeviceTest_Click(object sender, RoutedEventArgs e) {
             // 2026-05-30 本地点击 (sender!=null) 时检查硬件连接
-            if (sender != null && !EnsureHardwareConnected("设备测试")) return;
+            if (sender != null && !EnsureHardwareConnected(Loc.T("Str_RC_DeviceTest"))) return;
             if (!_testMode) {
                 // 2026-05-30 v2: 只有 Waiting 状态允许; Ready/Racing/Finished 直接 return
                 if (_raceState != RaceState.Waiting) {
@@ -27761,8 +27752,8 @@ namespace SwimmingScoreboard
                 }
                 if (sender != null) {
                     var r = MessageBox.Show(
-                        "确认进入设备测试模式？\n\n所有触板/出发台/盲表都将强制打开，硬件来什么数据都直接显示并写日志，但不计入比赛成绩。\n再点击同一按钮可退出测试。",
-                        "设备测试", MessageBoxButton.YesNo, MessageBoxImage.Question);
+                        Loc.T("Str_Msg_ConfirmDeviceTest"),
+                        Loc.T("Str_MsgTitle_ConfirmDeviceTest"), MessageBoxButton.YesNo, MessageBoxImage.Question);
                     if (r != MessageBoxResult.Yes) return;
                 } else {
                     AddLog("远端请求进入设备测试模式");
