@@ -19976,20 +19976,18 @@ namespace SwimmingScoreboard
             try { lines = File.ReadAllLines(dlg.FileName, Encoding.UTF8); }
             catch (Exception ex) { MessageBox.Show(Loc.F("Str_Msg_ReadFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error")); return; }
 
-            if (lines.Length < 1) { MessageBox.Show("文件为空", Loc.T("Str_MsgTitle_Info")); return; }
+            if (lines.Length < 1) { MessageBox.Show(Loc.T("Str_Msg_FileIsEmpty"), Loc.T("Str_MsgTitle_Info")); return; }
 
             // 表头校验
             var headerCols = ParseCsvLine(lines[0]);
             if (headerCols.Length != RelayCsvHeader.Length) {
-                MessageBox.Show(string.Format(
-                    "❌ 表头列数不对：期望 {0} 列，实际 {1} 列。请用「导出接力报名模板」导出新模板后重试。",
+                MessageBox.Show(Loc.F("Str_Msg_RelayHeaderCountMismatchFmt",
                     RelayCsvHeader.Length, headerCols.Length), Loc.T("Str_MsgTitle_FormatError"));
                 return;
             }
             for (int i = 0; i < RelayCsvHeader.Length; i++) {
                 if ((headerCols[i] ?? "").Trim() != RelayCsvHeader[i]) {
-                    MessageBox.Show(string.Format(
-                        "❌ 表头第 {0} 列不匹配：期望「{1}」，实际「{2}」。请用「导出接力报名模板」导出新模板后重试。",
+                    MessageBox.Show(Loc.F("Str_Msg_RelayHeaderColMismatchFmt",
                         i + 1, RelayCsvHeader[i], headerCols[i] ?? ""), Loc.T("Str_MsgTitle_FormatError"));
                     return;
                 }
@@ -20112,15 +20110,15 @@ namespace SwimmingScoreboard
 
             // 汇总弹窗
             var sb = new StringBuilder();
-            sb.AppendFormat("✔ 导入完成\n\n  新增接力队: {0}\n  跳过: {1}\n  组别待确认: {2} (高亮显示在列表中, 请在赛程管理窗口补录生日并锁定分组)\n",
+            sb.AppendFormat(Loc.T("Str_Msg_RelayCsvImportSummaryFmt"),
                 importedCount, skipped.Count, pendingCount);
             if (skipped.Count > 0) {
-                sb.AppendLine("\n--- 跳过的记录 ---");
+                sb.AppendLine(Loc.T("Str_Msg_SkipRecordsHeader"));
                 int show = Math.Min(skipped.Count, 30);
                 for (int i = 0; i < show; i++) sb.AppendLine("• " + skipped[i]);
-                if (skipped.Count > show) sb.AppendFormat("... 还有 {0} 条未显示\n", skipped.Count - show);
+                if (skipped.Count > show) sb.AppendFormat(Loc.T("Str_Msg_MoreNotShownFmt"), skipped.Count - show);
             }
-            MessageBox.Show(sb.ToString(), "接力 CSV 导入结果", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show(sb.ToString(), Loc.T("Str_MsgTitle_RelayCsvImportResult"), MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
         // CSV 工具
@@ -20154,13 +20152,13 @@ namespace SwimmingScoreboard
         private void EditRelay_Click(object sender, RoutedEventArgs e) {
             var sel = _selectedRelayTeam;
             if (sel == null) {
-                MessageBox.Show("请先在接力队列表中选中要编辑的队伍。", Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show(Loc.T("Str_Msg_SelectRelayToEdit"), Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
             string lockKey = "relay:" + (sel.TeamName ?? "") + "|" + (sel.EventName ?? "");
             string holder;
             if (!TryAcquireEditLock(lockKey, out holder)) {
-                MessageBox.Show(string.Format("接力队 [{0}] 正在被 {1} 编辑，请稍后再试。", sel.TeamName, holder),
+                MessageBox.Show(Loc.F("Str_Msg_RelayBeingEditedFmt", sel.TeamName, holder),
                     Loc.T("Str_MsgTitle_CannotEdit"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
@@ -20190,8 +20188,8 @@ namespace SwimmingScoreboard
                     if (!SendRelayEditPatch(oldTeamName, oldEvent, oldGender, oldLegNames,
                             newTeamName, newCountry, newEvent, newGender, newEntryTime, newEntryTimeSeconds, legNames,
                             out perr)) {
-                        MessageBox.Show("主服务器没有接受这次接力队信息修改。\n\n原因: " + perr + "\n\n本机数据未改动, 请稍后重试。",
-                            "未能保存", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        MessageBox.Show(Loc.F("Str_Msg_RelayEditRejectedFmt", perr),
+                            Loc.T("Str_MsgTitle_SaveNotDone"), MessageBoxButton.OK, MessageBoxImage.Warning);
                         AddLog("接力队信息修改被主服务器拒绝: " + perr);
                         return;
                     }
@@ -20203,8 +20201,7 @@ namespace SwimmingScoreboard
                         newTeamName, newCountry, newEvent, newGender, newEntryTime, newEntryTimeSeconds, legNames,
                         out applyError)) {
                     if (serverAccepted) {
-                        MessageBox.Show("主服务器已经接受这次修改，但本机没能跟着改。\n\n原因: " + applyError +
-                            "\n\n多半是本机这份数据旧了。请断开重连主服务器重新取一次数据。",
+                        MessageBox.Show(Loc.F("Str_Msg_RelayEditServerAheadFmt", applyError),
                             Loc.T("Str_MsgTitle_ServerMismatch"), MessageBoxButton.OK, MessageBoxImage.Error);
                         AddLog("★ 主服务器已接受接力队编辑但本机应用失败(数据可能已旧): " + applyError);
                     } else {
@@ -20232,19 +20229,19 @@ namespace SwimmingScoreboard
             string holder;
             if (!TryAcquireEditLock(lockKey, out holder)) {
                 MessageBox.Show(
-                    string.Format("接力队 [{0}] 正在被 {1} 编辑，无法删除。请稍后再试。", selected.TeamName, holder),
+                    Loc.F("Str_Msg_RelayBeingEditedCannotDeleteFmt", selected.TeamName, holder),
                     Loc.T("Str_MsgTitle_CannotDelete"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
             try {
-                if (MessageBox.Show(string.Format("确定删除接力队 [{0}] ({1})？", selected.TeamName, selected.EventName), Loc.T("Str_MsgTitle_Confirm"), MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
+                if (MessageBox.Show(Loc.F("Str_Msg_ConfirmDeleteRelayFmt", selected.TeamName, selected.EventName), Loc.T("Str_MsgTitle_Confirm"), MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
 
                 string teamName = selected.TeamName, eventName = selected.EventName, gender = selected.Gender;
                 bool serverAccepted = false;
                 if (IsScheduleEditorMode && _editorSyncClient != null && _editorSyncClient.IsConnected) {
                     string perr;
                     if (!SendRelayDeletePatch(teamName, eventName, gender, out perr)) {
-                        MessageBox.Show("主服务器没有接受这次删除。\n\n原因: " + perr, "未能删除", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        MessageBox.Show(Loc.F("Str_Msg_DeleteRejectedFmt", perr), Loc.T("Str_MsgTitle_DeleteNotDone"), MessageBoxButton.OK, MessageBoxImage.Warning);
                         AddLog("接力队删除被主服务器拒绝: " + perr);
                         return;
                     }
@@ -20253,7 +20250,7 @@ namespace SwimmingScoreboard
                 string applyError;
                 if (!ApplyRelayDeleteCore(teamName, eventName, gender, out applyError)) {
                     if (serverAccepted) {
-                        MessageBox.Show("主服务器已删除，但本机没能跟着删。\n\n原因: " + applyError + "\n\n请断开重连主服务器重新取一次数据。",
+                        MessageBox.Show(Loc.F("Str_Msg_DeleteServerAheadFmt", applyError),
                             Loc.T("Str_MsgTitle_ServerMismatch"), MessageBoxButton.OK, MessageBoxImage.Error);
                     } else {
                         MessageBox.Show(applyError, Loc.T("Str_MsgTitle_CannotDelete"), MessageBoxButton.OK, MessageBoxImage.Warning);
