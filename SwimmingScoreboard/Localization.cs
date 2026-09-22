@@ -1111,6 +1111,17 @@ namespace SwimmingScoreboard
             { "Str_Desc_DNF", new[] { "中途退出", "withdrew mid-race" } },
             { "Str_Desc_DSQ", new[] { "犯规取消资格", "disqualified for a violation" } },
             { "Str_Desc_TRI", new[] { "试游 / 不计排名", "trial swim / not ranked" } },
+            { "Str_Msg_CsvHeaderColCountFmt", new[] { "❌ CSV 表头列数不对：模板要求 {0} 列，实际 {1} 列。\n\n请用「导出个人报名模板」按钮重新导出模板编辑后再导入。", "❌ CSV header column count is wrong: the template requires {0} columns, got {1}.\n\nUse the \"Export Individual Registration Template\" button to re-export a fresh template, edit it, then import again." } },
+            { "Str_Msg_ScheduleBeingEditedFmt", new[] { "赛程正在被 {0} 编辑，请稍后再试。", "The schedule is currently being edited by {0} — please try again shortly." } },
+            { "Str_Msg_EntityBeingEditedFmt", new[] { "{0} 正在被 {1} 编辑，请稍后再试。", "{0} is currently being edited by {1} — please try again shortly." } },
+            { "Str_Entity_TimingSettingsPlain", new[] { "参数设置", "Parameter Settings" } },
+            { "Str_Entity_RecordsList",  new[] { "纪录列表", "Records List" } },
+            { "Str_Entity_GendersList",  new[] { "性别列表", "Gender List" } },
+            { "Str_Entity_StagesList",   new[] { "赛次列表", "Stage List" } },
+            { "Str_Entity_HeatCountsList", new[] { "组数列表", "Heat Count List" } },
+            { "Str_Entity_EventsList",   new[] { "比赛项目列表", "Event List" } },
+            { "Str_Entity_AgeGroupsList",new[] { "组别列表", "Age Group List" } },
+            { "Str_Entity_RecordEntryFmt", new[] { "纪录 [{0} {1} {2}]", "Record [{0} {1} {2}]" } },
         };
 
         /// <summary>查当前语言下的文字；查不到就退回中文；中文也没有就返回 key 本身兜底。</summary>

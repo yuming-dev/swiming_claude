@@ -17642,7 +17642,7 @@ namespace SwimmingScoreboard
         private void TimingSettings_Click(object sender, RoutedEventArgs e) {
             // 2026-05-30 v2: 软警告 (没连允许保存 PC 本地, 弹窗提示硬件不会同步)
             WarnIfHardwareNotConnected("参数设置");
-            RunWithEditLock("timing-settings", "参数设置", delegate { TimingSettingsCore(); });
+            RunWithEditLock("timing-settings", Loc.T("Str_Entity_TimingSettingsPlain"), delegate { TimingSettingsCore(); });
         }
 
         // 2026-06-12 参数设置 改为分类中枢: "时间参数设置" / "比赛泳池、设备状态设置" 两个子窗口, 各自确认/取消独立生效
@@ -18819,12 +18819,12 @@ namespace SwimmingScoreboard
 
         // 按代表队配置号码段（如 中国 001-050）
         private void BibRangeConfig_Click(object sender, RoutedEventArgs e) {
-            RunWithEditLock("bib-ranges", "号码区间设置", delegate { BibRangeConfigCore(); });
+            RunWithEditLock("bib-ranges", Loc.T("Str_EM_BibRangeConfig"), delegate { BibRangeConfigCore(); });
         }
 
         // 2026-05-24 P0-3 参赛单位管理
         private void UnitManage_Click(object sender, RoutedEventArgs e) {
-            RunWithEditLock("unit-manage", "参赛单位管理", delegate {
+            RunWithEditLock("unit-manage", Loc.T("Str_EM_UnitManage"), delegate {
                 var wnd = new UnitManageWindow(_units, _swimmers) { Owner = this };
                 if (wnd.ShowDialog() == true) {
                     RefreshUnitComboBox();
@@ -18836,7 +18836,7 @@ namespace SwimmingScoreboard
 
         // 2026-05-24 P0-D 工作人员管理
         private void StaffManage_Click(object sender, RoutedEventArgs e) {
-            RunWithEditLock("staff-manage", "工作人员管理", delegate {
+            RunWithEditLock("staff-manage", Loc.T("Str_EM_StaffManage"), delegate {
                 var wnd = new StaffManageWindow(_staff) { Owner = this };
                 if (wnd.ShowDialog() == true) {
                     FinishAndSyncPatch(BuildListSetPatch("staff", JArray.FromObject(_staff), ClientLabel()), "meet");
@@ -19126,8 +19126,7 @@ namespace SwimmingScoreboard
                 string[] header = rows[0];
                 // ── 严格表头校验 ──
                 if (header.Length != SwimmerCsvTemplateHeader.Length) {
-                    MessageBox.Show(string.Format(
-                        "❌ CSV 表头列数不对：模板要求 {0} 列，实际 {1} 列。\n\n请用「导出个人报名模板」按钮重新导出模板编辑后再导入。",
+                    MessageBox.Show(Loc.F("Str_Msg_CsvHeaderColCountFmt",
                         SwimmerCsvTemplateHeader.Length, header.Length), Loc.T("Str_MsgTitle_FormatError"),
                         MessageBoxButton.OK, MessageBoxImage.Error);
                     return;
@@ -22063,7 +22062,7 @@ namespace SwimmingScoreboard
             string holder;
             if (!TryAcquireEditLock("schedule", out holder)) {
                 MessageBox.Show(
-                    string.Format("赛程正在被 {0} 编辑，请稍后再试。", holder),
+                    Loc.F("Str_Msg_ScheduleBeingEditedFmt", holder),
                     Loc.T("Str_MsgTitle_CannotEdit"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
@@ -23749,7 +23748,7 @@ namespace SwimmingScoreboard
 
         private void CalcTeamScore_Click(object sender, RoutedEventArgs e) {
             // 团体计分窗口本身是只读结果，但 CalculateTeamScores 会写 _teamScores → 占锁防并发写
-            RunWithEditLock("team-scores", "团体计分", delegate {
+            RunWithEditLock("team-scores", Loc.T("Str_Results_TeamScore"), delegate {
                 CalculateTeamScores();
                 var win = new TeamScoreWindow(_teamScores);
                 win.Owner = this;
@@ -23760,7 +23759,7 @@ namespace SwimmingScoreboard
         // "名次分设置"对话框：编辑各名次得分（个人/接力）、组别系数、取分人数、破纪录加分。
         // 点击保存后写入 _scoringConfig + 持久化到 CompetitionPackage，并重算团体积分。
         private void ScoringConfig_Click(object sender, RoutedEventArgs e) {
-            RunWithEditLock("scoring-config", "名次分设置", delegate { ScoringConfigCore(); });
+            RunWithEditLock("scoring-config", Loc.T("Str_EM_ScoringConfig"), delegate { ScoringConfigCore(); });
         }
 
         // 2026-05-24 项目用时设置
@@ -26200,7 +26199,7 @@ namespace SwimmingScoreboard
             string holder;
             if (!TryAcquireEditLock(key, out holder)) {
                 MessageBox.Show(
-                    string.Format("{0} 正在被 {1} 编辑，请稍后再试。", entityLabel, holder),
+                    Loc.F("Str_Msg_EntityBeingEditedFmt", entityLabel, holder),
                     Loc.T("Str_MsgTitle_CannotEdit"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
@@ -28034,7 +28033,7 @@ namespace SwimmingScoreboard
                 MessageBox.Show(Loc.T("Str_Msg_NoRecordData"), Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
-            RunWithEditLock("records-all", "纪录列表", delegate {
+            RunWithEditLock("records-all", Loc.T("Str_Entity_RecordsList"), delegate {
                 var result = MessageBox.Show(
                     Loc.F("Str_Msg_ConfirmDeleteAllRecordsFmt", _records.Count),
                     Loc.T("Str_SysLog_ClearRecords"), MessageBoxButton.YesNo, MessageBoxImage.Warning);
@@ -28053,7 +28052,7 @@ namespace SwimmingScoreboard
         }
 
         private void AddRecord_Click(object sender, RoutedEventArgs e) {
-            RunWithEditLock("records-all", "纪录列表", delegate {
+            RunWithEditLock("records-all", Loc.T("Str_Entity_RecordsList"), delegate {
                 _records.Add(new SwimmingRecord { RecordType = "赛会纪录", Gender = "男" });
                 RefreshRecordFilterCombos();
                 AddLog("已添加一行空纪录 —— 填好之后记得点「保存纪录」");
@@ -28097,7 +28096,7 @@ namespace SwimmingScoreboard
             if (selected == null) return;
             string lockKey = string.Format("record:{0}:{1}:{2}:{3}",
                 selected.RecordType ?? "", selected.EventName ?? "", selected.Gender ?? "", selected.AgeGroup ?? "");
-            RunWithEditLock(lockKey, string.Format("纪录 [{0} {1} {2}]", selected.RecordType, selected.EventName, selected.Gender), delegate {
+            RunWithEditLock(lockKey, Loc.F("Str_Entity_RecordEntryFmt", selected.RecordType, selected.EventName, Loc.GenderDisplay(selected.Gender)), delegate {
                 var recBefore = SnapshotRecords();
                 _records.Remove(selected);
                 SaveWithoutPush();
@@ -28761,7 +28760,7 @@ namespace SwimmingScoreboard
 
         // —— 性别 ——
         private void EditGendersList_Click(object sender, RoutedEventArgs e) {
-            RunWithEditLock("genders-list", "性别列表", delegate {
+            RunWithEditLock("genders-list", Loc.T("Str_Entity_GendersList"), delegate {
                 EditStringListDialog("性别编辑", "性别名称", _genders, new[] { "男", "女", "混合" }, list => {
                     _genders = list; RefreshGendersPreview();
                     FinishAndSyncPatch(BuildListSetPatch("genders", JArray.FromObject(_genders), ClientLabel()), "meet");
@@ -28783,7 +28782,7 @@ namespace SwimmingScoreboard
 
         // —— 赛次 ——
         private void EditStagesList_Click(object sender, RoutedEventArgs e) {
-            RunWithEditLock("stages-list", "赛次列表", delegate {
+            RunWithEditLock("stages-list", Loc.T("Str_Entity_StagesList"), delegate {
                 EditStringListDialog("赛次编辑", "赛次名称", _stages, new[] { "预赛", "半决赛", "决赛" }, list => {
                     _stages = list; RefreshStagesPreview();
                     FinishAndSyncPatch(BuildListSetPatch("stages", JArray.FromObject(_stages), ClientLabel()), "meet");
@@ -28805,7 +28804,7 @@ namespace SwimmingScoreboard
 
         // —— 组数 ——
         private void EditHeatCountsList_Click(object sender, RoutedEventArgs e) {
-            RunWithEditLock("heatcounts-list", "组数列表", delegate {
+            RunWithEditLock("heatcounts-list", Loc.T("Str_Entity_HeatCountsList"), delegate {
                 EditStringListDialog("组数编辑", "组数", _heatCounts, new[] { "1组", "2组", "3组", "4组", "5组", "6组", "7组", "8组" }, list => {
                     _heatCounts = list; RefreshHeatCountsPreview();
                     FinishAndSyncPatch(BuildListSetPatch("heatCounts", JArray.FromObject(_heatCounts), ClientLabel()), "meet");
@@ -28826,7 +28825,7 @@ namespace SwimmingScoreboard
         }
 
         private void EditEventsList_Click(object sender, RoutedEventArgs e) {
-            RunWithEditLock("events-list", "比赛项目列表", delegate { EditEventsListCore(); });
+            RunWithEditLock("events-list", Loc.T("Str_Entity_EventsList"), delegate { EditEventsListCore(); });
         }
 
         private void EditEventsListCore() {
@@ -28913,7 +28912,7 @@ namespace SwimmingScoreboard
         }
 
         private void EditAgeGroupsList_Click(object sender, RoutedEventArgs e) {
-            RunWithEditLock("agegroups-list", "组别列表", delegate { EditAgeGroupsListCore(); });
+            RunWithEditLock("agegroups-list", Loc.T("Str_Entity_AgeGroupsList"), delegate { EditAgeGroupsListCore(); });
         }
 
         private void EditAgeGroupsListCore() {
