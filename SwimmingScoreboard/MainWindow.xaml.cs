@@ -591,7 +591,7 @@ namespace SwimmingScoreboard
         //   不开 WebSocket Server (现场 RTC 不需要给大屏推数据, 那是主服务器的事).
         //   硬件连接在"比赛控制" tab 右下方"系统硬件"区操作 (网络连接 / 设备测试 / 设备全开).
         private void ApplyRemoteTimingControlMode() {
-            Title = "游泳赛事管理系统 — 远程计时控制";
+            Title = Loc.T("Str_AppTitle_Rtc");
             if (MainTabControl == null) return;
             var keep = new System.Collections.Generic.HashSet<string> { "比赛控制" };
             TabItem firstVisible = null;
@@ -772,7 +772,7 @@ namespace SwimmingScoreboard
 
         // ScheduleEditor 模式：把标题和标签页缩到"赛事管理与报名 / 成绩与排名 / 文档编辑/输出/打印"三项
         private void ApplyScheduleEditorMode() {
-            Title = "游泳赛事管理系统 — 编排记录及成绩处理";
+            Title = Loc.T("Str_AppTitle_ScheduleEditor");
             if (MainTabControl == null) return;
             var keep = new System.Collections.Generic.HashSet<string> {
                 "赛事管理与报名", "成绩与排名", "文档编辑/输出/打印"
@@ -17905,7 +17905,7 @@ namespace SwimmingScoreboard
         // 2026-06-12 比赛泳池、设备状态设置 子窗口 (从 参数设置 拆出 终点位置/反应时/盲表代触板/硬件设备/出发边沿/道次顺序/泳池触板 + 设备管理按钮). 确认=应用并同步; 取消=不改.
         private void ShowPoolDeviceSettingsDialog() {
             var dlg = new Window {
-                Title = "比赛泳池、设备状态设置",
+                Title = Loc.T("Str_Win_PoolDevice_Title"),
                 Width = 440,
                 SizeToContent = SizeToContent.Height,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner,
@@ -18111,7 +18111,7 @@ namespace SwimmingScoreboard
 
         private void OpenBlindWatchCountDialog() {
             var dlg = new Window {
-                Title = "左右盲表数量设置",
+                Title = Loc.T("Str_Win_BlindWatchCount_Title"),
                 Width = 400, Height = 280,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner,
                 Owner = this, ResizeMode = ResizeMode.NoResize,
@@ -18231,7 +18231,7 @@ namespace SwimmingScoreboard
 
         private void OpenManualButtonManager() {
             var dlg = new Window {
-                Title = "手动按键管理", Width = 500, Height = 480,
+                Title = Loc.T("Str_Win_ManualButtons_Title"), Width = 500, Height = 480,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner,
                 Owner = this, ResizeMode = ResizeMode.CanResize
             };
@@ -18567,7 +18567,7 @@ namespace SwimmingScoreboard
         // 返回 true 表示用户确认了修改。
         private bool OpenSwimmerEditor(Swimmer target, bool isNew) {
             var dlg = new Window {
-                Title = isNew ? "新增运动员" : string.Format("修改运动员信息 — {0}({1})", target.Name, target.BibNumber),
+                Title = isNew ? Loc.T("Str_Win_SwimmerEdit_TitleAdd") : Loc.F("Str_Win_SwimmerEdit_TitleEditFmt", target.Name, target.BibNumber),
                 Width = 520, Height = 540,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner,
                 Owner = this, ResizeMode = ResizeMode.NoResize
@@ -18880,7 +18880,7 @@ namespace SwimmingScoreboard
             }
 
             var dlg = new Window {
-                Title = "号码区间设置（按代表队）",
+                Title = Loc.T("Str_Win_BibRangeByTeam_Title"),
                 Width = 600, Height = 460,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner, Owner = this, ResizeMode = ResizeMode.CanResize
             };
@@ -19349,7 +19349,7 @@ namespace SwimmingScoreboard
             }
 
             var dlg = new Window {
-                Title = "添加接力队", Width = 480, Height = 540,
+                Title = Loc.T("Str_Win_AddRelay_Title"), Width = 480, Height = 540,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner, Owner = this, ResizeMode = ResizeMode.CanResize
             };
             var sp = new StackPanel { Margin = new Thickness(16) };
@@ -19725,7 +19725,7 @@ namespace SwimmingScoreboard
             if (sessions.Count == 1) return sessions[0];   // 只有一个场次就不用问了
 
             var win = new Window {
-                Title = "读入接力棒次名单 — 选择场次",
+                Title = Loc.T("Str_Win_ImportRelayLegs_PickSession_Title"),
                 Width = 470, SizeToContent = SizeToContent.Height,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner,
                 ResizeMode = ResizeMode.NoResize, Owner = this
@@ -20341,10 +20341,10 @@ namespace SwimmingScoreboard
                 (string.IsNullOrEmpty(legGender) || s.Gender == legGender)
             ).ToList();
 
-            string genderLabel = !string.IsNullOrEmpty(legGender) ? "（" + legGender + "）" : "";
+            string genderLabel = !string.IsNullOrEmpty(legGender) ? "（" + Loc.GenderDisplay(legGender) + "）" : "";
 
             var dlg = new Window {
-                Title = string.Format("更换第{0}棒队员{1} — {2}", leg.LegOrder, genderLabel, team.TeamName),
+                Title = Loc.F("Str_Win_SwapRelayLeg_TitleFmt", leg.LegOrder, genderLabel, team.TeamName),
                 Width = 400, Height = 380,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner, Owner = this, ResizeMode = ResizeMode.NoResize
             };
@@ -21464,7 +21464,7 @@ namespace SwimmingScoreboard
             if (candidates.Count == 0) { MessageBox.Show(Loc.T("Str_Msg_NoSwapCandidates")); return; }
 
             var dlg = new Window {
-                Title = string.Format("交换泳道 / 移到空道 — {0}（第{1}组 第{2}道）", sw1.Name, heat1, lane1),
+                Title = Loc.F("Str_Win_SwapLane_TitleFmt", sw1.Name, heat1, lane1),
                 Width = 500, Height = 500, WindowStartupLocation = WindowStartupLocation.CenterOwner, Owner = this, ResizeMode = ResizeMode.NoResize
             };
             var sp = new StackPanel { Margin = new Thickness(16) };
@@ -21570,7 +21570,7 @@ namespace SwimmingScoreboard
             if (unassigned.Count == 0) { MessageBox.Show(Loc.T("Str_Msg_NoUnassignedSwimmers"), Loc.T("Str_MsgTitle_Info")); return; }
 
             var dlg = new Window {
-                Title = string.Format("增加到第{0}组 — {1} {2} {3}", heat, gender, eventName, stage),
+                Title = Loc.F("Str_Win_AddToHeat_TitleFmt", heat, Loc.GenderDisplay(gender), eventName, Loc.StageDisplay(stage)),
                 Width = 450, Height = 480, WindowStartupLocation = WindowStartupLocation.CenterOwner, Owner = this, ResizeMode = ResizeMode.NoResize
             };
             var sp = new StackPanel { Margin = new Thickness(16) };
@@ -21734,7 +21734,7 @@ namespace SwimmingScoreboard
 
         private void AddTempIndividualSwimmer(string ageGroup, string gender, string eventName, string stage) {
             var dlg = new Window {
-                Title = string.Format("临时加人 — {0} {1} {2}", gender, eventName, stage),
+                Title = Loc.F("Str_Win_TempAddSwimmer_TitleFmt", Loc.GenderDisplay(gender), eventName, Loc.StageDisplay(stage)),
                 Width = 420, Height = 400, WindowStartupLocation = WindowStartupLocation.CenterOwner, Owner = this, ResizeMode = ResizeMode.NoResize
             };
             var sp = new StackPanel { Margin = new Thickness(16) };
@@ -21816,7 +21816,7 @@ namespace SwimmingScoreboard
             if (mm.Success) { int n; if (int.TryParse(mm.Groups[1].Value, out n) && n > 0 && n <= 10) legCount = n; }
 
             var dlg = new Window {
-                Title = string.Format("临时加接力队 — {0} {1} {2}", gender, eventName, stage),
+                Title = Loc.F("Str_Win_TempAddRelay_TitleFmt", Loc.GenderDisplay(gender), eventName, Loc.StageDisplay(stage)),
                 Width = 460, Height = 140 + legCount * 34 + 160,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner, Owner = this, ResizeMode = ResizeMode.NoResize
             };
@@ -22087,7 +22087,7 @@ namespace SwimmingScoreboard
             }
 
             var dlg = new Window {
-                Title = "修改赛程", Width = 800, Height = 600,
+                Title = Loc.T("Str_Win_EditSchedule_Title"), Width = 800, Height = 600,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner, Owner = this, ResizeMode = ResizeMode.CanResize
             };
 
@@ -22624,7 +22624,7 @@ namespace SwimmingScoreboard
             if (combos.Count == 0) { MessageBox.Show(Loc.T("Str_Msg_NoSwimmersToGroup")); return; }
 
             var dlg = new Window {
-                Title = "手动分组", Width = 900, Height = 620,
+                Title = Loc.T("Str_Win_ManualGroup_Title"), Width = 900, Height = 620,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner, Owner = this, ResizeMode = ResizeMode.CanResize
             };
             var mainGrid = new Grid { Margin = new Thickness(14) };
@@ -22992,7 +22992,7 @@ namespace SwimmingScoreboard
 
             // 弹窗显示未分组运动员
             var dlg = new Window {
-                Title = "追加分组", Width = 600, Height = 500,
+                Title = Loc.T("Str_Win_AppendGroup_Title"), Width = 600, Height = 500,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner, Owner = this, ResizeMode = ResizeMode.CanResize
             };
             var mainPanel = new Grid { Margin = new Thickness(16) };
@@ -23559,7 +23559,7 @@ namespace SwimmingScoreboard
             try { RefreshChangedFromDb(); } catch { }
             // 弹出窗口选择已完赛项目的组成绩发布到大屏
             var dlg = new Window {
-                Title = "成绩发布到大屏", Width = 500, Height = 420,
+                Title = Loc.T("Str_Win_PublishResult_Title"), Width = 500, Height = 420,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner, Owner = this, ResizeMode = ResizeMode.NoResize
             };
             var sp = new StackPanel { Margin = new Thickness(16) };
@@ -23770,7 +23770,7 @@ namespace SwimmingScoreboard
 
         private void ScoringConfigCore() {
             var dlg = new Window {
-                Title = "名次分设置 — 团体计分",
+                Title = Loc.T("Str_Win_ScoringConfig_Title2"),
                 Width = 720, Height = 560,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner, Owner = this,
                 ResizeMode = ResizeMode.CanResize,
@@ -23992,7 +23992,7 @@ namespace SwimmingScoreboard
         /// <summary>裁判长改成绩的密码门 —— 跟 query.html/register.html 用同一套系统账号密码(AuthHelper)。</summary>
         private bool PromptChiefJudgePassword() {
             var win = new Window {
-                Title = "裁判长身份验证", Width = 380, SizeToContent = SizeToContent.Height,
+                Title = Loc.T("Str_Win_ChiefJudgeAuth_Title"), Width = 380, SizeToContent = SizeToContent.Height,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner, ResizeMode = ResizeMode.NoResize, Owner = this
             };
             var root = new StackPanel { Margin = new Thickness(18) };
@@ -24074,7 +24074,7 @@ namespace SwimmingScoreboard
             }
 
             var dlg = new Window {
-                Title = "查询比赛原始数据",
+                Title = Loc.T("Str_Win_RawDataQuery_Title"),
                 Width = 900, Height = 650,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner,
                 Owner = this,
@@ -24260,7 +24260,7 @@ namespace SwimmingScoreboard
                 return;
             }
             var win = new Window {
-                Title = "选择总排名回放项目", Owner = this, Width = 520, Height = 480,
+                Title = Loc.T("Str_Win_PickRankingReplay_Title"), Owner = this, Width = 520, Height = 480,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner,
                 ResizeMode = ResizeMode.CanResize
             };
@@ -24324,7 +24324,7 @@ namespace SwimmingScoreboard
                 return;
             }
             var win = new Window {
-                Title = "选择颁奖项目", Owner = this, Width = 520, Height = 480,
+                Title = Loc.T("Str_Win_PickAwardsEvent_Title"), Owner = this, Width = 520, Height = 480,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner,
                 ResizeMode = ResizeMode.CanResize
             };
@@ -24386,7 +24386,7 @@ namespace SwimmingScoreboard
         private void ShowSchedule_Click(object sender, RoutedEventArgs e) {
             if (_schedule == null || _schedule.Count == 0) { MessageBox.Show(Loc.T("Str_Msg_NoScheduleData"), Loc.T("Str_RC_ShowSchedule")); return; }
             var dlg = new Window {
-                Title = "显示比赛日程", Width = 420, SizeToContent = SizeToContent.Height,
+                Title = Loc.T("Str_MsgTitle_ShowSchedule"), Width = 420, SizeToContent = SizeToContent.Height,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner, Owner = this, ResizeMode = ResizeMode.NoResize,
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E293B"))
             };
@@ -24695,7 +24695,7 @@ namespace SwimmingScoreboard
             System.Windows.Threading.DispatcherTimer autoTimer = null;
 
             var win = new Window {
-                Title = "PPT 放映控制 — " + fileName,
+                Title = Loc.F("Str_Win_PptControl_TitleFmt", fileName),
                 Width = 520, Height = 180,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner, Owner = this, ResizeMode = ResizeMode.NoResize,
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F8FAFC"))
@@ -24788,7 +24788,7 @@ namespace SwimmingScoreboard
         private string _lastMediaPath = "";
         private void ShowMedia_Click(object sender, RoutedEventArgs e) {
             var dlg = new Window {
-                Title = "图片 / 视频 - 大屏显示",
+                Title = Loc.T("Str_Win_MediaDisplay_Title"),
                 Width = 560, Height = 420,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner, Owner = this, ResizeMode = ResizeMode.NoResize,
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F8FAFC"))
@@ -28740,7 +28740,7 @@ namespace SwimmingScoreboard
         // —— 性别 ——
         private void EditGendersList_Click(object sender, RoutedEventArgs e) {
             RunWithEditLock("genders-list", Loc.T("Str_Entity_GendersList"), delegate {
-                EditStringListDialog("性别编辑", "性别名称", _genders, new[] { "男", "女", "混合" }, list => {
+                EditStringListDialog(Loc.T("Str_EM_EditGenders"), Loc.T("Str_EM_GenderNameCol"), _genders, new[] { "男", "女", "混合" }, list => {
                     _genders = list; RefreshGendersPreview();
                     FinishAndSyncPatch(BuildListSetPatch("genders", JArray.FromObject(_genders), ClientLabel()), "meet");
                     NotifyMetadataChanged();
@@ -28762,7 +28762,7 @@ namespace SwimmingScoreboard
         // —— 赛次 ——
         private void EditStagesList_Click(object sender, RoutedEventArgs e) {
             RunWithEditLock("stages-list", Loc.T("Str_Entity_StagesList"), delegate {
-                EditStringListDialog("赛次编辑", "赛次名称", _stages, new[] { "预赛", "半决赛", "决赛" }, list => {
+                EditStringListDialog(Loc.T("Str_EM_EditStages"), Loc.T("Str_EM_StageNameCol"), _stages, new[] { "预赛", "半决赛", "决赛" }, list => {
                     _stages = list; RefreshStagesPreview();
                     FinishAndSyncPatch(BuildListSetPatch("stages", JArray.FromObject(_stages), ClientLabel()), "meet");
                     NotifyMetadataChanged();
@@ -28784,7 +28784,7 @@ namespace SwimmingScoreboard
         // —— 组数 ——
         private void EditHeatCountsList_Click(object sender, RoutedEventArgs e) {
             RunWithEditLock("heatcounts-list", Loc.T("Str_Entity_HeatCountsList"), delegate {
-                EditStringListDialog("组数编辑", "组数", _heatCounts, new[] { "1组", "2组", "3组", "4组", "5组", "6组", "7组", "8组" }, list => {
+                EditStringListDialog(Loc.T("Str_EM_EditHeatCounts"), Loc.T("Str_EM_HeatCounts"), _heatCounts, new[] { "1组", "2组", "3组", "4组", "5组", "6组", "7组", "8组" }, list => {
                     _heatCounts = list; RefreshHeatCountsPreview();
                     FinishAndSyncPatch(BuildListSetPatch("heatCounts", JArray.FromObject(_heatCounts), ClientLabel()), "meet");
                     NotifyMetadataChanged();
@@ -28812,7 +28812,7 @@ namespace SwimmingScoreboard
             foreach (var ev in _events) working.Add(new EventRow { Name = ev });
 
             var dlg = new Window {
-                Title = "比赛项目编辑", Width = 480, Height = 520,
+                Title = Loc.T("Str_Win_EditEvents_Title"), Width = 480, Height = 520,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner, Owner = this, ResizeMode = ResizeMode.CanResize
             };
             var mainGrid = new Grid { Margin = new Thickness(16) };
@@ -28899,7 +28899,7 @@ namespace SwimmingScoreboard
             foreach (var g in _ageGroups) working.Add(new AgeGroup { Name = g.Name, MinAge = g.MinAge, MaxAge = g.MaxAge });
 
             var dlg = new Window {
-                Title = "组别编辑", Width = 460, Height = 520,
+                Title = Loc.T("Str_Win_EditAgeGroups_Title"), Width = 460, Height = 520,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner, Owner = this, ResizeMode = ResizeMode.CanResize
             };
             var mainGrid = new Grid { Margin = new Thickness(16) };

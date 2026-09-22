@@ -1,7 +1,7 @@
 <Window x:Class="SwimmingScoreboard.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="游泳赛事管理系统" Width="1400" Height="820"
+        Title="{DynamicResource Str_AppTitle_Main}" Width="1400" Height="820"
         WindowState="Maximized" Background="#F1F5F9"
         Closing="Window_Closing">
     <Window.Resources>
