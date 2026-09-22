@@ -11067,7 +11067,7 @@ namespace SwimmingScoreboard
 
             // ── 弹窗 ──
             var win = new Window {
-                Title = "并组 / 取消组", Width = 560, SizeToContent = SizeToContent.Height,
+                Title = Loc.T("Str_Win_MergeHeats_Title"), Width = 560, SizeToContent = SizeToContent.Height,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner, ResizeMode = ResizeMode.NoResize, Owner = this
             };
             var root = new StackPanel { Margin = new Thickness(18) };
@@ -11077,26 +11077,26 @@ namespace SwimmingScoreboard
             });
             var status = new StringBuilder();
             foreach (int h in live)
-                status.AppendFormat("第{0}组 {1} 人{2}    ", h, cnt[h],
-                    lockedWhy[h] != null ? "(锁定)" : hasResult[h] ? "(已有成绩)" : "");
+                status.AppendFormat("{0}    ", Loc.F("Str_Win_MergeHeats_HeatStatusFmt", h, cnt[h],
+                    lockedWhy[h] != null ? Loc.T("Str_Win_MergeHeats_Locked") : hasResult[h] ? Loc.T("Str_Win_MergeHeats_HasResult") : ""));
             root.Children.Add(new TextBlock { Text = status.ToString().Trim(), Margin = new Thickness(0, 0, 0, 12),
                 Foreground = System.Windows.Media.Brushes.DimGray, TextWrapping = TextWrapping.Wrap });
 
             var g1 = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) };
-            g1.Children.Add(new TextBlock { Text = "把  第", VerticalAlignment = VerticalAlignment.Center, FontSize = 14 });
+            g1.Children.Add(new TextBlock { Text = Loc.T("Str_Win_MergeHeats_MoveHeatLabel"), VerticalAlignment = VerticalAlignment.Center, FontSize = 14 });
             var srcBox = new ComboBox { Width = 70, Margin = new Thickness(4, 0, 4, 0) };
             foreach (int h in live) srcBox.Items.Add(h);
             srcBox.SelectedIndex = live.Count - 1;                       // 默认取最后一组(通常人最少)
             g1.Children.Add(srcBox);
-            g1.Children.Add(new TextBlock { Text = "组   →   并入  第", VerticalAlignment = VerticalAlignment.Center, FontSize = 14 });
+            g1.Children.Add(new TextBlock { Text = Loc.T("Str_Win_MergeHeats_IntoHeatLabel"), VerticalAlignment = VerticalAlignment.Center, FontSize = 14 });
             var dstBox = new ComboBox { Width = 90, Margin = new Thickness(4, 0, 4, 0) };
             g1.Children.Add(dstBox);
-            g1.Children.Add(new TextBlock { Text = "组", VerticalAlignment = VerticalAlignment.Center, FontSize = 14 });
+            g1.Children.Add(new TextBlock { Text = Loc.T("Str_Win_MergeHeats_HeatSuffix"), VerticalAlignment = VerticalAlignment.Center, FontSize = 14 });
             root.Children.Add(g1);
 
             var reasonRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 6) };
-            reasonRow.Children.Add(new TextBlock { Text = "原因:", VerticalAlignment = VerticalAlignment.Center, FontSize = 13 });
-            var reasonBox = new TextBox { Width = 380, Margin = new Thickness(6, 0, 0, 0), Text = "人数不足" };
+            reasonRow.Children.Add(new TextBlock { Text = Loc.T("Str_Win_MergeHeats_ReasonLabel"), VerticalAlignment = VerticalAlignment.Center, FontSize = 13 });
+            var reasonBox = new TextBox { Width = 380, Margin = new Thickness(6, 0, 0, 0), Text = Loc.T("Str_Win_MergeHeats_DefaultReason") };
             reasonRow.Children.Add(reasonBox);
             root.Children.Add(reasonRow);
 
@@ -11122,7 +11122,7 @@ namespace SwimmingScoreboard
             Action<int> rebuildDstItems = delegate(int src) {
                 object keep = dstBox.SelectedItem;
                 dstBox.Items.Clear();
-                dstBox.Items.Add("(仅取消，不并入)");
+                dstBox.Items.Add(Loc.T("Str_Win_MergeHeats_CancelOnlyOption"));
                 foreach (int h in live) if (h != src) dstBox.Items.Add(h);
                 dstBox.SelectedItem = (keep != null && dstBox.Items.Contains(keep)) ? keep : dstBox.Items[dstBox.Items.Count > 1 ? 1 : 0];
             };
@@ -11131,19 +11131,19 @@ namespace SwimmingScoreboard
                 int dst = dstBox.SelectedItem is int ? (int)dstBox.SelectedItem : 0;
                 var sb = new StringBuilder();
                 if (src > 0 && lockedWhy.ContainsKey(src) && lockedWhy[src] != null)
-                    sb.Append("⚠ 第" + src + "组" + lockedWhy[src] + "，不能动它。\n");
-                else if (src > 0 && hasResult.ContainsKey(src) && hasResult[src]) sb.Append("⚠ 第" + src + "组已录入成绩，不能并组。\n");
+                    sb.Append(Loc.F("Str_Win_MergeHeats_HintSrcLockedFmt", src, lockedWhy[src]));
+                else if (src > 0 && hasResult.ContainsKey(src) && hasResult[src]) sb.Append(Loc.F("Str_Win_MergeHeats_HintSrcHasResultFmt", src));
                 if (dst > 0) {
                     if (lockedWhy.ContainsKey(dst) && lockedWhy[dst] != null)
-                        sb.Append("⚠ 第" + dst + "组" + lockedWhy[dst] + "，不能作为并入目标。\n");
-                    else if (hasResult.ContainsKey(dst) && hasResult[dst]) sb.Append("⚠ 第" + dst + "组已录入成绩，不能作为并入目标。\n");
+                        sb.Append(Loc.F("Str_Win_MergeHeats_HintDstLockedFmt", dst, lockedWhy[dst]));
+                    else if (hasResult.ContainsKey(dst) && hasResult[dst]) sb.Append(Loc.F("Str_Win_MergeHeats_HintDstHasResultFmt", dst));
                     int free = LaneCapacity() - cnt[dst];
-                    sb.AppendFormat("第{0}组现有 {1} 人，空道 {2} 条；第{3}组 {4} 人。",
-                        dst, cnt[dst], free, src, cnt[src]);
-                    if (free < cnt[src]) sb.AppendFormat("\n⚠ 空道不够，差 {0} 条。", cnt[src] - free);
-                    else sb.Append("\n目标组原有的人道次不动，并过来的人填空道；之后可用 上移/下移/交换泳道 人工调整。");
+                    sb.Append(Loc.F("Str_Win_MergeHeats_HintCapacityFmt",
+                        dst, cnt[dst], free, src, cnt[src]));
+                    if (free < cnt[src]) sb.Append(Loc.F("Str_Win_MergeHeats_HintNotEnoughFmt", cnt[src] - free));
+                    else sb.Append(Loc.T("Str_Win_MergeHeats_HintOkTip"));
                 } else {
-                    sb.AppendFormat("第{0}组的 {1} 人将被移出该组（不并入任何组），该组标记为已取消。", src, src > 0 ? cnt[src] : 0);
+                    sb.Append(Loc.F("Str_Win_MergeHeats_HintCancelOnlyFmt", src, src > 0 ? cnt[src] : 0));
                 }
                 hint.Text = sb.ToString();
             };
@@ -11165,8 +11165,8 @@ namespace SwimmingScoreboard
 
             var btns = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 16, 0, 0) };
             bool go = false;
-            var ok = new Button { Content = "执行", Width = 90, Height = 30, Margin = new Thickness(0, 0, 8, 0), IsDefault = true };
-            var cancel = new Button { Content = "取消", Width = 80, Height = 30, IsCancel = true };
+            var ok = new Button { Content = Loc.T("Str_Win_MergeHeats_ExecuteBtn"), Width = 90, Height = 30, Margin = new Thickness(0, 0, 8, 0), IsDefault = true };
+            var cancel = new Button { Content = Loc.T("Str_Btn_Cancel"), Width = 80, Height = 30, IsCancel = true };
             ok.Click += delegate { go = true; win.DialogResult = true; };
             btns.Children.Add(ok); btns.Children.Add(cancel);
             root.Children.Add(btns);
