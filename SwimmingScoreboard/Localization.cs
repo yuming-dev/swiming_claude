@@ -2233,6 +2233,15 @@ namespace SwimmingScoreboard
             { "Str_Win_AwardCert_AllEvents", new[] { "全部项目", "All Events" } },
             { "Str_Win_AwardCert_CountFmt", new[] { "共 {0} 条，已选 {1} 条", "{0} total, {1} selected" } },
             { "Str_Win_AwardCert_MsgSelectAtLeastOne", new[] { "请至少选择一条获奖记录。", "Please select at least one award record." } },
+            { "Str_Win_RecordCert_Title", new[] { "纪录证书生成", "Record Certificate Generation" } },
+            { "Str_Win_RecordCert_Header", new[] { "选择要生成纪录证书的破纪录记录", "Select the record-breaking entries to generate certificates for" } },
+            { "Str_Win_RecordCert_TplFull", new[] { "完整证书（自画，原有风格）", "Full Certificate (Drawn, Original Style)" } },
+            { "Str_Win_RecordCert_ColAthlete", new[] { "运动员/代表队", "Athlete / Team" } },
+            { "Str_Win_RecordCert_ColCompRank", new[] { "运动会名次", "Meet Rank" } },
+            { "Str_Win_RecordCert_ColOldTime", new[] { "原记录成绩", "Previous Time" } },
+            { "Str_Win_RecordCert_ColOldDate", new[] { "原记录时间", "Previous Record Date" } },
+            { "Str_Win_RecordCert_MsgNoRecords", new[] { "本次比赛暂无破纪录记录。", "No record-breaking entries in this meet yet." } },
+            { "Str_Win_RecordCert_MsgSelectAtLeastOne", new[] { "请至少选择一条破纪录记录。", "Please select at least one record-breaking entry." } },
         };
 
         /// <summary>查当前语言下的文字；查不到就退回中文；中文也没有就返回 key 本身兜底。</summary>

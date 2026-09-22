@@ -1,7 +1,7 @@
 <Window x:Class="SwimmingScoreboard.RecordCertificateWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="纪录证书生成" Width="1180" Height="640"
+        Title="{DynamicResource Str_Win_RecordCert_Title}" Width="1180" Height="640"
         WindowStartupLocation="CenterOwner"
         Background="#1E293B">
     <Window.Resources>
@@ -20,24 +20,24 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <TextBlock Grid.Row="0" Text="选择要生成纪录证书的破纪录记录" FontSize="17" FontWeight="Bold" Foreground="White" Margin="0,0,0,10"/>
+        <TextBlock Grid.Row="0" Text="{DynamicResource Str_Win_RecordCert_Header}" FontSize="17" FontWeight="Bold" Foreground="White" Margin="0,0,0,10"/>
 
         <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,10" VerticalAlignment="Center">
-            <TextBlock Text="证书模板：" Foreground="#94A3B8" VerticalAlignment="Center" Margin="0,0,6,0"/>
+            <TextBlock Text="{DynamicResource Str_Win_AwardCert_TemplateLabel}" Foreground="#94A3B8" VerticalAlignment="Center" Margin="0,0,6,0"/>
             <ComboBox x:Name="TemplateBox" Width="260">
-                <ComboBoxItem Content="完整证书（自画，原有风格）" Tag="full" IsSelected="True"/>
-                <ComboBoxItem Content="完整证书－综合性运动会风格（自画）" Tag="full_gansu"/>
+                <ComboBoxItem Content="{DynamicResource Str_Win_RecordCert_TplFull}" Tag="full" IsSelected="True"/>
+                <ComboBoxItem Content="{DynamicResource Str_Win_AwardCert_TplFullGansu}" Tag="full_gansu"/>
             </ComboBox>
-            <Button Content="证书参数设置" Click="CertSettings_Click" Margin="20,0,0,0" Padding="12,5"/>
+            <Button Content="{DynamicResource Str_Win_AwardCert_CertSettingsBtn}" Click="CertSettings_Click" Margin="20,0,0,0" Padding="12,5"/>
         </StackPanel>
 
         <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,10" VerticalAlignment="Center">
-            <TextBlock Text="组别筛选：" Foreground="#94A3B8" VerticalAlignment="Center" Margin="0,0,6,0"/>
+            <TextBlock Text="{DynamicResource Str_Win_AwardCert_AgeGroupFilterLabel}" Foreground="#94A3B8" VerticalAlignment="Center" Margin="0,0,6,0"/>
             <ComboBox x:Name="AgeGroupFilterBox" Width="140" SelectionChanged="AgeGroupFilterBox_SelectionChanged"/>
-            <TextBlock Text="项目筛选：" Foreground="#94A3B8" VerticalAlignment="Center" Margin="16,0,6,0"/>
+            <TextBlock Text="{DynamicResource Str_Win_AwardCert_EventFilterLabel}" Foreground="#94A3B8" VerticalAlignment="Center" Margin="16,0,6,0"/>
             <ComboBox x:Name="EventFilterBox" Width="280" SelectionChanged="EventFilterBox_SelectionChanged"/>
-            <Button Content="全选" Click="SelectAll_Click" Margin="20,0,0,0" Padding="12,5"/>
-            <Button Content="全不选" Click="SelectNone_Click" Margin="8,0,0,0" Padding="12,5"/>
+            <Button Content="{DynamicResource Str_Win_AwardCert_SelectAllBtn}" Click="SelectAll_Click" Margin="20,0,0,0" Padding="12,5"/>
+            <Button Content="{DynamicResource Str_Win_AwardCert_SelectNoneBtn}" Click="SelectNone_Click" Margin="8,0,0,0" Padding="12,5"/>
             <TextBlock x:Name="CountText" Foreground="#94A3B8" VerticalAlignment="Center" Margin="20,0,0,0" FontSize="13"/>
         </StackPanel>
 
@@ -77,24 +77,24 @@
                 </Style>
             </DataGrid.CellStyle>
             <DataGrid.Columns>
-                <DataGridCheckBoxColumn Header="选择" Binding="{Binding Selected, Mode=TwoWay}" Width="55"/>
-                <DataGridTextColumn Header="日期" Binding="{Binding Date}" Width="100" IsReadOnly="True" ElementStyle="{StaticResource CellCenter}"/>
-                <DataGridTextColumn Header="组别" Binding="{Binding AgeGroup}" Width="80" IsReadOnly="True" ElementStyle="{StaticResource CellCenter}"/>
-                <DataGridTextColumn Header="项目" Binding="{Binding EventLabel}" Width="200" IsReadOnly="True" ElementStyle="{StaticResource CellCenter}"/>
-                <DataGridTextColumn Header="运动员/代表队" Binding="{Binding Athlete}" Width="160" IsReadOnly="True" ElementStyle="{StaticResource CellCenter}"/>
-                <DataGridTextColumn Header="代表队" Binding="{Binding Country}" Width="120" IsReadOnly="True" ElementStyle="{StaticResource CellCenter}"/>
-                <DataGridTextColumn Header="成绩" Binding="{Binding Time}" Width="90" IsReadOnly="True" ElementStyle="{StaticResource CellCenter}"/>
-                <DataGridTextColumn Header="运动会名次" Binding="{Binding CompRankLabel}" Width="90" IsReadOnly="True" ElementStyle="{StaticResource CellCenter}"/>
-                <DataGridTextColumn Header="纪录类型" Binding="{Binding RecordType}" Width="160" IsReadOnly="True" ElementStyle="{StaticResource CellCenter}"/>
-                <DataGridTextColumn Header="原记录保持者" Binding="{Binding OldHolder}" Width="140" IsReadOnly="True" ElementStyle="{StaticResource CellCenter}"/>
-                <DataGridTextColumn Header="原记录成绩" Binding="{Binding OldTime}" Width="90" IsReadOnly="True" ElementStyle="{StaticResource CellCenter}"/>
-                <DataGridTextColumn Header="原记录时间" Binding="{Binding OldDate}" Width="*" IsReadOnly="True" ElementStyle="{StaticResource CellCenter}"/>
+                <DataGridCheckBoxColumn Binding="{Binding Selected, Mode=TwoWay}" Width="55"><DataGridCheckBoxColumn.Header><TextBlock Text="{DynamicResource Str_Win_AwardCert_ColSelect}"/></DataGridCheckBoxColumn.Header></DataGridCheckBoxColumn>
+                <DataGridTextColumn Width="100" IsReadOnly="True" ElementStyle="{StaticResource CellCenter}"><DataGridTextColumn.Header><TextBlock Text="{DynamicResource Str_Col_Date}"/></DataGridTextColumn.Header><DataGridTextColumn.Binding><Binding Path="Date"/></DataGridTextColumn.Binding></DataGridTextColumn>
+                <DataGridTextColumn Width="80" IsReadOnly="True" ElementStyle="{StaticResource CellCenter}"><DataGridTextColumn.Header><TextBlock Text="{DynamicResource Str_Col_Group}"/></DataGridTextColumn.Header><DataGridTextColumn.Binding><Binding Path="AgeGroup"/></DataGridTextColumn.Binding></DataGridTextColumn>
+                <DataGridTextColumn Width="200" IsReadOnly="True" ElementStyle="{StaticResource CellCenter}"><DataGridTextColumn.Header><TextBlock Text="{DynamicResource Str_Win_AwardCert_ColEvent}"/></DataGridTextColumn.Header><DataGridTextColumn.Binding><Binding Path="EventLabel"/></DataGridTextColumn.Binding></DataGridTextColumn>
+                <DataGridTextColumn Width="160" IsReadOnly="True" ElementStyle="{StaticResource CellCenter}"><DataGridTextColumn.Header><TextBlock Text="{DynamicResource Str_Win_RecordCert_ColAthlete}"/></DataGridTextColumn.Header><DataGridTextColumn.Binding><Binding Path="Athlete"/></DataGridTextColumn.Binding></DataGridTextColumn>
+                <DataGridTextColumn Width="120" IsReadOnly="True" ElementStyle="{StaticResource CellCenter}"><DataGridTextColumn.Header><TextBlock Text="{DynamicResource Str_Col_Team}"/></DataGridTextColumn.Header><DataGridTextColumn.Binding><Binding Path="Country"/></DataGridTextColumn.Binding></DataGridTextColumn>
+                <DataGridTextColumn Width="90" IsReadOnly="True" ElementStyle="{StaticResource CellCenter}"><DataGridTextColumn.Header><TextBlock Text="{DynamicResource Str_Col_RecordTime}"/></DataGridTextColumn.Header><DataGridTextColumn.Binding><Binding Path="Time"/></DataGridTextColumn.Binding></DataGridTextColumn>
+                <DataGridTextColumn Width="90" IsReadOnly="True" ElementStyle="{StaticResource CellCenter}"><DataGridTextColumn.Header><TextBlock Text="{DynamicResource Str_Win_RecordCert_ColCompRank}"/></DataGridTextColumn.Header><DataGridTextColumn.Binding><Binding Path="CompRankLabel"/></DataGridTextColumn.Binding></DataGridTextColumn>
+                <DataGridTextColumn Width="160" IsReadOnly="True" ElementStyle="{StaticResource CellCenter}"><DataGridTextColumn.Header><TextBlock Text="{DynamicResource Str_Col_RecordType}"/></DataGridTextColumn.Header><DataGridTextColumn.Binding><Binding Path="RecordType"/></DataGridTextColumn.Binding></DataGridTextColumn>
+                <DataGridTextColumn Width="140" IsReadOnly="True" ElementStyle="{StaticResource CellCenter}"><DataGridTextColumn.Header><TextBlock Text="{DynamicResource Str_Col_Holder}"/></DataGridTextColumn.Header><DataGridTextColumn.Binding><Binding Path="OldHolder"/></DataGridTextColumn.Binding></DataGridTextColumn>
+                <DataGridTextColumn Width="90" IsReadOnly="True" ElementStyle="{StaticResource CellCenter}"><DataGridTextColumn.Header><TextBlock Text="{DynamicResource Str_Win_RecordCert_ColOldTime}"/></DataGridTextColumn.Header><DataGridTextColumn.Binding><Binding Path="OldTime"/></DataGridTextColumn.Binding></DataGridTextColumn>
+                <DataGridTextColumn Width="*" IsReadOnly="True" ElementStyle="{StaticResource CellCenter}"><DataGridTextColumn.Header><TextBlock Text="{DynamicResource Str_Win_RecordCert_ColOldDate}"/></DataGridTextColumn.Header><DataGridTextColumn.Binding><Binding Path="OldDate"/></DataGridTextColumn.Binding></DataGridTextColumn>
             </DataGrid.Columns>
         </DataGrid>
 
         <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,14,0,0">
-            <Button Content="生成 / 预览" Click="Generate_Click" Padding="18,8" Background="#2563EB" Foreground="White" FontWeight="Bold" BorderThickness="0" Margin="0,0,10,0"/>
-            <Button Content="关闭" Click="Close_Click" Padding="18,8"/>
+            <Button Content="{DynamicResource Str_Win_AwardCert_GenerateBtn}" Click="Generate_Click" Padding="18,8" Background="#2563EB" Foreground="White" FontWeight="Bold" BorderThickness="0" Margin="0,0,10,0"/>
+            <Button Content="{DynamicResource Str_Btn_Close}" Click="Close_Click" Padding="18,8"/>
         </StackPanel>
     </Grid>
 </Window>
