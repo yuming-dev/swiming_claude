@@ -882,7 +882,7 @@ namespace SwimmingScoreboard
                 win.ShowDialog();
             } catch (Exception ex) {
                 AddLog("打开修改用户名/密码窗口失败: " + ex.Message);
-                MessageBox.Show("打开修改密码窗口失败:\n" + ex.Message, Loc.T("Str_MsgTitle_Error"),
+                MessageBox.Show(Loc.F("Str_Msg_OpenChangePwdFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error"),
                     MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
@@ -11022,11 +11022,8 @@ namespace SwimmingScoreboard
             } catch (Exception ex) {
                 AddLog("【并组/取消组】出现未预期的异常, 操作已中止: " + ex);
                 MessageBox.Show(
-                    "并组/取消组时出现意外错误, 操作已中止:\n\n" + ex.Message +
-                    "\n\n内存里的分组数据可能处于半途状态, 建议：\n" +
-                    "  1) 打开「系统日志与数据」核对一下这个项目的分组是否正常；\n" +
-                    "  2) 如果不对，重新打开一次赛事档案（不要保存这次改动）。",
-                    "并组/取消组失败", MessageBoxButton.OK, MessageBoxImage.Error);
+                    Loc.F("Str_Msg_MergeHeatsCrashFmt", ex.Message),
+                    Loc.T("Str_MsgTitle_MergeHeatsFailed"), MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -11038,13 +11035,13 @@ namespace SwimmingScoreboard
             string stage    = EditStageCombo != null && EditStageCombo.SelectedItem != null ? ((ComboBoxItem)EditStageCombo.SelectedItem).Content.ToString() : "";
             if (ageGroup == "全部" || ageGroup == "不限") ageGroup = "";
             if (string.IsNullOrEmpty(eventName) || string.IsNullOrEmpty(stage)) {
-                MessageBox.Show("请先在上面选定 组别 / 性别 / 项目 / 赛次。", Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show(Loc.T("Str_Msg_SelectFiltersFirst"), Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
             var sched = FindScheduleItem(ageGroup, gender, eventName, stage);
             int heatCount = sched != null && sched.HeatCount > 0 ? sched.HeatCount : 1;
             if (heatCount < 2) {
-                MessageBox.Show("本项目只有 1 组，无法并组。", Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show(Loc.T("Str_Msg_OnlyOneHeatNoMerge"), Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
 
@@ -11076,7 +11073,7 @@ namespace SwimmingScoreboard
                 lockedWhy[h] = HeatLockedWhy(ageGroup, gender, eventName, stage, h);
             }
             if (live.Count < 2) {
-                MessageBox.Show("可用的组不足 2 个，无法并组。", Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show(Loc.T("Str_Msg_FewerThan2Heats"), Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
 
@@ -11207,8 +11204,8 @@ namespace SwimmingScoreboard
             if (IsScheduleEditorMode && _editorSyncClient != null && _editorSyncClient.IsConnected) {
                 string perr;
                 if (!SendMergeHeatsPatch(ageGroup, gender, eventName, stage, srcHeat, dstHeat, reason, out perr)) {
-                    MessageBox.Show("主服务器没有接受这次并组。\n\n原因: " + perr + "\n\n本机数据未改动, 请稍后重试。",
-                        "未能并组", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    MessageBox.Show(Loc.F("Str_Msg_MergeRejectedFmt", perr),
+                        Loc.T("Str_MsgTitle_MergeNotDone"), MessageBoxButton.OK, MessageBoxImage.Warning);
                     AddLog("并组被主服务器拒绝: " + perr);
                     return;
                 }
@@ -11222,8 +11219,7 @@ namespace SwimmingScoreboard
                 // 主服务器已经改了、本机却没改成 —— 只可能是本机这份数据是旧的。
                 // 这种分叉必须让人看见, 不能只记一行日志。
                 if (serverAccepted) {
-                    MessageBox.Show("主服务器已经完成这次并组，但本机没能跟着改。\n\n原因: " + error +
-                        "\n\n多半是本机这份数据旧了。请断开重连主服务器重新取一次数据。",
+                    MessageBox.Show(Loc.F("Str_Msg_MergeServerAheadFmt", error),
                         Loc.T("Str_MsgTitle_ServerMismatch"), MessageBoxButton.OK, MessageBoxImage.Error);
                     AddLog("★ 主服务器已并组但本机应用失败(数据可能已旧): " + error);
                 } else {
@@ -11709,9 +11705,8 @@ namespace SwimmingScoreboard
                 // 上游拒了(多半是撞上正在比 / 已完赛的组)。本机已经改了, 不手工回滚 ——
                 // 编排端拉一次整包, 让主服务器那份把本机盖回去, 省得两边分叉还没人知道。
                 if (IsScheduleEditorMode) {
-                    MessageBox.Show("主服务器没有接受这次改动。\n\n原因: " + err +
-                        "\n\n本机将重新从主服务器取一次数据, 你刚才的改动会被撤销。",
-                        "未能保存到主服务器", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    MessageBox.Show(Loc.F("Str_Msg_AssignRejectedFmt", err),
+                        Loc.T("Str_MsgTitle_NotSavedToServer"), MessageBoxButton.OK, MessageBoxImage.Warning);
                     AddLog("★ 编排补丁被主服务器拒绝: " + err + " —— 重新拉取主服务器数据");
                     try {
                         var pull = new JObject();
@@ -12002,19 +11997,19 @@ namespace SwimmingScoreboard
             int heat = _currentHeat;
 
             if (string.IsNullOrEmpty(ev) || heat <= 0) {
-                MessageBox.Show("当前没有装载任何组次。\n\n请先在赛程导航里选到要解锁的那一组。",
-                    "解锁本组成绩", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show(Loc.T("Str_Msg_NoHeatLoaded"),
+                    Loc.T("Str_RC_UnlockResult"), MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
             if (_raceState == RaceState.Ready || _raceState == RaceState.Racing) {
-                MessageBox.Show("正在计时(" + (_raceState == RaceState.Ready ? "已就位" : "比赛中") +
-                    ")，不能解锁。\n\n这一组还没比完。",
-                    "解锁本组成绩", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(Loc.F("Str_Msg_CannotUnlockRacingFmt",
+                    _raceState == RaceState.Ready ? Loc.T("Str_Msg_Ready2") : Loc.T("Str_Msg_Racing")),
+                    Loc.T("Str_RC_UnlockResult"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
             if (!IsHeatMarkedFinished(ag, gd, ev, st, heat)) {
-                MessageBox.Show(string.Format("第{0}组本来就没锁 —— 它还没点过「确认本组成绩」。\n\n成绩现在就能改。", heat),
-                    "不用解锁", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show(Loc.F("Str_Msg_HeatNotLockedFmt", heat),
+                    Loc.T("Str_MsgTitle_NoNeedToUnlock"), MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
 

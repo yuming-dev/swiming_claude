@@ -812,6 +812,28 @@ namespace SwimmingScoreboard
             { "Str_Msg_RelayBeingAddedFmt",   new[] { "{0} 正在新增接力队，请稍后再试。", "{0} is currently adding a relay team; try again shortly." } },
             { "Str_Msg_NoRelayEventsAvailable", new[] { "没有可用的接力项目。请检查项目列表。", "No relay events available. Check the event list." } },
             { "Str_Msg_SelectRelayEvent",     new[] { "请选择接力项目", "Select a relay event." } },
+
+            // 2026-09-21 第七阶段续——批次2(合并/取消组对话框区, L11024附近)
+            { "Str_Msg_OpenChangePwdFailedFmt", new[] { "打开修改密码窗口失败:\n{0}", "Failed to open the change-password window:\n{0}" } },
+            { "Str_MsgTitle_MergeHeatsFailed", new[] { "并组/取消组失败", "Merge/Cancel Heat Failed" } },
+            { "Str_Msg_MergeHeatsCrashFmt", new[] {
+                "并组/取消组时出现意外错误, 操作已中止:\n\n{0}\n\n内存里的分组数据可能处于半途状态, 建议：\n  1) 打开「系统日志与数据」核对一下这个项目的分组是否正常；\n  2) 如果不对，重新打开一次赛事档案（不要保存这次改动）。",
+                "An unexpected error occurred during merge/cancel heat, and the operation was aborted:\n\n{0}\n\nThe grouping data in memory may be half-updated. Suggested:\n  1) Open \"System Log & Data\" and check whether this event's grouping looks right;\n  2) If not, reopen the competition file (without saving this change)." } },
+            { "Str_Msg_SelectFiltersFirst", new[] { "请先在上面选定 组别 / 性别 / 项目 / 赛次。", "Select Group / Sex / Event / Stage above first." } },
+            { "Str_Msg_OnlyOneHeatNoMerge", new[] { "本项目只有 1 组，无法并组。", "This event has only 1 heat — nothing to merge." } },
+            { "Str_Msg_FewerThan2Heats", new[] { "可用的组不足 2 个，无法并组。", "Fewer than 2 heats available — nothing to merge." } },
+            { "Str_MsgTitle_MergeNotDone", new[] { "未能并组", "Merge Not Completed" } },
+            { "Str_Msg_MergeRejectedFmt", new[] { "主服务器没有接受这次并组。\n\n原因: {0}\n\n本机数据未改动, 请稍后重试。", "The main server did not accept this merge.\n\nReason: {0}\n\nNo local data was changed — try again shortly." } },
+            { "Str_Msg_MergeServerAheadFmt", new[] {
+                "主服务器已经完成这次并组，但本机没能跟着改。\n\n原因: {0}\n\n多半是本机这份数据旧了。请断开重连主服务器重新取一次数据。",
+                "The main server already completed this merge, but this machine failed to apply it.\n\nReason: {0}\n\nThis usually means this machine's data is stale — disconnect and reconnect to the main server to re-fetch it." } },
+            { "Str_Msg_AssignRejectedFmt", new[] {
+                "主服务器没有接受这次改动。\n\n原因: {0}\n\n本机将重新从主服务器取一次数据, 你刚才的改动会被撤销。",
+                "The main server did not accept this change.\n\nReason: {0}\n\nThis machine will re-fetch data from the main server, and your change just now will be reverted." } },
+            { "Str_Msg_NoHeatLoaded", new[] { "当前没有装载任何组次。\n\n请先在赛程导航里选到要解锁的那一组。", "No heat is currently loaded.\n\nSelect the heat to unlock in the schedule navigation first." } },
+            { "Str_Msg_CannotUnlockRacingFmt", new[] { "正在计时({0})，不能解锁。\n\n这一组还没比完。", "Timing is in progress ({0}) — can't unlock.\n\nThis heat hasn't finished yet." } },
+            { "Str_MsgTitle_NoNeedToUnlock", new[] { "不用解锁", "No Need to Unlock" } },
+            { "Str_Msg_HeatNotLockedFmt", new[] { "第{0}组本来就没锁 —— 它还没点过「确认本组成绩」。\n\n成绩现在就能改。", "Heat {0} was never locked — \"Confirm Heat Result\" hasn't been pressed for it.\n\nYou can already edit its result." } },
         };
 
         /// <summary>查当前语言下的文字；查不到就退回中文；中文也没有就返回 key 本身兜底。</summary>
