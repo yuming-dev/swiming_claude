@@ -24278,7 +24278,7 @@ namespace SwimmingScoreboard
             try { RefreshChangedFromDb(); } catch { }
             var candidates = GetFullyConfirmedFinalEvents();
             if (candidates.Count == 0) {
-                MessageBox.Show("尚无已完赛的决赛项目 (需要该项目所有组都已'确认本组成绩').", "总排名", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show(Loc.T("Str_Msg_NoFinishedFinalsRanking"), Loc.T("Str_RC_ShowEventRanking"), MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
             var win = new Window {
@@ -24320,7 +24320,7 @@ namespace SwimmingScoreboard
                 Foreground = Brushes.White, BorderThickness = new Thickness(0) };
             okBtn.Click += (s2, e2) => {
                 var sel = lb.SelectedItem as ListBoxItem;
-                if (sel == null) { MessageBox.Show("请选择一个项目", Loc.T("Str_MsgTitle_Info")); return; }
+                if (sel == null) { MessageBox.Show(Loc.T("Str_Msg_SelectAnEvent"), Loc.T("Str_MsgTitle_Info")); return; }
                 _rankingSelection = sel.Tag as ScheduleItem;
                 win.DialogResult = true; win.Close();
             };
@@ -24342,7 +24342,7 @@ namespace SwimmingScoreboard
         private void ShowAwards_Click(object sender, RoutedEventArgs e) {
             var candidates = GetFullyConfirmedFinalEvents();
             if (candidates.Count == 0) {
-                MessageBox.Show("尚无已完赛的决赛项目 (需要该项目所有组都已'确认本组成绩').", "颁奖", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show(Loc.T("Str_Msg_NoFinishedFinalsRanking"), Loc.T("Str_RC_ShowAwards"), MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
             var win = new Window {
@@ -24384,7 +24384,7 @@ namespace SwimmingScoreboard
                 Foreground = Brushes.White, BorderThickness = new Thickness(0) };
             okBtn.Click += (s2, e2) => {
                 var sel = lb.SelectedItem as ListBoxItem;
-                if (sel == null) { MessageBox.Show("请选择一个项目", Loc.T("Str_MsgTitle_Info")); return; }
+                if (sel == null) { MessageBox.Show(Loc.T("Str_Msg_SelectAnEvent"), Loc.T("Str_MsgTitle_Info")); return; }
                 _awardSelection = sel.Tag as ScheduleItem;
                 win.DialogResult = true; win.Close();
             };
@@ -24406,7 +24406,7 @@ namespace SwimmingScoreboard
 
         // 2026-06-12 显示比赛日程: 选场次(或全部) → 大屏翻页显示该场次/全部日程
         private void ShowSchedule_Click(object sender, RoutedEventArgs e) {
-            if (_schedule == null || _schedule.Count == 0) { MessageBox.Show("当前没有赛程数据", "显示比赛日程"); return; }
+            if (_schedule == null || _schedule.Count == 0) { MessageBox.Show(Loc.T("Str_Msg_NoScheduleData"), Loc.T("Str_RC_ShowSchedule")); return; }
             var dlg = new Window {
                 Title = "显示比赛日程", Width = 420, SizeToContent = SizeToContent.Height,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner, Owner = this, ResizeMode = ResizeMode.NoResize,
