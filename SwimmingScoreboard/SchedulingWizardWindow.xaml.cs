@@ -82,7 +82,7 @@ namespace SwimmingScoreboard
                 if (InitialDraft.SessionStartMin != null && InitialDraft.SessionStartMin.Length == 3)
                     _sessionStartMin = (int[])InitialDraft.SessionStartMin.Clone();
                 UpdateTab1CountText();
-                StatusText.Text = "📂 已恢复上次未保存的草稿（可继续编辑或重新自动统计）";
+                StatusText.Text = Loc.T("Str_Win_SchedWizard_MsgDraftRestored");
                 StatusText.Foreground = new System.Windows.Media.SolidColorBrush(
                     (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#7C3AED"));
             } else {
@@ -206,7 +206,7 @@ namespace SwimmingScoreboard
             }
 
             UpdateTab1CountText();
-            StatusText.Text = string.Format("已自动统计 {0} 单项（{1} 个组别 × {2} 性别 × {3} 项目）。修改后可撤销。",
+            StatusText.Text = Loc.F("Str_Win_SchedWizard_MsgAutoComputedFmt",
                 _planRows.Count, ageGroupNames.Count, _genders.Count, _events.Count);
             StatusText.Foreground = new System.Windows.Media.SolidColorBrush(
                 (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#22C55E"));
@@ -320,13 +320,13 @@ namespace SwimmingScoreboard
             int leftPending = _distPending.Count;
             string summary;
             if (leftPending == 0) {
-                summary = string.Format("✅ 已编排 {0} 项，分配到 {1} 天。\n\n是否进入「秩序册可选文档」生成 .xlsx？",
+                summary = Loc.F("Str_Win_SchedWizard_MsgOneClickDoneFmt",
                     _distAssigned.Count, dlg.ParamDays);
             } else {
-                summary = string.Format("⚠ 已编排 {0} 项，但仍有 {1} 项未排上（容量不足）。\n建议：增加比赛天数、放宽每场最长，或手动微调。\n\n是否仍进入「生成 xlsx」？",
+                summary = Loc.F("Str_Win_SchedWizard_MsgOneClickPartialFmt",
                     _distAssigned.Count, leftPending);
             }
-            if (MessageBox.Show(summary, "一键全自动完成", MessageBoxButton.YesNo, MessageBoxImage.Information) == MessageBoxResult.Yes) {
+            if (MessageBox.Show(summary, Loc.T("Str_Win_SchedWizard_MsgTitleOneClickDone"), MessageBoxButton.YesNo, MessageBoxImage.Information) == MessageBoxResult.Yes) {
                 NavList.SelectedIndex = 3;   // Tab 4
             }
         }
@@ -420,10 +420,10 @@ namespace SwimmingScoreboard
 
         private void ResetEdits_Click(object sender, RoutedEventArgs e) {
             if (_autoBaseline.Count == 0) {
-                MessageBox.Show("还没有自动统计数据，请先点 「🔄 自动统计赛次」", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show(Loc.T("Str_Win_SchedWizard_MsgNoAutoData"), Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
-            if (MessageBox.Show("将所有手动改动恢复到上次自动统计的结果？", "确认撤销",
+            if (MessageBox.Show(Loc.T("Str_Win_SchedWizard_MsgConfirmResetEdits"), Loc.T("Str_Win_SchedWizard_MsgTitleConfirmReset"),
                 MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
 
             for (int i = 0; i < _planRows.Count; i++) {
@@ -438,7 +438,7 @@ namespace SwimmingScoreboard
                 _planRows[i].FinalHeats = baseline.FinalHeats;
                 _planRows[i].FinalCutoff = baseline.FinalCutoff;
             }
-            StatusText.Text = "已恢复到自动统计基线";
+            StatusText.Text = Loc.T("Str_Win_SchedWizard_MsgResetDone");
             StatusText.Foreground = new System.Windows.Media.SolidColorBrush(
                 (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#3B82F6"));
         }
@@ -452,7 +452,7 @@ namespace SwimmingScoreboard
             Dispatcher.BeginInvoke(new Action(() => {
                 UpdateTab1CountText();
                 _planDirty = true;
-                StatusText.Text = "✓ 已自动保存（切到 Tab3 编排时会按最新值刷新待分配）";
+                StatusText.Text = Loc.T("Str_Win_SchedWizard_MsgAutoSaved");
                 StatusText.Foreground = new System.Windows.Media.SolidColorBrush(
                     (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#22C55E"));
             }));
@@ -659,13 +659,13 @@ namespace SwimmingScoreboard
         private void MoveSelectedToAssigned(bool insertAtEnd) {
             var selected = DistPendingGrid.SelectedItems.OfType<DistEntry>().ToList();
             if (selected.Count == 0) {
-                MessageBox.Show("请先在左侧选中要分配的项目", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show(Loc.T("Str_Win_SchedWizard_MsgSelectPendingFirst"), Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
             string day = DistDayCombo.SelectedItem as string;
             string session = DistSessionCombo.SelectedItem != null ? ((ComboBoxItem)DistSessionCombo.SelectedItem).Content.ToString() : "";
             if (string.IsNullOrEmpty(day) || string.IsNullOrEmpty(session)) {
-                MessageBox.Show("请先选择比赛日期和时段", "提示"); return;
+                MessageBox.Show(Loc.T("Str_Win_SchedWizard_MsgSelectDateSession"), Loc.T("Str_MsgTitle_Info")); return;
             }
             int sessionStartMin = GetSessionStartMin(session);
             // 找该时段当前已分配的累计时长
@@ -720,18 +720,18 @@ namespace SwimmingScoreboard
         //              「强制时段」模式仍然只用单一时段，但会跨多天。
         private void DistAuto_Click(object sender, RoutedEventArgs e) {
             if (_distPending.Count == 0) {
-                MessageBox.Show("已无待分配项目", "提示"); return;
+                MessageBox.Show(Loc.T("Str_Win_SchedWizard_MsgNoPending"), Loc.T("Str_MsgTitle_Info")); return;
             }
             EnsureAvailableDatesFromCompetition();
             if (_availableDates == null || _availableDates.Count == 0) {
-                MessageBox.Show("没有可用日期。请先到「赛事管理与报名 → 赛事概览」填好开始/结束日期。",
-                    "提示", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(Loc.T("Str_Win_SchedWizard_MsgNoAvailableDates"),
+                    Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
-            string mode = DistModeAuto.IsChecked == true ? "自动" :
-                          DistModeStrictTime.IsChecked == true ? "强制时段" :
-                          DistModeFinalOnly.IsChecked == true ? "强制决赛" : "自动";
+            string mode = DistModeAuto.IsChecked == true ? Loc.T("Str_Win_SchedWizard_ModeKeyAuto") :
+                          DistModeStrictTime.IsChecked == true ? Loc.T("Str_Win_SchedWizard_ModeKeyStrict") :
+                          DistModeFinalOnly.IsChecked == true ? Loc.T("Str_Win_SchedWizard_ModeKeyFinalOnly") : Loc.T("Str_Win_SchedWizard_ModeKeyAuto");
 
             // 排序待分配项目
             var ordered = _distPending.OrderBy(d => EventOrder(d.EventName))
@@ -754,9 +754,9 @@ namespace SwimmingScoreboard
             int unplaced = 0;
             foreach (var d in ordered) {
                 int sessionIdx;
-                if (mode == "强制决赛") {
+                if (mode == Loc.T("Str_Win_SchedWizard_ModeKeyFinalOnly")) {
                     sessionIdx = 2;   // 晚上
-                } else if (mode == "强制时段") {
+                } else if (mode == Loc.T("Str_Win_SchedWizard_ModeKeyStrict")) {
                     string sel = DistSessionCombo.SelectedItem != null
                         ? ((ComboBoxItem)DistSessionCombo.SelectedItem).Content.ToString() : "上午";
                     sessionIdx = sel == "晚上" ? 2 : sel == "下午" ? 1 : 0;
@@ -776,7 +776,7 @@ namespace SwimmingScoreboard
                     }
                 }
                 // 目标时段全满 → 自动/强制决赛模式尝试相邻时段；强制时段保持原时段
-                if (chosenDay < 0 && mode != "强制时段") {
+                if (chosenDay < 0 && mode != Loc.T("Str_Win_SchedWizard_ModeKeyStrict")) {
                     int[] altOrder = sessionIdx == 2 ? new[] { 1, 0 } : sessionIdx == 1 ? new[] { 2, 0 } : new[] { 1, 2 };
                     foreach (var sIdx in altOrder) {
                         for (int day = 0; day < dayCount; day++) {
@@ -808,17 +808,17 @@ namespace SwimmingScoreboard
             UpdateDistCounters();
 
             int dayUsedCount = _distAssigned.Select(x => x.AssignedDate).Distinct().Count();
-            string msg = string.Format("已自动分配 {0} 项到 {1} 天 ({2} 模式)。",
+            string msg = Loc.F("Str_Win_SchedWizard_MsgAutoDistFmt",
                 _distAssigned.Count, dayUsedCount, mode);
-            if (unplaced > 0) msg += string.Format("\n⚠ 仍有 {0} 项未排上（容量不足，建议增加比赛天数或拖回左侧重排）。", unplaced);
-            else msg += "\n您可以手动微调每项的「分/组」时长或拖回左侧重排。";
-            MessageBox.Show(msg, "自动分配完成");
+            if (unplaced > 0) msg += Loc.F("Str_Win_SchedWizard_MsgAutoDistUnplacedFmt", unplaced);
+            else msg += Loc.T("Str_Win_SchedWizard_MsgAutoDistTip");
+            MessageBox.Show(msg, Loc.T("Str_Win_SchedWizard_MsgTitleAutoDistDone"));
         }
 
         private void DistMoveBack_Click(object sender, RoutedEventArgs e) {
             var selected = DistAssignedGrid.SelectedItems.OfType<DistEntry>().ToList();
             if (selected.Count == 0) {
-                MessageBox.Show("请先在右侧选中要取消分配的项目", "提示"); return;
+                MessageBox.Show(Loc.T("Str_Win_SchedWizard_MsgSelectAssignedFirst"), Loc.T("Str_MsgTitle_Info")); return;
             }
             foreach (var d in selected) {
                 d.AssignedDate = null;
@@ -834,7 +834,7 @@ namespace SwimmingScoreboard
 
         private void DistMoveBackAll_Click(object sender, RoutedEventArgs e) {
             if (_distAssigned.Count == 0) return;
-            if (MessageBox.Show(string.Format("确认将所有 {0} 项已分配项目移回待分配？", _distAssigned.Count), "确认",
+            if (MessageBox.Show(Loc.F("Str_Win_SchedWizard_MsgConfirmMoveBackAllFmt", _distAssigned.Count), Loc.T("Str_MsgTitle_Confirm"),
                 MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
             foreach (var d in _distAssigned.ToList()) {
                 d.AssignedDate = null;
@@ -933,7 +933,7 @@ namespace SwimmingScoreboard
 
         private void DistApply_Click(object sender, RoutedEventArgs e) {
             if (_distAssigned.Count == 0) {
-                MessageBox.Show("没有已分配的项目，无法写回主程序赛程", "提示"); return;
+                MessageBox.Show(Loc.T("Str_Win_SchedWizard_MsgNoAssignedToApply"), Loc.T("Str_MsgTitle_Info")); return;
             }
             // 把已分配条目转成 ScheduleItem 写回主程序 _schedule
             // 注：此处只通知调用方"用户确认了编排，需要写回"。实际写回逻辑在 OpenSchedulingWizard_Click 端处理。
@@ -944,13 +944,13 @@ namespace SwimmingScoreboard
                 Stage = d.Stage, HeatCount = d.Heats, HeatRange = d.HeatRange
             }).ToList();
             // 2026-05-25 已有赛程时弹覆盖确认
-            string warning = string.Format("即将存盘 {0} 项编排到主程序赛程。", _distAssigned.Count);
+            string warning = Loc.F("Str_Win_SchedWizard_MsgAboutToSaveFmt", _distAssigned.Count);
             if (HasExistingSchedule()) {
-                warning += "\n\n⚠ 主程序已有赛程数据，本次操作将 [覆盖] 旧赛程！\n\n确认存盘？";
+                warning += Loc.T("Str_Win_SchedWizard_MsgOverwriteWarning");
             } else {
-                warning += "\n\n确认存盘？";
+                warning += Loc.T("Str_Win_SchedWizard_MsgConfirmSaveSuffix");
             }
-            if (MessageBox.Show(warning, "确认赛程存盘", MessageBoxButton.OKCancel, MessageBoxImage.Warning) != MessageBoxResult.OK) return;
+            if (MessageBox.Show(warning, Loc.T("Str_Win_SchedWizard_MsgTitleConfirmSave"), MessageBoxButton.OKCancel, MessageBoxImage.Warning) != MessageBoxResult.OK) return;
             ApplyToMainSchedule = true;
             // 存盘成功 → 清除草稿 (避免下次打开看到已应用的旧草稿)
             _draftWillClear = true;
@@ -1204,7 +1204,7 @@ namespace SwimmingScoreboard
                 if (_docCheckBoxes[i].IsChecked == true) { section = DocSections[i]; break; }
             }
             if (string.IsNullOrEmpty(section)) {
-                MessageBox.Show("请先在左侧选中 1 个章节再点 编辑/打印", "提示"); return;
+                MessageBox.Show(Loc.T("Str_Win_SchedWizard_MsgSelectSectionFirst"), Loc.T("Str_MsgTitle_Info")); return;
             }
             string path = GetSectionFilePath(section);
             bool willOverwrite = System.IO.File.Exists(path);
@@ -1212,19 +1212,17 @@ namespace SwimmingScoreboard
             try {
                 WriteSectionFile(section, path);
             } catch (Exception ex) {
-                MessageBox.Show("生成文件失败: " + ex.Message, "错误");
+                MessageBox.Show(Loc.T("Str_Win_SchedWizard_MsgGenFileFailPrefix") + ex.Message, Loc.T("Str_MsgTitle_Error"));
                 return;
             }
             try {
                 System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(path) { UseShellExecute = true });
-                string warn = willOverwrite ? "\n\n⚠ 上次编辑的内容已被最新系统数据覆盖" : "";
-                MessageBox.Show("已用 WPS / Office 打开章节:\n  " + section +
-                    "\n\n文件位置 (将持久保留):\n  " + path +
-                    "\n\n编辑保存后请勿再点本按钮 (会被覆盖)；点「全本秩序册」可打开整个文件夹合订查看。" + warn,
-                    "编辑/打印", MessageBoxButton.OK, MessageBoxImage.Information);
+                string warn = willOverwrite ? Loc.T("Str_Win_SchedWizard_MsgOverwrittenWarning") : "";
+                MessageBox.Show(Loc.F("Str_Win_SchedWizard_MsgOpenedSectionFmt", section, path) + warn,
+                    Loc.T("Str_Win_SchedWizard_DocEditPrintBtn"), MessageBoxButton.OK, MessageBoxImage.Information);
             } catch (Exception ex) {
-                MessageBox.Show("无法启动外部应用: " + ex.Message +
-                    "\n\n文件已保存到:\n" + path + "\n请手动打开。", "提示");
+                MessageBox.Show(Loc.T("Str_Win_SchedWizard_MsgLaunchFailPrefix") + ex.Message +
+                    Loc.F("Str_Win_SchedWizard_MsgSavedToSuffix", path), Loc.T("Str_MsgTitle_Info"));
             }
         }
 
@@ -1382,20 +1380,20 @@ namespace SwimmingScoreboard
             }
             try { System.Diagnostics.Process.Start("explorer.exe", "\"" + folder + "\""); } catch { }
             var sb = new StringBuilder();
-            sb.AppendFormat("✔ 秩序册文件夹已就绪 (共 {0} 章节)\n\n", DocSections.Length);
-            sb.AppendFormat("  • 系统自动生成: {0} 章\n", generated);
-            sb.AppendFormat("  • 用户已编辑保留: {0} 章\n", preserved);
+            sb.Append(Loc.F("Str_Win_SchedWizard_MsgFolderReadyFmt", DocSections.Length));
+            sb.Append(Loc.F("Str_Win_SchedWizard_MsgAutoGenFmt", generated));
+            sb.Append(Loc.F("Str_Win_SchedWizard_MsgPreservedFmt", preserved));
             if (failures.Count > 0) {
-                sb.AppendFormat("  • 生成失败: {0} 章\n", failures.Count);
+                sb.Append(Loc.F("Str_Win_SchedWizard_MsgFailuresFmt", failures.Count));
                 foreach (var f in failures) sb.AppendLine("    - " + f);
             }
             sb.AppendLine();
-            sb.AppendLine("文件夹路径:");
+            sb.AppendLine(Loc.T("Str_Win_SchedWizard_MsgFolderPathLabel"));
             sb.AppendLine("  " + folder);
             sb.AppendLine();
-            sb.AppendLine("每章一个文件 (NN_章节名.rtf 或 .xlsx), 可用 WPS/Word/Excel 单独编辑并打印。");
-            sb.AppendLine("「编辑/打印」按钮会强制覆盖该章节为最新系统数据，请慎用。");
-            MessageBox.Show(sb.ToString(), "全本秩序册", MessageBoxButton.OK, MessageBoxImage.Information);
+            sb.AppendLine(Loc.T("Str_Win_SchedWizard_MsgFolderNote1"));
+            sb.AppendLine(Loc.T("Str_Win_SchedWizard_MsgFolderNote2"));
+            MessageBox.Show(sb.ToString(), Loc.T("Str_Win_SchedWizard_DocGenerateBtn"), MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
         // 强制重新生成当前选中章节（用最新系统数据覆盖文件夹里的已编辑版本）
@@ -1405,19 +1403,19 @@ namespace SwimmingScoreboard
                 if (_docCheckBoxes[i].IsChecked == true) { section = DocSections[i]; break; }
             }
             if (string.IsNullOrEmpty(section)) {
-                MessageBox.Show("请先选中要重生的章节", "提示"); return;
+                MessageBox.Show(Loc.T("Str_Win_SchedWizard_MsgSelectRegenSection"), Loc.T("Str_MsgTitle_Info")); return;
             }
             string path = GetSectionFilePath(section);
             bool exists = System.IO.File.Exists(path);
             string msg = exists
-                ? "确认用最新系统数据覆盖以下章节文件？\n\n" + section + "\n→ " + path + "\n\n（手工编辑会丢失！）"
-                : "确认按最新系统数据生成本章节文件？\n\n" + section + "\n→ " + path;
-            if (MessageBox.Show(msg, "强制重生", MessageBoxButton.OKCancel, MessageBoxImage.Warning) != MessageBoxResult.OK) return;
+                ? Loc.F("Str_Win_SchedWizard_MsgConfirmOverwriteFmt", section, path)
+                : Loc.F("Str_Win_SchedWizard_MsgConfirmGenerateFmt", section, path);
+            if (MessageBox.Show(msg, Loc.T("Str_Win_SchedWizard_DocForceRegenBtn"), MessageBoxButton.OKCancel, MessageBoxImage.Warning) != MessageBoxResult.OK) return;
             try {
                 WriteSectionFile(section, path);
-                MessageBox.Show("已重生:\n  " + path, "完成");
+                MessageBox.Show(Loc.F("Str_Win_SchedWizard_MsgRegenDoneFmt", path), Loc.T("Str_MsgTitle_Done"));
             } catch (Exception ex) {
-                MessageBox.Show("重生失败: " + ex.Message, "错误");
+                MessageBox.Show(Loc.T("Str_Win_SchedWizard_MsgRegenFailPrefix") + ex.Message, Loc.T("Str_MsgTitle_Error"));
             }
         }
 
@@ -1677,18 +1675,18 @@ namespace SwimmingScoreboard
         // ═══════════════════════════════════════════════════════════════
         private void EnterTab5() {
             if (MultiEventAgeCombo.Items.Count == 0) {
-                MultiEventAgeCombo.Items.Add("全部组别");
+                MultiEventAgeCombo.Items.Add(Loc.T("Str_Win_AwardCert_AllAgeGroups"));
                 foreach (var g in _ageGroups) MultiEventAgeCombo.Items.Add(g.Name);
                 MultiEventAgeCombo.SelectedIndex = 0;
             }
         }
 
         private void MultiEventCompute_Click(object sender, RoutedEventArgs e) {
-            string ageFilter = MultiEventAgeCombo.SelectedItem != null ? MultiEventAgeCombo.SelectedItem.ToString() : "全部组别";
+            string ageFilter = MultiEventAgeCombo.SelectedItem != null ? MultiEventAgeCombo.SelectedItem.ToString() : Loc.T("Str_Win_AwardCert_AllAgeGroups");
             // 按号码合并同一运动员的多项目；接力代表条目跳过
             var bibGroups = _swimmers
                 .Where(s => s.Notes == null || !s.Notes.StartsWith("接力队 棒次:"))   // 排除代表条目
-                .Where(s => ageFilter == "全部组别" || s.AgeCategory == ageFilter)
+                .Where(s => ageFilter == Loc.T("Str_Win_AwardCert_AllAgeGroups") || s.AgeCategory == ageFilter)
                 .GroupBy(s => s.BibNumber ?? "")
                 .Where(g => !string.IsNullOrEmpty(g.Key))
                 .ToList();
@@ -1708,23 +1706,23 @@ namespace SwimmingScoreboard
             rows = rows.OrderByDescending(r => r.IndividualCount + r.RelayCount).ThenBy(r => r.BibNumber).ToList();
             MultiEventGrid.ItemsSource = rows;
             int over3 = rows.Count(r => r.IndividualCount + r.RelayCount >= 3);
-            MultiEventSummaryText.Text = string.Format("共 {0} 名运动员，兼报 ≥3 项 {1} 人；最多 {2} 项",
+            MultiEventSummaryText.Text = Loc.F("Str_Win_SchedWizard_MultiEventSummaryFmt",
                 rows.Count, over3, rows.Count > 0 ? rows.Max(r => r.IndividualCount + r.RelayCount) : 0);
         }
 
         private void MultiEventExport_Click(object sender, RoutedEventArgs e) {
             if (MultiEventGrid.ItemsSource == null) {
-                MessageBox.Show("请先点 「🔍 统计兼项分布」", "提示"); return;
+                MessageBox.Show(Loc.T("Str_Win_SchedWizard_MsgComputeMultiEventFirst"), Loc.T("Str_MsgTitle_Info")); return;
             }
             var rows = MultiEventGrid.ItemsSource.OfType<MultiEventStatRow>().ToList();
             if (rows.Count == 0) return;
             var dlg = new Microsoft.Win32.SaveFileDialog {
-                Filter = "CSV 文件|*.csv", Title = "导出兼项统计",
+                Filter = Loc.T("Str_Win_UnitMgmt_CsvFilter"), Title = Loc.T("Str_Win_SchedWizard_ExportMultiEventTitle"),
                 FileName = "运动员兼项统计_" + DateTime.Now.ToString("yyyyMMdd") + ".csv"
             };
             if (dlg.ShowDialog() != true) return;
             var sb = new StringBuilder();
-            sb.AppendLine("号码,姓名,性别,代表队,个人项目数,接力项目数,兼项详情");
+            sb.AppendLine(Loc.T("Str_Win_SchedWizard_MultiEventCsvHeader"));
             foreach (var r in rows) {
                 sb.AppendLine(string.Join(",", new[] {
                     CsvEsc(r.BibNumber), CsvEsc(r.Name), CsvEsc(r.Gender), CsvEsc(r.Country),
@@ -1732,7 +1730,7 @@ namespace SwimmingScoreboard
                 }));
             }
             File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
-            MessageBox.Show("已导出: " + dlg.FileName, "完成");
+            MessageBox.Show(Loc.F("Str_Win_UnitMgmt_MsgExportedFmt", dlg.FileName), Loc.T("Str_MsgTitle_Done"));
         }
 
         private static string CsvEsc(string s) {
