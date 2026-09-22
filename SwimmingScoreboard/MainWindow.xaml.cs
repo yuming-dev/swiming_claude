@@ -19657,7 +19657,7 @@ namespace SwimmingScoreboard
 
         private void ExportRelayLegSheet_Click(object sender, RoutedEventArgs e) {
             if (_relayTeams == null || _relayTeams.Count == 0) {
-                MessageBox.Show("当前没有接力队。", Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show(Loc.T("Str_Msg_NoRelayTeamsYet"), Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
             var dlg = new Microsoft.Win32.SaveFileDialog {
@@ -19720,10 +19720,9 @@ namespace SwimmingScoreboard
                         legRows);
                     written.Add(string.Format("  第{0}场  {1} 支队   {2}", ses, legRows.Count, System.IO.Path.GetFileName(fn)));
                 }
-                MessageBox.Show(string.Format(
-                    "已按场次导出 {0} 个 Excel 文件到:\n{1}\n\n{2}\n\n用法: 拿到哪一场的名单就打开哪个文件,\n只填黄色的「第1棒~第4棒」四列, 灰色各列请勿改动。\n填完存盘 (xlsx / xls 都行, WPS 表格存的也认),\n回程序点「读入棒次名单」。\n没填姓名的行会整行跳过, 不会影响别的队。",
-                    written.Count, dir, string.Join("\n", written.ToArray())),
-                    "导出成功", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show(
+                    Loc.F("Str_Msg_ExportedLegSheetsFmt", written.Count, dir, string.Join("\n", written.ToArray())),
+                    Loc.T("Str_MsgTitle_ExportSuccess"), MessageBoxButton.OK, MessageBoxImage.Information);
                 AddLog(string.Format("导出接力棒次填报表: {0} 支队, 按场次分成 {1} 个 Excel → {2}", rows.Count, written.Count, dir));
             } catch (Exception ex) {
                 MessageBox.Show(Loc.F("Str_Msg_WriteFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error"), MessageBoxButton.OK, MessageBoxImage.Error);
@@ -19807,7 +19806,7 @@ namespace SwimmingScoreboard
 
         private void ImportRelayLegSheet_Click(object sender, RoutedEventArgs e) {
             if (_relayTeams == null || _relayTeams.Count == 0) {
-                MessageBox.Show("当前没有接力队。", Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show(Loc.T("Str_Msg_NoRelayTeamsYet"), Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
             int wantSession = AskRelaySession();
@@ -19824,11 +19823,11 @@ namespace SwimmingScoreboard
             try { sheetRows = RelayLegSheetService.Import(dlg.FileName, out warn); }
             catch (Exception ex) { MessageBox.Show(Loc.F("Str_Msg_ReadFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error"), MessageBoxButton.OK, MessageBoxImage.Error); return; }
             if (!string.IsNullOrEmpty(warn)) {
-                MessageBox.Show(warn + "\n\n请用「导出棒次填报表」重新导出一份再填。", Loc.T("Str_MsgTitle_FormatError"),
+                MessageBox.Show(warn + Loc.T("Str_Msg_ReexportLegSheetSuffix"), Loc.T("Str_MsgTitle_FormatError"),
                     MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
-            if (sheetRows.Count == 0) { MessageBox.Show("表里没有数据行。", Loc.T("Str_MsgTitle_Info")); return; }
+            if (sheetRows.Count == 0) { MessageBox.Show(Loc.T("Str_Msg_NoDataRowsInSheet"), Loc.T("Str_MsgTitle_Info")); return; }
 
             int updated = 0, blank = 0, otherSession = 0;
             var otherSet = new List<int>();
@@ -19895,28 +19894,27 @@ namespace SwimmingScoreboard
                 otherSet.Sort();
                 var names = new List<string>();
                 foreach (int s in otherSet) names.Add("第" + s + "场");
-                MessageBox.Show(string.Format(
-                    "这个文件里没有 第{0}场 的数据。\n\n文件里装的是: {1} (共 {2} 行)\n\n是不是文件拿错了? 请改选对应的场次, 或换成 第{0}场 的填报表。",
+                MessageBox.Show(Loc.F("Str_Msg_SessionFileMismatchFmt",
                     wantSession, string.Join(" / ", names.ToArray()), otherSession),
-                    "文件与场次对不上", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    Loc.T("Str_MsgTitle_SessionFileMismatch"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 AddLog(string.Format("读入接力棒次名单: 选了第{0}场, 但文件里只有别的场次, 未做任何修改", wantSession));
                 return;
             }
 
             var msg = new StringBuilder();
-            msg.AppendFormat("读入完成  (第{0}场)\n\n  已填入棒次: {1} 支队\n", wantSession, updated);
+            msg.AppendFormat(Loc.T("Str_Msg_LegImportDoneFmt"), wantSession, updated);
             foreach (var kv in perSession.OrderBy(x => x.Key))
-                msg.AppendFormat("      第{0}场: {1} 支\n", kv.Key, kv.Value);
-            if (blank > 0)         msg.AppendFormat("  尚未填写(跳过): {0} 行  ← 这些队原样不动\n", blank);
-            if (otherSession > 0)  msg.AppendFormat("  其它场次(跳过): {0} 行  ← 本次只读第{1}场\n", otherSession, wantSession);
+                msg.AppendFormat(Loc.T("Str_Msg_LegImportPerSessionFmt"), kv.Key, kv.Value);
+            if (blank > 0)         msg.AppendFormat(Loc.T("Str_Msg_LegImportBlankFmt"), blank);
+            if (otherSession > 0)  msg.AppendFormat(Loc.T("Str_Msg_LegImportOtherSessionFmt"), otherSession, wantSession);
             if (notFound.Count > 0) {
-                msg.AppendFormat("  对不上的队伍: {0} 行\n", notFound.Count);
+                msg.AppendFormat(Loc.T("Str_Msg_LegImportNotFoundHeaderFmt"), notFound.Count);
                 int show = Math.Min(8, notFound.Count);
                 for (int i = 0; i < show; i++) msg.AppendFormat("      {0}\n", notFound[i]);
-                if (notFound.Count > show) msg.AppendFormat("      ...另有 {0} 行\n", notFound.Count - show);
-                msg.Append("  (代表队/项目/性别/组别 四项必须与档案完全一致,\n   建议用「导出棒次填报表」导出的表来填, 不要自己另建表)\n");
+                if (notFound.Count > show) msg.AppendFormat(Loc.T("Str_Msg_LegImportMoreRowsFmt"), notFound.Count - show);
+                msg.Append(Loc.T("Str_Msg_LegImportMismatchHint"));
             }
-            MessageBox.Show(msg.ToString(), updated > 0 ? "读入成功" : "没有读入任何数据",
+            MessageBox.Show(msg.ToString(), updated > 0 ? Loc.T("Str_MsgTitle_ImportSuccess") : Loc.T("Str_MsgTitle_NoDataImported"),
                 MessageBoxButton.OK, updated > 0 ? MessageBoxImage.Information : MessageBoxImage.Warning);
             AddLog(string.Format("读入接力棒次名单(第{0}场): 填入 {1} 支, 未填 {2} 行, 别场次 {3} 行, 对不上 {4} 行",
                 wantSession, updated, blank, otherSession, notFound.Count));
