@@ -2515,6 +2515,23 @@ namespace SwimmingScoreboard
             { "Str_Win_SchedWizard_MsgComputeMultiEventFirst", new[] { "请先点 「🔍 统计兼项分布」", "Please click \"🔍 Compute Multi-Event Distribution\" first" } },
             { "Str_Win_SchedWizard_ExportMultiEventTitle", new[] { "导出兼项统计", "Export Multi-Event Statistics" } },
             { "Str_Win_SchedWizard_MultiEventCsvHeader", new[] { "号码,姓名,性别,代表队,个人项目数,接力项目数,兼项详情", "Bib No.,Name,Sex,Team,Individual Events,Relay Events,Event Detail" } },
+            { "Str_Btn_Copy", new[] { "复制", "Copy" } },
+            { "Str_Filter_TextFile", new[] { "文本文件 (*.txt)|*.txt|所有文件 (*.*)|*.*", "Text Files (*.txt)|*.txt|All Files (*.*)|*.*" } },
+            { "Str_Win_EventBackup_NoEvents", new[] { "(无事件)", "(No events)" } },
+            { "Str_Win_EventBackup_NoEventsLaneFmt", new[] { "(道{0} 无事件)", "(Lane {0}: no events)" } },
+            { "Str_Win_EventBackup_TitleFmt", new[] { "事件备份 ({0} 条) - Ctrl+S 存盘 / Ctrl+P 打印", "Event Backup ({0} entries) - Ctrl+S to Save / Ctrl+P to Print" } },
+            { "Str_Win_EventBackup_LaneQueryLabel", new[] { "泳道查询:", "Lane Filter:" } },
+            { "Str_Win_EventBackup_LanePrefix", new[] { "道", "Lane " } },
+            { "Str_Win_EventBackup_PrintDocName", new[] { "事件备份", "Event Backup" } },
+            { "Str_Win_ManualSplit_Title", new[] { "手工补段成绩", "Manual Split Entry" } },
+            { "Str_Win_ManualSplit_Tip", new[] { "📌 分段时间 = 累计时间 (从出发到此段触板, 例: 200m 比赛第 2 段 = 100m 触板时刻)", "📌 Split time = cumulative time (from the start to this touch, e.g. leg 2 of a 200m race = the 100m touch time)" } },
+            { "Str_Win_ManualSplit_LaneLabel", new[] { "道次:", "Lane:" } },
+            { "Str_Win_ManualSplit_EmptyLane", new[] { "(空)", "(Empty)" } },
+            { "Str_Win_ManualSplit_LaneItemFmt", new[] { "第 {0} 道 - {1}", "Lane {0} - {1}" } },
+            { "Str_Win_ManualSplit_SegLabelFmt", new[] { "段次 (1-{0}):", "Leg (1-{0}):" } },
+            { "Str_Win_ManualSplit_TimeLabel", new[] { "累计时间:", "Cumulative Time:" } },
+            { "Str_Win_ManualSplit_TimeHint", new[] { "格式: mm:ss.xxx (例 1:23.456) 或 ss.xxx (例 23.456)", "Format: mm:ss.xxx (e.g. 1:23.456) or ss.xxx (e.g. 23.456)" } },
+            { "Str_Win_ManualSplit_OkBtn", new[] { "✓ 确定补段", "✓ Confirm Split" } },
         };
 
         /// <summary>查当前语言下的文字；查不到就退回中文；中文也没有就返回 key 本身兜底。</summary>

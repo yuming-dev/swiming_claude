@@ -5394,13 +5394,13 @@ namespace SwimmingScoreboard
                             evt.Lane, evt.SideLabel, evt.EventLabel, evt.ActionLabel, ts, pFlag, evt.DevState));
                     }
                 }
-                if (pc == 0) ls.Add(laneFilter < 0 ? "(无事件)" : string.Format("(道{0} 无事件)", laneFilter));
+                if (pc == 0) ls.Add(laneFilter < 0 ? Loc.T("Str_Win_EventBackup_NoEvents") : Loc.F("Str_Win_EventBackup_NoEventsLaneFmt", laneFilter));
                 return ls;
             };
 
             // 滚动窗口
             var wnd = new Window {
-                Title = string.Format("事件备份 ({0} 条) - Ctrl+S 存盘 / Ctrl+P 打印", _pendingBackupEvents.Count),
+                Title = Loc.F("Str_Win_EventBackup_TitleFmt", _pendingBackupEvents.Count),
                 Width = 900, Height = 600,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner,
                 Owner = this
@@ -5412,10 +5412,10 @@ namespace SwimmingScoreboard
 
             // 2026-06-10 泳道查询: 选 道0..道9 只看该道, 选 全部 看所有道
             var filterPanel = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(10, 8, 10, 0), VerticalAlignment = VerticalAlignment.Center };
-            filterPanel.Children.Add(new TextBlock { Text = "泳道查询:", VerticalAlignment = VerticalAlignment.Center, FontSize = 13, Margin = new Thickness(0, 0, 8, 0) });
+            filterPanel.Children.Add(new TextBlock { Text = Loc.T("Str_Win_EventBackup_LaneQueryLabel"), VerticalAlignment = VerticalAlignment.Center, FontSize = 13, Margin = new Thickness(0, 0, 8, 0) });
             var laneCombo = new ComboBox { Width = 120, FontSize = 13 };
-            laneCombo.Items.Add("全部");
-            for (int i = 0; i <= 9; i++) laneCombo.Items.Add("道" + i);
+            laneCombo.Items.Add(Loc.T("Str_Common_All"));
+            for (int i = 0; i <= 9; i++) laneCombo.Items.Add(Loc.T("Str_Win_EventBackup_LanePrefix") + i);
             laneCombo.SelectedIndex = 0;
             filterPanel.Children.Add(laneCombo);
             Grid.SetRow(filterPanel, 0);
@@ -5444,11 +5444,11 @@ namespace SwimmingScoreboard
             // 按钮: 存盘 / 打印 / 复制 / 关闭
             var btnPanel = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(10) };
 
-            var btnSave = new Button { Content = "存盘", Width = 80, Height = 30, Margin = new Thickness(5) };
+            var btnSave = new Button { Content = Loc.T("Str_Btn_Save"), Width = 80, Height = 30, Margin = new Thickness(5) };
             btnSave.Click += delegate(object s, RoutedEventArgs e) {
                 var dlg = new Microsoft.Win32.SaveFileDialog {
                     FileName = string.Format("事件备份_{0:yyyyMMdd_HHmmss}.txt", DateTime.Now),
-                    Filter = "文本文件 (*.txt)|*.txt|所有文件 (*.*)|*.*"
+                    Filter = Loc.T("Str_Filter_TextFile")
                 };
                 if (dlg.ShowDialog() == true) {
                     try {
@@ -5461,7 +5461,7 @@ namespace SwimmingScoreboard
             };
             btnPanel.Children.Add(btnSave);
 
-            var btnPrint = new Button { Content = "打印", Width = 80, Height = 30, Margin = new Thickness(5) };
+            var btnPrint = new Button { Content = Loc.T("Str_Win_DocPreview_PrintBtn"), Width = 80, Height = 30, Margin = new Thickness(5) };
             btnPrint.Click += delegate(object s, RoutedEventArgs e) {
                 try {
                     var pd = new System.Windows.Controls.PrintDialog();
@@ -5475,7 +5475,7 @@ namespace SwimmingScoreboard
                             flowDoc.Blocks.Add(new System.Windows.Documents.Paragraph(new System.Windows.Documents.Run(line)) { Margin = new Thickness(0) });
                         }
                         var paginator = ((System.Windows.Documents.IDocumentPaginatorSource)flowDoc).DocumentPaginator;
-                        pd.PrintDocument(paginator, "事件备份");
+                        pd.PrintDocument(paginator, Loc.T("Str_Win_EventBackup_PrintDocName"));
                     }
                 } catch (Exception ex) {
                     MessageBox.Show(Loc.F("Str_Msg_PrintFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Print"), MessageBoxButton.OK, MessageBoxImage.Error);
@@ -5483,7 +5483,7 @@ namespace SwimmingScoreboard
             };
             btnPanel.Children.Add(btnPrint);
 
-            var btnCopy = new Button { Content = "复制", Width = 80, Height = 30, Margin = new Thickness(5) };
+            var btnCopy = new Button { Content = Loc.T("Str_Btn_Copy"), Width = 80, Height = 30, Margin = new Thickness(5) };
             btnCopy.Click += delegate(object s, RoutedEventArgs e) {
                 try {
                     System.Windows.Clipboard.SetText(string.Join("\r\n", lines));
@@ -5494,7 +5494,7 @@ namespace SwimmingScoreboard
             };
             btnPanel.Children.Add(btnCopy);
 
-            var btnClose = new Button { Content = "关闭", Width = 80, Height = 30, Margin = new Thickness(5) };
+            var btnClose = new Button { Content = Loc.T("Str_Btn_Close"), Width = 80, Height = 30, Margin = new Thickness(5) };
             btnClose.Click += delegate(object s, RoutedEventArgs e) { wnd.Close(); };
             btnPanel.Children.Add(btnClose);
 
@@ -8469,7 +8469,7 @@ namespace SwimmingScoreboard
         //  接力赛: 补的是某一棒终点时刻, 不动 LegReactionTimes
         private void ShowManualSplitDialog(int totalLaps, List<Swimmer> swimmers) {
             var dlg = new Window {
-                Title = "手工补段成绩",
+                Title = Loc.T("Str_Win_ManualSplit_Title"),
                 Width = 480,
                 Height = 340,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner,
@@ -8484,7 +8484,7 @@ namespace SwimmingScoreboard
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
             var tip = new TextBlock {
-                Text = "📌 分段时间 = 累计时间 (从出发到此段触板, 例: 200m 比赛第 2 段 = 100m 触板时刻)",
+                Text = Loc.T("Str_Win_ManualSplit_Tip"),
                 FontSize = 12,
                 Foreground = new SolidColorBrush(Color.FromRgb(0x64, 0x74, 0x8B)),
                 Margin = new Thickness(0, 0, 0, 16),
@@ -8494,7 +8494,7 @@ namespace SwimmingScoreboard
             Grid.SetRow(tip, 0);
             grid.Children.Add(tip);
 
-            var laneLabel = new TextBlock { Text = "道次:", FontSize = 14, VerticalAlignment = VerticalAlignment.Center };
+            var laneLabel = new TextBlock { Text = Loc.T("Str_Win_ManualSplit_LaneLabel"), FontSize = 14, VerticalAlignment = VerticalAlignment.Center };
             var laneCombo = new ComboBox { Height = 28, Margin = new Thickness(0, 0, 0, 8) };
             // 2026-06-04 按场地道次列 (= 8 道场地 8 项, 10 道场地 10 项), 不基于 swimmer, 不去重.
             //   每道显示对应运动员/接力队名, 空道显示 "(空)"
@@ -8505,25 +8505,25 @@ namespace SwimmingScoreboard
             };
             for (int laneNo = 1; laneNo <= laneCount; laneNo++) {
                 var swInLane = swimmers.FirstOrDefault(s => getLane(s) == laneNo);
-                string laneName = swInLane != null ? (swInLane.Name ?? "") : "(空)";
-                laneCombo.Items.Add(string.Format("第 {0} 道 - {1}", laneNo, laneName));
+                string laneName = swInLane != null ? (swInLane.Name ?? "") : Loc.T("Str_Win_ManualSplit_EmptyLane");
+                laneCombo.Items.Add(Loc.F("Str_Win_ManualSplit_LaneItemFmt", laneNo, laneName));
             }
             laneCombo.SelectedIndex = 0;
             Grid.SetRow(laneLabel, 1); Grid.SetColumn(laneLabel, 0);
             Grid.SetRow(laneCombo, 1); Grid.SetColumn(laneCombo, 1);
             grid.Children.Add(laneLabel); grid.Children.Add(laneCombo);
 
-            var segLabel = new TextBlock { Text = string.Format("段次 (1-{0}):", totalLaps), FontSize = 14, VerticalAlignment = VerticalAlignment.Center };
+            var segLabel = new TextBlock { Text = Loc.F("Str_Win_ManualSplit_SegLabelFmt", totalLaps), FontSize = 14, VerticalAlignment = VerticalAlignment.Center };
             var segBox = new TextBox { Height = 28, Margin = new Thickness(0, 0, 0, 8), Text = "1", FontSize = 14 };
             Grid.SetRow(segLabel, 2); Grid.SetColumn(segLabel, 0);
             Grid.SetRow(segBox, 2);   Grid.SetColumn(segBox, 1);
             grid.Children.Add(segLabel); grid.Children.Add(segBox);
 
-            var timeLabel = new TextBlock { Text = "累计时间:", FontSize = 14, VerticalAlignment = VerticalAlignment.Center };
+            var timeLabel = new TextBlock { Text = Loc.T("Str_Win_ManualSplit_TimeLabel"), FontSize = 14, VerticalAlignment = VerticalAlignment.Center };
             var timePanel = new StackPanel { Orientation = Orientation.Vertical, Margin = new Thickness(0, 0, 0, 8) };
             var timeBox = new TextBox { Height = 28, Text = "0:00.000", FontSize = 14 };
             var timeHint = new TextBlock {
-                Text = "格式: mm:ss.xxx (例 1:23.456) 或 ss.xxx (例 23.456)",
+                Text = Loc.T("Str_Win_ManualSplit_TimeHint"),
                 FontSize = 11, Foreground = new SolidColorBrush(Color.FromRgb(0x94, 0xA3, 0xB8)),
                 Margin = new Thickness(0, 4, 0, 0)
             };
@@ -8535,12 +8535,12 @@ namespace SwimmingScoreboard
 
             var btnPanel = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
             var okBtn = new Button {
-                Content = "✓ 确定补段", Width = 110, Height = 36, Margin = new Thickness(0, 0, 8, 0),
+                Content = Loc.T("Str_Win_ManualSplit_OkBtn"), Width = 110, Height = 36, Margin = new Thickness(0, 0, 8, 0),
                 Background = new SolidColorBrush(Color.FromRgb(0x06, 0xB6, 0xD4)),
                 Foreground = Brushes.White, FontWeight = FontWeights.Bold, BorderThickness = new Thickness(0), FontSize = 14
             };
             var cancelBtn = new Button {
-                Content = "取消", Width = 80, Height = 36,
+                Content = Loc.T("Str_Btn_Cancel"), Width = 80, Height = 36,
                 Background = new SolidColorBrush(Color.FromRgb(0xCB, 0xD5, 0xE1)),
                 BorderThickness = new Thickness(0), FontSize = 14
             };
