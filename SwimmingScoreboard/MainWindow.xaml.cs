@@ -19018,8 +19018,8 @@ namespace SwimmingScoreboard
                 ? "运动员报名表.csv"
                 : (_competitionName + "_运动员报名表.csv");
             var dlg = new Microsoft.Win32.SaveFileDialog {
-                Filter = "CSV文件|*.csv",
-                Title = "导出运动员报名数据",
+                Filter = Loc.T("Str_Filter_Csv"),
+                Title = Loc.T("Str_Win_ExportSwimmers_Title"),
                 FileName = defaultName
             };
             if (dlg.ShowDialog() != true) return;
@@ -19064,8 +19064,8 @@ namespace SwimmingScoreboard
 
         private void DownloadSwimmersTemplateCSV_Click(object sender, RoutedEventArgs e) {
             var dlg = new Microsoft.Win32.SaveFileDialog {
-                Filter = "CSV文件|*.csv",
-                Title = "保存个人报名模板",
+                Filter = Loc.T("Str_Filter_Csv"),
+                Title = Loc.T("Str_Win_SaveSwimmersTemplate_Title"),
                 FileName = "个人报名模板.csv"
             };
             if (dlg.ShowDialog() != true) return;
@@ -19104,8 +19104,8 @@ namespace SwimmingScoreboard
 
         private void ImportCSV_Click(object sender, RoutedEventArgs e) {
             var dlg = new Microsoft.Win32.OpenFileDialog {
-                Filter = "CSV文件|*.csv|所有文件|*.*",
-                Title = "导入运动员CSV"
+                Filter = Loc.T("Str_Filter_CsvAll"),
+                Title = Loc.T("Str_Win_ImportSwimmersCsv_Title")
             };
             if (dlg.ShowDialog() != true) return;
             try {
@@ -19553,7 +19553,7 @@ namespace SwimmingScoreboard
 
         private void ExportRelayTemplate_Click(object sender, RoutedEventArgs e) {
             var dlg = new Microsoft.Win32.SaveFileDialog {
-                Filter = "CSV 文件|*.csv", Title = "导出接力报名模板",
+                Filter = Loc.T("Str_Filter_Csv"), Title = Loc.T("Str_Win_ExportRelayTemplate_Title"),
                 FileName = "接力报名模板_" + DateTime.Now.ToString("yyyyMMdd_HHmm") + ".csv"
             };
             if (dlg.ShowDialog() != true) return;
@@ -19575,7 +19575,7 @@ namespace SwimmingScoreboard
                 MessageBox.Show(Loc.T("Str_Msg_NoRelayTeamsToExport"), Loc.T("Str_MsgTitle_Info")); return;
             }
             var dlg = new Microsoft.Win32.SaveFileDialog {
-                Filter = "CSV 文件|*.csv", Title = "导出接力队",
+                Filter = Loc.T("Str_Filter_Csv"), Title = Loc.T("Str_Win_ExportRelayTeams_Title"),
                 FileName = "接力队_" + DateTime.Now.ToString("yyyyMMdd_HHmm") + ".csv"
             };
             if (dlg.ShowDialog() != true) return;
@@ -19639,9 +19639,9 @@ namespace SwimmingScoreboard
                 return;
             }
             var dlg = new Microsoft.Win32.SaveFileDialog {
-                Filter = "Excel 工作簿|*.xlsx",
+                Filter = Loc.T("Str_Filter_ExcelXlsx"),
                 FileName = "接力棒次填报表.xlsx",
-                Title = "导出接力棒次填报表 (按场次分成多个文件)"
+                Title = Loc.T("Str_Win_ExportRelayLegSheet_Title")
             };
             if (dlg.ShowDialog() != true) return;
 
@@ -19946,7 +19946,7 @@ namespace SwimmingScoreboard
 
         private void ImportRelayCSV_Click(object sender, RoutedEventArgs e) {
             var dlg = new Microsoft.Win32.OpenFileDialog {
-                Filter = "CSV 文件|*.csv", Title = "导入接力队 CSV"
+                Filter = Loc.T("Str_Filter_Csv"), Title = Loc.T("Str_Win_ImportRelayCsv_Title")
             };
             if (dlg.ShowDialog() != true) return;
 
@@ -24634,8 +24634,8 @@ namespace SwimmingScoreboard
         //   PowerPoint 没装 → 弹错误提示 (不再走旧版 主控 PC 本地放映 兜底)
         private void PlayPpt_Click(object sender, RoutedEventArgs e) {
             var dlg = new Microsoft.Win32.OpenFileDialog {
-                Title = "选择 PPT 文件 (将逐页推送到大屏 display.html)",
-                Filter = "PowerPoint 文件 (*.ppt;*.pptx;*.pps;*.ppsx)|*.ppt;*.pptx;*.pps;*.ppsx|所有文件 (*.*)|*.*"
+                Title = Loc.T("Str_Win_PickPpt_Title"),
+                Filter = Loc.T("Str_Filter_Ppt")
             };
             if (dlg.ShowDialog() != true) return;
             string path = dlg.FileName;
@@ -24886,8 +24886,8 @@ namespace SwimmingScoreboard
 
             btnPick.Click += delegate {
                 var ofd = new Microsoft.Win32.OpenFileDialog {
-                    Title = "选择图片或视频",
-                    Filter = "图片 / 视频|*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.webp;*.mp4;*.webm;*.ogg;*.m4v|图片|*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.webp|视频|*.mp4;*.webm;*.ogg;*.m4v|所有文件|*.*"
+                    Title = Loc.T("Str_Win_PickImageVideo_Title"),
+                    Filter = Loc.T("Str_Filter_ImageVideo")
                 };
                 if (ofd.ShowDialog() == true) {
                     pathBox.Text = ofd.FileName;
@@ -25002,9 +25002,9 @@ namespace SwimmingScoreboard
 
         private void LoadCompetition_Click(object sender, RoutedEventArgs e) {
             var dlg = new Microsoft.Win32.OpenFileDialog {
-                Filter = "JSON文件|*.json",
+                Filter = Loc.T("Str_Filter_Json"),
                 InitialDirectory = IOPath.Combine(AppDomain.CurrentDomain.BaseDirectory, "Database"),
-                Title = "加载赛事"
+                Title = Loc.T("Str_Win_LoadCompetition_Title")
             };
             if (dlg.ShowDialog() == true) {
                 LoadCompetitionFromFile(dlg.FileName);
@@ -28172,8 +28172,8 @@ namespace SwimmingScoreboard
 
         private void ImportRecordsCSV_Click(object sender, RoutedEventArgs e) {
             var dlg = new Microsoft.Win32.OpenFileDialog {
-                Filter = "CSV文件|*.csv|文本文件|*.txt|所有文件|*.*",
-                Title = "导入纪录（格式：组别,性别,项目,类型,保持者,代表队,成绩,日期,地点；组别列可省略）"
+                Filter = Loc.T("Str_Filter_CsvTxtAll"),
+                Title = Loc.T("Str_Win_ImportRecords_Title")
             };
             if (dlg.ShowDialog() == true) {
                 try {
@@ -28271,8 +28271,8 @@ namespace SwimmingScoreboard
 
         private void ExportRecordTemplate_Click(object sender, RoutedEventArgs e) {
             var dlg = new Microsoft.Win32.SaveFileDialog {
-                Filter = "CSV文件|*.csv",
-                Title = "保存纪录模板（用Excel打开填写后，通过【导入CSV纪录】读入）",
+                Filter = Loc.T("Str_Filter_Csv"),
+                Title = Loc.T("Str_Win_SaveRecordTemplate_Title"),
                 FileName = "游泳纪录模板.csv"
             };
             if (dlg.ShowDialog() != true) return;
@@ -28994,8 +28994,8 @@ namespace SwimmingScoreboard
 
         private void ImportEventsCSV_Click(object sender, RoutedEventArgs e) {
             var dlg = new Microsoft.Win32.OpenFileDialog {
-                Filter = "CSV文件|*.csv|文本文件|*.txt|所有文件|*.*",
-                Title = "导入比赛项目表（首列为项目名，可带表头）"
+                Filter = Loc.T("Str_Filter_CsvTxtAll"),
+                Title = Loc.T("Str_Win_ImportEventsCsv_Title")
             };
             if (dlg.ShowDialog() != true) return;
             string ext = IOPath.GetExtension(dlg.FileName).ToLower();
@@ -29061,8 +29061,8 @@ namespace SwimmingScoreboard
 
         private void ImportAgeGroupsCSV_Click(object sender, RoutedEventArgs e) {
             var dlg = new Microsoft.Win32.OpenFileDialog {
-                Filter = "CSV文件|*.csv|文本文件|*.txt|所有文件|*.*",
-                Title = "导入组别表（表头: 组别名称）"
+                Filter = Loc.T("Str_Filter_CsvTxtAll"),
+                Title = Loc.T("Str_Win_ImportAgeGroupsCsv_Title")
             };
             if (dlg.ShowDialog() != true) return;
             string ext = IOPath.GetExtension(dlg.FileName).ToLower();
@@ -29186,8 +29186,8 @@ namespace SwimmingScoreboard
 
         private void ExportScheduleCSV_Click(object sender, RoutedEventArgs e) {
             var dlg = new Microsoft.Win32.SaveFileDialog {
-                Filter = "CSV文件|*.csv",
-                Title = "导出日程表（Excel/WPS 可直接打开）",
+                Filter = Loc.T("Str_Filter_Csv"),
+                Title = Loc.T("Str_Win_ExportScheduleCsv_Title"),
                 FileName = (string.IsNullOrEmpty(_competitionName) ? "日程表" : _competitionName) + ".csv"
             };
             if (dlg.ShowDialog() != true) return;
@@ -29216,8 +29216,8 @@ namespace SwimmingScoreboard
 
         private void ImportScheduleCSV_Click(object sender, RoutedEventArgs e) {
             var dlg = new Microsoft.Win32.OpenFileDialog {
-                Filter = "CSV文件|*.csv|文本文件|*.txt|所有文件|*.*",
-                Title = "导入日程表（表头: 场,日期,时间,组别,性别,项目,阶段,组数）"
+                Filter = Loc.T("Str_Filter_CsvTxtAll"),
+                Title = Loc.T("Str_Win_ImportScheduleCsv_Title")
             };
             if (dlg.ShowDialog() != true) return;
             string ext = IOPath.GetExtension(dlg.FileName).ToLower();
@@ -29276,8 +29276,8 @@ namespace SwimmingScoreboard
 
         private void DownloadScheduleTemplate_Click(object sender, RoutedEventArgs e) {
             var dlg = new Microsoft.Win32.SaveFileDialog {
-                Filter = "CSV文件|*.csv",
-                Title = "保存日程表模板",
+                Filter = Loc.T("Str_Filter_Csv"),
+                Title = Loc.T("Str_Win_SaveScheduleTemplate_Title"),
                 FileName = "日程表模板.csv"
             };
             if (dlg.ShowDialog() != true) return;
@@ -29301,8 +29301,8 @@ namespace SwimmingScoreboard
         // 三个工作表：分组明细 / 分组表(网格) / 填写说明
         private void ExportHeatAssignmentsExcel_Click(object sender, RoutedEventArgs e) {
             var dlg = new Microsoft.Win32.SaveFileDialog {
-                Filter = "Excel 工作簿|*.xlsx",
-                Title = "导出分组表 (Excel)",
+                Filter = Loc.T("Str_Filter_ExcelXlsx"),
+                Title = Loc.T("Str_Win_ExportHeatAssignmentsExcel_Title"),
                 FileName = (string.IsNullOrEmpty(_competitionName) ? "分组表" : _competitionName) + "_分组表.xlsx"
             };
             if (dlg.ShowDialog() != true) return;
@@ -29327,8 +29327,8 @@ namespace SwimmingScoreboard
 
         private void ImportHeatAssignmentsExcel_Click(object sender, RoutedEventArgs e) {
             var dlg = new Microsoft.Win32.OpenFileDialog {
-                Filter = "Excel 文件|*.xlsx;*.xls",
-                Title = "导入分组表 (Excel)"
+                Filter = Loc.T("Str_Filter_ExcelFile"),
+                Title = Loc.T("Str_Win_ImportHeatAssignmentsExcel_Title")
             };
             if (dlg.ShowDialog() != true) return;
 
