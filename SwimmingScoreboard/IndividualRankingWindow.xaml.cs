@@ -26,13 +26,13 @@ namespace SwimmingScoreboard
             _ageGroups = ageGroups ?? new List<AgeGroup>();
             _scoringConfig = scoringConfig ?? new ScoringConfig();
 
-            AgeGroupCombo.Items.Add("全部组别");
+            AgeGroupCombo.Items.Add(Loc.T("Str_Win_AwardCert_AllAgeGroups"));
             foreach (var g in _ageGroups) AgeGroupCombo.Items.Add(g.Name);
             AgeGroupCombo.SelectedIndex = 0;
         }
 
         private void Compute_Click(object sender, RoutedEventArgs e) {
-            string ageFilter = AgeGroupCombo.SelectedItem != null ? AgeGroupCombo.SelectedItem.ToString() : "全部组别";
+            string ageFilter = AgeGroupCombo.SelectedItem != null ? AgeGroupCombo.SelectedItem.ToString() : Loc.T("Str_Win_AwardCert_AllAgeGroups");
             string genderFilter = GenderCombo.SelectedItem != null ? ((ComboBoxItem)GenderCombo.SelectedItem).Content.ToString() : "全部";
             int topN = 25;
             int.TryParse(TopNBox.Text.Trim(), out topN);
@@ -46,7 +46,7 @@ namespace SwimmingScoreboard
                 //   用户定的规则: 个人总分榜只算个人项目, 接力不计入。
                 //   所以队伍条目排掉是对的, 下面再明确跳过接力项目。
                 .Where(s => s.Notes == null || !s.Notes.StartsWith("接力队 棒次:"))
-                .Where(s => ageFilter == "全部组别" || s.AgeCategory == ageFilter)
+                .Where(s => ageFilter == Loc.T("Str_Win_AwardCert_AllAgeGroups") || s.AgeCategory == ageFilter)
                 .Where(s => genderFilter == "全部" || s.Gender == genderFilter)
                 .Where(s => !string.IsNullOrEmpty(s.BibNumber))
                 .GroupBy(s => s.BibNumber)
@@ -74,7 +74,7 @@ namespace SwimmingScoreboard
                     double scored = pts * coeff;
                     total += scored;
                     indi++;
-                    details.Add(string.Format("{0}(个人):{1}名/{2}分", sw.EventName, evRank, scored.ToString("0.##")));
+                    details.Add(Loc.F("Str_Win_IndiRank_DetailFmt", sw.EventName, evRank, scored.ToString("0.##")));
                 }
                 if (total <= 0) continue;
                 rows.Add(new IndividualRankRow {
@@ -100,18 +100,18 @@ namespace SwimmingScoreboard
             }
             _lastResult = rows;
             RankGrid.ItemsSource = rows;
-            SummaryText.Text = string.Format("命中 {0} 人；列出 Top {1}", _lastResult.Count, rows.Count);
+            SummaryText.Text = Loc.F("Str_Win_IndiRank_SummaryFmt", _lastResult.Count, rows.Count);
         }
 
         private void ExportCsv_Click(object sender, RoutedEventArgs e) {
-            if (_lastResult.Count == 0) { MessageBox.Show("请先 🔍 统计", "提示"); return; }
+            if (_lastResult.Count == 0) { MessageBox.Show(Loc.T("Str_Win_IndiRank_MsgComputeFirst"), Loc.T("Str_MsgTitle_Info")); return; }
             var dlg = new Microsoft.Win32.SaveFileDialog {
-                Filter = "CSV 文件|*.csv", Title = "导出个人总分排名",
+                Filter = Loc.T("Str_Win_UnitMgmt_CsvFilter"), Title = Loc.T("Str_Win_IndiRank_ExportCsvTitle"),
                 FileName = "运动员个人总分排名_" + DateTime.Now.ToString("yyyyMMdd_HHmm") + ".csv"
             };
             if (dlg.ShowDialog() != true) return;
             var sb = new StringBuilder();
-            sb.AppendLine("名次,号码,姓名,性别,代表队,组别,总积分,个人项目数,项目-名次明细");
+            sb.AppendLine(Loc.T("Str_Win_IndiRank_CsvHeader"));
             foreach (var r in _lastResult) {
                 sb.AppendLine(string.Join(",", new[] {
                     r.Rank.ToString(), Esc(r.BibNumber), Esc(r.Name), Esc(r.Gender), Esc(r.Country), Esc(r.AgeCategory),
@@ -119,18 +119,21 @@ namespace SwimmingScoreboard
                 }));
             }
             File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
-            MessageBox.Show("已导出: " + dlg.FileName, "完成");
+            MessageBox.Show(Loc.F("Str_Win_UnitMgmt_MsgExportedFmt", dlg.FileName), Loc.T("Str_MsgTitle_Done"));
         }
 
         private void PrintHtml_Click(object sender, RoutedEventArgs e) {
-            if (_lastResult.Count == 0) { MessageBox.Show("请先 🔍 统计", "提示"); return; }
+            if (_lastResult.Count == 0) { MessageBox.Show(Loc.T("Str_Win_IndiRank_MsgComputeFirst"), Loc.T("Str_MsgTitle_Info")); return; }
             var sb = new StringBuilder();
-            sb.AppendLine("<!DOCTYPE html><html><head><meta charset='UTF-8'><title>运动员个人总分排名</title>");
+            sb.AppendLine("<!DOCTYPE html><html><head><meta charset='UTF-8'><title>" + He(Loc.T("Str_Win_IndiRank_Title")) + "</title>");
             sb.AppendLine("<style>body{font-family:'Microsoft YaHei',sans-serif;margin:20px;}table{border-collapse:collapse;width:100%;}");
             sb.AppendLine("th,td{border:1px solid #ddd;padding:6px 10px;text-align:left;}th{background:#1E40AF;color:white;text-align:center;vertical-align:middle;}");
             sb.AppendLine("tr:nth-child(even){background:#F8FAFC;}h1{color:#1E40AF;}</style></head><body>");
-            sb.AppendLine("<h1>运动员个人总分排名</h1>");
-            sb.AppendLine("<table><tr align='center'><th>名次</th><th>号码</th><th>姓名</th><th>性别</th><th>代表队</th><th>组别</th><th>总积分</th><th>个人项目</th><th>明细</th></tr>");
+            sb.AppendLine("<h1>" + He(Loc.T("Str_Win_IndiRank_Title")) + "</h1>");
+            sb.AppendFormat("<table><tr align='center'><th>{0}</th><th>{1}</th><th>{2}</th><th>{3}</th><th>{4}</th><th>{5}</th><th>{6}</th><th>{7}</th><th>{8}</th></tr>\n",
+                He(Loc.T("Str_Results_ColRank")), He(Loc.T("Str_Col_BibNo")), He(Loc.T("Str_Col_Name")), He(Loc.T("Str_Col_Sex")),
+                He(Loc.T("Str_Col_Team")), He(Loc.T("Str_Col_Group")), He(Loc.T("Str_Win_IndiRank_ColTotalPoints")),
+                He(Loc.T("Str_Win_IndiRank_ColIndiCount")), He(Loc.T("Str_Win_IndiRank_ColDetail")));
             foreach (var r in _lastResult) {
                 // 2026-09-03 去掉"接力"那一列后是 9 列, 占位符也要跟着减到 {0}..{8};
                 //   多留一个 {9} 会在导出时抛 FormatException(参数不够)。
@@ -141,7 +144,7 @@ namespace SwimmingScoreboard
             sb.AppendLine("</table></body></html>");
             string tmp = Path.Combine(Path.GetTempPath(), "运动员个人总分排名_" + DateTime.Now.ToString("yyyyMMdd_HHmm") + ".html");
             File.WriteAllText(tmp, sb.ToString(), Encoding.UTF8);
-            try { Process.Start(tmp); } catch { MessageBox.Show("已生成: " + tmp); }
+            try { Process.Start(tmp); } catch { MessageBox.Show(Loc.F("Str_Win_IndiRank_MsgGeneratedFmt", tmp)); }
         }
 
         private void Close_Click(object sender, RoutedEventArgs e) { Close(); }

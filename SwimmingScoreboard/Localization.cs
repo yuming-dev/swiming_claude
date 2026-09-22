@@ -2279,6 +2279,20 @@ namespace SwimmingScoreboard
             { "Str_Win_FinalsStatus_DnsNoteFmt", new[] { "DSQ/DNS/DNF {0} 人", "DSQ/DNS/DNF: {0}" } },
             { "Str_Win_FinalsStatus_SummaryFmt", new[] { "共 {0} 项决赛 | 录入完成 {1} 项 | 全部确认 {2} 项", "{0} final(s) total | {1} fully entered | {2} fully confirmed" } },
             { "Str_Win_FinalsStatus_ParticipantFmt", new[] { "{0}人", "{0}" } },
+            { "Str_Win_IndiRank_Title", new[] { "运动员个人总分排名", "Individual Total Score Ranking" } },
+            { "Str_Win_IndiRank_AgeGroupLabel", new[] { "比赛组别:", "Age Group:" } },
+            { "Str_Win_IndiRank_ComputeBtn", new[] { "🔍 统计", "🔍 Compute" } },
+            { "Str_Win_IndiRank_ColTotalPoints", new[] { "总积分", "Total Points" } },
+            { "Str_Win_IndiRank_ColIndiCount", new[] { "个人项目", "Individual Events" } },
+            { "Str_Win_IndiRank_ColDetail", new[] { "项目-名次明细", "Event-Rank Detail" } },
+            { "Str_Win_IndiRank_FooterNote", new[] { "说明: 积分按 名次分设置 配置计算 (个人名次分 + 组别系数)；仅决赛阶段计入；接力不计入个人总分(算在团体总分里)；DSQ/DNS/DNF 不计分", "Note: Points are computed from the Rank Points settings (individual rank points × age-group coefficient); only the finals stage counts; relays are excluded from individual totals (they count toward team totals instead); DSQ/DNS/DNF score nothing" } },
+            { "Str_Win_IndiRank_PrintHtmlBtn", new[] { "🖨 打印 HTML", "🖨 Print HTML" } },
+            { "Str_Win_IndiRank_DetailFmt", new[] { "{0}(个人):{1}名/{2}分", "{0} (Indiv.): Rank {1} / {2} pts" } },
+            { "Str_Win_IndiRank_SummaryFmt", new[] { "命中 {0} 人；列出 Top {1}", "{0} matched; showing Top {1}" } },
+            { "Str_Win_IndiRank_MsgComputeFirst", new[] { "请先 🔍 统计", "Please click 🔍 Compute first" } },
+            { "Str_Win_IndiRank_ExportCsvTitle", new[] { "导出个人总分排名", "Export Individual Ranking" } },
+            { "Str_Win_IndiRank_CsvHeader", new[] { "名次,号码,姓名,性别,代表队,组别,总积分,个人项目数,项目-名次明细", "Rank,Bib No.,Name,Sex,Team,Group,Total Points,Individual Events,Event-Rank Detail" } },
+            { "Str_Win_IndiRank_MsgGeneratedFmt", new[] { "已生成: {0}", "Generated: {0}" } },
         };
 
         /// <summary>查当前语言下的文字；查不到就退回中文；中文也没有就返回 key 本身兜底。</summary>
