@@ -18444,7 +18444,7 @@ namespace SwimmingScoreboard
                 if (single != null) toDelete.Add(single);
             }
             if (toDelete.Count == 0) {
-                MessageBox.Show("请先在列表里选中要删除的行（可按住 Ctrl/Shift 多选）。", Loc.T("Str_MsgTitle_Info"),
+                MessageBox.Show(Loc.T("Str_Msg_SelectRowsToDeleteMulti"), Loc.T("Str_MsgTitle_Info"),
                     MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
@@ -18452,11 +18452,11 @@ namespace SwimmingScoreboard
             string confirmMsg;
             if (toDelete.Count == 1) {
                 var s = toDelete[0];
-                confirmMsg = string.Format("确定删除运动员 {0}({1}) 的 {2} 报名记录？", s.Name, s.BibNumber, s.EventName);
+                confirmMsg = Loc.F("Str_Msg_ConfirmDeleteOneSwimmerFmt", s.Name, s.BibNumber, s.EventName);
             } else {
                 var preview = string.Join("\n", toDelete.Take(8).Select(s => string.Format("· {0}({1}) {2}", s.Name, s.BibNumber, s.EventName)));
-                if (toDelete.Count > 8) preview += string.Format("\n... 及其它 {0} 条", toDelete.Count - 8);
-                confirmMsg = string.Format("确定删除以下 {0} 条报名记录？\n\n{1}", toDelete.Count, preview);
+                if (toDelete.Count > 8) preview += Loc.F("Str_Msg_AndOthersFmt", toDelete.Count - 8);
+                confirmMsg = Loc.F("Str_Msg_ConfirmDeleteMultiSwimmersFmt", toDelete.Count, preview);
             }
             if (MessageBox.Show(confirmMsg, Loc.T("Str_MsgTitle_ConfirmDelete"), MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
 
@@ -18468,8 +18468,7 @@ namespace SwimmingScoreboard
                 if (!TryAcquireEditLock(k0, out h0)) {
                     foreach (var k in acquired) ReleaseEditLock(k);
                     MessageBox.Show(
-                        string.Format("运动员 [{0} {1}] 正在被 {2} 编辑，无法删除。请稍后再试。",
-                                      sw.BibNumber, sw.Name, h0),
+                        Loc.F("Str_Msg_SwimmerBeingEditedFmt", sw.BibNumber, sw.Name, h0),
                         Loc.T("Str_MsgTitle_CannotDelete"), MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
@@ -18485,7 +18484,7 @@ namespace SwimmingScoreboard
                 if (IsScheduleEditorMode && _editorSyncClient != null && _editorSyncClient.IsConnected) {
                     string perr;
                     if (!SendSwimmerDeletePatch(keys, out perr)) {
-                        MessageBox.Show("主服务器没有接受这次删除。\n\n原因: " + perr, "未能删除", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        MessageBox.Show(Loc.F("Str_Msg_DeleteRejectedFmt", perr), Loc.T("Str_MsgTitle_DeleteNotDone"), MessageBoxButton.OK, MessageBoxImage.Warning);
                         AddLog("运动员删除被主服务器拒绝: " + perr);
                         return;
                     }
@@ -18495,7 +18494,7 @@ namespace SwimmingScoreboard
                 int removed; string applyError;
                 if (!ApplySwimmerDeleteCore(keys, out removed, out applyError)) {
                     if (serverAccepted) {
-                        MessageBox.Show("主服务器已删除，但本机没能跟着删。\n\n原因: " + applyError + "\n\n请断开重连主服务器重新取一次数据。",
+                        MessageBox.Show(Loc.F("Str_Msg_DeleteServerAheadFmt", applyError),
                             Loc.T("Str_MsgTitle_ServerMismatch"), MessageBoxButton.OK, MessageBoxImage.Error);
                     } else {
                         MessageBox.Show(applyError, Loc.T("Str_MsgTitle_CannotDelete"), MessageBoxButton.OK, MessageBoxImage.Warning);
@@ -18510,8 +18509,8 @@ namespace SwimmingScoreboard
                 FinishSwimmerEditPatchApply();
                 AddLog(string.Format("已删除运动员 {0} 条{1}", removed, notFound > 0 ? string.Format("（{0} 条未在列表中找到）", notFound) : ""));
                 if (notFound > 0) {
-                    MessageBox.Show(string.Format("已删除 {0} 条。另有 {1} 条未在列表中找到，请检查是否被其他筛选/编辑中的操作修改。",
-                        removed, notFound), "删除结果", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    MessageBox.Show(Loc.F("Str_Msg_DeletePartialNotFoundFmt", removed, notFound),
+                        Loc.T("Str_MsgTitle_DeleteResult"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 }
             } finally {
                 foreach (var k in acquired) ReleaseEditLock(k);
@@ -18527,7 +18526,7 @@ namespace SwimmingScoreboard
 
         private void EditSwimmer_Click(object sender, RoutedEventArgs e) {
             var selected = SwimmerGrid.SelectedItem as Swimmer;
-            if (selected == null) { MessageBox.Show("请先选中要修改的运动员"); return; }
+            if (selected == null) { MessageBox.Show(Loc.T("Str_Msg_SelectSwimmerToEdit")); return; }
             // 联机时申请编辑锁；锁键用身份证号优先，没有则参赛号兜底。
             // 同一运动员被人占用 → 弹窗提示，不打开编辑窗口
             string lockKey = "swimmer:" + (!string.IsNullOrEmpty(selected.IDNumber) ? selected.IDNumber
@@ -18535,8 +18534,7 @@ namespace SwimmingScoreboard
             string holder;
             if (!TryAcquireEditLock(lockKey, out holder)) {
                 MessageBox.Show(
-                    string.Format("此运动员 [{0} {1}] 正在被 {2} 编辑，请稍后再试。",
-                                  selected.BibNumber, selected.Name, holder),
+                    Loc.F("Str_Msg_SwimmerBeingEditedByFmt", selected.BibNumber, selected.Name, holder),
                     Loc.T("Str_MsgTitle_CannotEdit"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
@@ -18555,8 +18553,8 @@ namespace SwimmingScoreboard
                 if (IsScheduleEditorMode && _editorSyncClient != null && _editorSyncClient.IsConnected) {
                     string perr;
                     if (!SendSwimmerEditPatch(f, out perr)) {
-                        MessageBox.Show("主服务器没有接受这次运动员信息修改。\n\n原因: " + perr + "\n\n本机数据未改动, 请稍后重试。",
-                            "未能保存", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        MessageBox.Show(Loc.F("Str_Msg_SwimmerEditRejectedFmt", perr),
+                            Loc.T("Str_MsgTitle_SaveNotDone"), MessageBoxButton.OK, MessageBoxImage.Warning);
                         AddLog("运动员信息修改被主服务器拒绝: " + perr);
                         return;
                     }
@@ -18566,8 +18564,7 @@ namespace SwimmingScoreboard
                 string applyError;
                 if (!ApplySwimmerEditCore(f, out applyError)) {
                     if (serverAccepted) {
-                        MessageBox.Show("主服务器已经接受这次修改，但本机没能跟着改。\n\n原因: " + applyError +
-                            "\n\n多半是本机这份数据旧了。请断开重连主服务器重新取一次数据。",
+                        MessageBox.Show(Loc.F("Str_Msg_SwimmerEditServerAheadFmt", applyError),
                             Loc.T("Str_MsgTitle_ServerMismatch"), MessageBoxButton.OK, MessageBoxImage.Error);
                         AddLog("★ 主服务器已接受运动员编辑但本机应用失败(数据可能已旧): " + applyError);
                     } else {
@@ -18702,9 +18699,9 @@ namespace SwimmingScoreboard
             // ApplySwimmerEditCore, 联机时要在【真正落子的那台机器】上查重才作数)
             string oldBib = target.BibNumber ?? "";
             string newBib = (tbBib.Text ?? "").Trim();
-            if (string.IsNullOrEmpty(newBib)) { MessageBox.Show("参赛号不能为空"); return false; }
+            if (string.IsNullOrEmpty(newBib)) { MessageBox.Show(Loc.T("Str_Msg_BibRequired")); return false; }
             if (isNew && _swimmers.Any(s => s.BibNumber == newBib)) {
-                MessageBox.Show(string.Format("参赛号 {0} 已存在，请换一个号码。", newBib));
+                MessageBox.Show(Loc.F("Str_Msg_BibAlreadyExistsFmt", newBib));
                 return false;
             }
 

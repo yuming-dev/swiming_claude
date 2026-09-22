@@ -846,6 +846,23 @@ namespace SwimmingScoreboard
             { "Str_Msg_ConfirmManualTimeFmt", new[] { "确认将泳道 {0} 的成绩手动输入为 {1}？\n\n此操作将写入数据库。", "Confirm manually entering lane {0}'s result as {1}?\n\nThis writes to the database." } },
             { "Str_Msg_SelectPrinterFirst", new[] { "请先选择打印机", "Select a printer first." } },
             { "Str_Msg_CannotDisconnectNotWaiting", new[] { "非 Waiting 状态不能断开 (请先按计时复位)", "Can't disconnect while not in Waiting state (press Clock Reset first)." } },
+            { "Str_Msg_SelectRowsToDeleteMulti", new[] { "请先在列表里选中要删除的行（可按住 Ctrl/Shift 多选）。", "Select the row(s) to delete in the list first (hold Ctrl/Shift to multi-select)." } },
+            { "Str_Msg_ConfirmDeleteOneSwimmerFmt", new[] { "确定删除运动员 {0}({1}) 的 {2} 报名记录？", "Delete swimmer {0}({1})'s entry in {2}?" } },
+            { "Str_Msg_AndOthersFmt", new[] { "\n... 及其它 {0} 条", "\n... and {0} more" } },
+            { "Str_Msg_ConfirmDeleteMultiSwimmersFmt", new[] { "确定删除以下 {0} 条报名记录？\n\n{1}", "Delete the following {0} entries?\n\n{1}" } },
+            { "Str_Msg_SwimmerBeingEditedFmt", new[] { "运动员 [{0} {1}] 正在被 {2} 编辑，无法删除。请稍后再试。", "Swimmer [{0} {1}] is currently being edited by {2} — can't delete. Try again shortly." } },
+            { "Str_MsgTitle_DeleteNotDone", new[] { "未能删除", "Delete Not Completed" } },
+            { "Str_Msg_DeleteRejectedFmt", new[] { "主服务器没有接受这次删除。\n\n原因: {0}", "The main server did not accept this delete.\n\nReason: {0}" } },
+            { "Str_Msg_DeleteServerAheadFmt", new[] { "主服务器已删除，但本机没能跟着删。\n\n原因: {0}\n\n请断开重连主服务器重新取一次数据。", "The main server already deleted this, but this machine failed to apply it.\n\nReason: {0}\n\nDisconnect and reconnect to the main server to re-fetch data." } },
+            { "Str_MsgTitle_DeleteResult", new[] { "删除结果", "Delete Result" } },
+            { "Str_Msg_DeletePartialNotFoundFmt", new[] { "已删除 {0} 条。另有 {1} 条未在列表中找到，请检查是否被其他筛选/编辑中的操作修改。", "Deleted {0}. {1} more were not found in the list — check whether another filter/edit changed them." } },
+            { "Str_Msg_SelectSwimmerToEdit", new[] { "请先选中要修改的运动员", "Select the swimmer to edit first." } },
+            { "Str_Msg_SwimmerBeingEditedByFmt", new[] { "此运动员 [{0} {1}] 正在被 {2} 编辑，请稍后再试。", "Swimmer [{0} {1}] is currently being edited by {2} — try again shortly." } },
+            { "Str_MsgTitle_SaveNotDone", new[] { "未能保存", "Save Not Completed" } },
+            { "Str_Msg_SwimmerEditRejectedFmt", new[] { "主服务器没有接受这次运动员信息修改。\n\n原因: {0}\n\n本机数据未改动, 请稍后重试。", "The main server did not accept this swimmer edit.\n\nReason: {0}\n\nNo local data was changed — try again shortly." } },
+            { "Str_Msg_SwimmerEditServerAheadFmt", new[] { "主服务器已经接受这次修改，但本机没能跟着改。\n\n原因: {0}\n\n多半是本机这份数据旧了。请断开重连主服务器重新取一次数据。", "The main server already accepted this edit, but this machine failed to apply it.\n\nReason: {0}\n\nThis usually means this machine's data is stale — disconnect and reconnect to re-fetch it." } },
+            { "Str_Msg_BibRequired", new[] { "参赛号不能为空", "Bib number is required." } },
+            { "Str_Msg_BibAlreadyExistsFmt", new[] { "参赛号 {0} 已存在，请换一个号码。", "Bib number {0} already exists — choose a different number." } },
         };
 
         /// <summary>查当前语言下的文字；查不到就退回中文；中文也没有就返回 key 本身兜底。</summary>
