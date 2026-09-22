@@ -16281,25 +16281,25 @@ namespace SwimmingScoreboard
         private int AskRelayViolationLeg(int lane, string swimmerName, int legCount) {
             int chosen = 0;
             var dlg = new Window {
-                Title = string.Format("接力 DSQ — 道{0} {1}", lane, swimmerName),
+                Title = Loc.F("Str_Win_RelayViolation_TitleFmt", lane, swimmerName),
                 Width = 380, Height = 200,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner, Owner = this, ResizeMode = ResizeMode.NoResize
             };
             var sp = new StackPanel { Margin = new Thickness(20) };
             sp.Children.Add(new TextBlock {
-                Text = "犯规发生在第几棒? (保留犯规之前的分段, 清犯规棒次起的成绩)",
+                Text = Loc.T("Str_Win_RelayViolation_Body"),
                 TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 12)
             });
             var legRow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
             for (int i = 1; i <= legCount; i++) {
                 int leg = i;
-                var b = new Button { Content = "第" + leg + "棒", Padding = new Thickness(14, 6, 14, 6), Margin = new Thickness(4),
+                var b = new Button { Content = Loc.F("Str_Win_RelayViolation_LegBtnFmt", leg), Padding = new Thickness(14, 6, 14, 6), Margin = new Thickness(4),
                     Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EF4444")), Foreground = Brushes.White, BorderThickness = new Thickness(0), FontSize = 13 };
                 b.Click += delegate { chosen = leg; dlg.DialogResult = true; };
                 legRow.Children.Add(b);
             }
             sp.Children.Add(legRow);
-            var btnCancel = new Button { Content = "取消 (不打 DSQ)", Padding = new Thickness(14, 5, 14, 5), Margin = new Thickness(0, 12, 0, 0),
+            var btnCancel = new Button { Content = Loc.T("Str_Win_RelayViolation_CancelBtn"), Padding = new Thickness(14, 5, 14, 5), Margin = new Thickness(0, 12, 0, 0),
                 HorizontalAlignment = HorizontalAlignment.Center,
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
             btnCancel.Click += delegate { chosen = 0; dlg.DialogResult = false; };
@@ -17266,16 +17266,16 @@ namespace SwimmingScoreboard
             int lane;
             if (!int.TryParse(LaneInputBox.Text, out lane)) { AddLog(Loc.T("Str_Log_PleaseEnterLaneNumber")); return; }
             var dlg = new Window {
-                Title = string.Format("手动输入成绩 — 泳道{0}", lane), Width = 320, Height = 170,
+                Title = Loc.F("Str_Win_ManualTime_TitleFmt", lane), Width = 320, Height = 170,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner, Owner = this, ResizeMode = ResizeMode.NoResize
             };
             var sp = new StackPanel { Margin = new Thickness(16) };
-            sp.Children.Add(new TextBlock { Text = "请输入成绩（如 49.23 或 1:23.45）:" });
+            sp.Children.Add(new TextBlock { Text = Loc.T("Str_Win_ManualTime_Prompt") });
             var tb = new TextBox { Margin = new Thickness(0, 8, 0, 8), Padding = new Thickness(4), FontSize = 14 };
             sp.Children.Add(tb);
             var btnRow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
-            var btnOK = new Button { Content = "确定", Padding = new Thickness(16, 4, 16, 4), Margin = new Thickness(0, 0, 6, 0) };
-            var btnCancel = new Button { Content = "取消", Padding = new Thickness(16, 4, 16, 4) };
+            var btnOK = new Button { Content = Loc.T("Str_Btn_OK"), Padding = new Thickness(16, 4, 16, 4), Margin = new Thickness(0, 0, 6, 0) };
+            var btnCancel = new Button { Content = Loc.T("Str_Btn_Cancel"), Padding = new Thickness(16, 4, 16, 4) };
             btnOK.Click += delegate { dlg.DialogResult = true; };
             btnCancel.Click += delegate { dlg.DialogResult = false; };
             btnRow.Children.Add(btnOK);
@@ -17332,12 +17332,12 @@ namespace SwimmingScoreboard
         }
         private void AutoSaveTxtPathConfig_Click(object sender, RoutedEventArgs e) {
             var dlg = new Window {
-                Title = "成绩 txt 自动存盘路径", Width = 560, Height = 220,
+                Title = Loc.T("Str_Win_AutoSaveTxtPath_Title"), Width = 560, Height = 220,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner, Owner = this, ResizeMode = ResizeMode.NoResize
             };
             var sp = new StackPanel { Margin = new Thickness(20) };
             sp.Children.Add(new TextBlock {
-                Text = "确认本组成绩 后, 自动保存 成绩 txt 到下面目录 (文件名 场号-项号-组号.txt). 留空则不自动保存.",
+                Text = Loc.T("Str_Win_AutoSaveTxtPath_Desc"),
                 TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 10)
             });
             var pathRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 10) };
@@ -17345,10 +17345,10 @@ namespace SwimmingScoreboard
                 Text = (string.IsNullOrWhiteSpace(_autoSaveTxtPath) ? GetAutoSaveTxtDir() : _autoSaveTxtPath),
                 Width = 400, Padding = new Thickness(4), FontSize = 13, Margin = new Thickness(0, 0, 6, 0)
             };
-            var btnBrowse = new Button { Content = "浏览…", Padding = new Thickness(12, 4, 12, 4), FontSize = 12 };
+            var btnBrowse = new Button { Content = Loc.T("Str_Win_AutoSaveTxtPath_BrowseBtn"), Padding = new Thickness(12, 4, 12, 4), FontSize = 12 };
             btnBrowse.Click += delegate {
                 var fbd = new System.Windows.Forms.FolderBrowserDialog {
-                    Description = "选择 成绩 txt 自动存盘目录",
+                    Description = Loc.T("Str_Win_AutoSaveTxtPath_BrowseTitle"),
                     SelectedPath = (Directory.Exists(tbPath.Text) ? tbPath.Text : AppDomain.CurrentDomain.BaseDirectory)
                 };
                 if (fbd.ShowDialog() == System.Windows.Forms.DialogResult.OK) tbPath.Text = fbd.SelectedPath;
@@ -17356,11 +17356,11 @@ namespace SwimmingScoreboard
             pathRow.Children.Add(tbPath); pathRow.Children.Add(btnBrowse);
             sp.Children.Add(pathRow);
             var btnRow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
-            var btnOk = new Button { Content = "保存", Padding = new Thickness(18, 5, 18, 5), Margin = new Thickness(0, 0, 8, 0),
+            var btnOk = new Button { Content = Loc.T("Str_Btn_Save"), Padding = new Thickness(18, 5, 18, 5), Margin = new Thickness(0, 0, 8, 0),
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#10B981")), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
-            var btnClear = new Button { Content = "清空 (不自动保存)", Padding = new Thickness(12, 5, 12, 5), Margin = new Thickness(0, 0, 8, 0),
+            var btnClear = new Button { Content = Loc.T("Str_Win_AutoSaveTxtPath_ClearBtn"), Padding = new Thickness(12, 5, 12, 5), Margin = new Thickness(0, 0, 8, 0),
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
-            var btnCancel = new Button { Content = "取消", Padding = new Thickness(18, 5, 18, 5),
+            var btnCancel = new Button { Content = Loc.T("Str_Btn_Cancel"), Padding = new Thickness(18, 5, 18, 5),
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
             btnOk.Click += delegate {
                 _autoSaveTxtPath = tbPath.Text.Trim();
@@ -17406,18 +17406,18 @@ namespace SwimmingScoreboard
         }
         private void ThermalPrinterConfig_Click(object sender, RoutedEventArgs e) {
             var dlg = new Window {
-                Title = "USB 热敏打印机 (实时打印 TP/SB/MB)", Width = 540, Height = 300,
+                Title = Loc.T("Str_Win_ThermalPrinter_Title"), Width = 540, Height = 300,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner, Owner = this, ResizeMode = ResizeMode.NoResize
             };
             var sp = new StackPanel { Margin = new Thickness(20) };
             sp.Children.Add(new TextBlock {
-                Text = "启用后, PC 每收到一条 TP/SB/MB (出/触/盲1-3) 硬件数据, 在写比赛日志的同时打印同一行. 打印机须已在 Windows 安装驱动. (不打印 手动触板/触代)",
+                Text = Loc.T("Str_Win_ThermalPrinter_Desc"),
                 TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 12)
             });
-            var chkEnable = new CheckBox { Content = "启用实时打印", IsChecked = _thermalPrintEnabled, FontSize = 14, Margin = new Thickness(0, 0, 0, 12) };
+            var chkEnable = new CheckBox { Content = Loc.T("Str_Win_ThermalPrinter_EnableChk"), IsChecked = _thermalPrintEnabled, FontSize = 14, Margin = new Thickness(0, 0, 0, 12) };
             sp.Children.Add(chkEnable);
             var pRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 12) };
-            pRow.Children.Add(new TextBlock { Text = "打印机:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0), FontSize = 13 });
+            pRow.Children.Add(new TextBlock { Text = Loc.T("Str_Win_ThermalPrinter_PrinterLabel"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0), FontSize = 13 });
             var combo = new ComboBox { Width = 320, FontSize = 13 };
             Action fill = delegate {
                 combo.Items.Clear();
@@ -17427,13 +17427,13 @@ namespace SwimmingScoreboard
             };
             fill();
             pRow.Children.Add(combo);
-            var btnRefresh = new Button { Content = "刷新", Padding = new Thickness(10, 3, 10, 3), Margin = new Thickness(8, 0, 0, 0), FontSize = 12 };
+            var btnRefresh = new Button { Content = Loc.T("Str_Win_ThermalPrinter_RefreshBtn"), Padding = new Thickness(10, 3, 10, 3), Margin = new Thickness(8, 0, 0, 0), FontSize = 12 };
             btnRefresh.Click += delegate { fill(); };
             pRow.Children.Add(btnRefresh);
             sp.Children.Add(pRow);
 
             var btnRow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 8, 0, 0) };
-            var btnTest = new Button { Content = "测试打印", Padding = new Thickness(14, 5, 14, 5), Margin = new Thickness(0, 0, 8, 0),
+            var btnTest = new Button { Content = Loc.T("Str_Win_ThermalPrinter_TestBtn"), Padding = new Thickness(14, 5, 14, 5), Margin = new Thickness(0, 0, 8, 0),
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6")), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
             btnTest.Click += delegate {
                 var name = combo.SelectedItem as string;
@@ -17441,9 +17441,9 @@ namespace SwimmingScoreboard
                 _thermalPrinter.PrinterName = name;
                 _thermalPrinter.TestPrint();
             };
-            var btnOk = new Button { Content = "保存", Padding = new Thickness(18, 5, 18, 5), Margin = new Thickness(0, 0, 8, 0),
+            var btnOk = new Button { Content = Loc.T("Str_Btn_Save"), Padding = new Thickness(18, 5, 18, 5), Margin = new Thickness(0, 0, 8, 0),
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#10B981")), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
-            var btnCancel = new Button { Content = "取消", Padding = new Thickness(18, 5, 18, 5),
+            var btnCancel = new Button { Content = Loc.T("Str_Btn_Cancel"), Padding = new Thickness(18, 5, 18, 5),
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
             btnOk.Click += delegate {
                 _thermalPrintEnabled = chkEnable.IsChecked == true;

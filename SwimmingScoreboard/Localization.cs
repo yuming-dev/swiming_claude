@@ -2563,6 +2563,23 @@ namespace SwimmingScoreboard
             { "Str_Win_DisplayRecordSetting_NewLabel", new[] { "新", "New" } },
             { "Str_Win_DisplayRecordSetting_NewTypeName", new[] { "新记录类型", "New Record Type" } },
             { "Str_Win_DisplayRecordSetting_OkBtn", new[] { "确定（应用选中项）", "OK (Apply Selection)" } },
+            { "Str_Win_RelayViolation_TitleFmt", new[] { "接力 DSQ — 道{0} {1}", "Relay DSQ — Lane {0} {1}" } },
+            { "Str_Win_RelayViolation_Body", new[] { "犯规发生在第几棒? (保留犯规之前的分段, 清犯规棒次起的成绩)", "Which leg did the violation occur on? (Splits before the violation are kept; the result from that leg onward is cleared)" } },
+            { "Str_Win_RelayViolation_LegBtnFmt", new[] { "第{0}棒", "Leg {0}" } },
+            { "Str_Win_RelayViolation_CancelBtn", new[] { "取消 (不打 DSQ)", "Cancel (do not DSQ)" } },
+            { "Str_Win_ManualTime_TitleFmt", new[] { "手动输入成绩 — 泳道{0}", "Manual Time Entry — Lane {0}" } },
+            { "Str_Win_ManualTime_Prompt", new[] { "请输入成绩（如 49.23 或 1:23.45）:", "Enter the time (e.g. 49.23 or 1:23.45):" } },
+            { "Str_Win_AutoSaveTxtPath_Title", new[] { "成绩 txt 自动存盘路径", "Result TXT Auto-Save Path" } },
+            { "Str_Win_AutoSaveTxtPath_Desc", new[] { "确认本组成绩 后, 自动保存 成绩 txt 到下面目录 (文件名 场号-项号-组号.txt). 留空则不自动保存.", "After confirming a heat's results, automatically save a results .txt to the folder below (filename: session-event-heat.txt). Leave blank to disable auto-save." } },
+            { "Str_Win_AutoSaveTxtPath_BrowseBtn", new[] { "浏览…", "Browse…" } },
+            { "Str_Win_AutoSaveTxtPath_BrowseTitle", new[] { "选择 成绩 txt 自动存盘目录", "Choose the folder for auto-saved result .txt files" } },
+            { "Str_Win_AutoSaveTxtPath_ClearBtn", new[] { "清空 (不自动保存)", "Clear (disable auto-save)" } },
+            { "Str_Win_ThermalPrinter_Title", new[] { "USB 热敏打印机 (实时打印 TP/SB/MB)", "USB Thermal Printer (Real-time TP/SB/MB Printing)" } },
+            { "Str_Win_ThermalPrinter_Desc", new[] { "启用后, PC 每收到一条 TP/SB/MB (出/触/盲1-3) 硬件数据, 在写比赛日志的同时打印同一行. 打印机须已在 Windows 安装驱动. (不打印 手动触板/触代)", "When enabled, every TP/SB/MB (start/touch/blind 1-3) hardware line received is printed at the same time it's written to the race log. The printer must already have a driver installed in Windows. (Manual touch/substitute-touch entries are not printed.)" } },
+            { "Str_Win_ThermalPrinter_EnableChk", new[] { "启用实时打印", "Enable Real-time Printing" } },
+            { "Str_Win_ThermalPrinter_PrinterLabel", new[] { "打印机:", "Printer:" } },
+            { "Str_Win_ThermalPrinter_RefreshBtn", new[] { "刷新", "Refresh" } },
+            { "Str_Win_ThermalPrinter_TestBtn", new[] { "测试打印", "Test Print" } },
         };
 
         /// <summary>查当前语言下的文字；查不到就退回中文；中文也没有就返回 key 本身兜底。</summary>
