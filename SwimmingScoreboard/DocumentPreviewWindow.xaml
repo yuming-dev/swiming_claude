@@ -1,7 +1,7 @@
 <Window x:Class="SwimmingScoreboard.DocumentPreviewWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="文档预览 / 输出"
+        Title="{DynamicResource Str_Win_DocPreview_Title}"
         Width="1100" Height="780"
         WindowStartupLocation="CenterOwner"
         Background="#F8FAFC">
@@ -19,23 +19,23 @@
     <DockPanel>
         <Border DockPanel.Dock="Top" Background="#1E40AF" Padding="16,10">
             <StackPanel Orientation="Horizontal">
-                <TextBlock x:Name="TitleText" Text="文档预览" FontSize="17" FontWeight="Bold" Foreground="White" VerticalAlignment="Center"/>
+                <TextBlock x:Name="TitleText" Text="{DynamicResource Str_Win_DocPreview_Title}" FontSize="17" FontWeight="Bold" Foreground="White" VerticalAlignment="Center"/>
             </StackPanel>
         </Border>
 
         <Border DockPanel.Dock="Bottom" Background="#E2E8F0" Padding="14,10">
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                <Button Content="在浏览器中打开" Click="OpenBrowser_Click" Background="#0EA5E9"
-                        ToolTip="在系统默认浏览器中打开当前文档（可在浏览器中按 Ctrl+P 打印或另存为 PDF）"/>
-                <Button Content="导出 PDF" Click="ExportPdf_Click" Background="#DC2626"
-                        ToolTip="在浏览器中打开后选择&quot;Microsoft Print to PDF&quot;打印机即可保存为 PDF"/>
-                <Button Content="导出 DOC" Click="ExportDoc_Click" Background="#2563EB"
-                        ToolTip="保存为 Microsoft Word 兼容的 .doc 文件"/>
-                <Button Content="导出 HTML" Click="ExportHtml_Click" Background="#7C3AED"
-                        ToolTip="保存为 .html 文件"/>
-                <Button Content="打印" Click="Print_Click" Background="#22C55E"
-                        ToolTip="使用系统打印机打印"/>
-                <Button Content="关闭" Click="Close_Click" Background="#475569"/>
+                <Button Content="{DynamicResource Str_Win_DocPreview_OpenBrowserBtn}" Click="OpenBrowser_Click" Background="#0EA5E9"
+                        ToolTip="{DynamicResource Str_Win_DocPreview_OpenBrowserTip}"/>
+                <Button Content="{DynamicResource Str_Win_DocPreview_ExportPdfBtn}" Click="ExportPdf_Click" Background="#DC2626"
+                        ToolTip="{DynamicResource Str_Win_DocPreview_ExportPdfTip}"/>
+                <Button Content="{DynamicResource Str_Win_DocPreview_ExportDocBtn}" Click="ExportDoc_Click" Background="#2563EB"
+                        ToolTip="{DynamicResource Str_Win_DocPreview_ExportDocTip}"/>
+                <Button Content="{DynamicResource Str_Win_DocPreview_ExportHtmlBtn}" Click="ExportHtml_Click" Background="#7C3AED"
+                        ToolTip="{DynamicResource Str_Win_DocPreview_ExportHtmlTip}"/>
+                <Button Content="{DynamicResource Str_Win_DocPreview_PrintBtn}" Click="Print_Click" Background="#22C55E"
+                        ToolTip="{DynamicResource Str_Win_DocPreview_PrintTip}"/>
+                <Button Content="{DynamicResource Str_Btn_Close}" Click="Close_Click" Background="#475569"/>
             </StackPanel>
         </Border>
 
