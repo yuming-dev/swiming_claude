@@ -22872,7 +22872,7 @@ namespace SwimmingScoreboard
             // 2026-05-24 导出当前表格的分组 (CSV)
             btnExportCsv.Click += delegate {
                 try { grid.CommitEdit(DataGridEditingUnit.Cell, true); grid.CommitEdit(DataGridEditingUnit.Row, true); } catch { }
-                if (cbEvent.SelectedIndex < 0) { MessageBox.Show("请先选择项目"); return; }
+                if (cbEvent.SelectedIndex < 0) { MessageBox.Show(Loc.T("Str_Msg_SelectEventFirst")); return; }
                 var combo = combos[cbEvent.SelectedIndex];
                 string stage = cbStage.SelectedItem as string ?? "预赛";
                 var saveDlg = new Microsoft.Win32.SaveFileDialog {
@@ -22892,7 +22892,7 @@ namespace SwimmingScoreboard
                     }));
                 }
                 System.IO.File.WriteAllText(saveDlg.FileName, sb.ToString(), System.Text.Encoding.UTF8);
-                MessageBox.Show("已导出: " + saveDlg.FileName, Loc.T("Str_MsgTitle_Done"));
+                MessageBox.Show(Loc.F("Str_Msg_ExportedToFmt", saveDlg.FileName), Loc.T("Str_MsgTitle_Done"));
             };
 
             btnOk.Click += delegate {
@@ -22989,7 +22989,7 @@ namespace SwimmingScoreboard
         // ═══════════════════════════════════════════════════════════════
         private void SupplementHeats_Click(object sender, RoutedEventArgs e) {
             if (_schedule.Count == 0) {
-                MessageBox.Show("请先生成日程和预赛分组。", Loc.T("Str_MsgTitle_Info")); return;
+                MessageBox.Show(Loc.T("Str_Msg_GenerateScheduleAndHeatsFirst"), Loc.T("Str_MsgTitle_Info")); return;
             }
 
             // 收集所有未分组的运动员（按项目分组）
@@ -23009,7 +23009,7 @@ namespace SwimmingScoreboard
             }
 
             if (unassigned.Count == 0) {
-                MessageBox.Show("所有运动员已分组，没有需要追加的。", Loc.T("Str_MsgTitle_Info")); return;
+                MessageBox.Show(Loc.T("Str_Msg_AllSwimmersAssigned"), Loc.T("Str_MsgTitle_Info")); return;
             }
 
             // 弹窗显示未分组运动员
