@@ -28049,13 +28049,13 @@ namespace SwimmingScoreboard
 
         private void ClearAllRecords_Click(object sender, RoutedEventArgs e) {
             if (_records.Count == 0) {
-                MessageBox.Show("当前没有纪录数据。", Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show(Loc.T("Str_Msg_NoRecordData"), Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
             RunWithEditLock("records-all", "纪录列表", delegate {
                 var result = MessageBox.Show(
-                    string.Format("确定要删除全部 {0} 条纪录数据吗？\n\n此操作不可撤销！", _records.Count),
-                    "删除全部纪录", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+                    Loc.F("Str_Msg_ConfirmDeleteAllRecordsFmt", _records.Count),
+                    Loc.T("Str_SysLog_ClearRecords"), MessageBoxButton.YesNo, MessageBoxImage.Warning);
                 if (result == MessageBoxResult.Yes) {
                     int count = _records.Count;
                     var recBefore = SnapshotRecords();
@@ -28744,7 +28744,7 @@ namespace SwimmingScoreboard
             if (ext == ".xls" || ext == ".xlsx") {
                 MessageBox.Show(Loc.T("Str_Msg_XlsxReadFailedTip"), Loc.T("Str_MsgTitle_FormatNote")); return;
             }
-            if (MessageBox.Show("导入将替换当前列表。继续？", Loc.T("Str_MsgTitle_Confirm"), MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
+            if (MessageBox.Show(Loc.T("Str_Msg_ImportReplacesListConfirm"), Loc.T("Str_MsgTitle_Confirm"), MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
             try {
                 var rows = ReadCsvLines(dlg.FileName);
                 var seen = new HashSet<string>();
@@ -28759,9 +28759,9 @@ namespace SwimmingScoreboard
                     seen.Add(v);
                     finalList.Add(v);
                 }
-                if (finalList.Count == 0) { MessageBox.Show("未读取到有效条目"); return; }
+                if (finalList.Count == 0) { MessageBox.Show(Loc.T("Str_Msg_NoValidEntries")); return; }
                 onLoaded(finalList);
-                MessageBox.Show(string.Format("已导入 {0} 个{1}。", finalList.Count, headerName), Loc.T("Str_MsgTitle_Done"));
+                MessageBox.Show(Loc.F("Str_Msg_ImportedNItemsFmt", finalList.Count, headerName), Loc.T("Str_MsgTitle_Done"));
             } catch (Exception ex) { MessageBox.Show(Loc.F("Str_Msg_ImportFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error")); }
         }
         private void DownloadStringListTemplate(string title, string fileName, string headerName, string[] sampleRows) {
@@ -28773,7 +28773,7 @@ namespace SwimmingScoreboard
                 sb.AppendLine(headerName + "名称");
                 foreach (var s in sampleRows) sb.AppendLine(s);
                 File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
-                MessageBox.Show(headerName + "模板已保存。", Loc.T("Str_MsgTitle_Done"));
+                MessageBox.Show(Loc.F("Str_Msg_TemplateSavedFmt", headerName), Loc.T("Str_MsgTitle_Done"));
             } catch (Exception ex) { MessageBox.Show(Loc.F("Str_Msg_SaveFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error")); }
         }
 
@@ -28902,11 +28902,11 @@ namespace SwimmingScoreboard
                 foreach (var row in working) {
                     string name = (row.Name ?? "").Trim();
                     if (string.IsNullOrEmpty(name)) continue;
-                    if (seen.Contains(name)) { MessageBox.Show(string.Format("项目 [{0}] 重复，请合并或删除。", name)); return; }
+                    if (seen.Contains(name)) { MessageBox.Show(Loc.F("Str_Msg_DuplicateEventFmt", name)); return; }
                     seen.Add(name);
                     finalList.Add(name);
                 }
-                if (finalList.Count == 0) { MessageBox.Show("至少保留一个比赛项目"); return; }
+                if (finalList.Count == 0) { MessageBox.Show(Loc.T("Str_Msg_KeepAtLeastOneEvent")); return; }
                 _events = finalList;
                 RefreshEventsPreview();
                 FinishAndSyncPatch(BuildListSetPatch("events", JArray.FromObject(_events), ClientLabel()), "meet");
