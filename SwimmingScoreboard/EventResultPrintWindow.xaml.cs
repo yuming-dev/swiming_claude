@@ -665,7 +665,7 @@ namespace SwimmingScoreboard
 
             if (string.IsNullOrEmpty(eventName))
             {
-                StatusText.Text = "请先选择比赛项目";
+                StatusText.Text = Loc.T("Str_Msg_SelectCompetitionEventFirst");
                 StatusText.Foreground = System.Windows.Media.Brushes.OrangeRed;
                 return;
             }
