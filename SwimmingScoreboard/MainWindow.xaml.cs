@@ -15072,7 +15072,7 @@ namespace SwimmingScoreboard
                 // Col 2: 左设备（T按钮 + 5圆点 + 剩余秒数）
                 var leftDev = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(2, 0, 0, 0) };
                 var touchL = new Button { Content = "T", Width = 80, Height = 26, FontSize = 14, BorderThickness = new Thickness(0),
-                    ToolTip = "右键: 手动 TP 记当前时间 (左键已禁用防误操作)\n跳圈 (减圈+换向不记时): Ctrl + 该泳道数字键 (Ctrl+0..9 对应道 0..9)" };
+                    ToolTip = Loc.T("Str_Tooltip_TouchLane") };
                 int capLane = lane;
                 // 2026-06-06 防误操作: T 按钮左键禁用, 改为右键触发手动 TP
                 touchL.PreviewMouseLeftButtonDown += delegate(object s1, System.Windows.Input.MouseButtonEventArgs e1) {
@@ -15184,7 +15184,7 @@ namespace SwimmingScoreboard
                 }
 
                 var touchR = new Button { Content = "T", Width = 80, Height = 26, FontSize = 14, BorderThickness = new Thickness(0),
-                    ToolTip = "右键: 手动 TP 记当前时间 (左键已禁用防误操作)\n跳圈 (减圈+换向不记时): Ctrl + 该泳道数字键 (Ctrl+0..9 对应道 0..9)" };
+                    ToolTip = Loc.T("Str_Tooltip_TouchLane") };
                 // 2026-06-06 防误操作: T 按钮左键禁用, 改为右键触发手动 TP
                 touchR.PreviewMouseLeftButtonDown += delegate(object s2, System.Windows.Input.MouseButtonEventArgs e2) {
                     e2.Handled = true;
@@ -18776,7 +18776,7 @@ namespace SwimmingScoreboard
             };
             dp.SetValue(System.Windows.FrameworkElement.LanguageProperty,
                         System.Windows.Markup.XmlLanguage.GetLanguage("en-CA"));
-            dp.ToolTip = "格式：yyyy-MM-dd（4 位年份），可直接输入也可点日历选择";
+            dp.ToolTip = Loc.T("Str_Tooltip_DateFormatHint");
             if (!string.IsNullOrEmpty(value)) {
                 DateTime d;
                 if (DateTime.TryParseExact(value.Trim(), "yyyy-MM-dd",
@@ -19393,7 +19393,7 @@ namespace SwimmingScoreboard
             // 报名成绩
             var rowEntry = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 0) };
             rowEntry.Children.Add(new TextBlock { Text = Loc.T("Str_Label_EntryTimeColon"), Width = 80, VerticalAlignment = VerticalAlignment.Center });
-            var tbEntryTime = new TextBox { Width = 320, Padding = new Thickness(4), ToolTip = "如 4:10.20 或 250.20，可留空" };
+            var tbEntryTime = new TextBox { Width = 320, Padding = new Thickness(4), ToolTip = Loc.T("Str_Tooltip_EntryTimeOptionalHint") };
             rowEntry.Children.Add(tbEntryTime);
             sp.Children.Add(rowEntry);
 
@@ -19425,8 +19425,8 @@ namespace SwimmingScoreboard
                     dpLegBirth.SetValue(System.Windows.FrameworkElement.LanguageProperty, System.Windows.Markup.XmlLanguage.GetLanguage("en-CA"));
                     dpLegBirth.SelectedDateFormat = DatePickerFormat.Short;
                     // 2026-05-21 与 register.html / 其它 EXE 一致：可输入 yyyy-MM-dd 也可点日历
-                    dpLegBirth.ToolTip = "格式：yyyy-MM-dd（4 位年份），可直接输入也可点日历选择";
-                    var tbLegBib = new TextBox { Width = 90, Padding = new Thickness(4), Margin = new Thickness(8, 0, 0, 0), ToolTip = "队员号码（可空）" };
+                    dpLegBirth.ToolTip = Loc.T("Str_Tooltip_DateFormatHint");
+                    var tbLegBib = new TextBox { Width = 90, Padding = new Thickness(4), Margin = new Thickness(8, 0, 0, 0), ToolTip = Loc.T("Str_Tooltip_BibOptionalHint") };
                     row.Children.Add(new TextBlock { Text = Loc.T("Str_Col_Name"), Margin = new Thickness(0, 0, 4, 0), VerticalAlignment = VerticalAlignment.Center });
                     row.Children.Add(tbLegName);
                     row.Children.Add(new TextBlock { Text = Loc.T("Str_Col_BirthDate"), Margin = new Thickness(8, 0, 4, 0), VerticalAlignment = VerticalAlignment.Center });
@@ -21756,7 +21756,7 @@ namespace SwimmingScoreboard
             var tbBib = new TextBox();
             var tbCountry = new TextBox();
             var tbAge = new TextBox();
-            var tbEntryTime = new TextBox { ToolTip = "报名成绩，格式如 0:58.23 或 58.23" };
+            var tbEntryTime = new TextBox { ToolTip = Loc.T("Str_Tooltip_EntryTimeFmtShort") };
             addRow("姓名:", tbName);
             addRow("号码:", tbBib);
             addRow("代表队:", tbCountry);
@@ -21836,7 +21836,7 @@ namespace SwimmingScoreboard
             };
 
             var tbTeam = new TextBox { Width = 320 };
-            var tbEntryTime = new TextBox { Width = 320, ToolTip = "报名成绩，格式如 4:10.20 或 250.20" };
+            var tbEntryTime = new TextBox { Width = 320, ToolTip = Loc.T("Str_Tooltip_EntryTimeFmtLong") };
             addRow("队名（代表队）:", tbTeam, 110);
             addRow("报名成绩:", tbEntryTime, 110);
 
@@ -21849,7 +21849,7 @@ namespace SwimmingScoreboard
                 var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 2, 0, 0) };
                 row.Children.Add(new TextBlock { Text = string.Format("第{0}棒:", i + 1), Width = 55, VerticalAlignment = VerticalAlignment.Center });
                 var tbLegName = new TextBox { Width = 180, Padding = new Thickness(4) };
-                var tbLegBib = new TextBox { Width = 100, Padding = new Thickness(4), Margin = new Thickness(8, 0, 0, 0), ToolTip = "队员号码（可空）" };
+                var tbLegBib = new TextBox { Width = 100, Padding = new Thickness(4), Margin = new Thickness(8, 0, 0, 0), ToolTip = Loc.T("Str_Tooltip_BibOptionalHint") };
                 row.Children.Add(new TextBlock { Text = Loc.T("Str_Col_Name"), Margin = new Thickness(0, 0, 4, 0), VerticalAlignment = VerticalAlignment.Center });
                 row.Children.Add(tbLegName);
                 row.Children.Add(new TextBlock { Text = Loc.T("Str_Col_Bib"), Margin = new Thickness(8, 0, 4, 0), VerticalAlignment = VerticalAlignment.Center });
@@ -22669,7 +22669,7 @@ namespace SwimmingScoreboard
             var btnEvenSplit = new Button { Content = Loc.T("Str_Btn_EvenSplit"), Padding = new Thickness(12, 5, 12, 5),
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#22C55E")),
                 Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0), Margin = new Thickness(0, 0, 8, 0),
-                ToolTip = "根据每组人数把所选项目的运动员平均分成若干组，例如 19 人按每组 8 → 2 组各 10 和 9"};
+                ToolTip = Loc.T("Str_Tooltip_EvenSplit")};
             btnRow.Children.Add(btnEvenSplit);
             var btnClear = new Button { Content = Loc.T("Str_Btn_ClearEventGrouping"), Padding = new Thickness(12, 5, 12, 5),
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EF4444")),
@@ -22679,12 +22679,12 @@ namespace SwimmingScoreboard
             var btnExportXlsx = new Button { Content = Loc.T("Str_Btn_ExportGroupingExcel"), Padding = new Thickness(12, 5, 12, 5),
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#16A34A")),
                 Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0), Margin = new Thickness(0, 0, 8, 0),
-                ToolTip = "导出全部已分组结果到 Excel (.xlsx, 3 个 Sheet: 分组明细 / 分组表网格 / 填写说明)" };
+                ToolTip = Loc.T("Str_Tooltip_ExportGroupingExcel") };
             btnRow.Children.Add(btnExportXlsx);
             var btnExportCsv = new Button { Content = Loc.T("Str_Btn_ExportCsvEmoji"), Padding = new Thickness(12, 5, 12, 5),
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#0EA5E9")),
                 Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0), Margin = new Thickness(0, 0, 8, 0),
-                ToolTip = "导出当前项目+阶段表格里的分组结果到 CSV" };
+                ToolTip = Loc.T("Str_Tooltip_ExportGroupingCsv") };
             btnRow.Children.Add(btnExportCsv);
             btnRow.Children.Add(new TextBlock { Text = Loc.T("Str_HeatGrid_EditHint"),
                 VerticalAlignment = VerticalAlignment.Center,
