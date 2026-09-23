@@ -829,7 +829,7 @@ namespace SwimmingScoreboard
                 parent.Children.Add(btnHwConn);
             }
             parent.Children.Add(new TextBlock {
-                Text = "主服务器: ",
+                Text = Loc.T("Str_Label_MainServerColon"),
                 Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")),
                 FontSize = 12, VerticalAlignment = VerticalAlignment.Center
             });
@@ -851,7 +851,7 @@ namespace SwimmingScoreboard
             _editorSyncConnectButton.Click += EditorSyncToggle_Click;
             parent.Children.Add(_editorSyncConnectButton);
             _editorSyncStatusText = new TextBlock {
-                Text = "离线", FontSize = 12, VerticalAlignment = VerticalAlignment.Center,
+                Text = Loc.T("Str_SyncStatus_Offline"), FontSize = 12, VerticalAlignment = VerticalAlignment.Center,
                 Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8"))
             };
             parent.Children.Add(_editorSyncStatusText);
@@ -1297,9 +1297,9 @@ namespace SwimmingScoreboard
             // 显示服务器地址 (RTC / ScheduleEditor 是客户端, 不开服务, 改为显示角色而不是 ws/http URL)
             string ip = GetLocalIP();
             if (IsRemoteTimingControlMode) {
-                ServerAddressText.Text = "远程计时控制 — 直连硬件计时器, 比赛状态经主服务器中转给大屏";
+                ServerAddressText.Text = Loc.T("Str_Mode_RtcDesc");
             } else if (IsScheduleEditorMode) {
-                ServerAddressText.Text = "赛事编排端 — 连主服务器同步赛程/运动员";
+                ServerAddressText.Text = Loc.T("Str_Mode_ScheduleEditorDesc");
             } else {
                 ServerAddressText.Text = string.Format("服务器地址: ws://{0}:3002  |  Web页面: http://{0}:8080", ip);
             }
@@ -3684,8 +3684,8 @@ namespace SwimmingScoreboard
             if (RaceControlTab.IsEnabled == !remote) return;    // 状态没变, 不折腾也不刷日志
             RaceControlTab.IsEnabled = !remote;
             if (remote) {
-                string who = _timingExeSockets.Count > 0 ? "比赛控制程序(EXE)" : "比赛控制网页";
-                RaceControlTab.ToolTip = "比赛控制已由" + who + "接管 —— 计时请在那台机器上操作。\n对方断开后本页自动恢复。";
+                string who = Loc.T(_timingExeSockets.Count > 0 ? "Str_Label_TimingExeProgram" : "Str_Label_TimingWebPage");
+                RaceControlTab.ToolTip = Loc.F("Str_Tooltip_RaceControlTakenOverFmt", who);
                 // 正停在这一页上就先挪走: 页签灰了内容还杵在那儿, 看着像死机
                 if (RaceControlTab.IsSelected) {
                     var tc = RaceControlTab.Parent as TabControl;
@@ -13933,8 +13933,8 @@ namespace SwimmingScoreboard
             Grid.SetColumn(leftLabels, 2); PoolHeader.Children.Add(leftLabels);
 
             var midLabels = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 6, 0) };
-            midLabels.Children.Add(new TextBlock { Text = "姓名/代表队", Width = 120, Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")), FontSize = 12, VerticalAlignment = VerticalAlignment.Center });
-            midLabels.Children.Add(new TextBlock { Text = "方向/进度", Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")), FontSize = 12, VerticalAlignment = VerticalAlignment.Center });
+            midLabels.Children.Add(new TextBlock { Text = Loc.T("Str_Col_NameTeam"), Width = 120, Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")), FontSize = 12, VerticalAlignment = VerticalAlignment.Center });
+            midLabels.Children.Add(new TextBlock { Text = Loc.T("Str_Col_DirectionProgress"), Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")), FontSize = 12, VerticalAlignment = VerticalAlignment.Center });
             Grid.SetColumn(midLabels, 3); PoolHeader.Children.Add(midLabels);
 
             // 右端表头：圈 触板 出发 盲1 盲2 盲3 [T]（盲表数量减少时盲2/盲3 用 Hidden 保留位置）
@@ -15378,7 +15378,7 @@ namespace SwimmingScoreboard
                         }
                     } else {
                         if (rowUI.NameText != null) {
-                            rowUI.NameText.Text = "（空泳道）";
+                            rowUI.NameText.Text = Loc.T("Str_Label_EmptyLaneParen");
                             rowUI.NameText.Foreground = _brushMutedText;
                         }
                     }
@@ -15705,7 +15705,7 @@ namespace SwimmingScoreboard
 
         private void UpdateTimingSourceInfo() {
             if (TimingSourceInfo == null || SplitSelectCombo == null) return;
-            if (_selectedLane < 0) { TimingSourceInfo.Text = "点击泳道行查看计时源"; return; }
+            if (_selectedLane < 0) { TimingSourceInfo.Text = Loc.T("Str_RC_TimingSourceHint"); return; }
 
             var currentSwimmers = GetCurrentHeatSwimmers();
             Swimmer targetSw = null;
@@ -18118,9 +18118,9 @@ namespace SwimmingScoreboard
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E293B"))
             };
             var sp = new StackPanel { Margin = new Thickness(20) };
-            sp.Children.Add(new TextBlock { Text = "左右盲表数量设置", FontSize = 17, FontWeight = FontWeights.Bold, Foreground = Brushes.White, Margin = new Thickness(0, 0, 0, 6) });
+            sp.Children.Add(new TextBlock { Text = Loc.T("Str_Win_BlindWatchCount_Title"), FontSize = 17, FontWeight = FontWeights.Bold, Foreground = Brushes.White, Margin = new Thickness(0, 0, 0, 6) });
             sp.Children.Add(new TextBlock {
-                Text = "每道使用的盲表数量（0-3, 0=该侧无盲表）。修改后将同步到三个计时控制台和硬件计时控制器。",
+                Text = Loc.T("Str_BlindWatch_Desc"),
                 Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")),
                 FontSize = 12, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 14)
             });
@@ -18241,7 +18241,7 @@ namespace SwimmingScoreboard
             mainGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
             mainGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Auto) });
 
-            mainGrid.Children.Add(new TextBlock { Text = "手动按键 用/不用 设置", FontSize = 17, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 0, 0, 12) });
+            mainGrid.Children.Add(new TextBlock { Text = Loc.T("Str_Win_ManualButtonsUse_Title"), FontSize = 17, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 0, 0, 12) });
 
             var dataGrid = new DataGrid {
                 AutoGenerateColumns = false, CanUserAddRows = false,
@@ -18250,9 +18250,9 @@ namespace SwimmingScoreboard
                 HeadersVisibility = DataGridHeadersVisibility.Column
             };
 
-            dataGrid.Columns.Add(new DataGridTextColumn { Header = "道次", Binding = new System.Windows.Data.Binding("Lane"), Width = new DataGridLength(60), IsReadOnly = true });
-            dataGrid.Columns.Add(new DataGridCheckBoxColumn { Header = "左手动 用", Binding = new System.Windows.Data.Binding("LeftEnabled"), Width = new DataGridLength(100) });
-            dataGrid.Columns.Add(new DataGridCheckBoxColumn { Header = "右手动 用", Binding = new System.Windows.Data.Binding("RightEnabled"), Width = new DataGridLength(100) });
+            dataGrid.Columns.Add(new DataGridTextColumn { Header = Loc.T("Str_Col_LaneNo"), Binding = new System.Windows.Data.Binding("Lane"), Width = new DataGridLength(60), IsReadOnly = true });
+            dataGrid.Columns.Add(new DataGridCheckBoxColumn { Header = Loc.T("Str_Col_LeftManualUse"), Binding = new System.Windows.Data.Binding("LeftEnabled"), Width = new DataGridLength(100) });
+            dataGrid.Columns.Add(new DataGridCheckBoxColumn { Header = Loc.T("Str_Col_RightManualUse"), Binding = new System.Windows.Data.Binding("RightEnabled"), Width = new DataGridLength(100) });
 
             var items = new List<ManualBtnItem>();
             foreach (var ls in _laneDeviceStates) {
@@ -18577,7 +18577,7 @@ namespace SwimmingScoreboard
 
             // 参赛号
             var bibRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 10) };
-            bibRow.Children.Add(new TextBlock { Text = "参赛号:", Width = 60, VerticalAlignment = VerticalAlignment.Center, FontWeight = FontWeights.Bold });
+            bibRow.Children.Add(new TextBlock { Text = Loc.T("Str_Label_BibColon"), Width = 60, VerticalAlignment = VerticalAlignment.Center, FontWeight = FontWeights.Bold });
             var tbBib = new TextBox { Text = target.BibNumber ?? "", Width = 150, Padding = new Thickness(4), VerticalAlignment = VerticalAlignment.Center };
             bibRow.Children.Add(tbBib);
             bibRow.Children.Add(new TextBlock {
@@ -18890,7 +18890,7 @@ namespace SwimmingScoreboard
             mainGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
 
             mainGrid.Children.Add(new TextBlock {
-                Text = "为每个代表队设置参赛号的数字区间。Width 为补零宽度（3=001/4=0001）。起/止为 0 视为未配置，使用全局 +1 逻辑。",
+                Text = Loc.T("Str_BibRange_Desc"),
                 TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 8), Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#334155"))
             });
 
@@ -18899,12 +18899,12 @@ namespace SwimmingScoreboard
                 SelectionMode = DataGridSelectionMode.Single,
                 AlternatingRowBackground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F8FAFC"))
             };
-            grid.Columns.Add(new DataGridTextColumn { Header = "代表队", Binding = new System.Windows.Data.Binding("Country") { Mode = System.Windows.Data.BindingMode.TwoWay, UpdateSourceTrigger = System.Windows.Data.UpdateSourceTrigger.PropertyChanged }, Width = new DataGridLength(180) });
-            grid.Columns.Add(new DataGridTextColumn { Header = "起始号", Binding = new System.Windows.Data.Binding("Start") { Mode = System.Windows.Data.BindingMode.TwoWay }, Width = new DataGridLength(80) });
-            grid.Columns.Add(new DataGridTextColumn { Header = "结束号", Binding = new System.Windows.Data.Binding("End") { Mode = System.Windows.Data.BindingMode.TwoWay }, Width = new DataGridLength(80) });
-            grid.Columns.Add(new DataGridTextColumn { Header = "补零位数", Binding = new System.Windows.Data.Binding("Width") { Mode = System.Windows.Data.BindingMode.TwoWay }, Width = new DataGridLength(80) });
+            grid.Columns.Add(new DataGridTextColumn { Header = Loc.T("Str_Col_Team"), Binding = new System.Windows.Data.Binding("Country") { Mode = System.Windows.Data.BindingMode.TwoWay, UpdateSourceTrigger = System.Windows.Data.UpdateSourceTrigger.PropertyChanged }, Width = new DataGridLength(180) });
+            grid.Columns.Add(new DataGridTextColumn { Header = Loc.T("Str_Col_StartNo"), Binding = new System.Windows.Data.Binding("Start") { Mode = System.Windows.Data.BindingMode.TwoWay }, Width = new DataGridLength(80) });
+            grid.Columns.Add(new DataGridTextColumn { Header = Loc.T("Str_Col_EndNo"), Binding = new System.Windows.Data.Binding("End") { Mode = System.Windows.Data.BindingMode.TwoWay }, Width = new DataGridLength(80) });
+            grid.Columns.Add(new DataGridTextColumn { Header = Loc.T("Str_Col_PadWidth"), Binding = new System.Windows.Data.Binding("Width") { Mode = System.Windows.Data.BindingMode.TwoWay }, Width = new DataGridLength(80) });
             // 动态计算使用状态
-            var usageCol = new DataGridTextColumn { Header = "已用/区间", Width = new DataGridLength(120), IsReadOnly = true };
+            var usageCol = new DataGridTextColumn { Header = Loc.T("Str_Col_UsedRange"), Width = new DataGridLength(120), IsReadOnly = true };
             usageCol.Binding = new System.Windows.Data.Binding(".") { Converter = new BibRangeUsageConverter(_swimmers) };
             grid.Columns.Add(usageCol);
             grid.ItemsSource = working;
@@ -19353,11 +19353,11 @@ namespace SwimmingScoreboard
                 WindowStartupLocation = WindowStartupLocation.CenterOwner, Owner = this, ResizeMode = ResizeMode.CanResize
             };
             var sp = new StackPanel { Margin = new Thickness(16) };
-            sp.Children.Add(new TextBlock { Text = "填写接力队信息：", FontSize = 14, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 0, 0, 8) });
+            sp.Children.Add(new TextBlock { Text = Loc.T("Str_RelayForm_Header"), FontSize = 14, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 0, 0, 8) });
 
             // 项目
             var rowEvent = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 0) };
-            rowEvent.Children.Add(new TextBlock { Text = "项目:", Width = 80, VerticalAlignment = VerticalAlignment.Center });
+            rowEvent.Children.Add(new TextBlock { Text = Loc.T("Str_EM_RegEventLabel"), Width = 80, VerticalAlignment = VerticalAlignment.Center });
             var cbEvent = new ComboBox { Width = 320 };
             foreach (var ev in relayEvents) cbEvent.Items.Add(ev);
             cbEvent.SelectedIndex = 0;
@@ -19366,7 +19366,7 @@ namespace SwimmingScoreboard
 
             // 性别
             var rowGender = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 0) };
-            rowGender.Children.Add(new TextBlock { Text = "性别:", Width = 80, VerticalAlignment = VerticalAlignment.Center });
+            rowGender.Children.Add(new TextBlock { Text = Loc.T("Str_Common_Gender"), Width = 80, VerticalAlignment = VerticalAlignment.Center });
             var cbGender = new ComboBox { Width = 320 };
             cbGender.Items.Add("男"); cbGender.Items.Add("女"); cbGender.Items.Add("混合");
             cbGender.SelectedIndex = 0;
@@ -19375,7 +19375,7 @@ namespace SwimmingScoreboard
 
             // 2026-05-25 组别 (来自主程序 _ageGroups, 用户报名时必选)
             var rowAge = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 0) };
-            rowAge.Children.Add(new TextBlock { Text = "组别:", Width = 80, VerticalAlignment = VerticalAlignment.Center });
+            rowAge.Children.Add(new TextBlock { Text = Loc.T("Str_Common_AgeGroup"), Width = 80, VerticalAlignment = VerticalAlignment.Center });
             var cbAge = new ComboBox { Width = 320 };
             cbAge.Items.Add("");   // 允许不指定 (向后兼容旧数据)
             foreach (var g in _ageGroups) cbAge.Items.Add(g.Name);
@@ -19385,14 +19385,14 @@ namespace SwimmingScoreboard
 
             // 队名
             var rowTeam = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 0) };
-            rowTeam.Children.Add(new TextBlock { Text = "队名:", Width = 80, VerticalAlignment = VerticalAlignment.Center });
+            rowTeam.Children.Add(new TextBlock { Text = Loc.T("Str_Label_TeamNameColon"), Width = 80, VerticalAlignment = VerticalAlignment.Center });
             var tbTeam = new TextBox { Width = 320, Padding = new Thickness(4) };
             rowTeam.Children.Add(tbTeam);
             sp.Children.Add(rowTeam);
 
             // 报名成绩
             var rowEntry = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 0) };
-            rowEntry.Children.Add(new TextBlock { Text = "报名成绩:", Width = 80, VerticalAlignment = VerticalAlignment.Center });
+            rowEntry.Children.Add(new TextBlock { Text = Loc.T("Str_Label_EntryTimeColon"), Width = 80, VerticalAlignment = VerticalAlignment.Center });
             var tbEntryTime = new TextBox { Width = 320, Padding = new Thickness(4), ToolTip = "如 4:10.20 或 250.20，可留空" };
             rowEntry.Children.Add(tbEntryTime);
             sp.Children.Add(rowEntry);
@@ -19427,11 +19427,11 @@ namespace SwimmingScoreboard
                     // 2026-05-21 与 register.html / 其它 EXE 一致：可输入 yyyy-MM-dd 也可点日历
                     dpLegBirth.ToolTip = "格式：yyyy-MM-dd（4 位年份），可直接输入也可点日历选择";
                     var tbLegBib = new TextBox { Width = 90, Padding = new Thickness(4), Margin = new Thickness(8, 0, 0, 0), ToolTip = "队员号码（可空）" };
-                    row.Children.Add(new TextBlock { Text = "姓名", Margin = new Thickness(0, 0, 4, 0), VerticalAlignment = VerticalAlignment.Center });
+                    row.Children.Add(new TextBlock { Text = Loc.T("Str_Col_Name"), Margin = new Thickness(0, 0, 4, 0), VerticalAlignment = VerticalAlignment.Center });
                     row.Children.Add(tbLegName);
-                    row.Children.Add(new TextBlock { Text = "出生日期", Margin = new Thickness(8, 0, 4, 0), VerticalAlignment = VerticalAlignment.Center });
+                    row.Children.Add(new TextBlock { Text = Loc.T("Str_Col_BirthDate"), Margin = new Thickness(8, 0, 4, 0), VerticalAlignment = VerticalAlignment.Center });
                     row.Children.Add(dpLegBirth);
-                    row.Children.Add(new TextBlock { Text = "号码", Margin = new Thickness(8, 0, 4, 0), VerticalAlignment = VerticalAlignment.Center });
+                    row.Children.Add(new TextBlock { Text = Loc.T("Str_Col_Bib"), Margin = new Thickness(8, 0, 4, 0), VerticalAlignment = VerticalAlignment.Center });
                     row.Children.Add(tbLegBib);
                     legsPanel.Children.Add(row);
                     legNameBoxes.Add(tbLegName);
@@ -19732,11 +19732,11 @@ namespace SwimmingScoreboard
             };
             var root = new StackPanel { Margin = new Thickness(18) };
             root.Children.Add(new TextBlock {
-                Text = "拿到的是哪一场的接力名单？", FontSize = 15, FontWeight = FontWeights.Bold,
+                Text = Loc.T("Str_ImportRelay_WhichSession"), FontSize = 15, FontWeight = FontWeights.Bold,
                 Margin = new Thickness(0, 0, 0, 4)
             });
             root.Children.Add(new TextBlock {
-                Text = "只读入选中场次的队伍；文件里其它场次的行会跳过并提示。",
+                Text = Loc.T("Str_ImportRelay_SessionOnlyHint"),
                 FontSize = 12, Foreground = System.Windows.Media.Brushes.Gray,
                 Margin = new Thickness(0, 0, 0, 12), TextWrapping = TextWrapping.Wrap
             });
@@ -20239,7 +20239,7 @@ namespace SwimmingScoreboard
 
                 _selectedRelayTeam = null;
                 if (RelayLegGrid != null) RelayLegGrid.ItemsSource = null;
-                RelayLegTitle.Text = "棒次安排（请选中一支接力队）";
+                RelayLegTitle.Text = Loc.T("Str_RelayLeg_SelectTeamHint");
                 FinishRelayEditPatchApply();
                 AddLog(Loc.F("Str_Log_RelayDeletedFmt", teamName, eventName));
             } finally {
@@ -20251,7 +20251,7 @@ namespace SwimmingScoreboard
             var selected = _selectedRelayTeam;
             if (selected == null) {
                 if (RelayLegGrid != null) RelayLegGrid.ItemsSource = null;
-                RelayLegTitle.Text = "棒次安排（请选中一支接力队）";
+                RelayLegTitle.Text = Loc.T("Str_RelayLeg_SelectTeamHint");
                 return;
             }
             // 自动补全队员号码 / 身份证号
@@ -20355,7 +20355,7 @@ namespace SwimmingScoreboard
             });
 
             // 从本队运动员中选择
-            sp.Children.Add(new TextBlock { Text = "从本队运动员中选择:", FontSize = 13, Margin = new Thickness(0, 0, 0, 4) });
+            sp.Children.Add(new TextBlock { Text = Loc.T("Str_RelayLeg_PickFromTeam"), FontSize = 13, Margin = new Thickness(0, 0, 0, 4) });
             var memberList = new ListBox { Height = 120, FontSize = 13 };
             foreach (var m in teamMembers) {
                 memberList.Items.Add(string.Format("{0}  ({1})  {2}", m.Name, m.BibNumber ?? "", m.Gender));
@@ -20367,7 +20367,7 @@ namespace SwimmingScoreboard
             sp.Children.Add(memberList);
 
             // 分隔线
-            sp.Children.Add(new TextBlock { Text = "— 或手动输入 —", HorizontalAlignment = HorizontalAlignment.Center,
+            sp.Children.Add(new TextBlock { Text = Loc.T("Str_RelayLeg_OrManualEntry"), HorizontalAlignment = HorizontalAlignment.Center,
                 Foreground = new SolidColorBrush(Colors.Gray), Margin = new Thickness(0, 8, 0, 4) });
 
             var inputPanel = new Grid();
@@ -20388,11 +20388,11 @@ namespace SwimmingScoreboard
             labelPanel.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             labelPanel.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(180) });
             labelPanel.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(80) });
-            var lb1 = new TextBlock { Text = "姓名:", FontSize = 12, Foreground = new SolidColorBrush(Colors.Gray) };
+            var lb1 = new TextBlock { Text = Loc.T("Str_Label_NameColon"), FontSize = 12, Foreground = new SolidColorBrush(Colors.Gray) };
             lb1.SetValue(Grid.ColumnProperty, 0);
-            var lb2 = new TextBlock { Text = "身份证号:", FontSize = 12, Foreground = new SolidColorBrush(Colors.Gray) };
+            var lb2 = new TextBlock { Text = Loc.T("Str_Label_IdNumberColon"), FontSize = 12, Foreground = new SolidColorBrush(Colors.Gray) };
             lb2.SetValue(Grid.ColumnProperty, 1);
-            var lb3 = new TextBlock { Text = "参赛号:", FontSize = 12, Foreground = new SolidColorBrush(Colors.Gray) };
+            var lb3 = new TextBlock { Text = Loc.T("Str_Label_BibColon"), FontSize = 12, Foreground = new SolidColorBrush(Colors.Gray) };
             lb3.SetValue(Grid.ColumnProperty, 2);
             labelPanel.Children.Add(lb1);
             labelPanel.Children.Add(lb2);
@@ -20408,7 +20408,7 @@ namespace SwimmingScoreboard
                 Padding = new Thickness(8, 4, 8, 4), Margin = new Thickness(0, 6, 0, 0)
             };
             hintBorder.Child = new TextBlock {
-                Text = "提示：姓名需与身份证一致；身份证号为 18 位数字；参赛号由报名时分配",
+                Text = Loc.T("Str_RelayLeg_ManualHint"),
                 Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#92400E")),
                 FontSize = 11, TextWrapping = TextWrapping.Wrap
             };
@@ -20655,7 +20655,7 @@ namespace SwimmingScoreboard
 
         private void RegAddEvent_Click(object sender, RoutedEventArgs e) {
             string eventName = RegEventCombo.SelectedItem != null ? ((ComboBoxItem)RegEventCombo.SelectedItem).Content.ToString() : "";
-            if (string.IsNullOrEmpty(eventName)) { RegStatusText.Text = "请选择项目"; return; }
+            if (string.IsNullOrEmpty(eventName)) { RegStatusText.Text = Loc.T("Str_Msg_PleaseSelectEvent"); return; }
 
             foreach (var ev in _regEventList) {
                 if (ev.Item1 == eventName) {
@@ -20720,7 +20720,7 @@ namespace SwimmingScoreboard
             if (errors.Count > 0) {
                 string vmsg = "表单未通过校验，请补全以下字段：\n\n  • " + string.Join("\n  • ", errors);
                 MessageBox.Show(this, vmsg, Loc.T("Str_MsgTitle_RequiredMissing"), MessageBoxButton.OK, MessageBoxImage.Warning);
-                RegStatusText.Text = "表单未通过校验: " + string.Join(" / ", errors);
+                RegStatusText.Text = Loc.T("Str_Label_ValidationFailedColon") + string.Join(" / ", errors);
                 RegStatusText.Foreground = new SolidColorBrush(Colors.Red);
                 return;
             }
@@ -20829,7 +20829,7 @@ namespace SwimmingScoreboard
                 RegStatusText.Text = string.Format("全部 {0} 项均与现有记录冲突，未入库", skipped);
                 RegStatusText.Foreground = new SolidColorBrush(Colors.Red);
             } else {
-                RegStatusText.Text = "未处理任何项目";
+                RegStatusText.Text = Loc.T("Str_Msg_NoEventsProcessed");
                 RegStatusText.Foreground = new SolidColorBrush(Colors.Gray);
             }
 
@@ -21469,7 +21469,7 @@ namespace SwimmingScoreboard
             };
             var sp = new StackPanel { Margin = new Thickness(16) };
             sp.Children.Add(new TextBlock { Text = string.Format("当前: {0} — 第{1}组 第{2}道", sw1.Name, heat1, lane1), FontSize = 14, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 0, 0, 8) });
-            sp.Children.Add(new TextBlock { Text = "选择要交换的运动员，或选择空道直接移动（空道项标注“[空道]”）:", Margin = new Thickness(0, 0, 0, 4), TextWrapping = TextWrapping.Wrap });
+            sp.Children.Add(new TextBlock { Text = Loc.T("Str_SwapLane_Hint"), Margin = new Thickness(0, 0, 0, 4), TextWrapping = TextWrapping.Wrap });
 
             var listBox = new ListBox { Height = 240, FontSize = 13 };
             foreach (var c in candidates) {
@@ -21583,7 +21583,7 @@ namespace SwimmingScoreboard
             sp.Children.Add(listBox);
 
             // 泳道号输入
-            sp.Children.Add(new TextBlock { Text = "起始泳道号（自动递增）:", FontSize = 12, Foreground = new SolidColorBrush(Colors.Gray), Margin = new Thickness(0, 8, 0, 2) });
+            sp.Children.Add(new TextBlock { Text = Loc.T("Str_Label_StartLaneAutoIncrement"), FontSize = 12, Foreground = new SolidColorBrush(Colors.Gray), Margin = new Thickness(0, 8, 0, 2) });
             var tbLane = new TextBox { Text = "0", Width = 60, Padding = new Thickness(4), HorizontalAlignment = HorizontalAlignment.Left };
             sp.Children.Add(tbLane);
 
@@ -21850,9 +21850,9 @@ namespace SwimmingScoreboard
                 row.Children.Add(new TextBlock { Text = string.Format("第{0}棒:", i + 1), Width = 55, VerticalAlignment = VerticalAlignment.Center });
                 var tbLegName = new TextBox { Width = 180, Padding = new Thickness(4) };
                 var tbLegBib = new TextBox { Width = 100, Padding = new Thickness(4), Margin = new Thickness(8, 0, 0, 0), ToolTip = "队员号码（可空）" };
-                row.Children.Add(new TextBlock { Text = "姓名", Margin = new Thickness(0, 0, 4, 0), VerticalAlignment = VerticalAlignment.Center });
+                row.Children.Add(new TextBlock { Text = Loc.T("Str_Col_Name"), Margin = new Thickness(0, 0, 4, 0), VerticalAlignment = VerticalAlignment.Center });
                 row.Children.Add(tbLegName);
-                row.Children.Add(new TextBlock { Text = "号码", Margin = new Thickness(8, 0, 4, 0), VerticalAlignment = VerticalAlignment.Center });
+                row.Children.Add(new TextBlock { Text = Loc.T("Str_Col_Bib"), Margin = new Thickness(8, 0, 4, 0), VerticalAlignment = VerticalAlignment.Center });
                 row.Children.Add(tbLegBib);
                 sp.Children.Add(row);
                 legNameBoxes.Add(tbLegName);
@@ -22136,11 +22136,11 @@ namespace SwimmingScoreboard
                     };
                     // 2026-09-21 用户要求: 最左边加"顺序号"列(每场从1开始), 跟"赛程管理"
                     //   主表(RebuildScheduleGroupedView)用同一个字段(SeqInSession), 只读。
-                    eg.Columns.Add(new DataGridTextColumn { Header = "顺序号", Binding = new System.Windows.Data.Binding("SeqInSession"), Width = new DataGridLength(55), IsReadOnly = true });
-                    eg.Columns.Add(new DataGridTextColumn { Header = "日期", Binding = new System.Windows.Data.Binding("Date"), Width = new DataGridLength(100) });
-                    eg.Columns.Add(new DataGridTextColumn { Header = "时间", Binding = new System.Windows.Data.Binding("Time"), Width = new DataGridLength(70) });
+                    eg.Columns.Add(new DataGridTextColumn { Header = Loc.T("Str_EM_Sched_ColSeq"), Binding = new System.Windows.Data.Binding("SeqInSession"), Width = new DataGridLength(55), IsReadOnly = true });
+                    eg.Columns.Add(new DataGridTextColumn { Header = Loc.T("Str_Col_Date"), Binding = new System.Windows.Data.Binding("Date"), Width = new DataGridLength(100) });
+                    eg.Columns.Add(new DataGridTextColumn { Header = Loc.T("Str_EM_Sched_ColTime"), Binding = new System.Windows.Data.Binding("Time"), Width = new DataGridLength(70) });
                     // 组别（空串=不限）
-                    var agCol = new DataGridComboBoxColumn { Header = "组别", Width = new DataGridLength(80), SelectedItemBinding = new System.Windows.Data.Binding("AgeGroup") };
+                    var agCol = new DataGridComboBoxColumn { Header = Loc.T("Str_Col_Group"), Width = new DataGridLength(80), SelectedItemBinding = new System.Windows.Data.Binding("AgeGroup") };
                     var agItems = new List<string> { "" };
                     foreach (var g in _ageGroups) agItems.Add(g.Name);
                     // 2026-07-09 Bug 修: 补齐 editList 里已出现但 _ageGroups 未列出的组别名,
@@ -22150,25 +22150,25 @@ namespace SwimmingScoreboard
                         if (!string.IsNullOrEmpty(ag) && !agItems.Contains(ag)) agItems.Add(ag);
                     }
                     agCol.ItemsSource = agItems; eg.Columns.Add(agCol);
-                    var gc = new DataGridComboBoxColumn { Header = "性别", Width = new DataGridLength(55), SelectedItemBinding = new System.Windows.Data.Binding("Gender") };
+                    var gc = new DataGridComboBoxColumn { Header = Loc.T("Str_Col_Sex"), Width = new DataGridLength(55), SelectedItemBinding = new System.Windows.Data.Binding("Gender") };
                     // 2026-09-03 性别/赛次一律取【比赛参数设置管理】里的表, 不写死 ——
                     //   写死的话, 用户在设置里新加的性别或赛次, 在赛程编辑这张表里根本选不到。
                     gc.ItemsSource = new List<string>(_genders); eg.Columns.Add(gc);
-                    var ec = new DataGridComboBoxColumn { Header = "项目", Width = new DataGridLength(160), SelectedItemBinding = new System.Windows.Data.Binding("EventName") };
+                    var ec = new DataGridComboBoxColumn { Header = Loc.T("Str_Col_Event"), Width = new DataGridLength(160), SelectedItemBinding = new System.Windows.Data.Binding("EventName") };
                     ec.ItemsSource = _events; eg.Columns.Add(ec);
-                    var sc = new DataGridComboBoxColumn { Header = "阶段", Width = new DataGridLength(70), SelectedItemBinding = new System.Windows.Data.Binding("Stage") };
+                    var sc = new DataGridComboBoxColumn { Header = Loc.T("Str_Col_Stage"), Width = new DataGridLength(70), SelectedItemBinding = new System.Windows.Data.Binding("Stage") };
                     sc.ItemsSource = new List<string>(_stages); eg.Columns.Add(sc);
                     // 2026-09-03 组数: 参数设置里配了组数表(如 "1组".."8组")就给下拉选,
                     //   没配就仍旧手输 —— 这是"组数"那张表唯一真正用得上的地方。
                     if (_heatCounts != null && _heatCounts.Count > 0) {
                         var hcCol = new DataGridComboBoxColumn {
-                            Header = "组数", Width = new DataGridLength(60),
+                            Header = Loc.T("Str_Col_HeatCount"), Width = new DataGridLength(60),
                             SelectedItemBinding = new System.Windows.Data.Binding("HeatCountText")
                         };
                         hcCol.ItemsSource = new List<string>(_heatCounts);
                         eg.Columns.Add(hcCol);
                     } else {
-                        eg.Columns.Add(new DataGridTextColumn { Header = "组数", Binding = new System.Windows.Data.Binding("HeatCount"), Width = new DataGridLength(50) });
+                        eg.Columns.Add(new DataGridTextColumn { Header = Loc.T("Str_Col_HeatCount"), Binding = new System.Windows.Data.Binding("HeatCount"), Width = new DataGridLength(50) });
                     }
 
                     // 保留 editList 自然顺序（不再按时间排序），便于用户自定义比赛顺序
@@ -22179,7 +22179,7 @@ namespace SwimmingScoreboard
                     editPanel.Children.Add(eg);
                 }
                 if (editList.Count == 0) {
-                    editPanel.Children.Add(new TextBlock { Text = "暂无赛程项，请点击\"添加赛程项\"。", Foreground = new SolidColorBrush(Colors.Gray), Margin = new Thickness(10) });
+                    editPanel.Children.Add(new TextBlock { Text = Loc.T("Str_Schedule_NoItemsHint"), Foreground = new SolidColorBrush(Colors.Gray), Margin = new Thickness(10) });
                 }
             };
             rebuildEditPanel();
@@ -22635,7 +22635,7 @@ namespace SwimmingScoreboard
 
             // ─ 选择条 ─
             var pickRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) };
-            pickRow.Children.Add(new TextBlock { Text = "项目:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 4, 0) });
+            pickRow.Children.Add(new TextBlock { Text = Loc.T("Str_EM_RegEventLabel"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 4, 0) });
             var cbEvent = new ComboBox { Width = 280 };
             foreach (var c in combos) {
                 string label = (string.IsNullOrEmpty(c.AgeGroup) ? "" : c.AgeGroup + " ") + c.Gender + " " + c.EventName;
@@ -22644,17 +22644,17 @@ namespace SwimmingScoreboard
             cbEvent.SelectedIndex = 0;
             pickRow.Children.Add(cbEvent);
 
-            pickRow.Children.Add(new TextBlock { Text = "  阶段:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 4, 0) });
+            pickRow.Children.Add(new TextBlock { Text = Loc.T("Str_Label_StageColonIndent"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 4, 0) });
             var cbStage = new ComboBox { Width = 90 };
             cbStage.Items.Add("预赛"); cbStage.Items.Add("半决赛"); cbStage.Items.Add("决赛");
             cbStage.SelectedIndex = 0;
             pickRow.Children.Add(cbStage);
 
-            pickRow.Children.Add(new TextBlock { Text = "  每组人数:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 4, 0) });
+            pickRow.Children.Add(new TextBlock { Text = Loc.T("Str_Label_PerHeatCountColon"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 4, 0) });
             var tbPerHeat = new TextBox { Width = 50, Padding = new Thickness(4), Text = _poolConfig.LaneCount.ToString() };
             pickRow.Children.Add(tbPerHeat);
 
-            pickRow.Children.Add(new TextBlock { Text = "  分组方式:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 4, 0) });
+            pickRow.Children.Add(new TextBlock { Text = Loc.T("Str_Label_GroupingMethodColon"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 4, 0) });
             var cbMode = new ComboBox { Width = 130 };
             cbMode.Items.Add("蛇形(强↔弱交替)");
             cbMode.Items.Add("顺序(按成绩依次)");
@@ -22686,7 +22686,7 @@ namespace SwimmingScoreboard
                 Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0), Margin = new Thickness(0, 0, 8, 0),
                 ToolTip = "导出当前项目+阶段表格里的分组结果到 CSV" };
             btnRow.Children.Add(btnExportCsv);
-            btnRow.Children.Add(new TextBlock { Text = "  表格里可直接修改 [组] [道]，再按\"确认保存\"；0 表示未分配。",
+            btnRow.Children.Add(new TextBlock { Text = Loc.T("Str_HeatGrid_EditHint"),
                 VerticalAlignment = VerticalAlignment.Center,
                 Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")) });
             Grid.SetRow(btnRow, 1);
@@ -22699,14 +22699,14 @@ namespace SwimmingScoreboard
                 SelectionMode = DataGridSelectionMode.Extended,
                 AlternatingRowBackground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F8FAFC"))
             };
-            grid.Columns.Add(new DataGridTextColumn { Header = "号码", Binding = new System.Windows.Data.Binding("BibNumber") { Mode = System.Windows.Data.BindingMode.OneWay }, Width = new DataGridLength(70), IsReadOnly = true });
-            grid.Columns.Add(new DataGridTextColumn { Header = "姓名", Binding = new System.Windows.Data.Binding("Name") { Mode = System.Windows.Data.BindingMode.OneWay }, Width = new DataGridLength(100), IsReadOnly = true });
-            grid.Columns.Add(new DataGridTextColumn { Header = "代表队", Binding = new System.Windows.Data.Binding("Country") { Mode = System.Windows.Data.BindingMode.OneWay }, Width = new DataGridLength(120), IsReadOnly = true });
-            grid.Columns.Add(new DataGridTextColumn { Header = "组别", Binding = new System.Windows.Data.Binding("AgeCategory") { Mode = System.Windows.Data.BindingMode.OneWay }, Width = new DataGridLength(70), IsReadOnly = true });
-            var seedCol = new DataGridTextColumn { Header = "报名成绩", Binding = new System.Windows.Data.Binding("SeedTime") { Mode = System.Windows.Data.BindingMode.OneWay }, Width = new DataGridLength(90), IsReadOnly = true };
+            grid.Columns.Add(new DataGridTextColumn { Header = Loc.T("Str_Col_Bib"), Binding = new System.Windows.Data.Binding("BibNumber") { Mode = System.Windows.Data.BindingMode.OneWay }, Width = new DataGridLength(70), IsReadOnly = true });
+            grid.Columns.Add(new DataGridTextColumn { Header = Loc.T("Str_Col_Name"), Binding = new System.Windows.Data.Binding("Name") { Mode = System.Windows.Data.BindingMode.OneWay }, Width = new DataGridLength(100), IsReadOnly = true });
+            grid.Columns.Add(new DataGridTextColumn { Header = Loc.T("Str_Col_Team"), Binding = new System.Windows.Data.Binding("Country") { Mode = System.Windows.Data.BindingMode.OneWay }, Width = new DataGridLength(120), IsReadOnly = true });
+            grid.Columns.Add(new DataGridTextColumn { Header = Loc.T("Str_Col_Group"), Binding = new System.Windows.Data.Binding("AgeCategory") { Mode = System.Windows.Data.BindingMode.OneWay }, Width = new DataGridLength(70), IsReadOnly = true });
+            var seedCol = new DataGridTextColumn { Header = Loc.T("Str_Col_Entry"), Binding = new System.Windows.Data.Binding("SeedTime") { Mode = System.Windows.Data.BindingMode.OneWay }, Width = new DataGridLength(90), IsReadOnly = true };
             grid.Columns.Add(seedCol);
-            grid.Columns.Add(new DataGridTextColumn { Header = "组", Binding = new System.Windows.Data.Binding("Heat") { Mode = System.Windows.Data.BindingMode.TwoWay, UpdateSourceTrigger = System.Windows.Data.UpdateSourceTrigger.PropertyChanged }, Width = new DataGridLength(60) });
-            grid.Columns.Add(new DataGridTextColumn { Header = "道", Binding = new System.Windows.Data.Binding("Lane") { Mode = System.Windows.Data.BindingMode.TwoWay, UpdateSourceTrigger = System.Windows.Data.UpdateSourceTrigger.PropertyChanged }, Width = new DataGridLength(60) });
+            grid.Columns.Add(new DataGridTextColumn { Header = Loc.T("Str_Col_Heat"), Binding = new System.Windows.Data.Binding("Heat") { Mode = System.Windows.Data.BindingMode.TwoWay, UpdateSourceTrigger = System.Windows.Data.UpdateSourceTrigger.PropertyChanged }, Width = new DataGridLength(60) });
+            grid.Columns.Add(new DataGridTextColumn { Header = Loc.T("Str_Col_Lane"), Binding = new System.Windows.Data.Binding("Lane") { Mode = System.Windows.Data.BindingMode.TwoWay, UpdateSourceTrigger = System.Windows.Data.UpdateSourceTrigger.PropertyChanged }, Width = new DataGridLength(60) });
             grid.ItemsSource = rowSource;
             Grid.SetRow(grid, 2);
             mainGrid.Children.Add(grid);
@@ -23563,7 +23563,7 @@ namespace SwimmingScoreboard
                 WindowStartupLocation = WindowStartupLocation.CenterOwner, Owner = this, ResizeMode = ResizeMode.NoResize
             };
             var sp = new StackPanel { Margin = new Thickness(16) };
-            sp.Children.Add(new TextBlock { Text = "选择已完赛的比赛项目成绩发布到大屏幕：", FontSize = 14, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 0, 0, 10) });
+            sp.Children.Add(new TextBlock { Text = Loc.T("Str_PublishResult_Hint"), FontSize = 14, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 0, 0, 10) });
 
             // 收集所有已完赛的组
             var completedHeats = new List<object>();
@@ -23780,53 +23780,53 @@ namespace SwimmingScoreboard
             var sp = new StackPanel { Orientation = Orientation.Vertical };
 
             sp.Children.Add(new TextBlock {
-                Text = "团体积分按\"决赛\"成绩取分；下面所有数值均可修改，保存后立即重算并入档持久化。",
+                Text = Loc.T("Str_TeamScore_Desc"),
                 FontSize = 12, Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569")),
                 Margin = new Thickness(0, 0, 0, 12), TextWrapping = TextWrapping.Wrap
             });
 
             // 取分人数 + 破纪录加分（顶部一行）
             var topRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 12) };
-            topRow.Children.Add(new TextBlock { Text = "取分人数（前 N 名得分）：", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 6, 0) });
+            topRow.Children.Add(new TextBlock { Text = Loc.T("Str_TeamScore_TopNLabel"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 6, 0) });
             var cutoffBox = new TextBox { Text = _scoringConfig.RankCutoff.ToString(), Width = 60, VerticalAlignment = VerticalAlignment.Center };
             topRow.Children.Add(cutoffBox);
-            topRow.Children.Add(new TextBlock { Text = "    破纪录加分（每项）：", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(20, 0, 6, 0) });
+            topRow.Children.Add(new TextBlock { Text = Loc.T("Str_TeamScore_RecordBonusLabel"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(20, 0, 6, 0) });
             var bonusBox = new TextBox { Text = _scoringConfig.RecordBreakBonus.ToString("0.##"), Width = 60, VerticalAlignment = VerticalAlignment.Center };
             topRow.Children.Add(bonusBox);
             sp.Children.Add(topRow);
 
             // 2026-05-23 编排种子组数（FINA SW 3.1.1.4/3.1.1.5）— 用户可配置
             sp.Children.Add(new TextBlock {
-                Text = "▌编排参数（预赛分组规则）",
+                Text = Loc.T("Str_TeamScore_SeedingParamsHeader"),
                 FontSize = 14, FontWeight = FontWeights.Bold,
                 Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E40AF")),
                 Margin = new Thickness(0, 4, 0, 4)
             });
             var seedHintBox = new TextBlock {
-                Text = "FINA 标准：所有距离最后 3 组按种子循环排位；中长距离/接力可改为 2 组（当前默认）。",
+                Text = Loc.T("Str_TeamScore_FinaStandardDesc"),
                 FontSize = 11, Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")),
                 TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 4)
             };
             sp.Children.Add(seedHintBox);
             var seedRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 12) };
-            seedRow.Children.Add(new TextBlock { Text = "短距离 (50/100/200 米) 种子组数：", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 6, 0) });
+            seedRow.Children.Add(new TextBlock { Text = Loc.T("Str_TeamScore_ShortDistSeedLabel"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 6, 0) });
             int sShort = _scoringConfig.SeedHeatsCountShort > 0 ? _scoringConfig.SeedHeatsCountShort : 3;
             var seedShortBox = new TextBox { Text = sShort.ToString(), Width = 50, VerticalAlignment = VerticalAlignment.Center };
             seedRow.Children.Add(seedShortBox);
-            seedRow.Children.Add(new TextBlock { Text = "    中长距离 (400+) / 接力 种子组数：", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(20, 0, 6, 0) });
+            seedRow.Children.Add(new TextBlock { Text = Loc.T("Str_TeamScore_LongDistSeedLabel"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(20, 0, 6, 0) });
             int sLong = _scoringConfig.SeedHeatsCountLong > 0 ? _scoringConfig.SeedHeatsCountLong : 2;
             var seedLongBox = new TextBox { Text = sLong.ToString(), Width = 50, VerticalAlignment = VerticalAlignment.Center };
             seedRow.Children.Add(seedLongBox);
             sp.Children.Add(seedRow);
 
             // 个人项目名次分（每名次一个 TextBox，按取分人数限定个数；多于 cutoff 时仍允许编辑保留历史值）
-            sp.Children.Add(new TextBlock { Text = "个人项目 — 名次得分", FontSize = 14, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 8, 0, 4) });
+            sp.Children.Add(new TextBlock { Text = Loc.T("Str_TeamScore_IndividualPointsHeader"), FontSize = 14, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 8, 0, 4) });
             var indPanel = new WrapPanel { Margin = new Thickness(0, 0, 0, 12) };
             var indBoxes = new List<TextBox>();
             int maxRanks = Math.Max(8, Math.Max(_scoringConfig.IndividualPoints.Count, _scoringConfig.RelayPoints.Count));
             for (int i = 0; i < maxRanks; i++) {
                 var item = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 12, 6) };
-                item.Children.Add(new TextBlock { Text = "第" + (i + 1) + "名：", VerticalAlignment = VerticalAlignment.Center, Width = 56, TextAlign​ment = TextAlignment.Right });
+                item.Children.Add(new TextBlock { Text = Loc.F("Str_Fmt_RankColonLabel", i + 1), VerticalAlignment = VerticalAlignment.Center, Width = 56, TextAlign​ment = TextAlignment.Right });
                 double v = i < _scoringConfig.IndividualPoints.Count ? _scoringConfig.IndividualPoints[i] : 0;
                 var tb = new TextBox { Text = v.ToString("0.##"), Width = 60, VerticalAlignment = VerticalAlignment.Center };
                 indBoxes.Add(tb);
@@ -23836,12 +23836,12 @@ namespace SwimmingScoreboard
             sp.Children.Add(indPanel);
 
             // 接力项目名次分
-            sp.Children.Add(new TextBlock { Text = "接力项目 — 名次得分", FontSize = 14, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 8, 0, 4) });
+            sp.Children.Add(new TextBlock { Text = Loc.T("Str_TeamScore_RelayPointsHeader"), FontSize = 14, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 8, 0, 4) });
             var relayPanel = new WrapPanel { Margin = new Thickness(0, 0, 0, 12) };
             var relayBoxes = new List<TextBox>();
             for (int i = 0; i < maxRanks; i++) {
                 var item = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 12, 6) };
-                item.Children.Add(new TextBlock { Text = "第" + (i + 1) + "名：", VerticalAlignment = VerticalAlignment.Center, Width = 56, TextAlignment = TextAlignment.Right });
+                item.Children.Add(new TextBlock { Text = Loc.F("Str_Fmt_RankColonLabel", i + 1), VerticalAlignment = VerticalAlignment.Center, Width = 56, TextAlignment = TextAlignment.Right });
                 double v = i < _scoringConfig.RelayPoints.Count ? _scoringConfig.RelayPoints[i] : 0;
                 var tb = new TextBox { Text = v.ToString("0.##"), Width = 60, VerticalAlignment = VerticalAlignment.Center };
                 relayBoxes.Add(tb);
@@ -23851,7 +23851,7 @@ namespace SwimmingScoreboard
             sp.Children.Add(relayPanel);
 
             // 组别系数（含已有的 + 当前比赛实际出现的所有 AgeCategory）
-            sp.Children.Add(new TextBlock { Text = "组别系数（最终得分 = 名次分 × 系数；找不到的组按 1.0 计）", FontSize = 14, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 8, 0, 4) });
+            sp.Children.Add(new TextBlock { Text = Loc.T("Str_TeamScore_GroupCoefficientHeader"), FontSize = 14, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 8, 0, 4) });
             var ageGroupKeys = new SortedSet<string>(_scoringConfig.AgeGroupCoefficients.Keys);
             foreach (var s in _swimmers) if (!string.IsNullOrEmpty(s.AgeCategory)) ageGroupKeys.Add(s.AgeCategory);
             var coeffPanel = new WrapPanel { Margin = new Thickness(0, 0, 0, 12) };
@@ -24000,7 +24000,7 @@ namespace SwimmingScoreboard
                 // 2026-09-16 这个密码是"裁判长改成绩"专用的一套(chief_judge_credentials.json),
                 //   跟系统账号密码(admin/xxx)是分开的两套 —— 用同一套的话就等于知道系统密码
                 //   的人(现场好几台机器的操作员)都能直接改库了, 达不到"只给裁判长用"的要求。
-                Text = "即将进入「裁判长改成绩」—— 直接改竞赛库，请输入裁判长专用密码(跟系统账号密码不是一套)。",
+                Text = Loc.T("Str_ChiefJudge_AuthDesc"),
                 TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 12)
             });
             var pwdBox = new PasswordBox { FontSize = 14, Padding = new Thickness(4) };
@@ -24013,7 +24013,7 @@ namespace SwimmingScoreboard
             var cancelBtn = new Button { Content = Loc.T("Str_Btn_Cancel"), Width = 80, Height = 30, IsCancel = true };
             okBtn.Click += delegate {
                 if (!AuthHelper.VerifyChiefJudgePassword(pwdBox.Password)) {
-                    tip.Text = "密码不对。(这是裁判长专用密码, 不是系统账号密码 —— 忘了就去「设置→裁判长权限」里改)";
+                    tip.Text = Loc.T("Str_ChiefJudge_WrongPassword");
                     pwdBox.Password = ""; pwdBox.Focus();
                     return;
                 }
@@ -24090,7 +24090,7 @@ namespace SwimmingScoreboard
 
             var topPanel = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(12, 10, 12, 6) };
             topPanel.Children.Add(new TextBlock {
-                Text = "选择比赛:", VerticalAlignment = VerticalAlignment.Center,
+                Text = Loc.T("Str_Label_SelectCompetitionColon"), VerticalAlignment = VerticalAlignment.Center,
                 FontSize = 14, Margin = new Thickness(0, 0, 8, 0)
             });
             var combo = new ComboBox { Width = 500, FontSize = 14 };
@@ -24273,7 +24273,7 @@ namespace SwimmingScoreboard
             grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
             grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             var tip = new TextBlock {
-                Text = "选择要在大屏回放总排名的项目 (按项目总排名所有完赛运动员):",
+                Text = Loc.T("Str_RankingReplay_Hint"),
                 FontSize = 13, FontWeight = FontWeights.Bold,
                 Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E40AF")),
                 Margin = new Thickness(0, 0, 0, 8)
@@ -24337,7 +24337,7 @@ namespace SwimmingScoreboard
             grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
             grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             var tip = new TextBlock {
-                Text = "选择要颁奖的决赛项目 (按项目总排名取前 3 名颁奖):",
+                Text = Loc.T("Str_Awards_Hint"),
                 FontSize = 13, FontWeight = FontWeights.Bold,
                 Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E40AF")),
                 Margin = new Thickness(0, 0, 0, 8)
@@ -24395,8 +24395,8 @@ namespace SwimmingScoreboard
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E293B"))
             };
             var sp = new StackPanel { Margin = new Thickness(20) };
-            sp.Children.Add(new TextBlock { Text = "显示比赛日程", FontSize = 17, FontWeight = FontWeights.Bold, Foreground = Brushes.White, Margin = new Thickness(0, 0, 0, 6) });
-            sp.Children.Add(new TextBlock { Text = "选择要在大屏显示日程的比赛场次 (超过一页自动翻页):", Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), FontSize = 13, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 12) });
+            sp.Children.Add(new TextBlock { Text = Loc.T("Str_MsgTitle_ShowSchedule"), FontSize = 17, FontWeight = FontWeights.Bold, Foreground = Brushes.White, Margin = new Thickness(0, 0, 0, 6) });
+            sp.Children.Add(new TextBlock { Text = Loc.T("Str_ScheduleDisplay_Hint"), Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), FontSize = 13, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 12) });
             var combo = new ComboBox { FontSize = 14, Margin = new Thickness(0, 0, 0, 6) };
             combo.Items.Add(new ComboBoxItem { Content = Loc.T("Str_All_Sessions"), Tag = -1 });
             foreach (var sn in _schedule.Select(s => s.SessionNumber).Distinct().OrderBy(n => n)) {
@@ -24799,13 +24799,13 @@ namespace SwimmingScoreboard
             };
             var sp = new StackPanel { Margin = new Thickness(16) };
             sp.Children.Add(new TextBlock {
-                Text = "图片 / 视频 大屏显示",
+                Text = Loc.T("Str_MediaDisplay_Header"),
                 FontSize = 16, FontWeight = FontWeights.Bold,
                 Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E293B")),
                 Margin = new Thickness(0, 0, 0, 6)
             });
             sp.Children.Add(new TextBlock {
-                Text = "选择图片（PNG/JPG/BMP/GIF）或视频（MP4/WEBM/OGG），点击\"发送到大屏\"全屏播放。点击\"停止显示\"返回比赛视图。",
+                Text = Loc.T("Str_MediaDisplay_Instructions"),
                 TextWrapping = TextWrapping.Wrap,
                 Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")),
                 FontSize = 12, Margin = new Thickness(0, 0, 0, 12)
@@ -24835,7 +24835,7 @@ namespace SwimmingScoreboard
             optsGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             optsGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             optsGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-            var lblFit = new TextBlock { Text = "缩放方式：", VerticalAlignment = VerticalAlignment.Center, Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569")) };
+            var lblFit = new TextBlock { Text = Loc.T("Str_Label_FitModeColon"), VerticalAlignment = VerticalAlignment.Center, Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569")) };
             Grid.SetRow(lblFit, 0); Grid.SetColumn(lblFit, 0);
             var fitPanel = new StackPanel { Orientation = Orientation.Horizontal };
             var rbContain = new RadioButton { Content = Loc.T("Str_Radio_FitContain"), IsChecked = true, GroupName = "MediaFit", Margin = new Thickness(0, 0, 16, 0), VerticalAlignment = VerticalAlignment.Center };
@@ -24843,7 +24843,7 @@ namespace SwimmingScoreboard
             var rbStretch = new RadioButton { Content = Loc.T("Str_Radio_FitStretch"), GroupName = "MediaFit", VerticalAlignment = VerticalAlignment.Center };
             fitPanel.Children.Add(rbContain); fitPanel.Children.Add(rbCover); fitPanel.Children.Add(rbStretch);
             Grid.SetRow(fitPanel, 0); Grid.SetColumn(fitPanel, 1);
-            var lblOpt = new TextBlock { Text = "视频选项：", VerticalAlignment = VerticalAlignment.Center, Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569")), Margin = new Thickness(0, 6, 0, 0) };
+            var lblOpt = new TextBlock { Text = Loc.T("Str_Label_VideoOptionsColon"), VerticalAlignment = VerticalAlignment.Center, Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569")), Margin = new Thickness(0, 6, 0, 0) };
             Grid.SetRow(lblOpt, 1); Grid.SetColumn(lblOpt, 0);
             var optPanel = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 6, 0, 0) };
             var cbLoop = new CheckBox { Content = Loc.T("Str_Chk_Loop"), IsChecked = true, Margin = new Thickness(0, 0, 16, 0), VerticalAlignment = VerticalAlignment.Center };
@@ -25057,7 +25057,7 @@ namespace SwimmingScoreboard
             _selectedRelayTeam = null;
             if (RelayGroupedPanel != null) RelayGroupedPanel.Children.Clear();
             if (RelayLegGrid != null) RelayLegGrid.ItemsSource = null;
-            if (RelayLegTitle != null) RelayLegTitle.Text = "棒次安排（请选中一支接力队）";
+            if (RelayLegTitle != null) RelayLegTitle.Text = Loc.T("Str_RelayLeg_SelectTeamHint");
 
             // 赛程导航树
             ScheduleTree.Items.Clear();
@@ -28824,7 +28824,7 @@ namespace SwimmingScoreboard
             mainGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
             mainGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             mainGrid.Children.Add(new TextBlock {
-                Text = "直接双击单元格编辑项目名；可新增或删除行。确认后保存到数据库，取消则不生效。",
+                Text = Loc.T("Str_EditEvents_Instructions"),
                 TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 8),
                 Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569"))
             });
@@ -28835,7 +28835,7 @@ namespace SwimmingScoreboard
                 AlternatingRowBackground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F8FAFC"))
             };
             grid.Columns.Add(new DataGridTextColumn {
-                Header = "比赛项目", Width = new DataGridLength(1, DataGridLengthUnitType.Star),
+                Header = Loc.T("Str_EM_EventNameCol"), Width = new DataGridLength(1, DataGridLengthUnitType.Star),
                 Binding = new System.Windows.Data.Binding("Name") { Mode = System.Windows.Data.BindingMode.TwoWay, UpdateSourceTrigger = System.Windows.Data.UpdateSourceTrigger.PropertyChanged }
             });
             grid.ItemsSource = working;
@@ -28911,7 +28911,7 @@ namespace SwimmingScoreboard
             mainGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
             mainGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             mainGrid.Children.Add(new TextBlock {
-                Text = "编辑组别。组别用于报名/分组等的人工分类（如甲组/乙组/少年/成人），与年龄无关。可增删；确认保存，取消不生效。",
+                Text = Loc.T("Str_EditAgeGroups_Instructions"),
                 TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 8),
                 Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569"))
             });
@@ -28927,7 +28927,7 @@ namespace SwimmingScoreboard
             grid.LoadingRow += delegate(object _s, DataGridRowEventArgs _ev) {
                 _ev.Row.Header = (_ev.Row.GetIndex() + 1).ToString();
             };
-            grid.Columns.Add(new DataGridTextColumn { Header = "组别名称", Width = new DataGridLength(1, DataGridLengthUnitType.Star),
+            grid.Columns.Add(new DataGridTextColumn { Header = Loc.T("Str_EM_AgeGroupNameCol"), Width = new DataGridLength(1, DataGridLengthUnitType.Star),
                 Binding = new System.Windows.Data.Binding("Name") { Mode = System.Windows.Data.BindingMode.TwoWay, UpdateSourceTrigger = System.Windows.Data.UpdateSourceTrigger.PropertyChanged } });
             grid.ItemsSource = working;
             // 添加/删除行后强制刷新行头序号
@@ -30523,7 +30523,7 @@ namespace SwimmingScoreboard
             grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
 
             var hint = new TextBlock {
-                Text = "请选择已完赛的组次（仅显示按下\"确认本组成绩\"的组）：",
+                Text = Loc.T("Str_PrintResult_SelectHeatHint"),
                 Margin = new Thickness(0, 0, 0, 8), FontSize = 13,
                 Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569"))
             };
@@ -30572,7 +30572,7 @@ namespace SwimmingScoreboard
             }
             if (totalConfirmed == 0) {
                 var empty = new TextBlock {
-                    Text = "暂无已完赛组次。请在\"比赛控制\"中按下\"确认本组成绩\"后再来打印。",
+                    Text = Loc.T("Str_PrintResult_NoFinishedHint"),
                     Margin = new Thickness(20, 30, 20, 0), FontSize = 14,
                     Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")),
                     TextWrapping = TextWrapping.Wrap
