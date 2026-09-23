@@ -9315,7 +9315,7 @@ namespace SwimmingScoreboard
         // 比赛控制按钮
         // ═══════════════════════════════════════════════════════════════
         private void Ready_Click(object sender, RoutedEventArgs e) {
-            if (BlockIfNoTiming("就位")) return;
+            if (BlockIfNoTiming(Loc.T("Str_Action_ReadyPlain"))) return;
             // 状态守卫 → 改本地状态 → 送 0x21；硬件参数在每次 Ready 时由 SendSetMatchEventToHardware 一同下发
             // 2026-05-30 本地点击 (sender!=null) 时检查硬件连接; 硬件回报/WebSocket 远程 (sender==null) 跳过弹窗
             if (sender != null && !EnsureHardwareConnected(Loc.T("Str_RC_Ready"))) return;
@@ -9458,7 +9458,7 @@ namespace SwimmingScoreboard
         }
 
         private void StartRace_Click(object sender, RoutedEventArgs e) {
-            if (BlockIfNoTiming("发令")) return;
+            if (BlockIfNoTiming(Loc.T("Str_Action_ManualStartPlain"))) return;
             // 计时复位后状态会回到 Waiting；点"发令"前用户可能没点"就位"，此时自动先就位再发令。
             // 走 EnterReadyStateInternal 跳过 Ready_Click 的确认对话框（用户按"发令"已明确开始意图），
             // 同时仍把 0x43+0x21 推给硬件，让硬件先进 Ready 再接受 0x1C。
@@ -9622,7 +9622,7 @@ namespace SwimmingScoreboard
         }
 
         private void Restart_Click(object sender, RoutedEventArgs e) {
-            if (BlockIfNoTiming("计时复位")) return;
+            if (BlockIfNoTiming(Loc.T("Str_RC_ClockReset"))) return;
             // 本地点击"计时复位"先弹确认，避免误按导致丢失计时数据；
             // 硬件触发或 WebSocket 远程调用（sender==null）跳过对话框
             // 2026-05-30 本地点击 (sender!=null) 时检查硬件连接
@@ -9757,10 +9757,10 @@ namespace SwimmingScoreboard
                     AddLog(Loc.F("Str_Log_ClockResetStageDoneFmt", _currentHeat));
                     int oldHeat = _currentHeat;
                     _currentHeat = 0;        // 让 GetCurrentHeatSwimmers 返回空，泳道行整体置为"（空泳道）"
-                    if (CurrentHeatText != null) CurrentHeatText.Text = string.Format("第{0}组已完赛 / 共{1}组", oldHeat, totalHeats);
+                    if (CurrentHeatText != null) CurrentHeatText.Text = Loc.F("Str_Fmt_HeatDoneOfTotal", oldHeat, totalHeats);
                     // 2026-06-04 顺序统一: 性别 组别 项目 赛次
-                    if (PoolCurrentEventText != null) PoolCurrentEventText.Text = string.Format("{0} {1}{2} {3} 已完赛",
-                        _currentGender,
+                    if (PoolCurrentEventText != null) PoolCurrentEventText.Text = Loc.F("Str_Fmt_PoolEventDoneFmt",
+                        Loc.GenderDisplay(_currentGender),
                         string.IsNullOrEmpty(_currentAgeGroup) ? "" : ("[" + _currentAgeGroup + "] "),
                         _currentEvent, _currentStage);
                     UpdateRaceStateDisplay();
@@ -10349,10 +10349,10 @@ namespace SwimmingScoreboard
         }
 
         private void ConfirmResult_Click(object sender, RoutedEventArgs e) {
-            if (BlockIfNoTiming("确认成绩")) return;
+            if (BlockIfNoTiming(Loc.T("Str_MsgTitle_ConfirmResult"))) return;
             // 本地按钮点击时弹确认对话框，WebSocket远程调用时(sender==null)跳过
             if (sender != null) {
-                string info = string.Format("{0} {1} {2} 第{3}组", _currentGender, _currentEvent, _currentStage, _currentHeat);
+                string info = Loc.F("Str_Fmt_ConfirmResultInfo", Loc.GenderDisplay(_currentGender), _currentEvent, _currentStage, _currentHeat);
                 var r = MessageBox.Show(
                     Loc.F("Str_Msg_ConfirmResultFmt", info),
                     Loc.T("Str_MsgTitle_ConfirmResult"), MessageBoxButton.YesNo, MessageBoxImage.Question);
@@ -10734,7 +10734,7 @@ namespace SwimmingScoreboard
             bool hasLocal = !string.IsNullOrEmpty(_currentEvent);
             if (CurrentEventText != null)
                 CurrentEventText.Text = hasLocal
-                    ? (_currentGender + (string.IsNullOrEmpty(_currentAgeGroup) ? " " : (" [" + _currentAgeGroup + "] ")) + _currentEvent)
+                    ? (Loc.GenderDisplay(_currentGender) + (string.IsNullOrEmpty(_currentAgeGroup) ? " " : (" [" + _currentAgeGroup + "] ")) + _currentEvent)
                     : "-";
             if (CurrentStageText != null)
                 CurrentStageText.Text = (hasLocal && !string.IsNullOrEmpty(_currentStage)) ? _currentStage : "-";
@@ -12925,7 +12925,7 @@ namespace SwimmingScoreboard
             }
             _isRelay = _currentEvent.Contains("接力");
             // 2026-06-04 顺序统一: 性别 组别 项目
-            CurrentEventText.Text = _currentGender + (string.IsNullOrEmpty(_currentAgeGroup) ? " " : (" [" + _currentAgeGroup + "] ")) + _currentEvent;
+            CurrentEventText.Text = Loc.GenderDisplay(_currentGender) + (string.IsNullOrEmpty(_currentAgeGroup) ? " " : (" [" + _currentAgeGroup + "] ")) + _currentEvent;
             UpdateRecordDisplay();
             UpdateLaneStatusDisplay();   // 主服务器本机泳道占用显示
             // 选项目时把比赛配置 / 发令点同步给硬件（出发台仍由 0x21 Ready 控制是否打开）：
@@ -13034,11 +13034,11 @@ namespace SwimmingScoreboard
 
         private void SetCurrentHeat(int heat) {
             _currentHeat = heat;
-            CurrentHeatText.Text = string.Format("第{0}组 / 共{1}组", heat, _totalHeats);
+            CurrentHeatText.Text = Loc.F("Str_Fmt_HeatOfTotal", heat, _totalHeats);
             // 2026-06-04 顺序统一: 性别 组别 项目 赛次 第N组
             if (PoolCurrentEventText != null)
-                PoolCurrentEventText.Text = string.Format("{0} {1}{2} {3} 第{4}组",
-                    _currentGender,
+                PoolCurrentEventText.Text = Loc.F("Str_Fmt_PoolEventHeatFmt",
+                    Loc.GenderDisplay(_currentGender),
                     string.IsNullOrEmpty(_currentAgeGroup) ? "" : ("[" + _currentAgeGroup + "] "),
                     _currentEvent, _currentStage, heat);
 
@@ -13142,7 +13142,7 @@ namespace SwimmingScoreboard
 
                     _totalHeats = CountHeatsForEvent(_currentAgeGroup, _currentGender, _currentEvent, _currentStage);
                     // 2026-06-04 顺序统一: 性别 组别 项目
-                    CurrentEventText.Text = _currentGender + (string.IsNullOrEmpty(_currentAgeGroup) ? " " : (" [" + _currentAgeGroup + "] ")) + _currentEvent;
+                    CurrentEventText.Text = Loc.GenderDisplay(_currentGender) + (string.IsNullOrEmpty(_currentAgeGroup) ? " " : (" [" + _currentAgeGroup + "] ")) + _currentEvent;
                     CurrentStageText.Text = _currentStage;
                     SetCurrentHeat(heat);
                 }
@@ -15967,8 +15967,8 @@ namespace SwimmingScoreboard
             RaceStateLabel.Text = label;
             RaceStateLabel.Foreground = fgBrush;
 
-            CompModeText.Text = _competitionMode == "domestic" ? "国内" : "国际";
-            PoolInfoText.Text = string.Format("{0}米 {1}道", _poolConfig.Length, _poolConfig.LaneCount);
+            CompModeText.Text = Loc.T(_competitionMode == "domestic" ? "Str_CompMode_Domestic" : "Str_CompMode_International");
+            PoolInfoText.Text = Loc.F("Str_Fmt_PoolInfo", _poolConfig.Length, _poolConfig.LaneCount);
 
             // 2026-05-30 v2: 只有 Waiting 状态 (= 按"计时复位" 后) 才允许这些操作
             //   Ready / Racing / Finished 都禁用 (= 灰色, 不可点)

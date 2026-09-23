@@ -32,25 +32,25 @@
                 </Grid.ColumnDefinitions>
                 <StackPanel Grid.Column="0" Orientation="Horizontal">
                     <Ellipse Width="10" Height="10" Fill="#22C55E" Margin="0,0,8,0" VerticalAlignment="Center"/>
-                    <TextBlock Text="竞赛服务运行中" Foreground="White" FontSize="14" VerticalAlignment="Center"/>
+                    <TextBlock Text="{DynamicResource Str_Status_ServiceRunning}" Foreground="White" FontSize="14" VerticalAlignment="Center"/>
                 </StackPanel>
                 <TextBlock x:Name="ServerAddressText" Grid.Column="1" Foreground="#94A3B8" FontSize="12"
                            HorizontalAlignment="Center" VerticalAlignment="Center"/>
                 <StackPanel Grid.Column="2" Orientation="Horizontal">
                     <!--2026-06-08 内存监控显示: Working Set MB + Gen2 GC 次数. 长跑下若 MB 持续涨 = 有泄漏-->
-                    <TextBlock Text="内存: " Foreground="#94A3B8" FontSize="12" VerticalAlignment="Center"/>
+                    <TextBlock Text="{DynamicResource Str_Status_MemoryColon}" Foreground="#94A3B8" FontSize="12" VerticalAlignment="Center"/>
                     <TextBlock x:Name="MemoryStatusText" Text="-" Foreground="#22C55E" FontSize="12" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,4,0"/>
                     <!--2026-06-20 释放内存按钮: 强制 GC + LOH 紧凑, 大堆下可能卡 1-2s-->
-                    <Button Content="♻ 释放" Click="ReleaseMemory_Click" FontSize="11" Foreground="White" Background="#0EA5E9" BorderThickness="0" Padding="6,2" Margin="0,0,16,0" VerticalAlignment="Center" Cursor="Hand" ToolTip="强制释放进程内存 (含 LOH 紧凑), 大堆下可能短暂卡顿"/>
+                    <Button Content="{DynamicResource Str_Btn_ReleaseMemory}" Click="ReleaseMemory_Click" FontSize="11" Foreground="White" Background="#0EA5E9" BorderThickness="0" Padding="6,2" Margin="0,0,16,0" VerticalAlignment="Center" Cursor="Hand" ToolTip="{DynamicResource Str_Tooltip_ReleaseMemory}"/>
                     <!--2026-06-19 电池电压从"比赛控制 → 计时硬件连接"右下角移到顶端 (内存右 / 硬件计时器左)-->
-                    <TextBlock Text="电池电压: " Foreground="#94A3B8" FontSize="12" VerticalAlignment="Center"/>
+                    <TextBlock Text="{DynamicResource Str_Status_BatteryColon}" Foreground="#94A3B8" FontSize="12" VerticalAlignment="Center"/>
                     <TextBlock x:Name="BatteryVoltageText" Text="—" Foreground="#94A3B8" FontSize="12" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,16,0"/>
                     <!--2026-05-19 顶部右侧加硬件计时器连接状态：红=未连/绿=已连，颜色醒目-->
                     <Ellipse x:Name="HwConnDot" Width="10" Height="10" Fill="#EF4444" Margin="0,0,6,0" VerticalAlignment="Center"/>
-                    <TextBlock Text="硬件计时器: " Foreground="#94A3B8" FontSize="12" VerticalAlignment="Center"/>
-                    <TextBlock x:Name="HwConnStatusText" Text="未连接" Foreground="#EF4444" FontSize="12" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,16,0"/>
-                    <TextBlock Text="控制模式: " Foreground="#94A3B8" FontSize="12" VerticalAlignment="Center"/>
-                    <TextBlock x:Name="ControlModeText" Text="本地" Foreground="#22C55E" FontSize="12" VerticalAlignment="Center"/>
+                    <TextBlock Text="{DynamicResource Str_Status_HwTimerColon}" Foreground="#94A3B8" FontSize="12" VerticalAlignment="Center"/>
+                    <TextBlock x:Name="HwConnStatusText" Text="{DynamicResource Str_HwConn_NotConnected}" Foreground="#EF4444" FontSize="12" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,16,0"/>
+                    <TextBlock Text="{DynamicResource Str_Status_ControlModeColon}" Foreground="#94A3B8" FontSize="12" VerticalAlignment="Center"/>
+                    <TextBlock x:Name="ControlModeText" Text="{DynamicResource Str_ScoringMode_Local}" Foreground="#22C55E" FontSize="12" VerticalAlignment="Center"/>
                 </StackPanel>
             </Grid>
         </Border>
@@ -83,7 +83,7 @@
                                 <Border Background="#3B82F6" CornerRadius="4" Padding="6,3" Margin="0,0,10,0">
                                     <TextBlock Text="&#xE7FC;" FontFamily="Segoe MDL2 Assets" FontSize="16" Foreground="White" VerticalAlignment="Center"/>
                                 </Border>
-                                <TextBlock Text="当前比赛" FontSize="18" FontWeight="Bold" Foreground="#1E293B" VerticalAlignment="Center"/>
+                                <TextBlock Text="{DynamicResource Str_Status_CurrentEventHeader}" FontSize="18" FontWeight="Bold" Foreground="#1E293B" VerticalAlignment="Center"/>
                             </StackPanel>
                             <Grid>
                                 <Grid.ColumnDefinitions>
@@ -97,17 +97,17 @@
                                     <RowDefinition Height="36"/>
                                     <RowDefinition Height="36"/>
                                 </Grid.RowDefinitions>
-                                <TextBlock Grid.Row="0" Grid.Column="0" Text="项  目:" FontSize="15" Foreground="#64748B" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="{DynamicResource Str_Status_EventColon}" FontSize="15" Foreground="#64748B" VerticalAlignment="Center"/>
                                 <TextBlock x:Name="CurrentEventText" Grid.Row="0" Grid.Column="1" Text="-" FontSize="16" FontWeight="Bold" Foreground="#1E40AF" VerticalAlignment="Center"/>
-                                <TextBlock Grid.Row="0" Grid.Column="2" Text="阶  段:" FontSize="15" Foreground="#64748B" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Row="0" Grid.Column="2" Text="{DynamicResource Str_Status_StageColon}" FontSize="15" Foreground="#64748B" VerticalAlignment="Center"/>
                                 <TextBlock x:Name="CurrentStageText" Grid.Row="0" Grid.Column="3" Text="-" FontSize="16" FontWeight="Bold" Foreground="#1E293B" VerticalAlignment="Center"/>
-                                <TextBlock Grid.Row="1" Grid.Column="0" Text="组  次:" FontSize="15" Foreground="#64748B" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="{DynamicResource Str_Status_HeatColon}" FontSize="15" Foreground="#64748B" VerticalAlignment="Center"/>
                                 <TextBlock x:Name="CurrentHeatText" Grid.Row="1" Grid.Column="1" Text="-" FontSize="16" FontWeight="Bold" Foreground="#1E293B" VerticalAlignment="Center"/>
-                                <TextBlock Grid.Row="1" Grid.Column="2" Text="状  态:" FontSize="15" Foreground="#64748B" VerticalAlignment="Center"/>
-                                <TextBlock x:Name="RaceStateText" Grid.Row="1" Grid.Column="3" Text="等待" FontSize="16" FontWeight="Bold" Background="#3B82F6" Foreground="White" VerticalAlignment="Center" HorizontalAlignment="Left" Padding="10,3,10,3"/>
-                                <TextBlock Grid.Row="2" Grid.Column="0" Text="模  式:" FontSize="15" Foreground="#64748B" VerticalAlignment="Center"/>
-                                <TextBlock x:Name="CompModeText" Grid.Row="2" Grid.Column="1" Text="国内" FontSize="15" Foreground="#1E293B" VerticalAlignment="Center"/>
-                                <TextBlock Grid.Row="2" Grid.Column="2" Text="泳  池:" FontSize="15" Foreground="#64748B" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Row="1" Grid.Column="2" Text="{DynamicResource Str_Status_StateColon}" FontSize="15" Foreground="#64748B" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="RaceStateText" Grid.Row="1" Grid.Column="3" Text="{DynamicResource Str_RC_StateWaiting}" FontSize="16" FontWeight="Bold" Background="#3B82F6" Foreground="White" VerticalAlignment="Center" HorizontalAlignment="Left" Padding="10,3,10,3"/>
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="{DynamicResource Str_Status_ModeColon}" FontSize="15" Foreground="#64748B" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="CompModeText" Grid.Row="2" Grid.Column="1" Text="{DynamicResource Str_CompMode_Domestic}" FontSize="15" Foreground="#1E293B" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Row="2" Grid.Column="2" Text="{DynamicResource Str_Status_PoolColon}" FontSize="15" Foreground="#64748B" VerticalAlignment="Center"/>
                                 <TextBlock x:Name="PoolInfoText" Grid.Row="2" Grid.Column="3" Text="50米 10道" FontSize="15" Foreground="#1E293B" VerticalAlignment="Center"/>
                             </Grid>
                         </StackPanel>
@@ -127,7 +127,7 @@
                                 <Border Background="#059669" CornerRadius="4" Padding="6,3" Margin="0,0,10,0">
                                     <TextBlock Text="&#xE839;" FontFamily="Segoe MDL2 Assets" FontSize="16" Foreground="White" VerticalAlignment="Center"/>
                                 </Border>
-                                <TextBlock Text="连接状态" FontSize="18" FontWeight="Bold" Foreground="#1E293B" VerticalAlignment="Center"/>
+                                <TextBlock Text="{DynamicResource Str_Status_ConnStatusHeader}" FontSize="18" FontWeight="Bold" Foreground="#1E293B" VerticalAlignment="Center"/>
                             </StackPanel>
                             <Grid>
                                 <Grid.ColumnDefinitions>
@@ -147,41 +147,41 @@
                                     <RowDefinition Height="32"/>
                                 </Grid.RowDefinitions>
                                 <TextBlock Grid.Row="0" Grid.Column="0" Text="&#xE7F4;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="#3B82F6" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                <TextBlock Grid.Row="0" Grid.Column="1" Text="大屏显示" FontSize="14" Foreground="#475569" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Row="0" Grid.Column="1" Text="{DynamicResource Str_Status_ConnDisplay}" FontSize="14" Foreground="#475569" VerticalAlignment="Center"/>
                                 <TextBlock x:Name="DisplayConnText" Grid.Row="0" Grid.Column="2" Text="0" FontSize="15" FontWeight="Bold" Foreground="#EF4444" VerticalAlignment="Center"/>
                                 <!-- 2026-09-14 显示控制端(control.html / RemoteDisplayControl.exe) 单独一行 ——
                                      它是"遥控大屏放什么"的操作端, 跟上面"大屏显示"(真正在放内容的那块屏)是两码事,
                                      原来俩连上来都不报身份, 混在没人管的连接里, 面板上完全看不出来。
                                      图标沿用大屏显示同款(都是屏幕), 颜色改成"显示控制区"同款紫 #6B21A8 以示区分。 -->
                                 <TextBlock Grid.Row="1" Grid.Column="0" Text="&#xE7F4;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="#6B21A8" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                <TextBlock Grid.Row="1" Grid.Column="1" Text="显示控制" FontSize="14" Foreground="#475569" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Row="1" Grid.Column="1" Text="{DynamicResource Str_Status_ConnDisplayControl}" FontSize="14" Foreground="#475569" VerticalAlignment="Center"/>
                                 <TextBlock x:Name="DisplayControlConnText" Grid.Row="1" Grid.Column="2" Text="0" FontSize="15" FontWeight="Bold" Foreground="#EF4444" VerticalAlignment="Center"/>
                                 <TextBlock Grid.Row="2" Grid.Column="0" Text="&#xE7F4;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="#8B5CF6" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                <TextBlock Grid.Row="2" Grid.Column="1" Text="排名屏" FontSize="14" Foreground="#475569" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Row="2" Grid.Column="1" Text="{DynamicResource Str_Status_ConnLeaderboard}" FontSize="14" Foreground="#475569" VerticalAlignment="Center"/>
                                 <TextBlock x:Name="LeaderboardConnText" Grid.Row="2" Grid.Column="2" Text="0" FontSize="15" FontWeight="Bold" Foreground="#EF4444" VerticalAlignment="Center"/>
                                 <TextBlock Grid.Row="3" Grid.Column="0" Text="&#xE77B;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="#059669" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                <TextBlock Grid.Row="3" Grid.Column="1" Text="注册终端" FontSize="14" Foreground="#475569" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Row="3" Grid.Column="1" Text="{DynamicResource Str_Status_ConnRegister}" FontSize="14" Foreground="#475569" VerticalAlignment="Center"/>
                                 <TextBlock x:Name="RegisterConnText" Grid.Row="3" Grid.Column="2" Text="0" FontSize="15" FontWeight="Bold" Foreground="#EF4444" VerticalAlignment="Center"/>
                                 <!-- 2026-09-14 信息查询终端(query.html) 单独一行计数, 原来混在"编排端"里数不出来 -->
                                 <TextBlock Grid.Row="4" Grid.Column="0" Text="&#xE721;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="#0D9488" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                <TextBlock Grid.Row="4" Grid.Column="1" Text="信息查询" FontSize="14" Foreground="#475569" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Row="4" Grid.Column="1" Text="{DynamicResource Str_Status_ConnQuery}" FontSize="14" Foreground="#475569" VerticalAlignment="Center"/>
                                 <TextBlock x:Name="QueryConnText" Grid.Row="4" Grid.Column="2" Text="0" FontSize="15" FontWeight="Bold" Foreground="#EF4444" VerticalAlignment="Center"/>
                                 <!-- 2026-09-15 编排端(ScheduleEditor.exe, "编排记录及成绩处理")单独一行计数,
                                      原来跟"信息查询"一样混在"编排端"连接里数不出来 -->
                                 <TextBlock Grid.Row="5" Grid.Column="0" Text="&#xE70F;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="#7C3AED" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                <TextBlock Grid.Row="5" Grid.Column="1" Text="编排及成绩处理" FontSize="14" Foreground="#475569" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Row="5" Grid.Column="1" Text="{DynamicResource Str_Status_ConnScheduleEditor}" FontSize="14" Foreground="#475569" VerticalAlignment="Center"/>
                                 <TextBlock x:Name="ScheduleEditorConnText" Grid.Row="5" Grid.Column="2" Text="0" FontSize="15" FontWeight="Bold" Foreground="#EF4444" VerticalAlignment="Center"/>
                                 <TextBlock Grid.Row="6" Grid.Column="0" Text="&#xE916;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="#D97706" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                <TextBlock Grid.Row="6" Grid.Column="1" Text="计时EXE" FontSize="14" Foreground="#475569" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Row="6" Grid.Column="1" Text="{DynamicResource Str_Status_ConnTimingExe}" FontSize="14" Foreground="#475569" VerticalAlignment="Center"/>
                                 <TextBlock x:Name="TimingExeConnText" Grid.Row="6" Grid.Column="2" Text="0" FontSize="15" FontWeight="Bold" Foreground="#EF4444" VerticalAlignment="Center"/>
                                 <TextBlock Grid.Row="7" Grid.Column="0" Text="&#xE774;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="#2563EB" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                <TextBlock Grid.Row="7" Grid.Column="1" Text="计时Web" FontSize="14" Foreground="#475569" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Row="7" Grid.Column="1" Text="{DynamicResource Str_Status_ConnTimingWeb}" FontSize="14" Foreground="#475569" VerticalAlignment="Center"/>
                                 <TextBlock x:Name="TimingWebConnText" Grid.Row="7" Grid.Column="2" Text="0" FontSize="15" FontWeight="Bold" Foreground="#EF4444" VerticalAlignment="Center"/>
                                 <TextBlock Grid.Row="8" Grid.Column="0" Text="&#xE964;" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="#DC2626" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                <TextBlock Grid.Row="8" Grid.Column="1" Text="计时硬件" FontSize="14" Foreground="#475569" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Row="8" Grid.Column="1" Text="{DynamicResource Str_Status_ConnTimingHw}" FontSize="14" Foreground="#475569" VerticalAlignment="Center"/>
                                 <!-- 2026-09-14 字号比其它计数小一档(13): 这一格现在显示"本机/远程 (机器名)",
                                      比单个数字长不少, 字号跟着降一点免得跟左边标签挤在一起 -->
-                                <TextBlock x:Name="TimingHwConnText" Grid.Row="8" Grid.Column="2" Text="未连接" FontSize="13" FontWeight="Bold" Foreground="#EF4444" VerticalAlignment="Center" HorizontalAlignment="Right"/>
+                                <TextBlock x:Name="TimingHwConnText" Grid.Row="8" Grid.Column="2" Text="{DynamicResource Str_HwConn_NotConnected}" FontSize="13" FontWeight="Bold" Foreground="#EF4444" VerticalAlignment="Center" HorizontalAlignment="Right"/>
                             </Grid>
                         </StackPanel>
                     </Border>
