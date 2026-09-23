@@ -33,7 +33,8 @@ namespace RemoteDisplayControl
             new TextKeyDef("name",   "姓名",     "#f8fafc", "'Microsoft YaHei', sans-serif"),
             new TextKeyDef("team",   "代表队",   "#94a3b8", "'Microsoft YaHei', sans-serif"),
             new TextKeyDef("result", "成绩",     "#f8fafc", "'Consolas', monospace"),
-            new TextKeyDef("remark", "备注",     "#ef4444", "'Microsoft YaHei', sans-serif")
+            new TextKeyDef("remark", "备注",     "#ef4444", "'Microsoft YaHei', sans-serif"),
+            new TextKeyDef("record", "比赛纪录(第3行)", "#FBBF24", "'Microsoft YaHei', sans-serif")
         };
         private static readonly FontDef[] FONT_OPTIONS = new FontDef[] {
             new FontDef("微软雅黑", "'Microsoft YaHei', sans-serif"),
