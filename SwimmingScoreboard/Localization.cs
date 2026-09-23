@@ -2917,6 +2917,11 @@ namespace SwimmingScoreboard
             { "Str_Fmt_ConfirmResultInfo", new[] { "{0} {1} {2} 第{3}组", "{0} {1} {2} Heat {3}" } },
             { "Str_Fmt_PoolEventDoneFmt", new[] { "{0} {1}{2} {3} 已完赛", "{0} {1}{2} {3} Finished" } },
             { "Str_Fmt_PoolEventHeatFmt", new[] { "{0} {1}{2} {3} 第{4}组", "{0} {1}{2} {3} Heat {4}" } },
+
+            // 2026-09-22 第十阶段：RegistrationTool.exe / RemoteDisplayControl.exe 登录窗
+            { "Str_RegTool_LoginTitle", new[] { "游泳赛事管理系统 — 运动员报名", "Swimming Event Management System — Registration" } },
+            { "Str_RegTool_Subtitle",   new[] { "运动员报名", "Registration" } },
+            { "Str_RDC_LoginTitle",     new[] { "游泳赛事管理系统 — 显示控制", "Swimming Event Management System — Display Control" } },
         };
 
         /// <summary>查当前语言下的文字；查不到就退回中文；中文也没有就返回 key 本身兜底。</summary>

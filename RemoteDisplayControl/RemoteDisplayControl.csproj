@@ -87,6 +87,9 @@
     <Compile Include="CredentialStore.cs" />
     <Compile Include="ChangePasswordWindow.cs" />
     <Compile Include="DisplayStyleWindow.cs" />
+    <Compile Include="..\SwimmingScoreboard\Localization.cs">
+      <Link>Localization.cs</Link>
+    </Compile>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

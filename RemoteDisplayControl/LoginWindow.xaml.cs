@@ -32,11 +32,11 @@ namespace RemoteDisplayControl
             string user = (UsernameBox.Text ?? "").Trim();
             string pwd = PasswordBox.Password ?? "";
             if (string.IsNullOrEmpty(user) || string.IsNullOrEmpty(pwd)) {
-                ShowError("请输入用户名和密码。");
+                ShowError(SwimmingScoreboard.Loc.T("Str_LoginWin_ErrEmptyFields"));
                 return;
             }
             if (!CredentialStore.Verify(user, pwd)) {
-                ShowError("用户名或密码错误，请重试。");
+                ShowError(SwimmingScoreboard.Loc.T("Str_LoginWin_ErrWrongCreds"));
                 PasswordBox.Clear();
                 PasswordBox.Focus();
                 return;
