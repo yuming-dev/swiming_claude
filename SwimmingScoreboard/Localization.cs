@@ -2869,6 +2869,8 @@ namespace SwimmingScoreboard
             { "Str_StandaloneChangePwd_Mismatch", new[] { "两次输入的新密码不一致", "The two new passwords don't match" } },
             { "Str_StandaloneChangePwd_OldWrong", new[] { "旧密码错误", "Old password is incorrect" } },
             { "Str_StandaloneChangePwd_UpdatedMsg", new[] { "用户名 / 密码已更新。\n下次启动需用新凭据登录。", "Username / password updated.\nUse the new credentials next time you log in." } },
+            { "Str_App_StartupFailedFmt", new[] { "启动失败:\n{0}", "Startup failed:\n{0}" } },
+            { "Str_App_UnhandledExceptionFmt", new[] { "未处理的异常:\n{0}", "Unhandled exception:\n{0}" } },
             { "Str_Label_TimingExeProgram", new[] { "比赛控制程序(EXE)", "the Race Control program (EXE)" } },
             { "Str_Label_TimingWebPage", new[] { "比赛控制网页", "a Race Control web page" } },
             { "Str_Tooltip_RaceControlTakenOverFmt", new[] { "比赛控制已由{0}接管 —— 计时请在那台机器上操作。\n对方断开后本页自动恢复。", "Race Control has been taken over by {0} — operate timing on that machine.\nThis tab auto-restores once it disconnects." } },
