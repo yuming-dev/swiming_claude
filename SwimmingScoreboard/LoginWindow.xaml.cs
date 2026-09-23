@@ -32,7 +32,7 @@ namespace SwimmingScoreboard
             string username = UsernameBox.Text.Trim();
             string password = PasswordBox.Password;
             if (string.IsNullOrEmpty(username) || string.IsNullOrEmpty(password)) {
-                ShowError("请输入用户名和密码。"); return;
+                ShowError(Loc.T("Str_LoginWin_ErrEmptyFields")); return;
             }
             if (AuthHelper.Verify(username, password)) {
                 if (RememberMe.IsChecked == true)
@@ -42,7 +42,7 @@ namespace SwimmingScoreboard
                 DialogResult = true;
                 Close();
             } else {
-                ShowError("用户名或密码错误，请重试。");
+                ShowError(Loc.T("Str_LoginWin_ErrWrongCreds"));
                 PasswordBox.Clear();
                 PasswordBox.Focus();
             }

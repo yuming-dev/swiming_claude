@@ -12,7 +12,7 @@ namespace ScheduleEditor
         private TextBlock _status;
 
         public ChangePasswordWindow() {
-            Title = "修改用户名 / 密码";
+            Title = SwimmingScoreboard.Loc.T("Str_StandaloneChangePwd_Title");
             Width = 420; Height = 360;
             WindowStartupLocation = WindowStartupLocation.CenterOwner;
             ResizeMode = ResizeMode.NoResize;
@@ -20,14 +20,14 @@ namespace ScheduleEditor
 
             var sp = new StackPanel { Margin = new Thickness(24) };
             sp.Children.Add(new TextBlock {
-                Text = "修改用户名 / 密码", FontSize = 17, FontWeight = FontWeights.Bold,
+                Text = SwimmingScoreboard.Loc.T("Str_StandaloneChangePwd_Title"), FontSize = 17, FontWeight = FontWeights.Bold,
                 Foreground = Brushes.White, Margin = new Thickness(0, 0, 0, 12)
             });
 
-            _userBox = AddRow(sp, "新用户名", CredentialStore.CurrentUser());
-            _oldBox = AddPwdRow(sp, "旧密码");
-            _newBox = AddPwdRow(sp, "新密码");
-            _newBox2 = AddPwdRow(sp, "确认新密码");
+            _userBox = AddRow(sp, SwimmingScoreboard.Loc.T("Str_Win_ChangePwd_NewUsername"), CredentialStore.CurrentUser());
+            _oldBox = AddPwdRow(sp, SwimmingScoreboard.Loc.T("Str_StandaloneChangePwd_OldPassword"));
+            _newBox = AddPwdRow(sp, SwimmingScoreboard.Loc.T("Str_Win_ChangePwd_New"));
+            _newBox2 = AddPwdRow(sp, SwimmingScoreboard.Loc.T("Str_StandaloneChangePwd_ConfirmNew"));
 
             _status = new TextBlock {
                 Foreground = new SolidColorBrush(Color.FromRgb(0xF8, 0x71, 0x71)),
@@ -40,13 +40,13 @@ namespace ScheduleEditor
                 HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 16, 0, 0)
             };
             var btnCancel = new Button {
-                Content = "取消", Padding = new Thickness(16, 6, 16, 6), Margin = new Thickness(0, 0, 8, 0),
+                Content = SwimmingScoreboard.Loc.T("Str_Btn_Cancel"), Padding = new Thickness(16, 6, 16, 6), Margin = new Thickness(0, 0, 8, 0),
                 Background = new SolidColorBrush(Color.FromRgb(0x47, 0x55, 0x69)),
                 Foreground = Brushes.White, BorderThickness = new Thickness(0)
             };
             btnCancel.Click += delegate { Close(); };
             var btnOK = new Button {
-                Content = "确定", Padding = new Thickness(24, 6, 24, 6), IsDefault = true,
+                Content = SwimmingScoreboard.Loc.T("Str_Btn_OK"), Padding = new Thickness(24, 6, 24, 6), IsDefault = true,
                 Background = new SolidColorBrush(Color.FromRgb(0x3B, 0x82, 0xF6)),
                 Foreground = Brushes.White, BorderThickness = new Thickness(0),
                 FontWeight = FontWeights.Bold
@@ -111,17 +111,17 @@ namespace ScheduleEditor
             string oldPwd = _oldBox.Password ?? "";
             string newPwd = _newBox.Password ?? "";
             string newPwd2 = _newBox2.Password ?? "";
-            if (string.IsNullOrEmpty(newUser)) { _status.Text = "用户名不能为空"; return; }
-            if (string.IsNullOrEmpty(newPwd)) { _status.Text = "新密码不能为空"; return; }
-            if (newPwd != newPwd2) { _status.Text = "两次输入的新密码不一致"; return; }
+            if (string.IsNullOrEmpty(newUser)) { _status.Text = SwimmingScoreboard.Loc.T("Str_StandaloneChangePwd_UsernameEmpty"); return; }
+            if (string.IsNullOrEmpty(newPwd)) { _status.Text = SwimmingScoreboard.Loc.T("Str_StandaloneChangePwd_NewEmpty"); return; }
+            if (newPwd != newPwd2) { _status.Text = SwimmingScoreboard.Loc.T("Str_StandaloneChangePwd_Mismatch"); return; }
             if (!CredentialStore.Change(oldPwd, newUser, newPwd)) {
-                _status.Text = "旧密码错误";
+                _status.Text = SwimmingScoreboard.Loc.T("Str_StandaloneChangePwd_OldWrong");
                 return;
             }
             // 改完密码后清掉"记住"，强制下次手动输
             CredentialStore.ClearRemembered();
-            MessageBox.Show("用户名 / 密码已更新。\n下次启动需用新凭据登录。",
-                "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show(SwimmingScoreboard.Loc.T("Str_StandaloneChangePwd_UpdatedMsg"),
+                SwimmingScoreboard.Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Information);
             Close();
         }
     }

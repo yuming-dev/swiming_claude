@@ -17,13 +17,15 @@ namespace SwimmingScoreboard
             TrySetWebBrowserIE11();   // 2026-06-13 内嵌 WebBrowser(文档预览)用 IE11 标准模式渲染, 否则默认 IE7 quirks 下表头等 CSS 不生效
             ShutdownMode = ShutdownMode.OnExplicitShutdown;
             AuthHelper.EnsureDefaultCredentials();
+            // 2026-09-22 语言设置要在登录窗口出现之前就生效，否则记住的 English 选择
+            // 只在登录成功后才应用，登录界面本身永远是中文——不是"整个系统"该有的样子。
+            Loc.LoadSaved();
+            Loc.Apply();
             var loginWin = new LoginWindow();
             bool? result = loginWin.ShowDialog();
             if (result != true) {
                 Shutdown(); return;
             }
-            Loc.LoadSaved();
-            Loc.Apply();
             try {
                 var mainWin = new MainWindow();
                 MainWindow = mainWin;
