@@ -206,7 +206,7 @@ namespace SwimmingScoreboard
         // 用处: 页面里有同名常量, 对不上就在页面顶端挂红条、并在主服务器系统日志里
         // 记一行。协议是 exe 和页面一起改的(比赛日志增量、设备状态推送、DATA_CHANGED),
         // 只换一半会出现"设备状态灯和比赛日志不刷新"这种看不出根由的毛病。
-        public const string WEB_ASSET_VERSION = "20260918-1";
+        public const string WEB_ASSET_VERSION = "20260922-1";
 
         private const int MAX_LANE_EVENT_LOG = 64 * 1024;
         private static void TrimSbIfOver(StringBuilder sb, int maxLen) {
@@ -1349,6 +1349,7 @@ namespace SwimmingScoreboard
                 d["startBlockCloseDelay"]     = _laneCloseSettings.StartBlockCloseDelay;
                 d["resultConfirmCloseDelay"]  = _laneCloseSettings.ResultConfirmCloseDelay;
                 d["falseStartThreshold"]      = _laneCloseSettings.FalseStartThreshold;
+                d["relayHandoffFalseStartThreshold"] = _laneCloseSettings.RelayHandoffFalseStartThreshold;
                 d["splitDisplayTime"]         = _laneCloseSettings.SplitDisplayTime;
                 d["blindReplaceDelay"]        = _laneCloseSettings.BlindReplaceDelay;
                 d["firstPlaceHoldTime"]       = _laneCloseSettings.FirstPlaceHoldTime;
@@ -3203,6 +3204,7 @@ namespace SwimmingScoreboard
                         if (data["startBlockCloseDelay"] != null) _laneCloseSettings.StartBlockCloseDelay = (double)data["startBlockCloseDelay"];
                         if (data["resultConfirmCloseDelay"] != null) _laneCloseSettings.ResultConfirmCloseDelay = (double)data["resultConfirmCloseDelay"];
                         if (data["falseStartThreshold"] != null) _laneCloseSettings.FalseStartThreshold = (double)data["falseStartThreshold"];
+                        if (data["relayHandoffFalseStartThreshold"] != null) _laneCloseSettings.RelayHandoffFalseStartThreshold = (double)data["relayHandoffFalseStartThreshold"];
                         if (data["splitDisplayTime"] != null) _laneCloseSettings.SplitDisplayTime = (double)data["splitDisplayTime"];
                         if (data["startPosition"] != null) {
                             string pos = data["startPosition"].ToString();
@@ -4743,6 +4745,7 @@ namespace SwimmingScoreboard
                 startBlockCloseDelay = _laneCloseSettings.StartBlockCloseDelay,
                 resultConfirmCloseDelay = _laneCloseSettings.ResultConfirmCloseDelay,
                 falseStartThreshold = _laneCloseSettings.FalseStartThreshold,
+                relayHandoffFalseStartThreshold = _laneCloseSettings.RelayHandoffFalseStartThreshold,
                 splitDisplayTime = _laneCloseSettings.SplitDisplayTime,
                 startPosition = _laneCloseSettings.StartPosition,
                 finishPosition = _laneCloseSettings.FinishPosition,
@@ -14681,7 +14684,10 @@ namespace SwimmingScoreboard
                     if (res0.LegReactionTimes.Count > legIndex) res0.LegReactionTimes[legIndex] = reactionTime;
                 }
             }
-            if (win.LastIsFalseStart || reactionTime < 0) {
+            // 2026-09-22 交接棒抢跳判定改用专用阀值(默认 -0.03s), 不再是严格 <0 就判抢跳 ——
+            //   触板/SB 本身有毫秒级测量误差, 接棒者在触板前一点点起跳属物理正常范围,
+            //   只有 早于阀值 才真的算抢跳。
+            if (win.LastIsFalseStart || reactionTime < _laneCloseSettings.RelayHandoffFalseStartThreshold) {
                 laneState.IsSuspectFalseStart = true;
                 AddLog(Loc.F("Str_Log_DirectSbFalseStartV8Fmt", lane, legLabel, sideLabelForLog, reactionTime, basisKind, basisTime));
             } else if (reactionTime <= _laneCloseSettings.FalseStartThreshold) {
@@ -17842,6 +17848,7 @@ namespace SwimmingScoreboard
             var tbSBDelay = AddSettingsRow(sp, "出发台关闭延迟", _laneCloseSettings.StartBlockCloseDelay.ToString(), "秒");
             var tbConfDelay = AddSettingsRow(sp, "成绩确认关闭延迟", _laneCloseSettings.ResultConfirmCloseDelay.ToString(), "秒");
             var tbFSThresh = AddSettingsRow(sp, "抢跳判定阈值", _laneCloseSettings.FalseStartThreshold.ToString(), "秒");
+            var tbRelayFSThresh = AddSettingsRow(sp, "接力交接棒抢跳判定阀值", _laneCloseSettings.RelayHandoffFalseStartThreshold.ToString(), "秒");
             var tbSplitDisp = AddSettingsRow(sp, "分段成绩显示时长", _laneCloseSettings.SplitDisplayTime.ToString(), "秒");
             //2026-05-18 盲表代替成绩延迟时间统一为整秒(与其它字段一致)；硬件 case 端 ×10 转 0.1s 单位
             double blindDispl = _laneCloseSettings.BlindReplaceDelay;
@@ -17869,6 +17876,7 @@ namespace SwimmingScoreboard
                 if (double.TryParse(tbSBDelay.Text, out v)) _laneCloseSettings.StartBlockCloseDelay = v;
                 if (double.TryParse(tbConfDelay.Text, out v)) _laneCloseSettings.ResultConfirmCloseDelay = v;
                 if (double.TryParse(tbFSThresh.Text, out v)) _laneCloseSettings.FalseStartThreshold = v;
+                if (double.TryParse(tbRelayFSThresh.Text, out v)) _laneCloseSettings.RelayHandoffFalseStartThreshold = v;
                 if (double.TryParse(tbSplitDisp.Text, out v)) _laneCloseSettings.SplitDisplayTime = v;
                 //2026-05-18 盲表代替成绩延迟统一为整秒, 限定 0-9
                 if (double.TryParse(tbBlindReplace.Text, out v)) {

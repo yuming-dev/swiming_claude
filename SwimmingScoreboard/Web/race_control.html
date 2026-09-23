@@ -338,6 +338,7 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
         <div class="param-row"><label>出发台关闭延迟</label><input id="dlgSBDelay" value="3"><span class="unit">秒</span></div>
         <div class="param-row"><label>成绩确认关闭延迟</label><input id="dlgConfDelay" value="3"><span class="unit">秒</span></div>
         <div class="param-row"><label>抢跳判定阈值</label><input id="dlgFSThresh" value="0.10"><span class="unit">秒</span></div>
+        <div class="param-row"><label>接力交接棒抢跳判定阀值</label><input id="dlgRelayFSThresh" value="-0.03"><span class="unit">秒</span></div>
         <div class="param-row"><label>分段成绩显示时长</label><input id="dlgSplitDisp" value="5"><span class="unit">秒</span></div>
         <div class="param-row"><label>盲表代替成绩延迟</label><input id="dlgBlindReplaceDelay" value="5"><span class="unit">秒(0-9)</span></div>
         <div class="param-row"><label>接力反应时事件窗口</label><input id="dlgReactionEventWindow" value="3"><span class="unit">秒(1-10)</span></div>
@@ -827,6 +828,7 @@ function saveLaneCloseSettingsLocal(lcs) {
     if (typeof lcs.startBlockCloseDelay !== 'undefined') localStorage.setItem('swimStartBlockCloseDelay', lcs.startBlockCloseDelay);
     if (typeof lcs.resultConfirmCloseDelay !== 'undefined') localStorage.setItem('swimResultConfirmCloseDelay', lcs.resultConfirmCloseDelay);
     if (typeof lcs.falseStartThreshold !== 'undefined') localStorage.setItem('swimFalseStartThreshold', lcs.falseStartThreshold);
+    if (typeof lcs.relayHandoffFalseStartThreshold !== 'undefined') localStorage.setItem('swimRelayHandoffFalseStartThreshold', lcs.relayHandoffFalseStartThreshold);
     if (typeof lcs.splitDisplayTime !== 'undefined') localStorage.setItem('swimSplitDisplayTime', lcs.splitDisplayTime);
     if (typeof lcs.firstPlaceHoldTime !== 'undefined') localStorage.setItem('swimFirstPlaceHold', lcs.firstPlaceHoldTime);
     if (typeof lcs.startPosition !== 'undefined') localStorage.setItem('swimStartPosition', lcs.startPosition);
@@ -941,7 +943,7 @@ function connect() {
 // 只换一半会出现"设备状态灯和比赛日志不刷新"这种看不出根由的毛病, 所以对不上
 // 就在页顶挂红条, 顺带连上时报给主服务器, 让系统日志里也留一行。
 // 【改了本页就把这个日期跟 MainWindow.WEB_ASSET_VERSION 一起往后挪】
-var PAGE_VER = '20260918-1';
+var PAGE_VER = '20260922-1';
 var PAGE_NAME = 'race_control.html';
 function reportPageVer(sock) {
     try { sock.send(JSON.stringify({type: 'CLIENT_VERSION', page: PAGE_NAME, ver: PAGE_VER})); } catch (e) {}
@@ -1442,6 +1444,8 @@ function render() {
             document.getElementById('dlgSBDelay').value = data.laneCloseSettings.startBlockCloseDelay;
             document.getElementById('dlgConfDelay').value = data.laneCloseSettings.resultConfirmCloseDelay;
             document.getElementById('dlgFSThresh').value = data.laneCloseSettings.falseStartThreshold;
+            if (typeof data.laneCloseSettings.relayHandoffFalseStartThreshold !== 'undefined')
+                document.getElementById('dlgRelayFSThresh').value = data.laneCloseSettings.relayHandoffFalseStartThreshold;
             document.getElementById('dlgSplitDisp').value = data.laneCloseSettings.splitDisplayTime;
             document.getElementById('dlgFirstPlaceHold').value = data.laneCloseSettings.firstPlaceHoldTime;
             if (typeof data.laneCloseSettings.bigDisplayPageInterval !== 'undefined')
@@ -1776,6 +1780,7 @@ function openTimeParams() {
     document.getElementById('dlgSBDelay').value = lcs.startBlockCloseDelay || 3;
     document.getElementById('dlgConfDelay').value = lcs.resultConfirmCloseDelay || 3;
     document.getElementById('dlgFSThresh').value = (lcs.falseStartThreshold != null) ? lcs.falseStartThreshold : 0.10;
+    document.getElementById('dlgRelayFSThresh').value = (lcs.relayHandoffFalseStartThreshold != null) ? lcs.relayHandoffFalseStartThreshold : -0.03;
     document.getElementById('dlgSplitDisp').value = lcs.splitDisplayTime || 5;
     document.getElementById('dlgBlindReplaceDelay').value = (lcs.blindReplaceDelay != null) ? lcs.blindReplaceDelay : 5;
     document.getElementById('dlgReactionEventWindow').value = (lcs.reactionEventWindowSec != null) ? lcs.reactionEventWindowSec : 3;
@@ -1802,6 +1807,7 @@ function applyTimeParams() {
         startBlockCloseDelay: parseFloat(document.getElementById('dlgSBDelay').value) || 3,
         resultConfirmCloseDelay: parseFloat(document.getElementById('dlgConfDelay').value) || 3,
         falseStartThreshold: parseFloat(document.getElementById('dlgFSThresh').value) || 0.10,
+        relayHandoffFalseStartThreshold: parseFloat(document.getElementById('dlgRelayFSThresh').value) || -0.03,
         splitDisplayTime: parseFloat(document.getElementById('dlgSplitDisp').value) || 5,
         blindReplaceDelay: blindReplaceDelay,
         reactionEventWindowSec: reactionEventWindow,
@@ -2181,6 +2187,7 @@ function applyBlindWatchCount() {
             startBlockCloseDelay: data && data.laneCloseSettings ? data.laneCloseSettings.startBlockCloseDelay : 3,
             resultConfirmCloseDelay: data && data.laneCloseSettings ? data.laneCloseSettings.resultConfirmCloseDelay : 3,
             falseStartThreshold: data && data.laneCloseSettings ? data.laneCloseSettings.falseStartThreshold : 0.10,
+            relayHandoffFalseStartThreshold: data && data.laneCloseSettings ? data.laneCloseSettings.relayHandoffFalseStartThreshold : -0.03,
             splitDisplayTime: data && data.laneCloseSettings ? data.laneCloseSettings.splitDisplayTime : 5,
             startPosition: finishPosition,
             firstPlaceHoldTime: firstPlaceHoldTime,

@@ -62,6 +62,10 @@ namespace SwimmingScoreboard
         private double _startBlockCloseDelay = 3.0;
         private double _resultConfirmCloseDelay = 3.0;
         private double _falseStartThreshold = 0.10;
+        // 2026-09-22 接力交接棒抢跳判定阀值(秒, 负值) —— 交接棒反应时 = 接棒者SB - 前一棒touchpad,
+        //   物理上允许"提前起跳"到触板前一点点(触板/SB本身有毫秒级测量误差), 严格 <0 就判抢跳
+        //   现场太苛刻; 默认 -0.03s, 反应时 < 此值才判抢跳(标红), 不再是 <0 就判。
+        private double _relayHandoffFalseStartThreshold = -0.03;
         private double _splitDisplayTime = 5.0;
         //2026-05-13 盲表代替成绩延迟时间（秒）— 触板未到时盲表读数代替的等待时长
         private double _blindReplaceDelay = 5.0;
@@ -106,6 +110,10 @@ namespace SwimmingScoreboard
         public double FalseStartThreshold {
             get { return _falseStartThreshold; }
             set { _falseStartThreshold = value; OnPropertyChanged("FalseStartThreshold"); }
+        }
+        public double RelayHandoffFalseStartThreshold {
+            get { return _relayHandoffFalseStartThreshold; }
+            set { _relayHandoffFalseStartThreshold = value; OnPropertyChanged("RelayHandoffFalseStartThreshold"); }
         }
         public double SplitDisplayTime {
             get { return _splitDisplayTime; }
