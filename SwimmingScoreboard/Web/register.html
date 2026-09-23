@@ -157,7 +157,7 @@ input.invalid, select.invalid { border-color: #EF4444 !important; background: #F
         </div>
         <div class="row">
             <div><label class="req">出生日期</label><input id="birthDate" type="date" min="1900-01-01" max="2099-12-31" placeholder="yyyy-MM-dd" title="格式：yyyy-MM-dd（4 位年份）"><div id="err_birthDate" class="field-error"></div></div>
-            <div><label class="req">身份证号</label><input id="idNumber" placeholder="15 或 18 位"><div id="err_idNumber" class="field-error"></div></div>
+            <div><label>身份证号（可选，国际选手可用护照号等证件号）</label><input id="idNumber" placeholder="选填，不限位数/格式"><div id="err_idNumber" class="field-error"></div></div>
         </div>
         <div class="row">
             <div><label class="req">代表队</label><input id="country" placeholder="北京队"><div id="err_country" class="field-error"></div></div>
@@ -253,20 +253,50 @@ input.invalid, select.invalid { border-color: #EF4444 !important; background: #F
             </div>
             <div><label>单位简称</label><input id="relayCountryShort" placeholder="（可选）"></div>
         </div>
-        <label class="req">项目</label>
-        <select id="relayEvent"></select>
-        <div id="err_relayEvent" class="field-error"></div>
-        <label>报名成绩</label>
-        <input id="relayEntryTime" placeholder="3:20.00">
         <hr class="sep">
-        <label style="font-weight:bold;color:#1e293b;" class="req">棒次安排（4 棒姓名必填）</label>
+        <label style="font-weight:bold;color:#1e293b;" class="req">棒次安排（4 棒姓名必填，同一队伍报多个接力项目共用这组棒次）</label>
         <div class="leg-row"><span class="leg-num">第1棒</span><input id="leg1Name" placeholder="姓名 *" style="flex:1;"><input id="leg1Birth" type="date" min="1900-01-01" max="2099-12-31" title="出生日期 yyyy-MM-dd" style="width:155px;flex:none;"><input id="leg1ID" placeholder="身份证号" style="width:170px;flex:none;"><input id="leg1Bib" placeholder="参赛号" style="width:75px;flex:none;"></div>
         <div class="leg-row"><span class="leg-num">第2棒</span><input id="leg2Name" placeholder="姓名 *" style="flex:1;"><input id="leg2Birth" type="date" min="1900-01-01" max="2099-12-31" title="出生日期 yyyy-MM-dd" style="width:155px;flex:none;"><input id="leg2ID" placeholder="身份证号" style="width:170px;flex:none;"><input id="leg2Bib" placeholder="参赛号" style="width:75px;flex:none;"></div>
         <div class="leg-row"><span class="leg-num">第3棒</span><input id="leg3Name" placeholder="姓名 *" style="flex:1;"><input id="leg3Birth" type="date" min="1900-01-01" max="2099-12-31" title="出生日期 yyyy-MM-dd" style="width:155px;flex:none;"><input id="leg3ID" placeholder="身份证号" style="width:170px;flex:none;"><input id="leg3Bib" placeholder="参赛号" style="width:75px;flex:none;"></div>
         <div class="leg-row"><span class="leg-num">第4棒</span><input id="leg4Name" placeholder="姓名 *" style="flex:1;"><input id="leg4Birth" type="date" min="1900-01-01" max="2099-12-31" title="出生日期 yyyy-MM-dd" style="width:155px;flex:none;"><input id="leg4ID" placeholder="身份证号" style="width:170px;flex:none;"><input id="leg4Bib" placeholder="参赛号" style="width:75px;flex:none;"></div>
         <div id="err_relayLegs" class="field-error"></div>
+
+        <hr class="sep">
+        <!-- 2026-09-22 接力项目列表：一支队可以报多个接力项目，模式对齐个人项目的 eventList/addEvent -->
+        <h2>接力项目 <span style="font-size:12px;font-weight:normal;color:#EF4444;">*（至少 1 项）</span></h2>
+        <div class="event-list" id="relayEventList"></div>
+        <div id="err_relayEvents" class="field-error"></div>
         <div id="relayFormErr" class="form-summary-err"></div>
-        <button class="btn btn-green btn-block" style="margin-top:12px;" onclick="registerRelay()">提交接力报名</button>
+        <div style="background:#f8fafc;border:1px dashed #cbd5e1;border-radius:4px;padding:12px;margin-top:8px;">
+            <div class="row">
+                <div><label>项目</label><select id="relayEvent"></select></div>
+                <div><label>报名成绩</label><input id="relayEntryTime" placeholder="3:20.00"></div>
+            </div>
+            <button class="btn btn-purple" style="margin-top:8px;" onclick="addRelayEvent()">+ 添加接力项目</button>
+        </div>
+
+        <hr class="sep">
+        <div class="row">
+            <div style="flex:2;">
+                <button class="btn btn-purple btn-block" style="padding:12px;font-size:14px;" onclick="addRelayToQueue()">+ 添加到接力报名列表</button>
+            </div>
+            <div style="flex:1;">
+                <button class="btn btn-gray btn-block" style="padding:12px;font-size:14px;" onclick="resetRelayForm()">清空当前表单</button>
+            </div>
+        </div>
+        <div style="font-size:12px;color:#64748b;margin-top:6px;text-align:center;">
+            录入完一支队（棒次+项目）后点"添加到接力报名列表"，再录入下一支队；全部录入完成后统一提交。
+        </div>
+    </div>
+
+    <!-- 待提交多队接力报名队列 -->
+    <div class="card queue-card" id="relayQueueCard">
+        <h2>待提交接力报名列表 <span id="relayQueueCount" style="font-weight:normal;color:#475569;font-size:13px;"></span></h2>
+        <div id="relayQueueList"></div>
+        <button id="submitAllRelayBtn" class="btn btn-green btn-block" style="padding:14px;font-size:16px;margin-top:12px;" onclick="submitRelayQueue()" disabled>全部提交接力报名（0 队）</button>
+        <div style="font-size:12px;color:#475569;margin-top:6px;">
+            提交后服务器会逐条（队×项目）返回结果。未通过的条目请回到上方表单修改后重新添加。
+        </div>
     </div>
 
     </div><!-- /tabRelay -->
@@ -291,6 +321,13 @@ var ws, events = [], submitted = false, assignedBib = '';
 var pendingRegs = [];
 // 当前正在编辑的队列条目下标；null 表示新增
 var editingQueueIdx = null;
+
+// 2026-09-22 接力：当前表单正在录入的接力项目列表（同一队伍/同一组棒次可报多个项目），
+//   模式对齐个人项目的 events/addEvent。
+var relayEvents = [];
+// 接力多队报名队列：每个元素 = { team:{teamName,gender,ageGroup,countryShort,legs:[...]}, events:[...], editingIndex }
+var pendingRelayRegs = [];
+var editingRelayQueueIdx = null;
 
 window.onbeforeunload = function(e) { e.preventDefault(); e.returnValue = ''; return '确定要关闭注册终端？'; };
 
@@ -324,7 +361,7 @@ function connect() {
 // 只换一半会出现"设备状态灯和比赛日志不刷新"这种看不出根由的毛病, 所以对不上
 // 就在页顶挂红条, 顺带连上时报给主服务器, 让系统日志里也留一行。
 // 【改了本页就把这个日期跟 MainWindow.WEB_ASSET_VERSION 一起往后挪】
-var PAGE_VER = '20260922-2';
+var PAGE_VER = '20260922-3';
 var PAGE_NAME = 'register.html';
 function reportPageVer(sock) {
     try { sock.send(JSON.stringify({type: 'CLIENT_VERSION', page: PAGE_NAME, ver: PAGE_VER})); } catch (e) {}
@@ -386,6 +423,8 @@ function checkPageVer(serverVer) {
                 handleMultiResult(msg.data);
             } else if (msg.type === 'REGISTER_RELAY_RESULT') {
                 handleRelayResult(msg.data);
+            } else if (msg.type === 'REGISTER_RELAYS_MULTI_RESULT') {
+                handleRelaysMultiResult(msg.data);
             } else if (msg.type === 'REGISTER_QUERY_RESULT') {
                 handleQueryResult(msg.data);
             } else if (msg.type === 'RELAY_QUERY_RESULT') {
@@ -552,7 +591,7 @@ function handleRelayQueryResult(data) {
         setVal('leg' + n + 'ID', leg.swimmerIDNumber);
         setVal('leg' + n + 'Bib', leg.swimmerBibNumber);
     }
-    st.textContent = '✔ 已回填: ' + (t.teamName || '') + ' (' + (legs.length || 0) + ' 棒)，修改后点「提交接力报名」服务器会覆盖更新';
+    st.textContent = '✔ 已回填: ' + (t.teamName || '') + ' (' + (legs.length || 0) + ' 棒)，修改后点「+ 添加接力项目」「+ 添加到接力报名列表」「全部提交接力报名」，服务器会按队名+性别+项目+组别覆盖更新';
     st.style.color = '#16A34A';
 }
 
@@ -699,10 +738,8 @@ function buildSwimmerFromForm() {
     if (!bd) { markInvalid('birthDate', '请填写出生日期'); errors.push('请填写出生日期'); if (!firstErr) firstErr = 'birthDate'; }
     else if (!/^\d{4}-\d{2}-\d{2}$/.test(bd)) { markInvalid('birthDate', '出生日期格式应为 yyyy-MM-dd'); errors.push('出生日期格式应为 yyyy-MM-dd'); if (!firstErr) firstErr = 'birthDate'; }
 
-    // 2026-05-25 身份证号 必填 + 15/18 位校验
-    var idn = document.getElementById('idNumber').value.trim();
-    if (!idn) { markInvalid('idNumber', '请填写身份证号'); errors.push('请填写身份证号'); if (!firstErr) firstErr = 'idNumber'; }
-    else if (idn.length !== 15 && idn.length !== 18) { markInvalid('idNumber', '身份证号应为 15 或 18 位'); errors.push('身份证号应为 15 或 18 位'); if (!firstErr) firstErr = 'idNumber'; }
+    // 2026-09-22 身份证号改为可选填、不限位数/格式 —— 国际比赛运动员可能没有中国身份证，
+    //   或证件号格式完全不同，不该拿中国大陆 15/18 位身份证规则去卡人报名。
 
     // 2026-05-25 组别 必填
     var ag = document.getElementById('ageGroup').value;
@@ -936,6 +973,8 @@ function escapeHtml(s) {
 // 初始化
 renderEvents();
 renderQueue();
+renderRelayEvents();
+renderRelayQueue();
 // 自动把上次成功提交的参赛号填入"查询"框，用户一键就能调出自己的报名再修改
 try {
     var lastBib = localStorage.getItem('swimRegLastBib');
@@ -946,30 +985,60 @@ try {
 } catch (er) {}
 
 // ═══════ 接力 ═══════
-function registerRelay() {
-    if (!ws || ws.readyState !== 1) { showStatus('未连接服务器', false); return; }
+// 2026-09-22 接力改成与个人项目一致的两级模式：
+//   [队伍+棒次 → 可添加多个接力项目] 再 [+添加到接力报名列表 → 可再录入下一支队] 最后 [全部提交]。
 
-    // 一次性收集所有必填错误并高亮
-    clearAllInvalid(['relayTeam', 'relayGender', 'relayEvent', 'relayAgeGroup', 'leg1Name', 'leg2Name', 'leg3Name', 'leg4Name']);
+// 项目列表管理（当前表单正在录入的这支队伍可报的多个接力项目）
+function addRelayEvent() {
+    var ev = document.getElementById('relayEvent').value;
+    if (!ev) { showStatus('请先选择接力项目', false); return; }
+    var time = document.getElementById('relayEntryTime').value.trim();
+    for (var i = 0; i < relayEvents.length; i++) {
+        if (relayEvents[i].eventName === ev) { showStatus('已添加此项目，不能重复！', false); return; }
+    }
+    relayEvents.push({ eventName: ev, entryTime: time });
+    document.getElementById('relayEntryTime').value = '';
+    var er = document.getElementById('err_relayEvents');
+    if (er) { er.textContent = ''; er.classList.remove('show'); }
+    renderRelayEvents();
+}
+
+function removeRelayEvent(idx) { relayEvents.splice(idx, 1); renderRelayEvents(); }
+
+function renderRelayEvents() {
+    var el = document.getElementById('relayEventList');
+    if (relayEvents.length === 0) {
+        el.innerHTML = '<div style="color:#94a3b8;font-size:13px;padding:8px;">尚未添加接力项目</div>';
+        return;
+    }
+    var html = '';
+    for (var i = 0; i < relayEvents.length; i++) {
+        html += '<div class="event-item">' +
+            '<div class="ev-info"><span class="ev-name">' + relayEvents[i].eventName + '</span>' +
+            (relayEvents[i].entryTime ? '<span class="ev-time">报名: ' + relayEvents[i].entryTime + '</span>' : '') +
+            '</div>' +
+            '<button class="btn-red" onclick="removeRelayEvent(' + i + ')">X 删除此项</button>' +
+            '</div>';
+    }
+    el.innerHTML = html;
+}
+
+// 校验当前表单（队名/性别/组别/棒次/至少1个项目），通过则返回 {team, events}，否则返回 null 并高亮
+function buildRelayEntryFromForm() {
+    clearAllInvalid(['relayTeam', 'relayGender', 'relayAgeGroup', 'leg1Name', 'leg2Name', 'leg3Name', 'leg4Name']);
     var errors = [];
     var firstErr = null;
 
     var team = document.getElementById('relayTeam').value.trim();
     if (!team) { markInvalid('relayTeam', '请填写队名'); errors.push('请填写队名'); if (!firstErr) firstErr = 'relayTeam'; }
 
-    // 2026-05-26 接力性别必填
     var rgd = document.getElementById('relayGender').value;
     if (!rgd) { markInvalid('relayGender', '请选择性别'); errors.push('请选择性别'); if (!firstErr) firstErr = 'relayGender'; }
 
-    var ev = document.getElementById('relayEvent').value;
-    if (!ev) { markInvalid('relayEvent', '请选择接力项目'); errors.push('请选择接力项目'); if (!firstErr) firstErr = 'relayEvent'; }
-
-    // 2026-05-25 接力组别必填
     var rag = document.getElementById('relayAgeGroup').value;
     if (!rag) { markInvalid('relayAgeGroup', '请选择组别'); errors.push('请选择组别'); if (!firstErr) firstErr = 'relayAgeGroup'; }
 
     var legs = [];
-    var legBirthFormatErr = false;
     for (var i = 1; i <= 4; i++) {
         var legId = 'leg' + i + 'Name';
         var legName = document.getElementById(legId).value.trim();
@@ -982,7 +1051,6 @@ function registerRelay() {
             if (!firstErr) firstErr = legId;
         }
         if (legBirth && !/^\d{4}-\d{2}-\d{2}$/.test(legBirth)) {
-            legBirthFormatErr = true;
             errors.push('第' + i + '棒出生日期格式应为 yyyy-MM-dd');
             if (!firstErr) firstErr = 'leg' + i + 'Birth';
         }
@@ -993,43 +1061,165 @@ function registerRelay() {
         });
     }
 
+    if (relayEvents.length === 0) {
+        errors.push('请至少添加一个接力项目');
+        var er = document.getElementById('err_relayEvents');
+        if (er) { er.textContent = '请至少添加一个接力项目'; er.classList.add('show'); }
+        if (!firstErr) firstErr = 'relayEvent';
+    }
+
     if (errors.length > 0) {
         showFormSummary('relayFormErr', errors);
         showStatus(errors[0], false);
         var f = document.getElementById(firstErr); if (f && f.focus) { f.focus(); f.scrollIntoView({behavior:'smooth', block:'center'}); }
-        return;
+        return null;
     }
-    ws.send(JSON.stringify({
-        type: 'REGISTER_RELAY',
-        data: {
+
+    return {
+        team: {
             teamName: team,
-            eventName: document.getElementById('relayEvent').value,
-            gender: document.getElementById('relayGender').value,
-            ageGroup: document.getElementById('relayAgeGroup').value || '',
+            gender: rgd,
+            ageGroup: rag || '',
             countryShort: document.getElementById('relayCountryShort').value.trim(),
-            entryTime: document.getElementById('relayEntryTime').value.trim(),
             legs: legs
-        }
-    }));
-    showStatus('正在提交接力: ' + team + ' (' + legs.length + '人) ……等待服务器结果', true);
+        },
+        events: relayEvents.slice()
+    };
 }
 
-// 主服务器对接力报名的反馈：弹窗 + 自动刷新表单
+// ═══════ 接力多队报名队列 ═══════
+function addRelayToQueue() {
+    var entry = buildRelayEntryFromForm();
+    if (!entry) return;
+    if (editingRelayQueueIdx !== null && editingRelayQueueIdx >= 0 && editingRelayQueueIdx < pendingRelayRegs.length) {
+        pendingRelayRegs[editingRelayQueueIdx] = entry;
+        editingRelayQueueIdx = null;
+    } else {
+        pendingRelayRegs.push(entry);
+    }
+    renderRelayQueue();
+    resetRelayForm();
+    showStatus('已加入接力报名列表，可继续录入下一支队', true);
+}
+
+function editRelayQueue(idx) {
+    if (idx < 0 || idx >= pendingRelayRegs.length) return;
+    var e = pendingRelayRegs[idx];
+    var t = e.team || {};
+    function setVal(id, v) { var el = document.getElementById(id); if (el) el.value = (v == null ? '' : v); }
+    setVal('relayTeam', t.teamName);
+    setVal('relayCountryShort', t.countryShort);
+    var rg = document.getElementById('relayGender');
+    if (rg) for (var i = 0; i < rg.options.length; i++) if (rg.options[i].value === t.gender) { rg.selectedIndex = i; break; }
+    var rag = document.getElementById('relayAgeGroup');
+    if (rag) for (var j = 0; j < rag.options.length; j++) if (rag.options[j].value === (t.ageGroup||'')) { rag.selectedIndex = j; break; }
+    var legs = t.legs || [];
+    for (var n = 1; n <= 4; n++) {
+        var leg = legs[n - 1] || {};
+        setVal('leg' + n + 'Name', leg.swimmerName);
+        setVal('leg' + n + 'Birth', leg.swimmerBirthDate);
+        setVal('leg' + n + 'ID', leg.swimmerIDNumber);
+        setVal('leg' + n + 'Bib', leg.swimmerBibNumber);
+    }
+    relayEvents = (e.events || []).slice();
+    renderRelayEvents();
+    editingRelayQueueIdx = idx;
+    showStatus('正在编辑接力队列第 ' + (idx + 1) + ' 条，修改后请再次点"添加到接力报名列表"', true);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function removeFromRelayQueue(idx) {
+    if (idx < 0 || idx >= pendingRelayRegs.length) return;
+    pendingRelayRegs.splice(idx, 1);
+    if (editingRelayQueueIdx === idx) editingRelayQueueIdx = null;
+    else if (editingRelayQueueIdx !== null && editingRelayQueueIdx > idx) editingRelayQueueIdx--;
+    renderRelayQueue();
+}
+
+function renderRelayQueue() {
+    var list = document.getElementById('relayQueueList');
+    var btn = document.getElementById('submitAllRelayBtn');
+    var cnt = document.getElementById('relayQueueCount');
+    if (pendingRelayRegs.length === 0) {
+        list.innerHTML = '<div style="color:#94a3b8;font-size:13px;padding:8px;">列表为空，请先在上方录入接力队后"添加到接力报名列表"</div>';
+        btn.disabled = true;
+        btn.textContent = '全部提交接力报名（0 队）';
+        if (cnt) cnt.textContent = '';
+        return;
+    }
+    var html = '';
+    for (var i = 0; i < pendingRelayRegs.length; i++) {
+        var e = pendingRelayRegs[i];
+        var t = e.team || {};
+        var evCount = (e.events || []).length;
+        var errCls = e.error ? ' err' : '';
+        html += '<div class="queue-item' + errCls + '">' +
+            '<div class="qi-info">' +
+                '<span class="qi-name">' + (t.teamName || '') + '</span>' +
+                '<span class="qi-meta">' + (t.gender || '') + ' / ' + (t.ageGroup || '') + ' / ' + evCount + ' 项 / ' + ((t.legs||[]).length) + ' 棒</span>' +
+                (e.error ? '<div class="qi-error">✗ ' + e.error + '</div>' : '') +
+            '</div>' +
+            '<div class="qi-actions">' +
+                '<button class="qi-edit" onclick="editRelayQueue(' + i + ')">修改</button>' +
+                '<button class="qi-del" onclick="removeFromRelayQueue(' + i + ')">删除</button>' +
+            '</div>' +
+        '</div>';
+    }
+    list.innerHTML = html;
+    btn.disabled = false;
+    btn.textContent = '全部提交接力报名（' + pendingRelayRegs.length + ' 队）';
+    if (cnt) cnt.textContent = '共 ' + pendingRelayRegs.length + ' 队';
+}
+
+function submitRelayQueue() {
+    if (!ws || ws.readyState !== 1) { showStatus('未连接服务器', false); return; }
+    if (pendingRelayRegs.length === 0) { showStatus('接力列表为空，请先添加', false); return; }
+    var entries = [];
+    for (var i = 0; i < pendingRelayRegs.length; i++) {
+        var p = pendingRelayRegs[i];
+        var t = p.team || {};
+        entries.push({
+            teamName: t.teamName, gender: t.gender, ageGroup: t.ageGroup,
+            countryShort: t.countryShort, legs: t.legs, events: p.events
+        });
+    }
+    ws.send(JSON.stringify({ type: 'REGISTER_RELAYS_MULTI', data: { entries: entries } }));
+    showStatus('正在提交 ' + entries.length + ' 支接力队……等待服务器结果', true);
+}
+
+// 单条 REGISTER_RELAY 的回执（查询回填后走旧协议、或其它客户端单条提交时仍可能收到）——保留兼容
 function handleRelayResult(d) {
     if (!d) return;
     if (d.success) {
-        var info = (d.teamName || '') +
-            (d.bibNumber ? '（队伍号 ' + d.bibNumber + '）' : '') +
-            '：' + (d.legCount || 0) + ' 棒';
-        var summary = d.updated
-            ? '主服务器已更新该接力队（队名+性别+项目唯一），原有报名被新数据覆盖。'
-            : '主服务器已通过本次接力报名，相关数据已写入比赛系统。';
+        var info = (d.teamName || '') + (d.bibNumber ? '（队伍号 ' + d.bibNumber + '）' : '') + '：' + (d.legCount || 0) + ' 棒';
+        var summary = d.updated ? '主服务器已更新该接力队（队名+性别+项目唯一），原有报名被新数据覆盖。' : '主服务器已通过本次接力报名，相关数据已写入比赛系统。';
         showResultModal(true, '接力报名提交成功', summary, [info], []);
+    } else {
+        showResultModal(false, '接力报名未通过', d.message || '主服务器反馈：接力队报名未通过。请修改后重新提交。',
+            [], [(d.teamName ? d.teamName + '：' : '') + (d.message || '校验未通过')]);
+    }
+}
+
+// 批量接力回执：entries[i] = {ok, message, teamName, eventName, bibNumber, legCount, updated}
+function handleRelaysMultiResult(d) {
+    if (!d) return;
+    var entries = d.entries || [];
+    var okItems = [], failItems = [];
+    for (var i = 0; i < entries.length; i++) {
+        var en = entries[i];
+        var label = (en.teamName || '') + (en.eventName ? '（' + en.eventName + '）' : '');
+        if (en.ok) okItems.push(label + (en.bibNumber ? ' 队伍号 ' + en.bibNumber : '') + (en.updated ? ' [更新]' : ' [新建]'));
+        else failItems.push(label + '：' + (en.message || '未知原因'));
+    }
+    if (failItems.length === 0) {
+        showResultModal(true, '接力报名提交成功', '共 ' + okItems.length + ' 条（队×项目）全部通过。', okItems, []);
+        pendingRelayRegs = [];
+        renderRelayQueue();
         resetRelayForm();
     } else {
-        showResultModal(false, '接力报名未通过',
-            d.message || '主服务器反馈：接力队报名未通过。请修改后重新提交。',
-            [], [(d.teamName ? d.teamName + '：' : '') + (d.message || '校验未通过')]);
+        showResultModal(okItems.length > 0, okItems.length > 0 ? '接力报名部分通过' : '接力报名未通过',
+            '通过 ' + okItems.length + ' 条，未通过 ' + failItems.length + ' 条。未通过的请修改后重新添加到列表提交。',
+            okItems, failItems);
     }
 }
 
@@ -1044,7 +1234,10 @@ function resetRelayForm() {
             if (el) el.value = '';
         });
     }
-    clearAllInvalid(['relayTeam','relayEvent','leg1Name','leg2Name','leg3Name','leg4Name']);
+    relayEvents = [];
+    renderRelayEvents();
+    editingRelayQueueIdx = null;
+    clearAllInvalid(['relayTeam','relayGender','relayAgeGroup','leg1Name','leg2Name','leg3Name','leg4Name']);
 }
 
 connect();

@@ -22,6 +22,37 @@ namespace RegistrationTool
             }
         }
 
+        // 2026-09-22 多人报名队列：先"添加到报名列表"攒多个运动员，最后"全部提交"一次性发给服务器
+        //   （对齐 register.html 的 pendingRegs/REGISTER_SWIMMERS_MULTI，之前 EXE 端只能一次提交一人）。
+        private class QueueEntry {
+            public JObject Swimmer { get; set; }
+            public List<EventEntry> Events { get; set; }
+            public bool IsResubmit { get; set; }
+            public override string ToString() {
+                string nm = Swimmer["name"] != null ? Swimmer["name"].ToString() : "";
+                string gd = Swimmer["gender"] != null ? Swimmer["gender"].ToString() : "";
+                string ct = Swimmer["country"] != null ? Swimmer["country"].ToString() : "";
+                return string.Format("{0}  {1} / {2}  ({3} 项)", nm, gd, ct, Events.Count);
+            }
+        }
+        private List<QueueEntry> _pendingRegs = new List<QueueEntry>();
+
+        // 2026-09-22 接力：一支队可报多个接力项目（同一组棒次），多支队排队后一次性提交
+        //   （对齐 register.html 的 pendingRelayRegs/REGISTER_RELAYS_MULTI）。
+        private List<EventEntry> _relayEvents = new List<EventEntry>();
+        private class RelayQueueEntry {
+            public string TeamName { get; set; }
+            public string Gender { get; set; }
+            public string AgeGroup { get; set; }
+            public string CountryShort { get; set; }
+            public JArray Legs { get; set; }
+            public List<EventEntry> Events { get; set; }
+            public override string ToString() {
+                return string.Format("{0}  {1} / {2}  ({3} 项 / {4} 棒)", TeamName, Gender, AgeGroup, Events.Count, Legs.Count);
+            }
+        }
+        private List<RelayQueueEntry> _pendingRelayRegs = new List<RelayQueueEntry>();
+
         public MainWindow() {
             InitializeComponent();
         }
@@ -209,6 +240,10 @@ namespace RegistrationTool
                             RelayStatusText.Text = "接力报名失败: " + (string.IsNullOrEmpty(srvMsg) ? "未知错误" : srvMsg);
                             RelayStatusText.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Colors.Red);
                         }
+                    } else if (mtype == "REGISTER_MULTI_RESULT") {
+                        HandleMultiResult(msg["data"] as JObject);
+                    } else if (mtype == "REGISTER_RELAYS_MULTI_RESULT") {
+                        HandleRelaysMultiResult(msg["data"] as JObject);
                     }
                 } catch { }
             });
@@ -240,31 +275,18 @@ namespace RegistrationTool
             foreach (var ev in _events) EventListBox.Items.Add(ev.ToString());
         }
 
-        private void SubmitAll_Click(object sender, RoutedEventArgs e) {
-            if (_ws == null || !_ws.IsConnected) { RegStatusText.Text = "请先连接服务器"; return; }
+        // 2026-09-22 原来点一次只提交当前表单这一人——现在改成"加入队列, 最后一次性全提交",
+        //   对齐 register.html 的多人报名列表。
+        private void AddToQueue_Click(object sender, RoutedEventArgs e) {
             string name = NameBox.Text.Trim();
-            if (string.IsNullOrEmpty(name)) { RegStatusText.Text = "请输入姓名"; return; }
-            if (_events.Count == 0) { RegStatusText.Text = "请至少添加一个参赛项目"; return; }
+            if (string.IsNullOrEmpty(name)) { SetRegStatus("请输入姓名", true); return; }
+            if (_events.Count == 0) { SetRegStatus("请至少添加一个参赛项目", true); return; }
 
             // 2026-05-21 支持手动输入 yyyy-MM-dd（与 HTML <input type="date"> 一致），解析失败时报错而不是静默丢弃
             string bdErr;
             string birthDate = ReadBirthDate(BirthDatePicker, out bdErr);
-            if (bdErr != null) {
-                RegStatusText.Text = bdErr;
-                RegStatusText.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Colors.Red);
-                return;
-            }
-            int age = 0;
-            if (!string.IsNullOrEmpty(birthDate)) {
-                DateTime bdDt;
-                if (DateTime.TryParseExact(birthDate, "yyyy-MM-dd",
-                        System.Globalization.CultureInfo.InvariantCulture,
-                        System.Globalization.DateTimeStyles.None, out bdDt)) {
-                    var today = DateTime.Today;
-                    age = today.Year - bdDt.Year;
-                    if (bdDt.Date > today.AddYears(-age)) age--;
-                }
-            }
+            if (bdErr != null) { SetRegStatus(bdErr, true); return; }
+            int age = ComputeAge(birthDate);
 
             var swimmerData = new JObject();
             swimmerData["name"] = name;
@@ -280,34 +302,120 @@ namespace RegistrationTool
             swimmerData["notes"] = NotesBox.Text.Trim();
             swimmerData["bibNumber"] = _assignedBib;
 
-            var eventsArr = new JArray();
-            foreach (var ev in _events) {
-                var obj = new JObject();
-                obj["eventName"] = ev.EventName;
-                obj["entryTime"] = ev.EntryTime;
-                eventsArr.Add(obj);
-            }
-
-            var msgData = new JObject();
-            msgData["swimmer"] = swimmerData;
-            msgData["events"] = eventsArr;
-            msgData["isResubmit"] = _submitted;
-
-            // 2026-05-21：检查 Send 返回值；连接已半死时立刻提示，不再让用户以为提交成功
-            bool sent = _ws.Send(JsonConvert.SerializeObject(new { type = "REGISTER_SWIMMER_BATCH", data = msgData }));
-            if (!sent) {
-                RegStatusText.Text = "发送失败：与主服务器的连接已断开，请重新点击\"连接\"后再提交";
-                RegStatusText.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Colors.Red);
-                return;
-            }
-            RegStatusText.Text = string.Format("正在提交 {0} 个项目...（等待主服务器确认）", _events.Count);
-            RegStatusText.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x33, 0x33, 0x33));
+            _pendingRegs.Add(new QueueEntry { Swimmer = swimmerData, Events = new List<EventEntry>(_events), IsResubmit = _submitted });
+            RefreshRegQueue();
+            ClearFormCore();
+            SetRegStatus("已加入报名列表，可继续录入下一位", false);
         }
 
-        private void RelayRegister_Click(object sender, RoutedEventArgs e) {
-            if (_ws == null || !_ws.IsConnected) { RelayStatusText.Text = "请先连接服务器"; return; }
+        private void ClearForm_Click(object sender, RoutedEventArgs e) { ClearFormCore(); RegStatusText.Text = ""; }
+
+        private void ClearFormCore() {
+            NameBox.Clear(); IDNumberBox.Clear(); PhoneBox.Clear(); CSABox.Clear(); NotesBox.Clear();
+            CountryBox.Clear(); CountryShortBox.Clear();
+            BirthDatePicker.SelectedDate = null; BirthDatePicker.Text = "";
+            if (GenderCombo.Items.Count > 0) GenderCombo.SelectedIndex = 0;
+            if (AgeGroupCombo.Items.Count > 0) AgeGroupCombo.SelectedIndex = 0;
+            EntryTimeBox.Clear();
+            _events.Clear();
+            RefreshEventList();
+            _assignedBib = "";
+            _submitted = false;
+        }
+
+        private void RefreshRegQueue() {
+            RegQueueListBox.Items.Clear();
+            foreach (var q in _pendingRegs) RegQueueListBox.Items.Add(q.ToString());
+            SubmitQueueBtn.IsEnabled = _pendingRegs.Count > 0;
+            SubmitQueueBtn.Content = string.Format("全部提交报名（{0} 人）", _pendingRegs.Count);
+        }
+
+        private void SubmitQueue_Click(object sender, RoutedEventArgs e) {
+            if (_ws == null || !_ws.IsConnected) { SetRegStatus("请先连接服务器", true); return; }
+            if (_pendingRegs.Count == 0) { SetRegStatus("列表为空，请先添加", true); return; }
+            var entriesArr = new JArray();
+            foreach (var q in _pendingRegs) {
+                var en = new JObject();
+                en["swimmer"] = q.Swimmer;
+                var evArr = new JArray();
+                foreach (var ev in q.Events) {
+                    var o = new JObject(); o["eventName"] = ev.EventName; o["entryTime"] = ev.EntryTime; evArr.Add(o);
+                }
+                en["events"] = evArr;
+                en["isResubmit"] = q.IsResubmit;
+                entriesArr.Add(en);
+            }
+            var data = new JObject(); data["entries"] = entriesArr;
+            bool sent = _ws.Send(JsonConvert.SerializeObject(new { type = "REGISTER_SWIMMERS_MULTI", data = data }));
+            if (!sent) { SetRegStatus("发送失败：与主服务器的连接已断开，请重新点击\"连接\"后再提交", true); return; }
+            SetRegStatus(string.Format("正在提交 {0} 人报名...（等待主服务器确认）", _pendingRegs.Count), false);
+        }
+
+        // 服务器批量回执（register.html 同款协议 REGISTER_MULTI_RESULT）：整批要么全过要么全部退回，
+        // 见服务端 HandleRegisterSwimmersMulti 的"任何一条失败都不入库"注释。
+        private void HandleMultiResult(JObject data) {
+            if (data == null) return;
+            bool ok = data["success"] != null && (bool)data["success"];
+            string srvMsg = data["message"] != null ? data["message"].ToString() : "";
+            var entries = data["entries"] as JArray;
+            if (ok) {
+                _pendingRegs.Clear();
+                RefreshRegQueue();
+                SetRegStatus(string.IsNullOrEmpty(srvMsg) ? "报名列表已全部提交成功！" : srvMsg, false);
+            } else {
+                string detail = "";
+                if (entries != null) {
+                    foreach (JObject en in entries) {
+                        if (en["ok"] != null && !(bool)en["ok"])
+                            detail += (detail.Length > 0 ? "；" : "") + (en["message"] != null ? en["message"].ToString() : "");
+                    }
+                }
+                SetRegStatus("报名列表未通过：" + (string.IsNullOrEmpty(detail) ? srvMsg : detail) + "，请修改后重新提交", true);
+            }
+        }
+
+        private void SetRegStatus(string text, bool isError) {
+            RegStatusText.Text = text;
+            RegStatusText.Foreground = new System.Windows.Media.SolidColorBrush(
+                isError ? System.Windows.Media.Colors.Red : System.Windows.Media.Colors.Green);
+        }
+
+        private static int ComputeAge(string birthDate) {
+            if (string.IsNullOrEmpty(birthDate)) return 0;
+            DateTime bdDt;
+            if (!DateTime.TryParseExact(birthDate, "yyyy-MM-dd",
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    System.Globalization.DateTimeStyles.None, out bdDt)) return 0;
+            var today = DateTime.Today;
+            int age = today.Year - bdDt.Year;
+            if (bdDt.Date > today.AddYears(-age)) age--;
+            return age;
+        }
+
+        // ═══════ 接力：项目列表 + 多队报名列表 ═══════
+        private void AddRelayEvent_Click(object sender, RoutedEventArgs e) {
+            string eventName = RelayEventCombo.SelectedItem != null ? ((ComboBoxItem)RelayEventCombo.SelectedItem).Content.ToString() : "";
+            if (string.IsNullOrEmpty(eventName)) return;
+            foreach (var ev in _relayEvents) {
+                if (ev.EventName == eventName) {
+                    MessageBox.Show("已添加此项目，不能重复！", "提示", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+            }
+            _relayEvents.Add(new EventEntry { EventName = eventName, EntryTime = RelayEntryTimeBox.Text.Trim() });
+            RelayEntryTimeBox.Clear();
+            RefreshRelayEventList();
+        }
+
+        private void RefreshRelayEventList() {
+            RelayEventListBox.Items.Clear();
+            foreach (var ev in _relayEvents) RelayEventListBox.Items.Add(ev.ToString());
+        }
+
+        private void AddRelayToQueue_Click(object sender, RoutedEventArgs e) {
+            if (_relayEvents.Count == 0) { SetRelayStatus("请至少添加一个接力项目", true); return; }
             string team = RelayTeamBox.Text.Trim();
-            if (string.IsNullOrEmpty(team)) { RelayStatusText.Text = "请输入队名"; return; }
+            if (string.IsNullOrEmpty(team)) { SetRelayStatus("请输入队名", true); return; }
 
             var legs = new JArray();
             TextBox[] nameBoxes = { Leg1Name, Leg2Name, Leg3Name, Leg4Name };
@@ -317,14 +425,9 @@ namespace RegistrationTool
             for (int i = 0; i < 4; i++) {
                 string legName = nameBoxes[i].Text.Trim();
                 if (!string.IsNullOrEmpty(legName)) {
-                    // 2026-05-21 接力每棒出生日期同样支持手动输入 yyyy-MM-dd 或点日历选择
                     string legBdErr;
                     string legBd = ReadBirthDate(birthPickers[i], out legBdErr);
-                    if (legBdErr != null) {
-                        RelayStatusText.Text = string.Format("第{0}棒 {1}", i + 1, legBdErr);
-                        RelayStatusText.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Colors.Red);
-                        return;
-                    }
+                    if (legBdErr != null) { SetRelayStatus(string.Format("第{0}棒 {1}", i + 1, legBdErr), true); return; }
                     var leg = new JObject();
                     leg["legOrder"] = i + 1;
                     leg["swimmerName"] = legName;
@@ -334,27 +437,106 @@ namespace RegistrationTool
                     legs.Add(leg);
                 }
             }
+            if (legs.Count == 0) { SetRelayStatus("请至少填写 1 棒队员姓名", true); return; }
 
-            var data = new JObject();
-            data["teamName"] = team;
-            data["eventName"] = ((ComboBoxItem)RelayEventCombo.SelectedItem).Content.ToString();
-            data["gender"] = ((ComboBoxItem)RelayGenderCombo.SelectedItem).Content.ToString();
-            data["ageGroup"] = ReadComboText(RelayAgeGroupCombo);
-            data["countryShort"] = RelayCountryShortBox.Text.Trim();
-            data["entryTime"] = RelayEntryTimeBox.Text.Trim();
-            data["legs"] = legs;
+            var entry = new RelayQueueEntry {
+                TeamName = team,
+                Gender = RelayGenderCombo.SelectedItem != null ? ((ComboBoxItem)RelayGenderCombo.SelectedItem).Content.ToString() : "男",
+                AgeGroup = ReadComboText(RelayAgeGroupCombo),
+                CountryShort = RelayCountryShortBox.Text.Trim(),
+                Legs = legs,
+                Events = new List<EventEntry>(_relayEvents)
+            };
+            _pendingRelayRegs.Add(entry);
+            RefreshRelayQueue();
+            ClearRelayFormCore();
+            SetRelayStatus("已加入接力报名列表，可继续录入下一支队", false);
+        }
 
-            // 2026-05-21：原来这里只显示"已提交"乐观提示，不等服务器回执 — 即使服务器
-            // 因队名/项目/棒次为空拒掉，用户也以为成功。现在改为等服务器回的 REGISTER_RELAY_RESULT
-            // 才在 OnServerMessage 里显示绿色"已新建/已更新"或红色"接力报名失败: ..."。
-            bool sent = _ws.Send(JsonConvert.SerializeObject(new { type = "REGISTER_RELAY", data = data }));
-            if (!sent) {
-                RelayStatusText.Text = "发送失败：与主服务器的连接已断开，请重新点击\"连接\"后再提交";
-                RelayStatusText.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Colors.Red);
-                return;
+        private void ClearRelayForm_Click(object sender, RoutedEventArgs e) { ClearRelayFormCore(); RelayStatusText.Text = ""; }
+
+        private void ClearRelayFormCore() {
+            RelayTeamBox.Clear(); RelayCountryShortBox.Clear(); RelayEntryTimeBox.Clear();
+            if (RelayGenderCombo.Items.Count > 0) RelayGenderCombo.SelectedIndex = 0;
+            if (RelayAgeGroupCombo.Items.Count > 0) RelayAgeGroupCombo.SelectedIndex = 0;
+            TextBox[] nameBoxes = { Leg1Name, Leg2Name, Leg3Name, Leg4Name };
+            TextBox[] idBoxes = { Leg1ID, Leg2ID, Leg3ID, Leg4ID };
+            TextBox[] bibBoxes = { Leg1Bib, Leg2Bib, Leg3Bib, Leg4Bib };
+            DatePicker[] birthPickers = { Leg1Birth, Leg2Birth, Leg3Birth, Leg4Birth };
+            for (int i = 0; i < 4; i++) {
+                nameBoxes[i].Clear(); idBoxes[i].Clear(); bibBoxes[i].Clear();
+                birthPickers[i].SelectedDate = null; birthPickers[i].Text = "";
             }
-            RelayStatusText.Text = string.Format("正在提交 {0}（{1} 棒）...（等待主服务器确认）", team, legs.Count);
-            RelayStatusText.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x33, 0x33, 0x33));
+            _relayEvents.Clear();
+            RefreshRelayEventList();
+        }
+
+        private void RefreshRelayQueue() {
+            RelayQueueListBox.Items.Clear();
+            foreach (var q in _pendingRelayRegs) RelayQueueListBox.Items.Add(q.ToString());
+            SubmitRelayQueueBtn.IsEnabled = _pendingRelayRegs.Count > 0;
+            SubmitRelayQueueBtn.Content = string.Format("全部提交接力报名（{0} 队）", _pendingRelayRegs.Count);
+        }
+
+        private void SubmitRelayQueue_Click(object sender, RoutedEventArgs e) {
+            if (_ws == null || !_ws.IsConnected) { SetRelayStatus("请先连接服务器", true); return; }
+            if (_pendingRelayRegs.Count == 0) { SetRelayStatus("接力列表为空，请先添加", true); return; }
+            var entriesArr = new JArray();
+            foreach (var q in _pendingRelayRegs) {
+                var en = new JObject();
+                en["teamName"] = q.TeamName;
+                en["gender"] = q.Gender;
+                en["ageGroup"] = q.AgeGroup;
+                en["countryShort"] = q.CountryShort;
+                en["legs"] = q.Legs;
+                var evArr = new JArray();
+                foreach (var ev in q.Events) {
+                    var o = new JObject(); o["eventName"] = ev.EventName; o["entryTime"] = ev.EntryTime; evArr.Add(o);
+                }
+                en["events"] = evArr;
+                entriesArr.Add(en);
+            }
+            var data = new JObject(); data["entries"] = entriesArr;
+            bool sent = _ws.Send(JsonConvert.SerializeObject(new { type = "REGISTER_RELAYS_MULTI", data = data }));
+            if (!sent) { SetRelayStatus("发送失败：与主服务器的连接已断开，请重新点击\"连接\"后再提交", true); return; }
+            SetRelayStatus(string.Format("正在提交 {0} 支接力队...（等待主服务器确认）", _pendingRelayRegs.Count), false);
+        }
+
+        // 服务器批量回执：entries[i] = {ok, message, teamName, eventName, bibNumber, legCount, updated}——
+        // 每条（队×项目）独立处理，不是全有全无，见服务端 HandleRegisterRelaysMulti。
+        private void HandleRelaysMultiResult(JObject data) {
+            if (data == null) return;
+            var entries = data["entries"] as JArray;
+            int okCount = 0, failCount = 0;
+            string failDetail = "";
+            if (entries != null) {
+                foreach (JObject en in entries) {
+                    bool ok = en["ok"] != null && (bool)en["ok"];
+                    if (ok) okCount++;
+                    else {
+                        failCount++;
+                        string tn = en["teamName"] != null ? en["teamName"].ToString() : "";
+                        string ev = en["eventName"] != null ? en["eventName"].ToString() : "";
+                        string msg = en["message"] != null ? en["message"].ToString() : "";
+                        failDetail += (failDetail.Length > 0 ? "；" : "") + tn + (string.IsNullOrEmpty(ev) ? "" : "(" + ev + ")") + ": " + msg;
+                    }
+                }
+            }
+            if (failCount == 0 && okCount > 0) {
+                _pendingRelayRegs.Clear();
+                RefreshRelayQueue();
+                SetRelayStatus(string.Format("接力报名提交成功！共 {0} 条（队×项目）全部通过。", okCount), false);
+            } else if (okCount > 0) {
+                SetRelayStatus(string.Format("部分通过：成功 {0} 条，失败 {1} 条 — {2}", okCount, failCount, failDetail), true);
+            } else {
+                SetRelayStatus("接力报名未通过：" + failDetail, true);
+            }
+        }
+
+        private void SetRelayStatus(string text, bool isError) {
+            RelayStatusText.Text = text;
+            RelayStatusText.Foreground = new System.Windows.Media.SolidColorBrush(
+                isError ? System.Windows.Media.Colors.Red : System.Windows.Media.Colors.Green);
         }
 
         // 读取可编辑 ComboBox 的当前值（兼容选项+自由输入）

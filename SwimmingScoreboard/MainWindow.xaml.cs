@@ -206,7 +206,7 @@ namespace SwimmingScoreboard
         // 用处: 页面里有同名常量, 对不上就在页面顶端挂红条、并在主服务器系统日志里
         // 记一行。协议是 exe 和页面一起改的(比赛日志增量、设备状态推送、DATA_CHANGED),
         // 只换一半会出现"设备状态灯和比赛日志不刷新"这种看不出根由的毛病。
-        public const string WEB_ASSET_VERSION = "20260922-2";
+        public const string WEB_ASSET_VERSION = "20260922-3";
 
         private const int MAX_LANE_EVENT_LOG = 64 * 1024;
         private static void TrimSbIfOver(StringBuilder sb, int maxLen) {
@@ -2019,6 +2019,9 @@ namespace SwimmingScoreboard
                     case "REGISTER_RELAY":
                         HandleRegisterRelay(socket, msg);
                         break;
+                    case "REGISTER_RELAYS_MULTI":
+                        HandleRegisterRelaysMulti(socket, msg);
+                        break;
                     case "RELAY_QUERY":
                         HandleRelayQuery(socket, msg);
                         break;
@@ -2670,6 +2673,72 @@ namespace SwimmingScoreboard
         private void HandleRegisterRelay(IWebSocketConnection socket, JObject msg) {
             var data = msg["data"];
             if (data == null) { SendRelayResult(socket, false, "数据不完整", "", "", 0, false); return; }
+            string message, teamName, bibNumber; int legCount; bool updated;
+            bool ok = RegisterOneRelayTeam(data, out message, out teamName, out bibNumber, out legCount, out updated);
+            SendRelayResult(socket, ok, message, teamName, bibNumber, legCount, updated);
+        }
+
+        // 2026-09-22 网页/RegistrationTool "多队多项目一次提交": 每个 entries[i] = 一支队(队名+性别+组别+棒次),
+        //   entries[i].events[] = 这支队要报的多个接力项目(与个人项目"一人多项目"同一个模型)。
+        //   逐条(队×项目)调用与单条 REGISTER_RELAY 完全相同的落库逻辑(RegisterOneRelayTeam), 互不影响、
+        //   一条失败不影响其它条——不像 REGISTER_MULTI_RESULT(个人)那样先整批校验再整批写入, 因为接力
+        //   "队名+性别+项目+组别 四键唯一"本身就是幂等 upsert, 没有"批内互相冲突"这类需要预校验的情形。
+        private void HandleRegisterRelaysMulti(IWebSocketConnection socket, JObject msg) {
+            var data = msg["data"];
+            var entries = data != null ? data["entries"] as JArray : null;
+            if (entries == null || entries.Count == 0) {
+                SendRelaysMultiResult(socket, false, "无接力报名条目", new List<object>());
+                return;
+            }
+            var perEntry = new List<object>();
+            bool anyOk = false;
+            for (int i = 0; i < entries.Count; i++) {
+                var en = entries[i] as JObject;
+                if (en == null) { perEntry.Add(new { ok = false, message = "条目格式错误", teamName = "", eventName = "" }); continue; }
+                string teamNameIn = en["teamName"] != null ? en["teamName"].ToString() : "";
+                var evs = en["events"] as JArray;
+                if (evs == null || evs.Count == 0) {
+                    perEntry.Add(new { ok = false, message = teamNameIn + ": 至少添加一个接力项目", teamName = teamNameIn, eventName = "" });
+                    continue;
+                }
+                foreach (JObject ev in evs) {
+                    string evName = ev["eventName"] != null ? ev["eventName"].ToString() : "";
+                    string evEntryTime = ev["entryTime"] != null ? ev["entryTime"].ToString() : "";
+                    // 拼一条与单条 REGISTER_RELAY 相同形状的 data: 队信息(entry级) + 这一个项目(event级)
+                    var perCallData = new JObject();
+                    perCallData["teamName"] = teamNameIn;
+                    perCallData["eventName"] = evName;
+                    perCallData["gender"] = en["gender"];
+                    perCallData["ageGroup"] = en["ageGroup"];
+                    perCallData["countryShort"] = en["countryShort"];
+                    perCallData["entryTime"] = evEntryTime;
+                    perCallData["legs"] = en["legs"];
+
+                    string message, teamName, bibNumber; int legCount; bool updated;
+                    bool ok = RegisterOneRelayTeam(perCallData, out message, out teamName, out bibNumber, out legCount, out updated);
+                    if (ok) anyOk = true;
+                    perEntry.Add(new { ok = ok, message = message, teamName = teamName, eventName = evName, bibNumber = bibNumber, legCount = legCount, updated = updated });
+                }
+            }
+            SendRelaysMultiResult(socket, anyOk, anyOk ? "接力报名提交完成，详见各条结果" : "接力报名全部未通过", perEntry);
+        }
+
+        private void SendRelaysMultiResult(IWebSocketConnection socket, bool success, string message, List<object> perEntry) {
+            if (socket == null) return;
+            try {
+                var result = new {
+                    type = "REGISTER_RELAYS_MULTI_RESULT",
+                    data = new { success = success, message = message, entries = perEntry }
+                };
+                socket.Send(JsonConvert.SerializeObject(result));
+            } catch { }
+        }
+
+        // 2026-09-22 从 HandleRegisterRelay 抽出的核心落库逻辑(原样保留, 未改行为)——
+        //   供单条 REGISTER_RELAY 和批量 REGISTER_RELAYS_MULTI 共用, 不再各写一份。
+        //   不直接发 socket 回执, 用 out 参数把结果交回调用方自行组装/发送。
+        private bool RegisterOneRelayTeam(JToken data, out string message, out string teamName, out string bibNumber, out int legCount, out bool updated) {
+            message = ""; teamName = ""; bibNumber = ""; legCount = 0; updated = false;
             var team = new RelayTeam {
                 TeamName = data["teamName"] != null ? data["teamName"].ToString() : "",
                 EventName = data["eventName"] != null ? data["eventName"].ToString() : "",
@@ -2677,9 +2746,10 @@ namespace SwimmingScoreboard
                 AgeGroup = data["ageGroup"] != null ? data["ageGroup"].ToString() : "",
                 EntryTime = data["entryTime"] != null ? data["entryTime"].ToString() : ""
             };
-            if (string.IsNullOrEmpty(team.TeamName)) { SendRelayResult(socket, false, "队名不能为空", "", "", 0, false); return; }
-            if (string.IsNullOrEmpty(team.EventName)) { SendRelayResult(socket, false, "请选择项目", team.TeamName, "", 0, false); return; }
-            if (string.IsNullOrEmpty(team.AgeGroup)) { SendRelayResult(socket, false, "请选择组别", team.TeamName, "", 0, false); return; }
+            teamName = team.TeamName;
+            if (string.IsNullOrEmpty(team.TeamName)) { message = "队名不能为空"; return false; }
+            if (string.IsNullOrEmpty(team.EventName)) { message = "请选择项目"; return false; }
+            if (string.IsNullOrEmpty(team.AgeGroup)) { message = "请选择组别"; return false; }
             team.EntryTimeSeconds = TimeFormatter.Parse(team.EntryTime);
             var legs = data["legs"] as JArray;
             if (legs != null) {
@@ -2705,7 +2775,7 @@ namespace SwimmingScoreboard
                 }
             }
 
-            if (team.Legs.Count == 0) { SendRelayResult(socket, false, "请至少填写 1 棒队员姓名", team.TeamName, "", 0, false); return; }
+            if (team.Legs.Count == 0) { message = "请至少填写 1 棒队员姓名"; return false; }
 
             // 防止同一接力队重复注册（队名+性别+项目+组别 四键唯一）
             var existingTeam = _relayTeams.FirstOrDefault(t =>
@@ -2726,8 +2796,8 @@ namespace SwimmingScoreboard
                     s.Country == team.TeamName && s.Gender == team.Gender && s.EventName == team.EventName
                     && !string.IsNullOrEmpty(s.Notes) && s.Notes.StartsWith("接力队 棒次:"));
                 string existBib = existingProxy != null ? (existingProxy.BibNumber ?? "") : "";
-                SendRelayResult(socket, true, "接力队信息已更新", team.TeamName, existBib, team.Legs.Count, true);
-                return;
+                message = "接力队信息已更新"; bibNumber = existBib; legCount = team.Legs.Count; updated = true;
+                return true;
             }
             _relayTeams.Add(team);
             var touchedRows = new List<Swimmer>();
@@ -2735,7 +2805,7 @@ namespace SwimmingScoreboard
             // 在_swimmers中创建代表该接力队的条目，统一走日程/分组/成绩流程
             string legNames = "";
             foreach (var leg in team.Legs) legNames += (legNames.Length > 0 ? "," : "") + leg.SwimmerName;
-            string bibNumber = "R" + (_relayTeams.Count).ToString("D3");
+            bibNumber = "R" + (_relayTeams.Count).ToString("D3");
             // 检查重复
             var dup = FindDuplicate(team.TeamName, team.Gender, team.EventName, bibNumber, "", team.TeamName);
             string relayCountryShort = data["countryShort"] != null ? data["countryShort"].ToString() : "";
@@ -2797,7 +2867,8 @@ namespace SwimmingScoreboard
             AddLog(Loc.F("Str_Log_RelayRegisteredFmt", team.TeamName, team.EventName, team.Legs.Count, legNames));
             RebuildRelayGroupedView();
             FinishAndSyncPatch(BuildSwimmerRowsUpsertPatch(touchedRows, new List<RelayTeam> { team }, null, ClientLabel()), "swimmer");
-            SendRelayResult(socket, true, "接力队报名成功", team.TeamName, bibNumber, team.Legs.Count, false);
+            message = "接力队报名成功"; legCount = team.Legs.Count; updated = false;
+            return true;
         }
 
         // 2026-08-25 竞赛数据服务 服务端入口。

@@ -132,9 +132,22 @@
                             </Grid>
                         </Border>
 
-                        <Button Content="提交全部报名信息" Click="SubmitAll_Click" Padding="0,10" Margin="0,12,0,0"
-                                Background="#22C55E" Foreground="White" FontSize="15" FontWeight="Bold" BorderThickness="0"/>
+                        <Grid Margin="0,12,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="2*"/>
+                                <ColumnDefinition Width="1*"/>
+                            </Grid.ColumnDefinitions>
+                            <Button Grid.Column="0" Content="+ 添加到报名列表" Click="AddToQueue_Click" Padding="0,10" Margin="0,0,8,0"
+                                    Background="#8B5CF6" Foreground="White" FontSize="14" FontWeight="Bold" BorderThickness="0"/>
+                            <Button Grid.Column="1" Content="清空当前表单" Click="ClearForm_Click" Padding="0,10"
+                                    Background="#64748B" Foreground="White" FontSize="14" BorderThickness="0"/>
+                        </Grid>
                         <TextBlock x:Name="RegStatusText" Text="" Foreground="#22C55E" Margin="0,8,0,0" FontWeight="Bold" TextWrapping="Wrap"/>
+
+                        <TextBlock Text="待提交报名列表" FontSize="14" FontWeight="Bold" Margin="0,16,0,4"/>
+                        <ListBox x:Name="RegQueueListBox" Height="100" FontSize="13"/>
+                        <Button x:Name="SubmitQueueBtn" Content="全部提交报名（0 人）" Click="SubmitQueue_Click" Padding="0,10" Margin="0,8,0,0"
+                                Background="#22C55E" Foreground="White" FontSize="15" FontWeight="Bold" BorderThickness="0" IsEnabled="False"/>
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>
@@ -184,12 +197,17 @@
                             <TextBlock Grid.Row="1" Grid.Column="2" Margin="16,0,0,0" Text="单位简称:" VerticalAlignment="Center"/>
                             <TextBox x:Name="RelayCountryShortBox" Grid.Row="1" Grid.Column="3" Padding="4" VerticalAlignment="Center"/>
                             <TextBlock Grid.Row="2" Grid.Column="0" Margin="6,0,0,0" Text="项目:" VerticalAlignment="Center"/>
-                            <ComboBox x:Name="RelayEventCombo" Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="3" SelectedIndex="0" VerticalAlignment="Center">
+                            <ComboBox x:Name="RelayEventCombo" Grid.Row="2" Grid.Column="1" SelectedIndex="0" VerticalAlignment="Center">
                                 <ComboBoxItem Content="4x100米自由泳接力"/><ComboBoxItem Content="4x200米自由泳接力"/><ComboBoxItem Content="4x100米混合泳接力"/>
                             </ComboBox>
                             <TextBlock Grid.Row="3" Grid.Column="0" Margin="6,0,0,0" Text="报名成绩:" VerticalAlignment="Center"/>
                             <TextBox x:Name="RelayEntryTimeBox" Grid.Row="3" Grid.Column="1" Padding="4" VerticalAlignment="Center"/>
+                            <Button Grid.Row="3" Grid.Column="2" Grid.ColumnSpan="2" Content="+ 添加接力项目" Click="AddRelayEvent_Click" Padding="8,4"
+                                    Background="#8B5CF6" Foreground="White" BorderThickness="0"/>
                         </Grid>
+                        <!-- 2026-09-22 一支队可以报多个接力项目：先加到这个列表，最后随队伍一起加入报名队列 -->
+                        <TextBlock Text="已添加接力项目（同一队伍/棒次可报多个）" FontSize="13" FontWeight="Bold" Margin="0,10,0,4"/>
+                        <ListBox x:Name="RelayEventListBox" Height="70" FontSize="13"/>
                         <TextBlock Text="棒次安排" FontSize="14" FontWeight="Bold" Margin="0,12,0,6"/>
                         <!-- 列抬头（填写提示，防止输错） -->
                         <Grid Margin="0,0,0,2">
@@ -199,7 +217,7 @@
                             <TextBlock Grid.Column="0" Margin="6,0,0,0" Text="棒次" FontSize="12" FontWeight="Bold" Foreground="#1E40AF"/>
                             <TextBlock Grid.Column="1" Text="姓名（与身份证一致）" FontSize="12" FontWeight="Bold" Foreground="#1E40AF" Margin="0,0,4,0"/>
                             <TextBlock Grid.Column="2" Text="出生日期" FontSize="12" FontWeight="Bold" Foreground="#1E40AF" Margin="0,0,4,0"/>
-                            <TextBlock Grid.Column="3" Text="身份证号（18位）" FontSize="12" FontWeight="Bold" Foreground="#1E40AF" Margin="0,0,4,0"/>
+                            <TextBlock Grid.Column="3" Text="身份证号（选填）" FontSize="12" FontWeight="Bold" Foreground="#1E40AF" Margin="0,0,4,0"/>
                             <TextBlock Grid.Column="4" Text="参赛号" FontSize="12" FontWeight="Bold" Foreground="#1E40AF"/>
                         </Grid>
                         <Grid>
@@ -237,11 +255,24 @@
                         <!-- 填写提示（琥珀色警示条） -->
                         <Border Background="#FEF3C7" BorderBrush="#F59E0B" BorderThickness="1" CornerRadius="4" Padding="8,4" Margin="0,6,0,0">
                             <TextBlock Foreground="#92400E" FontSize="11" TextWrapping="Wrap"
-                                       Text="提示：姓名需与身份证一致；身份证号为 18 位数字（供检录时核对证件）；参赛号由赛事组委会分配（可留空由系统自动分配）。"/>
+                                       Text="提示：姓名需与证件一致；身份证号选填，不限位数/格式（国际选手可填护照号等其它证件号）；参赛号由赛事组委会分配（可留空由系统自动分配）。"/>
                         </Border>
-                        <Button Content="提交接力报名" Click="RelayRegister_Click" Padding="0,10" Margin="0,12,0,0"
-                                Background="#22C55E" Foreground="White" FontSize="15" FontWeight="Bold" BorderThickness="0"/>
+                        <Grid Margin="0,12,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="2*"/>
+                                <ColumnDefinition Width="1*"/>
+                            </Grid.ColumnDefinitions>
+                            <Button Grid.Column="0" Content="+ 添加到接力报名列表" Click="AddRelayToQueue_Click" Padding="0,10" Margin="0,0,8,0"
+                                    Background="#8B5CF6" Foreground="White" FontSize="14" FontWeight="Bold" BorderThickness="0"/>
+                            <Button Grid.Column="1" Content="清空当前表单" Click="ClearRelayForm_Click" Padding="0,10"
+                                    Background="#64748B" Foreground="White" FontSize="14" BorderThickness="0"/>
+                        </Grid>
                         <TextBlock x:Name="RelayStatusText" Text="" Foreground="#22C55E" Margin="0,8,0,0" FontWeight="Bold"/>
+
+                        <TextBlock Text="待提交接力报名列表" FontSize="14" FontWeight="Bold" Margin="0,16,0,4"/>
+                        <ListBox x:Name="RelayQueueListBox" Height="100" FontSize="13"/>
+                        <Button x:Name="SubmitRelayQueueBtn" Content="全部提交接力报名（0 队）" Click="SubmitRelayQueue_Click" Padding="0,10" Margin="0,8,0,0"
+                                Background="#22C55E" Foreground="White" FontSize="15" FontWeight="Bold" BorderThickness="0" IsEnabled="False"/>
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>
