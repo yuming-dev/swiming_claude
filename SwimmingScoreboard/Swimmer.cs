@@ -1901,9 +1901,17 @@ namespace SwimmingScoreboard
     public class BibRange
     {
         public string Country { get; set; }   // 代表队 / 单位 / 国家
-        public int Start { get; set; }        // 起始号（纯数字）
+        public int Start { get; set; }        // 起始号（纯数字）——男女共用号码段时的合并范围；也是没有单独设男/女范围时的兜底范围
         public int End { get; set; }          // 结束号（纯数字，含）
         public int Width { get; set; }        // 补零宽度（通常 3 或 4）
+        // 2026-09-22 参赛单位及号码分配: 支持"单位+组别"多对多(同一单位可报多个比赛组别,
+        //   每个组别号码段独立)，配合 Country 组成唯一键；空 = 不分组(沿用旧的按 Country 单键行为)。
+        public string AgeGroup { get; set; }
+        // 男/女单独号码段: 0 = 未单独设置, 退回用 Start/End(男女共用)。两者都 >0 才视为"已拆分"。
+        public int MaleStart { get; set; }
+        public int MaleEnd { get; set; }
+        public int FemaleStart { get; set; }
+        public int FemaleEnd { get; set; }
 
         public BibRange() { Width = 3; }
     }

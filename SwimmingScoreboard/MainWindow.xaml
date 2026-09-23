@@ -314,6 +314,11 @@
                                 </StackPanel>
                             </ScrollViewer>
                         </TabItem>
+                        <!-- 2026-09-22 参赛单位及号码分配（现场需求: 参考第三方软件的单位/号码分配方式）
+                             这次新加的内容全部用中文字面量, 不接 DynamicResource/Loc 体系 —— i18n 翻译工作已暂停。 -->
+                        <TabItem Header="参赛单位及号码分配">
+                            <Grid x:Name="UnitBibAllocRoot" Margin="10"/>
+                        </TabItem>
                         <TabItem Header="{DynamicResource Str_EM_Tab_Swimmers}">
                             <DockPanel Margin="10">
                                 <!-- 第一行：数据维护 / 导入导出 -->
