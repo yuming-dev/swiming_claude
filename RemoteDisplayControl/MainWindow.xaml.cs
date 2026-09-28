@@ -57,7 +57,7 @@ namespace RemoteDisplayControl
                 // 已连接 → 立即把 display.html 加载进预览
                 if (_ws != null && _ws.IsConnected) TryNavigatePreview();
             } catch (Exception ex) {
-                StatusText.Text = "大屏预览初始化失败 (装 WebView2 Runtime 后重启): " + ex.Message;
+                StatusText.Text = SwimmingScoreboard.Loc.F("Str_RDC_PreviewInitFailedFmt", ex.Message);
                 StatusText.Foreground = new SolidColorBrush(Colors.Orange);
             }
             UpdatePreviewSize(PreviewSizeSlider.Value);
@@ -112,9 +112,9 @@ namespace RemoteDisplayControl
         private void Connect_Click(object sender, RoutedEventArgs e) {
             if (_ws != null && _ws.IsConnected) {
                 _ws.Close();
-                StatusText.Text = "未连接";
+                StatusText.Text = SwimmingScoreboard.Loc.T("Str_RegTool_StatusDisconnected");
                 StatusText.Foreground = new SolidColorBrush(Colors.Red);
-                ConnectBtn.Content = "连接";
+                ConnectBtn.Content = SwimmingScoreboard.Loc.T("Str_RegTool_ConnectBtn");
                 return;
             }
 
@@ -170,9 +170,9 @@ namespace RemoteDisplayControl
                 };
                 _ws.OnDisconnected += delegate() {
                     Dispatcher.Invoke((Action)delegate() {
-                        StatusText.Text = "连接断开";
+                        StatusText.Text = SwimmingScoreboard.Loc.T("Str_RegTool_ConnLost");
                         StatusText.Foreground = new SolidColorBrush(Colors.Red);
-                        ConnectBtn.Content = "连接";
+                        ConnectBtn.Content = SwimmingScoreboard.Loc.T("Str_RegTool_ConnectBtn");
                     });
                 };
                 _ws.Connect(host, port);
@@ -180,14 +180,14 @@ namespace RemoteDisplayControl
                 // "系统工作状态→连接状态"完全数不出这台机器连着。加一条身份帧, 只为计数,
                 // 不影响原有的 REMOTE_CONTROL / SET_DISPLAY_STYLE 等命令收发。
                 try { _ws.Send(JsonConvert.SerializeObject(new { type = "DISPLAY_CONTROL_IDENTITY" })); } catch { }
-                StatusText.Text = "已连接: " + addr;
+                StatusText.Text = SwimmingScoreboard.Loc.F("Str_RDC_ConnectedFmt", addr);
                 StatusText.Foreground = new SolidColorBrush(Colors.LimeGreen);
-                ConnectBtn.Content = "断开";
+                ConnectBtn.Content = SwimmingScoreboard.Loc.T("Str_RegTool_DisconnectBtn");
                 // 2026-06-18 连接成功后保存地址, 下次启动自动填入
                 try { System.IO.File.WriteAllText(ServerAddrFile, addr, System.Text.Encoding.UTF8); } catch { }
                 TryNavigatePreview();   // 2026-06-17 连上后立即加载大屏预览
             } catch (Exception ex) {
-                StatusText.Text = "连接失败: " + ex.Message;
+                StatusText.Text = SwimmingScoreboard.Loc.F("Str_RegTool_ConnFailedFmt", ex.Message);
             }
         }
 
@@ -200,27 +200,27 @@ namespace RemoteDisplayControl
 
         private void SendMode_Click(object sender, RoutedEventArgs e) {
             if (_ws == null || !_ws.IsConnected) {
-                StatusText.Text = "请先连接服务器";
+                StatusText.Text = SwimmingScoreboard.Loc.T("Str_RegTool_ErrNotConnected");
                 return;
             }
             string mode = ((Button)sender).Tag.ToString();
             // 2026-09-27 总排名/颁奖 跟 PC 本机一样先弹窗选项目, 不能像其它模式那样直接甩命令
             if (mode == "SHOW_EVENT_RANKING") {
-                OpenRankingPicker(mode, "🏆 总排名 — 选择回放项目", new SolidColorBrush((Color)ColorConverter.ConvertFromString("#059669")));
+                OpenRankingPicker(mode, SwimmingScoreboard.Loc.T("Str_RDC_RankingPickTitle"), new SolidColorBrush((Color)ColorConverter.ConvertFromString("#059669")));
                 return;
             }
             if (mode == "SHOW_AWARDS") {
-                OpenRankingPicker(mode, "🥇 颁奖 — 选择颁奖项目", new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EC4899")));
+                OpenRankingPicker(mode, SwimmingScoreboard.Loc.T("Str_RDC_AwardsPickTitle"), new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EC4899")));
                 return;
             }
             _ws.Send(JsonConvert.SerializeObject(new { type = "REMOTE_CONTROL", command = mode }));
-            StatusText.Text = "已发送: " + mode;
+            StatusText.Text = SwimmingScoreboard.Loc.F("Str_RDC_SentFmt", mode);
         }
 
         // 2026-06-01 打开大屏样式远程控制窗口
         private void OpenDisplayStyle_Click(object sender, RoutedEventArgs e) {
             if (_ws == null || !_ws.IsConnected) {
-                MessageBox.Show("请先连接服务器", "未连接", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(SwimmingScoreboard.Loc.T("Str_RegTool_ErrNotConnected"), SwimmingScoreboard.Loc.T("Str_RegTool_StatusDisconnected"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
             if (_displayStyleWin != null && _displayStyleWin.IsLoaded) {
@@ -262,7 +262,7 @@ namespace RemoteDisplayControl
                     btnRow.Children.Add(btn);
                 }
             }
-            var btnClose = new Button { Content = "关闭", Padding = new Thickness(14, 6, 14, 6), Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
+            var btnClose = new Button { Content = SwimmingScoreboard.Loc.T("Str_Btn_Close"), Padding = new Thickness(14, 6, 14, 6), Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
             btnClose.Click += delegate { win.Close(); };
             btnRow.Children.Add(btnClose);
             sp.Children.Add(btnRow);
@@ -272,12 +272,12 @@ namespace RemoteDisplayControl
 
         // 图片 / 视频
         private void OpenMediaDialog_Click(object sender, RoutedEventArgs e) {
-            if (_ws == null || !_ws.IsConnected) { MessageBox.Show("请先连接服务器", "未连接"); return; }
-            _mediaWin = BuildSimpleListWindow("🖼️ 图片 / 视频 (主控 PC 文件; 双击播放 / 或本机选文件)", new SolidColorBrush((Color)ColorConverter.ConvertFromString("#0EA5E9")), out _mediaList,
-                new Tuple<string, Brush, RoutedEventHandler>("从本机选文件...", new SolidColorBrush((Color)ColorConverter.ConvertFromString("#10B981")), delegate { UploadLocalMedia(); }),
-                new Tuple<string, Brush, RoutedEventHandler>("停止显示", new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EF4444")), delegate {
+            if (_ws == null || !_ws.IsConnected) { MessageBox.Show(SwimmingScoreboard.Loc.T("Str_RegTool_ErrNotConnected"), SwimmingScoreboard.Loc.T("Str_RegTool_StatusDisconnected")); return; }
+            _mediaWin = BuildSimpleListWindow(SwimmingScoreboard.Loc.T("Str_RDC_MediaDialogTitle"), new SolidColorBrush((Color)ColorConverter.ConvertFromString("#0EA5E9")), out _mediaList,
+                new Tuple<string, Brush, RoutedEventHandler>(SwimmingScoreboard.Loc.T("Str_RDC_BtnPickLocalFile"), new SolidColorBrush((Color)ColorConverter.ConvertFromString("#10B981")), delegate { UploadLocalMedia(); }),
+                new Tuple<string, Brush, RoutedEventHandler>(SwimmingScoreboard.Loc.T("Str_RDC_BtnStopDisplay"), new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EF4444")), delegate {
                     _ws.Send(JsonConvert.SerializeObject(new { type = "REMOTE_CONTROL", command = "STOP_MEDIA" }));
-                    StatusText.Text = "已发送: 停止媒体显示";
+                    StatusText.Text = SwimmingScoreboard.Loc.T("Str_RDC_SentStopMedia");
                     if (_mediaWin != null) _mediaWin.Close();
                 }));
             _mediaList.MouseDoubleClick += delegate {
@@ -286,10 +286,10 @@ namespace RemoteDisplayControl
                 string fn = item.Tag as string;
                 if (string.IsNullOrEmpty(fn)) return;
                 _ws.Send(JsonConvert.SerializeObject(new { type = "REMOTE_CONTROL", command = "PLAY_MEDIA_FILE", fileName = fn, fit = "contain", loop = true, muted = false, autoplay = true }));
-                StatusText.Text = "已发送播放: " + fn;
+                StatusText.Text = SwimmingScoreboard.Loc.F("Str_RDC_SentPlayFmt", fn);
                 _mediaWin.Close();
             };
-            _mediaList.Items.Add(new ListBoxItem { Content = "加载中...", IsEnabled = false });
+            _mediaList.Items.Add(new ListBoxItem { Content = SwimmingScoreboard.Loc.T("Str_RDC_Loading"), IsEnabled = false });
             _ws.Send(JsonConvert.SerializeObject(new { type = "REMOTE_CONTROL", command = "LIST_MEDIA_FILES" }));
             _mediaWin.Show();
         }
@@ -298,7 +298,7 @@ namespace RemoteDisplayControl
             _mediaList.Items.Clear();
             var files = data != null ? data["files"] as JArray : null;
             if (files == null || files.Count == 0) {
-                _mediaList.Items.Add(new ListBoxItem { Content = "主控 PC Media/ 目录暂无文件", IsEnabled = false });
+                _mediaList.Items.Add(new ListBoxItem { Content = SwimmingScoreboard.Loc.T("Str_RDC_NoMediaFiles"), IsEnabled = false });
                 return;
             }
             foreach (JObject f in files) {
@@ -311,19 +311,19 @@ namespace RemoteDisplayControl
 
         // PPT 播放
         private void OpenPptDialog_Click(object sender, RoutedEventArgs e) {
-            if (_ws == null || !_ws.IsConnected) { MessageBox.Show("请先连接服务器", "未连接"); return; }
-            _pptWin = BuildSimpleListWindow("📊 PPT 播放 (主控 PC 文件; 双击 / 或本机选文件; 翻页在主控)", new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FB923C")), out _pptList,
-                new Tuple<string, Brush, RoutedEventHandler>("从本机选文件...", new SolidColorBrush((Color)ColorConverter.ConvertFromString("#10B981")), delegate { UploadLocalPpt(); }));
+            if (_ws == null || !_ws.IsConnected) { MessageBox.Show(SwimmingScoreboard.Loc.T("Str_RegTool_ErrNotConnected"), SwimmingScoreboard.Loc.T("Str_RegTool_StatusDisconnected")); return; }
+            _pptWin = BuildSimpleListWindow(SwimmingScoreboard.Loc.T("Str_RDC_PptDialogTitle"), new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FB923C")), out _pptList,
+                new Tuple<string, Brush, RoutedEventHandler>(SwimmingScoreboard.Loc.T("Str_RDC_BtnPickLocalFile"), new SolidColorBrush((Color)ColorConverter.ConvertFromString("#10B981")), delegate { UploadLocalPpt(); }));
             _pptList.MouseDoubleClick += delegate {
                 var item = _pptList.SelectedItem as ListBoxItem;
                 if (item == null) return;
                 string fn = item.Tag as string;
                 if (string.IsNullOrEmpty(fn)) return;
                 _ws.Send(JsonConvert.SerializeObject(new { type = "REMOTE_CONTROL", command = "PLAY_PPT_FILE", fileName = fn }));
-                StatusText.Text = "已请求播放 PPT (翻页在主控): " + fn;
+                StatusText.Text = SwimmingScoreboard.Loc.F("Str_RDC_SentPlayPptFmt", fn);
                 _pptWin.Close();
             };
-            _pptList.Items.Add(new ListBoxItem { Content = "加载中...", IsEnabled = false });
+            _pptList.Items.Add(new ListBoxItem { Content = SwimmingScoreboard.Loc.T("Str_RDC_Loading"), IsEnabled = false });
             _ws.Send(JsonConvert.SerializeObject(new { type = "REMOTE_CONTROL", command = "LIST_PPT_FILES" }));
             _pptWin.Show();
         }
@@ -332,7 +332,7 @@ namespace RemoteDisplayControl
             _pptList.Items.Clear();
             var files = data != null ? data["files"] as JArray : null;
             if (files == null || files.Count == 0) {
-                _pptList.Items.Add(new ListBoxItem { Content = "主控 PC Documents/PPT/ 目录暂无 PPT", IsEnabled = false });
+                _pptList.Items.Add(new ListBoxItem { Content = SwimmingScoreboard.Loc.T("Str_RDC_NoPptFiles"), IsEnabled = false });
                 return;
             }
             foreach (JObject f in files) {
@@ -343,17 +343,17 @@ namespace RemoteDisplayControl
 
         // 显示比赛日程
         private void OpenScheduleDialog_Click(object sender, RoutedEventArgs e) {
-            if (_ws == null || !_ws.IsConnected) { MessageBox.Show("请先连接服务器", "未连接"); return; }
-            _scheduleWin = BuildSimpleListWindow("📅 显示比赛日程", new SolidColorBrush((Color)ColorConverter.ConvertFromString("#0D9488")), out _scheduleList);
+            if (_ws == null || !_ws.IsConnected) { MessageBox.Show(SwimmingScoreboard.Loc.T("Str_RegTool_ErrNotConnected"), SwimmingScoreboard.Loc.T("Str_RegTool_StatusDisconnected")); return; }
+            _scheduleWin = BuildSimpleListWindow(SwimmingScoreboard.Loc.T("Str_RDC_ScheduleDialogTitle"), new SolidColorBrush((Color)ColorConverter.ConvertFromString("#0D9488")), out _scheduleList);
             _scheduleList.MouseDoubleClick += delegate {
                 var item = _scheduleList.SelectedItem as ListBoxItem;
                 if (item == null) return;
                 int sn = item.Tag is int ? (int)item.Tag : -1;
                 _ws.Send(JsonConvert.SerializeObject(new { type = "REMOTE_CONTROL", command = "SHOW_SCHEDULE_SESSION", session = sn }));
-                StatusText.Text = sn < 0 ? "已发送: 显示全部场次" : ("已发送: 显示第" + sn + "场");
+                StatusText.Text = sn < 0 ? SwimmingScoreboard.Loc.T("Str_RDC_SentShowAllSessions") : SwimmingScoreboard.Loc.F("Str_RDC_SentShowSessionFmt", sn);
                 _scheduleWin.Close();
             };
-            _scheduleList.Items.Add(new ListBoxItem { Content = "加载中...", IsEnabled = false });
+            _scheduleList.Items.Add(new ListBoxItem { Content = SwimmingScoreboard.Loc.T("Str_RDC_Loading"), IsEnabled = false });
             _ws.Send(JsonConvert.SerializeObject(new { type = "REMOTE_CONTROL", command = "LIST_SCHEDULE_SESSIONS" }));
             _scheduleWin.Show();
         }
@@ -361,12 +361,12 @@ namespace RemoteDisplayControl
             if (_scheduleList == null) return;
             _scheduleList.Items.Clear();
             // 第一项: 全部场次
-            _scheduleList.Items.Add(new ListBoxItem { Content = "📅 全部场次", Tag = -1, Foreground = Brushes.White, FontWeight = FontWeights.Bold });
+            _scheduleList.Items.Add(new ListBoxItem { Content = SwimmingScoreboard.Loc.T("Str_RDC_AllSessions"), Tag = -1, Foreground = Brushes.White, FontWeight = FontWeights.Bold });
             var sessions = data != null ? data["sessions"] as JArray : null;
             if (sessions == null || sessions.Count == 0) return;
             foreach (JObject s in sessions) {
                 int sn = s["session"] != null ? (int)s["session"] : 0;
-                string label = s["label"] != null ? s["label"].ToString() : ("第" + sn + "场");
+                string label = s["label"] != null ? s["label"].ToString() : SwimmingScoreboard.Loc.F("Str_RDC_SessionNFmt", sn);
                 _scheduleList.Items.Add(new ListBoxItem { Content = label, Tag = sn, Foreground = Brushes.White });
             }
         }
@@ -375,7 +375,7 @@ namespace RemoteDisplayControl
         //   "弹窗选定回放项目"对称: 先跟服务器要候选(已完赛决赛)名单, 选完把 4 个 key 字段
         //   带回去, 服务器按选定项目广播, 大屏才有内容可显 (之前直接发命令没选项目, 等于白发)。
         private void OpenRankingPicker(string command, string title, Brush titleBrush) {
-            if (_ws == null || !_ws.IsConnected) { MessageBox.Show("请先连接服务器", "未连接"); return; }
+            if (_ws == null || !_ws.IsConnected) { MessageBox.Show(SwimmingScoreboard.Loc.T("Str_RegTool_ErrNotConnected"), SwimmingScoreboard.Loc.T("Str_RegTool_StatusDisconnected")); return; }
             _rankingPickCommand = command;
             _rankingPickWin = BuildSimpleListWindow(title, titleBrush, out _rankingPickList);
             _rankingPickList.MouseDoubleClick += delegate {
@@ -387,10 +387,10 @@ namespace RemoteDisplayControl
                     ageGroup = tag["ageGroup"], gender = tag["gender"],
                     eventName = tag["eventName"], stage = tag["stage"]
                 }));
-                StatusText.Text = "已发送: " + (item.Content != null ? item.Content.ToString() : _rankingPickCommand);
+                StatusText.Text = SwimmingScoreboard.Loc.F("Str_RDC_SentFmt", item.Content != null ? item.Content.ToString() : _rankingPickCommand);
                 _rankingPickWin.Close();
             };
-            _rankingPickList.Items.Add(new ListBoxItem { Content = "加载中...", IsEnabled = false });
+            _rankingPickList.Items.Add(new ListBoxItem { Content = SwimmingScoreboard.Loc.T("Str_RDC_Loading"), IsEnabled = false });
             _ws.Send(JsonConvert.SerializeObject(new { type = "REMOTE_CONTROL", command = "LIST_RANKING_CANDIDATES" }));
             _rankingPickWin.Show();
         }
@@ -399,7 +399,7 @@ namespace RemoteDisplayControl
             _rankingPickList.Items.Clear();
             var candidates = data != null ? data["candidates"] as JArray : null;
             if (candidates == null || candidates.Count == 0) {
-                _rankingPickList.Items.Add(new ListBoxItem { Content = "暂无已完赛(决赛全部确认)的项目", IsEnabled = false, Foreground = Brushes.White });
+                _rankingPickList.Items.Add(new ListBoxItem { Content = SwimmingScoreboard.Loc.T("Str_RDC_NoRankingCandidates"), IsEnabled = false, Foreground = Brushes.White });
                 return;
             }
             foreach (JObject c in candidates) {
@@ -410,12 +410,12 @@ namespace RemoteDisplayControl
 
         // 成绩发布 — 用本地缓存的 _scheduleData (主控广播过来的) 构建已完赛列表
         private void OpenPublishDialog_Click(object sender, RoutedEventArgs e) {
-            if (_ws == null || !_ws.IsConnected) { MessageBox.Show("请先连接服务器", "未连接"); return; }
+            if (_ws == null || !_ws.IsConnected) { MessageBox.Show(SwimmingScoreboard.Loc.T("Str_RegTool_ErrNotConnected"), SwimmingScoreboard.Loc.T("Str_RegTool_StatusDisconnected")); return; }
             if (_scheduleData == null || _scheduleData.Count == 0) {
-                MessageBox.Show("暂未收到主控的赛程数据, 请稍后再试 (或先点其他按钮触发主控广播)", "无数据");
+                MessageBox.Show(SwimmingScoreboard.Loc.T("Str_RDC_NoScheduleDataMsg"), SwimmingScoreboard.Loc.T("Str_RDC_NoDataTitle"));
                 return;
             }
-            _publishWin = BuildSimpleListWindow("成绩发布 (双击发布到大屏)", new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F59E0B")), out _publishList);
+            _publishWin = BuildSimpleListWindow(SwimmingScoreboard.Loc.T("Str_RDC_PublishDialogTitle"), new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F59E0B")), out _publishList);
             _publishList.MouseDoubleClick += delegate {
                 var item = _publishList.SelectedItem as ListBoxItem;
                 if (item == null) return;
@@ -430,7 +430,7 @@ namespace RemoteDisplayControl
                     type = "TIMING_CMD", command = "PUBLISH_RESULT",
                     data = new { ageGroup = p[0], gender = p[1], eventName = p[2], stage = p[3], heat = heatNo }
                 }));
-                StatusText.Text = "已请求发布: " + p[1] + " " + p[2] + " " + p[3];
+                StatusText.Text = SwimmingScoreboard.Loc.F("Str_RDC_SentPublishFmt", p[1], p[2], p[3]);
                 _publishWin.Close();
             };
             // 直接填充本地 schedule 缓存的已完赛组
@@ -445,29 +445,31 @@ namespace RemoteDisplayControl
                     string gender = s["gender"] != null ? s["gender"].ToString() : "";
                     string evName = s["eventName"] != null ? s["eventName"].ToString() : "";
                     string stage = s["stage"] != null ? s["stage"].ToString() : "";
+                    // 2026-09-28 stage.Contains("预赛"/"半决赛") 是数据比对, stage/gender 原值不动;
+                    //   拼进 label 给人看的那两处改用 Loc.StageDisplay/GenderDisplay 只转显示文字。
                     bool showHeat = (hc > 1) || stage.Contains("预赛") || stage.Contains("半决赛");
-                    string heatLabel = showHeat ? string.Format(" 第{0}组", h + 1) : "";
+                    string heatLabel = showHeat ? SwimmingScoreboard.Loc.F("Str_RDC_HeatNFmt", h + 1) : "";
                     string ageHead = string.IsNullOrEmpty(ageG) ? "" : (ageG + " ");
-                    string label = string.Format("{0}{1} {2} {3}{4}", ageHead, gender, evName, stage, heatLabel);
+                    string label = string.Format("{0}{1} {2} {3}{4}", ageHead, SwimmingScoreboard.Loc.GenderDisplay(gender), evName, SwimmingScoreboard.Loc.StageDisplay(stage), heatLabel);
                     // 用 "|" 拼接为字符串 Tag (避免 dynamic 依赖)
                     string tagStr = ageG + "|" + gender + "|" + evName + "|" + stage + "|" + (h + 1);
                     _publishList.Items.Add(new ListBoxItem { Content = label, Tag = tagStr, Foreground = Brushes.White });
                     found++;
                 }
             }
-            if (found == 0) _publishList.Items.Add(new ListBoxItem { Content = "暂无已完赛的比赛项目", IsEnabled = false });
+            if (found == 0) _publishList.Items.Add(new ListBoxItem { Content = SwimmingScoreboard.Loc.T("Str_RDC_NoFinishedEvents"), IsEnabled = false });
             _publishWin.Show();
         }
 
         // 2026-06-17 双模式 — 本机选文件上传到主控播放
         private void UploadLocalMedia() {
             var ofd = new Microsoft.Win32.OpenFileDialog {
-                Title = "选择图片/视频 (本机文件)",
-                Filter = "图片/视频 (*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.webp;*.mp4;*.webm;*.ogg;*.m4v)|*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.webp;*.mp4;*.webm;*.ogg;*.m4v|所有文件|*.*"
+                Title = SwimmingScoreboard.Loc.T("Str_RDC_PickMediaTitle"),
+                Filter = SwimmingScoreboard.Loc.T("Str_RDC_MediaFileFilter")
             };
             if (ofd.ShowDialog() != true) return;
             string path = ofd.FileName;
-            if (!System.IO.File.Exists(path)) { MessageBox.Show("文件不存在"); return; }
+            if (!System.IO.File.Exists(path)) { MessageBox.Show(SwimmingScoreboard.Loc.T("Str_RDC_ErrFileNotExist")); return; }
             string ext = (System.IO.Path.GetExtension(path) ?? "").ToLower();
             string kind, mime;
             if (ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".bmp" || ext == ".gif" || ext == ".webp") {
@@ -476,47 +478,47 @@ namespace RemoteDisplayControl
             } else if (ext == ".mp4" || ext == ".webm" || ext == ".ogg" || ext == ".m4v") {
                 kind = "video";
                 mime = ext == ".webm" ? "video/webm" : ext == ".ogg" ? "video/ogg" : "video/mp4";
-            } else { MessageBox.Show("不支持的文件类型"); return; }
+            } else { MessageBox.Show(SwimmingScoreboard.Loc.T("Str_RDC_ErrUnsupportedType")); return; }
             try {
                 byte[] bytes = System.IO.File.ReadAllBytes(path);
                 if (bytes.Length > 64 * 1024 * 1024) {
-                    if (MessageBox.Show(string.Format("文件较大 ({0:F1} MB), 上传可能耗时. 继续?", bytes.Length / 1048576.0), "确认", MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
+                    if (MessageBox.Show(SwimmingScoreboard.Loc.F("Str_RDC_LargeFileConfirmFmt", bytes.Length / 1048576.0), SwimmingScoreboard.Loc.T("Str_MsgTitle_Confirm"), MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
                 }
                 string b64 = Convert.ToBase64String(bytes);
                 string dataUrl = "data:" + mime + ";base64," + b64;
-                StatusText.Text = "上传中: " + System.IO.Path.GetFileName(path);
+                StatusText.Text = SwimmingScoreboard.Loc.F("Str_RDC_UploadingFmt", System.IO.Path.GetFileName(path));
                 _ws.Send(JsonConvert.SerializeObject(new {
                     type = "REMOTE_CONTROL", command = "UPLOAD_AND_PLAY_MEDIA",
                     fileName = System.IO.Path.GetFileName(path), kind = kind, mime = mime, dataUrl = dataUrl,
                     fit = "contain", loop = true, muted = false, autoplay = true
                 }));
-                StatusText.Text = "已上传: " + System.IO.Path.GetFileName(path);
+                StatusText.Text = SwimmingScoreboard.Loc.F("Str_RDC_UploadedFmt", System.IO.Path.GetFileName(path));
                 if (_mediaWin != null) _mediaWin.Close();
-            } catch (Exception ex) { MessageBox.Show("上传失败: " + ex.Message); }
+            } catch (Exception ex) { MessageBox.Show(SwimmingScoreboard.Loc.F("Str_RDC_UploadFailedFmt", ex.Message)); }
         }
 
         private void UploadLocalPpt() {
             var ofd = new Microsoft.Win32.OpenFileDialog {
-                Title = "选择 PPT (本机文件)",
-                Filter = "PowerPoint (*.ppt;*.pptx;*.pps;*.ppsx)|*.ppt;*.pptx;*.pps;*.ppsx|所有文件|*.*"
+                Title = SwimmingScoreboard.Loc.T("Str_RDC_PickPptTitle"),
+                Filter = SwimmingScoreboard.Loc.T("Str_RDC_PptFileFilter")
             };
             if (ofd.ShowDialog() != true) return;
             string path = ofd.FileName;
-            if (!System.IO.File.Exists(path)) { MessageBox.Show("文件不存在"); return; }
+            if (!System.IO.File.Exists(path)) { MessageBox.Show(SwimmingScoreboard.Loc.T("Str_RDC_ErrFileNotExist")); return; }
             try {
                 byte[] bytes = System.IO.File.ReadAllBytes(path);
                 if (bytes.Length > 64 * 1024 * 1024) {
-                    if (MessageBox.Show(string.Format("文件较大 ({0:F1} MB), 上传可能耗时. 继续?", bytes.Length / 1048576.0), "确认", MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
+                    if (MessageBox.Show(SwimmingScoreboard.Loc.F("Str_RDC_LargeFileConfirmFmt", bytes.Length / 1048576.0), SwimmingScoreboard.Loc.T("Str_MsgTitle_Confirm"), MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
                 }
                 string b64 = Convert.ToBase64String(bytes);
-                StatusText.Text = "上传中: " + System.IO.Path.GetFileName(path);
+                StatusText.Text = SwimmingScoreboard.Loc.F("Str_RDC_UploadingFmt", System.IO.Path.GetFileName(path));
                 _ws.Send(JsonConvert.SerializeObject(new {
                     type = "REMOTE_CONTROL", command = "UPLOAD_AND_PLAY_PPT",
                     fileName = System.IO.Path.GetFileName(path), base64 = b64
                 }));
-                StatusText.Text = "已上传 PPT (主控转换 + 翻页): " + System.IO.Path.GetFileName(path);
+                StatusText.Text = SwimmingScoreboard.Loc.F("Str_RDC_UploadedPptFmt", System.IO.Path.GetFileName(path));
                 if (_pptWin != null) _pptWin.Close();
-            } catch (Exception ex) { MessageBox.Show("上传失败: " + ex.Message); }
+            } catch (Exception ex) { MessageBox.Show(SwimmingScoreboard.Loc.F("Str_RDC_UploadFailedFmt", ex.Message)); }
         }
 
         protected override void OnClosed(EventArgs e) {
