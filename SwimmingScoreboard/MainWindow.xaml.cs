@@ -19091,8 +19091,10 @@ namespace SwimmingScoreboard
         // 2026-09-22 参赛单位及号码分配 —— 现场需求, 参考第三方软件(SOFTMAY)界面设计。
         //   内嵌 tab（不是弹窗），在 _bibRanges 基础上扩展 AgeGroup + 男/女子号码段,
         //   与旧的 BibRangeConfigCore()(单键 Country, 无组别/无性别拆分)共用同一份数据,
-        //   AgeGroup="" 的行对旧逻辑完全透明。这批新增 UI 文案全部中文字面量,
-        //   不接 DynamicResource/Loc（i18n 翻译工作已暂停）。
+        //   AgeGroup="" 的行对旧逻辑完全透明。
+        //   2026-09-28 第十一阶段 Step2 接入 Loc —— 这个 tab 是代码生成(不是 XAML 静态绑定),
+        //   靠 LanguageToggle_Click 里挂的 BuildUnitBibAllocTab() 整体重建来跟随语言切换,
+        //   不是 live DynamicResource。
         // ══════════════════════════════════════════════════════════════
         private bool _bibAllocAutoMode = false;   // false=手工分配(自定义), true=自动分配(平均分布)
         private ObservableCollection<BibRange> _bibAllocWorking;
@@ -19113,7 +19115,7 @@ namespace SwimmingScoreboard
 
             // ── 左侧: 单位/组别 列表 ──
             var leftPanel = new DockPanel { Margin = new Thickness(0, 0, 10, 0) };
-            var leftTitle = new TextBlock { Text = "参赛单位、号码分配", FontSize = 15, FontWeight = FontWeights.Bold,
+            var leftTitle = new TextBlock { Text = Loc.T("Str_UnitBibAlloc_LeftTitle"), FontSize = 15, FontWeight = FontWeights.Bold,
                 Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E293B")), Margin = new Thickness(0, 0, 0, 8) };
             DockPanel.SetDock(leftTitle, Dock.Top);
             leftPanel.Children.Add(leftTitle);
@@ -19126,8 +19128,11 @@ namespace SwimmingScoreboard
                 ItemsSource = _bibAllocWorking
             };
             _bibAllocGrid.LoadingRow += delegate (object s, DataGridRowEventArgs e) { e.Row.Header = (e.Row.GetIndex() + 1).ToString(); };
-            _bibAllocGrid.Columns.Add(new DataGridTextColumn { Header = "参赛单位", Binding = new System.Windows.Data.Binding("Country"), Width = new DataGridLength(140), IsReadOnly = true });
-            _bibAllocGrid.Columns.Add(new DataGridTextColumn { Header = "比赛组别", Binding = new System.Windows.Data.Binding("AgeGroup"), Width = new DataGridLength(90), IsReadOnly = true });
+            // 2026-09-28 代码生成的 DataGridColumn.Header 不支持 live DynamicResource(DataGridColumn 不是
+            //   FrameworkElement)——这里跟整个 tab 一样靠"语言切换时整个函数重跑"来换语言, 不是 live binding,
+            //   所以直接赋 Loc.T() 的返回值即可(不需要包一层 TextBlock)。
+            _bibAllocGrid.Columns.Add(new DataGridTextColumn { Header = Loc.T("Str_UnitBibAlloc_ColUnit"), Binding = new System.Windows.Data.Binding("Country"), Width = new DataGridLength(140), IsReadOnly = true });
+            _bibAllocGrid.Columns.Add(new DataGridTextColumn { Header = Loc.T("Str_UnitBibAlloc_ColGroup"), Binding = new System.Windows.Data.Binding("AgeGroup"), Width = new DataGridLength(90), IsReadOnly = true });
             _bibAllocGrid.SelectionChanged += BibAllocGrid_SelectionChanged;
             leftPanel.Children.Add(_bibAllocGrid);
             Grid.SetColumn(leftPanel, 0);
@@ -19137,9 +19142,9 @@ namespace SwimmingScoreboard
             var right = new StackPanel { Margin = new Thickness(0) };
 
             var modeRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 10) };
-            modeRow.Children.Add(new TextBlock { Text = "号码分配模式：", VerticalAlignment = VerticalAlignment.Center, FontWeight = FontWeights.Bold });
-            _baAutoRadio = new RadioButton { Content = "自动分配（平均分布）", GroupName = "bibAllocMode", Margin = new Thickness(8, 0, 16, 0), VerticalAlignment = VerticalAlignment.Center };
-            _baManualRadio = new RadioButton { Content = "手工分配（自定义）", GroupName = "bibAllocMode", IsChecked = true, VerticalAlignment = VerticalAlignment.Center };
+            modeRow.Children.Add(new TextBlock { Text = Loc.T("Str_UnitBibAlloc_ModeLabel"), VerticalAlignment = VerticalAlignment.Center, FontWeight = FontWeights.Bold });
+            _baAutoRadio = new RadioButton { Content = Loc.T("Str_UnitBibAlloc_ModeAuto"), GroupName = "bibAllocMode", Margin = new Thickness(8, 0, 16, 0), VerticalAlignment = VerticalAlignment.Center };
+            _baManualRadio = new RadioButton { Content = Loc.T("Str_UnitBibAlloc_ModeManual"), GroupName = "bibAllocMode", IsChecked = true, VerticalAlignment = VerticalAlignment.Center };
             _baAutoRadio.Checked += delegate { _bibAllocAutoMode = true; };
             _baManualRadio.Checked += delegate { _bibAllocAutoMode = false; };
             modeRow.Children.Add(_baAutoRadio);
@@ -19151,8 +19156,8 @@ namespace SwimmingScoreboard
             var editPanel = new StackPanel();
 
             var navRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 10) };
-            var btnPrev = new Button { Content = "◀ 上一个", Padding = new Thickness(10, 4, 10, 4), Margin = new Thickness(0, 0, 8, 0) };
-            var btnNext = new Button { Content = "下一个 ▶", Padding = new Thickness(10, 4, 10, 4) };
+            var btnPrev = new Button { Content = Loc.T("Str_UnitBibAlloc_BtnPrev"), Padding = new Thickness(10, 4, 10, 4), Margin = new Thickness(0, 0, 8, 0) };
+            var btnNext = new Button { Content = Loc.T("Str_UnitBibAlloc_BtnNext"), Padding = new Thickness(10, 4, 10, 4) };
             btnPrev.Click += delegate { BibAllocNav(-1); };
             btnNext.Click += delegate { BibAllocNav(1); };
             navRow.Children.Add(btnPrev);
@@ -19160,51 +19165,54 @@ namespace SwimmingScoreboard
             editPanel.Children.Add(navRow);
 
             var unitRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 6) };
-            unitRow.Children.Add(new TextBlock { Text = "参赛单位：", Width = 90, VerticalAlignment = VerticalAlignment.Center });
+            unitRow.Children.Add(new TextBlock { Text = Loc.T("Str_UnitBibAlloc_UnitLabel"), Width = 90, VerticalAlignment = VerticalAlignment.Center });
             _baCountryBox = new TextBox { Width = 160, Padding = new Thickness(4) };
             unitRow.Children.Add(_baCountryBox);
             editPanel.Children.Add(unitRow);
 
             var groupRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 10) };
-            groupRow.Children.Add(new TextBlock { Text = "比赛组别：", Width = 90, VerticalAlignment = VerticalAlignment.Center });
+            groupRow.Children.Add(new TextBlock { Text = Loc.T("Str_UnitBibAlloc_GroupLabel"), Width = 90, VerticalAlignment = VerticalAlignment.Center });
             _baAgeGroupCombo = new ComboBox { Width = 160, IsEditable = false };
-            _baAgeGroupCombo.Items.Add("（不限）");
+            // 2026-09-28 "（不限）" 既是显示文字也是"不限组别"哨兵(下面 BibAllocGrid_SelectionChanged/
+            //   BibAllocApplyRow_Click 里靠字符串比较判断)——整个 tab 靠语言切换整体重建, 同一次
+            //   构建里 Loc.T() 结果全程一致, 用同一个 key 取值即可保证两边永远对得上。
+            _baAgeGroupCombo.Items.Add(Loc.T("Str_UnitBibAlloc_NoLimit"));
             foreach (var ag in _ageGroups) if (ag != null && !string.IsNullOrEmpty(ag.Name)) _baAgeGroupCombo.Items.Add(ag.Name);
             groupRow.Children.Add(_baAgeGroupCombo);
             editPanel.Children.Add(groupRow);
 
-            editPanel.Children.Add(new TextBlock { Text = "运动员号码范围〈设置〉", FontWeight = FontWeights.Bold, Margin = new Thickness(0, 0, 0, 6),
+            editPanel.Children.Add(new TextBlock { Text = Loc.T("Str_UnitBibAlloc_RangeSectionTitle"), FontWeight = FontWeights.Bold, Margin = new Thickness(0, 0, 0, 6),
                 Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E40AF")) });
 
             var maleRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 6) };
-            maleRow.Children.Add(new TextBlock { Text = "运动员男子：", Width = 90, VerticalAlignment = VerticalAlignment.Center });
+            maleRow.Children.Add(new TextBlock { Text = Loc.T("Str_UnitBibAlloc_MaleLabel"), Width = 90, VerticalAlignment = VerticalAlignment.Center });
             _baMaleStart = new TextBox { Width = 60, Padding = new Thickness(4) };
             maleRow.Children.Add(_baMaleStart);
-            maleRow.Children.Add(new TextBlock { Text = " 到 ", VerticalAlignment = VerticalAlignment.Center });
+            maleRow.Children.Add(new TextBlock { Text = Loc.T("Str_UnitBibAlloc_To"), VerticalAlignment = VerticalAlignment.Center });
             _baMaleEnd = new TextBox { Width = 60, Padding = new Thickness(4) };
             maleRow.Children.Add(_baMaleEnd);
             editPanel.Children.Add(maleRow);
 
             var femaleRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 6) };
-            femaleRow.Children.Add(new TextBlock { Text = "运动员女子：", Width = 90, VerticalAlignment = VerticalAlignment.Center });
+            femaleRow.Children.Add(new TextBlock { Text = Loc.T("Str_UnitBibAlloc_FemaleLabel"), Width = 90, VerticalAlignment = VerticalAlignment.Center });
             _baFemaleStart = new TextBox { Width = 60, Padding = new Thickness(4) };
             femaleRow.Children.Add(_baFemaleStart);
-            femaleRow.Children.Add(new TextBlock { Text = " 到 ", VerticalAlignment = VerticalAlignment.Center });
+            femaleRow.Children.Add(new TextBlock { Text = Loc.T("Str_UnitBibAlloc_To"), VerticalAlignment = VerticalAlignment.Center });
             _baFemaleEnd = new TextBox { Width = 60, Padding = new Thickness(4) };
             femaleRow.Children.Add(_baFemaleEnd);
             editPanel.Children.Add(femaleRow);
 
-            editPanel.Children.Add(new TextBlock { Text = "（男女号码段留空 = 共用下面的合并范围）", FontSize = 11,
+            editPanel.Children.Add(new TextBlock { Text = Loc.T("Str_UnitBibAlloc_GenderHintShared"), FontSize = 11,
                 Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), Margin = new Thickness(0, 0, 0, 6) });
 
             var combinedRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 6) };
-            combinedRow.Children.Add(new TextBlock { Text = "合并范围：", Width = 90, VerticalAlignment = VerticalAlignment.Center });
+            combinedRow.Children.Add(new TextBlock { Text = Loc.T("Str_UnitBibAlloc_CombinedLabel"), Width = 90, VerticalAlignment = VerticalAlignment.Center });
             _baStart = new TextBox { Width = 60, Padding = new Thickness(4) };
             combinedRow.Children.Add(_baStart);
-            combinedRow.Children.Add(new TextBlock { Text = " 到 ", VerticalAlignment = VerticalAlignment.Center });
+            combinedRow.Children.Add(new TextBlock { Text = Loc.T("Str_UnitBibAlloc_To"), VerticalAlignment = VerticalAlignment.Center });
             _baEnd = new TextBox { Width = 60, Padding = new Thickness(4) };
             combinedRow.Children.Add(_baEnd);
-            combinedRow.Children.Add(new TextBlock { Text = "  补零位数：", VerticalAlignment = VerticalAlignment.Center });
+            combinedRow.Children.Add(new TextBlock { Text = Loc.T("Str_UnitBibAlloc_WidthLabel"), VerticalAlignment = VerticalAlignment.Center });
             _baWidth = new TextBox { Width = 40, Padding = new Thickness(4), Text = "3" };
             combinedRow.Children.Add(_baWidth);
             editPanel.Children.Add(combinedRow);
@@ -19213,11 +19221,11 @@ namespace SwimmingScoreboard
             editPanel.Children.Add(_baLockHint);
 
             var editBtnRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 10, 0, 0) };
-            var btnAddUnit = new Button { Content = "新增单位行", Padding = new Thickness(12, 5, 12, 5), Margin = new Thickness(0, 0, 8, 0),
+            var btnAddUnit = new Button { Content = Loc.T("Str_UnitBibAlloc_BtnAddRow"), Padding = new Thickness(12, 5, 12, 5), Margin = new Thickness(0, 0, 8, 0),
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6")), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
-            var btnDelUnit = new Button { Content = "删除本行", Padding = new Thickness(12, 5, 12, 5), Margin = new Thickness(0, 0, 8, 0),
+            var btnDelUnit = new Button { Content = Loc.T("Str_UnitBibAlloc_BtnDelRow"), Padding = new Thickness(12, 5, 12, 5), Margin = new Thickness(0, 0, 8, 0),
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EF4444")), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
-            var btnApplyRow = new Button { Content = "应用到本行", Padding = new Thickness(12, 5, 12, 5),
+            var btnApplyRow = new Button { Content = Loc.T("Str_UnitBibAlloc_BtnApplyRow"), Padding = new Thickness(12, 5, 12, 5),
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#22C55E")), Foreground = Brushes.White, BorderThickness = new Thickness(0), FontWeight = FontWeights.Bold };
             btnAddUnit.Click += BibAllocAddRow_Click;
             btnDelUnit.Click += BibAllocDeleteRow_Click;
@@ -19231,17 +19239,17 @@ namespace SwimmingScoreboard
             right.Children.Add(editBorder);
 
             var actionRow = new WrapPanel { Margin = new Thickness(0, 0, 0, 10) };
-            var btnImportUnits = new Button { Content = "导入单位名称", Padding = new Thickness(14, 6, 14, 6), Margin = new Thickness(0, 0, 8, 8),
+            var btnImportUnits = new Button { Content = Loc.T("Str_UnitBibAlloc_BtnImportUnits"), Padding = new Thickness(14, 6, 14, 6), Margin = new Thickness(0, 0, 8, 8),
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#0EA5E9")), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
-            var btnResetAll = new Button { Content = "重新设置", Padding = new Thickness(14, 6, 14, 6), Margin = new Thickness(0, 0, 8, 8),
+            var btnResetAll = new Button { Content = Loc.T("Str_UnitBibAlloc_BtnResetAll"), Padding = new Thickness(14, 6, 14, 6), Margin = new Thickness(0, 0, 8, 8),
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
-            var btnAutoDist = new Button { Content = "按模式自动分布", Padding = new Thickness(14, 6, 14, 6), Margin = new Thickness(0, 0, 8, 8),
+            var btnAutoDist = new Button { Content = Loc.T("Str_UnitBibAlloc_BtnAutoDist"), Padding = new Thickness(14, 6, 14, 6), Margin = new Thickness(0, 0, 8, 8),
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#D97706")), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
-            var btnPreview = new Button { Content = "预览号码分布", Padding = new Thickness(14, 6, 14, 6), Margin = new Thickness(0, 0, 8, 8),
+            var btnPreview = new Button { Content = Loc.T("Str_UnitBibAlloc_BtnPreview"), Padding = new Thickness(14, 6, 14, 6), Margin = new Thickness(0, 0, 8, 8),
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#8B5CF6")), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
-            var btnOptimize = new Button { Content = "号码优化功能", Padding = new Thickness(14, 6, 14, 6), Margin = new Thickness(0, 0, 8, 8),
+            var btnOptimize = new Button { Content = Loc.T("Str_UnitBibAlloc_BtnOptimize"), Padding = new Thickness(14, 6, 14, 6), Margin = new Thickness(0, 0, 8, 8),
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#0369A1")), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
-            var btnSaveAll = new Button { Content = "保存设置", Padding = new Thickness(16, 6, 16, 6), Margin = new Thickness(0, 0, 8, 8), FontWeight = FontWeights.Bold,
+            var btnSaveAll = new Button { Content = Loc.T("Str_UnitBibAlloc_BtnSaveAll"), Padding = new Thickness(16, 6, 16, 6), Margin = new Thickness(0, 0, 8, 8), FontWeight = FontWeights.Bold,
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#16A34A")), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
             btnImportUnits.Click += BibAllocImportUnits_Click;
             btnResetAll.Click += BibAllocResetAll_Click;
@@ -19258,11 +19266,7 @@ namespace SwimmingScoreboard
             right.Children.Add(actionRow);
 
             var tipBox = new TextBlock {
-                Text = "提示：\n" +
-                       "1. 单位名称相同、组别不同，可视为参加多个比赛组别（各自独立设置号码范围）。\n" +
-                       "2. 依次登记参赛单位名称，并按需设置号码范围、比赛组别。\n" +
-                       "3. 已有运动员使用某单位号码段后，该单位的号码范围不能再修改（会标红提示），需调整请先去\"运动员管理\"改掉相关运动员的参赛号。\n" +
-                       "4. 同一参赛单位名称的号码范围不能与其它单位重叠；男女号码段可以共用（留空即可）。",
+                Text = Loc.T("Str_UnitBibAlloc_TipText"),
                 TextWrapping = TextWrapping.Wrap, FontSize = 12, Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B"))
             };
             right.Children.Add(tipBox);
@@ -19287,7 +19291,7 @@ namespace SwimmingScoreboard
             var r = _bibAllocGrid.SelectedItem as BibRange;
             if (r == null) { BibAllocClearEditor(); return; }
             _baCountryBox.Text = r.Country ?? "";
-            _baAgeGroupCombo.Text = string.IsNullOrEmpty(r.AgeGroup) ? "（不限）" : r.AgeGroup;
+            _baAgeGroupCombo.Text = string.IsNullOrEmpty(r.AgeGroup) ? Loc.T("Str_UnitBibAlloc_NoLimit") : r.AgeGroup;
             _baMaleStart.Text = r.MaleStart > 0 ? r.MaleStart.ToString() : "";
             _baMaleEnd.Text = r.MaleEnd > 0 ? r.MaleEnd.ToString() : "";
             _baFemaleStart.Text = r.FemaleStart > 0 ? r.FemaleStart.ToString() : "";
@@ -19295,7 +19299,7 @@ namespace SwimmingScoreboard
             _baStart.Text = r.Start > 0 ? r.Start.ToString() : "";
             _baEnd.Text = r.End > 0 ? r.End.ToString() : "";
             _baWidth.Text = (r.Width > 0 ? r.Width : 3).ToString();
-            _baLockHint.Text = IsBibRangeLocked(r) ? "⚠ 该单位/组别已有运动员在使用这个号码段，范围不能再修改（需要改请先清空相关运动员的参赛号）。" : "";
+            _baLockHint.Text = IsBibRangeLocked(r) ? Loc.T("Str_UnitBibAlloc_LockHint") : "";
         }
 
         private void BibAllocNav(int delta) {
@@ -19334,17 +19338,17 @@ namespace SwimmingScoreboard
         private void BibAllocDeleteRow_Click(object sender, RoutedEventArgs e) {
             var r = _bibAllocGrid.SelectedItem as BibRange;
             if (r == null) return;
-            if (IsBibRangeLocked(r)) { MessageBox.Show("该单位/组别已有运动员在使用这个号码段，不能删除。", "提示"); return; }
+            if (IsBibRangeLocked(r)) { MessageBox.Show(Loc.T("Str_UnitBibAlloc_MsgLockedNoDelete"), Loc.T("Str_MsgTitle_Info")); return; }
             _bibAllocWorking.Remove(r);
         }
 
         private void BibAllocApplyRow_Click(object sender, RoutedEventArgs e) {
             var r = _bibAllocGrid.SelectedItem as BibRange;
-            if (r == null) { MessageBox.Show("请先在左侧选中一行。", "提示"); return; }
+            if (r == null) { MessageBox.Show(Loc.T("Str_UnitBibAlloc_MsgSelectRowFirst"), Loc.T("Str_MsgTitle_Info")); return; }
             bool wasLocked = IsBibRangeLocked(r);
             string newCountry = (_baCountryBox.Text ?? "").Trim();
-            string newAgeGroup = (_baAgeGroupCombo.Text == "（不限）") ? "" : (_baAgeGroupCombo.Text ?? "").Trim();
-            if (string.IsNullOrEmpty(newCountry)) { MessageBox.Show("参赛单位名称不能为空。", "提示"); return; }
+            string newAgeGroup = (_baAgeGroupCombo.Text == Loc.T("Str_UnitBibAlloc_NoLimit")) ? "" : (_baAgeGroupCombo.Text ?? "").Trim();
+            if (string.IsNullOrEmpty(newCountry)) { MessageBox.Show(Loc.T("Str_UnitBibAlloc_MsgUnitNameEmpty"), Loc.T("Str_MsgTitle_Info")); return; }
             int maleS, maleE, femaleS, femaleE, cs, ce, w;
             int.TryParse(_baMaleStart.Text, out maleS); int.TryParse(_baMaleEnd.Text, out maleE);
             int.TryParse(_baFemaleStart.Text, out femaleS); int.TryParse(_baFemaleEnd.Text, out femaleE);
@@ -19352,13 +19356,13 @@ namespace SwimmingScoreboard
             if (!int.TryParse(_baWidth.Text, out w) || w <= 0) w = 3;
             if (wasLocked) {
                 bool numbersChanged = maleS != r.MaleStart || maleE != r.MaleEnd || femaleS != r.FemaleStart || femaleE != r.FemaleEnd || cs != r.Start || ce != r.End;
-                if (numbersChanged) { MessageBox.Show("该单位/组别已有运动员在使用这个号码段，号码范围不能修改（单位名称/组别等其它信息仍可改）。", "提示"); }
+                if (numbersChanged) { MessageBox.Show(Loc.T("Str_UnitBibAlloc_MsgLockedNoNumChange"), Loc.T("Str_MsgTitle_Info")); }
                 else { r.Country = newCountry; r.AgeGroup = newAgeGroup; }
                 BibAllocGrid_SelectionChanged(null, null);
                 return;
             }
             if ((maleS > 0 && maleE < maleS) || (femaleS > 0 && femaleE < femaleS) || (cs > 0 && ce < cs)) {
-                MessageBox.Show("号码范围填写有误（结束号不能小于起始号）。", "提示"); return;
+                MessageBox.Show(Loc.T("Str_UnitBibAlloc_MsgRangeInvalid"), Loc.T("Str_MsgTitle_Info")); return;
             }
             r.Country = newCountry; r.AgeGroup = newAgeGroup;
             r.MaleStart = maleS; r.MaleEnd = maleE; r.FemaleStart = femaleS; r.FemaleEnd = femaleE;
@@ -19375,12 +19379,12 @@ namespace SwimmingScoreboard
                 _bibAllocWorking.Add(new BibRange { Country = u.Name, AgeGroup = "", Width = 3 });
                 added++;
             }
-            MessageBox.Show(added > 0 ? string.Format("已从「参赛单位管理」导入 {0} 个单位，请分别设置号码范围。", added) : "没有新单位可以导入（已有单位都在列表里了）。", "导入单位名称");
+            MessageBox.Show(added > 0 ? Loc.F("Str_UnitBibAlloc_ImportedFmt", added) : Loc.T("Str_UnitBibAlloc_ImportedNone"), Loc.T("Str_UnitBibAlloc_BtnImportUnits"));
         }
 
         // "重新设置": 清空所有未锁定行的号码范围, 方便重新走一遍分配
         private void BibAllocResetAll_Click(object sender, RoutedEventArgs e) {
-            if (MessageBox.Show("将清空所有未被使用的号码范围设置，已被运动员占用的单位不受影响，确定继续？", "重新设置", MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
+            if (MessageBox.Show(Loc.T("Str_UnitBibAlloc_ResetConfirm"), Loc.T("Str_UnitBibAlloc_BtnResetAll"), MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
             int cleared = 0, skipped = 0;
             foreach (var r in _bibAllocWorking) {
                 if (IsBibRangeLocked(r)) { skipped++; continue; }
@@ -19389,23 +19393,23 @@ namespace SwimmingScoreboard
             }
             _bibAllocGrid.Items.Refresh();
             BibAllocGrid_SelectionChanged(null, null);
-            AddLog(string.Format("参赛单位号码分配: 重新设置了 {0} 个单位的号码范围（{1} 个因已被使用而跳过）。", cleared, skipped));
+            AddLog(Loc.F("Str_UnitBibAlloc_ResetLogFmt", cleared, skipped));
         }
 
         // 按"自动分配(平均分布)"模式, 从起始号开始依次给每个未锁定单位分配一段连续号码(男女各占一半, 单位间留间隔)
         private void BibAllocAutoDistribute_Click(object sender, RoutedEventArgs e) {
             if (!_bibAllocAutoMode) {
-                if (MessageBox.Show("当前是「手工分配」模式，要不要先切到「自动分配」再继续？（也可以直接按自动规则分布一次）", "按模式自动分布", MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
+                if (MessageBox.Show(Loc.T("Str_UnitBibAlloc_AutoDistSwitchConfirm"), Loc.T("Str_UnitBibAlloc_BtnAutoDist"), MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
             }
-            var dlg = new Window { Title = "自动分布参数", Width = 380, SizeToContent = SizeToContent.Height, WindowStartupLocation = WindowStartupLocation.CenterOwner, Owner = this, ResizeMode = ResizeMode.NoResize };
+            var dlg = new Window { Title = Loc.T("Str_UnitBibAlloc_AutoDistTitle"), Width = 380, SizeToContent = SizeToContent.Height, WindowStartupLocation = WindowStartupLocation.CenterOwner, Owner = this, ResizeMode = ResizeMode.NoResize };
             var sp = new StackPanel { Margin = new Thickness(16) };
-            var tbStart = AddSettingsRow(sp, "起始号码", "101", "");
-            var tbPerUnit = AddSettingsRow(sp, "每单位号码数量", "20", "(男女各半)");
-            var tbGap = AddSettingsRow(sp, "单位间隔", "0", "个号");
-            var tbWidth = AddSettingsRow(sp, "补零位数", "3", "");
+            var tbStart = AddSettingsRow(sp, Loc.T("Str_UnitBibAlloc_LabelStartNum"), "101", "");
+            var tbPerUnit = AddSettingsRow(sp, Loc.T("Str_UnitBibAlloc_LabelPerUnit"), "20", Loc.T("Str_UnitBibAlloc_UnitPerUnitHint"));
+            var tbGap = AddSettingsRow(sp, Loc.T("Str_UnitBibAlloc_LabelGap"), "0", Loc.T("Str_UnitBibAlloc_UnitGapCount"));
+            var tbWidth = AddSettingsRow(sp, Loc.T("Str_UnitBibAlloc_LabelWidth"), "3", "");
             var btnRow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 16, 0, 0) };
-            var btnCancel = new Button { Content = "取消", Padding = new Thickness(16, 6, 16, 6), Margin = new Thickness(0, 0, 8, 0) };
-            var btnOk = new Button { Content = "开始分布", Padding = new Thickness(16, 6, 16, 6), FontWeight = FontWeights.Bold,
+            var btnCancel = new Button { Content = Loc.T("Str_Btn_Cancel"), Padding = new Thickness(16, 6, 16, 6), Margin = new Thickness(0, 0, 8, 0) };
+            var btnOk = new Button { Content = Loc.T("Str_UnitBibAlloc_BtnStartDist"), Padding = new Thickness(16, 6, 16, 6), FontWeight = FontWeights.Bold,
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#D97706")), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
             btnCancel.Click += delegate { dlg.DialogResult = false; };
             btnOk.Click += delegate { dlg.DialogResult = true; };
@@ -19432,23 +19436,23 @@ namespace SwimmingScoreboard
             }
             _bibAllocGrid.Items.Refresh();
             BibAllocGrid_SelectionChanged(null, null);
-            AddLog(string.Format("参赛单位号码分配: 自动分布完成，处理 {0} 个单位（{1} 个因已被使用而跳过）。", done, skipped));
-            MessageBox.Show(string.Format("自动分布完成：{0} 个单位已按顺序分配号码段（{1} 个因已有人使用而跳过），记得点「保存设置」。", done, skipped), "自动分布");
+            AddLog(Loc.F("Str_UnitBibAlloc_AutoDistLogFmt", done, skipped));
+            MessageBox.Show(Loc.F("Str_UnitBibAlloc_AutoDistDoneFmt", done, skipped), Loc.T("Str_UnitBibAlloc_BtnAutoDist"));
         }
 
         private void BibAllocOptimize_Click(object sender, RoutedEventArgs e) {
-            var dlg = new Window { Title = "号码优化功能", Width = 460, SizeToContent = SizeToContent.Height, WindowStartupLocation = WindowStartupLocation.CenterOwner, Owner = this, ResizeMode = ResizeMode.NoResize };
+            var dlg = new Window { Title = Loc.T("Str_UnitBibAlloc_OptimizeTitle"), Width = 460, SizeToContent = SizeToContent.Height, WindowStartupLocation = WindowStartupLocation.CenterOwner, Owner = this, ResizeMode = ResizeMode.NoResize };
             var sp = new StackPanel { Margin = new Thickness(16) };
             sp.Children.Add(new TextBlock {
-                Text = "重要提示：\n1. 进行此项设置前需要先完成运动员报名，并做好备份。\n2. 如果后续需要临时加人，建议保留适量的空号码。",
+                Text = Loc.T("Str_UnitBibAlloc_OptimizeTip"),
                 TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 12), Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#334155"))
             });
-            sp.Children.Add(new TextBlock { Text = "号码布局不够用，或需要清理未分配的号码，可以按各单位实际已用人数重新压紧号码段：", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 6) });
-            var tbStart = AddSettingsRow(sp, "起始号码", "101", "");
-            var tbReserve = AddSettingsRow(sp, "每单位保留空号码数量", "0", "个");
+            sp.Children.Add(new TextBlock { Text = Loc.T("Str_UnitBibAlloc_OptimizeDesc"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 6) });
+            var tbStart = AddSettingsRow(sp, Loc.T("Str_UnitBibAlloc_LabelStartNum"), "101", "");
+            var tbReserve = AddSettingsRow(sp, Loc.T("Str_UnitBibAlloc_LabelReserve"), "0", Loc.T("Str_UnitBibAlloc_UnitCount"));
             var btnRow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 16, 0, 0) };
-            var btnCancel = new Button { Content = "取消", Padding = new Thickness(16, 6, 16, 6), Margin = new Thickness(0, 0, 8, 0) };
-            var btnOk = new Button { Content = "设置", Padding = new Thickness(16, 6, 16, 6), FontWeight = FontWeights.Bold,
+            var btnCancel = new Button { Content = Loc.T("Str_Btn_Cancel"), Padding = new Thickness(16, 6, 16, 6), Margin = new Thickness(0, 0, 8, 0) };
+            var btnOk = new Button { Content = Loc.T("Str_UnitBibAlloc_BtnSet"), Padding = new Thickness(16, 6, 16, 6), FontWeight = FontWeights.Bold,
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#0369A1")), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
             btnCancel.Click += delegate { dlg.DialogResult = false; };
             btnOk.Click += delegate { dlg.DialogResult = true; };
@@ -19482,24 +19486,26 @@ namespace SwimmingScoreboard
             }
             _bibAllocGrid.Items.Refresh();
             BibAllocGrid_SelectionChanged(null, null);
-            AddLog(string.Format("参赛单位号码分配: 号码优化完成，压紧 {0} 个单位（{1} 个因已被使用未调整）。", done, skipped));
-            MessageBox.Show(string.Format("号码优化完成：{0} 个单位已按实际人数重新压紧号码段（{1} 个因已有人使用未调整），记得点「保存设置」。", done, skipped), "号码优化功能");
+            AddLog(Loc.F("Str_UnitBibAlloc_OptimizeLogFmt", done, skipped));
+            MessageBox.Show(Loc.F("Str_UnitBibAlloc_OptimizeDoneFmt", done, skipped), Loc.T("Str_UnitBibAlloc_OptimizeTitle"));
         }
 
         private void BibAllocPreview_Click(object sender, RoutedEventArgs e) {
             var sb = new StringBuilder();
-            sb.Append("<h2 style='text-align:center;'>参赛单位号码分布</h2>");
+            sb.AppendFormat("<h2 style='text-align:center;'>{0}</h2>", System.Net.WebUtility.HtmlEncode(Loc.T("Str_UnitBibAlloc_ReportTitle")));
             sb.Append("<table style='width:100%;border-collapse:collapse;' border='1' cellpadding='6'>");
-            sb.Append("<tr><th>参赛单位</th><th>组别</th><th>男子号码分布</th><th>女子号码分布</th></tr>");
+            sb.AppendFormat("<tr><th>{0}</th><th>{1}</th><th>{2}</th><th>{3}</th></tr>",
+                System.Net.WebUtility.HtmlEncode(Loc.T("Str_UnitBibAlloc_ColUnit")), System.Net.WebUtility.HtmlEncode(Loc.T("Str_UnitBibAlloc_ReportColGroup")),
+                System.Net.WebUtility.HtmlEncode(Loc.T("Str_UnitBibAlloc_ReportColMale")), System.Net.WebUtility.HtmlEncode(Loc.T("Str_UnitBibAlloc_ReportColFemale")));
             foreach (var r in _bibAllocWorking.OrderBy(x => x.Country).ThenBy(x => x.AgeGroup)) {
                 string maleRange = r.MaleStart > 0 ? (r.MaleStart + " — " + r.MaleEnd) : (r.Start > 0 ? (r.Start + " — " + r.End) : "-");
                 string femaleRange = r.FemaleStart > 0 ? (r.FemaleStart + " — " + r.FemaleEnd) : (r.MaleStart > 0 ? "-" : (r.Start > 0 ? (r.Start + " — " + r.End) : "-"));
                 sb.AppendFormat("<tr><td>{0}</td><td>{1}</td><td>{2}</td><td>{3}</td></tr>",
-                    System.Net.WebUtility.HtmlEncode(r.Country ?? ""), System.Net.WebUtility.HtmlEncode(string.IsNullOrEmpty(r.AgeGroup) ? "不限" : r.AgeGroup),
+                    System.Net.WebUtility.HtmlEncode(r.Country ?? ""), System.Net.WebUtility.HtmlEncode(string.IsNullOrEmpty(r.AgeGroup) ? Loc.T("Str_UnitBibAlloc_Unlimited") : r.AgeGroup),
                     maleRange, femaleRange);
             }
             sb.Append("</table>");
-            GenerateAndOpenDocument("参赛单位号码分布", sb.ToString());
+            GenerateAndOpenDocument(Loc.T("Str_UnitBibAlloc_ReportTitle"), sb.ToString());
         }
 
         private void BibAllocSaveAll_Click(object sender, RoutedEventArgs e) {
@@ -19510,7 +19516,7 @@ namespace SwimmingScoreboard
                 r.Country = r.Country.Trim();
                 if (r.Width <= 0) r.Width = 3;
                 string key = r.Country + "|" + (r.AgeGroup ?? "");
-                if (seen.Contains(key)) { MessageBox.Show(string.Format("单位「{0}」（组别「{1}」）重复，请检查。", r.Country, string.IsNullOrEmpty(r.AgeGroup) ? "不限" : r.AgeGroup), "提示"); return; }
+                if (seen.Contains(key)) { MessageBox.Show(Loc.F("Str_UnitBibAlloc_MsgDupUnitFmt", r.Country, string.IsNullOrEmpty(r.AgeGroup) ? Loc.T("Str_UnitBibAlloc_Unlimited") : r.AgeGroup), Loc.T("Str_MsgTitle_Info")); return; }
                 seen.Add(key);
                 finalList.Add(r);
             }
@@ -19528,8 +19534,8 @@ namespace SwimmingScoreboard
                     var spansB = spans(finalList[j]);
                     foreach (var a in spansA) foreach (var b in spansB) {
                         if (a.Item2 >= b.Item1 && b.Item2 >= a.Item1) {
-                            MessageBox.Show(string.Format("号码范围重叠：「{0}」({1}-{2}) 与 「{3}」({4}-{5})，请检查。",
-                                finalList[i].Country, a.Item1, a.Item2, finalList[j].Country, b.Item1, b.Item2), "提示");
+                            MessageBox.Show(Loc.F("Str_UnitBibAlloc_MsgOverlapFmt",
+                                finalList[i].Country, a.Item1, a.Item2, finalList[j].Country, b.Item1, b.Item2), Loc.T("Str_MsgTitle_Info"));
                             return;
                         }
                     }
@@ -19537,8 +19543,8 @@ namespace SwimmingScoreboard
             }
             _bibRanges = finalList;
             FinishAndSyncPatch(BuildListSetPatch("bibRanges", JArray.FromObject(_bibRanges), ClientLabel()), "meet");
-            AddLog(string.Format("参赛单位及号码分配: 保存设置，共 {0} 个单位/组别。", _bibRanges.Count));
-            MessageBox.Show("保存成功。", "参赛单位及号码分配");
+            AddLog(Loc.F("Str_UnitBibAlloc_SaveLogFmt", _bibRanges.Count));
+            MessageBox.Show(Loc.T("Str_UnitBibAlloc_SaveSuccessMsg"), Loc.T("Str_EM_Tab_UnitBibAlloc"));
         }
 
         // 把完整的 BibRange 行渲染成 "x/区间大小" 已用统计
@@ -24620,6 +24626,10 @@ namespace SwimmingScoreboard
             try { RefreshOverviewStats(); } catch { }
             try { RebuildRelayGroupedView(); } catch { }
             try { RefreshEditPreview(); } catch { }
+            // 2026-09-28 第十一阶段 Step2: "参赛单位及号码分配"是代码生成的 tab(不是 XAML 静态绑定),
+            // 重建一次让它的按钮/标签/DataGrid列头跟着换语言(会连带重置 _bibAllocWorking = 当前 _bibRanges,
+            // 丢弃未保存的编辑——跟本方法里其它几个 RebuildXxx() 一个道理, 属于"切语言=重建视图"的既有代价)。
+            try { BuildUnitBibAllocTab(); } catch { }
             // 2026-09-21 这条日志本身就是随每个阶段的翻译范围在扩大——写成"已覆盖到第几阶段"
             // 而不是逐页罗列，省得每加一个页面又要来改一遍这行文字。
             AddLog(Loc.CurrentLanguage == Loc.En
