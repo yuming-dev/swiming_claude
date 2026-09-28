@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>运动员注册</title>
+<title data-i18n="Str_Register_PageTitle">运动员注册</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { font-family: 'Microsoft YaHei', sans-serif; background: #f1f5f9; padding: 20px; }
@@ -97,34 +97,38 @@ input.invalid, select.invalid { border-color: #EF4444 !important; background: #F
         <div id="resultModalHead" class="modal-head"></div>
         <div id="resultModalBody" class="modal-body"></div>
         <div class="modal-foot">
-            <button id="resultModalBtn" onclick="closeResultModal()">关闭</button>
+            <button id="resultModalBtn" onclick="closeResultModal()" data-i18n="Str_Common_Close">关闭</button>
         </div>
     </div>
 </div>
 <div class="container">
     <div style="display:flex;justify-content:space-between;align-items:center;">
-        <h1 style="margin:0;">运动员注册</h1>
-        <button class="fullscreen-btn" onclick="goFullScreen()" style="padding:6px 14px;background:#3B82F6;color:white;border:none;border-radius:6px;font-size:13px;cursor:pointer;">全屏</button>
+        <h1 style="margin:0;" data-i18n="Str_Register_PageTitle">运动员注册</h1>
+        <span style="display:flex;gap:8px;align-items:center;">
+        <button class="btn-lang" onclick="WebLoc.toggle()" data-i18n="Str_Common_LangToggle" style="padding:6px 14px;background:#334155;color:white;border:none;border-radius:6px;font-size:13px;cursor:pointer;">English</button>
+        <button class="fullscreen-btn" onclick="goFullScreen()" data-i18n="Str_Common_Fullscreen" style="padding:6px 14px;background:#3B82F6;color:white;border:none;border-radius:6px;font-size:13px;cursor:pointer;">全屏</button>
+        </span>
     </div>
     <!-- 2026-05-21 拆为两段：左侧文字 span 单独更新，右侧按钮常驻不被 textContent 清掉。
          按钮文案 "🔄 切换服务器IP" 明示可在已连接状态下随时改 IP — 不必先断开。 -->
     <div id="connStatus">
-        <span id="connStatusText">连接中...</span>
-        <button onclick="changeServerHost()" title="点此随时切换到另一台主服务器（无需先断开）"
+        <span id="connStatusText" data-i18n="Str_Common_Connecting">连接中...</span>
+        <button onclick="changeServerHost()" title="点此随时切换到另一台主服务器（无需先断开）" data-i18n="Str_Register_ChangeServerBtn"
+                data-i18n-title="Str_Register_ChangeServerTip"
                 style="margin-left:8px;padding:3px 10px;background:#3B82F6;color:white;border:none;border-radius:4px;font-size:12px;font-weight:bold;cursor:pointer;">🔄 切换服务器IP</button>
     </div>
     <div id="statusMsg" class="status"></div>
 
     <!-- 已提交提示（提交成功后短暂显示，3 秒后自动隐藏 + 表单重置以便录入下一位）-->
     <div id="submittedBanner" class="submitted-banner">
-        <span id="submittedMsg">报名信息已提交成功！</span>
-        <button class="btn btn-gray" onclick="enableEdit()">修改本次报名</button>
+        <span id="submittedMsg" data-i18n="Str_Register_SubmittedDefault">报名信息已提交成功！</span>
+        <button class="btn btn-gray" onclick="enableEdit()" data-i18n="Str_Register_EditThisSubmission">修改本次报名</button>
     </div>
 
     <!-- 2026-05-25 顶部 tab 切换: 减少滚动 -->
     <div class="top-tabs">
-        <div class="top-tab active" id="tabBtnPersonal" onclick="switchRegTab('personal')">👤 个人项目报名</div>
-        <div class="top-tab" id="tabBtnRelay" onclick="switchRegTab('relay')">👥 接力队报名</div>
+        <div class="top-tab active" id="tabBtnPersonal" onclick="switchRegTab('personal')" data-i18n="Str_Register_TabPersonal">👤 个人项目报名</div>
+        <div class="top-tab" id="tabBtnRelay" onclick="switchRegTab('relay')" data-i18n="Str_Register_TabRelay">👥 接力队报名</div>
     </div>
 
     <!-- ═══ 个人项目报名 tab ═══ -->
@@ -132,55 +136,55 @@ input.invalid, select.invalid { border-color: #EF4444 !important; background: #F
 
     <!-- 查询 / 修改我已经提交的报名 -->
     <div class="card" id="queryCard" style="background:#FEFCE8;border:1px solid #FACC15;">
-        <h2 style="color:#92400E;">查询 / 修改我已经提交的报名</h2>
+        <h2 style="color:#92400E;" data-i18n="Str_Register_QueryCardTitle">查询 / 修改我已经提交的报名</h2>
         <div class="row" style="align-items:flex-end;">
-            <div style="flex:2;"><label>参赛号</label><input id="queryBib" placeholder="如 001"></div>
-            <div style="flex:3;"><label>或 姓名 + 代表队</label>
+            <div style="flex:2;"><label data-i18n="Str_Register_LabelBib">参赛号</label><input id="queryBib" placeholder="如 001" data-i18n-attr="placeholder" data-i18n="Str_Register_BibPlaceholder"></div>
+            <div style="flex:3;"><label data-i18n="Str_Register_LabelNameCountry">或 姓名 + 代表队</label>
                 <div style="display:flex;gap:6px;">
-                    <input id="queryName" placeholder="姓名">
-                    <input id="queryCountry" placeholder="代表队">
+                    <input id="queryName" placeholder="姓名" data-i18n-attr="placeholder" data-i18n="Str_Common_NamePlaceholder">
+                    <input id="queryCountry" placeholder="代表队" data-i18n-attr="placeholder" data-i18n="Str_Common_CountryPlaceholder">
                 </div>
             </div>
             <div style="flex:0 0 auto;">
-                <button class="btn btn-primary" onclick="queryMyRegistration()">查询</button>
+                <button class="btn btn-primary" onclick="queryMyRegistration()" data-i18n="Str_Common_Query">查询</button>
             </div>
         </div>
         <div id="queryStatus" style="margin-top:6px;font-size:13px;color:#92400E;"></div>
     </div>
 
     <div class="card" id="personalCard">
-        <h2>个人项目报名 <span style="font-size:12px;font-weight:normal;color:#64748b;">（带 <span style="color:#EF4444;font-weight:bold;">*</span> 为必填）</span></h2>
+        <h2><span data-i18n="Str_Register_PersonalCardTitle">个人项目报名</span> <span style="font-size:12px;font-weight:normal;color:#64748b;" data-i18n="Str_Register_RequiredNote">（带 <span style="color:#EF4444;font-weight:bold;">*</span> 为必填）</span></h2>
         <!-- 运动员基本信息 -->
         <div class="row">
-            <div><label class="req">姓名</label><input id="name" placeholder="张三"><div id="err_name" class="field-error"></div></div>
-            <div><label class="req">性别</label><select id="gender"><option value="">请选择性别</option><option>男</option><option>女</option><option>混合</option></select><div id="err_gender" class="field-error"></div></div>
+            <div><label class="req" data-i18n="Str_Common_Name">姓名</label><input id="name" placeholder="张三"><div id="err_name" class="field-error"></div></div>
+            <div><label class="req" data-i18n="Str_Common_Gender">性别</label><select id="gender"><option value="" data-i18n="Str_Common_SelectGender">请选择性别</option><option>男</option><option>女</option><option>混合</option></select><div id="err_gender" class="field-error"></div></div>
         </div>
         <div class="row">
-            <div><label class="req">出生日期</label><input id="birthDate" type="date" min="1900-01-01" max="2099-12-31" placeholder="yyyy-MM-dd" title="格式：yyyy-MM-dd（4 位年份）"><div id="err_birthDate" class="field-error"></div></div>
-            <div><label>身份证号（可选，国际选手可用护照号等证件号）</label><input id="idNumber" placeholder="选填，不限位数/格式"><div id="err_idNumber" class="field-error"></div></div>
+            <div><label class="req" data-i18n="Str_Common_BirthDate">出生日期</label><input id="birthDate" type="date" min="1900-01-01" max="2099-12-31" placeholder="yyyy-MM-dd" title="格式：yyyy-MM-dd（4 位年份）" data-i18n="Str_Register_DateFormatTip" data-i18n-attr="title"><div id="err_birthDate" class="field-error"></div></div>
+            <div><label data-i18n="Str_Register_IdLabel">身份证号（可选，国际选手可用护照号等证件号）</label><input id="idNumber" placeholder="选填，不限位数/格式" data-i18n-attr="placeholder" data-i18n="Str_Register_IdPlaceholder"><div id="err_idNumber" class="field-error"></div></div>
         </div>
         <div class="row">
-            <div><label class="req">代表队</label><input id="country" placeholder="北京队"><div id="err_country" class="field-error"></div></div>
-            <div><label>联系电话</label><input id="phone" placeholder=""></div>
+            <div><label class="req" data-i18n="Str_Common_Country">代表队</label><input id="country" placeholder="北京队"><div id="err_country" class="field-error"></div></div>
+            <div><label data-i18n="Str_Register_Phone">联系电话</label><input id="phone" placeholder=""></div>
         </div>
         <div class="row">
-            <div><label>协会注册号</label><input id="csaNumber" placeholder=""></div>
-            <div><label>备注</label><input id="notes" placeholder=""></div>
+            <div><label data-i18n="Str_Register_CsaNumber">协会注册号</label><input id="csaNumber" placeholder=""></div>
+            <div><label data-i18n="Str_Common_Notes">备注</label><input id="notes" placeholder=""></div>
         </div>
         <div class="row">
-            <div><label class="req">组别</label>
-                <select id="ageGroup" title="组别由服务器同步，可在主控软件「比赛参数设置管理→组别」里维护">
-                    <option value="">请选择组别</option>
+            <div><label class="req" data-i18n="Str_Common_AgeGroup">组别</label>
+                <select id="ageGroup" title="组别由服务器同步，可在主控软件「比赛参数设置管理→组别」里维护" data-i18n="Str_Common_SelectAgeGroup" data-i18n-title="Str_Register_AgeGroupTip">
+                    <option value="" data-i18n="Str_Common_SelectAgeGroup">请选择组别</option>
                 </select>
                 <div id="err_ageGroup" class="field-error"></div>
             </div>
-            <div><label>单位简称</label><input id="countryShort" placeholder="（可选）"></div>
+            <div><label data-i18n="Str_Common_CountryShort">单位简称</label><input id="countryShort" placeholder="（可选）" data-i18n-attr="placeholder" data-i18n="Str_Common_OptionalParen"></div>
         </div>
 
         <hr class="sep">
 
         <!-- 参赛项目列表 -->
-        <h2>参赛项目 <span style="font-size:12px;font-weight:normal;color:#EF4444;">*（至少 1 项）</span></h2>
+        <h2><span data-i18n="Str_Register_EventsTitle">参赛项目</span> <span style="font-size:12px;font-weight:normal;color:#EF4444;" data-i18n="Str_Register_AtLeastOne">*（至少 1 项）</span></h2>
         <div class="event-list" id="eventList"></div>
         <div id="err_events" class="field-error"></div>
 
@@ -190,34 +194,34 @@ input.invalid, select.invalid { border-color: #EF4444 !important; background: #F
         <!-- 添加项目 -->
         <div style="background:#f8fafc;border:1px dashed #cbd5e1;border-radius:4px;padding:12px;margin-top:8px;">
             <div class="row">
-                <div><label>项目</label>
+                <div><label data-i18n="Str_Common_Event">项目</label>
                     <select id="event"></select>
                 </div>
-                <div><label>报名成绩</label><input id="entryTime" placeholder="49.50"></div>
+                <div><label data-i18n="Str_Common_EntryTime">报名成绩</label><input id="entryTime" placeholder="49.50"></div>
             </div>
-            <button class="btn btn-purple" style="margin-top:8px;" onclick="addEvent()">+ 添加参赛项目</button>
+            <button class="btn btn-purple" style="margin-top:8px;" onclick="addEvent()" data-i18n="Str_Register_AddEventBtn">+ 添加参赛项目</button>
         </div>
 
         <hr class="sep">
         <div class="row">
             <div style="flex:2;">
-                <button class="btn btn-purple btn-block" style="padding:12px;font-size:14px;" onclick="addToQueue()">+ 添加到报名列表</button>
+                <button class="btn btn-purple btn-block" style="padding:12px;font-size:14px;" onclick="addToQueue()" data-i18n="Str_Register_AddToQueueBtn">+ 添加到报名列表</button>
             </div>
             <div style="flex:1;">
-                <button class="btn btn-gray btn-block" style="padding:12px;font-size:14px;" onclick="clearForm()">清空当前表单</button>
+                <button class="btn btn-gray btn-block" style="padding:12px;font-size:14px;" onclick="clearForm()" data-i18n="Str_Common_ClearForm">清空当前表单</button>
             </div>
         </div>
-        <div style="font-size:12px;color:#64748b;margin-top:6px;text-align:center;">
+        <div style="font-size:12px;color:#64748b;margin-top:6px;text-align:center;" data-i18n="Str_Register_PersonalHint">
             录入完一人后点"添加到报名列表"，再录入下一人；全部录入完成后在下方"待提交报名列表"统一提交。
         </div>
     </div>
 
     <!-- 待提交多人报名队列 -->
     <div class="card queue-card" id="queueCard">
-        <h2>待提交报名列表 <span id="queueCount" style="font-weight:normal;color:#475569;font-size:13px;"></span></h2>
+        <h2><span data-i18n="Str_Register_QueueTitle">待提交报名列表</span> <span id="queueCount" style="font-weight:normal;color:#475569;font-size:13px;"></span></h2>
         <div id="queueList"></div>
         <button id="submitAllBtn" class="btn btn-green btn-block" style="padding:14px;font-size:16px;margin-top:12px;" onclick="submitQueue()" disabled>全部提交报名（0 人）</button>
-        <div style="font-size:12px;color:#475569;margin-top:6px;">
+        <div style="font-size:12px;color:#475569;margin-top:6px;" data-i18n="Str_Register_QueueHint">
             提交后服务器会逐条返回结果。未通过的条目会保留在列表里并显示原因，修改后再次"全部提交"。
         </div>
     </div>
@@ -228,73 +232,73 @@ input.invalid, select.invalid { border-color: #EF4444 !important; background: #F
     <div class="tab-panel" id="tabRelay">
 
     <div class="card">
-        <h2>接力队报名 <span style="font-size:12px;font-weight:normal;color:#64748b;">（带 <span style="color:#EF4444;font-weight:bold;">*</span> 为必填）</span></h2>
+        <h2><span data-i18n="Str_Register_RelayCardTitle">接力队报名</span> <span style="font-size:12px;font-weight:normal;color:#64748b;" data-i18n="Str_Register_RequiredNote">（带 <span style="color:#EF4444;font-weight:bold;">*</span> 为必填）</span></h2>
 
         <!-- 2026-05-25 接力查询：输入队名 → 服务器查到现有 4 棒回填到表单, 便于修改 -->
         <div style="background:#FEF3C7;border:1px solid #F59E0B;border-radius:4px;padding:10px;margin-bottom:12px;">
-            <label style="color:#92400E;font-weight:bold;margin-bottom:4px;">查询已报名接力队（改棒次用）</label>
+            <label style="color:#92400E;font-weight:bold;margin-bottom:4px;" data-i18n="Str_Register_QueryRelayTitle">查询已报名接力队（改棒次用）</label>
             <div style="display:flex;gap:8px;align-items:center;">
-                <input id="queryRelayTeam" placeholder="输入队名，如 北京队A" style="flex:1;">
-                <button class="btn btn-primary" style="padding:6px 16px;" onclick="queryMyRelay()">查询并回填</button>
+                <input id="queryRelayTeam" placeholder="输入队名，如 北京队A" style="flex:1;" data-i18n-attr="placeholder" data-i18n="Str_Register_TeamNamePlaceholder">
+                <button class="btn btn-primary" style="padding:6px 16px;" onclick="queryMyRelay()" data-i18n="Str_Register_QueryAndFillBtn">查询并回填</button>
             </div>
             <div id="queryRelayStatus" style="font-size:12px;color:#475569;margin-top:6px;"></div>
         </div>
 
         <div class="row">
-            <div><label class="req">队名</label><input id="relayTeam" placeholder="北京队"><div id="err_relayTeam" class="field-error"></div></div>
-            <div><label class="req">性别</label><select id="relayGender"><option value="">请选择性别</option><option>男</option><option>女</option><option>混合</option></select><div id="err_relayGender" class="field-error"></div></div>
+            <div><label class="req" data-i18n="Str_Register_TeamNameLabel">队名</label><input id="relayTeam" placeholder="北京队"><div id="err_relayTeam" class="field-error"></div></div>
+            <div><label class="req" data-i18n="Str_Common_Gender">性别</label><select id="relayGender"><option value="" data-i18n="Str_Common_SelectGender">请选择性别</option><option>男</option><option>女</option><option>混合</option></select><div id="err_relayGender" class="field-error"></div></div>
         </div>
         <div class="row">
-            <div><label class="req">组别</label>
-                <select id="relayAgeGroup" title="组别由服务器同步">
-                    <option value="">请选择组别</option>
+            <div><label class="req" data-i18n="Str_Common_AgeGroup">组别</label>
+                <select id="relayAgeGroup" title="组别由服务器同步" data-i18n-title="Str_Register_AgeGroupTip">
+                    <option value="" data-i18n="Str_Common_SelectAgeGroup">请选择组别</option>
                 </select>
                 <div id="err_relayAgeGroup" class="field-error"></div>
             </div>
-            <div><label>单位简称</label><input id="relayCountryShort" placeholder="（可选）"></div>
+            <div><label data-i18n="Str_Common_CountryShort">单位简称</label><input id="relayCountryShort" placeholder="（可选）" data-i18n-attr="placeholder" data-i18n="Str_Common_OptionalParen"></div>
         </div>
         <hr class="sep">
-        <label style="font-weight:bold;color:#1e293b;" class="req">棒次安排（4 棒姓名必填，同一队伍报多个接力项目共用这组棒次）</label>
-        <div class="leg-row"><span class="leg-num">第1棒</span><input id="leg1Name" placeholder="姓名 *" style="flex:1;"><input id="leg1Birth" type="date" min="1900-01-01" max="2099-12-31" title="出生日期 yyyy-MM-dd" style="width:155px;flex:none;"><input id="leg1ID" placeholder="身份证号" style="width:170px;flex:none;"><input id="leg1Bib" placeholder="参赛号" style="width:75px;flex:none;"></div>
-        <div class="leg-row"><span class="leg-num">第2棒</span><input id="leg2Name" placeholder="姓名 *" style="flex:1;"><input id="leg2Birth" type="date" min="1900-01-01" max="2099-12-31" title="出生日期 yyyy-MM-dd" style="width:155px;flex:none;"><input id="leg2ID" placeholder="身份证号" style="width:170px;flex:none;"><input id="leg2Bib" placeholder="参赛号" style="width:75px;flex:none;"></div>
-        <div class="leg-row"><span class="leg-num">第3棒</span><input id="leg3Name" placeholder="姓名 *" style="flex:1;"><input id="leg3Birth" type="date" min="1900-01-01" max="2099-12-31" title="出生日期 yyyy-MM-dd" style="width:155px;flex:none;"><input id="leg3ID" placeholder="身份证号" style="width:170px;flex:none;"><input id="leg3Bib" placeholder="参赛号" style="width:75px;flex:none;"></div>
-        <div class="leg-row"><span class="leg-num">第4棒</span><input id="leg4Name" placeholder="姓名 *" style="flex:1;"><input id="leg4Birth" type="date" min="1900-01-01" max="2099-12-31" title="出生日期 yyyy-MM-dd" style="width:155px;flex:none;"><input id="leg4ID" placeholder="身份证号" style="width:170px;flex:none;"><input id="leg4Bib" placeholder="参赛号" style="width:75px;flex:none;"></div>
+        <label style="font-weight:bold;color:#1e293b;" class="req" data-i18n="Str_Register_LegArrangement">棒次安排（4 棒姓名必填，同一队伍报多个接力项目共用这组棒次）</label>
+        <div class="leg-row"><span class="leg-num" data-i18n="Str_Common_Leg1">第1棒</span><input id="leg1Name" placeholder="姓名 *" style="flex:1;" data-i18n-attr="placeholder" data-i18n="Str_Register_NameRequiredPlaceholder"><input id="leg1Birth" type="date" min="1900-01-01" max="2099-12-31" title="出生日期 yyyy-MM-dd" style="width:155px;flex:none;" data-i18n-title="Str_Register_DateFormatTip"><input id="leg1ID" placeholder="身份证号" style="width:170px;flex:none;" data-i18n-attr="placeholder" data-i18n="Str_Common_IdNumber"><input id="leg1Bib" placeholder="参赛号" style="width:75px;flex:none;" data-i18n-attr="placeholder" data-i18n="Str_Common_BibShort"></div>
+        <div class="leg-row"><span class="leg-num" data-i18n="Str_Common_Leg2">第2棒</span><input id="leg2Name" placeholder="姓名 *" style="flex:1;" data-i18n-attr="placeholder" data-i18n="Str_Register_NameRequiredPlaceholder"><input id="leg2Birth" type="date" min="1900-01-01" max="2099-12-31" title="出生日期 yyyy-MM-dd" style="width:155px;flex:none;" data-i18n-title="Str_Register_DateFormatTip"><input id="leg2ID" placeholder="身份证号" style="width:170px;flex:none;" data-i18n-attr="placeholder" data-i18n="Str_Common_IdNumber"><input id="leg2Bib" placeholder="参赛号" style="width:75px;flex:none;" data-i18n-attr="placeholder" data-i18n="Str_Common_BibShort"></div>
+        <div class="leg-row"><span class="leg-num" data-i18n="Str_Common_Leg3">第3棒</span><input id="leg3Name" placeholder="姓名 *" style="flex:1;" data-i18n-attr="placeholder" data-i18n="Str_Register_NameRequiredPlaceholder"><input id="leg3Birth" type="date" min="1900-01-01" max="2099-12-31" title="出生日期 yyyy-MM-dd" style="width:155px;flex:none;" data-i18n-title="Str_Register_DateFormatTip"><input id="leg3ID" placeholder="身份证号" style="width:170px;flex:none;" data-i18n-attr="placeholder" data-i18n="Str_Common_IdNumber"><input id="leg3Bib" placeholder="参赛号" style="width:75px;flex:none;" data-i18n-attr="placeholder" data-i18n="Str_Common_BibShort"></div>
+        <div class="leg-row"><span class="leg-num" data-i18n="Str_Common_Leg4">第4棒</span><input id="leg4Name" placeholder="姓名 *" style="flex:1;" data-i18n-attr="placeholder" data-i18n="Str_Register_NameRequiredPlaceholder"><input id="leg4Birth" type="date" min="1900-01-01" max="2099-12-31" title="出生日期 yyyy-MM-dd" style="width:155px;flex:none;" data-i18n-title="Str_Register_DateFormatTip"><input id="leg4ID" placeholder="身份证号" style="width:170px;flex:none;" data-i18n-attr="placeholder" data-i18n="Str_Common_IdNumber"><input id="leg4Bib" placeholder="参赛号" style="width:75px;flex:none;" data-i18n-attr="placeholder" data-i18n="Str_Common_BibShort"></div>
         <div id="err_relayLegs" class="field-error"></div>
 
         <hr class="sep">
         <!-- 2026-09-22 接力项目列表：一支队可以报多个接力项目，模式对齐个人项目的 eventList/addEvent -->
-        <h2>接力项目 <span style="font-size:12px;font-weight:normal;color:#EF4444;">*（至少 1 项）</span></h2>
+        <h2><span data-i18n="Str_Register_RelayEventsTitle">接力项目</span> <span style="font-size:12px;font-weight:normal;color:#EF4444;" data-i18n="Str_Register_AtLeastOne">*（至少 1 项）</span></h2>
         <div class="event-list" id="relayEventList"></div>
         <div id="err_relayEvents" class="field-error"></div>
         <div id="relayFormErr" class="form-summary-err"></div>
         <div style="background:#f8fafc;border:1px dashed #cbd5e1;border-radius:4px;padding:12px;margin-top:8px;">
             <div class="row">
-                <div><label>项目</label><select id="relayEvent"></select></div>
-                <div><label>报名成绩</label><input id="relayEntryTime" placeholder="3:20.00"></div>
+                <div><label data-i18n="Str_Common_Event">项目</label><select id="relayEvent"></select></div>
+                <div><label data-i18n="Str_Common_EntryTime">报名成绩</label><input id="relayEntryTime" placeholder="3:20.00"></div>
             </div>
-            <button class="btn btn-purple" style="margin-top:8px;" onclick="addRelayEvent()">+ 添加接力项目</button>
+            <button class="btn btn-purple" style="margin-top:8px;" onclick="addRelayEvent()" data-i18n="Str_Register_AddRelayEventBtn">+ 添加接力项目</button>
         </div>
 
         <hr class="sep">
         <div class="row">
             <div style="flex:2;">
-                <button class="btn btn-purple btn-block" style="padding:12px;font-size:14px;" onclick="addRelayToQueue()">+ 添加到接力报名列表</button>
+                <button class="btn btn-purple btn-block" style="padding:12px;font-size:14px;" onclick="addRelayToQueue()" data-i18n="Str_Register_AddRelayQueueBtn">+ 添加到接力报名列表</button>
             </div>
             <div style="flex:1;">
-                <button class="btn btn-gray btn-block" style="padding:12px;font-size:14px;" onclick="resetRelayForm()">清空当前表单</button>
+                <button class="btn btn-gray btn-block" style="padding:12px;font-size:14px;" onclick="resetRelayForm()" data-i18n="Str_Common_ClearForm">清空当前表单</button>
             </div>
         </div>
-        <div style="font-size:12px;color:#64748b;margin-top:6px;text-align:center;">
+        <div style="font-size:12px;color:#64748b;margin-top:6px;text-align:center;" data-i18n="Str_Register_RelayHint">
             录入完一支队（棒次+项目）后点"添加到接力报名列表"，再录入下一支队；全部录入完成后统一提交。
         </div>
     </div>
 
     <!-- 待提交多队接力报名队列 -->
     <div class="card queue-card" id="relayQueueCard">
-        <h2>待提交接力报名列表 <span id="relayQueueCount" style="font-weight:normal;color:#475569;font-size:13px;"></span></h2>
+        <h2><span data-i18n="Str_Register_RelayQueueTitle">待提交接力报名列表</span> <span id="relayQueueCount" style="font-weight:normal;color:#475569;font-size:13px;"></span></h2>
         <div id="relayQueueList"></div>
         <button id="submitAllRelayBtn" class="btn btn-green btn-block" style="padding:14px;font-size:16px;margin-top:12px;" onclick="submitRelayQueue()" disabled>全部提交接力报名（0 队）</button>
-        <div style="font-size:12px;color:#475569;margin-top:6px;">
+        <div style="font-size:12px;color:#475569;margin-top:6px;" data-i18n="Str_Register_RelayQueueHint">
             提交后服务器会逐条（队×项目）返回结果。未通过的条目请回到上方表单修改后重新添加。
         </div>
     </div>
@@ -302,6 +306,7 @@ input.invalid, select.invalid { border-color: #EF4444 !important; background: #F
     </div><!-- /tabRelay -->
 </div>
 
+<script src="webloc.js"></script>
 <script>
 // 2026-05-25 顶部 tab 切换函数
 function switchRegTab(tab) {
@@ -329,7 +334,7 @@ var relayEvents = [];
 var pendingRelayRegs = [];
 var editingRelayQueueIdx = null;
 
-window.onbeforeunload = function(e) { e.preventDefault(); e.returnValue = ''; return '确定要关闭注册终端？'; };
+window.onbeforeunload = function(e) { e.preventDefault(); e.returnValue = ''; return WebLoc.t('Str_Register_ConfirmClose'); };
 
 function goFullScreen() { var el=document.documentElement; if(document.fullscreenElement)return; if(el.requestFullscreen)el.requestFullscreen(); else if(el.webkitRequestFullscreen)el.webkitRequestFullscreen(); else if(el.msRequestFullscreen)el.msRequestFullscreen(); }
 document.addEventListener('fullscreenchange', function() { var btns=document.querySelectorAll('.fullscreen-btn'); for(var i=0;i<btns.length;i++) btns[i].style.display=document.fullscreenElement?'none':''; });
@@ -348,7 +353,7 @@ function getServerHost(forceAsk) {
     var saved = localStorage.getItem('swimServerHost');
     if (!forceAsk && saved) return saved;
     var def = saved || params.get('host') || location.hostname || '192.168.1.100';
-    var ip = prompt('请输入服务器IP地址:', def);
+    var ip = prompt(WebLoc.t('Str_Register_EnterServerIpPrompt'), def);
     if (ip) { localStorage.setItem('swimServerHost', ip); return ip; }
     return saved || 'localhost';
 }
@@ -373,8 +378,7 @@ function checkPageVer(serverVer) {
     d.id = '_verWarnBar';
     d.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:99999;background:#DC2626;color:#fff;'
                     + 'font:bold 14px/1.6 sans-serif;padding:8px 12px;text-align:center;cursor:pointer';
-    d.textContent = '⚠ 本页版本 ' + PAGE_VER + ' 与主服务器 ' + serverVer + ' 不一致 —— 请按 Ctrl+F5 强制刷新。'
-                  + '仍不一致说明这台机器上的 Web 目录没跟 exe 一起更新。(点此关闭)';
+    d.textContent = WebLoc.f('Str_Common_VersionMismatchFmt', PAGE_VER, serverVer);
     d.onclick = function() { d.parentNode.removeChild(d); };
     document.body.appendChild(d);
 }
@@ -384,14 +388,14 @@ function checkPageVer(serverVer) {
         reportPageVer(ws);
         // 2026-05-21 只改 span 文字 + 颜色；切勿对 connStatus 用 textContent，
         // 否则会把"切换服务器IP"按钮一起抹掉
-        document.getElementById('connStatusText').textContent = '已连接服务器 ' + host;
+        document.getElementById('connStatusText').textContent = WebLoc.f('Str_Register_ConnectedFmt', host);
         document.getElementById('connStatus').style.color = '#22c55e';
     };
     ws.onclose = function() {
-        document.getElementById('connStatusText').textContent = '连接断开，重连中...';
+        document.getElementById('connStatusText').textContent = WebLoc.t('Str_Register_ConnLostRetrying');
         document.getElementById('connStatus').style.color = '#ef4444';
         _connFailCount++;
-        if (_connFailCount >= 3) { _connFailCount = 0; if (confirm('连接失败，是否重新设置服务器地址？')) { changeServerHost(); return; } }
+        if (_connFailCount >= 3) { _connFailCount = 0; if (confirm(WebLoc.t('Str_Register_ConnFailRetry'))) { changeServerHost(); return; } }
         setTimeout(connect, 3000);
     };
     ws.onmessage = function(e) {
@@ -402,11 +406,11 @@ function checkPageVer(serverVer) {
                 var ok = msg.data && msg.data.success;
                 if (ok) {
                     assignedBib = msg.data.bibNumber || assignedBib;
-                    var lastName = document.getElementById('name').value.trim() || '运动员';
+                    var lastName = document.getElementById('name').value.trim() || WebLoc.t('Str_Register_DefaultAthlete');
                     var bannerMsg = document.getElementById('submittedMsg');
-                    if (bannerMsg) bannerMsg.textContent = '报名成功！' + lastName + '（参赛号 ' + assignedBib + '），表单已自动重置可继续注册下一位。';
+                    if (bannerMsg) bannerMsg.textContent = WebLoc.f('Str_Register_SuccessBannerFmt', lastName, assignedBib);
                     document.getElementById('submittedBanner').style.display = 'block';
-                    showStatus('报名成功！参赛号: ' + assignedBib, true);
+                    showStatus(WebLoc.f('Str_Register_SuccessStatusFmt', assignedBib), true);
                     // 记住最近一次成功提交的参赛号，便于"查询/修改"功能默认填入
                     try { localStorage.setItem('swimRegLastBib', assignedBib); } catch (er) {}
                     // 自动重置表单：清空个人信息和参赛项目，恢复可编辑状态，无需手动刷新页面
@@ -417,7 +421,7 @@ function checkPageVer(serverVer) {
                         if (b) b.style.display = 'none';
                     }, 5000);
                 } else {
-                    showStatus('报名失败: ' + (msg.data.message || '未知错误'), false);
+                    showStatus(WebLoc.f('Str_Register_FailStatusFmt', msg.data.message || WebLoc.t('Str_Register_UnknownError')), false);
                 }
             } else if (msg.type === 'REGISTER_MULTI_RESULT') {
                 handleMultiResult(msg.data);
@@ -457,20 +461,22 @@ function applyServerConfig(data) {
     }
     if (Array.isArray(data.genderList) && data.genderList.length > 0) {
         // 2026-05-26 性别也设为必填，加占位项强制用户主动选 (避免默认"男"误填)
-        fillSelect('gender', data.genderList, true, '请选择性别');
-        fillSelect('relayGender', data.genderList, true, '请选择性别');
+        // 2026-09-28 性别下拉的 value 仍然是服务器发来的原始中文(协议字段不能变),
+        //   显示文字用 genderDisplay() 包一层, 只影响给人看的部分。
+        fillSelect('gender', data.genderList, true, WebLoc.t('Str_Common_SelectGender'), WebLoc.genderDisplay);
+        fillSelect('relayGender', data.genderList, true, WebLoc.t('Str_Common_SelectGender'), WebLoc.genderDisplay);
     }
 }
 
-function fillSelect(id, items, withBlank, blankText) {
+function fillSelect(id, items, withBlank, blankText, displayFn) {
     var sel = document.getElementById(id);
     if (!sel || !Array.isArray(items)) return;
     var prev = sel.value;
     sel.innerHTML = '';
-    if (withBlank) sel.appendChild(new Option(blankText || '不指定', ''));
+    if (withBlank) sel.appendChild(new Option(blankText || WebLoc.t('Str_Common_NotSpecified'), ''));
     for (var i = 0; i < items.length; i++) {
         if (!items[i]) continue;
-        sel.appendChild(new Option(items[i], items[i]));
+        sel.appendChild(new Option(displayFn ? displayFn(items[i]) : items[i], items[i]));
     }
     // 恢复之前选择
     for (var j = 0; j < sel.options.length; j++) {
@@ -525,14 +531,14 @@ function queryMyRegistration() {
     var nm = document.getElementById('queryName').value.trim();
     var ct = document.getElementById('queryCountry').value.trim();
     if (!bib && !(nm && ct)) {
-        showQueryStatus('请输入参赛号，或同时输入姓名+代表队', '#EF4444');
+        showQueryStatus(WebLoc.t('Str_Register_QueryNeedInput'), '#EF4444');
         return;
     }
     if (!ws || ws.readyState !== 1) {
-        showQueryStatus('未连接服务器，无法查询', '#EF4444');
+        showQueryStatus(WebLoc.t('Str_Common_NotConnectedQuery'), '#EF4444');
         return;
     }
-    showQueryStatus('查询中…', '#92400E');
+    showQueryStatus(WebLoc.t('Str_Common_Querying'), '#92400E');
     ws.send(JSON.stringify({
         type: 'REGISTER_QUERY',
         data: { bibNumber: bib, name: nm, country: ct }
@@ -550,16 +556,16 @@ function showQueryStatus(text, color) {
 function queryMyRelay() {
     var team = document.getElementById('queryRelayTeam').value.trim();
     if (!team) {
-        document.getElementById('queryRelayStatus').textContent = '请输入队名';
+        document.getElementById('queryRelayStatus').textContent = WebLoc.t('Str_Register_RelayQueryNeedTeam');
         document.getElementById('queryRelayStatus').style.color = '#EF4444';
         return;
     }
     if (!ws || ws.readyState !== 1) {
-        document.getElementById('queryRelayStatus').textContent = '未连接服务器';
+        document.getElementById('queryRelayStatus').textContent = WebLoc.t('Str_Common_NotConnectedShort');
         document.getElementById('queryRelayStatus').style.color = '#EF4444';
         return;
     }
-    document.getElementById('queryRelayStatus').textContent = '查询中…';
+    document.getElementById('queryRelayStatus').textContent = WebLoc.t('Str_Common_Querying');
     document.getElementById('queryRelayStatus').style.color = '#92400E';
     ws.send(JSON.stringify({ type: 'RELAY_QUERY', data: { teamName: team } }));
 }
@@ -568,7 +574,7 @@ function queryMyRelay() {
 function handleRelayQueryResult(data) {
     var st = document.getElementById('queryRelayStatus');
     if (!data || data.success === false) {
-        st.textContent = (data && data.message) ? data.message : '未找到该队';
+        st.textContent = (data && data.message) ? data.message : WebLoc.t('Str_Register_RelayNotFoundDefault');
         st.style.color = '#EF4444';
         return;
     }
@@ -591,7 +597,7 @@ function handleRelayQueryResult(data) {
         setVal('leg' + n + 'ID', leg.swimmerIDNumber);
         setVal('leg' + n + 'Bib', leg.swimmerBibNumber);
     }
-    st.textContent = '✔ 已回填: ' + (t.teamName || '') + ' (' + (legs.length || 0) + ' 棒)，修改后点「+ 添加接力项目」「+ 添加到接力报名列表」「全部提交接力报名」，服务器会按队名+性别+项目+组别覆盖更新';
+    st.textContent = WebLoc.f('Str_Register_RelayFilledFmt', (t.teamName || ''), (legs.length || 0));
     st.style.color = '#16A34A';
 }
 
@@ -599,7 +605,7 @@ function handleRelayQueryResult(data) {
 // 用户改完点击"提交全部报名信息"，会以 isResubmit=true 方式提交，服务器先清旧记录再写入新记录
 function handleQueryResult(data) {
     if (!data || data.success === false) {
-        showQueryStatus(data && data.message ? data.message : '未找到对应报名记录', '#EF4444');
+        showQueryStatus(data && data.message ? data.message : WebLoc.t('Str_Register_QueryNotFoundDefault'), '#EF4444');
         return;
     }
     var sw = data.swimmer || {};
@@ -634,8 +640,8 @@ function handleQueryResult(data) {
     assignedBib = sw.bibNumber || '';
     submitted = true;     // 标记为"修改模式"，提交时 isResubmit=true
     setFormReadonly(false);
-    showQueryStatus('已加载报名信息（参赛号 ' + assignedBib + '），可修改后再次提交。', '#16A34A');
-    showStatus('修改模式：参赛号 ' + assignedBib + '。提交将覆盖旧记录。', true);
+    showQueryStatus(WebLoc.f('Str_Register_LoadedForEditFmt', assignedBib), '#16A34A');
+    showStatus(WebLoc.f('Str_Register_EditModeStatusFmt', assignedBib), true);
 }
 
 // ═══════ 参赛项目管理 ═══════
@@ -645,7 +651,7 @@ function addEvent() {
     // 检查重复
     for (var i = 0; i < events.length; i++) {
         if (events[i].eventName === ev) {
-            showStatus('已添加此项目，不能重复！', false);
+            showStatus(WebLoc.t('Str_Register_DuplicateEvent'), false);
             return;
         }
     }
@@ -667,16 +673,16 @@ function removeEvent(idx) {
 function renderEvents() {
     var el = document.getElementById('eventList');
     if (events.length === 0) {
-        el.innerHTML = '<div style="color:#94a3b8;font-size:13px;padding:8px;">尚未添加参赛项目</div>';
+        el.innerHTML = '<div style="color:#94a3b8;font-size:13px;padding:8px;">' + WebLoc.t('Str_Register_NoEventsYet') + '</div>';
         return;
     }
     var html = '';
     for (var i = 0; i < events.length; i++) {
         html += '<div class="event-item">' +
             '<div class="ev-info"><span class="ev-name">' + events[i].eventName + '</span>' +
-            (events[i].entryTime ? '<span class="ev-time">报名: ' + events[i].entryTime + '</span>' : '') +
+            (events[i].entryTime ? '<span class="ev-time">' + WebLoc.f('Str_Register_EntryTimeLabelFmt', events[i].entryTime) + '</span>' : '') +
             '</div>' +
-            '<button class="btn-red" onclick="removeEvent(' + i + ')">X 删除此项</button>' +
+            '<button class="btn-red" onclick="removeEvent(' + i + ')">' + WebLoc.t('Str_Register_RemoveEventBtn') + '</button>' +
             '</div>';
     }
     el.innerHTML = html;
@@ -700,7 +706,7 @@ function clearAllInvalid(ids) {
 }
 function showFormSummary(panelId, errors) {
     var p = document.getElementById(panelId); if (!p) return;
-    var html = '<strong>表单未通过校验，请补全以下字段：</strong><ul>';
+    var html = '<strong>' + WebLoc.t('Str_Common_FormErrorHeader') + '</strong><ul>';
     for (var i = 0; i < errors.length; i++) html += '<li>' + errors[i] + '</li>';
     html += '</ul>';
     p.innerHTML = html;
@@ -728,30 +734,30 @@ function buildSwimmerFromForm() {
     var firstErr = null;
 
     var name = document.getElementById('name').value.trim();
-    if (!name) { markInvalid('name', '请填写姓名'); errors.push('请填写姓名'); if (!firstErr) firstErr = 'name'; }
+    if (!name) { markInvalid('name', WebLoc.t('Str_Register_PleaseName')); errors.push(WebLoc.t('Str_Register_PleaseName')); if (!firstErr) firstErr = 'name'; }
 
     // 2026-05-26 性别 必填
     var gd = document.getElementById('gender').value;
-    if (!gd) { markInvalid('gender', '请选择性别'); errors.push('请选择性别'); if (!firstErr) firstErr = 'gender'; }
+    if (!gd) { markInvalid('gender', WebLoc.t('Str_Common_PleaseSelectGender')); errors.push(WebLoc.t('Str_Common_PleaseSelectGender')); if (!firstErr) firstErr = 'gender'; }
 
     var bd = document.getElementById('birthDate').value;
-    if (!bd) { markInvalid('birthDate', '请填写出生日期'); errors.push('请填写出生日期'); if (!firstErr) firstErr = 'birthDate'; }
-    else if (!/^\d{4}-\d{2}-\d{2}$/.test(bd)) { markInvalid('birthDate', '出生日期格式应为 yyyy-MM-dd'); errors.push('出生日期格式应为 yyyy-MM-dd'); if (!firstErr) firstErr = 'birthDate'; }
+    if (!bd) { markInvalid('birthDate', WebLoc.t('Str_Register_PleaseBirthDate')); errors.push(WebLoc.t('Str_Register_PleaseBirthDate')); if (!firstErr) firstErr = 'birthDate'; }
+    else if (!/^\d{4}-\d{2}-\d{2}$/.test(bd)) { markInvalid('birthDate', WebLoc.t('Str_Register_BirthDateFormatErr')); errors.push(WebLoc.t('Str_Register_BirthDateFormatErr')); if (!firstErr) firstErr = 'birthDate'; }
 
     // 2026-09-22 身份证号改为可选填、不限位数/格式 —— 国际比赛运动员可能没有中国身份证，
     //   或证件号格式完全不同，不该拿中国大陆 15/18 位身份证规则去卡人报名。
 
     // 2026-05-25 组别 必填
     var ag = document.getElementById('ageGroup').value;
-    if (!ag) { markInvalid('ageGroup', '请选择组别'); errors.push('请选择组别'); if (!firstErr) firstErr = 'ageGroup'; }
+    if (!ag) { markInvalid('ageGroup', WebLoc.t('Str_Register_PleaseAgeGroup')); errors.push(WebLoc.t('Str_Register_PleaseAgeGroup')); if (!firstErr) firstErr = 'ageGroup'; }
 
     var country = document.getElementById('country').value.trim();
-    if (!country) { markInvalid('country', '请填写代表队'); errors.push('请填写代表队'); if (!firstErr) firstErr = 'country'; }
+    if (!country) { markInvalid('country', WebLoc.t('Str_Register_PleaseCountry')); errors.push(WebLoc.t('Str_Register_PleaseCountry')); if (!firstErr) firstErr = 'country'; }
 
     if (events.length === 0) {
         var er = document.getElementById('err_events');
-        if (er) { er.textContent = '请至少添加一个参赛项目'; er.classList.add('show'); }
-        errors.push('请至少添加一个参赛项目');
+        if (er) { er.textContent = WebLoc.t('Str_Register_PleaseAtLeastOneEvent'); er.classList.add('show'); }
+        errors.push(WebLoc.t('Str_Register_PleaseAtLeastOneEvent'));
         if (!firstErr) firstErr = 'event';
     }
 
@@ -801,7 +807,7 @@ function addToQueue() {
     }
     renderQueue();
     clearForm();
-    showStatus('已加入报名列表，可继续录入下一位', true);
+    showStatus(WebLoc.t('Str_Register_JoinedQueueMsg'), true);
 }
 
 function editQueue(idx) {
@@ -821,7 +827,7 @@ function editQueue(idx) {
     assignedBib = sw.bibNumber || '';
     submitted = !!e.isResubmit;
     editingQueueIdx = idx;
-    showStatus('正在编辑队列第 ' + (idx + 1) + ' 条，修改后请再次点"添加到报名列表"', true);
+    showStatus(WebLoc.f('Str_Register_EditingQueueFmt', (idx + 1)), true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
@@ -838,9 +844,9 @@ function renderQueue() {
     var btn = document.getElementById('submitAllBtn');
     var cnt = document.getElementById('queueCount');
     if (pendingRegs.length === 0) {
-        list.innerHTML = '<div style="color:#94a3b8;font-size:13px;padding:8px;">列表为空，请先在上方录入运动员后"添加到报名列表"</div>';
+        list.innerHTML = '<div style="color:#94a3b8;font-size:13px;padding:8px;">' + WebLoc.t('Str_Register_QueueEmptyHint') + '</div>';
         btn.disabled = true;
-        btn.textContent = '全部提交报名（0 人）';
+        btn.textContent = WebLoc.f('Str_Register_SubmitAllPersonFmt', 0);
         if (cnt) cnt.textContent = '';
         return;
     }
@@ -853,20 +859,20 @@ function renderQueue() {
         html += '<div class="queue-item' + errCls + '">' +
             '<div class="qi-info">' +
                 '<span class="qi-name">' + (sw.name || '') + '</span>' +
-                '<span class="qi-meta">' + (sw.gender || '') + ' / ' + (sw.country || '') + ' / ' + evCount + ' 项' +
-                (sw.bibNumber ? ' / 号 ' + sw.bibNumber : '') + '</span>' +
+                '<span class="qi-meta">' + WebLoc.genderDisplay(sw.gender) + ' / ' + (sw.country || '') + ' / ' + WebLoc.f('Str_Register_QiMetaEventsFmt', evCount) +
+                (sw.bibNumber ? WebLoc.f('Str_Register_QiMetaBibFmt', sw.bibNumber) : '') + '</span>' +
                 (e.error ? '<div class="qi-error">✗ ' + e.error + '</div>' : '') +
             '</div>' +
             '<div class="qi-actions">' +
-                '<button class="qi-edit" onclick="editQueue(' + i + ')">修改</button>' +
-                '<button class="qi-del" onclick="removeFromQueue(' + i + ')">删除</button>' +
+                '<button class="qi-edit" onclick="editQueue(' + i + ')">' + WebLoc.t('Str_Common_Edit') + '</button>' +
+                '<button class="qi-del" onclick="removeFromQueue(' + i + ')">' + WebLoc.t('Str_Common_Delete') + '</button>' +
             '</div>' +
         '</div>';
     }
     list.innerHTML = html;
     btn.disabled = false;
-    btn.textContent = '全部提交报名（' + pendingRegs.length + ' 人）';
-    if (cnt) cnt.textContent = '共 ' + pendingRegs.length + ' 人';
+    btn.textContent = WebLoc.f('Str_Register_SubmitAllPersonFmt', pendingRegs.length);
+    if (cnt) cnt.textContent = WebLoc.f('Str_Register_QueueCountFmt', pendingRegs.length);
 }
 
 function clearForm() {
@@ -883,15 +889,15 @@ function clearForm() {
 }
 
 function submitQueue() {
-    if (!ws || ws.readyState !== 1) { showStatus('未连接服务器', false); return; }
-    if (pendingRegs.length === 0) { showStatus('列表为空，请先添加', false); return; }
+    if (!ws || ws.readyState !== 1) { showStatus(WebLoc.t('Str_Common_NotConnectedShort'), false); return; }
+    if (pendingRegs.length === 0) { showStatus(WebLoc.t('Str_Register_QueueEmptySubmit'), false); return; }
     var entries = [];
     for (var i = 0; i < pendingRegs.length; i++) {
         var p = pendingRegs[i];
         entries.push({ swimmer: p.swimmer, events: p.events, isResubmit: !!p.isResubmit });
     }
     ws.send(JSON.stringify({ type: 'REGISTER_SWIMMERS_MULTI', data: { entries: entries } }));
-    showStatus('正在提交 ' + entries.length + ' 人报名……等待服务器结果', true);
+    showStatus(WebLoc.f('Str_Register_SubmittingFmt', entries.length), true);
 }
 
 function handleMultiResult(d) {
@@ -901,14 +907,14 @@ function handleMultiResult(d) {
         // 全部通过：弹窗告知 + 清空队列/表单
         var okItems = [];
         for (var i = 0; i < entries.length; i++) {
-            var name = entries[i].name || ('第' + (i + 1) + '条');
+            var name = entries[i].name || WebLoc.f('Str_Common_UnnamedEntryFmt', (i + 1));
             var bib = entries[i].bibNumber || '';
             var addedCount = (entries[i].addedCount != null) ? entries[i].addedCount : '';
-            okItems.push(name + (bib ? '（参赛号 ' + bib + '）' : '') + (addedCount !== '' ? '：' + addedCount + ' 项' : ''));
+            okItems.push(name + (bib ? WebLoc.f('Str_Register_ResultOkBibFmt', bib) : '') + (addedCount !== '' ? WebLoc.f('Str_Register_ResultOkAddedFmt', addedCount) : ''));
         }
         showResultModal(true,
-            '报名提交成功',
-            '主服务器已通过本次报名，共 ' + entries.length + ' 人，相关数据已写入比赛系统。',
+            WebLoc.t('Str_Register_ResultOkTitle'),
+            WebLoc.f('Str_Register_ResultOkSummaryFmt', entries.length),
             okItems, []);
         try { if (entries.length > 0 && entries[0].bibNumber) localStorage.setItem('swimRegLastBib', entries[0].bibNumber); } catch (er) {}
         pendingRegs = [];
@@ -920,16 +926,16 @@ function handleMultiResult(d) {
         var errItems = [];
         for (var k = 0; k < entries.length && k < pendingRegs.length; k++) {
             var ok = !!entries[k].ok;
-            pendingRegs[k].error = ok ? '' : (entries[k].message || '校验未通过');
+            pendingRegs[k].error = ok ? '' : (entries[k].message || WebLoc.t('Str_Common_ValidationFailedDefault'));
             if (!ok) {
-                var nm = (pendingRegs[k].swimmer && pendingRegs[k].swimmer.name) ? pendingRegs[k].swimmer.name : ('第' + (k + 1) + '条');
-                errItems.push(nm + '：' + (entries[k].message || '校验未通过'));
+                var nm = (pendingRegs[k].swimmer && pendingRegs[k].swimmer.name) ? pendingRegs[k].swimmer.name : WebLoc.f('Str_Common_UnnamedEntryFmt', (k + 1));
+                errItems.push(nm + '：' + (entries[k].message || WebLoc.t('Str_Common_ValidationFailedDefault')));
             }
         }
         renderQueue();
         showResultModal(false,
-            '报名未通过',
-            d.message || '主服务器反馈：部分条目未通过校验。请修改下方红色标记的条目后再次"全部提交报名"。',
+            WebLoc.t('Str_Register_ResultFailTitle'),
+            d.message || WebLoc.t('Str_Register_ResultFailDefaultMsg'),
             [], errItems);
     }
 }
@@ -942,18 +948,18 @@ function showResultModal(ok, title, summary, okItems, errItems) {
     head.className = 'modal-head ' + (ok ? 'ok' : 'err');
     head.textContent = (ok ? '✓ ' : '✗ ') + title;
     btn.className = ok ? 'ok' : 'err';
-    btn.textContent = ok ? '知道了' : '返回修改';
+    btn.textContent = ok ? WebLoc.t('Str_Common_Know') : WebLoc.t('Str_Common_BackToEdit');
     var html = '<div class="summary">' + (summary || '') + '</div>';
     if (okItems && okItems.length > 0) {
-        html += '<div style="font-weight:bold;color:#166534;margin-top:6px;">报名通过：</div><ul class="ok">';
+        html += '<div style="font-weight:bold;color:#166534;margin-top:6px;">' + WebLoc.t('Str_Register_PassedHeader') + '</div><ul class="ok">';
         for (var i = 0; i < okItems.length; i++) html += '<li>' + escapeHtml(okItems[i]) + '</li>';
         html += '</ul>';
     }
     if (errItems && errItems.length > 0) {
-        html += '<div style="font-weight:bold;color:#991B1B;margin-top:6px;">未通过项：</div><ul class="err">';
+        html += '<div style="font-weight:bold;color:#991B1B;margin-top:6px;">' + WebLoc.t('Str_Register_FailedHeader') + '</div><ul class="err">';
         for (var j = 0; j < errItems.length; j++) html += '<li>' + escapeHtml(errItems[j]) + '</li>';
         html += '</ul>';
-        html += '<div style="margin-top:10px;color:#475569;font-size:13px;">提示：在下方"待提交报名列表"中点对应条目"修改"按钮调出表单更正后，再次点"全部提交报名"。</div>';
+        html += '<div style="margin-top:10px;color:#475569;font-size:13px;">' + WebLoc.t('Str_Register_FailedHint') + '</div>';
     }
     body.innerHTML = html;
     mask.classList.add('show');
@@ -970,11 +976,16 @@ function escapeHtml(s) {
         .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
-// 初始化
-renderEvents();
-renderQueue();
-renderRelayEvents();
-renderRelayQueue();
+// 切换语言后重新渲染动态生成的部分(队列列表/事件列表里的按钮文字等不是靠 data-i18n 覆盖的)
+window.onWebLocApplied = function () {
+    renderEvents();
+    renderQueue();
+    renderRelayEvents();
+    renderRelayQueue();
+};
+
+// 初始化 (WebLoc.apply() 内部会触发 onWebLocApplied, 即上面这4个 render 调用)
+WebLoc.apply();
 // 自动把上次成功提交的参赛号填入"查询"框，用户一键就能调出自己的报名再修改
 try {
     var lastBib = localStorage.getItem('swimRegLastBib');
@@ -991,10 +1002,10 @@ try {
 // 项目列表管理（当前表单正在录入的这支队伍可报的多个接力项目）
 function addRelayEvent() {
     var ev = document.getElementById('relayEvent').value;
-    if (!ev) { showStatus('请先选择接力项目', false); return; }
+    if (!ev) { showStatus(WebLoc.t('Str_Register_PleaseSelectRelayEventFirst'), false); return; }
     var time = document.getElementById('relayEntryTime').value.trim();
     for (var i = 0; i < relayEvents.length; i++) {
-        if (relayEvents[i].eventName === ev) { showStatus('已添加此项目，不能重复！', false); return; }
+        if (relayEvents[i].eventName === ev) { showStatus(WebLoc.t('Str_Register_DuplicateEvent'), false); return; }
     }
     relayEvents.push({ eventName: ev, entryTime: time });
     document.getElementById('relayEntryTime').value = '';
@@ -1008,16 +1019,16 @@ function removeRelayEvent(idx) { relayEvents.splice(idx, 1); renderRelayEvents()
 function renderRelayEvents() {
     var el = document.getElementById('relayEventList');
     if (relayEvents.length === 0) {
-        el.innerHTML = '<div style="color:#94a3b8;font-size:13px;padding:8px;">尚未添加接力项目</div>';
+        el.innerHTML = '<div style="color:#94a3b8;font-size:13px;padding:8px;">' + WebLoc.t('Str_Register_NoRelayEventsYet') + '</div>';
         return;
     }
     var html = '';
     for (var i = 0; i < relayEvents.length; i++) {
         html += '<div class="event-item">' +
             '<div class="ev-info"><span class="ev-name">' + relayEvents[i].eventName + '</span>' +
-            (relayEvents[i].entryTime ? '<span class="ev-time">报名: ' + relayEvents[i].entryTime + '</span>' : '') +
+            (relayEvents[i].entryTime ? '<span class="ev-time">' + WebLoc.f('Str_Register_EntryTimeLabelFmt', relayEvents[i].entryTime) + '</span>' : '') +
             '</div>' +
-            '<button class="btn-red" onclick="removeRelayEvent(' + i + ')">X 删除此项</button>' +
+            '<button class="btn-red" onclick="removeRelayEvent(' + i + ')">' + WebLoc.t('Str_Register_RemoveEventBtn') + '</button>' +
             '</div>';
     }
     el.innerHTML = html;
@@ -1030,13 +1041,13 @@ function buildRelayEntryFromForm() {
     var firstErr = null;
 
     var team = document.getElementById('relayTeam').value.trim();
-    if (!team) { markInvalid('relayTeam', '请填写队名'); errors.push('请填写队名'); if (!firstErr) firstErr = 'relayTeam'; }
+    if (!team) { markInvalid('relayTeam', WebLoc.t('Str_Register_PleaseTeamName')); errors.push(WebLoc.t('Str_Register_PleaseTeamName')); if (!firstErr) firstErr = 'relayTeam'; }
 
     var rgd = document.getElementById('relayGender').value;
-    if (!rgd) { markInvalid('relayGender', '请选择性别'); errors.push('请选择性别'); if (!firstErr) firstErr = 'relayGender'; }
+    if (!rgd) { markInvalid('relayGender', WebLoc.t('Str_Common_PleaseSelectGender')); errors.push(WebLoc.t('Str_Common_PleaseSelectGender')); if (!firstErr) firstErr = 'relayGender'; }
 
     var rag = document.getElementById('relayAgeGroup').value;
-    if (!rag) { markInvalid('relayAgeGroup', '请选择组别'); errors.push('请选择组别'); if (!firstErr) firstErr = 'relayAgeGroup'; }
+    if (!rag) { markInvalid('relayAgeGroup', WebLoc.t('Str_Register_PleaseAgeGroup')); errors.push(WebLoc.t('Str_Register_PleaseAgeGroup')); if (!firstErr) firstErr = 'relayAgeGroup'; }
 
     var legs = [];
     for (var i = 1; i <= 4; i++) {
@@ -1046,12 +1057,12 @@ function buildRelayEntryFromForm() {
         var legID = document.getElementById('leg' + i + 'ID').value.trim();
         var legBirth = document.getElementById('leg' + i + 'Birth').value;
         if (!legName) {
-            markInvalid(legId, '请填写第' + i + '棒姓名');
-            errors.push('请填写第' + i + '棒姓名');
+            markInvalid(legId, WebLoc.f('Str_Register_PleaseLegNameFmt', i));
+            errors.push(WebLoc.f('Str_Register_PleaseLegNameFmt', i));
             if (!firstErr) firstErr = legId;
         }
         if (legBirth && !/^\d{4}-\d{2}-\d{2}$/.test(legBirth)) {
-            errors.push('第' + i + '棒出生日期格式应为 yyyy-MM-dd');
+            errors.push(WebLoc.f('Str_Register_LegBirthFormatErrFmt', i));
             if (!firstErr) firstErr = 'leg' + i + 'Birth';
         }
         if (legName) legs.push({
@@ -1062,9 +1073,9 @@ function buildRelayEntryFromForm() {
     }
 
     if (relayEvents.length === 0) {
-        errors.push('请至少添加一个接力项目');
+        errors.push(WebLoc.t('Str_Register_PleaseAtLeastOneRelayEvent'));
         var er = document.getElementById('err_relayEvents');
-        if (er) { er.textContent = '请至少添加一个接力项目'; er.classList.add('show'); }
+        if (er) { er.textContent = WebLoc.t('Str_Register_PleaseAtLeastOneRelayEvent'); er.classList.add('show'); }
         if (!firstErr) firstErr = 'relayEvent';
     }
 
@@ -1099,7 +1110,7 @@ function addRelayToQueue() {
     }
     renderRelayQueue();
     resetRelayForm();
-    showStatus('已加入接力报名列表，可继续录入下一支队', true);
+    showStatus(WebLoc.t('Str_Register_RelayJoinedQueueMsg'), true);
 }
 
 function editRelayQueue(idx) {
@@ -1124,7 +1135,7 @@ function editRelayQueue(idx) {
     relayEvents = (e.events || []).slice();
     renderRelayEvents();
     editingRelayQueueIdx = idx;
-    showStatus('正在编辑接力队列第 ' + (idx + 1) + ' 条，修改后请再次点"添加到接力报名列表"', true);
+    showStatus(WebLoc.f('Str_Register_RelayEditingQueueFmt', (idx + 1)), true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
@@ -1141,9 +1152,9 @@ function renderRelayQueue() {
     var btn = document.getElementById('submitAllRelayBtn');
     var cnt = document.getElementById('relayQueueCount');
     if (pendingRelayRegs.length === 0) {
-        list.innerHTML = '<div style="color:#94a3b8;font-size:13px;padding:8px;">列表为空，请先在上方录入接力队后"添加到接力报名列表"</div>';
+        list.innerHTML = '<div style="color:#94a3b8;font-size:13px;padding:8px;">' + WebLoc.t('Str_Register_RelayQueueEmptyHint') + '</div>';
         btn.disabled = true;
-        btn.textContent = '全部提交接力报名（0 队）';
+        btn.textContent = WebLoc.f('Str_Register_RelaySubmitAllFmt', 0);
         if (cnt) cnt.textContent = '';
         return;
     }
@@ -1156,24 +1167,24 @@ function renderRelayQueue() {
         html += '<div class="queue-item' + errCls + '">' +
             '<div class="qi-info">' +
                 '<span class="qi-name">' + (t.teamName || '') + '</span>' +
-                '<span class="qi-meta">' + (t.gender || '') + ' / ' + (t.ageGroup || '') + ' / ' + evCount + ' 项 / ' + ((t.legs||[]).length) + ' 棒</span>' +
+                '<span class="qi-meta">' + WebLoc.genderDisplay(t.gender) + ' / ' + (t.ageGroup || '') + ' / ' + WebLoc.f('Str_Register_RelayQiMetaFmt', evCount, (t.legs||[]).length) + '</span>' +
                 (e.error ? '<div class="qi-error">✗ ' + e.error + '</div>' : '') +
             '</div>' +
             '<div class="qi-actions">' +
-                '<button class="qi-edit" onclick="editRelayQueue(' + i + ')">修改</button>' +
-                '<button class="qi-del" onclick="removeFromRelayQueue(' + i + ')">删除</button>' +
+                '<button class="qi-edit" onclick="editRelayQueue(' + i + ')">' + WebLoc.t('Str_Common_Edit') + '</button>' +
+                '<button class="qi-del" onclick="removeFromRelayQueue(' + i + ')">' + WebLoc.t('Str_Common_Delete') + '</button>' +
             '</div>' +
         '</div>';
     }
     list.innerHTML = html;
     btn.disabled = false;
-    btn.textContent = '全部提交接力报名（' + pendingRelayRegs.length + ' 队）';
-    if (cnt) cnt.textContent = '共 ' + pendingRelayRegs.length + ' 队';
+    btn.textContent = WebLoc.f('Str_Register_RelaySubmitAllFmt', pendingRelayRegs.length);
+    if (cnt) cnt.textContent = WebLoc.f('Str_Register_RelayQueueCountFmt', pendingRelayRegs.length);
 }
 
 function submitRelayQueue() {
-    if (!ws || ws.readyState !== 1) { showStatus('未连接服务器', false); return; }
-    if (pendingRelayRegs.length === 0) { showStatus('接力列表为空，请先添加', false); return; }
+    if (!ws || ws.readyState !== 1) { showStatus(WebLoc.t('Str_Common_NotConnectedShort'), false); return; }
+    if (pendingRelayRegs.length === 0) { showStatus(WebLoc.t('Str_Register_RelayQueueEmptySubmit'), false); return; }
     var entries = [];
     for (var i = 0; i < pendingRelayRegs.length; i++) {
         var p = pendingRelayRegs[i];
@@ -1184,19 +1195,19 @@ function submitRelayQueue() {
         });
     }
     ws.send(JSON.stringify({ type: 'REGISTER_RELAYS_MULTI', data: { entries: entries } }));
-    showStatus('正在提交 ' + entries.length + ' 支接力队……等待服务器结果', true);
+    showStatus(WebLoc.f('Str_Register_RelaySubmittingFmt', entries.length), true);
 }
 
 // 单条 REGISTER_RELAY 的回执（查询回填后走旧协议、或其它客户端单条提交时仍可能收到）——保留兼容
 function handleRelayResult(d) {
     if (!d) return;
     if (d.success) {
-        var info = (d.teamName || '') + (d.bibNumber ? '（队伍号 ' + d.bibNumber + '）' : '') + '：' + (d.legCount || 0) + ' 棒';
-        var summary = d.updated ? '主服务器已更新该接力队（队名+性别+项目唯一），原有报名被新数据覆盖。' : '主服务器已通过本次接力报名，相关数据已写入比赛系统。';
-        showResultModal(true, '接力报名提交成功', summary, [info], []);
+        var info = (d.teamName || '') + (d.bibNumber ? WebLoc.f('Str_Register_RelayBibFmt', d.bibNumber) : '') + WebLoc.f('Str_Register_RelayLegCountFmt', (d.legCount || 0));
+        var summary = d.updated ? WebLoc.t('Str_Register_RelayUpdatedSummary') : WebLoc.t('Str_Register_RelayNewSummary');
+        showResultModal(true, WebLoc.t('Str_Register_RelayResultOkTitle'), summary, [info], []);
     } else {
-        showResultModal(false, '接力报名未通过', d.message || '主服务器反馈：接力队报名未通过。请修改后重新提交。',
-            [], [(d.teamName ? d.teamName + '：' : '') + (d.message || '校验未通过')]);
+        showResultModal(false, WebLoc.t('Str_Register_RelayResultFailTitle'), d.message || WebLoc.t('Str_Register_RelayResultFailDefault'),
+            [], [(d.teamName ? d.teamName + '：' : '') + (d.message || WebLoc.t('Str_Common_ValidationFailedDefault'))]);
     }
 }
 
@@ -1208,17 +1219,17 @@ function handleRelaysMultiResult(d) {
     for (var i = 0; i < entries.length; i++) {
         var en = entries[i];
         var label = (en.teamName || '') + (en.eventName ? '（' + en.eventName + '）' : '');
-        if (en.ok) okItems.push(label + (en.bibNumber ? ' 队伍号 ' + en.bibNumber : '') + (en.updated ? ' [更新]' : ' [新建]'));
-        else failItems.push(label + '：' + (en.message || '未知原因'));
+        if (en.ok) okItems.push(label + (en.bibNumber ? WebLoc.f('Str_Register_RelayBibShortFmt', en.bibNumber) : '') + WebLoc.t(en.updated ? 'Str_Register_RelayUpdatedTag' : 'Str_Register_RelayNewTag'));
+        else failItems.push(label + '：' + (en.message || WebLoc.t('Str_Common_UnknownReasonDefault')));
     }
     if (failItems.length === 0) {
-        showResultModal(true, '接力报名提交成功', '共 ' + okItems.length + ' 条（队×项目）全部通过。', okItems, []);
+        showResultModal(true, WebLoc.t('Str_Register_RelayResultOkTitle'), WebLoc.f('Str_Register_RelayMultiOkSummaryFmt', okItems.length), okItems, []);
         pendingRelayRegs = [];
         renderRelayQueue();
         resetRelayForm();
     } else {
-        showResultModal(okItems.length > 0, okItems.length > 0 ? '接力报名部分通过' : '接力报名未通过',
-            '通过 ' + okItems.length + ' 条，未通过 ' + failItems.length + ' 条。未通过的请修改后重新添加到列表提交。',
+        showResultModal(okItems.length > 0, okItems.length > 0 ? WebLoc.t('Str_Register_RelayPartialTitle') : WebLoc.t('Str_Register_RelayResultFailTitle'),
+            WebLoc.f('Str_Register_RelayMultiSummaryFmt', okItems.length, failItems.length),
             okItems, failItems);
     }
 }
