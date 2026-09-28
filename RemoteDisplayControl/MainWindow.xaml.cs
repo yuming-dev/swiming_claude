@@ -23,6 +23,11 @@ namespace RemoteDisplayControl
         // 4 个本地弹 Window (列表填充 / 重用)
         private Window _mediaWin, _pptWin, _scheduleWin, _publishWin;
         private ListBox _mediaList, _pptList, _scheduleList, _publishList;
+        // 2026-09-27 总排名/颁奖 选项目弹窗 (与 PC 本机 ShowEventRanking_Click/ShowAwards_Click 的
+        //   弹窗回放选事一致) —— 共用一对 Window/ListBox, 靠 _rankingPickCommand 记正在选的是哪一个
+        private Window _rankingPickWin;
+        private ListBox _rankingPickList;
+        private string _rankingPickCommand;   // "SHOW_EVENT_RANKING" 或 "SHOW_AWARDS"
         // 2026-06-17 大屏预览 WebView2 是否已就绪 (异步 Init 完成后置 true)
         private bool _previewReady = false;
 
@@ -150,6 +155,12 @@ namespace RemoteDisplayControl
                             Dispatcher.Invoke((Action)delegate() { RenderScheduleList(data); });
                             return;
                         }
+                        // 2026-09-27 总排名/颁奖 候选项目列表
+                        if (type == "RANKING_CANDIDATES_LIST") {
+                            var data = msg["data"] as JObject;
+                            Dispatcher.Invoke((Action)delegate() { RenderRankingCandidates(data); });
+                            return;
+                        }
                         // 缓存 schedule 给"成绩发布"用 (跟着主控的常规广播过来)
                         var dat = msg["data"] as JObject;
                         if (dat != null && dat["schedule"] != null) {
@@ -193,6 +204,15 @@ namespace RemoteDisplayControl
                 return;
             }
             string mode = ((Button)sender).Tag.ToString();
+            // 2026-09-27 总排名/颁奖 跟 PC 本机一样先弹窗选项目, 不能像其它模式那样直接甩命令
+            if (mode == "SHOW_EVENT_RANKING") {
+                OpenRankingPicker(mode, "🏆 总排名 — 选择回放项目", new SolidColorBrush((Color)ColorConverter.ConvertFromString("#059669")));
+                return;
+            }
+            if (mode == "SHOW_AWARDS") {
+                OpenRankingPicker(mode, "🥇 颁奖 — 选择颁奖项目", new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EC4899")));
+                return;
+            }
             _ws.Send(JsonConvert.SerializeObject(new { type = "REMOTE_CONTROL", command = mode }));
             StatusText.Text = "已发送: " + mode;
         }
@@ -351,6 +371,43 @@ namespace RemoteDisplayControl
             }
         }
 
+        // 2026-09-27 总排名/颁奖 — 与 PC 本机 ShowEventRanking_Click/ShowAwards_Click 的
+        //   "弹窗选定回放项目"对称: 先跟服务器要候选(已完赛决赛)名单, 选完把 4 个 key 字段
+        //   带回去, 服务器按选定项目广播, 大屏才有内容可显 (之前直接发命令没选项目, 等于白发)。
+        private void OpenRankingPicker(string command, string title, Brush titleBrush) {
+            if (_ws == null || !_ws.IsConnected) { MessageBox.Show("请先连接服务器", "未连接"); return; }
+            _rankingPickCommand = command;
+            _rankingPickWin = BuildSimpleListWindow(title, titleBrush, out _rankingPickList);
+            _rankingPickList.MouseDoubleClick += delegate {
+                var item = _rankingPickList.SelectedItem as ListBoxItem;
+                var tag = item != null ? item.Tag as JObject : null;
+                if (tag == null) return;
+                _ws.Send(JsonConvert.SerializeObject(new {
+                    type = "REMOTE_CONTROL", command = _rankingPickCommand,
+                    ageGroup = tag["ageGroup"], gender = tag["gender"],
+                    eventName = tag["eventName"], stage = tag["stage"]
+                }));
+                StatusText.Text = "已发送: " + (item.Content != null ? item.Content.ToString() : _rankingPickCommand);
+                _rankingPickWin.Close();
+            };
+            _rankingPickList.Items.Add(new ListBoxItem { Content = "加载中...", IsEnabled = false });
+            _ws.Send(JsonConvert.SerializeObject(new { type = "REMOTE_CONTROL", command = "LIST_RANKING_CANDIDATES" }));
+            _rankingPickWin.Show();
+        }
+        private void RenderRankingCandidates(JObject data) {
+            if (_rankingPickList == null) return;
+            _rankingPickList.Items.Clear();
+            var candidates = data != null ? data["candidates"] as JArray : null;
+            if (candidates == null || candidates.Count == 0) {
+                _rankingPickList.Items.Add(new ListBoxItem { Content = "暂无已完赛(决赛全部确认)的项目", IsEnabled = false, Foreground = Brushes.White });
+                return;
+            }
+            foreach (JObject c in candidates) {
+                string label = c["label"] != null ? c["label"].ToString() : "";
+                _rankingPickList.Items.Add(new ListBoxItem { Content = label, Tag = c, Foreground = Brushes.White });
+            }
+        }
+
         // 成绩发布 — 用本地缓存的 _scheduleData (主控广播过来的) 构建已完赛列表
         private void OpenPublishDialog_Click(object sender, RoutedEventArgs e) {
             if (_ws == null || !_ws.IsConnected) { MessageBox.Show("请先连接服务器", "未连接"); return; }
@@ -469,6 +526,7 @@ namespace RemoteDisplayControl
             if (_pptWin != null) { try { _pptWin.Close(); } catch { } }
             if (_scheduleWin != null) { try { _scheduleWin.Close(); } catch { } }
             if (_publishWin != null) { try { _publishWin.Close(); } catch { } }
+            if (_rankingPickWin != null) { try { _rankingPickWin.Close(); } catch { } }
             if (_ws != null) _ws.Close();
         }
     }

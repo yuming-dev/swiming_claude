@@ -87,14 +87,14 @@ body { font-family: 'Microsoft YaHei', sans-serif; background: #0f172a; color: #
                 <button class="btn btn-display"  onclick="send('SHOW_START_LIST')"><span class="ico">📋</span>出发表</button>
                 <button class="btn btn-display"  onclick="send('SHOW_LIVE_RACE')"><span class="ico">🏊</span>比赛视图</button>
                 <button class="btn btn-result"   onclick="send('SHOW_HEAT_RESULT')"><span class="ico">🏁</span>组成绩</button>
-                <button class="btn btn-result2"  onclick="send('SHOW_EVENT_RANKING')"><span class="ico">🏆</span>总排名</button>
+                <button class="btn btn-result2"  onclick="openRankingPicker('SHOW_EVENT_RANKING','🏆 总排名 — 选择回放项目')"><span class="ico">🏆</span>总排名</button>
             </div>
         </div>
         <div class="section">
             <div class="section-title">荣誉与介绍</div>
             <div class="grid">
                 <button class="btn btn-honor"  onclick="send('SHOW_TEAM_STANDINGS')"><span class="ico">👥</span>团体</button>
-                <button class="btn btn-honor2" onclick="send('SHOW_AWARDS')"><span class="ico">🥇</span>颁奖</button>
+                <button class="btn btn-honor2" onclick="openRankingPicker('SHOW_AWARDS','🥇 颁奖 — 选择颁奖项目')"><span class="ico">🥇</span>颁奖</button>
                 <button class="btn btn-display2" onclick="send('SHOW_REFEREES')"><span class="ico">👨‍⚖️</span>裁判介绍</button>
                 <button class="btn btn-welcome"  onclick="send('SHOW_WELCOME')"><span class="ico">🎉</span>欢迎</button>
             </div>
@@ -201,6 +201,21 @@ window.addEventListener('resize', function() {
         <div id="scheduleList" style="max-height:50vh;overflow-y:auto;"></div>
         <div style="display:flex;gap:8px;margin-top:12px;justify-content:flex-end;">
             <button class="btn" style="background:#64748b;color:white;padding:8px 16px;" onclick="closeScheduleDialog()">关闭</button>
+        </div>
+    </div>
+</div>
+
+<!-- 2026-09-27 总排名/颁奖 选项目弹窗 (LIST_RANKING_CANDIDATES → RANKING_CANDIDATES_LIST → 带4个key字段的 SHOW_EVENT_RANKING/SHOW_AWARDS), 与 PC 本机 ShowEventRanking_Click/ShowAwards_Click 弹窗回放选事一致 -->
+<div id="rankingPickModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:100;">
+    <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:#1e293b;border-radius:12px;padding:20px;width:90%;max-width:500px;max-height:80vh;overflow-y:auto;color:#f8fafc;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+            <h2 id="rankingPickTitle" style="font-size:18px;color:#059669;">选择项目</h2>
+            <button onclick="closeRankingPicker()" style="background:none;border:none;color:#94a3b8;font-size:22px;cursor:pointer;">×</button>
+        </div>
+        <p style="font-size:12px;color:#94a3b8;margin-bottom:8px;">只列出已完赛(决赛全部确认)的项目:</p>
+        <div id="rankingPickList" style="max-height:50vh;overflow-y:auto;"></div>
+        <div style="display:flex;gap:8px;margin-top:12px;justify-content:flex-end;">
+            <button class="btn" style="background:#64748b;color:white;padding:8px 16px;" onclick="closeRankingPicker()">关闭</button>
         </div>
     </div>
 </div>
@@ -340,6 +355,7 @@ function connect() {
             if (msg.type === 'MEDIA_FILE_LIST') { _renderMediaList(msg.data); return; }
             if (msg.type === 'PPT_FILE_LIST') { _renderPptList(msg.data); return; }
             if (msg.type === 'SCHEDULE_SESSION_LIST') { _renderScheduleList(msg.data); return; }
+            if (msg.type === 'RANKING_CANDIDATES_LIST') { _renderRankingCandidates(msg.data); return; }
             // 只更新含赛程数据的广播消息，跳过晋级通知等特殊消息
             if (msg.data && msg.data.schedule) serverData = msg.data;
         } catch(ex) {}
@@ -680,6 +696,41 @@ function _showSchedule(sessionNum) {
     ws.send(JSON.stringify({ type: 'REMOTE_CONTROL', command: 'SHOW_SCHEDULE_SESSION', session: sessionNum }));
     document.getElementById('status').textContent = sessionNum < 0 ? '已发送: 显示全部场次' : ('已发送: 显示第' + sessionNum + '场');
     closeScheduleDialog();
+}
+
+// 2026-09-27 总排名/颁奖 选项目 —— 之前这两个按钮直接 send(cmd) 不带选定项目,
+//   服务器用的是当时(很可能是 null)的 _rankingSelection/_awardSelection, 大屏没内容可显。
+var _rankingPickCommand = null;
+function openRankingPicker(cmd, title) {
+    if (!ws || ws.readyState !== 1) { alert('未连接服务器'); return; }
+    _rankingPickCommand = cmd;
+    document.getElementById('rankingPickTitle').textContent = title;
+    document.getElementById('rankingPickList').innerHTML = '<p style="color:#94a3b8;padding:20px;text-align:center;">加载中...</p>';
+    document.getElementById('rankingPickModal').style.display = 'block';
+    ws.send(JSON.stringify({ type: 'REMOTE_CONTROL', command: 'LIST_RANKING_CANDIDATES' }));
+}
+function closeRankingPicker() { document.getElementById('rankingPickModal').style.display = 'none'; }
+function _renderRankingCandidates(data) {
+    var listEl = document.getElementById('rankingPickList');
+    var candidates = (data && data.candidates) || [];
+    if (candidates.length === 0) { listEl.innerHTML = '<p style="color:#94a3b8;padding:20px;text-align:center;">暂无已完赛(决赛全部确认)的项目</p>'; return; }
+    var html = '';
+    for (var i = 0; i < candidates.length; i++) {
+        html += '<button style="display:block;width:100%;text-align:left;padding:10px 12px;margin-bottom:4px;background:#334155;color:white;border:none;border-radius:6px;font-size:14px;cursor:pointer;" onclick="_pickRanking(' + i + ')">' + candidates[i].label + '</button>';
+    }
+    listEl.innerHTML = html;
+    window._rankingCandidates = candidates;
+}
+function _pickRanking(idx) {
+    if (!ws || ws.readyState !== 1) { alert('未连接'); return; }
+    var c = (window._rankingCandidates || [])[idx];
+    if (!c) return;
+    ws.send(JSON.stringify({
+        type: 'REMOTE_CONTROL', command: _rankingPickCommand,
+        ageGroup: c.ageGroup, gender: c.gender, eventName: c.eventName, stage: c.stage
+    }));
+    document.getElementById('status').textContent = '已发送: ' + c.label;
+    closeRankingPicker();
 }
 
 // 2026-06-17 加 ageGroup 形参 + data 字段, 修跨年龄段污染 (与 race_control.html / RDC 同步)

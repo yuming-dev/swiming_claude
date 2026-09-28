@@ -206,7 +206,7 @@ namespace SwimmingScoreboard
         // 用处: 页面里有同名常量, 对不上就在页面顶端挂红条、并在主服务器系统日志里
         // 记一行。协议是 exe 和页面一起改的(比赛日志增量、设备状态推送、DATA_CHANGED),
         // 只换一半会出现"设备状态灯和比赛日志不刷新"这种看不出根由的毛病。
-        public const string WEB_ASSET_VERSION = "20260922-3";
+        public const string WEB_ASSET_VERSION = "20260922-4";
 
         private const int MAX_LANE_EVENT_LOG = 64 * 1024;
         private static void TrimSbIfOver(StringBuilder sb, int maxLen) {
@@ -3553,11 +3553,31 @@ namespace SwimmingScoreboard
                     _currentHeat = savedHeat;
                     break;
                 }
-                case "SHOW_EVENT_RANKING": BroadcastDisplayMode("SHOW_EVENT_RANKING"); break;
+                // 2026-09-27 远程客户端(control.html/RDC)选完项目后带着 4 个 key 字段发回来 —
+                //   有就按选定项目回放(校验过, 见 FindConfirmedFinalEventFromMessage); 没带
+                //   (老客户端/本机走 ShowEventRanking_Click 那条弹窗路径已经设过) 就保持原样。
+                case "SHOW_EVENT_RANKING": {
+                    if (msg["eventName"] != null) {
+                        var picked = FindConfirmedFinalEventFromMessage(msg);
+                        if (picked == null) { AddLog(Loc.T("Str_Msg_NoFinishedFinalsRanking")); break; }
+                        _rankingSelection = picked;
+                    }
+                    BroadcastDisplayMode("SHOW_EVENT_RANKING");
+                    break;
+                }
+                case "LIST_RANKING_CANDIDATES": SendRankingCandidatesListToClient(socket); break;
                 case "SHOW_TEAM_STANDINGS": BroadcastDisplayMode("SHOW_TEAM_STANDINGS"); break;
                 case "SHOW_RECORDS": BroadcastDisplayMode("SHOW_RECORDS"); break;
                 case "SHOW_REFEREES": BroadcastDisplayMode("SHOW_REFEREES"); break;
-                case "SHOW_AWARDS": BroadcastDisplayMode("SHOW_AWARDS"); break;
+                case "SHOW_AWARDS": {
+                    if (msg["eventName"] != null) {
+                        var picked = FindConfirmedFinalEventFromMessage(msg);
+                        if (picked == null) { AddLog(Loc.T("Str_Msg_NoFinishedFinalsRanking")); break; }
+                        _awardSelection = picked;
+                    }
+                    BroadcastDisplayMode("SHOW_AWARDS");
+                    break;
+                }
                 // 2026-06-04 PPT 播放: 远端触发主控 PC 上弹 文件选择框 + 启动 PowerPoint /s 放映
                 //   注意: 文件对话框只能在 UI 线程弹, 这里 Dispatcher.Invoke 切回 UI 线程
                 case "PLAY_PPT":
@@ -25087,6 +25107,43 @@ namespace SwimmingScoreboard
                 var reply = new { type = "SCHEDULE_SESSION_LIST", data = new { sessions = sessions } };
                 socket.Send(JsonConvert.SerializeObject(reply));
             } catch (Exception ex) { AddLog(Loc.F("Str_Log_ListScheduleSessionsFailedFmt", ex.Message)); }
+        }
+        // 2026-09-27 现场反馈: control.html/RemoteDisplayControl.exe 的"总排名"/"颁奖"按键点了没反应——
+        //   根因是本机(PC)那两个按键点击后会先弹窗选定 _rankingSelection/_awardSelection 再广播,
+        //   而远程客户端一直是直接发 REMOTE_CONTROL SHOW_EVENT_RANKING/SHOW_AWARDS, 没有选定项目这一步,
+        //   服务端用的是当时(很可能是 null)的 _rankingSelection/_awardSelection, 大屏自然什么都不显示。
+        //   补一对"列候选项目"+"按选定项目广播"的远程命令, 跟 LIST_SCHEDULE_SESSIONS/SHOW_SCHEDULE_SESSION
+        //   同一个模式: 远程客户端自己弹选择框(不用挤到 PC 本机弹), 选完把 4 个 key 字段发回来。
+        private void SendRankingCandidatesListToClient(IWebSocketConnection socket) {
+            try {
+                var candidates = GetFullyConfirmedFinalEvents().Select(item => {
+                    int hc = item.HeatCount > 0 ? item.HeatCount : 1;
+                    int n = _swimmers.Count(s => (s.Gender ?? "") == (item.Gender ?? "")
+                        && (s.EventName ?? "") == (item.EventName ?? "")
+                        && (s.AgeCategory ?? "") == (item.AgeGroup ?? ""));
+                    string label = string.Format("{0}{1} {2} {3}  ({4} 人 {5} 组 全部已确认)",
+                        string.IsNullOrEmpty(item.AgeGroup) ? "" : ("[" + item.AgeGroup + "] "),
+                        item.Gender ?? "", item.EventName ?? "", item.Stage ?? "", n, hc);
+                    return new {
+                        ageGroup = item.AgeGroup ?? "", gender = item.Gender ?? "",
+                        eventName = item.EventName ?? "", stage = item.Stage ?? "", label = label
+                    };
+                }).ToList();
+                var reply = new { type = "RANKING_CANDIDATES_LIST", data = new { candidates = candidates } };
+                socket.Send(JsonConvert.SerializeObject(reply));
+            } catch (Exception ex) { AddLog(Loc.F("Str_Log_ListScheduleSessionsFailedFmt", ex.Message)); }
+        }
+        // 按 4 个 key 字段在"已完赛候选名单"里查——不直接信任远端传来的整条数据, 只认服务端
+        // 自己认可的候选项, 避免远端传个还没确认完的项目把 _rankingSelection/_awardSelection 指过去。
+        private ScheduleItem FindConfirmedFinalEventFromMessage(JObject message) {
+            string ageGroup = message["ageGroup"] != null ? message["ageGroup"].ToString() : "";
+            string gender = message["gender"] != null ? message["gender"].ToString() : "";
+            string eventName = message["eventName"] != null ? message["eventName"].ToString() : "";
+            string stage = message["stage"] != null ? message["stage"].ToString() : "";
+            if (string.IsNullOrEmpty(eventName)) return null;
+            return GetFullyConfirmedFinalEvents().FirstOrDefault(it =>
+                (it.AgeGroup ?? "") == ageGroup && (it.Gender ?? "") == gender &&
+                (it.EventName ?? "") == eventName && (it.Stage ?? "") == stage);
         }
         private void RemoteShowScheduleSession(JObject message) {
             int sessionFilter = message["session"] != null ? (int)message["session"] : -1;
