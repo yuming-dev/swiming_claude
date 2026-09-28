@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>赛事信息查询</title>
+<title data-i18n="Str_Query_PageTitle">赛事信息查询</title>
 <style>
 :root {
     --bg: #0a0f1c; --bg2: #0d1526; --surface: #111c33; --surface2: #172544;
@@ -493,22 +493,22 @@ tbody tr:nth-child(even):hover { background: rgba(34,211,238,0.045); }
     <div class="auth-dialog">
         <div class="auth-head">
             <div class="logo">🏊</div>
-            <div class="title">游泳赛事管理系统</div>
-            <div class="sub">赛事查询终端</div>
+            <div class="title" data-i18n="Str_Register_PageTitle">游泳赛事管理系统</div>
+            <div class="sub" data-i18n="Str_Query_LoginSub">赛事查询终端</div>
         </div>
         <div class="auth-field">
-            <div class="lbl">用户名</div>
+            <div class="lbl" data-i18n="Str_Common_Username">用户名</div>
             <input id="loginUser" type="text" autocomplete="username">
         </div>
         <div class="auth-field">
-            <div class="lbl">密&nbsp;&nbsp;码</div>
+            <div class="lbl" data-i18n="Str_Common_Password">密&nbsp;&nbsp;码</div>
             <input id="loginPwd" type="password" autocomplete="current-password">
         </div>
         <label class="auth-remember">
-            <input id="loginRemember" type="checkbox"> 记住登录名和密码
+            <input id="loginRemember" type="checkbox"> <span data-i18n="Str_Common_RememberMe">记住登录名和密码</span>
         </label>
         <div id="loginError" class="auth-error"></div>
-        <button onclick="doLogin()" class="auth-btn-primary" style="width:100%;margin-top:16px;">登&nbsp;&nbsp;录</button>
+        <button onclick="doLogin()" class="auth-btn-primary" style="width:100%;margin-top:16px;" data-i18n="Str_Common_Login">登&nbsp;&nbsp;录</button>
     </div>
 </div>
 
@@ -516,29 +516,29 @@ tbody tr:nth-child(even):hover { background: rgba(34,211,238,0.045); }
 <div id="pwdChangeOverlay" class="auth-overlay" style="display:none;">
     <div class="auth-dialog" style="width:430px;">
         <div class="auth-head" style="text-align:left;margin-bottom:18px;">
-            <div class="title" style="font-size:17px;">修改用户名 / 密码</div>
-            <div class="sub">浏览器本机账号（localStorage），确认后立即生效，下次登录用新账号。</div>
+            <div class="title" style="font-size:17px;" data-i18n="Str_Query_ChangePwdTitle">修改用户名 / 密码</div>
+            <div class="sub" data-i18n="Str_Query_ChangePwdSub">浏览器本机账号（localStorage），确认后立即生效，下次登录用新账号。</div>
         </div>
         <div class="auth-field">
-            <div class="lbl" style="width:88px;">原密码</div>
+            <div class="lbl" style="width:88px;" data-i18n="Str_Query_OldPwd">原密码</div>
             <input id="pwdOld" type="password">
         </div>
         <div class="auth-field">
-            <div class="lbl" style="width:88px;">新用户名</div>
+            <div class="lbl" style="width:88px;" data-i18n="Str_Query_NewUser">新用户名</div>
             <input id="pwdNewUser" type="text">
         </div>
         <div class="auth-field">
-            <div class="lbl" style="width:88px;">新密码</div>
+            <div class="lbl" style="width:88px;" data-i18n="Str_Query_NewPwd">新密码</div>
             <input id="pwdNew1" type="password">
         </div>
         <div class="auth-field">
-            <div class="lbl" style="width:88px;">确认新密码</div>
+            <div class="lbl" style="width:88px;" data-i18n="Str_Query_ConfirmNewPwd">确认新密码</div>
             <input id="pwdNew2" type="password">
         </div>
         <div id="pwdChangeError" class="auth-error"></div>
         <div class="auth-actions" style="justify-content:flex-end;">
-            <button onclick="cancelPwdChange()" class="auth-btn-secondary">取消</button>
-            <button onclick="applyPwdChange()" class="auth-btn-primary" style="flex:none;padding:10px 22px;">确认修改</button>
+            <button onclick="cancelPwdChange()" class="auth-btn-secondary" data-i18n="Str_Common_Cancel">取消</button>
+            <button onclick="applyPwdChange()" class="auth-btn-primary" style="flex:none;padding:10px 22px;" data-i18n="Str_Query_ConfirmChangeBtn">确认修改</button>
         </div>
     </div>
 </div>
@@ -547,39 +547,40 @@ tbody tr:nth-child(even):hover { background: rgba(34,211,238,0.045); }
 <div class="topbar">
     <div class="brand">
         <div class="logo">🏊</div>
-        <span>赛事查询</span>
+        <span data-i18n="Str_Query_Brand">赛事查询</span>
     </div>
     <div class="comp-info">
-        <div class="name" id="compName">等待数据 …</div>
+        <div class="name" id="compName" data-i18n="Str_Query_WaitingData">等待数据 …</div>
         <div class="meta" id="compMeta"></div>
     </div>
     <div class="live-time" id="liveTime"></div>
-    <div class="conn-pill" id="connPill"><span class="dot"></span><span id="connText">未连接</span></div>
-    <button class="btn ghost" onclick="openPwdChange()" style="padding:6px 12px;font-size:12px;" title="修改用户名 / 密码">🔑</button>
-    <button class="btn ghost" onclick="showConnDialog()" style="padding:6px 12px;font-size:12px;" title="服务器设置">⚙</button>
+    <div class="conn-pill" id="connPill"><span class="dot"></span><span id="connText" data-i18n="Str_Common_Disconnected">未连接</span></div>
+    <button class="btn-lang" onclick="WebLoc.toggle()" data-i18n="Str_Common_LangToggle" style="padding:6px 12px;font-size:12px;background:rgba(148,163,184,0.1);color:var(--text);border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;">English</button>
+    <button class="btn ghost" onclick="openPwdChange()" style="padding:6px 12px;font-size:12px;" title="修改用户名 / 密码" data-i18n-title="Str_Query_ChangePwdTip">🔑</button>
+    <button class="btn ghost" onclick="showConnDialog()" style="padding:6px 12px;font-size:12px;" title="服务器设置" data-i18n-title="Str_Query_ServerSettingsTip">⚙</button>
 </div>
 
 <div class="body">
     <!-- 侧边导航 -->
     <nav class="sidebar">
         <div class="nav-section">
-            <div class="nav-section-title">数据中心</div>
-            <div class="nav-item active" data-page="home"><span class="icon">🏠</span><span class="label">概览</span></div>
-            <div class="nav-item" data-page="schedule"><span class="icon">📅</span><span class="label">赛程</span></div>
-            <div class="nav-item" data-page="heats"><span class="icon">🎯</span><span class="label">分组</span></div>
-            <div class="nav-item" data-page="athletes"><span class="icon">👥</span><span class="label">运动员</span></div>
+            <div class="nav-section-title" data-i18n="Str_Query_NavDataCenter">数据中心</div>
+            <div class="nav-item active" data-page="home"><span class="icon">🏠</span><span class="label" data-i18n="Str_Query_NavHome">概览</span></div>
+            <div class="nav-item" data-page="schedule"><span class="icon">📅</span><span class="label" data-i18n="Str_Query_NavSchedule">赛程</span></div>
+            <div class="nav-item" data-page="heats"><span class="icon">🎯</span><span class="label" data-i18n="Str_Query_NavHeats">分组</span></div>
+            <div class="nav-item" data-page="athletes"><span class="icon">👥</span><span class="label" data-i18n="Str_Query_NavAthletes">运动员</span></div>
         </div>
         <div class="nav-section">
-            <div class="nav-section-title">成绩与排名</div>
-            <div class="nav-item" data-page="results"><span class="icon">🏆</span><span class="label">成绩</span></div>
-            <div class="nav-item" data-page="ranking"><span class="icon">📊</span><span class="label">总排名</span></div>
-            <div class="nav-item" data-page="medals"><span class="icon">🏅</span><span class="label">奖牌榜</span></div>
-            <div class="nav-item" data-page="teams"><span class="icon">🥇</span><span class="label">团体总分</span></div>
+            <div class="nav-section-title" data-i18n="Str_Query_NavResultsSection">成绩与排名</div>
+            <div class="nav-item" data-page="results"><span class="icon">🏆</span><span class="label" data-i18n="Str_Query_NavResults">成绩</span></div>
+            <div class="nav-item" data-page="ranking"><span class="icon">📊</span><span class="label" data-i18n="Str_Query_NavRanking">总排名</span></div>
+            <div class="nav-item" data-page="medals"><span class="icon">🏅</span><span class="label" data-i18n="Str_Query_NavMedals">奖牌榜</span></div>
+            <div class="nav-item" data-page="teams"><span class="icon">🥇</span><span class="label" data-i18n="Str_Query_NavTeams">团体总分</span></div>
         </div>
         <div class="nav-section">
-            <div class="nav-section-title">资料</div>
-            <div class="nav-item" data-page="records"><span class="icon">📜</span><span class="label">纪录</span></div>
-            <div class="nav-item" data-page="referees"><span class="icon">👨‍⚖️</span><span class="label">裁判员</span></div>
+            <div class="nav-section-title" data-i18n="Str_Query_NavDocsSection">资料</div>
+            <div class="nav-item" data-page="records"><span class="icon">📜</span><span class="label" data-i18n="Str_Query_NavRecords">纪录</span></div>
+            <div class="nav-item" data-page="referees"><span class="icon">👨‍⚖️</span><span class="label" data-i18n="Str_Query_NavReferees">裁判员</span></div>
         </div>
     </nav>
 
@@ -589,19 +590,19 @@ tbody tr:nth-child(even):hover { background: rgba(34,211,238,0.045); }
         <section class="page active" id="page-home">
             <div class="page-header">
                 <div>
-                    <div class="page-title"><span class="accent-bar"></span>概览</div>
-                    <div class="page-subtitle">实时赛事统计 + 当前进展</div>
+                    <div class="page-title"><span class="accent-bar"></span><span data-i18n="Str_Query_HomeTitle">概览</span></div>
+                    <div class="page-subtitle" data-i18n="Str_Query_HomeSubtitle">实时赛事统计 + 当前进展</div>
                 </div>
             </div>
             <div class="stat-grid" id="statGrid"></div>
             <div class="card live-card" id="liveCard" style="margin-bottom:18px;">
-                <div class="card-h"><h3><span class="live-dot"></span>当前组</h3><span class="badge blue" id="liveState"></span></div>
-                <div id="liveDetail" class="live-detail">尚未开始</div>
+                <div class="card-h"><h3><span class="live-dot"></span><span data-i18n="Str_Query_CurrentHeat">当前组</span></h3><span class="badge blue" id="liveState"></span></div>
+                <div id="liveDetail" class="live-detail" data-i18n="Str_Query_NotStartedYet">尚未开始</div>
             </div>
             <div class="card" style="padding:0;overflow:hidden;">
-                <div class="card-h" style="padding:20px 20px 14px;margin-bottom:0;"><h3>🏁 最近完赛项目</h3></div>
+                <div class="card-h" style="padding:20px 20px 14px;margin-bottom:0;"><h3 data-i18n="Str_Query_RecentFinished">🏁 最近完赛项目</h3></div>
                 <table>
-                    <thead><tr><th>场次</th><th>项目</th><th style="text-align:right;">状态</th></tr></thead>
+                    <thead><tr><th data-i18n="Str_Query_ColSession">场次</th><th data-i18n="Str_Query_ColEvent">项目</th><th style="text-align:right;" data-i18n="Str_Query_ColStatus">状态</th></tr></thead>
                     <tbody id="recentFinished"></tbody>
                 </table>
             </div>
@@ -611,24 +612,24 @@ tbody tr:nth-child(even):hover { background: rgba(34,211,238,0.045); }
         <section class="page" id="page-schedule">
             <div class="page-header">
                 <div>
-                    <div class="page-title"><span class="accent-bar"></span>比赛日程</div>
-                    <div class="page-subtitle">所有项目按场次排列</div>
+                    <div class="page-title"><span class="accent-bar"></span><span data-i18n="Str_Query_ScheduleTitle">比赛日程</span></div>
+                    <div class="page-subtitle" data-i18n="Str_Query_ScheduleSubtitle">所有项目按场次排列</div>
                 </div>
             </div>
             <div class="search-row">
-                <input class="input" id="schSearch" placeholder="🔍 搜索项目名 / 性别 / 年龄段">
-                <select class="select" id="schSession"><option value="">全部场次</option></select>
+                <input class="input" id="schSearch" placeholder="🔍 搜索项目名 / 性别 / 年龄段" data-i18n-attr="placeholder" data-i18n="Str_Query_SearchEventPlaceholder">
+                <select class="select" id="schSession"><option value="" data-i18n="Str_Query_AllSessions">全部场次</option></select>
                 <select class="select" id="schStatus">
-                    <option value="">全部状态</option>
-                    <option value="done">已完赛</option>
-                    <option value="live">进行中</option>
-                    <option value="todo">待赛</option>
+                    <option value="" data-i18n="Str_Query_AllStatus">全部状态</option>
+                    <option value="done" data-i18n="Str_Query_StatusDone">已完赛</option>
+                    <option value="live" data-i18n="Str_Query_StatusLive">进行中</option>
+                    <option value="todo" data-i18n="Str_Query_StatusTodo">待赛</option>
                 </select>
             </div>
             <div class="table-wrap">
                 <table>
                     <thead><tr>
-                        <th>场次</th><th>日期/时间</th><th>项次</th><th>项目</th><th>性别</th><th>组别</th><th>阶段</th><th>组数</th><th>状态</th>
+                        <th data-i18n="Str_Query_ColSession">场次</th><th data-i18n="Str_Query_ColDateTime">日期/时间</th><th data-i18n="Str_Query_ColEvNum">项次</th><th data-i18n="Str_Query_ColEvent">项目</th><th data-i18n="Str_Query_ColGender">性别</th><th data-i18n="Str_Query_ColAgeGroup">组别</th><th data-i18n="Str_Query_ColStage">阶段</th><th data-i18n="Str_Query_ColHeatCount">组数</th><th data-i18n="Str_Query_ColStatus">状态</th>
                     </tr></thead>
                     <tbody id="schBody"></tbody>
                 </table>
@@ -639,12 +640,12 @@ tbody tr:nth-child(even):hover { background: rgba(34,211,238,0.045); }
         <section class="page" id="page-heats">
             <div class="page-header">
                 <div>
-                    <div class="page-title"><span class="accent-bar"></span>比赛分组</div>
-                    <div class="page-subtitle">选择项目查看分组与道次</div>
+                    <div class="page-title"><span class="accent-bar"></span><span data-i18n="Str_Query_HeatsTitle">比赛分组</span></div>
+                    <div class="page-subtitle" data-i18n="Str_Query_HeatsSubtitle">选择项目查看分组与道次</div>
                 </div>
             </div>
             <div class="search-row">
-                <select class="select" id="hEvent" style="min-width:280px;"><option value="">选择项目 …</option></select>
+                <select class="select" id="hEvent" style="min-width:280px;"><option value="" data-i18n="Str_Query_SelectEventEllipsis">选择项目 …</option></select>
             </div>
             <div id="heatsBody"></div>
         </section>
@@ -653,19 +654,19 @@ tbody tr:nth-child(even):hover { background: rgba(34,211,238,0.045); }
         <section class="page" id="page-athletes">
             <div class="page-header">
                 <div>
-                    <div class="page-title"><span class="accent-bar"></span>运动员名册</div>
+                    <div class="page-title"><span class="accent-bar"></span><span data-i18n="Str_Query_AthletesTitle">运动员名册</span></div>
                     <div class="page-subtitle"><span id="athStat">--</span></div>
                 </div>
             </div>
             <div class="search-row">
-                <input class="input" id="athSearch" placeholder="🔍 搜索姓名 / 号码 / 单位" style="flex:1;min-width:280px;">
-                <select class="select" id="athGender"><option value="">全部性别</option><option value="男">男子</option><option value="女">女子</option></select>
-                <select class="select" id="athAge"><option value="">全部组别</option></select>
+                <input class="input" id="athSearch" placeholder="🔍 搜索姓名 / 号码 / 单位" style="flex:1;min-width:280px;" data-i18n-attr="placeholder" data-i18n="Str_Query_SearchAthletePlaceholder">
+                <select class="select" id="athGender"><option value="" data-i18n="Str_Query_AllGenders">全部性别</option><option value="男" data-i18n="Str_Query_GenderMaleShort">男子</option><option value="女" data-i18n="Str_Query_GenderFemaleShort">女子</option></select>
+                <select class="select" id="athAge"><option value="" data-i18n="Str_Query_AllAgeGroups">全部组别</option></select>
             </div>
             <div class="table-wrap">
                 <table>
                     <thead><tr>
-                        <th>号码</th><th>姓名</th><th>性别</th><th>年龄</th><th>组别</th><th>单位</th><th>报名项目</th><th>报名时间</th>
+                        <th data-i18n="Str_Query_ColBib">号码</th><th data-i18n="Str_Query_ColName">姓名</th><th data-i18n="Str_Query_ColGender">性别</th><th data-i18n="Str_Query_ColAge">年龄</th><th data-i18n="Str_Query_ColAgeGroup">组别</th><th data-i18n="Str_Query_ColTeam">单位</th><th data-i18n="Str_Query_ColEvents">报名项目</th><th data-i18n="Str_Query_ColEntryTime">报名时间</th>
                     </tr></thead>
                     <tbody id="athBody"></tbody>
                 </table>
@@ -676,12 +677,12 @@ tbody tr:nth-child(even):hover { background: rgba(34,211,238,0.045); }
         <section class="page" id="page-results">
             <div class="page-header">
                 <div>
-                    <div class="page-title"><span class="accent-bar"></span>成绩查询</div>
-                    <div class="page-subtitle">已完赛项目成绩</div>
+                    <div class="page-title"><span class="accent-bar"></span><span data-i18n="Str_Query_ResultsTitle">成绩查询</span></div>
+                    <div class="page-subtitle" data-i18n="Str_Query_ResultsSubtitle">已完赛项目成绩</div>
                 </div>
             </div>
             <div class="search-row">
-                <select class="select" id="resEvent" style="min-width:340px;"><option value="">选择项目 …</option></select>
+                <select class="select" id="resEvent" style="min-width:340px;"><option value="" data-i18n="Str_Query_SelectEventEllipsis">选择项目 …</option></select>
             </div>
             <div id="resBody"></div>
         </section>
@@ -690,12 +691,12 @@ tbody tr:nth-child(even):hover { background: rgba(34,211,238,0.045); }
         <section class="page" id="page-ranking">
             <div class="page-header">
                 <div>
-                    <div class="page-title"><span class="accent-bar"></span>项目总排名</div>
-                    <div class="page-subtitle">全部组合并排序（已完赛运动员）</div>
+                    <div class="page-title"><span class="accent-bar"></span><span data-i18n="Str_Query_RankingTitle">项目总排名</span></div>
+                    <div class="page-subtitle" data-i18n="Str_Query_RankingSubtitle">全部组合并排序（已完赛运动员）</div>
                 </div>
             </div>
             <div class="search-row">
-                <select class="select" id="rankEvent" style="min-width:340px;"><option value="">选择项目 …</option></select>
+                <select class="select" id="rankEvent" style="min-width:340px;"><option value="" data-i18n="Str_Query_SelectEventEllipsis">选择项目 …</option></select>
             </div>
             <div id="rankBody"></div>
         </section>
@@ -704,15 +705,15 @@ tbody tr:nth-child(even):hover { background: rgba(34,211,238,0.045); }
         <section class="page" id="page-medals">
             <div class="page-header">
                 <div>
-                    <div class="page-title"><span class="accent-bar"></span>奖牌榜</div>
-                    <div class="page-subtitle">按金/银/铜统计的单位排名</div>
+                    <div class="page-title"><span class="accent-bar"></span><span data-i18n="Str_Query_MedalsTitle">奖牌榜</span></div>
+                    <div class="page-subtitle" data-i18n="Str_Query_MedalsSubtitle">按金/银/铜统计的单位排名</div>
                 </div>
             </div>
             <!-- 2026-09-15 改真表格: 名次/奖牌数天然对齐成列, 比卡片网格更像排行榜 -->
             <div class="table-wrap">
                 <table>
                     <thead><tr>
-                        <th>名次</th><th>单位</th><th>金 🥇</th><th>银 🥈</th><th>铜 🥉</th><th>奖牌合计</th>
+                        <th data-i18n="Str_Query_ColRank">名次</th><th data-i18n="Str_Query_ColTeam">单位</th><th data-i18n="Str_Query_ColGold">金 🥇</th><th data-i18n="Str_Query_ColSilver">银 🥈</th><th data-i18n="Str_Query_ColBronze">铜 🥉</th><th data-i18n="Str_Query_ColMedalTotal">奖牌合计</th>
                     </tr></thead>
                     <tbody id="medalGrid"></tbody>
                 </table>
@@ -723,18 +724,18 @@ tbody tr:nth-child(even):hover { background: rgba(34,211,238,0.045); }
         <section class="page" id="page-teams">
             <div class="page-header">
                 <div>
-                    <div class="page-title"><span class="accent-bar"></span>团体总分</div>
-                    <div class="page-subtitle">单位总积分（个人 + 接力 + 破纪录奖励）</div>
+                    <div class="page-title"><span class="accent-bar"></span><span data-i18n="Str_Query_TeamsTitle">团体总分</span></div>
+                    <div class="page-subtitle" data-i18n="Str_Query_TeamsSubtitle">单位总积分（个人 + 接力 + 破纪录奖励）</div>
                 </div>
             </div>
             <div class="card" style="margin-bottom:16px;">
-                <div class="card-h"><h3>📊 前 10 名单位</h3></div>
+                <div class="card-h"><h3 data-i18n="Str_Query_Top10Teams">📊 前 10 名单位</h3></div>
                 <div class="bars" id="teamBars"></div>
             </div>
             <div class="table-wrap">
                 <table>
                     <thead><tr>
-                        <th>名次</th><th>单位</th><th class="dim">金 🥇</th><th class="dim">银 🥈</th><th class="dim">铜 🥉</th><th>个人分</th><th>接力分</th><th>破纪录</th><th>总分</th>
+                        <th data-i18n="Str_Query_ColRank">名次</th><th data-i18n="Str_Query_ColTeam">单位</th><th class="dim" data-i18n="Str_Query_ColGold">金 🥇</th><th class="dim" data-i18n="Str_Query_ColSilver">银 🥈</th><th class="dim" data-i18n="Str_Query_ColBronze">铜 🥉</th><th data-i18n="Str_Query_ColIndividualPts">个人分</th><th data-i18n="Str_Query_ColRelayPts">接力分</th><th data-i18n="Str_Query_ColRecordPts">破纪录</th><th data-i18n="Str_Query_ColTotalPts">总分</th>
                     </tr></thead>
                     <tbody id="teamBody"></tbody>
                 </table>
@@ -745,18 +746,18 @@ tbody tr:nth-child(even):hover { background: rgba(34,211,238,0.045); }
         <section class="page" id="page-records">
             <div class="page-header">
                 <div>
-                    <div class="page-title"><span class="accent-bar"></span>赛事纪录</div>
-                    <div class="page-subtitle">世界纪录 / 全国纪录 / 赛会纪录 等</div>
+                    <div class="page-title"><span class="accent-bar"></span><span data-i18n="Str_Query_RecordsTitle">赛事纪录</span></div>
+                    <div class="page-subtitle" data-i18n="Str_Query_RecordsSubtitle">世界纪录 / 全国纪录 / 赛会纪录 等</div>
                 </div>
             </div>
             <div class="search-row">
-                <input class="input" id="recSearch" placeholder="🔍 搜索项目 / 持有人 / 单位" style="flex:1;">
-                <select class="select" id="recType"><option value="">全部类型</option></select>
+                <input class="input" id="recSearch" placeholder="🔍 搜索项目 / 持有人 / 单位" style="flex:1;" data-i18n-attr="placeholder" data-i18n="Str_Query_SearchRecordPlaceholder">
+                <select class="select" id="recType"><option value="" data-i18n="Str_Query_AllTypes">全部类型</option></select>
             </div>
             <div class="table-wrap">
                 <table>
                     <thead><tr>
-                        <th>类型</th><th>项目</th><th>性别</th><th>组别</th><th>成绩</th><th>持有人</th><th>单位</th><th>日期</th><th>地点</th>
+                        <th data-i18n="Str_Query_ColType">类型</th><th data-i18n="Str_Query_ColEvent">项目</th><th data-i18n="Str_Query_ColGender">性别</th><th data-i18n="Str_Query_ColAgeGroup">组别</th><th data-i18n="Str_Query_ColResult">成绩</th><th data-i18n="Str_Query_ColHolder">持有人</th><th data-i18n="Str_Query_ColTeam">单位</th><th data-i18n="Str_Query_ColDate">日期</th><th data-i18n="Str_Query_ColLocation">地点</th>
                     </tr></thead>
                     <tbody id="recBody"></tbody>
                 </table>
@@ -767,15 +768,15 @@ tbody tr:nth-child(even):hover { background: rgba(34,211,238,0.045); }
         <section class="page" id="page-referees">
             <div class="page-header">
                 <div>
-                    <div class="page-title"><span class="accent-bar"></span>裁判员介绍</div>
-                    <div class="page-subtitle">本届赛事裁判员名单</div>
+                    <div class="page-title"><span class="accent-bar"></span><span data-i18n="Str_Query_RefereesTitle">裁判员介绍</span></div>
+                    <div class="page-subtitle" data-i18n="Str_Query_RefereesSubtitle">本届赛事裁判员名单</div>
                 </div>
             </div>
             <!-- 2026-09-15 名片网格改表格: 人名/头衔/单位/性别是典型的结构化列表, 表格更好扫视对比 -->
             <div class="table-wrap">
                 <table>
                     <thead><tr>
-                        <th>头衔 / 级别</th><th>姓名</th><th>性别</th><th>单位</th>
+                        <th data-i18n="Str_Query_ColTitleLevel">头衔 / 级别</th><th data-i18n="Str_Query_ColName">姓名</th><th data-i18n="Str_Query_ColGender">性别</th><th data-i18n="Str_Query_ColTeam">单位</th>
                     </tr></thead>
                     <tbody id="refGrid"></tbody>
                 </table>
@@ -787,15 +788,16 @@ tbody tr:nth-child(even):hover { background: rgba(34,211,238,0.045); }
 <!-- 服务器配置弹窗 -->
 <div class="conn-overlay" id="connOverlay">
     <div class="conn-dialog">
-        <h2>🌐 连接到服务器</h2>
-        <p>输入主服务器 IP 地址</p>
+        <h2 data-i18n="Str_Query_ConnDialogTitle">🌐 连接到服务器</h2>
+        <p data-i18n="Str_Query_ConnDialogDesc">输入主服务器 IP 地址</p>
         <div class="row">
-            <input class="input" id="connHost" placeholder="如 192.168.1.100">
-            <button class="btn" onclick="applyHost()">连接</button>
+            <input class="input" id="connHost" placeholder="如 192.168.1.100" data-i18n-attr="placeholder" data-i18n="Str_Query_HostPlaceholder">
+            <button class="btn" onclick="applyHost()" data-i18n="Str_Common_Connect">连接</button>
         </div>
     </div>
 </div>
 
+<script src="webloc.js"></script>
 <script>
 // ═══════ 状态 ═══════
 var ws = null;
@@ -806,7 +808,14 @@ var reconnectTimer = null;
 
 // ═══════ 工具 ═══════
 function $(id) { return document.getElementById(id); }
-function fmtGender(g) { g = g || ''; if (g === '男' || g === '女') return g + '子'; return g; }
+// 纯展示转换: 中文模式沿用"男子/女子"这个习惯说法; 英文模式走 WebLoc.genderDisplay()。
+// 传入/参与比较的 g 本身不变, 这里只返回给人看的文本。
+function fmtGender(g) {
+    g = g || '';
+    if (WebLoc.currentLang() === 'en') return WebLoc.genderDisplay(g);
+    if (g === '男' || g === '女') return g + '子';
+    return g;
+}
 function safe(v, def) { return (v == null) ? (def || '') : v; }
 function eq(a, b) { return (a||'') === (b||''); }
 function escHtml(s) { return String(s||'').replace(/[&<>"']/g, function(c){
@@ -838,11 +847,11 @@ function setConnUI(text, ok) {
 }
 function connect() {
     var host = getServerHost();
-    if (!host) { showConnDialog(); setConnUI('未连接', false); return; }
-    setConnUI('连接中…', false);
+    if (!host) { showConnDialog(); setConnUI(WebLoc.t('Str_Common_Disconnected'), false); return; }
+    setConnUI(WebLoc.t('Str_Query_ConnConnectingFmt'), false);
     try {
         ws = new WebSocket('ws://' + host + ':3002');
-    } catch (e) { setConnUI('地址错误', false); return; }
+    } catch (e) { setConnUI(WebLoc.t('Str_Query_ConnAddrError'), false); return; }
 // ── 2026-09-13 页面版本自查 ──────────────────────────────────────────
 // 协议是 exe 和页面【一起改】的(比赛日志增量 / 设备状态推送 / DATA_CHANGED)。
 // 只换一半会出现"设备状态灯和比赛日志不刷新"这种看不出根由的毛病, 所以对不上
@@ -860,14 +869,13 @@ function checkPageVer(serverVer) {
     d.id = '_verWarnBar';
     d.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:99999;background:#DC2626;color:#fff;'
                     + 'font:bold 14px/1.6 sans-serif;padding:8px 12px;text-align:center;cursor:pointer';
-    d.textContent = '⚠ 本页版本 ' + PAGE_VER + ' 与主服务器 ' + serverVer + ' 不一致 —— 请按 Ctrl+F5 强制刷新。'
-                  + '仍不一致说明这台机器上的 Web 目录没跟 exe 一起更新。(点此关闭)';
+    d.textContent = WebLoc.f('Str_Common_VersionMismatchFmt', PAGE_VER, serverVer);
     d.onclick = function() { d.parentNode.removeChild(d); };
     document.body.appendChild(d);
 }
     ws.onopen = function() {
         connected = true;
-        setConnUI('已连接 ' + host, true);
+        setConnUI(WebLoc.f('Str_Query_ConnConnectedFmt', host), true);
         // 用 EDITOR_IDENTITY 让主服务器立即推送一次整包 + 订阅后续增量补丁(不改这条,
         // 本页面一直是这么拿数据的)
         try { ws.send(JSON.stringify({type: 'EDITOR_IDENTITY'})); } catch (e) {}
@@ -895,7 +903,7 @@ function checkPageVer(serverVer) {
         //   页面放在后台没人看时, 这一路一个字节都不走。
         if (msg.type === 'DATA_CHANGED') {
             _dataStale = true;
-            setConnUI('已连接 ' + host + '（数据有更新）', true);
+            setConnUI(WebLoc.f('Str_Query_ConnUpdatedFmt', host), true);
             // 正开着页面在看 → 立刻取; 在后台 → 等切回来/下次查询再取
             if (document.visibilityState !== 'hidden') requestFreshData();
             return;
@@ -903,18 +911,18 @@ function checkPageVer(serverVer) {
         if (msg.type === 'SHOW_LIVE_RACE' && msg.data) {
             data = msg.data;
             _dataStale = false;
-            setConnUI('已连接 ' + host, true);
+            setConnUI(WebLoc.f('Str_Query_ConnConnectedFmt', host), true);
             applyStatusData(data);
         }
     };
     ws.onclose = function() {
         connected = false;
-        setConnUI('已断开 (重连中…)', false);
+        setConnUI(WebLoc.t('Str_Query_ConnClosedRetrying'), false);
         if (reconnectTimer) clearTimeout(reconnectTimer);
         reconnectTimer = setTimeout(connect, 2500);
     };
     ws.onerror = function() {
-        setConnUI('连接失败', false);
+        setConnUI(WebLoc.t('Str_Query_ConnFailedShort'), false);
     };
 }
 
@@ -1035,7 +1043,7 @@ function applyStatusData(d) {
     var metaParts = [];
     if (d.startDate || data.startDate) metaParts.push((d.startDate || data.startDate) + (d.endDate || data.endDate ? ' ~ ' + (d.endDate || data.endDate) : ''));
     if (d.location || data.location) metaParts.push('📍 ' + (d.location || data.location));
-    if (d.poolLength || data.poolLength) metaParts.push((d.poolLength || data.poolLength) + 'm × ' + ((d.laneCount || data.laneCount || 0)) + '道');
+    if (d.poolLength || data.poolLength) metaParts.push(WebLoc.f('Str_Query_PoolMetaFmt', (d.poolLength || data.poolLength), (d.laneCount || data.laneCount || 0)));
     $('compMeta').textContent = metaParts.join('  ·  ');
     renderAll();
 }
@@ -1120,26 +1128,26 @@ function renderHome() {
 
     $('statGrid').innerHTML =
         '<div class="stat-card progress-card">' +
-            '<div class="label"><span>⏱</span>比赛进度</div>' +
+            '<div class="label"><span>⏱</span>' + WebLoc.t('Str_Query_RaceProgress') + '</div>' +
             '<div style="display:flex;align-items:baseline;gap:12px;margin-top:6px;"><div class="value">' + pct + '%</div>' +
-            '<span class="sub">已完赛 ' + doneHeats + ' / ' + totalHeats + ' 组 · ' + doneEvents + ' / ' + totalEvents + ' 项</span></div>' +
+            '<span class="sub">' + WebLoc.f('Str_Query_ProgressSubFmt', doneHeats, totalHeats, doneEvents, totalEvents) + '</span></div>' +
             '<div class="progress-bar"><div class="progress-fill" style="width:' + pct + '%"></div></div>' +
         '</div>' +
-        '<div class="stat-card"><div class="label"><span>👥</span>参赛运动员</div><div class="value">' + swimmers.length + '</div><div class="sub">来自 ' + teams.size + ' 个单位</div></div>' +
-        '<div class="stat-card green"><div class="label"><span>📋</span>总项目</div><div class="value">' + totalEvents + '</div><div class="sub">已完赛 ' + doneEvents + ' 项</div></div>' +
-        '<div class="stat-card gold"><div class="label"><span>⭐</span>破纪录</div><div class="value">' + newRecords + '</div><div class="sub">人次</div></div>' +
-        '<div class="stat-card purple"><div class="label"><span>🎯</span>总组数</div><div class="value">' + totalHeats + '</div><div class="sub">已完赛 ' + doneHeats + ' 组</div></div>';
+        '<div class="stat-card"><div class="label"><span>👥</span>' + WebLoc.t('Str_Query_Athletes') + '</div><div class="value">' + swimmers.length + '</div><div class="sub">' + WebLoc.f('Str_Query_FromTeamsFmt', teams.size) + '</div></div>' +
+        '<div class="stat-card green"><div class="label"><span>📋</span>' + WebLoc.t('Str_Query_TotalEvents') + '</div><div class="value">' + totalEvents + '</div><div class="sub">' + WebLoc.f('Str_Query_FinishedEventsFmt', doneEvents) + '</div></div>' +
+        '<div class="stat-card gold"><div class="label"><span>⭐</span>' + WebLoc.t('Str_Query_NewRecords') + '</div><div class="value">' + newRecords + '</div><div class="sub">' + WebLoc.t('Str_Query_TimesUnit') + '</div></div>' +
+        '<div class="stat-card purple"><div class="label"><span>🎯</span>' + WebLoc.t('Str_Query_TotalHeats') + '</div><div class="value">' + totalHeats + '</div><div class="sub">' + WebLoc.f('Str_Query_FinishedHeatsFmt', doneHeats) + '</div></div>';
 
     // 当前组
-    var live = '尚未开始';
+    var live = WebLoc.t('Str_Query_NotStartedYet');
     if (data.currentEvent) {
         live = '<b>' + fmtGender(data.currentGender) + ' ' + (data.currentAgeGroup ? '['+data.currentAgeGroup+'] ' : '') + escHtml(data.currentEvent) + ' ' + escHtml(data.currentStage||'') + '</b>';
-        live += ' · 第 ' + (data.currentHeat || 0) + ' / ' + (data.totalHeats || 0) + ' 组';
+        live += ' · ' + WebLoc.f('Str_Query_HeatOfTotalFmt', (data.currentHeat || 0), (data.totalHeats || 0));
     }
     $('liveDetail').innerHTML = live;
     var rs = (data.raceState || '').toLowerCase();
-    var rsMap = { 'waiting': '等待', 'ready': '就位', 'racing': '🔴 比赛中', 'finished': '已完赛' };
-    $('liveState').textContent = rsMap[rs] || '等待';
+    var rsMap = { 'waiting': WebLoc.t('Str_Query_RaceStateWaiting'), 'ready': WebLoc.t('Str_Query_RaceStateReady'), 'racing': WebLoc.t('Str_Query_RaceStateRacing'), 'finished': WebLoc.t('Str_Query_RaceStateFinished') };
+    $('liveState').textContent = rsMap[rs] || WebLoc.t('Str_Query_RaceStateWaiting');
 
     // 最近完赛 (取最后 10 个 heatConfirmed=true 的) —— 2026-09-15 改表格行, 跟其它列表页一致
     var finishedList = [];
@@ -1153,13 +1161,13 @@ function renderHome() {
     });
     finishedList = finishedList.slice(-8).reverse();
     if (finishedList.length === 0) {
-        $('recentFinished').innerHTML = '<tr><td colspan="3"><div class="empty"><div class="title">还没有完赛项目</div></div></td></tr>';
+        $('recentFinished').innerHTML = '<tr><td colspan="3"><div class="empty"><div class="title">' + WebLoc.t('Str_Query_NoFinishedYet') + '</div></div></td></tr>';
     } else {
         $('recentFinished').innerHTML = finishedList.map(function(it) {
             var s = it.schedule;
-            return '<tr><td><span class="badge gray">第' + (s.session||'?') + '场</span></td>' +
-                '<td>' + fmtGender(s.gender) + ' ' + (s.ageGroup ? '['+s.ageGroup+'] ' : '') + escHtml(s.eventName||'') + ' ' + escHtml(s.stage||'') + ' 第' + it.heat + '组</td>' +
-                '<td style="text-align:right;"><span class="badge green">✓ 已完赛</span></td></tr>';
+            return '<tr><td><span class="badge gray">' + WebLoc.f('Str_Query_SessionLabelFmt', (s.session||'?')) + '</span></td>' +
+                '<td>' + fmtGender(s.gender) + ' ' + (s.ageGroup ? '['+s.ageGroup+'] ' : '') + escHtml(s.eventName||'') + ' ' + escHtml(s.stage||'') + ' ' + WebLoc.f('Str_Query_HeatOfCountFmt', it.heat) + '</td>' +
+                '<td style="text-align:right;"><span class="badge green">' + WebLoc.t('Str_Query_CheckMark') + '</span></td></tr>';
         }).join('');
     }
 }
@@ -1174,7 +1182,7 @@ function renderSchedule() {
         var sessions = Array.from(new Set(sch.map(function(s) { return s.session || 0; }))).sort(function(a,b){return a-b;});
         sessions.forEach(function(n) {
             var o = document.createElement('option');
-            o.value = n; o.textContent = '第 ' + n + ' 场';
+            o.value = n; o.textContent = WebLoc.f('Str_Query_SessionNumFmt', n);
             sessSel.appendChild(o);
         });
         sessSel.dataset.built = '1';
@@ -1202,21 +1210,21 @@ function renderSchedule() {
     });
     var html = rows.map(function(s) {
         var status = scheduleStatus(s);
-        var statusBadge = status === 'done' ? '<span class="badge green">✓ 已完赛</span>'
-                       : status === 'live' ? '<span class="badge amber">⚡ 进行中</span>'
-                       : '<span class="badge gray">待赛</span>';
+        var statusBadge = status === 'done' ? '<span class="badge green">' + WebLoc.t('Str_Query_CheckMark') + '</span>'
+                       : status === 'live' ? '<span class="badge amber">' + WebLoc.t('Str_Query_LiveMark') + '</span>'
+                       : '<span class="badge gray">' + WebLoc.t('Str_Query_StatusTodo') + '</span>';
         return '<tr>' +
-            '<td>第' + (s.session||'?') + '场<div class="dim" style="font-size:11px;">' + escHtml(s.sessionName||'') + '</div></td>' +
+            '<td>' + WebLoc.f('Str_Query_SessionLabelFmt', (s.session||'?')) + '<div class="dim" style="font-size:11px;">' + escHtml(s.sessionName||'') + '</div></td>' +
             '<td class="dim">' + escHtml(s.date||'') + ' ' + escHtml(s.time||'') + '</td>' +
             '<td>' + (s.evNum || '-') + '</td>' +
             '<td>' + escHtml(s.eventName||'') + '</td>' +
             '<td>' + fmtGender(s.gender) + '</td>' +
             '<td>' + escHtml(s.ageGroup||'') + '</td>' +
             '<td>' + escHtml(s.stage||'') + '</td>' +
-            '<td>' + (s.heatCount||1) + ' 组</td>' +
+            '<td>' + WebLoc.f('Str_Query_HeatCountUnitFmt', (s.heatCount||1)) + '</td>' +
             '<td>' + statusBadge + '</td></tr>';
     }).join('');
-    $('schBody').innerHTML = html || '<tr><td colspan="9"><div class="empty"><div class="title">没有匹配结果</div></div></td></tr>';
+    $('schBody').innerHTML = html || '<tr><td colspan="9"><div class="empty"><div class="title">' + WebLoc.t('Str_Query_NoMatchResults') + '</div></div></td></tr>';
 }
 function scheduleStatus(s) {
     if (!s.heatConfirmed || s.heatConfirmed.length === 0) return 'todo';
@@ -1236,7 +1244,7 @@ function renderHeats() {
         sel.dataset.built = '1';
     }
     var key = sel.value;
-    if (!key) { $('heatsBody').innerHTML = '<div class="empty"><div class="title">请选择项目</div></div>'; return; }
+    if (!key) { $('heatsBody').innerHTML = '<div class="empty"><div class="title">' + WebLoc.t('Str_Query_SelectEventFirst') + '</div></div>'; return; }
     var parts = key.split('|');
     var ageGroup = parts[0], gender = parts[1], eventName = parts[2], stage = parts[3];
     var sch = (data.schedule || []).find(function(s) {
@@ -1254,15 +1262,15 @@ function renderHeats() {
         //   跟"这组本来就没排人"完全分不清, 看着像编排漏了。标清楚"已取消"。
         var cancelled = sch && sch.heatCancelled && sch.heatCancelled[h-1];
         html += '<div class="card" style="margin-bottom:14px;">' +
-            '<div class="card-h"><h3>🏊 第 ' + h + ' 组' +
-            (cancelled ? ' <span class="badge gray">已取消</span>' : (confirmed ? ' <span class="badge green">✓ 已完赛</span>' : '')) + '</h3>' +
-            '<span class="dim">' + lst.length + ' 人</span></div>';
+            '<div class="card-h"><h3>' + WebLoc.f('Str_Query_HeatCardTitleFmt', h) +
+            (cancelled ? ' <span class="badge gray">' + WebLoc.t('Str_Query_CancelledBadge') + '</span>' : (confirmed ? ' <span class="badge green">' + WebLoc.t('Str_Query_CheckMark') + '</span>' : '')) + '</h3>' +
+            '<span class="dim">' + WebLoc.f('Str_Query_PersonCountFmt', lst.length) + '</span></div>';
         if (cancelled) {
-            html += '<div class="empty"><div class="title">本组已并入其它组</div></div>';
+            html += '<div class="empty"><div class="title">' + WebLoc.t('Str_Query_HeatCancelledInto') + '</div></div>';
         } else if (lst.length === 0) {
-            html += '<div class="empty"><div class="title">本组暂无运动员</div></div>';
+            html += '<div class="empty"><div class="title">' + WebLoc.t('Str_Query_HeatEmpty') + '</div></div>';
         } else {
-            html += '<table style="font-size:13px;"><thead><tr><th>道次</th><th>号码</th><th>姓名</th><th>单位</th><th>组别</th><th>报名成绩</th></tr></thead><tbody>';
+            html += '<table style="font-size:13px;"><thead><tr><th>' + WebLoc.t('Str_Query_ColLaneShort') + '</th><th>' + WebLoc.t('Str_Query_ColBib') + '</th><th>' + WebLoc.t('Str_Query_ColName') + '</th><th>' + WebLoc.t('Str_Query_ColTeam') + '</th><th>' + WebLoc.t('Str_Query_ColAgeGroup') + '</th><th>' + WebLoc.t('Str_Query_ColSeedTime') + '</th></tr></thead><tbody>';
             lst.forEach(function(sw) {
                 // 2026-06-19 lane=0 应显 0 而非 "-": 用 != null 替代 ||
                 html += '<tr><td><span class="rank-medal r' + (sw.lane <= 3 ? sw.lane : 'n') + '" style="background:linear-gradient(135deg,#3b82f6,#6366f1);color:white;">' + (sw.lane != null ? sw.lane : '-') + '</span></td>' +
@@ -1310,7 +1318,7 @@ function renderAthletes() {
         }
         return true;
     });
-    $('athStat').textContent = '共 ' + rows.length + ' 位运动员 (总报名次 ' + (data.allSwimmers||[]).length + ')';
+    $('athStat').textContent = WebLoc.f('Str_Query_AthleteStatFmt', rows.length, (data.allSwimmers||[]).length);
     // 计算每位运动员的全部报名项目
     var bibEvents = {};
     (data.allSwimmers||[]).forEach(function(sw) {
@@ -1329,10 +1337,10 @@ function renderAthletes() {
             '<td>' + (sw.age || '-') + '</td>' +
             '<td>' + escHtml(sw.ageCategory||'') + '</td>' +
             '<td>' + escHtml(sw.country||'') + '</td>' +
-            '<td class="dim" style="font-size:12px;">' + escHtml(evs.join('、')) + '</td>' +
+            '<td class="dim" style="font-size:12px;">' + escHtml(evs.join(WebLoc.currentLang() === 'en' ? ', ' : '、')) + '</td>' +
             '<td class="time-cell">' + escHtml(sw.entryTime||'') + '</td></tr>';
     }).join('');
-    $('athBody').innerHTML = html || '<tr><td colspan="8"><div class="empty"><div class="title">没有匹配结果</div></div></td></tr>';
+    $('athBody').innerHTML = html || '<tr><td colspan="8"><div class="empty"><div class="title">' + WebLoc.t('Str_Query_NoMatchResults') + '</div></div></td></tr>';
 }
 
 // 与 C# ResultOrdering.StatusOrder(全场唯一一份状态先后规则)同一套, renderResults 排序用
@@ -1353,7 +1361,7 @@ function renderResults() {
         sel.dataset.built = '1';
     }
     var key = sel.value;
-    if (!key) { $('resBody').innerHTML = '<div class="empty"><div class="title">请选择项目</div></div>'; return; }
+    if (!key) { $('resBody').innerHTML = '<div class="empty"><div class="title">' + WebLoc.t('Str_Query_SelectEventFirst') + '</div></div>'; return; }
     var p = key.split('|');
     var ag = p[0], g = p[1], evN = p[2], st = p[3];
     var sch = (data.schedule || []).find(function(s) {
@@ -1403,8 +1411,8 @@ function renderResults() {
             var lb = _numField(b._r.Lane, b._r.lane, null); if (lb === null) lb = b.lane || 0;
             return la - lb;
         });
-        html += '<div class="card" style="margin-bottom:14px;"><div class="card-h"><h3>第 ' + h + ' 组 成绩</h3><span class="badge green">✓ 已确认</span></div>';
-        html += '<table><thead><tr><th>名次</th><th>道次</th><th>号码</th><th>姓名</th><th>单位</th><th>组别</th><th>成绩</th><th>备注</th></tr></thead><tbody>';
+        html += '<div class="card" style="margin-bottom:14px;"><div class="card-h"><h3>' + WebLoc.f('Str_Query_HeatResultTitleFmt', h) + '</h3><span class="badge green">' + WebLoc.t('Str_Query_ConfirmedBadge') + '</span></div>';
+        html += '<table><thead><tr><th>' + WebLoc.t('Str_Query_ColRank') + '</th><th>' + WebLoc.t('Str_Query_ColLaneShort') + '</th><th>' + WebLoc.t('Str_Query_ColBib') + '</th><th>' + WebLoc.t('Str_Query_ColName') + '</th><th>' + WebLoc.t('Str_Query_ColTeam') + '</th><th>' + WebLoc.t('Str_Query_ColAgeGroup') + '</th><th>' + WebLoc.t('Str_Query_ColResult') + '</th><th>' + WebLoc.t('Str_Query_ColRemark') + '</th></tr></thead><tbody>';
         lst.forEach(function(sw) {
             var r = sw._r;
             var rk = r.Rank || r.rank || 0;
@@ -1445,7 +1453,7 @@ function renderResults() {
         });
         html += '</tbody></table></div>';
     }
-    if (!hasContent) html = '<div class="empty"><div class="title">本项目尚未有已确认成绩</div></div>';
+    if (!hasContent) html = '<div class="empty"><div class="title">' + WebLoc.t('Str_Query_NoConfirmedResults') + '</div></div>';
     $('resBody').innerHTML = html;
 }
 
@@ -1458,7 +1466,7 @@ function renderRanking() {
         sel.dataset.built = '1';
     }
     var key = sel.value;
-    if (!key) { $('rankBody').innerHTML = '<div class="empty"><div class="title">请选择项目</div></div>'; return; }
+    if (!key) { $('rankBody').innerHTML = '<div class="empty"><div class="title">' + WebLoc.t('Str_Query_SelectEventFirst') + '</div></div>'; return; }
     var p = key.split('|');
     var ag = p[0], g = p[1], evN = p[2], st = p[3];
     // 2026-09-15 同 renderResults: 不再用"运动员现在的 currentStage"筛人 —— 一晋级
@@ -1516,10 +1524,10 @@ function renderRanking() {
         });
     }
     if (lst.length === 0) {
-        $('rankBody').innerHTML = '<div class="empty"><div class="title">还没有有效成绩</div></div>';
+        $('rankBody').innerHTML = '<div class="empty"><div class="title">' + WebLoc.t('Str_Query_NoValidResults') + '</div></div>';
         return;
     }
-    var html = '<div class="table-wrap"><table><thead><tr><th>名次</th><th>号码</th><th>姓名</th><th>单位</th><th>组别</th><th>成绩</th><th>备注</th></tr></thead><tbody>';
+    var html = '<div class="table-wrap"><table><thead><tr><th>' + WebLoc.t('Str_Query_ColRank') + '</th><th>' + WebLoc.t('Str_Query_ColBib') + '</th><th>' + WebLoc.t('Str_Query_ColName') + '</th><th>' + WebLoc.t('Str_Query_ColTeam') + '</th><th>' + WebLoc.t('Str_Query_ColAgeGroup') + '</th><th>' + WebLoc.t('Str_Query_ColResult') + '</th><th>' + WebLoc.t('Str_Query_ColRemark') + '</th></tr></thead><tbody>';
     // 2026-09-16 判罚(DSQ/DNF/DNS)不参与编号, 名次一律"-"; 还没定稿(hasEventRank=false)
     //   时给正常人按数组顺序临时编号, 这个"第几个正常人"要单独计数 —— 不能拿数组下标
     //   (idx)直接+1, 判罚的人如果排在前面, 会把后面正常人的临时名次也带偏一位。
@@ -1569,7 +1577,7 @@ function renderMedals() {
         return b.bronze - a.bronze;
     });
     if (ts.length === 0) {
-        $('medalGrid').innerHTML = '<tr><td colspan="6"><div class="empty"><div class="title">尚无团体数据</div></div></td></tr>';
+        $('medalGrid').innerHTML = '<tr><td colspan="6"><div class="empty"><div class="title">' + WebLoc.t('Str_Query_NoTeamData') + '</div></div></td></tr>';
         return;
     }
     // 2026-09-15 奖牌榜改真表格 —— 一名一行, 名次/金银铜/合计天然对齐成列(见 renderResults
@@ -1598,7 +1606,7 @@ function renderTeams() {
         return (b.totalPoints||0) - (a.totalPoints||0);
     });
     if (ts.length === 0) {
-        $('teamBars').innerHTML = '<div class="empty"><div class="title">尚无团体数据</div></div>';
+        $('teamBars').innerHTML = '<div class="empty"><div class="title">' + WebLoc.t('Str_Query_NoTeamData') + '</div></div>';
         $('teamBody').innerHTML = '';
         return;
     }
@@ -1657,7 +1665,7 @@ function renderRecords() {
         if (ta !== tb) return ta.localeCompare(tb);
         return (a.eventName||'').localeCompare(b.eventName||'');
     });
-    $('recBody').innerHTML = rows.length === 0 ? '<tr><td colspan="9"><div class="empty"><div class="title">没有纪录数据</div></div></td></tr>' :
+    $('recBody').innerHTML = rows.length === 0 ? '<tr><td colspan="9"><div class="empty"><div class="title">' + WebLoc.t('Str_Query_NoRecordsData') + '</div></div></td></tr>' :
         rows.map(function(r) {
             return '<tr><td><span class="badge blue">' + escHtml(r.recordType||'') + '</span></td>' +
                 '<td>' + escHtml(r.eventName||'') + '</td>' +
@@ -1675,13 +1683,13 @@ function renderRecords() {
 function renderReferees() {
     var refs = data.referees || data.refereeList || [];
     if (refs.length === 0) {
-        $('refGrid').innerHTML = '<tr><td colspan="4"><div class="empty"><div class="title">尚无裁判员资料</div></div></td></tr>';
+        $('refGrid').innerHTML = '<tr><td colspan="4"><div class="empty"><div class="title">' + WebLoc.t('Str_Query_NoRefereesData') + '</div></div></td></tr>';
         return;
     }
     // 2026-09-15 名片网格改表格: 头衔/姓名/性别/单位对齐成列, 比一堆卡片更好扫视对比
     $('refGrid').innerHTML = refs.map(function(m) {
         return '<tr>' +
-            '<td><span class="badge blue">' + escHtml(m.title || m.refereeLevel || '裁判员') + '</span></td>' +
+            '<td><span class="badge blue">' + escHtml(m.title || m.refereeLevel || WebLoc.t('Str_Query_RefereeDefaultTitle')) + '</span></td>' +
             '<td><b>' + escHtml(m.name||'') + '</b></td>' +
             '<td class="dim">' + (m.gender ? fmtGender(m.gender) : '') + '</td>' +
             '<td class="dim">' + escHtml(m.country||'') + '</td></tr>';
@@ -1711,7 +1719,7 @@ function buildEventSelect(sel, onlyConfirmed) {
 function tickClock() {
     var n = new Date();
     var s = n.getHours().toString().padStart(2,'0') + ':' + n.getMinutes().toString().padStart(2,'0') + ':' + n.getSeconds().toString().padStart(2,'0');
-    $('liveTime').textContent = '⏱ ' + s;
+    $('liveTime').textContent = WebLoc.t('Str_Query_ClockPrefix') + s;
 }
 setInterval(tickClock, 1000); tickClock();
 
@@ -1740,10 +1748,10 @@ function doLogin() {
     var u = $('loginUser').value.trim();
     var p = $('loginPwd').value;
     var err = $('loginError');
-    if (!u) { err.textContent = '请输入用户名'; err.style.display = 'block'; return; }
+    if (!u) { err.textContent = WebLoc.t('Str_Query_PleaseEnterUsername'); err.style.display = 'block'; return; }
     var cred = _getCred();
     if (u !== cred.user || _hashPwd(p) !== cred.hash) {
-        err.textContent = '用户名或密码错误'; err.style.display = 'block'; return;
+        err.textContent = WebLoc.t('Str_Query_WrongCredentials'); err.style.display = 'block'; return;
     }
     if ($('loginRemember').checked) {
         localStorage.setItem('queryLoginRemember', '1');
@@ -1772,21 +1780,25 @@ function applyPwdChange() {
     var n2 = $('pwdNew2').value;
     var err = $('pwdChangeError');
     var cred = _getCred();
-    if (_hashPwd(oldP) !== cred.hash) { err.textContent = '原密码错误'; err.style.display = 'block'; return; }
-    if (!newU) { err.textContent = '新用户名不能为空'; err.style.display = 'block'; return; }
-    if (!n1) { err.textContent = '新密码不能为空'; err.style.display = 'block'; return; }
-    if (n1 !== n2) { err.textContent = '两次输入的新密码不一致'; err.style.display = 'block'; return; }
+    if (_hashPwd(oldP) !== cred.hash) { err.textContent = WebLoc.t('Str_Query_WrongOldPwd'); err.style.display = 'block'; return; }
+    if (!newU) { err.textContent = WebLoc.t('Str_Query_NewUserEmpty'); err.style.display = 'block'; return; }
+    if (!n1) { err.textContent = WebLoc.t('Str_Query_NewPwdEmpty'); err.style.display = 'block'; return; }
+    if (n1 !== n2) { err.textContent = WebLoc.t('Str_Query_PwdMismatch'); err.style.display = 'block'; return; }
     _setCred(newU, n1);
     if (localStorage.getItem('queryLoginRemember') === '1') {
         localStorage.setItem('queryLoginUserRemember', newU);
         localStorage.setItem('queryLoginPwdRemember', _hashPwd(n1));
     }
     $('pwdChangeOverlay').style.display = 'none';
-    alert('用户名 / 密码 已更新.');
+    alert(WebLoc.t('Str_Query_PwdUpdated'));
 }
+
+// 切换语言后重新渲染动态生成的部分(表格/列表都是纯JS拼字符串, 不是靠 data-i18n 覆盖的)
+window.onWebLocApplied = function () { renderAll(); };
 
 // ═══════ 启动 ═══════
 (function bootstrap() {
+    WebLoc.apply();
     _tryLoadRemembered();
     $('loginOverlay').style.display = 'flex';
     setTimeout(function () { try { $('loginUser').focus(); } catch (e) { } }, 100);
