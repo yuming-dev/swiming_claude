@@ -412,6 +412,7 @@ var WebLoc = (function () {
         "Str_Query_FinishedHeatsFmt": ["已完赛 {0} 组", "{0} finished"],
         "Str_Query_HeatOfTotalFmt": ["第 {0} / {1} 组", "Heat {0} / {1}"],
         "Str_Query_PoolMetaFmt": ["{0}m × {1}道", "{0}m × {1} lanes"],
+
         // ── display.html ──────────────────────────────────────
         "Str_Display_PageTitle": ["大屏幕", "Display"],
         "Str_Display_ColLane": ["道次", "Lane"],
@@ -604,6 +605,7 @@ var WebLoc = (function () {
         "Str_Ctrl_HeatSuffixFmt": [" 第{0}组", " Heat {0}"],
         "Str_Ctrl_RequestedPublishFmt": ["已请求发布: {0} {1} {2}", "Requested publish: {0} {1} {2}"],
         "Str_Ctrl_SentPlayFmt": ["已发送播放: {0}", "Sent play request: {0}"],
+
         // ── race_control.html ─────────────────────────────────
         "Str_RC_PageTitle": ["比赛控制台", "Race Control"],
         "Str_RC_LoginSubtitle": ["比赛控制", "Race Control"],
