@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta http-equiv="Cache-Control" content="no-cache">
-<title>大屏幕</title>
+<title data-i18n="Str_Display_PageTitle">大屏幕</title>
 <style>
 :root {
     --bg: #0f172a; --card: #1e293b; --text: #f8fafc; --dim: #94a3b8;
@@ -217,7 +217,7 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 </head>
 <body onclick="goFullScreen()">
 <div class="page-header">
-    <span class="title" id="compName">游泳赛事管理系统</span>
+    <span class="title" id="compName" data-i18n="Str_Common_SystemName">游泳赛事管理系统</span>
     <div class="header-records">
         <span class="record-item"><span class="rec-label" id="recordMainLabel">WR</span><span id="recordWR">-</span></span>
         <span class="record-item"><span class="rec-label">CR</span><span id="recordCR">-</span></span>
@@ -236,24 +236,24 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
     <div id="applicableRecordsRow" class="applicable-records" style="display:none;"></div>
     <!-- 2026-06-04 静态表头改 7 列 (加 组别), 与 .lane-row 同款 order/flex 比例 -->
     <div class="lanes-header">
-        <div style="flex:4;min-width:0;text-align:center;margin-right:1vw;">道次</div>
-        <div style="flex:4;min-width:0;text-align:center;margin-right:1vw;">名次</div>
-        <div style="flex:11;min-width:0;text-align:center;margin-right:1vw;">姓名</div>
-        <div style="flex:9;min-width:0;text-align:center;margin-right:1vw;">代表队</div>
-        <div style="flex:8;min-width:0;text-align:center;margin-right:1vw;">组别</div>
-        <div style="flex:13;min-width:0;text-align:center;margin-right:1vw;">成绩</div>
-        <div style="flex:7;min-width:0;text-align:center;">备注</div>
+        <div style="flex:4;min-width:0;text-align:center;margin-right:1vw;" data-i18n="Str_Display_ColLane">道次</div>
+        <div style="flex:4;min-width:0;text-align:center;margin-right:1vw;" data-i18n="Str_Display_ColRank">名次</div>
+        <div style="flex:11;min-width:0;text-align:center;margin-right:1vw;" data-i18n="Str_Display_ColName">姓名</div>
+        <div style="flex:9;min-width:0;text-align:center;margin-right:1vw;" data-i18n="Str_Display_ColTeam">代表队</div>
+        <div style="flex:8;min-width:0;text-align:center;margin-right:1vw;" data-i18n="Str_Display_ColAgeGroup">组别</div>
+        <div style="flex:13;min-width:0;text-align:center;margin-right:1vw;" data-i18n="Str_Display_ColResult">成绩</div>
+        <div style="flex:7;min-width:0;text-align:center;" data-i18n="Str_Display_ColRemark">备注</div>
     </div>
     <div class="lanes-container" id="lanesContainer"></div>
 </div>
 
 <div id="listView" class="list-container hidden"></div>
 <div id="welcomeView" class="center-msg hidden">
-    <div class="hero-text" id="welcomeTitle">欢迎</div>
+    <div class="hero-text" id="welcomeTitle" data-i18n="Str_Display_Welcome">欢迎</div>
     <div class="sub-text" id="welcomeSub"></div>
 </div>
 <div id="awardView" class="hidden">
-    <div class="page-header"><span class="title" id="awardTitle">颁奖典礼</span></div>
+    <div class="page-header"><span class="title" id="awardTitle" data-i18n="Str_Display_AwardCeremony">颁奖典礼</span></div>
     <div class="award-container" id="awardContainer"></div>
 </div>
 
@@ -264,77 +264,80 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 </div>
 
 <!-- 2026-05-27 大屏底色设置: 右下角齿轮按钮 → 弹出选色面板 (纯色/渐变/灰度/图案 4 类). 数据保存在 localStorage('swimDisplayBg'). -->
-<button id="bgSettingsBtn" onclick="toggleBgSettings()" title="大屏底色设置"
+<button id="langToggleBtn" onclick="WebLoc.toggle()" data-i18n="Str_Common_LangToggle"
+        style="position:fixed;right:1.2vw;bottom:20vh;width:5.5vh;height:5.5vh;border-radius:50%;background:rgba(30,41,59,0.55);color:#94a3b8;border:1px solid rgba(148,163,184,0.35);font-size:1.6vh;cursor:pointer;z-index:9998;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);transition:opacity .2s;opacity:0.45;font-family:'Microsoft YaHei',sans-serif;font-weight:bold;"
+        onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.45'">English</button>
+<button id="bgSettingsBtn" onclick="toggleBgSettings()" title="大屏底色设置" data-i18n-title="Str_Display_BgSettingsTip"
         style="position:fixed;right:1.2vw;bottom:1.2vh;width:5.5vh;height:5.5vh;border-radius:50%;background:rgba(30,41,59,0.55);color:#94a3b8;border:1px solid rgba(148,163,184,0.35);font-size:2.6vh;cursor:pointer;z-index:9998;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);transition:opacity .2s;opacity:0.45;"
         onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.45'">⚙</button>
 
 <!-- 2026-05-31 大屏字号缩放: 字号按钮在齿轮按钮上方 (相同样式风格). LED 屏极宽极扁导致 vh 算出来字小, 这里允许 0.8x~3.0x 调节. 数据保存在 localStorage('swimDisplayFs'). -->
-<button id="fsSettingsBtn" onclick="toggleFsSettings()" title="大屏字号 (Ctrl + / Ctrl -)"
+<button id="fsSettingsBtn" onclick="toggleFsSettings()" title="大屏字号 (Ctrl + / Ctrl -)" data-i18n-title="Str_Display_FsSettingsTip"
         style="position:fixed;right:1.2vw;bottom:7.6vh;width:5.5vh;height:5.5vh;border-radius:50%;background:rgba(30,41,59,0.55);color:#94a3b8;border:1px solid rgba(148,163,184,0.35);font-size:2.4vh;cursor:pointer;z-index:9998;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);transition:opacity .2s;opacity:0.45;font-family:'Microsoft YaHei',sans-serif;font-weight:bold;"
         onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.45'">字</button>
 <!-- 2026-06-02 字号面板拆成 1 全局 + 4 分类 (比赛名称/比赛项目/比赛时间/运动员信息); 全局 Ctrl +/-/0 仍生效, 4 分类乘在全局上 -->
 <div id="fsSettingsPanel" class="hidden" style="position:fixed;right:1.2vw;bottom:14.4vh;width:44vh;background:#1e293b;color:#f8fafc;border-radius:10px;padding:2vh 2.2vh;box-shadow:0 8px 36px rgba(0,0,0,.55);z-index:9998;font-family:'Microsoft YaHei',sans-serif;font-size:1.7vh;border:1px solid #334155;max-height:88vh;overflow-y:auto;">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.2vh;">
-        <div style="font-size:2vh;font-weight:bold;color:#3b82f6;">🔤 大屏字号</div>
+        <div style="font-size:2vh;font-weight:bold;color:#3b82f6;" data-i18n="Str_Display_FsSettingsTitle">🔤 大屏字号</div>
         <button onclick="toggleFsSettings()" style="background:none;border:none;color:#94a3b8;font-size:2.4vh;cursor:pointer;padding:0 0.6vh;">×</button>
     </div>
-    <div style="font-size:1.5vh;color:#94a3b8;margin-bottom:0.6vh;letter-spacing:1px;font-weight:bold;">全局 (所有文字同时缩放)</div>
+    <div style="font-size:1.5vh;color:#94a3b8;margin-bottom:0.6vh;letter-spacing:1px;font-weight:bold;" data-i18n="Str_Display_GlobalScaleLabel">全局 (所有文字同时缩放)</div>
     <div style="display:flex;align-items:center;gap:1.2vh;margin-bottom:1.4vh;">
         <button onclick="bumpFontScale(-0.1)" style="flex:0 0 5.5vh;height:5.5vh;background:#475569;color:#f8fafc;border:none;border-radius:6px;font-size:2.8vh;font-weight:bold;cursor:pointer;">−</button>
         <div id="fsScaleLabel" style="flex:1;text-align:center;font-size:3vh;font-weight:bold;color:#f59e0b;font-family:Consolas,monospace;">1.0x</div>
         <button onclick="bumpFontScale(0.1)" style="flex:0 0 5.5vh;height:5.5vh;background:#475569;color:#f8fafc;border:none;border-radius:6px;font-size:2.8vh;font-weight:bold;cursor:pointer;">+</button>
     </div>
-    <button onclick="setFontScale(1.0)" style="width:100%;padding:0.6vh;background:#475569;color:#f8fafc;border:none;border-radius:4px;cursor:pointer;font-size:1.5vh;margin-bottom:1vh;">恢复 全局 1.0x</button>
+    <button onclick="setFontScale(1.0)" style="width:100%;padding:0.6vh;background:#475569;color:#f8fafc;border:none;border-radius:4px;cursor:pointer;font-size:1.5vh;margin-bottom:1vh;" data-i18n="Str_Display_ResetGlobalScale">恢复 全局 1.0x</button>
 
-    <div style="font-size:1.5vh;color:#94a3b8;margin:0.8vh 0 0.6vh;letter-spacing:1px;font-weight:bold;">分类 (单独调整某一类文字)</div>
+    <div style="font-size:1.5vh;color:#94a3b8;margin:0.8vh 0 0.6vh;letter-spacing:1px;font-weight:bold;" data-i18n="Str_Display_CategoryScaleLabel">分类 (单独调整某一类文字)</div>
     <div id="fsPartsRows"></div>
-    <button onclick="resetAllFsParts()" style="width:100%;padding:0.6vh;background:#475569;color:#f8fafc;border:none;border-radius:4px;cursor:pointer;font-size:1.5vh;margin-top:0.6vh;">恢复 分类全部 1.0x</button>
+    <button onclick="resetAllFsParts()" style="width:100%;padding:0.6vh;background:#475569;color:#f8fafc;border:none;border-radius:4px;cursor:pointer;font-size:1.5vh;margin-top:0.6vh;" data-i18n="Str_Display_ResetAllCategories">恢复 分类全部 1.0x</button>
 
-    <div style="font-size:1.3vh;color:#94a3b8;text-align:center;line-height:1.5;margin-top:1vh;">快捷键 <b style="color:#cbd5e1;">Ctrl +</b> / <b style="color:#cbd5e1;">Ctrl −</b> / <b style="color:#cbd5e1;">Ctrl 0</b> 调全局<br>范围 0.5x ~ 3.0x</div>
+    <div id="fsShortcutHint" style="font-size:1.3vh;color:#94a3b8;text-align:center;line-height:1.5;margin-top:1vh;">快捷键 <b style="color:#cbd5e1;">Ctrl +</b> / <b style="color:#cbd5e1;">Ctrl −</b> / <b style="color:#cbd5e1;">Ctrl 0</b> 调全局<br>范围 0.5x ~ 3.0x</div>
 </div>
 
 <!-- 2026-06-01 文字样式: 9 处单独调颜色 + 字体. 数据保存在 localStorage('swimDisplayTextStyle'). -->
-<button id="textStyleBtn" onclick="toggleTextStyle()" title="文字样式 (颜色/字体)"
+<button id="textStyleBtn" onclick="toggleTextStyle()" title="文字样式 (颜色/字体)" data-i18n-title="Str_Display_TextStyleTip"
         style="position:fixed;right:1.2vw;bottom:14vh;width:5.5vh;height:5.5vh;border-radius:50%;background:rgba(30,41,59,0.55);color:#94a3b8;border:1px solid rgba(148,163,184,0.35);font-size:2.4vh;cursor:pointer;z-index:9998;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);transition:opacity .2s;opacity:0.45;font-family:'Microsoft YaHei',sans-serif;font-weight:bold;"
         onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.45'">文</button>
 <div id="textStylePanel" class="hidden" style="position:fixed;right:1.2vw;bottom:20.4vh;width:62vh;max-height:78vh;overflow-y:auto;background:#1e293b;color:#f8fafc;border-radius:10px;padding:2vh 2.2vh;box-shadow:0 8px 36px rgba(0,0,0,.55);z-index:9998;font-family:'Microsoft YaHei',sans-serif;font-size:1.6vh;border:1px solid #334155;">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.2vh;">
-        <div style="font-size:2vh;font-weight:bold;color:#3b82f6;">📝 文字样式 (颜色 / 字体)</div>
+        <div style="font-size:2vh;font-weight:bold;color:#3b82f6;" data-i18n="Str_Display_TextStyleTitle">📝 文字样式 (颜色 / 字体)</div>
         <button onclick="toggleTextStyle()" style="background:none;border:none;color:#94a3b8;font-size:2.4vh;cursor:pointer;padding:0 0.6vh;">×</button>
     </div>
     <div id="textStyleRows"></div>
-    <button onclick="resetAllTextStyle()" style="width:100%;padding:0.8vh;background:#475569;color:#f8fafc;border:none;border-radius:4px;cursor:pointer;font-size:1.5vh;margin-top:1vh;">全部恢复默认</button>
+    <button onclick="resetAllTextStyle()" style="width:100%;padding:0.8vh;background:#475569;color:#f8fafc;border:none;border-radius:4px;cursor:pointer;font-size:1.5vh;margin-top:1vh;" data-i18n="Str_Display_ResetAllDefault">全部恢复默认</button>
 </div>
 <div id="bgSettingsPanel" class="hidden" style="position:fixed;right:1.2vw;bottom:8vh;width:46vh;max-height:82vh;overflow-y:auto;background:#1e293b;color:#f8fafc;border-radius:10px;padding:2vh 2.2vh;box-shadow:0 8px 36px rgba(0,0,0,.55);z-index:9998;font-family:'Microsoft YaHei',sans-serif;font-size:1.7vh;border:1px solid #334155;">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.2vh;">
-        <div style="font-size:2vh;font-weight:bold;color:#3b82f6;">🎨 大屏底色</div>
+        <div style="font-size:2vh;font-weight:bold;color:#3b82f6;" data-i18n="Str_Display_BgTitle">🎨 大屏底色</div>
         <button onclick="toggleBgSettings()" style="background:none;border:none;color:#94a3b8;font-size:2.4vh;cursor:pointer;padding:0 0.6vh;">×</button>
     </div>
-    <div style="font-size:1.5vh;color:#94a3b8;margin-bottom:0.5vh;font-weight:bold;letter-spacing:1px;">纯色</div>
+    <div style="font-size:1.5vh;color:#94a3b8;margin-bottom:0.5vh;font-weight:bold;letter-spacing:1px;" data-i18n="Str_Display_BgSolid">纯色</div>
     <div id="bgGridSolid" class="bg-swatch-grid"></div>
-    <div style="font-size:1.5vh;color:#94a3b8;margin:1.2vh 0 0.5vh;font-weight:bold;letter-spacing:1px;">渐变 (层次感)</div>
+    <div style="font-size:1.5vh;color:#94a3b8;margin:1.2vh 0 0.5vh;font-weight:bold;letter-spacing:1px;" data-i18n="Str_Display_BgGradient">渐变 (层次感)</div>
     <div id="bgGridGradient" class="bg-swatch-grid"></div>
-    <div style="font-size:1.5vh;color:#94a3b8;margin:1.2vh 0 0.5vh;font-weight:bold;letter-spacing:1px;">高级混合 (深度感)</div>
+    <div style="font-size:1.5vh;color:#94a3b8;margin:1.2vh 0 0.5vh;font-weight:bold;letter-spacing:1px;" data-i18n="Str_Display_BgMesh">高级混合 (深度感)</div>
     <div id="bgGridMesh" class="bg-swatch-grid"></div>
-    <div style="font-size:1.5vh;color:#94a3b8;margin:1.2vh 0 0.5vh;font-weight:bold;letter-spacing:1px;">灰度</div>
+    <div style="font-size:1.5vh;color:#94a3b8;margin:1.2vh 0 0.5vh;font-weight:bold;letter-spacing:1px;" data-i18n="Str_Display_BgGray">灰度</div>
     <div id="bgGridGray" class="bg-swatch-grid"></div>
-    <div style="font-size:1.5vh;color:#94a3b8;margin:1.2vh 0 0.5vh;font-weight:bold;letter-spacing:1px;">图案</div>
+    <div style="font-size:1.5vh;color:#94a3b8;margin:1.2vh 0 0.5vh;font-weight:bold;letter-spacing:1px;" data-i18n="Str_Display_BgPattern">图案</div>
     <div id="bgGridPattern" class="bg-swatch-grid"></div>
-    <div style="font-size:1.5vh;color:#94a3b8;margin:1.2vh 0 0.5vh;font-weight:bold;letter-spacing:1px;">自定义</div>
+    <div style="font-size:1.5vh;color:#94a3b8;margin:1.2vh 0 0.5vh;font-weight:bold;letter-spacing:1px;" data-i18n="Str_Display_BgCustom">自定义</div>
     <div style="display:flex;align-items:center;gap:0.8vh;margin-bottom:0.8vh;">
-        <span style="color:#94a3b8;font-size:1.5vh;">颜色:</span>
+        <span style="color:#94a3b8;font-size:1.5vh;" data-i18n="Str_Display_BgColorLabel">颜色:</span>
         <input id="bgCustomPicker" type="color" value="#0f172a" onchange="applyDisplayBg(this.value, true)"
                style="width:4.5vh;height:3.2vh;padding:0;border:1px solid #334155;border-radius:4px;background:transparent;cursor:pointer;"/>
         <input id="bgCustomHex" type="text" maxlength="7" placeholder="#0f172a" onchange="applyDisplayBg(this.value, true)"
                style="flex:1;padding:0.5vh 0.8vh;background:#0f172a;color:#f8fafc;border:1px solid #334155;border-radius:4px;font-family:Consolas,monospace;font-size:1.5vh;"/>
     </div>
     <div style="display:flex;align-items:center;gap:0.8vh;margin-bottom:1vh;">
-        <span style="color:#94a3b8;font-size:1.5vh;">图片:</span>
+        <span style="color:#94a3b8;font-size:1.5vh;" data-i18n="Str_Display_BgImageLabel">图片:</span>
         <input id="bgImageFile" type="file" accept="image/*" onchange="loadCustomBgImage(this.files[0])"
                style="flex:1;font-size:1.4vh;color:#cbd5e1;"/>
     </div>
     <button onclick="applyDisplayBg('#0f172a', true)"
-            style="width:100%;padding:0.8vh;background:#475569;color:#f8fafc;border:none;border-radius:4px;cursor:pointer;font-size:1.6vh;">恢复默认 (深邃蓝)</button>
+            style="width:100%;padding:0.8vh;background:#475569;color:#f8fafc;border:none;border-radius:4px;cursor:pointer;font-size:1.6vh;" data-i18n="Str_Display_ResetBgDefault">恢复默认 (深邃蓝)</button>
 </div>
 <style>
 .bg-swatch-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:0.7vh; }
@@ -349,20 +352,21 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 <!-- 连接服务器遮罩：启动即显示，连接成功才消隐 -->
 <div id="connectOverlay" style="position:fixed;left:0;top:0;width:100vw;height:100vh;background:#0f172aF2;z-index:10000;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#f8fafc;font-family:'Microsoft YaHei',sans-serif;">
     <div style="background:#1e293b;border-radius:12px;padding:5vh 6vw;min-width:420px;box-shadow:0 8px 30px rgba(0,0,0,.4);">
-        <div style="font-size:3vh;font-weight:bold;text-align:center;margin-bottom:2vh;">连接主服务器</div>
-        <div style="font-size:1.8vh;color:#94a3b8;margin-bottom:0.6vh;">服务器 IP 地址</div>
-        <input id="connHostInput" type="text" placeholder="如 192.168.1.100" autocomplete="off"
+        <div style="font-size:3vh;font-weight:bold;text-align:center;margin-bottom:2vh;" data-i18n="Str_Display_ConnectTitle">连接主服务器</div>
+        <div style="font-size:1.8vh;color:#94a3b8;margin-bottom:0.6vh;" data-i18n="Str_Display_ServerIpLabel">服务器 IP 地址</div>
+        <input id="connHostInput" type="text" placeholder="如 192.168.1.100" autocomplete="off" data-i18n-attr="placeholder" data-i18n="Str_Common_ServerIpPlaceholder"
                style="width:100%;padding:1.2vh 1vw;border:1px solid #334155;border-radius:6px;background:#0f172a;color:#f8fafc;font-size:2.2vh;outline:none;"/>
         <div style="display:flex;gap:1vw;margin-top:2.5vh;">
             <button id="connBtn" onclick="overlayConnect()"
-                    style="flex:1;padding:1.4vh 2vw;background:#22c55e;color:white;border:none;border-radius:6px;font-size:2vh;font-weight:bold;cursor:pointer;">连接</button>
+                    style="flex:1;padding:1.4vh 2vw;background:#22c55e;color:white;border:none;border-radius:6px;font-size:2vh;font-weight:bold;cursor:pointer;" data-i18n="Str_Common_Connect">连接</button>
         </div>
-        <div id="connStatus" style="margin-top:2vh;text-align:center;font-size:1.8vh;color:#f59e0b;min-height:2.5vh;">请输入主服务器IP并点击连接</div>
+        <div id="connStatus" style="margin-top:2vh;text-align:center;font-size:1.8vh;color:#f59e0b;min-height:2.5vh;" data-i18n="Str_Display_ConnectPrompt">请输入主服务器IP并点击连接</div>
     </div>
 </div>
 
+<script src="webloc.js"></script>
 <script>
-window.onbeforeunload = function(e) { e.preventDefault(); e.returnValue = ''; return '确定要关闭大屏幕显示？'; };
+window.onbeforeunload = function(e) { e.preventDefault(); e.returnValue = ''; return WebLoc.t('Str_Display_ConfirmCloseDisplay'); };
 
 function goFullScreen() {
     var el = document.documentElement;
@@ -468,7 +472,7 @@ function showConnectOverlay(statusText, statusColor) {
     if (ov) ov.style.display = 'flex';
     var st = document.getElementById('connStatus');
     if (st) {
-        st.textContent = statusText || '请输入主服务器IP并点击连接';
+        st.textContent = statusText || WebLoc.t('Str_Display_ConnectPrompt');
         st.style.color = statusColor || '#f59e0b';
     }
 }
@@ -480,11 +484,11 @@ function hideConnectOverlay() {
 function overlayConnect() {
     var inp = document.getElementById('connHostInput');
     var ip = inp ? inp.value.trim() : '';
-    if (!ip) { showConnectOverlay('请输入服务器IP', '#ef4444'); return; }
+    if (!ip) { showConnectOverlay(WebLoc.t('Str_Display_EnterIpFirst'), '#ef4444'); return; }
     localStorage.setItem('swimServerHost', ip);
     _connFailCount = 0;
     if (ws) try { ws.close(); } catch(e) {}
-    showConnectOverlay('连接中… ' + ip + ':3002', '#f59e0b');
+    showConnectOverlay(WebLoc.f('Str_Display_ConnectingFmt', ip), '#f59e0b');
     connect();
 }
 
@@ -558,7 +562,7 @@ function applyDisplayBg(value, persist) {
     document.documentElement.style.setProperty('--bg', v);
     if (persist) {
         try { localStorage.setItem('swimDisplayBg', v); }
-        catch(e) { alert('保存失败: 图片/数据太大无法存入 localStorage. 请用更小的图片.'); }
+        catch(e) { alert(WebLoc.t('Str_Display_SaveFailedImageFmt')); }
         // 2026-06-01 同步推送到服务器, 让其它 display.html / 控制端实时跟上
         _pushStyleToServer({ bg: v });
     }
@@ -575,9 +579,9 @@ function applyDisplayBg(value, persist) {
 
 function loadCustomBgImage(file) {
     if (!file) return;
-    if (!/^image\//.test(file.type)) { alert('请选择图片文件'); return; }
+    if (!/^image\//.test(file.type)) { alert(WebLoc.t('Str_Display_SelectImageFile')); return; }
     if (file.size > 2 * 1024 * 1024) {
-        if (!confirm('图片较大 (' + Math.round(file.size/1024) + 'KB), 可能因 localStorage 限制(~5MB)存不下. 继续?')) return;
+        if (!confirm(WebLoc.f('Str_Display_LargeImageConfirmFmt', Math.round(file.size/1024)))) return;
     }
     var reader = new FileReader();
     reader.onload = function(e) {
@@ -586,7 +590,7 @@ function loadCustomBgImage(file) {
         var bgValue = "url('" + dataUri + "') center center / cover no-repeat fixed, #0f172a";
         applyDisplayBg(bgValue, true);
     };
-    reader.onerror = function() { alert('读取图片失败'); };
+    reader.onerror = function() { alert(WebLoc.t('Str_Display_ReadImageFailed')); };
     reader.readAsDataURL(file);
 }
 
@@ -661,32 +665,35 @@ function toggleBgSettings() {
 // 2026-06-01 文字 (颜色 + 字体) 独立配置. localStorage('swimDisplayTextStyle') = {key:{c:'#..',f:'..'}}.
 // 与 .lane-row/.race-info/.page-header 的 CSS 变量 --c-<key> / --ff-<key> 绑定.
 // 2026-06-02 加 'stage' (赛次/组别) 和 'header' (表头) 两项, 共 11 个独立可调.
-var TEXT_KEYS = [
-    {k:'title',  label:'比赛名称',   dC:'#f8fafc', dF:"'Microsoft YaHei', sans-serif"},
-    {k:'event',  label:'比赛项目',   dC:'#f8fafc', dF:"'Microsoft YaHei', sans-serif"},
-    {k:'stage',  label:'赛次/组别', dC:'#94a3b8', dF:"'Microsoft YaHei', sans-serif"},
-    {k:'time',   label:'滚动时间',   dC:'#f59e0b', dF:"'Consolas', monospace"},
-    {k:'header', label:'表头',       dC:'#94a3b8', dF:"'Microsoft YaHei', sans-serif"},
-    {k:'lane',   label:'道次',       dC:'#94a3b8', dF:"'Microsoft YaHei', sans-serif"},
-    {k:'rank',   label:'名次',       dC:'#f8fafc', dF:"'Microsoft YaHei', sans-serif"},
-    {k:'name',   label:'姓名',       dC:'#f8fafc', dF:"'Microsoft YaHei', sans-serif"},
-    {k:'team',   label:'代表队',     dC:'#94a3b8', dF:"'Microsoft YaHei', sans-serif"},
-    {k:'result', label:'成绩',       dC:'#f8fafc', dF:"'Consolas', monospace"},
-    {k:'remark', label:'备注',       dC:'#ef4444', dF:"'Microsoft YaHei', sans-serif"},
-    {k:'record', label:'比赛纪录(第3行)', dC:'#FBBF24', dF:"'Microsoft YaHei', sans-serif"}
-];
-var FONT_OPTIONS = [
-    {label:'微软雅黑', value:"'Microsoft YaHei', sans-serif"},
-    {label:'黑体',     value:"SimHei, sans-serif"},
-    {label:'宋体',     value:"SimSun, serif"},
-    {label:'楷体',     value:"KaiTi, serif"},
-    {label:'仿宋',     value:"FangSong, serif"},
-    {label:'隶书',     value:"LiSu, serif"},
-    {label:'幼圆',     value:"YouYuan, sans-serif"},
+// label 用函数而不是字面量: 语言切换后重建面板时要能拿到当前语言的文本(见 onWebLocApplied)
+function TEXT_KEYS_DEF() { return [
+    {k:'title',  label:WebLoc.t('Str_Display_TsKeyTitle'),   dC:'#f8fafc', dF:"'Microsoft YaHei', sans-serif"},
+    {k:'event',  label:WebLoc.t('Str_Display_TsKeyEvent'),   dC:'#f8fafc', dF:"'Microsoft YaHei', sans-serif"},
+    {k:'stage',  label:WebLoc.t('Str_Display_TsKeyStage'), dC:'#94a3b8', dF:"'Microsoft YaHei', sans-serif"},
+    {k:'time',   label:WebLoc.t('Str_Display_TsKeyTime'),   dC:'#f59e0b', dF:"'Consolas', monospace"},
+    {k:'header', label:WebLoc.t('Str_Display_TsKeyHeader'),       dC:'#94a3b8', dF:"'Microsoft YaHei', sans-serif"},
+    {k:'lane',   label:WebLoc.t('Str_Display_TsKeyLane'),       dC:'#94a3b8', dF:"'Microsoft YaHei', sans-serif"},
+    {k:'rank',   label:WebLoc.t('Str_Display_TsKeyRank'),       dC:'#f8fafc', dF:"'Microsoft YaHei', sans-serif"},
+    {k:'name',   label:WebLoc.t('Str_Display_TsKeyName'),       dC:'#f8fafc', dF:"'Microsoft YaHei', sans-serif"},
+    {k:'team',   label:WebLoc.t('Str_Display_TsKeyTeam'),     dC:'#94a3b8', dF:"'Microsoft YaHei', sans-serif"},
+    {k:'result', label:WebLoc.t('Str_Display_TsKeyResult'),       dC:'#f8fafc', dF:"'Consolas', monospace"},
+    {k:'remark', label:WebLoc.t('Str_Display_TsKeyRemark'),       dC:'#ef4444', dF:"'Microsoft YaHei', sans-serif"},
+    {k:'record', label:WebLoc.t('Str_Display_TsKeyRecord'), dC:'#FBBF24', dF:"'Microsoft YaHei', sans-serif"}
+]; }
+var TEXT_KEYS = TEXT_KEYS_DEF();
+function FONT_OPTIONS_DEF() { return [
+    {label:WebLoc.t('Str_Display_FontYaHei'), value:"'Microsoft YaHei', sans-serif"},
+    {label:WebLoc.t('Str_Display_FontHei'),     value:"SimHei, sans-serif"},
+    {label:WebLoc.t('Str_Display_FontSong'),     value:"SimSun, serif"},
+    {label:WebLoc.t('Str_Display_FontKai'),     value:"KaiTi, serif"},
+    {label:WebLoc.t('Str_Display_FontFangSong'),     value:"FangSong, serif"},
+    {label:WebLoc.t('Str_Display_FontLiShu'),     value:"LiSu, serif"},
+    {label:WebLoc.t('Str_Display_FontYouYuan'),     value:"YouYuan, sans-serif"},
     {label:'Arial',    value:"Arial, sans-serif"},
-    {label:'Consolas (等宽)', value:"Consolas, monospace"},
+    {label:WebLoc.t('Str_Display_FontConsolas'), value:"Consolas, monospace"},
     {label:'Impact',   value:"Impact, sans-serif"}
-];
+]; }
+var FONT_OPTIONS = FONT_OPTIONS_DEF();
 function _getTextStyleState() {
     try { return JSON.parse(localStorage.getItem('swimDisplayTextStyle') || '{}') || {}; }
     catch(e) { return {}; }
@@ -735,7 +742,7 @@ function resetTextStyle(key) {
     setTextFont(key, def.dF, true);
 }
 function resetAllTextStyle() {
-    if (!confirm('确定恢复全部 9 处文字 (颜色+字体) 为默认?')) return;
+    if (!confirm(WebLoc.t('Str_Display_ConfirmResetTextStyle'))) return;
     for (var i = 0; i < TEXT_KEYS.length; i++) resetTextStyle(TEXT_KEYS[i].k);
 }
 function _buildTextStylePanelRows() {
@@ -757,14 +764,14 @@ function _buildTextStylePanelRows() {
             fontOpts += '<option value="' + fo.value.replace(/"/g,'&quot;') + '"' + sel + '>' + fo.label + '</option>';
         }
         // 如果保存的字体不在预设选项里 (老版本/手改的), 显示为 "自定义"
-        if (!matchedFont) fontOpts = '<option value="' + f.replace(/"/g,'&quot;') + '" selected>自定义</option>' + fontOpts;
+        if (!matchedFont) fontOpts = '<option value="' + f.replace(/"/g,'&quot;') + '" selected>' + WebLoc.t('Str_Display_CustomFont') + '</option>' + fontOpts;
         html +=
             '<div style="display:flex;align-items:center;gap:0.7vh;margin-bottom:0.7vh;padding:0.6vh 0.4vh;border-bottom:1px solid #334155;">' +
                 '<span style="flex:0 0 8vh;color:#cbd5e1;font-size:1.6vh;">' + def.label + '</span>' +
                 '<input id="tsColor-' + def.k + '" type="color" value="' + (/^#[0-9a-fA-F]{6}$/.test(c)?c:'#f8fafc') + '" onchange="setTextColor(\'' + def.k + '\', this.value, true)" style="flex:0 0 4vh;height:3vh;padding:0;border:1px solid #334155;border-radius:4px;background:transparent;cursor:pointer;"/>' +
                 '<input id="tsHex-' + def.k + '" type="text" maxlength="7" value="' + c + '" onchange="setTextColor(\'' + def.k + '\', this.value, true)" style="flex:0 0 8vh;padding:0.3vh 0.5vh;background:#0f172a;color:#f8fafc;border:1px solid #334155;border-radius:4px;font-family:Consolas,monospace;font-size:1.4vh;text-align:center;"/>' +
                 '<select id="tsFont-' + def.k + '" onchange="setTextFont(\'' + def.k + '\', this.value, true)" style="flex:1;min-width:0;padding:0.4vh 0.5vh;background:#0f172a;color:#f8fafc;border:1px solid #334155;border-radius:4px;font-size:1.5vh;cursor:pointer;">' + fontOpts + '</select>' +
-                '<button onclick="resetTextStyle(\'' + def.k + '\')" title="恢复默认" style="flex:0 0 3.5vh;height:3vh;background:#334155;color:#cbd5e1;border:none;border-radius:4px;cursor:pointer;font-size:1.5vh;">↺</button>' +
+                '<button onclick="resetTextStyle(\'' + def.k + '\')" title="' + WebLoc.t('Str_Display_ResetToDefaultTip') + '" style="flex:0 0 3.5vh;height:3vh;background:#334155;color:#cbd5e1;border:none;border-radius:4px;cursor:pointer;font-size:1.5vh;">↺</button>' +
             '</div>';
     }
     host.innerHTML = html;
@@ -819,14 +826,15 @@ function bumpFontScale(delta) { setFontScale(getFontScale() + delta); }
 
 // 2026-06-02 字号 4 类独立缩放 (title/event/time/info), 与全局 --fs 相乘; 持久化 localStorage('swimDisplayFsParts').
 // 2026-06-04 加 'header' (第 3 行 表头) 独立缩放, 与 info 解耦
-var FS_PARTS_KEYS = [
-    {k:'title',  label:'比赛名称'},
-    {k:'event',  label:'比赛项目 / 赛次组别'},
-    {k:'time',   label:'比赛时间 (滚动时间)'},
-    {k:'header', label:'表头 (道/名次/姓名/代表队/成绩/备注)'},
-    {k:'info',   label:'运动员信息 (道次/姓名/成绩…)'},
-    {k:'record', label:'比赛纪录 (第3行)'}
-];
+function FS_PARTS_KEYS_DEF() { return [
+    {k:'title',  label:WebLoc.t('Str_Display_FsKeyTitle')},
+    {k:'event',  label:WebLoc.t('Str_Display_FsKeyEvent')},
+    {k:'time',   label:WebLoc.t('Str_Display_FsKeyTime')},
+    {k:'header', label:WebLoc.t('Str_Display_FsKeyHeader')},
+    {k:'info',   label:WebLoc.t('Str_Display_FsKeyInfo')},
+    {k:'record', label:WebLoc.t('Str_Display_FsKeyRecord')}
+]; }
+var FS_PARTS_KEYS = FS_PARTS_KEYS_DEF();
 function _getFsParts() {
     // 2026-06-04 加 header (= 第 3 行表头 单独缩放)
     var s = { title:1, event:1, time:1, info:1, header:1, record:1 };
@@ -866,7 +874,7 @@ function setFsPart(k, v, persist) {
 function bumpFsPart(k, delta) { setFsPart(k, _getFsParts()[k] + delta, true); }
 function resetFsPart(k) { setFsPart(k, 1.0, true); }
 function resetAllFsParts() {
-    if (!confirm('确定恢复 4 类分类字号为 1.0x?')) return;
+    if (!confirm(WebLoc.t('Str_Display_ConfirmResetFsParts'))) return;
     for (var i = 0; i < FS_PARTS_KEYS.length; i++) setFsPart(FS_PARTS_KEYS[i].k, 1.0, true);
 }
 function _buildFsPartsRows() {
@@ -887,7 +895,7 @@ function _buildFsPartsRows() {
                     '<button onclick="bumpFsPart(\'' + d.k + '\', -0.1)" style="flex:0 0 3.5vh;height:3vh;background:#475569;color:#f8fafc;border:none;border-radius:4px;font-size:1.8vh;cursor:pointer;">−</button>' +
                     '<input id="fsPart-sl-' + d.k + '" type="range" min="0.5" max="3.0" step="0.1" value="' + v + '" oninput="setFsPart(\'' + d.k + '\', this.value, false)" onchange="setFsPart(\'' + d.k + '\', this.value, true)" style="flex:1;min-width:0;"/>' +
                     '<button onclick="bumpFsPart(\'' + d.k + '\', 0.1)" style="flex:0 0 3.5vh;height:3vh;background:#475569;color:#f8fafc;border:none;border-radius:4px;font-size:1.8vh;cursor:pointer;">+</button>' +
-                    '<button onclick="resetFsPart(\'' + d.k + '\')" title="恢复 1.0x" style="flex:0 0 3.5vh;height:3vh;background:#334155;color:#cbd5e1;border:none;border-radius:4px;font-size:1.4vh;cursor:pointer;">↺</button>' +
+                    '<button onclick="resetFsPart(\'' + d.k + '\')" title="' + WebLoc.t('Str_Display_ResetTo1xTip') + '" style="flex:0 0 3.5vh;height:3vh;background:#334155;color:#cbd5e1;border:none;border-radius:4px;font-size:1.4vh;cursor:pointer;">↺</button>' +
                 '</div>' +
             '</div>';
     }
@@ -929,14 +937,14 @@ function getServerHost(forceAsk) {
     var saved = localStorage.getItem('swimServerHost');
     if (!forceAsk && saved) return saved;
     var def = saved || '192.168.1.100';
-    var ip = prompt('请输入服务器IP地址:', def);
+    var ip = prompt(WebLoc.t('Str_Register_EnterServerIpPrompt'), def);
     if (ip) { localStorage.setItem('swimServerHost', ip); return ip; }
     return saved || 'localhost';
 }
 
 function changeServerHost() {
     // 优先使用遮罩内输入；若被外部代码调用，也保留 prompt 兜底询问一次
-    showConnectOverlay('请重新输入服务器IP并点击连接', '#f59e0b');
+    showConnectOverlay(WebLoc.t('Str_Display_ReenterIpPrompt'), '#f59e0b');
     _connFailCount = 0;
     var inp = document.getElementById('connHostInput');
     if (!inp || !document.getElementById('connectOverlay')) {
@@ -948,13 +956,13 @@ function changeServerHost() {
 
 function connect() {
     var host = getServerHost();
-    document.title = '大屏幕 - ' + host;
+    document.title = WebLoc.f('Str_Display_TitleWithHostFmt', host);
     try { ws = new WebSocket('ws://' + host + ':3002'); }
     catch (ex) {
         // 2026-06-04 new WebSocket 构造异常 (= host 格式错 / 浏览器限制) 也要 2s 后重试, 不能卡死
         // 2026-06-06 静默重连: 已连过则保留画面, 仅首次失败显 overlay
         if (!data || Object.keys(data).length === 0) {
-            showConnectOverlay('请输入服务器IP并点击连接', '#f59e0b');
+            showConnectOverlay(WebLoc.t('Str_Display_ConnectPrompt'), '#f59e0b');
         }
         setTimeout(connect, 2000);
         return;
@@ -976,8 +984,7 @@ function checkPageVer(serverVer) {
     d.id = '_verWarnBar';
     d.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:99999;background:#DC2626;color:#fff;'
                     + 'font:bold 14px/1.6 sans-serif;padding:8px 12px;text-align:center;cursor:pointer';
-    d.textContent = '⚠ 本页版本 ' + PAGE_VER + ' 与主服务器 ' + serverVer + ' 不一致 —— 请按 Ctrl+F5 强制刷新。'
-                  + '仍不一致说明这台机器上的 Web 目录没跟 exe 一起更新。(点此关闭)';
+    d.textContent = WebLoc.f('Str_Common_VersionMismatchFmt', PAGE_VER, serverVer);
     d.onclick = function() { d.parentNode.removeChild(d); };
     document.body.appendChild(d);
 }
@@ -1161,7 +1168,7 @@ function checkPageVer(serverVer) {
             hideConnectOverlay();
         } else {
             var host = getServerHost();
-            showConnectOverlay('请输入服务器IP并点击连接', '#f59e0b');
+            showConnectOverlay(WebLoc.t('Str_Display_ConnectPrompt'), '#f59e0b');
         }
         setTimeout(connect, 2000);
     };
@@ -1169,7 +1176,7 @@ function checkPageVer(serverVer) {
         // 2026-06-06 静默重连, 不弹 overlay (除非首次连接)
         if (!data || Object.keys(data).length === 0) {
             var host = getServerHost();
-            showConnectOverlay('请输入服务器IP并点击连接', '#f59e0b');
+            showConnectOverlay(WebLoc.t('Str_Display_ConnectPrompt'), '#f59e0b');
         }
     };
 }
@@ -1211,7 +1218,7 @@ function stopRefreshTimer() {
 }
 
 function render() {
-    document.getElementById('compName').textContent = data.competitionName || '游泳赛事管理系统';
+    document.getElementById('compName').textContent = data.competitionName || WebLoc.t('Str_Common_SystemName');
 
     // 隐藏所有视图，清除翻页定时器
     if (_rankingPageTimer) { clearInterval(_rankingPageTimer); _rankingPageTimer = null; }
@@ -1271,7 +1278,7 @@ function renderSchedule(sd) {
     var lv = document.getElementById('listView');
     lv.classList.remove('hidden');
     // 顶部第1行 比赛名称: 与比赛视图完全一致 (同一 #compName 元素 + .page-header .title 样式)
-    document.getElementById('compName').textContent = (sd && sd.competitionName) || (data && data.competitionName) || '游泳赛事管理系统';
+    document.getElementById('compName').textContent = (sd && sd.competitionName) || (data && data.competitionName) || WebLoc.t('Str_Common_SystemName');
 
     var items = (sd && sd.items) || [];
     var sessionFilter = (sd && typeof sd.session === 'number') ? sd.session : -1;
@@ -1308,7 +1315,7 @@ function showSchedPage() {
     var pg = _schedPages[_schedCurPage] || { sess: null, rows: [] };
     function _e(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
     if (!pg.sess && (!pg.rows || pg.rows.length === 0)) {
-        lv.innerHTML = '<div style="padding:5vh;text-align:center;color:#94a3b8;font-size:calc(3vh*var(--fs));">暂无赛程</div>';
+        lv.innerHTML = '<div style="padding:5vh;text-align:center;color:#94a3b8;font-size:calc(3vh*var(--fs));">' + WebLoc.t('Str_Display_NoScheduleYet') + '</div>';
         return;
     }
     var infoFs = "calc(2.9vh * var(--fs) * var(--fs-info))";   // = 比赛视图运动员行字号
@@ -1326,7 +1333,7 @@ function showSchedPage() {
         var stime = it0.time ? ('  ' + it0.time) : '';
         html += '<div style="padding:0.6vh 1.5vw 0.5vh 1.5vw;border-bottom:3px solid var(--accent);'
             + 'font-size:calc(2.8vh * var(--fs) * var(--fs-event));color:var(--c-event);font-family:var(--ff-event);font-weight:bold;">'
-            + '第' + it0.session + '场' + _e(sname) + _e(stime) + _e(sdate) + '</div>';
+            + WebLoc.f('Str_Common_SessionNumFmt', it0.session) + _e(sname) + _e(stime) + _e(sdate) + '</div>';
     }
     // 日程行: class=lane-row fixed-row → 行高/行距/边框 同比赛视图; 字号颜色用运动员信息同款 CSS 变量
     for (var i = 0; i < pg.rows.length; i++) {
@@ -1337,7 +1344,7 @@ function showSchedPage() {
             + '<span style="flex:0 0 26%;padding-left:1.5vw;font-size:' + infoFs + ';color:var(--c-team);font-family:var(--ff-info);">' + _e(grp) + '</span>'
             + '<span style="flex:1 1 auto;padding-left:1vw;font-size:' + infoFs + ';font-weight:bold;color:var(--c-name);font-family:var(--ff-name);">' + _e(it.eventName || '') + '</span>'
             + '<span style="flex:0 0 16%;text-align:center;font-size:' + infoFs + ';color:var(--c-team);font-family:var(--ff-info);">' + _e(it.stage || '') + '</span>'
-            + '<span style="flex:0 0 12%;text-align:center;font-size:' + infoFs + ';color:var(--c-remark);font-family:var(--ff-info);">' + (it.heatCount ? (it.heatCount + '组') : '') + '</span>'
+            + '<span style="flex:0 0 12%;text-align:center;font-size:' + infoFs + ';color:var(--c-remark);font-family:var(--ff-info);">' + (it.heatCount ? WebLoc.f('Str_Display_HeatCountUnitFmt', it.heatCount) : '') + '</span>'
             + '</div>';
     }
     if (_schedPages.length > 1) {
@@ -2634,25 +2641,41 @@ function renderAwards() {
         var awRelay = !!window._awardIsRelay;
         var awName = awRelay ? (er[idx].country||'') : (er[idx].name||'');
         var awTeam = awRelay ? (er[idx].name||'') : (er[idx].country||'');
-        card.innerHTML = '<div class="medal">' + medalIcon + '</div><div class="rank-num">第 ' + awRank + ' 名</div><div class="name">' + awName + '</div><div class="team">' + awTeam + '</div><div class="time">' + (er[idx].finalTime||'') + '</div>';
+        card.innerHTML = '<div class="medal">' + medalIcon + '</div><div class="rank-num">' + WebLoc.f('Str_Display_RankNumFmt', awRank) + '</div><div class="name">' + awName + '</div><div class="team">' + awTeam + '</div><div class="time">' + (er[idx].finalTime||'') + '</div>';
         container.appendChild(card);
     }
 }
 
 function renderWelcome() {
     document.getElementById('welcomeView').classList.remove('hidden');
-    document.getElementById('welcomeTitle').textContent = data.competitionName || '欢迎';
+    document.getElementById('welcomeTitle').textContent = data.competitionName || WebLoc.t('Str_Display_Welcome');
     document.getElementById('welcomeSub').textContent = '';
 }
 
+// 切换语言后: 重建两个设置面板的静态数组(标签文字要跟着变), 面板已经画过的话强制重画;
+// 快捷键提示那行是"文字+<b>标签</b>"混排, data-i18n 只认 textContent 做不到, 这里手动拼 innerHTML。
+window.onWebLocApplied = function () {
+    TEXT_KEYS = TEXT_KEYS_DEF();
+    FONT_OPTIONS = FONT_OPTIONS_DEF();
+    FS_PARTS_KEYS = FS_PARTS_KEYS_DEF();
+    var tsHost = document.getElementById('textStyleRows');
+    if (tsHost) { tsHost.dataset.built = ''; if (!document.getElementById('textStylePanel').classList.contains('hidden')) _buildTextStylePanelRows(); }
+    var fsHost = document.getElementById('fsPartsRows');
+    if (fsHost) { fsHost.dataset.built = ''; if (!document.getElementById('fsSettingsPanel').classList.contains('hidden')) _buildFsPartsRows(); }
+    var hint = document.getElementById('fsShortcutHint');
+    if (hint) hint.innerHTML = WebLoc.f('Str_Display_FsShortcutHintFmt',
+        '<b style="color:#cbd5e1;">Ctrl +</b>', '<b style="color:#cbd5e1;">Ctrl −</b>', '<b style="color:#cbd5e1;">Ctrl 0</b>');
+};
+
 // 启动：先把已知/默认的服务器IP填入遮罩输入框，并立即触发一次连接尝试
 (function bootstrap() {
+    WebLoc.apply();
     var inp = document.getElementById('connHostInput');
     if (inp) {
         inp.value = getInitialHost();
         inp.addEventListener('keydown', function(ev) { if (ev.key === 'Enter') overlayConnect(); });
     }
-    showConnectOverlay('连接中… ' + getInitialHost() + ':3002', '#f59e0b');
+    showConnectOverlay(WebLoc.f('Str_Display_ConnectingFmt', getInitialHost()), '#f59e0b');
     connect();
 })();
 </script>
