@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>比赛控制台</title>
+<title data-i18n="Str_RC_PageTitle">比赛控制台</title>
 <style>
 :root { --bg: #0f172a; --card: #1e293b; --text: #f8fafc; --dim: #94a3b8; --accent: #3b82f6; --green: #22c55e; --red: #ef4444; --gold: #f59e0b; }
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -239,93 +239,95 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 </style>
 </head>
 <body>
+<script src="webloc.js"></script>
 <!-- 2026-06-19 登录弹窗 (跟 RTC LoginWindow.xaml 完全一样) -->
 <div id="loginOverlay" style="position:fixed;inset:0;z-index:99999;background:rgba(15,23,42,0.92);display:flex;align-items:center;justify-content:center;backdrop-filter:blur(6px);">
     <div style="background:#1E293B;width:400px;border-radius:8px;padding:30px 40px;box-shadow:0 8px 32px rgba(0,0,0,0.6);border:1px solid #334155;">
         <div style="text-align:center;margin-bottom:5px;">
-            <div style="font-size:20px;font-weight:bold;color:white;">游泳赛事管理系统</div>
-            <div style="font-size:13px;color:#94A3B8;margin-top:2px;">比赛控制</div>
+            <div data-i18n="Str_Common_SystemName" style="font-size:20px;font-weight:bold;color:white;">游泳赛事管理系统</div>
+            <div data-i18n="Str_RC_LoginSubtitle" style="font-size:13px;color:#94A3B8;margin-top:2px;">比赛控制</div>
         </div>
         <div style="height:18px;"></div>
         <div style="display:flex;align-items:center;margin-bottom:10px;">
-            <div style="width:60px;color:#CBD5E1;font-size:14px;">用户名</div>
+            <div data-i18n="Str_Common_Username" style="width:60px;color:#CBD5E1;font-size:14px;">用户名</div>
             <input id="loginUser" type="text" autocomplete="username" style="flex:1;padding:8px 10px;background:#334155;color:white;border:1px solid #475569;border-radius:4px;font-size:14px;">
         </div>
         <div style="display:flex;align-items:center;margin-bottom:10px;">
-            <div style="width:60px;color:#CBD5E1;font-size:14px;">密&nbsp;&nbsp;码</div>
+            <div data-i18n="Str_Common_Password" style="width:60px;color:#CBD5E1;font-size:14px;">密&nbsp;&nbsp;码</div>
             <input id="loginPwd" type="password" autocomplete="current-password" style="flex:1;padding:8px 10px;background:#334155;color:white;border:1px solid #475569;border-radius:4px;font-size:14px;">
         </div>
         <label style="display:flex;align-items:center;gap:6px;color:#CBD5E1;font-size:12px;margin-top:6px;cursor:pointer;">
-            <input id="loginRemember" type="checkbox" style="cursor:pointer;"> 记住登录名和密码
+            <input id="loginRemember" type="checkbox" style="cursor:pointer;"> <span data-i18n="Str_Common_RememberMe">记住登录名和密码</span>
         </label>
         <div id="loginError" style="display:none;text-align:center;color:#F87171;font-size:12px;margin-top:6px;"></div>
-        <button id="loginBtn" onclick="doLogin()" style="width:100%;margin-top:14px;padding:10px;background:#3B82F6;color:white;border:none;border-radius:4px;font-size:15px;font-weight:bold;cursor:pointer;">登&nbsp;&nbsp;录</button>
+        <button id="loginBtn" data-i18n="Str_Common_Login" onclick="doLogin()" style="width:100%;margin-top:14px;padding:10px;background:#3B82F6;color:white;border:none;border-radius:4px;font-size:15px;font-weight:bold;cursor:pointer;">登&nbsp;&nbsp;录</button>
     </div>
 </div>
 
 <!-- 区域1: 导航栏 -->
 <div class="nav-bar">
-    <span class="current-info" id="currentInfo">未选择比赛</span>
+    <span class="current-info" id="currentInfo" data-i18n="Str_RC_NoCompetitionSelected">未选择比赛</span>
+    <button class="fullscreen-btn" onclick="WebLoc.toggle()" data-i18n="Str_Common_LangToggle" style="padding:4px 10px;background:#475569;color:white;border:none;border-radius:4px;font-size:12px;cursor:pointer;">English</button>
     <!-- 2026-06-19 stateDot / stateLabel 移到 pool-topbar #runTime 右边 (与 PC 端 RaceStateBox 同位) -->
     <!-- 2026-06-19 顶端右侧完全仿 RTC 顶部状态栏顺序: 内存 → 电池电压 → 硬件计时器 → 控制模式 → 主服务器 -->
     <span style="margin-left:auto;display:flex;align-items:center;gap:6px;font-size:12px;color:#94A3B8;">
-        <span>内存:</span><span id="memStatus" style="color:#22C55E;font-weight:bold;">—</span>
+        <span data-i18n="Str_RC_MemoryLabel">内存:</span><span id="memStatus" style="color:#22C55E;font-weight:bold;">—</span>
         <!-- 2026-06-20 远程释放内存按钮: 触发主服务器/RTC GC.Collect + LOH 紧凑 -->
-        <button onclick="sendCmd('RELEASE_MEMORY');addLog('已请求 PC 端释放内存')" title="远程请求主服务器/RTC 释放内存 (强制 GC + LOH 紧凑, 大堆下可能短暂卡顿)"
-            style="padding:2px 8px;background:#0EA5E9;color:white;border:none;border-radius:3px;font-size:11px;cursor:pointer;">♻ 释放</button>
+        <button onclick="sendCmd('RELEASE_MEMORY');addLog(WebLoc.t('Str_RC_LogReleaseMemRequested'))" title="远程请求主服务器/RTC 释放内存 (强制 GC + LOH 紧凑, 大堆下可能短暂卡顿)" data-i18n-title="Str_RC_ReleaseMemTitle"
+            style="padding:2px 8px;background:#0EA5E9;color:white;border:none;border-radius:3px;font-size:11px;cursor:pointer;">♻ <span data-i18n="Str_RC_Release">释放</span></button>
     </span>
     <span style="margin-left:14px;display:flex;align-items:center;gap:6px;font-size:12px;color:#94A3B8;">
-        <span>电池电压:</span><span id="hwBatteryText" style="color:#94A3B8;font-weight:bold;">—</span>
+        <span data-i18n="Str_RC_BatteryVoltageLabel">电池电压:</span><span id="hwBatteryText" style="color:#94A3B8;font-weight:bold;">—</span>
     </span>
     <span style="margin-left:14px;display:flex;align-items:center;gap:6px;font-size:12px;color:#94A3B8;">
         <span id="hwConn" class="conn-dot off"></span>
-        <span>硬件计时器:</span>
-        <span id="hwConnText" style="color:#EF4444;font-weight:bold;">未连接</span>
+        <span data-i18n="Str_RC_HwTimerLabel">硬件计时器:</span>
+        <span id="hwConnText" data-i18n="Str_Ctrl_NotConnectedShort" style="color:#EF4444;font-weight:bold;">未连接</span>
     </span>
     <!-- 2026-06-19 仿 RTC: 硬件连接 按钮 (硬件计时器右 / 主服务器左) -->
-    <button onclick="openHwConn()"
+    <button onclick="openHwConn()" data-i18n="Str_RC_HwConnectBtn"
         style="margin-left:8px;padding:3px 10px;background:#DC2626;color:white;border:none;border-radius:4px;font-size:11px;font-weight:bold;cursor:pointer;">硬件连接</button>
     <!-- 2026-06-19 仿 RTC: 主服务器 [IP 输入] [连接按钮] [状态] -->
     <span style="margin-left:14px;display:flex;align-items:center;gap:6px;font-size:12px;color:#94A3B8;">
-        <span>主服务器:</span>
+        <span data-i18n="Str_RC_MainServerLabel">主服务器:</span>
         <input id="serverHostInput" type="text" placeholder="127.0.0.1" autocomplete="off"
             style="width:110px;padding:3px 6px;background:#334155;color:white;border:1px solid #475569;border-radius:3px;font-size:12px;font-family:Consolas,monospace;">
-        <button id="serverConnectBtn" onclick="toggleServerConnect()"
+        <button id="serverConnectBtn" onclick="toggleServerConnect()" data-i18n="Str_Common_Connect"
             style="padding:3px 10px;background:#3B82F6;color:white;border:none;border-radius:3px;font-size:11px;font-weight:bold;cursor:pointer;">连接</button>
-        <span id="serverConnState" style="color:#94A3B8;font-weight:bold;">离线</span>
+        <span id="serverConnState" data-i18n="Str_RC_Offline" style="color:#94A3B8;font-weight:bold;">离线</span>
     </span>
     <!-- 控制模式 隐藏字段, 仅供 JS 设 readonlyOverlay 用, 不显示 (RTC 顶端无此显示) -->
     <span id="controlMode" style="display:none;"></span>
-    <button class="fullscreen-btn" onclick="goFullScreen()" style="margin-left:10px;padding:4px 10px;background:#3B82F6;color:white;border:none;border-radius:4px;font-size:12px;cursor:pointer;">全屏</button>
+    <button class="fullscreen-btn" onclick="goFullScreen()" data-i18n="Str_Common_Fullscreen" style="margin-left:10px;padding:4px 10px;background:#3B82F6;color:white;border:none;border-radius:4px;font-size:12px;cursor:pointer;">全屏</button>
 </div>
 
 <!-- 2026-06-18 参数设置 hub (仿 RTC 风格): 服务器地址 + 7 个分类按钮 -->
 <div id="settingsModal" class="modal-overlay hidden" onclick="if(event.target===this)closeSettings()">
     <div class="modal-dialog" style="max-width:420px;">
-        <h2>参数设置</h2>
-        <div style="color:#94A3B8;font-size:13px;margin-bottom:14px;">选择要设置的分类:</div>
+        <h2 data-i18n="Str_RC_SettingsTitle">参数设置</h2>
+        <div data-i18n="Str_RC_SettingsChooseCategory" style="color:#94A3B8;font-size:13px;margin-bottom:14px;">选择要设置的分类:</div>
 
         <!-- 服务器地址 (保留, race_control 浏览器独有) -->
         <div style="background:rgba(15,23,42,0.6);border-radius:8px;padding:10px 12px;margin-bottom:14px;">
-            <div style="color:#38BDF8;font-size:12px;font-weight:bold;margin-bottom:6px;">服务器地址</div>
+            <div data-i18n="Str_RC_ServerAddress" style="color:#38BDF8;font-size:12px;font-weight:bold;margin-bottom:6px;">服务器地址</div>
             <div style="display:flex;gap:6px;align-items:center;">
-                <input id="dlgServerHost" value="" placeholder="如 192.168.1.100"
+                <input id="dlgServerHost" value="" placeholder="如 192.168.1.100" data-i18n-attr="placeholder" data-i18n="Str_Common_ServerIpPlaceholder"
                     style="flex:1;padding:6px 10px;background:#0F172A;color:white;border:1px solid #475569;border-radius:6px;font-size:13px;">
-                <button style="padding:6px 14px;background:#3B82F6;color:white;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-weight:bold;" onclick="applyServerHost()">连接</button>
+                <button style="padding:6px 14px;background:#3B82F6;color:white;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-weight:bold;" onclick="applyServerHost()" data-i18n="Str_Common_Connect">连接</button>
             </div>
         </div>
 
         <!-- 7 个 hub 分类按钮 (顺序+配色与 RTC 一致) -->
-        <button class="hub-btn" style="background:#3B82F6;" onclick="closeSettings();openTimeParams()">时间参数设置</button>
-        <button class="hub-btn" style="background:#10B981;" onclick="closeSettings();openPoolDevice()">比赛泳池、设备状态设置</button>
-        <button class="hub-btn" style="background:#0EA5E9;" onclick="closeSettings();openManualButtonManager()">手动按键管理</button>
-        <button class="hub-btn" style="background:#10B981;" onclick="closeSettings();openAutoSavePath()">成绩存盘路径</button>
-        <button class="hub-btn" style="background:#3B82F6;" onclick="closeSettings();openThermalPrint()">热敏打印</button>
-        <button class="hub-btn" style="background:#DC2626;" onclick="closeSettings();openHwConn()">硬件计时器连接</button>
-        <button class="hub-btn" style="background:#8B5CF6;" onclick="closeSettings();openChangePwd()">用户名和密码</button>
+        <button class="hub-btn" style="background:#3B82F6;" onclick="closeSettings();openTimeParams()" data-i18n="Str_RC_HubTimeParams">时间参数设置</button>
+        <button class="hub-btn" style="background:#10B981;" onclick="closeSettings();openPoolDevice()" data-i18n="Str_RC_HubPoolDevice">比赛泳池、设备状态设置</button>
+        <button class="hub-btn" style="background:#0EA5E9;" onclick="closeSettings();openManualButtonManager()" data-i18n="Str_RC_HubManualBtn">手动按键管理</button>
+        <button class="hub-btn" style="background:#10B981;" onclick="closeSettings();openAutoSavePath()" data-i18n="Str_RC_HubAutoSavePath">成绩存盘路径</button>
+        <button class="hub-btn" style="background:#3B82F6;" onclick="closeSettings();openThermalPrint()" data-i18n="Str_RC_HubThermalPrint">热敏打印</button>
+        <button class="hub-btn" style="background:#DC2626;" onclick="closeSettings();openHwConn()" data-i18n="Str_RC_HwTimerConn">硬件计时器连接</button>
+        <button class="hub-btn" style="background:#8B5CF6;" onclick="closeSettings();openChangePwd()" data-i18n="Str_RC_HubChangePwd">用户名和密码</button>
 
         <div class="modal-btns">
-            <button class="btn-cancel" onclick="closeSettings()">关闭</button>
+            <button class="btn-cancel" onclick="closeSettings()" data-i18n="Str_Common_Close">关闭</button>
         </div>
     </div>
 </div>
@@ -333,20 +335,20 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 <!-- 时间参数设置 子弹窗 -->
 <div id="timeParamsModal" class="modal-overlay hidden" onclick="if(event.target===this)closeTimeParams()">
     <div class="modal-dialog">
-        <h2 style="color:#3B82F6;">时间参数设置</h2>
-        <div class="param-row"><label>泳道关闭时间</label><input id="dlgCloseTime" value="20"><span class="unit">秒</span></div>
-        <div class="param-row"><label>出发台关闭延迟</label><input id="dlgSBDelay" value="3"><span class="unit">秒</span></div>
-        <div class="param-row"><label>成绩确认关闭延迟</label><input id="dlgConfDelay" value="3"><span class="unit">秒</span></div>
-        <div class="param-row"><label>抢跳判定阈值</label><input id="dlgFSThresh" value="0.10"><span class="unit">秒</span></div>
-        <div class="param-row"><label>接力交接棒抢跳判定阀值</label><input id="dlgRelayFSThresh" value="-0.03"><span class="unit">秒</span></div>
-        <div class="param-row"><label>分段成绩显示时长</label><input id="dlgSplitDisp" value="5"><span class="unit">秒</span></div>
-        <div class="param-row"><label>盲表代替成绩延迟</label><input id="dlgBlindReplaceDelay" value="5"><span class="unit">秒(0-9)</span></div>
-        <div class="param-row"><label>接力反应时事件窗口</label><input id="dlgReactionEventWindow" value="3"><span class="unit">秒(1-10)</span></div>
-        <div class="param-row"><label>第1名成绩停留时间</label><input id="dlgFirstPlaceHold" value="3"><span class="unit">秒</span></div>
-        <div class="param-row"><label>大屏翻屏时间</label><input id="dlgBigDisplayPageInterval" value="5"><span class="unit">秒</span></div>
+        <h2 data-i18n="Str_RC_HubTimeParams" style="color:#3B82F6;">时间参数设置</h2>
+        <div class="param-row"><label data-i18n="Str_RC_TpCloseTime">泳道关闭时间</label><input id="dlgCloseTime" value="20"><span class="unit" data-i18n="Str_RC_UnitSec">秒</span></div>
+        <div class="param-row"><label data-i18n="Str_RC_TpSBDelay">出发台关闭延迟</label><input id="dlgSBDelay" value="3"><span class="unit" data-i18n="Str_RC_UnitSec">秒</span></div>
+        <div class="param-row"><label data-i18n="Str_RC_TpConfDelay">成绩确认关闭延迟</label><input id="dlgConfDelay" value="3"><span class="unit" data-i18n="Str_RC_UnitSec">秒</span></div>
+        <div class="param-row"><label data-i18n="Str_RC_TpFSThresh">抢跳判定阈值</label><input id="dlgFSThresh" value="0.10"><span class="unit" data-i18n="Str_RC_UnitSec">秒</span></div>
+        <div class="param-row"><label data-i18n="Str_RC_TpRelayFSThresh">接力交接棒抢跳判定阀值</label><input id="dlgRelayFSThresh" value="-0.03"><span class="unit" data-i18n="Str_RC_UnitSec">秒</span></div>
+        <div class="param-row"><label data-i18n="Str_RC_TpSplitDisp">分段成绩显示时长</label><input id="dlgSplitDisp" value="5"><span class="unit" data-i18n="Str_RC_UnitSec">秒</span></div>
+        <div class="param-row"><label data-i18n="Str_RC_TpBlindReplaceDelay">盲表代替成绩延迟</label><input id="dlgBlindReplaceDelay" value="5"><span class="unit" data-i18n="Str_RC_UnitSec09">秒(0-9)</span></div>
+        <div class="param-row"><label data-i18n="Str_RC_TpReactionEventWindow">接力反应时事件窗口</label><input id="dlgReactionEventWindow" value="3"><span class="unit" data-i18n="Str_RC_UnitSec110">秒(1-10)</span></div>
+        <div class="param-row"><label data-i18n="Str_RC_TpFirstPlaceHold">第1名成绩停留时间</label><input id="dlgFirstPlaceHold" value="3"><span class="unit" data-i18n="Str_RC_UnitSec">秒</span></div>
+        <div class="param-row"><label data-i18n="Str_RC_TpBigDisplayPageInterval">大屏翻屏时间</label><input id="dlgBigDisplayPageInterval" value="5"><span class="unit" data-i18n="Str_RC_UnitSec">秒</span></div>
         <div class="modal-btns">
-            <button class="btn-cancel" onclick="closeTimeParams()">取消</button>
-            <button class="btn-ok" onclick="applyTimeParams()">确认</button>
+            <button class="btn-cancel" onclick="closeTimeParams()" data-i18n="Str_Common_Cancel">取消</button>
+            <button class="btn-ok" onclick="applyTimeParams()" data-i18n="Str_Common_Confirm">确认</button>
         </div>
     </div>
 </div>
@@ -354,62 +356,62 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 <!-- 比赛泳池、设备状态设置 子弹窗 -->
 <div id="poolDeviceModal" class="modal-overlay hidden" onclick="if(event.target===this)closePoolDevice()">
     <div class="modal-dialog">
-        <h2 style="color:#10B981;">比赛泳池、设备状态设置</h2>
-        <div class="param-row"><label>终点位置</label>
+        <h2 data-i18n="Str_RC_HubPoolDevice" style="color:#10B981;">比赛泳池、设备状态设置</h2>
+        <div class="param-row"><label data-i18n="Str_RC_FinishPos">终点位置</label>
             <span style="display:flex;gap:12px;">
-                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="startPos" id="dlgStartLeft" checked> 左端</label>
-                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="startPos" id="dlgStartRight"> 右端</label>
+                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="startPos" id="dlgStartLeft" checked> <span data-i18n="Str_RC_LeftEnd">左端</span></label>
+                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="startPos" id="dlgStartRight"> <span data-i18n="Str_RC_RightEnd">右端</span></label>
             </span>
         </div>
-        <div class="param-row"><label>反应时(RT)</label>
+        <div class="param-row"><label data-i18n="Str_RC_ReactionTimeRT">反应时(RT)</label>
             <span style="display:flex;gap:12px;">
-                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="rtSwitch" id="dlgRtOn" checked> 打开</label>
-                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="rtSwitch" id="dlgRtOff"> 关闭</label>
+                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="rtSwitch" id="dlgRtOn" checked> <span data-i18n="Str_RC_On">打开</span></label>
+                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="rtSwitch" id="dlgRtOff"> <span data-i18n="Str_RC_Off">关闭</span></label>
             </span>
         </div>
-        <div class="param-row"><label>盲表代触板</label>
+        <div class="param-row"><label data-i18n="Str_RC_BlindReplTp">盲表代触板</label>
             <span style="display:flex;gap:12px;">
-                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="autoBlindRepl" id="dlgAutoBlindReplOn"> 开</label>
-                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="autoBlindRepl" id="dlgAutoBlindReplOff" checked> 关</label>
+                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="autoBlindRepl" id="dlgAutoBlindReplOn"> <span data-i18n="Str_RC_OnShort">开</span></label>
+                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="autoBlindRepl" id="dlgAutoBlindReplOff" checked> <span data-i18n="Str_RC_OffShort">关</span></label>
             </span>
         </div>
-        <div class="param-row"><label>手动TP代替真TP</label>
+        <div class="param-row"><label data-i18n="Str_RC_ManualTpReplTp">手动TP代替真TP</label>
             <span style="display:flex;gap:12px;">
-                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="manualTpRepl" id="dlgManualTpReplOn"> 开</label>
-                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="manualTpRepl" id="dlgManualTpReplOff" checked> 关</label>
+                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="manualTpRepl" id="dlgManualTpReplOn"> <span data-i18n="Str_RC_OnShort">开</span></label>
+                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="manualTpRepl" id="dlgManualTpReplOff" checked> <span data-i18n="Str_RC_OffShort">关</span></label>
             </span>
         </div>
-        <div class="param-row"><label>硬件设备</label>
+        <div class="param-row"><label data-i18n="Str_RC_HwDevice">硬件设备</label>
             <span style="display:flex;gap:12px;">
-                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="hwOpenMode" id="dlgHwAlwaysOpen"> 一直打开</label>
-                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="hwOpenMode" id="dlgHwFlow" checked> 按比赛流程</label>
+                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="hwOpenMode" id="dlgHwAlwaysOpen"> <span data-i18n="Str_RC_AlwaysOpen">一直打开</span></label>
+                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="hwOpenMode" id="dlgHwFlow" checked> <span data-i18n="Str_RC_ByRaceFlow">按比赛流程</span></label>
             </span>
         </div>
-        <div class="param-row"><label>出发信号边沿</label>
+        <div class="param-row"><label data-i18n="Str_RC_SBEdge">出发信号边沿</label>
             <span style="display:flex;gap:12px;">
-                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="sbEdge" id="dlgSbEdgeFall" checked> 下降沿</label>
-                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="sbEdge" id="dlgSbEdgeRise"> 上升沿</label>
+                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="sbEdge" id="dlgSbEdgeFall" checked> <span data-i18n="Str_RC_FallingEdge">下降沿</span></label>
+                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="sbEdge" id="dlgSbEdgeRise"> <span data-i18n="Str_RC_RisingEdge">上升沿</span></label>
             </span>
         </div>
-        <div class="param-row"><label>道次顺序</label>
+        <div class="param-row"><label data-i18n="Str_RC_LaneOrder">道次顺序</label>
             <span style="display:flex;gap:12px;">
-                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="laneOrder" id="dlgLaneOrderFwd" checked> 正序 0→9</label>
-                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="laneOrder" id="dlgLaneOrderRev"> 逆序 9→0</label>
+                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="laneOrder" id="dlgLaneOrderFwd" checked> <span data-i18n="Str_RC_LaneOrderFwd">正序 0→9</span></label>
+                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="laneOrder" id="dlgLaneOrderRev"> <span data-i18n="Str_RC_LaneOrderRev">逆序 9→0</span></label>
             </span>
         </div>
-        <div class="param-row"><label>泳池触板</label>
+        <div class="param-row"><label data-i18n="Str_RC_PoolTouchpad">泳池触板</label>
             <span style="display:flex;gap:12px;">
-                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="poolSide" id="dlgPoolDual" checked> 两端安装</label>
-                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="poolSide" id="dlgPoolSingle"> 单边安装</label>
+                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="poolSide" id="dlgPoolDual" checked> <span data-i18n="Str_RC_DualEnd">两端安装</span></label>
+                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="poolSide" id="dlgPoolSingle"> <span data-i18n="Str_RC_SingleEnd">单边安装</span></label>
             </span>
         </div>
         <div style="border-top:1px solid #475569;margin-top:12px;padding-top:12px;display:flex;gap:8px;">
-            <button style="flex:1;padding:9px;background:#8B5CF6;color:white;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:bold;" onclick="closePoolDevice();openDeviceManager()">设备状态管理</button>
-            <button style="flex:1;padding:9px;background:#F59E0B;color:black;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:bold;" onclick="closePoolDevice();openBlindWatchCountDialog()">左右盲表数量设置</button>
+            <button style="flex:1;padding:9px;background:#8B5CF6;color:white;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:bold;" onclick="closePoolDevice();openDeviceManager()" data-i18n="Str_RC_DeviceStatusMgmt">设备状态管理</button>
+            <button style="flex:1;padding:9px;background:#F59E0B;color:black;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:bold;" onclick="closePoolDevice();openBlindWatchCountDialog()" data-i18n="Str_RC_HubBlindCount">左右盲表数量设置</button>
         </div>
         <div class="modal-btns">
-            <button class="btn-cancel" onclick="closePoolDevice()">取消</button>
-            <button class="btn-ok" onclick="applyPoolDevice()">确认</button>
+            <button class="btn-cancel" onclick="closePoolDevice()" data-i18n="Str_Common_Cancel">取消</button>
+            <button class="btn-ok" onclick="applyPoolDevice()" data-i18n="Str_Common_Confirm">确认</button>
         </div>
     </div>
 </div>
@@ -417,48 +419,48 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 <!-- 硬件计时器连接 子弹窗 (从原嵌入式拆出) -->
 <div id="hwConnModal" class="modal-overlay hidden" onclick="if(event.target===this)closeHwConn()">
     <div class="modal-dialog">
-        <h2 style="color:#DC2626;">硬件计时器连接</h2>
-        <div style="color:#94A3B8;font-size:12px;margin-bottom:12px;">由服务器代理连接 (PC 端的 RTC/主服务器实际持有硬件链路)</div>
+        <h2 data-i18n="Str_RC_HwTimerConn" style="color:#DC2626;">硬件计时器连接</h2>
+        <div data-i18n="Str_RC_HwConnByProxy" style="color:#94A3B8;font-size:12px;margin-bottom:12px;">由服务器代理连接 (PC 端的 RTC/主服务器实际持有硬件链路)</div>
         <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">
-            <label style="color:#94A3B8;font-size:13px;width:70px;">连接方式</label>
+            <label data-i18n="Str_RC_ConnMethod" style="color:#94A3B8;font-size:13px;width:70px;">连接方式</label>
             <select id="dlgHwMode" style="flex:1;background:#0F172A;color:white;border:1px solid #475569;padding:6px 10px;border-radius:6px;font-size:13px;" onchange="toggleHwPanels()">
-                <option value="none">不连接</option>
-                <option value="serial">串口</option>
+                <option value="none" data-i18n="Str_RC_NoConnect">不连接</option>
+                <option value="serial" data-i18n="Str_RC_Serial">串口</option>
                 <option value="udp">UDP</option>
-                <option value="tcp">TCP 客户端</option>
+                <option value="tcp" data-i18n="Str_RC_TcpClient">TCP 客户端</option>
             </select>
         </div>
         <div id="hwSerialPanel" style="display:none;align-items:center;gap:6px;margin-bottom:10px;">
-            <label style="color:#94A3B8;font-size:13px;width:70px;">串口</label>
+            <label data-i18n="Str_RC_Serial" style="color:#94A3B8;font-size:13px;width:70px;">串口</label>
             <input id="dlgHwPort" value="COM3" style="flex:1;background:#0F172A;color:white;border:1px solid #475569;padding:6px 10px;border-radius:6px;font-size:13px;">
         </div>
         <div id="hwUdpPanel" style="display:none;flex-direction:column;gap:6px;margin-bottom:10px;">
             <div style="display:flex;align-items:center;gap:6px;">
-                <label style="color:#94A3B8;font-size:13px;width:70px;">接收端口</label>
+                <label data-i18n="Str_RC_RecvPort" style="color:#94A3B8;font-size:13px;width:70px;">接收端口</label>
                 <input id="dlgHwUdpPort" value="5002" style="flex:1;background:#0F172A;color:white;border:1px solid #475569;padding:6px 10px;border-radius:6px;font-size:13px;">
             </div>
         </div>
         <div id="hwTcpPanel" style="display:none;flex-direction:column;gap:6px;margin-bottom:10px;">
             <div style="display:flex;align-items:center;gap:6px;">
-                <label style="color:#94A3B8;font-size:13px;width:70px;">TCP 主机</label>
+                <label data-i18n="Str_RC_TcpHost" style="color:#94A3B8;font-size:13px;width:70px;">TCP 主机</label>
                 <input id="dlgHwTcpHost" value="127.0.0.1" style="flex:1;background:#0F172A;color:white;border:1px solid #475569;padding:6px 10px;border-radius:6px;font-size:13px;">
             </div>
             <div style="display:flex;align-items:center;gap:6px;">
-                <label style="color:#94A3B8;font-size:13px;width:70px;">TCP 端口</label>
+                <label data-i18n="Str_RC_TcpPort" style="color:#94A3B8;font-size:13px;width:70px;">TCP 端口</label>
                 <input id="dlgHwTcpPort" value="5555" style="flex:1;background:#0F172A;color:white;border:1px solid #475569;padding:6px 10px;border-radius:6px;font-size:13px;">
             </div>
         </div>
         <div style="display:flex;gap:8px;align-items:center;margin-top:6px;">
-            <button style="padding:7px 16px;background:#22C55E;color:white;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:bold;" onclick="connectHwFromDialog()">连接硬件</button>
-            <button style="padding:7px 14px;background:#EF4444;color:white;border:none;border-radius:6px;cursor:pointer;font-size:13px;" onclick="disconnectHw()">断开</button>
-            <span id="dlgHwStatus" style="color:#94A3B8;font-size:12px;">● 未连接</span>
+            <button style="padding:7px 16px;background:#22C55E;color:white;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:bold;" onclick="connectHwFromDialog()" data-i18n="Str_RC_ConnectHw">连接硬件</button>
+            <button style="padding:7px 14px;background:#EF4444;color:white;border:none;border-radius:6px;cursor:pointer;font-size:13px;" onclick="disconnectHw()" data-i18n="Str_RC_Disconnect">断开</button>
+            <span id="dlgHwStatus" data-i18n="Str_RC_DotNotConnected" style="color:#94A3B8;font-size:12px;">● 未连接</span>
         </div>
         <div style="border-top:1px solid #475569;margin-top:12px;padding-top:12px;display:flex;gap:8px;">
-            <button style="flex:1;padding:9px;background:#22C55E;color:white;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:bold;" onclick="closeHwConn();sendCmd('QUICK_CONNECT_SERIAL');addLog('已请求 PC 端连接/断开串口');">快连串口</button>
-            <button id="btnDeviceTest" style="flex:1;padding:9px;background:#0EA5E9;color:white;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:bold;" onclick="toggleDeviceTest()">设备测试</button>
+            <button style="flex:1;padding:9px;background:#22C55E;color:white;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:bold;" onclick="closeHwConn();sendCmd('QUICK_CONNECT_SERIAL');addLog(WebLoc.t('Str_RC_LogQuickConnectSerial'));" data-i18n="Str_RC_QuickConnectSerial">快连串口</button>
+            <button id="btnDeviceTest" style="flex:1;padding:9px;background:#0EA5E9;color:white;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:bold;" onclick="toggleDeviceTest()" data-i18n="Str_RC_DeviceTest">设备测试</button>
         </div>
         <div class="modal-btns">
-            <button class="btn-cancel" onclick="closeHwConn()">关闭</button>
+            <button class="btn-cancel" onclick="closeHwConn()" data-i18n="Str_Common_Close">关闭</button>
         </div>
     </div>
 </div>
@@ -466,26 +468,26 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 <!-- 2026-06-18 浏览器本机 dialog: 成绩存盘路径 -->
 <div id="autoSavePathModal" class="modal-overlay hidden" onclick="if(event.target===this)closeAutoSavePath()">
     <div class="modal-dialog">
-        <h2 style="color:#10B981;">成绩存盘路径</h2>
-        <div style="color:#94A3B8;font-size:12px;margin-bottom:12px;line-height:1.6;">
+        <h2 data-i18n="Str_RC_HubAutoSavePath" style="color:#10B981;">成绩存盘路径</h2>
+        <div data-i18n="Str_RC_AutoSavePathDesc" style="color:#94A3B8;font-size:12px;margin-bottom:12px;line-height:1.6;">
             浏览器本机存盘配置 (保存到本机 localStorage). 由于浏览器沙箱限制, 无法直接写入绝对路径;
             点击"打印成绩"时会通过浏览器下载机制保存到本机默认下载目录, 文件名按此处的命名格式生成.
         </div>
-        <div class="param-row"><label>路径标签</label>
+        <div class="param-row"><label data-i18n="Str_RC_PathLabel">路径标签</label>
             <input id="rcSavePath" placeholder="如 D:\\比赛成绩\\2026定西站" style="flex:1;padding:6px 10px;background:#0F172A;color:white;border:1px solid #475569;border-radius:6px;font-size:13px;">
         </div>
-        <div class="param-row"><label>文件名格式</label>
+        <div class="param-row"><label data-i18n="Str_RC_FileNameFormat">文件名格式</label>
             <input id="rcSaveFmt" placeholder="如 {场号}-{项号}-{组号}.txt" value="{场号}-{项号}-{组号}.txt" style="flex:1;padding:6px 10px;background:#0F172A;color:white;border:1px solid #475569;border-radius:6px;font-size:13px;">
         </div>
-        <div class="param-row"><label>自动下载</label>
+        <div class="param-row"><label data-i18n="Str_RC_AutoDownload">自动下载</label>
             <span style="display:flex;gap:12px;">
-                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="rcSaveAuto" id="rcSaveAutoOn"> 开 (确认成绩后自动下载)</label>
-                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="rcSaveAuto" id="rcSaveAutoOff" checked> 关</label>
+                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="rcSaveAuto" id="rcSaveAutoOn"> <span data-i18n="Str_RC_OnAutoDownload">开 (确认成绩后自动下载)</span></label>
+                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="rcSaveAuto" id="rcSaveAutoOff" checked> <span data-i18n="Str_RC_OffShort">关</span></label>
             </span>
         </div>
         <div class="modal-btns">
-            <button class="btn-cancel" onclick="closeAutoSavePath()">取消</button>
-            <button class="btn-ok" onclick="applyAutoSavePath()">保存到本机</button>
+            <button class="btn-cancel" onclick="closeAutoSavePath()" data-i18n="Str_Common_Cancel">取消</button>
+            <button class="btn-ok" onclick="applyAutoSavePath()" data-i18n="Str_RC_SaveToLocal">保存到本机</button>
         </div>
     </div>
 </div>
@@ -493,36 +495,36 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 <!-- 2026-06-18 浏览器本机 dialog: 热敏打印 -->
 <div id="thermalPrintModal" class="modal-overlay hidden" onclick="if(event.target===this)closeThermalPrint()">
     <div class="modal-dialog">
-        <h2 style="color:#3B82F6;">热敏打印</h2>
-        <div style="color:#94A3B8;font-size:12px;margin-bottom:12px;line-height:1.6;">
+        <h2 data-i18n="Str_RC_HubThermalPrint" style="color:#3B82F6;">热敏打印</h2>
+        <div data-i18n="Str_RC_ThermalPrintDesc" style="color:#94A3B8;font-size:12px;margin-bottom:12px;line-height:1.6;">
             浏览器本机打印配置. 点击"打印成绩"时按这里设置, 通过浏览器调起打印机 (Ctrl+P 同款).
             主控 PC / RTC 的热敏打印是另一套配置, 互不影响.
         </div>
-        <div class="param-row"><label>启用</label>
+        <div class="param-row"><label data-i18n="Str_RC_Enable">启用</label>
             <span style="display:flex;gap:12px;">
-                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="rcThermalEn" id="rcThermalOn"> 启用</label>
-                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="rcThermalEn" id="rcThermalOff" checked> 禁用</label>
+                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="rcThermalEn" id="rcThermalOn"> <span data-i18n="Str_RC_Enabled">启用</span></label>
+                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="rcThermalEn" id="rcThermalOff" checked> <span data-i18n="Str_RC_Disabled">禁用</span></label>
             </span>
         </div>
-        <div class="param-row"><label>份数</label>
+        <div class="param-row"><label data-i18n="Str_RC_Copies">份数</label>
             <input id="rcThermalCopies" type="number" min="1" max="10" value="1" style="width:80px;padding:6px 10px;background:#0F172A;color:white;border:1px solid #475569;border-radius:6px;font-size:13px;text-align:center;">
         </div>
-        <div class="param-row"><label>纸张</label>
+        <div class="param-row"><label data-i18n="Str_RC_Paper">纸张</label>
             <select id="rcThermalPaper" style="flex:1;padding:6px 10px;background:#0F172A;color:white;border:1px solid #475569;border-radius:6px;font-size:13px;">
-                <option value="80mm">80mm 热敏</option>
-                <option value="58mm">58mm 热敏</option>
-                <option value="A4">A4 普通纸</option>
+                <option value="80mm" data-i18n="Str_RC_Paper80mm">80mm 热敏</option>
+                <option value="58mm" data-i18n="Str_RC_Paper58mm">58mm 热敏</option>
+                <option value="A4" data-i18n="Str_RC_PaperA4">A4 普通纸</option>
             </select>
         </div>
-        <div class="param-row"><label>自动打印</label>
+        <div class="param-row"><label data-i18n="Str_RC_AutoPrint">自动打印</label>
             <span style="display:flex;gap:12px;">
-                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="rcThermalAuto" id="rcThermalAutoOn"> 开 (确认后自动打印)</label>
-                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="rcThermalAuto" id="rcThermalAutoOff" checked> 关</label>
+                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="rcThermalAuto" id="rcThermalAutoOn"> <span data-i18n="Str_RC_OnAutoPrint">开 (确认后自动打印)</span></label>
+                <label style="cursor:pointer;color:var(--text);font-size:14px;"><input type="radio" name="rcThermalAuto" id="rcThermalAutoOff" checked> <span data-i18n="Str_RC_OffShort">关</span></label>
             </span>
         </div>
         <div class="modal-btns">
-            <button class="btn-cancel" onclick="closeThermalPrint()">取消</button>
-            <button class="btn-ok" onclick="applyThermalPrint()">保存到本机</button>
+            <button class="btn-cancel" onclick="closeThermalPrint()" data-i18n="Str_Common_Cancel">取消</button>
+            <button class="btn-ok" onclick="applyThermalPrint()" data-i18n="Str_RC_SaveToLocal">保存到本机</button>
         </div>
     </div>
 </div>
@@ -530,23 +532,23 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 <!-- 2026-06-18 浏览器本机 dialog: 用户名和密码 -->
 <div id="changePwdModal" class="modal-overlay hidden" onclick="if(event.target===this)closeChangePwd()">
     <div class="modal-dialog">
-        <h2 style="color:#8B5CF6;">用户名和密码</h2>
-        <div style="color:#94A3B8;font-size:12px;margin-bottom:12px;line-height:1.6;">
+        <h2 data-i18n="Str_RC_HubChangePwd" style="color:#8B5CF6;">用户名和密码</h2>
+        <div data-i18n="Str_RC_ChangePwdDesc" style="color:#94A3B8;font-size:12px;margin-bottom:12px;line-height:1.6;">
             浏览器本机账号 (保存到 localStorage). 当前 race_control.html 连接服务器不验证账号,
             此账号仅作本机操作员标识用 (写入比赛日志). 修改 PC 端 (主服务器 / RTC) 凭据请到对应机器的"参数设置"操作.
         </div>
-        <div class="param-row"><label>用户名</label>
-            <input id="rcPwdUser" placeholder="操作员名称" style="flex:1;padding:6px 10px;background:#0F172A;color:white;border:1px solid #475569;border-radius:6px;font-size:13px;">
+        <div class="param-row"><label data-i18n="Str_Common_Username">用户名</label>
+            <input id="rcPwdUser" placeholder="操作员名称" data-i18n-attr="placeholder" data-i18n="Str_RC_OperatorNamePlaceholder" style="flex:1;padding:6px 10px;background:#0F172A;color:white;border:1px solid #475569;border-radius:6px;font-size:13px;">
         </div>
-        <div class="param-row"><label>新密码</label>
-            <input id="rcPwdNew" type="password" placeholder="如需设置则填" style="flex:1;padding:6px 10px;background:#0F172A;color:white;border:1px solid #475569;border-radius:6px;font-size:13px;">
+        <div class="param-row"><label data-i18n="Str_RC_NewPwd">新密码</label>
+            <input id="rcPwdNew" type="password" placeholder="如需设置则填" data-i18n-attr="placeholder" data-i18n="Str_RC_FillIfNeeded" style="flex:1;padding:6px 10px;background:#0F172A;color:white;border:1px solid #475569;border-radius:6px;font-size:13px;">
         </div>
-        <div class="param-row"><label>确认密码</label>
-            <input id="rcPwdNew2" type="password" placeholder="再输一次" style="flex:1;padding:6px 10px;background:#0F172A;color:white;border:1px solid #475569;border-radius:6px;font-size:13px;">
+        <div class="param-row"><label data-i18n="Str_RC_ConfirmPwd">确认密码</label>
+            <input id="rcPwdNew2" type="password" placeholder="再输一次" data-i18n-attr="placeholder" data-i18n="Str_RC_TypeAgain" style="flex:1;padding:6px 10px;background:#0F172A;color:white;border:1px solid #475569;border-radius:6px;font-size:13px;">
         </div>
         <div class="modal-btns">
-            <button class="btn-cancel" onclick="closeChangePwd()">取消</button>
-            <button class="btn-ok" onclick="applyChangePwd()">保存到本机</button>
+            <button class="btn-cancel" onclick="closeChangePwd()" data-i18n="Str_Common_Cancel">取消</button>
+            <button class="btn-ok" onclick="applyChangePwd()" data-i18n="Str_RC_SaveToLocal">保存到本机</button>
         </div>
     </div>
 </div>
@@ -554,16 +556,16 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 <!-- 2026-06-18 浏览器本机 dialog: 图片/视频 上传 -->
 <div id="mediaUploadModal" class="modal-overlay hidden" onclick="if(event.target===this)closeMediaUpload()">
     <div class="modal-dialog">
-        <h2 style="color:#0EA5E9;">🖼️ 图片 / 视频</h2>
-        <div style="color:#94A3B8;font-size:12px;margin-bottom:12px;line-height:1.6;">
+        <h2 data-i18n="Str_Ctrl_MediaModalTitle" style="color:#0EA5E9;">🖼️ 图片 / 视频</h2>
+        <div data-i18n="Str_RC_MediaUploadDesc" style="color:#94A3B8;font-size:12px;margin-bottom:12px;line-height:1.6;">
             从<b>浏览器本机</b>选择文件, 上传到主服务器播放到大屏 (建议 &lt; 16 MB).
             支持: png / jpg / bmp / gif / webp / mp4 / webm / ogg / m4v
         </div>
         <input id="rcMediaInput" type="file" accept="image/*,video/*" style="display:block;margin-bottom:10px;color:#94a3b8;" onchange="_rcUploadMedia(this.files[0])">
         <div id="rcMediaStatus" style="font-size:12px;color:#94A3B8;margin-bottom:10px;min-height:18px;"></div>
         <div style="border-top:1px solid #475569;padding-top:10px;display:flex;gap:6px;justify-content:flex-end;">
-            <button style="padding:6px 14px;background:#EF4444;color:white;border:none;border-radius:6px;cursor:pointer;font-size:13px;" onclick="sendDisplay('STOP_MEDIA');addLog('已请求停止媒体显示');closeMediaUpload()">停止显示</button>
-            <button class="btn-cancel" onclick="closeMediaUpload()">关闭</button>
+            <button style="padding:6px 14px;background:#EF4444;color:white;border:none;border-radius:6px;cursor:pointer;font-size:13px;" onclick="sendDisplay('STOP_MEDIA');addLog(WebLoc.t('Str_RC_LogStopMediaRequested'));closeMediaUpload()" data-i18n="Str_Ctrl_StopShow">停止显示</button>
+            <button class="btn-cancel" onclick="closeMediaUpload()" data-i18n="Str_Common_Close">关闭</button>
         </div>
     </div>
 </div>
@@ -571,8 +573,8 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 <!-- 2026-06-18 浏览器本机 dialog: PPT 上传 -->
 <div id="pptUploadModal" class="modal-overlay hidden" onclick="if(event.target===this)closePptUpload()">
     <div class="modal-dialog">
-        <h2 style="color:#FB923C;">📊 PPT 播放</h2>
-        <div style="color:#94A3B8;font-size:12px;margin-bottom:12px;line-height:1.6;">
+        <h2 data-i18n="Str_Ctrl_PptModalTitle" style="color:#FB923C;">📊 PPT 播放</h2>
+        <div data-i18n="Str_RC_PptUploadDesc" style="color:#94A3B8;font-size:12px;margin-bottom:12px;line-height:1.6;">
             从<b>浏览器本机</b>选择 PPT 文件, 上传到主服务器. 主控 PC 用 PowerPoint COM 转 PNG 后,
             通过 SHOW_MEDIA 通道把每张幻灯片推送到大屏, 翻页控制窗口在主控 PC 弹出.
             支持: .ppt / .pptx (建议 &lt; 32 MB)
@@ -580,7 +582,7 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
         <input id="rcPptInput" type="file" accept=".ppt,.pptx,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation" style="display:block;margin-bottom:10px;color:#94a3b8;" onchange="_rcUploadPpt(this.files[0])">
         <div id="rcPptStatus" style="font-size:12px;color:#94A3B8;margin-bottom:10px;min-height:18px;"></div>
         <div class="modal-btns">
-            <button class="btn-cancel" onclick="closePptUpload()">关闭</button>
+            <button class="btn-cancel" onclick="closePptUpload()" data-i18n="Str_Common_Close">关闭</button>
         </div>
     </div>
 </div>
@@ -588,25 +590,25 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 <!-- 左右盲表数量设置弹窗 -->
 <div id="blindCountModal" class="modal-overlay hidden" onclick="if(event.target===this)closeBlindWatchCountDialog()">
     <div class="modal-dialog">
-        <h2 style="color:#F59E0B;">左右盲表数量设置</h2>
-        <div style="color:#94A3B8;font-size:12px;margin-bottom:12px;line-height:1.6;">
+        <h2 data-i18n="Str_RC_HubBlindCount" style="color:#F59E0B;">左右盲表数量设置</h2>
+        <div data-i18n="Str_RC_BlindCountDesc" style="color:#94A3B8;font-size:12px;margin-bottom:12px;line-height:1.6;">
             每道使用的盲表数量（1-3）。修改后将通过服务器同步到所有计时控制台与硬件计时控制器。
         </div>
         <div class="param-row">
-            <label>左边 盲表数量</label>
+            <label data-i18n="Str_RC_LeftBlindCount">左边 盲表数量</label>
             <select id="dlgLeftBlindCount" style="background:#334155;color:white;border:1px solid #475569;padding:5px 10px;border-radius:4px;font-size:15px;font-weight:bold;">
                 <option value="1">1</option><option value="2">2</option><option value="3" selected>3</option>
             </select>
         </div>
         <div class="param-row">
-            <label>右边 盲表数量</label>
+            <label data-i18n="Str_RC_RightBlindCount">右边 盲表数量</label>
             <select id="dlgRightBlindCount" style="background:#334155;color:white;border:1px solid #475569;padding:5px 10px;border-radius:4px;font-size:15px;font-weight:bold;">
                 <option value="1">1</option><option value="2">2</option><option value="3" selected>3</option>
             </select>
         </div>
         <div class="modal-btns">
-            <button class="btn-cancel" onclick="closeBlindWatchCountDialog()">取消</button>
-            <button class="btn-ok" onclick="applyBlindWatchCount()">确定</button>
+            <button class="btn-cancel" onclick="closeBlindWatchCountDialog()" data-i18n="Str_Common_Cancel">取消</button>
+            <button class="btn-ok" onclick="applyBlindWatchCount()" data-i18n="Str_Common_Confirm">确定</button>
         </div>
     </div>
 </div>
@@ -614,17 +616,17 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 <!-- 设备状态管理弹窗 (2026-06-20 升级 4 态: 安装/未安装/好/坏) -->
 <div id="deviceModal" class="modal-overlay hidden" onclick="if(event.target===this)closeDeviceManager()">
     <div class="modal-dialog" style="max-width:920px;">
-        <h2 style="color:#F59E0B;">泳道设备状态管理 (4 态)</h2>
-        <div style="font-size:11px;color:#94A3B8;margin-bottom:8px;">灰底列受 比赛泳池(单/双端) 与 盲表数量 配置控制, 此处不可编辑.</div>
+        <h2 data-i18n="Str_RC_DeviceStatus4State" style="color:#F59E0B;">泳道设备状态管理 (4 态)</h2>
+        <div data-i18n="Str_RC_DeviceStatusGrayHint" style="font-size:11px;color:#94A3B8;margin-bottom:8px;">灰底列受 比赛泳池(单/双端) 与 盲表数量 配置控制, 此处不可编辑.</div>
         <div style="overflow-x:auto;max-height:60vh;" id="deviceStatusPanel"></div>
         <div style="display:flex;gap:6px;margin-top:12px;flex-wrap:wrap;">
-            <button style="flex:1;min-width:120px;padding:8px;background:#3B82F6;color:white;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:bold;" onclick="setAllDevicesStatus('installed')">全部设为安装</button>
-            <button style="flex:1;min-width:120px;padding:8px;background:#94A3B8;color:white;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:bold;" onclick="setAllDevicesStatus('not_installed')">全部设为未安装</button>
-            <button style="flex:1;min-width:100px;padding:8px;background:#22C55E;color:white;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:bold;" onclick="setAllDevicesStatus('good')">全部设为好</button>
-            <button style="flex:1;min-width:100px;padding:8px;background:#EF4444;color:white;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:bold;" onclick="setAllDevicesStatus('broken')">全部设为坏</button>
+            <button style="flex:1;min-width:120px;padding:8px;background:#3B82F6;color:white;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:bold;" onclick="setAllDevicesStatus('installed')" data-i18n="Str_RC_SetAllInstalled">全部设为安装</button>
+            <button style="flex:1;min-width:120px;padding:8px;background:#94A3B8;color:white;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:bold;" onclick="setAllDevicesStatus('not_installed')" data-i18n="Str_RC_SetAllNotInstalled">全部设为未安装</button>
+            <button style="flex:1;min-width:100px;padding:8px;background:#22C55E;color:white;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:bold;" onclick="setAllDevicesStatus('good')" data-i18n="Str_RC_SetAllGood">全部设为好</button>
+            <button style="flex:1;min-width:100px;padding:8px;background:#EF4444;color:white;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:bold;" onclick="setAllDevicesStatus('broken')" data-i18n="Str_RC_SetAllBroken">全部设为坏</button>
         </div>
         <div class="modal-btns">
-            <button class="btn-cancel" onclick="closeDeviceManager()">关闭</button>
+            <button class="btn-cancel" onclick="closeDeviceManager()" data-i18n="Str_Common_Close">关闭</button>
         </div>
     </div>
 </div>
@@ -632,21 +634,21 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 <!-- 手动按键管理弹窗 -->
 <div id="manualBtnModal" class="modal-overlay hidden" onclick="if(event.target===this)closeManualButtonManager()">
     <div class="modal-dialog" style="max-width:500px;">
-        <h2 style="color:#0EA5E9;">手动按键 用/不用 设置</h2>
+        <h2 data-i18n="Str_RC_ManualBtnUseSetting" style="color:#0EA5E9;">手动按键 用/不用 设置</h2>
         <div style="overflow-x:auto;" id="manualBtnPanel"></div>
         <div style="display:flex;gap:8px;margin-top:12px;">
-            <button style="flex:1;padding:8px;background:#22C55E;color:white;border:none;border-radius:6px;cursor:pointer;font-size:14px;font-weight:bold;" onmousedown="setAllManualBtn(true)">全部设为用</button>
-            <button style="flex:1;padding:8px;background:#EF4444;color:white;border:none;border-radius:6px;cursor:pointer;font-size:14px;font-weight:bold;" onmousedown="setAllManualBtn(false)">全部设为不用</button>
+            <button style="flex:1;padding:8px;background:#22C55E;color:white;border:none;border-radius:6px;cursor:pointer;font-size:14px;font-weight:bold;" onmousedown="setAllManualBtn(true)" data-i18n="Str_RC_SetAllUse">全部设为用</button>
+            <button style="flex:1;padding:8px;background:#EF4444;color:white;border:none;border-radius:6px;cursor:pointer;font-size:14px;font-weight:bold;" onmousedown="setAllManualBtn(false)" data-i18n="Str_RC_SetAllNotUse">全部设为不用</button>
         </div>
         <div class="modal-btns">
-            <button class="btn-cancel" onmousedown="closeManualButtonManager()">取消</button>
-            <button class="btn-ok" onmousedown="applyManualBtnSettings()">确认</button>
+            <button class="btn-cancel" onmousedown="closeManualButtonManager()" data-i18n="Str_Common_Cancel">取消</button>
+            <button class="btn-ok" onmousedown="applyManualBtnSettings()" data-i18n="Str_Common_Confirm">确认</button>
         </div>
     </div>
 </div>
 
 <!-- 只读遮罩 -->
-<div id="readonlyOverlay" class="readonly-overlay hidden"><span>只读模式 — EXE已接管控制</span></div>
+<div id="readonlyOverlay" class="readonly-overlay hidden"><span data-i18n="Str_RC_ReadonlyModeExeTakenOver">只读模式 — EXE已接管控制</span></div>
 
 <!-- 主体 -->
 <div class="main-area">
@@ -654,29 +656,29 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
     <div class="schedule-tree-panel">
         <!-- 赛程导航 -->
         <div class="sched-section">
-            <div class="panel-header">赛程导航</div>
+            <div class="panel-header" data-i18n="Str_Common_ScheduleNav">赛程导航</div>
             <div class="tree-scroll" id="scheduleTree"></div>
         </div>
         <!-- 2026-05-27 计时源对比 + 比赛日志 Tab -->
         <div class="timing-source-section" style="display:flex;flex-direction:column;">
             <div style="display:flex;gap:0;padding:6px 10px 0 10px;border-bottom:1px solid #334155;">
-                <div id="rcLogTabBtn1" onclick="rcShowLogTab(1)" style="padding:5px 12px;cursor:pointer;background:#1E293B;color:#3B82F6;font-size:12px;font-weight:bold;border-radius:4px 4px 0 0;border:1px solid #334155;border-bottom:none;">计时源对比</div>
-                <div id="rcLogTabBtn2" onclick="rcShowLogTab(2)" style="padding:5px 12px;cursor:pointer;background:transparent;color:#94A3B8;font-size:12px;border-radius:4px 4px 0 0;border:1px solid transparent;">比赛日志</div>
+                <div id="rcLogTabBtn1" onclick="rcShowLogTab(1)" data-i18n="Str_RC_TimingSourceCompare" style="padding:5px 12px;cursor:pointer;background:#1E293B;color:#3B82F6;font-size:12px;font-weight:bold;border-radius:4px 4px 0 0;border:1px solid #334155;border-bottom:none;">计时源对比</div>
+                <div id="rcLogTabBtn2" onclick="rcShowLogTab(2)" data-i18n="Str_RC_RaceLog" style="padding:5px 12px;cursor:pointer;background:transparent;color:#94A3B8;font-size:12px;border-radius:4px 4px 0 0;border:1px solid transparent;">比赛日志</div>
             </div>
             <!-- Tab1: 计时源对比 -->
             <div id="rcLogTab1" style="display:flex;flex-direction:column;flex:1;min-height:0;">
                 <div style="display:flex;align-items:center;gap:4px;padding:4px 10px 2px 10px;">
-                    <span style="color:#94A3B8;font-size:12px;">分段:</span>
+                    <span data-i18n="Str_RC_SplitLabel" style="color:#94A3B8;font-size:12px;">分段:</span>
                     <select id="splitSelectCombo" onchange="showTimingSourceData()" style="width:110px;font-size:12px;background:#0F172A;color:white;border:1px solid #475569;border-radius:3px;padding:2px;">
-                        <option value="0">终点</option>
+                        <option value="0" data-i18n="Str_RC_Finish">终点</option>
                     </select>
                 </div>
-                <div id="timingSourceCompare" style="font-size:12px;color:var(--dim);flex:1;overflow-y:auto;padding:4px 10px;">点击泳道行查看计时源</div>
+                <div id="timingSourceCompare" data-i18n="Str_RC_ClickLaneRowHint" style="font-size:12px;color:var(--dim);flex:1;overflow-y:auto;padding:4px 10px;">点击泳道行查看计时源</div>
             </div>
             <!-- Tab2: 比赛日志 -->
             <div id="rcLogTab2" style="display:none;flex-direction:column;flex:1;min-height:0;">
-                <div style="padding:4px 10px;font-size:11px;color:#94A3B8;">本组所选道次的实时事件 — 出发反应时 / 触板 / 盲表 (切道次可调出该道历史)</div>
-                <div id="rcLaneEventLog" style="font-size:12px;color:#E2E8F0;flex:1;overflow:auto;padding:4px 10px;font-family:Consolas,monospace;white-space:pre;">(请先点击或输入泳道号)</div>
+                <div data-i18n="Str_RC_LaneEventLogHint" style="padding:4px 10px;font-size:11px;color:#94A3B8;">本组所选道次的实时事件 — 出发反应时 / 触板 / 盲表 (切道次可调出该道历史)</div>
+                <div id="rcLaneEventLog" data-i18n="Str_RC_ClickOrTypeLaneHint" style="font-size:12px;color:#E2E8F0;flex:1;overflow:auto;padding:4px 10px;font-family:Consolas,monospace;white-space:pre;">(请先点击或输入泳道号)</div>
             </div>
         </div>
     </div>
@@ -690,7 +692,7 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
             <div id="runTime" style="width:160px;font-size:32px;font-weight:bold;color:var(--gold);font-family:Consolas,monospace;opacity:0.85;white-space:pre;text-align:right;">0.00</div>
             <!-- 2026-06-19 状态徽章移到滚动时间右边 (仿 PC 端 RaceStateBox: 圆点 + 文字, 圆角彩底) -->
             <div id="stateDot" class="state-dot waiting" style="margin-left:12px;"></div>
-            <span id="stateLabel" class="state-label">等待</span>
+            <span id="stateLabel" class="state-label" data-i18n="Str_RC_StateWaiting">等待</span>
         </div>
         <!-- 泳道表头（固定） -->
         <div class="pool-header" id="poolHeader"></div>
@@ -700,7 +702,7 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
         </div>
         <!-- 日志区（固定位置，自动填充剩余空间） -->
         <div class="log-section">
-            <div class="log-header">日志</div>
+            <div class="log-header" data-i18n="Str_RC_LogHeader">日志</div>
             <div class="log-content" id="logArea"></div>
         </div>
     </div>
@@ -711,28 +713,28 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
             <!-- ═══ 比赛控制 ═══ -->
             <div class="section-group">
                 <div class="section-title" style="display:flex;align-items:center;justify-content:space-between;">
-                    <span style="display:flex;align-items:center;gap:8px;">比赛控制</span>
-                    <button onclick="openSettings()" title="参数设置"
-                        style="padding:3px 10px;background:#475569;color:white;border:none;border-radius:5px;font-size:11px;font-weight:600;cursor:pointer;letter-spacing:0;text-transform:none;">⚙ 参数设置</button>
+                    <span style="display:flex;align-items:center;gap:8px;" data-i18n="Str_RC_RaceControl">比赛控制</span>
+                    <button onclick="openSettings()" title="参数设置" data-i18n-title="Str_RC_SettingsTitle"
+                        style="padding:3px 10px;background:#475569;color:white;border:none;border-radius:5px;font-size:11px;font-weight:600;cursor:pointer;letter-spacing:0;text-transform:none;">⚙ <span data-i18n="Str_RC_SettingsTitle">参数设置</span></button>
                 </div>
                 <!-- 2026-06-24 v2 Card 化 (.card-blue): 浅蓝灰底 + 7 按钮统一规格 (CSS 内部覆盖 height/font);
                      色板微调: M.发令 #10B981 emerald, 停表 #6366F1 indigo, 公布总排名 #F97316 (区别于准备就绪 #F59E0B). -->
                 <div class="btn-grid cols-1 card-blue">
-                    <button class="action-btn" style="background:#EF4444;" onclick="confirmTimerReset()"><span class="ico">&#xE72C;</span>计时复位</button>
-                    <button class="action-btn" style="background:#F59E0B;" onclick="readyClick()"><span class="ico">&#xE7C1;</span>准备就绪</button>
-                    <button class="action-btn" style="background:#10B981;" onclick="sendCmd('START_RACE')"><span class="ico">&#xE768;</span>M.发令</button>
-                    <button id="pauseClockBtn" class="action-btn" style="background:#6366F1;" onclick="sendCmd('PAUSE_CLOCK_TOGGLE')"><span class="ico">&#xE769;</span><span id="pauseClockBtnText">停表</span></button>
-                    <button class="action-btn" style="background:#3B82F6;" onclick="confirmResult()"><span class="ico">&#xE73E;</span>确认本组成绩</button>
-                    <button class="action-btn" style="background:#0EA5E9;" onclick="printCurrentHeatResult()"><span class="ico">&#xE749;</span>打印成绩</button>
-                    <button class="action-btn" style="background:#F97316;" onclick="publishEventRanking()"><span class="ico">&#xE9D9;</span>公布项目总排名 (存盘)</button>
+                    <button class="action-btn" style="background:#EF4444;" onclick="confirmTimerReset()"><span class="ico">&#xE72C;</span><span data-i18n="Str_RC_TimerReset">计时复位</span></button>
+                    <button class="action-btn" style="background:#F59E0B;" onclick="readyClick()"><span class="ico">&#xE7C1;</span><span data-i18n="Str_RC_Ready">准备就绪</span></button>
+                    <button class="action-btn" style="background:#10B981;" onclick="sendCmd('START_RACE')"><span class="ico">&#xE768;</span><span data-i18n="Str_RC_ManualStart">M.发令</span></button>
+                    <button id="pauseClockBtn" class="action-btn" style="background:#6366F1;" onclick="sendCmd('PAUSE_CLOCK_TOGGLE')"><span class="ico">&#xE769;</span><span id="pauseClockBtnText" data-i18n="Str_RC_PauseClock">停表</span></button>
+                    <button class="action-btn" style="background:#3B82F6;" onclick="confirmResult()"><span class="ico">&#xE73E;</span><span data-i18n="Str_RC_ConfirmHeatResult">确认本组成绩</span></button>
+                    <button class="action-btn" style="background:#0EA5E9;" onclick="printCurrentHeatResult()"><span class="ico">&#xE749;</span><span data-i18n="Str_RC_PrintResult">打印成绩</span></button>
+                    <button class="action-btn" style="background:#F97316;" onclick="publishEventRanking()"><span class="ico">&#xE9D9;</span><span data-i18n="Str_RC_PublishEventRanking">公布项目总排名 (存盘)</span></button>
                 </div>
             </div>
 
             <!-- ═══ 泳道操作 (顺序与 PC 端 一致) - 2026-06-25 v2 Card 化浅琥珀底, 紧凑 (高 24, 字 13) ═══ -->
             <div class="section-group lanes-card">
-                <div class="section-title">泳道操作</div>
+                <div class="section-title" data-i18n="Str_RC_LaneOps">泳道操作</div>
                 <div class="lane-input-row">
-                    <label>道次</label>
+                    <label data-i18n="Str_RC_LaneNum">道次</label>
                     <input type="number" id="laneInput" min="0" max="9" value="4">
                     <span style="color:#92400E;font-size:11px;">(0-9)</span>
                 </div>
@@ -742,47 +744,47 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
                     <button class="action-btn small" style="background:#78716C;" onclick="markLane('DNF')">DNF</button>
                     <button class="action-btn small" style="background:#9CA3AF;" onclick="markLane('DSQ')">DSQ</button>
                     <button class="action-btn small" style="background:#7C3AED;" onclick="markLane('TRI')">TRI</button>
-                    <button class="action-btn small" style="background:#0EA5E9;" onclick="cancelNote()">取消备注</button>
-                    <button class="action-btn small" style="background:#8B5CF6;" onclick="useBlindResult()">盲表成绩</button>
-                    <button class="action-btn small" style="background:#10B981;" onclick="laneOpen()">道次打开</button>
-                    <button class="action-btn small" style="background:#94A3B8;" onclick="laneClose()">道次关闭</button>
-                    <button class="action-btn small" style="background:#059669;" onclick="sendCmd('OPEN_ALL_LANES')"><span class="ico">&#xE8FB;</span>全部打开</button>
-                    <button class="action-btn small" style="background:#4B5563;" onclick="sendCmd('CLOSE_ALL_LANES')"><span class="ico">&#xE711;</span>全部关闭</button>
-                    <button class="action-btn small" style="background:#D97706;" onclick="manualTimeInput()"><span class="ico">&#xE932;</span>手动输入</button>
-                    <button class="action-btn small" style="background:#06B6D4;" onclick="manualSplitInput()"><span class="ico">&#xE70F;</span>手工补段</button>
+                    <button class="action-btn small" style="background:#0EA5E9;" onclick="cancelNote()" data-i18n="Str_RC_CancelNote">取消备注</button>
+                    <button class="action-btn small" style="background:#8B5CF6;" onclick="useBlindResult()" data-i18n="Str_RC_BlindWatchResult">盲表成绩</button>
+                    <button class="action-btn small" style="background:#10B981;" onclick="laneOpen()" data-i18n="Str_RC_LaneOpen">道次打开</button>
+                    <button class="action-btn small" style="background:#94A3B8;" onclick="laneClose()" data-i18n="Str_RC_LaneClose">道次关闭</button>
+                    <button class="action-btn small" style="background:#059669;" onclick="sendCmd('OPEN_ALL_LANES')"><span class="ico">&#xE8FB;</span><span data-i18n="Str_RC_OpenAll">全部打开</span></button>
+                    <button class="action-btn small" style="background:#4B5563;" onclick="sendCmd('CLOSE_ALL_LANES')"><span class="ico">&#xE711;</span><span data-i18n="Str_RC_CloseAll">全部关闭</span></button>
+                    <button class="action-btn small" style="background:#D97706;" onclick="manualTimeInput()"><span class="ico">&#xE932;</span><span data-i18n="Str_RC_ManualTimeInput">手动输入</span></button>
+                    <button class="action-btn small" style="background:#06B6D4;" onclick="manualSplitInput()"><span class="ico">&#xE70F;</span><span data-i18n="Str_RC_ManualSplitInput">手工补段</span></button>
                 </div>
             </div>
 
             <!-- ═══ 显示控制 (顺序与 PC 端 一致) - 2026-06-25 v2 Card 化浅紫底, 紧凑 ═══ -->
             <div class="section-group display-card">
-                <div class="section-title">显示控制</div>
+                <div class="section-title" data-i18n="Str_RC_DisplayControlSection">显示控制</div>
                 <div class="btn-grid">
-                    <button class="action-btn small" style="background:#3B82F6;" onclick="sendDisplay('SHOW_START_LIST')"><span class="ico">&#xE8F1;</span>出发表</button>
-                    <button class="action-btn small" style="background:#2563EB;" onclick="sendDisplay('SHOW_LIVE_RACE')"><span class="ico">&#xE768;</span>比赛视图</button>
-                    <button class="action-btn small" style="background:#059669;" onclick="sendDisplay('SHOW_HEAT_RESULT')"><span class="ico">&#xE9D5;</span>组成绩</button>
-                    <button class="action-btn small" style="background:#10B981;" onclick="sendDisplay('SHOW_EVENT_RANKING')"><span class="ico">&#xE8CB;</span>总排名</button>
-                    <button class="action-btn small" style="background:#D97706;" onclick="sendDisplay('SHOW_TEAM_STANDINGS')"><span class="ico">&#xE8D1;</span>团 体</button>
-                    <button class="action-btn small" style="background:#F59E0B;" onclick="sendDisplay('SHOW_AWARDS')"><span class="ico">&#xE8A0;</span>颁 奖</button>
-                    <button class="action-btn small" style="background:#DC2626;" onclick="sendDisplay('SHOW_REFEREES')"><span class="ico">&#xE716;</span>裁判介绍</button>
-                    <button class="action-btn small" style="background:#8B5CF6;" onclick="sendDisplay('SHOW_WELCOME')"><span class="ico">&#xE80F;</span>欢 迎</button>
+                    <button class="action-btn small" style="background:#3B82F6;" onclick="sendDisplay('SHOW_START_LIST')"><span class="ico">&#xE8F1;</span><span data-i18n="Str_Ctrl_BtnStartList">出发表</span></button>
+                    <button class="action-btn small" style="background:#2563EB;" onclick="sendDisplay('SHOW_LIVE_RACE')"><span class="ico">&#xE768;</span><span data-i18n="Str_Ctrl_BtnLiveRace">比赛视图</span></button>
+                    <button class="action-btn small" style="background:#059669;" onclick="sendDisplay('SHOW_HEAT_RESULT')"><span class="ico">&#xE9D5;</span><span data-i18n="Str_Ctrl_BtnHeatResult">组成绩</span></button>
+                    <button class="action-btn small" style="background:#10B981;" onclick="sendDisplay('SHOW_EVENT_RANKING')"><span class="ico">&#xE8CB;</span><span data-i18n="Str_Ctrl_BtnRanking">总排名</span></button>
+                    <button class="action-btn small" style="background:#D97706;" onclick="sendDisplay('SHOW_TEAM_STANDINGS')"><span class="ico">&#xE8D1;</span><span data-i18n="Str_RC_TeamSpaced">团 体</span></button>
+                    <button class="action-btn small" style="background:#F59E0B;" onclick="sendDisplay('SHOW_AWARDS')"><span class="ico">&#xE8A0;</span><span data-i18n="Str_RC_AwardsSpaced">颁 奖</span></button>
+                    <button class="action-btn small" style="background:#DC2626;" onclick="sendDisplay('SHOW_REFEREES')"><span class="ico">&#xE716;</span><span data-i18n="Str_Ctrl_BtnReferees">裁判介绍</span></button>
+                    <button class="action-btn small" style="background:#8B5CF6;" onclick="sendDisplay('SHOW_WELCOME')"><span class="ico">&#xE80F;</span><span data-i18n="Str_RC_WelcomeSpaced">欢 迎</span></button>
                     <!-- 2026-06-25 成绩发布 + 比赛日程 合一行各占 1 列 (= 跟 PC 一致); "显示比赛日程" 去"显示" -->
-                    <button class="action-btn small" style="background:#F59E0B;color:black;" onclick="publishResult()"><span class="ico">&#xE8A5;</span>成绩发布</button>
-                    <button class="action-btn small" style="background:#0D9488;" onclick="showSchedule()"><span class="ico">&#xE787;</span>比赛日程</button>
+                    <button class="action-btn small" style="background:#F59E0B;color:black;" onclick="publishResult()"><span class="ico">&#xE8A5;</span><span data-i18n="Str_Ctrl_BtnPublish">成绩发布</span></button>
+                    <button class="action-btn small" style="background:#0D9488;" onclick="showSchedule()"><span class="ico">&#xE787;</span><span data-i18n="Str_Ctrl_BtnSchedule">比赛日程</span></button>
                     <!-- 2026-06-25 图片/视频 + PPT 播放 合一行各占 1 列 (= 跟 PC 一致) -->
-                    <button class="action-btn small" style="background:#0EA5E9;" onclick="openMediaUpload()"><span class="ico">&#xE722;</span>图片/视频</button>
-                    <button class="action-btn small" style="background:#FB923C;" onclick="openPptUpload()"><span class="ico">&#xE786;</span>PPT 播放</button>
-                    <button class="action-btn small span2" style="background:#7C3AED;" onclick="sendDisplay('OPEN_DISPLAY_STYLE');addLog('已请求 PC 端弹大屏样式窗口')"><span class="ico">&#xE790;</span>大屏样式</button>
+                    <button class="action-btn small" style="background:#0EA5E9;" onclick="openMediaUpload()"><span class="ico">&#xE722;</span><span data-i18n="Str_RC_MediaSlash">图片/视频</span></button>
+                    <button class="action-btn small" style="background:#FB923C;" onclick="openPptUpload()"><span class="ico">&#xE786;</span><span data-i18n="Str_Ctrl_BtnPpt">PPT 播放</span></button>
+                    <button class="action-btn small span2" style="background:#7C3AED;" onclick="sendDisplay('OPEN_DISPLAY_STYLE');addLog(WebLoc.t('Str_RC_LogOpenDisplayStyleRequested'))"><span class="ico">&#xE790;</span><span data-i18n="Str_RC_DisplayStyleShort">大屏样式</span></button>
                     <!-- 2026-06-25 记录显示 + 显反应时 合一行各占 1 列 (= 跟 PC 一致); "备注: 显反应时" 去"备注: " -->
-                    <button id="recordsHiddenBtn" class="action-btn small" style="background:#475569;" onclick="toggleRecordsHidden()"><span class="ico">&#xED1A;</span><span id="recordsHiddenBtnText">记录显示</span></button>
-                    <button id="remarkReactionBtn" class="action-btn small" style="background:#475569;" onclick="toggleRemarkReaction()"><span class="ico">&#xE91F;</span><span id="remarkReactionBtnText">显反应时</span></button>
+                    <button id="recordsHiddenBtn" class="action-btn small" style="background:#475569;" onclick="toggleRecordsHidden()"><span class="ico">&#xED1A;</span><span id="recordsHiddenBtnText" data-i18n="Str_Ctrl_RecordsDefault">记录显示</span></button>
+                    <button id="remarkReactionBtn" class="action-btn small" style="background:#475569;" onclick="toggleRemarkReaction()"><span class="ico">&#xE91F;</span><span id="remarkReactionBtnText" data-i18n="Str_Ctrl_RemarkDefault">显反应时</span></button>
                 </div>
             </div>
 
             <!-- ═══ 系统硬件 (右下角, 仿 PC 端 比赛控制 tab 右下"系统硬件"区) - 2026-06-25 v2 Card 化浅绿底 ═══ -->
             <div class="section-group hardware-card">
-                <div class="section-title">系统硬件</div>
+                <div class="section-title" data-i18n="Str_RC_SystemHardware">系统硬件</div>
                 <div class="btn-grid">
-                    <button id="navDeviceTestBtn" class="action-btn small span2" style="background:#0EA5E9;" onclick="toggleDeviceTest()" title="进入设备测试模式：所有触板/出发台/盲表打开，硬件来什么都接收显示，不计入比赛"><span class="ico">&#xE950;</span>设备测试</button>
+                    <button id="navDeviceTestBtn" class="action-btn small span2" style="background:#0EA5E9;" onclick="toggleDeviceTest()" title="进入设备测试模式：所有触板/出发台/盲表打开，硬件来什么都接收显示，不计入比赛" data-i18n-title="Str_RC_DeviceTestModeTitle"><span class="ico">&#xE950;</span><span data-i18n="Str_RC_DeviceTest">设备测试</span></button>
                 </div>
             </div>
         </div>
