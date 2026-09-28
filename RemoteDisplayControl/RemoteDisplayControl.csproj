@@ -60,9 +60,13 @@
     <Reference Include="PresentationCore" />
     <Reference Include="PresentationFramework" />
   </ItemGroup>
-  <!-- 2026-06-17 native WebView2Loader.dll 必须跟 EXE 同目录, 按运行架构选 x86/x64. AnyCPU build 默认 x86 -->
+  <!-- 2026-06-17 native WebView2Loader.dll 必须跟 EXE 同目录, 按运行架构选 x86/x64.
+       2026-09-27 修复: 上面四个 PropertyGroup 的 PlatformTarget 全是 x64, 这里却一直链的是
+       win-x86 那份原生 DLL —— x64 进程加载 x86 原生 DLL, 正是"An attempt was made to load
+       a program with an incorrect format"这条报错的典型成因(远程显示控制预览面板一直黑屏
+       就是因为 WebView2 初始化在这一步直接崩了)。改成跟 PlatformTarget 一致的 win-x64。 -->
   <ItemGroup>
-    <None Include="..\packages\Microsoft.Web.WebView2.1.0.2210.55\runtimes\win-x86\native\WebView2Loader.dll">
+    <None Include="..\packages\Microsoft.Web.WebView2.1.0.2210.55\runtimes\win-x64\native\WebView2Loader.dll">
       <Link>WebView2Loader.dll</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
