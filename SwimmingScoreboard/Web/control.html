@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>显示控制</title>
+<title data-i18n="Str_Ctrl_PageTitle">显示控制</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { font-family: 'Microsoft YaHei', sans-serif; background: #0f172a; color: #f8fafc; padding: 16px; min-height: 100vh; }
@@ -51,6 +51,7 @@ body { font-family: 'Microsoft YaHei', sans-serif; background: #0f172a; color: #
 </style>
 </head>
 <body>
+<script src="webloc.js"></script>
 
 <!-- 2026-06-18 仿 RDC.exe 布局: 左 = 大屏预览 (大), 右 = 按钮集中 -->
 <div class="layout">
@@ -66,56 +67,59 @@ body { font-family: 'Microsoft YaHei', sans-serif; background: #0f172a; color: #
     <!-- 右栏: 控制按钮区 -->
     <div class="control-col">
         <div class="control-header">
-            <h1>显示控制</h1>
-            <button onclick="goFullScreen()" style="padding:6px 10px;background:#3B82F6;color:white;border:none;border-radius:6px;font-size:11px;cursor:pointer;">全屏</button>
+            <h1 data-i18n="Str_Ctrl_PageTitle">显示控制</h1>
+            <div style="display:flex;gap:6px;">
+                <button class="btn-lang" onclick="WebLoc.toggle()" data-i18n="Str_Common_LangToggle" style="padding:6px 10px;background:#475569;color:white;border:none;border-radius:6px;font-size:11px;cursor:pointer;">English</button>
+                <button onclick="goFullScreen()" data-i18n="Str_Common_Fullscreen" style="padding:6px 10px;background:#3B82F6;color:white;border:none;border-radius:6px;font-size:11px;cursor:pointer;">全屏</button>
+            </div>
         </div>
         <div class="conn-bar" id="connBar">
-            <span class="conn-text" id="connStatus" style="color:#EF4444;">未连接</span>
-            <input id="serverHostInput" type="text" placeholder="如 192.168.1.100" autocomplete="off"/>
-            <button class="green" onclick="manualConnect()">连接</button>
+            <span class="conn-text" id="connStatus" data-i18n="Str_Ctrl_NotConnectedShort" style="color:#EF4444;">未连接</span>
+            <input id="serverHostInput" type="text" placeholder="如 192.168.1.100" data-i18n-attr="placeholder" data-i18n="Str_Common_ServerIpPlaceholder" autocomplete="off"/>
+            <button class="green" onclick="manualConnect()" data-i18n="Str_Common_Connect">连接</button>
         </div>
         <!-- 大屏预览大小调节 (相对浏览器宽度 1/8 ~ 1/2) -->
         <div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:#0f172a;border-radius:8px;font-size:12px;color:#cbd5e1;">
-            <span>预览大小:</span>
+            <span data-i18n="Str_Ctrl_PreviewSizeLabel">预览大小:</span>
             <input id="bigPreviewSize" type="range" min="12.5" max="50" step="0.5" value="35" oninput="updateBigPreviewSize(this.value)" style="flex:1;"/>
             <span id="bigPreviewPct" style="width:42px;text-align:right;">35%</span>
         </div>
 
         <div class="section">
-            <div class="section-title">比赛视图</div>
+            <div class="section-title" data-i18n="Str_Ctrl_SectionRaceView">比赛视图</div>
             <div class="grid">
-                <button class="btn btn-display"  onclick="send('SHOW_START_LIST')"><span class="ico">📋</span>出发表</button>
-                <button class="btn btn-display"  onclick="send('SHOW_LIVE_RACE')"><span class="ico">🏊</span>比赛视图</button>
-                <button class="btn btn-result"   onclick="send('SHOW_HEAT_RESULT')"><span class="ico">🏁</span>组成绩</button>
-                <button class="btn btn-result2"  onclick="openRankingPicker('SHOW_EVENT_RANKING','🏆 总排名 — 选择回放项目')"><span class="ico">🏆</span>总排名</button>
+                <button class="btn btn-display"  onclick="send('SHOW_START_LIST')"><span class="ico">📋</span><span data-i18n="Str_Ctrl_BtnStartList">出发表</span></button>
+                <button class="btn btn-display"  onclick="send('SHOW_LIVE_RACE')"><span class="ico">🏊</span><span data-i18n="Str_Ctrl_BtnLiveRace">比赛视图</span></button>
+                <button class="btn btn-result"   onclick="send('SHOW_HEAT_RESULT')"><span class="ico">🏁</span><span data-i18n="Str_Ctrl_BtnHeatResult">组成绩</span></button>
+                <button class="btn btn-result2"  onclick="openRankingPicker('SHOW_EVENT_RANKING', WebLoc.t('Str_Ctrl_RankingPickTitle'))"><span class="ico">🏆</span><span data-i18n="Str_Ctrl_BtnRanking">总排名</span></button>
             </div>
         </div>
         <div class="section">
-            <div class="section-title">荣誉与介绍</div>
+            <div class="section-title" data-i18n="Str_Ctrl_SectionHonor">荣誉与介绍</div>
             <div class="grid">
-                <button class="btn btn-honor"  onclick="send('SHOW_TEAM_STANDINGS')"><span class="ico">👥</span>团体</button>
-                <button class="btn btn-honor2" onclick="openRankingPicker('SHOW_AWARDS','🥇 颁奖 — 选择颁奖项目')"><span class="ico">🥇</span>颁奖</button>
-                <button class="btn btn-display2" onclick="send('SHOW_REFEREES')"><span class="ico">👨‍⚖️</span>裁判介绍</button>
-                <button class="btn btn-welcome"  onclick="send('SHOW_WELCOME')"><span class="ico">🎉</span>欢迎</button>
+                <button class="btn btn-honor"  onclick="send('SHOW_TEAM_STANDINGS')"><span class="ico">👥</span><span data-i18n="Str_Ctrl_BtnTeamStandings">团体</span></button>
+                <button class="btn btn-honor2" onclick="openRankingPicker('SHOW_AWARDS', WebLoc.t('Str_Ctrl_AwardsPickTitle'))"><span class="ico">🥇</span><span data-i18n="Str_Ctrl_BtnAwards">颁奖</span></button>
+                <button class="btn btn-display2" onclick="send('SHOW_REFEREES')"><span class="ico">👨‍⚖️</span><span data-i18n="Str_Ctrl_BtnReferees">裁判介绍</span></button>
+                <button class="btn btn-welcome"  onclick="send('SHOW_WELCOME')"><span class="ico">🎉</span><span data-i18n="Str_Ctrl_BtnWelcome">欢迎</span></button>
             </div>
         </div>
         <div class="section">
-            <div class="section-title">资源 / 弹框</div>
+            <div class="section-title" data-i18n="Str_Ctrl_SectionResources">资源 / 弹框</div>
             <div class="grid">
-                <button class="btn btn-honor"  onclick="openPublishDialog()"><span class="ico">📢</span>成绩发布</button>
-                <button class="btn btn-tool4"  onclick="openScheduleDialog()"><span class="ico">📅</span>比赛日程</button>
-                <button class="btn btn-tool"   onclick="openMediaDialog()"><span class="ico">🖼️</span>图片 / 视频</button>
-                <button class="btn btn-tool3"  onclick="openPptDialog()"><span class="ico">📊</span>PPT 播放</button>
+                <button class="btn btn-honor"  onclick="openPublishDialog()"><span class="ico">📢</span><span data-i18n="Str_Ctrl_BtnPublish">成绩发布</span></button>
+                <button class="btn btn-tool4"  onclick="openScheduleDialog()"><span class="ico">📅</span><span data-i18n="Str_Ctrl_BtnSchedule">比赛日程</span></button>
+                <button class="btn btn-tool"   onclick="openMediaDialog()"><span class="ico">🖼️</span><span data-i18n="Str_Ctrl_BtnMedia">图片 / 视频</span></button>
+                <button class="btn btn-tool3"  onclick="openPptDialog()"><span class="ico">📊</span><span data-i18n="Str_Ctrl_BtnPpt">PPT 播放</span></button>
             </div>
         </div>
         <div class="section">
-            <div class="section-title">大屏样式 / 切换</div>
+            <div class="section-title" data-i18n="Str_Ctrl_SectionStyle">大屏样式 / 切换</div>
             <div class="grid grid-full">
-                <button class="btn btn-tool2" onclick="openDisplayStyleDialog()"><span class="ico">🎨</span>大屏样式 (底色 / 字号 / 文字)</button>
+                <button class="btn btn-tool2" onclick="openDisplayStyleDialog()"><span class="ico">🎨</span><span data-i18n="Str_Ctrl_BtnDisplayStyle">大屏样式 (底色 / 字号 / 文字)</span></button>
             </div>
             <div class="grid" style="margin-top:8px;">
-                <button id="recordsHiddenBtn" class="btn btn-toggle" onclick="toggleRecordsHidden()"><span class="ico">🥇</span>记录显示</button>
-                <button id="remarkReactionBtn" class="btn btn-toggle" onclick="toggleRemarkReaction()"><span class="ico">⏱</span>显反应时</button>
+                <button id="recordsHiddenBtn" class="btn btn-toggle" onclick="toggleRecordsHidden()"><span class="ico">🥇</span><span data-i18n="Str_Ctrl_RecordsDefault">记录显示</span></button>
+                <button id="remarkReactionBtn" class="btn btn-toggle" onclick="toggleRemarkReaction()"><span class="ico">⏱</span><span data-i18n="Str_Ctrl_RemarkDefault">显反应时</span></button>
             </div>
         </div>
         <div class="status" id="status"></div>
@@ -157,17 +161,17 @@ window.addEventListener('resize', function() {
 <div id="mediaModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:100;">
     <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:#1e293b;border-radius:12px;padding:20px;width:90%;max-width:520px;max-height:80vh;overflow-y:auto;color:#f8fafc;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-            <h2 style="font-size:18px;color:#0EA5E9;">🖼️ 图片 / 视频</h2>
+            <h2 data-i18n="Str_Ctrl_MediaModalTitle" style="font-size:18px;color:#0EA5E9;">🖼️ 图片 / 视频</h2>
             <button onclick="closeMediaDialog()" style="background:none;border:none;color:#94a3b8;font-size:22px;cursor:pointer;">×</button>
         </div>
-        <p style="font-size:12px;color:#94a3b8;margin-bottom:6px;"><b style="color:#0EA5E9;">[主控 PC 文件]</b> <code>Media/</code> 目录 (默认 contain + 循环 + 自动播放):</p>
+        <p style="font-size:12px;color:#94a3b8;margin-bottom:6px;"><b style="color:#0EA5E9;" data-i18n="Str_Ctrl_HostPcFilesLabel">[主控 PC 文件]</b><span data-i18n="Str_Ctrl_MediaDirDescFmt"> <code>Media/</code> 目录 (默认 contain + 循环 + 自动播放):</span></p>
         <div id="mediaList" style="max-height:32vh;overflow-y:auto;margin-bottom:10px;"></div>
-        <p style="font-size:12px;color:#94a3b8;margin-bottom:6px;"><b style="color:#10B981;">[本机文件]</b> 上传后立即播放 (建议 < 16 MB):</p>
+        <p style="font-size:12px;color:#94a3b8;margin-bottom:6px;"><b style="color:#10B981;" data-i18n="Str_Ctrl_ThisDeviceLabel">[本机文件]</b><span data-i18n="Str_Ctrl_MediaUploadDesc"> 上传后立即播放 (建议 < 16 MB):</span></p>
         <input id="mediaUploadInput" type="file" accept="image/*,video/*" style="margin-bottom:8px;color:#94a3b8;" onchange="_uploadMedia(this.files[0])"/>
         <div id="mediaUploadStatus" style="font-size:12px;color:#94a3b8;margin-bottom:8px;"></div>
         <div style="display:flex;gap:8px;margin-top:8px;justify-content:flex-end;">
-            <button class="btn" style="background:#EF4444;color:white;padding:8px 16px;" onclick="send('STOP_MEDIA');closeMediaDialog();">停止显示</button>
-            <button class="btn" style="background:#64748b;color:white;padding:8px 16px;" onclick="closeMediaDialog()">关闭</button>
+            <button class="btn" style="background:#EF4444;color:white;padding:8px 16px;" onclick="send('STOP_MEDIA');closeMediaDialog();" data-i18n="Str_Ctrl_StopShow">停止显示</button>
+            <button class="btn" style="background:#64748b;color:white;padding:8px 16px;" onclick="closeMediaDialog()" data-i18n="Str_Common_Close">关闭</button>
         </div>
     </div>
 </div>
@@ -176,16 +180,16 @@ window.addEventListener('resize', function() {
 <div id="pptModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:100;">
     <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:#1e293b;border-radius:12px;padding:20px;width:90%;max-width:520px;max-height:80vh;overflow-y:auto;color:#f8fafc;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-            <h2 style="font-size:18px;color:#FB923C;">📊 PPT 播放</h2>
+            <h2 data-i18n="Str_Ctrl_PptModalTitle" style="font-size:18px;color:#FB923C;">📊 PPT 播放</h2>
             <button onclick="closePptDialog()" style="background:none;border:none;color:#94a3b8;font-size:22px;cursor:pointer;">×</button>
         </div>
-        <p style="font-size:12px;color:#94a3b8;margin-bottom:6px;"><b style="color:#FB923C;">[主控 PC 文件]</b> <code>Documents/PPT/</code> 目录 (翻页控制在主控):</p>
+        <p style="font-size:12px;color:#94a3b8;margin-bottom:6px;"><b style="color:#FB923C;" data-i18n="Str_Ctrl_HostPcFilesLabel">[主控 PC 文件]</b><span data-i18n="Str_Ctrl_PptDirDescFmt"> <code>Documents/PPT/</code> 目录 (翻页控制在主控):</span></p>
         <div id="pptList" style="max-height:32vh;overflow-y:auto;margin-bottom:10px;"></div>
-        <p style="font-size:12px;color:#94a3b8;margin-bottom:6px;"><b style="color:#10B981;">[本机文件]</b> 上传 PPT (建议 < 32 MB, 转换 + 翻页仍在主控):</p>
+        <p style="font-size:12px;color:#94a3b8;margin-bottom:6px;"><b style="color:#10B981;" data-i18n="Str_Ctrl_ThisDeviceLabel">[本机文件]</b><span data-i18n="Str_Ctrl_PptUploadDesc"> 上传 PPT (建议 < 32 MB, 转换 + 翻页仍在主控):</span></p>
         <input id="pptUploadInput" type="file" accept=".ppt,.pptx,.pps,.ppsx" style="margin-bottom:8px;color:#94a3b8;" onchange="_uploadPpt(this.files[0])"/>
         <div id="pptUploadStatus" style="font-size:12px;color:#94a3b8;margin-bottom:8px;"></div>
         <div style="display:flex;gap:8px;margin-top:8px;justify-content:flex-end;">
-            <button class="btn" style="background:#64748b;color:white;padding:8px 16px;" onclick="closePptDialog()">关闭</button>
+            <button class="btn" style="background:#64748b;color:white;padding:8px 16px;" onclick="closePptDialog()" data-i18n="Str_Common_Close">关闭</button>
         </div>
     </div>
 </div>
@@ -194,13 +198,13 @@ window.addEventListener('resize', function() {
 <div id="scheduleModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:100;">
     <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:#1e293b;border-radius:12px;padding:20px;width:90%;max-width:500px;max-height:80vh;overflow-y:auto;color:#f8fafc;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-            <h2 style="font-size:18px;color:#0D9488;">📅 显示比赛日程</h2>
+            <h2 data-i18n="Str_Ctrl_ScheduleModalTitle" style="font-size:18px;color:#0D9488;">📅 显示比赛日程</h2>
             <button onclick="closeScheduleDialog()" style="background:none;border:none;color:#94a3b8;font-size:22px;cursor:pointer;">×</button>
         </div>
-        <p style="font-size:12px;color:#94a3b8;margin-bottom:8px;">选择要在大屏显示日程的比赛场次:</p>
+        <p data-i18n="Str_Ctrl_ScheduleModalDesc" style="font-size:12px;color:#94a3b8;margin-bottom:8px;">选择要在大屏显示日程的比赛场次:</p>
         <div id="scheduleList" style="max-height:50vh;overflow-y:auto;"></div>
         <div style="display:flex;gap:8px;margin-top:12px;justify-content:flex-end;">
-            <button class="btn" style="background:#64748b;color:white;padding:8px 16px;" onclick="closeScheduleDialog()">关闭</button>
+            <button class="btn" style="background:#64748b;color:white;padding:8px 16px;" onclick="closeScheduleDialog()" data-i18n="Str_Common_Close">关闭</button>
         </div>
     </div>
 </div>
@@ -209,13 +213,13 @@ window.addEventListener('resize', function() {
 <div id="rankingPickModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:100;">
     <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:#1e293b;border-radius:12px;padding:20px;width:90%;max-width:500px;max-height:80vh;overflow-y:auto;color:#f8fafc;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-            <h2 id="rankingPickTitle" style="font-size:18px;color:#059669;">选择项目</h2>
+            <h2 id="rankingPickTitle" data-i18n="Str_Ctrl_RankingPickDefaultTitle" style="font-size:18px;color:#059669;">选择项目</h2>
             <button onclick="closeRankingPicker()" style="background:none;border:none;color:#94a3b8;font-size:22px;cursor:pointer;">×</button>
         </div>
-        <p style="font-size:12px;color:#94a3b8;margin-bottom:8px;">只列出已完赛(决赛全部确认)的项目:</p>
+        <p data-i18n="Str_Ctrl_RankingPickDesc" style="font-size:12px;color:#94a3b8;margin-bottom:8px;">只列出已完赛(决赛全部确认)的项目:</p>
         <div id="rankingPickList" style="max-height:50vh;overflow-y:auto;"></div>
         <div style="display:flex;gap:8px;margin-top:12px;justify-content:flex-end;">
-            <button class="btn" style="background:#64748b;color:white;padding:8px 16px;" onclick="closeRankingPicker()">关闭</button>
+            <button class="btn" style="background:#64748b;color:white;padding:8px 16px;" onclick="closeRankingPicker()" data-i18n="Str_Common_Close">关闭</button>
         </div>
     </div>
 </div>
@@ -223,11 +227,11 @@ window.addEventListener('resize', function() {
 <!-- 成绩发布弹窗 -->
 <div id="publishModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:100;">
     <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:#1e293b;border-radius:12px;padding:20px;width:90%;max-width:500px;max-height:80vh;overflow-y:auto;">
-        <h2 style="margin-bottom:12px;font-size:18px;color:#F59E0B;">成绩发布到大屏</h2>
-        <p style="margin-bottom:8px;font-size:13px;color:#94a3b8;">选择已完赛的比赛项目：</p>
+        <h2 data-i18n="Str_Ctrl_PublishModalTitle" style="margin-bottom:12px;font-size:18px;color:#F59E0B;">成绩发布到大屏</h2>
+        <p data-i18n="Str_Ctrl_PublishModalDesc" style="margin-bottom:8px;font-size:13px;color:#94a3b8;">选择已完赛的比赛项目：</p>
         <div id="publishList" style="max-height:50vh;overflow-y:auto;"></div>
         <div style="display:flex;gap:8px;margin-top:12px;justify-content:flex-end;">
-            <button class="btn" style="background:#64748b;color:white;padding:10px 20px;" onclick="closePublishDialog()">关闭</button>
+            <button class="btn" style="background:#64748b;color:white;padding:10px 20px;" onclick="closePublishDialog()" data-i18n="Str_Common_Close">关闭</button>
         </div>
     </div>
 </div>
@@ -236,44 +240,44 @@ window.addEventListener('resize', function() {
 <div id="displayStyleModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:100;">
     <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:#1e293b;border-radius:12px;padding:20px;width:95%;max-width:640px;max-height:90vh;overflow-y:auto;color:#f8fafc;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-            <h2 style="font-size:18px;color:#0ea5e9;">🎨 大屏样式远程控制</h2>
+            <h2 data-i18n="Str_Ctrl_StyleModalTitle" style="font-size:18px;color:#0ea5e9;">🎨 大屏样式远程控制</h2>
             <button onclick="closeDisplayStyleDialog()" style="background:none;border:none;color:#94a3b8;font-size:22px;cursor:pointer;">×</button>
         </div>
-        <p style="font-size:12px;color:#94a3b8;margin-bottom:10px;">改动立刻推送到所有大屏 display.html, 服务器持久化保存.</p>
+        <p data-i18n="Str_Ctrl_StyleModalDesc" style="font-size:12px;color:#94a3b8;margin-bottom:10px;">改动立刻推送到所有大屏 display.html, 服务器持久化保存.</p>
 
         <!-- 底色 -->
         <div style="margin-bottom:14px;padding:10px;background:#0f172a;border-radius:8px;border:1px solid #334155;">
-            <div style="font-weight:bold;color:#0ea5e9;margin-bottom:6px;">底色</div>
+            <div data-i18n="Str_Ctrl_BgColorLabel" style="font-weight:bold;color:#0ea5e9;margin-bottom:6px;">底色</div>
             <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;">
                 <input id="cs_bgPicker" type="color" value="#0f172a" onchange="cs_setBg(this.value)" style="width:36px;height:30px;padding:0;border:1px solid #334155;border-radius:4px;background:transparent;cursor:pointer;"/>
-                <input id="cs_bgHex" type="text" maxlength="60" placeholder="#0f172a 或 linear-gradient(...)" onchange="cs_setBg(this.value)" style="flex:1;padding:4px 8px;background:#1e293b;color:#f8fafc;border:1px solid #334155;border-radius:4px;font-family:Consolas,monospace;font-size:12px;"/>
+                <input id="cs_bgHex" type="text" maxlength="60" placeholder="#0f172a 或 linear-gradient(...)" data-i18n-attr="placeholder" data-i18n="Str_Ctrl_BgHexPlaceholder" onchange="cs_setBg(this.value)" style="flex:1;padding:4px 8px;background:#1e293b;color:#f8fafc;border:1px solid #334155;border-radius:4px;font-family:Consolas,monospace;font-size:12px;"/>
             </div>
             <div style="display:grid;grid-template-columns:repeat(8,1fr);gap:4px;">
-                <div onclick="cs_setBg('#0f172a')" title="深邃蓝" style="height:28px;border-radius:4px;cursor:pointer;background:#0f172a;border:1px solid #334155;"></div>
-                <div onclick="cs_setBg('#0c4a6e')" title="泳池青" style="height:28px;border-radius:4px;cursor:pointer;background:#0c4a6e;border:1px solid #334155;"></div>
-                <div onclick="cs_setBg('#082f49')" title="深海蓝" style="height:28px;border-radius:4px;cursor:pointer;background:#082f49;border:1px solid #334155;"></div>
-                <div onclick="cs_setBg('#14532d')" title="森林绿" style="height:28px;border-radius:4px;cursor:pointer;background:#14532d;border:1px solid #334155;"></div>
-                <div onclick="cs_setBg('#312e81')" title="紫罗兰" style="height:28px;border-radius:4px;cursor:pointer;background:#312e81;border:1px solid #334155;"></div>
-                <div onclick="cs_setBg('#0a0a0a')" title="炭墨黑" style="height:28px;border-radius:4px;cursor:pointer;background:#0a0a0a;border:1px solid #334155;"></div>
-                <div onclick="cs_setBg('linear-gradient(180deg, #082f49 0%, #0284c7 70%, #38bdf8 100%)')" title="深海到天空" style="height:28px;border-radius:4px;cursor:pointer;background:linear-gradient(180deg, #082f49 0%, #0284c7 70%, #38bdf8 100%);border:1px solid #334155;"></div>
-                <div onclick="cs_setBg('linear-gradient(180deg, #581c87 0%, #be123c 55%, #f59e0b 100%)')" title="落日余晖" style="height:28px;border-radius:4px;cursor:pointer;background:linear-gradient(180deg, #581c87 0%, #be123c 55%, #f59e0b 100%);border:1px solid #334155;"></div>
+                <div onclick="cs_setBg('#0f172a')" title="深邃蓝" data-i18n-attr="title" data-i18n="Str_Ctrl_BgSwatchDeepBlue" style="height:28px;border-radius:4px;cursor:pointer;background:#0f172a;border:1px solid #334155;"></div>
+                <div onclick="cs_setBg('#0c4a6e')" title="泳池青" data-i18n-attr="title" data-i18n="Str_Ctrl_BgSwatchPoolCyan" style="height:28px;border-radius:4px;cursor:pointer;background:#0c4a6e;border:1px solid #334155;"></div>
+                <div onclick="cs_setBg('#082f49')" title="深海蓝" data-i18n-attr="title" data-i18n="Str_Ctrl_BgSwatchOceanBlue" style="height:28px;border-radius:4px;cursor:pointer;background:#082f49;border:1px solid #334155;"></div>
+                <div onclick="cs_setBg('#14532d')" title="森林绿" data-i18n-attr="title" data-i18n="Str_Ctrl_BgSwatchForestGreen" style="height:28px;border-radius:4px;cursor:pointer;background:#14532d;border:1px solid #334155;"></div>
+                <div onclick="cs_setBg('#312e81')" title="紫罗兰" data-i18n-attr="title" data-i18n="Str_Ctrl_BgSwatchViolet" style="height:28px;border-radius:4px;cursor:pointer;background:#312e81;border:1px solid #334155;"></div>
+                <div onclick="cs_setBg('#0a0a0a')" title="炭墨黑" data-i18n-attr="title" data-i18n="Str_Ctrl_BgSwatchCharcoal" style="height:28px;border-radius:4px;cursor:pointer;background:#0a0a0a;border:1px solid #334155;"></div>
+                <div onclick="cs_setBg('linear-gradient(180deg, #082f49 0%, #0284c7 70%, #38bdf8 100%)')" title="深海到天空" data-i18n-attr="title" data-i18n="Str_Ctrl_BgSwatchOceanSky" style="height:28px;border-radius:4px;cursor:pointer;background:linear-gradient(180deg, #082f49 0%, #0284c7 70%, #38bdf8 100%);border:1px solid #334155;"></div>
+                <div onclick="cs_setBg('linear-gradient(180deg, #581c87 0%, #be123c 55%, #f59e0b 100%)')" title="落日余晖" data-i18n-attr="title" data-i18n="Str_Ctrl_BgSwatchSunset" style="height:28px;border-radius:4px;cursor:pointer;background:linear-gradient(180deg, #581c87 0%, #be123c 55%, #f59e0b 100%);border:1px solid #334155;"></div>
             </div>
         </div>
 
         <!-- 字号 -->
         <div style="margin-bottom:14px;padding:10px;background:#0f172a;border-radius:8px;border:1px solid #334155;">
-            <div style="font-weight:bold;color:#0ea5e9;margin-bottom:6px;">字号 (0.8x ~ 3.0x)</div>
+            <div data-i18n="Str_Ctrl_FontSizeLabel" style="font-weight:bold;color:#0ea5e9;margin-bottom:6px;">字号 (0.8x ~ 3.0x)</div>
             <div style="display:flex;align-items:center;gap:10px;">
                 <button onclick="cs_bumpFs(-0.1)" style="padding:6px 14px;background:#475569;color:#f8fafc;border:none;border-radius:4px;cursor:pointer;font-size:16px;font-weight:bold;">−</button>
                 <div id="cs_fsLabel" style="flex:1;text-align:center;font-size:20px;font-weight:bold;color:#f59e0b;font-family:Consolas,monospace;">1.0x</div>
                 <button onclick="cs_bumpFs(0.1)" style="padding:6px 14px;background:#475569;color:#f8fafc;border:none;border-radius:4px;cursor:pointer;font-size:16px;font-weight:bold;">+</button>
-                <button onclick="cs_setFs(1.0)" style="padding:6px 12px;background:#64748b;color:#f8fafc;border:none;border-radius:4px;cursor:pointer;font-size:12px;">复位</button>
+                <button onclick="cs_setFs(1.0)" data-i18n="Str_Ctrl_ResetBtn" style="padding:6px 12px;background:#64748b;color:#f8fafc;border:none;border-radius:4px;cursor:pointer;font-size:12px;">复位</button>
             </div>
         </div>
 
         <!-- 9 处文字 -->
         <div style="padding:10px;background:#0f172a;border-radius:8px;border:1px solid #334155;">
-            <div style="font-weight:bold;color:#0ea5e9;margin-bottom:6px;">文字颜色 / 字体</div>
+            <div data-i18n="Str_Ctrl_TextColorFontLabel" style="font-weight:bold;color:#0ea5e9;margin-bottom:6px;">文字颜色 / 字体</div>
             <div id="cs_textStyleRows"></div>
         </div>
     </div>
@@ -281,7 +285,7 @@ window.addEventListener('resize', function() {
 
 <script>
 var ws, serverData = {};
-window.onbeforeunload = function(e) { e.preventDefault(); e.returnValue = ''; return '确定要关闭显示控制？'; };
+window.onbeforeunload = function(e) { e.preventDefault(); e.returnValue = ''; return WebLoc.t('Str_Ctrl_BeforeUnloadConfirm'); };
 
 function goFullScreen() { var el=document.documentElement; if(document.fullscreenElement)return; if(el.requestFullscreen)el.requestFullscreen(); else if(el.webkitRequestFullscreen)el.webkitRequestFullscreen(); else if(el.msRequestFullscreen)el.msRequestFullscreen(); }
 document.addEventListener('fullscreenchange', function() { var btns=document.querySelectorAll('.fullscreen-btn'); for(var i=0;i<btns.length;i++) btns[i].style.display=document.fullscreenElement?'none':''; });
@@ -296,22 +300,22 @@ function getServerHost(forceAsk) {
     var saved = localStorage.getItem('swimServerHost');
     if (!forceAsk && saved) return saved;
     var def = saved || '192.168.1.100';
-    var ip = prompt('请输入服务器IP地址:', def);
+    var ip = prompt(WebLoc.t('Str_Ctrl_EnterServerIpPrompt'), def);
     if (ip) { localStorage.setItem('swimServerHost', ip); return ip; }
     return saved || 'localhost';
 }
 function setConnUI(text, color) {
     var s = document.getElementById('connStatus');
-    if (s) { s.textContent = text; s.style.color = color || '#EF4444'; }
+    if (s) { s.removeAttribute('data-i18n'); s.textContent = text; s.style.color = color || '#EF4444'; }
 }
 function manualConnect() {
     var inp = document.getElementById('serverHostInput');
     var ip = inp ? inp.value.trim() : '';
-    if (!ip) { setConnUI('请输入服务器IP', '#EF4444'); return; }
+    if (!ip) { setConnUI(WebLoc.t('Str_Ctrl_PleaseEnterServerIp'), '#EF4444'); return; }
     localStorage.setItem('swimServerHost', ip);
     _connFailCount = 0;
     if (ws) try { ws.close(); } catch(e) {}
-    setConnUI('连接中…', '#F59E0B');
+    setConnUI(WebLoc.t('Str_Ctrl_ConnConnecting'), '#F59E0B');
     connect();
 }
 function changeServerHost() {
@@ -320,7 +324,7 @@ function changeServerHost() {
     var inp = document.getElementById('serverHostInput');
     if (inp) inp.value = h;
     if (ws) try { ws.close(); } catch(e) {}
-    setConnUI('连接中…', '#F59E0B');
+    setConnUI(WebLoc.t('Str_Ctrl_ConnConnecting'), '#F59E0B');
     connect();
 }
 function connect() {
@@ -330,7 +334,7 @@ function connect() {
     ws = new WebSocket('ws://' + host + ':3002');
     ws.onopen = function() {
         _connFailCount = 0;
-        setConnUI('已连接', '#22C55E');
+        setConnUI(WebLoc.t('Str_Common_Connected'), '#22C55E');
         // 2026-09-14 本页(显示控制)原来连上直接发 REMOTE_CONTROL 命令, 没报过身份 ——
         // 主服务器"系统工作状态→连接状态"完全数不出有台显示控制终端连着。加一条身份帧,
         // 不影响下面这条 SHOW_LIVE_RACE 命令(该干嘛还干嘛)。
@@ -338,13 +342,13 @@ function connect() {
         ws.send(JSON.stringify({type: 'REMOTE_CONTROL', command: 'SHOW_LIVE_RACE'}));
     };
     ws.onclose = function() {
-        setConnUI('连接断开，重连中…', '#EF4444');
+        setConnUI(WebLoc.t('Str_Ctrl_ConnClosedRetrying'), '#EF4444');
         _connFailCount++;
-        if (_connFailCount >= 3) { _connFailCount = 0; if (confirm('连接失败，是否重新设置服务器地址？')) { changeServerHost(); return; } }
+        if (_connFailCount >= 3) { _connFailCount = 0; if (confirm(WebLoc.t('Str_Ctrl_ConnFailRetry'))) { changeServerHost(); return; } }
         setTimeout(connect, 3000);
     };
     ws.onerror = function() {
-        setConnUI('连接错误，请检查服务器IP', '#EF4444');
+        setConnUI(WebLoc.t('Str_Ctrl_ConnError'), '#EF4444');
     };
     ws.onmessage = function(e) {
         try {
@@ -364,36 +368,38 @@ function connect() {
 function send(cmd) {
     if (ws && ws.readyState === 1) {
         ws.send(JSON.stringify({type: 'REMOTE_CONTROL', command: cmd}));
-        document.getElementById('status').textContent = '已发送: ' + cmd;
+        document.getElementById('status').textContent = WebLoc.f('Str_Ctrl_SentPrefixFmt', cmd);
     }
 }
 
 // ═══════ 2026-06-01 大屏样式远程控制 ═══════
 // 改动通过 SET_DISPLAY_STYLE 推给服务器, 服务器持久化 + 广播 DISPLAY_STYLE_PUSH 给所有客户端
-var CS_TEXT_KEYS = [
-    {k:'title',  label:'比赛名称', dC:'#f8fafc', dF:"'Microsoft YaHei', sans-serif"},
-    {k:'event',  label:'比赛项目', dC:'#f8fafc', dF:"'Microsoft YaHei', sans-serif"},
-    {k:'time',   label:'滚动时间', dC:'#f59e0b', dF:"'Consolas', monospace"},
-    {k:'lane',   label:'道次',     dC:'#94a3b8', dF:"'Microsoft YaHei', sans-serif"},
-    {k:'rank',   label:'名次',     dC:'#f8fafc', dF:"'Microsoft YaHei', sans-serif"},
-    {k:'name',   label:'姓名',     dC:'#f8fafc', dF:"'Microsoft YaHei', sans-serif"},
-    {k:'team',   label:'代表队',   dC:'#94a3b8', dF:"'Microsoft YaHei', sans-serif"},
-    {k:'result', label:'成绩',     dC:'#f8fafc', dF:"'Consolas', monospace"},
-    {k:'remark', label:'备注',     dC:'#ef4444', dF:"'Microsoft YaHei', sans-serif"},
-    {k:'record', label:'比赛纪录(第3行)', dC:'#FBBF24', dF:"'Microsoft YaHei', sans-serif"}
-];
-var CS_FONT_OPTIONS = [
-    {label:'微软雅黑', value:"'Microsoft YaHei', sans-serif"},
-    {label:'黑体',     value:"SimHei, sans-serif"},
-    {label:'宋体',     value:"SimSun, serif"},
-    {label:'楷体',     value:"KaiTi, serif"},
-    {label:'仿宋',     value:"FangSong, serif"},
-    {label:'隶书',     value:"LiSu, serif"},
-    {label:'幼圆',     value:"YouYuan, sans-serif"},
-    {label:'Arial',    value:"Arial, sans-serif"},
-    {label:'Consolas (等宽)', value:"Consolas, monospace"},
-    {label:'Impact',   value:"Impact, sans-serif"}
-];
+// 2026-09-28 label 改成函数(不是字面量), 语言切换后重画时(_cs_buildTextRows)才能拿到当前语言 ——
+//   k/dC/dF 是协议字段(发给服务器/内部比较), 不属于翻译范围, 保持不变。
+function CS_TEXT_KEYS() { return [
+    {k:'title',  label:WebLoc.t('Str_Ctrl_TextKeyTitle'), dC:'#f8fafc', dF:"'Microsoft YaHei', sans-serif"},
+    {k:'event',  label:WebLoc.t('Str_Ctrl_TextKeyEvent'), dC:'#f8fafc', dF:"'Microsoft YaHei', sans-serif"},
+    {k:'time',   label:WebLoc.t('Str_Ctrl_TextKeyTime'), dC:'#f59e0b', dF:"'Consolas', monospace"},
+    {k:'lane',   label:WebLoc.t('Str_Ctrl_TextKeyLane'), dC:'#94a3b8', dF:"'Microsoft YaHei', sans-serif"},
+    {k:'rank',   label:WebLoc.t('Str_Ctrl_TextKeyRank'), dC:'#f8fafc', dF:"'Microsoft YaHei', sans-serif"},
+    {k:'name',   label:WebLoc.t('Str_Ctrl_TextKeyName'), dC:'#f8fafc', dF:"'Microsoft YaHei', sans-serif"},
+    {k:'team',   label:WebLoc.t('Str_Ctrl_TextKeyTeam'), dC:'#94a3b8', dF:"'Microsoft YaHei', sans-serif"},
+    {k:'result', label:WebLoc.t('Str_Ctrl_TextKeyResult'), dC:'#f8fafc', dF:"'Consolas', monospace"},
+    {k:'remark', label:WebLoc.t('Str_Ctrl_TextKeyRemark'), dC:'#ef4444', dF:"'Microsoft YaHei', sans-serif"},
+    {k:'record', label:WebLoc.t('Str_Ctrl_TextKeyRecord'), dC:'#FBBF24', dF:"'Microsoft YaHei', sans-serif"}
+]; }
+function CS_FONT_OPTIONS() { return [
+    {label:WebLoc.t('Str_Ctrl_FontYaHei'), value:"'Microsoft YaHei', sans-serif"},
+    {label:WebLoc.t('Str_Ctrl_FontHei'),     value:"SimHei, sans-serif"},
+    {label:WebLoc.t('Str_Ctrl_FontSong'),     value:"SimSun, serif"},
+    {label:WebLoc.t('Str_Ctrl_FontKai'),     value:"KaiTi, serif"},
+    {label:WebLoc.t('Str_Ctrl_FontFangSong'),     value:"FangSong, serif"},
+    {label:WebLoc.t('Str_Ctrl_FontLiShu'),     value:"LiSu, serif"},
+    {label:WebLoc.t('Str_Ctrl_FontYouYuan'),     value:"YouYuan, sans-serif"},
+    {label:WebLoc.t('Str_Ctrl_FontArial'),    value:"Arial, sans-serif"},
+    {label:WebLoc.t('Str_Ctrl_FontConsolas'), value:"Consolas, monospace"},
+    {label:WebLoc.t('Str_Ctrl_FontImpact'),   value:"Impact, sans-serif"}
+]; }
 var _cs_currentStyle = { bg:'#0f172a', fs:1.0, textStyle:{} };
 
 function _cs_sendStyle(payload) {
@@ -433,7 +439,8 @@ function cs_setTextFont(k, f) {
 }
 function cs_resetText(k) {
     var def = null;
-    for (var i = 0; i < CS_TEXT_KEYS.length; i++) if (CS_TEXT_KEYS[i].k === k) { def = CS_TEXT_KEYS[i]; break; }
+    var keys = CS_TEXT_KEYS();
+    for (var i = 0; i < keys.length; i++) if (keys[i].k === k) { def = keys[i]; break; }
     if (!def) return;
     cs_setTextColor(k, def.dC);
     cs_setTextFont(k, def.dF);
@@ -444,27 +451,30 @@ function _cs_buildTextRows() {
     var host = document.getElementById('cs_textStyleRows');
     if (!host) return;
     var html = '';
-    for (var i = 0; i < CS_TEXT_KEYS.length; i++) {
-        var def = CS_TEXT_KEYS[i];
+    var keys = CS_TEXT_KEYS();
+    var fontOptions = CS_FONT_OPTIONS();
+    var resetTitle = WebLoc.t('Str_Ctrl_ResetBtn');
+    for (var i = 0; i < keys.length; i++) {
+        var def = keys[i];
         var saved = (_cs_currentStyle.textStyle || {})[def.k] || {};
         var c = saved.c || def.dC;
         var f = saved.f || def.dF;
         var fontOpts = '';
         var matched = false;
-        for (var j = 0; j < CS_FONT_OPTIONS.length; j++) {
-            var fo = CS_FONT_OPTIONS[j];
+        for (var j = 0; j < fontOptions.length; j++) {
+            var fo = fontOptions[j];
             var sel = (fo.value === f) ? ' selected' : '';
             if (sel) matched = true;
             fontOpts += '<option value="' + fo.value.replace(/"/g,'&quot;') + '"' + sel + '>' + fo.label + '</option>';
         }
-        if (!matched) fontOpts = '<option value="' + f.replace(/"/g,'&quot;') + '" selected>自定义</option>' + fontOpts;
+        if (!matched) fontOpts = '<option value="' + f.replace(/"/g,'&quot;') + '" selected>' + WebLoc.t('Str_Ctrl_FontCustom') + '</option>' + fontOpts;
         html +=
             '<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;padding:4px 0;border-bottom:1px solid #334155;">' +
                 '<span style="flex:0 0 70px;color:#cbd5e1;font-size:12px;">' + def.label + '</span>' +
                 '<input type="color" value="' + (/^#[0-9a-fA-F]{6}$/.test(c)?c:'#f8fafc') + '" onchange="cs_setTextColor(\'' + def.k + '\', this.value)" style="flex:0 0 32px;height:24px;padding:0;border:1px solid #334155;border-radius:4px;background:transparent;cursor:pointer;"/>' +
                 '<input type="text" maxlength="7" value="' + c + '" onchange="cs_setTextColor(\'' + def.k + '\', this.value)" style="flex:0 0 70px;padding:3px 4px;background:#1e293b;color:#f8fafc;border:1px solid #334155;border-radius:4px;font-family:Consolas,monospace;font-size:11px;text-align:center;"/>' +
                 '<select onchange="cs_setTextFont(\'' + def.k + '\', this.value)" style="flex:1;min-width:0;padding:3px 4px;background:#1e293b;color:#f8fafc;border:1px solid #334155;border-radius:4px;font-size:12px;cursor:pointer;">' + fontOpts + '</select>' +
-                '<button onclick="cs_resetText(\'' + def.k + '\')" title="复位" style="flex:0 0 28px;height:24px;background:#334155;color:#cbd5e1;border:none;border-radius:4px;cursor:pointer;font-size:13px;">↺</button>' +
+                '<button onclick="cs_resetText(\'' + def.k + '\')" title="' + resetTitle + '" style="flex:0 0 28px;height:24px;background:#334155;color:#cbd5e1;border:none;border-radius:4px;cursor:pointer;font-size:13px;">↺</button>' +
             '</div>';
     }
     host.innerHTML = html;
@@ -490,24 +500,37 @@ function _cs_applyToUi(data) {
     // 2026-06-03 记录显隐 同步按钮文字
     if (typeof data.recordsHidden === 'boolean') {
         _csRecordsHidden = data.recordsHidden;
-        var b = document.getElementById('recordsHiddenBtn');
-        if (b) b.textContent = data.recordsHidden ? '记录已隐藏 (点击显示 WR/CR)' : '记录显示 (点击隐藏 WR/CR)';
+        _cs_refreshToggleLabels();
     }
     // 2026-06-04 备注栏 反应时 同步按钮文字
     if (typeof data.remarkShowReaction === 'boolean') {
         _csRemarkShowReaction = data.remarkShowReaction;
-        var b2 = document.getElementById('remarkReactionBtn');
-        if (b2) b2.textContent = data.remarkShowReaction ? '备注: 显反应时 (点击关)' : '备注: 不显反应时 (点击开)';
+        _cs_refreshToggleLabels();
+    }
+}
+// 2026-09-28 按当前语言 + 当前状态重画这两个按钮的文字 —— 语言切换时(onWebLocApplied)
+//   也要调用这个, 不然状态是靠 JS 变量记的, data-i18n 的静态默认文案不会自动跟上。
+var _csRecordsBtnTouched = false, _csRemarkBtnTouched = false;
+function _cs_refreshToggleLabels() {
+    var b = document.getElementById('recordsHiddenBtn');
+    if (b) {
+        b.textContent = _csRecordsHidden ? WebLoc.t('Str_Ctrl_RecordsHiddenFmt') : WebLoc.t('Str_Ctrl_RecordsShownFullFmt');
+        _csRecordsBtnTouched = true;
+    }
+    var b2 = document.getElementById('remarkReactionBtn');
+    if (b2) {
+        b2.textContent = _csRemarkShowReaction ? WebLoc.t('Str_Ctrl_RemarkShowReactionOnFmt') : WebLoc.t('Str_Ctrl_RemarkShowReactionOffFmt');
+        _csRemarkBtnTouched = true;
     }
 }
 var _csRecordsHidden = false;
 function toggleRecordsHidden() {
-    if (!ws || ws.readyState !== 1) { alert('未连接服务器'); return; }
+    if (!ws || ws.readyState !== 1) { alert(WebLoc.t('Str_Ctrl_NotConnected')); return; }
     ws.send(JSON.stringify({type: 'SET_DISPLAY_STYLE', data: { recordsHidden: !_csRecordsHidden }}));
 }
 var _csRemarkShowReaction = true;
 function toggleRemarkReaction() {
-    if (!ws || ws.readyState !== 1) { alert('未连接服务器'); return; }
+    if (!ws || ws.readyState !== 1) { alert(WebLoc.t('Str_Ctrl_NotConnected')); return; }
     ws.send(JSON.stringify({type: 'SET_DISPLAY_STYLE', data: { remarkShowReaction: !_csRemarkShowReaction }}));
 }
 
@@ -526,7 +549,7 @@ function closeDisplayStyleDialog() {
 function openPublishDialog() {
     var schedule = serverData.schedule || [];
     if (schedule.length === 0) {
-        alert('暂未收到服务器赛程数据，请稍后再试。\n（如果刚连接，请等待几秒后重试）');
+        alert(WebLoc.t('Str_Ctrl_NoScheduleYetAlert'));
         return;
     }
     var listEl = document.getElementById('publishList');
@@ -540,9 +563,10 @@ function openPublishDialog() {
         for (var h = 0; h < hc; h++) {
             if (heatConfirmed[h] !== true) continue;
             found++;
+            // 2026-09-28 s.stage 是协议原始值(中文), 这个比较不能动; 只有下面组 label(纯展示)才走 stageDisplay
             var showHeat = (hc > 1) || (s.stage && (s.stage.indexOf('预赛') >= 0 || s.stage.indexOf('半决赛') >= 0));
-            var heatLabel = showHeat ? ' 第' + (h+1) + '组' : '';
-            var label = (s.gender||'') + ' ' + (s.eventName||'') + ' ' + (s.stage||'') + heatLabel;
+            var heatLabel = showHeat ? WebLoc.f('Str_Ctrl_HeatSuffixFmt', h+1) : '';
+            var label = WebLoc.genderDisplay(s.gender||'') + ' ' + (s.eventName||'') + ' ' + WebLoc.stageDisplay(s.stage||'') + heatLabel;
             var btnId = 'pub_' + i + '_' + h;
             html += '<button id="' + btnId + '" style="display:block;width:100%;text-align:left;padding:10px 12px;margin-bottom:4px;' +
                 'background:#334155;color:white;border:none;border-radius:6px;font-size:14px;cursor:pointer;" ' +
@@ -553,7 +577,7 @@ function openPublishDialog() {
     }
 
     if (found === 0) {
-        html = '<p style="color:#94a3b8;padding:20px;text-align:center;">暂无已完赛的比赛项目</p>';
+        html = '<p style="color:#94a3b8;padding:20px;text-align:center;">' + WebLoc.t('Str_Ctrl_NoFinishedEvents') + '</p>';
     }
     listEl.innerHTML = html;
     document.getElementById('publishModal').style.display = 'block';
@@ -565,8 +589,8 @@ function closePublishDialog() {
 
 // 2026-06-17 远程化 — 图片/视频 弹框 + PPT 弹框 + 显示比赛日程 弹框
 function openMediaDialog() {
-    if (!ws || ws.readyState !== 1) { alert('未连接服务器'); return; }
-    document.getElementById('mediaList').innerHTML = '<p style="color:#94a3b8;padding:20px;text-align:center;">加载中...</p>';
+    if (!ws || ws.readyState !== 1) { alert(WebLoc.t('Str_Ctrl_NotConnected')); return; }
+    document.getElementById('mediaList').innerHTML = '<p style="color:#94a3b8;padding:20px;text-align:center;">' + WebLoc.t('Str_Ctrl_LoadingEllipsis') + '</p>';
     document.getElementById('mediaModal').style.display = 'block';
     ws.send(JSON.stringify({ type: 'REMOTE_CONTROL', command: 'LIST_MEDIA_FILES' }));
 }
@@ -574,7 +598,7 @@ function closeMediaDialog() { document.getElementById('mediaModal').style.displa
 function _renderMediaList(data) {
     var listEl = document.getElementById('mediaList');
     var files = (data && data.files) || [];
-    if (files.length === 0) { listEl.innerHTML = '<p style="color:#94a3b8;padding:20px;text-align:center;">主控 PC <code>Media/</code> 目录暂无文件</p>'; return; }
+    if (files.length === 0) { listEl.innerHTML = '<p style="color:#94a3b8;padding:20px;text-align:center;">' + WebLoc.t('Str_Ctrl_MediaDirEmpty') + '</p>'; return; }
     var html = '<p style="font-size:11px;color:#64748b;margin-bottom:8px;">' + (data.dir||'') + '</p>';
     for (var i = 0; i < files.length; i++) {
         var f = files[i];
@@ -585,18 +609,18 @@ function _renderMediaList(data) {
     listEl.innerHTML = html;
 }
 function _playMedia(fileName) {
-    if (!ws || ws.readyState !== 1) { alert('未连接'); return; }
+    if (!ws || ws.readyState !== 1) { alert(WebLoc.t('Str_Ctrl_NotConnectedShort')); return; }
     ws.send(JSON.stringify({ type: 'REMOTE_CONTROL', command: 'PLAY_MEDIA_FILE', fileName: fileName, fit: 'contain', loop: true, muted: false, autoplay: true }));
-    document.getElementById('status').textContent = '已发送播放: ' + fileName;
+    document.getElementById('status').textContent = WebLoc.f('Str_Ctrl_SentPlayFmt', fileName);
     closeMediaDialog();
 }
 // 2026-06-17 本机文件上传 → UPLOAD_AND_PLAY_MEDIA
 function _uploadMedia(file) {
     if (!file) return;
-    if (!ws || ws.readyState !== 1) { alert('未连接'); return; }
+    if (!ws || ws.readyState !== 1) { alert(WebLoc.t('Str_Ctrl_NotConnectedShort')); return; }
     var sizeMB = file.size / 1048576;
     var status = document.getElementById('mediaUploadStatus');
-    if (status) status.textContent = '读取中: ' + file.name + ' (' + sizeMB.toFixed(2) + ' MB)';
+    if (status) status.textContent = WebLoc.f('Str_Ctrl_ReadingFileFmt', file.name, sizeMB.toFixed(2));
     var ext = (file.name.split('.').pop() || '').toLowerCase();
     var kind, mime;
     if (['png','jpg','jpeg','bmp','gif','webp'].indexOf(ext) >= 0) {
@@ -605,26 +629,26 @@ function _uploadMedia(file) {
     } else if (['mp4','webm','ogg','m4v'].indexOf(ext) >= 0) {
         kind = 'video';
         mime = ext === 'webm' ? 'video/webm' : ext === 'ogg' ? 'video/ogg' : 'video/mp4';
-    } else { if (status) status.textContent = '不支持的文件类型: ' + ext; return; }
+    } else { if (status) status.textContent = WebLoc.f('Str_Ctrl_UnsupportedFileTypeFmt', ext); return; }
     var reader = new FileReader();
     reader.onload = function() {
-        if (status) status.textContent = '上传中...';
+        if (status) status.textContent = WebLoc.t('Str_Ctrl_Uploading');
         ws.send(JSON.stringify({
             type: 'REMOTE_CONTROL', command: 'UPLOAD_AND_PLAY_MEDIA',
             fileName: file.name, kind: kind, mime: mime, dataUrl: reader.result,
             fit: 'contain', loop: true, muted: false, autoplay: true
         }));
-        document.getElementById('status').textContent = '已上传播放: ' + file.name;
-        if (status) status.textContent = '上传完成, 大屏播放中';
+        document.getElementById('status').textContent = WebLoc.f('Str_Ctrl_UploadPlayedFmt', file.name);
+        if (status) status.textContent = WebLoc.t('Str_Ctrl_UploadDonePlaying');
         setTimeout(closeMediaDialog, 800);
     };
-    reader.onerror = function() { if (status) status.textContent = '读取失败'; };
+    reader.onerror = function() { if (status) status.textContent = WebLoc.t('Str_Ctrl_ReadFailed'); };
     reader.readAsDataURL(file);
 }
 
 function openPptDialog() {
-    if (!ws || ws.readyState !== 1) { alert('未连接服务器'); return; }
-    document.getElementById('pptList').innerHTML = '<p style="color:#94a3b8;padding:20px;text-align:center;">加载中...</p>';
+    if (!ws || ws.readyState !== 1) { alert(WebLoc.t('Str_Ctrl_NotConnected')); return; }
+    document.getElementById('pptList').innerHTML = '<p style="color:#94a3b8;padding:20px;text-align:center;">' + WebLoc.t('Str_Ctrl_LoadingEllipsis') + '</p>';
     document.getElementById('pptModal').style.display = 'block';
     ws.send(JSON.stringify({ type: 'REMOTE_CONTROL', command: 'LIST_PPT_FILES' }));
 }
@@ -632,7 +656,7 @@ function closePptDialog() { document.getElementById('pptModal').style.display = 
 function _renderPptList(data) {
     var listEl = document.getElementById('pptList');
     var files = (data && data.files) || [];
-    if (files.length === 0) { listEl.innerHTML = '<p style="color:#94a3b8;padding:20px;text-align:center;">主控 PC <code>Documents/PPT/</code> 目录暂无 PPT</p>'; return; }
+    if (files.length === 0) { listEl.innerHTML = '<p style="color:#94a3b8;padding:20px;text-align:center;">' + WebLoc.t('Str_Ctrl_PptDirEmpty') + '</p>'; return; }
     var html = '<p style="font-size:11px;color:#64748b;margin-bottom:8px;">' + (data.dir||'') + '</p>';
     for (var i = 0; i < files.length; i++) {
         var f = files[i];
@@ -642,17 +666,17 @@ function _renderPptList(data) {
     listEl.innerHTML = html;
 }
 function _playPpt(fileName) {
-    if (!ws || ws.readyState !== 1) { alert('未连接'); return; }
+    if (!ws || ws.readyState !== 1) { alert(WebLoc.t('Str_Ctrl_NotConnectedShort')); return; }
     ws.send(JSON.stringify({ type: 'REMOTE_CONTROL', command: 'PLAY_PPT_FILE', fileName: fileName }));
-    document.getElementById('status').textContent = '已请求播放 PPT (翻页控制在主控 PC): ' + fileName;
+    document.getElementById('status').textContent = WebLoc.f('Str_Ctrl_RequestedPptFmt', fileName);
     closePptDialog();
 }
 // 2026-06-17 本机 PPT 上传 → UPLOAD_AND_PLAY_PPT
 function _uploadPpt(file) {
     if (!file) return;
-    if (!ws || ws.readyState !== 1) { alert('未连接'); return; }
+    if (!ws || ws.readyState !== 1) { alert(WebLoc.t('Str_Ctrl_NotConnectedShort')); return; }
     var status = document.getElementById('pptUploadStatus');
-    if (status) status.textContent = '读取中: ' + file.name + ' (' + (file.size / 1048576).toFixed(2) + ' MB)';
+    if (status) status.textContent = WebLoc.f('Str_Ctrl_ReadingFileFmt', file.name, (file.size / 1048576).toFixed(2));
     var reader = new FileReader();
     reader.onload = function() {
         // ArrayBuffer → base64 (不含 data: 前缀)
@@ -660,22 +684,22 @@ function _uploadPpt(file) {
         var bin = '';
         for (var i = 0; i < bytes.byteLength; i++) bin += String.fromCharCode(bytes[i]);
         var b64 = btoa(bin);
-        if (status) status.textContent = '上传中...';
+        if (status) status.textContent = WebLoc.t('Str_Ctrl_Uploading');
         ws.send(JSON.stringify({
             type: 'REMOTE_CONTROL', command: 'UPLOAD_AND_PLAY_PPT',
             fileName: file.name, base64: b64
         }));
-        document.getElementById('status').textContent = '已上传 PPT (主控转换 + 翻页): ' + file.name;
-        if (status) status.textContent = '上传完成, 主控转换中...';
+        document.getElementById('status').textContent = WebLoc.f('Str_Ctrl_UploadedPptFmt', file.name);
+        if (status) status.textContent = WebLoc.t('Str_Ctrl_UploadDoneConverting');
         setTimeout(closePptDialog, 800);
     };
-    reader.onerror = function() { if (status) status.textContent = '读取失败'; };
+    reader.onerror = function() { if (status) status.textContent = WebLoc.t('Str_Ctrl_ReadFailed'); };
     reader.readAsArrayBuffer(file);
 }
 
 function openScheduleDialog() {
-    if (!ws || ws.readyState !== 1) { alert('未连接服务器'); return; }
-    document.getElementById('scheduleList').innerHTML = '<p style="color:#94a3b8;padding:20px;text-align:center;">加载中...</p>';
+    if (!ws || ws.readyState !== 1) { alert(WebLoc.t('Str_Ctrl_NotConnected')); return; }
+    document.getElementById('scheduleList').innerHTML = '<p style="color:#94a3b8;padding:20px;text-align:center;">' + WebLoc.t('Str_Ctrl_LoadingEllipsis') + '</p>';
     document.getElementById('scheduleModal').style.display = 'block';
     ws.send(JSON.stringify({ type: 'REMOTE_CONTROL', command: 'LIST_SCHEDULE_SESSIONS' }));
 }
@@ -683,18 +707,19 @@ function closeScheduleDialog() { document.getElementById('scheduleModal').style.
 function _renderScheduleList(data) {
     var listEl = document.getElementById('scheduleList');
     var sessions = (data && data.sessions) || [];
-    var html = '<button style="display:block;width:100%;text-align:left;padding:10px 12px;margin-bottom:4px;background:#0D9488;color:white;border:none;border-radius:6px;font-size:14px;cursor:pointer;font-weight:bold;" onclick="_showSchedule(-1)">📅 全部场次</button>';
-    if (sessions.length === 0) { html += '<p style="color:#94a3b8;padding:20px;text-align:center;">暂无场次</p>'; listEl.innerHTML = html; return; }
+    var html = '<button style="display:block;width:100%;text-align:left;padding:10px 12px;margin-bottom:4px;background:#0D9488;color:white;border:none;border-radius:6px;font-size:14px;cursor:pointer;font-weight:bold;" onclick="_showSchedule(-1)">' + WebLoc.t('Str_Ctrl_AllSessionsBtn') + '</button>';
+    if (sessions.length === 0) { html += '<p style="color:#94a3b8;padding:20px;text-align:center;">' + WebLoc.t('Str_Ctrl_NoSessionsYet') + '</p>'; listEl.innerHTML = html; return; }
     for (var i = 0; i < sessions.length; i++) {
         var s = sessions[i];
-        html += '<button style="display:block;width:100%;text-align:left;padding:10px 12px;margin-bottom:4px;background:#334155;color:white;border:none;border-radius:6px;font-size:14px;cursor:pointer;" onclick="_showSchedule(' + s.session + ')">' + (s.label||('第'+s.session+'场')) + '</button>';
+        // 2026-09-28 s.label 是服务器算好的场次名(数据), 缺省兜底文案用 Common_SessionNumFmt
+        html += '<button style="display:block;width:100%;text-align:left;padding:10px 12px;margin-bottom:4px;background:#334155;color:white;border:none;border-radius:6px;font-size:14px;cursor:pointer;" onclick="_showSchedule(' + s.session + ')">' + (s.label || WebLoc.f('Str_Common_SessionNumFmt', s.session)) + '</button>';
     }
     listEl.innerHTML = html;
 }
 function _showSchedule(sessionNum) {
-    if (!ws || ws.readyState !== 1) { alert('未连接'); return; }
+    if (!ws || ws.readyState !== 1) { alert(WebLoc.t('Str_Ctrl_NotConnectedShort')); return; }
     ws.send(JSON.stringify({ type: 'REMOTE_CONTROL', command: 'SHOW_SCHEDULE_SESSION', session: sessionNum }));
-    document.getElementById('status').textContent = sessionNum < 0 ? '已发送: 显示全部场次' : ('已发送: 显示第' + sessionNum + '场');
+    document.getElementById('status').textContent = sessionNum < 0 ? WebLoc.t('Str_Ctrl_ShowAllSessions') : WebLoc.f('Str_Ctrl_ShowSessionFmt', sessionNum);
     closeScheduleDialog();
 }
 
@@ -702,10 +727,10 @@ function _showSchedule(sessionNum) {
 //   服务器用的是当时(很可能是 null)的 _rankingSelection/_awardSelection, 大屏没内容可显。
 var _rankingPickCommand = null;
 function openRankingPicker(cmd, title) {
-    if (!ws || ws.readyState !== 1) { alert('未连接服务器'); return; }
+    if (!ws || ws.readyState !== 1) { alert(WebLoc.t('Str_Ctrl_NotConnected')); return; }
     _rankingPickCommand = cmd;
     document.getElementById('rankingPickTitle').textContent = title;
-    document.getElementById('rankingPickList').innerHTML = '<p style="color:#94a3b8;padding:20px;text-align:center;">加载中...</p>';
+    document.getElementById('rankingPickList').innerHTML = '<p style="color:#94a3b8;padding:20px;text-align:center;">' + WebLoc.t('Str_Ctrl_LoadingEllipsis') + '</p>';
     document.getElementById('rankingPickModal').style.display = 'block';
     ws.send(JSON.stringify({ type: 'REMOTE_CONTROL', command: 'LIST_RANKING_CANDIDATES' }));
 }
@@ -713,7 +738,7 @@ function closeRankingPicker() { document.getElementById('rankingPickModal').styl
 function _renderRankingCandidates(data) {
     var listEl = document.getElementById('rankingPickList');
     var candidates = (data && data.candidates) || [];
-    if (candidates.length === 0) { listEl.innerHTML = '<p style="color:#94a3b8;padding:20px;text-align:center;">暂无已完赛(决赛全部确认)的项目</p>'; return; }
+    if (candidates.length === 0) { listEl.innerHTML = '<p style="color:#94a3b8;padding:20px;text-align:center;">' + WebLoc.t('Str_Ctrl_NoRankingCandidates') + '</p>'; return; }
     var html = '';
     for (var i = 0; i < candidates.length; i++) {
         html += '<button style="display:block;width:100%;text-align:left;padding:10px 12px;margin-bottom:4px;background:#334155;color:white;border:none;border-radius:6px;font-size:14px;cursor:pointer;" onclick="_pickRanking(' + i + ')">' + candidates[i].label + '</button>';
@@ -722,20 +747,23 @@ function _renderRankingCandidates(data) {
     window._rankingCandidates = candidates;
 }
 function _pickRanking(idx) {
-    if (!ws || ws.readyState !== 1) { alert('未连接'); return; }
+    if (!ws || ws.readyState !== 1) { alert(WebLoc.t('Str_Ctrl_NotConnectedShort')); return; }
     var c = (window._rankingCandidates || [])[idx];
     if (!c) return;
     ws.send(JSON.stringify({
         type: 'REMOTE_CONTROL', command: _rankingPickCommand,
         ageGroup: c.ageGroup, gender: c.gender, eventName: c.eventName, stage: c.stage
     }));
-    document.getElementById('status').textContent = '已发送: ' + c.label;
+    document.getElementById('status').textContent = WebLoc.f('Str_Ctrl_SentPrefixFmt', c.label);
     closeRankingPicker();
 }
 
 // 2026-06-17 加 ageGroup 形参 + data 字段, 修跨年龄段污染 (与 race_control.html / RDC 同步)
+// 2026-09-28 gender/eventName/stage 是协议原始值, 发给服务器的 data: {...} 必须原样传, 不能翻译；
+//   confirm()/状态栏是纯展示, 用 genderDisplay/stageDisplay 包一层。
 function publishResult(gender, eventName, stage, heat, heatCount, ageGroup) {
-    if (!confirm('确定发布 ' + gender + ' ' + eventName + ' ' + stage + (heatCount > 1 ? ' 第'+heat+'组' : '') + ' 的成绩到大屏？')) return;
+    var heatSuffix = heatCount > 1 ? WebLoc.f('Str_Ctrl_HeatSuffixFmt', heat) : '';
+    if (!confirm(WebLoc.f('Str_Ctrl_ConfirmPublishFmt', WebLoc.genderDisplay(gender), eventName, WebLoc.stageDisplay(stage), heatSuffix))) return;
 
     // 从serverData中构建该组成绩
     var swimmers = [];
@@ -748,19 +776,29 @@ function publishResult(gender, eventName, stage, heat, heatCount, ageGroup) {
             command: 'PUBLISH_RESULT',
             data: { gender: gender, eventName: eventName, stage: stage, heat: heat, ageGroup: ageGroup||'' }
         }));
-        document.getElementById('status').textContent = '已请求发布: ' + gender + ' ' + eventName + ' ' + stage;
+        document.getElementById('status').textContent = WebLoc.f('Str_Ctrl_RequestedPublishFmt', WebLoc.genderDisplay(gender), eventName, WebLoc.stageDisplay(stage));
     }
     closePublishDialog();
 }
 
+// 2026-09-28 语言切换后, 重新渲染那些不是靠 data-i18n 静态属性覆盖到的动态内容
+// (跟桌面端"直接赋值.Text会打断DynamicResource绑定, 要挂进LanguageToggle_Click"同一个道理)
+window.onWebLocApplied = function () {
+    if (_csRecordsBtnTouched || _csRemarkBtnTouched) _cs_refreshToggleLabels();
+    // 大屏样式弹窗如果正开着, 重画一遍文字行标签(label靠WebLoc.t生成, 不是live binding)
+    var styleModal = document.getElementById('displayStyleModal');
+    if (styleModal && styleModal.style.display === 'block') _cs_buildTextRows();
+};
+
 // 启动：先把已知/默认的服务器IP填入连接栏输入框，并触发一次连接尝试
 (function bootstrap() {
+    WebLoc.apply();
     var inp = document.getElementById('serverHostInput');
     if (inp) {
         inp.value = getServerHost();
         inp.addEventListener('keydown', function(ev) { if (ev.key === 'Enter') manualConnect(); });
     }
-    setConnUI('连接中…', '#F59E0B');
+    setConnUI(WebLoc.t('Str_Ctrl_ConnConnecting'), '#F59E0B');
     connect();
 })();
 </script>
