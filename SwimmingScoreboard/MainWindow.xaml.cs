@@ -17936,21 +17936,21 @@ namespace SwimmingScoreboard
             var sp = new StackPanel { Margin = new Thickness(20) };
             sp.Children.Add(new TextBlock { Text = Loc.T("Str_Win_TimeParams_Title"), FontSize = 17, FontWeight = FontWeights.Bold, Foreground = Brushes.White, Margin = new Thickness(0, 0, 0, 14) });
 
-            var tbCloseTime = AddSettingsRow(sp, "泳道关闭时间", _laneCloseSettings.LaneCloseTime.ToString(), "秒");
-            var tbSBDelay = AddSettingsRow(sp, "出发台关闭延迟", _laneCloseSettings.StartBlockCloseDelay.ToString(), "秒");
-            var tbConfDelay = AddSettingsRow(sp, "成绩确认关闭延迟", _laneCloseSettings.ResultConfirmCloseDelay.ToString(), "秒");
-            var tbFSThresh = AddSettingsRow(sp, "抢跳判定阈值", _laneCloseSettings.FalseStartThreshold.ToString(), "秒");
-            var tbRelayFSThresh = AddSettingsRow(sp, "接力交接棒抢跳判定阀值", _laneCloseSettings.RelayHandoffFalseStartThreshold.ToString(), "秒");
-            var tbSplitDisp = AddSettingsRow(sp, "分段成绩显示时长", _laneCloseSettings.SplitDisplayTime.ToString(), "秒");
+            var tbCloseTime = AddSettingsRow(sp, Loc.T("Str_Win_TimeParams_LaneCloseTime"), _laneCloseSettings.LaneCloseTime.ToString(), Loc.T("Str_Win_TimeParams_UnitSec"));
+            var tbSBDelay = AddSettingsRow(sp, Loc.T("Str_Win_TimeParams_StartBlockCloseDelay"), _laneCloseSettings.StartBlockCloseDelay.ToString(), Loc.T("Str_Win_TimeParams_UnitSec"));
+            var tbConfDelay = AddSettingsRow(sp, Loc.T("Str_Win_TimeParams_ResultConfirmCloseDelay"), _laneCloseSettings.ResultConfirmCloseDelay.ToString(), Loc.T("Str_Win_TimeParams_UnitSec"));
+            var tbFSThresh = AddSettingsRow(sp, Loc.T("Str_Win_TimeParams_FalseStartThreshold"), _laneCloseSettings.FalseStartThreshold.ToString(), Loc.T("Str_Win_TimeParams_UnitSec"));
+            var tbRelayFSThresh = AddSettingsRow(sp, Loc.T("Str_Win_TimeParams_RelayHandoffFalseStartThreshold"), _laneCloseSettings.RelayHandoffFalseStartThreshold.ToString(), Loc.T("Str_Win_TimeParams_UnitSec"));
+            var tbSplitDisp = AddSettingsRow(sp, Loc.T("Str_Win_TimeParams_SplitDisplayTime"), _laneCloseSettings.SplitDisplayTime.ToString(), Loc.T("Str_Win_TimeParams_UnitSec"));
             //2026-05-18 盲表代替成绩延迟时间统一为整秒(与其它字段一致)；硬件 case 端 ×10 转 0.1s 单位
             double blindDispl = _laneCloseSettings.BlindReplaceDelay;
             if (blindDispl < 0) blindDispl = 0;
             if (blindDispl > 9) blindDispl = 9;
-            var tbBlindReplace = AddSettingsRow(sp, "盲表代替成绩延迟", ((int)Math.Round(blindDispl)).ToString(), "秒(0-9)");
+            var tbBlindReplace = AddSettingsRow(sp, Loc.T("Str_Win_TimeParams_BlindReplaceDelay"), ((int)Math.Round(blindDispl)).ToString(), Loc.T("Str_Win_TimeParams_UnitSec0to9"));
             // 2026-06-03 接力 reaction 事件窗口 — 第一个事件 (TP/SB/MB/手动 TP) 到达起 N 秒倒计时, 收集相关事件算 SB 反应时
-            var tbReactionWin = AddSettingsRow(sp, "接力反应时事件窗口", _laneCloseSettings.ReactionEventWindowSec.ToString("F1"), "秒(1-10)");
-            var tbFirstHold = AddSettingsRow(sp, "第1名成绩停留时间", _laneCloseSettings.FirstPlaceHoldTime.ToString(), "秒");
-            var tbBigPage = AddSettingsRow(sp, "大屏翻屏时间", _laneCloseSettings.BigDisplayPageInterval.ToString(), "秒");
+            var tbReactionWin = AddSettingsRow(sp, Loc.T("Str_Win_TimeParams_ReactionEventWindow"), _laneCloseSettings.ReactionEventWindowSec.ToString("F1"), Loc.T("Str_Win_TimeParams_UnitSec1to10"));
+            var tbFirstHold = AddSettingsRow(sp, Loc.T("Str_Win_TimeParams_FirstPlaceHoldTime"), _laneCloseSettings.FirstPlaceHoldTime.ToString(), Loc.T("Str_Win_TimeParams_UnitSec"));
+            var tbBigPage = AddSettingsRow(sp, Loc.T("Str_Win_TimeParams_BigDisplayPageInterval"), _laneCloseSettings.BigDisplayPageInterval.ToString(), Loc.T("Str_Win_TimeParams_UnitSec"));
 
             var timeBtnPanel = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 16, 0, 0) };
             var timeCancel = new Button { Content = Loc.T("Str_Btn_Cancel"), Padding = new Thickness(16, 6, 16, 6), Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569")), Foreground = Brushes.White, BorderThickness = new Thickness(0), Margin = new Thickness(0, 0, 8, 0) };
