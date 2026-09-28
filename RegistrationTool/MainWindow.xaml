@@ -1,7 +1,7 @@
 <Window x:Class="RegistrationTool.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="游泳赛事管理系统 — 运动员报名" Width="720" Height="700"
+        Title="{DynamicResource Str_RegTool_LoginTitle}" Width="720" Height="700"
         WindowStartupLocation="CenterScreen" Background="#F1F5F9">
     <Grid Margin="16">
         <Grid.RowDefinitions>
@@ -18,35 +18,35 @@
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
-            <TextBlock Text="服务器:" VerticalAlignment="Center"/>
+            <TextBlock Text="{DynamicResource Str_RegTool_ServerLabel}" VerticalAlignment="Center"/>
             <TextBox x:Name="ServerBox" Grid.Column="1" Text="127.0.0.1:3002" Padding="4" VerticalAlignment="Center"/>
-            <Button x:Name="ConnBtn" Grid.Column="2" Content="连接" Click="Connect_Click" Padding="16,4" Margin="8,0,0,0"
+            <Button x:Name="ConnBtn" Grid.Column="2" Content="{DynamicResource Str_RegTool_ConnectBtn}" Click="Connect_Click" Padding="16,4" Margin="8,0,0,0"
                     Background="#3B82F6" Foreground="White" BorderThickness="0"
-                    ToolTip="点击连接/断开主服务器"/>
+                    ToolTip="{DynamicResource Str_RegTool_ConnectTooltip}"/>
             <!-- 状态指示灯 + 文字 -->
             <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0,0,0">
                 <Border x:Name="StatusLed" Width="14" Height="14" CornerRadius="7"
                         Background="#EF4444" BorderBrush="#9F1239" BorderThickness="1" Margin="0,0,6,0"
-                        ToolTip="主服务器连接状态指示灯：红=未连接 / 绿=已连接 / 黄=连接中或失败"/>
-                <TextBlock x:Name="StatusText" Text="未连接" Foreground="#EF4444" VerticalAlignment="Center" FontWeight="Bold"/>
+                        ToolTip="{DynamicResource Str_RegTool_StatusLedTooltip}"/>
+                <TextBlock x:Name="StatusText" Text="{DynamicResource Str_RegTool_StatusDisconnected}" Foreground="#EF4444" VerticalAlignment="Center" FontWeight="Bold"/>
             </StackPanel>
             <!-- 修改用户名和密码 -->
-            <Button Grid.Column="4" Content="修改用户名和密码" Click="ChangePassword_Click"
+            <Button Grid.Column="4" Content="{DynamicResource Str_RegTool_ChangePasswordBtn}" Click="ChangePassword_Click"
                     Padding="10,4" Margin="12,0,0,0"
                     Background="#475569" Foreground="White" BorderThickness="0" FontSize="12"/>
         </Grid>
 
         <TabControl Grid.Row="1">
             <!-- 个人报名 -->
-            <TabItem Header="个人项目报名">
+            <TabItem Header="{DynamicResource Str_RegTool_TabIndividual}">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="12">
                     <StackPanel>
-                        <TextBlock Text="运动员信息" FontSize="15" FontWeight="Bold" Margin="0,0,0,8"/>
+                        <TextBlock Text="{DynamicResource Str_RegTool_SwimmerInfoTitle}" FontSize="15" FontWeight="Bold" Margin="0,0,0,8"/>
                         <Grid>
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="80"/>
+                                <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="80"/>
+                                <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
                             <Grid.RowDefinitions>
@@ -56,29 +56,32 @@
                                 <RowDefinition Height="30"/>
                                 <RowDefinition Height="30"/>
                             </Grid.RowDefinitions>
-                            <TextBlock Grid.Row="0" Grid.Column="0" Margin="6,0,0,0" Text="姓名:" VerticalAlignment="Center"/>
+                            <TextBlock Grid.Row="0" Grid.Column="0" Margin="6,0,0,0" Text="{DynamicResource Str_RegTool_NameLabel}" VerticalAlignment="Center"/>
                             <TextBox x:Name="NameBox" Grid.Row="0" Grid.Column="1" Padding="4" VerticalAlignment="Center"/>
-                            <TextBlock Grid.Row="0" Grid.Column="2" Margin="16,0,0,0" Text="性别:" VerticalAlignment="Center"/>
+                            <TextBlock Grid.Row="0" Grid.Column="2" Margin="16,0,0,0" Text="{DynamicResource Str_RegTool_GenderLabel}" VerticalAlignment="Center"/>
                             <ComboBox x:Name="GenderCombo" Grid.Row="0" Grid.Column="3" VerticalAlignment="Center" SelectedIndex="0">
                                 <!-- 2026-08-21 补"男女"：混合接力用的是"男女"(国际赛事标准写法)。
-                                     本程序没有配置推送通道，暂时写死；治本要加 genderList 下发 -->
+                                     本程序没有配置推送通道，暂时写死；治本要加 genderList 下发。
+                                     2026-09-28 这几项是提交给服务器的性别数据值(数据哨兵)，不翻译——
+                                     跟 SwimmingScoreboard/MainWindow.xaml 里同类 ComboBoxItem 的既有做法一致。 -->
                                 <ComboBoxItem Content="男"/><ComboBoxItem Content="女"/><ComboBoxItem Content="混合"/><ComboBoxItem Content="男女"/>
                             </ComboBox>
-                            <TextBlock Grid.Row="1" Grid.Column="0" Margin="6,0,0,0" Text="出生日期:" VerticalAlignment="Center"/>
+                            <TextBlock Grid.Row="1" Grid.Column="0" Margin="6,0,0,0" Text="{DynamicResource Str_RegTool_BirthDateLabel}" VerticalAlignment="Center"/>
                             <DatePicker x:Name="BirthDatePicker" Grid.Row="1" Grid.Column="1" VerticalAlignment="Center"
                                         Language="en-CA" SelectedDateFormat="Short"
-                                        ToolTip="格式：yyyy-MM-dd（4 位年份）"/>
-                            <TextBlock Grid.Row="1" Grid.Column="2" Margin="16,0,0,0" Text="身份证号:" VerticalAlignment="Center"/>
+                                        ToolTip="{DynamicResource Str_RegTool_BirthDateTooltip}"/>
+                            <TextBlock Grid.Row="1" Grid.Column="2" Margin="16,0,0,0" Text="{DynamicResource Str_RegTool_IDNumberLabel}" VerticalAlignment="Center"/>
                             <TextBox x:Name="IDNumberBox" Grid.Row="1" Grid.Column="3" Padding="4" VerticalAlignment="Center"/>
-                            <TextBlock Grid.Row="2" Grid.Column="0" Margin="6,0,0,0" Text="代表队:" VerticalAlignment="Center"/>
+                            <TextBlock Grid.Row="2" Grid.Column="0" Margin="6,0,0,0" Text="{DynamicResource Str_RegTool_CountryLabel}" VerticalAlignment="Center"/>
                             <TextBox x:Name="CountryBox" Grid.Row="2" Grid.Column="1" Padding="4" VerticalAlignment="Center"/>
-                            <TextBlock Grid.Row="2" Grid.Column="2" Margin="16,0,0,0" Text="单位简称:" VerticalAlignment="Center"/>
+                            <TextBlock Grid.Row="2" Grid.Column="2" Margin="16,0,0,0" Text="{DynamicResource Str_RegTool_CountryShortLabel}" VerticalAlignment="Center"/>
                             <TextBox x:Name="CountryShortBox" Grid.Row="2" Grid.Column="3" Padding="4" VerticalAlignment="Center"
-                                     ToolTip="可选，用于大屏显示"/>
-                            <TextBlock Grid.Row="3" Grid.Column="0" Margin="6,0,0,0" Text="组别:" VerticalAlignment="Center"/>
+                                     ToolTip="{DynamicResource Str_RegTool_CountryShortTooltip}"/>
+                            <TextBlock Grid.Row="3" Grid.Column="0" Margin="6,0,0,0" Text="{DynamicResource Str_RegTool_AgeGroupLabel}" VerticalAlignment="Center"/>
                             <ComboBox x:Name="AgeGroupCombo" Grid.Row="3" Grid.Column="1" VerticalAlignment="Center"
                                       IsEditable="True"
-                                      ToolTip="大众赛事可填甲/乙/丙组；国际/国内大赛可留空或填年龄段">
+                                      ToolTip="{DynamicResource Str_RegTool_AgeGroupTooltip}">
+                                <!-- 2026-09-28 组别名是持久化/比对用的数据值(数据哨兵)，不翻译。 -->
                                 <ComboBoxItem Content=""/>
                                 <ComboBoxItem Content="甲组"/>
                                 <ComboBoxItem Content="乙组"/>
@@ -93,29 +96,30 @@
                                 <ComboBoxItem Content="大师"/>
                                 <ComboBoxItem Content="老年"/>
                             </ComboBox>
-                            <TextBlock Grid.Row="3" Grid.Column="2" Margin="16,0,0,0" Text="联系电话:" VerticalAlignment="Center"/>
+                            <TextBlock Grid.Row="3" Grid.Column="2" Margin="16,0,0,0" Text="{DynamicResource Str_RegTool_PhoneLabel}" VerticalAlignment="Center"/>
                             <TextBox x:Name="PhoneBox" Grid.Row="3" Grid.Column="3" Padding="4" VerticalAlignment="Center"/>
-                            <TextBlock Grid.Row="4" Grid.Column="0" Margin="6,0,0,0" Text="协会注册号:" VerticalAlignment="Center"/>
+                            <TextBlock Grid.Row="4" Grid.Column="0" Margin="6,0,0,0" Text="{DynamicResource Str_RegTool_CSALabel}" VerticalAlignment="Center"/>
                             <TextBox x:Name="CSABox" Grid.Row="4" Grid.Column="1" Padding="4" VerticalAlignment="Center"/>
-                            <TextBlock Grid.Row="4" Grid.Column="2" Margin="16,0,0,0" Text="备注:" VerticalAlignment="Center"/>
+                            <TextBlock Grid.Row="4" Grid.Column="2" Margin="16,0,0,0" Text="{DynamicResource Str_RegTool_NotesLabel}" VerticalAlignment="Center"/>
                             <TextBox x:Name="NotesBox" Grid.Row="4" Grid.Column="3" Padding="4" VerticalAlignment="Center"/>
                         </Grid>
 
-                        <TextBlock Text="参赛项目" FontSize="14" FontWeight="Bold" Margin="0,12,0,4"/>
+                        <TextBlock Text="{DynamicResource Str_RegTool_EventsTitle}" FontSize="14" FontWeight="Bold" Margin="0,12,0,4"/>
                         <ListBox x:Name="EventListBox" Height="100" FontSize="13"/>
 
                         <Border Background="#F8FAFC" BorderBrush="#CBD5E1" BorderThickness="1" CornerRadius="4" Padding="10" Margin="0,8,0,0">
                             <Grid>
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="60"/>
+                                    <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="70"/>
+                                    <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="100"/>
                                     <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Text="项目:" VerticalAlignment="Center"/>
+                                <TextBlock Text="{DynamicResource Str_RegTool_EventLabel}" VerticalAlignment="Center"/>
                                 <ComboBox x:Name="EventCombo" Grid.Column="1" VerticalAlignment="Center" Margin="0,0,8,0">
+                                    <!-- 2026-09-28 项目名是持久化/比对用的数据值(数据哨兵)，不翻译。 -->
                                     <ComboBoxItem Content="50米自由泳"/><ComboBoxItem Content="100米自由泳"/><ComboBoxItem Content="200米自由泳"/>
                                     <ComboBoxItem Content="400米自由泳"/><ComboBoxItem Content="800米自由泳"/><ComboBoxItem Content="1500米自由泳"/>
                                     <ComboBoxItem Content="50米仰泳"/><ComboBoxItem Content="100米仰泳"/><ComboBoxItem Content="200米仰泳"/>
@@ -123,11 +127,11 @@
                                     <ComboBoxItem Content="50米蝶泳"/><ComboBoxItem Content="100米蝶泳"/><ComboBoxItem Content="200米蝶泳"/>
                                     <ComboBoxItem Content="200米个人混合泳"/><ComboBoxItem Content="400米个人混合泳"/>
                                 </ComboBox>
-                                <TextBlock Grid.Column="2" Margin="16,0,0,0" Text="报名成绩:" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Column="2" Margin="16,0,0,0" Text="{DynamicResource Str_RegTool_EntryTimeLabel}" VerticalAlignment="Center"/>
                                 <TextBox x:Name="EntryTimeBox" Grid.Column="3" Padding="4" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                <Button Grid.Column="4" Content="+ 添加参赛项目" Click="AddEvent_Click" Padding="8,4"
+                                <Button Grid.Column="4" Content="{DynamicResource Str_RegTool_AddEventBtn}" Click="AddEvent_Click" Padding="8,4"
                                         Background="#8B5CF6" Foreground="White" BorderThickness="0" Margin="0,0,4,0"/>
-                                <Button Grid.Column="5" Content="X 删除此项" Click="RemoveEvent_Click" Padding="8,4"
+                                <Button Grid.Column="5" Content="{DynamicResource Str_RegTool_RemoveEventBtn}" Click="RemoveEvent_Click" Padding="8,4"
                                         Background="#EF4444" Foreground="White" BorderThickness="0"/>
                             </Grid>
                         </Border>
@@ -137,31 +141,32 @@
                                 <ColumnDefinition Width="2*"/>
                                 <ColumnDefinition Width="1*"/>
                             </Grid.ColumnDefinitions>
-                            <Button Grid.Column="0" Content="+ 添加到报名列表" Click="AddToQueue_Click" Padding="0,10" Margin="0,0,8,0"
+                            <Button Grid.Column="0" Content="{DynamicResource Str_RegTool_AddToQueueBtn}" Click="AddToQueue_Click" Padding="0,10" Margin="0,0,8,0"
                                     Background="#8B5CF6" Foreground="White" FontSize="14" FontWeight="Bold" BorderThickness="0"/>
-                            <Button Grid.Column="1" Content="清空当前表单" Click="ClearForm_Click" Padding="0,10"
+                            <Button Grid.Column="1" Content="{DynamicResource Str_RegTool_ClearFormBtn}" Click="ClearForm_Click" Padding="0,10"
                                     Background="#64748B" Foreground="White" FontSize="14" BorderThickness="0"/>
                         </Grid>
                         <TextBlock x:Name="RegStatusText" Text="" Foreground="#22C55E" Margin="0,8,0,0" FontWeight="Bold" TextWrapping="Wrap"/>
 
-                        <TextBlock Text="待提交报名列表" FontSize="14" FontWeight="Bold" Margin="0,16,0,4"/>
+                        <TextBlock Text="{DynamicResource Str_RegTool_PendingQueueTitle}" FontSize="14" FontWeight="Bold" Margin="0,16,0,4"/>
                         <ListBox x:Name="RegQueueListBox" Height="100" FontSize="13"/>
-                        <Button x:Name="SubmitQueueBtn" Content="全部提交报名（0 人）" Click="SubmitQueue_Click" Padding="0,10" Margin="0,8,0,0"
+                        <!-- 2026-09-28 Content 是带计数的动态文案(Loc.F)，初始值由构造函数里的 RefreshRegQueue() 设置，不留 XAML 静态占位 -->
+                        <Button x:Name="SubmitQueueBtn" Content="" Click="SubmitQueue_Click" Padding="0,10" Margin="0,8,0,0"
                                 Background="#22C55E" Foreground="White" FontSize="15" FontWeight="Bold" BorderThickness="0" IsEnabled="False"/>
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>
 
             <!-- 接力报名 -->
-            <TabItem Header="接力队报名">
+            <TabItem Header="{DynamicResource Str_RegTool_TabRelay}">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="12">
                     <StackPanel>
-                        <TextBlock Text="接力队信息" FontSize="15" FontWeight="Bold" Margin="0,0,0,8"/>
+                        <TextBlock Text="{DynamicResource Str_RegTool_RelayInfoTitle}" FontSize="15" FontWeight="Bold" Margin="0,0,0,8"/>
                         <Grid>
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="80"/>
+                                <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="80"/>
+                                <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
                             <Grid.RowDefinitions>
@@ -170,15 +175,14 @@
                                 <RowDefinition Height="30"/>
                                 <RowDefinition Height="30"/>
                             </Grid.RowDefinitions>
-                            <TextBlock Grid.Row="0" Grid.Column="0" Margin="6,0,0,0" Text="队名:" VerticalAlignment="Center"/>
+                            <TextBlock Grid.Row="0" Grid.Column="0" Margin="6,0,0,0" Text="{DynamicResource Str_RegTool_TeamNameLabel}" VerticalAlignment="Center"/>
                             <TextBox x:Name="RelayTeamBox" Grid.Row="0" Grid.Column="1" Padding="4" VerticalAlignment="Center"/>
-                            <TextBlock Grid.Row="0" Grid.Column="2" Margin="16,0,0,0" Text="性别:" VerticalAlignment="Center"/>
+                            <TextBlock Grid.Row="0" Grid.Column="2" Margin="16,0,0,0" Text="{DynamicResource Str_RegTool_GenderLabel}" VerticalAlignment="Center"/>
                             <ComboBox x:Name="RelayGenderCombo" Grid.Row="0" Grid.Column="3" SelectedIndex="0" VerticalAlignment="Center">
-                                <!-- 2026-08-21 补"男女"：混合接力用的是"男女"(国际赛事标准写法)。
-                                     本程序没有配置推送通道，暂时写死；治本要加 genderList 下发 -->
+                                <!-- 2026-09-28 数据哨兵，不翻译，同上。 -->
                                 <ComboBoxItem Content="男"/><ComboBoxItem Content="女"/><ComboBoxItem Content="混合"/><ComboBoxItem Content="男女"/>
                             </ComboBox>
-                            <TextBlock Grid.Row="1" Grid.Column="0" Margin="6,0,0,0" Text="组别:" VerticalAlignment="Center"/>
+                            <TextBlock Grid.Row="1" Grid.Column="0" Margin="6,0,0,0" Text="{DynamicResource Str_RegTool_AgeGroupLabel}" VerticalAlignment="Center"/>
                             <ComboBox x:Name="RelayAgeGroupCombo" Grid.Row="1" Grid.Column="1" VerticalAlignment="Center" IsEditable="True">
                                 <ComboBoxItem Content=""/>
                                 <ComboBoxItem Content="甲组"/>
@@ -194,58 +198,61 @@
                                 <ComboBoxItem Content="大师"/>
                                 <ComboBoxItem Content="老年"/>
                             </ComboBox>
-                            <TextBlock Grid.Row="1" Grid.Column="2" Margin="16,0,0,0" Text="单位简称:" VerticalAlignment="Center"/>
+                            <TextBlock Grid.Row="1" Grid.Column="2" Margin="16,0,0,0" Text="{DynamicResource Str_RegTool_CountryShortLabel}" VerticalAlignment="Center"/>
                             <TextBox x:Name="RelayCountryShortBox" Grid.Row="1" Grid.Column="3" Padding="4" VerticalAlignment="Center"/>
-                            <TextBlock Grid.Row="2" Grid.Column="0" Margin="6,0,0,0" Text="项目:" VerticalAlignment="Center"/>
+                            <TextBlock Grid.Row="2" Grid.Column="0" Margin="6,0,0,0" Text="{DynamicResource Str_RegTool_EventLabel}" VerticalAlignment="Center"/>
                             <ComboBox x:Name="RelayEventCombo" Grid.Row="2" Grid.Column="1" SelectedIndex="0" VerticalAlignment="Center">
                                 <ComboBoxItem Content="4x100米自由泳接力"/><ComboBoxItem Content="4x200米自由泳接力"/><ComboBoxItem Content="4x100米混合泳接力"/>
                             </ComboBox>
-                            <TextBlock Grid.Row="3" Grid.Column="0" Margin="6,0,0,0" Text="报名成绩:" VerticalAlignment="Center"/>
+                            <TextBlock Grid.Row="3" Grid.Column="0" Margin="6,0,0,0" Text="{DynamicResource Str_RegTool_EntryTimeLabel}" VerticalAlignment="Center"/>
                             <TextBox x:Name="RelayEntryTimeBox" Grid.Row="3" Grid.Column="1" Padding="4" VerticalAlignment="Center"/>
-                            <Button Grid.Row="3" Grid.Column="2" Grid.ColumnSpan="2" Content="+ 添加接力项目" Click="AddRelayEvent_Click" Padding="8,4"
+                            <Button Grid.Row="3" Grid.Column="2" Grid.ColumnSpan="2" Content="{DynamicResource Str_RegTool_AddRelayEventBtn}" Click="AddRelayEvent_Click" Padding="8,4"
                                     Background="#8B5CF6" Foreground="White" BorderThickness="0"/>
                         </Grid>
                         <!-- 2026-09-22 一支队可以报多个接力项目：先加到这个列表，最后随队伍一起加入报名队列 -->
-                        <TextBlock Text="已添加接力项目（同一队伍/棒次可报多个）" FontSize="13" FontWeight="Bold" Margin="0,10,0,4"/>
+                        <TextBlock Text="{DynamicResource Str_RegTool_RelayEventsAddedTitle}" FontSize="13" FontWeight="Bold" Margin="0,10,0,4"/>
                         <ListBox x:Name="RelayEventListBox" Height="70" FontSize="13"/>
-                        <TextBlock Text="棒次安排" FontSize="14" FontWeight="Bold" Margin="0,12,0,6"/>
+                        <TextBlock Text="{DynamicResource Str_RegTool_LegArrangementTitle}" FontSize="14" FontWeight="Bold" Margin="0,12,0,6"/>
                         <!-- 列抬头（填写提示，防止输错） -->
                         <Grid Margin="0,0,0,2">
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="50"/><ColumnDefinition Width="*"/><ColumnDefinition Width="120"/><ColumnDefinition Width="170"/><ColumnDefinition Width="80"/>
+                                <ColumnDefinition Width="50"/><ColumnDefinition Width="*"/><ColumnDefinition Width="120"/><ColumnDefinition Width="170"/><ColumnDefinition Width="105"/>
                             </Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0" Margin="6,0,0,0" Text="棒次" FontSize="12" FontWeight="Bold" Foreground="#1E40AF"/>
-                            <TextBlock Grid.Column="1" Text="姓名（与身份证一致）" FontSize="12" FontWeight="Bold" Foreground="#1E40AF" Margin="0,0,4,0"/>
-                            <TextBlock Grid.Column="2" Text="出生日期" FontSize="12" FontWeight="Bold" Foreground="#1E40AF" Margin="0,0,4,0"/>
-                            <TextBlock Grid.Column="3" Text="身份证号（选填）" FontSize="12" FontWeight="Bold" Foreground="#1E40AF" Margin="0,0,4,0"/>
-                            <TextBlock Grid.Column="4" Text="参赛号" FontSize="12" FontWeight="Bold" Foreground="#1E40AF"/>
+                            <TextBlock Grid.Column="0" Margin="6,0,0,0" Text="{DynamicResource Str_RegTool_ColLeg}" FontSize="12" FontWeight="Bold" Foreground="#1E40AF"/>
+                            <TextBlock Grid.Column="1" Text="{DynamicResource Str_RegTool_ColLegName}" FontSize="12" FontWeight="Bold" Foreground="#1E40AF" Margin="0,0,4,0"/>
+                            <TextBlock Grid.Column="2" Text="{DynamicResource Str_RegTool_ColBirthDate}" FontSize="12" FontWeight="Bold" Foreground="#1E40AF" Margin="0,0,4,0"/>
+                            <TextBlock Grid.Column="3" Text="{DynamicResource Str_RegTool_ColIDOptional}" FontSize="12" FontWeight="Bold" Foreground="#1E40AF" Margin="0,0,4,0"/>
+                            <TextBlock Grid.Column="4" Text="{DynamicResource Str_RegTool_ColBibNumber}" FontSize="12" FontWeight="Bold" Foreground="#1E40AF"/>
                         </Grid>
                         <Grid>
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="50"/><ColumnDefinition Width="*"/><ColumnDefinition Width="120"/><ColumnDefinition Width="170"/><ColumnDefinition Width="80"/>
+                                <ColumnDefinition Width="50"/><ColumnDefinition Width="*"/><ColumnDefinition Width="120"/><ColumnDefinition Width="170"/><ColumnDefinition Width="105"/>
                             </Grid.ColumnDefinitions>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="28"/><RowDefinition Height="28"/><RowDefinition Height="28"/><RowDefinition Height="28"/>
                             </Grid.RowDefinitions>
-                            <TextBlock Grid.Row="0" Text="第1棒" VerticalAlignment="Center" Foreground="#64748B"/>
+                            <!-- 2026-09-28 "第N棒"标签是纯展示文字(不参与比对/持久化)，本可用 DynamicResource 逐个绑定 Str_RegTool_LegNFmt
+                                 的格式化结果，但 XAML 标记扩展不支持带参数格式化；这4个是固定的1-4棒，直接展开成4个独立 key 更简单，
+                                 不必迁就 Loc.F() 只能在代码里调用这一点而去改动态生成方式。 -->
+                            <TextBlock Grid.Row="0" Text="{DynamicResource Str_RegTool_Leg1}" VerticalAlignment="Center" Foreground="#64748B"/>
                             <TextBox x:Name="Leg1Name" Grid.Row="0" Grid.Column="1" Padding="4" VerticalAlignment="Center" Margin="0,0,4,0"/>
                             <DatePicker x:Name="Leg1Birth" Grid.Row="0" Grid.Column="2" VerticalAlignment="Center" Margin="0,0,4,0"
                                         Language="en-CA" SelectedDateFormat="Short"/>
                             <TextBox x:Name="Leg1ID"   Grid.Row="0" Grid.Column="3" Padding="4" VerticalAlignment="Center" Margin="0,0,4,0"/>
                             <TextBox x:Name="Leg1Bib"  Grid.Row="0" Grid.Column="4" Padding="4" VerticalAlignment="Center"/>
-                            <TextBlock Grid.Row="1" Text="第2棒" VerticalAlignment="Center" Foreground="#64748B"/>
+                            <TextBlock Grid.Row="1" Text="{DynamicResource Str_RegTool_Leg2}" VerticalAlignment="Center" Foreground="#64748B"/>
                             <TextBox x:Name="Leg2Name" Grid.Row="1" Grid.Column="1" Padding="4" VerticalAlignment="Center" Margin="0,0,4,0"/>
                             <DatePicker x:Name="Leg2Birth" Grid.Row="1" Grid.Column="2" VerticalAlignment="Center" Margin="0,0,4,0"
                                         Language="en-CA" SelectedDateFormat="Short"/>
                             <TextBox x:Name="Leg2ID"   Grid.Row="1" Grid.Column="3" Padding="4" VerticalAlignment="Center" Margin="0,0,4,0"/>
                             <TextBox x:Name="Leg2Bib"  Grid.Row="1" Grid.Column="4" Padding="4" VerticalAlignment="Center"/>
-                            <TextBlock Grid.Row="2" Text="第3棒" VerticalAlignment="Center" Foreground="#64748B"/>
+                            <TextBlock Grid.Row="2" Text="{DynamicResource Str_RegTool_Leg3}" VerticalAlignment="Center" Foreground="#64748B"/>
                             <TextBox x:Name="Leg3Name" Grid.Row="2" Grid.Column="1" Padding="4" VerticalAlignment="Center" Margin="0,0,4,0"/>
                             <DatePicker x:Name="Leg3Birth" Grid.Row="2" Grid.Column="2" VerticalAlignment="Center" Margin="0,0,4,0"
                                         Language="en-CA" SelectedDateFormat="Short"/>
                             <TextBox x:Name="Leg3ID"   Grid.Row="2" Grid.Column="3" Padding="4" VerticalAlignment="Center" Margin="0,0,4,0"/>
                             <TextBox x:Name="Leg3Bib"  Grid.Row="2" Grid.Column="4" Padding="4" VerticalAlignment="Center"/>
-                            <TextBlock Grid.Row="3" Text="第4棒" VerticalAlignment="Center" Foreground="#64748B"/>
+                            <TextBlock Grid.Row="3" Text="{DynamicResource Str_RegTool_Leg4}" VerticalAlignment="Center" Foreground="#64748B"/>
                             <TextBox x:Name="Leg4Name" Grid.Row="3" Grid.Column="1" Padding="4" VerticalAlignment="Center" Margin="0,0,4,0"/>
                             <DatePicker x:Name="Leg4Birth" Grid.Row="3" Grid.Column="2" VerticalAlignment="Center" Margin="0,0,4,0"
                                         Language="en-CA" SelectedDateFormat="Short"/>
@@ -255,23 +262,24 @@
                         <!-- 填写提示（琥珀色警示条） -->
                         <Border Background="#FEF3C7" BorderBrush="#F59E0B" BorderThickness="1" CornerRadius="4" Padding="8,4" Margin="0,6,0,0">
                             <TextBlock Foreground="#92400E" FontSize="11" TextWrapping="Wrap"
-                                       Text="提示：姓名需与证件一致；身份证号选填，不限位数/格式（国际选手可填护照号等其它证件号）；参赛号由赛事组委会分配（可留空由系统自动分配）。"/>
+                                       Text="{DynamicResource Str_RegTool_RelayLegTip}"/>
                         </Border>
                         <Grid Margin="0,12,0,0">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="2*"/>
                                 <ColumnDefinition Width="1*"/>
                             </Grid.ColumnDefinitions>
-                            <Button Grid.Column="0" Content="+ 添加到接力报名列表" Click="AddRelayToQueue_Click" Padding="0,10" Margin="0,0,8,0"
+                            <Button Grid.Column="0" Content="{DynamicResource Str_RegTool_AddRelayToQueueBtn}" Click="AddRelayToQueue_Click" Padding="0,10" Margin="0,0,8,0"
                                     Background="#8B5CF6" Foreground="White" FontSize="14" FontWeight="Bold" BorderThickness="0"/>
-                            <Button Grid.Column="1" Content="清空当前表单" Click="ClearRelayForm_Click" Padding="0,10"
+                            <Button Grid.Column="1" Content="{DynamicResource Str_RegTool_ClearFormBtn}" Click="ClearRelayForm_Click" Padding="0,10"
                                     Background="#64748B" Foreground="White" FontSize="14" BorderThickness="0"/>
                         </Grid>
                         <TextBlock x:Name="RelayStatusText" Text="" Foreground="#22C55E" Margin="0,8,0,0" FontWeight="Bold"/>
 
-                        <TextBlock Text="待提交接力报名列表" FontSize="14" FontWeight="Bold" Margin="0,16,0,4"/>
+                        <TextBlock Text="{DynamicResource Str_RegTool_RelayPendingQueueTitle}" FontSize="14" FontWeight="Bold" Margin="0,16,0,4"/>
                         <ListBox x:Name="RelayQueueListBox" Height="100" FontSize="13"/>
-                        <Button x:Name="SubmitRelayQueueBtn" Content="全部提交接力报名（0 队）" Click="SubmitRelayQueue_Click" Padding="0,10" Margin="0,8,0,0"
+                        <!-- 2026-09-28 同上，初始值由构造函数里的 RefreshRelayQueue() 设置 -->
+                        <Button x:Name="SubmitRelayQueueBtn" Content="" Click="SubmitRelayQueue_Click" Padding="0,10" Margin="0,8,0,0"
                                 Background="#22C55E" Foreground="White" FontSize="15" FontWeight="Bold" BorderThickness="0" IsEnabled="False"/>
                     </StackPanel>
                 </ScrollViewer>

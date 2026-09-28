@@ -18,7 +18,7 @@ namespace RegistrationTool
             public string EventName { get; set; }
             public string EntryTime { get; set; }
             public override string ToString() {
-                return string.IsNullOrEmpty(EntryTime) ? EventName : string.Format("{0}  (报名: {1})", EventName, EntryTime);
+                return string.IsNullOrEmpty(EntryTime) ? EventName : SwimmingScoreboard.Loc.F("Str_RegTool_EventEntryFmt", EventName, EntryTime);
             }
         }
 
@@ -32,7 +32,7 @@ namespace RegistrationTool
                 string nm = Swimmer["name"] != null ? Swimmer["name"].ToString() : "";
                 string gd = Swimmer["gender"] != null ? Swimmer["gender"].ToString() : "";
                 string ct = Swimmer["country"] != null ? Swimmer["country"].ToString() : "";
-                return string.Format("{0}  {1} / {2}  ({3} 项)", nm, gd, ct, Events.Count);
+                return SwimmingScoreboard.Loc.F("Str_RegTool_QueueEntryFmt", nm, gd, ct, Events.Count);
             }
         }
         private List<QueueEntry> _pendingRegs = new List<QueueEntry>();
@@ -48,13 +48,17 @@ namespace RegistrationTool
             public JArray Legs { get; set; }
             public List<EventEntry> Events { get; set; }
             public override string ToString() {
-                return string.Format("{0}  {1} / {2}  ({3} 项 / {4} 棒)", TeamName, Gender, AgeGroup, Events.Count, Legs.Count);
+                return SwimmingScoreboard.Loc.F("Str_RegTool_RelayQueueEntryFmt", TeamName, Gender, AgeGroup, Events.Count, Legs.Count);
             }
         }
         private List<RelayQueueEntry> _pendingRelayRegs = new List<RelayQueueEntry>();
 
         public MainWindow() {
             InitializeComponent();
+            // 2026-09-28 SubmitQueueBtn/SubmitRelayQueueBtn 的初始文案是带计数的动态格式化文本
+            // (Loc.F)，XAML 里不留静态占位，构造完就用当前语言渲染一次"0人/0队"的初始状态。
+            RefreshRegQueue();
+            RefreshRelayQueue();
         }
 
         // 状态颜色：红=未连接，绿=已连接，黄=连接中/失败
@@ -80,7 +84,7 @@ namespace RegistrationTool
             if (_ws != null && _ws.IsConnected) {
                 _ws.Close();
                 _ws = null;
-                SetConnState("未连接", LedRed, "连接");
+                SetConnState(SwimmingScoreboard.Loc.T("Str_RegTool_StatusDisconnected"), LedRed, SwimmingScoreboard.Loc.T("Str_RegTool_ConnectBtn"));
                 return;
             }
             string addr = ServerBox.Text.Trim();
@@ -89,7 +93,7 @@ namespace RegistrationTool
             int port = 3002;
             if (parts.Length > 1) int.TryParse(parts[1], out port);
 
-            SetConnState("连接中…", LedAmber, "连接");
+            SetConnState(SwimmingScoreboard.Loc.T("Str_RegTool_Connecting"), LedAmber, SwimmingScoreboard.Loc.T("Str_RegTool_ConnectBtn"));
             ConnBtn.IsEnabled = false;
 
             // 2026-05-21 改异步：原来 TcpClient.Connect 同步阻塞 UI 线程最长 ~21s；
@@ -103,12 +107,12 @@ namespace RegistrationTool
                     ws.OnMessage += OnServerMessage;
                     ws.OnDisconnected += delegate() {
                         Dispatcher.Invoke((Action)delegate() {
-                            SetConnState("连接断开", LedRed, "连接");
+                            SetConnState(SwimmingScoreboard.Loc.T("Str_RegTool_ConnLost"), LedRed, SwimmingScoreboard.Loc.T("Str_RegTool_ConnectBtn"));
                         });
                     };
                     ws.ConnectWithTimeout(host, port, 5000);
                     if (!ws.Send(JsonConvert.SerializeObject(new { type = "REGISTER_TERMINAL_IDENTITY" }))) {
-                        throw new Exception("身份注册帧发送失败");
+                        throw new Exception(SwimmingScoreboard.Loc.T("Str_RegTool_ErrIdentitySendFailed"));
                     }
                 } catch (Exception ex) {
                     err = ex.Message;
@@ -118,10 +122,10 @@ namespace RegistrationTool
                 Dispatcher.Invoke((Action)delegate() {
                     ConnBtn.IsEnabled = true;
                     if (err != null) {
-                        SetConnState("连接失败: " + err, LedAmber, "连接");
+                        SetConnState(SwimmingScoreboard.Loc.F("Str_RegTool_ConnFailedFmt", err), LedAmber, SwimmingScoreboard.Loc.T("Str_RegTool_ConnectBtn"));
                     } else {
                         _ws = ws;
-                        SetConnState("已连接 " + host + ":" + port, LedGreen, "断开");
+                        SetConnState(SwimmingScoreboard.Loc.F("Str_RegTool_ConnectedFmt", host, port), LedGreen, SwimmingScoreboard.Loc.T("Str_RegTool_DisconnectBtn"));
                     }
                 });
             });
@@ -155,7 +159,7 @@ namespace RegistrationTool
                     FillCombo(EventCombo, indiv, false);
                     FillCombo(RelayEventCombo, relay, false);
                 }
-                RegStatusText.Text = string.Format("已同步主服务器配置：性别{0} 组别{1} 项目{2}",
+                RegStatusText.Text = SwimmingScoreboard.Loc.F("Str_RegTool_MetaSyncedFmt",
                     genders.Count, ages.Count, events.Count);
                 RegStatusText.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Colors.Green);
             } catch { }
@@ -213,11 +217,11 @@ namespace RegistrationTool
                             _submitted = true;
                             // 服务器若带 message（如 "成功新增 2 项，跳过 1 项已存在"）则显示出来
                             RegStatusText.Text = string.IsNullOrEmpty(srvMsg)
-                                ? string.Format("报名成功！参赛号: {0}。如需修改，可重新编辑后再次提交。", _assignedBib)
-                                : string.Format("报名成功！参赛号: {0}。{1}", _assignedBib, srvMsg);
+                                ? SwimmingScoreboard.Loc.F("Str_RegTool_RegSuccessFmt", _assignedBib)
+                                : SwimmingScoreboard.Loc.F("Str_RegTool_RegSuccessMsgFmt", _assignedBib, srvMsg);
                             RegStatusText.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Colors.Green);
                         } else {
-                            RegStatusText.Text = "报名失败: " + (string.IsNullOrEmpty(srvMsg) ? "未知错误" : srvMsg);
+                            RegStatusText.Text = SwimmingScoreboard.Loc.F("Str_RegTool_RegFailedFmt", string.IsNullOrEmpty(srvMsg) ? SwimmingScoreboard.Loc.T("Str_RegTool_UnknownError") : srvMsg);
                             RegStatusText.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Colors.Red);
                         }
                     } else if (mtype == "REGISTER_RELAY_RESULT") {
@@ -231,13 +235,13 @@ namespace RegistrationTool
                             string bib  = data["bibNumber"] != null ? data["bibNumber"].ToString() : "";
                             int legCount = data["legCount"] != null && data["legCount"].Type != JTokenType.Null ? (int)data["legCount"] : 0;
                             bool updated = data["updated"] != null && (bool)data["updated"];
-                            string action = updated ? "已更新" : "已新建";
+                            string action = SwimmingScoreboard.Loc.T(updated ? "Str_RegTool_RelayUpdated" : "Str_RegTool_RelayCreated");
                             RelayStatusText.Text = string.IsNullOrEmpty(srvMsg)
-                                ? string.Format("接力{0}！队名: {1}  代号: {2}  ({3} 棒)", action, team, bib, legCount)
-                                : string.Format("接力{0}！队名: {1}  代号: {2}  ({3} 棒) — {4}", action, team, bib, legCount, srvMsg);
+                                ? SwimmingScoreboard.Loc.F("Str_RegTool_RelaySuccessFmt", action, team, bib, legCount)
+                                : SwimmingScoreboard.Loc.F("Str_RegTool_RelaySuccessMsgFmt", action, team, bib, legCount, srvMsg);
                             RelayStatusText.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Colors.Green);
                         } else {
-                            RelayStatusText.Text = "接力报名失败: " + (string.IsNullOrEmpty(srvMsg) ? "未知错误" : srvMsg);
+                            RelayStatusText.Text = SwimmingScoreboard.Loc.F("Str_RegTool_RelayFailedFmt", string.IsNullOrEmpty(srvMsg) ? SwimmingScoreboard.Loc.T("Str_RegTool_UnknownError") : srvMsg);
                             RelayStatusText.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Colors.Red);
                         }
                     } else if (mtype == "REGISTER_MULTI_RESULT") {
@@ -254,7 +258,7 @@ namespace RegistrationTool
             if (string.IsNullOrEmpty(eventName)) return;
             foreach (var ev in _events) {
                 if (ev.EventName == eventName) {
-                    MessageBox.Show("已添加此项目，不能重复！", "提示", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    MessageBox.Show(SwimmingScoreboard.Loc.T("Str_RegTool_ErrDupEvent"), SwimmingScoreboard.Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
             }
@@ -265,7 +269,7 @@ namespace RegistrationTool
 
         private void RemoveEvent_Click(object sender, RoutedEventArgs e) {
             int idx = EventListBox.SelectedIndex;
-            if (idx < 0 || idx >= _events.Count) { MessageBox.Show("请先选中要删除的项目"); return; }
+            if (idx < 0 || idx >= _events.Count) { MessageBox.Show(SwimmingScoreboard.Loc.T("Str_RegTool_ErrSelectEventFirst")); return; }
             _events.RemoveAt(idx);
             RefreshEventList();
         }
@@ -279,8 +283,8 @@ namespace RegistrationTool
         //   对齐 register.html 的多人报名列表。
         private void AddToQueue_Click(object sender, RoutedEventArgs e) {
             string name = NameBox.Text.Trim();
-            if (string.IsNullOrEmpty(name)) { SetRegStatus("请输入姓名", true); return; }
-            if (_events.Count == 0) { SetRegStatus("请至少添加一个参赛项目", true); return; }
+            if (string.IsNullOrEmpty(name)) { SetRegStatus(SwimmingScoreboard.Loc.T("Str_RegTool_ErrNameRequired"), true); return; }
+            if (_events.Count == 0) { SetRegStatus(SwimmingScoreboard.Loc.T("Str_RegTool_ErrNeedEvent"), true); return; }
 
             // 2026-05-21 支持手动输入 yyyy-MM-dd（与 HTML <input type="date"> 一致），解析失败时报错而不是静默丢弃
             string bdErr;
@@ -305,7 +309,7 @@ namespace RegistrationTool
             _pendingRegs.Add(new QueueEntry { Swimmer = swimmerData, Events = new List<EventEntry>(_events), IsResubmit = _submitted });
             RefreshRegQueue();
             ClearFormCore();
-            SetRegStatus("已加入报名列表，可继续录入下一位", false);
+            SetRegStatus(SwimmingScoreboard.Loc.T("Str_RegTool_AddedToQueue"), false);
         }
 
         private void ClearForm_Click(object sender, RoutedEventArgs e) { ClearFormCore(); RegStatusText.Text = ""; }
@@ -327,12 +331,12 @@ namespace RegistrationTool
             RegQueueListBox.Items.Clear();
             foreach (var q in _pendingRegs) RegQueueListBox.Items.Add(q.ToString());
             SubmitQueueBtn.IsEnabled = _pendingRegs.Count > 0;
-            SubmitQueueBtn.Content = string.Format("全部提交报名（{0} 人）", _pendingRegs.Count);
+            SubmitQueueBtn.Content = SwimmingScoreboard.Loc.F("Str_RegTool_SubmitQueueFmt", _pendingRegs.Count);
         }
 
         private void SubmitQueue_Click(object sender, RoutedEventArgs e) {
-            if (_ws == null || !_ws.IsConnected) { SetRegStatus("请先连接服务器", true); return; }
-            if (_pendingRegs.Count == 0) { SetRegStatus("列表为空，请先添加", true); return; }
+            if (_ws == null || !_ws.IsConnected) { SetRegStatus(SwimmingScoreboard.Loc.T("Str_RegTool_ErrNotConnected"), true); return; }
+            if (_pendingRegs.Count == 0) { SetRegStatus(SwimmingScoreboard.Loc.T("Str_RegTool_ErrQueueEmpty"), true); return; }
             var entriesArr = new JArray();
             foreach (var q in _pendingRegs) {
                 var en = new JObject();
@@ -347,8 +351,8 @@ namespace RegistrationTool
             }
             var data = new JObject(); data["entries"] = entriesArr;
             bool sent = _ws.Send(JsonConvert.SerializeObject(new { type = "REGISTER_SWIMMERS_MULTI", data = data }));
-            if (!sent) { SetRegStatus("发送失败：与主服务器的连接已断开，请重新点击\"连接\"后再提交", true); return; }
-            SetRegStatus(string.Format("正在提交 {0} 人报名...（等待主服务器确认）", _pendingRegs.Count), false);
+            if (!sent) { SetRegStatus(SwimmingScoreboard.Loc.F("Str_RegTool_ErrSendFailedFmt", SwimmingScoreboard.Loc.T("Str_RegTool_ConnectBtn")), true); return; }
+            SetRegStatus(SwimmingScoreboard.Loc.F("Str_RegTool_SubmittingFmt", _pendingRegs.Count), false);
         }
 
         // 服务器批量回执（register.html 同款协议 REGISTER_MULTI_RESULT）：整批要么全过要么全部退回，
@@ -361,7 +365,7 @@ namespace RegistrationTool
             if (ok) {
                 _pendingRegs.Clear();
                 RefreshRegQueue();
-                SetRegStatus(string.IsNullOrEmpty(srvMsg) ? "报名列表已全部提交成功！" : srvMsg, false);
+                SetRegStatus(string.IsNullOrEmpty(srvMsg) ? SwimmingScoreboard.Loc.T("Str_RegTool_AllSubmittedOk") : srvMsg, false);
             } else {
                 string detail = "";
                 if (entries != null) {
@@ -370,7 +374,7 @@ namespace RegistrationTool
                             detail += (detail.Length > 0 ? "；" : "") + (en["message"] != null ? en["message"].ToString() : "");
                     }
                 }
-                SetRegStatus("报名列表未通过：" + (string.IsNullOrEmpty(detail) ? srvMsg : detail) + "，请修改后重新提交", true);
+                SetRegStatus(SwimmingScoreboard.Loc.F("Str_RegTool_QueueRejectedFmt", string.IsNullOrEmpty(detail) ? srvMsg : detail), true);
             }
         }
 
@@ -398,7 +402,7 @@ namespace RegistrationTool
             if (string.IsNullOrEmpty(eventName)) return;
             foreach (var ev in _relayEvents) {
                 if (ev.EventName == eventName) {
-                    MessageBox.Show("已添加此项目，不能重复！", "提示", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    MessageBox.Show(SwimmingScoreboard.Loc.T("Str_RegTool_ErrDupEvent"), SwimmingScoreboard.Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
             }
@@ -413,9 +417,9 @@ namespace RegistrationTool
         }
 
         private void AddRelayToQueue_Click(object sender, RoutedEventArgs e) {
-            if (_relayEvents.Count == 0) { SetRelayStatus("请至少添加一个接力项目", true); return; }
+            if (_relayEvents.Count == 0) { SetRelayStatus(SwimmingScoreboard.Loc.T("Str_RegTool_ErrNeedRelayEvent"), true); return; }
             string team = RelayTeamBox.Text.Trim();
-            if (string.IsNullOrEmpty(team)) { SetRelayStatus("请输入队名", true); return; }
+            if (string.IsNullOrEmpty(team)) { SetRelayStatus(SwimmingScoreboard.Loc.T("Str_RegTool_ErrTeamNameRequired"), true); return; }
 
             var legs = new JArray();
             TextBox[] nameBoxes = { Leg1Name, Leg2Name, Leg3Name, Leg4Name };
@@ -427,7 +431,7 @@ namespace RegistrationTool
                 if (!string.IsNullOrEmpty(legName)) {
                     string legBdErr;
                     string legBd = ReadBirthDate(birthPickers[i], out legBdErr);
-                    if (legBdErr != null) { SetRelayStatus(string.Format("第{0}棒 {1}", i + 1, legBdErr), true); return; }
+                    if (legBdErr != null) { SetRelayStatus(SwimmingScoreboard.Loc.F("Str_RegTool_LegErrFmt", i + 1, legBdErr), true); return; }
                     var leg = new JObject();
                     leg["legOrder"] = i + 1;
                     leg["swimmerName"] = legName;
@@ -437,7 +441,7 @@ namespace RegistrationTool
                     legs.Add(leg);
                 }
             }
-            if (legs.Count == 0) { SetRelayStatus("请至少填写 1 棒队员姓名", true); return; }
+            if (legs.Count == 0) { SetRelayStatus(SwimmingScoreboard.Loc.T("Str_RegTool_ErrNeedOneLeg"), true); return; }
 
             var entry = new RelayQueueEntry {
                 TeamName = team,
@@ -450,7 +454,7 @@ namespace RegistrationTool
             _pendingRelayRegs.Add(entry);
             RefreshRelayQueue();
             ClearRelayFormCore();
-            SetRelayStatus("已加入接力报名列表，可继续录入下一支队", false);
+            SetRelayStatus(SwimmingScoreboard.Loc.T("Str_RegTool_AddedToRelayQueue"), false);
         }
 
         private void ClearRelayForm_Click(object sender, RoutedEventArgs e) { ClearRelayFormCore(); RelayStatusText.Text = ""; }
@@ -475,12 +479,12 @@ namespace RegistrationTool
             RelayQueueListBox.Items.Clear();
             foreach (var q in _pendingRelayRegs) RelayQueueListBox.Items.Add(q.ToString());
             SubmitRelayQueueBtn.IsEnabled = _pendingRelayRegs.Count > 0;
-            SubmitRelayQueueBtn.Content = string.Format("全部提交接力报名（{0} 队）", _pendingRelayRegs.Count);
+            SubmitRelayQueueBtn.Content = SwimmingScoreboard.Loc.F("Str_RegTool_SubmitRelayQueueFmt", _pendingRelayRegs.Count);
         }
 
         private void SubmitRelayQueue_Click(object sender, RoutedEventArgs e) {
-            if (_ws == null || !_ws.IsConnected) { SetRelayStatus("请先连接服务器", true); return; }
-            if (_pendingRelayRegs.Count == 0) { SetRelayStatus("接力列表为空，请先添加", true); return; }
+            if (_ws == null || !_ws.IsConnected) { SetRelayStatus(SwimmingScoreboard.Loc.T("Str_RegTool_ErrNotConnected"), true); return; }
+            if (_pendingRelayRegs.Count == 0) { SetRelayStatus(SwimmingScoreboard.Loc.T("Str_RegTool_ErrRelayQueueEmpty"), true); return; }
             var entriesArr = new JArray();
             foreach (var q in _pendingRelayRegs) {
                 var en = new JObject();
@@ -498,8 +502,8 @@ namespace RegistrationTool
             }
             var data = new JObject(); data["entries"] = entriesArr;
             bool sent = _ws.Send(JsonConvert.SerializeObject(new { type = "REGISTER_RELAYS_MULTI", data = data }));
-            if (!sent) { SetRelayStatus("发送失败：与主服务器的连接已断开，请重新点击\"连接\"后再提交", true); return; }
-            SetRelayStatus(string.Format("正在提交 {0} 支接力队...（等待主服务器确认）", _pendingRelayRegs.Count), false);
+            if (!sent) { SetRelayStatus(SwimmingScoreboard.Loc.F("Str_RegTool_ErrSendFailedFmt", SwimmingScoreboard.Loc.T("Str_RegTool_ConnectBtn")), true); return; }
+            SetRelayStatus(SwimmingScoreboard.Loc.F("Str_RegTool_SubmittingRelayFmt", _pendingRelayRegs.Count), false);
         }
 
         // 服务器批量回执：entries[i] = {ok, message, teamName, eventName, bibNumber, legCount, updated}——
@@ -525,11 +529,11 @@ namespace RegistrationTool
             if (failCount == 0 && okCount > 0) {
                 _pendingRelayRegs.Clear();
                 RefreshRelayQueue();
-                SetRelayStatus(string.Format("接力报名提交成功！共 {0} 条（队×项目）全部通过。", okCount), false);
+                SetRelayStatus(SwimmingScoreboard.Loc.F("Str_RegTool_RelayAllOkFmt", okCount), false);
             } else if (okCount > 0) {
-                SetRelayStatus(string.Format("部分通过：成功 {0} 条，失败 {1} 条 — {2}", okCount, failCount, failDetail), true);
+                SetRelayStatus(SwimmingScoreboard.Loc.F("Str_RegTool_RelayPartialFmt", okCount, failCount, failDetail), true);
             } else {
-                SetRelayStatus("接力报名未通过：" + failDetail, true);
+                SetRelayStatus(SwimmingScoreboard.Loc.F("Str_RegTool_RelayAllFailedFmt", failDetail), true);
             }
         }
 
@@ -566,7 +570,7 @@ namespace RegistrationTool
             if (DateTime.TryParse(text, System.Globalization.CultureInfo.GetCultureInfo("en-CA"),
                     System.Globalization.DateTimeStyles.None, out d))
                 return d.ToString("yyyy-MM-dd");
-            error = "出生日期格式不正确，请填 yyyy-MM-dd（4 位年份），或点日历选择：" + text;
+            error = SwimmingScoreboard.Loc.F("Str_RegTool_BirthDateErrFmt", text);
             return null;
         }
 
