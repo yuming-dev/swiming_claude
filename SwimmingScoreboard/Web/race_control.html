@@ -798,7 +798,14 @@ body { background: var(--bg); color: var(--text); font-family: 'Microsoft YaHei'
 
 <script>
 // 2026-06-01 性别显示规范: 男→"男子", 女→"女子", 混合→"混合" (不加子)
-function fmtGender(g) { g = g || ''; if (g === '男' || g === '女') return g + '子'; return g; }
+// 2026-09-28 纯展示函数(5处调用全是拼confirm()/addLog的info字符串, 不发给服务器), 双语化：
+//   中文模式保留原来的"男子/女子/混合"措辞; 英文模式走 WebLoc.genderDisplay -> Male/Female/Mixed。
+function fmtGender(g) {
+    g = g || '';
+    if (WebLoc.currentLang() === 'en') return WebLoc.genderDisplay(g);
+    if (g === '男' || g === '女') return g + '子';
+    return g;
+}
 
 var ws, data = {}, selectedLane = -1;
 // 本地计时器：独立于服务器广播，保证滚动时间不间断
@@ -867,7 +874,7 @@ function getServerHost(forceAsk) {
     var saved = localStorage.getItem('swimServerHost');
     if (!forceAsk && saved) return saved;
     var def = saved || '192.168.1.100';
-    var ip = prompt('请输入服务器IP地址:', def);
+    var ip = prompt(WebLoc.t('Str_Ctrl_EnterServerIpPrompt'), def);
     if (ip) { localStorage.setItem('swimServerHost', ip); return ip; }
     return saved || 'localhost';
 }
@@ -882,24 +889,24 @@ function setServerUiState(state, host) {
     if (!btn || !st || !inp) return;
     if (state === 'online') {
         if (dot) dot.className = 'conn-dot on';
-        btn.textContent = '断开';
+        btn.textContent = WebLoc.t('Str_RC_Disconnect');
         btn.style.background = '#EF4444';
-        st.textContent = '已连接';
+        st.textContent = WebLoc.t('Str_Common_Connected');
         st.style.color = '#22C55E';
         if (host) inp.value = host;
         inp.disabled = true;
     } else if (state === 'connecting') {
         if (dot) dot.className = 'conn-dot off';
-        btn.textContent = '取消';
+        btn.textContent = WebLoc.t('Str_Common_Cancel');
         btn.style.background = '#F59E0B';
-        st.textContent = '连接中…';
+        st.textContent = WebLoc.t('Str_Ctrl_ConnConnecting');
         st.style.color = '#F59E0B';
         inp.disabled = true;
     } else {   // offline
         if (dot) dot.className = 'conn-dot off';
-        btn.textContent = '连接';
+        btn.textContent = WebLoc.t('Str_Common_Connect');
         btn.style.background = '#3B82F6';
-        st.textContent = '离线';
+        st.textContent = WebLoc.t('Str_RC_Offline');
         st.style.color = '#94A3B8';
         inp.disabled = false;
     }
@@ -911,11 +918,11 @@ function toggleServerConnect() {
         // 已连接 → 断开
         try { ws.close(); } catch (e) {}
         setServerUiState('offline');
-        addLog('已断开服务器');
+        addLog(WebLoc.t('Str_RC_LogDisconnectedServer'));
         return;
     }
     var newHost = (inp ? inp.value.trim() : '') || '';
-    if (!newHost) { alert('请输入主服务器 IP'); return; }
+    if (!newHost) { alert(WebLoc.t('Str_RC_PleaseEnterServerIp')); return; }
     localStorage.setItem('swimServerHost', newHost);
     _connFailCount = 0;
     setServerUiState('connecting');
@@ -924,13 +931,13 @@ function toggleServerConnect() {
 }
 function applyServerHost() {
     var newHost = document.getElementById('dlgServerHost').value.trim();
-    if (!newHost) { alert('请输入服务器地址'); return; }
+    if (!newHost) { alert(WebLoc.t('Str_RC_PleaseEnterServerAddr')); return; }
     localStorage.setItem('swimServerHost', newHost);
     _connFailCount = 0;
     closeSettings();
     if (ws) try { ws.close(); } catch(e) {}
     connect();
-    addLog('服务器地址已更新: ' + newHost);
+    addLog(WebLoc.f('Str_RC_LogServerAddrUpdatedFmt', newHost));
 }
 
 function connect() {
@@ -957,8 +964,7 @@ function checkPageVer(serverVer) {
     d.id = '_verWarnBar';
     d.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:99999;background:#DC2626;color:#fff;'
                     + 'font:bold 14px/1.6 sans-serif;padding:8px 12px;text-align:center;cursor:pointer';
-    d.textContent = '⚠ 本页版本 ' + PAGE_VER + ' 与主服务器 ' + serverVer + ' 不一致 —— 请按 Ctrl+F5 强制刷新。'
-                  + '仍不一致说明这台机器上的 Web 目录没跟 exe 一起更新。(点此关闭)';
+    d.textContent = WebLoc.f('Str_Common_VersionMismatchFmt', PAGE_VER, serverVer);
     d.onclick = function() { d.parentNode.removeChild(d); };
     document.body.appendChild(d);
 }
@@ -968,7 +974,7 @@ function checkPageVer(serverVer) {
         reportPageVer(ws);
         // 2026-06-19 顶端"主服务器"仿 RTC: input + 连接按钮 + 状态
         setServerUiState('online', host);
-        addLog('已连接服务器 ' + host);
+        addLog(WebLoc.f('Str_RC_LogConnectedServerFmt', host));
     };
     // 用 requestAnimationFrame 合并消息：服务器密集广播（每个触板/盲表/手动按下都广播）
     // 在手机/平板等慢设备上一旦积压会出现严重延迟与"计时复位"不同步。
@@ -998,10 +1004,12 @@ function checkPageVer(serverVer) {
         if (msg.data && msg.data.scoringControlMode) applyCtrlLock(msg.data.scoringControlMode);
         // 服务端硬拦的回执 —— 旧页面/缓存绕过前端置灰时, 这条保证操作员看得到原因
         if (msg.type === 'TIMING_CMD_REJECTED') {
-            addLog('命令被服务器拒绝(' + (msg.command || '') + '): ' + (msg.reason || ''));
+            // 2026-09-28 msg.reason/msg.command 是服务器生成的原始文本(目前是中文), 展示层不做二次翻译,
+            //   照原样显示 —— 这是服务端(C#)一侧的国际化范围, 不在本次网页端i18n工作内。
+            addLog(WebLoc.f('Str_RC_LogCmdRejectedFmt', (msg.command || ''), (msg.reason || '')));
             // 拒绝理由里点名 EXE 的, 顺手把本页锁上 —— 不等下一帧, 免得再按第二下
             if ((msg.reason || '').indexOf('EXE') >= 0) applyCtrlLock('remote_exe');
-            alert('命令没有执行。\n\n原因：' + (msg.reason || '服务器拒绝'));
+            alert(WebLoc.f('Str_RC_CmdNotExecutedFmt', (msg.reason || WebLoc.t('Str_RC_ServerRejectedDefault'))));
             return;
         }
         // 2026-06-03 大屏样式同步 (服务器持久化的 recordsHidden 等) - 用来更新本端按钮文字状态
@@ -1012,8 +1020,8 @@ function checkPageVer(serverVer) {
         }
         // 2026-06-02 远程"打印成绩"回包: 服务器把 BuildHeatResultsHtml 生成的 HTML 推回这里, 新窗口打印
         if (msg.type === 'PRINT_HEAT_RESULT_HTML') {
-            if (msg.html) _openHtmlAndPrint(msg.html, msg.title || '本组成绩');
-            else if (msg.error) { alert('打印失败: ' + msg.error); addLog('远程打印失败: ' + msg.error); }
+            if (msg.html) _openHtmlAndPrint(msg.html, msg.title || WebLoc.t('Str_RC_HeatResultDefaultTitle'));
+            else if (msg.error) { alert(WebLoc.f('Str_RC_PrintFailedFmt', msg.error)); addLog(WebLoc.f('Str_RC_LogRemotePrintFailedFmt', msg.error)); }
             return;
         }
         // 硬件 0.1s 节拍的轻量滚动时间帧 — 只更新顶部时间显示，不重渲染整页
@@ -1085,20 +1093,21 @@ function checkPageVer(serverVer) {
             var g = msg.gender, ev = msg.eventName, from = msg.fromStage, next = msg.nextStage;
             var total = msg.totalSwimmers, promo = msg.promoCount;
             var agLabel = ag ? ('[' + ag + '] ') : '';
-            var answer = confirm(agLabel + g + ' ' + ev + ' ' + from + ' 全部' + total + '人已完赛！\n\n'
-                + '是否自动晋级前' + promo + '名到' + next + '？\n（按成绩总排名）');
+            // 2026-09-28 confirm()/addLog 是纯展示, g/from/next 走 genderDisplay/stageDisplay 显示层转换;
+            //   下面 ws.send 的 data:{...} 仍然用原始 g/from/next, 协议字段不受影响。
+            var answer = confirm(agLabel + WebLoc.genderDisplay(g) + ' ' + ev + ' ' + WebLoc.stageDisplay(from) + WebLoc.f('Str_RC_AllFinishedFmt', total)
+                + WebLoc.f('Str_RC_AutoPromoteConfirmFmt', promo, WebLoc.stageDisplay(next)));
             if (answer) {
                 ws.send(JSON.stringify({type:'TIMING_CMD', command:'EXECUTE_PROMOTION',
                     data:{ageGroup:ag, gender:g, eventName:ev, fromStage:from, nextStage:next, promoCount:promo}}));
-                addLog('已确认晋级：' + agLabel + g + ' ' + ev + ' → ' + next);
+                addLog(WebLoc.f('Str_RC_LogPromotedFmt', agLabel, WebLoc.genderDisplay(g), ev, WebLoc.stageDisplay(next)));
             } else {
-                addLog('已取消自动晋级，可在"成绩与排名→晋级处理"中手动操作');
+                addLog(WebLoc.t('Str_RC_LogAutoPromoteCancelled'));
             }
             return;
         }
         if (msg.type === 'PROMOTION_DONE') {
-            addLog('晋级完成：' + msg.gender + ' ' + msg.eventName + ' → ' + msg.nextStage
-                + '（' + msg.promotedCount + '人，' + msg.heatCount + '组）');
+            addLog(WebLoc.f('Str_RC_LogPromotionDoneFmt', WebLoc.genderDisplay(msg.gender), msg.eventName, WebLoc.stageDisplay(msg.nextStage), msg.promotedCount, msg.heatCount));
             return;
         }
         // 2026-08-25 精简实况帧 SHOW_LIVE_RACE_LITE
@@ -1136,7 +1145,7 @@ function checkPageVer(serverVer) {
     ws.onclose = function() {
         setServerUiState('offline');
         _connFailCount++;
-        if (_connFailCount >= 3) { _connFailCount = 0; if (confirm('连接失败，是否重新设置服务器地址？')) { changeServerHost(); return; } }
+        if (_connFailCount >= 3) { _connFailCount = 0; if (confirm(WebLoc.t('Str_Ctrl_ConnFailRetry'))) { changeServerHost(); return; } }
         setTimeout(connect, 3000);
     };
 }
@@ -1161,27 +1170,26 @@ function applyCtrlLock(mode) {
             bar.id = '_ctrlLockBar';
             bar.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:99998;background:#F59E0B;'
                               + 'color:#1F2937;font:bold 14px/1.6 sans-serif;padding:8px 12px;text-align:center';
-            bar.textContent = '⚠ 比赛控制程序(EXE)正在接管 —— 本页的计时按钮已停用。'
-                            + '计时请在那台机器上操作；对方退出后本页自动恢复。';
+            bar.textContent = WebLoc.t('Str_RC_ExeTakenOverBanner');
             document.body.appendChild(bar);
         }
-        addLog('比赛控制已由 EXE 接管, 本页计时按钮停用');
+        addLog(WebLoc.t('Str_RC_LogExeTakenOver'));
     } else {
         if (bar && bar.parentNode) bar.parentNode.removeChild(bar);
-        addLog('EXE 已退出, 本页计时按钮恢复可用');
+        addLog(WebLoc.t('Str_RC_LogExeExited'));
     }
 }
 
 function sendCmd(cmd, cmdData) {
     // 优先级挡在这里: EXE 在场时本页不发计时命令(切项目/切组次/显示控制不受影响)
     if (_ctrlLockedByExe && CTRL_CMDS.indexOf(cmd) >= 0) {
-        addLog('命令未发送(比赛控制在 EXE 手里): ' + cmd);
-        alert('比赛控制程序(EXE)正在接管，本页不能发计时命令。\n\n请在那台机器上操作；对方退出后本页自动恢复。');
+        addLog(WebLoc.f('Str_RC_LogCmdNotSentExeFmt', cmd));
+        alert(WebLoc.t('Str_RC_ExeTakenOverNoTimingCmd'));
         return;
     }
     if (!ws || ws.readyState !== 1) {
-        addLog('命令未发送(未连接服务器): ' + cmd);
-        alert('未连接到服务器（顶部"服务器"指示灯应为绿色）。\n请先确认服务器在运行，再点 全屏右上角 或 顶部"服务器"附近的连接按钮。');
+        addLog(WebLoc.f('Str_RC_LogCmdNotSentNotConnFmt', cmd));
+        alert(WebLoc.t('Str_RC_NotConnectedToServerHint'));
         return;
     }
     ws.send(JSON.stringify({type: 'TIMING_CMD', command: cmd, data: cmdData || null}));
@@ -1195,35 +1203,35 @@ function sendDisplay(mode) {
 // 2026-06-03 大屏右上角 WR/CR 横条 显示/隐藏 切换 (走 SET_DISPLAY_STYLE 通道, 服务器持久化 + 推所有客户端)
 var _rcRecordsHidden = false;
 function toggleRecordsHidden() {
-    if (!ws || ws.readyState !== 1) { alert('未连接服务器'); return; }
+    if (!ws || ws.readyState !== 1) { alert(WebLoc.t('Str_Common_NotConnectedShort')); return; }
     var next = !_rcRecordsHidden;
     ws.send(JSON.stringify({type: 'SET_DISPLAY_STYLE', data: { recordsHidden: next }}));
-    addLog('请求大屏 WR/CR 横条 ' + (next ? '隐藏' : '显示'));
+    addLog(WebLoc.f('Str_RC_LogWrCrBarFmt', next ? WebLoc.t('Str_RC_Hide') : WebLoc.t('Str_RC_Show')));
 }
 function _rcApplyRecordsHidden(b) {
     _rcRecordsHidden = !!b;
     var t = document.getElementById('recordsHiddenBtnText');
     // 2026-06-25 保留 ON/OFF 两态文字, 去 "(点击...)" 后缀
-    if (t) t.textContent = _rcRecordsHidden ? '记录已隐藏' : '记录显示';
+    if (t) t.textContent = _rcRecordsHidden ? WebLoc.t('Str_RC_RecordsHiddenShort') : WebLoc.t('Str_Ctrl_RecordsDefault');
 }
 
 // 2026-06-04 备注栏 出发反应时 显隐切换 (走 SET_DISPLAY_STYLE 通道, 服务器持久化 + 推所有客户端)
 var _rcRemarkShowReaction = true;
 function toggleRemarkReaction() {
-    if (!ws || ws.readyState !== 1) { alert('未连接服务器'); return; }
+    if (!ws || ws.readyState !== 1) { alert(WebLoc.t('Str_Common_NotConnectedShort')); return; }
     var next = !_rcRemarkShowReaction;
     ws.send(JSON.stringify({type: 'SET_DISPLAY_STYLE', data: { remarkShowReaction: next }}));
-    addLog('请求大屏 备注栏 反应时 ' + (next ? '显示' : '隐藏'));
+    addLog(WebLoc.f('Str_RC_LogRemarkReactionFmt', next ? WebLoc.t('Str_RC_Show') : WebLoc.t('Str_RC_Hide')));
 }
 function _rcApplyRemarkReaction(b) {
     _rcRemarkShowReaction = !!b;
     var t = document.getElementById('remarkReactionBtnText');
     // 2026-06-25 保留 ON/OFF 两态文字, 去 "(点击...)" 后缀; 去 "备注: " 前缀
-    if (t) t.textContent = _rcRemarkShowReaction ? '显反应时' : '不显反应时';
+    if (t) t.textContent = _rcRemarkShowReaction ? WebLoc.t('Str_Ctrl_RemarkDefault') : WebLoc.t('Str_RC_RemarkHiddenShort');
 }
 
 function publishResult() {
-    if (!data || !data.schedule || data.schedule.length === 0) { alert('暂无赛程数据'); return; }
+    if (!data || !data.schedule || data.schedule.length === 0) { alert(WebLoc.t('Str_RC_NoScheduleData')); return; }
     // 收集已完赛的组
     var items = [];
     var sched = data.schedule || [];
@@ -1234,13 +1242,15 @@ function publishResult() {
             if (confirmed[h]) {
                 var showHeat = (confirmed.length > 1) || (s.stage||'').indexOf('预赛') >= 0 || (s.stage||'').indexOf('半决赛') >= 0;
                 var ageHead = s.ageGroup ? (s.ageGroup + ' ') : '';
-                var label = ageHead + (s.gender||'') + ' ' + (s.eventName||'') + ' ' + (s.stage||'') + (showHeat ? ' 第' + (h+1) + '组' : '');
+                // 2026-09-28 label 是纯展示用的下拉框选项文字, gender/stage 走 genderDisplay/stageDisplay;
+                //   下面 items.push 里的 gender/stage 仍是原始协议值, 供后续 send 用, 不受影响。
+                var label = ageHead + WebLoc.genderDisplay(s.gender||'') + ' ' + (s.eventName||'') + ' ' + WebLoc.stageDisplay(s.stage||'') + (showHeat ? WebLoc.f('Str_Ctrl_HeatSuffixFmt', h+1) : '');
                 // 2026-06-16 加 ageGroup 字段, 修发布成绩跨组别污染 bug
                 items.push({label: label, ageGroup: s.ageGroup||'', gender: s.gender, eventName: s.eventName, stage: s.stage, heat: h+1});
             }
         }
     }
-    if (items.length === 0) { alert('暂无已完赛的比赛'); return; }
+    if (items.length === 0) { alert(WebLoc.t('Str_RC_NoFinishedEvents2')); return; }
     // 弹出选择框
     var sel = '<select id="pubSelect" style="width:100%;padding:6px;font-size:14px;">';
     for (var j = 0; j < items.length; j++) sel += '<option value="' + j + '">' + items[j].label + '</option>';
@@ -1340,14 +1350,15 @@ function render() {
     }
 
     document.getElementById('stateDot').className = 'state-dot ' + state;
-    var labels = {waiting:'等待', ready:'准备就绪', racing:'比赛中', finished:'已完赛'};
+    // 2026-09-28 state(waiting/ready/racing/finished) 是协议状态码, labels 只是展示层映射
+    var labels = {waiting:WebLoc.t('Str_RC_StateWaiting'), ready:WebLoc.t('Str_RC_Ready'), racing:WebLoc.t('Str_RC_StateRacing'), finished:WebLoc.t('Str_HeatStatus_Done')};
     var stateText = labels[state] || state;
     // 2026-06-19 状态标签与 PC 端 RaceStateLabel 完全对齐: 仅 等待/准备就绪/比赛中/已完赛
     //   不再因 resultConfirmed 改成 "已确认 — 请选择下一组"
     var labelEl = document.getElementById('stateLabel');
     // 设备测试模式覆盖：显示"设备测试"红底白字，比正常 state 更醒目
     if (data.testMode) {
-        labelEl.textContent = '设备测试';
+        labelEl.textContent = WebLoc.t('Str_RC_DeviceTest');
         labelEl.className = 'state-label racing';   // 红底
     } else {
         labelEl.textContent = stateText;
@@ -1465,10 +1476,10 @@ function render() {
     var hwTxt = document.getElementById('hwConnText');
     if (hwTxt) {
         if (data.timingHwConnected) {
-            hwTxt.textContent = '已连接' + (data.timingHwStatus ? (' (' + data.timingHwStatus + ')') : '');
+            hwTxt.textContent = WebLoc.t('Str_Common_Connected') + (data.timingHwStatus ? (' (' + data.timingHwStatus + ')') : '');
             hwTxt.style.color = '#22C55E';
         } else {
-            hwTxt.textContent = '未连接';
+            hwTxt.textContent = WebLoc.t('Str_Ctrl_NotConnectedShort');
             hwTxt.style.color = '#EF4444';
         }
     }
@@ -1509,25 +1520,26 @@ function getLaneInput() {
 }
 function markLane(status) {
     var lane = getLaneInput();
-    if (lane < 0) { alert('请输入泳道号'); return; }
-    var descMap = { 'DNS': '缺席未出发', 'DNF': '中途退出', 'DSQ': '犯规取消资格' };
+    if (lane < 0) { alert(WebLoc.t('Str_RC_PleaseEnterLaneNum')); return; }
+    // 2026-09-28 status(DNS/DNF/DSQ) 是发给服务器的协议值, 保持原样; descMap 的中文描述只用于展示
+    var descMap = { 'DNS': WebLoc.t('Str_RC_DescDNS'), 'DNF': WebLoc.t('Str_RC_DescDNF'), 'DSQ': WebLoc.t('Str_RC_DescDSQ') };
     var desc = descMap[status] || '';
-    if (confirm('确认将泳道 ' + lane + ' 标记为 ' + status + '（' + desc + '）？\n\n此操作将取消该泳道的成绩。')) {
+    if (confirm(WebLoc.f('Str_RC_ConfirmMarkLaneFmt', lane, status, desc))) {
         sendCmd('MARK_' + status, {lane: lane});
-        addLog('泳道' + lane + ' 标记为 ' + status);
+        addLog(WebLoc.f('Str_RC_LogLaneMarkedFmt', lane, status));
     }
 }
 function cancelNote() {
     var lane = getLaneInput();
-    if (lane < 0) { alert('请输入泳道号'); return; }
+    if (lane < 0) { alert(WebLoc.t('Str_RC_PleaseEnterLaneNum')); return; }
     sendCmd('CANCEL_NOTE', {lane: lane});
-    addLog('泳道' + lane + ' 取消备注');
+    addLog(WebLoc.f('Str_RC_LogNoteCancelledFmt', lane));
 }
 function useBlindResult() {
     var lane = getLaneInput();
-    if (lane < 0) { alert('请输入泳道号'); return; }
+    if (lane < 0) { alert(WebLoc.t('Str_RC_PleaseEnterLaneNum')); return; }
     sendCmd('USE_BLIND_RESULT', {lane: lane});
-    addLog('泳道' + lane + ' 使用盲表成绩');
+    addLog(WebLoc.f('Str_RC_LogUsedBlindResultFmt', lane));
 }
 // 圈数 spinner ▲/▼：每道左/右独立调整。服务器端 AdjustLapDisplay 会按本侧上限钳到 [0, 该侧触板总次数]。
 function adjustLap(lane, isLeft, delta) {
@@ -1535,28 +1547,28 @@ function adjustLap(lane, isLeft, delta) {
 }
 function laneOpen() {
     var lane = getLaneInput();
-    if (lane < 0) { alert('请输入泳道号'); return; }
+    if (lane < 0) { alert(WebLoc.t('Str_RC_PleaseEnterLaneNum')); return; }
     sendCmd('MANUAL_LANE_OPEN', {lane: lane});
-    addLog('泳道' + lane + ' 打开');
+    addLog(WebLoc.f('Str_RC_LogLaneOpenedFmt', lane));
 }
 function laneClose() {
     var lane = getLaneInput();
-    if (lane < 0) { alert('请输入泳道号'); return; }
+    if (lane < 0) { alert(WebLoc.t('Str_RC_PleaseEnterLaneNum')); return; }
     sendCmd('MANUAL_LANE_CLOSE', {lane: lane});
-    addLog('泳道' + lane + ' 关闭');
+    addLog(WebLoc.f('Str_RC_LogLaneClosedFmt', lane));
 }
 function manualTimeInput() {
     var lane = getLaneInput();
-    if (lane < 0) { alert('请输入泳道号'); return; }
-    var timeStr = prompt('泳道 ' + lane + ' 手动输入成绩（如 49.23 或 1:23.45）：');
+    if (lane < 0) { alert(WebLoc.t('Str_RC_PleaseEnterLaneNum')); return; }
+    var timeStr = prompt(WebLoc.f('Str_RC_ManualTimeInputPromptFmt', lane));
     if (!timeStr) return;
     timeStr = timeStr.trim();
     var seconds = parseTimeToSeconds(timeStr);
-    if (seconds <= 0) { alert('成绩格式不正确'); return; }
+    if (seconds <= 0) { alert(WebLoc.t('Str_RC_BadResultFormat')); return; }
     // 二次确认
-    if (!confirm('确认将泳道 ' + lane + ' 的成绩手动输入为 ' + timeStr + '？\n\n此操作将写入数据库。')) return;
+    if (!confirm(WebLoc.f('Str_RC_ConfirmManualTimeFmt', lane, timeStr))) return;
     sendCmd('OVERRIDE_TIME', {lane: lane, time: seconds});
-    addLog('泳道' + lane + ' 手动输入成绩: ' + timeStr);
+    addLog(WebLoc.f('Str_RC_LogManualTimeInputFmt', lane, timeStr));
 }
 function parseTimeToSeconds(str) {
     str = str.trim();
@@ -1589,8 +1601,14 @@ function closeDeviceManager() {
 
 // 2026-06-20 4 态: 把 (NotInstalled, Broken) 翻译成下拉文本; 锁定端整 5 列灰显禁选
 function _devStatusText(notInstalled, broken) {
-    if (notInstalled) return '未安装';
-    return broken ? '坏' : '好';
+    if (notInstalled) return WebLoc.t('Str_RC_DevNotInstalled');
+    return broken ? WebLoc.t('Str_RC_DevBroken') : WebLoc.t('Str_RC_DevGood');
+}
+// 2026-09-28 内部状态码(不是协议字段, 但下拉框value/onchange比较都改用它, 不再拿中文文案本身当比较键——
+//   这样英文模式下拉框显示英文, 判断逻辑不受语言影响)
+function _devStatusCode(notInstalled, broken) {
+    if (notInstalled) return 'not_installed';
+    return broken ? 'broken' : 'good';
 }
 function _isDeviceLeft(key) { return key.indexOf('left') === 0; }
 
@@ -1630,20 +1648,21 @@ function renderDeviceStatusPanel() {
             var ni = ld[key + 'NotInstalled'] === true;
             var broken = ld[key + 'Broken'] === true;
             var cur = _devStatusText(ni, broken);
+            var curCode = _devStatusCode(ni, broken);
             var bg;
             if (locked) bg = '#374151';
             else if (ni) bg = '#475569';
             else bg = broken ? '#7F1D1D' : '#14532D';
             html += '<td style="padding:3px;border:1px solid #475569;text-align:center;background:' + bg + ';">';
             if (locked) {
-                html += '<span style="color:#9CA3AF;font-size:12px;" title="该端受单端配置锁定">' + cur + '</span>';
+                html += '<span style="color:#9CA3AF;font-size:12px;" title="' + WebLoc.t('Str_RC_LockedBySingleEndTitle') + '">' + cur + '</span>';
             } else {
                 html += '<select onchange="setDeviceStatus(' + lane + ',\'' + key + '\',this.value)" '
                       + 'style="background:transparent;color:white;border:1px solid #64748B;border-radius:3px;padding:2px 4px;font-size:12px;cursor:pointer;">';
-                ['安装','未安装','好','坏'].forEach(function(opt) {
-                    var sel = (opt === cur) || (opt === '安装' && cur === '好') ? '' : '';
-                    // 显示规则: cur 实际是 未安装/好/坏 之一, "安装" 仅作为下拉选项 (等价于"好")
-                    html += '<option value="' + opt + '"' + (opt === cur ? ' selected' : '') + '>' + opt + '</option>';
+                // 2026-09-28 value 改用内部状态码(installed/not_installed/good/broken), 不再拿中文文案当比较键;
+                //   显示文本走 WebLoc.t —— 英文模式下拉框显示英文, "安装"仅作为下拉选项(等价于"好"), 不会被选中(curCode 从不是 'installed')。
+                [{code:'installed', key:'Str_RC_DevInstall'}, {code:'not_installed', key:'Str_RC_DevNotInstalled'}, {code:'good', key:'Str_RC_DevGood'}, {code:'broken', key:'Str_RC_DevBroken'}].forEach(function(opt) {
+                    html += '<option value="' + opt.code + '"' + (opt.code === curCode ? ' selected' : '') + '>' + WebLoc.t(opt.key) + '</option>';
                 });
                 html += '</select>';
             }
@@ -1655,15 +1674,13 @@ function renderDeviceStatusPanel() {
     panel.innerHTML = html;
 }
 
-function setDeviceStatus(lane, device, optText) {
-    // 下拉文本 → 协议 status (与 PC 端 SetDeviceStatus 4 态一致)
-    var status;
-    if (optText === '未安装') status = 'not_installed';
-    else if (optText === '安装') status = 'installed';
-    else if (optText === '坏')  status = 'broken';
-    else status = 'good';
+function setDeviceStatus(lane, device, optCode) {
+    // 2026-09-28 下拉框 value 现在已经是协议 status 本身(installed/not_installed/good/broken 4 态,
+    //   与 PC 端 SetDeviceStatus 一致), 不用再从展示文案反查。
+    var status = optCode;
     sendCmd('SET_DEVICE_STATUS', {lane: lane, device: device, status: status});
-    addLog('泳道' + lane + ' ' + device + ' → ' + optText);
+    var _devStatusLabelKeys = {installed:'Str_RC_DevInstall', not_installed:'Str_RC_DevNotInstalled', good:'Str_RC_DevGood', broken:'Str_RC_DevBroken'};
+    addLog(WebLoc.f('Str_RC_LogDeviceStatusFmt', lane, device, WebLoc.t(_devStatusLabelKeys[status] || 'Str_RC_DevGood')));
     // 本地立即更新 (不等服务器广播)
     var ld = data.laneDevices || [];
     for (var i = 0; i < ld.length; i++) {
@@ -1698,8 +1715,8 @@ function setAllDevicesStatus(status) {
         }
     }
     renderDeviceStatusPanel();
-    var label = status === 'installed' ? '已安装' : status === 'not_installed' ? '未安装' : status === 'broken' ? '损坏' : '正常';
-    addLog('全部设备设为' + label);
+    var label = status === 'installed' ? WebLoc.t('Str_RC_DevInstalled2') : status === 'not_installed' ? WebLoc.t('Str_RC_DevNotInstalled') : status === 'broken' ? WebLoc.t('Str_RC_DevDamaged') : WebLoc.t('Str_RC_DevNormal');
+    addLog(WebLoc.f('Str_RC_LogAllDevicesSetFmt', label));
 }
 
 // ═══════ 手动按键管理 ═══════
@@ -1761,7 +1778,7 @@ function applyManualBtnSettings() {
         var rightEn = el2 ? el2.checked : false;
         sendCmd('SET_MANUAL_STATUS', {lane: lane, leftEnabled: leftEn, rightEnabled: rightEn});
     }
-    addLog('手动按键设置已发送');
+    addLog(WebLoc.t('Str_RC_LogManualBtnSettingsSent'));
     closeManualButtonManager();
 }
 
@@ -1818,7 +1835,7 @@ function applyTimeParams() {
     };
     saveLaneCloseSettingsLocal(settings);
     sendCmd('SET_LANE_CLOSE_SETTINGS', settings);
-    addLog('时间参数已更新');
+    addLog(WebLoc.t('Str_RC_LogTimeParamsUpdated'));
     closeTimeParams();
 }
 
@@ -1864,7 +1881,7 @@ function applyPoolDevice() {
     };
     saveLaneCloseSettingsLocal(settings);
     sendCmd('SET_LANE_CLOSE_SETTINGS', settings);
-    addLog('泳池/设备参数已更新');
+    addLog(WebLoc.t('Str_RC_LogPoolDeviceUpdated'));
     closePoolDevice();
 }
 
@@ -1886,7 +1903,7 @@ function applyAutoSavePath() {
     localStorage.setItem('rcSavePath', document.getElementById('rcSavePath').value.trim());
     localStorage.setItem('rcSaveFmt', document.getElementById('rcSaveFmt').value.trim() || '{场号}-{项号}-{组号}.txt');
     localStorage.setItem('rcSaveAuto', document.getElementById('rcSaveAutoOn').checked ? '1' : '0');
-    addLog('成绩存盘路径已保存到本机 localStorage');
+    addLog(WebLoc.t('Str_RC_LogSavePathSaved'));
     closeAutoSavePath();
 }
 
@@ -1909,7 +1926,7 @@ function applyThermalPrint() {
     localStorage.setItem('rcThermalCopies', String(copies));
     localStorage.setItem('rcThermalPaper', document.getElementById('rcThermalPaper').value);
     localStorage.setItem('rcThermalAuto', document.getElementById('rcThermalAutoOn').checked ? '1' : '0');
-    addLog('热敏打印设置已保存到本机 localStorage');
+    addLog(WebLoc.t('Str_RC_LogThermalSaved'));
     closeThermalPrint();
 }
 
@@ -1925,10 +1942,10 @@ function applyChangePwd() {
     var u = document.getElementById('rcPwdUser').value.trim();
     var p1 = document.getElementById('rcPwdNew').value;
     var p2 = document.getElementById('rcPwdNew2').value;
-    if (p1 && p1 !== p2) { alert('两次密码不一致'); return; }
+    if (p1 && p1 !== p2) { alert(WebLoc.t('Str_RC_PwdMismatch')); return; }
     if (u) localStorage.setItem('rcOperatorName', u);
     if (p1) { try { localStorage.setItem('rcOperatorPwdHash', btoa(p1)); } catch (e) {} }   // 简单 base64 保存, 仅作浏览器本机存储
-    addLog('操作员账号已保存到本机 (浏览器 localStorage)');
+    addLog(WebLoc.t('Str_RC_LogOperatorAcctSaved'));
     closeChangePwd();
 }
 
@@ -1942,10 +1959,10 @@ function openMediaUpload() {
 function closeMediaUpload() { document.getElementById('mediaUploadModal').classList.add('hidden'); }
 function _rcUploadMedia(file) {
     if (!file) return;
-    if (!ws || ws.readyState !== 1) { alert('未连接服务器'); return; }
+    if (!ws || ws.readyState !== 1) { alert(WebLoc.t('Str_Common_NotConnectedShort')); return; }
     var status = document.getElementById('rcMediaStatus');
     var sizeMB = file.size / 1048576;
-    status.textContent = '读取中: ' + file.name + ' (' + sizeMB.toFixed(2) + ' MB)';
+    status.textContent = WebLoc.f('Str_Ctrl_ReadingFileFmt', file.name, sizeMB.toFixed(2));
     var ext = (file.name.split('.').pop() || '').toLowerCase();
     var kind, mime;
     if (['png','jpg','jpeg','bmp','gif','webp'].indexOf(ext) >= 0) {
@@ -1958,20 +1975,20 @@ function _rcUploadMedia(file) {
     } else if (['mp4','webm','ogg','m4v'].indexOf(ext) >= 0) {
         kind = 'video';
         mime = ext === 'webm' ? 'video/webm' : ext === 'ogg' ? 'video/ogg' : 'video/mp4';
-    } else { status.textContent = '不支持的文件类型: ' + ext; return; }
+    } else { status.textContent = WebLoc.f('Str_Ctrl_UnsupportedFileTypeFmt', ext); return; }
     var reader = new FileReader();
     reader.onload = function() {
-        status.textContent = '上传中...';
+        status.textContent = WebLoc.t('Str_Ctrl_Uploading');
         ws.send(JSON.stringify({
             type: 'REMOTE_CONTROL', command: 'UPLOAD_AND_PLAY_MEDIA',
             fileName: file.name, kind: kind, mime: mime, dataUrl: reader.result,
             fit: 'contain', loop: true, muted: false, autoplay: true
         }));
-        status.textContent = '上传完成, 大屏播放中';
-        addLog('已上传媒体到大屏: ' + file.name);
+        status.textContent = WebLoc.t('Str_Ctrl_UploadDonePlaying');
+        addLog(WebLoc.f('Str_RC_LogUploadedMediaFmt', file.name));
         setTimeout(closeMediaUpload, 800);
     };
-    reader.onerror = function() { status.textContent = '读取失败'; };
+    reader.onerror = function() { status.textContent = WebLoc.t('Str_Ctrl_ReadFailed'); };
     reader.readAsDataURL(file);
 }
 
@@ -1985,25 +2002,25 @@ function openPptUpload() {
 function closePptUpload() { document.getElementById('pptUploadModal').classList.add('hidden'); }
 function _rcUploadPpt(file) {
     if (!file) return;
-    if (!ws || ws.readyState !== 1) { alert('未连接服务器'); return; }
+    if (!ws || ws.readyState !== 1) { alert(WebLoc.t('Str_Common_NotConnectedShort')); return; }
     var status = document.getElementById('rcPptStatus');
-    status.textContent = '读取中: ' + file.name + ' (' + (file.size / 1048576).toFixed(2) + ' MB)';
+    status.textContent = WebLoc.f('Str_Ctrl_ReadingFileFmt', file.name, (file.size / 1048576).toFixed(2));
     var reader = new FileReader();
     reader.onload = function() {
         var bytes = new Uint8Array(reader.result);
         var bin = '';
         for (var i = 0; i < bytes.byteLength; i++) bin += String.fromCharCode(bytes[i]);
         var b64 = btoa(bin);
-        status.textContent = '上传中...';
+        status.textContent = WebLoc.t('Str_Ctrl_Uploading');
         ws.send(JSON.stringify({
             type: 'REMOTE_CONTROL', command: 'UPLOAD_AND_PLAY_PPT',
             fileName: file.name, base64: b64
         }));
-        status.textContent = '上传完成, 主控转换中...';
-        addLog('已上传 PPT: ' + file.name + ' (主控 PC 转换并翻页)');
+        status.textContent = WebLoc.t('Str_Ctrl_UploadDoneConverting');
+        addLog(WebLoc.f('Str_RC_LogUploadedPptFmt', file.name));
         setTimeout(closePptUpload, 800);
     };
-    reader.onerror = function() { status.textContent = '读取失败'; };
+    reader.onerror = function() { status.textContent = WebLoc.t('Str_Ctrl_ReadFailed'); };
     reader.readAsArrayBuffer(file);
 }
 
@@ -2025,20 +2042,20 @@ function connectHwFromDialog() {
         payload.host = document.getElementById('dlgHwTcpHost').value;
         payload.port = parseInt(document.getElementById('dlgHwTcpPort').value) || 5555;
     }
-    if (!ws || ws.readyState !== 1) { alert('请先连接服务器'); return; }
+    if (!ws || ws.readyState !== 1) { alert(WebLoc.t('Str_RC_PleaseConnectServerFirst')); return; }
     // 2026-09-13 EXE 接管时不许从网页动硬件(服务端也硬拦一道)
-    if (_ctrlLockedByExe) { alert('比赛控制程序(EXE)正在接管，硬件请在那台机器上连接。'); return; }
+    if (_ctrlLockedByExe) { alert(WebLoc.t('Str_RC_ExeTakenOverHwConnect')); return; }
     ws.send(JSON.stringify({ type: 'CONNECT_HW', data: payload }));
-    document.getElementById('dlgHwStatus').textContent = '● 连接中...';
+    document.getElementById('dlgHwStatus').textContent = WebLoc.t('Str_RC_DotConnecting');
     document.getElementById('dlgHwStatus').style.color = '#F59E0B';
 }
 
 function disconnectHw() {
     if (!ws || ws.readyState !== 1) return;
     // 2026-09-13 比赛中从网页上把计时硬件断开, 后果比按错发令键还严重
-    if (_ctrlLockedByExe) { alert('比赛控制程序(EXE)正在接管，硬件请在那台机器上操作。'); return; }
+    if (_ctrlLockedByExe) { alert(WebLoc.t('Str_RC_ExeTakenOverHwOperate')); return; }
     ws.send(JSON.stringify({ type: 'CONNECT_HW', data: { mode: 'disconnect' } }));
-    document.getElementById('dlgHwStatus').textContent = '● 已断开';
+    document.getElementById('dlgHwStatus').textContent = WebLoc.t('Str_RC_DotDisconnected');
     document.getElementById('dlgHwStatus').style.color = '#94A3B8';
 }
 
@@ -2067,10 +2084,10 @@ function isCurrentHeatConfirmed() {
 
 function confirmResult() {
     var ag = data.currentAgeGroup || '';
-    var info = (ag ? ('[' + ag + '] ') : '') + fmtGender(data.currentGender) + ' ' + (data.currentEvent||'') + ' ' + (data.currentStage||'') + ' 第' + (data.currentHeat||'') + '组';
-    if (confirm('确认本组成绩？\n\n' + info + '\n\n确认后成绩将锁定保存。')) {
+    var info = (ag ? ('[' + ag + '] ') : '') + fmtGender(data.currentGender) + ' ' + (data.currentEvent||'') + ' ' + WebLoc.stageDisplay(data.currentStage||'') + WebLoc.f('Str_Ctrl_HeatSuffixFmt', data.currentHeat||'');
+    if (confirm(WebLoc.f('Str_RC_ConfirmHeatResultFmt', info))) {
         sendCmd('CONFIRM_RESULT');
-        addLog('已确认本组成绩');
+        addLog(WebLoc.t('Str_RC_LogHeatResultConfirmed'));
     }
 }
 
@@ -2078,82 +2095,82 @@ function confirmResult() {
 //   推回 PRINT_HEAT_RESULT_HTML 消息, 这里 window.open 写入 HTML 用浏览器打印 / 另存 PDF.
 function printCurrentHeatResult() {
     var ag = data.currentAgeGroup || '';
-    var info = (ag ? ('[' + ag + '] ') : '') + fmtGender(data.currentGender) + ' ' + (data.currentEvent||'') + ' ' + (data.currentStage||'') + ' 第' + (data.currentHeat||'') + '组';
+    var info = (ag ? ('[' + ag + '] ') : '') + fmtGender(data.currentGender) + ' ' + (data.currentEvent||'') + ' ' + WebLoc.stageDisplay(data.currentStage||'') + WebLoc.f('Str_Ctrl_HeatSuffixFmt', data.currentHeat||'');
     if (!isCurrentHeatConfirmed()) {
-        alert('当前组成绩未确认, 请先点 "确认本组成绩".');
+        alert(WebLoc.t('Str_RC_HeatResultNotConfirmedYet'));
         return;
     }
-    addLog('请求远程打印: ' + info);
+    addLog(WebLoc.f('Str_RC_LogRemotePrintRequestFmt', info));
     sendCmd('PRINT_HEAT_RESULT');
 }
 // 收到服务端推送的 HTML → 新窗口写入并自动调起打印
 function _openHtmlAndPrint(html, title) {
     try {
         var w = window.open('', '_blank');
-        if (!w) { alert('浏览器拦截了弹窗, 请允许此页面弹窗后再试.'); return; }
+        if (!w) { alert(WebLoc.t('Str_RC_PopupBlocked')); return; }
         w.document.open();
         w.document.write(html);
         w.document.close();
         // 等待 DOM 渲染, 然后自动呼起浏览器打印对话框
         setTimeout(function() { try { w.focus(); w.print(); } catch(e) {} }, 600);
-        addLog('远程打印窗口已打开: ' + (title || ''));
-    } catch (e) { alert('打开打印窗口失败: ' + e.message); }
+        addLog(WebLoc.f('Str_RC_LogPrintWindowOpenedFmt', (title || '')));
+    } catch (e) { alert(WebLoc.f('Str_RC_OpenPrintWindowFailedFmt', e.message)); }
 }
 
 // 2026-06-18 显示比赛日程 — 发 SHOW_SCHEDULE_SESSION 全部场次 (session=-1)
 function showSchedule() {
-    if (!ws || ws.readyState !== 1) { alert('请先连接服务器'); return; }
+    if (!ws || ws.readyState !== 1) { alert(WebLoc.t('Str_RC_PleaseConnectServerFirst')); return; }
     ws.send(JSON.stringify({type:'REMOTE_CONTROL', command:'SHOW_SCHEDULE_SESSION', session:-1}));
-    addLog('已请求大屏显示比赛日程 (全部场次)');
+    addLog(WebLoc.t('Str_RC_LogRequestedShowScheduleAll'));
 }
 
 // 2026-06-18 公布项目总排名 (存盘) — 远程触发 PC 端 PublishEventRanking_Click
 function publishEventRanking() {
     var info = (data.currentAgeGroup ? '[' + data.currentAgeGroup + '] ' : '')
-             + fmtGender(data.currentGender) + ' ' + (data.currentEvent||'') + ' ' + (data.currentStage||'');
-    if (!data.currentEvent) { alert('请先在赛程导航中选择项目'); return; }
-    if (!confirm('确定公布并存盘本项目总排名?\n\n' + info)) return;
+             + fmtGender(data.currentGender) + ' ' + (data.currentEvent||'') + ' ' + WebLoc.stageDisplay(data.currentStage||'');
+    if (!data.currentEvent) { alert(WebLoc.t('Str_RC_PleaseSelectEventFirst')); return; }
+    if (!confirm(WebLoc.f('Str_RC_ConfirmPublishRankingFmt', info))) return;
     sendCmd('PUBLISH_EVENT_RANKING_STORE', {
         ageGroup: data.currentAgeGroup||'', gender: data.currentGender||'',
         eventName: data.currentEvent||'', stage: data.currentStage||''
     });
-    addLog('已请求公布项目总排名: ' + info);
+    addLog(WebLoc.f('Str_RC_LogRequestedPublishRankingFmt', info));
 }
 
 // 2026-06-18 手工补段 — 弹输入框 (段号+累计时间), 发到 PC 端 ManualSplit_Click
 function manualSplitInput() {
     var lane = parseInt(document.getElementById('laneInput').value);
-    if (isNaN(lane) || lane < 0) { alert('请先选择泳道'); return; }
-    var seg = prompt('泳道 ' + lane + ' 补哪一段? (段号, 1=第1段)', '1');
+    if (isNaN(lane) || lane < 0) { alert(WebLoc.t('Str_RC_PleaseSelectLaneFirst')); return; }
+    var seg = prompt(WebLoc.f('Str_RC_ManualSplitSegPromptFmt', lane), '1');
     if (!seg) return;
     var segN = parseInt(seg);
-    if (isNaN(segN) || segN < 1) { alert('段号必须是 ≥1 的整数'); return; }
-    var t = prompt('该段累计时间? (格式 m:ss.xx 或 ss.xx, 如 1:25.43 或 85.43)', '');
+    if (isNaN(segN) || segN < 1) { alert(WebLoc.t('Str_RC_SegNumMustBePositive')); return; }
+    var t = prompt(WebLoc.t('Str_RC_ManualSplitTimePrompt'), '');
     if (!t) return;
     sendCmd('MANUAL_SPLIT', { lane: lane, segNum: segN, cumTime: t.trim() });
-    addLog('已请求手工补段 道' + lane + ' 第' + segN + '段 累计' + t);
+    addLog(WebLoc.f('Str_RC_LogManualSplitFmt', lane, segN, t));
 }
 
 function confirmTimerReset() {
     // 与主服务器一致：简短确认，避免误按
-    if (confirm('确定计时复位？')) {
+    if (confirm(WebLoc.t('Str_RC_ConfirmTimerReset'))) {
         sendCmd('TIMER_RESET');
-        addLog(isCurrentHeatConfirmed() ? '计时复位（保留已确认成绩，自动切下一组）' : '计时复位（重新发令）');
+        addLog(isCurrentHeatConfirmed() ? WebLoc.t('Str_RC_LogTimerResetKeepResult') : WebLoc.t('Str_RC_LogTimerResetRestart'));
     }
 }
 
 // 已确认成绩的组：禁止再次开始比赛（与主控端规则一致）
 function readyClick() {
     if (isCurrentHeatConfirmed()) {
-        alert('当前组已确认成绩并锁定，不能重新开始比赛。\n请在赛程导航中切换到下一组。');
-        addLog('当前组已确认成绩，不能再次开始');
+        alert(WebLoc.t('Str_RC_HeatConfirmedLockedNoRestart'));
+        addLog(WebLoc.t('Str_RC_LogHeatConfirmedNoRestart'));
         return;
     }
     // 与主服务器一致：弹简短确认对话框
     var ag = data.currentAgeGroup || '';
-    var info = (ag ? ('[' + ag + '] ') : '') + (data.currentGender||'') + ' '
-             + (data.currentEvent||'') + ' ' + (data.currentStage||'') + ' 第' + (data.currentHeat||'') + '组';
-    if (!confirm('确定让本组进入【准备就绪】状态？' + info + '\n')) return;
+    var info = (ag ? ('[' + ag + '] ') : '') + fmtGender(data.currentGender) + ' '
+             + (data.currentEvent||'') + ' ' + WebLoc.stageDisplay(data.currentStage||'') + WebLoc.f('Str_Ctrl_HeatSuffixFmt', data.currentHeat||'');
+    if (!confirm(WebLoc.f('Str_RC_ConfirmReadyFmt', info))) return;
     sendCmd('READY');
 }
 
@@ -2199,7 +2216,7 @@ function applyBlindWatchCount() {
             reactionTimeEnabled: reactionTimeEnabled
         };
         sendCmd('SET_LANE_CLOSE_SETTINGS', settings);
-        addLog('盲表数量更新：左 ' + newLeft + '，右 ' + newRight + '（已通过服务器同步到三端与硬件）');
+        addLog(WebLoc.f('Str_RC_LogBlindCountUpdatedFmt', newLeft, newRight));
         applyBlindWatchVisibility();
     }
     closeBlindWatchCountDialog();
@@ -2322,15 +2339,16 @@ function isFinishedUnconfirmed() {
     return false;
 }
 
+// 2026-09-28 action 由调用方传入的是已翻译好的展示文案(WebLoc.t 结果), 这里只负责拼接, 不再二次查表
 function blockIfRacing(action) {
     if (isRacing()) {
-        alert('比赛进行中不能重新选择比赛项目。\n\n如需切换，请先点击"计时复位"结束当前比赛。');
-        addLog('比赛进行中不能' + action);
+        alert(WebLoc.t('Str_RC_RacingCannotReselectEvent'));
+        addLog(WebLoc.f('Str_RC_LogCannotDuringRaceFmt', action));
         return true;
     }
     if (isFinishedUnconfirmed()) {
-        alert('当前组尚未确认成绩，不能' + action + '。\n请先点击"确认成绩"或"计时复位"。');
-        addLog('当前组未确认成绩，不能' + action);
+        alert(WebLoc.f('Str_RC_HeatUnconfirmedCannotFmt', action));
+        addLog(WebLoc.f('Str_RC_LogHeatUnconfirmedCannotFmt', action));
         return true;
     }
     return false;
@@ -2338,7 +2356,7 @@ function blockIfRacing(action) {
 
 function selectHeat(key) {
     // 比赛进行中拦截
-    if (blockIfRacing('切换项目')) return;
+    if (blockIfRacing(WebLoc.t('Str_RC_ActionSwitchEvent'))) return;
 
     selectedHeatKey = key;
     // key 格式: 组别|性别|项目|赛次|组次（5 段）
@@ -2350,7 +2368,7 @@ function selectHeat(key) {
     sendCmd('SET_EVENT', eventName);
     sendCmd('SET_STAGE', stage);
     sendCmd('SET_HEAT', heat);
-    addLog('选择: ' + (ageGroup ? ('['+ageGroup+'] ') : '') + gender + ' ' + eventName + ' ' + stage + ' 第' + heat + '组');
+    addLog(WebLoc.t('Str_RC_LogSelectedPrefix') + (ageGroup ? ('['+ageGroup+'] ') : '') + WebLoc.genderDisplay(gender) + ' ' + eventName + ' ' + WebLoc.stageDisplay(stage) + WebLoc.f('Str_Ctrl_HeatSuffixFmt', heat));
     renderScheduleTree();
 }
 
@@ -2868,13 +2886,13 @@ function buildArrows(sw, swDir, dir) {
 // 系统硬件：连接串口 — 让服务器用上次保存的串口/波特率快速连接
 function quickConnectFromNav() {
     sendCmd('QUICK_CONNECT_SERIAL');
-    addLog('已请求服务器连接/断开串口');
+    addLog(WebLoc.t('Str_RC_LogQuickConnectSerial'));
 }
 
 // 设备测试切换 — 通过服务器（服务器是唯一硬件出口）
 function toggleDeviceTest() {
     var inTest = !!(data && data.testMode);
-    if (!inTest && !confirm('确认进入设备测试模式？\n\n所有触板/出发台/盲表都将打开，硬件来什么数据都直接显示但不计入比赛成绩。\n再点同一按钮退出。')) return;
+    if (!inTest && !confirm(WebLoc.t('Str_RC_ConfirmEnterDeviceTest'))) return;
     sendCmd('DEVICE_TEST_TOGGLE');
     addLog(inTest ? '已请求退出设备测试' : '已请求进入设备测试');
 }
@@ -3092,13 +3110,13 @@ function manualTouch(lane, side) {
     for (var i = 0; i < swimmers.length; i++) {
         if (swimmers[i].lane === lane) {
             var mb = swimmers[i].manualButton || {};
-            if (side === 'left' && !mb.leftEnabled) { addLog('道' + lane + ' 左端手动按键未启用'); return; }
-            if (side === 'right' && !mb.rightEnabled) { addLog('道' + lane + ' 右端手动按键未启用'); return; }
+            if (side === 'left' && !mb.leftEnabled) { addLog(WebLoc.f('Str_RC_LogManualBtnNotEnabledFmt', lane, WebLoc.t('Str_RC_LeftEnd'))); return; }
+            if (side === 'right' && !mb.rightEnabled) { addLog(WebLoc.f('Str_RC_LogManualBtnNotEnabledFmt', lane, WebLoc.t('Str_RC_RightEnd'))); return; }
             break;
         }
     }
     sendCmd(side === 'left' ? 'MANUAL_TOUCH_LEFT' : 'MANUAL_TOUCH_RIGHT', {lane: lane});
-    addLog('手动触板: 道' + lane + ' ' + side);
+    addLog(WebLoc.f('Str_RC_LogManualTouchFmt', lane, side));
 }
 
 function renderStartListBar() {
@@ -3138,11 +3156,11 @@ document.addEventListener('keydown', function(e) {
         sendCmd('MANUAL_TOUCH_RIGHT', {lane: e.key === '0' ? 10 : parseInt(e.key)});
     }
     if (e.ctrlKey && e.key === 'ArrowLeft') {
-        if (!blockIfRacing('切换到上一组')) sendCmd('PREV_HEAT');
+        if (!blockIfRacing(WebLoc.t('Str_RC_ActionSwitchPrevHeat'))) sendCmd('PREV_HEAT');
         e.preventDefault();
     }
     if (e.ctrlKey && e.key === 'ArrowRight') {
-        if (!blockIfRacing('切换到下一组')) sendCmd('NEXT_HEAT');
+        if (!blockIfRacing(WebLoc.t('Str_RC_ActionSwitchNextHeat'))) sendCmd('NEXT_HEAT');
         e.preventDefault();
     }
     if (!e.shiftKey && !e.ctrlKey && e.key >= '1' && e.key <= '9') selectLane(parseInt(e.key));
@@ -3203,7 +3221,7 @@ function doLogin() {
     var pwd = document.getElementById('loginPwd').value || '';
     var errEl = document.getElementById('loginError');
     if (!user || !pwd) {
-        errEl.textContent = '请输入用户名和密码。';
+        errEl.textContent = WebLoc.t('Str_RC_LoginErrEmptyFields');
         errEl.style.display = 'block'; return;
     }
     // 校验: 本机账号 (rcOperatorName + rcOperatorPwdHash) 或首次默认 admin/admin
@@ -3223,7 +3241,7 @@ function doLogin() {
         ok = (user === savedUser && pwd === savedPwd);
     }
     if (!ok) {
-        errEl.textContent = '用户名或密码错误，请重试。';
+        errEl.textContent = WebLoc.t('Str_RC_LoginErrWrongCreds');
         errEl.style.display = 'block';
         document.getElementById('loginPwd').value = '';
         document.getElementById('loginPwd').focus();
