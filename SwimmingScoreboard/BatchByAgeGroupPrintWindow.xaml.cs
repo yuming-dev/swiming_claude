@@ -169,8 +169,8 @@ namespace SwimmingScoreboard
 
             // 构建 HTML (整合 5 + 1 按钮共用) + 推荐文件名
             _cachedHtml = BuildHtml(blocks);
-            _cachedFileBase = SanitizeFile(string.Format("批量公布_{0}_{1}_{2}_{3}",
-                _selectedAgeGroup, _selectedGender, _selectedEvent, _selectedStage));
+            _cachedFileBase = SanitizeFile(Loc.F("Str_DocC_BatchPublishFileFmt",
+                _selectedAgeGroup, Loc.GenderDisplay(_selectedGender), _selectedEvent, Loc.StageDisplay(_selectedStage)));
 
             // 预览面板: 每子块一段, 标题含 性别 + 组别 + 子年龄 + 项目 + 赛次
             PreviewPanel.Children.Clear();
@@ -483,7 +483,7 @@ namespace SwimmingScoreboard
             var sb = new StringBuilder();
             sb.Append("<html><head><meta charset='UTF-8'><style>");
             // 2026-09-16 页码, 跟项目成绩打印(EventResultPrintWindow)同一写法。
-            sb.Append("@page{ size:A4; margin:14mm 12mm; @bottom-center { content: '第 ' counter(page) ' 页  共 ' counter(pages) ' 页'; font-size:9px; color:#64748b; font-family:SimSun; } } ");
+            sb.Append("@page{ size:A4; margin:14mm 12mm; @bottom-center { content: '" + Loc.T("Str_DocC_PageOfFmt") + "'; font-size:9px; color:#64748b; font-family:SimSun; } } ");
             sb.Append("body{font-family:'Microsoft YaHei','微软雅黑',SimHei,SimSun,sans-serif; padding:0; margin:0; line-height:1.45; color:#1f2937;} ");
             sb.Append(".page{padding:0 4px; box-sizing:border-box;} ");
             sb.Append("h1{text-align:center; font-size:26px; margin:0 0 4px; letter-spacing:3px; color:#0f172a;} ");
@@ -524,12 +524,12 @@ namespace SwimmingScoreboard
 
             // 抬头(只在最前面出现一次, 不再单独占一页)
             sb.AppendFormat("<h1>{0}</h1>", HtmlEnc(_competitionName));
-            sb.Append("<h2>成 绩 单 （ 按 组 别 ）</h2>");
+            sb.Append("<h2>" + Loc.T("Str_DocC_BatchHeaderTitle") + "</h2>");
             sb.AppendFormat("<div class='meta'>{0} {1} {2} {3}</div>",
-                HtmlEnc(_selectedAgeGroup), HtmlEnc(_selectedGender), HtmlEnc(_selectedEvent), HtmlEnc(_selectedStage));
+                HtmlEnc(_selectedAgeGroup), HtmlEnc(Loc.GenderDisplay(_selectedGender)), HtmlEnc(_selectedEvent), HtmlEnc(Loc.StageDisplay(_selectedStage)));
             // 2026-09-03 地点没填就整段不显示 —— 原来会印出光秃秃一个"地点："
-            sb.AppendFormat("<div class='meta'>{0}共 {1} 张子表</div>",
-                string.IsNullOrWhiteSpace(_location) ? "" : ("地点：" + HtmlEnc(_location) + "　|　"), blocks.Count);
+            sb.Append("<div class='meta'>" + Loc.F("Str_DocC_BatchSubTableCountFmt",
+                string.IsNullOrWhiteSpace(_location) ? "" : (Loc.T("Str_DocC_LabelVenue") + HtmlEnc(_location) + "　|　"), blocks.Count) + "</div>");
             sb.Append("<div class='rule'></div>");
 
             bool firstBlk = true;
@@ -542,12 +542,12 @@ namespace SwimmingScoreboard
                 // 2026-06-02 标题用 AgeBlock.Title (含性别 + 注册组别 + 可选实际年龄), 不再单独拼 _selectedGender
                 // 2026-09-03 项目/赛次取【本子块自己的】—— 它们都能选"全部", 一次查询里会有好几个项目
                 bool isRelayEv = (b.EventName ?? "").Contains("接力");
-                string c1H = isRelayEv ? "代表队" : "姓名";
-                string c2H = isRelayEv ? "姓名" : "代表队";
+                string c1H = isRelayEv ? Loc.T("Str_DocC_ColTeam") : Loc.T("Str_DocC_ColName");
+                string c2H = isRelayEv ? Loc.T("Str_DocC_ColName") : Loc.T("Str_DocC_ColTeam");
                 // 2026-09-03 标题栏右侧带上赛事名 —— 这几张是要剪下来分别贴公告栏的,
                 //   剪开之后光有"男子 青少年(12岁) 100米蛙泳 决赛"看不出是哪场比赛。
-                sb.AppendFormat("<h3>{0}　{1} {2}<span class='n'>{3}　|　{4} 人</span></h3>",
-                    HtmlEnc(b.Title ?? b.AgeGroup), HtmlEnc(b.EventName), HtmlEnc(b.Stage),
+                sb.AppendFormat("<h3>{0}　{1} {2}<span class='n'>{3}　|　{4} " + Loc.T("Str_Common_Entries") + "</span></h3>",
+                    HtmlEnc(b.Title ?? b.AgeGroup), HtmlEnc(b.EventName), HtmlEnc(Loc.StageDisplay(b.Stage)),
                     HtmlEnc(_competitionName), b.Rows.Count);
                 // 2026-09-03 列宽改百分比 + table-layout:fixed —— 原来是 px, 表格挤在左半边,
                 //   人少的表更窄(实测 1 人的表只有半幅纸宽)。百分比才能稳定占满。
@@ -558,10 +558,10 @@ namespace SwimmingScoreboard
                 sb.Append("<table><colgroup>");
                 foreach (int x in w) sb.AppendFormat("<col style='width:{0}%'/>", x);
                 sb.Append("</colgroup><thead><tr>");
-                sb.Append("<th>名次</th>");
+                sb.Append("<th>" + Loc.T("Str_DocC_ColRank") + "</th>");
                 sb.AppendFormat("<th>{0}</th><th>{1}</th>", c1H, c2H);
-                sb.Append("<th>号码</th><th>组别</th><th>组数</th><th>道次</th>");
-                sb.Append("<th>最终成绩</th><th>成绩差</th><th>反应时间</th><th>备注</th></tr></thead><tbody>");
+                sb.Append("<th>" + Loc.T("Str_DocC_ColBib") + "</th><th>" + Loc.T("Str_DocC_ColAgeGroup") + "</th><th>" + Loc.T("Str_DocC_ColHeatCount") + "</th><th>" + Loc.T("Str_DocC_ColLaneNo") + "</th>");
+                sb.Append("<th>" + Loc.T("Str_DocC_ColFinalResult") + "</th><th>" + Loc.T("Str_DocC_ColGap") + "</th><th>" + Loc.T("Str_DocC_ColReactionTime") + "</th><th>" + Loc.T("Str_DocC_ColNote") + "</th></tr></thead><tbody>");
                 foreach (var r in b.Rows) {
                     string c1 = isRelayEv ? (r.Country ?? "") : (r.Name ?? "");
                     string c2 = isRelayEv ? (r.Name ?? "") : (r.Country ?? "");
@@ -582,15 +582,15 @@ namespace SwimmingScoreboard
                 //   每张都得有裁判和记录长的签名位。签名行放在 .blk 里面, 跟着表一起
                 //   不允许被分页切开 —— 不然会出现"表在这一页、签名在下一页"。
                 sb.Append("<div class='sig'>");
-                sb.AppendFormat("<span>裁判：{0}</span>",
-                    !string.IsNullOrEmpty(_referee) ? HtmlEnc(_referee) + "　___________" : "__________________");
-                sb.Append("<span>记录长：__________________</span>");
+                sb.Append("<span>" + Loc.F("Str_DocC_RefereeSigFmt",
+                    !string.IsNullOrEmpty(_referee) ? HtmlEnc(_referee) + "　___________" : "__________________") + "</span>");
+                sb.Append("<span>" + Loc.T("Str_DocC_RecorderSig") + "</span>");
                 sb.AppendFormat("<span>{0}</span>", DateTime.Now.ToString("yyyy-MM-dd"));
                 sb.Append("</div>");
                 sb.Append("</div>");   // .blk
             }
-            sb.AppendFormat("<div class='foot'>打印时间：{0}　共 {1} 张</div>",
-                DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"), blocks.Count);
+            sb.Append("<div class='foot'>" + Loc.F("Str_DocC_BatchFooterFmt",
+                DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"), blocks.Count) + "</div>");
             sb.Append("</div></body></html>");
             return sb.ToString();
         }

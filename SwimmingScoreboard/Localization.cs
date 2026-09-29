@@ -830,6 +830,12 @@ namespace SwimmingScoreboard
             { "Str_DocC_CommitteeSeal",  new[] { "组委会（盖章）", "Organizing Committee (Seal)" } },
             { "Str_DocC_CommitteeSuffix",new[] { "组织委员会", "Organizing Committee" } },
             { "Str_DocC_CertDateBrFmt",  new[] { "<br/>{0}&nbsp;年&nbsp;{1}&nbsp;月&nbsp;{2}&nbsp;日", "<br/>{0}-{1}-{2}" } },
+            { "Str_DocC_HeadSplitReport",new[] { "分 段 计 时 报 告", "SPLIT TIME REPORT" } },
+            // ── 按组别批量公布 (BatchByAgeGroupPrintWindow) 专用 ──
+            { "Str_DocC_BatchPublishFileFmt", new[] { "批量公布_{0}_{1}_{2}_{3}", "BatchResults_{0}_{1}_{2}_{3}" } },
+            { "Str_DocC_BatchHeaderTitle", new[] { "成 绩 单 （ 按 组 别 ）", "RESULTS (BY AGE GROUP)" } },
+            { "Str_DocC_BatchSubTableCountFmt", new[] { "{0}共 {1} 张子表", "{0}{1} sub-table(s)" } },
+            { "Str_DocC_BatchFooterFmt", new[] { "打印时间：{0}　共 {1} 张", "Printed: {0}　{1} sheet(s)" } },
 
             // 2026-09-21 【中文/English 第六阶段】"系统日志与数据"页(只翻页面本身的静态文字，
             // 不翻 SystemLogListBox 里滚动显示的日志正文——那是 AddLog(...) 调用点生成的，

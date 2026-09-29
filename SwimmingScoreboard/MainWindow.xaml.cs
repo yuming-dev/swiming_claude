@@ -31325,18 +31325,18 @@ namespace SwimmingScoreboard
         private string BuildSplitTimeReportHtmlFor(string ageGroup, string gender, string eventName, string stage, int heat) {
             var sb = new StringBuilder();
             sb.AppendFormat("<html><head><meta charset='UTF-8'><style>{0}</style></head><body>", DocCss());
-            sb.Append(DocHeader("分 段 计 时 报 告"));
+            sb.Append(DocHeader(Loc.T("Str_DocC_HeadSplitReport")));
 
             string evTitleAg = string.IsNullOrEmpty(ageGroup) ? "" : ("[" + ageGroup + "] ");
-            string eventTitle = string.Format("{0}{1} {2} {3} 第 {4} 组", evTitleAg, gender, eventName, stage, heat);
-            sb.AppendFormat("<h3>项目：{0}</h3>", System.Net.WebUtility.HtmlEncode(eventTitle));
+            string eventTitle = evTitleAg + Loc.GenderDisplay(gender) + " " + eventName + " " + Loc.StageDisplay(stage) + Loc.F("Str_DocC_HeatDisplayFmt", heat);
+            sb.Append("<h3>" + Loc.F("Str_DocC_EventTitleSimpleFmt", System.Net.WebUtility.HtmlEncode(eventTitle)) + "</h3>");
 
             var sch = _schedule.FirstOrDefault(s =>
                 (s.AgeGroup ?? "") == (ageGroup ?? "") && SgMatch(s.Gender, gender) && s.EventName == eventName && s.Stage == stage);
-            string dateTimeInfo = sch != null ? string.Format("{0} {1}", sch.Date, sch.Time).Trim() : "（时间待定）";
-            sb.AppendFormat("<h4>比赛时间：{0} &nbsp;&nbsp;&nbsp;&nbsp; 地点：{1}</h4>",
+            string dateTimeInfo = sch != null ? string.Format("{0} {1}", sch.Date, sch.Time).Trim() : Loc.T("Str_DocC_TimeTBD");
+            sb.Append("<h4>" + Loc.F("Str_DocC_LabelRaceTime",
                 System.Net.WebUtility.HtmlEncode(dateTimeInfo),
-                System.Net.WebUtility.HtmlEncode(LocationBox != null ? LocationBox.Text : ""));
+                System.Net.WebUtility.HtmlEncode(LocationBox != null ? LocationBox.Text : "")) + "</h4>");
 
             bool isRelay = (eventName ?? "").Contains("接力");
             // 2026-08-24 改调分组名单唯一入口 (已按泳道排好)
@@ -33855,18 +33855,18 @@ namespace SwimmingScoreboard
         private string BuildSplitTimeReportHtml() {
             var sb = new StringBuilder();
             sb.AppendFormat("<html><head><meta charset='UTF-8'><style>{0}</style></head><body>", DocCss());
-            sb.Append(DocHeader("分 段 计 时 报 告"));
+            sb.Append(DocHeader(Loc.T("Str_DocC_HeadSplitReport")));
 
             // 2026-06-04 顺序统一: 性别 组别 项目 赛次 第N组
             string ageGroupSpaceS = string.IsNullOrEmpty(_currentAgeGroup) ? "" : (_currentAgeGroup + " ");
-            string eventTitle = string.Format("{0} {1}{2} {3} 第 {4} 组", _currentGender, ageGroupSpaceS, _currentEvent, _currentStage, _currentHeat);
-            sb.AppendFormat("<h3>项目：{0}</h3>", eventTitle);
+            string eventTitle = Loc.GenderDisplay(_currentGender) + " " + ageGroupSpaceS + _currentEvent + " " + Loc.StageDisplay(_currentStage) + Loc.F("Str_DocC_HeatDisplayFmt", _currentHeat);
+            sb.Append("<h3>" + Loc.F("Str_DocC_EventTitleSimpleFmt", eventTitle) + "</h3>");
 
             // 2026-06-16 加 _currentAgeGroup 筛选, 跨组别共用 (gender,event,stage) 不会拿错 Date/Time
             var sch = _schedule.FirstOrDefault(s => s.Gender == _currentGender && s.EventName == _currentEvent && s.Stage == _currentStage
                 && (string.IsNullOrEmpty(_currentAgeGroup) || (s.AgeGroup ?? "") == _currentAgeGroup));
-            string dateTimeInfo = sch != null ? string.Format("{0} {1}", sch.Date, sch.Time).Trim() : "（时间待定）";
-            sb.AppendFormat("<h4>比赛时间：{0} &nbsp;&nbsp;&nbsp;&nbsp; 地点：{1}</h4>", dateTimeInfo, LocationBox.Text);
+            string dateTimeInfo = sch != null ? string.Format("{0} {1}", sch.Date, sch.Time).Trim() : Loc.T("Str_DocC_TimeTBD");
+            sb.Append("<h4>" + Loc.F("Str_DocC_LabelRaceTime", dateTimeInfo, LocationBox.Text) + "</h4>");
 
             // 合并表：每位运动员一行，每段距离一列（与 BuildSplitTimeReportHtmlFor 共用）
             var heatSwimmers = GetCurrentHeatSwimmers().OrderBy(s => s.Lane).ToList();
