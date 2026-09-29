@@ -1798,31 +1798,34 @@
                         </DockPanel>
                     </Border>
                     <!-- 2026-09-29 现场反馈: "晋级处理"起的8个按键跟筛选条件挤在同一行, 右边被裁掉显示不全。
-                         拆成独立一行放最上面(宽度/间距统一, 更美观)，筛选条件下移成第2行。 -->
-                    <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Margin="0,0,0,8">
-                        <Button Content="{DynamicResource Str_Results_Promotion}" Click="Promotion_Click" Padding="12,4" Width="110"
+                         拆成独立一行放最上面。
+                         2026-09-29(续) 固定 Width=110×8 在较窄屏幕上最后一个"个人排名"按键还是被裁——
+                         跟赛程管理页顶部按钮同一个坑(见 bc0f099), 同样改成 UniformGrid 按实际可用宽度
+                         平均分配 8 列, 不再猜固定像素数; 原来分隔业务操作/报表查询两组的竖线分隔符
+                         删掉(UniformGrid 8 等分列容不下它, 影响不大)。 -->
+                    <UniformGrid Grid.Row="0" Grid.Column="1" Rows="1" Columns="8" Margin="0,0,0,8">
+                        <Button Content="{DynamicResource Str_Results_Promotion}" Click="Promotion_Click" Padding="6,4" Margin="0,0,6,0"
                                 Background="#8B5CF6" Foreground="White" BorderThickness="0"/>
-                        <Button Content="{DynamicResource Str_Results_TeamScore}" Click="CalcTeamScore_Click" Padding="12,4" Width="110" Margin="8,0,0,0"
+                        <Button Content="{DynamicResource Str_Results_TeamScore}" Click="CalcTeamScore_Click" Padding="6,4" Margin="0,0,6,0"
                                 Background="#22C55E" Foreground="White" BorderThickness="0"/>
-                        <Button Content="{DynamicResource Str_Results_ViewRawData}" Click="ViewRawData_Click" Padding="12,4" Width="110" Margin="8,0,0,0"
+                        <Button Content="{DynamicResource Str_Results_ViewRawData}" Click="ViewRawData_Click" Padding="6,4" Margin="0,0,6,0"
                                 Background="#64748B" Foreground="White" BorderThickness="0"/>
-                        <Button Content="{DynamicResource Str_Results_ChiefJudgeOverride}" Click="ChiefJudgeOverride_Click" Padding="12,4" Width="110" Margin="8,0,0,0"
+                        <Button Content="{DynamicResource Str_Results_ChiefJudgeOverride}" Click="ChiefJudgeOverride_Click" Padding="6,4" Margin="0,0,6,0"
                                 Background="#DC2626" Foreground="White" BorderThickness="0" FontWeight="Bold"
                                 ToolTip="{DynamicResource Str_Results_ChiefJudgeOverrideTip}"/>
-                        <Separator Margin="8,0,8,0" Background="#94A3B8" Width="1"/>
-                        <Button Content="{DynamicResource Str_Results_FinalsStatus}" Click="FinalsStatus_Click" Padding="10,4" Width="110" Margin="0,0,8,0"
+                        <Button Content="{DynamicResource Str_Results_FinalsStatus}" Click="FinalsStatus_Click" Padding="6,4" Margin="0,0,6,0"
                                 Background="#0EA5E9" Foreground="White" BorderThickness="0"
                                 ToolTip="{DynamicResource Str_Results_FinalsStatusTip}"/>
-                        <Button Content="{DynamicResource Str_Results_EventTop8}" Click="EventTop8_Click" Padding="10,4" Width="110" Margin="0,0,8,0"
+                        <Button Content="{DynamicResource Str_Results_EventTop8}" Click="EventTop8_Click" Padding="6,4" Margin="0,0,6,0"
                                 Background="#0EA5E9" Foreground="White" BorderThickness="0"
                                 ToolTip="{DynamicResource Str_Results_EventTop8Tip}"/>
-                        <Button Content="{DynamicResource Str_Results_DeptBulletin}" Click="DepartmentBulletin_Click" Padding="10,4" Width="110" Margin="0,0,8,0"
+                        <Button Content="{DynamicResource Str_Results_DeptBulletin}" Click="DepartmentBulletin_Click" Padding="6,4" Margin="0,0,6,0"
                                 Background="#0EA5E9" Foreground="White" BorderThickness="0"
                                 ToolTip="{DynamicResource Str_Results_DeptBulletinTip}"/>
-                        <Button Content="{DynamicResource Str_Results_IndividualRanking}" Click="IndividualRanking_Click" Padding="10,4" Width="110"
+                        <Button Content="{DynamicResource Str_Results_IndividualRanking}" Click="IndividualRanking_Click" Padding="6,4"
                                 Background="#0EA5E9" Foreground="White" BorderThickness="0"
                                 ToolTip="{DynamicResource Str_Results_IndividualRankingTip}"/>
-                    </StackPanel>
+                    </UniformGrid>
                     <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Margin="0,0,0,8">
                         <TextBlock Text="{DynamicResource Str_Results_AgeGroup}" VerticalAlignment="Center" Margin="0,0,4,0"/>
                         <ComboBox x:Name="ResultAgeGroupCombo" Width="90" Margin="0,0,8,0" SelectionChanged="ResultAgeGroup_Changed"
