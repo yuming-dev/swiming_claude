@@ -154,6 +154,16 @@ foreach ($proj in @("RemoteTimingControl","RemoteDisplayControl","RegistrationTo
     }
 }
 
+# 2026-09-28 同一个坑的新变种: 开发机上跑过 RemoteDisplayControl.exe 后, WebView2 会在
+#   exe 同目录下建一份 "RemoteDisplayControl.exe.WebView2\" 用户数据(浏览器缓存/LevelDB/
+#   证书等, 实测 300+ 个文件), 这是运行时自动生成的, 客户机首次启动会自己重建一份,
+#   不该原样打进安装包(既是几十MB的噪音, 也是开发机本地浏览数据)。
+$rdcWebView2Profile = Join-Path $installerBuild "RemoteDisplayControl\RemoteDisplayControl.exe.WebView2"
+if (Test-Path $rdcWebView2Profile) {
+    Remove-Item -Recurse -Force $rdcWebView2Profile
+    Write-Host "  ✂  删除 RemoteDisplayControl.exe.WebView2 (开发机残留数据)"
+}
+
 $rtsTxt = Join-Path $root "Installer\RemoteTimingControl\RemoteTimingServer.txt"
 if (Test-Path $rtsTxt) {
     Copy-Item $rtsTxt (Join-Path $installerBuild "RemoteTimingControl\") -Force
