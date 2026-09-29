@@ -171,6 +171,9 @@ if (Test-Path $rtsTxt) {
 
 $manualSrc = Join-Path $root "Installer\使用说明书.pdf"
 if (Test-Path $manualSrc) { Copy-Item $manualSrc (Join-Path $installerBuild "使用说明书.pdf") -Force }
+# 2026-09-28 中文版也一并收录 docx(此前只出 PDF; 用户要了中文 docx 之后补上, 跟英文版同一套来源)。
+$manualDocxSrc = Join-Path $root "Installer\使用说明书.docx"
+if (Test-Path $manualDocxSrc) { Copy-Item $manualDocxSrc (Join-Path $installerBuild "使用说明书.docx") -Force }
 # 2026-09-14 现场速查卡(两页 A4) —— 说明书 40 页, 比赛当天没人翻得动。
 #   源文件由 build_card.ps1 生成, 这里只负责收进包。
 $cardSrc = Join-Path $root "Installer\现场速查卡.pdf"
