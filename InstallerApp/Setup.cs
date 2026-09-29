@@ -11,9 +11,16 @@ class SetupForm : Form
     // 安装步骤面板
     Panel panelWelcome, panelPath, panelProgress, panelDone;
     TextBox txtPath;
+    CheckBox chkDesktopShortcut;
     ProgressBar progressBar;
-    Label lblStatus, lblProgress;
+    Label lblStatus, lblProgress, lblDoneInfo;
     string installDir = @"C:\SwimmingTimingSystem";
+    // 2026-09-28 现场反馈"以前可选的生成桌面快捷方式选项没有了"——加一个可勾选项,
+    //   默认勾选(=保留原来的行为), 不想要桌面图标的可以取消勾。
+    bool createDesktopShortcut = true;
+    // 同时把 CreateShortcut 原来的静默 catch{} 换成有记录——之前失败了界面上完全看不出来,
+    //   用户装完发现没图标也不知道是"选了不装"还是"装失败了"。
+    System.Collections.Generic.List<string> shortcutFailures = new System.Collections.Generic.List<string>();
     string sourceDir;
 
     public SetupForm()
@@ -173,6 +180,13 @@ class SetupForm : Form
         };
         content.Controls.Add(btnBrowse);
 
+        chkDesktopShortcut = new CheckBox {
+            Text = "创建桌面快捷方式", Checked = true,
+            Font = new Font("Microsoft YaHei", 10), ForeColor = Color.FromArgb(51, 65, 85),
+            Location = new Point(30, 140), AutoSize = true
+        };
+        content.Controls.Add(chkDesktopShortcut);
+
         var info = new Label {
             Text = "安装将创建以下子目录：\n\n" +
                    "  Server\\                主服务器程序和Web页面\n" +
@@ -184,13 +198,13 @@ class SetupForm : Form
                    "  Registration\\          运动员报名工具\n" +
                    "  ScheduleEditor\\        编排记录及成绩处理",
             Font = new Font("Microsoft YaHei", 9.5f), ForeColor = Color.FromArgb(100, 116, 139),
-            Location = new Point(30, 150), Size = new Size(380, 200)
+            Location = new Point(30, 175), Size = new Size(380, 200)
         };
         content.Controls.Add(info);
 
         panelPath.Controls.Add(content);
         panelPath.Controls.Add(CreateSideBar());
-        panelPath.Controls.Add(CreateButtonBar("< 上一步", (s, e) => ShowStep(0), "安装", (s, e) => { installDir = txtPath.Text; ShowStep(2); DoInstall(); }));
+        panelPath.Controls.Add(CreateButtonBar("< 上一步", (s, e) => ShowStep(0), "安装", (s, e) => { installDir = txtPath.Text; createDesktopShortcut = chkDesktopShortcut.Checked; ShowStep(2); DoInstall(); }));
         Controls.Add(panelPath);
     }
 
@@ -227,29 +241,16 @@ class SetupForm : Form
         var title = new Label { Text = "安装完成！", Font = new Font("Microsoft YaHei", 18, FontStyle.Bold), ForeColor = Color.FromArgb(34, 197, 94), AutoSize = true, Location = new Point(30, 20) };
         content.Controls.Add(title);
 
-        var info = new Label {
-            Text = "游泳赛事管理与计时系统 v2026.06.13 已成功安装。\n\n" +
-                   "已创建桌面快捷方式：\n" +
-                   "  ★  游泳赛事管理主服务器\n" +
-                   "  ★  远程计时控制台\n" +
-                   "  ★  远程显示控制台\n" +
-                   "  ★  运动员报名工具\n" +
-                   "  ★  编排记录及成绩处理\n\n" +
-                   // 2026-09-14 这里的端口写错过: 网页在 8080, 3002 是 WebSocket 端口。
-                   //   照着 3002 开网页是打不开的 —— 新装机的人第一步就会卡在这儿。
-                   "Web 客户端地址（主服务器启动后）：\n" +
-                   "  比赛控制  http://<server>:8080/race_control.html\n" +
-                   "  大屏显示  http://<server>:8080/display.html\n" +
-                   "  成绩查询  http://<server>:8080/query.html\n" +
-                   "  排名屏      http://<server>:8080/leaderboard.html\n" +
-                   "  在线报名  http://<server>:8080/register.html\n" +
-                   "  检录台      http://<server>:8080/checkin.html\n\n" +
-                   "使用说明书：" + installDir + "\\使用说明书.pdf\n" +
-                   "现场速查卡：" + installDir + "\\现场速查卡.pdf（两页，建议打印贴在计时机旁）",
+        lblDoneInfo = new Label {
+            Text = "",   // 2026-09-28 内容改成装完后在 UpdateDoneInfo() 里动态填(快捷方式那几行
+                         //   要按 createDesktopShortcut/shortcutFailures 实际结果来写, 不能再是
+                         //   固定死"已创建"——之前不管装没装成功、用户是否勾选, 都写死"已创建",
+                         //   跟现场反馈的"选了创建但图标没出现"这类情况对不上, 用户没法判断到底
+                         //   是没装还是装错了。
             Font = new Font("Microsoft YaHei", 10), ForeColor = Color.FromArgb(71, 85, 105),
-            Location = new Point(30, 60), Size = new Size(380, 320)
+            Location = new Point(30, 60), Size = new Size(380, 340)
         };
-        content.Controls.Add(info);
+        content.Controls.Add(lblDoneInfo);
 
         panelDone.Controls.Add(content);
         panelDone.Controls.Add(CreateSideBar());
@@ -351,23 +352,27 @@ class SetupForm : Form
                     File.Copy(f, Path.Combine(toolsDst, Path.GetFileName(f)), true);
             }
 
-            SetProgress(80, "创建桌面快捷方式...");
             string desktop = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
-            CreateShortcut(Path.Combine(desktop, "游泳赛事管理主服务器.lnk"),
-                Path.Combine(installDir, "Server", "SwimmingScoreboard.exe"),
-                Path.Combine(installDir, "Server"));
-            CreateShortcut(Path.Combine(desktop, "远程计时控制台.lnk"),
-                Path.Combine(installDir, "RemoteControl", "RemoteTimingControl.exe"),
-                Path.Combine(installDir, "RemoteControl"));
-            CreateShortcut(Path.Combine(desktop, "远程显示控制台.lnk"),
-                Path.Combine(installDir, "RemoteDisplay", "RemoteDisplayControl.exe"),
-                Path.Combine(installDir, "RemoteDisplay"));
-            CreateShortcut(Path.Combine(desktop, "运动员报名工具.lnk"),
-                Path.Combine(installDir, "Registration", "RegistrationTool.exe"),
-                Path.Combine(installDir, "Registration"));
-            CreateShortcut(Path.Combine(desktop, "编排记录及成绩处理.lnk"),
-                Path.Combine(installDir, "ScheduleEditor", "ScheduleEditor.exe"),
-                Path.Combine(installDir, "ScheduleEditor"));
+            if (createDesktopShortcut) {
+                SetProgress(80, "创建桌面快捷方式...");
+                CreateShortcut(Path.Combine(desktop, "游泳赛事管理主服务器.lnk"),
+                    Path.Combine(installDir, "Server", "SwimmingScoreboard.exe"),
+                    Path.Combine(installDir, "Server"));
+                CreateShortcut(Path.Combine(desktop, "远程计时控制台.lnk"),
+                    Path.Combine(installDir, "RemoteControl", "RemoteTimingControl.exe"),
+                    Path.Combine(installDir, "RemoteControl"));
+                CreateShortcut(Path.Combine(desktop, "远程显示控制台.lnk"),
+                    Path.Combine(installDir, "RemoteDisplay", "RemoteDisplayControl.exe"),
+                    Path.Combine(installDir, "RemoteDisplay"));
+                CreateShortcut(Path.Combine(desktop, "运动员报名工具.lnk"),
+                    Path.Combine(installDir, "Registration", "RegistrationTool.exe"),
+                    Path.Combine(installDir, "Registration"));
+                CreateShortcut(Path.Combine(desktop, "编排记录及成绩处理.lnk"),
+                    Path.Combine(installDir, "ScheduleEditor", "ScheduleEditor.exe"),
+                    Path.Combine(installDir, "ScheduleEditor"));
+            } else {
+                SetProgress(80, "跳过桌面快捷方式（未勾选）...");
+            }
 
             SetProgress(90, "创建开始菜单快捷方式...");
             string startMenu = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), "游泳赛事管理系统");
@@ -418,6 +423,7 @@ class SetupForm : Form
             CreateUninstaller(desktop, startMenu);
 
             SetProgress(100, "安装完成！");
+            UpdateDoneInfo();
             System.Threading.Thread.Sleep(500);
             ShowStep(3);
         }
@@ -467,6 +473,41 @@ class SetupForm : Form
             uninstDst, installDir); // 卸载游泳赛事管理系统.lnk
     }
 
+    // 2026-09-28 "完成"页内容改到装完之后再拼，好把快捷方式的真实结果（用户勾了没、
+    // 有没有失败）写进去，不再是固定文案。
+    void UpdateDoneInfo()
+    {
+        string shortcutSection;
+        if (!createDesktopShortcut) {
+            shortcutSection = "未创建桌面快捷方式（安装时未勾选）。程序位于：\n  " + installDir;
+        } else if (shortcutFailures.Count == 0) {
+            shortcutSection = "已创建桌面快捷方式：\n" +
+                "  ★  游泳赛事管理主服务器\n" +
+                "  ★  远程计时控制台\n" +
+                "  ★  远程显示控制台\n" +
+                "  ★  运动员报名工具\n" +
+                "  ★  编排记录及成绩处理";
+        } else {
+            shortcutSection = "⚠ 部分桌面快捷方式创建失败（不影响程序本身，可到以下目录手动运行 .exe 或手动创建快捷方式）：\n" +
+                "  " + string.Join("\n  ", shortcutFailures.ToArray()) + "\n" +
+                "程序位于：" + installDir;
+        }
+        lblDoneInfo.Text =
+            "游泳赛事管理与计时系统 v2026.06.13 已成功安装。\n\n" +
+            shortcutSection + "\n\n" +
+            // 2026-09-14 这里的端口写错过: 网页在 8080, 3002 是 WebSocket 端口。
+            //   照着 3002 开网页是打不开的 —— 新装机的人第一步就会卡在这儿。
+            "Web 客户端地址（主服务器启动后）：\n" +
+            "  比赛控制  http://<server>:8080/race_control.html\n" +
+            "  大屏显示  http://<server>:8080/display.html\n" +
+            "  成绩查询  http://<server>:8080/query.html\n" +
+            "  排名屏      http://<server>:8080/leaderboard.html\n" +
+            "  在线报名  http://<server>:8080/register.html\n" +
+            "  检录台      http://<server>:8080/checkin.html\n\n" +
+            "使用说明书：" + installDir + "\\使用说明书.pdf\n" +
+            "现场速查卡：" + installDir + "\\现场速查卡.pdf（两页，建议打印贴在计时机旁）";
+    }
+
     void CreateShortcut(string lnkPath, string target, string workDir)
     {
         try
@@ -480,7 +521,12 @@ class SetupForm : Form
             Marshal.FinalReleaseComObject(sc);
             Marshal.FinalReleaseComObject(shell);
         }
-        catch { }
+        catch (Exception ex)
+        {
+            // 2026-09-28 原来这里是空 catch{}——失败了界面上完全看不出来，用户装完发现
+            // 桌面没图标，分不清是"没勾选"还是"装的时候出错了"。记下来，装完在"完成"页提示。
+            shortcutFailures.Add(Path.GetFileNameWithoutExtension(lnkPath) + "：" + ex.Message);
+        }
     }
 
     [STAThread]
