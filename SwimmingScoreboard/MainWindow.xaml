@@ -1774,10 +1774,11 @@
                     </Grid.ColumnDefinitions>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
                     <!-- 2026-05-24 左侧 赛程导航 (3 级) -->
-                    <Border Grid.Row="0" Grid.RowSpan="2" Grid.Column="0" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="6" Background="White" Margin="0,0,8,0">
+                    <Border Grid.Row="0" Grid.RowSpan="3" Grid.Column="0" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="6" Background="White" Margin="0,0,8,0">
                         <DockPanel Margin="8">
                             <TextBlock DockPanel.Dock="Top" Text="{DynamicResource Str_Results_NavTitle}" FontSize="14" FontWeight="Bold" Foreground="#1E40AF" Margin="0,0,0,6"/>
                             <TextBox DockPanel.Dock="Top" x:Name="NavResultSearchBox" Padding="4" Margin="0,0,0,6"
@@ -1793,7 +1794,33 @@
                             <TreeView x:Name="NavResultTree" BorderThickness="0" SelectedItemChanged="NavResultTree_Selected"/>
                         </DockPanel>
                     </Border>
+                    <!-- 2026-09-29 现场反馈: "晋级处理"起的8个按键跟筛选条件挤在同一行, 右边被裁掉显示不全。
+                         拆成独立一行放最上面(宽度/间距统一, 更美观)，筛选条件下移成第2行。 -->
                     <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Margin="0,0,0,8">
+                        <Button Content="{DynamicResource Str_Results_Promotion}" Click="Promotion_Click" Padding="12,4" Width="110"
+                                Background="#8B5CF6" Foreground="White" BorderThickness="0"/>
+                        <Button Content="{DynamicResource Str_Results_TeamScore}" Click="CalcTeamScore_Click" Padding="12,4" Width="110" Margin="8,0,0,0"
+                                Background="#22C55E" Foreground="White" BorderThickness="0"/>
+                        <Button Content="{DynamicResource Str_Results_ViewRawData}" Click="ViewRawData_Click" Padding="12,4" Width="110" Margin="8,0,0,0"
+                                Background="#64748B" Foreground="White" BorderThickness="0"/>
+                        <Button Content="{DynamicResource Str_Results_ChiefJudgeOverride}" Click="ChiefJudgeOverride_Click" Padding="12,4" Width="110" Margin="8,0,0,0"
+                                Background="#DC2626" Foreground="White" BorderThickness="0" FontWeight="Bold"
+                                ToolTip="{DynamicResource Str_Results_ChiefJudgeOverrideTip}"/>
+                        <Separator Margin="8,0,8,0" Background="#94A3B8" Width="1"/>
+                        <Button Content="{DynamicResource Str_Results_FinalsStatus}" Click="FinalsStatus_Click" Padding="10,4" Width="110" Margin="0,0,8,0"
+                                Background="#0EA5E9" Foreground="White" BorderThickness="0"
+                                ToolTip="{DynamicResource Str_Results_FinalsStatusTip}"/>
+                        <Button Content="{DynamicResource Str_Results_EventTop8}" Click="EventTop8_Click" Padding="10,4" Width="110" Margin="0,0,8,0"
+                                Background="#0EA5E9" Foreground="White" BorderThickness="0"
+                                ToolTip="{DynamicResource Str_Results_EventTop8Tip}"/>
+                        <Button Content="{DynamicResource Str_Results_DeptBulletin}" Click="DepartmentBulletin_Click" Padding="10,4" Width="110" Margin="0,0,8,0"
+                                Background="#0EA5E9" Foreground="White" BorderThickness="0"
+                                ToolTip="{DynamicResource Str_Results_DeptBulletinTip}"/>
+                        <Button Content="{DynamicResource Str_Results_IndividualRanking}" Click="IndividualRanking_Click" Padding="10,4" Width="110"
+                                Background="#0EA5E9" Foreground="White" BorderThickness="0"
+                                ToolTip="{DynamicResource Str_Results_IndividualRankingTip}"/>
+                    </StackPanel>
+                    <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Margin="0,0,0,8">
                         <TextBlock Text="{DynamicResource Str_Results_AgeGroup}" VerticalAlignment="Center" Margin="0,0,4,0"/>
                         <ComboBox x:Name="ResultAgeGroupCombo" Width="90" Margin="0,0,8,0" SelectionChanged="ResultAgeGroup_Changed"
                                   ToolTip="{DynamicResource Str_Results_AgeGroupTip}"/>
@@ -1819,32 +1846,10 @@
                         <ComboBox x:Name="ResultHeatCombo" Width="60" SelectionChanged="ResultHeat_Changed">
                             <ComboBoxItem Content="全部" IsSelected="True"/>
                         </ComboBox>
-                        <Button Content="{DynamicResource Str_Results_Promotion}" Click="Promotion_Click" Padding="12,4" Margin="16,0,0,0"
-                                Background="#8B5CF6" Foreground="White" BorderThickness="0"/>
-                        <Button Content="{DynamicResource Str_Results_TeamScore}" Click="CalcTeamScore_Click" Padding="12,4" Margin="8,0,0,0"
-                                Background="#22C55E" Foreground="White" BorderThickness="0"/>
-                        <Button Content="{DynamicResource Str_Results_ViewRawData}" Click="ViewRawData_Click" Padding="12,4" Margin="8,0,0,0"
-                                Background="#64748B" Foreground="White" BorderThickness="0"/>
-                        <Button Content="{DynamicResource Str_Results_ChiefJudgeOverride}" Click="ChiefJudgeOverride_Click" Padding="12,4" Margin="8,0,0,0"
-                                Background="#DC2626" Foreground="White" BorderThickness="0" FontWeight="Bold"
-                                ToolTip="{DynamicResource Str_Results_ChiefJudgeOverrideTip}"/>
-                        <Separator Margin="8,0,8,0" Background="#94A3B8" Width="1"/>
-                        <Button Content="{DynamicResource Str_Results_FinalsStatus}" Click="FinalsStatus_Click" Padding="10,4" Margin="0,0,4,0"
-                                Background="#0EA5E9" Foreground="White" BorderThickness="0"
-                                ToolTip="{DynamicResource Str_Results_FinalsStatusTip}"/>
-                        <Button Content="{DynamicResource Str_Results_EventTop8}" Click="EventTop8_Click" Padding="10,4" Margin="0,0,4,0"
-                                Background="#0EA5E9" Foreground="White" BorderThickness="0"
-                                ToolTip="{DynamicResource Str_Results_EventTop8Tip}"/>
-                        <Button Content="{DynamicResource Str_Results_DeptBulletin}" Click="DepartmentBulletin_Click" Padding="10,4" Margin="0,0,4,0"
-                                Background="#0EA5E9" Foreground="White" BorderThickness="0"
-                                ToolTip="{DynamicResource Str_Results_DeptBulletinTip}"/>
-                        <Button Content="{DynamicResource Str_Results_IndividualRanking}" Click="IndividualRanking_Click" Padding="10,4" Margin="0,0,0,0"
-                                Background="#0EA5E9" Foreground="White" BorderThickness="0"
-                                ToolTip="{DynamicResource Str_Results_IndividualRankingTip}"/>
                     </StackPanel>
                     <!-- 姓名列 / 反应时间列加宽并允许换行：接力赛"姓名"为 4 名队员（逗号分隔），
                          "反应时间"按棒展开为"第1棒:0.45 第2棒:0.30 ..."；列宽不够时 TextWrapping 自动换行 -->
-                    <DataGrid x:Name="ResultGrid" Grid.Row="1" Grid.Column="1" AutoGenerateColumns="False" CanUserAddRows="False"
+                    <DataGrid x:Name="ResultGrid" Grid.Row="2" Grid.Column="1" AutoGenerateColumns="False" CanUserAddRows="False"
                               IsReadOnly="True" AlternatingRowBackground="#F8FAFC">
                         <!-- 2026-09-02 单元格和表头一律居中。
                              BasedOn 指向主题默认样式 —— 不加它就等于把 DataGridCell 的默认
