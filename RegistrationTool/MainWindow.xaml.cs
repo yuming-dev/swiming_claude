@@ -73,6 +73,48 @@ namespace RegistrationTool
             ConnBtn.Content = btnLabel;
         }
 
+        // 2026-09-28【跨客户端语言同步】连接状态文字是 SetConnState 直接赋值 .Text/.Content 拼出来的,
+        //   不走 DynamicResource, 只在"状态真的变化那一刻"渲染一次——语言同步推送到达时如果不重渲染,
+        //   这几个字符串会停留在连接那一刻的语言, 跟其它已经切换的 UI 不一致(参照主程序
+        //   RefreshAllForLanguageChange 同一个坑)。记住"当前是哪种状态"，语言变化时按状态重算文字。
+        private enum ConnKind { Disconnected, Connecting, Lost, Failed, Connected }
+        private ConnKind _connKind = ConnKind.Disconnected;
+        private string _connHost, _connErr;
+        private int _connPort;
+
+        private void SetConnDisconnected() {
+            _connKind = ConnKind.Disconnected;
+            SetConnState(SwimmingScoreboard.Loc.T("Str_RegTool_StatusDisconnected"), LedRed, SwimmingScoreboard.Loc.T("Str_RegTool_ConnectBtn"));
+        }
+        private void SetConnConnecting() {
+            _connKind = ConnKind.Connecting;
+            SetConnState(SwimmingScoreboard.Loc.T("Str_RegTool_Connecting"), LedAmber, SwimmingScoreboard.Loc.T("Str_RegTool_ConnectBtn"));
+        }
+        private void SetConnLost() {
+            _connKind = ConnKind.Lost;
+            SetConnState(SwimmingScoreboard.Loc.T("Str_RegTool_ConnLost"), LedRed, SwimmingScoreboard.Loc.T("Str_RegTool_ConnectBtn"));
+        }
+        private void SetConnFailed(string err) {
+            _connKind = ConnKind.Failed;
+            _connErr = err;
+            SetConnState(SwimmingScoreboard.Loc.F("Str_RegTool_ConnFailedFmt", err), LedAmber, SwimmingScoreboard.Loc.T("Str_RegTool_ConnectBtn"));
+        }
+        private void SetConnConnected(string host, int port) {
+            _connKind = ConnKind.Connected;
+            _connHost = host; _connPort = port;
+            SetConnState(SwimmingScoreboard.Loc.F("Str_RegTool_ConnectedFmt", host, port), LedGreen, SwimmingScoreboard.Loc.T("Str_RegTool_DisconnectBtn"));
+        }
+        /// <summary>语言同步到达时调用——按记住的连接状态, 用新语言重渲染一遍, 不改变实际连接。</summary>
+        private void RefreshConnStateDisplay() {
+            switch (_connKind) {
+                case ConnKind.Connecting: SetConnState(SwimmingScoreboard.Loc.T("Str_RegTool_Connecting"), LedAmber, SwimmingScoreboard.Loc.T("Str_RegTool_ConnectBtn")); break;
+                case ConnKind.Lost: SetConnState(SwimmingScoreboard.Loc.T("Str_RegTool_ConnLost"), LedRed, SwimmingScoreboard.Loc.T("Str_RegTool_ConnectBtn")); break;
+                case ConnKind.Failed: SetConnState(SwimmingScoreboard.Loc.F("Str_RegTool_ConnFailedFmt", _connErr), LedAmber, SwimmingScoreboard.Loc.T("Str_RegTool_ConnectBtn")); break;
+                case ConnKind.Connected: SetConnState(SwimmingScoreboard.Loc.F("Str_RegTool_ConnectedFmt", _connHost, _connPort), LedGreen, SwimmingScoreboard.Loc.T("Str_RegTool_DisconnectBtn")); break;
+                default: SetConnState(SwimmingScoreboard.Loc.T("Str_RegTool_StatusDisconnected"), LedRed, SwimmingScoreboard.Loc.T("Str_RegTool_ConnectBtn")); break;
+            }
+        }
+
         // 顶部"修改用户名和密码"按钮 — 弹 ChangePasswordWindow，凭据存 register_credentials.json
         private void ChangePassword_Click(object sender, RoutedEventArgs e) {
             var dlg = new ChangePasswordWindow();
@@ -84,7 +126,7 @@ namespace RegistrationTool
             if (_ws != null && _ws.IsConnected) {
                 _ws.Close();
                 _ws = null;
-                SetConnState(SwimmingScoreboard.Loc.T("Str_RegTool_StatusDisconnected"), LedRed, SwimmingScoreboard.Loc.T("Str_RegTool_ConnectBtn"));
+                SetConnDisconnected();
                 return;
             }
             string addr = ServerBox.Text.Trim();
@@ -93,7 +135,7 @@ namespace RegistrationTool
             int port = 3002;
             if (parts.Length > 1) int.TryParse(parts[1], out port);
 
-            SetConnState(SwimmingScoreboard.Loc.T("Str_RegTool_Connecting"), LedAmber, SwimmingScoreboard.Loc.T("Str_RegTool_ConnectBtn"));
+            SetConnConnecting();
             ConnBtn.IsEnabled = false;
 
             // 2026-05-21 改异步：原来 TcpClient.Connect 同步阻塞 UI 线程最长 ~21s；
@@ -107,13 +149,17 @@ namespace RegistrationTool
                     ws.OnMessage += OnServerMessage;
                     ws.OnDisconnected += delegate() {
                         Dispatcher.Invoke((Action)delegate() {
-                            SetConnState(SwimmingScoreboard.Loc.T("Str_RegTool_ConnLost"), LedRed, SwimmingScoreboard.Loc.T("Str_RegTool_ConnectBtn"));
+                            SetConnLost();
                         });
                     };
                     ws.ConnectWithTimeout(host, port, 5000);
                     if (!ws.Send(JsonConvert.SerializeObject(new { type = "REGISTER_TERMINAL_IDENTITY" }))) {
                         throw new Exception(SwimmingScoreboard.Loc.T("Str_RegTool_ErrIdentitySendFailed"));
                     }
+                    // 2026-09-28【跨客户端语言同步】额外报一条专属身份(register.html 网页端不会
+                    //   报这条), 让主服务器区分出"这是桌面exe, 要跟着服务器语言走"——主服务器
+                    //   收到这条会立即回一条 LANGUAGE_SYNC 校准当前语言, 不用等下次有人切换。
+                    try { ws.Send(JsonConvert.SerializeObject(new { type = "REGISTRATION_TOOL_IDENTITY" })); } catch { }
                 } catch (Exception ex) {
                     err = ex.Message;
                     try { if (ws != null) ws.Close(); } catch { }
@@ -122,10 +168,10 @@ namespace RegistrationTool
                 Dispatcher.Invoke((Action)delegate() {
                     ConnBtn.IsEnabled = true;
                     if (err != null) {
-                        SetConnState(SwimmingScoreboard.Loc.F("Str_RegTool_ConnFailedFmt", err), LedAmber, SwimmingScoreboard.Loc.T("Str_RegTool_ConnectBtn"));
+                        SetConnFailed(err);
                     } else {
                         _ws = ws;
-                        SetConnState(SwimmingScoreboard.Loc.F("Str_RegTool_ConnectedFmt", host, port), LedGreen, SwimmingScoreboard.Loc.T("Str_RegTool_DisconnectBtn"));
+                        SetConnConnected(host, port);
                     }
                 });
             });
@@ -200,6 +246,23 @@ namespace RegistrationTool
                 try {
                     var msg = JObject.Parse(json);
                     string mtype = msg["type"] != null ? msg["type"].ToString() : "";
+                    // 2026-09-28【跨客户端语言同步】主服务器权威语言状态(切换那一刻广播 /
+                    //   本程序刚连上、报完 REGISTRATION_TOOL_IDENTITY 后主服务器补发一次)。
+                    if (mtype == "LANGUAGE_SYNC") {
+                        string lang = msg["lang"] != null ? msg["lang"].ToString() : SwimmingScoreboard.Loc.Zh;
+                        if (SwimmingScoreboard.Loc.SetLanguage(lang)) {
+                            // 报名队列/"全部提交(N人)"按钮文字、连接状态栏文字都是直接赋值
+                            // .Text/.Content 拼出来的, 不走 DynamicResource, 重刷一遍才能跟上
+                            // 新语言(参照 LanguageToggle_Click 在主程序那边的同一个坑——
+                            // RefreshConnStateDisplay 这个坑是实机联调时才发现的: 静态UI全换了
+                            // 语言, 唯独"已连接 xxx"这行连接状态栏字样纹丝不动, 因为它只在
+                            // Connect_Click 那一刻渲染一次)。
+                            try { RefreshRegQueue(); } catch { }
+                            try { RefreshRelayQueue(); } catch { }
+                            try { RefreshConnStateDisplay(); } catch { }
+                        }
+                        return;
+                    }
                     // 2026-09-03 主服务器下发【比赛参数设置管理】里的五张表。
                     //   本程序原来性别/组别是 XAML 里写死的 男/女/混合/男女 —— 源码注释里
                     //   自己也写着"没有配置推送通道，暂时写死；治本要加 genderList 下发"。

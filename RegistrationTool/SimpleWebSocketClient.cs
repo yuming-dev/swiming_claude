@@ -41,7 +41,7 @@ namespace RegistrationTool
             if (!ar.AsyncWaitHandle.WaitOne(timeoutMs, false)) {
                 try { _client.Close(); } catch { }
                 _client = null;
-                throw new TimeoutException("连接超时 (" + timeoutMs + "ms)，请确认主服务器 IP / 端口");
+                throw new TimeoutException(SwimmingScoreboard.Loc.F("Str_RegTool_ErrConnTimeoutFmt", timeoutMs));
             }
             try { _client.EndConnect(ar); }
             catch {
@@ -66,7 +66,7 @@ namespace RegistrationTool
                 if (sb.Length >= 4 && sb.ToString(sb.Length - 4, 4) == "\r\n\r\n") break;
             }
             if (!sb.ToString().Contains("101"))
-                throw new Exception("WebSocket 握手失败：服务器未返回 101 升级响应");
+                throw new Exception(SwimmingScoreboard.Loc.T("Str_RegTool_ErrHandshakeFailed"));
 
             _alive = true;
             var t = new Thread(ReceiveLoop) { IsBackground = true, Name = "WS-Recv" };

@@ -272,6 +272,15 @@ namespace SwimmingScoreboard
         //   借 EDITOR_IDENTITY 那条路拿整包/订阅补丁(不改), 但它是真正会写数据的编排端,
         //   不是只读查询。同样混在 _editorSockets 里"连接状态"面板数不出来, 这里单独另计。
         private List<IWebSocketConnection> _scheduleEditorSockets = new List<IWebSocketConnection>();
+        // 2026-09-28【跨客户端语言同步】RegistrationTool.exe / RemoteDisplayControl.exe 桌面端
+        //   身份标记——跟 SCHEDULE_EDITOR_IDENTITY 同一个道理: 它俩分别借用 REGISTER_TERMINAL_
+        //   IDENTITY / DISPLAY_CONTROL_IDENTITY 那两条路(register.html/control.html 网页端也在用,
+        //   不改), 但网页端已有自己独立的 localStorage 语言选择, 不该被服务器权威语言覆盖;
+        //   只有这两个桌面 exe 才要跟着主服务器语言走, 所以额外报一条专属身份, 单独另计一份,
+        //   语言同步广播只发给这份 + _scheduleEditorSockets + _timingExeSockets, 不发 _editorSockets/
+        //   _registerSockets/_displayControlSockets 整体(那几个混着网页端)。
+        private List<IWebSocketConnection> _registrationToolSockets = new List<IWebSocketConnection>();
+        private List<IWebSocketConnection> _rdcSockets = new List<IWebSocketConnection>();
         // 编排 EXE 同步客户端（编排模式下）— 连到主服务器，双向同步整包
         private EditorSyncClient _editorSyncClient;
         // 双端共用：true 表示正在应用对端推过来的整包，AutoSaveData 不再回推，避免无限回环
@@ -800,6 +809,10 @@ namespace SwimmingScoreboard
         private TextBox _editorSyncHostBox;
         private Button _editorSyncConnectButton;
         private TextBlock _editorSyncStatusText;
+        // 2026-09-28【跨客户端语言同步】这俩也是 InjectEditorSyncToolbar 里创建时赋值一次就不再变的
+        // (不是 DynamicResource 绑定), 之前没存成字段所以语言切换/同步刷新不到——实机联调才发现。
+        private Button _editorSyncHwConnButton;
+        private TextBlock _editorSyncMainServerLabel;
 
         private void InjectEditorSyncToolbar() {
             if (ControlModeText == null) return;
@@ -819,21 +832,22 @@ namespace SwimmingScoreboard
             }
             // 2026-06-17 顶端右侧加"硬件连接"按钮 (RTC 上方便, 主服务器有原入口也可加)
             if (IsRemoteTimingControlMode) {
-                var btnHwConn = new Button {
+                _editorSyncHwConnButton = new Button {
                     Content = Loc.T("Str_Btn_HwConnLabel"),
                     Padding = new Thickness(10, 2, 10, 2), FontSize = 12,
                     Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#DC2626")),
                     Foreground = Brushes.White, BorderThickness = new Thickness(0),
                     Margin = new Thickness(8, 0, 12, 0)
                 };
-                btnHwConn.Click += delegate { ShowHardwareConnectionDialog(); };
-                parent.Children.Add(btnHwConn);
+                _editorSyncHwConnButton.Click += delegate { ShowHardwareConnectionDialog(); };
+                parent.Children.Add(_editorSyncHwConnButton);
             }
-            parent.Children.Add(new TextBlock {
+            _editorSyncMainServerLabel = new TextBlock {
                 Text = Loc.T("Str_Label_MainServerColon"),
                 Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")),
                 FontSize = 12, VerticalAlignment = VerticalAlignment.Center
-            });
+            };
+            parent.Children.Add(_editorSyncMainServerLabel);
             _editorSyncHostBox = new TextBox {
                 Text = "127.0.0.1", Width = 110, FontSize = 12,
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#334155")),
@@ -1152,6 +1166,14 @@ namespace SwimmingScoreboard
             try {
                 var msg = JObject.Parse(raw);
                 string type = msg["type"] != null ? msg["type"].ToString() : "";
+                // 2026-09-28【跨客户端语言同步】主服务器权威语言状态(切换那一刻广播 / 本机
+                //   刚连上补发一次)。只应用, 不再往下转发——这条消息只在"真身主服务器→桌面exe"
+                //   这一个方向传递, 这里(ScheduleEditor.exe/RemoteTimingControl.exe)是终点。
+                if (type == "LANGUAGE_SYNC") {
+                    string lang = msg["lang"] != null ? msg["lang"].ToString() : Loc.Zh;
+                    if (Loc.SetLanguage(lang)) RefreshAllForLanguageChange();
+                    return;
+                }
                 // 2026-08-24 主服务器拒绝了本次保存(计时中/成绩未确认)。
                 //   原来是静默失败, 操作员以为存上了, 实际主服务器没收 —— 必须弹出来。
                 if (type == "EDITOR_PUSH_REJECTED") {
@@ -1302,7 +1324,7 @@ namespace SwimmingScoreboard
             } else if (IsScheduleEditorMode) {
                 ServerAddressText.Text = Loc.T("Str_Mode_ScheduleEditorDesc");
             } else {
-                ServerAddressText.Text = string.Format("服务器地址: ws://{0}:3002  |  Web页面: http://{0}:8080", ip);
+                ServerAddressText.Text = Loc.F("Str_Mode_MainServerAddrFmt", ip);
             }
         }
 
@@ -1637,6 +1659,8 @@ namespace SwimmingScoreboard
                         _querySockets.Remove(socket);
                         _displayControlSockets.Remove(socket);
                         _scheduleEditorSockets.Remove(socket);
+                        _registrationToolSockets.Remove(socket);
+                        _rdcSockets.Remove(socket);
                         // 客户端断开 → 释放其持有的所有编辑锁，避免数据被永久锁死
                         ReleaseLocksHeldBy(socket);
                         Dispatcher.Invoke((Action)delegate() {
@@ -1792,8 +1816,18 @@ namespace SwimmingScoreboard
                         //   它是独立 exe, 不发它就只能用自己写死的那几个性别/组别。
                         try { socket.Send(BuildMetaListsJson()); } catch { }
                         break;
+                    // 2026-09-28【跨客户端语言同步】RegistrationTool.exe 专属身份标记(紧跟在
+                    //   REGISTER_TERMINAL_IDENTITY 后面报, register.html 网页端不会报这条)——
+                    //   只有报了这条的才是桌面 exe, 新连上/断线重连立即用主服务器当前语言校准一次,
+                    //   不用等下次有人手动切换语言才追上。
+                    case "REGISTRATION_TOOL_IDENTITY":
+                        if (!_registrationToolSockets.Contains(socket)) _registrationToolSockets.Add(socket);
+                        try { EnqueueToSocket(socket, BuildLanguageSyncJson()); } catch { }
+                        break;
                     case "TIMING_EXE_IDENTITY":
                         if (!_timingExeSockets.Contains(socket)) _timingExeSockets.Add(socket);
+                        // 2026-09-28 同上, RTC 是桌面 exe, 新连上就用主服务器当前语言校准一次。
+                        try { EnqueueToSocket(socket, BuildLanguageSyncJson()); } catch { }
                         // 2026-09-14 记下这个 EXE 连上这一刻是否真接着硬件、是哪台机器
                         //   (见 PushHwConnStatusToMainServer 的注释) —— 机器名拿不到(老版本
                         //   RTC 没带这个字段)就退回连接方 IP, "连接状态"面板好歹能看出个大概。
@@ -1869,12 +1903,21 @@ namespace SwimmingScoreboard
                         //   不用等"下一次谁改了"才追得上。
                         try { EnqueueToSocket(socket, BuildDisplayStyleJson()); } catch { }
                         break;
+                    // 2026-09-28【跨客户端语言同步】RemoteDisplayControl.exe 专属身份标记(紧跟在
+                    //   DISPLAY_CONTROL_IDENTITY 后面报, control.html 网页端不会报这条)——只有
+                    //   报了这条的才是桌面 exe, 新连上就用主服务器当前语言校准一次。
+                    case "RDC_IDENTITY":
+                        if (!_rdcSockets.Contains(socket)) _rdcSockets.Add(socket);
+                        try { EnqueueToSocket(socket, BuildLanguageSyncJson()); } catch { }
+                        break;
                     // 2026-09-15 编排端(ScheduleEditor.exe)身份标记 —— 只为"连接状态"面板计数,
                     //   不影响它借用 EDITOR_IDENTITY 拿整包/订阅补丁那条路(见上面 EDITOR_IDENTITY)。
                     case "SCHEDULE_EDITOR_IDENTITY":
                         if (!_scheduleEditorSockets.Contains(socket)) _scheduleEditorSockets.Add(socket);
                         AddLog(Loc.T("Str_Log_EditorConnected"));
                         UpdateConnectionStatus();
+                        // 2026-09-28 同上, 编排端是桌面 exe, 新连上就用主服务器当前语言校准一次。
+                        try { EnqueueToSocket(socket, BuildLanguageSyncJson()); } catch { }
                         break;
                     // 2026-09-18 计时端(RTC/role=timing)本地状态变了、但走的不是 AutoSaveData
                     //   那条路(比如"准备就绪"把 heats.state 写成 racing——这一步只经 _meet RPC
@@ -3837,7 +3880,7 @@ namespace SwimmingScoreboard
             var _hwOffCol = (Color)ColorConverter.ConvertFromString("#FF9800");  // 橙色告警
             if (HwConnDot != null) HwConnDot.Fill = new SolidColorBrush(_hwOn ? _hwOnCol : _hwOffCol);
             if (HwConnStatusText != null) {
-                HwConnStatusText.Text = _hwOn ? "已连接" : "未连接";
+                HwConnStatusText.Text = _hwOn ? Loc.T("Str_SyncStatus_Connected") : Loc.T("Str_HwConn_NotConnected");
                 HwConnStatusText.Foreground = new SolidColorBrush(_hwOn ? _hwOnCol : _hwOffCol);
             }
             // 比赛控制面板上的快捷"连接串口"按钮跟随状态变化
@@ -24606,7 +24649,28 @@ namespace SwimmingScoreboard
         // 仍是硬编码中文, 不受这个按钮影响, 这里补一条日志说明白, 别让人以为按了没反应。
         private void LanguageToggle_Click(object sender, RoutedEventArgs e) {
             Loc.Toggle();
-            // 2026-09-21 "比赛控制"页几个按钮的文字是跟着状态变的(停表/继续走表、记录显示/已隐藏、
+            RefreshAllForLanguageChange();
+            // 2026-09-21 这条日志本身就是随每个阶段的翻译范围在扩大——写成"已覆盖到第几阶段"
+            // 而不是逐页罗列，省得每加一个页面又要来改一遍这行文字。
+            AddLog(Loc.CurrentLanguage == Loc.En
+                ? "界面语言已切换为 English（标签页/设置页/比赛控制页/赛事管理与报名/成绩与排名/文档编辑输出打印/系统日志与数据 页面及赛程导航状态标签已生效；系统日志正文/弹窗提示仍为中文，后续阶段逐步覆盖）"
+                : "界面语言已切换为中文");
+            // 2026-09-28【跨客户端语言同步】只有真身主服务器点这个按钮才是权威指令, 要广播给
+            //   ScheduleEditor.exe/RemoteTimingControl.exe/RegistrationTool.exe/RemoteDisplayControl.exe
+            //   这几个桌面客户端跟随; 这两个"编排/计时"模式的实例本身也共用这份代码、同样能点到
+            //   这个按钮, 但那只是操作员在这台机器上顺手切一下本机显示, 不代表权威指令, 不广播——
+            //   避免编排端/计时端随手一点就把全场其它客户端的语言带偏。
+            if (!IsScheduleEditorMode && !IsRemoteTimingControlMode) {
+                BroadcastLanguageSync();
+            }
+        }
+
+        /// <summary>2026-09-21 起沿用的"切语言后本机要重刷的东西"级联——原来只有
+        /// LanguageToggle_Click 一处调用, 2026-09-28【跨客户端语言同步】加了第二处调用者
+        /// (ScheduleEditor.exe/RemoteTimingControl.exe 收到主服务器 LANGUAGE_SYNC 推送时), 抽成
+        /// 独立方法, 两处共用, 不用维护两份重复的"点了什么按钮该刷新什么"清单。</summary>
+        private void RefreshAllForLanguageChange() {
+            // "比赛控制"页几个按钮的文字是跟着状态变的(停表/继续走表、记录显示/已隐藏、
             // RT On/Off、网络连接/断开、设备测试/退出测试)——它们的刷新函数会直接赋值 .Text,
             // 一旦赋值就把 XAML 里的 DynamicResource 绑定冲掉了, 光调 Loc.Apply() 追不上这几个,
             // 这里主动按当前状态重刷一遍, 语言按钮点下去才能做到"立刻全部生效"而不是要等
@@ -24630,11 +24694,53 @@ namespace SwimmingScoreboard
             // 重建一次让它的按钮/标签/DataGrid列头跟着换语言(会连带重置 _bibAllocWorking = 当前 _bibRanges,
             // 丢弃未保存的编辑——跟本方法里其它几个 RebuildXxx() 一个道理, 属于"切语言=重建视图"的既有代价)。
             try { BuildUnitBibAllocTab(); } catch { }
-            // 2026-09-21 这条日志本身就是随每个阶段的翻译范围在扩大——写成"已覆盖到第几阶段"
-            // 而不是逐页罗列，省得每加一个页面又要来改一遍这行文字。
-            AddLog(Loc.CurrentLanguage == Loc.En
-                ? "界面语言已切换为 English（标签页/设置页/比赛控制页/赛事管理与报名/成绩与排名/文档编辑输出打印/系统日志与数据 页面及赛程导航状态标签已生效；系统日志正文/弹窗提示仍为中文，后续阶段逐步覆盖）"
-                : "界面语言已切换为中文");
+            // 2026-09-28【跨客户端语言同步】实机联调时发现: ScheduleEditor.exe/RemoteTimingControl.exe
+            // 顶部状态栏"主服务器: [IP] [连接/断开]"那个连接按钮是 EditorSyncToggle_Click/
+            // OnEditorSyncConnected/OnEditorSyncDisconnected 直接赋值 .Content, 不在原有刷新级联里,
+            // 语言切换/同步到达时会停在切换前那一刻的文字。_editorSyncClient.IsConnected 是活的,
+            // 不用额外记状态, 直接按它现查现刷。
+            try {
+                if (_editorSyncConnectButton != null) {
+                    bool connected = _editorSyncClient != null && _editorSyncClient.IsConnected;
+                    _editorSyncConnectButton.Content = Loc.T(connected ? "Str_Btn_Disconnect" : "Str_Btn_Connect");
+                }
+                if (_editorSyncHwConnButton != null) _editorSyncHwConnButton.Content = Loc.T("Str_Btn_HwConnLabel");
+                if (_editorSyncMainServerLabel != null) _editorSyncMainServerLabel.Text = Loc.T("Str_Label_MainServerColon");
+                // 2026-09-28 ServerAddressText("远程计时控制 — ..."/"编排记录及成绩处理 — ...")
+                // 同样是 InitializeData() 启动时赋值一次就不再变, 按当前模式重算一遍。
+                if (ServerAddressText != null) {
+                    if (IsRemoteTimingControlMode) ServerAddressText.Text = Loc.T("Str_Mode_RtcDesc");
+                    else if (IsScheduleEditorMode) ServerAddressText.Text = Loc.T("Str_Mode_ScheduleEditorDesc");
+                    else ServerAddressText.Text = Loc.F("Str_Mode_MainServerAddrFmt", GetLocalIP());
+                }
+            } catch { }
+        }
+
+        /// <summary>2026-09-28【跨客户端语言同步】拼一条 LANGUAGE_SYNC 消息, 带当前权威语言。
+        /// 服务端广播用、也用于新连接补发单条。</summary>
+        private string BuildLanguageSyncJson() {
+            var msg = new JObject();
+            msg["type"] = "LANGUAGE_SYNC";
+            msg["lang"] = Loc.CurrentLanguage;
+            return msg.ToString(Newtonsoft.Json.Formatting.None);
+        }
+
+        /// <summary>2026-09-28【跨客户端语言同步】只发给"桌面 exe"这个子集——ScheduleEditor.exe/
+        /// RemoteTimingControl.exe(_scheduleEditorSockets/_timingExeSockets)、RegistrationTool.exe
+        /// (_registrationToolSockets)、RemoteDisplayControl.exe(_rdcSockets)。故意不对
+        /// _editorSockets/_registerSockets/_displayControlSockets 整体广播——那几个列表混着
+        /// query.html/register.html/control.html 这些网页端, 网页端已经有自己独立的 localStorage
+        /// 语言选择(第十二阶段 webloc.js), 不该被服务器权威语言覆盖。</summary>
+        private void BroadcastLanguageSync() {
+            try {
+                string json = BuildLanguageSyncJson();
+                var targets = _scheduleEditorSockets
+                    .Concat(_timingExeSockets)
+                    .Concat(_registrationToolSockets)
+                    .Concat(_rdcSockets)
+                    .Distinct().ToList();
+                foreach (var s in targets) EnqueueToSocket(s, json);
+            } catch { }
         }
 
         private void ViewRawData_Click(object sender, RoutedEventArgs e) {

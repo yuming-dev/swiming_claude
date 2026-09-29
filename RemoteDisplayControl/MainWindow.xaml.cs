@@ -109,9 +109,20 @@ namespace RemoteDisplayControl
             } catch { }
         }
 
+        // 2026-09-28【跨客户端语言同步】实机联调时发现: 连接按钮"连接/断开"文字是 Connect_Click
+        //   直接赋值 .Content 拼出来的, 不走 DynamicResource, 只在按钮点下去那一刻渲染一次——
+        //   语言同步推送到达时如果不重渲染, 这一个字会停在切语言前那一刻, 跟其它已经全部
+        //   切换的 UI(其它按钮都是 XAML DynamicResource 绑定, 自动跟着变)不一致。记住"当前是不是
+        //   已连接", 语言变化时按这个状态重算按钮文字。
+        private bool _rdcConnected;
+        private void RefreshConnectBtnDisplay() {
+            ConnectBtn.Content = SwimmingScoreboard.Loc.T(_rdcConnected ? "Str_RegTool_DisconnectBtn" : "Str_RegTool_ConnectBtn");
+        }
+
         private void Connect_Click(object sender, RoutedEventArgs e) {
             if (_ws != null && _ws.IsConnected) {
                 _ws.Close();
+                _rdcConnected = false;
                 StatusText.Text = SwimmingScoreboard.Loc.T("Str_RegTool_StatusDisconnected");
                 StatusText.Foreground = new SolidColorBrush(Colors.Red);
                 ConnectBtn.Content = SwimmingScoreboard.Loc.T("Str_RegTool_ConnectBtn");
@@ -130,6 +141,20 @@ namespace RemoteDisplayControl
                     try {
                         var msg = JObject.Parse(raw);
                         string type = msg["type"] != null ? msg["type"].ToString() : "";
+                        // 2026-09-28【跨客户端语言同步】主服务器权威语言状态(切换那一刻广播 /
+                        //   本程序刚连上、报完 RDC_IDENTITY 后主服务器补发一次)。本项目主窗口
+                        //   内容(第十一阶段 Step4)绝大多数已经是 {DynamicResource}/Loc.T() 接好的,
+                        //   Loc.Apply() 就够；连接按钮"连接/断开"是实机联调时发现的例外(直接
+                        //   赋值.Content, 需要额外补一次 RefreshConnectBtnDisplay)。
+                        if (type == "LANGUAGE_SYNC") {
+                            string lang = msg["lang"] != null ? msg["lang"].ToString() : SwimmingScoreboard.Loc.Zh;
+                            // Loc.Apply() 摸 Application.Resources, 是 WPF 对象, 必须上 UI 线程,
+                            // 不能像别的分支那样在这条 WS 消息线程上直接调。
+                            Dispatcher.Invoke((Action)delegate() {
+                                if (SwimmingScoreboard.Loc.SetLanguage(lang)) { try { RefreshConnectBtnDisplay(); } catch { } }
+                            });
+                            return;
+                        }
                         // 2026-06-01 大屏样式
                         if (type == "DISPLAY_STYLE_PUSH") {
                             var data = msg["data"] as JObject;
@@ -170,6 +195,7 @@ namespace RemoteDisplayControl
                 };
                 _ws.OnDisconnected += delegate() {
                     Dispatcher.Invoke((Action)delegate() {
+                        _rdcConnected = false;
                         StatusText.Text = SwimmingScoreboard.Loc.T("Str_RegTool_ConnLost");
                         StatusText.Foreground = new SolidColorBrush(Colors.Red);
                         ConnectBtn.Content = SwimmingScoreboard.Loc.T("Str_RegTool_ConnectBtn");
@@ -180,6 +206,11 @@ namespace RemoteDisplayControl
                 // "系统工作状态→连接状态"完全数不出这台机器连着。加一条身份帧, 只为计数,
                 // 不影响原有的 REMOTE_CONTROL / SET_DISPLAY_STYLE 等命令收发。
                 try { _ws.Send(JsonConvert.SerializeObject(new { type = "DISPLAY_CONTROL_IDENTITY" })); } catch { }
+                // 2026-09-28【跨客户端语言同步】额外报一条专属身份(control.html 网页端不会
+                //   报这条), 让主服务器区分出"这是桌面exe, 要跟着服务器语言走"——主服务器
+                //   收到这条会立即回一条 LANGUAGE_SYNC 校准当前语言, 不用等下次有人切换。
+                try { _ws.Send(JsonConvert.SerializeObject(new { type = "RDC_IDENTITY" })); } catch { }
+                _rdcConnected = true;
                 StatusText.Text = SwimmingScoreboard.Loc.F("Str_RDC_ConnectedFmt", addr);
                 StatusText.Foreground = new SolidColorBrush(Colors.LimeGreen);
                 ConnectBtn.Content = SwimmingScoreboard.Loc.T("Str_RegTool_DisconnectBtn");

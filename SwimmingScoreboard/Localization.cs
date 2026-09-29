@@ -2799,6 +2799,9 @@ namespace SwimmingScoreboard
             { "Str_Label_MainServerColon", new[] { "主服务器: ", "Main Server: " } },
             { "Str_Mode_RtcDesc", new[] { "远程计时控制 — 直连硬件计时器, 比赛状态经主服务器中转给大屏", "Remote Timing Control — directly drives the hardware timer; race state relays through the main server to the big screen" } },
             { "Str_Mode_ScheduleEditorDesc", new[] { "赛事编排端 — 连主服务器同步赛程/运动员", "Schedule Editor — syncs schedule/swimmers with the main server" } },
+            // 2026-09-28 真身主服务器自己的 ServerAddressText——之前这三选一里只有 RTC/ScheduleEditor
+            // 两支走了 Loc, 真身这支一直是硬编码中文, 完整性核查+实机联调时一并发现补上。
+            { "Str_Mode_MainServerAddrFmt", new[] { "服务器地址: ws://{0}:3002  |  Web页面: http://{0}:8080", "Server address: ws://{0}:3002  |  Web pages: http://{0}:8080" } },
             { "Str_Col_NameTeam", new[] { "姓名/代表队", "Name / Team" } },
             { "Str_Col_DirectionProgress", new[] { "方向/进度", "Direction / Progress" } },
             { "Str_Label_EmptyLaneParen", new[] { "（空泳道）", "(Empty Lane)" } },
@@ -3028,6 +3031,11 @@ namespace SwimmingScoreboard
             { "Str_RegTool_ConnFailedFmt", new[] { "连接失败: {0}", "Connection failed: {0}" } },
             { "Str_RegTool_ConnectedFmt", new[] { "已连接 {0}:{1}", "Connected {0}:{1}" } },
             { "Str_RegTool_ErrIdentitySendFailed", new[] { "身份注册帧发送失败", "Failed to send identity registration frame" } },
+            // 2026-09-28【跨客户端语言同步】完整性核查时发现的真缺口——这两条异常消息被
+            // SimpleWebSocketClient.cs throw 出来后, 经 ConnFailedFmt 拼进连接状态文字里显示给
+            // 用户, 之前一直是硬编码中文, 切英文时这段会保留中文, 破坏语言一致性。
+            { "Str_RegTool_ErrConnTimeoutFmt", new[] { "连接超时 ({0}ms)，请确认主服务器 IP / 端口", "Connection timed out ({0}ms) — check the main server IP / port" } },
+            { "Str_RegTool_ErrHandshakeFailed", new[] { "WebSocket 握手失败：服务器未返回 101 升级响应", "WebSocket handshake failed: server did not return a 101 upgrade response" } },
             { "Str_RegTool_ChangePasswordBtn", new[] { "修改用户名和密码", "Change Username/Password" } },
             { "Str_RegTool_TabIndividual", new[] { "个人项目报名", "Individual Events" } },
             { "Str_RegTool_TabRelay", new[] { "接力队报名", "Relay Teams" } },
@@ -3170,6 +3178,30 @@ namespace SwimmingScoreboard
             { "Str_RDC_PptFileFilter", new[] { "PowerPoint (*.ppt;*.pptx;*.pps;*.ppsx)|*.ppt;*.pptx;*.pps;*.ppsx|所有文件|*.*", "PowerPoint (*.ppt;*.pptx;*.pps;*.ppsx)|*.ppt;*.pptx;*.pps;*.ppsx|All Files|*.*" } },
             { "Str_RDC_UploadedPptFmt", new[] { "已上传 PPT (主控转换 + 翻页): {0}", "Uploaded PPT (converted and paged on the main PC): {0}" } },
             { "Str_RDC_HeatNFmt", new[] { " 第{0}组", " Heat {0}" } },
+
+            // 2026-09-28【跨客户端语言同步】DisplayStyleWindow.cs("大屏样式远程控制"窗口)——
+            //   主服务器(SwimmingScoreboard/DisplayStyleWindow.cs)和RemoteDisplayControl.exe
+            //   (RemoteDisplayControl/DisplayStyleWindow.cs)各有一份几乎一样的拷贝, 两边共用
+            //   这批key。之前几轮翻译都没覆盖到这两个纯代码窗口(不在MainWindow.xaml.cs里,
+            //   这次完整性核查时发现的真缺口)。8个底色预设名字("深邃蓝"/"泳池青"等)是装饰性
+            //   取名, 参照第十二阶段display.html预设颜色名同款判断——保持中文原样, 不翻译。
+            { "Str_DisplayStyle_Title", new[] { "🎨 大屏样式远程控制", "🎨 Big Screen Style Remote Control" } },
+            { "Str_DisplayStyle_Header", new[] { "改动立即推送到所有大屏 display.html / 控制端 (服务器持久化保存)", "Changes push immediately to all display.html screens / control clients (saved on the server)" } },
+            { "Str_DisplayStyle_SectionBg", new[] { "底色 (Background)", "Background Color" } },
+            { "Str_DisplayStyle_SectionFs", new[] { "字号 (0.8x ~ 3.0x)", "Font Size (0.8x ~ 3.0x)" } },
+            { "Str_DisplayStyle_FsReset", new[] { "复位 1.0x", "Reset 1.0x" } },
+            { "Str_DisplayStyle_SectionText", new[] { "文字颜色 / 字体 (10 处)", "Text Color / Font (10 items)" } },
+            { "Str_DisplayStyle_Key_Title", new[] { "比赛名称", "Competition Name" } },
+            { "Str_DisplayStyle_Key_RollingTime", new[] { "滚动时间", "Rolling Time" } },
+            { "Str_DisplayStyle_Key_Record", new[] { "比赛纪录(第3行)", "Record (line 3)" } },
+            { "Str_Font_MicrosoftYaHei", new[] { "微软雅黑", "Microsoft YaHei" } },
+            { "Str_Font_SimHei", new[] { "黑体", "SimHei" } },
+            { "Str_Font_SimSun", new[] { "宋体", "SimSun" } },
+            { "Str_Font_KaiTi", new[] { "楷体", "KaiTi" } },
+            { "Str_Font_FangSong", new[] { "仿宋", "FangSong" } },
+            { "Str_Font_LiSu", new[] { "隶书", "LiSu" } },
+            { "Str_Font_YouYuan", new[] { "幼圆", "YouYuan" } },
+            { "Str_Font_ConsolasMono", new[] { "Consolas (等宽)", "Consolas (Monospace)" } },
         };
 
         /// <summary>查当前语言下的文字；查不到就退回中文；中文也没有就返回 key 本身兜底。</summary>
@@ -3236,6 +3268,19 @@ namespace SwimmingScoreboard
                 case "混合": return T("Str_Gender_Mixed");
                 default: return zhGender ?? "";
             }
+        }
+
+        /// <summary>2026-09-28【跨客户端语言同步】远程收到主服务器权威语言状态后原样应用——
+        /// 跟 Toggle() 的区别: Toggle 是"翻转"(本机操作员点按钮), 这个是"设成指定值"(收到
+        /// LANGUAGE_SYNC 推送)。值跟当前一致时直接跳过、不重复 Save/Apply, 调用方可用返回值
+        /// 判断要不要接着跑那串"重刷UI"级联(没变化就没必要白跑一次)。</summary>
+        public static bool SetLanguage(string lang) {
+            string normalized = (lang == En) ? En : Zh;
+            if (normalized == CurrentLanguage) return false;
+            CurrentLanguage = normalized;
+            Save();
+            Apply();
+            return true;
         }
 
         public static void Toggle() {

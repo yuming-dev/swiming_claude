@@ -23,37 +23,45 @@ namespace RemoteDisplayControl
         private TextBlock _fsLabel;
         private double _fs = 1.0;
 
-        // Text style controls (9 keys)
-        private static readonly TextKeyDef[] TEXT_KEYS = new TextKeyDef[] {
-            new TextKeyDef("title",  "比赛名称", "#f8fafc", "'Microsoft YaHei', sans-serif"),
-            new TextKeyDef("event",  "比赛项目", "#f8fafc", "'Microsoft YaHei', sans-serif"),
-            new TextKeyDef("time",   "滚动时间", "#f59e0b", "'Consolas', monospace"),
-            new TextKeyDef("lane",   "道次",     "#94a3b8", "'Microsoft YaHei', sans-serif"),
-            new TextKeyDef("rank",   "名次",     "#f8fafc", "'Microsoft YaHei', sans-serif"),
-            new TextKeyDef("name",   "姓名",     "#f8fafc", "'Microsoft YaHei', sans-serif"),
-            new TextKeyDef("team",   "代表队",   "#94a3b8", "'Microsoft YaHei', sans-serif"),
-            new TextKeyDef("result", "成绩",     "#f8fafc", "'Consolas', monospace"),
-            new TextKeyDef("remark", "备注",     "#ef4444", "'Microsoft YaHei', sans-serif"),
-            new TextKeyDef("record", "比赛纪录(第3行)", "#FBBF24", "'Microsoft YaHei', sans-serif")
-        };
-        private static readonly FontDef[] FONT_OPTIONS = new FontDef[] {
-            new FontDef("微软雅黑", "'Microsoft YaHei', sans-serif"),
-            new FontDef("黑体",     "SimHei, sans-serif"),
-            new FontDef("宋体",     "SimSun, serif"),
-            new FontDef("楷体",     "KaiTi, serif"),
-            new FontDef("仿宋",     "FangSong, serif"),
-            new FontDef("隶书",     "LiSu, serif"),
-            new FontDef("幼圆",     "YouYuan, sans-serif"),
-            new FontDef("Arial",    "Arial, sans-serif"),
-            new FontDef("Consolas (等宽)", "Consolas, monospace"),
-            new FontDef("Impact",   "Impact, sans-serif")
-        };
+        // 2026-09-28 跟 SwimmingScoreboard/DisplayStyleWindow.cs 共用同一批 Loc key。
+        //   懒加载(不能在静态字段初始化器里调 Loc.T——那时 Application.Current 可能还没就绪),
+        //   每次开窗都按当前语言重建一次, 够用(这窗口不常开, 不需要活绑定)。
+        private static TextKeyDef[] BuildTextKeys() {
+            return new TextKeyDef[] {
+                new TextKeyDef("title",  SwimmingScoreboard.Loc.T("Str_DisplayStyle_Key_Title"), "#f8fafc", "'Microsoft YaHei', sans-serif"),
+                new TextKeyDef("event",  SwimmingScoreboard.Loc.T("Str_EM_Events"), "#f8fafc", "'Microsoft YaHei', sans-serif"),
+                new TextKeyDef("time",   SwimmingScoreboard.Loc.T("Str_DisplayStyle_Key_RollingTime"), "#f59e0b", "'Consolas', monospace"),
+                new TextKeyDef("lane",   SwimmingScoreboard.Loc.T("Str_Col_LaneNo"), "#94a3b8", "'Microsoft YaHei', sans-serif"),
+                new TextKeyDef("rank",   SwimmingScoreboard.Loc.T("Str_Results_ColRank"), "#f8fafc", "'Microsoft YaHei', sans-serif"),
+                new TextKeyDef("name",   SwimmingScoreboard.Loc.T("Str_Col_Name"), "#f8fafc", "'Microsoft YaHei', sans-serif"),
+                new TextKeyDef("team",   SwimmingScoreboard.Loc.T("Str_Col_Team"), "#94a3b8", "'Microsoft YaHei', sans-serif"),
+                new TextKeyDef("result", SwimmingScoreboard.Loc.T("Str_Col_RecordTime"), "#f8fafc", "'Consolas', monospace"),
+                new TextKeyDef("remark", SwimmingScoreboard.Loc.T("Str_Col_Notes"), "#ef4444", "'Microsoft YaHei', sans-serif"),
+                new TextKeyDef("record", SwimmingScoreboard.Loc.T("Str_DisplayStyle_Key_Record"), "#FBBF24", "'Microsoft YaHei', sans-serif")
+            };
+        }
+        private static FontDef[] BuildFontOptions() {
+            return new FontDef[] {
+                new FontDef(SwimmingScoreboard.Loc.T("Str_Font_MicrosoftYaHei"), "'Microsoft YaHei', sans-serif"),
+                new FontDef(SwimmingScoreboard.Loc.T("Str_Font_SimHei"),     "SimHei, sans-serif"),
+                new FontDef(SwimmingScoreboard.Loc.T("Str_Font_SimSun"),     "SimSun, serif"),
+                new FontDef(SwimmingScoreboard.Loc.T("Str_Font_KaiTi"),      "KaiTi, serif"),
+                new FontDef(SwimmingScoreboard.Loc.T("Str_Font_FangSong"),   "FangSong, serif"),
+                new FontDef(SwimmingScoreboard.Loc.T("Str_Font_LiSu"),       "LiSu, serif"),
+                new FontDef(SwimmingScoreboard.Loc.T("Str_Font_YouYuan"),    "YouYuan, sans-serif"),
+                new FontDef("Arial",    "Arial, sans-serif"),
+                new FontDef(SwimmingScoreboard.Loc.T("Str_Font_ConsolasMono"), "Consolas, monospace"),
+                new FontDef("Impact",   "Impact, sans-serif")
+            };
+        }
+        private readonly TextKeyDef[] TEXT_KEYS = BuildTextKeys();
+        private readonly FontDef[] FONT_OPTIONS = BuildFontOptions();
         private TextBox[] _tsHex;
         private ComboBox[] _tsFont;
 
         public DisplayStyleWindow(SimpleWebSocketClient ws) {
             _ws = ws;
-            Title = "🎨 大屏样式远程控制";
+            Title = SwimmingScoreboard.Loc.T("Str_DisplayStyle_Title");
             Width = 640;
             Height = 640;
             WindowStartupLocation = WindowStartupLocation.CenterScreen;
@@ -67,10 +75,12 @@ namespace RemoteDisplayControl
             root.Content = stack;
             Content = root;
 
-            stack.Children.Add(MakeHeader("改动立即推送到所有大屏 display.html (服务器持久化保存)"));
+            // 2026-09-28 统一用主服务器那份更完整的措辞(含"/ 控制端"), 对RDC同样成立——
+            //   这台机器发的样式改动一样会经服务器推给所有 display.html + 其它控制端。
+            stack.Children.Add(MakeHeader(SwimmingScoreboard.Loc.T("Str_DisplayStyle_Header")));
 
             // ── BG section ──
-            stack.Children.Add(MakeSectionTitle("底色 (Background)"));
+            stack.Children.Add(MakeSectionTitle(SwimmingScoreboard.Loc.T("Str_DisplayStyle_SectionBg")));
             var bgPanel = MakeSectionPanel();
             stack.Children.Add(bgPanel);
             var bgRow = new DockPanel { LastChildFill = true, Margin = new Thickness(0,0,0,6) };
@@ -114,7 +124,7 @@ namespace RemoteDisplayControl
             bgPanel.Children.Add(presetGrid);
 
             // ── FS section ──
-            stack.Children.Add(MakeSectionTitle("字号 (0.8x ~ 3.0x)"));
+            stack.Children.Add(MakeSectionTitle(SwimmingScoreboard.Loc.T("Str_DisplayStyle_SectionFs")));
             var fsPanel = MakeSectionPanel();
             stack.Children.Add(fsPanel);
             var fsRow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
@@ -133,12 +143,12 @@ namespace RemoteDisplayControl
             var fsPlus = new Button { Content = "+", Width = 50, Height = 36, Margin = new Thickness(4), FontSize = 18, FontWeight = FontWeights.Bold, Background = new SolidColorBrush(Color.FromRgb(0x47,0x55,0x69)), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
             fsPlus.Click += delegate { SendFs(_fs + 0.1); };
             fsRow.Children.Add(fsPlus);
-            var fsReset = new Button { Content = "复位 1.0x", Width = 80, Height = 36, Margin = new Thickness(12,4,4,4), Background = new SolidColorBrush(Color.FromRgb(0x64,0x74,0x8b)), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
+            var fsReset = new Button { Content = SwimmingScoreboard.Loc.T("Str_DisplayStyle_FsReset"), Width = 80, Height = 36, Margin = new Thickness(12,4,4,4), Background = new SolidColorBrush(Color.FromRgb(0x64,0x74,0x8b)), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
             fsReset.Click += delegate { SendFs(1.0); };
             fsRow.Children.Add(fsReset);
 
             // ── TextStyle section ──
-            stack.Children.Add(MakeSectionTitle("文字颜色 / 字体 (9 处)"));
+            stack.Children.Add(MakeSectionTitle(SwimmingScoreboard.Loc.T("Str_DisplayStyle_SectionText")));
             var tsPanel = MakeSectionPanel();
             stack.Children.Add(tsPanel);
             _tsHex = new TextBox[TEXT_KEYS.Length];
