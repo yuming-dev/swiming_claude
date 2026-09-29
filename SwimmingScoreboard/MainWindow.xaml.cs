@@ -32530,11 +32530,11 @@ namespace SwimmingScoreboard
             // 已由 EventResultPrintWindow 弹窗替代，此方法保留作为备用
             var sb = new StringBuilder();
             sb.AppendFormat("<html><head><meta charset='UTF-8'><style>{0}</style></head><body>", DocCss());
-            sb.Append(DocHeader("成 绩 单"));
+            sb.Append(DocHeader(Loc.T("Str_DocC_HeadHeatResults")));
             // 2026-06-04 顺序统一: 性别 组别 项目 赛次
             string ageGroupSpaceE = string.IsNullOrEmpty(_currentAgeGroup) ? "" : (_currentAgeGroup + " ");
-            sb.AppendFormat("<h3>项目：{0} {1}{2} {3}</h3>", _currentGender, ageGroupSpaceE, _currentEvent, _currentStage);
-            sb.Append("<table><tr align='center'><th>名次</th><th>号码</th><th>姓名</th><th>代表队</th><th>最终成绩</th></tr>");
+            sb.Append("<h3>" + Loc.F("Str_DocC_EventTitleFmt", Loc.GenderDisplay(_currentGender), ageGroupSpaceE, _currentEvent, Loc.StageDisplay(_currentStage)) + "</h3>");
+            sb.Append("<table><tr align='center'><th>" + Loc.T("Str_DocC_ColRank") + "</th><th>" + Loc.T("Str_DocC_ColBib") + "</th><th>" + Loc.T("Str_DocC_ColName") + "</th><th>" + Loc.T("Str_DocC_ColTeam") + "</th><th>" + Loc.T("Str_DocC_ColFinalResult") + "</th></tr>");
             var ranking = GetEventRanking(_currentEvent, _currentGender);
             foreach (dynamic item in ranking) {
                 // 2026-09-01 无名次(判罚/弃权)印 "-", 不要印一个 "0" 出来
@@ -32590,7 +32590,7 @@ namespace SwimmingScoreboard
             sb.Append("<!DOCTYPE html>");
             sb.Append("<html lang='zh-CN'><head><meta charset='UTF-8'>");
             sb.Append("<meta http-equiv='X-UA-Compatible' content='IE=edge'>");
-            sb.AppendFormat("<title>{0} 成绩册</title>", System.Net.WebUtility.HtmlEncode(compName));
+            sb.Append("<title>" + Loc.F("Str_DocC_RB_TitleFmt", System.Net.WebUtility.HtmlEncode(compName)) + "</title>");
             sb.AppendFormat("<style>{0}", DocCss());
             sb.Append("@page{ size:A4; margin:14mm 12mm; } ");
             // 表头跨页重复: 没有它, 一张表被分页切开后, 后半页就是几行没有表头的裸数据
@@ -32667,24 +32667,24 @@ namespace SwimmingScoreboard
             // ═══ 1. 封面 ═══
             sb.Append("<div class='page cover rb-cover'>");
             sb.Append("<div class='cover-top'>");
-            sb.AppendFormat("<div class='ttl1'>{0}</div>", string.IsNullOrEmpty(rb.CoverTitle) ? "游 泳 比 赛" : rb.CoverTitle);
-            sb.AppendFormat("<div class='ttl2'>{0}</div>", string.IsNullOrEmpty(rb.CoverSubtitle) ? "成 　 绩 　 册" : rb.CoverSubtitle);
+            sb.AppendFormat("<div class='ttl1'>{0}</div>", string.IsNullOrEmpty(rb.CoverTitle) ? Loc.T("Str_DocC_PB_DefaultCoverTitle") : rb.CoverTitle);
+            sb.AppendFormat("<div class='ttl2'>{0}</div>", string.IsNullOrEmpty(rb.CoverSubtitle) ? Loc.T("Str_DocC_RB_DefaultCoverSubtitle") : rb.CoverSubtitle);
             sb.Append("</div>");
             sb.Append("<div class='cover-mid'>");
             sb.AppendFormat("<div class='name'>{0}</div>", compName);
             sb.Append("</div>");
             sb.Append("<div class='cover-bot'>");
-            if (!string.IsNullOrEmpty(organizer)) sb.AppendFormat("<div class='row'><div class='lbl'>主办单位：</div><div class='val'>{0}</div></div>", organizer);
-            if (!string.IsNullOrEmpty(host)) sb.AppendFormat("<div class='row'><div class='lbl'>承办单位：</div><div class='val'>{0}</div></div>", host);
-            sb.AppendFormat("<div class='row'><div class='lbl'>比赛时间：</div><div class='val'>{0}{1}</div></div>",
-                startDate, string.IsNullOrEmpty(endDate) || endDate == startDate ? "" : " 至 " + endDate);
-            sb.AppendFormat("<div class='row'><div class='lbl'>比赛地点：</div><div class='val'>{0}</div></div>", string.IsNullOrEmpty(location) ? "&nbsp;" : location);
+            if (!string.IsNullOrEmpty(organizer)) sb.AppendFormat("<div class='row'><div class='lbl'>" + Loc.T("Str_DocC_LabelOrganizer") + "</div><div class='val'>{0}</div></div>", organizer);
+            if (!string.IsNullOrEmpty(host)) sb.AppendFormat("<div class='row'><div class='lbl'>" + Loc.T("Str_DocC_LabelHost") + "</div><div class='val'>{0}</div></div>", host);
+            sb.AppendFormat("<div class='row'><div class='lbl'>" + Loc.T("Str_DocC_LabelRaceTimeCover") + "</div><div class='val'>{0}{1}</div></div>",
+                startDate, string.IsNullOrEmpty(endDate) || endDate == startDate ? "" : " " + Loc.T("Str_DocC_ToWord") + " " + endDate);
+            sb.AppendFormat("<div class='row'><div class='lbl'>" + Loc.T("Str_DocC_LabelVenue") + "</div><div class='val'>{0}</div></div>", string.IsNullOrEmpty(location) ? "&nbsp;" : location);
             sb.Append("</div></div>");
 
             // ═══ 2. 前言（可选）═══
             if (!string.IsNullOrWhiteSpace(rb.Foreword)) {
                 sb.Append("<div class='page-break'></div><div class='page'>");
-                sb.AppendFormat("<h1>{0}</h1><h2>前 　 言</h2>", compName);
+                sb.AppendFormat("<h1>{0}</h1><h2>" + Loc.T("Str_DocC_ForewordHeader") + "</h2>", compName);
                 sb.AppendFormat("<div style='font-size:16px; line-height:1.9; text-indent:2em; white-space:pre-wrap;'>{0}</div>",
                     System.Net.WebUtility.HtmlEncode(rb.Foreword));
                 sb.Append("</div>");
@@ -32698,14 +32698,14 @@ namespace SwimmingScoreboard
 
             // ═══ 3. 目录 ═══
             sb.Append("<div class='page-break'></div><div class='page'>");
-            sb.AppendFormat("<h1>{0}</h1><h2>目 　 录</h2>", compName);
+            sb.AppendFormat("<h1>{0}</h1><h2>" + Loc.T("Str_DocC_TocTitle") + "</h2>", compName);
             sb.Append("<div class='toc'>");
             int tocN = 0;
-            if (rb.IncludeMedalCount) sb.AppendFormat("<div class='row'><span>{0}、奖牌榜统计</span><span></span></div>", CnNum(++tocN));
-            if (hasSportsAwards) sb.AppendFormat("<div class='row'><span>{0}、体育道德风尚奖</span><span></span></div>", CnNum(++tocN));
-            if (rb.IncludeRecordStats) sb.AppendFormat("<div class='row'><span>{0}、破纪录统计表</span><span></span></div>", CnNum(++tocN));
-            if (rb.IncludeFinalRanking) sb.AppendFormat("<div class='row'><span>{0}、名次公告</span><span></span></div>", CnNum(++tocN));
-            if (rb.IncludeFullResults) sb.AppendFormat("<div class='row'><span>{0}、成绩公告</span><span></span></div>", CnNum(++tocN));
+            if (rb.IncludeMedalCount) sb.Append("<div class='row'><span>" + Loc.F("Str_DocC_TocRowFmt", CnNum(++tocN), Loc.T("Str_DocC_Sect_MedalTable")) + "</span><span></span></div>");
+            if (hasSportsAwards) sb.Append("<div class='row'><span>" + Loc.F("Str_DocC_TocRowFmt", CnNum(++tocN), Loc.T("Str_DocC_Sect_Sportsmanship")) + "</span><span></span></div>");
+            if (rb.IncludeRecordStats) sb.Append("<div class='row'><span>" + Loc.F("Str_DocC_TocRowFmt", CnNum(++tocN), Loc.T("Str_DocC_Sect_BrokenRecords")) + "</span><span></span></div>");
+            if (rb.IncludeFinalRanking) sb.Append("<div class='row'><span>" + Loc.F("Str_DocC_TocRowFmt", CnNum(++tocN), Loc.T("Str_DocC_Sect_RankingBulletin")) + "</span><span></span></div>");
+            if (rb.IncludeFullResults) sb.Append("<div class='row'><span>" + Loc.F("Str_DocC_TocRowFmt", CnNum(++tocN), Loc.T("Str_DocC_Sect_ResultBulletin")) + "</span><span></span></div>");
             sb.Append("</div></div>");
 
             int sectN = 0;
@@ -32716,7 +32716,7 @@ namespace SwimmingScoreboard
                 sb.AppendFormat("<h1>{0}</h1>", compName);
                 sb.Append("<h3><span class='section-tag'>" + CnNum(++sectN) + "</span>" + Loc.T("Str_DocC_Sect_MedalTable") + "</h3>");
                 sb.Append("<table>" + ColGroup(10, 40, 12.5, 12.5, 12.5, 12.5)
-                    + "<thead><tr><th>排名</th><th>代表队</th><th>金牌</th><th>银牌</th><th>铜牌</th><th>总计</th></tr></thead><tbody>");
+                    + "<thead><tr><th>" + Loc.T("Str_DocC_ColMedalRank") + "</th><th>" + Loc.T("Str_DocC_ColTeam") + "</th><th>" + Loc.T("Str_DocC_ColGold") + "</th><th>" + Loc.T("Str_DocC_ColSilver") + "</th><th>" + Loc.T("Str_DocC_ColBronze") + "</th><th>" + Loc.T("Str_DocC_ColTotal") + "</th></tr></thead><tbody>");
                 // 2026-09-03 奖牌统计改走【和名次公告同一份名次】(GetEventFinalRanking = 库里的
                 //   项目名次)。原来这里自己 OrderBy(成绩).Take(3), 有三处不对:
                 //   ① 只按 性别+项目名 分组, 把青年组和少年组的同名项目并成一个项目 ——
@@ -32747,7 +32747,7 @@ namespace SwimmingScoreboard
                     sb.AppendFormat("<tr{0}><td>{1}</td><td style='text-align:left; padding-left:20px;'><b>{2}</b></td><td>{3}</td><td>{4}</td><td>{5}</td><td style='font-weight:bold;'>{6}</td></tr>",
                         row, mDispRank, m.Key, m.Value[0], m.Value[1], m.Value[2], m.Value[0] + m.Value[1] + m.Value[2]);
                 }
-                if (sortedMedals.Count == 0) sb.Append("<tr><td colspan='6' style='color:#94a3b8;'>暂无决赛成绩</td></tr>");
+                if (sortedMedals.Count == 0) sb.Append("<tr><td colspan='6' style='color:#94a3b8;'>" + Loc.T("Str_DocC_NoFinalsYet") + "</td></tr>");
                 sb.Append("</tbody></table>");
                 sb.Append("</div>");
             }
@@ -32758,17 +32758,17 @@ namespace SwimmingScoreboard
                 sb.AppendFormat("<h1>{0}</h1>", compName);
                 sb.Append("<h3><span class='section-tag'>" + CnNum(++sectN) + "</span>" + Loc.T("Str_DocC_Sect_Sportsmanship") + "</h3>");
                 if (rb.SportsTeams.Count > 0) {
-                    sb.Append("<h4>运动队</h4><div style='font-size:16px; line-height:2.4; text-align:center; padding:10px 40px;'>");
+                    sb.Append("<h4>" + Loc.T("Str_DocC_SectTeams") + "</h4><div style='font-size:16px; line-height:2.4; text-align:center; padding:10px 40px;'>");
                     sb.Append(string.Join("　　　", rb.SportsTeams.Select(t => System.Net.WebUtility.HtmlEncode(t)).ToArray()));
                     sb.Append("</div>");
                 }
                 if (rb.SportsAthletes.Count > 0) {
-                    sb.Append("<h4>运动员</h4><div class='name-cols'>");
+                    sb.Append("<h4>" + Loc.T("Str_DocC_SectAthletes") + "</h4><div class='name-cols'>");
                     foreach (var n in rb.SportsAthletes) sb.AppendFormat("<div>{0}</div>", System.Net.WebUtility.HtmlEncode(n));
                     sb.Append("</div>");
                 }
                 if (rb.SportsJudges.Count > 0) {
-                    sb.Append("<h4>裁判员</h4><div style='font-size:16px; line-height:2.4; text-align:center; padding:10px 40px;'>");
+                    sb.Append("<h4>" + Loc.T("Str_DocC_SectJudges") + "</h4><div style='font-size:16px; line-height:2.4; text-align:center; padding:10px 40px;'>");
                     sb.Append(string.Join("　　　", rb.SportsJudges.Select(t => System.Net.WebUtility.HtmlEncode(t)).ToArray()));
                     sb.Append("</div>");
                 }
@@ -32782,11 +32782,11 @@ namespace SwimmingScoreboard
                 sb.AppendFormat("<h1>{0}</h1>", compName);
                 sb.Append("<h3><span class='section-tag'>" + CnNum(++sectN) + "</span>" + Loc.T("Str_DocC_Sect_BrokenRecords") + "</h3>");
                 if (brokenRows.Count == 0) {
-                    sb.Append("<p style='text-align:center; color:#94a3b8; margin-top:40px;'>本次比赛暂无破纪录记录。</p>");
+                    sb.Append("<p style='text-align:center; color:#94a3b8; margin-top:40px;'>" + Loc.T("Str_DocC_NoBrokenRecords") + "</p>");
                 } else {
-                    sb.AppendFormat("<p style='text-align:right; color:#475569;'>截至 {0}</p>", DateTime.Now.ToString("yyyy-MM-dd"));
+                    sb.Append("<p style='text-align:right; color:#475569;'>" + Loc.F("Str_DocC_AsOfFmt", DateTime.Now.ToString("yyyy-MM-dd")) + "</p>");
                     sb.Append("<table>" + ColGroup(11, 22, 7, 12, 11, 10, 6, 21)
-                        + "<thead><tr><th>日期</th><th>项目</th><th>赛次</th><th>运动员</th><th>单位</th><th>成绩</th><th>标识</th><th>纪录类型</th></tr></thead><tbody>");
+                        + "<thead><tr><th>" + Loc.T("Str_DocC_ColDate") + "</th><th>" + Loc.T("Str_DocC_ColEvent") + "</th><th>" + Loc.T("Str_DocC_ColStage") + "</th><th>" + Loc.T("Str_DocC_ColAthlete") + "</th><th>" + Loc.T("Str_DocC_ColUnit") + "</th><th>" + Loc.T("Str_DocC_ColResult") + "</th><th>" + Loc.T("Str_DocC_ColRecordTag") + "</th><th>" + Loc.T("Str_DocC_ColRecordType") + "</th></tr></thead><tbody>");
                     foreach (var r in brokenRows) {
                         sb.AppendFormat("<tr><td>{0}</td><td style='text-align:left;'>{1}{2} {3}</td><td>{4}</td><td>{5}</td><td>{6}</td><td style='font-weight:bold;'>{7}</td><td style='color:#b45309;font-weight:bold;'>{8}</td><td>{9}</td></tr>",
                             System.Net.WebUtility.HtmlEncode(r.Date),
@@ -32819,15 +32819,15 @@ namespace SwimmingScoreboard
                     bool nrRelay = (schedItem.EventName ?? "").IndexOf("接力", StringComparison.Ordinal) >= 0;
                     sb.Append("<div style='margin-top:18px; page-break-inside:avoid;'>");
                     string ageHead0 = string.IsNullOrEmpty(schedAge) ? "" : (schedAge + " ");
-                    sb.AppendFormat("<table class='event-meta'><tr><td class='l'><b>游泳</b>　　{0}{1} {2}</td>"
+                    sb.AppendFormat("<table class='event-meta'><tr><td class='l'><b>" + Loc.T("Str_DocC_SwimLabel") + "</b>　　{0}{1} {2}</td>"
                                   + "<td class='r'>{3} {4}　　{5}</td></tr></table>",
-                        ageHead0, schedItem.Gender, schedItem.EventName,
+                        ageHead0, Loc.GenderDisplay(schedItem.Gender), schedItem.EventName,
                         schedItem.Date ?? "", schedItem.Time ?? "", location);
                     // 2026-09-16 加一列"备注" —— DSQ/DNF/DNS 判罚状态字样印在这里, 不印在
                     //   名次/成绩列(全场统一的名次显示约定)。原来这张表压根没有能放判罚字样
                     //   的地方, 是这几个人从名单里直接消失的另一半原因。
                     sb.Append("<table>" + ColGroup(7, 13, 20, 16, 11, 22, 11)
-                        + "<thead><tr><th>名次</th><th>单位</th><th>姓名</th><th>联合培养单位</th><th>成绩</th><th>教练员</th><th>备注</th></tr></thead><tbody>");
+                        + "<thead><tr><th>" + Loc.T("Str_DocC_ColRank") + "</th><th>" + Loc.T("Str_DocC_ColUnit") + "</th><th>" + Loc.T("Str_DocC_ColName") + "</th><th>" + Loc.T("Str_DocC_ColJointUnit") + "</th><th>" + Loc.T("Str_DocC_ColResult") + "</th><th>" + Loc.T("Str_DocC_ColCoach") + "</th><th>" + Loc.T("Str_DocC_ColNote") + "</th></tr></thead><tbody>");
                     foreach (var row in topList) {
                         var sw = row.Swimmer;
                         ResultBookSwimmerInfo info = null;
@@ -32875,7 +32875,7 @@ namespace SwimmingScoreboard
                     }
                     sb.Append("</tbody></table></div>");
                 }
-                if (!anyFinals) sb.Append("<p style='text-align:center; color:#94a3b8; margin-top:30px;'>暂无决赛排名数据。</p>");
+                if (!anyFinals) sb.Append("<p style='text-align:center; color:#94a3b8; margin-top:30px;'>" + Loc.T("Str_DocC_NoFinalsRankingYet") + "</p>");
                 sb.Append("</div>");
             }
 
@@ -32910,9 +32910,9 @@ namespace SwimmingScoreboard
                     //   浏览器靠容错顶着看不出来, 导出 Word / 再加样式就会错位。
                     if (eventBlock > 1) sb.Append("</div><div class='page-break'></div><div class='page'>");
                     string ageHeadFR = string.IsNullOrEmpty(schedAge) ? "" : (schedAge + " ");   // 2026-06-01
-                    sb.AppendFormat("<table class='event-meta'><tr><td class='l'><b>游泳</b>　　{0}{1} {2}　　{3}</td>"
+                    sb.AppendFormat("<table class='event-meta'><tr><td class='l'><b>" + Loc.T("Str_DocC_SwimLabel") + "</b>　　{0}{1} {2}　　{3}</td>"
                                   + "<td class='r'>{4} {5}　　{6}</td></tr></table>",
-                        ageHeadFR, gender, eventName, stage,
+                        ageHeadFR, Loc.GenderDisplay(gender), eventName, Loc.StageDisplay(stage),
                         schedItem.Date ?? "", schedItem.Time ?? "", location);
 
                     // 项目纪录参考条
@@ -32983,9 +32983,9 @@ namespace SwimmingScoreboard
                         //   原来能出现"组标题落在上一页页脚、表格从下一页开头起"的样子。
                         sb.Append("<div class='heat-block'>");
                         if (showHeat) {
-                            sb.AppendFormat("<div class='heat-title'>{0}第{1}组，共{2}组</div>", stage, heat, heatNumbers.Count);
+                            sb.Append("<div class='heat-title'>" + Loc.F("Str_DocC_HeatTitleFmt", Loc.StageDisplay(stage), heat, heatNumbers.Count) + "</div>");
                         } else {
-                            sb.AppendFormat("<div class='heat-title'>{0}</div>", stage);
+                            sb.Append("<div class='heat-title'>" + Loc.StageDisplay(stage) + "</div>");
                         }
 
                         // 2026-09-03 列与"项目成绩"那张成绩单对齐: 补【号码】和【备注】两列,
@@ -33001,11 +33001,11 @@ namespace SwimmingScoreboard
                         colW.Add(ffRelay ? 16 : 8);                            // 反应时(接力要摊开 N 棒)
                         colW.Add(8);                                           // 备注: 要放得下 "Q MR" 两个标
                         sb.Append("<table>" + ColGroup(colW.ToArray()));
-                        sb.Append("<thead><tr><th>名次</th><th>道次</th><th>号码</th><th>运动员</th><th>单位</th><th>出生日期</th>");
+                        sb.Append("<thead><tr><th>" + Loc.T("Str_DocC_ColRank") + "</th><th>" + Loc.T("Str_DocC_ColLaneNo") + "</th><th>" + Loc.T("Str_DocC_ColBib") + "</th><th>" + Loc.T("Str_DocC_ColAthlete") + "</th><th>" + Loc.T("Str_DocC_ColUnit") + "</th><th>" + Loc.T("Str_DocC_ColBirthDate") + "</th>");
                         foreach (var sm in splitMarks) sb.AppendFormat("<th>{0}m</th>", sm);
                         sb.Append("<th>成绩</th>");
                         if (rb.ShowTimeDifference) sb.Append("<th>成绩差</th>");
-                        sb.Append("<th>反应时</th><th>备注</th>");
+                        sb.Append("<th>" + Loc.T("Str_DocC_ColReactionShort") + "</th><th>" + Loc.T("Str_DocC_ColNote") + "</th>");
                         sb.Append("</tr></thead><tbody>");
 
                         foreach (var sw in ordered) {
@@ -33038,7 +33038,7 @@ namespace SwimmingScoreboard
                                 var rtParts = new List<string>();
                                 for (int li = 0; li < legCnt; li++) {
                                     double rt = (r != null && r.LegReactionTimes != null && li < r.LegReactionTimes.Count) ? r.LegReactionTimes[li] : 0;
-                                    rtParts.Add(string.Format("第{0}棒:{1}", li + 1, (rt != 0 && !double.IsNaN(rt)) ? rt.ToString("F2") : "—"));
+                                    rtParts.Add(Loc.F("Str_DocC_LegReactionFmt", li + 1, (rt != 0 && !double.IsNaN(rt)) ? rt.ToString("F2") : "—"));
                                 }
                                 reactionCell = string.Join("<br>", rtParts.ToArray());
                             } else if (r != null && r.StartingBlockTime != 0 && !double.IsNaN(r.StartingBlockTime) && !dq) {
