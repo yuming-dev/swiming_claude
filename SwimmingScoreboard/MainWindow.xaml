@@ -542,21 +542,22 @@
                                 </Border>
                                 <!-- 2026-09-29 现场反馈: 第1行(核心操作)留在表格上方、跟表格左端对齐;
                                      第2-4行(导入导出/模板/其它厂家兼容, 用得没那么频繁)挪到表格下方, 别再挤占顶部空间。 -->
-                                <!-- 2026-09-29 现场反馈: 顶部/底部按钮宽度间距不统一, 底部3行尤其杂乱——
-                                     顶部6个按键统一 Width=160, 底部8个按键(3行)统一 Width=190, 间距统一 8px。 -->
-                                <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Left" Margin="0,0,0,10">
+                                <!-- 2026-09-29 现场反馈: 固定 Width=160 在较窄屏幕上第6个按键被裁掉一半——
+                                     改用 UniformGrid(6列)按【实际可用宽度】平均分配, 不再猜一个固定像素数,
+                                     不管屏幕/窗口多宽都不会溢出裁切, 且天然保证6个等宽。 -->
+                                <UniformGrid Grid.Row="0" Grid.Column="1" Rows="1" Columns="6" Margin="0,0,0,10">
                                     <!-- 2026-05-25 秩序册生成向导移到 修改赛程 左边；移除"一键生成日程"(与向导功能重复且存在问题) -->
-                                    <Button Content="{DynamicResource Str_EM_WizardSchedule}" Click="OpenSchedulingWizard_Click" Padding="8,5" Width="160" Background="#7C3AED" Foreground="White" FontWeight="Bold" BorderThickness="0" Margin="0,0,8,0"
+                                    <Button Content="{DynamicResource Str_EM_WizardSchedule}" Click="OpenSchedulingWizard_Click" Padding="6,5" Background="#7C3AED" Foreground="White" FontWeight="Bold" BorderThickness="0" Margin="0,0,6,0"
                                             ToolTip="{DynamicResource Str_EM_WizardScheduleTip}"/>
-                                    <Button Content="{DynamicResource Str_EM_EditSchedule}" Click="EditSchedule_Click" Padding="8,5" Width="160" Background="#3B82F6" Foreground="White" FontWeight="Bold" BorderThickness="0" Margin="0,0,8,0"/>
-                                    <Button Content="{DynamicResource Str_EM_AutoGenHeats}" Click="AutoGenerateHeats_Click" Padding="8,5" Width="160" Background="#22C55E" Foreground="White" BorderThickness="0" Margin="0,0,8,0"
+                                    <Button Content="{DynamicResource Str_EM_EditSchedule}" Click="EditSchedule_Click" Padding="6,5" Background="#3B82F6" Foreground="White" FontWeight="Bold" BorderThickness="0" Margin="0,0,6,0"/>
+                                    <Button Content="{DynamicResource Str_EM_AutoGenHeats}" Click="AutoGenerateHeats_Click" Padding="6,5" Background="#22C55E" Foreground="White" BorderThickness="0" Margin="0,0,6,0"
                                             ToolTip="{DynamicResource Str_EM_AutoGenHeatsTip}"/>
-                                    <Button Content="{DynamicResource Str_EM_ManualHeatAssign}" Click="ManualHeatAssign_Click" Padding="8,5" Width="160" Background="#D97706" Foreground="White" BorderThickness="0" Margin="0,0,8,0"
+                                    <Button Content="{DynamicResource Str_EM_ManualHeatAssign}" Click="ManualHeatAssign_Click" Padding="6,5" Background="#D97706" Foreground="White" BorderThickness="0" Margin="0,0,6,0"
                                             ToolTip="{DynamicResource Str_EM_ManualHeatAssignTip}"/>
-                                    <Button Content="{DynamicResource Str_EM_SupplementHeats}" Click="SupplementHeats_Click" Padding="8,5" Width="160" Background="#0EA5E9" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
-                                    <Button Content="{DynamicResource Str_EM_PrintSchedule}" Click="PrintSchedule_Click" Padding="8,5" Width="160" Background="#8B5CF6" Foreground="White" BorderThickness="0" Margin="0,0,8,0"
+                                    <Button Content="{DynamicResource Str_EM_SupplementHeats}" Click="SupplementHeats_Click" Padding="6,5" Background="#0EA5E9" Foreground="White" BorderThickness="0" Margin="0,0,6,0"/>
+                                    <Button Content="{DynamicResource Str_EM_PrintSchedule}" Click="PrintSchedule_Click" Padding="6,5" Background="#8B5CF6" Foreground="White" BorderThickness="0" Margin="0,0,0,0"
                                             ToolTip="{DynamicResource Str_EM_PrintScheduleTip}"/>
-                                </StackPanel>
+                                </UniformGrid>
                                 <ScrollViewer Grid.Row="1" Grid.Column="1" VerticalScrollBarVisibility="Auto">
                                     <StackPanel x:Name="ScheduleGroupedPanel"/>
                                 </ScrollViewer>
