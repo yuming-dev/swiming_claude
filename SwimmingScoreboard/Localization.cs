@@ -748,6 +748,15 @@ namespace SwimmingScoreboard
             { "Str_DocC_ColEventNo2",    new[] { "项目编号", "Event No." } },
             { "Str_DocC_ColContent",     new[] { "内容", "Content" } },
             { "Str_DocC_HeatCountSuffixFmt", new[] { " （{0}组）", " ({0} heats)" } },
+            { "Str_DocC_TimeTBD",        new[] { "（时间待定）", "(Time TBD)" } },
+            { "Str_DocC_HeadStartList",  new[] { "出 发 表", "START LIST" } },
+            { "Str_DocC_HeadHeatResults",new[] { "成 绩 单", "RESULTS" } },
+            { "Str_DocC_HeatDisplayFmt", new[] { " 第 {0} 组", " Heat {0}" } },
+            { "Str_DocC_EventTitleShortFmt", new[] { "{0}{1} {2} {3}{4}", "{0}{1} {2} {3}{4}" } },
+            { "Str_DocC_SplitsHeader",   new[] { "分段成绩", "Splits" } },
+            { "Str_DocC_NoSplitData",    new[] { "本组暂无分段计时数据。", "No split-time data for this heat yet." } },
+            { "Str_DocC_ColTeamMember",  new[] { "队员", "Swimmer" } },
+            { "Str_DocC_SplitsCellHint", new[] { "说明：单元格上行为<b>累计时间</b>，下行为<i>本段时间</i>。", "Note: top line is <b>cumulative time</b>, bottom line is <i>split time</i>." } },
 
             // 2026-09-21 【中文/English 第六阶段】"系统日志与数据"页(只翻页面本身的静态文字，
             // 不翻 SystemLogListBox 里滚动显示的日志正文——那是 AddLog(...) 调用点生成的，

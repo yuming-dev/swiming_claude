@@ -31364,18 +31364,18 @@ namespace SwimmingScoreboard
                 foreach (var sp in result.Splits) if (sp.Distance > 0) distSet.Add(sp.Distance);
             }
             if (rowData.Count == 0) {
-                sb.Append("<p style='text-align:center;color:#94a3b8;margin-top:40px;'>本组暂无分段计时数据。</p>");
+                sb.Append("<p style='text-align:center;color:#94a3b8;margin-top:40px;'>" + Loc.T("Str_DocC_NoSplitData") + "</p>");
                 return sb.ToString();
             }
             var dists = distSet.ToList();
 
             sb.Append("<table style='margin-top:20px;'>");
             sb.Append("<tr align='center'>");
-            sb.Append("<th width='40' align='center'>道</th>");
-            sb.AppendFormat("<th width='110' align='center'>{0}</th>", isRelay ? "代表队" : "姓名");
-            sb.AppendFormat("<th width='110' align='center'>{0}</th>", isRelay ? "队员" : "代表队");
+            sb.Append("<th width='40' align='center'>" + Loc.T("Str_DocC_ColLane") + "</th>");
+            sb.AppendFormat("<th width='110' align='center'>{0}</th>", isRelay ? Loc.T("Str_DocC_ColTeam") : Loc.T("Str_DocC_ColName"));
+            sb.AppendFormat("<th width='110' align='center'>{0}</th>", isRelay ? Loc.T("Str_DocC_ColTeamMember") : Loc.T("Str_DocC_ColTeam"));
             foreach (var d in dists) sb.AppendFormat("<th width='80' align='center'>{0}m</th>", d);
-            sb.Append("<th width='90' align='center'>最终成绩</th></tr>");
+            sb.Append("<th width='90' align='center'>" + Loc.T("Str_DocC_ColFinalResult") + "</th></tr>");
 
             foreach (var pair in rowData) {
                 var sw = pair.Item1;
@@ -31417,7 +31417,7 @@ namespace SwimmingScoreboard
                 sb.Append("</tr>");
             }
             sb.Append("</table>");
-            sb.Append("<p style='font-size:11px;color:#64748b;margin-top:6px;'>说明：单元格上行为<b>累计时间</b>，下行为<i>本段时间</i>。</p>");
+            sb.Append("<p style='font-size:11px;color:#64748b;margin-top:6px;'>" + Loc.T("Str_DocC_SplitsCellHint") + "</p>");
             return sb.ToString();
         }
 
@@ -32377,25 +32377,24 @@ namespace SwimmingScoreboard
                     var heatSwimmers = assigned.Where(t => t.Item2 == heat).OrderBy(t => t.Item3).ToList();
                     if (heatSwimmers.Count == 0) continue;
 
-                    string heatDisplay = showHeat ? string.Format(" 第 {0} 组", heat) : "";
+                    string heatDisplay = showHeat ? Loc.F("Str_DocC_HeatDisplayFmt", heat) : "";
                     // 2026-06-01 标题加 AgeGroup 前缀, 同一项目跨年龄组时区分清楚
                     string ageHead = string.IsNullOrEmpty(schedAge) || schedAge == "全部" || schedAge == "不限" ? "" : (schedAge + " ");
-                    string eventTitle = string.Format("{0}{1} {2} {3}{4}", ageHead, gender, eventName, stage, heatDisplay);
+                    string eventTitle = Loc.F("Str_DocC_EventTitleShortFmt", ageHead, Loc.GenderDisplay(gender), eventName, Loc.StageDisplay(stage), heatDisplay);
 
                     if (hasContent) sb.Append("<div class='page-break'></div>");
                     sb.Append("<div class='page'>");
                     sb.AppendFormat("<h1>{0}</h1>", _competitionName);
-                    sb.Append("<h2>出 发 表</h2>");
-                    sb.AppendFormat("<h3>项目：{0}</h3>", eventTitle);
+                    sb.Append("<h2>" + Loc.T("Str_DocC_HeadStartList") + "</h2>");
+                    sb.Append("<h3>" + Loc.F("Str_DocC_EventTitleSimpleFmt", eventTitle) + "</h3>");
 
                     string dateTimeInfo = !string.IsNullOrEmpty(schedItem.Date) ? schedItem.Date : "";
                     if (!string.IsNullOrEmpty(schedItem.Time)) dateTimeInfo += " " + schedItem.Time;
-                    if (string.IsNullOrEmpty(dateTimeInfo.Trim())) dateTimeInfo = "（时间待定）";
-                    sb.AppendFormat("<h4>比赛时间：{0} &nbsp;&nbsp;&nbsp;&nbsp; 地点：{1}</h4>", dateTimeInfo.Trim(), LocationBox.Text);
+                    if (string.IsNullOrEmpty(dateTimeInfo.Trim())) dateTimeInfo = Loc.T("Str_DocC_TimeTBD");
+                    sb.Append("<h4>" + Loc.F("Str_DocC_LabelRaceTime", dateTimeInfo.Trim(), LocationBox.Text) + "</h4>");
 
                     bool slRelay = eventName.Contains("接力");
-                    sb.AppendFormat("<table><tr align='center'><th width='50'>道</th><th width='60'>号码</th><th width='100'>{0}</th><th width='40'>性别</th><th width='100'>{1}</th><th width='80'>备注</th></tr>",
-                        RelayCol1Header(slRelay), RelayCol2Header(slRelay));
+                    sb.Append("<table><tr align='center'><th width='50'>" + Loc.T("Str_DocC_ColLane") + "</th><th width='60'>" + Loc.T("Str_DocC_ColBib") + "</th><th width='100'>" + RelayCol1Header(slRelay) + "</th><th width='40'>" + Loc.T("Str_DocC_ColGender") + "</th><th width='100'>" + RelayCol2Header(slRelay) + "</th><th width='80'>" + Loc.T("Str_DocC_ColNote") + "</th></tr>");
                     foreach (var t in heatSwimmers) {
                         var s = t.Item1;
                         string remark = "";
@@ -32404,7 +32403,7 @@ namespace SwimmingScoreboard
                         if (slRelay && !string.IsNullOrEmpty(s.Notes) && s.Notes.StartsWith("接力队 棒次:"))
                             slName = s.Notes.Substring("接力队 棒次:".Length);
                         sb.AppendFormat("<tr><td>{0}</td><td>{1}</td><td><b>{2}</b></td><td>{3}</td><td>{4}</td><td style='color:#dc2626;'>{5}</td></tr>",
-                            t.Item3, s.BibNumber, RelayCol1(slRelay, slName, slCountry), s.Gender, RelayCol2(slRelay, slName, slCountry), remark);
+                            t.Item3, s.BibNumber, RelayCol1(slRelay, slName, slCountry), Loc.GenderDisplay(s.Gender), RelayCol2(slRelay, slName, slCountry), remark);
                     }
                     sb.Append("</table>");
                     sb.Append(DocSignatureRow());
@@ -32414,12 +32413,12 @@ namespace SwimmingScoreboard
             }
 
             if (!hasContent) {
-                sb.Append(DocHeader("出 发 表"));
-                sb.Append("<p style='text-align:center; font-size:18px; margin-top:60px;'>暂无分组数据，请先进行分组编排。</p>");
+                sb.Append(DocHeader(Loc.T("Str_DocC_HeadStartList")));
+                sb.Append("<p style='text-align:center; font-size:18px; margin-top:60px;'>" + Loc.T("Str_DocC_NoHeatDataYet") + "</p>");
                 sb.Append("</div>");
             }
 
-            sb.AppendFormat("<p style='text-align:right; padding:20px; color:gray;'>打印时间：{0}</p>", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
+            sb.Append("<p style='text-align:right; padding:20px; color:gray;'>" + Loc.F("Str_DocC_PrintTimeFmt", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")) + "</p>");
             sb.Append("</body></html>");
             return sb.ToString();
         }
@@ -32427,18 +32426,18 @@ namespace SwimmingScoreboard
         private string BuildHeatResultsHtml() {
             var sb = new StringBuilder();
             sb.AppendFormat("<html><head><meta charset='UTF-8'><style>{0}</style></head><body>", DocCss());
-            sb.Append(DocHeader("成 绩 单"));
+            sb.Append(DocHeader(Loc.T("Str_DocC_HeadHeatResults")));
 
             // 2026-06-04 顺序统一: 性别 组别 项目 赛次 第N组
             string ageGroupSpace = string.IsNullOrEmpty(_currentAgeGroup) ? "" : (_currentAgeGroup + " ");
-            string eventTitle = string.Format("{0} {1}{2} {3} 第 {4} 组", _currentGender, ageGroupSpace, _currentEvent, _currentStage, _currentHeat);
-            sb.AppendFormat("<h3>项目：{0}</h3>", eventTitle);
+            string eventTitle = Loc.GenderDisplay(_currentGender) + " " + ageGroupSpace + _currentEvent + " " + Loc.StageDisplay(_currentStage) + Loc.F("Str_DocC_HeatDisplayFmt", _currentHeat);
+            sb.Append("<h3>" + Loc.F("Str_DocC_EventTitleSimpleFmt", eventTitle) + "</h3>");
 
             // 2026-06-16 加 _currentAgeGroup 筛选, 跨组别共用 (gender,event,stage) 不会拿错 Date/Time
             var sch = _schedule.FirstOrDefault(s => s.Gender == _currentGender && s.EventName == _currentEvent && s.Stage == _currentStage
                 && (string.IsNullOrEmpty(_currentAgeGroup) || (s.AgeGroup ?? "") == _currentAgeGroup));
-            string dateTimeInfo = sch != null ? string.Format("{0} {1}", sch.Date, sch.Time).Trim() : "（时间待定）";
-            sb.AppendFormat("<h4>比赛时间：{0} &nbsp;&nbsp;&nbsp;&nbsp; 地点：{1}</h4>", dateTimeInfo, LocationBox.Text);
+            string dateTimeInfo = sch != null ? string.Format("{0} {1}", sch.Date, sch.Time).Trim() : Loc.T("Str_DocC_TimeTBD");
+            sb.Append("<h4>" + Loc.F("Str_DocC_LabelRaceTime", dateTimeInfo, LocationBox.Text) + "</h4>");
 
             bool printRelay = _currentEvent.Contains("接力");
             // 2026-08-19 排序与大屏"组成绩"同规则: 名次 → TRI → DSQ → DNF → DNS → 其他
@@ -32446,7 +32445,7 @@ namespace SwimmingScoreboard
 
             // 2026-06-05 U 系列规则: 单组成绩单 单表 (不再按男女拆) — 总排名才按 性别×组别 拆
             RenderHeatResultsTable(sb, swimmers, printRelay);
-            sb.Append("<h4 style='margin-top:18px;'>分段成绩</h4>");
+            sb.Append("<h4 style='margin-top:18px;'>" + Loc.T("Str_DocC_SplitsHeader") + "</h4>");
             sb.Append(BuildMergedSplitsTableHtml(swimmers, _currentStage, _currentHeat, printRelay));
 
             sb.Append(DocSignatureRow());
@@ -32457,8 +32456,7 @@ namespace SwimmingScoreboard
 
         // 2026-06-04 单组成绩表 (无分段); 提出来给男女并项做两次调用
         private void RenderHeatResultsTable(StringBuilder sb, List<Swimmer> swimmers, bool printRelay) {
-            sb.AppendFormat("<table><tr align='center'><th width='50' align='center'>名次</th><th width='40' align='center'>道</th><th width='120' align='center'>{0}</th><th width='120' align='center'>{1}</th><th width='90' align='center'>成绩</th><th width='70' align='center'>成绩差</th><th width='70' align='center'>反应时间</th><th width='50' align='center'>备注</th></tr>",
-                RelayCol1Header(printRelay), RelayCol2Header(printRelay));
+            sb.Append("<table><tr align='center'><th width='50' align='center'>" + Loc.T("Str_DocC_ColRank") + "</th><th width='40' align='center'>" + Loc.T("Str_DocC_ColLane") + "</th><th width='120' align='center'>" + RelayCol1Header(printRelay) + "</th><th width='120' align='center'>" + RelayCol2Header(printRelay) + "</th><th width='90' align='center'>" + Loc.T("Str_DocC_ColResult") + "</th><th width='70' align='center'>" + Loc.T("Str_DocC_ColGap") + "</th><th width='70' align='center'>" + Loc.T("Str_DocC_ColReactionTime") + "</th><th width='50' align='center'>" + Loc.T("Str_DocC_ColNote") + "</th></tr>");
             // 本表内 leader (男女并项时只比本性别); 排除 DSQ/DNS/DNF/DQ/TRI
             double leaderTime = 0;
             foreach (var sw in swimmers) {
