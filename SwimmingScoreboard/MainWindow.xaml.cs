@@ -31701,7 +31701,8 @@ namespace SwimmingScoreboard
                         (sw.Gender ?? "") == sg && (sw.EventName ?? "") == se
                         && (sw.AgeCategory ?? "") == sa && (sw.CurrentStage ?? "") == sst).ToList();
 
-                    sb.Append("<table><tr align='center'><th width='50'>" + Loc.T("Str_DocC_ColHeatLane") + "</th>");
+                    // 2026-09-29 现场反馈: 这一栏(组\道 / Heat\Lane)太窄, 英文比中文长得多, 挤成好几行。
+                    sb.Append("<table><tr align='center'><th width='80'>" + Loc.T("Str_DocC_ColHeatLane") + "</th>");
                     foreach (var ln in laneNums) sb.AppendFormat("<th>{0}</th>", ln);
                     sb.Append("</tr>");
                     int heatCount = s.HeatCount > 0 ? s.HeatCount : 1;

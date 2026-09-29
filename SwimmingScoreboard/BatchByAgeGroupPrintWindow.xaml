@@ -47,7 +47,7 @@
 
         <!-- 状态提示 -->
         <Border Grid.Row="1" Background="White" CornerRadius="6" Padding="10" Margin="0,0,0,8">
-            <TextBlock x:Name="StatusText" Text="{DynamicResource Str_Win_BatchAge_InitialStatus}" Foreground="#64748B" FontSize="13"/>
+            <TextBlock x:Name="StatusText" Text="{DynamicResource Str_Win_BatchAge_InitialStatus}" Foreground="#64748B" FontSize="13" TextWrapping="Wrap"/>
         </Border>
 
         <!-- 各组别预览 -->
