@@ -542,17 +542,19 @@
                                 </Border>
                                 <!-- 2026-09-29 现场反馈: 第1行(核心操作)留在表格上方、跟表格左端对齐;
                                      第2-4行(导入导出/模板/其它厂家兼容, 用得没那么频繁)挪到表格下方, 别再挤占顶部空间。 -->
+                                <!-- 2026-09-29 现场反馈: 顶部/底部按钮宽度间距不统一, 底部3行尤其杂乱——
+                                     顶部6个按键统一 Width=160, 底部8个按键(3行)统一 Width=190, 间距统一 8px。 -->
                                 <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Left" Margin="0,0,0,10">
                                     <!-- 2026-05-25 秩序册生成向导移到 修改赛程 左边；移除"一键生成日程"(与向导功能重复且存在问题) -->
-                                    <Button Content="{DynamicResource Str_EM_WizardSchedule}" Click="OpenSchedulingWizard_Click" Padding="15,5" Background="#7C3AED" Foreground="White" FontWeight="Bold" BorderThickness="0" Margin="0,0,8,0"
+                                    <Button Content="{DynamicResource Str_EM_WizardSchedule}" Click="OpenSchedulingWizard_Click" Padding="8,5" Width="160" Background="#7C3AED" Foreground="White" FontWeight="Bold" BorderThickness="0" Margin="0,0,8,0"
                                             ToolTip="{DynamicResource Str_EM_WizardScheduleTip}"/>
-                                    <Button Content="{DynamicResource Str_EM_EditSchedule}" Click="EditSchedule_Click" Padding="15,5" Background="#3B82F6" Foreground="White" FontWeight="Bold" BorderThickness="0" Margin="0,0,8,0"/>
-                                    <Button Content="{DynamicResource Str_EM_AutoGenHeats}" Click="AutoGenerateHeats_Click" Padding="15,5" Background="#22C55E" Foreground="White" BorderThickness="0" Margin="0,0,8,0"
+                                    <Button Content="{DynamicResource Str_EM_EditSchedule}" Click="EditSchedule_Click" Padding="8,5" Width="160" Background="#3B82F6" Foreground="White" FontWeight="Bold" BorderThickness="0" Margin="0,0,8,0"/>
+                                    <Button Content="{DynamicResource Str_EM_AutoGenHeats}" Click="AutoGenerateHeats_Click" Padding="8,5" Width="160" Background="#22C55E" Foreground="White" BorderThickness="0" Margin="0,0,8,0"
                                             ToolTip="{DynamicResource Str_EM_AutoGenHeatsTip}"/>
-                                    <Button Content="{DynamicResource Str_EM_ManualHeatAssign}" Click="ManualHeatAssign_Click" Padding="15,5" Background="#D97706" Foreground="White" BorderThickness="0" Margin="0,0,8,0"
+                                    <Button Content="{DynamicResource Str_EM_ManualHeatAssign}" Click="ManualHeatAssign_Click" Padding="8,5" Width="160" Background="#D97706" Foreground="White" BorderThickness="0" Margin="0,0,8,0"
                                             ToolTip="{DynamicResource Str_EM_ManualHeatAssignTip}"/>
-                                    <Button Content="{DynamicResource Str_EM_SupplementHeats}" Click="SupplementHeats_Click" Padding="15,5" Background="#0EA5E9" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
-                                    <Button Content="{DynamicResource Str_EM_PrintSchedule}" Click="PrintSchedule_Click" Padding="15,5" Background="#8B5CF6" Foreground="White" BorderThickness="0" Margin="0,0,8,0"
+                                    <Button Content="{DynamicResource Str_EM_SupplementHeats}" Click="SupplementHeats_Click" Padding="8,5" Width="160" Background="#0EA5E9" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
+                                    <Button Content="{DynamicResource Str_EM_PrintSchedule}" Click="PrintSchedule_Click" Padding="8,5" Width="160" Background="#8B5CF6" Foreground="White" BorderThickness="0" Margin="0,0,8,0"
                                             ToolTip="{DynamicResource Str_EM_PrintScheduleTip}"/>
                                 </StackPanel>
                                 <ScrollViewer Grid.Row="1" Grid.Column="1" VerticalScrollBarVisibility="Auto">
@@ -561,24 +563,24 @@
                                 <StackPanel Grid.Row="2" Grid.Column="1" Orientation="Vertical" HorizontalAlignment="Right" Margin="0,10,0,0">
                                     <!-- 2026-09-22 日程表 导入/导出/模板 单独一行, 排在 分组表 那一行上面(原来挤在同一行) -->
                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                                        <Button Content="{DynamicResource Str_EM_ImportSchedule}" Click="ImportScheduleCSV_Click" Padding="15,5" Background="#3B82F6" Foreground="White" BorderThickness="0" Margin="0,0,8,0"
+                                        <Button Content="{DynamicResource Str_EM_ImportSchedule}" Click="ImportScheduleCSV_Click" Padding="8,5" Width="190" Background="#3B82F6" Foreground="White" BorderThickness="0" Margin="0,0,8,0"
                                                 ToolTip="{DynamicResource Str_EM_ImportScheduleTip}"/>
-                                        <Button Content="{DynamicResource Str_EM_ExportSchedule}" Click="ExportScheduleCSV_Click" Padding="15,5" Background="#22C55E" Foreground="White" BorderThickness="0" Margin="0,0,8,0"
+                                        <Button Content="{DynamicResource Str_EM_ExportSchedule}" Click="ExportScheduleCSV_Click" Padding="8,5" Width="190" Background="#22C55E" Foreground="White" BorderThickness="0" Margin="0,0,8,0"
                                                 ToolTip="{DynamicResource Str_EM_ExportScheduleTip}"/>
-                                        <Button Content="{DynamicResource Str_EM_DownloadScheduleTemplate}" Click="DownloadScheduleTemplate_Click" Padding="15,5" Background="#F59E0B" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
+                                        <Button Content="{DynamicResource Str_EM_DownloadScheduleTemplate}" Click="DownloadScheduleTemplate_Click" Padding="8,5" Width="190" Background="#F59E0B" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
                                     </StackPanel>
                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,6,0,0">
-                                        <Button Content="{DynamicResource Str_EM_ImportHeatXlsx}" Click="ImportHeatAssignmentsExcel_Click" Padding="15,5" Background="#0EA5E9" Foreground="White" BorderThickness="0" Margin="0,0,8,0"
+                                        <Button Content="{DynamicResource Str_EM_ImportHeatXlsx}" Click="ImportHeatAssignmentsExcel_Click" Padding="8,5" Width="190" Background="#0EA5E9" Foreground="White" BorderThickness="0" Margin="0,0,8,0"
                                                 ToolTip="{DynamicResource Str_EM_ImportHeatXlsxTip}"/>
-                                        <Button Content="{DynamicResource Str_EM_ExportHeatXlsx}" Click="ExportHeatAssignmentsExcel_Click" Padding="15,5" Background="#16A34A" Foreground="White" BorderThickness="0" Margin="0,0,8,0"
+                                        <Button Content="{DynamicResource Str_EM_ExportHeatXlsx}" Click="ExportHeatAssignmentsExcel_Click" Padding="8,5" Width="190" Background="#16A34A" Foreground="White" BorderThickness="0" Margin="0,0,8,0"
                                                 ToolTip="{DynamicResource Str_EM_ExportHeatXlsxTip}"/>
-                                        <Button Content="{DynamicResource Str_EM_DownloadHeatXlsxTemplate}" Click="DownloadHeatAssignmentsExcelTemplate_Click" Padding="15,5" Background="#D97706" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
+                                        <Button Content="{DynamicResource Str_EM_DownloadHeatXlsxTemplate}" Click="DownloadHeatAssignmentsExcelTemplate_Click" Padding="8,5" Width="190" Background="#D97706" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
                                     </StackPanel>
                                     <!-- 2026-06-21 兼容其他厂家成绩编排软件 — 单独一行避免挤出可视区 -->
                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,6,0,0">
-                                        <Button Content="{DynamicResource Str_EM_ImportOtherSchedule}" Click="ImportOtherScheduleExcel_Click" Padding="15,5" Background="#1E40AF" Foreground="White" BorderThickness="0" Margin="0,0,8,0"
+                                        <Button Content="{DynamicResource Str_EM_ImportOtherSchedule}" Click="ImportOtherScheduleExcel_Click" Padding="8,5" Width="190" Background="#1E40AF" Foreground="White" BorderThickness="0" Margin="0,0,8,0"
                                                 ToolTip="{DynamicResource Str_EM_ImportOtherScheduleTip}"/>
-                                        <Button Content="{DynamicResource Str_EM_ImportOtherHeat}" Click="ImportOtherHeatExcel_Click" Padding="15,5" Background="#0369A1" Foreground="White" BorderThickness="0" Margin="0,0,8,0"
+                                        <Button Content="{DynamicResource Str_EM_ImportOtherHeat}" Click="ImportOtherHeatExcel_Click" Padding="8,5" Width="190" Background="#0369A1" Foreground="White" BorderThickness="0" Margin="0,0,8,0"
                                                 ToolTip="{DynamicResource Str_EM_ImportOtherHeatTip}"/>
                                     </StackPanel>
                                 </StackPanel>
