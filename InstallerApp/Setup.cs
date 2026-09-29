@@ -419,6 +419,34 @@ class SetupForm : Form
                 }
             } catch { }
 
+            // 2026-09-29 装 Microsoft Edge (若目标机没有)。程序里"文档预览/输出"的 PDF 导出
+            //   (TryHtmlToPdf) 靠 headless Edge/Chrome 把 HTML 打成 PDF——现场有机器两样
+            //   都没装(比如精简版 Windows 或企业策略卸载过)，PDF 导出直接失败, 弹"未找到
+            //   Edge/Chrome, 请按 Ctrl+P 另存"这条不友好的兜底提示。跟 VC++ 运行库同一个
+            //   道理: 静默装一次, 已经有 Edge 的机器会自己跳过, 装不上也不拦着安装继续。
+            //   探测路径跟 MainWindow.xaml.cs 的 TryHtmlToPdf() 保持一致, 两边都要改的话
+            //   记得一起改。
+            SetProgress(93, "检查 Microsoft Edge...");
+            try {
+                string[] edgeCandidates = {
+                    Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), @"Microsoft\Edge\Application\msedge.exe"),
+                    Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),    @"Microsoft\Edge\Application\msedge.exe"),
+                    Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), @"Microsoft\Edge\Application\msedge.exe")
+                };
+                bool edgeFound = false;
+                foreach (var p in edgeCandidates) { if (File.Exists(p)) { edgeFound = true; break; } }
+                if (!edgeFound) {
+                    string edgeMsi = Path.Combine(sourceDir, "prereq", "MicrosoftEdgeEnterpriseX64.msi");
+                    if (File.Exists(edgeMsi)) {
+                        SetProgress(93, "安装 Microsoft Edge (约200MB, 请稍候)...");
+                        var psi = new System.Diagnostics.ProcessStartInfo(edgeMsi, "/quiet /norestart");
+                        psi.UseShellExecute = true;
+                        var p = System.Diagnostics.Process.Start(psi);
+                        if (p != null) p.WaitForExit(300000);   // 最多等 5 分钟(比 vc_redist 大得多)
+                    }
+                }
+            } catch { }
+
             SetProgress(95, "创建卸载程序...");
             CreateUninstaller(desktop, startMenu);
 

@@ -208,6 +208,22 @@ if (Test-Path $vcExe) {
                  else { "[警告] 签名状态 " + $sg.Status + " —— 这个文件来路可疑, 别往客户机上装" }
     } catch { }
     Write-Host ("    运行库已收入安装包: {0:N1} MB  {1}" -f $mb2, $sigOk)
+    # 2026-09-29 同一批 prereq 里顺带看一眼 Edge 离线安装包在不在 ——
+    #   PDF 导出(TryHtmlToPdf)靠 headless Edge/Chrome, 目标机没装的话导出直接失败。
+    $edgeMsi = Join-Path $prereqSrc "MicrosoftEdgeEnterpriseX64.msi"
+    if (Test-Path $edgeMsi) {
+        $mbEdge = ((Get-Item $edgeMsi).Length/1MB)
+        $edgeSigOk = "(未校验)"
+        try {
+            $sgE = Get-AuthenticodeSignature $edgeMsi
+            $edgeSigOk = if ($sgE.Status -eq 'Valid' -and $sgE.SignerCertificate.Subject -like '*Microsoft Corporation*') { "微软签名有效" }
+                         else { "[警告] 签名状态 " + $sgE.Status + " —— 这个文件来路可疑, 别往客户机上装" }
+        } catch { }
+        Write-Host ("    Edge 离线安装包已收入安装包: {0:N1} MB  {1}" -f $mbEdge, $edgeSigOk)
+    } else {
+        Write-Host "    [提示] prereq\ 下没有 MicrosoftEdgeEnterpriseX64.msi —— PDF导出(TryHtmlToPdf)在没装Edge/Chrome的机器上会失败。" -ForegroundColor Yellow
+        Write-Host "           补法: https://edgeupdates.microsoft.com/api/products?view=enterprise 查 Stable/Windows/x64 的 msi Artifact 下载地址" -ForegroundColor Yellow
+    }
 } else {
     Write-Host ""
     Write-Host "    ╔══════════════════════════════════════════════════════════════════╗" -ForegroundColor Yellow
