@@ -176,6 +176,13 @@ if (Test-Path $manualSrc) { Copy-Item $manualSrc (Join-Path $installerBuild "使
 $cardSrc = Join-Path $root "Installer\现场速查卡.pdf"
 if (Test-Path $cardSrc) { Copy-Item $cardSrc (Join-Path $installerBuild "现场速查卡.pdf") -Force }
 else { Write-Host "    [提示] 找不到 Installer\现场速查卡.pdf, 安装包不含速查卡 (跑一下 build_card.ps1 再拷过去)" -ForegroundColor Yellow }
+# 2026-09-28 英文版说明书(PDF+DOCX) —— 源文件由 scratch_manual\build_manual_docs.ps1
+#   从 Swimming_Meet_Management_System_User_Manual.html 导出, 这里只负责收进包(同中文版模式)。
+foreach ($ext in @("pdf","docx")) {
+    $enManualSrc = Join-Path $root "Installer\Swimming_Meet_Management_System_User_Manual.$ext"
+    if (Test-Path $enManualSrc) { Copy-Item $enManualSrc (Join-Path $installerBuild "Swimming_Meet_Management_System_User_Manual.$ext") -Force }
+    else { Write-Host "    [提示] 找不到 Installer\Swimming_Meet_Management_System_User_Manual.$ext, 安装包不含英文说明书($ext)" -ForegroundColor Yellow }
+}
 
 # 2026-09-01 VC++ 运行库随包发。目标机缺它, SQLite.Interop.dll 就加载不了 ——
 #   竞赛库全程打不开(成绩不入库/没有名次/组排名不生成), 而界面上看不出任何异常。
