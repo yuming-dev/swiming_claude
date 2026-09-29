@@ -613,6 +613,10 @@ namespace SwimmingScoreboard
             { "Str_DocTitle_StartList",       new[] { "出发表", "Start List" } },
             { "Str_DocTitle_HeatResults",     new[] { "分组成绩", "Heat Results" } },
             { "Str_DocTitle_ResultBook",      new[] { "成绩册", "Result Book" } },
+            // 2026-09-29 "项目成绩打印"窗口(EventResultPrintWindow)导出文件名前缀，无空格版(区别于展示用的"成 绩 单")
+            { "Str_DocTitle_EventResult",     new[] { "成绩单", "Event Result" } },
+            // 2026-09-29 "项目成绩打印"窗口导出文件名里的"第N组"后缀
+            { "Str_DocFile_HeatSuffixFmt",    new[] { "_第{0}组", "_Heat{0}" } },
             { "Str_DocTitle_TeamStandings",   new[] { "团体成绩", "Team Standings" } },
             { "Str_DocTitle_RecordReport",    new[] { "纪录报告", "Record Report" } },
             { "Str_DocTitle_SplitTimeReport", new[] { "分段计时报告", "Split Time Report" } },
@@ -789,6 +793,12 @@ namespace SwimmingScoreboard
             { "Str_DocC_ColRelayPoints",   new[] { "接力分", "Relay Pts" } },
             { "Str_DocC_ColRecordBonus",   new[] { "破纪录加分", "Record Bonus" } },
             { "Str_DocC_ColHolder",        new[] { "保持者", "Holder" } },
+            // 2026-09-29 "项目成绩打印"窗口男女并项拆表时的子表小标题，{0}=Loc.GenderDisplay(男/女)结果
+            { "Str_DocC_GenderSectionFmt", new[] { "{0} 子", "{0}'s" } },
+            // 2026-09-29 "项目成绩打印"窗口(EventResultPrintWindow)：未定稿名次警示条，印在导出文档上跟屏幕状态栏一致
+            { "Str_DocC_NotFinalizedWarning", new[] {
+                "【尚未定稿】本项目还没有全部组确认成绩、或未生成组排名表 —— 以下名次仅为过程值，不是最终名次，不能据此发奖/公告",
+                "[NOT FINAL] Not all heats of this event have confirmed results, or the event ranking has not been generated yet — the ranks below are provisional, not final, and must not be used for awards or announcements." } },
             // 奖状/证书名次称谓
             { "Str_DocC_Rank1",  new[] { "冠军", "1st Place" } },
             { "Str_DocC_Rank2",  new[] { "亚军", "2nd Place" } },

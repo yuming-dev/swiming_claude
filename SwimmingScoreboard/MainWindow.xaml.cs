@@ -33003,8 +33003,8 @@ namespace SwimmingScoreboard
                         sb.Append("<table>" + ColGroup(colW.ToArray()));
                         sb.Append("<thead><tr><th>" + Loc.T("Str_DocC_ColRank") + "</th><th>" + Loc.T("Str_DocC_ColLaneNo") + "</th><th>" + Loc.T("Str_DocC_ColBib") + "</th><th>" + Loc.T("Str_DocC_ColAthlete") + "</th><th>" + Loc.T("Str_DocC_ColUnit") + "</th><th>" + Loc.T("Str_DocC_ColBirthDate") + "</th>");
                         foreach (var sm in splitMarks) sb.AppendFormat("<th>{0}m</th>", sm);
-                        sb.Append("<th>成绩</th>");
-                        if (rb.ShowTimeDifference) sb.Append("<th>成绩差</th>");
+                        sb.Append("<th>" + Loc.T("Str_DocC_ColResult") + "</th>");
+                        if (rb.ShowTimeDifference) sb.Append("<th>" + Loc.T("Str_DocC_ColGap") + "</th>");
                         sb.Append("<th>" + Loc.T("Str_DocC_ColReactionShort") + "</th><th>" + Loc.T("Str_DocC_ColNote") + "</th>");
                         sb.Append("</tr></thead><tbody>");
 

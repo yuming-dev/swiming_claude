@@ -1087,7 +1087,7 @@ namespace SwimmingScoreboard
             sb.Append("<html><head><meta charset='UTF-8'><style>");
             // 2026-09-16 页码。跟秩序册/成绩册那份 DocCss() 是同一个 CSS Paged Media 写法,
             //   但这份文档是独立类(不是 MainWindow 的私有方法能直接调), 只能各写一份。
-            sb.Append("@page{ size:A4; margin:14mm 12mm; @bottom-center { content: '第 ' counter(page) ' 页  共 ' counter(pages) ' 页'; font-size:9px; color:#64748b; font-family:SimSun; } } ");
+            sb.Append("@page{ size:A4; margin:14mm 12mm; @bottom-center { content: '" + Loc.T("Str_DocC_PageOfFmt") + "'; font-size:9px; color:#64748b; font-family:SimSun; } } ");
             sb.Append("body{font-family:'Microsoft YaHei','微软雅黑',SimHei,SimSun,sans-serif; padding:0; margin:0; line-height:1.45; color:#1f2937;} ");
             sb.Append(".page{padding:0 4px; box-sizing:border-box;} ");
             sb.Append("h1{text-align:center; font-size:26px; margin:0 0 4px; letter-spacing:3px; color:#0f172a;} ");
@@ -1115,12 +1115,12 @@ namespace SwimmingScoreboard
             // 正文
             sb.Append("<div class='page'>");
             sb.AppendFormat("<h1>{0}</h1>", _competitionName);
-            sb.Append("<h2>成 绩 单</h2>");
+            sb.Append("<h2>" + Loc.T("Str_DocC_HeadHeatResults") + "</h2>");
             sb.AppendFormat("<div class='meta'>{0}</div>", eventTitle);
             // 2026-09-03 地点没填就不印"地点：——"
-            sb.AppendFormat("<div class='meta'>比赛时间：{0}{1}</div>",
+            sb.AppendFormat("<div class='meta'>" + Loc.T("Str_DocC_ColRaceTime") + "：{0}{1}</div>",
                 dateTimeInfo,
-                string.IsNullOrWhiteSpace(_location) ? "" : ("　|　地点：" + _location));
+                string.IsNullOrWhiteSpace(_location) ? "" : ("　|　" + Loc.T("Str_DocC_ColVenue") + "：" + _location));
             // 2026-09-15 尚未定稿(竞赛库还没有组排名表)时, 预览窗口的 StatusText 一直有
             //   橙字提示, 但那句话只在屏幕上 —— 现场直接把这张表打出来发给裁判/记录长,
             //   拿着纸的人看不到那句话, 容易把过程名次当成最终名次。这里把同一句话
@@ -1128,15 +1128,14 @@ namespace SwimmingScoreboard
             if (!_resultsFinalized) {
                 sb.Append("<div style='margin:2px 0 8px;padding:6px 10px;border:1.5px solid #ea580c;"
                         + "background:#fff7ed;color:#c2410c;font-size:12px;font-weight:bold;text-align:center;'>"
-                        + "【尚未定稿】本项目还没有全部组确认成绩、或未生成组排名表 —— 以下名次仅为过程值，"
-                        + "不是最终名次，不能据此发奖/公告</div>");
+                        + Loc.T("Str_DocC_NotFinalizedWarning") + "</div>");
             }
             sb.Append("<div class='rule'></div>");
 
             // 成绩表（接力：代表队在前）
             bool epRelay = SelectedEvent.Contains("接力");
-            string epH1 = epRelay ? "代表队" : "姓名";
-            string epH2 = epRelay ? "姓名" : "代表队";
+            string epH1 = epRelay ? Loc.T("Str_DocC_ColTeam") : Loc.T("Str_DocC_ColName");
+            string epH2 = epRelay ? Loc.T("Str_DocC_ColName") : Loc.T("Str_DocC_ColTeam");
             int reactionWidth = epRelay ? 110 : 70;
 
             // 2026-06-04 男女并项: 拆 男 / 女 两张子表
@@ -1152,17 +1151,17 @@ namespace SwimmingScoreboard
                     if (subResults.Count == 0) continue;
                     string bg = (gKey == "男") ? "#dbeafe" : "#fce7f3";
                     string brd = (gKey == "男") ? "#2563eb" : "#ec4899";
-                    sb.AppendFormat("<h4 style='background:{0};border-left:5px solid {1};padding:8px 12px;'>{2} 子</h4>", bg, brd, gKey);
+                    sb.AppendFormat("<h4 style='background:{0};border-left:5px solid {1};padding:8px 12px;'>{2}</h4>", bg, brd, Loc.F("Str_DocC_GenderSectionFmt", Loc.GenderDisplay(gKey)));
                     sb.Append("<table><tr>");
                     // 2026-09-02 列序: 名次 → 姓名/代表队 → 号码 → 组别 → 组数 → 道 → 最终成绩 …
                     //   (接力时 epH1/epH2 已经是"代表队/姓名", 顺序自动对调)
                     // 2026-09-03 列宽改百分比 + table-layout:fixed, 让表格稳定占满纸宽
                     sb.Append(ColGroupHtml(epRelay));
                     sb.Append("<thead><tr>");
-                    sb.AppendFormat("<th>名次</th>");
+                    sb.AppendFormat("<th>" + Loc.T("Str_DocC_ColRank") + "</th>");
                     sb.AppendFormat("<th>{0}</th><th>{1}</th>", epH1, epH2);
-                    sb.Append("<th>号码</th><th>组别</th><th>组数</th><th>道次</th>");
-                    sb.Append("<th>最终成绩</th><th>成绩差</th><th>反应时间</th><th>备注</th>");
+                    sb.Append("<th>" + Loc.T("Str_DocC_ColBib") + "</th><th>" + Loc.T("Str_DocC_ColAgeGroup") + "</th><th>" + Loc.T("Str_DocC_ColHeatCount") + "</th><th>" + Loc.T("Str_DocC_ColLaneNo") + "</th>");
+                    sb.Append("<th>" + Loc.T("Str_DocC_ColFinalResult") + "</th><th>" + Loc.T("Str_DocC_ColGap") + "</th><th>" + Loc.T("Str_DocC_ColReactionTime") + "</th><th>" + Loc.T("Str_DocC_ColNote") + "</th>");
                     sb.Append("</tr></thead><tbody>");
                     foreach (dynamic item in subResults) {
                         string c1 = epRelay ? item.Country : item.Name;
@@ -1186,10 +1185,10 @@ namespace SwimmingScoreboard
                 // 2026-09-02 列序同上: 名次 → 姓名/代表队 → 号码 → 组别 → 组数 → 道次 → 最终成绩 …
                 sb.Append(ColGroupHtml(epRelay));
                 sb.Append("<thead><tr>");
-                sb.AppendFormat("<th>名次</th>");
+                sb.AppendFormat("<th>" + Loc.T("Str_DocC_ColRank") + "</th>");
                 sb.AppendFormat("<th>{0}</th><th>{1}</th>", epH1, epH2);
-                sb.Append("<th>号码</th><th>组别</th><th>组数</th><th>道次</th>");
-                sb.Append("<th>最终成绩</th><th>成绩差</th><th>反应时间</th><th>备注</th>");
+                sb.Append("<th>" + Loc.T("Str_DocC_ColBib") + "</th><th>" + Loc.T("Str_DocC_ColAgeGroup") + "</th><th>" + Loc.T("Str_DocC_ColHeatCount") + "</th><th>" + Loc.T("Str_DocC_ColLaneNo") + "</th>");
+                sb.Append("<th>" + Loc.T("Str_DocC_ColFinalResult") + "</th><th>" + Loc.T("Str_DocC_ColGap") + "</th><th>" + Loc.T("Str_DocC_ColReactionTime") + "</th><th>" + Loc.T("Str_DocC_ColNote") + "</th>");
                 sb.Append("</tr></thead><tbody>");
                 foreach (dynamic item in _currentResults)
                 {
@@ -1212,21 +1211,21 @@ namespace SwimmingScoreboard
 
             // 签名栏 (2026-05-26 删除"编排长"签字行)
             sb.Append("<div class='signature-row'>");
-            sb.AppendFormat("<p>裁判：{0}</p>",
-                !string.IsNullOrEmpty(_referee) ? _referee + "___________" : "__________________");
-            sb.Append("<p>记录长：__________________</p>");
+            sb.Append("<p>" + Loc.F("Str_DocC_RefereeSigFmt",
+                !string.IsNullOrEmpty(_referee) ? _referee + "___________" : "__________________") + "</p>");
+            sb.Append("<p>" + Loc.T("Str_DocC_RecorderSig") + "</p>");
             sb.Append("</div>");
 
             sb.Append("</div>");
-            sb.AppendFormat("<p style='text-align:right; padding:20px; color:gray;'>打印时间：{0}</p>",
+            sb.AppendFormat("<p style='text-align:right; padding:20px; color:gray;'>" + Loc.T("Str_DocC_PrintTimeFmt") + "</p>",
                 DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
             sb.Append("</body></html>");
 
             // 推荐的文件名 (5 个按钮共用)
             string ageNamePart = (string.IsNullOrEmpty(SelectedAgeGroup) || SelectedAgeGroup == "全部") ? "" : (SelectedAgeGroup + "_");
             string safeEvent2 = ageNamePart + SelectedGender + SelectedEvent;
-            string heatSuffix2 = showHeat ? "_第" + SelectedHeat + "组" : "";
-            suggestedFileName = string.Format("成绩单_{0}_{1}{2}", safeEvent2, SelectedStage, heatSuffix2);
+            string heatSuffix2 = showHeat ? Loc.F("Str_DocFile_HeatSuffixFmt", SelectedHeat) : "";
+            suggestedFileName = string.Format(Loc.T("Str_DocTitle_EventResult") + "_{0}_{1}{2}", safeEvent2, SelectedStage, heatSuffix2);
             foreach (char c in Path.GetInvalidFileNameChars()) suggestedFileName = suggestedFileName.Replace(c, '_');
 
             return sb.ToString();
