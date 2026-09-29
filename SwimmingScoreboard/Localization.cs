@@ -793,6 +793,21 @@ namespace SwimmingScoreboard
             { "Str_DocC_ColRelayPoints",   new[] { "接力分", "Relay Pts" } },
             { "Str_DocC_ColRecordBonus",   new[] { "破纪录加分", "Record Bonus" } },
             { "Str_DocC_ColHolder",        new[] { "保持者", "Holder" } },
+            // 2026-09-29 "部门成绩公告"窗口(DepartmentBulletinWindow)表格/标题用
+            { "Str_DocC_ColPoints",        new[] { "积分", "Points" } },
+            { "Str_DocC_TypeRelay",        new[] { "接力", "Relay" } },
+            { "Str_DocC_TypeIndividual",   new[] { "个人", "Individual" } },
+            { "Str_DocC_AthleteMetaFmt",   new[] { "号码 {0} &nbsp; {1} &nbsp; {2} &nbsp; 本人小计 <b>{3}</b> 分", "Bib {0} &nbsp; {1} &nbsp; {2} &nbsp; Personal Subtotal <b>{3}</b> pts" } },
+            { "Str_DocFile_DeptBulletinFolder", new[] { "部门成绩公告_", "Department_Bulletin_" } },
+            { "Str_DocC_Sect_AthleteResults", new[] { "运动员成绩", "Athlete Results" } },
+            { "Str_DocC_UnitTitleFmt",     new[] { "{0} — 比赛成绩公告", "{0} — Result Bulletin" } },
+            { "Str_DocC_ColShortName",     new[] { "简称", "Short Name" } },
+            { "Str_DocC_ColPhone",         new[] { "联系电话", "Phone" } },
+            { "Str_DocC_GeneratedAtFmt",   new[] { "生成时间: {0} &nbsp;|&nbsp; 单位运动员条目: {1}", "Generated: {0} &nbsp;|&nbsp; Unit Athlete Entries: {1}" } },
+            { "Str_DocC_TeamTotalFmt",     new[] { "团体总分: {0} 分{1}", "Team Total: {0} pts{1}" } },
+            { "Str_DocC_BasePointsSuffixFmt", new[] { " (含基础分 {0})", " (incl. base {0})" } },
+            { "Str_DocC_AgeGroupHeaderFmt",new[] { "组别: {0}", "Age Group: {0}" } },
+            { "Str_DocC_NoneParenthesized",new[] { "(无)", "(None)" } },
             // 2026-09-29 "项目成绩打印"窗口男女并项拆表时的子表小标题，{0}=Loc.GenderDisplay(男/女)结果
             { "Str_DocC_GenderSectionFmt", new[] { "{0} 子", "{0}'s" } },
             // 2026-09-29 "项目成绩打印"窗口(EventResultPrintWindow)：未定稿名次警示条，印在导出文档上跟屏幕状态栏一致

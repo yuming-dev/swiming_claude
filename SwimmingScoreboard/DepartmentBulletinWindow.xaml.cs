@@ -64,7 +64,7 @@ namespace SwimmingScoreboard
                 ShowNewFolderButton = true
             };
             if (dlg.ShowDialog() != System.Windows.Forms.DialogResult.OK) return;
-            string outDir = Path.Combine(dlg.SelectedPath, "部门成绩公告_" + DateTime.Now.ToString("yyyyMMdd_HHmm"));
+            string outDir = Path.Combine(dlg.SelectedPath, Loc.T("Str_DocFile_DeptBulletinFolder") + DateTime.Now.ToString("yyyyMMdd_HHmm"));
             Directory.CreateDirectory(outDir);
 
             bool scoredOnly = FilterScoredOnly.IsChecked == true;
@@ -127,7 +127,7 @@ namespace SwimmingScoreboard
                 .ToList();
 
             var sb = new StringBuilder();
-            sb.AppendLine("<!DOCTYPE html><html><head><meta charset='UTF-8'><title>" + He(unit) + " 成绩公告</title>");
+            sb.AppendLine("<!DOCTYPE html><html><head><meta charset='UTF-8'><title>" + He(unit) + " " + Loc.T("Str_DocC_Sect_ResultBulletin") + "</title>");
             sb.AppendLine("<style>body{font-family:'Microsoft YaHei',sans-serif;margin:24px;}");
             sb.AppendLine("h1{color:#1E40AF;border-bottom:3px solid #1E40AF;padding-bottom:8px;}");
             sb.AppendLine("h2{color:#3B82F6;margin-top:24px;}");
@@ -141,20 +141,20 @@ namespace SwimmingScoreboard
             sb.AppendLine(".unitcard{background:#EFF6FF;border:1px solid #93C5FD;border-radius:6px;padding:10px 14px;margin:8px 0 12px 0;}");
             sb.AppendLine(".unitcard span{display:inline-block;margin-right:18px;font-size:13px;color:#1E3A8A;}");
             sb.AppendLine(".unitcard b{color:#0F172A;}</style></head><body>");
-            sb.AppendLine("<h1>" + He(unit) + " — 比赛成绩公告</h1>");
+            sb.AppendLine("<h1>" + Loc.F("Str_DocC_UnitTitleFmt", He(unit)) + "</h1>");
 
             // 单位元信息卡片（领队/教练/电话/地址）
             Unit unitInfo;
             if (_unitsByName.TryGetValue(unit, out unitInfo)) {
                 var bits = new List<string>();
-                if (!string.IsNullOrEmpty(unitInfo.ShortName)) bits.Add("<span>简称: <b>" + He(unitInfo.ShortName) + "</b></span>");
-                if (!string.IsNullOrEmpty(unitInfo.Leader))    bits.Add("<span>领队: <b>" + He(unitInfo.Leader) + "</b></span>");
-                if (!string.IsNullOrEmpty(unitInfo.Coach))     bits.Add("<span>教练: <b>" + He(unitInfo.Coach) + "</b></span>");
-                if (!string.IsNullOrEmpty(unitInfo.Doctor))    bits.Add("<span>队医: <b>" + He(unitInfo.Doctor) + "</b></span>");
-                if (unitInfo.BasePoints > 0)                   bits.Add("<span>基础分: <b>" + unitInfo.BasePoints.ToString("0.##") + "</b></span>");
-                if (!string.IsNullOrEmpty(unitInfo.Phone))     bits.Add("<span>联系电话: <b>" + He(unitInfo.Phone) + "</b></span>");
-                if (!string.IsNullOrEmpty(unitInfo.Address))   bits.Add("<span>地址: <b>" + He(unitInfo.Address) + "</b></span>");
-                if (!string.IsNullOrEmpty(unitInfo.Note))      bits.Add("<span>备注: <b>" + He(unitInfo.Note) + "</b></span>");
+                if (!string.IsNullOrEmpty(unitInfo.ShortName)) bits.Add("<span>" + Loc.T("Str_DocC_ColShortName") + ": <b>" + He(unitInfo.ShortName) + "</b></span>");
+                if (!string.IsNullOrEmpty(unitInfo.Leader))    bits.Add("<span>" + Loc.T("Str_Win_UnitMgmt_ColLeader") + ": <b>" + He(unitInfo.Leader) + "</b></span>");
+                if (!string.IsNullOrEmpty(unitInfo.Coach))     bits.Add("<span>" + Loc.T("Str_Win_UnitMgmt_ColCoach") + ": <b>" + He(unitInfo.Coach) + "</b></span>");
+                if (!string.IsNullOrEmpty(unitInfo.Doctor))    bits.Add("<span>" + Loc.T("Str_Win_UnitMgmt_ColDoctor") + ": <b>" + He(unitInfo.Doctor) + "</b></span>");
+                if (unitInfo.BasePoints > 0)                   bits.Add("<span>" + Loc.T("Str_Win_UnitMgmt_ColBasePoints") + ": <b>" + unitInfo.BasePoints.ToString("0.##") + "</b></span>");
+                if (!string.IsNullOrEmpty(unitInfo.Phone))     bits.Add("<span>" + Loc.T("Str_DocC_ColPhone") + ": <b>" + He(unitInfo.Phone) + "</b></span>");
+                if (!string.IsNullOrEmpty(unitInfo.Address))   bits.Add("<span>" + Loc.T("Str_Win_UnitMgmt_ColAddress") + ": <b>" + He(unitInfo.Address) + "</b></span>");
+                if (!string.IsNullOrEmpty(unitInfo.Note))      bits.Add("<span>" + Loc.T("Str_Col_Notes") + ": <b>" + He(unitInfo.Note) + "</b></span>");
                 if (bits.Count > 0) {
                     sb.Append("<div class='unitcard'>");
                     foreach (var b in bits) sb.Append(b);
@@ -162,22 +162,22 @@ namespace SwimmingScoreboard
                 }
             }
 
-            sb.AppendLine("<div class='meta'>生成时间: " + DateTime.Now.ToString("yyyy-MM-dd HH:mm") + " &nbsp;|&nbsp; 单位运动员条目: " + entries.Count + "</div>");
-            string baseTxt = basePoints > 0 ? string.Format(" (含基础分 {0})", basePoints.ToString("0.##")) : "";
-            sb.AppendLine("<div class='total'>团体总分: " + teamTotal.ToString("0.##") + " 分" + baseTxt + "</div>");
+            sb.AppendLine("<div class='meta'>" + Loc.F("Str_DocC_GeneratedAtFmt", DateTime.Now.ToString("yyyy-MM-dd HH:mm"), entries.Count.ToString()) + "</div>");
+            string baseTxt = basePoints > 0 ? Loc.F("Str_DocC_BasePointsSuffixFmt", basePoints.ToString("0.##")) : "";
+            sb.AppendLine("<div class='total'>" + Loc.F("Str_DocC_TeamTotalFmt", teamTotal.ToString("0.##"), baseTxt) + "</div>");
 
             // 按组别分段 / 综合
             if (byAge) {
                 var ageGroupNames = entries.Select(s => s.AgeCategory ?? "").Distinct().OrderBy(a => a).ToList();
                 foreach (var ag in ageGroupNames) {
                     if (string.IsNullOrEmpty(ag)) continue;
-                    sb.AppendLine("<h2>组别: " + He(ag) + "</h2>");
+                    sb.AppendLine("<h2>" + Loc.F("Str_DocC_AgeGroupHeaderFmt", He(ag)) + "</h2>");
                     var bibsInGroup = byBib.Where(g => g.First().AgeCategory == ag).ToList();
-                    if (bibsInGroup.Count == 0) { sb.AppendLine("<p class='meta'>(无)</p>"); continue; }
+                    if (bibsInGroup.Count == 0) { sb.AppendLine("<p class='meta'>" + Loc.T("Str_DocC_NoneParenthesized") + "</p>"); continue; }
                     RenderAthletes(sb, bibsInGroup, scoredOnly);
                 }
             } else {
-                sb.AppendLine("<h2>运动员成绩</h2>");
+                sb.AppendLine("<h2>" + Loc.T("Str_DocC_Sect_AthleteResults") + "</h2>");
                 RenderAthletes(sb, byBib, scoredOnly);
             }
 
@@ -211,10 +211,10 @@ namespace SwimmingScoreboard
                 if (scoredOnly && personalTotal <= 0) continue;
 
                 sb.AppendLine("<div class='athlete'>");
-                sb.AppendFormat("<h3 style='color:#0F172A;margin:6px 0;'>{0} &nbsp; <span class='meta'>号码 {1} &nbsp; {2} &nbsp; {3} &nbsp; 本人小计 <b>{4}</b> 分</span></h3>\n",
-                    He(first.Name), He(first.BibNumber), He(first.Gender), He(first.AgeCategory),
-                    personalTotal.ToString("0.##"));
-                sb.AppendLine("<table><tr align='center'><th>项目</th><th>类型</th><th>名次</th><th>成绩</th><th>状态</th><th>积分</th></tr>");
+                sb.AppendFormat("<h3 style='color:#0F172A;margin:6px 0;'>{0} &nbsp; <span class='meta'>{1}</span></h3>\n",
+                    He(first.Name),
+                    Loc.F("Str_DocC_AthleteMetaFmt", He(first.BibNumber), He(first.Gender), He(first.AgeCategory), personalTotal.ToString("0.##")));
+                sb.AppendLine("<table><tr align='center'><th>" + Loc.T("Str_DocC_ColEvent") + "</th><th>" + Loc.T("Str_Col_RecordType") + "</th><th>" + Loc.T("Str_DocC_ColRank") + "</th><th>" + Loc.T("Str_DocC_ColResult") + "</th><th>" + Loc.T("Str_Col_Status") + "</th><th>" + Loc.T("Str_DocC_ColPoints") + "</th></tr>");
                 foreach (var it in items.OrderBy(i => i.EventName)) {
                     string cls = "";
                     if (it.Rank == 1) cls = " class='rank1'";
@@ -223,7 +223,7 @@ namespace SwimmingScoreboard
                     if (it.Status == "DSQ" || it.Status == "DNS" || it.Status == "DNF") cls = " class='dsq'";
                     string rankCell = it.Rank > 0 ? it.Rank.ToString() : "-";
                     sb.AppendFormat("<tr{0}><td>{1}</td><td>{2}</td><td>{3}</td><td>{4}</td><td>{5}</td><td>{6}</td></tr>\n",
-                        cls, He(it.EventName), it.IsRelay ? "接力" : "个人", rankCell, He(it.Time), He(it.Status),
+                        cls, He(it.EventName), it.IsRelay ? Loc.T("Str_DocC_TypeRelay") : Loc.T("Str_DocC_TypeIndividual"), rankCell, He(it.Time), He(it.Status),
                         it.Points > 0 ? it.Points.ToString("0.##") : "");
                 }
                 sb.AppendLine("</table></div>");
