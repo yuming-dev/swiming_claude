@@ -521,9 +521,10 @@
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="*"/>
+                                    <RowDefinition Height="Auto"/>
                                 </Grid.RowDefinitions>
                                 <!-- 2026-05-24 左侧 赛程导航 (3 级: 项目→组别→该场开始时间) -->
-                                <Border Grid.Row="0" Grid.RowSpan="2" Grid.Column="0" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="6" Background="White" Margin="0,0,8,0">
+                                <Border Grid.Row="0" Grid.RowSpan="3" Grid.Column="0" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="6" Background="White" Margin="0,0,8,0">
                                     <DockPanel Margin="8">
                                         <TextBlock DockPanel.Dock="Top" Text="{DynamicResource Str_EM_ScheduleNav}" FontSize="14" FontWeight="Bold" Foreground="#1E40AF" Margin="0,0,0,6"/>
                                         <TextBox DockPanel.Dock="Top" x:Name="NavSchedSearchBox" Padding="4" Margin="0,0,0,6"
@@ -539,23 +540,27 @@
                                         <TreeView x:Name="NavSchedTree" BorderThickness="0" SelectedItemChanged="NavSchedTree_Selected"/>
                                     </DockPanel>
                                 </Border>
-                                <!-- 2026-09-22 现场反馈: 操作按钮挪到表格上方, 不用先拉到底部才找得到操作入口 -->
-                                <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Vertical" HorizontalAlignment="Right" Margin="0,0,0,10">
-                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                                        <!-- 2026-05-25 秩序册生成向导移到 修改赛程 左边；移除"一键生成日程"(与向导功能重复且存在问题) -->
-                                        <Button Content="{DynamicResource Str_EM_WizardSchedule}" Click="OpenSchedulingWizard_Click" Padding="15,5" Background="#7C3AED" Foreground="White" FontWeight="Bold" BorderThickness="0" Margin="0,0,8,0"
-                                                ToolTip="{DynamicResource Str_EM_WizardScheduleTip}"/>
-                                        <Button Content="{DynamicResource Str_EM_EditSchedule}" Click="EditSchedule_Click" Padding="15,5" Background="#3B82F6" Foreground="White" FontWeight="Bold" BorderThickness="0" Margin="0,0,8,0"/>
-                                        <Button Content="{DynamicResource Str_EM_AutoGenHeats}" Click="AutoGenerateHeats_Click" Padding="15,5" Background="#22C55E" Foreground="White" BorderThickness="0" Margin="0,0,8,0"
-                                                ToolTip="{DynamicResource Str_EM_AutoGenHeatsTip}"/>
-                                        <Button Content="{DynamicResource Str_EM_ManualHeatAssign}" Click="ManualHeatAssign_Click" Padding="15,5" Background="#D97706" Foreground="White" BorderThickness="0" Margin="0,0,8,0"
-                                                ToolTip="{DynamicResource Str_EM_ManualHeatAssignTip}"/>
-                                        <Button Content="{DynamicResource Str_EM_SupplementHeats}" Click="SupplementHeats_Click" Padding="15,5" Background="#0EA5E9" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
-                                        <Button Content="{DynamicResource Str_EM_PrintSchedule}" Click="PrintSchedule_Click" Padding="15,5" Background="#8B5CF6" Foreground="White" BorderThickness="0" Margin="0,0,8,0"
-                                                ToolTip="{DynamicResource Str_EM_PrintScheduleTip}"/>
-                                    </StackPanel>
+                                <!-- 2026-09-29 现场反馈: 第1行(核心操作)留在表格上方、跟表格左端对齐;
+                                     第2-4行(导入导出/模板/其它厂家兼容, 用得没那么频繁)挪到表格下方, 别再挤占顶部空间。 -->
+                                <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Left" Margin="0,0,0,10">
+                                    <!-- 2026-05-25 秩序册生成向导移到 修改赛程 左边；移除"一键生成日程"(与向导功能重复且存在问题) -->
+                                    <Button Content="{DynamicResource Str_EM_WizardSchedule}" Click="OpenSchedulingWizard_Click" Padding="15,5" Background="#7C3AED" Foreground="White" FontWeight="Bold" BorderThickness="0" Margin="0,0,8,0"
+                                            ToolTip="{DynamicResource Str_EM_WizardScheduleTip}"/>
+                                    <Button Content="{DynamicResource Str_EM_EditSchedule}" Click="EditSchedule_Click" Padding="15,5" Background="#3B82F6" Foreground="White" FontWeight="Bold" BorderThickness="0" Margin="0,0,8,0"/>
+                                    <Button Content="{DynamicResource Str_EM_AutoGenHeats}" Click="AutoGenerateHeats_Click" Padding="15,5" Background="#22C55E" Foreground="White" BorderThickness="0" Margin="0,0,8,0"
+                                            ToolTip="{DynamicResource Str_EM_AutoGenHeatsTip}"/>
+                                    <Button Content="{DynamicResource Str_EM_ManualHeatAssign}" Click="ManualHeatAssign_Click" Padding="15,5" Background="#D97706" Foreground="White" BorderThickness="0" Margin="0,0,8,0"
+                                            ToolTip="{DynamicResource Str_EM_ManualHeatAssignTip}"/>
+                                    <Button Content="{DynamicResource Str_EM_SupplementHeats}" Click="SupplementHeats_Click" Padding="15,5" Background="#0EA5E9" Foreground="White" BorderThickness="0" Margin="0,0,8,0"/>
+                                    <Button Content="{DynamicResource Str_EM_PrintSchedule}" Click="PrintSchedule_Click" Padding="15,5" Background="#8B5CF6" Foreground="White" BorderThickness="0" Margin="0,0,8,0"
+                                            ToolTip="{DynamicResource Str_EM_PrintScheduleTip}"/>
+                                </StackPanel>
+                                <ScrollViewer Grid.Row="1" Grid.Column="1" VerticalScrollBarVisibility="Auto">
+                                    <StackPanel x:Name="ScheduleGroupedPanel"/>
+                                </ScrollViewer>
+                                <StackPanel Grid.Row="2" Grid.Column="1" Orientation="Vertical" HorizontalAlignment="Right" Margin="0,10,0,0">
                                     <!-- 2026-09-22 日程表 导入/导出/模板 单独一行, 排在 分组表 那一行上面(原来挤在同一行) -->
-                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,6,0,0">
+                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                                         <Button Content="{DynamicResource Str_EM_ImportSchedule}" Click="ImportScheduleCSV_Click" Padding="15,5" Background="#3B82F6" Foreground="White" BorderThickness="0" Margin="0,0,8,0"
                                                 ToolTip="{DynamicResource Str_EM_ImportScheduleTip}"/>
                                         <Button Content="{DynamicResource Str_EM_ExportSchedule}" Click="ExportScheduleCSV_Click" Padding="15,5" Background="#22C55E" Foreground="White" BorderThickness="0" Margin="0,0,8,0"
@@ -577,9 +582,6 @@
                                                 ToolTip="{DynamicResource Str_EM_ImportOtherHeatTip}"/>
                                     </StackPanel>
                                 </StackPanel>
-                                <ScrollViewer Grid.Row="1" Grid.Column="1" VerticalScrollBarVisibility="Auto">
-                                    <StackPanel x:Name="ScheduleGroupedPanel"/>
-                                </ScrollViewer>
                             </Grid>
                         </TabItem>
                         <TabItem Header="{DynamicResource Str_EM_Tab_LineupTune}">
