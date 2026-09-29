@@ -33312,11 +33312,10 @@ namespace SwimmingScoreboard
         private string BuildTeamStandingsHtml() {
             var sb = new StringBuilder();
             sb.AppendFormat("<html><head><meta charset='UTF-8'><style>{0}</style></head><body>", DocCss());
-            sb.Append(DocHeader("团 体 成 绩"));
-            sb.AppendFormat("<h4>日期：{0} - {1} &nbsp;&nbsp;&nbsp;&nbsp; 地点：{2}</h4>",
-                GetDatePickerText(StartDatePicker), GetDatePickerText(EndDatePicker), LocationBox.Text);
+            sb.Append(DocHeader(Loc.T("Str_DocTitle_TeamStandings")));
+            sb.Append("<h4>" + Loc.F("Str_DocC_LabelDateRange", GetDatePickerText(StartDatePicker), GetDatePickerText(EndDatePicker), LocationBox.Text) + "</h4>");
 
-            sb.Append("<table><tr align='center'><th width='50'>名次</th><th width='100'>代表队</th><th width='70'>总分</th><th width='70'>个人分</th><th width='70'>接力分</th><th width='80'>破纪录加分</th><th width='40'>金</th><th width='40'>银</th><th width='40'>铜</th></tr>");
+            sb.Append("<table><tr align='center'><th width='50'>" + Loc.T("Str_DocC_ColRank") + "</th><th width='100'>" + Loc.T("Str_DocC_ColTeam") + "</th><th width='70'>" + Loc.T("Str_DocC_ColTotalPoints") + "</th><th width='70'>" + Loc.T("Str_DocC_ColIndivPoints") + "</th><th width='70'>" + Loc.T("Str_DocC_ColRelayPoints") + "</th><th width='80'>" + Loc.T("Str_DocC_ColRecordBonus") + "</th><th width='40'>" + Loc.T("Str_DocC_ColGold") + "</th><th width='40'>" + Loc.T("Str_DocC_ColSilver") + "</th><th width='40'>" + Loc.T("Str_DocC_ColBronze") + "</th></tr>");
             foreach (var ts in _teamScores.OrderBy(t => t.Rank)) {
                 string medalStyle = "";
                 if (ts.Rank == 1) medalStyle = " style='background:#fef3c7;'";
@@ -33336,11 +33335,10 @@ namespace SwimmingScoreboard
         private string BuildRecordReportHtml() {
             var sb = new StringBuilder();
             sb.AppendFormat("<html><head><meta charset='UTF-8'><style>{0}</style></head><body>", DocCss());
-            sb.Append(DocHeader("纪 录 报 告"));
-            sb.AppendFormat("<h4>日期：{0} - {1} &nbsp;&nbsp;&nbsp;&nbsp; 地点：{2}</h4>",
-                GetDatePickerText(StartDatePicker), GetDatePickerText(EndDatePicker), LocationBox.Text);
+            sb.Append(DocHeader(Loc.T("Str_DocTitle_RecordReport")));
+            sb.Append("<h4>" + Loc.F("Str_DocC_LabelDateRange", GetDatePickerText(StartDatePicker), GetDatePickerText(EndDatePicker), LocationBox.Text) + "</h4>");
 
-            sb.Append("<table><tr align='center'><th>项目</th><th>类型</th><th>保持者</th><th>代表队</th><th>成绩</th><th>日期</th><th>地点</th></tr>");
+            sb.Append("<table><tr align='center'><th>" + Loc.T("Str_DocC_ColEvent") + "</th><th>" + Loc.T("Str_DocC_ColRecordType") + "</th><th>" + Loc.T("Str_DocC_ColHolder") + "</th><th>" + Loc.T("Str_DocC_ColTeam") + "</th><th>" + Loc.T("Str_DocC_ColResult") + "</th><th>" + Loc.T("Str_DocC_ColDate") + "</th><th>" + Loc.T("Str_DocC_ColVenue") + "</th></tr>");
             foreach (var r in _records) {
                 sb.AppendFormat("<tr><td>{0}</td><td>{1}</td><td><b>{2}</b></td><td>{3}</td><td style='font-weight:bold;'>{4}</td><td>{5}</td><td>{6}</td></tr>",
                     r.EventName, r.RecordType, r.HolderName, r.HolderCountry, TimeFormatter.Format(r.Time), r.Date, r.Location);
@@ -33375,7 +33373,10 @@ namespace SwimmingScoreboard
         }
 
         private List<AwardCandidateRow> CollectAwardCandidates() {
-            string[] rankNames = { "冠军", "亚军", "季军", "第四名", "第五名", "第六名", "第七名", "第八名" };
+            string[] rankNames = {
+                Loc.T("Str_DocC_Rank1"), Loc.T("Str_DocC_Rank2"), Loc.T("Str_DocC_Rank3"), Loc.T("Str_DocC_Rank4"),
+                Loc.T("Str_DocC_Rank5"), Loc.T("Str_DocC_Rank6"), Loc.T("Str_DocC_Rank7"), Loc.T("Str_DocC_Rank8")
+            };
             var result = new List<AwardCandidateRow>();
             if (_swimmers == null) return result;
             // 2026-09-17 打印到第几名由"证书参数设置"里的下拉框决定(原来写死 Take(3))。
@@ -33405,7 +33406,7 @@ namespace SwimmingScoreboard
                     result.Add(new AwardCandidateRow {
                         Gender = g.Key.Gender, EventName = g.Key.EventName,
                         EventLabel = g.Key.Gender + " " + g.Key.EventName,
-                        Rank = i + 1, RankLabel = i < rankNames.Length ? rankNames[i] : ("第" + (i + 1) + "名"),
+                        Rank = i + 1, RankLabel = i < rankNames.Length ? rankNames[i] : Loc.F("Str_DocC_RankNFmt", i + 1),
                         Sw = sw, DisplayName = displayName, Country = sw.Country ?? "",
                         AgeGroup = sw.AgeCategory ?? "",
                         TimeText = (rFinal != null && rFinal.FinalTime > 0) ? TimeFormatter.Format(rFinal.FinalTime) : ""
@@ -33482,7 +33483,7 @@ namespace SwimmingScoreboard
 
             string dateStr = GetDatePickerText(StartDatePicker);
             string endDateStr = GetDatePickerText(EndDatePicker);
-            string dateRange = string.IsNullOrEmpty(dateStr) ? "" : (dateStr + (string.IsNullOrEmpty(endDateStr) || endDateStr == dateStr ? "" : (" 至 " + endDateStr)));
+            string dateRange = string.IsNullOrEmpty(dateStr) ? "" : (dateStr + (string.IsNullOrEmpty(endDateStr) || endDateStr == dateStr ? "" : (" " + Loc.T("Str_DocC_ToWord") + " " + endDateStr)));
             string location = LocationBox.Text ?? "";
             string timeLocation = (dateRange + (string.IsNullOrEmpty(location) ? "" : ("　" + location))).Trim();
 
@@ -33511,7 +33512,7 @@ namespace SwimmingScoreboard
                 sb.Append("</div>");
             }
             if (selected == null || selected.Count == 0) {
-                sb.Append("<div class='cert-page'><p style='text-align:center;font-size:18pt;margin-top:120mm;'>未选择任何获奖者</p></div>");
+                sb.Append("<div class='cert-page'><p style='text-align:center;font-size:18pt;margin-top:120mm;'>" + Loc.T("Str_DocC_NoAwardeesSelected") + "</p></div>");
             }
             sb.Append("</body></html>");
             return sb.ToString();
@@ -33558,7 +33559,7 @@ namespace SwimmingScoreboard
             //   书刊) —— 选择窗口里选中哪些, 这里就原样逐条出一张, 不再自己数张数。
             string dateStr0 = GetDatePickerText(StartDatePicker);
             string endDateStr0 = GetDatePickerText(EndDatePicker);
-            string dateRange0 = string.IsNullOrEmpty(dateStr0) ? "" : (dateStr0 + (string.IsNullOrEmpty(endDateStr0) || endDateStr0 == dateStr0 ? "" : (" 至 " + endDateStr0)));
+            string dateRange0 = string.IsNullOrEmpty(dateStr0) ? "" : (dateStr0 + (string.IsNullOrEmpty(endDateStr0) || endDateStr0 == dateStr0 ? "" : (" " + Loc.T("Str_DocC_ToWord") + " " + endDateStr0)));
             string location0 = LocationBox.Text ?? "";
             string timeLocation0 = (dateRange0 + (string.IsNullOrEmpty(location0) ? "" : ("　" + location0))).Trim();
             string organizer0 = OrganizerBox.Text ?? "";
@@ -33570,15 +33571,15 @@ namespace SwimmingScoreboard
                 sb.Append("<div class='cert-wave'></div>");
                 sb.Append("<div class='cert-border'></div>");
                 sb.Append("<div class='cert-inner'>");
-                sb.Append("<div class='cert-tag'>游泳让我们在一起！</div>");
+                sb.Append("<div class='cert-tag'>" + Loc.T("Str_DocC_CertTag") + "</div>");
                 sb.AppendFormat("<div class='cert-comp'>{0}</div>", System.Net.WebUtility.HtmlEncode(_competitionName));
-                sb.Append("<div class='cert-title'>获奖证书</div>");
+                sb.Append("<div class='cert-title'>" + Loc.T("Str_DocC_CertTitleAward") + "</div>");
                 sb.Append("<div class='cert-fields'>");
-                sb.AppendFormat("<div class='cert-field'><span class='field-label'>比赛名称：</span><span class='field-value'>{0}</span></div>", System.Net.WebUtility.HtmlEncode(_competitionName));
-                sb.AppendFormat("<div class='cert-field'><span class='field-label'>运动员姓名：</span><span class='field-value'>{0}</span></div>", System.Net.WebUtility.HtmlEncode(c.DisplayName));
-                sb.AppendFormat("<div class='cert-field'><span class='field-label'>组别与项目：</span><span class='field-value'>{0}</span></div>", System.Net.WebUtility.HtmlEncode(groupEvent));
-                sb.AppendFormat("<div class='cert-field'><span class='field-label'>名次与成绩：</span><span class='field-value'>{0}</span></div>", System.Net.WebUtility.HtmlEncode(rankScore));
-                sb.AppendFormat("<div class='cert-field'><span class='field-label'>时间地点：</span><span class='field-value'>{0}</span></div>", System.Net.WebUtility.HtmlEncode(timeLocation0));
+                sb.AppendFormat("<div class='cert-field'><span class='field-label'>" + Loc.T("Str_DocC_CertLabelCompName") + "</span><span class='field-value'>{0}</span></div>", System.Net.WebUtility.HtmlEncode(_competitionName));
+                sb.AppendFormat("<div class='cert-field'><span class='field-label'>" + Loc.T("Str_DocC_CertLabelAthleteName") + "</span><span class='field-value'>{0}</div>", System.Net.WebUtility.HtmlEncode(c.DisplayName));
+                sb.AppendFormat("<div class='cert-field'><span class='field-label'>" + Loc.T("Str_DocC_CertLabelGroupEvent") + "</span><span class='field-value'>{0}</span></div>", System.Net.WebUtility.HtmlEncode(groupEvent));
+                sb.AppendFormat("<div class='cert-field'><span class='field-label'>" + Loc.T("Str_DocC_CertLabelRankScore") + "</span><span class='field-value'>{0}</span></div>", System.Net.WebUtility.HtmlEncode(rankScore));
+                sb.AppendFormat("<div class='cert-field'><span class='field-label'>" + Loc.T("Str_DocC_CertLabelTimeVenue") + "</span><span class='field-value'>{0}</span></div>", System.Net.WebUtility.HtmlEncode(timeLocation0));
                 sb.Append("</div></div>");
                 if (!string.IsNullOrEmpty(organizer0))
                     sb.AppendFormat("<div class='cert-org'>{0}</div>", System.Net.WebUtility.HtmlEncode(organizer0));
@@ -33586,7 +33587,7 @@ namespace SwimmingScoreboard
             }
 
             if (selected == null || selected.Count == 0) {
-                sb.Append("<div class='cert-page'><p style='text-align:center;font-size:24px;margin-top:200px;'>未选择任何获奖者</p></div>");
+                sb.Append("<div class='cert-page'><p style='text-align:center;font-size:24px;margin-top:200px;'>" + Loc.T("Str_DocC_NoAwardeesSelected") + "</p></div>");
             }
 
             sb.Append("</body></html>");
@@ -33604,7 +33605,7 @@ namespace SwimmingScoreboard
         //   原样保留(按行编码后用 <br/> 拼回去), 配合 .cert-org-right 的 max-width
         //   自动换行(css white-space 默认值就会在容器变窄时换行), 长落款不会撑出证书。
         private string BuildCertCommitteeHtml() {
-            string text = string.IsNullOrEmpty(_certCommitteeText) ? (_competitionName + "组织委员会") : _certCommitteeText;
+            string text = string.IsNullOrEmpty(_certCommitteeText) ? (_competitionName + Loc.T("Str_DocC_CommitteeSuffix")) : _certCommitteeText;
             var lines = text.Replace("\r\n", "\n").Split('\n');
             return string.Join("<br/>", lines.Select(l => System.Net.WebUtility.HtmlEncode(l)));
         }
@@ -33640,7 +33641,7 @@ namespace SwimmingScoreboard
 
             string dateStr1 = GetDatePickerText(StartDatePicker);
             string endDateStr1 = GetDatePickerText(EndDatePicker);
-            string dateRange1 = string.IsNullOrEmpty(dateStr1) ? "" : (dateStr1 + (string.IsNullOrEmpty(endDateStr1) || endDateStr1 == dateStr1 ? "" : (" 至 " + endDateStr1)));
+            string dateRange1 = string.IsNullOrEmpty(dateStr1) ? "" : (dateStr1 + (string.IsNullOrEmpty(endDateStr1) || endDateStr1 == dateStr1 ? "" : (" " + Loc.T("Str_DocC_ToWord") + " " + endDateStr1)));
             string location1 = LocationBox.Text ?? "";
             string timeLocation1 = (dateRange1 + (string.IsNullOrEmpty(location1) ? "" : ("　" + location1))).Trim();
             string organizer1 = OrganizerBox.Text ?? "";
@@ -33653,29 +33654,29 @@ namespace SwimmingScoreboard
                 sb.Append("<div class='cert-frame'></div><div class='cert-frame-in'></div>");
                 sb.Append("<div class='cert-inner2'>");
                 sb.AppendFormat("<div class='cert-comp-cn'>{0}</div>", System.Net.WebUtility.HtmlEncode(_competitionName));
-                sb.Append("<div class='cert-title-cn'>获奖证书</div>");
+                sb.Append("<div class='cert-title-cn'>" + Loc.T("Str_DocC_CertTitleAward") + "</div>");
                 sb.Append("<div class='cert-title-en'>CERTIFICATE OF AWARD</div>");
                 sb.Append("<div class='cert-fields2'>");
-                sb.AppendFormat("<div class='cert-field2'><span class='field-label2'>竞赛名称：</span><span class='field-value2'>{0}</span></div>", System.Net.WebUtility.HtmlEncode(_competitionName));
-                sb.AppendFormat("<div class='cert-field2'><span class='field-label2'>运动员姓名：</span><span class='field-value2'>{0}</span></div>", System.Net.WebUtility.HtmlEncode(c.DisplayName));
-                sb.AppendFormat("<div class='cert-field2'><span class='field-label2'>项目与成绩：</span><span class='field-value2'>{0}</span></div>", System.Net.WebUtility.HtmlEncode(eventScore));
-                sb.AppendFormat("<div class='cert-field2'><span class='field-label2'>时间地点：</span><span class='field-value2'>{0}</span></div>", System.Net.WebUtility.HtmlEncode(timeLocation1));
+                sb.AppendFormat("<div class='cert-field2'><span class='field-label2'>" + Loc.T("Str_DocC_CertLabelCompName2") + "</span><span class='field-value2'>{0}</span></div>", System.Net.WebUtility.HtmlEncode(_competitionName));
+                sb.AppendFormat("<div class='cert-field2'><span class='field-label2'>" + Loc.T("Str_DocC_CertLabelAthleteName") + "</span><span class='field-value2'>{0}</span></div>", System.Net.WebUtility.HtmlEncode(c.DisplayName));
+                sb.AppendFormat("<div class='cert-field2'><span class='field-label2'>" + Loc.T("Str_DocC_CertLabelEventScore") + "</span><span class='field-value2'>{0}</span></div>", System.Net.WebUtility.HtmlEncode(eventScore));
+                sb.AppendFormat("<div class='cert-field2'><span class='field-label2'>" + Loc.T("Str_DocC_CertLabelTimeVenue") + "</span><span class='field-value2'>{0}</span></div>", System.Net.WebUtility.HtmlEncode(timeLocation1));
                 sb.Append("</div></div>");
                 sb.Append("<div class='cert-bottom'>");
                 sb.Append("<div class='cert-org-left'>");
-                if (!string.IsNullOrEmpty(organizer1)) sb.AppendFormat("主办单位：{0}<br/>", System.Net.WebUtility.HtmlEncode(organizer1));
-                if (!string.IsNullOrEmpty(host1)) sb.AppendFormat("承办单位：{0}", System.Net.WebUtility.HtmlEncode(host1));
+                if (!string.IsNullOrEmpty(organizer1)) sb.AppendFormat("" + Loc.F("Str_DocC_CertOrganizerFmt", "{0}") + "", System.Net.WebUtility.HtmlEncode(organizer1));
+                if (!string.IsNullOrEmpty(host1)) sb.AppendFormat("" + Loc.F("Str_DocC_CertHostFmt", "{0}") + "", System.Net.WebUtility.HtmlEncode(host1));
                 sb.Append("</div>");
                 sb.Append("<div class='cert-org-right'>");
                 sb.Append(BuildCertCommitteeHtml());
-                if (hasDate1) sb.AppendFormat("<br/>{0}&nbsp;年&nbsp;{1}&nbsp;月&nbsp;{2}&nbsp;日", dt1.Year, dt1.Month, dt1.Day);
+                if (hasDate1) sb.Append(Loc.F("Str_DocC_CertDateBrFmt", dt1.Year, dt1.Month, dt1.Day));
                 sb.Append("</div>");
                 sb.Append("</div>");
                 sb.Append("</div>");
             }
 
             if (selected == null || selected.Count == 0) {
-                sb.Append("<div class='cert-page'><p style='text-align:center;font-size:24px;margin-top:200px;'>未选择任何获奖者</p></div>");
+                sb.Append("<div class='cert-page'><p style='text-align:center;font-size:24px;margin-top:200px;'>" + Loc.T("Str_DocC_NoAwardeesSelected") + "</p></div>");
             }
 
             sb.Append("</body></html>");
@@ -33735,7 +33736,7 @@ namespace SwimmingScoreboard
 
             string dateStr2 = GetDatePickerText(StartDatePicker);
             string endDateStr2 = GetDatePickerText(EndDatePicker);
-            string dateRange2 = string.IsNullOrEmpty(dateStr2) ? "" : (dateStr2 + (string.IsNullOrEmpty(endDateStr2) || endDateStr2 == dateStr2 ? "" : (" 至 " + endDateStr2)));
+            string dateRange2 = string.IsNullOrEmpty(dateStr2) ? "" : (dateStr2 + (string.IsNullOrEmpty(endDateStr2) || endDateStr2 == dateStr2 ? "" : (" " + Loc.T("Str_DocC_ToWord") + " " + endDateStr2)));
             string location2 = LocationBox.Text ?? "";
             string timeLocation2 = (dateRange2 + (string.IsNullOrEmpty(location2) ? "" : ("　" + location2))).Trim();
             string organizer2 = OrganizerBox.Text ?? "";
@@ -33750,37 +33751,37 @@ namespace SwimmingScoreboard
                 string oldRecordLine = (!string.IsNullOrEmpty(r.OldHolder) || !string.IsNullOrEmpty(r.OldTime) || !string.IsNullOrEmpty(r.OldDate))
                     ? (r.OldHolder + (string.IsNullOrEmpty(r.OldHolder) || string.IsNullOrEmpty(r.OldTime) ? "" : "　") + r.OldTime
                        + (string.IsNullOrEmpty(r.OldDate) ? "" : ("　" + r.OldDate)))
-                    : "（该项目原无纪录）";
+                    : "" + Loc.T("Str_DocC_CertNoOldRecord") + "";
                 sb.Append("<div class='cert-page'>");
                 sb.Append("<div class='cert-frame'></div><div class='cert-frame-in'></div>");
                 sb.Append("<div class='cert-inner2'>");
                 sb.AppendFormat("<div class='cert-comp-cn'>{0}</div>", System.Net.WebUtility.HtmlEncode(_competitionName));
-                sb.Append("<div class='cert-title-cn'>破&nbsp;纪&nbsp;录&nbsp;证&nbsp;书</div>");
+                sb.Append("<div class='cert-title-cn'>" + Loc.T("Str_DocC_CertTitleRecord") + "</div>");
                 sb.Append("<div class='cert-title-en'>CERTIFICATE OF RECORD</div>");
                 sb.Append("<div class='cert-fields2'>");
-                sb.AppendFormat("<div class='cert-field2'><span class='field-label2'>竞赛名称：</span><span class='field-value2'>{0}</span></div>", System.Net.WebUtility.HtmlEncode(_competitionName));
-                sb.AppendFormat("<div class='cert-field2'><span class='field-label2'>运动员姓名：</span><span class='field-value2'>{0}</span></div>", System.Net.WebUtility.HtmlEncode(r.Athlete));
-                sb.AppendFormat("<div class='cert-field2'><span class='field-label2'>项目与成绩：</span><span class='field-value2'>{0}</span></div>", System.Net.WebUtility.HtmlEncode(eventScore));
-                sb.AppendFormat("<div class='cert-field2'><span class='field-label2'>运动会名次：</span><span class='field-value2'>{0}</span></div>", System.Net.WebUtility.HtmlEncode(r.CompRankLabel ?? "-"));
-                sb.AppendFormat("<div class='cert-field2'><span class='field-label2'>纪录类型：</span><span class='field-value2'>{0}</span></div>", System.Net.WebUtility.HtmlEncode(r.RecordType ?? ""));
-                sb.AppendFormat("<div class='cert-field2'><span class='field-label2'>原纪录：</span><span class='field-value2'>{0}</span></div>", System.Net.WebUtility.HtmlEncode(oldRecordLine));
-                sb.AppendFormat("<div class='cert-field2'><span class='field-label2'>时间地点：</span><span class='field-value2'>{0}</span></div>", System.Net.WebUtility.HtmlEncode(timeLocation2));
+                sb.AppendFormat("<div class='cert-field2'><span class='field-label2'>" + Loc.T("Str_DocC_CertLabelCompName2") + "</span><span class='field-value2'>{0}</span></div>", System.Net.WebUtility.HtmlEncode(_competitionName));
+                sb.AppendFormat("<div class='cert-field2'><span class='field-label2'>" + Loc.T("Str_DocC_CertLabelAthleteName") + "</span><span class='field-value2'>{0}</span></div>", System.Net.WebUtility.HtmlEncode(r.Athlete));
+                sb.AppendFormat("<div class='cert-field2'><span class='field-label2'>" + Loc.T("Str_DocC_CertLabelEventScore") + "</span><span class='field-value2'>{0}</span></div>", System.Net.WebUtility.HtmlEncode(eventScore));
+                sb.AppendFormat("<div class='cert-field2'><span class='field-label2'>" + Loc.T("Str_DocC_CertLabelMeetRank") + "</span><span class='field-value2'>{0}</span></div>", System.Net.WebUtility.HtmlEncode(r.CompRankLabel ?? "-"));
+                sb.AppendFormat("<div class='cert-field2'><span class='field-label2'>" + Loc.T("Str_DocC_CertLabelRecordType") + "</span><span class='field-value2'>{0}</span></div>", System.Net.WebUtility.HtmlEncode(r.RecordType ?? ""));
+                sb.AppendFormat("<div class='cert-field2'><span class='field-label2'>" + Loc.T("Str_DocC_CertLabelOldRecord") + "</span><span class='field-value2'>{0}</span></div>", System.Net.WebUtility.HtmlEncode(oldRecordLine));
+                sb.AppendFormat("<div class='cert-field2'><span class='field-label2'>" + Loc.T("Str_DocC_CertLabelTimeVenue") + "</span><span class='field-value2'>{0}</span></div>", System.Net.WebUtility.HtmlEncode(timeLocation2));
                 sb.Append("</div></div>");
                 sb.Append("<div class='cert-bottom'>");
                 sb.Append("<div class='cert-org-left'>");
-                if (!string.IsNullOrEmpty(organizer2)) sb.AppendFormat("主办单位：{0}<br/>", System.Net.WebUtility.HtmlEncode(organizer2));
-                if (!string.IsNullOrEmpty(host2)) sb.AppendFormat("承办单位：{0}", System.Net.WebUtility.HtmlEncode(host2));
+                if (!string.IsNullOrEmpty(organizer2)) sb.AppendFormat("" + Loc.F("Str_DocC_CertOrganizerFmt", "{0}") + "", System.Net.WebUtility.HtmlEncode(organizer2));
+                if (!string.IsNullOrEmpty(host2)) sb.AppendFormat("" + Loc.F("Str_DocC_CertHostFmt", "{0}") + "", System.Net.WebUtility.HtmlEncode(host2));
                 sb.Append("</div>");
                 sb.Append("<div class='cert-org-right'>");
                 sb.Append(BuildCertCommitteeHtml());
-                if (hasDate2) sb.AppendFormat("<br/>{0}&nbsp;年&nbsp;{1}&nbsp;月&nbsp;{2}&nbsp;日", dt2.Year, dt2.Month, dt2.Day);
+                if (hasDate2) sb.Append(Loc.F("Str_DocC_CertDateBrFmt", dt2.Year, dt2.Month, dt2.Day));
                 sb.Append("</div>");
                 sb.Append("</div>");
                 sb.Append("</div>");
             }
 
             if (selected == null || selected.Count == 0) {
-                sb.Append("<div class='cert-page'><p style='text-align:center;font-size:24px;margin-top:200px;'>未选择任何破纪录记录</p></div>");
+                sb.Append("<div class='cert-page'><p style='text-align:center;font-size:24px;margin-top:200px;'>" + Loc.T("Str_DocC_NoRecordsSelected") + "</p></div>");
             }
 
             sb.Append("</body></html>");
@@ -33824,28 +33825,28 @@ namespace SwimmingScoreboard
                        + (string.IsNullOrEmpty(r.OldDate) ? "" : ("　" + r.OldDate)))
                     : "该项目原无纪录";
                 sb.Append("<div class='cert-page'>");
-                sb.Append("<div class='cert-title'>破&nbsp;纪&nbsp;录&nbsp;证&nbsp;书</div>");
+                sb.Append("<div class='cert-title'>" + Loc.T("Str_DocC_CertTitleRecord") + "</div>");
                 sb.Append("<hr class='cert-divider'/>");
                 sb.Append("<div class='cert-body'>");
                 sb.AppendFormat("<div style='font-size:24px;'><span class='cert-name'>{0}</span>：</div>", r.Athlete);
                 sb.Append("<div class='cert-text'>");
-                sb.AppendFormat("在&nbsp;<span class='cert-comp-name'>{0}</span>&nbsp;", _competitionName);
-                sb.AppendFormat("<span class='cert-event-name'>{0} {1}</span>&nbsp;项目比赛中，", r.Gender, r.EventName);
-                sb.AppendFormat("凭借卓越的竞技水平，以<span class='cert-score'>{0}</span>的优异成绩，荣获<span class='cert-record-type'>{1}</span>，", r.Time, r.CompRankLabel ?? "-");
-                sb.AppendFormat("打破<span class='cert-record-type'>{0}</span>（原纪录：{1}），", r.RecordType, System.Net.WebUtility.HtmlEncode(oldRecordLine));
-                sb.Append("特发此证，以表彰其杰出成就。");
+                sb.AppendFormat("" + Loc.F("Str_DocC_CertInCompFmt", "{0}") + "", _competitionName);
+                sb.AppendFormat("" + Loc.F("Str_DocC_CertEventNameFmt", "{0}", "{1}") + "", r.Gender, r.EventName);
+                sb.AppendFormat("" + Loc.F("Str_DocC_CertAchievedFmt", "{0}", "{1}") + "", r.Time, r.CompRankLabel ?? "-");
+                sb.AppendFormat("" + Loc.F("Str_DocC_CertBrokeRecordFmt", "{0}", "{1}") + "", r.RecordType, System.Net.WebUtility.HtmlEncode(oldRecordLine));
+                sb.Append("" + Loc.T("Str_DocC_CertAwardedText") + "");
                 sb.Append("</div></div>");
                 sb.Append("<div class='cert-fields'>");
-                sb.AppendFormat("<div class='cert-field'><span class='field-label'>参赛单位：</span><span class='field-value'>{0}</span></div>", r.Country);
+                sb.AppendFormat("<div class='cert-field'><span class='field-label'>" + Loc.T("Str_DocC_CertLabelUnit") + "</span><span class='field-value'>{0}</span></div>", r.Country);
                 // 2026-05-26 删除"裁判长签字"行 (该字段历史用 ChiefJudgeBox 即编排长数据)
-                sb.Append("<div class='cert-field'><span class='field-label'>赛事组委会盖章：</span><span class='field-blank'>&nbsp;</span></div>");
+                sb.Append("<div class='cert-field'><span class='field-label'>" + Loc.T("Str_DocC_CertLabelSeal") + "</span><span class='field-blank'>&nbsp;</span></div>");
                 if (hasDate)
-                    sb.AppendFormat("<div class='cert-date'>日期：{0}&nbsp;年&nbsp;{1}&nbsp;月&nbsp;{2}&nbsp;日</div>", dt.Year, dt.Month, dt.Day);
+                    sb.Append("<div class='cert-date'>" + Loc.F("Str_DocC_CertDateFmt", dt.Year, dt.Month, dt.Day) + "</div>");
                 sb.Append("</div></div>");
             }
 
             if (selected == null || selected.Count == 0) {
-                sb.Append("<div class='cert-page'><p style='text-align:center;font-size:24px;margin-top:200px;'>未选择任何破纪录记录</p></div>");
+                sb.Append("<div class='cert-page'><p style='text-align:center;font-size:24px;margin-top:200px;'>" + Loc.T("Str_DocC_NoRecordsSelected") + "</p></div>");
             }
             sb.Append("</body></html>");
             return sb.ToString();
