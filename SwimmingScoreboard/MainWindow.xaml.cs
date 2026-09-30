@@ -19656,8 +19656,8 @@ namespace SwimmingScoreboard
                 return;
             }
             string defaultName = string.IsNullOrEmpty(_competitionName)
-                ? "运动员报名表.csv"
-                : (_competitionName + "_运动员报名表.csv");
+                ? Loc.T("Str_FileName_SwimmerRoster") + ".csv"
+                : (_competitionName + "_" + Loc.T("Str_FileName_SwimmerRoster") + ".csv");
             var dlg = new Microsoft.Win32.SaveFileDialog {
                 Filter = Loc.T("Str_Filter_Csv"),
                 Title = Loc.T("Str_Win_ExportSwimmers_Title"),
@@ -19716,7 +19716,7 @@ namespace SwimmingScoreboard
             var dlg = new Microsoft.Win32.SaveFileDialog {
                 Filter = Loc.T("Str_Filter_Csv"),
                 Title = Loc.T("Str_Win_SaveSwimmersTemplate_Title"),
-                FileName = "个人报名模板.csv"
+                FileName = Loc.T("Str_FileName_SwimmerTemplate") + ".csv"
             };
             if (dlg.ShowDialog() != true) return;
             try {
@@ -20230,7 +20230,7 @@ namespace SwimmingScoreboard
         private void ExportRelayTemplate_Click(object sender, RoutedEventArgs e) {
             var dlg = new Microsoft.Win32.SaveFileDialog {
                 Filter = Loc.T("Str_Filter_Csv"), Title = Loc.T("Str_Win_ExportRelayTemplate_Title"),
-                FileName = "接力报名模板_" + DateTime.Now.ToString("yyyyMMdd_HHmm") + ".csv"
+                FileName = Loc.T("Str_FileName_RelayTemplate") + "_" + DateTime.Now.ToString("yyyyMMdd_HHmm") + ".csv"
             };
             if (dlg.ShowDialog() != true) return;
             var sb = new StringBuilder();
@@ -20252,7 +20252,7 @@ namespace SwimmingScoreboard
             }
             var dlg = new Microsoft.Win32.SaveFileDialog {
                 Filter = Loc.T("Str_Filter_Csv"), Title = Loc.T("Str_Win_ExportRelayTeams_Title"),
-                FileName = "接力队_" + DateTime.Now.ToString("yyyyMMdd_HHmm") + ".csv"
+                FileName = Loc.T("Str_DocC_ColRelayCount") + "_" + DateTime.Now.ToString("yyyyMMdd_HHmm") + ".csv"
             };
             if (dlg.ShowDialog() != true) return;
             var sb = new StringBuilder();
@@ -20316,7 +20316,7 @@ namespace SwimmingScoreboard
             }
             var dlg = new Microsoft.Win32.SaveFileDialog {
                 Filter = Loc.T("Str_Filter_ExcelXlsx"),
-                FileName = "接力棒次填报表.xlsx",
+                FileName = Loc.T("Str_FileName_RelayLegSheet") + ".xlsx",
                 Title = Loc.T("Str_Win_ExportRelayLegSheet_Title")
             };
             if (dlg.ShowDialog() != true) return;
@@ -20368,7 +20368,7 @@ namespace SwimmingScoreboard
                     }
                     if (legRows.Count == 0) continue;
                     var sc = _schedule.FirstOrDefault(s => s.SessionNumber == ses);
-                    string fn = System.IO.Path.Combine(dir, string.Format("{0}_第{1}场.xlsx", baseName, ses));
+                    string fn = System.IO.Path.Combine(dir, baseName + "_" + Loc.F("Str_DocC_SessionNoFmt", ses) + ".xlsx");
                     RelayLegSheetService.ExportSession(fn, _competitionName, ses,
                         sc != null ? sc.SessionName : "", sc != null ? sc.Date : "", sc != null ? sc.Time : "",
                         legRows);
@@ -29070,7 +29070,7 @@ namespace SwimmingScoreboard
             var dlg = new Microsoft.Win32.SaveFileDialog {
                 Filter = Loc.T("Str_Filter_Csv"),
                 Title = Loc.T("Str_Win_SaveRecordTemplate_Title"),
-                FileName = "游泳纪录模板.csv"
+                FileName = Loc.T("Str_FileName_RecordTemplate") + ".csv"
             };
             if (dlg.ShowDialog() != true) return;
             try {
@@ -29550,7 +29550,7 @@ namespace SwimmingScoreboard
                 });
             });
         }
-        private void ExportGendersCSV_Click(object sender, RoutedEventArgs e) { ExportStringListCsv(Loc.T("Str_Win_ExportGenders_Title"), "性别表.csv", Loc.T("Str_DocC_ColGender"), _genders); }
+        private void ExportGendersCSV_Click(object sender, RoutedEventArgs e) { ExportStringListCsv(Loc.T("Str_Win_ExportGenders_Title"), Loc.T("Str_FileName_GendersTable") + ".csv", Loc.T("Str_DocC_ColGender"), _genders); }
         private void ImportGendersCSV_Click(object sender, RoutedEventArgs e) {
             ImportStringListCsv(Loc.T("Str_EM_ImportGenders"), Loc.T("Str_DocC_ColGender"), list => { _genders = list; RefreshGendersPreview();
                 FinishAndSyncPatch(BuildListSetPatch("genders", JArray.FromObject(_genders), ClientLabel()), "meet");
@@ -29558,7 +29558,7 @@ namespace SwimmingScoreboard
                 AddLog(Loc.F("Str_Log_GenderListImportedFmt", _genders.Count)); }, "性别");
         }
         private void DownloadGendersTemplate_Click(object sender, RoutedEventArgs e) {
-            DownloadStringListTemplate(Loc.T("Str_Win_SaveGendersTemplate_Title"), "性别模板.csv", Loc.T("Str_DocC_ColGender"), new[] { "男", "女", "混合" });
+            DownloadStringListTemplate(Loc.T("Str_Win_SaveGendersTemplate_Title"), Loc.T("Str_FileName_GendersTemplate") + ".csv", Loc.T("Str_DocC_ColGender"), new[] { "男", "女", "混合" });
         }
 
         // —— 赛次 ——
@@ -29572,7 +29572,7 @@ namespace SwimmingScoreboard
                 });
             });
         }
-        private void ExportStagesCSV_Click(object sender, RoutedEventArgs e) { ExportStringListCsv(Loc.T("Str_Win_ExportStages_Title"), "赛次表.csv", Loc.T("Str_DocC_ColStage"), _stages); }
+        private void ExportStagesCSV_Click(object sender, RoutedEventArgs e) { ExportStringListCsv(Loc.T("Str_Win_ExportStages_Title"), Loc.T("Str_FileName_StagesTable") + ".csv", Loc.T("Str_DocC_ColStage"), _stages); }
         private void ImportStagesCSV_Click(object sender, RoutedEventArgs e) {
             ImportStringListCsv(Loc.T("Str_EM_ImportStages"), Loc.T("Str_DocC_ColStage"), list => { _stages = list; RefreshStagesPreview();
                 FinishAndSyncPatch(BuildListSetPatch("stages", JArray.FromObject(_stages), ClientLabel()), "meet");
@@ -29580,7 +29580,7 @@ namespace SwimmingScoreboard
                 AddLog(Loc.F("Str_Log_StageListImportedFmt", _stages.Count)); }, "赛次");
         }
         private void DownloadStagesTemplate_Click(object sender, RoutedEventArgs e) {
-            DownloadStringListTemplate(Loc.T("Str_Win_SaveStagesTemplate_Title"), "赛次模板.csv", Loc.T("Str_DocC_ColStage"), new[] { "预赛", "半决赛", "决赛", "A决赛", "B决赛" });
+            DownloadStringListTemplate(Loc.T("Str_Win_SaveStagesTemplate_Title"), Loc.T("Str_FileName_StagesTemplate") + ".csv", Loc.T("Str_DocC_ColStage"), new[] { "预赛", "半决赛", "决赛", "A决赛", "B决赛" });
         }
 
         // —— 组数 ——
@@ -29594,7 +29594,7 @@ namespace SwimmingScoreboard
                 });
             });
         }
-        private void ExportHeatCountsCSV_Click(object sender, RoutedEventArgs e) { ExportStringListCsv(Loc.T("Str_Win_ExportHeatCounts_Title"), "组数表.csv", Loc.T("Str_Col_HeatCount"), _heatCounts); }
+        private void ExportHeatCountsCSV_Click(object sender, RoutedEventArgs e) { ExportStringListCsv(Loc.T("Str_Win_ExportHeatCounts_Title"), Loc.T("Str_FileName_HeatCountsTable") + ".csv", Loc.T("Str_Col_HeatCount"), _heatCounts); }
         private void ImportHeatCountsCSV_Click(object sender, RoutedEventArgs e) {
             ImportStringListCsv(Loc.T("Str_EM_ImportHeatCounts"), Loc.T("Str_Col_HeatCount"), list => { _heatCounts = list; RefreshHeatCountsPreview();
                 FinishAndSyncPatch(BuildListSetPatch("heatCounts", JArray.FromObject(_heatCounts), ClientLabel()), "meet");
@@ -29602,7 +29602,7 @@ namespace SwimmingScoreboard
                 AddLog(Loc.F("Str_Log_HeatCountListImportedFmt", _heatCounts.Count)); }, "组数");
         }
         private void DownloadHeatCountsTemplate_Click(object sender, RoutedEventArgs e) {
-            DownloadStringListTemplate(Loc.T("Str_Win_SaveHeatCountsTemplate_Title"), "组数模板.csv", Loc.T("Str_Col_HeatCount"), new[] { "1组", "2组", "3组", "4组", "5组", "6组", "7组", "8组" });
+            DownloadStringListTemplate(Loc.T("Str_Win_SaveHeatCountsTemplate_Title"), Loc.T("Str_FileName_HeatCountsTemplate") + ".csv", Loc.T("Str_Col_HeatCount"), new[] { "1组", "2组", "3组", "4组", "5组", "6组", "7组", "8组" });
         }
 
         private void EditEventsList_Click(object sender, RoutedEventArgs e) {
@@ -29782,7 +29782,7 @@ namespace SwimmingScoreboard
         }
 
         private void ExportEventsCSV_Click(object sender, RoutedEventArgs e) {
-            var dlg = new Microsoft.Win32.SaveFileDialog { Filter = Loc.T("Str_Filter_Csv"), Title = Loc.T("Str_Win_ExportEvents_Title"), FileName = "比赛项目表.csv" };
+            var dlg = new Microsoft.Win32.SaveFileDialog { Filter = Loc.T("Str_Filter_Csv"), Title = Loc.T("Str_Win_ExportEvents_Title"), FileName = Loc.T("Str_FileName_EventsTable") + ".csv" };
             if (dlg.ShowDialog() != true) return;
             try {
                 var sb = new StringBuilder();
@@ -29833,7 +29833,7 @@ namespace SwimmingScoreboard
         }
 
         private void DownloadEventsTemplate_Click(object sender, RoutedEventArgs e) {
-            var dlg = new Microsoft.Win32.SaveFileDialog { Filter = Loc.T("Str_Filter_Csv"), Title = Loc.T("Str_Win_SaveEventsTemplate_Title"), FileName = "比赛项目模板.csv" };
+            var dlg = new Microsoft.Win32.SaveFileDialog { Filter = Loc.T("Str_Filter_Csv"), Title = Loc.T("Str_Win_SaveEventsTemplate_Title"), FileName = Loc.T("Str_FileName_EventsTemplate") + ".csv" };
             if (dlg.ShowDialog() != true) return;
             try {
                 var sb = new StringBuilder();
@@ -29850,7 +29850,7 @@ namespace SwimmingScoreboard
         }
 
         private void ExportAgeGroupsCSV_Click(object sender, RoutedEventArgs e) {
-            var dlg = new Microsoft.Win32.SaveFileDialog { Filter = Loc.T("Str_Filter_Csv"), Title = Loc.T("Str_Win_ExportAgeGroups_Title"), FileName = "组别表.csv" };
+            var dlg = new Microsoft.Win32.SaveFileDialog { Filter = Loc.T("Str_Filter_Csv"), Title = Loc.T("Str_Win_ExportAgeGroups_Title"), FileName = Loc.T("Str_FileName_AgeGroupsTable") + ".csv" };
             if (dlg.ShowDialog() != true) return;
             try {
                 var sb = new StringBuilder();
@@ -29909,7 +29909,7 @@ namespace SwimmingScoreboard
         }
 
         private void DownloadAgeGroupsTemplate_Click(object sender, RoutedEventArgs e) {
-            var dlg = new Microsoft.Win32.SaveFileDialog { Filter = Loc.T("Str_Filter_Csv"), Title = Loc.T("Str_Win_SaveAgeGroupsTemplate_Title"), FileName = "组别模板.csv" };
+            var dlg = new Microsoft.Win32.SaveFileDialog { Filter = Loc.T("Str_Filter_Csv"), Title = Loc.T("Str_Win_SaveAgeGroupsTemplate_Title"), FileName = Loc.T("Str_FileName_AgeGroupsTemplate") + ".csv" };
             if (dlg.ShowDialog() != true) return;
             try {
                 var sb = new StringBuilder();
@@ -29992,7 +29992,7 @@ namespace SwimmingScoreboard
             var dlg = new Microsoft.Win32.SaveFileDialog {
                 Filter = Loc.T("Str_Filter_Csv"),
                 Title = Loc.T("Str_Win_ExportScheduleCsv_Title"),
-                FileName = (string.IsNullOrEmpty(_competitionName) ? "日程表" : _competitionName) + ".csv"
+                FileName = (string.IsNullOrEmpty(_competitionName) ? Loc.T("Str_FileName_Schedule") : _competitionName) + ".csv"
             };
             if (dlg.ShowDialog() != true) return;
             try {
@@ -30082,7 +30082,7 @@ namespace SwimmingScoreboard
             var dlg = new Microsoft.Win32.SaveFileDialog {
                 Filter = Loc.T("Str_Filter_Csv"),
                 Title = Loc.T("Str_Win_SaveScheduleTemplate_Title"),
-                FileName = "日程表模板.csv"
+                FileName = Loc.T("Str_FileName_ScheduleTemplate") + ".csv"
             };
             if (dlg.ShowDialog() != true) return;
             try {
