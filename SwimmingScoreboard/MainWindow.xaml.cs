@@ -30047,7 +30047,7 @@ namespace SwimmingScoreboard
             var dlg = new Microsoft.Win32.SaveFileDialog {
                 Filter = Loc.T("Str_Filter_ExcelXlsx"),
                 Title = Loc.T("Str_Win_ExportHeatAssignmentsExcel_Title"),
-                FileName = (string.IsNullOrEmpty(_competitionName) ? "分组表" : _competitionName) + "_分组表.xlsx"
+                FileName = (string.IsNullOrEmpty(_competitionName) ? Loc.T("Str_DocTitle_HeatAssignments") : _competitionName) + "_" + Loc.T("Str_DocTitle_HeatAssignments") + ".xlsx"
             };
             if (dlg.ShowDialog() != true) return;
             try {
@@ -30325,10 +30325,19 @@ namespace SwimmingScoreboard
                         if (row == null) { blanksSeen++; continue; }
                         string c0 = GetCellStr(row, 0);
                         // 合并标题/副标题行 (含 "竞赛分组表" 等) — 直接跳过
-                        if (c0.Contains("竞赛分组表") || c0.Contains("赛事") || c0.Contains("游泳比赛")) continue;
-                        // "第 N 场 日期 时间"
+                        // 2026-09-30 中英文表头都认: 这份是regex式解析(不是按列名匹配), 文件是
+                        //   English模式导出的话标题行会是"Heat Assignments"/"Swimming Competition"
+                        //   这类英文, 原来只认中文子串会把英文标题行当成数据行误解析。
+                        if (c0.Contains("竞赛分组表") || c0.Contains("赛事") || c0.Contains("游泳比赛")
+                            || c0.Contains(Loc.TEnglish("Str_DocTitle_HeatAssignments"))
+                            || c0.Contains(Loc.TEnglish("Str_Win_ProgBook_DefaultCoverTitle"))) continue;
+                        // "第 N 场 日期 时间" / "Session N date time"
                         var mSess = System.Text.RegularExpressions.Regex.Match(c0,
                             @"第\s*(\d+)\s*场\s*(\d{4}-\d{1,2}-\d{1,2})?\s*(\d{1,2}:\d{2})?");
+                        if (!mSess.Success) {
+                            mSess = System.Text.RegularExpressions.Regex.Match(c0,
+                                @"Session\s*(\d+)\s*(\d{4}-\d{1,2}-\d{1,2})?\s*(\d{1,2}:\d{2})?", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                        }
                         if (mSess.Success) {
                             curSession = int.Parse(mSess.Groups[1].Value);
                             if (mSess.Groups[2].Success) curSessionDate = mSess.Groups[2].Value;
@@ -30620,7 +30629,7 @@ namespace SwimmingScoreboard
             var dlg = new Microsoft.Win32.SaveFileDialog {
                 Filter = Loc.T("Str_Filter_ExcelXlsx"),
                 Title = Loc.T("Str_Win_SaveHeatAssignmentsExcelTemplate_Title"),
-                FileName = "分组表_Excel模板.xlsx"
+                FileName = Loc.T("Str_DocTitle_HeatAssignments") + "_" + Loc.T("Str_HeatXlsx_TemplateSuffix") + ".xlsx"
             };
             if (dlg.ShowDialog() != true) return;
             try {
@@ -31634,10 +31643,14 @@ namespace SwimmingScoreboard
         }
 
         // ═══ 2026-06-21 竞赛日程 → 导出 Excel ═══
+        // 2026-09-30 现场反馈: 切English模式导出的这份Excel文件名/sheet名/表头还是中文——
+        //   这条路径走NPOI直接拼单元格, 完全独立于HTML文档那套Loc体系, 之前历次翻译
+        //   工作都没碰过。性别/赛次两列跟其它文档一样走 Loc.GenderDisplay()/Loc.StageDisplay()
+        //   做展示层转换(不改 s.Gender/s.Stage 本身); 组别/项目名是真实业务数据, 不翻译。
         private void ExportScheduleExcel_Click(object sender, RoutedEventArgs e) {
             var dlg = new Microsoft.Win32.SaveFileDialog {
                 Filter = Loc.T("Str_Filter_ExcelXlsx"),
-                FileName = "竞赛日程_" + DateTime.Now.ToString("yyyyMMdd_HHmmss") + ".xlsx",
+                FileName = Loc.T("Str_DocTitle_Schedule") + "_" + DateTime.Now.ToString("yyyyMMdd_HHmmss") + ".xlsx",
                 Title = Loc.T("Str_Win_ExportScheduleExcel_Title")
             };
             if (dlg.ShowDialog() != true) return;
@@ -31653,9 +31666,13 @@ namespace SwimmingScoreboard
 
         private void BuildScheduleExcel(string path) {
             var wb = new NPOI.XSSF.UserModel.XSSFWorkbook();
-            var sh = wb.CreateSheet("竞赛日程");
+            var sh = wb.CreateSheet(Loc.T("Str_DocTitle_Schedule"));
             var head = sh.CreateRow(0);
-            string[] headers = new[] { "场次", "时间", "编号", "性别", "组别", "项目", "赛次", "人(队)数", "组数" };
+            string[] headers = new[] {
+                Loc.T("Str_DocC_ColSession"), Loc.T("Str_DocC_ColTime"), Loc.T("Str_DocC_ColEventNo"),
+                Loc.T("Str_DocC_ColGender"), Loc.T("Str_DocC_ColAgeGroup"), Loc.T("Str_DocC_ColEvent"),
+                Loc.T("Str_DocC_ColStage"), Loc.T("Str_DocC_ColEntryCount"), Loc.T("Str_DocC_ColHeatCount")
+            };
             var headStyle = wb.CreateCellStyle();
             var headFont = wb.CreateFont(); headFont.IsBold = true; headStyle.SetFont(headFont);
             headStyle.Alignment = NPOI.SS.UserModel.HorizontalAlignment.Center;
@@ -31672,10 +31689,10 @@ namespace SwimmingScoreboard
                     row.CreateCell(0).SetCellValue(session.Key);
                     row.CreateCell(1).SetCellValue(s.Time ?? "");
                     row.CreateCell(2).SetCellValue(EventNumberLabel(evtMap, s.Gender, s.EventName, s.AgeGroup));
-                    row.CreateCell(3).SetCellValue(s.Gender ?? "");
+                    row.CreateCell(3).SetCellValue(Loc.GenderDisplay(s.Gender ?? ""));
                     row.CreateCell(4).SetCellValue(s.AgeGroup ?? "");
                     row.CreateCell(5).SetCellValue(s.EventName ?? "");
-                    row.CreateCell(6).SetCellValue(s.Stage ?? "");
+                    row.CreateCell(6).SetCellValue(Loc.StageDisplay(s.Stage ?? ""));
                     row.CreateCell(7).SetCellValue(participants);
                     row.CreateCell(8).SetCellValue(s.HeatCount);
                 }
@@ -31770,7 +31787,7 @@ namespace SwimmingScoreboard
         private void ExportHeatAssignmentsGridExcel_Click(object sender, RoutedEventArgs e) {
             var dlg = new Microsoft.Win32.SaveFileDialog {
                 Filter = Loc.T("Str_Filter_ExcelXlsx"),
-                FileName = "分组表_" + DateTime.Now.ToString("yyyyMMdd_HHmmss") + ".xlsx",
+                FileName = Loc.T("Str_DocTitle_HeatAssignments") + "_" + DateTime.Now.ToString("yyyyMMdd_HHmmss") + ".xlsx",
                 Title = Loc.T("Str_Win_ExportHeatAssignmentsGridExcel_Title")
             };
             if (dlg.ShowDialog() != true) return;
@@ -31786,7 +31803,7 @@ namespace SwimmingScoreboard
 
         private void BuildHeatAssignmentsGridExcel(string path) {
             var wb = new NPOI.XSSF.UserModel.XSSFWorkbook();
-            var sh = wb.CreateSheet("竞赛分组表");
+            var sh = wb.CreateSheet(Loc.T("Str_DocTitle_HeatAssignments"));
             var laneNums = (_poolConfig != null && _poolConfig.LaneNumbers != null && _poolConfig.LaneNumbers.Count > 0)
                 ? _poolConfig.LaneNumbers : new List<int> { 1, 2, 3, 4, 5, 6, 7, 8 };
             int colCount = 1 + laneNums.Count;
@@ -31801,10 +31818,10 @@ namespace SwimmingScoreboard
             int r = 0;
             // 标题
             var tRow = sh.CreateRow(r++);
-            var tCell = tRow.CreateCell(0); tCell.SetCellValue(_competitionName ?? "游泳比赛"); tCell.CellStyle = boldStyle;
+            var tCell = tRow.CreateCell(0); tCell.SetCellValue(_competitionName ?? Loc.T("Str_Win_ProgBook_DefaultCoverTitle")); tCell.CellStyle = boldStyle;
             sh.AddMergedRegion(new NPOI.SS.Util.CellRangeAddress(r - 1, r - 1, 0, colCount - 1));
             var t2Row = sh.CreateRow(r++);
-            var t2Cell = t2Row.CreateCell(0); t2Cell.SetCellValue("竞赛分组表"); t2Cell.CellStyle = boldStyle;
+            var t2Cell = t2Row.CreateCell(0); t2Cell.SetCellValue(Loc.T("Str_DocTitle_HeatAssignments")); t2Cell.CellStyle = boldStyle;
             sh.AddMergedRegion(new NPOI.SS.Util.CellRangeAddress(r - 1, r - 1, 0, colCount - 1));
             r++;   // 空行
 
@@ -31814,7 +31831,7 @@ namespace SwimmingScoreboard
                 var first = session.First();
                 var sRow = sh.CreateRow(r++);
                 var sCell = sRow.CreateCell(0);
-                sCell.SetCellValue(string.Format("第 {0} 场    {1}   {2}", session.Key, first.Date ?? "", first.Time ?? ""));
+                sCell.SetCellValue(Loc.F("Str_DocC_SessionHeaderFmt", session.Key, first.Date ?? "", first.Time ?? ""));
                 sCell.CellStyle = boldStyle;
                 sh.AddMergedRegion(new NPOI.SS.Util.CellRangeAddress(r - 1, r - 1, 0, colCount - 1));
                 r++;   // 空行
@@ -31828,15 +31845,15 @@ namespace SwimmingScoreboard
                     var titleRow = sh.CreateRow(r++);
                     var titleCell = titleRow.CreateCell(0);
                     titleCell.SetCellValue(string.Format("    {0} . {1}{2} {3} {4}",
-                        evNum > 0 ? evNum.ToString() : "-", agLabel, s.Gender, s.EventName, s.Stage));
+                        evNum > 0 ? evNum.ToString() : "-", agLabel, Loc.GenderDisplay(s.Gender ?? ""), s.EventName, Loc.StageDisplay(s.Stage ?? "")));
                     titleCell.CellStyle = boldStyle;
                     sh.AddMergedRegion(new NPOI.SS.Util.CellRangeAddress(r - 1, r - 1, 0, colCount - 3));
-                    var pCell = titleRow.CreateCell(colCount - 2); pCell.SetCellValue(participants + " 人"); pCell.CellStyle = boldStyle;
-                    var gCell = titleRow.CreateCell(colCount - 1); gCell.SetCellValue(s.HeatCount + " 组"); gCell.CellStyle = boldStyle;
+                    var pCell = titleRow.CreateCell(colCount - 2); pCell.SetCellValue(participants + " " + Loc.T("Str_Common_Entries")); pCell.CellStyle = boldStyle;
+                    var gCell = titleRow.CreateCell(colCount - 1); gCell.SetCellValue(s.HeatCount + " " + Loc.T("Str_Common_Heats")); gCell.CellStyle = boldStyle;
 
                     // 道次表头
                     var laneHead = sh.CreateRow(r++);
-                    var lhCell = laneHead.CreateCell(0); lhCell.SetCellValue("组\\道"); lhCell.CellStyle = boldStyle;
+                    var lhCell = laneHead.CreateCell(0); lhCell.SetCellValue(Loc.T("Str_DocC_ColHeatLane")); lhCell.CellStyle = boldStyle;
                     for (int i = 0; i < laneNums.Count; i++) {
                         var c = laneHead.CreateCell(i + 1); c.SetCellValue(laneNums[i]); c.CellStyle = boldStyle;
                     }
@@ -31858,8 +31875,8 @@ namespace SwimmingScoreboard
                         var cancelled = GetCancelledHeat(s.AgeGroup ?? "", s.Gender ?? "", s.EventName ?? "", s.Stage ?? "", h);
                         if (cancelled != null) {
                             string cancelTag = cancelled.MergedInto > 0
-                                ? "已取消, 并入第" + cancelled.MergedInto + "组"
-                                : (string.IsNullOrEmpty(cancelled.Reason) ? "已取消" : "已取消: " + cancelled.Reason);
+                                ? Loc.F("Str_DocC_CancelledMergedFmt", cancelled.MergedInto)
+                                : (string.IsNullOrEmpty(cancelled.Reason) ? Loc.T("Str_DocC_Cancelled") : Loc.F("Str_DocC_CancelledReasonFmt", cancelled.Reason));
                             var cCell = nameRow.CreateCell(1); cCell.SetCellValue(cancelTag); cCell.CellStyle = centerStyle;
                             if (laneNums.Count > 1) sh.AddMergedRegion(new NPOI.SS.Util.CellRangeAddress(r - 2, r - 2, 1, colCount - 1));
                             for (int i = 0; i < laneNums.Count; i++) teamRow.CreateCell(i + 1).SetCellValue("");

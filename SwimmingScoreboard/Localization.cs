@@ -180,6 +180,19 @@ namespace SwimmingScoreboard
             { "Str_Col_Stage",   new[] { "阶段", "Stage" } },
             { "Str_Col_Heat",    new[] { "组", "Ht" } },
             { "Str_Col_Lane",    new[] { "道", "Ln" } },
+            // 2026-09-30 HeatExcelService(分组表Excel导入导出)专用, 之前没接翻译系统
+            { "Str_HeatXlsx_ColCompDate", new[] { "比赛日期", "Comp. Date" } },
+            { "Str_HeatXlsx_ColPeriod",   new[] { "时段", "Session Period" } },
+            { "Str_HeatXlsx_ColHeatNo",   new[] { "组号", "Heat No." } },
+            { "Str_HeatXlsx_ColSortMethod", new[] { "排序方式", "Sort Method" } },
+            { "Str_HeatXlsx_ColBirthYM",  new[] { "出生年月", "Birth Y/M" } },
+            { "Str_HeatXlsx_MissingRequiredCols", new[] { "表头缺少必填列：性别 / 项目 / 赛次 / 组号 / 道次", "Header is missing required columns: Gender / Event / Stage / Heat No. / Lane" } },
+            { "Str_HeatXlsx_SheetNotFound",   new[] { "未找到工作表", "Worksheet not found" } },
+            { "Str_HeatXlsx_HeaderRowEmpty",  new[] { "首行(表头)为空", "First row (header) is empty" } },
+            { "Str_HeatXlsx_SheetDetail",     new[] { "分组明细", "Heat Details" } },
+            { "Str_HeatXlsx_SheetGrid",       new[] { "分组表(网格)", "Heat Grid" } },
+            { "Str_HeatXlsx_SheetInstructions", new[] { "填写说明", "Instructions" } },
+            { "Str_HeatXlsx_TemplateSuffix",  new[] { "Excel模板", "Excel Template" } },
             { "Str_Col_Status",  new[] { "状态", "Status" } },
             { "Str_Col_Notes",   new[] { "备注", "Notes" } },
             { "Str_Col_Date",    new[] { "日期", "Date" } },
@@ -3450,6 +3463,15 @@ namespace SwimmingScoreboard
             if (!Table.TryGetValue(key, out pair)) return key;
             int idx = CurrentLanguage == En ? 1 : 0;
             return (idx < pair.Length && !string.IsNullOrEmpty(pair[idx])) ? pair[idx] : pair[0];
+        }
+
+        /// <summary>2026-09-30 固定取英文译文，不看 CurrentLanguage —— 给"文件是哪个语言导出的
+        /// 都要认得出来"这类往返一致性场景用(比如 HeatExcelService 导入Excel时，表头不管是
+        /// 中文还是English模式导出的都要匹配上)。缺key就返回key本身，同 T() 的安全网原则。</summary>
+        public static string TEnglish(string key) {
+            string[] pair;
+            if (!Table.TryGetValue(key, out pair)) return key;
+            return (pair.Length > 1 && !string.IsNullOrEmpty(pair[1])) ? pair[1] : pair[0];
         }
 
         /// <summary>2026-09-21【第七阶段: MessageBox 弹窗】T() 只管"整句话固定不变"的文字；

@@ -36,9 +36,32 @@ namespace SwimmingScoreboard
             public string Notes;
         }
 
-        public static readonly string[] Sheet1Headers = new[] {
-            "场次","比赛日期","时段","项目编号","组别","性别","项目","赛次","排序方式",
-            "组号","道次","参赛号","姓名","代表队","单位简称","报名成绩","出生年月","年龄","备注"
+        // 2026-09-30 现场反馈: 切English模式导出/导入这份Excel文件, 表头/sheet名还是中文——
+        //   这条路径走NPOI直接拼单元格, 完全独立于HTML文档那套Loc体系, 之前没接过。
+        //   原来是 static readonly 字段(类型第一次用到时就定死了, 语言切换后不会跟着变)，
+        //   改成方法, 每次调用时现取 Loc.T(), 跟当前语言保持一致。
+        public static string[] Sheet1Headers {
+            get {
+                return new[] {
+                    Loc.T("Str_DocC_ColSession"), Loc.T("Str_HeatXlsx_ColCompDate"), Loc.T("Str_HeatXlsx_ColPeriod"),
+                    Loc.T("Str_DocC_ColEventNo2"), Loc.T("Str_Col_Group"), Loc.T("Str_DocC_ColGender"),
+                    Loc.T("Str_DocC_ColEvent"), Loc.T("Str_DocC_ColStage"), Loc.T("Str_HeatXlsx_ColSortMethod"),
+                    Loc.T("Str_HeatXlsx_ColHeatNo"), Loc.T("Str_DocC_ColLaneNo"), Loc.T("Str_Col_BibNo"),
+                    Loc.T("Str_DocC_ColName"), Loc.T("Str_DocC_ColTeam"), Loc.T("Str_Col_Abbr"),
+                    Loc.T("Str_Col_Entry"), Loc.T("Str_HeatXlsx_ColBirthYM"), Loc.T("Str_Col_Age"), Loc.T("Str_DocC_ColNote")
+                };
+            }
+        }
+
+        // 中英文表头都认——文件是哪个语言导出的都能正常导回(往返一致性): 用户在English模式
+        // 导出后, 再用同一份文件导入(不管当前是哪个语言), 不能因为表头是英文就找不到列。
+        private static readonly Dictionary<string, string> Sheet1HeaderZh = new Dictionary<string, string> {
+            { "场次", "Str_DocC_ColSession" }, { "比赛日期", "Str_HeatXlsx_ColCompDate" }, { "时段", "Str_HeatXlsx_ColPeriod" },
+            { "项目编号", "Str_DocC_ColEventNo2" }, { "组别", "Str_Col_Group" }, { "性别", "Str_DocC_ColGender" },
+            { "项目", "Str_DocC_ColEvent" }, { "赛次", "Str_DocC_ColStage" }, { "排序方式", "Str_HeatXlsx_ColSortMethod" },
+            { "组号", "Str_HeatXlsx_ColHeatNo" }, { "道次", "Str_DocC_ColLaneNo" }, { "参赛号", "Str_Col_BibNo" },
+            { "姓名", "Str_DocC_ColName" }, { "代表队", "Str_DocC_ColTeam" }, { "单位简称", "Str_Col_Abbr" },
+            { "报名成绩", "Str_Col_Entry" }, { "出生年月", "Str_HeatXlsx_ColBirthYM" }, { "年龄", "Str_Col_Age" }, { "备注", "Str_DocC_ColNote" }
         };
 
         // ───── 导出 ─────
@@ -53,13 +76,13 @@ namespace SwimmingScoreboard
             var styles = new Styles(wb);
 
             // 标题段
-            var sh1 = wb.CreateSheet("分组明细");
+            var sh1 = wb.CreateSheet(Loc.T("Str_HeatXlsx_SheetDetail"));
             BuildSheet1(sh1, styles, rows);
 
-            var sh2 = wb.CreateSheet("分组表(网格)");
+            var sh2 = wb.CreateSheet(Loc.T("Str_HeatXlsx_SheetGrid"));
             BuildSheet2(sh2, styles, competitionName, startDate, endDate, location, laneNumbers, rows);
 
-            var sh3 = wb.CreateSheet("填写说明");
+            var sh3 = wb.CreateSheet(Loc.T("Str_HeatXlsx_SheetInstructions"));
             BuildSheet3(sh3, styles, events, teams);
 
             using (var fs = new FileStream(path, FileMode.Create, FileAccess.Write)) {
@@ -85,12 +108,12 @@ namespace SwimmingScoreboard
                 IWorkbook wb = path.EndsWith(".xls", StringComparison.OrdinalIgnoreCase)
                     ? (IWorkbook)new NPOI.HSSF.UserModel.HSSFWorkbook(fs)
                     : new XSSFWorkbook(fs);
-                ISheet sh = wb.GetSheet("分组明细") ?? wb.GetSheetAt(0);
-                if (sh == null) { warning = "未找到工作表"; return result; }
+                ISheet sh = wb.GetSheet("分组明细") ?? wb.GetSheet(Loc.TEnglish("Str_HeatXlsx_SheetDetail")) ?? wb.GetSheetAt(0);
+                if (sh == null) { warning = Loc.T("Str_HeatXlsx_SheetNotFound"); return result; }
 
                 int firstRow = sh.FirstRowNum;
                 IRow header = sh.GetRow(firstRow);
-                if (header == null) { warning = "首行(表头)为空"; return result; }
+                if (header == null) { warning = Loc.T("Str_HeatXlsx_HeaderRowEmpty"); return result; }
                 var colMap = new Dictionary<string, int>();
                 for (int c = 0; c < header.LastCellNum; c++) {
                     var hc = header.GetCell(c);
@@ -98,7 +121,18 @@ namespace SwimmingScoreboard
                     h = (h ?? "").Trim();
                     if (h.Length > 0 && !colMap.ContainsKey(h)) colMap[h] = c;
                 }
-                Func<string, int> col = name => colMap.ContainsKey(name) ? colMap[name] : -1;
+                // 2026-09-30 中英文表头都认——col(zh) 先按中文原文找, 找不到再按这个中文对应的
+                // key 查当前 Loc.Table 的英文译文找(不看"当前UI语言", 直接查表, 这样不管
+                // 打开的文件是中文还是English模式导出的, 导入都不受影响)。
+                Func<string, int> col = zh => {
+                    if (colMap.ContainsKey(zh)) return colMap[zh];
+                    string key;
+                    if (Sheet1HeaderZh.TryGetValue(zh, out key)) {
+                        string en = Loc.TEnglish(key);
+                        if (colMap.ContainsKey(en)) return colMap[en];
+                    }
+                    return -1;
+                };
                 int cSession = col("场次"), cDate = col("比赛日期"), cPeriod = col("时段"), cEvNum = col("项目编号");
                 int cAge = col("组别"), cGender = col("性别"), cEvent = col("项目"), cStage = col("赛次"), cSort = col("排序方式");
                 int cHeat = col("组号"), cLane = col("道次");
@@ -106,7 +140,7 @@ namespace SwimmingScoreboard
                 int cEntry = col("报名成绩"), cBirth = col("出生年月"), cAgeY = col("年龄"), cNotes = col("备注");
 
                 if (cGender < 0 || cEvent < 0 || cStage < 0 || cHeat < 0 || cLane < 0) {
-                    warning = "表头缺少必填列：性别 / 项目 / 赛次 / 组号 / 道次"; return result;
+                    warning = Loc.T("Str_HeatXlsx_MissingRequiredCols"); return result;
                 }
 
                 for (int r = firstRow + 1; r <= sh.LastRowNum; r++) {
