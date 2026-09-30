@@ -1227,10 +1227,14 @@ namespace SwimmingScoreboard
             sb.Append("</body></html>");
 
             // 推荐的文件名 (5 个按钮共用)
+            // 2026-09-30 性别/赛次跟标题行(eventTitle)同一个毛病: 文件名里原样用了
+            //   SelectedGender/SelectedStage 的中文原始值, 英文模式下文件名一直是中文——
+            //   跟"按组别批量公布"那边(文件名已经用 Final)不一致。组别/项目名本身仍是
+            //   真实业务数据, 不翻译。
             string ageNamePart = (string.IsNullOrEmpty(SelectedAgeGroup) || SelectedAgeGroup == "全部") ? "" : (SelectedAgeGroup + "_");
-            string safeEvent2 = ageNamePart + SelectedGender + SelectedEvent;
+            string safeEvent2 = ageNamePart + Loc.GenderDisplay(SelectedGender) + SelectedEvent;
             string heatSuffix2 = showHeat ? Loc.F("Str_DocFile_HeatSuffixFmt", SelectedHeat) : "";
-            suggestedFileName = string.Format(Loc.T("Str_DocTitle_EventResult") + "_{0}_{1}{2}", safeEvent2, SelectedStage, heatSuffix2);
+            suggestedFileName = string.Format(Loc.T("Str_DocTitle_EventResult") + "_{0}_{1}{2}", safeEvent2, Loc.StageDisplay(SelectedStage), heatSuffix2);
             foreach (char c in Path.GetInvalidFileNameChars()) suggestedFileName = suggestedFileName.Replace(c, '_');
 
             return sb.ToString();
