@@ -30005,7 +30005,9 @@ namespace SwimmingScoreboard
             var dlg = new Microsoft.Win32.SaveFileDialog {
                 Filter = Loc.T("Str_Filter_Csv"),
                 Title = Loc.T("Str_Win_ExportScheduleCsv_Title"),
-                FileName = (string.IsNullOrEmpty(_competitionName) ? Loc.T("Str_FileName_Schedule") : _competitionName) + ".csv"
+                // 2026-09-30 现场反馈: 起了运动会名称的比赛, 导出文件名只有运动会名, 没有"日程表"
+                //   字样, 看文件名认不出是赛程——不管有没有起运动会名, 都加上"_日程表"后缀。
+                FileName = (string.IsNullOrEmpty(_competitionName) ? "" : _competitionName + "_") + Loc.T("Str_FileName_Schedule") + ".csv"
             };
             if (dlg.ShowDialog() != true) return;
             try {
