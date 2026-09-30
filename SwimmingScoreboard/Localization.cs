@@ -644,7 +644,15 @@ namespace SwimmingScoreboard
             //   三种格式自动一起生效。真实比赛数据(姓名/代表队/项目名/成绩/DSQ等状态码)不在这批key里,
             //   那些是数据不是文案。
             { "Str_DocC_PrintTimeFmt",   new[] { "打印时间：{0}", "Printed: {0}" } },
-            { "Str_DocC_PageOfFmt",      new[] { "第 ' counter(page) ' 页  共 ' counter(pages) ' 页", "Page ' counter(page) ' of ' counter(pages)" } },
+            // 2026-09-30 真bug: 这条是拼进CSS content属性的, 调用点是
+            //   "content: '" + Loc.T(key) + "';" —— 中文版内部4个单引号(开/关/开/关)
+            //   刚好在"到达值末尾时=在字符串内", 好让外面那个收尾单引号把它闭合。英文版原来
+            //   只有3个单引号(少一个), 结果外面那个收尾单引号变成"又开了一个新字符串",
+            //   后面所有CSS(包括 body{font-family..}/table{border..}/th{background..})全部
+            //   被当成这个没闭合字符串的一部分, 直接被吞掉不生效——英文版PDF/HTML表格完全
+            //   没有边框/底色、字体退化成Chromium内置兜底字体(Noto Sans SC, 逐字符Type3
+            //   合成, 文件也因此暴涨到近2倍), 就是这个吞栏症状。补一个收尾单引号闭合。
+            { "Str_DocC_PageOfFmt",      new[] { "第 ' counter(page) ' 页  共 ' counter(pages) ' 页", "Page ' counter(page) ' of ' counter(pages) '" } },
             { "Str_DocC_RefereeSigFmt",  new[] { "裁判：{0}", "Referee: {0}" } },
             { "Str_DocC_RecorderSig",    new[] { "记录长：__________________", "Recorder: __________________" } },
             { "Str_DocC_ColName",        new[] { "姓名", "Name" } },
