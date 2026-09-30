@@ -69,11 +69,12 @@ namespace SwimmingScoreboard
         private void ExportCsv_Click(object sender, RoutedEventArgs e) {
             var dlg = new Microsoft.Win32.SaveFileDialog {
                 Filter = Loc.T("Str_Win_UnitMgmt_CsvFilter"),
-                FileName = "参赛单位_" + DateTime.Now.ToString("yyyyMMdd_HHmm") + ".csv"
+                Title = Loc.T("Str_Win_UnitMgmt_ExportTitle"),
+                FileName = Loc.T("Str_FileName_Units") + "_" + DateTime.Now.ToString("yyyyMMdd_HHmm") + ".csv"
             };
             if (dlg.ShowDialog() != true) return;
             var sb = new StringBuilder();
-            sb.AppendLine("单位名称,简称,领队,教练,队医,基础分,联系电话,地址,备注");
+            sb.AppendLine(string.Join(",", UnitXlsxHeader));
             foreach (var u in _units) {
                 sb.AppendLine(string.Join(",", new[] {
                     Esc(u.Name), Esc(u.ShortName), Esc(u.Leader), Esc(u.Coach), Esc(u.Doctor),
@@ -87,7 +88,8 @@ namespace SwimmingScoreboard
 
         private void ImportCsv_Click(object sender, RoutedEventArgs e) {
             var dlg = new Microsoft.Win32.OpenFileDialog {
-                Filter = Loc.T("Str_Win_UnitMgmt_CsvFilter")
+                Filter = Loc.T("Str_Win_UnitMgmt_CsvFilter"),
+                Title = Loc.T("Str_Win_UnitMgmt_ImportTitle")
             };
             if (dlg.ShowDialog() != true) return;
             try {
@@ -133,15 +135,21 @@ namespace SwimmingScoreboard
 
         // 2026-05-25 用 Excel/WPS 外部编辑 → 回灌
         // 表头与 DataGrid 列一致 (9 列), 严格校验; 回灌成功后整体替换 _units
-        private static readonly string[] UnitXlsxHeader = new[] {
-            "单位名称", "简称", "领队", "教练", "队医", "基础分", "联系电话", "地址", "备注"
-        };
+        private static string[] UnitXlsxHeader {
+            get {
+                return new[] {
+                    Loc.T("Str_Win_UnitMgmt_ColName"), Loc.T("Str_DocC_ColShortName"), Loc.T("Str_Win_UnitMgmt_ColLeader"),
+                    Loc.T("Str_Win_UnitMgmt_ColCoach"), Loc.T("Str_Win_UnitMgmt_ColDoctor"), Loc.T("Str_Win_UnitMgmt_ColBasePoints"),
+                    Loc.T("Str_DocC_ColPhone"), Loc.T("Str_Win_UnitMgmt_ColAddress"), Loc.T("Str_Col_Notes")
+                };
+            }
+        }
         private string _editTempPath;
 
         private void EditInExcel_Click(object sender, RoutedEventArgs e) {
             try {
                 string tmp = Path.Combine(Path.GetTempPath(),
-                    "参赛单位_" + DateTime.Now.ToString("yyyyMMdd_HHmmss") + ".xlsx");
+                    Loc.T("Str_FileName_Units") + "_" + DateTime.Now.ToString("yyyyMMdd_HHmmss") + ".xlsx");
                 WriteUnitsToXlsx(tmp);
                 _editTempPath = tmp;
                 try { Process.Start(new ProcessStartInfo(tmp) { UseShellExecute = true }); }
@@ -202,7 +210,7 @@ namespace SwimmingScoreboard
 
         private void WriteUnitsToXlsx(string path) {
             var wb = new XSSFWorkbook();
-            var sheet = wb.CreateSheet("参赛单位");
+            var sheet = wb.CreateSheet(Loc.T("Str_FileName_Units"));
             var headerRow = sheet.CreateRow(0);
             for (int c = 0; c < UnitXlsxHeader.Length; c++)
                 headerRow.CreateCell(c).SetCellValue(UnitXlsxHeader[c]);
@@ -237,7 +245,8 @@ namespace SwimmingScoreboard
             var sheet = wb.GetSheetAt(0);
             if (sheet == null) { MessageBox.Show(Loc.T("Str_Win_UnitMgmt_MsgNoSheet"), Loc.T("Str_MsgTitle_Error")); return; }
 
-            // 表头严格校验 (UnitXlsxHeader 是数据格式契约, 与导入回读比对, 不可翻译)
+            // 表头严格校验 (UnitXlsxHeader 现按 Loc.T 现取; 写入与回读发生在同一次操作里,
+            // 中间隔着模态"等待"窗口, 用户没法在这期间切语言, 两边天然保持一致)
             var head = sheet.GetRow(0);
             if (head == null || head.LastCellNum < UnitXlsxHeader.Length) {
                 MessageBox.Show(Loc.T("Str_Win_UnitMgmt_MsgHeaderCountBad"), Loc.T("Str_MsgTitle_Error"));

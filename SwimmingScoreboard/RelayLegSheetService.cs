@@ -24,7 +24,7 @@ namespace SwimmingScoreboard
     //   · 四个关键列（代表队/项目/性别/组别）原样带在每一行上，不靠上下文推断。
     public static class RelayLegSheetService
     {
-        public const string SheetName = "接力棒次";
+        public static string SheetName { get { return Loc.T("Str_RelaySheet_TabName"); } }
 
         // 2026-09-30 现场反馈: English模式导出这份Excel表头还是中文——原来是 static readonly
         //   字段, 改成按当前语言现取; Import() 那边把实际表头文字(不管中/英)都规整回中文
@@ -169,22 +169,22 @@ namespace SwimmingScoreboard
 
         private static void WriteHelpSheet(IWorkbook wb)
         {
-            var sh = wb.CreateSheet("填写说明");
+            var sh = wb.CreateSheet(Loc.T("Str_HeatXlsx_SheetInstructions"));
             string[] lines = {
-                "接力棒次填报表 — 填写说明",
+                Loc.T("Str_RelaySheet_Help_Title"),
                 "",
-                "1. 只填黄色的「第1棒」「第2棒」「第3棒」「第4棒」四列，按实际出场棒次顺序填姓名。",
-                "2. 灰色各列（场次/项次/组次/泳道/项目/性别/组别/代表队）是程序用来对号入座的，请勿改动，",
-                "   也不要插入/删除列、不要改表头文字。行的顺序可以不管，程序按「代表队+项目+性别+组别」认队。",
-                "3. 没拿到名单的队伍空着即可 —— 空行会整行跳过，不会把已有的名单清掉。",
-                "4. 一个文件只管一个场次。拿到哪一场的名单就填哪个文件。",
-                "5. 填完存盘（xlsx 或 xls 都行，WPS 存的也认），回程序：",
-                "       接力队管理  →  读入棒次名单  →  选这个文件",
-                "6. 读入后对话框会报「第N场：X 支」，和你填的支数对一下。",
-                "7. 姓名里的空格会自动去掉（如「尤  艺」按「尤艺」处理）。",
+                Loc.T("Str_RelaySheet_Help_Line1"),
+                Loc.T("Str_RelaySheet_Help_Line2a"),
+                Loc.T("Str_RelaySheet_Help_Line2b"),
+                Loc.T("Str_RelaySheet_Help_Line3"),
+                Loc.T("Str_RelaySheet_Help_Line4"),
+                Loc.T("Str_RelaySheet_Help_Line5"),
+                Loc.T("Str_RelaySheet_Help_Line5b"),
+                Loc.T("Str_RelaySheet_Help_Line6"),
+                Loc.T("Str_RelaySheet_Help_Line7"),
                 "",
-                "注意：本表用 NPOI 生成/读取，现场机器不需要装 Microsoft Excel，",
-                "      用 WPS 表格打开编辑保存同样可以读回。"
+                Loc.T("Str_RelaySheet_Help_Note1"),
+                Loc.T("Str_RelaySheet_Help_Note2")
             };
             for (int i = 0; i < lines.Length; i++) {
                 var row = sh.CreateRow(i);
@@ -205,12 +205,14 @@ namespace SwimmingScoreboard
                     ? (IWorkbook)new NPOI.HSSF.UserModel.HSSFWorkbook(fs)
                     : new XSSFWorkbook(fs);
 
-                ISheet sh = wb.GetSheet(SheetName);
+                // 2026-09-30 先按当前语言的表名找，找不到再按另一种语言找，最后才退回"第一个非
+                // 说明页的表"——不管这份文件是哪个语言导出的都能认出主数据表。
+                ISheet sh = wb.GetSheet(SheetName) ?? wb.GetSheet(Loc.TChinese("Str_RelaySheet_TabName")) ?? wb.GetSheet(Loc.TEnglish("Str_RelaySheet_TabName"));
                 if (sh == null) {
-                    // 表名被改过就退回第一个非"填写说明"的表
+                    string zhInstr = Loc.TChinese("Str_HeatXlsx_SheetInstructions"), enInstr = Loc.TEnglish("Str_HeatXlsx_SheetInstructions");
                     for (int i = 0; i < wb.NumberOfSheets; i++) {
                         var s = wb.GetSheetAt(i);
-                        if (s != null && s.SheetName != "填写说明") { sh = s; break; }
+                        if (s != null && s.SheetName != zhInstr && s.SheetName != enInstr) { sh = s; break; }
                     }
                 }
                 if (sh == null) { warning = "文件里没有可用的工作表"; return list; }

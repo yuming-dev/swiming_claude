@@ -5585,8 +5585,9 @@ namespace SwimmingScoreboard
             var btnSave = new Button { Content = Loc.T("Str_Btn_Save"), Width = 80, Height = 30, Margin = new Thickness(5) };
             btnSave.Click += delegate(object s, RoutedEventArgs e) {
                 var dlg = new Microsoft.Win32.SaveFileDialog {
-                    FileName = string.Format("事件备份_{0:yyyyMMdd_HHmmss}.txt", DateTime.Now),
-                    Filter = Loc.T("Str_Filter_TextFile")
+                    FileName = string.Format("{0}_{1:yyyyMMdd_HHmmss}.txt", Loc.T("Str_MsgTitle_EventBackup"), DateTime.Now),
+                    Filter = Loc.T("Str_Filter_TextFile"),
+                    Title = Loc.T("Str_MsgTitle_EventBackup")
                 };
                 if (dlg.ShowDialog() == true) {
                     try {
@@ -10133,7 +10134,8 @@ namespace SwimmingScoreboard
                 }
                 var dlg = new Microsoft.Win32.SaveFileDialog();
                 dlg.Filter = Loc.T("Str_Filter_ResultJson");
-                dlg.FileName = (_competitionName ?? "成绩") + "_成绩_" +
+                dlg.Title = Loc.T("Str_MsgTitle_ExportResults");
+                dlg.FileName = (_competitionName ?? Loc.T("Str_FileName_Results")) + "_" + Loc.T("Str_FileName_Results") + "_" +
                                DateTime.Now.ToString("yyyyMMdd_HHmm") + ".json";
                 if (dlg.ShowDialog() != true) return;
 
@@ -10188,6 +10190,7 @@ namespace SwimmingScoreboard
             {
                 var dlg = new Microsoft.Win32.OpenFileDialog();
                 dlg.Filter = Loc.T("Str_Filter_ResultJson");
+                dlg.Title = Loc.T("Str_MsgTitle_ImportResults");
                 if (dlg.ShowDialog() != true) return;
 
                 var root = JObject.Parse(File.ReadAllText(dlg.FileName, Encoding.UTF8));
@@ -23557,13 +23560,14 @@ namespace SwimmingScoreboard
                 string stage = cbStage.SelectedItem as string ?? "预赛";
                 var saveDlg = new Microsoft.Win32.SaveFileDialog {
                     Filter = Loc.T("Str_Filter_Csv"),
-                    FileName = string.Format("分组_{0}_{1}_{2}_{3}.csv",
-                        string.IsNullOrEmpty(combo.AgeGroup) ? "不限" : combo.AgeGroup,
+                    Title = Loc.T("Str_Win_ManualSeed_ExportCsvTitle"),
+                    FileName = string.Format("{0}_{1}_{2}_{3}_{4}.csv", Loc.T("Str_DocTitle_HeatAssignments"),
+                        string.IsNullOrEmpty(combo.AgeGroup) ? Loc.T("Str_UnitBibAlloc_Unlimited") : combo.AgeGroup,
                         combo.Gender, combo.EventName, stage)
                 };
                 if (saveDlg.ShowDialog() != true) return;
                 var sb = new System.Text.StringBuilder();
-                sb.AppendLine("组别,性别,项目,阶段,组,道,号码,姓名,代表队,种子成绩");
+                sb.AppendLine(string.Join(",", new[] { Loc.T("Str_Col_Group"), Loc.T("Str_DocC_ColGender"), Loc.T("Str_Col_Event"), Loc.T("Str_DocC_ColStage"), Loc.T("Str_EM_Relay_ColHeat"), Loc.T("Str_Col_Lane"), Loc.T("Str_Col_Bib"), Loc.T("Str_Col_Name"), Loc.T("Str_Col_Team"), Loc.T("Str_Col_SeedTime") }));
                 foreach (var r in rowSource) {
                     sb.AppendLine(string.Join(",", new[] {
                         CsvEsc(combo.AgeGroup ?? ""), CsvEsc(combo.Gender ?? ""), CsvEsc(combo.EventName ?? ""), CsvEsc(stage),

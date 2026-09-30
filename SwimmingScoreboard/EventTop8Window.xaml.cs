@@ -125,7 +125,7 @@ namespace SwimmingScoreboard
             if (_lastResult.Count == 0) { MessageBox.Show(Loc.T("Str_Win_IndiRank_MsgComputeFirst"), Loc.T("Str_MsgTitle_Info")); return; }
             var dlg = new Microsoft.Win32.SaveFileDialog {
                 Filter = Loc.T("Str_Win_UnitMgmt_CsvFilter"), Title = Loc.T("Str_Win_EventTop8_ExportCsvTitle"),
-                FileName = "项目成绩统计_" + DateTime.Now.ToString("yyyyMMdd_HHmm") + ".csv"
+                FileName = Loc.T("Str_FileName_EventTop8") + "_" + DateTime.Now.ToString("yyyyMMdd_HHmm") + ".csv"
             };
             if (dlg.ShowDialog() != true) return;
             var sb = new StringBuilder();
@@ -161,7 +161,7 @@ namespace SwimmingScoreboard
                     He(r.R1), He(r.R2), He(r.R3), He(r.R4), He(r.R5), He(r.R6), He(r.R7), He(r.R8));
             }
             sb.AppendLine("</table></body></html>");
-            string tmp = Path.Combine(Path.GetTempPath(), "项目成绩统计_" + DateTime.Now.ToString("yyyyMMdd_HHmm") + ".html");
+            string tmp = Path.Combine(Path.GetTempPath(), Loc.T("Str_FileName_EventTop8") + "_" + DateTime.Now.ToString("yyyyMMdd_HHmm") + ".html");
             File.WriteAllText(tmp, sb.ToString(), Encoding.UTF8);
             try { Process.Start(tmp); } catch { MessageBox.Show(Loc.F("Str_Win_IndiRank_MsgGeneratedFmt", tmp)); }
         }

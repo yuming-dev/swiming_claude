@@ -120,7 +120,8 @@ namespace SwimmingScoreboard
         private void ExportCsv_Click(object sender, RoutedEventArgs e) {
             var dlg = new Microsoft.Win32.SaveFileDialog {
                 Filter = Loc.T("Str_Win_UnitMgmt_CsvFilter"),
-                FileName = "工作人员_" + DateTime.Now.ToString("yyyyMMdd_HHmm") + ".csv"
+                Title = Loc.T("Str_Win_StaffMgmt_ExportCsvTitle"),
+                FileName = Loc.T("Str_FileName_Staff") + "_" + DateTime.Now.ToString("yyyyMMdd_HHmm") + ".csv"
             };
             if (dlg.ShowDialog() != true) return;
             var sb = new StringBuilder();
@@ -136,7 +137,7 @@ namespace SwimmingScoreboard
         }
 
         private void ImportCsv_Click(object sender, RoutedEventArgs e) {
-            var dlg = new Microsoft.Win32.OpenFileDialog { Filter = Loc.T("Str_Win_UnitMgmt_CsvFilter") };
+            var dlg = new Microsoft.Win32.OpenFileDialog { Filter = Loc.T("Str_Win_UnitMgmt_CsvFilter"), Title = Loc.T("Str_Win_StaffMgmt_ImportCsvTitle") };
             if (dlg.ShowDialog() != true) return;
             try {
                 var lines = File.ReadAllLines(dlg.FileName, Encoding.UTF8);
@@ -169,19 +170,22 @@ namespace SwimmingScoreboard
             int perPage = StylePerPage8.IsChecked == true ? 8 : (StylePerPage6.IsChecked == true ? 6 : 4);
             var dlg = new Microsoft.Win32.SaveFileDialog {
                 Filter = Loc.T("Str_Win_StaffMgmt_XlsxFilter"),
-                FileName = "工作人员花名册_" + DateTime.Now.ToString("yyyyMMdd_HHmm") + ".xlsx"
+                Title = Loc.T("Str_Win_StaffMgmt_ExportRosterTitle"),
+                FileName = Loc.T("Str_FileName_StaffRoster") + "_" + DateTime.Now.ToString("yyyyMMdd_HHmm") + ".xlsx"
             };
             if (dlg.ShowDialog() != true) return;
             try {
                 var wb = new XSSFWorkbook();
                 foreach (var grp in StaffGroups.All) {
                     var members = _staff.Where(s => (s.Group ?? "") == grp).ToList();
-                    string safeName = grp;
+                    // 2026-09-30 sheet 名/标题改用 Loc.StaffGroupDisplay 展示层翻译——grp 本身
+                    // (StaffGroups.* 常量) 仍是中文数据哨兵, 不动, 只是导出时包一层展示翻译
+                    string safeName = Loc.StaffGroupDisplay(grp);
                     if (safeName.Length > 31) safeName = safeName.Substring(0, 31);
                     var sheet = wb.CreateSheet(safeName);
                     int r = 0;
                     var titleRow = sheet.CreateRow(r++);
-                    titleRow.CreateCell(0).SetCellValue(Loc.F("Str_Win_StaffMgmt_RosterTitleFmt", grp, perPage));
+                    titleRow.CreateCell(0).SetCellValue(Loc.F("Str_Win_StaffMgmt_RosterTitleFmt", Loc.StaffGroupDisplay(grp), perPage));
                     bool isReferees = grp == StaffGroups.Referees;
                     var hr = sheet.CreateRow(r++);
                     hr.CreateCell(0).SetCellValue(Loc.T("Str_Win_StaffMgmt_ColIndex"));

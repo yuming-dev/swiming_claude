@@ -1718,7 +1718,7 @@ namespace SwimmingScoreboard
             if (rows.Count == 0) return;
             var dlg = new Microsoft.Win32.SaveFileDialog {
                 Filter = Loc.T("Str_Win_UnitMgmt_CsvFilter"), Title = Loc.T("Str_Win_SchedWizard_ExportMultiEventTitle"),
-                FileName = "运动员兼项统计_" + DateTime.Now.ToString("yyyyMMdd") + ".csv"
+                FileName = Loc.T("Str_FileName_MultiEventStats") + "_" + DateTime.Now.ToString("yyyyMMdd") + ".csv"
             };
             if (dlg.ShowDialog() != true) return;
             var sb = new StringBuilder();

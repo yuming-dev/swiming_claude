@@ -193,6 +193,19 @@ namespace SwimmingScoreboard
             { "Str_HeatXlsx_SheetDetail",     new[] { "分组明细", "Heat Details" } },
             { "Str_HeatXlsx_SheetGrid",       new[] { "分组表(网格)", "Heat Grid" } },
             { "Str_HeatXlsx_SheetInstructions", new[] { "填写说明", "Instructions" } },
+            { "Str_RelaySheet_TabName", new[] { "接力棒次", "Relay Legs" } },
+            { "Str_RelaySheet_Help_Title", new[] { "接力棒次填报表 — 填写说明", "Relay Leg Sheet — Instructions" } },
+            { "Str_RelaySheet_Help_Line1", new[] { "1. 只填黄色的「第1棒」「第2棒」「第3棒」「第4棒」四列，按实际出场棒次顺序填姓名。", "1. Fill in only the yellow \"Leg 1\"/\"Leg 2\"/\"Leg 3\"/\"Leg 4\" columns, names in actual swimming order." } },
+            { "Str_RelaySheet_Help_Line2a", new[] { "2. 灰色各列（场次/项次/组次/泳道/项目/性别/组别/代表队）是程序用来对号入座的，请勿改动，", "2. The gray columns (Session/Event No./Heat/Lane/Event/Sex/Group/Team) are used by the program to match rows — do not change them," } },
+            { "Str_RelaySheet_Help_Line2b", new[] { "   也不要插入/删除列、不要改表头文字。行的顺序可以不管，程序按「代表队+项目+性别+组别」认队。", "   and don't insert/delete columns or edit header text. Row order doesn't matter — teams are matched by Team+Event+Sex+Group." } },
+            { "Str_RelaySheet_Help_Line3", new[] { "3. 没拿到名单的队伍空着即可 —— 空行会整行跳过，不会把已有的名单清掉。", "3. Leave a team blank if you don't have its roster yet — blank rows are skipped entirely and won't clear existing data." } },
+            { "Str_RelaySheet_Help_Line4", new[] { "4. 一个文件只管一个场次。拿到哪一场的名单就填哪个文件。", "4. Each file covers one session only. Fill in whichever session's file you received." } },
+            { "Str_RelaySheet_Help_Line5", new[] { "5. 填完存盘（xlsx 或 xls 都行，WPS 存的也认），回程序：", "5. Save when done (xlsx or xls both work, WPS-saved too), then back in the program:" } },
+            { "Str_RelaySheet_Help_Line5b", new[] { "       接力队管理  →  读入棒次名单  →  选这个文件", "       Relay Teams  →  Import Leg Sheet  →  select this file" } },
+            { "Str_RelaySheet_Help_Line6", new[] { "6. 读入后对话框会报「第N场：X 支」，和你填的支数对一下。", "6. After reading it back, the dialog reports \"Session N: X team(s)\" — check it against how many you filled in." } },
+            { "Str_RelaySheet_Help_Line7", new[] { "7. 姓名里的空格会自动去掉（如「尤  艺」按「尤艺」处理）。", "7. Spaces inside names are stripped automatically (e.g. \"Jane  Doe\" is treated as \"JaneDoe\")." } },
+            { "Str_RelaySheet_Help_Note1", new[] { "注意：本表用 NPOI 生成/读取，现场机器不需要装 Microsoft Excel，", "Note: this sheet is generated/read with NPOI — the venue machine doesn't need Microsoft Excel installed;" } },
+            { "Str_RelaySheet_Help_Note2", new[] { "      用 WPS 表格打开编辑保存同样可以读回。", "      editing and saving with WPS Spreadsheets works just as well." } },
             { "Str_HeatXlsx_TemplateSuffix",  new[] { "Excel模板", "Excel Template" } },
             { "Str_Col_Status",  new[] { "状态", "Status" } },
             { "Str_Col_Notes",   new[] { "备注", "Notes" } },
@@ -984,6 +997,9 @@ namespace SwimmingScoreboard
             { "Str_MsgTitle_ClockResetConfirm", new[] { "计时复位确认", "Confirm Clock Reset" } },
             { "Str_Msg_ClockResetConfirm",    new[] { "确定计时复位？", "Reset the clock?" } },
             { "Str_MsgTitle_ExportResults",   new[] { "导出成绩", "Export Results" } },
+            { "Str_FileName_Results",         new[] { "成绩", "Results" } },
+            { "Str_Col_SeedTime", new[] { "种子成绩", "Seed Time" } },
+            { "Str_Win_ManualSeed_ExportCsvTitle", new[] { "导出本项分组(CSV)", "Export This Event's Heats (CSV)" } },
             { "Str_Msg_NoConfirmedToExport",  new[] { "本机竞赛库里还没有已确认的组，没有可导出的成绩。", "No confirmed heats in this machine's competition database yet — nothing to export." } },
             { "Str_Msg_ExportedHeatsFmt",     new[] { "已导出 {0} 个组的成绩。\n\n拿到主服务器上点「从文件导入成绩」即可。\n重复导入是安全的，不会重复计分。", "Exported results for {0} heat(s).\n\nOn the main server, click \"Import Results from File\".\nRe-importing the same file is safe and won't double-count." } },
             { "Str_Msg_ExportResultsFailedFmt", new[] { "导出成绩失败：{0}", "Failed to export results: {0}" } },
@@ -2258,6 +2274,15 @@ namespace SwimmingScoreboard
             { "Str_Win_UnitMgmt_MsgConfirmDeleteFmt", new[] { "确认删除选中的 {0} 个单位？\n(只删除元信息，不影响运动员的代表队字段)", "Delete the selected {0} unit(s)?\n(Only removes metadata; swimmers' team field is unaffected)" } },
             { "Str_Win_UnitMgmt_MsgAutoFillDoneFmt", new[] { "✔ 已从报名表自动补全 {0} 个新单位", "✔ Auto-filled {0} new unit(s) from entries" } },
             { "Str_Win_UnitMgmt_CsvFilter", new[] { "CSV 文件|*.csv", "CSV Files|*.csv" } },
+            // 2026-09-30 现场反馈: "参赛单位"整个窗口的导出/导入/Excel回灌都没走Loc——
+            // 对话框标题没设(退回操作系统默认"另存为"), 文件名/CSV表头/Excel表头/sheet名
+            // 全是硬编码中文字面量。这批补上, Excel回灌走法参照 HeatExcelService 已验证的
+            // 套路: 表头也按当前语言现取——因为这里是同一次操作里写完立刻读回(中间隔着一个
+            // 模态"等待"窗口, 用户没法在这期间切语言), 不需要像 Swimmer/Relay CSV 那样
+            // 另外维护中英文双参照表。
+            { "Str_Win_UnitMgmt_ExportTitle", new[] { "导出参赛单位表", "Export Teams / Units" } },
+            { "Str_Win_UnitMgmt_ImportTitle", new[] { "导入参赛单位表", "Import Teams / Units" } },
+            { "Str_FileName_Units", new[] { "参赛单位", "Teams-Units" } },
             { "Str_Win_UnitMgmt_MsgExportedFmt", new[] { "已导出: {0}", "Exported: {0}" } },
             { "Str_Win_UnitMgmt_MsgImportDoneFmt", new[] { "✔ 新增 {0} 个，更新 {1} 个", "✔ Added {0}, updated {1}" } },
             { "Str_Win_UnitMgmt_MsgImportFailFmt", new[] { "导入失败: {0}", "Import failed: {0}" } },
@@ -2304,8 +2329,18 @@ namespace SwimmingScoreboard
             { "Str_Win_StaffMgmt_MsgConfirmAppendFmt", new[] { "当前 {0} 已有 {1} 条记录。\n是否仍然追加预设岗位（不删除已有项）？", "The group \"{0}\" already has {1} record(s).\nAppend the default roles anyway (existing entries are kept)?" } },
             { "Str_Win_StaffMgmt_MsgAppendDoneFmt", new[] { "✔ 已为「{0}」追加 {1} 个预设岗位（姓名待填）", "✔ Added {1} default role(s) to \"{0}\" (names pending)" } },
             { "Str_Win_StaffMgmt_CsvHeader", new[] { "分组,工作岗位,姓名,性别,裁判等级,工作单位,电话,备注", "Group,Role,Name,Sex,Referee Level,Work Unit,Phone,Notes" } },
+            { "Str_StaffGroup_Presidium", new[] { "主席团", "Presidium" } },
+            { "Str_StaffGroup_OrgCommittee", new[] { "组织委员会", "Organizing Committee" } },
+            { "Str_StaffGroup_WorkOrg", new[] { "工作机构", "Working Bodies" } },
+            { "Str_StaffGroup_TechArbitration", new[] { "技术及仲裁", "Technical & Arbitration" } },
+            { "Str_StaffGroup_Referees", new[] { "裁判员", "Referees" } },
+            { "Str_FileName_Staff", new[] { "工作人员", "Staff" } },
+            { "Str_FileName_StaffRoster", new[] { "工作人员花名册", "Staff Roster" } },
+            { "Str_Win_StaffMgmt_ExportCsvTitle", new[] { "导出工作人员表", "Export Staff" } },
+            { "Str_Win_StaffMgmt_ImportCsvTitle", new[] { "导入工作人员表", "Import Staff" } },
             { "Str_Win_StaffMgmt_MsgImportedFmt", new[] { "✔ 已导入 {0} 名", "✔ Imported {0}" } },
             { "Str_Win_StaffMgmt_XlsxFilter", new[] { "Excel 工作簿|*.xlsx", "Excel Workbook|*.xlsx" } },
+            { "Str_Win_StaffMgmt_ExportRosterTitle", new[] { "导出工作人员花名册", "Export Staff Roster" } },
             { "Str_Win_StaffMgmt_RosterTitleFmt", new[] { "工作人员管理 < 可选 >  ·  {0}   (样式: {1} 张/页)", "Staff Management  ·  {0}   (Style: {1} / page)" } },
             { "Str_Win_StaffMgmt_MsgRosterExportedFmt", new[] { "已导出: {0}\n样式: {1} 张/页", "Exported: {0}\nStyle: {1} / page" } },
             { "Str_Win_StaffMgmt_MsgExportFailFmt", new[] { "导出失败: {0}", "Export failed: {0}" } },
@@ -2558,6 +2593,7 @@ namespace SwimmingScoreboard
             { "Str_Win_IndiRank_CsvHeader", new[] { "名次,号码,姓名,性别,代表队,组别,总积分,个人项目数,项目-名次明细", "Rank,Bib No.,Name,Sex,Team,Group,Total Points,Individual Events,Event-Rank Detail" } },
             { "Str_Win_IndiRank_MsgGeneratedFmt", new[] { "已生成: {0}", "Generated: {0}" } },
             { "Str_Win_EventTop8_Title", new[] { "项目成绩统计 — 各项第 1-8 名", "Event Results Summary — Places 1-8" } },
+            { "Str_FileName_EventTop8", new[] { "项目成绩统计", "Event Top 8" } },
             { "Str_Win_EventTop8_DisplayLabel", new[] { "统计内容:", "Display:" } },
             { "Str_Win_EventTop8_DisplayNameTeam", new[] { "姓名 (代表队)", "Name (Team)" } },
             { "Str_Win_EventTop8_DisplayNameTime", new[] { "姓名 + 成绩", "Name + Time" } },
@@ -2778,6 +2814,7 @@ namespace SwimmingScoreboard
             { "Str_Win_SchedWizard_MultiEventSummaryFmt", new[] { "共 {0} 名运动员，兼报 ≥3 项 {1} 人；最多 {2} 项", "{0} athlete(s) total; {1} entered in ≥3 events; max {2} events" } },
             { "Str_Win_SchedWizard_MsgComputeMultiEventFirst", new[] { "请先点 「🔍 统计兼项分布」", "Please click \"🔍 Compute Multi-Event Distribution\" first" } },
             { "Str_Win_SchedWizard_ExportMultiEventTitle", new[] { "导出兼项统计", "Export Multi-Event Statistics" } },
+            { "Str_FileName_MultiEventStats", new[] { "运动员兼项统计", "Multi-Event Statistics" } },
             { "Str_Win_SchedWizard_MultiEventCsvHeader", new[] { "号码,姓名,性别,代表队,个人项目数,接力项目数,兼项详情", "Bib No.,Name,Sex,Team,Individual Events,Relay Events,Event Detail" } },
             { "Str_Btn_Copy", new[] { "复制", "Copy" } },
             { "Str_Filter_TextFile", new[] { "文本文件 (*.txt)|*.txt|所有文件 (*.*)|*.*", "Text Files (*.txt)|*.txt|All Files (*.*)|*.*" } },
@@ -3578,6 +3615,21 @@ namespace SwimmingScoreboard
                 case "女": return T("Str_Gender_Female");
                 case "混合": return T("Str_Gender_Mixed");
                 default: return zhGender ?? "";
+            }
+        }
+
+        /// <summary>2026-09-30 StaffGroups.* 五个组名是数据哨兵(StaffMember.Group 存的就是这几个
+        /// 中文字面量，全系统靠 == 比较)，跟 Gender/Stage 一样只在展示层包一层，源数据不翻译。
+        /// 目前只接入了"导出花名册"(sheet 名/标题)，StaffManageWindow 主界面表格/筛选下拉还是
+        /// 原样中文——那是更大的一块(整窗口重绑), 未跟这次一起改。</summary>
+        public static string StaffGroupDisplay(string zhGroup) {
+            switch (zhGroup) {
+                case "主席团": return T("Str_StaffGroup_Presidium");
+                case "组织委员会": return T("Str_StaffGroup_OrgCommittee");
+                case "工作机构": return T("Str_StaffGroup_WorkOrg");
+                case "技术及仲裁": return T("Str_StaffGroup_TechArbitration");
+                case "裁判员": return T("Str_StaffGroup_Referees");
+                default: return zhGroup ?? "";
             }
         }
 
