@@ -2945,6 +2945,11 @@ namespace SwimmingScoreboard
             { "Str_Win_ExportRelayTemplate_Title", new[] { "导出接力报名模板", "Export Relay Registration Template" } },
             { "Str_Win_ExportRelayTeams_Title", new[] { "导出接力队", "Export Relay Teams" } },
             { "Str_Win_ExportRelayLegSheet_Title", new[] { "导出接力棒次填报表 (按场次分成多个文件)", "Export Relay Leg Sheet (split by session)" } },
+            // 2026-09-30 现场反馈: "没有第0场，但导出第0场"——找不到匹配日程的接力队原来会
+            // 被塞进假的"第0场"文件, 不再这样做, 改成跳过并在弹窗里单独提示。
+            { "Str_Msg_RelayUnscheduledTeamsFmt", new[] { "另有 {0} 支接力队尚未排入日程(找不到匹配的项目/性别/组别)，未导出——请先在「赛程管理」里把这些项目排上日程。", "{0} more relay team(s) haven't been scheduled yet (no matching event/gender/age group found) and were not exported — schedule these events first in \"Schedule\"." } },
+            { "Str_Msg_RelayAllUnscheduledFmt", new[] { "全部 {0} 支接力队都还没排入日程(找不到匹配的项目/性别/组别)，没有可导出的内容。请先在「赛程管理」里把这些项目排上日程。", "All {0} relay team(s) haven't been scheduled yet (no matching event/gender/age group found) — nothing to export. Schedule these events first in \"Schedule\"." } },
+            { "Str_Msg_RelaySessionSummaryLineFmt", new[] { "  {0}  {1} 支队   {2}", "  {0}  {1} team(s)   {2}" } },
             { "Str_Win_ImportRelayCsv_Title", new[] { "导入接力队 CSV", "Import Relay Team CSV" } },
             { "Str_Win_PickPpt_Title", new[] { "选择 PPT 文件 (将逐页推送到大屏 display.html)", "Choose PPT File (pushed page-by-page to display.html)" } },
             { "Str_Win_PickImageVideo_Title", new[] { "选择图片或视频", "Choose Image or Video" } },

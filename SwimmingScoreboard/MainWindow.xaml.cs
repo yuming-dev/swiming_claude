@@ -20322,12 +20322,17 @@ namespace SwimmingScoreboard
             if (dlg.ShowDialog() != true) return;
 
             // 按 场次 → 项次 → 泳道 排, 和秩序册顺序一致, 现场好对
+            // 2026-09-30 现场反馈"没有第0场，但导出第0场"——找不到匹配日程(项目+性别+组别)
+            //   的接力队，原来会用 ses=0 兜底，冒充出一个根本不存在的"第0场"文件。
+            //   改成直接跳过这些队，汇总数量另外提示，不再塞进假场次。
             var rows = new List<string[]>();
+            int unscheduledRelayCount = 0;
             foreach (var t in _relayTeams) {
                 var sc = _schedule.FirstOrDefault(s => s.EventName == t.EventName
                     && s.Gender == t.Gender && (s.AgeGroup ?? "") == (t.AgeGroup ?? ""));
-                int ses = sc != null ? sc.SessionNumber : 0;
-                int evn = sc != null ? sc.EvNum : 0;
+                if (sc == null) { unscheduledRelayCount++; continue; }
+                int ses = sc.SessionNumber;
+                int evn = sc.EvNum;
                 var legs = new string[4];
                 for (int i = 0; i < 4; i++) legs[i] = (t.Legs != null && i < t.Legs.Count) ? (t.Legs[i].SwimmerName ?? "") : "";
                 rows.Add(new[] {
@@ -20335,6 +20340,11 @@ namespace SwimmingScoreboard
                     t.EventName ?? "", t.Gender ?? "", t.AgeGroup ?? "", t.TeamName ?? "",
                     legs[0], legs[1], legs[2], legs[3]
                 });
+            }
+            if (rows.Count == 0) {
+                MessageBox.Show(Loc.F("Str_Msg_RelayAllUnscheduledFmt", unscheduledRelayCount),
+                    Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
             }
             rows.Sort(delegate(string[] a, string[] b) {
                 int r = int.Parse(a[0]).CompareTo(int.Parse(b[0])); if (r != 0) return r;
@@ -20372,10 +20382,11 @@ namespace SwimmingScoreboard
                     RelayLegSheetService.ExportSession(fn, _competitionName, ses,
                         sc != null ? sc.SessionName : "", sc != null ? sc.Date : "", sc != null ? sc.Time : "",
                         legRows);
-                    written.Add(string.Format("  第{0}场  {1} 支队   {2}", ses, legRows.Count, System.IO.Path.GetFileName(fn)));
+                    written.Add(Loc.F("Str_Msg_RelaySessionSummaryLineFmt", Loc.F("Str_DocC_SessionNoFmt", ses), legRows.Count, System.IO.Path.GetFileName(fn)));
                 }
-                MessageBox.Show(
-                    Loc.F("Str_Msg_ExportedLegSheetsFmt", written.Count, dir, string.Join("\n", written.ToArray())),
+                string summary = Loc.F("Str_Msg_ExportedLegSheetsFmt", written.Count, dir, string.Join("\n", written.ToArray()));
+                if (unscheduledRelayCount > 0) summary += "\n\n" + Loc.F("Str_Msg_RelayUnscheduledTeamsFmt", unscheduledRelayCount);
+                MessageBox.Show(summary,
                     Loc.T("Str_MsgTitle_ExportSuccess"), MessageBoxButton.OK, MessageBoxImage.Information);
                 AddLog(Loc.F("Str_Log_ExportedRelayLegSheetFmt", rows.Count, written.Count, dir));
             } catch (Exception ex) {
@@ -20393,7 +20404,9 @@ namespace SwimmingScoreboard
             foreach (var t in _relayTeams) {
                 var sc = _schedule.FirstOrDefault(s => s.EventName == t.EventName
                     && s.Gender == t.Gender && (s.AgeGroup ?? "") == (t.AgeGroup ?? ""));
-                int ses = sc != null ? sc.SessionNumber : 0;
+                // 2026-09-30 没排上日程的队没有真实场次号，不再用 0 冒充一个可选的"第0场"
+                if (sc == null) continue;
+                int ses = sc.SessionNumber;
                 if (!sessions.Contains(ses)) sessions.Add(ses);
             }
             sessions.Sort();
