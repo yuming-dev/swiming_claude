@@ -17714,6 +17714,28 @@ namespace SwimmingScoreboard
             }
         }
 
+        // 2026-09-30 装在非标准路径(比如某些精简部署/绿色版/单独给某用户装)的 Edge/Chrome,
+        //   前面那 5 个写死的文件夹路径找不到——Windows 自己有一套"App Paths"注册表机制,
+        //   装浏览器时通常会往这里登记真实安装路径(资源管理器/命令行敲程序名能直接启动
+        //   靠的就是这个), 比硬编码路径更抗"装到别的盘/自定义目录"这类情况。
+        //   HKLM(全机器装的)查不到再查 HKCU(单用户装的); 找不到就返回 null, 不算错误。
+        //   跟 InstallerApp/Setup.cs 里装 Edge 前那段"要不要跳过"的探测逻辑是同一件事的
+        //   两处实现——那边改了这边也要跟着改。
+        private static string FindBrowserExeFromRegistry(string exeName) {
+            try {
+                string subKey = @"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\" + exeName;
+                using (var k = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(subKey)) {
+                    var v = k != null ? k.GetValue(null) as string : null;
+                    if (!string.IsNullOrEmpty(v) && File.Exists(v)) return v;
+                }
+                using (var k = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(subKey)) {
+                    var v = k != null ? k.GetValue(null) as string : null;
+                    if (!string.IsNullOrEmpty(v) && File.Exists(v)) return v;
+                }
+            } catch { }
+            return null;
+        }
+
         // 2026-06-05 用 Edge / Chrome headless 把 HTML 转 PDF; 失败返回 false
         // 2026-09-03 改成 internal static —— "项目成绩"窗口的"导出 PDF"也要用它。
         //   里面一个实例成员都没碰(全是 Environment/File/Process), 改静态是安全的。
@@ -17728,6 +17750,9 @@ namespace SwimmingScoreboard
             };
             string exe = null;
             foreach (var p in candidates) { if (!string.IsNullOrEmpty(p) && File.Exists(p)) { exe = p; break; } }
+            // 2026-09-30 5个固定路径都没找到, 再查一次"App Paths"注册表(Edge优先, 跟上面顺序一致)。
+            if (exe == null) exe = FindBrowserExeFromRegistry("msedge.exe");
+            if (exe == null) exe = FindBrowserExeFromRegistry("chrome.exe");
             if (exe == null) return false;
             try {
                 var psi = new System.Diagnostics.ProcessStartInfo {

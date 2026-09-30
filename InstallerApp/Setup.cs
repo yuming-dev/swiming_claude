@@ -5,6 +5,7 @@ using System.IO;
 using System.Windows.Forms;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using Microsoft.Win32;
 
 class SetupForm : Form
 {
@@ -435,6 +436,11 @@ class SetupForm : Form
                 };
                 bool edgeFound = false;
                 foreach (var p in edgeCandidates) { if (File.Exists(p)) { edgeFound = true; break; } }
+                // 2026-09-30 固定路径都没找到, 再查一次"App Paths"注册表——装在非标准路径的
+                //   Edge(比如自定义盘符/单用户装)靠这个还能找到, 少装一次没必要的200MB。
+                //   跟 MainWindow.xaml.cs 的 TryHtmlToPdf()/FindBrowserExeFromRegistry() 是
+                //   同一件事的两处实现, 那边改了这边也要跟着改。
+                if (!edgeFound && FindBrowserExeFromRegistry("msedge.exe") != null) edgeFound = true;
                 if (!edgeFound) {
                     string edgeMsi = Path.Combine(sourceDir, "prereq", "MicrosoftEdgeEnterpriseX64.msi");
                     if (File.Exists(edgeMsi)) {
@@ -534,6 +540,28 @@ class SetupForm : Form
             "  检录台      http://<server>:8080/checkin.html\n\n" +
             "使用说明书：" + installDir + "\\使用说明书.pdf\n" +
             "现场速查卡：" + installDir + "\\现场速查卡.pdf（两页，建议打印贴在计时机旁）";
+    }
+
+    // 2026-09-30 跟 SwimmingScoreboard/MainWindow.xaml.cs 的同名方法是同一件事的两处实现,
+    // 那边改了这边也要跟着改(见那边的注释)。
+    static string FindBrowserExeFromRegistry(string exeName)
+    {
+        try
+        {
+            string subKey = @"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\" + exeName;
+            using (var k = Registry.LocalMachine.OpenSubKey(subKey))
+            {
+                string v = k != null ? k.GetValue(null) as string : null;
+                if (!string.IsNullOrEmpty(v) && File.Exists(v)) return v;
+            }
+            using (var k = Registry.CurrentUser.OpenSubKey(subKey))
+            {
+                string v = k != null ? k.GetValue(null) as string : null;
+                if (!string.IsNullOrEmpty(v) && File.Exists(v)) return v;
+            }
+        }
+        catch { }
+        return null;
     }
 
     void CreateShortcut(string lnkPath, string target, string workDir)
