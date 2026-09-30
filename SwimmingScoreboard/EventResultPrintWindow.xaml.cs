@@ -1061,12 +1061,17 @@ namespace SwimmingScoreboard
 
             bool showHeat = SelectedHeat > 0 &&
                 ((totalHeats > 1) || SelectedStage.Contains("预赛") || SelectedStage.Contains("半决赛"));
-            string heatDisplay = showHeat ? string.Format(" 第 {0} 组", SelectedHeat) : "";
+            string heatDisplay = showHeat ? Loc.F("Str_DocC_HeatDisplayFmt", SelectedHeat) : "";
 
             // 2026-06-04 顺序统一: 性别 组别 项目 赛次 (= 性别 前)
+            // 2026-09-30 现场反馈: 这行标题(男 少年组 50米蝶泳 决赛)英文模式下一直是中文——
+            //   SelectedGender/SelectedStage 是跟"预赛"/"半决赛"这类字面量做筛选比较的数据
+            //   哨兵字段(见上面 showHeat 那行的 .Contains("预赛")), 源头不能翻译, 但这里只是
+            //   拼进标题给人看, 要走 Loc.GenderDisplay()/Loc.StageDisplay() 展示层转换,
+            //   之前漏了直接用了原始中文值。
             string ageHead = (string.IsNullOrEmpty(SelectedAgeGroup) || SelectedAgeGroup == "全部") ? "" : (SelectedAgeGroup + " ");
             string eventTitle = string.Format("{0} {1}{2} {3}{4}",
-                SelectedGender, ageHead, SelectedEvent, SelectedStage, heatDisplay);
+                Loc.GenderDisplay(SelectedGender), ageHead, SelectedEvent, Loc.StageDisplay(SelectedStage), heatDisplay);
 
             // 匹配赛程获取日期时间
             string dateTimeInfo = "（时间待定）";

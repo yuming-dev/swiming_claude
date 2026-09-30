@@ -546,7 +546,12 @@ namespace SwimmingScoreboard
                 string c2H = isRelayEv ? Loc.T("Str_DocC_ColName") : Loc.T("Str_DocC_ColTeam");
                 // 2026-09-03 标题栏右侧带上赛事名 —— 这几张是要剪下来分别贴公告栏的,
                 //   剪开之后光有"男子 青少年(12岁) 100米蛙泳 决赛"看不出是哪场比赛。
-                sb.AppendFormat("<h3>{0}　{1} {2}<span class='n'>{3}　|　{4} " + Loc.T("Str_Common_Entries") + "</span></h3>",
+                // 2026-09-30 现场反馈(说了很多次): 英文模式下 {2}(赛次, 如"Final") 和
+                //   <span>{3}(赛事名) 之间原来一个分隔符都没有, 直接拼成"Final甘肃省..."
+                //   挤在一起——中文模式("决赛甘肃省...")其实有同样的缺口, 只是两段都是
+                //   中文时不太容易看出来, 英文单词直接顶上中文汉字就非常刺眼。补一个跟
+                //   这行其它地方一致的全角空格分隔符。
+                sb.AppendFormat("<h3>{0}　{1} {2}　<span class='n'>{3}　|　{4} " + Loc.T("Str_Common_Entries") + "</span></h3>",
                     HtmlEnc(b.Title ?? b.AgeGroup), HtmlEnc(b.EventName), HtmlEnc(Loc.StageDisplay(b.Stage)),
                     HtmlEnc(_competitionName), b.Rows.Count);
                 // 2026-09-03 列宽改百分比 + table-layout:fixed —— 原来是 px, 表格挤在左半边,
