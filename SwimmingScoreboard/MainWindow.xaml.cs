@@ -32974,23 +32974,13 @@ namespace SwimmingScoreboard
                         for (int d = splitGap; d < distMeters; d += splitGap) splitMarks.Add(d);
                     }
 
-                    // 2026-09-03 成绩差跟【本项目(本组别本赛次)第 1 名】比, 不跟本组最快的比 ——
-                    //   与"项目成绩"那张成绩单同口径。原来是每组各算各的基准, 于是预赛第 1 组
-                    //   里排第 5 的人成了那一组的"0.00", 第 2 组的真冠军又是另一个 0.00,
-                    //   两组之间的成绩差根本不能比, 看着还像每组都有个冠军。
-                    double evLeaderRanked = 0, evLeaderAny = 0;
-                    foreach (var s in matched) {
-                        var lr = s.GetResultForStage(stage);
-                        if (lr == null || lr.FinalTime <= 0) continue;
-                        string es = GetEffectiveStatus(s, lr);
-                        if (ResultOrdering.IsJudged(es) || es == "TRI") continue;   // 判罚/试游不参与
-                        if (evLeaderAny <= 0 || lr.FinalTime < evLeaderAny) evLeaderAny = lr.FinalTime;
-                        if (s.EventRankFor(stage) <= 0) continue;
-                        if (evLeaderRanked <= 0 || lr.FinalTime < evLeaderRanked) evLeaderRanked = lr.FinalTime;
-                    }
-                    // 名次还没定稿(库里没有项目名次)时退回"本项目本赛次最快的有效成绩",
-                    // 免得预赛阶段整列成绩差是空的
-                    double evLeaderTime = evLeaderRanked > 0 ? evLeaderRanked : evLeaderAny;
+                    // 2026-09-03 曾经改成跟【本项目(本组别本赛次)第 1 名】比, 不跟本组最快的比——
+                    //   理由是"两组之间的成绩差根本不能比, 看着还像每组都有个冠军"。
+                    // 2026-09-29 用户明确要求改回来: 每组的"成绩差"永远按【本组自己最快】算
+                    //   (该组第1名显示为空/0)。用户知情并接受"两组各有一个显示为空的'第1名'、
+                    //   实际成绩可能差很多"这个代价——这是分组打印/分组比赛记录场景下的
+                    //   既定取舍, 不要再改回跨组统一基准。计算挪到下面按组(heat)现算,
+                    //   不再用整个项目 matched 算一次。
 
                     foreach (int heat in heatNumbers) {
                         var heatSwimmers = matched.Where(s => s.GetResultForStage(stage).Heat == heat).ToList();
@@ -33006,6 +32996,20 @@ namespace SwimmingScoreboard
                             s => { var lr = s.GetResultForStage(stage); return lr != null ? lr.FinalTime : 0; },
                             s => { var lr = s.GetResultForStage(stage); return lr != null ? lr.Lane : s.Lane; });
                         if (ordered.Count == 0) continue;
+                        // 2026-09-29 成绩差基准改成【本组(heat)自己最快】, 不再用整个项目的
+                        //   evLeaderTime——理由见上面 foreach(heatNumbers) 之前那条注释。
+                        //   ranked 优先、退回 any 的逻辑跟以前一样, 只是作用范围收窄到 heatSwimmers。
+                        double heatLeaderRanked = 0, heatLeaderAny = 0;
+                        foreach (var s in heatSwimmers) {
+                            var lr0 = s.GetResultForStage(stage);
+                            if (lr0 == null || lr0.FinalTime <= 0) continue;
+                            string es0 = GetEffectiveStatus(s, lr0);
+                            if (ResultOrdering.IsJudged(es0) || es0 == "TRI") continue;   // 判罚/试游不参与
+                            if (heatLeaderAny <= 0 || lr0.FinalTime < heatLeaderAny) heatLeaderAny = lr0.FinalTime;
+                            if (s.EventRankFor(stage) <= 0) continue;
+                            if (heatLeaderRanked <= 0 || lr0.FinalTime < heatLeaderRanked) heatLeaderRanked = lr0.FinalTime;
+                        }
+                        double evLeaderTime = heatLeaderRanked > 0 ? heatLeaderRanked : heatLeaderAny;
                         // 2026-09-16 这张"成绩公告"表是【本组成绩单】, 名次要按本组真实成绩重算
                         //   (组内名次), 不能直接拿 EventRankFor(那是跨组的项目总排名)往上印 ——
                         //   一个项目分多组时, 后面那组不管本组第几都会被印成同一个跨组数字
@@ -33115,7 +33119,7 @@ namespace SwimmingScoreboard
                             //   变成"1:16.41 MR"两样东西挤一格。
                             sb.AppendFormat("<td style='font-weight:bold;'>{0}</td>", finalText);
                             if (rb.ShowTimeDifference) {
-                                // 基准是本项目第 1 名(evLeaderTime), 不是本组最快; 试游不参与
+                                // 2026-09-29 基准是本组(heat)自己最快(evLeaderTime, 上面按组现算); 试游不参与
                                 string diff = "";
                                 if (!dq && !isTri && evLeaderTime > 0 && r.FinalTime > evLeaderTime)
                                     diff = (r.FinalTime - evLeaderTime).ToString("F2");
