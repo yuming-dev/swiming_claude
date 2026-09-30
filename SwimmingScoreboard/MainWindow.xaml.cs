@@ -19639,9 +19639,14 @@ namespace SwimmingScoreboard
         // ─── 运动员报名 CSV 表头（导出/导入/模板共用） ───────────────────
         // 与 ImportCSV_Click 兼容：前 11 列保持原顺序，组别/单位简称作为附加列追加在后
         // 顺序: 号码,姓名,性别,代表队,项目,报名成绩,年龄,出生日期,身份证号,电话,备注,组别,单位简称
-        private static readonly string[] SwimmerCsvHeaders = new[] {
-            "号码","姓名","性别","代表队","项目","报名成绩","年龄","出生日期","身份证号","电话","备注","组别","单位简称"
+        // 2026-09-30 现场反馈: English模式导出的CSV/模板表头还是中文——原来是 static readonly
+        //   字段(类型第一次用到时就定死, 不跟 CurrentLanguage 走), 改成"按语言现取"。
+        //   中文列名与 Loc.Table 里的中文原文逐一对得上, 老用户已导出的中文CSV原样可再导入。
+        private static readonly string[] SwimmerCsvHeaderKeys = new[] {
+            "Str_Col_Bib","Str_Col_Name","Str_DocC_ColGender","Str_Col_Team","Str_Col_Event","Str_Col_Entry",
+            "Str_Col_Age","Str_Col_BirthDate","Str_Col_IDNum","Str_Col_Phone","Str_Col_Notes","Str_Col_Group","Str_Col_Abbr"
         };
+        private static string[] SwimmerCsvHeaders { get { return SwimmerCsvHeaderKeys.Select(Loc.T).ToArray(); } }
 
         private void ExportSwimmersCSV_Click(object sender, RoutedEventArgs e) {
             // 导出当前所有已报名运动员（含接力代表条目和接力队员个人条目）
@@ -19690,13 +19695,22 @@ namespace SwimmingScoreboard
         }
 
         // 2026-05-24 个人报名 CSV 模板表头 — 严格匹配 (27 列 = 11 基础 + 8 × 2 项目成绩对)
-        private static readonly string[] SwimmerCsvTemplateHeader = BuildSwimmerCsvTemplateHeader();
+        // 2026-09-30 现场反馈: English模式下模板/导入还是中文表头——SwimmerCsvTemplateHeader()
+        //   改成按当前语言现取; 另加 Zh/En 两个固定语言版本, 导入校验时两个都认(谁导出的都能导回)。
+        private static readonly string[] SwimmerCsvBaseHeaderKeys = new[] {
+            "Str_Col_Bib","Str_Col_Name","Str_DocC_ColGender","Str_Col_Team","Str_Col_Age","Str_Col_BirthDate",
+            "Str_Col_IDNum","Str_Col_Phone","Str_Col_Notes","Str_Col_Group","Str_Col_Abbr"
+        };
         private const int SwimmerCsvEventSlots = 8;
-        private static string[] BuildSwimmerCsvTemplateHeader() {
-            var list = new List<string> { "号码","姓名","性别","代表队","年龄","出生日期","身份证号","电话","备注","组别","单位简称" };
-            for (int n = 1; n <= 8; n++) { list.Add("项目" + n); list.Add("成绩" + n); }
+        private static string[] BuildSwimmerCsvTemplateHeader(Func<string, string> tr) {
+            var list = new List<string>(SwimmerCsvBaseHeaderKeys.Select(tr));
+            string evLabel = tr("Str_Col_Event"), resLabel = tr("Str_Col_RecordTime");
+            for (int n = 1; n <= SwimmerCsvEventSlots; n++) { list.Add(evLabel + n); list.Add(resLabel + n); }
             return list.ToArray();
         }
+        private static string[] SwimmerCsvTemplateHeader { get { return BuildSwimmerCsvTemplateHeader(Loc.T); } }
+        private static string[] SwimmerCsvTemplateHeaderZh { get { return BuildSwimmerCsvTemplateHeader(Loc.TChinese); } }
+        private static string[] SwimmerCsvTemplateHeaderEn { get { return BuildSwimmerCsvTemplateHeader(Loc.TEnglish); } }
 
         private void DownloadSwimmersTemplateCSV_Click(object sender, RoutedEventArgs e) {
             var dlg = new Microsoft.Win32.SaveFileDialog {
@@ -19757,27 +19771,42 @@ namespace SwimmingScoreboard
                 }
 
                 string[] header = rows[0];
-                // ── 严格表头校验 ──
-                if (header.Length != SwimmerCsvTemplateHeader.Length) {
+                // ── 严格表头校验 ── 2026-09-30 中英文模板都认——文件是哪个语言导出的都能导回，
+                //   不看导入时的当前 UI 语言。两个参照表按位置逐列比，命中任一个就算通过。
+                string[] refZh = SwimmerCsvTemplateHeaderZh, refEn = SwimmerCsvTemplateHeaderEn;
+                if (header.Length != refZh.Length) {
                     MessageBox.Show(Loc.F("Str_Msg_CsvHeaderColCountFmt",
-                        SwimmerCsvTemplateHeader.Length, header.Length), Loc.T("Str_MsgTitle_FormatError"),
+                        refZh.Length, header.Length), Loc.T("Str_MsgTitle_FormatError"),
                         MessageBoxButton.OK, MessageBoxImage.Error);
                     return;
                 }
-                for (int hi = 0; hi < SwimmerCsvTemplateHeader.Length; hi++) {
-                    string expected = SwimmerCsvTemplateHeader[hi];
+                bool matchesZh = true, matchesEn = true;
+                for (int hi = 0; hi < refZh.Length; hi++) {
                     string actual = (header[hi] ?? "").Trim();
-                    if (actual != expected) {
-                        MessageBox.Show(Loc.F("Str_Msg_CsvHeaderColMismatchFmt", hi + 1, expected, actual),
-                            Loc.T("Str_MsgTitle_FormatError"),
-                            MessageBoxButton.OK, MessageBoxImage.Error);
-                        return;
+                    if (actual != refZh[hi]) matchesZh = false;
+                    if (actual != refEn[hi]) matchesEn = false;
+                }
+                if (!matchesZh && !matchesEn) {
+                    // 先找"两个参照表都对不上"的那一列；找不到说明是中英文混着填的怪文件
+                    // (每列单看都合法, 但前后语言不一致)——兜底按中文参照表报第一处不一致列,
+                    // 保证这里一定会弹窗, 不会啥提示都没有就悄悄退出。
+                    int badHi = -1;
+                    for (int hi = 0; hi < refZh.Length; hi++) {
+                        string actual = (header[hi] ?? "").Trim();
+                        if (actual != refZh[hi] && actual != refEn[hi]) { badHi = hi; break; }
                     }
+                    if (badHi < 0) { for (int hi = 0; hi < refZh.Length; hi++) { if ((header[hi] ?? "").Trim() != refZh[hi]) { badHi = hi; break; } } }
+                    string actualBad = (header[badHi] ?? "").Trim();
+                    MessageBox.Show(Loc.F("Str_Msg_CsvHeaderColMismatchFmt", badHi + 1, SwimmerCsvTemplateHeader[badHi], actualBad),
+                        Loc.T("Str_MsgTitle_FormatError"),
+                        MessageBoxButton.OK, MessageBoxImage.Error);
+                    return;
                 }
 
-                // 表头通过 → 按列名建索引
+                // 表头通过 → 按列名建索引（统一按中文原名建，不管这份文件是哪个语言导出的，
+                //   下面 colIdx["姓名"] 这类查表全部继续沿用中文 key，不用动）
                 var colIdx = new Dictionary<string, int>();
-                for (int hi = 0; hi < header.Length; hi++) colIdx[header[hi].Trim()] = hi;
+                for (int hi = 0; hi < refZh.Length; hi++) colIdx[refZh[hi]] = hi;
                 var pairs = new List<int[]>();
                 for (int n = 1; n <= SwimmerCsvEventSlots; n++) {
                     pairs.Add(new int[] { colIdx["项目" + n], colIdx["成绩" + n] });
@@ -20178,14 +20207,25 @@ namespace SwimmingScoreboard
 
         // 2026-05-24 接力队 CSV 模板表头 — 导出/导入必须严格匹配
         // 2026-05-25 增加「组别」列, 总列数 17→18
-        private static readonly string[] RelayCsvHeader = new[] {
-            "队名", "组别", "项目", "性别", "报名成绩",
-            "第1棒姓名", "第1棒身份证", "第1棒生日",
-            "第2棒姓名", "第2棒身份证", "第2棒生日",
-            "第3棒姓名", "第3棒身份证", "第3棒生日",
-            "第4棒姓名", "第4棒身份证", "第4棒生日",
-            "备注"
-        };
+        // 2026-09-30 现场反馈: English模式导出还是中文表头——改成按当前语言现取, 同时保留
+        //   固定中/英两版供导入校验(谁导出的都能导回, 不看导入时当前UI语言)。
+        private static string[] BuildRelayCsvHeader(Func<string, string> tr, bool spaceSep) {
+            var list = new List<string> {
+                tr("Str_EM_Relay_ColTeamName"), tr("Str_Col_Group"), tr("Str_Col_Event"), tr("Str_DocC_ColGender"), tr("Str_Col_Entry")
+            };
+            string sep = spaceSep ? " " : "";
+            for (int n = 1; n <= 4; n++) {
+                string leg = tr("Str_RegTool_Leg" + n);
+                list.Add(leg + sep + tr("Str_Col_Name"));
+                list.Add(leg + sep + tr("Str_Col_IDCard"));
+                list.Add(leg + sep + tr("Str_Col_Birthday"));
+            }
+            list.Add(tr("Str_Col_Notes"));
+            return list.ToArray();
+        }
+        private static string[] RelayCsvHeader { get { return BuildRelayCsvHeader(Loc.T, Loc.CurrentLanguage == Loc.En); } }
+        private static string[] RelayCsvHeaderZh { get { return BuildRelayCsvHeader(Loc.TChinese, false); } }
+        private static string[] RelayCsvHeaderEn { get { return BuildRelayCsvHeader(Loc.TEnglish, true); } }
 
         private void ExportRelayTemplate_Click(object sender, RoutedEventArgs e) {
             var dlg = new Microsoft.Win32.SaveFileDialog {
@@ -20226,7 +20266,7 @@ namespace SwimmingScoreboard
                     CsvEsc(legs[1] != null ? legs[1].SwimmerName : ""), CsvEsc(legs[1] != null ? legs[1].SwimmerIDNumber : ""), CsvEsc(legs[1] != null ? legs[1].SwimmerBirthDate : ""),
                     CsvEsc(legs[2] != null ? legs[2].SwimmerName : ""), CsvEsc(legs[2] != null ? legs[2].SwimmerIDNumber : ""), CsvEsc(legs[2] != null ? legs[2].SwimmerBirthDate : ""),
                     CsvEsc(legs[3] != null ? legs[3].SwimmerName : ""), CsvEsc(legs[3] != null ? legs[3].SwimmerIDNumber : ""), CsvEsc(legs[3] != null ? legs[3].SwimmerBirthDate : ""),
-                    CsvEsc(t.AgeCategoryPending ? "组别待确认" : "")
+                    CsvEsc(t.AgeCategoryPending ? Loc.T("Str_EM_Relay_AgeGroupPending") : "")
                 }));
             }
             File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
@@ -20592,19 +20632,32 @@ namespace SwimmingScoreboard
 
             if (lines.Length < 1) { MessageBox.Show(Loc.T("Str_Msg_FileIsEmpty"), Loc.T("Str_MsgTitle_Info")); return; }
 
-            // 表头校验
+            // 表头校验 —— 2026-09-30 中英文模板都认（数据行本身全按列位置解析，不靠列名，
+            //   所以这里只要挑一个参照表验过位置数对得上即可，不用再改下面任何一行）
             var headerCols = ParseCsvLine(lines[0]);
-            if (headerCols.Length != RelayCsvHeader.Length) {
+            string[] rZh = RelayCsvHeaderZh, rEn = RelayCsvHeaderEn;
+            if (headerCols.Length != rZh.Length) {
                 MessageBox.Show(Loc.F("Str_Msg_RelayHeaderCountMismatchFmt",
-                    RelayCsvHeader.Length, headerCols.Length), Loc.T("Str_MsgTitle_FormatError"));
+                    rZh.Length, headerCols.Length), Loc.T("Str_MsgTitle_FormatError"));
                 return;
             }
-            for (int i = 0; i < RelayCsvHeader.Length; i++) {
-                if ((headerCols[i] ?? "").Trim() != RelayCsvHeader[i]) {
-                    MessageBox.Show(Loc.F("Str_Msg_RelayHeaderColMismatchFmt",
-                        i + 1, RelayCsvHeader[i], headerCols[i] ?? ""), Loc.T("Str_MsgTitle_FormatError"));
-                    return;
+            bool relayMatchesZh = true, relayMatchesEn = true;
+            for (int i = 0; i < rZh.Length; i++) {
+                string actual = (headerCols[i] ?? "").Trim();
+                if (actual != rZh[i]) relayMatchesZh = false;
+                if (actual != rEn[i]) relayMatchesEn = false;
+            }
+            if (!relayMatchesZh && !relayMatchesEn) {
+                // 兜底: 两个参照表都对不上的列优先报; 找不到(中英文混填的怪文件)就按中文表报第一处不一致
+                int badI = -1;
+                for (int i = 0; i < rZh.Length; i++) {
+                    string actual = (headerCols[i] ?? "").Trim();
+                    if (actual != rZh[i] && actual != rEn[i]) { badI = i; break; }
                 }
+                if (badI < 0) { for (int i = 0; i < rZh.Length; i++) { if ((headerCols[i] ?? "").Trim() != rZh[i]) { badI = i; break; } } }
+                MessageBox.Show(Loc.F("Str_Msg_RelayHeaderColMismatchFmt",
+                    badI + 1, RelayCsvHeader[badI], (headerCols[badI] ?? "").Trim()), Loc.T("Str_MsgTitle_FormatError"));
+                return;
             }
 
             // 接力项目名单
@@ -29036,7 +29089,7 @@ namespace SwimmingScoreboard
                 var sb = new System.Text.StringBuilder();
                 // 2026-05-21 已移除显式 BOM；Encoding.UTF8 自带 BOM 前导（删除下行 sb.Append）
                 // (removed: explicit BOM redundant — Encoding.UTF8 自带 BOM)
-                sb.AppendLine("组别,性别,项目,类型,保持者,代表队,成绩,日期,地点");
+                sb.AppendLine(string.Join(",", new[] { Loc.T("Str_Col_Group"), Loc.T("Str_DocC_ColGender"), Loc.T("Str_Col_Event"), Loc.T("Str_Col_RecordType"), Loc.T("Str_Col_Holder"), Loc.T("Str_Col_Team"), Loc.T("Str_Col_RecordTime"), Loc.T("Str_Col_Date"), Loc.T("Str_Col_Location") }));
 
                 // 已有的纪录数据先填入对应位置
                 var existingMap = new Dictionary<string, SwimmingRecord>();
@@ -29438,7 +29491,10 @@ namespace SwimmingScoreboard
                 MessageBox.Show(Loc.F("Str_Msg_TableExportedFmt", headerName), Loc.T("Str_MsgTitle_Done"));
             } catch (Exception ex) { MessageBox.Show(Loc.F("Str_Msg_ExportFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error")); }
         }
-        private void ImportStringListCsv(string title, string headerName, Action<List<string>> onLoaded) {
+        // 2026-09-30 现场反馈: 性别/赛次/组数表 English模式下导出还是中文表头——调用处 headerName
+        //   改传 Loc.T(key) 后, 这里的表头行识别也要跟着中英文都认(不然导入自己刚导出的
+        //   English CSV 会把表头当成第一条数据存进去)。headerNameZh 是固定中文原词, 用来兜底。
+        private void ImportStringListCsv(string title, string headerName, Action<List<string>> onLoaded, string headerNameZh = null) {
             var dlg = new Microsoft.Win32.OpenFileDialog {
                 Filter = Loc.T("Str_Filter_CsvTxtAll"),
                 Title = Loc.F("Str_Fmt_ImportTableTitle", headerName)
@@ -29458,7 +29514,9 @@ namespace SwimmingScoreboard
                     if (c.Length == 0) continue;
                     string v = (c[0] ?? "").Trim();
                     if (string.IsNullOrEmpty(v)) continue;
-                    if (i == 0 && (v == headerName + "名称" || v == "名称" || v == headerName || v == "Name")) continue;
+                    bool looksLikeHeader = v == headerName + "名称" || v == "名称" || v == headerName || v == "Name"
+                        || (headerNameZh != null && (v == headerNameZh || v == headerNameZh + "名称"));
+                    if (i == 0 && looksLikeHeader) continue;
                     if (seen.Contains(v)) continue;
                     seen.Add(v);
                     finalList.Add(v);
@@ -29492,15 +29550,15 @@ namespace SwimmingScoreboard
                 });
             });
         }
-        private void ExportGendersCSV_Click(object sender, RoutedEventArgs e) { ExportStringListCsv(Loc.T("Str_Win_ExportGenders_Title"), "性别表.csv", "性别", _genders); }
+        private void ExportGendersCSV_Click(object sender, RoutedEventArgs e) { ExportStringListCsv(Loc.T("Str_Win_ExportGenders_Title"), "性别表.csv", Loc.T("Str_DocC_ColGender"), _genders); }
         private void ImportGendersCSV_Click(object sender, RoutedEventArgs e) {
-            ImportStringListCsv("导入性别表", "性别", list => { _genders = list; RefreshGendersPreview();
+            ImportStringListCsv(Loc.T("Str_EM_ImportGenders"), Loc.T("Str_DocC_ColGender"), list => { _genders = list; RefreshGendersPreview();
                 FinishAndSyncPatch(BuildListSetPatch("genders", JArray.FromObject(_genders), ClientLabel()), "meet");
                 NotifyMetadataChanged();
-                AddLog(Loc.F("Str_Log_GenderListImportedFmt", _genders.Count)); });
+                AddLog(Loc.F("Str_Log_GenderListImportedFmt", _genders.Count)); }, "性别");
         }
         private void DownloadGendersTemplate_Click(object sender, RoutedEventArgs e) {
-            DownloadStringListTemplate(Loc.T("Str_Win_SaveGendersTemplate_Title"), "性别模板.csv", "性别", new[] { "男", "女", "混合" });
+            DownloadStringListTemplate(Loc.T("Str_Win_SaveGendersTemplate_Title"), "性别模板.csv", Loc.T("Str_DocC_ColGender"), new[] { "男", "女", "混合" });
         }
 
         // —— 赛次 ——
@@ -29514,15 +29572,15 @@ namespace SwimmingScoreboard
                 });
             });
         }
-        private void ExportStagesCSV_Click(object sender, RoutedEventArgs e) { ExportStringListCsv(Loc.T("Str_Win_ExportStages_Title"), "赛次表.csv", "赛次", _stages); }
+        private void ExportStagesCSV_Click(object sender, RoutedEventArgs e) { ExportStringListCsv(Loc.T("Str_Win_ExportStages_Title"), "赛次表.csv", Loc.T("Str_DocC_ColStage"), _stages); }
         private void ImportStagesCSV_Click(object sender, RoutedEventArgs e) {
-            ImportStringListCsv("导入赛次表", "赛次", list => { _stages = list; RefreshStagesPreview();
+            ImportStringListCsv(Loc.T("Str_EM_ImportStages"), Loc.T("Str_DocC_ColStage"), list => { _stages = list; RefreshStagesPreview();
                 FinishAndSyncPatch(BuildListSetPatch("stages", JArray.FromObject(_stages), ClientLabel()), "meet");
                 NotifyMetadataChanged();
-                AddLog(Loc.F("Str_Log_StageListImportedFmt", _stages.Count)); });
+                AddLog(Loc.F("Str_Log_StageListImportedFmt", _stages.Count)); }, "赛次");
         }
         private void DownloadStagesTemplate_Click(object sender, RoutedEventArgs e) {
-            DownloadStringListTemplate(Loc.T("Str_Win_SaveStagesTemplate_Title"), "赛次模板.csv", "赛次", new[] { "预赛", "半决赛", "决赛", "A决赛", "B决赛" });
+            DownloadStringListTemplate(Loc.T("Str_Win_SaveStagesTemplate_Title"), "赛次模板.csv", Loc.T("Str_DocC_ColStage"), new[] { "预赛", "半决赛", "决赛", "A决赛", "B决赛" });
         }
 
         // —— 组数 ——
@@ -29536,15 +29594,15 @@ namespace SwimmingScoreboard
                 });
             });
         }
-        private void ExportHeatCountsCSV_Click(object sender, RoutedEventArgs e) { ExportStringListCsv(Loc.T("Str_Win_ExportHeatCounts_Title"), "组数表.csv", "组数", _heatCounts); }
+        private void ExportHeatCountsCSV_Click(object sender, RoutedEventArgs e) { ExportStringListCsv(Loc.T("Str_Win_ExportHeatCounts_Title"), "组数表.csv", Loc.T("Str_Col_HeatCount"), _heatCounts); }
         private void ImportHeatCountsCSV_Click(object sender, RoutedEventArgs e) {
-            ImportStringListCsv("导入组数表", "组数", list => { _heatCounts = list; RefreshHeatCountsPreview();
+            ImportStringListCsv(Loc.T("Str_EM_ImportHeatCounts"), Loc.T("Str_Col_HeatCount"), list => { _heatCounts = list; RefreshHeatCountsPreview();
                 FinishAndSyncPatch(BuildListSetPatch("heatCounts", JArray.FromObject(_heatCounts), ClientLabel()), "meet");
                 NotifyMetadataChanged();
-                AddLog(Loc.F("Str_Log_HeatCountListImportedFmt", _heatCounts.Count)); });
+                AddLog(Loc.F("Str_Log_HeatCountListImportedFmt", _heatCounts.Count)); }, "组数");
         }
         private void DownloadHeatCountsTemplate_Click(object sender, RoutedEventArgs e) {
-            DownloadStringListTemplate(Loc.T("Str_Win_SaveHeatCountsTemplate_Title"), "组数模板.csv", "组数", new[] { "1组", "2组", "3组", "4组", "5组", "6组", "7组", "8组" });
+            DownloadStringListTemplate(Loc.T("Str_Win_SaveHeatCountsTemplate_Title"), "组数模板.csv", Loc.T("Str_Col_HeatCount"), new[] { "1组", "2组", "3组", "4组", "5组", "6组", "7组", "8组" });
         }
 
         private void EditEventsList_Click(object sender, RoutedEventArgs e) {
@@ -29729,7 +29787,7 @@ namespace SwimmingScoreboard
             try {
                 var sb = new StringBuilder();
                 // 2026-05-21 已移除显式 BOM；Encoding.UTF8 自带 3 字节 BOM 前导
-                sb.AppendLine("比赛项目");
+                sb.AppendLine(Loc.T("Str_EM_EventNameCol"));
                 foreach (var ev in _events) sb.AppendLine(CsvEscape(ev));
                 File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
                 MessageBox.Show(Loc.T("Str_Msg_EventsTableExported"), Loc.T("Str_MsgTitle_Done"));
@@ -29756,8 +29814,9 @@ namespace SwimmingScoreboard
                     if (c.Length == 0) continue;
                     string name = (c[0] ?? "").Trim();
                     if (string.IsNullOrEmpty(name)) continue;
-                    // 跳过表头行（如 "比赛项目" / "项目"）
-                    if (i == 0 && (name == "比赛项目" || name == "项目" || name == "Event")) continue;
+                    // 跳过表头行（中/英文都认，不管这份文件是哪个语言导出的）
+                    if (i == 0 && (name == "比赛项目" || name == "项目" || name == "Event"
+                        || name == Loc.T("Str_EM_EventNameCol") || name == Loc.TEnglish("Str_EM_EventNameCol") || name == "Events")) continue;
                     name = System.Text.RegularExpressions.Regex.Replace(name, @"\s+", "");
                     if (seen.Contains(name)) continue;
                     seen.Add(name);
@@ -29779,7 +29838,7 @@ namespace SwimmingScoreboard
             try {
                 var sb = new StringBuilder();
                 // 2026-05-21 已移除显式 BOM；Encoding.UTF8 自带 3 字节 BOM 前导
-                sb.AppendLine("比赛项目");
+                sb.AppendLine(Loc.T("Str_EM_EventNameCol"));
                 sb.AppendLine("50米自由泳");
                 sb.AppendLine("100米自由泳");
                 sb.AppendLine("200米自由泳");
@@ -29796,7 +29855,7 @@ namespace SwimmingScoreboard
             try {
                 var sb = new StringBuilder();
                 // 2026-05-21 已移除显式 BOM；Encoding.UTF8 自带 3 字节 BOM 前导
-                sb.AppendLine("组别名称");
+                sb.AppendLine(Loc.T("Str_EM_AgeGroupNameCol"));
                 foreach (var g in _ageGroups) sb.AppendLine(CsvEscape(g.Name));
                 File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
                 MessageBox.Show(Loc.T("Str_Msg_AgeGroupsTableExported"), Loc.T("Str_MsgTitle_Done"));
@@ -29824,7 +29883,8 @@ namespace SwimmingScoreboard
                     string name = (c[0] ?? "").Trim();
                     if (string.IsNullOrEmpty(name)) continue;
                     // 跳表头
-                    if (i == 0 && (name == "组别名称" || name == "组别")) continue;
+                    if (i == 0 && (name == "组别名称" || name == "组别"
+                        || name == Loc.T("Str_EM_AgeGroupNameCol") || name == Loc.TEnglish("Str_EM_AgeGroupNameCol") || name == "Age Group")) continue;
                     if (seen.Contains(name)) continue;
                     seen.Add(name);
                     // 兼容旧 CSV：若仍带最小/最大年龄列，读入但忽略（用于运动员自动归类已停用）
@@ -29854,7 +29914,7 @@ namespace SwimmingScoreboard
             try {
                 var sb = new StringBuilder();
                 // 2026-05-21 已移除显式 BOM；Encoding.UTF8 自带 3 字节 BOM 前导
-                sb.AppendLine("组别名称");
+                sb.AppendLine(Loc.T("Str_EM_AgeGroupNameCol"));
                 sb.AppendLine("甲组");
                 sb.AppendLine("乙组");
                 sb.AppendLine("丙组");
@@ -29938,7 +29998,7 @@ namespace SwimmingScoreboard
             try {
                 var sb = new StringBuilder();
                 // 2026-05-21 已移除显式 BOM，Encoding.UTF8 在写入时自带 BOM
-                sb.AppendLine("场,日期,时间,组别,性别,项目,阶段,组数");
+                sb.AppendLine(string.Join(",", new[] { Loc.T("Str_DocC_ColSession"), Loc.T("Str_Col_Date"), Loc.T("Str_DocC_ColTime"), Loc.T("Str_Col_Group"), Loc.T("Str_DocC_ColGender"), Loc.T("Str_Col_Event"), Loc.T("Str_DocC_ColStage"), Loc.T("Str_Col_HeatCount") }));
                 foreach (var s in _schedule) {
                     sb.AppendLine(string.Format("{0},{1},{2},{3},{4},{5},{6},{7}",
                         s.SessionNumber,
@@ -30028,7 +30088,7 @@ namespace SwimmingScoreboard
             try {
                 var sb = new StringBuilder();
                 // 2026-05-21 已移除显式 BOM；Encoding.UTF8 自带 3 字节 BOM 前导
-                sb.AppendLine("场,日期,时间,组别,性别,项目,阶段,组数");
+                sb.AppendLine(string.Join(",", new[] { Loc.T("Str_DocC_ColSession"), Loc.T("Str_Col_Date"), Loc.T("Str_DocC_ColTime"), Loc.T("Str_Col_Group"), Loc.T("Str_DocC_ColGender"), Loc.T("Str_Col_Event"), Loc.T("Str_DocC_ColStage"), Loc.T("Str_Col_HeatCount") }));
                 sb.AppendLine("1,2026-04-20,09:00,少年,男,50米自由泳,预赛,4");
                 sb.AppendLine("1,2026-04-20,09:15,少年,女,50米自由泳,预赛,4");
                 sb.AppendLine("1,2026-04-20,09:30,成人,男,50米自由泳,预赛,4");

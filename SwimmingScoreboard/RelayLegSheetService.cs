@@ -26,10 +26,25 @@ namespace SwimmingScoreboard
     {
         public const string SheetName = "接力棒次";
 
-        public static readonly string[] Headers = new[] {
-            "场次", "项次", "组次", "泳道", "项目", "性别", "组别", "代表队",
-            "第1棒", "第2棒", "第3棒", "第4棒"
+        // 2026-09-30 现场反馈: English模式导出这份Excel表头还是中文——原来是 static readonly
+        //   字段, 改成按当前语言现取; Import() 那边把实际表头文字(不管中/英)都规整回中文
+        //   canonical名, 下面一大堆 col["代表队"]/col["第1棒"] 这类中文字面量查表就不用再改。
+        private static readonly string[] HeaderKeys = new[] {
+            "Str_DocC_ColSession", "Str_RelaySheet_ColEvNum", "Str_RelaySheet_ColHeatNum", "Str_RelaySheet_ColLane", "Str_Col_Event",
+            "Str_DocC_ColGender", "Str_Col_Group", "Str_Col_Team",
+            "Str_RegTool_Leg1", "Str_RegTool_Leg2", "Str_RegTool_Leg3", "Str_RegTool_Leg4"
         };
+        public static string[] Headers { get { return HeaderKeys.Select(Loc.T).ToArray(); } }
+        private static Dictionary<string, string> BuildHeaderAliasToZh() {
+            var d = new Dictionary<string, string>();
+            foreach (var k in HeaderKeys) {
+                string zh = Loc.TChinese(k), en = Loc.TEnglish(k);
+                d[zh] = zh;
+                if (!d.ContainsKey(en)) d[en] = zh;
+            }
+            return d;
+        }
+        private static readonly Dictionary<string, string> HeaderAliasToZh = BuildHeaderAliasToZh();
 
         public class LegRow
         {
@@ -209,6 +224,8 @@ namespace SwimmingScoreboard
                     var m = new Dictionary<string, int>();
                     for (int c = 0; c < row.LastCellNum; c++) {
                         string h = CellStr(row, c);
+                        string canon;
+                        if (h.Length > 0 && HeaderAliasToZh.TryGetValue(h, out canon)) h = canon;
                         if (h.Length > 0 && !m.ContainsKey(h)) m[h] = c;
                     }
                     if (m.ContainsKey("代表队") && m.ContainsKey("第1棒")) { headRow = rr; col = m; break; }

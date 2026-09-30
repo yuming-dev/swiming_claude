@@ -172,6 +172,7 @@ namespace SwimmingScoreboard
             { "Str_Col_Team",    new[] { "代表队", "Team" } },
             { "Str_Col_Abbr",    new[] { "单位简称", "Abbr" } },
             { "Str_Col_IDNum",   new[] { "身份证号", "ID No." } },
+            { "Str_Col_IDCard",  new[] { "身份证", "ID No." } },
             { "Str_Col_Phone",   new[] { "电话", "Phone" } },
             { "Str_Col_Event",   new[] { "项目", "Event" } },
             { "Str_Col_Leg",     new[] { "棒次", "Leg" } },
@@ -529,6 +530,7 @@ namespace SwimmingScoreboard
             { "Str_EM_Relay_NoTeams",  new[] { "暂无接力队。请通过测试机器人或手动添加接力队。", "No relay teams yet. Add one manually, or via the test bot." } },
             { "Str_EM_Relay_GroupTitleFmt", new[] { "{0}{1} {2}（{3}队）", "{0}{1} {2} ({3} teams)" } },
             { "Str_EM_Relay_ColTeamName", new[] { "队名", "Team Name" } },
+            { "Str_EM_Relay_AgeGroupPending", new[] { "组别待确认", "Age group pending" } },
             { "Str_EM_Relay_ColLegs",   new[] { "棒次", "Legs" } },
             { "Str_EM_Relay_ColStage",  new[] { "阶段", "Stage" } },
             { "Str_EM_Relay_ColHeat",   new[] { "组", "Heat" } },
@@ -3338,6 +3340,13 @@ namespace SwimmingScoreboard
             { "Str_RegTool_Leg2", new[] { "第2棒", "Leg 2" } },
             { "Str_RegTool_Leg3", new[] { "第3棒", "Leg 3" } },
             { "Str_RegTool_Leg4", new[] { "第4棒", "Leg 4" } },
+            // 2026-09-30 接力棒次填报表(RelayLegSheetService)专用列名——字面量跟代码里
+            // col["项次"]/col["组次"]/col["泳道"] 这几处硬编码中文 key 必须逐字对上，
+            // 不能借用意思相近但字面不同的 Str_DocC_ColEventNo2("项目编号")/
+            // Str_HeatXlsx_ColHeatNo("组号")/Str_Col_LaneNo("道次")。
+            { "Str_RelaySheet_ColEvNum", new[] { "项次", "Event No." } },
+            { "Str_RelaySheet_ColHeatNum", new[] { "组次", "Heat" } },
+            { "Str_RelaySheet_ColLane", new[] { "泳道", "Lane" } },
             { "Str_RegTool_RelayLegTip", new[] { "提示：姓名需与证件一致；身份证号选填，不限位数/格式（国际选手可填护照号等其它证件号）；参赛号由赛事组委会分配（可留空由系统自动分配）。", "Tip: name must match ID; ID number is optional with no format restriction (international athletes may use a passport number or other ID); bib number is assigned by the organizing committee (leave blank for auto-assignment)." } },
             { "Str_RegTool_AddRelayToQueueBtn", new[] { "+ 添加到接力报名列表", "+ Add to Relay List" } },
             { "Str_RegTool_RelayPendingQueueTitle", new[] { "待提交接力报名列表", "Pending Relay Registrations" } },
@@ -3480,6 +3489,14 @@ namespace SwimmingScoreboard
             string[] pair;
             if (!Table.TryGetValue(key, out pair)) return key;
             return (pair.Length > 1 && !string.IsNullOrEmpty(pair[1])) ? pair[1] : pair[0];
+        }
+
+        /// <summary>2026-09-30 固定取中文原文，不看 CurrentLanguage —— TEnglish() 的对称版本，
+        /// 给"CSV/Excel 表头中英文都要认得出来"这类往返一致性场景配对使用。</summary>
+        public static string TChinese(string key) {
+            string[] pair;
+            if (!Table.TryGetValue(key, out pair)) return key;
+            return pair[0];
         }
 
         /// <summary>2026-09-21【第七阶段: MessageBox 弹窗】T() 只管"整句话固定不变"的文字；
