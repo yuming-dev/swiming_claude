@@ -324,7 +324,7 @@ function syncBotDropdowns() {
     var indEvents = [];
     var relayEvents = [];
     for (var i = 0; i < events.length; i++) {
-        if (events[i].indexOf('接力') >= 0) relayEvents.push(events[i]);
+        if (isRelayEventName(events[i])) relayEvents.push(events[i]);
         else indEvents.push(events[i]);
     }
     _fillSelect('regEvent', indEvents);
@@ -468,6 +468,14 @@ function isEnglishMode() {
     return sel && sel.value === 'en';
 }
 
+// 2026-10-05 实机测试发现: 全英文赛事项目表用"Relay"而不是"接力", 原来 4 处
+// indexOf('接力')>=0 判断接力项目全部失效——relayEvent 下拉找不到任何接力项目,
+// 注册接力队时 event 传空字符串, 日志显示"已注册成功"但实际一支队伍都没建。
+// 统一走这个判断, 中英文项目表都认。
+function isRelayEventName(ev) {
+    return !!ev && (ev.indexOf('接力') >= 0 || ev.indexOf('Relay') >= 0);
+}
+
 // 2026-10-05 加 gender 参数——English素材按性别分男/女名字池选(西式名字不像中文给名那样中性通用)。
 //   gender 传"混合"或拿不到性别时随便挑一个池子, 不影响注册(gender 字段本身另外传, 跟姓名选哪个池子无关)。
 function randomName(gender) {
@@ -603,7 +611,7 @@ function batchRegister() {
     var countryFixed = (document.getElementById('regCountryFixed').value || '').trim();
     var countryShort = (document.getElementById('regCountryShort').value || '').trim();
     var notes = (document.getElementById('regNotes').value || '').trim();
-    var isRelay = ev.indexOf('接力') >= 0;
+    var isRelay = isRelayEventName(ev);
 
     if (isRelay) {
         var relayMatch = ev.match(/(\d+)\s*[xX×]\s*(\d+)/);  // 2026-06-03 兼容 4x50 / 4×50 (Chinese ×) / 4 X 50 多种写法
@@ -689,7 +697,7 @@ function batchRegisterMixedGroups() {
     }
     if (picked.length === 0) { log('请至少勾选一个组别 (当前比赛档案的组别会自动列在上方; 没勾就不批量)'); return; }
 
-    var isRelay = ev.indexOf('接力') >= 0;
+    var isRelay = isRelayEventName(ev);
     var distMatch = ev.match(/(\d+)/);
     var dist = distMatch ? parseInt(distMatch[1]) : 100;
     var relayMatch = ev.match(/(\d+)\s*[xX×]\s*(\d+)/);  // 2026-06-03 兼容 4x50 / 4×50 (Chinese ×) / 4 X 50 多种写法
@@ -1185,8 +1193,8 @@ function fullAutoTest() {
 function fullAutoTestRelay() {
     autoRunning = true;
     var ev = document.getElementById('relayEvent').value;
-    if (!ev || ev.indexOf('接力') < 0) {
-        log('错误: 当前 relayEvent 不是接力项目, 请先选择 (如 4x100米自由泳接力)');
+    if (!isRelayEventName(ev)) {
+        log('错误: 当前 relayEvent 不是接力项目, 请先选择 (如 4x100米自由泳接力 / 4x100m Relay)');
         autoRunning = false;
         return;
     }
