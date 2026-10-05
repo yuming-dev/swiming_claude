@@ -3108,6 +3108,10 @@ namespace SwimmingScoreboard
             { "Str_Btn_DeviceStatusMgr", new[] { "设备状态管理", "Device Status Management" } },
             { "Str_Btn_DeleteSelected", new[] { "删除选中", "Delete Selected" } },
             { "Str_Btn_Add", new[] { "新增", "Add" } },
+            // 2026-10-05 性别/赛次/组数编辑窗口原来接了 defaults 参数却从没用过——没有"恢复默认"
+            // 按钮, 想换回标准值只能一行行手删手打。补上按钮, 顺手把窗口说明文字也接上 Loc。
+            { "Str_Btn_RestoreDefault", new[] { "恢复默认", "Restore Default" } },
+            { "Str_EditStringList_InstrFmt", new[] { "编辑{0}列表。可增删；确认保存，取消不生效。", "Edit the {0} list. Add or remove rows; click Confirm to save, Cancel to discard." } },
             { "Str_Btn_AddRow", new[] { "新增行", "Add Row" } },
             { "Str_Btn_AddEvent", new[] { "新增项目", "Add Event" } },
             { "Str_Btn_Refresh", new[] { "刷新", "Refresh" } },

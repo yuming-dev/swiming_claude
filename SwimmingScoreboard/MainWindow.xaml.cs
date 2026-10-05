@@ -29493,7 +29493,7 @@ namespace SwimmingScoreboard
             mainGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
             mainGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             mainGrid.Children.Add(new TextBlock {
-                Text = string.Format("编辑{0}列表。可增删；确认保存，取消不生效。", nameHeader),
+                Text = Loc.F("Str_EditStringList_InstrFmt", nameHeader),
                 TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 8),
                 Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#475569"))
             });
@@ -29526,6 +29526,17 @@ namespace SwimmingScoreboard
                 var sel = grid.SelectedItem as EditableNameRow;
                 if (sel != null) working.Remove(sel); else AppMessageBox.Show(Loc.T("Str_Msg_SelectRowToDelete"));
             };
+            // 2026-10-05 defaults 参数以前传进来从没用过——补一个"恢复默认"按钮, 一键把列表换回
+            // (当前界面语言对应的)标准值, 不用再一行行手删手打。只有调用方真的传了 defaults 才显示。
+            Button btnRestore = null;
+            if (defaults != null && defaults.Length > 0) {
+                btnRestore = new Button { Content = Loc.T("Str_Btn_RestoreDefault"), Padding = new Thickness(12, 6, 12, 6), Margin = new Thickness(0, 0, 8, 0),
+                    Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F59E0B")), Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0) };
+                btnRestore.Click += delegate {
+                    working.Clear();
+                    foreach (var d in defaults) working.Add(new EditableNameRow { Value = d });
+                };
+            }
             var btnOk = new Button { Content = Loc.T("Str_Btn_ConfirmSave"), Padding = new Thickness(16, 6, 16, 6), Margin = new Thickness(0, 0, 8, 0), FontWeight = FontWeights.Bold,
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#22C55E")), Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0) };
             btnOk.Click += delegate {
@@ -29548,7 +29559,9 @@ namespace SwimmingScoreboard
             var btnCancel = new Button { Content = Loc.T("Str_Btn_Cancel"), Padding = new Thickness(16, 6, 16, 6),
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#64748B")), Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0) };
             btnCancel.Click += delegate { dlg.DialogResult = false; };
-            btnPanel.Children.Add(btnAdd); btnPanel.Children.Add(btnDel); btnPanel.Children.Add(btnOk); btnPanel.Children.Add(btnCancel);
+            btnPanel.Children.Add(btnAdd); btnPanel.Children.Add(btnDel);
+            if (btnRestore != null) btnPanel.Children.Add(btnRestore);
+            btnPanel.Children.Add(btnOk); btnPanel.Children.Add(btnCancel);
             mainGrid.Children.Add(btnPanel);
             dlg.Content = mainGrid;
             dlg.ShowDialog();
