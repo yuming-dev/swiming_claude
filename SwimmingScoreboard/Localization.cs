@@ -3237,6 +3237,10 @@ namespace SwimmingScoreboard
             { "Str_Col_PadWidth", new[] { "补零位数", "Pad Width" } },
             { "Str_Col_UsedRange", new[] { "已用/区间", "Used / Range" } },
             { "Str_Col_HeatCount", new[] { "组数", "Heats" } },
+            // 2026-10-05 Swimmer.HeatCountText 原来不管语言一律拼"{0}组"——组数下拉的默认值表
+            // (_heatCounts) 换成英文后, 当前值显示就跟下拉选项文字对不上(ComboBox 按整串匹配)。
+            // 两处统一用这个 key 拼, 才能保证显示文字和下拉选项永远是同一种格式。
+            { "Str_HeatCountSuffixFmt", new[] { "{0}组", "Heat {0}" } },
             // 2026-09-30 现场反馈: 表内容翻译了, 但导出建议文件名还是中文——中文模式下看着正常,
             // English模式下用户看不懂中文文件名。这批 key 专给 SaveFileDialog 的 FileName 用。
             { "Str_FileName_SwimmerRoster", new[] { "运动员报名表", "Swimmer Registrations" } },

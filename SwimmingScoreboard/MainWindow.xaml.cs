@@ -42,9 +42,15 @@ namespace SwimmingScoreboard
         private ObservableCollection<ScheduleItem> _schedule = new ObservableCollection<ScheduleItem>();
         private List<string> _events = new List<string>();
         private List<AgeGroup> _ageGroups = new List<AgeGroup>();
-        private List<string> _genders = new List<string> { "男", "女", "混合" };
-        private List<string> _stages = new List<string> { "预赛", "半决赛", "决赛" };
-        private List<string> _heatCounts = new List<string> { "1组", "2组", "3组", "4组", "5组", "6组", "7组", "8组" };
+        // 2026-10-05 国际游泳竞赛规则英文规范: 新建赛事时, 性别/赛次/组数三张参数表按当前
+        //   界面语言给对应标准英文术语默认值 (而不是统一存中文再靠显示层翻译)——这三张表的
+        //   取值本身就是全系统 193+ 处硬编码中文字面量比较的"数据哨兵", 英文赛事要让这些比较
+        //   走得通, 哨兵值就必须真的是英文, 不能只是显示层翻译。性别/赛次沿用 Str_Gender_*/
+        //   Str_Stage_* 已有的英文显示词("Men"/"Women"/"Mixed"、"Prelim"/"Semifinal"/"Final"),
+        //   保证哨兵值和显示文字一致（Loc.GenderDisplay/StageDisplay 对这些英文值会原样透传）。
+        private List<string> _genders = DefaultGenders();
+        private List<string> _stages = DefaultStages();
+        private List<string> _heatCounts = DefaultHeatCounts();
         private List<BibRange> _bibRanges = new List<BibRange>();
         // 2026-05-24 P0-3 参赛单位实体表（领队/教练/联系电话）
         private System.Collections.ObjectModel.ObservableCollection<Unit> _units = new System.Collections.ObjectModel.ObservableCollection<Unit>();
@@ -1278,6 +1284,73 @@ namespace SwimmingScoreboard
                 dp.SelectedDate = null;
         }
 
+        // 2026-10-05 国际游泳竞赛规则英文规范 —— 性别/赛次/组数的标准英文默认值, 字段初始化器
+        //   和"恢复默认"按钮共用同一份, 避免两处写法分叉。沿用 Loc.GenderDisplay/StageDisplay
+        //   已有的英文词汇("Men"/"Women"/"Mixed"、"Prelim"/"Semifinal"/"Final"), 哨兵值=显示值。
+        private static List<string> DefaultGenders() {
+            return (Loc.CurrentLanguage == Loc.En)
+                ? new List<string> { "Men", "Women", "Mixed" }
+                : new List<string> { "男", "女", "混合" };
+        }
+        private static List<string> DefaultStages() {
+            return (Loc.CurrentLanguage == Loc.En)
+                ? new List<string> { "Prelim", "Semifinal", "Final" }
+                : new List<string> { "预赛", "半决赛", "决赛" };
+        }
+        private static List<string> DefaultHeatCounts() {
+            var list = new List<string>();
+            for (int n = 1; n <= 8; n++) list.Add(Loc.F("Str_HeatCountSuffixFmt", n));
+            return list;
+        }
+        // 项目名用标准国际泳联英文术语(50m Freestyle / 4x100m Medley Relay 等); "个人混合泳"/
+        //   "混合泳接力" 都含"混合泳(Medley)"子串、"接力"对应"Relay"子串——特意保持跟中文
+        //   同构, 全系统靠 .Contains("接力")/.Contains("混合泳") 判断接力/混氧泳项目的逻辑,
+        //   换成英文哨兵值后用 .Contains("Relay")/.Contains("Medley") 能保持同样的判断结构
+        //   (这批判断逻辑本身是否要跟着改, 属于后续专项工作, 这里只负责给出正确的英文默认值)。
+        private static List<string> DefaultEvents() {
+            if (Loc.CurrentLanguage == Loc.En) {
+                return new List<string> {
+                    "50m Freestyle", "100m Freestyle", "200m Freestyle", "400m Freestyle",
+                    "800m Freestyle", "1500m Freestyle",
+                    "50m Backstroke", "100m Backstroke", "200m Backstroke",
+                    "50m Breaststroke", "100m Breaststroke", "200m Breaststroke",
+                    "50m Butterfly", "100m Butterfly", "200m Butterfly",
+                    "200m Individual Medley", "400m Individual Medley",
+                    "4x50m Freestyle Relay", "4x50m Medley Relay",
+                    "4x100m Freestyle Relay", "4x200m Freestyle Relay",
+                    "4x100m Medley Relay"
+                };
+            }
+            return new List<string> {
+                "50米自由泳", "100米自由泳", "200米自由泳", "400米自由泳",
+                "800米自由泳", "1500米自由泳",
+                "50米仰泳", "100米仰泳", "200米仰泳",
+                "50米蛙泳", "100米蛙泳", "200米蛙泳",
+                "50米蝶泳", "100米蝶泳", "200米蝶泳",
+                "200米个人混合泳", "400米个人混合泳",
+                "4x50米自由泳接力", "4x50米混合泳接力",
+                "4x100米自由泳接力", "4x200米自由泳接力",
+                "4x100米混合泳接力"
+            };
+        }
+        // 组别名用常见国际年龄分组术语(Junior/Youth/Senior/Masters), 年龄段不变。
+        private static List<AgeGroup> DefaultAgeGroups() {
+            if (Loc.CurrentLanguage == Loc.En) {
+                return new List<AgeGroup> {
+                    new AgeGroup { Name = "Junior", MinAge = 12, MaxAge = 13 },
+                    new AgeGroup { Name = "Youth",   MinAge = 14, MaxAge = 17 },
+                    new AgeGroup { Name = "Senior",  MinAge = 18, MaxAge = 45 },
+                    new AgeGroup { Name = "Masters", MinAge = 46, MaxAge = 200 }
+                };
+            }
+            return new List<AgeGroup> {
+                new AgeGroup { Name = "青少年", MinAge = 12, MaxAge = 13 },
+                new AgeGroup { Name = "少年",   MinAge = 14, MaxAge = 17 },
+                new AgeGroup { Name = "成人",   MinAge = 18, MaxAge = 45 },
+                new AgeGroup { Name = "大师",   MinAge = 46, MaxAge = 200 }
+            };
+        }
+
         private void InitializeData() {
             SwimmerGrid.ItemsSource = _swimmers;
             RelayGrid.ItemsSource = _relayTeams;
@@ -1287,24 +1360,8 @@ namespace SwimmingScoreboard
             RefreshRecordFilterCombos();
 
             // 初始化默认项目列表
-            _events = new List<string> {
-                "50米自由泳", "100米自由泳", "200米自由泳", "400米自由泳",
-                "800米自由泳", "1500米自由泳",
-                "50米仰泳", "100米仰泳", "200米仰泳",
-                "50米蛙泳", "100米蛙泳", "200米蛙泳",
-                "50米蝶泳", "100米蝶泳", "200米蝶泳",
-                "200米个人混合泳", "400米个人混合泳",
-                // 2026-06-03 加 4x50 接力 (青少年/儿童常用, 25/50m 泳池都可)
-                "4x50米自由泳接力", "4x50米混合泳接力",
-                "4x100米自由泳接力", "4x200米自由泳接力",
-                "4x100米混合泳接力"
-            };
-            _ageGroups = new List<AgeGroup> {
-                new AgeGroup { Name = "青少年", MinAge = 12, MaxAge = 13 },
-                new AgeGroup { Name = "少年",   MinAge = 14, MaxAge = 17 },
-                new AgeGroup { Name = "成人",   MinAge = 18, MaxAge = 45 },
-                new AgeGroup { Name = "大师",   MinAge = 46, MaxAge = 200 }
-            };
+            _events = DefaultEvents();
+            _ageGroups = DefaultAgeGroups();
             AgeGroupRegistry.Set(_ageGroups);
             RefreshEventComboBoxes();
             RefreshEventsPreview();
@@ -29567,7 +29624,7 @@ namespace SwimmingScoreboard
         // —— 性别 ——
         private void EditGendersList_Click(object sender, RoutedEventArgs e) {
             RunWithEditLock("genders-list", Loc.T("Str_Entity_GendersList"), delegate {
-                EditStringListDialog(Loc.T("Str_EM_EditGenders"), Loc.T("Str_EM_GenderNameCol"), _genders, new[] { "男", "女", "混合" }, list => {
+                EditStringListDialog(Loc.T("Str_EM_EditGenders"), Loc.T("Str_EM_GenderNameCol"), _genders, DefaultGenders().ToArray(), list => {
                     _genders = list; RefreshGendersPreview();
                     FinishAndSyncPatch(BuildListSetPatch("genders", JArray.FromObject(_genders), ClientLabel()), "meet");
                     NotifyMetadataChanged();
@@ -29589,7 +29646,7 @@ namespace SwimmingScoreboard
         // —— 赛次 ——
         private void EditStagesList_Click(object sender, RoutedEventArgs e) {
             RunWithEditLock("stages-list", Loc.T("Str_Entity_StagesList"), delegate {
-                EditStringListDialog(Loc.T("Str_EM_EditStages"), Loc.T("Str_EM_StageNameCol"), _stages, new[] { "预赛", "半决赛", "决赛" }, list => {
+                EditStringListDialog(Loc.T("Str_EM_EditStages"), Loc.T("Str_EM_StageNameCol"), _stages, DefaultStages().ToArray(), list => {
                     _stages = list; RefreshStagesPreview();
                     FinishAndSyncPatch(BuildListSetPatch("stages", JArray.FromObject(_stages), ClientLabel()), "meet");
                     NotifyMetadataChanged();
@@ -29611,7 +29668,7 @@ namespace SwimmingScoreboard
         // —— 组数 ——
         private void EditHeatCountsList_Click(object sender, RoutedEventArgs e) {
             RunWithEditLock("heatcounts-list", Loc.T("Str_Entity_HeatCountsList"), delegate {
-                EditStringListDialog(Loc.T("Str_EM_EditHeatCounts"), Loc.T("Str_EM_HeatCounts"), _heatCounts, new[] { "1组", "2组", "3组", "4组", "5组", "6组", "7组", "8组" }, list => {
+                EditStringListDialog(Loc.T("Str_EM_EditHeatCounts"), Loc.T("Str_EM_HeatCounts"), _heatCounts, DefaultHeatCounts().ToArray(), list => {
                     _heatCounts = list; RefreshHeatCountsPreview();
                     FinishAndSyncPatch(BuildListSetPatch("heatCounts", JArray.FromObject(_heatCounts), ClientLabel()), "meet");
                     NotifyMetadataChanged();

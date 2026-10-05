@@ -1578,7 +1578,7 @@ namespace SwimmingScoreboard
         /// </summary>
         [Newtonsoft.Json.JsonIgnore]
         public string HeatCountText {
-            get { return _heatCount > 0 ? (_heatCount + "组") : ""; }
+            get { return _heatCount > 0 ? Loc.F("Str_HeatCountSuffixFmt", _heatCount) : ""; }
             set {
                 if (string.IsNullOrEmpty(value)) return;
                 var m = System.Text.RegularExpressions.Regex.Match(value, @"\d+");
