@@ -29912,7 +29912,10 @@ namespace SwimmingScoreboard
                     // 跳过表头行（中/英文都认，不管这份文件是哪个语言导出的）
                     if (i == 0 && (name == "比赛项目" || name == "项目" || name == "Event"
                         || name == Loc.T("Str_EM_EventNameCol") || name == Loc.TEnglish("Str_EM_EventNameCol") || name == "Events")) continue;
-                    name = System.Text.RegularExpressions.Regex.Replace(name, @"\s+", "");
+                    // 2026-10-05 实机测试发现: 原来整串去空格(\s+ → "") 对中文项目名没影响(本来就
+                    // 不带空格), 但英文项目名"50m Freestyle"会被削成"50mFreestyle"——折叠成单个
+                    // 空格就够清理 Excel 导出常见的误加空格/制表符, 不会连单词间的空格也吃掉。
+                    name = System.Text.RegularExpressions.Regex.Replace(name, @"\s+", " ").Trim();
                     if (seen.Contains(name)) continue;
                     seen.Add(name);
                     finalList.Add(name);
