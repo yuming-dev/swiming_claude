@@ -17,7 +17,9 @@
             <TextBlock x:Name="CountText" Text="" Margin="14,0,0,0" VerticalAlignment="Center" Foreground="#475569" FontSize="12"/>
         </StackPanel>
 
-        <!-- 5 组切换 + 工具按钮; 分组名(主席团/组织委员会/...)是与 StaffMember.Group 比对的数据哨兵值, 不翻译 -->
+        <!-- 5 组切换 + 工具按钮; 分组名(主席团/组织委员会/...)是与 StaffMember.Group 比对的数据哨兵值,
+             存在 Tag 里不翻译, Content 走 DynamicResource 展示层翻译(2026-10-05 现场反馈"Filter Group
+             下拉没翻译"才发现——下拉值之前直接当 Content 用, 导致比对值=展示值绑死成中文) -->
         <Grid Grid.Row="1" Margin="0,0,0,8">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
@@ -26,12 +28,12 @@
             <StackPanel Grid.Column="0" Orientation="Horizontal">
                 <TextBlock Text="{DynamicResource Str_Win_StaffMgmt_FilterGroupLabel}" VerticalAlignment="Center" Margin="0,0,6,0" FontWeight="Bold"/>
                 <ComboBox x:Name="GroupFilterCombo" Width="160" VerticalAlignment="Center" SelectionChanged="GroupFilter_Changed">
-                    <ComboBoxItem Content="全部" IsSelected="True"/>
-                    <ComboBoxItem Content="主席团"/>
-                    <ComboBoxItem Content="组织委员会"/>
-                    <ComboBoxItem Content="工作机构"/>
-                    <ComboBoxItem Content="技术及仲裁"/>
-                    <ComboBoxItem Content="裁判员"/>
+                    <ComboBoxItem Tag="全部" Content="{DynamicResource Str_Common_All}" IsSelected="True"/>
+                    <ComboBoxItem Tag="主席团" Content="{DynamicResource Str_StaffGroup_Presidium}"/>
+                    <ComboBoxItem Tag="组织委员会" Content="{DynamicResource Str_StaffGroup_OrgCommittee}"/>
+                    <ComboBoxItem Tag="工作机构" Content="{DynamicResource Str_StaffGroup_WorkOrg}"/>
+                    <ComboBoxItem Tag="技术及仲裁" Content="{DynamicResource Str_StaffGroup_TechArbitration}"/>
+                    <ComboBoxItem Tag="裁判员" Content="{DynamicResource Str_StaffGroup_Referees}"/>
                 </ComboBox>
                 <TextBlock Text="{DynamicResource Str_Win_StaffMgmt_SearchLabel}" VerticalAlignment="Center" Margin="14,0,4,0"/>
                 <TextBox x:Name="SearchBox" Width="160" Padding="3" VerticalAlignment="Center" TextChanged="Search_Changed"/>
@@ -51,32 +53,21 @@
             </StackPanel>
         </Grid>
 
-        <!-- 工作人员表格; Group/Gender 列的 ComboBox 下拉值是数据哨兵值, 不翻译, 只翻译列头 -->
+        <!-- 工作人员表格; Group/Gender 列存的仍是数据哨兵值(StaffMember.Group/Gender), 下拉展示文字
+             2026-10-05 改成 SelectedValueBinding+SelectedValuePath/DisplayMemberPath 分离——
+             ItemsSource(Value=中文哨兵, Display=当前语言展示名)在代码后置里按语言现建, 见构造函数 -->
         <DataGrid x:Name="StaffGrid" Grid.Row="2" AutoGenerateColumns="False" CanUserAddRows="False"
                   AlternatingRowBackground="#F8FAFC" HeadersVisibility="Column">
             <DataGrid.Columns>
-                <DataGridComboBoxColumn x:Name="GroupColumn" SelectedItemBinding="{Binding Group}" Width="110">
+                <DataGridComboBoxColumn x:Name="GroupColumn" SelectedValueBinding="{Binding Group}"
+                                         SelectedValuePath="Value" DisplayMemberPath="Display" Width="110">
                     <DataGridComboBoxColumn.Header><TextBlock Text="{DynamicResource Str_Col_Group}"/></DataGridComboBoxColumn.Header>
-                    <DataGridComboBoxColumn.ItemsSource>
-                        <x:Array Type="{x:Type sys:String}" xmlns:sys="clr-namespace:System;assembly=mscorlib">
-                            <sys:String>主席团</sys:String>
-                            <sys:String>组织委员会</sys:String>
-                            <sys:String>工作机构</sys:String>
-                            <sys:String>技术及仲裁</sys:String>
-                            <sys:String>裁判员</sys:String>
-                        </x:Array>
-                    </DataGridComboBoxColumn.ItemsSource>
                 </DataGridComboBoxColumn>
                 <DataGridTextColumn Width="180"><DataGridTextColumn.Header><TextBlock Text="{DynamicResource Str_Win_StaffMgmt_ColTitle}"/></DataGridTextColumn.Header><DataGridTextColumn.Binding><Binding Path="Title"/></DataGridTextColumn.Binding></DataGridTextColumn>
                 <DataGridTextColumn Width="100"><DataGridTextColumn.Header><TextBlock Text="{DynamicResource Str_Col_Name}"/></DataGridTextColumn.Header><DataGridTextColumn.Binding><Binding Path="Name"/></DataGridTextColumn.Binding></DataGridTextColumn>
-                <DataGridComboBoxColumn SelectedItemBinding="{Binding Gender}" Width="60">
+                <DataGridComboBoxColumn x:Name="GenderColumn" SelectedValueBinding="{Binding Gender}"
+                                         SelectedValuePath="Value" DisplayMemberPath="Display" Width="60">
                     <DataGridComboBoxColumn.Header><TextBlock Text="{DynamicResource Str_Col_Sex}"/></DataGridComboBoxColumn.Header>
-                    <DataGridComboBoxColumn.ItemsSource>
-                        <x:Array Type="{x:Type sys:String}" xmlns:sys="clr-namespace:System;assembly=mscorlib">
-                            <sys:String>男</sys:String>
-                            <sys:String>女</sys:String>
-                        </x:Array>
-                    </DataGridComboBoxColumn.ItemsSource>
                 </DataGridComboBoxColumn>
                 <DataGridTextColumn Width="90"><DataGridTextColumn.Header><TextBlock Text="{DynamicResource Str_Win_StaffMgmt_ColRefLevel}"/></DataGridTextColumn.Header><DataGridTextColumn.Binding><Binding Path="RefereeLevel"/></DataGridTextColumn.Binding></DataGridTextColumn>
                 <DataGridTextColumn Width="160"><DataGridTextColumn.Header><TextBlock Text="{DynamicResource Str_Win_StaffMgmt_ColWorkUnit}"/></DataGridTextColumn.Header><DataGridTextColumn.Binding><Binding Path="Country"/></DataGridTextColumn.Binding></DataGridTextColumn>

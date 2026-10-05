@@ -19,6 +19,10 @@ namespace SwimmingScoreboard
         private readonly List<StaffMember> _backup;
         private CollectionView _view;
 
+        // 2026-10-05 Group/Gender 下拉的 Value(数据哨兵, 存回 StaffMember)/Display(当前语言展示文字)
+        // 分离包装——DataGridComboBoxColumn 用 SelectedValueBinding+SelectedValuePath/DisplayMemberPath
+        private class ComboOption { public string Value; public string Display; }
+
         public StaffManageWindow(ObservableCollection<StaffMember> staff) {
             InitializeComponent();
             _staff = staff;
@@ -27,6 +31,10 @@ namespace SwimmingScoreboard
             // 2026-05-25 _staff 空 → 按 5 组默认岗位骨架自动播种（姓名留空）
             if (_staff.Count == 0) SeedDefaults();
             _backup = _staff.Select(Clone).ToList();
+            GroupColumn.ItemsSource = StaffGroups.All
+                .Select(g => new ComboOption { Value = g, Display = Loc.StaffGroupDisplay(g) }).ToList();
+            GenderColumn.ItemsSource = new[] { "男", "女" }
+                .Select(g => new ComboOption { Value = g, Display = Loc.GenderDisplay(g) }).ToList();
             StaffGrid.ItemsSource = _staff;
             _view = (CollectionView)CollectionViewSource.GetDefaultView(_staff);
             _view.Filter = FilterPredicate;
@@ -47,7 +55,7 @@ namespace SwimmingScoreboard
             var s = item as StaffMember;
             if (s == null) return false;
             string groupSel = GroupFilterCombo.SelectedItem != null
-                ? ((ComboBoxItem)GroupFilterCombo.SelectedItem).Content.ToString() : "全部";
+                ? ((ComboBoxItem)GroupFilterCombo.SelectedItem).Tag.ToString() : "全部";
             if (groupSel != "全部" && (s.Group ?? "") != groupSel) return false;
             string q = (SearchBox.Text ?? "").Trim().ToLower();
             if (string.IsNullOrEmpty(q)) return true;
@@ -73,7 +81,7 @@ namespace SwimmingScoreboard
 
         private string CurrentGroupSelection() {
             string g = GroupFilterCombo.SelectedItem != null
-                ? ((ComboBoxItem)GroupFilterCombo.SelectedItem).Content.ToString() : "全部";
+                ? ((ComboBoxItem)GroupFilterCombo.SelectedItem).Tag.ToString() : "全部";
             return g == "全部" ? StaffGroups.Referees : g;   // 默认新增到 裁判员 (最常用)
         }
 
