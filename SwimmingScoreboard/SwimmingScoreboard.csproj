@@ -339,6 +339,7 @@
     <Compile Include="ResultBookData.cs" />
     <Compile Include="AuthHelper.cs" />
     <Compile Include="Localization.cs" />
+    <Compile Include="AppMessageBox.cs" />
     <Compile Include="ChiefJudgePasswordWindow.cs" />
     <Compile Include="JudgeOverrideWindow.cs" />
     <Compile Include="EditorSyncClient.cs" />

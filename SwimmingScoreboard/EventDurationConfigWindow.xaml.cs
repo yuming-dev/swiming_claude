@@ -37,7 +37,7 @@ namespace SwimmingScoreboard
         }
 
         private void ResetDefaults_Click(object sender, RoutedEventArgs e) {
-            if (MessageBox.Show(Loc.T("Str_Win_EvtDur_ConfirmReset"), Loc.T("Str_MsgTitle_Confirm"),
+            if (AppMessageBox.Show(Loc.T("Str_Win_EvtDur_ConfirmReset"), Loc.T("Str_MsgTitle_Confirm"),
                 MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
             _config.ResetToDefaults();
             LoadFromConfig();

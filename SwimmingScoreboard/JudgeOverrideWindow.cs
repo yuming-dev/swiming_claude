@@ -237,7 +237,7 @@ namespace SwimmingScoreboard
                 return;
             }
 
-            if (MessageBox.Show(
+            if (AppMessageBox.Show(
                 string.Format("确定要把这 {0} 条改动直接写入竞赛库吗？\n\n这个动作跳过「解锁本组成绩」的状态检查，" +
                     "改完立即生效，且会触发本项目名次重新计算。\n\n原因: {1}", changed.Count, reason),
                 "确认写入(裁判长)", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
@@ -277,7 +277,7 @@ namespace SwimmingScoreboard
 
             try { if (AfterSaved != null) AfterSaved(_ageGroup, _gender, _eventName, _stage, _heat); } catch { }
 
-            MessageBox.Show(string.Format("已写入 {0} 条修改。\n\n名次已按新成绩重新计算；如本项目全部组已确认，" +
+            AppMessageBox.Show(string.Format("已写入 {0} 条修改。\n\n名次已按新成绩重新计算；如本项目全部组已确认，" +
                 "组排名表(定稿)也已同步重新生成。", ok),
                 "裁判长改成绩", MessageBoxButton.OK, MessageBoxImage.Information);
             DialogResult = true;

@@ -2195,6 +2195,8 @@ namespace SwimmingScoreboard
             { "Str_Btn_Save",  new[] { "保存", "Save" } },
             { "Str_Btn_Close", new[] { "关闭", "Close" } },
             { "Str_Btn_Cancel",new[] { "取消", "Cancel" } },
+            { "Str_Btn_Yes", new[] { "是", "Yes" } },
+            { "Str_Btn_No", new[] { "否", "No" } },
             { "Str_Win_HeatImport_Title",  new[] { "导入分组表", "Import Heat Assignments" } },
             { "Str_Win_HeatImport_Header", new[] { "导入分组表 (Excel)", "Import Heat Assignments (Excel)" } },
             { "Str_Win_HeatImport_Start",  new[] { "开始导入", "Start Import" } },
@@ -3662,7 +3664,7 @@ namespace SwimmingScoreboard
         }
 
         /// <summary>2026-10-05 现场反馈: CSV导入成功后弹窗——标题/正文都是英文, 唯独"确定"按钮
-        /// 还是中文。根因: MessageBox.Show() 包的是 Win32 原生消息框, 按钮文字(确定/取消/是/否)
+        /// 还是中文。根因: AppMessageBox.Show() 包的是 Win32 原生消息框, 按钮文字(确定/取消/是/否)
         /// 由 Windows 按【当前线程 UI culture】给, 跟本系统自己这套 Loc.Table/DynamicResource
         /// 机制是两条完全独立的翻译路径——之前只换了 Loc.CurrentLanguage, 没动 Thread culture,
         /// 所以消息文字换了, 按钮没换(中文Windows系统locale缺省就是zh-CN)。每次语言切换时

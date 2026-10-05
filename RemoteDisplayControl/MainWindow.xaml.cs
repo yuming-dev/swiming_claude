@@ -251,7 +251,7 @@ namespace RemoteDisplayControl
         // 2026-06-01 打开大屏样式远程控制窗口
         private void OpenDisplayStyle_Click(object sender, RoutedEventArgs e) {
             if (_ws == null || !_ws.IsConnected) {
-                MessageBox.Show(SwimmingScoreboard.Loc.T("Str_RegTool_ErrNotConnected"), SwimmingScoreboard.Loc.T("Str_RegTool_StatusDisconnected"), MessageBoxButton.OK, MessageBoxImage.Warning);
+                SwimmingScoreboard.AppMessageBox.Show(SwimmingScoreboard.Loc.T("Str_RegTool_ErrNotConnected"), SwimmingScoreboard.Loc.T("Str_RegTool_StatusDisconnected"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
             if (_displayStyleWin != null && _displayStyleWin.IsLoaded) {
@@ -303,7 +303,7 @@ namespace RemoteDisplayControl
 
         // 图片 / 视频
         private void OpenMediaDialog_Click(object sender, RoutedEventArgs e) {
-            if (_ws == null || !_ws.IsConnected) { MessageBox.Show(SwimmingScoreboard.Loc.T("Str_RegTool_ErrNotConnected"), SwimmingScoreboard.Loc.T("Str_RegTool_StatusDisconnected")); return; }
+            if (_ws == null || !_ws.IsConnected) { SwimmingScoreboard.AppMessageBox.Show(SwimmingScoreboard.Loc.T("Str_RegTool_ErrNotConnected"), SwimmingScoreboard.Loc.T("Str_RegTool_StatusDisconnected")); return; }
             _mediaWin = BuildSimpleListWindow(SwimmingScoreboard.Loc.T("Str_RDC_MediaDialogTitle"), new SolidColorBrush((Color)ColorConverter.ConvertFromString("#0EA5E9")), out _mediaList,
                 new Tuple<string, Brush, RoutedEventHandler>(SwimmingScoreboard.Loc.T("Str_RDC_BtnPickLocalFile"), new SolidColorBrush((Color)ColorConverter.ConvertFromString("#10B981")), delegate { UploadLocalMedia(); }),
                 new Tuple<string, Brush, RoutedEventHandler>(SwimmingScoreboard.Loc.T("Str_RDC_BtnStopDisplay"), new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EF4444")), delegate {
@@ -342,7 +342,7 @@ namespace RemoteDisplayControl
 
         // PPT 播放
         private void OpenPptDialog_Click(object sender, RoutedEventArgs e) {
-            if (_ws == null || !_ws.IsConnected) { MessageBox.Show(SwimmingScoreboard.Loc.T("Str_RegTool_ErrNotConnected"), SwimmingScoreboard.Loc.T("Str_RegTool_StatusDisconnected")); return; }
+            if (_ws == null || !_ws.IsConnected) { SwimmingScoreboard.AppMessageBox.Show(SwimmingScoreboard.Loc.T("Str_RegTool_ErrNotConnected"), SwimmingScoreboard.Loc.T("Str_RegTool_StatusDisconnected")); return; }
             _pptWin = BuildSimpleListWindow(SwimmingScoreboard.Loc.T("Str_RDC_PptDialogTitle"), new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FB923C")), out _pptList,
                 new Tuple<string, Brush, RoutedEventHandler>(SwimmingScoreboard.Loc.T("Str_RDC_BtnPickLocalFile"), new SolidColorBrush((Color)ColorConverter.ConvertFromString("#10B981")), delegate { UploadLocalPpt(); }));
             _pptList.MouseDoubleClick += delegate {
@@ -374,7 +374,7 @@ namespace RemoteDisplayControl
 
         // 显示比赛日程
         private void OpenScheduleDialog_Click(object sender, RoutedEventArgs e) {
-            if (_ws == null || !_ws.IsConnected) { MessageBox.Show(SwimmingScoreboard.Loc.T("Str_RegTool_ErrNotConnected"), SwimmingScoreboard.Loc.T("Str_RegTool_StatusDisconnected")); return; }
+            if (_ws == null || !_ws.IsConnected) { SwimmingScoreboard.AppMessageBox.Show(SwimmingScoreboard.Loc.T("Str_RegTool_ErrNotConnected"), SwimmingScoreboard.Loc.T("Str_RegTool_StatusDisconnected")); return; }
             _scheduleWin = BuildSimpleListWindow(SwimmingScoreboard.Loc.T("Str_RDC_ScheduleDialogTitle"), new SolidColorBrush((Color)ColorConverter.ConvertFromString("#0D9488")), out _scheduleList);
             _scheduleList.MouseDoubleClick += delegate {
                 var item = _scheduleList.SelectedItem as ListBoxItem;
@@ -406,7 +406,7 @@ namespace RemoteDisplayControl
         //   "弹窗选定回放项目"对称: 先跟服务器要候选(已完赛决赛)名单, 选完把 4 个 key 字段
         //   带回去, 服务器按选定项目广播, 大屏才有内容可显 (之前直接发命令没选项目, 等于白发)。
         private void OpenRankingPicker(string command, string title, Brush titleBrush) {
-            if (_ws == null || !_ws.IsConnected) { MessageBox.Show(SwimmingScoreboard.Loc.T("Str_RegTool_ErrNotConnected"), SwimmingScoreboard.Loc.T("Str_RegTool_StatusDisconnected")); return; }
+            if (_ws == null || !_ws.IsConnected) { SwimmingScoreboard.AppMessageBox.Show(SwimmingScoreboard.Loc.T("Str_RegTool_ErrNotConnected"), SwimmingScoreboard.Loc.T("Str_RegTool_StatusDisconnected")); return; }
             _rankingPickCommand = command;
             _rankingPickWin = BuildSimpleListWindow(title, titleBrush, out _rankingPickList);
             _rankingPickList.MouseDoubleClick += delegate {
@@ -441,9 +441,9 @@ namespace RemoteDisplayControl
 
         // 成绩发布 — 用本地缓存的 _scheduleData (主控广播过来的) 构建已完赛列表
         private void OpenPublishDialog_Click(object sender, RoutedEventArgs e) {
-            if (_ws == null || !_ws.IsConnected) { MessageBox.Show(SwimmingScoreboard.Loc.T("Str_RegTool_ErrNotConnected"), SwimmingScoreboard.Loc.T("Str_RegTool_StatusDisconnected")); return; }
+            if (_ws == null || !_ws.IsConnected) { SwimmingScoreboard.AppMessageBox.Show(SwimmingScoreboard.Loc.T("Str_RegTool_ErrNotConnected"), SwimmingScoreboard.Loc.T("Str_RegTool_StatusDisconnected")); return; }
             if (_scheduleData == null || _scheduleData.Count == 0) {
-                MessageBox.Show(SwimmingScoreboard.Loc.T("Str_RDC_NoScheduleDataMsg"), SwimmingScoreboard.Loc.T("Str_RDC_NoDataTitle"));
+                SwimmingScoreboard.AppMessageBox.Show(SwimmingScoreboard.Loc.T("Str_RDC_NoScheduleDataMsg"), SwimmingScoreboard.Loc.T("Str_RDC_NoDataTitle"));
                 return;
             }
             _publishWin = BuildSimpleListWindow(SwimmingScoreboard.Loc.T("Str_RDC_PublishDialogTitle"), new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F59E0B")), out _publishList);
@@ -500,7 +500,7 @@ namespace RemoteDisplayControl
             };
             if (ofd.ShowDialog() != true) return;
             string path = ofd.FileName;
-            if (!System.IO.File.Exists(path)) { MessageBox.Show(SwimmingScoreboard.Loc.T("Str_RDC_ErrFileNotExist")); return; }
+            if (!System.IO.File.Exists(path)) { SwimmingScoreboard.AppMessageBox.Show(SwimmingScoreboard.Loc.T("Str_RDC_ErrFileNotExist")); return; }
             string ext = (System.IO.Path.GetExtension(path) ?? "").ToLower();
             string kind, mime;
             if (ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".bmp" || ext == ".gif" || ext == ".webp") {
@@ -509,11 +509,11 @@ namespace RemoteDisplayControl
             } else if (ext == ".mp4" || ext == ".webm" || ext == ".ogg" || ext == ".m4v") {
                 kind = "video";
                 mime = ext == ".webm" ? "video/webm" : ext == ".ogg" ? "video/ogg" : "video/mp4";
-            } else { MessageBox.Show(SwimmingScoreboard.Loc.T("Str_RDC_ErrUnsupportedType")); return; }
+            } else { SwimmingScoreboard.AppMessageBox.Show(SwimmingScoreboard.Loc.T("Str_RDC_ErrUnsupportedType")); return; }
             try {
                 byte[] bytes = System.IO.File.ReadAllBytes(path);
                 if (bytes.Length > 64 * 1024 * 1024) {
-                    if (MessageBox.Show(SwimmingScoreboard.Loc.F("Str_RDC_LargeFileConfirmFmt", bytes.Length / 1048576.0), SwimmingScoreboard.Loc.T("Str_MsgTitle_Confirm"), MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
+                    if (SwimmingScoreboard.AppMessageBox.Show(SwimmingScoreboard.Loc.F("Str_RDC_LargeFileConfirmFmt", bytes.Length / 1048576.0), SwimmingScoreboard.Loc.T("Str_MsgTitle_Confirm"), MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
                 }
                 string b64 = Convert.ToBase64String(bytes);
                 string dataUrl = "data:" + mime + ";base64," + b64;
@@ -525,7 +525,7 @@ namespace RemoteDisplayControl
                 }));
                 StatusText.Text = SwimmingScoreboard.Loc.F("Str_RDC_UploadedFmt", System.IO.Path.GetFileName(path));
                 if (_mediaWin != null) _mediaWin.Close();
-            } catch (Exception ex) { MessageBox.Show(SwimmingScoreboard.Loc.F("Str_RDC_UploadFailedFmt", ex.Message)); }
+            } catch (Exception ex) { SwimmingScoreboard.AppMessageBox.Show(SwimmingScoreboard.Loc.F("Str_RDC_UploadFailedFmt", ex.Message)); }
         }
 
         private void UploadLocalPpt() {
@@ -535,11 +535,11 @@ namespace RemoteDisplayControl
             };
             if (ofd.ShowDialog() != true) return;
             string path = ofd.FileName;
-            if (!System.IO.File.Exists(path)) { MessageBox.Show(SwimmingScoreboard.Loc.T("Str_RDC_ErrFileNotExist")); return; }
+            if (!System.IO.File.Exists(path)) { SwimmingScoreboard.AppMessageBox.Show(SwimmingScoreboard.Loc.T("Str_RDC_ErrFileNotExist")); return; }
             try {
                 byte[] bytes = System.IO.File.ReadAllBytes(path);
                 if (bytes.Length > 64 * 1024 * 1024) {
-                    if (MessageBox.Show(SwimmingScoreboard.Loc.F("Str_RDC_LargeFileConfirmFmt", bytes.Length / 1048576.0), SwimmingScoreboard.Loc.T("Str_MsgTitle_Confirm"), MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
+                    if (SwimmingScoreboard.AppMessageBox.Show(SwimmingScoreboard.Loc.F("Str_RDC_LargeFileConfirmFmt", bytes.Length / 1048576.0), SwimmingScoreboard.Loc.T("Str_MsgTitle_Confirm"), MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
                 }
                 string b64 = Convert.ToBase64String(bytes);
                 StatusText.Text = SwimmingScoreboard.Loc.F("Str_RDC_UploadingFmt", System.IO.Path.GetFileName(path));
@@ -549,7 +549,7 @@ namespace RemoteDisplayControl
                 }));
                 StatusText.Text = SwimmingScoreboard.Loc.F("Str_RDC_UploadedPptFmt", System.IO.Path.GetFileName(path));
                 if (_pptWin != null) _pptWin.Close();
-            } catch (Exception ex) { MessageBox.Show(SwimmingScoreboard.Loc.F("Str_RDC_UploadFailedFmt", ex.Message)); }
+            } catch (Exception ex) { SwimmingScoreboard.AppMessageBox.Show(SwimmingScoreboard.Loc.F("Str_RDC_UploadFailedFmt", ex.Message)); }
         }
 
         protected override void OnClosed(EventArgs e) {

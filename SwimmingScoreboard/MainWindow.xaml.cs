@@ -750,7 +750,7 @@ namespace SwimmingScoreboard
             // sender != null = 用户本地按按钮触发, 弹结果对话框; 远端调用 (HandleRemoteControl) sender=null 静默
             if (sender != null) {
                 try {
-                    MessageBox.Show(
+                    AppMessageBox.Show(
                         Loc.F("Str_Msg_FreeMemoryDoneFmt", beforeMB, afterMB, freedMB),
                         Loc.T("Str_MsgTitle_FreeMemory"), MessageBoxButton.OK, MessageBoxImage.Information);
                 } catch { }
@@ -881,13 +881,13 @@ namespace SwimmingScoreboard
         private void EditorChangePassword_Click(object sender, RoutedEventArgs e) {
             try {
                 var asm = System.Reflection.Assembly.GetEntryAssembly();
-                if (asm == null) { MessageBox.Show(Loc.T("Str_Msg_NoEntryAssembly")); return; }
+                if (asm == null) { AppMessageBox.Show(Loc.T("Str_Msg_NoEntryAssembly")); return; }
                 // 用入口程序集的 RootNamespace + .ChangePasswordWindow
                 string asmName = asm.GetName().Name;
                 string typeName = asmName + ".ChangePasswordWindow";
                 var t = asm.GetType(typeName);
                 if (t == null) {
-                    MessageBox.Show(Loc.F("Str_Msg_TypeNotFoundFmt", typeName), Loc.T("Str_MsgTitle_Info"),
+                    AppMessageBox.Show(Loc.F("Str_Msg_TypeNotFoundFmt", typeName), Loc.T("Str_MsgTitle_Info"),
                         MessageBoxButton.OK, MessageBoxImage.Information);
                     return;
                 }
@@ -897,7 +897,7 @@ namespace SwimmingScoreboard
                 win.ShowDialog();
             } catch (Exception ex) {
                 AddLog(Loc.F("Str_Log_OpenChangePwdFailedFmt", ex.Message));
-                MessageBox.Show(Loc.F("Str_Msg_OpenChangePwdFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error"),
+                AppMessageBox.Show(Loc.F("Str_Msg_OpenChangePwdFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error"),
                     MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
@@ -1181,7 +1181,7 @@ namespace SwimmingScoreboard
                     _editorPushRejected = true;
                     UpdateEditorSyncStatus(Loc.T("Str_SyncStatus_NotSavedToServer"), "#DC2626");
                     AddLog(Loc.F("Str_Log_NotSavedToMainServerFmt", reason));
-                    MessageBox.Show(
+                    AppMessageBox.Show(
                         Loc.F("Str_Msg_NotSavedToServerFmt", reason),
                         Loc.T("Str_MsgTitle_NotSavedToServer"), MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
@@ -1229,7 +1229,7 @@ namespace SwimmingScoreboard
             // 2026-08-24 上次保存被主服务器拒了(本地改动还没提交上去), 这时如果直接套用
             //   主服务器推来的包, 本地改动就被悄无声息地覆盖掉了。先问一句。
             if (_editorPushRejected && pkg != null) {
-                var ans = MessageBox.Show(
+                var ans = AppMessageBox.Show(
                     Loc.T("Str_Msg_LocalUnsavedConfirm"),
                     Loc.T("Str_MsgTitle_LocalUnsaved"), MessageBoxButton.YesNo, MessageBoxImage.Warning);
                 if (ans != MessageBoxResult.Yes) {
@@ -1616,7 +1616,7 @@ namespace SwimmingScoreboard
                 if (IsRemoteTimingControlMode) {
                     try {
                         Dispatcher.BeginInvoke((Action)delegate() {
-                            MessageBox.Show(this, msg, Loc.T("Str_MsgTitle_PortConflict"),
+                            AppMessageBox.Show(this, msg, Loc.T("Str_MsgTitle_PortConflict"),
                                 MessageBoxButton.OK, MessageBoxImage.Warning);
                         });
                     } catch { }
@@ -5402,7 +5402,7 @@ namespace SwimmingScoreboard
         //   比赛结束确认无问题后 → 清空备份
         public void QueryBackupLog() {
             if (_timingBridge == null || !_timingBridge.IsConnected) {
-                MessageBox.Show(Loc.T("Str_Msg_HwNotConnected"), Loc.T("Str_MsgTitle_CheckEventBackup"));
+                AppMessageBox.Show(Loc.T("Str_Msg_HwNotConnected"), Loc.T("Str_MsgTitle_CheckEventBackup"));
                 return;
             }
             _pendingBackupEvents.Clear();
@@ -5412,10 +5412,10 @@ namespace SwimmingScoreboard
 
         public void ClearBackupLog() {
             if (_timingBridge == null || !_timingBridge.IsConnected) {
-                MessageBox.Show(Loc.T("Str_Msg_HwNotConnected"), Loc.T("Str_MsgTitle_ClearEventBackup"));
+                AppMessageBox.Show(Loc.T("Str_Msg_HwNotConnected"), Loc.T("Str_MsgTitle_ClearEventBackup"));
                 return;
             }
-            var r = MessageBox.Show(Loc.T("Str_Msg_ClearHwBackupConfirm"), Loc.T("Str_MsgTitle_ClearConfirm"),
+            var r = AppMessageBox.Show(Loc.T("Str_Msg_ClearHwBackupConfirm"), Loc.T("Str_MsgTitle_ClearConfirm"),
                 MessageBoxButton.YesNo, MessageBoxImage.Question);
             if (r != MessageBoxResult.Yes) return;
             _timingBridge.SendCommand(0x68);   // Clear_BackupLog_Command (0x58) + 0x10
@@ -5424,7 +5424,7 @@ namespace SwimmingScoreboard
 
         private void ShowBackupEventDialog() {
             if (_pendingBackupEvents.Count == 0) {
-                MessageBox.Show(Loc.T("Str_Msg_EventBackupEmpty"), Loc.T("Str_MsgTitle_EventBackup"));
+                AppMessageBox.Show(Loc.T("Str_Msg_EventBackupEmpty"), Loc.T("Str_MsgTitle_EventBackup"));
                 return;
             }
             // 2026-06-10 格式: 道N侧 出/触/盲X = 设备按下瞬间硬件时间 (= 跟比赛日志 = 后 SB/TP/MB 成绩同源)
@@ -5592,9 +5592,9 @@ namespace SwimmingScoreboard
                 if (dlg.ShowDialog() == true) {
                     try {
                         System.IO.File.WriteAllLines(dlg.FileName, lines, System.Text.Encoding.UTF8);
-                        MessageBox.Show(Loc.F("Str_Msg_SavedAsFmt", dlg.FileName), Loc.T("Str_MsgTitle_SaveToDisk"), MessageBoxButton.OK, MessageBoxImage.Information);
+                        AppMessageBox.Show(Loc.F("Str_Msg_SavedAsFmt", dlg.FileName), Loc.T("Str_MsgTitle_SaveToDisk"), MessageBoxButton.OK, MessageBoxImage.Information);
                     } catch (Exception ex) {
-                        MessageBox.Show(Loc.F("Str_Msg_SaveFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Save"), MessageBoxButton.OK, MessageBoxImage.Error);
+                        AppMessageBox.Show(Loc.F("Str_Msg_SaveFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Save"), MessageBoxButton.OK, MessageBoxImage.Error);
                     }
                 }
             };
@@ -5617,7 +5617,7 @@ namespace SwimmingScoreboard
                         pd.PrintDocument(paginator, Loc.T("Str_Win_EventBackup_PrintDocName"));
                     }
                 } catch (Exception ex) {
-                    MessageBox.Show(Loc.F("Str_Msg_PrintFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Print"), MessageBoxButton.OK, MessageBoxImage.Error);
+                    AppMessageBox.Show(Loc.F("Str_Msg_PrintFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Print"), MessageBoxButton.OK, MessageBoxImage.Error);
                 }
             };
             btnPanel.Children.Add(btnPrint);
@@ -5626,9 +5626,9 @@ namespace SwimmingScoreboard
             btnCopy.Click += delegate(object s, RoutedEventArgs e) {
                 try {
                     System.Windows.Clipboard.SetText(string.Join("\r\n", lines));
-                    MessageBox.Show(Loc.T("Str_Msg_CopiedToClipboard"), Loc.T("Str_MsgTitle_Copy"));
+                    AppMessageBox.Show(Loc.T("Str_Msg_CopiedToClipboard"), Loc.T("Str_MsgTitle_Copy"));
                 } catch (Exception ex) {
-                    MessageBox.Show(Loc.F("Str_Msg_CopyFailedFmt", ex.Message));
+                    AppMessageBox.Show(Loc.F("Str_Msg_CopyFailedFmt", ex.Message));
                 }
             };
             btnPanel.Children.Add(btnCopy);
@@ -8314,7 +8314,7 @@ namespace SwimmingScoreboard
             // 防线 4: 弹 YesNo, 通过则用 ConfirmAfterRacingZero=true 重算
             if (result.Verdict == LapAdjustVerdict.Defense4_NeedConfirm) {
                 int oldCur = ls.CurrentLap;
-                var r = MessageBox.Show(
+                var r = AppMessageBox.Show(
                     Loc.F("Str_Msg_LaneErrorFmt", lane, result.ErrorMessage),
                     result.ErrorTitle,
                     MessageBoxButton.YesNo, MessageBoxImage.Warning);
@@ -8331,7 +8331,7 @@ namespace SwimmingScoreboard
             if (result.Verdict == LapAdjustVerdict.Defense1_DispOutOfRange
                 || result.Verdict == LapAdjustVerdict.Defense2_LapOutOfRange
                 || result.Verdict == LapAdjustVerdict.Defense3_WrongSpinner) {
-                MessageBox.Show(
+                AppMessageBox.Show(
                     Loc.F("Str_Msg_LaneErrorFmt", lane, result.ErrorMessage),
                     result.ErrorTitle,
                     MessageBoxButton.OK, MessageBoxImage.Warning);
@@ -8588,14 +8588,14 @@ namespace SwimmingScoreboard
         //2026-05-29 "📝 手工补段成绩"按钮 click handler — 弹对话框输入道次/段次/累计时间
         private void ManualSplit_Click(object sender, RoutedEventArgs e) {
             if (string.IsNullOrEmpty(_currentEvent) || _currentHeat <= 0) {
-                MessageBox.Show(Loc.T("Str_Msg_SelectCurrentHeatFirst"), Loc.T("Str_MsgTitle_ManualSplitEntry"), MessageBoxButton.OK, MessageBoxImage.Information);
+                AppMessageBox.Show(Loc.T("Str_Msg_SelectCurrentHeatFirst"), Loc.T("Str_MsgTitle_ManualSplitEntry"), MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
             var swimmers = GetCurrentHeatSwimmers()
                 .Where(s => !(s.Status == "DSQ" || s.Status == "DNS" || s.Status == "DNF"))
                 .ToList();
             if (swimmers.Count == 0) {
-                MessageBox.Show(Loc.T("Str_Msg_NoSwimmerToSplit"), Loc.T("Str_MsgTitle_ManualSplitEntry"), MessageBoxButton.OK, MessageBoxImage.Information);
+                AppMessageBox.Show(Loc.T("Str_Msg_NoSwimmerToSplit"), Loc.T("Str_MsgTitle_ManualSplitEntry"), MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
             int totalLaps = GetTotalLaps();
@@ -8690,22 +8690,22 @@ namespace SwimmingScoreboard
             okBtn.Click += (s, ea) => {
                 int segNum;
                 if (!int.TryParse(segBox.Text.Trim(), out segNum) || segNum < 1 || segNum > totalLaps) {
-                    MessageBox.Show(Loc.F("Str_Msg_LapRangeFmt", totalLaps), Loc.T("Str_MsgTitle_FormatError"), MessageBoxButton.OK, MessageBoxImage.Warning);
+                    AppMessageBox.Show(Loc.F("Str_Msg_LapRangeFmt", totalLaps), Loc.T("Str_MsgTitle_FormatError"), MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
                 double cumSec;
                 if (!ParseMmSsXxx(timeBox.Text.Trim(), out cumSec) || cumSec <= 0) {
-                    MessageBox.Show(Loc.T("Str_Msg_TimeFormatHint"), Loc.T("Str_MsgTitle_FormatError"), MessageBoxButton.OK, MessageBoxImage.Warning);
+                    AppMessageBox.Show(Loc.T("Str_Msg_TimeFormatHint"), Loc.T("Str_MsgTitle_FormatError"), MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
                 if (laneCombo.SelectedIndex < 0 || laneCombo.SelectedIndex >= laneCount) {
-                    MessageBox.Show(Loc.T("Str_Msg_SelectLaneFirst"), Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Information);
+                    AppMessageBox.Show(Loc.T("Str_Msg_SelectLaneFirst"), Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Information);
                     return;
                 }
                 int selectedLane = laneCombo.SelectedIndex + 1;
                 var swimmer = swimmers.FirstOrDefault(x => getLane(x) == selectedLane);
                 if (swimmer == null) {
-                    MessageBox.Show(Loc.F("Str_Msg_LaneNoSwimmerFmt", selectedLane), Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Information);
+                    AppMessageBox.Show(Loc.F("Str_Msg_LaneNoSwimmerFmt", selectedLane), Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Information);
                     return;
                 }
                 ApplyManualSplit(swimmer, segNum, cumSec);
@@ -8762,7 +8762,7 @@ namespace SwimmingScoreboard
             // 2026-06-03 优先级守卫: 手工输入是最低优先级, 已有 TP/MB/Manual 时弹确认对话框
             if (!string.IsNullOrEmpty(sp.TimingSource) && (sp.TimingSource == "TP" || sp.TimingSource == "MB" || sp.TimingSource == "Manual")) {
                 string srcLabel = sp.TimingSource == "TP" ? "触板(TP)" : (sp.TimingSource == "MB" ? "盲表代替(MB)" : "手动 TP");
-                var confirm = MessageBox.Show(
+                var confirm = AppMessageBox.Show(
                     Loc.F("Str_Msg_SplitOverwriteFmt", swimmer.Lane, segNum, srcLabel, sp.CumulativeTime),
                     Loc.T("Str_MsgTitle_OverwriteConfirm"), MessageBoxButton.YesNo, MessageBoxImage.Warning);
                 if (confirm != MessageBoxResult.Yes) {
@@ -9467,7 +9467,7 @@ namespace SwimmingScoreboard
                                                                : "本组已完赛";
                 AddLog(Loc.F("Str_Log_ReadyNotExecutedFmt", stName));
                 if (sender != null) {
-                    MessageBox.Show(
+                    AppMessageBox.Show(
                         Loc.F("Str_Msg_CannotReReadyFmt", stName),
                         Loc.T("Str_MsgTitle_Ready"), MessageBoxButton.OK, MessageBoxImage.Information);
                 }
@@ -9485,7 +9485,7 @@ namespace SwimmingScoreboard
             if (sender != null) {
                 string info = string.Format("{0} {1} {2} 第{3}组",
                     _currentGender ?? "", _currentEvent ?? "", _currentStage ?? "", _currentHeat);
-                var r = MessageBox.Show(
+                var r = AppMessageBox.Show(
                     Loc.F("Str_Msg_ReadyConfirmFmt", info),
                     Loc.T("Str_MsgTitle_ReadyConfirm"), MessageBoxButton.YesNo, MessageBoxImage.Question);
                 if (r != MessageBoxResult.Yes) return;
@@ -9785,7 +9785,7 @@ namespace SwimmingScoreboard
                 }
             }
             if (sender != null) {
-                var r = MessageBox.Show(Loc.T("Str_Msg_ClockResetConfirm"), Loc.T("Str_MsgTitle_ClockResetConfirm"), MessageBoxButton.YesNo, MessageBoxImage.Warning);
+                var r = AppMessageBox.Show(Loc.T("Str_Msg_ClockResetConfirm"), Loc.T("Str_MsgTitle_ClockResetConfirm"), MessageBoxButton.YesNo, MessageBoxImage.Warning);
                 if (r != MessageBoxResult.Yes) return;
             }
             // 没当前组（_currentHeat <= 0）也要把状态机硬复位，避免按键静默失效。
@@ -10128,7 +10128,7 @@ namespace SwimmingScoreboard
                 var heats = _meetDb.ListConfirmedHeats();
                 if (heats.Count == 0)
                 {
-                    MessageBox.Show(Loc.T("Str_Msg_NoConfirmedToExport"),
+                    AppMessageBox.Show(Loc.T("Str_Msg_NoConfirmedToExport"),
                         Loc.T("Str_MsgTitle_ExportResults"), MessageBoxButton.OK, MessageBoxImage.Information);
                     return;
                 }
@@ -10173,13 +10173,13 @@ namespace SwimmingScoreboard
 
                 AddLog(Loc.F("Str_Log_ResultExportedFmt",
                     arr.Count, withDb, IOPath.GetFileName(dlg.FileName)));
-                MessageBox.Show(
+                AppMessageBox.Show(
                     Loc.F("Str_Msg_ExportedHeatsFmt", arr.Count), Loc.T("Str_MsgTitle_ExportResults"), MessageBoxButton.OK, MessageBoxImage.Information);
             }
             catch (Exception ex)
             {
                 AddLog(Loc.F("Str_Log_ResultExportFailedFmt", ex.Message));
-                MessageBox.Show(Loc.F("Str_Msg_ExportResultsFailedFmt", ex.Message), Loc.T("Str_MsgTitle_ExportResults"),
+                AppMessageBox.Show(Loc.F("Str_Msg_ExportResultsFailedFmt", ex.Message), Loc.T("Str_MsgTitle_ExportResults"),
                     MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
@@ -10195,14 +10195,14 @@ namespace SwimmingScoreboard
 
                 var root = JObject.Parse(File.ReadAllText(dlg.FileName, Encoding.UTF8));
                 if (root["type"] == null || root["type"].ToString() != "RESULTS_EXPORT")
-                { MessageBox.Show(Loc.T("Str_Msg_NotAResultsFile"), Loc.T("Str_MsgTitle_ImportResults"), MessageBoxButton.OK, MessageBoxImage.Warning); return; }
+                { AppMessageBox.Show(Loc.T("Str_Msg_NotAResultsFile"), Loc.T("Str_MsgTitle_ImportResults"), MessageBoxButton.OK, MessageBoxImage.Warning); return; }
 
                 string fromMeet = root["competition"] != null ? root["competition"].ToString() : "";
                 if (!string.IsNullOrEmpty(fromMeet) && !string.IsNullOrEmpty(_competitionName)
                     && fromMeet != _competitionName)
                 {
                     // 赛事对不上还导进去, 就是把别的比赛的成绩灌进本场 —— 必须拦。
-                    var yn = MessageBox.Show(Loc.F("Str_Msg_MeetMismatchConfirmFmt",
+                    var yn = AppMessageBox.Show(Loc.F("Str_Msg_MeetMismatchConfirmFmt",
                         fromMeet, _competitionName), Loc.T("Str_MsgTitle_MeetMismatch"),
                         MessageBoxButton.YesNo, MessageBoxImage.Warning);
                     if (yn != MessageBoxResult.Yes) return;
@@ -10210,7 +10210,7 @@ namespace SwimmingScoreboard
 
                 var arr = root["heats"] as JArray;
                 if (arr == null || arr.Count == 0)
-                { MessageBox.Show(Loc.T("Str_Msg_FileHasNoResults"), Loc.T("Str_MsgTitle_ImportResults"), MessageBoxButton.OK, MessageBoxImage.Information); return; }
+                { AppMessageBox.Show(Loc.T("Str_Msg_FileHasNoResults"), Loc.T("Str_MsgTitle_ImportResults"), MessageBoxButton.OK, MessageBoxImage.Information); return; }
 
                 int ok = 0, bad = 0, lockedSkip = 0;
                 var lockedList = new List<string>();
@@ -10288,7 +10288,7 @@ namespace SwimmingScoreboard
                 string lockNote = lockedSkip == 0 ? ""
                     : ("\n\n有 " + lockedSkip + " 个组本机已经标注已完赛，没有覆盖：\n  · "
                        + string.Join("\n  · ", lockedList.Take(20).ToArray()));
-                MessageBox.Show(Loc.F("Str_Msg_ImportedHeatsFmt", ok,
+                AppMessageBox.Show(Loc.F("Str_Msg_ImportedHeatsFmt", ok,
                     bad > 0 ? Loc.F("Str_Msg_ImportedHeatsBadNoteFmt", bad) : "", lockNote),
                     Loc.T("Str_MsgTitle_ImportResults"), MessageBoxButton.OK,
                     (bad > 0 || lockedSkip > 0) ? MessageBoxImage.Warning : MessageBoxImage.Information);
@@ -10296,7 +10296,7 @@ namespace SwimmingScoreboard
             catch (Exception ex)
             {
                 AddLog(Loc.F("Str_Log_ImportResultFailedFmt", ex.Message));
-                MessageBox.Show(Loc.F("Str_Msg_ImportResultsFailedFmt", ex.Message), Loc.T("Str_MsgTitle_ImportResults"),
+                AppMessageBox.Show(Loc.F("Str_Msg_ImportResultsFailedFmt", ex.Message), Loc.T("Str_MsgTitle_ImportResults"),
                     MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
@@ -10494,7 +10494,7 @@ namespace SwimmingScoreboard
             // 本地按钮点击时弹确认对话框，WebSocket远程调用时(sender==null)跳过
             if (sender != null) {
                 string info = Loc.F("Str_Fmt_ConfirmResultInfo", Loc.GenderDisplay(_currentGender), _currentEvent, _currentStage, _currentHeat);
-                var r = MessageBox.Show(
+                var r = AppMessageBox.Show(
                     Loc.F("Str_Msg_ConfirmResultFmt", info),
                     Loc.T("Str_MsgTitle_ConfirmResult"), MessageBoxButton.YesNo, MessageBoxImage.Question);
                 if (r != MessageBoxResult.Yes) return;
@@ -10614,7 +10614,7 @@ namespace SwimmingScoreboard
 
             int promoCount = HeatScheduler.GetPromotionCount(_currentStage, nextStage);
             string agLabel = string.IsNullOrEmpty(_currentAgeGroup) ? "" : ("[" + _currentAgeGroup + "] ");
-            var answer = MessageBox.Show(
+            var answer = AppMessageBox.Show(
                 Loc.F("Str_Msg_AutoPromotionFmt",
                     agLabel, Loc.GenderDisplay(_currentGender), _currentEvent, Loc.StageDisplay(_currentStage), stageSwimmers.Count, promoCount, Loc.StageDisplay(nextStage)),
                 Loc.T("Str_MsgTitle_AutoPromotion"), MessageBoxButton.YesNo, MessageBoxImage.Question);
@@ -10960,7 +10960,7 @@ namespace SwimmingScoreboard
                                        int heat, string actionLabel) {
             string why = HeatLockedWhy(ageGroup, gender, eventName, stage, heat);
             if (why == null) return false;
-            MessageBox.Show(Loc.F("Str_Msg_HeatLockedFmt",
+            AppMessageBox.Show(Loc.F("Str_Msg_HeatLockedFmt",
                 heat, actionLabel, why), Loc.T("Str_MsgTitle_HeatLocked"), MessageBoxButton.OK, MessageBoxImage.Warning);
             AddLog(Loc.F("Str_Log_BlockedHeatActionFmt", heat, why, actionLabel));
             return true;
@@ -11003,7 +11003,7 @@ namespace SwimmingScoreboard
             int h;
             string why = EventLockedWhy(ageGroup, gender, eventName, stage, out h);
             if (why == null) return false;
-            MessageBox.Show(Loc.F("Str_Msg_EventLockedFmt",
+            AppMessageBox.Show(Loc.F("Str_Msg_EventLockedFmt",
                 Loc.GenderDisplay(gender), eventName, Loc.StageDisplay(stage), actionLabel, h, why),
                 Loc.T("Str_MsgTitle_EventLocked"), MessageBoxButton.OK, MessageBoxImage.Warning);
             AddLog(Loc.F("Str_Log_BlockedEventActionFmt", gender, eventName, stage, h, why, actionLabel));
@@ -11087,7 +11087,7 @@ namespace SwimmingScoreboard
                                          int heat, string actionLabel) {
             string why = ResultLockedWhy(ageGroup, gender, eventName, stage, heat);
             if (why == null) return false;
-            MessageBox.Show(Loc.F("Str_Msg_ResultLockedFmt",
+            AppMessageBox.Show(Loc.F("Str_Msg_ResultLockedFmt",
                 heat, actionLabel, why), Loc.T("Str_MsgTitle_ResultLocked"), MessageBoxButton.OK, MessageBoxImage.Warning);
             AddLog(Loc.F("Str_Log_BlockedHeatActionFmt", heat, why, actionLabel));
             return true;
@@ -11150,7 +11150,7 @@ namespace SwimmingScoreboard
                 MergeHeats_ClickCore(sender, e);
             } catch (Exception ex) {
                 AddLog(Loc.F("Str_Log_MergeUnexpectedExceptionFmt", ex));
-                MessageBox.Show(
+                AppMessageBox.Show(
                     Loc.F("Str_Msg_MergeHeatsCrashFmt", ex.Message),
                     Loc.T("Str_MsgTitle_MergeHeatsFailed"), MessageBoxButton.OK, MessageBoxImage.Error);
             }
@@ -11164,13 +11164,13 @@ namespace SwimmingScoreboard
             string stage    = EditStageCombo != null && EditStageCombo.SelectedItem != null ? ((ComboBoxItem)EditStageCombo.SelectedItem).Content.ToString() : "";
             if (ageGroup == Loc.T("Str_Common_All") || ageGroup == "不限") ageGroup = "";
             if (string.IsNullOrEmpty(eventName) || string.IsNullOrEmpty(stage)) {
-                MessageBox.Show(Loc.T("Str_Msg_SelectFiltersFirst"), Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Information);
+                AppMessageBox.Show(Loc.T("Str_Msg_SelectFiltersFirst"), Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
             var sched = FindScheduleItem(ageGroup, gender, eventName, stage);
             int heatCount = sched != null && sched.HeatCount > 0 ? sched.HeatCount : 1;
             if (heatCount < 2) {
-                MessageBox.Show(Loc.T("Str_Msg_OnlyOneHeatNoMerge"), Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Information);
+                AppMessageBox.Show(Loc.T("Str_Msg_OnlyOneHeatNoMerge"), Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
 
@@ -11202,7 +11202,7 @@ namespace SwimmingScoreboard
                 lockedWhy[h] = HeatLockedWhy(ageGroup, gender, eventName, stage, h);
             }
             if (live.Count < 2) {
-                MessageBox.Show(Loc.T("Str_Msg_FewerThan2Heats"), Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Information);
+                AppMessageBox.Show(Loc.T("Str_Msg_FewerThan2Heats"), Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
 
@@ -11333,7 +11333,7 @@ namespace SwimmingScoreboard
             if (IsScheduleEditorMode && _editorSyncClient != null && _editorSyncClient.IsConnected) {
                 string perr;
                 if (!SendMergeHeatsPatch(ageGroup, gender, eventName, stage, srcHeat, dstHeat, reason, out perr)) {
-                    MessageBox.Show(Loc.F("Str_Msg_MergeRejectedFmt", perr),
+                    AppMessageBox.Show(Loc.F("Str_Msg_MergeRejectedFmt", perr),
                         Loc.T("Str_MsgTitle_MergeNotDone"), MessageBoxButton.OK, MessageBoxImage.Warning);
                     AddLog(Loc.F("Str_Log_MergeRejectedByMainFmt", perr));
                     return;
@@ -11348,11 +11348,11 @@ namespace SwimmingScoreboard
                 // 主服务器已经改了、本机却没改成 —— 只可能是本机这份数据是旧的。
                 // 这种分叉必须让人看见, 不能只记一行日志。
                 if (serverAccepted) {
-                    MessageBox.Show(Loc.F("Str_Msg_MergeServerAheadFmt", error),
+                    AppMessageBox.Show(Loc.F("Str_Msg_MergeServerAheadFmt", error),
                         Loc.T("Str_MsgTitle_ServerMismatch"), MessageBoxButton.OK, MessageBoxImage.Error);
                     AddLog(Loc.F("Str_Log_MergeAppliedLocalFailFmt", error));
                 } else {
-                    MessageBox.Show(error, Loc.T("Str_MsgTitle_CannotProceed"), MessageBoxButton.OK, MessageBoxImage.Warning);
+                    AppMessageBox.Show(error, Loc.T("Str_MsgTitle_CannotProceed"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 }
                 return;
             }
@@ -11362,7 +11362,7 @@ namespace SwimmingScoreboard
                 BroadcastMergePatch(ageGroup, gender, eventName, stage, srcHeat, dstHeat, reason,
                                     Environment.MachineName, null);
 
-            MessageBox.Show(Loc.F("Str_Msg_MergeDoneFmt",
+            AppMessageBox.Show(Loc.F("Str_Msg_MergeDoneFmt",
                 srcHeat, dstHeat > 0 ? Loc.F("Str_Frag_MergedIntoFmt", dstHeat) : Loc.T("Str_Frag_Cancelled"), moved.Count),
                 Loc.T("Str_MsgTitle_MergeDone"), MessageBoxButton.OK, MessageBoxImage.Information);
         }
@@ -11833,7 +11833,7 @@ namespace SwimmingScoreboard
                 // 上游拒了(多半是撞上正在比 / 已完赛的组)。本机已经改了, 不手工回滚 ——
                 // 编排端拉一次整包, 让主服务器那份把本机盖回去, 省得两边分叉还没人知道。
                 if (IsScheduleEditorMode) {
-                    MessageBox.Show(Loc.F("Str_Msg_AssignRejectedFmt", err),
+                    AppMessageBox.Show(Loc.F("Str_Msg_AssignRejectedFmt", err),
                         Loc.T("Str_MsgTitle_NotSavedToServer"), MessageBoxButton.OK, MessageBoxImage.Warning);
                     AddLog(Loc.F("Str_Log_EditorPatchRejectedRefetchFmt", err));
                     try {
@@ -12125,18 +12125,18 @@ namespace SwimmingScoreboard
             int heat = _currentHeat;
 
             if (string.IsNullOrEmpty(ev) || heat <= 0) {
-                MessageBox.Show(Loc.T("Str_Msg_NoHeatLoaded"),
+                AppMessageBox.Show(Loc.T("Str_Msg_NoHeatLoaded"),
                     Loc.T("Str_RC_UnlockResult"), MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
             if (_raceState == RaceState.Ready || _raceState == RaceState.Racing) {
-                MessageBox.Show(Loc.F("Str_Msg_CannotUnlockRacingFmt",
+                AppMessageBox.Show(Loc.F("Str_Msg_CannotUnlockRacingFmt",
                     _raceState == RaceState.Ready ? Loc.T("Str_Msg_Ready2") : Loc.T("Str_Msg_Racing")),
                     Loc.T("Str_RC_UnlockResult"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
             if (!IsHeatMarkedFinished(ag, gd, ev, st, heat)) {
-                MessageBox.Show(Loc.F("Str_Msg_HeatNotLockedFmt", heat),
+                AppMessageBox.Show(Loc.F("Str_Msg_HeatNotLockedFmt", heat),
                     Loc.T("Str_MsgTitle_NoNeedToUnlock"), MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
@@ -12145,7 +12145,7 @@ namespace SwimmingScoreboard
                 Loc.GenderDisplay(gd), string.IsNullOrEmpty(ag) ? "" : ag, ev, Loc.StageDisplay(st), heat);
 
             // ── 第一道: 看清楚要解哪一组 ──
-            if (MessageBox.Show(
+            if (AppMessageBox.Show(
                 Loc.F("Str_Msg_UnlockStep1Fmt", head),
                 Loc.T("Str_MsgTitle_UnlockStep1"), MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
                 return;
@@ -13166,7 +13166,7 @@ namespace SwimmingScoreboard
             if (string.IsNullOrEmpty(_currentEvent) || _currentHeat <= 0) return true;
             if (targetHeat == _currentHeat) return true;
             if (!CurrentHeatInProgress()) return true;
-            MessageBox.Show(
+            AppMessageBox.Show(
                 Loc.F("Str_Msg_CannotLeaveHeatFmt", Loc.GenderDisplay(_currentGender), _currentEvent, _currentHeat),
                 Loc.T("Str_MsgTitle_ActionBlocked"), MessageBoxButton.OK, MessageBoxImage.Warning);
             AddLog(Loc.T("Str_Log_HeatSwitchBlockedUnconfirmed"));
@@ -13254,7 +13254,7 @@ namespace SwimmingScoreboard
             // 比赛进行中禁止切换项目/组次（防止误操作导致参数复位）
             if ((_raceState == RaceState.Ready || _raceState == RaceState.Racing) &&
                 (tag.StartsWith("heat:") || tag.StartsWith("event:"))) {
-                MessageBox.Show(
+                AppMessageBox.Show(
                     Loc.T("Str_Msg_CannotReselectEvent"),
                     Loc.T("Str_MsgTitle_ActionBlocked"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 AddLog(Loc.T("Str_Log_CannotSwitchEventWhileRacing"));
@@ -13850,7 +13850,7 @@ namespace SwimmingScoreboard
             if (heat > 0) {
                 string hs = HeatStatus(ag, gd, ev, st, heat);
                 if (hs == "running" || hs == "confirmed") {
-                    MessageBox.Show(Loc.F("Str_Msg_CannotFineTuneFmt",
+                    AppMessageBox.Show(Loc.F("Str_Msg_CannotFineTuneFmt",
                         ev, heat, hs == "running" ? Loc.T("Str_Frag_HeatRunning") : Loc.T("Str_Frag_HeatConfirmed")),
                         Loc.T("Str_MsgTitle_CannotFineTune"), MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
@@ -16030,7 +16030,7 @@ namespace SwimmingScoreboard
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EF4444")), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
             btnDel.Click += delegate {
                 var sel = grid.SelectedItem as DisplayRecordOption;
-                if (sel != null) working.Remove(sel); else MessageBox.Show(Loc.T("Str_Msg_SelectRowFirst"));
+                if (sel != null) working.Remove(sel); else AppMessageBox.Show(Loc.T("Str_Msg_SelectRowFirst"));
             };
             btnRow.Children.Add(btnAdd);
             btnRow.Children.Add(btnDel);
@@ -16045,9 +16045,9 @@ namespace SwimmingScoreboard
             btnOk.Click += delegate {
                 try { grid.CommitEdit(DataGridEditingUnit.Cell, true); grid.CommitEdit(DataGridEditingUnit.Row, true); } catch { }
                 var sel = grid.SelectedItem as DisplayRecordOption;
-                if (sel == null) { MessageBox.Show(Loc.T("Str_Msg_SelectRecordTypeRow")); return; }
+                if (sel == null) { AppMessageBox.Show(Loc.T("Str_Msg_SelectRecordTypeRow")); return; }
                 if (string.IsNullOrWhiteSpace(sel.Label) || string.IsNullOrWhiteSpace(sel.TypeName)) {
-                    MessageBox.Show(Loc.T("Str_Msg_LabelAndNameRequired")); return;
+                    AppMessageBox.Show(Loc.T("Str_Msg_LabelAndNameRequired")); return;
                 }
                 var finalList = new List<DisplayRecordOption>();
                 var seen = new HashSet<string>();
@@ -16367,13 +16367,13 @@ namespace SwimmingScoreboard
             //   开销是一条轻查询; 没变动就一行成绩都不读。
             try { RefreshChangedFromDb(); } catch { }
             if (string.IsNullOrEmpty(_currentEvent) || string.IsNullOrEmpty(_currentStage)) {
-                MessageBox.Show(Loc.T("Str_Msg_SelectEventInTreeFirst"), Loc.T("Str_MsgTitle_ActionTip"), MessageBoxButton.OK, MessageBoxImage.Information);
+                AppMessageBox.Show(Loc.T("Str_Msg_SelectEventInTreeFirst"), Loc.T("Str_MsgTitle_ActionTip"), MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
             // 验证至少有一组已确认
             var subList = GetEventRankingsSplit(_currentAgeGroup, _currentEvent, _currentGender);
             if (subList == null || subList.Count == 0) {
-                MessageBox.Show(Loc.T("Str_Msg_NoConfirmedResultsYet"), Loc.T("Str_MsgTitle_ActionTip"), MessageBoxButton.OK, MessageBoxImage.Warning);
+                AppMessageBox.Show(Loc.T("Str_Msg_NoConfirmedResultsYet"), Loc.T("Str_MsgTitle_ActionTip"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
@@ -17292,7 +17292,7 @@ namespace SwimmingScoreboard
         }
 
         private bool ConfirmMarkStatus(int lane, string status, string desc) {
-            var r = MessageBox.Show(
+            var r = AppMessageBox.Show(
                 Loc.F("Str_Msg_ConfirmMarkFmt", lane, status, desc),
                 Loc.T("Str_MsgTitle_ConfirmMark"), MessageBoxButton.YesNo, MessageBoxImage.Warning);
             return r == MessageBoxResult.Yes;
@@ -17340,10 +17340,10 @@ namespace SwimmingScoreboard
         //   TRI 本身不参与名次. 取消备注时整条移除 (见 CancelLaneNote).
         private void CreateEmptyLaneTriSwimmer(int lane) {
             if (string.IsNullOrEmpty(_currentEvent) || _currentHeat <= 0) {
-                MessageBox.Show(Loc.T("Str_Msg_SelectEventHeatForTri"), Loc.T("Str_MsgTitle_EmptyLaneTri"), MessageBoxButton.OK, MessageBoxImage.Warning);
+                AppMessageBox.Show(Loc.T("Str_Msg_SelectEventHeatForTri"), Loc.T("Str_MsgTitle_EmptyLaneTri"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
-            var r = MessageBox.Show(
+            var r = AppMessageBox.Show(
                 Loc.F("Str_Msg_ConfirmEmptyLaneTriFmt", lane),
                 Loc.T("Str_MsgTitle_EmptyLaneTri"), MessageBoxButton.YesNo, MessageBoxImage.Question);
             if (r != MessageBoxResult.Yes) return;
@@ -17430,11 +17430,11 @@ namespace SwimmingScoreboard
             if (dlg.ShowDialog() == true && !string.IsNullOrEmpty(tb.Text)) {
                 double time = TimeFormatter.Parse(tb.Text.Trim());
                 if (time <= 0) {
-                    MessageBox.Show(Loc.T("Str_Msg_InvalidTimeFormat"), Loc.T("Str_MsgTitle_Error"), MessageBoxButton.OK, MessageBoxImage.Error);
+                    AppMessageBox.Show(Loc.T("Str_Msg_InvalidTimeFormat"), Loc.T("Str_MsgTitle_Error"), MessageBoxButton.OK, MessageBoxImage.Error);
                     return;
                 }
                 // 确认对话框
-                var r = MessageBox.Show(
+                var r = AppMessageBox.Show(
                     Loc.F("Str_Msg_ConfirmManualTimeFmt", lane, TimeFormatter.Format(time)),
                     Loc.T("Str_MsgTitle_ConfirmManualTime"), MessageBoxButton.YesNo, MessageBoxImage.Question);
                 if (r != MessageBoxResult.Yes) return;
@@ -17581,7 +17581,7 @@ namespace SwimmingScoreboard
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3B82F6")), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
             btnTest.Click += delegate {
                 var name = combo.SelectedItem as string;
-                if (string.IsNullOrEmpty(name)) { MessageBox.Show(Loc.T("Str_Msg_SelectPrinterFirst")); return; }
+                if (string.IsNullOrEmpty(name)) { AppMessageBox.Show(Loc.T("Str_Msg_SelectPrinterFirst")); return; }
                 _thermalPrinter.PrinterName = name;
                 _thermalPrinter.TestPrint();
             };
@@ -17977,7 +17977,7 @@ namespace SwimmingScoreboard
             var btnRow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 16, 0, 0) };
             var btnDisc = new Button { Content = Loc.T("Str_Win_HwConn_DisconnectBtn"), Padding = new Thickness(14, 6, 14, 6), Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EF4444")), Foreground = Brushes.White, BorderThickness = new Thickness(0), Margin = new Thickness(0, 0, 8, 0) };
             btnDisc.Click += delegate {
-                if (_raceState != RaceState.Waiting) { MessageBox.Show(Loc.T("Str_Msg_CannotDisconnectNotWaiting"), Loc.T("Str_MsgTitle_Info")); return; }
+                if (_raceState != RaceState.Waiting) { AppMessageBox.Show(Loc.T("Str_Msg_CannotDisconnectNotWaiting"), Loc.T("Str_MsgTitle_Info")); return; }
                 if (_timingBridge != null) _timingBridge.Disconnect();
                 UpdateConnectionStatus();
                 try { UpdateQuickConnectButton(); } catch { }
@@ -18565,7 +18565,7 @@ namespace SwimmingScoreboard
             // 新增需要全局唯一参赛号 → 占"新增"位锁，避免两端同时新增冲突
             string holder;
             if (!TryAcquireEditLock("swimmer-add", out holder)) {
-                MessageBox.Show(Loc.F("Str_Msg_SwimmerAddingBusyFmt", holder),
+                AppMessageBox.Show(Loc.F("Str_Msg_SwimmerAddingBusyFmt", holder),
                     Loc.T("Str_MsgTitle_CannotAdd"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
@@ -18602,7 +18602,7 @@ namespace SwimmingScoreboard
                 if (single != null) toDelete.Add(single);
             }
             if (toDelete.Count == 0) {
-                MessageBox.Show(Loc.T("Str_Msg_SelectRowsToDeleteMulti"), Loc.T("Str_MsgTitle_Info"),
+                AppMessageBox.Show(Loc.T("Str_Msg_SelectRowsToDeleteMulti"), Loc.T("Str_MsgTitle_Info"),
                     MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
@@ -18616,7 +18616,7 @@ namespace SwimmingScoreboard
                 if (toDelete.Count > 8) preview += Loc.F("Str_Msg_AndOthersFmt", toDelete.Count - 8);
                 confirmMsg = Loc.F("Str_Msg_ConfirmDeleteMultiSwimmersFmt", toDelete.Count, preview);
             }
-            if (MessageBox.Show(confirmMsg, Loc.T("Str_MsgTitle_ConfirmDelete"), MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+            if (AppMessageBox.Show(confirmMsg, Loc.T("Str_MsgTitle_ConfirmDelete"), MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
 
             // 删除前批量申请锁；任何一条被人占用 → 整批取消
             var acquired = new List<string>();
@@ -18625,7 +18625,7 @@ namespace SwimmingScoreboard
                 string h0;
                 if (!TryAcquireEditLock(k0, out h0)) {
                     foreach (var k in acquired) ReleaseEditLock(k);
-                    MessageBox.Show(
+                    AppMessageBox.Show(
                         Loc.F("Str_Msg_SwimmerBeingEditedFmt", sw.BibNumber, sw.Name, h0),
                         Loc.T("Str_MsgTitle_CannotDelete"), MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
@@ -18642,7 +18642,7 @@ namespace SwimmingScoreboard
                 if (IsScheduleEditorMode && _editorSyncClient != null && _editorSyncClient.IsConnected) {
                     string perr;
                     if (!SendSwimmerDeletePatch(keys, out perr)) {
-                        MessageBox.Show(Loc.F("Str_Msg_DeleteRejectedFmt", perr), Loc.T("Str_MsgTitle_DeleteNotDone"), MessageBoxButton.OK, MessageBoxImage.Warning);
+                        AppMessageBox.Show(Loc.F("Str_Msg_DeleteRejectedFmt", perr), Loc.T("Str_MsgTitle_DeleteNotDone"), MessageBoxButton.OK, MessageBoxImage.Warning);
                         AddLog(Loc.F("Str_Log_SwimmerDeleteRejectedFmt", perr));
                         return;
                     }
@@ -18652,10 +18652,10 @@ namespace SwimmingScoreboard
                 int removed; string applyError;
                 if (!ApplySwimmerDeleteCore(keys, out removed, out applyError)) {
                     if (serverAccepted) {
-                        MessageBox.Show(Loc.F("Str_Msg_DeleteServerAheadFmt", applyError),
+                        AppMessageBox.Show(Loc.F("Str_Msg_DeleteServerAheadFmt", applyError),
                             Loc.T("Str_MsgTitle_ServerMismatch"), MessageBoxButton.OK, MessageBoxImage.Error);
                     } else {
-                        MessageBox.Show(applyError, Loc.T("Str_MsgTitle_CannotDelete"), MessageBoxButton.OK, MessageBoxImage.Warning);
+                        AppMessageBox.Show(applyError, Loc.T("Str_MsgTitle_CannotDelete"), MessageBoxButton.OK, MessageBoxImage.Warning);
                     }
                     return;
                 }
@@ -18667,7 +18667,7 @@ namespace SwimmingScoreboard
                 FinishSwimmerEditPatchApply();
                 AddLog(Loc.F("Str_Log_SwimmerDeletedFmt", removed, notFound > 0 ? Loc.F("Str_Log_NotFoundInListFmt", notFound) : ""));
                 if (notFound > 0) {
-                    MessageBox.Show(Loc.F("Str_Msg_DeletePartialNotFoundFmt", removed, notFound),
+                    AppMessageBox.Show(Loc.F("Str_Msg_DeletePartialNotFoundFmt", removed, notFound),
                         Loc.T("Str_MsgTitle_DeleteResult"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 }
             } finally {
@@ -18684,14 +18684,14 @@ namespace SwimmingScoreboard
 
         private void EditSwimmer_Click(object sender, RoutedEventArgs e) {
             var selected = SwimmerGrid.SelectedItem as Swimmer;
-            if (selected == null) { MessageBox.Show(Loc.T("Str_Msg_SelectSwimmerToEdit")); return; }
+            if (selected == null) { AppMessageBox.Show(Loc.T("Str_Msg_SelectSwimmerToEdit")); return; }
             // 联机时申请编辑锁；锁键用身份证号优先，没有则参赛号兜底。
             // 同一运动员被人占用 → 弹窗提示，不打开编辑窗口
             string lockKey = "swimmer:" + (!string.IsNullOrEmpty(selected.IDNumber) ? selected.IDNumber
                                                                                     : (selected.BibNumber ?? selected.Name ?? ""));
             string holder;
             if (!TryAcquireEditLock(lockKey, out holder)) {
-                MessageBox.Show(
+                AppMessageBox.Show(
                     Loc.F("Str_Msg_SwimmerBeingEditedByFmt", selected.BibNumber, selected.Name, holder),
                     Loc.T("Str_MsgTitle_CannotEdit"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
@@ -18711,7 +18711,7 @@ namespace SwimmingScoreboard
                 if (IsScheduleEditorMode && _editorSyncClient != null && _editorSyncClient.IsConnected) {
                     string perr;
                     if (!SendSwimmerEditPatch(f, out perr)) {
-                        MessageBox.Show(Loc.F("Str_Msg_SwimmerEditRejectedFmt", perr),
+                        AppMessageBox.Show(Loc.F("Str_Msg_SwimmerEditRejectedFmt", perr),
                             Loc.T("Str_MsgTitle_SaveNotDone"), MessageBoxButton.OK, MessageBoxImage.Warning);
                         AddLog(Loc.F("Str_Log_SwimmerEditRejectedFmt", perr));
                         return;
@@ -18722,11 +18722,11 @@ namespace SwimmingScoreboard
                 string applyError;
                 if (!ApplySwimmerEditCore(f, out applyError)) {
                     if (serverAccepted) {
-                        MessageBox.Show(Loc.F("Str_Msg_SwimmerEditServerAheadFmt", applyError),
+                        AppMessageBox.Show(Loc.F("Str_Msg_SwimmerEditServerAheadFmt", applyError),
                             Loc.T("Str_MsgTitle_ServerMismatch"), MessageBoxButton.OK, MessageBoxImage.Error);
                         AddLog(Loc.F("Str_Log_SwimmerEditApplyFailedFmt", applyError));
                     } else {
-                        MessageBox.Show(applyError, Loc.T("Str_MsgTitle_CannotSave"), MessageBoxButton.OK, MessageBoxImage.Warning);
+                        AppMessageBox.Show(applyError, Loc.T("Str_MsgTitle_CannotSave"), MessageBoxButton.OK, MessageBoxImage.Warning);
                     }
                     return;
                 }
@@ -18857,15 +18857,15 @@ namespace SwimmingScoreboard
             // ApplySwimmerEditCore, 联机时要在【真正落子的那台机器】上查重才作数)
             string oldBib = target.BibNumber ?? "";
             string newBib = (tbBib.Text ?? "").Trim();
-            if (string.IsNullOrEmpty(newBib)) { MessageBox.Show(Loc.T("Str_Msg_BibRequired")); return false; }
+            if (string.IsNullOrEmpty(newBib)) { AppMessageBox.Show(Loc.T("Str_Msg_BibRequired")); return false; }
             if (isNew && _swimmers.Any(s => s.BibNumber == newBib)) {
-                MessageBox.Show(Loc.F("Str_Msg_BibAlreadyExistsFmt", newBib));
+                AppMessageBox.Show(Loc.F("Str_Msg_BibAlreadyExistsFmt", newBib));
                 return false;
             }
 
             string bdErr;
             string bdVal = ReadBirthDateFromPicker(dpBirth, out bdErr);
-            if (bdErr != null) { MessageBox.Show(bdErr); return false; }
+            if (bdErr != null) { AppMessageBox.Show(bdErr); return false; }
             int ageVal = target.Age; int.TryParse((tbAge.Text ?? "").Trim(), out ageVal);
             string manualGroup = cbGroup.SelectedItem != null ? cbGroup.SelectedItem.ToString() : ((cbGroup.Text ?? "").Trim());
             string newAgeCategory = !string.IsNullOrEmpty(manualGroup) ? manualGroup : (target.AgeCategory ?? "");
@@ -19120,12 +19120,12 @@ namespace SwimmingScoreboard
                     r.Country = r.Country.Trim();
                     if (r.Width <= 0) r.Width = 3;
                     if (seenCountries.Contains(r.Country)) {
-                        MessageBox.Show(Loc.F("Str_Msg_TeamDuplicateFmt", r.Country), Loc.T("Str_MsgTitle_Info")); return;
+                        AppMessageBox.Show(Loc.F("Str_Msg_TeamDuplicateFmt", r.Country), Loc.T("Str_MsgTitle_Info")); return;
                     }
                     seenCountries.Add(r.Country);
                     if (r.Start != 0 || r.End != 0) {
                         if (r.Start <= 0 || r.End < r.Start) {
-                            MessageBox.Show(Loc.F("Str_Msg_TeamRangeInvalidFmt", r.Country), Loc.T("Str_MsgTitle_Info")); return;
+                            AppMessageBox.Show(Loc.F("Str_Msg_TeamRangeInvalidFmt", r.Country), Loc.T("Str_MsgTitle_Info")); return;
                         }
                     }
                     finalList.Add(r);
@@ -19136,7 +19136,7 @@ namespace SwimmingScoreboard
                         var a = finalList[i]; var b = finalList[j];
                         if (a.Start <= 0 || b.Start <= 0) continue;
                         if (a.End >= b.Start && b.End >= a.Start) {
-                            MessageBox.Show(Loc.F("Str_Msg_TeamRangeOverlapFmt", a.Country, a.Start, a.End, b.Country, b.Start, b.End), Loc.T("Str_MsgTitle_Info")); return;
+                            AppMessageBox.Show(Loc.F("Str_Msg_TeamRangeOverlapFmt", a.Country, a.Start, a.End, b.Country, b.Start, b.End), Loc.T("Str_MsgTitle_Info")); return;
                         }
                     }
                 }
@@ -19409,17 +19409,17 @@ namespace SwimmingScoreboard
         private void BibAllocDeleteRow_Click(object sender, RoutedEventArgs e) {
             var r = _bibAllocGrid.SelectedItem as BibRange;
             if (r == null) return;
-            if (IsBibRangeLocked(r)) { MessageBox.Show(Loc.T("Str_UnitBibAlloc_MsgLockedNoDelete"), Loc.T("Str_MsgTitle_Info")); return; }
+            if (IsBibRangeLocked(r)) { AppMessageBox.Show(Loc.T("Str_UnitBibAlloc_MsgLockedNoDelete"), Loc.T("Str_MsgTitle_Info")); return; }
             _bibAllocWorking.Remove(r);
         }
 
         private void BibAllocApplyRow_Click(object sender, RoutedEventArgs e) {
             var r = _bibAllocGrid.SelectedItem as BibRange;
-            if (r == null) { MessageBox.Show(Loc.T("Str_UnitBibAlloc_MsgSelectRowFirst"), Loc.T("Str_MsgTitle_Info")); return; }
+            if (r == null) { AppMessageBox.Show(Loc.T("Str_UnitBibAlloc_MsgSelectRowFirst"), Loc.T("Str_MsgTitle_Info")); return; }
             bool wasLocked = IsBibRangeLocked(r);
             string newCountry = (_baCountryBox.Text ?? "").Trim();
             string newAgeGroup = (_baAgeGroupCombo.Text == Loc.T("Str_UnitBibAlloc_NoLimit")) ? "" : (_baAgeGroupCombo.Text ?? "").Trim();
-            if (string.IsNullOrEmpty(newCountry)) { MessageBox.Show(Loc.T("Str_UnitBibAlloc_MsgUnitNameEmpty"), Loc.T("Str_MsgTitle_Info")); return; }
+            if (string.IsNullOrEmpty(newCountry)) { AppMessageBox.Show(Loc.T("Str_UnitBibAlloc_MsgUnitNameEmpty"), Loc.T("Str_MsgTitle_Info")); return; }
             int maleS, maleE, femaleS, femaleE, cs, ce, w;
             int.TryParse(_baMaleStart.Text, out maleS); int.TryParse(_baMaleEnd.Text, out maleE);
             int.TryParse(_baFemaleStart.Text, out femaleS); int.TryParse(_baFemaleEnd.Text, out femaleE);
@@ -19427,13 +19427,13 @@ namespace SwimmingScoreboard
             if (!int.TryParse(_baWidth.Text, out w) || w <= 0) w = 3;
             if (wasLocked) {
                 bool numbersChanged = maleS != r.MaleStart || maleE != r.MaleEnd || femaleS != r.FemaleStart || femaleE != r.FemaleEnd || cs != r.Start || ce != r.End;
-                if (numbersChanged) { MessageBox.Show(Loc.T("Str_UnitBibAlloc_MsgLockedNoNumChange"), Loc.T("Str_MsgTitle_Info")); }
+                if (numbersChanged) { AppMessageBox.Show(Loc.T("Str_UnitBibAlloc_MsgLockedNoNumChange"), Loc.T("Str_MsgTitle_Info")); }
                 else { r.Country = newCountry; r.AgeGroup = newAgeGroup; }
                 BibAllocGrid_SelectionChanged(null, null);
                 return;
             }
             if ((maleS > 0 && maleE < maleS) || (femaleS > 0 && femaleE < femaleS) || (cs > 0 && ce < cs)) {
-                MessageBox.Show(Loc.T("Str_UnitBibAlloc_MsgRangeInvalid"), Loc.T("Str_MsgTitle_Info")); return;
+                AppMessageBox.Show(Loc.T("Str_UnitBibAlloc_MsgRangeInvalid"), Loc.T("Str_MsgTitle_Info")); return;
             }
             r.Country = newCountry; r.AgeGroup = newAgeGroup;
             r.MaleStart = maleS; r.MaleEnd = maleE; r.FemaleStart = femaleS; r.FemaleEnd = femaleE;
@@ -19450,12 +19450,12 @@ namespace SwimmingScoreboard
                 _bibAllocWorking.Add(new BibRange { Country = u.Name, AgeGroup = "", Width = 3 });
                 added++;
             }
-            MessageBox.Show(added > 0 ? Loc.F("Str_UnitBibAlloc_ImportedFmt", added) : Loc.T("Str_UnitBibAlloc_ImportedNone"), Loc.T("Str_UnitBibAlloc_BtnImportUnits"));
+            AppMessageBox.Show(added > 0 ? Loc.F("Str_UnitBibAlloc_ImportedFmt", added) : Loc.T("Str_UnitBibAlloc_ImportedNone"), Loc.T("Str_UnitBibAlloc_BtnImportUnits"));
         }
 
         // "重新设置": 清空所有未锁定行的号码范围, 方便重新走一遍分配
         private void BibAllocResetAll_Click(object sender, RoutedEventArgs e) {
-            if (MessageBox.Show(Loc.T("Str_UnitBibAlloc_ResetConfirm"), Loc.T("Str_UnitBibAlloc_BtnResetAll"), MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
+            if (AppMessageBox.Show(Loc.T("Str_UnitBibAlloc_ResetConfirm"), Loc.T("Str_UnitBibAlloc_BtnResetAll"), MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
             int cleared = 0, skipped = 0;
             foreach (var r in _bibAllocWorking) {
                 if (IsBibRangeLocked(r)) { skipped++; continue; }
@@ -19470,7 +19470,7 @@ namespace SwimmingScoreboard
         // 按"自动分配(平均分布)"模式, 从起始号开始依次给每个未锁定单位分配一段连续号码(男女各占一半, 单位间留间隔)
         private void BibAllocAutoDistribute_Click(object sender, RoutedEventArgs e) {
             if (!_bibAllocAutoMode) {
-                if (MessageBox.Show(Loc.T("Str_UnitBibAlloc_AutoDistSwitchConfirm"), Loc.T("Str_UnitBibAlloc_BtnAutoDist"), MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
+                if (AppMessageBox.Show(Loc.T("Str_UnitBibAlloc_AutoDistSwitchConfirm"), Loc.T("Str_UnitBibAlloc_BtnAutoDist"), MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
             }
             var dlg = new Window { Title = Loc.T("Str_UnitBibAlloc_AutoDistTitle"), Width = 380, SizeToContent = SizeToContent.Height, WindowStartupLocation = WindowStartupLocation.CenterOwner, Owner = this, ResizeMode = ResizeMode.NoResize };
             var sp = new StackPanel { Margin = new Thickness(16) };
@@ -19508,7 +19508,7 @@ namespace SwimmingScoreboard
             _bibAllocGrid.Items.Refresh();
             BibAllocGrid_SelectionChanged(null, null);
             AddLog(Loc.F("Str_UnitBibAlloc_AutoDistLogFmt", done, skipped));
-            MessageBox.Show(Loc.F("Str_UnitBibAlloc_AutoDistDoneFmt", done, skipped), Loc.T("Str_UnitBibAlloc_BtnAutoDist"));
+            AppMessageBox.Show(Loc.F("Str_UnitBibAlloc_AutoDistDoneFmt", done, skipped), Loc.T("Str_UnitBibAlloc_BtnAutoDist"));
         }
 
         private void BibAllocOptimize_Click(object sender, RoutedEventArgs e) {
@@ -19558,7 +19558,7 @@ namespace SwimmingScoreboard
             _bibAllocGrid.Items.Refresh();
             BibAllocGrid_SelectionChanged(null, null);
             AddLog(Loc.F("Str_UnitBibAlloc_OptimizeLogFmt", done, skipped));
-            MessageBox.Show(Loc.F("Str_UnitBibAlloc_OptimizeDoneFmt", done, skipped), Loc.T("Str_UnitBibAlloc_OptimizeTitle"));
+            AppMessageBox.Show(Loc.F("Str_UnitBibAlloc_OptimizeDoneFmt", done, skipped), Loc.T("Str_UnitBibAlloc_OptimizeTitle"));
         }
 
         private void BibAllocPreview_Click(object sender, RoutedEventArgs e) {
@@ -19587,7 +19587,7 @@ namespace SwimmingScoreboard
                 r.Country = r.Country.Trim();
                 if (r.Width <= 0) r.Width = 3;
                 string key = r.Country + "|" + (r.AgeGroup ?? "");
-                if (seen.Contains(key)) { MessageBox.Show(Loc.F("Str_UnitBibAlloc_MsgDupUnitFmt", r.Country, string.IsNullOrEmpty(r.AgeGroup) ? Loc.T("Str_UnitBibAlloc_Unlimited") : r.AgeGroup), Loc.T("Str_MsgTitle_Info")); return; }
+                if (seen.Contains(key)) { AppMessageBox.Show(Loc.F("Str_UnitBibAlloc_MsgDupUnitFmt", r.Country, string.IsNullOrEmpty(r.AgeGroup) ? Loc.T("Str_UnitBibAlloc_Unlimited") : r.AgeGroup), Loc.T("Str_MsgTitle_Info")); return; }
                 seen.Add(key);
                 finalList.Add(r);
             }
@@ -19605,7 +19605,7 @@ namespace SwimmingScoreboard
                     var spansB = spans(finalList[j]);
                     foreach (var a in spansA) foreach (var b in spansB) {
                         if (a.Item2 >= b.Item1 && b.Item2 >= a.Item1) {
-                            MessageBox.Show(Loc.F("Str_UnitBibAlloc_MsgOverlapFmt",
+                            AppMessageBox.Show(Loc.F("Str_UnitBibAlloc_MsgOverlapFmt",
                                 finalList[i].Country, a.Item1, a.Item2, finalList[j].Country, b.Item1, b.Item2), Loc.T("Str_MsgTitle_Info"));
                             return;
                         }
@@ -19615,7 +19615,7 @@ namespace SwimmingScoreboard
             _bibRanges = finalList;
             FinishAndSyncPatch(BuildListSetPatch("bibRanges", JArray.FromObject(_bibRanges), ClientLabel()), "meet");
             AddLog(Loc.F("Str_UnitBibAlloc_SaveLogFmt", _bibRanges.Count));
-            MessageBox.Show(Loc.T("Str_UnitBibAlloc_SaveSuccessMsg"), Loc.T("Str_EM_Tab_UnitBibAlloc"));
+            AppMessageBox.Show(Loc.T("Str_UnitBibAlloc_SaveSuccessMsg"), Loc.T("Str_EM_Tab_UnitBibAlloc"));
         }
 
         // 把完整的 BibRange 行渲染成 "x/区间大小" 已用统计
@@ -19655,7 +19655,7 @@ namespace SwimmingScoreboard
             // 导出当前所有已报名运动员（含接力代表条目和接力队员个人条目）
             var rows = _swimmers.ToList();
             if (rows.Count == 0) {
-                MessageBox.Show(Loc.T("Str_Msg_NoRegDataToExport"), Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Information);
+                AppMessageBox.Show(Loc.T("Str_Msg_NoRegDataToExport"), Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
             string defaultName = string.IsNullOrEmpty(_competitionName)
@@ -19691,9 +19691,9 @@ namespace SwimmingScoreboard
                 }
                 File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
                 AddLog(Loc.F("Str_Log_SwimmerDataExportedFmt", rows.Count));
-                MessageBox.Show(Loc.F("Str_Msg_ExportedSwimmersFmt", rows.Count, dlg.FileName), Loc.T("Str_MsgTitle_Done"));
+                AppMessageBox.Show(Loc.F("Str_Msg_ExportedSwimmersFmt", rows.Count, dlg.FileName), Loc.T("Str_MsgTitle_Done"));
             } catch (Exception ex) {
-                MessageBox.Show(Loc.F("Str_Msg_ExportFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error"));
+                AppMessageBox.Show(Loc.F("Str_Msg_ExportFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error"));
             }
         }
 
@@ -19749,9 +19749,9 @@ namespace SwimmingScoreboard
                 sb.AppendLine(string.Join(",", ex2.ConvertAll<string>(CsvEscape)));
 
                 File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
-                MessageBox.Show(Loc.T("Str_Msg_SwimmerTemplateSaved"), Loc.T("Str_MsgTitle_Done"));
+                AppMessageBox.Show(Loc.T("Str_Msg_SwimmerTemplateSaved"), Loc.T("Str_MsgTitle_Done"));
             } catch (Exception ex) {
-                MessageBox.Show(Loc.F("Str_Msg_SaveFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error"));
+                AppMessageBox.Show(Loc.F("Str_Msg_SaveFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error"));
             }
         }
 
@@ -19768,7 +19768,7 @@ namespace SwimmingScoreboard
                 //   失败行跳过+理由汇总；接力项目仍走「接力队管理」Tab
                 var rows = ReadCsvLines(dlg.FileName);
                 if (rows.Count < 2) {
-                    MessageBox.Show(Loc.T("Str_Msg_CsvNoDataRows"), Loc.T("Str_MsgTitle_ImportFailed"),
+                    AppMessageBox.Show(Loc.T("Str_Msg_CsvNoDataRows"), Loc.T("Str_MsgTitle_ImportFailed"),
                         MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
@@ -19778,7 +19778,7 @@ namespace SwimmingScoreboard
                 //   不看导入时的当前 UI 语言。两个参照表按位置逐列比，命中任一个就算通过。
                 string[] refZh = SwimmerCsvTemplateHeaderZh, refEn = SwimmerCsvTemplateHeaderEn;
                 if (header.Length != refZh.Length) {
-                    MessageBox.Show(Loc.F("Str_Msg_CsvHeaderColCountFmt",
+                    AppMessageBox.Show(Loc.F("Str_Msg_CsvHeaderColCountFmt",
                         refZh.Length, header.Length), Loc.T("Str_MsgTitle_FormatError"),
                         MessageBoxButton.OK, MessageBoxImage.Error);
                     return;
@@ -19800,7 +19800,7 @@ namespace SwimmingScoreboard
                     }
                     if (badHi < 0) { for (int hi = 0; hi < refZh.Length; hi++) { if ((header[hi] ?? "").Trim() != refZh[hi]) { badHi = hi; break; } } }
                     string actualBad = (header[badHi] ?? "").Trim();
-                    MessageBox.Show(Loc.F("Str_Msg_CsvHeaderColMismatchFmt", badHi + 1, SwimmerCsvTemplateHeader[badHi], actualBad),
+                    AppMessageBox.Show(Loc.F("Str_Msg_CsvHeaderColMismatchFmt", badHi + 1, SwimmerCsvTemplateHeader[badHi], actualBad),
                         Loc.T("Str_MsgTitle_FormatError"),
                         MessageBoxButton.OK, MessageBoxImage.Error);
                     return;
@@ -19893,11 +19893,11 @@ namespace SwimmingScoreboard
                     for (int k = 0; k < show; k++) sb.AppendLine("• " + skipReasons[k]);
                     if (skipReasons.Count > show) sb.AppendFormat(Loc.T("Str_Msg_MoreNotShownFmt"), skipReasons.Count - show);
                 }
-                MessageBox.Show(sb.ToString(), Loc.T("Str_MsgTitle_ImportSwimmerCsvDone"),
+                AppMessageBox.Show(sb.ToString(), Loc.T("Str_MsgTitle_ImportSwimmerCsvDone"),
                     MessageBoxButton.OK, skipped > 0 ? MessageBoxImage.Warning : MessageBoxImage.Information);
             } catch (Exception ex) {
                 AddLog(Loc.F("Str_Log_CsvImportFailedFmt", ex.Message));
-                MessageBox.Show(Loc.F("Str_Msg_CsvImportFailedFmt", ex.Message), Loc.T("Str_MsgTitle_ImportFailed"),
+                AppMessageBox.Show(Loc.F("Str_Msg_CsvImportFailedFmt", ex.Message), Loc.T("Str_MsgTitle_ImportFailed"),
                     MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
@@ -19997,7 +19997,7 @@ namespace SwimmingScoreboard
             // 新增接力队：占"新增"位锁，避免两端同时新增同名队
             string addHolder;
             if (!TryAcquireEditLock("relay-add", out addHolder)) {
-                MessageBox.Show(Loc.F("Str_Msg_RelayAddingBusyFmt", addHolder),
+                AppMessageBox.Show(Loc.F("Str_Msg_RelayAddingBusyFmt", addHolder),
                     Loc.T("Str_MsgTitle_CannotAdd"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
@@ -20013,7 +20013,7 @@ namespace SwimmingScoreboard
             // 确认后完整创建 RelayTeam + _swimmers 代表条目 + 队员子条目
             var relayEvents = _events.Where(ev => ev.Contains("接力")).ToList();
             if (relayEvents.Count == 0) {
-                MessageBox.Show(Loc.T("Str_Msg_NoRelayEventsAvailable"), Loc.T("Str_MsgTitle_Info")); return;
+                AppMessageBox.Show(Loc.T("Str_Msg_NoRelayEventsAvailable"), Loc.T("Str_MsgTitle_Info")); return;
             }
 
             var dlg = new Window {
@@ -20131,11 +20131,11 @@ namespace SwimmingScoreboard
             string teamName = (tbTeam.Text ?? "").Trim();
             string entryTimeStr = (tbEntryTime.Text ?? "").Trim();
 
-            if (string.IsNullOrEmpty(eventName)) { MessageBox.Show(Loc.T("Str_Msg_SelectRelayEvent")); return; }
-            if (string.IsNullOrEmpty(teamName)) { MessageBox.Show(Loc.T("Str_Msg_TeamNameRequired")); return; }
+            if (string.IsNullOrEmpty(eventName)) { AppMessageBox.Show(Loc.T("Str_Msg_SelectRelayEvent")); return; }
+            if (string.IsNullOrEmpty(teamName)) { AppMessageBox.Show(Loc.T("Str_Msg_TeamNameRequired")); return; }
             if (_relayTeams.Any(t => t.EventName == eventName && t.TeamName == teamName
                                     && t.Gender == gender && (t.AgeGroup ?? "") == ageGroup)) {
-                MessageBox.Show(Loc.F("Str_Msg_RelayTeamAlreadyRegisteredFmt", teamName, ageGroup, gender, eventName)); return;
+                AppMessageBox.Show(Loc.F("Str_Msg_RelayTeamAlreadyRegisteredFmt", teamName, ageGroup, gender, eventName)); return;
             }
 
             double entrySec = 0;
@@ -20153,7 +20153,7 @@ namespace SwimmingScoreboard
                 string lbdErr;
                 string lbd = ReadBirthDateFromPicker(legBirthPickers[i], out lbdErr);
                 if (lbdErr != null) {
-                    MessageBox.Show(Loc.F("Str_Msg_RelayLegErrorFmt", i + 1, lbdErr), Loc.T("Str_MsgTitle_RelayRegistration"),
+                    AppMessageBox.Show(Loc.F("Str_Msg_RelayLegErrorFmt", i + 1, lbdErr), Loc.T("Str_MsgTitle_RelayRegistration"),
                         MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
@@ -20245,13 +20245,13 @@ namespace SwimmingScoreboard
                           "王五,510102200505010003,2005-05-03," +
                           "赵六,510102200505010004,2005-05-04,示例（删除本行后填真数据）");
             File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
-            MessageBox.Show(Loc.F("Str_Msg_ExportedRelayTemplateFmt", dlg.FileName),
+            AppMessageBox.Show(Loc.F("Str_Msg_ExportedRelayTemplateFmt", dlg.FileName),
                 Loc.T("Str_MsgTitle_Done"));
         }
 
         private void ExportRelayCSV_Click(object sender, RoutedEventArgs e) {
             if (_relayTeams.Count == 0) {
-                MessageBox.Show(Loc.T("Str_Msg_NoRelayTeamsToExport"), Loc.T("Str_MsgTitle_Info")); return;
+                AppMessageBox.Show(Loc.T("Str_Msg_NoRelayTeamsToExport"), Loc.T("Str_MsgTitle_Info")); return;
             }
             var dlg = new Microsoft.Win32.SaveFileDialog {
                 Filter = Loc.T("Str_Filter_Csv"), Title = Loc.T("Str_Win_ExportRelayTeams_Title"),
@@ -20273,7 +20273,7 @@ namespace SwimmingScoreboard
                 }));
             }
             File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
-            MessageBox.Show(Loc.F("Str_Msg_ExportedRelayTeamsFmt", _relayTeams.Count, dlg.FileName), Loc.T("Str_MsgTitle_Done"));
+            AppMessageBox.Show(Loc.F("Str_Msg_ExportedRelayTeamsFmt", _relayTeams.Count, dlg.FileName), Loc.T("Str_MsgTitle_Done"));
         }
 
         // ══════════════════════════════════════════════════════════════
@@ -20314,7 +20314,7 @@ namespace SwimmingScoreboard
 
         private void ExportRelayLegSheet_Click(object sender, RoutedEventArgs e) {
             if (_relayTeams == null || _relayTeams.Count == 0) {
-                MessageBox.Show(Loc.T("Str_Msg_NoRelayTeamsYet"), Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Information);
+                AppMessageBox.Show(Loc.T("Str_Msg_NoRelayTeamsYet"), Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
             var dlg = new Microsoft.Win32.SaveFileDialog {
@@ -20345,7 +20345,7 @@ namespace SwimmingScoreboard
                 });
             }
             if (rows.Count == 0) {
-                MessageBox.Show(Loc.F("Str_Msg_RelayAllUnscheduledFmt", unscheduledRelayCount),
+                AppMessageBox.Show(Loc.F("Str_Msg_RelayAllUnscheduledFmt", unscheduledRelayCount),
                     Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
@@ -20389,11 +20389,11 @@ namespace SwimmingScoreboard
                 }
                 string summary = Loc.F("Str_Msg_ExportedLegSheetsFmt", written.Count, dir, string.Join("\n", written.ToArray()));
                 if (unscheduledRelayCount > 0) summary += "\n\n" + Loc.F("Str_Msg_RelayUnscheduledTeamsFmt", unscheduledRelayCount);
-                MessageBox.Show(summary,
+                AppMessageBox.Show(summary,
                     Loc.T("Str_MsgTitle_ExportSuccess"), MessageBoxButton.OK, MessageBoxImage.Information);
                 AddLog(Loc.F("Str_Log_ExportedRelayLegSheetFmt", rows.Count, written.Count, dir));
             } catch (Exception ex) {
-                MessageBox.Show(Loc.F("Str_Msg_WriteFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error"), MessageBoxButton.OK, MessageBoxImage.Error);
+                AppMessageBox.Show(Loc.F("Str_Msg_WriteFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error"), MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -20476,7 +20476,7 @@ namespace SwimmingScoreboard
 
         private void ImportRelayLegSheet_Click(object sender, RoutedEventArgs e) {
             if (_relayTeams == null || _relayTeams.Count == 0) {
-                MessageBox.Show(Loc.T("Str_Msg_NoRelayTeamsYet"), Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Information);
+                AppMessageBox.Show(Loc.T("Str_Msg_NoRelayTeamsYet"), Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
             int wantSession = AskRelaySession();
@@ -20491,13 +20491,13 @@ namespace SwimmingScoreboard
             List<RelayLegSheetService.LegRow> sheetRows;
             string warn;
             try { sheetRows = RelayLegSheetService.Import(dlg.FileName, out warn); }
-            catch (Exception ex) { MessageBox.Show(Loc.F("Str_Msg_ReadFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error"), MessageBoxButton.OK, MessageBoxImage.Error); return; }
+            catch (Exception ex) { AppMessageBox.Show(Loc.F("Str_Msg_ReadFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error"), MessageBoxButton.OK, MessageBoxImage.Error); return; }
             if (!string.IsNullOrEmpty(warn)) {
-                MessageBox.Show(warn + Loc.T("Str_Msg_ReexportLegSheetSuffix"), Loc.T("Str_MsgTitle_FormatError"),
+                AppMessageBox.Show(warn + Loc.T("Str_Msg_ReexportLegSheetSuffix"), Loc.T("Str_MsgTitle_FormatError"),
                     MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
-            if (sheetRows.Count == 0) { MessageBox.Show(Loc.T("Str_Msg_NoDataRowsInSheet"), Loc.T("Str_MsgTitle_Info")); return; }
+            if (sheetRows.Count == 0) { AppMessageBox.Show(Loc.T("Str_Msg_NoDataRowsInSheet"), Loc.T("Str_MsgTitle_Info")); return; }
 
             int updated = 0, blank = 0, otherSession = 0;
             var otherSet = new List<int>();
@@ -20564,7 +20564,7 @@ namespace SwimmingScoreboard
                 otherSet.Sort();
                 var names = new List<string>();
                 foreach (int s in otherSet) names.Add("第" + s + "场");
-                MessageBox.Show(Loc.F("Str_Msg_SessionFileMismatchFmt",
+                AppMessageBox.Show(Loc.F("Str_Msg_SessionFileMismatchFmt",
                     wantSession, string.Join(" / ", names.ToArray()), otherSession),
                     Loc.T("Str_MsgTitle_SessionFileMismatch"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 AddLog(Loc.F("Str_Log_ImportRelayLegWrongSessionFmt", wantSession));
@@ -20584,7 +20584,7 @@ namespace SwimmingScoreboard
                 if (notFound.Count > show) msg.AppendFormat(Loc.T("Str_Msg_LegImportMoreRowsFmt"), notFound.Count - show);
                 msg.Append(Loc.T("Str_Msg_LegImportMismatchHint"));
             }
-            MessageBox.Show(msg.ToString(), updated > 0 ? Loc.T("Str_MsgTitle_ImportSuccess") : Loc.T("Str_MsgTitle_NoDataImported"),
+            AppMessageBox.Show(msg.ToString(), updated > 0 ? Loc.T("Str_MsgTitle_ImportSuccess") : Loc.T("Str_MsgTitle_NoDataImported"),
                 MessageBoxButton.OK, updated > 0 ? MessageBoxImage.Information : MessageBoxImage.Warning);
             AddLog(Loc.F("Str_Log_ImportRelayLegDoneFmt",
                 wantSession, updated, blank, otherSession, notFound.Count));
@@ -20644,16 +20644,16 @@ namespace SwimmingScoreboard
 
             string[] lines;
             try { lines = File.ReadAllLines(dlg.FileName, Encoding.UTF8); }
-            catch (Exception ex) { MessageBox.Show(Loc.F("Str_Msg_ReadFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error")); return; }
+            catch (Exception ex) { AppMessageBox.Show(Loc.F("Str_Msg_ReadFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error")); return; }
 
-            if (lines.Length < 1) { MessageBox.Show(Loc.T("Str_Msg_FileIsEmpty"), Loc.T("Str_MsgTitle_Info")); return; }
+            if (lines.Length < 1) { AppMessageBox.Show(Loc.T("Str_Msg_FileIsEmpty"), Loc.T("Str_MsgTitle_Info")); return; }
 
             // 表头校验 —— 2026-09-30 中英文模板都认（数据行本身全按列位置解析，不靠列名，
             //   所以这里只要挑一个参照表验过位置数对得上即可，不用再改下面任何一行）
             var headerCols = ParseCsvLine(lines[0]);
             string[] rZh = RelayCsvHeaderZh, rEn = RelayCsvHeaderEn;
             if (headerCols.Length != rZh.Length) {
-                MessageBox.Show(Loc.F("Str_Msg_RelayHeaderCountMismatchFmt",
+                AppMessageBox.Show(Loc.F("Str_Msg_RelayHeaderCountMismatchFmt",
                     rZh.Length, headerCols.Length), Loc.T("Str_MsgTitle_FormatError"));
                 return;
             }
@@ -20671,7 +20671,7 @@ namespace SwimmingScoreboard
                     if (actual != rZh[i] && actual != rEn[i]) { badI = i; break; }
                 }
                 if (badI < 0) { for (int i = 0; i < rZh.Length; i++) { if ((headerCols[i] ?? "").Trim() != rZh[i]) { badI = i; break; } } }
-                MessageBox.Show(Loc.F("Str_Msg_RelayHeaderColMismatchFmt",
+                AppMessageBox.Show(Loc.F("Str_Msg_RelayHeaderColMismatchFmt",
                     badI + 1, RelayCsvHeader[badI], (headerCols[badI] ?? "").Trim()), Loc.T("Str_MsgTitle_FormatError"));
                 return;
             }
@@ -20801,7 +20801,7 @@ namespace SwimmingScoreboard
                 for (int i = 0; i < show; i++) sb.AppendLine("• " + skipped[i]);
                 if (skipped.Count > show) sb.AppendFormat(Loc.T("Str_Msg_MoreNotShownFmt"), skipped.Count - show);
             }
-            MessageBox.Show(sb.ToString(), Loc.T("Str_MsgTitle_RelayCsvImportResult"), MessageBoxButton.OK, MessageBoxImage.Information);
+            AppMessageBox.Show(sb.ToString(), Loc.T("Str_MsgTitle_RelayCsvImportResult"), MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
         // CSV 工具
@@ -20835,13 +20835,13 @@ namespace SwimmingScoreboard
         private void EditRelay_Click(object sender, RoutedEventArgs e) {
             var sel = _selectedRelayTeam;
             if (sel == null) {
-                MessageBox.Show(Loc.T("Str_Msg_SelectRelayToEdit"), Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Information);
+                AppMessageBox.Show(Loc.T("Str_Msg_SelectRelayToEdit"), Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
             string lockKey = "relay:" + (sel.TeamName ?? "") + "|" + (sel.EventName ?? "");
             string holder;
             if (!TryAcquireEditLock(lockKey, out holder)) {
-                MessageBox.Show(Loc.F("Str_Msg_RelayBeingEditedFmt", sel.TeamName, holder),
+                AppMessageBox.Show(Loc.F("Str_Msg_RelayBeingEditedFmt", sel.TeamName, holder),
                     Loc.T("Str_MsgTitle_CannotEdit"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
@@ -20871,7 +20871,7 @@ namespace SwimmingScoreboard
                     if (!SendRelayEditPatch(oldTeamName, oldEvent, oldGender, oldLegNames,
                             newTeamName, newCountry, newEvent, newGender, newEntryTime, newEntryTimeSeconds, legNames,
                             out perr)) {
-                        MessageBox.Show(Loc.F("Str_Msg_RelayEditRejectedFmt", perr),
+                        AppMessageBox.Show(Loc.F("Str_Msg_RelayEditRejectedFmt", perr),
                             Loc.T("Str_MsgTitle_SaveNotDone"), MessageBoxButton.OK, MessageBoxImage.Warning);
                         AddLog(Loc.F("Str_Log_RelayEditRejectedFmt", perr));
                         return;
@@ -20884,11 +20884,11 @@ namespace SwimmingScoreboard
                         newTeamName, newCountry, newEvent, newGender, newEntryTime, newEntryTimeSeconds, legNames,
                         out applyError)) {
                     if (serverAccepted) {
-                        MessageBox.Show(Loc.F("Str_Msg_RelayEditServerAheadFmt", applyError),
+                        AppMessageBox.Show(Loc.F("Str_Msg_RelayEditServerAheadFmt", applyError),
                             Loc.T("Str_MsgTitle_ServerMismatch"), MessageBoxButton.OK, MessageBoxImage.Error);
                         AddLog(Loc.F("Str_Log_RelayEditApplyFailedFmt", applyError));
                     } else {
-                        MessageBox.Show(applyError, Loc.T("Str_MsgTitle_CannotSave"), MessageBoxButton.OK, MessageBoxImage.Warning);
+                        AppMessageBox.Show(applyError, Loc.T("Str_MsgTitle_CannotSave"), MessageBoxButton.OK, MessageBoxImage.Warning);
                     }
                     return;
                 }
@@ -20907,24 +20907,24 @@ namespace SwimmingScoreboard
 
         private void DeleteRelay_Click(object sender, RoutedEventArgs e) {
             var selected = _selectedRelayTeam;
-            if (selected == null) { MessageBox.Show(Loc.T("Str_Msg_SelectRelayFirst")); return; }
+            if (selected == null) { AppMessageBox.Show(Loc.T("Str_Msg_SelectRelayFirst")); return; }
             string lockKey = "relay:" + (selected.TeamName ?? "") + "|" + (selected.EventName ?? "");
             string holder;
             if (!TryAcquireEditLock(lockKey, out holder)) {
-                MessageBox.Show(
+                AppMessageBox.Show(
                     Loc.F("Str_Msg_RelayBeingEditedCannotDeleteFmt", selected.TeamName, holder),
                     Loc.T("Str_MsgTitle_CannotDelete"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
             try {
-                if (MessageBox.Show(Loc.F("Str_Msg_ConfirmDeleteRelayFmt", selected.TeamName, selected.EventName), Loc.T("Str_MsgTitle_Confirm"), MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
+                if (AppMessageBox.Show(Loc.F("Str_Msg_ConfirmDeleteRelayFmt", selected.TeamName, selected.EventName), Loc.T("Str_MsgTitle_Confirm"), MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
 
                 string teamName = selected.TeamName, eventName = selected.EventName, gender = selected.Gender;
                 bool serverAccepted = false;
                 if (IsScheduleEditorMode && _editorSyncClient != null && _editorSyncClient.IsConnected) {
                     string perr;
                     if (!SendRelayDeletePatch(teamName, eventName, gender, out perr)) {
-                        MessageBox.Show(Loc.F("Str_Msg_DeleteRejectedFmt", perr), Loc.T("Str_MsgTitle_DeleteNotDone"), MessageBoxButton.OK, MessageBoxImage.Warning);
+                        AppMessageBox.Show(Loc.F("Str_Msg_DeleteRejectedFmt", perr), Loc.T("Str_MsgTitle_DeleteNotDone"), MessageBoxButton.OK, MessageBoxImage.Warning);
                         AddLog(Loc.F("Str_Log_RelayDeleteRejectedFmt", perr));
                         return;
                     }
@@ -20933,10 +20933,10 @@ namespace SwimmingScoreboard
                 string applyError;
                 if (!ApplyRelayDeleteCore(teamName, eventName, gender, out applyError)) {
                     if (serverAccepted) {
-                        MessageBox.Show(Loc.F("Str_Msg_DeleteServerAheadFmt", applyError),
+                        AppMessageBox.Show(Loc.F("Str_Msg_DeleteServerAheadFmt", applyError),
                             Loc.T("Str_MsgTitle_ServerMismatch"), MessageBoxButton.OK, MessageBoxImage.Error);
                     } else {
-                        MessageBox.Show(applyError, Loc.T("Str_MsgTitle_CannotDelete"), MessageBoxButton.OK, MessageBoxImage.Warning);
+                        AppMessageBox.Show(applyError, Loc.T("Str_MsgTitle_CannotDelete"), MessageBoxButton.OK, MessageBoxImage.Warning);
                     }
                     return;
                 }
@@ -20975,7 +20975,7 @@ namespace SwimmingScoreboard
 
         private void RelayLegUp_Click(object sender, RoutedEventArgs e) {
             var team = _selectedRelayTeam;
-            if (team == null) { MessageBox.Show(Loc.T("Str_Msg_SelectRelayFirst")); return; }
+            if (team == null) { AppMessageBox.Show(Loc.T("Str_Msg_SelectRelayFirst")); return; }
             int idx = RelayLegGrid.SelectedIndex;
             if (idx <= 0) return;
             // 交换棒次
@@ -20990,7 +20990,7 @@ namespace SwimmingScoreboard
 
         private void RelayLegDown_Click(object sender, RoutedEventArgs e) {
             var team = _selectedRelayTeam;
-            if (team == null) { MessageBox.Show(Loc.T("Str_Msg_SelectRelayFirst")); return; }
+            if (team == null) { AppMessageBox.Show(Loc.T("Str_Msg_SelectRelayFirst")); return; }
             int idx = RelayLegGrid.SelectedIndex;
             if (idx < 0 || idx >= team.Legs.Count - 1) return;
             var leg1 = team.Legs[idx];
@@ -21004,13 +21004,13 @@ namespace SwimmingScoreboard
 
         private void RelayLegReplace_Click(object sender, RoutedEventArgs e) {
             var team = _selectedRelayTeam;
-            if (team == null) { MessageBox.Show(Loc.T("Str_Msg_SelectRelayFirst")); return; }
+            if (team == null) { AppMessageBox.Show(Loc.T("Str_Msg_SelectRelayFirst")); return; }
             var leg = RelayLegGrid.SelectedItem as RelayLeg;
-            if (leg == null) { MessageBox.Show(Loc.T("Str_Msg_SelectLegToReplace")); return; }
+            if (leg == null) { AppMessageBox.Show(Loc.T("Str_Msg_SelectLegToReplace")); return; }
             string lockKey = "relay:" + (team.TeamName ?? "") + "|" + (team.EventName ?? "");
             string holder;
             if (!TryAcquireEditLock(lockKey, out holder)) {
-                MessageBox.Show(
+                AppMessageBox.Show(
                     Loc.F("Str_Msg_RelayBeingEditedFmt", team.TeamName, holder),
                     Loc.T("Str_MsgTitle_CannotEdit"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
@@ -21159,11 +21159,11 @@ namespace SwimmingScoreboard
 
         private void RelayLegSave_Click(object sender, RoutedEventArgs e) {
             var team = _selectedRelayTeam;
-            if (team == null) { MessageBox.Show(Loc.T("Str_Msg_SelectRelayFirst")); return; }
+            if (team == null) { AppMessageBox.Show(Loc.T("Str_Msg_SelectRelayFirst")); return; }
             string lockKey = "relay:" + (team.TeamName ?? "") + "|" + (team.EventName ?? "");
             string holder;
             if (!TryAcquireEditLock(lockKey, out holder)) {
-                MessageBox.Show(
+                AppMessageBox.Show(
                     Loc.F("Str_Msg_RelayBeingEditedFmt", team.TeamName, holder),
                     Loc.T("Str_MsgTitle_CannotSave"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
@@ -21232,7 +21232,7 @@ namespace SwimmingScoreboard
             RebuildRelayGroupedView();
             AutoSaveData();
             Broadcast();
-            MessageBox.Show(Loc.T("Str_Msg_RelayLegsSaved"), Loc.T("Str_MsgTitle_SaveSuccess"));
+            AppMessageBox.Show(Loc.T("Str_Msg_RelayLegsSaved"), Loc.T("Str_MsgTitle_SaveSuccess"));
         }
 
         /// <summary>
@@ -21241,7 +21241,7 @@ namespace SwimmingScoreboard
         private void SyncRelayHeatInfo_Click(object sender, RoutedEventArgs e) {
             SyncRelayHeatInfo();
             RebuildRelayGroupedView();
-            MessageBox.Show(Loc.T("Str_Msg_RelayHeatInfoSynced"), Loc.T("Str_MsgTitle_SyncDone"));
+            AppMessageBox.Show(Loc.T("Str_Msg_RelayHeatInfoSynced"), Loc.T("Str_MsgTitle_SyncDone"));
         }
 
         /// <summary>
@@ -21364,7 +21364,7 @@ namespace SwimmingScoreboard
 
             foreach (var ev in _regEventList) {
                 if (ev.Item1 == eventName) {
-                    MessageBox.Show(Loc.T("Str_Msg_EventAlreadyAdded"), Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Warning);
+                    AppMessageBox.Show(Loc.T("Str_Msg_EventAlreadyAdded"), Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
             }
@@ -21375,7 +21375,7 @@ namespace SwimmingScoreboard
 
         private void RegRemoveEvent_Click(object sender, RoutedEventArgs e) {
             int idx = RegEventListBox.SelectedIndex;
-            if (idx < 0 || idx >= _regEventList.Count) { MessageBox.Show(Loc.T("Str_Msg_SelectEventToDelete")); return; }
+            if (idx < 0 || idx >= _regEventList.Count) { AppMessageBox.Show(Loc.T("Str_Msg_SelectEventToDelete")); return; }
             _regEventList.RemoveAt(idx);
             RefreshRegEventList();
         }
@@ -21424,7 +21424,7 @@ namespace SwimmingScoreboard
 
             if (errors.Count > 0) {
                 string vmsg = "表单未通过校验，请补全以下字段：\n\n  • " + string.Join("\n  • ", errors);
-                MessageBox.Show(this, vmsg, Loc.T("Str_MsgTitle_RequiredMissing"), MessageBoxButton.OK, MessageBoxImage.Warning);
+                AppMessageBox.Show(this, vmsg, Loc.T("Str_MsgTitle_RequiredMissing"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 RegStatusText.Text = Loc.T("Str_Label_ValidationFailedColon") + string.Join(" / ", errors);
                 RegStatusText.Foreground = new SolidColorBrush(Colors.Red);
                 return;
@@ -22091,7 +22091,7 @@ namespace SwimmingScoreboard
             if (!m.Success || !int.TryParse(m.Value, out heat) || heat <= 0) return true;
             string hs = HeatStatus(ageGroup, gender, eventName, stage, heat);
             if (hs == "running" || hs == "confirmed") {
-                MessageBox.Show(Loc.F("Str_Msg_CannotFineTuneFmt",
+                AppMessageBox.Show(Loc.F("Str_Msg_CannotFineTuneFmt",
                     eventName, heat, hs == "running" ? Loc.T("Str_Frag_HeatRunning") : Loc.T("Str_Frag_HeatConfirmed")),
                     Loc.T("Str_MsgTitle_CannotFineTune"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 return false;
@@ -22122,7 +22122,7 @@ namespace SwimmingScoreboard
             EnsureAllSwimmerBibs();
             var grid = GetActiveEditGrid();
             var selected = grid.SelectedItem;
-            if (selected == null) { MessageBox.Show(Loc.T("Str_Msg_SelectSwimmerToSwap")); return; }
+            if (selected == null) { AppMessageBox.Show(Loc.T("Str_Msg_SelectSwimmerToSwap")); return; }
             string bib = selected.GetType().GetProperty("BibNumber").GetValue(selected, null).ToString();
             string ageGroup = EditAgeGroupCombo != null && EditAgeGroupCombo.SelectedItem != null ? EditAgeGroupCombo.SelectedItem.ToString() : "";
             string gender = EditGenderCombo.SelectedItem != null ? ((ComboBoxItem)EditGenderCombo.SelectedItem).Tag.ToString() : "";
@@ -22169,7 +22169,7 @@ namespace SwimmingScoreboard
 
             candidates.Sort((a, b) => { int c = a.Item2.CompareTo(b.Item2); return c != 0 ? c : a.Item3.CompareTo(b.Item3); });
 
-            if (candidates.Count == 0) { MessageBox.Show(Loc.T("Str_Msg_NoSwapCandidates")); return; }
+            if (candidates.Count == 0) { AppMessageBox.Show(Loc.T("Str_Msg_NoSwapCandidates")); return; }
 
             var dlg = new Window {
                 Title = Loc.F("Str_Win_SwapLane_TitleFmt", sw1.Name, heat1, lane1),
@@ -22255,7 +22255,7 @@ namespace SwimmingScoreboard
             bool isRelay = eventName.Contains("接力");
 
             if (heatStr == Loc.T("Str_Common_All") || string.IsNullOrEmpty(heatStr)) {
-                MessageBox.Show(Loc.T("Str_Msg_SelectSpecificHeatNotAll"), Loc.T("Str_MsgTitle_Info")); return;
+                AppMessageBox.Show(Loc.T("Str_Msg_SelectSpecificHeatNotAll"), Loc.T("Str_MsgTitle_Info")); return;
             }
             int heat = 0;
             var m = System.Text.RegularExpressions.Regex.Match(heatStr, @"\d+");
@@ -22275,7 +22275,7 @@ namespace SwimmingScoreboard
                 if (!hasAssignment) unassigned.Add(s);
             }
 
-            if (unassigned.Count == 0) { MessageBox.Show(Loc.T("Str_Msg_NoUnassignedSwimmers"), Loc.T("Str_MsgTitle_Info")); return; }
+            if (unassigned.Count == 0) { AppMessageBox.Show(Loc.T("Str_Msg_NoUnassignedSwimmers"), Loc.T("Str_MsgTitle_Info")); return; }
 
             var dlg = new Window {
                 Title = Loc.F("Str_Win_AddToHeat_TitleFmt", heat, Loc.GenderDisplay(gender), eventName, Loc.StageDisplay(stage)),
@@ -22369,7 +22369,7 @@ namespace SwimmingScoreboard
                 var sw2 = matchedSwimmers[idx2];
                 // 只允许同组内交换泳道
                 if (sw1.Item2 != sw2.Item2) {
-                    MessageBox.Show(Loc.T("Str_Msg_SwapSameHeatOnly"), Loc.T("Str_MsgTitle_Info"));
+                    AppMessageBox.Show(Loc.T("Str_Msg_SwapSameHeatOnly"), Loc.T("Str_MsgTitle_Info"));
                     return;
                 }
                 // 2026-09-12 正在比的那一组不许调道次 (别的组照常)
@@ -22395,7 +22395,7 @@ namespace SwimmingScoreboard
             if (!CheckEditHeatNotLocked()) return;
             var grid = GetActiveEditGrid();
             var selected = grid.SelectedItem;
-            if (selected == null) { MessageBox.Show(Loc.T("Str_Msg_SelectSwimmerFirst")); return; }
+            if (selected == null) { AppMessageBox.Show(Loc.T("Str_Msg_SelectSwimmerFirst")); return; }
             string bib = selected.GetType().GetProperty("BibNumber").GetValue(selected, null).ToString();
             string stage = EditStageCombo.SelectedItem != null ? ((ComboBoxItem)EditStageCombo.SelectedItem).Content.ToString() : "";
             var sw = _swimmers.FirstOrDefault(s => s.BibNumber == bib);
@@ -22407,7 +22407,7 @@ namespace SwimmingScoreboard
                 string gdRm = EditGenderCombo != null && EditGenderCombo.SelectedItem != null ? ((ComboBoxItem)EditGenderCombo.SelectedItem).Tag.ToString() : "";
                 string evRm = EditEventCombo != null && EditEventCombo.SelectedItem != null ? EditEventCombo.SelectedItem.ToString() : "";
                 if (BlockIfHeatLocked(agRm, gdRm, evRm, stage, heatRm, Loc.T("Str_Action_RemoveFromHeat"))) return;
-                if (MessageBox.Show(Loc.F("Str_Msg_RemoveFromHeatConfirmFmt", sw.Name), Loc.T("Str_MsgTitle_Confirm"), MessageBoxButton.YesNo) == MessageBoxResult.Yes) {
+                if (AppMessageBox.Show(Loc.F("Str_Msg_RemoveFromHeatConfirmFmt", sw.Name), Loc.T("Str_MsgTitle_Confirm"), MessageBoxButton.YesNo) == MessageBoxResult.Yes) {
                     // 清除StageAssignments中的记录
                     if (sw.StageAssignments.ContainsKey(stage))
                         sw.StageAssignments.Remove(stage);
@@ -22432,7 +22432,7 @@ namespace SwimmingScoreboard
             // 2026-06-18 加"组别"传递, 修临时加人 AgeCategory 丢失
             string ageGroup = EditAgeGroupCombo != null && EditAgeGroupCombo.SelectedItem != null ? EditAgeGroupCombo.SelectedItem.ToString() : "";
             if (string.IsNullOrEmpty(gender) || string.IsNullOrEmpty(eventName) || string.IsNullOrEmpty(stage)) {
-                MessageBox.Show(Loc.T("Str_Msg_SelectFiltersBeforeTempAdd"), Loc.T("Str_MsgTitle_Info")); return;
+                AppMessageBox.Show(Loc.T("Str_Msg_SelectFiltersBeforeTempAdd"), Loc.T("Str_MsgTitle_Info")); return;
             }
 
             bool isRelay = eventName.Contains("接力");
@@ -22491,12 +22491,12 @@ namespace SwimmingScoreboard
             string entryTimeStr = (tbEntryTime.Text ?? "").Trim();
             int ageVal = 0; int.TryParse((tbAge.Text ?? "").Trim(), out ageVal);
 
-            if (string.IsNullOrEmpty(name)) { MessageBox.Show(Loc.T("Str_Msg_NameRequired")); return; }
+            if (string.IsNullOrEmpty(name)) { AppMessageBox.Show(Loc.T("Str_Msg_NameRequired")); return; }
             // 2026-07-03 空 bib 自动分配唯一号 (= 修 EditSwapLane_Click 用 BibNumber 查找致
             //   多个空 bib 临时加人 FirstOrDefault 永远匹配第 1 个, 无法交换第 2+ 个泳道)
             if (string.IsNullOrEmpty(bib)) bib = GenerateNextBibNumber(country);
             if (!string.IsNullOrEmpty(bib) && _swimmers.Any(s => s.BibNumber == bib)) {
-                MessageBox.Show(Loc.F("Str_Msg_BibAlreadyExistsFmt", bib)); return;
+                AppMessageBox.Show(Loc.F("Str_Msg_BibAlreadyExistsFmt", bib)); return;
             }
 
             double entrySec = 0;
@@ -22514,7 +22514,7 @@ namespace SwimmingScoreboard
             UpdateEditHeatCombo();
             RefreshEditPreview();
             AddLog(Loc.F("Str_Log_TempAddedSwimmerFmt", name, Loc.GenderDisplay(gender), eventName, Loc.StageDisplay(stage)));
-            MessageBox.Show(Loc.F("Str_Msg_TempAddedSwimmerFmt", name), Loc.T("Str_MsgTitle_TempAddDone"));
+            AppMessageBox.Show(Loc.F("Str_Msg_TempAddedSwimmerFmt", name), Loc.T("Str_MsgTitle_TempAddDone"));
         }
 
         private void AddTempRelayTeam(string ageGroup, string gender, string eventName, string stage) {
@@ -22583,9 +22583,9 @@ namespace SwimmingScoreboard
 
             string teamName = (tbTeam.Text ?? "").Trim();
             string entryTimeStr = (tbEntryTime.Text ?? "").Trim();
-            if (string.IsNullOrEmpty(teamName)) { MessageBox.Show(Loc.T("Str_Msg_TeamNameRequired")); return; }
+            if (string.IsNullOrEmpty(teamName)) { AppMessageBox.Show(Loc.T("Str_Msg_TeamNameRequired")); return; }
             if (_swimmers.Any(s => s.EventName == eventName && s.Country == teamName && s.Notes != null && s.Notes.StartsWith("接力队 棒次:"))) {
-                MessageBox.Show(Loc.F("Str_Msg_TeamAlreadyInEventFmt", teamName)); return;
+                AppMessageBox.Show(Loc.F("Str_Msg_TeamAlreadyInEventFmt", teamName)); return;
             }
 
             double entrySec = 0;
@@ -22639,7 +22639,7 @@ namespace SwimmingScoreboard
             UpdateEditHeatCombo();
             RefreshEditPreview();
             AddLog(Loc.F("Str_Log_TempAddedRelayTeamFmt", teamName, eventName, Loc.GenderDisplay(gender), Loc.StageDisplay(stage)));
-            MessageBox.Show(Loc.F("Str_Msg_TempAddedRelayFmt", teamName), Loc.T("Str_MsgTitle_TempAddDone"));
+            AppMessageBox.Show(Loc.F("Str_Msg_TempAddedRelayFmt", teamName), Loc.T("Str_MsgTitle_TempAddDone"));
         }
 
         private void EditSaveChanges_Click(object sender, RoutedEventArgs e) {
@@ -22647,7 +22647,7 @@ namespace SwimmingScoreboard
             AutoSaveData();
             Broadcast();
             BuildScheduleTree();
-            MessageBox.Show(Loc.T("Str_Msg_LineupChangesSaved"), Loc.T("Str_MsgTitle_SaveSuccess"));
+            AppMessageBox.Show(Loc.T("Str_Msg_LineupChangesSaved"), Loc.T("Str_MsgTitle_SaveSuccess"));
             AddLog(Loc.T("Str_Log_AssignChangesSaved"));
         }
         private void FilterGender_Changed(object sender, SelectionChangedEventArgs e) { if (_initialized) RefreshSwimmerFilter(); }
@@ -22711,7 +22711,7 @@ namespace SwimmingScoreboard
         private ScheduleItem _selectedScheduleItem;
 
         private void AddSchedule_Click(object sender, RoutedEventArgs e) {
-            if (MessageBox.Show(Loc.T("Str_Msg_ConfirmAddScheduleItem"), Loc.T("Str_MsgTitle_Confirm"), MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
+            if (AppMessageBox.Show(Loc.T("Str_Msg_ConfirmAddScheduleItem"), Loc.T("Str_MsgTitle_Confirm"), MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
 
             // 根据选中行确定插入位置和场号
             int insertIndex = _schedule.Count;
@@ -22768,7 +22768,7 @@ namespace SwimmingScoreboard
             // 赛程是整表编辑，锁键为常量 "schedule"
             string holder;
             if (!TryAcquireEditLock("schedule", out holder)) {
-                MessageBox.Show(
+                AppMessageBox.Show(
                     Loc.F("Str_Msg_ScheduleBeingEditedFmt", holder),
                     Loc.T("Str_MsgTitle_CannotEdit"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
@@ -22934,12 +22934,12 @@ namespace SwimmingScoreboard
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EF4444")), Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0) };
             btnDel.Click += delegate {
                 if (_editSelected != null) { editList.Remove(_editSelected); _editSelected = null; rebuildEditPanel(); }
-                else MessageBox.Show(Loc.T("Str_Msg_SelectRowToDelete"));
+                else AppMessageBox.Show(Loc.T("Str_Msg_SelectRowToDelete"));
             };
 
             // 上移/下移：在 editList 中交换选中项与相邻项的位置
             Action<int> moveSelected = delegate(int delta) {
-                if (_editSelected == null) { MessageBox.Show(Loc.T("Str_Msg_SelectRowToMove")); return; }
+                if (_editSelected == null) { AppMessageBox.Show(Loc.T("Str_Msg_SelectRowToMove")); return; }
                 int idx = editList.IndexOf(_editSelected);
                 int newIdx = idx + delta;
                 if (idx < 0 || newIdx < 0 || newIdx >= editList.Count) return;
@@ -23036,9 +23036,9 @@ namespace SwimmingScoreboard
         }
 
         private void DeleteSchedule_Click(object sender, RoutedEventArgs e) {
-            if (_selectedScheduleItem == null) { MessageBox.Show(Loc.T("Str_Msg_SelectRowInScheduleToDelete")); return; }
+            if (_selectedScheduleItem == null) { AppMessageBox.Show(Loc.T("Str_Msg_SelectRowInScheduleToDelete")); return; }
             string desc = string.Format("{0} {1} {2}", _selectedScheduleItem.Gender, _selectedScheduleItem.EventName, _selectedScheduleItem.Stage);
-            if (MessageBox.Show(Loc.F("Str_Msg_ConfirmDeleteScheduleItemFmt", desc), Loc.T("Str_MsgTitle_ConfirmDelete"), MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+            if (AppMessageBox.Show(Loc.F("Str_Msg_ConfirmDeleteScheduleItemFmt", desc), Loc.T("Str_MsgTitle_ConfirmDelete"), MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
             _schedule.Remove(_selectedScheduleItem);
             _selectedScheduleItem = null;
             BuildScheduleTree();
@@ -23225,7 +23225,7 @@ namespace SwimmingScoreboard
                 RefreshEventComboBoxes();
                 Broadcast();
                 AddLog(Loc.F("Str_Log_ProgramWizardDoneFmt", wnd.AssignedItems.Count, sessionNum - 1));
-                MessageBox.Show(Loc.F("Str_Msg_LineupWrittenBackFmt", wnd.AssignedItems.Count), Loc.T("Str_MsgTitle_Done"));
+                AppMessageBox.Show(Loc.F("Str_Msg_LineupWrittenBackFmt", wnd.AssignedItems.Count), Loc.T("Str_MsgTitle_Done"));
             }
         }
 
@@ -23240,11 +23240,11 @@ namespace SwimmingScoreboard
         // ═══════════════════════════════════════════════════════════════
         private void AutoGenerateHeats_Click(object sender, RoutedEventArgs e) {
             if (_swimmers.Count == 0) {
-                MessageBox.Show(Loc.T("Str_Msg_NoRegisteredSwimmersForHeats"), Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Information);
+                AppMessageBox.Show(Loc.T("Str_Msg_NoRegisteredSwimmersForHeats"), Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
             if (_schedule.Count == 0) {
-                MessageBox.Show(Loc.T("Str_Msg_GenerateScheduleFirst"), Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Information);
+                AppMessageBox.Show(Loc.T("Str_Msg_GenerateScheduleFirst"), Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
             // 检测是否已有分组
@@ -23254,7 +23254,7 @@ namespace SwimmingScoreboard
             string confirmMsg = Loc.T("Str_Msg_ConfirmAutoGenHeats");
             if (hasExistingAssignment)
                 confirmMsg = Loc.T("Str_Msg_WarnReassignHeats");
-            if (MessageBox.Show(confirmMsg, Loc.T("Str_MsgTitle_Confirm"), MessageBoxButton.YesNo, hasExistingAssignment ? MessageBoxImage.Warning : MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+            if (AppMessageBox.Show(confirmMsg, Loc.T("Str_MsgTitle_Confirm"), MessageBoxButton.YesNo, hasExistingAssignment ? MessageBoxImage.Warning : MessageBoxImage.Question) != MessageBoxResult.Yes) return;
 
             // 统一对所有项目（个人+接力）的第一赛次进行蛇形分组，按组别隔离
             int generated = 0;
@@ -23304,12 +23304,12 @@ namespace SwimmingScoreboard
                 : ("\n\n以下项目这次跳过了(里面有动不得的组):\n  " + string.Join("\n  ", skippedAuto.ToArray()));
             if (generated > 0) {
                 AddLog(Loc.F("Str_Log_AutoAssignCompletedFmt", generated));
-                MessageBox.Show(Loc.F("Str_Msg_AutoHeatsDoneFmt", generated, skipAutoNote),
+                AppMessageBox.Show(Loc.F("Str_Msg_AutoHeatsDoneFmt", generated, skipAutoNote),
                     Loc.T("Str_MsgTitle_HeatsDone"), MessageBoxButton.OK, MessageBoxImage.Information);
             } else if (skippedAuto.Count > 0) {
-                MessageBox.Show(Loc.T("Str_Msg_NoEventsAssigned") + skipAutoNote, Loc.T("Str_MsgTitle_HeatsNotDone"), MessageBoxButton.OK, MessageBoxImage.Information);
+                AppMessageBox.Show(Loc.T("Str_Msg_NoEventsAssigned") + skipAutoNote, Loc.T("Str_MsgTitle_HeatsNotDone"), MessageBoxButton.OK, MessageBoxImage.Information);
             } else {
-                MessageBox.Show(Loc.T("Str_Msg_NoSwimmersAssignedCheck"), Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Information);
+                AppMessageBox.Show(Loc.T("Str_Msg_NoSwimmersAssignedCheck"), Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Information);
             }
             AutoSaveData();
             Broadcast();
@@ -23321,7 +23321,7 @@ namespace SwimmingScoreboard
         // 解决自动分组"第一组满道，后面组缺很多"的不均衡问题
         // ═══════════════════════════════════════════════════════════════
         private void ManualHeatAssign_Click(object sender, RoutedEventArgs e) {
-            if (_swimmers.Count == 0) { MessageBox.Show(Loc.T("Str_Msg_NoRegisteredSwimmers")); return; }
+            if (_swimmers.Count == 0) { AppMessageBox.Show(Loc.T("Str_Msg_NoRegisteredSwimmers")); return; }
 
             // 收集有效 (组别, gender, event) 组合 — 以组别为第一维，男甲/男乙单独成条
             var combos = _swimmers
@@ -23331,7 +23331,7 @@ namespace SwimmingScoreboard
                 .OrderBy(g => g.Key.AgeGroup).ThenBy(g => g.Key.Gender).ThenBy(g => g.Key.EventName)
                 .Select(g => g.Key)
                 .ToList();
-            if (combos.Count == 0) { MessageBox.Show(Loc.T("Str_Msg_NoSwimmersToGroup")); return; }
+            if (combos.Count == 0) { AppMessageBox.Show(Loc.T("Str_Msg_NoSwimmersToGroup")); return; }
 
             var dlg = new Window {
                 Title = Loc.T("Str_Win_ManualGroup_Title"), Width = 900, Height = 620,
@@ -23560,7 +23560,7 @@ namespace SwimmingScoreboard
             // 2026-05-24 导出当前表格的分组 (CSV)
             btnExportCsv.Click += delegate {
                 try { grid.CommitEdit(DataGridEditingUnit.Cell, true); grid.CommitEdit(DataGridEditingUnit.Row, true); } catch { }
-                if (cbEvent.SelectedIndex < 0) { MessageBox.Show(Loc.T("Str_Msg_SelectEventFirst")); return; }
+                if (cbEvent.SelectedIndex < 0) { AppMessageBox.Show(Loc.T("Str_Msg_SelectEventFirst")); return; }
                 var combo = combos[cbEvent.SelectedIndex];
                 string stage = cbStage.SelectedItem as string ?? "预赛";
                 var saveDlg = new Microsoft.Win32.SaveFileDialog {
@@ -23581,7 +23581,7 @@ namespace SwimmingScoreboard
                     }));
                 }
                 System.IO.File.WriteAllText(saveDlg.FileName, sb.ToString(), System.Text.Encoding.UTF8);
-                MessageBox.Show(Loc.F("Str_Msg_ExportedToFmt", saveDlg.FileName), Loc.T("Str_MsgTitle_Done"));
+                AppMessageBox.Show(Loc.F("Str_Msg_ExportedToFmt", saveDlg.FileName), Loc.T("Str_MsgTitle_Done"));
             };
 
             btnOk.Click += delegate {
@@ -23678,7 +23678,7 @@ namespace SwimmingScoreboard
         // ═══════════════════════════════════════════════════════════════
         private void SupplementHeats_Click(object sender, RoutedEventArgs e) {
             if (_schedule.Count == 0) {
-                MessageBox.Show(Loc.T("Str_Msg_GenerateScheduleAndHeatsFirst"), Loc.T("Str_MsgTitle_Info")); return;
+                AppMessageBox.Show(Loc.T("Str_Msg_GenerateScheduleAndHeatsFirst"), Loc.T("Str_MsgTitle_Info")); return;
             }
 
             // 收集所有未分组的运动员（按项目分组）
@@ -23698,7 +23698,7 @@ namespace SwimmingScoreboard
             }
 
             if (unassigned.Count == 0) {
-                MessageBox.Show(Loc.T("Str_Msg_AllSwimmersAssigned"), Loc.T("Str_MsgTitle_Info")); return;
+                AppMessageBox.Show(Loc.T("Str_Msg_AllSwimmersAssigned"), Loc.T("Str_MsgTitle_Info")); return;
             }
 
             // 弹窗显示未分组运动员
@@ -23875,7 +23875,7 @@ namespace SwimmingScoreboard
             AddLog(Loc.F("Str_Log_AppendAssignCompletedFmt", totalAdded));
             string skipNote = skippedEvents.Count == 0 ? ""
                 : Loc.F("Str_Msg_AppendGroupingSkippedFmt", string.Join("\n  ", skippedEvents.ToArray()));
-            MessageBox.Show(Loc.F("Str_Msg_AppendGroupingDoneFmt", totalAdded, skipNote),
+            AppMessageBox.Show(Loc.F("Str_Msg_AppendGroupingDoneFmt", totalAdded, skipNote),
                 Loc.T("Str_MsgTitle_AppendGroupingDone"), MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
@@ -24583,7 +24583,7 @@ namespace SwimmingScoreboard
             var btnReset = new Button { Content = Loc.T("Str_Btn_ResetDefault"), Padding = new Thickness(16, 6, 16, 6), Margin = new Thickness(0, 0, 8, 0),
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#94A3B8")), Foreground = Brushes.White, BorderThickness = new Thickness(0) };
             btnReset.Click += delegate {
-                if (MessageBox.Show(Loc.T("Str_Msg_ConfirmResetScoringDefaults"),
+                if (AppMessageBox.Show(Loc.T("Str_Msg_ConfirmResetScoringDefaults"),
                     Loc.T("Str_MsgTitle_ResetDefaults"), MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes) {
                     _scoringConfig.ResetToDefaults();
                     dlg.DialogResult = false;
@@ -24599,7 +24599,7 @@ namespace SwimmingScoreboard
             btnOK.Click += delegate {
                 int cutoff;
                 if (!int.TryParse(cutoffBox.Text.Trim(), out cutoff) || cutoff < 1 || cutoff > 50) {
-                    MessageBox.Show(Loc.T("Str_Msg_RankCutoffRange"), Loc.T("Str_MsgTitle_InputError"), MessageBoxButton.OK, MessageBoxImage.Warning);
+                    AppMessageBox.Show(Loc.T("Str_Msg_RankCutoffRange"), Loc.T("Str_MsgTitle_InputError"), MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
                 double bonus;
@@ -24663,7 +24663,7 @@ namespace SwimmingScoreboard
             string heatFilter = ResultHeatCombo != null && ResultHeatCombo.SelectedItem != null ? ((ComboBoxItem)ResultHeatCombo.SelectedItem).Content.ToString() : Loc.T("Str_Common_All");
 
             if (string.IsNullOrEmpty(eventName)) {
-                MessageBox.Show(Loc.T("Str_Msg_SelectFiltersForChiefJudge"), Loc.T("Str_MsgTitle_ChiefJudgeEdit"), MessageBoxButton.OK, MessageBoxImage.Information);
+                AppMessageBox.Show(Loc.T("Str_Msg_SelectFiltersForChiefJudge"), Loc.T("Str_MsgTitle_ChiefJudgeEdit"), MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
             int heat = 0;
@@ -24672,7 +24672,7 @@ namespace SwimmingScoreboard
                 if (m.Success) heat = int.Parse(m.Value);
             }
             if (heat <= 0) {
-                MessageBox.Show(Loc.T("Str_Msg_SelectSpecificHeatForChiefJudge"),
+                AppMessageBox.Show(Loc.T("Str_Msg_SelectSpecificHeatForChiefJudge"),
                     Loc.T("Str_MsgTitle_ChiefJudgeEdit"), MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
@@ -24846,12 +24846,12 @@ namespace SwimmingScoreboard
         private void ViewRawData_Click(object sender, RoutedEventArgs e) {
             string dir = IOPath.Combine(AppDomain.CurrentDomain.BaseDirectory, "Database", "RawData");
             if (!Directory.Exists(dir)) {
-                MessageBox.Show(Loc.F("Str_Msg_NoRawDataFilesDirFmt", dir), Loc.T("Str_MsgTitle_Info"));
+                AppMessageBox.Show(Loc.F("Str_Msg_NoRawDataFilesDirFmt", dir), Loc.T("Str_MsgTitle_Info"));
                 return;
             }
             var files = Directory.GetFiles(dir, "*.txt").OrderByDescending(f => File.GetLastWriteTime(f)).ToArray();
             if (files.Length == 0) {
-                MessageBox.Show(Loc.T("Str_Msg_NoRawDataFiles"), Loc.T("Str_MsgTitle_Info"));
+                AppMessageBox.Show(Loc.T("Str_Msg_NoRawDataFiles"), Loc.T("Str_MsgTitle_Info"));
                 return;
             }
 
@@ -24912,9 +24912,9 @@ namespace SwimmingScoreboard
                 string txtFile = sel.Tag.ToString();
                 string htmlFile = IOPath.ChangeExtension(txtFile, ".html");
                 if (File.Exists(htmlFile)) {
-                    try { Process.Start(htmlFile); } catch (Exception ex2) { MessageBox.Show(Loc.F("Str_Msg_OpenFailedFmt", ex2.Message)); }
+                    try { Process.Start(htmlFile); } catch (Exception ex2) { AppMessageBox.Show(Loc.F("Str_Msg_OpenFailedFmt", ex2.Message)); }
                 } else {
-                    MessageBox.Show(Loc.T("Str_Msg_HtmlFileMissing"), Loc.T("Str_MsgTitle_Info"));
+                    AppMessageBox.Show(Loc.T("Str_Msg_HtmlFileMissing"), Loc.T("Str_MsgTitle_Info"));
                 }
             };
             topPanel.Children.Add(combo);
@@ -25038,7 +25038,7 @@ namespace SwimmingScoreboard
             try { RefreshChangedFromDb(); } catch { }
             var candidates = GetFullyConfirmedFinalEvents();
             if (candidates.Count == 0) {
-                MessageBox.Show(Loc.T("Str_Msg_NoFinishedFinalsRanking"), Loc.T("Str_RC_ShowEventRanking"), MessageBoxButton.OK, MessageBoxImage.Information);
+                AppMessageBox.Show(Loc.T("Str_Msg_NoFinishedFinalsRanking"), Loc.T("Str_RC_ShowEventRanking"), MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
             var win = new Window {
@@ -25080,7 +25080,7 @@ namespace SwimmingScoreboard
                 Foreground = Brushes.White, BorderThickness = new Thickness(0) };
             okBtn.Click += (s2, e2) => {
                 var sel = lb.SelectedItem as ListBoxItem;
-                if (sel == null) { MessageBox.Show(Loc.T("Str_Msg_SelectAnEvent"), Loc.T("Str_MsgTitle_Info")); return; }
+                if (sel == null) { AppMessageBox.Show(Loc.T("Str_Msg_SelectAnEvent"), Loc.T("Str_MsgTitle_Info")); return; }
                 _rankingSelection = sel.Tag as ScheduleItem;
                 win.DialogResult = true; win.Close();
             };
@@ -25102,7 +25102,7 @@ namespace SwimmingScoreboard
         private void ShowAwards_Click(object sender, RoutedEventArgs e) {
             var candidates = GetFullyConfirmedFinalEvents();
             if (candidates.Count == 0) {
-                MessageBox.Show(Loc.T("Str_Msg_NoFinishedFinalsRanking"), Loc.T("Str_RC_ShowAwards"), MessageBoxButton.OK, MessageBoxImage.Information);
+                AppMessageBox.Show(Loc.T("Str_Msg_NoFinishedFinalsRanking"), Loc.T("Str_RC_ShowAwards"), MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
             var win = new Window {
@@ -25144,7 +25144,7 @@ namespace SwimmingScoreboard
                 Foreground = Brushes.White, BorderThickness = new Thickness(0) };
             okBtn.Click += (s2, e2) => {
                 var sel = lb.SelectedItem as ListBoxItem;
-                if (sel == null) { MessageBox.Show(Loc.T("Str_Msg_SelectAnEvent"), Loc.T("Str_MsgTitle_Info")); return; }
+                if (sel == null) { AppMessageBox.Show(Loc.T("Str_Msg_SelectAnEvent"), Loc.T("Str_MsgTitle_Info")); return; }
                 _awardSelection = sel.Tag as ScheduleItem;
                 win.DialogResult = true; win.Close();
             };
@@ -25166,7 +25166,7 @@ namespace SwimmingScoreboard
 
         // 2026-06-12 显示比赛日程: 选场次(或全部) → 大屏翻页显示该场次/全部日程
         private void ShowSchedule_Click(object sender, RoutedEventArgs e) {
-            if (_schedule == null || _schedule.Count == 0) { MessageBox.Show(Loc.T("Str_Msg_NoScheduleData"), Loc.T("Str_RC_ShowSchedule")); return; }
+            if (_schedule == null || _schedule.Count == 0) { AppMessageBox.Show(Loc.T("Str_Msg_NoScheduleData"), Loc.T("Str_RC_ShowSchedule")); return; }
             var dlg = new Window {
                 Title = Loc.T("Str_MsgTitle_ShowSchedule"), Width = 420, SizeToContent = SizeToContent.Height,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner, Owner = this, ResizeMode = ResizeMode.NoResize,
@@ -25227,7 +25227,7 @@ namespace SwimmingScoreboard
                 int sent = BroadcastJsonToClients(JsonConvert.SerializeObject(msg));
                 if (sent <= 0) {
                     AddLog(Loc.T("Str_Log_DisplayScheduleNotSent"));
-                    MessageBox.Show(
+                    AppMessageBox.Show(
                         IsRemoteTimingControlMode
                             ? Loc.T("Str_Msg_ScheduleNotSentRtc")
                             : Loc.T("Str_Msg_ScheduleNotSentNoClients"),
@@ -25458,7 +25458,7 @@ namespace SwimmingScoreboard
             };
             if (dlg.ShowDialog() != true) return;
             string path = dlg.FileName;
-            if (!File.Exists(path)) { MessageBox.Show(Loc.F("Str_Msg_FileNotExistFmt", path), Loc.T("Str_MsgTitle_Error")); return; }
+            if (!File.Exists(path)) { AppMessageBox.Show(Loc.F("Str_Msg_FileNotExistFmt", path), Loc.T("Str_MsgTitle_Error")); return; }
 
             string outDir = IOPath.Combine(IOPath.GetTempPath(), "swim_ppt_" + DateTime.Now.Ticks);
             try { Directory.CreateDirectory(outDir); } catch { }
@@ -25468,13 +25468,13 @@ namespace SwimmingScoreboard
             try {
                 slides = ConvertPptToPngSlides(path, outDir);
             } catch (Exception ex) {
-                MessageBox.Show(Loc.F("Str_Msg_PptConvertFailedFmt", ex.Message),
+                AppMessageBox.Show(Loc.F("Str_Msg_PptConvertFailedFmt", ex.Message),
                     Loc.T("Str_MsgTitle_Error"), MessageBoxButton.OK, MessageBoxImage.Error);
                 AddLog(Loc.F("Str_Log_PptConvertFailedFmt", ex.Message));
                 return;
             }
             if (slides == null || slides.Count == 0) {
-                MessageBox.Show(Loc.T("Str_Msg_NoPptSlidesExtracted"), Loc.T("Str_MsgTitle_Error"));
+                AppMessageBox.Show(Loc.T("Str_Msg_NoPptSlidesExtracted"), Loc.T("Str_MsgTitle_Error"));
                 return;
             }
             AddLog(Loc.F("Str_Log_PptConvertedFmt", slides.Count, outDir));
@@ -25726,11 +25726,11 @@ namespace SwimmingScoreboard
             };
             btnSend.Click += delegate {
                 string p = pathBox.Text;
-                if (string.IsNullOrEmpty(p) || !File.Exists(p)) { MessageBox.Show(Loc.T("Str_Msg_SelectValidMediaFile")); return; }
-                if (string.IsNullOrEmpty(detectedKind)) { MessageBox.Show(Loc.T("Str_Msg_UnrecognizedMediaType")); return; }
+                if (string.IsNullOrEmpty(p) || !File.Exists(p)) { AppMessageBox.Show(Loc.T("Str_Msg_SelectValidMediaFile")); return; }
+                if (string.IsNullOrEmpty(detectedKind)) { AppMessageBox.Show(Loc.T("Str_Msg_UnrecognizedMediaType")); return; }
                 long len = new FileInfo(p).Length;
                 if (len > 60L * 1024 * 1024) {
-                    if (MessageBox.Show(Loc.F("Str_Msg_LargeFileConfirmFmt", len / 1048576.0),
+                    if (AppMessageBox.Show(Loc.F("Str_Msg_LargeFileConfirmFmt", len / 1048576.0),
                         Loc.T("Str_MsgTitle_Confirm"), MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
                 }
                 string fit = rbCover.IsChecked == true ? "cover" : (rbStretch.IsChecked == true ? "fill" : "contain");
@@ -25774,7 +25774,7 @@ namespace SwimmingScoreboard
                     kind == "image" ? Loc.T("Str_Frag_Image") : Loc.T("Str_Frag_Video"), IOPath.GetFileName(path), bytes.Length / 1048576.0,
                     IsRemoteTimingControlMode ? "（经主服务器转发）" : "（客户端 " + _allSockets.Count + " 个）"));
             } catch (Exception ex) {
-                MessageBox.Show(Loc.F("Str_Msg_SendFailedFmt", ex.Message));
+                AppMessageBox.Show(Loc.F("Str_Msg_SendFailedFmt", ex.Message));
                 AddLog(Loc.F("Str_Log_MediaSendFailedFmt", ex.Message));
             }
         }
@@ -25785,7 +25785,7 @@ namespace SwimmingScoreboard
         private void SaveCompetitionInfo_Click(object sender, RoutedEventArgs e) {
             string newName = CompNameBox.Text.Trim();
             if (string.IsNullOrEmpty(newName)) {
-                MessageBox.Show(Loc.T("Str_Msg_EnterCompName"), Loc.T("Str_MsgTitle_Info"));
+                AppMessageBox.Show(Loc.T("Str_Msg_EnterCompName"), Loc.T("Str_MsgTitle_Info"));
                 return;
             }
 
@@ -25832,7 +25832,7 @@ namespace SwimmingScoreboard
 
         private void NewCompetition_Click(object sender, RoutedEventArgs e) {
             if (_swimmers.Count > 0 || _schedule.Count > 0) {
-                if (MessageBox.Show(Loc.T("Str_Msg_ConfirmNewCompetition"), Loc.T("Str_MsgTitle_Confirm"), MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
+                if (AppMessageBox.Show(Loc.T("Str_Msg_ConfirmNewCompetition"), Loc.T("Str_MsgTitle_Confirm"), MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
                     return;
             }
             ClearAllDataAndUI();
@@ -27013,7 +27013,7 @@ namespace SwimmingScoreboard
         private void RunWithEditLock(string key, string entityLabel, Action body) {
             string holder;
             if (!TryAcquireEditLock(key, out holder)) {
-                MessageBox.Show(
+                AppMessageBox.Show(
                     Loc.F("Str_Msg_EntityBeingEditedFmt", entityLabel, holder),
                     Loc.T("Str_MsgTitle_CannotEdit"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
@@ -27202,7 +27202,7 @@ namespace SwimmingScoreboard
                 int made = _meetDb.GenerateEventRankingIfComplete(_ag, _gd, _ev, _st,
                     Environment.MachineName,
                     delegate() {
-                        return MessageBox.Show(
+                        return AppMessageBox.Show(
                             Loc.F("Str_Msg_GenEventRankingFmt",
                                 _ag, Loc.GenderDisplay(_gd), _ev, Loc.StageDisplay(_st)),
                             Loc.T("Str_MsgTitle_GenEventRanking"), MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes;
@@ -27899,7 +27899,7 @@ namespace SwimmingScoreboard
                     string savedAt = o["savedAt"] != null ? o["savedAt"].ToString() : "";
                     AddLog(Loc.F("Str_Log_HeatProgressRestoredFmt",
                         n, Loc.GenderDisplay(gd), ev, Loc.StageDisplay(st), ht, savedAt));
-                    MessageBox.Show(Loc.F("Str_Msg_ProgressRestoredFmt",
+                    AppMessageBox.Show(Loc.F("Str_Msg_ProgressRestoredFmt",
                         Loc.GenderDisplay(gd), ev, Loc.StageDisplay(st), ht, n, savedAt), Loc.T("Str_MsgTitle_ProgressRestored"),
                         MessageBoxButton.OK, MessageBoxImage.Information);
                 }
@@ -27942,7 +27942,7 @@ namespace SwimmingScoreboard
                         _meetDbFailWarned = true;
                         AddLog(Loc.T("Str_Log_MeetDbCannotOpenSevere"));
                         try {
-                            MessageBox.Show(
+                            AppMessageBox.Show(
                                 Loc.T("Str_Msg_MeetDbCannotOpen"),
                                 Loc.T("Str_MsgTitle_MeetDbCannotOpen"), MessageBoxButton.OK, MessageBoxImage.Error);
                         } catch { }
@@ -28448,7 +28448,7 @@ namespace SwimmingScoreboard
             string host = _timingConn != null ? _timingConn.TcpHost : null;
             int port = _timingConn != null && _timingConn.TcpPort > 0 ? _timingConn.TcpPort : 5000;
             if (string.IsNullOrEmpty(host)) {
-                MessageBox.Show(
+                AppMessageBox.Show(
                     Loc.T("Str_Msg_NoDefaultAddress"),
                     Loc.T("Str_MsgTitle_NoDefaultAddress"), MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
@@ -28565,7 +28565,7 @@ namespace SwimmingScoreboard
                     return;
                 }
                 if (sender != null) {
-                    var r = MessageBox.Show(
+                    var r = AppMessageBox.Show(
                         Loc.T("Str_Msg_ConfirmDeviceTest"),
                         Loc.T("Str_MsgTitle_ConfirmDeviceTest"), MessageBoxButton.YesNo, MessageBoxImage.Question);
                     if (r != MessageBoxResult.Yes) return;
@@ -28837,11 +28837,11 @@ namespace SwimmingScoreboard
 
         private void ClearAllRecords_Click(object sender, RoutedEventArgs e) {
             if (_records.Count == 0) {
-                MessageBox.Show(Loc.T("Str_Msg_NoRecordData"), Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Information);
+                AppMessageBox.Show(Loc.T("Str_Msg_NoRecordData"), Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
             RunWithEditLock("records-all", Loc.T("Str_Entity_RecordsList"), delegate {
-                var result = MessageBox.Show(
+                var result = AppMessageBox.Show(
                     Loc.F("Str_Msg_ConfirmDeleteAllRecordsFmt", _records.Count),
                     Loc.T("Str_SysLog_ClearRecords"), MessageBoxButton.YesNo, MessageBoxImage.Warning);
                 if (result == MessageBoxResult.Yes) {
@@ -28894,7 +28894,7 @@ namespace SwimmingScoreboard
 
             string msg = changed > 0 ? Loc.F("Str_Msg_RecordsSavedChangedFmt", changed) : Loc.T("Str_Msg_RecordsNoChange");
             if (blank > 0) msg += Loc.F("Str_Msg_RecordsBlankRowsFmt", blank);
-            MessageBox.Show(msg, Loc.T("Str_MsgTitle_SaveRecord"), MessageBoxButton.OK, MessageBoxImage.Information);
+            AppMessageBox.Show(msg, Loc.T("Str_MsgTitle_SaveRecord"), MessageBoxButton.OK, MessageBoxImage.Information);
             AddLog(Loc.F("Str_Log_RecordsSavedFmt", changed, blank > 0 ? Loc.F("Str_Log_RecordsBlankSkippedFmt", blank) : ""));
         }
 
@@ -29002,7 +29002,7 @@ namespace SwimmingScoreboard
                     // 检查是否为Excel二进制格式（.xls/.xlsx），提示用户先另存为CSV
                     string ext = System.IO.Path.GetExtension(dlg.FileName).ToLower();
                     if (ext == ".xls" || ext == ".xlsx") {
-                        MessageBox.Show(
+                        AppMessageBox.Show(
                             Loc.T("Str_Msg_XlsxReadFailedTipLong"),
                             Loc.T("Str_MsgTitle_FormatNote"), MessageBoxButton.OK, MessageBoxImage.Warning);
                         return;
@@ -29159,7 +29159,7 @@ namespace SwimmingScoreboard
 
                 File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
                 AddLog(Loc.F("Str_Log_RecordTemplateExportedFmt", dlg.FileName));
-                MessageBox.Show(
+                AppMessageBox.Show(
                     Loc.T("Str_Msg_RecordTemplateSaved"),
                     Loc.T("Str_MsgTitle_RecordTemplate"), MessageBoxButton.OK, MessageBoxImage.Information);
             } catch (Exception ex) {
@@ -29467,7 +29467,7 @@ namespace SwimmingScoreboard
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EF4444")), Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0) };
             btnDel.Click += delegate {
                 var sel = grid.SelectedItem as EditableNameRow;
-                if (sel != null) working.Remove(sel); else MessageBox.Show(Loc.T("Str_Msg_SelectRowToDelete"));
+                if (sel != null) working.Remove(sel); else AppMessageBox.Show(Loc.T("Str_Msg_SelectRowToDelete"));
             };
             var btnOk = new Button { Content = Loc.T("Str_Btn_ConfirmSave"), Padding = new Thickness(16, 6, 16, 6), Margin = new Thickness(0, 0, 8, 0), FontWeight = FontWeights.Bold,
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#22C55E")), Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0) };
@@ -29480,11 +29480,11 @@ namespace SwimmingScoreboard
                 foreach (var r in working) {
                     string v = (r.Value ?? "").Trim();
                     if (string.IsNullOrEmpty(v)) continue;
-                    if (seen.Contains(v)) { MessageBox.Show(Loc.F("Str_Msg_DuplicateValueFmt", v)); return; }
+                    if (seen.Contains(v)) { AppMessageBox.Show(Loc.F("Str_Msg_DuplicateValueFmt", v)); return; }
                     seen.Add(v);
                     finalList.Add(v);
                 }
-                if (finalList.Count == 0) { MessageBox.Show(Loc.F("Str_Msg_KeepAtLeastOneFmt", nameHeader)); return; }
+                if (finalList.Count == 0) { AppMessageBox.Show(Loc.F("Str_Msg_KeepAtLeastOneFmt", nameHeader)); return; }
                 onSave(finalList);
                 dlg.DialogResult = true;
             };
@@ -29513,8 +29513,8 @@ namespace SwimmingScoreboard
                 sb.AppendLine(headerName);
                 foreach (var v in source) sb.AppendLine(CsvEscape(v));
                 File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
-                MessageBox.Show(Loc.F("Str_Msg_TableExportedFmt", headerName), Loc.T("Str_MsgTitle_Done"));
-            } catch (Exception ex) { MessageBox.Show(Loc.F("Str_Msg_ExportFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error")); }
+                AppMessageBox.Show(Loc.F("Str_Msg_TableExportedFmt", headerName), Loc.T("Str_MsgTitle_Done"));
+            } catch (Exception ex) { AppMessageBox.Show(Loc.F("Str_Msg_ExportFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error")); }
         }
         // 2026-09-30 现场反馈: 性别/赛次/组数表 English模式下导出还是中文表头——调用处 headerName
         //   改传 Loc.T(key) 后, 这里的表头行识别也要跟着中英文都认(不然导入自己刚导出的
@@ -29527,9 +29527,9 @@ namespace SwimmingScoreboard
             if (dlg.ShowDialog() != true) return;
             string ext = IOPath.GetExtension(dlg.FileName).ToLower();
             if (ext == ".xls" || ext == ".xlsx") {
-                MessageBox.Show(Loc.T("Str_Msg_XlsxReadFailedTip"), Loc.T("Str_MsgTitle_FormatNote")); return;
+                AppMessageBox.Show(Loc.T("Str_Msg_XlsxReadFailedTip"), Loc.T("Str_MsgTitle_FormatNote")); return;
             }
-            if (MessageBox.Show(Loc.T("Str_Msg_ImportReplacesListConfirm"), Loc.T("Str_MsgTitle_Confirm"), MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
+            if (AppMessageBox.Show(Loc.T("Str_Msg_ImportReplacesListConfirm"), Loc.T("Str_MsgTitle_Confirm"), MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
             try {
                 var rows = ReadCsvLines(dlg.FileName);
                 var seen = new HashSet<string>();
@@ -29546,10 +29546,10 @@ namespace SwimmingScoreboard
                     seen.Add(v);
                     finalList.Add(v);
                 }
-                if (finalList.Count == 0) { MessageBox.Show(Loc.T("Str_Msg_NoValidEntries")); return; }
+                if (finalList.Count == 0) { AppMessageBox.Show(Loc.T("Str_Msg_NoValidEntries")); return; }
                 onLoaded(finalList);
-                MessageBox.Show(Loc.F("Str_Msg_ImportedNItemsFmt", finalList.Count, headerName), Loc.T("Str_MsgTitle_Done"));
-            } catch (Exception ex) { MessageBox.Show(Loc.F("Str_Msg_ImportFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error")); }
+                AppMessageBox.Show(Loc.F("Str_Msg_ImportedNItemsFmt", finalList.Count, headerName), Loc.T("Str_MsgTitle_Done"));
+            } catch (Exception ex) { AppMessageBox.Show(Loc.F("Str_Msg_ImportFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error")); }
         }
         private void DownloadStringListTemplate(string title, string fileName, string headerName, string[] sampleRows) {
             var dlg = new Microsoft.Win32.SaveFileDialog { Filter = Loc.T("Str_Filter_Csv"), Title = title, FileName = fileName };
@@ -29560,8 +29560,8 @@ namespace SwimmingScoreboard
                 sb.AppendLine(headerName + "名称");
                 foreach (var s in sampleRows) sb.AppendLine(s);
                 File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
-                MessageBox.Show(Loc.F("Str_Msg_TemplateSavedFmt", headerName), Loc.T("Str_MsgTitle_Done"));
-            } catch (Exception ex) { MessageBox.Show(Loc.F("Str_Msg_SaveFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error")); }
+                AppMessageBox.Show(Loc.F("Str_Msg_TemplateSavedFmt", headerName), Loc.T("Str_MsgTitle_Done"));
+            } catch (Exception ex) { AppMessageBox.Show(Loc.F("Str_Msg_SaveFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error")); }
         }
 
         // —— 性别 ——
@@ -29676,7 +29676,7 @@ namespace SwimmingScoreboard
             btnDel.Click += delegate {
                 var sel = grid.SelectedItem as EventRow;
                 if (sel != null) working.Remove(sel);
-                else MessageBox.Show(Loc.T("Str_Msg_SelectRowToDelete"));
+                else AppMessageBox.Show(Loc.T("Str_Msg_SelectRowToDelete"));
             };
             var btnOk = new Button { Content = Loc.T("Str_Btn_ConfirmSave"), Padding = new Thickness(16, 6, 16, 6), Margin = new Thickness(0, 0, 8, 0), FontWeight = FontWeights.Bold,
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#22C55E")), Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0) };
@@ -29689,11 +29689,11 @@ namespace SwimmingScoreboard
                 foreach (var row in working) {
                     string name = (row.Name ?? "").Trim();
                     if (string.IsNullOrEmpty(name)) continue;
-                    if (seen.Contains(name)) { MessageBox.Show(Loc.F("Str_Msg_DuplicateEventFmt", name)); return; }
+                    if (seen.Contains(name)) { AppMessageBox.Show(Loc.F("Str_Msg_DuplicateEventFmt", name)); return; }
                     seen.Add(name);
                     finalList.Add(name);
                 }
-                if (finalList.Count == 0) { MessageBox.Show(Loc.T("Str_Msg_KeepAtLeastOneEvent")); return; }
+                if (finalList.Count == 0) { AppMessageBox.Show(Loc.T("Str_Msg_KeepAtLeastOneEvent")); return; }
                 _events = finalList;
                 RefreshEventsPreview();
                 FinishAndSyncPatch(BuildListSetPatch("events", JArray.FromObject(_events), ClientLabel()), "meet");
@@ -29767,7 +29767,7 @@ namespace SwimmingScoreboard
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#EF4444")), Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0) };
             btnDel.Click += delegate {
                 var sel = grid.SelectedItem as AgeGroup;
-                if (sel != null) working.Remove(sel); else MessageBox.Show(Loc.T("Str_Msg_SelectRowToDelete"));
+                if (sel != null) working.Remove(sel); else AppMessageBox.Show(Loc.T("Str_Msg_SelectRowToDelete"));
             };
             var btnOk = new Button { Content = Loc.T("Str_Btn_ConfirmSave"), Padding = new Thickness(16, 6, 16, 6), Margin = new Thickness(0, 0, 8, 0), FontWeight = FontWeights.Bold,
                 Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#22C55E")), Foreground = new SolidColorBrush(Colors.White), BorderThickness = new Thickness(0) };
@@ -29780,11 +29780,11 @@ namespace SwimmingScoreboard
                 foreach (var r in working) {
                     string name = (r.Name ?? "").Trim();
                     if (string.IsNullOrEmpty(name)) continue;
-                    if (seen.Contains(name)) { MessageBox.Show(Loc.F("Str_Msg_DuplicateAgeGroupFmt", name)); return; }
+                    if (seen.Contains(name)) { AppMessageBox.Show(Loc.F("Str_Msg_DuplicateAgeGroupFmt", name)); return; }
                     seen.Add(name);
                     finalList.Add(new AgeGroup { Name = name, MinAge = r.MinAge, MaxAge = r.MaxAge });
                 }
-                if (finalList.Count == 0) { MessageBox.Show(Loc.T("Str_Msg_KeepAtLeastOneAgeGroup")); return; }
+                if (finalList.Count == 0) { AppMessageBox.Show(Loc.T("Str_Msg_KeepAtLeastOneAgeGroup")); return; }
                 _ageGroups = finalList;
                 AgeGroupRegistry.Set(_ageGroups);
                 RefreshAgeGroupsPreview();
@@ -29815,8 +29815,8 @@ namespace SwimmingScoreboard
                 sb.AppendLine(Loc.T("Str_EM_EventNameCol"));
                 foreach (var ev in _events) sb.AppendLine(CsvEscape(ev));
                 File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
-                MessageBox.Show(Loc.T("Str_Msg_EventsTableExported"), Loc.T("Str_MsgTitle_Done"));
-            } catch (Exception ex) { MessageBox.Show(Loc.F("Str_Msg_ExportFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error")); }
+                AppMessageBox.Show(Loc.T("Str_Msg_EventsTableExported"), Loc.T("Str_MsgTitle_Done"));
+            } catch (Exception ex) { AppMessageBox.Show(Loc.F("Str_Msg_ExportFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error")); }
         }
 
         private void ImportEventsCSV_Click(object sender, RoutedEventArgs e) {
@@ -29827,9 +29827,9 @@ namespace SwimmingScoreboard
             if (dlg.ShowDialog() != true) return;
             string ext = IOPath.GetExtension(dlg.FileName).ToLower();
             if (ext == ".xls" || ext == ".xlsx") {
-                MessageBox.Show(Loc.T("Str_Msg_XlsxReadFailedTip"), Loc.T("Str_MsgTitle_FormatNote")); return;
+                AppMessageBox.Show(Loc.T("Str_Msg_XlsxReadFailedTip"), Loc.T("Str_MsgTitle_FormatNote")); return;
             }
-            if (MessageBox.Show(Loc.T("Str_Msg_ImportReplacesListConfirm"), Loc.T("Str_MsgTitle_Confirm"), MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
+            if (AppMessageBox.Show(Loc.T("Str_Msg_ImportReplacesListConfirm"), Loc.T("Str_MsgTitle_Confirm"), MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
             try {
                 var rows = ReadCsvLines(dlg.FileName);
                 var finalList = new List<string>();
@@ -29847,14 +29847,14 @@ namespace SwimmingScoreboard
                     seen.Add(name);
                     finalList.Add(name);
                 }
-                if (finalList.Count == 0) { MessageBox.Show(Loc.T("Str_Msg_NoValidEventRows")); return; }
+                if (finalList.Count == 0) { AppMessageBox.Show(Loc.T("Str_Msg_NoValidEventRows")); return; }
                 _events = finalList;
                 RefreshEventsPreview();
                 FinishAndSyncPatch(BuildListSetPatch("events", JArray.FromObject(_events), ClientLabel()), "meet");
                 NotifyMetadataChanged();
                 AddLog(Loc.F("Str_Log_EventListImportedFmt", _events.Count));
-                MessageBox.Show(Loc.F("Str_Msg_ImportedNEventsFmt", _events.Count), Loc.T("Str_MsgTitle_Done"));
-            } catch (Exception ex) { MessageBox.Show(Loc.F("Str_Msg_ImportFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error")); }
+                AppMessageBox.Show(Loc.F("Str_Msg_ImportedNEventsFmt", _events.Count), Loc.T("Str_MsgTitle_Done"));
+            } catch (Exception ex) { AppMessageBox.Show(Loc.F("Str_Msg_ImportFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error")); }
         }
 
         private void DownloadEventsTemplate_Click(object sender, RoutedEventArgs e) {
@@ -29870,8 +29870,8 @@ namespace SwimmingScoreboard
                 sb.AppendLine("4×50米自由泳接力");
                 sb.AppendLine("4×100米混合泳接力");
                 File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
-                MessageBox.Show(Loc.T("Str_Msg_EventsTemplateSaved"), Loc.T("Str_MsgTitle_Done"));
-            } catch (Exception ex) { MessageBox.Show(Loc.F("Str_Msg_SaveFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error")); }
+                AppMessageBox.Show(Loc.T("Str_Msg_EventsTemplateSaved"), Loc.T("Str_MsgTitle_Done"));
+            } catch (Exception ex) { AppMessageBox.Show(Loc.F("Str_Msg_SaveFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error")); }
         }
 
         private void ExportAgeGroupsCSV_Click(object sender, RoutedEventArgs e) {
@@ -29883,8 +29883,8 @@ namespace SwimmingScoreboard
                 sb.AppendLine(Loc.T("Str_EM_AgeGroupNameCol"));
                 foreach (var g in _ageGroups) sb.AppendLine(CsvEscape(g.Name));
                 File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
-                MessageBox.Show(Loc.T("Str_Msg_AgeGroupsTableExported"), Loc.T("Str_MsgTitle_Done"));
-            } catch (Exception ex) { MessageBox.Show(Loc.F("Str_Msg_ExportFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error")); }
+                AppMessageBox.Show(Loc.T("Str_Msg_AgeGroupsTableExported"), Loc.T("Str_MsgTitle_Done"));
+            } catch (Exception ex) { AppMessageBox.Show(Loc.F("Str_Msg_ExportFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error")); }
         }
 
         private void ImportAgeGroupsCSV_Click(object sender, RoutedEventArgs e) {
@@ -29895,9 +29895,9 @@ namespace SwimmingScoreboard
             if (dlg.ShowDialog() != true) return;
             string ext = IOPath.GetExtension(dlg.FileName).ToLower();
             if (ext == ".xls" || ext == ".xlsx") {
-                MessageBox.Show(Loc.T("Str_Msg_XlsxReadFailedTip"), Loc.T("Str_MsgTitle_FormatNote")); return;
+                AppMessageBox.Show(Loc.T("Str_Msg_XlsxReadFailedTip"), Loc.T("Str_MsgTitle_FormatNote")); return;
             }
-            if (MessageBox.Show(Loc.T("Str_Msg_ImportReplacesListConfirm"), Loc.T("Str_MsgTitle_Confirm"), MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
+            if (AppMessageBox.Show(Loc.T("Str_Msg_ImportReplacesListConfirm"), Loc.T("Str_MsgTitle_Confirm"), MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
             try {
                 var rows = ReadCsvLines(dlg.FileName);
                 var finalList = new List<AgeGroup>();
@@ -29918,7 +29918,7 @@ namespace SwimmingScoreboard
                     if (c.Length > 2) int.TryParse((c[2] ?? "").Trim(), out maxA);
                     finalList.Add(new AgeGroup { Name = name, MinAge = minA, MaxAge = maxA });
                 }
-                if (finalList.Count == 0) { MessageBox.Show(Loc.T("Str_Msg_NoValidAgeGroups")); return; }
+                if (finalList.Count == 0) { AppMessageBox.Show(Loc.T("Str_Msg_NoValidAgeGroups")); return; }
                 _ageGroups = finalList;
                 AgeGroupRegistry.Set(_ageGroups);
                 RefreshAgeGroupsPreview();
@@ -29929,8 +29929,8 @@ namespace SwimmingScoreboard
                 FinishAndSyncPatch(BuildListSetPatch("ageGroups", JArray.FromObject(_ageGroups), ClientLabel()), "meet");
                 NotifyMetadataChanged();
                 AddLog(Loc.F("Str_Log_AgeGroupListImportedFmt", _ageGroups.Count));
-                MessageBox.Show(Loc.F("Str_Msg_ImportedNAgeGroupsFmt", _ageGroups.Count), Loc.T("Str_MsgTitle_Done"));
-            } catch (Exception ex) { MessageBox.Show(Loc.F("Str_Msg_ImportFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error")); }
+                AppMessageBox.Show(Loc.F("Str_Msg_ImportedNAgeGroupsFmt", _ageGroups.Count), Loc.T("Str_MsgTitle_Done"));
+            } catch (Exception ex) { AppMessageBox.Show(Loc.F("Str_Msg_ImportFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error")); }
         }
 
         private void DownloadAgeGroupsTemplate_Click(object sender, RoutedEventArgs e) {
@@ -29947,8 +29947,8 @@ namespace SwimmingScoreboard
                 sb.AppendLine("戊组");
                 sb.AppendLine("己组");
                 File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
-                MessageBox.Show(Loc.T("Str_Msg_AgeGroupsTemplateSaved"), Loc.T("Str_MsgTitle_Done"));
-            } catch (Exception ex) { MessageBox.Show(Loc.F("Str_Msg_SaveFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error")); }
+                AppMessageBox.Show(Loc.T("Str_Msg_AgeGroupsTemplateSaved"), Loc.T("Str_MsgTitle_Done"));
+            } catch (Exception ex) { AppMessageBox.Show(Loc.F("Str_Msg_SaveFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error")); }
         }
 
         // ═══════════════════════════════════════════════════════════════
@@ -30039,9 +30039,9 @@ namespace SwimmingScoreboard
                 }
                 File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
                 AddLog(Loc.F("Str_Log_ScheduleCsvExportedFmt", _schedule.Count, dlg.FileName));
-                MessageBox.Show(Loc.T("Str_Msg_ScheduleExported"), Loc.T("Str_MsgTitle_Done"));
+                AppMessageBox.Show(Loc.T("Str_Msg_ScheduleExported"), Loc.T("Str_MsgTitle_Done"));
             } catch (Exception ex) {
-                MessageBox.Show(Loc.F("Str_Msg_ExportFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error"));
+                AppMessageBox.Show(Loc.F("Str_Msg_ExportFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error"));
             }
         }
 
@@ -30053,16 +30053,16 @@ namespace SwimmingScoreboard
             if (dlg.ShowDialog() != true) return;
             string ext = IOPath.GetExtension(dlg.FileName).ToLower();
             if (ext == ".xls" || ext == ".xlsx") {
-                MessageBox.Show(Loc.T("Str_Msg_XlsxReadFailedTip2"),
+                AppMessageBox.Show(Loc.T("Str_Msg_XlsxReadFailedTip2"),
                     Loc.T("Str_MsgTitle_FormatNote"), MessageBoxButton.OK, MessageBoxImage.Warning); return;
             }
             if (_schedule.Count > 0) {
-                if (MessageBox.Show(Loc.F("Str_Msg_ConfirmReplaceScheduleFmt", _schedule.Count),
+                if (AppMessageBox.Show(Loc.F("Str_Msg_ConfirmReplaceScheduleFmt", _schedule.Count),
                     Loc.T("Str_MsgTitle_Confirm"), MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
             }
             try {
                 var rows = ReadCsvLines(dlg.FileName);
-                if (rows.Count < 2) { MessageBox.Show(Loc.T("Str_Msg_CsvNoValidData")); return; }
+                if (rows.Count < 2) { AppMessageBox.Show(Loc.T("Str_Msg_CsvNoValidData")); return; }
                 _schedule.Clear();
                 int imported = 0, skipped = 0;
                 for (int i = 1; i < rows.Count; i++) {
@@ -30099,9 +30099,9 @@ namespace SwimmingScoreboard
                 BuildScheduleTree();
                 FinishAndSyncPatch(BuildListSetPatch("schedule", JArray.FromObject(_schedule), ClientLabel()), "meet");
                 AddLog(Loc.F("Str_Log_ScheduleImportedFmt", imported, skipped));
-                MessageBox.Show(Loc.F("Str_Msg_ImportedScheduleFmt", imported, skipped), Loc.T("Str_MsgTitle_Done"));
+                AppMessageBox.Show(Loc.F("Str_Msg_ImportedScheduleFmt", imported, skipped), Loc.T("Str_MsgTitle_Done"));
             } catch (Exception ex) {
-                MessageBox.Show(Loc.F("Str_Msg_ImportFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error"));
+                AppMessageBox.Show(Loc.F("Str_Msg_ImportFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error"));
             }
         }
 
@@ -30122,9 +30122,9 @@ namespace SwimmingScoreboard
                 sb.AppendLine("2,2026-04-20,15:00,少年,男,50米自由泳,决赛,1");
                 sb.AppendLine("2,2026-04-20,15:10,,男,100米自由泳,决赛,1");
                 File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
-                MessageBox.Show(Loc.T("Str_Msg_ScheduleTemplateSaved"), Loc.T("Str_MsgTitle_Done"));
+                AppMessageBox.Show(Loc.T("Str_Msg_ScheduleTemplateSaved"), Loc.T("Str_MsgTitle_Done"));
             } catch (Exception ex) {
-                MessageBox.Show(Loc.F("Str_Msg_SaveFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error"));
+                AppMessageBox.Show(Loc.F("Str_Msg_SaveFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error"));
             }
         }
 
@@ -30149,10 +30149,10 @@ namespace SwimmingScoreboard
                     GetDatePickerText(StartDatePicker), GetDatePickerText(EndDatePicker),
                     LocationBox != null ? LocationBox.Text : "", laneNumbers, rows, events, teams);
                 AddLog(Loc.F("Str_Log_AssignExcelExportedArrowFmt", dlg.FileName));
-                if (MessageBox.Show(Loc.T("Str_Msg_HeatsExportedOpenNow"), Loc.T("Str_MsgTitle_Done"), MessageBoxButton.YesNo, MessageBoxImage.Information) == MessageBoxResult.Yes)
+                if (AppMessageBox.Show(Loc.T("Str_Msg_HeatsExportedOpenNow"), Loc.T("Str_MsgTitle_Done"), MessageBoxButton.YesNo, MessageBoxImage.Information) == MessageBoxResult.Yes)
                     System.Diagnostics.Process.Start(dlg.FileName);
             } catch (Exception ex) {
-                MessageBox.Show(Loc.F("Str_Msg_ExportFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error"));
+                AppMessageBox.Show(Loc.F("Str_Msg_ExportFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error"));
             }
         }
 
@@ -30171,10 +30171,10 @@ namespace SwimmingScoreboard
                 string warning;
                 var rows = HeatExcelService.Import(dlg.FileName, out warning);
                 if (!string.IsNullOrEmpty(warning)) {
-                    if (MessageBox.Show(warning + Loc.T("Str_Msg_ContinueAnywaySuffix"), Loc.T("Str_MsgTitle_ImportNote"), MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
+                    if (AppMessageBox.Show(warning + Loc.T("Str_Msg_ContinueAnywaySuffix"), Loc.T("Str_MsgTitle_ImportNote"), MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
                         return;
                 }
-                if (rows.Count == 0) { MessageBox.Show(Loc.T("Str_Msg_NoHeatsInExcel"), Loc.T("Str_MsgTitle_Info")); return; }
+                if (rows.Count == 0) { AppMessageBox.Show(Loc.T("Str_Msg_NoHeatsInExcel"), Loc.T("Str_MsgTitle_Info")); return; }
 
                 // 2026-09-12 导入是【整项清空重填】—— 先挑出里面有动不得的组(正在比 / 已完赛)
                 //   的项目, 那些项整项跳过, 别的项照常导。
@@ -30276,9 +30276,9 @@ namespace SwimmingScoreboard
                     detail += string.Join("\n  · ", unmatched.Take(20).ToArray());
                     if (unmatched.Count > 20) detail += "\n  · ... 等共 " + unmatched.Count + " 条";
                 }
-                MessageBox.Show(detail, Loc.T("Str_MsgTitle_Done"));
+                AppMessageBox.Show(detail, Loc.T("Str_MsgTitle_Done"));
             } catch (Exception ex) {
-                MessageBox.Show(Loc.F("Str_Msg_ImportFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error"));
+                AppMessageBox.Show(Loc.F("Str_Msg_ImportFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error"));
             }
         }
 
@@ -30297,10 +30297,10 @@ namespace SwimmingScoreboard
                         ? (NPOI.SS.UserModel.IWorkbook)new NPOI.HSSF.UserModel.HSSFWorkbook(fs)
                         : new NPOI.XSSF.UserModel.XSSFWorkbook(fs);
                     var sh = wb.GetSheetAt(0);
-                    if (sh == null) { MessageBox.Show(Loc.T("Str_Msg_ExcelNoSheet"), Loc.T("Str_MsgTitle_Error")); return; }
+                    if (sh == null) { AppMessageBox.Show(Loc.T("Str_Msg_ExcelNoSheet"), Loc.T("Str_MsgTitle_Error")); return; }
                     // 表头行 (第 1 行) 按字段名建 col 索引
                     var head = sh.GetRow(0);
-                    if (head == null) { MessageBox.Show(Loc.T("Str_Msg_HeaderRowEmpty"), Loc.T("Str_MsgTitle_Error")); return; }
+                    if (head == null) { AppMessageBox.Show(Loc.T("Str_Msg_HeaderRowEmpty"), Loc.T("Str_MsgTitle_Error")); return; }
                     var colMap = new Dictionary<string, int>();
                     for (int c = 0; c < head.LastCellNum; c++) {
                         var hc = head.GetCell(c);
@@ -30314,7 +30314,7 @@ namespace SwimmingScoreboard
                         cGender = col("性别"), cAgeGroup = col("组别"), cEvent = col("项目"),
                         cStage = col("赛次"), cHeatCount = col("组数");
                     if (cGender < 0 || cEvent < 0 || cStage < 0) {
-                        MessageBox.Show(Loc.T("Str_Msg_HeaderMissingRequiredCols"), Loc.T("Str_MsgTitle_Error")); return;
+                        AppMessageBox.Show(Loc.T("Str_Msg_HeaderMissingRequiredCols"), Loc.T("Str_MsgTitle_Error")); return;
                     }
                     for (int r = 1; r <= sh.LastRowNum; r++) {
                         var row = sh.GetRow(r);
@@ -30354,10 +30354,10 @@ namespace SwimmingScoreboard
                 // 这里改完了的 _schedule 就是最终那份, 直接复用同一条路, 不必再单独建一套按行
                 // upsert 的协议。
                 FinishAndSyncPatch(BuildListSetPatch("schedule", JArray.FromObject(_schedule), ClientLabel()), "meet");
-                MessageBox.Show(Loc.F("Str_Msg_ImportDoneAddedUpdatedSkippedFmt", added, updated, skipped), Loc.T("Str_MsgTitle_Done"));
+                AppMessageBox.Show(Loc.F("Str_Msg_ImportDoneAddedUpdatedSkippedFmt", added, updated, skipped), Loc.T("Str_MsgTitle_Done"));
                 AddLog(Loc.F("Str_Log_ImportOtherScheduleFmt", added, updated, skipped));
             } catch (Exception ex) {
-                MessageBox.Show(Loc.F("Str_Msg_ImportFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error"));
+                AppMessageBox.Show(Loc.F("Str_Msg_ImportFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error"));
                 AddLog(Loc.F("Str_Log_ImportOtherScheduleFailedFmt", ex.Message));
             }
         }
@@ -30374,7 +30374,7 @@ namespace SwimmingScoreboard
             //   这个入口就关掉 —— 它本来就是赛前一次性的活。
             string lockedWhat;
             if (MeetHasLockedHeats(out lockedWhat)) {
-                MessageBox.Show(Loc.F("Str_Msg_ImportOtherHeatsBlockedFmt", lockedWhat),
+                AppMessageBox.Show(Loc.F("Str_Msg_ImportOtherHeatsBlockedFmt", lockedWhat),
                     Loc.T("Str_MsgTitle_FullRewriteBlocked"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 AddLog(Loc.F("Str_Log_ImportOtherAssignRejectedFmt", lockedWhat));
                 return;
@@ -30397,7 +30397,7 @@ namespace SwimmingScoreboard
                         ? (NPOI.SS.UserModel.IWorkbook)new NPOI.HSSF.UserModel.HSSFWorkbook(fs)
                         : new NPOI.XSSF.UserModel.XSSFWorkbook(fs);
                     var sh = wb.GetSheetAt(0);
-                    if (sh == null) { MessageBox.Show(Loc.T("Str_Msg_ExcelNoSheet"), Loc.T("Str_MsgTitle_Error")); return; }
+                    if (sh == null) { AppMessageBox.Show(Loc.T("Str_Msg_ExcelNoSheet"), Loc.T("Str_MsgTitle_Error")); return; }
 
                     string curGender = "", curEvent = "", curStage = "", curAgeGroup = "";
                     string curSessionDate = "", curSessionTime = "";
@@ -30529,10 +30529,10 @@ namespace SwimmingScoreboard
                 BuildScheduleTree();
                 RefreshSwimmerFilter();
                 Broadcast();
-                MessageBox.Show(Loc.F("Str_Msg_ImportSwimmerDoneFmt", updated, added), Loc.T("Str_MsgTitle_Done"));
+                AppMessageBox.Show(Loc.F("Str_Msg_ImportSwimmerDoneFmt", updated, added), Loc.T("Str_MsgTitle_Done"));
                 AddLog(Loc.F("Str_Log_ImportOtherAssignFmt", updated, added));
             } catch (Exception ex) {
-                MessageBox.Show(Loc.F("Str_Msg_ImportFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error"));
+                AppMessageBox.Show(Loc.F("Str_Msg_ImportFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error"));
                 AddLog(Loc.F("Str_Log_ImportOtherAssignFailedFmt", ex.Message));
             }
         }
@@ -30561,15 +30561,15 @@ namespace SwimmingScoreboard
                             ? (NPOI.SS.UserModel.IWorkbook)new NPOI.HSSF.UserModel.HSSFWorkbook(fs)
                             : new NPOI.XSSF.UserModel.XSSFWorkbook(fs);
                     } catch (Exception exOpen) {
-                        MessageBox.Show(Loc.F("Str_Msg_ExcelReadFailedFmt", exOpen.Message),
+                        AppMessageBox.Show(Loc.F("Str_Msg_ExcelReadFailedFmt", exOpen.Message),
                             Loc.T("Str_MsgTitle_Error"));
                         return;
                     }
                     var sh = wb.GetSheetAt(0);
-                    if (sh == null) { MessageBox.Show(Loc.T("Str_Msg_ExcelNoSheet"), Loc.T("Str_MsgTitle_Error")); return; }
+                    if (sh == null) { AppMessageBox.Show(Loc.T("Str_Msg_ExcelNoSheet"), Loc.T("Str_MsgTitle_Error")); return; }
                     // R2 表头. 单项明细 R1 是分组大标题 (项目进度/项目名称/运动员/...), 跳过
                     var head = sh.GetRow(1);
-                    if (head == null) { MessageBox.Show(Loc.T("Str_Msg_Row2HeaderEmpty"), Loc.T("Str_MsgTitle_Error")); return; }
+                    if (head == null) { AppMessageBox.Show(Loc.T("Str_Msg_Row2HeaderEmpty"), Loc.T("Str_MsgTitle_Error")); return; }
                     var colMap = new Dictionary<string, int>();
                     for (int c = 0; c < head.LastCellNum; c++) {
                         var hc = head.GetCell(c);
@@ -30588,7 +30588,7 @@ namespace SwimmingScoreboard
                         cPhone = col("电话"), cAge = col("年龄"),
                         cEntryTime = col("竞赛成绩"), cBib = col("参赛号");
                     if (cName < 0 || cGender < 0 || cDist < 0 || cStroke < 0) {
-                        MessageBox.Show(Loc.T("Str_Msg_HeaderMissingCols2"), Loc.T("Str_MsgTitle_Error")); return;
+                        AppMessageBox.Show(Loc.T("Str_Msg_HeaderMissingCols2"), Loc.T("Str_MsgTitle_Error")); return;
                     }
                     // R3 起数据
                     for (int r = 2; r <= sh.LastRowNum; r++) {
@@ -30682,12 +30682,12 @@ namespace SwimmingScoreboard
                 RebuildScheduleGroupedView();
                 BuildScheduleTree();
                 FinishAndSyncPatch(BuildSwimmerRowsUpsertPatch(touchedRows, null, ClientLabel()), "swimmer");
-                MessageBox.Show(Loc.F("Str_Msg_ImportSwimmersOtherDoneFmt",
+                AppMessageBox.Show(Loc.F("Str_Msg_ImportSwimmersOtherDoneFmt",
                     updated, added, noEvent, skipped), Loc.T("Str_MsgTitle_Done"));
                 AddLog(Loc.F("Str_Log_ImportOtherSwimmersFmt",
                     updated, added, noEvent, skipped));
             } catch (Exception ex) {
-                MessageBox.Show(Loc.F("Str_Msg_ImportFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error"));
+                AppMessageBox.Show(Loc.F("Str_Msg_ImportFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error"));
                 AddLog(Loc.F("Str_Log_ImportOtherSwimmersFailedFmt", ex.Message));
             }
         }
@@ -30727,12 +30727,12 @@ namespace SwimmingScoreboard
                     CollectEventInfoForExport(),
                     _swimmers.Where(s => !IsRelayMemberNote(s.Notes)).Select(s => s.Country ?? "")
                         .Where(c => !string.IsNullOrEmpty(c)).Distinct().OrderBy(c => c).ToList());
-                if (MessageBox.Show(Loc.F("Str_Msg_TemplateSavedOpenNowFmt", dlg.FileName), Loc.T("Str_MsgTitle_Done"),
+                if (AppMessageBox.Show(Loc.F("Str_Msg_TemplateSavedOpenNowFmt", dlg.FileName), Loc.T("Str_MsgTitle_Done"),
                     MessageBoxButton.YesNo, MessageBoxImage.Information) == MessageBoxResult.Yes) {
                     System.Diagnostics.Process.Start(dlg.FileName);
                 }
             } catch (Exception ex) {
-                MessageBox.Show(Loc.F("Str_Msg_SaveFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error"));
+                AppMessageBox.Show(Loc.F("Str_Msg_SaveFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error"));
             }
         }
 
@@ -30865,9 +30865,9 @@ namespace SwimmingScoreboard
                 }
                 File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
                 AddLog(Loc.F("Str_Log_AssignCsvExportedArrowFmt", dlg.FileName));
-                MessageBox.Show(Loc.T("Str_Msg_HeatsCsvExported"), Loc.T("Str_MsgTitle_Done"));
+                AppMessageBox.Show(Loc.T("Str_Msg_HeatsCsvExported"), Loc.T("Str_MsgTitle_Done"));
             } catch (Exception ex) {
-                MessageBox.Show(Loc.F("Str_Msg_ExportFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error"));
+                AppMessageBox.Show(Loc.F("Str_Msg_ExportFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error"));
             }
         }
 
@@ -30879,14 +30879,14 @@ namespace SwimmingScoreboard
             if (dlg.ShowDialog() != true) return;
             string ext = IOPath.GetExtension(dlg.FileName).ToLower();
             if (ext == ".xls" || ext == ".xlsx") {
-                MessageBox.Show(Loc.T("Str_Msg_XlsxReadFailedTip3"),
+                AppMessageBox.Show(Loc.T("Str_Msg_XlsxReadFailedTip3"),
                     Loc.T("Str_MsgTitle_FormatNote"), MessageBoxButton.OK, MessageBoxImage.Warning); return;
             }
-            if (MessageBox.Show(Loc.T("Str_Msg_ConfirmOverwriteHeats"), Loc.T("Str_MsgTitle_Confirm"), MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
+            if (AppMessageBox.Show(Loc.T("Str_Msg_ConfirmOverwriteHeats"), Loc.T("Str_MsgTitle_Confirm"), MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
 
             try {
                 var rows = ReadCsvLines(dlg.FileName);
-                if (rows.Count < 2) { MessageBox.Show(Loc.T("Str_Msg_CsvNoValidData")); return; }
+                if (rows.Count < 2) { AppMessageBox.Show(Loc.T("Str_Msg_CsvNoValidData")); return; }
 
                 // 按 (gender, event, stage) 分组：清空后再填充
                 var seen = new HashSet<string>();
@@ -30976,9 +30976,9 @@ namespace SwimmingScoreboard
                 FinishAndSyncPatch(BuildListSetPatch("schedule", JArray.FromObject(_schedule), ClientLabel()), "meet");
                 AddLog(Loc.F("Str_Log_AssignImportedFmt", imported, skipped, notFound));
                 string note = notFound > 0 ? Loc.F("Str_Msg_UnmatchedSwimmersNoteFmt", notFound) : "";
-                MessageBox.Show(Loc.F("Str_Msg_ImportedHeatsCountFmt", imported, note), Loc.T("Str_MsgTitle_Done"));
+                AppMessageBox.Show(Loc.F("Str_Msg_ImportedHeatsCountFmt", imported, note), Loc.T("Str_MsgTitle_Done"));
             } catch (Exception ex) {
-                MessageBox.Show(Loc.F("Str_Msg_ImportFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error"));
+                AppMessageBox.Show(Loc.F("Str_Msg_ImportFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error"));
             }
         }
 
@@ -30997,10 +30997,10 @@ namespace SwimmingScoreboard
                 sb.AppendLine("少年,男,50米自由泳,预赛,1,5,002,李四,上海,0:23.60");
                 sb.AppendLine("成人,男,50米自由泳,预赛,2,4,003,王五,广东,0:24.10");
                 File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
-                MessageBox.Show(Loc.T("Str_Msg_HeatsTemplateSavedTip"),
+                AppMessageBox.Show(Loc.T("Str_Msg_HeatsTemplateSavedTip"),
                     Loc.T("Str_MsgTitle_Done"));
             } catch (Exception ex) {
-                MessageBox.Show(Loc.F("Str_Msg_SaveFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error"));
+                AppMessageBox.Show(Loc.F("Str_Msg_SaveFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error"));
             }
         }
 
@@ -31049,7 +31049,7 @@ namespace SwimmingScoreboard
             bool confirmed = _resultConfirmed
                 || _confirmedHeats.Contains(ConfirmedHeatKey(_currentAgeGroup, _currentGender, _currentEvent, _currentStage, _currentHeat));
             if (!confirmed) {
-                MessageBox.Show(Loc.T("Str_Msg_CannotPrintWhileRacing"), Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Information);
+                AppMessageBox.Show(Loc.T("Str_Msg_CannotPrintWhileRacing"), Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
             GenerateAndOpenDocument(Loc.T("Str_DocTitle_HeatResults"), BuildHeatResultsHtml());
@@ -31154,11 +31154,11 @@ namespace SwimmingScoreboard
                 string html = BuildFullResultBookHtml();
                 File.WriteAllText(dlg.FileName, html, System.Text.Encoding.UTF8);
                 AddLog(Loc.F("Str_Log_ResultBookExportedFmt", dlg.FileName));
-                if (MessageBox.Show(Loc.T("Str_Msg_ExportDoneOpenNow"), Loc.T("Str_MsgTitle_ResultBookExport"), MessageBoxButton.YesNo, MessageBoxImage.Information) == MessageBoxResult.Yes) {
+                if (AppMessageBox.Show(Loc.T("Str_Msg_ExportDoneOpenNow"), Loc.T("Str_MsgTitle_ResultBookExport"), MessageBoxButton.YesNo, MessageBoxImage.Information) == MessageBoxResult.Yes) {
                     System.Diagnostics.Process.Start(dlg.FileName);
                 }
             } catch (Exception ex) {
-                MessageBox.Show(Loc.F("Str_Msg_ExportFailedFmt", ex.Message));
+                AppMessageBox.Show(Loc.F("Str_Msg_ExportFailedFmt", ex.Message));
             }
         }
         private void PrintTeamStandings_Click(object sender, RoutedEventArgs e) { CalculateTeamScores(); GenerateAndOpenDocument(Loc.T("Str_DocTitle_TeamStandings"), BuildTeamStandingsHtml()); }
@@ -31201,9 +31201,9 @@ namespace SwimmingScoreboard
                 string text = BuildResultTxtContent(picked.AgeGroup, picked.Gender, picked.EventName, picked.Stage, picked.Heat);
                 File.WriteAllText(sfd.FileName, text, new UTF8Encoding(false));     // 不带 BOM, 兼容旧解析器
                 AddLog(Loc.F("Str_Log_ResultTxtExportedFmt", sfd.FileName));
-                MessageBox.Show(Loc.F("Str_Msg_ExportedToFmt", sfd.FileName), Loc.T("Str_MsgTitle_Done"), MessageBoxButton.OK, MessageBoxImage.Information);
+                AppMessageBox.Show(Loc.F("Str_Msg_ExportedToFmt", sfd.FileName), Loc.T("Str_MsgTitle_Done"), MessageBoxButton.OK, MessageBoxImage.Information);
             } catch (Exception ex) {
-                MessageBox.Show(Loc.F("Str_Msg_ExportFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error"), MessageBoxButton.OK, MessageBoxImage.Error);
+                AppMessageBox.Show(Loc.F("Str_Msg_ExportFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error"), MessageBoxButton.OK, MessageBoxImage.Error);
                 AddLog(Loc.F("Str_Log_ResultTxtExportFailedFmt", ex.Message));
             }
         }
@@ -31429,7 +31429,7 @@ namespace SwimmingScoreboard
             btnOK.Click += delegate {
                 var sel = tv.SelectedItem as TreeViewItem;
                 if (sel == null || !(sel.Tag is ConfirmedHeatPick)) {
-                    MessageBox.Show(Loc.T("Str_Msg_SelectFinishedHeatNode"), Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Information);
+                    AppMessageBox.Show(Loc.T("Str_Msg_SelectFinishedHeatNode"), Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Information);
                     return;
                 }
                 selected = (ConfirmedHeatPick)sel.Tag;
@@ -31747,7 +31747,7 @@ namespace SwimmingScoreboard
                 try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(dlg.FileName) { UseShellExecute = true }); } catch { }
             } catch (Exception ex) {
                 AddLog(Loc.F("Str_Log_ScheduleExcelExportFailedFmt", ex.Message));
-                MessageBox.Show(Loc.F("Str_Msg_ExportFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error"));
+                AppMessageBox.Show(Loc.F("Str_Msg_ExportFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error"));
             }
         }
 
@@ -31884,7 +31884,7 @@ namespace SwimmingScoreboard
                 try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(dlg.FileName) { UseShellExecute = true }); } catch { }
             } catch (Exception ex) {
                 AddLog(Loc.F("Str_Log_AssignExcelExportFailedFmt", ex.Message));
-                MessageBox.Show(Loc.F("Str_Msg_ExportFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error"));
+                AppMessageBox.Show(Loc.F("Str_Msg_ExportFailedFmt", ex.Message), Loc.T("Str_MsgTitle_Error"));
             }
         }
 
@@ -34073,12 +34073,12 @@ namespace SwimmingScoreboard
             try {
                 string dir = IOPath.Combine(AppDomain.CurrentDomain.BaseDirectory, "Logs");
                 if (!Directory.Exists(dir)) {
-                    MessageBox.Show(Loc.T("Str_Msg_NoLogFile"), Loc.T("Str_MsgTitle_ExportLog"), MessageBoxButton.OK, MessageBoxImage.Information);
+                    AppMessageBox.Show(Loc.T("Str_Msg_NoLogFile"), Loc.T("Str_MsgTitle_ExportLog"), MessageBoxButton.OK, MessageBoxImage.Information);
                     return;
                 }
                 var files = Directory.GetFiles(dir, "*.log").OrderBy(f => f).ToList();
                 if (files.Count == 0) {
-                    MessageBox.Show(Loc.T("Str_Msg_NoLogFile"), Loc.T("Str_MsgTitle_ExportLog"), MessageBoxButton.OK, MessageBoxImage.Information);
+                    AppMessageBox.Show(Loc.T("Str_Msg_NoLogFile"), Loc.T("Str_MsgTitle_ExportLog"), MessageBoxButton.OK, MessageBoxImage.Information);
                     return;
                 }
 
@@ -34104,9 +34104,9 @@ namespace SwimmingScoreboard
                     catch (Exception exRead) { sb.AppendFormat("（这一天的日志读取失败: {0}）", exRead.Message).AppendLine(); }
                 }
                 File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
-                MessageBox.Show(Loc.F("Str_Msg_ExportedToFmt", dlg.FileName), Loc.T("Str_MsgTitle_ExportLog"), MessageBoxButton.OK, MessageBoxImage.Information);
+                AppMessageBox.Show(Loc.F("Str_Msg_ExportedToFmt", dlg.FileName), Loc.T("Str_MsgTitle_ExportLog"), MessageBoxButton.OK, MessageBoxImage.Information);
             } catch (Exception ex) {
-                MessageBox.Show(Loc.F("Str_Msg_ExportFailedFmt", ex.Message), Loc.T("Str_MsgTitle_ExportLog"), MessageBoxButton.OK, MessageBoxImage.Error);
+                AppMessageBox.Show(Loc.F("Str_Msg_ExportFailedFmt", ex.Message), Loc.T("Str_MsgTitle_ExportLog"), MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -34123,7 +34123,7 @@ namespace SwimmingScoreboard
         }
 
         private void Window_Closing(object sender, CancelEventArgs e) {
-            if (MessageBox.Show(Loc.T("Str_Msg_ConfirmExit"), Loc.T("Str_MsgTitle_ConfirmExit"), MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) {
+            if (AppMessageBox.Show(Loc.T("Str_Msg_ConfirmExit"), Loc.T("Str_MsgTitle_ConfirmExit"), MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) {
                 e.Cancel = true;
                 return;
             }
@@ -34169,8 +34169,8 @@ namespace SwimmingScoreboard
 
         private void LoadBackup_Click(object sender, RoutedEventArgs e) {
             var selected = BackupListBox.SelectedItem as BackupInfo;
-            if (selected == null) { MessageBox.Show(Loc.T("Str_Msg_SelectBackupFirst")); return; }
-            if (MessageBox.Show(
+            if (selected == null) { AppMessageBox.Show(Loc.T("Str_Msg_SelectBackupFirst")); return; }
+            if (AppMessageBox.Show(
                 Loc.F("Str_Msg_ConfirmLoadBackupFmt", selected.Name),
                 Loc.T("Str_MsgTitle_ConfirmLoad"), MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes) {
                 _competitionName = selected.Name;
@@ -34182,8 +34182,8 @@ namespace SwimmingScoreboard
 
         private void DeleteBackup_Click(object sender, RoutedEventArgs e) {
             var selected = BackupListBox.SelectedItem as BackupInfo;
-            if (selected == null) { MessageBox.Show(Loc.T("Str_Msg_SelectBackupFirst")); return; }
-            if (MessageBox.Show(
+            if (selected == null) { AppMessageBox.Show(Loc.T("Str_Msg_SelectBackupFirst")); return; }
+            if (AppMessageBox.Show(
                 Loc.F("Str_Msg_ConfirmDeleteBackupFmt", selected.Name),
                 Loc.T("Str_MsgTitle_ConfirmDelete"), MessageBoxButton.YesNo, MessageBoxImage.Stop) == MessageBoxResult.Yes) {
                 try {
@@ -34200,41 +34200,41 @@ namespace SwimmingScoreboard
                         }
                     }
                 } catch (Exception ex) {
-                    MessageBox.Show(Loc.F("Str_Msg_DeleteFailedFmt", ex.Message));
+                    AppMessageBox.Show(Loc.F("Str_Msg_DeleteFailedFmt", ex.Message));
                 }
             }
         }
 
         private void ClearDatabase_Click(object sender, RoutedEventArgs e) {
-            if (MessageBox.Show(
+            if (AppMessageBox.Show(
                 Loc.F("Str_Msg_ConfirmClearDataFmt", _competitionName),
                 Loc.T("Str_MsgTitle_ConfirmClear"), MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes) {
                 ClearCompetitionData();
                 AutoSaveData();
                 Broadcast();
                 AddLog(Loc.F("Str_Log_CompetitionDataClearedFmt", _competitionName));
-                MessageBox.Show(Loc.F("Str_Msg_ClearDataDoneFmt", _competitionName));
+                AppMessageBox.Show(Loc.F("Str_Msg_ClearDataDoneFmt", _competitionName));
             }
         }
 
         private void ForceSave_Click(object sender, RoutedEventArgs e) {
             if (string.IsNullOrEmpty(_competitionName)) {
-                MessageBox.Show(Loc.T("Str_Msg_SetCompNameFirst"));
+                AppMessageBox.Show(Loc.T("Str_Msg_SetCompNameFirst"));
                 return;
             }
-            if (MessageBox.Show(Loc.T("Str_Msg_ConfirmForceSave"),
+            if (AppMessageBox.Show(Loc.T("Str_Msg_ConfirmForceSave"),
                 Loc.T("Str_MsgTitle_ConfirmSave"), MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes) {
                 AutoSaveData();
                 RefreshBackupList();
                 AddLog(Loc.F("Str_Log_ForceSaveDoneFmt", _competitionName));
-                MessageBox.Show(Loc.T("Str_Msg_ForceSaveDone"));
+                AppMessageBox.Show(Loc.T("Str_Msg_ForceSaveDone"));
             }
         }
 
         private void ShowLocalIP_Click(object sender, RoutedEventArgs e) {
             string ip = GetLocalIP();
             string info = Loc.F("Str_Msg_LocalIPInfoFmt", ip);
-            MessageBox.Show(info, Loc.T("Str_MsgTitle_LocalIP"), MessageBoxButton.OK, MessageBoxImage.Information);
+            AppMessageBox.Show(info, Loc.T("Str_MsgTitle_LocalIP"), MessageBoxButton.OK, MessageBoxImage.Information);
             AddLog(Loc.F("Str_Log_QueriedIpFmt", ip));
         }
 

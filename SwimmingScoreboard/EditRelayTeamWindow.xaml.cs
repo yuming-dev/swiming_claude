@@ -160,13 +160,13 @@ namespace SwimmingScoreboard
             }
 
             if (changes.Count == 0) {
-                MessageBox.Show(Loc.T("Str_Win_EditRelay_MsgNoChanges"), Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Information);
+                AppMessageBox.Show(Loc.T("Str_Win_EditRelay_MsgNoChanges"), Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
 
             // 二次确认
             string summary = Loc.T("Str_Win_EditRelay_ConfirmSavePrefix") + string.Join("\n  • ", changes);
-            var res = MessageBox.Show(summary, Loc.T("Str_Win_EditRelay_MsgTitleSaveConfirm"), MessageBoxButton.OKCancel, MessageBoxImage.Question);
+            var res = AppMessageBox.Show(summary, Loc.T("Str_Win_EditRelay_MsgTitleSaveConfirm"), MessageBoxButton.OKCancel, MessageBoxImage.Question);
             if (res != MessageBoxResult.OK) return;
 
             // 应用到 _team
@@ -197,7 +197,7 @@ namespace SwimmingScoreboard
                 || Leg3Box.Text.Trim() != (_backup.LegNames.Length > 2 ? _backup.LegNames[2] : "")
                 || Leg4Box.Text.Trim() != (_backup.LegNames.Length > 3 ? _backup.LegNames[3] : "");
             if (hasChanges) {
-                var res = MessageBox.Show(Loc.T("Str_Win_EditRelay_MsgConfirmDiscard"), Loc.T("Str_Win_EditRelay_MsgTitleCancelConfirm"),
+                var res = AppMessageBox.Show(Loc.T("Str_Win_EditRelay_MsgConfirmDiscard"), Loc.T("Str_Win_EditRelay_MsgTitleCancelConfirm"),
                     MessageBoxButton.YesNo, MessageBoxImage.Question);
                 if (res != MessageBoxResult.Yes) return;
             }

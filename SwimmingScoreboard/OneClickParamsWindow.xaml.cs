@@ -27,7 +27,7 @@ namespace SwimmingScoreboard
         private void Ok_Click(object sender, RoutedEventArgs e) {
             DateTime sd;
             if (!DateTime.TryParse(StartDateBox.Text.Trim(), out sd)) {
-                MessageBox.Show(Loc.T("Str_Win_OneClick_BadDateFmt"), Loc.T("Str_MsgTitle_Info")); return;
+                AppMessageBox.Show(Loc.T("Str_Win_OneClick_BadDateFmt"), Loc.T("Str_MsgTitle_Info")); return;
             }
             int days;
             if (!int.TryParse(((ComboBoxItem)DaysCombo.SelectedItem).Content.ToString(), out days) || days < 1) days = 1;

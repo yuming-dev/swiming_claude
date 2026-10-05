@@ -62,6 +62,9 @@
     <Compile Include="..\SwimmingScoreboard\Localization.cs">
       <Link>Localization.cs</Link>
     </Compile>
+    <Compile Include="..\SwimmingScoreboard\AppMessageBox.cs">
+      <Link>AppMessageBox.cs</Link>
+    </Compile>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

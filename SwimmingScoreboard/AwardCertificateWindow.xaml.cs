@@ -105,7 +105,7 @@ namespace SwimmingScoreboard
             try { Grid1.CommitEdit(DataGridEditingUnit.Cell, true); Grid1.CommitEdit(DataGridEditingUnit.Row, true); } catch { }
             UpdateCount();
             var selected = _all.Where(c => c.Selected).ToList();
-            if (selected.Count == 0) { MessageBox.Show(Loc.T("Str_Win_AwardCert_MsgSelectAtLeastOne"), Loc.T("Str_Win_AwardCert_Title")); return; }
+            if (selected.Count == 0) { AppMessageBox.Show(Loc.T("Str_Win_AwardCert_MsgSelectAtLeastOne"), Loc.T("Str_Win_AwardCert_Title")); return; }
 
             var templateItem = TemplateBox.SelectedItem as ComboBoxItem;
             string template = templateItem != null ? (templateItem.Tag as string) : "full_haosha";

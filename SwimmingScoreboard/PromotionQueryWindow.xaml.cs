@@ -156,7 +156,7 @@ namespace SwimmingScoreboard
             string gender = GetGender();
             string eventName = GetEventName();
             string fromStage = GetFromStage();
-            if (string.IsNullOrEmpty(fromStage)) { MessageBox.Show(Loc.T("Str_Win_Promotion_MsgSelectStage")); return; }
+            if (string.IsNullOrEmpty(fromStage)) { AppMessageBox.Show(Loc.T("Str_Win_Promotion_MsgSelectStage")); return; }
 
             int totalPromo = 16;
             int.TryParse(CountBox.Text.Trim(), out totalPromo);
@@ -242,8 +242,8 @@ namespace SwimmingScoreboard
 
         // ═══════ 执行晋级 ═══════
         private void Execute_Click(object sender, RoutedEventArgs e) {
-            if (_promoted.Count == 0) { MessageBox.Show(Loc.T("Str_Win_Promotion_MsgQueryFirst")); return; }
-            if (string.IsNullOrEmpty(_toStage)) { MessageBox.Show(Loc.T("Str_Win_Promotion_MsgCannotDetermineStage")); return; }
+            if (_promoted.Count == 0) { AppMessageBox.Show(Loc.T("Str_Win_Promotion_MsgQueryFirst")); return; }
+            if (string.IsNullOrEmpty(_toStage)) { AppMessageBox.Show(Loc.T("Str_Win_Promotion_MsgCannotDetermineStage")); return; }
 
             string eventName = GetEventName();
             string fromStage = GetFromStage();
@@ -260,7 +260,7 @@ namespace SwimmingScoreboard
             } else {
                 promptMsg = Loc.F("Str_Win_Promotion_ConfirmPromoteFmt", _promoted.Count, fromStage, _toStage);
             }
-            if (MessageBox.Show(promptMsg, Loc.T("Str_Win_Promotion_MsgTitleConfirmPromote"), MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+            if (AppMessageBox.Show(promptMsg, Loc.T("Str_Win_Promotion_MsgTitleConfirmPromote"), MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
 
             if (enableBFinal) {
                 var aGroup = _promoted.Take(8).ToList();
@@ -268,14 +268,14 @@ namespace SwimmingScoreboard
                 HeatScheduler.GenerateHeatsFromResults(aGroup, _poolConfig, eventName, "决赛", fromStage);
                 HeatScheduler.GenerateHeatsFromResults(bGroup, _poolConfig, eventName, "B组决赛", fromStage);
                 ResultText.Text = Loc.F("Str_Win_Promotion_ResultABGroupFmt", aGroup.Count, bGroup.Count);
-                MessageBox.Show(Loc.F(
+                AppMessageBox.Show(Loc.F(
                     "Str_Win_Promotion_MsgBFinalDoneFmt",
                     aGroup.Count, bGroup.Count), Loc.T("Str_Win_Promotion_MsgTitleBFinalDone"));
             } else {
                 var assignments = HeatScheduler.GenerateHeatsFromResults(_promoted, _poolConfig, eventName, _toStage, fromStage);
                 int heatCount = assignments.Count > 0 ? assignments.Max(a => a.Heat) : 0;
                 ResultText.Text = Loc.F("Str_Win_Promotion_ResultPromotedFmt", _promoted.Count, _toStage, heatCount);
-                MessageBox.Show(Loc.F("Str_Win_Promotion_MsgPromoteDoneFmt", _promoted.Count, _toStage, heatCount), Loc.T("Str_Win_Promotion_MsgTitlePromoteDone"));
+                AppMessageBox.Show(Loc.F("Str_Win_Promotion_MsgPromoteDoneFmt", _promoted.Count, _toStage, heatCount), Loc.T("Str_Win_Promotion_MsgTitlePromoteDone"));
             }
         }
 
@@ -292,7 +292,7 @@ namespace SwimmingScoreboard
             string gender = GetGender();
             string ageFilter = GetAgeGroup();
             if (string.IsNullOrEmpty(eventName) || string.IsNullOrEmpty(fromStage)) {
-                MessageBox.Show(Loc.T("Str_Win_Promotion_MsgSelectEventAndStage")); return;
+                AppMessageBox.Show(Loc.T("Str_Win_Promotion_MsgSelectEventAndStage")); return;
             }
 
             // 全员预赛排名（用于找候选）
@@ -334,7 +334,7 @@ namespace SwimmingScoreboard
             }
 
             if (swaps.Count == 0) {
-                MessageBox.Show(Loc.T("Str_Win_Promotion_MsgNoSubstitutes"),
+                AppMessageBox.Show(Loc.T("Str_Win_Promotion_MsgNoSubstitutes"),
                     Loc.T("Str_Win_Promotion_MsgTitleNoGiveups"), MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
@@ -352,7 +352,7 @@ namespace SwimmingScoreboard
             preview.AppendLine();
             preview.AppendLine(Loc.T("Str_Win_Promotion_PreviewConfirmSuffix"));
 
-            if (MessageBox.Show(preview.ToString(), Loc.T("Str_Win_Promotion_MsgTitleSubConfirm"),
+            if (AppMessageBox.Show(preview.ToString(), Loc.T("Str_Win_Promotion_MsgTitleSubConfirm"),
                 MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
 
             // 执行
@@ -370,7 +370,7 @@ namespace SwimmingScoreboard
             ResultText.Text = Loc.F("Str_Win_Promotion_ResultSubstitutedFmt", swaps.Count);
             ResultText.Foreground = new System.Windows.Media.SolidColorBrush(
                 (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#22C55E"));
-            MessageBox.Show(Loc.F("Str_Win_Promotion_MsgSubDoneFmt",
+            AppMessageBox.Show(Loc.F("Str_Win_Promotion_MsgSubDoneFmt",
                 swaps.Count), Loc.T("Str_Win_Promotion_MsgTitleSubDone"));
         }
 

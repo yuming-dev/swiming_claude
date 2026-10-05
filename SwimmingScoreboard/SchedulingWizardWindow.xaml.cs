@@ -326,7 +326,7 @@ namespace SwimmingScoreboard
                 summary = Loc.F("Str_Win_SchedWizard_MsgOneClickPartialFmt",
                     _distAssigned.Count, leftPending);
             }
-            if (MessageBox.Show(summary, Loc.T("Str_Win_SchedWizard_MsgTitleOneClickDone"), MessageBoxButton.YesNo, MessageBoxImage.Information) == MessageBoxResult.Yes) {
+            if (AppMessageBox.Show(summary, Loc.T("Str_Win_SchedWizard_MsgTitleOneClickDone"), MessageBoxButton.YesNo, MessageBoxImage.Information) == MessageBoxResult.Yes) {
                 NavList.SelectedIndex = 3;   // Tab 4
             }
         }
@@ -420,10 +420,10 @@ namespace SwimmingScoreboard
 
         private void ResetEdits_Click(object sender, RoutedEventArgs e) {
             if (_autoBaseline.Count == 0) {
-                MessageBox.Show(Loc.T("Str_Win_SchedWizard_MsgNoAutoData"), Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Information);
+                AppMessageBox.Show(Loc.T("Str_Win_SchedWizard_MsgNoAutoData"), Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
-            if (MessageBox.Show(Loc.T("Str_Win_SchedWizard_MsgConfirmResetEdits"), Loc.T("Str_Win_SchedWizard_MsgTitleConfirmReset"),
+            if (AppMessageBox.Show(Loc.T("Str_Win_SchedWizard_MsgConfirmResetEdits"), Loc.T("Str_Win_SchedWizard_MsgTitleConfirmReset"),
                 MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
 
             for (int i = 0; i < _planRows.Count; i++) {
@@ -659,13 +659,13 @@ namespace SwimmingScoreboard
         private void MoveSelectedToAssigned(bool insertAtEnd) {
             var selected = DistPendingGrid.SelectedItems.OfType<DistEntry>().ToList();
             if (selected.Count == 0) {
-                MessageBox.Show(Loc.T("Str_Win_SchedWizard_MsgSelectPendingFirst"), Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Information);
+                AppMessageBox.Show(Loc.T("Str_Win_SchedWizard_MsgSelectPendingFirst"), Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
             string day = DistDayCombo.SelectedItem as string;
             string session = DistSessionCombo.SelectedItem != null ? ((ComboBoxItem)DistSessionCombo.SelectedItem).Content.ToString() : "";
             if (string.IsNullOrEmpty(day) || string.IsNullOrEmpty(session)) {
-                MessageBox.Show(Loc.T("Str_Win_SchedWizard_MsgSelectDateSession"), Loc.T("Str_MsgTitle_Info")); return;
+                AppMessageBox.Show(Loc.T("Str_Win_SchedWizard_MsgSelectDateSession"), Loc.T("Str_MsgTitle_Info")); return;
             }
             int sessionStartMin = GetSessionStartMin(session);
             // 找该时段当前已分配的累计时长
@@ -720,11 +720,11 @@ namespace SwimmingScoreboard
         //              「强制时段」模式仍然只用单一时段，但会跨多天。
         private void DistAuto_Click(object sender, RoutedEventArgs e) {
             if (_distPending.Count == 0) {
-                MessageBox.Show(Loc.T("Str_Win_SchedWizard_MsgNoPending"), Loc.T("Str_MsgTitle_Info")); return;
+                AppMessageBox.Show(Loc.T("Str_Win_SchedWizard_MsgNoPending"), Loc.T("Str_MsgTitle_Info")); return;
             }
             EnsureAvailableDatesFromCompetition();
             if (_availableDates == null || _availableDates.Count == 0) {
-                MessageBox.Show(Loc.T("Str_Win_SchedWizard_MsgNoAvailableDates"),
+                AppMessageBox.Show(Loc.T("Str_Win_SchedWizard_MsgNoAvailableDates"),
                     Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
@@ -812,13 +812,13 @@ namespace SwimmingScoreboard
                 _distAssigned.Count, dayUsedCount, mode);
             if (unplaced > 0) msg += Loc.F("Str_Win_SchedWizard_MsgAutoDistUnplacedFmt", unplaced);
             else msg += Loc.T("Str_Win_SchedWizard_MsgAutoDistTip");
-            MessageBox.Show(msg, Loc.T("Str_Win_SchedWizard_MsgTitleAutoDistDone"));
+            AppMessageBox.Show(msg, Loc.T("Str_Win_SchedWizard_MsgTitleAutoDistDone"));
         }
 
         private void DistMoveBack_Click(object sender, RoutedEventArgs e) {
             var selected = DistAssignedGrid.SelectedItems.OfType<DistEntry>().ToList();
             if (selected.Count == 0) {
-                MessageBox.Show(Loc.T("Str_Win_SchedWizard_MsgSelectAssignedFirst"), Loc.T("Str_MsgTitle_Info")); return;
+                AppMessageBox.Show(Loc.T("Str_Win_SchedWizard_MsgSelectAssignedFirst"), Loc.T("Str_MsgTitle_Info")); return;
             }
             foreach (var d in selected) {
                 d.AssignedDate = null;
@@ -834,7 +834,7 @@ namespace SwimmingScoreboard
 
         private void DistMoveBackAll_Click(object sender, RoutedEventArgs e) {
             if (_distAssigned.Count == 0) return;
-            if (MessageBox.Show(Loc.F("Str_Win_SchedWizard_MsgConfirmMoveBackAllFmt", _distAssigned.Count), Loc.T("Str_MsgTitle_Confirm"),
+            if (AppMessageBox.Show(Loc.F("Str_Win_SchedWizard_MsgConfirmMoveBackAllFmt", _distAssigned.Count), Loc.T("Str_MsgTitle_Confirm"),
                 MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
             foreach (var d in _distAssigned.ToList()) {
                 d.AssignedDate = null;
@@ -933,7 +933,7 @@ namespace SwimmingScoreboard
 
         private void DistApply_Click(object sender, RoutedEventArgs e) {
             if (_distAssigned.Count == 0) {
-                MessageBox.Show(Loc.T("Str_Win_SchedWizard_MsgNoAssignedToApply"), Loc.T("Str_MsgTitle_Info")); return;
+                AppMessageBox.Show(Loc.T("Str_Win_SchedWizard_MsgNoAssignedToApply"), Loc.T("Str_MsgTitle_Info")); return;
             }
             // 把已分配条目转成 ScheduleItem 写回主程序 _schedule
             // 注：此处只通知调用方"用户确认了编排，需要写回"。实际写回逻辑在 OpenSchedulingWizard_Click 端处理。
@@ -950,7 +950,7 @@ namespace SwimmingScoreboard
             } else {
                 warning += Loc.T("Str_Win_SchedWizard_MsgConfirmSaveSuffix");
             }
-            if (MessageBox.Show(warning, Loc.T("Str_Win_SchedWizard_MsgTitleConfirmSave"), MessageBoxButton.OKCancel, MessageBoxImage.Warning) != MessageBoxResult.OK) return;
+            if (AppMessageBox.Show(warning, Loc.T("Str_Win_SchedWizard_MsgTitleConfirmSave"), MessageBoxButton.OKCancel, MessageBoxImage.Warning) != MessageBoxResult.OK) return;
             ApplyToMainSchedule = true;
             // 存盘成功 → 清除草稿 (避免下次打开看到已应用的旧草稿)
             _draftWillClear = true;
@@ -1204,7 +1204,7 @@ namespace SwimmingScoreboard
                 if (_docCheckBoxes[i].IsChecked == true) { section = DocSections[i]; break; }
             }
             if (string.IsNullOrEmpty(section)) {
-                MessageBox.Show(Loc.T("Str_Win_SchedWizard_MsgSelectSectionFirst"), Loc.T("Str_MsgTitle_Info")); return;
+                AppMessageBox.Show(Loc.T("Str_Win_SchedWizard_MsgSelectSectionFirst"), Loc.T("Str_MsgTitle_Info")); return;
             }
             string path = GetSectionFilePath(section);
             bool willOverwrite = System.IO.File.Exists(path);
@@ -1212,16 +1212,16 @@ namespace SwimmingScoreboard
             try {
                 WriteSectionFile(section, path);
             } catch (Exception ex) {
-                MessageBox.Show(Loc.T("Str_Win_SchedWizard_MsgGenFileFailPrefix") + ex.Message, Loc.T("Str_MsgTitle_Error"));
+                AppMessageBox.Show(Loc.T("Str_Win_SchedWizard_MsgGenFileFailPrefix") + ex.Message, Loc.T("Str_MsgTitle_Error"));
                 return;
             }
             try {
                 System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(path) { UseShellExecute = true });
                 string warn = willOverwrite ? Loc.T("Str_Win_SchedWizard_MsgOverwrittenWarning") : "";
-                MessageBox.Show(Loc.F("Str_Win_SchedWizard_MsgOpenedSectionFmt", section, path) + warn,
+                AppMessageBox.Show(Loc.F("Str_Win_SchedWizard_MsgOpenedSectionFmt", section, path) + warn,
                     Loc.T("Str_Win_SchedWizard_DocEditPrintBtn"), MessageBoxButton.OK, MessageBoxImage.Information);
             } catch (Exception ex) {
-                MessageBox.Show(Loc.T("Str_Win_SchedWizard_MsgLaunchFailPrefix") + ex.Message +
+                AppMessageBox.Show(Loc.T("Str_Win_SchedWizard_MsgLaunchFailPrefix") + ex.Message +
                     Loc.F("Str_Win_SchedWizard_MsgSavedToSuffix", path), Loc.T("Str_MsgTitle_Info"));
             }
         }
@@ -1393,7 +1393,7 @@ namespace SwimmingScoreboard
             sb.AppendLine();
             sb.AppendLine(Loc.T("Str_Win_SchedWizard_MsgFolderNote1"));
             sb.AppendLine(Loc.T("Str_Win_SchedWizard_MsgFolderNote2"));
-            MessageBox.Show(sb.ToString(), Loc.T("Str_Win_SchedWizard_DocGenerateBtn"), MessageBoxButton.OK, MessageBoxImage.Information);
+            AppMessageBox.Show(sb.ToString(), Loc.T("Str_Win_SchedWizard_DocGenerateBtn"), MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
         // 强制重新生成当前选中章节（用最新系统数据覆盖文件夹里的已编辑版本）
@@ -1403,19 +1403,19 @@ namespace SwimmingScoreboard
                 if (_docCheckBoxes[i].IsChecked == true) { section = DocSections[i]; break; }
             }
             if (string.IsNullOrEmpty(section)) {
-                MessageBox.Show(Loc.T("Str_Win_SchedWizard_MsgSelectRegenSection"), Loc.T("Str_MsgTitle_Info")); return;
+                AppMessageBox.Show(Loc.T("Str_Win_SchedWizard_MsgSelectRegenSection"), Loc.T("Str_MsgTitle_Info")); return;
             }
             string path = GetSectionFilePath(section);
             bool exists = System.IO.File.Exists(path);
             string msg = exists
                 ? Loc.F("Str_Win_SchedWizard_MsgConfirmOverwriteFmt", section, path)
                 : Loc.F("Str_Win_SchedWizard_MsgConfirmGenerateFmt", section, path);
-            if (MessageBox.Show(msg, Loc.T("Str_Win_SchedWizard_DocForceRegenBtn"), MessageBoxButton.OKCancel, MessageBoxImage.Warning) != MessageBoxResult.OK) return;
+            if (AppMessageBox.Show(msg, Loc.T("Str_Win_SchedWizard_DocForceRegenBtn"), MessageBoxButton.OKCancel, MessageBoxImage.Warning) != MessageBoxResult.OK) return;
             try {
                 WriteSectionFile(section, path);
-                MessageBox.Show(Loc.F("Str_Win_SchedWizard_MsgRegenDoneFmt", path), Loc.T("Str_MsgTitle_Done"));
+                AppMessageBox.Show(Loc.F("Str_Win_SchedWizard_MsgRegenDoneFmt", path), Loc.T("Str_MsgTitle_Done"));
             } catch (Exception ex) {
-                MessageBox.Show(Loc.T("Str_Win_SchedWizard_MsgRegenFailPrefix") + ex.Message, Loc.T("Str_MsgTitle_Error"));
+                AppMessageBox.Show(Loc.T("Str_Win_SchedWizard_MsgRegenFailPrefix") + ex.Message, Loc.T("Str_MsgTitle_Error"));
             }
         }
 
@@ -1712,7 +1712,7 @@ namespace SwimmingScoreboard
 
         private void MultiEventExport_Click(object sender, RoutedEventArgs e) {
             if (MultiEventGrid.ItemsSource == null) {
-                MessageBox.Show(Loc.T("Str_Win_SchedWizard_MsgComputeMultiEventFirst"), Loc.T("Str_MsgTitle_Info")); return;
+                AppMessageBox.Show(Loc.T("Str_Win_SchedWizard_MsgComputeMultiEventFirst"), Loc.T("Str_MsgTitle_Info")); return;
             }
             var rows = MultiEventGrid.ItemsSource.OfType<MultiEventStatRow>().ToList();
             if (rows.Count == 0) return;
@@ -1730,7 +1730,7 @@ namespace SwimmingScoreboard
                 }));
             }
             File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
-            MessageBox.Show(Loc.F("Str_Win_UnitMgmt_MsgExportedFmt", dlg.FileName), Loc.T("Str_MsgTitle_Done"));
+            AppMessageBox.Show(Loc.F("Str_Win_UnitMgmt_MsgExportedFmt", dlg.FileName), Loc.T("Str_MsgTitle_Done"));
         }
 
         private static string CsvEsc(string s) {

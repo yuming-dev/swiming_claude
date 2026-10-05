@@ -97,7 +97,7 @@ namespace SwimmingScoreboard
         private void Cancel_Click(object sender, RoutedEventArgs e) { DialogResult = false; Close(); }
 
         private void Reset_Click(object sender, RoutedEventArgs e) {
-            if (MessageBox.Show(Loc.T("Str_Win_ProgBook_MsgConfirmReset"), Loc.T("Str_Win_ResultBook_MsgTitleReset"), MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+            if (AppMessageBox.Show(Loc.T("Str_Win_ProgBook_MsgConfirmReset"), Loc.T("Str_Win_ResultBook_MsgTitleReset"), MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
             CoverTitleBox.Text = Loc.T("Str_Win_ProgBook_DefaultCoverTitle");
             CoverSubtitleBox.Text = Loc.T("Str_Win_ResultBook_DefaultCoverSubtitle");
             VenueImagePathBox.Text = "";
@@ -117,7 +117,7 @@ namespace SwimmingScoreboard
         }
 
         private void Preview_Click(object sender, RoutedEventArgs e) {
-            if (_previewProvider == null) { MessageBox.Show(Loc.T("Str_Win_ProgBook_MsgPreviewUnavailable")); return; }
+            if (_previewProvider == null) { AppMessageBox.Show(Loc.T("Str_Win_ProgBook_MsgPreviewUnavailable")); return; }
             Result = Collect();
             try {
                 string html = _previewProvider();
@@ -127,7 +127,7 @@ namespace SwimmingScoreboard
                     System.Diagnostics.Process.Start(tmp);
                 }
             } catch (Exception ex) {
-                MessageBox.Show(Loc.T("Str_Win_ProgBook_MsgPreviewFailPrefix") + ex.Message);
+                AppMessageBox.Show(Loc.T("Str_Win_ProgBook_MsgPreviewFailPrefix") + ex.Message);
             }
         }
 
@@ -150,7 +150,7 @@ namespace SwimmingScoreboard
                 _swimmerInfos.Add(sw);
                 added++;
             }
-            MessageBox.Show(Loc.F("Str_Win_ResultBook_MsgAutoFillDoneFmt", added), Loc.T("Str_MsgTitle_Info"));
+            AppMessageBox.Show(Loc.F("Str_Win_ResultBook_MsgAutoFillDoneFmt", added), Loc.T("Str_MsgTitle_Info"));
         }
     }
 }

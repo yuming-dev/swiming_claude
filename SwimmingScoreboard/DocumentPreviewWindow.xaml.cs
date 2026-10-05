@@ -33,7 +33,7 @@ namespace SwimmingScoreboard
 
         private void RenderPreview() {
             try { Preview.NavigateToString(CurrentHtml.Length > 0 ? CurrentHtml : "<html><body></body></html>"); }
-            catch (Exception ex) { MessageBox.Show(Loc.T("Str_Win_DocPreview_MsgPreviewFailPrefix") + ex.Message); }
+            catch (Exception ex) { AppMessageBox.Show(Loc.T("Str_Win_DocPreview_MsgPreviewFailPrefix") + ex.Message); }
         }
 
         private string WriteToTemp(string ext) {
@@ -47,7 +47,7 @@ namespace SwimmingScoreboard
             try {
                 string p = WriteToTemp("html");
                 System.Diagnostics.Process.Start(p);
-            } catch (Exception ex) { MessageBox.Show(Loc.T("Str_Win_DocPreview_MsgOpenFailPrefix") + ex.Message); }
+            } catch (Exception ex) { AppMessageBox.Show(Loc.T("Str_Win_DocPreview_MsgOpenFailPrefix") + ex.Message); }
         }
 
         /// <summary>
@@ -69,15 +69,15 @@ namespace SwimmingScoreboard
                 if (dlg.ShowDialog() != true) return;
                 string tmpHtml = WriteToTemp("html");
                 if (MainWindow.TryHtmlToPdf(tmpHtml, dlg.FileName)) {
-                    if (MessageBox.Show(Loc.F("Str_Win_DocPreview_MsgExportedOpenFmt", dlg.FileName), Loc.T("Str_Win_DocPreview_ExportPdfBtn"),
+                    if (AppMessageBox.Show(Loc.F("Str_Win_DocPreview_MsgExportedOpenFmt", dlg.FileName), Loc.T("Str_Win_DocPreview_ExportPdfBtn"),
                             MessageBoxButton.YesNo, MessageBoxImage.Information) == MessageBoxResult.Yes)
                         System.Diagnostics.Process.Start(dlg.FileName);
                     return;
                 }
                 System.Diagnostics.Process.Start(tmpHtml);
-                MessageBox.Show(Loc.T("Str_Win_DocPreview_MsgNoPdfEngine"),
+                AppMessageBox.Show(Loc.T("Str_Win_DocPreview_MsgNoPdfEngine"),
                     Loc.T("Str_Win_DocPreview_ExportPdfBtn"), MessageBoxButton.OK, MessageBoxImage.Warning);
-            } catch (Exception ex) { MessageBox.Show(Loc.T("Str_Win_DocPreview_MsgExportPdfFailPrefix") + ex.Message); }
+            } catch (Exception ex) { AppMessageBox.Show(Loc.T("Str_Win_DocPreview_MsgExportPdfFailPrefix") + ex.Message); }
         }
 
         /// <summary>
@@ -156,11 +156,11 @@ namespace SwimmingScoreboard
             if (dlg.ShowDialog() != true) return;
             try {
                 File.WriteAllText(dlg.FileName, InjectWordPageNumberFooter(CurrentHtml), Encoding.UTF8);
-                if (MessageBox.Show(Loc.F("Str_Win_DocPreview_MsgExportedOpenFmt", dlg.FileName), Loc.T("Str_Win_DocPreview_MsgTitleExportSuccess"),
+                if (AppMessageBox.Show(Loc.F("Str_Win_DocPreview_MsgExportedOpenFmt", dlg.FileName), Loc.T("Str_Win_DocPreview_MsgTitleExportSuccess"),
                                     MessageBoxButton.YesNo, MessageBoxImage.Information) == MessageBoxResult.Yes) {
                     System.Diagnostics.Process.Start(dlg.FileName);
                 }
-            } catch (Exception ex) { MessageBox.Show(Loc.T("Str_Win_DocPreview_MsgExportFailPrefix") + ex.Message); }
+            } catch (Exception ex) { AppMessageBox.Show(Loc.T("Str_Win_DocPreview_MsgExportFailPrefix") + ex.Message); }
         }
 
         private void ExportHtml_Click(object sender, RoutedEventArgs e) { Save(".html", Loc.T("Str_Win_DocPreview_HtmlFilter")); }
@@ -174,11 +174,11 @@ namespace SwimmingScoreboard
             if (dlg.ShowDialog() != true) return;
             try {
                 File.WriteAllText(dlg.FileName, CurrentHtml, Encoding.UTF8);
-                if (MessageBox.Show(Loc.F("Str_Win_DocPreview_MsgExportedOpenFmt", dlg.FileName), Loc.T("Str_Win_DocPreview_MsgTitleExportSuccess"),
+                if (AppMessageBox.Show(Loc.F("Str_Win_DocPreview_MsgExportedOpenFmt", dlg.FileName), Loc.T("Str_Win_DocPreview_MsgTitleExportSuccess"),
                                     MessageBoxButton.YesNo, MessageBoxImage.Information) == MessageBoxResult.Yes) {
                     System.Diagnostics.Process.Start(dlg.FileName);
                 }
-            } catch (Exception ex) { MessageBox.Show(Loc.T("Str_Win_DocPreview_MsgExportFailPrefix") + ex.Message); }
+            } catch (Exception ex) { AppMessageBox.Show(Loc.T("Str_Win_DocPreview_MsgExportFailPrefix") + ex.Message); }
         }
 
         private void Print_Click(object sender, RoutedEventArgs e) {
@@ -186,9 +186,9 @@ namespace SwimmingScoreboard
             try {
                 dynamic doc = Preview.Document;
                 if (doc != null) doc.execCommand("Print", true, null);
-                else MessageBox.Show(Loc.T("Str_Win_DocPreview_MsgNotRendered"));
+                else AppMessageBox.Show(Loc.T("Str_Win_DocPreview_MsgNotRendered"));
             } catch (Exception ex) {
-                MessageBox.Show(Loc.T("Str_Win_DocPreview_MsgPrintFailPrefix") + ex.Message + Loc.T("Str_Win_DocPreview_MsgPrintFailSuffix"));
+                AppMessageBox.Show(Loc.T("Str_Win_DocPreview_MsgPrintFailPrefix") + ex.Message + Loc.T("Str_Win_DocPreview_MsgPrintFailSuffix"));
             }
         }
 

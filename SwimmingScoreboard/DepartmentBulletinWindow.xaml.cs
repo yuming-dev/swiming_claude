@@ -57,7 +57,7 @@ namespace SwimmingScoreboard
 
         private void Generate_Click(object sender, RoutedEventArgs e) {
             var selected = UnitListBox.SelectedItems.Cast<string>().ToList();
-            if (selected.Count == 0) { MessageBox.Show(Loc.T("Str_Win_DeptBulletin_MsgSelectUnitFirst"), Loc.T("Str_MsgTitle_Info")); return; }
+            if (selected.Count == 0) { AppMessageBox.Show(Loc.T("Str_Win_DeptBulletin_MsgSelectUnitFirst"), Loc.T("Str_MsgTitle_Info")); return; }
 
             var dlg = new System.Windows.Forms.FolderBrowserDialog {
                 Description = Loc.T("Str_Win_DeptBulletin_FolderPickTitle"),

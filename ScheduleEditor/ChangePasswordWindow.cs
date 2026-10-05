@@ -120,7 +120,7 @@ namespace ScheduleEditor
             }
             // 改完密码后清掉"记住"，强制下次手动输
             CredentialStore.ClearRemembered();
-            MessageBox.Show(SwimmingScoreboard.Loc.T("Str_StandaloneChangePwd_UpdatedMsg"),
+            SwimmingScoreboard.AppMessageBox.Show(SwimmingScoreboard.Loc.T("Str_StandaloneChangePwd_UpdatedMsg"),
                 SwimmingScoreboard.Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Information);
             Close();
         }

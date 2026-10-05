@@ -97,8 +97,8 @@ namespace SwimmingScoreboard
 
         private void Delete_Click(object sender, RoutedEventArgs e) {
             var sel = StaffGrid.SelectedItems.Cast<StaffMember>().ToList();
-            if (sel.Count == 0) { MessageBox.Show(Loc.T("Str_Win_UnitMgmt_MsgSelectToDelete"), Loc.T("Str_MsgTitle_Info")); return; }
-            if (MessageBox.Show(Loc.F("Str_Win_StaffMgmt_MsgConfirmDeleteFmt", sel.Count),
+            if (sel.Count == 0) { AppMessageBox.Show(Loc.T("Str_Win_UnitMgmt_MsgSelectToDelete"), Loc.T("Str_MsgTitle_Info")); return; }
+            if (AppMessageBox.Show(Loc.F("Str_Win_StaffMgmt_MsgConfirmDeleteFmt", sel.Count),
                 Loc.T("Str_MsgTitle_Confirm"), MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
             foreach (var s in sel) _staff.Remove(s);
             RefreshCountText();
@@ -108,11 +108,11 @@ namespace SwimmingScoreboard
             string g = CurrentGroupSelection();
             string[] titles;
             if (!StaffGroups.DefaultTitles.TryGetValue(g, out titles) || titles.Length == 0) {
-                MessageBox.Show(Loc.T("Str_Win_StaffMgmt_MsgNoDefaultTitles"), Loc.T("Str_MsgTitle_Info")); return;
+                AppMessageBox.Show(Loc.T("Str_Win_StaffMgmt_MsgNoDefaultTitles"), Loc.T("Str_MsgTitle_Info")); return;
             }
             int existing = _staff.Count(s => (s.Group ?? "") == g);
             if (existing > 0) {
-                if (MessageBox.Show(Loc.F("Str_Win_StaffMgmt_MsgConfirmAppendFmt", g, existing),
+                if (AppMessageBox.Show(Loc.F("Str_Win_StaffMgmt_MsgConfirmAppendFmt", g, existing),
                     Loc.T("Str_MsgTitle_Confirm"), MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
             }
             int added = 0;
@@ -124,7 +124,7 @@ namespace SwimmingScoreboard
                 added++;
             }
             RefreshCountText();
-            MessageBox.Show(Loc.F("Str_Win_StaffMgmt_MsgAppendDoneFmt", g, added), Loc.T("Str_MsgTitle_Done"));
+            AppMessageBox.Show(Loc.F("Str_Win_StaffMgmt_MsgAppendDoneFmt", g, added), Loc.T("Str_MsgTitle_Done"));
         }
 
         private void ExportCsv_Click(object sender, RoutedEventArgs e) {
@@ -143,7 +143,7 @@ namespace SwimmingScoreboard
                 }));
             }
             File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
-            MessageBox.Show(Loc.F("Str_Win_UnitMgmt_MsgExportedFmt", dlg.FileName), Loc.T("Str_MsgTitle_Done"));
+            AppMessageBox.Show(Loc.F("Str_Win_UnitMgmt_MsgExportedFmt", dlg.FileName), Loc.T("Str_MsgTitle_Done"));
         }
 
         private void ImportCsv_Click(object sender, RoutedEventArgs e) {
@@ -169,9 +169,9 @@ namespace SwimmingScoreboard
                     added++;
                 }
                 RefreshCountText();
-                MessageBox.Show(Loc.F("Str_Win_StaffMgmt_MsgImportedFmt", added), Loc.T("Str_MsgTitle_Done"));
+                AppMessageBox.Show(Loc.F("Str_Win_StaffMgmt_MsgImportedFmt", added), Loc.T("Str_MsgTitle_Done"));
             } catch (Exception ex) {
-                MessageBox.Show(Loc.F("Str_Win_UnitMgmt_MsgImportFailFmt", ex.Message), Loc.T("Str_MsgTitle_Error"));
+                AppMessageBox.Show(Loc.F("Str_Win_UnitMgmt_MsgImportFailFmt", ex.Message), Loc.T("Str_MsgTitle_Error"));
             }
         }
 
@@ -229,9 +229,9 @@ namespace SwimmingScoreboard
                     for (int c = 0; c < 7; c++) sheet.AutoSizeColumn(c);
                 }
                 using (var fs = new FileStream(dlg.FileName, FileMode.Create, FileAccess.Write)) wb.Write(fs);
-                MessageBox.Show(Loc.F("Str_Win_StaffMgmt_MsgRosterExportedFmt", dlg.FileName, perPage), Loc.T("Str_MsgTitle_Done"));
+                AppMessageBox.Show(Loc.F("Str_Win_StaffMgmt_MsgRosterExportedFmt", dlg.FileName, perPage), Loc.T("Str_MsgTitle_Done"));
             } catch (Exception ex) {
-                MessageBox.Show(Loc.F("Str_Win_StaffMgmt_MsgExportFailFmt", ex.Message), Loc.T("Str_MsgTitle_Error"));
+                AppMessageBox.Show(Loc.F("Str_Win_StaffMgmt_MsgExportFailFmt", ex.Message), Loc.T("Str_MsgTitle_Error"));
             }
         }
 
@@ -239,7 +239,7 @@ namespace SwimmingScoreboard
             // 简单校验：每行必填 分组 + 岗位
             int incomplete = _staff.Count(s => string.IsNullOrEmpty(s.Group) || string.IsNullOrEmpty(s.Title));
             if (incomplete > 0) {
-                if (MessageBox.Show(Loc.F("Str_Win_StaffMgmt_MsgConfirmSaveIncompleteFmt", incomplete),
+                if (AppMessageBox.Show(Loc.F("Str_Win_StaffMgmt_MsgConfirmSaveIncompleteFmt", incomplete),
                     Loc.T("Str_MsgTitle_Confirm"), MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
             }
             DialogResult = true;

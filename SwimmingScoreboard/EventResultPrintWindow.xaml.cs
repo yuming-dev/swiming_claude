@@ -628,7 +628,7 @@ namespace SwimmingScoreboard
             }
             if (ready.Count == 0) return false;
 
-            var r = MessageBox.Show(
+            var r = AppMessageBox.Show(
                 string.Format("【{0} {1} {2}】在竞赛库里所有组都已确认，名次也算好了，\n"
                             + "只是还没有生成【组成绩（本项目所有组的总排名）】。\n\n"
                             + "它是晋级的依据；直接决赛的项目，它就是最终名次。\n"
@@ -642,7 +642,7 @@ namespace SwimmingScoreboard
                 try { made += GenerateEventRanking(ag, gender, eventName, stage); } catch { }
             }
             if (made <= 0) {
-                MessageBox.Show("没有生成出来。请到【系统日志与数据】页看一眼原因。",
+                AppMessageBox.Show("没有生成出来。请到【系统日志与数据】页看一眼原因。",
                     "补生成组成绩", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return false;
             }
@@ -1254,7 +1254,7 @@ namespace SwimmingScoreboard
                 if (string.IsNullOrEmpty(html)) return;
                 var p = WriteTempHtml(html, suggested);
                 Process.Start(p);
-            } catch (Exception ex) { MessageBox.Show(Loc.T("Str_Win_DocPreview_MsgOpenFailPrefix") + ex.Message); }
+            } catch (Exception ex) { AppMessageBox.Show(Loc.T("Str_Win_DocPreview_MsgOpenFailPrefix") + ex.Message); }
         }
 
         /// <summary>
@@ -1277,15 +1277,15 @@ namespace SwimmingScoreboard
                 if (dlg.ShowDialog() != true) return;
                 string tmpHtml = WriteTempHtml(html, suggested);
                 if (MainWindow.TryHtmlToPdf(tmpHtml, dlg.FileName)) {
-                    if (MessageBox.Show(Loc.F("Str_Win_DocPreview_MsgExportedOpenFmt", dlg.FileName), Loc.T("Str_Win_DocPreview_ExportPdfBtn"),
+                    if (AppMessageBox.Show(Loc.F("Str_Win_DocPreview_MsgExportedOpenFmt", dlg.FileName), Loc.T("Str_Win_DocPreview_ExportPdfBtn"),
                             MessageBoxButton.YesNo, MessageBoxImage.Information) == MessageBoxResult.Yes)
                         Process.Start(dlg.FileName);
                     return;
                 }
                 Process.Start(tmpHtml);
-                MessageBox.Show(Loc.T("Str_Win_DocPreview_MsgNoPdfEngine"),
+                AppMessageBox.Show(Loc.T("Str_Win_DocPreview_MsgNoPdfEngine"),
                     Loc.T("Str_Win_DocPreview_ExportPdfBtn"), MessageBoxButton.OK, MessageBoxImage.Warning);
-            } catch (Exception ex) { MessageBox.Show(Loc.T("Str_Win_DocPreview_MsgExportPdfFailPrefix") + ex.Message); }
+            } catch (Exception ex) { AppMessageBox.Show(Loc.T("Str_Win_DocPreview_MsgExportPdfFailPrefix") + ex.Message); }
         }
 
         private void ExportDoc_Click(object sender, RoutedEventArgs e) { SaveAs(".doc", Loc.T("Str_Win_DocPreview_DocFilter")); }
@@ -1302,11 +1302,11 @@ namespace SwimmingScoreboard
             if (dlg.ShowDialog() != true) return;
             try {
                 File.WriteAllText(dlg.FileName, html, Encoding.UTF8);
-                if (MessageBox.Show(Loc.F("Str_Win_DocPreview_MsgExportedOpenFmt", dlg.FileName), Loc.T("Str_Win_DocPreview_MsgTitleExportSuccess"),
+                if (AppMessageBox.Show(Loc.F("Str_Win_DocPreview_MsgExportedOpenFmt", dlg.FileName), Loc.T("Str_Win_DocPreview_MsgTitleExportSuccess"),
                                     MessageBoxButton.YesNo, MessageBoxImage.Information) == MessageBoxResult.Yes) {
                     Process.Start(dlg.FileName);
                 }
-            } catch (Exception ex) { MessageBox.Show(Loc.T("Str_Win_DocPreview_MsgExportFailPrefix") + ex.Message); }
+            } catch (Exception ex) { AppMessageBox.Show(Loc.T("Str_Win_DocPreview_MsgExportFailPrefix") + ex.Message); }
         }
 
         // "打印"按钮: 复用 DocumentPreviewWindow (含 WebBrowser, execCommand 打印更可靠)
@@ -1316,7 +1316,7 @@ namespace SwimmingScoreboard
                 if (string.IsNullOrEmpty(html)) return;
                 var prevWin = new DocumentPreviewWindow(Loc.T("Str_Win_EventResultPrint_Title") + " - " + suggested, html) { Owner = this };
                 prevWin.Show();
-            } catch (Exception ex) { MessageBox.Show(Loc.T("Str_Win_BatchAge_MsgPrintFailPrefix") + ex.Message); }
+            } catch (Exception ex) { AppMessageBox.Show(Loc.T("Str_Win_BatchAge_MsgPrintFailPrefix") + ex.Message); }
         }
 
         private void Close_Click(object sender, RoutedEventArgs e)

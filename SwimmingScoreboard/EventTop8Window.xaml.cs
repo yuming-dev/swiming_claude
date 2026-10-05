@@ -124,7 +124,7 @@ namespace SwimmingScoreboard
         }
 
         private void ExportCsv_Click(object sender, RoutedEventArgs e) {
-            if (_lastResult.Count == 0) { MessageBox.Show(Loc.T("Str_Win_IndiRank_MsgComputeFirst"), Loc.T("Str_MsgTitle_Info")); return; }
+            if (_lastResult.Count == 0) { AppMessageBox.Show(Loc.T("Str_Win_IndiRank_MsgComputeFirst"), Loc.T("Str_MsgTitle_Info")); return; }
             var dlg = new Microsoft.Win32.SaveFileDialog {
                 Filter = Loc.T("Str_Win_UnitMgmt_CsvFilter"), Title = Loc.T("Str_Win_EventTop8_ExportCsvTitle"),
                 FileName = Loc.T("Str_FileName_EventTop8") + "_" + DateTime.Now.ToString("yyyyMMdd_HHmm") + ".csv"
@@ -140,11 +140,11 @@ namespace SwimmingScoreboard
                 }));
             }
             File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
-            MessageBox.Show(Loc.F("Str_Win_UnitMgmt_MsgExportedFmt", dlg.FileName), Loc.T("Str_MsgTitle_Done"));
+            AppMessageBox.Show(Loc.F("Str_Win_UnitMgmt_MsgExportedFmt", dlg.FileName), Loc.T("Str_MsgTitle_Done"));
         }
 
         private void PrintHtml_Click(object sender, RoutedEventArgs e) {
-            if (_lastResult.Count == 0) { MessageBox.Show(Loc.T("Str_Win_IndiRank_MsgComputeFirst"), Loc.T("Str_MsgTitle_Info")); return; }
+            if (_lastResult.Count == 0) { AppMessageBox.Show(Loc.T("Str_Win_IndiRank_MsgComputeFirst"), Loc.T("Str_MsgTitle_Info")); return; }
             var sb = new StringBuilder();
             sb.AppendLine("<!DOCTYPE html><html><head><meta charset='UTF-8'><title>" + He(Loc.T("Str_Win_EventTop8_Title")) + "</title>");
             sb.AppendLine("<style>body{font-family:'Microsoft YaHei',sans-serif;margin:20px;font-size:12px;}");
@@ -165,7 +165,7 @@ namespace SwimmingScoreboard
             sb.AppendLine("</table></body></html>");
             string tmp = Path.Combine(Path.GetTempPath(), Loc.T("Str_FileName_EventTop8") + "_" + DateTime.Now.ToString("yyyyMMdd_HHmm") + ".html");
             File.WriteAllText(tmp, sb.ToString(), Encoding.UTF8);
-            try { Process.Start(tmp); } catch { MessageBox.Show(Loc.F("Str_Win_IndiRank_MsgGeneratedFmt", tmp)); }
+            try { Process.Start(tmp); } catch { AppMessageBox.Show(Loc.F("Str_Win_IndiRank_MsgGeneratedFmt", tmp)); }
         }
 
         private void Close_Click(object sender, RoutedEventArgs e) { Close(); }

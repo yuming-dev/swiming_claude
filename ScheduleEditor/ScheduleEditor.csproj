@@ -399,6 +399,9 @@
     <Compile Include="..\SwimmingScoreboard\Localization.cs">
       <Link>Localization.cs</Link>
     </Compile>
+    <Compile Include="..\SwimmingScoreboard\AppMessageBox.cs">
+      <Link>AppMessageBox.cs</Link>
+    </Compile>
     <Compile Include="..\SwimmingScoreboard\ChiefJudgePasswordWindow.cs">
       <Link>ChiefJudgePasswordWindow.cs</Link>
     </Compile>

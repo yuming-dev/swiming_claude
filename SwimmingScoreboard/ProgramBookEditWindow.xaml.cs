@@ -90,7 +90,7 @@ namespace SwimmingScoreboard
         }
 
         private void Reset_Click(object sender, RoutedEventArgs e) {
-            if (MessageBox.Show(Loc.T("Str_Win_ProgBook_MsgConfirmReset"), Loc.T("Str_Win_ProgBook_MsgTitleReset"), MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+            if (AppMessageBox.Show(Loc.T("Str_Win_ProgBook_MsgConfirmReset"), Loc.T("Str_Win_ProgBook_MsgTitleReset"), MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
             CoverTitleBox.Text = Loc.T("Str_Win_ProgBook_DefaultCoverTitle");
             CoverSubtitleBox.Text = Loc.T("Str_Win_ProgBook_DefaultCoverSubtitle");
             VenueImagePathBox.Text = "";
@@ -105,7 +105,7 @@ namespace SwimmingScoreboard
         }
 
         private void Preview_Click(object sender, RoutedEventArgs e) {
-            if (_previewProvider == null) { MessageBox.Show(Loc.T("Str_Win_ProgBook_MsgPreviewUnavailable")); return; }
+            if (_previewProvider == null) { AppMessageBox.Show(Loc.T("Str_Win_ProgBook_MsgPreviewUnavailable")); return; }
             // 临时收集当前值供预览
             var snapshot = Collect();
             // 把当前 dialog 的值压入 result 临时让 caller 用快照渲染
@@ -118,7 +118,7 @@ namespace SwimmingScoreboard
                     System.Diagnostics.Process.Start(tmp);
                 }
             } catch (Exception ex) {
-                MessageBox.Show(Loc.T("Str_Win_ProgBook_MsgPreviewFailPrefix") + ex.Message);
+                AppMessageBox.Show(Loc.T("Str_Win_ProgBook_MsgPreviewFailPrefix") + ex.Message);
             }
         }
 
@@ -146,7 +146,7 @@ namespace SwimmingScoreboard
                 _teamStaff.Add(new ProgramBookTeamStaff { TeamName = t, Leader = "", Coaches = "", Doctors = "", Staff = "" });
                 added++;
             }
-            MessageBox.Show(Loc.F("Str_Win_ProgBook_MsgAutoFillDoneFmt", added), Loc.T("Str_MsgTitle_Info"));
+            AppMessageBox.Show(Loc.F("Str_Win_ProgBook_MsgAutoFillDoneFmt", added), Loc.T("Str_MsgTitle_Info"));
         }
     }
 }

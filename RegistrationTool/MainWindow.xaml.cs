@@ -321,7 +321,7 @@ namespace RegistrationTool
             if (string.IsNullOrEmpty(eventName)) return;
             foreach (var ev in _events) {
                 if (ev.EventName == eventName) {
-                    MessageBox.Show(SwimmingScoreboard.Loc.T("Str_RegTool_ErrDupEvent"), SwimmingScoreboard.Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Warning);
+                    SwimmingScoreboard.AppMessageBox.Show(SwimmingScoreboard.Loc.T("Str_RegTool_ErrDupEvent"), SwimmingScoreboard.Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
             }
@@ -332,7 +332,7 @@ namespace RegistrationTool
 
         private void RemoveEvent_Click(object sender, RoutedEventArgs e) {
             int idx = EventListBox.SelectedIndex;
-            if (idx < 0 || idx >= _events.Count) { MessageBox.Show(SwimmingScoreboard.Loc.T("Str_RegTool_ErrSelectEventFirst")); return; }
+            if (idx < 0 || idx >= _events.Count) { SwimmingScoreboard.AppMessageBox.Show(SwimmingScoreboard.Loc.T("Str_RegTool_ErrSelectEventFirst")); return; }
             _events.RemoveAt(idx);
             RefreshEventList();
         }
@@ -465,7 +465,7 @@ namespace RegistrationTool
             if (string.IsNullOrEmpty(eventName)) return;
             foreach (var ev in _relayEvents) {
                 if (ev.EventName == eventName) {
-                    MessageBox.Show(SwimmingScoreboard.Loc.T("Str_RegTool_ErrDupEvent"), SwimmingScoreboard.Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Warning);
+                    SwimmingScoreboard.AppMessageBox.Show(SwimmingScoreboard.Loc.T("Str_RegTool_ErrDupEvent"), SwimmingScoreboard.Loc.T("Str_MsgTitle_Info"), MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
             }

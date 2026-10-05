@@ -33,7 +33,7 @@ namespace SwimmingScoreboard
                 mainWin.Show();
             } catch (Exception ex) {
                 WriteErrorLog(ex);
-                MessageBox.Show(Loc.F("Str_App_StartupFailedFmt", ex.ToString()), Loc.T("Str_MsgTitle_Error"), MessageBoxButton.OK, MessageBoxImage.Error);
+                AppMessageBox.Show(Loc.F("Str_App_StartupFailedFmt", ex.ToString()), Loc.T("Str_MsgTitle_Error"), MessageBoxButton.OK, MessageBoxImage.Error);
                 Shutdown();
             }
         }
@@ -58,7 +58,7 @@ namespace SwimmingScoreboard
 
         private void App_DispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e) {
             WriteErrorLog(e.Exception);
-            MessageBox.Show(Loc.F("Str_App_UnhandledExceptionFmt", e.Exception.ToString()), Loc.T("Str_MsgTitle_Error"), MessageBoxButton.OK, MessageBoxImage.Error);
+            AppMessageBox.Show(Loc.F("Str_App_UnhandledExceptionFmt", e.Exception.ToString()), Loc.T("Str_MsgTitle_Error"), MessageBoxButton.OK, MessageBoxImage.Error);
             e.Handled = true;
         }
 

@@ -74,8 +74,8 @@ namespace SwimmingScoreboard
             UpdateCount();
             var selected = _all.Where(r => r.Selected).ToList();
             if (selected.Count == 0) {
-                if (_all.Count == 0) MessageBox.Show(Loc.T("Str_Win_RecordCert_MsgNoRecords"), Loc.T("Str_Win_RecordCert_Title"));
-                else MessageBox.Show(Loc.T("Str_Win_RecordCert_MsgSelectAtLeastOne"), Loc.T("Str_Win_RecordCert_Title"));
+                if (_all.Count == 0) AppMessageBox.Show(Loc.T("Str_Win_RecordCert_MsgNoRecords"), Loc.T("Str_Win_RecordCert_Title"));
+                else AppMessageBox.Show(Loc.T("Str_Win_RecordCert_MsgSelectAtLeastOne"), Loc.T("Str_Win_RecordCert_Title"));
                 return;
             }
             var templateItem = TemplateBox.SelectedItem as ComboBoxItem;

@@ -42,8 +42,8 @@ namespace SwimmingScoreboard
 
         private void Delete_Click(object sender, RoutedEventArgs e) {
             var sel = UnitGrid.SelectedItems.Cast<Unit>().ToList();
-            if (sel.Count == 0) { MessageBox.Show(Loc.T("Str_Win_UnitMgmt_MsgSelectToDelete"), Loc.T("Str_MsgTitle_Info")); return; }
-            if (MessageBox.Show(Loc.F("Str_Win_UnitMgmt_MsgConfirmDeleteFmt", sel.Count),
+            if (sel.Count == 0) { AppMessageBox.Show(Loc.T("Str_Win_UnitMgmt_MsgSelectToDelete"), Loc.T("Str_MsgTitle_Info")); return; }
+            if (AppMessageBox.Show(Loc.F("Str_Win_UnitMgmt_MsgConfirmDeleteFmt", sel.Count),
                 Loc.T("Str_MsgTitle_Confirm"), MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
             foreach (var u in sel) _units.Remove(u);
             RefreshCountText();
@@ -63,7 +63,7 @@ namespace SwimmingScoreboard
                 added++;
             }
             RefreshCountText();
-            MessageBox.Show(Loc.F("Str_Win_UnitMgmt_MsgAutoFillDoneFmt", added), Loc.T("Str_MsgTitle_Done"));
+            AppMessageBox.Show(Loc.F("Str_Win_UnitMgmt_MsgAutoFillDoneFmt", added), Loc.T("Str_MsgTitle_Done"));
         }
 
         private void ExportCsv_Click(object sender, RoutedEventArgs e) {
@@ -83,7 +83,7 @@ namespace SwimmingScoreboard
                 }));
             }
             File.WriteAllText(dlg.FileName, sb.ToString(), Encoding.UTF8);
-            MessageBox.Show(Loc.F("Str_Win_UnitMgmt_MsgExportedFmt", dlg.FileName), Loc.T("Str_MsgTitle_Done"));
+            AppMessageBox.Show(Loc.F("Str_Win_UnitMgmt_MsgExportedFmt", dlg.FileName), Loc.T("Str_MsgTitle_Done"));
         }
 
         private void ImportCsv_Click(object sender, RoutedEventArgs e) {
@@ -127,9 +127,9 @@ namespace SwimmingScoreboard
                     }
                 }
                 RefreshCountText();
-                MessageBox.Show(Loc.F("Str_Win_UnitMgmt_MsgImportDoneFmt", added, updated), Loc.T("Str_MsgTitle_Done"));
+                AppMessageBox.Show(Loc.F("Str_Win_UnitMgmt_MsgImportDoneFmt", added, updated), Loc.T("Str_MsgTitle_Done"));
             } catch (Exception ex) {
-                MessageBox.Show(Loc.F("Str_Win_UnitMgmt_MsgImportFailFmt", ex.Message), Loc.T("Str_MsgTitle_Error"));
+                AppMessageBox.Show(Loc.F("Str_Win_UnitMgmt_MsgImportFailFmt", ex.Message), Loc.T("Str_MsgTitle_Error"));
             }
         }
 
@@ -154,7 +154,7 @@ namespace SwimmingScoreboard
                 _editTempPath = tmp;
                 try { Process.Start(new ProcessStartInfo(tmp) { UseShellExecute = true }); }
                 catch (Exception ex) {
-                    MessageBox.Show(Loc.F("Str_Win_UnitMgmt_MsgOpenFailFmt", ex.Message, tmp), Loc.T("Str_MsgTitle_Info"));
+                    AppMessageBox.Show(Loc.F("Str_Win_UnitMgmt_MsgOpenFailFmt", ex.Message, tmp), Loc.T("Str_MsgTitle_Info"));
                 }
                 // 模态等待对话框: 编辑完成回灌 / 取消
                 var dlg = new Window {
@@ -204,7 +204,7 @@ namespace SwimmingScoreboard
                     try { File.Delete(tmp); } catch { }
                 }
             } catch (Exception ex) {
-                MessageBox.Show(Loc.F("Str_Win_UnitMgmt_MsgLaunchFailFmt", ex.Message), Loc.T("Str_MsgTitle_Error"));
+                AppMessageBox.Show(Loc.F("Str_Win_UnitMgmt_MsgLaunchFailFmt", ex.Message), Loc.T("Str_MsgTitle_Error"));
             }
         }
 
@@ -232,30 +232,30 @@ namespace SwimmingScoreboard
         }
 
         private void ReadbackUnitsFromXlsx(string path) {
-            if (!File.Exists(path)) { MessageBox.Show(Loc.F("Str_Win_UnitMgmt_MsgTempMissingFmt", path), Loc.T("Str_MsgTitle_Error")); return; }
+            if (!File.Exists(path)) { AppMessageBox.Show(Loc.F("Str_Win_UnitMgmt_MsgTempMissingFmt", path), Loc.T("Str_MsgTitle_Error")); return; }
             IWorkbook wb;
             try {
                 using (var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
                     wb = new XSSFWorkbook(fs);
             } catch (IOException) {
-                MessageBox.Show(Loc.T("Str_Win_UnitMgmt_MsgFileLocked"), Loc.T("Str_MsgTitle_Info")); return;
+                AppMessageBox.Show(Loc.T("Str_Win_UnitMgmt_MsgFileLocked"), Loc.T("Str_MsgTitle_Info")); return;
             } catch (Exception ex) {
-                MessageBox.Show(Loc.F("Str_Win_UnitMgmt_MsgReadFailFmt", ex.Message), Loc.T("Str_MsgTitle_Error")); return;
+                AppMessageBox.Show(Loc.F("Str_Win_UnitMgmt_MsgReadFailFmt", ex.Message), Loc.T("Str_MsgTitle_Error")); return;
             }
             var sheet = wb.GetSheetAt(0);
-            if (sheet == null) { MessageBox.Show(Loc.T("Str_Win_UnitMgmt_MsgNoSheet"), Loc.T("Str_MsgTitle_Error")); return; }
+            if (sheet == null) { AppMessageBox.Show(Loc.T("Str_Win_UnitMgmt_MsgNoSheet"), Loc.T("Str_MsgTitle_Error")); return; }
 
             // 表头严格校验 (UnitXlsxHeader 现按 Loc.T 现取; 写入与回读发生在同一次操作里,
             // 中间隔着模态"等待"窗口, 用户没法在这期间切语言, 两边天然保持一致)
             var head = sheet.GetRow(0);
             if (head == null || head.LastCellNum < UnitXlsxHeader.Length) {
-                MessageBox.Show(Loc.T("Str_Win_UnitMgmt_MsgHeaderCountBad"), Loc.T("Str_MsgTitle_Error"));
+                AppMessageBox.Show(Loc.T("Str_Win_UnitMgmt_MsgHeaderCountBad"), Loc.T("Str_MsgTitle_Error"));
                 return;
             }
             for (int c = 0; c < UnitXlsxHeader.Length; c++) {
                 string actual = head.GetCell(c) != null ? (head.GetCell(c).ToString() ?? "").Trim() : "";
                 if (actual != UnitXlsxHeader[c]) {
-                    MessageBox.Show(Loc.F(
+                    AppMessageBox.Show(Loc.F(
                         "Str_Win_UnitMgmt_MsgHeaderMismatchFmt",
                         c + 1, UnitXlsxHeader[c], actual), Loc.T("Str_MsgTitle_Error"));
                     return;
@@ -296,7 +296,7 @@ namespace SwimmingScoreboard
             }
 
             // 二次确认：整体替换
-            var res = MessageBox.Show(Loc.F(
+            var res = AppMessageBox.Show(Loc.F(
                 "Str_Win_UnitMgmt_MsgConfirmReadbackFmt",
                 _units.Count, newUnits.Count, skipped.Count),
                 Loc.T("Str_MsgTitle_Confirm"), MessageBoxButton.OKCancel, MessageBoxImage.Question);
@@ -312,7 +312,7 @@ namespace SwimmingScoreboard
                 sb.AppendLine(Loc.T("Str_Win_UnitMgmt_MsgSkippedDetail"));
                 foreach (var s in skipped) sb.AppendLine("• " + s);
             }
-            MessageBox.Show(sb.ToString(), Loc.T("Str_MsgTitle_Done"));
+            AppMessageBox.Show(sb.ToString(), Loc.T("Str_MsgTitle_Done"));
 
             try { File.Delete(path); } catch { }
             _editTempPath = null;
