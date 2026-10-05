@@ -1810,89 +1810,106 @@ namespace SwimmingScoreboard
         }
 
         // 各组默认岗位（首次进入时自动播种；可在窗口里增删改）
-        public static readonly Dictionary<string, string[]> DefaultTitles = new Dictionary<string, string[]> {
-            { Presidium, BuildPresidiumDefaults() },
-            { OrgCommittee, BuildOrgCommitteeDefaults() },
-            { WorkOrg, BuildWorkOrgDefaults() },
-            { TechArbitration, BuildTechArbitrationDefaults() },
-            { Referees, BuildRefereesDefaults() }
-        };
+        // 2026-10-05 改成按当前语言现取的属性——原来是 static readonly 字段, 类型第一次
+        // 被用到时就把 Loc.T() 的结果定死了, 运行中切语言后"加载默认岗位"还是旧语言的文字。
+        public static Dictionary<string, string[]> DefaultTitles {
+            get {
+                return new Dictionary<string, string[]> {
+                    { Presidium, BuildPresidiumDefaults() },
+                    { OrgCommittee, BuildOrgCommitteeDefaults() },
+                    { WorkOrg, BuildWorkOrgDefaults() },
+                    { TechArbitration, BuildTechArbitrationDefaults() },
+                    { Referees, BuildRefereesDefaults() }
+                };
+            }
+        }
 
+        // 2026-10-05 现场反馈: "Load Default Roles"种出来的默认岗位名全是硬编码中文,
+        //   English模式下也是中文——改成按当前语言现取 Loc.T()。Title 是自由文本字段,
+        //   全系统没有 == 比较依赖它(不像 Group/Gender), 直接翻译种子值本身即可。
         private static string[] BuildPresidiumDefaults() {
             // 主席 1 + 副主席 N + 秘书长 1 + 成员 N
-            var list = new List<string> { "主席", "副主席", "副主席", "副主席", "秘书长" };
-            for (int i = 0; i < 17; i++) list.Add("成员");
+            var list = new List<string> {
+                Loc.T("Str_StaffRole_Chairman"), Loc.T("Str_StaffRole_ViceChairman"), Loc.T("Str_StaffRole_ViceChairman"),
+                Loc.T("Str_StaffRole_ViceChairman"), Loc.T("Str_StaffRole_SecretaryGeneral")
+            };
+            for (int i = 0; i < 17; i++) list.Add(Loc.T("Str_StaffRole_Member"));
             return list.ToArray();
         }
 
         private static string[] BuildOrgCommitteeDefaults() {
-            var list = new List<string> { "名誉主任", "主任", "副主任", "副主任", "副主任", "秘书长", "副秘书长", "副秘书长" };
-            for (int i = 0; i < 15; i++) list.Add("委员");
+            var list = new List<string> {
+                Loc.T("Str_StaffRole_HonoraryDirector"), Loc.T("Str_StaffRole_Director"), Loc.T("Str_StaffRole_DeputyDirector"),
+                Loc.T("Str_StaffRole_DeputyDirector"), Loc.T("Str_StaffRole_DeputyDirector"), Loc.T("Str_StaffRole_SecretaryGeneral"),
+                Loc.T("Str_StaffRole_DeputySecretaryGeneral"), Loc.T("Str_StaffRole_DeputySecretaryGeneral")
+            };
+            for (int i = 0; i < 15; i++) list.Add(Loc.T("Str_StaffRole_CommitteeMember"));
             return list.ToArray();
         }
 
         private static string[] BuildWorkOrgDefaults() {
             var list = new List<string>();
             // 办公室
-            for (int i = 0; i < 4; i++) list.Add("办公室 工作人员");
+            for (int i = 0; i < 4; i++) list.Add(Loc.T("Str_StaffRole_Office") + " " + Loc.T("Str_StaffRole_Staff"));
             // 竞赛处 / 宣传广告处 / 后勤处 / 安全保卫处
-            string[] depts = { "竞赛处", "宣传广告处", "后勤处", "安全保卫处" };
-            foreach (var d in depts) {
-                list.Add(d + " 处长");
-                list.Add(d + " 副处长");
-                for (int i = 0; i < 5; i++) list.Add(d + " 工作人员");
+            string[] deptKeys = { "Str_StaffRole_CompetitionDept", "Str_StaffRole_PublicityDept", "Str_StaffRole_LogisticsDept", "Str_StaffRole_SecurityDept" };
+            foreach (var dk in deptKeys) {
+                string d = Loc.T(dk);
+                list.Add(d + " " + Loc.T("Str_StaffRole_DeptHead"));
+                list.Add(d + " " + Loc.T("Str_StaffRole_DeputyDeptHead"));
+                for (int i = 0; i < 5; i++) list.Add(d + " " + Loc.T("Str_StaffRole_Staff"));
             }
             return list.ToArray();
         }
 
         private static string[] BuildTechArbitrationDefaults() {
             var list = new List<string>();
-            for (int i = 0; i < 6; i++) list.Add("技术代表");
-            for (int i = 0; i < 5; i++) list.Add("技术官员");
-            for (int i = 0; i < 6; i++) list.Add("仲裁委员");
+            for (int i = 0; i < 6; i++) list.Add(Loc.T("Str_StaffRole_TechDelegate"));
+            for (int i = 0; i < 5; i++) list.Add(Loc.T("Str_StaffRole_TechOfficial"));
+            for (int i = 0; i < 6; i++) list.Add(Loc.T("Str_StaffRole_ArbitrationMember"));
             return list.ToArray();
         }
 
         private static string[] BuildRefereesDefaults() {
             var list = new List<string>();
             // 总/副总裁判长
-            list.Add("总裁判长"); list.Add("副总裁判长");
+            list.Add(Loc.T("Str_StaffRole_RefereeInChief")); list.Add(Loc.T("Str_StaffRole_DeputyRefereeInChief"));
             // 检录
-            list.Add("检录主裁判");
-            for (int i = 0; i < 8; i++) list.Add("检录裁判员");
+            list.Add(Loc.T("Str_StaffRole_ClerkOfCourseChief"));
+            for (int i = 0; i < 8; i++) list.Add(Loc.T("Str_StaffRole_ClerkOfCourse"));
             // 赛后控制中心
-            list.Add("赛后控制中心主裁判");
-            for (int i = 0; i < 7; i++) list.Add("赛后控制中心裁判员");
+            list.Add(Loc.T("Str_StaffRole_PostRaceCenterChief"));
+            for (int i = 0; i < 7; i++) list.Add(Loc.T("Str_StaffRole_PostRaceCenterJudge"));
             // 发令 / 召回
-            list.Add("发令主裁判");
-            list.Add("召回主裁判");
-            for (int i = 0; i < 4; i++) list.Add("助理发令员");
+            list.Add(Loc.T("Str_StaffRole_StarterChief"));
+            list.Add(Loc.T("Str_StaffRole_RecallStarterChief"));
+            for (int i = 0; i < 4; i++) list.Add(Loc.T("Str_StaffRole_AssistantStarter"));
             // 起点
-            for (int i = 0; i < 4; i++) list.Add("起点服务员");
+            for (int i = 0; i < 4; i++) list.Add(Loc.T("Str_StaffRole_StartAttendant"));
             // 终点摄影计时
-            list.Add("终点摄影计时主裁判");
-            for (int i = 0; i < 5; i++) list.Add("终点摄影计时裁判员");
+            list.Add(Loc.T("Str_StaffRole_FinishTimingChief"));
+            for (int i = 0; i < 5; i++) list.Add(Loc.T("Str_StaffRole_FinishTimingJudge"));
             // 计时
-            list.Add("计时主裁判");
-            for (int i = 0; i < 10; i++) list.Add("计时裁判员");
+            list.Add(Loc.T("Str_StaffRole_TimingChief"));
+            for (int i = 0; i < 10; i++) list.Add(Loc.T("Str_StaffRole_TimingJudge"));
             // 终点
-            list.Add("终点主裁判");
-            for (int i = 0; i < 8; i++) list.Add("终点裁判员");
+            list.Add(Loc.T("Str_StaffRole_FinishChief"));
+            for (int i = 0; i < 8; i++) list.Add(Loc.T("Str_StaffRole_FinishJudge"));
             // 检查
-            list.Add("检查主裁判");
-            for (int i = 0; i < 3; i++) list.Add("检查裁判员");
+            list.Add(Loc.T("Str_StaffRole_StrokeJudgeChief"));
+            for (int i = 0; i < 3; i++) list.Add(Loc.T("Str_StaffRole_StrokeJudge"));
             // 终点记录
-            list.Add("终点记录员");
+            list.Add(Loc.T("Str_StaffRole_FinishRecorder"));
             // 广播宣告
-            for (int i = 0; i < 3; i++) list.Add("广播宣告员");
+            for (int i = 0; i < 3; i++) list.Add(Loc.T("Str_StaffRole_Announcer"));
             // 编排记录公告
-            list.Add("编排记录公告主裁判");
-            for (int i = 0; i < 7; i++) list.Add("编排记录公告裁判员");
+            list.Add(Loc.T("Str_StaffRole_ProgramAnnounceChief"));
+            for (int i = 0; i < 7; i++) list.Add(Loc.T("Str_StaffRole_ProgramAnnounceJudge"));
             // 场地器材
-            list.Add("场地器材主裁判");
-            for (int i = 0; i < 11; i++) list.Add("场地器材裁判员");
+            list.Add(Loc.T("Str_StaffRole_VenueEquipmentChief"));
+            for (int i = 0; i < 11; i++) list.Add(Loc.T("Str_StaffRole_VenueEquipmentJudge"));
             // 兴奋剂检测
-            for (int i = 0; i < 5; i++) list.Add("兴奋剂检测员");
+            for (int i = 0; i < 5; i++) list.Add(Loc.T("Str_StaffRole_DopingControl"));
             return list.ToArray();
         }
     }

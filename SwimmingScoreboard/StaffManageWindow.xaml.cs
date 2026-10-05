@@ -20,10 +20,16 @@ namespace SwimmingScoreboard
         private CollectionView _view;
 
         // 2026-10-05 Group/Gender 下拉的 Value(数据哨兵, 存回 StaffMember)/Display(当前语言展示文字)
-        // 分离包装——DataGridComboBoxColumn 用 SelectedValueBinding+SelectedValuePath/DisplayMemberPath
-        private class ComboOption { public string Value; public string Display; }
+        // 分离包装——表格编辑态的 ComboBox(在 XAML 的 CellEditingTemplate 里) 靠这两个属性拿选项列表
+        public class ComboOption { public string Value; public string Display; }
+        public List<ComboOption> GroupOptions { get; private set; }
+        public List<ComboOption> GenderOptions { get; private set; }
 
         public StaffManageWindow(ObservableCollection<StaffMember> staff) {
+            GroupOptions = StaffGroups.All
+                .Select(g => new ComboOption { Value = g, Display = Loc.StaffGroupDisplay(g) }).ToList();
+            GenderOptions = new[] { "男", "女" }
+                .Select(g => new ComboOption { Value = g, Display = Loc.GenderDisplay(g) }).ToList();
             InitializeComponent();
             _staff = staff;
             // 2026-05-25 旧分组名迁移（'组委会'→'组织委员会' 等）
@@ -31,10 +37,6 @@ namespace SwimmingScoreboard
             // 2026-05-25 _staff 空 → 按 5 组默认岗位骨架自动播种（姓名留空）
             if (_staff.Count == 0) SeedDefaults();
             _backup = _staff.Select(Clone).ToList();
-            GroupColumn.ItemsSource = StaffGroups.All
-                .Select(g => new ComboOption { Value = g, Display = Loc.StaffGroupDisplay(g) }).ToList();
-            GenderColumn.ItemsSource = new[] { "男", "女" }
-                .Select(g => new ComboOption { Value = g, Display = Loc.GenderDisplay(g) }).ToList();
             StaffGrid.ItemsSource = _staff;
             _view = (CollectionView)CollectionViewSource.GetDefaultView(_staff);
             _view.Filter = FilterPredicate;
@@ -283,6 +285,26 @@ namespace SwimmingScoreboard
             }
             result.Add(sb.ToString());
             return result.ToArray();
+        }
+    }
+
+    // 2026-10-05 Group/Gender 列只读态展示转换——中文数据哨兵值 → 当前语言展示文字。
+    // 只用在 DataTemplate 的 OneWay 绑定上(编辑态走 CellEditingTemplate 里的 ComboBox,
+    // 不经过这个转换器), 所以不需要实现 ConvertBack。
+    public class StaffGroupDisplayConverter : IValueConverter {
+        public object Convert(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture) {
+            return Loc.StaffGroupDisplay(value as string);
+        }
+        public object ConvertBack(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture) {
+            throw new NotImplementedException();
+        }
+    }
+    public class GenderDisplayConverter : IValueConverter {
+        public object Convert(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture) {
+            return Loc.GenderDisplay(value as string);
+        }
+        public object ConvertBack(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture) {
+            throw new NotImplementedException();
         }
     }
 }
