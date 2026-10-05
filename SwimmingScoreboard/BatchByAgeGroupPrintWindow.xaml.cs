@@ -23,7 +23,7 @@ namespace SwimmingScoreboard
         private readonly string _referee;
         private readonly IList<AgeGroup> _ageGroups;
         private bool _initialized;
-        private string _selectedGender = "男", _selectedEvent = "", _selectedStage = "决赛", _selectedAgeGroup = "全部";
+        private string _selectedGender = "男", _selectedEvent = "", _selectedStage = "决赛", _selectedAgeGroup = Loc.T("Str_Common_All");
         // 缓存最近一次"查询"产出, 5 个按钮共用
         private string _cachedHtml = "";
         private string _cachedFileBase = "";
@@ -58,7 +58,7 @@ namespace SwimmingScoreboard
         /// <summary>2026-09-03 组别下拉: "全部" + 档案里配置的组别(没配就从名单里收)。</summary>
         private void PopulateAgeGroupCombo() {
             AgeGroupCombo.Items.Clear();
-            AgeGroupCombo.Items.Add("全部");
+            AgeGroupCombo.Items.Add(Loc.T("Str_Common_All"));
             foreach (string n in AllAgeGroupNames()) AgeGroupCombo.Items.Add(n);
             AgeGroupCombo.SelectedIndex = 0;
         }
@@ -81,13 +81,13 @@ namespace SwimmingScoreboard
             string ageG = GetText(AgeGroupCombo);
             string prev = EventCombo.SelectedItem as string ?? "";
             EventCombo.Items.Clear();
-            EventCombo.Items.Add("全部");   // 2026-09-03 项目也能选"全部": 一次生成整本
+            EventCombo.Items.Add(Loc.T("Str_Common_All"));   // 2026-09-03 项目也能选"全部": 一次生成整本
             var evSet = new HashSet<string>();
             foreach (var s in _swimmers) {
                 if (string.IsNullOrEmpty(s.EventName)) continue;
                 // 2026-06-02 "全部" 性别 = 不过滤性别, 列出所有项目; 否则原行为 (含混合)
-                if (gender != "全部" && s.Gender != gender && s.Gender != "混合") continue;
-                if (ageG != "全部" && (s.AgeCategory ?? "") != ageG) continue;
+                if (gender != Loc.T("Str_Common_All") && s.Gender != gender && s.Gender != "混合") continue;
+                if (ageG != Loc.T("Str_Common_All") && (s.AgeCategory ?? "") != ageG) continue;
                 if (s.Notes != null && s.Notes.StartsWith("接力队员")) continue;
                 evSet.Add(s.EventName);
             }
@@ -121,7 +121,7 @@ namespace SwimmingScoreboard
             // 2026-09-03 四个维度都支持"全部", 各自展开成要跑的清单。
             //   组别全部 = 每个组别各出一张子表(原行为); 项目/赛次全部 = 挨个跑一遍。
             var ageNames = new List<string>();
-            if (_selectedAgeGroup == "全部") ageNames.AddRange(AllAgeGroupNames());
+            if (_selectedAgeGroup == Loc.T("Str_Common_All")) ageNames.AddRange(AllAgeGroupNames());
             else ageNames.Add(_selectedAgeGroup);
             // 档案里一个组别都没配时, 用空串跑一遍, 免得整个循环空转
             if (ageNames.Count == 0) ageNames.Add("");
@@ -129,20 +129,20 @@ namespace SwimmingScoreboard
             // 2026-06-02 并项拆分: 性别"全部" → 男+女 各跑一遍; 单一性别保持只跑那一种.
             //   每个 (性别, 注册组别) 内部再按 swimmer.Age 切子块 (例 "9-11岁" → 9岁/10岁/11岁).
             var gendersToRun = new List<string>();
-            if (_selectedGender == "全部") { gendersToRun.Add("男"); gendersToRun.Add("女"); }
+            if (_selectedGender == Loc.T("Str_Common_All")) { gendersToRun.Add("男"); gendersToRun.Add("女"); }
             else gendersToRun.Add(_selectedGender);
 
             var eventsToRun = new List<string>();
-            if (_selectedEvent == "全部") {
+            if (_selectedEvent == Loc.T("Str_Common_All")) {
                 foreach (var it in EventCombo.Items) {
                     string ev = it as string;
-                    if (!string.IsNullOrEmpty(ev) && ev != "全部") eventsToRun.Add(ev);
+                    if (!string.IsNullOrEmpty(ev) && ev != Loc.T("Str_Common_All")) eventsToRun.Add(ev);
                 }
             } else eventsToRun.Add(_selectedEvent);
 
             // 2026-09-03 "全部"赛次要跑哪几个, 取【比赛参数设置管理 → 赛次】那张表, 不写死
             var stagesToRun = new List<string>();
-            if (_selectedStage == "全部") stagesToRun.AddRange(StageRegistry.List);
+            if (_selectedStage == Loc.T("Str_Common_All")) stagesToRun.AddRange(StageRegistry.List);
             else stagesToRun.Add(_selectedStage);
 
             var blocks = new List<AgeBlock>();
@@ -188,7 +188,7 @@ namespace SwimmingScoreboard
 
             StatusText.Text = Loc.F("Str_Win_BatchAge_StatusDoneFmt",
                 _selectedAgeGroup, _selectedGender, _selectedEvent, _selectedStage, blocks.Count,
-                (_selectedEvent == "全部" || _selectedStage == "全部") ? Loc.T("Str_Win_BatchAge_ExtraDims") : "");
+                (_selectedEvent == Loc.T("Str_Common_All") || _selectedStage == Loc.T("Str_Common_All")) ? Loc.T("Str_Win_BatchAge_ExtraDims") : "");
             StatusText.Foreground = Brushes.Green;
             SetActionButtonsEnabled(true);
         }

@@ -36,7 +36,9 @@ namespace SwimmingScoreboard
 
         private void Compute_Click(object sender, RoutedEventArgs e) {
             string ageFilter = AgeGroupCombo.SelectedItem != null ? AgeGroupCombo.SelectedItem.ToString() : Loc.T("Str_Win_AwardCert_AllAgeGroups");
-            string genderFilter = GenderCombo.SelectedItem != null ? ((ComboBoxItem)GenderCombo.SelectedItem).Content.ToString() : "全部";
+            // 2026-10-05 GenderCombo 用 Tag 存中文哨兵值(展示走 Loc.GenderDisplay), 这里跟着
+            // 读 Tag, 比较目标也固定用原始"全部"(不随语言变, 跟 FillGenderCombo 里的 Tag 对应)
+            string genderFilter = GenderCombo.SelectedItem != null ? ((ComboBoxItem)GenderCombo.SelectedItem).Tag.ToString() : "全部";
             string display = DisplayCombo.SelectedItem != null ? ((ComboBoxItem)DisplayCombo.SelectedItem).Content.ToString() : Loc.T("Str_Win_EventTop8_DisplayNameTeam");
 
             var ageGroupNames = _ageGroups.Count > 0 ? _ageGroups.Select(g => g.Name).ToList() : new List<string> { "" };

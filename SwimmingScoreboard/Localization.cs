@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Text;
+using System.Threading;
 using System.Windows;
 using Newtonsoft.Json.Linq;
 
@@ -1296,6 +1298,20 @@ namespace SwimmingScoreboard
             { "Str_Msg_HeatsTemplateSavedTip", new[] { "模板已保存，用 Excel/WPS 打开填写后通过【导入分组表】读入。\n\n说明：\n• 参赛号或 “姓名+代表队” 任一能匹配到已注册运动员即可\n• 导入会覆盖相应项目/赛次的所有分组", "Template saved — fill it in with Excel/WPS, then read it back in with \"Import Heat Assignments\".\n\nNotes:\n• Matches by either bib number or \"name+team\" against registered swimmers\n• Importing overwrites all heats for the matching event/stage" } },
             { "Str_Msg_CannotPrintWhileRacing", new[] { "正在比赛中，不能打印，请稍后。", "Can't print while the race is in progress — try again shortly." } },
             { "Str_Msg_CsvImportSummaryFmt", new[] { "CSV 导入完成（个人报名模板）：\n\n  ✅ 新增 {0} 条\n  🔄 更新 {1} 条 (按身份证号+项目匹配)\n  ⏭ 跳过 {2} 行\n", "CSV import complete (individual registration template):\n\n  ✅ Added {0}\n  🔄 Updated {1} (matched by ID number + event)\n  ⏭ Skipped {2} row(s)\n" } },
+            // 2026-10-05 现场反馈("模拟英文报名"测试重复导入时发现): 跳过明细只翻了外层汇总,
+            // 这条"与号码冲突"的具体原因还是硬编码中文, 没走 Loc。
+            { "Str_Msg_CsvDupBibConflictFmt", new[] { "第{0}行 {1} ({2}): 与号码 {3} 的现有记录冲突", "Row {0} {1} ({2}): conflicts with existing record, bib {3}" } },
+            { "Str_Msg_CsvDupConflictFmt", new[] { "第{0}行 {1} ({2}): 与现有记录冲突", "Row {0} {1} ({2}): conflicts with an existing record" } },
+            // 2026-10-05 同一轮测试发现: 接力队CSV导入的跳过明细(ImportRelayCSV_Click)也是
+            // 一整串硬编码中文, 没有一条走 Loc。
+            { "Str_Msg_RelayCsvColCountFmt", new[] { "第 {0} 行: 列数不足 ({1} < {2})", "Row {0}: too few columns ({1} < {2})" } },
+            { "Str_Msg_RelayCsvMissingTeamFmt", new[] { "第 {0} 行: 缺少队名", "Row {0}: missing team name" } },
+            { "Str_Msg_RelayCsvMissingEventFmt", new[] { "第 {0} 行 [{1}]: 缺少项目", "Row {0} [{1}]: missing event" } },
+            { "Str_Msg_RelayCsvNotRelayEventFmt", new[] { "第 {0} 行 [{1}]: 项目「{2}」不是接力项目", "Row {0} [{1}]: event \"{2}\" is not a relay event" } },
+            { "Str_Msg_RelayCsvEventNotInListFmt", new[] { "第 {0} 行 [{1}]: 项目「{2}」不在当前赛事项目列表内", "Row {0} [{1}]: event \"{2}\" is not in this competition's event list" } },
+            { "Str_Msg_RelayCsvInvalidGenderFmt", new[] { "第 {0} 行 [{1}]: 性别「{2}」无效 (应为 男/女/混合)", "Row {0} [{1}]: invalid gender \"{2}\" (must be 男/女/混合)" } },
+            { "Str_Msg_RelayCsvDuplicateFmt", new[] { "第 {0} 行 [{1}]: 同队名+项目+性别+组别已存在", "Row {0} [{1}]: a team with the same name+event+gender+group already exists" } },
+            { "Str_Msg_RelayCsvMissingLegNamesFmt", new[] { "第 {0} 行 [{1}]: 4 棒姓名缺失，跳过（请补齐再导入）", "Row {0} [{1}]: missing one or more of the 4 leg names, skipped (fill them in and re-import)" } },
             { "Str_Msg_SkipDetailsHeader", new[] { "\n--- 跳过明细 ---", "\n--- Skipped Details ---" } },
             { "Str_Msg_MoreNotShownFmt", new[] { "... 还有 {0} 条未显示\n", "... {0} more not shown\n" } },
 
@@ -3637,11 +3653,38 @@ namespace SwimmingScoreboard
 
         /// <summary>把当前语言下的每一条文字写进 Application.Resources —— DynamicResource 绑定会跟着活刷新。</summary>
         public static void Apply() {
+            ApplyThreadCulture();
             var app = Application.Current;
             if (app == null) return;
             foreach (var kv in Table) {
                 app.Resources[kv.Key] = T(kv.Key);
             }
+        }
+
+        /// <summary>2026-10-05 现场反馈: CSV导入成功后弹窗——标题/正文都是英文, 唯独"确定"按钮
+        /// 还是中文。根因: MessageBox.Show() 包的是 Win32 原生消息框, 按钮文字(确定/取消/是/否)
+        /// 由 Windows 按【当前线程 UI culture】给, 跟本系统自己这套 Loc.Table/DynamicResource
+        /// 机制是两条完全独立的翻译路径——之前只换了 Loc.CurrentLanguage, 没动 Thread culture,
+        /// 所以消息文字换了, 按钮没换(中文Windows系统locale缺省就是zh-CN)。每次语言切换时
+        /// 同步设当前线程(= UI线程, MessageBox.Show几乎都从这条线程调)的 CurrentUICulture/
+        /// CurrentCulture。[注: CultureInfo.DefaultThreadCurrentUICulture 是 .NET 4.5+ 才有的
+        /// API, RegistrationTool.csproj 还锁在 v4.0(同样链接这份源码), 不能用, 故不设—— 单线程
+        /// WPF 这几个 exe 里 MessageBox.Show 本来就全从 UI 线程调, 不影响实际效果。]</summary>
+        [System.Runtime.InteropServices.DllImport("kernel32.dll")]
+        private static extern bool SetThreadUILanguage(ushort langId);
+
+        private static void ApplyThreadCulture() {
+            try {
+                // 2026-10-05 原来这里设的是 Thread.CurrentCulture——实测证明无效: 原生 Win32
+                // MessageBox 的 确定/取消/是/否 按钮文字由 user32.dll 的 MUI 资源决定, 走的是
+                // SetThreadUILanguage() 这条 Win32 API, 跟 .NET 的 CultureInfo 是两条互不相干的
+                // 路。只设 CurrentUICulture(不碰 CurrentCulture, 避免殃及全系统日期/数字格式化
+                // 的隐式文化相关行为), 另外加上真正起作用的 SetThreadUILanguage。
+                // [局限: 如果这台机器的 Windows 本身没装英文语言包/MUI资源, 就算调用成功
+                // 按钮文字也可能还是回退显示系统默认语言——这是操作系统层面的限制, 代码管不了。]
+                Thread.CurrentThread.CurrentUICulture = CultureInfo.GetCultureInfo(CurrentLanguage == En ? "en-US" : "zh-CN");
+                SetThreadUILanguage(CurrentLanguage == En ? (ushort)0x0409 : (ushort)0x0804);
+            } catch { }
         }
 
         /// <summary>纯展示用的赛次名翻译——"预赛"/"半决赛"/"决赛"这几个值本身在别处是拿来

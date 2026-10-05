@@ -1,11 +1,17 @@
 <Window x:Class="SwimmingScoreboard.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:SwimmingScoreboard"
         Title="{DynamicResource Str_AppTitle_Main}" Width="1400" Height="820"
         WindowState="Maximized" Background="#F1F5F9"
         Closing="Window_Closing">
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+        <!-- 2026-10-05 只读表格里直接展示 Gender 字段的列(SwimmerGrid)——中文模式下这就是
+             原文, English模式下用它转成 Men/Women/Mixed。只读态可以用纯 OneWay 转换器
+             (不用处理 ConvertBack); 可编辑的表格(如 RecordGrid)暂时没有动这个, 那边改一个
+             字段要连带处理双向转换, 风险更大, 留到下一轮单独处理。 -->
+        <local:GenderDisplayConverter x:Key="GenderConv"/>
         <!-- 2026-09-03 表格单元格内容居中。
              注意: 光在 DataGrid.CellStyle 上设 HorizontalContentAlignment 是【没用】的 ——
              DataGridCell 的默认模板里那个 ContentPresenter 根本没把对齐绑到
@@ -348,16 +354,16 @@
                                 <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
                                     <TextBlock Text="{DynamicResource Str_EM_FilterEvent}" VerticalAlignment="Center"/>
                                     <ComboBox x:Name="FilterEventCombo" Width="180" Margin="4,0,8,0" SelectionChanged="FilterEvent_Changed">
-                                        <ComboBoxItem Content="全部" IsSelected="True"/>
+                                        <ComboBoxItem Content="{DynamicResource Str_Common_All}" IsSelected="True"/>
                                     </ComboBox>
                                     <TextBlock Text="{DynamicResource Str_Common_AgeGroup}" VerticalAlignment="Center"/>
                                     <ComboBox x:Name="FilterAgeGroupCombo" Width="90" Margin="4,0,8,0" SelectionChanged="FilterAgeGroup_Changed"/>
                                     <TextBlock Text="{DynamicResource Str_Common_Gender}" VerticalAlignment="Center"/>
                                     <ComboBox x:Name="FilterGenderCombo" Width="70" Margin="4,0,8,0" SelectionChanged="FilterGender_Changed">
-                                        <ComboBoxItem Content="全部" IsSelected="True"/>
-                                        <ComboBoxItem Content="男"/>
-                                        <ComboBoxItem Content="女"/>
-                                        <ComboBoxItem Content="混合"/>
+                                        <ComboBoxItem Tag="全部" Content="{DynamicResource Str_Common_All}" IsSelected="True"/>
+                                        <ComboBoxItem Tag="男" Content="{DynamicResource Str_Gender_Male}"/>
+                                        <ComboBoxItem Tag="女" Content="{DynamicResource Str_Gender_Female}"/>
+                                        <ComboBoxItem Tag="混合" Content="{DynamicResource Str_Gender_Mixed}"/>
                                     </ComboBox>
                                     <TextBlock Text="{DynamicResource Str_Common_Name}" VerticalAlignment="Center"/>
                                     <TextBox x:Name="FilterNameBox" Width="90" Margin="4,0,8,0" Padding="4,2" TextChanged="FilterText_Changed"
@@ -379,7 +385,7 @@
                                         <DataGridTextColumn Binding="{Binding Name}" Width="80">
                                             <DataGridTextColumn.Header><TextBlock Text="{DynamicResource Str_Col_Name}"/></DataGridTextColumn.Header>
                                         </DataGridTextColumn>
-                                        <DataGridTextColumn Binding="{Binding Gender}" Width="40">
+                                        <DataGridTextColumn Binding="{Binding Gender, Converter={StaticResource GenderConv}}" Width="40">
                                             <DataGridTextColumn.Header><TextBlock Text="{DynamicResource Str_Col_Sex}"/></DataGridTextColumn.Header>
                                         </DataGridTextColumn>
                                         <DataGridTextColumn Binding="{Binding BirthDate}" Width="85">
@@ -619,9 +625,9 @@
                                                   ToolTip="{DynamicResource Str_EM_EditGroupTip}"/>
                                         <TextBlock Text="{DynamicResource Str_EM_LTGenderAll}" VerticalAlignment="Center" Margin="8,0,4,0"/>
                                         <ComboBox x:Name="EditGenderCombo" Width="60" SelectionChanged="EditFilter_Changed">
-                                            <ComboBoxItem Content="男" IsSelected="True"/>
-                                            <ComboBoxItem Content="女"/>
-                                            <ComboBoxItem Content="混合"/>
+                                            <ComboBoxItem Tag="男" Content="{DynamicResource Str_Gender_Male}" IsSelected="True"/>
+                                            <ComboBoxItem Tag="女" Content="{DynamicResource Str_Gender_Female}"/>
+                                            <ComboBoxItem Tag="混合" Content="{DynamicResource Str_Gender_Mixed}"/>
                                         </ComboBox>
                                         <TextBlock Text="{DynamicResource Str_EM_LTEventAll}" VerticalAlignment="Center" Margin="8,0,4,0"/>
                                         <ComboBox x:Name="EditEventCombo" Width="160" SelectionChanged="EditFilter_Changed"/>
@@ -665,7 +671,7 @@
                                         <DataGridTextColumn Binding="{Binding Name}" Width="80">
                                             <DataGridTextColumn.Header><TextBlock Text="{DynamicResource Str_Col_Name}"/></DataGridTextColumn.Header>
                                         </DataGridTextColumn>
-                                        <DataGridTextColumn Binding="{Binding Gender}" Width="40">
+                                        <DataGridTextColumn Binding="{Binding Gender, Converter={StaticResource GenderConv}}" Width="40">
                                             <DataGridTextColumn.Header><TextBlock Text="{DynamicResource Str_Col_Sex}"/></DataGridTextColumn.Header>
                                         </DataGridTextColumn>
                                         <DataGridTextColumn Binding="{Binding Country}" Width="80">
@@ -881,10 +887,10 @@
                                         <ComboBox x:Name="RecordFilterAgeGroup" Width="90" Margin="0,0,8,0" SelectionChanged="RecordFilter_Changed"
                                                   ToolTip="{DynamicResource Str_EM_EditGroupTip}"/>
                                         <ComboBox x:Name="RecordFilterGender" Width="60" Margin="0,0,8,0" SelectionChanged="RecordFilter_Changed">
-                                            <ComboBoxItem Content="全部" IsSelected="True"/>
-                                            <ComboBoxItem Content="男"/>
-                                            <ComboBoxItem Content="女"/>
-                                            <ComboBoxItem Content="混合"/>
+                                            <ComboBoxItem Tag="全部" Content="{DynamicResource Str_Common_All}" IsSelected="True"/>
+                                            <ComboBoxItem Tag="男" Content="{DynamicResource Str_Gender_Male}"/>
+                                            <ComboBoxItem Tag="女" Content="{DynamicResource Str_Gender_Female}"/>
+                                            <ComboBoxItem Tag="混合" Content="{DynamicResource Str_Gender_Mixed}"/>
                                         </ComboBox>
                                         <ComboBox x:Name="RecordFilterEvent" Width="160" Margin="0,0,8,0" SelectionChanged="RecordFilter_Changed"/>
                                         <ComboBox x:Name="RecordFilterType" Width="110" Margin="0,0,8,0" SelectionChanged="RecordFilter_Changed"/>
@@ -972,7 +978,7 @@
                                     <TextBox x:Name="RegNameBox" Grid.Row="0" Grid.Column="1" Padding="3"/>
                                     <TextBlock Grid.Row="1" VerticalAlignment="Center"><Run Text="{DynamicResource Str_Common_Gender}"/><Run Text=" *" Foreground="#EF4444" FontWeight="Bold"/></TextBlock>
                                     <ComboBox x:Name="RegGenderCombo" Grid.Row="1" Grid.Column="1" SelectedIndex="0">
-                                        <ComboBoxItem Content="男"/><ComboBoxItem Content="女"/><ComboBoxItem Content="混合"/>
+                                        <ComboBoxItem Tag="男" Content="{DynamicResource Str_Gender_Male}"/><ComboBoxItem Tag="女" Content="{DynamicResource Str_Gender_Female}"/><ComboBoxItem Tag="混合" Content="{DynamicResource Str_Gender_Mixed}"/>
                                     </ComboBox>
                                     <TextBlock Grid.Row="2" VerticalAlignment="Center"><Run Text="{DynamicResource Str_Common_AgeGroup}"/><Run Text=" *" Foreground="#EF4444" FontWeight="Bold"/></TextBlock>
                                     <ComboBox x:Name="RegGroupCombo" Grid.Row="2" Grid.Column="1" IsEditable="True"
@@ -1833,9 +1839,9 @@
                         <TextBlock Text="{DynamicResource Str_Results_Gender}" VerticalAlignment="Center" Margin="0,0,4,0"/>
                         <!-- 2026-09-21 男/女/混合 不翻译——UpdateResultHeatCombo 等处按这几个字面量做筛选，见 Localization.cs 里的说明 -->
                         <ComboBox x:Name="ResultGenderCombo" Width="70" SelectionChanged="ResultGender_Changed">
-                            <ComboBoxItem Content="男" IsSelected="True"/>
-                            <ComboBoxItem Content="女"/>
-                            <ComboBoxItem Content="混合"/>
+                            <ComboBoxItem Tag="男" Content="{DynamicResource Str_Gender_Male}" IsSelected="True"/>
+                            <ComboBoxItem Tag="女" Content="{DynamicResource Str_Gender_Female}"/>
+                            <ComboBoxItem Tag="混合" Content="{DynamicResource Str_Gender_Mixed}"/>
                         </ComboBox>
                         <TextBlock Text="{DynamicResource Str_Results_Event}" VerticalAlignment="Center" Margin="8,0,4,0"/>
                         <ComboBox x:Name="ResultEventCombo" Width="200" SelectionChanged="ResultEvent_Changed"/>
@@ -1850,7 +1856,7 @@
                         <!-- 2026-09-21 这个初始项一开出来就会被 UpdateResultHeatCombo() 整体重建覆盖掉(含"全部"字样)，
                              C# 里同样拿它的 Content.ToString() 做筛选比较，不翻译 -->
                         <ComboBox x:Name="ResultHeatCombo" Width="60" SelectionChanged="ResultHeat_Changed">
-                            <ComboBoxItem Content="全部" IsSelected="True"/>
+                            <ComboBoxItem Content="{DynamicResource Str_Common_All}" IsSelected="True"/>
                         </ComboBox>
                     </StackPanel>
                     <!-- 姓名列 / 反应时间列加宽并允许换行：接力赛"姓名"为 4 名队员（逗号分隔），

@@ -100,12 +100,12 @@ namespace SwimmingScoreboard
 
             // 顺序有讲究: 改组别/性别会连带重建"项目"下拉, 改项目/赛次会重建"组次"下拉。
             // 所以先定组别/性别/赛次, 再定项目, 最后才是组次 —— 反过来会被后面的重建冲掉。
-            SetCombo(AgeGroupCombo, string.IsNullOrEmpty(ag) ? "全部" : ag);
+            SetCombo(AgeGroupCombo, string.IsNullOrEmpty(ag) ? Loc.T("Str_Common_All") : ag);
             SetCombo(GenderCombo, gd);
             SetCombo(StageCombo, st);
             SetCombo(EventCombo, ev);
             UpdateHeatCombo();
-            SetCombo(HeatCombo, heat > 0 ? ("第" + heat + "组") : "全部");
+            SetCombo(HeatCombo, heat > 0 ? ("第" + heat + "组") : Loc.T("Str_Common_All"));
 
             Query_Click(null, null);
         }
@@ -173,7 +173,7 @@ namespace SwimmingScoreboard
 
         // 2026-06-01 加 AgeGroup 下拉, 解决决赛-only 比赛多年龄组共用 EventName 时按 Heat 误叠的 bug
         private void PopulateAgeGroupCombo(IList<AgeGroup> ageGroups) {
-            AgeGroupCombo.Items.Add("全部");
+            AgeGroupCombo.Items.Add(Loc.T("Str_Common_All"));
             // 优先用配置的 AgeGroups; 否则从 _swimmers.AgeCategory 自动收集
             var names = new List<string>();
             if (ageGroups != null && ageGroups.Count > 0) {
@@ -193,7 +193,7 @@ namespace SwimmingScoreboard
 
         // 组别匹配: 空/"全部"/"不限" = 全选; 否则严格相等
         private static bool MatchesAge(string swimmerAge, string filterAge) {
-            if (string.IsNullOrEmpty(filterAge) || filterAge == "全部" || filterAge == "不限") return true;
+            if (string.IsNullOrEmpty(filterAge) || filterAge == Loc.T("Str_Common_All") || filterAge == "不限") return true;
             string sg = swimmerAge ?? "";
             if (sg == filterAge) return true;
             // 2026-06-04 并项组别 (e.g. "12-15岁组" ⊇ "12-13岁组" + "14-15岁组")
@@ -249,7 +249,7 @@ namespace SwimmingScoreboard
         private void PopulateEventCombo()
         {
             // 2026-06-01 按当前组别+性别过滤可选项目
-            string ageFilter = AgeGroupCombo != null && AgeGroupCombo.SelectedItem != null ? AgeGroupCombo.SelectedItem.ToString() : "全部";
+            string ageFilter = AgeGroupCombo != null && AgeGroupCombo.SelectedItem != null ? AgeGroupCombo.SelectedItem.ToString() : Loc.T("Str_Common_All");
             string gender = GetComboText(GenderCombo);
             string prev = EventCombo.SelectedItem != null ? EventCombo.SelectedItem.ToString() : "";
             EventCombo.Items.Clear();
@@ -283,13 +283,13 @@ namespace SwimmingScoreboard
         private void UpdateHeatCombo()
         {
             if (HeatCombo == null) return;
-            string ageFilter = AgeGroupCombo != null && AgeGroupCombo.SelectedItem != null ? AgeGroupCombo.SelectedItem.ToString() : "全部";
+            string ageFilter = AgeGroupCombo != null && AgeGroupCombo.SelectedItem != null ? AgeGroupCombo.SelectedItem.ToString() : Loc.T("Str_Common_All");
             string gender = GetComboText(GenderCombo);
             string eventName = EventCombo.SelectedItem != null ? EventCombo.SelectedItem.ToString() : "";
             string stage = GetComboText(StageCombo);
 
             HeatCombo.Items.Clear();
-            HeatCombo.Items.Add(new ComboBoxItem { Content = "全部" });
+            HeatCombo.Items.Add(new ComboBoxItem { Content = Loc.T("Str_Common_All") });
 
             var heats = new HashSet<int>();
             // 2026-06-01 加 AgeGroup 过滤, 避免决赛-only 比赛多年龄组共用 EventName 时 Heat 数字重叠
@@ -340,7 +340,7 @@ namespace SwimmingScoreboard
         private List<string> AgeGroupsToQuery(string ageFilter, string gender, string eventName)
         {
             var ages = new List<string>();
-            if (!string.IsNullOrEmpty(ageFilter) && ageFilter != "全部" && ageFilter != "不限") {
+            if (!string.IsNullOrEmpty(ageFilter) && ageFilter != Loc.T("Str_Common_All") && ageFilter != "不限") {
                 ages.Add(ageFilter);
                 return ages;
             }
@@ -548,7 +548,7 @@ namespace SwimmingScoreboard
             SelectedHeat = filterHeat;
             _resultsFinalized = true;
 
-            string ageHead2 = (string.IsNullOrEmpty(ageFilter) || ageFilter == "全部") ? "" : (ageFilter + " ");
+            string ageHead2 = (string.IsNullOrEmpty(ageFilter) || ageFilter == Loc.T("Str_Common_All")) ? "" : (ageFilter + " ");
             StatusText.Text = string.Format("{0}{1} {2} {3}{4} — 共{5}人（★ 取自竞赛库【组排名表】, 已定稿）",
                 ageHead2, gender, eventName, stage,
                 filterHeat > 0 ? " 第" + filterHeat + "组" : " 总排名", all.Count);
@@ -651,13 +651,13 @@ namespace SwimmingScoreboard
 
         private void Query_Click(object sender, RoutedEventArgs e)
         {
-            string ageFilter = AgeGroupCombo != null && AgeGroupCombo.SelectedItem != null ? AgeGroupCombo.SelectedItem.ToString() : "全部";
+            string ageFilter = AgeGroupCombo != null && AgeGroupCombo.SelectedItem != null ? AgeGroupCombo.SelectedItem.ToString() : Loc.T("Str_Common_All");
             string gender = GetComboText(GenderCombo);
             string eventName = EventCombo.SelectedItem != null ? EventCombo.SelectedItem.ToString() : "";
             string stage = GetComboText(StageCombo);
             string heatFilter = GetComboText(HeatCombo);
             int filterHeat = 0;
-            if (heatFilter != "全部")
+            if (heatFilter != Loc.T("Str_Common_All"))
             {
                 var m = System.Text.RegularExpressions.Regex.Match(heatFilter, @"\d+");
                 if (m.Success) filterHeat = int.Parse(m.Value);
@@ -675,7 +675,7 @@ namespace SwimmingScoreboard
             //   不刷就会出现"库里是新的、界面上是旧的", 而且不报错。
             //   刷新失败不阻断查询(下面照样用内存里的), 但主窗口日志里会有一条【注意】。
             if (RefreshFromDb != null) {
-                try { RefreshFromDb(ageFilter == "全部" ? "" : ageFilter, gender, eventName, stage); }
+                try { RefreshFromDb(ageFilter == Loc.T("Str_Common_All") ? "" : ageFilter, gender, eventName, stage); }
                 catch { }
             }
 
@@ -818,7 +818,7 @@ namespace SwimmingScoreboard
                 // 2026-06-18 按 ageGroup 过滤, 修跨年龄段污染 (甲组无半决但乙组有时, 甲组误判)
                 bool hasSemi = _schedule != null && _schedule.Any(s =>
                     s.Gender == gender && s.EventName == eventName && s.Stage == "半决赛"
-                    && (s.AgeGroup ?? "") == (ageFilter == "全部" ? (s.AgeGroup ?? "") : ageFilter));
+                    && (s.AgeGroup ?? "") == (ageFilter == Loc.T("Str_Common_All") ? (s.AgeGroup ?? "") : ageFilter));
                 nextStageQ = hasSemi ? "半决赛" : "决赛";
             } else if (stage == "半决赛") {
                 nextStageQ = "决赛";
@@ -988,7 +988,7 @@ namespace SwimmingScoreboard
             SelectedAgeGroup = ageFilter;
             SelectedHeat = filterHeat;
 
-            string ageHead = (string.IsNullOrEmpty(ageFilter) || ageFilter == "全部") ? "" : (ageFilter + " ");
+            string ageHead = (string.IsNullOrEmpty(ageFilter) || ageFilter == Loc.T("Str_Common_All")) ? "" : (ageFilter + " ");
             string heatDesc = filterHeat > 0 ? " 第" + filterHeat + "组" : " 总排名";
             if (singleHeatFinalized) {
                 // 2026-09-17 这一组已经确认过成绩(不管别的组比没比完), 不再当"过程值"。
@@ -1069,7 +1069,7 @@ namespace SwimmingScoreboard
             //   哨兵字段(见上面 showHeat 那行的 .Contains("预赛")), 源头不能翻译, 但这里只是
             //   拼进标题给人看, 要走 Loc.GenderDisplay()/Loc.StageDisplay() 展示层转换,
             //   之前漏了直接用了原始中文值。
-            string ageHead = (string.IsNullOrEmpty(SelectedAgeGroup) || SelectedAgeGroup == "全部") ? "" : (SelectedAgeGroup + " ");
+            string ageHead = (string.IsNullOrEmpty(SelectedAgeGroup) || SelectedAgeGroup == Loc.T("Str_Common_All")) ? "" : (SelectedAgeGroup + " ");
             string eventTitle = string.Format("{0} {1}{2} {3}{4}",
                 Loc.GenderDisplay(SelectedGender), ageHead, SelectedEvent, Loc.StageDisplay(SelectedStage), heatDisplay);
 
@@ -1079,7 +1079,7 @@ namespace SwimmingScoreboard
             {
                 var sch = _schedule.FirstOrDefault(s =>
                     s.Gender == SelectedGender && s.EventName == SelectedEvent && s.Stage == SelectedStage &&
-                    ((s.AgeGroup ?? "") == (SelectedAgeGroup == "全部" ? (s.AgeGroup ?? "") : (SelectedAgeGroup ?? ""))));
+                    ((s.AgeGroup ?? "") == (SelectedAgeGroup == Loc.T("Str_Common_All") ? (s.AgeGroup ?? "") : (SelectedAgeGroup ?? ""))));
                 if (sch != null)
                     dateTimeInfo = string.Format("{0} {1}", sch.Date, !string.IsNullOrEmpty(sch.Time) ? sch.Time : "").Trim();
             }
@@ -1231,7 +1231,7 @@ namespace SwimmingScoreboard
             //   SelectedGender/SelectedStage 的中文原始值, 英文模式下文件名一直是中文——
             //   跟"按组别批量公布"那边(文件名已经用 Final)不一致。组别/项目名本身仍是
             //   真实业务数据, 不翻译。
-            string ageNamePart = (string.IsNullOrEmpty(SelectedAgeGroup) || SelectedAgeGroup == "全部") ? "" : (SelectedAgeGroup + "_");
+            string ageNamePart = (string.IsNullOrEmpty(SelectedAgeGroup) || SelectedAgeGroup == Loc.T("Str_Common_All")) ? "" : (SelectedAgeGroup + "_");
             string safeEvent2 = ageNamePart + Loc.GenderDisplay(SelectedGender) + SelectedEvent;
             string heatSuffix2 = showHeat ? Loc.F("Str_DocFile_HeatSuffixFmt", SelectedHeat) : "";
             suggestedFileName = string.Format(Loc.T("Str_DocTitle_EventResult") + "_{0}_{1}{2}", safeEvent2, Loc.StageDisplay(SelectedStage), heatSuffix2);

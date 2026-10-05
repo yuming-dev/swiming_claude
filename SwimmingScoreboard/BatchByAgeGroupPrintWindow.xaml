@@ -30,7 +30,7 @@
                           ToolTip="{DynamicResource Str_Win_BatchAge_AgeGroupTip}"/>
                 <TextBlock Text="{DynamicResource Str_Win_BatchAge_GenderLabel}" VerticalAlignment="Center" Margin="0,0,4,0"/>
                 <ComboBox x:Name="GenderCombo" Width="80" SelectionChanged="Filter_Changed" Margin="0,0,12,0">
-                    <ComboBoxItem Content="全部" IsSelected="True"/>
+                    <ComboBoxItem Content="{DynamicResource Str_Common_All}" IsSelected="True"/>
                     <!-- 2026-08-21 改由 MainWindow.FillGenderCombo 按比赛档案的性别表填 -->
                 </ComboBox>
                 <TextBlock Text="{DynamicResource Str_Win_BatchAge_EventLabel}" VerticalAlignment="Center" Margin="0,0,4,0"/>
@@ -38,7 +38,7 @@
                 <TextBlock Text="{DynamicResource Str_Win_BatchAge_StageLabel}" VerticalAlignment="Center" Margin="0,0,4,0"/>
                 <!-- 2026-09-03 赛次只保留"全部", 其余由 MainWindow.FillStageCombo 按参数设置填 -->
                 <ComboBox x:Name="StageCombo" Width="90" SelectionChanged="Filter_Changed" Margin="0,0,12,0">
-                    <ComboBoxItem Content="全部"/>
+                    <ComboBoxItem Content="{DynamicResource Str_Common_All}"/>
                 </ComboBox>
                 <Button Content="{DynamicResource Str_Win_BatchAge_QueryBtn}" Click="Query_Click" Padding="16,6"
                         Background="#3B82F6" Foreground="White" BorderThickness="0"/>
