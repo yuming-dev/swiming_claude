@@ -3301,6 +3301,9 @@ namespace SwimmingScoreboard
             { "Str_Tooltip_ExportGroupingCsv", new[] { "导出当前项目+阶段表格里的分组结果到 CSV", "Export the current event+stage table's grouping results to CSV" } },
             { "Str_Status_ServiceRunning", new[] { "竞赛服务运行中", "Service Running" } },
             { "Str_Status_MemoryColon", new[] { "内存: ", "Memory: " } },
+            // 2026-10-06 现场反馈: 顶部内存监控文字里的"剩余"/"占用"是直接拼在 string.Format 里的
+            // 中文字面量, English 模式下整条内存状态文字(唯独这两个词)还是中文——没走 Loc。
+            { "Str_Status_MemoryDetailFmt", new[] { "{0:F0}MB · 剩余 {1:F1}/{2:F1}GB · 占用 {3}%", "{0:F0}MB · {1:F1}/{2:F1}GB free · {3}% used" } },
             { "Str_Status_BatteryColon", new[] { "电池电压: ", "Battery: " } },
             { "Str_Status_HwTimerColon", new[] { "硬件计时器: ", "Hardware Timer: " } },
             { "Str_Status_ControlModeColon", new[] { "控制模式: ", "Control Mode: " } },

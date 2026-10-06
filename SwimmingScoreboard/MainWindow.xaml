@@ -40,8 +40,13 @@
                     <Ellipse Width="10" Height="10" Fill="#22C55E" Margin="0,0,8,0" VerticalAlignment="Center"/>
                     <TextBlock Text="{DynamicResource Str_Status_ServiceRunning}" Foreground="White" FontSize="14" VerticalAlignment="Center"/>
                 </StackPanel>
+                <!-- 2026-10-06 现场反馈: RTC 模式下这段描述文字 English 比中文原文长不少, 顶部这栏
+                     宽度不够时原来直接硬裁("...relays through..."被齐齐切成"...rela"), 跟右边
+                     "Memory:" 文字紧贴在一起, 看着像拼接出错。加 TextTrimming 至少裁出省略号,
+                     不再是生硬断词。 -->
                 <TextBlock x:Name="ServerAddressText" Grid.Column="1" Foreground="#94A3B8" FontSize="12"
-                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                           TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"/>
                 <StackPanel Grid.Column="2" Orientation="Horizontal">
                     <!--2026-06-08 内存监控显示: Working Set MB + Gen2 GC 次数. 长跑下若 MB 持续涨 = 有泄漏-->
                     <TextBlock Text="{DynamicResource Str_Status_MemoryColon}" Foreground="#94A3B8" FontSize="12" VerticalAlignment="Center"/>
@@ -55,7 +60,7 @@
                     <Ellipse x:Name="HwConnDot" Width="10" Height="10" Fill="#EF4444" Margin="0,0,6,0" VerticalAlignment="Center"/>
                     <TextBlock Text="{DynamicResource Str_Status_HwTimerColon}" Foreground="#94A3B8" FontSize="12" VerticalAlignment="Center"/>
                     <TextBlock x:Name="HwConnStatusText" Text="{DynamicResource Str_HwConn_NotConnected}" Foreground="#EF4444" FontSize="12" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,16,0"/>
-                    <TextBlock Text="{DynamicResource Str_Status_ControlModeColon}" Foreground="#94A3B8" FontSize="12" VerticalAlignment="Center"/>
+                    <TextBlock x:Name="ControlModeLabel" Text="{DynamicResource Str_Status_ControlModeColon}" Foreground="#94A3B8" FontSize="12" VerticalAlignment="Center"/>
                     <TextBlock x:Name="ControlModeText" Text="{DynamicResource Str_ScoringMode_Local}" Foreground="#22C55E" FontSize="12" VerticalAlignment="Center"/>
                 </StackPanel>
             </Grid>

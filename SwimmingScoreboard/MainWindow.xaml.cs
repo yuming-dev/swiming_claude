@@ -468,7 +468,10 @@ namespace SwimmingScoreboard
             string header = "";
             var ti = MeetMgmtTabs.SelectedItem as TabItem;
             if (ti != null && ti.Header != null) header = ti.Header.ToString();
-            bool show = (header == "运动员管理" || header == "接力队管理");
+            // 2026-10-06 同一类坑: Header 文本 English 模式下已是英文, 跟硬编码中文比永远比不中——
+            //   导致 English 模式下不管切到哪页, 右边的运动员注册面板都不出现。
+            bool show = (header == Loc.TChinese("Str_EM_Tab_Swimmers") || header == Loc.TEnglish("Str_EM_Tab_Swimmers")
+                || header == Loc.TChinese("Str_EM_Tab_Relay") || header == Loc.TEnglish("Str_EM_Tab_Relay"));
             AthleteRegPanel.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
             AthleteRegColumn.Width = show ? new GridLength(400) : new GridLength(0);
         }
@@ -609,7 +612,14 @@ namespace SwimmingScoreboard
         private void ApplyRemoteTimingControlMode() {
             Title = Loc.T("Str_AppTitle_Rtc");
             if (MainTabControl == null) return;
-            var keep = new System.Collections.Generic.HashSet<string> { "比赛控制" };
+            // 2026-10-06 现场反馈: RTC/编排端启动后显示的是"系统状态"而不是该留的那个 Tab——
+            //   根因是这里原来拿 Tab 的 Header 文本跟硬编码中文字面量比, Header 本身是
+            //   {DynamicResource Str_Tab_*} 绑的, English 模式下已经是英文, 比不中 → keep
+            //   命中个空集, 全部 Tab 被 Collapsed, SelectedItem 也没人设, 停在默认的"系统状态"。
+            //   改成拿 Loc.TChinese/Loc.TEnglish 两个语种的真实值来比, 不管当前什么语言都认。
+            var keep = new System.Collections.Generic.HashSet<string> {
+                Loc.TChinese("Str_Tab_RaceControl"), Loc.TEnglish("Str_Tab_RaceControl")
+            };
             TabItem firstVisible = null;
             foreach (var obj in MainTabControl.Items) {
                 var ti = obj as TabItem;
@@ -706,7 +716,7 @@ namespace SwimmingScoreboard
                         int load; double totalGB, availGB;
                         bool hasSys = GetSystemMemoryInfo(out load, out totalGB, out availGB);
                         MemoryStatusText.Text = hasSys
-                            ? string.Format("{0:F0}MB · 剩余 {1:F1}/{2:F1}GB · 占用 {3}%", mb, availGB, totalGB, load)
+                            ? Loc.F("Str_Status_MemoryDetailFmt", mb, availGB, totalGB, load)
                             : string.Format("{0:F0}MB", mb);
                         // 颜色提示(按系统内存占用率): >=80% 红(吃紧提示), 60-80% 琥珀, <60% 绿; 取不到则退回按 MB
                         string memCol;
@@ -790,8 +800,12 @@ namespace SwimmingScoreboard
         private void ApplyScheduleEditorMode() {
             Title = Loc.T("Str_AppTitle_ScheduleEditor");
             if (MainTabControl == null) return;
+            // 2026-10-06 同 ApplyRemoteTimingControlMode 那处——原来拿 Header 文本比硬编码中文,
+            //   English 模式下比不中, 三个该留的 Tab 全被 Collapsed, 停在默认的"系统状态"不动。
             var keep = new System.Collections.Generic.HashSet<string> {
-                "赛事管理与报名", "成绩与排名", "文档编辑/输出/打印"
+                Loc.TChinese("Str_Tab_EventMgmt"), Loc.TEnglish("Str_Tab_EventMgmt"),
+                Loc.TChinese("Str_Tab_Results"), Loc.TEnglish("Str_Tab_Results"),
+                Loc.TChinese("Str_Tab_Docs"), Loc.TEnglish("Str_Tab_Docs")
             };
             TabItem firstVisible = null;
             foreach (var obj in MainTabControl.Items) {
@@ -826,14 +840,16 @@ namespace SwimmingScoreboard
             if (parent == null) return;
             // 2026-06-17 不清空整个 StackPanel (会丢失 内存监控 MemoryStatusText / 硬件计时器灯 HwConnDot+HwConnStatusText);
             //   只移除"控制模式: ..." (= label + ControlModeText) 两个控件, 再追加"硬件连接"按钮 + "主服务器: [IP] [连接] [状态]"
+            // 2026-10-06 原来靠 prev.Text.IndexOf("控制模式") 判断"要不要连标签一起删"——
+            //   English 模式下这个 TextBlock 显示的是 "Control Mode: ", 根本不含"控制模式"
+            //   这个中文子串, 判断必然落空: "控制模式"标签留了下来, 但后面绑的 ControlModeText
+            //   已经被删掉, 现场看到的就是孤零零一个 "Control Mode:" 后面直接接"主服务器:",
+            //   中间空了一截。改成直接认 x:Name="ControlModeLabel", 不比较文本内容。
             int idx = parent.Children.IndexOf(ControlModeText);
             if (idx >= 0) {
                 parent.Children.RemoveAt(idx);
-                if (idx > 0) {
-                    var prev = parent.Children[idx - 1] as TextBlock;
-                    if (prev != null && prev.Text != null && prev.Text.IndexOf("控制模式") >= 0) {
-                        parent.Children.RemoveAt(idx - 1);
-                    }
+                if (idx > 0 && parent.Children[idx - 1] == ControlModeLabel) {
+                    parent.Children.RemoveAt(idx - 1);
                 }
             }
             // 2026-06-17 顶端右侧加"硬件连接"按钮 (RTC 上方便, 主服务器有原入口也可加)
@@ -10801,7 +10817,10 @@ namespace SwimmingScoreboard
             var selected = MainTabControl.SelectedItem as TabItem;
             if (selected == null || selected.Header == null) return;
             string header = selected.Header.ToString();
-            if (header == "成绩与排名") {
+            // 2026-10-06 同一类坑: Header 跟硬编码中文字面量比, English 模式下比不中——切到"成绩
+            //   与排名"/"比赛控制"页时, 下面这两段自动刷新/自动推送参数的逻辑在 English 模式下
+            //   全部不触发。
+            if (header == Loc.TChinese("Str_Tab_Results") || header == Loc.TEnglish("Str_Tab_Results")) {
                 try { RefreshAllAgeGroupFilterCombos(); } catch { }
                 try { UpdateResultHeatCombo(); } catch { }
                 try { RefreshResultGrid(); } catch { }
@@ -10810,7 +10829,7 @@ namespace SwimmingScoreboard
             //   完整参数包推给硬件 + 广播给所有客户端, 免去用户每次都要手动打开「参数设置」对话框点保存才能生效。
             //   2026-05-25 (需求 #17) 完整对齐 OnStatusChanged 段: 加入 SetMatchEvent / DeviceStatuses /
             //   PoolSingleOrDoubleTP, 让"重启 + 进比赛控制"等价于硬件初次连接的完整初始化, 不再遗漏任一字段
-            if (header == "比赛控制" && _timingBridge != null && _timingBridge.IsConnected) {
+            if ((header == Loc.TChinese("Str_Tab_RaceControl") || header == Loc.TEnglish("Str_Tab_RaceControl")) && _timingBridge != null && _timingBridge.IsConnected) {
                 try {
                     SendTimingSettingsToHardware();            // 0x41 / 0x44 / 0x45
                     SendDeviceStatusesToHardware();            // 0x46 / 0x49 / 0x4A
